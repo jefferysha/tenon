@@ -942,7 +942,17 @@ assert_contains "三注入: 上下文含活跃 change 名" "$out" "demo-ss"
 assert_contains "三注入: 上下文含相位" "$out" "phase=build"
 assert_not_contains "三注入: archived change 不列出" "$out" "done-ss"
 assert_contains "三注入: 新鲜门 marker 列出（review）" "$out" "等:review"
+assert_contains "三注入: 待处理门说明评审由用户回复确认解封" "$out" "等:review 由用户回复确认"
+# 真机（第四轮）：回执已写入（approved）后恢复上下文仍报「等:review」。只报仍待处理的门，并说明已确认。
+printf 'track: backend\nphase: build\narchived: \nreview_gate_phase: build\nreview_gate_status: approved\nreview_gate_event: build-complete\n' \
+  > "$proj/openspec/changes/demo-ss/.pipeline.yaml"
+out="$(printf '{"cwd":"%s"}' "$proj" | bash "$SS" 2>/dev/null)"
+assert_not_contains "三注入: 已确认的评审不再列为待处理门" "$out" "等:review"
+assert_contains "三注入: 已确认的评审在候选里说明" "$out" "评审已确认（build-complete）"
 rm -f "$proj/.pipeline-pending-review"
+out="$(printf '{"cwd":"%s"}' "$proj" | bash "$SS" 2>/dev/null)"
+assert_not_contains "三注入: marker 已删除时不报待处理门" "$out" "待处理交互门"
+printf 'track: backend\nphase: build\narchived: \n' > "$proj/openspec/changes/demo-ss/.pipeline.yaml"
 
 # 8b'. Git 项目子目录定位到项目根；非 Git 的嵌套目录必须显式 TENON_PROJECT_ROOT，
 # 不能借共同父目录的 OpenSpec。
@@ -1540,6 +1550,18 @@ EOF
   assert_not_contains "router: 多个候选的泛化继续不按 mtime 选 older" "$ROUT" "change: older"
   assert_not_contains "router: 多个候选的泛化继续不按 mtime 选 newer" "$ROUT" "change: newer"
 
+  # 真机（第四轮）：「按推荐」确认了评审、回执已写入，模型却对用户说「这道门只认『确认继续』」。
+  # 确认待决评审的这一轮，dispatch 明说它就是确认、别再索要放行语，以 status 的 step.review 为准。
+  rc_review="$TMP/router-review-reply"
+  write_v2_review_marker "$rc_review" rv-demo spec
+  run_router "{\"prompt\":\"按推荐\",\"cwd\":\"$rc_review\",\"session_id\":\"rv-session\"}"
+  assert_contains "router: 确认待决评审的回复 → resume" "$ROUT" "intent: resume"
+  assert_contains "router: 确认待决评审时明说不再索要「确认继续」" "$ROUT" "不要再让用户说「确认继续」"
+  assert_contains "router: 确认待决评审时指向 step.review" "$ROUT" "tenon status rv-demo --json 的 step.review"
+  rm -f "$rc_review/.pipeline-pending-review"
+  run_router "{\"prompt\":\"继续 rv-demo\",\"cwd\":\"$rc_review\",\"session_id\":\"rv-session\"}"
+  assert_not_contains "router: 没有待决评审时不说评审已确认" "$ROUT" "不要再让用户说「确认继续」"
+
   # 多个活跃 change 时，普通对话里完整点名的 change 是明确选择，不能因为候选表
   # 被清空而退化为 select。`active-change` 若指向另一个 change，也不能覆盖用户本轮
   # 的显式名称；这是 dashboard 启动多个 workflow 后仍可恢复指定目标的关键回归。
@@ -1908,6 +1930,23 @@ assert_contains "confirm-clear-prompt: 解封后告知 agent 重试被拦截的�
 grep -Fq '"raw":"InteractionConfirmed: tenon:brainstorming"' "$ONCE_HIST" \
   && ok "confirm-clear-prompt: 确认留下 InteractionConfirmed 历史行" \
   || bad "confirm-clear-prompt: 确认留下 InteractionConfirmed 历史行" "history 缺少确认行"
+# 真机（第四轮）：「按推荐」写入了评审回执并删除 marker，模型却没收到任何说明，对用户说这道门只认
+# 「确认继续」。回执写入的那一轮必须明说：已记录对哪个任务、哪条事件的确认，接着照 next 推进。
+RV_PROJ="$TMP/cp-review-confirmed"
+write_v2_review_marker "$RV_PROJ" rv-ack spec
+printf 'pipeline-review-v2\nphase=spec\nchange=rv-ack\nevent=spec-complete\nrequested_at=2026-07-24T00:00:00Z\n待人工复核\n' \
+  > "$RV_PROJ/.pipeline-pending-review"
+OUT="$(printf '%s' "{\"cwd\":\"$RV_PROJ\",\"prompt\":\"按推荐\"}" | PATH="$FAKE_TENON_BIN:$PATH" TENON_HOOK_LOG="$FAKE_TENON_LOG" bash "$CP" 2>/dev/null)"
+assert_contains "confirm-clear-prompt: 「按推荐」写入评审回执后宣告已确认" "$OUT" "<tenon-review-confirmed>"
+assert_contains "confirm-clear-prompt: 宣告点名任务与事件" "$OUT" "对任务 rv-ack 的评审确认（事件 spec-complete）"
+assert_contains "confirm-clear-prompt: 宣告要求照 next 推进" "$OUT" "transition rv-ack spec-complete"
+FAIL_TENON_BIN="$TMP/fail-tenon-bin"; mkdir -p "$FAIL_TENON_BIN"
+printf '#!/usr/bin/env bash\nexit 1\n' > "$FAIL_TENON_BIN/tenon"; chmod +x "$FAIL_TENON_BIN/tenon"
+OUT="$(printf '%s' "{\"cwd\":\"$RV_PROJ\",\"prompt\":\"按推荐\"}" | PATH="$FAIL_TENON_BIN:$PATH" bash "$CP" 2>/dev/null)"
+assert_not_contains "confirm-clear-prompt: acknowledge 失败时不宣告已确认" "$OUT" "tenon-review-confirmed"
+rm -f "$RV_PROJ/.pipeline-pending-review"
+OUT="$(printf '%s' "{\"cwd\":\"$RV_PROJ\",\"prompt\":\"确认继续\"}" | PATH="$FAKE_TENON_BIN:$PATH" TENON_HOOK_LOG="$FAKE_TENON_LOG" bash "$CP" 2>/dev/null)"
+assert_not_contains "confirm-clear-prompt: 没有待决评审时不宣告评审确认" "$OUT" "tenon-review-confirmed"
 # 真机（第三轮）：同一轮 prompt 里 <tenon-interaction-confirmed> 出现两次——宿主把同一条
 # UserPromptSubmit hook 跑了不止一份（并发）。解封以原子 rename 认领：只有认领成功的那一份记录
 # InteractionConfirmed、宣告解封；其余几份什么也不说。
