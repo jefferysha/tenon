@@ -114,6 +114,30 @@ describe('fetchSnapshot', () => {
     await expect(fetchSnapshot()).rejects.toThrow('500')
   })
 
+  it('带上次的 ETag 发 If-None-Match；304 复用上次解码的快照', async () => {
+    const snap = makeSnapshot([])
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, status: 200, headers: new Headers({ ETag: '"v1"' }), json: async () => snap })
+      .mockResolvedValueOnce({ ok: false, status: 304, headers: new Headers({ ETag: '"v1"' }), json: async () => { throw new Error('no body') } })
+      .mockResolvedValueOnce({ ok: true, status: 200, headers: new Headers(), json: async () => snap })
+      .mockResolvedValueOnce({ ok: true, status: 200, headers: new Headers(), json: async () => snap })
+    vi.stubGlobal('fetch', fetchMock)
+    const first = await fetchSnapshot()
+    expect(fetchMock.mock.calls[0]?.[1]).toEqual({ headers: { Accept: 'application/json' } })
+    const second = await fetchSnapshot()
+    expect(fetchMock.mock.calls[1]?.[1]).toEqual({ headers: { Accept: 'application/json', 'If-None-Match': '"v1"' } })
+    expect(second).toBe(first)
+    // A response without an ETag forgets the cached one: the next request is unconditional.
+    await fetchSnapshot()
+    await fetchSnapshot()
+    expect(fetchMock.mock.calls[3]?.[1]).toEqual({ headers: { Accept: 'application/json' } })
+  })
+
+  it('没有缓存时的 304 按失败处理', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 304, headers: new Headers(), json: async () => ({}) }))
+    await expect(fetchSnapshot()).rejects.toThrow('304')
+  })
+
   it('2xx 响应解码失败不伪装成 HTTP 200 错误', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({}) }))
     const error = await fetchSnapshot().catch((caught: unknown) => caught)

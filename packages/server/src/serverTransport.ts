@@ -2,13 +2,13 @@ import { readFileSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { join } from 'node:path'
 import { gzipSync } from 'node:zlib'
-import { buildSnapshot, computeFingerprint, type SnapshotDeps } from './snapshot.js'
+import type { SnapshotDeps } from './snapshot.js'
+import { createSnapshotCache } from './snapshotCache.js'
 import { singleFlight } from './singleFlight.js'
 
 const MAX_POST_BODY = 64 * 1024
 
 export interface ServerTransportOptions {
-  registry: () => string[]
   snapshotDeps: (nowMs?: number) => SnapshotDeps
   heartbeatMs: number
   pollIntervalMs: number
@@ -17,7 +17,9 @@ export interface ServerTransportOptions {
 }
 
 export function createServerTransport(options: ServerTransportOptions) {
-  const { registry, snapshotDeps, heartbeatMs, pollIntervalMs, token } = options
+  const { snapshotDeps, heartbeatMs, pollIntervalMs, token } = options
+// /api/snapshot, the SSE first frame, poll broadcasts and the AFK views all read this one cache.
+const snapshotCache = createSnapshotCache({ snapshotDeps })
 const clients = new Set<ServerResponse>()
 let lastFp = ''
 let lastBeat = Date.now()
@@ -43,15 +45,13 @@ const pollTick = singleFlight(async (): Promise<void> => {
     stopPoll() // 零客户端不空转
     return
   }
-  let fp: string
-  const nowMs = Date.now()
   try {
-    const deps = snapshotDeps(nowMs)
-    fp = await computeFingerprint(registry(), nowMs, deps.rootAnchor, deps.readChangesDirectory, deps.viewer)
+    const fp = await snapshotCache.fingerprint()
     if (fp !== lastFp) {
-      lastFp = fp
       try {
-        broadcast('snapshot', JSON.stringify(await buildSnapshot(deps)))
+        const shared = await snapshotCache.current()
+        lastFp = shared.fingerprint
+        broadcast('snapshot', shared.body)
       } catch {
         /* 一次失败下轮再试 */
       }
@@ -124,10 +124,9 @@ async function handleStream(req: IncomingMessage, res: ServerResponse): Promise<
   })
   clients.add(res)
   try {
-    const nowMs = Date.now()
-    const deps = snapshotDeps(nowMs)
-    lastFp = await computeFingerprint(registry(), nowMs, deps.rootAnchor, deps.readChangesDirectory, deps.viewer)
-    res.write(`event: snapshot\ndata: ${JSON.stringify(await buildSnapshot(deps))}\n\n`)
+    const shared = await snapshotCache.current()
+    lastFp = shared.fingerprint
+    res.write(`event: snapshot\ndata: ${shared.body}\n\n`)
   } catch {
     /* 初始快照失败不影响后续推送 */
   }
@@ -209,6 +208,7 @@ function serveAsset(req: IncomingMessage, res: ServerResponse, path: string): bo
  *  同 /api/afk/readiness「查不到是常态不是故障」的恒 200 哲学。 */
 
   return {
+    snapshotCache,
     clients,
     stopPoll,
     sendJson,

@@ -2,13 +2,20 @@ import type { Snapshot } from '../types'
 import { decodeSnapshot } from './snapshotDecoder'
 import { ApiError, getToken, isRecord, readJson, throwDetailedApiError, wrapNetwork } from './transport'
 
+/** The last decoded snapshot and its ETag: when the server answers 304, a refresh reuses it as is. */
+let lastSnapshot: { etag: string; snapshot: Snapshot } | undefined
+
 export async function fetchSnapshot(): Promise<Snapshot> {
+  const known = lastSnapshot
   let response: Response
   try {
-    response = await fetch('/api/snapshot', { headers: { Accept: 'application/json' } })
+    response = await fetch('/api/snapshot', {
+      headers: known === undefined ? { Accept: 'application/json' } : { Accept: 'application/json', 'If-None-Match': known.etag },
+    })
   } catch (error) {
     wrapNetwork(error)
   }
+  if (response.status === 304 && known !== undefined) return known.snapshot
   if (!response.ok) throw new ApiError(`snapshot request failed (${response.status})`, response.status)
   let body: unknown
   try {
@@ -18,6 +25,8 @@ export async function fetchSnapshot(): Promise<Snapshot> {
   }
   const snapshot = decodeSnapshot(body)
   if (!snapshot) throw new ApiError('snapshot response is invalid')
+  const etag = response.headers?.get('ETag') ?? null
+  lastSnapshot = etag === null ? undefined : { etag, snapshot }
   return snapshot
 }
 

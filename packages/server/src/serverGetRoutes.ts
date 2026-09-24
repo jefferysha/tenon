@@ -32,6 +32,7 @@ import { buildRunDetail } from './runDetail.js'
 import { buildSecretsResponse } from './secrets.js'
 import { resolveSkillsGet } from './serverGetSkillsRoutes.js'
 import { dedupeRoots, type SnapshotDeps } from './snapshot.js'
+import type { SnapshotCache } from './snapshotCache.js'
 import { readChangeHistory } from './transition.js'
 import type { DashboardServerOptions, ServerPaths } from './types.js'
 import {
@@ -88,6 +89,7 @@ export interface GetRouteDeps {
   isLocalHost: (host: string | undefined, port: number) => boolean
   boundPort: () => number
   snapshotDeps: (nowMs?: number) => SnapshotDeps
+  snapshotCache: SnapshotCache
   handleStream: (req: IncomingMessage, res: ServerResponse) => Promise<void>
   isRegisteredRoot: (root: string) => boolean
   clock: () => string

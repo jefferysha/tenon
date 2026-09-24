@@ -30,7 +30,9 @@ async function viewerFingerprintParts(
   readRoot: string,
   viewer: TenonUserResolution | undefined,
 ): Promise<string[]> {
-  const parts: string[] = []
+  // The viewer decides which changes are archived, so a different viewer is a different snapshot even
+  // before either archive store exists; the shared snapshot cache keys on this fingerprint.
+  const parts: string[] = [`viewer:${readRoot}:${viewer === undefined ? 'none' : isTenonUser(viewer) ? viewer.slug : 'missing'}`]
   const targets = [join(readRoot, '.git', 'logs', 'HEAD')]
   if (viewer !== undefined && isTenonUser(viewer)) targets.push(userProjectPaths(readRoot, viewer.slug).archived)
   for (const target of targets) {
