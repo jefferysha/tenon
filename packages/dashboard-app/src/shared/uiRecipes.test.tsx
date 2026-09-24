@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { BUTTON_DANGER, BUTTON_GHOST, BUTTON_ICON, BUTTON_SEGMENT, BUTTON_SOLID } from './uiRecipes'
+import { BUTTON_DANGER, BUTTON_GHOST, BUTTON_ICON, BUTTON_SEGMENT, BUTTON_SOLID, INPUT, PILL, SELECT, TEXTAREA } from './uiRecipes'
 
 const classes = (recipe: string): string[] => recipe.split(/\s+/u)
 
@@ -38,6 +38,46 @@ describe('button recipes', () => {
   ])('%s hover feedback only applies while enabled', (_name, recipe) => {
     expect(classes(recipe).filter((name) => name.startsWith('hover:'))).toEqual([])
     expect(classes(recipe).some((name) => name.startsWith('enabled:hover:'))).toBe(true)
+  })
+})
+
+describe('control shape and weight', () => {
+  it.each([
+    ['solid', BUTTON_SOLID],
+    ['ghost', BUTTON_GHOST],
+    ['danger', BUTTON_DANGER],
+    ['icon', BUTTON_ICON],
+    ['segment', BUTTON_SEGMENT],
+    ['input', INPUT],
+    ['select', SELECT],
+    ['textarea', TEXTAREA],
+    ['pill', PILL],
+  ])('%s uses the 8px control radius and never a pill', (_name, recipe) => {
+    expect(classes(recipe)).toContain('rounded-sm')
+    expect(recipe).not.toMatch(/rounded-(?:md|lg|full)/u)
+  })
+
+  it('buttons use 600, never 700', () => {
+    for (const recipe of [BUTTON_SOLID, BUTTON_GHOST, BUTTON_DANGER, BUTTON_SEGMENT, PILL]) {
+      expect(classes(recipe)).toContain('font-semibold')
+      expect(recipe).not.toContain('font-bold')
+    }
+  })
+
+  it('row-level buttons darken on press', () => {
+    expect(classes(BUTTON_GHOST)).toContain('enabled:active:bg-fill-2')
+    expect(classes(BUTTON_ICON)).toContain('enabled:active:bg-fill-2')
+  })
+
+  it.each([
+    ['input', INPUT],
+    ['select', SELECT],
+  ])('%s shares the card ground and a single accent focus ring without offset', (_name, recipe) => {
+    const names = classes(recipe)
+    for (const name of ['bg-card', 'border-border-2', 'focus-visible:border-(--accent)', 'focus-visible:ring-[3px]', 'focus-visible:ring-(--accent)/20']) {
+      expect(names).toContain(name)
+    }
+    expect(recipe).not.toMatch(/ring-offset|bg-bg\b/u)
   })
 })
 
