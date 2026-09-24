@@ -4,6 +4,60 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
+## v0.1.5 · 2026-09-24
+
+A fourth real-session acceptance release. On v0.1.4 all three tracks finished with a clean working tree; this
+release fixes the guidance and confirmation issues that run found.
+
+### Review confirmation
+
+- When a reply such as "按推荐" confirms a review, the hook now tells the model the receipt was written for which
+  change and event, to follow `next`, and not to ask for "确认继续" again. In v0.1.4 the model claimed the
+  confirmation had not taken effect and waited a turn.
+- The resume context only reports review gates that still exist and are unconfirmed; a confirmed review awaiting its
+  transition shows as confirmed.
+- The entry skill lists every reply that confirms a review gate. "按推荐" only confirms the gate: field values follow
+  `next`'s `recommended`, and the model must ask before using a different value.
+
+### Flow
+
+- When the planning step flags a missing test script, it asks for the script and tests to be written into the
+  proposal and design too, and the `spec-consistency` reviewer no longer treats a script added only to satisfy a
+  required test as a spec mismatch. In v0.1.4 this caused a verify-fail and a return to spec.
+- The delivery step commits before ticking tasks, and later changes such as the applied spec get a second commit
+  before `pr_url`.
+- The `read-documents` action names the inputs this step may edit (`editable`) with a note; everything else is
+  read-only and requirement changes go through `requirements-changed`. Document content must be read into context,
+  not discarded.
+- Workflows without OpenSpec report "finished" instead of "archived", and the `list --finished` column is
+  `FINISHED_AT`.
+
+### Upgrade
+
+From v0.1.4: run `tenon update --codex` (or `--claude`) and open a new host session. The N-1 gate reads and writes
+this release's data with the published v0.1.4 in both directions.
+
+From 1.x: run the versioned installer once for each host you use:
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.5/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.5/install.sh | /bin/bash -s -- --codex
+```
+
+### Compatibility
+
+- Human-readable output changes: the finished line of `check` for non-OpenSpec workflows, the `status` lines
+  `finished` / `finished_at`, and the `list` column `FINISHED_AT`. JSON output is unchanged.
+
+### Verify
+
+```bash
+tenon doctor
+tenon runtime status
+```
+
+Both hosts' inventory, the active managed runtime and the Dashboard report 0.1.5.
+
 ## v0.1.4 · 2026-09-24
 
 A third real-session acceptance release. v0.1.3 was driven through the backend, free and simple tracks in real

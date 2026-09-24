@@ -12,6 +12,53 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 
 面向用户的解释、影响与操作步骤默认使用中文。
 
+## v0.1.5 · 2026-09-24
+
+第四轮真实会话验收修复版。在 v0.1.4 上三条轨道都已走完并保持工作区干净，本版修复其中发现的引导与确认问题。
+
+### 评审确认
+
+- 用户回复「按推荐」等确认语后，hook 写入评审回执时明确告知模型：已记录对哪个任务、哪个事件的确认，照 `next`
+  推进，不要再要求「确认继续」。v0.1.4 中模型会误称确认未生效并空等一轮。
+- 会话恢复上下文只报告仍存在且未确认的评审门；已确认未流转的显示「评审已确认」。
+- 入口技能列出全部能确认评审门的回复；「按推荐」只表示确认该门，字段取值以 `next` 的 `recommended` 为准，
+  想用其他取值必须先问用户。
+
+### 流程
+
+- 规划步提示缺少测试脚本时，要求把测试脚本与测试同步写进提案与设计；`spec-consistency` 评审不再把仅为满足
+  必需测试而补的脚本视为规格不一致。v0.1.4 中这会导致 verify-fail 并回退 spec。
+- 交付步先提交再勾选任务；应用规格等后续改动在 `pr_url` 之前再提交一次。
+- `read-documents` 动作标明本步可编辑的输入文档（`editable`）与说明；其余只读，需求变化走
+  `requirements-changed`。文档内容必须读入上下文，不能丢弃输出。
+- 不使用 OpenSpec 的工作流完结后显示「已完结」，不再声称「已归档」；`list --finished` 列名改为 `FINISHED_AT`。
+
+### 升级动作
+
+从 v0.1.4 升级：运行 `tenon update --codex`（或 `--claude`），然后新开宿主会话。N-1 兼容门禁在两个方向上用已发布的
+v0.1.4 读写本版本的数据。
+
+从 1.x 迁移：为使用的每个宿主各运行一次版本化安装命令：
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.5/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.5/install.sh | /bin/bash -s -- --codex
+```
+
+### 兼容性
+
+- 人读输出变化：非 OpenSpec 工作流的 `check` 完结文案、`status` 的 `finished` / `finished_at` 行、`list` 的
+  `FINISHED_AT` 列。JSON 输出不变。
+
+### 验证
+
+```bash
+tenon doctor
+tenon runtime status
+```
+
+两个宿主的 inventory、active managed runtime 与 Dashboard 都报告 0.1.5。
+
 ## v0.1.4 · 2026-09-24
 
 第三轮真实会话验收修复版。在 v0.1.3 上用真实 Claude Code 会话走完 backend、free 与 simple 轨道，本版修复其中发现的问题。

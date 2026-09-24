@@ -49380,6 +49380,20 @@ function effectiveWorkflowForState(deps, state) {
   }, track, state.runMetadata?.workflowPlanSnapshot);
 }
 
+// packages/cli/src/commands/finishedLabel.ts
+var FINISHED = "\u5DF2\u5B8C\u7ED3";
+var FINISHED_ARCHIVED = "\u5DF2\u5B8C\u7ED3\uFF08\u5DF2\u5F52\u6863\uFF09";
+function finishedLabel(deps, state, relocated) {
+  if (relocated) return FINISHED_ARCHIVED;
+  let governed = false;
+  try {
+    governed = effectiveWorkflowForState(deps, state)?.capabilities.documents.governed === true;
+  } catch {
+    governed = false;
+  }
+  return governed ? FINISHED_ARCHIVED : FINISHED;
+}
+
 // packages/cli/src/commands/candidate.ts
 var CANDIDATE_RE = /^(?:sha256:|workspace:sha256:)[0-9a-f]{64}$|^git:[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 function normalizeCandidate(value) {
@@ -51329,7 +51343,7 @@ async function cmdCheck(deps, name2, opts = {}) {
     return 1;
   }
   if (str(state.fields.archived) === "true") {
-    deps.io.out(`change '${name2}' \u5DF2\u5B8C\u7ED3\uFF08\u5DF2\u5F52\u6863\uFF09\uFF0C\u65E0\u9700\u68C0\u67E5`);
+    deps.io.out(`change '${name2}' ${finishedLabel(deps, state, dir !== changeDir(deps.cwd, name2))}\uFF0C\u65E0\u9700\u68C0\u67E5`);
     return 0;
   }
   let plan;
@@ -53115,7 +53129,7 @@ var TENON_HOSTS = [
 var TENON_MARKETPLACE_SOURCE = "jefferysha/tenon";
 var TENON_MARKETPLACE_NAME = "tenon";
 var TENON_PLUGIN_NAME = "tenon";
-var TENON_RELEASE_VERSION = "0.1.4";
+var TENON_RELEASE_VERSION = "0.1.5";
 function parseHostPluginInventory(host, stdout) {
   let parsed;
   try {
@@ -69817,6 +69831,64 @@ function unconfiguredMessage(testId, command2, gap) {
   return `\u6D4B\u8BD5 '${testId}' \u672A\u914D\u7F6E\uFF08test-unconfigured\uFF0C\u4E0D\u662F\u5931\u8D25\uFF09\uFF1A\u547D\u4EE4 \`${command2}\` \u8981\u7684 npm \u811A\u672C '${gap.script}'\uFF0C\u4F46 ${reason2}\u3002\u914D\u7F6E\u65B9\u5F0F\uFF1A\u2460 \u5728 ${gap.packageJson} \u7684 scripts \u91CC\u52A0 '${gap.script}'\uFF0C\u8BA9\u5B83\u8FD0\u884C\u672C\u9879\u76EE\u771F\u6B63\u7684\u8FD9\u7C7B\u6D4B\u8BD5\uFF08\u8FD8\u6CA1\u6709\u5C31\u5148\u5199\u6D4B\u8BD5\uFF1B\u4E0D\u8981\u590D\u5236\u5176\u5B83\u6D4B\u8BD5\u7684\u547D\u4EE4\u51D1\u6570\uFF09\uFF1B\u2461 \u672C\u9879\u76EE\u4E0D\u7528 npm \u6216\u6D4B\u8BD5\u53E6\u6709\u5165\u53E3\uFF1A\u5728 Dashboard \u5DE5\u4F5C\u6D41\u9875\uFF08\u5B58\u4E3A\u5168\u5C40\u914D\u7F6E\u76EE\u5F55\u4E0B\u7684 workflows/default.yaml \u8986\u76D6\uFF09\u6539\u8FD9\u6761\u6D4B\u8BD5\u7684 command\u2014\u2014\u53EA\u5BF9\u4E4B\u540E\u65B0\u5EFA\u7684\u4EFB\u52A1\u751F\u6548\uFF0C\u5DF2\u5F00\u59CB\u7684\u4EFB\u52A1\u6309\u51BB\u7ED3\u8BA1\u5212\u6267\u884C\u3002`;
 }
 
+// packages/cli/src/commands/statusStepDocumentActions.ts
+function documentWriteActions(documents) {
+  const actions = [];
+  const seen = /* @__PURE__ */ new Set();
+  const push = (doc, scaffold) => {
+    if (seen.has(doc.kind)) return;
+    seen.add(doc.kind);
+    const shape = {
+      kind: doc.kind,
+      path: doc.path,
+      path_template: doc.path_template,
+      producers: doc.producers
+    };
+    if (scaffold) actions.push({ action: "scaffold-document", ...shape });
+    actions.push({ action: "record-document", ...shape });
+  };
+  for (const doc of documents.records) {
+    if (doc.status === "missing" || doc.status === "stale") push(doc, doc.status === "missing");
+  }
+  for (const doc of [...documents.updates, ...documents.reads]) {
+    if (doc.status === "stale" && doc.producers.length > 0) push(doc, false);
+  }
+  return actions;
+}
+function skillDocumentActions(skills, documents) {
+  const actions = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const skill of skills) {
+    if (skill.status !== "invoked") continue;
+    const aliases = new Set(aliasesForSkill(skill.id));
+    for (const kind of skill.pending_documents) {
+      const doc = documents.records.find((candidate2) => candidate2.kind === kind);
+      if (doc === void 0 || seen.has(kind)) continue;
+      seen.add(kind);
+      const own3 = doc.producers.filter((producer) => aliasesForSkill(producer).some((alias) => aliases.has(alias)));
+      const shape = {
+        kind: doc.kind,
+        path: doc.path,
+        path_template: doc.path_template,
+        producers: own3.length > 0 ? own3 : doc.producers,
+        skill: skill.id
+      };
+      if (doc.status === "missing") actions.push({ action: "scaffold-document", ...shape });
+      actions.push({ action: "record-document", ...shape });
+    }
+  }
+  return actions;
+}
+function inputDocumentPolicy(documents) {
+  const updatable = new Set(documents.updates.map((doc) => doc.kind));
+  const editable = [...new Set(documents.reads.map((doc) => doc.kind).filter((kind) => updatable.has(kind)))];
+  const scope = editable.length > 0 ? `\u672C\u6B65\u53EF\u4EE5\u6539\u7684\u53EA\u6709 ${editable.join(" / ")}\uFF08\u6539\u5B8C\u7167 next \u91CD\u65B0\u767B\u8BB0\uFF09\uFF1B\u5176\u4F59\u53EA\u8BFB` : "\u672C\u6B65\u5168\u90E8\u53EA\u8BFB";
+  return {
+    editable,
+    note: `\u8BFB\u8FDB\u4E0A\u4E0B\u6587\uFF08\u4E0D\u8981\u4E22\u5F03\u8F93\u51FA\uFF09\u540E\u518D tenon document read\u3002\u8FD9\u4E9B\u662F\u5DF2\u767B\u8BB0\u7684\u8F93\u5165\u6587\u6863\uFF1A${scope}\u3002\u9700\u6C42\u8BED\u4E49\u53D8\u4E86\u8D70 requirements-changed \u56DE\u5230\u89C4\u683C\u6B65\uFF0C\u4E0D\u8981\u76F4\u63A5\u6539\u5DF2\u767B\u8BB0\u7684\u89C4\u683C\u6587\u6863\uFF1Btasks.md \u53EA\u52FE\u5F53\u524D\u6B65\u9AA4\u6807\u9898\u4E0B\u7684\u590D\u9009\u6846\u3002`
+  };
+}
+
 // packages/cli/src/gitWorkspace.ts
 import { execFile as execFile7 } from "node:child_process";
 import { existsSync as existsSync12 } from "node:fs";
@@ -69932,59 +70004,16 @@ function writeFieldActions(fields, producers) {
   }
   return actions;
 }
-function documentWriteActions(documents) {
-  const actions = [];
-  const seen = /* @__PURE__ */ new Set();
-  const push = (doc, scaffold) => {
-    if (seen.has(doc.kind)) return;
-    seen.add(doc.kind);
-    const shape = {
-      kind: doc.kind,
-      path: doc.path,
-      path_template: doc.path_template,
-      producers: doc.producers
-    };
-    if (scaffold) actions.push({ action: "scaffold-document", ...shape });
-    actions.push({ action: "record-document", ...shape });
-  };
-  for (const doc of documents.records) {
-    if (doc.status === "missing" || doc.status === "stale") push(doc, doc.status === "missing");
-  }
-  for (const doc of [...documents.updates, ...documents.reads]) {
-    if (doc.status === "stale" && doc.producers.length > 0) push(doc, false);
-  }
-  return actions;
-}
-function skillDocumentActions(skills, documents) {
-  const actions = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (const skill of skills) {
-    if (skill.status !== "invoked") continue;
-    const aliases = new Set(aliasesForSkill(skill.id));
-    for (const kind of skill.pending_documents) {
-      const doc = documents.records.find((candidate2) => candidate2.kind === kind);
-      if (doc === void 0 || seen.has(kind)) continue;
-      seen.add(kind);
-      const own3 = doc.producers.filter((producer) => aliasesForSkill(producer).some((alias) => aliases.has(alias)));
-      const shape = {
-        kind: doc.kind,
-        path: doc.path,
-        path_template: doc.path_template,
-        producers: own3.length > 0 ? own3 : doc.producers,
-        skill: skill.id
-      };
-      if (doc.status === "missing") actions.push({ action: "scaffold-document", ...shape });
-      actions.push({ action: "record-document", ...shape });
-    }
-  }
-  return actions;
-}
 function stepNextActions(input2) {
   if (input2.runArchived) return finishActions(input2.change, input2.governedOpenspec, input2.finish);
   if (!input2.loaded) return [{ action: "load-tenon" }];
   const unread = input2.documents.reads.filter((doc) => doc.status === "unread");
   if (unread.length > 0) {
-    return [{ action: "read-documents", documents: [...new Set(unread.flatMap((doc) => doc.path ?? []))] }];
+    return [{
+      action: "read-documents",
+      documents: [...new Set(unread.flatMap((doc) => doc.path ?? []))],
+      ...inputDocumentPolicy(input2.documents)
+    }];
   }
   const missing3 = input2.fields.filter((field3) => field3.kind !== "outcome" && field3.status === "missing");
   const decisions = writeFieldActions(
@@ -70013,6 +70042,9 @@ function stepNextActions(input2) {
   const writes = documentWriteActions(input2.documents);
   const tasksMissing = input2.documents.records.some((doc) => doc.kind === "tasks" && doc.status === "missing");
   const tasks = tasksMissing ? [] : taskBlockers(input2.exits);
+  if (tasks.length > 0 && input2.delivery !== null) {
+    return [{ action: "commit", change: input2.change, commit: input2.delivery }];
+  }
   if (tasks.length > 0) return [{ action: "fix", blockers: tasks }];
   if (input2.ownsAppliedSpec && input2.specApplicationPending) return [{ action: "apply-spec" }];
   if (writes.length > 0) return writes;
@@ -70175,7 +70207,7 @@ function downstreamSteps(plan, stepId) {
   return reached;
 }
 async function testConfigGaps(deps, plan, stepId, tests, exits, planning) {
-  const scope = planning ? "\u53EA\u9700\u5728 package.json \u8865\u4E0A\u811A\u672C\uFF1B\u8FD9\u7C7B\u6D4B\u8BD5\u82E5\u8FD8\u6CA1\u6709\uFF0C\u628A\u300C\u5199\u8FD9\u7C7B\u6D4B\u8BD5\u300D\u5217\u8FDB\u672C\u6B65\u7684\u8BA1\u5212\u4E0E tasks\uFF0C\u5728\u5B9E\u73B0\u6B65\u5B8C\u6210\u3002" : "\u53EA\u9700\u8865 package.json \u7684 scripts\uFF08\u4EE5\u53CA\u8FD9\u6761\u811A\u672C\u8981\u8DD1\u7684\u6D4B\u8BD5\u4EE3\u7801\uFF09\uFF0C\u4E0D\u9700\u8981\u4FEE\u6539\u5DF2\u767B\u8BB0\u7684\u89C4\u683C\u6587\u6863\uFF08proposal / design / plan \u7B49\uFF09\u2014\u2014\u6539\u4E86\u5B83\u4EEC\u5C31\u53EA\u80FD\u56DE\u5230\u89C4\u683C\u6B65\u91CD\u65B0\u8BC4\u5BA1\u3002";
+  const scope = planning ? "\u53EA\u9700\u5728 package.json \u8865\u4E0A\u811A\u672C\uFF1B\u8FD9\u7C7B\u6D4B\u8BD5\u82E5\u8FD8\u6CA1\u6709\uFF0C\u628A\u300C\u5199\u8FD9\u7C7B\u6D4B\u8BD5\u300D\u5217\u8FDB\u672C\u6B65\u7684\u8BA1\u5212\u4E0E tasks\uFF0C\u5728\u5B9E\u73B0\u6B65\u5B8C\u6210\u3002\u65B0\u589E\u7684\u6D4B\u8BD5\u811A\u672C\uFF08\u4EE5\u53CA\u8981\u5199\u7684\u6D4B\u8BD5\uFF09\u540C\u6B65\u5199\u8FDB\u672C\u6B65\u53EF\u6539\u7684\u89C4\u683C\u6587\u6863\uFF1Aproposal \u7684 What Changes / Impact \u4E0E design\uFF0C\u5E76\u5220\u6389\u4E0E\u4E4B\u76F8\u77DB\u76FE\u7684\u8868\u8FF0\uFF08\u4F8B\u5982\u300C\u4E0D\u6539 package.json\u300D\uFF09\u2014\u2014\u5426\u5219\u4E4B\u540E\u7684\u89C4\u683C\u4E00\u81F4\u6027\u8BC4\u5BA1\u4F1A\u628A\u5B83\u5F53\u6210\u89C4\u683C\u4E4B\u5916\u7684\u6539\u52A8\u3002" : "\u53EA\u9700\u8865 package.json \u7684 scripts\uFF08\u4EE5\u53CA\u8FD9\u6761\u811A\u672C\u8981\u8DD1\u7684\u6D4B\u8BD5\u4EE3\u7801\uFF09\uFF0C\u4E0D\u9700\u8981\u4FEE\u6539\u5DF2\u767B\u8BB0\u7684\u89C4\u683C\u6587\u6863\uFF08proposal / design / plan \u7B49\uFF09\u2014\u2014\u6539\u4E86\u5B83\u4EEC\u5C31\u53EA\u80FD\u56DE\u5230\u89C4\u683C\u6B65\u91CD\u65B0\u8BC4\u5BA1\u3002";
   const gaps = tests.filter((test) => test.required && test.status === "unconfigured" && test.hint !== void 0).map((test) => ({ id: test.id, step: stepId, hint: `${test.hint ?? ""}${scope}` }));
   const ahead = planning ? downstreamSteps(plan, stepId) : new Set(exits.filter((exit) => exit.direction === "forward" && exit.to !== stepId).map((exit) => exit.to));
   for (const step of plan.workflow.steps) {
@@ -70416,10 +70448,11 @@ async function cmdStatus2(deps, name2, opts) {
       ["phase", `${display(state.fields.phase)} (${display(state.fields.phase_status)})`],
       ["verify", display(state.fields.verify_result)],
       ["updated", display(state.fields.updated_at)],
-      // 完结的判定是 `archived=true`；目录被 OpenSpec 搬走与否只决定它还能不能继续改。
+      // 完结的判定是 `archived=true`；目录被 OpenSpec 搬走与否只决定它还能不能继续改。说法与
+      // check 同一句（finishedLabel）：不走 OpenSpec 的工作流只说「已完结」，不说已归档。
       ...finished2 || str(state.fields.archived) === "true" ? [
-        ["archived", display(state.fields.archived)],
-        ["archived_at", display(state.fields.archived_at)]
+        ["finished", finishedLabel(deps, state, finished2)],
+        ["finished_at", display(state.fields.archived_at)]
       ] : []
     ])) {
       deps.io.out(line);
@@ -70499,7 +70532,8 @@ async function cmdListFinished(deps, opts) {
     return 0;
   }
   const table = renderTable(
-    ["NAME", "TRACK", "PHASE", "STATUS", "ARCHIVED_AT", "OWNER"],
+    // 列名说「完结时间」：simple 这类工作流完结后并没有归档（JSON 键 archived_at 是 schema，不动）。
+    ["NAME", "TRACK", "PHASE", "STATUS", "FINISHED_AT", "OWNER"],
     rows.map((r) => [
       r.name,
       display(r.state.fields.track),
@@ -79259,7 +79293,7 @@ function buildProgram(deps, runtimes = {}) {
   program2.command("inbox").description("\u6536\u4EF6\u7BB1\uFF1A\u7B49\u5F85\u4EBA\u5DE5\u51B3\u7B56\u7684 change\uFF08\u4E09\u95E8 marker + \u590D\u6838\u76F8\u4F4D\uFF09").option("--json", "JSON \u8F93\u51FA\uFF08schema \u7A33\u5B9A\uFF09").option("--html", "\u81EA\u8DB3\u9759\u6001\u5355\u9875\uFF08\u91CD\u5B9A\u5411\u5230\u6587\u4EF6\u7528\u6D4F\u89C8\u5668\u6253\u5F00\uFF09").action(async (opts) => bail(await cmdInbox(deps, opts)));
   program2.command("status [name]").description("change \u6458\u8981\uFF08\u65E0 name \u5217\u5168\u90E8\u6D3B\u8DC3\uFF09").option("--json", "JSON \u8F93\u51FA\uFF08schema \u7A33\u5B9A\uFF09").action(async (name2, opts) => bail(await cmdStatus2(deps, name2, opts)));
   registerWorkflowCommands(program2, deps);
-  program2.command("list").description("\u6D3B\u8DC3 change \u8868").option("--json", "JSON \u8F93\u51FA\uFF08schema \u7A33\u5B9A\uFF09").option("--archived", "\u5F53\u524D\u7528\u6237\u5DF2\u5F52\u6863\u8868\uFF08per-user \u9690\u85CF\uFF0C\u53EF unarchive\uFF09\uFF1ANAME PHASE ARCHIVED_AT BY").option("--finished", "\u5DF2\u5B8C\u7ED3\u8868\uFF08openspec/changes/archive/ \u4E0B\u505A\u5B8C\u7684\u4EFB\u52A1\uFF09\uFF1ANAME TRACK PHASE STATUS ARCHIVED_AT OWNER").action(async (opts) => {
+  program2.command("list").description("\u6D3B\u8DC3 change \u8868").option("--json", "JSON \u8F93\u51FA\uFF08schema \u7A33\u5B9A\uFF09").option("--archived", "\u5F53\u524D\u7528\u6237\u5DF2\u5F52\u6863\u8868\uFF08per-user \u9690\u85CF\uFF0C\u53EF unarchive\uFF09\uFF1ANAME PHASE ARCHIVED_AT BY").option("--finished", "\u5DF2\u5B8C\u7ED3\u8868\uFF08archived=true \u7684\u4EFB\u52A1\uFF0C\u542B\u5DF2\u642C\u8FDB openspec/changes/archive/ \u7684\uFF09\uFF1ANAME TRACK PHASE STATUS FINISHED_AT OWNER").action(async (opts) => {
     if (opts.archived && opts.finished) {
       deps.io.err("ERROR: --archived\uFF08\u5F53\u524D\u7528\u6237\u9690\u85CF\u8868\uFF09\u4E0E --finished\uFF08\u5DF2\u5B8C\u7ED3\u8868\uFF09\u662F\u4E24\u5F20\u8868\uFF0C\u4E00\u6B21\u53EA\u80FD\u9009\u4E00\u5F20");
       bail(1);
