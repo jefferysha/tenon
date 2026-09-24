@@ -4,7 +4,7 @@ import { StatusPill, type PillTone } from '../shell/ThreeColumns'
 import { fileName, type IoRow, type IoRowStatus } from './stageIo'
 import { slotLabel } from './taskModel'
 import { cn } from '@/lib/utils'
-import { LIST_SELECTED } from './TaskCard'
+import { LIST_SELECTED } from '../shared/uiRecipes'
 
 const STATUS_TONE: Record<IoRowStatus, PillTone> = {
   recorded: 'done',

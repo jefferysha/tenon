@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '../i18n'
 import { LibraryView } from './LibraryView'
 import { LIST_ROW } from './libraryChrome'
-import { LIST_SELECTED } from '../workspace/TaskCard'
+import { LIST_SELECTED } from '../shared/uiRecipes'
 
 const GO_TEXT = '---\nid: go\ncategory: backend\ntitle: Go\n---\n## 后端（Go）\n'
 const MINE_TEXT = '---\nid: mine\ncategory: backend\ntitle: 我的后端\n---\n## 后端（我的后端）\n'

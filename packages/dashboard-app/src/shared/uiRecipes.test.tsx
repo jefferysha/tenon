@@ -5,6 +5,22 @@ import { BUTTON_DANGER, BUTTON_GHOST, BUTTON_ICON, BUTTON_SEGMENT, BUTTON_SOLID,
 
 const classes = (recipe: string): string[] => recipe.split(/\s+/u)
 
+describe('列表选中态', () => {
+  it('选中类串只在 uiRecipes 定义一次，其余文件只引用', () => {
+    const root = join(process.cwd(), 'packages/dashboard-app/src')
+    const hits: string[] = []
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name)
+        if (entry.isDirectory()) walk(path)
+        else if (/\.tsx?$/u.test(entry.name) && !/\.test\.tsx?$/u.test(entry.name) && readFileSync(path, 'utf8').includes('inset_2px_0_0_var(--sel-edge)')) hits.push(path.slice(root.length + 1))
+      }
+    }
+    walk(root)
+    expect(hits).toEqual(['shared/uiRecipes.ts'])
+  })
+})
+
 describe('button recipes', () => {
   it.each([
     ['solid', BUTTON_SOLID],

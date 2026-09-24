@@ -2,16 +2,10 @@ import type { ReactNode } from 'react'
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { useT } from '../i18n'
 import { cn } from '@/lib/utils'
+import { LIST_SELECTED_ARIA } from '../shared/uiRecipes'
 
 export { FilterChip, FilterChipGroup } from '../shared/FilterChip'
 
-/**
- * 列表类选中态（左列项、中列行、库 / 技能列表行共用）：中性偏绿底 + 左侧 2px 内描边，不加外描边。
- * 墨绿只留给导航当前页、阶段流程当前阶段与主按钮。
- * LIST_SELECTED_CLS 用于按条件拼类；LIST_SELECTED_ARIA_CLS 用于以 aria-current=true 表示选中的行。
- */
-export const LIST_SELECTED_CLS = 'bg-sel-bg shadow-[inset_2px_0_0_var(--sel-edge)]'
-export const LIST_SELECTED_ARIA_CLS = 'aria-[current=true]:bg-sel-bg aria-[current=true]:shadow-[inset_2px_0_0_var(--sel-edge)]'
 
 /**
  * 模板的三列骨架：左列（选择对象，280px，可折叠到 72px 图标栏）/ 中列（列表，360–420px）/ 右列（详情，弹性）。
@@ -125,7 +119,7 @@ export function RailColumn({
 
 /**
  * 左列项（项目 / 库分区共用）：语义图标（不套方块）+ 标题 + 副行 + 右侧计数；行高 44。
- * 选中 = 列表选中态（LIST_SELECTED_*），图标转强调色，标题只加粗不染绿。
+ * 选中 = 列表选中态（uiRecipes 的 LIST_SELECTED_ARIA），图标转强调色，标题只加粗不染绿。
  */
 export function RailCard({
   mark,
@@ -163,7 +157,7 @@ export function RailCard({
       type="button"
       className={cn(
         'grid min-h-11 w-full items-center gap-3 rounded-md text-left outline-none transition-colors duration-(--dur-fast) ease-(--ease-out) not-aria-[current=true]:hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) motion-reduce:transition-none',
-        LIST_SELECTED_ARIA_CLS,
+        LIST_SELECTED_ARIA,
         collapsed ? 'grid-cols-1 justify-items-center px-2 max-[1360px]:grid-cols-1' : 'grid-cols-[auto_minmax(0,1fr)_auto] px-3 py-1.5 max-[1360px]:grid-cols-1 max-[1360px]:justify-items-center max-[1360px]:px-2 max-[1360px]:py-0',
         'max-[900px]:w-auto max-[900px]:grid-cols-[auto_minmax(0,1fr)] max-[900px]:justify-items-start max-[900px]:gap-2 max-[900px]:px-3 max-[900px]:py-2',
       )}

@@ -4,9 +4,8 @@ import { MiniPipeline } from './MiniPipeline'
 import { TaskMenu, type TaskMenuEntry } from './TaskMenu'
 import { rootBasename, statusOf, summaryText, type TaskRow, type TaskStatus } from './taskModel'
 import { cn } from '@/lib/utils'
+import { LIST_SELECTED } from '../shared/uiRecipes'
 
-/** 列表类选中态（任务卡、库列表共用同一语汇）：中性选中底 + 左侧 2px 内嵌边，不加描边。 */
-export const LIST_SELECTED = 'bg-sel-bg shadow-[inset_2px_0_0_var(--sel-edge)]'
 
 /** 语义色跟随状态筛选的分组：需要你 = 琥珀，进行中 = 信息蓝，待复核 = 红，已完成 = 中性。 */
 const STATUS_TONE: Record<Exclude<TaskStatus, 'all'>, PillTone> = {

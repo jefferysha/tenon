@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils'
+import { LIST_SELECTED } from '../shared/uiRecipes'
 
 /**
  * 技能 / agent 编辑浮层共用的外观：三栏（候选 · 画布 · 预览）合成一个表面，栏间只用发丝线分隔；
@@ -16,7 +17,7 @@ export const ROW_ADD = cn('grid size-10 flex-none place-items-center rounded-sm 
 export function paletteRowClass(active: boolean, placed: boolean): string {
   return cn(
     'group flex min-w-0 items-center gap-1 rounded-md pl-1 transition-colors duration-(--dur-fast)',
-    active ? 'bg-sel-bg shadow-[inset_2px_0_0_var(--sel-edge)]' : 'hover:bg-fill',
+    active ? LIST_SELECTED : 'hover:bg-fill',
     placed ? 'opacity-45' : 'cursor-grab active:cursor-grabbing',
   )
 }

@@ -4,7 +4,7 @@ import { StatusPill, type PillTone } from '../shell/ThreeColumns'
 import { testStatusWord, type TestRow } from './stageTests'
 import type { TestItemStatus } from '../types'
 import { cn } from '@/lib/utils'
-import { LIST_SELECTED } from './TaskCard'
+import { LIST_SELECTED } from '../shared/uiRecipes'
 
 const STATUS_TONE: Record<TestItemStatus, PillTone> = {
   passed: 'done',

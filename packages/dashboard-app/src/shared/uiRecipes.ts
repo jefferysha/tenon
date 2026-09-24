@@ -4,6 +4,13 @@
  * hover / active 只挂在 enabled: 上，禁用按钮悬停不再变色。
  * 控件圆角一律 rounded-sm（8px）；字重 600 给按钮，700 只留给 34px 页标题。
  */
+/**
+ * 列表类选中态，全站唯一一份（工作台任务卡、左栏项、库 / 资源 / 测试方向列表行、编辑浮层候选行）：
+ * 中性偏绿底 + 左侧 2px 内描边，不加外描边。墨绿只留给导航当前页、阶段流程当前阶段与主按钮。
+ * LIST_SELECTED 按条件拼类；LIST_SELECTED_ARIA 给以 aria-current=true 表示选中的行（两串须逐类对应）。
+ */
+export const LIST_SELECTED = 'bg-sel-bg shadow-[inset_2px_0_0_var(--sel-edge)]'
+export const LIST_SELECTED_ARIA = 'aria-[current=true]:bg-sel-bg aria-[current=true]:shadow-[inset_2px_0_0_var(--sel-edge)]'
 export const PAGE_FRAME = 'mx-auto w-full max-w-[1088px]'
 export const CARD = 'rounded-md border border-border bg-card shadow-sm'
 export const EMPTY_STATE = 'rounded-lg border border-dashed border-border bg-fill/45 px-6 py-10 text-center'

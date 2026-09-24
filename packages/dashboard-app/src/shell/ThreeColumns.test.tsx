@@ -6,7 +6,8 @@ import { useState } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { I18nProvider } from '../i18n'
-import { DetailEmpty, FilterChip, FilterChipGroup, LIST_SELECTED_ARIA_CLS, LIST_SELECTED_CLS, RailCard, RailColumn, StatusPill, ThreeColumns } from './ThreeColumns'
+import { LIST_SELECTED as LIST_SELECTED_CLS, LIST_SELECTED_ARIA as LIST_SELECTED_ARIA_CLS } from '../shared/uiRecipes'
+import { DetailEmpty, FilterChip, FilterChipGroup, RailCard, RailColumn, StatusPill, ThreeColumns } from './ThreeColumns'
 import { ThreeColumnsSkeleton } from './Skeleton'
 
 const classesOf = (element: Element): string[] => element.className.split(/\s+/u)
