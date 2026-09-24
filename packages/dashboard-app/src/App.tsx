@@ -155,6 +155,8 @@ function AppShell(): JSX.Element {
       : typeof error.status === 'number'
         ? t('common.snapshot_request_failed', { status: error.status })
         : t('common.snapshot_request_failed_unknown')
+  // 新建项目后要打开它：快照里还没有这个项目时先刷新，等它出现再切过去，否则选择会落回「所有项目」。
+  const [pendingOpenRoot, setPendingOpenRoot] = useState<string | null>(null)
   const {
     currentRoot,
     selectProject,
@@ -172,6 +174,13 @@ function AppShell(): JSX.Element {
     onUninterceptablePopAttempt,
     preserveUnavailableRoot: false,
   })
+  useEffect(() => {
+    if (pendingOpenRoot === null) return
+    if (!(snapshot?.projects ?? []).some((project) => project.root === pendingOpenRoot)) return
+    setPendingOpenRoot(null)
+    selectProject(pendingOpenRoot, 'workspace')
+    setView('workspace')
+  }, [pendingOpenRoot, snapshot, selectProject])
   currentRootRef.current = currentRoot
   const setView = useCallback((nextView: View): void => {
     if (leavesDirtyView(nextView)) {
@@ -425,7 +434,7 @@ function AppShell(): JSX.Element {
             onToast={(m) => showFlash('toast', m)}
             newProjectOpen={newProjectOpen}
             onNewProjectOpenChange={setNewProjectOpen}
-            onOpenProject={(root) => { selectProject(root, 'progress'); setView('progress') }}
+            onOpenProject={(root) => { setPendingOpenRoot(root); refresh() }}
             snapshotRevision={snapshot?.generated_at ?? ''}
           />
         )}
