@@ -36793,7 +36793,7 @@ async function repositoryTopologyFingerprint(root) {
 
 // packages/server/src/snapshotFingerprint.ts
 async function viewerFingerprintParts(readRoot, viewer) {
-  const parts = [];
+  const parts = [`viewer:${readRoot}:${viewer === void 0 ? "none" : isTenonUser(viewer) ? viewer.slug : "missing"}`];
   const targets = [join60(readRoot, ".git", "logs", "HEAD")];
   if (viewer !== void 0 && isTenonUser(viewer)) targets.push(userProjectPaths(readRoot, viewer.slug).archived);
   for (const target of targets) {
@@ -40509,6 +40509,123 @@ async function buildRunDetail(repoRoot, changeDir2, changeName, deps) {
   };
 }
 
+// packages/server/src/snapshotCache.ts
+import { createHash as createHash31 } from "node:crypto";
+var SNAPSHOT_CACHE_MAX_AGE_MS = 3e4;
+var SNAPSHOT_IDENTITY_TTL_MS = 3e4;
+function defaultFingerprint(deps, nowMs) {
+  return computeFingerprint(deps.registry(), nowMs, deps.rootAnchor, deps.readChangesDirectory, deps.viewer);
+}
+function createSnapshotCache(options3) {
+  const build2 = options3.build ?? buildSnapshot;
+  const fingerprintOf = options3.fingerprint ?? defaultFingerprint;
+  const now = options3.now ?? Date.now;
+  const maxAgeMs = options3.maxAgeMs ?? SNAPSHOT_CACHE_MAX_AGE_MS;
+  const identityTtlMs = options3.identityTtlMs ?? SNAPSHOT_IDENTITY_TTL_MS;
+  let generation = 0;
+  let seq = 0;
+  let entry;
+  let pending;
+  let fingerprintInFlight;
+  const identities = /* @__PURE__ */ new Map();
+  function remembered(role, resolve20) {
+    return (root) => {
+      const key = `${role}\0${root}`;
+      const at = now();
+      const hit = identities.get(key);
+      if (hit !== void 0 && at - hit.at < identityTtlMs) return hit.value;
+      const value = resolve20(root);
+      identities.set(key, { at, value });
+      return value;
+    };
+  }
+  function depsAt(nowMs) {
+    const deps = options3.snapshotDeps(nowMs);
+    return {
+      ...deps,
+      ...deps.viewer === void 0 ? {} : { viewer: remembered("viewer", deps.viewer) },
+      resolveUser: remembered("acting", deps.resolveUser ?? defaultResolveUser)
+    };
+  }
+  function fingerprint() {
+    if (fingerprintInFlight !== void 0 && fingerprintInFlight.generation === generation) return fingerprintInFlight.promise;
+    const nowMs = now();
+    const promise = fingerprintOf(depsAt(nowMs), nowMs);
+    const flight = { generation, promise };
+    fingerprintInFlight = flight;
+    const clear = () => {
+      if (fingerprintInFlight === flight) fingerprintInFlight = void 0;
+    };
+    promise.then(clear, clear);
+    return promise;
+  }
+  function share(snapshot, fp) {
+    const body2 = JSON.stringify(snapshot);
+    return { snapshot, body: body2, etag: `"${createHash31("sha1").update(body2).digest("base64url")}"`, fingerprint: fp };
+  }
+  async function current() {
+    let fp;
+    try {
+      fp = await fingerprint();
+    } catch {
+      return share(await build2(depsAt(now())), "");
+    }
+    const cached = entry;
+    if (cached !== void 0 && cached.generation === generation && cached.value.fingerprint === fp && now() - cached.builtAt < maxAgeMs) {
+      return cached.value;
+    }
+    if (pending !== void 0 && pending.generation === generation && pending.fingerprint === fp) return pending.promise;
+    const startedGeneration = generation;
+    const startedSeq = ++seq;
+    const nowMs = now();
+    const promise = build2(depsAt(nowMs)).then((snapshot) => {
+      const value = share(snapshot, fp);
+      if (startedGeneration === generation && (entry === void 0 || entry.seq < startedSeq)) {
+        entry = { generation: startedGeneration, seq: startedSeq, builtAt: nowMs, value };
+      }
+      return value;
+    });
+    const flight = { generation: startedGeneration, fingerprint: fp, promise };
+    pending = flight;
+    const clear = () => {
+      if (pending === flight) pending = void 0;
+    };
+    promise.then(clear, clear);
+    return promise;
+  }
+  return {
+    current,
+    fingerprint,
+    invalidate() {
+      generation += 1;
+      entry = void 0;
+      pending = void 0;
+      fingerprintInFlight = void 0;
+      identities.clear();
+    }
+  };
+}
+function etagMatches(header, etag) {
+  if (header === void 0) return false;
+  const values = (Array.isArray(header) ? header.join(",") : header).split(",").map((value) => value.trim());
+  return values.some((value) => value === "*" || value === etag || value === `W/${etag}`);
+}
+function sendSharedSnapshot(req, res, shared) {
+  if (etagMatches(req.headers["if-none-match"], shared.etag)) {
+    res.writeHead(304, { ETag: shared.etag, "Cache-Control": "no-store" });
+    res.end();
+    return;
+  }
+  const body2 = Buffer.from(shared.body, "utf8");
+  res.writeHead(200, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Content-Length": body2.length,
+    "Cache-Control": "no-store",
+    ETag: shared.etag
+  });
+  res.end(body2);
+}
+
 // packages/server/src/transition.ts
 import { readFile as readFile41 } from "node:fs/promises";
 import { join as join77 } from "node:path";
@@ -40912,7 +41029,7 @@ async function handleGetActivityRoutes(req, res, path14, deps) {
     transactionId,
     stateScopeId,
     isLocalHost: isLocalHost2,
-    snapshotDeps,
+    snapshotCache,
     handleStream: handleStream2,
     isRegisteredRoot,
     clock,
@@ -40958,7 +41075,7 @@ async function handleGetActivityRoutes(req, res, path14, deps) {
   }
   if (path14 === "/api/snapshot") {
     try {
-      return sendJson(res, 200, await buildSnapshot(snapshotDeps()));
+      return sendSharedSnapshot(req, res, await snapshotCache.current());
     } catch (e) {
       return sendJson(res, 500, { ok: false, error: errMsg2(e) });
     }
@@ -40977,14 +41094,14 @@ async function handleGetActivityRoutes(req, res, path14, deps) {
   }
   if (path14 === "/api/afk/snapshot") {
     try {
-      return sendJson(res, 200, buildAfkSnapshot(await buildSnapshot(snapshotDeps()), clock));
+      return sendJson(res, 200, buildAfkSnapshot((await snapshotCache.current()).snapshot, clock));
     } catch (e) {
       return sendJson(res, 500, { ok: false, error: errMsg2(e) });
     }
   }
   if (path14 === "/api/afk/log") {
     try {
-      return sendJson(res, 200, buildAfkLog(await buildSnapshot(snapshotDeps()), clock));
+      return sendJson(res, 200, buildAfkLog((await snapshotCache.current()).snapshot, clock));
     } catch (e) {
       return sendJson(res, 500, { ok: false, error: errMsg2(e) });
     }
@@ -41430,7 +41547,7 @@ var STEP_IDS = [
   "runtime-readiness"
 ];
 var CONDITIONAL_STEP_IDS = ["plugin-remove", "marketplace-remove"];
-var HOST_PLAN_RELEASE_TAG = "v0.1.7";
+var HOST_PLAN_RELEASE_TAG = "v0.1.8";
 var LATEST_STABLE_TAG = "<latest-stable>";
 var NOTICE_IDS = [
   "host-plan.notice.read-only-generation",
@@ -43671,7 +43788,7 @@ function resolveResourceMutation(req, method, path14, deps) {
 }
 
 // packages/server/src/definitionCatalog.ts
-import { createHash as createHash31 } from "node:crypto";
+import { createHash as createHash32 } from "node:crypto";
 function capabilityProjection(hostId) {
   const row = ADAPTER_CAPABILITY_BY_HOST.get(hostId);
   if (row === void 0) {
@@ -43688,7 +43805,7 @@ function stableJson(value) {
   return JSON.stringify(value);
 }
 function digest13(value) {
-  return createHash31("sha256").update(stableJson(value), "utf8").digest("hex").slice(0, 32);
+  return createHash32("sha256").update(stableJson(value), "utf8").digest("hex").slice(0, 32);
 }
 function workflowEntry(workflow, source2) {
   const steps = workflow.steps.map((step, order) => ({
@@ -48123,7 +48240,8 @@ function singleFlight(task) {
 // packages/server/src/serverTransport.ts
 var MAX_POST_BODY = 64 * 1024;
 function createServerTransport(options3) {
-  const { registry, snapshotDeps, heartbeatMs, pollIntervalMs, token } = options3;
+  const { snapshotDeps, heartbeatMs, pollIntervalMs, token } = options3;
+  const snapshotCache = createSnapshotCache({ snapshotDeps });
   const clients = /* @__PURE__ */ new Set();
   let lastFp = "";
   let lastBeat = Date.now();
@@ -48152,15 +48270,13 @@ data: ${data}
       stopPoll();
       return;
     }
-    let fp;
-    const nowMs = Date.now();
     try {
-      const deps = snapshotDeps(nowMs);
-      fp = await computeFingerprint(registry(), nowMs, deps.rootAnchor, deps.readChangesDirectory, deps.viewer);
+      const fp = await snapshotCache.fingerprint();
       if (fp !== lastFp) {
-        lastFp = fp;
         try {
-          broadcast("snapshot", JSON.stringify(await buildSnapshot(deps)));
+          const shared = await snapshotCache.current();
+          lastFp = shared.fingerprint;
+          broadcast("snapshot", shared.body);
         } catch {
         }
       } else if (Date.now() - lastBeat > heartbeatMs) {
@@ -48243,11 +48359,10 @@ data: ${data}
     });
     clients.add(res);
     try {
-      const nowMs = Date.now();
-      const deps = snapshotDeps(nowMs);
-      lastFp = await computeFingerprint(registry(), nowMs, deps.rootAnchor, deps.readChangesDirectory, deps.viewer);
+      const shared = await snapshotCache.current();
+      lastFp = shared.fingerprint;
       res.write(`event: snapshot
-data: ${JSON.stringify(await buildSnapshot(deps))}
+data: ${shared.body}
 
 `);
     } catch {
@@ -48328,6 +48443,7 @@ data: ${JSON.stringify(await buildSnapshot(deps))}
     }
   }
   return {
+    snapshotCache,
     clients,
     stopPoll,
     sendJson,
@@ -48758,6 +48874,7 @@ function createDashboardServer(options3) {
     ...loadedManifest === void 0 ? {} : { mandatorySkills: loadedManifest.mandatorySkills }
   });
   const {
+    snapshotCache,
     clients,
     stopPoll,
     sendJson,
@@ -48767,7 +48884,6 @@ function createDashboardServer(options3) {
     serveIndexWithToken,
     serveAsset
   } = createServerTransport({
-    registry,
     snapshotDeps,
     heartbeatMs,
     pollIntervalMs,
@@ -48816,6 +48932,7 @@ function createDashboardServer(options3) {
     isLocalHost,
     boundPort: () => boundPort,
     snapshotDeps,
+    snapshotCache,
     handleStream: handleStream2,
     isRegisteredRoot,
     clock,
@@ -48918,7 +49035,9 @@ function createDashboardServer(options3) {
   const httpServer = createServer((req, res) => {
     const path14 = (req.url ?? "/").split("?", 1)[0] ?? "/";
     const method = req.method ?? "GET";
+    if (method !== "GET") snapshotCache.invalidate();
     const handler = method === "GET" ? handleGet2(req, res, path14) : method === "POST" ? handlePost(req, res, path14) : method === "PATCH" ? handlePatch(req, res, path14) : method === "DELETE" ? handleDelete(req, res, path14) : method === "PUT" ? handlePut(req, res, path14) : Promise.resolve(sendJson(res, 405, { ok: false, error: "method not allowed" }));
+    if (method !== "GET") void handler.finally(snapshotCache.invalidate).catch(() => void 0);
     handler.catch((e) => {
       try {
         sendJson(res, 500, { ok: false, error: errMsg(e) });

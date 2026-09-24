@@ -4,6 +4,88 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
+## v0.1.8 · 2026-09-24
+
+A Dashboard experience release: a full overhaul after a professional UI/UX evaluation (visuals, components, graphics,
+motion, task flows, smoothness, redundancy, information architecture, responsiveness, accessibility), plus a
+server snapshot performance fix.
+
+### Faster
+
+- The server builds one shared snapshot for `/api/snapshot`, the stream's first frame, poll broadcasts and the AFK
+  views, reuses it while the fingerprint is unchanged, and drops it after every server write. `/api/snapshot`
+  supports `ETag` / `304`. A page load builds the snapshot once; with the cache warm, pages show their full content
+  in about 0.1 s (3–5 s before); idle event-loop load falls from about 76% to about 1%.
+- The workflow, library and skills pages no longer wait for the snapshot; the workbench and projects pages show
+  skeletons on first load instead of a false "no projects".
+
+### Workbench
+
+- Filters stay on one line and never wrap: status chips (all / needs you / running / in review / done) plus owner,
+  workflow, track and stage dropdowns, with whatever does not fit under "more"; a facet with one value is hidden.
+  The top-bar pending badge and "needs you" share one count, and the badge filters to it.
+- Archive, take over and delete move into "⋯" menus beside the title and on cards, also in the aggregate view; the
+  bottom action bar is gone.
+- Stages show their labels instead of ids; ready states use amber; single-stage workflows draw no bar; the selected
+  task is written to the URL with a project tag, so same-name tasks are no longer confused.
+
+### Workflow page and canvases
+
+- Canvases render at 1:1 and grow with the number of parallel lanes instead of shrinking text, re-fit on resize,
+  and align overflowing content to the left for panning. Zoom controls are no longer white in dark mode. The pulse
+  plays only while a skill runs or right after an edit.
+- The built-in default workflow no longer shows a warning on every stage (all were false positives); warnings are
+  an icon with a tooltip.
+- Gate help opens from the keyboard; the save bar shows the number of unsaved changes; composers use "done",
+  preview a row on click and add it with "+".
+- Deep links support `wf`, `track` and `step`.
+
+### Projects, library and skills
+
+- The host list is an even table; instruction files are applied from the diff drawer after "preview changes";
+  delete moves into the "⋯" menu; Markdown previews no longer show HTML comments.
+- The library shows names only (ids in tooltips); "copy" is "copy as custom"; built-ins are marked with a lock; agents
+  are grouped as executors and reviewers; loading no longer looks empty.
+- The skills page has search and row details, and marks only changed and failed skills. A server row carrying
+  `modelInvocable` no longer makes the whole page report an invalid response.
+
+### Design system and accessibility
+
+- Secondary text in the light theme meets WCAG AA; disabled buttons change colour instead of only fading; buttons
+  and chips have 40px hit areas.
+- One Radix-based dialog; destructive confirmations are alertdialogs that start on "cancel".
+- Duplicate breadcrumbs, eyebrows and names are removed; settings use two segmented rows for theme and language; the
+  offline banner is fully visible.
+
+### Upgrade
+
+From v0.1.7: run `tenon update --codex` (or `--claude`), open a new host session and reload the Dashboard. The N-1
+gate reads and writes this release's data with the published v0.1.7 in both directions.
+
+From 1.x: run the versioned installer once for each host you use:
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.8/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.8/install.sh | /bin/bash -s -- --codex
+```
+
+### Compatibility
+
+- Changes made outside the server that the snapshot fingerprint does not cover (such as editing a workflow file
+  directly or changing identity with `git config`) show up within 30 s; writes through the Dashboard or the CLI
+  show immediately.
+- New URL parameters `status`, `step`, `wf` and `track`; in the aggregate view `change` carries a project tag, and
+  old links still match by name.
+
+### Verify
+
+```bash
+tenon doctor
+tenon runtime status
+```
+
+Both hosts' inventory, the active managed runtime and the Dashboard report 0.1.8.
+
 ## v0.1.7 · 2026-09-24
 
 A sixth real-session acceptance release. On v0.1.6 all three tracks finished with no verify-fail and every review

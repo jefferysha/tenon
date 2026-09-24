@@ -1,6 +1,6 @@
 {
   "name": "@tenon/dashboard-app",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "private": true,
   "type": "module",
   "description": "Pipeline 全局 dashboard 前端 SPA（BACKLOG #26 信息架构重构：收件箱默认 / 看板 / 设置，一级导航 ≤3）。",

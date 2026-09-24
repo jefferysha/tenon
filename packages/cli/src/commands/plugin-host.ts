@@ -33,7 +33,7 @@ export const TENON_MARKETPLACE_SOURCE = 'jefferysha/tenon'
 export const TENON_MARKETPLACE_NAME = 'tenon'
 export const TENON_PLUGIN_NAME = 'tenon'
 /** Compiled release projection; identity gates keep it equal to every package/plugin manifest. */
-export const TENON_RELEASE_VERSION = '0.1.7'
+export const TENON_RELEASE_VERSION = '0.1.8'
 
 export interface HostCommandPlanItem {
   readonly cmd: string
