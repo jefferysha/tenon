@@ -113,7 +113,7 @@ describe('共享快照 —— 真 HTTP server', () => {
     expect(h.builds()).toBe(before + 1)
   })
 
-  it('不同查看者不共用快照：切换查看者后按新查看者的归档重建', async () => {
+  it('不同查看者不共用快照：经 server 切换身份后按新查看者的归档重建', async () => {
     const alice: TenonUserResolution = { id: 'a@x.io', name: 'A', slug: 'a-at-x.io', source: 'env', trust: 'declared' }
     const bob: TenonUserResolution = { id: 'b@x.io', name: 'B', slug: 'b-at-x.io', source: 'env', trust: 'declared' }
     let viewer = alice
@@ -128,7 +128,10 @@ describe('共享快照 —— 真 HTTP server', () => {
     expect(forAlice.projects[0]?.changes).toEqual([])
     expect(forAlice.projects[0]?.archived?.map((change) => change.name)).toEqual([h.name])
 
+    // The declared identity changes through the server, which drops the cached snapshot and identities.
     viewer = bob
+    const declared = await reqPost(h.port, '/api/user', { id: bob.id, name: bob.name }, { headers: { Authorization: 'Bearer secret' } })
+    expect(declared.status).toBe(200)
     const forBob = (await reqGet(h.port, '/api/snapshot')).json<Snapshot>()
     expect(forBob.projects[0]?.changes.map((change) => change.name)).toEqual([h.name])
     expect(forBob.projects[0]?.archived).toBeUndefined()

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createSnapshotCache, sendSharedSnapshot, type SharedSnapshot } from './snapshotCache.js'
 import type { SnapshotDeps } from './snapshot.js'
 import type { Snapshot } from './types.js'
+import type { TenonUserResolution } from '@tenon/kernel'
 
 function snapshotAt(generatedAt: string, changeCount = 0): Snapshot {
   return {
@@ -159,6 +160,49 @@ describe('createSnapshotCache —— 单飞与按指纹复用', () => {
     })
     expect((await cache.current()).snapshot.generated_at).toBe('t1')
     expect((await cache.current()).snapshot.generated_at).toBe('t2')
+  })
+})
+
+describe('createSnapshotCache —— 身份解析复用', () => {
+  const alice: TenonUserResolution = { id: 'a@x.io', name: 'A', slug: 'a-at-x.io', source: 'env', trust: 'declared' }
+
+  it('指纹与构建在 TTL 内复用每个 root 的查看者 / 执行者身份，过期或失效后重新解析', async () => {
+    let clock = 0
+    const viewer = vi.fn((_root: string) => alice)
+    const acting = vi.fn((_root: string) => alice)
+    const seen: SnapshotDeps[] = []
+    const fingerprint = vi.fn(async (deps: SnapshotDeps) => {
+      deps.viewer?.('/r1')
+      deps.viewer?.('/r2')
+      return 'fp'
+    })
+    const build = vi.fn(async (deps: SnapshotDeps) => {
+      seen.push(deps)
+      deps.viewer?.('/r1')
+      deps.resolveUser?.('/r1')
+      return snapshotAt('t')
+    })
+    const cache = createSnapshotCache({
+      snapshotDeps: () => ({ viewer, resolveUser: acting }) as unknown as SnapshotDeps,
+      build,
+      fingerprint,
+      now: () => clock,
+      identityTtlMs: 1_000,
+    })
+
+    await cache.current()
+    await cache.fingerprint()
+    expect(viewer.mock.calls.map(([root]) => root)).toEqual(['/r1', '/r2'])
+    expect(acting).toHaveBeenCalledTimes(1)
+
+    clock = 1_000
+    await cache.fingerprint()
+    expect(viewer).toHaveBeenCalledTimes(4)
+
+    cache.invalidate()
+    await cache.fingerprint()
+    expect(viewer).toHaveBeenCalledTimes(6)
+    expect(seen).toHaveLength(1)
   })
 })
 

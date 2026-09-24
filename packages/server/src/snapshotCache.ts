@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { TenonUserResolution } from '@tenon/kernel'
 import { buildSnapshot, computeFingerprint, type SnapshotDeps } from './snapshot.js'
+import { defaultResolveUser } from './serverUserRoutes.js'
 import type { Snapshot } from './types.js'
 
 /** One built snapshot shared by every reader until its input fingerprint changes. */
@@ -19,9 +21,10 @@ export interface SnapshotCache {
   /** The input fingerprint; concurrent callers share one computation. */
   fingerprint(): Promise<string>
   /**
-   * Drop the cached snapshot and any in-flight build; the next read rebuilds. The server calls this
-   * before every non-GET request runs and again once it settles: a server-side write may touch inputs
-   * the fingerprint does not cover, and the next read must see its result.
+   * Drop the cached snapshot, any in-flight build and the remembered identities; the next read
+   * rebuilds. The server calls this before every non-GET request runs and again once it settles: a
+   * server-side write may touch inputs the fingerprint does not cover (or the declared identity), and
+   * the next read must see its result.
    */
   invalidate(): void
 }
@@ -37,9 +40,16 @@ export interface SnapshotCacheOptions {
    * server), so a cached snapshot is rebuilt at least this often even when the fingerprint holds.
    */
   maxAgeMs?: number
+  /**
+   * How long a root's resolved viewer / acting user is reused. Resolution may run `git config`
+   * synchronously twice per root, which dominated the fingerprint (about 700 ms for 34 roots) and
+   * blocked the event loop on every one-second poll.
+   */
+  identityTtlMs?: number
 }
 
 export const SNAPSHOT_CACHE_MAX_AGE_MS = 30_000
+export const SNAPSHOT_IDENTITY_TTL_MS = 30_000
 
 function defaultFingerprint(deps: SnapshotDeps, nowMs: number): Promise<string> {
   return computeFingerprint(deps.registry(), nowMs, deps.rootAnchor, deps.readChangesDirectory, deps.viewer)
@@ -53,17 +63,40 @@ export function createSnapshotCache(options: SnapshotCacheOptions): SnapshotCach
   const fingerprintOf = options.fingerprint ?? defaultFingerprint
   const now = options.now ?? Date.now
   const maxAgeMs = options.maxAgeMs ?? SNAPSHOT_CACHE_MAX_AGE_MS
+  const identityTtlMs = options.identityTtlMs ?? SNAPSHOT_IDENTITY_TTL_MS
   // A write bumps the generation: builds and fingerprints started before it are never reused after it.
   let generation = 0
   let seq = 0
   let entry: Entry | undefined
   let pending: Pending | undefined
   let fingerprintInFlight: { readonly generation: number; readonly promise: Promise<string> } | undefined
+  const identities = new Map<string, { readonly at: number; readonly value: TenonUserResolution }>()
+
+  function remembered(role: 'viewer' | 'acting', resolve: (root: string) => TenonUserResolution) {
+    return (root: string): TenonUserResolution => {
+      const key = `${role}\u0000${root}`
+      const at = now()
+      const hit = identities.get(key)
+      if (hit !== undefined && at - hit.at < identityTtlMs) return hit.value
+      const value = resolve(root)
+      identities.set(key, { at, value })
+      return value
+    }
+  }
+
+  function depsAt(nowMs: number): SnapshotDeps {
+    const deps = options.snapshotDeps(nowMs)
+    return {
+      ...deps,
+      ...(deps.viewer === undefined ? {} : { viewer: remembered('viewer', deps.viewer) }),
+      resolveUser: remembered('acting', deps.resolveUser ?? defaultResolveUser),
+    }
+  }
 
   function fingerprint(): Promise<string> {
     if (fingerprintInFlight !== undefined && fingerprintInFlight.generation === generation) return fingerprintInFlight.promise
     const nowMs = now()
-    const promise = fingerprintOf(options.snapshotDeps(nowMs), nowMs)
+    const promise = fingerprintOf(depsAt(nowMs), nowMs)
     const flight = { generation, promise }
     fingerprintInFlight = flight
     const clear = (): void => { if (fingerprintInFlight === flight) fingerprintInFlight = undefined }
@@ -82,7 +115,7 @@ export function createSnapshotCache(options: SnapshotCacheOptions): SnapshotCach
       fp = await fingerprint()
     } catch {
       // Without a fingerprint nothing proves a cached snapshot is current: build fresh, keep nothing.
-      return share(await build(options.snapshotDeps(now())), '')
+      return share(await build(depsAt(now())), '')
     }
     const cached = entry
     if (cached !== undefined && cached.generation === generation && cached.value.fingerprint === fp
@@ -93,7 +126,7 @@ export function createSnapshotCache(options: SnapshotCacheOptions): SnapshotCach
     const startedGeneration = generation
     const startedSeq = ++seq
     const nowMs = now()
-    const promise = build(options.snapshotDeps(nowMs)).then((snapshot): SharedSnapshot => {
+    const promise = build(depsAt(nowMs)).then((snapshot): SharedSnapshot => {
       const value = share(snapshot, fp)
       // An older build finishing late never replaces a newer one, and nothing built before a write is kept.
       if (startedGeneration === generation && (entry === undefined || entry.seq < startedSeq)) {
@@ -116,6 +149,7 @@ export function createSnapshotCache(options: SnapshotCacheOptions): SnapshotCach
       entry = undefined
       pending = undefined
       fingerprintInFlight = undefined
+      identities.clear()
     },
   }
 }
