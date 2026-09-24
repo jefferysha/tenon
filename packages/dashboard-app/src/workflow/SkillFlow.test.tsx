@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import gsap from 'gsap'
@@ -110,6 +111,24 @@ describe('SkillFlow · 组件', () => {
     expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-nodes', '2')
     expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-edges', '0')
     expect(onChange).toHaveBeenLastCalledWith([{ id: 'brainstorming' }, { id: 'grill-with-docs' }])
+  })
+  // 回归：首次挂载时 nodes 还是空的，写回 effect 看到空图与传入技能不同就 onChange([])；
+  // 父组件持有状态时技能被清空，接着布局又写回，来回循环。首次布局完成前不得写回。
+  it('可编辑 + 有状态父组件：挂载不回写空图，不清空、不循环', () => {
+    const onChange = vi.fn()
+    function Parent(): JSX.Element {
+      const [skills, setSkills] = useState<WbSkillRef[]>(SKILLS)
+      return (
+        <I18nProvider>
+          <SkillFlow skills={skills} registry={[]} editable onChange={(next) => { onChange(next); setSkills(next) }} onOpen={() => undefined} />
+        </I18nProvider>
+      )
+    }
+    render(<Parent />)
+    expect(onChange).not.toHaveBeenCalledWith([])
+    expect(onChange.mock.calls.length).toBeLessThanOrEqual(1)
+    expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-nodes', '3')
+    expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-edges', '2')
   })
   it('空态文案：只读「无」，可编辑「拖入技能」', () => {
     const { unmount } = render(<I18nProvider><SkillFlow skills={[]} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)

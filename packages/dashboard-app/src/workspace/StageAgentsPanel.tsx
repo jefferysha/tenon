@@ -60,7 +60,6 @@ export function StageAgentsPanel({
         onOpen={onOpen}
         statusOf={statusOf}
         captionOf={captionOf}
-        className="h-56"
       />
     </section>
   )

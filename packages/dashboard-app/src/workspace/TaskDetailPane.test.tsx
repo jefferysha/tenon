@@ -295,6 +295,10 @@ describe('TaskDetailPane · agent 段', () => {
     expect(screen.getByTestId('flow-caption-security')).toHaveTextContent('评审者')
     expect(screen.getByTestId('flow-node-security')).toHaveTextContent('不通过 · 问题 2')
     expect(screen.getByTestId('flow-node-builder')).toHaveTextContent('完成')
+    // 高度由只读画布按内容算（canvasHeight），不再写死 h-56 把多行波次压扁。
+    const canvas = within(section).getByTestId('skill-flow')
+    expect(canvas.className.split(/\s+/u)).not.toContain('h-56')
+    expect(canvas.style.height).not.toBe('')
   })
 
   it('没有 agent 的步骤整段不渲染；点节点开抽屉，抽屉读它的报告', async () => {
