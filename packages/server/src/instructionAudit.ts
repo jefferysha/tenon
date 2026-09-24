@@ -17,6 +17,7 @@ export type InstructionAuditAction =
   | 'instruction-apply'
   | 'instruction-delete'
   | 'project-create'
+  | 'project-clients'
 
 export interface InstructionAuditRow {
   readonly at: string

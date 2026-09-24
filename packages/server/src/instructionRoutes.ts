@@ -22,6 +22,7 @@ import {
   applyInstructions, deleteInstructionTarget, previewInstructionApply, readInstructionTargets, type InstructionScope,
 } from './instructionFiles.js'
 import { trustedFsFailure } from './instructionTrustedFs.js'
+import { readProjectClients, writeProjectClients } from './projectClients.js'
 import { handleProjectCreate, runGitCommand, type GitRunner } from './projectCreate.js'
 import { repoRootForSkills } from './serverSupport.js'
 import { readTextBody } from './serverWorkflowYamlRoutes.js'
@@ -49,6 +50,7 @@ export interface InstructionRouteDeps {
 
 const TEMPLATES = '/api/instruction-templates'
 const INSTRUCTIONS = '/api/instructions'
+const PROJECT_CLIENTS = '/api/projects/clients'
 
 /** root 为空 = 用户级；否则必须是已注册项目根。 */
 function scopeFor(root: string, deps: InstructionRouteDeps): InstructionScope | RouteResult {
@@ -151,7 +153,48 @@ function segments(path: string): string[] {
   }
 }
 
+/** 项目客户端只在已注册项目上有意义：root 必须非空且过注册表锚。 */
+function projectAnchor(root: string, deps: InstructionRouteDeps): { anchor: WorkflowRootAnchor } | RouteResult {
+  if (root === '') return failure(400, 'invalid', '缺少 root')
+  const scope = scopeFor(root, deps)
+  if (!isScope(scope)) return scope
+  return scope.level === 'project' ? { anchor: scope.anchor } : failure(400, 'invalid', '缺少 root')
+}
+
+function getProjectClients(req: IncomingMessage, deps: InstructionRouteDeps): RouteResult {
+  const located = projectAnchor(new URL(req.url ?? '/', 'http://localhost').searchParams.get('root') ?? '', deps)
+  if (!('anchor' in located)) return located
+  return guarded(() => {
+    const read = readProjectClients(located.anchor)
+    return read.ok
+      ? { status: 200, body: { enabled: read.enabled, source: read.source } }
+      : failure(read.status, read.code, read.error)
+  })
+}
+
+async function postProjectClients(req: IncomingMessage, deps: InstructionRouteDeps): Promise<RouteResult> {
+  const body = objectBody(deps.readJsonBody ? await deps.readJsonBody(req) : undefined, ['root', 'enabled'])
+  if (!body || typeof body.root !== 'string') return failure(400, 'invalid', '请求体须含 root、enabled')
+  const root = body.root
+  const located = projectAnchor(root, deps)
+  if (!('anchor' in located)) return located
+  const actor = actorFor(deps, root)
+  if (!isActor(actor)) return actor
+  return guarded(() => {
+    const written = writeProjectClients(located.anchor, body.enabled)
+    if (!written.ok) {
+      return { status: written.status, body: { ok: false, code: written.code, error: written.error, ...(written.unknown ? { unknown: written.unknown } : {}) } }
+    }
+    audit(deps, actor, 'project-clients', join(root, '.tenon', 'clients.json'), written.digest_before, written.digest)
+    return { status: 200, body: { enabled: written.enabled, source: 'file' } }
+  })
+}
+
 export function resolveInstructionGet(req: IncomingMessage, path: string, deps: InstructionRouteDeps): Promise<RouteResult> | null {
+  if (path === PROJECT_CLIENTS) {
+    if (!deps.isLocalHost(req.headers.host, deps.boundPort())) return Promise.resolve(failure(403, 'host-denied', 'Host header 不合法'))
+    return Promise.resolve(getProjectClients(req, deps))
+  }
   if (path === INSTRUCTIONS) {
     if (!deps.isLocalHost(req.headers.host, deps.boundPort())) return Promise.resolve(failure(403, 'host-denied', 'Host header 不合法'))
     const scope = scopeFor(new URL(req.url ?? '/', 'http://localhost').searchParams.get('root') ?? '', deps)
@@ -259,6 +302,7 @@ export function resolveInstructionMutation(
       })
     })()
   }
+  if (method === 'POST' && path === PROJECT_CLIENTS) return postProjectClients(req, deps)
   if (method === 'POST' && path === `${INSTRUCTIONS}/preview`) return postInstructions(req, 'preview', deps)
   if (method === 'POST' && path === `${INSTRUCTIONS}/apply`) return postInstructions(req, 'apply', deps)
   if (method === 'DELETE' && path === INSTRUCTIONS) return Promise.resolve(deleteInstructions(req, deps))
