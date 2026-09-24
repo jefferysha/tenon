@@ -4,6 +4,50 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
+## v0.1.10 · 2026-09-25
+
+A Dashboard usability release, driven by walking through real user tasks end to end.
+
+### New project
+
+- Creating a project is now a four-step wizard: Location → Templates → Clients → Confirm.
+- Folders are chosen with the system folder dialog (`POST /api/fs/choose-folder`); when no dialog is available an
+  in-page folder browser is used (`GET /api/fs/list`). Typing a path remains a secondary option.
+- The location step checks as you go: missing folder, not a git repository (with an "Initialize git" switch),
+  already registered (with Open), and existing instruction files.
+- Only `AGENTS.md` receives the full text; `CLAUDE.md` / `GEMINI.md` get a single `@AGENTS.md` import. Existing
+  files can be appended to, replaced or skipped.
+- Creation reports every step live (`POST /api/projects/create/stream`) with rollback and retry on failure, and
+  stays on the result until you choose Open project.
+
+### Projects
+
+- Projects are organised by client: only the clients enabled for a project are listed, clients sharing one file
+  are merged, and more are added from "+". The enabled set is stored in the project's `.tenon/clients.json`
+  (`GET/POST /api/projects/clients`).
+- Project level and user level are a switch inside the selected client; nothing is written just by opening or
+  previewing; a missing `CLAUDE.md` can be created as an `@AGENTS.md` import.
+- A project can be removed from the list (files are kept); load failures show an inline error with retry.
+
+### Workspace
+
+- Task readiness in the Dashboard now uses the same exit judgement as `tenon status` (skills, documents, tests,
+  unchecked tasks). "Needs you" counts only pending reviews and is identical across all views.
+- Each task shows a Next step block: one short line per blocker, a copyable status command and a copyable
+  `/tenon 继续 <change>` prompt to resume it in the agent chat.
+- Inputs, outputs and tests are tables; the stage bar is plain segments; filters fit one line.
+- Deleting an untracked task says it cannot be recovered and asks for the name; archiving can be undone.
+
+### Workflow, Library, Skills
+
+- Every built-in workflow (including `simple`) is listed; OpenSpec-contributed skills appear on the canvas; new
+  stages need only a name; deleting a workflow used by tasks is refused with the list of tasks.
+- Skill canvases pulse continuously, each edge taking at least 480ms so short canvases pulse visibly.
+- Library copies are named "… 副本" and open in edit; every list opens its first item instead of a blank pane.
+- A failed skill source says why (for example, no installed release payload).
+- View ids are `workspace` and `workflow`; old `progress` / `workbench` links redirect. The top-bar project
+  switcher is gone on desktop; the connection dot only shows when disconnected.
+
 ## v0.1.9 · 2026-09-24
 
 A Dashboard design release. After an in-depth aesthetic review (visual language, colour, typography, component
