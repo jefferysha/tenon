@@ -111,9 +111,9 @@ describe('SkillFlow · 组件', () => {
     expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-edges', '0')
     expect(onChange).toHaveBeenLastCalledWith([{ id: 'brainstorming' }, { id: 'grill-with-docs' }])
   })
-  it('空态文案：只读「没有技能」，可编辑「拖入技能」', () => {
+  it('空态文案：只读「无」，可编辑「拖入技能」', () => {
     const { unmount } = render(<I18nProvider><SkillFlow skills={[]} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
-    expect(screen.getByTestId('skill-flow-empty')).toHaveTextContent('没有技能')
+    expect(screen.getByTestId('skill-flow-empty')).toHaveTextContent('无')
     unmount()
     render(<I18nProvider><SkillFlow skills={[]} registry={[]} editable onOpen={() => undefined} /></I18nProvider>)
     expect(screen.getByTestId('skill-flow-empty')).toHaveTextContent('拖入技能')

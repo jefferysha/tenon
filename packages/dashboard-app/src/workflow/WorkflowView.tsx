@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useT } from '../i18n'
+import { parseWorkflowLocation, workflowSearch } from '../shell/dashboardLocation'
+import { BASE_BRANCH } from '../workbench/workbenchDefinition'
 import { DetailEmpty, TwoColumns } from '../shell/ThreeColumns'
 import { useWorkflowEditor } from '../workbench/useWorkflowEditor'
 import { WorkbenchDialogs } from '../workbench/WorkbenchDialogs'
@@ -18,9 +20,25 @@ export interface WorkflowViewProps {
 /** 工作流 = 定义编辑页：左栏工作流 / 轨道 / 流程，右栏所选阶段的输入、技能、输出、门禁。 */
 export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps): JSX.Element {
   const { t } = useT()
-  const editor = useWorkflowEditor({ root, onDirtyChange })
+  const [initial] = useState(() => {
+    try { return parseWorkflowLocation(window.location.search) } catch { return {} }
+  })
+  const editor = useWorkflowEditor({ root, onDirtyChange, initial })
+  const stageId = editor.selectedStep?.id ?? null
+  // 当前选择写进 URL（replace，不产生历史项）：刷新、复制链接都回到同一个工作流 / 轨道 / 阶段。
+  useEffect(() => {
+    if (editor.wfName === null || editor.def === null) return
+    try {
+      const search = workflowSearch(window.location.search, { wf: editor.wfName, track: editor.branch === BASE_BRANCH ? null : editor.branch, step: stageId })
+      const next = `${window.location.pathname}${search}${window.location.hash}`
+      if (next !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.replaceState(window.history.state, '', next)
+    } catch {
+      // 宿主禁用 history 时只失去可复制链接。
+    }
+  }, [editor.wfName, editor.def, editor.branch, stageId])
   const [trackDialogOpen, setTrackDialogOpen] = useState(false)
   const [trackDeleteTarget, setTrackDeleteTarget] = useState<string | null>(null)
+  const [stageDeleteTarget, setStageDeleteTarget] = useState<string | null>(null)
 
   async function exportYaml(): Promise<void> {
     try {
@@ -72,6 +90,7 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
             onNewTrack={() => setTrackDialogOpen(true)}
             onDeleteTrack={setTrackDeleteTarget}
             onSelect={editor.setStageId}
+            onDeleteStage={setStageDeleteTarget}
             onAddStage={() => editor.stageDraft.setAddStageOpen(true)}
             onReorder={editor.reorderStages}
           />
@@ -100,6 +119,21 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
           )}
         >
           <p className="text-body text-text-2">{t('workflow.delete_track_confirm', { name: editor.branches.find((branch) => branch.id === trackDeleteTarget)?.label ?? trackDeleteTarget })}</p>
+        </Dialog>
+      )}
+      {stageDeleteTarget !== null && (
+        <Dialog
+          title={t('workflow.settings_delete_confirm', { name: editor.labelOf(stageDeleteTarget) })}
+          onClose={() => setStageDeleteTarget(null)}
+          testid="stage-delete-dialog"
+          actions={(
+            <>
+              <button type="button" className="min-h-10 rounded-md px-3 text-base text-text-2 hover:bg-fill" data-testid="stage-delete-cancel" onClick={() => setStageDeleteTarget(null)}>{t('workflow.cancel')}</button>
+              <button type="button" className="min-h-10 rounded-md bg-red-d px-4 text-base font-semibold text-btn-fg hover:opacity-90" data-testid="stage-delete-confirm" onClick={() => { editor.removeStage(stageDeleteTarget); setStageDeleteTarget(null) }}>{t('workflow.settings_delete')}</button>
+            </>
+          )}
+        >
+          {null}
         </Dialog>
       )}
       <WorkbenchDialogs

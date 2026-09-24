@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { isDefaultWorkflowName } from '@tenon/kernel/workflow/identifier'
 import {
   DndContext,
@@ -12,11 +12,21 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { ChevronDown, Download, FileCheck, Plus, RotateCcw, ShieldCheck, Trash2, Zap } from 'lucide-react'
+import { AlertTriangle, ChevronDown, Download, FileCheck, Lock, MoreHorizontal, Plus, RotateCcw, ShieldCheck, Trash2, Zap } from 'lucide-react'
 import type { WbStepDef, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
 import { useT } from '../i18n'
-import { MenuButton } from '../shared/MenuButton'
 import { useFlipLayout } from '../shared/useFlip'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Hint } from './Hint'
 import { BASE_BRANCH } from '../workbench/workbenchDefinition'
 import type { LintIssue } from './lint'
 import { lintMessage } from './lintMessages'
@@ -48,6 +58,8 @@ export interface WorkflowNavProps {
   onNewTrack: () => void
   onDeleteTrack: (trackId: string) => void
   onSelect: (id: string) => void
+  /** 左栏阶段块的 ⋯ → 删除阶段（确认框由页面负责）。 */
+  onDeleteStage: (id: string) => void
   onAddStage: () => void
   onReorder: (fromId: string, toId: string, after: boolean) => void
 }
@@ -73,18 +85,42 @@ function GateIcon({ gate }: { gate: WbStepDef['gate'] }): JSX.Element | null {
   )
 }
 
-function StepRow({ step, order, selected, issue, editable, labelOf, onSelect }: {
+const MENU_ICON_BUTTON = 'grid size-8 flex-none place-items-center rounded-sm text-text-3 outline-none hover:bg-fill hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-not-allowed disabled:opacity-50 data-[state=open]:bg-fill data-[state=open]:text-text'
+const MENU_ITEM = 'min-h-10 gap-2.5 px-2.5 text-body [&_svg]:text-text-3'
+
+function StepRow({ step, order, selected, issue, editable, deletable, labelOf, onSelect, onDelete }: {
   step: WbStepDef
   order: number
   selected: boolean
-  /** 本阶段的第一条 lint 问题（错误或警告）；有就在块上标一个琥珀点。 */
+  /** 本阶段最要紧的一条 lint 问题（错误优先）；有就在块上标警示图标，悬停 / 聚焦看原因。 */
   issue: LintIssue | undefined
   editable: boolean
+  deletable: boolean
   labelOf: (stepId: string) => string
   onSelect: (id: string) => void
+  onDelete: (id: string) => void
 }): JSX.Element {
   const { t } = useT()
   const { attributes, listeners, setNodeRef, isDragging } = useSortable({ id: step.id, disabled: !editable })
+  const issueText = issue === undefined ? null : lintMessage(t, issue, labelOf)
+  const block = (
+    <button
+      type="button"
+      className={cn(
+        'flex h-10 w-full min-w-0 items-center justify-between gap-2 rounded-sm border pl-3 text-left text-base outline-none transition-colors focus-visible:ring-2 focus-visible:ring-(--accent)',
+        selected ? 'border-(--accent) bg-accent-t pr-10 font-semibold text-(--accent)' : 'border-border bg-card pr-3 font-medium text-text hover:border-border-2',
+      )}
+      aria-current={selected ? 'true' : undefined}
+      data-testid={`wb-step-${step.id}`}
+      onClick={() => onSelect(step.id)}
+    >
+      <span className="truncate whitespace-nowrap">{labelOf(step.id)}</span>
+      <span className="flex flex-none items-center gap-1.5">
+        {issue !== undefined && <AlertTriangle className={cn('size-4', issue.severity === 'error' ? 'text-red-d' : 'text-amber-d')} aria-hidden="true" data-testid={`wb-lint-${step.id}`} data-severity={issue.severity} />}
+        {step.gate !== null && <span data-testid={`wb-gate-${step.id}`}><GateIcon gate={step.gate} /></span>}
+      </span>
+    </button>
+  )
   return (
     <li ref={setNodeRef} data-flip-id={`stage:${step.id}`} className={cn('grid grid-cols-[28px_minmax(0,1fr)] items-center gap-3 transition-opacity duration-150', isDragging && 'opacity-35')} style={{ height: STEP_HEIGHT }} data-testid={`wb-pipeline-node-${step.id}`}>
       <button
@@ -102,25 +138,29 @@ function StepRow({ step, order, selected, issue, editable, labelOf, onSelect }: 
       >
         {order}
       </button>
-      <button
-        type="button"
-        className={cn(
-          'flex h-10 min-w-0 items-center justify-between gap-2 rounded-sm border px-3 text-left text-base outline-none transition-colors focus-visible:ring-2 focus-visible:ring-(--accent)',
-          selected ? 'border-(--accent) bg-accent-t font-semibold text-(--accent)' : 'border-border bg-card font-medium text-text hover:border-border-2',
+      <div className="relative min-w-0">
+        {issueText === null ? block : <Hint label={issueText} side="right">{block}</Hint>}
+        {selected && (
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <button type="button" className={cn(MENU_ICON_BUTTON, 'absolute right-1 top-1')} aria-label={t('workflow.stage_menu', { name: labelOf(step.id) })} data-testid={`wb-stage-menu-${step.id}`}>
+                <MoreHorizontal className="size-4" aria-hidden="true" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-[180px]">
+              <DropdownMenuItem variant="destructive" className={MENU_ITEM} disabled={!deletable} data-testid={`wb-stage-delete-${step.id}`} onSelect={() => onDelete(step.id)}>
+                <Trash2 aria-hidden="true" />
+                {t('workflow.delete_stage')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
-        aria-current={selected ? 'true' : undefined}
-        data-testid={`wb-step-${step.id}`}
-        onClick={() => onSelect(step.id)}
-      >
-        <span className="truncate">{labelOf(step.id)}</span>
-        <span className="flex flex-none items-center gap-1.5">
-          {issue !== undefined && <span className="size-1.5 rounded-full bg-(--amber-d)" title={lintMessage(t, issue, labelOf)} data-testid={`wb-lint-${step.id}`} />}
-          {step.gate !== null && <span data-testid={`wb-gate-${step.id}`}><GateIcon gate={step.gate} /></span>}
-        </span>
-      </button>
+      </div>
     </li>
   )
 }
+
+type MenuEntry = { id: string; label: string; icon: ReactNode; onSelect: () => void; disabled: boolean; danger?: boolean; checked?: boolean }
 
 /**
  * 工作流页左栏：工作流名（点开切换）+ ⋯ 菜单 → 轨道下划线页签 +「+」→ 编号纵向流程
@@ -129,24 +169,10 @@ function StepRow({ step, order, selected, issue, editable, labelOf, onSelect }: 
 export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
   const { names, current, defaultSource, branches, branch, def, labelOf, selectedId, lint, loading, error, canWrite, busy, openspec } = props
   const { t } = useT()
-  const [switching, setSwitching] = useState(false)
-  const switchRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!switching) return
-    const onDown = (event: MouseEvent): void => { if (switchRef.current !== null && !switchRef.current.contains(event.target as Node)) setSwitching(false) }
-    const onKey = (event: KeyboardEvent): void => { if (event.key === 'Escape') { event.stopPropagation(); setSwitching(false) } }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey, true)
-    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey, true) }
-  }, [switching])
-
   const isDefault = current !== null && isDefaultWorkflowName(current)
-  // 工作流页只编辑全局存储：自定义工作流恒为全局；default 由 API 告知是内建还是全局覆盖。
-  const source = isDefault ? defaultSource : 'global'
   const tracks = branches.filter((candidate) => candidate.id !== BASE_BRANCH)
   const trackLabel = tracks.find((candidate) => candidate.id === branch)?.label ?? branch
   const deleteEnabled = canWrite && !busy && current !== null && (!isDefault || defaultSource !== 'builtin')
-  const noToken = canWrite ? undefined : t('workflow.no_token')
 
   const steps = def?.steps ?? []
   const edges = pipelineEdges(steps)
@@ -170,61 +196,71 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
     props.onReorder(String(event.active.id), String(over.id), toIndex > fromIndex)
   }
 
-  const menu = [
-    { id: 'new', label: t('workflow.new_workflow'), icon: <Plus />, onSelect: props.onCreate, disabled: !canWrite || busy, title: noToken },
+  // 工作流级动作：常规项在上，破坏性的（删除 / 恢复内建 / 删除轨道）在分隔线下。
+  const menu: MenuEntry[] = [
+    { id: 'new', label: t('workflow.new_workflow'), icon: <Plus />, onSelect: props.onCreate, disabled: !canWrite || busy },
     { id: 'export', label: t('workflow.export_yaml'), icon: <Download />, onSelect: props.onExport, disabled: current === null },
     // default 恒受 OpenSpec 治理，开关只对自定义工作流开放。
-    { id: 'openspec', label: t('workflow.openspec'), icon: <FileCheck />, onSelect: props.onToggleOpenspec, checked: openspec, disabled: !canWrite || busy || isDefault || current === null, title: noToken },
-    isDefault
-      ? { id: 'restore', label: t('workflow.restore_default'), icon: <RotateCcw />, onSelect: props.onDelete, disabled: !deleteEnabled, title: noToken }
-      : { id: 'delete', label: t('workflow.delete_workflow'), icon: <Trash2 />, onSelect: props.onDelete, disabled: !deleteEnabled, title: noToken, danger: true },
-    ...(branch !== BASE_BRANCH ? [{ id: 'delete-track', label: `${t('workflow.delete_track')} ${trackLabel}`, icon: <Trash2 />, onSelect: () => props.onDeleteTrack(branch), disabled: !canWrite || busy, title: noToken, danger: true }] : []),
+    { id: 'openspec', label: t('workflow.openspec_menu'), icon: <FileCheck />, onSelect: props.onToggleOpenspec, checked: openspec, disabled: !canWrite || busy || isDefault || current === null },
   ]
+  const destructive: MenuEntry[] = [
+    isDefault
+      ? { id: 'restore', label: t('workflow.restore_default'), icon: <RotateCcw />, onSelect: props.onDelete, disabled: !deleteEnabled }
+      : { id: 'delete', label: t('workflow.delete_workflow'), icon: <Trash2 />, onSelect: props.onDelete, disabled: !deleteEnabled, danger: true },
+    ...(branch !== BASE_BRANCH ? [{ id: 'delete-track', label: `${t('workflow.delete_track')} ${trackLabel}`, icon: <Trash2 />, onSelect: () => props.onDeleteTrack(branch), disabled: !canWrite || busy, danger: true }] : []),
+  ]
+  const menuItem = (item: MenuEntry): JSX.Element => item.checked === undefined ? (
+    <DropdownMenuItem key={item.id} variant={item.danger === true ? 'destructive' : 'default'} className={MENU_ITEM} disabled={item.disabled} data-testid={`wb-wf-menu-${item.id}`} onSelect={item.onSelect}>
+      {item.icon}
+      {item.label}
+    </DropdownMenuItem>
+  ) : (
+    <DropdownMenuCheckboxItem key={item.id} className={cn(MENU_ITEM, 'pl-8')} checked={item.checked} disabled={item.disabled} data-testid={`wb-wf-menu-${item.id}`} onSelect={item.onSelect}>
+      {item.label}
+    </DropdownMenuCheckboxItem>
+  )
+  const lockHint = t(`workflow.source_${defaultSource}`)
 
   return (
     <aside className="flex min-h-0 flex-col gap-5 overflow-y-auto border-r border-border bg-card px-5 py-5 max-[900px]:border-r-0 max-[900px]:border-b" aria-label={t('workflow.rail_title')} data-testid="workflow-nav">
-      <div className="flex items-start justify-between gap-2">
-        <div ref={switchRef} className="relative min-w-0">
-          <button
-            type="button"
-            className="flex max-w-full items-center gap-1.5 rounded-xs text-left text-title font-bold tracking-[-.01em] text-text outline-none hover:text-(--accent) focus-visible:ring-2 focus-visible:ring-(--accent)"
-            aria-haspopup="listbox"
-            aria-expanded={switching}
-            aria-label={t('workflow.switch_workflow')}
-            data-testid="wb-wf-switch"
-            onClick={() => setSwitching((value) => !value)}
-          >
-            <span className="truncate">{current ?? ''}</span>
-            <ChevronDown className="size-3.5 flex-none text-text-3" aria-hidden="true" />
-          </button>
-          <p className="mt-0.5 text-caption text-text-3" data-testid="wb-wf-meta">
-            <span data-testid={`wb-wf-source-${current ?? ''}`}>{t(`workflow.source_${source}`)}</span>
-            {tracks.length > 0 && <> · {t('workflow.branches_meta', { n: tracks.length })}</>}
-          </p>
-          {switching && (
-            <ul className="absolute left-0 top-[calc(100%+6px)] z-40 min-w-[220px] rounded-md border border-border bg-card p-1 shadow-lg" role="listbox" aria-label={t('workflow.switch_workflow')} data-testid="wb-wf-list">
-              {names.map((name) => {
-                const selected = name === current
-                return (
-                  <li key={name}>
-                    <button
-                      type="button"
-                      role="option"
-                      aria-selected={selected}
-                      className={cn('flex w-full items-center gap-2 rounded-sm px-2.5 py-2 text-left text-body outline-none hover:bg-fill focus-visible:bg-fill', selected ? 'font-semibold text-(--accent)' : 'text-text')}
-                      data-testid={`wb-wf-item-${name}`}
-                      onClick={() => { setSwitching(false); if (!busy && !selected) props.onSwitch(name) }}
-                    >
-                      <span className="min-w-0 flex-1 truncate">{name}</span>
-                      <span className="rounded-full bg-fill px-1.5 text-micro text-text-2">{t(`workflow.source_${isDefaultWorkflowName(name) ? defaultSource : 'global'}`)}</span>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </div>
-        <MenuButton testId="wb-wf-menu" label={t('workflow.workflow_menu')} disabled={busy} items={menu} />
+      <div className="flex items-center justify-between gap-2">
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex min-h-10 min-w-0 max-w-full items-center gap-1.5 rounded-xs text-left text-title font-bold tracking-[-.01em] text-text outline-none hover:text-(--accent) focus-visible:ring-2 focus-visible:ring-(--accent)"
+              aria-label={t('workflow.switch_workflow')}
+              data-testid="wb-wf-switch"
+              disabled={busy}
+            >
+              <span className="truncate whitespace-nowrap">{current ?? ''}</span>
+              {isDefault && <Lock className="size-3.5 flex-none text-text-3" aria-label={lockHint} data-testid="wb-wf-lock" data-source={defaultSource} />}
+              <ChevronDown className="size-3.5 flex-none text-text-3" aria-hidden="true" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="min-w-[220px]" data-testid="wb-wf-list">
+            <DropdownMenuRadioGroup value={current ?? ''} onValueChange={(name) => { if (name !== current) props.onSwitch(name) }}>
+              {names.map((name) => (
+                <DropdownMenuRadioItem key={name} value={name} className={cn(MENU_ITEM, 'pl-8')} data-testid={`wb-wf-item-${name}`}>
+                  <span className="min-w-0 flex-1 truncate whitespace-nowrap">{name}</span>
+                  {isDefaultWorkflowName(name) && <Lock className="size-3.5 flex-none" aria-label={lockHint} />}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <button type="button" className={MENU_ICON_BUTTON} aria-label={t('workflow.workflow_menu')} data-testid="wb-wf-menu" disabled={busy}>
+              <MoreHorizontal className="size-4" aria-hidden="true" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-[220px]" data-testid="wb-wf-menu-menu">
+            {menu.map(menuItem)}
+            <DropdownMenuSeparator />
+            {destructive.map(menuItem)}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {tracks.length > 0 && (
@@ -245,7 +281,7 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
               </button>
             )
           })}
-          <button type="button" className="ml-auto mb-1.5 grid size-6 place-items-center rounded-xs text-text-3 outline-none hover:bg-fill hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-not-allowed disabled:opacity-50" aria-label={t('workflow.new_track')} title={noToken ?? t('workflow.new_track')} disabled={!canWrite || busy} data-testid="wb-track-new" onClick={props.onNewTrack}>
+          <button type="button" className="ml-auto mb-1.5 grid size-6 place-items-center rounded-xs text-text-3 outline-none hover:bg-fill hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-not-allowed disabled:opacity-50" aria-label={t('workflow.new_track')} title={canWrite ? t('workflow.new_track') : t('workflow.no_token')} disabled={!canWrite || busy} data-testid="wb-track-new" onClick={props.onNewTrack}>
             <Plus className="size-3.5" aria-hidden="true" />
           </button>
         </div>
@@ -274,7 +310,7 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
               <SortableContext items={visible.map((step) => step.id)} strategy={verticalListSortingStrategy}>
                 <ol ref={listRef} className="grid" style={{ rowGap: STEP_PITCH - STEP_HEIGHT }} data-testid="stage-list-items">
                   {visible.map((step) => (
-                    <StepRow key={step.id} step={step} order={steps.indexOf(step) + 1} selected={step.id === selectedId} issue={lint.find((issue) => issue.stepId === step.id)} editable={editable} labelOf={labelOf} onSelect={props.onSelect} />
+                    <StepRow key={step.id} step={step} order={steps.indexOf(step) + 1} selected={step.id === selectedId} issue={lint.find((issue) => issue.stepId === step.id && issue.severity === 'error') ?? lint.find((issue) => issue.stepId === step.id)} editable={editable} deletable={editable && steps.length > 1} labelOf={labelOf} onSelect={props.onSelect} onDelete={props.onDeleteStage} />
                   ))}
                 </ol>
               </SortableContext>
