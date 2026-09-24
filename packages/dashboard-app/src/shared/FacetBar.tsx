@@ -75,7 +75,8 @@ function itemsOf(groups: readonly FacetGroup[]): Item[] {
 }
 
 const TRIGGER_CLS = 'inline-flex min-h-10 flex-none items-center gap-1 whitespace-nowrap rounded-sm border border-border px-2.5 text-body text-text-2 outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) data-[active=true]:border-accent-b data-[active=true]:bg-accent-t data-[active=true]:text-(--accent) aria-expanded:bg-fill'
-const COUNT_CLS = 'font-mono text-caption text-text-3'
+/* 计数用等宽数字（tabular-nums）而非等宽字体，与汉字基线对齐。 */
+const COUNT_CLS = 'text-caption tabular-nums text-text-3'
 
 function Count({ value, selected }: { value: number | undefined; selected?: boolean }): JSX.Element | null {
   if (value === undefined) return null
@@ -221,7 +222,7 @@ export function FacetBar({ groups, label, testId, trailing, measureWidth }: Face
         <DropdownMenu>
           <DropdownMenuTrigger className={TRIGGER_CLS} data-active={moreActive} data-testid={`${testId}-more`}>
             {t('common.more')}
-            <span className="font-mono text-caption">{hidden.length}</span>
+            <span className={COUNT_CLS}>{hidden.length}</span>
             <ChevronDown className="size-4 flex-none" aria-hidden="true" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" data-testid={`${testId}-more-menu`}>
@@ -248,7 +249,7 @@ export function FacetBar({ groups, label, testId, trailing, measureWidth }: Face
             ? <span key={item.key} className={TRIGGER_CLS} data-measure={`item:${item.key}`} data-active={item.group.value !== allIdOf(item.group)}><TriggerContent group={item.group} /></span>
             : <span key={item.key} className={cn(FILTER_CHIP_CLS, item.group.value === item.option.id && 'font-semibold')} data-measure={`item:${item.key}`}>{item.option.label}<Count value={item.option.count} /></span>
         ))}
-        <span className={TRIGGER_CLS} data-measure="more">{t('common.more')}<span className="font-mono text-caption">{items.length}</span><ChevronDown className="size-4" aria-hidden="true" /></span>
+        <span className={TRIGGER_CLS} data-measure="more">{t('common.more')}<span className={COUNT_CLS}>{items.length}</span><ChevronDown className="size-4" aria-hidden="true" /></span>
       </div>
     </div>
   )

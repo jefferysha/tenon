@@ -118,4 +118,34 @@ describe('FacetBar', () => {
     await user.click(await screen.findByTestId('ow-bob'))
     expect(screen.getByTestId('bar-more')).toHaveAttribute('data-active', 'true')
   })
+
+  it('计数用 tabular-nums + text-3，不用等宽字体', () => {
+    render(<Harness widths={{ container: 200, 'item:status:all': 50, 'item:status:run': 60, 'item:status:done': 60, 'item:owner': 80, more: 60 }} />)
+    const counts = [screen.getByTestId('st-all').lastElementChild, screen.getByTestId('bar-more').querySelector('span')]
+    for (const count of counts) {
+      expect(count).toHaveClass('tabular-nums')
+      expect(count).not.toHaveClass('font-mono')
+    }
+    expect(screen.getByTestId('st-run').lastElementChild).toHaveClass('text-text-3')
+    expect(screen.getByTestId('bar-more').querySelector('span')).toHaveClass('text-text-3')
+  })
+
+  it('「更多」里没有选中值的组不留左侧指示位；有选中值的组保留', async () => {
+    const user = userEvent.setup()
+    render(<Harness widths={{ container: 200, 'item:status:all': 50, 'item:status:run': 60, 'item:status:done': 60, 'item:owner': 80, more: 60 }} />)
+    await user.click(screen.getByTestId('bar-more'))
+    const menu = await screen.findByTestId('bar-more-menu')
+    const done = within(menu).getByTestId('st-done')
+    const ownerAll = within(menu).getByTestId('ow-all')
+    const indentWhenChecked = 'in-[[data-slot=dropdown-menu-radio-group]:has([data-state=checked])]:pl-8'
+    for (const item of [done, ownerAll]) {
+      expect(item).toHaveClass('pl-2')
+      expect(item).toHaveClass(indentWhenChecked)
+      expect(item).not.toHaveClass('pl-8')
+    }
+    const hasChecked = (item: HTMLElement): boolean =>
+      item.closest('[data-slot="dropdown-menu-radio-group"]')?.querySelector('[data-state="checked"]') != null
+    expect(hasChecked(done)).toBe(false)
+    expect(hasChecked(ownerAll)).toBe(true)
+  })
 })
