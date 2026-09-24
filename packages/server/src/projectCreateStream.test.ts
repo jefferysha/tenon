@@ -121,6 +121,25 @@ describe('POST /api/projects/create/stream', () => {
     expect(again.at(-1)).toMatchObject({ event: 'done', data: { registration: 'already' } })
   })
 
+  it('clients：作为「clients」步骤写入 .tenon/clients.json（去重排序）；未知 id 400；已有文件被覆盖', async () => {
+    const parent = await tempDir('parent')
+    const { port } = await start()
+    const bad = await reqPost(port, PATH, { mode: 'empty', parent, name: 'shop', instructions: null, clients: ['claude', 'evil'] }, { headers: AUTH })
+    expect([bad.status, bad.json<{ code: string }>().code]).toEqual([400, 'invalid'])
+    const events = parse((await reqPost(port, PATH, {
+      mode: 'empty', parent, name: 'shop', instructions: instructions(['AGENTS.md']), clients: ['codex', 'claude', 'codex'],
+    }, { headers: AUTH })).body)
+    expect(events[0]).toEqual({ event: 'plan', data: { steps: ['directory', 'git', 'file:AGENTS.md', 'clients', 'register'] } })
+    expect(events.at(-1)).toMatchObject({ event: 'done' })
+    const file = join(parent, 'shop', '.tenon', 'clients.json')
+    expect(JSON.parse(await readFile(file, 'utf8'))).toEqual({ schema: 'tenon-clients/v1', enabled: ['claude', 'codex'] })
+
+    const again = parse((await reqPost(port, PATH, { mode: 'existing', path: join(parent, 'shop'), instructions: null, clients: ['gemini'] }, { headers: AUTH })).body)
+    expect(again[0]).toEqual({ event: 'plan', data: { steps: ['clients', 'register'] } })
+    expect(again.at(-1)).toMatchObject({ event: 'done', data: { registration: 'already' } })
+    expect(JSON.parse(await readFile(file, 'utf8'))).toEqual({ schema: 'tenon-clients/v1', enabled: ['gemini'] })
+  })
+
   it('createStepIds：已有目录没有 directory / git / skeleton', () => {
     expect(createStepIds({ mode: 'existing', root: '/r', instructions: null, dryRun: false })).toEqual(['register'])
     expect(createStepIds({ mode: 'empty', root: '/p/r', parent: '/p', directories: [], instructions: null, dryRun: false }))

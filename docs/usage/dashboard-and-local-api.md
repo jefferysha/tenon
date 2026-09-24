@@ -153,7 +153,9 @@ picker-busy`). When no dialog is available the page switches to an in-page
 browser backed by `GET /api/fs/list?dir=&hidden=1`, which lists sub-directories
 only and, unlike other reads, also requires the token. `POST
 /api/projects/create/stream` takes the same body as `POST /api/projects/create`
-and reports each step (`plan`, `step`, `done`, `failed`) as `text/event-stream`.
+and reports each step (`plan`, `step`, `done`, `failed`) as `text/event-stream`;
+an optional `clients` list is recorded in the project's `.tenon/clients.json`
+(`tenon-clients/v1`).
 
 The production server negotiates gzip for compressible generated assets and
 returns `Vary: Accept-Encoding`. Clients that decline gzip receive the original

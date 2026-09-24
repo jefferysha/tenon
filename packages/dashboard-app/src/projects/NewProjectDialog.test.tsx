@@ -312,11 +312,12 @@ describe('确认与创建进度', () => {
 
   it('确认列出动作与文件，文件可展开看内容；创建后逐步显示进度，完成后「打开项目」', async () => {
     const user = userEvent.setup()
-    const steps = ['directory', 'git', 'skeleton', 'file:CLAUDE.md', 'file:AGENTS.md', 'register']
+    const steps = ['directory', 'git', 'skeleton', 'file:CLAUDE.md', 'file:AGENTS.md', 'clients', 'register']
     const calls = stubFetch({ picks: [{ ok: true, path: '/code' }], streams: [successFrames('/code/shop', steps)] })
     const { onCreated } = renderDialog()
     const confirm = await toConfirm(user)
     for (const id of ['directory', 'git', 'skeleton', 'register']) expect(within(confirm).getByTestId(`np-action-${id}`)).toBeInTheDocument()
+    expect(within(confirm).getByTestId('np-action-clients')).toHaveTextContent('Claude Code, Codex')
     expect(within(confirm).getByTestId('np-action-skeleton')).toHaveTextContent('frontend/')
     expect(within(confirm).getByTestId('np-plan-CLAUDE.md')).toHaveTextContent('新建')
     await user.click(within(confirm).getByTestId('np-plan-toggle-AGENTS.md'))
@@ -327,8 +328,9 @@ describe('确认与创建进度', () => {
     await waitFor(() => expect(within(rows).getByTestId('np-row-register')).toHaveAttribute('data-state', 'done'))
     for (const id of steps) expect(within(rows).getByTestId(`np-row-${id}`)).toHaveAttribute('data-state', 'done')
     expect(within(rows).getByTestId('np-row-file:CLAUDE.md')).toHaveTextContent('写入 CLAUDE.md')
+    expect(within(rows).getByTestId('np-row-clients')).toHaveTextContent('记录客户端')
     const stream = bodies(calls, '/api/projects/create/stream')[0]
-    expect(stream).toMatchObject({ mode: 'empty', parent: '/code', name: 'shop', directories: ['frontend/'] })
+    expect(stream).toMatchObject({ mode: 'empty', parent: '/code', name: 'shop', directories: ['frontend/'], clients: ['claude', 'codex'] })
     expect(stream?.instructions).toMatchObject({ targets: ['CLAUDE.md', 'AGENTS.md'], base_digests: { 'CLAUDE.md': 'absent', 'AGENTS.md': 'absent' } })
     await user.click(screen.getByTestId('np-open'))
     expect(onCreated).toHaveBeenCalledWith('/code/shop')

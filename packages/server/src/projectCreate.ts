@@ -14,6 +14,7 @@ import {
 import { IDENTITY_REQUIRED, recordInstructionAudit } from './instructionAudit.js'
 import { INSTRUCTION_TEXT_MAX_BYTES, previewInstructionApply, type InstructionResult } from './instructionFiles.js'
 import { trustedFsFailure } from './instructionTrustedFs.js'
+import { normalizeProjectClients } from './projectClients.js'
 import { executeEmpty, executeExisting, type CreateStepReporter } from './projectCreateRun.js'
 import type { ServerPaths } from './types.js'
 import {
@@ -32,9 +33,16 @@ export interface ProjectCreateDeps {
 
 interface InstructionsRequest { readonly text: string; readonly targets: readonly ProjectInstructionFile[]; readonly baseDigests: Readonly<Record<string, string>> }
 
+/** clients：要记入 `.tenon/clients.json` 的客户端（已去重排序）；null = 请求没带，不写。 */
 export type ProjectCreatePlan =
-  | { readonly mode: 'empty'; readonly root: string; readonly parent: string; readonly directories: readonly string[]; readonly instructions: InstructionsRequest | null; readonly dryRun: boolean }
-  | { readonly mode: 'existing'; readonly root: string; readonly instructions: InstructionsRequest | null; readonly dryRun: boolean }
+  | {
+    readonly mode: 'empty'; readonly root: string; readonly parent: string; readonly directories: readonly string[]
+    readonly instructions: InstructionsRequest | null; readonly clients?: readonly string[] | null; readonly dryRun: boolean
+  }
+  | {
+    readonly mode: 'existing'; readonly root: string; readonly instructions: InstructionsRequest | null
+    readonly clients?: readonly string[] | null; readonly dryRun: boolean
+  }
 
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/
 const DIRECTORY = /^[a-z0-9._-]+\/$/
@@ -70,7 +78,7 @@ function decodeInstructions(value: unknown): InstructionsRequest | null | 'inval
 /** 解码与静态校验；不访问文件系统。 */
 export function decodeProjectCreate(body: unknown): ProjectCreatePlan | InstructionResult {
   const request = record(body)
-  const allowed = ['mode', 'parent', 'name', 'path', 'directories', 'instructions', 'dry_run']
+  const allowed = ['mode', 'parent', 'name', 'path', 'directories', 'instructions', 'clients', 'dry_run']
   if (!request || Object.keys(request).some((key) => !allowed.includes(key))) return fail(400, 'invalid', '请求体不合法')
   const directories = request.directories ?? []
   if (!Array.isArray(directories) || directories.length > 8 || !directories.every((item) => typeof item === 'string' && DIRECTORY.test(item) && item !== './' && item !== '../')
@@ -81,16 +89,18 @@ export function decodeProjectCreate(body: unknown): ProjectCreatePlan | Instruct
   if (instructions === 'invalid') return fail(400, 'invalid', 'instructions 不合法')
   if (instructions && containsManagedMarker(instructions.text)) return fail(400, 'managed-marker-in-text', '正文不能包含 Tenon 受管块标记行')
   if (instructions && Buffer.byteLength(instructions.text, 'utf8') > INSTRUCTION_TEXT_MAX_BYTES) return fail(413, 'too-large', '指令文件过大')
+  const clients = request.clients === undefined || request.clients === null ? null : normalizeProjectClients(request.clients)
+  if (clients === null && request.clients !== undefined && request.clients !== null) return fail(400, 'invalid', 'clients 只能是已知客户端 id')
   const dryRun = request.dry_run === true
   if (request.mode === 'empty') {
     if (!absolutePath(request.parent) || typeof request.name !== 'string' || !NAME.test(request.name)) return fail(400, 'invalid-path', '父目录必须是绝对路径，名称只能含字母、数字、. _ -')
     const parent = resolvePath(request.parent)
-    return { mode: 'empty', parent, root: join(parent, request.name), directories: directories.map(String), instructions, dryRun }
+    return { mode: 'empty', parent, root: join(parent, request.name), directories: directories.map(String), instructions, clients, dryRun }
   }
   if (request.mode === 'existing') {
     if (!absolutePath(request.path)) return fail(400, 'invalid-path', '路径必须是绝对路径')
     if (directories.length > 0) return fail(400, 'invalid', '已有目录不创建骨架目录')
-    return { mode: 'existing', root: resolvePath(request.path), instructions, dryRun }
+    return { mode: 'existing', root: resolvePath(request.path), instructions, clients, dryRun }
   }
   return fail(400, 'invalid', 'mode 必须是 empty 或 existing')
 }

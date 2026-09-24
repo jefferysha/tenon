@@ -3,11 +3,16 @@ import { ChevronRight } from 'lucide-react'
 import { useT } from '../i18n'
 import type { ProjectCreatePlan } from '../api/instructionsDecoders'
 import { cn } from '@/lib/utils'
-import { stepLabelKey } from './newProjectModel'
+import { CLIENTS, stepLabelKey } from './newProjectModel'
+
+const clientNames = (ids: readonly string[]): string =>
+  ids.map((id) => CLIENTS.find((client) => client.id === id)?.name ?? id).join(', ')
 
 export interface ConfirmStepProps {
   plan: ProjectCreatePlan
   mode: 'existing' | 'empty'
+  /** 记入 `.tenon/clients.json` 的客户端 id。 */
+  clients: readonly string[]
 }
 
 const ROW = 'flex min-h-10 items-center gap-3 px-3 whitespace-nowrap'
@@ -19,7 +24,7 @@ function Label({ id }: { id: string }): JSX.Element {
 }
 
 /** 确认：列出将执行的动作与将生成的文件；文件行可展开看将写入的内容。 */
-export function ConfirmStep({ plan, mode }: ConfirmStepProps): JSX.Element {
+export function ConfirmStep({ plan, mode, clients }: ConfirmStepProps): JSX.Element {
   const { t } = useT()
   const [open, setOpen] = useState<string | null>(null)
   return (
@@ -68,6 +73,10 @@ export function ConfirmStep({ plan, mode }: ConfirmStepProps): JSX.Element {
             </li>
           )
         })}
+        <li className={ROW} data-testid="np-action-clients">
+          <Label id="clients" />
+          <span className="min-w-0 truncate text-caption text-text-3" title={clientNames(clients)}>{clientNames(clients)}</span>
+        </li>
         <li className={ROW} data-testid="np-action-register">
           <Label id="register" />
           {plan.registration === 'already' && <span className="flex-none text-caption text-text-2">{t('projects.registered')}</span>}

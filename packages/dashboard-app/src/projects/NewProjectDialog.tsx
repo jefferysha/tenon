@@ -76,6 +76,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
   const inputFor = (instructions: ProjectInstructionsInput | null, override: { path?: string } = {}): ProjectCreateInput => (mode === 'empty'
     ? { mode: 'empty', parent, name, directories: directories.map((entry) => entry.path), instructions }
     : { mode: 'existing', path: override.path ?? path, instructions })
+  const enabledClients = [...clients].sort()
 
   const capture = (error: unknown): void => {
     setErrorKey(instructionErrorKey(error))
@@ -149,7 +150,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
   const create = (): void => {
     setView('progress')
     void run.start(async () => {
-      const draft = inputFor(files.length === 0 || markdown === '' ? null : { text: markdown, targets: [...files], base_digests: {} })
+      const draft = { ...inputFor(files.length === 0 || markdown === '' ? null : { text: markdown, targets: [...files], base_digests: {} }), clients: enabledClients }
       const fresh = await planProjectCreate(draft)
       if (draft.instructions === null) return draft
       return { ...draft, instructions: { ...draft.instructions, base_digests: Object.fromEntries(fresh.files.map((file) => [file.id, file.base_digest])) } }
@@ -243,7 +244,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
               }}
             />
           )}
-          {view === 'wizard' && step === 'confirm' && plan !== null && <ConfirmStep plan={plan} mode={mode} />}
+          {view === 'wizard' && step === 'confirm' && plan !== null && <ConfirmStep plan={plan} mode={mode} clients={enabledClients} />}
         </div>
         {view === 'wizard' && errorKey !== null && (
           <div className="grid gap-1 rounded-md border border-red-b bg-red-t px-4 py-3" role="alert" data-testid="np-error">

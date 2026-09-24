@@ -1,5 +1,5 @@
 /**
- * 新建项目的执行阶段，拆成可报告的步骤：directory → git → skeleton → file:<name>（逐个文件）→ register。
+ * 新建项目的执行阶段，拆成可报告的步骤：directory → git → skeleton → file:<name>（逐个文件）→ clients → register。
  *
  * 每步先报 running，成功报 done，失败报 failed（带错误原文）后停止；后续步骤保持未开始。
  * 新建目录：任一步失败都删掉本次创建的目录（按 inode 核对），因此整体重试是安全的。
@@ -10,6 +10,7 @@ import { join } from 'node:path'
 import { readProjectRegistry } from '@tenon/kernel'
 import { applyInstructions, type InstructionResult } from './instructionFiles.js'
 import { trustedFsFailure, writeTrustedFile } from './instructionTrustedFs.js'
+import { writeProjectClientsAnchored } from './projectClients.js'
 import type { ProjectCreateDeps, ProjectCreatePlan } from './projectCreate.js'
 import { registerProjectAnchored } from './projects.js'
 import { withTrustedDirectoryChain } from './workflowTrustedFs.js'
@@ -25,7 +26,7 @@ type EmptyPlan = Extract<ProjectCreatePlan, { mode: 'empty' }>
 type ExistingPlan = Extract<ProjectCreatePlan, { mode: 'existing' }>
 
 /** 旧的 JSON 端点在 500 里带的 step 名（兼容面）。 */
-const LEGACY_STEP: Readonly<Record<string, string>> = { git: 'git-init', skeleton: 'directories', register: 'register' }
+const LEGACY_STEP: Readonly<Record<string, string>> = { git: 'git-init', skeleton: 'directories', clients: 'clients', register: 'register' }
 const legacyStep = (id: string): string => LEGACY_STEP[id] ?? (id.startsWith('file:') ? 'instructions' : id)
 
 const ERROR_MAX = 600
@@ -49,9 +50,17 @@ function bodyText(result: InstructionResult): { error: string; code: string | un
   return { error: typeof error === 'string' ? error : `HTTP ${result.status}`, code: typeof code === 'string' ? code : undefined }
 }
 
+const hasClients = (plan: ProjectCreatePlan): boolean => plan.clients !== undefined && plan.clients !== null
+
+async function recordClients(plan: ProjectCreatePlan, anchor: WorkflowRootAnchor, report: CreateStepReporter): Promise<void> {
+  const clients = plan.clients
+  if (clients === undefined || clients === null) return
+  await runStep('clients', report, () => writeProjectClientsAnchored(anchor, clients))
+}
+
 /** 本次计划会执行的步骤 id（进度视图的行）。 */
 export function createStepIds(plan: ProjectCreatePlan): string[] {
-  const files = (plan.instructions?.targets ?? []).map((id) => `file:${id}`)
+  const files = [...(plan.instructions?.targets ?? []).map((id) => `file:${id}`), ...(hasClients(plan) ? ['clients'] : [])]
   if (plan.mode === 'existing') return [...files, 'register']
   return ['directory', 'git', ...(plan.directories.length > 0 ? ['skeleton'] : []), ...files, 'register']
 }
@@ -122,6 +131,7 @@ export async function executeEmpty(plan: EmptyPlan, deps: ProjectCreateDeps, rep
     for (const id of instructions?.targets ?? []) {
       files.push(await runStep(`file:${id}`, report, () => writeFile(anchor, instructions?.text ?? '', id, 'absent')))
     }
+    await recordClients(plan, anchor, report)
     await runStep('register', report, async () => {
       const registration = await registerProjectAnchored(deps.paths, deps.workflowRootAnchors, plan.root)
       if (!registration.ok) throw new Error(registration.error)
@@ -140,12 +150,13 @@ export async function executeExisting(plan: ExistingPlan, deps: ProjectCreateDep
   const files: unknown[] = []
   try {
     const instructions = plan.instructions
-    if (instructions) {
+    if (instructions || hasClients(plan)) {
       const anchor = captureWorkflowRootAnchor(plan.root)
       try {
-        for (const id of instructions.targets) {
-          files.push(await runStep(`file:${id}`, report, () => writeFile(anchor, instructions.text, id, instructions.baseDigests[id] ?? 'absent')))
+        for (const id of instructions?.targets ?? []) {
+          files.push(await runStep(`file:${id}`, report, () => writeFile(anchor, instructions?.text ?? '', id, instructions?.baseDigests[id] ?? 'absent')))
         }
+        await recordClients(plan, anchor, report)
       } finally {
         closeWorkflowRootAnchor(anchor)
       }

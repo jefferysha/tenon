@@ -126,9 +126,10 @@ export function deleteInstruction(root: string, target: string, digest: string):
 
 export interface ProjectInstructionsInput { text: string; targets: string[]; base_digests: Record<string, string> }
 
+/** clients：记入项目 `.tenon/clients.json` 的客户端 id；省略 = 不写。 */
 export type ProjectCreateInput =
-  | { mode: 'empty'; parent: string; name: string; directories: string[]; instructions: ProjectInstructionsInput | null }
-  | { mode: 'existing'; path: string; instructions: ProjectInstructionsInput | null }
+  | { mode: 'empty'; parent: string; name: string; directories: string[]; instructions: ProjectInstructionsInput | null; clients?: string[] }
+  | { mode: 'existing'; path: string; instructions: ProjectInstructionsInput | null; clients?: string[] }
 
 export function planProjectCreate(input: ProjectCreateInput): Promise<ProjectCreatePlan> {
   return send('/api/projects/create', { method: 'POST', headers: jsonHeaders(), body: JSON.stringify({ ...input, dry_run: true }) }, decodeProjectCreatePlan, '新建项目预览失败')
