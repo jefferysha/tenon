@@ -3,6 +3,10 @@ import { ApiError, readJson, throwApiError, wrapNetwork } from './transport'
 export type SkillSourceStatus = 'changed' | 'unchanged' | 'failed' | 'bundled'
 export type SkillFailureReason =
   | 'unreachable' | 'removed' | 'renamed' | 'invalid-content' | 'too-large' | 'license-missing' | 'license-mismatch'
+  /** 没有 skills.lock.json：没有已安装的发布包（例如从源码运行）。 */
+  | 'lock-missing'
+  /** 锁存在但没有这个来源。 */
+  | 'not-locked'
 
 /** One row of `GET /api/skills/sources` (server `UpstreamSkillView`). */
 export interface SkillSourceRow {
@@ -33,6 +37,7 @@ export interface SkillSourcesDto {
 const STATUSES: ReadonlySet<unknown> = new Set(['changed', 'unchanged', 'failed', 'bundled'])
 const REASONS: ReadonlySet<unknown> = new Set([
   'unreachable', 'removed', 'renamed', 'invalid-content', 'too-large', 'license-missing', 'license-mismatch',
+  'lock-missing', 'not-locked',
 ])
 const ROW_KEYS: ReadonlySet<string> = new Set([
   'id', 'origin', 'status', 'repo', 'path', 'commit', 'previousCommit', 'license', 'fetchedAt',

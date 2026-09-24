@@ -73,11 +73,11 @@ describe('readUpstreamSkillView', () => {
     ])
   })
 
-  it('marks every source failed without a reason in a source checkout without a lock', async () => {
+  it('marks every source failed with reason lock-missing in a source checkout without a lock', async () => {
     const { root, state } = await pluginRoot({ 'skills/sources.yaml': SOURCES })
     const view = readUpstreamSkillView(root, state)
     expect(view.rows.filter((row) => row.origin === 'upstream').map((row) => [row.status, row.reason])).toEqual([
-      ['failed', undefined], ['failed', undefined],
+      ['failed', 'lock-missing'], ['failed', 'lock-missing'],
     ])
     expect(view.updatedAt).toBeNull()
   })

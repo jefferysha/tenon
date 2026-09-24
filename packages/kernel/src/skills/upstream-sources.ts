@@ -65,6 +65,12 @@ export interface UpstreamSkillRunReport {
 }
 
 export type UpstreamSkillRowStatus = 'changed' | 'unchanged' | 'failed' | 'bundled'
+/**
+ * 视图行的失败原因：最近一次获取报告的原因，或（没有报告时）视图自己知道的缺口——
+ * `lock-missing` = 插件根下没有 skills.lock.json（没有已安装的发布包，例如从源码运行）；
+ * `not-locked` = 锁存在但没有这个来源的条目。
+ */
+export type UpstreamSkillViewReason = UpstreamSkillFailureReason | 'lock-missing' | 'not-locked'
 export interface UpstreamSkillViewRow {
   readonly id: string
   readonly origin: 'tenon' | 'upstream'
@@ -77,7 +83,7 @@ export interface UpstreamSkillViewRow {
   readonly fetchedAt?: string
   /** 0.1.1-pre 那版 v2 锁里记过的「模型可调用」；本仓不再写它，通常为空。判定见 doctor 探针。 */
   readonly modelInvocable?: boolean
-  readonly reason?: UpstreamSkillFailureReason
+  readonly reason?: UpstreamSkillViewReason
   readonly detail?: string
   readonly sourceUrl?: string
   readonly commitUrl?: string
@@ -364,7 +370,7 @@ function treeUrl(repo: string, commit: string, path: string): string {
 
 /**
  * bundled 行在前，来源行按 sources.yaml 顺序。锁里没有的来源，或最近一次运行不早于锁更新
- * 且该来源 kept/missing 的，记为 failed。changed / unchanged 以最近一次更新的实际结果为准：
+ * 且该来源 kept/missing 的，记为 failed；锁里没有且获取报告没给原因时，原因记为 lock-missing / not-locked。changed / unchanged 以最近一次更新的实际结果为准：
  * 最近一次运行不早于锁更新时，它对该来源报 updated 即 changed、unchanged 即 unchanged——与
  * `last-update.json` 同一口径；没有这样的运行结果时才回落到 `fetchedAt === updatedAt`（锁生成那次抓取）。
  */
@@ -390,7 +396,8 @@ export function buildUpstreamSkillView(input: {
       ...(failure?.detail === undefined ? {} : { detail: failure.detail }),
     }
     if (entry === undefined) {
-      rows.push({ id: source.id, origin: 'upstream', status: 'failed', repo: source.repo, path: source.path, ...failureFields })
+      const known = failure?.reason === undefined ? { reason: lock === null ? 'lock-missing' as const : 'not-locked' as const } : {}
+      rows.push({ id: source.id, origin: 'upstream', status: 'failed', repo: source.repo, path: source.path, ...failureFields, ...known })
       continue
     }
     const outcome = lastOutcome.get(source.id)

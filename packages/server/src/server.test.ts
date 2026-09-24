@@ -2299,6 +2299,18 @@ describe('GET /api/skills/sources —— 上游技能来源视图（只读，不
     expect(body).toEqual(readUpstreamSkillView(process.cwd(), paths.stateRoot))
     expect(body.rows.some((row) => row.id === 'tenon' && row.origin === 'tenon' && row.status === 'bundled')).toBe(true)
   })
+
+  it('源码运行（本仓没有 skills/skills.lock.json）时，每个上游行都带原因 lock-missing', async () => {
+    const hostHome = await makeTempHome()
+    const paths = resolveServerPaths({ home: hostHome, env: {} })
+    const h = await start({ hostHome, paths })
+    const body = (await reqGet(h.port, '/api/skills/sources')).json<UpstreamSkillView>()
+    const upstream = body.rows.filter((row) => row.origin === 'upstream')
+    expect(upstream.length).toBeGreaterThan(0)
+    // 本地跑过 npm run skills:fetch 的检出有锁（被 .gitignore 忽略）：那时不得出现 lock-missing。
+    if (existsSync(join(process.cwd(), 'skills', 'skills.lock.json'))) expect(upstream.some((row) => row.reason === 'lock-missing')).toBe(false)
+    else expect(upstream.every((row) => row.status === 'failed' && row.reason === 'lock-missing')).toBe(true)
+  })
 })
 
 describe('POST /api/config/mandatory-skills —— M3 config 写端点（同 B5 token 鉴权模式）', () => {

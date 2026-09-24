@@ -207,6 +207,29 @@ describe('SkillsView', () => {
     expect(screen.queryByTestId('skills-failure-web-design-guidelines')).toBeNull()
   })
 
+  it('says why a failed row failed: no installed release payload / not in the lock, one truncated line with the full text on hover', async () => {
+    const body = {
+      updatedAt: null, lastRunAt: null,
+      rows: [
+        { id: 'hue', origin: 'upstream', status: 'failed', repo: 'dominikmartn/hue', path: '.', reason: 'lock-missing' },
+        { id: 'shadcn', origin: 'upstream', status: 'failed', repo: 'shadcn-ui/ui', path: 'skills/shadcn', reason: 'not-locked' },
+        { id: 'brainstorming', origin: 'upstream', status: 'failed', repo: 'obra/superpowers', path: 'skills/brainstorming', reason: 'unreachable', detail: 'getaddrinfo ENOTFOUND api.github.com' },
+      ],
+    }
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(body), { status: 200 }))
+    renderView()
+    for (const id of ['hue', 'shadcn', 'brainstorming']) await userEvent.click(await screen.findByTestId(`skills-expand-${id}`))
+    const payload = screen.getByTestId('skills-failure-reason-hue')
+    expect(payload).toHaveTextContent('没有已安装的发布包（从源码运行）')
+    expect(payload).toHaveAttribute('title', '没有已安装的发布包（从源码运行）')
+    expect(payload.className).toContain('truncate')
+    expect(payload.className).toContain('whitespace-nowrap')
+    expect(screen.getByTestId('skills-failure-reason-shadcn')).toHaveTextContent('skills.lock.json 里没有该技能')
+    expect(screen.getByTestId('skills-failure-reason-brainstorming')).toHaveAttribute('title', '无法访问 getaddrinfo ENOTFOUND api.github.com')
+    expect(screen.getByTestId('skills-fix-hue-0-text')).toHaveTextContent('tenon update --codex')
+    expect(screen.getByTestId('skills-fix-hue-1-text')).toHaveTextContent('tenon update --claude')
+  })
+
   it('lists which workflows / tracks / stages use a skill', async () => {
     const step = (id: string, label: string, skills: string[]) => ({ id, label, gate: null, skills: skills.map((skill) => ({ id: skill })), inputs: [], outputs: [], guards: [], transitions: [] })
     const workflow = {
