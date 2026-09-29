@@ -7,8 +7,10 @@ export { INSTRUCTION_BLOCK_MAX_BYTES, parseInstructionBlock } from './block.js'
 export type { BlockError, InstructionBlock, InstructionVariable } from './block.js'
 export { NO_CATALOG, composeInstructions } from './compose.js'
 export type {
-  CatalogEntrySummary, CatalogLookup, ComposeError, ComposeResult, ComposeSelection, ComposedDirectory,
+  CatalogLookup, ComposeError, ComposeResult, ComposeSelection, ComposedDirectory,
 } from './compose.js'
+export { catalogEntryLines } from './catalog-lines.js'
+export type { CatalogEntrySummary } from './catalog-lines.js'
 export {
   INSTRUCTION_HOSTS, PROJECT_INSTRUCTION_FILES, ZED_PROJECT_ORDER,
   hasUserInstructionFile, instructionHost, projectTargetsFor, userInstructionPath, zedEffectiveFile,

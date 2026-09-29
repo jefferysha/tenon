@@ -6,16 +6,7 @@
  */
 import { INSTRUCTION_CATEGORIES, type CatalogCategory, type TemplateRef } from './categories.js'
 import { placeholdersIn, type InstructionBlock } from './block.js'
-
-export interface CatalogEntrySummary {
-  id: string
-  name: string
-  category: CatalogCategory
-  frameworks: readonly string[]
-  license: { spdx: string; redistributable: boolean; attribution: boolean }
-  install?: string
-  docs_url?: string
-}
+import { catalogEntryLines, type CatalogEntrySummary } from './catalog-lines.js'
 
 /** 资源目录查询端口；design-resources 提供实现，未接入时用 NO_CATALOG（资源行整行省略）。 */
 export interface CatalogLookup { get(id: string): CatalogEntrySummary | null }
@@ -98,16 +89,7 @@ function checkCatalog(selection: ComposeSelection, catalog: CatalogLookup, error
 }
 
 function catalogLines(entries: readonly (CatalogEntrySummary | null)[]): string | null {
-  const lines: string[] = []
-  for (const entry of entries) {
-    if (!entry) continue
-    const parts: string[] = []
-    if (entry.install) parts.push(`安装 \`${entry.install}\``)
-    if (entry.docs_url) parts.push(`文档 ${entry.docs_url}`)
-    lines.push(`- ${entry.name}（${entry.license.spdx}）${parts.length > 0 ? `· ${parts.join(' · ')}` : ''}`)
-    if (!entry.license.redistributable) lines.push(`- 仅链接：${entry.name} 按安装命令在本项目使用，不再分发其源码`)
-    if (entry.license.attribution) lines.push(`- 署名：${entry.name} 需要署名`)
-  }
+  const lines = entries.flatMap((entry) => (entry ? catalogEntryLines(entry) : []))
   return lines.length > 0 ? lines.join('\n') : null
 }
 

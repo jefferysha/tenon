@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react'
+import { resourceEntryLines } from '@tenon/kernel/resources/frontend-selection'
 import { licenseModes } from '@tenon/kernel/resources/query'
 import { useT } from '../i18n'
 import { RESOURCE_LINK_KEYS, type ResourceEntry } from '../api/resourceTypes'
 import { BUTTON_GHOST, BUTTON_SOLID } from '../shared/uiRecipes'
-import { instructionLines } from './designResources'
 
 export interface ResourcePreviewProps {
   entry: ResourceEntry
@@ -96,7 +96,7 @@ export function ResourcePreview({ entry, added, allowed, onToggle }: ResourcePre
         <section className="grid gap-1.5" data-testid="np-res-writes">
           <h3 className="text-caption font-semibold text-text-3">{t('projects.res_writes')}</h3>
           <p className="truncate text-caption text-text-2">{designMd ? 'DESIGN.md' : t('projects.res_writes_instructions')}</p>
-          <WriteBlock lines={designMd ? (seed === undefined ? [] : [seed]) : instructionLines(entry)} testId="np-res-writes-text" />
+          <WriteBlock lines={designMd ? (seed === undefined ? [] : [seed]) : resourceEntryLines(entry)} testId="np-res-writes-text" />
         </section>
       </div>
     </div>

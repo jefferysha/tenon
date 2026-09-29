@@ -45,23 +45,6 @@ export function listResources(entries: readonly ResourceEntry[], category: Desig
   return [...fit, ...entries.filter((entry) => entry.category === category && !fitsResource(entry, frameworks)).sort(byName)]
 }
 
-/**
- * 组件库 / 图标加入后写进前端模板指令文件的几行（预览用）。格式与 kernel `compose.ts` 的 `catalogLines`
- * 一致：名称（许可）· 安装 · 文档；不可再分发与需署名的条目各多一行约束。
- */
-export function instructionLines(entry: ResourceEntry): string[] {
-  const docs = entry.links.docs ?? entry.links.home ?? entry.links.source
-  const parts = [
-    ...(entry.install[0] === undefined ? [] : [`安装 \`${entry.install[0]}\``]),
-    ...(docs === undefined ? [] : [`文档 ${docs}`]),
-  ]
-  return [
-    `- ${entry.name}（${entry.license.spdx}）${parts.length > 0 ? `· ${parts.join(' · ')}` : ''}`,
-    ...(entry.license.redistributable ? [] : [`- 仅链接：${entry.name} 按安装命令在本项目使用，不再分发其源码`]),
-    ...(entry.license.attribution ? [`- 署名：${entry.name} 需要署名`] : []),
-  ]
-}
-
 /** 只保留仍然可选的选择（换了前端模板之后，不再相交的组件库 / 图标自动失效）。 */
 export function effectivePicks(picks: ResourcePicks, entries: readonly ResourceEntry[], frameworks: readonly string[]): ResourcePicks {
   const out: Partial<Record<DesignCategory, string>> = {}

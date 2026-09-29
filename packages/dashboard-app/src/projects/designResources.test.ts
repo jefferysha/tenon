@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { TemplateSummary } from '../api/instructionsDecoders'
 import type { ResourceEntry } from '../api/resourceTypes'
-import { availableResources, catalogFor, effectivePicks, fitsResource, frontendFrameworks, instructionLines, listResources } from './designResources'
+import { availableResources, catalogFor, effectivePicks, fitsResource, frontendFrameworks, listResources } from './designResources'
 
 const license = { spdx: 'MIT', url: 'https://x/LICENSE', redistributable: true, attribution: false, commercial: 'free' } as const
 function entry(id: string, name: string, category: ResourceEntry['category'], frameworks: ResourceEntry['frameworks'], links: ResourceEntry['links'] = {}): ResourceEntry {
@@ -70,17 +70,5 @@ describe('资源步骤的纯逻辑', () => {
     expect(listResources(ENTRIES, 'component-lib', ['vue'], true).map((item) => item.id)).toEqual(['any-kit', 'element-plus', 'shadcn-ui'])
     expect(listResources(ENTRIES, 'design-md', ['react'], true).map((item) => item.id)).toEqual(['design-md-claude'])
     expect(listResources(ENTRIES, 'icons', [], true).map((item) => item.id)).toEqual(['lucide'])
-  })
-
-  it('instructionLines：名称（许可）· 安装 · 文档；不可再分发与需署名各多一行', () => {
-    const plain = { ...entry('kit', 'Kit', 'component-lib', ['react'], { home: 'https://kit.test', source: 'https://git.test/kit' }), install: ['npm i kit', 'npm i kit-extra'] }
-    expect(instructionLines(plain)).toEqual(['- Kit（MIT）· 安装 `npm i kit` · 文档 https://kit.test'])
-    expect(instructionLines(entry('bare', 'Bare', 'icons', []))).toEqual(['- Bare（MIT）'])
-    const restricted = { ...plain, license: { ...license, redistributable: false, attribution: true } }
-    expect(instructionLines(restricted)).toEqual([
-      '- Kit（MIT）· 安装 `npm i kit` · 文档 https://kit.test',
-      '- 仅链接：Kit 按安装命令在本项目使用，不再分发其源码',
-      '- 署名：Kit 需要署名',
-    ])
   })
 })
