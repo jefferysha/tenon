@@ -8906,6 +8906,9 @@ var EXCLUDED_BASENAMES = /* @__PURE__ */ new Set([
 ]);
 var EXCLUDED_RELATIVE_ROOTS = [".github/hooks", ".claude/agents"];
 var EXCLUDED_ROOT_FILES = /* @__PURE__ */ new Set([".pipeline-owned.json"]);
+function isExcludedHostConfigShell(relativePath, names) {
+  return EXCLUDED_RELATIVE_ROOTS.some((root) => root.startsWith(`${relativePath}/`)) && names.every((name) => isExcluded(`${relativePath}/${name}`));
+}
 var EXCLUDED_ROOT_ARTIFACTS = [
   /^dashboard-progress-custom-spec\.png$/,
   /^dashboard-acceptance-.*\.png$/,
@@ -8938,8 +8941,10 @@ async function fingerprintEntry(root, relativePath, hash) {
   const absolutePath2 = join18(root, ...relativePath.split("/"));
   const before = await lstat10(absolutePath2);
   if (before.isDirectory()) {
-    writeRecord(hash, "D", relativePath, modeOf(before));
     const names = sortNames(await readdir(absolutePath2));
+    if (isExcludedHostConfigShell(relativePath, names))
+      return;
+    writeRecord(hash, "D", relativePath, modeOf(before));
     for (const name of names)
       await fingerprintEntry(root, `${relativePath}/${name}`, hash);
     return;
