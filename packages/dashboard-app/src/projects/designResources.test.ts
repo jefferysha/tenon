@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { TemplateSummary } from '../api/instructionsDecoders'
 import type { ResourceEntry } from '../api/resourceTypes'
-import { availableResources, catalogFor, effectivePicks, frontendFrameworks } from './designResources'
+import { availableResources, catalogFor, effectivePicks, fitsResource, frontendFrameworks, instructionLines, listResources } from './designResources'
 
 const license = { spdx: 'MIT', url: 'https://x/LICENSE', redistributable: true, attribution: false, commercial: 'free' } as const
 function entry(id: string, name: string, category: ResourceEntry['category'], frameworks: ResourceEntry['frameworks'], links: ResourceEntry['links'] = {}): ResourceEntry {
@@ -53,5 +53,34 @@ describe('资源步骤的纯逻辑', () => {
     expect(catalogFor(picks, ['icons'])).toEqual({ icons: ['lucide'] })
     expect(catalogFor(picks, [])).toBeUndefined()
     expect(catalogFor({}, ['icons'])).toBeUndefined()
+  })
+
+  it('fitsResource：组件库 / 图标看框架相交（空 = 任意，没有前端框架一律不可选）；DESIGN.md 看 https 起步链接', () => {
+    expect(fitsResource(ENTRIES[0]!, ['react'])).toBe(true)
+    expect(fitsResource(ENTRIES[0]!, ['vue'])).toBe(false)
+    expect(fitsResource(ENTRIES[0]!, [])).toBe(false)
+    expect(fitsResource(ENTRIES[2]!, ['vue'])).toBe(true)
+    expect(fitsResource(ENTRIES[4]!, [])).toBe(true)
+    expect(fitsResource(ENTRIES[5]!, [])).toBe(false)
+  })
+
+  it('listResources：默认等同 availableResources；全部 = 可选的在前、不相容的在后（各自按名称）；DESIGN.md 不受「全部」影响', () => {
+    expect(listResources(ENTRIES, 'component-lib', ['react'], false)).toEqual(availableResources(ENTRIES, 'component-lib', ['react']))
+    expect(listResources(ENTRIES, 'component-lib', ['react'], true).map((item) => item.id)).toEqual(['any-kit', 'shadcn-ui', 'element-plus'])
+    expect(listResources(ENTRIES, 'component-lib', ['vue'], true).map((item) => item.id)).toEqual(['any-kit', 'element-plus', 'shadcn-ui'])
+    expect(listResources(ENTRIES, 'design-md', ['react'], true).map((item) => item.id)).toEqual(['design-md-claude'])
+    expect(listResources(ENTRIES, 'icons', [], true).map((item) => item.id)).toEqual(['lucide'])
+  })
+
+  it('instructionLines：名称（许可）· 安装 · 文档；不可再分发与需署名各多一行', () => {
+    const plain = { ...entry('kit', 'Kit', 'component-lib', ['react'], { home: 'https://kit.test', source: 'https://git.test/kit' }), install: ['npm i kit', 'npm i kit-extra'] }
+    expect(instructionLines(plain)).toEqual(['- Kit（MIT）· 安装 `npm i kit` · 文档 https://kit.test'])
+    expect(instructionLines(entry('bare', 'Bare', 'icons', []))).toEqual(['- Bare（MIT）'])
+    const restricted = { ...plain, license: { ...license, redistributable: false, attribution: true } }
+    expect(instructionLines(restricted)).toEqual([
+      '- Kit（MIT）· 安装 `npm i kit` · 文档 https://kit.test',
+      '- 仅链接：Kit 按安装命令在本项目使用，不再分发其源码',
+      '- 署名：Kit 需要署名',
+    ])
   })
 })
