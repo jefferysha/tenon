@@ -1,16 +1,20 @@
 /**
  * `tenon test report <change> [--step <id>] [--write <path>] [--locale zh-CN|en]` ——
- * 验证报告的测试段由登记结果生成（R12），不再手写。`--write` 替换标记区间，没有就在文末追加一节。
+ * 验证报告的测试段由登记结果生成（R12），不再手写。两块内容各有自己的标记区间，`--write` 只替换区间内的字节：
+ *   - 旧步骤测试表（`tenon:tests:*`，v1 记录）——只在有旧步骤测试时写；
+ *   - 测试体系 v2 的追溯矩阵 / 套件 / 覆盖率 / 基准（`tenon:test-report:*`，kernel 的 replaceTestReportBlock）——
+ *     块里引用每个套件最新运行的 run id，`tenon status` 的 test-report 动作靠它判断报告是否已带上最新运行。
  */
 import { lstat, readFile, writeFile } from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
 import {
-  renderTestsRegion, replaceTestsRegion,
+  renderTestsRegion, replaceTestReportBlock, replaceTestsRegion,
   type ReportLocale, type TestsRegionItem,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { str } from '../render.js'
 import { testEvidenceContextFor, testEvidenceReaderFor } from '../testEvidenceContext.js'
+import { renderV2Block } from '../test-system/report-md.js'
 import { resolveTestCommand } from './test-context.js'
 
 const MAX_REPORT_BYTES = 1024 * 1024
@@ -55,9 +59,19 @@ export async function cmdTestReport(
     })
     items.push(...report.items.map((item) => ({ ...item, stepId: step.id, stepLabel: step.label })))
   }
-  const region = renderTestsRegion({ changeName: change, locale, items })
+  // 测试体系 v2 段落取「统计范围内最近一个声明了 test_policy 的步骤」的判定，与该步骤的出口检查同一份。
+  const policyStep = steps.slice(0, until + 1).reverse().find((step) => step.test_policy !== undefined)
+  let extra: string | undefined
+  if (policyStep !== undefined) {
+    const report = await testEvidenceReaderFor(deps)({
+      repoRoot: deps.cwd, changeDir: context.dir, changeName: change, plan: context.plan, stepId: policyStep.id, context: evidence,
+    })
+    if (report.policy !== undefined) extra = renderV2Block(report.policy, locale)
+  }
+  // 有旧步骤测试（或根本没有 v2 策略）时才写旧的测试表；只有 v2 时报告里不出现空表头。
+  const region = items.length > 0 || extra === undefined ? renderTestsRegion({ changeName: change, locale, items }) : undefined
   if (opts.write === undefined) {
-    deps.io.out(region)
+    deps.io.out([region, extra === undefined ? undefined : replaceTestReportBlock('', extra).trim()].filter((part) => part !== undefined).join('\n\n'))
     return 0
   }
   const target = await writableReport(deps.cwd, opts.write)
@@ -67,11 +81,12 @@ export async function cmdTestReport(
   }
   try {
     const markdown = await readFile(target, 'utf8')
-    await writeFile(target, replaceTestsRegion(markdown, region, locale), 'utf8')
+    const withRegion = region === undefined ? markdown : replaceTestsRegion(markdown, region, locale)
+    await writeFile(target, extra === undefined ? withRegion : replaceTestReportBlock(withRegion, extra), 'utf8')
   } catch (e) {
     deps.io.err(`ERROR: ${errMsg(e)}`)
     return 1
   }
-  deps.io.out(`[TEST] ${change} 报告测试段已写入 ${opts.write}（${items.length} 项）`)
+  deps.io.out(`[TEST] ${change} 报告测试段已写入 ${opts.write}（${items.length} 项${extra === undefined ? '' : '，含追溯矩阵'}）`)
   return 0
 }

@@ -193,25 +193,95 @@ steps:
 ## 测试
 
 ```bash
+tenon test discover [--write] [--json]
+tenon test catalog show [<id>] [--json]
+tenon test catalog validate [--json]
+tenon test catalog add [<id>] [--from <方向>] [--kind <k> --command <cmd> …] [--service --start <cmd> …]
+tenon test catalog set <id> [同上选项] [--service]
+tenon test catalog rm <id> [--service]
+tenon test plan <change> [--seed] [--json]
+tenon test register <change> --suite <id> [--scope full|changed|files|grep] [--pattern <regex>] [--select-file <path>]…
+tenon test register <change> --file <path>… [--suite <id>] [--kind <kind>]
+tenon test register <change> --case <covers> --test "<文件> › <用例名>"…
+tenon test unregister <change> --suite <id> | --file <path> | --case <covers> [--test <ref>] | --waiver <种类|场景>
+tenon test waive <change> (--kind <k> | --covers <covers>) --reason <原因>
+tenon test sync <change> [--json]
+tenon test run <change> [--suite <id>]… [--kind <k>]… [--stage [<step>]] [--all] [--changed] [--json]
 tenon test run <change> <test-id> [--json]
 tenon test status <change> [--step <id>] [--json]
+tenon test baseline <change> --suite <id> --run <run-id>
 tenon test baseline <change> <test-id> --run <run-id>
+tenon test known add --suite <id> --test "<文件> › <用例名>" --reason <原因> --expires <YYYY-MM-DD> [--link <url>]
+tenon test known rm --suite <id> --test "<文件> › <用例名>"
+tenon test known list [--json]
 tenon test report <change> [--step <id>] [--write <path>] [--locale zh-CN|en]
 tenon test code-size [--base <ref>]
 ```
 
-工作流的每一步在 YAML 里声明需要跑的测试。只有经 `tenon test run` 的执行会产生记录，
-agent 自己跑的结果满足不了必需测试。Tenon 在独立进程组里执行声明的命令，把退出码、耗时、
-执行人、输入摘要与输出文件登记到 `.tenon/users/<slug>/tests/<change>/<run-id>.json`，
-完整日志与输出副本留在该用户 gitignored 的本机目录。退出码：`0` 通过、`2` 失败（记录已落盘）、
-`1` 用法或环境错误（不落记录）。命令可读到 `TENON_CHANGE_NAME`、`TENON_TEST_ID`、
-`TENON_TEST_RUN_ID`、`TENON_TEST_ARTIFACTS` 与 `TENON_BASE_BRANCH`。
+测试分三层登记。项目**目录**（`.tenon/tests/catalog.yaml`，进 git，人可直接改）说明项目有哪些套件、怎么跑：
+`kind`、`runner`、`command`、`cwd`、报告格式与路径、可选的覆盖率、产物路径、`select` 模板（`{files}` / `{pattern}`）、
+`services`、`retries`、`parallel`，基准套件还有 `benchmark` 段。报告、覆盖率与产物路径必须在 `test-results/`、
+`playwright-report/` 或 `coverage/` 之下，产出它们不会改变工作区指纹。任务**计划**
+（`openspec/changes/<change>/test-plan.yaml`）列出本任务用到的套件、新增或修改的测试文件、场景 / 任务 → 用例的映射
+（`spec:<capability>/<Scenario 标题>` 或 `task:<编号>`）和豁免。计划只经 `tenon test` 命令写入，每次写入把摘要记进
+任务目录里的台账，手改文件就是 `test-plan-tampered`。工作流**策略**（`steps[].test_policy`）说明一个步骤要什么：
+必须登记的种类、必须运行的种类、最小范围、覆盖率门槛、flaky 上限、基线要求、浏览器、场景覆盖与 `files: registered`。
+仍写着内联 `tests[]` 的步骤照旧可用：照旧运行，并和策略一起判定。
 
-`test status` 用与转换拦截完全相同的判定列出该步骤每项测试，所以这里通过就是转换会放行；
-必需测试失败、过期、未运行或运行中时 exit 2。候选版本、测试声明摘要或工作流指纹任一变化即过期。
-`test baseline` 把一次通过运行的指标升为当前用户的基线，旧值进 history；基线按用户维护，
-因为基准数值受机器影响。`test report` 由登记结果生成验证报告的测试段，`--write` 替换目标文件里的
-标记区间。`test code-size` 是内建 `code-size` 方向背后的确定性探针，输出一行 JSON 指标。
+`test discover` 扫描包脚本与各工具配置（vitest、jest、mocha、node:test、Playwright、tsc、eslint、pytest、go），
+给出带推荐 reporter 参数的建议套件，让每个套件都产出可解析的报告；`--write` 追加目录里还没有的 id。
+vitest 工程里的 `*.bench.*` 文件会识别成 `vitest-bench` 基准套件，指标取自能读出的每个 `bench('名字', …)`（`<名字>.mean_ms`，读不出
+名字的不猜）；其它 `bench` 脚本只给出登记它的 `catalog add` 命令，因为基准必须声明指标与阈值。
+`catalog add --from <方向>` 用测试方向起步（裸的工具调用会换成该 runner 的推荐调用）；`catalog validate` 逐条列出
+`catalog.yaml:<行>: …`（有问题 exit `2`）。`test plan --seed` 补上「拥有或覆盖了本任务改动文件」的套件、策略要求的每个种类
+的套件、改动的测试文件，并列出还没映射的场景与任务，附可直接执行的 `register --case` 命令。`test sync` 拿本任务相对起点的
+diff 对账：未登记的测试文件、没有套件认领的文件、登记了但文件已不存在的项，与门禁是同一份计算（有待处理 exit `2`）。
+
+任务的起点是与基线分支的 merge-base；直接在基线分支上做时取任务创建之前的最后一个提交；diff 包含暂存、未暂存与
+未跟踪文件。读不到 diff 时门禁以 `files-diff-unavailable` 阻塞（失败关闭，不降级成提示）。
+
+`test run` 每次调用写一份 v2 记录（`.tenon/users/<slug>/tests/<change>/<run-id>.json`），按 `prev_digest` 串成链；
+手改记录就断链，该任务的全部 v2 记录视为未运行，直到重跑另起新链。选择：`--suite`、`--kind`、`--all`（计划里的全部
+套件，全量）、`--changed`（套件有 `select.files` 模板且只改了它的测试文件时只跑这些，否则整套跑）、
+`--stage [<step>]`（该步骤策略的 `run` 种类，加上计划登记了的 `run_if_registered` 种类；策略要求 `scope: full` 时一律
+全量）。没有任何选择参数时缺省就是 `--stage`。`--stage` 只跑目录套件：内联的 `tests[]`（套件 id 以 `step:` 开头）仍走
+`tenon test run <change> <test-id>`，摘要会列出还要跑的命令；策略没有要运行的套件时如实说明并 exit `0`。声明的服务每次调用只启动一次，独立进程组，按 URL / 端口 / 日志文本探测就绪，
+结束后整个进程组连孙进程一起回收；启动前 URL 或端口就已经在响应会被拒绝——测试会打到旧服务上。`parallel: true` 的套件并发，
+其余依次。报告按用例解析：`junit`、`playwright-json`、`vitest-json`、`jest-json`、`go-json`、`tap`；基准读 `benchmark-json`
+（也认 hyperfine 与 vitest bench 的输出）、`k6-summary`、`lighthouse-json`；覆盖率读 `istanbul-summary`、`lcov`、
+`cobertura`，`changed_lines` 由 diff 算出。每次执行前先删掉上一次留下的报告。一次运行会因这些判失败：没有报告
+（`report-missing`）、报告无法解析（`report-unreadable`）、0 个用例或全部跳过（`no-tests-ran`）、退出码与报告不一致
+（`exit-report-mismatch`）、已登记的文件或映射的用例没有出现在报告里（`registered-test-not-executed`）、覆盖率低于策略
+（`coverage-below`）、基准退化超过指标阈值（`benchmark-regression`）、flaky 超过策略上限（`flaky-over-limit`）、要求的浏览器
+project 不在报告里（`browser-project-missing`）、服务没有就绪（`service-not-ready`）。失败用例按 `retries` 重试（Playwright
+补 `--retries`，其他 runner 经 `select.grep` / `select.files` 只重跑失败用例）；重试后通过的用例记为 `flaky` 并计数。已知失败清单
+之外的失败都判套件失败。截图、trace、视频、HTML 报告按文件复制进本次运行的产物目录并建立索引（`{path, bytes, digest, media}`），
+可打开或下载。退出码：`0` 全部通过、`2` 有套件失败（记录已落盘）、`1` 用法或环境错误（不落记录）。运行结束会重新计算本步骤的
+出口检查并打印，每个仍在挡的项带修复命令；`--json` 输出记录全文与出口检查。
+
+基准先预热 `warmup` 次再采样 `runs` 次，记录每个指标全部样本的中位数、p95 与 MAD；离散度超过退化阈值一半时先多采一轮再判。
+基线按机器画像（OS、架构、CPU、核数、内存档位、运行时主版本，加目录 `profiles_env` 的取值）存到
+`.tenon/tests/baselines/<套件>/<画像>.json`，进 git；不同画像互不比较。该画像没有基线时运行仍通过，并提示
+`baseline-missing` 与建立基线的命令（`test baseline --suite --run`），除非步骤策略要求必须有基线。`test baseline` 只认当前记录链
+上通过的运行，并往用户的 `audit.jsonl` 追加一行审计。
+
+`known add` 往 `.tenon/tests/known-failures.yaml` 写一项，带原因、可选链接与到期日：清单内的用例仍失败记 `known-fail`，不挡出口；
+通过了会提示「已修好」并给出 `known rm` 命令；过期条目按普通失败处理；清单外的失败照挡。`known list` 标出过期项。
+
+`test status` 用与转换拦截完全相同的判定列出该步骤每项测试，所以这里通过就是转换会放行；声明了 `test_policy` 的步骤在 `--json`
+里还带 `policy` 对象（带修复命令的阻塞码、提示、套件、场景 / 任务追溯、文件登记与记录链状态）。有阻塞时 exit 2。候选代码、
+所跑套件在目录里的条目、计划、步骤策略或工作流指纹任一变化，记录就过期；记录绑定的计划摘要把豁免的 `approved_by` 一律当作空，所以评审
+批准豁免不会让批准之前的运行过期（计划的其他任何变化仍会）。`test report` 生成验证报告的测试段，`--write` 替换目标文件里的标记区间，
+分两个各自替换的区间：内联步骤测试的旧表格（`tenon:tests:*` 标记之间，只在工作流有内联测试时写）和 v2 块（`<!-- tenon:test-report:begin -->`
+与 `<!-- tenon:test-report:end -->` 之间）——追溯矩阵、套件与各套件最新运行的 `run_id`、覆盖率、基准对比、flaky 与已知失败、仍在挡出口的项。
+标记之外的字节一个都不动；`tenon status` 靠 v2 块里是否有最新的 run id 判断报告要不要重新生成。`test code-size` 是内建
+`code-size` 方向背后的确定性探针，输出一行 JSON 指标；只统计源代码：路径范围与工作区候选一致（不含 `openspec/`、`.tenon/`、
+`.pipeline/`、`docs/`、依赖与测试缓存），且不含 Markdown。
+
+内联的步骤测试（`tenon test run <change> <test-id>`）保持 v1 行为：在独立进程组里执行声明的命令，把退出码、耗时、执行人、
+输入摘要与输出文件登记成记录，完整日志与输出副本留在该用户 gitignored 的本机目录；候选版本、测试声明摘要或工作流指纹任一变化
+即过期。命令可读到 `TENON_CHANGE_NAME`、`TENON_TEST_ID`、`TENON_TEST_RUN_ID`、`TENON_TEST_ARTIFACTS` 与 `TENON_BASE_BRANCH`；
+套件运行拿到 `TENON_TEST_SUITE`（套件 id）代替 `TENON_TEST_ID`。内联测试的退出码：`0` 通过、`2` 失败（记录已落盘）、`1` 用法或环境错误（不落记录）。
 
 ## Session 与恢复
 

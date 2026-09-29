@@ -94,6 +94,12 @@ function checkKinds(input: TestPolicyEvaluationInput, plan: TestPlan, reviewFix:
 function checkFiles(input: TestPolicyEvaluationInput, plan: TestPlan | undefined, out: Collector): TestPolicyReport['files'] {
   const none: TestPolicyReport['files'] = { checked: false, unregistered: [], orphans: [] }
   if (input.policy.files !== 'registered') return none
+  if (input.changedFilesError !== undefined) {
+    out.blockers.push(testBlocker('files-diff-unavailable', `无法读取本任务的改动文件列表（${input.changedFilesError}），不能确认测试文件都已登记`, {
+      fix: `tenon test sync ${input.change}`,
+    }))
+    return none
+  }
   if (input.changedFiles === undefined) {
     out.notices.push(testNotice('files-unchecked', '宿主没有提供本任务的 diff 文件列表，未检查未登记的测试文件'))
     return none

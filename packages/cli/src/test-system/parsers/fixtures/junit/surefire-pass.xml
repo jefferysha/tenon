@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report-3.0.xsd" version="3.0" name="com.example.MathTest" time="0.045" tests="2" errors="0" skipped="0" failures="0">
+  <properties>
+    <property name="java.version" value="17.0.9"/>
+    <property name="os.name" value="Mac OS X"/>
+    <property name="surefire.real.class.path" value="/work/proj/target/surefire/surefirebooter.jar"/>
+  </properties>
+  <testcase name="adds" classname="com.example.MathTest" time="0.012"/>
+  <testcase name="subtracts" classname="com.example.MathTest" time="0.001"/>
+</testsuite>

@@ -1,0 +1,28 @@
+TAP version 13
+# Subtest: all skipped
+    # Subtest: first skipped
+    ok 1 - first skipped # SKIP
+      ---
+      duration_ms: 0.359
+      type: 'test'
+      ...
+    # Subtest: second skipped
+    ok 2 - second skipped # SKIP
+      ---
+      duration_ms: 0.07375
+      type: 'test'
+      ...
+    1..2
+ok 1 - all skipped
+  ---
+  duration_ms: 0.974417
+  type: 'suite'
+  ...
+1..1
+# tests 2
+# suites 1
+# pass 0
+# fail 0
+# cancelled 0
+# skipped 2
+# duration_ms 69.759417

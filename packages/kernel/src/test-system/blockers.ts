@@ -5,7 +5,7 @@
 
 export const TEST_BLOCKER_CODES = [
   'test-catalog-missing', 'test-plan-missing', 'test-plan-tampered', 'test-kind-missing', 'test-file-unregistered',
-  'test-file-orphan', 'test-not-run', 'test-failed', 'test-stale', 'no-tests-ran', 'report-missing',
+  'test-file-orphan', 'files-diff-unavailable', 'test-not-run', 'test-failed', 'test-stale', 'no-tests-ran', 'report-missing',
   'report-unreadable', 'exit-report-mismatch', 'registered-test-not-executed', 'coverage-below',
   'benchmark-regression', 'baseline-missing', 'flaky-over-limit', 'browser-project-missing', 'scenario-uncovered',
   'scenario-failing', 'service-not-ready', 'record-chain-broken', 'waiver-unapproved',
@@ -30,6 +30,7 @@ export const TEST_BLOCKER_LABELS: Readonly<Record<TestBlockerCode, ShortLabel>> 
   'test-kind-missing': { zh: '缺测试种类', en: 'Kind missing' },
   'test-file-unregistered': { zh: '文件未登记', en: 'Unregistered file' },
   'test-file-orphan': { zh: '文件无套件', en: 'Orphan test file' },
+  'files-diff-unavailable': { zh: '读不到改动', en: 'Diff unavailable' },
   'test-not-run': { zh: '未运行', en: 'Not run' },
   'test-failed': { zh: '失败', en: 'Failed' },
   'test-stale': { zh: '过期', en: 'Stale' },

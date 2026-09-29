@@ -1,0 +1,16 @@
+{
+  "results": [
+    {
+      "command": "node bench/run.mjs",
+      "mean": 0.10211,
+      "stddev": 0.0021,
+      "median": 0.1018,
+      "user": 0.084,
+      "system": 0.011,
+      "min": 0.0993,
+      "max": 0.1067,
+      "times": [0.1018, 0.0993, 0.1067, 0.1021, 0.1006],
+      "exit_codes": [0, 0, 0, 0, 0]
+    }
+  ]
+}

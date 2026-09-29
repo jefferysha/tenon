@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="2" failures="0" errors="0" time="0.001131667">
+    <testsuite name="src/pass.test.ts" timestamp="2026-09-29T12:48:55.743Z" hostname="host" tests="2" failures="0" errors="0" skipped="0" time="0.001131667">
+        <testcase classname="src/pass.test.ts" name="math &gt; adds" time="0.00052325">
+        </testcase>
+        <testcase classname="src/pass.test.ts" name="math &gt; nested &gt; adds negatives" time="0.000063417">
+        </testcase>
+    </testsuite>
+</testsuites>

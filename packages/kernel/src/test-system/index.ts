@@ -41,7 +41,7 @@ export {
 export type {
   PlanCase, PlanCatalogProblem, PlanFile, PlanParseResult, PlanSuite, PlanWaiver, TestPlan,
 } from './plan.js'
-export { decodeTestPlanLedger, readTestPlanState, writeTestPlan, writeTestPlanUnderLock } from './plan-ledger.js'
+export { decodeTestPlanLedger, readTestPlanState, updateTestPlan, writeTestPlan, writeTestPlanUnderLock } from './plan-ledger.js'
 export { approveWaivers, pendingWaivers, testPlanApprovalFreeDigest } from './plan-waivers.js'
 export type { PendingWaiver, WaiverApproval, WaiverSkipReason } from './plan-waivers.js'
 export {
@@ -49,7 +49,7 @@ export {
   readReviewWaiverSelection, writeReviewWaiverSelection,
 } from './review-waivers.js'
 export type { ReviewWaiverSelection, WaiverApprovalOutcome } from './review-waivers.js'
-export type { PlanWriteMeta, PlanWriteResult, TestPlanLedger, TestPlanState } from './plan-ledger.js'
+export type { PlanUpdate, PlanWriteMeta, PlanWriteResult, TestPlanLedger, TestPlanState } from './plan-ledger.js'
 export { appendTestAudit, formatAuditDetail, testAuditEntry, testAuditRaw } from './audit.js'
 export {
   TEST_REPORT_BEGIN, TEST_REPORT_END, replaceTestReportBlock, reportCarriesRuns, testReportBlock,
@@ -103,8 +103,8 @@ export {
   inlineSuiteFromTest, inlineSuiteId, policyRequiredKinds, stepTestRequirements, testPolicyDigest,
 } from './policy.js'
 export type { InlineSuite, StepTestRequirements } from './policy.js'
-export { STALE_WORDS, latestSuiteRuns, planFilesOfSuite, staleBindings } from './evaluate-suite.js'
-export type { FreshnessContext, SuiteRunRef } from './evaluate-suite.js'
+export { STALE_WORDS, evaluateSuiteResult, latestSuiteRuns, planFilesOfSuite, staleBindings } from './evaluate-suite.js'
+export type { FreshnessContext, SuiteResultContext, SuiteResultEvaluation, SuiteRunRef } from './evaluate-suite.js'
 export { evaluateTrace } from './evaluate-trace.js'
 export { evaluateTestPolicy, renderPolicyBlockers } from './evaluate-v2.js'
 export { baselineKey } from './evaluate-types.js'

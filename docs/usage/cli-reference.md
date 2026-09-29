@@ -129,36 +129,150 @@ non-owner hand-over.
 ## Tests
 
 ```text
+tenon test discover [--write] [--json]
+tenon test catalog show [<id>] [--json]
+tenon test catalog validate [--json]
+tenon test catalog add [<id>] [--from <direction>] [--kind <k> --command <cmd> …] [--service --start <cmd> …]
+tenon test catalog set <id> [<same options>] [--service]
+tenon test catalog rm <id> [--service]
+tenon test plan <change> [--seed] [--json]
+tenon test register <change> --suite <id> [--scope full|changed|files|grep] [--pattern <regex>] [--select-file <path>]…
+tenon test register <change> --file <path>… [--suite <id>] [--kind <kind>]
+tenon test register <change> --case <covers> --test "<file › name>"…
+tenon test unregister <change> --suite <id> | --file <path> | --case <covers> [--test <ref>] | --waiver <kind|covers>
+tenon test waive <change> (--kind <k> | --covers <covers>) --reason <text>
+tenon test sync <change> [--json]
+tenon test run <change> [--suite <id>]… [--kind <k>]… [--stage [<step>]] [--all] [--changed] [--json]
 tenon test run <change> <test-id> [--json]
 tenon test status <change> [--step <id>] [--json]
+tenon test baseline <change> --suite <id> --run <run-id>
 tenon test baseline <change> <test-id> --run <run-id>
+tenon test known add --suite <id> --test "<file › name>" --reason <text> --expires <YYYY-MM-DD> [--link <url>]
+tenon test known rm --suite <id> --test "<file › name>"
+tenon test known list [--json]
 tenon test report <change> [--step <id>] [--write <path>] [--locale zh-CN|en]
 tenon test code-size [--base <ref>]
 ```
 
-A step declares the tests it needs in the workflow YAML. Only a run through
-`tenon test run` produces a record, so an agent's own test run never satisfies a
-required test. Tenon executes the declared command in its own process group,
-records the exit code, duration, actor, input digests and output files under
-`.tenon/users/<slug>/tests/<change>/<run-id>.json`, and keeps the log plus copies
-of the declared outputs in the gitignored per-user local directory. Exit codes:
-`0` pass, `2` fail (the record is written), `1` usage or environment error (no
-record). The command receives `TENON_CHANGE_NAME`, `TENON_TEST_ID`,
-`TENON_TEST_RUN_ID`, `TENON_TEST_ARTIFACTS` and `TENON_BASE_BRANCH`.
+Tests are registered on three levels. The project **catalog**
+(`.tenon/tests/catalog.yaml`, tracked, human-editable) says which suites exist and how
+to run them: `kind`, `runner`, `command`, `cwd`, the report format and path, optional
+coverage, artifact paths, `select` templates (`{files}` / `{pattern}`), `services`,
+`retries`, `parallel`, and a `benchmark` block for benchmark suites. Report, coverage
+and artifact paths must sit under `test-results/`, `playwright-report/` or `coverage/`,
+so producing them never changes the workspace fingerprint. The per-change **plan**
+(`openspec/changes/<change>/test-plan.yaml`) lists the suites this change uses, the test
+files it added or changed, the scenario/task → case mapping (`spec:<capability>/<Scenario
+title>` or `task:<number>`) and waivers. Only the `tenon test` commands write it: every
+write records a digest in a change-local ledger, so a hand-edited plan becomes
+`test-plan-tampered`. The workflow **policy** (`steps[].test_policy`) says what a step
+needs: kinds to register, kinds to run, minimum scope, coverage thresholds, flaky limit,
+benchmark baseline requirement, browsers, scenario coverage and `files: registered`.
+Steps that still declare inline `tests[]` keep working: they run as before and are
+judged together with the policy.
+
+`test discover` scans package scripts and tool configs (vitest, jest, mocha, node:test,
+Playwright, tsc, eslint, pytest, go) and prints suggested suites with reporter flags that
+produce parseable reports; `--write` appends the ones whose id is not yet in the catalog.
+`*.bench.*` files in a vitest project become a `vitest-bench` benchmark suite whose metrics
+are `<bench name>.mean_ms` for every `bench('name', …)` it can read (a name it cannot read is
+never guessed); any other `bench` script is reported with the exact `catalog add` command to
+register it, because a benchmark must declare its metrics and thresholds.
+`catalog add --from <direction>` starts a suite from a test direction (bare tool
+invocations are replaced by the runner's recommended invocation); `catalog validate`
+lists every problem as `catalog.yaml:<line>: …` (exit `2`). `test plan --seed` adds the
+suites that own or cover the files this change touched, one suite per policy-required
+kind, and the changed test files, and lists the scenarios and tasks still to map with
+ready-to-run `register --case` commands. `test sync` diffs the change against its start
+and lists unregistered test files, files no suite claims, and registrations whose file is
+gone; it uses the same computation as the gate (exit `2` when something is pending).
+
+The start of a change is the merge-base with its base branch, or the last commit before
+the change was created when working on the base branch itself; the diff includes staged,
+unstaged and untracked files. When that diff cannot be read the gate blocks with
+`files-diff-unavailable` (it fails closed, it does not degrade to a notice).
+
+`test run` writes one v2 record per invocation (`.tenon/users/<slug>/tests/<change>/<run-id>.json`)
+chained by `prev_digest`; editing a record breaks the chain and every v2 record of that
+change counts as not run until a new run starts a fresh chain. Selection: `--suite`,
+`--kind`, `--all` (every plan suite, full), `--changed` (narrow to changed test files when
+the suite has a `select.files` template, otherwise the whole suite), `--stage [<step>]`
+(the step policy's `run` kinds, plus `run_if_registered` kinds that the plan registered;
+policy `scope: full` forces full runs). With no selection flag `--stage` is implied.
+`--stage` runs catalog suites only: inline `tests[]` (suites whose id starts with `step:`)
+stay on `tenon test run <change> <test-id>` and the summary lists the commands still to
+run; a step whose policy has nothing to run says so and exits `0`.
+Declared services start once per invocation in their own process group, are probed
+(URL, port or log text) and are reaped afterwards including grandchild processes;
+a URL or port that already answers before start is refused, because the tests would
+hit an old server. `parallel: true` suites run concurrently, the others one by one.
+Reports are parsed per case: `junit`, `playwright-json`, `vitest-json`, `jest-json`,
+`go-json`, `tap`; benchmarks read `benchmark-json` (also hyperfine and vitest bench output),
+`k6-summary` and `lighthouse-json`; coverage reads `istanbul-summary`, `lcov` and
+`cobertura`, and `changed_lines` is computed from the diff. A stale report from an earlier
+run is deleted before each execution. A run fails on: no report (`report-missing`),
+an unparseable report (`report-unreadable`), zero or all-skipped cases (`no-tests-ran`),
+exit code and report disagreeing (`exit-report-mismatch`), a registered file or mapped case
+that never ran (`registered-test-not-executed`), coverage below the step policy
+(`coverage-below`), a benchmark regression beyond the metric threshold
+(`benchmark-regression`), flaky cases over the policy limit (`flaky-over-limit`), a required
+browser project missing from the report (`browser-project-missing`) and a service that did
+not become ready (`service-not-ready`). Failed cases are retried per `retries` (Playwright
+gets `--retries`; other runners re-run only the failing cases through `select.grep` /
+`select.files`); a case that passes on retry is `flaky` and counted. Every case failing
+outside the known-failure list fails the suite. Screenshots, traces, videos and HTML
+reports are copied per file into the run's artifact directory and indexed
+(`{path, bytes, digest, media}`) so they can be opened or downloaded. Exit codes: `0`
+all suites pass, `2` a suite failed (the record is written), `1` usage or environment
+error (no record). After the run the command prints the step's exit gate again, with a fix
+command for each remaining blocker. `--json` prints the record and the gate.
+
+Benchmarks run `warmup` then `runs` times and keep the median, p95 and MAD of every
+sample. When the spread exceeds half the regression threshold the suite is sampled once
+more before judging. Baselines are stored per machine profile (OS, architecture, CPU,
+cores, memory tier, runtime major version and the catalog's `profiles_env` values) in
+`.tenon/tests/baselines/<suite>/<profile>.json` and are tracked in git; profiles never
+compare with each other. Without a baseline for the profile the run passes with a
+`baseline-missing` notice and the command to create one (`test baseline --suite --run`),
+unless the step policy requires a baseline. `test baseline` accepts only a passing run
+on the current record chain and appends an audit line to the user's `audit.jsonl`.
+
+`known add` writes an entry with reason, optional link and an expiry date to
+`.tenon/tests/known-failures.yaml`: a listed case that still fails is `known-fail` and
+does not block; one that passes is reported as fixed, with the `known rm` command; an
+expired entry is treated as an ordinary failure; a failure outside the list blocks.
+`known list` marks expired entries.
 
 `test status` reports each declared test of the step with the same evaluation the
-transition uses, so a status pass is a transition pass; it exits `2` while a
-required test is failed, stale, missing or running. A record goes stale when the
-candidate, the test declaration digest or the workflow fingerprint moves.
-`test baseline` promotes the metrics of one passing run to the acting user's
-baseline and keeps the previous value in its history; baselines are per user
-because benchmark numbers depend on the machine. `test report` generates the
-tests section of the verification report from the records and, with `--write`,
-replaces the marked region in an existing repository file. `test code-size` is
-the deterministic probe behind the builtin `code-size` direction and prints one
-JSON line of metrics. It counts source files only: the same path scope as the
-workspace candidate (no `openspec/`, `.tenon/`, `.pipeline/`, `docs/`,
-dependencies or test caches) and no Markdown files.
+transition uses, so a status pass is a transition pass; with `--json` a step that declares
+`test_policy` also carries a `policy` object (blockers with fix commands, notices, suites,
+the scenario/task trace, file registration and the record chain state). It exits `2` while
+anything blocks. A record goes stale when the candidate code, the catalog entries of the
+suites it ran, the plan, the step policy or the workflow fingerprint changes; a record
+binds the plan digest with every waiver's `approved_by` treated as empty, so approving a
+waiver in review does not make the runs before it stale (any other plan change does). `test
+report` generates the tests section of the verification report and, with `--write`,
+replaces it in an existing repository file. There are two independently replaced regions:
+the v1 table of inline step tests (between `tenon:tests:*` markers, written only when the
+workflow has inline tests) and the v2 block (between `<!-- tenon:test-report:begin -->` and
+`<!-- tenon:test-report:end -->`) with the traceability matrix, suites with coverage and the
+`run_id` of each suite's latest run, benchmark deltas, flaky and known failures and the
+blockers left. Bytes outside the markers are never touched, and `tenon status` decides
+whether the report still needs regenerating by looking for the latest run ids inside the v2
+block. `test code-size` is the deterministic probe behind the builtin
+`code-size` direction and prints one JSON line of metrics. It counts source files only: the
+same path scope as the workspace candidate (no `openspec/`, `.tenon/`, `.pipeline/`,
+`docs/`, dependencies or test caches) and no Markdown files.
+
+Inline step tests (`tenon test run <change> <test-id>`) keep their v1 behavior:
+the command is executed in its own process group and recorded with the exit code,
+duration, actor, input digests and output files, the log and output copies stay in the
+gitignored per-user local directory, and the record goes stale when the candidate, the
+test declaration digest or the workflow fingerprint moves. The command receives
+`TENON_CHANGE_NAME`, `TENON_TEST_ID`, `TENON_TEST_RUN_ID`, `TENON_TEST_ARTIFACTS` and
+`TENON_BASE_BRANCH`; suite runs receive `TENON_TEST_SUITE` (the suite id) instead of `TENON_TEST_ID`. Exit codes for
+inline tests: `0` pass, `2` fail (the record is written), `1` usage or environment error
+(no record).
 
 `tenon status <name> --json` also carries a `step` block: the whole input the
 single `tenon` skill needs for the current step — its skills, executors,

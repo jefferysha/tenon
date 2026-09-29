@@ -29,7 +29,7 @@ import { declaredTestIds, locateTest, resolveTestCommand, type TestCommandContex
 const FAILURE_TAIL_CHARS = 4096
 
 /** run-id 按时间排序，且不同用户各自目录，所以只需要 6 位随机后缀防同秒碰撞。 */
-function newRunId(iso: string): string {
+export function newRunId(iso: string): string {
   const stamp = new Date(iso).toISOString().replace(/[-:]/gu, '').replace(/\.\d{3}Z$/u, 'Z')
   return `${stamp}-${randomBytes(3).toString('hex')}`
 }
@@ -44,7 +44,7 @@ function hostOf(env: NodeJS.ProcessEnv): { readonly kind: TestHostKind; readonly
   return detectHostEnvironment(env)
 }
 
-async function candidateOf(deps: CliDeps, name: string): Promise<string | null> {
+export async function candidateOf(deps: CliDeps, name: string): Promise<string | null> {
   const fingerprint = deps.workspaceFingerprint
   if (fingerprint === undefined) return null
   for (let attempt = 0; attempt < 2; attempt++) {

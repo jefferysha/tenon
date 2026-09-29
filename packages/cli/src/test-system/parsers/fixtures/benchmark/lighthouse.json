@@ -1,0 +1,13 @@
+{
+  "lighthouseVersion": "12.2.0",
+  "requestedUrl": "http://127.0.0.1:5178/",
+  "audits": {
+    "first-contentful-paint": { "id": "first-contentful-paint", "score": 0.99, "numericValue": 812.4, "numericUnit": "millisecond" },
+    "largest-contentful-paint": { "id": "largest-contentful-paint", "score": 0.95, "numericValue": 1421.9, "numericUnit": "millisecond" },
+    "uses-http2": { "id": "uses-http2", "score": null }
+  },
+  "categories": {
+    "performance": { "id": "performance", "score": 0.97 },
+    "accessibility": { "id": "accessibility", "score": 1 }
+  }
+}

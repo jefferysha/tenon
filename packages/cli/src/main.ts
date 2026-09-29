@@ -45,6 +45,7 @@ import { gitRemoteNames } from './gitRemotes.js'
 import { probeGitFinish } from './gitWorkspace.js'
 import { detectHostEnvironment } from './hostKind.js'
 import { pluginSkillIds } from './pluginSkillIds.js'
+import { loadTestDirections } from './test-system/directions.js'
 
 /** ISO8601 UTC 秒级（对齐老内核 date -u +%Y-%m-%dT%H:%M:%SZ 口径） */
 function isoNow(): string {
@@ -242,6 +243,11 @@ async function main(): Promise<void> {
     agentPaths: () => ({ payloadRoot: pluginRoot(), configRoot: runtimePaths().configRoot }),
     hostKind: () => detectHostEnvironment(process.env).kind,
     knownSkillIds: () => pluginSkillIds(pluginRoot()),
+    testDirections: () => loadTestDirections([
+      join(pluginRoot(), 'templates', 'test-directions'),
+      join(runtimePaths().configRoot, 'test-directions', 'builtin'),
+      join(runtimePaths().configRoot, 'test-directions', 'custom'),
+    ]),
     creationPrecondition: (input) => designSystemPrecondition({
       ...input,
       repoRoot: process.cwd(),

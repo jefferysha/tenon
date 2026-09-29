@@ -1,0 +1,6 @@
+{"Time":"2026-09-29T12:00:00.000Z","Action":"start","Package":"example.com/app/mathx"}
+{"Time":"2026-09-29T12:00:00.100Z","Action":"run","Package":"example.com/app/mathx","Test":"TestSkipped"}
+{"Time":"2026-09-29T12:00:00.100Z","Action":"output","Package":"example.com/app/mathx","Test":"TestSkipped","Output":"    mathx_test.go:20: not on CI\n"}
+{"Time":"2026-09-29T12:00:00.100Z","Action":"skip","Package":"example.com/app/mathx","Test":"TestSkipped","Elapsed":0}
+{"Time":"2026-09-29T12:00:00.110Z","Action":"output","Package":"example.com/app/mathx","Output":"PASS\n"}
+{"Time":"2026-09-29T12:00:00.110Z","Action":"pass","Package":"example.com/app/mathx","Elapsed":0.01}

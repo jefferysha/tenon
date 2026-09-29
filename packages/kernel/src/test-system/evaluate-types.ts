@@ -54,6 +54,8 @@ export interface TestPolicyEvaluationInput {
   readonly baselines: ReadonlyMap<string, TestBaselineV2>
   /** diff（相对 change 起点）里新增 / 修改的文件；undefined = 宿主不提供，跳过登记检查并提示。 */
   readonly changedFiles: readonly string[] | undefined
+  /** 宿主提供了 diff 文件列表的能力，但这次读取失败（原因）：失败关闭，挡出口而不是降级为提示。 */
+  readonly changedFilesError?: string
   readonly scenarios: readonly OpenSpecScenario[]
   readonly tasks: readonly TaskItem[]
   readonly bindings: CurrentBindings

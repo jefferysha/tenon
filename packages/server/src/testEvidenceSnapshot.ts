@@ -22,6 +22,8 @@ export async function projectTestEvidence(input: {
   readonly user: TenonUser | undefined
   /** 缺省 = 宿主没有工作区指纹能力；返回 undefined = 能力在但这次取不到（判定按未知处理）。 */
   readonly candidate?: () => Promise<string | undefined>
+  /** 自任务起点以来的改动文件（与 CLI / 转换同源）；只在策略要求 `files: registered` 时才被调用，读不到时判定以 files-diff-unavailable 阻塞。 */
+  readonly changedFiles?: () => Promise<readonly string[]>
 }): Promise<{
   readonly tests?: TestStepSnapshot[]
   readonly testPolicy?: PolicyReportDto[]
@@ -44,6 +46,7 @@ export async function projectTestEvidence(input: {
             return candidate
           },
         }),
+        ...(input.changedFiles === undefined ? {} : { changedFiles: input.changedFiles }),
       }
   const tests: TestStepSnapshot[] = []
   const policies: PolicyReportDto[] = []

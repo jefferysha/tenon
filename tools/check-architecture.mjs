@@ -481,6 +481,8 @@ for (const rel of [
   'packages/cli/dist/integration-harness.d.ts',
   'packages/cli/dist/integration-harness-documents.js',
   'packages/cli/dist/integration-harness-documents.d.ts',
+  'packages/cli/dist/integration-harness-tests.js',
+  'packages/cli/dist/integration-harness-tests.d.ts',
 ]) {
   if (existsSync(join(root, rel))) {
     failures.push(`${rel}: test-only evidence producer entrypoint must not ship in CLI dist`)

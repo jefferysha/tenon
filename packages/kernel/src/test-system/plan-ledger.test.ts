@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { testPlanLedgerPath, testPlanPath } from './paths.js'
 import { withLock } from '../state/lock.js'
-import { decodeTestPlanLedger, readTestPlanState, writeTestPlan, writeTestPlanUnderLock } from './plan-ledger.js'
+import { decodeTestPlanLedger, readTestPlanState, updateTestPlan, writeTestPlan, writeTestPlanUnderLock } from './plan-ledger.js'
 import { emptyTestPlan, testPlanDigest, type TestPlan } from './plan.js'
 
 const ACTOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' as const }
@@ -72,6 +72,21 @@ describe('测试计划台账', () => {
     const state = await readTestPlanState(dir, 'other')
     expect(state.state).toBe('tampered')
     expect(state.state === 'tampered' ? state.reason : '').toMatch(/无法解析：.*属于任务 'demo'/)
+  })
+
+  it('updateTestPlan：锁内读—改—写，并发更新不丢失；拒绝时磁盘不动', async () => {
+    const meta = { actor: ACTOR, recordedAt: 't' }
+    await Promise.all(Array.from({ length: 8 }, (_, index) => updateTestPlan(dir, 'demo', meta, (state) => {
+      const base = state.state === 'ok' ? state.plan : emptyTestPlan('demo')
+      return { plan: { ...base, suites: [...base.suites, { suite: `s${index}`, scope: 'full' as const }] } }
+    })))
+    const state = await readTestPlanState(dir, 'demo')
+    expect(state.state === 'ok' ? state.plan.suites.map((item) => item.suite).sort() : []).toEqual(
+      ['s0', 's1', 's2', 's3', 's4', 's5', 's6', 's7'],
+    )
+    const before = await readFile(testPlanPath(dir), 'utf8')
+    expect(await updateTestPlan(dir, 'demo', meta, () => ({ reject: '不行' }))).toEqual({ rejected: '不行' })
+    expect(await readFile(testPlanPath(dir), 'utf8')).toBe(before)
   })
 
   it('台账解码是闭集', () => {

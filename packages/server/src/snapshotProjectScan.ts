@@ -1,6 +1,6 @@
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { creatorOf, isTenonUser, ownerOf, readTaskArchiveOf, stateStorageSourcePathSync, projectPipelineTodo, type EffectiveWorkflowPlan, type SkillTable, type StateStore, type TaskArchive, type TrackDefinition, UnsupportedRunStateVersionError } from '@tenon/kernel'
+import { changedFilesForState, creatorOf, isTenonUser, ownerOf, readTaskArchiveOf, stateStorageSourcePathSync, projectPipelineTodo, type EffectiveWorkflowPlan, type SkillTable, type StateStore, type TaskArchive, type TrackDefinition, UnsupportedRunStateVersionError } from '@tenon/kernel'
 import type { ArchivedChangeSnapshot, ProjectSnapshot, ChangeSnapshot } from './types.js'
 import { readRepositoryIdentity } from './repositoryIdentity.js'
 import { agentBlockersOf, projectAgentRuns } from './agentRuns.js'
@@ -173,6 +173,7 @@ export async function scanAnchoredProject(
           plan,
           user: actingUser,
           ...(candidate === undefined ? {} : { candidate: () => candidate(readRoot) }),
+          changedFiles: () => changedFilesForState(readRoot, state),
         }),
         projectAgentRuns({
           changeDir,

@@ -1,0 +1,15 @@
+<testsuites id="" name="" tests="1" failures="0" skipped="0" errors="0" time="60.950568">
+<testsuite name="login.spec.ts" timestamp="2026-09-29T12:50:03.953Z" hostname="host" tests="1" failures="0" skipped="0" time="0.198" errors="0">
+<testcase name="login › flaky on first attempt" classname="login.spec.ts" time="0.198">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|login-login-flaky-on-first-attempt-chromium/test-failed-1.png]]
+
+[[ATTACHMENT|login-login-flaky-on-first-attempt-chromium/error-context.md]]
+
+[[ATTACHMENT|login-login-flaky-on-first-attempt-chromium/trace.zip]]
+]]>
+</system-out>
+</testcase>
+</testsuite>
+</testsuites>

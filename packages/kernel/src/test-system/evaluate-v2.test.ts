@@ -194,6 +194,28 @@ describe('evaluateTestPolicy —— 测试文件登记', () => {
   })
 })
 
+describe('evaluateTestPolicy —— diff 读取失败', () => {
+  it('宿主有 diff 能力但这次读取失败 → files-diff-unavailable 阻塞（失败关闭），不降级成提示', () => {
+    const report = evaluate({
+      policy: { run: ['unit'], scope: 'changed', files: 'registered' },
+      runs: [UNIT_PASS],
+      input: { changedFilesError: 'git diff 失败' },
+    })
+    expect(report.pass).toBe(false)
+    expect(report.blockers).toEqual([expect.objectContaining({
+      code: 'files-diff-unavailable', blocking: true, fix: 'tenon test sync demo',
+    })])
+    expect(report.blockers[0]?.message).toContain('git diff 失败')
+    expect(report.notices).toEqual([])
+    expect(report.files.checked).toBe(false)
+  })
+
+  it('策略不要求文件登记时，diff 读取失败与本步无关', () => {
+    const report = evaluate({ runs: [UNIT_PASS], input: { changedFilesError: 'git diff 失败' } })
+    expect(report.pass).toBe(true)
+  })
+})
+
 describe('evaluateTestPolicy —— 运行记录', () => {
   it('test-not-run：没有记录 / 运行中 / 只跑了部分范围 / 记录属于别的 workflow run', () => {
     expect(evaluate().blockers[0]).toMatchObject({ code: 'test-not-run', fix: 'tenon test run demo --suite unit' })

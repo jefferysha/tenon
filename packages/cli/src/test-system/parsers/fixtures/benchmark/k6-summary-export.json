@@ -1,0 +1,8 @@
+{
+  "root_group": { "name": "", "path": "", "id": "d41d8cd98f00b204e9800998ecf8427e", "groups": {}, "checks": {} },
+  "metrics": {
+    "http_req_duration": { "avg": 102.4, "max": 210.3, "med": 99.7, "min": 80.1, "p(90)": 131.2, "p(95)": 148.9 },
+    "http_reqs": { "count": 9520, "rate": 951.9 },
+    "checks": { "passes": 9520, "fails": 0, "value": 1 }
+  }
+}

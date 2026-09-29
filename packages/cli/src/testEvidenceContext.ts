@@ -4,14 +4,26 @@
  *
  * 工作区指纹是可降级能力：宿主没接就不传，判定跳过候选比对，其余三条新鲜度绑定照查
  * （见 kernel TestEvidenceContext 的注释）。生产装配（main.ts / server）恒有这项能力。
+ *
+ * 改动文件列表（全量登记强制）是另一回事：生产装配恒提供「自任务起点以来的改动文件」，读取失败时
+ * 抛错，kernel 据此阻塞（files-diff-unavailable），绝不降级成「没有改动」。
  */
-import { evaluateTestEvidence, isTenonUser, userSlug } from '@tenon/kernel'
+import { changedFilesForState, evaluateTestEvidence, isTenonUser, userSlug } from '@tenon/kernel'
 import type { TestEvidenceContext, TestEvidenceReader } from '@tenon/kernel'
 import type { CliDeps } from './deps.js'
+import { resolveChangeDir } from './paths.js'
 
 /** 判定读取器：缺省权威读取，只有单测覆写（见 CliDeps.testEvidence）。 */
 export function testEvidenceReaderFor(deps: CliDeps): TestEvidenceReader {
   return deps.testEvidence ?? evaluateTestEvidence
+}
+
+/** 自任务起点以来改动的文件；CliDeps.changedFiles 只供测试装配覆写。 */
+export function changedFilesFor(deps: CliDeps, changeName: string): () => Promise<readonly string[]> {
+  return async () => {
+    if (deps.changedFiles !== undefined) return deps.changedFiles(changeName)
+    return changedFilesForState(deps.cwd, await deps.store.read(resolveChangeDir(deps.cwd, changeName)))
+  }
 }
 
 export function testEvidenceContextFor(deps: CliDeps, changeName: string): TestEvidenceContext | undefined {
@@ -21,5 +33,6 @@ export function testEvidenceContextFor(deps: CliDeps, changeName: string): TestE
   return {
     user: { id: user.id, name: user.name, slug: userSlug(user.id) },
     ...(fingerprint === undefined ? {} : { currentCandidate: () => fingerprint(changeName) }),
+    changedFiles: changedFilesFor(deps, changeName),
   }
 }

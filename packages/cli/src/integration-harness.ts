@@ -72,6 +72,7 @@ import { agentPromptResult, agentWave, pendingRequiredTestIds } from './integrat
 import { probeGitFinish } from './gitWorkspace.js'
 import { harnessAgentDeps } from './integration-harness-agents.js'
 import { ensureCodeSizeProbeOnPath } from './integration-harness-probe.js'
+import { loadTestDirections } from './test-system/directions.js'
 export { recordWorkflowPhaseSkill } from './integration-phase-skill-test-support.js'
 
 /** Track Registry 校验上下文（与 main.ts trackValidationContext 同款，harness 镜像生产装配）。 */
@@ -170,6 +171,12 @@ const FIXTURE_PACKAGE_JSON = `${JSON.stringify({
   scripts: { test: 'exit 0', typecheck: 'exit 0', 'test:integration': 'exit 0', bench: 'exit 0' },
 }, null, 2)}\n`
 
+let ticks = 0
+function tickingClock(): string {
+  ticks += 1
+  return new Date(Date.parse(FIXED_CLOCK) + ticks * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z')
+}
+
 /** 真实 deps：与 main.ts 同款 fs 副作用，只把 io 收进数组、clock 固定、gitHeadSha 定桩。 */
 export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.ProcessEnv = process.env): CliDeps {
   const manifest = loadManifest(MANIFEST)
@@ -228,11 +235,13 @@ export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.
     userConfigPath: () => resolveProductPaths({ env }).userConfigPath,
     resourceCatalog: () => loadResourceCatalog({ payloadRoot: REPO_ROOT, configRoot: resolveProductPaths({ env }).configRoot }),
     ...harnessAgentDeps(REPO_ROOT, cwd, env),
+    testDirections: () => loadTestDirections([join(REPO_ROOT, 'templates', 'test-directions')]),
     creationPrecondition: (input) => designSystemPrecondition({
       ...input, repoRoot: cwd, payloadRoot: REPO_ROOT, configRoot: resolveProductPaths({ env }).configRoot,
     }),
     io: { out: (l) => out.push(l), err: (l) => err.push(l) },
-    clock: () => FIXED_CLOCK,
+    // TENON_TEST_TICKING_CLOCK=1：每次读时钟前进一秒（同一固定起点），测试记录的完成时间才分得出先后。
+    clock: env.TENON_TEST_TICKING_CLOCK === '1' ? tickingClock : () => FIXED_CLOCK,
     listChanges: async (root) => {
       try {
         return readdirSync(root, { withFileTypes: true })
@@ -270,6 +279,9 @@ export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.
     gitRemotes: () => gitRemoteNames(cwd),
     gitFinishProbe: (change) => probeGitFinish(cwd, change),
     workspaceFingerprint: () => fingerprintWorkspace(cwd),
+    // 临时项目不是 git 仓：登记检查的 diff 来源定桩为「没有改动」。专测全量登记强制的用例在项目里 git init，
+    // 并用 TENON_TEST_REAL_DIFF=1 走真实的 git 提供者。
+    ...(env.TENON_TEST_REAL_DIFF === '1' ? {} : { changedFiles: async () => [] }),
     buildRevisionIdentity: async () => TEST_BUILD_REVISION_IDENTITY,
     captureBuildRevision: async (isolation) => createBuildRevisionToken(
       isolation === 'in-place' ? 'workspace' : 'git',

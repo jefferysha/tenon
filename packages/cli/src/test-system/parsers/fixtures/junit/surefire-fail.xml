@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report-3.0.xsd" version="3.0" name="com.example.MathTest" time="0.081" tests="5" errors="1" skipped="1" failures="2">
+  <properties>
+    <property name="java.version" value="17.0.9"/>
+  </properties>
+  <testcase name="adds" classname="com.example.MathTest" time="0.003"/>
+  <testcase name="subtracts" classname="com.example.MathTest" time="0.008">
+    <failure message="expected: &lt;4&gt; but was: &lt;3&gt;" type="org.opentest4j.AssertionFailedError"><![CDATA[org.opentest4j.AssertionFailedError: expected: <4> but was: <3>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at com.example.MathTest.subtracts(MathTest.java:18)
+]]></failure>
+  </testcase>
+  <testcase name="divides" classname="com.example.MathTest" time="0.002">
+    <error message="/ by zero" type="java.lang.ArithmeticException"><![CDATA[java.lang.ArithmeticException: / by zero
+	at com.example.Math.divide(Math.java:9)
+	at com.example.MathTest.divides(MathTest.java:24)
+]]></error>
+  </testcase>
+  <testcase name="later" classname="com.example.MathTest" time="0.001">
+    <skipped message="not yet"/>
+  </testcase>
+  <testcase name="stubborn" classname="com.example.MathTest" time="0.030">
+    <failure message="still broken" type="java.lang.AssertionError">java.lang.AssertionError: still broken
+	at com.example.MathTest.stubborn(MathTest.java:40)</failure>
+    <rerunFailure message="still broken" type="java.lang.AssertionError">java.lang.AssertionError: still broken
+	at com.example.MathTest.stubborn(MathTest.java:40)</rerunFailure>
+    <rerunFailure message="still broken" type="java.lang.AssertionError">java.lang.AssertionError: still broken
+	at com.example.MathTest.stubborn(MathTest.java:40)</rerunFailure>
+  </testcase>
+</testsuite>
