@@ -5,7 +5,7 @@
  * 评审者按候选版本判过期（代码变了旧结论就不算），执行者不判——它们本身就是改代码的人。
  */
 import { DEFAULT_EVENT_POLICY } from '../flow/default-event-policy.js'
-import { IMPLICIT_COMPLETION_EVENT } from './implicit-completion.js'
+import { IMPLICIT_COMPLETION_EVENT, isForwardStepEdge } from './implicit-completion.js'
 import { dependencyWaves } from './dag-waves.js'
 import { severityRank, type AgentFinding, type AgentRunRow } from '../state/agent-runs.js'
 import type { EffectiveWorkflowPlan, StepAgentsCapability } from './effective-plan-types.js'
@@ -225,10 +225,7 @@ export function isForwardExit(
     const policy = (DEFAULT_EVENT_POLICY as Record<string, { readonly enforceTaskExit: boolean } | undefined>)[event]
     return policy?.enforceTaskExit === true
   }
-  const ids = plan.workflow.steps.map((step) => step.id)
-  const fromIndex = ids.indexOf(from)
-  const toIndex = ids.indexOf(to)
-  return fromIndex >= 0 && toIndex > fromIndex
+  return isForwardStepEdge(plan.workflow.steps.map((step) => step.id), from, to, event)
 }
 
 const FINDING_PREVIEW = 5

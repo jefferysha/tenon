@@ -8,11 +8,22 @@
  * the same rule. Compiled IR, plan fingerprints and frozen snapshots never contain this edge.
  */
 import type { PipelineState } from '../types.js'
-import { compileGuards } from './compile-guards.js'
+import { autoGateGuards } from './auto-gate.js'
 import type { EffectiveWorkflowPlan } from './effective-plan-types.js'
 import type { StepIR, StepTransitionIR } from './ir.js'
 
 export const IMPLICIT_COMPLETION_EVENT = 'archived'
+
+/**
+ * 前进边 = 目标在步骤序里更靠后，或 `archived` 指向自己的完结自边（显式声明的与隐式派生的同判）。
+ * 退回边（verify-fail、requirements-changed、自定义回边）不是：修问题的路必须一直开着。
+ */
+export function isForwardStepEdge(stepIds: readonly string[], from: string, to: string, event: string): boolean {
+  if (event === IMPLICIT_COMPLETION_EVENT && from === to) return true
+  const fromIndex = stepIds.indexOf(from)
+  const toIndex = stepIds.indexOf(to)
+  return fromIndex >= 0 && toIndex > fromIndex
+}
 
 export type ImplicitCompletionPlan = Pick<EffectiveWorkflowPlan, 'capabilities' | 'workflow'>
 
@@ -93,10 +104,9 @@ export function implicitCompletionTransition(
   return {
     event: IMPLICIT_COMPLETION_EVENT,
     to: step.id,
-    // gate=auto compiles to output guards on every declared exit; the derived exit gets the same.
-    guards: step.gate === 'auto'
-      ? compileGuards([{ type: 'nonempty-output' }], `steps.${step.id}.gate(auto)`, step.outputs)
-      : [],
+    // gate=auto compiles to output guards on every forward exit; the derived completion exit gets the same.
+    // A frozen plan whose IR still says gate=null recorded no such check and keeps it that way.
+    guards: step.gate === 'auto' ? autoGateGuards(step.id, step.outputs) : [],
     actions: [{ type: 'archive-run' }],
   }
 }

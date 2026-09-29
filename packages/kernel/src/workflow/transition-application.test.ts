@@ -1573,15 +1573,18 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
     test('含未知惰性 output（custom_doc，无 guard）的旧 workflow → load(compile)+执行转换成功（P2 兼容回退：pre-P2 能加载能跑转换图）', async () => {
       const root = await freshRepoRoot()
       const deps = makeDeps()
+      // 惰性 output 声明在没有前进出边的末阶段：null 门禁与 auto 同义后，前进边只检查本阶段输出，末阶段不受影响。
       const wf: WorkflowDef = {
         name: 'lazy',
         steps: [
           {
-            id: 'draft', label: '', gate: null, skills: [], inputs: [],
-            outputs: [{ field: 'custom_doc', type: 'string' }], guards: [],
+            id: 'draft', label: '', gate: null, skills: [], inputs: [], outputs: [], guards: [],
             transitions: [{ event: 'done', to: 'end' }],
           },
-          { id: 'end', label: '', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] },
+          {
+            id: 'end', label: '', gate: null, skills: [], inputs: [],
+            outputs: [{ field: 'custom_doc', type: 'string' }], guards: [], transitions: [],
+          },
         ],
       }
       const dir = await initCustom(deps, root, 'lazy', 'draft')
@@ -1593,6 +1596,45 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       if (result.kind !== 'applied') throw new Error('expected applied')
       expect(result.from).toBe('draft')
       expect(result.to).toBe('end')
+    })
+
+    describe('门禁 null ≡ auto：输出齐全守卫只挂前进边', () => {
+      // review 阶段有一个没人填的输出（plan）；review-pass 前进、review-back 退回。null 与 auto 应当同判。
+      const gated = (name: string, gate: 'auto' | null): WorkflowDef => ({
+        name,
+        steps: [
+          { id: 'draft', label: '', gate: 'review', skills: [], inputs: [], outputs: [], guards: [], transitions: [{ event: 'draft-done', to: 'check' }] },
+          {
+            id: 'check', label: '', gate, skills: [], inputs: [], outputs: [{ field: 'plan', type: 'string' }], guards: [],
+            transitions: [{ event: 'check-pass', to: 'ship' }, { event: 'check-back', to: 'draft' }],
+          },
+          { id: 'ship', label: '', gate: 'review', skills: [], inputs: [], outputs: [], guards: [], transitions: [] },
+        ],
+      })
+      for (const gate of [null, 'auto'] as const) {
+        test(`gate=${String(gate)}：输出未齐 → 前进边被拦、退回边放行；输出齐了前进边放行`, async () => {
+          const wf = gated(`gated-${String(gate)}`, gate)
+          const command = (root: string, changeDir: string, event: string) => ({
+            root, changeDir, changeName: 'demo', actor: TEST_CREATOR, event, context: {},
+            loadWorkflow: (n: string) => (n === wf.name ? compileWorkflow(wf) : null),
+          })
+          const forwardRoot = await freshRepoRoot()
+          const forwardDeps = makeDeps()
+          const forwardDir = await initCustom(forwardDeps, forwardRoot, wf.name, 'check')
+          const app = createTransitionApplication(forwardDeps)
+          expect((await app.execute(command(forwardRoot, forwardDir, 'check-pass'))).kind).toBe('step-guard-failed')
+          expect((await createStateStore().read(forwardDir)).fields.phase).toBe('check')
+          await createStateStore().set(forwardDir, 'plan', 'plan.md')
+          expect((await app.execute(command(forwardRoot, forwardDir, 'check-pass'))).kind).toBe('applied')
+
+          const backRoot = await freshRepoRoot()
+          const backDeps = makeDeps()
+          const backDir = await initCustom(backDeps, backRoot, wf.name, 'check')
+          const back = await createTransitionApplication(backDeps).execute(command(backRoot, backDir, 'check-back'))
+          expect(back.kind).toBe('applied')
+          expect((await createStateStore().read(backDir)).fields.phase).toBe('draft')
+        })
+      }
     })
   })
 })

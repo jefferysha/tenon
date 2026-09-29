@@ -123,10 +123,14 @@ describe('workflow policy snapshot v4', () => {
       steps: currentWithoutPolicies.steps.map(({ tests: _tests, prompt: _prompt, agents: _agents, ...step }) => ({
         ...step,
         label: step.id === 'archive' ? '归档' : step.label,
+        // Historical bytes predate the two-kind gate: `gate: null` was recorded as null (no output guards).
+        gate: step.gate === 'auto' ? null : step.gate,
         skills: [],
         // Historical bytes also predate the 2026-09 ship/archive inputs/outputs (pr_url / archived).
         inputs: step.id === 'ship' || step.id === 'archive' ? [] : step.inputs,
         outputs: step.id === 'ship' || step.id === 'archive' ? [] : step.outputs,
+        // No default edge declares guards; the ones on the current IR are the auto gate's, which historical bytes lack.
+        transitions: step.transitions.map((transition) => ({ ...transition, guards: [] })),
       })),
     }
     const restored = effectiveWorkflowPlanFromSnapshot({

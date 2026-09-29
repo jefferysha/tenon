@@ -5,10 +5,12 @@
  */
 import { FIELD_ORDER, type FieldName } from '../types.js'
 import type {
-  FieldRef, GateKind, SkillRef, StepDef, StepTransition, WorkflowDef,
+  FieldRef, SkillRef, StepDef, StepTransition, WorkflowDef,
   WorkflowDocumentContractV1, WorkflowDocumentRead, WorkflowDocumentSlot,
 } from './types.js'
 import { compileGuards, compileStepGuards } from './compile-guards.js'
+import { normalizeGate, withAutoGateGuards } from './auto-gate.js'
+import { isForwardStepEdge } from './implicit-completion.js'
 import { compileArtifacts } from './compile-artifacts.js'
 import { compileStepAgents } from './compile-agents.js'
 import { compileStepTests } from './compile-tests.js'
@@ -202,13 +204,10 @@ function compileStep(step: unknown, index: number, allowedPolicies: ReadonlySet<
   const tests = compileStepTests(rec.tests, `${path}.tests`)
   // 同 tests：两个身份列表都空归一为「无 agents 键」，未声明 agent 的工作流指纹逐字不变。
   const agents = compileStepAgents(rec.agents, `${path}.agents`)
-  // gate=auto：自动评审 = 本阶段声明的全部输出齐全即放行——编译成每条出边上的 nonempty-output
-  //（展开为逐输出 field-nonempty / output-present），与显式守卫同一条评估链，不另起门类。
-  const autoGuards = gate === 'auto' ? compileGuards([{ type: 'nonempty-output' }], `${path}.gate(auto)`, outputs) : []
-  const transitions = asArray(rec.transitions, `${path}.transitions`).map((t, j) => {
-    const compiled = compileTransition(t as StepTransition, `${path}.transitions[${j}]`, outputs)
-    return autoGuards.length === 0 ? compiled : { ...compiled, guards: [...autoGuards, ...compiled.guards] }
-  })
+  // 门禁只有 review / auto：null 是 auto 的别名，这里归一。auto 的输出齐全守卫要知道哪些边是前进边，
+  // 得看到整条步骤序，由 withAutoGateGuards 在同一份步骤序编完之后补挂（见 auto-gate.ts）。
+  const transitions = asArray(rec.transitions, `${path}.transitions`).map((t, j) =>
+    compileTransition(t as StepTransition, `${path}.transitions[${j}]`, outputs))
   const transitionEvents = new Set<string>()
   transitions.forEach((transition, transitionIndex) => {
     if (transitionEvents.has(transition.event)) {
@@ -220,7 +219,7 @@ function compileStep(step: unknown, index: number, allowedPolicies: ReadonlySet<
     transitionEvents.add(transition.event)
   })
   return {
-    id, label: rec.label, gate: gate as GateKind,
+    id, label: rec.label, gate: normalizeGate(gate),
     ...(prompt === undefined ? {} : { prompt }),
     skills, inputs, outputs, guards, artifacts,
     ...(tests === undefined ? {} : { tests }),
@@ -291,7 +290,7 @@ function compileWith(def: unknown, allowedPolicies: ReadonlySet<string>): Workfl
     compileError('openspec', `必须是 true | false（实际 ${JSON.stringify(rec.openspec)}）`)
   }
   const documentContract = compileDocumentContract(rec.documentContract, 'documentContract')
-  const steps = asArray(rec.steps, 'steps').map((s, i) => compileStep(s, i, allowedPolicies))
+  const steps = withAutoGateGuards(asArray(rec.steps, 'steps').map((s, i) => compileStep(s, i, allowedPolicies)), isForwardStepEdge)
   const tracks = compileTracks(rec.tracks, allowedPolicies)
   return deepFreeze({
     name,
@@ -320,7 +319,7 @@ function compileTracks(raw: unknown, allowedPolicies: ReadonlySet<string>): Work
       compileError(`tracks.${id}.label`, `必须是非空字符串（实际 ${JSON.stringify(branch.label)}）`)
     }
     const documentContract = compileDocumentContract(branch.documentContract, `tracks.${id}.documentContract`)
-    const steps = asArray(branch.steps, `tracks.${id}.steps`).map((s, i) => compileStep(s, i, allowedPolicies, `tracks.${id}.steps`))
+    const steps = withAutoGateGuards(asArray(branch.steps, `tracks.${id}.steps`).map((s, i) => compileStep(s, i, allowedPolicies, `tracks.${id}.steps`)), isForwardStepEdge)
     out[id] = {
       ...(branch.label === undefined ? {} : { label: branch.label }),
       ...(documentContract === undefined ? {} : { documentContract }),
