@@ -188,4 +188,32 @@ describe('withRunStatus', () => {
     })
     expect(stages[1]?.entries.map((entry) => entry.status)).toEqual(['done', 'running', 'waiting'])
   })
+  it('旧测试过期 = stale；策略要求运行的种类节点按该步策略判定里同种类套件的最差状态，没有套件 = 等待', () => {
+    const policyEntry = (kind: 'unit' | 'typecheck' | 'lint') => ({
+      kind: 'test' as const, id: `kind:${kind}`, label: kind, wave: 1, dependsOn: [], required: true, source: 'declared' as const, testKind: kind,
+    })
+    const withPolicy = {
+      ...orchestration,
+      stages: orchestration.stages.map((stage) => stage.id === 'b'
+        ? { ...stage, entries: [...stage.entries, policyEntry('unit'), policyEntry('typecheck'), policyEntry('lint')] }
+        : stage),
+    }
+    const suite = (id: string, kind: string, state: 'passed' | 'failed' | 'stale' | 'missing' | 'running') =>
+      ({ suite: id, origin: 'catalog' as const, kind, reason: 'run' as const, state })
+    const report = {
+      stepId: 'b', pass: false, chain: 'intact' as const, policy: null, blockers: [], notices: [], trace: [],
+      files: { checked: true, unregistered: [], orphans: [] },
+      suites: [suite('a', 'unit', 'passed'), suite('b', 'unit', 'stale'), suite('c', 'typecheck', 'failed')],
+    }
+    const stages = withRunStatus(withPolicy, {
+      phase: 'b', archived: false, skills: new Map(), agents: [],
+      tests: [{ stepId: 'b', items: [{ id: 'unit', direction: 'unit', required: true, status: 'stale' }] }],
+      policies: [report],
+    })
+    expect(stages[1]?.entries.filter((entry) => entry.kind === 'test').map((entry) => [entry.id, entry.status])).toEqual([
+      ['unit', 'stale'], ['kind:unit', 'stale'], ['kind:typecheck', 'failed'], ['kind:lint', 'waiting'],
+    ])
+    const none = withRunStatus(withPolicy, { phase: 'b', archived: false, skills: new Map(), agents: [], tests: [] })
+    expect(none[1]?.entries.filter((entry) => entry.testKind !== undefined).map((entry) => entry.status)).toEqual(['waiting', 'waiting', 'waiting'])
+  })
 })

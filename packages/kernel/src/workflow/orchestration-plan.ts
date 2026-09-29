@@ -34,6 +34,7 @@ export function planStepSources(plan: EffectiveWorkflowPlan): readonly Orchestra
     skills: step.skills,
     ...(step.agents === undefined ? {} : { agents: step.agents }),
     ...(step.tests === undefined ? {} : { tests: step.tests }),
+    ...(step.test_policy === undefined ? {} : { test_policy: step.test_policy }),
     transitions: step.transitions,
   }))
 }

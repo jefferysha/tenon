@@ -5,6 +5,7 @@ import type { OrchestrationFlow, OrchestrationKind } from '@tenon/kernel/workflo
 import type { FlowEntry, FlowStage, RunStatus } from '../api/workflowOrchestrationClient'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useT } from '../i18n'
+import { kindLabel } from '../tests/testLabels'
 import { HEADER_H, PORT, type FlowMode } from './orchestrationLayout'
 import { EDGE_STYLE, PulseEdge } from './skillFlowNodes'
 import { cn } from '@/lib/utils'
@@ -51,13 +52,15 @@ export const KIND_TITLE: Record<OrchestrationKind, string> = {
   test: 'workflow.tests_title',
   reviewer: 'workflow.reviewers_title',
 }
-const STATUS_DOT: Record<RunStatus, string> = { done: 'bg-green', running: 'bg-info', failed: 'bg-red', waiting: 'bg-text-4' }
-const STATUS_TEXT: Record<RunStatus, string> = { done: 'text-green-d', running: 'text-info-d', failed: 'text-red-d', waiting: 'text-text-3' }
+const STATUS_DOT: Record<RunStatus, string> = { done: 'bg-green', running: 'bg-info', failed: 'bg-red', waiting: 'bg-text-4', stale: 'bg-(--amber-d)' }
+const STATUS_TEXT: Record<RunStatus, string> = { done: 'text-green-d', running: 'text-info-d', failed: 'text-red-d', waiting: 'text-text-3', stale: 'text-amber-d' }
+/** 测试节点的状态词与测试页签同一套（通过 / 失败 / 过期 / 未运行 / 运行中）。 */
+const TEST_STATE: Record<RunStatus, string> = { done: 'passed', running: 'running', failed: 'failed', waiting: 'missing', stale: 'stale' }
 const HIDDEN_HANDLE = '!size-1 !min-h-0 !min-w-0 !border-0 !bg-transparent'
 
-function StatusMark({ status, withLabel }: { status: RunStatus; withLabel: boolean }): JSX.Element {
+function StatusMark({ status, withLabel, test }: { status: RunStatus; withLabel: boolean; test: boolean }): JSX.Element {
   const { t } = useT()
-  const label = t(`workspace.run_${status}`)
+  const label = t(test ? `tests.state.${TEST_STATE[status]}` : `workspace.run_${status}`)
   return (
     <span className={cn('inline-flex flex-none items-center gap-1.5 whitespace-nowrap text-micro', STATUS_TEXT[status])} title={label} data-testid="orch-status" data-status={status}>
       <i className={cn('size-1.5 rounded-full', STATUS_DOT[status], status === 'running' && 'animate-pulse motion-reduce:animate-none')} aria-hidden="true" />
@@ -83,6 +86,9 @@ function EntryNodeView({ id, data }: NodeProps<EntryNode>): JSX.Element {
   const { entry, width, height, stage } = data
   const stageMode = context.mode === 'stage'
   const optional = entry.required ? '' : ` · ${t('workflow.agent_advisory')}`
+  // 策略要求运行的测试节点：名字是种类的界面词，标识（unit）在悬停提示里。
+  const name = entry.testKind === undefined ? entry.label : kindLabel(entry.testKind, t)
+  const hint = entry.testKind === undefined ? entry.label : `${name} · ${entry.testKind}`
   const open = context.onOpenEntry !== undefined && (context.openable?.(entry) ?? true) ? context.onOpenEntry : undefined
   return (
     <div
@@ -100,18 +106,18 @@ function EntryNodeView({ id, data }: NodeProps<EntryNode>): JSX.Element {
       <button
         type="button"
         className="grid w-full min-w-0 gap-0.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-default"
-        title={`${entry.label}${optional}`}
-        aria-label={`${t(KIND_TITLE[entry.kind])} ${entry.label}${optional}`}
+        title={`${hint}${optional}`}
+        aria-label={`${t(KIND_TITLE[entry.kind])} ${name}${optional}`}
         disabled={open === undefined}
         data-testid={`orch-open-${entry.kind}-${entry.id}`}
         onClick={() => open?.(stage, entry)}
       >
         <span className="flex min-w-0 items-center gap-1.5 whitespace-nowrap">
           <SourceMark entry={entry} />
-          <span className={cn('min-w-0 flex-1 truncate font-mono text-caption', entry.required ? 'text-text' : 'text-text-3')}>{entry.label}</span>
-          {entry.status !== undefined && !stageMode && <StatusMark status={entry.status} withLabel={false} />}
+          <span className={cn('min-w-0 flex-1 truncate text-caption', entry.testKind === undefined && 'font-mono', entry.required ? 'text-text' : 'text-text-3')}>{name}</span>
+          {entry.status !== undefined && !stageMode && <StatusMark status={entry.status} withLabel={false} test={entry.kind === 'test'} />}
         </span>
-        {entry.status !== undefined && stageMode && <StatusMark status={entry.status} withLabel />}
+        {entry.status !== undefined && stageMode && <StatusMark status={entry.status} withLabel test={entry.kind === 'test'} />}
       </button>
       <Handle type="source" id="bottom" position={Position.Bottom} className={HIDDEN_HANDLE} isConnectable={false} />
     </div>

@@ -111,7 +111,8 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
     if (entry.kind === 'test') setOpenTest(entry.id)
     else if (entry.kind !== 'skill') setOpenAgent(entry.id)
   }, [])
-  const openable = useCallback((entry: FlowEntry): boolean => entry.kind !== 'skill', [])
+  // 技能没有抽屉；策略要求运行的种类节点是一个种类（可能多个套件），也没有单一的运行可打开。
+  const openable = useCallback((entry: FlowEntry): boolean => entry.kind !== 'skill' && entry.testKind === undefined, [])
   const openStage = useCallback((id: string): void => { setSelectedStep(id); setView('stage') }, [])
   const currentStage = row.stages.find((candidate) => candidate.status === 'current')?.id ?? null
 

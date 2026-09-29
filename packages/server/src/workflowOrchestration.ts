@@ -18,10 +18,11 @@ import {
 } from '@tenon/kernel'
 import { projectAgentRuns, type AgentRunsSnapshot } from './agentRuns.js'
 import { projectTestEvidence } from './testEvidenceSnapshot.js'
+import type { PolicyReportDto } from './testSystemDtoTypes.js'
 import type { TestStepSnapshot } from './types.js'
 
-/** 工作台节点的四态：运行中 / 完成 / 等待 / 失败。 */
-export type OrchestrationRunStatus = 'running' | 'done' | 'waiting' | 'failed'
+/** 工作台节点的状态：运行中 / 完成 / 等待 / 失败；测试另有「过期」（运行过，但绑定的代码 / 计划已变）。 */
+export type OrchestrationRunStatus = 'running' | 'done' | 'waiting' | 'failed' | 'stale'
 
 export interface DefinitionOrchestrationResponse extends WorkflowOrchestration {
   readonly workflow: string
@@ -73,6 +74,8 @@ export interface ChangeRunFacts {
   readonly skills: ReadonlyMap<string, OrchestrationRunStatus>
   readonly agents: AgentRunsSnapshot
   readonly tests: readonly TestStepSnapshot[]
+  /** 各步的测试策略判定；策略要求运行的种类节点按它定状态。缺省 = 没有判定，全部等待。 */
+  readonly policies?: readonly PolicyReportDto[]
 }
 
 function agentStatus(view: AgentView | undefined): OrchestrationRunStatus {
@@ -86,7 +89,19 @@ function testStatus(status: TestStepSnapshot['items'][number]['status'] | undefi
   if (status === 'passed') return 'done'
   if (status === 'failed') return 'failed'
   if (status === 'running') return 'running'
+  if (status === 'stale') return 'stale'
   return 'waiting'
+}
+
+type SuiteState = PolicyReportDto['suites'][number]['state']
+/** 同一种类可能有多个套件：取最差的（失败 > 过期 > 运行中 > 未运行 > 通过）；本阶段运行集里没有该种类 = 未运行。 */
+const WORST: Readonly<Record<SuiteState, number>> = { passed: 0, missing: 1, running: 2, stale: 3, failed: 4 }
+
+function kindStatus(report: PolicyReportDto | undefined, kind: string): OrchestrationRunStatus {
+  const states = (report?.suites ?? []).filter((suite) => suite.kind === kind).map((suite) => suite.state)
+  if (states.length === 0) return 'waiting'
+  const worst = states.reduce((acc, state) => (WORST[state] > WORST[acc] ? state : acc))
+  return worst === 'passed' ? 'done' : worst === 'missing' ? 'waiting' : worst
 }
 
 /**
@@ -101,6 +116,7 @@ export function withRunStatus(
   return orchestration.stages.map((stage, index) => {
     const agents = facts.agents.find((step) => step.stepId === stage.id)?.agents ?? []
     const tests = facts.tests.find((step) => step.stepId === stage.id)?.items ?? []
+    const policy = facts.policies?.find((report) => report.stepId === stage.id)
     const past = current >= 0 && (index < current || (index === current && facts.archived))
     const future = current < 0 || index > current
     return {
@@ -108,7 +124,9 @@ export function withRunStatus(
       entries: stage.entries.map((entry): ChangeOrchestrationEntry => {
         if (future) return { ...entry, status: 'waiting' }
         if (entry.kind === 'skill') return { ...entry, status: past ? 'done' : facts.skills.get(entry.id) ?? 'waiting' }
-        if (entry.kind === 'test') return { ...entry, status: testStatus(tests.find((item) => item.id === entry.id)?.status) }
+        if (entry.kind === 'test') {
+          return { ...entry, status: entry.testKind === undefined ? testStatus(tests.find((item) => item.id === entry.id)?.status) : kindStatus(policy, entry.testKind) }
+        }
         return { ...entry, status: agentStatus(agents.find((view) => view.agent === entry.id)) }
       }),
     }
@@ -207,7 +225,7 @@ export async function changeOrchestration(input: {
     workflow: plan.id,
     track: track === '' ? null : track,
     current: phase,
-    stages: withRunStatus(orchestration, { phase, archived, skills, agents, tests: tests.tests ?? [] }),
+    stages: withRunStatus(orchestration, { phase, archived, skills, agents, tests: tests.tests ?? [], policies: tests.testPolicy ?? [] }),
     returns: orchestration.returns,
     flows: orchestration.flows,
     io,

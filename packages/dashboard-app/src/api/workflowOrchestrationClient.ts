@@ -5,12 +5,13 @@
 import type {
   OrchestrationEntry, OrchestrationFlow, OrchestrationKind, OrchestrationReturn, OrchestrationSource,
 } from '@tenon/kernel/workflow/orchestration'
+import { TEST_KINDS } from '@tenon/kernel/test-system/vocabulary'
 import type { WbEffectiveIo } from './governanceTypes'
 import { decodeEffectiveIo } from './governanceSchema'
 import { ApiError, isRecord, readJson, stringArray, throwApiError, wrapNetwork } from './transport'
 
-/** 工作台节点的四态：运行中 / 完成 / 等待 / 失败。 */
-export type RunStatus = 'running' | 'done' | 'waiting' | 'failed'
+/** 工作台节点的状态：运行中 / 完成 / 等待 / 失败；测试另有「过期」（运行过，但绑定的代码 / 计划已变）。 */
+export type RunStatus = 'running' | 'done' | 'waiting' | 'failed' | 'stale'
 
 export interface FlowEntry extends OrchestrationEntry {
   readonly status?: RunStatus
@@ -46,7 +47,7 @@ export interface ChangeOrchestration extends FlowOrchestration {
 
 const KINDS: readonly OrchestrationKind[] = ['executor', 'skill', 'test', 'reviewer']
 const SOURCES: readonly OrchestrationSource[] = ['declared', 'openspec', 'manifest']
-const STATUSES: readonly RunStatus[] = ['running', 'done', 'waiting', 'failed']
+const STATUSES: readonly RunStatus[] = ['running', 'done', 'waiting', 'failed', 'stale']
 
 function oneOf<T extends string>(value: unknown, allowed: readonly T[]): value is T {
   return typeof value === 'string' && allowed.some((candidate) => candidate === value)
@@ -57,6 +58,7 @@ function decodeEntry(value: unknown, withStatus: boolean): FlowEntry | null {
     || typeof value.wave !== 'number' || !Number.isInteger(value.wave) || value.wave < 0 || !stringArray(value.dependsOn)
     || typeof value.required !== 'boolean' || !oneOf(value.source, SOURCES)) return null
   if (withStatus && !oneOf(value.status, STATUSES)) return null
+  if (value.testKind !== undefined && (value.kind !== 'test' || !oneOf(value.testKind, TEST_KINDS))) return null
   return {
     kind: value.kind,
     id: value.id,
@@ -65,6 +67,7 @@ function decodeEntry(value: unknown, withStatus: boolean): FlowEntry | null {
     dependsOn: [...value.dependsOn],
     required: value.required,
     source: value.source,
+    ...(oneOf(value.testKind, TEST_KINDS) ? { testKind: value.testKind } : {}),
     ...(withStatus && oneOf(value.status, STATUSES) ? { status: value.status } : {}),
   }
 }

@@ -98,7 +98,7 @@ describe('buildOrchestration · 阶段内顺序与流向', () => {
     expect(verify.entries.map((entry) => [entry.kind, entry.id, entry.wave])).toEqual([
       ['skill', 'browser-qa', 0], ['skill', 'web-design-guidelines', 1], ['skill', 'design-taste-frontend', 2],
       ['skill', 'verification-before-completion', 3], ['skill', 'e2e-testing', 4],
-      ['test', 'playwright', 5], ['test', 'code-size', 5],
+      ['test', 'playwright', 5], ['test', 'code-size', 5], ['test', 'kind:unit', 5], ['test', 'kind:regression', 5],
       ['reviewer', 'spec-consistency', 6], ['reviewer', 'frontend-quality', 6], ['reviewer', 'security', 6], ['reviewer', 'e2e', 6],
       ['reviewer', 'architecture', 7], ['reviewer', 'code-size', 6],
     ])
@@ -133,6 +133,39 @@ describe('buildOrchestration · 阶段内顺序与流向', () => {
       ['test', 'unit', 4, false],
       ['reviewer', 'critic', 5, true],
     ])
+  })
+
+  it('测试泳道 = 旧步骤测试 + 策略要求运行的种类（一个种类一个节点；旧测试已覆盖的种类不重复）', () => {
+    const def: WorkflowDef = {
+      name: 'demo',
+      steps: [{
+        id: 'work',
+        label: '工作',
+        gate: 'auto',
+        skills: [{ id: 'plan' }],
+        inputs: [],
+        outputs: [],
+        tests: [{ id: 'unit-legacy', label: '旧单测', direction: 'unit', command: 'npm test', required: true }],
+        test_policy: { run: ['unit', 'typecheck', 'benchmark'], kinds: ['a11y'], run_if_registered: ['visual'] },
+        agents: { executors: [], reviewers: [{ agent: 'critic', required: true, block_at: 'high' }] },
+        guards: [],
+        transitions: [],
+      }],
+    }
+    const work = stage(buildOrchestration(compileEffectiveWorkflowPlan('demo', def)).stages, 'work')
+    expect(work.entries.map((entry) => [entry.kind, entry.id, entry.wave, entry.testKind])).toEqual([
+      ['skill', 'plan', 0, undefined],
+      ['test', 'unit-legacy', 1, undefined], ['test', 'kind:typecheck', 1, 'typecheck'], ['test', 'kind:benchmark', 1, 'benchmark'],
+      ['reviewer', 'critic', 2, undefined],
+    ])
+    expect(work.entries.find((entry) => entry.id === 'kind:typecheck')).toMatchObject({ label: 'typecheck', required: true, dependsOn: [], source: 'declared' })
+  })
+
+  it('草稿形状（只有 run 字段的策略、没有 direction 的旧测试）也能编排', () => {
+    const drawn = orchestrate({ steps: [{
+      id: 's', label: 'S', gate: null, skills: [], tests: [{ id: 'e2e' }], test_policy: { run: ['e2e', 'lint'] }, transitions: [],
+    }] })
+    expect(drawn.stages[0]?.entries.map((entry) => [entry.id, entry.testKind])).toEqual([['e2e', undefined], ['kind:lint', 'lint']])
   })
 
   it('回流边 = 指向更早阶段的转移', () => {

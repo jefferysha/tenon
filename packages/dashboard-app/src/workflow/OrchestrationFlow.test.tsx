@@ -194,6 +194,33 @@ describe('OrchestrationFlow · 总览', () => {
   })
 })
 
+describe('OrchestrationFlow · 策略要求运行的测试种类', () => {
+  it('工作台：一个种类一个节点，状态词与测试页签同一套（通过 / 失败 / 过期 / 未运行）；名字是种类的界面词', () => {
+    const kind = (id: string, testKind: 'unit' | 'typecheck' | 'benchmark' | 'e2e', status: 'done' | 'failed' | 'stale' | 'waiting') =>
+      entry('test', `kind:${id}`, 1, [], { label: id, testKind, status })
+    const stages: FlowStage[] = [{
+      id: 'build', label: '实现', gate: null, entries: [
+        kind('unit', 'unit', 'done'), kind('typecheck', 'typecheck', 'failed'), kind('benchmark', 'benchmark', 'stale'), kind('e2e', 'e2e', 'waiting'),
+      ],
+    }]
+    renderFlow({ stages, returns: [], flows: [], mode: 'stage', withStatus: true, current: 'build' })
+    expect(screen.getAllByTestId('orch-status').map((mark) => mark.textContent)).toEqual(['通过', '失败', '过期', '未运行'])
+    expect(screen.getAllByTestId('orch-status').map((mark) => mark.getAttribute('data-status'))).toEqual(['done', 'failed', 'stale', 'waiting'])
+    expect(screen.getByTestId('orch-open-test-kind:typecheck').textContent).toContain('类型检查')
+    expect(screen.getByTestId('orch-open-test-kind:typecheck')).toHaveAttribute('title', '类型检查 · typecheck')
+    expect(screen.getByTestId('orch-node-test-kind:typecheck').className).toContain('border-red-b')
+    expect(screen.getByTestId('orch-lane-test')).toHaveTextContent('测试4')
+  })
+
+  it('英文界面用种类的英文词', () => {
+    window.localStorage.setItem('tenon-dashboard-lang', 'en')
+    const stages: FlowStage[] = [{ id: 'build', label: 'Build', gate: null, entries: [entry('test', 'kind:e2e', 1, [], { label: 'e2e', testKind: 'e2e' })] }]
+    renderFlow({ stages, returns: [], flows: [], mode: 'stage' })
+    expect(screen.getByTestId('orch-open-test-kind:e2e').textContent).toContain('End-to-end')
+    window.localStorage.removeItem('tenon-dashboard-lang')
+  })
+})
+
 describe('OrchestrationFlow · 与 kernel 同一份编排', () => {
   it('草稿直接走 kernel orchestrate：未声明依赖串行、声明依赖成波', () => {
     const serial = orchestrate({ steps: [{ id: 's', label: 'S', gate: null, skills: [{ id: 'a' }, { id: 'b' }, { id: 'c' }], transitions: [] }] })

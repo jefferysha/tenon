@@ -3,8 +3,10 @@
  *
  * 纯函数、无 I/O，Dashboard 经包子路径直接复用（编辑中的草稿与服务端冻结计划用同一份实现画同一张图）。
  * 阶段内顺序与 runner 一致（`tenon status` 的 next）：执行者波次 → 技能波次（含 OpenSpec 注入）→ 测试 →
- * 评审者波次。技能排序取 skill-order 的唯一口径；执行者、评审者的波次与 agent-verdict 同一个 dependencyWaves。
+ * 评审者波次。测试 = 旧的步骤测试（一项一个）+ 策略 `test_policy.run` 要求运行的种类（一个种类一个，
+ * 旧测试已经覆盖的种类不再重复画）。技能排序取 skill-order 的唯一口径；执行者、评审者的波次与 agent-verdict 同一个 dependencyWaves。
  */
+import { kindForDirection, type TestKind } from '../test-system/vocabulary.js'
 import { dependencyWaves, directDependencies, type DependencyRef } from './dag-waves.js'
 import { aliasesForSkill, TENON_PRODUCER } from './document-contract-validation.js'
 import type { WorkflowIoSlot } from './effective-io.js'
@@ -24,6 +26,8 @@ export interface OrchestrationEntry {
   readonly dependsOn: readonly string[]
   readonly required: boolean
   readonly source: OrchestrationSource
+  /** 仅策略要求运行的测试节点：它代表的测试种类（id 形如 `kind:unit`，界面按种类给词）。 */
+  readonly testKind?: TestKind
 }
 
 export interface OrchestrationStage {
@@ -64,7 +68,9 @@ export interface OrchestrationStepSource {
     readonly executors: readonly { readonly agent: string; readonly depends_on?: readonly string[] }[]
     readonly reviewers: readonly { readonly agent: string; readonly required: boolean; readonly depends_on?: readonly string[] }[]
   }
-  readonly tests?: readonly { readonly id: string; readonly label?: string; readonly required?: boolean }[]
+  readonly tests?: readonly { readonly id: string; readonly label?: string; readonly required?: boolean; readonly direction?: string }[]
+  /** 策略要求本阶段运行的测试种类（`run`）；其余字段与编排无关。 */
+  readonly test_policy?: { readonly run?: readonly string[] }
   readonly transitions: readonly { readonly event: string; readonly to: string }[]
 }
 
@@ -171,8 +177,23 @@ function stageEntries(step: OrchestrationStepSource, input: OrchestrationInput):
     required: test.required ?? true,
     source: 'declared',
   }))
-  const reviewers = agentEntries('reviewer', step.agents?.reviewers ?? [], lastWave(tests, afterSkills))
-  return [...executors, ...skills, ...tests, ...reviewers]
+  const covered = new Set((step.tests ?? []).map((test) => kindForDirection(test.direction ?? test.id)))
+  const policyKinds = [...new Set(step.test_policy?.run ?? [])]
+    .map((kind) => kindForDirection(kind))
+    .filter((kind, index, all) => all.indexOf(kind) === index && !covered.has(kind))
+  const policyTests: OrchestrationEntry[] = policyKinds.map((kind) => ({
+    kind: 'test',
+    id: `kind:${kind}`,
+    label: kind,
+    wave: afterSkills,
+    dependsOn: [],
+    required: true,
+    source: 'declared',
+    testKind: kind,
+  }))
+  const allTests = [...tests, ...policyTests]
+  const reviewers = agentEntries('reviewer', step.agents?.reviewers ?? [], lastWave(allTests, afterSkills))
+  return [...executors, ...skills, ...allTests, ...reviewers]
 }
 
 function flowsOf(input: OrchestrationInput, stages: readonly OrchestrationStage[]): OrchestrationFlow[] {

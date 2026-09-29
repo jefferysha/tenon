@@ -15,7 +15,7 @@ export interface StageFlowSectionProps {
   onOpenSkill: (id: string) => void
 }
 
-/** 旧的步骤测试在这里只读：点它没有抽屉，转成目录套件的命令在门禁段的测试表单里。 */
+/** 测试（旧的步骤测试、策略要求的种类）在这里只读：点它没有抽屉，转成目录套件的命令与策略表单在门禁段。 */
 const openable = (entry: FlowEntry): boolean => entry.kind !== 'test'
 
 /**

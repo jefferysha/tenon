@@ -262,6 +262,24 @@ describe('StageEditorPane · 两栏定稿', () => {
     expect(screen.getByTestId('orch-open-test-unit')).toBeDisabled()
   })
 
+  it('测试泳道也画策略要求运行的种类：一个种类一个节点，词是种类的界面词、标识在提示里；旧测试已覆盖的种类不重复', () => {
+    const step: WbStepDef = {
+      ...EXPLORE,
+      tests: [{ id: 'unit', direction: 'unit', command: 'npm test', label: '单测' }],
+      test_policy: { run: ['unit', 'typecheck', 'e2e'], kinds: ['a11y'] },
+    }
+    renderPane(step)
+    const canvas = screen.getByTestId('orchestration-stage')
+    expect(within(canvas).getByTestId('orch-lane-test')).toHaveTextContent('测试3')
+    const nodes = within(canvas).getAllByTestId(/^orch-node-test-/u)
+    expect(nodes.map((node) => node.getAttribute('data-testid'))).toEqual(['orch-node-test-unit', 'orch-node-test-kind:typecheck', 'orch-node-test-kind:e2e'])
+    expect(nodes.map((node) => node.textContent)).toEqual(['单测', '类型检查', '端到端'])
+    expect(within(canvas).getByTestId('orch-open-test-kind:typecheck')).toHaveAttribute('title', '类型检查 · typecheck')
+    expect(within(canvas).getByTestId('orch-open-test-kind:typecheck')).toBeDisabled()
+    expect(within(canvas).queryByTestId('orch-node-test-kind:a11y')).toBeNull()
+    expect(within(canvas).queryByTestId('orch-node-test-kind:unit')).toBeNull()
+  })
+
   it('门禁是分段控件：fill 轨道，选中项里有白色滑块，没有内联说明图标', () => {
     renderPane(EXPLORE)
     const group = screen.getByTestId('wb-lane-gate-explore')
