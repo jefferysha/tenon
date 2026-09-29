@@ -98,11 +98,16 @@ describe('fingerprintWorkspace', () => {
     await mkdir(join(root, '.github', 'agents'), { recursive: true })
     const withGithubDir = await fingerprintWorkspace(root)
     await mkdir(join(root, '.claude', 'agents'), { recursive: true })
-    const withClaudeDir = await fingerprintWorkspace(root)
+    // 第一次生成宿主 agent 文件才新建 .claude/：只装着被排除内容的外壳目录不动候选。
+    expect(await fingerprintWorkspace(root)).toBe(withGithubDir)
     await writeFile(join(root, '.claude', 'agents', 'tenon-builder.md'), '---\nname: tenon-builder\n---\n')
     await writeFile(join(root, '.pipeline-owned.json'), '{}\n')
-    expect(await fingerprintWorkspace(root)).toBe(withClaudeDir)
+    expect(await fingerprintWorkspace(root)).toBe(withGithubDir)
     expect(withGithubDir).not.toBe(first)
+    // .claude/ 里有别的内容（例如设置）就是实现的一部分。
+    await writeFile(join(root, '.claude', 'settings.json'), '{}\n')
+    expect(await fingerprintWorkspace(root)).not.toBe(withGithubDir)
+    await rm(join(root, '.claude', 'settings.json'))
 
     await mkdir(join(root, 'design-demos', 'shots'), { recursive: true })
     await writeFile(join(root, 'design-demos', 'shots', 'delivery.png'), 'shipped image\n')

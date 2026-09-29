@@ -74,6 +74,15 @@ const EXCLUDED_BASENAMES = new Set([
 const EXCLUDED_RELATIVE_ROOTS = ['.github/hooks', '.claude/agents'] as const
 /** Root-level ownership manifest: Tenon rewrites it whenever it generates or prunes host agent files. */
 const EXCLUDED_ROOT_FILES = new Set(['.pipeline-owned.json'])
+/**
+ * A directory that only wraps excluded host configuration (`.claude/` holding just `agents/`) is not
+ * implementation either: Tenon creates it when it first generates a host agent file, and that must not
+ * move the candidate the earlier test records are bound to.
+ */
+function isExcludedHostConfigShell(relativePath: string, names: readonly string[]): boolean {
+  return EXCLUDED_RELATIVE_ROOTS.some((root) => root.startsWith(`${relativePath}/`))
+    && names.every((name) => isExcluded(`${relativePath}/${name}`))
+}
 const EXCLUDED_ROOT_ARTIFACTS = [
   /^dashboard-progress-custom-spec\.png$/,
   /^dashboard-acceptance-.*\.png$/,
@@ -136,8 +145,9 @@ async function fingerprintEntry(
   const before = await lstat(absolutePath)
 
   if (before.isDirectory()) {
-    writeRecord(hash, 'D', relativePath, modeOf(before))
     const names = sortNames(await readdir(absolutePath))
+    if (isExcludedHostConfigShell(relativePath, names)) return
+    writeRecord(hash, 'D', relativePath, modeOf(before))
     for (const name of names) await fingerprintEntry(root, `${relativePath}/${name}`, hash)
     return
   }
