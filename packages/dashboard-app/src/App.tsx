@@ -446,7 +446,7 @@ function AppShell(): JSX.Element {
             snapshotRevision={snapshot?.generated_at ?? ''}
           />
         )}
-        {view === 'library' && <LibraryView onToast={(m) => showFlash('toast', m)} />}
+        {view === 'library' && <LibraryView root={currentRoot} onToast={(m) => showFlash('toast', m)} />}
         {view === 'skills' && <SkillsView />}
           </>
         )}

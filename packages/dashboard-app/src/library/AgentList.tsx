@@ -1,27 +1,28 @@
-import { useState } from 'react'
 import { useT } from '../i18n'
-import type { AgentSummary } from '../api/agentClient'
-import { Dialog } from '../shared/Dialog'
-import { BUTTON_GHOST, BUTTON_SOLID, FIELD_LABEL, INPUT } from '../shared/uiRecipes'
-import { StatusPill } from '../shell/ThreeColumns'
-import { CustomMark, LIST_ROW, LIST_ROW_NAME, ListSkeleton } from './libraryChrome'
+import type { AgentSource, AgentSummary } from '../api/agentClient'
+import { CommandLine } from '../shared/CommandLine'
+import { LIST_ROW, LIST_ROW_NAME, ListSkeleton } from './libraryChrome'
 
-/** 与 kernel 的 AGENT_NAME_RE 同形：名字即文件名，写之前就挡掉不合法的。 */
-const NAME = /^[a-z0-9][a-z0-9-]{0,62}$/
+/** 新建在终端：空态给出这条可复制的命令。 */
+export const AGENT_NEW_COMMAND = 'tenon agent new'
 
-/** 新建自定义 agent 的起始骨架：合法 frontmatter + 空正文，保存后即可编辑。 */
-export const agentSkeleton = (name: string): string =>
-  `---\nname: ${name}\ndescription: ${name}\ntools: [Read, Grep, Glob]\n---\n\n## ${name}\n\n- \n`
+/** 列表分段：文件声明的身份；解析不了的条目没有身份，单列在最后。 */
+type Group = 'executor' | 'reviewer' | 'invalid'
+const GROUPS: readonly Group[] = ['executor', 'reviewer', 'invalid']
 
-/**
- * 列表分段用的身份：能写文件（Write / Edit）的是执行者，只读的是评审者。文件里不写身份
- * （由工作流步骤决定），这里只按工具做展示分组，内建的执行者 builder / researcher 与各评审者都落在对的段里。
- */
-export function agentRole(agent: AgentSummary): 'executor' | 'reviewer' {
-  return agent.tools.some((tool) => tool === 'Write' || tool === 'Edit') ? 'executor' : 'reviewer'
+export const groupOf = (agent: AgentSummary): Group => agent.role ?? 'invalid'
+
+/** 来源词：官方 / 项目 / 自定义（与 CLI 同一口径）。 */
+export const SOURCE_KEY: Readonly<Record<AgentSource, string>> = {
+  builtin: 'library.official',
+  project: 'library.project',
+  custom: 'library.custom',
 }
 
-/** 中列：按执行者 / 评审者分两段的 agent 列表（「新建」由 ListColumn 的 action 放在标题右侧）。一行只有名称，说明在悬停提示里；自定义条目带标记。 */
+/**
+ * 中列：按身份（文件里的 role）分段的 agent 列表。一行 = 名称 + 行尾来源与版本（纯文字、不换行）；
+ * 说明在悬停提示里。被项目级同名覆盖的自定义条目来源置灰，原因在提示里。
+ */
 export function AgentList({
   agents, loading, selected, onSelect,
 }: {
@@ -32,99 +33,59 @@ export function AgentList({
 }): JSX.Element {
   const { t } = useT()
 
+  if (loading) return <ListSkeleton testId="lib-agent-loading" />
+  if (agents.length === 0) {
+    return (
+      <div className="grid gap-3" data-testid="lib-agent-empty">
+        <p className="text-base whitespace-nowrap text-text-2">{t('library.agent_empty')}</p>
+        <CommandLine command={AGENT_NEW_COMMAND} testId="lib-agent-new-command" truncate />
+      </div>
+    )
+  }
   return (
-    <>
-      {loading ? (
-        <ListSkeleton testId="lib-agent-loading" />
-      ) : agents.length === 0 ? (
-        <p className="text-base text-text-2" data-testid="lib-agent-empty">{t('library.agent_empty')}</p>
-      ) : (
-        <div className="grid gap-5" data-testid="lib-agents">
-          {(['executor', 'reviewer'] as const).map((role) => {
-            const rows = agents.filter((agent) => agentRole(agent) === role)
-            if (rows.length === 0) return null
-            return (
-              <section key={role} className="grid gap-1" data-testid={`lib-agents-${role}`}>
-                <h2 className="flex items-baseline gap-2 px-3 pb-1 text-caption font-semibold whitespace-nowrap text-text-2">
-                  {t(`library.agent_${role}`)}
-                  <span className="tabular-nums text-text-3">{rows.length}</span>
-                </h2>
-                <ul className="grid gap-1">
-                  {rows.map((agent) => (
-                    <li key={`${agent.source}/${agent.name}`}>
-                      <button
-                        type="button"
-                        className={LIST_ROW}
-                        aria-current={selected === agent.name ? 'true' : undefined}
-                        title={agent.description}
-                        data-testid={`lib-agent-${agent.name}`}
-                        onClick={() => onSelect(agent.name)}
+    <div className="grid gap-5" data-testid="lib-agents">
+      {GROUPS.map((group) => {
+        const rows = agents.filter((agent) => groupOf(agent) === group)
+        if (rows.length === 0) return null
+        return (
+          <section key={group} className="grid gap-1" data-testid={`lib-agents-${group}`}>
+            <h2 className="flex items-baseline gap-2 px-3 pb-1 text-caption font-semibold whitespace-nowrap text-text-2">
+              {t(group === 'invalid' ? 'library.agent_invalid' : `library.agent_${group}`)}
+              <span className="tabular-nums text-text-3">{rows.length}</span>
+            </h2>
+            <ul className="grid gap-1">
+              {rows.map((agent) => (
+                <li key={`${agent.source}/${agent.name}`}>
+                  <button
+                    type="button"
+                    className={LIST_ROW}
+                    aria-current={selected === agent.name && agent.shadowedBy === undefined ? 'true' : undefined}
+                    title={agent.error ?? (agent.shadowedBy === 'project' ? t('library.agent_shadowed') : agent.description)}
+                    data-testid={`lib-agent-${agent.source}-${agent.name}`}
+                    onClick={() => onSelect(agent.name)}
+                  >
+                    <span className={LIST_ROW_NAME}>{agent.name}</span>
+                    <span className="flex items-baseline gap-2 text-caption whitespace-nowrap">
+                      {agent.error !== undefined && (
+                        <span className="text-red-d" data-testid={`lib-agent-invalid-${agent.name}`}>{t('library.agent_invalid')}</span>
+                      )}
+                      <span
+                        className={agent.shadowedBy === 'project' ? 'text-text-4 line-through' : 'text-text-3'}
+                        data-testid={`lib-agent-source-${agent.source}-${agent.name}`}
                       >
-                        <span className={LIST_ROW_NAME}>{agent.name}</span>
-                        <span className="flex items-center gap-2 whitespace-nowrap">
-                          {agent.error !== undefined && (
-                            <StatusPill tone="blocked" testId={`lib-agent-invalid-${agent.name}`}>{t('library.agent_invalid')}</StatusPill>
-                          )}
-                          {agent.source === 'custom' && <CustomMark quiet testId={`lib-agent-mark-${agent.name}`} />}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )
-          })}
-        </div>
-      )}
-    </>
-  )
-}
-
-/** 新建 agent：只问名字（即文件名），写之前按 kernel 规则挡掉非法与重名。 */
-export function NewAgentDialog({ agents, busy, onClose, onCreate }: {
-  agents: readonly AgentSummary[]
-  busy: boolean
-  onClose: () => void
-  onCreate: (name: string) => void
-}): JSX.Element {
-  const { t } = useT()
-  const [name, setName] = useState('')
-  const taken = agents.some((agent) => agent.name === name)
-  const valid = NAME.test(name) && !taken
-  return (
-    <Dialog
-      title={t('library.agent_new')}
-      onClose={onClose}
-      testid="lib-agent-new-dialog"
-      actions={(
-        <>
-          <button type="button" className={BUTTON_GHOST} data-testid="lib-agent-new-cancel" onClick={onClose}>
-            {t('library.cancel')}
-          </button>
-          <button
-            type="button"
-            className={BUTTON_SOLID}
-            data-testid="lib-agent-new-confirm"
-            disabled={!valid || busy}
-            onClick={() => { onClose(); onCreate(name) }}
-          >
-            {t('library.confirm')}
-          </button>
-        </>
-      )}
-    >
-      <label className={FIELD_LABEL}>
-        {t('library.name')}
-        <input
-          className={INPUT}
-          value={name}
-          autoComplete="off"
-          spellCheck={false}
-          aria-invalid={name !== '' && !valid}
-          data-testid="lib-agent-new-name"
-          onChange={(event) => setName(event.target.value)}
-        />
-      </label>
-    </Dialog>
+                        {t(SOURCE_KEY[agent.source])}
+                      </span>
+                      {agent.version !== undefined && (
+                        <span className="font-mono tabular-nums text-text-4" data-testid={`lib-agent-version-${agent.name}`}>{agent.version}</span>
+                      )}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )
+      })}
+    </div>
   )
 }

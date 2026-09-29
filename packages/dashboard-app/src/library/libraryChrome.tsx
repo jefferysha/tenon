@@ -32,12 +32,14 @@ export function CustomMark({ testId, quiet = false }: { testId?: string; quiet?:
  * 详情头部：名称（只显示 label，标识放在 title 里）+ 自定义标记 + 右侧动作。动作放在对象旁，没有底部动作条。
  */
 export function DetailTitle({
-  title, hint, custom, actions, testId,
+  title, hint, custom, meta, actions, testId,
 }: {
   title: string
   /** 悬停在名称上看到的标识（id / 路径）。 */
   hint?: string
   custom: boolean
+  /** 名称后的不换行小字（如来源与版本）；给了它就不再显示「自定义」标记。 */
+  meta?: ReactNode
   actions: ReactNode
   testId: string
 }): JSX.Element {
@@ -46,7 +48,7 @@ export function DetailTitle({
       <h1 className="min-w-0 truncate text-page font-bold tracking-[-.01em] text-text" title={hint ?? title} data-testid={`${testId}-title`}>
         {title}
       </h1>
-      {custom && <CustomMark testId={`${testId}-custom`} />}
+      {meta ?? (custom && <CustomMark testId={`${testId}-custom`} />)}
       <div className="ml-auto flex flex-none items-center gap-2 whitespace-nowrap">{actions}</div>
     </div>
   )
