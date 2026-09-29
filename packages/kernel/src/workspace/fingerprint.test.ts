@@ -94,6 +94,16 @@ describe('fingerprintWorkspace', () => {
 
     expect(await fingerprintWorkspace(root)).toBe(first)
 
+    // 宿主 agent 文件与所有权清单：其它任务在途时 Tenon 会生成 / 回收它们。
+    await mkdir(join(root, '.github', 'agents'), { recursive: true })
+    const withGithubDir = await fingerprintWorkspace(root)
+    await mkdir(join(root, '.claude', 'agents'), { recursive: true })
+    const withClaudeDir = await fingerprintWorkspace(root)
+    await writeFile(join(root, '.claude', 'agents', 'tenon-builder.md'), '---\nname: tenon-builder\n---\n')
+    await writeFile(join(root, '.pipeline-owned.json'), '{}\n')
+    expect(await fingerprintWorkspace(root)).toBe(withClaudeDir)
+    expect(withGithubDir).not.toBe(first)
+
     await mkdir(join(root, 'design-demos', 'shots'), { recursive: true })
     await writeFile(join(root, 'design-demos', 'shots', 'delivery.png'), 'shipped image\n')
     expect(await fingerprintWorkspace(root)).not.toBe(first)

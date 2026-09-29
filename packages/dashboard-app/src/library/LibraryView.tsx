@@ -8,7 +8,7 @@ import { matchesQuery } from '../shell/GlobalSearch'
 import { BUTTON_GHOST } from '../shared/uiRecipes'
 import { CustomMark, LIST_ROW, LIST_ROW_NAME, ListSkeleton } from './libraryChrome'
 import { AgentDetail } from './AgentDetail'
-import { AgentList, NewAgentDialog, agentRole, agentSkeleton } from './AgentList'
+import { AgentList, groupOf } from './AgentList'
 import { useAgentLibrary } from './useAgentLibrary'
 import { LibraryRail, type LibrarySection } from './LibraryRail'
 import { NewTemplateDialog } from './NewTemplateDialog'
@@ -37,9 +37,10 @@ const refKey = (ref: TemplateRef): string => `${ref.source}/${ref.category}/${re
 /**
  * 库：左列种类（模板 / 资源 / 测试方向 / agent）/ 中列列表 / 右列详情。四个子库同一套形态：
  * 中列 H1 + 「新建」、搜索框、单行列表（只有名称，自定义条目带标记）；左列每项都有计数。
+ * agent 没有「新建」：在终端 `tenon agent new` 登记；选中项目（root）时一并列出项目级 agent。
  * 「复制为自定义」生成不重名的「… 副本」，选中它并直接进入编辑。
  */
-export function LibraryView({ onToast }: { onToast?: (message: string) => void }): JSX.Element {
+export function LibraryView({ onToast, root = '' }: { onToast?: (message: string) => void; root?: string }): JSX.Element {
   const { t } = useT()
   const library = useTemplateLibrary()
   const [railCollapsed, setRailCollapsed] = useState<boolean>(() => {
@@ -56,10 +57,9 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
   /** 刚复制 / 新建出来、打开即进入编辑的条目（模板 refKey 或 agent 名）。 */
   const [editKey, setEditKey] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [agentDialog, setAgentDialog] = useState(false)
   const [section, setSection] = useState<LibrarySection>('templates')
   const directions = useTestDirections()
-  const agents = useAgentLibrary()
+  const agents = useAgentLibrary(root)
   const resources = useResourceCatalog()
 
   const rows = useMemo(
@@ -106,7 +106,7 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
   const directionRows = directions.directions.filter((direction) => matchesQuery(directionSearch, direction.id, direction.label))
   const directionLibrary = { ...directions, directions: directionRows }
   // agent / 测试方向同样右列不留空：没选中、或选中项被删掉 / 被搜索筛掉时，打开当前列表第一行（列表先列执行者）。
-  const firstAgent = agentRows.find((agent) => agentRole(agent) === 'executor') ?? agentRows[0]
+  const firstAgent = agentRows.find((agent) => groupOf(agent) === 'executor') ?? agentRows[0]
   const agentShown = agents.selected !== null && agentRows.some((agent) => agent.name === agents.selected?.name)
   const agentIdle = section === 'agents' && !agents.loading && !agents.busy
   useEffect(() => {
@@ -154,17 +154,6 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
             testId="library-list"
             title={t('library.agents')}
             search={{ value: agentSearch, onChange: setAgentSearch, placeholder: t('library.search_agents'), label: t('library.search_agents'), name: 'library-agent-search' }}
-            action={agents.loading ? undefined : (
-              <button
-                type="button"
-                className={BUTTON_GHOST}
-                data-testid="lib-agent-new"
-                disabled={!canWrite || agents.busy}
-                onClick={() => setAgentDialog(true)}
-              >
-                {t('library.agent_new')}
-              </button>
-            )}
           >
             <AgentList
               agents={agentRows}
@@ -172,21 +161,6 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
               selected={agents.selected?.name ?? null}
               onSelect={agents.select}
             />
-            {agentDialog && (
-              <NewAgentDialog
-                agents={agents.agents}
-                busy={agents.busy}
-                onClose={() => setAgentDialog(false)}
-                onCreate={(name) => {
-                  void (async () => {
-                    if (await agents.create(name, agentSkeleton(name))) {
-                      setEditKey(name)
-                      onToast?.(t('library.done_agent_created', { name }))
-                    }
-                  })()
-                }}
-              />
-            )}
           </ListColumn>
         ) : section === 'directions' ? (
           <ListColumn
@@ -305,7 +279,7 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
           ) : (
             <AgentDetail
               document={agents.selected}
-              summary={agents.agents.find((row) => row.name === agents.selected?.name) ?? null}
+              summary={agents.agents.find((row) => row.name === agents.selected?.name && row.source === agents.selected?.source) ?? null}
               draft={agents.draft}
               busy={agents.busy}
               error={agents.error}

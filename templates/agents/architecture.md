@@ -1,6 +1,8 @@
 ---
 name: architecture
 description: 架构评审者：审模块边界、依赖方向、分层泄漏、重复实现与可测性；通常作为参考评审者收尾
+role: reviewer
+version: 1.0.0
 skills: [codebase-design]
 tools: [Read, Grep, Glob, Bash, Skill]
 model: sonnet

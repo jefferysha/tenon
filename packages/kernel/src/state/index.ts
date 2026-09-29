@@ -26,7 +26,7 @@ export {
   appendAgentRunRow, parseAgentReport, readAgentRuns, severityRank,
 } from './agent-runs.js'
 export type {
-  AgentFinding, AgentRunRole, AgentRunResult, AgentRunRow, AgentRunStatus, ParsedAgentReport,
+  AgentFinding, AgentRunRole, AgentRunResult, AgentRunRow, AgentRunStatus, AgentRunSubagent, ParsedAgentReport,
 } from './agent-runs.js'
 export { readPipelineStateFromSync } from './sync-reader.js'
 export { atomicLinkPublish, atomicReplaceFile } from './atomic-publish.js'

@@ -1,6 +1,8 @@
 ---
 name: code-size
 description: 代码规模评审者：读 Tenon 执行的代码规模测试结果下结论，不自己跑测试也不重新计数
+role: reviewer
+version: 1.0.0
 skills: []
 tools: [Read, Grep, Glob]
 model: sonnet

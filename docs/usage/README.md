@@ -11,6 +11,7 @@ matches the operation you need.
 3. [Choose discussion, simple, default, free, or custom](routing-and-workflows.md)
 4. [Understand the default workflow and review gates](default-workflow.md)
 5. [Understand documents, Skills, and evidence](documents-skills-and-evidence.md)
+6. [Author and use agents](agents.md)
 
 ## Author and operate
 

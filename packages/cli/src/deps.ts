@@ -269,6 +269,18 @@ export interface CliDeps {
    */
   agentFreeze?: (input: import('@tenon/kernel').AgentFreezeInput) => Promise<unknown>
   /**
+   * agent 库的写入面（`tenon agent new|add|copy|rm`）：payload 根与全局 config 根；项目级写到
+   * `<cwd>/.tenon/agents`。缺省 undefined = 未装配，这些子命令 exit 1。
+   */
+  agentPaths?: () => { readonly payloadRoot: string; readonly configRoot: string }
+  /**
+   * 正在跑这条命令的宿主（进程环境判定，同 doctor 与 test run 的口径）。任务冻结 agent 时据此为
+   * 当前宿主生成 `tenon-<name>` 子代理文件；缺省 undefined = 终端，不生成。
+   */
+  hostKind?: () => 'claude-code' | 'codex' | 'terminal'
+  /** 插件里存在的技能 id（上游来源 + 自带技能）；`tenon agent validate` 据此核对 agent 的技能。 */
+  knownSkillIds?: () => ReadonlySet<string>
+  /**
    * 本步 agent 阻断的读取面，契约同 documentEvidence / testEvidence：生产不注入，读权威的冻结内容
    * 与运行台账；只有 mock 掉 store 的命令单测用它隔离渲染与退出码，真门禁由 agent.integration.test.ts
    * 端到端覆盖。

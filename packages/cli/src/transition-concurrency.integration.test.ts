@@ -89,6 +89,7 @@ describe('真实 e2e —— 并发 transition 尾部写入严格串行（不逆�
       expect(order).toEqual(['first-breadcrumb-blocked', 'breadcrumb:pipeline:demo phase=explore'])
 
       await recordSkills('openspec-explore', 'brainstorming', 'grilling', 'domain-modeling', 'codebase-design')
+      await h.satisfyStepAgents('demo')
       expect(await h.run(['review', 'request', 'demo', '--event', 'explore-complete'])).toBe(0)
       expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(0)
       expect(await cmdTransition(deps, 'demo', 'explore-complete')).toBe(0)

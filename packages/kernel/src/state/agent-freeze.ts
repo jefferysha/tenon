@@ -78,7 +78,7 @@ function decodeLock(text: string): AgentFreezeLock {
     const entry = item as Record<string, unknown>
     if (Object.keys(entry).sort().join(',') !== 'digest,name,source'
       || typeof entry.name !== 'string'
-      || (entry.source !== 'builtin' && entry.source !== 'custom')
+      || (entry.source !== 'builtin' && entry.source !== 'custom' && entry.source !== 'project')
       || typeof entry.digest !== 'string') {
       throw new AgentFreezeError('freeze-corrupt', 'agent 冻结锁条目形状非法')
     }

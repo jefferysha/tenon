@@ -215,7 +215,7 @@ export async function handlePostChangesRoutes(
             let freezeAgent
             try {
               freezeAgent = await prepareAgentFreeze(plan.workflow, () => loadAgentLibrary({
-                payloadRoot: repoRootForSkills(), configRoot: paths.configRoot,
+                payloadRoot: repoRootForSkills(), configRoot: paths.configRoot, projectRoot: root,
               }))
             } catch (error) {
               return { ok: false, code: 400, error: `工作流引用了 agent 库中不存在的 agent：${errMsg(error)}` }

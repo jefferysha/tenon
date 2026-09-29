@@ -131,13 +131,27 @@ review（缺失、已被消费、binding 失效或 event 已不是 workflow 出�
 ```bash
 tenon agent next <change> [--json]
 tenon agent prompt <change> <agent> [--host <id>] [--json]
-tenon agent record <change> <run-id> [--json]
+tenon agent record <change> <run-id> [--subagent <type>] [--json]
 ```
 
 工作流在步骤里声明执行者与评审者；Tenon 只排顺序、渲染交接内容、记录结论与校验候选版本，
 模型一律由宿主跑。`next` 给出本波要跑的 agent，`prompt` 开始或续跑一个 agent 并打印交接内容，
-`record` 读报告末尾的 ```tenon-result``` 块登记结论。评审结论由 Tenon 从问题级别与
-`block_at` 计算，评审者不自报结论。
+`--host claude|codex` 时为宿主生成 `tenon-<name>` 专属子代理文件并返回 `subagent_type`；
+`record` 读报告末尾的 ```tenon-result``` 块登记结论，`--subagent` 记下实际用的子代理。评审结论由
+Tenon 从问题级别与 `block_at` 计算，评审者不自报结论。
+
+智能体库在终端登记（详见[智能体](./agents.md)）：
+
+```bash
+tenon agent list [--role executor|reviewer] [--source official|custom|project] [--json]
+tenon agent show <name> [--json]
+tenon agent new [<name>] --role <role> --description <text> [--skills a,b] [--tools A,B] [--model <m>] [--hosts a,b] [--scope user|project] [--from <agent>]
+tenon agent add <file> [--scope user|project] [--replace]
+tenon agent validate <file|name>
+tenon agent copy <from> <to> [--scope user|project]
+tenon agent rm <name> [--scope user|project]
+tenon agent export <name> --host claude|codex
+```
 
 退出码：`0` 正常；`1` 用法、IO 或记录损坏；`2` 被拦下（未轮到、宿主不支持、评审期间候选已变化）。
 

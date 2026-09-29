@@ -39,7 +39,6 @@ import {
   recordDocument,
   recordDocumentReads,
   designSystemPrecondition,
-  loadAgentLibrary,
   loadResourceCatalog,
   resolveProductPaths,
   resolveTenonUser,
@@ -71,6 +70,8 @@ import { gitRemoteNames } from './gitRemotes.js'
 import { seedStepTestPolicy } from './integration-test-policy-support.js'
 import { agentPromptResult, agentWave, pendingRequiredTestIds } from './integration-harness-json.js'
 import { probeGitFinish } from './gitWorkspace.js'
+import { harnessAgentDeps } from './integration-harness-agents.js'
+import { ensureCodeSizeProbeOnPath } from './integration-harness-probe.js'
 export { recordWorkflowPhaseSkill } from './integration-phase-skill-test-support.js'
 
 /** Track Registry 校验上下文（与 main.ts trackValidationContext 同款，harness 镜像生产装配）。 */
@@ -226,7 +227,7 @@ export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.
     user: () => resolveTenonUser(cwd, env),
     userConfigPath: () => resolveProductPaths({ env }).userConfigPath,
     resourceCatalog: () => loadResourceCatalog({ payloadRoot: REPO_ROOT, configRoot: resolveProductPaths({ env }).configRoot }),
-    agentLibrary: () => loadAgentLibrary({ payloadRoot: REPO_ROOT, configRoot: resolveProductPaths({ env }).configRoot }),
+    ...harnessAgentDeps(REPO_ROOT, cwd, env),
     creationPrecondition: (input) => designSystemPrecondition({
       ...input, repoRoot: cwd, payloadRoot: REPO_ROOT, configRoot: resolveProductPaths({ env }).configRoot,
     }),
@@ -320,6 +321,8 @@ export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.
 
 /** 建一个真实临时项目 harness。用毕请 rm(h.cwd)。 */
 export function makeHarness(cwd: string): Harness {
+  // 声明的必需测试 `tenon test code-size` 由 PATH 上的通过桩兑现（见 integration-harness-probe.ts）。
+  ensureCodeSizeProbeOnPath()
   const out: string[] = []
   const err: string[] = []
   const governedFixtures = new Set<string>()

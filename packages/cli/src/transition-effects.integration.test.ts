@@ -114,7 +114,8 @@ async function advanceTo(name: string, phase: 'explore' | 'spec' | 'build' | 've
   await h.run(['set', name, 'isolation', 'worktree'])
   await h.run(['set', name, 'direct_override', 'true'])
   await h.satisfyStepTests(name, 'build')
-  // pre-Verify 结论只能在本步就绪证据（必需测试）齐全之后写入。
+  await h.satisfyStepAgents(name)
+  // pre-Verify 结论只能在本步就绪证据（必需测试与 builder 执行者）齐全之后写入。
   expect(await h.run(['set', name, 'pre_verify_review_result', 'pass']), h.err.join('\n')).toBe(0)
   expect(await h.run(['transition', name, 'build-complete'])).toBe(0)
   if (phase === 'verify') return
@@ -219,7 +220,8 @@ describe('真实 e2e —— build-complete 校验 + build_sha 冻结（老仓 L1
     expect(await h.read('demo')).toMatch(/^build_sha: null$/m) // 拒绝时不冻结
     await h.run(['set', 'demo', 'direct_override', 'true'])
     await h.satisfyStepTests('demo', 'build')
-    // pre-Verify 结论只能在本步就绪证据（必需测试）齐全之后写入。
+    await h.satisfyStepAgents('demo')
+    // pre-Verify 结论只能在本步就绪证据（必需测试与 builder 执行者）齐全之后写入。
     expect(await h.run(['set', 'demo', 'pre_verify_review_result', 'pass']), h.err.join('\n')).toBe(0)
     expect(await h.run(['transition', 'demo', 'build-complete'])).toBe(0)
     const yaml = await h.read('demo')
@@ -233,7 +235,8 @@ describe('真实 e2e —— build-complete 校验 + build_sha 冻结（老仓 L1
     await h.run(['set', 'demo', 'build_mode', 'direct'])
     await h.run(['set', 'demo', 'isolation', 'branch'])
     await h.satisfyStepTests('demo', 'build')
-    // pre-Verify 结论只能在本步就绪证据（必需测试）齐全之后写入。
+    await h.satisfyStepAgents('demo')
+    // pre-Verify 结论只能在本步就绪证据（必需测试与 builder 执行者）齐全之后写入。
     expect(await h.run(['set', 'demo', 'pre_verify_review_result', 'pass']), h.err.join('\n')).toBe(0)
     expect(await h.run(['transition', 'demo', 'build-complete'])).toBe(0)
     expect(await h.read('demo')).toMatch(/^phase: verify$/m)
@@ -247,7 +250,8 @@ describe('真实 e2e —— build-complete 校验 + build_sha 冻结（老仓 L1
     await h.run(['set', 'demo', 'isolation', 'in-place'])
     await h.run(['set', 'demo', 'direct_override', 'true'])
     await h.satisfyStepTests('demo', 'build')
-    // pre-Verify 结论只能在本步就绪证据（必需测试）齐全之后写入。
+    await h.satisfyStepAgents('demo')
+    // pre-Verify 结论只能在本步就绪证据（必需测试与 builder 执行者）齐全之后写入。
     expect(await h.run(['set', 'demo', 'pre_verify_review_result', 'pass']), h.err.join('\n')).toBe(0)
     expect(await h.run(['transition', 'demo', 'build-complete'])).toBe(0)
     const yaml = await h.read('demo')
@@ -313,7 +317,8 @@ describe('真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）'
     await h.run(['set', 'demo', 'isolation', 'in-place'])
     await h.run(['set', 'demo', 'direct_override', 'true'])
     await h.satisfyStepTests('demo', 'build')
-    // pre-Verify 结论只能在本步就绪证据（必需测试）齐全之后写入。
+    await h.satisfyStepAgents('demo')
+    // pre-Verify 结论只能在本步就绪证据（必需测试与 builder 执行者）齐全之后写入。
     expect(await h.run(['set', 'demo', 'pre_verify_review_result', 'pass']), h.err.join('\n')).toBe(0)
     expect(await h.run(['transition', 'demo', 'build-complete'])).toBe(0)
     expect(await h.read('demo')).toMatch(/^build_sha: build:v1:workspace:[a-f0-9]{64}:[a-f0-9]{64}:[a-f0-9]{64}$/m)
@@ -379,16 +384,19 @@ describe('真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）'
     await h.run(['set', 'pmx', 'isolation', 'branch'])
     await h.run(['set', 'pmx', 'direct_override', 'true']) // full+direct 规则不分 track
     await h.satisfyStepTests('pmx', 'build')
-    // pm 的 build 就绪证据是必需评审者 spec-consistency。
+    // pm 的 build 就绪证据是 builder 执行者与必需评审者 spec-consistency。
     await h.satisfyStepAgents('pmx')
-    // pre-Verify 结论只能在本步就绪证据（必需测试 / 必需评审者）齐全之后写入。
+    // pre-Verify 结论只能在本步就绪证据（必需测试 / 执行者 / 必需评审者）齐全之后写入。
     expect(await h.run(['set', 'pmx', 'pre_verify_review_result', 'pass']), h.err.join('\n')).toBe(0)
     expect(await h.run(['transition', 'pmx', 'build-complete'])).toBe(0)
     await seed('docs/verify.md')
     await h.seedArtifact('pmx', 'verification_report', 'docs/verify.md')
     await h.run(['set', 'pmx', 'branch_status', 'handled'])
+    // pm 的 verify 手填 verify_result：本步声明的 code-size 测试与评审者先办完，写入才被接受。
+    await h.satisfyStepTests('pmx', 'verify')
+    await h.satisfyStepAgents('pmx')
     // agent/codex 保持 init 的 skipped —— pm 不要求 pass
-    await h.run(['set', 'pmx', 'verify_result', 'pass'])
+    expect(await h.run(['set', 'pmx', 'verify_result', 'pass']), h.err.join('\n')).toBe(0)
     await approveReviewExit('pmx', 'verify-pass')
     await h.satisfyStepTests('pmx', 'verify')
     await h.satisfyStepAgents('pmx')
@@ -414,14 +422,17 @@ describe('真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）'
     await h.run(['set-many', 'pmship',
       'build_mode=direct', 'isolation=branch', 'direct_override=true'])
     await h.satisfyStepTests('pmship', 'build')
-    // pm 的 build 就绪证据是必需评审者 spec-consistency。
+    // pm 的 build 就绪证据是 builder 执行者与必需评审者 spec-consistency。
     await h.satisfyStepAgents('pmship')
-    // pre-Verify 结论只能在本步就绪证据（必需测试 / 必需评审者）齐全之后写入。
+    // pre-Verify 结论只能在本步就绪证据（必需测试 / 执行者 / 必需评审者）齐全之后写入。
     expect(await h.run(['set', 'pmship', 'pre_verify_review_result', 'pass']), h.err.join('\n')).toBe(0)
     expect(await h.run(['transition', 'pmship', 'build-complete'])).toBe(0)
     await seed('docs/pmship-verify.md')
     await h.seedArtifact('pmship', 'verification_report', 'docs/pmship-verify.md')
-    await h.run(['set-many', 'pmship', 'branch_status=handled', 'verify_result=pass'])
+    // pm 的 verify 手填 verify_result：本步声明的 code-size 测试与评审者先办完，写入才被接受。
+    await h.satisfyStepTests('pmship', 'verify')
+    await h.satisfyStepAgents('pmship')
+    expect(await h.run(['set-many', 'pmship', 'branch_status=handled', 'verify_result=pass']), h.err.join('\n')).toBe(0)
     await approveReviewExit('pmship', 'verify-pass')
     await h.satisfyStepTests('pmship', 'verify')
     await h.satisfyStepAgents('pmship')
@@ -544,7 +555,8 @@ describe('真实 e2e —— 跨命令串联 + 历史 JSONL（GOAL C10）', () =>
     await approveReviewExit('demo', 'verify-fail')
     expect(await h.run(['transition', 'demo', 'verify-fail'])).toBe(0) // → build，build_sha=null
     await h.satisfyStepTests('demo', 'build')
-    // pre-Verify 结论只能在本步就绪证据（必需测试）齐全之后写入。
+    await h.satisfyStepAgents('demo')
+    // pre-Verify 结论只能在本步就绪证据（必需测试与 builder 执行者）齐全之后写入。
     expect(await h.run(['set', 'demo', 'pre_verify_review_result', 'pass']), h.err.join('\n')).toBe(0)
     expect(await h.run(['transition', 'demo', 'build-complete'])).toBe(0) // 重新收敛后冻结
     expect(await h.read('demo')).toContain(`build_sha: ${TEST_GIT_BUILD_TOKEN}`)

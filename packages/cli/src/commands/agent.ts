@@ -2,7 +2,8 @@
  * `tenon agent next | prompt | record` —— 步骤 agent 的排定、交接与登记。
  *
  * Tenon 只负责排顺序、渲染提示词、记录结论与校验候选版本；模型一律由宿主跑（父设计 §6）。
- * 没有 start / abandon / list：`prompt` 既开始也续跑，`next` 看状态，库在 Dashboard 里看。
+ * 没有 start / abandon：`prompt` 既开始也续跑，`next` 看状态。`prompt` 为当前宿主生成任务冻结 agent 的
+ * 专属子代理文件（agent-host.ts），返回 `subagent_type`；库的增删改查在 agent-library.ts。
  *
  * exit 0 = 正常，1 = 用法 / IO / 记录损坏，2 = 被拦下（未轮到、宿主不支持、候选已变）。
  */
@@ -15,12 +16,14 @@ import {
   nextAgentWave, parseAgentReport, projectStepAgents, readAgentRuns, readFrozenAgents, renderAgentBlocker,
   severityRank, sha256Hex,
 } from '@tenon/kernel'
+import { hostAgentName } from '@tenon/kernel'
 import type {
-  AgentSeverity, AgentRunRow, AgentView, EffectiveWorkflowPlan, FrozenAgent, StepAgentsCapability,
-  TestRunRecordV1,
+  AgentSeverity, AgentRunRow, AgentRunSubagent, AgentView, EffectiveWorkflowPlan, FrozenAgent, HostAgentFileOutcome,
+  StepAgentsCapability, TestRunRecordV1,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { str } from '../render.js'
+import { ensureChangeHostAgents, fallbackOutcome, hostAgentHostOf } from './agent-host.js'
 import { renderAgentPrompt } from './agent-prompt.js'
 import { currentCandidate } from './candidate.js'
 import { resolveChangeCommand, type TestCommandContext } from './test-context.js'
@@ -72,7 +75,11 @@ async function testsReadyFor(
 async function resolveAgentCommand(
   deps: CliDeps,
   name: string,
-  options: { readonly requireOwner: boolean },
+  options: {
+    readonly requireOwner: boolean
+    /** 读完冻结内容、算候选之前的一步（生成宿主 agent 文件放在这里，候选不会因它而变）。 */
+    readonly prepare?: (frozen: ReadonlyMap<string, FrozenAgent>) => Promise<void>
+  },
 ): Promise<AgentContext | number> {
   const base = await resolveChangeCommand(deps, name, options)
   if (typeof base === 'number') return base
@@ -87,6 +94,7 @@ async function resolveAgentCommand(
     const frozen = step.executors.length === 0 && step.reviewers.length === 0
       ? new Map<string, FrozenAgent>()
       : await readFrozenAgents({ changeDir: base.dir, runId, workflowFingerprint: base.plan.workflowFingerprint })
+    await options.prepare?.(frozen)
     return {
       ...base,
       step,
@@ -200,7 +208,14 @@ export async function cmdAgentPrompt(
   agent: string,
   options: { readonly host?: string; readonly json?: boolean },
 ): Promise<number> {
-  const context = await resolveAgentCommand(deps, name, { requireOwner: true })
+  const host = hostAgentHostOf(deps, options.host)
+  let hostFiles: ReadonlyMap<string, HostAgentFileOutcome> = new Map()
+  const context = await resolveAgentCommand(deps, name, {
+    requireOwner: true,
+    prepare: async (frozen) => {
+      if (host !== undefined) hostFiles = await ensureChangeHostAgents(deps, host, frozen)
+    },
+  })
   if (typeof context === 'number') return context
   const role = roleOf(context.step, agent)
   if (role === undefined) {
@@ -227,6 +242,11 @@ export async function cmdAgentPrompt(
     && row.status === 'running' && row.candidate === context.candidate)
   const runId = existing?.run_id ?? randomUUID()
   const reportPath = join('openspec', 'changes', name, AGENT_REPORTS_DIR, `${runId}.md`)
+  // 专属子代理 `tenon-<name>` 只在宿主文件确实生成（或已是同一份）时下发；否则退回通用子代理并记下。
+  const hostFile = host === undefined ? undefined : hostFiles.get(agent) ?? fallbackOutcome(host)
+  const subagent: AgentRunSubagent | undefined = host === undefined || hostFile === undefined
+    ? undefined
+    : { host, type: hostFile.subagentType, native: hostFile.native }
   if (existing === undefined) {
     const row: AgentRunRow = {
       schema: 'agent-run/v1',
@@ -245,6 +265,7 @@ export async function cmdAgentPrompt(
       actor: context.actor,
       started_at: deps.clock(),
       finished_at: null,
+      ...(subagent === undefined ? {} : { subagent }),
     }
     try {
       await mkdir(join(context.dir, AGENT_REPORTS_DIR), { recursive: true })
@@ -268,11 +289,14 @@ export async function cmdAgentPrompt(
     ...(stepPrompt === undefined ? {} : { stepPrompt }),
     tests: await testsFor(deps, context, agent),
   })
+  const used = existing?.subagent ?? subagent
   deps.io.out(options.json === true
     ? JSON.stringify({
         run_id: runId,
         agent,
         role,
+        subagent_type: used?.type ?? null,
+        native: used?.native ?? false,
         model: frozen.definition.model ?? null,
         tools: frozen.definition.tools,
         skills: frozen.definition.skills,
@@ -284,12 +308,27 @@ export async function cmdAgentPrompt(
   return 0
 }
 
+/**
+ * 宿主实际用的子代理：prompt 时记下的是计划用的；专属子代理当场不可用（例如会话中途才生成、宿主
+ * 还没加载）而退回通用子代理时，`--subagent <type>` 把实际用的记进结束行。
+ */
+function usedSubagent(deps: CliDeps, row: AgentRunRow, type: string | undefined): AgentRunSubagent | undefined {
+  if (type === undefined) return row.subagent
+  const host = row.subagent?.host ?? hostAgentHostOf(deps) ?? 'terminal'
+  return { host, type, native: type === hostAgentName(row.agent) }
+}
+
 export async function cmdAgentRecord(
   deps: CliDeps,
   name: string,
   runId: string,
   json: boolean,
+  options: { readonly subagent?: string } = {},
 ): Promise<number> {
+  if (options.subagent !== undefined && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(options.subagent)) {
+    deps.io.err(`ERROR: --subagent '${options.subagent}' 非法`)
+    return 1
+  }
   const context = await resolveAgentCommand(deps, name, { requireOwner: true })
   if (typeof context === 'number') return context
   const row = context.runs.find((entry) => entry.run_id === runId)
@@ -326,8 +365,10 @@ export async function cmdAgentRecord(
   const blocking = row.role === 'reviewer'
     ? parsed.findings.filter((finding) => severityRank(finding.severity) >= severityRank(blockAt)).length
     : 0
+  const subagent = usedSubagent(deps, row, options.subagent)
   const finished: AgentRunRow = {
     ...row,
+    ...(subagent === undefined ? {} : { subagent }),
     status: 'finished',
     result: row.role === 'reviewer' ? (blocking > 0 ? 'fail' : 'pass') : parsed.result ?? 'failed',
     findings: parsed.findings,
@@ -343,6 +384,7 @@ export async function cmdAgentRecord(
   deps.io.out(json
     ? JSON.stringify({ ...finished, blocking })
     : `[AGENT] ${name} ${row.agent} ${row.role} result=${finished.result}`
-      + ` findings=${parsed.findings.length} blocking=${blocking}`)
+      + ` findings=${parsed.findings.length} blocking=${blocking}`
+      + (subagent === undefined ? '' : ` subagent=${subagent.type}${subagent.native ? '' : ' (通用)'}`))
   return 0
 }

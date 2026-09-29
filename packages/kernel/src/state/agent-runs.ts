@@ -34,6 +34,16 @@ export interface AgentFinding {
   readonly message: string
 }
 
+/**
+ * 宿主用哪种子代理跑这次运行：`native` = Tenon 生成的专属子代理（`tenon-<name>`，工具白名单由宿主
+ * 执行），否则是退回的通用子代理。`host` 是 Tenon 宿主 id；旧记录没有这一项。
+ */
+export interface AgentRunSubagent {
+  readonly host: string
+  readonly type: string
+  readonly native: boolean
+}
+
 export interface AgentRunRow {
   readonly schema: typeof AGENT_RUN_SCHEMA
   readonly run_id: string
@@ -51,6 +61,7 @@ export interface AgentRunRow {
   readonly actor: RecordActor
   readonly started_at: string
   readonly finished_at: string | null
+  readonly subagent?: AgentRunSubagent
 }
 
 export type AgentRunErrorCode =
@@ -69,7 +80,20 @@ const ROW_KEYS = [
   'actor', 'agent', 'agent_digest', 'candidate', 'findings', 'finished_at', 'report_digest',
   'report_path', 'result', 'role', 'run_id', 'schema', 'started_at', 'status', 'step', 'step_visit',
 ].join(',')
+const ROW_KEYS_WITH_SUBAGENT = [...ROW_KEYS.split(','), 'subagent'].sort().join(',')
 const RESULTS: ReadonlySet<string> = new Set<AgentRunResult>(['pass', 'fail', 'done', 'failed'])
+const SUBAGENT_TEXT_MAX = 128
+
+function decodeSubagent(value: unknown): AgentRunSubagent | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
+  const record = value as Record<string, unknown>
+  if (Object.keys(record).sort().join(',') !== 'host,native,type') return undefined
+  const { host, type, native } = record
+  if (typeof host !== 'string' || host === '' || host.length > SUBAGENT_TEXT_MAX) return undefined
+  if (typeof type !== 'string' || type === '' || type.length > SUBAGENT_TEXT_MAX) return undefined
+  if (typeof native !== 'boolean') return undefined
+  return { host, type, native }
+}
 
 function decodeFinding(value: unknown): AgentFinding | undefined {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
@@ -85,8 +109,11 @@ function decodeFinding(value: unknown): AgentFinding | undefined {
 function decodeRow(value: unknown): AgentRunRow | undefined {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
   const record = value as Record<string, unknown>
-  if (Object.keys(record).sort().join(',') !== ROW_KEYS) return undefined
+  const keys = Object.keys(record).sort().join(',')
+  if (keys !== ROW_KEYS && keys !== ROW_KEYS_WITH_SUBAGENT) return undefined
   if (record.schema !== AGENT_RUN_SCHEMA) return undefined
+  const subagent = record.subagent === undefined ? undefined : decodeSubagent(record.subagent)
+  if (record.subagent !== undefined && subagent === undefined) return undefined
   const strings = ['run_id', 'agent', 'agent_digest', 'step', 'step_visit', 'candidate', 'report_path', 'started_at']
   for (const key of strings) if (typeof record[key] !== 'string' || record[key] === '') return undefined
   if (record.role !== 'executor' && record.role !== 'reviewer') return undefined
@@ -120,6 +147,7 @@ function decodeRow(value: unknown): AgentRunRow | undefined {
     actor,
     started_at: record.started_at as string,
     finished_at: record.finished_at as string | null,
+    ...(subagent === undefined ? {} : { subagent }),
   }
 }
 

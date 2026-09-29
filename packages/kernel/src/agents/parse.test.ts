@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { agentDigest, parseAgentFile } from './parse.js'
-import { AGENT_FILE_MAX_BYTES, AgentFileError } from './types.js'
+import { AGENT_FILE_MAX_BYTES, AgentFileError, inferAgentRole } from './types.js'
 
 const file = (lines: readonly string[], body = '正文'): string => ['---', ...lines, '---', '', body, ''].join('\n')
 
 const FULL = file([
   'name: frontend-quality',
   'description: 前端质量评审',
+  'role: reviewer',
+  'version: 1.2.0',
   'skills: [vercel-react-best-practices, web-design-guidelines]',
   'tools: [Read, Grep, Glob, Bash, Skill]',
   'model: sonnet',
@@ -18,6 +20,8 @@ describe('parseAgentFile', () => {
     expect(parseAgentFile(FULL, 'frontend-quality')).toEqual({
       name: 'frontend-quality',
       description: '前端质量评审',
+      role: 'reviewer',
+      version: '1.2.0',
       skills: ['vercel-react-best-practices', 'web-design-guidelines'],
       tools: ['Read', 'Grep', 'Glob', 'Bash', 'Skill'],
       model: 'sonnet',
@@ -32,6 +36,23 @@ describe('parseAgentFile', () => {
     expect(parsed.tools).toEqual([])
     expect(parsed.hosts).toBeUndefined()
     expect(parsed.model).toBeUndefined()
+  })
+
+  it('缺 role 时按工具推断并标记，读取照常', () => {
+    const reviewer = parseAgentFile(file(['name: a', 'description: d', 'tools: [Read, Bash]']), 'a')
+    expect(reviewer.role).toBe('reviewer')
+    expect(reviewer.roleInferred).toBe(true)
+    const executor = parseAgentFile(file(['name: a', 'description: d', 'tools: [Read, Edit]']), 'a')
+    expect(executor.role).toBe('executor')
+    const declared = parseAgentFile(file(['name: a', 'description: d', 'role: executor', 'tools: [Read]']), 'a')
+    expect(declared.role).toBe('executor')
+    expect(declared.roleInferred).toBeUndefined()
+    expect(inferAgentRole(['MultiEdit'])).toBe('executor')
+  })
+
+  it('version 缺省缺席，预发布版本合法', () => {
+    expect(parseAgentFile(file(['name: a', 'description: d']), 'a').version).toBeUndefined()
+    expect(parseAgentFile(file(['name: a', 'description: d', 'version: 2.0.0-rc.1']), 'a').version).toBe('2.0.0-rc.1')
   })
 
   it('命名空间 skill id 合法', () => {
@@ -60,6 +81,8 @@ describe('parseAgentFile', () => {
     ['tool 非法', file(['name: a', 'description: d', 'tools: [1Read]']), 'tools'],
     ['model 非法', file(['name: a', 'description: d', 'model: -x']), 'model'],
     ['未知宿主', file(['name: a', 'description: d', 'hosts: [nope]']), 'hosts'],
+    ['role 非法', file(['name: a', 'description: d', 'role: boss']), 'role'],
+    ['version 不是 semver', file(['name: a', 'description: d', 'version: 1.0']), 'semver'],
     ['正文为空', '---\nname: a\ndescription: d\n---\n\n', '正文'],
   ]
   for (const [title, text, hint] of cases) {

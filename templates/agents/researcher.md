@@ -1,6 +1,8 @@
 ---
 name: researcher
 description: 调研执行者：拉真实源做竞品、市场与技术调研，写带逐字引用的报告；只记录不决策
+role: executor
+version: 1.0.0
 skills: [deep-research, market-research]
 tools: [Read, Write, Edit, Bash, Grep, Glob, WebSearch, WebFetch, Skill]
 model: sonnet

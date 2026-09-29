@@ -149,7 +149,9 @@ describe('④ 真读 templates/skill-sources.yaml', () => {
       contentSkill: 'tenon',
       tier: 'mandatory',
     })
-    expect(rows.map((row) => row.token)).toEqual(['tenon'])
+    expect(rows.filter((row) => row.tier === 'mandatory').map((row) => row.token)).toEqual(['tenon'])
+    // 起草智能体的 agent-author 随包发布但不是必装能力。
+    expect(by.get('agent-author')).toMatchObject({ tool: 'bundled', source: 'tenon', tier: 'optional' })
     expect(existsSync(join(REPO_ROOT, 'skills', 'tenon', 'SKILL.md'))).toBe(true)
   })
 

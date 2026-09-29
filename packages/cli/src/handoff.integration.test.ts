@@ -36,6 +36,8 @@ async function init(h: Harness, name: string): Promise<void> {
 
 /** Build handoff needs to traverse two review exits; use the public request/ack protocol, not a state fixture. */
 async function approveReviewExit(h: Harness, name: string, event: string): Promise<void> {
+  // 步骤声明的执行者（explore 的 researcher）先办完，评审请求的预检才会过。
+  await h.satisfyStepAgents(name)
   expect(await h.run(['review', 'request', name, '--event', event])).toBe(0)
   expect(await h.run(['review', 'acknowledge', name])).toBe(0)
 }

@@ -66,7 +66,14 @@ const EXCLUDED_BASENAMES = new Set([
   '.pipeline-pending-review',
 ])
 
-const EXCLUDED_RELATIVE_ROOTS = ['.github/hooks'] as const
+/**
+ * `.claude/agents` holds host subagent definitions, which include the task-scoped `tenon-<name>.md`
+ * files Tenon generates and prunes while other tasks are in flight; like `.codex/` and `.agents/` it is
+ * host configuration, not implementation.
+ */
+const EXCLUDED_RELATIVE_ROOTS = ['.github/hooks', '.claude/agents'] as const
+/** Root-level ownership manifest: Tenon rewrites it whenever it generates or prunes host agent files. */
+const EXCLUDED_ROOT_FILES = new Set(['.pipeline-owned.json'])
 const EXCLUDED_ROOT_ARTIFACTS = [
   /^dashboard-progress-custom-spec\.png$/,
   /^dashboard-acceptance-.*\.png$/,
@@ -98,6 +105,7 @@ function isExcluded(relativePath: string): boolean {
     || EXCLUDED_BASENAMES.has(parts.at(-1) ?? '')
     || EXCLUDED_RELATIVE_ROOTS.some((root) => relativePath === root || relativePath.startsWith(`${root}/`))
     || (!relativePath.includes('/') && EXCLUDED_ROOT_ARTIFACTS.some((pattern) => pattern.test(relativePath)))
+    || EXCLUDED_ROOT_FILES.has(relativePath)
 }
 
 /**

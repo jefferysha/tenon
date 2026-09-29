@@ -43,6 +43,8 @@ import { makeDoctorProbes } from './commands/doctor-probes.js'
 import { exitQuietlyOnEpipe } from './stdio-epipe.js'
 import { gitRemoteNames } from './gitRemotes.js'
 import { probeGitFinish } from './gitWorkspace.js'
+import { detectHostEnvironment } from './hostKind.js'
+import { pluginSkillIds } from './pluginSkillIds.js'
 
 /** ISO8601 UTC 秒级（对齐老内核 date -u +%Y-%m-%dT%H:%M:%SZ 口径） */
 function isoNow(): string {
@@ -236,7 +238,10 @@ async function main(): Promise<void> {
     taskLifecycle: createTaskLifecycleApplication({ store, clock: isoNow, nowMs: () => Date.now() }),
     userConfigPath: () => runtimePaths().userConfigPath,
     resourceCatalog: () => loadResourceCatalog({ payloadRoot: pluginRoot(), configRoot: runtimePaths().configRoot }),
-    agentLibrary: () => loadAgentLibrary({ payloadRoot: pluginRoot(), configRoot: runtimePaths().configRoot }),
+    agentLibrary: () => loadAgentLibrary({ payloadRoot: pluginRoot(), configRoot: runtimePaths().configRoot, projectRoot: process.cwd() }),
+    agentPaths: () => ({ payloadRoot: pluginRoot(), configRoot: runtimePaths().configRoot }),
+    hostKind: () => detectHostEnvironment(process.env).kind,
+    knownSkillIds: () => pluginSkillIds(pluginRoot()),
     creationPrecondition: (input) => designSystemPrecondition({
       ...input,
       repoRoot: process.cwd(),
@@ -313,7 +318,7 @@ async function main(): Promise<void> {
         store,
         runRepository: runRepo,
         clock: isoNow,
-        loadAgentLibrary: () => loadAgentLibrary({ payloadRoot: pluginRoot(), configRoot: runtimePaths().configRoot }),
+        loadAgentLibrary: () => loadAgentLibrary({ payloadRoot: pluginRoot(), configRoot: runtimePaths().configRoot, projectRoot: process.cwd() }),
         creator: () => {
           const actor = currentActor()
           if (actor === undefined) throw new Error(USER_MISSING_HINT)

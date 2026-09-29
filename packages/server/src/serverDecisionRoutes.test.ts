@@ -45,6 +45,8 @@ async function initChange(): Promise<Harness> {
   await h.seedGovernedDocumentEvidence('demo')
   expect(await h.run(['transition', 'demo', 'open-complete'])).toBe(0)
   await h.seedArtifact('demo', 'design_doc', 'openspec/changes/demo/design.md')
+  // 调研步骤挂了 researcher 执行者：跑过之后才能请求评审。
+  await h.satisfyStepAgents('demo')
   return h
 }
 

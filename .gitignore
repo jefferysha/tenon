@@ -3,6 +3,7 @@ dist/
 # Upstream skills are fetched into the plugin root by tenon setup/update (skills/sources.yaml); not tracked.
 /skills/*
 !/skills/tenon/
+!/skills/agent-author/
 !/skills/sources.yaml
 /.tenon-skills-staging-*/
 # 分发例外：CLI bundle 随 Marketplace 插件入包。

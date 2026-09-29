@@ -1,6 +1,8 @@
 ---
 name: e2e
 description: 端到端验收评审者：按真实用户路径跑通并给可复现步骤，产物只写仓库外，只读不改码
+role: reviewer
+version: 1.0.0
 skills: [e2e-testing, browser-qa]
 tools: [Read, Grep, Glob, Bash, Skill]
 model: sonnet

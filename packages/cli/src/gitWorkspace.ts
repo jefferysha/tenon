@@ -54,6 +54,12 @@ export const FINISH_HOUSEKEEPING_PATHS: readonly string[] = [
 ]
 
 /**
+ * 所有权清单：完结时回收宿主 agent 文件会改写（或删空后删除）它。已跟踪的即使被删也列出——
+ * `git add -A` 据索引项暂存删除；没跟踪过且不在盘上的不列（pathspec 匹配不到会让提交整条失败）。
+ */
+export const OWNED_MANIFEST_PATH = '.pipeline-owned.json'
+
+/**
  * 仓库根上只属于本机的文件：三个门禁标记（`.pipeline-pending-*`），以及旧版本留下的活跃指针与
  * 交互授权（session activate 会删掉它们，但升级前的仓库里可能还在）。项目根 `.gitignore` 不归
  * Tenon 改写，所以它们靠提交命令里的 exclude pathspec 挡在提交之外。
@@ -64,10 +70,20 @@ export const LOCAL_ROOT_FILES: readonly string[] = [
   '.pipeline-interaction-authority',
 ]
 
-/** `git add -A -- <这些>` = 整个工作区，去掉仓库根的本机文件（exclude 不要求匹配到文件）。 */
+/**
+ * 任务期间为当前宿主生成的 `tenon-<name>` 子代理文件：本机生成、任务完结时回收，不随交付入库
+ * （另一台机器的会话按冻结内容自己生成）。
+ */
+export const HOST_AGENT_COMMIT_EXCLUDES: readonly string[] = [
+  ':(exclude,glob).claude/agents/tenon-*.md',
+  ':(exclude,glob).codex/agents/tenon-*.toml',
+]
+
+/** `git add -A -- <这些>` = 整个工作区，去掉仓库根的本机文件与宿主 agent 文件（exclude 不要求匹配到文件）。 */
 export const WORKSPACE_COMMIT_PATHS: readonly string[] = [
   '.',
   ...LOCAL_ROOT_FILES.map((name) => `:(exclude)${name}`),
+  ...HOST_AGENT_COMMIT_EXCLUDES,
 ]
 
 const TERMINAL_ACTIVITY_PREFIX = '.pipeline-terminal-activity.'
@@ -134,6 +150,10 @@ export async function probeGitFinish(cwd: string, change: string): Promise<GitFi
     // check-ignore：0 = 被忽略，1 = 没被忽略；其余（128）按判定不了处理，不列。
     if ((await git(cwd, ['check-ignore', '-q', '--', path])).code === 1) housekeeping.push(path)
   }
+  const ownedTracked = await git(cwd, ['ls-files', '-z', '--', OWNED_MANIFEST_PATH])
+  if (ownedTracked.code === 0 && ownedTracked.stdout !== '') housekeeping.push(OWNED_MANIFEST_PATH)
+  else if (existsSync(join(cwd, OWNED_MANIFEST_PATH))
+    && (await git(cwd, ['check-ignore', '-q', '--', OWNED_MANIFEST_PATH])).code === 1) housekeeping.push(OWNED_MANIFEST_PATH)
   const untrack = ignoredTracked.code === 0
     ? nulList(ignoredTracked.stdout).filter((path) => basename(path).startsWith(TERMINAL_ACTIVITY_PREFIX))
     : []

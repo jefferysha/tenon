@@ -46,6 +46,7 @@ import type {
 } from '@tenon/kernel'
 import { enqueueAfterSpecComplete } from '@tenon/automation'
 import { errText, mapTransitionResult, type TransitionOutcome } from './transitionResult.js'
+import { pruneHostAgentsAfterArchive } from './hostAgentPrune.js'
 import { defaultResolveUser, type ResolveUser } from './serverUserRoutes.js'
 
 // 事件 → 转移边表：re-export kernel 单一真相源（server/index.ts 对外沿用同名）。
@@ -275,6 +276,8 @@ export async function performTransition(
         process.stderr.write(`WARN: ${name} AFK 自动挂队失败（transition 已成功）: ${errText(autoError)}\n`)
       }
     }
+    // 任务完结：回收不再被任何在途任务引用的宿主 agent 文件（tenon-<name>），与 CLI 同一份判定。
+    if (result.kind === 'applied') await pruneHostAgentsAfterArchive(deps.store, root, dir, name)
     const outcome = mapTransitionResult(name, event, result)
     if (autoEnqueue === undefined) return outcome
     return { ...outcome, body: { ...outcome.body, auto_enqueue: autoEnqueue } }

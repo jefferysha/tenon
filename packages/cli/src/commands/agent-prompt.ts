@@ -1,6 +1,6 @@
 /**
- * `tenon agent prompt` 的提示词渲染。布局固定、逐字确定：宿主把它当普通子 agent 的 prompt
- * 直接派发，Tenon 不写任何宿主的 agent 目录，也不调用模型。
+ * `tenon agent prompt` 的提示词渲染。布局固定、逐字确定：宿主把它作为子代理（专属 `tenon-<name>`
+ * 或退回的通用子代理）的 prompt 派发，两种都拿到同一份全文；Tenon 不调用模型。
  */
 import type { AgentRole, FrozenAgent } from '@tenon/kernel'
 import type { TestRunRecordV1 } from '@tenon/kernel'

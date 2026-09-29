@@ -60,6 +60,14 @@ tests, backend requires `unit`, and pm / free / chat require the
 of the implementation against the proposal, design, delta spec and tasks).
 Writing `pass` without that evidence is refused and names what is missing.
 
+Every track also declares [agents](agents.md): Explore runs the `researcher`
+executor; Build runs the `builder` executor (one subagent per independent task,
+merged into one report) before its reviewers; Verify declares the `code-size`
+test (`tenon test code-size --json`, passing while `lines_added` stays within
+2000) and the required `code-size` reviewer that reads its result. On chat and
+free, Verify also runs `security` as an advisory reviewer whose findings never
+block. A step cannot be left until its executors finish `done`.
+
 When a required test's command is an npm script (`npm test`,
 `npm run test:integration`, …) that the project does not define, the test is
 *unconfigured*, not failed: `tenon test run` refuses it without writing a

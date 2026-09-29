@@ -112,6 +112,9 @@ const WORKSPACE_PATHS = [
   ':(exclude).pipeline-pending-interaction',
   ':(exclude).pipeline-active',
   ':(exclude).pipeline-interaction-authority',
+  // 任务期间为宿主生成的子代理文件本机生成、完结时回收，不随交付入库。
+  ':(exclude,glob).claude/agents/tenon-*.md',
+  ':(exclude,glob).codex/agents/tenon-*.toml',
 ]
 
 /** 完结动作的提交：照动作给的 paths / untrack / message 原样执行，每条命令都必须一次成功。 */
@@ -430,7 +433,10 @@ async function walk(options: WalkOptions = {}): Promise<{
       expect(tests.finished).toBe(true)
       expect(tests.report).toBe(`tenon test report ${CHANGE}`)
       expect(tests.items.map((item) => [item.step, item.id, item.run?.result]))
-        .toEqual(track === 'backend' ? [['build', 'unit', 'pass'], ['verify', 'integration', 'pass']] : [])
+        // 每条轨道的验证都声明了 code-size 测试；backend 另有 build 的 unit 与 verify 的 integration。
+        .toEqual(track === 'backend'
+          ? [['build', 'unit', 'pass'], ['verify', 'integration', 'pass'], ['verify', 'code-size', 'pass']]
+          : [['verify', 'code-size', 'pass']])
       await run(['list', '--finished', '--json'])
       const finished = JSON.parse(h.out.join('\n')) as { finished: readonly { name: string; archived: string }[] }
       expect(finished.finished).toEqual([expect.objectContaining({ name: CHANGE, archived: 'true' })])
@@ -485,6 +491,7 @@ describe('照着 next 做事的运行器：open → 完结', { timeout: 120_000 
       { step: 'verify', agent: 'backend-quality', required: true, block_at: 'medium' },
       { step: 'verify', agent: 'security', required: true, block_at: 'medium' },
       { step: 'verify', agent: 'architecture', required: false, block_at: 'high' },
+      { step: 'verify', agent: 'code-size', required: true, block_at: 'medium' },
     ]
     const barOf = (action: StepAction | undefined) =>
       (action?.review_bar as readonly Record<string, unknown>[] | undefined)?.map(({ focus: _focus, ...rest }) => rest)

@@ -57,6 +57,21 @@ describe('readAgentRuns', () => {
     expect(runs[0]).toMatchObject({ status: 'finished', result: 'pass' })
   })
 
+  it('subagent 可选：旧行没有，新行记宿主、子代理类型与是否专属', async () => {
+    await appendAgentRunRow(changeDir, row({ run_id: 'old' }))
+    await appendAgentRunRow(changeDir, row({ run_id: 'new', subagent: { host: 'claude', type: 'tenon-security', native: true } }))
+    const runs = await readAgentRuns(changeDir)
+    expect(runs[0]?.subagent).toBeUndefined()
+    expect(runs[1]?.subagent).toEqual({ host: 'claude', type: 'tenon-security', native: true })
+  })
+
+  it('subagent 形状非法 → 损坏', async () => {
+    await writeFile(runsPath(), `${JSON.stringify({ ...row(), subagent: { host: 'claude', type: '', native: true } })}\n`)
+    await expect(readAgentRuns(changeDir)).rejects.toThrowError(AgentRunError)
+    await writeFile(runsPath(), `${JSON.stringify({ ...row(), subagent: { host: 'claude', type: 't', native: 'yes' } })}\n`)
+    await expect(readAgentRuns(changeDir)).rejects.toThrowError(/形状非法/u)
+  })
+
   it('末尾写到一半的行忽略', async () => {
     await appendAgentRunRow(changeDir, row({ run_id: 'a' }))
     await writeFile(runsPath(), `${await readFile(runsPath(), 'utf8')}{"schema":"agent-r`)

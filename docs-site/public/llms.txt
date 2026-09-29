@@ -16,6 +16,8 @@
 - [en] Custom Workflows and Tracks: /tenon/en/custom-workflows-and-tracks.html
 - [zh-CN] 文档、Skill 与证据链: /tenon/documents-skills-and-evidence.html
 - [en] Documents, Skills, and evidence: /tenon/en/documents-skills-and-evidence.html
+- [zh-CN] 智能体: /tenon/agents.html
+- [en] Agents: /tenon/en/agents.html
 - [zh-CN] Dashboard 与本地 API: /tenon/dashboard-and-local-api.html
 - [en] Dashboard and local API: /tenon/en/dashboard-and-local-api.html
 - [zh-CN] 自动化、AFK 与 Loops: /tenon/automation-and-loops.html

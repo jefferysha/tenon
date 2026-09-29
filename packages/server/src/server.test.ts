@@ -1308,6 +1308,7 @@ describe('POST /api/change/<name>/transition —— Verify revision rejection co
           { agent: 'spec-consistency', reason: 'reviewer-missing' },
           { agent: 'backend-quality', reason: 'reviewer-missing' },
           { agent: 'security', reason: 'reviewer-missing' },
+          { agent: 'code-size', reason: 'reviewer-missing' },
         ],
       },
     ])

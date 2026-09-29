@@ -4,11 +4,14 @@
  */
 import { sha256Hex } from '../sha256.js'
 import {
-  AGENT_DESCRIPTION_MAX, AGENT_FILE_MAX_BYTES, AGENT_MODEL_RE, AGENT_NAME_RE, AGENT_SKILL_RE,
-  AGENT_TOOL_RE, AgentFileError, KNOWN_AGENT_HOSTS, type AgentDefinition,
+  AGENT_DESCRIPTION_MAX, AGENT_FILE_MAX_BYTES, AGENT_MODEL_RE, AGENT_NAME_RE, AGENT_ROLES, AGENT_SKILL_RE,
+  AGENT_TOOL_RE, AGENT_VERSION_RE, AgentFileError, KNOWN_AGENT_HOSTS, inferAgentRole,
+  type AgentDefinition, type AgentRole,
 } from './types.js'
 
-const KEYS: readonly string[] = ['name', 'description', 'skills', 'tools', 'model', 'hosts']
+const KEYS: readonly string[] = ['name', 'description', 'role', 'version', 'skills', 'tools', 'model', 'hosts']
+
+const isRole = (value: string): value is AgentRole => (AGENT_ROLES as readonly string[]).includes(value)
 
 function fail(message: string, field?: string): never {
   throw new AgentFileError(message, field)
@@ -55,6 +58,10 @@ export function parseAgentFile(text: string, expectedName: string): AgentDefinit
   }
   const skills = eachMatches(inlineList(fields.get('skills') ?? '[]', 'skills'), AGENT_SKILL_RE, 'skills')
   const tools = eachMatches(inlineList(fields.get('tools') ?? '[]', 'tools'), AGENT_TOOL_RE, 'tools')
+  const rawRole = fields.get('role')
+  if (rawRole !== undefined && !isRole(rawRole)) fail(`role 必须是 ${AGENT_ROLES.join(' | ')}`, 'role')
+  const version = fields.get('version')
+  if (version !== undefined && !AGENT_VERSION_RE.test(version)) fail(`version '${version}' 不是 semver`, 'version')
   const model = fields.get('model')
   if (model !== undefined && !AGENT_MODEL_RE.test(model)) fail(`model '${model}' 非法`, 'model')
   const rawHosts = fields.get('hosts')
@@ -65,7 +72,11 @@ export function parseAgentFile(text: string, expectedName: string): AgentDefinit
   const body = lines.slice(close + 1).join('\n')
   if (body.trim() === '') fail('正文不得为空')
   return {
-    name, description, skills, tools,
+    name, description,
+    role: rawRole === undefined || !isRole(rawRole) ? inferAgentRole(tools) : rawRole,
+    ...(rawRole === undefined ? { roleInferred: true as const } : {}),
+    ...(version === undefined ? {} : { version }),
+    skills, tools,
     ...(model === undefined ? {} : { model }),
     ...(hosts === undefined ? {} : { hosts }),
     body,

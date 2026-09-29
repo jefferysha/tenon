@@ -53,7 +53,10 @@ The five operational destinations in the primary shell (`?view=` ids in order: w
 - Projects — per project, the enabled agent clients and, for each, its project-level and user-level instruction file (`AGENTS.md`, `CLAUDE.md`,
   `GEMINI.md`), plus creating a project from an existing or new directory
 - Library — the instruction template library: built-in blocks synced from the
-  release payload, and your own copies
+  release payload, and your own copies; and the [agent](agents.md) library,
+  grouped by role with source and version, where custom and project agents
+  edit their body and official ones copy as custom (registering happens in the
+  terminal with `tenon agent new`)
 - Skills — source, commit, license, update time, and status per Skill, read-only
 
 The Settings panel contains theme and language controls. AFK, machine diagnostics,

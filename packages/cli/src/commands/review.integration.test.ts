@@ -23,6 +23,8 @@ describe('真实 e2e —— review exit receipt（default workflow）', () => {
     await h.seedGovernedDocumentEvidence('demo')
     expect(await h.run(['transition', 'demo', 'open-complete'])).toBe(0)
     await h.seedArtifact('demo', 'design_doc', 'openspec/changes/demo/design.md')
+    // 调研步骤挂了 researcher 执行者：跑过之后才能请求评审、离开步骤。
+    await h.satisfyStepAgents('demo')
     expect(await h.run(['check', 'demo'])).toBe(0)
   })
 
@@ -95,13 +97,15 @@ describe('真实 e2e —— review exit receipt（default workflow）', () => {
         await h2.seedArtifact('reviewed', 'design_doc', 'openspec/changes/reviewed/design.md')
         await h2.seedArtifact('reviewed', 'plan', 'openspec/changes/reviewed/tasks.md')
         await h2.satisfyStepTests('reviewed', event.replace(/-complete$/u, ''))
+        await h2.satisfyStepAgents('reviewed')
         await h2.run(['review', 'request', 'reviewed', '--event', event])
         await h2.run(['review', 'acknowledge', 'reviewed'])
         expect(await h2.run(['transition', 'reviewed', event]), h2.err.join('\n')).toBe(0)
       }
       await h2.run(['set-many', 'reviewed', 'build_mode=direct', 'isolation=worktree', 'direct_override=true'])
       await h2.satisfyStepTests('reviewed', 'build')
-      // pre-Verify 结论只能在本步就绪证据（必需测试）齐全之后写入。
+      await h2.satisfyStepAgents('reviewed')
+      // pre-Verify 结论只能在本步就绪证据（必需测试与 builder 执行者）齐全之后写入。
       expect(await h2.run(['set', 'reviewed', 'pre_verify_review_result', 'pass']), h2.err.join('\n')).toBe(0)
       expect(await h2.run(['transition', 'reviewed', 'build-complete']), h2.err.join('\n')).toBe(0)
       await h2.seedArtifact('reviewed', 'verification_report', 'docs/superpowers/reports/reviewed.md')
