@@ -2448,6 +2448,144 @@ assert_exit "gate: argv 形态的 apply_patch 删测试记录 → exit 2" 2 "$?"
     "$proj" "$HOOK_USER_SLUG" | TENON_AFK=1 bash "$GATE" >/dev/null 2>&1 )
 assert_exit "gate: AFK 下 apply_patch 改测试记录仍 exit 2" 2 "$?"
 
+# ── 10d4. gate.sh：测试计划 / 基线 / 已知失败 + shell 写入（只看写入目标，不看内容）──
+# 受保护：任务的 test-plan.yaml（及其台账、豁免清单）、.tenon/tests/baselines/**、.tenon/tests/known-failures.yaml、
+# 按用户的记录目录。放行：tenon 命令、普通 git 操作、读取、把这些路径当正文提到的文档。
+RECORD_USERS=".ten""on/users"
+gate_tool() { # $1=tool name $2=key $3=path [$4=extra json fragment] → gate exit code
+  printf '{"tool_name":"%s","cwd":"%s","tool_input":{"%s":"%s"%s}}' "$1" "$proj" "$2" "$3" "${4:-}" | bash "$GATE" >/dev/null 2>&1
+}
+gate_cmd() { # $1=shell command (raw, may be multi-line) → gate exit code for a Bash call in $proj
+  local escaped
+  escaped="$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | awk 'BEGIN { ORS = "\\n" } { print }')"
+  printf '{"tool_name":"Bash","cwd":"%s","tool_input":{"command":"%s"}}' "$proj" "$escaped" | bash "$GATE" >/dev/null 2>&1
+}
+refuse_cmd() { gate_cmd "$2"; assert_exit "gate shell: $1 → exit 2" 2 "$?"; }
+allow_cmd()  { gate_cmd "$2"; assert_exit "gate shell: $1 → 放行" 0 "$?"; }
+
+PLAN_PATH="$proj/openspec/changes/demo/test-plan.yaml"
+gate_tool Write file_path "$PLAN_PATH" ',"content":"schema: x"'
+assert_exit "gate: Write 任务测试计划 → exit 2" 2 "$?"
+gate_tool Edit file_path "$PLAN_PATH" ',"old_string":"a","new_string":"b"'
+assert_exit "gate: Edit 任务测试计划 → exit 2" 2 "$?"
+gate_tool MultiEdit file_path "$PLAN_PATH" ',"edits":[]'
+assert_exit "gate: MultiEdit 任务测试计划 → exit 2" 2 "$?"
+gate_tool Write file_path "$proj/openspec/changes/demo/.pipeline-test-plan.json" ',"content":"{}"'
+assert_exit "gate: Write 计划摘要台账 → exit 2" 2 "$?"
+gate_tool Write file_path "$proj/openspec/changes/demo/.pipeline-review-waivers.json" ',"content":"{}"'
+assert_exit "gate: Write 评审冻结的豁免清单 → exit 2" 2 "$?"
+gate_tool Write file_path "$proj/.tenon/tests/known-failures.yaml" ',"content":"x"'
+assert_exit "gate: Write 已知失败清单 → exit 2" 2 "$?"
+gate_tool Edit file_path "$proj/.tenon/tests/baselines/web-unit/darwin-arm64.json" ',"old_string":"1","new_string":"2"'
+assert_exit "gate: Edit 共享基线 → exit 2" 2 "$?"
+gate_tool NotebookEdit notebook_path "$proj/.tenon/tests/baselines/web-unit/b.ipynb"
+assert_exit "gate: NotebookEdit 共享基线 → exit 2" 2 "$?"
+gate_tool Write file_path "$proj/.tenon/tests/../tests/known-failures.yaml" ',"content":"x"'
+assert_exit "gate: 带 .. 的已知失败清单路径 → exit 2" 2 "$?"
+gate_tool Write file_path "openspec/changes/demo/test-plan.yaml" ',"content":"x"'
+assert_exit "gate: 相对路径的任务测试计划按 cwd 解析 → exit 2" 2 "$?"
+printf '{"tool_name":"Write","cwd":"%s","tool_input":{"file_path":"%s","content":"x"}}' "$proj" "$PLAN_PATH" | TENON_AFK=1 bash "$GATE" >/dev/null 2>&1
+assert_exit "gate: AFK 下 Write 任务测试计划仍 exit 2" 2 "$?"
+ERR="$(printf '{"tool_name":"Write","cwd":"%s","tool_input":{"file_path":"%s","content":"x"}}' "$proj" "$PLAN_PATH" | bash "$GATE" 2>&1 >/dev/null)"
+assert_contains "gate: 拒绝文案仍点名 tenon test run / tenon test baseline" "$ERR" 'tenon test run / tenon test baseline'
+assert_contains "gate: 拒绝文案点名计划与已知失败的写入口" "$ERR" 'tenon test plan|register|waive|known'
+( printf '{"tool_name":"apply_patch","cwd":"%s","tool_input":{"command":"*** Begin Patch\\n*** Update File: openspec/changes/demo/test-plan.yaml\\n@@\\n-a\\n+b\\n*** End Patch\\n"}}' "$proj" | bash "$GATE" >/dev/null 2>&1 )
+assert_exit "gate: apply_patch 改任务测试计划 → exit 2" 2 "$?"
+( printf '{"tool_name":"apply_patch","cwd":"%s","tool_input":{"command":"*** Begin Patch\\n*** Update File: docs/notes.md\\n*** Move to: .tenon/tests/known-failures.yaml\\n@@\\n-a\\n+b\\n*** End Patch\\n"}}' "$proj" | bash "$GATE" >/dev/null 2>&1 )
+assert_exit "gate: apply_patch 把文件移成已知失败清单 → exit 2" 2 "$?"
+
+# 只提到这些路径的文档照常放行（写入内容不参与判定）。
+gate_tool Write file_path "$proj/docs/testing.md" ',"content":"计划在 openspec/changes/demo/test-plan.yaml，基线在 .tenon/tests/baselines/x.json，已知失败在 .tenon/tests/known-failures.yaml；不要 echo x > openspec/changes/demo/test-plan.yaml"'
+assert_exit "gate: 文档内容提到计划 / 基线 / 已知失败路径 → 放行" 0 "$?"
+gate_tool Edit file_path "$proj/docs/testing.md" ',"old_string":"a","new_string":"见 .tenon/tests/known-failures.yaml 与 test-plan.yaml"'
+assert_exit "gate: Edit 新文本提到这些路径 → 放行" 0 "$?"
+( printf '{"tool_name":"apply_patch","cwd":"%s","tool_input":{"command":"*** Begin Patch\\n*** Add File: docs/notes.md\\n+见 openspec/changes/demo/test-plan.yaml\\n+cp x openspec/changes/demo/test-plan.yaml\\n*** End Patch\\n"}}' "$proj" | bash "$GATE" >/dev/null 2>&1 )
+assert_exit "gate: apply_patch 新增文档、正文行提到计划路径 → 放行" 0 "$?"
+gate_tool Write file_path "$proj/.tenon/tests/catalog.yaml" ',"content":"schema: tenon-test-catalog/v1"'
+assert_exit "gate: 测试目录 catalog.yaml 是人可编辑的配置 → 放行" 0 "$?"
+gate_tool Write file_path "$proj/openspec/changes/demo/tasks.md" ',"content":"- [ ] x"'
+assert_exit "gate: 同一 change 目录下的别的文件 → 放行" 0 "$?"
+gate_tool Write file_path "$proj/docs/test-plan.md" ',"content":"x"'
+assert_exit "gate: 名字相近但不是计划文件 → 放行" 0 "$?"
+
+# shell 写入：重定向、tee、cp / mv / rm、sed -i、dd of=（含 cd 之后的相对路径、bash -c 包装、复合命令）。
+refuse_cmd 'echo >> 任务测试计划' 'echo x >> openspec/changes/demo/test-plan.yaml'
+refuse_cmd '紧贴的 >path 重定向' 'echo x>openspec/changes/demo/test-plan.yaml'
+refuse_cmd '2> 也是写' 'run 2> openspec/changes/demo/test-plan.yaml'
+refuse_cmd 'heredoc 写任务测试计划' $'cat > openspec/changes/demo/test-plan.yaml <<EOF\nschema: x\nEOF'
+refuse_cmd 'tee 追加已知失败清单' 'printf a | tee -a .tenon/tests/known-failures.yaml'
+refuse_cmd 'cp 覆盖任务测试计划' 'cp /tmp/plan.yaml openspec/changes/demo/test-plan.yaml'
+refuse_cmd 'cp -t 指向基线目录' 'cp -t .tenon/tests/baselines/web-unit /tmp/m.json'
+refuse_cmd 'mv 进基线目录' 'mv /tmp/base.json .tenon/tests/baselines/web-unit/m.json'
+refuse_cmd 'mv 走任务测试计划' 'mv openspec/changes/demo/test-plan.yaml /tmp/gone.yaml'
+refuse_cmd 'rm 基线目录' 'rm -rf .tenon/tests/baselines'
+refuse_cmd 'sed -i 改已知失败清单' "sed -i '' 's/a/b/' .tenon/tests/known-failures.yaml"
+refuse_cmd 'sed -i.bak 改任务测试计划' "sed -i.bak 's/a/b/' openspec/changes/demo/test-plan.yaml"
+refuse_cmd 'sed -ni 改任务测试计划' "sed -ni 's/a/b/p' openspec/changes/demo/test-plan.yaml"
+refuse_cmd 'dd of= 写基线' 'dd if=/tmp/x of=.tenon/tests/baselines/a/b.json'
+refuse_cmd '重定向进用户测试记录目录' "echo '{}' > $RECORD_USERS/hooks-at-tenon.test/tests/demo/r.json"
+refuse_cmd 'cp 进用户测试记录目录' "cp /tmp/r.json $RECORD_USERS/hooks-at-tenon.test/tests/demo/r.json"
+refuse_cmd 'cd 之后的相对路径' 'cd openspec/changes/demo && echo x > test-plan.yaml'
+refuse_cmd 'cd 进基线目录之后 tee' 'cd .tenon/tests/baselines && tee web.json < /tmp/in'
+refuse_cmd 'bash -c 包装' 'bash -c "echo x > openspec/changes/demo/test-plan.yaml"'
+refuse_cmd '/bin/zsh -lc 包装' '/bin/zsh -lc "cp /tmp/p openspec/changes/demo/test-plan.yaml"'
+refuse_cmd '复合命令里的第二段' 'tenon test register demo --suite unit && echo x >> openspec/changes/demo/test-plan.yaml'
+refuse_cmd 'tenon 命令自己的输出重定向进计划文件' 'tenon test plan demo --json > openspec/changes/demo/test-plan.yaml'
+refuse_cmd 'git 输出重定向进计划文件' 'git show HEAD:openspec/changes/demo/test-plan.yaml > openspec/changes/demo/test-plan.yaml'
+refuse_cmd '带 .. 的已知失败清单路径' 'echo x > .tenon/tests/../tests/known-failures.yaml'
+refuse_cmd 'heredoc 没有结束行：按普通命令再扫一遍' $'cat <<EOF > docs/x.md\nfoo\necho x > openspec/changes/demo/test-plan.yaml'
+printf '{"tool_name":"Bash","cwd":"%s","tool_input":{"command":"echo x >> openspec/changes/demo/test-plan.yaml"}}' "$proj" | TENON_AFK=1 bash "$GATE" >/dev/null 2>&1
+assert_exit "gate shell: AFK 下写任务测试计划仍 exit 2" 2 "$?"
+printf '{"tool_name":"execute_command","cwd":"%s","tool_input":{"command":"echo x >> openspec/changes/demo/test-plan.yaml"}}' "$proj" | bash "$GATE" >/dev/null 2>&1
+assert_exit "gate shell: 别的宿主的 shell 工具标签（execute_command）同样按命令文本判定" 2 "$?"
+printf '{"cwd":"%s","command":"echo x >> openspec/changes/demo/test-plan.yaml"}' "$proj" | bash "$GATE" >/dev/null 2>&1
+assert_exit "gate shell: 没有 tool_name 的 shell 事件同样按命令文本判定" 2 "$?"
+printf '{"tool_name":"exec","cwd":"%s","argv":["bash","-lc","echo x >> openspec/changes/demo/test-plan.yaml"]}' "$proj" | bash "$GATE" >/dev/null 2>&1
+assert_exit "gate shell: argv 形态的 shell 命令 → exit 2" 2 "$?"
+
+# 放行：tenon 命令、普通 git 操作、读取、复制出去、把路径当正文的 heredoc。
+allow_cmd 'tenon test register' 'tenon test register demo --file src/a.test.ts --suite unit'
+allow_cmd 'tenon test plan 输出到别处' 'tenon test plan demo --json > /tmp/plan.json'
+allow_cmd 'tenon test baseline' 'tenon test baseline demo --suite s --run r'
+allow_cmd 'tenon test known add' "tenon test known add --suite unit --test 'a.test.ts › x' --reason r --expires 2027-01-01"
+allow_cmd 'tenon review request' 'tenon review request demo --event verify-pass'
+allow_cmd 'git add / commit 提交这些文件' "git add openspec/changes/demo/test-plan.yaml .tenon/tests/known-failures.yaml && git commit -m 'update test plan'"
+allow_cmd 'git checkout 还原基线' 'git checkout -- .tenon/tests/baselines'
+allow_cmd 'git mv 走这些路径' 'git mv old-plan.yaml openspec/changes/demo/test-plan.yaml'
+allow_cmd 'git diff 重定向到别处' 'git diff -- .tenon/tests/known-failures.yaml > /tmp/known.patch'
+allow_cmd 'cat 读计划' 'cat openspec/changes/demo/test-plan.yaml'
+allow_cmd 'cp 把计划复制出去' 'cp openspec/changes/demo/test-plan.yaml /tmp/backup.yaml'
+allow_cmd 'diff 比较' 'diff openspec/changes/demo/test-plan.yaml /tmp/other.yaml'
+allow_cmd 'grep 已知失败清单' 'grep -rn known-failures docs > /tmp/hits.txt'
+allow_cmd 'ls 目录' 'ls .tenon/tests'
+allow_cmd 'cd 之后读计划' 'cd openspec/changes/demo && cat test-plan.yaml'
+allow_cmd '写测试目录 catalog.yaml' 'echo "schema: x" > .tenon/tests/catalog.yaml'
+allow_cmd '写同目录的别的文件' 'echo x > openspec/changes/demo/notes.md'
+allow_cmd 'sed 不带 -i 只是输出' "sed -n '1,5p' openspec/changes/demo/test-plan.yaml"
+allow_cmd 'heredoc 正文里的命令示例不算写入' $'cat > docs/notes.md <<\'EOF\'\n计划在 openspec/changes/demo/test-plan.yaml\necho x > openspec/changes/demo/test-plan.yaml\ncp a .tenon/tests/known-failures.yaml\nEOF'
+allow_cmd 'heredoc 结束后仍是普通命令' $'cat > docs/notes.md <<EOF\nnote\nEOF\ntenon test run demo --stage'
+allow_cmd 'echo 里的 2>&1 是复制描述符' 'tenon test run demo --stage 2>&1 | tee /tmp/run.log'
+
+# 大 heredoc：正文里满是这些路径，仍然线性、放行；同样大小但真的写计划文件就拒。
+BIG_PLAN_LINE='  echo \"see openspec/changes/demo/test-plan.yaml and known-failures.yaml\" > /dev/null\n'
+BIG_PLAN_BODY="$BIG_PLAN_LINE"
+for _ in 1 2 3 4 5 6 7 8 9 10; do BIG_PLAN_BODY="$BIG_PLAN_BODY$BIG_PLAN_BODY"; done
+printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"cat <<'EOF' > docs/big.md\\n${BIG_PLAN_BODY}EOF\\ntenon test run demo --stage\"}}" > "$TMP/big-plan-doc.json"
+printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"cat <<'EOF' > openspec/changes/demo/test-plan.yaml\\n${BIG_PLAN_BODY}EOF\"}}" > "$TMP/big-plan-write.json"
+ok "大 heredoc: 构造 $(wc -c < "$TMP/big-plan-doc.json" | tr -d ' ') 字节的载荷"
+big_start=$SECONDS
+bash "$GATE" < "$TMP/big-plan-doc.json" >/dev/null 2>&1
+RC=$?
+big_elapsed=$((SECONDS - big_start))
+assert_exit "大 heredoc: 正文提到这些路径的文档 → 放行" 0 "$RC"
+if [ "$big_elapsed" -le 3 ]; then ok "大 heredoc: 文档放行 ${big_elapsed}s 内完成"; else bad "大 heredoc: 文档放行 3s 内完成" "耗时 ${big_elapsed}s"; fi
+big_start=$SECONDS
+bash "$GATE" < "$TMP/big-plan-write.json" >/dev/null 2>&1
+RC=$?
+big_elapsed=$((SECONDS - big_start))
+assert_exit "大 heredoc: 真的写任务测试计划 → exit 2" 2 "$RC"
+if [ "$big_elapsed" -le 3 ]; then ok "大 heredoc: 写计划被拒 ${big_elapsed}s 内完成"; else bad "大 heredoc: 写计划被拒 3s 内完成" "耗时 ${big_elapsed}s"; fi
+
 # ── 10e. 红线自证：PostToolUse 热路径保持 bash；唯二 producer hook 只允许精确 managed CLI bridge ──
 for f in "$CC" "$CP" "$DR" "$ST" "$IG" "$IA" "$TA" "$TN"; do
   base="$(basename "$f")"
