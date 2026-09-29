@@ -75,11 +75,11 @@ afterEach(() => {
 describe('TaskDetailPane · 测试页签（策略判定）', () => {
   const withPolicy = (): ChangeSnapshot => change({ testPolicy: [verifyReport()], testPlan: planBrief(), testUser: FIXTURE_USER })
 
-  it('所选阶段有策略判定：页签出现，计数是 通过套件/运行集；点开是新的页签内容，不是旧表', async () => {
+  it('所选阶段有策略判定：页签出现，计数是 满足的种类/要求的种类；点开是新的页签内容，不是旧表', async () => {
     mount(withPolicy())
     const tab = screen.getByTestId('task-io-tab-tests')
     expect(tab.textContent).toContain('测试')
-    expect(tab.textContent).toContain('1/3')
+    expect(tab.textContent).toContain('1/4')
     await userEvent.click(tab)
     expect(screen.getByTestId('task-tests')).toBeInTheDocument()
     expect(screen.queryByTestId('stage-tests-head')).toBeNull()

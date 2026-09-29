@@ -159,7 +159,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
                 { id: 'outputs', label: t('workspace.outputs'), count: `${readyOutputs}/${outputs.length}` },
                 ...(!hasTestsTab
                   ? []
-                  : [{ id: 'tests' as const, label: t('workspace.tests'), count: policyReport === undefined ? stageTestCount(testRows) : tabCount(policyReport) }]),
+                  : [{ id: 'tests' as const, label: t('workspace.tests'), count: policyReport === undefined ? stageTestCount(testRows) : tabCount(policyReport, change.testPlan) }]),
               ]}
               active={sheet}
               onChange={setSheet}

@@ -28,7 +28,7 @@ export function FieldRow({ label, hint, testId, controlId, children }: {
           </button>
         </Hint>
       </span>
-      <div className="flex min-w-0 flex-nowrap items-center gap-3">{children}</div>
+      <div className="-m-1 flex min-w-0 flex-nowrap items-center gap-3 overflow-x-auto p-1">{children}</div>
     </div>
   )
 }

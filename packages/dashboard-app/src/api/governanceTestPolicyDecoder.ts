@@ -11,7 +11,7 @@ const FILES = ['registered', 'any'] as const
 const SCENARIOS = ['off', 'required', 'passing'] as const
 
 function choice<T extends string>(value: unknown, values: readonly T[]): T | null {
-  return typeof value === 'string' && (values as readonly string[]).includes(value) ? value as T : null
+  return values.find((item) => item === value) ?? null
 }
 
 function kindList(value: unknown): string[] | null {

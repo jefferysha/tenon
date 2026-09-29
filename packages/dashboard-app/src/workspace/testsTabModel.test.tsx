@@ -25,9 +25,10 @@ describe('summarize', () => {
     expect(summarize(report({ suites: [verdict({ suite: 'a', totals: totals() })] })).coverage).toBeNull()
   })
 
-  it('页签计数是通过的套件 / 运行集里的套件', () => {
-    expect(tabCount(verifyReport())).toBe('1/3')
-    expect(tabCount(report({ suites: [] }))).toBe('0/0')
+  it('页签计数是满足要求的种类 / 要求的种类（与矩阵同口径）；没有任何要求时不给计数', () => {
+    expect(tabCount(verifyReport(), planBrief())).toBe('1/4')
+    expect(tabCount(report({ suites: [], blockers: [] }), { state: 'missing' })).toBe('0/4')
+    expect(tabCount(report({ policy: { ...verifyReport().policy!, kinds: [], run: [], runIfRegistered: [] }, suites: [] }), planBrief())).toBeUndefined()
   })
 })
 

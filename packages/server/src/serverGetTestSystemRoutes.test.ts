@@ -387,3 +387,32 @@ describe('v2 产物下载（目录内逐文件）', () => {
     expect((await reqGet(h.port, `/api/tests/artifact?${foreign}&path=test-results/shots/a.png`)).status).toBe(404)
   })
 })
+
+describe('测试体系读路由的信任锚', () => {
+  it('伪造 Host（DNS 重绑定）一律 403，包括产物字节', async () => {
+    const h = await start()
+    const q = `root=${encodeURIComponent(h.root)}`
+    const paths = [
+      `/api/tests/catalog?${q}`,
+      `/api/tests/baselines?${q}&suite=web-unit`,
+      `/api/tests/plan?${q}&change=${CHANGE}`,
+      `/api/tests/records?${q}&change=${CHANGE}`,
+      `/api/tests/record?${q}&change=${CHANGE}&user=${SLUG}&run=20260929T100000Z-abcdef`,
+      `/api/tests/artifact?${q}&change=${CHANGE}&user=${SLUG}&run=20260929T100000Z-abcdef&path=output.log`,
+    ]
+    for (const path of paths) {
+      const res = await reqGet(h.port, path, '127.0.0.1', { Host: 'evil.example.com' })
+      expect(res.status, `${path} 应被 Host 守卫拒绝`).toBe(403)
+    }
+  })
+
+  it('未登记的 root 对每条路由都是 404', async () => {
+    const h = await start()
+    const foreign = encodeURIComponent(join(h.root, 'other'))
+    for (const path of ['catalog', 'baselines&suite=web-unit', 'plan&change=demo', 'records&change=demo', 'record&change=demo']) {
+      const [route, ...rest] = path.split('&')
+      const res = await reqGet(h.port, `/api/tests/${route}?root=${foreign}${rest.map((part) => `&${part}`).join('')}`)
+      expect(res.status, path).toBe(404)
+    }
+  })
+})

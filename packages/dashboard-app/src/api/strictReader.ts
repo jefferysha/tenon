@@ -58,8 +58,9 @@ export function opt<T>(value: unknown, read: (item: unknown) => T): T | undefine
 }
 
 export function oneOf<T extends string>(value: unknown, allowed: readonly T[]): T {
-  if (typeof value !== 'string' || !(allowed as readonly string[]).includes(value)) bad()
-  return value as T
+  const found = allowed.find((item) => item === value)
+  if (found === undefined) bad()
+  return found
 }
 
 /** 把「读」函数变成「解码」函数：形状不合返回 null，其它异常照常抛。 */
@@ -75,6 +76,8 @@ export function guard<T>(read: (value: unknown) => T): (value: unknown) => T | n
 }
 
 /** 仅当 value 不是 undefined 时才带这个键（保持 exactOptional 风格的对象形状）。 */
-export function maybe<K extends string, V>(key: K, value: V | undefined): { [P in K]?: V } {
-  return (value === undefined ? {} : { [key]: value }) as { [P in K]?: V }
+export function maybe<K extends string, V>(key: K, value: V | undefined): Partial<Record<K, V>> {
+  const out: Partial<Record<K, V>> = {}
+  if (value !== undefined) out[key] = value
+  return out
 }

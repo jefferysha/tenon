@@ -39,7 +39,7 @@ export function TaskTestsTab({ report, plan, legacyRows, activeSuite, onOpenSuit
   ]
   return (
     <div className="grid gap-6" data-testid="task-tests">
-      <p className="whitespace-nowrap font-mono text-body text-text-2" data-testid="tests-summary" data-pass={report.pass}>
+      <p className="truncate whitespace-nowrap font-mono text-body text-text-2" title={parts.join(' · ')} data-testid="tests-summary" data-pass={report.pass}>
         {parts.join(' · ')}
       </p>
       <TestsTabFiles rows={files} />

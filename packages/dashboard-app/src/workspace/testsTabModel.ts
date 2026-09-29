@@ -52,6 +52,7 @@ export interface MatrixRow {
 
 const WORST: Readonly<Record<SuiteState, number>> = { passed: 0, missing: 1, running: 2, stale: 3, failed: 4 }
 const GLOBAL_CODES: readonly string[] = ['test-catalog-missing', 'test-plan-missing', 'test-plan-tampered', 'record-chain-broken']
+const NO_SUITES: readonly string[] = []
 /** 文件表认领的阻塞码：不进矩阵行，也不进阻塞表。 */
 const FILE_CODES: ReadonlySet<string> = new Set(['test-file-unregistered', 'test-file-orphan'])
 
@@ -153,7 +154,7 @@ export function fileRows(report: PolicyReport): FileRow[] {
       path: file.path, suites: file.suites, orphan: false, blocker: byPath(file.path, 'test-file-unregistered'),
     })),
     ...report.files.orphans.map((path) => ({
-      path, suites: [] as readonly string[], orphan: true, blocker: byPath(path, 'test-file-orphan'),
+      path, suites: NO_SUITES, orphan: true, blocker: byPath(path, 'test-file-orphan'),
     })),
   ]
 }
@@ -163,7 +164,8 @@ export function traceNeedsMapping(report: PolicyReport, row: TraceRow): boolean 
   return row.state === 'uncovered' && report.policy !== null && report.policy.scenarios !== 'off'
 }
 
-/** 页签计数：通过的套件 / 运行集里的套件。 */
-export function tabCount(report: PolicyReport): string {
-  return `${report.suites.filter((suite) => suite.state === 'passed').length}/${report.suites.length}`
+/** 页签计数：满足要求的种类 / 要求的种类（与矩阵同一口径）；没有要求任何种类时不给计数。 */
+export function tabCount(report: PolicyReport, plan: TestPlanBrief | undefined): string | undefined {
+  const rows = buildMatrix(report, plan)
+  return rows.length === 0 ? undefined : `${rows.filter((row) => row.met).length}/${rows.length}`
 }

@@ -36,7 +36,8 @@ function decodeDefinition(value: unknown): TestTemplateDefinition | null {
   if (!def || typeof def.id !== 'string' || def.id === '' || typeof def.label !== 'string' || def.label === ''
     || typeof def.command !== 'string' || def.command === '') return null
   if (def.cwd !== undefined && typeof def.cwd !== 'string') return null
-  if (def.timeout_s !== undefined && (!integer(def.timeout_s) || def.timeout_s < 0)) return null
+  const timeout = def.timeout_s
+  if (timeout !== undefined && (!integer(timeout) || timeout < 0)) return null
   if (def.scope !== undefined && def.scope !== 'full' && def.scope !== 'known') return null
   if (def.metrics_path !== undefined && typeof def.metrics_path !== 'string') return null
   let pass: TestTemplateDefinition['pass']
@@ -56,7 +57,7 @@ function decodeDefinition(value: unknown): TestTemplateDefinition | null {
     label: def.label,
     command: def.command,
     ...(def.cwd === undefined ? {} : { cwd: def.cwd }),
-    ...(def.timeout_s === undefined ? {} : { timeout_s: def.timeout_s as number }),
+    ...(timeout === undefined ? {} : { timeout_s: timeout }),
     ...(def.scope === undefined ? {} : { scope: def.scope }),
     ...(def.metrics_path === undefined ? {} : { metrics_path: def.metrics_path }),
     ...(pass === undefined ? {} : { pass }),
