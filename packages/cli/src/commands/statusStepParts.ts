@@ -4,8 +4,8 @@
  * 每一块都读已有的判定源（技能证据、文档台账、guard 字段表），这里只把它们摆成 skill 能照做的形状。
  */
 import {
-  DOCUMENT_KIND_CATALOG, documentPathTemplateForKind, isDocumentKind, renderDocumentPathForKind,
-  readsRequiredForPolicyStep, recordProducerCandidatesForPolicyStep, requiresForPolicyStep,
+  DOCUMENT_KIND_CATALOG, documentPathTemplateForKind, isDocumentKind, orderSkillSlots, renderDocumentPathForKind,
+  readsRequiredForPolicyStep, recordProducerCandidatesForPolicyStep, requiresForPolicyStep, skillSlotStatuses,
   type DocumentEvidenceItem, type DocumentGovernancePolicy, type DocumentKind,
   type EffectiveWorkflowPlan, type PipelineState, type StepIR,
 } from '@tenon/kernel'
@@ -77,8 +77,9 @@ function scalar(state: PipelineState, field: string): string {
 }
 
 /**
- * 技能顺序的唯一真相源仍是解析出来的必需槽位：default 走 manifest 叠加，自定义走 step 声明。
- * 槽位是有序的，所以第 n 个槽位的前置就是它前面所有槽位。完成度直接取技能门的判定
+ * 技能列表是解析出来的必需槽位（default 走 manifest 叠加，自定义走 step 声明）；前置与波次取 kernel
+ * skill-order 的唯一口径——声明了 depends_on 的按声明成波，没声明的按声明顺序串行。技能门
+ * （internal-skill-gate）与 Dashboard 画布读同一份排序。完成度直接取技能门的判定
  * （stepSkillGate.judgeStepSkills），投影与 transition 不各算一遍。
  */
 export function stepSkills(
@@ -87,21 +88,15 @@ export function stepSkills(
   slots: readonly StepSkillSlotProgress[],
 ): readonly StepSkillView[] {
   const declared = plan.capabilities.skills.steps.find((step) => step.stepId === stepId)?.declared ?? []
-  const views: StepSkillView[] = []
-  let unlocked = true
-  for (const [index, slot] of slots.entries()) {
-    const id = canonicalTenonSkillId(slot.token)
-    views.push({
-      id,
-      depends_on: declared.find((ref) => canonicalTenonSkillId(ref.id) === id)?.dependsOn.map(canonicalTenonSkillId)
-        ?? views.slice(0, index).map((view) => view.id),
-      wave: index,
-      status: slot.done ? 'done' : !unlocked ? 'waiting' : slot.invoked ? 'invoked' : 'ready',
-      pending_documents: slot.pendingDocuments,
-    })
-    if (!slot.done) unlocked = false
-  }
-  return views
+  const ordered = orderSkillSlots(slots.map((slot) => ({ token: slot.token, alternatives: slot.token.split('|') })), declared)
+  const statuses = skillSlotStatuses(ordered, slots)
+  return slots.map((slot, index) => ({
+    id: canonicalTenonSkillId(slot.token),
+    depends_on: (ordered[index]?.dependsOn ?? []).map(canonicalTenonSkillId),
+    wave: ordered[index]?.wave ?? index,
+    status: statuses[index] ?? 'waiting',
+    pending_documents: slot.pendingDocuments,
+  }))
 }
 
 /**

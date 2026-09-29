@@ -155,6 +155,20 @@ export {
 export type { TemplateWorkflowName } from './workflow/identifier.js'
 export { templateWorkflowSource } from './workflow/template-workflows.js'
 export { isSkillUnlocked } from './workflow/skillDag.js'
+export { dependencyWaves, directDependencies, type DependencyRef } from './workflow/dag-waves.js'
+export {
+  bareSkillId, effectiveSkillDependencies, minimalSkillDependencies, missingSkillDependencies,
+  orderSkillSlots, skillSlotStatuses,
+  type EffectiveSkillDependency, type OrderedSkillSlot, type SkillOrderDeclaration, type SkillOrderSlot,
+  type SkillRefLike, type SkillSlotStatus,
+} from './workflow/skill-order.js'
+export {
+  openspecInjectedSkills, orchestrate,
+  type OrchestrationEntry, type OrchestrationFlow, type OrchestrationInput, type OrchestrationKind,
+  type OrchestrationReturn, type OrchestrationSource, type OrchestrationStage, type OrchestrationStepSource,
+  type WorkflowOrchestration,
+} from './workflow/orchestration.js'
+export { buildOrchestration, manifestSkillOverlay, planEffectiveIo, planStepSources } from './workflow/orchestration-plan.js'
 export { classifyInteractionWorkflowIdentity } from './workflow/interaction-effect.js'
 export { parseWorkflow } from './workflow/parse.js'
 export { serializeWorkflow } from './workflow/serialize.js'
@@ -244,6 +258,7 @@ export type {
 export type { StepAgentsCapability } from './workflow/effective-plan-types.js'
 export {
   materializeWorkflowIo,
+  type MaterializableWorkflow,
   type WorkflowDocumentSlotIo, type WorkflowEffectiveIo, type WorkflowFieldSlotIo, type WorkflowIoSlot, type WorkflowStepIo,
 } from './workflow/effective-io.js'
 export type {

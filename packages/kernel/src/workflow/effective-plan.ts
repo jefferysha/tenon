@@ -130,6 +130,7 @@ function planFromIr(
           declared: step.skills.map((skill) => ({
             id: skill.id,
             dependsOn: [...(skill.depends_on ?? [])],
+            dependsOnDeclared: skill.depends_on !== undefined,
           })),
         })),
         trackOverlay: {

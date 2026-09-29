@@ -1,7 +1,55 @@
 import { describe, expect, test } from 'vitest'
-import type { DocumentEvidenceItem, DocumentGovernancePolicy, StepIR } from '@tenon/kernel'
+import {
+  builtinTrack, compileEffectiveWorkflowPlan, DEFAULT_WORKFLOW_SOURCE, parseWorkflow,
+  type DocumentEvidenceItem, type DocumentGovernancePolicy, type StepIR, type WorkflowDef,
+} from '@tenon/kernel'
 import { mockState } from '../test-support.js'
-import { stepDocuments, stepFields } from './statusStepParts.js'
+import { stepDocuments, stepFields, stepSkills } from './statusStepParts.js'
+
+describe('stepSkills —— 与技能门、画布同一份排序（kernel skill-order）', () => {
+  const slots = (tokens: readonly string[], done: readonly string[] = []) => tokens.map((token) => ({
+    token, invoked: done.includes(token), pendingDocuments: [], done: done.includes(token),
+  }))
+  const tokens = ['openspec-explore', 'brainstorming', 'grilling', 'domain-modeling']
+
+  test('前端 explore 未声明依赖：串行 4 波，只有第一个 ready', () => {
+    const plan = compileEffectiveWorkflowPlan('default', parseWorkflow(DEFAULT_WORKFLOW_SOURCE), builtinTrack('frontend'))
+    const views = stepSkills(plan, 'explore', slots(tokens))
+    expect(views.map((view) => [view.id, view.wave, view.status])).toEqual([
+      ['openspec-explore', 0, 'ready'], ['brainstorming', 1, 'waiting'], ['grilling', 2, 'waiting'], ['domain-modeling', 3, 'waiting'],
+    ])
+    expect(views[2]?.depends_on).toEqual(['openspec-explore', 'brainstorming'])
+  })
+
+  test('声明依赖后按波次放行：同一波的技能一起 ready', () => {
+    const def = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
+    const frontend = def.tracks?.frontend
+    if (frontend === undefined) throw new Error('frontend branch missing')
+    const waved: WorkflowDef = {
+      ...def,
+      tracks: {
+        ...def.tracks,
+        frontend: {
+          ...frontend,
+          steps: frontend.steps.map((step) => step.id !== 'explore' ? step : {
+            ...step,
+            skills: [
+              { id: 'openspec-explore' },
+              { id: 'brainstorming', depends_on: ['openspec-explore'] },
+              { id: 'grilling', depends_on: ['openspec-explore'] },
+              { id: 'domain-modeling', depends_on: ['brainstorming', 'grilling'] },
+            ],
+          }),
+        },
+      },
+    }
+    const plan = compileEffectiveWorkflowPlan('default', waved, builtinTrack('frontend'))
+    const views = stepSkills(plan, 'explore', slots(tokens, ['openspec-explore']))
+    expect(views.map((view) => [view.id, view.wave, view.status])).toEqual([
+      ['openspec-explore', 0, 'done'], ['brainstorming', 1, 'ready'], ['grilling', 1, 'ready'], ['domain-modeling', 2, 'waiting'],
+    ])
+  })
+})
 
 function step(over: Partial<StepIR> = {}): StepIR {
   return {

@@ -45,7 +45,15 @@ export interface EffectiveWorkflowPlan {
       readonly steps: readonly {
         readonly stepId: string
         readonly requiredSkillIds: readonly string[]
-        readonly declared: readonly { readonly id: string; readonly dependsOn: readonly string[] }[]
+        /**
+         * `dependsOnDeclared` = 定义里写了 depends_on（含 `[]`）；false 时按声明顺序串行
+         * （skill-order.orderSkillSlots）。老计划对象可能缺该字段，按 dependsOn 非空推断。
+         */
+        readonly declared: readonly {
+          readonly id: string
+          readonly dependsOn: readonly string[]
+          readonly dependsOnDeclared?: boolean
+        }[]
       }[]
       readonly trackOverlay: {
         readonly matrix: boolean
