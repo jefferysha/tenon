@@ -167,14 +167,25 @@ tenon review request <change> --event <event>
 tenon review acknowledge <change> [--delegated]
 tenon agent next <change> [--json]
 tenon agent prompt <change> <agent> [--host <id>] [--json]
-tenon agent record <change> <run-id> [--json]
+tenon agent record <change> <run-id> [--subagent <type>] [--json]
+tenon agent list [--role executor|reviewer] [--source official|custom|project] [--json]
+tenon agent show <name> [--json]
+tenon agent new [<name>] --role <role> --description <text> [--skills a,b] [--tools A,B] [--model <m>] [--hosts a,b] [--scope user|project] [--from <agent>]
+tenon agent add <file> [--scope user|project] [--replace]
+tenon agent validate <file|name>
+tenon agent copy <from> <to> [--scope user|project]
+tenon agent rm <name> [--scope user|project]
+tenon agent export <name> --host claude|codex
 ```
 
 `tenon agent` drives the executors and reviewers a step declares. Tenon only
 orders them, renders the handoff, records the verdict, and binds it to the
 candidate; the host runs every model. `next` returns the current wave, `prompt`
-starts or resumes one agent and prints its handoff, and `record` reads the
-trailing ```tenon-result``` block of the report. A reviewer never reports its own
+starts or resumes one agent and prints its handoff (with `--host claude|codex`
+it generates the host's `tenon-<name>` subagent file and returns
+`subagent_type`), and `record` reads the trailing ```tenon-result``` block of
+the report (`--subagent` records the subagent that actually ran). The library
+commands register agents in the terminal; see [Agents](agents.md). A reviewer never reports its own
 verdict: Tenon derives pass or fail from the finding severities and the step's
 `block_at`. Human `review request/acknowledge` remains a separate exact-event
 confirmation boundary and may be combined with reviewers.
@@ -249,7 +260,7 @@ steps:
 Every `required` reviewer must pass on the current candidate before the step can
 be left; an advisory reviewer only reports. `reads_tests` names tests the same
 step declares, and Tenon hands their results to the reviewer. Agent definitions
-live in the global agent library and are frozen into
+live in the agent library (official, custom, and the project's `.tenon/agents/`) and are frozen into
 `<change>/.pipeline-frozen/` when the Change is created, so editing the library
 never changes a Change that is already running.
 

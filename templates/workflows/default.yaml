@@ -58,6 +58,9 @@ tracks:
           - field: design_doc
             type: file_path
             producer_policy: effective-phase-skills
+        agents:
+          executors:
+            - agent: researcher
         guards: []
         transitions:
           - event: explore-complete
@@ -97,6 +100,8 @@ tracks:
           - field: build_sha
             type: string
         agents:
+          executors:
+            - agent: builder
           reviewers:
             - agent: spec-consistency
               required: true
@@ -126,6 +131,22 @@ tracks:
           - field: verification_report
             type: file_path
             producer_policy: effective-phase-skills
+        tests:
+          - id: code-size
+            direction: code-size
+            command: tenon test code-size --json
+            label: 代码规模
+            timeout_s: 120
+            required: true
+        agents:
+          reviewers:
+            - agent: code-size
+              required: true
+              block_at: medium
+              reads_tests: [code-size]
+            - agent: security
+              required: false
+              block_at: medium
         guards: []
         transitions:
           - event: verify-pass
@@ -223,6 +244,9 @@ tracks:
           - field: design_doc
             type: file_path
             producer_policy: effective-phase-skills
+        agents:
+          executors:
+            - agent: researcher
         guards: []
         transitions:
           - event: explore-complete
@@ -268,6 +292,8 @@ tracks:
           - field: build_sha
             type: string
         agents:
+          executors:
+            - agent: builder
           reviewers:
             - agent: spec-consistency
               required: true
@@ -301,6 +327,19 @@ tracks:
           - field: verification_report
             type: file_path
             producer_policy: effective-phase-skills
+        tests:
+          - id: code-size
+            direction: code-size
+            command: tenon test code-size --json
+            label: 代码规模
+            timeout_s: 120
+            required: true
+        agents:
+          reviewers:
+            - agent: code-size
+              required: true
+              block_at: medium
+              reads_tests: [code-size]
         guards: []
         transitions:
           - event: verify-pass
@@ -403,6 +442,9 @@ tracks:
           - field: design_doc
             type: file_path
             producer_policy: effective-phase-skills
+        agents:
+          executors:
+            - agent: researcher
         guards: []
         transitions:
           - event: explore-complete
@@ -460,6 +502,9 @@ tracks:
             label: 单测
             timeout_s: 900
             required: true
+        agents:
+          executors:
+            - agent: builder
         guards:
           - type: field-equals
             field: pre_verify_review_result
@@ -504,6 +549,12 @@ tracks:
               - path: test-results
                 kind: trace
                 required: false
+          - id: code-size
+            direction: code-size
+            command: tenon test code-size --json
+            label: 代码规模
+            timeout_s: 120
+            required: true
         agents:
           reviewers:
             - agent: spec-consistency
@@ -522,6 +573,10 @@ tracks:
               required: false
               block_at: high
               depends_on: [spec-consistency, frontend-quality, security, e2e]
+            - agent: code-size
+              required: true
+              block_at: medium
+              reads_tests: [code-size]
         guards: []
         transitions:
           - event: verify-pass
@@ -631,6 +686,9 @@ tracks:
           - field: design_doc
             type: file_path
             producer_policy: effective-phase-skills
+        agents:
+          executors:
+            - agent: researcher
         guards: []
         transitions:
           - event: explore-complete
@@ -679,6 +737,9 @@ tracks:
             label: 单测
             timeout_s: 900
             required: true
+        agents:
+          executors:
+            - agent: builder
         guards:
           - type: field-equals
             field: pre_verify_review_result
@@ -712,6 +773,12 @@ tracks:
             label: 集成
             timeout_s: 1800
             required: true
+          - id: code-size
+            direction: code-size
+            command: tenon test code-size --json
+            label: 代码规模
+            timeout_s: 120
+            required: true
         agents:
           reviewers:
             - agent: spec-consistency
@@ -727,6 +794,10 @@ tracks:
               required: false
               block_at: high
               depends_on: [spec-consistency, backend-quality, security]
+            - agent: code-size
+              required: true
+              block_at: medium
+              reads_tests: [code-size]
         guards: []
         transitions:
           - event: verify-pass
@@ -823,6 +894,9 @@ tracks:
           - field: design_doc
             type: file_path
             producer_policy: effective-phase-skills
+        agents:
+          executors:
+            - agent: researcher
         guards: []
         transitions:
           - event: explore-complete
@@ -865,6 +939,8 @@ tracks:
           - field: build_sha
             type: string
         agents:
+          executors:
+            - agent: builder
           reviewers:
             - agent: spec-consistency
               required: true
@@ -895,6 +971,22 @@ tracks:
           - field: verification_report
             type: file_path
             producer_policy: effective-phase-skills
+        tests:
+          - id: code-size
+            direction: code-size
+            command: tenon test code-size --json
+            label: 代码规模
+            timeout_s: 120
+            required: true
+        agents:
+          reviewers:
+            - agent: code-size
+              required: true
+              block_at: medium
+              reads_tests: [code-size]
+            - agent: security
+              required: false
+              block_at: medium
         guards: []
         transitions:
           - event: verify-pass

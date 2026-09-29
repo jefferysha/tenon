@@ -14,6 +14,7 @@ const usageFiles = [
   'default-workflow.md',
   'custom-workflows-and-tracks.md',
   'documents-skills-and-evidence.md',
+  'agents.md',
   'dashboard-and-local-api.md',
   'automation-and-loops.md',
   'advanced-tools.md',

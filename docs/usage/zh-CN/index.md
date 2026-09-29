@@ -9,6 +9,7 @@ Tenon 是面向 Codex、Claude Code 等 Agent 宿主的本地优先交付工作�
 - 任务一直显示等待：读[Dashboard 与本地 API](./dashboard-and-local-api.md)和[故障排查](./troubleshooting.md)。
 - 需要团队定制：读[自定义 Workflow 与 Track](./custom-workflows-and-tracks.md)。
 - 需要理解证据门：读[文档、Skill 与证据链](./documents-skills-and-evidence.md)。
+- 需要自己的执行者或评审者：读[智能体](./agents.md)。
 
 ## 四种常用结果
 

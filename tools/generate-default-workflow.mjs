@@ -141,7 +141,8 @@ function parseStepItems(lines, start, blockIndent) {
       const l = lines[i] ?? ''
       if (l.trim() === '') { i++; continue }
       if (indentOf(l) <= stepIndent) break // 下一个 step / EOF
-      const labelMatch = /^\s*label:\s*(.+?)\s*$/.exec(l)
+      // 只认步骤自己的 label（键缩进 = `- ` 之后那一列）；tests 等子项里的 label 属于子项。
+      const labelMatch = indentOf(l) === stepIndent + 2 ? /^\s*label:\s*(.+?)\s*$/.exec(l) : null
       if (labelMatch) {
         label = labelMatch[1]
         i++
