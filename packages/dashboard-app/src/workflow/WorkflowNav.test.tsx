@@ -160,7 +160,8 @@ describe('WorkflowNav', () => {
     expect(screen.getByTestId('wb-step-explore')).toHaveTextContent('调研')
     expect(screen.getByTestId('wb-step-explore')).not.toHaveTextContent('tenon-explore')
     expect(screen.getByTestId('wb-gate-explore').querySelector('[data-gate="review"]')).not.toBeNull()
-    expect(screen.queryByTestId('wb-gate-open')).toBeNull()
+    // 门禁只有 评审 / 自动：gate null 与自动同义，块上也是自动图标。
+    expect(screen.getByTestId('wb-gate-open').querySelector('[data-gate="auto"]')).not.toBeNull()
     expect(screen.getByTestId('wb-back-edge-build-spec')).toHaveAttribute('d', backEdgePath(3, 2))
     expect(backEdgePath(3, 2)).toContain(`${3 * STEP_PITCH + 20}`)
     await user.click(screen.getByTestId('wb-step-spec'))

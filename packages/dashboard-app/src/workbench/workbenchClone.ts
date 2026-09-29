@@ -81,7 +81,7 @@ export function copyWorkflowDef(def: WbWorkflowDef, name: string): WbWorkflowDef
 export function blankWorkflow(name: string, stageLabel: string): WbWorkflowDef {
   return {
     name,
-    steps: [{ id: 'stage-1', label: stageLabel, gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] }],
+    steps: [{ id: 'stage-1', label: stageLabel, gate: 'auto', skills: [], inputs: [], outputs: [], guards: [], transitions: [] }],
   }
 }
 

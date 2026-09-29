@@ -250,7 +250,7 @@ describe('StageEditorPane · 两栏定稿', () => {
     expect(group.querySelector('.lucide-info')).toBeNull()
   })
 
-  it('门禁键盘：方向键在三项间移动并选中', async () => {
+  it('门禁键盘：方向键在评审 / 自动两项间移动并选中', async () => {
     vi.stubGlobal('ResizeObserver', class { observe(): void {} unobserve(): void {} disconnect(): void {} })
     const user = userEvent.setup()
     const editor = renderPane(EXPLORE)
@@ -261,7 +261,7 @@ describe('StageEditorPane · 两栏定稿', () => {
   vi.unstubAllGlobals()
   })
 
-  it('门禁三选：aria-checked 跟随 step.gate，点选写回；说明用 Tooltip（聚焦可达），不用原生 title', async () => {
+  it('门禁两选（评审 / 自动）：aria-checked 跟随 step.gate，点选写回；说明用 Tooltip（聚焦可达），不用原生 title', async () => {
     vi.stubGlobal('ResizeObserver', class { observe(): void {} unobserve(): void {} disconnect(): void {} })
     const user = userEvent.setup()
     const editor = renderPane(EXPLORE)
@@ -269,11 +269,24 @@ describe('StageEditorPane · 两栏定稿', () => {
     expect(review).toHaveAttribute('aria-checked', 'true')
     expect(review).not.toHaveAttribute('title')
     expect(review).toHaveAccessibleDescription('产物齐全后需人工确认')
-    act(() => { screen.getByTestId('wb-lane-gate-explore-none').focus() })
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('不拦')
+    expect(screen.queryByTestId('wb-lane-gate-explore-none')).toBeNull()
+    expect(screen.getByTestId('wb-lane-gate-explore').querySelectorAll('[role="radio"]')).toHaveLength(2)
+    act(() => { screen.getByTestId('wb-lane-gate-explore-auto').focus() })
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('产物齐全即放行')
     vi.unstubAllGlobals()
     await user.click(screen.getByTestId('wb-lane-gate-explore-auto'))
     expect(editor.setGate).toHaveBeenCalledWith('explore', 'auto')
+  })
+
+  it('gate null 与自动同义：控件按自动选中，点「自动」不产生改动；点「评审」写回 review', async () => {
+    const user = userEvent.setup()
+    const editor = renderPane({ ...EXPLORE, gate: null })
+    expect(screen.getByTestId('wb-lane-gate-explore-auto')).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByTestId('wb-lane-gate-explore-review')).toHaveAttribute('aria-checked', 'false')
+    await user.click(screen.getByTestId('wb-lane-gate-explore-auto'))
+    expect(editor.setGate).not.toHaveBeenCalled()
+    await user.click(screen.getByTestId('wb-lane-gate-explore-review'))
+    expect(editor.setGate).toHaveBeenCalledWith('explore', 'review')
   })
 })
 

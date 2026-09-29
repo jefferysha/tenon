@@ -73,7 +73,7 @@ export function useStageDraftEditor(input: StageDraftInput): StageDraftControlle
       }
       const nextSteps = [...steps]
       nextSteps.splice(insertIndex, 0, {
-        id, label, gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions,
+        id, label, gate: 'auto', skills: [], inputs: [], outputs: [], guards: [], transitions,
       })
       return { ...current, steps: nextSteps }
     })

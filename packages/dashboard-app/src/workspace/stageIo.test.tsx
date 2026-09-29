@@ -83,4 +83,11 @@ describe('gateProgress', () => {
     expect(gateProgress(null, [row('set')], true)).toBeNull()
     expect(gateProgress('auto', [], true)).toBeNull()
   })
+
+  it('自动门禁不数引擎写入的输出（build_sha 离开本阶段前不会有值）；评审照数', () => {
+    const engine: IoRow = { ...row('unset'), slot: { kind: 'field', id: 'build_sha', type: 'string', producer: null, consumers: [] } }
+    expect(gateProgress('auto', [row('set'), engine], false)).toEqual({ gate: 'auto', done: 1, total: 1 })
+    expect(gateProgress('auto', [engine], false)).toBeNull()
+    expect(gateProgress('review', [row('set'), engine], false)).toEqual({ gate: 'review', done: 1, total: 3 })
+  })
 })

@@ -12,6 +12,7 @@ import {
   cloneWorkflowDef,
   copyWorkflowDef,
   definitionForWrite,
+  gateKind,
   removeSkillFromDef,
   removeStageFromDef,
   removeTrackBranch,
@@ -80,6 +81,21 @@ function twoStep(): WbWorkflowDef {
 }
 
 describe('workbenchDefinition · 写回投影', () => {
+  it('门禁只有 评审 / 自动：gate null 读作自动，写回时顶层与每条轨道分支都显式写 auto，review 不动', () => {
+    expect(gateKind(null)).toBe('auto')
+    expect(gateKind('auto')).toBe('auto')
+    expect(gateKind('review')).toBe('review')
+    const written = definitionForWrite({
+      name: 'flow',
+      steps: [stage('a'), { ...stage('b'), gate: 'review' }],
+      tracks: { be: { label: '后端', steps: [stage('x')] } },
+      source: 'project',
+    })
+    expect(written.steps.map((item) => item.gate)).toEqual(['auto', 'review'])
+    expect(written.tracks?.be?.steps.map((item) => item.gate)).toEqual(['auto'])
+    expect(written).not.toHaveProperty('source')
+  })
+
   it('definitionForWrite 剔除 source / effectiveIo；clone 深拷贝且不带投影字段', () => {
     const def = twoStep()
     expect(Object.keys(definitionForWrite(def))).toEqual(['name', 'steps'])
@@ -276,7 +292,7 @@ describe('workbenchDefinition · 新建', () => {
   })
 
   it('blankWorkflow 一个阶段、无输出；workflowNameFromYaml 取 name 行', () => {
-    expect(blankWorkflow('fresh', '阶段 1').steps).toEqual([{ id: 'stage-1', label: '阶段 1', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] }])
+    expect(blankWorkflow('fresh', '阶段 1').steps).toEqual([{ id: 'stage-1', label: '阶段 1', gate: 'auto', skills: [], inputs: [], outputs: [], guards: [], transitions: [] }])
     expect(workflowNameFromYaml('name: imported\nsteps: []\n')).toBe('imported')
     expect(workflowNameFromYaml('steps: []\n')).toBe('')
   })

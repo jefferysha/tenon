@@ -2,6 +2,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { AlertTriangle, MoreHorizontal, ShieldCheck, Trash2, Zap } from 'lucide-react'
 import type { WbStepDef } from '../api/governanceTypes'
 import { useT } from '../i18n'
+import { gateKind } from '../workbench/workbenchDefinition'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,9 +17,8 @@ import { cn } from '@/lib/utils'
 /** 行高 40 + 行距 14：回流弧按序号算坐标，不测 DOM。 */
 export const STEP_HEIGHT = 40
 
-export function GateIcon({ gate }: { gate: WbStepDef['gate'] }): JSX.Element | null {
+export function GateIcon({ gate }: { gate: 'review' | 'auto' }): JSX.Element {
   const { t } = useT()
-  if (gate === null) return null
   const Icon = gate === 'review' ? ShieldCheck : Zap
   return (
     <span className={cn('grid flex-none place-items-center', gate === 'review' ? 'text-amber-d' : 'text-(--accent)')} title={t(`workflow.gate_${gate}`)} data-testid="wb-gate-mark" data-gate={gate}>
@@ -62,7 +62,7 @@ export function StepRow({ step, order, selected, issue, editable, deletable, lab
       <span className="truncate whitespace-nowrap">{labelOf(step.id)}</span>
       <span className="flex flex-none items-center gap-1.5">
         {issue !== undefined && <AlertTriangle className={cn('size-4', issue.severity === 'error' ? 'text-red-d' : 'text-amber-d')} aria-hidden="true" data-testid={`wb-lint-${step.id}`} data-severity={issue.severity} />}
-        {step.gate !== null && <span data-testid={`wb-gate-${step.id}`}><GateIcon gate={step.gate} /></span>}
+        <span data-testid={`wb-gate-${step.id}`}><GateIcon gate={gateKind(step.gate)} /></span>
       </span>
     </button>
   )

@@ -2,7 +2,7 @@ import { AlertTriangle } from 'lucide-react'
 import type { WbStepDef } from '../api/governanceTypes'
 import { useT } from '../i18n'
 import type { WorkflowEditor } from '../workbench/useWorkflowEditor'
-import { backTargetOf } from '../workbench/workbenchDefinition'
+import { backTargetOf, gateKind } from '../workbench/workbenchDefinition'
 import { GateSegment } from './GateSegment'
 import { Hint } from './Hint'
 import { issuesFor } from './lint'
@@ -35,7 +35,7 @@ export function GateSection({ editor, step, hasOutputs }: { editor: WorkflowEdit
       <div className="flex items-center gap-2">
         <GateSegment stepId={step.id} value={step.gate} disabled={!editable} onChange={(gate) => editor.setGate(step.id, gate)} />
         {/* 自动门禁看的是产物齐全；阶段没有输出时它无从判断，标警示图标，原因放 Tooltip。 */}
-        {step.gate === 'auto' && !hasOutputs && (
+        {gateKind(step.gate) === 'auto' && !hasOutputs && (
           <Hint label={t('workflow.gate_auto_no_output')}>
             <button type="button" className="grid size-8 flex-none place-items-center rounded-sm text-amber-d outline-none focus-visible:ring-2 focus-visible:ring-(--accent)" aria-label={t('workflow.gate_auto_no_output')} data-testid="stage-gate-auto-warning">
               <AlertTriangle className="size-4" aria-hidden="true" />

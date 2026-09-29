@@ -41,10 +41,28 @@ export type {
  * 返回新对象，不改入参。定义 = 服务端读回的 WbWorkflowDef（default 亦然）；前端不再持有任何内建副本。
  */
 
-/** 写回前剔除读接口附带的投影字段。 */
+/** 门禁只有 评审 / 自动：`gate: null`（旧定义、缺省）与自动同义，读到就按自动看。 */
+export function gateKind(gate: WbStepDef['gate']): 'review' | 'auto' {
+  return gate === 'review' ? 'review' : 'auto'
+}
+
+function withExplicitGates(steps: readonly WbStepDef[]): WbStepDef[] {
+  return steps.map((step) => step.gate === null ? { ...step, gate: 'auto' } : step)
+}
+
+/**
+ * 写回前剔除读接口附带的投影字段，并把 `gate: null` 显式写成 `auto`（保存后 YAML 里只有 review / auto）。
+ * 草稿与基线都过这里再比较，所以打开旧定义不会凭空变成「有改动」。
+ */
 export function definitionForWrite(def: WbWorkflowDef): Omit<WbWorkflowDef, 'source' | 'effectiveIo' | 'branches'> {
   const { source: _source, effectiveIo: _effectiveIo, branches: _branches, ...definition } = def
-  return definition
+  return {
+    ...definition,
+    steps: withExplicitGates(definition.steps),
+    ...(definition.tracks === undefined ? {} : {
+      tracks: Object.fromEntries(Object.entries(definition.tracks).map(([id, branch]) => [id, { ...branch, steps: withExplicitGates(branch.steps) }])),
+    }),
+  }
 }
 
 export function renameStepInDef(def: WbWorkflowDef, stepId: string, label: string): WbWorkflowDef {

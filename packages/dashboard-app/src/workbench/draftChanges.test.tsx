@@ -32,8 +32,14 @@ describe('countDraftChanges：「未保存 N 处」按阶段 / 轨道 / 工作�
     const draft = copy()
     draft.tracks!.pm!.steps[0] = stage('a', { label: 'A', gate: 'review' })
     expect(countDraftChanges(BASE, draft)).toBe(1)
-    draft.tracks!.be!.steps[0] = stage('x', { gate: 'auto' })
+    draft.tracks!.be!.steps[0] = stage('x', { gate: 'review' })
     expect(countDraftChanges(BASE, draft)).toBe(2)
+  })
+
+  it('gate null 与 auto 同义：null 改成 auto 不算改动，写回时统一是 auto', () => {
+    const draft = copy()
+    draft.tracks!.be!.steps[0] = stage('x', { gate: 'auto' })
+    expect(countDraftChanges(BASE, draft)).toBe(0)
   })
 
   it('删一个阶段 = 1；只换顺序 = 1；新增轨道 = 1；工作流级开关 = 1', () => {

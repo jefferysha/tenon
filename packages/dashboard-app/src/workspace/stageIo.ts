@@ -1,3 +1,4 @@
+import { isEngineWrittenOutput } from '@tenon/kernel/workflow/auto-gate'
 import type { WbIoSlot, WbStepIo } from '../api/governanceTypes'
 import type { ChangeSnapshot, DocumentStaleReason } from '../types'
 import { producerSkills } from '../workflow/producers'
@@ -88,9 +89,13 @@ export function gateProgress(
   reviewSatisfied: boolean,
 ): { gate: 'review' | 'auto'; done: number; total: number } | null {
   if (gate === null) return null
-  const total = outputs.length + (gate === 'review' ? 1 : 0)
+  // 自动门禁不检查引擎自己写的输出（build_sha 等：离开本阶段之前不会有值），计数与内核同口径。
+  const checked = gate === 'auto'
+    ? outputs.filter((row) => !(row.slot.kind === 'field' && isEngineWrittenOutput(row.slot.id)))
+    : outputs
+  const total = checked.length + (gate === 'review' ? 1 : 0)
   if (total === 0) return null
-  const done = outputs.filter(isReadyRow).length + (gate === 'review' && reviewSatisfied ? 1 : 0)
+  const done = checked.filter(isReadyRow).length + (gate === 'review' && reviewSatisfied ? 1 : 0)
   return { gate, done, total }
 }
 

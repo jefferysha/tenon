@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { orchestrate, type WorkflowOrchestration } from '@tenon/kernel/workflow/orchestration'
 import type { WbEffectiveIo, WbWorkflowDef } from '../api/governanceTypes'
 import { fetchWorkflowOrchestration } from '../api/workflowOrchestrationClient'
+import { gateKind } from '../workbench/workbenchDefinition'
 
 export type ManifestOverlay = Readonly<Record<string, readonly string[]>>
 
@@ -43,7 +44,8 @@ export function useManifestOverlay(root: string, name: string | null, track: str
 }
 
 export function draftOrchestration(def: WbWorkflowDef, io: WbEffectiveIo | undefined, overlay: ManifestOverlay): WorkflowOrchestration {
-  return orchestrate({ steps: def.steps, ...(io === undefined ? {} : { io }), overlay })
+  // 与服务端编译同口径：gate null 就是自动。
+  return orchestrate({ steps: def.steps.map((step) => ({ ...step, gate: gateKind(step.gate) })), ...(io === undefined ? {} : { io }), overlay })
 }
 
 export function useDraftOrchestration(def: WbWorkflowDef | null, io: WbEffectiveIo | undefined, overlay: ManifestOverlay = NO_OVERLAY): WorkflowOrchestration | null {

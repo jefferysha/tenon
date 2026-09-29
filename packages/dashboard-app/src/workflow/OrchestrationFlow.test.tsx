@@ -8,6 +8,7 @@ import { I18nProvider } from '../i18n'
 import { OrchestrationFlow } from './OrchestrationFlow'
 import { entryNodeId, layoutOrchestration, stageNodeId } from './orchestrationLayout'
 import { pulsePlan } from './flowPulse'
+import { draftOrchestration } from './draftOrchestration'
 
 vi.mock('@xyflow/react', () => import('./reactFlowTestDouble'))
 vi.mock('@xyflow/react/dist/style.css', () => ({}))
@@ -198,5 +199,13 @@ describe('OrchestrationFlow · 与 kernel 同一份编排', () => {
     const serial = orchestrate({ steps: [{ id: 's', label: 'S', gate: null, skills: [{ id: 'a' }, { id: 'b' }, { id: 'c' }], transitions: [] }] })
     renderFlow({ stages: serial.stages, returns: [], flows: [], mode: 'stage' })
     expect(['a', 'b', 'c'].map((id) => screen.getByTestId(`orch-node-skill-${id}`).getAttribute('data-wave'))).toEqual(['0', '1', '2'])
+  })
+
+  it('草稿的 gate null 与服务端编译同口径：画成自动；review 不动', () => {
+    const stage = (id: string, gate: 'review' | 'auto' | null) => ({ id, label: id, gate, skills: [], inputs: [], outputs: [], guards: [], transitions: [] })
+    const drawn = draftOrchestration({ name: 'flow', steps: [stage('a', null), stage('b', 'auto'), stage('c', 'review')] }, undefined, {})
+    expect(drawn.stages.map((item) => item.gate)).toEqual(['auto', 'auto', 'review'])
+    renderFlow({ stages: drawn.stages, returns: [], flows: [], mode: 'overview' })
+    expect(screen.getAllByTestId('orch-gate').map((mark) => mark.getAttribute('data-gate'))).toEqual(['auto', 'auto', 'review'])
   })
 })
