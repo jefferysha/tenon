@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { decodeTestRunRecordV2, parseTestCatalog, testPlanDigest, type StepTestPolicyIR, type TestCatalog, type TestPlan } from '@tenon/kernel'
+import {
+  decodeTestRunRecordV2, parseTestCatalog, testPlanApprovalFreeDigest, testPlanDigest,
+  type StepTestPolicyIR, type TestCatalog, type TestPlan,
+} from '@tenon/kernel'
 import { fixtureCase, fixtureSuiteRun } from '@tenon/kernel/test-system/test-support'
-import { applyRunLevelReasons, draftOf, evaluationShell, machineOf, planBindingDigest } from './run-record.js'
+import { applyRunLevelReasons, draftOf, evaluationShell, machineOf } from './run-record.js'
 
 const POLICY: StepTestPolicyIR = {
   plan: 'optional', kinds: [], run: ['unit'], run_if_registered: [], scope: 'changed', files: 'any', scenarios: 'off',
@@ -74,20 +77,20 @@ describe('draftOf', () => {
   })
 })
 
-describe('planBindingDigest', () => {
+describe('记录绑定的计划摘要（kernel testPlanApprovalFreeDigest）', () => {
   const withWaiver = (approvedBy: string | null, reason = '纯文案改动'): TestPlan => ({
     ...PLAN, waivers: [{ kind: 'benchmark', reason, approved_by: approvedBy }],
   })
 
   it('批准位不进摘要：评审批准豁免不会让批准之前的运行过期', () => {
-    expect(planBindingDigest(withWaiver('reviewer@x.io'))).toBe(planBindingDigest(withWaiver(null)))
-    expect(planBindingDigest(withWaiver(null))).toBe(testPlanDigest(withWaiver(null)))
+    expect(testPlanApprovalFreeDigest(withWaiver('reviewer@x.io'))).toBe(testPlanApprovalFreeDigest(withWaiver(null)))
+    expect(testPlanApprovalFreeDigest(withWaiver(null))).toBe(testPlanDigest(withWaiver(null)))
   })
 
   it('计划别的任何变化——新增豁免、改豁免理由、加套件——摘要照常变化', () => {
-    const base = planBindingDigest(withWaiver(null))
-    expect(planBindingDigest(PLAN)).not.toBe(base)
-    expect(planBindingDigest(withWaiver(null, '换了原因'))).not.toBe(base)
-    expect(planBindingDigest({ ...withWaiver(null), suites: [...PLAN.suites, { suite: 'web', scope: 'full' }] })).not.toBe(base)
+    const base = testPlanApprovalFreeDigest(withWaiver(null))
+    expect(testPlanApprovalFreeDigest(PLAN)).not.toBe(base)
+    expect(testPlanApprovalFreeDigest(withWaiver(null, '换了原因'))).not.toBe(base)
+    expect(testPlanApprovalFreeDigest({ ...withWaiver(null), suites: [...PLAN.suites, { suite: 'web', scope: 'full' }] })).not.toBe(base)
   })
 })

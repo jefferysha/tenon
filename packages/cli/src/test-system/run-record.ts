@@ -3,19 +3,10 @@
  * flaky 总数超限）、以及最终的记录草稿（链字段与摘要由 appendTestRunRecordV2 在锁内补齐）。
  */
 import {
-  TEST_RUN_V2_SCHEMA, catalogSuitesDigest, fileRefMatches, machineProfile, readMachineProfileInput, testPlanDigest, testPolicyDigest,
+  TEST_RUN_V2_SCHEMA, catalogSuitesDigest, fileRefMatches, machineProfile, readMachineProfileInput, testPolicyDigest,
   type MachineProfile, type RecordActor, type ServiceRunV2, type StepTestPolicyIR, type SuiteReason, type SuiteRunV2, type TestCatalog,
   type TestHostKind, type TestPlan, type TestRunRecordV2, type TestRunRecordV2Draft,
 } from '@tenon/kernel'
-
-/**
- * 记录绑定的计划摘要：豁免的批准位一律当作未批准来算。评审确认只是把 `approved_by` 从空写成批准人，
- * 批准之前的运行绑定的是「全部未批准」的那份计划——不该因为这次确认而过期。计划里别的任何变化（含新增 / 改动豁免本身）
- * 摘要照常变化。与门禁侧的新鲜度判定（接受原摘要或去掉批准的摘要）是同一口径。
- */
-export function planBindingDigest(plan: TestPlan): string {
-  return testPlanDigest({ ...plan, waivers: plan.waivers.map((waiver) => ({ ...waiver, approved_by: null })) })
-}
 
 export function machineOf(catalog: TestCatalog, env: NodeJS.ProcessEnv): MachineProfile {
   const values = Object.fromEntries(catalog.profiles_env.map((name) => [name, env[name]]))
