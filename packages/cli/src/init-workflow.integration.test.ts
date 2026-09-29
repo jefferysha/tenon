@@ -312,6 +312,8 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
     expect(await h.run(['transition', name, 'open-complete'])).toBe(0)
     await recordSkills('brainstorming')
     expect(await h.run(['document', 'read', name, 'all'])).toBe(0)
+    // free 的调研步骤挂了 researcher 执行者：跑过之后才能请求评审。
+    await h.satisfyStepAgents(name)
     expect(
       await h.run(['review', 'request', name, '--event', 'explore-complete']),
       h.err.join('\n'),
@@ -324,7 +326,7 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
     expect(await h.run(['review', 'acknowledge', name])).toBe(0)
     expect(await h.run(['transition', name, 'spec-complete'])).toBe(0)
 
-    // free 的 build 就绪证据是必需评审者 spec-consistency：跑过之后通过结论才写得进。
+    // free 的 build 就绪证据是 builder 执行者与必需评审者 spec-consistency：跑过之后通过结论才写得进。
     await h.satisfyStepAgents(name)
     expect(await h.run([
       'set-many', name,
@@ -337,6 +339,9 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
     expect(await h.run(['set', name, 'branch_status', 'handled'])).toBe(0)
     await recordSkills('verification-before-completion')
     expect(await h.run(['document', 'read', name, 'all'])).toBe(0)
+    // free 的验证步骤声明了 code-size 测试与评审者（另有参考评审者 security）：先办完再请求评审。
+    await h.satisfyStepTests(name, 'verify')
+    await h.satisfyStepAgents(name)
     expect(
       await h.run(['review', 'request', name, '--event', 'verify-pass']),
       h.err.join('\n'),

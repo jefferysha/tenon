@@ -244,6 +244,8 @@ describe('真实 e2e —— 完整多相位 workflow × skill 编排一体化闭
         : phase === 'verify' ? 'verify-pass'
           : undefined
     if (event === undefined) throw new Error(`phase '${phase}' does not have a default review exit`)
+    // 调研步骤的 researcher 执行者先办完，评审请求的预检才会过。
+    await h.satisfyStepAgents(CHANGE)
     expect(await h.run(['review', 'request', CHANGE, '--event', event]), `${phase} request`).toBe(0)
     const marker = join(h.cwd, '.pipeline-pending-review')
     expect(await pathExists(marker), `${phase} request 应写 v2 review 投影`).toBe(true)
@@ -316,7 +318,8 @@ describe('真实 e2e —— 完整多相位 workflow × skill 编排一体化闭
     ])).toBe(0)
     // default 的 backend 轨在 build/verify 声明了必需测试：真跑、真落记录，不旁路门禁。
     await h.satisfyStepTests(CHANGE, 'build')
-    // pre-Verify 结论只能在本步就绪证据（必需测试）齐全之后写入。
+    await h.satisfyStepAgents(CHANGE)
+    // pre-Verify 结论只能在本步就绪证据（必需测试与 builder 执行者）齐全之后写入。
     expect(await h.run(['set', CHANGE, 'pre_verify_review_result', 'pass']), h.err.join('\n')).toBe(0)
 
     // ── build-complete → verify（review 相位）──
@@ -436,6 +439,7 @@ tracks:
     await invokeSkillThroughGate('open', 'tenon')
     expect(await h.run(['transition', CHANGE, 'open-complete'])).toBe(0)
     await h.seedArtifact(CHANGE, 'design_doc', `openspec/changes/${CHANGE}/design.md`)
+    await h.satisfyStepAgents(CHANGE)
     expect(await h.run(['review', 'request', CHANGE, '--event', 'explore-complete'])).toBe(0)
     const markerPath = join(h.cwd, '.pipeline-pending-review')
     expect(await pathExists(markerPath)).toBe(true)

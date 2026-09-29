@@ -55,7 +55,7 @@ describe('转换管理的状态字段（D10）', () => {
 })
 
 describe('pre_verify_review_result 绑定本步证据', () => {
-  test('backend build：必需测试没过不许置 pass；测试过了才许；pending 永远可写', async () => {
+  test('backend build：必需测试与 builder 没过不许置 pass；都过了才许；pending 永远可写', async () => {
     await init('pv', 'backend')
     await h.seedPhase('pv', 'build')
     expect(await h.run(['set', 'pv', 'pre_verify_review_result', 'pass'])).toBe(1)
@@ -68,6 +68,10 @@ describe('pre_verify_review_result 绑定本步证据', () => {
     expect(await get('pv', 'build_mode')).toBe('null')
 
     await h.satisfyStepTests('pv', 'build')
+    // 测试齐了还差 builder 执行者：结论仍写不进。
+    expect(await h.run(['set', 'pv', 'pre_verify_review_result', 'pass'])).toBe(1)
+    expect(h.err.join('\n')).toContain('执行者 builder 未完成')
+    await h.satisfyStepAgents('pv')
     expect(await h.run(['set', 'pv', 'pre_verify_review_result', 'pass']), h.err.join('\n')).toBe(0)
     expect(await get('pv', 'pre_verify_review_result')).toBe('pass')
     expect(await h.run(['set', 'pv', 'pre_verify_review_result', 'pending'])).toBe(0)
@@ -75,12 +79,16 @@ describe('pre_verify_review_result 绑定本步证据', () => {
 })
 
 describe('verify_result：只有 pm verify 接受手填，且要证据', () => {
-  // default 的 pm verify 没有声明测试或评审者，闸无从核对证据：只收紧到出口要的那个值。
-  test('pm verify：只接受出口要的 pass；fail 要走 verify-fail', async () => {
+  // default 的 pm verify 声明了 code-size 测试与必需评审者：出口要的那个值，加上本步证据齐全。
+  test('pm verify：只接受出口要的 pass 且要证据；fail 要走 verify-fail', async () => {
     await init('pmv', 'pm')
     await h.seedPhase('pmv', 'verify')
     expect(await h.run(['set', 'pmv', 'verify_result', 'fail'])).toBe(1)
     expect(h.err.join('\n')).toContain("字段 'verify_result' 在步骤 'verify' 只接受 pass")
+    expect(await h.run(['set', 'pmv', 'verify_result', 'pass'])).toBe(1)
+    expect(h.err.join('\n')).toContain('code-size')
+    await h.satisfyStepTests('pmv', 'verify')
+    await h.satisfyStepAgents('pmv')
     expect(await h.run(['set', 'pmv', 'verify_result', 'pass']), h.err.join('\n')).toBe(0)
     expect(await get('pmv', 'verify_result')).toBe('pass')
   })

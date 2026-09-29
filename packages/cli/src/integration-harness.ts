@@ -68,7 +68,8 @@ import { createManifestSkillActionAuthorityResolver } from './skill-action-autho
 import { recordWorkflowPhaseSkill } from './integration-phase-skill-test-support.js'
 import { gitRemoteNames } from './gitRemotes.js'
 import { probeGitFinish } from './gitWorkspace.js'
-import { harnessAgentDeps } from './integration-harness-agents.js'
+import { agentPromptResult, agentWave, harnessAgentDeps } from './integration-harness-agents.js'
+import { ensureCodeSizeProbeOnPath } from './integration-harness-probe.js'
 export { recordWorkflowPhaseSkill } from './integration-phase-skill-test-support.js'
 
 /** Track Registry 校验上下文（与 main.ts trackValidationContext 同款，harness 镜像生产装配）。 */
@@ -157,33 +158,6 @@ export interface Harness {
    * 无发现的报告、record。不绕过门禁——落的是真台账行。
    */
   satisfyStepAgents: (name: string) => Promise<void>
-}
-
-/** `tenon agent next --json` 的窄解码：只取本波要跑的 agent，形状不符就当没有。 */
-function agentWave(json: string): string[] {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(json)
-  } catch {
-    return []
-  }
-  if (typeof parsed !== 'object' || parsed === null) return []
-  const wave = (parsed as Record<string, unknown>).wave
-  return Array.isArray(wave) ? wave.filter((id): id is string => typeof id === 'string') : []
-}
-
-/** `tenon agent prompt --json` 的窄解码：形状不符返回 null，由调用方 fail-loud。 */
-function agentPromptResult(json: string): { run_id: string; report_path: string; role: string } | null {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(json)
-  } catch {
-    return null
-  }
-  if (typeof parsed !== 'object' || parsed === null) return null
-  const row = parsed as Record<string, unknown>
-  if (typeof row.run_id !== 'string' || typeof row.report_path !== 'string' || typeof row.role !== 'string') return null
-  return { run_id: row.run_id, report_path: row.report_path, role: row.role }
 }
 
 /** `tenon test status --json` 的窄解码：只取还没通过的必需测试 id，形状不符就当没有。 */
@@ -366,6 +340,8 @@ export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.
 
 /** 建一个真实临时项目 harness。用毕请 rm(h.cwd)。 */
 export function makeHarness(cwd: string): Harness {
+  // 声明的必需测试 `tenon test code-size` 由 PATH 上的通过桩兑现（见 integration-harness-probe.ts）。
+  ensureCodeSizeProbeOnPath()
   const out: string[] = []
   const err: string[] = []
   const governedFixtures = new Set<string>()

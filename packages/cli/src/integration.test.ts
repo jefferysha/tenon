@@ -95,6 +95,9 @@ describe('真实 e2e —— 全命令驱动真 kernel + 真 fs（GOAL C9）', ()
     // 真建 design doc 并指向它 → check 过
     const ddir = join(h.cwd, 'openspec/changes/demo')
     await h.seedArtifact('demo', 'design_doc', 'openspec/changes/demo/design.md') // P6：artifact 白盒预置
+    // 调研步骤挂了 researcher 执行者：没跑之前 check 仍不过，跑过之后才 exit 0。
+    expect(await h.run(['check', 'demo'])).toBe(2)
+    await h.satisfyStepAgents('demo')
     expect(await h.run(['check', 'demo'])).toBe(0)
   })
 
@@ -137,6 +140,7 @@ describe('真实 e2e —— 全命令驱动真 kernel + 真 fs（GOAL C9）', ()
     // explore 出口：使用已记录的 OpenSpec design 并登记字段（不得改写 hash-bound 文档）。
     await h.seedArtifact('demo', 'design_doc', 'openspec/changes/demo/design.md') // P6：artifact 白盒预置
     await h.run(['transition', 'demo', 'open-complete'])
+    await h.satisfyStepAgents('demo')
     expect(await h.run(['review', 'request', 'demo', '--event', 'explore-complete'])).toBe(0)
     expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(0)
     expect(await h.run(['transition', 'demo', 'explore-complete'])).toBe(0)
@@ -153,7 +157,8 @@ describe('真实 e2e —— 全命令驱动真 kernel + 真 fs（GOAL C9）', ()
     ])
     // default 的 backend 轨在 build 声明了必需测试：像真实用户那样先跑它们（真记录，不是旁路）。
     await h.satisfyStepTests('demo', 'build')
-    // pre-Verify 结论只能在本步就绪证据（必需测试）齐全之后写入。
+    await h.satisfyStepAgents('demo')
+    // pre-Verify 结论只能在本步就绪证据（必需测试与 builder 执行者）齐全之后写入。
     expect(await h.run(['set', 'demo', 'pre_verify_review_result', 'pass']), h.err.join('\n')).toBe(0)
     expect(await h.run(['transition', 'demo', 'build-complete'])).toBe(0)
     expect(await h.read('demo')).toMatch(/^phase: verify$/m)
@@ -165,6 +170,7 @@ describe('真实 e2e —— 全命令驱动真 kernel + 真 fs（GOAL C9）', ()
     await h.seedGovernedDocumentEvidence('demo')
     await h.run(['transition', 'demo', 'open-complete']) // → explore（复核相位）
     await h.seedArtifact('demo', 'design_doc', 'openspec/changes/demo/design.md')
+    await h.satisfyStepAgents('demo')
     expect(await h.run(['review', 'request', 'demo', '--event', 'explore-complete'])).toBe(0)
     expect(await h.run(['inbox', '--json'])).toBe(0)
     const payload = JSON.parse(h.out.join('\n')) as { inbox: Array<{ name: string; waiting_on: string }> }
@@ -204,6 +210,7 @@ describe('真实 e2e —— 全命令驱动真 kernel + 真 fs（GOAL C9）', ()
     await h.seedGovernedDocumentEvidence('multi')
     await h.seedArtifact('multi', 'design_doc', 'openspec/changes/multi/design.md')
     expect(await h.run(['transition', 'multi', 'open-complete'])).toBe(0)
+    await h.satisfyStepAgents('multi')
     expect(await h.run(['review', 'request', 'multi', '--event', 'explore-complete'])).toBe(0)
     expect(await h.run(['review', 'acknowledge', 'multi'])).toBe(0)
     expect(await h.run(['transition', 'multi', 'explore-complete'])).toBe(0)
@@ -353,6 +360,7 @@ describe('真实 e2e —— 全命令驱动真 kernel + 真 fs（GOAL C9）', ()
     }
     const step = async (ev: string) => {
       if (ev === 'explore-complete' || ev === 'spec-complete' || ev === 'verify-pass' || ev === 'verify-fail') {
+        await h.satisfyStepAgents('e2e')
         expect(await h.run(['review', 'request', 'e2e', '--event', ev])).toBe(0)
         expect(await h.run(['review', 'acknowledge', 'e2e'])).toBe(0)
       }
@@ -373,7 +381,8 @@ describe('真实 e2e —— 全命令驱动真 kernel + 真 fs（GOAL C9）', ()
       'build_mode=direct', 'isolation=worktree', 'direct_override=true',
     ])
     await h.satisfyStepTests('e2e', 'build')
-    // pre-Verify 结论只能在本步就绪证据（必需测试）齐全之后写入。
+    await h.satisfyStepAgents('e2e')
+    // pre-Verify 结论只能在本步就绪证据（必需测试与 builder 执行者）齐全之后写入。
     expect(await h.run(['set', 'e2e', 'pre_verify_review_result', 'pass']), h.err.join('\n')).toBe(0)
     await step('build-complete')
     // verify 出口：报告 + branch_status + 双 review pass + barrier（build_sha 已=DEADBEEF）

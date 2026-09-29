@@ -40,6 +40,7 @@ describe('pending review self-approval detector (hook → CLI)', () => {
     await h.seedGovernedDocumentEvidence('demo')
     expect(await h.run(['transition', 'demo', 'open-complete'])).toBe(0)
     await h.seedArtifact('demo', 'design_doc', 'openspec/changes/demo/design.md')
+    await h.satisfyStepAgents('demo')
     expect(await h.run(['check', 'demo'])).toBe(0)
     expect(await h.run(['session', 'activate', 'demo'])).toBe(0)
     expect(await h.run(['review', 'request', 'demo', '--event', 'explore-complete'])).toBe(0)

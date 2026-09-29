@@ -6,6 +6,7 @@
  * 快照真变、change 真进入复核阶段、收件箱据此真出现该卡。非 mock 返回。
  */
 import { describe, it, expect, afterAll } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -13,11 +14,16 @@ import { fileURLToPath } from 'node:url'
 import { createDashboardServer, resolveServerPaths } from '@tenon/server'
 import { readGovernedDocumentsForCurrentVisit, recordWorkflowPhaseSkill } from '../../../server/src/test-support.js'
 import {
+  agentDigest,
+  appendAgentRunRow,
+  builtinTrack,
   compileEffectiveWorkflowPlan,
   createFlowEngine,
   createStateStore,
   createTransitionRecordStore,
   createWorkflowRunRepository,
+  currentDocumentStepVisitId,
+  ensureAgentFreeze,
   ensureDocumentLedger,
   loadManifest,
   recordDocument,
@@ -137,6 +143,45 @@ async function seedGovernedDocumentEvidence(root: string, changeDir: string, nam
   }
 }
 
+const AGENTS_DIR = fileURLToPath(new URL('../../../../templates/agents', import.meta.url))
+
+/**
+ * default 的调研步骤挂了 researcher 执行者：像宿主那样冻结这条轨道用到的 agent，再登记 researcher 这一步
+ * 已经 done（台账里一行终态记录），人才轮到拍板。这里验证的是 HTTP 边界，不是 agent 的执行。
+ */
+async function finishExploreExecutor(changeDir: string, store: StateStore, workflowFingerprint: string): Promise<void> {
+  const runId = (await store.read(changeDir)).runMetadata?.runId
+  if (runId === undefined) throw new Error('fixture change has no run identity')
+  const plan = compileEffectiveWorkflowPlan('default', undefined, builtinTrack('backend'))
+  const content = (name: string): string => readFileSync(join(AGENTS_DIR, `${name}.md`), 'utf8')
+  await ensureAgentFreeze({
+    changeDir,
+    runId,
+    // 冻结绑定的是快照里这个 change 的计划指纹（server 读冻结内容时按同一个值校验）。
+    workflowFingerprint,
+    workflow: plan.workflow,
+    resolve: (name) => ({ source: 'builtin', content: content(name) }),
+  })
+  await appendAgentRunRow(changeDir, {
+    schema: 'agent-run/v1',
+    run_id: 'fixture-researcher',
+    agent: 'researcher',
+    agent_digest: agentDigest(content('researcher')),
+    role: 'executor',
+    step: 'explore',
+    step_visit: await currentDocumentStepVisitId(changeDir),
+    candidate: 'fixture',
+    status: 'finished',
+    result: 'done',
+    findings: [],
+    report_path: '.pipeline-agent-reports/fixture-researcher.md',
+    report_digest: null,
+    actor: { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' },
+    started_at: clock(),
+    finished_at: clock(),
+  })
+}
+
 interface Started {
   port: number
   root: string
@@ -225,6 +270,7 @@ describe('真 server /api/snapshot → 前端 selectInbox', () => {
     // readiness 与 `tenon status` exits 同一份判定：本步技能与文档证据也要齐，才轮到人拍板。
     await recordWorkflowPhaseSkill(started.root, demo!.path)
     await readGovernedDocumentsForCurrentVisit(started.root, demo!.path)
+    await finishExploreExecutor(demo!.path, started.store, demo!.workflowPlanFingerprint)
     const snap2 = (await (await fetch(url('/api/snapshot'))).json()) as Snapshot
     const inbox = selectInbox(snap2, started.root, RULES)
     expect(inbox.map((i) => i.change.name)).toContain('demo')

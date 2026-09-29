@@ -37,6 +37,8 @@ describe('真实 e2e —— advance auto-transition 中间档（HITL 红线：�
 
   /** 完成 review 出口所需的真实 check → request → acknowledge，不使用测试侧 marker 删除旁路。 */
   async function approveReviewExit(name: string, event: string): Promise<void> {
+    // 步骤声明的执行者（explore 的 researcher）先办完，评审请求的预检才会过。
+    await h.satisfyStepAgents(name)
     expect(await h.run(['review', 'request', name, '--event', event])).toBe(0)
     expect(await h.run(['review', 'acknowledge', name])).toBe(0)
   }
@@ -87,7 +89,8 @@ describe('真实 e2e —— advance auto-transition 中间档（HITL 红线：�
       'build_mode=direct', 'isolation=worktree', 'direct_override=true',
     ])
     await armStepTests(name, 'build')
-    // pre-Verify 结论只能在本步就绪证据（必需测试）齐全之后写入。
+    await h.satisfyStepAgents(name)
+    // pre-Verify 结论只能在本步就绪证据（必需测试与 builder 执行者）齐全之后写入。
     expect(await h.run(['set', name, 'pre_verify_review_result', 'pass']), h.err.join('\n')).toBe(0)
   }
 

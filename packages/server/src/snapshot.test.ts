@@ -1196,6 +1196,11 @@ describe('buildSnapshot —— 真读多项目 .pipeline.yaml', () => {
     expect(snapshot.change_count).toBe(0)
   })
 
+  const BUILDER_PENDING = {
+    kind: 'agents-incomplete',
+    agents: [{ agent: 'builder', reason: 'executor-missing' }],
+  }
+
   it('default Build readiness 投影 pre-Verify 全量收敛门，pending 不得显示可冻结', async () => {
     const store = newStore()
     const root = await makeProject()
@@ -1221,17 +1226,18 @@ describe('buildSnapshot —— 真读多项目 .pipeline.yaml', () => {
         field: 'pre_verify_review_result',
         actual: 'pending',
         expected: ['pass'],
-      }],
+      }, BUILDER_PENDING],
     })
 
     await store.set(dir, 'pre_verify_review_result', 'pass')
     const ready = await buildSnapshot({
       registry: () => [root], store, version: '1', clock: () => 't',
     })
+    // guard 已过；default 的实现步骤声明了 builder 执行者，没跑之前仍然只剩这一条阻断。
     expect(
       ready.projects[0]?.changes[0]?.workflowExecution
         .readinessByTransition.build?.['build-complete'],
-    ).toEqual({ ready: true, blockers: [] })
+    ).toEqual({ ready: false, blockers: [BUILDER_PENDING] })
   })
 
   it('非当前 phase 不求值 workspace fingerprint，当前求值异常只投影 blocker 而不让项目离线', async () => {

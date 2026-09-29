@@ -182,6 +182,7 @@ describe('真实 e2e —— terminal-activity host hook', () => {
     await h.seedGovernedDocumentEvidence('demo')
     expect(await h.run(['transition', 'demo', 'open-complete'])).toBe(0)
     await h.seedArtifact('demo', 'design_doc', 'openspec/changes/demo/design.md')
+    await h.satisfyStepAgents('demo')
     expect(await h.run(['check', 'demo'])).toBe(0)
     const env = { TENON_ROUTER_CACHE: join(h.cwd, '.router-cache') }
     const confirm = { prompt: '确认继续，按你的推荐实现响应式 React 页面', cwd: h.cwd, session_id: SESSION_ID }
