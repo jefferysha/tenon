@@ -44,6 +44,7 @@ export {
   HOST_AGENT_OWNED_MANIFEST, ensureHostAgentFiles, ownedHostAgentNames, pruneHostAgentFiles,
 } from './infrastructure/host-agent-files.js'
 export type { HostAgentFileOutcome, HostAgentPruneResult } from './infrastructure/host-agent-files.js'
+export { pruneUnusedHostAgentFiles } from './infrastructure/host-agent-prune.js'
 // 每步测试登记：测试方向、运行记录、基准与门禁判定。
 export * from './test-evidence/index.js'
 export { canonicalMachineStateRoot, machineStateScopeId } from './machine-state-scope.js'

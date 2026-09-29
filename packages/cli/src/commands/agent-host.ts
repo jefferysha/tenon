@@ -5,12 +5,10 @@
  * 生成失败从不让命令失败：宿主退回通用子代理，结果写进运行记录（`subagent.native: false`）。
  */
 import {
-  HOST_AGENT_FALLBACK, HOST_AGENT_HOSTS, ensureHostAgentFiles, ownedHostAgentNames, pruneHostAgentFiles,
-  readAgentFreezeLock,
+  HOST_AGENT_FALLBACK, HOST_AGENT_HOSTS, ensureHostAgentFiles, pruneUnusedHostAgentFiles,
   type FrozenAgent, type HostAgentFileOutcome, type HostAgentHost, type HostAgentPruneResult,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
-import { changeDir, changesRoot } from '../paths.js'
 import { str } from '../render.js'
 
 /** `--host` 优先；没给时按进程环境判定的当前宿主（终端 = 无宿主，不生成）。 */
@@ -60,21 +58,16 @@ async function finished(deps: CliDeps, dir: string): Promise<boolean> {
 
 /**
  * 回收宿主 agent 文件：保留每个在途任务（`openspec/changes/*`，不含 archive/、已完结的与 except）
- * 冻结的 agent 名，其余 Tenon 生成且未被改过的文件删除。任何一个在途任务的冻结锁读不懂就整次放弃
- * （不知道它用了谁，就不能删）。尽力而为：失败只 WARN。
+ * 冻结的 agent 名，其余 Tenon 生成且未被改过的文件删除。判定在 kernel（Dashboard 完结任务时共用）；
+ * 任何一个在途任务的冻结锁读不懂就整次放弃。尽力而为：失败只 WARN。
  */
 export async function pruneHostAgents(deps: CliDeps, except?: string): Promise<HostAgentPruneResult | undefined> {
   try {
-    if ((await ownedHostAgentNames(deps.cwd)).length === 0) return { removed: [], preserved: [] }
-    const keep = new Set<string>()
-    for (const name of await deps.listChangeDirs(changesRoot(deps.cwd))) {
-      if (name === except) continue
-      const dir = changeDir(deps.cwd, name)
-      const lock = await readAgentFreezeLock(dir)
-      if (lock === undefined || await finished(deps, dir)) continue
-      for (const agent of lock.agents) keep.add(agent.name)
-    }
-    const result = await pruneHostAgentFiles({ repoRoot: deps.cwd, keep })
+    const result = await pruneUnusedHostAgentFiles({
+      repoRoot: deps.cwd,
+      ...(except === undefined ? {} : { except }),
+      isFinished: (dir) => finished(deps, dir),
+    })
     for (const path of result.preserved) deps.io.err(`WARN: 宿主 agent ${path} 被改过，保留`)
     return result
   } catch (e) {
