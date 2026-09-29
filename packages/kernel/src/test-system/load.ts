@@ -133,8 +133,13 @@ export async function evaluateStepTestPolicy(input: StepTestPolicyLoadInput): Pr
   const hasRecords = chain.state === 'intact' && chain.active.length > 0
   const candidate = hasRecords ? await input.candidate() : undefined
   let changedFiles: readonly string[] | undefined
+  let changedFilesError: string | undefined
   if (input.policy.files === 'registered' && input.changedFiles !== undefined) {
-    changedFiles = await input.changedFiles().catch(() => undefined)
+    try {
+      changedFiles = await input.changedFiles()
+    } catch (error) {
+      changedFilesError = error instanceof Error ? error.message.slice(0, 200) : '读取失败'
+    }
   }
   return evaluateTestPolicy({
     change: input.changeName,
@@ -147,6 +152,7 @@ export async function evaluateStepTestPolicy(input: StepTestPolicyLoadInput): Pr
     knownFailures,
     baselines: await loadBaselines(input.repoRoot, catalog, chain),
     changedFiles,
+    ...(changedFilesError === undefined ? {} : { changedFilesError }),
     scenarios,
     tasks,
     bindings: { candidate, workflowFingerprint: input.workflowFingerprint, workflowRunId: input.workflowRunId },

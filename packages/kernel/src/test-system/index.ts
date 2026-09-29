@@ -91,8 +91,8 @@ export {
   inlineSuiteFromTest, inlineSuiteId, policyRequiredKinds, stepTestRequirements, testPolicyDigest,
 } from './policy.js'
 export type { InlineSuite, StepTestRequirements } from './policy.js'
-export { STALE_WORDS, latestSuiteRuns, planFilesOfSuite, staleBindings } from './evaluate-suite.js'
-export type { FreshnessContext, SuiteRunRef } from './evaluate-suite.js'
+export { STALE_WORDS, evaluateSuiteResult, latestSuiteRuns, planFilesOfSuite, staleBindings } from './evaluate-suite.js'
+export type { FreshnessContext, SuiteResultContext, SuiteResultEvaluation, SuiteRunRef } from './evaluate-suite.js'
 export { evaluateTrace } from './evaluate-trace.js'
 export { evaluateTestPolicy, renderPolicyBlockers } from './evaluate-v2.js'
 export { baselineKey } from './evaluate-types.js'

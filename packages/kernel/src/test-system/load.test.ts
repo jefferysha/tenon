@@ -3,10 +3,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { corruptTestRunFiles } from '../test-evidence/evaluate.js'
-import { loadCatalogInput, loadDeltaScenarios, loadKnownFailures, loadTaskItems } from './load.js'
+import { evaluateStepTestPolicy, loadCatalogInput, loadDeltaScenarios, loadKnownFailures, loadTaskItems } from './load.js'
 import { testRunRecordsDir, testSystemPaths } from './paths.js'
 import { appendTestRunRecordV2 } from './record-chain.js'
-import { EMPTY_TEST_CATALOG, fixtureRecordDraft } from './test-support.js'
+import { EMPTY_TEST_CATALOG, FIXTURE_FINGERPRINT, fixtureRecordDraft } from './test-support.js'
+import { compileStepTestPolicy } from '../workflow/compile-test-policy.js'
 
 let repo = ''
 beforeEach(async () => { repo = await mkdtemp(join(tmpdir(), 'tenon-load-')) })
@@ -58,5 +59,38 @@ describe('策略判定的 IO 装配', () => {
     await appendTestRunRecordV2(repo, slug, fixtureRecordDraft())
     await writeFile(join(testRunRecordsDir(repo, slug, 'demo'), '20260101T000000Z-000002.json'), '{', 'utf8')
     expect(await corruptTestRunFiles(repo, 'demo', slug)).toEqual(['20260101T000000Z-000002.json'])
+  })
+})
+
+describe('diff 文件列表提供者', () => {
+  async function evaluateWith(changedFiles: (() => Promise<readonly string[]>) | undefined) {
+    const policy = compileStepTestPolicy({ run: ['unit'], scope: 'changed', files: 'registered' }, 'test')
+    if (policy === undefined) throw new Error('policy')
+    await put(testSystemPaths(repo).catalog, EMPTY_TEST_CATALOG)
+    return evaluateStepTestPolicy({
+      repoRoot: repo,
+      changeDir: join(repo, 'openspec', 'changes', 'demo'),
+      changeName: 'demo',
+      slug: 'tester-at-tenon.test',
+      stepId: 'build',
+      policy,
+      inline: [],
+      workflowFingerprint: FIXTURE_FINGERPRINT,
+      workflowRunId: 'run-1',
+      candidate: async () => undefined,
+      ...(changedFiles === undefined ? {} : { changedFiles }),
+      now: Date.parse('2026-09-29T00:00:00Z'),
+    })
+  }
+
+  it('提供者抛错 → files-diff-unavailable 阻塞；返回空列表 → 已检查且无未登记文件；没有提供者 → 只提示', async () => {
+    const failed = await evaluateWith(async () => { throw new Error('不是 git 仓库') })
+    expect(failed.blockers.filter((item) => item.blocking).map((item) => item.code)).toContain('files-diff-unavailable')
+    expect(failed.blockers.find((item) => item.code === 'files-diff-unavailable')?.message).toContain('不是 git 仓库')
+    const empty = await evaluateWith(async () => [])
+    expect(empty.files.checked).toBe(true)
+    expect(empty.blockers.map((item) => item.code)).not.toContain('files-diff-unavailable')
+    const none = await evaluateWith(undefined)
+    expect(none.notices.map((item) => item.code)).toEqual(['files-unchecked'])
   })
 })
