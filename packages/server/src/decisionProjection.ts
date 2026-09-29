@@ -1,10 +1,14 @@
 import {
+  boundReviewWaiverSelection,
   projectPendingDecisions,
   readCurrentRunRevision,
   readInteractionProjection,
   readReviewGateBinding,
   readSkillInvocationEventsForApplication,
   reviewGateDecisionStateDigest,
+  reviewGateStatus,
+  REVIEW_GATE_PENDING,
+  type PendingWaiver,
   type ReviewGateBinding,
   type StateStore,
   type TransitionRecordStore,
@@ -49,4 +53,20 @@ export async function readPendingDecisionProjection(input: {
     reviewBinding: await readReviewBindingSafely(input.dir),
     reviewDecisionStateDigest: reviewGateDecisionStateDigest(state),
   })
+}
+
+/**
+ * The test-plan waivers a Dashboard approval of the pending review would approve: exactly the list
+ * `tenon review request` froze for this request (same binding check as the approval itself).
+ * Empty when no review is pending or the list belongs to an older request.
+ */
+export async function readPendingReviewWaivers(input: {
+  readonly dir: string
+  readonly store: StateStore
+}): Promise<readonly PendingWaiver[]> {
+  const current = await readCurrentRunRevision(input.dir)
+  const state = current?.state ?? await input.store.read(input.dir)
+  if (reviewGateStatus(state) !== REVIEW_GATE_PENDING) return []
+  const { selection } = await boundReviewWaiverSelection(input.dir, state)
+  return selection?.waivers ?? []
 }

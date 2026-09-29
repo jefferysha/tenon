@@ -5,6 +5,7 @@
  */
 import {
   actorOf,
+  approveFrozenWaivers,
   createReviewDecisionLedger,
   executeReviewAcknowledge,
   INTERACTION_PROJECTION_WRITE_FAILED,
@@ -15,6 +16,7 @@ import {
   stepExitTransitions,
   type PipelineState,
   type ReviewAcknowledgeDeferred,
+  type WaiverApprovalOutcome,
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 import { readDelegatedReviewAuthority } from '../continuousAuthority.js'
@@ -22,8 +24,7 @@ import { requireUser } from '../userIdentity.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
 import { readReviewGateBindingForRequest } from './review-binding.js'
 import {
-  approveFrozenWaivers, auditWaiverApproval, refuseDelegatedWhileWaiversPending, retireFrozenWaivers,
-  skippedWaiverLines, type WaiverApprovalOutcome,
+  auditWaiverApproval, refuseDelegatedWhileWaiversPending, retireFrozenWaivers, skippedWaiverLines,
 } from './review-waivers.js'
 
 const DEFERRED_WARNINGS: Readonly<Record<ReviewAcknowledgeDeferred, string>> = {

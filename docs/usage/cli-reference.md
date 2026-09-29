@@ -224,7 +224,9 @@ unapproved (`waivers[].approved_by` empty). A human `review acknowledge` writes
 receipt, and leaves a `test:waiver-approve` line in the change history;
 `--delegated` never approves a waiver and is refused (nothing written, the review
 stays pending) while the plan has one, and a waiver added after the request is not
-approved by that confirmation (`step.next` asks for a fresh request first). Plan writes and baseline updates leave `test:plan-write` /
+approved by that confirmation (`step.next` asks for a fresh request first). The Dashboard review console's
+Approve is the same human confirmation: it lists and approves the same frozen list and leaves the same
+`test:waiver-approve` line. Plan writes and baseline updates leave `test:plan-write` /
 `test:baseline-update` lines the same way.
 
 Document structures and project-level spec scaffolds default to Chinese. English

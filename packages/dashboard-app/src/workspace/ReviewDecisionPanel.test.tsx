@@ -3,12 +3,13 @@ import { join } from 'node:path'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { I18nProvider } from '../i18n'
 import { reviewIdempotencyKey } from '../api/decisionClient'
 import { ReviewDecisionPanel } from './ReviewDecisionPanel'
 
 const pendingItem = (revision: number) => ({ ref: { id: 'decision:1', kind: 'review', change: 'demo', anchor: 'verify:verify-pass', revision }, type: 'review', status: 'pending', anchor: { phase: 'verify', event: 'verify-pass' }, revision, evidence: ['canonical-review-receipt'], source: 'terminal', channel: 'terminal', command: 'review-acknowledge' })
-const view = (revision: number, items: unknown[]) => new Response(JSON.stringify({ schemaVersion: 'pending-decision-view/v1', revision, items }), { status: 200 })
+const view = (revision: number, items: unknown[], waivers?: unknown[]) => new Response(JSON.stringify({ schemaVersion: 'pending-decision-view/v1', revision, items, ...(waivers === undefined ? {} : { waivers }) }), { status: 200 })
 const failure = (status: number, code?: string) => new Response(JSON.stringify(code === undefined ? { ok: false, error: 'internal' } : { ok: false, error: 'rejected', code }), { status })
 
 const RULES = {
@@ -21,7 +22,7 @@ const RULES = {
 }
 
 function renderPanel(props: { snapshotSignature?: string; onRefresh?: () => void; onToast?: (message: string) => void } = {}) {
-  const element = (signature?: string) => <I18nProvider><ReviewDecisionPanel root="/repo" change="demo" snapshotSignature={signature} rules={RULES} phase="verify" onRefresh={props.onRefresh} onToast={props.onToast} /></I18nProvider>
+  const element = (signature?: string) => <I18nProvider><TooltipProvider><ReviewDecisionPanel root="/repo" change="demo" snapshotSignature={signature} rules={RULES} phase="verify" onRefresh={props.onRefresh} onToast={props.onToast} /></TooltipProvider></I18nProvider>
   const utils = render(element(props.snapshotSignature))
   return { ...utils, rerenderWith: (signature: string) => utils.rerender(element(signature)) }
 }
@@ -103,6 +104,42 @@ describe('ReviewDecisionPanel', () => {
     expect(second?.idempotency_key).toBe(first?.idempotency_key)
   })
 
+  it('lists the waivers frozen in the request (help in a tooltip) and reports how many the approval approved', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(view(3, [pendingItem(3)], [
+        { key: 'kind:unit', reason: '纯文档改动' },
+        { key: 'covers:spec:auth/登录成功', reason: '手工验收' },
+      ]))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true, ref: 'decision:1', changed: true, idempotent: false, channel: 'dashboard',
+        waivers: { approved: ['kind:unit', 'covers:spec:auth/登录成功'], skipped: [] },
+      }), { status: 200 }))
+      .mockResolvedValue(view(4, []))
+    const onToast = vi.fn()
+    renderPanel({ onToast })
+    const list = await screen.findByTestId('review-console-waivers')
+    expect(list).toHaveTextContent('待批准豁免 2')
+    expect(screen.getByTestId('review-console-waiver-kind:unit')).toHaveTextContent('kind:unit纯文档改动')
+    expect(screen.getByTestId('review-console-waiver-covers:spec:auth/登录成功')).toHaveTextContent('手工验收')
+    // No sentences on the page: the explanation is a tooltip on a focusable button.
+    expect(list.textContent).not.toContain('通过即批准')
+    screen.getByTestId('review-console-waivers-hint').focus()
+    expect((await screen.findAllByText('通过即批准这些豁免；请求之后才加进计划的豁免不在其内')).length).toBeGreaterThan(0)
+    // A waiver row never wraps.
+    for (const row of list.querySelectorAll('li')) expect(row.className).toContain('whitespace-nowrap')
+
+    await userEvent.click(screen.getByTestId('review-console-approve'))
+    await waitFor(() => expect(onToast).toHaveBeenCalledWith('已批准，并批准豁免 2 项，正在刷新状态'))
+    expect(fetchMock.mock.calls.filter((call) => call[1]?.method === 'POST')).toHaveLength(1)
+  })
+
+  it('shows no waiver block when the request froze none', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(view(3, [pendingItem(3)], []))
+    renderPanel()
+    await screen.findByTestId('review-console-approve')
+    expect(screen.queryByTestId('review-console-waivers')).toBeNull()
+  })
+
   it('reloads pending decisions only when the change snapshot signature changes', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(view(3, []))
@@ -122,7 +159,7 @@ describe('ReviewDecisionPanel', () => {
       // 退回只复制终端命令（taskCommands），阶段名来自冻结规则（workflowModel 类型 + taskModel.stageLabel）。
       'workspace/ReviewDecisionPanel.tsx': [
         'react', 'lucide-react', '../api/decisionClient', '../api/transport', '../i18n', '../model/workflowModel',
-        '@/components/ui/dropdown-menu', '../shared/uiRecipes', './taskCommands', './taskModel',
+        '@/components/ui/dropdown-menu', '../shared/uiRecipes', '../workflow/Hint', './taskCommands', './taskModel',
       ],
       'api/decisionClient.ts': ['./transport'],
     }

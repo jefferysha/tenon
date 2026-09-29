@@ -45,9 +45,10 @@ export { decodeTestPlanLedger, readTestPlanState, writeTestPlan, writeTestPlanUn
 export { approveWaivers, pendingWaivers, testPlanApprovalFreeDigest } from './plan-waivers.js'
 export type { PendingWaiver, WaiverApproval, WaiverSkipReason } from './plan-waivers.js'
 export {
-  REVIEW_WAIVERS_FILE, clearReviewWaiverSelection, readReviewWaiverSelection, writeReviewWaiverSelection,
+  REVIEW_WAIVERS_FILE, approveFrozenWaivers, boundReviewWaiverSelection, clearReviewWaiverSelection,
+  readReviewWaiverSelection, writeReviewWaiverSelection,
 } from './review-waivers.js'
-export type { ReviewWaiverSelection } from './review-waivers.js'
+export type { ReviewWaiverSelection, WaiverApprovalOutcome } from './review-waivers.js'
 export type { PlanWriteMeta, PlanWriteResult, TestPlanLedger, TestPlanState } from './plan-ledger.js'
 export { appendTestAudit, formatAuditDetail, testAuditEntry, testAuditRaw } from './audit.js'
 export {

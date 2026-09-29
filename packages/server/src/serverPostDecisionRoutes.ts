@@ -2,7 +2,9 @@ import { join } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import {
   actorOf,
+  approveFrozenWaivers,
   clearReviewMarkerFor,
+  clearReviewWaiverSelection,
   createInteractionEventRecorder,
   isArchivedForUser,
   isTenonUser,
@@ -16,8 +18,10 @@ import {
   resolveWorkflowName,
   stateStorageExistsSync,
   stepExitTransitions,
+  testAuditEntry,
   type PipelineState,
   type ReviewAcknowledgeResult,
+  type WaiverApprovalOutcome,
 } from '@tenon/kernel'
 import type { PostRouteDeps } from './serverPostRoutes.js'
 import { readPendingDecisionProjection, readReviewBindingSafely } from './decisionProjection.js'
@@ -97,13 +101,14 @@ export async function handlePostDecisionRoutes(
     sendJson(res, 409, { ok: false, code: 'task-archived', error: TASK_ARCHIVED_HTTP_ERROR })
     return true
   }
-  let result: ReviewAcknowledgeResult
+  let acknowledged: Acknowledged
   try {
-    result = await acknowledgeFromDashboard({ deps, root, dir, name, ref, expectedRevision, idempotencyKey, actor: actorOf(user) })
+    acknowledged = await acknowledgeFromDashboard({ deps, root, dir, name, ref, expectedRevision, idempotencyKey, actor: actorOf(user) })
   } catch {
     sendJson(res, 500, { ok: false, error: DECISION_COMMAND_FAILED })
     return true
   }
+  const { result, waivers } = acknowledged
   if (!result.ok) {
     sendJson(res, 409, { ok: false, error: result.message, code: result.code })
     return true
@@ -111,11 +116,24 @@ export async function handlePostDecisionRoutes(
   sendJson(res, 200, {
     ok: true, code: result.code, ref, changed: result.changed, idempotent: result.idempotent,
     channel: 'dashboard', deferred: result.deferred,
+    waivers: { approved: waivers.approved, skipped: waivers.skipped },
   })
   return true
 }
 
-function acknowledgeFromDashboard(input: {
+const NO_WAIVERS: WaiverApprovalOutcome = { approved: [], skipped: [], digest: null, note: null }
+
+interface Acknowledged {
+  readonly result: ReviewAcknowledgeResult
+  readonly waivers: WaiverApprovalOutcome
+}
+
+/**
+ * A human approval on the Dashboard is the same act as `tenon review acknowledge`: inside the lock that
+ * commits the approved receipt it approves exactly the waivers frozen in the review request (and nothing
+ * added to the plan after it), then leaves one audit row. An idempotent replay approves nothing new.
+ */
+async function acknowledgeFromDashboard(input: {
   readonly deps: DecisionRouteDeps
   readonly root: string
   readonly dir: string
@@ -124,10 +142,11 @@ function acknowledgeFromDashboard(input: {
   readonly expectedRevision: number
   readonly idempotencyKey: string
   readonly actor: RecordActor
-}): Promise<ReviewAcknowledgeResult> {
+}): Promise<Acknowledged> {
   const { deps, root, dir, name } = input
   const recorder = createInteractionEventRecorder()
-  return executeReviewAcknowledge({
+  let waivers: WaiverApprovalOutcome = NO_WAIVERS
+  const result = await executeReviewAcknowledge({
     change: name,
     command: { channel: 'dashboard', ref: input.ref, expectedRevision: input.expectedRevision, idempotencyKey: input.idempotencyKey },
     withLock: (fn) => deps.store.withLock(dir, fn),
@@ -144,7 +163,11 @@ function acknowledgeFromDashboard(input: {
     },
     clock: deps.clock,
     writeState: async (state) => {
+      // Waivers first, receipt second: a failed plan write leaves the receipt uncommitted and the
+      // same approval can be retried (already approved waivers are recognised as such).
+      waivers = await approveFrozenWaivers({ dir, change: name, state, actor: input.actor, recordedAt: deps.clock() })
       await deps.store.writeUnderLock(dir, state, { kind: 'set-many' })
+      await clearReviewWaiverSelection(dir).catch(() => undefined)
     },
     recordInteraction: async (draft) => {
       await recorder.recordUnderLock(dir, draft)
@@ -153,4 +176,11 @@ function acknowledgeFromDashboard(input: {
     clearMarker: (event) => clearReviewMarkerFor(root, name, event),
     actor: input.actor,
   })
+  if (result.ok && waivers.approved.length > 0) {
+    // Best effort like every post-commit record: the approval itself is already committed.
+    await deps.history.append(dir, testAuditEntry('waiver-approve', {
+      waivers: waivers.approved.join(','), by: input.actor.id, plan: waivers.digest ?? undefined,
+    }, { ts: deps.clock(), actor: input.actor })).catch(() => undefined)
+  }
+  return { result, waivers }
 }

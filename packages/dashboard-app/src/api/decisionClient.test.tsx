@@ -24,6 +24,31 @@ describe('decisionClient', () => {
     expect(reviewIdempotencyKey('x'.repeat(DECISION_REF_ID_MAX_LENGTH), Number.MAX_SAFE_INTEGER).length).toBeLessThanOrEqual(256)
   })
 
+  it('decodes the frozen waivers and the approval outcome; absent means none, malformed rejects', async () => {
+    const item = { ref: { id: 'decision:1', kind: 'review', change: 'demo', anchor: 'a', revision: 1 }, type: 'review', status: 'pending', anchor: {}, revision: 1, evidence: [], source: 'terminal', channel: 'terminal', command: 'review-acknowledge' }
+    const body = (waivers?: unknown) => new Response(JSON.stringify({ schemaVersion: 'pending-decision-view/v1', revision: 1, items: [item], ...(waivers === undefined ? {} : { waivers }) }), { status: 200 })
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(body([{ key: 'kind:unit', reason: '纯文档改动' }]))
+      .mockResolvedValueOnce(body())
+      .mockResolvedValueOnce(body([{ key: 'kind:unit' }]))
+      .mockResolvedValueOnce(body('kind:unit'))
+    expect((await fetchPendingDecisions('/repo', 'demo')).waivers).toEqual([{ key: 'kind:unit', reason: '纯文档改动' }])
+    expect((await fetchPendingDecisions('/repo', 'demo')).waivers).toEqual([])
+    await expect(fetchPendingDecisions('/repo', 'demo')).rejects.toThrow()
+    await expect(fetchPendingDecisions('/repo', 'demo')).rejects.toThrow()
+
+    const ack = (waivers?: unknown) => new Response(JSON.stringify({ ok: true, ref: 'decision:1', changed: true, idempotent: false, channel: 'dashboard', ...(waivers === undefined ? {} : { waivers }) }), { status: 200 })
+    fetchMock
+      .mockResolvedValueOnce(ack({ approved: ['kind:unit'], skipped: [{ key: 'kind:lint', why: 'reason-changed' }] }))
+      .mockResolvedValueOnce(ack())
+      .mockResolvedValueOnce(ack({ approved: ['kind:unit'], skipped: [{ key: 'kind:lint', why: 'nope' }] }))
+    const input = { root: '/repo', change: 'demo', ref: 'decision:1', expectedRevision: 1 }
+    expect((await postReviewAcknowledge(input)).waivers).toEqual({ approved: ['kind:unit'], skipped: [{ key: 'kind:lint', why: 'reason-changed' }] })
+    expect((await postReviewAcknowledge(input)).waivers).toEqual({ approved: [], skipped: [] })
+    await expect(postReviewAcknowledge(input)).rejects.toThrow()
+    fetchMock.mockRestore()
+  })
+
   it('rejects a pending view whose ref id exceeds the key bound', async () => {
     const item = (id: string) => ({ ref: { id, kind: 'review', change: 'demo', anchor: 'a', revision: 1 }, type: 'review', status: 'pending', anchor: {}, revision: 1, evidence: [], source: 'terminal', channel: 'terminal', command: 'review-acknowledge' })
     const fetchMock = vi.spyOn(globalThis, 'fetch')

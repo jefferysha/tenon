@@ -16,11 +16,21 @@ export interface PendingDecision {
   readonly command: 'review-acknowledge' | 'skill-answer'
 }
 
+/** A test-plan waiver frozen in the review request: approving the review approves it. */
+export interface PendingWaiver {
+  readonly key: string
+  readonly reason: string
+}
+
 export interface PendingDecisionView {
   readonly schemaVersion: 'pending-decision-view/v1'
   readonly revision: number | null
   readonly items: readonly PendingDecision[]
+  /** Waivers that approving the pending review approves (empty when none / no pending review). */
+  readonly waivers: readonly PendingWaiver[]
 }
+
+export type WaiverSkipReason = 'missing' | 'reason-changed' | 'already-approved'
 
 export interface ReviewAcknowledgeResponse {
   readonly ok: true
@@ -28,6 +38,11 @@ export interface ReviewAcknowledgeResponse {
   readonly changed: boolean
   readonly idempotent: boolean
   readonly channel: 'dashboard'
+  /** What the approval did to the waivers frozen in the request. */
+  readonly waivers: {
+    readonly approved: readonly string[]
+    readonly skipped: readonly { readonly key: string; readonly why: WaiverSkipReason }[]
+  }
 }
 
 function isString(value: unknown): value is string { return typeof value === 'string' }
@@ -66,17 +81,46 @@ function decodeItem(value: unknown): PendingDecision | null {
   }
 }
 
+function decodeWaiver(value: unknown): PendingWaiver | null {
+  return isRecord(value) && isString(value.key) && value.key !== '' && isString(value.reason) ? { key: value.key, reason: value.reason } : null
+}
+
+/** A server without waiver support omits the list; a present but malformed list rejects the response. */
+function decodeWaivers(value: unknown): readonly PendingWaiver[] | null {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) return null
+  const waivers = value.map(decodeWaiver)
+  return waivers.some((waiver) => waiver === null) ? null : waivers as PendingWaiver[]
+}
+
 function decodeView(value: unknown): PendingDecisionView | null {
   if (!isRecord(value) || value.schemaVersion !== 'pending-decision-view/v1' || !isNullableRevision(value.revision) || !Array.isArray(value.items)) return null
   const items = value.items.map(decodeItem)
   if (items.some((item) => item === null)) return null
-  return { schemaVersion: value.schemaVersion, revision: value.revision, items: items as PendingDecision[] }
+  const waivers = decodeWaivers(value.waivers)
+  if (waivers === null) return null
+  return { schemaVersion: value.schemaVersion, revision: value.revision, items: items as PendingDecision[], waivers }
+}
+
+function isSkipReason(value: unknown): value is WaiverSkipReason {
+  return value === 'missing' || value === 'reason-changed' || value === 'already-approved'
+}
+
+function decodeOutcome(value: unknown): ReviewAcknowledgeResponse['waivers'] | null {
+  if (value === undefined) return { approved: [], skipped: [] }
+  if (!isRecord(value) || !Array.isArray(value.approved) || !value.approved.every(isString) || !Array.isArray(value.skipped)) return null
+  const skipped: { key: string; why: WaiverSkipReason }[] = []
+  for (const item of value.skipped) {
+    if (!isRecord(item) || !isString(item.key) || !isSkipReason(item.why)) return null
+    skipped.push({ key: item.key, why: item.why })
+  }
+  return { approved: value.approved, skipped }
 }
 
 function decodeAcknowledge(value: unknown): ReviewAcknowledgeResponse | null {
-  return isRecord(value) && value.ok === true && isString(value.ref) && typeof value.changed === 'boolean' && typeof value.idempotent === 'boolean' && value.channel === 'dashboard'
-    ? { ok: true, ref: value.ref, changed: value.changed, idempotent: value.idempotent, channel: 'dashboard' }
-    : null
+  if (!isRecord(value) || value.ok !== true || !isString(value.ref) || typeof value.changed !== 'boolean' || typeof value.idempotent !== 'boolean' || value.channel !== 'dashboard') return null
+  const waivers = decodeOutcome(value.waivers)
+  return waivers === null ? null : { ok: true, ref: value.ref, changed: value.changed, idempotent: value.idempotent, channel: 'dashboard', waivers }
 }
 
 export async function fetchPendingDecisions(root: string, change: string, signal?: AbortSignal): Promise<PendingDecisionView> {

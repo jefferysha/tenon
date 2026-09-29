@@ -7,6 +7,10 @@ import { fileURLToPath } from 'node:url'
 import {
   createHistoryWriter,
   createStateStore,
+  emptyTestPlan,
+  readTestPlanState,
+  writeTestPlan,
+  type TestPlan,
   createTransitionRecordStore,
   formatReviewMarker,
   parseInteractionEventLine,
@@ -56,7 +60,7 @@ async function pendingChange(): Promise<Harness> {
   return h
 }
 
-async function getView(root: string): Promise<{ status?: number; items: ViewItem[] }> {
+async function getView(root: string): Promise<{ status?: number; items: ViewItem[]; waivers: { key: string; reason: string }[] }> {
   const captured: Captured = {}
   await handleGetDecisionRoute(
     { url: `/api/change/demo/pending-decisions?root=${encodeURIComponent(root)}`, headers: {} } as never,
@@ -69,7 +73,8 @@ async function getView(root: string): Promise<{ status?: number; items: ViewItem
       workflowRootForRequest: (candidate) => ({ ok: true, anchor: { path: candidate } }),
     },
   )
-  return { status: captured.status, items: (captured.body as { items?: ViewItem[] }).items ?? [] }
+  const body = captured.body as { items?: ViewItem[]; waivers?: { key: string; reason: string }[] }
+  return { status: captured.status, items: body.items ?? [], waivers: body.waivers ?? [] }
 }
 
 async function post(root: string, body: Record<string, unknown>): Promise<Captured> {
@@ -397,5 +402,103 @@ tracks:
     )
     expect(captured).toMatchObject({ status: 200, body: { ok: true, ignored_protected_fields: ['phase'] } })
     expect((await store.read(changeDir(h))).fields.phase).toBe('open')
+  })
+})
+
+const TESTER = 'tester@tenon.test'
+const REQUEST_WAIVER = { kind: 'unit' as const, reason: '纯文档改动', approved_by: null }
+
+async function planOf(h: Harness): Promise<TestPlan> {
+  const state = await readTestPlanState(changeDir(h), 'demo')
+  if (state.state !== 'ok') throw new Error(`计划不可读：${state.state}`)
+  return state.plan
+}
+
+async function writePlan(h: Harness, waivers: TestPlan['waivers']): Promise<void> {
+  await writeTestPlan(changeDir(h), { ...emptyTestPlan('demo'), waivers }, {
+    actor: { id: TESTER, name: 'Tester', trust: 'declared' }, recordedAt: FIXED_CLOCK,
+  })
+}
+
+async function waivedPendingChange(): Promise<Harness> {
+  const h = await initChange()
+  await writePlan(h, [REQUEST_WAIVER])
+  expect(await h.run(['review', 'request', 'demo', '--event', 'explore-complete']), h.err.join('\n')).toBe(0)
+  return h
+}
+
+describe('decision server adapters · test-plan waivers', () => {
+  it('GET lists exactly the waivers frozen in the request; approving approves those and only those, with one audit row', async () => {
+    const h = await waivedPendingChange()
+    // A waiver added after the request is not part of this approval.
+    await writePlan(h, [REQUEST_WAIVER, { kind: 'lint', reason: '请求之后才加的', approved_by: null }])
+    const view = await getView(h.cwd)
+    expect(view.waivers).toEqual([{ key: 'kind:unit', reason: '纯文档改动' }])
+    const item = view.items.find((candidate) => candidate.type === 'review')!
+
+    const approved = await post(h.cwd, { ref: item.ref.id, expected_revision: item.revision, idempotency_key: 'waiver-1' })
+    expect(approved).toMatchObject({
+      status: 200,
+      body: { ok: true, code: 'approved', changed: true, waivers: { approved: ['kind:unit'], skipped: [] } },
+    })
+    expect((await planOf(h)).waivers).toEqual([
+      { kind: 'lint', reason: '请求之后才加的', approved_by: null },
+      { kind: 'unit', reason: '纯文档改动', approved_by: TESTER },
+    ])
+    await expect(readFile(join(changeDir(h), '.pipeline-review-waivers.json'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    const history = await readFile(join(changeDir(h), '.pipeline-history.jsonl'), 'utf8')
+    expect(history).toMatch(new RegExp(`"raw":"test:waiver-approve waivers=kind:unit by=${TESTER.replace('.', '\\.')} plan=sha256:[0-9a-f]{64}"`))
+    expect(history.match(/test:waiver-approve/gu)).toHaveLength(1)
+    // Once approved there is nothing left to show.
+    expect((await getView(h.cwd)).waivers).toEqual([])
+  })
+
+  it('CLI and Dashboard approvals approve the same waivers and leave the same plan', async () => {
+    const terminal = await waivedPendingChange()
+    const dashboardRoot = await mkdtemp(join(tmpdir(), 'tenon-decision-waivers-'))
+    cleanups.push(dashboardRoot)
+    await cp(terminal.cwd, dashboardRoot, { recursive: true })
+    const dashboard = makeHarness(dashboardRoot)
+
+    expect(await terminal.run(['review', 'acknowledge', 'demo']), terminal.err.join('\n')).toBe(0)
+    const item = await pendingItem(dashboard)
+    expect(await post(dashboardRoot, { ref: item.ref.id, expected_revision: item.revision, idempotency_key: 'waiver-parity' }))
+      .toMatchObject({ status: 200, body: { ok: true } })
+    expect((await planOf(dashboard)).waivers).toEqual((await planOf(terminal)).waivers)
+    expect((await planOf(dashboard)).waivers).toEqual([{ ...REQUEST_WAIVER, approved_by: TESTER }])
+  })
+
+  it('a waiver list left by an older request is neither shown nor approved', async () => {
+    const h = await waivedPendingChange()
+    const sidecar = join(changeDir(h), '.pipeline-review-waivers.json')
+    const stale = (await readFile(sidecar, 'utf8')).replace(/"requestedAt":"[^"]*"/, '"requestedAt":"2020-01-01T00:00:00.000Z"')
+    await writeFile(sidecar, stale, 'utf8')
+    const view = await getView(h.cwd)
+    expect(view.waivers).toEqual([])
+    const item = view.items.find((candidate) => candidate.type === 'review')!
+
+    const result = await post(h.cwd, { ref: item.ref.id, expected_revision: item.revision, idempotency_key: 'waiver-stale' })
+    expect(result).toMatchObject({ status: 200, body: { ok: true, waivers: { approved: [], skipped: [] } } })
+    expect((await planOf(h)).waivers).toEqual([REQUEST_WAIVER])
+    const history = await readFile(join(changeDir(h), '.pipeline-history.jsonl'), 'utf8')
+    expect(history).not.toContain('test:waiver-approve')
+  })
+
+  it('a change without waivers reports an empty list and an empty outcome', async () => {
+    const h = await pendingChange()
+    const view = await getView(h.cwd)
+    expect(view.waivers).toEqual([])
+    const item = view.items.find((candidate) => candidate.type === 'review')!
+    expect(await post(h.cwd, { ref: item.ref.id, expected_revision: item.revision, idempotency_key: 'waiver-none' }))
+      .toMatchObject({ status: 200, body: { ok: true, waivers: { approved: [], skipped: [] } } })
+  })
+
+  it('a waiver whose reason changed after the request is reported as skipped, not approved', async () => {
+    const h = await waivedPendingChange()
+    await writePlan(h, [{ ...REQUEST_WAIVER, reason: '请求之后换的理由' }])
+    const item = await pendingItem(h)
+    const result = await post(h.cwd, { ref: item.ref.id, expected_revision: item.revision, idempotency_key: 'waiver-changed' })
+    expect(result).toMatchObject({ status: 200, body: { ok: true, waivers: { approved: [], skipped: [{ key: 'kind:unit', why: 'reason-changed' }] } } })
+    expect((await planOf(h)).waivers).toEqual([{ ...REQUEST_WAIVER, reason: '请求之后换的理由' }])
   })
 })

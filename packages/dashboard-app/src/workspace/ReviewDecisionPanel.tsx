@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { CheckCircle2, CornerUpLeft, RefreshCw } from 'lucide-react'
-import { fetchPendingDecisions, postReviewAcknowledge, type PendingDecision } from '../api/decisionClient'
+import { CheckCircle2, CornerUpLeft, Info, RefreshCw } from 'lucide-react'
+import { fetchPendingDecisions, postReviewAcknowledge, type PendingDecision, type PendingWaiver } from '../api/decisionClient'
 import { ApiError, formatApiError } from '../api/transport'
 import { useT } from '../i18n'
 import type { WorkflowRules } from '../model/workflowModel'
@@ -8,6 +8,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { BUTTON_GHOST } from '../shared/uiRecipes'
+import { Hint } from '../workflow/Hint'
 import { reviewRequestCommand } from './taskCommands'
 import { stageLabel } from './taskModel'
 
@@ -46,7 +47,7 @@ export function decisionErrorText(error: unknown, t: Translate): string {
  */
 export function ReviewDecisionPanel({ root, change, snapshotSignature, rules, phase, onRefresh, onToast }: ReviewDecisionPanelProps): JSX.Element {
   const { t } = useT()
-  const [view, setView] = useState<{ revision: number | null; items: readonly PendingDecision[] } | null>(null)
+  const [view, setView] = useState<{ revision: number | null; items: readonly PendingDecision[]; waivers: readonly PendingWaiver[] } | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [loadError, setLoadError] = useState<unknown>(null)
@@ -84,7 +85,10 @@ export function ReviewDecisionPanel({ root, change, snapshotSignature, rules, ph
     setSubmitting(true); setSubmitError(null)
     try {
       const result = await postReviewAcknowledge({ root, change, ref: review.ref.id, expectedRevision: revision })
-      onToast?.(result.idempotent ? t('review_console.approved_idempotent') : t('review_console.approved'))
+      const approvedWaivers = result.waivers.approved.length
+      onToast?.(result.idempotent
+        ? t('review_console.approved_idempotent')
+        : approvedWaivers > 0 ? t('review_console.approved_waivers', { count: approvedWaivers }) : t('review_console.approved'))
       await load()
       await onRefresh?.()
     } catch (reason) {
@@ -114,6 +118,7 @@ export function ReviewDecisionPanel({ root, change, snapshotSignature, rules, ph
   }
 
   const evidence = review.evidence.join(' · ')
+  const waivers = view?.waivers ?? []
   const reviewPhase = review.anchor.phase ?? phase
   const edges = rules.transitions[reviewPhase] ?? []
   const target = edges.find((edge) => edge.event === review.anchor.event)?.to
@@ -135,6 +140,26 @@ export function ReviewDecisionPanel({ root, change, snapshotSignature, rules, ph
         <div className="flex min-w-0 gap-2 whitespace-nowrap"><dt className="shrink-0 font-semibold">{t('review_console.event')}</dt><dd className="truncate" title={review.anchor.event} data-testid="review-console-event">{eventText}</dd></div>
         <div className="flex min-w-0 gap-2 whitespace-nowrap"><dt className="shrink-0 font-semibold">{t('review_console.evidence')}</dt><dd className="truncate" title={evidence}>{evidence}</dd></div>
       </dl>
+      {waivers.length > 0 && (
+        <div className="mt-3 grid gap-1 text-caption text-text-2" data-testid="review-console-waivers">
+          <p className="flex items-center gap-1.5 whitespace-nowrap font-semibold">
+            {t('review_console.waivers', { count: waivers.length })}
+            <Hint label={t('review_console.waivers_hint')}>
+              <button type="button" className="grid size-6 flex-none place-items-center rounded-sm text-text-3 outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent)" aria-label={t('review_console.waivers_hint')} data-testid="review-console-waivers-hint">
+                <Info className="size-3.5" aria-hidden="true" />
+              </button>
+            </Hint>
+          </p>
+          <ul className="grid gap-1">
+            {waivers.map((waiver) => (
+              <li key={waiver.key} className="flex min-w-0 gap-2 whitespace-nowrap" data-testid={`review-console-waiver-${waiver.key}`}>
+                <span className="shrink-0 font-mono text-text">{waiver.key}</span>
+                <span className="truncate" title={waiver.reason}>{waiver.reason}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="mt-4 flex items-center gap-2">
         <button type="button" className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-md bg-ink px-4 text-base font-semibold text-ink-fg hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-wait disabled:opacity-60" disabled={submitting || view?.revision === null} onClick={() => void approve()} data-testid="review-console-approve">
           <CheckCircle2 className="size-4" aria-hidden="true" />{submitting ? t('review_console.submitting') : t('review_console.approve')}
