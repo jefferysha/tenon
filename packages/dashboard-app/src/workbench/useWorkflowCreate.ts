@@ -146,6 +146,8 @@ export function useWorkflowCreate({ root, names, hasToken, current, blocked, onC
 
   function openCreate(from: CreateSource = current ?? 'default'): void {
     if (blocked || !hasToken) return
+    // 每次打开都重新读起点：上次打开之后可能刚保存过，复制的必须是磁盘上的最新定义。
+    definitions.current.clear()
     setSourceState(from)
     setNameState(suggestedName(from, taken))
     setOpenspecState(false)

@@ -198,6 +198,22 @@ describe('新建工作流：起点 · 名称 · OpenSpec · 预览', () => {
     expect(screen.queryByTestId('wb-workflow-create')).toBeNull()
   })
 
+  it('每次打开都重新读起点定义（期间保存过的工作流不会按旧定义复制）', async () => {
+    const user = userEvent.setup()
+    stubApi()
+    let latest: CreateState | null = null
+    renderDialog({ expose: (create) => { latest = create } })
+    await waitFor(() => expect(stages()).toHaveLength(3))
+    await user.keyboard('{Escape}')
+    DEFAULT.steps.push(stage('archive', '完结', null))
+    try {
+      act(() => { (latest as CreateState | null)?.openCreate() })
+      await waitFor(() => expect(stages()).toEqual(['1立项', '2实现', '3交付', '4完结']))
+    } finally {
+      DEFAULT.steps.pop()
+    }
+  })
+
   it('OpenSpec 开关是带可访问名称的共享 Switch；起点行单行截断带全名', async () => {
     stubApi()
     renderDialog({ names: ['a-really-long-workflow-name-that-must-truncate'] })
