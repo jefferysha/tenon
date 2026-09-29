@@ -9,6 +9,7 @@ import {
 import {
   decodeArtifact, decodeDocumentContract, decodeGuard, decodeStepTest, decodeTransition,
 } from './governanceRuleDecoders'
+import { decodeStepTestPolicy } from './governanceTestPolicyDecoder'
 
 export { decodeSkillsRegistry } from './governanceBaseDecoders'
 
@@ -24,6 +25,8 @@ function decodeStep(value: unknown): WbStepDef | null {
   const artifacts = step.artifacts === undefined ? undefined : decodeArray(step.artifacts, decodeArtifact)
   const tests = step.tests === undefined ? undefined : decodeArray(step.tests, decodeStepTest)
   if (tests === null) return null
+  const testPolicy = step.test_policy === undefined ? undefined : decodeStepTestPolicy(step.test_policy)
+  if (testPolicy === null) return null
   const agents = step.agents === undefined ? undefined : decodeStepAgents(step.agents)
   if (agents === null) return null
   const guards = decodeArray(step.guards, decodeGuard)
@@ -39,6 +42,7 @@ function decodeStep(value: unknown): WbStepDef | null {
     outputs,
     ...(artifacts === undefined ? {} : { artifacts }),
     ...(tests === undefined ? {} : { tests }),
+    ...(testPolicy === undefined ? {} : { test_policy: testPolicy }),
     ...(agents === undefined ? {} : { agents }),
     guards,
     transitions,

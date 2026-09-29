@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { decodeWorkflowDefinition } from './governanceSchema'
+import type { WbWorkflowDef } from './governanceTypes'
+import { definitionForWrite } from '../workbench/workbenchDefinition'
 const step = {
   id: 'open',
   label: 'Open',
@@ -305,5 +307,62 @@ describe('decodeWorkflowDefinition · 步骤 agents', () => {
     expect(withAgents({ executors: [], reviewers: [{ agent: 'a', required: true, block_at: 'fatal' }] })).toBeNull()
     expect(withAgents({ executors: [], reviewers: [{ agent: 'a', block_at: 'high' }] })).toBeNull()
     expect(withAgents({ executors: [], reviewers: [], extra: [] })).toBeNull()
+  })
+})
+
+describe('decodeWorkflowDefinition · 步骤 test_policy', () => {
+  const FULL = {
+    plan: 'required',
+    kinds: ['unit', 'playwright'],
+    run: ['unit', 'regression'],
+    run_if_registered: ['benchmark'],
+    scope: 'full',
+    files: 'registered',
+    scenarios: 'passing',
+    coverage: { lines: 80, branches: 70, changed_lines: 90 },
+    flaky: { max: 2, fail_on_new: true },
+    benchmark: { require_baseline: true },
+    browsers: ['chromium', 'Mobile Chrome'],
+  }
+  const withPolicy = (policy: unknown) => decodeWorkflowDefinition({
+    name: 'policy', steps: [{ ...step, test_policy: policy }],
+  })
+
+  it('每个键原样解出，写回前整形后逐字相同（保存不丢策略）', () => {
+    const decoded = withPolicy(FULL)
+    expect(decoded?.steps[0]?.test_policy).toEqual(FULL)
+    const written = JSON.parse(JSON.stringify(definitionForWrite(decoded as WbWorkflowDef))) as WbWorkflowDef
+    expect(written.steps[0]?.test_policy).toEqual(FULL)
+  })
+
+  it('track 分支里的步骤同样保留策略；缺省不补键', () => {
+    const decoded = decodeWorkflowDefinition({
+      name: 'branches', steps: [],
+      tracks: { backend: { steps: [{ ...step, test_policy: { run: ['unit'] } }, step] } },
+    })
+    expect(decoded?.tracks?.backend?.steps[0]?.test_policy).toEqual({ run: ['unit'] })
+    expect(decoded?.tracks?.backend?.steps[1]).not.toHaveProperty('test_policy')
+    expect(decodeWorkflowDefinition({ name: 'bare', steps: [step] })?.steps[0]).not.toHaveProperty('test_policy')
+  })
+
+  it('未知键、未知种类、越界数字、错误取值整份作废', () => {
+    expect(withPolicy({ ...FULL, lane: 'x' })).toBeNull()
+    expect(withPolicy({ kinds: ['unit', 'nope'] })).toBeNull()
+    expect(withPolicy({ run: ['unit', 'unit'] })).toBeNull()
+    expect(withPolicy({ coverage: { lines: 101 } })).toBeNull()
+    expect(withPolicy({ coverage: {} })).toBeNull()
+    expect(withPolicy({ coverage: { statements_pct: 1 } })).toBeNull()
+    expect(withPolicy({ flaky: { max: -1 } })).toBeNull()
+    expect(withPolicy({ flaky: { max: 1.5 } })).toBeNull()
+    expect(withPolicy({ flaky: { max: 1, extra: true } })).toBeNull()
+    expect(withPolicy({ benchmark: { require_baseline: 'yes' } })).toBeNull()
+    expect(withPolicy({ benchmark: {} })).toBeNull()
+    expect(withPolicy({ scope: 'known' })).toBeNull()
+    expect(withPolicy({ files: 'all' })).toBeNull()
+    expect(withPolicy({ scenarios: 'strict' })).toBeNull()
+    expect(withPolicy({ plan: 'never' })).toBeNull()
+    expect(withPolicy({ browsers: [''] })).toBeNull()
+    expect(withPolicy('unit')).toBeNull()
+    expect(withPolicy(null)).toBeNull()
   })
 })
