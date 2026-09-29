@@ -40,6 +40,11 @@ export interface FreshnessContext {
   readonly workflowFingerprint: string
   readonly catalog: TestCatalog | undefined
   readonly planDigest: string | undefined
+  /**
+   * 计划摘要（豁免批准位全部视为空）。评审确认只是把豁免的 `approved_by` 从空写成批准人；批准之前的运行
+   * 绑定的是「全部未批准」的那份计划，不该因为这次确认而过期。
+   */
+  readonly planDigestApprovalFree?: string
   readonly policyDigest: string
 }
 
@@ -51,7 +56,9 @@ export function staleBindings(ref: SuiteRunRef, context: FreshnessContext): read
   if (ref.run.origin === 'catalog') {
     const catalogSuites = ref.record.suites.filter((run) => run.origin === 'catalog').map((run) => run.suite)
     if (context.catalog === undefined || bindings.catalog_digest !== catalogSuitesDigest(context.catalog, catalogSuites)) out.push('catalog')
-    if (bindings.plan_digest !== (context.planDigest ?? null)) out.push('plan')
+    const planFresh = bindings.plan_digest === (context.planDigest ?? null)
+      || (context.planDigestApprovalFree !== undefined && bindings.plan_digest === context.planDigestApprovalFree)
+    if (!planFresh) out.push('plan')
   }
   if (bindings.policy_digest !== context.policyDigest) out.push('policy')
   return out

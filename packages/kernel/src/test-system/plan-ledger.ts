@@ -83,9 +83,19 @@ export async function readTestPlanState(changeDir: string, changeName: string): 
 
 /**
  * 只供 CLI 写入（`tenon test register|unregister|waive|plan --seed`）。持 Change 锁，锁不可重入：
- * 调用方不得在另一个 withLock(changeDir) 回调里调用本函数。
+ * 调用方不得在另一个 withLock(changeDir) 回调里调用本函数——已经持锁的调用方（review acknowledge 在同一次
+ * 确认里批准豁免）用 `writeTestPlanUnderLock`。
  */
 export async function writeTestPlan(
+  changeDir: string,
+  plan: TestPlan,
+  meta: { readonly actor: RecordActor; readonly recordedAt: string },
+): Promise<{ readonly digest: string }> {
+  return withLock(changeDir, () => writeTestPlanUnderLock(changeDir, plan, meta))
+}
+
+/** 调用方已持有该 Change 的锁；写入顺序与失败恢复同文件头。 */
+export async function writeTestPlanUnderLock(
   changeDir: string,
   plan: TestPlan,
   meta: { readonly actor: RecordActor; readonly recordedAt: string },
@@ -93,9 +103,7 @@ export async function writeTestPlan(
   const bytes = serializeTestPlan(plan)
   const digest = testPlanBytesDigest(bytes)
   const ledger: TestPlanLedger = { version: 1, digest, recorded_at: meta.recordedAt, actor: meta.actor }
-  await withLock(changeDir, async () => {
-    await atomicReplaceFile(testPlanPath(changeDir), bytes)
-    await atomicReplaceFile(testPlanLedgerPath(changeDir), `${JSON.stringify(ledger, null, 2)}\n`)
-  })
+  await atomicReplaceFile(testPlanPath(changeDir), bytes)
+  await atomicReplaceFile(testPlanLedgerPath(changeDir), `${JSON.stringify(ledger, null, 2)}\n`)
   return { digest }
 }

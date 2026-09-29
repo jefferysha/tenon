@@ -19,6 +19,7 @@ import type {
   SuiteVerdict, TestPolicyEvaluationInput, TestPolicyReport, TraceRow,
 } from './evaluate-types.js'
 import { planCatalogProblems, type TestPlan } from './plan.js'
+import { testPlanApprovalFreeDigest } from './plan-waivers.js'
 import { policyRequiredKinds, testPolicyDigest } from './policy.js'
 import { testFileRegistration, type UnregisteredTestFile } from './test-files.js'
 import type { TestKind } from './vocabulary.js'
@@ -273,6 +274,7 @@ export function evaluateTestPolicy(input: TestPolicyEvaluationInput): TestPolicy
     workflowFingerprint: input.bindings.workflowFingerprint,
     catalog: input.catalog.state === 'ok' ? input.catalog.catalog : undefined,
     planDigest: input.plan.state === 'ok' ? input.plan.digest : undefined,
+    ...(input.plan.state === 'ok' ? { planDigestApprovalFree: testPlanApprovalFreeDigest(input.plan.plan) } : {}),
     policyDigest: testPolicyDigest(input.policy),
   }
   const entries = runSet(input, plan)

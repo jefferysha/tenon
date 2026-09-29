@@ -41,7 +41,13 @@ export {
 export type {
   PlanCase, PlanCatalogProblem, PlanFile, PlanParseResult, PlanSuite, PlanWaiver, TestPlan,
 } from './plan.js'
-export { decodeTestPlanLedger, readTestPlanState, writeTestPlan } from './plan-ledger.js'
+export { decodeTestPlanLedger, readTestPlanState, writeTestPlan, writeTestPlanUnderLock } from './plan-ledger.js'
+export { approveWaivers, pendingWaivers, testPlanApprovalFreeDigest } from './plan-waivers.js'
+export type { PendingWaiver, WaiverApproval, WaiverSkipReason } from './plan-waivers.js'
+export {
+  REVIEW_WAIVERS_FILE, clearReviewWaiverSelection, readReviewWaiverSelection, writeReviewWaiverSelection,
+} from './review-waivers.js'
+export type { ReviewWaiverSelection } from './review-waivers.js'
 export type { TestPlanLedger, TestPlanState } from './plan-ledger.js'
 export {
   BASELINES_DIR, BASELINES_REPO_PATH, KNOWN_FAILURES_FILE, KNOWN_FAILURES_REPO_PATH, MACHINE_PROFILE_ID_RE,
