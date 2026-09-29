@@ -6,7 +6,7 @@ import { blockerLabel, kindLabel, noticeLabel } from '../tests/testLabels'
 import { dataMessage } from '../tests/testText'
 import { COUNT_BADGE, TABLE_HEAD, TABLE_ROW, gridRow } from '../tests/testStyles'
 import type { PolicyReport, TraceRow } from '../api/testSystemTypes'
-import { traceNeedsMapping, type ExtraItem, type FileRow } from './testsTabModel'
+import { traceLabel, traceNeedsMapping, type ExtraItem, type FileRow } from './testsTabModel'
 
 const FILE_COLUMNS = 'grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_7rem_minmax(0,2fr)]'
 
@@ -84,7 +84,7 @@ function traceTone(report: PolicyReport, row: TraceRow): PillTone {
 }
 
 /** 场景/任务追溯：场景或任务条目 · 映射的用例 · 结果。 */
-export function TestsTabTrace({ report }: { report: PolicyReport }): JSX.Element | null {
+export function TestsTabTrace({ report, stageLabelOf }: { report: PolicyReport; stageLabelOf: (stage: string) => string }): JSX.Element | null {
   const { t } = useT()
   if (report.trace.length === 0) return null
   return (
@@ -97,9 +97,10 @@ export function TestsTabTrace({ report }: { report: PolicyReport }): JSX.Element
         </div>
         {report.trace.map((row) => {
           const refs = row.tests.map((test) => test.ref)
+          const label = traceLabel(row, stageLabelOf)
           return (
             <div key={row.covers} className={`${gridRow(TRACE_COLUMNS)} ${TABLE_ROW}`} role="row" data-testid={`tests-trace-${row.covers}`} data-state={row.state}>
-              <span className="truncate text-text" role="cell" title={row.covers} data-testid="tests-trace-title">{row.title}</span>
+              <span className="truncate whitespace-nowrap text-text" role="cell" title={label} data-testid="tests-trace-title">{label}</span>
               <span className="flex min-w-0 flex-nowrap items-center gap-2" role="cell" title={refs.join('\n')} data-testid="tests-trace-cases">
                 {refs.length === 0 && <span className="text-text-3">—</span>}
                 {refs.slice(0, SHOWN_REFS).map((ref) => <span key={ref} className="min-w-0 truncate font-mono text-caption text-text-2">{ref}</span>)}

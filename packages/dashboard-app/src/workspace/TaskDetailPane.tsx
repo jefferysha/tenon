@@ -215,6 +215,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
                         report={policyReport}
                         plan={change.testPlan}
                         legacyRows={testRows}
+                        stageLabelOf={labelOf}
                         activeSuite={openSuite ?? (openTest === null ? null : `step:${openTest}`)}
                         onOpenSuite={(suite) => {
                           if (suite.startsWith('step:')) { setOpenSuite(null); setOpenTest(suite.slice('step:'.length)) } else { setOpenTest(null); setOpenSuite(suite) }

@@ -103,6 +103,8 @@ export interface TraceRow {
   readonly covers: string
   readonly kind: 'spec' | 'task'
   readonly title: string
+  /** 任务条目所在的阶段小节 id（tasks.md 里认得出阶段小节时）；场景没有。展示用，不参与判定。 */
+  readonly stage?: string
   /** 要求映射用例：场景一律；任务只有实现阶段小节里的。false = 可选，不挡（只进矩阵与报告）。 */
   readonly required: boolean
   readonly tests: readonly TraceTest[]

@@ -28049,8 +28049,8 @@ function evaluateTrace(context) {
   const blockers = [];
   const requirement = context.policy.scenarios;
   const sources = [
-    ...context.scenarios.map((scenario) => ({ covers: scenario.covers, kind: "spec", title: `${scenario.capability} \xB7 ${scenario.title}`, required: true })),
-    ...context.tasks.map((task) => ({ covers: task.covers, kind: "task", title: task.text, required: task.required }))
+    ...context.scenarios.map((scenario) => ({ covers: scenario.covers, kind: "spec", title: `${scenario.capability} \xB7 ${scenario.title}`, stage: null, required: true })),
+    ...context.tasks.map((task) => ({ covers: task.covers, kind: "task", title: task.text, stage: task.stage, required: task.required }))
   ];
   for (const source of sources) {
     const tests = (mapping.get(source.covers) ?? []).map((test) => traceTest(test, context.fresh));
@@ -28061,6 +28061,7 @@ function evaluateTrace(context) {
       covers: source.covers,
       kind: source.kind,
       title: source.title,
+      ...source.stage === null ? {} : { stage: source.stage },
       required: source.required,
       tests,
       ...waiver === void 0 ? {} : { waiver: { approved, reason: waiver.reason } },

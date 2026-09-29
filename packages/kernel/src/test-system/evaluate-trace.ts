@@ -65,8 +65,8 @@ export function evaluateTrace(context: TraceContext): TraceEvaluation {
   const blockers: TestBlocker[] = []
   const requirement = context.policy.scenarios
   const sources = [
-    ...context.scenarios.map((scenario) => ({ covers: scenario.covers, kind: 'spec' as const, title: `${scenario.capability} · ${scenario.title}`, required: true })),
-    ...context.tasks.map((task) => ({ covers: task.covers, kind: 'task' as const, title: task.text, required: task.required })),
+    ...context.scenarios.map((scenario) => ({ covers: scenario.covers, kind: 'spec' as const, title: `${scenario.capability} · ${scenario.title}`, stage: null, required: true })),
+    ...context.tasks.map((task) => ({ covers: task.covers, kind: 'task' as const, title: task.text, stage: task.stage, required: task.required })),
   ]
   for (const source of sources) {
     const tests = (mapping.get(source.covers) ?? []).map((test) => traceTest(test, context.fresh))
@@ -74,7 +74,7 @@ export function evaluateTrace(context: TraceContext): TraceEvaluation {
     const approved = waiver?.approved_by !== null && waiver?.approved_by !== undefined
     const state = rowState(tests, approved)
     rows.push({
-      covers: source.covers, kind: source.kind, title: source.title, required: source.required, tests,
+      covers: source.covers, kind: source.kind, title: source.title, ...(source.stage === null ? {} : { stage: source.stage }), required: source.required, tests,
       ...(waiver === undefined ? {} : { waiver: { approved, reason: waiver.reason } }),
       state,
     })

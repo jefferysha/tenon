@@ -36,6 +36,7 @@ function mount(report: PolicyReport = verifyReport(), extra: {
           legacyRows={extra.legacyRows ?? []}
           activeSuite={extra.activeSuite ?? null}
           onOpenSuite={onOpenSuite}
+          stageLabelOf={(stage) => (stage === 'build' ? '实现' : stage)}
         />
       </TooltipProvider>
     </I18nProvider>,
@@ -216,7 +217,7 @@ describe('TaskTestsTab · 阻塞与追溯', () => {
     mount(report)
     const trace = screen.getByTestId('tests-trace')
     expect(within(trace).getAllByTestId('tests-trace-title').map((cell) => cell.textContent)).toEqual([
-      'auth · 登录成功跳转首页', 'auth · 退出登录', '2.3 密码为空时禁用提交',
+      'auth · 登录成功跳转首页', 'auth · 退出登录', '2.3 · 实现 · 密码为空时禁用提交',
     ])
     const last = within(trace).getByTestId('tests-trace-task:2.3')
     expect(within(last).getByTestId('tests-trace-more').textContent).toBe('+1')
@@ -244,6 +245,28 @@ describe('TaskTestsTab · 阻塞与追溯', () => {
     expect(screen.getByTestId('tests-trace-state-spec:auth/豁免的').textContent).toBe('豁免')
     expect(screen.getByTestId('tests-trace-state-spec:auth/豁免的')).toHaveAttribute('data-tone', 'pending')
     expect(screen.getByTestId('tests-trace-state-spec:auth/映射了').textContent).toBe('未运行')
+  })
+
+  it('追溯行一行：任务 = 编号 · 阶段名 · 文字，场景 = 能力 · 场景；截断并带完整 title；没有阶段小节时省略阶段', () => {
+    const base = verifyReport()
+    mount({
+      ...base,
+      trace: [
+        ...base.trace,
+        { covers: 'task:4.1', kind: 'task', title: '将本阶段目标拆成可验证任务。', stage: 'spec', required: false, state: 'uncovered', tests: [] },
+        { covers: 'task:5.2', kind: 'task', title: '没有阶段小节的条目', required: false, state: 'uncovered', tests: [] },
+      ],
+    })
+    const titleOf = (covers: string): HTMLElement => within(screen.getByTestId(`tests-trace-${covers}`)).getByTestId('tests-trace-title')
+    expect(titleOf('task:4.1').textContent).toBe('4.1 · spec · 将本阶段目标拆成可验证任务。')
+    expect(titleOf('task:5.2').textContent).toBe('5.2 · 没有阶段小节的条目')
+    expect(titleOf('spec:auth/退出登录').textContent).toBe('auth · 退出登录')
+    for (const covers of ['task:2.3', 'task:4.1', 'spec:auth/退出登录']) {
+      const cell = titleOf(covers)
+      expect(cell.getAttribute('title')).toBe(cell.textContent)
+      expect(cell.className).toContain('truncate')
+      expect(cell.className).toContain('whitespace-nowrap')
+    }
   })
 
   it('可选的任务（非实现阶段小节）没映射时写「可选」，中性，不当缺项', () => {

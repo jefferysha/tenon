@@ -455,6 +455,7 @@ describe('evaluateTestPolicy —— 场景追溯', () => {
       ['waiver-unapproved', 'spec:auth/密码错误'], ['scenario-uncovered', 'task:1.1'],
     ])
     const uncovered = evaluate({ policy: { scenarios: 'required' }, input: { scenarios, tasks } })
+    expect(uncovered.trace.filter((row) => row.kind === 'spec').map((row) => 'stage' in row)).toEqual([false, false])
     expect(uncovered.blockers.map((item) => item.code)).toEqual(['scenario-uncovered', 'scenario-uncovered', 'scenario-uncovered'])
     expect(uncovered.blockers[0]?.fix).toBe("tenon test register demo --case 'spec:auth/登录成功' --test '<文件> › <用例名>'")
     expect(uncovered.blockers[2]?.message).toMatch(/^任务 /)
@@ -473,6 +474,8 @@ describe('evaluateTestPolicy —— 场景追溯', () => {
       ['task:1.1', false, 'uncovered'], ['task:2.1', false, 'uncovered'], ['task:3.1', true, 'uncovered'],
       ['task:3.2', false, 'uncovered'], ['task:4.1', false, 'uncovered'],
     ])
+    // 任务行带上所在阶段小节的 id（展示用，不参与判定）；场景没有。
+    expect(uncovered.trace.map((row) => row.stage)).toEqual(['open', 'spec', 'build', 'build', 'verify'])
     const mapped: TestPlan = { ...BASE_PLAN, cases: [{ covers: 'task:3.1', tests: ['src/a.test.ts › works'] }] }
     expect(evaluate({ policy: { scenarios: 'required' }, plan: mapped, input: { scenarios: [], tasks: mixed } }).blockers).toEqual([])
     const off = evaluate({ policy: { scenarios: 'off' }, input: { scenarios: [], tasks: mixed } })

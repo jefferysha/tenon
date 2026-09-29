@@ -167,6 +167,16 @@ export function traceNeedsMapping(report: PolicyReport, row: TraceRow): boolean 
   return row.state === 'uncovered' && row.required && report.policy !== null && report.policy.scenarios !== 'off'
 }
 
+/**
+ * 追溯行的展示名：场景 = 「能力 · 场景」（服务端标题已带能力）；任务 = 「编号 · 阶段名 · 条目文字」。
+ * 阶段名走工作流的名称（有名称显示名称，否则 id）；条目不在可识别的阶段小节里时省略这一段。
+ */
+export function traceLabel(row: TraceRow, stageLabelOf: (stage: string) => string): string {
+  if (row.kind !== 'task') return row.title
+  const id = row.covers.replace(/^task:/u, '')
+  return [id, ...(row.stage === undefined ? [] : [stageLabelOf(row.stage)]), row.title].join(' · ')
+}
+
 /** 页签计数：满足要求的种类 / 要求的种类（与矩阵同一口径）；没有要求任何种类时不给计数。 */
 export function tabCount(report: PolicyReport, plan: TestPlanBrief | undefined): string | undefined {
   const rows = buildMatrix(report, plan)

@@ -94,6 +94,7 @@ function traceDto(row: TraceRow): TraceRowDto {
     covers: row.covers,
     kind: row.kind,
     title: row.title,
+    ...(row.stage === undefined ? {} : { stage: row.stage }),
     required: row.required,
     tests: row.tests.map((test) => ({
       ref: test.ref,
