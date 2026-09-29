@@ -29772,6 +29772,34 @@ async function readReviewWaiverSelection(changeDir7) {
 async function clearReviewWaiverSelection(changeDir7) {
   await rm11(join44(changeDir7, REVIEW_WAIVERS_FILE), { force: true });
 }
+function scalar8(state, field4) {
+  const value = state.fields[field4];
+  return Array.isArray(value) ? value.join(",") : value ?? "";
+}
+async function boundReviewWaiverSelection(changeDir7, state) {
+  const selection = await readReviewWaiverSelection(changeDir7);
+  if (selection === void 0 || selection.waivers.length === 0)
+    return { selection: void 0, unbound: false };
+  const bound = selection.phase === scalar8(state, "review_gate_phase") && selection.event === reviewGateEvent(state) && selection.requestedAt === scalar8(state, "review_requested_at");
+  return bound ? { selection, unbound: false } : { selection: void 0, unbound: true };
+}
+var NO_APPROVAL = { approved: [], skipped: [], digest: null, note: null };
+async function approveFrozenWaivers(input2) {
+  const { selection, unbound } = await boundReviewWaiverSelection(input2.dir, input2.state);
+  if (unbound)
+    return { ...NO_APPROVAL, note: "\u8C41\u514D\u6E05\u5355\u4E0D\u5C5E\u4E8E\u8FD9\u4E00\u6B21 review request\uFF0C\u672A\u6279\u51C6\u4EFB\u4F55\u8C41\u514D" };
+  if (selection === void 0)
+    return NO_APPROVAL;
+  const plan = await readTestPlanState(input2.dir, input2.change);
+  if (plan.state !== "ok") {
+    return { ...NO_APPROVAL, note: `\u6D4B\u8BD5\u8BA1\u5212${plan.state === "missing" ? "\u4E0D\u5B58\u5728" : `\u4E0D\u53EF\u4FE1\uFF08${plan.reason}\uFF09`}\uFF0C\u672A\u6279\u51C6\u4EFB\u4F55\u8C41\u514D` };
+  }
+  const result2 = approveWaivers(plan.plan, selection.waivers, input2.actor.id);
+  if (result2.approved.length === 0)
+    return { ...NO_APPROVAL, skipped: result2.skipped };
+  const written = await writeTestPlanUnderLock(input2.dir, result2.plan, { actor: input2.actor, recordedAt: input2.recordedAt });
+  return { approved: result2.approved, skipped: result2.skipped, digest: written.digest, note: null };
+}
 
 // packages/kernel/dist/test-system/report-block.js
 var TEST_REPORT_BEGIN = "<!-- tenon:test-report:begin -->";
@@ -30382,7 +30410,7 @@ function taskLifecycleUnlockHint(code, change) {
     return `tenon cas ${change} automation queued off`;
   return void 0;
 }
-function scalar8(state, field4) {
+function scalar9(state, field4) {
   const value = state.fields[field4];
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
@@ -30397,8 +30425,8 @@ async function changeFacts(store2, changeDir7) {
   try {
     const state = await store2.read(changeDir7);
     return {
-      phase: scalar8(state, "phase") === "" ? UNKNOWN_PHASE : scalar8(state, "phase"),
-      automation: scalar8(state, "automation"),
+      phase: scalar9(state, "phase") === "" ? UNKNOWN_PHASE : scalar9(state, "phase"),
+      automation: scalar9(state, "automation"),
       reviewPending: reviewGateStatus(state) === REVIEW_GATE_PENDING,
       owner: ownerOf(state.fields)
     };
@@ -37101,7 +37129,7 @@ var PHASE_DOCS = {
 function phaseHandoffDocs(phase) {
   return (PHASE_DOCS[phase] ?? []).map((s) => ({ ...s }));
 }
-function scalar9(v) {
+function scalar10(v) {
   if (v === void 0)
     return "";
   return Array.isArray(v) ? v.join(",") : v;
@@ -37111,7 +37139,7 @@ function isUnset2(v) {
 }
 function resolveSpec(spec, input2) {
   if (spec.kind === "field") {
-    const val = scalar9(input2.fields[spec.ref]).trim();
+    const val = scalar10(input2.fields[spec.ref]).trim();
     if (isUnset2(val))
       return null;
     return { abs: isAbsolute11(val) ? val : join57(input2.cwd, val), display: val };
@@ -40090,7 +40118,7 @@ async function emitInteractionEffectUnderLock(input2) {
 }
 
 // packages/kernel/dist/decision/review-interaction.js
-function scalar10(state, field4) {
+function scalar11(state, field4) {
   const value = state.fields[field4];
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
@@ -40138,8 +40166,8 @@ function reviewAcknowledgedInteractionDraft(input2) {
 }
 function reviewAcknowledgedInteractionFor(input2) {
   const state = input2.state;
-  const workflow = scalar10(state, "workflow") || "default";
-  const track = scalar10(state, "track");
+  const workflow = scalar11(state, "workflow") || "default";
+  const track = scalar11(state, "track");
   const workflowHash = state.runMetadata?.workflowPlanFingerprint ?? input2.after.state.runMetadata?.workflowPlanFingerprint ?? input2.before.state.runMetadata?.workflowPlanFingerprint;
   if (workflowHash === void 0)
     throw new Error("interaction projection \u7F3A workflow/run anchor");
@@ -40150,7 +40178,7 @@ function reviewAcknowledgedInteractionFor(input2) {
     beforeRevision: input2.before,
     phase: input2.phase,
     event: input2.event,
-    requestedAt: scalar10(input2.before.state, "review_requested_at"),
+    requestedAt: scalar11(input2.before.state, "review_requested_at"),
     acknowledgedAt: input2.acknowledgedAt,
     surface: input2.channel === "dashboard" ? "dashboard" : "cli",
     workflow,
@@ -40199,7 +40227,7 @@ function timestampAfter(previous, now) {
     return candidate2;
   return new Date(previousMs + 1).toISOString();
 }
-function scalar11(state, field4) {
+function scalar12(state, field4) {
   const value = state.fields[field4];
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
@@ -40230,9 +40258,9 @@ async function executeReviewAcknowledge(ports) {
     const state = await ports.readState();
     const binding = await ports.readBinding();
     const current = await ports.readRevision();
-    const phase = scalar11(state, "review_gate_phase");
+    const phase = scalar12(state, "review_gate_phase");
     const event = reviewGateEvent(state);
-    const requestedAt = scalar11(state, "review_requested_at");
+    const requestedAt = scalar12(state, "review_requested_at");
     const revision = current?.revision ?? null;
     const ref = reviewDecisionRef(ports.change, phase, event, selectReviewAnchor({
       phase,
@@ -40263,8 +40291,8 @@ async function executeReviewAcknowledge(ports) {
       }
     }
     const receiptStatus = reviewGateStatus(state);
-    if (receiptStatus === null || phase === "" || scalar11(state, "phase") !== phase) {
-      return failure(anchor, "review-approval-required", `phase '${scalar11(state, "phase")}' \u5F53\u524D\u6CA1\u6709\u5F85\u786E\u8BA4\u7684 review request`, ref);
+    if (receiptStatus === null || phase === "" || scalar12(state, "phase") !== phase) {
+      return failure(anchor, "review-approval-required", `phase '${scalar12(state, "phase")}' \u5F53\u524D\u6CA1\u6709\u5F85\u786E\u8BA4\u7684 review request`, ref);
     }
     if (event === "") {
       return failure(anchor, "review-approval-required", `phase '${phase}' \u7684\u65E7 review receipt \u672A\u7ED1\u5B9A event\uFF1B\u8BF7\u91CD\u65B0\u8FD0\u884C tenon review request ${ports.change} --event <event>`, ref);
@@ -45265,7 +45293,7 @@ function readyCandidates(entries2, resolver) {
     return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
   }).map((e) => e.name);
 }
-var scalar12 = (v) => typeof v === "string" ? v : "";
+var scalar13 = (v) => typeof v === "string" ? v : "";
 var nodeErrorCode = (error2) => typeof error2 === "object" && error2 !== null && "code" in error2 ? String(error2.code) : void 0;
 async function scanReadyFromFs(changesDir, store2) {
   let dirents;
@@ -45282,14 +45310,14 @@ async function scanReadyFromFs(changesDir, store2) {
   for (const name2 of activeNames) {
     const changeDir7 = join67(changesDir, name2);
     const state = await store2.read(changeDir7);
-    const automation = scalar12(state.fields.automation);
+    const automation = scalar13(state.fields.automation);
     automationByName.set(name2, automation);
     entries2.push({
       name: name2,
-      phase: scalar12(state.fields.phase),
+      phase: scalar13(state.fields.phase),
       automation,
-      archived: scalar12(state.fields.archived),
-      automationQueuedAt: scalar12(state.fields.automation_queued_at),
+      archived: scalar13(state.fields.archived),
+      automationQueuedAt: scalar13(state.fields.automation_queued_at),
       dependsOn: normalizeDeps(state.fields.depends_on)
     });
   }
@@ -50216,7 +50244,7 @@ function resolveAutomationConfig(deps, entrypointDefaults = {}) {
   const { image: _image, ...fileCfg } = readAutomationJson(deps.repoRoot, deps.configFs);
   return { ...DEFAULT_CONFIG, ...entrypointDefaults, ...fileCfg, ...deps.config };
 }
-var scalar13 = (v) => typeof v === "string" ? v : "";
+var scalar14 = (v) => typeof v === "string" ? v : "";
 var storeWriter = (store2, changeDir7) => ({
   claim: (name2, expectedTrackId, expectedRun) => claim(store2, changeDir7(name2), expectedTrackId, expectedRun),
   setAutomation: (name2, s) => store2.set(changeDir7(name2), "automation", s),
@@ -50265,11 +50293,11 @@ function createAutomation(deps) {
     config,
     async enqueue(name2, resolveTrackPolicy) {
       const state = await store2.read(changeDir7(name2));
-      const policy2 = resolveTrackPolicy(scalar13(state.fields.track));
+      const policy2 = resolveTrackPolicy(scalar14(state.fields.track));
       const eligible = shouldEnqueueOnSpecComplete({
         enabled: config.enabled,
         automationEligible: policy2.automationEligible,
-        automation: scalar13(state.fields.automation),
+        automation: scalar14(state.fields.automation),
         defaultOptIn: config.defaultOptIn
       });
       if (!eligible)
@@ -50310,7 +50338,7 @@ function createAutomation(deps) {
 }
 
 // packages/automation/dist/lifecycle/spec-complete.js
-var scalar14 = (value) => typeof value === "string" ? value : "";
+var scalar15 = (value) => typeof value === "string" ? value : "";
 async function enqueueAfterSpecComplete(deps, transition) {
   if (transition.event !== "spec-complete" || transition.from !== "spec" || transition.to !== "build") {
     return { kind: "not-applicable" };
@@ -50319,12 +50347,12 @@ async function enqueueAfterSpecComplete(deps, transition) {
   const changeDir7 = join75(deps.repoRoot, "openspec", "changes", transition.changeName);
   return deps.store.withLock(changeDir7, async () => {
     const state = await deps.store.read(changeDir7);
-    if (scalar14(state.fields.phase) !== "build")
+    if (scalar15(state.fields.phase) !== "build")
       return { kind: "phase-changed" };
-    const policy2 = deps.resolveTrackPolicy(scalar14(state.fields.track));
+    const policy2 = deps.resolveTrackPolicy(scalar15(state.fields.track));
     if (policy2.autoEnqueueOnSpecComplete !== true)
       return { kind: "track-disabled" };
-    const automation = scalar14(state.fields.automation);
+    const automation = scalar15(state.fields.automation);
     if (automation === "queued")
       return { kind: "already-queued" };
     if (automation !== "off")
@@ -53906,7 +53934,7 @@ function normalizeCandidate(value) {
   if (typeof value === "string" && CANDIDATE_RE.test(value)) return value;
   return void 0;
 }
-function scalar15(value) {
+function scalar16(value) {
   if (typeof value === "string") return value;
   if (Array.isArray(value) && value.every((entry2) => typeof entry2 === "string")) return value.join(",");
   return null;
@@ -53921,7 +53949,7 @@ async function currentCandidate(deps, change, state, plan, scope) {
     return candidate2;
   }
   const declared = [...new Set(step.inputs.flatMap((input2) => {
-    const value = scalar15(Reflect.get(state.fields, input2.field));
+    const value = scalar16(Reflect.get(state.fields, input2.field));
     const candidate2 = value === null ? void 0 : normalizeCandidate(value);
     return candidate2 === void 0 ? [] : [candidate2];
   }))];
@@ -60831,14 +60859,14 @@ function requireActor(deps) {
 }
 
 // packages/cli/src/commands/effective-artifacts.ts
-function scalar16(state, f) {
+function scalar17(state, f) {
   const v = state.fields[f];
   return Array.isArray(v) ? v.join(",") : v ?? "";
 }
 function effectiveArtifactFields(deps, state) {
   const workflow = effectiveWorkflowForState(deps, state);
-  const stepId = scalar16(state, "phase");
-  const track = scalar16(state, "track");
+  const stepId = scalar17(state, "phase");
+  const track = scalar17(state, "track");
   if (!workflow) {
     return /* @__PURE__ */ new Set();
   }
@@ -61399,7 +61427,7 @@ function reject3(deps, msg) {
   deps.io.err(`ERROR: ${msg}`);
   return 1;
 }
-function scalar17(state, f) {
+function scalar18(state, f) {
   const v = state.fields[f];
   return Array.isArray(v) ? v.join(",") : v ?? "";
 }
@@ -61409,8 +61437,8 @@ function listAllowed(slots) {
 function effectiveArtifactProducers(deps, state) {
   const plan = effectiveWorkflowForState(deps, state);
   if (!plan) return [];
-  const stepId = scalar17(state, "phase");
-  const track = scalar17(state, "track");
+  const stepId = scalar18(state, "phase");
+  const track = scalar18(state, "track");
   if (!resolveStep(plan.workflow, stepId)) return [];
   const skillCapability = plan.capabilities.skills;
   const slots = skillCapability.source === "manifest-overlay" ? resolveExplicitProfileSkillSlots(
@@ -61424,8 +61452,8 @@ function effectiveArtifactProducers(deps, state) {
 async function runRegister(deps, dir, field4, path15, producer) {
   const cur = await deps.store.read(dir);
   const plan = effectiveWorkflowForState(deps, cur);
-  const stepId = scalar17(cur, "phase");
-  const track = scalar17(cur, "track");
+  const stepId = scalar18(cur, "phase");
+  const track = scalar18(cur, "track");
   const f = field4;
   if (!plan) {
     return reject3(deps, `workflow '${String(cur.fields.workflow ?? "")}' \u4E0D\u5B58\u5728\u6216\u4E0D\u53EF\u7F16\u8BD1`);
@@ -61657,7 +61685,7 @@ function reject4(deps, message2) {
   deps.io.err(`ERROR: ${message2}`);
   return 1;
 }
-function scalar18(state, field4) {
+function scalar19(state, field4) {
   const value = state.fields[field4];
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
@@ -61698,7 +61726,7 @@ async function cmdDocumentScaffold(deps, name2, kind, requestedLocale, requested
     }
     const plan = effectiveWorkflowForState(deps, state);
     const workflowSteps = plan?.workflow.steps.map((step) => ({ id: step.id, label: step.label }));
-    const designDoc = scalar18(state, "phase") === "open" ? void 0 : String(state.fields.design_doc ?? "");
+    const designDoc = scalar19(state, "phase") === "open" ? void 0 : String(state.fields.design_doc ?? "");
     const content = renderDocumentTemplate(documentTemplateIdForKind(kind), locale, {
       change: name2,
       workflowStepLabelSource: plan?.projection.stepLabelSource,
@@ -61729,7 +61757,7 @@ function governedDocumentContext(deps, state) {
   const workflowName = plan.id;
   const policy2 = plan.capabilities.documents.policy;
   const governed = policy2 !== void 0;
-  const phase = scalar18(state, "phase");
+  const phase = scalar19(state, "phase");
   if (!governed) {
     return { workflowName, phase: "open", governed: false };
   }
@@ -69707,7 +69735,7 @@ import { appendFile as appendFile8, lstat as lstat57, mkdir as mkdir48, readFile
 import { join as join118 } from "node:path";
 
 // packages/cli/src/interaction-emitter.ts
-function scalar19(state, field4) {
+function scalar20(state, field4) {
   const value = state.fields[field4];
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
@@ -69730,7 +69758,7 @@ function visit(revision, state) {
   if (runId === void 0 || transitionSequence === void 0) {
     throw new Error("interaction projection \u7F3A run identity");
   }
-  const step = scalar19(state, "phase");
+  const step = scalar20(state, "phase");
   return { runId, transitionSequence, step };
 }
 function common(input2, revision) {
@@ -69741,8 +69769,8 @@ function common(input2, revision) {
   if (runId === void 0 || workflowPlanFingerprint === void 0) {
     throw new Error("interaction projection \u7F3A workflow/run anchor");
   }
-  const workflow = scalar19(input2.state, "workflow") || "default";
-  const track = scalar19(input2.state, "track");
+  const workflow = scalar20(input2.state, "workflow") || "default";
+  const track = scalar20(input2.state, "track");
   const currentVisit = visit(revision, input2.state);
   return {
     change: input2.changeName,
@@ -69760,7 +69788,7 @@ function common(input2, revision) {
     workflowMode: workflowMode(workflow),
     track,
     trackKind: trackKind2(track),
-    pipelineStage: pipelineStage2(scalar19(input2.state, "phase")),
+    pipelineStage: pipelineStage2(scalar20(input2.state, "phase")),
     controlStage: "verification",
     occurredAt: input2.clock ?? (/* @__PURE__ */ new Date()).toISOString(),
     durationMs: input2.durationMs ?? 0
@@ -69803,12 +69831,12 @@ function createInteractionCapture(recorder, clock) {
     },
     recordResume: async (input2) => {
       const effect = input2.effectRevision;
-      const requestedAt = scalar19(effect.state, "review_requested_at") || input2.clock || clock();
+      const requestedAt = scalar20(effect.state, "review_requested_at") || input2.clock || clock();
       const base = common(input2, input2.revision);
       const origin = effect;
       return write(input2.changeDir, {
         ...base,
-        journeyId: input2.journeyId ?? journey(input2, origin, scalar19(effect.state, "review_gate_event") || "review", requestedAt),
+        journeyId: input2.journeyId ?? journey(input2, origin, scalar20(effect.state, "review_gate_event") || "review", requestedAt),
         originStepVisit: input2.originStepVisit ?? visit(origin, effect.state),
         stepVisit: visit(input2.revision, input2.state),
         stateBeforeHash: input2.revision.stateDigest,
@@ -74162,7 +74190,7 @@ function completedSkillsSinceStepEntry(lines2, currentStepId) {
 
 // packages/cli/src/commands/statusStepParts.ts
 var OUTCOME_FIELDS = /* @__PURE__ */ new Set(["verify_result", "branch_status", "pre_verify_review_result"]);
-function scalar20(state, field4) {
+function scalar21(state, field4) {
   const value = state.fields[field4];
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
@@ -74207,7 +74235,7 @@ function stepDocuments(change, policy2, stepId, items) {
   };
 }
 function fieldView(state, field4, kind, artifacts, required3) {
-  const value = scalar20(state, field4);
+  const value = scalar21(state, field4);
   const present = value !== "" && value !== "null";
   const satisfied = present && (required3 === void 0 || required3.includes(value));
   return {
@@ -81281,7 +81309,7 @@ async function cmdHandoff(deps, name2, opts, fs = void 0, localeResolver = resol
 }
 
 // packages/cli/src/commands/workflow-plan.ts
-function scalar21(value) {
+function scalar22(value) {
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
 function stepDetailLines(step) {
@@ -81306,7 +81334,7 @@ function renderHuman(deps, name2, state, plan) {
   deps.io.out(`change   ${name2}`);
   deps.io.out(`workflow ${plan.id}`);
   deps.io.out(`source   ${source}`);
-  deps.io.out(`current  ${scalar21(state.fields.phase)}`);
+  deps.io.out(`current  ${scalar22(state.fields.phase)}`);
   for (const [index, step] of plan.workflow.steps.entries()) {
     const skills = step.skills.map((skill) => skill.id).join(", ") || "-";
     const completion = implicitCompletionTransition(plan, step.id, state);
@@ -81343,7 +81371,7 @@ async function cmdWorkflowPlan(deps, name2, opts) {
     return 1;
   }
   if (plan === null) {
-    deps.io.err(`ERROR: workflow '${scalar21(state.fields.workflow)}' \u672A\u627E\u5230`);
+    deps.io.err(`ERROR: workflow '${scalar22(state.fields.workflow)}' \u672A\u627E\u5230`);
     return 1;
   }
   const source = state.runMetadata?.workflowPlanSnapshot === void 0 ? "current-definition" : "frozen-snapshot";
@@ -81351,7 +81379,7 @@ async function cmdWorkflowPlan(deps, name2, opts) {
     deps.io.out(JSON.stringify({
       change: name2,
       source,
-      current_step: scalar21(state.fields.phase),
+      current_step: scalar22(state.fields.phase),
       plan: planWithCompletionEvents(plan, state)
     }));
   } else {
@@ -81708,7 +81736,7 @@ async function readPayload(payloadPath) {
   }
   return { candidate: candidate2, toolUseId, identity: identity2 };
 }
-function scalar22(state, field4) {
+function scalar23(state, field4) {
   const value = state.fields[field4];
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
@@ -81720,10 +81748,10 @@ function observationKey(change, anchor, kind, payload) {
   return `sha256:${sha2565([change, anchor, kind, call].join("\0"))}`;
 }
 function pendingPhaseEvent(state) {
-  const phase = scalar22(state, "review_gate_phase");
-  const event = scalar22(state, "review_gate_event");
+  const phase = scalar23(state, "review_gate_phase");
+  const event = scalar23(state, "review_gate_event");
   if (phase === "" || event === "" || !reviewGatePendingFor(state, phase, event)) return void 0;
-  return { phase, event, requestedAt: scalar22(state, "review_requested_at") };
+  return { phase, event, requestedAt: scalar23(state, "review_requested_at") };
 }
 async function recordForChange(deps, changeName, kinds2, payload, identityKey) {
   const dir = changeDir(deps.cwd, changeName);
@@ -82971,11 +82999,6 @@ function waiverLines(waivers) {
     ...waivers.map((waiver) => `  ${waiver.key} \u2014 ${waiver.reason}`)
   ];
 }
-function scalar23(state, field4) {
-  const value = state.fields[field4];
-  return Array.isArray(value) ? value.join(",") : value ?? "";
-}
-var NONE = { approved: [], skipped: [], digest: null, note: null };
 var SKIP_WORDS = {
   missing: "\u5DF2\u4E0D\u5728\u8BA1\u5212\u91CC",
   "reason-changed": "\u8BF7\u6C42\u4E4B\u540E\u7406\u7531\u88AB\u6539\u8FC7",
@@ -82983,23 +83006,6 @@ var SKIP_WORDS = {
 };
 function skippedWaiverLines(outcome) {
   return outcome.skipped.map((item2) => `[REVIEW] \u8C41\u514D ${item2.key} \u672A\u6279\u51C6\uFF1A${SKIP_WORDS[item2.why]}\uFF1B\u9700\u8981\u65F6\u91CD\u65B0 review request`);
-}
-async function approveFrozenWaivers(input2) {
-  const selection = await readReviewWaiverSelection(input2.dir);
-  if (selection === void 0 || selection.waivers.length === 0) return NONE;
-  const requestedAt = scalar23(input2.state, "review_requested_at");
-  const phase = scalar23(input2.state, "review_gate_phase");
-  if (selection.phase !== phase || selection.event !== reviewGateEvent(input2.state) || selection.requestedAt !== requestedAt) {
-    return { ...NONE, note: "\u8C41\u514D\u6E05\u5355\u4E0D\u5C5E\u4E8E\u8FD9\u4E00\u6B21 review request\uFF0C\u672A\u6279\u51C6\u4EFB\u4F55\u8C41\u514D" };
-  }
-  const plan = await readTestPlanState(input2.dir, input2.change);
-  if (plan.state !== "ok") {
-    return { ...NONE, note: `\u6D4B\u8BD5\u8BA1\u5212${plan.state === "missing" ? "\u4E0D\u5B58\u5728" : `\u4E0D\u53EF\u4FE1\uFF08${plan.reason}\uFF09`}\uFF0C\u672A\u6279\u51C6\u4EFB\u4F55\u8C41\u514D` };
-  }
-  const result2 = approveWaivers(plan.plan, selection.waivers, input2.actor.id);
-  if (result2.approved.length === 0) return { ...NONE, skipped: result2.skipped };
-  const written = await writeTestPlanUnderLock(input2.dir, result2.plan, { actor: input2.actor, recordedAt: input2.recordedAt });
-  return { approved: result2.approved, skipped: result2.skipped, digest: written.digest, note: null };
 }
 async function refuseDelegatedWhileWaiversPending(dir, change) {
   const plan = await readTestPlanState(dir, change);
