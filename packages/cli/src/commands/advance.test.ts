@@ -129,6 +129,9 @@ function makeAdv(opts: {
     testEvidence: async (input: { stepId: string }) => ({
       stepId: input.stepId, pass: true, blockers: [], items: [],
     }),
+    // 默认工作流的 explore / build / verify 声明了执行者与评审者；agent 门禁由 agent.integration.test.ts
+    // 用真冻结内容与台账覆盖，这里同样隔离。
+    stepAgents: async () => [],
     cwd: '/repo',
     user: () => ({ id: 'tester@tenon.test', name: 'Tester', slug: 'tester-at-tenon.test', source: 'env', trust: 'declared' }),
     io: { out: (l: string) => out.push(l), err: (l: string) => err.push(l) },
