@@ -41471,7 +41471,8 @@ async function projectTestEvidence(input2) {
         if (candidate2 === void 0) throw new Error("workspace fingerprint unavailable");
         return candidate2;
       }
-    }
+    },
+    ...input2.changedFiles === void 0 ? {} : { changedFiles: input2.changedFiles }
   };
   const tests = [];
   for (const step of declared) {
@@ -41723,7 +41724,8 @@ async function scanAnchoredProject(deps, root, readRoot, anchor, nowMs) {
           changeName: e.name,
           plan,
           user: actingUser,
-          ...candidate2 === void 0 ? {} : { candidate: () => candidate2(readRoot) }
+          ...candidate2 === void 0 ? {} : { candidate: () => candidate2(readRoot) },
+          changedFiles: () => changedFilesForState(readRoot, state)
         }),
         projectAgentRuns({
           changeDir: changeDir2,
