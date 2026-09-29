@@ -7,6 +7,7 @@
  * 判定本身抛错时不猜「可前进」：每条出边都挂一条 evaluation-error 的 step-exit 阻断。
  */
 import {
+  changedFilesForState,
   completedWorkflowSkillsSinceStepEntry,
   evaluateStepExitReport,
   HISTORY_FILE,
@@ -108,7 +109,12 @@ export async function withStepExitReadiness(
       guardCheck: input.deps.guardCheck,
       guardContext: input.guardContext,
       fileContext: input.deps.fileContext,
-      testEvidence: { context: input.deps.testContext },
+      // 与 CLI 的 testEvidenceContextFor 同源：自任务起点以来的改动文件（读不到时门禁以 files-diff-unavailable 阻塞）。
+      testEvidence: {
+        context: input.deps.testContext === undefined
+          ? undefined
+          : { ...input.deps.testContext, changedFiles: input.deps.testContext.changedFiles ?? (() => changedFilesForState(input.root, input.state)) },
+      },
       skills: async () => judgeStepSkillsFromHistory({
         resolver: input.deps.skillResolver,
         capability: input.plan.capabilities.skills,

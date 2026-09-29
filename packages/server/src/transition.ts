@@ -22,6 +22,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
+  changedFilesForState,
   compileWorkflow,
   completedWorkflowSkillsSinceStepEntry,
   createTransitionApplication,
@@ -36,7 +37,7 @@ import {
   resolveRequiredSkillSlots,
   stateStorageExistsSync,
   taskPlanTasksThroughPhaseForChange, assessBuildRevisionTrust, createBuildRevisionToken,
-  probeBuildRevisionIdentity, readValidatedTransitionHead, safeRevisionHash,
+  probeBuildRevisionIdentity, readCurrentRunRevision, readValidatedTransitionHead, safeRevisionHash,
   readReviewGateBinding, renderAgentBlocker, reviewGateBindingMatches,
   actorOf, isTenonUser, ownerRequiredMessage, USER_MISSING_HINT, userSlug,
 } from '@tenon/kernel'
@@ -198,6 +199,12 @@ export async function performTransition(
     testEvidence: {
       user: { id: user.id, name: user.name, slug: userSlug(user.id) },
       ...(fingerprint === undefined ? {} : { currentCandidate: () => fingerprint(root, name) }),
+      // 与 CLI 同源：自任务起点以来的改动文件；读不到时门禁以 files-diff-unavailable 阻塞，不降级。
+      changedFiles: async () => {
+        const current = await readCurrentRunRevision(dir)
+        if (current === undefined) throw new Error('无法读取任务状态')
+        return changedFilesForState(root, current.state)
+      },
     },
     flow: deps.flow,
     clock: deps.clock,
