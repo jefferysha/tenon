@@ -19917,10 +19917,24 @@ function input(value) {
   }
   return bad();
 }
+function artifactFiles(value, artifact) {
+  if (artifact === null)
+    bad();
+  return list2(value).map((entry) => {
+    const path14 = text3(entry);
+    if (!path14.startsWith(`${artifact}/`))
+      bad();
+    const segments2 = path14.slice(artifact.length + 1).split("/");
+    if (segments2.some((segment) => segment === "" || segment === "." || segment === ".."))
+      bad();
+    return path14;
+  });
+}
 function output(value) {
-  const item2 = record6(value, ["path", "kind", "required", "present", "digest", "bytes", "files", "artifact"]);
+  const item2 = record6(value, ["path", "kind", "required", "present", "digest", "bytes", "files", "artifact", "artifact_files"]);
   if (!OUTPUT_KINDS4.has(text3(item2.kind)))
     bad();
+  const artifact = item2.artifact === null ? null : text3(item2.artifact);
   return {
     path: text3(item2.path),
     kind: item2.kind,
@@ -19929,7 +19943,8 @@ function output(value) {
     digest: item2.digest === null ? null : digest6(item2.digest),
     bytes: count(item2.bytes),
     files: count(item2.files),
-    artifact: item2.artifact === null ? null : text3(item2.artifact)
+    artifact,
+    ...item2.artifact_files === void 0 ? {} : { artifact_files: artifactFiles(item2.artifact_files, artifact) }
   };
 }
 function metric(value) {
@@ -24410,7 +24425,7 @@ function addWarning(state, warning) {
   state.warningCodes.add(warning.code);
   state.warnings.push(warning);
 }
-function budgetedFs(source2, state, platform) {
+function budgetedFs(source2, state, platform, now) {
   const cache = /* @__PURE__ */ new Map();
   const prefixBytes = /* @__PURE__ */ new Map();
   const sourceBytes = /* @__PURE__ */ new Map();
@@ -24614,10 +24629,10 @@ function budgetedFs(source2, state, platform) {
       shouldContinueDiscovery: (source3) => {
         let deadline = discoveryDeadlines.get(source3);
         if (deadline === void 0) {
-          deadline = Date.now() + (discoveryTimeLimits.get(source3) ?? 0);
+          deadline = now() + (discoveryTimeLimits.get(source3) ?? 0);
           discoveryDeadlines.set(source3, deadline);
         }
-        return (discoveryEntries.get(source3) ?? 0) < (discoveryEntryLimits.get(source3) ?? 0) && Date.now() <= deadline;
+        return (discoveryEntries.get(source3) ?? 0) < (discoveryEntryLimits.get(source3) ?? 0) && now() <= deadline;
       },
       maxDiscoveryDepth: RELATED_SESSION_SEARCH_BUDGETS.discoveryDepth,
       maxDiscoveryFiles: RELATED_SESSION_SEARCH_BUDGETS.discoveryFiles,
@@ -24660,7 +24675,7 @@ function searchRelatedSessions(fs, options3) {
     warnings: [],
     warningCodes: /* @__PURE__ */ new Set()
   };
-  const scopedFs = budgetedFs(fs, state, platform);
+  const scopedFs = budgetedFs(fs, state, platform, options3.now ?? Date.now);
   const search = searchMemSessions(scopedFs, {
     keyword: query,
     filter: {
@@ -42588,6 +42603,13 @@ function params(url) {
     tail: query.get("tail") ?? ""
   };
 }
+async function isRegularFile(path14) {
+  try {
+    return (await lstat34(path14)).isFile();
+  } catch {
+    return false;
+  }
+}
 async function artifactsPresent(readRoot, slug, change, runId) {
   try {
     return (await lstat34(testRunArtifactsDir(readRoot, slug, change, runId))).isDirectory();
@@ -42643,10 +42665,8 @@ async function resolveTestRunsRoute(url, path14, deps) {
   const files = [];
   for (const output2 of record11.outputs) {
     if (output2.artifact === null) continue;
-    try {
-      await lstat34(join84(runDir, ...output2.artifact.split("/")));
-      files.push(output2.artifact);
-    } catch {
+    for (const artifact of output2.artifact_files ?? [output2.artifact]) {
+      if (await isRegularFile(join84(runDir, ...artifact.split("/")))) files.push(artifact);
     }
   }
   const log2 = await lstat34(join84(runDir, record11.log.artifact)).then(() => true, () => false);
@@ -49632,9 +49652,9 @@ function createFolderChooser(deps) {
 }
 
 // packages/server/src/relatedSessionMemory.ts
-function createKernelRelatedSessionSearchRunner(memFs) {
+function createKernelRelatedSessionSearchRunner(memFs, now = Date.now) {
   return (request) => {
-    const result2 = searchRelatedSessions(memFs, request);
+    const result2 = searchRelatedSessions(memFs, { ...request, now });
     return {
       protocol: "tenon-related-session-memory/v1",
       query: result2.query,
@@ -49659,7 +49679,7 @@ function createKernelRelatedSessionSearchRunner(memFs) {
 }
 function createRelatedSessionMemoryServices(options3) {
   const memFs = options3.memFs ?? nodeMemFs(options3.hostHome);
-  const runner = options3.runner ?? createKernelRelatedSessionSearchRunner(memFs);
+  const runner = options3.runner ?? createKernelRelatedSessionSearchRunner(memFs, options3.now);
   return { memFs, executor: createRelatedSessionSearchExecutor(runner) };
 }
 function createRelatedSessionSearchExecutor(runner) {
@@ -49798,7 +49818,7 @@ function createDashboardServer(options3) {
   const workspaceFingerprint = options3.workspaceFingerprint;
   const resolveUser = options3.resolveUser ?? defaultResolveUser;
   const traceStore = options3.traceStore;
-  const { memFs, executor: relatedSessionSearch } = createRelatedSessionMemoryServices({ hostHome, memFs: options3.memFs, runner: options3.relatedSessionSearch });
+  const { memFs, executor: relatedSessionSearch } = createRelatedSessionMemoryServices({ hostHome, memFs: options3.memFs, runner: options3.relatedSessionSearch, now: options3.relatedSessionNow });
   const manifestPath2 = options3.manifestPath;
   const operationRunner = options3.runPipelineCli ?? runPipelineCli;
   const adapterInstall = new AdapterInstallManager(operationRunner, clock);

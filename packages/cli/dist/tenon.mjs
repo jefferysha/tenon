@@ -21679,6 +21679,30 @@ function parseManagedBlocks(content) {
   kept.push(...all.slice(cursor));
   return { ok: true, userText: withSingleTrailingNewline(kept.join("\n")), blocks };
 }
+function refreshManagedBlock(content, block) {
+  const wanted = block.replace(/\r\n/g, "\n").replace(/\n+$/u, "");
+  const wantedLines = wanted.split("\n");
+  const start = markerOf(wantedLines[0] ?? "", 0);
+  const end = markerOf(wantedLines.at(-1) ?? "", wantedLines.length - 1);
+  if (start === null || end === null || start.kind !== "START" || end.kind !== "END" || start.tag !== end.tag) {
+    throw new Error("refreshManagedBlock: block must start and end with one tag's markers");
+  }
+  const parsed = parseManagedBlocks(content);
+  if (!parsed.ok)
+    return { status: "invalid" };
+  const existing = parsed.blocks.find((candidate2) => candidate2.tag === start.tag);
+  if (existing === void 0)
+    return { status: "absent" };
+  if (existing.text === wanted)
+    return { status: "current" };
+  const lines2 = content.split("\n");
+  const bare = (line) => line.replace(/\r$/u, "");
+  const from = lines2.findIndex((line) => bare(line) === wantedLines[0]);
+  const to = lines2.findIndex((line, index) => index > from && bare(line) === wantedLines.at(-1));
+  const eol = lines2[from]?.endsWith("\r") === true ? "\r" : "";
+  const replaced = [...lines2.slice(0, from), ...wantedLines.map((line) => `${line}${eol}`), ...lines2.slice(to + 1)];
+  return { status: "stale", content: replaced.join("\n") };
+}
 
 // packages/kernel/dist/state/ownership-manifest.js
 var OWNED_MANIFEST = ".pipeline-owned.json";
@@ -23706,6 +23730,9 @@ function checkBody(lines2, start, category, known, errors) {
 var PROJECT_CLIENTS_MAX_BYTES = 16 * 1024;
 var KNOWN = new Set(INSTRUCTION_HOSTS.map((host) => host.id));
 
+// packages/kernel/dist/instructions/codex-agents-block.generated.js
+var CODEX_AGENTS_BLOCK = "<!-- PIPELINE:CODEX:START -->\n## Tenon Workflow\uFF08Codex \u9759\u6001\u5C42\uFF09\n\n\u6B63\u5E38\u5F00\u53D1\u5BF9\u8BDD\u5148\u8C03\u7528 `tenon:tenon`\uFF1A\u5B83\u521B\u5EFA\u6216\u6062\u590D Change\uFF0C\u6309\u4EFB\u52A1\u51BB\u7ED3\u7684\u5DE5\u4F5C\u6D41\u9010\u6B65\u6267\u884C\u2014\u2014\u6BCF\u4E00\u6B65\u505A\u4EC0\u4E48\n\u53EA\u770B `tenon status <change> --json` \u7684 `step.next`\uFF0C\u6CA1\u6709\u53E6\u5916\u7684\u9636\u6BB5\u6280\u80FD\u8981\u5206\u6D3E\u3002\nTodo \u7528 `tenon workflow plan <change> --json` \u7684\u6B65\u9AA4\u6807\u7B7E\u5EFA\u7ACB\uFF0C\u5F53\u524D\u9879\u53D6 `current_step`\uFF1B\n\u4E0D\u5F97\u5148\u751F\u6210\u8131\u79BB\u5DE5\u4F5C\u6D41\u6B65\u9AA4\u7684\u901A\u7528 Todo\u3002\n\n\u72B6\u6001\u64CD\u4F5C\u4E00\u5F8B\u8D70 `tenon status` / `tenon get` / `tenon set` /\n`tenon transition` / `tenon check`\uFF0C\u52FF\u624B\u6539 canonical state \u6216 `.pipeline.yaml` \u6295\u5F71\u3002\n\u5DF2\u767B\u8BB0\u7684\u89C4\u683C\u6587\u6863\u9700\u6C42\u8BED\u4E49\u53D8\u4E86\uFF0C\u8D70 `requirements-changed` \u56DE\u5230\u89C4\u683C\u6B65\u91CD\u65B0\u767B\u8BB0\uFF0C\u4E0D\u5728\u5B9E\u73B0\u6B65\u8986\u76D6\u3002\n\n\u8BC4\u5BA1\u95E8\uFF08`gate: review`\uFF09\u79BB\u5F00\u524D\u987B\u5BF9\u786E\u5207 transition event \u53D6\u5F97\u4EBA\u7C7B\u663E\u5F0F\u786E\u8BA4\uFF1A\u5148\u8FD0\u884C\n`tenon review request <change> --event <event>`\uFF1B\u7528\u6237\u660E\u786E\u56DE\u590D\u300C\u786E\u8BA4\u7EE7\u7EED\u300D\u300C\u7EE7\u7EED\u6267\u884C\u300D\u7B49\u653E\u884C\u8BED\u540E\n\u7531 hook \u5199\u5165\u56DE\u6267\uFF0C\u518D\u7167 `step.next` \u6267\u884C\u3002\u4E0D\u80FD\u5220\u9664 marker \u7ED5\u8FC7 review-gate\uFF1Bverify-fail \u4E0E\nverify-pass \u7684\u786E\u8BA4\u4E0D\u53EF\u4E92\u7528\u3002\n<!-- PIPELINE:CODEX:END -->\n";
+
 // packages/kernel/dist/resources/parse.js
 var ResourceParseError = class extends Error {
   line;
@@ -24923,10 +24950,24 @@ function input(value) {
   }
   return bad();
 }
+function artifactFiles(value, artifact) {
+  if (artifact === null)
+    bad();
+  return list2(value).map((entry) => {
+    const path15 = text4(entry);
+    if (!path15.startsWith(`${artifact}/`))
+      bad();
+    const segments = path15.slice(artifact.length + 1).split("/");
+    if (segments.some((segment) => segment === "" || segment === "." || segment === ".."))
+      bad();
+    return path15;
+  });
+}
 function output(value) {
-  const item2 = record6(value, ["path", "kind", "required", "present", "digest", "bytes", "files", "artifact"]);
+  const item2 = record6(value, ["path", "kind", "required", "present", "digest", "bytes", "files", "artifact", "artifact_files"]);
   if (!OUTPUT_KINDS4.has(text4(item2.kind)))
     bad();
+  const artifact = item2.artifact === null ? null : text4(item2.artifact);
   return {
     path: text4(item2.path),
     kind: item2.kind,
@@ -24935,7 +24976,8 @@ function output(value) {
     digest: item2.digest === null ? null : digest9(item2.digest),
     bytes: count(item2.bytes),
     files: count(item2.files),
-    artifact: item2.artifact === null ? null : text4(item2.artifact)
+    artifact,
+    ...item2.artifact_files === void 0 ? {} : { artifact_files: artifactFiles(item2.artifact_files, artifact) }
   };
 }
 function metric(value) {
@@ -45982,7 +46024,7 @@ var createDefaultExecutionPreparation = () => ({
     if (ctx.skill_bundle_id === null || ctx.skill_bundle_id === void 0) {
       return { ok: true, context: markNonLoopPrepared(ctx) };
     }
-    throw new SkillBundlePreparationUnconfiguredError(`change\u300C${ctx.change}\u300D\u5F52\u5C5E loop\u300C${ctx.loop_id}\u300D\u7684 skill_bundle_id="${ctx.skill_bundle_id}"\uFF08bundle \u7ED1\u5B9A\uFF09\u9700\u8981\u771F\u5B9E skill bundle \u89E3\u6790/CAS \u7269\u5316\u4F9D\u8D56\uFF08resolver/locator/coordinates\uFF09\uFF0C\u4F46 createAutomation \u9ED8\u8BA4\u88C5\u914D\u5C1A\u672A\u63A5\u7EBF\uFF08H10 \u751F\u4EA7\u88C5\u914D\u89C1\u4EFB\u52A17\uFF09\u2014\u2014fail-closed\uFF0C\u4E0D\u653E\u884C\u3001\u4E0D\u4F2A\u9020\u4E1A\u52A1\u5224\u5B9A`);
+    throw new SkillBundlePreparationUnconfiguredError(`change\u300C${ctx.change}\u300D\u5F52\u5C5E loop\u300C${ctx.loop_id}\u300D\u7684 skill_bundle_id="${ctx.skill_bundle_id}"\uFF08bundle \u7ED1\u5B9A\uFF09\u9700\u8981 skill bundle \u89E3\u6790/CAS \u7269\u5316\u4F9D\u8D56\uFF08resolver/locator/coordinates\uFF09\uFF1B\u672C\u6B21 createAutomation \u6CA1\u6709\u6CE8\u5165 deps.preparation\uFF08\u7528 createExecutionPreparation \u88C5\u914D\u540E\u6CE8\u5165\uFF09\u2014\u2014fail-closed\uFF0C\u4E0D\u653E\u884C\u3001\u4E0D\u4F2A\u9020\u4E1A\u52A1\u5224\u5B9A`);
   }
 });
 var registerProcessShutdown = (teardown) => {
@@ -66357,6 +66399,13 @@ async function runSync(deps, opts, fs) {
     await saveOwnedManifest(fs, cwd, kept);
     prunedPersisted = true;
   }
+  const agentsMdPath = `${cwd.replace(/\/+$/, "")}/${AGENTS_MD}`;
+  const block = agentsMdContent === void 0 ? { status: "absent" } : refreshManagedBlock(agentsMdContent, CODEX_AGENTS_BLOCK);
+  let codexBlock = block.status;
+  if (block.status === "stale" && migrate) {
+    await fs.writeText(agentsMdPath, block.content);
+    codexBlock = "refreshed";
+  }
   const injectConfig = shouldInjectConfigSections(cliVersion, projectVersion);
   const gate = migrateGateDecision(pending.length, migrate, cliVersion, projectVersion, metadata);
   emit3(deps, {
@@ -66367,6 +66416,7 @@ async function runSync(deps, opts, fs) {
     cli_version: cliVersion,
     pending_count: pending.length,
     codex_upgrade_needed: codexNeeded,
+    codex_block: codexBlock,
     pruned,
     pruned_persisted: prunedPersisted,
     inject_config_sections: injectConfig,
@@ -66374,6 +66424,8 @@ async function runSync(deps, opts, fs) {
     migrate_gate: gate,
     report_only: !migrate
   });
+  if (codexBlock === "stale") deps.io.err("AGENTS.md \u7684 Tenon Codex \u53D7\u7BA1\u5757\u5DF2\u8FC7\u65F6\uFF1A\u8FD0\u884C tenon sync --migrate \u5237\u65B0\uFF08\u5757\u5916\u5185\u5BB9\u4E0D\u52A8\uFF09");
+  if (codexBlock === "invalid") deps.io.err("AGENTS.md \u7684 Tenon \u53D7\u7BA1\u5757\u6807\u8BB0\u4E0D\u6210\u5BF9\u6216\u987A\u5E8F\u975E\u6CD5\uFF0C\u672A\u6539\u5199");
   for (const m of gate.messages) deps.io.err(m);
   return gate.exitCode;
 }
@@ -78572,7 +78624,9 @@ async function collectTestOutputs(repoRoot, test, runDir) {
       digest: tree.digest,
       bytes: tree.bytes,
       files: tree.files,
-      artifact: copied ? artifactRelative : null
+      artifact: copied ? artifactRelative : null,
+      // 目录副本的逐文件索引：Dashboard 据此列出、下载目录里的文件（截图、trace）。
+      ...copied ? { artifact_files: tree.entries.map((file) => `${artifactRelative}/${file.path}`) } : {}
     });
   }
   return records;
