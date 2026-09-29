@@ -29,10 +29,17 @@ export interface EditorGenerations {
 /** 起点：null = 空白；否则复制这个工作流（内建 default / simple，或项目里已有的）。 */
 export type CreateSource = string | null
 
-/** 右侧预览：起点的阶段名（有轨道时取第一条轨道，与编辑器打开时一致）。 */
+/** 预览里的一条轨道：名称（有 label 用 label，否则 id）与它的阶段名。 */
+export interface CreatePreviewTrack {
+  id: string
+  label: string
+  stages: readonly string[]
+}
+
+/** 右侧预览：起点的轨道（无轨道为空）与阶段名；`stages` 是有轨道时第一条轨道的阶段（与编辑器打开时一致）。 */
 export type CreatePreview =
   | { status: 'loading' }
-  | { status: 'ready'; stages: readonly string[] }
+  | { status: 'ready'; stages: readonly string[]; tracks: readonly CreatePreviewTrack[] }
   | { status: 'error'; text: string }
 
 export type CreateNameError = 'invalid' | 'duplicate' | null

@@ -1,4 +1,3 @@
-import { LoaderCircle } from 'lucide-react'
 import { useT } from '../i18n'
 import { FormDialog, FormField } from '../shared/FormDialog'
 import { handleRadioKey } from '../shared/radioKeyboard'
@@ -6,11 +5,12 @@ import { INPUT, LIST_SELECTED_ARIA } from '../shared/uiRecipes'
 import type { CreateSource, CreateState } from '../workbench/useWorkflowCreate'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
+import { CreatePreviewPane } from './CreatePreviewPane'
 
 const ROW = 'flex min-h-9 w-full min-w-0 items-center rounded-sm px-2.5 text-left text-body whitespace-nowrap text-text outline-none transition-colors duration-(--dur-fast) hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent)'
 
 /**
- * 新建工作流：左栏 名称 · 起点（空白 / 复制 default、simple 或已有工作流）· OpenSpec；右栏起点的阶段预览。
+ * 新建工作流：左栏 名称 · 起点（空白 / 复制 default、simple 或已有工作流）· OpenSpec；右栏起点的轨道与阶段预览。
  * 外壳是共享的 FormDialog：固定高度、Enter 提交、有输入时 Esc 先确认、校验错误在字段下方。
  */
 export function NewWorkflowDialog({ create }: { create: CreateState }): JSX.Element | null {
@@ -85,28 +85,7 @@ export function NewWorkflowDialog({ create }: { create: CreateState }): JSX.Elem
             <label htmlFor="wb-new-openspec" className="whitespace-nowrap">{t('workflow.openspec')}</label>
           </div>
         </div>
-        <section className="flex min-h-0 flex-col rounded-md bg-fill/45" aria-label={t('workflow.create_preview')} data-testid="wb-workflow-preview">
-          <header className="flex min-h-10 flex-none items-center gap-2 px-3 whitespace-nowrap">
-            <span className="text-caption font-semibold text-text-2">{t('workflow.create_preview')}</span>
-            {preview.status === 'ready' && <span className="text-caption tabular-nums text-text-3" data-testid="wb-workflow-preview-count">{preview.stages.length}</span>}
-          </header>
-          {preview.status === 'loading' && (
-            <LoaderCircle className="mx-auto mt-8 size-5 animate-spin text-text-3 motion-reduce:animate-none" aria-label={t('common.loading')} data-testid="wb-workflow-preview-loading" />
-          )}
-          {preview.status === 'error' && (
-            <p className="truncate px-3 text-caption text-red-d" role="alert" title={preview.text} data-testid="wb-workflow-preview-error">{preview.text}</p>
-          )}
-          {preview.status === 'ready' && (
-            <ol className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-2" data-testid="wb-workflow-preview-stages">
-              {preview.stages.map((stage, index) => (
-                <li key={`${index}:${stage}`} className="flex min-h-9 min-w-0 items-center gap-3 px-1.5 whitespace-nowrap">
-                  <span className="w-5 flex-none text-right text-caption tabular-nums text-text-3">{index + 1}</span>
-                  <span className="truncate text-body text-text" title={stage}>{stage}</span>
-                </li>
-              ))}
-            </ol>
-          )}
-        </section>
+        <CreatePreviewPane key={create.source ?? ''} preview={preview} />
       </div>
     </FormDialog>
   )

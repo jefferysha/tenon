@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { BUILTIN_WORKFLOW_IDS, isBuiltinWorkflowName, isTemplateWorkflowName, isValidWorkflowName } from '@tenon/kernel/workflow/identifier'
 import { fetchWorkflow, postWorkflowDef } from '../api/client'
-import type { WbWorkflowDef } from '../api/governanceTypes'
+import type { WbStepDef, WbWorkflowDef } from '../api/governanceTypes'
 import { formatApiError } from '../api/transport'
 import { useT } from '../i18n'
 import { setOpenspecInDef } from './documentContractEdits'
 import { readSaveErrors } from './workbenchApiDecoders'
 import { readWorkflowWriteSuccess } from './workbenchWriteResponse'
 import { BASE_BRANCH, blankWorkflow, copyWorkflowDef, definitionForWrite, selectBranchDef } from './workbenchDefinition'
-import type { CreateNameError, CreateSource, CreatePreview, CreateState } from './workflowEditorTypes'
+import type { CreateNameError, CreatePreview, CreatePreviewTrack, CreateSource, CreateState } from './workflowEditorTypes'
 
-export type { CreateNameError, CreatePreview, CreateSource, CreateState } from './workflowEditorTypes'
+export type { CreateNameError, CreatePreview, CreatePreviewTrack, CreateSource, CreateState } from './workflowEditorTypes'
 
 export interface WorkflowCreateInput {
   root: string
@@ -42,8 +42,15 @@ export function workflowNameError(name: string, names: readonly string[]): Creat
   return isTemplateWorkflowName(trimmed) || isBuiltinWorkflowName(trimmed) || names.includes(trimmed) ? 'duplicate' : null
 }
 
+const stepName = (step: WbStepDef): string => step.label || step.id
+
 export function stageNames(def: WbWorkflowDef): string[] {
-  return selectBranchDef(def, BASE_BRANCH).steps.map((step) => step.label || step.id)
+  return selectBranchDef(def, BASE_BRANCH).steps.map(stepName)
+}
+
+/** 起点的每条轨道（按声明序）及其阶段名；没有 tracks 的工作流为空。 */
+export function trackPreviews(def: WbWorkflowDef): CreatePreviewTrack[] {
+  return Object.entries(def.tracks ?? {}).map(([id, branch]) => ({ id, label: branch.label ?? id, stages: branch.steps.map(stepName) }))
 }
 
 /** 新建工作流：选起点（空白 / 复制某个工作流）→ 右侧预览阶段 → 命名 → 写入并切过去。 */
@@ -54,7 +61,7 @@ export function useWorkflowCreate({ root, names, hasToken, current, blocked, onC
   const [name, setNameState] = useState('')
   const [openspec, setOpenspecState] = useState(false)
   const [touched, setTouched] = useState({ name: false, openspec: false, any: false })
-  const [preview, setPreview] = useState<CreatePreview>({ status: 'ready', stages: [] })
+  const [preview, setPreview] = useState<CreatePreview>({ status: 'ready', stages: [], tracks: [] })
   const [errors, setErrors] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
@@ -80,18 +87,18 @@ export function useWorkflowCreate({ root, names, hasToken, current, blocked, onC
   }, [root])
   useEffect(() => { setErrors([]) }, [lang])
 
-  // 预览：起点的定义按 root + 名称缓存；空白是一个阶段。拉到后若用户没拨过开关，OpenSpec 跟随起点。
+  // 预览：起点的定义按 root + 名称缓存；空白是一个阶段、没有轨道。拉到后若用户没拨过开关，OpenSpec 跟随起点。
   const blankStage = t('workflow.blank_stage')
   useEffect(() => {
     if (!open) return
     if (source === null) {
-      setPreview({ status: 'ready', stages: [blankStage] })
+      setPreview({ status: 'ready', stages: [blankStage], tracks: [] })
       if (!touched.openspec) setOpenspecState(false)
       return
     }
     const key = `${root}\n${source}`
     const apply = (def: WbWorkflowDef): void => {
-      setPreview({ status: 'ready', stages: stageNames(def) })
+      setPreview({ status: 'ready', stages: stageNames(def), tracks: trackPreviews(def) })
       if (!touched.openspec) setOpenspecState(def.openspec === true)
     }
     const cached = definitions.current.get(key)

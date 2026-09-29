@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WbStepDef, WbWorkflowDef } from '../api/governanceTypes'
 import { I18nProvider } from '../i18n'
-import { suggestedName, useWorkflowCreate, workflowNameError, type CreateState } from '../workbench/useWorkflowCreate'
+import { suggestedName, trackPreviews, useWorkflowCreate, workflowNameError, type CreateState } from '../workbench/useWorkflowCreate'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { NewWorkflowDialog } from './NewWorkflowDialog'
 
@@ -20,6 +20,19 @@ const FLOW: WbWorkflowDef = {
   tracks: { alpha: { label: '甲', steps: [stage('a1', '一', 'a2'), stage('a2', '二', null)] } },
 }
 
+const MULTI: WbWorkflowDef = {
+  name: 'multi',
+  openspec: true,
+  steps: [],
+  tracks: {
+    chat: { steps: [stage('c1', '对话', null)] },
+    simple: { label: '简单任务', steps: [stage('s1', '实现', 's2'), stage('s2', '验证', null)] },
+    frontend: { label: '前端', steps: [stage('f1', '设计', 'f2'), stage('f2', '实现', 'f3'), stage('f3', '验收', null)] },
+    backend: { label: '后端', steps: [stage('b1', '接口', 'b2'), stage('b2', '实现', null)] },
+    pm: { label: 'a-really-long-track-name-that-must-truncate-instead-of-wrapping', steps: [stage('p1', '调研', null)] },
+  },
+}
+
 interface Posted { url: string; body: Record<string, unknown> }
 
 function stubApi(options: { post?: (url: string) => Response } = {}): Posted[] {
@@ -29,7 +42,7 @@ function stubApi(options: { post?: (url: string) => Response } = {}): Posted[] {
       posted.push({ url, body: JSON.parse(String(init.body)) as Record<string, unknown> })
       return options.post?.(url) ?? new Response(JSON.stringify({ ok: true }), { status: 200 })
     }
-    const defs: Record<string, WbWorkflowDef> = { default: DEFAULT, simple: SIMPLE, flow: FLOW }
+    const defs: Record<string, WbWorkflowDef> = { default: DEFAULT, simple: SIMPLE, flow: FLOW, multi: MULTI }
     const match = /^\/api\/workflows\/([^?]+)\?root=/u.exec(url)
     const def = match === null ? undefined : defs[decodeURIComponent(match[1] ?? '')]
     if (def !== undefined) return new Response(JSON.stringify({ ...def, source: 'builtin' }), { status: 200 })
@@ -228,10 +241,90 @@ describe('新建工作流：起点 · 名称 · OpenSpec · 预览', () => {
   })
 })
 
+const trackRows = (): HTMLElement[] => within(screen.getByTestId('wb-workflow-preview-tracks')).getAllByRole('radio')
+
+describe('新建工作流：预览同时列出轨道', () => {
+  it('多轨道起点：阶段列表上方按声明序一行一条列出轨道（名称 = label ?? id，行尾是阶段数），默认看第一条轨道的阶段', async () => {
+    stubApi()
+    renderDialog({ current: 'multi', names: ['multi'] })
+    await waitFor(() => expect(trackRows()).toHaveLength(5))
+    expect(trackRows().map((row) => row.textContent)).toEqual(['chat1', '简单任务2', '前端3', '后端2', 'a-really-long-track-name-that-must-truncate-instead-of-wrapping1'])
+    expect(screen.getByTestId('wb-workflow-preview-track-count')).toHaveTextContent('5')
+    expect(screen.getByTestId('wb-workflow-preview-track-chat')).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByTestId('wb-workflow-preview-track-chat')).toHaveAttribute('aria-current', 'true')
+    expect(stages()).toEqual(['1对话'])
+    expect(screen.getByTestId('wb-workflow-preview-count')).toHaveTextContent('1')
+  })
+
+  it('点轨道行切换下方阶段与阶段计数；方向键在轨道间移动并即时切换', async () => {
+    const user = userEvent.setup()
+    stubApi()
+    renderDialog({ current: 'multi', names: ['multi'] })
+    await waitFor(() => expect(trackRows()).toHaveLength(5))
+    await user.click(screen.getByTestId('wb-workflow-preview-track-frontend'))
+    expect(stages()).toEqual(['1设计', '2实现', '3验收'])
+    expect(screen.getByTestId('wb-workflow-preview-count')).toHaveTextContent('3')
+    expect(screen.getByTestId('wb-workflow-preview-track-frontend')).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByTestId('wb-workflow-preview-track-chat')).toHaveAttribute('aria-checked', 'false')
+    await user.keyboard('{ArrowDown}')
+    expect(screen.getByTestId('wb-workflow-preview-track-backend')).toHaveFocus()
+    expect(stages()).toEqual(['1接口', '2实现'])
+    await user.keyboard('{End}')
+    expect(stages()).toEqual(['1调研'])
+    await user.keyboard('{Home}')
+    expect(stages()).toEqual(['1对话'])
+  })
+
+  it('换起点：无轨道的起点（simple / 空白）不出现轨道列表；再换回多轨道起点从第一条轨道开始；单轨道工作流只有一行', async () => {
+    const user = userEvent.setup()
+    stubApi()
+    renderDialog({ current: 'multi', names: ['multi', 'flow'] })
+    await waitFor(() => expect(trackRows()).toHaveLength(5))
+    await user.click(screen.getByTestId('wb-workflow-preview-track-backend'))
+    await user.click(screen.getByTestId('wb-workflow-source-simple'))
+    await waitFor(() => expect(stages()).toEqual(['1Change', '2Verify']))
+    expect(screen.queryByTestId('wb-workflow-preview-tracks')).toBeNull()
+    expect(screen.queryByTestId('wb-workflow-preview-track-count')).toBeNull()
+    await user.click(screen.getByTestId('wb-workflow-source-flow'))
+    await waitFor(() => expect(trackRows().map((row) => row.textContent)).toEqual(['甲2']))
+    await user.click(screen.getByTestId('wb-workflow-source-multi'))
+    await waitFor(() => expect(trackRows()).toHaveLength(5))
+    expect(screen.getByTestId('wb-workflow-preview-track-chat')).toHaveAttribute('aria-checked', 'true')
+    expect(stages()).toEqual(['1对话'])
+    await user.click(screen.getByTestId('wb-workflow-source-blank'))
+    expect(screen.queryByTestId('wb-workflow-preview-tracks')).toBeNull()
+    expect(stages()).toEqual(['1阶段 1'])
+  })
+
+  it('轨道行单行：nowrap + 名称截断带全名 title；提交的仍是起点的完整副本（含全部轨道）', async () => {
+    const user = userEvent.setup()
+    const posted = stubApi()
+    renderDialog({ current: 'multi', names: ['multi'] })
+    await waitFor(() => expect(trackRows()).toHaveLength(5))
+    const long = screen.getByTestId('wb-workflow-preview-track-pm')
+    expect(long.className).toContain('whitespace-nowrap')
+    expect(long.querySelector('span')?.className).toContain('truncate')
+    expect(long).toHaveAttribute('title', 'a-really-long-track-name-that-must-truncate-instead-of-wrapping')
+    await user.click(screen.getByTestId('wb-workflow-preview-track-backend'))
+    await user.click(screen.getByTestId('wb-workflow-create-submit'))
+    await waitFor(() => expect(posted).toHaveLength(1))
+    expect(Object.keys(posted[0]?.body.tracks as Record<string, unknown>)).toEqual(['chat', 'simple', 'frontend', 'backend', 'pm'])
+  })
+})
+
 describe('纯函数', () => {
   it('suggestedName：空白不预填；占用则递增后缀', () => {
     expect(suggestedName(null, new Set())).toBe('')
     expect(suggestedName('default', new Set(['default-copy']))).toBe('default-copy-2')
+  })
+
+  it('trackPreviews：按声明序给出每条轨道的名称（label ?? id）与阶段名；无 tracks 为空', () => {
+    expect(trackPreviews(MULTI).map((track) => [track.id, track.label, track.stages.length])).toEqual([
+      ['chat', 'chat', 1], ['simple', '简单任务', 2], ['frontend', '前端', 3], ['backend', '后端', 2],
+      ['pm', 'a-really-long-track-name-that-must-truncate-instead-of-wrapping', 1],
+    ])
+    expect(trackPreviews(FLOW)).toEqual([{ id: 'alpha', label: '甲', stages: ['一', '二'] }])
+    expect(trackPreviews(DEFAULT)).toEqual([])
   })
 
   it('workflowNameError：空不报；非法 / 重名分别报', () => {
