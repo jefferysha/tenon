@@ -4,6 +4,7 @@ import { useT } from '../i18n'
 import type { TopBarProject } from '../shell/TopBar'
 import { DetailEmpty, ListColumn, RailColumn, ThreeColumns } from '../shell/ThreeColumns'
 import { getToken } from '../api/transport'
+import { SegmentTabs } from '../shared/SegmentTabs'
 import { BUTTON_GHOST, BUTTON_ICON } from '../shared/uiRecipes'
 import { AddClientMenu, ClientList } from './ClientList'
 import { Hinted, InlineError } from './projectBits'
@@ -11,6 +12,9 @@ import { ClientScopeControls } from './ClientScopeControls'
 import { InstructionEditor } from './InstructionEditor'
 import { NewProjectDialog } from './NewProjectDialog'
 import { ProjectRailList } from './ProjectRailList'
+import { ProjectTestsDetail } from './ProjectTestsDetail'
+import { ProjectTestsList } from './ProjectTestsList'
+import { useProjectTests } from './useProjectTests'
 import { CODEX_MAX_BYTES, clientName, fileNameOf } from './clientModel'
 import { useClientEditor } from './useClientEditor'
 
@@ -40,6 +44,8 @@ export function ProjectsView({
     try { localStorage.setItem(RAIL_KEY, railCollapsed ? '1' : '0') } catch { /* ignore */ }
   }, [railCollapsed])
 
+  const [segment, setSegment] = useState<'clients' | 'tests'>('clients')
+  const tests = useProjectTests(currentRoot, snapshotRevision, segment === 'tests')
   const [localDialog, setLocalDialog] = useState(false)
   const dialogOpen = newProjectOpen || localDialog
   const closeDialog = (): void => {
@@ -112,12 +118,23 @@ export function ProjectsView({
         list={(
           <ListColumn
             testId="projects-list"
-            title={t('projects.clients')}
-            action={currentRoot !== '' && editor.ready && editor.loadErrorKey === null ? (
+            title={t(segment === 'tests' ? 'tests.word.test' : 'projects.clients')}
+            tabs={(
+              <SegmentTabs
+                sheets={[{ id: 'clients', label: t('projects.clients') }, { id: 'tests', label: t('tests.word.test') }]}
+                active={segment}
+                onChange={setSegment}
+                ariaLabel={t('tests.project.segment')}
+                idPrefix="proj-segment"
+              />
+            )}
+            action={segment === 'clients' && currentRoot !== '' && editor.ready && editor.loadErrorKey === null ? (
               <AddClientMenu hosts={editor.hosts} enabled={editor.enabled} disabled={!canWrite} onEnable={editor.enable} />
             ) : undefined}
           >
-            {editor.loadErrorKey !== null ? (
+            {segment === 'tests' ? (
+              <ProjectTestsList catalog={tests.catalog} selectedId={tests.selectedId} onSelect={tests.select} onRetry={tests.reload} />
+            ) : editor.loadErrorKey !== null ? (
               <InlineError errorKey={editor.loadErrorKey} onRetry={editor.retry} testId="proj-load-error" />
             ) : editor.loading ? (
               <ul className="grid gap-2" role="status" aria-label={t('common.loading')} data-testid="proj-loading">
@@ -143,7 +160,9 @@ export function ProjectsView({
             )}
           </ListColumn>
         )}
-        detail={target === null || client === null ? (
+        detail={segment === 'tests' ? (
+          <ProjectTestsDetail root={currentRoot} tests={tests} />
+        ) : target === null || client === null ? (
           // 详情空态不写字，只留空白；可访问名称仍说明要选什么。
           <DetailEmpty label={t(currentRoot === '' ? 'projects.empty_detail' : 'projects.add_client')} testId="proj-detail-empty" />
         ) : (

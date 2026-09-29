@@ -56,6 +56,21 @@ describe('ListColumn 头部', () => {
     expect(head).toContainElement(screen.getByTestId('col-action'))
   })
 
+  it('tabs 给定时顶替可见的 H1：H1 退成 sr-only，页签与 action 同一行', () => {
+    render(
+      <I18nProvider>
+        <ListColumn testId="col" title="客户端" tabs={<div role="tablist" aria-label="视图"><button role="tab" type="button">A</button></div>} action={<button type="button">新建</button>}><p>x</p></ListColumn>
+      </I18nProvider>,
+    )
+    const heading = screen.getByRole('heading', { level: 1, name: '客户端' })
+    expect(classesOf(heading)).toContain('sr-only')
+    const head = screen.getByTestId('col-head')
+    expect(head).toContainElement(screen.getByRole('tablist', { name: '视图' }))
+    expect(within(screen.getByTestId('col-tabs')).getByRole('tab')).toBeInTheDocument()
+    expect(head).toContainElement(screen.getByTestId('col-action'))
+    expect(classesOf(screen.getByTestId('col-tabs'))).toContain('min-w-0')
+  })
+
   it('搜索框聚焦时强调色边框 + 光环', () => {
     render(
       <I18nProvider>
