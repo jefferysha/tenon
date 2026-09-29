@@ -11,7 +11,7 @@
 # marker 只从当前项目根读取：Git worktree / 显式 TENON_PROJECT_ROOT / 当前 cwd 三者之一。
 #   绝不从普通父目录猜测项目根，避免共享 /tmp 下的外部 Change 拦截无关会话。
 # 纯 bash 热路径（CONTRACT §5.4）：不 spawn 任何解释器/外部 JSON 解析器，
-#   stdin JSON 只用 bash 字符串提取所需两键（cwd / tool_name）。
+#   stdin JSON 只用 bash 字符串提取所需的键（cwd / tool_name；测试记录门另取写入目标路径）。
 # 例外（Task 9，GOAL 清单 E）：非 default workflow 的 change 调用 Claude Skill 工具，或 Codex
 #   读取当前插件内 SKILL.md 时，文件尾段委托 `node .../tenon.mjs internal-skill-gate` 做 skill DAG
 #   解锁判定。默认 workflow / 无活跃 change / 非技能读取三者任一成立就直接跳过 node；Codex 读取
