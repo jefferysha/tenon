@@ -6,12 +6,16 @@ import { instructionErrorKey } from '../api/instructionErrorKey'
 import { InstructionApiError, fetchTemplate, fetchTemplates, planProjectCreate } from '../api/instructionsClient'
 import type { ProjectCreatePlan, TemplateDocument, TemplateSummary } from '../api/instructionsDecoders'
 import { Dialog } from '../shared/Dialog'
-import { BUTTON_DANGER, BUTTON_GHOST, BUTTON_SOLID } from '../shared/uiRecipes'
+import { DiscardDialog } from '../shared/FormDialog'
+import { BUTTON_GHOST, BUTTON_SOLID } from '../shared/uiRecipes'
 import { ClientStep } from './ClientStep'
 import { ConfirmStep } from './ConfirmStep'
 import { CreateProgress } from './CreateProgress'
+import { catalogFor, effectivePicks, frontendFrameworks, type ResourcePicks } from './designResources'
 import { LocationStep } from './LocationStep'
+import { ResourceStep } from './ResourceStep'
 import { TemplateStep, selectionKey, type TemplateSelection } from './TemplateStep'
+import { useDesignResources } from './useDesignResources'
 import { WizardSteps } from './WizardSteps'
 import {
   FALLBACK_CLIENTS, FOLDER_NAME, WIZARD_STEPS, basename, filesForClients, instructionsInput, joinPath, projectInput, splitClients,
@@ -34,7 +38,10 @@ export interface NewProjectDialogProps {
   onOpen?: (root: string) => void
 }
 
-/** 新建项目向导：位置 → 模板 → 客户端 → 确认；「创建」后同一对话框切到逐步进度，成功即切到该项目。 */
+/**
+ * 新建项目向导：位置 → 模板 → 资源 → 客户端 → 确认；「创建」后同一对话框切到逐步进度，成功即切到该项目。
+ * 资源可跳过：组件库 / 图标写进前端模板的资源行，DESIGN.md 作为创建的 design 步骤取到项目根。
+ */
 export function NewProjectDialog({ onClose, onCreated, onOpen = onCreated }: NewProjectDialogProps): JSX.Element {
   const { t } = useT()
   const [view, setView] = useState<'wizard' | 'progress'>('wizard')
@@ -60,7 +67,9 @@ export function NewProjectDialog({ onClose, onCreated, onOpen = onCreated }: New
   const [errors, setErrors] = useState<readonly string[]>([])
   const [busy, setBusy] = useState(false)
   const [discarding, setDiscarding] = useState(false)
+  const [picks, setPicks] = useState<ResourcePicks>({})
   const run = useProjectCreateRun()
+  const resources = useDesignResources()
 
   const location = { mode, path, parent, name, gitInit }
   const locationReady = mode === 'empty' ? parent !== '' && FOLDER_NAME.test(name) : path !== ''
@@ -68,7 +77,9 @@ export function NewProjectDialog({ onClose, onCreated, onOpen = onCreated }: New
   const root = mode === 'empty' ? joinPath(parent, name) : path
   const files = filesForClients(clients, selected.length > 0)
   const enabledClients = [...clients].sort()
-  const dirty = path !== '' || parent !== '' || name !== '' || selected.length > 0
+  const frameworks = frontendFrameworks(templates, selected)
+  const chosen = effectivePicks(picks, resources.entries, frameworks)
+  const dirty = path !== '' || parent !== '' || name !== '' || selected.length > 0 || Object.keys(picks).length > 0
 
   useEffect(() => {
     const controller = new AbortController()
@@ -113,12 +124,27 @@ export function NewProjectDialog({ onClose, onCreated, onOpen = onCreated }: New
     fetchTemplate(selection).then((document) => setDocuments((current) => ({ ...current, [key]: document }))).catch(capture)
   }
 
+  /** 所选资源按各模板块声明的资源分类分发（`{{catalog.*}}` 行）；块正文没拉到的现拉。 */
+  const catalogsFor = async (): Promise<Map<string, Record<string, string[]>>> => {
+    const out = new Map<string, Record<string, string[]>>()
+    if (Object.keys(chosen).length === 0) return out
+    for (const selection of selected) {
+      const key = selectionKey(selection)
+      const document = documents[key] ?? await fetchTemplate(selection)
+      const catalog = catalogFor(chosen, document.block?.catalog ?? [])
+      if (catalog !== undefined) out.set(key, catalog)
+    }
+    return out
+  }
+
   /** 按当前输入拼正文并组装请求；预检（forCreate=false）保留跳过的文件用于显示。 */
   const buildInput = async (forCreate: boolean): Promise<ReturnType<typeof projectInput>> => {
-    const composed = await composeFor(mode === 'empty' ? name : basename(path), selected, values)
+    const composed = await composeFor(mode === 'empty' ? name : basename(path), selected, values, await catalogsFor())
     const instructions = files.targets.length === 0 ? null : instructionsInput(files, composed.markdown, fileModes, forCreate)
     // 一个客户端都没选时不写 clients.json（「只登记」不产生任何文件）。
-    return projectInput(location, mode === 'empty' ? composed.directories : [], instructions, enabledClients.length > 0 ? enabledClients : undefined)
+    return projectInput(
+      location, mode === 'empty' ? composed.directories : [], instructions, enabledClients.length > 0 ? enabledClients : undefined, chosen['design-md'],
+    )
   }
 
   /** 确认步的预检：进入确认、以及改动文件处理方式时自动执行。 */
@@ -172,7 +198,7 @@ export function NewProjectDialog({ onClose, onCreated, onOpen = onCreated }: New
     else onClose()
   }
   const failedRow = run.rows.find((row) => row.state === 'failed')
-  const editStep: WizardStep = failedRow?.id === 'directory' || failedRow?.id === 'git' ? 'location' : 'confirm'
+  const editStep: WizardStep = failedRow?.id === 'directory' || failedRow?.id === 'git' ? 'location' : failedRow?.id === 'design' ? 'resources' : 'confirm'
 
   // 成功后停在进度页，让每一步的结果可见；由用户点「打开项目」切过去。
   const created = run.status === 'done' ? run.created : null
@@ -240,6 +266,25 @@ export function NewProjectDialog({ onClose, onCreated, onOpen = onCreated }: New
                 onValue={(key, value) => { invalidate(); setValues((current) => ({ ...current, [key]: value })) }}
               />
             )}
+            {view === 'wizard' && step === 'resources' && (
+              <ResourceStep
+                entries={resources.entries}
+                loading={resources.loading}
+                failed={resources.failed}
+                onRetry={resources.reload}
+                frameworks={frameworks}
+                picks={chosen}
+                onPick={(category, id) => {
+                  invalidate()
+                  setPicks((current) => {
+                    const next = { ...current }
+                    if (id === undefined) delete next[category]
+                    else next[category] = id
+                    return next
+                  })
+                }}
+              />
+            )}
             {view === 'wizard' && step === 'clients' && (
               <ClientStep
                 primary={clientGroups.primary}
@@ -261,7 +306,14 @@ export function NewProjectDialog({ onClose, onCreated, onOpen = onCreated }: New
               <LoaderCircle className="mx-auto mt-10 size-5 animate-spin text-text-3 motion-reduce:animate-none" aria-label={t('common.loading')} />
             )}
             {view === 'wizard' && step === 'confirm' && plan !== null && (
-              <ConfirmStep plan={plan} mode={mode} clients={enabledClients} fileModes={fileModes} onFileMode={(file, value) => setFileModes((current) => ({ ...current, [file]: value }))} />
+              <ConfirmStep
+                plan={plan}
+                mode={mode}
+                clients={enabledClients}
+                fileModes={fileModes}
+                onFileMode={(file, value) => setFileModes((current) => ({ ...current, [file]: value }))}
+                designName={resources.entries.find((entry) => entry.id === chosen['design-md'])?.name}
+              />
             )}
           </div>
           {view === 'wizard' && errorKey !== null && (
@@ -273,20 +325,7 @@ export function NewProjectDialog({ onClose, onCreated, onOpen = onCreated }: New
         </div>
       </Dialog>
       {discarding && (
-        <Dialog
-          title={t('projects.discard_title')}
-          role="alertdialog"
-          onClose={() => setDiscarding(false)}
-          testid="np-discard"
-          actions={(
-            <>
-              <button type="button" className={BUTTON_GHOST} data-testid="np-discard-keep" onClick={() => setDiscarding(false)}>{t('projects.keep_editing')}</button>
-              <button type="button" className={BUTTON_DANGER} data-testid="np-discard-confirm" onClick={onClose}>{t('projects.discard')}</button>
-            </>
-          )}
-        >
-          {null}
-        </Dialog>
+        <DiscardDialog title={t('projects.discard_title')} testid="np-discard" onKeep={() => setDiscarding(false)} onDiscard={onClose} />
       )}
     </>
   )

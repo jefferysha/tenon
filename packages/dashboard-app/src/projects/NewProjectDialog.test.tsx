@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '../i18n'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { NewProjectDialog } from './NewProjectDialog'
 
 const TEMPLATES = [
@@ -9,6 +10,19 @@ const TEMPLATES = [
   { source: 'builtin', category: 'frontend', id: 'typescript-react', title: 'TypeScript + React', frameworks: ['react'], digest: 'sha256:react', errors: [] },
   { source: 'builtin', category: 'state', id: 'zustand', title: 'Zustand', frameworks: ['react'], digest: 'sha256:zustand', errors: [] },
   { source: 'builtin', category: 'state', id: 'pinia', title: 'Pinia', frameworks: ['vue'], digest: 'sha256:pinia', errors: [] },
+]
+
+const license = { spdx: 'MIT', url: 'https://example.test/LICENSE', redistributable: true, attribution: false, commercial: 'free' }
+const resource = (id: string, name: string, category: string, frameworks: string[], links: Record<string, string> = {}) => ({
+  schema: 'tenon-resource/v1', id, name, category, frameworks, styling: [], baseline: false, license,
+  install: [], skills: [], links: { docs: `https://example.test/${id}`, ...links }, verified_at: '2026-09-16', source: 'builtin', revision: `sha256:${id}`,
+})
+const RESOURCES = [
+  resource('shadcn-ui', 'shadcn/ui', 'component-lib', ['react', 'next']),
+  resource('element-plus', 'Element Plus', 'component-lib', ['vue']),
+  resource('lucide', 'Lucide', 'icons', []),
+  resource('design-md-claude', 'Claude', 'design-md', [], { design_md: 'https://example.test/claude/DESIGN.md' }),
+  resource('awesome-design-md', 'awesome-design-md', 'design-md', []),
 ]
 
 const VARIABLES: Record<string, { key: string; default: string | null }[]> = {
@@ -33,6 +47,12 @@ interface StubOptions {
   listError?: { status: number; code: string }
   /** 每次 /api/projects/create/stream 的 SSE 帧（按调用次序）。 */
   streams?: string[][]
+  /** 已有目录下已有 DESIGN.md。 */
+  designExists?: boolean
+  /** GET /api/resources 失败（首次）。 */
+  resourcesFail?: boolean
+  /** typescript-react 块声明的资源分类。 */
+  catalog?: string[]
   onCreate?: (body: Body) => Reply | undefined
 }
 
@@ -71,6 +91,7 @@ function dryRun(options: StubOptions, body: Body): Reply {
   return json({
     ok: true, root, git, registration: options.registration ?? 'add',
     directories: ((body.directories as string[] | undefined) ?? []).map((path) => ({ path, exists: false })), files,
+    ...(typeof body.design_seed === 'string' ? { design: { resource: body.design_seed, exists: options.designExists === true } } : {}),
   })
 }
 
@@ -78,6 +99,7 @@ function stubFetch(options: StubOptions = {}) {
   const calls: Call[] = []
   const picks = [...(options.picks ?? [])]
   const streams = [...(options.streams ?? [])]
+  let resourceFailed = false
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit): Promise<Reply> => {
     calls.push({ url, init })
     const method = init?.method ?? 'GET'
@@ -90,7 +112,10 @@ function stubFetch(options: StubOptions = {}) {
       const row = TEMPLATES.find((candidate) => candidate.id === id)
       return json({
         ok: true, source: 'builtin', category: row?.category ?? 'common', id, text: `---\nid: ${id}\n---\n## 规则 ${id}\n`, digest: `sha256:${id}`,
-        block: { title: row?.title ?? id, frameworks: row?.frameworks ?? [], directory: null, directory_label: null, catalog: [], catalog_ref: null, variables: VARIABLES[id] ?? [] },
+        block: {
+          title: row?.title ?? id, frameworks: row?.frameworks ?? [], directory: null, directory_label: null,
+          catalog: id === 'typescript-react' ? options.catalog ?? ['component-lib', 'icons', 'design-md'] : [], catalog_ref: null, variables: VARIABLES[id] ?? [],
+        },
         errors: [],
       })
     }
@@ -101,6 +126,13 @@ function stubFetch(options: StubOptions = {}) {
         schema_version: 'host-target-detection/v1', detected_hosts: detected, recommended_host: first,
         recommended_operation: first === null ? null : 'setup', reason: first === null ? 'none' : 'host-detected',
       })
+    }
+    if (url === '/api/resources') {
+      if (options.resourcesFail === true && !resourceFailed) {
+        resourceFailed = true
+        return json({ ok: false, code: 'store-failed', error: 'boom' }, 500)
+      }
+      return json({ schema_version: 'resource-catalog/v1', sync: null, entries: RESOURCES, errors: [] })
     }
     if (url === '/api/fs/choose-folder') return json(picks.shift() ?? { ok: false, cancelled: true })
     if (url.startsWith('/api/fs/list')) {
@@ -129,7 +161,7 @@ function renderDialog() {
   const onCreated = vi.fn()
   const onOpen = vi.fn()
   const onClose = vi.fn()
-  render(<I18nProvider><NewProjectDialog onClose={onClose} onCreated={onCreated} onOpen={onOpen} /></I18nProvider>)
+  render(<I18nProvider><TooltipProvider><NewProjectDialog onClose={onClose} onCreated={onCreated} onOpen={onOpen} /></TooltipProvider></I18nProvider>)
   return { onCreated, onOpen, onClose }
 }
 
@@ -157,6 +189,8 @@ async function toConfirm(user: User) {
   await user.click(await waitNext())
   await screen.findByTestId('np-templates')
   await user.click(await waitNext())
+  await screen.findByTestId('np-resources')
+  await user.click(await waitNext())
   await screen.findByTestId('np-clients')
   await user.click(await waitNext())
   return screen.findByTestId('np-confirm')
@@ -172,7 +206,7 @@ afterEach(() => {
 })
 
 describe('向导：步骤、返回与键盘', () => {
-  it('位置 → 模板 → 客户端 → 确认；已完成步骤可点击返回；Enter 下一步', async () => {
+  it('位置 → 模板 → 资源 → 客户端 → 确认；已完成步骤可点击返回；Enter 下一步', async () => {
     const user = userEvent.setup()
     stubFetch({ picks: [{ ok: true, path: '/code/legacy' }], git: 'existing' })
     renderDialog()
@@ -185,6 +219,8 @@ describe('向导：步骤、返回与键盘', () => {
     fireEvent.keyDown(screen.getByTestId('np-body'), { key: 'Enter' })
     expect(await screen.findByTestId('np-templates')).toBeInTheDocument()
     expect(screen.getByTestId('np-step-location')).toHaveAttribute('data-state', 'done')
+    await user.click(screen.getByTestId('np-next'))
+    expect(await screen.findByTestId('np-resources')).toBeInTheDocument()
     await user.click(screen.getByTestId('np-next'))
     await user.click(await waitNext())
     expect(await screen.findByTestId('np-confirm')).toBeInTheDocument()
@@ -350,6 +386,7 @@ describe('模板与客户端', () => {
     await waitFor(() => expect(screen.getByTestId('np-template-toggle')).toBeEnabled())
     await user.click(screen.getByTestId('np-next'))
     await user.click(await waitNext())
+    await user.click(await waitNext())
     await screen.findByTestId('np-confirm')
     expect(bodies(calls, '/api/instruction-templates/compose').at(-1)).toEqual({
       project_name: 'shop',
@@ -362,6 +399,7 @@ describe('模板与客户端', () => {
     const calls = stubFetch({ picks: [{ ok: true, path: '/code/legacy' }], git: 'existing', detected: ['claude'] })
     renderDialog()
     await pickExisting(user)
+    await user.click(await waitNext())
     await user.click(await waitNext())
     await user.click(await waitNext())
     expect(await screen.findByTestId('np-client-claude')).toBeChecked()
@@ -383,6 +421,7 @@ describe('模板与客户端', () => {
     await pickExisting(user)
     await user.click(await waitNext())
     await user.click(await waitNext())
+    await user.click(await waitNext())
     await user.click(await screen.findByTestId('np-client-claude'))
     await user.click(screen.getByTestId('np-next'))
     const confirm = await screen.findByTestId('np-confirm')
@@ -390,6 +429,138 @@ describe('模板与客户端', () => {
     expect(within(confirm).getByTestId('np-action-register')).toBeInTheDocument()
     expect(bodies(calls, '/api/projects/create').at(-1)?.instructions).toBeNull()
     expect(bodies(calls, '/api/projects/create').at(-1)?.clients).toBeUndefined()
+  })
+})
+
+describe('资源', () => {
+  async function toResources(user: User, addReact = false) {
+    await pickParentAndName(user)
+    await user.click(await waitNext())
+    await screen.findByTestId('np-templates')
+    if (addReact) {
+      await user.click(screen.getByTestId('np-block-builtin-frontend-typescript-react'))
+      await screen.findByText('规则 typescript-react')
+      await user.click(screen.getByTestId('np-template-toggle'))
+    }
+    await user.click(await waitNext())
+    return screen.findByTestId('np-resources')
+  }
+
+  it('没选前端模板：组件库 / 图标页签禁用（说明在 Tooltip），DESIGN.md 只列有起步链接的条目；选中的随请求为 design_seed', async () => {
+    const user = userEvent.setup()
+    const calls = stubFetch({ picks: [{ ok: true, path: '/code' }], streams: [successFrames('/code/shop', ['directory', 'git', 'file:AGENTS.md', 'design', 'register'])] })
+    renderDialog()
+    await toResources(user)
+    expect(screen.getByTestId('np-res-tab-component-lib')).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByTestId('np-res-tab-icons')).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByTestId('np-res-tab-design-md')).toHaveAttribute('aria-selected', 'true')
+    await user.hover(screen.getByTestId('np-res-tab-icons'))
+    expect((await screen.findAllByText('先加入匹配的前端模板')).length).toBeGreaterThan(0)
+    const claude = await screen.findByTestId('np-res-design-md-claude')
+    expect(screen.queryByTestId('np-res-awesome-design-md')).toBeNull()
+    await user.click(claude)
+    expect(claude).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('np-step-resources')).toHaveAttribute('aria-current', 'step')
+    await user.click(screen.getByTestId('np-next'))
+    await user.click(await waitNext())
+    const confirm = await screen.findByTestId('np-confirm')
+    expect(bodies(calls, '/api/projects/create').at(-1)?.design_seed).toBe('design-md-claude')
+    expect(within(confirm).getByTestId('np-action-design')).toHaveTextContent('写入 DESIGN.md')
+    expect(within(confirm).getByTestId('np-action-design')).toHaveTextContent('Claude')
+    expect(within(confirm).getByTestId('np-action-design')).toHaveAttribute('data-exists', 'false')
+    await user.click(await waitNext())
+    await waitFor(() => expect(screen.getByTestId('np-row-design')).toHaveAttribute('data-state', 'done'))
+    expect(screen.getByTestId('np-row-design')).toHaveTextContent('写入 DESIGN.md')
+    expect(bodies(calls, '/api/projects/create/stream')[0]?.design_seed).toBe('design-md-claude')
+  })
+
+  it('选了 React 前端模板：组件库只列与 React 相交的条目；组件库 / 图标随前端块的 catalog 进拼合；再点一次取消', async () => {
+    const user = userEvent.setup()
+    const calls = stubFetch({ picks: [{ ok: true, path: '/code' }] })
+    renderDialog()
+    await toResources(user, true)
+    expect(screen.getByTestId('np-res-tab-component-lib')).toHaveAttribute('aria-selected', 'true')
+    await user.click(await screen.findByTestId('np-res-shadcn-ui'))
+    expect(screen.queryByTestId('np-res-element-plus')).toBeNull()
+    await user.click(screen.getByTestId('np-res-tab-icons'))
+    await user.click(await screen.findByTestId('np-res-lucide'))
+    await user.click(screen.getByTestId('np-res-tab-design-md'))
+    const claude = await screen.findByTestId('np-res-design-md-claude')
+    await user.click(claude)
+    await user.click(claude)
+    expect(claude).toHaveAttribute('aria-pressed', 'false')
+    await user.click(screen.getByTestId('np-next'))
+    await user.click(await waitNext())
+    await screen.findByTestId('np-confirm')
+    expect(bodies(calls, '/api/instruction-templates/compose').at(-1)?.selections).toEqual([{
+      source: 'builtin', category: 'frontend', id: 'typescript-react', values: {}, catalog: { 'component-lib': ['shadcn-ui'], icons: ['lucide'] },
+    }])
+    expect(bodies(calls, '/api/projects/create').at(-1)?.design_seed).toBeUndefined()
+    expect(within(screen.getByTestId('np-confirm')).queryByTestId('np-action-design')).toBeNull()
+  })
+
+  it('模板块没声明的资源分类不进它的 catalog', async () => {
+    const user = userEvent.setup()
+    const calls = stubFetch({ picks: [{ ok: true, path: '/code' }], catalog: ['icons'] })
+    renderDialog()
+    await toResources(user, true)
+    await user.click(await screen.findByTestId('np-res-shadcn-ui'))
+    await user.click(screen.getByTestId('np-res-tab-icons'))
+    await user.click(await screen.findByTestId('np-res-lucide'))
+    await user.click(screen.getByTestId('np-next'))
+    await user.click(await waitNext())
+    await screen.findByTestId('np-confirm')
+    expect(bodies(calls, '/api/instruction-templates/compose').at(-1)?.selections).toMatchObject([{ catalog: { icons: ['lucide'] } }])
+    expect((bodies(calls, '/api/instruction-templates/compose').at(-1)?.selections as { catalog: Record<string, string[]> }[])[0]?.catalog).not.toHaveProperty('component-lib')
+  })
+
+  it('资源目录读取失败：步骤里显示本地文案与重试，重试后列出条目；资源可跳过', async () => {
+    const user = userEvent.setup()
+    stubFetch({ picks: [{ ok: true, path: '/code' }], resourcesFail: true })
+    renderDialog()
+    await toResources(user)
+    const error = await screen.findByTestId('np-res-error')
+    expect(error).toHaveTextContent('资源目录读取失败')
+    expect(screen.getByTestId('np-next')).toBeEnabled()
+    await user.click(screen.getByTestId('np-res-error-retry'))
+    expect(await screen.findByTestId('np-res-design-md-claude')).toBeInTheDocument()
+  })
+
+  it('已有目录已有 DESIGN.md：确认步把 design 标为「已存在」（跳过，不覆盖）', async () => {
+    const user = userEvent.setup()
+    stubFetch({ picks: [{ ok: true, path: '/code/legacy' }], git: 'existing', designExists: true })
+    renderDialog()
+    await pickExisting(user)
+    await user.click(await waitNext())
+    await user.click(await waitNext())
+    await user.click(await screen.findByTestId('np-res-design-md-claude'))
+    await user.click(screen.getByTestId('np-next'))
+    await user.click(await waitNext())
+    const row = within(await screen.findByTestId('np-confirm')).getByTestId('np-action-design')
+    expect(row).toHaveAttribute('data-exists', 'true')
+    expect(row).toHaveTextContent('已存在')
+  })
+
+  it('design 步骤失败：行内显示错误原文，「返回修改」回到资源', async () => {
+    const user = userEvent.setup()
+    const failing = [
+      frame('plan', { steps: ['directory', 'git', 'design', 'register'] }),
+      frame('step', { id: 'directory', state: 'running' }), frame('step', { id: 'directory', state: 'done' }),
+      frame('step', { id: 'git', state: 'running' }), frame('step', { id: 'git', state: 'done' }),
+      frame('step', { id: 'design', state: 'running' }), frame('step', { id: 'design', state: 'failed', error: 'DESIGN.md 获取失败：404', code: 'fetch-failed' }),
+      frame('failed', { ok: false, status: 500, code: 'project-create-failed', error: '新建项目失败', step: 'design' }),
+    ]
+    stubFetch({ picks: [{ ok: true, path: '/code' }], streams: [failing] })
+    renderDialog()
+    await toResources(user)
+    await user.click(await screen.findByTestId('np-res-design-md-claude'))
+    await user.click(screen.getByTestId('np-next'))
+    await user.click(await waitNext())
+    await screen.findByTestId('np-confirm')
+    await user.click(await waitNext())
+    expect(await screen.findByTestId('np-row-error-design')).toHaveTextContent('DESIGN.md 获取失败：404')
+    await user.click(await waitFor(() => { const back = screen.getByTestId('np-back'); expect(back).toBeEnabled(); return back }))
+    expect(await screen.findByTestId('np-resources')).toBeInTheDocument()
   })
 })
 
@@ -426,6 +597,7 @@ describe('确认与创建进度', () => {
     await user.click(await screen.findByTestId('np-block-builtin-common-base'))
     await user.click(await screen.findByTestId('np-template-toggle'))
     await user.click(screen.getByTestId('np-next'))
+    await user.click(await waitNext())
     await user.click(await waitNext())
     await screen.findByTestId('np-confirm')
     await user.click(await waitNext())

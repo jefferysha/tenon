@@ -6,6 +6,7 @@ import { WIZARD_STEPS, type WizardStep } from './newProjectModel'
 const LABEL: Record<WizardStep, string> = {
   location: 'projects.step_location',
   templates: 'projects.templates',
+  resources: 'projects.step_resources',
   clients: 'projects.step_clients',
   confirm: 'projects.confirm',
 }
@@ -16,7 +17,7 @@ export interface WizardStepsProps {
   onBack: (step: WizardStep) => void
 }
 
-/** 步骤条：位置 → 模板 → 客户端 → 确认。当前步高亮，已完成步带勾、可点击返回。 */
+/** 步骤条：位置 → 模板 → 资源 → 客户端 → 确认。当前步高亮，已完成步带勾、可点击返回。 */
 export function WizardSteps({ current, onBack }: WizardStepsProps): JSX.Element {
   const { t } = useT()
   const at = WIZARD_STEPS.indexOf(current)

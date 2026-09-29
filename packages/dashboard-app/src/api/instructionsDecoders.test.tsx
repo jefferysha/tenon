@@ -38,6 +38,8 @@ describe('instruction decoders accept exact server shapes', () => {
   it('新建项目 dry run 与执行结果', () => {
     const plan = { ok: true, root: '/p/shop', git: 'init', registration: 'add', directories: [{ path: 'sql/', exists: false }], files: [previewFile] }
     expect(decodeProjectCreatePlan(plan)?.directories).toEqual([{ path: 'sql/', exists: false }])
+    expect(decodeProjectCreatePlan(plan)).not.toHaveProperty('design')
+    expect(decodeProjectCreatePlan({ ...plan, design: { resource: 'design-md-claude', exists: true } })?.design).toEqual({ resource: 'design-md-claude', exists: true })
     expect(decodeProjectCreated({ ok: true, root: '/p/shop', git: 'init', registration: 'add', directories: ['sql/'], files: [] })?.root).toBe('/p/shop')
   })
 })
@@ -58,6 +60,7 @@ describe('instruction decoders reject extra keys, missing keys and wrong enums',
     ['preview missing next', () => decodeInstructionPreview({ ok: true, files: [{ ...previewFile, next: undefined }] })],
     ['delete wrong result', () => decodeInstructionDelete({ ok: true, result: 'gone' })],
     ['plan wrong git', () => decodeProjectCreatePlan({ ok: true, root: '/p', git: 'clone', registration: 'add', directories: [], files: [] })],
+    ['plan design wrong shape', () => decodeProjectCreatePlan({ ok: true, root: '/p', git: 'none', registration: 'add', directories: [], files: [], design: { resource: 'x' } })],
     ['created wrong registration', () => decodeProjectCreated({ ok: true, root: '/p', git: 'none', registration: 'maybe', directories: [], files: [] })],
     ['ok false', () => decodeComposeResult({ ok: false, markdown: '', directories: [], bytes: 0 })],
   ])('%s', (_name, run) => {
