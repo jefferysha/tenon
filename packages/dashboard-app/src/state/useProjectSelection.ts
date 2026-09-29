@@ -2,7 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { dashboardSearch, parseDashboardLocation } from '../shell/dashboardLocation'
 import type { View } from '../shell/views'
 import type { Snapshot } from '../types'
+import {
+  currentHistorySnapshot, historyPosition, historyStateAt, isAbortSignalEventTarget, linkedNavigationTarget,
+  navigationEntryIndex, navigationEventTarget, popTraversal, pushMarkedEntry, pushUnmarkedEntry, traverseHistory,
+  type DashboardNavigationTarget, type HistoryCursor, type HistorySnapshot,
+} from './dashboardHistory'
 import { resolveProjectSelection, selectedProjectRoot } from './projectSelectionModel'
+
+export type { DashboardNavigationTarget } from './dashboardHistory'
 
 export interface ProjectSelectionController {
   readonly currentRoot: string
@@ -14,88 +21,6 @@ export interface ProjectSelectionController {
   readonly cancelPopNavigation: (afterRestore?: () => void) => void
   /** True when same-document traversals can be cancelled at their Navigation API start event. */
   readonly supportsNavigationInterception: boolean
-}
-
-export interface DashboardNavigationTarget {
-  readonly view: View
-  readonly root: string | null
-  readonly change: string | null
-}
-
-const HISTORY_POSITION_KEY = '__tenonDashboardPosition'
-
-interface HistorySnapshot {
-  readonly url: string
-  readonly state: unknown
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function historyPosition(state: unknown): number | null {
-  if (!isRecord(state)) return null
-  const value = state[HISTORY_POSITION_KEY]
-  return typeof value === 'number' && Number.isSafeInteger(value) ? value : null
-}
-
-/** Chromium's Navigation API exposes the physical session-history index even for pre-mount entries. */
-function navigationEntryIndex(): number | null {
-  const navigation: unknown = Reflect.get(window, 'navigation')
-  if (!isRecord(navigation)) return null
-  const currentEntry: unknown = Reflect.get(navigation, 'currentEntry')
-  if (!isRecord(currentEntry)) return null
-  const index = currentEntry.index
-  return typeof index === 'number' && Number.isSafeInteger(index) ? index : null
-}
-
-function isNavigationEventTarget(value: unknown): value is EventTarget {
-  return isRecord(value)
-    && typeof value.addEventListener === 'function'
-    && typeof value.removeEventListener === 'function'
-    && typeof value.dispatchEvent === 'function'
-}
-
-interface AbortSignalEventTarget extends EventTarget {
-  readonly aborted: boolean
-}
-
-function isAbortSignalEventTarget(value: unknown): value is AbortSignalEventTarget {
-  return isNavigationEventTarget(value) && typeof Reflect.get(value, 'aborted') === 'boolean'
-}
-
-function navigationEventTarget(): EventTarget | null {
-  const navigation: unknown = Reflect.get(window, 'navigation')
-  return isNavigationEventTarget(navigation) ? navigation : null
-}
-
-function historyStateAt(position: number): Record<string, unknown> {
-  const current = typeof window.history.state === 'object'
-    && window.history.state !== null
-    && !Array.isArray(window.history.state)
-    ? window.history.state as Record<string, unknown>
-    : {}
-  return { ...current, [HISTORY_POSITION_KEY]: position }
-}
-
-function historyStateWithoutPosition(state: unknown): unknown {
-  if (!isRecord(state)) return state
-  const clean = { ...state }
-  delete clean[HISTORY_POSITION_KEY]
-  return clean
-}
-
-function currentHistorySnapshot(): HistorySnapshot {
-  return {
-    url: `${window.location.pathname}${window.location.search}${window.location.hash}`,
-    state: window.history.state,
-  }
-}
-
-function traverseHistory(delta: number): void {
-  if (delta === -1) window.history.back()
-  else if (delta === 1) window.history.forward()
-  else window.history.go(delta)
 }
 
 export function useProjectSelection(input: {
@@ -122,6 +47,7 @@ export function useProjectSelection(input: {
   const historyPositionRef = useRef(historyPosition(window.history.state) ?? 0)
   const historyPositionKnownRef = useRef(historyPosition(window.history.state) !== null)
   const navigationIndexRef = useRef(navigationEntryIndex())
+  const cursor: HistoryCursor = { position: historyPositionRef, positionKnown: historyPositionKnownRef, navigationIndex: navigationIndexRef }
   const blockedTraversalRef = useRef(-1)
   const blockedTraversalPendingRef = useRef(false)
   const blockedTraversalReplayableRef = useRef(true)
@@ -144,14 +70,7 @@ export function useProjectSelection(input: {
     blockedTargetRef.current = null
   }, [])
   const recoverCommittedHistory = useCallback((): void => {
-    const committed = committedHistoryRef.current
-    window.history.pushState(
-      historyStateWithoutPosition(committed.state),
-      '',
-      committed.url,
-    )
-    historyPositionKnownRef.current = false
-    navigationIndexRef.current = null
+    pushUnmarkedEntry(cursor, committedHistoryRef.current)
     rememberCommittedHistory()
   }, [rememberCommittedHistory])
   const clearUncancelledTraversal = useCallback((sequence: number): void => {
@@ -213,13 +132,7 @@ export function useProjectSelection(input: {
       const next = `${window.location.pathname}${search}${window.location.hash}`
       const now = `${window.location.pathname}${window.location.search}${window.location.hash}`
       if (next !== now) {
-        const nextPosition = historyPositionRef.current + 1
-        const previousNavigationIndex = navigationIndexRef.current
-        window.history.pushState(historyStateAt(nextPosition), '', next)
-        historyPositionRef.current = nextPosition
-        historyPositionKnownRef.current = true
-        navigationIndexRef.current = navigationEntryIndex()
-          ?? (previousNavigationIndex === null ? null : previousNavigationIndex + 1)
+        pushMarkedEntry(cursor, next)
         rememberCommittedHistory()
       }
     } catch {
@@ -248,13 +161,7 @@ export function useProjectSelection(input: {
       // 后退 / 前进本身已把 URL 的 view 与状态对齐，走 replace，不会再压一条。
       const linkedView = parseDashboardLocation(window.location.search).view
       if (next !== now && linkedView !== undefined && linkedView !== input.view) {
-        const nextPosition = historyPositionRef.current + 1
-        const previousNavigationIndex = navigationIndexRef.current
-        window.history.pushState(historyStateAt(nextPosition), '', next)
-        historyPositionRef.current = nextPosition
-        historyPositionKnownRef.current = true
-        navigationIndexRef.current = navigationEntryIndex()
-          ?? (previousNavigationIndex === null ? null : previousNavigationIndex + 1)
+        pushMarkedEntry(cursor, next)
       } else if (next !== now) {
         window.history.replaceState(window.history.state, '', next)
       }
@@ -298,13 +205,7 @@ export function useProjectSelection(input: {
   const commitBlockedTargetFallback = useCallback((): boolean => {
     const blocked = blockedTargetRef.current
     if (blocked === null) return false
-    window.history.pushState(
-      historyStateWithoutPosition(blocked.history.state),
-      '',
-      blocked.history.url,
-    )
-    historyPositionKnownRef.current = false
-    navigationIndexRef.current = null
+    pushUnmarkedEntry(cursor, blocked.history)
     clearBlockedTraversal()
     applyLocation(blocked.target)
     return true
@@ -407,29 +308,16 @@ export function useProjectSelection(input: {
         afterRestore?.()
         return
       }
-      // Prefer our marker for Dashboard-owned entries. Pre-mount/unmarked entries need the host's
-      // physical Navigation API index: unlike a guessed Back delta it also identifies Forward.
-      const indexedTraversal = previousNavigationIndex !== null && eventNavigationIndex !== null
-        ? eventNavigationIndex - previousNavigationIndex
-        : null
-      const markedTraversal = previousPositionKnown && eventPosition !== null
-        ? eventPosition - previousPosition
-        : null
-      const traversal = markedTraversal !== null && markedTraversal !== 0
-        ? markedTraversal
-        : (indexedTraversal ?? 0)
+      const traversal = popTraversal({
+        previousPosition, previousPositionKnown, eventPosition, previousNavigationIndex, eventNavigationIndex,
+      })
       const directionUnknown = traversal === 0
       const targetPosition = eventPosition ?? previousPosition + traversal
       historyPositionRef.current = targetPosition
       historyPositionKnownRef.current = eventPosition !== null
       navigationIndexRef.current = eventNavigationIndex
         ?? (previousNavigationIndex === null ? null : previousNavigationIndex + traversal)
-      const linked = parseDashboardLocation(window.location.search)
-      const target: DashboardNavigationTarget = {
-        view: linked.view ?? input.view,
-        root: linked.root ?? null,
-        change: linked.change ?? null,
-      }
+      const target = linkedNavigationTarget(input.view)
       if (allowNextPopRef.current) {
         allowNextPopRef.current = false
         clearBlockedTraversal()
