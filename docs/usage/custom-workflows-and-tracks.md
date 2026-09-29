@@ -38,7 +38,7 @@ steps:
         to: implement
   - id: implement
     label: Implement
-    gate: null
+    gate: auto
     skills:
       - id: editor
     inputs: []
@@ -68,6 +68,14 @@ document_contract:
     - step: prove
       kinds: [proposal]
 ```
+
+A step has one of two gates: `review` (a person confirms before leaving) or
+`auto` (the step's declared outputs must all be set before leaving). `gate: null`
+or an omitted gate means `auto`. The outputs check applies to forward edges only;
+return edges such as `verify-fail` or `requirements-changed` are never blocked by
+it. Outputs the engine writes itself (`build_sha`, `archived`) are not part of
+the check. A Change keeps the plan it froze when it started, so Changes started
+before a Workflow was recompiled keep the gate behaviour they recorded.
 
 The contract is optional. Without it, Tenon does not infer documents
 from the number or names of steps.
@@ -105,7 +113,7 @@ tracks:
     steps:
       - id: shape
         label: shape
-        gate: null
+        gate: auto
         skills: []
         inputs: []
         outputs: []

@@ -1,7 +1,10 @@
+import { effectiveSkillDependencies, minimalSkillDependencies } from '@tenon/kernel/workflow/skill-order'
 import type { WbSkillRef } from '../api/governanceTypes'
 
 /**
- * 技能执行波次：按 depends_on 拓扑深度分组——同一波并行、波与波之间串行。
+ * 图的执行波次：按 depends_on 拓扑深度分组——同一波并行、波与波之间串行，未写依赖的节点在第 0 波。
+ * 这是画布（SkillFlow）的图口径，节点的依赖都已显式给出；技能在阶段里「没写 depends_on = 按声明顺序
+ * 串行」的规则由 kernel skill-order 负责，进画布之前先用 explicitSkillRefs 展开。
  * 只认同阶段内的依赖；环依赖按深度 0 处理（kernel 校验期会拒绝环，这里不重复报错）。
  */
 export function skillExecutionWaves(
@@ -34,7 +37,7 @@ export function skillExecutionWaves(
   return waves.filter((wave) => wave.length > 0)
 }
 
-/** 步骤的技能引用 → 波（列）。 */
+/** 显式依赖图 → 波（列）。 */
 export function wavesOf(skills: readonly WbSkillRef[]): string[][] {
   return skillExecutionWaves(
     skills.map((skill) => skill.id),
@@ -43,49 +46,43 @@ export function wavesOf(skills: readonly WbSkillRef[]): string[][] {
 }
 
 /**
- * 波（列）→ 技能引用：第 k 列的每个技能依赖第 k-1 列的全部技能，第 0 列无依赖。
- * 列模型是「同列并行、邻列串行」的唯一真相；其它字段从 `existing` 原样带回。
+ * 阶段技能 → 画布用的显式依赖：每个技能都写上它实际的直接前置（没写 depends_on 的 = 前面全部，约简后；
+ * 没有前置的写 `[]`），所以这份结果再按技能口径解读也不变。
  */
-export function wavesToSkills(waves: readonly (readonly string[])[], existing: readonly WbSkillRef[]): WbSkillRef[] {
-  const byId = new Map(existing.map((skill) => [skill.id, skill]))
-  const out: WbSkillRef[] = []
-  waves.forEach((wave, column) => {
-    const previous = column > 0 ? [...(waves[column - 1] ?? [])] : []
-    for (const id of wave) {
-      const { depends_on: _dropped, ...rest } = byId.get(id) ?? { id }
-      out.push(previous.length > 0 ? { ...rest, id, depends_on: previous } : { ...rest, id })
-    }
+export function explicitSkillRefs(skills: readonly WbSkillRef[]): WbSkillRef[] {
+  const effective = new Map(effectiveSkillDependencies(skills).map((item) => [item.id, item.dependsOn]))
+  return skills.map((skill) => ({ ...skill, depends_on: [...(effective.get(skill.id) ?? [])] }))
+}
+
+/**
+ * 画布回写 → 阶段技能：按执行顺序排好的显式依赖压成最小声明——与「前面全部」等价的不写 depends_on，
+ * 与前面并行的写 `depends_on: []`（或上一波），其余字段原样带回。
+ */
+export function minimalSkillRefs(skills: readonly WbSkillRef[]): WbSkillRef[] {
+  const minimal = minimalSkillDependencies(skills.map((skill) => ({ id: skill.id, dependsOn: skill.depends_on ?? [] })))
+  return skills.map((skill, index) => {
+    const { depends_on: _explicit, ...rest } = skill
+    const declared = minimal[index]?.depends_on
+    return declared === undefined ? rest : { ...rest, depends_on: [...declared] }
   })
-  return out
 }
 
-/** 第 i 个技能是否与前一个技能并行 = 不依赖前一个技能（同一波）。首个技能恒为串行起点。 */
-export function isParallelWithPrevious(skills: readonly { id: string; depends_on?: string[] }[], index: number): boolean {
-  if (index <= 0) return false
-  const previous = skills[index - 1]
-  const current = skills[index]
-  if (!previous || !current) return false
-  return !(current.depends_on ?? []).includes(previous.id)
+/** 两份阶段技能是否排出同一个顺序（画布比较用；`[]` 与未写的差别在这里算数）。 */
+export function skillOrderSignature(skills: readonly WbSkillRef[]): string {
+  return effectiveSkillDependencies(skills).map((item) => `${item.id}<${[...item.dependsOn].sort().join(',')}`).join('|')
 }
 
-/** 把技能放进第 column 列（-1 = 新的首列，waves.length = 新的末列）；从原位置移除；空列被清掉。 */
-export function placeSkillInWave(waves: readonly (readonly string[])[], skillId: string, column: number, position: number | null = null): string[][] {
-  const stripped = waves.map((wave) => wave.filter((id) => id !== skillId))
-  const target = Math.max(-1, Math.min(column, stripped.length))
-  if (target === -1) stripped.unshift([])
-  else if (target === stripped.length) stripped.push([])
-  const index = target === -1 ? 0 : target
-  const wave = stripped[index] ?? []
-  const at = position === null || position > wave.length ? wave.length : Math.max(0, position)
-  wave.splice(at, 0, skillId)
-  stripped[index] = wave
-  return stripped.filter((wave) => wave.length > 0)
+/** 追加技能：不写 depends_on，按声明顺序接在前面全部之后。 */
+export function appendSkill(skills: readonly WbSkillRef[], id: string): WbSkillRef[] {
+  return skills.some((skill) => skill.id === id) ? [...skills] : [...skills, { id }]
 }
 
-/** 在第 column 列之前插入一个只含该技能的新列（列间隙拖放 = 新的串行一步）。 */
-export function insertWaveBefore(waves: readonly (readonly string[])[], skillId: string, column: number): string[][] {
-  const stripped = waves.map((wave) => wave.filter((id) => id !== skillId)).filter((wave) => wave.length > 0)
-  const at = Math.max(0, Math.min(column, stripped.length))
-  stripped.splice(at, 0, [skillId])
-  return stripped
+/** 移除技能：别的技能对它的依赖一并摘掉；只依赖它的那个改回按声明顺序接在前面之后。 */
+export function removeSkill(skills: readonly WbSkillRef[], id: string): WbSkillRef[] {
+  return skills.filter((skill) => skill.id !== id).map((skill) => {
+    if (skill.depends_on?.includes(id) !== true) return skill
+    const { depends_on: dependsOn, ...rest } = skill
+    const kept = dependsOn.filter((dependency) => dependency !== id)
+    return kept.length === 0 ? rest : { ...rest, depends_on: kept }
+  })
 }

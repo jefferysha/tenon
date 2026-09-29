@@ -230,6 +230,10 @@
   读取 `brainstorming` 等交互式 skill 时重复要求低风险确认，同时在 Change history 留下最小化审计行；
   **绝不**清 `-review`、不写 canonical approval receipt、不能自动 transition，也不能替代涉及范围、
   安全、成本或外部状态的实质决策。
+- step `gate` 只有 `review` / `auto` 两种；`gate: null` 与缺省是 `auto` 的别名（compile 归一，新编译的 IR 里不再出现 null）。
+  `auto` = 本步声明的输出齐全才放行**前进边**（含完结边 `archived`），退回边（`verify-fail`、`requirements-changed`、自定义回边）从不受它约束；
+  `build_sha`（`freeze-build-sha` 写入）与 `archived`（`archive-run` 写入）是引擎写入的输出，不进检查。
+  已冻结的旧计划保留它当时的 IR：`gate: null` 的旧计划没有输出守卫，旧 `auto` 计划的守卫仍挂在每条出边上，快照读回不重编译。
 - `review_phases` / custom `gate: review` 都是**出口**门：完成相位产物并选择 event 后运行
   `pipeline review request <name> --event <event>`，它先原子写 canonical pending receipt、再写
   `pipeline-review-v2` marker（含 phase/change/event/requested_at）。单出口可省略 event；多出口必须显式指定。

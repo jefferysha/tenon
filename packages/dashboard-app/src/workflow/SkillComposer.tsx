@@ -4,7 +4,8 @@ import type { WbSkillEntry, WbSkillRef } from '../api/governanceTypes'
 import { useT } from '../i18n'
 import { Dialog } from '../shared/Dialog'
 import { SkillDetail } from './SkillDetail'
-import { appendSerial, SkillFlow, skillsSignature } from './SkillFlow'
+import { appendSkill, explicitSkillRefs, minimalSkillRefs, skillOrderSignature } from '../workbench/skillWaves'
+import { SkillFlow } from './SkillFlow'
 import { SkillSourceIcon } from './SkillSourceIcon'
 import { COMPOSER_CANVAS, COMPOSER_DETAIL, COMPOSER_PALETTE, COMPOSER_SEARCH, COMPOSER_SURFACE, paletteNameClass, paletteRowClass, ROW_ADD, ROW_REVEAL } from './composerChrome'
 import { cn } from '@/lib/utils'
@@ -81,16 +82,18 @@ export function SkillComposer({ open, stageLabel, skills, registry, onClose, onS
   const searchRef = useRef<HTMLInputElement>(null)
   useEffect(() => { if (open) { setDraft([...skills]); setDetail(skills[0]?.id ?? null) } }, [open, skills])
   // 两级保存：这里只把草稿交回阶段（「完成」），真正写盘在页面保存条。没改动时「完成」不可点。
-  const changed = skillsSignature(draft) !== skillsSignature(skills)
+  // 画布只认显式依赖：没写 depends_on 的技能按声明顺序串行（kernel skill-order），进画布前展开，回写时压回最小声明。
+  const changed = skillOrderSignature(draft) !== skillOrderSignature(skills)
+  const canvasSkills = useMemo(() => explicitSkillRefs(draft), [draft])
   const placed = useMemo(() => new Set(draft.map((skill) => skill.id)), [draft])
   const entries = useMemo(() => (registry ?? [])
     .filter((entry) => entry.installed && entry.available !== false && entry.name.toLowerCase().includes(search.trim().toLowerCase()))
     .sort((a, b) => Number(placed.has(a.name)) - Number(placed.has(b.name)) || a.name.localeCompare(b.name)), [registry, placed, search])
   if (!open) return null
 
-  /** 技能库「+」：串行追加为新一步（依赖末波全部技能）；要并行就拖到那一列上。 */
+  /** 技能库「+」：串行追加为新一步（接在前面全部之后）；要并行就拖到那一列上。 */
   function add(id: string): void {
-    setDraft((current) => appendSerial(current, id))
+    setDraft((current) => appendSkill(current, id))
   }
 
   return (
@@ -127,7 +130,7 @@ export function SkillComposer({ open, stageLabel, skills, registry, onClose, onS
             </ul>
           )}
         </section>
-        <SkillFlow skills={draft} registry={registry} editable onChange={setDraft} onOpen={setDetail} dragLabel={dragging} className={COMPOSER_CANVAS} />
+        <SkillFlow skills={canvasSkills} registry={registry} editable onChange={(next) => setDraft(minimalSkillRefs(next))} onOpen={setDetail} dragLabel={dragging} className={COMPOSER_CANVAS} />
         <aside className={COMPOSER_DETAIL} aria-label={t('workflow.preview_skill', { id: detail ?? '' })} data-testid="skill-composer-detail">
           {detail === null ? (
             <p className="text-body text-text-3" role="status">{t('workflow.pick_skill')}</p>

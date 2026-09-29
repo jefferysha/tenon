@@ -9,10 +9,11 @@
 import {
   DOCUMENT_KIND_CATALOG,
   documentGovernancePolicy,
+  type DocumentGovernancePolicy,
   type DocumentKind,
   type DocumentScope,
 } from './document-contract.js'
-import type { FieldType, WorkflowDef } from './types.js'
+import type { FieldRef, FieldType, WorkflowDocumentContractV1 } from './types.js'
 
 export interface WorkflowDocumentSlotIo {
   readonly kind: 'document'
@@ -44,8 +45,29 @@ export interface WorkflowStepIo {
 
 export type WorkflowEffectiveIo = Readonly<Record<string, WorkflowStepIo>>
 
-export function materializeWorkflowIo(def: WorkflowDef): WorkflowEffectiveIo {
-  const policy = documentGovernancePolicy(def.name, def)
+/** 物化只读步骤的 id 与字段输入输出；工作流定义与编译后的 IR 都满足。 */
+export interface MaterializableWorkflow {
+  readonly name: string
+  readonly openspec?: boolean
+  readonly documentContract?: WorkflowDocumentContractV1
+  readonly tracks?: Readonly<Record<string, {
+    readonly documentContract?: WorkflowDocumentContractV1
+    readonly steps: readonly { readonly id: string }[]
+  }>>
+  readonly steps: readonly { readonly id: string; readonly inputs: readonly FieldRef[]; readonly outputs: readonly FieldRef[] }[]
+}
+
+/**
+ * `policy` 缺省 = 由定义现算；冻结计划传它自己的 documentPolicy（null = 不受文档治理），
+ * 工作台因此按任务冻结的契约显示输入输出，而不是当前定义。
+ */
+export function materializeWorkflowIo(
+  def: MaterializableWorkflow,
+  frozenPolicy?: DocumentGovernancePolicy | null,
+): WorkflowEffectiveIo {
+  const policy = frozenPolicy === undefined
+    ? documentGovernancePolicy(def.name, def)
+    : frozenPolicy ?? undefined
   const steps = def.steps
   const out: Record<string, WorkflowStepIo> = {}
 

@@ -223,3 +223,40 @@ describe('WorkflowView · 删除工作流', () => {
     expect(await screen.findByTestId('wb-step-open')).toBeInTheDocument()
   })
 })
+
+describe('WorkflowView · 总览', () => {
+  it('左栏顶部「总览」是第 0 步：点它右栏整宽一张编排画布，阶段块都不高亮；URL 记住；点列头回到那个阶段', async () => {
+    const user = userEvent.setup()
+    const overlay = vi.fn()
+    stubApi((url) => {
+      if (url.startsWith('/api/workflows/flow/orchestration?')) {
+        overlay(url)
+        return new Response(JSON.stringify({ workflow: 'flow', track: 'alpha', stages: [], returns: [], flows: [], overlay: {} }), { status: 200 })
+      }
+      return undefined
+    })
+    window.history.replaceState(null, '', '/?view=workbench&wf=flow')
+    render(<I18nProvider><TooltipProvider><WorkflowView root="" /></TooltipProvider></I18nProvider>)
+    await screen.findByTestId('wb-step-a1')
+    expect(screen.getByTestId('wb-overview-row')).toHaveTextContent('0总览')
+    await user.click(screen.getByTestId('wb-overview'))
+    expect(screen.getByTestId('wb-overview')).toHaveAttribute('aria-current', 'true')
+    expect(screen.getByTestId('wb-step-a1')).not.toHaveAttribute('aria-current')
+    expect(await screen.findByTestId('workflow-overview-pane')).toBeInTheDocument()
+    expect(screen.getByTestId('orchestration-overview')).toHaveAttribute('data-pulse', 'loop')
+    expect(screen.queryByTestId('stage-editor-pane')).toBeNull()
+    await waitFor(() => expect(params().get('step')).toBe(':overview'))
+    // 叠加层按 (工作流, 轨道) 问一次服务端；编排本身按草稿就地算。
+    await waitFor(() => expect(overlay).toHaveBeenCalledWith('/api/workflows/flow/orchestration?root=&track=alpha'))
+    await user.click(screen.getByTestId('orch-stage-a2'))
+    expect(await screen.findByTestId('stage-editor-pane')).toBeInTheDocument()
+    expect(screen.getByTestId('wb-step-a2')).toHaveAttribute('aria-current', 'true')
+  })
+
+  it('深链 step=:overview 直接打开总览', async () => {
+    window.history.replaceState(null, '', '/?view=workbench&wf=flow&track=beta&step=%3Aoverview')
+    render(<I18nProvider><TooltipProvider><WorkflowView root="" /></TooltipProvider></I18nProvider>)
+    expect(await screen.findByTestId('workflow-overview-pane')).toBeInTheDocument()
+    expect(screen.getByTestId('orch-frame-b3')).toBeInTheDocument()
+  })
+})

@@ -11,9 +11,9 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
-import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { AlertTriangle, ChevronDown, Download, FileCheck, Lock, MoreHorizontal, Plus, RotateCcw, ShieldCheck, Trash2, Zap } from 'lucide-react'
-import type { WbStepDef, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { ChevronDown, Download, FileCheck, Lock, MoreHorizontal, Plus, RotateCcw, Trash2 } from 'lucide-react'
+import type { WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
 import { useT } from '../i18n'
 import { useFlipLayout } from '../shared/useFlip'
 import {
@@ -29,8 +29,8 @@ import {
 import { Hint } from './Hint'
 import { BASE_BRANCH } from '../workbench/workbenchDefinition'
 import type { LintIssue } from './lint'
-import { lintMessage } from './lintMessages'
 import { backEdgesFrom, pipelineEdges } from './pipelineModel'
+import { MENU_ICON_BUTTON, MENU_ITEM, OverviewRow, STEP_HEIGHT, StepRow } from './WorkflowStepRows'
 import { cn } from '@/lib/utils'
 
 export interface WorkflowNavProps {
@@ -66,11 +66,14 @@ export interface WorkflowNavProps {
   onDeleteStage: (id: string) => void
   onAddStage: () => void
   onReorder: (fromId: string, toId: string, after: boolean) => void
+  /** 左栏顶部「总览」行（第 0 步）是否选中；选中时阶段块都不高亮。 */
+  overviewSelected?: boolean
+  onSelectOverview?: () => void
 }
 
 /** 行高 40 + 行距 14：回流弧按序号算坐标，不测 DOM。 */
 export const STEP_PITCH = 54
-export const STEP_HEIGHT = 40
+export { STEP_HEIGHT }
 export function backEdgePath(fromIndex: number, toIndex: number): string {
   const y1 = fromIndex * STEP_PITCH + STEP_HEIGHT / 2
   const y2 = toIndex * STEP_PITCH + STEP_HEIGHT / 2
@@ -80,95 +83,6 @@ export function backEdgePath(fromIndex: number, toIndex: number): string {
 export function backArrowPath(toIndex: number): string {
   const y = toIndex * STEP_PITCH + STEP_HEIGHT / 2
   return `M4 ${y - 4} L0 ${y} L4 ${y + 4}`
-}
-
-function GateIcon({ gate }: { gate: WbStepDef['gate'] }): JSX.Element | null {
-  const { t } = useT()
-  if (gate === null) return null
-  const Icon = gate === 'review' ? ShieldCheck : Zap
-  return (
-    <span className={cn('grid flex-none place-items-center', gate === 'review' ? 'text-amber-d' : 'text-(--accent)')} title={t(`workflow.gate_${gate}`)} data-testid="wb-gate-mark" data-gate={gate}>
-      <Icon className="size-3.5" aria-hidden="true" />
-      <span className="sr-only">{t(`workflow.gate_${gate}`)}</span>
-    </span>
-  )
-}
-
-const MENU_ICON_BUTTON = 'grid size-8 flex-none place-items-center rounded-sm text-text-3 outline-none hover:bg-fill hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-not-allowed disabled:opacity-50 data-[state=open]:bg-fill data-[state=open]:text-text'
-const MENU_ITEM = 'min-h-10 gap-2.5 px-2.5 text-body [&_svg]:text-text-3'
-
-function StepRow({ step, order, selected, issue, editable, deletable, labelOf, onSelect, onDelete, onHover }: {
-  step: WbStepDef
-  order: number
-  selected: boolean
-  /** 本阶段最要紧的一条 lint 问题（错误优先）；有就在块上标警示图标，悬停 / 聚焦看原因。 */
-  issue: LintIssue | undefined
-  editable: boolean
-  deletable: boolean
-  labelOf: (stepId: string) => string
-  onSelect: (id: string) => void
-  onDelete: (id: string) => void
-  /** 悬停 / 聚焦进出本阶段：null = 离开。与它相关的回流弧据此高亮。 */
-  onHover: (id: string | null) => void
-}): JSX.Element {
-  const { t } = useT()
-  const { attributes, listeners, setNodeRef, isDragging } = useSortable({ id: step.id, disabled: !editable })
-  const issueText = issue === undefined ? null : lintMessage(t, issue, labelOf)
-  const block = (
-    <button
-      type="button"
-      className={cn(
-        'flex h-10 w-full min-w-0 items-center justify-between gap-2 rounded-sm border pl-3 text-left text-base outline-none transition-colors focus-visible:ring-2 focus-visible:ring-(--accent)',
-        selected ? 'border-(--accent) bg-accent-t pr-10 font-semibold text-(--accent)' : 'border-border bg-card pr-3 font-medium text-text hover:border-border-2',
-      )}
-      aria-current={selected ? 'true' : undefined}
-      data-testid={`wb-step-${step.id}`}
-      onClick={() => onSelect(step.id)}
-    >
-      <span className="truncate whitespace-nowrap">{labelOf(step.id)}</span>
-      <span className="flex flex-none items-center gap-1.5">
-        {issue !== undefined && <AlertTriangle className={cn('size-4', issue.severity === 'error' ? 'text-red-d' : 'text-amber-d')} aria-hidden="true" data-testid={`wb-lint-${step.id}`} data-severity={issue.severity} />}
-        {step.gate !== null && <span data-testid={`wb-gate-${step.id}`}><GateIcon gate={step.gate} /></span>}
-      </span>
-    </button>
-  )
-  return (
-    <li ref={setNodeRef} data-flip-id={`stage:${step.id}`} className={cn('grid grid-cols-[28px_minmax(0,1fr)] items-center gap-3 transition-opacity duration-150', isDragging && 'opacity-35')} style={{ height: STEP_HEIGHT }} data-testid={`wb-pipeline-node-${step.id}`} onMouseEnter={() => onHover(step.id)} onMouseLeave={() => onHover(null)} onFocus={() => onHover(step.id)} onBlur={() => onHover(null)}>
-      <button
-        type="button"
-        className={cn(
-          'relative z-10 grid size-7 place-items-center rounded-full border font-mono text-caption outline-none transition-colors focus-visible:ring-2 focus-visible:ring-(--accent)',
-          selected ? 'border-(--accent) bg-(--accent) text-btn-fg' : 'border-border-2 bg-card text-text-2',
-          editable ? 'cursor-grab touch-none active:cursor-grabbing' : 'cursor-default',
-        )}
-        aria-label={t('workflow.drag_stage', { name: labelOf(step.id) })}
-        disabled={!editable}
-        data-testid={`wb-stage-handle-${step.id}`}
-        {...listeners}
-        {...attributes}
-      >
-        {order}
-      </button>
-      <div className="relative min-w-0">
-        {issueText === null ? block : <Hint label={issueText} side="right">{block}</Hint>}
-        {selected && (
-          <DropdownMenu modal={false}>
-            <DropdownMenuTrigger asChild>
-              <button type="button" className={cn(MENU_ICON_BUTTON, 'absolute right-1 top-1')} aria-label={t('workflow.stage_menu', { name: labelOf(step.id) })} data-testid={`wb-stage-menu-${step.id}`}>
-                <MoreHorizontal className="size-4" aria-hidden="true" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-[180px]">
-              <DropdownMenuItem variant="destructive" className={MENU_ITEM} disabled={!deletable} data-testid={`wb-stage-delete-${step.id}`} onSelect={() => onDelete(step.id)}>
-                <Trash2 aria-hidden="true" />
-                {t('workflow.delete_stage')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </div>
-    </li>
-  )
 }
 
 type MenuEntry = { id: string; label: string; icon: ReactNode; onSelect: () => void; disabled: boolean; danger?: boolean; checked?: boolean; hint?: string }
@@ -322,6 +236,9 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
         <p className="text-body text-text-3" role="status" aria-live="polite">{t('common.loading')}</p>
       ) : (
         <div className="grid gap-3.5 pt-1">
+          {props.onSelectOverview !== undefined && def !== null && steps.length > 0 && (
+            <OverviewRow selected={props.overviewSelected === true} onSelect={props.onSelectOverview} />
+          )}
           <div className="relative">
             {visible.length > 1 && <span className="absolute left-3.5 w-px bg-border-2" style={{ top: STEP_HEIGHT / 2, height: listHeight - STEP_HEIGHT }} aria-hidden="true" />}
             {backEdges.length > 0 && (
@@ -346,7 +263,7 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
               <SortableContext items={visible.map((step) => step.id)} strategy={verticalListSortingStrategy}>
                 <ol ref={listRef} className="grid" style={{ rowGap: STEP_PITCH - STEP_HEIGHT }} data-testid="stage-list-items">
                   {visible.map((step) => (
-                    <StepRow key={step.id} step={step} order={steps.indexOf(step) + 1} selected={step.id === selectedId} issue={lint.find((issue) => issue.stepId === step.id && issue.severity === 'error') ?? lint.find((issue) => issue.stepId === step.id)} editable={editable} deletable={editable && steps.length > 1} labelOf={labelOf} onSelect={props.onSelect} onDelete={props.onDeleteStage} onHover={setHovered} />
+                    <StepRow key={step.id} step={step} order={steps.indexOf(step) + 1} selected={props.overviewSelected !== true && step.id === selectedId} issue={lint.find((issue) => issue.stepId === step.id && issue.severity === 'error') ?? lint.find((issue) => issue.stepId === step.id)} editable={editable} deletable={editable && steps.length > 1} labelOf={labelOf} onSelect={props.onSelect} onDelete={props.onDeleteStage} onHover={setHovered} />
                   ))}
                 </ol>
               </SortableContext>

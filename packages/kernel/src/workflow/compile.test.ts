@@ -938,7 +938,9 @@ describe('parse.ts 产物直通编译（v1 定义文件的真实入口形态）'
     expect(draft.artifacts).toEqual([
       { kind: 'file', field: 'design_doc', producerPolicy: 'effective-step-skills' },
     ])
-    expect(draft.transitions).toEqual([{ event: 'draft-done', to: 'ship', guards: [], actions: [] }])
+    // gate: null 是 auto 的别名：前进出边 draft-done 挂着本阶段输出齐全守卫。
+    expect(draft.gate).toBe('auto')
+    expect(draft.transitions).toEqual([{ event: 'draft-done', to: 'ship', guards: [{ type: 'field-nonempty', field: 'design_doc' }], actions: [] }])
     const ship: StepIR = ir.steps[1]!
     expect(ship.gate).toBe('review')
     expect(ship.guards).toEqual([])

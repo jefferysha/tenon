@@ -6,7 +6,7 @@ import {
 } from '@tenon/kernel/workflow/document-contract-model'
 import type { WbDocumentContract, WbStepDef, WbWorkflowDef } from '../api/governanceTypes'
 import { skillsEquivalent } from '../workflow/producers'
-import { wavesOf, wavesToSkills } from './skillWaves'
+import { appendSkill as appendStageSkill } from './skillWaves'
 
 /**
  * 分支视图上的文档契约编辑（纯函数）：视图 = selectBranchDef 提升后的单条 pipeline，契约在 `documentContract`。
@@ -111,7 +111,7 @@ function appendSkill(view: WbWorkflowDef, stepId: string, skillId: string): WbWo
     ...view,
     steps: view.steps.map((step) => step.id !== stepId || step.skills.some((skill) => skill.id === skillId)
       ? step
-      : { ...step, skills: wavesToSkills([...wavesOf(step.skills), [skillId]], step.skills) }),
+      : { ...step, skills: appendStageSkill(step.skills, skillId) }),
   }
 }
 

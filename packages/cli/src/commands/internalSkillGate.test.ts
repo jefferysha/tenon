@@ -2,8 +2,66 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import {
+  builtinTrack, compileEffectiveWorkflowPlan, DEFAULT_WORKFLOW_SOURCE, parseWorkflow, workflowPlanSnapshot,
+  type PipelineState, type WorkflowDef,
+} from '@tenon/kernel'
 import { cmdInternalSkillGate } from './internalSkillGate.js'
 import { makeDeps, mockState, spy } from '../test-support.js'
+
+/** default 前端轨 explore：历史里只有 openspec-explore 完成。 */
+const EXPLORE_HISTORY = [
+  JSON.stringify({ ts: 't', kind: 'transition', from: 'open', to: 'explore' }),
+  JSON.stringify({ ts: 't', kind: 'tool', raw: 'Skill: openspec-explore' }),
+].join('\n') + '\n'
+
+function wavedDefault(): WorkflowDef {
+  const def = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
+  const frontend = def.tracks?.frontend
+  if (frontend === undefined) throw new Error('frontend branch missing')
+  return {
+    ...def,
+    tracks: {
+      ...def.tracks,
+      frontend: {
+        ...frontend,
+        steps: frontend.steps.map((step) => step.id !== 'explore' ? step : {
+          ...step,
+          skills: [
+            { id: 'openspec-explore' },
+            { id: 'brainstorming', depends_on: ['openspec-explore'] },
+            { id: 'grilling', depends_on: ['openspec-explore'] },
+            { id: 'domain-modeling', depends_on: ['brainstorming', 'grilling'] },
+          ],
+        }),
+      },
+    },
+  }
+}
+
+describe('cmdInternalSkillGate · default 工作流按波次放行（R1）', () => {
+  const exploreState = (): PipelineState => mockState({ workflow: 'default', phase: 'explore', track: 'frontend' })
+
+  it('未声明依赖：串行——grilling 要等 brainstorming', async () => {
+    const deps = makeDeps({ state: exploreState(), historyRaw: EXPLORE_HISTORY })
+    expect(await cmdInternalSkillGate(deps, 'demo', 'brainstorming')).toBe(0)
+    expect(await cmdInternalSkillGate(deps, 'demo', 'grilling')).toBe(2)
+    expect(deps.errLines.join('\n')).toContain('还需先完成 brainstorming')
+  })
+
+  it('冻结计划声明了波次：同一波的 brainstorming 与 grilling 一起放行，domain-modeling 等两者', async () => {
+    const plan = compileEffectiveWorkflowPlan('default', wavedDefault(), builtinTrack('frontend'))
+    const state: PipelineState = {
+      ...exploreState(),
+      runMetadata: { runId: 'run-waves', transitionSequence: 1, workflowPlanSnapshot: workflowPlanSnapshot(plan) },
+    }
+    const deps = makeDeps({ state, historyRaw: EXPLORE_HISTORY })
+    expect(await cmdInternalSkillGate(deps, 'demo', 'brainstorming')).toBe(0)
+    expect(await cmdInternalSkillGate(deps, 'demo', 'grilling')).toBe(0)
+    expect(await cmdInternalSkillGate(deps, 'demo', 'domain-modeling')).toBe(2)
+    expect(deps.errLines.join('\n')).toContain('还需先完成 brainstorming, grilling')
+  })
+})
 describe('cmdInternalSkillGate', () => {
   it('workflow=default 的 change → 直接放行（这条能力只管非 default workflow）', async () => {
     const deps = makeDeps()
@@ -56,10 +114,12 @@ steps:
     skills:
       - id: a
       - id: b
+        depends_on: []
       - id: c
         depends_on: [a, b]
       - id: d
         depends_on: [a]
+      - id: e
     inputs: []
     outputs: []
     guards: []
@@ -93,10 +153,23 @@ steps:
       expect(deps.errLines.join('\n')).toContain("step 'no-such-step' 不在 workflow 'custom1' 里")
     })
 
-    it('无依赖的 skill：即便历史为空也直接放行', async () => {
+    it('无前置的 skill（首个 / depends_on: []）：即便历史为空也直接放行', async () => {
       const deps = makeDeps({ cwd: root, state: mockState({ workflow: 'custom1', phase: 's1' }) })
       expect(await cmdInternalSkillGate(deps, 'demo', 'a')).toBe(0)
       expect(await cmdInternalSkillGate(deps, 'demo', 'b')).toBe(0)
+    })
+
+    it('没写 depends_on 的 skill 按声明顺序串行：前面的全部完成才放行（与 status 的波次同源）', async () => {
+      const partial = [
+        JSON.stringify({ ts: 't', kind: 'transition', from: 'open', to: 's1' }),
+        ...['a', 'b', 'c'].map((id) => JSON.stringify({ ts: 't', kind: 'tool', raw: `Skill: ${id}` })),
+      ].join('\n') + '\n'
+      const blocked = makeDeps({ cwd: root, state: mockState({ workflow: 'custom1', phase: 's1' }), historyRaw: partial })
+      expect(await cmdInternalSkillGate(blocked, 'demo', 'e')).toBe(2)
+      expect(blocked.errLines.join('\n')).toContain('还需先完成 d')
+      const all = `${partial}${JSON.stringify({ ts: 't', kind: 'tool', raw: 'Skill: d' })}\n`
+      const open = makeDeps({ cwd: root, state: mockState({ workflow: 'custom1', phase: 's1' }), historyRaw: all })
+      expect(await cmdInternalSkillGate(open, 'demo', 'e')).toBe(0)
     })
 
     it('正常对话的 Tenon 编排入口不受 phase 内 skill DAG 误拦', async () => {

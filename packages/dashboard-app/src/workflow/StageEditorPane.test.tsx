@@ -6,7 +6,7 @@ import type { WbEffectiveIo, WbSkillEntry, WbStepDef, WbWorkflowDef } from '../a
 import { I18nProvider } from '../i18n'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import type { WorkflowEditor } from '../workbench/useWorkflowEditor'
-import { openspecSkills, producerSkills } from './producers'
+import { producerSkills } from './producers'
 import { SECTION_STAGGER, StageEditorPane } from './StageEditorPane'
 
 vi.mock('@xyflow/react', () => import('./reactFlowTestDouble'))
@@ -64,8 +64,11 @@ function fakeEditor(step: WbStepDef, overrides: Partial<WorkflowEditor> = {}): W
   } as unknown as WorkflowEditor
 }
 
+/** 画布从编辑器的定义算编排：把被测阶段放回定义里，和真实页面一致（step 就是 def.steps 里的那一项）。 */
 function renderPane(step: WbStepDef, overrides: Partial<WorkflowEditor> = {}): WorkflowEditor {
-  const editor = fakeEditor(step, overrides)
+  const base = overrides.def ?? DEF
+  const def = { ...base, steps: base.steps.map((candidate) => candidate.id === step.id ? step : candidate) }
+  const editor = fakeEditor(step, { ...overrides, def })
   render(<I18nProvider><TooltipProvider><StageEditorPane editor={editor} step={step} /></TooltipProvider></I18nProvider>)
   return editor
 }
@@ -146,10 +149,14 @@ describe('StageEditorPane · 两栏定稿', () => {
     expect(within(screen.getByTestId('io-inputs')).getByRole('status')).toHaveTextContent('无')
   })
 
-  it('没有技能（也没有 OpenSpec 注入）：段内只写「无」，不渲染空画布', () => {
-    renderPane({ ...EXPLORE, skills: [] }, { effectiveIo: {} })
+  it('只读且本阶段什么都没有（也没有 OpenSpec 注入）：段内只写「无」，不渲染空画布；可编辑时四条泳道都在', () => {
+    renderPane({ ...EXPLORE, skills: [] }, { effectiveIo: {}, canWrite: false, readOnly: true })
     expect(screen.getByTestId('stage-skills-empty')).toHaveTextContent('无')
-    expect(within(screen.getByTestId('stage-skills')).queryByTestId('skill-flow')).toBeNull()
+    expect(within(screen.getByTestId('stage-skills')).queryByTestId('orchestration-stage')).toBeNull()
+    cleanup()
+    renderPane({ ...EXPLORE, skills: [] }, { effectiveIo: {} })
+    const canvas = within(screen.getByTestId('stage-skills')).getByTestId('orchestration-stage')
+    expect(['executor', 'skill', 'test', 'reviewer'].map((kind) => within(canvas).getByTestId(`orch-lane-${kind}`).textContent)).toEqual(['执行者0', '技能0', '测试0', '评审者0'])
   })
 
   it('保存条只在有改动时渲染：写「未保存 N 处」，在滚动区之外（不盖住门禁 / 退回）；没改动（含无写入凭证）整条不渲染', () => {
@@ -208,42 +215,50 @@ describe('StageEditorPane · 两栏定稿', () => {
     expect(screen.getByTestId('wb-save')).toBeDisabled()
   })
 
-  it('技能画布只读：节点数 = 技能数；点节点打开详情抽屉；编辑按钮打开编辑器', async () => {
+  it('技能画布：与总览同一组件的单列形态；节点数 = 条目数；点技能打开详情抽屉；编辑按钮打开编辑器', async () => {
     const user = userEvent.setup()
     renderPane(EXPLORE)
-    expect(within(screen.getByTestId('stage-skills')).getByTestId('skill-flow')).toHaveAttribute('data-nodes', '3')
-    expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-editable', 'false')
-    expect(screen.getByTestId('wb-skills-edit')).toBeInTheDocument()
+    const canvas = within(screen.getByTestId('stage-skills')).getByTestId('orchestration-stage')
+    expect(canvas).toHaveAttribute('data-nodes', '3')
+    expect(canvas).toHaveAttribute('data-pulse', 'loop')
+    expect(screen.getByTestId('orch-node-skill-grill-with-docs')).toHaveAttribute('data-wave', '1')
     await user.click(screen.getByTestId('wb-skills-edit'))
     expect(screen.getByTestId('skill-composer')).toBeInTheDocument()
-  })
-
-  it('执行者在技能之后、评审者在门禁之前；没有 agent 的步骤两段都显示「无」', () => {
+    cleanup()
     renderPane(EXPLORE)
-    const order = ['stage-inputs', 'stage-skills', 'stage-executors', 'stage-outputs', 'stage-reviewers', 'stage-gate']
-      .map((id) => screen.getByTestId(id))
-    for (let i = 1; i < order.length; i += 1) expect(order[i - 1]!.compareDocumentPosition(order[i]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.getByTestId('stage-executors-empty')).toHaveTextContent('无')
-    expect(screen.getByTestId('stage-reviewers-empty')).toHaveTextContent('无')
+    await user.click(screen.getByTestId('orch-open-skill-brainstorming'))
+    expect(await screen.findByTestId('skill-preview')).toBeInTheDocument()
   })
 
-  it('评审者节点名下写出 必需 · 阻断 · 测试 n；编辑按钮打开 agent 编辑器', async () => {
+  it('右栏只有四段：输入 → 技能 → 输出 → 门禁；执行者 / 测试 / 评审者是技能画布里的泳道，退回在门禁段里', () => {
+    renderPane(SPEC)
+    const sections = [...screen.getByTestId('stage-editor-pane').querySelectorAll('[data-stage-sections] > section')].map((section) => section.getAttribute('data-testid'))
+    expect(sections).toEqual(['stage-inputs', 'stage-skills', 'stage-outputs', 'stage-gate'])
+    for (const gone of ['stage-executors', 'stage-reviewers', 'stage-tests']) expect(screen.queryByTestId(gone)).toBeNull()
+    expect(screen.getByTestId('stage-gate').contains(screen.getByTestId('stage-back'))).toBe(true)
+  })
+
+  it('泳道按 runner 顺序：执行者 → 技能 → 测试 → 评审者；泳道旁的动作打开对应编辑器', async () => {
     const user = userEvent.setup()
     const step: WbStepDef = {
       ...EXPLORE,
+      tests: [{ id: 'unit', direction: 'unit', command: 'npm test', label: '单测' }],
       agents: {
         executors: [{ agent: 'builder' }],
         reviewers: [{ agent: 'security', required: true, block_at: 'medium', reads_tests: ['unit'] }],
       },
     }
     renderPane(step)
-    expect(within(screen.getByTestId('stage-executors')).getByTestId('skill-flow')).toHaveAttribute('data-nodes', '1')
-    expect(screen.getByTestId('flow-caption-security')).toHaveTextContent('必需 · 中 · 测试 1')
-    // 画布的可访问名称跟段落走，不是笼统的「技能」（H6）。
-    expect(within(screen.getByTestId('stage-executors')).getByRole('group', { name: '执行者' })).toBeInTheDocument()
-    expect(within(screen.getByTestId('stage-reviewers')).getByRole('group', { name: '评审者' })).toBeInTheDocument()
+    const canvas = screen.getByTestId('orchestration-stage')
+    const order = ['orch-node-executor-builder', 'orch-node-skill-tenon-explore', 'orch-node-test-unit', 'orch-node-reviewer-security']
+      .map((id) => within(canvas).getByTestId(id).getAttribute('data-wave'))
+    expect(order).toEqual(['0', '1', '3', '4'])
+    expect(canvas).toHaveAttribute('aria-label', '技能')
     await user.click(screen.getByTestId('wb-reviewers-edit'))
     expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
+    await user.click(screen.getByTestId('agent-composer-close'))
+    await user.click(screen.getByTestId('orch-open-test-unit'))
+    expect(await screen.findByTestId('test-editor-drawer')).toBeInTheDocument()
   })
 
   it('门禁是分段控件：fill 轨道，选中项里有白色滑块，没有内联说明图标', () => {
@@ -258,7 +273,7 @@ describe('StageEditorPane · 两栏定稿', () => {
     expect(group.querySelector('.lucide-info')).toBeNull()
   })
 
-  it('门禁键盘：方向键在三项间移动并选中', async () => {
+  it('门禁键盘：方向键在评审 / 自动两项间移动并选中', async () => {
     vi.stubGlobal('ResizeObserver', class { observe(): void {} unobserve(): void {} disconnect(): void {} })
     const user = userEvent.setup()
     const editor = renderPane(EXPLORE)
@@ -269,7 +284,7 @@ describe('StageEditorPane · 两栏定稿', () => {
   vi.unstubAllGlobals()
   })
 
-  it('门禁三选：aria-checked 跟随 step.gate，点选写回；说明用 Tooltip（聚焦可达），不用原生 title', async () => {
+  it('门禁两选（评审 / 自动）：aria-checked 跟随 step.gate，点选写回；说明用 Tooltip（聚焦可达），不用原生 title', async () => {
     vi.stubGlobal('ResizeObserver', class { observe(): void {} unobserve(): void {} disconnect(): void {} })
     const user = userEvent.setup()
     const editor = renderPane(EXPLORE)
@@ -277,11 +292,24 @@ describe('StageEditorPane · 两栏定稿', () => {
     expect(review).toHaveAttribute('aria-checked', 'true')
     expect(review).not.toHaveAttribute('title')
     expect(review).toHaveAccessibleDescription('产物齐全后需人工确认')
-    act(() => { screen.getByTestId('wb-lane-gate-explore-none').focus() })
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('不拦')
+    expect(screen.queryByTestId('wb-lane-gate-explore-none')).toBeNull()
+    expect(screen.getByTestId('wb-lane-gate-explore').querySelectorAll('[role="radio"]')).toHaveLength(2)
+    act(() => { screen.getByTestId('wb-lane-gate-explore-auto').focus() })
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('产物齐全即放行')
     vi.unstubAllGlobals()
     await user.click(screen.getByTestId('wb-lane-gate-explore-auto'))
     expect(editor.setGate).toHaveBeenCalledWith('explore', 'auto')
+  })
+
+  it('gate null 与自动同义：控件按自动选中，点「自动」不产生改动；点「评审」写回 review', async () => {
+    const user = userEvent.setup()
+    const editor = renderPane({ ...EXPLORE, gate: null })
+    expect(screen.getByTestId('wb-lane-gate-explore-auto')).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByTestId('wb-lane-gate-explore-review')).toHaveAttribute('aria-checked', 'false')
+    await user.click(screen.getByTestId('wb-lane-gate-explore-auto'))
+    expect(editor.setGate).not.toHaveBeenCalled()
+    await user.click(screen.getByTestId('wb-lane-gate-explore-review'))
+    expect(editor.setGate).toHaveBeenCalledWith('explore', 'review')
   })
 })
 
@@ -294,7 +322,7 @@ describe('StageEditorPane · 切换阶段的进场', () => {
     expect(call).toBeDefined()
     expect(call![1]).toMatchObject({ autoAlpha: 0, y: 4 })
     const sections = document.querySelectorAll('[data-stage-sections] > *')
-    expect(sections.length).toBeGreaterThanOrEqual(6)
+    expect(sections.length).toBe(4)
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
@@ -392,8 +420,10 @@ describe('StageEditorPane · OpenSpec 注入的技能', () => {
     renderPane(OPEN, { def: OPEN_DEF, effectiveIo: OPEN_IO })
     const skills = screen.getByTestId('stage-skills')
     expect(within(skills).queryByTestId('stage-skills-empty')).toBeNull()
-    expect(within(skills).getByTestId('skill-flow')).toHaveAttribute('data-nodes', '1')
-    expect(within(skills).getByTestId('flow-injected-openspec-propose')).toHaveAttribute('aria-label', expect.stringContaining('OpenSpec'))
+    expect(within(skills).getByTestId('orchestration-stage')).toHaveAttribute('data-nodes', '1')
+    const node = within(skills).getByTestId('orch-node-skill-openspec-propose')
+    expect(node).toHaveAttribute('data-source', 'openspec')
+    expect(within(node).getByTestId('orch-source-openspec')).toHaveAttribute('aria-label', expect.stringContaining('OpenSpec'))
     expect(skills.querySelector('h2')).toHaveTextContent('1')
     expect(screen.getByTestId('slot-skills-proposal')).toHaveTextContent('openspec-propose')
     expect(screen.getByTestId('slot-skills-tasks')).toHaveTextContent('openspec-propose')
@@ -403,13 +433,13 @@ describe('StageEditorPane · OpenSpec 注入的技能', () => {
     renderPane(NEXT, { def: OPEN_DEF, effectiveIo: OPEN_IO })
     const inputs = screen.getByTestId('io-inputs')
     expect(within(inputs).getByTestId('slot-skills-proposal')).toHaveTextContent('openspec-propose')
-    expect(within(screen.getByTestId('stage-skills')).queryByTestId('flow-injected-tenon')).toBeNull()
+    expect(within(screen.getByTestId('stage-skills')).queryByTestId('orch-node-skill-tenon')).toBeNull()
   })
 
   it('阶段已声明别名（opsx:propose）时不重复注入', () => {
     renderPane({ ...OPEN, skills: [{ id: 'opsx:propose' }] }, { def: OPEN_DEF, effectiveIo: OPEN_IO })
-    expect(within(screen.getByTestId('stage-skills')).getByTestId('skill-flow')).toHaveAttribute('data-nodes', '1')
-    expect(screen.queryByTestId('flow-injected-openspec-propose')).toBeNull()
+    expect(within(screen.getByTestId('stage-skills')).getByTestId('orchestration-stage')).toHaveAttribute('data-nodes', '1')
+    expect(screen.queryByTestId('orch-source-openspec')).toBeNull()
   })
 })
 
@@ -433,16 +463,6 @@ describe('StageEditorPane · 自动门禁与只读', () => {
     expect(screen.queryByTestId('wb-no-token')).toBeNull()
     expect(screen.getByTestId('wb-lane-name-input-explore')).toBeDisabled()
     expect(screen.queryByTestId('wb-skills-edit')).toBeNull()
-  })
-})
-
-describe('openspecSkills', () => {
-  it('取 produce 槽位第一个非 tenon 候选；已声明（按别名）或重复的不再注入', () => {
-    const slot = (id: string, role: 'produce' | 'update' | 'read', producers: string[]) => ({ kind: 'document' as const, id, role, scope: 'change' as const, producers, consumers: [] })
-    expect(openspecSkills([slot('proposal', 'produce', ['openspec-propose', 'opsx:propose']), slot('tasks', 'produce', ['openspec-propose'])], [])).toEqual(['openspec-propose'])
-    expect(openspecSkills([slot('proposal', 'produce', ['openspec-propose'])], ['opsx:propose'])).toEqual([])
-    expect(openspecSkills([slot('proposal', 'update', ['tenon']), slot('adr', 'produce', ['tenon'])], [])).toEqual([])
-    expect(openspecSkills([slot('superpower-design', 'produce', ['brainstorming', 'superpowers:brainstorming'])], ['superpowers:brainstorming'])).toEqual([])
   })
 })
 
@@ -515,8 +535,8 @@ describe('StageEditorPane · 退回', () => {
   })
 })
 
-describe('StageEditorPane 测试段', () => {
-  it('测试段排在输出与门禁之间，行可点开抽屉，改命令经 setTests 回草稿', async () => {
+describe('StageEditorPane 测试泳道', () => {
+  it('测试是技能画布里的一条泳道（技能之后、评审者之前）；点节点开抽屉，改命令经 setTests 回草稿', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
       new Response(JSON.stringify({ ok: true, directions: [] }), { status: 200 }))
     const setTests = vi.fn()
@@ -525,12 +545,11 @@ describe('StageEditorPane 测试段', () => {
       tests: [{ id: 'unit', direction: 'unit', command: 'npm test', label: '单测', required: true }],
     }
     renderPane(step, { setTests, def: { ...DEF, steps: [step, SPEC] } })
-    const order = [...document.querySelectorAll('[data-testid]')]
-      .map((node) => node.getAttribute('data-testid'))
-      .filter((id): id is string => id === 'stage-outputs' || id === 'stage-tests' || id === 'stage-gate')
-    expect(order).toEqual(['stage-outputs', 'stage-tests', 'stage-gate'])
+    const lanes = [...screen.getByTestId('orchestration-stage').querySelectorAll('[data-testid^="orch-lane-"]')].map((node) => node.getAttribute('data-testid'))
+    expect(lanes).toEqual(['orch-lane-executor', 'orch-lane-skill', 'orch-lane-test', 'orch-lane-reviewer'])
+    expect(screen.getByTestId('orch-node-test-unit')).toHaveTextContent('单测')
 
-    await userEvent.click(screen.getByTestId('wb-test-unit'))
+    await userEvent.click(screen.getByTestId('orch-open-test-unit'))
     // 抽屉里的改动即时进草稿，没有单独的「应用」。
     expect(screen.queryByTestId('wb-test-apply')).toBeNull()
     fireEvent.change(screen.getByTestId('wb-test-command'), { target: { value: 'npm run unit' } })

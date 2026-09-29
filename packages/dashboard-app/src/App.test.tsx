@@ -1266,8 +1266,8 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
       if (url === '/api/snapshot') {
         return { ok: true, json: async () => makeSnapshot([makeProject('/repo-a', [makeChange('a1', 'build')])]) }
       }
-      // 所有项目视图默认选中第一项：只为这一项按需取定义与记录，列表本身不发 per-root 请求。
-      if (url.startsWith('/api/workflows/default?root=%2Frepo-a') || url.startsWith('/api/change/a1/history?root=%2Frepo-a')) {
+      // 所有项目视图默认选中第一项：只为这一项按需取冻结编排与记录，列表本身不发 per-root 请求。
+      if (url.startsWith('/api/change/a1/orchestration?root=%2Frepo-a') || url.startsWith('/api/change/a1/history?root=%2Frepo-a')) {
         return { ok: false, status: 404, json: async () => ({ ok: false, error: 'not found' }) }
       }
       throw new Error(`unexpected per-root fetch ${url}`)
@@ -1285,7 +1285,7 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
       expect(params.get('change')).toBeNull()
       expect(params.get('debug')).toBe('1')
     })
-    await waitFor(() => expect(new Set(fetchMock.mock.calls.map(([url]) => url.split('?')[0]))).toEqual(new Set(['/api/snapshot', '/api/user', '/api/workflows/default', '/api/change/a1/history'])))
+    await waitFor(() => expect(new Set(fetchMock.mock.calls.map(([url]) => url.split('?')[0]))).toEqual(new Set(['/api/snapshot', '/api/user', '/api/change/a1/orchestration', '/api/change/a1/history'])))
   })
 
   it('失效 root 深链：清除 root/change 并保持无选择，聚合展示而不重定向首个项目', async () => {
@@ -1294,8 +1294,8 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
       if (url === '/api/snapshot') {
         return { ok: true, json: async () => makeSnapshot([makeProject('/repo-a', [makeChange('a1', 'build')])]) }
       }
-      // 所有项目视图默认选中第一项：只为这一项按需取定义与记录，列表本身不发 per-root 请求。
-      if (url.startsWith('/api/workflows/default?root=%2Frepo-a') || url.startsWith('/api/change/a1/history?root=%2Frepo-a')) {
+      // 所有项目视图默认选中第一项：只为这一项按需取冻结编排与记录，列表本身不发 per-root 请求。
+      if (url.startsWith('/api/change/a1/orchestration?root=%2Frepo-a') || url.startsWith('/api/change/a1/history?root=%2Frepo-a')) {
         return { ok: false, status: 404, json: async () => ({ ok: false, error: 'not found' }) }
       }
       throw new Error(`unexpected per-root fetch ${url}`)
@@ -1313,7 +1313,7 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
       expect(params.get('change')).toBeNull()
       expect(params.get('debug')).toBe('1')
     })
-    await waitFor(() => expect(new Set(fetchMock.mock.calls.map(([url]) => url.split('?')[0]))).toEqual(new Set(['/api/snapshot', '/api/user', '/api/workflows/default', '/api/change/a1/history'])))
+    await waitFor(() => expect(new Set(fetchMock.mock.calls.map(([url]) => url.split('?')[0]))).toEqual(new Set(['/api/snapshot', '/api/user', '/api/change/a1/orchestration', '/api/change/a1/history'])))
   })
 
   it('已登记但不可达的 root 深链也必须清除，不能挂载 per-root 视图', async () => {
@@ -1377,8 +1377,8 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
           ]),
         }
       }
-      // 默认选中的这一项按需取定义与记录；列表本身不发 per-root 请求。
-      if (url.startsWith('/api/workflows/compact?') || url.startsWith('/api/change/review-me/history?')) {
+      // 默认选中的这一项按需取冻结编排与记录；列表本身不发 per-root 请求。
+      if (url.startsWith('/api/change/review-me/orchestration?') || url.startsWith('/api/change/review-me/history?')) {
         return { ok: false, status: 404, json: async () => ({ ok: false, error: 'not found' }) }
       }
       throw new Error(`unexpected per-root fetch ${url}`)
@@ -1398,7 +1398,7 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
     await userEvent.keyboard('{Escape}')
     expect(screen.getByTestId('task-summary-review-me')).toHaveTextContent('复核 · 可进入完成')
     await waitFor(() => expect(new Set(fetchMock.mock.calls.map(([url]) => String(url).split('?')[0])))
-      .toEqual(new Set(['/api/snapshot', '/api/user', '/api/workflows/compact', '/api/change/review-me/history'])))
+      .toEqual(new Set(['/api/snapshot', '/api/user', '/api/change/review-me/orchestration', '/api/change/review-me/history'])))
   })
 
   it('浏览器返回到无 root URL：经同一选择模型回到聚合工作台', async () => {

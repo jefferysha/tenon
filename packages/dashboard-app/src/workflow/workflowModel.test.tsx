@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { WbWorkflowDef } from '../api/governanceTypes'
-import { insertWaveBefore, placeSkillInWave, skillExecutionWaves, wavesOf, wavesToSkills } from '../workbench/skillWaves'
+import { appendSkill, explicitSkillRefs, minimalSkillRefs, removeSkill, skillExecutionWaves, skillOrderSignature, wavesOf } from '../workbench/skillWaves'
 import { draftEffectiveIo, lintWorkflow } from './lint'
 import { backTargetOf, backTransitionOf, setStageBackInDef } from '../workbench/workbenchDefinition'
 import { backEdgesFrom, linkedToNext, pipelineEdges } from './pipelineModel'
@@ -14,20 +14,28 @@ const DEF: WbWorkflowDef = {
   ],
 }
 
-describe('skillWaves · 列模型往返', () => {
-  it('wavesToSkills 与 wavesOf 互逆', () => {
-    const waves = [['s1', 's2'], ['s3'], ['s4', 's5']]
-    const skills = wavesToSkills(waves, [{ id: 's3' }])
-    expect(skills.find((skill) => skill.id === 's3')).toEqual({ id: 's3', depends_on: ['s1', 's2'] })
-    expect(wavesOf(skills)).toEqual(waves)
+describe('skillWaves · 画布与阶段技能的换算', () => {
+  it('显式图的波次：未写依赖的节点在第 0 波', () => {
+    expect(wavesOf([{ id: 's1' }, { id: 's2' }, { id: 's3', depends_on: ['s1', 's2'] }])).toEqual([['s1', 's2'], ['s3']])
     expect(skillExecutionWaves(['x'], {})).toEqual([['x']])
   })
-  it('placeSkillInWave 移入某列 / 新首列 / 新末列；insertWaveBefore 插新列；空列被清掉', () => {
-    const waves = [['s1'], ['s2', 's3']]
-    expect(placeSkillInWave(waves, 's1', 1)).toEqual([['s2', 's3', 's1']])
-    expect(placeSkillInWave(waves, 's3', -1)).toEqual([['s3'], ['s1'], ['s2']])
-    expect(placeSkillInWave(waves, 'new', 2)).toEqual([['s1'], ['s2', 's3'], ['new']])
-    expect(insertWaveBefore(waves, 's3', 1)).toEqual([['s1'], ['s3'], ['s2']])
+  it('explicitSkillRefs：没写 depends_on = 前面全部（约简到上一个）；depends_on: [] = 并行根', () => {
+    expect(explicitSkillRefs([{ id: 'a' }, { id: 'b' }, { id: 'c' }])).toEqual([{ id: 'a', depends_on: [] }, { id: 'b', depends_on: ['a'] }, { id: 'c', depends_on: ['b'] }])
+    expect(wavesOf(explicitSkillRefs([{ id: 'a' }, { id: 'b', depends_on: [] }, { id: 'c' }]))).toEqual([['a', 'b'], ['c']])
+  })
+  it('minimalSkillRefs 与 explicitSkillRefs 互逆，顺序签名不变', () => {
+    const drawn = [{ id: 'a' }, { id: 'b' }, { id: 'c', depends_on: ['a', 'b'] }, { id: 'd', depends_on: ['a', 'b'] }]
+    const minimal = minimalSkillRefs(drawn)
+    expect(minimal).toEqual([{ id: 'a' }, { id: 'b', depends_on: [] }, { id: 'c' }, { id: 'd', depends_on: ['a', 'b'] }])
+    expect(wavesOf(explicitSkillRefs(minimal))).toEqual([['a', 'b'], ['c', 'd']])
+    expect(skillOrderSignature(minimal)).toBe(skillOrderSignature(explicitSkillRefs(minimal)))
+    expect(skillOrderSignature([{ id: 'a' }, { id: 'b' }])).not.toBe(skillOrderSignature([{ id: 'a' }, { id: 'b', depends_on: [] }]))
+  })
+  it('appendSkill / removeSkill', () => {
+    expect(appendSkill([{ id: 'a' }], 'b')).toEqual([{ id: 'a' }, { id: 'b' }])
+    expect(appendSkill([{ id: 'a' }], 'a')).toEqual([{ id: 'a' }])
+    expect(removeSkill([{ id: 'a' }, { id: 'b', depends_on: ['a'] }, { id: 'c', depends_on: ['a', 'b'] }], 'a'))
+      .toEqual([{ id: 'b' }, { id: 'c', depends_on: ['b'] }])
   })
 })
 

@@ -1,5 +1,6 @@
-import type { WbIoSlot, WbSkillRef, WbStepIo } from '../api/governanceTypes'
-import type { ChangeSnapshot, DocumentStaleReason, SkillRunsSnapshot } from '../types'
+import { isEngineWrittenOutput } from '@tenon/kernel/workflow/auto-gate'
+import type { WbIoSlot, WbStepIo } from '../api/governanceTypes'
+import type { ChangeSnapshot, DocumentStaleReason } from '../types'
 import { mergeFieldAliases } from '../model/ioSlots'
 import { producerSkills } from '../workflow/producers'
 import { fieldStr, isUnset } from './taskModel'
@@ -93,9 +94,13 @@ export function gateProgress(
   reviewSatisfied: boolean,
 ): { gate: 'review' | 'auto'; done: number; total: number } | null {
   if (gate === null) return null
-  const total = outputs.length + (gate === 'review' ? 1 : 0)
+  // 自动门禁不检查引擎自己写的输出（build_sha 等：离开本阶段之前不会有值），计数与内核同口径。
+  const checked = gate === 'auto'
+    ? outputs.filter((row) => !(row.slot.kind === 'field' && isEngineWrittenOutput(row.slot.id)))
+    : outputs
+  const total = checked.length + (gate === 'review' ? 1 : 0)
   if (total === 0) return null
-  const done = outputs.filter(isReadyRow).length + (gate === 'review' && reviewSatisfied ? 1 : 0)
+  const done = checked.filter(isReadyRow).length + (gate === 'review' && reviewSatisfied ? 1 : 0)
   return { gate, done, total }
 }
 
@@ -116,19 +121,5 @@ export function readableFiles(rows: readonly IoRow[]): Array<{ path: string; lab
     seen.add(row.path)
     out.push({ path: row.path, label: row.slot.id })
   }
-  return out
-}
-
-/** 工作台的技能运行快照 → 技能引用：第 k 波依赖第 k-1 波全部技能（列模型），供 SkillFlow 画布。 */
-export function skillsFromRuns(runs: SkillRunsSnapshot[number] | undefined): WbSkillRef[] {
-  if (runs === undefined) return []
-  const waves = new Map<number, string[]>()
-  for (const skill of runs.skills) waves.set(skill.wave, [...(waves.get(skill.wave) ?? []), skill.id])
-  const ordered = [...waves.entries()].sort(([a], [b]) => a - b).map(([, ids]) => ids)
-  const out: WbSkillRef[] = []
-  ordered.forEach((wave, index) => {
-    const previous = ordered[index - 1] ?? []
-    for (const id of wave) out.push(previous.length > 0 ? { id, depends_on: [...previous] } : { id })
-  })
   return out
 }

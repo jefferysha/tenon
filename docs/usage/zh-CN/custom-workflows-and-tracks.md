@@ -71,7 +71,7 @@ draft → approve → done
 - `tasks.md` 的一级项只列自定义 Workflow 的真实步骤；
 - 当前 step 只调用它声明的 mandatory Skill；
 - 未声明 kind、错误 producer 和未来 step 文档会被拒绝；
-- review gate 只接受当前 step 的精确 outgoing event；
+- review gate 只接受当前 step 的精确 outgoing event；auto gate（`gate: null` 或缺省同义）要求本步声明的输出齐全才放行前进边，退回边不受影响，引擎自己写的 `build_sha`、`archived` 不在检查内；已冻结的旧计划保持它记录的行为；
 - 三步 Workflow 不会自动生成 default 的十类文档；
 - 中文或英文只改变可见呈现，不改变 id、path、digest 和 guard。
 

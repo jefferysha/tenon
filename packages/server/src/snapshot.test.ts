@@ -1913,6 +1913,8 @@ steps:
           ...legacyStep,
           // The last step was labelled 归档 before the 完结 wording.
           label: step.id === 'archive' ? '归档' : step.label,
+          // Historical bytes predate the two-kind gate: `gate: null` was recorded as null (no output guards).
+          gate: step.gate === 'auto' ? null : step.gate,
           // This fixture represents a pre-issue#43 default snapshot: phase Skills were not
           // persisted yet, so historical fingerprint validation must use empty declarations.
           // It also predates the 2026-09 ship/archive inputs/outputs (pr_url / archived).
@@ -1925,6 +1927,8 @@ steps:
             : step.guards,
           transitions: step.transitions.map((transition) => ({
             ...transition,
+            // No default edge declares guards; the ones on the current IR are the auto gate's, which historical bytes lack.
+            guards: [],
             actions: transition.actions.filter((action) =>
               action.type !== 'reset-pre-verify-review'
                 && !(step.id === 'verify'

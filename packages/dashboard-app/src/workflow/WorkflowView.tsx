@@ -9,6 +9,8 @@ import { NewWorkflowDialog } from './NewWorkflowDialog'
 import { StageEditorPane } from './StageEditorPane'
 import { TrackDialog } from './TrackDialog'
 import { WorkflowNav } from './WorkflowNav'
+import { OVERVIEW_STEP, WorkflowOverviewPane } from './WorkflowOverviewPane'
+import { useDraftOrchestration, useManifestOverlay } from './draftOrchestration'
 import { Dialog } from '../shared/Dialog'
 
 export interface WorkflowViewProps {
@@ -17,7 +19,7 @@ export interface WorkflowViewProps {
   onToast?: (message: string) => void
 }
 
-/** 工作流 = 定义编辑页：左栏工作流 / 轨道 / 流程，右栏所选阶段的输入、技能、输出、门禁。 */
+/** 工作流 = 定义编辑页：左栏工作流 / 轨道 / 「总览」+ 流程，右栏总览画布或所选阶段的输入、技能、输出、门禁。 */
 export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps): JSX.Element {
   const { t } = useT()
   const [initial] = useState(() => {
@@ -29,18 +31,22 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
     initial,
     onDeleted: (name, restored) => onToast?.(t(restored ? 'workflow.restored_toast' : 'workflow.deleted_toast', { name })),
   })
+  const [overview, setOverview] = useState(() => initial.step === OVERVIEW_STEP)
   const stageId = editor.selectedStep?.id ?? null
-  // 当前选择写进 URL（replace，不产生历史项）：刷新、复制链接都回到同一个工作流 / 轨道 / 阶段。
+  // 编排按草稿就地算（kernel orchestrate），只有 manifest 叠加层问服务端；总览与阶段画布共用这一份。
+  const overlay = useManifestOverlay(root, editor.wfName, editor.branch)
+  const orchestration = useDraftOrchestration(editor.def, editor.effectiveIo, overlay)
+  // 当前选择写进 URL（replace，不产生历史项）：刷新、复制链接都回到同一个工作流 / 轨道 / 阶段（或总览）。
   useEffect(() => {
     if (editor.wfName === null || editor.def === null) return
     try {
-      const search = workflowSearch(window.location.search, { wf: editor.wfName, track: editor.branch === BASE_BRANCH ? null : editor.branch, step: stageId })
+      const search = workflowSearch(window.location.search, { wf: editor.wfName, track: editor.branch === BASE_BRANCH ? null : editor.branch, step: overview ? OVERVIEW_STEP : stageId })
       const next = `${window.location.pathname}${search}${window.location.hash}`
       if (next !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.replaceState(window.history.state, '', next)
     } catch {
       // 宿主禁用 history 时只失去可复制链接。
     }
-  }, [editor.wfName, editor.def, editor.branch, stageId])
+  }, [editor.wfName, editor.def, editor.branch, stageId, overview])
   const [trackDialogOpen, setTrackDialogOpen] = useState(false)
   const [trackDeleteTarget, setTrackDeleteTarget] = useState<string | null>(null)
   const [stageDeleteTarget, setStageDeleteTarget] = useState<string | null>(null)
@@ -96,15 +102,19 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
             onDelete={editor.openWorkflowDelete}
             onNewTrack={() => setTrackDialogOpen(true)}
             onDeleteTrack={setTrackDeleteTarget}
-            onSelect={editor.setStageId}
+            onSelect={(id) => { setOverview(false); editor.setStageId(id) }}
+            overviewSelected={overview}
+            onSelectOverview={() => setOverview(true)}
             onDeleteStage={setStageDeleteTarget}
             onAddStage={() => editor.stageDraft.setAddStageOpen(true)}
             onReorder={editor.reorderStages}
           />
         )}
-        detail={editor.selectedStep
-          ? <StageEditorPane key={`${editor.wfName} ${editor.selectedStep.id}`} editor={editor} step={editor.selectedStep} />
-          : <DetailEmpty label={t('workflow.no_stage')} testId="stage-editor-empty" />}
+        detail={overview && orchestration !== null && (editor.def?.steps.length ?? 0) > 0
+          ? <WorkflowOverviewPane editor={editor} orchestration={orchestration} onOpenStage={(id) => { setOverview(false); editor.setStageId(id) }} />
+          : editor.selectedStep
+            ? <StageEditorPane key={`${editor.wfName} ${editor.selectedStep.id}`} editor={editor} step={editor.selectedStep} orchestration={orchestration} />
+            : <DetailEmpty label={t('workflow.no_stage')} testId="stage-editor-empty" />}
       />
       <NewWorkflowDialog create={editor.create} />
       <TrackDialog

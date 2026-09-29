@@ -12,13 +12,13 @@ import {
   cloneWorkflowDef,
   copyWorkflowDef,
   definitionForWrite,
+  gateKind,
   removeSkillFromDef,
   removeStageFromDef,
   removeTrackBranch,
   reorderStagesInDef,
   selectBranchDef,
   setStepAgentsInDef,
-  setStepSkillWavesInDef,
   workflowNameFromYaml,
   writeBranchDef,
   type WbStepDef,
@@ -81,6 +81,21 @@ function twoStep(): WbWorkflowDef {
 }
 
 describe('workbenchDefinition · 写回投影', () => {
+  it('门禁只有 评审 / 自动：gate null 读作自动，写回时顶层与每条轨道分支都显式写 auto，review 不动', () => {
+    expect(gateKind(null)).toBe('auto')
+    expect(gateKind('auto')).toBe('auto')
+    expect(gateKind('review')).toBe('review')
+    const written = definitionForWrite({
+      name: 'flow',
+      steps: [stage('a'), { ...stage('b'), gate: 'review' }],
+      tracks: { be: { label: '后端', steps: [stage('x')] } },
+      source: 'project',
+    })
+    expect(written.steps.map((item) => item.gate)).toEqual(['auto', 'review'])
+    expect(written.tracks?.be?.steps.map((item) => item.gate)).toEqual(['auto'])
+    expect(written).not.toHaveProperty('source')
+  })
+
   it('definitionForWrite 剔除 source / effectiveIo；clone 深拷贝且不带投影字段', () => {
     const def = twoStep()
     expect(Object.keys(definitionForWrite(def))).toEqual(['name', 'steps'])
@@ -92,16 +107,14 @@ describe('workbenchDefinition · 写回投影', () => {
   })
 })
 
-describe('workbenchDefinition · 技能列模型', () => {
-  it('setStepSkillWaves：同列并行、邻列串行 → depends_on 指向上一列全部技能', () => {
-    const next = setStepSkillWavesInDef(twoStep(), 'a', [['s1', 's3'], ['s2']])
-    expect(next.steps[0]?.skills).toEqual([{ id: 's1' }, { id: 's3' }, { id: 's2', depends_on: ['s1', 's3'] }])
-  })
-  it('addSkill 追加为新的末列；removeSkill 顺带清掉依赖', () => {
+describe('workbenchDefinition · 技能顺序（kernel skill-order）', () => {
+  it('addSkill 不写 depends_on，按声明顺序接在最后；removeSkill 顺带清掉依赖，只依赖它的改回声明顺序', () => {
     const added = addSkillToDef(twoStep(), 'a', 's3')
-    expect(added.steps[0]?.skills.at(-1)).toEqual({ id: 's3', depends_on: ['s2'] })
-    const removed = removeSkillFromDef(added, 'a', 's2')
-    expect(removed.steps[0]?.skills).toEqual([{ id: 's1' }, { id: 's3', depends_on: ['s1'] }])
+    expect(added.steps[0]?.skills.at(-1)).toEqual({ id: 's3' })
+    expect(addSkillToDef(added, 'a', 's3')).toBe(added)
+    const removed = removeSkillFromDef(added, 'a', 's1')
+    expect(removed.steps[0]?.skills).toEqual([{ id: 's2' }, { id: 's3' }])
+    expect(removeSkillFromDef(removed, 'a', 'ghost')).toBe(removed)
   })
 })
 
@@ -279,7 +292,7 @@ describe('workbenchDefinition · 新建', () => {
   })
 
   it('blankWorkflow 一个阶段、无输出；workflowNameFromYaml 取 name 行', () => {
-    expect(blankWorkflow('fresh', '阶段 1').steps).toEqual([{ id: 'stage-1', label: '阶段 1', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] }])
+    expect(blankWorkflow('fresh', '阶段 1').steps).toEqual([{ id: 'stage-1', label: '阶段 1', gate: 'auto', skills: [], inputs: [], outputs: [], guards: [], transitions: [] }])
     expect(workflowNameFromYaml('name: imported\nsteps: []\n')).toBe('imported')
     expect(workflowNameFromYaml('steps: []\n')).toBe('')
   })

@@ -13,10 +13,6 @@ const failures = []
 
 const SIZE_EXCEPTIONS = new Map([
   ['packages/dashboard-app/src/i18n/translations.ts', 'FRONTEND config resource'],
-  // Temporary: the workflow page is being reworked by task 09-29-v02-orchestration, which owns
-  // splitting these two files. Remove both entries when that task lands its split.
-  ['packages/dashboard-app/src/workbench/useWorkflowEditor.ts', 'TEMPORARY until task 09-29-v02-orchestration splits the workflow editor'],
-  ['packages/dashboard-app/src/workbench/workbenchDefinition.ts', 'TEMPORARY until task 09-29-v02-orchestration splits the workflow editor'],
   ['packages/kernel/src/flow/manifest.ts', 'BACKEND workflow manifest config codec'],
   ['packages/kernel/src/tracks/parse.ts', 'BACKEND track registry config codec'],
   ['packages/kernel/src/triage/validate.ts', 'BACKEND triage protocol validator'],

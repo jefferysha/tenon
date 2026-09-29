@@ -5,7 +5,8 @@
  * 评审者按候选版本判过期（代码变了旧结论就不算），执行者不判——它们本身就是改代码的人。
  */
 import { DEFAULT_EVENT_POLICY } from '../flow/default-event-policy.js'
-import { IMPLICIT_COMPLETION_EVENT } from './implicit-completion.js'
+import { IMPLICIT_COMPLETION_EVENT, isForwardStepEdge } from './implicit-completion.js'
+import { dependencyWaves } from './dag-waves.js'
 import { severityRank, type AgentFinding, type AgentRunRow } from '../state/agent-runs.js'
 import type { EffectiveWorkflowPlan, StepAgentsCapability } from './effective-plan-types.js'
 import type { AgentSeverity } from './types.js'
@@ -153,7 +154,7 @@ export function evaluateStepAgents(
 }
 
 /**
- * wave(x) = 0 无依赖，否则 1 + 依赖的最大 wave（同 skillDag / SkillFlow 的列模型）。
+ * wave(x) = 0 无依赖，否则 1 + 依赖的最大 wave（dag-waves 的同一个函数，技能排波也用它）。
  *
  * 这是 agent 波次编号的唯一真相源：`tenon agent next` 的排波与 `status --json` 投影的
  * `reviewers[].wave` / `next[].wave` 都读它。投影曾按声明序号编号，三个互不依赖的评审者于是
@@ -162,24 +163,7 @@ export function evaluateStepAgents(
 export function agentWaves(
   refs: readonly { readonly agent: string; readonly dependsOn: readonly string[] }[],
 ): ReadonlyMap<string, number> {
-  return waveOf(refs)
-}
-
-function waveOf(refs: readonly { agent: string; dependsOn: readonly string[] }[]): Map<string, number> {
-  const byName = new Map(refs.map((ref) => [ref.agent, ref]))
-  const waves = new Map<string, number>()
-  const visit = (name: string, seen: ReadonlySet<string>): number => {
-    const cached = waves.get(name)
-    if (cached !== undefined) return cached
-    const ref = byName.get(name)
-    if (ref === undefined || seen.has(name)) return 0
-    const next = new Set([...seen, name])
-    const wave = ref.dependsOn.reduce((max, dep) => Math.max(max, visit(dep, next) + 1), 0)
-    waves.set(name, wave)
-    return wave
-  }
-  for (const ref of refs) visit(ref.agent, new Set())
-  return waves
+  return dependencyWaves(refs.map((ref) => ({ id: ref.agent, dependsOn: ref.dependsOn })))
 }
 
 export interface AgentWave {
@@ -211,7 +195,7 @@ export function nextAgentWave(input: StepAgentsInput): AgentWave {
   const unfinished = [...views.values()].filter((view) => !finished(view))
   // 执行者全部完成之前不排评审者：步骤内的顺序恒为「执行者波次 → 必需测试 → 评审者波次」。
   const role: AgentRole = pendingExecutors.length > 0 ? 'executor' : 'reviewer'
-  const waves = waveOf(role === 'executor' ? input.step.executors : input.step.reviewers)
+  const waves = agentWaves(role === 'executor' ? input.step.executors : input.step.reviewers)
   const runnable = unfinished.filter((view) =>
     view.role === role && view.state !== 'running' && waitingFor(view).length === 0)
   const lowest = runnable.length === 0 ? undefined : Math.min(...runnable.map((view) => waves.get(view.agent) ?? 0))
@@ -241,10 +225,7 @@ export function isForwardExit(
     const policy = (DEFAULT_EVENT_POLICY as Record<string, { readonly enforceTaskExit: boolean } | undefined>)[event]
     return policy?.enforceTaskExit === true
   }
-  const ids = plan.workflow.steps.map((step) => step.id)
-  const fromIndex = ids.indexOf(from)
-  const toIndex = ids.indexOf(to)
-  return fromIndex >= 0 && toIndex > fromIndex
+  return isForwardStepEdge(plan.workflow.steps.map((step) => step.id), from, to, event)
 }
 
 const FINDING_PREVIEW = 5

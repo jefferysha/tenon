@@ -60,6 +60,7 @@ import { resolveDefinitionCatalogRoute, type DefinitionCatalogRouteDeps } from '
 import { resolveAdapterInstallGet } from './adapterInstallRoutes.js'
 import type { AdapterInstallManager } from './adapterInstall.js'
 import { resolveOrchestrationRoutes } from './serverOrchestrationRoutes.js'
+import { resolveWorkflowOrchestrationRoute } from './serverWorkflowOrchestrationRoutes.js'
 import { handleOrchestrationV2GetRoute, type OrchestrationV2RouteDeps } from './serverOrchestrationV2Routes.js'
 import { readAnchoredChange, readAnchoredTaskPlan, resolveTaskPlanRoute } from './serverTaskPlanRoutes.js'
 import { readTaskRunForChange, resolveTaskRunRoute } from './serverTaskRunRoutes.js'
@@ -166,6 +167,10 @@ export async function handleGet(
     workflowRootForRequest, snapshotDeps, store,
   })
   if (orchestration !== null) return sendJson(res, orchestration.status, orchestration.body)
+  const workflowOrchestration = await resolveWorkflowOrchestrationRoute(req.url ?? '/', path, {
+    workflowRootForRequest, workflowStoreForRequest, trackValidationContextFor, snapshotDeps, errMsg,
+  })
+  if (workflowOrchestration !== null) return sendJson(res, workflowOrchestration.status, workflowOrchestration.body)
   const taskPlan = await resolveTaskPlanRoute(req.url ?? '/', path, {
     workflowRootForRequest,
     readPlan: readAnchoredTaskPlan,

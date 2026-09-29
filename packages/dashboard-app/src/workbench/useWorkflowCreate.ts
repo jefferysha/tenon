@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { BUILTIN_WORKFLOW_IDS, isBuiltinWorkflowName, isTemplateWorkflowName, isValidWorkflowName } from '@tenon/kernel/workflow/identifier'
 import { fetchWorkflow, postWorkflowDef } from '../api/client'
 import type { WbWorkflowDef } from '../api/governanceTypes'
@@ -8,42 +8,9 @@ import { setOpenspecInDef } from './documentContractEdits'
 import { readSaveErrors } from './workbenchApiDecoders'
 import { readWorkflowWriteSuccess } from './workbenchWriteResponse'
 import { BASE_BRANCH, blankWorkflow, copyWorkflowDef, definitionForWrite, selectBranchDef } from './workbenchDefinition'
+import type { CreateNameError, CreateSource, CreatePreview, CreateState } from './workflowEditorTypes'
 
-/** 起点：null = 空白；否则复制这个工作流（内建 default / simple，或项目里已有的）。 */
-export type CreateSource = string | null
-
-/** 右侧预览：起点的阶段名（有轨道时取第一条轨道，与编辑器打开时一致）。 */
-export type CreatePreview =
-  | { status: 'loading' }
-  | { status: 'ready'; stages: readonly string[] }
-  | { status: 'error'; text: string }
-
-export type CreateNameError = 'invalid' | 'duplicate' | null
-
-export interface CreateState {
-  open: boolean
-  /** 可复制的起点：default、simple 在前，其后是项目里已有的工作流。 */
-  sources: readonly string[]
-  source: CreateSource
-  setSource: (source: CreateSource) => void
-  name: string
-  setName: (name: string) => void
-  /** 新工作流是否接入 OpenSpec：缺省随起点（空白为关），用户拨过之后保持用户的选择。 */
-  openspec: boolean
-  setOpenspec: (on: boolean) => void
-  nameError: CreateNameError
-  preview: CreatePreview
-  /** 服务端拒绝时的错误原文。 */
-  errors: string[]
-  busy: boolean
-  canSubmit: boolean
-  /** 用户改过任一字段：关闭前要二次确认。 */
-  dirty: boolean
-  nameRef: RefObject<HTMLInputElement>
-  openCreate: (source?: CreateSource) => void
-  close: () => void
-  submit: () => Promise<void>
-}
+export type { CreateNameError, CreatePreview, CreateSource, CreateState } from './workflowEditorTypes'
 
 export interface WorkflowCreateInput {
   root: string

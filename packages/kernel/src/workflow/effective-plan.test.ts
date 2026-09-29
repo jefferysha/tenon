@@ -31,6 +31,8 @@ function preVerifyConvergenceWorkflow() {
         ...legacyStep,
         // The last step was labelled 归档 before the 完结 wording.
         label: step.id === 'archive' ? '归档' : step.label,
+        // Historical bytes predate the two-kind gate: `gate: null` was recorded as null (no output guards).
+        gate: step.gate === 'auto' ? null : step.gate,
         // This fixture intentionally models the pre-issue#43 frozen snapshot, whose
         // default Workflow steps had no Workflow-owned phase Skills and whose ship/archive
         // steps declared no inputs/outputs (pr_url / archived were added in 2026-09).
@@ -43,6 +45,8 @@ function preVerifyConvergenceWorkflow() {
           : step.guards,
         transitions: step.transitions.map((transition) => ({
           ...transition,
+          // No default edge declares guards; the ones on the current IR are the auto gate's, which historical bytes lack.
+          guards: [],
           actions: transition.actions.filter((action) =>
             action.type !== 'reset-pre-verify-review'
               && !(step.id === 'verify'

@@ -9,6 +9,8 @@
  */
 import {
   isSkillUnlocked,
+  missingSkillDependencies,
+  orderSkillSlots,
   resolveAvailableSkillSlots,
   resolveRequiredSkillSlots,
   type PipelineState,
@@ -119,10 +121,11 @@ export async function cmdInternalSkillGate(deps: CliDeps, name: string, skillId:
           )
           return 2
         }
-        const missing = canonicalSlots
-          .slice(0, slotIndex)
-          .filter((slot) => !slot.alternatives.some((candidate) => completed.has(candidate)))
-          .map((slot) => slot.token)
+        // 前置取 kernel skill-order 的唯一口径（与 `tenon status` 的 step.skills 同一份）：声明了
+        // depends_on 的按声明，没声明的按声明顺序串行。
+        const ordered = orderSkillSlots(canonicalSlots, capabilityStep.declared)
+        const missing = missingSkillDependencies(ordered, slotIndex, (slot) =>
+          slot.alternatives.some((candidate) => completed.has(candidate)))
         if (missing.length === 0) return 0
         deps.io.err(
           `【Tenon 门】skill '${skillId}' 在 default step '${currentStepId}' 未解锁：` +
@@ -152,21 +155,26 @@ export async function cmdInternalSkillGate(deps: CliDeps, name: string, skillId:
       // Workflow YAML may retain the historical `tenon:<id>` spelling while Codex uses
       // its namespace at invocation time and cache receipts use bare ids. Normalize only our own
       // namespace, including dependencies, before delegating to the single kernel DAG predicate.
+      // 只有定义里写了 depends_on 的才带上它：没写的按声明顺序串行（skill-order）。
       const canonicalStepSkills = capabilityStep.declared.map((ref) => ({
         id: canonicalTenonSkillId(ref.id),
-        depends_on: ref.dependsOn.map(canonicalTenonSkillId),
+        ...((ref.dependsOnDeclared ?? ref.dependsOn.length > 0) ? { depends_on: ref.dependsOn.map(canonicalTenonSkillId) } : {}),
       }))
 
       if (isSkillUnlocked(canonicalSkillId, canonicalStepSkills, completedSinceEntry)) return 0
 
       // 判定为锁定：区分"根本没声明这个 skill"和"声明了但依赖没完成"两种情形，给出更具体的指引。
-      const ref = canonicalStepSkills.find((s) => s.id === canonicalSkillId)
-      if (!ref) {
+      const ordered = orderSkillSlots(
+        canonicalStepSkills.map((skill) => ({ token: skill.id, alternatives: [skill.id] })),
+        capabilityStep.declared,
+      )
+      const index = ordered.findIndex((slot) => slot.token === canonicalSkillId)
+      if (index < 0) {
         deps.io.err(
           `【Tenon 门】skill '${skillId}' 不在 step '${currentStepId}'（workflow '${plan.id}'）声明的 skills 列表里，暂不可用`,
         )
       } else {
-        const missing = (ref.depends_on ?? []).filter((d) => !completedSinceEntry.has(d))
+        const missing = missingSkillDependencies(ordered, index, (slot) => completedSinceEntry.has(slot.token))
         deps.io.err(
           `【Tenon 门】skill '${skillId}' 在 step '${currentStepId}'（workflow '${plan.id}'）未解锁：` +
             `还需先完成 ${missing.join(', ')}（本次进入该 step 之后）`,

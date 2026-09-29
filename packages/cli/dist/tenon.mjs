@@ -12093,6 +12093,103 @@ function compileGuards(raw, path15, outputs2) {
   return asArray(raw, path15).flatMap((guard, index) => compileGuard(guard, `${path15}[${index}]`, outputs2));
 }
 
+// packages/kernel/dist/workflow/auto-gate.js
+var ENGINE_WRITTEN_OUTPUTS = /* @__PURE__ */ new Set(["build_sha", "archived"]);
+function isEngineWrittenOutput(field4) {
+  return ENGINE_WRITTEN_OUTPUTS.has(field4);
+}
+function normalizeGate(gate) {
+  return gate === "review" ? "review" : "auto";
+}
+function autoGateGuards(stepId, outputs2) {
+  const checked = outputs2.filter((output2) => !isEngineWrittenOutput(output2.field));
+  return compileGuards([{ type: "nonempty-output" }], `steps.${stepId}.gate(auto)`, checked);
+}
+function withAutoGateGuards(steps, isForward) {
+  const ids2 = steps.map((step) => step.id);
+  return steps.map((step) => {
+    if (step.gate !== "auto")
+      return step;
+    const guards = autoGateGuards(step.id, step.outputs);
+    if (guards.length === 0)
+      return step;
+    return {
+      ...step,
+      transitions: step.transitions.map((transition) => isForward(ids2, step.id, transition.to, transition.event) ? { ...transition, guards: [...guards, ...transition.guards] } : transition)
+    };
+  });
+}
+
+// packages/kernel/dist/workflow/implicit-completion.js
+var IMPLICIT_COMPLETION_EVENT = "archived";
+function isForwardStepEdge(stepIds, from, to, event) {
+  if (event === IMPLICIT_COMPLETION_EVENT && from === to)
+    return true;
+  const fromIndex = stepIds.indexOf(from);
+  const toIndex = stepIds.indexOf(to);
+  return fromIndex >= 0 && toIndex > fromIndex;
+}
+function runArchived(state) {
+  const value = state.fields.archived;
+  return (Array.isArray(value) ? value.join(",") : value ?? "") === "true";
+}
+function enteredOnlyByArchivingEdges(steps, step) {
+  const incoming = steps.filter((candidate2) => candidate2.id !== step.id).flatMap((candidate2) => candidate2.transitions.filter((transition) => transition.to === step.id));
+  return incoming.length > 0 && incoming.every((transition) => transition.actions.some((action) => action.type === "archive-run"));
+}
+function reachableFrom(steps, startId) {
+  const byId2 = new Map(steps.map((candidate2) => [candidate2.id, candidate2]));
+  const seen = /* @__PURE__ */ new Set();
+  const queue = [startId];
+  while (queue.length > 0) {
+    const id2 = queue.shift();
+    if (id2 === void 0 || seen.has(id2))
+      continue;
+    seen.add(id2);
+    for (const transition of byId2.get(id2)?.transitions ?? []) {
+      if (byId2.has(transition.to) && !seen.has(transition.to))
+        queue.push(transition.to);
+    }
+  }
+  return seen;
+}
+function loopHasAnotherExit(steps, step) {
+  for (const id2 of reachableFrom(steps, step.id)) {
+    if (id2 !== step.id && !reachableFrom(steps, id2).has(step.id))
+      return true;
+  }
+  return false;
+}
+function implicitCompletionTransition(plan, stepId, state) {
+  if (state !== void 0 && runArchived(state))
+    return void 0;
+  const steps = plan.workflow.steps;
+  const index = steps.findIndex((candidate2) => candidate2.id === stepId);
+  const step = steps[index];
+  if (step === void 0)
+    return void 0;
+  if (step.transitions.some((transition) => transition.event === IMPLICIT_COMPLETION_EVENT))
+    return void 0;
+  const hasForwardEdge = step.transitions.some((transition) => steps.findIndex((candidate2) => candidate2.id === transition.to) > index);
+  if (hasForwardEdge || enteredOnlyByArchivingEdges(steps, step) || loopHasAnotherExit(steps, step))
+    return void 0;
+  return {
+    event: IMPLICIT_COMPLETION_EVENT,
+    to: step.id,
+    // gate=auto compiles to output guards on every forward exit; the derived completion exit gets the same.
+    // A frozen plan whose IR still says gate=null recorded no such check and keeps it that way.
+    guards: step.gate === "auto" ? autoGateGuards(step.id, step.outputs) : [],
+    actions: [{ type: "archive-run" }]
+  };
+}
+function stepExitTransitions(plan, stepId, state) {
+  const step = plan.workflow.steps.find((candidate2) => candidate2.id === stepId);
+  if (step === void 0)
+    return [];
+  const completion = implicitCompletionTransition(plan, stepId, state);
+  return completion === void 0 ? step.transitions : [...step.transitions, completion];
+}
+
 // packages/kernel/dist/workflow/compile-artifacts.js
 var KNOWN_FIELDS3 = new Set(FIELD_ORDER);
 var PRODUCER_POLICIES = /* @__PURE__ */ new Set([
@@ -13374,11 +13471,7 @@ function compileStep(step, index, allowedPolicies, pathPrefix = "steps") {
   const tests = compileStepTests(rec.tests, `${path15}.tests`);
   const testPolicy = compileStepTestPolicy(rec.test_policy, `${path15}.test_policy`);
   const agents = compileStepAgents(rec.agents, `${path15}.agents`);
-  const autoGuards = gate === "auto" ? compileGuards([{ type: "nonempty-output" }], `${path15}.gate(auto)`, outputs2) : [];
-  const transitions = asArray5(rec.transitions, `${path15}.transitions`).map((t, j) => {
-    const compiled = compileTransition(t, `${path15}.transitions[${j}]`, outputs2);
-    return autoGuards.length === 0 ? compiled : { ...compiled, guards: [...autoGuards, ...compiled.guards] };
-  });
+  const transitions = asArray5(rec.transitions, `${path15}.transitions`).map((t, j) => compileTransition(t, `${path15}.transitions[${j}]`, outputs2));
   const transitionEvents = /* @__PURE__ */ new Set();
   transitions.forEach((transition, transitionIndex) => {
     if (transitionEvents.has(transition.event)) {
@@ -13389,7 +13482,7 @@ function compileStep(step, index, allowedPolicies, pathPrefix = "steps") {
   return {
     id: id2,
     label: rec.label,
-    gate,
+    gate: normalizeGate(gate),
     ...prompt === void 0 ? {} : { prompt },
     skills,
     inputs: inputs2,
@@ -13462,7 +13555,7 @@ function compileWith(def, allowedPolicies) {
     compileError6("openspec", `\u5FC5\u987B\u662F true | false\uFF08\u5B9E\u9645 ${JSON.stringify(rec.openspec)}\uFF09`);
   }
   const documentContract = compileDocumentContract(rec.documentContract, "documentContract");
-  const steps = asArray5(rec.steps, "steps").map((s, i) => compileStep(s, i, allowedPolicies));
+  const steps = withAutoGateGuards(asArray5(rec.steps, "steps").map((s, i) => compileStep(s, i, allowedPolicies)), isForwardStepEdge);
   const tracks = compileTracks(rec.tracks, allowedPolicies);
   return deepFreeze4({
     name: name2,
@@ -13490,7 +13583,7 @@ function compileTracks(raw, allowedPolicies) {
       compileError6(`tracks.${id2}.label`, `\u5FC5\u987B\u662F\u975E\u7A7A\u5B57\u7B26\u4E32\uFF08\u5B9E\u9645 ${JSON.stringify(branch.label)}\uFF09`);
     }
     const documentContract = compileDocumentContract(branch.documentContract, `tracks.${id2}.documentContract`);
-    const steps = asArray5(branch.steps, `tracks.${id2}.steps`).map((s, i) => compileStep(s, i, allowedPolicies, `tracks.${id2}.steps`));
+    const steps = withAutoGateGuards(asArray5(branch.steps, `tracks.${id2}.steps`).map((s, i) => compileStep(s, i, allowedPolicies, `tracks.${id2}.steps`)), isForwardStepEdge);
     out[id2] = {
       ...branch.label === void 0 ? {} : { label: branch.label },
       ...documentContract === void 0 ? {} : { documentContract },
@@ -15926,7 +16019,8 @@ function planFromIr(id2, executionModel, compiled, track, frozenDocumentPolicy, 
           requiredSkillIds: step.skills.map((skill) => skill.id),
           declared: step.skills.map((skill) => ({
             id: skill.id,
-            dependsOn: [...skill.depends_on ?? []]
+            dependsOn: [...skill.depends_on ?? []],
+            dependsOnDeclared: skill.depends_on !== void 0
           }))
         })),
         trackOverlay: {
@@ -40391,66 +40485,25 @@ function retiredSkillsWorkflowMessage(workflow, skills) {
   return `\u5DE5\u4F5C\u6D41 '${workflow}' \u5F15\u7528\u5DF2\u5220\u9664\u7684\u6280\u80FD\uFF08${skills.join("\u3001")}\uFF09\uFF1B\u5728\u5DE5\u4F5C\u6D41\u9875\u79FB\u9664\u540E\u91CD\u65B0\u4FDD\u5B58\u3002`;
 }
 
-// packages/kernel/dist/workflow/implicit-completion.js
-var IMPLICIT_COMPLETION_EVENT = "archived";
-function runArchived(state) {
-  const value = state.fields.archived;
-  return (Array.isArray(value) ? value.join(",") : value ?? "") === "true";
-}
-function enteredOnlyByArchivingEdges(steps, step) {
-  const incoming = steps.filter((candidate2) => candidate2.id !== step.id).flatMap((candidate2) => candidate2.transitions.filter((transition) => transition.to === step.id));
-  return incoming.length > 0 && incoming.every((transition) => transition.actions.some((action) => action.type === "archive-run"));
-}
-function reachableFrom(steps, startId) {
-  const byId2 = new Map(steps.map((candidate2) => [candidate2.id, candidate2]));
-  const seen = /* @__PURE__ */ new Set();
-  const queue = [startId];
-  while (queue.length > 0) {
-    const id2 = queue.shift();
-    if (id2 === void 0 || seen.has(id2))
-      continue;
-    seen.add(id2);
-    for (const transition of byId2.get(id2)?.transitions ?? []) {
-      if (byId2.has(transition.to) && !seen.has(transition.to))
-        queue.push(transition.to);
-    }
-  }
-  return seen;
-}
-function loopHasAnotherExit(steps, step) {
-  for (const id2 of reachableFrom(steps, step.id)) {
-    if (id2 !== step.id && !reachableFrom(steps, id2).has(step.id))
-      return true;
-  }
-  return false;
-}
-function implicitCompletionTransition(plan, stepId, state) {
-  if (state !== void 0 && runArchived(state))
-    return void 0;
-  const steps = plan.workflow.steps;
-  const index = steps.findIndex((candidate2) => candidate2.id === stepId);
-  const step = steps[index];
-  if (step === void 0)
-    return void 0;
-  if (step.transitions.some((transition) => transition.event === IMPLICIT_COMPLETION_EVENT))
-    return void 0;
-  const hasForwardEdge = step.transitions.some((transition) => steps.findIndex((candidate2) => candidate2.id === transition.to) > index);
-  if (hasForwardEdge || enteredOnlyByArchivingEdges(steps, step) || loopHasAnotherExit(steps, step))
-    return void 0;
-  return {
-    event: IMPLICIT_COMPLETION_EVENT,
-    to: step.id,
-    // gate=auto compiles to output guards on every declared exit; the derived exit gets the same.
-    guards: step.gate === "auto" ? compileGuards([{ type: "nonempty-output" }], `steps.${step.id}.gate(auto)`, step.outputs) : [],
-    actions: [{ type: "archive-run" }]
+// packages/kernel/dist/workflow/dag-waves.js
+function dependencyWaves(refs) {
+  const byId2 = new Map(refs.map((ref) => [ref.id, ref]));
+  const waves = /* @__PURE__ */ new Map();
+  const visit2 = (id2, trail) => {
+    const cached = waves.get(id2);
+    if (cached !== void 0)
+      return cached;
+    const ref = byId2.get(id2);
+    if (ref === void 0 || trail.has(id2))
+      return -1;
+    const next = /* @__PURE__ */ new Set([...trail, id2]);
+    const wave = ref.dependsOn.reduce((max, dependency) => Math.max(max, visit2(dependency, next) + 1), 0);
+    waves.set(id2, wave);
+    return wave;
   };
-}
-function stepExitTransitions(plan, stepId, state) {
-  const step = plan.workflow.steps.find((candidate2) => candidate2.id === stepId);
-  if (step === void 0)
-    return [];
-  const completion = implicitCompletionTransition(plan, stepId, state);
-  return completion === void 0 ? step.transitions : [...step.transitions, completion];
+  for (const ref of refs)
+    visit2(ref.id, /* @__PURE__ */ new Set());
+  return waves;
 }
 
 // packages/kernel/dist/workflow/agent-verdict.js
@@ -40537,26 +40590,7 @@ function evaluateStepAgents(input2) {
   return { pass: blockers.length === 0, blockers };
 }
 function agentWaves(refs) {
-  return waveOf(refs);
-}
-function waveOf(refs) {
-  const byName = new Map(refs.map((ref) => [ref.agent, ref]));
-  const waves = /* @__PURE__ */ new Map();
-  const visit2 = (name2, seen) => {
-    const cached = waves.get(name2);
-    if (cached !== void 0)
-      return cached;
-    const ref = byName.get(name2);
-    if (ref === void 0 || seen.has(name2))
-      return 0;
-    const next = /* @__PURE__ */ new Set([...seen, name2]);
-    const wave = ref.dependsOn.reduce((max, dep) => Math.max(max, visit2(dep, next) + 1), 0);
-    waves.set(name2, wave);
-    return wave;
-  };
-  for (const ref of refs)
-    visit2(ref.agent, /* @__PURE__ */ new Set());
-  return waves;
+  return dependencyWaves(refs.map((ref) => ({ id: ref.agent, dependsOn: ref.dependsOn })));
 }
 function nextAgentWave(input2) {
   const views = new Map(projectStepAgents(input2).map((view2) => [view2.agent, view2]));
@@ -40573,7 +40607,7 @@ function nextAgentWave(input2) {
   const finished2 = (view2) => view2.role === "executor" ? executorDone(view2.agent) : view2.state === "done" && view2.result === "pass";
   const unfinished = [...views.values()].filter((view2) => !finished2(view2));
   const role = pendingExecutors.length > 0 ? "executor" : "reviewer";
-  const waves = waveOf(role === "executor" ? input2.step.executors : input2.step.reviewers);
+  const waves = agentWaves(role === "executor" ? input2.step.executors : input2.step.reviewers);
   const runnable = unfinished.filter((view2) => view2.role === role && view2.state !== "running" && waitingFor(view2).length === 0);
   const lowest = runnable.length === 0 ? void 0 : Math.min(...runnable.map((view2) => waves.get(view2.agent) ?? 0));
   return {
@@ -40588,10 +40622,7 @@ function isForwardExit(plan, from, to, event) {
     const policy2 = DEFAULT_EVENT_POLICY[event];
     return policy2?.enforceTaskExit === true;
   }
-  const ids2 = plan.workflow.steps.map((step) => step.id);
-  const fromIndex = ids2.indexOf(from);
-  const toIndex = ids2.indexOf(to);
-  return fromIndex >= 0 && toIndex > fromIndex;
+  return isForwardStepEdge(plan.workflow.steps.map((step) => step.id), from, to, event);
 }
 var FINDING_PREVIEW = 5;
 function runRef(runId, change) {
@@ -40624,36 +40655,90 @@ function renderAgentBlocker(blocker2, change) {
   }
 }
 
+// packages/kernel/dist/workflow/skill-order.js
+function bareSkillId(id2) {
+  return id2.startsWith("tenon:") ? id2.slice("tenon:".length) : id2;
+}
+function slotMatches(slot, id2) {
+  const bare = bareSkillId(id2);
+  return bareSkillId(slot.token) === bare || slot.alternatives.some((alternative) => bareSkillId(alternative) === bare);
+}
+function reaches(edges, from, target) {
+  const seen = /* @__PURE__ */ new Set();
+  const stack = [from];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (current === void 0 || seen.has(current))
+      continue;
+    if (current === target)
+      return true;
+    seen.add(current);
+    stack.push(...edges.get(current) ?? []);
+  }
+  return false;
+}
+function orderSkillSlots(slots, declared) {
+  const edges = /* @__PURE__ */ new Map();
+  const explicit = /* @__PURE__ */ new Set();
+  slots.forEach((slot, index) => {
+    const declaration = declared.find((candidate2) => slotMatches(slot, candidate2.id));
+    if (declaration === void 0)
+      return;
+    const isDeclared = declaration.dependsOnDeclared ?? declaration.dependsOn.length > 0;
+    if (!isDeclared)
+      return;
+    explicit.add(index);
+    const dependencies = declaration.dependsOn.map((dependency) => slots.findIndex((candidate2) => slotMatches(candidate2, dependency))).filter((dependency) => dependency >= 0 && dependency !== index);
+    edges.set(index, [...new Set(dependencies)]);
+  });
+  slots.forEach((_slot, index) => {
+    if (explicit.has(index))
+      return;
+    const before = slots.slice(0, index).map((_candidate, earlier) => earlier);
+    edges.set(index, before.filter((earlier) => !reaches(edges, earlier, index)));
+  });
+  const waves = dependencyWaves(slots.map((slot, index) => ({
+    id: String(index),
+    dependsOn: (edges.get(index) ?? []).map(String)
+  })));
+  return slots.map((slot, index) => ({
+    token: slot.token,
+    alternatives: slot.alternatives,
+    dependsOn: (edges.get(index) ?? []).map((dependency) => slots[dependency]?.token ?? "").filter((token) => token !== ""),
+    wave: waves.get(String(index)) ?? 0,
+    declared: explicit.has(index)
+  }));
+}
+function skillSlotStatuses(ordered, progress) {
+  const done = new Map(ordered.map((slot, index) => [slot.token, progress[index]?.done === true]));
+  return ordered.map((slot, index) => {
+    const own3 = progress[index];
+    if (own3?.done === true)
+      return "done";
+    if (slot.dependsOn.some((dependency) => done.get(dependency) !== true))
+      return "waiting";
+    return own3?.invoked === true ? "invoked" : "ready";
+  });
+}
+function missingSkillDependencies(ordered, index, completed) {
+  const slot = ordered[index];
+  if (slot === void 0)
+    return [];
+  return slot.dependsOn.filter((token) => {
+    const dependency = ordered.find((candidate2) => candidate2.token === token);
+    return dependency !== void 0 && !completed(dependency);
+  });
+}
+
 // packages/kernel/dist/workflow/skillDag.js
 function isSkillUnlocked(skillId, skills, completedSinceStepEntry) {
   if (skills.length === 0)
     return true;
-  const ref = skills.find((s) => s.id === skillId);
-  if (!ref)
+  const ordered = orderSkillSlots(skills.map((skill) => ({ token: skill.id, alternatives: [skill.id] })), skills.map((skill) => ({ id: skill.id, dependsOn: skill.depends_on ?? [], dependsOnDeclared: skill.depends_on !== void 0 })));
+  const slot = ordered.find((candidate2) => candidate2.token === skillId);
+  if (!slot)
     return false;
-  return (ref.depends_on ?? []).every((dep) => completedSinceStepEntry.has(dep));
-}
-
-// packages/kernel/dist/workflow/branch-track-lookup.js
-function projectWorkflowNames(repoRoot) {
-  return [.../* @__PURE__ */ new Set([
-    ...TEMPLATE_WORKFLOW_NAMES,
-    ...workflowNamesUnder(repoRoot),
-    ...workflowNamesUnder(globalWorkflowRoot())
-  ])];
-}
-function requireTrackForRoot(registry, trackId, repoRoot, workflowName) {
-  const registered = registry.byId.get(trackId);
-  if (registered !== void 0)
-    return registered;
-  const candidates = workflowName === void 0 || workflowName === "" ? projectWorkflowNames(repoRoot) : [workflowName];
-  for (const name2 of candidates) {
-    const def = loadWorkflow(repoRoot, name2);
-    const synthesized = resolveTrackForBranch(registry, trackId, def);
-    if (synthesized !== void 0)
-      return synthesized;
-  }
-  return requireTrack(registry, trackId);
+  return slot.dependsOn.every((dependency) => completedSinceStepEntry.has(dependency));
 }
 
 // packages/kernel/dist/workflow/effective-skill-resolver.js
@@ -40789,6 +40874,28 @@ function createEffectiveSkillResolver(input2) {
       return dedupeStable(step.skills.map((s) => s.id)).map((id2) => ({ token: id2, alternatives: [id2] }));
     }
   };
+}
+
+// packages/kernel/dist/workflow/branch-track-lookup.js
+function projectWorkflowNames(repoRoot) {
+  return [.../* @__PURE__ */ new Set([
+    ...TEMPLATE_WORKFLOW_NAMES,
+    ...workflowNamesUnder(repoRoot),
+    ...workflowNamesUnder(globalWorkflowRoot())
+  ])];
+}
+function requireTrackForRoot(registry, trackId, repoRoot, workflowName) {
+  const registered = registry.byId.get(trackId);
+  if (registered !== void 0)
+    return registered;
+  const candidates = workflowName === void 0 || workflowName === "" ? projectWorkflowNames(repoRoot) : [workflowName];
+  for (const name2 of candidates) {
+    const def = loadWorkflow(repoRoot, name2);
+    const synthesized = resolveTrackForBranch(registry, trackId, def);
+    if (synthesized !== void 0)
+      return synthesized;
+  }
+  return requireTrack(registry, trackId);
 }
 
 // packages/kernel/dist/workflow/phase-exit-context.js
@@ -73238,20 +73345,15 @@ function scalar20(state, field4) {
 }
 function stepSkills(plan, stepId, slots) {
   const declared = plan.capabilities.skills.steps.find((step) => step.stepId === stepId)?.declared ?? [];
-  const views = [];
-  let unlocked = true;
-  for (const [index, slot] of slots.entries()) {
-    const id2 = canonicalTenonSkillId(slot.token);
-    views.push({
-      id: id2,
-      depends_on: declared.find((ref) => canonicalTenonSkillId(ref.id) === id2)?.dependsOn.map(canonicalTenonSkillId) ?? views.slice(0, index).map((view2) => view2.id),
-      wave: index,
-      status: slot.done ? "done" : !unlocked ? "waiting" : slot.invoked ? "invoked" : "ready",
-      pending_documents: slot.pendingDocuments
-    });
-    if (!slot.done) unlocked = false;
-  }
-  return views;
+  const ordered = orderSkillSlots(slots.map((slot) => ({ token: slot.token, alternatives: slot.token.split("|") })), declared);
+  const statuses = skillSlotStatuses(ordered, slots);
+  return slots.map((slot, index) => ({
+    id: canonicalTenonSkillId(slot.token),
+    depends_on: (ordered[index]?.dependsOn ?? []).map(canonicalTenonSkillId),
+    wave: ordered[index]?.wave ?? index,
+    status: statuses[index] ?? "waiting",
+    pending_documents: slot.pendingDocuments
+  }));
 }
 function documentPath(change, kind, item2) {
   const recorded = item2?.paths[0];
@@ -74288,7 +74390,8 @@ async function cmdInternalSkillGate(deps, name2, skillId) {
           );
           return 2;
         }
-        const missing3 = canonicalSlots.slice(0, slotIndex).filter((slot) => !slot.alternatives.some((candidate2) => completed.has(candidate2))).map((slot) => slot.token);
+        const ordered2 = orderSkillSlots(canonicalSlots, capabilityStep.declared);
+        const missing3 = missingSkillDependencies(ordered2, slotIndex, (slot) => slot.alternatives.some((candidate2) => completed.has(candidate2)));
         if (missing3.length === 0) return 0;
         deps.io.err(
           `\u3010Tenon \u95E8\u3011skill '${skillId}' \u5728 default step '${currentStepId}' \u672A\u89E3\u9501\uFF1A\u8FD8\u9700\u5148\u5B8C\u6210 ${missing3.join(", ")}\uFF08\u672C\u6B21\u8FDB\u5165\u8BE5 step \u4E4B\u540E\uFF09`
@@ -74301,7 +74404,7 @@ async function cmdInternalSkillGate(deps, name2, skillId) {
         // A missing Codex PostToolUse callback must not force a user retry: reconcile every
         // declared node in this exact step before checking the next node's dependencies.  The
         // transcript bridge remains bounded to trusted plugin paths and this physical project.
-        candidateSkillIds: capabilityStep.declared.map((ref2) => canonicalTenonSkillId(ref2.id)),
+        candidateSkillIds: capabilityStep.declared.map((ref) => canonicalTenonSkillId(ref.id)),
         recordedAt: deps.clock(),
         history: deps.history,
         evidenceScope: currentStepId
@@ -74309,18 +74412,22 @@ async function cmdInternalSkillGate(deps, name2, skillId) {
       const historyRaw = await deps.readHistoryRaw?.(dir) ?? "";
       const lines2 = parseHistoryLines(historyRaw);
       const completedSinceEntry = completedSkillsSinceStepEntry(lines2, currentStepId);
-      const canonicalStepSkills = capabilityStep.declared.map((ref2) => ({
-        id: canonicalTenonSkillId(ref2.id),
-        depends_on: ref2.dependsOn.map(canonicalTenonSkillId)
+      const canonicalStepSkills = capabilityStep.declared.map((ref) => ({
+        id: canonicalTenonSkillId(ref.id),
+        ...ref.dependsOnDeclared ?? ref.dependsOn.length > 0 ? { depends_on: ref.dependsOn.map(canonicalTenonSkillId) } : {}
       }));
       if (isSkillUnlocked(canonicalSkillId2, canonicalStepSkills, completedSinceEntry)) return 0;
-      const ref = canonicalStepSkills.find((s) => s.id === canonicalSkillId2);
-      if (!ref) {
+      const ordered = orderSkillSlots(
+        canonicalStepSkills.map((skill) => ({ token: skill.id, alternatives: [skill.id] })),
+        capabilityStep.declared
+      );
+      const index = ordered.findIndex((slot) => slot.token === canonicalSkillId2);
+      if (index < 0) {
         deps.io.err(
           `\u3010Tenon \u95E8\u3011skill '${skillId}' \u4E0D\u5728 step '${currentStepId}'\uFF08workflow '${plan.id}'\uFF09\u58F0\u660E\u7684 skills \u5217\u8868\u91CC\uFF0C\u6682\u4E0D\u53EF\u7528`
         );
       } else {
-        const missing3 = (ref.depends_on ?? []).filter((d) => !completedSinceEntry.has(d));
+        const missing3 = missingSkillDependencies(ordered, index, (slot) => completedSinceEntry.has(slot.token));
         deps.io.err(
           `\u3010Tenon \u95E8\u3011skill '${skillId}' \u5728 step '${currentStepId}'\uFF08workflow '${plan.id}'\uFF09\u672A\u89E3\u9501\uFF1A\u8FD8\u9700\u5148\u5B8C\u6210 ${missing3.join(", ")}\uFF08\u672C\u6B21\u8FDB\u5165\u8BE5 step \u4E4B\u540E\uFF09`
         );
