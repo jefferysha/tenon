@@ -162,8 +162,9 @@ describe.skipIf(!available && !required)('测试体系 v2 · Playwright 工程',
     expect(await tenon('test', 'run', 'demo', '--stage'), `${out()}\n${err()}`).toBe(0)
     const run = await latestRun()
     const suite = run.suites[0]
-    expect(suite?.totals).toMatchObject({ flaky: 1, fail: 0 })
-    expect(suite?.cases[0]).toMatchObject({ status: 'flaky', attempts: 2, project: 'chromium' })
+    // 每个浏览器 project 各跑一遍同一个用例：都是第二次尝试才通过。
+    expect(suite?.totals).toMatchObject({ flaky: projects.length, fail: 0 })
+    expect(suite?.cases.map((item) => [item.status, item.attempts, item.project]).sort()).toEqual(projects.map((name) => ['flaky', 2, name]).sort())
     expect(suite?.command).toContain('--retries=1')
     const log = await readFile(join((h as Harness).cwd, '.tenon', 'users', SLUG, 'local', 'artifacts', 'demo', run.run_id, 'logs', 'e2e.log'), 'utf8')
     expect(log.match(/^=== /gm)).toHaveLength(1)

@@ -6,7 +6,7 @@
  *                Playwright 1.61（json / junit，含重试后 flaky 与截图 / trace 附件）、Node 24 内置 test runner
  *                （tap / junit）、Node 24 内置覆盖率（lcov）。
  *   authored  —— 本机没有对应工具时，按该工具文档化的输出形状手写：jest-json、go test -json、cobertura、
- *                istanbul coverage-summary / coverage-final、hyperfine、vitest bench、k6、lighthouse、pytest 风格 junit。
+ *                istanbul coverage-summary / coverage-final、hyperfine、vitest bench、k6、lighthouse、pytest 与 surefire 方言的 junit（按两个工具文档化的输出形状手写）。
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -161,6 +161,21 @@ describe('junit 方言（authored）', () => {
       ['subtracts', 'pass', 1, 'com.example.MathTest'],
     ])
     expect(list[1]?.failure?.message).toBe('connection reset')
+  })
+
+  it('surefire fixtures：pass / fail / empty；failure、error 都算失败，带 <skipped> 算跳过，重试后仍失败的用例记重试次数', () => {
+    const passing = cases('junit', 'junit/surefire-pass.xml')
+    expect(passing.map((item) => [item.name, item.status, item.file])).toEqual([
+      ['adds', 'pass', 'com.example.MathTest'], ['subtracts', 'pass', 'com.example.MathTest'],
+    ])
+    const failing = cases('junit', 'junit/surefire-fail.xml')
+    expect(failing.map((item) => [item.name, item.status, item.attempts])).toEqual([
+      ['adds', 'pass', 1], ['subtracts', 'fail', 1], ['divides', 'fail', 1], ['later', 'skip', 1], ['stubborn', 'fail', 3],
+    ])
+    expect(failing[1]?.failure?.message).toBe('expected: <4> but was: <3>')
+    expect(failing[1]?.failure?.stack).toContain('MathTest.java:18')
+    expect(failing[2]?.failure?.message).toBe('/ by zero')
+    expect(cases('junit', 'junit/surefire-empty.xml')).toEqual([])
   })
 
   it('pytest 风格：点号 classname 推成 .py 文件，类名进分组；rerun 后通过 → flaky', () => {
