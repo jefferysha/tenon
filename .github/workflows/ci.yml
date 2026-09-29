@@ -164,8 +164,6 @@ jobs:
       # 普通 npm test 里的 real-Codex 文件仍允许 honest-skip；配置 secret 的 canonical verify
       # 已在 main push 上方以 TENON_REQUIRE_REAL_CODEX=1 定向执行 fail-closed 验收。
       - name: vitest (kernel/cli/server/automation/tap)
-        env:
-          TENON_REQUIRE_REAL_BROWSER: '1'
         run: npm test
 
       - name: dashboard-app tests

@@ -234,6 +234,19 @@ test('canonical CI actions are immutable full-SHA pins', async () => {
   assert.doesNotMatch(ci, /actions\/(?:checkout|setup-node)@v\d+\b/)
 })
 
+test('canonical CI sets only TENON_* env switches that repository code reads', async () => {
+  const ci = await text('.github/workflows/ci.yml')
+  const names = [...new Set([...ci.matchAll(/^\s+(TENON_[A-Z0-9_]+):/gmu)].map((match) => match[1]))]
+  assert.ok(names.length > 0, 'expected at least one TENON_* env switch in canonical CI')
+  for (const name of names) {
+    const readers = spawnSync('git', ['grep', '-l', '-F', name, '--', '.', ':!.github', ':!.trellis'], {
+      cwd: root,
+      encoding: 'utf8',
+    })
+    assert.equal(readers.status, 0, `${name} is set in ci.yml but nothing outside .github reads it`)
+  }
+})
+
 test('every clean-install workflow uses the pinned trusted Codex acceptance root', async () => {
   for (const path of [
     '.github/workflows/ci.yml',
