@@ -13,6 +13,7 @@ import { lstat, readFile } from 'node:fs/promises'
 import { atomicReplaceFile } from '../state/atomic-publish.js'
 import { withLock } from '../state/lock.js'
 import { decodeRecordActor, type RecordActor } from '../users/user.js'
+import { appendTestAudit, testAuditEntry, type TestAuditOutcome } from './audit.js'
 import { testPlanLedgerPath, testPlanPath } from './paths.js'
 import { parseTestPlan, serializeTestPlan, testPlanBytesDigest, type TestPlan } from './plan.js'
 
@@ -81,29 +82,63 @@ export async function readTestPlanState(changeDir: string, changeName: string): 
   return { state: 'ok', plan: result.plan, digest, ledger }
 }
 
+export interface PlanWriteMeta {
+  readonly actor: RecordActor
+  readonly recordedAt: string
+  /** 触发这次写入的子命令（register / unregister / waive / seed …）；只进审计行。 */
+  readonly op?: string
+}
+
+export interface PlanWriteResult {
+  readonly digest: string
+  /** 计划字节相对台账里的上一份是否真的变了；没变（幂等重写）不留审计行。 */
+  readonly changed: boolean
+  /** 审计行的结果；没变时 `unchanged`。 */
+  readonly audit: TestAuditOutcome | 'unchanged'
+}
+
 /**
  * 只供 CLI 写入（`tenon test register|unregister|waive|plan --seed`）。持 Change 锁，锁不可重入：
  * 调用方不得在另一个 withLock(changeDir) 回调里调用本函数——已经持锁的调用方（review acknowledge 在同一次
- * 确认里批准豁免）用 `writeTestPlanUnderLock`。
+ * 确认里批准豁免）用 `writeTestPlanUnderLock`。计划真的变了就在 change 历史里留一行 `test:plan-write`。
  */
 export async function writeTestPlan(
   changeDir: string,
   plan: TestPlan,
-  meta: { readonly actor: RecordActor; readonly recordedAt: string },
-): Promise<{ readonly digest: string }> {
-  return withLock(changeDir, () => writeTestPlanUnderLock(changeDir, plan, meta))
+  meta: PlanWriteMeta,
+): Promise<PlanWriteResult> {
+  return withLock(changeDir, async () => {
+    const written = await writeTestPlanUnderLock(changeDir, plan, meta)
+    if (!written.changed) return { ...written, audit: 'unchanged' as const }
+    const audit = await appendTestAudit(changeDir, testAuditEntry(
+      'plan-write',
+      { op: meta.op, plan: written.digest },
+      { ts: meta.recordedAt, actor: meta.actor },
+    ))
+    return { ...written, audit }
+  })
 }
 
-/** 调用方已持有该 Change 的锁；写入顺序与失败恢复同文件头。 */
+async function ledgerDigest(changeDir: string): Promise<string | undefined> {
+  try {
+    const parsed: unknown = JSON.parse(await readFile(testPlanLedgerPath(changeDir), 'utf8'))
+    return decodeTestPlanLedger(parsed)?.digest
+  } catch {
+    return undefined
+  }
+}
+
+/** 调用方已持有该 Change 的锁；写入顺序与失败恢复同文件头。不留审计行（批准豁免的调用方自己记）。 */
 export async function writeTestPlanUnderLock(
   changeDir: string,
   plan: TestPlan,
-  meta: { readonly actor: RecordActor; readonly recordedAt: string },
-): Promise<{ readonly digest: string }> {
+  meta: PlanWriteMeta,
+): Promise<{ readonly digest: string; readonly changed: boolean }> {
   const bytes = serializeTestPlan(plan)
   const digest = testPlanBytesDigest(bytes)
+  const changed = (await ledgerDigest(changeDir)) !== digest
   const ledger: TestPlanLedger = { version: 1, digest, recorded_at: meta.recordedAt, actor: meta.actor }
   await atomicReplaceFile(testPlanPath(changeDir), bytes)
   await atomicReplaceFile(testPlanLedgerPath(changeDir), `${JSON.stringify(ledger, null, 2)}\n`)
-  return { digest }
+  return { digest, changed }
 }
