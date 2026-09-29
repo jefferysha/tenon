@@ -50,7 +50,41 @@ const TRUTH_SOURCES = [
   'packages/kernel/src/workflow/default-workflow.generated.ts',
   'skills/tenon/SKILL.md',
   'templates/workflows/simple.yaml',
+  'packages/cli/src/program-users.ts',
+  'docs/CONTRACT.md',
 ]
+
+/**
+ * Identity and ownership commands registered in program-users.ts: each must stay registered and be
+ * documented in both CLI references and the CONTRACT CLI surface.
+ */
+const USER_COMMANDS = [
+  { registration: /\.command\(\s*['"]user['"]/u, command: 'tenon user' },
+  { registration: /\.command\(\s*['"]set <id>['"]/u, command: 'tenon user set' },
+  { registration: /\.command\(\s*['"]take <change>['"]/u, command: 'tenon owner take' },
+  { registration: /\.command\(\s*['"]set <change> <id>['"]/u, command: 'tenon owner set' },
+]
+const USER_COMMAND_DOCUMENTS = [
+  'docs/usage/cli-reference.md',
+  'docs/usage/zh-CN/cli-reference.md',
+  'docs/CONTRACT.md',
+]
+
+/**
+ * The retired 1.x releases and tags stay published until the v0.x real-host acceptance removes them.
+ * Current install/update pages must not claim they are already deleted. Historical release-note
+ * entries are records of their own release and are not scanned.
+ */
+const RETIRED_RELEASE_DOCUMENTS = [
+  'README.md',
+  'README.en.md',
+  'docs/usage/installation.md',
+  'docs/usage/zh-CN/installation.md',
+  'docs/usage/updates-recovery-and-uninstall.md',
+  'docs/usage/zh-CN/updates-recovery-and-uninstall.md',
+]
+const RETIRED_RELEASE_DELETED_CLAIM =
+  /1\.x[^。\n]{0,40}?(?:全部删除|已经删除|已删除)|1\.x releases?(?: and tags)? (?:were|are|have been) (?:removed|deleted)/iu
 
 /**
  * Dashboard 的可持久化视图 id 由 shell/views.ts 的 VIEWS 导出，文档门禁只校验
@@ -287,7 +321,38 @@ function checkRequiredLinks(document, content, expected, failures) {
   }
 }
 
+function checkUserCommandDocs(contents, failures) {
+  const source = contents.get('packages/cli/src/program-users.ts')
+  if (source === undefined) return
+  for (const { registration, command } of USER_COMMANDS) {
+    if (!registration.test(source)) {
+      failures.push(`packages/cli/src/program-users.ts: missing documented \`${command}\` command`)
+      continue
+    }
+    for (const document of USER_COMMAND_DOCUMENTS) {
+      const text = contents.get(document)
+      if (text !== undefined && !text.includes(command)) {
+        failures.push(`${document}: missing identity/ownership command \`${command}\``)
+      }
+    }
+  }
+}
+
+function checkRetiredReleaseClaims(contents, failures) {
+  for (const document of RETIRED_RELEASE_DOCUMENTS) {
+    const text = contents.get(document)
+    if (text === undefined) continue
+    if (RETIRED_RELEASE_DELETED_CLAIM.test(text.replace(/\s+/gu, ' '))) {
+      failures.push(
+        `${document}: claims the retired 1.x releases/tags were deleted; they stay until the v0.x real-host acceptance`,
+      )
+    }
+  }
+}
+
 function checkSourceBoundedClaims(root, contents, failures) {
+  checkUserCommandDocs(contents, failures)
+  checkRetiredReleaseClaims(contents, failures)
   const packageText = contents.get('package.json')
   if (packageText !== undefined) {
     let engine

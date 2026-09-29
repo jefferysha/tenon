@@ -105,6 +105,27 @@ derived handoff artifact, not a replacement canonical document; repair stale
 inputs with `tenon document record` under an allowed producer and then
 re-run the handoff.
 
+## Identity and ownership
+
+```text
+tenon user [--json]
+tenon user set <email> [--name <name>]
+tenon owner take <change>
+tenon owner set <change> <email> [--name <name>]
+```
+
+Identity is self-declared, not authenticated. `tenon user` resolves it from
+`TENON_USER`, then the machine-local `user.json`, then `git config user.email`,
+and prints `Name <email> source`; with no identity it exits `1` (`--json` still
+prints `{"user":null}`). `tenon user set` writes `user.json`; `TENON_USER`, when
+set, still wins and a warning says so.
+
+`tenon owner take` makes the current user the Change owner; `tenon owner set`
+hands the Change to another user and is allowed only for the current owner.
+Both print the new owner as `Name <email>`, append an `assignee` history entry,
+and exit `1` for an invalid name or email, a missing identity or Change, or a
+non-owner hand-over.
+
 ## Tests
 
 ```text

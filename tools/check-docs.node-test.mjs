@@ -105,6 +105,22 @@ async function fixture() {
   )
   await write(
     root,
+    'packages/cli/src/program-users.ts',
+    [
+      "program.command('user')",
+      "user.command('set <id>')",
+      "program.command('owner')",
+      "owner.command('take <change>')",
+      "owner.command('set <change> <id>')",
+    ].join('\n'),
+  )
+  await write(
+    root,
+    'docs/CONTRACT.md',
+    '# CONTRACT\n\n`tenon user` / `tenon user set` / `tenon owner take` / `tenon owner set`\n',
+  )
+  await write(
+    root,
     'templates/workflows/simple.yaml',
     ['name: simple', ...['change', 'verify', 'done', 'escalated'].map((id) => `  - id: ${id}`)].join('\n'),
   )
@@ -208,6 +224,7 @@ async function fixture() {
       '`tenon runtime status`',
       '`tenon runtime repair --rollback`',
       '`tenon dashboard --open`',
+      '`tenon user` · `tenon user set` · `tenon owner take` · `tenon owner set`',
     ].join('\n\n'),
   )
   await write(
@@ -254,6 +271,7 @@ async function fixture() {
       '`tenon runtime status`',
       '`tenon runtime repair --rollback`',
       '`tenon dashboard --open`',
+      '`tenon user` · `tenon user set` · `tenon owner take` · `tenon owner set`',
     ].join('\n\n'),
   )
   return root
@@ -375,4 +393,38 @@ test('requires README language and community links', async (t) => {
   const failures = checkRepository(root).join('\n')
   assert.match(failures, /README\.md.*README\.en\.md/)
   assert.match(failures, /README\.md.*SECURITY\.md/)
+})
+
+test('identity and ownership commands must be documented in both CLI references and CONTRACT', async (t) => {
+  const root = await fixture()
+  t.after(() => rm(root, { recursive: true, force: true }))
+  await write(root, 'docs/usage/zh-CN/cli-reference.md', '# CLI\n\n`tenon setup --codex`\n\n`tenon update --codex`\n\n`tenon runtime status`\n\n`tenon runtime repair --rollback`\n\n`tenon dashboard --open`\n\n`tenon user`\n')
+  await write(root, 'docs/CONTRACT.md', '# CONTRACT\n\n`tenon user` / `tenon user set`\n')
+  const failures = checkRepository(root).join('\n')
+  assert.match(failures, /zh-CN\/cli-reference\.md: missing identity\/ownership command `tenon owner take`/)
+  assert.match(failures, /docs\/CONTRACT\.md: missing identity\/ownership command `tenon owner set`/)
+  assert.doesNotMatch(failures, /docs\/usage\/cli-reference\.md: missing identity/)
+})
+
+test('identity and ownership commands must stay registered', async (t) => {
+  const root = await fixture()
+  t.after(() => rm(root, { recursive: true, force: true }))
+  await write(root, 'packages/cli/src/program-users.ts', "program.command('user')\nuser.command('set <id>')\n")
+  assert.match(checkRepository(root).join('\n'), /program-users\.ts: missing documented `tenon owner take` command/)
+})
+
+test('current install docs must not claim the retired 1.x releases were already deleted', async (t) => {
+  const root = await fixture()
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const zh = await readFile(join(root, 'docs/usage/zh-CN/installation.md'), 'utf8')
+  await write(root, 'docs/usage/zh-CN/installation.md', `${zh}\n\n已退役的 1.x Release 与标签全部删除。\n`)
+  const en = await readFile(join(root, 'docs/usage/installation.md'), 'utf8')
+  await write(root, 'docs/usage/installation.md', `${en}\n\nThe retired 1.x releases were\nremoved.\n`)
+  const failures = checkRepository(root).join('\n')
+  assert.match(failures, /zh-CN\/installation\.md: claims the retired 1\.x releases\/tags were deleted/)
+  assert.match(failures, /docs\/usage\/installation\.md: claims the retired 1\.x releases\/tags were deleted/)
+
+  await write(root, 'docs/usage/zh-CN/installation.md', `${zh}\n\n已退役的 1.x Release 与标签仍在，计划在 v0.x 真实宿主验收后删除。\n`)
+  await write(root, 'docs/usage/installation.md', `${en}\n\nThe retired 1.x releases and tags are still published and will be removed after the v0.x real-host acceptance.\n`)
+  assert.deepEqual(checkRepository(root), [])
 })

@@ -48,8 +48,9 @@ root from the host's own inventory, and invokes the same
 `tenon setup --<host>` operation. Tenon does not guess private host
 cache locations.
 
-Tenon's version numbering restarted at 0.1.0, and the retired 1.x releases were
-removed. On a machine that still runs a 1.x installation, run the versioned
+Tenon's version numbering restarted at 0.1.0. The retired 1.x releases and tags
+are still published and will be removed after the v0.x real-host acceptance.
+On a machine that still runs a 1.x installation, run the versioned
 `v0.1.10/install.sh` command once per host. `tenon update` on 1.x reports a
 downgrade and changes nothing: that refusal ships inside the already published
 1.x release and cannot be fixed retroactively. From v0.1.0 onward, every routine

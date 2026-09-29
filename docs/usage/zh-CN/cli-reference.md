@@ -67,6 +67,24 @@ tenon spec apply <change> [--dry-run] [--json]
 `applied-spec.md`。`--dry-run` 除回执外不写任何文件。退出码：`0` 通过，`1` 用法或状态，
 `2` 校验或彩排失败，`3` PATH 上没有 openspec，`4` 主规格在彩排期间被改过。
 
+## 身份与负责人
+
+```text
+tenon user [--json]
+tenon user set <邮箱> [--name <名字>]
+tenon owner take <change>
+tenon owner set <change> <邮箱> [--name <名字>]
+```
+
+身份是自报的，不做认证。`tenon user` 依次取 `TENON_USER`、本机 `user.json`、
+`git config user.email`，输出 `名字 <邮箱> 来源`；没有身份时退出码 `1`（`--json` 仍输出
+`{"user":null}`）。`tenon user set` 写本机 `user.json`；设置了 `TENON_USER` 时它仍优先，并在
+stderr 提示。
+
+`tenon owner take` 把负责人改为当前用户；`tenon owner set` 把任务移交给另一位用户，只有当前负责人
+可以执行。两者都输出新负责人 `名字 <邮箱>`，并在 history 里记一条 `assignee` 变更；change 名或邮箱
+非法、身份缺失、找不到任务、非负责人移交都以 `1` 退出。
+
 ## 文档证据
 
 ```bash

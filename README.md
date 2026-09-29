@@ -87,7 +87,7 @@ Bootstrap 注册 Tenon Marketplace、安装同一个完整插件、校验发行 
 `tenon setup --<host>`。已经安装后的维护入口仍是 `tenon setup --codex`、`tenon update --codex`
 与 `tenon runtime status`。
 
-Tenon 版本号已重置为从 0.1.0 开始，已退役的 1.x Release 与标签全部删除。如果机器上仍是 1.x 安装，
+Tenon 版本号已重置为从 0.1.0 开始；已退役的 1.x Release 与标签仍在，计划在 v0.x 真实宿主验收后删除。如果机器上仍是 1.x 安装，
 请为每个宿主各执行一次上面的版本化安装命令。1.x 上的 `tenon update` 只会报告降级且不做任何改动：
 那段拒绝逻辑属于已经发布的 1.x，无法事后修补；因此也不把第二次命令或 Dashboard/校验脚本副作用
 伪装成一键升级。从 `v0.1.0` 起，之后每次常规升级都只需运行一条 `tenon update --codex`（或 `--claude`），

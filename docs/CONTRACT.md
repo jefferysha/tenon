@@ -259,6 +259,12 @@
 | task delete | `<name> [--yes] [--json]` | 无（`[DELETE] name` 与 `未提交删除 n` 走 stderr）；`--json` `{change,removed,uncommitted_deletions}` | 0；用法/名/缺任务/身份/记录损坏/失败=1；待确认=2；被阻止=3 |
 | task archive | `<name> [--yes] [--json]` | 无（`[ARCHIVE] name phase=<phase>` 走 stderr）；`--json` `{change,changed,archived_at,phase}` | 同上 |
 | task unarchive | `<name> [--json]` | 无（`[UNARCHIVE] name` 走 stderr）；`--json` `{change,changed}` | 0/1 |
+| user | `[--json]` | `名字 <邮箱> 来源` 一行；`--json` `{user:{id,name,slug,source,trust}\|null, invalid?}` | 0；无身份=1 |
+| user set | `<email> [--name <name>]` | 写本机 `user.json` 后同 `user`；`TENON_USER` 覆盖时 stderr 警告 | 0；邮箱非法/写失败=1 |
+| owner take | `<name>` | 新负责人 `名字 <邮箱>` 一行；变更时追加 `assignee` history | 0；名非法/无身份/缺任务/写失败=1 |
+| owner set | `<name> <email> [--name <name>]` | 同 `owner take` | 0；非当前负责人/邮箱非法=1，其余同 `owner take` |
+
+身份与负责人命令 `tenon user` / `tenon user set` / `tenon owner take` / `tenon owner set` 只登记自报身份，不做认证；`owner set` 仅当前负责人可执行，与 Dashboard 的负责人移交共用 kernel `transferOwner`。
 
 get/set/transition 的 stdout 与 exit code 以 **golden-oracle 双跑逐字一致**为准
 （oracle=老内核 `skills/pipeline/scripts/pipeline-state.sh`，diff 白名单仅时间戳字段值）。
