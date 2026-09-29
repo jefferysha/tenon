@@ -150,9 +150,22 @@ function input(value: unknown): TestInputRecord {
   return bad()
 }
 
+/** 目录副本索引：只允许挂在已复制的目录产物下，每项是该目录内不含 `.` / `..` 段的相对路径。 */
+function artifactFiles(value: unknown, artifact: string | null): readonly string[] {
+  if (artifact === null) bad()
+  return list(value).map((entry) => {
+    const path = text(entry)
+    if (!path.startsWith(`${artifact}/`)) bad()
+    const segments = path.slice(artifact.length + 1).split('/')
+    if (segments.some((segment) => segment === '' || segment === '.' || segment === '..')) bad()
+    return path
+  })
+}
+
 function output(value: unknown): TestOutputRecord {
-  const item = record(value, ['path', 'kind', 'required', 'present', 'digest', 'bytes', 'files', 'artifact'])
+  const item = record(value, ['path', 'kind', 'required', 'present', 'digest', 'bytes', 'files', 'artifact', 'artifact_files'])
   if (!OUTPUT_KINDS.has(text(item.kind))) bad()
+  const artifact = item.artifact === null ? null : text(item.artifact)
   return {
     path: text(item.path),
     kind: item.kind as TestOutputKind,
@@ -161,7 +174,8 @@ function output(value: unknown): TestOutputRecord {
     digest: item.digest === null ? null : digest(item.digest),
     bytes: count(item.bytes),
     files: count(item.files),
-    artifact: item.artifact === null ? null : text(item.artifact),
+    artifact,
+    ...(item.artifact_files === undefined ? {} : { artifact_files: artifactFiles(item.artifact_files, artifact) }),
   }
 }
 

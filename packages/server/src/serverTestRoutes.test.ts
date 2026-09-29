@@ -121,6 +121,39 @@ describe('GET /api/tests/runs|run', () => {
   })
 })
 
+describe('目录产物（Playwright test-results/ 等）', () => {
+  it('run 列出目录里的文件而不是目录；目录内文件可下载、图片按类型给；目录本身与逃逸仍被拒', async () => {
+    const h = await start()
+    const record = testRecord({
+      outputs: [{
+        path: 'test-results', kind: 'screenshot', required: false, present: true,
+        digest: `sha256:${'e'.repeat(64)}`, bytes: 5, files: 3, artifact: 'outputs/test-results',
+        artifact_files: ['outputs/test-results/junit.xml', 'outputs/test-results/shots/home.png', 'outputs/test-results/pruned.zip'],
+      }],
+    })
+    const { runDir } = await seedRun(h.root, record)
+    await mkdir(join(runDir, 'outputs', 'test-results', 'shots'), { recursive: true })
+    await writeFile(join(runDir, 'outputs', 'test-results', 'shots', 'home.png'), 'png', 'utf8')
+    const query = `root=${encodeURIComponent(h.root)}&change=${CHANGE}&user=${SLUG}&run=${RUN_ID}`
+
+    const found = JSON.parse((await reqGet(h.port, `/api/tests/run?${query}`)).body) as { artifacts: { files: string[] } }
+    // pruned.zip 已不在盘上，不列；目录本身不列。
+    expect(found.artifacts.files).toEqual(['outputs/test-results/junit.xml', 'outputs/test-results/shots/home.png'])
+
+    const image = await reqGet(h.port, `/api/tests/artifact?${query}&path=${encodeURIComponent('outputs/test-results/shots/home.png')}`)
+    expect(image.status).toBe(200)
+    expect(image.headers['content-type']).toBe('image/png')
+    expect(image.body).toBe('png')
+    expect((await reqGet(h.port, `/api/tests/artifact?${query}&path=outputs/test-results`)).status).toBe(403)
+    expect((await reqGet(h.port, `/api/tests/artifact?${query}&path=outputs/test-results/../../output.log`)).status).toBe(400)
+    await symlink(join(h.root, '.tenon'), join(runDir, 'outputs', 'test-results', 'escape'))
+    // 目录里的符号链接指向运行目录之外的普通文件（本用户的运行记录）：realpath 越界 → 403。
+    const escaped = await reqGet(h.port, `/api/tests/artifact?${query}&path=${encodeURIComponent(`outputs/test-results/escape/users/${SLUG}/tests/${CHANGE}/${RUN_ID}.json`)}`)
+    expect(escaped.status).toBe(403)
+    expect(escaped.body).toContain('逃出运行目录')
+  })
+})
+
 describe('GET /api/tests/artifact', () => {
   it('原始字节 + 安全响应头 + tail；类型白名单；逃逸与符号链接被拒', async () => {
     const h = await start()

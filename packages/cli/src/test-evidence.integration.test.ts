@@ -1,5 +1,8 @@
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { createDashboardServer, resolveServerPaths } from '@tenon/server'
 import { afterEach, describe, expect, test } from 'vitest'
 import { freshHarness, rm, type Harness } from './integration-harness.js'
 
@@ -150,6 +153,57 @@ describe('真实 e2e —— 每步测试登记', () => {
       'outputs', 'test-results', 'junit.xml',
     )
     expect(await readFile(copy, 'utf8')).toBe('<testsuite/>')
+  })
+
+  test('目录产物 e2e：tenon test run 复制 test-results/ 目录 → Dashboard 列出目录内文件、图片可下载、逃逸被拒', async () => {
+    // Playwright 式输出：整个 test-results/ 目录（截图在子目录里）作为一项输出。
+    await seed(TESTED_WF.replace(
+      "            outputs:\n              - path: test-results/junit.xml\n                kind: report\n                required: true\n",
+      "            outputs:\n              - path: test-results\n                kind: screenshot\n                required: true\n",
+    ).replace("            command: node -e 'process.exit(0)'\n            timeout_s: 60\n            outputs:", "            command: node scripts/e2e.mjs\n            timeout_s: 60\n            outputs:"))
+    await mkdir(join(h.cwd, 'scripts'), { recursive: true })
+    await writeFile(join(h.cwd, 'scripts', 'e2e.mjs'), [
+      "import { mkdirSync, writeFileSync } from 'node:fs'",
+      "mkdirSync('test-results/shots', { recursive: true })",
+      "writeFileSync('test-results/shots/home.png', 'png-bytes')",
+      "writeFileSync('test-results/trace.zip', 'PK')",
+    ].join('\n'), 'utf8')
+    expect(await h.run(['test', 'run', 'demo', 'report'], { env: USER_A }), h.err.join('\n')).toBe(0)
+    const [runFile] = await runIds(SLUG_A)
+    const stored = await record(SLUG_A, runFile ?? '')
+    const runId = String(stored.run_id)
+    expect(stored.outputs).toMatchObject([{
+      path: 'test-results', kind: 'screenshot', present: true, files: 2, artifact: 'outputs/test-results',
+      artifact_files: ['outputs/test-results/shots/home.png', 'outputs/test-results/trace.zip'],
+    }])
+
+    const home = await mkdtemp(join(tmpdir(), 'tenon-e2e-dashboard-'))
+    const server = createDashboardServer({
+      version: '9.9.9', hostHome: home, paths: resolveServerPaths({ home, env: {} }), token: 'e2e-token',
+      registry: () => [h.cwd], pollIntervalMs: 1000, cadence: false,
+      manifestPath: fileURLToPath(new URL('../../../templates/manifest.yaml', import.meta.url)),
+    })
+    try {
+      const { port } = await server.listen(0, '127.0.0.1')
+      const base = `http://127.0.0.1:${port}`
+      const query = `root=${encodeURIComponent(h.cwd)}&change=demo&user=${SLUG_A}&run=${runId}`
+      const detail = await fetch(`${base}/api/tests/run?${query}`)
+      expect(detail.status).toBe(200)
+      const body = await detail.json() as { artifacts: { files: string[] } }
+      expect(body.artifacts.files).toEqual(['outputs/test-results/shots/home.png', 'outputs/test-results/trace.zip'])
+
+      const image = await fetch(`${base}/api/tests/artifact?${query}&path=${encodeURIComponent('outputs/test-results/shots/home.png')}`)
+      expect(image.status).toBe(200)
+      expect(image.headers.get('content-type')).toBe('image/png')
+      expect(await image.text()).toBe('png-bytes')
+      const trace = await fetch(`${base}/api/tests/artifact?${query}&path=${encodeURIComponent('outputs/test-results/trace.zip')}`)
+      expect(trace.headers.get('content-disposition')).toBe('attachment')
+      expect((await fetch(`${base}/api/tests/artifact?${query}&path=outputs/test-results`)).status).toBe(403)
+      expect((await fetch(`${base}/api/tests/artifact?${query}&path=${encodeURIComponent('outputs/test-results/../../../x')}`)).status).toBe(400)
+    } finally {
+      await server.close()
+      await rm(home, { recursive: true, force: true })
+    }
   })
 
   test('另一个用户在同一仓库执行 → 记录分别落在各自目录，互不覆盖', async () => {

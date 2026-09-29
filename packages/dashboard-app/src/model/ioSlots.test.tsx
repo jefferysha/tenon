@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { WbIoSlot } from '../api/governanceTypes'
 import { mergeFieldAliases, mergeStepIoAliases } from './ioSlots'
 
-const document = (id: string): WbIoSlot => ({ kind: 'document', id, role: 'produce', scope: 'change', producers: [], consumers: [] })
+const document = (id: string, role: 'produce' | 'read' = 'produce'): WbIoSlot => ({ kind: 'document', id, role, scope: 'change', producers: [], consumers: [] })
 const field = (id: string): WbIoSlot => ({ kind: 'field', id, type: 'file_path', producer: null, consumers: [] })
 
 describe('mergeFieldAliases', () => {
@@ -22,7 +22,7 @@ describe('mergeFieldAliases', () => {
     expect(mergeFieldAliases(slots)).toEqual(slots)
     expect(mergeStepIoAliases(undefined)).toBeUndefined()
     const io = mergeStepIoAliases({
-      inputs: [field('verification_report'), { ...document('verification-report'), role: 'read' }],
+      inputs: [field('verification_report'), document('verification-report', 'read')],
       outputs: [field('pr_url')],
     })
     expect(io?.inputs.map((slot) => slot.id)).toEqual(['verification-report'])

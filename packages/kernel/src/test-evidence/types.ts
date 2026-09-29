@@ -52,6 +52,11 @@ export interface TestOutputRecord {
   readonly files: number
   /** run 目录内的副本相对路径；未复制时 null。 */
   readonly artifact: string | null
+  /**
+   * 目录输出复制成功时的逐文件索引：每项是 run 目录内的副本相对路径（`<artifact>/<相对路径>`），
+   * 供 Dashboard 列出、下载目录里的文件。文件输出与未复制的目录没有这一键。
+   */
+  readonly artifact_files?: readonly string[]
 }
 
 export interface TestMetricRecord {

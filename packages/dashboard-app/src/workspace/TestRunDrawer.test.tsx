@@ -65,6 +65,32 @@ describe('TestRunDrawer', () => {
     expect(logCall).toContain('tail=262144')
   })
 
+  it('目录产物：列出目录里的文件、每个文件旁一个打开；目录里的截图内联', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.startsWith('/api/tests/runs')) {
+        return new Response(JSON.stringify({ ok: true, runs: [{ ...RUN, artifacts: true }] }), { status: 200 })
+      }
+      if (url.startsWith('/api/tests/run')) {
+        return new Response(JSON.stringify({
+          ok: true,
+          record: { ...RECORD, outputs: [{ path: 'test-results', bytes: 11, artifact: 'outputs/test-results' }] },
+          artifacts: { log: false, files: ['outputs/test-results/shots/home.png', 'outputs/test-results/trace.zip'] },
+        }), { status: 200 })
+      }
+      return new Response(JSON.stringify({ ok: false, error: 'not found' }), { status: 404 })
+    })
+    render(<I18nProvider><TestRunDrawer root="/repo" change="demo" row={ROW} onClose={() => undefined} /></I18nProvider>)
+
+    await waitFor(() => expect(screen.getAllByTestId('test-run-output-file')).toHaveLength(2))
+    const output = screen.getByTestId('test-run-output')
+    expect(output.textContent).not.toContain('—')
+    const files = screen.getAllByTestId('test-run-output-file')
+    expect(files.map((file) => file.textContent)).toEqual(['shots/home.png打开', 'trace.zip打开'])
+    expect(within(files[1] as HTMLElement).getByTestId('test-run-open').getAttribute('href') ?? '').toContain('path=outputs%2Ftest-results%2Ftrace.zip')
+    expect(screen.getByTestId('test-run-image').getAttribute('src') ?? '').toContain('path=outputs%2Ftest-results%2Fshots%2Fhome.png')
+  })
+
   it('没有运行时不拉记录，历史为空占位', async () => {
     stubFetch()
     const row: TestRow = { id: 'bench', name: 'bench', direction: 'benchmark', required: false, status: 'missing' }

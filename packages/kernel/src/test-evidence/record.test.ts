@@ -84,6 +84,28 @@ describe('decodeTestRunRecord', () => {
   })
 })
 
+describe('目录产物的逐文件索引（artifact_files）', () => {
+  const directory = {
+    path: 'test-results', kind: 'screenshot', required: false, present: true,
+    digest: `sha256:${'e'.repeat(64)}`, bytes: 6, files: 2, artifact: 'outputs/test-results',
+    artifact_files: ['outputs/test-results/shots/home.png', 'outputs/test-results/trace.zip'],
+  }
+
+  test('旧记录没有这一键照常解码；目录索引逐字保真', () => {
+    const withIndex = { ...RECORD, outputs: [...RECORD.outputs, directory] }
+    expect(decodeTestRunRecord(JSON.parse(JSON.stringify(withIndex)))).toEqual(withIndex)
+  })
+
+  test('索引只能挂在已复制的目录下，且不得逃出该目录', () => {
+    const decode = (output: Record<string, unknown>) => decodeTestRunRecord({ ...RECORD, outputs: [output] })
+    expect(decode({ ...directory, artifact: null })).toBeUndefined()
+    expect(decode({ ...directory, artifact_files: ['outputs/other/x.png'] })).toBeUndefined()
+    expect(decode({ ...directory, artifact_files: ['outputs/test-results/../x.png'] })).toBeUndefined()
+    expect(decode({ ...directory, artifact_files: ['outputs/test-results//x.png'] })).toBeUndefined()
+    expect(decode({ ...directory, artifact_files: 'outputs/test-results/x.png' })).toBeUndefined()
+  })
+})
+
 describe('记录发布与读取', () => {
   test('独占发布，同一 run-id 第二次失败', async () => {
     const root = await freshRepo()

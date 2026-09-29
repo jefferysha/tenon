@@ -114,12 +114,26 @@ export function TestRunDrawer({
                 {rows(record, 'outputs').map((output, index) => {
                   const artifact = typeof output.artifact === 'string' ? output.artifact : null
                   const present = artifact !== null && files.includes(artifact)
+                  // 目录产物：服务端按逐文件索引列出目录里的文件，每个文件旁一个打开。
+                  const inside = artifact === null ? [] : files.filter((file) => file.startsWith(`${artifact}/`))
                   return (
-                    <li key={index} className="flex items-center gap-2 truncate" data-testid="test-run-output">
-                      <span className="truncate">{String(output.path)} · {String(output.bytes ?? 0)}</span>
-                      {present
-                        ? <a className="flex-none text-(--accent) underline" href={url(artifact)} download data-testid="test-run-open">{t('workspace.test_open')}</a>
-                        : <span className="flex-none text-text-3">—</span>}
+                    <li key={index} className="grid gap-1" data-testid="test-run-output">
+                      <span className="flex items-center gap-2 truncate">
+                        <span className="truncate">{String(output.path)} · {String(output.bytes ?? 0)}</span>
+                        {present
+                          ? <a className="flex-none text-(--accent) underline" href={url(artifact)} download data-testid="test-run-open">{t('workspace.test_open')}</a>
+                          : inside.length === 0 && <span className="flex-none text-text-3">—</span>}
+                      </span>
+                      {artifact !== null && inside.length > 0 && (
+                        <ul className="grid max-h-48 gap-1 overflow-auto pl-4" data-testid="test-run-output-files">
+                          {inside.map((file) => (
+                            <li key={file} className="flex items-center gap-2 truncate" data-testid="test-run-output-file">
+                              <span className="truncate" title={file}>{file.slice(artifact.length + 1)}</span>
+                              <a className="flex-none text-(--accent) underline" href={url(file)} download data-testid="test-run-open">{t('workspace.test_open')}</a>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </li>
                   )
                 })}

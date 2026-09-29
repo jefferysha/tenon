@@ -4,6 +4,7 @@
  * 产物是原始字节（trace zip、截图、报告），所以这条路由直接写 res：按扩展名白名单给 content-type，
  * 一律带 nosniff 与 `CSP: sandbox`，zip 作为附件下载；打开前 lstat 必须是普通文件，realpath 必须仍在
  * 该 run 的产物目录内，O_NOFOLLOW 打开，超过上限给 413。HTML 报告永不在 Dashboard 源里渲染。
+ * 目录产物（Playwright 的 test-results/ 等）按记录里的逐文件索引列出，下载的是目录里的单个文件。
  */
 import { createReadStream } from 'node:fs'
 import { lstat, open, realpath } from 'node:fs/promises'
@@ -75,6 +76,15 @@ function params(url: string): Params {
   }
 }
 
+/** 本机产物可能已被保留策略清掉，或是目录 / 符号链接：只有仍存在的普通文件才可下载。 */
+async function isRegularFile(path: string): Promise<boolean> {
+  try {
+    return (await lstat(path)).isFile()
+  } catch {
+    return false
+  }
+}
+
 async function artifactsPresent(readRoot: string, slug: string, change: string, runId: string): Promise<boolean> {
   try {
     return (await lstat(testRunArtifactsDir(readRoot, slug, change, runId))).isDirectory()
@@ -135,11 +145,9 @@ export async function resolveTestRunsRoute(
   const files: string[] = []
   for (const output of record.outputs) {
     if (output.artifact === null) continue
-    try {
-      await lstat(join(runDir, ...output.artifact.split('/')))
-      files.push(output.artifact)
-    } catch {
-      // 本机产物可能已被保留策略清掉；缺席就不列。
+    // 目录产物本身不能下载：列它的逐文件索引（旧记录没有索引，就不列）。只列仍是普通文件的项。
+    for (const artifact of output.artifact_files ?? [output.artifact]) {
+      if (await isRegularFile(join(runDir, ...artifact.split('/')))) files.push(artifact)
     }
   }
   const log = await lstat(join(runDir, record.log.artifact)).then(() => true, () => false)

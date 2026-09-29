@@ -132,6 +132,10 @@ describe('collectTestOutputs', () => {
       runDir,
     )
     expect(record).toMatchObject({ present: true, files: 2, artifact: 'outputs/playwright-report' })
+    expect(record?.artifact_files).toEqual([
+      'outputs/playwright-report/data/trace.zip',
+      'outputs/playwright-report/index.html',
+    ])
   })
 
   test('缺失与符号链接输出判为不存在（必需时由调用方记 output-missing）', async () => {
