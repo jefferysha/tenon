@@ -128,7 +128,8 @@ review（缺失、已被消费、binding 失效或 event 已不是 workflow 出�
 
 `review request` 还会冻结并列出测试计划里尚未批准的豁免（`waivers[].approved_by` 为空）。人工的
 `review acknowledge` 在提交 approved receipt 的同一把锁内，只给这些豁免写上 `approved_by`，并在 change 历史里留一行
-`test:waiver-approve`；`--delegated` 从不批准豁免，请求之后才加进计划的豁免也不在这次确认里。计划写入与基线更新同样各留
+`test:waiver-approve`；`--delegated` 从不批准豁免，计划里有待批准的豁免时它被整个拒绝（不写任何东西，评审仍待确认）；请求之后才加进计划的豁免
+也不在那次确认里（`step.next` 会先要求重新发起请求）。计划写入与基线更新同样各留
 `test:plan-write` / `test:baseline-update` 一行。
 
 自动评审与人工确认是两套不同边界：前者是步骤声明的 agent，后者是 `gate: review`，可以叠加。

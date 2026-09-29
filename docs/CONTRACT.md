@@ -537,7 +537,8 @@ most 64 characters, and a manifest contains at most 256 fixtures.
    旧步骤 `tests[]` 仍走 `run-test`。已经运行过却不满足策略的阻塞（用例失败、覆盖率不足……）没有专门动作：
    非评审门发 `fix`，评审门上有回退边就走回退边。计划里的豁免（`waivers[].approved_by`）只由
    `tenon review acknowledge` 在提交 receipt 的同一把锁内写入：`review request` 冻结并列出未批准的豁免
-   （`request-review` 带 `waivers`），确认只批准清单里仍原样存在的那几条；`--delegated` 与 AFK 不批准。
+   （`request-review` 带 `waivers`），确认只批准清单里仍原样存在的那几条；`--delegated` 不批准豁免，计划里有待批准的豁免时它整个被拒
+   （receipt 保持待确认，等人工确认），避免留下谁也批准不了的豁免。
    计划写入、豁免批准、基线更新各在 change 历史里留一行 `test:plan-write|waiver-approve|baseline-update`。
    写门（`hooks/gate.sh`）拒绝对 `test-plan.yaml`（及台账、冻结清单）、`.tenon/tests/baselines/**`、
    `.tenon/tests/known-failures.yaml`、按用户的记录目录的编辑类工具写入与 shell 重定向 / tee / cp / mv / rm /

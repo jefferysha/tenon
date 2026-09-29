@@ -6,7 +6,9 @@
  *     只把清单里仍原样存在的豁免写上 `approved_by`（kernel 计划写入口，CLI 独占），随后留一行审计。
  *
  * 豁免是「策略要求但本任务不适用」的例外，批准它就是接受一次偏差，所以委托确认（`--delegated`）、
- * AFK 都不批准：它们留下的豁免继续挡出口，直到人工确认。
+ * AFK 都不批准。计划里还有待批准的豁免时，委托确认整个被拒（receipt 保持待确认）：让它先把 receipt 用掉，
+ * 只会留下一个谁也批准不了的豁免（request 已经被消费，人工确认也没有可确认的了）。用户回复「确认继续」
+ * 走人工确认，批准豁免并放行。
  */
 import {
   approveWaivers, clearReviewWaiverSelection, pendingWaivers, readReviewWaiverSelection, readTestPlanState,
@@ -90,6 +92,21 @@ export async function approveFrozenWaivers(input: {
   if (result.approved.length === 0) return { ...NONE, skipped: result.skipped }
   const written = await writeTestPlanUnderLock(input.dir, result.plan, { actor: input.actor, recordedAt: input.recordedAt })
   return { approved: result.approved, skipped: result.skipped, digest: written.digest, note: null }
+}
+
+/**
+ * 委托确认在提交 approved receipt 之前的检查（锁内）：计划里还有未批准的豁免就拒绝，抛错、不写任何东西。
+ * 计划缺失或不可信时没有可批准的豁免，放行（这些状态由测试门禁自己挡）。
+ */
+export async function refuseDelegatedWhileWaiversPending(dir: string, change: string): Promise<void> {
+  const plan = await readTestPlanState(dir, change)
+  if (plan.state !== 'ok') return
+  const pending = pendingWaivers(plan.plan)
+  if (pending.length === 0) return
+  throw new Error(
+    `计划里有 ${pending.length} 项测试豁免待人工批准（${pending.map((item) => item.key).join('、')}）：`
+    + '委托确认不批准豁免；请用户回复「确认继续」人工确认，或先撤掉这些豁免',
+  )
 }
 
 /** receipt 已提交之后：清掉冻结清单（锁内、尽力而为——清单绑定请求时间，残留不会被下一次请求误用）。 */

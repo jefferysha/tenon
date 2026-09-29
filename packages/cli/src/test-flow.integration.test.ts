@@ -259,16 +259,42 @@ describe('豁免的评审批准', () => {
     expect(await h.run(['transition', CHANGE, 'spec-done']), h.err.join('\n')).toBe(0)
   })
 
-  test('委托确认（--delegated）不批准豁免：出口继续被挡，直到人工确认', async () => {
+  test('委托确认（--delegated）遇到待批准的豁免被拒、receipt 保持待确认；人工确认批准后放行', async () => {
     expect(await h.run(['session', 'activate', CHANGE, '--continuous', '--host-session', SESSION]), h.err.join('\n')).toBe(0)
     await waivedSpec()
     expect(await h.run(['review', 'request', CHANGE, '--event', 'spec-done']), h.err.join('\n')).toBe(0)
-    expect(await h.run(['review', 'acknowledge', CHANGE, '--delegated'], { env: { TENON_HOST_SESSION_ID: SESSION } }), h.err.join('\n')).toBe(0)
-    expect(h.out.join('\n')).toContain('委托确认不批准豁免：kind:unit 仍待人工批准')
+    expect(await h.run(['review', 'acknowledge', CHANGE, '--delegated'], { env: { TENON_HOST_SESSION_ID: SESSION } })).toBe(1)
+    expect(h.err.join('\n')).toContain('委托确认不批准豁免')
+    expect(h.err.join('\n')).toContain('kind:unit')
+    // 什么都没写：豁免仍未批准，receipt 仍待确认，人工确认还有东西可确认。
     expect((await readPlan()).waivers).toEqual([{ kind: 'unit', reason: '纯文档改动', approved_by: null }])
-    // 评审已确认却还有豁免没批准：next 不再发一条必被拒的 transition。
+    expect(names(await readStep())).toEqual(['await-review'])
+    expect(await h.run(['review', 'acknowledge', CHANGE]), h.err.join('\n')).toBe(0)
+    expect((await readPlan()).waivers).toEqual([{ kind: 'unit', reason: '纯文档改动', approved_by: ME }])
+    expect(await h.run(['transition', CHANGE, 'spec-done']), h.err.join('\n')).toBe(0)
+  })
+
+  test('没有待批准的豁免时委托确认照常通过', async () => {
+    expect(await h.run(['session', 'activate', CHANGE, '--continuous', '--host-session', SESSION]), h.err.join('\n')).toBe(0)
+    await loadTenon()
+    await writeCatalog()
+    await writePlan({ suites: [{ suite: 'unit', scope: 'full' }] })
+    expect(await h.run(['review', 'request', CHANGE, '--event', 'spec-done']), h.err.join('\n')).toBe(0)
+    expect(h.out.join('\n')).not.toContain('待批准的豁免')
+    expect(await h.run(['review', 'acknowledge', CHANGE, '--delegated'], { env: { TENON_HOST_SESSION_ID: SESSION } }), h.err.join('\n')).toBe(0)
+    expect(await h.run(['transition', CHANGE, 'spec-done']), h.err.join('\n')).toBe(0)
+  })
+
+  test('确认之后豁免又变成未批准（换了理由）：next 不发必被拒的 transition，说明为什么批准不了', async () => {
+    await waivedSpec()
+    expect(await h.run(['review', 'request', CHANGE, '--event', 'spec-done'])).toBe(0)
+    expect(await h.run(['review', 'acknowledge', CHANGE]), h.err.join('\n')).toBe(0)
+    await writePlan({ waivers: [{ kind: 'unit', reason: '确认之后换的理由', approved_by: null }] })
     const step = await readStep()
-    expect(step.next).toEqual([expect.objectContaining({ action: 'fix', blockers: [expect.objectContaining({ code: 'waiver-unapproved' })] })])
+    expect(step.next).toEqual([expect.objectContaining({
+      action: 'fix',
+      blockers: [expect.objectContaining({ code: 'waiver-unapproved', message: expect.stringContaining('没能被批准') })],
+    })])
     expect(await h.run(['transition', CHANGE, 'spec-done'])).toBe(1)
     expect(h.err.join('\n')).toContain('豁免尚未经评审批准')
   })

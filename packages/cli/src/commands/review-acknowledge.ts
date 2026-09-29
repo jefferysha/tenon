@@ -9,9 +9,7 @@ import {
   executeReviewAcknowledge,
   INTERACTION_PROJECTION_WRITE_FAILED,
   nodeReviewDecisionLedgerFs,
-  pendingWaivers,
   readCurrentRunRevision,
-  readTestPlanState,
   resolveStep,
   reviewAcknowledgeExitCode,
   stepExitTransitions,
@@ -24,7 +22,8 @@ import { requireUser } from '../userIdentity.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
 import { readReviewGateBindingForRequest } from './review-binding.js'
 import {
-  approveFrozenWaivers, auditWaiverApproval, retireFrozenWaivers, skippedWaiverLines, type WaiverApprovalOutcome,
+  approveFrozenWaivers, auditWaiverApproval, refuseDelegatedWhileWaiversPending, retireFrozenWaivers,
+  skippedWaiverLines, type WaiverApprovalOutcome,
 } from './review-waivers.js'
 
 const DEFERRED_WARNINGS: Readonly<Record<ReviewAcknowledgeDeferred, string>> = {
@@ -87,6 +86,8 @@ export async function cmdReviewAcknowledge(
       // 重试同一条命令即可；后一步失败时已批准的豁免在重试里被识别为「已经批准过」。
       if (delegatedAuthority === null) {
         waivers = await approveFrozenWaivers({ dir, change: name, state, actor, recordedAt: deps.clock() })
+      } else {
+        await refuseDelegatedWhileWaiversPending(dir, name)
       }
       await deps.store.writeUnderLock(dir, state, { kind: 'set-many' })
       await retireFrozenWaivers(dir)
@@ -111,31 +112,22 @@ export async function cmdReviewAcknowledge(
     `[REVIEW] ${name} phase=${result.phase} event=${result.event} ` +
     `${delegatedAuthority === null ? '已确认' : '已按用户委托的持续授权确认'}，可重发 transition`,
   )
-  await reportWaivers(deps, name, dir, actor.id, waivers, delegatedAuthority !== null)
+  await reportWaivers(deps, dir, actor.id, waivers)
   return 0
 }
 
 /** 确认之后的豁免收尾：批准了哪些、哪些没批准、委托确认时还剩哪些待人工批准；批准留一行审计。 */
 async function reportWaivers(
   deps: CliDeps,
-  name: string,
   dir: string,
   approver: string,
   outcome: WaiverApprovalOutcome | undefined,
-  delegated: boolean,
 ): Promise<void> {
-  if (outcome !== undefined) {
-    await auditWaiverApproval(deps, dir, outcome, approver)
-    if (outcome.approved.length > 0) {
-      deps.io.out(`[REVIEW] 已批准豁免 ${outcome.approved.length} 项：${outcome.approved.join('、')}`)
-    }
-    if (outcome.note !== null) deps.io.err(`WARN: ${outcome.note}`)
-    for (const line of skippedWaiverLines(outcome)) deps.io.out(line)
+  if (outcome === undefined) return
+  await auditWaiverApproval(deps, dir, outcome, approver)
+  if (outcome.approved.length > 0) {
+    deps.io.out(`[REVIEW] 已批准豁免 ${outcome.approved.length} 项：${outcome.approved.join('、')}`)
   }
-  if (!delegated) return
-  const plan = await readTestPlanState(dir, name).catch(() => undefined)
-  const pending = plan?.state === 'ok' ? pendingWaivers(plan.plan) : []
-  if (pending.length > 0) {
-    deps.io.out(`[REVIEW] 委托确认不批准豁免：${pending.map((item) => item.key).join('、')} 仍待人工批准，出口继续被挡`)
-  }
+  if (outcome.note !== null) deps.io.err(`WARN: ${outcome.note}`)
+  for (const line of skippedWaiverLines(outcome)) deps.io.out(line)
 }
