@@ -66,14 +66,14 @@ function wavedExplore(): WorkflowDef {
 }
 
 describe('GET /api/workflows/:name/orchestration', () => {
-  it('按轨道选分支：前端 explore 串行 4 步；门禁、回流、流向都在', async () => {
+  it('按轨道选分支：前端 explore 串行 4 步（researcher 执行者占第 0 波）；门禁、回流、流向都在', async () => {
     const h = await start()
     const r = await reqGet(h.port, `/api/workflows/default/orchestration?root=${encodeURIComponent(h.root)}&track=frontend`)
     expect(r.status).toBe(200)
     const body = r.json<DefinitionOrchestrationResponse>()
     expect(body.workflow).toBe('default')
     expect(body.track).toBe('frontend')
-    expect(skillsOf(body, 'explore')).toEqual([['openspec-explore', 0], ['brainstorming', 1], ['grilling', 2], ['domain-modeling', 3]])
+    expect(skillsOf(body, 'explore')).toEqual([['openspec-explore', 1], ['brainstorming', 2], ['grilling', 3], ['domain-modeling', 4]])
     expect(body.stages.find((stage) => stage.id === 'verify')?.gate).toBe('review')
     expect(body.returns).toContainEqual({ from: 'verify', to: 'build', event: 'verify-fail' })
     expect(body.flows.some((flow) => flow.id === 'proposal' && flow.from === 'open')).toBe(true)
@@ -87,7 +87,7 @@ describe('GET /api/workflows/:name/orchestration', () => {
     const r = await reqGet(h.port, `/api/workflows/default/orchestration?root=${encodeURIComponent(h.root)}&track=frontend`)
     expect(r.status).toBe(200)
     expect(skillsOf(r.json<DefinitionOrchestrationResponse>(), 'explore'))
-      .toEqual([['openspec-explore', 0], ['brainstorming', 1], ['grilling', 1], ['domain-modeling', 2]])
+      .toEqual([['openspec-explore', 1], ['brainstorming', 2], ['grilling', 2], ['domain-modeling', 3]])
   })
 
   it('无轨道参数取第一条分支；错误用稳定 code', async () => {
@@ -117,7 +117,7 @@ describe('GET /api/change/:name/orchestration', () => {
     expect(r.status).toBe(200)
     const body = r.json<ChangeOrchestrationResponse>()
     expect(body).toMatchObject({ change: 'orch', workflow: 'default', track: 'frontend', current: 'open' })
-    expect(skillsOf(body, 'explore')).toEqual([['openspec-explore', 0], ['brainstorming', 1], ['grilling', 2], ['domain-modeling', 3]])
+    expect(skillsOf(body, 'explore')).toEqual([['openspec-explore', 1], ['brainstorming', 2], ['grilling', 3], ['domain-modeling', 4]])
     const openStage = body.stages.find((stage) => stage.id === 'open')
     expect(openStage?.entries.map((entry) => [entry.id, entry.status])).toEqual([['openspec-propose', 'waiting']])
     expect(body.stages.find((stage) => stage.id === 'explore')?.entries.every((entry) => entry.status === 'waiting')).toBe(true)

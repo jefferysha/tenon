@@ -30,11 +30,12 @@ function withExploreSkills(def: WorkflowDef, next: StepDef['skills']): WorkflowD
 }
 
 describe('buildOrchestration · 技能顺序（R1）', () => {
-  it('前端轨道 explore 的 4 个技能未声明依赖 → 串行 4 步', () => {
+  it('前端轨道 explore 的 4 个技能未声明依赖 → 串行 4 步，排在 researcher 执行者（第 0 波）之后', () => {
     const plan = compileEffectiveWorkflowPlan('default', defaultDef(), builtinTrack('frontend'))
     const explore = stage(buildOrchestration(plan).stages, 'explore')
+    expect(explore.entries.filter((entry) => entry.kind === 'executor').map((entry) => [entry.id, entry.wave])).toEqual([['researcher', 0]])
     expect(skills(explore).map((entry) => [entry.id, entry.wave])).toEqual([
-      ['openspec-explore', 0], ['brainstorming', 1], ['grilling', 2], ['domain-modeling', 3],
+      ['openspec-explore', 1], ['brainstorming', 2], ['grilling', 3], ['domain-modeling', 4],
     ])
     expect(skills(explore).map((entry) => entry.dependsOn)).toEqual([[], ['openspec-explore'], ['brainstorming'], ['grilling']])
   })
@@ -49,7 +50,7 @@ describe('buildOrchestration · 技能顺序（R1）', () => {
     const plan = compileEffectiveWorkflowPlan('default', def, builtinTrack('frontend'))
     const explore = stage(buildOrchestration(plan).stages, 'explore')
     expect(skills(explore).map((entry) => [entry.id, entry.wave])).toEqual([
-      ['openspec-explore', 0], ['brainstorming', 1], ['grilling', 1], ['domain-modeling', 2],
+      ['openspec-explore', 1], ['brainstorming', 2], ['grilling', 2], ['domain-modeling', 3],
     ])
     expect(plan.capabilities.skills.steps.find((step) => step.stepId === 'explore')?.declared.map((ref) => ref.dependsOnDeclared))
       .toEqual([false, true, true, true])
@@ -84,22 +85,22 @@ describe('buildOrchestration · 来源', () => {
     const plan = compileEffectiveWorkflowPlan('default', defaultDef(), builtinTrack('frontend'))
     expect(manifestSkillOverlay(plan, resolver)).toEqual({ explore: ['openspec-explore', 'extra-skill'] })
     const explore = skills(stage(buildOrchestration(plan, resolver).stages, 'explore'))
-    expect(explore.at(-1)).toMatchObject({ id: 'extra-skill', source: 'manifest', wave: 4, dependsOn: ['domain-modeling'] })
+    expect(explore.at(-1)).toMatchObject({ id: 'extra-skill', source: 'manifest', wave: 5, dependsOn: ['domain-modeling'] })
     expect(manifestSkillOverlay(plan, undefined)).toEqual({})
   })
 })
 
 describe('buildOrchestration · 阶段内顺序与流向', () => {
-  it('前端 verify：技能串行 → 测试 → 评审者波次（architecture 等四个评审者）', () => {
+  it('前端 verify：技能串行 → 测试（playwright 与 code-size 同波）→ 评审者波次（architecture 等四个评审者，code-size 评审者读测试后同波）', () => {
     const plan = compileEffectiveWorkflowPlan('default', defaultDef(), builtinTrack('frontend'))
     const verify = stage(buildOrchestration(plan).stages, 'verify')
     expect(verify.gate).toBe('review')
     expect(verify.entries.map((entry) => [entry.kind, entry.id, entry.wave])).toEqual([
       ['skill', 'browser-qa', 0], ['skill', 'web-design-guidelines', 1], ['skill', 'design-taste-frontend', 2],
       ['skill', 'verification-before-completion', 3], ['skill', 'e2e-testing', 4],
-      ['test', 'playwright', 5],
+      ['test', 'playwright', 5], ['test', 'code-size', 5],
       ['reviewer', 'spec-consistency', 6], ['reviewer', 'frontend-quality', 6], ['reviewer', 'security', 6], ['reviewer', 'e2e', 6],
-      ['reviewer', 'architecture', 7],
+      ['reviewer', 'architecture', 7], ['reviewer', 'code-size', 6],
     ])
     const architecture = verify.entries.find((entry) => entry.id === 'architecture')
     expect(architecture).toMatchObject({ required: false, dependsOn: ['spec-consistency', 'frontend-quality', 'security', 'e2e'] })

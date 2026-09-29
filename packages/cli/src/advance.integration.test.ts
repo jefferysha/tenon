@@ -202,8 +202,8 @@ describe('真实 e2e —— advance auto-transition 中间档（HITL 红线：�
     expect(trans.some((l) => l.includes('"to":"ship"'))).toBe(true)
     expect(trans.some((l) => l.includes('"to":"archive"'))).toBe(true)
     expect(r.out.some((l) => l.includes('[STOP]') && l.includes('终态'))).toBe(true)
-    // 多阶段真实文件系统/治理链需要有限 CI 余量；该预算不是性能 SLA。
-  }, 15_000)
+    // 多阶段真实文件系统/治理链（含 agent 波次与测试策略）需要有限 CI 余量；该预算不是性能 SLA。
+  }, 45_000)
 
   test('HITL 红线：--through-gates 仍不跨越 confirm 硬门（真 marker 新鲜存在 → 停）', async () => {
     await seedToBuild('demo')

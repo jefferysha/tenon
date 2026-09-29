@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   builtinTrack, compileEffectiveWorkflowPlan, DEFAULT_WORKFLOW_SOURCE, parseWorkflow, workflowPlanSnapshot,
-  type PipelineState, type WorkflowDef,
+  type PipelineState, type StepDef, type WorkflowDef,
 } from '@tenon/kernel'
 import { cmdInternalSkillGate } from './internalSkillGate.js'
 import { makeDeps, mockState, spy } from '../test-support.js'
@@ -15,7 +15,11 @@ const EXPLORE_HISTORY = [
   JSON.stringify({ ts: 't', kind: 'tool', raw: 'Skill: openspec-explore' }),
 ].join('\n') + '\n'
 
-function wavedDefault(): WorkflowDef {
+/**
+ * default 前端轨 explore 声明了 researcher 执行者；有 agent 的步骤门先要 run 身份与冻结的 agent 台账（失败关闭），
+ * 而这里的替身状态两者都没有。本组用例的对象是技能 DAG，所以把 explore 的 agents 去掉，其余照 default。
+ */
+function exploreWith(skills: StepDef['skills'] | undefined): WorkflowDef {
   const def = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
   const frontend = def.tracks?.frontend
   if (frontend === undefined) throw new Error('frontend branch missing')
@@ -25,17 +29,29 @@ function wavedDefault(): WorkflowDef {
       ...def.tracks,
       frontend: {
         ...frontend,
-        steps: frontend.steps.map((step) => step.id !== 'explore' ? step : {
-          ...step,
-          skills: [
-            { id: 'openspec-explore' },
-            { id: 'brainstorming', depends_on: ['openspec-explore'] },
-            { id: 'grilling', depends_on: ['openspec-explore'] },
-            { id: 'domain-modeling', depends_on: ['brainstorming', 'grilling'] },
-          ],
+        steps: frontend.steps.map((step) => {
+          if (step.id !== 'explore') return step
+          const { agents: _agents, ...rest } = step
+          return { ...rest, ...(skills === undefined ? {} : { skills }) }
         }),
       },
     },
+  }
+}
+
+const wavedDefault = (): WorkflowDef => exploreWith([
+  { id: 'openspec-explore' },
+  { id: 'brainstorming', depends_on: ['openspec-explore'] },
+  { id: 'grilling', depends_on: ['openspec-explore'] },
+  { id: 'domain-modeling', depends_on: ['brainstorming', 'grilling'] },
+])
+
+/** 冻结进状态里的计划：与 default 一致，只是 explore 没有 agent。 */
+function frozenState(def: WorkflowDef, exploreState: PipelineState): PipelineState {
+  const plan = compileEffectiveWorkflowPlan('default', def, builtinTrack('frontend'))
+  return {
+    ...exploreState,
+    runMetadata: { runId: 'run-frozen', transitionSequence: 1, workflowPlanSnapshot: workflowPlanSnapshot(plan) },
   }
 }
 
@@ -43,19 +59,14 @@ describe('cmdInternalSkillGate · default 工作流按波次放行（R1）', () 
   const exploreState = (): PipelineState => mockState({ workflow: 'default', phase: 'explore', track: 'frontend' })
 
   it('未声明依赖：串行——grilling 要等 brainstorming', async () => {
-    const deps = makeDeps({ state: exploreState(), historyRaw: EXPLORE_HISTORY })
+    const deps = makeDeps({ state: frozenState(exploreWith(undefined), exploreState()), historyRaw: EXPLORE_HISTORY })
     expect(await cmdInternalSkillGate(deps, 'demo', 'brainstorming')).toBe(0)
     expect(await cmdInternalSkillGate(deps, 'demo', 'grilling')).toBe(2)
     expect(deps.errLines.join('\n')).toContain('还需先完成 brainstorming')
   })
 
   it('冻结计划声明了波次：同一波的 brainstorming 与 grilling 一起放行，domain-modeling 等两者', async () => {
-    const plan = compileEffectiveWorkflowPlan('default', wavedDefault(), builtinTrack('frontend'))
-    const state: PipelineState = {
-      ...exploreState(),
-      runMetadata: { runId: 'run-waves', transitionSequence: 1, workflowPlanSnapshot: workflowPlanSnapshot(plan) },
-    }
-    const deps = makeDeps({ state, historyRaw: EXPLORE_HISTORY })
+    const deps = makeDeps({ state: frozenState(wavedDefault(), exploreState()), historyRaw: EXPLORE_HISTORY })
     expect(await cmdInternalSkillGate(deps, 'demo', 'brainstorming')).toBe(0)
     expect(await cmdInternalSkillGate(deps, 'demo', 'grilling')).toBe(0)
     expect(await cmdInternalSkillGate(deps, 'demo', 'domain-modeling')).toBe(2)
