@@ -313,6 +313,8 @@ export interface RecordDetail {
   readonly durationMs: number
   readonly machineProfile: string
   readonly machineLabel: string
+  /** 本次运行的产物目录（相对项目根，正斜杠）。 */
+  readonly artifactsDir: string
   readonly actor: { readonly id: string; readonly name: string }
   readonly services: readonly RunService[]
   readonly suites: readonly SuiteRun[]

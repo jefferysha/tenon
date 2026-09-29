@@ -195,6 +195,7 @@ export function recordDetail(over: Partial<RecordDetail> = {}): RecordDetail {
     user: FIXTURE_USER, trusted: true, runId: FIXTURE_RUN, change: FIXTURE_CHANGE, step: 'verify', workflow: 'default',
     track: 'frontend', result: 'fail', startedAt: '2026-09-29T10:58:30Z', finishedAt: '2026-09-29T11:00:00Z', durationMs: 90_000,
     machineProfile: FIXTURE_PROFILE, machineLabel: 'darwin-arm64-m3max-node22',
+    artifactsDir: ['.tenon', 'users', FIXTURE_USER, 'local', 'artifacts', FIXTURE_CHANGE, FIXTURE_RUN].join('/'),
     actor: { id: 'tester@tenon.test', name: 'Tester' },
     services: [{ id: 'web-dev', readyMs: 2310, exit: 'stopped', log: 'services/web-dev.log', logPresent: true, leaked: 0 }],
     suites: [suiteRun()],

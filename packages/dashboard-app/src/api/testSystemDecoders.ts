@@ -267,6 +267,7 @@ export const decodeRecordResponse = guard((value: unknown): RecordDetail => {
     step: str(item.step), workflow: str(item.workflow), track: str(item.track),
     result: oneOf(item.result, ['pass', 'fail']), startedAt: str(item.startedAt), finishedAt: str(item.finishedAt),
     durationMs: num(item.durationMs), machineProfile: str(item.machineProfile), machineLabel: str(item.machineLabel),
+    artifactsDir: str(item.artifactsDir),
     actor: { id: str(actor.id), name: str(actor.name) },
     services: arr(item.services, readRunService),
     suites: arr(item.suites, readSuiteRun),

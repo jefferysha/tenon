@@ -315,6 +315,8 @@ export interface RecordDetailDto {
   readonly durationMs: number
   readonly machineProfile: string
   readonly machineLabel: string
+  /** 本次运行的产物目录（相对项目根，正斜杠）：复制 `npx playwright show-trace <路径>` 用，不含绝对路径。 */
+  readonly artifactsDir: string
   readonly actor: { readonly id: string; readonly name: string }
   readonly services: readonly ServiceRunDto[]
   readonly suites: readonly SuiteRunDto[]

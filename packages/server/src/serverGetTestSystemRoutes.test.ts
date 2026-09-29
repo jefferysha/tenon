@@ -280,7 +280,7 @@ describe('GET /api/tests/records 与 /api/tests/record', () => {
 
     const res = await get<{
       record: {
-        runId: string; trusted: boolean; step: string; machineLabel: string
+        runId: string; trusted: boolean; step: string; machineLabel: string; artifactsDir: string
         services: Array<{ id: string; readyMs: number; logPresent: boolean }>
         suites: Array<{
           suite: string; exitCode: number; coverage: { lines: number }; log: { present: boolean }
@@ -293,6 +293,8 @@ describe('GET /api/tests/records 与 /api/tests/record', () => {
     expect(res.status).toBe(200)
     const record = res.body.record
     expect(record).toMatchObject({ runId: ids.second, trusted: true, step: 'verify' })
+    expect(record.artifactsDir.endsWith(`/local/artifacts/${CHANGE}/${ids.second}`)).toBe(true)
+    expect(record.artifactsDir.startsWith('/')).toBe(false)
     expect(record.services).toEqual([{ id: 'web-dev', readyMs: 2310, exit: 'stopped', log: 'services/web-dev.log', logPresent: true, leaked: 0 }])
     const suite = record.suites[0]
     expect(suite).toMatchObject({ suite: 'web-e2e', exitCode: 1, coverage: { lines: 81.5 }, log: { present: true } })

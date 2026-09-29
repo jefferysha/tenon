@@ -6,7 +6,7 @@
  * 目录扫描一律用 Dirent 判类型（符号链接不跟随）、按数量封顶；记录文件 ≤16 MiB，与哈希链读取口径一致。
  */
 import { lstat, readFile, readdir } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, relative, sep } from 'node:path'
 import {
   MACHINE_PROFILE_ID_RE, SUITE_ID_RE, TENON_PROJECT_DIR, baselineV2Path, catalogSuite, declaresRecordV2,
   decodeTestRunRecordV2, formatCatalogIssues, knownFailureExpired, listRecordDirectory, loadCatalogInput,
@@ -319,6 +319,7 @@ export async function readRecordDetail(readRoot: string, user: string, change: s
       durationMs: record.duration_ms,
       machineProfile: record.machine_profile,
       machineLabel: record.machine_label,
+      artifactsDir: relative(readRoot, runDir).split(sep).join('/'),
       actor: { id: record.actor.id, name: record.actor.name },
       services,
       suites: await Promise.all(record.suites.map((run) => suiteRunDto(run, runDir))),
