@@ -449,7 +449,7 @@ export function makeHarness(cwd: string): Harness {
         const wave = agentWave(harness.out.join('\n'))
         if (wave.length === 0) return
         for (const agent of wave) {
-          if (await harness.run(['agent', 'prompt', name, agent, '--json']) !== 0) {
+          if (await harness.run(['agent', 'prompt', name, agent, '--host', 'claude', '--json']) !== 0) {
             throw new Error(`harness satisfyStepAgents: prompt ${agent} 失败\n${harness.err.join('\n')}`)
           }
           const started = agentPromptResult(harness.out.join(''))

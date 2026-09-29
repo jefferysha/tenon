@@ -38,28 +38,6 @@ case "$INPUT" in
     case "$INPUT" in *'/api/'*|*'\/api\/'*) SELF_APPROVAL_RAW=1 ;; esac
     ;;
 esac
-# 测试记录与基线只能由 `tenon test run` / `tenon test baseline` 写入：编辑类工具（Claude 的
-# Write/Edit/MultiEdit/NotebookEdit，Codex 的 apply_patch）直接改这些文件会把「agent 自报通过」
-# 重新变成可能，所以在 marker 逻辑之前就拒。纯 case 匹配、零 fork；shell 重定向不在本门覆盖范围内
-# （已在 design §12 记为残余风险）。AFK 也照拒：它免除的是交互拦截，不是写入边界。
-case "$INPUT" in
-  *'.tenon/users/'*|*'.tenon\/users\/'*)
-    case "$INPUT" in
-      *'"tool_name":"Write"'*|*'"tool_name":"Edit"'*|*'"tool_name":"MultiEdit"'*|*'"tool_name":"NotebookEdit"'* \
-      |*'"tool_name": "Write"'*|*'"tool_name": "Edit"'*|*'"tool_name": "MultiEdit"'*|*'"tool_name": "NotebookEdit"'* \
-      |*'*** Add File: '*|*'*** Update File: '*|*'*** Delete File: '*)
-        case "$INPUT" in
-          *'/tests/'*|*'/baselines/'*|*'\/tests\/'*|*'\/baselines\/'*)
-            printf '测试记录与基线只能由 tenon test run / tenon test baseline 写入\n' >&2
-            exit 2
-            ;;
-        esac
-        ;;
-    esac
-    ;;
-esac
-
-[ "${TENON_AFK:-}" = "1" ] && [ "$SELF_APPROVAL_RAW" = 0 ] && exit 0
 
 # All realtime hooks use the same escape-aware parser. This keeps Codex's quoted
 # `command_execution.command` and `exec.cmd` payloads on the exact same path as regular events.
@@ -73,6 +51,90 @@ json_command() { pipeline_json_get_command "$INPUT"; }
 # the decode keeps a huge heredoc from overrunning the host hook timeout, which a host treats as a
 # non-blocking error, i.e. an allow; an over-long command is simply not allowlisted (fail closed).
 json_command_short() { pipeline_json_get_command_bounded "$INPUT" 65536; }
+
+# 测试记录与基线只能由 `tenon test run` / `tenon test baseline` 写入：编辑类工具（Claude 的
+# Write/Edit/MultiEdit/NotebookEdit，Codex 的 apply_patch）直接改这些文件会把「agent 自报通过」
+# 重新变成可能，所以在 marker 逻辑之前就拒。只看写入目标路径——Claude 取 tool_input 的
+# file_path / notebook_path，apply_patch 取补丁头 `*** Add/Update/Delete File:` 与 `*** Move to:`
+# 的路径——不看写入内容：文档正文里提到 `.tenon/users/<u>/tests/` 不是写记录。原始输入不含
+# `.tenon` 就不解析；解析全走 json-input.sh 的线性 helper（bash 3.2 下大补丁也不超时）。
+# shell 重定向不在本门覆盖范围内（已在 design §12 记为残余风险）。AFK 也照拒：它免除的是交互
+# 拦截，不是写入边界。
+pipeline_test_record_path() { # $1=target path, $2=cwd → 0 when it is under .tenon/users/<u>/{tests,baselines}
+  local path="${1:-}" rest sub double='//' single='/'
+  [ -n "$path" ] || return 1
+  case "$path" in /*) ;; *) path="${2:-.}/$path" ;; esac
+  # bash 3.2 keeps a backslash-escaped `/` literally in a replacement, so both sides are variables.
+  while :; do case "$path" in *//*) path="${path//$double/$single}" ;; *) break ;; esac; done
+  case "$path" in */.tenon/users/*) ;; *) return 1 ;; esac
+  rest="${path#*/.tenon/users/}"
+  sub="${rest#*/}"
+  case "$sub" in tests|tests/*|baselines|baselines/*) return 0 ;; esac
+  # `.` / `..` 段落出现在用户目录之下时不猜它最终指向哪里，一律按记录路径拒绝。
+  case "/$rest" in */../*|*/./*|*/..|*/.) return 0 ;; esac
+  return 1
+}
+pipeline_patch_text() { # apply_patch 的补丁正文：宿主把它放在 command / cmd / input / patch 或 argv 里
+  local key value
+  for key in command cmd input patch; do
+    value="$(pipeline_json_get_string "$INPUT" "$key" || true)"
+    [ -n "$value" ] && { printf '%s' "$value"; return 0; }
+  done
+  for key in command cmd argv; do
+    value="$(pipeline_json_get_string_array "$INPUT" "$key" || true)"
+    [ -n "$value" ] && { printf '%s' "$value"; return 0; }
+  done
+  return 1
+}
+pipeline_patch_targets() { # $1=patch text → 每个补丁头的目标路径一行（只认行首的补丁头）
+  local line IFS=$'\n'
+  local -a lines
+  read -r -d '' -a lines <<< "${1:-}" || true
+  for line in "${lines[@]}"; do
+    line="${line%$'\r'}"
+    case "$line" in
+      '*** Add File: '*|'*** Update File: '*|'*** Delete File: '*|'*** Move to: '*) printf '%s\n' "${line#*: }" ;;
+    esac
+  done
+}
+pipeline_refuse_test_record_write() {
+  printf '测试记录与基线只能由 tenon test run / tenon test baseline 写入\n' >&2
+  exit 2
+}
+case "$INPUT" in
+  *.tenon*)
+    RECORD_TOOL="$(json_get tool_name || true)"
+    RECORD_CWD="$(pipeline_json_get_cwd "$INPUT" || true)"
+    [ -n "$RECORD_CWD" ] || RECORD_CWD="$PWD"
+    case "$RECORD_TOOL" in
+      Write|Edit|MultiEdit)
+        pipeline_test_record_path "$(json_get file_path || true)" "$RECORD_CWD" && pipeline_refuse_test_record_write
+        ;;
+      NotebookEdit)
+        pipeline_test_record_path "$(json_get notebook_path || true)" "$RECORD_CWD" && pipeline_refuse_test_record_write
+        ;;
+      *)
+        RECORD_PATCH=''
+        case "$INPUT" in
+          *'*** Add File: '*|*'*** Update File: '*|*'*** Delete File: '*|*'*** Move to: '*)
+            RECORD_PATCH="$(pipeline_patch_text || true)"
+            # 命令类工具只有真的调用 apply_patch 才算补丁；heredoc 写文档里恰好出现补丁头不算。
+            if pipeline_json_is_command_tool "$RECORD_TOOL"; then
+              case "$RECORD_PATCH" in *apply_patch*) ;; *) RECORD_PATCH='' ;; esac
+            fi
+            ;;
+        esac
+        if [ -n "$RECORD_PATCH" ]; then
+          while IFS= read -r RECORD_TARGET; do
+            pipeline_test_record_path "$RECORD_TARGET" "$RECORD_CWD" && pipeline_refuse_test_record_write
+          done < <(pipeline_patch_targets "$RECORD_PATCH")
+        fi
+        ;;
+    esac
+    ;;
+esac
+
+[ "${TENON_AFK:-}" = "1" ] && [ "$SELF_APPROVAL_RAW" = 0 ] && exit 0
 
 # Every host spells the working directory differently (flat `cwd`, Cursor `workspace_roots`,
 # Cline `workspaceRoots`, Amp `workspaceRoot`); normalise them all before falling back to $PWD.

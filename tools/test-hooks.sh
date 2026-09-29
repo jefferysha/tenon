@@ -1915,6 +1915,8 @@ assert_contains "SKILL.md: review_bar 是下一步声明的评审者" "$SKILL_TE
 assert_contains "SKILL.md: 达到 block_at 的问题在本步修完" "$SKILL_TEXT" "的问题就是阻断，在本步修完，不要判成「建议」留给下一步"
 # 真机（第五轮）：simple 项目用户用中文下指令，模型三轮最终回复都是英文。
 assert_contains "SKILL.md: 回复使用用户所用的语言" "$SKILL_TEXT" "面向用户的回复（进度、暂停说明、最终总结）使用用户所用的语言"
+# agent 声明的 hosts 只有 prompt 带 --host 时才生效：run-agent 必须传本宿主 id。
+assert_contains "SKILL.md: run-agent 的 agent prompt 传 --host" "$SKILL_TEXT" "\`tenon agent prompt <c> <agent> --host <host> --json\`"
 for prompt in 好的 按你的推荐; do
   touch "$proj/.pipeline-pending-interaction"
   printf '%s' "{\"cwd\":\"$proj\",\"prompt\":\"$prompt\"}" \
@@ -2414,6 +2416,37 @@ assert_exit "gate: Codex apply_patch 改测试记录 → exit 2" 2 "$?"
 assert_exit "gate: 同目录下的 local 文件不受本规则影响" 0 "$?"
 ( printf '{"tool_name":"Write","cwd":"%s","file_path":"%s/src/tests/demo.ts"}' "$proj" "$proj" | bash "$GATE" >/dev/null 2>&1 )
 assert_exit "gate: 普通 tests 目录不受影响" 0 "$?"
+# 只看写入目标路径，不看写入内容：文档正文提到记录目录照常放行，真正写记录路径才拒。
+( printf '{"tool_name":"Write","cwd":"%s","tool_input":{"file_path":"%s/docs/test-records.md","content":"记录在 .tenon/users/%s/tests/demo/r.json，基线在 .tenon/users/%s/baselines/b.json"}}' \
+    "$proj" "$proj" "$HOOK_USER_SLUG" "$HOOK_USER_SLUG" | bash "$GATE" >/dev/null 2>&1 )
+assert_exit "gate: 文档内容提到 .tenon/users/<u>/tests/ → 放行" 0 "$?"
+( printf '{"tool_name":"Edit","cwd":"%s","tool_input":{"file_path":"%s/docs/test-records.md","old_string":"x","new_string":"见 .tenon/users/%s/tests/demo/r.json"}}' \
+    "$proj" "$proj" "$HOOK_USER_SLUG" | bash "$GATE" >/dev/null 2>&1 )
+assert_exit "gate: Edit 新文本提到记录路径 → 放行" 0 "$?"
+( printf '{"tool_name":"apply_patch","cwd":"%s","tool_input":{"command":"*** Begin Patch\\n*** Add File: docs/notes.md\\n+见 .tenon/users/%s/tests/demo/r.json\\n+*** Update File: .tenon/users/%s/tests/demo/r.json\\n*** End Patch\\n"}}' \
+    "$proj" "$HOOK_USER_SLUG" "$HOOK_USER_SLUG" | bash "$GATE" >/dev/null 2>&1 )
+assert_exit "gate: apply_patch 新增文档、正文行提到记录路径 → 放行" 0 "$?"
+( printf '{"tool_name":"Bash","cwd":"%s","command":"cat > docs/notes.md <<EOF\\n*** Update File: .tenon/users/%s/tests/demo/r.json\\nEOF"}' \
+    "$proj" "$HOOK_USER_SLUG" | bash "$GATE" >/dev/null 2>&1 )
+assert_exit "gate: 不调用 apply_patch 的 heredoc 里出现补丁头 → 放行" 0 "$?"
+( printf '{"tool_name":"Write","cwd":"%s","tool_input":{"file_path":"%s/.tenon/users/%s/tests/demo/20260915T101530Z-ab12cd.json","content":"{}"}}' \
+    "$proj" "$proj" "$HOOK_USER_SLUG" | bash "$GATE" >/dev/null 2>&1 )
+assert_exit "gate: tool_input.file_path 指向测试记录 → exit 2" 2 "$?"
+( printf '{"tool_name":"Write","cwd":"%s","tool_input":{"file_path":"%s//.tenon/users/%s/../%s/tests/demo/r.json","content":"{}"}}' \
+    "$proj" "$proj" "$HOOK_USER_SLUG" "$HOOK_USER_SLUG" | bash "$GATE" >/dev/null 2>&1 )
+assert_exit "gate: 带 // 与 .. 的记录路径 → exit 2" 2 "$?"
+( printf '{"tool_name":"NotebookEdit","cwd":"%s","tool_input":{"notebook_path":"%s/.tenon/users/%s/baselines/b.ipynb"}}' \
+    "$proj" "$proj" "$HOOK_USER_SLUG" | bash "$GATE" >/dev/null 2>&1 )
+assert_exit "gate: NotebookEdit 写基线目录 → exit 2" 2 "$?"
+( printf '{"tool_name":"apply_patch","cwd":"%s","tool_input":{"command":"*** Begin Patch\\n*** Update File: docs/notes.md\\n*** Move to: .tenon/users/%s/baselines/bench.json\\n@@\\n-a\\n+b\\n*** End Patch\\n"}}' \
+    "$proj" "$HOOK_USER_SLUG" | bash "$GATE" >/dev/null 2>&1 )
+assert_exit "gate: apply_patch 把文件移进基线目录 → exit 2" 2 "$?"
+( printf '{"tool_name":"exec","cwd":"%s","argv":["apply_patch","*** Begin Patch\\n*** Delete File: .tenon/users/%s/tests/demo/r.json\\n*** End Patch"]}' \
+    "$proj" "$HOOK_USER_SLUG" | bash "$GATE" >/dev/null 2>&1 )
+assert_exit "gate: argv 形态的 apply_patch 删测试记录 → exit 2" 2 "$?"
+( printf '{"tool_name":"apply_patch","cwd":"%s","tool_input":{"command":"*** Begin Patch\\n*** Update File: .tenon/users/%s/tests/demo/r.json\\n@@\\n-a\\n+b\\n*** End Patch\\n"}}' \
+    "$proj" "$HOOK_USER_SLUG" | TENON_AFK=1 bash "$GATE" >/dev/null 2>&1 )
+assert_exit "gate: AFK 下 apply_patch 改测试记录仍 exit 2" 2 "$?"
 
 # ── 10e. 红线自证：PostToolUse 热路径保持 bash；唯二 producer hook 只允许精确 managed CLI bridge ──
 for f in "$CC" "$CP" "$DR" "$ST" "$IG" "$IA" "$TA" "$TN"; do

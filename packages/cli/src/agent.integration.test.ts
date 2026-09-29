@@ -2,8 +2,10 @@
  * 真实 e2e —— 步骤 agent：真 harness + 真临时项目 + 真落盘的冻结、台账与报告。
  * 模型一律不跑：报告由用例直接写进 `report_path`，`record` 只读它。
  */
-import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { resolveProductPaths } from '@tenon/kernel'
 import { afterEach, describe, expect, test } from 'vitest'
 import { FIXED_CLOCK, freshHarness, rm, TEST_GIT_BUILD_TOKEN, type Harness } from './integration-harness.js'
 
@@ -161,6 +163,46 @@ describe('真实 e2e —— 步骤 agent', () => {
     expect(await h.run(['agent', 'prompt', 'demo', 'builder', '--host', 'nope'], { env: USER_A })).toBe(0)
     expect(await h.run(['agent', 'prompt', 'demo', 'security'], { env: USER_A })).toBe(1)
     expect(h.err.join('\n')).toContain("agent 'security' 未在步骤 'build' 声明")
+  })
+
+  test('prompt --host：agent 声明 hosts 时只放行其中的宿主（skills/tenon 的 run-agent 传本宿主 id）', async () => {
+    const runtimeHome = await mkdtemp(join(tmpdir(), 'tenon-agent-hosts-'))
+    const env = { ...USER_A, TENON_RUNTIME_HOME: runtimeHome }
+    const customDir = join(resolveProductPaths({ env }).configRoot, 'agents', 'custom')
+    await mkdir(customDir, { recursive: true })
+    await writeFile(join(customDir, 'codex-only.md'), [
+      '---',
+      'name: codex-only',
+      'description: 只在 Codex 上跑的执行者',
+      'skills: []',
+      'tools: [Read]',
+      'hosts: [codex]',
+      '---',
+      '',
+      '# codex-only',
+      '',
+      '只在 Codex 宿主上执行。',
+      '',
+    ].join('\n'), 'utf8')
+    h = await freshHarness()
+    await mkdir(join(h.cwd, '.pipeline', 'workflows'), { recursive: true })
+    await writeFile(
+      join(h.cwd, '.pipeline', 'workflows', 'reviewed.yaml'),
+      AGENT_WF.replace('            - agent: builder\n            - agent: researcher\n', '            - agent: codex-only\n'),
+      'utf8',
+    )
+    try {
+      expect(await h.run(
+        ['init', 'demo', '--track', 'backend', '--workflow', 'reviewed', '--preset', 'full'],
+        { env },
+      ), h.err.join('\n')).toBe(0)
+      expect(await h.run(['agent', 'prompt', 'demo', 'codex-only', '--host', 'claude', '--json'], { env })).toBe(2)
+      expect(h.err.join('\n')).toContain("agent 'codex-only' 不支持宿主 'claude'")
+      expect(await h.run(['agent', 'prompt', 'demo', 'codex-only', '--host', 'codex', '--json'], { env }), h.err.join('\n')).toBe(0)
+      expect((JSON.parse(h.out.join('')) as { run_id: string }).run_id).toMatch(/\S/u)
+    } finally {
+      await rm(runtimeHome, { recursive: true, force: true })
+    }
   })
 
   test('执行者：done 之后 build 步骤放行；failed 仍被拦', async () => {
