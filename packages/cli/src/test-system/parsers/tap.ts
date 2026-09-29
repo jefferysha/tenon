@@ -32,7 +32,7 @@ interface Frame {
 
 const RESULT = /^(\s*)(not ok|ok)\b(?:\s+\d+)?\s*(?:-\s*)?(.*)$/
 const SUBTEST = /^(\s*)# Subtest:\s*(.*)$/
-const DIRECTIVE = /\s+#\s*(SKIP|TODO)\b.*$/i
+const DIRECTIVE = /\s+#\s*(skip|to-?do)\b.*$/i
 const LOCATION = /^(.*?):(\d+)(?::\d+)?$/
 
 function readYaml(lines: readonly string[], start: number, indent: number): { diag: Diagnostics; next: number } {

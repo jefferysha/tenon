@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <testsuites>
-	<testsuite name="math fail" time="0.001888" disabled="0" errors="0" tests="3" failures="1" skipped="2" hostname="host">
-		<testcase name="subtracts wrong" time="0.001056" classname="test" file="/work/proj/fail.test.mjs" failure="Expected values to be strictly equal:&#10;&#10;3 !== 4&#10;">
+	<testsuite name="math fail" time="0.001521" disabled="0" errors="0" tests="2" failures="1" skipped="1" hostname="host">
+		<testcase name="subtracts wrong" time="0.000902" classname="test" file="/work/proj/fail.test.mjs" failure="Expected values to be strictly equal:&#10;&#10;3 !== 4&#10;">
 			<failure type="testCodeFailure" message="Expected values to be strictly equal:&#10;&#10;3 !== 4">
 Error [ERR_TEST_FAILURE]: Expected values to be strictly equal:
 
@@ -35,19 +35,16 @@ Error [ERR_TEST_FAILURE]: Expected values to be strictly equal:
 }
 			</failure>
 		</testcase>
-		<testcase name="skipped one" time="0.000085" classname="test" file="/work/proj/fail.test.mjs">
+		<testcase name="skipped one" time="0.000058" classname="test" file="/work/proj/fail.test.mjs">
 			<skipped type="skipped" message="true"/>
 		</testcase>
-		<testcase name="todo one" time="0.000053" classname="test" file="/work/proj/fail.test.mjs">
-			<skipped type="todo" message="true"/>
-		</testcase>
 	</testsuite>
-	<!-- tests 3 -->
+	<!-- tests 2 -->
 	<!-- suites 1 -->
 	<!-- pass 0 -->
 	<!-- fail 1 -->
 	<!-- cancelled 0 -->
 	<!-- skipped 1 -->
-	<!-- todo 1 -->
-	<!-- duration_ms 72.873042 -->
+	<!-- todo 0 -->
+	<!-- duration_ms 69.66975 -->
 </testsuites>

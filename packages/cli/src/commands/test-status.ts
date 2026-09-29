@@ -117,6 +117,8 @@ export async function cmdTestStatus(
       pass: report.pass,
       items: entries.map((entry) => itemJson(entry, false)),
       blockers: report.blockers,
+      // 步骤声明了 test_policy 时的结构化判定：阻塞码 / 修复命令、套件、追溯矩阵、未登记文件、记录链状态。
+      ...(report.policy === undefined ? {} : { policy: report.policy }),
     }, null, 2))
     return report.pass ? 0 : 2
   }

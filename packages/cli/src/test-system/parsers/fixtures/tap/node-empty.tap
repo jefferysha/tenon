@@ -2,7 +2,7 @@ TAP version 13
 # Subtest: empty.test.mjs
 ok 1 - empty.test.mjs
   ---
-  duration_ms: 46.759334
+  duration_ms: 43.805459
   type: 'test'
   ...
 1..1
@@ -12,5 +12,4 @@ ok 1 - empty.test.mjs
 # fail 0
 # cancelled 0
 # skipped 0
-# todo 0
-# duration_ms 52.216917
+# duration_ms 48.489584

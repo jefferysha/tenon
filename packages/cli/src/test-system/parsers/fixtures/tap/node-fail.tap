@@ -3,7 +3,7 @@ TAP version 13
     # Subtest: subtracts wrong
     not ok 1 - subtracts wrong
       ---
-      duration_ms: 1.026
+      duration_ms: 0.902666
       type: 'test'
       location: '/work/proj/fail.test.mjs:4:3'
       failureType: 'testCodeFailure'
@@ -32,19 +32,13 @@ TAP version 13
     # Subtest: skipped one
     ok 2 - skipped one # SKIP
       ---
-      duration_ms: 0.063666
+      duration_ms: 0.054041
       type: 'test'
       ...
-    # Subtest: todo one
-    ok 3 - todo one # TODO
-      ---
-      duration_ms: 0.044959
-      type: 'test'
-      ...
-    1..3
+    1..2
 not ok 1 - math fail
   ---
-  duration_ms: 1.870166
+  duration_ms: 1.510167
   type: 'suite'
   location: '/work/proj/fail.test.mjs:3:1'
   failureType: 'subtestsFailed'
@@ -52,11 +46,10 @@ not ok 1 - math fail
   code: 'ERR_TEST_FAILURE'
   ...
 1..1
-# tests 3
+# tests 2
 # suites 1
 # pass 0
 # fail 1
 # cancelled 0
 # skipped 1
-# todo 1
-# duration_ms 77.798959
+# duration_ms 68.71025

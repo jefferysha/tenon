@@ -11,6 +11,7 @@ import {
 import { errMsg, type CliDeps } from '../deps.js'
 import { str } from '../render.js'
 import { testEvidenceContextFor, testEvidenceReaderFor } from '../testEvidenceContext.js'
+import { renderV2Sections } from '../test-system/report-md.js'
 import { resolveTestCommand } from './test-context.js'
 
 const MAX_REPORT_BYTES = 1024 * 1024
@@ -55,7 +56,16 @@ export async function cmdTestReport(
     })
     items.push(...report.items.map((item) => ({ ...item, stepId: step.id, stepLabel: step.label })))
   }
-  const region = renderTestsRegion({ changeName: change, locale, items })
+  // 测试体系 v2 段落取「统计范围内最近一个声明了 test_policy 的步骤」的判定，与该步骤的出口检查同一份。
+  const policyStep = steps.slice(0, until + 1).reverse().find((step) => step.test_policy !== undefined)
+  let extra: string | undefined
+  if (policyStep !== undefined) {
+    const report = await testEvidenceReaderFor(deps)({
+      repoRoot: deps.cwd, changeDir: context.dir, changeName: change, plan: context.plan, stepId: policyStep.id, context: evidence,
+    })
+    if (report.policy !== undefined) extra = renderV2Sections(report.policy, locale)
+  }
+  const region = renderTestsRegion({ changeName: change, locale, items, ...(extra === undefined ? {} : { extra }) })
   if (opts.write === undefined) {
     deps.io.out(region)
     return 0
@@ -72,6 +82,6 @@ export async function cmdTestReport(
     deps.io.err(`ERROR: ${errMsg(e)}`)
     return 1
   }
-  deps.io.out(`[TEST] ${change} 报告测试段已写入 ${opts.write}（${items.length} 项）`)
+  deps.io.out(`[TEST] ${change} 报告测试段已写入 ${opts.write}（${items.length} 项${extra === undefined ? '' : '，含追溯矩阵'}）`)
   return 0
 }

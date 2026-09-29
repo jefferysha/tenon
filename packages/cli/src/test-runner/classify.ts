@@ -12,6 +12,11 @@ const SANDBOX_PATTERNS = [
   'Target page, context or browser has been closed',
 ] as const
 
+/** 输出尾部像宿主沙箱拦截（v1 与 v2 的运行共用这一份判据）。 */
+export function looksSandboxDenied(tail: string): boolean {
+  return SANDBOX_PATTERNS.some((pattern) => tail.includes(pattern))
+}
+
 export const SANDBOX_ESCALATION_HINT = '可能被宿主沙箱拦截：Codex 中用 sandbox_permissions=require_escalated 重新执行'
 
 export interface ClassifyInput {
@@ -57,7 +62,7 @@ export function classifyTestRun(input: ClassifyInput): Classification {
   const expectedExit = input.outcome.exitCode === input.test.pass.exit_code
   const sandboxDenied = input.sandbox !== null
     && !expectedExit
-    && SANDBOX_PATTERNS.some((pattern) => input.outcome.tail.includes(pattern))
+    && looksSandboxDenied(input.outcome.tail)
   if (sandboxDenied) reasons.push({ code: 'sandbox-denied' })
   if (input.candidateBefore !== null && input.candidate !== null && input.candidateBefore !== input.candidate) {
     reasons.push({ code: 'workspace-changed' })

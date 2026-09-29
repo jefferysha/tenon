@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <testsuites>
-	<testsuite name="all skipped" time="0.000985" disabled="0" errors="0" tests="2" failures="0" skipped="2" hostname="host">
-		<testcase name="first skipped" time="0.000380" classname="test" file="/work/proj/skip.test.mjs">
+	<testsuite name="all skipped" time="0.000959" disabled="0" errors="0" tests="2" failures="0" skipped="2" hostname="host">
+		<testcase name="first skipped" time="0.000363" classname="test" file="/work/proj/skip.test.mjs">
 			<skipped type="skipped" message="true"/>
 		</testcase>
-		<testcase name="second skipped" time="0.000043" classname="test" file="/work/proj/skip.test.mjs">
+		<testcase name="second skipped" time="0.000042" classname="test" file="/work/proj/skip.test.mjs">
 			<skipped type="skipped" message="true"/>
 		</testcase>
 	</testsuite>
@@ -15,5 +15,5 @@
 	<!-- cancelled 0 -->
 	<!-- skipped 2 -->
 	<!-- todo 0 -->
-	<!-- duration_ms 71.806625 -->
+	<!-- duration_ms 68.724125 -->
 </testsuites>

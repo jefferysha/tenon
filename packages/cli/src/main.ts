@@ -43,6 +43,7 @@ import { makeDoctorProbes } from './commands/doctor-probes.js'
 import { exitQuietlyOnEpipe } from './stdio-epipe.js'
 import { gitRemoteNames } from './gitRemotes.js'
 import { probeGitFinish } from './gitWorkspace.js'
+import { loadTestDirections } from './test-system/directions.js'
 
 /** ISO8601 UTC 秒级（对齐老内核 date -u +%Y-%m-%dT%H:%M:%SZ 口径） */
 function isoNow(): string {
@@ -237,6 +238,11 @@ async function main(): Promise<void> {
     userConfigPath: () => runtimePaths().userConfigPath,
     resourceCatalog: () => loadResourceCatalog({ payloadRoot: pluginRoot(), configRoot: runtimePaths().configRoot }),
     agentLibrary: () => loadAgentLibrary({ payloadRoot: pluginRoot(), configRoot: runtimePaths().configRoot }),
+    testDirections: () => loadTestDirections([
+      join(pluginRoot(), 'templates', 'test-directions'),
+      join(runtimePaths().configRoot, 'test-directions', 'builtin'),
+      join(runtimePaths().configRoot, 'test-directions', 'custom'),
+    ]),
     creationPrecondition: (input) => designSystemPrecondition({
       ...input,
       repoRoot: process.cwd(),

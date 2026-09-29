@@ -360,6 +360,13 @@ export interface CliDeps {
    * 当前 change 的控制面；production 由 kernel fingerprintWorkspace 落地。
    */
   workspaceFingerprint?: (changeName: string) => Promise<string>
+  /**
+   * 自任务起点以来改动的仓库相对文件（全量登记强制与 changed 范围用）。Omit it in production: kernel
+   * 从 state 的 base_branch / created_at 与 git 推出；测试装配覆写它来隔离 git。
+   */
+  changedFiles?: (changeName: string) => Promise<readonly string[]>
+  /** 测试方向库（内建 + 自定义，只读）；`tenon test catalog add --from <方向>` 用它当套件模板。 */
+  testDirections?: () => Promise<readonly import('@tenon/kernel').TestDirectionDef[]>
   /** Trusted Build revision token capture; missing capability fails Build closed. */
   captureBuildRevision?: (isolation: string) => Promise<string>
   /** Physical repository/worktree identity used by the default trust assessor. */
