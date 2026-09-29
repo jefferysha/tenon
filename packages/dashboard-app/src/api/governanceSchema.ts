@@ -545,7 +545,7 @@ function decodeIoSlot(value: unknown): WbIoSlot | null {
   return null
 }
 
-function decodeEffectiveIo(value: unknown): WbEffectiveIo | null {
+export function decodeEffectiveIo(value: unknown): WbEffectiveIo | null {
   const body = record(value)
   if (!body) return null
   const out: WbEffectiveIo = {}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { WbStepIo } from '../api/governanceTypes'
 import type { ChangeSnapshot } from '../types'
-import { gateProgress, readableFiles, skillsFromRuns, stageInputs, stageOutputs, type IoRow } from './stageIo'
+import { gateProgress, readableFiles, stageInputs, stageOutputs, type IoRow } from './stageIo'
 
 const change = {
   name: 'demo',
@@ -82,13 +82,5 @@ describe('gateProgress', () => {
     expect(gateProgress('review', [], true)).toEqual({ gate: 'review', done: 1, total: 1 })
     expect(gateProgress(null, [row('set')], true)).toBeNull()
     expect(gateProgress('auto', [], true)).toBeNull()
-  })
-})
-
-describe('skillsFromRuns', () => {
-  it('按波次还原列模型：第 k 波依赖第 k-1 波全部技能；无快照为空', () => {
-    expect(skillsFromRuns(undefined)).toEqual([])
-    expect(skillsFromRuns({ stepId: 'verify', skills: [{ id: 'tenon-verify', status: 'done', wave: 0 }, { id: 'browser-qa', status: 'running', wave: 1 }, { id: 'e2e-testing', status: 'idle', wave: 1 }] }))
-      .toEqual([{ id: 'tenon-verify' }, { id: 'browser-qa', depends_on: ['tenon-verify'] }, { id: 'e2e-testing', depends_on: ['tenon-verify'] }])
   })
 })

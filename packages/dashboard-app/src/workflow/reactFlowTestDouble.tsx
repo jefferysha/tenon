@@ -14,8 +14,11 @@ export const MarkerType = { Arrow: 'arrow', ArrowClosed: 'arrowclosed' } as cons
 export function Background({ gap, color }: { gap?: number; color?: string }): JSX.Element { return <div data-testid="flow-background" data-gap={gap} data-color={color} /> }
 export function BaseEdge(): null { return null }
 export function getBezierPath(): [string, number, number] { return ['M0 0 L1 1', 0, 0] }
-export function Controls({ className, showZoom = true }: { className?: string; showZoom?: boolean }): JSX.Element {
-  return <div data-testid="flow-controls" className={className} data-show-zoom={showZoom} />
+export function Controls({ className, showZoom = true, children }: { className?: string; showZoom?: boolean; children?: ReactNode }): JSX.Element {
+  return <div data-testid="flow-controls" className={className} data-show-zoom={showZoom}>{children}</div>
+}
+export function ControlButton({ children, ...props }: { children?: ReactNode } & Record<string, unknown>): JSX.Element {
+  return <button type="button" {...props}>{children}</button>
 }
 export function Handle({ type }: { type: string }): JSX.Element { return <span data-handle={type} /> }
 export function ReactFlowProvider({ children }: { children: ReactNode }): JSX.Element { return <>{children}</> }
@@ -24,6 +27,7 @@ const INSTANCE = {
   fitView: async (_options?: Record<string, unknown>) => true,
   getNodes: (): AnyNode[] => [],
   getNodesBounds: (_nodes: AnyNode[]) => ({ x: 0, y: 0, width: 600, height: 120 }),
+  fitBounds: async (_bounds: Record<string, number>, _options?: Record<string, unknown>) => true,
   setViewport: async (_viewport: { x: number; y: number; zoom: number }, _options?: { duration?: number }) => true,
 }
 /** 与真库一致：实例引用稳定，否则依赖它的 effect 会每次渲染重跑。 */

@@ -2,13 +2,13 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '../i18n'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { makeChange } from '../testkit'
 import type { ChangeSnapshot, UserRefView } from '../types'
 import { StageIoPanel } from './StageIoPanel'
 import type { IoRow } from './stageIo'
 import { TaskDetailPane, type TaskDetailPaneProps } from './TaskDetailPane'
 import { stagesOf, summaryOf, type TaskRow } from './taskModel'
-import { invalidateWorkflowDefinition } from './useWorkflowDefinition'
 
 vi.mock('@xyflow/react', () => import('../workflow/reactFlowTestDouble'))
 vi.mock('@xyflow/react/dist/style.css', () => ({}))
@@ -42,8 +42,42 @@ function stubFetch() {
   })
 }
 
+/** 任务端点 `GET /api/change/:c/orchestration` 的响应：冻结计划的编排 + 运行状态 + 冻结 IO。 */
+function orchestrationBody(name: string, over: Record<string, unknown> = {}): Record<string, unknown> {
+  const entry = (kind: string, id: string, wave: number, status: string, extra: Record<string, unknown> = {}) => ({ kind, id, label: id, wave, dependsOn: [], required: true, source: 'declared', status, ...extra })
+  return {
+    change: name,
+    workflow: 'mine',
+    track: null,
+    current: 'build',
+    stages: [
+      { id: 'spec', label: 'spec', gate: null, entries: [entry('skill', 'writing-plans', 0, 'done')] },
+      {
+        id: 'build', label: 'build', gate: 'review', entries: [
+          entry('executor', 'builder', 0, 'done'),
+          entry('skill', 'tenon-build', 1, 'running'),
+          entry('test', 'unit', 2, 'failed'),
+          entry('reviewer', 'security', 3, 'waiting'),
+        ],
+      },
+      { id: 'verify', label: 'verify', gate: 'review', entries: [entry('skill', 'browser-qa', 0, 'waiting')] },
+    ],
+    returns: [{ from: 'verify', to: 'build', event: 'verify-fail' }],
+    flows: [{ slot: 'field', id: 'build_sha', from: 'build', producers: [], to: ['verify'] }],
+    io: {
+      spec: { inputs: [], outputs: [] },
+      build: {
+        inputs: [{ kind: 'field', id: 'plan', type: 'file_path', producer: 'spec', consumers: [] }],
+        outputs: [{ kind: 'field', id: 'build_sha', type: 'string', producer: null, consumers: ['verify'] }],
+      },
+      verify: { inputs: [], outputs: [] },
+    },
+    ...over,
+  }
+}
+
 function renderPane(props: TaskDetailPaneProps) {
-  return render(<I18nProvider><TaskDetailPane {...props} /></I18nProvider>)
+  return render(<I18nProvider><TooltipProvider><TaskDetailPane {...props} /></TooltipProvider></I18nProvider>)
 }
 
 function change(over: Partial<ChangeSnapshot> = {}): ChangeSnapshot {
@@ -121,19 +155,12 @@ describe('TaskDetailPane header and records', () => {
     expect(screen.getByTestId('task-detail-badge')).toHaveAttribute('data-tone', 'running')
   })
 
-  // 状态只读快照：工作流定义加载前后，状态行、阶段轨与记录的名字都一样（名称只显示一个：冻结计划的 label，没有就是 id）。
-  it('定义加载前后状态行不变', async () => {
-    const def = {
-      name: 'default',
-      steps: ['build', 'verify'].map((id, index) => ({
-        id, label: id === 'verify' ? '验证' : '实现', gate: null, skills: [], inputs: [], outputs: [], guards: [],
-        transitions: index === 0 ? [{ event: 'build-complete', to: 'verify' }] : [],
-      })),
-    }
+  // 状态只读快照：编排加载前后，状态行、阶段轨与记录的名字都一样（名称只显示一个：冻结计划的 label，没有就是 id）。
+  it('编排加载前后状态行不变；读的是任务冻结计划（任务端点），不读当前工作流定义', async () => {
     const history = { entries: [{ ts: '2026-09-16T01:00:00Z', kind: 'transition', from: 'build', to: 'verify', actor: { id: 'ann@x.io', name: 'Ann', trust: 'declared' } }] }
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
-      if (url === '/api/workflows/default?root=%2Frepo') return new Response(JSON.stringify(def), { status: 200 })
+      if (url === '/api/change/x/orchestration?root=%2Frepo') return new Response(JSON.stringify(orchestrationBody('x')), { status: 200 })
       if (url.startsWith('/api/change/x/history')) return new Response(JSON.stringify(history), { status: 200 })
       return new Response(JSON.stringify({ ok: false, error: 'not found' }), { status: 404 })
     })
@@ -146,16 +173,15 @@ describe('TaskDetailPane header and records', () => {
       stages: [{ id: 'build', label: 'build', status: 'current' }, { id: 'verify', label: 'verify', status: 'todo' }],
       summary: { kind: 'ready', to: 'verify' },
     }
-    try {
-      renderPane({ row })
-      const before = screen.getByTestId('task-detail-badge').textContent
-      expect(before).toBe('可进入verify')
-      await waitFor(() => expect(fetchSpy.mock.calls.some((call) => String(call[0]).startsWith('/api/workflows/'))).toBe(true))
-      expect(await screen.findByText('build → verify')).toBeInTheDocument()
-      expect(screen.getByTestId('task-detail-badge').textContent).toBe(before)
-    } finally {
-      invalidateWorkflowDefinition()
-    }
+    renderPane({ row })
+    const before = screen.getByTestId('task-detail-badge').textContent
+    expect(before).toBe('可进入verify')
+    expect(await screen.findByText('build → verify')).toBeInTheDocument()
+    await screen.findByTestId('orchestration-stage')
+    expect(screen.getByTestId('task-detail-badge').textContent).toBe(before)
+    expect(fetchSpy.mock.calls.some((call) => String(call[0]).startsWith('/api/workflows/'))).toBe(false)
+    // 输入 / 输出槽位来自冻结计划的 IO。
+    expect(screen.getByTestId('task-io-tab-inputs')).toHaveTextContent('1')
   })
 
   it('没有菜单项时不渲染 ⋯', () => {
@@ -200,19 +226,68 @@ describe('TaskDetailPane · URL step', () => {
   })
 })
 
-describe('TaskDetailPane · 技能状态', () => {
-  const RUNS = [{ stepId: 'build', skills: [{ id: 'tenon-build', status: 'idle' as const, wave: 0 }] }]
+describe('TaskDetailPane · 编排画布与运行状态', () => {
+  // 选阶段会把 step 写进 URL；每条用例从干净的地址开始。
+  afterEach(() => { window.history.replaceState(null, '', '/') })
 
-  it('已完结的任务，没有运行记录的技能不写「未运行」', () => {
-    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('no request expected'))))
-    const row = { ...snapshotRow(change({ skillRuns: RUNS })), summary: { kind: 'completed' as const } }
-    render(<I18nProvider><TaskDetailPane row={row} fetchDefinition={false} /></I18nProvider>)
-    expect(screen.getByTestId('flow-node-tenon-build')).not.toHaveTextContent('未运行')
+  function stubOrchestration(body = orchestrationBody('demo')) {
+    return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url === '/api/change/demo/orchestration?root=%2Frepo') return new Response(JSON.stringify(body), { status: 200 })
+      if (url.startsWith('/api/agents/')) return new Response(JSON.stringify({ ok: true, path: 'r2.md', text: '# 结论\n\n不通过', bytes: 12 }), { status: 200 })
+      return new Response(JSON.stringify({ ok: false, error: 'not found' }), { status: 404 })
+    })
+  }
+
+  it('阶段页：所选阶段的单列画布，泳道按 执行者 → 技能 → 测试 → 评审者，节点带四态', async () => {
+    stubOrchestration()
+    renderPane({ row: snapshotRow(change()) })
+    const canvas = await screen.findByTestId('orchestration-stage')
+    const states = ['executor-builder', 'skill-tenon-build', 'test-unit', 'reviewer-security']
+      .map((id) => within(canvas).getByTestId(`orch-node-${id}`))
+    expect(states.map((node) => node.getAttribute('data-status'))).toEqual(['done', 'running', 'failed', 'waiting'])
+    expect(states.map((node) => within(node).getByTestId('orch-status').textContent)).toEqual(['完成', '运行中', '失败', '等待'])
+    expect(canvas).toHaveAttribute('data-pulse', 'loop')
   })
 
-  it('阶段仍在进行时照常写「未运行」（与智能体、测试同一用词）', () => {
-    renderSnapshotPane(change({ skillRuns: RUNS }))
-    expect(screen.getByTestId('flow-node-tenon-build')).toHaveTextContent('未运行')
+  it('总览页：整条工作流一张画布，当前阶段高亮；点列头回到阶段页并选中该阶段', async () => {
+    stubOrchestration()
+    renderPane({ row: snapshotRow(change()) })
+    await screen.findByTestId('orchestration-stage')
+    await userEvent.click(screen.getByTestId('task-view-tab-overview'))
+    const overview = screen.getByTestId('orchestration-overview')
+    expect(screen.queryByTestId('stage-rail')).toBeNull()
+    expect(within(overview).getByTestId('orch-frame-build')).toHaveAttribute('data-current', 'true')
+    expect(within(overview).getByTestId('orch-frame-spec')).not.toHaveAttribute('data-current')
+    expect(within(within(overview).getByTestId('orch-frame-build')).getByTestId('orch-gate')).toHaveAttribute('data-gate', 'review')
+    await userEvent.click(within(overview).getByTestId('orch-stage-verify'))
+    expect(screen.getByTestId('stage-rail-verify')).toHaveAttribute('aria-pressed', 'true')
+    expect(within(screen.getByTestId('orchestration-stage')).getByTestId('orch-node-skill-browser-qa')).toHaveAttribute('data-status', 'waiting')
+  })
+
+  it('读不到编排时写出错误（role=alert），其余照常', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ ok: false, error: 'x' }), { status: 500 }))
+    renderPane({ row: snapshotRow(change()) })
+    expect(await screen.findByTestId('task-orchestration-error')).toHaveAttribute('role', 'alert')
+    expect(screen.getByTestId('task-detail-badge')).toBeInTheDocument()
+  })
+
+  it('点评审者节点开运行抽屉（事实来自快照的 agent 投影）；技能节点点不开', async () => {
+    stubOrchestration()
+    const RUNS = [{
+      stepId: 'build',
+      agents: [{
+        agent: 'security', role: 'reviewer' as const, required: true, blockAt: 'high' as const,
+        dependsOn: [], readsTests: ['unit'], state: 'done' as const, result: 'fail' as const,
+        findings: 2, blocking: 1, runId: 'r2', reportPath: 'openspec/changes/demo/.pipeline-agent-reports/r2.md',
+        actor: { id: 'ann@x.io', name: 'Ann' }, finishedAt: '2026-09-20T02:00:00Z',
+      }],
+    }]
+    renderPane({ row: snapshotRow(change({ agentRuns: RUNS })) })
+    await screen.findByTestId('orchestration-stage')
+    expect(screen.getByTestId('orch-open-skill-tenon-build')).toBeDisabled()
+    await userEvent.click(screen.getByTestId('orch-open-reviewer-security'))
+    expect(screen.getByTestId('agent-run-facts')).toHaveTextContent('评审者 · 不通过 · 问题 2 · Ann')
   })
 })
 
@@ -312,55 +387,6 @@ describe('StageIoPanel · 过期原因与缺失技能', () => {
     await userEvent.click(screen.getByTestId('stage-output-document-tasks'))
     expect(onOpen).toHaveBeenCalledTimes(1)
     cleanup()
-  })
-})
-
-describe('TaskDetailPane · agent 段', () => {
-  const RUNS = [{
-    stepId: 'build',
-    agents: [
-      {
-        agent: 'builder', role: 'executor' as const, required: true, dependsOn: [], readsTests: [],
-        state: 'done' as const, result: 'done' as const, findings: 0, blocking: 0,
-        runId: 'r1', reportPath: 'openspec/changes/demo/.pipeline-agent-reports/r1.md',
-        actor: { id: 'ann@x.io', name: 'Ann' }, finishedAt: '2026-09-20T01:00:00Z',
-      },
-      {
-        agent: 'security', role: 'reviewer' as const, required: true, blockAt: 'high' as const,
-        dependsOn: [], readsTests: ['unit'], state: 'done' as const, result: 'fail' as const,
-        findings: 2, blocking: 1, runId: 'r2', reportPath: 'openspec/changes/demo/.pipeline-agent-reports/r2.md',
-        actor: { id: 'ann@x.io', name: 'Ann' }, finishedAt: '2026-09-20T02:00:00Z',
-      },
-    ],
-  }]
-
-  it('画布按身份与结论标注；评审者接在执行者之后', () => {
-    renderSnapshotPane(change({ agentRuns: RUNS }))
-    const section = screen.getByTestId('stage-agents')
-    expect(section).toHaveTextContent('2')
-    expect(within(section).getByTestId('skill-flow')).toHaveAttribute('data-edges', '1')
-    expect(screen.getByTestId('flow-caption-security')).toHaveTextContent('评审者')
-    expect(screen.getByTestId('flow-node-security')).toHaveTextContent('不通过 · 问题 2')
-    expect(screen.getByTestId('flow-node-builder')).toHaveTextContent('完成')
-    // 高度由只读画布按内容算（canvasHeight），不再写死 h-56 把多行波次压扁。
-    const canvas = within(section).getByTestId('skill-flow')
-    expect(canvas.className.split(/\s+/u)).not.toContain('h-56')
-    expect(canvas.style.height).not.toBe('')
-  })
-
-  it('没有 agent 的步骤整段不渲染；点节点开抽屉，抽屉读它的报告', async () => {
-    const bare = renderSnapshotPane(change())
-    expect(screen.queryByTestId('stage-agents')).toBeNull()
-    cleanup()
-    bare.mockReset()
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(
-      JSON.stringify({ ok: true, path: 'r2.md', text: '# 结论\n\n不通过', bytes: 12 }),
-      { status: 200 },
-    )))
-    render(<I18nProvider><TaskDetailPane row={snapshotRow(change({ agentRuns: RUNS }))} fetchDefinition={false} /></I18nProvider>)
-    await userEvent.click(screen.getByTestId('flow-open-security'))
-    expect(screen.getByTestId('agent-run-facts')).toHaveTextContent('评审者 · 不通过 · 问题 2 · Ann')
-    await waitFor(() => expect(screen.getByTestId('agent-run-report')).toHaveTextContent('不通过'))
   })
 })
 

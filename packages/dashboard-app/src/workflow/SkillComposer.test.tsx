@@ -205,6 +205,7 @@ describe('SkillComposer', () => {
     expect(screen.getByTestId('flow-node-brainstorming')).toBeInTheDocument()
     expect(screen.queryByTestId('skill-composer-detail-add')).toBeNull()
     await user.click(screen.getByTestId('skill-composer-save'))
-    expect(onSave).toHaveBeenCalledWith([{ id: 'tenon-open' }, { id: 'brainstorming', depends_on: ['tenon-open'] }])
+    // 串行追加 = 不写 depends_on（按声明顺序接在前面之后，kernel skill-order 的口径）。
+    expect(onSave).toHaveBeenCalledWith([{ id: 'tenon-open' }, { id: 'brainstorming' }])
   })
 })

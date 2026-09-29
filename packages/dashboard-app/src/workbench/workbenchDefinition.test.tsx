@@ -18,7 +18,6 @@ import {
   reorderStagesInDef,
   selectBranchDef,
   setStepAgentsInDef,
-  setStepSkillWavesInDef,
   workflowNameFromYaml,
   writeBranchDef,
   type WbStepDef,
@@ -92,16 +91,14 @@ describe('workbenchDefinition · 写回投影', () => {
   })
 })
 
-describe('workbenchDefinition · 技能列模型', () => {
-  it('setStepSkillWaves：同列并行、邻列串行 → depends_on 指向上一列全部技能', () => {
-    const next = setStepSkillWavesInDef(twoStep(), 'a', [['s1', 's3'], ['s2']])
-    expect(next.steps[0]?.skills).toEqual([{ id: 's1' }, { id: 's3' }, { id: 's2', depends_on: ['s1', 's3'] }])
-  })
-  it('addSkill 追加为新的末列；removeSkill 顺带清掉依赖', () => {
+describe('workbenchDefinition · 技能顺序（kernel skill-order）', () => {
+  it('addSkill 不写 depends_on，按声明顺序接在最后；removeSkill 顺带清掉依赖，只依赖它的改回声明顺序', () => {
     const added = addSkillToDef(twoStep(), 'a', 's3')
-    expect(added.steps[0]?.skills.at(-1)).toEqual({ id: 's3', depends_on: ['s2'] })
-    const removed = removeSkillFromDef(added, 'a', 's2')
-    expect(removed.steps[0]?.skills).toEqual([{ id: 's1' }, { id: 's3', depends_on: ['s1'] }])
+    expect(added.steps[0]?.skills.at(-1)).toEqual({ id: 's3' })
+    expect(addSkillToDef(added, 'a', 's3')).toBe(added)
+    const removed = removeSkillFromDef(added, 'a', 's1')
+    expect(removed.steps[0]?.skills).toEqual([{ id: 's2' }, { id: 's3' }])
+    expect(removeSkillFromDef(removed, 'a', 'ghost')).toBe(removed)
   })
 })
 
