@@ -5,9 +5,12 @@ import type {
   RelatedSessionSearchRunner,
 } from './types.js'
 
-export function createKernelRelatedSessionSearchRunner(memFs: MemFs): RelatedSessionSearchRunner {
+export function createKernelRelatedSessionSearchRunner(
+  memFs: MemFs,
+  now: () => number = Date.now,
+): RelatedSessionSearchRunner {
   return (request) => {
-    const result = searchRelatedSessions(memFs, request)
+    const result = searchRelatedSessions(memFs, { ...request, now })
     return {
       protocol: 'tenon-related-session-memory/v1',
       query: result.query,
@@ -43,9 +46,10 @@ export function createRelatedSessionMemoryServices(options: {
   hostHome: string
   memFs?: MemFs
   runner?: RelatedSessionSearchRunner
+  now?: () => number
 }): { memFs: MemFs; executor: RelatedSessionSearchExecutor } {
   const memFs = options.memFs ?? nodeMemFs(options.hostHome)
-  const runner = options.runner ?? createKernelRelatedSessionSearchRunner(memFs)
+  const runner = options.runner ?? createKernelRelatedSessionSearchRunner(memFs, options.now)
   return { memFs, executor: createRelatedSessionSearchExecutor(runner) }
 }
 

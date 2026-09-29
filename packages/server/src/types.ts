@@ -347,6 +347,8 @@ export interface DashboardServerOptions {
    * runner to prove concurrency and error mapping without depending on host session formats.
    */
   relatedSessionSearch?: RelatedSessionSearchRunner
+  /** Millisecond clock for the related-session discovery time budget (default `Date.now`). */
+  relatedSessionNow?: () => number
   /** H11：starter 激活候选的完整运行接线校验；缺省由 manifest + runner roots 生产装配。 */
   validateLoopActivation?: LoopActivationValidator
   /**

@@ -14,6 +14,7 @@ import type {
 import { initChange, makeProject, makeTempHome, newStore, reqPost, testFlow } from './test-support.js'
 
 const openServers: DashboardServer[] = []
+const FROZEN_CLOCK = (): number => 0
 
 afterEach(async () => {
   while (openServers.length) await openServers.pop()!.close()
@@ -208,6 +209,8 @@ describe('POST /api/mem/related-sessions/search', () => {
       store,
       flow: testFlow(),
       token: 'related-memory-token',
+      // Frozen clock: the 75 ms discovery budget must not trip because the machine is loaded.
+      relatedSessionNow: FROZEN_CLOCK,
     })
     openServers.push(server)
     const { port } = await server.listen(0, '127.0.0.1')
@@ -516,6 +519,8 @@ describe('POST /api/mem/related-sessions/search', () => {
       flow: testFlow(),
       token: 'related-memory-token',
       memFs: blockingFs,
+      // The first scan blocks on purpose; a real clock would expire the discovery budget meanwhile.
+      relatedSessionNow: FROZEN_CLOCK,
     })
     openServers.push(server)
     const { port } = await server.listen(0, '127.0.0.1')

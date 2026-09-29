@@ -12,8 +12,16 @@ import {
 import {
   RELATED_SESSION_SEARCH_BUDGETS,
   RelatedSessionSearchInputError,
-  searchRelatedSessions,
+  searchRelatedSessions as searchRelatedSessionsWithClock,
+  type RelatedSessionSearchOptions,
 } from './relatedSearch.js'
+
+/** Frozen discovery clock: the 75 ms budget trips only when a test injects a moving clock. */
+const FROZEN_CLOCK = (): number => 0
+
+function searchRelatedSessions(fs: MemFs, options: RelatedSessionSearchOptions) {
+  return searchRelatedSessionsWithClock(fs, { now: FROZEN_CLOCK, ...options })
+}
 
 const PROJECT = '/home/u/work/proj'
 
@@ -725,6 +733,30 @@ describe('searchRelatedSessions bounded privacy contract', () => {
     expect(result.matches).toEqual([])
     expect(result.partial).toBe(true)
     expect(result.warnings.map((warning) => warning.code)).toContain('candidate-limit-reached')
+  })
+
+  test('the discovery time budget follows the injected clock, not the wall clock', () => {
+    const path = codexFile('clocked')
+    const files = { [path]: codexSession('clocked', [{ role: 'user', text: 'clocked memory needle' }]) }
+    const frozen = searchRelatedSessions(boundedFakeFs(files), {
+      root: PROJECT,
+      query: 'memory needle',
+      platform: 'codex',
+    })
+    expect(frozen.matches.map((match) => match.sessionId)).toEqual(['clocked'])
+    expect(frozen.warnings.map((warning) => warning.code)).not.toContain('candidate-discovery-truncated')
+
+    let tick = 0
+    const expired = searchRelatedSessions(boundedFakeFs(files), {
+      root: PROJECT,
+      query: 'memory needle',
+      platform: 'codex',
+      // Every reading is one second later: the first deadline check already sees the budget spent.
+      now: () => { tick += 1_000; return tick },
+    })
+    expect(expired.matches).toEqual([])
+    expect(expired.partial).toBe(true)
+    expect(expired.warnings.map((warning) => warning.code)).toContain('candidate-discovery-truncated')
   })
 
   test('bounds Codex filesystem discovery before sorting a large history tree', () => {

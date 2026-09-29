@@ -21,7 +21,12 @@ import { nodeMemFs } from '../fs.js'
 import type { MemContentReadBudget, MemFs } from '../fs.js'
 import type { MemFilter, MemSession } from '../types.js'
 import { buildChildIndex } from '../sessions.js'
-import { searchRelatedSessions } from '../relatedSearch.js'
+import { searchRelatedSessions as searchRelatedSessionsWithClock, type RelatedSessionSearchOptions } from '../relatedSearch.js'
+
+/** Frozen discovery clock so the related-search time budget never trips on a loaded machine. */
+function searchRelatedSessions(fs: MemFs, options: RelatedSessionSearchOptions) {
+  return searchRelatedSessionsWithClock(fs, { now: () => 0, ...options })
+}
 import {
   opencodeExtractDialogue,
   opencodeListSessions,

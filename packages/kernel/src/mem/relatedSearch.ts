@@ -41,6 +41,11 @@ export interface RelatedSessionSearchOptions {
   root: string
   query: string
   platform: MemPlatformFilter
+  /**
+   * Millisecond clock for the candidate-discovery time budget. Defaults to `Date.now`; tests inject a
+   * fake clock so the budget never trips on a loaded machine and only trips when the test says so.
+   */
+  now?: () => number
 }
 
 interface BudgetState {
@@ -65,6 +70,7 @@ function budgetedFs(
   source: MemFs,
   state: BudgetState,
   platform: MemPlatformFilter,
+  now: () => number,
 ): MemFs {
   const cache = new Map<string, string | undefined>()
   const prefixBytes = new Map<string, Buffer>()
@@ -309,11 +315,11 @@ function budgetedFs(
       shouldContinueDiscovery: (source) => {
         let deadline = discoveryDeadlines.get(source)
         if (deadline === undefined) {
-          deadline = Date.now() + (discoveryTimeLimits.get(source) ?? 0)
+          deadline = now() + (discoveryTimeLimits.get(source) ?? 0)
           discoveryDeadlines.set(source, deadline)
         }
         return (discoveryEntries.get(source) ?? 0) < (discoveryEntryLimits.get(source) ?? 0)
-          && Date.now() <= deadline
+          && now() <= deadline
       },
       maxDiscoveryDepth: RELATED_SESSION_SEARCH_BUDGETS.discoveryDepth,
       maxDiscoveryFiles: RELATED_SESSION_SEARCH_BUDGETS.discoveryFiles,
@@ -368,7 +374,7 @@ export function searchRelatedSessions(
     warnings: [],
     warningCodes: new Set(),
   }
-  const scopedFs = budgetedFs(fs, state, platform)
+  const scopedFs = budgetedFs(fs, state, platform, options.now ?? Date.now)
 
   const search = searchMemSessions(scopedFs, {
     keyword: query,

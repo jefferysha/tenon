@@ -163,7 +163,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
   const resolveUser = options.resolveUser ?? defaultResolveUser
   const traceStore = options.traceStore
   const { memFs, executor: relatedSessionSearch } =
-    createRelatedSessionMemoryServices({ hostHome, memFs: options.memFs, runner: options.relatedSessionSearch })
+    createRelatedSessionMemoryServices({ hostHome, memFs: options.memFs, runner: options.relatedSessionSearch, now: options.relatedSessionNow })
   // config 写端点（M3 可选增量）数据源：manifest.yaml 路径。未注入（如测试只传 flow 而非
   // manifestPath）→ capabilities.config=false，GET/POST config 端点降级 404（不谎报，同 traffic 手法）。
   const manifestPath = options.manifestPath
