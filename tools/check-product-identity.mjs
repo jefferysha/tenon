@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import {
   readProductIdentity,
   renderCodexAgentsBlock,
+  renderCodexAgentsBlockModule,
   renderProductIdentity,
 } from './generate-product-identity.mjs'
 
@@ -54,6 +55,15 @@ async function main() {
   )
   if (actualCodexTemplate !== null && actualCodexTemplate !== expectedCodexTemplate) {
     fail('Codex managed block projection is stale; run npm run generate:identity')
+  }
+
+  const codexBlockModuleUrl = new URL('../packages/kernel/src/instructions/codex-agents-block.generated.ts', import.meta.url)
+  const actualCodexModule = await readRequired(
+    codexBlockModuleUrl,
+    'packages/kernel/src/instructions/codex-agents-block.generated.ts',
+  )
+  if (actualCodexModule !== null && actualCodexModule !== renderCodexAgentsBlockModule(identity)) {
+    fail('Codex managed block kernel projection is stale; run npm run generate:identity')
   }
 
   const agents = await readRequired(agentsUrl, 'AGENTS.md')

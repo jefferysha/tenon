@@ -46,7 +46,9 @@ tags: [workflow, pipeline, versioning, migration, upgrade]
 ## 报告 JSON 关键字段（`stage=sync`）
 
 `proceed` / `downgrade_action` / `project_version` / `cli_version` / `pending_count` /
-`codex_upgrade_needed` / `pruned`（被剪键）/ `pruned_persisted` / `inject_config_sections` /
+`codex_upgrade_needed` / `codex_block`（AGENTS.md 的 Codex 受管块：`absent` / `current` / `stale` /
+`invalid` / `refreshed`；`stale` 只在 `--migrate` 时就地刷新 START…END，块外内容不动）/
+`pruned`（被剪键）/ `pruned_persisted` / `inject_config_sections` /
 `migrate_flag` / `migrate_gate`（`{decision, exitCode, messages}`）/ `report_only`。
 按 `migrate_gate.decision` 行动：`required`（exit 1）停手、提示重跑 `--migrate`；`tip` 软提示；`ok` 可安全同步。
 

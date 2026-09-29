@@ -3,8 +3,9 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
 import {
-  containsManagedMarker, contentAfterDelete, mergeManagedBlocks, parseManagedBlocks,
+  containsManagedMarker, contentAfterDelete, mergeManagedBlocks, parseManagedBlocks, refreshManagedBlock,
 } from './managed-blocks.js'
+import { CODEX_AGENTS_BLOCK } from './codex-agents-block.generated.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const CODEX_BLOCK = readFileSync(join(HERE, '..', '..', '..', '..', 'templates', 'generated', 'codex-agents-block.md'), 'utf8')
@@ -77,5 +78,38 @@ describe('mergeManagedBlocks / contentAfterDelete / containsManagedMarker', () =
   test('标记行判定只看整行', () => {
     expect(containsManagedMarker('a\n<!-- PIPELINE:CODEX:START -->\n')).toBe(true)
     expect(containsManagedMarker('正文提到 <!-- PIPELINE:CODEX:START --> 不算')).toBe(false)
+  })
+})
+
+describe('refreshManagedBlock', () => {
+  const OLD_BLOCK = '<!-- PIPELINE:CODEX:START -->\n## 旧块\n初始化 OpenSpec 并分派当前 phase Skill\n<!-- PIPELINE:CODEX:END -->'
+
+  test('kernel 常量与生成模板逐字一致（tenon sync 与安装器对同一份块）', () => {
+    expect(CODEX_AGENTS_BLOCK).toBe(CODEX_BLOCK)
+    expect(CODEX_AGENTS_BLOCK).not.toContain('phase Skill')
+  })
+
+  test('过时块只换 START…END，块外用户内容逐字保留', () => {
+    const content = `# 我的规则\n\n不要动这行\n\n${OLD_BLOCK}\n\n尾部用户内容\n`
+    const refreshed = refreshManagedBlock(content, CODEX_AGENTS_BLOCK)
+    expect(refreshed.status).toBe('stale')
+    if (refreshed.status !== 'stale') return
+    expect(refreshed.content).toBe(`# 我的规则\n\n不要动这行\n\n${CODEX_AGENTS_BLOCK.trimEnd()}\n\n尾部用户内容\n`)
+    expect(refreshManagedBlock(refreshed.content, CODEX_AGENTS_BLOCK)).toEqual({ status: 'current' })
+  })
+
+  test('CRLF 文件：新块沿用 CRLF，块外不变', () => {
+    const content = `a\r\n${OLD_BLOCK.replace(/\n/g, '\r\n')}\r\nb\r\n`
+    const refreshed = refreshManagedBlock(content, CODEX_AGENTS_BLOCK)
+    expect(refreshed.status).toBe('stale')
+    if (refreshed.status !== 'stale') return
+    expect(refreshed.content).toBe(`a\r\n${CODEX_AGENTS_BLOCK.trimEnd().replace(/\n/g, '\r\n')}\r\nb\r\n`)
+    expect(refreshManagedBlock(refreshed.content, CODEX_AGENTS_BLOCK)).toEqual({ status: 'current' })
+  })
+
+  test('没有该块 → absent；标记非法 → invalid（调用方不得改写）', () => {
+    expect(refreshManagedBlock('# 只有用户内容\n', CODEX_AGENTS_BLOCK)).toEqual({ status: 'absent' })
+    expect(refreshManagedBlock('<!-- PIPELINE:CODEX:START -->\n半个块\n', CODEX_AGENTS_BLOCK)).toEqual({ status: 'invalid' })
+    expect(refreshManagedBlock(`${OLD_BLOCK}\n${OLD_BLOCK}\n`, CODEX_AGENTS_BLOCK)).toEqual({ status: 'invalid' })
   })
 })

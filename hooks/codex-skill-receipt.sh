@@ -56,8 +56,9 @@ PROOT="$(pipeline_project_root "$CWD" bootstrap changes || true)"
 
 # A receipt must be tied to the exact Change selected by the pipeline entry skill.  Do not use a
 # most-recent-state fallback here: that was the mechanism that let a new normal conversation
-# borrow an unrelated old Change.  The phase skill instructions activate the selected Change
-# before they read their own SKILL.md, so a missing pointer correctly means "no receipt yet".
+# borrow an unrelated old Change.  The tenon skill activates the selected Change
+# (`tenon session activate`) before any step skill's SKILL.md is read, so a missing pointer
+# correctly means "no receipt yet".
 STATE_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/canonical-state.sh"
 [ -r "$STATE_HELPER" ] || exit 0
 # shellcheck source=canonical-state.sh

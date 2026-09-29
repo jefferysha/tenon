@@ -12,7 +12,7 @@
 import { mkdir, readFile, rm as rmfs, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import { computeContentHash, serializeOwnedManifest } from '@tenon/kernel'
+import { CODEX_AGENTS_BLOCK, computeContentHash, serializeOwnedManifest } from '@tenon/kernel'
 import { cmdSync, type SyncMigrationProvider } from './commands/sync.js'
 import { cmdUninstall } from './commands/uninstall.js'
 import { freshHarness, realDeps, rm, type Harness } from './integration-harness.js'
@@ -221,6 +221,28 @@ describe('真实 e2e —— sync 决策层（真读 .pipeline-version + 报告 J
       report_only: true,
       inject_config_sections: false,
     })
+  })
+
+  test('AGENTS.md 的过时 Codex 受管块：report-only 只报告，--migrate 就地刷新且块外不动', async () => {
+    const stale = '# 项目规则\n\n用户自己的规则\n\n<!-- PIPELINE:CODEX:START -->\n## 旧块\n初始化 OpenSpec 并分派当前 phase Skill\n<!-- PIPELINE:CODEX:END -->\n'
+    await writeFile(join(h.cwd, 'AGENTS.md'), stale, 'utf8')
+    await writeFile(join(h.cwd, '.pipeline-version'), '1.0.0', 'utf8')
+
+    const reported = await sync(h, { cliVersion: '1.0.0' })
+    expect(reported.code).toBe(0)
+    expect(report(reported.out)).toMatchObject({ codex_block: 'stale', report_only: true })
+    expect(reported.err.join('\n')).toContain('tenon sync --migrate')
+    expect(await readFile(join(h.cwd, 'AGENTS.md'), 'utf8')).toBe(stale)
+
+    const migrated = await sync(h, { cliVersion: '1.0.0', migrate: true })
+    expect(migrated.code).toBe(0)
+    expect(report(migrated.out)).toMatchObject({ codex_block: 'refreshed' })
+    const refreshed = await readFile(join(h.cwd, 'AGENTS.md'), 'utf8')
+    expect(refreshed).toBe(`# 项目规则\n\n用户自己的规则\n\n${CODEX_AGENTS_BLOCK}`)
+    expect(refreshed).not.toContain('phase Skill')
+
+    const again = await sync(h, { cliVersion: '1.0.0' })
+    expect(report(again.out)).toMatchObject({ codex_block: 'current' })
   })
 
   test('downgrade 守卫：cli<project 无 --allow → proceed=false、exit 0、明示两条出路', async () => {

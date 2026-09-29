@@ -6,7 +6,7 @@
 [仓库内中文文档](docs/usage/zh-CN/index.md) · [English guide](docs/usage/README.md) ·
 [安全](SECURITY.md) · [参与贡献](CONTRIBUTING.md) · [MIT License](LICENSE)
 
-Tenon 是一个完整打包的插件，不是“CLI 加一份需要手工安装的 Skills 清单”。发布包包含声明式 Workflow、OpenSpec 证据规则、分阶段 Skills、hooks、CLI、本地 Dashboard、自动化控制和多宿主 adapters。
+Tenon 是一个完整打包的插件，不是“CLI 加一份需要手工安装的 Skills 清单”。发布包包含声明式 Workflow、OpenSpec 证据规则、入口 Skill `tenon`、hooks、CLI、本地 Dashboard、自动化控制和多宿主 adapters。
 
 它解决 agent 工作中常见的错位：对话说了一套，任务状态、Todo、文档和实际工具执行却是另一套。Tenon 让这些界面共享同一份 Effective Workflow Plan，并拒绝无效转换，而不是从对话文本猜测进度。
 
@@ -181,7 +181,7 @@ Default Workflow 治理以下文档：
 - Verify：verification report
 - Ship：applied specification
 
-后续阶段为其消费的文档登记当前读取收据。文档由当前 agent 通过要求的阶段 Skills 编写；只初始化状态不会自动产生有意义的内容。Ledger 把每个受治理文件绑定到内容摘要、producer 证据、Change、阶段访问和后续读取。
+后续阶段为其消费的文档登记当前读取收据。文档由当前 agent 通过各步骤要求的 Skills 编写；只初始化状态不会自动产生有意义的内容。Ledger 把每个受治理文件绑定到内容摘要、producer 证据、Change、阶段访问和后续读取。
 
 Review 出口与确切 transition event 绑定：
 

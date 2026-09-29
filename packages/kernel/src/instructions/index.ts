@@ -23,5 +23,7 @@ export { ABSENT_DIGEST, instructionDigest } from './digest.js'
 export { instructionLibraryRoot } from './library-paths.js'
 export {
   MANAGED_MARKER_LINE, containsManagedMarker, contentAfterDelete, mergeManagedBlocks, parseManagedBlocks,
+  refreshManagedBlock,
 } from './managed-blocks.js'
-export type { ManagedBlock, ManagedParse } from './managed-blocks.js'
+export type { ManagedBlock, ManagedBlockRefresh, ManagedParse } from './managed-blocks.js'
+export { CODEX_AGENTS_BLOCK } from './codex-agents-block.generated.js'

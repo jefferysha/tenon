@@ -10,7 +10,7 @@ being run.
 
 Tenon is one packaged plugin, not a CLI plus a list of Skills to install
 by hand. The release contains declarative workflows, OpenSpec evidence rules,
-phase Skills, hooks, the CLI, the local Dashboard, automation controls, and
+the `tenon` entry Skill, hooks, the CLI, the local Dashboard, automation controls, and
 multi-host adapters.
 
 It is built for a common failure mode in agent work: the conversation says one
@@ -176,7 +176,7 @@ The default workflow governs:
 - Ship: applied specification
 
 Later phases record current read receipts for the documents they consume.
-Documents are authored by the active agent through the required phase Skills;
+Documents are authored by the active agent through the Skills each step requires;
 initializing state alone does not generate meaningful content. The ledger binds
 each governed file to its digest, producer evidence, Change, phase visit, and
 later reads.

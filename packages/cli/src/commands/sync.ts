@@ -4,8 +4,9 @@
  *
  * 三子命令（老仓 pipeline-sync.sh sync|banner|upgrade-channel）：
  *   sync（默认）：决策层顺序铁律 —— downgrade-guard（拒即整体 return）→ needs_codex_upgrade（裸 manifest，
- *     先于 prune）→ prune（codex 进 known、persist 仅 --migrate）→ config-section 注入门 → --migrate 硬闸
- *     （breaking∧recommend 双真 → exit 1，不可降级为提示）。报告以单行 JSON 落 stdout（SKILL 消费）。
+ *     先于 prune）→ prune（codex 进 known、persist 仅 --migrate）→ AGENTS.md Codex 受管块比对（刷新仅
+ *     --migrate）→ config-section 注入门 → --migrate 硬闸（breaking∧recommend 双真 → exit 1，不可降级为
+ *     提示）。报告以单行 JSON 落 stdout（SKILL 消费）。
  *   banner：项目 .pipeline-version vs CLI 版纯本地比对（零网络），落后才输出 nudge。
  *   upgrade-channel：从 installed_plugins.json（注入文本）按后缀派生 latest/beta/rc。
  *
@@ -17,6 +18,7 @@
  */
 import {
   AGENTS_MD,
+  CODEX_AGENTS_BLOCK,
   CODEX_UPGRADE_MARKERS,
   bannerNudge,
   createOwnedFs,
@@ -27,6 +29,7 @@ import {
   needsCodexUpgrade,
   pruneOwnedManifest,
   readVersionFile,
+  refreshManagedBlock,
   saveOwnedManifest,
   shouldInjectConfigSections,
   type OwnedFs,
@@ -102,6 +105,16 @@ async function runSync(deps: CliDeps, opts: SyncOpts, fs: OwnedFs): Promise<numb
     prunedPersisted = true
   }
 
+  // 3b. AGENTS.md 的 Codex 受管块：与本版 CLI 的块比对；report-only 只报告，--migrate 才就地刷新
+  //     START…END 之间的行（块外用户内容原样保留；标记非法一律不写）。
+  const agentsMdPath = `${cwd.replace(/\/+$/, '')}/${AGENTS_MD}`
+  const block = agentsMdContent === undefined ? { status: 'absent' as const } : refreshManagedBlock(agentsMdContent, CODEX_AGENTS_BLOCK)
+  let codexBlock: 'absent' | 'current' | 'invalid' | 'stale' | 'refreshed' = block.status
+  if (block.status === 'stale' && migrate) {
+    await fs.writeText(agentsMdPath, block.content)
+    codexBlock = 'refreshed'
+  }
+
   // 4. config-section 注入门（仅 cli>project ∧ ≠unknown；unknown 判定内建于 shouldInjectConfigSections）。
   const injectConfig = shouldInjectConfigSections(cliVersion, projectVersion)
 
@@ -116,6 +129,7 @@ async function runSync(deps: CliDeps, opts: SyncOpts, fs: OwnedFs): Promise<numb
     cli_version: cliVersion,
     pending_count: pending.length,
     codex_upgrade_needed: codexNeeded,
+    codex_block: codexBlock,
     pruned,
     pruned_persisted: prunedPersisted,
     inject_config_sections: injectConfig,
@@ -123,6 +137,8 @@ async function runSync(deps: CliDeps, opts: SyncOpts, fs: OwnedFs): Promise<numb
     migrate_gate: gate,
     report_only: !migrate,
   })
+  if (codexBlock === 'stale') deps.io.err('AGENTS.md 的 Tenon Codex 受管块已过时：运行 tenon sync --migrate 刷新（块外内容不动）')
+  if (codexBlock === 'invalid') deps.io.err('AGENTS.md 的 Tenon 受管块标记不成对或顺序非法，未改写')
   for (const m of gate.messages) deps.io.err(m) // required/tip 消息降级可见。
   return gate.exitCode
 }

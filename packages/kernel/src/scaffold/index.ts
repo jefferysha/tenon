@@ -34,7 +34,7 @@
  *
  *  ── 非本模块（其余 5 partial，主会话/他模块归属，此处仅诚实转述其处置，不重复实现）──────
  *  ⑤ 🟡 init-command-registration（CLI init）——架构差异 N/A：tenon init 面 = track×preset×template
- *       + SessionStart hook + tenon-open SKILL，非 17 平台单条 init CLI。归属：init 命令/adapters。
+ *       + SessionStart hook + 入口 tenon SKILL，非 17 平台单条 init CLI。归属：init 命令/adapters。
  *  ⑥ 🟡 hardcoded-traces-journal-rename（versioning）——N/A-with-entry：老仓 migrations.py 空占位
  *       HARDCODED_RENAMES + expand_hardcoded_renames（返 []）。sibling of ④，属**版本/迁移模块**
  *       （本仓无 migrations 子系统）——不在 scaffold 范围。

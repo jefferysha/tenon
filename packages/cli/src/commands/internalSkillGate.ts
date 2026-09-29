@@ -23,8 +23,9 @@ import { canonicalTenonSkillId, completedSkillsSinceStepEntry, parseHistoryLines
 
 /** `tenon` is the normal-chat orchestration entrypoint, not a phase work item. Every custom
  * workflow reaches it before the selected step's own DAG can run, so enforcing per-step membership
- * here would prevent the workflow from starting. Keep this allowlist deliberately exact: phase
- * skills such as `tenon-open` remain subject to the declared DAG. */
+ * here would prevent the workflow from starting. Keep this allowlist deliberately exact: every
+ * other skill, including a retired `tenon-<phase>` id a stale host may still offer, remains subject
+ * to the declared DAG. */
 function isTenonOrchestratorSkill(skillId: string): boolean {
   return canonicalTenonSkillId(skillId) === 'tenon'
 }

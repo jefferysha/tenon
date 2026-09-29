@@ -89,3 +89,34 @@ export function contentAfterDelete(blocks: readonly ManagedBlock[]): string | nu
   if (blocks.length === 0) return null
   return `${blocks.map((block) => block.text).join('\n')}\n`
 }
+
+export type ManagedBlockRefresh =
+  | { readonly status: 'absent' | 'current' | 'invalid' }
+  | { readonly status: 'stale'; readonly content: string }
+
+/**
+ * 把文件里同 TAG 的受管块刷新成 `block`（整块文本，首行 START、末行 END）。只改 START…END 这几行，
+ * 块外字节原样保留；文件用 CRLF 时新块沿用 CRLF。标记非法（不成对 / 逆序 / 重复 / 嵌套）→ invalid，
+ * 调用方不得改写；没有该 TAG 的块 → absent（刷新不负责首次安装）。
+ */
+export function refreshManagedBlock(content: string, block: string): ManagedBlockRefresh {
+  const wanted = block.replace(/\r\n/g, '\n').replace(/\n+$/u, '')
+  const wantedLines = wanted.split('\n')
+  const start = markerOf(wantedLines[0] ?? '', 0)
+  const end = markerOf(wantedLines.at(-1) ?? '', wantedLines.length - 1)
+  if (start === null || end === null || start.kind !== 'START' || end.kind !== 'END' || start.tag !== end.tag) {
+    throw new Error('refreshManagedBlock: block must start and end with one tag\'s markers')
+  }
+  const parsed = parseManagedBlocks(content)
+  if (!parsed.ok) return { status: 'invalid' }
+  const existing = parsed.blocks.find((candidate) => candidate.tag === start.tag)
+  if (existing === undefined) return { status: 'absent' }
+  if (existing.text === wanted) return { status: 'current' }
+  const lines = content.split('\n')
+  const bare = (line: string): string => line.replace(/\r$/u, '')
+  const from = lines.findIndex((line) => bare(line) === wantedLines[0])
+  const to = lines.findIndex((line, index) => index > from && bare(line) === wantedLines.at(-1))
+  const eol = lines[from]?.endsWith('\r') === true ? '\r' : ''
+  const replaced = [...lines.slice(0, from), ...wantedLines.map((line) => `${line}${eol}`), ...lines.slice(to + 1)]
+  return { status: 'stale', content: replaced.join('\n') }
+}
