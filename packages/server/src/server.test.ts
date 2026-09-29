@@ -20,9 +20,10 @@ import {
   seedGovernedDocumentEvidence,
 } from './test-support.js'
 import type { FlowEngine, StateStore, UpstreamSkillView } from '@tenon/kernel'
+import { seedApprovedTestPolicyWaivers } from '@tenon/kernel/test-system/test-support'
 import { readUpstreamSkillView } from '@tenon/automation'
 import {
-  builtinTrack, compileAutomationPolicySnapshot, createLoopLedgerStore, effectiveWorkflowPlanBinding,
+  builtinTrack, compileAutomationPolicySnapshot, compileEffectiveWorkflowPlan, createLoopLedgerStore, effectiveWorkflowPlanBinding,
   loadEffectiveWorkflowPlan, loadManifest, loadRegistry,
   createTransitionRecordStore, createWorkflowRunRepository,
   reviewGateBindingForState, writeReviewGateBindingUnderLock,
@@ -1444,6 +1445,16 @@ describe('POST /api/change/<name>/transition —— G1 default 轨收尾（bread
     await readGovernedDocumentsForCurrentVisit(h.root, h.changeDir)
     await recordWorkflowPhaseSkill(h.root, h.changeDir)
     await approveReviewForTransition(h, 'spec', 'spec-complete')
+    // pm 轨的 spec 步声明了测试策略（登记计划 + 场景映射）；本用例与测试门禁无关，写入已批准的豁免计划。
+    await seedApprovedTestPolicyWaivers({
+      repoRoot: h.root,
+      changeDir: h.changeDir,
+      changeName: h.name,
+      plan: compileEffectiveWorkflowPlan('default', undefined, builtinTrack('pm')),
+      stepId: 'spec',
+      actor: TEST_CREATOR,
+      recordedAt: '2026-07-07T00:00:00Z',
+    })
 
     const r = await reqPost(h.port, `/api/change/${h.name}/transition`, { root: h.root, event: 'spec-complete' }, {
       headers: { Authorization: `Bearer ${h.token}` },

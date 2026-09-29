@@ -639,8 +639,9 @@ describe('照着 next 做事的运行器：open → 完结', { timeout: 120_000 
     const firstWrite = actions.findIndex(({ step, action }, index) => index > specStart && step === 'spec'
       && ['load-skill', 'scaffold-document', 'record-document'].includes(action.action))
     expect(fix).toBeLessThan(firstWrite)
-    // build 不再重提，全程没有回到 spec。
-    expect(actions.some(({ step, action }) => step === 'build' && action.action === 'fix')).toBe(false)
+    // build 不再重提「未配置」（步骤测试策略的登记类阻塞是另一类 fix，不在此断言范围），全程没有回到 spec。
+    expect(actions.some(({ step, action }) => step === 'build' && action.action === 'fix'
+      && (action.blockers as readonly { code?: string }[] | undefined)?.some((item) => item.code === 'test-unconfigured'))).toBe(false)
     expect(actions.some(({ action }) => action.event === 'requirements-changed'
       || (action.exits as readonly string[] | undefined)?.includes('requirements-changed'))).toBe(false)
     // 配好之后的 verify 真跑了这条测试并通过。
