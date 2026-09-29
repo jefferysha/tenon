@@ -9,7 +9,7 @@ import { BUTTON_DANGER, BUTTON_GHOST, BUTTON_SOLID } from '../shared/uiRecipes'
 import { DetailColumn, StatusPill } from '../shell/ThreeColumns'
 import { MenuButton } from '../shared/MenuButton'
 import { DiffDrawer } from './DiffDrawer'
-import { SegmentTabs } from './SegmentTabs'
+import { SegmentTabs } from '../shared/SegmentTabs'
 import { COUNT_BADGE, Hinted, STATUS_KEY, STATUS_TONE } from './projectBits'
 import type { FileStatus } from './clientModel'
 

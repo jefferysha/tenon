@@ -91,7 +91,7 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
             onToggleOpenspec={() => editor.setOpenspec(editor.def?.openspec !== true)}
             onSwitch={editor.requestSwitch}
             onSwitchBranch={editor.setBranch}
-            onCreate={() => editor.create.openCreate('copy')}
+            onCreate={() => editor.create.openCreate()}
             onExport={() => void exportYaml()}
             onDelete={editor.openWorkflowDelete}
             onNewTrack={() => setTrackDialogOpen(true)}
@@ -106,7 +106,7 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
           ? <StageEditorPane key={`${editor.wfName} ${editor.selectedStep.id}`} editor={editor} step={editor.selectedStep} />
           : <DetailEmpty label={t('workflow.no_stage')} testId="stage-editor-empty" />}
       />
-      <NewWorkflowDialog create={editor.create} currentName={editor.wfName} />
+      <NewWorkflowDialog create={editor.create} />
       <TrackDialog
         open={trackDialogOpen}
         existing={editor.branches.map((branch) => branch.id)}
