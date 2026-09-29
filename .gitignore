@@ -66,3 +66,5 @@ docs-site/dist/
 test-results/
 playwright-report/
 coverage/
+# 解析器单测的覆盖率报告样例是被测输入（不是本机产物），必须随源码提交。
+!packages/cli/src/test-system/parsers/fixtures/coverage/

@@ -1,0 +1,15 @@
+{
+  "total": {
+    "lines": { "total": 100, "covered": 83, "skipped": 0, "pct": 83 },
+    "statements": { "total": 110, "covered": 90, "skipped": 0, "pct": 81.81 },
+    "functions": { "total": 20, "covered": 17, "skipped": 0, "pct": 85 },
+    "branches": { "total": 40, "covered": 28, "skipped": 0, "pct": 70 },
+    "branchesTrue": { "total": 0, "covered": 0, "skipped": 0, "pct": "Unknown" }
+  },
+  "/work/proj/src/math.ts": {
+    "lines": { "total": 10, "covered": 8, "skipped": 0, "pct": 80 },
+    "statements": { "total": 10, "covered": 8, "skipped": 0, "pct": 80 },
+    "functions": { "total": 2, "covered": 1, "skipped": 0, "pct": 50 },
+    "branches": { "total": 0, "covered": 0, "skipped": 0, "pct": 100 }
+  }
+}
