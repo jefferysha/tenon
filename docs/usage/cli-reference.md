@@ -139,7 +139,7 @@ tenon test plan <change> [--seed] [--json]
 tenon test register <change> --suite <id> [--scope full|changed|files|grep] [--pattern <regex>] [--select-file <path>]…
 tenon test register <change> --file <path>… [--suite <id>] [--kind <kind>]
 tenon test register <change> --case <covers> --test "<file › name>"…
-tenon test unregister <change> --suite <id> | --file <path> | --case <covers> [--test <ref>] | --waiver-kind <k> | --waiver-covers <covers>
+tenon test unregister <change> --suite <id> | --file <path> | --case <covers> [--test <ref>] | --waiver <kind|covers>
 tenon test waive <change> (--kind <k> | --covers <covers>) --reason <text>
 tenon test sync <change> [--json]
 tenon test run <change> [--suite <id>]… [--kind <k>]… [--stage [<step>]] [--all] [--changed] [--json]
@@ -174,6 +174,10 @@ judged together with the policy.
 `test discover` scans package scripts and tool configs (vitest, jest, mocha, node:test,
 Playwright, tsc, eslint, pytest, go) and prints suggested suites with reporter flags that
 produce parseable reports; `--write` appends the ones whose id is not yet in the catalog.
+`*.bench.*` files in a vitest project become a `vitest-bench` benchmark suite whose metrics
+are `<bench name>.mean_ms` for every `bench('name', …)` it can read (a name it cannot read is
+never guessed); any other `bench` script is reported with the exact `catalog add` command to
+register it, because a benchmark must declare its metrics and thresholds.
 `catalog add --from <direction>` starts a suite from a test direction (bare tool
 invocations are replaced by the runner's recommended invocation); `catalog validate`
 lists every problem as `catalog.yaml:<line>: …` (exit `2`). `test plan --seed` adds the
@@ -195,6 +199,9 @@ change counts as not run until a new run starts a fresh chain. Selection: `--sui
 the suite has a `select.files` template, otherwise the whole suite), `--stage [<step>]`
 (the step policy's `run` kinds, plus `run_if_registered` kinds that the plan registered;
 policy `scope: full` forces full runs). With no selection flag `--stage` is implied.
+`--stage` runs catalog suites only: inline `tests[]` (suites whose id starts with `step:`)
+stay on `tenon test run <change> <test-id>` and the summary lists the commands still to
+run; a step whose policy has nothing to run says so and exits `0`.
 Declared services start once per invocation in their own process group, are probed
 (URL, port or log text) and are reaped afterwards including grandchild processes;
 a URL or port that already answers before start is refused, because the tests would
@@ -241,11 +248,18 @@ transition uses, so a status pass is a transition pass; with `--json` a step tha
 `test_policy` also carries a `policy` object (blockers with fix commands, notices, suites,
 the scenario/task trace, file registration and the record chain state). It exits `2` while
 anything blocks. A record goes stale when the candidate code, the catalog entries of the
-suites it ran, the plan, the step policy or the workflow fingerprint changes. `test
-report` generates the tests section of the verification report — the v1 table plus the
-traceability matrix, suites with coverage, benchmark deltas, flaky and known failures and
-the blockers left — and, with `--write`, replaces the marked region in an existing
-repository file. `test code-size` is the deterministic probe behind the builtin
+suites it ran, the plan, the step policy or the workflow fingerprint changes; a record
+binds the plan digest with every waiver's `approved_by` treated as empty, so approving a
+waiver in review does not make the runs before it stale (any other plan change does). `test
+report` generates the tests section of the verification report and, with `--write`,
+replaces it in an existing repository file. There are two independently replaced regions:
+the v1 table of inline step tests (between `tenon:tests:*` markers, written only when the
+workflow has inline tests) and the v2 block (between `<!-- tenon:test-report:begin -->` and
+`<!-- tenon:test-report:end -->`) with the traceability matrix, suites with coverage and the
+`run_id` of each suite's latest run, benchmark deltas, flaky and known failures and the
+blockers left. Bytes outside the markers are never touched, and `tenon status` decides
+whether the report still needs regenerating by looking for the latest run ids inside the v2
+block. `test code-size` is the deterministic probe behind the builtin
 `code-size` direction and prints one JSON line of metrics. It counts source files only: the
 same path scope as the workspace candidate (no `openspec/`, `.tenon/`, `.pipeline/`,
 `docs/`, dependencies or test caches) and no Markdown files.

@@ -4,19 +4,22 @@
  */
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { reportCarriesRuns, TEST_REPORT_BEGIN, TEST_REPORT_END } from '@tenon/kernel'
 import { afterEach, describe, expect, test } from 'vitest'
 import { freshHarness, type Harness } from './integration-harness.js'
 import { VITEST_FILES, commitAll, initGit, linkNodeModules, writeFiles } from './integration-harness-tests.js'
 
 const USER = { TENON_USER: 'a@x.io', TENON_USER_NAME: 'A', TENON_TEST_REAL_DIFF: '1', TENON_TEST_TICKING_CLOCK: '1' }
 const SLUG = 'a-at-x.io'
+/** 验证报告在 change 目录里（openspec/ 不进候选指纹）：写报告不会让刚跑完的测试记录过期。 */
+const REPORT = 'openspec/changes/demo/report.md'
 
 interface Report {
   pass: boolean
   policy?: {
     blockers: Array<{ code: string; blocking: boolean; message: string; fix?: string; subject?: string }>
     trace: Array<{ covers: string; state: string; tests: Array<{ ref: string; status: string }> }>
-    suites: Array<{ suite: string; state: string; coverage?: Record<string, number> | null }>
+    suites: Array<{ suite: string; state: string; run_id?: string; coverage?: Record<string, number> | null }>
   }
 }
 
@@ -135,7 +138,7 @@ describe('测试体系 v2 · 计划、追溯与命令面', () => {
     await project(workflow('          run: [unit]\n          scope: full\n          scenarios: passing'))
     await tenon('test', 'discover', '--write')
     await writeFile(join(cwd(), 'src', 'login.test.ts'), LOGIN_TEST, 'utf8')
-    await writeFile(join(cwd(), 'report.md'), '# 验证报告\n\n手写的内容。\n', 'utf8')
+    await writeFile(join(cwd(), REPORT), '# 验证报告\n\n手写的内容。\n', 'utf8')
     expect(await tenon('test', 'plan', 'demo', '--seed'), err()).toBe(0)
     expect(out()).toContain("tenon test register demo --case 'spec:auth/登录成功'")
     expect(out()).toContain('待映射的场景 / 任务（3）')
@@ -159,22 +162,49 @@ describe('测试体系 v2 · 计划、追溯与命令面', () => {
     expect(blocking(await report('verify'))).toEqual(expect.arrayContaining(['test-stale', 'waiver-unapproved']))
     await tenon('test', 'run', 'demo', '--stage', 'verify')
     expect(blocking(await report('verify'))).toEqual(['waiver-unapproved'])
-    expect(await tenon('test', 'unregister', 'demo', '--waiver-covers', 'spec:auth/密码错误'), err()).toBe(0)
+    expect(await tenon('test', 'unregister', 'demo', '--waiver', 'nope'), err()).toBe(1)
+    expect(err()).toContain('不是测试种类')
+    expect(await tenon('test', 'unregister', 'demo', '--waiver', 'spec:auth/密码错误'), err()).toBe(0)
+    expect(await tenon('test', 'unregister', 'demo', '--waiver', 'spec:auth/密码错误')).toBe(1)
+    expect(err()).toContain('没有匹配的条目')
+    expect(await tenon('test', 'waive', 'demo', '--kind', 'benchmark', '--reason', '纯文案改动，无性能路径'), err()).toBe(0)
+    expect(await tenon('test', 'unregister', 'demo', '--waiver', 'benchmark'), err()).toBe(0)
+    expect(await tenon('test', 'plan', 'demo', '--json')).toBe(0)
+    expect((JSON.parse(out()) as { plan: { waivers: unknown[] } }).plan.waivers).toEqual([])
     expect(await tenon('test', 'register', 'demo', '--case', 'spec:auth/密码错误', '--test', 'src/login.test.ts › login › 密码错误'), err()).toBe(0)
     await tenon('test', 'run', 'demo', '--stage', 'verify')
     current = await report('verify')
     expect(blocking(current)).toEqual([])
 
-    expect(await tenon('test', 'report', 'demo', '--step', 'verify', '--write', 'report.md'), err()).toBe(0)
-    const text = await readFile(join(cwd(), 'report.md'), 'utf8')
+    expect(await tenon('test', 'report', 'demo', '--step', 'verify', '--write', REPORT), err()).toBe(0)
+    const text = await readFile(join(cwd(), REPORT), 'utf8')
     expect(text).toContain('手写的内容。')
     expect(text).toContain('### 追溯矩阵')
     expect(text).toMatch(/\| auth · 登录成功 `spec:auth\/登录成功` \| `src\/login\.test\.ts › login › 登录成功` \| 通过（unit） \| 通过 \|/)
     expect(text).toContain('### 套件')
     expect(text).toMatch(/\| 单测 `unit` \| unit \| 通过 \| /)
     expect(text).toContain('- 无')
-    await tenon('test', 'report', 'demo', '--step', 'verify', '--write', 'report.md')
-    expect((await readFile(join(cwd(), 'report.md'), 'utf8')).match(/tenon:tests:start/g)).toHaveLength(1)
+    // 块里引用每个套件最新运行的 run id（tenon status 的 test-report 动作靠它判断报告是否是最新的）；块外的字节不动。
+    const runIds = (r: Report): string[] => (r.policy?.suites ?? []).flatMap((suite) => (suite.state === 'passed' && suite.run_id !== undefined ? [suite.run_id] : []))
+    expect(runIds(current)).toHaveLength(1)
+    expect(reportCarriesRuns(text, runIds(current))).toBe(true)
+    expect(text.split(TEST_REPORT_BEGIN)).toHaveLength(2)
+    expect(text.split(TEST_REPORT_END)).toHaveLength(2)
+    expect(text).not.toContain('tenon:tests:start')
+    expect(text.startsWith('# 验证报告\n\n手写的内容。\n')).toBe(true)
+    await tenon('test', 'report', 'demo', '--step', 'verify', '--write', REPORT)
+    expect(await readFile(join(cwd(), REPORT), 'utf8')).toBe(text)
+    // 重新运行之后报告落后于最新运行，重写后才带上新的 run id。
+    await tenon('test', 'run', 'demo', '--stage', 'verify')
+    const newer = runIds(await report('verify'))
+    expect(newer).toHaveLength(1)
+    expect(newer).not.toEqual(runIds(current))
+    expect(reportCarriesRuns(await readFile(join(cwd(), REPORT), 'utf8'), newer)).toBe(false)
+    expect(await tenon('test', 'report', 'demo', '--step', 'verify', '--write', REPORT), err()).toBe(0)
+    const rewritten = await readFile(join(cwd(), REPORT), 'utf8')
+    expect(reportCarriesRuns(rewritten, newer)).toBe(true)
+    expect(rewritten.split(TEST_REPORT_BEGIN)).toHaveLength(2)
+    expect(rewritten.startsWith('# 验证报告\n\n手写的内容。\n')).toBe(true)
     expect(await tenon('test', 'report', 'demo', '--step', 'verify', '--locale', 'en')).toBe(0)
     expect(out()).toContain('### Traceability')
   }, 240_000)
@@ -303,7 +333,7 @@ describe('测试体系 v2 · 计划、追溯与命令面', () => {
     expect(err()).toContain('不能和 --suite')
   }, 240_000)
 
-  test('A11：旧的步骤内联测试与新套件同一步骤共存——--stage 两边都跑，v1 记录不破坏 v2 哈希链', async () => {
+  test('A11：旧的步骤内联测试与新套件同一步骤共存——--stage 只跑目录套件（提醒旧测试），旧形式仍写 v1 记录，v1 不破坏 v2 哈希链', async () => {
     const inline = `        tests:
           - id: legacy
             direction: unit
@@ -315,17 +345,24 @@ describe('测试体系 v2 · 计划、追溯与命令面', () => {
     await tenon('test', 'discover', '--write')
     await tenon('test', 'plan', 'demo', '--seed')
     expect(await tenon('test', 'run', 'demo', '--stage'), `${out()}\n${err()}`).toBe(0)
+    expect(out()).not.toContain('[TEST] demo legacy run=')
+    expect(out()).toContain('旧的步骤测试不在 --stage 里，逐个执行：tenon test run demo legacy')
+    const recordsDir = join(cwd(), '.tenon', 'users', SLUG, 'tests', 'demo')
+    const schemasOf = async (): Promise<string[]> => (await Promise.all((await readdir(recordsDir)).map(async (file) =>
+      (JSON.parse(await readFile(join(recordsDir, file), 'utf8')) as { schema: string }).schema))).sort()
+    expect(await schemasOf()).toEqual(['tenon-test-run-v2'])
+    // 旧测试还没跑：步骤出口被它挡着，目录套件的运行不受影响。
+    expect(await tenon('test', 'status', 'demo', '--json')).toBe(2)
+    expect((JSON.parse(out()) as { items: Array<{ id: string; status: string }> }).items).toEqual([expect.objectContaining({ id: 'legacy', status: 'missing' })])
+    // 旧形式 `tenon test run <c> <test-id>` 是旧行为：v1 记录、按用户。
+    expect(await tenon('test', 'run', 'demo', 'legacy')).toBe(0)
     expect(out()).toContain('[TEST] demo legacy run=')
-    const files = await readdir(join(cwd(), '.tenon', 'users', SLUG, 'tests', 'demo'))
-    const schemas = await Promise.all(files.map(async (file) => (JSON.parse(await readFile(join(cwd(), '.tenon', 'users', SLUG, 'tests', 'demo', file), 'utf8')) as { schema: string }).schema))
-    expect(schemas.sort()).toEqual(['tenon-test-run-v1', 'tenon-test-run-v2'])
+    expect(await schemasOf()).toEqual(['tenon-test-run-v1', 'tenon-test-run-v2'])
     expect(await tenon('test', 'status', 'demo', '--json')).toBe(0)
     const status = JSON.parse(out()) as { pass: boolean; items: Array<{ id: string; status: string }>; policy: { chain: string; suites: Array<{ suite: string; state: string }> } }
     expect(status.items).toEqual([expect.objectContaining({ id: 'legacy', status: 'passed' })])
     expect(status.policy.chain).toBe('intact')
     expect(status.policy.suites.map((item) => [item.suite, item.state]).sort()).toEqual([['step:legacy', 'passed'], ['unit', 'passed']])
-    // 旧形式 `tenon test run <c> <test-id>` 仍是旧行为，不和新选项混用。
-    expect(await tenon('test', 'run', 'demo', 'legacy')).toBe(0)
     expect(await tenon('test', 'run', 'demo', 'legacy', '--all')).toBe(1)
   }, 240_000)
 })

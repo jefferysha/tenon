@@ -2,8 +2,11 @@
  * `tenon test run <change> [--suite <id>…] [--kind <k>…] [--stage [<step>]] [--all] [--changed] [--json]`
  * —— 批量执行目录套件并写一份运行记录 v2（哈希链）。没有任何选择参数时缺省就是 --stage。
  *
- * 本文件只做命令层的事：解析参数、规划运行集、（--stage 时）先跑旧的步骤内联测试、交给 executeRun 编排、
- * 打印摘要与出口检查、映射退出码。退出码：0 全部通过，2 有失败（记录已写），1 用法 / 环境错误（没有记录）。
+ * 只跑目录套件：旧的步骤内联测试（`tests[]`，套件 id 以 `step:` 开头）仍走 `tenon test run <change> <test-id>`
+ * （v1 记录、按用户），--stage 不碰它们，只在摘要里提醒还有哪些没跑。
+ *
+ * 本文件只做命令层的事：解析参数、规划运行集、交给 executeRun 编排、打印摘要与出口检查、映射退出码。
+ * 退出码：0 全部通过（或本阶段没有目录套件要跑），2 有失败（记录已写），1 用法 / 环境错误（没有记录）。
  */
 import { relative } from 'node:path'
 import { readTestPlanState, type TestCatalog } from '@tenon/kernel'
@@ -16,7 +19,6 @@ import { RunBusyError, executeRun, type RunResult } from '../test-system/run-orc
 import { planRunSet } from '../test-system/run-set.js'
 import { noticeLines, serviceLines, suiteLines } from '../test-system/run-summary.js'
 import { resolveTestCommand, type TestCommandContext } from './test-context.js'
-import { cmdTestRun } from './test-run.js'
 
 export interface RunSuitesOptions {
   readonly suite?: readonly string[]
@@ -91,19 +93,22 @@ export async function cmdTestRunSuites(deps: CliDeps, change: string, opts: RunS
   const known = await readKnownFailuresFile(deps.cwd)
   if (known.state === 'invalid') deps.io.err(`WARN: known-failures.yaml 无效，按空清单处理（失败不会被豁免）：${known.issues[0] ?? ''}`)
 
-  // 旧的步骤内联测试跟着阶段运行集一起跑（v1 记录）；没有 test_policy 的旧工作流 --stage 就只跑它们。
-  const inline = stageMode ? (step.tests ?? []) : []
-  const set: { readonly items: readonly RunItem[] } | { readonly error: string } = stageMode && step.test_policy === undefined && inline.length > 0
-    ? { items: [] }
-    : planRunSet({ catalog, plan: planState.state === 'ok' ? planState.plan : undefined, policy: step.test_policy, flags, stepId, change })
+  const legacy = step.tests ?? []
+  const legacyHint = legacy.length === 0 ? '' : `旧的步骤测试不在 --stage 里，逐个执行：${legacy.map((test) => `tenon test run ${change} ${test.id}`).join('；')}`
+  if (stageMode && step.test_policy === undefined) {
+    return fail(deps, `步骤 ${stepId} 没有 test_policy，没有目录套件的阶段运行集；用 --suite / --kind / --all 指定要跑的套件${legacyHint === '' ? '' : `。${legacyHint}`}`)
+  }
+  const set = planRunSet({ catalog, plan: planState.state === 'ok' ? planState.plan : undefined, policy: step.test_policy, flags, stepId, change })
   if ('error' in set) return fail(deps, set.error)
+  if (set.items.length === 0) {
+    const note = `${stepId} 阶段的策略没有要运行的目录套件${legacyHint === '' ? '' : `；${legacyHint}`}`
+    if (opts.json === true) deps.io.out(JSON.stringify({ change, step: stepId, result: 'nothing-to-run', legacy: legacy.map((test) => test.id) }, null, 2))
+    else deps.io.out(`[TEST] ${change} ${note}`)
+    return 0
+  }
 
-  const inlineExits: Array<{ test_id: string; exit: number }> = []
-  let result: RunResult | undefined
+  let result: RunResult
   try {
-    const legacyDeps: CliDeps = opts.json === true ? { ...deps, io: { out: () => undefined, err: deps.io.err } } : deps
-    for (const test of inline) inlineExits.push({ test_id: test.id, exit: await cmdTestRun(legacyDeps, change, test.id, {}) })
-    if (set.items.length === 0) return inlineExits.some((entry) => entry.exit !== 0) ? 2 : 0
     result = await executeRun({
       deps, context, change, step, catalog, planState, knownFailures: known.state === 'ok' ? known.entries : [], items: set.items,
       announce: (runId) => {
@@ -117,16 +122,17 @@ export async function cmdTestRunSuites(deps: CliDeps, change: string, opts: RunS
   }
   const gate = await gateAfter(deps, context, change, stepId)
   const recordPath = relative(deps.cwd, result.appended.path)
-  const exitCode = result.appended.record.result === 'pass' && inlineExits.every((entry) => entry.exit === 0) ? 0 : 2
+  const exitCode = result.appended.record.result === 'pass' ? 0 : 2
   if (opts.json === true) {
     deps.io.out(JSON.stringify({
       run_id: result.runId, change, step: stepId, result: result.appended.record.result, chain: result.appended.chain,
-      record_path: recordPath, artifacts_dir: relative(deps.cwd, result.runDir), inline: inlineExits,
+      record_path: recordPath, artifacts_dir: relative(deps.cwd, result.runDir), legacy: legacy.map((test) => test.id),
       gate: { pass: gate.pass, blockers: gate.blockers }, record: result.appended.record,
     }, null, 2))
     return exitCode
   }
   printResult(deps, change, result, gate, recordPath)
+  if (stageMode && legacyHint !== '') deps.io.out(`  ${legacyHint}`)
   const denied = result.outcomes.find((outcome) => outcome.sandboxDenied)
   if (denied !== undefined) deps.io.err(`可能被宿主沙箱拦截：Codex 中用 sandbox_permissions=require_escalated 重新执行 tenon test run ${change}`)
   return exitCode

@@ -73,4 +73,10 @@ describe('planRunSet', () => {
     expect(ids(planRunSet({ catalog: CATALOG, plan: PLAN, policy: undefined, flags: FLAGS, stepId: 'build', change: 'demo' }))[0]).toContain('没有 test_policy')
     expect(ids(planRunSet({ catalog: CATALOG, plan: emptyTestPlan('demo'), policy: POLICY, flags: FLAGS, stepId: 'build', change: 'demo' }))[0]).toContain('tenon test register demo --suite')
   })
+
+  it('策略没有必须运行的种类：计划里没有对应套件也不是错误，阶段运行集为空', () => {
+    const optional = { ...POLICY, run: [], run_if_registered: ['playwright'] } satisfies StepTestPolicyIR
+    expect(planRunSet({ catalog: CATALOG, plan: emptyTestPlan('demo'), policy: optional, flags: FLAGS, stepId: 'ship', change: 'demo' })).toEqual({ items: [] })
+    expect(planRunSet({ catalog: CATALOG, plan: emptyTestPlan('demo'), policy: { ...optional, run_if_registered: [] }, flags: FLAGS, stepId: 'spec', change: 'demo' })).toEqual({ items: [] })
+  })
 })

@@ -44,6 +44,9 @@ export type {
 export { decodeTestPlanLedger, readTestPlanState, updateTestPlan, writeTestPlan } from './plan-ledger.js'
 export type { PlanUpdate, TestPlanLedger, TestPlanState } from './plan-ledger.js'
 export {
+  TEST_REPORT_BEGIN, TEST_REPORT_END, replaceTestReportBlock, reportCarriesRuns, testReportBlock,
+} from './report-block.js'
+export {
   BASELINES_DIR, BASELINES_REPO_PATH, KNOWN_FAILURES_FILE, KNOWN_FAILURES_REPO_PATH, MACHINE_PROFILE_ID_RE,
   TEST_CATALOG_FILE, TEST_CATALOG_REPO_PATH, TEST_PLAN_LEDGER_FILE, TEST_SYSTEM_DIR, baselineV2Path,
   testPlanLedgerPath, testPlanPath, testRecordChainLockDir, testRunRecordsDir, testSystemPaths,

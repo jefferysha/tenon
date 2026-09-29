@@ -76,8 +76,9 @@ export function planRunSet(input: RunSetInput): RunSetResult {
       const why = policy.run.includes(entry.suite.kind) ? 'run' : policy.run_if_registered.includes(entry.suite.kind) ? 'if-registered' : undefined
       if (why !== undefined) put(entry.suite, policy.scope === 'full' ? 'full' : entry.scope, why, policy.scope === 'full' ? undefined : entry)
     }
-    if (chosen.size === 0) {
-      return { error: `步骤 ${input.stepId} 的策略要求运行 ${[...policy.run, ...policy.run_if_registered].join('/') || '（无）'}，但任务计划里没有这些种类的套件；tenon test register ${input.change} --suite <id>` }
+    // 策略没有必须运行的种类（run 为空）时，阶段运行集为空是正常的，交给调用方如实说明；有必须运行的种类却没有套件才是缺登记。
+    if (chosen.size === 0 && policy.run.length > 0) {
+      return { error: `步骤 ${input.stepId} 的策略要求运行 ${[...policy.run, ...policy.run_if_registered].join('/')}，但任务计划里没有这些种类的套件；tenon test register ${input.change} --suite <id>` }
     }
   }
   const order = new Map(catalog.suites.map((suite, index) => [suite.id, index]))

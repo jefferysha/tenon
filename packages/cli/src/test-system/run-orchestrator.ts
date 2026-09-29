@@ -17,7 +17,7 @@ import type { TestCommandContext } from '../commands/test-context.js'
 import { candidateOf, newRunId } from '../commands/test-run.js'
 import { changedFilesFor } from '../testEvidenceContext.js'
 import type { ExecContext, RunItem, SuiteOutcome } from './exec-types.js'
-import { applyRunLevelReasons, draftOf, evaluationShell, machineOf } from './run-record.js'
+import { applyRunLevelReasons, draftOf, evaluationShell, machineOf, planBindingDigest } from './run-record.js'
 import { serviceRecord, startService, stopService, type RunningService } from './services.js'
 import { executeSuite } from './suite-exec.js'
 
@@ -109,7 +109,7 @@ export async function executeRun(input: RunInput): Promise<RunResult> {
     const head = deps.gitHeadSha === undefined ? null : await deps.gitHeadSha().catch(() => null)
     const gitHead = head === null || head === '' ? null : head
     const candidateBefore = await candidateOf(deps, change)
-    const planDigest = input.planState.state === 'ok' ? input.planState.digest : null
+    const planDigest = input.planState.state === 'ok' ? planBindingDigest(input.planState.plan) : null
     const base = {
       runId, change, workflowRunId, workflow: context.plan.id, track: str(context.state.fields.track), step: step.id,
       workflowFingerprint: context.plan.workflowFingerprint, catalog, planDigest, policy: step.test_policy, profile,

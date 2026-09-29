@@ -6,6 +6,7 @@
 import type { BenchmarkMetricVerdict, ReportLocale, SuiteVerdict, TestPolicyReport, TraceRow, TraceTest } from '@tenon/kernel'
 
 interface Words {
+  readonly title: string
   readonly matrix: string
   readonly matrixHead: readonly string[]
   readonly suites: string
@@ -25,6 +26,7 @@ interface Words {
 
 const WORDS: Readonly<Record<ReportLocale, Words>> = {
   'zh-CN': {
+    title: '## 测试体系',
     matrix: '### 追溯矩阵',
     matrixHead: ['场景 / 任务', '用例', '最近结果', '状态'],
     suites: '### 套件',
@@ -42,6 +44,7 @@ const WORDS: Readonly<Record<ReportLocale, Words>> = {
     baselineMissing: '无同画像基线',
   },
   en: {
+    title: '## Test system',
     matrix: '### Traceability',
     matrixHead: ['Scenario / task', 'Cases', 'Latest result', 'State'],
     suites: '### Suites',
@@ -98,6 +101,11 @@ function benchmarkRows(suites: readonly SuiteVerdict[], words: Words): string[][
     metric.delta_pct === null ? '—' : `${metric.delta_pct >= 0 ? '+' : ''}${metric.delta_pct.toFixed(2)}%`,
     metric.failed ? metric.details.join('；') || 'fail' : metric.baselineMissing ? words.baselineMissing : 'ok',
   ]))
+}
+
+/** 写进报告 `tenon:test-report:*` 块的正文：标题 + 各节。 */
+export function renderV2Block(report: TestPolicyReport, locale: ReportLocale): string {
+  return `${WORDS[locale].title}\n\n${renderV2Sections(report, locale)}`
 }
 
 export function renderV2Sections(report: TestPolicyReport, locale: ReportLocale): string {

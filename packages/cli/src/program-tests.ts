@@ -55,14 +55,13 @@ export function registerTestCommands(program: Command, deps: CliDeps): void {
     }) => bail(await cmdTestRegister(deps, change, opts)))
   test
     .command('unregister <change>')
-    .description('取消登记：--suite / --file / --case [--test] / --waiver-kind / --waiver-covers')
+    .description('取消登记：--suite / --file / --case [--test] / --waiver <种类或场景>')
     .option('--suite <id>', '取消登记的套件')
     .option('--file <path>', '取消登记的测试文件')
     .option('--case <covers>', '取消映射（配合 --test 只去掉一个用例）')
     .option('--test <ref>', '映射里要去掉的用例')
-    .option('--waiver-kind <kind>', '撤销按种类的豁免')
-    .option('--waiver-covers <covers>', '撤销按场景 / 任务的豁免')
-    .action(async (change: string, opts: { suite?: string; file?: string; case?: string; test?: string; waiverKind?: string; waiverCovers?: string }) =>
+    .option('--waiver <kind|covers>', '撤销豁免：测试种类（如 benchmark）或 spec:<capability>/<Scenario 标题> / task:<编号>')
+    .action(async (change: string, opts: { suite?: string; file?: string; case?: string; test?: string; waiver?: string }) =>
       bail(await cmdTestUnregister(deps, change, opts)))
   test
     .command('waive <change>')

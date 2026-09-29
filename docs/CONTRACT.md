@@ -266,12 +266,12 @@
 | test discover | `[--write] [--json]` | 建议套件表（`--write` 追加进 `.tenon/tests/catalog.yaml`，已存在的 id 不覆盖）；`--json` `{catalog,written,suites[{id,state,source,suite}],notes}` | 0；目录无效=1 |
 | test catalog show/validate/add/set/rm | `show [<id>] [--json]`、`validate [--json]`、`add [<id>] [--from <方向>] [--service] …`、`set <id> … [--service]`、`rm <id> [--service]` | 目录条目；`validate` 逐条 `catalog.yaml:<行>: …`；写出前整份重新解析，写坏的目录不落盘 | 0；`validate` 有问题=2；用法/目录无效/引用缺失=1 |
 | test plan | `<name> [--seed] [--json]` | 计划摘要与各项；`--seed` 只增不减地补套件/文件并列出待映射场景；`--json` `{change,state,digest?,plan?}` | 0；计划缺失或被改动=2；`--seed` 无目录/非负责人=1 |
-| test register/unregister/waive | `register --suite\|--file\|--case+--test`、`unregister --suite\|--file\|--case[--test]\|--waiver-kind\|--waiver-covers`、`waive --kind\|--covers --reason` | 一行确认；写入在 Change 锁内读—改—写并更新摘要台账 | 0；计划被改动/校验失败/非负责人=1 |
+| test register/unregister/waive | `register --suite\|--file\|--case+--test`、`unregister --suite\|--file\|--case[--test]\|--waiver <种类\|场景>`、`waive --kind\|--covers --reason` | 一行确认；写入在 Change 锁内读—改—写并更新摘要台账 | 0；计划被改动/校验失败/非负责人=1 |
 | test sync | `<name> [--json]` | 未登记/无套件认领/已不存在的测试文件与修复命令；`--json` `{unregistered,orphans,registeredButMissing,unmapped}` | 0 干净；2 有待处理；读不到 diff 或目录=1 |
-| test run | `<name> [--suite <id>]… [--kind <k>]… [--stage [<step>]] [--all] [--changed] [--json]`；旧形式 `<name> <test-id>` | 摘要（每套件一行、前 10 条失败用例、服务、产物位置、出口检查）；`--json` `{run_id,step,result,chain,record_path,artifacts_dir,inline,gate,record}` | 0 全部通过；2 有失败（记录已写）；1 用法/环境错误（无记录） |
+| test run | `<name> [--suite <id>]… [--kind <k>]… [--stage [<step>]] [--all] [--changed] [--json]`；旧形式 `<name> <test-id>` | 摘要（每套件一行、前 10 条失败用例、服务、产物位置、出口检查）；`--json` `{run_id,step,result,chain,record_path,artifacts_dir,legacy,gate,record}`；`--stage` 只跑目录套件，旧内联测试仍走 `<name> <test-id>` | 0 全部通过；2 有失败（记录已写）；1 用法/环境错误（无记录） |
 | test baseline | `<name> --suite <id> --run <run-id>`；旧形式 `<name> <test-id> --run <run-id>` | `[BASELINE] 套件 @ 画像：n 项指标 ← run <id>`；写 `.tenon/tests/baselines/<套件>/<画像>.json` 并追加用户 `audit.jsonl` | 0；运行未通过/不在当前链上/无指标=1 |
 | test known | `add --suite --test --reason --expires [--link]`、`rm --suite --test`、`list [--json]` | 一行确认或清单（过期项标出） | 0；参数非法/清单无效=1 |
-| test report | `<name> [--step <id>] [--write <path>] [--locale zh-CN\|en]` | 验证报告测试段（旧步骤测试表 + 追溯矩阵/套件/基准/flaky/阻塞）；`--write` 替换标记区间 | 0；写目标非法=1 |
+| test report | `<name> [--step <id>] [--write <path>] [--locale zh-CN\|en]` | 验证报告测试段：旧步骤测试表（`tenon:tests:*`，仅有内联测试时）+ v2 块（`tenon:test-report:begin/end`：追溯矩阵/套件与各套件最新 run_id/基准/flaky/阻塞）；`--write` 只替换各自标记区间 | 0；写目标非法=1 |
 
 身份与负责人命令 `tenon user` / `tenon user set` / `tenon owner take` / `tenon owner set` 只登记自报身份，不做认证；`owner set` 仅当前负责人可执行，与 Dashboard 的负责人移交共用 kernel `transferOwner`。
 
