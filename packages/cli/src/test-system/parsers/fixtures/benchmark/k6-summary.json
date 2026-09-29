@@ -1,0 +1,10 @@
+{
+  "root_group": { "name": "", "path": "", "id": "d41d8cd98f00b204e9800998ecf8427e", "groups": {}, "checks": {} },
+  "options": { "summaryTrendStats": ["avg", "min", "med", "max", "p(90)", "p(95)"], "summaryTimeUnit": "", "noColor": false },
+  "state": { "isStdOutTTY": false, "isStdErrTTY": false, "testRunDurationMs": 10012.3 },
+  "metrics": {
+    "http_req_duration": { "type": "trend", "contains": "time", "values": { "avg": 102.4, "min": 80.1, "med": 99.7, "max": 210.3, "p(90)": 131.2, "p(95)": 148.9 } },
+    "http_reqs": { "type": "counter", "contains": "default", "values": { "count": 9520, "rate": 951.9 } },
+    "http_req_failed": { "type": "rate", "contains": "default", "values": { "rate": 0, "passes": 0, "fails": 9520 } }
+  }
+}

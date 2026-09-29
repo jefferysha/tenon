@@ -1,0 +1,62 @@
+TAP version 13
+# Subtest: math fail
+    # Subtest: subtracts wrong
+    not ok 1 - subtracts wrong
+      ---
+      duration_ms: 1.026
+      type: 'test'
+      location: '/work/proj/fail.test.mjs:4:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly equal:
+        
+        3 !== 4
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 4
+      actual: 3
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (file:///work/proj/fail.test.mjs:4:40)
+        Test.runInAsyncScope (node:async_hooks:227:14)
+        Test.run (node:internal/test_runner/test:1325:25)
+        Test.start (node:internal/test_runner/test:1191:17)
+        node:internal/test_runner/test:1792:71
+        node:internal/per_context/primordials:466:82
+        new Promise (<anonymous>)
+        new SafePromise (node:internal/per_context/primordials:435:3)
+        node:internal/per_context/primordials:466:9
+        Array.map (<anonymous>)
+      ...
+    # Subtest: skipped one
+    ok 2 - skipped one # SKIP
+      ---
+      duration_ms: 0.063666
+      type: 'test'
+      ...
+    # Subtest: todo one
+    ok 3 - todo one # TODO
+      ---
+      duration_ms: 0.044959
+      type: 'test'
+      ...
+    1..3
+not ok 1 - math fail
+  ---
+  duration_ms: 1.870166
+  type: 'suite'
+  location: '/work/proj/fail.test.mjs:3:1'
+  failureType: 'subtestsFailed'
+  error: '1 subtest failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..1
+# tests 3
+# suites 1
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 1
+# todo 1
+# duration_ms 77.798959

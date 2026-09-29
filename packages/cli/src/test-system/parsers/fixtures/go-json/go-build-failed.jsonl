@@ -1,0 +1,5 @@
+{"Time":"2026-09-29T12:00:00.000Z","Action":"start","Package":"example.com/app/mathx"}
+{"Time":"2026-09-29T12:00:00.500Z","Action":"output","Package":"example.com/app/mathx","Output":"# example.com/app/mathx [example.com/app/mathx.test]\n"}
+{"Time":"2026-09-29T12:00:00.500Z","Action":"output","Package":"example.com/app/mathx","Output":"mathx/mathx_test.go:9:2: undefined: Missing\n"}
+{"Time":"2026-09-29T12:00:00.500Z","Action":"output","Package":"example.com/app/mathx","Output":"FAIL\texample.com/app/mathx [build failed]\n"}
+{"Time":"2026-09-29T12:00:00.500Z","Action":"fail","Package":"example.com/app/mathx","Elapsed":0}

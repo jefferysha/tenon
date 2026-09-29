@@ -1,0 +1,56 @@
+<testsuites id="" name="" tests="1" failures="1" skipped="0" errors="0" time="30.993154999999998">
+<testsuite name="login.spec.ts" timestamp="2026-09-29T12:49:32.387Z" hostname="host" tests="1" failures="1" skipped="0" time="0.599" errors="0">
+<testcase name="login › wrong heading fails" classname="login.spec.ts" time="0.599">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|login-login-wrong-heading-fails-chromium/test-failed-1.png]]
+
+[[ATTACHMENT|login-login-wrong-heading-fails-chromium/error-context.md]]
+
+[[ATTACHMENT|login-login-wrong-heading-fails-chromium/trace.zip]]
+]]>
+</system-out>
+<failure message="expect(locator).toHaveText(expected) failed" type="expect.toHaveText">
+<![CDATA[  [chromium] › login.spec.ts:8:7 › login › wrong heading fails ─────────────────────────────────────
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  locator('h1')
+    Expected: "Goodbye"
+    Received: "Welcome"
+    Timeout:  500ms
+
+    Call log:
+      - Expect "toHaveText" with timeout 500ms
+      - waiting for locator('h1')
+        6 × locator resolved to <h1>Welcome</h1>
+          - unexpected value "Welcome"
+
+
+       8 |   test('wrong heading fails', async ({ page }) => {
+       9 |     await page.setContent('<h1>Welcome</h1>')
+    > 10 |     await expect(page.locator('h1')).toHaveText('Goodbye', { timeout: 500 })
+         |                                      ^
+      11 |   })
+      12 |   test('flaky on first attempt', async ({ page }, info) => {
+      13 |     await page.setContent('<h1>Welcome</h1>')
+        at /work/proj/e2e/login.spec.ts:10:38
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/login-login-wrong-heading-fails-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/login-login-wrong-heading-fails-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../test-results/login-login-wrong-heading-fails-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace ../test-results/login-login-wrong-heading-fails-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+</testcase>
+</testsuite>
+</testsuites>

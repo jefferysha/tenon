@@ -1,0 +1,12 @@
+<testsuites id="" name="" tests="1" failures="0" skipped="1" errors="0" time="0.007477000000000032">
+<testsuite name="login.spec.ts" timestamp="2026-09-29T12:51:05.473Z" hostname="host" tests="1" failures="0" skipped="1" time="0" errors="0">
+<testcase name="login › skipped one" classname="login.spec.ts">
+<properties>
+<property name="skip" value="">
+</property>
+</properties>
+<skipped>
+</skipped>
+</testcase>
+</testsuite>
+</testsuites>

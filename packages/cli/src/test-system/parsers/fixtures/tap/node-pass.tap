@@ -1,0 +1,36 @@
+TAP version 13
+# Subtest: math
+    # Subtest: adds
+    ok 1 - adds
+      ---
+      duration_ms: 0.401833
+      type: 'test'
+      ...
+    # Subtest: nested
+        # Subtest: adds negatives
+        ok 1 - adds negatives
+          ---
+          duration_ms: 0.059917
+          type: 'test'
+          ...
+        1..1
+    ok 2 - nested
+      ---
+      duration_ms: 0.121
+      type: 'suite'
+      ...
+    1..2
+ok 1 - math
+  ---
+  duration_ms: 1.106667
+  type: 'suite'
+  ...
+1..1
+# tests 2
+# suites 2
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 72.762042

@@ -1,0 +1,14 @@
+{"Time":"2026-09-29T12:00:00.000Z","Action":"start","Package":"example.com/app/mathx"}
+{"Time":"2026-09-29T12:00:00.100Z","Action":"run","Package":"example.com/app/mathx","Test":"TestAdd"}
+{"Time":"2026-09-29T12:00:00.100Z","Action":"output","Package":"example.com/app/mathx","Test":"TestAdd","Output":"=== RUN   TestAdd\n"}
+{"Time":"2026-09-29T12:00:00.100Z","Action":"output","Package":"example.com/app/mathx","Test":"TestAdd","Output":"--- PASS: TestAdd (0.00s)\n"}
+{"Time":"2026-09-29T12:00:00.100Z","Action":"pass","Package":"example.com/app/mathx","Test":"TestAdd","Elapsed":0}
+{"Time":"2026-09-29T12:00:00.100Z","Action":"run","Package":"example.com/app/mathx","Test":"TestTable"}
+{"Time":"2026-09-29T12:00:00.100Z","Action":"run","Package":"example.com/app/mathx","Test":"TestTable/positive"}
+{"Time":"2026-09-29T12:00:00.100Z","Action":"pass","Package":"example.com/app/mathx","Test":"TestTable/positive","Elapsed":0}
+{"Time":"2026-09-29T12:00:00.100Z","Action":"run","Package":"example.com/app/mathx","Test":"TestTable/negative"}
+{"Time":"2026-09-29T12:00:00.100Z","Action":"pass","Package":"example.com/app/mathx","Test":"TestTable/negative","Elapsed":0}
+{"Time":"2026-09-29T12:00:00.100Z","Action":"pass","Package":"example.com/app/mathx","Test":"TestTable","Elapsed":0.01}
+{"Time":"2026-09-29T12:00:00.110Z","Action":"output","Package":"example.com/app/mathx","Output":"PASS\n"}
+{"Time":"2026-09-29T12:00:00.110Z","Action":"output","Package":"example.com/app/mathx","Output":"ok  \texample.com/app/mathx\t0.213s\n"}
+{"Time":"2026-09-29T12:00:00.110Z","Action":"pass","Package":"example.com/app/mathx","Elapsed":0.213}

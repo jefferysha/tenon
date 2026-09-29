@@ -1,0 +1,3 @@
+{"Time":"2026-09-29T12:00:00.000Z","Action":"start","Package":"example.com/app/cmd"}
+{"Time":"2026-09-29T12:00:00.001Z","Action":"output","Package":"example.com/app/cmd","Output":"?   \texample.com/app/cmd\t[no test files]\n"}
+{"Time":"2026-09-29T12:00:00.001Z","Action":"skip","Package":"example.com/app/cmd","Elapsed":0}

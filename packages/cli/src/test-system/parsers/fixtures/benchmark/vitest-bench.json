@@ -1,0 +1,16 @@
+{
+  "files": [
+    {
+      "filepath": "/work/proj/bench/sort.bench.ts",
+      "groups": [
+        {
+          "fullName": "bench/sort.bench.ts > sorting",
+          "benchmarks": [
+            { "id": "1", "name": "native sort", "rank": 1, "rme": 0.8, "samples": [], "totalTime": 500, "min": 0.021, "max": 0.310, "hz": 41200.5, "period": 0.0243, "mean": 0.0243, "variance": 0.0001, "sd": 0.01, "p75": 0.025, "p99": 0.061, "p995": 0.08, "p999": 0.2, "moe": 0.0002, "median": 0.0231 },
+            { "id": "2", "name": "custom sort", "rank": 2, "rme": 1.2, "samples": [], "totalTime": 500, "min": 0.04, "max": 0.9, "hz": 20100.2, "period": 0.0497, "mean": 0.0497, "variance": 0.0003, "sd": 0.017, "p75": 0.05, "p99": 0.12, "p995": 0.2, "p999": 0.4, "moe": 0.0006, "median": 0.0471 }
+          ]
+        }
+      ]
+    }
+  ]
+}

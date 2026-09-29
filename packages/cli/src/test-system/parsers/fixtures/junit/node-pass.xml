@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testsuite name="math" time="0.001086" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="host">
+		<testcase name="adds" time="0.000402" classname="test" file="/work/proj/pass.test.mjs"/>
+		<testsuite name="nested" time="0.000114" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="host">
+			<testcase name="adds negatives" time="0.000055" classname="test" file="/work/proj/pass.test.mjs"/>
+		</testsuite>
+	</testsuite>
+	<!-- tests 2 -->
+	<!-- suites 2 -->
+	<!-- pass 2 -->
+	<!-- fail 0 -->
+	<!-- cancelled 0 -->
+	<!-- skipped 0 -->
+	<!-- todo 0 -->
+	<!-- duration_ms 76.464709 -->
+</testsuites>
