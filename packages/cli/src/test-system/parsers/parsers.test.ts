@@ -140,6 +140,29 @@ describe('node:test（captured）', () => {
 })
 
 describe('junit 方言（authored）', () => {
+  it('pytest fixtures：pass / fail / skip / empty；类名进分组，失败带断言信息', () => {
+    expect(summary(cases('junit', 'junit/pytest-pass.xml'))).toEqual(['pass test_add', 'pass TestNested > test_negatives'])
+    expect(cases('junit', 'junit/pytest-pass.xml').every((item) => item.file === 'tests/test_math.py')).toBe(true)
+    const failing = cases('junit', 'junit/pytest-fail.xml')
+    expect(failing.map((item) => [item.status, item.file, item.suite_path.join('.'), item.name])).toEqual([
+      ['pass', 'tests/test_math.py', '', 'test_add'],
+      ['fail', 'tests/test_math.py', 'TestSub', 'test_sub'],
+      ['skip', 'tests/test_math.py', '', 'test_skip'],
+    ])
+    expect(failing[1]?.failure?.message).toContain('assert 3 == 4')
+    expect(cases('junit', 'junit/pytest-empty.xml')).toEqual([])
+  })
+
+  it('surefire fixture：flakyFailure（重试后通过）→ flaky，attempts 数出重试次数；Java 的点号类名不推成 .py', () => {
+    const list = cases('junit', 'junit/surefire-flaky.xml')
+    expect(list.map((item) => [item.name, item.status, item.attempts, item.file])).toEqual([
+      ['adds', 'pass', 1, 'com.example.MathTest'],
+      ['wobbly', 'flaky', 3, 'com.example.MathTest'],
+      ['subtracts', 'pass', 1, 'com.example.MathTest'],
+    ])
+    expect(list[1]?.failure?.message).toBe('connection reset')
+  })
+
   it('pytest 风格：点号 classname 推成 .py 文件，类名进分组；rerun 后通过 → flaky', () => {
     const xml = `<?xml version="1.0"?><testsuites><testsuite name="pytest" tests="3">
       <testcase classname="tests.test_math.TestAdd" name="test_adds" time="0.002"/>

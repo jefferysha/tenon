@@ -1,7 +1,7 @@
 /**
  * JUnit XML → 用例。各工具方言差别很大（vitest / Playwright 用 `classname`=文件、`name`=分组 › 用例；node:test 用
  * `file` 属性与嵌套 testsuite；pytest 用点号分隔的 `classname`），所以文件、分组与用例名按下面的次序推断：
- *   文件：testcase@file → 像路径的 classname → 祖先 testsuite@file → 像路径的 testsuite@name → 点号 classname 推成 .py →
+ *   文件：testcase@file → 像路径的 classname → 祖先 testsuite@file → 像路径的 testsuite@name → pytest 方言下点号 classname 推成 .py →
  *   原样的 classname / testsuite@name。
  *   用例名：`name` 按 ` › ` 或 ` > ` 拆成 分组… › 用例；没有分隔符时，非文件名的祖先 testsuite 名当分组。
  * 状态：`<skipped>` 跳过；`<failure>` / `<error>` 失败；只有 flakyFailure / rerunFailure（重试后通过）判 flaky。
@@ -97,7 +97,9 @@ function fileOf(testcase: XmlElement, ancestors: Ancestors, split: SplitName): {
     const name = suite.attrs.name ?? ''
     if (looksLikePath(name)) return { file: name, klass: [] }
   }
-  const dotted = dottedModulePath(classname)
+  // 点号 classname 推成 .py 文件只对 pytest 方言成立（Java 的 com.example.MathTest 不是 Python 模块）。
+  const pytest = ancestors.suites.some((suite) => suite.attrs.name === 'pytest')
+  const dotted = pytest ? dottedModulePath(classname) : undefined
   if (dotted !== undefined) return dotted
   const fallback = classname !== '' ? classname : (ancestors.suites.at(-1)?.attrs.name ?? '')
   return { file: fallback === '' ? '(unknown)' : fallback, klass: [] }

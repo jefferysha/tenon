@@ -13,6 +13,8 @@ import type { ArtifactIndexEntry, ArtifactMedia } from '@tenon/kernel'
 export const MAX_ARTIFACT_FILE_BYTES = 64 * 1024 * 1024
 export const MAX_ARTIFACT_RUN_BYTES = 256 * 1024 * 1024
 export const MAX_ARTIFACT_FILES_PER_SUITE = 5000
+/** 记录里索引路径的长度上限（记录解码器按 4096 字符封顶，留出余量）。 */
+const MAX_INDEX_PATH = 3900
 
 export interface ArtifactBudget { used: number }
 
@@ -131,6 +133,7 @@ export async function collectArtifacts(input: {
     if (entry.size > MAX_ARTIFACT_FILE_BYTES || input.budget.used + entry.size > MAX_ARTIFACT_RUN_BYTES) { truncated = true; continue }
     const repoRelative = relative(root, source).split(sep).join('/')
     const indexPath = `artifacts/${input.suiteId}/${repoRelative}`
+    if (indexPath.length > MAX_INDEX_PATH) { truncated = true; continue }
     const destination = join(input.runDir, ...indexPath.split('/'))
     await mkdir(dirname(destination), { recursive: true })
     await copyFile(source, destination)

@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
-  ChangedFilesUnavailableError, changedFilesSinceChangeStart, changedLinesSinceChangeStart, parseAddedLines,
+  ChangedFilesUnavailableError, changeStartOfFields, changedFilesForState, changedFilesSinceChangeStart,
+  changedLinesSinceChangeStart, parseAddedLines,
 } from './changed-files.js'
 
 let repo = ''
@@ -85,6 +86,18 @@ describe('changedFilesSinceChangeStart', () => {
     await put('src/a.ts', 'a\n')
     commit('a', '2026-05-01T00:00:00Z')
     expect(await changedFilesSinceChangeStart(repo, { baseBranch: '', createdAt: '2026-01-01T00:00:00Z' })).toEqual(['src/a.ts'])
+  })
+})
+
+describe('state 字段 → 任务起点', () => {
+  it('base_branch / created_at 取标量（列表用逗号拼），缺失当空串；changedFilesForState 用它读 diff', async () => {
+    expect(changeStartOfFields({ base_branch: 'main', created_at: '2026-01-01T00:00:00Z' })).toEqual({ baseBranch: 'main', createdAt: '2026-01-01T00:00:00Z' })
+    expect(changeStartOfFields({ base_branch: ['a', 'b'] })).toEqual({ baseBranch: 'a,b', createdAt: '' })
+    git(['init', '-q', '-b', 'main'])
+    await put('src/a.test.ts', 'a\n')
+    commit('base', '2026-01-01T00:00:00Z')
+    await put('src/b.test.ts', 'b\n')
+    expect(await changedFilesForState(repo, { fields: { base_branch: 'main', created_at: '2026-06-01T00:00:00Z' } })).toEqual(['src/b.test.ts'])
   })
 })
 

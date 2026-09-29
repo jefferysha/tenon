@@ -263,8 +263,19 @@
 | user set | `<email> [--name <name>]` | 写本机 `user.json` 后同 `user`；`TENON_USER` 覆盖时 stderr 警告 | 0；邮箱非法/写失败=1 |
 | owner take | `<name>` | 新负责人 `名字 <邮箱>` 一行；变更时追加 `assignee` history | 0；名非法/无身份/缺任务/写失败=1 |
 | owner set | `<name> <email> [--name <name>]` | 同 `owner take` | 0；非当前负责人/邮箱非法=1，其余同 `owner take` |
+| test discover | `[--write] [--json]` | 建议套件表（`--write` 追加进 `.tenon/tests/catalog.yaml`，已存在的 id 不覆盖）；`--json` `{catalog,written,suites[{id,state,source,suite}],notes}` | 0；目录无效=1 |
+| test catalog show/validate/add/set/rm | `show [<id>] [--json]`、`validate [--json]`、`add [<id>] [--from <方向>] [--service] …`、`set <id> … [--service]`、`rm <id> [--service]` | 目录条目；`validate` 逐条 `catalog.yaml:<行>: …`；写出前整份重新解析，写坏的目录不落盘 | 0；`validate` 有问题=2；用法/目录无效/引用缺失=1 |
+| test plan | `<name> [--seed] [--json]` | 计划摘要与各项；`--seed` 只增不减地补套件/文件并列出待映射场景；`--json` `{change,state,digest?,plan?}` | 0；计划缺失或被改动=2；`--seed` 无目录/非负责人=1 |
+| test register/unregister/waive | `register --suite\|--file\|--case+--test`、`unregister --suite\|--file\|--case[--test]\|--waiver-kind\|--waiver-covers`、`waive --kind\|--covers --reason` | 一行确认；写入在 Change 锁内读—改—写并更新摘要台账 | 0；计划被改动/校验失败/非负责人=1 |
+| test sync | `<name> [--json]` | 未登记/无套件认领/已不存在的测试文件与修复命令；`--json` `{unregistered,orphans,registeredButMissing,unmapped}` | 0 干净；2 有待处理；读不到 diff 或目录=1 |
+| test run | `<name> [--suite <id>]… [--kind <k>]… [--stage [<step>]] [--all] [--changed] [--json]`；旧形式 `<name> <test-id>` | 摘要（每套件一行、前 10 条失败用例、服务、产物位置、出口检查）；`--json` `{run_id,step,result,chain,record_path,artifacts_dir,inline,gate,record}` | 0 全部通过；2 有失败（记录已写）；1 用法/环境错误（无记录） |
+| test baseline | `<name> --suite <id> --run <run-id>`；旧形式 `<name> <test-id> --run <run-id>` | `[BASELINE] 套件 @ 画像：n 项指标 ← run <id>`；写 `.tenon/tests/baselines/<套件>/<画像>.json` 并追加用户 `audit.jsonl` | 0；运行未通过/不在当前链上/无指标=1 |
+| test known | `add --suite --test --reason --expires [--link]`、`rm --suite --test`、`list [--json]` | 一行确认或清单（过期项标出） | 0；参数非法/清单无效=1 |
+| test report | `<name> [--step <id>] [--write <path>] [--locale zh-CN\|en]` | 验证报告测试段（旧步骤测试表 + 追溯矩阵/套件/基准/flaky/阻塞）；`--write` 替换标记区间 | 0；写目标非法=1 |
 
 身份与负责人命令 `tenon user` / `tenon user set` / `tenon owner take` / `tenon owner set` 只登记自报身份，不做认证；`owner set` 仅当前负责人可执行，与 Dashboard 的负责人移交共用 kernel `transferOwner`。
+
+测试体系（`tenon test …`）三层落盘契约：项目目录 `.tenon/tests/catalog.yaml`（人可编辑，加载时校验，报告/覆盖率/产物路径必须在 `test-results/`、`playwright-report/`、`coverage/` 之下）、任务计划 `openspec/changes/<name>/test-plan.yaml`（只经 `tenon test` 命令写入，字节摘要记进同目录 `.pipeline-test-plan.json` 台账，不符即 `test-plan-tampered`）、工作流步骤策略 `steps[].test_policy`。运行记录 v2 写入 `.tenon/users/<slug>/tests/<change>/<run-id>.json`，按 `prev_digest` 哈希链串联，`tenon test run` 是唯一写入方；断链则该用户该任务的 v2 记录全部视为未运行，重跑另起新链。基线 `.tenon/tests/baselines/<套件>/<画像>.json` 与已知失败 `.tenon/tests/known-failures.yaml` 进 git，只经 `test baseline` / `test known` 写。「自任务起点以来改动的文件」由 kernel `changedFilesSinceChangeStart` 提供（起点=与 `base_branch` 的 merge-base，直接在基线分支上做时取 `created_at` 之前的最后一个提交，含暂存/未暂存/未跟踪），CLI 与 server 快照共用；提供者抛错时策略 `files: registered` 以 `files-diff-unavailable` 阻塞（失败关闭）。`tenon test run` 写入的套件结论与门禁重算调用同一个 kernel `evaluateSuiteResult`；旧步骤 `tests[]` 与 v1 记录不变，`tenon test run <name> <test-id>` 与 `tenon test baseline <name> <test-id>` 保持原行为。
 
 get/set/transition 的 stdout 与 exit code 以 **golden-oracle 双跑逐字一致**为准
 （oracle=老内核 `skills/pipeline/scripts/pipeline-state.sh`，diff 白名单仅时间戳字段值）。

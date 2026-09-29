@@ -5,11 +5,7 @@ import { cmdCatalogAdd, cmdCatalogRemove, cmdCatalogSet, cmdCatalogShow, cmdCata
 import type { ServiceOptions, SuiteOptions } from './commands/test-catalog-edit.js'
 import { cmdTestDiscover } from './commands/test-discover.js'
 import { cmdKnownAdd, cmdKnownList, cmdKnownRemove } from './commands/test-known.js'
-import { bail } from './program-exit.js'
-
-function collect(value: string, previous: readonly string[] = []): string[] {
-  return [...previous, value]
-}
+import { bail, collect } from './program-exit.js'
 
 type CatalogCliOptions = SuiteOptions & ServiceOptions & { readonly service?: boolean; readonly from?: string }
 

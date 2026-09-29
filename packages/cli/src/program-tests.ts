@@ -12,11 +12,7 @@ import { cmdTestRunSuites } from './commands/test-run-suites.js'
 import { cmdTestStatus } from './commands/test-status.js'
 import { cmdTestSync } from './commands/test-sync.js'
 import { registerTestProjectCommands } from './program-tests-project.js'
-import { bail } from './program-exit.js'
-
-export function collect(value: string, previous: readonly string[] = []): string[] {
-  return [...previous, value]
-}
+import { bail, collect } from './program-exit.js'
 
 interface RunCliOptions {
   suite?: string[]

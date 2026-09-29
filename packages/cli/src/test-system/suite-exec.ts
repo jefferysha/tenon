@@ -6,11 +6,11 @@
  * 而报告里没有失败（exit-report-mismatch）。退出码非 0 不再单独记 exit-code：失败的用例已经说明了原因。
  */
 import { realpathSync } from 'node:fs'
-import { realpath } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { realpath, stat } from 'node:fs/promises'
+import { isAbsolute, relative, resolve } from 'node:path'
 import {
   isCaseReportFormat, planFilesOfSuite,
-  type CaseResultV2, type CatalogSuite, type CoverageResult, type SuiteReason, type SuiteRunV2,
+  type CatalogSuite, type CoverageResult, type SuiteReason, type SuiteRunV2,
 } from '@tenon/kernel'
 import { looksSandboxDenied } from '../test-runner/classify.js'
 import type { TestProcessOutcome } from '../test-runner/process.js'
@@ -133,15 +133,31 @@ async function notExecuted(suite: CatalogSuite, item: RunItem, context: ExecCont
   return { run, notices: [], notes: [], tail: '', sandboxDenied: false }
 }
 
+/** 套件工作目录必须是仓库内真实存在的目录（目录校验只保证写法，不保证目录在）。 */
+async function usableCwd(repoRoot: string, cwd: string): Promise<boolean> {
+  try {
+    const target = await realpath(cwd)
+    const rel = relative(await realpath(repoRoot), target)
+    return (rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))) && (await stat(target)).isDirectory()
+  } catch {
+    return false
+  }
+}
+
 export async function executeSuite(context: ExecContext, item: RunItem, blocked: SuiteReason | undefined): Promise<SuiteOutcome> {
   const suite = item.suite
   if (blocked !== undefined) return notExecuted(suite, item, context, blocked)
   const cwd = resolve(context.repoRoot, suite.cwd)
+  if (!(await usableCwd(context.repoRoot, cwd))) return notExecuted(suite, item, context, { code: 'cwd-invalid', detail: suite.cwd.slice(0, 200) })
   const planned = planCommand(suite, {
     scope: item.scope, ...(item.pattern === undefined ? {} : { pattern: item.pattern }), ...(item.files === undefined ? {} : { files: item.files }),
   }, context.changedFiles)
-  const invoker = createInvoker({ suite, cwd, env: context.env, runDir: context.runDir, signal: context.signal })
+  const env: NodeJS.ProcessEnv = { ...context.env, TENON_TEST_SUITE: suite.id }
+  const invoker = createInvoker({ suite, cwd, env, runDir: context.runDir, signal: context.signal })
   const notes: string[] = planned.note === undefined ? [] : [planned.note]
+  // 套件声明的环境变量只记名字：没设置的提示出来（值永远不进记录）。
+  const unset = suite.env.filter((name) => env[name] === undefined)
+  if (unset.length > 0) notes.push(`套件 ${suite.id} 声明的环境变量没有设置：${unset.join('、')}`)
   const reasons: SuiteReason[] = []
   const started = Date.now()
   let outcomes: TestProcessOutcome[] = []
@@ -212,7 +228,7 @@ export async function executeSuite(context: ExecContext, item: RunItem, blocked:
   const run: SuiteRunV2 = {
     ...baseRun(suite, planned),
     exit_code: last?.exitCode ?? null, signal: last?.signal ?? null, duration_ms: totalMs,
-    reasons, totals: totalsOf(records.all), cases: records.kept as CaseResultV2[], projects: [...projects],
+    reasons, totals: totalsOf(records.all), cases: records.kept, projects: [...projects].map((name) => name.slice(0, 120)),
     coverage, metrics, artifacts: [...artifacts.index],
     report: { format: suite.report.format, path: suite.report.path ?? null, digest },
     log,

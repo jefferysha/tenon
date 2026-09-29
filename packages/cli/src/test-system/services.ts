@@ -161,7 +161,7 @@ function signalGroup(pid: number, signal: NodeJS.Signals): void {
 /** 回收：停止信号发给整个进程组，宽限后 SIGKILL，最后核对进程组是否清空。 */
 export async function stopService(running: RunningService): Promise<void> {
   const pid = running.child.pid
-  if (pid === undefined) return
+  if (pid === undefined || running.stopping) return
   running.stopping = true
   if (process.platform === 'win32') {
     running.child.kill()

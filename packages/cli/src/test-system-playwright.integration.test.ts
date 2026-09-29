@@ -95,9 +95,9 @@ describe.skipIf(!available && !required)('测试体系 v2 · Playwright 工程',
     run_id: string
     services: Array<{ id: string; ready_ms: number | null; exit: string; log: string | null; leaked_pids: number[] }>
     suites: Array<{
-      suite: string; result: string; projects: string[]; reasons: Array<{ code: string; detail?: string }>
-      totals: { cases: number; pass: number; fail: number }
-      cases: Array<{ file: string; name: string; project: string | null; status: string; artifacts: string[]; failure?: { message: string } }>
+      suite: string; result: string; projects: string[]; command: string; reasons: Array<{ code: string; detail?: string }>
+      totals: { cases: number; pass: number; fail: number; flaky?: number }
+      cases: Array<{ file: string; name: string; project: string | null; status: string; attempts: number; artifacts: string[]; failure?: { message: string } }>
       artifacts: Array<{ path: string; media: string; bytes: number; entry?: true }>
     }>
   }
@@ -146,6 +146,27 @@ describe.skipIf(!available && !required)('测试体系 v2 · Playwright 工程',
     for (const path of failed?.artifacts ?? []) expect((await readFile(join(dir, ...path.split('/')))).length).toBeGreaterThan(0)
     const screenshot = (failed?.artifacts ?? []).find((path) => path.endsWith('.png'))
     expect(screenshot).toMatch(/^artifacts\/e2e\/test-results\//)
+  }, 240_000)
+
+  test('A7：Playwright 用原生重试（补上 --retries），重试后通过的用例读 attempts 记 flaky，不再额外重跑', async () => {
+    await project()
+    await writeFile(join((h as Harness).cwd, 'e2e', 'home.spec.ts'), [
+      "import { expect, test } from 'playwright/test'",
+      "test('home page flaky first attempt', async ({ page }, info) => {",
+      "  await page.goto('/')",
+      "  await expect(page.locator('#title')).toHaveText('Hello Tenon')",
+      '  expect(info.retry).toBeGreaterThan(0)',
+      '})', '',
+    ].join('\n'), 'utf8')
+    expect(await tenon('test', 'catalog', 'set', 'e2e', '--retries', '1')).toBe(0)
+    expect(await tenon('test', 'run', 'demo', '--stage'), `${out()}\n${err()}`).toBe(0)
+    const run = await latestRun()
+    const suite = run.suites[0]
+    expect(suite?.totals).toMatchObject({ flaky: 1, fail: 0 })
+    expect(suite?.cases[0]).toMatchObject({ status: 'flaky', attempts: 2, project: 'chromium' })
+    expect(suite?.command).toContain('--retries=1')
+    const log = await readFile(join((h as Harness).cwd, '.tenon', 'users', SLUG, 'local', 'artifacts', 'demo', run.run_id, 'logs', 'e2e.log'), 'utf8')
+    expect(log.match(/^=== /gm)).toHaveLength(1)
   }, 240_000)
 
   test('A4：目录要求的浏览器 project 在报告里缺失 → browser-project-missing', async () => {
