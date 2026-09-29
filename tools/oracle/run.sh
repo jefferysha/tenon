@@ -679,11 +679,50 @@ oracle_fixture_package_json() { # $1=项目目录 —— 真实项目自带的�
 PKG
 }
 
+# 老 oracle 早于「步骤测试策略」：default 各轨在 spec / build / verify 声明了 test_policy，没有测试目录与已批准的
+# 测试计划就不放行。与其它 bootstrap 同一条口径——只在老侧已证明该出口成功之后补，绝不在老侧拒绝时跑。
+# 用 kernel 的夹具助手（seedApprovedTestPolicyWaivers）把该步策略要求的每个种类记成已批准豁免：契约只有一份定义，
+# 判定仍由产品的策略评估做；没有策略的步骤什么都不写，别的 fixture 的工作区不受影响。
+KERNEL_DIST="$REPO_ROOT/packages/kernel/dist"
+
+bootstrap_new_test_policy() {
+  local dir="$1" change="$2" phase="$3" track
+  track="$(run_new_cli "$dir" get "$change" track)" || return 1
+  track="$(printf '%s' "$track" | tr -d '[:space:]')"
+  [ -n "$track" ] && [ "$track" != null ] || return 0
+  if [ ! -f "$KERNEL_DIST/test-system/test-support.js" ]; then
+    printf '缺少测试策略夹具助手: %s/test-system/test-support.js（先 npm run build）\n' "$KERNEL_DIST" >&2
+    return 1
+  fi
+  (cd "$dir" && TENON_RUNTIME_HOME="$MACHINE_HOME" TENON_USER="$ORACLE_TENON_USER" TENON_USER_NAME="$ORACLE_TENON_USER_NAME" \
+    ORACLE_KERNEL_DIST="$KERNEL_DIST" ORACLE_CHANGE="$change" ORACLE_STEP="$phase" ORACLE_TRACK="$track" node --input-type=module -e '
+      const dist = `file://${process.env.ORACLE_KERNEL_DIST}`
+      const kernel = await import(`${dist}/index.js`)
+      const support = await import(`${dist}/test-system/test-support.js`)
+      const cwd = process.cwd()
+      let definition
+      try { definition = kernel.builtinTrack(process.env.ORACLE_TRACK) } catch { process.exit(0) }
+      const plan = kernel.compileEffectiveWorkflowPlan("default", kernel.parseWorkflow(kernel.DEFAULT_WORKFLOW_SOURCE), definition)
+      const user = kernel.resolveTenonUser(cwd, process.env)
+      if (!kernel.isTenonUser(user)) throw new Error("oracle: TENON_USER 未解析出身份")
+      await support.seedApprovedTestPolicyWaivers({
+        repoRoot: cwd,
+        changeDir: `${cwd}/openspec/changes/${process.env.ORACLE_CHANGE}`,
+        changeName: process.env.ORACLE_CHANGE,
+        plan,
+        stepId: process.env.ORACLE_STEP,
+        actor: kernel.actorOf(user),
+        recordedAt: new Date().toISOString(),
+      })
+    ') || return 1
+}
+
 bootstrap_new_test_evidence() {
   local dir="$1" change="$2" phase ids id
   phase="$(run_new_cli "$dir" get "$change" phase)" || return 1
   phase="$(printf '%s' "$phase" | tr -d '[:space:]')"
   [ -n "$phase" ] || return 0
+  bootstrap_new_test_policy "$dir" "$change" "$phase" || return 1
   # 该步没有声明测试（pm/chat/free 各步，以及 build/verify 之外的步）→ items 为空，天然无操作。
   ids="$(run_new_cli "$dir" test status "$change" --step "$phase" --json 2>/dev/null \
     | grep -o '"id": "[A-Za-z0-9_-]*"' | sed 's/.*"id": "//; s/"$//')" || true
