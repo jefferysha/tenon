@@ -48,14 +48,13 @@ import {
  *     admission 测试 context）→ 直通产出不带 `skillBundle` 的 PreparedExecutionContext（不物化
  *     CAS、不写 ledger 事件），绝不整轮短路、绝不 pause。
  *   · `ctx.skill_bundle_id` 有值（真实 loop-admission reserve() 产出、bundle 绑定的 context）→
- *     本函数尚无法真解析/物化：真实 `EffectiveSkillResolver`/`SkillContentLocator` 装配可行，但
- *     `ExecutionCoordinatePort`（捕获当前 workflow 坐标）需要 G1/G2 WorkflowRunRepository 状态——
- *     本包目前没有任何生产来源能诚实提供它（同 lifecycle.ts 头注「custom workflow 坐标」段落同一
- *     边界，需 H14+ 跨包接线）。故 throw 一个 config 类错误（fail-loud，按候选粒度——只有这一个
+ *     本缺省装配不解析/物化 bundle：那需要 resolver、locator 与 `ExecutionCoordinatePort`（捕获当前
+ *     workflow 坐标），由调用方用 `createExecutionPreparation` 装配后经 `deps.preparation` 注入——
+ *     生产入口 `tenon afk run` / `tenon loops run` 在 packages/cli/src/commands/afk-executor.ts 就是
+ *     这样注入的。故缺省装配 throw 一个 config 类错误（fail-loud，按候选粒度——只有这一个
  *     candidate 的 handleOne 被打断，其余候选不受影响，见 scheduler.ts::handlePreparationThrow）；
  *     镜像 loop-admission.ts::SkillProfileValidatorUnconfiguredError 对「装配缺口 vs 业务判定」的
  *     既有区分：不伪装成某个 `PreparationFailureReason` 业务结论持久化，也不静默放行当作已 prepare。
- *     真实全依赖装配是 H10 任务7 的事，不在本函数职责内。
  */
 export class SkillBundlePreparationUnconfiguredError extends Error {
   readonly _tag = 'SkillBundlePreparationUnconfiguredError'
@@ -72,8 +71,8 @@ export const createDefaultExecutionPreparation = (): ExecutionPreparationPort =>
     }
     throw new SkillBundlePreparationUnconfiguredError(
       `change「${ctx.change}」归属 loop「${ctx.loop_id}」的 skill_bundle_id="${ctx.skill_bundle_id}"（bundle 绑定）` +
-      '需要真实 skill bundle 解析/CAS 物化依赖（resolver/locator/coordinates），但 createAutomation ' +
-      '默认装配尚未接线（H10 生产装配见任务7）——fail-closed，不放行、不伪造业务判定',
+      '需要 skill bundle 解析/CAS 物化依赖（resolver/locator/coordinates）；本次 createAutomation ' +
+      '没有注入 deps.preparation（用 createExecutionPreparation 装配后注入）——fail-closed，不放行、不伪造业务判定',
     )
   },
 })

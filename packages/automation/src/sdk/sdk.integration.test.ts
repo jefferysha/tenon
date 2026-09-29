@@ -30,7 +30,7 @@ import { type LifecyclePorts, runChangeInSandbox } from '../lifecycle/lifecycle.
 import { createFsSkillContentLocator } from '../skills/content-locator.js'
 import { materializeSkillSnapshot } from '../skills/snapshot-store.js'
 import type { VerifierInput } from '../verifier/verifier.js'
-import { createAutomation, storeWriter } from './sdk.js'
+import { createAutomation, createDefaultExecutionPreparation, SkillBundlePreparationUnconfiguredError, storeWriter } from './sdk.js'
 
 const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
 
@@ -974,6 +974,23 @@ loops:
     expect(report.ok).toBe(false)
     expect(report.failures[0]).toMatchObject({ phase: 'preparation', kind: 'config' })
     expect(await store.get(dir, 'automation')).toBe('queued') // 复位 queued（留给下轮；不误判成业务 denial 持久化）
+  })
+
+  it('缺省 preparation 的报错指向真实缺口（未注入 deps.preparation），不再声称生产装配尚未接线', async () => {
+    const context: ExecutionContext = {
+      attempt_id: 'att', reservation_id: 'res', loop_id: 'lp', change: 'x', level: 'L1', runner: 'claude-code',
+      admitted_at: 't', reservation: { runs: 1, tokens: 2000, token_basis: 'risk-default' },
+      policy_epoch: 'epoch-1', skill_bundle_id: '_all',
+    }
+    const failure = await createDefaultExecutionPreparation().prepare(context).then(
+      () => null,
+      (error: unknown) => error,
+    )
+    expect(failure).toBeInstanceOf(SkillBundlePreparationUnconfiguredError)
+    const message = failure instanceof Error ? failure.message : ''
+    expect(message).toContain('deps.preparation')
+    expect(message).toContain('createExecutionPreparation')
+    expect(message).not.toContain('尚未接线')
   })
 
   it('enabled=false（fail-safe OFF）：enqueue 拒绝（退回纯人工是安全的）', async () => {
