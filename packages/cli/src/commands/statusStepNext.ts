@@ -11,6 +11,10 @@ import { finishActions, type StepCommit, type StepFinishFacts } from './statusSt
 import type { StepAgentView, StepReviewBar } from './statusStepAgents.js'
 import type { StepBlocker, StepExit } from './stepExitReport.js'
 import type { StepDocumentsView, StepFieldView, StepSkillView } from './statusStepParts.js'
+import {
+  failedTestsAction, releaseWaiverBlockers, runTestsAction, testPlanningActions, testReportAction, testsNeedRollback,
+  type StepTestFlow,
+} from './statusStepTests.js'
 
 export interface StepTestView {
   readonly id: string
@@ -69,6 +73,11 @@ export interface StepNextInput {
   readonly settle: StepCommit | null
   /** 下一步声明的评审者（statusStepAgents.downstreamReviewBar）；随实现、自审与结论动作下发。 */
   readonly reviewBar: readonly StepReviewBar[]
+  /**
+   * 本步声明了 test_policy 时，策略判定（kernel TestPolicyReport）归档出的测试体系动作；
+   * 缺席 = 本步没有策略，行为与没有测试体系时逐字相同。
+   */
+  readonly testFlow?: StepTestFlow
 }
 
 /**
@@ -209,8 +218,27 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   if (rest.length > 0) return rest
   if (input.ownsDeltaSpec && input.specRehearsalPending) return [{ action: 'validate-spec' }]
 
+  // 测试（执行者 → 技能 → 文档 → 测试 → 评审者）：先登记（目录 → 计划 → 映射 → 测试文件，依赖前一类，
+  // 一次只发最靠前的一类），再按策略运行，运行结果写进验证报告；已经跑过却不满足策略的阻塞交给 fix。
+  const flow = input.testFlow
+  if (flow !== undefined) {
+    const planning = testPlanningActions(input.change, flow)
+    if (planning.length > 0) return planning
+    const runs = runTestsAction(input.change, flow)
+    if (runs.length > 0) return runs
+  }
   const tests = input.tests.filter((test) => test.required && test.status !== 'passed')
   if (tests.length > 0) return tests.map((test) => ({ action: 'run-test', test: test.id }))
+  if (flow !== undefined) {
+    const report = testReportAction(flow)
+    if (report.length > 0) return report
+    // 评审门上，测试失败和评审者打回一样：走回退边修（verify-fail 这条边要求验证报告已带上失败的用例，
+    // 所以 test-report 排在它前面）。其余步骤没有这个含义，失败就是要改代码：fix。
+    const back = input.exits.filter((exit) => exit.direction === 'back')
+    if (input.gate === 'review' && back.length > 0 && testsNeedRollback(flow)) return gatedBackActions(input, back)
+    const failed = failedTestsAction(flow)
+    if (failed.length > 0) return failed
+  }
 
   const reviewers = pendingAgents(input.reviewers, false)
   if (reviewers.length > 0) return withReviewBar(reviewers, input.reviewBar)
@@ -226,7 +254,7 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
     if (outcomes.length > 0) return withReviewBar(outcomes, input.reviewBar)
   }
 
-  return exitActions(input)
+  return exitActions({ ...input, exits: releaseWaiverBlockers(input.exits, flow, input.gate, input.review.status) }, flow)
 }
 
 /** 前进边上的未勾任务（`source: tasks`），按文案去重；每条带未勾项原文（`items`）。 */
@@ -306,22 +334,47 @@ function exitActions(input: {
   readonly exits: readonly StepExit[]
   readonly tests: readonly StepTestView[]
   readonly reviewers: readonly StepAgentView[]
-}): readonly StepAction[] {
+}, flow: StepTestFlow | undefined): readonly StepAction[] {
   const forward = input.exits.filter((exit) => exit.direction !== 'back')
   const back = input.exits.filter((exit) => exit.direction === 'back')
   if (requiredEvidenceFailed(input) && back.length > 0) return gatedBackActions(input, back)
   const readyForward = forward.filter((exit) => exit.ready)
   if (input.gate === 'review') {
-    if (input.review.status === 'pending') return [{ action: 'await-review', event: input.review.event }]
+    if (input.review.status === 'pending') {
+      // 请求之后才加进计划的豁免不在冻结清单里，这次确认批准不了它们：先重新发起（幂等）再等人。
+      const pendingExit = input.exits.find((candidate) => candidate.event === input.review.event)
+      if (flow?.refreshRequest === true && input.review.event !== null && pendingExit?.direction !== 'back') {
+        return [{ action: 'request-review', event: input.review.event, waivers: flow.waivers.map((waiver) => waiver.subject) }]
+      }
+      return [{ action: 'await-review', event: input.review.event }]
+    }
     if (input.review.status === 'approved' && input.review.event !== null) {
       const exit = input.exits.find((candidate) => candidate.event === input.review.event)
+      // 确认之后才出现的豁免没有被这次确认批准：前进边的 transition 必被拒（回退边不看测试证据）。
+      const stranded = exit?.direction === 'back' ? [] : flow?.waivers ?? []
+      if (stranded.length > 0) {
+        return [{
+          action: 'fix',
+          blockers: stranded.map((waiver) => ({
+            source: 'test',
+            code: 'waiver-unapproved',
+            message: `${waiver.text}；评审确认时它还不在计划里，没能被批准：撤掉这条豁免，或回退到上一步重新发起评审`,
+          })),
+        }]
+      }
       return [{
         action: exit?.direction === 'completion' ? 'complete' : 'transition',
         event: input.review.event,
       }]
     }
     if (readyForward.length === 1 && readyForward[0] !== undefined) {
-      return [{ action: 'request-review', event: readyForward[0].event }]
+      // 计划里等待批准的豁免随请求一起下发：用户的确认同时批准它们，所以要连同理由展示给用户。
+      const waivers = flow?.waivers ?? []
+      return [{
+        action: 'request-review',
+        event: readyForward[0].event,
+        ...(waivers.length === 0 ? {} : { waivers: waivers.map((waiver) => waiver.subject) }),
+      }]
     }
   } else if (readyForward.length === 1 && readyForward[0] !== undefined) {
     const exit = readyForward[0]

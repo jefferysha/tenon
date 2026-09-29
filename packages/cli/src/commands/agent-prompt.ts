@@ -18,6 +18,8 @@ export interface AgentPromptInput {
   readonly stepPrompt?: string
   /** `reads_tests` 引用的测试结果，Tenon 执行后交给评审者。 */
   readonly tests: readonly { readonly id: string; readonly run: TestRunRecordV1 | undefined }[]
+  /** 目录套件的最新运行摘要（失败用例、flaky、覆盖率对照门槛、基准变化）；已渲染成行，空 = 没有可附的。 */
+  readonly testSummary?: readonly string[]
 }
 
 const RESULT_HINT: Readonly<Record<AgentRole, string>> = {
@@ -41,6 +43,7 @@ export function renderAgentPrompt(input: AgentPromptInput): string {
     ...(definition.tools.length === 0 ? [] : [`工具：${definition.tools.join(', ')}`]),
     ...(input.blockAt === undefined ? [] : [`阻断：${input.blockAt}`]),
     ...(input.tests.length === 0 ? [] : ['测试：', ...input.tests.map(testLine)]),
+    ...(input.testSummary ?? []),
     ...(input.stepPrompt === undefined ? [] : [`步骤说明：${input.stepPrompt}`]),
     `报告：${input.reportPath}`,
     `结束：tenon agent record ${input.change} ${input.runId}`,

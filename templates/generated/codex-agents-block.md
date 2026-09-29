@@ -10,8 +10,12 @@ Todo 用 `tenon workflow plan <change> --json` 的步骤标签建立，当前项
 `tenon transition` / `tenon check`，勿手改 canonical state 或 `.pipeline.yaml` 投影。
 已登记的规格文档需求语义变了，走 `requirements-changed` 回到规格步重新登记，不在实现步覆盖。
 
+本任务用到与新增的全部测试脚本（单测、集成、e2e、基准…）都要登记进任务的测试计划：登记、运行与追溯报告
+照 `step.next` 的 `test-*` / `run-tests` 动作做；测试计划、基线、已知失败清单和运行记录只经
+`tenon test …` 写入，勿手改（hook 会拒绝）。
+
 评审门（`gate: review`）离开前须对确切 transition event 取得人类显式确认：先运行
 `tenon review request <change> --event <event>`；用户明确回复「确认继续」「继续执行」等放行语后
 由 hook 写入回执，再照 `step.next` 执行。不能删除 marker 绕过 review-gate；verify-fail 与
-verify-pass 的确认不可互用。
+verify-pass 的确认不可互用。计划里待批准的测试豁免随 request 列出，用户的确认一并批准它们。
 <!-- PIPELINE:CODEX:END -->

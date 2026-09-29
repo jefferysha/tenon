@@ -11,7 +11,7 @@
 # marker 只从当前项目根读取：Git worktree / 显式 TENON_PROJECT_ROOT / 当前 cwd 三者之一。
 #   绝不从普通父目录猜测项目根，避免共享 /tmp 下的外部 Change 拦截无关会话。
 # 纯 bash 热路径（CONTRACT §5.4）：不 spawn 任何解释器/外部 JSON 解析器，
-#   stdin JSON 只用 bash 字符串提取所需的键（cwd / tool_name；测试记录门另取写入目标路径）。
+#   stdin JSON 只用 bash 字符串提取所需的键（cwd / tool_name；测试记录门另取写入目标路径与 shell 写入命令的目标）。
 # 例外（Task 9，GOAL 清单 E）：非 default workflow 的 change 调用 Claude Skill 工具，或 Codex
 #   读取当前插件内 SKILL.md 时，文件尾段委托 `node .../tenon.mjs internal-skill-gate` 做 skill DAG
 #   解锁判定。默认 workflow / 无活跃 change / 非技能读取三者任一成立就直接跳过 node；Codex 读取
@@ -52,20 +52,38 @@ json_command() { pipeline_json_get_command "$INPUT"; }
 # non-blocking error, i.e. an allow; an over-long command is simply not allowlisted (fail closed).
 json_command_short() { pipeline_json_get_command_bounded "$INPUT" 65536; }
 
-# 测试记录与基线只能由 `tenon test run` / `tenon test baseline` 写入：编辑类工具（Claude 的
-# Write/Edit/MultiEdit/NotebookEdit，Codex 的 apply_patch）直接改这些文件会把「agent 自报通过」
-# 重新变成可能，所以在 marker 逻辑之前就拒。只看写入目标路径——Claude 取 tool_input 的
-# file_path / notebook_path，apply_patch 取补丁头 `*** Add/Update/Delete File:` 与 `*** Move to:`
-# 的路径——不看写入内容：文档正文里提到 `.tenon/users/<u>/tests/` 不是写记录。原始输入不含
-# `.tenon` 就不解析；解析全走 json-input.sh 的线性 helper（bash 3.2 下大补丁也不超时）。
-# shell 重定向不在本门覆盖范围内（已在 design §12 记为残余风险）。AFK 也照拒：它免除的是交互
-# 拦截，不是写入边界。
-pipeline_test_record_path() { # $1=target path, $2=cwd → 0 when it is under .tenon/users/<u>/{tests,baselines}
+# 测试体系的记录只能由 `tenon test …` 命令写入：编辑类工具（Claude 的 Write/Edit/MultiEdit/NotebookEdit，
+# Codex 的 apply_patch）与 shell 命令直接改这些文件，会把「agent 自报通过 / 自己改计划、基线、已知失败」重新变成
+# 可能，所以在 marker 逻辑之前就拒。受保护的路径：
+#   · .tenon/users/<u>/{tests,baselines}：按用户的运行记录（v1 / v2 哈希链）与旧基线；
+#   · openspec/changes/<c>/test-plan.yaml 及其摘要台账 .pipeline-test-plan.json、评审冻结的豁免清单
+#     .pipeline-review-waivers.json：任务测试计划；
+#   · .tenon/tests/baselines/**、.tenon/tests/known-failures.yaml：项目共享的基线与已知失败清单。
+# .tenon/tests/catalog.yaml 是人可编辑的配置，不在其内。
+# 只看写入目标路径——Claude 取 tool_input 的 file_path / notebook_path，apply_patch 取补丁头
+# `*** Add/Update/Delete File:` 与 `*** Move to:` 的路径，shell 命令取重定向目标与 tee / cp / mv / rm / sed -i
+# 等写入命令的参数——不看写入内容：文档正文（含 heredoc 正文）里提到这些路径不是写记录。`tenon …` 调用与
+# 普通 git 操作不是写入命令，照常放行。原始输入不含任何相关字样就不解析；解析全走 json-input.sh 的线性
+# helper（bash 3.2 下大补丁也不超时）。写入命令的识别是尽力而为（变量间接、解释器内联脚本认不出）：
+# 记录靠哈希链、计划靠摘要台账，被改动后照样判失效。AFK 也照拒：它免除的是交互拦截，不是写入边界。
+pipeline_test_record_path() { # $1=target path, $2=cwd → 0 when it is a Tenon-owned test record
   local path="${1:-}" rest sub double='//' single='/'
   [ -n "$path" ] || return 1
   case "$path" in /*) ;; *) path="${2:-.}/$path" ;; esac
   # bash 3.2 keeps a backslash-escaped `/` literally in a replacement, so both sides are variables.
   while :; do case "$path" in *//*) path="${path//$double/$single}" ;; *) break ;; esac; done
+  # `.` / `..` 段落不猜它最终指向哪里：路径里提到受保护的名字就按记录路径拒绝。
+  case "$path" in
+    */../*|*/./*|*/..|*/.)
+      case "$path" in
+        *test-plan.yaml*|*.pipeline-test-plan.json*|*.pipeline-review-waivers.json*|*known-failures.yaml*|*/.tenon/tests|*/.tenon/tests/*) return 0 ;;
+      esac
+      ;;
+  esac
+  case "$path" in
+    */openspec/changes/*/test-plan.yaml|*/openspec/changes/*/.pipeline-test-plan.json|*/openspec/changes/*/.pipeline-review-waivers.json) return 0 ;;
+    */.tenon/tests|*/.tenon/tests/baselines|*/.tenon/tests/baselines/*|*/.tenon/tests/known-failures.yaml) return 0 ;;
+  esac
   case "$path" in */.tenon/users/*) ;; *) return 1 ;; esac
   rest="${path#*/.tenon/users/}"
   sub="${rest#*/}"
@@ -97,12 +115,180 @@ pipeline_patch_targets() { # $1=patch text → 每个补丁头的目标路径一
     esac
   done
 }
+
+# Structural unwrapping only — nothing here is ever evaluated.  Hosts hand the same shell call over
+# in several shapes: bare (`tenon …`), wrapped by the login shell (`/bin/zsh -lc "tenon …"`), and
+# as a joined argv array (`bash -lc tenon …`, see pipeline_json_get_command).  Peel one wrapper so
+# the matchers see one canonical command text.
+# hooks/skill-evidence.sh has a similar helper on purpose: that one is part of the *evidence* path
+# and must stay strict about which read shapes count, so widening it here would widen skill
+# evidence acceptance as a side effect.
+pipeline_unwrap_shell_wrapper() { # $1=raw command → inner command text (unchanged when not wrapped)
+  local command="${1:-}" shell flag prefix inner
+  for shell in /bin/zsh /bin/bash /bin/sh zsh bash sh; do
+    for flag in -lc -c; do
+      prefix="$shell $flag "
+      case "$command" in
+        "$prefix"*)
+          inner="${command#"$prefix"}"
+          case "$inner" in
+            '"'*'"') inner="${inner#\"}"; inner="${inner%\"}" ;;
+            "'"*"'") inner="${inner#\'}"; inner="${inner%\'}" ;;
+          esac
+          printf '%s' "$inner"
+          return 0
+          ;;
+      esac
+    done
+  done
+  printf '%s' "$command"
+}
+
+# ── shell 写入识别（尽力而为，线性）──
+# 一个命令段（已按 && || ; | & 切开）是否写受保护路径。PIPELINE_SHELL_CWD 跟踪 `cd`。
+pipeline_segment_writes_record() { # $1=segment → 0 = writes a test record
+  local segment="${1:-}" token prev='' head='' last='' inplace=0 has_head=0 relevant=0 ch
+  local IFS=$' \t'
+  local -a tokens
+  for ch in '"' "'" '(' ')' '{' '}' '`'; do segment="${segment//$ch/ }"; done
+  segment="${segment//\\/}" # 反斜杠直接去掉（`test\-plan.yaml` 还原成 `test-plan.yaml`）；bash 3.2 下变量形式的 `\` 模式不生效
+  # `>` 两侧补空格：`x>path` `2>path` `&>path` `>>path` 都变成「操作符 + 路径」两个记号（`>>` 是两个连续的 `>`，
+  # `2>&1` 的 `&1` 不是受保护路径）。
+  segment="${segment//>/ > }"
+  read -r -a tokens <<< "$segment" || true
+  [ "${#tokens[@]}" -gt 0 ] || return 1
+  for token in "${tokens[@]}"; do
+    if [ "$has_head" = 0 ]; then
+      case "$token" in
+        [A-Za-z_]*=*|sudo|command|env|exec|nohup|time|nice|builtin|then|do|else|'!'|-*) ;;
+        *) head="${token##*/}"; has_head=1 ;;
+      esac
+    fi
+  done
+  # `cd <dir>`：相对路径之后按新目录解析（子 shell 作用域不细究，宁多拒）。
+  if [ "$head" = cd ]; then
+    for token in "${tokens[@]}"; do
+      case "$token" in cd|-P|-L|--) continue ;; esac
+      case "$token" in
+        /*) PIPELINE_SHELL_CWD="$token" ;;
+        '~'*|'$'*) ;;
+        *) PIPELINE_SHELL_CWD="$PIPELINE_SHELL_CWD/$token" ;;
+      esac
+      break
+    done
+    return 1
+  fi
+  # 命令段里没有任何相关字样，且当前目录也不在受保护区域：整段跳过。
+  case "$segment" in *test-plan*|*.tenon*|*known-failures*|*review-waivers*|*baselines*|*tests*) relevant=1 ;; esac
+  case "$PIPELINE_SHELL_CWD" in */.tenon|*/.tenon/*|*/openspec/changes/*) relevant=1 ;; esac
+  [ "$relevant" = 1 ] || return 1
+  for token in "${tokens[@]}"; do
+    # 输出重定向：操作符后面的记号是被写的路径。
+    if [ "$prev" = '>' ]; then
+      pipeline_test_record_path "$token" "$PIPELINE_SHELL_CWD" && return 0
+    fi
+    case "$token" in
+      -i|-i?*|--in-place|--in-place=*) inplace=1 ;;
+      -[!-]*i*) case "$head" in sed|perl|ruby) inplace=1 ;; esac ;;
+      inplace) case "$head" in awk|gawk) inplace=1 ;; esac ;;
+    esac
+    case "$head" in
+      tee|mv|rm|unlink|truncate|touch|shred)
+        case "$token" in -*) ;; *) pipeline_test_record_path "$token" "$PIPELINE_SHELL_CWD" && return 0 ;; esac
+        ;;
+      cp|install|ln|rsync)
+        case "$prev" in -t) pipeline_test_record_path "$token" "$PIPELINE_SHELL_CWD" && return 0 ;; esac
+        case "$token" in --target-directory=*) pipeline_test_record_path "${token#*=}" "$PIPELINE_SHELL_CWD" && return 0 ;; esac
+        ;;
+      dd)
+        case "$token" in of=*) pipeline_test_record_path "${token#of=}" "$PIPELINE_SHELL_CWD" && return 0 ;; esac
+        ;;
+    esac
+    last="$token"
+    prev="$token"
+  done
+  case "$head" in
+    # 复制类命令的目的地是最后一个参数（源文件在受保护路径里只是读）。
+    cp|install|ln|rsync) pipeline_test_record_path "$last" "$PIPELINE_SHELL_CWD" && return 0 ;;
+    # 就地编辑：任何一个受保护路径参数都是被改写的对象。
+    sed|perl|ruby|awk|gawk)
+      if [ "$inplace" = 1 ]; then
+        for token in "${tokens[@]}"; do
+          case "$token" in -*) continue ;; esac
+          pipeline_test_record_path "$token" "$PIPELINE_SHELL_CWD" && return 0
+        done
+      fi
+      ;;
+  esac
+  return 1
+}
+# $1=命令全文 $2=cwd $3=1 时跳过 heredoc 正文。0 = 找到写受保护路径的命令；1 = 没有；2 = heredoc 没有结束行。
+pipeline_scan_shell_commands() {
+  local line body segment tag='' dash=0 rest nl=$'\n'
+  local IFS=$'\n'
+  local -a lines segments
+  PIPELINE_SHELL_CWD="${2:-.}"
+  read -r -d '' -a lines <<< "${1:-}" || true
+  [ "${#lines[@]}" -gt 0 ] || return 1
+  for line in "${lines[@]}"; do
+    line="${line%$'\r'}"
+    if [ -n "$tag" ]; then
+      body="$line"
+      if [ "$dash" = 1 ]; then while [ "${body#$'\t'}" != "$body" ]; do body="${body#$'\t'}"; done; fi
+      [ "$body" = "$tag" ] && tag=''
+      continue
+    fi
+    body="${line//&&/$nl}"
+    body="${body//||/$nl}"
+    body="${body//>|/>}"
+    body="${body//|/$nl}"
+    body="${body//;/$nl}"
+    body="${body//&/$nl}"
+    segments=()
+    read -r -d '' -a segments <<< "$body" || true
+    if [ "${#segments[@]}" -gt 0 ]; then
+      for segment in "${segments[@]}"; do
+        pipeline_segment_writes_record "$segment" && return 0
+      done
+    fi
+    if [ "${3:-1}" = 1 ]; then
+      case "$line" in
+        *'<<<'*) ;;
+        *'<<'*)
+          rest="${line#*<<}"
+          dash=0
+          case "$rest" in -*) dash=1; rest="${rest#-}" ;; esac
+          rest="${rest#"${rest%%[![:space:]]*}"}"
+          case "$rest" in
+            "'"*) rest="${rest#\'}"; tag="${rest%%\'*}" ;;
+            '"'*) rest="${rest#\"}"; tag="${rest%%\"*}" ;;
+            '\'*) rest="${rest#\\}"; tag="${rest%%[[:space:];|&<>)]*}" ;;
+            *) tag="${rest%%[[:space:];|&<>)]*}" ;;
+          esac
+          ;;
+      esac
+    fi
+  done
+  [ -z "$tag" ] || return 2
+  return 1
+}
+pipeline_shell_writes_record() { # $1=decoded command, $2=cwd → 0 when it writes a protected test record
+  local command="${1:-}" skip_bodies rc
+  case "$command" in *test-plan*|*.tenon*|*known-failures*|*review-waivers*) ;; *) return 1 ;; esac
+  command="$(pipeline_unwrap_shell_wrapper "$command")"
+  for skip_bodies in 1 0; do
+    pipeline_scan_shell_commands "$command" "${2:-.}" "$skip_bodies"
+    rc=$?
+    case "$rc" in 0) return 0 ;; 1) return 1 ;; esac # 2 = 有 heredoc 没结束：改成不跳正文再扫一遍
+  done
+  return 1
+}
 pipeline_refuse_test_record_write() {
-  printf '测试记录与基线只能由 tenon test run / tenon test baseline 写入\n' >&2
+  printf '测试记录与基线只能由 tenon test run / tenon test baseline 写入；测试计划、已知失败清单与豁免只能经 tenon test plan|register|waive|known 与 tenon review 写入\n' >&2
   exit 2
 }
 case "$INPUT" in
-  *.tenon*)
+  *.tenon*|*test-plan*|*known-failures*|*review-waivers*)
     RECORD_TOOL="$(json_get tool_name || true)"
     RECORD_CWD="$(pipeline_json_get_cwd "$INPUT" || true)"
     [ -n "$RECORD_CWD" ] || RECORD_CWD="$PWD"
@@ -128,6 +314,14 @@ case "$INPUT" in
           while IFS= read -r RECORD_TARGET; do
             pipeline_test_record_path "$RECORD_TARGET" "$RECORD_CWD" && pipeline_refuse_test_record_write
           done < <(pipeline_patch_targets "$RECORD_PATCH")
+        fi
+        # shell 命令：Bash / command_execution / exec，以及没有 tool_name 或用别的名字带命令的宿主
+        # （按命令文本判定，不依赖工具标签）。native apply_patch 的补丁正文不是 shell 命令。
+        if [ "$RECORD_TOOL" != apply_patch ]; then
+          RECORD_COMMAND="$(pipeline_json_get_command_bounded "$INPUT" 524288 || true)"
+          if [ -n "$RECORD_COMMAND" ] && pipeline_shell_writes_record "$RECORD_COMMAND" "$RECORD_CWD"; then
+            pipeline_refuse_test_record_write
+          fi
         fi
         ;;
     esac
@@ -301,34 +495,6 @@ pipeline_command_has_shell_metachars() { # $1=command segment
     *$'\n'*|*$'\r'*|*'>'*|*'<'*|*'|'*|*';'*|*'&'*|*'`'*|*'$('*) return 0 ;;
   esac
   return 1
-}
-
-# Structural unwrapping only — nothing here is ever evaluated.  Hosts hand the same shell call over
-# in several shapes: bare (`tenon …`), wrapped by the login shell (`/bin/zsh -lc "tenon …"`), and
-# as a joined argv array (`bash -lc tenon …`, see pipeline_json_get_command).  Peel one wrapper so
-# the matcher below sees one canonical command text.
-# hooks/skill-evidence.sh has a similar helper on purpose: that one is part of the *evidence* path
-# and must stay strict about which read shapes count, so widening it here would widen skill
-# evidence acceptance as a side effect.
-pipeline_unwrap_shell_wrapper() { # $1=raw command → inner command text (unchanged when not wrapped)
-  local command="${1:-}" shell flag prefix inner
-  for shell in /bin/zsh /bin/bash /bin/sh zsh bash sh; do
-    for flag in -lc -c; do
-      prefix="$shell $flag "
-      case "$command" in
-        "$prefix"*)
-          inner="${command#"$prefix"}"
-          case "$inner" in
-            '"'*'"') inner="${inner#\"}"; inner="${inner%\"}" ;;
-            "'"*"'") inner="${inner#\'}"; inner="${inner%\'}" ;;
-          esac
-          printf '%s' "$inner"
-          return 0
-          ;;
-      esac
-    done
-  done
-  printf '%s' "$command"
 }
 
 # `tenon review acknowledge` is the contract's single writing path out of a pending review

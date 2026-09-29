@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { testPlanLedgerPath, testPlanPath } from './paths.js'
-import { decodeTestPlanLedger, readTestPlanState, writeTestPlan } from './plan-ledger.js'
+import { withLock } from '../state/lock.js'
+import { decodeTestPlanLedger, readTestPlanState, writeTestPlan, writeTestPlanUnderLock } from './plan-ledger.js'
 import { emptyTestPlan, testPlanDigest, type TestPlan } from './plan.js'
 
 const ACTOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' as const }
@@ -37,6 +38,13 @@ describe('测试计划台账', () => {
     expect(state.plan.suites).toEqual(PLAN.suites)
     expect(state.digest).toBe(digest)
     expect(state.ledger.actor).toEqual(ACTOR)
+  })
+
+  it('已持锁的调用方用 writeTestPlanUnderLock：不嵌套加锁，结果与 writeTestPlan 一致', async () => {
+    const { digest } = await withLock(dir, () => writeTestPlanUnderLock(dir, PLAN, { actor: ACTOR, recordedAt: 't' }))
+    expect(digest).toBe(testPlanDigest(PLAN))
+    const state = await readTestPlanState(dir, 'demo')
+    expect(state.state === 'ok' ? state.digest : undefined).toBe(digest)
   })
 
   it('手改计划文件 → tampered', async () => {

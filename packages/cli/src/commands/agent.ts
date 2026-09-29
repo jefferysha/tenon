@@ -19,12 +19,13 @@ import {
 import { hostAgentName } from '@tenon/kernel'
 import type {
   AgentSeverity, AgentRunRow, AgentRunSubagent, AgentView, EffectiveWorkflowPlan, FrozenAgent, HostAgentFileOutcome,
-  StepAgentsCapability, TestRunRecordV1,
+  StepAgentsCapability, TestPolicyReport, TestRunRecordV1,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { str } from '../render.js'
 import { ensureChangeHostAgents, fallbackOutcome, hostAgentHostOf } from './agent-host.js'
 import { renderAgentPrompt } from './agent-prompt.js'
+import { renderTestPolicySummary } from './agent-prompt-tests.js'
 import { currentCandidate } from './candidate.js'
 import { resolveChangeCommand, type TestCommandContext } from './test-context.js'
 
@@ -40,6 +41,8 @@ interface AgentContext extends TestCommandContext {
   readonly runs: readonly AgentRunRow[]
   readonly frozen: ReadonlyMap<string, FrozenAgent>
   readonly testsReady: { readonly ready: boolean; readonly pending: readonly string[] }
+  /** 本步声明了 test_policy 时的策略判定（评审者提示词的 v2 测试摘要读它）。 */
+  readonly testPolicy: TestPolicyReport | undefined
 }
 
 function stepAgentsOf(plan: EffectiveWorkflowPlan, stepId: string): StepAgentsCapability {
@@ -52,7 +55,10 @@ async function testsReadyFor(
   deps: CliDeps,
   base: TestCommandContext,
   stepId: string,
-): Promise<{ readonly ready: boolean; readonly pending: readonly string[] }> {
+): Promise<{
+  readonly ready: { readonly ready: boolean; readonly pending: readonly string[] }
+  readonly policy: TestPolicyReport | undefined
+}> {
   const report = await (deps.testEvidence ?? evaluateTestEvidence)({
     repoRoot: deps.cwd,
     changeDir: base.dir,
@@ -69,7 +75,7 @@ async function testsReadyFor(
   const pending = report.items
     .filter((item) => item.test.required && item.status !== 'passed')
     .map((item) => item.test.id)
-  return { ready: pending.length === 0, pending }
+  return { ready: { ready: pending.length === 0, pending }, policy: report.policy }
 }
 
 async function resolveAgentCommand(
@@ -95,6 +101,7 @@ async function resolveAgentCommand(
       ? new Map<string, FrozenAgent>()
       : await readFrozenAgents({ changeDir: base.dir, runId, workflowFingerprint: base.plan.workflowFingerprint })
     await options.prepare?.(frozen)
+    const tests = await testsReadyFor(deps, base, stepId)
     return {
       ...base,
       step,
@@ -102,7 +109,8 @@ async function resolveAgentCommand(
       candidate: await currentCandidate(deps, name, base.state, base.plan, stepId),
       runs: await readAgentRuns(base.dir),
       frozen,
-      testsReady: await testsReadyFor(deps, base, stepId),
+      testsReady: tests.ready,
+      testPolicy: tests.policy,
     }
   } catch (e) {
     deps.io.err(`ERROR: ${errMsg(e)}`)
@@ -186,6 +194,17 @@ function roleOf(step: StepAgentsCapability, agent: string): 'executor' | 'review
   if (step.executors.some((ref) => ref.agent === agent)) return 'executor'
   if (step.reviewers.some((ref) => ref.agent === agent)) return 'reviewer'
   return undefined
+}
+
+/**
+ * 评审者声明了 `reads_tests` 时，附上目录套件最新运行的摘要（失败用例、flaky、覆盖率对照门槛、基准变化）。
+ * `reads_tests` 是本步测试 id 的清单，非空即「这个评审者读测试结果」；没有声明就不附，提示词与之前逐字相同。
+ */
+function testSummaryFor(context: AgentContext, agent: string): readonly string[] {
+  const reads = context.step.reviewers.find((ref) => ref.agent === agent)?.readsTests ?? []
+  if (reads.length === 0) return []
+  const policy = context.plan.workflow.steps.find((step) => step.id === context.step.stepId)?.test_policy
+  return renderTestPolicySummary(context.testPolicy, policy?.coverage)
 }
 
 async function testsFor(
@@ -288,6 +307,7 @@ export async function cmdAgentPrompt(
     reportPath,
     ...(stepPrompt === undefined ? {} : { stepPrompt }),
     tests: await testsFor(deps, context, agent),
+    testSummary: testSummaryFor(context, agent),
   })
   const used = existing?.subagent ?? subagent
   deps.io.out(options.json === true

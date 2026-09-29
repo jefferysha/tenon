@@ -21,6 +21,10 @@ import { readDelegatedReviewAuthority } from '../continuousAuthority.js'
 import { requireUser } from '../userIdentity.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
 import { readReviewGateBindingForRequest } from './review-binding.js'
+import {
+  approveFrozenWaivers, auditWaiverApproval, refuseDelegatedWhileWaiversPending, retireFrozenWaivers,
+  skippedWaiverLines, type WaiverApprovalOutcome,
+} from './review-waivers.js'
 
 const DEFERRED_WARNINGS: Readonly<Record<ReviewAcknowledgeDeferred, string>> = {
   'idempotency-ledger': 'WARN: decision idempotency ledger 写入失败（approval receipt 已提交；重试会按当前状态重新判定）',
@@ -59,6 +63,8 @@ export async function cmdReviewAcknowledge(
     return 1
   }
   const { interaction, history } = deps
+  // 豁免只由人工确认批准：委托确认（--delegated）不批准，留下的豁免继续挡出口。
+  let waivers: WaiverApprovalOutcome | undefined
   const result = await executeReviewAcknowledge({
     change: name,
     command: delegatedAuthority === null
@@ -76,7 +82,15 @@ export async function cmdReviewAcknowledge(
     reviewExits: async (state, phase) => reviewExits(deps, state, phase),
     clock: deps.clock,
     writeState: async (state) => {
+      // 同一把锁、同一次确认：先批准冻结清单里的豁免，再提交 receipt。前一步失败 receipt 不提交，
+      // 重试同一条命令即可；后一步失败时已批准的豁免在重试里被识别为「已经批准过」。
+      if (delegatedAuthority === null) {
+        waivers = await approveFrozenWaivers({ dir, change: name, state, actor, recordedAt: deps.clock() })
+      } else {
+        await refuseDelegatedWhileWaiversPending(dir, name)
+      }
       await deps.store.writeUnderLock(dir, state, { kind: 'set-many' })
+      await retireFrozenWaivers(dir)
     },
     recordInteraction: interaction === undefined
       ? undefined
@@ -98,5 +112,22 @@ export async function cmdReviewAcknowledge(
     `[REVIEW] ${name} phase=${result.phase} event=${result.event} ` +
     `${delegatedAuthority === null ? '已确认' : '已按用户委托的持续授权确认'}，可重发 transition`,
   )
+  await reportWaivers(deps, dir, actor.id, waivers)
   return 0
+}
+
+/** 确认之后的豁免收尾：批准了哪些、哪些没批准、委托确认时还剩哪些待人工批准；批准留一行审计。 */
+async function reportWaivers(
+  deps: CliDeps,
+  dir: string,
+  approver: string,
+  outcome: WaiverApprovalOutcome | undefined,
+): Promise<void> {
+  if (outcome === undefined) return
+  await auditWaiverApproval(deps, dir, outcome, approver)
+  if (outcome.approved.length > 0) {
+    deps.io.out(`[REVIEW] 已批准豁免 ${outcome.approved.length} 项：${outcome.approved.join('、')}`)
+  }
+  if (outcome.note !== null) deps.io.err(`WARN: ${outcome.note}`)
+  for (const line of skippedWaiverLines(outcome)) deps.io.out(line)
 }

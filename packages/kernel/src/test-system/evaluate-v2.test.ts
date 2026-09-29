@@ -229,6 +229,19 @@ describe('evaluateTestPolicy —— 运行记录', () => {
     expect(policyChanged.suites[0]).toMatchObject({ state: 'stale', staleBecause: ['policy'] })
   })
 
+  it('评审确认只批准豁免：批准之前的运行仍新鲜；计划有别的变化才过期', () => {
+    const waiver = { kind: 'benchmark' as const, reason: '纯文案改动' }
+    const before: TestPlan = { ...BASE_PLAN, waivers: [{ ...waiver, approved_by: null }] }
+    const approved: TestPlan = { ...BASE_PLAN, waivers: [{ ...waiver, approved_by: 'reviewer@x.io' }] }
+    const ranBeforeApproval = (plan: TestPlan) => evaluate({
+      plan,
+      records: (context) => [recordFor([UNIT_PASS], { ...context, planDigest: testPlanDigest(before) })],
+    })
+    expect(ranBeforeApproval(approved).suites[0]).toMatchObject({ state: 'passed' })
+    const changed: TestPlan = { ...approved, suites: [...approved.suites, { suite: 'types', scope: 'full' }] }
+    expect(ranBeforeApproval(changed).blockers[0]?.message).toMatch(/测试计划已变化/)
+  })
+
   it('record-chain-broken：链断则 v2 记录全部视为未运行', () => {
     const report = evaluate({
       input: { chain: { state: 'broken', reason: '记录内容与摘要不符（被改动）', files: ['x.json'] } },

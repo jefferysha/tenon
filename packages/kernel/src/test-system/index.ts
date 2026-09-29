@@ -41,8 +41,19 @@ export {
 export type {
   PlanCase, PlanCatalogProblem, PlanFile, PlanParseResult, PlanSuite, PlanWaiver, TestPlan,
 } from './plan.js'
-export { decodeTestPlanLedger, readTestPlanState, writeTestPlan } from './plan-ledger.js'
-export type { TestPlanLedger, TestPlanState } from './plan-ledger.js'
+export { decodeTestPlanLedger, readTestPlanState, writeTestPlan, writeTestPlanUnderLock } from './plan-ledger.js'
+export { approveWaivers, pendingWaivers, testPlanApprovalFreeDigest } from './plan-waivers.js'
+export type { PendingWaiver, WaiverApproval, WaiverSkipReason } from './plan-waivers.js'
+export {
+  REVIEW_WAIVERS_FILE, clearReviewWaiverSelection, readReviewWaiverSelection, writeReviewWaiverSelection,
+} from './review-waivers.js'
+export type { ReviewWaiverSelection } from './review-waivers.js'
+export type { PlanWriteMeta, PlanWriteResult, TestPlanLedger, TestPlanState } from './plan-ledger.js'
+export { appendTestAudit, formatAuditDetail, testAuditEntry, testAuditRaw } from './audit.js'
+export {
+  TEST_REPORT_BEGIN, TEST_REPORT_END, replaceTestReportBlock, reportCarriesRuns, testReportBlock,
+} from './report-block.js'
+export type { TestAuditAction, TestAuditOutcome } from './audit.js'
 export {
   BASELINES_DIR, BASELINES_REPO_PATH, KNOWN_FAILURES_FILE, KNOWN_FAILURES_REPO_PATH, MACHINE_PROFILE_ID_RE,
   TEST_CATALOG_FILE, TEST_CATALOG_REPO_PATH, TEST_PLAN_LEDGER_FILE, TEST_SYSTEM_DIR, baselineV2Path,

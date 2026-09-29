@@ -35,6 +35,7 @@ import {
   type StepTestView,
 } from './statusStepNext.js'
 import { deliveryCommit, finishedStop } from './statusStepFinish.js'
+import { buildStepTestFlow } from './statusStepTestFlow.js'
 
 export interface StepBlock {
   readonly schema: 'tenon-step-v1'
@@ -272,6 +273,10 @@ export async function buildStatusStep(
   }
   const specApply = await readSpecApplyReceiptStatus(deps.cwd, dir)
   const retired = retiredSkillReferences(plan)
+  const testFlow = await buildStepTestFlow(
+    deps, name, dir, testReport.policy, documents,
+    review.status === 'pending' ? str(state.fields.review_requested_at) : null,
+  )
   const block: Omit<StepBlock, 'next'> = {
     schema: 'tenon-step-v1',
     change: name,
@@ -335,6 +340,7 @@ export async function buildStatusStep(
       ...await deliveryFacts(deps, name, state, fields),
       reviewBar: await downstreamReviewBar(dir, state, plan, stepId,
         report.exits.filter((exit) => exit.direction === 'forward').map((exit) => exit.to)),
+      ...(testFlow === undefined ? {} : { testFlow }),
     }),
   }
 }

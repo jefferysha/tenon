@@ -3,11 +3,13 @@
  * 每个指标记中位数、p95、样本数与离散度（MAD）；历史新的在前、≤20 条，与文件的 git 历史一起构成留痕。
  * 只经 `tenon test baseline` 更新，且需要一次通过的运行。解码闭集：多键、缺键、类型不符一律视为损坏。
  */
-import { mkdir, readFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { mkdir, readFile, stat } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { atomicReplaceFile } from '../state/atomic-publish.js'
+import { TENON_PROJECT_DIR } from '../users/user-paths.js'
 import { decodeRecordActor, type RecordActor } from '../users/user.js'
-import { MACHINE_PROFILE_ID_RE } from './paths.js'
+import { appendTestAudit, testAuditEntry, type TestAuditOutcome } from './audit.js'
+import { BASELINES_DIR, MACHINE_PROFILE_ID_RE, TEST_SYSTEM_DIR } from './paths.js'
 import { METRIC_NAME_RE, SUITE_ID_RE } from './vocabulary.js'
 
 export const TEST_BASELINE_V2_SCHEMA = 'tenon-test-baseline-v2'
@@ -141,13 +143,30 @@ export async function readTestBaselineV2(path: string): Promise<BaselineReadResu
   return baseline === undefined ? { state: 'corrupt' } : { state: 'ok', baseline }
 }
 
-/** 只供 `tenon test baseline` 调用：整份原子替换。 */
-export async function writeTestBaselineV2(path: string, baseline: TestBaselineV2): Promise<void> {
+const CHANGE_NAME_RE = /^[A-Za-z0-9_-]{1,128}$/
+
+/**
+ * 只供 `tenon test baseline` 调用：整份原子替换。落盘之后在来源 change 的历史里留一行
+ * `test:baseline-update`（基线本身进 git、自带来源与历史；这一行让 change 的时间线也看得到）。
+ * 路径不在 `<repo>/.tenon/tests/baselines/` 下、或来源 change 已不在 `openspec/changes/` 下时返回 `skipped`。
+ */
+export async function writeTestBaselineV2(
+  path: string,
+  baseline: TestBaselineV2,
+): Promise<TestAuditOutcome | 'skipped'> {
   if (decodeTestBaselineV2(JSON.parse(JSON.stringify(baseline))) === undefined) {
     throw new Error('writeTestBaselineV2: 基线形状非法，拒绝写入')
   }
   await mkdir(dirname(path), { recursive: true })
   await atomicReplaceFile(path, `${JSON.stringify(baseline, null, 2)}\n`)
+  const marker = `/${TENON_PROJECT_DIR}/${TEST_SYSTEM_DIR}/${BASELINES_DIR}/`
+  const at = path.lastIndexOf(marker)
+  if (at < 0 || !CHANGE_NAME_RE.test(baseline.source.change)) return 'skipped'
+  const changeDir = join(path.slice(0, at), 'openspec', 'changes', baseline.source.change)
+  if (!(await stat(changeDir).then((entry) => entry.isDirectory(), () => false))) return 'skipped'
+  return appendTestAudit(changeDir, testAuditEntry('baseline-update', {
+    suite: baseline.suite, profile: baseline.profile, run: baseline.source.run_id, commit: baseline.source.commit ?? undefined,
+  }, { ts: baseline.updated_at, actor: baseline.actor }))
 }
 
 /** 新基线：上一份的当前值压进历史（新的在前，截断到上限）。 */
