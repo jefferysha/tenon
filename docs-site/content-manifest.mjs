@@ -6,6 +6,7 @@ export const contentEntries = [
   ['default-workflow', 'Default 七阶段工作流', 'The seven-phase default workflow', '教程', 'concept'],
   ['custom-workflows-and-tracks', '自定义 Workflow 与 Track', 'Custom Workflows and Tracks', '操作指南', 'how-to'],
   ['documents-skills-and-evidence', '文档、Skill 与证据链', 'Documents, Skills, and evidence', '概念与架构', 'concept'],
+  ['agents', '智能体', 'Agents', '概念与架构', 'concept'],
   ['dashboard-and-local-api', 'Dashboard 与本地 API', 'Dashboard and local API', '参考', 'reference'],
   ['automation-and-loops', '自动化、AFK 与 Loops', 'Automation, AFK, and loops', '操作指南', 'how-to'],
   ['cli-reference', 'CLI 参考', 'CLI reference', '参考', 'reference'],
