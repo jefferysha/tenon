@@ -237,6 +237,74 @@ describe('projectTestEvidence · test_policy', () => {
     expect(stale.testPolicy?.[0]?.suites[0]).toMatchObject({ state: 'stale', staleBecause: ['candidate'] })
   })
 
+  describe('files: registered 用 changedFiles 判定（Dashboard 显示未登记的测试文件）', () => {
+    const CATALOG = `schema: tenon-test-catalog/v1
+suites:
+  - id: unit
+    kind: unit
+    runner: vitest
+    command: npx vitest run
+    files: ["src/**/*.test.ts"]
+    report: { format: junit, path: test-results/unit.xml }
+`
+    function registeredPlan(): EffectiveWorkflowPlan {
+      return compileEffectiveWorkflowPlan('registered', {
+        name: 'registered',
+        steps: [
+          {
+            id: 'build', label: '实现', gate: null, skills: [], inputs: [], outputs: [],
+            test_policy: { run: ['unit'], files: 'registered' },
+            guards: [], transitions: [{ event: 'done', to: 'verify' }],
+          },
+          { id: 'verify', label: '验证', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] },
+        ],
+      })
+    }
+    async function prepared(): Promise<{ root: string; changeDir: string }> {
+      const { root, changeDir } = await freshRoot()
+      const paths = testSystemPaths(root)
+      await mkdir(paths.root, { recursive: true })
+      await writeFile(paths.catalog, CATALOG, 'utf8')
+      await writeTestPlan(changeDir, { ...emptyTestPlan(CHANGE), suites: [{ suite: 'unit', scope: 'changed' }] }, {
+        actor: { id: 'a@x.io', name: 'A', trust: 'declared' }, recordedAt: '2026-09-15T10:00:00Z',
+      })
+      return { root, changeDir }
+    }
+    const project = async (
+      input: { root: string; changeDir: string },
+      changedFiles?: () => Promise<readonly string[]>,
+    ) => (await projectTestEvidence({
+      ...input, changeName: CHANGE, plan: registeredPlan(), user: USER, candidate: async () => CANDIDATE,
+      ...(changedFiles === undefined ? {} : { changedFiles }),
+    })).testPolicy?.[0]
+
+    test('新增的测试文件没登记：test-file-unregistered 进投影，带修复命令；登记后消失', async () => {
+      const input = await prepared()
+      const step = await project(input, async () => ['src/new.test.ts', 'README.md'])
+      const blocker = step?.blockers.find((item) => item.code === 'test-file-unregistered')
+      expect(blocker).toMatchObject({ subject: 'src/new.test.ts', blocking: true })
+      expect(blocker?.fix).toBe(`tenon test register ${CHANGE} --file src/new.test.ts --suite unit`)
+      expect(step?.files).toMatchObject({ checked: true, unregistered: [{ path: 'src/new.test.ts', suites: ['unit'] }] })
+
+      await writeTestPlan(input.changeDir, {
+        ...emptyTestPlan(CHANGE), suites: [{ suite: 'unit', scope: 'changed' }], files: [{ path: 'src/new.test.ts', suite: 'unit', kind: 'unit' }],
+      }, { actor: { id: 'a@x.io', name: 'A', trust: 'declared' }, recordedAt: '2026-09-15T10:01:00Z' })
+      const registered = await project(input, async () => ['src/new.test.ts'])
+      expect(registered?.blockers.map((item) => item.code)).not.toContain('test-file-unregistered')
+      expect(registered?.files).toMatchObject({ checked: true, unregistered: [] })
+    })
+
+    test('读不到 diff：以 files-diff-unavailable 阻塞，不降级成通过；宿主没提供 diff：只提示、不阻塞', async () => {
+      const input = await prepared()
+      const failing = await project(input, async () => { throw new Error('not a git repository') })
+      expect(failing?.blockers.find((item) => item.code === 'files-diff-unavailable')).toMatchObject({ blocking: true })
+      expect(failing?.files.checked).toBe(false)
+      const absent = await project(input)
+      expect(absent?.blockers.map((item) => item.code)).not.toContain('files-diff-unavailable')
+      expect(absent?.notices.map((item) => item.code)).toContain('files-unchecked')
+    })
+  })
+
   test('身份缺失：没有策略判定可给（失败关闭），也不产生计划概要', async () => {
     const { root, changeDir } = await freshRoot()
     const anonymous = await projectTestEvidence({
