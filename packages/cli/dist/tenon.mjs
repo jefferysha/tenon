@@ -82360,6 +82360,23 @@ function renderTestPolicySummary(report2, thresholds = {}) {
   return lines2;
 }
 
+// packages/cli/src/commands/agent-tests-ready.ts
+async function testsReadyFor2(deps, base, stepId) {
+  const report2 = await (deps.testEvidence ?? evaluateTestEvidence)({
+    repoRoot: deps.cwd,
+    changeDir: base.dir,
+    changeName: base.name,
+    plan: base.plan,
+    stepId,
+    context: {
+      user: { id: base.user.id, name: base.user.name, slug: base.slug },
+      ...deps.workspaceFingerprint === void 0 ? {} : { currentCandidate: async () => (await deps.workspaceFingerprint?.(base.name) ?? "").trim() }
+    }
+  });
+  const pending = report2.items.filter((item2) => item2.test.required && item2.status !== "passed").map((item2) => item2.test.id);
+  return { ready: { ready: pending.length === 0, pending }, policy: report2.policy };
+}
+
 // packages/cli/src/commands/test-context.ts
 async function resolveTestCommand(deps, name2, options) {
   if (!isValidChangeName(name2)) {
@@ -82420,21 +82437,6 @@ var STATE_WORD2 = { idle: "\u672A\u8FD0\u884C", running: "\u8FDB\u884C\u4E2D", d
 var RESULT_WORD = { pass: "\u901A\u8FC7", fail: "\u4E0D\u901A\u8FC7", done: "\u5B8C\u6210", failed: "\u5931\u8D25" };
 function stepAgentsOf2(plan, stepId) {
   return plan.capabilities.agents.steps.find((step) => step.stepId === stepId) ?? { stepId, executors: [], reviewers: [] };
-}
-async function testsReadyFor2(deps, base, stepId) {
-  const report2 = await (deps.testEvidence ?? evaluateTestEvidence)({
-    repoRoot: deps.cwd,
-    changeDir: base.dir,
-    changeName: base.name,
-    plan: base.plan,
-    stepId,
-    context: {
-      user: { id: base.user.id, name: base.user.name, slug: base.slug },
-      ...deps.workspaceFingerprint === void 0 ? {} : { currentCandidate: async () => (await deps.workspaceFingerprint?.(base.name) ?? "").trim() }
-    }
-  });
-  const pending = report2.items.filter((item2) => item2.test.required && item2.status !== "passed").map((item2) => item2.test.id);
-  return { ready: { ready: pending.length === 0, pending }, policy: report2.policy };
 }
 async function resolveAgentCommand(deps, name2, options) {
   const base = await resolveTestCommand(deps, name2, options);
