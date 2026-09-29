@@ -90,12 +90,38 @@ export async function writeTestPlan(
   plan: TestPlan,
   meta: { readonly actor: RecordActor; readonly recordedAt: string },
 ): Promise<{ readonly digest: string }> {
+  return withLock(changeDir, () => publishPlan(changeDir, plan, meta))
+}
+
+async function publishPlan(
+  changeDir: string,
+  plan: TestPlan,
+  meta: { readonly actor: RecordActor; readonly recordedAt: string },
+): Promise<{ readonly digest: string }> {
   const bytes = serializeTestPlan(plan)
   const digest = testPlanBytesDigest(bytes)
   const ledger: TestPlanLedger = { version: 1, digest, recorded_at: meta.recordedAt, actor: meta.actor }
-  await withLock(changeDir, async () => {
-    await atomicReplaceFile(testPlanPath(changeDir), bytes)
-    await atomicReplaceFile(testPlanLedgerPath(changeDir), `${JSON.stringify(ledger, null, 2)}\n`)
-  })
+  await atomicReplaceFile(testPlanPath(changeDir), bytes)
+  await atomicReplaceFile(testPlanLedgerPath(changeDir), `${JSON.stringify(ledger, null, 2)}\n`)
   return { digest }
+}
+
+/** mutate 的结果：给出新计划，或拒绝（原因原样返回给调用方，磁盘不动）。 */
+export type PlanUpdate = { readonly plan: TestPlan } | { readonly reject: string }
+
+/**
+ * 读—改—写在同一把 Change 锁内完成：两个并发的 `tenon test register` 不会互相覆盖。mutate 看到的是锁内读到的
+ * 当前状态（missing / tampered / ok），由它决定新计划或拒绝。锁不可重入，mutate 里不得再取 Change 锁。
+ */
+export async function updateTestPlan(
+  changeDir: string,
+  changeName: string,
+  meta: { readonly actor: RecordActor; readonly recordedAt: string },
+  mutate: (state: TestPlanState) => PlanUpdate | Promise<PlanUpdate>,
+): Promise<{ readonly digest: string } | { readonly rejected: string }> {
+  return withLock(changeDir, async () => {
+    const result = await mutate(await readTestPlanState(changeDir, changeName))
+    if ('reject' in result) return { rejected: result.reject }
+    return publishPlan(changeDir, result.plan, meta)
+  })
 }

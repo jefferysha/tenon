@@ -67,14 +67,20 @@ export function renderTestsRegion(input: {
   readonly changeName: string
   readonly locale: ReportLocale
   readonly items: readonly TestsRegionItem[]
+  /** 测试体系 v2 的追溯矩阵 / 套件 / 覆盖率等段落（已渲染的 Markdown），接在旧步骤测试表之后、进同一个摘要。 */
+  readonly extra?: string
 }): string {
   const { locale } = input
   const headers = HEADERS[locale]
-  const body: string[] = [
-    `| ${headers.join(' | ')} |`,
-    `| ${headers.map(() => '---').join(' | ')} |`,
-    ...input.items.map((item) => row(item, locale)),
-  ]
+  // 只有 v2 段落、没有旧步骤测试时不输出空表头。
+  const legacy = input.items.length > 0 || input.extra === undefined
+  const body: string[] = legacy
+    ? [
+        `| ${headers.join(' | ')} |`,
+        `| ${headers.map(() => '---').join(' | ')} |`,
+        ...input.items.map((item) => row(item, locale)),
+      ]
+    : []
   const failures = input.items.filter((item) => item.status !== 'passed')
   if (failures.length > 0) {
     body.push(SECTIONS[locale].failures)
@@ -90,6 +96,7 @@ export function renderTestsRegion(input: {
       body.push(`- \`${item.test.id}\`：\`${item.test.command}\`（cwd \`${item.test.cwd}\`）`)
     }
   }
+  if (input.extra !== undefined) body.push(input.extra)
   const text = body.join('\n')
   return `${TESTS_REGION_START} digest=sha256:${sha256Hex(text)} -->\n${text}\n${TESTS_REGION_END}`
 }

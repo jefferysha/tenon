@@ -55,8 +55,8 @@ export {
 export { probeBuildRevisionIdentity } from './workspace/build-revision-identity.js'
 // 「自任务起点以来的改动文件 / 改动行」：全量登记强制、changed 范围与 changed_lines 覆盖率的共同来源。
 export {
-  ChangedFilesUnavailableError, changedFilesSinceChangeStart, changedLinesSinceChangeStart, parseAddedLines,
-  resolveChangeStart,
+  ChangedFilesUnavailableError, changeStartOfFields, changedFilesForState, changedFilesSinceChangeStart,
+  changedLinesSinceChangeStart, parseAddedLines, resolveChangeStart,
 } from './workspace/changed-files.js'
 export type { ChangeStartInput } from './workspace/changed-files.js'
 // Native terminal sessions are a dashboard-only liveness projection, never workflow state.

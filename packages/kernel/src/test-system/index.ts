@@ -41,8 +41,8 @@ export {
 export type {
   PlanCase, PlanCatalogProblem, PlanFile, PlanParseResult, PlanSuite, PlanWaiver, TestPlan,
 } from './plan.js'
-export { decodeTestPlanLedger, readTestPlanState, writeTestPlan } from './plan-ledger.js'
-export type { TestPlanLedger, TestPlanState } from './plan-ledger.js'
+export { decodeTestPlanLedger, readTestPlanState, updateTestPlan, writeTestPlan } from './plan-ledger.js'
+export type { PlanUpdate, TestPlanLedger, TestPlanState } from './plan-ledger.js'
 export {
   BASELINES_DIR, BASELINES_REPO_PATH, KNOWN_FAILURES_FILE, KNOWN_FAILURES_REPO_PATH, MACHINE_PROFILE_ID_RE,
   TEST_CATALOG_FILE, TEST_CATALOG_REPO_PATH, TEST_PLAN_LEDGER_FILE, TEST_SYSTEM_DIR, baselineV2Path,

@@ -131,6 +131,21 @@ async function lineCount(path: string): Promise<number> {
   }
 }
 
+type StateFields = { readonly base_branch?: string | readonly string[]; readonly created_at?: string | readonly string[] }
+
+function scalar(value: string | readonly string[] | undefined): string {
+  return value === undefined ? '' : typeof value === 'string' ? value : value.join(',')
+}
+
+/** 任务起点的输入取自 state 的 base_branch 与 created_at（CLI 与 server 快照共用）。 */
+export function changeStartOfFields(fields: StateFields): ChangeStartInput {
+  return { baseBranch: scalar(fields.base_branch), createdAt: scalar(fields.created_at) }
+}
+
+export function changedFilesForState(repoRoot: string, state: { readonly fields: StateFields }): Promise<readonly string[]> {
+  return changedFilesSinceChangeStart(repoRoot, changeStartOfFields(state.fields))
+}
+
 /** 自任务起点以来新增 / 修改的行（changed_lines 覆盖率用）；未跟踪文件的每一行都算新增。 */
 export async function changedLinesSinceChangeStart(
   repoRoot: string,
