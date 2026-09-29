@@ -49,7 +49,7 @@ export function TestPolicyForm({ stepId, policy, legacyTests, editable, onChange
         )}
         {editable && policy !== undefined && (
           <Hint label={t('tests.policy.remove_label')}>
-            <button type="button" className={`${BUTTON_ICON} size-8 hover:text-red-d`} aria-label={t('tests.policy.remove_label')} data-testid="wb-policy-remove" onClick={() => onChange(undefined)}>
+            <button type="button" className={`${BUTTON_ICON} size-8 enabled:hover:text-red-d`} aria-label={t('tests.policy.remove_label')} data-testid="wb-policy-remove" onClick={() => onChange(undefined)}>
               <X className="size-4" aria-hidden="true" />
             </button>
           </Hint>
