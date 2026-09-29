@@ -1,5 +1,6 @@
 import type { WbIoSlot, WbSkillRef, WbStepIo } from '../api/governanceTypes'
 import type { ChangeSnapshot, DocumentStaleReason, SkillRunsSnapshot } from '../types'
+import { mergeFieldAliases } from '../model/ioSlots'
 import { producerSkills } from '../workflow/producers'
 import { fieldStr, isUnset } from './taskModel'
 
@@ -44,9 +45,12 @@ export function ioRowOf(change: ChangeSnapshot, slot: WbIoSlot, stageSkills: rea
     const last = item?.timeline?.at(-1)
     const produced = slot.role === 'produce' || slot.role === 'update'
     const matched = produced ? producerSkills(slot.producers, stageSkills) : []
+    const status = item?.status ?? 'missing'
+    // 合并进来的同名值字段（slot.field）也要有值，这一行才算齐：文档登记了、字段还没设 → 未设。
+    const fieldMissing = slot.field !== undefined && isUnset(fieldStr(change, slot.field))
     return {
       slot,
-      status: item?.status ?? 'missing',
+      status: fieldMissing && (status === 'recorded' || status === 'unread') ? 'unset' : status,
       path: item?.paths[0] ?? null,
       value: item?.paths[0] ?? '',
       producer: last?.producer ?? item?.producers.at(-1) ?? null,
@@ -70,12 +74,13 @@ export function ioRowOf(change: ChangeSnapshot, slot: WbIoSlot, stageSkills: rea
   }
 }
 
+/** 同一概念的值字段并进同名文档行（见 mergeFieldAliases），一个概念只显示一个名字。 */
 export function stageOutputs(change: ChangeSnapshot, stepIo: WbStepIo | undefined, stageSkills: readonly string[] = []): IoRow[] {
-  return (stepIo?.outputs ?? []).map((slot) => ioRowOf(change, slot, stageSkills))
+  return mergeFieldAliases(stepIo?.outputs ?? []).map((slot) => ioRowOf(change, slot, stageSkills))
 }
 
 export function stageInputs(change: ChangeSnapshot, stepIo: WbStepIo | undefined): IoRow[] {
-  return (stepIo?.inputs ?? []).map((slot) => ioRowOf(change, slot))
+  return mergeFieldAliases(stepIo?.inputs ?? []).map((slot) => ioRowOf(change, slot))
 }
 
 /**

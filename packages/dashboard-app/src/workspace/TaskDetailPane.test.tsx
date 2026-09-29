@@ -272,6 +272,23 @@ describe('StageIoPanel · 过期原因与缺失技能', () => {
     cleanup()
   })
 
+  it('并进同名文档的值字段只出现在行 title 里，不单独成行', () => {
+    render(<I18nProvider>
+      <StageIoPanel
+        direction="outputs"
+        items={[documentRow({ slot: { kind: 'document', id: 'verification-report', role: 'produce', scope: 'change', producers: [], consumers: [], field: 'verification_report' }, status: 'recorded', path: 'docs/report.md', reason: null })]}
+        activePath={null}
+        definitionState="ready"
+        onOpen={() => undefined}
+      />
+    </I18nProvider>)
+    const row = screen.getByTestId('stage-output-document-verification-report')
+    expect(row.getAttribute('title')).toContain('verification_report')
+    expect(screen.queryByTestId('stage-output-field-verification_report')).toBeNull()
+    expect(screen.getAllByRole('row')).toHaveLength(2)
+    cleanup()
+  })
+
   it('来源技能一词一概念：互为别名的候选只显示一个名字，别名放 title', () => {
     render(<I18nProvider>
       <StageIoPanel

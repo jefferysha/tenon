@@ -4,6 +4,7 @@ import { AlertTriangle, Check, Pencil, Plus } from 'lucide-react'
 import { DOCUMENT_KIND_CATALOG } from '@tenon/kernel/workflow/document-contract-model'
 import type { WbExecutorRef, WbIoSlot, WbReviewerRef, WbStepDef } from '../api/governanceTypes'
 import { useT } from '../i18n'
+import { mergeStepIoAliases } from '../model/ioSlots'
 import { documentInputCandidates, documentKindsForOutput } from '../workbench/documentContractEdits'
 import type { WorkflowEditor } from '../workbench/useWorkflowEditor'
 import { backTargetOf, BASE_BRANCH } from '../workbench/workbenchDefinition'
@@ -74,7 +75,8 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
   // 本组件按阶段 id 重挂载（WorkflowView 的 key）：每次切换阶段，各段依次轻微上浮淡入。
   const paneRef = useRef<HTMLElement>(null)
   useGSAP(() => { revealList('[data-stage-sections] > *', SECTION_STAGGER) }, { scope: paneRef })
-  const stepIo = editor.effectiveIo?.[step.id]
+  // 同一概念的值字段并进同名文档行：一个概念只显示一个名字，字段放 Tooltip。
+  const stepIo = mergeStepIoAliases(editor.effectiveIo?.[step.id])
   const registry = editor.mandatory.registry
   const yamlBase = editor.branch === BASE_BRANCH ? `steps[${step.id}]` : `tracks.${editor.branch}.steps[${step.id}]`
   const contractBase = editor.branch === BASE_BRANCH ? 'document_contract' : `tracks.${editor.branch}.document_contract`

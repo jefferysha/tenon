@@ -9,7 +9,7 @@ export interface IoRow {
   slot: WbIoSlot
   stage: string | undefined
   skills: readonly string[]
-  /** YAML 位置，放在行 title 上。 */
+  /** YAML 位置，放在行 title 上（并进来的同名值字段也放 title）。 */
   path: string
 }
 
@@ -37,7 +37,7 @@ export function IoTable({ direction, rows, empty, onRemove }: {
       {rows.length === 0 ? (
         <div className="py-3 text-body text-text-3" role="status">{empty}</div>
       ) : rows.map(({ slot, stage, skills, path }) => (
-        <div key={`${slot.kind}:${slot.id}`} className={cn('group grid min-h-10 items-center gap-4 whitespace-nowrap border-b border-border py-1 text-body', cols)} role="row" title={path} data-testid={`slot-${slot.kind}-${slot.id}`}>
+        <div key={`${slot.kind}:${slot.id}`} className={cn('group grid min-h-10 items-center gap-4 whitespace-nowrap border-b border-border py-1 text-body', cols)} role="row" title={slot.kind === 'document' && slot.field !== undefined ? `${path} · ${slot.field}` : path} data-testid={`slot-${slot.kind}-${slot.id}`}>
           <span className="flex min-w-0 items-center gap-2 font-mono font-semibold text-text" role="cell">
             <FileText className="size-4 flex-none text-text-3" aria-hidden="true" />
             <span className="truncate">{slot.id}</span>

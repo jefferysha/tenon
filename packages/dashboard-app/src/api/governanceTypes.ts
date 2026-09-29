@@ -229,7 +229,12 @@ export const DEFAULT_WB_INTERACTION_POLICY: WbInteractionPolicy = {
 
 /** 服务端物化的一个输入 / 输出槽位：文档（登记台账）或值（change 字段）。 */
 export type WbIoSlot =
-  | { kind: 'document'; id: string; role: 'produce' | 'update' | 'read' | 'require'; scope: 'change' | 'project'; producers: string[]; consumers: string[] }
+  | {
+    kind: 'document'; id: string; role: 'produce' | 'update' | 'read' | 'require'; scope: 'change' | 'project'
+    producers: string[]; consumers: string[]
+    /** 客户端合并：同一概念的值字段（`verification_report` ↔ `verification-report`），只放 Tooltip。服务端不下发。 */
+    field?: string
+  }
   | { kind: 'field'; id: string; type: 'string' | 'file_path' | 'boolean'; producer: string | null; consumers: string[] }
 
 export interface WbStepIo {

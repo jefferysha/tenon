@@ -43,9 +43,10 @@ function sourceSkills(item: IoRow): { text: string; title: string } {
   return { text: distinctSkills(item.producers).join(', '), title: item.producers.join(', ') }
 }
 
-/** 行 title：路径或值，加最近一次登记的人与时间。 */
+/** 行 title：路径或值、并进来的同名值字段，加最近一次登记的人与时间。 */
 function rowTitle(item: IoRow): string {
-  return [item.path ?? (item.value === '' ? null : item.value), item.actor ?? null, item.at === null ? null : formatTime(item.at)]
+  const field = item.slot.kind === 'document' ? item.slot.field ?? null : null
+  return [item.path ?? (item.value === '' ? null : item.value), field, item.actor ?? null, item.at === null ? null : formatTime(item.at)]
     .filter((part): part is string => part !== null && part !== '').join(' · ')
 }
 

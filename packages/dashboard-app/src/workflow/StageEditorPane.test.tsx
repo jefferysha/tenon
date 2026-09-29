@@ -110,6 +110,29 @@ describe('StageEditorPane · 两栏定稿', () => {
     expect(screen.queryByTestId('output-picker')).toBeNull()
   })
 
+  it('同一概念只显示一个名字：verification_report 并进 verification-report，字段只在 title 里', () => {
+    const verify: WbStepDef = {
+      id: 'verify', label: '验证', gate: 'review', skills: [], inputs: [],
+      outputs: [{ field: 'verification_report', type: 'file_path' }], guards: [], transitions: [],
+    }
+    renderPane(verify, {
+      effectiveIo: {
+        ...IO,
+        verify: {
+          inputs: [],
+          outputs: [
+            { kind: 'document', id: 'verification-report', producers: ['verification-before-completion'], consumers: [], role: 'produce', scope: 'change' },
+            { kind: 'field', id: 'verification_report', type: 'file_path', producer: null, consumers: [] },
+          ],
+        },
+      },
+    })
+    const table = screen.getByTestId('io-outputs')
+    expect(within(table).getAllByRole('row')).toHaveLength(2)
+    expect(within(table).queryByTestId('slot-field-verification_report')).toBeNull()
+    expect(within(table).getByTestId('slot-document-verification-report').getAttribute('title')).toContain('verification_report')
+  })
+
   it('输入表三列：来源阶段 + 该阶段里产出它的技能；无输入显示空态', () => {
     const { unmount } = render(<I18nProvider><TooltipProvider><StageEditorPane editor={fakeEditor(SPEC)} step={SPEC} /></TooltipProvider></I18nProvider>)
     const table = screen.getByTestId('io-inputs')

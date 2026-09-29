@@ -59,6 +59,24 @@ describe('stageOutputs / stageInputs', () => {
     expect(stageInputs(change, documents)[0]?.producers).toEqual([])
     expect(stageOutputs(change, io)[2]?.producers).toEqual([])
   })
+  it('同一概念只显示一个名字：verification_report 并进 verification-report，字段也有值才算齐', () => {
+    const verify = (fields: Record<string, string>) => ({
+      ...change,
+      fields,
+      documents: { governed: true, blockers: [], items: [{ kind: 'verification-report', status: 'recorded', requiredRead: true, paths: ['docs/report.md'], producers: [] }] },
+    }) as unknown as ChangeSnapshot
+    const verifyIo: WbStepIo = {
+      outputs: [
+        { kind: 'field', id: 'verification_report', type: 'file_path', producer: null, consumers: [] },
+        { kind: 'document', id: 'verification-report', role: 'produce', scope: 'change', producers: [], consumers: [] },
+      ],
+      inputs: [],
+    }
+    const unset = stageOutputs(verify({ verification_report: 'null' }), verifyIo)
+    expect(unset.map((row) => row.slot.id)).toEqual(['verification-report'])
+    expect(unset[0]).toMatchObject({ status: 'unset', path: 'docs/report.md', slot: { field: 'verification_report' } })
+    expect(stageOutputs(verify({ verification_report: 'docs/report.md' }), verifyIo)[0]).toMatchObject({ status: 'recorded' })
+  })
   it('过期原因原样带到行上；其它状态为 null', () => {
     const stale = {
       ...change,
