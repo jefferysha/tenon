@@ -1,6 +1,7 @@
 /** JavaScript / TypeScript 工程的测试工具识别（vitest、jest、mocha、node:test、Playwright、tsc、eslint）。 */
 import { join } from 'node:path'
 import type { TestRunner } from '@tenon/kernel'
+import { discoverVitestBench } from './discover-bench.js'
 import { idPrefix, makeSuite, readSmallText, type DiscoveredSuite, type ProjectDir } from './discover-support.js'
 import { isRecord } from './parsers/json.js'
 import { RUNNER_PRESETS } from './runner-presets.js'
@@ -139,6 +140,11 @@ export async function discoverJsTools(dir: ProjectDir, notes: string[]): Promise
     })
   }
 
+  if (isVitest && !bareWorkspaceRoot) {
+    const bench = await discoverVitestBench(dir, notes)
+    if (bench !== undefined) found.push(bench)
+  }
+
   if (playwrightConfig !== undefined) {
     const playwright = preset('playwright')
     found.push({
@@ -181,9 +187,13 @@ export async function discoverJsTools(dir: ProjectDir, notes: string[]): Promise
         }),
       })
     }
-    const bench = manifest.scripts.bench ?? manifest.scripts.benchmark
-    if (bench !== undefined) {
-      notes.push(`${where}package.json 有基准脚本（${bench}）：基准套件必须声明指标与阈值，请手工用 tenon test catalog add --kind benchmark 登记（报告格式 benchmark-json / k6-summary）`)
+    const benchName = manifest.scripts.bench !== undefined ? 'bench' : manifest.scripts.benchmark !== undefined ? 'benchmark' : undefined
+    const bench = benchName === undefined ? undefined : manifest.scripts[benchName]
+    if (benchName !== undefined && !found.some((item) => item.suite.kind === 'benchmark')) {
+      const cwdFlag = dir.rel === '.' ? '' : ` --cwd ${dir.rel}`
+      notes.push(`${where}package.json 有基准脚本（${bench}）：基准套件必须声明指标与阈值，请手工登记——脚本把 {"metrics":{"<指标名>":[样本…]}} 写到 test-results/bench.json，然后 `
+        + `tenon test catalog add ${prefix}bench --kind benchmark --runner custom --command "npm run ${benchName}"${cwdFlag} --report-format benchmark-json --report-path test-results/bench.json `
+        + '--artifact test-results --runs 5 --warmup 1 --metric name=<指标名>,better=lower,max_regression_pct=10,unit=ms')
     }
   }
   if (dir.names.has('cypress.config.ts') || dir.names.has('cypress.config.js')) {

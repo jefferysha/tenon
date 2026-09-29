@@ -43,9 +43,43 @@ describe('discoverTests', () => {
     expect(e2e).toMatchObject({ kind: 'playwright', browsers: ['chromium', 'webkit'], files: ['e2e/**/*.{test,spec}.{ts,tsx,js,jsx,mts,cts,mjs,cjs}'] })
     expect(e2e?.command).toContain('PLAYWRIGHT_HTML_OPEN=never')
     expect(result.notes.join('\n')).toContain('基准脚本')
+    expect(result.notes.join('\n')).toContain('tenon test catalog add bench --kind benchmark --runner custom --command "npm run bench"')
     const text = serializeTestCatalog({ ...emptyCatalog(), suites: result.suites.map((item) => item.suite) })
     const parsed = parseTestCatalog(text)
     expect(parsed.ok, parsed.ok ? '' : formatCatalogIssues(parsed.issues).join('\n')).toBe(true)
+  })
+
+  it('vitest 工程里的 *.bench.* → 基准套件，指标取自 bench() 的名字；建议能通过目录校验', async () => {
+    await put({
+      'package.json': JSON.stringify({ scripts: { bench: 'vitest bench' }, devDependencies: { vitest: '3' } }),
+      'vitest.config.ts': 'export default {}',
+      'bench/sort.bench.ts': "import { bench, describe } from 'vitest'\ndescribe('sorting', () => {\n  bench('native sort', () => {})\n  bench(\"custom sort\", () => {})\n  bench(`dyn ${1}`, () => {})\n})\n",
+      'node_modules/x/dep.bench.ts': "bench('ignored', () => {})",
+    })
+    const result = await discoverTests(repo)
+    const bench = result.suites.find((item) => item.suite.id === 'bench')?.suite
+    expect(bench).toMatchObject({
+      kind: 'benchmark', runner: 'vitest-bench', report: { format: 'benchmark-json', path: 'test-results/bench.json' },
+      benchmark: { runs: 1, warmup: 0 },
+    })
+    expect(bench?.command).toBe('npx vitest bench --run --outputJson=test-results/bench.json')
+    expect(bench?.benchmark?.metrics.map((metric) => [metric.name, metric.better, metric.max_regression_pct])).toEqual([
+      ['native_sort.mean_ms', 'lower', 10], ['custom_sort.mean_ms', 'lower', 10],
+    ])
+    expect(result.notes.join('\n')).not.toContain('基准脚本')
+    const text = serializeTestCatalog({ ...emptyCatalog(), suites: result.suites.map((item) => item.suite) })
+    const parsed = parseTestCatalog(text)
+    expect(parsed.ok, parsed.ok ? '' : formatCatalogIssues(parsed.issues).join('\n')).toBe(true)
+  })
+
+  it('bench 文件里读不出名字（动态拼的）不猜指标，给提示', async () => {
+    await put({
+      'package.json': JSON.stringify({ devDependencies: { vitest: '3' } }),
+      'a.bench.ts': "for (const n of [1, 2]) bench(`n${n}`, () => {})",
+    })
+    const result = await discoverTests(repo)
+    expect(result.suites.some((item) => item.suite.kind === 'benchmark')).toBe(false)
+    expect(result.notes.join('\n')).toContain('读不出 bench')
   })
 
   it('Playwright 自带 webServer：给提示，不重复启动', async () => {

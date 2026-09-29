@@ -54,6 +54,7 @@ export function makeSuite(input: {
   readonly timeout_s?: number
   readonly browsers?: readonly string[]
   readonly tags?: readonly string[]
+  readonly benchmark?: CatalogSuite['benchmark']
 }): CatalogSuite {
   const format: ReportFormat = input.report?.format ?? defaultReportFormat(input.runner)
   return {
@@ -76,6 +77,7 @@ export function makeSuite(input: {
     parallel: false,
     tags: input.tags ?? [],
     browsers: input.browsers ?? [],
+    ...(input.benchmark === undefined ? {} : { benchmark: input.benchmark }),
   }
 }
 
