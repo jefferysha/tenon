@@ -172,7 +172,7 @@ plans are user-scoped; adapter-host plans use the current project directory
 (`--target .`) instead of a shell placeholder.
 
 New projects are created through a step-by-step dialog (location, templates,
-clients, confirm). Folders are chosen, never typed: `POST /api/fs/choose-folder`
+resources, clients, confirm). Folders are chosen, never typed: `POST /api/fs/choose-folder`
 opens the operating system's folder dialog on the machine running the server
 (`osascript` on macOS, PowerShell on Windows, `zenity`/`kdialog` on Linux) and
 answers `{ok:true,path}`, `{ok:false,cancelled:true}`, or
@@ -186,7 +186,12 @@ an optional `clients` list is recorded in the project's `.tenon/clients.json`
 (`tenon-clients/v1`). In the create body, `instructions.references` writes
 `CLAUDE.md` / `GEMINI.md` as a single `@AGENTS.md` import, `instructions.append`
 keeps an existing file's text and appends the new content, and `git_init`
-initializes an existing folder that is not a repository yet.
+initializes an existing folder that is not a repository yet. An optional
+`design_seed` names a `design-md` entry of the resource catalog: the dry run
+answers `design: {resource, exists}`, and execution runs a `design` step before
+registration that fetches that DESIGN.md into the project root with the same
+logic as `POST /api/design/seed`; an existing `DESIGN.md` is never overwritten
+(the step is skipped).
 
 The production server negotiates gzip for compressible generated assets and
 returns `Vary: Accept-Encoding`. Clients that decline gzip receive the original

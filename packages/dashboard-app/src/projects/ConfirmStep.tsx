@@ -16,6 +16,8 @@ export interface ConfirmStepProps {
   /** 已有文件的处理方式（缺省追加）。 */
   fileModes: Readonly<Record<string, FileMode>>
   onFileMode: (file: string, mode: FileMode) => void
+  /** 要取到项目根的 DESIGN.md（资源名称）；plan.design.exists 时显示为跳过。 */
+  designName?: string
 }
 
 const ROW = 'flex min-h-10 items-center gap-3 px-3 whitespace-nowrap'
@@ -50,7 +52,7 @@ function ModeChoice({ file, value, onChange }: { file: string; value: FileMode; 
 }
 
 /** 确认：列出将执行的动作与将生成的文件；文件行标 新建 / 修改 / 不变，已有文件可选 追加 / 覆盖 / 跳过，可展开看内容。 */
-export function ConfirmStep({ plan, mode, clients, fileModes, onFileMode }: ConfirmStepProps): JSX.Element {
+export function ConfirmStep({ plan, mode, clients, fileModes, onFileMode, designName }: ConfirmStepProps): JSX.Element {
   const { t } = useT()
   const [open, setOpen] = useState<string | null>(null)
   return (
@@ -103,6 +105,13 @@ export function ConfirmStep({ plan, mode, clients, fileModes, onFileMode }: Conf
           <li className={ROW} data-testid="np-action-clients">
             <Label id="clients" />
             <span className="min-w-0 truncate text-caption text-text-3" title={clientNames(clients)}>{clientNames(clients)}</span>
+          </li>
+        )}
+        {plan.design !== undefined && (
+          <li className={ROW} data-testid="np-action-design" data-exists={plan.design.exists}>
+            <Label id="design" muted={plan.design.exists} />
+            <span className="min-w-0 truncate text-caption text-text-3" title={designName ?? plan.design.resource}>{designName ?? plan.design.resource}</span>
+            {plan.design.exists && <span className="flex-none text-caption text-text-2">{t('projects.design_exists')}</span>}
           </li>
         )}
         <li className={ROW} data-testid="np-action-register">

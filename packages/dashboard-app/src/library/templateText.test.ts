@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { alignHeading, frontField, rewriteTemplate, splitTemplate, uniqueCopyId, uniqueCopyTitle } from './templateText'
+import {
+  alignHeading, frontField, frontList, newTemplateText, rewriteTemplate, splitTemplate, uniqueCopyId, uniqueCopyTitle, withFrontList,
+} from './templateText'
 
 const REACT = '---\nid: typescript-react\ncategory: frontend\ntitle: "TypeScript + React"\nframeworks: [react]\nvariables:\n  - key: app\n    default: web\n---\n## 前端（TypeScript + React）\n\n- 规则\n'
 
@@ -46,5 +48,33 @@ describe('模板改写', () => {
 
   it('正文第一行不是块标题时不动正文', () => {
     expect(alignHeading('正文\n', 2, 'a', 'b')).toBe('正文\n')
+  })
+})
+
+describe('适用框架（frameworks 列表行）', () => {
+  it('frontList 读 [a, b]；没有该键为空', () => {
+    const front = splitTemplate(REACT)?.front ?? []
+    expect(frontList(front, 'frameworks')).toEqual(['react'])
+    expect(frontList(front, 'catalog')).toEqual([])
+  })
+
+  it('withFrontList：有值改写或追加，空列表删整行', () => {
+    expect(withFrontList(['id: a', 'frameworks: [react]'], 'frameworks', ['vue', 'nuxt'])).toEqual(['id: a', 'frameworks: [vue, nuxt]'])
+    expect(withFrontList(['id: a'], 'frameworks', ['react'])).toEqual(['id: a', 'frameworks: [react]'])
+    expect(withFrontList(['id: a', 'frameworks: [react]'], 'frameworks', [])).toEqual(['id: a'])
+  })
+
+  it('rewriteTemplate 改 frameworks，其余 frontmatter（variables）原样保留', () => {
+    const next = rewriteTemplate(REACT, { frameworks: ['react', 'next'] })
+    expect(next).toContain('frameworks: [react, next]\n')
+    expect(next).toContain('variables:\n  - key: app\n    default: web\n')
+    expect(rewriteTemplate(REACT, { category: 'backend', frameworks: [] })).not.toContain('frameworks:')
+  })
+
+  it('newTemplateText：完整 frontmatter + 正文，标题级别对齐分类，带结尾换行', () => {
+    expect(newTemplateText({ id: 'jotai-lite', title: 'Jotai 精简', category: 'state', frameworks: ['react'], body: '## 状态管理\n\n- 规则' }))
+      .toBe('---\nid: jotai-lite\ncategory: state\ntitle: Jotai 精简\nframeworks: [react]\n---\n### 状态管理\n\n- 规则\n')
+    expect(newTemplateText({ id: 'go', title: ' 前导空格', category: 'backend', frameworks: [], body: '## 后端\n' }))
+      .toBe('---\nid: go\ncategory: backend\ntitle: " 前导空格"\n---\n## 后端\n')
   })
 })

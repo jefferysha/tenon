@@ -1,7 +1,7 @@
 import type { ProjectCreateInput, ProjectInstructionsInput } from '../api/instructionsClient'
 import { PROJECT_INSTRUCTION_FILES, type ProjectInstructionFile } from '../api/instructionsDecoders'
 
-export const WIZARD_STEPS = ['location', 'templates', 'clients', 'confirm'] as const
+export const WIZARD_STEPS = ['location', 'templates', 'resources', 'clients', 'confirm'] as const
 export type WizardStep = (typeof WIZARD_STEPS)[number]
 
 export type LocationMode = 'existing' | 'empty'
@@ -68,7 +68,7 @@ export function joinPath(parent: string, name: string): string {
 
 export const basename = (path: string): string => path.split(/[\\/]/).filter(Boolean).pop() ?? path
 
-/** 进度与确认共用的动作标签键：directory / git / skeleton / file:<name> / register。 */
+/** 进度与确认共用的动作标签键：directory / git / skeleton / file:<name> / clients / design / register。 */
 export function stepLabelKey(id: string): { key: string; vars?: Record<string, string> } {
   if (id.startsWith('file:')) return { key: 'projects.action_file', vars: { file: id.slice('file:'.length) } }
   return { key: `projects.action_${id}` }
@@ -93,8 +93,9 @@ export interface LocationInput { mode: LocationMode; path: string; parent: strin
 
 export function projectInput(
   location: LocationInput, directories: readonly string[], instructions: ProjectInstructionsInput | null, clients?: readonly string[],
+  designSeed?: string,
 ): ProjectCreateInput {
-  const extra = clients === undefined ? {} : { clients: [...clients] }
+  const extra = { ...(clients === undefined ? {} : { clients: [...clients] }), ...(designSeed === undefined ? {} : { design_seed: designSeed }) }
   return location.mode === 'empty'
     ? { mode: 'empty', parent: location.parent, name: location.name, directories: [...directories], instructions, ...extra }
     : { mode: 'existing', path: location.path, instructions, ...(location.gitInit ? { git_init: true } : {}), ...extra }

@@ -32,13 +32,6 @@ function pickCategory(id: string): CategoryFilter {
   return TEMPLATE_CATEGORIES.find((value) => value === id) ?? 'all'
 }
 
-/** 新建自定义模板的起始骨架：合法 frontmatter + 分类级别标题（「分类（名称）」，与内建模板同形），保存后即可编辑。 */
-function skeleton(category: TemplateCategory, id: string, categoryLabel: string): string {
-  const heading = category === 'state' || category === 'styling' ? '###' : '##'
-  const frameworks = category === 'state' || category === 'styling' ? 'frameworks: [react]\n' : ''
-  return `---\nid: ${id}\ncategory: ${category}\ntitle: ${id}\n${frameworks}---\n${heading} ${categoryLabel}（${id}）\n\n- \n`
-}
-
 const refKey = (ref: TemplateRef): string => `${ref.source}/${ref.category}/${ref.id}`
 
 /**
@@ -83,9 +76,9 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
     if (library.selected === null && firstRow !== undefined) library.select({ source: firstRow.source, category: firstRow.category, id: firstRow.id })
   }, [library.selected, firstRow, library.select])
 
-  const onCreate = (nextCategory: TemplateCategory, id: string): void => {
+  const onCreate = (nextCategory: TemplateCategory, id: string, text: string): void => {
     void (async () => {
-      const ok = await library.create(nextCategory, id, skeleton(nextCategory, id, t(`library.categories.${nextCategory}`)))
+      const ok = await library.create(nextCategory, id, text)
       if (ok) {
         setDialogOpen(false)
         setEditKey(refKey({ source: 'custom', category: nextCategory, id }))
@@ -364,7 +357,15 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
           />
         )}
       />
-      {dialogOpen && <NewTemplateDialog busy={library.busy} onClose={() => setDialogOpen(false)} onCreate={onCreate} />}
+      {dialogOpen && (
+        <NewTemplateDialog
+          busy={library.busy}
+          taken={new Set(library.templates.filter((row) => row.source === 'custom').map((row) => `${row.category}/${row.id}`))}
+          errorKey={library.errorKey}
+          onClose={() => setDialogOpen(false)}
+          onCreate={onCreate}
+        />
+      )}
     </>
   )
 }

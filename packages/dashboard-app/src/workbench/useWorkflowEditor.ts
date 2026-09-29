@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject, type SetStateAction } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from 'react'
 import { BUILTIN_WORKFLOW_IDS, isBuiltinWorkflowName, isDefaultWorkflowName, isTemplateWorkflowName } from '@tenon/kernel/workflow/identifier'
 import type { DocumentKind } from '@tenon/kernel/workflow/document-contract-model'
 import { addDocumentOutputInDef, removeDocumentSlotInDef, setDocumentInputsInDef, setOpenspecInDef } from './documentContractEdits'
 import { deleteWorkflowDef, fetchWorkflow, fetchWorkflowIndex, postWorkflowDef, type WorkflowIndex } from '../api/client'
 import type { WbEffectiveIo, WbExecutorRef, WbReviewerRef, WbSkillRef, WbStepDef, WbStepTest, WbTransition, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
 import { formatApiError, getToken } from '../api/transport'
-import { fetchWorkflowYaml, putWorkflowYaml } from '../api/workflowYamlClient'
+import { fetchWorkflowYaml } from '../api/workflowYamlClient'
 import { useT } from '../i18n'
 import { invalidateWorkflowRules } from '../model/workflowModel'
 import { invalidateWorkflowDefinition } from '../workspace/useWorkflowDefinition'
@@ -17,13 +17,12 @@ import { readWorkflowWriteSuccess } from './workbenchWriteResponse'
 import { useStageDraftEditor } from './useStageDraftEditor'
 import { countDraftChanges, stableJson } from './draftChanges'
 import { useWorkbenchDirtyState, type WorkbenchDirtySource } from './useWorkbenchDirtyState'
+import { useWorkflowCreate, type CreateState } from './useWorkflowCreate'
 import {
   BASE_BRANCH,
   addSkillToDef,
   addTrackBranch,
-  blankWorkflow,
   branchesOf,
-  copyWorkflowDef,
   definitionForWrite,
   displacedBackTransitions,
   resolveBranch,
@@ -39,7 +38,6 @@ import {
   setStepAgentsInDef,
   setStepSkillsInDef,
   setStepTestsInDef,
-  workflowNameFromYaml,
   writeBranchDef,
 } from './workbenchDefinition'
 
@@ -52,30 +50,6 @@ export interface WorkflowDeleteError {
   /** 其它引用（轨道 / 循环 / 模板），按「类别 名称」列出。 */
   references: WorkflowReferenceEntry[]
   blockers: Array<{ source?: string; detail?: string }>
-}
-
-export type CreateMode = 'copy' | 'blank' | 'import'
-
-export interface CreateState {
-  open: boolean
-  mode: CreateMode
-  setMode: (mode: CreateMode) => void
-  name: string
-  setName: (name: string) => void
-  yaml: string
-  setYaml: (text: string) => void
-  /** 新工作流是否接入 OpenSpec（复制时取源工作流的开关，空白默认关，导入由 YAML 决定）。 */
-  openspec: boolean
-  setOpenspec: (on: boolean) => void
-  nameInvalid: boolean
-  nameDuplicate: boolean
-  errors: string[]
-  busy: boolean
-  canSubmit: boolean
-  nameRef: RefObject<HTMLInputElement>
-  openCreate: (mode?: CreateMode) => void
-  close: () => void
-  submit: () => Promise<void>
 }
 
 export interface WorkflowEditorInput {
@@ -162,11 +136,9 @@ export interface WorkflowEditor {
   reportTrackDirty: (dirty: boolean) => void
 }
 
-const NAME_RE = /^[\p{L}\p{N}\p{M}_-]+$/u
-
 /**
  * 工作流定义编辑的状态机：列表 / 定义加载（default 亦从服务端读，项目覆盖优先）、草稿与保存、
- * 新建（复制 / 空白 / 导入 YAML）、删除（default = 恢复内建）、切换守卫、阶段草稿、轨道技能矩阵。
+ * 新建（useWorkflowCreate：空白或复制某个工作流）、删除（default = 恢复内建）、切换守卫、阶段草稿、轨道技能矩阵。
  */
 export function useWorkflowEditor({ root, onDirtyChange, initial, onDeleted }: WorkflowEditorInput): WorkflowEditor {
   const { t, lang } = useT()
@@ -182,21 +154,13 @@ export function useWorkflowEditor({ root, onDirtyChange, initial, onDeleted }: W
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({ kind: 'idle' })
   const [saving, setSaving] = useState(false)
   const [pendingSwitch, setPendingSwitch] = useState<string | null>(null)
-  const [createOpen, setCreateOpen] = useState(false)
-  const [createMode, setCreateMode] = useState<CreateMode>('copy')
-  const [createName, setCreateName] = useState('')
-  const [createYaml, setCreateYaml] = useState('')
-  const [createOpenspec, setCreateOpenspec] = useState(false)
-  const [createBusy, setCreateBusy] = useState(false)
-  const [createErrors, setCreateErrors] = useState<string[]>([])
   const [workflowDeleteTarget, setWorkflowDeleteTarget] = useState<{ root: string; name: string } | null>(null)
   const [workflowDeleteBusy, setWorkflowDeleteBusy] = useState(false)
   const [workflowDeleteError, setWorkflowDeleteError] = useState<WorkflowDeleteError | null>(null)
-  const nameRef = useRef<HTMLInputElement>(null)
   const initialRef = useRef(initial)
   const rootIdentity = useRef(root)
   const workflowIdentity = useRef<string | null>(null)
-  const generation = useRef({ save: 0, create: 0, delete: 0, names: 0 })
+  const generation = useRef({ save: 0, delete: 0, names: 0 })
   const localeRef = useRef({ t, lang })
   rootIdentity.current = root
   workflowIdentity.current = wfName
@@ -225,16 +189,14 @@ export function useWorkflowEditor({ root, onDirtyChange, initial, onDeleted }: W
 
   useEffect(() => {
     setSaveStatus((current) => current.kind === 'error' ? { kind: 'idle' } : current)
-    setCreateErrors([])
     setWorkflowDeleteError(null)
   }, [lang])
 
-  // root 切换：全部状态归零，重拉列表。
+  // root 切换：全部状态归零，重拉列表（新建对话框由 useWorkflowCreate 自己归零）。
   useEffect(() => {
     const targetRoot = root
     const current = ++generation.current.names
     generation.current.save += 1
-    generation.current.create += 1
     generation.current.delete += 1
     setNames(null)
     setDefaultSource('builtin')
@@ -247,8 +209,6 @@ export function useWorkflowEditor({ root, onDirtyChange, initial, onDeleted }: W
     setSaving(false)
     setPendingSwitch(null)
     setAddStageOpen(false)
-    setCreateOpen(false)
-    setCreateErrors([])
     setWorkflowDeleteTarget(null)
     setWorkflowDeleteBusy(false)
     setWorkflowDeleteError(null)
@@ -282,7 +242,6 @@ export function useWorkflowEditor({ root, onDirtyChange, initial, onDeleted }: W
       cancelled = true
       generation.current.names += 1
       generation.current.save += 1
-      generation.current.create += 1
       generation.current.delete += 1
     }
   }, [root, setAddStageOpen])
@@ -318,8 +277,19 @@ export function useWorkflowEditor({ root, onDirtyChange, initial, onDeleted }: W
   const defErrorText = defError === null ? null : t('workbench.def_error', { msg: formatApiError(defError, t) })
   const dirty = fullDef !== null && baselineJson.current !== null && stableJson(definitionForWrite(fullDef)) !== baselineJson.current
   const changeCount = dirty ? Math.max(1, countDraftChanges(baselineRef.current, fullDef)) : 0
-  const createDirty = createOpen && (createName !== '' || createYaml !== '')
-  const { setSourceDirty } = useWorkbenchDirtyState({ localDirty: dirty || createDirty || stageDraft.draftDirty, onDirtyChange })
+  const create = useWorkflowCreate({
+    root,
+    names,
+    hasToken,
+    current: wfName,
+    blocked: saving,
+    onCreated: (targetRoot, name) => {
+      afterWrite(targetRoot, name)
+      setNames((previous) => [...new Set([...(previous ?? []), name])].sort())
+      switchTo(name)
+    },
+  })
+  const { setSourceDirty } = useWorkbenchDirtyState({ localDirty: dirty || create.dirty || stageDraft.draftDirty, onDirtyChange })
   const reportTrackDirty = useCallback((value: boolean) => { setSourceDirty('track', value) }, [setSourceDirty])
 
   // agent 库挂载即拉（同 registry 纪律）：画布与 lint 都要知道库里有谁。失败即保持 null——
@@ -488,77 +458,6 @@ export function useWorkflowEditor({ root, onDirtyChange, initial, onDeleted }: W
     setPendingSwitch(null)
   }
 
-  // ── 新建：复制当前 / 空白 / 导入 YAML ──
-  const trimmedName = createName.trim()
-  const nameInvalid = trimmedName.length > 0 && !NAME_RE.test(trimmedName)
-  const nameDuplicate = trimmedName.length > 0 && (isTemplateWorkflowName(trimmedName) || isBuiltinWorkflowName(trimmedName) || (names ?? []).includes(trimmedName))
-  const canSubmitCreate = hasToken && trimmedName.length > 0 && !nameInvalid && !nameDuplicate && !createBusy
-    && (createMode !== 'import' || createYaml.trim() !== '') && (createMode !== 'copy' || fullDef !== null)
-  function openCreate(mode: CreateMode = 'copy'): void {
-    if (saving || !hasToken) return
-    setCreateMode(mode)
-    setCreateName(mode === 'copy' ? `${wfName ?? 'workflow'}-copy` : '')
-    setCreateOpenspec(mode === 'copy' && fullDef?.openspec === true)
-    setCreateYaml('')
-    setCreateErrors([])
-    setCreateOpen(true)
-  }
-  function closeCreate(): void {
-    if (createBusy) return
-    setCreateOpen(false)
-    setCreateName('')
-    setCreateYaml('')
-    setCreateErrors([])
-  }
-  function setYaml(text: string): void {
-    setCreateYaml(text)
-    const fromYaml = workflowNameFromYaml(text)
-    if (fromYaml !== '' && createName.trim() === '') setCreateName(fromYaml)
-  }
-  async function submitCreate(): Promise<void> {
-    if (!canSubmitCreate) return
-    const targetRoot = root
-    const name = trimmedName
-    const current = ++generation.current.create
-    const stillCurrent = (): boolean => current === generation.current.create && rootIdentity.current === targetRoot
-    setCreateBusy(true)
-    setCreateErrors([])
-    try {
-      if (createMode === 'import') {
-        const text = createYaml.replace(/^name:\s*\S+\s*$/m, `name: ${name}`)
-        const result = await putWorkflowYaml(name, targetRoot, text)
-        if (!stillCurrent()) return
-        if (!result.ok) {
-          setCreateErrors(result.errors.length > 0 ? result.errors : [result.status === 401 ? localeRef.current.t('workbench.save_unauthorized') : localeRef.current.t('common.request_http_error', { status: result.status })])
-          return
-        }
-      } else {
-        const base = createMode === 'copy' && fullDef !== null ? copyWorkflowDef(fullDef, name) : blankWorkflow(name, localeRef.current.t('workflow.blank_stage'))
-        const next = setOpenspecInDef(base, createOpenspec)
-        const response = await postWorkflowDef(name, { ...definitionForWrite(next), root: targetRoot })
-        if (!response.ok) {
-          const locale = localeRef.current
-          const errors = await readSaveErrors(response, locale.t('workbench.save_unauthorized'), locale.t('common.request_http_error', { status: response.status }), locale.lang === 'zh')
-          if (stillCurrent()) setCreateErrors(errors)
-          return
-        }
-        const valid = await readWorkflowWriteSuccess(response)
-        if (!stillCurrent()) return
-        if (!valid) { setCreateErrors([localeRef.current.t('common.invalid_response')]); return }
-      }
-      afterWrite(targetRoot, name)
-      setNames((previous) => [...new Set([...(previous ?? []), name])].sort())
-      setCreateOpen(false)
-      setCreateName('')
-      setCreateYaml('')
-      switchTo(name)
-    } catch (error) {
-      if (stillCurrent()) setCreateErrors([formatApiError(error, localeRef.current.t)])
-    } finally {
-      if (stillCurrent()) setCreateBusy(false)
-    }
-  }
-
   async function exportYaml(): Promise<string> {
     if (!wfName) return ''
     return fetchWorkflowYaml(wfName, root)
@@ -679,31 +578,7 @@ export function useWorkflowEditor({ root, onDirtyChange, initial, onDeleted }: W
     confirmSwitch,
     pendingSwitch,
     setPendingSwitch,
-    create: {
-      open: createOpen,
-      mode: createMode,
-      setMode: (mode) => {
-        setCreateMode(mode)
-        setCreateErrors([])
-        setCreateOpenspec(mode === 'copy' && fullDef?.openspec === true)
-        if (mode === 'copy' && createName.trim() === '') setCreateName(`${wfName ?? 'workflow'}-copy`)
-      },
-      name: createName,
-      setName: setCreateName,
-      yaml: createYaml,
-      setYaml,
-      openspec: createOpenspec,
-      setOpenspec: setCreateOpenspec,
-      nameInvalid,
-      nameDuplicate,
-      errors: createErrors,
-      busy: createBusy,
-      canSubmit: canSubmitCreate,
-      nameRef,
-      openCreate,
-      close: closeCreate,
-      submit: submitCreate,
-    },
+    create,
     exportYaml,
     workflowDeleteTarget,
     workflowDeleteBusy,

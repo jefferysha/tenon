@@ -1,13 +1,15 @@
 /**
- * 新建项目的执行阶段，拆成可报告的步骤：directory → git → skeleton → file:<name>（逐个文件）→ clients → register。
+ * 新建项目的执行阶段，拆成可报告的步骤：directory → git → skeleton → file:<name>（逐个文件）→ clients → design → register。
  *
  * 每步先报 running，成功报 done，失败报 failed（带错误原文）后停止；后续步骤保持未开始。
  * 新建目录：任一步失败都删掉本次创建的目录（按 inode 核对），因此整体重试是安全的。
  * 已有目录：指令文件逐个写入，失败时已写入的文件保留；重试前重新 dry run 拿到新摘要即可（内容相同 = 不变）。
+ * design：与 `POST /api/design/seed` 同一份起步逻辑；根下已有 DESIGN.md 时整步不出现（不覆盖，重试也安全）。
  */
 import { lstatSync, mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { readProjectRegistry } from '@tenon/kernel'
+import { DESIGN_SEED_STATUS, seedDesign } from './designSeed.js'
 import { applyInstructions, type InstructionResult } from './instructionFiles.js'
 import { trustedFsFailure, writeTrustedFile } from './instructionTrustedFs.js'
 import { writeProjectClients } from './projectClients.js'
@@ -27,7 +29,7 @@ type EmptyPlan = Extract<ProjectCreatePlan, { mode: 'empty' }>
 type ExistingPlan = Extract<ProjectCreatePlan, { mode: 'existing' }>
 
 /** 旧的 JSON 端点在 500 里带的 step 名（兼容面）。 */
-const LEGACY_STEP: Readonly<Record<string, string>> = { git: 'git-init', skeleton: 'directories', clients: 'clients', register: 'register' }
+const LEGACY_STEP: Readonly<Record<string, string>> = { git: 'git-init', skeleton: 'directories', clients: 'clients', design: 'design', register: 'register' }
 const legacyStep = (id: string): string => LEGACY_STEP[id] ?? (id.startsWith('file:') ? 'instructions' : id)
 
 const ERROR_MAX = 600
@@ -64,9 +66,26 @@ async function recordClients(plan: ProjectCreatePlan, anchor: WorkflowRootAnchor
 
 /** 本次计划会执行的步骤 id（进度视图的行）。 */
 export function createStepIds(plan: ProjectCreatePlan): string[] {
-  const files = [...(plan.instructions?.targets ?? []).map((id) => `file:${id}`), ...(hasClients(plan) ? ['clients'] : [])]
+  const files = [
+    ...(plan.instructions?.targets ?? []).map((id) => `file:${id}`), ...(hasClients(plan) ? ['clients'] : []),
+    ...(needsDesignSeed(plan) ? ['design'] : []),
+  ]
   if (plan.mode === 'existing') return [...(needsGitInit(plan) ? ['git'] : []), ...files, 'register']
   return ['directory', 'git', ...(plan.directories.length > 0 ? ['skeleton'] : []), ...files, 'register']
+}
+
+/** 要取 DESIGN.md 且根下还没有（新建目录时根本身还不存在）。 */
+const needsDesignSeed = (plan: ProjectCreatePlan): boolean =>
+  (plan.designSeed ?? null) !== null && lstatIfExists(join(plan.root, 'DESIGN.md')) === undefined
+
+async function seedDesignStep(plan: ProjectCreatePlan, deps: ProjectCreateDeps, report: CreateStepReporter): Promise<void> {
+  const id = plan.designSeed ?? null
+  if (id === null || !needsDesignSeed(plan)) return
+  await runStep('design', report, async () => {
+    if (!deps.designSeed) throw new StepFailure('design', 'design_seed 不可用', 'invalid', fail(400, 'invalid', 'design_seed 不可用'))
+    const written = await seedDesign(plan.root, id, deps.designSeed, deps.designSeed.fetch)
+    if (!written.ok) throw new StepFailure('design', written.error, written.code, fail(DESIGN_SEED_STATUS[written.code], written.code, written.error))
+  })
 }
 
 async function runStep<T>(id: string, report: CreateStepReporter, work: () => T | Promise<T>): Promise<T> {
@@ -151,6 +170,7 @@ export async function executeEmpty(plan: EmptyPlan, deps: ProjectCreateDeps, rep
       if (instructions) files.push(await runStep(`file:${id}`, report, () => writeFile(anchor, instructions, id, 'absent')))
     }
     await recordClients(plan, anchor, report)
+    await seedDesignStep(plan, deps, report)
     await runStep('register', report, async () => {
       const registration = await registerProjectAnchored(deps.paths, deps.workflowRootAnchors, plan.root)
       if (!registration.ok) throw new Error(registration.error)
@@ -182,6 +202,7 @@ export async function executeExisting(plan: ExistingPlan, deps: ProjectCreateDep
         closeWorkflowRootAnchor(anchor)
       }
     }
+    await seedDesignStep(plan, deps, report)
     const git = initialized ? 'init' : lstatIfExists(join(plan.root, '.git')) ? 'existing' : 'none'
     const registration = await runStep('register', report, async () => {
       if (readProjectRegistry(deps.paths.registryPath).includes(plan.root)) return 'already' as const

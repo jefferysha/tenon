@@ -1,6 +1,6 @@
 import { Fragment, type KeyboardEvent, type ReactElement } from 'react'
-import type { SheetDef } from '../shared/DetailSheets'
-import { SEGMENT_SLIDE_S, SEGMENT_THUMB_CLS, useSlidingIndicator } from '../shared/useSlidingIndicator'
+import type { SheetDef } from './DetailSheets'
+import { SEGMENT_SLIDE_S, SEGMENT_THUMB_CLS, useSlidingIndicator } from './useSlidingIndicator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 

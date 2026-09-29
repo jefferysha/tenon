@@ -53,6 +53,8 @@ export interface ProjectCreatePlan {
   registration: 'add' | 'already'
   directories: { path: string; exists: boolean }[]
   files: InstructionPreviewFile[]
+  /** 请求带 design_seed 时才有：exists = 项目根已有 DESIGN.md，创建时跳过不覆盖。 */
+  design?: { resource: string; exists: boolean }
 }
 export interface ProjectCreated {
   root: string
@@ -227,12 +229,22 @@ const GIT = ['init', 'existing', 'none'] as const
 const REGISTRATION = ['add', 'already'] as const
 
 export function decodeProjectCreatePlan(value: unknown): ProjectCreatePlan | null {
-  if (!exactKeys(value, ['ok', 'root', 'git', 'registration', 'directories', 'files']) || value.ok !== true) return null
+  if (!exactKeys(value, ['ok', 'root', 'git', 'registration', 'directories', 'files'], ['design']) || value.ok !== true) return null
   const directories = decodeList(value.directories, (item) =>
     (exactKeys(item, ['path', 'exists']) && typeof item.path === 'string' && typeof item.exists === 'boolean' ? { path: item.path, exists: item.exists } : null))
   const files = decodeList(value.files, decodePreviewFile)
   if (typeof value.root !== 'string' || !oneOf(value.git, GIT) || !oneOf(value.registration, REGISTRATION) || directories === null || files === null) return null
-  return { root: value.root, git: value.git, registration: value.registration, directories, files }
+  const design = decodePlanDesign(value.design)
+  if (design === null) return null
+  return { root: value.root, git: value.git, registration: value.registration, directories, files, ...(design === undefined ? {} : { design }) }
+}
+
+/** 计划里的 design 摘要：缺键 = undefined（请求没带 design_seed），形状不对 = null。 */
+function decodePlanDesign(value: unknown): { resource: string; exists: boolean } | null | undefined {
+  if (value === undefined) return undefined
+  return exactKeys(value, ['resource', 'exists']) && typeof value.resource === 'string' && typeof value.exists === 'boolean'
+    ? { resource: value.resource, exists: value.exists }
+    : null
 }
 
 export function decodeProjectCreated(value: unknown): ProjectCreated | null {

@@ -305,7 +305,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
       skillsRoot: options.skillsRoot ?? join(repoRootForSkills(), 'skills'),
       mutateTrackForApi: mutateTrackForRoutes, trackRegistryBody, sendTrackError, errMsg,
       realGraduationFs: REAL_GRADUATION_FS,
-      relatedSessionSearch, folderChooser, runGit: options.projectCreateGit,
+      relatedSessionSearch, folderChooser, runGit: options.projectCreateGit, designSeedFetch: options.designSeedFetch,
       resolveUser,
       taskLifecycle,
       orchestrationV2: { ledger: orchestrationLedger, workflowRootForRequest, freezePipeline, freezeWorkflow, runChange: (changeDir) => createProductionExecutionRuntimeV2({ change_dir: changeDir, ledger: orchestrationLedger, worker_id: `server:${process.pid}` }).then(runtime => runtime.run()) },

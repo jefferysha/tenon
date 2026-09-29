@@ -138,6 +138,8 @@ export interface PostRouteDeps {
   relatedSessionSearch: RelatedSessionSearchExecutor
   folderChooser: import('./folderChooser.js').FolderChooser
   runGit?: import('./projectCreate.js').GitRunner
+  /** DESIGN.md 起步抓取器（`/api/design/seed` 与新建项目 design 步骤）；缺省走 https。 */
+  designSeedFetch?: import('./designSeed.js').DesignSeedFetch
   /** Canonical v2 orchestration ledger; omitted by legacy embedders. */
   orchestrationV2?: OrchestrationV2RouteDeps
   adapterInstall?: AdapterInstallManager

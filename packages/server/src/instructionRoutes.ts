@@ -23,6 +23,7 @@ import {
 } from './instructionFiles.js'
 import { trustedFsFailure } from './instructionTrustedFs.js'
 import { readProjectClients, writeProjectClients } from './projectClients.js'
+import { httpsDesignSeedFetch, type DesignSeedFetch } from './designSeed.js'
 import { handleProjectCreate, runGitCommand, type GitRunner } from './projectCreate.js'
 import { repoRootForSkills } from './serverSupport.js'
 import { readTextBody } from './serverWorkflowYamlRoutes.js'
@@ -46,6 +47,8 @@ export interface InstructionRouteDeps {
   readonly payloadRoot?: string
   /** 请求 root 上的声明身份（路由表注入）；写端点据此记作者。 */
   readonly resolveUser?: ResolveInstructionUser
+  /** 新建项目 design 步骤取 DESIGN.md 的抓取器；缺省走 https。 */
+  readonly designSeedFetch?: DesignSeedFetch
 }
 
 const TEMPLATES = '/api/instruction-templates'
@@ -299,6 +302,10 @@ export function resolveInstructionMutation(
       return handleProjectCreate(body, {
         paths: deps.paths, workflowRootAnchors: deps.workflowRootAnchors, runGit: deps.runGit ?? runGitCommand,
         actor: auditActor(deps.resolveUser, ''),
+        designSeed: {
+          payloadRoot: deps.payloadRoot ?? repoRootForSkills(), configRoot: deps.paths.configRoot,
+          fetch: deps.designSeedFetch ?? httpsDesignSeedFetch,
+        },
       })
     })()
   }

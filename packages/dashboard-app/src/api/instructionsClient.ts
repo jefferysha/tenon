@@ -140,9 +140,10 @@ export interface ProjectInstructionsInput {
 }
 
 /** clients：记入项目 `.tenon/clients.json` 的客户端 id；省略 = 不写。 */
+/** design_seed：资源目录里一条 DESIGN.md 条目，创建时（登记前）取到项目根。 */
 export type ProjectCreateInput =
-  | { mode: 'empty'; parent: string; name: string; directories: string[]; instructions: ProjectInstructionsInput | null; clients?: string[] }
-  | { mode: 'existing'; path: string; instructions: ProjectInstructionsInput | null; clients?: string[]; git_init?: boolean }
+  | { mode: 'empty'; parent: string; name: string; directories: string[]; instructions: ProjectInstructionsInput | null; clients?: string[]; design_seed?: string }
+  | { mode: 'existing'; path: string; instructions: ProjectInstructionsInput | null; clients?: string[]; git_init?: boolean; design_seed?: string }
 
 export function planProjectCreate(input: ProjectCreateInput): Promise<ProjectCreatePlan> {
   return send('/api/projects/create', { method: 'POST', headers: jsonHeaders(), body: JSON.stringify({ ...input, dry_run: true }) }, decodeProjectCreatePlan, '新建项目预览失败')

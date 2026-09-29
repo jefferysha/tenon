@@ -296,6 +296,8 @@ export interface DashboardServerOptions {
   folderChooser?: import('./folderChooser.js').FolderChooser
   /** 新建项目用的 git 执行器；测试注入以制造 git init 失败，缺省调本机 git。 */
   projectCreateGit?: import('./projectCreate.js').GitRunner
+  /** DESIGN.md 起步抓取器；测试注入以免触网，缺省走 https。 */
+  designSeedFetch?: import('./designSeed.js').DesignSeedFetch
   /** 覆盖注册表读取（默认读 registryPath 的 JSON 字符串数组）。 */
   registry?: () => string[]
   /** 覆盖 token（默认启动生成一次性随机 token）。 */

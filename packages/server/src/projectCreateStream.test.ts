@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readProjectRegistry, type TenonUserResolution } from '@tenon/kernel'
 import { afterEach, describe, expect, it } from 'vitest'
+import type { DesignSeedFetch } from './designSeed.js'
 import { resolveServerPaths } from './paths.js'
 import type { GitRunner } from './projectCreate.js'
 import { createStepIds } from './projectCreateRun.js'
@@ -30,14 +31,15 @@ async function tempDir(label: string): Promise<string> {
   return dir
 }
 
-/** runGit 走真 server 的注入口：测试里用它制造 git init 失败，再恢复成功。 */
-async function start(runGit?: { current: GitRunner }): Promise<{ port: number; paths: ServerPaths }> {
+/** runGit 走真 server 的注入口：测试里用它制造 git init 失败，再恢复成功。designSeed 同理，替代真实 https 抓取。 */
+async function start(runGit?: { current: GitRunner }, designSeed?: { current: DesignSeedFetch }): Promise<{ port: number; paths: ServerPaths }> {
   const home = await tempDir('home')
   const paths = resolveServerPaths({ home, env: {} })
   const srv = createDashboardServer({
     version: '9.9.9', hostHome: home, paths, token: TOKEN, registry: () => [], pollIntervalMs: 1000, cadence: false,
     manifestPath: fileURLToPath(new URL('../../../templates/manifest.yaml', import.meta.url)), resolveUser: () => TEST_USER,
     ...(runGit ? { projectCreateGit: (args: readonly string[], cwd: string) => runGit.current(args, cwd) } : {}),
+    ...(designSeed ? { designSeedFetch: (url: string) => designSeed.current(url) } : {}),
   })
   servers.push(srv)
   const { port } = await srv.listen(0, '127.0.0.1')
@@ -182,5 +184,96 @@ describe('POST /api/projects/create/stream', () => {
     expect(createStepIds({ mode: 'existing', root: '/r', instructions: null, dryRun: false })).toEqual(['register'])
     expect(createStepIds({ mode: 'empty', root: '/p/r', parent: '/p', directories: [], instructions: null, dryRun: false }))
       .toEqual(['directory', 'git', 'register'])
+    expect(createStepIds({ mode: 'empty', root: '/p/r', parent: '/p', directories: [], instructions: null, designSeed: 'design-md-claude', dryRun: false }))
+      .toEqual(['directory', 'git', 'design', 'register'])
+  })
+})
+
+describe('design_seed：新建项目的 DESIGN.md 起步步骤', () => {
+  const SEED = 'design-md-claude'
+  const fetched = (text: string): { current: DesignSeedFetch } => ({ current: async () => ({ ok: true, status: 200, text }) })
+
+  it('dry run 计划带 design 摘要；执行时 design 在登记前，DESIGN.md 写到新目录', async () => {
+    const parent = await tempDir('parent')
+    const urls: string[] = []
+    const seed = { current: (async (url) => { urls.push(url); return { ok: true, status: 200, text: '# Claude\n' } }) as DesignSeedFetch }
+    const { port } = await start(undefined, seed)
+    const body = { mode: 'empty', parent, name: 'shop', instructions: instructions(['AGENTS.md']), design_seed: SEED }
+    const plan = await reqPost(port, '/api/projects/create', { ...body, dry_run: true }, { headers: AUTH })
+    expect(plan.status).toBe(200)
+    expect(plan.json()).toMatchObject({ design: { resource: SEED, exists: false } })
+    expect(urls).toEqual([])
+
+    const events = parse((await reqPost(port, PATH, body, { headers: AUTH })).body)
+    expect(events[0]).toEqual({ event: 'plan', data: { steps: ['directory', 'git', 'file:AGENTS.md', 'design', 'register'] } })
+    expect(events.filter((item) => item.data.id === 'design').map((item) => item.data.state)).toEqual(['running', 'done'])
+    expect(events.at(-1)).toMatchObject({ event: 'done', data: { ok: true } })
+    expect(await readFile(join(parent, 'shop', 'DESIGN.md'), 'utf8')).toBe('# Claude\n')
+    expect(urls).toEqual([expect.stringMatching(/^https:\/\/.*\/DESIGN\.md$/u)])
+  })
+
+  it('不带 design_seed 时计划与步骤都不变（旧形状）', async () => {
+    const root = await tempDir('plain')
+    const { port } = await start(undefined, fetched('# x\n'))
+    const plan = await reqPost(port, '/api/projects/create', { mode: 'existing', path: root, instructions: null, dry_run: true }, { headers: AUTH })
+    expect(Object.keys(plan.json<Record<string, unknown>>())).not.toContain('design')
+  })
+
+  it('抓取失败：design 行带错误原文，登记不开始，新建目录回滚；恢复后重试成功', async () => {
+    const parent = await tempDir('parent')
+    const seed: { current: DesignSeedFetch } = { current: async () => ({ ok: false, status: 404, text: '' }) }
+    const { port, paths } = await start(undefined, seed)
+    const body = { mode: 'empty', parent, name: 'shop', instructions: null, design_seed: SEED }
+    const failed = parse((await reqPost(port, PATH, body, { headers: AUTH })).body)
+    expect(failed.find((item) => item.data.state === 'failed')).toEqual({
+      event: 'step', data: { id: 'design', state: 'failed', error: 'DESIGN.md 获取失败：404', code: 'fetch-failed' },
+    })
+    expect(failed.some((item) => item.data.id === 'register')).toBe(false)
+    expect(failed.at(-1)).toMatchObject({ event: 'failed', data: { ok: false, status: 500, code: 'project-create-failed', step: 'design' } })
+    expect(existsSync(join(parent, 'shop'))).toBe(false)
+    expect(readProjectRegistry(paths.registryPath)).not.toContain(join(parent, 'shop'))
+
+    seed.current = async () => ({ ok: true, status: 200, text: '# Claude\n' })
+    const retried = parse((await reqPost(port, PATH, body, { headers: AUTH })).body)
+    expect(retried.at(-1)).toMatchObject({ event: 'done', data: { ok: true } })
+    expect(await readFile(join(parent, 'shop', 'DESIGN.md'), 'utf8')).toBe('# Claude\n')
+  })
+
+  it('已有目录已有 DESIGN.md：计划标 exists，design 步骤不出现，原文不被覆盖', async () => {
+    const root = await tempDir('existing')
+    await writeFile(join(root, 'DESIGN.md'), '# mine\n')
+    const seed: { current: DesignSeedFetch } = { current: async () => { throw new Error('不应抓取') } }
+    const { port } = await start(undefined, seed)
+    const body = { mode: 'existing', path: root, instructions: null, design_seed: SEED }
+    const plan = await reqPost(port, '/api/projects/create', { ...body, dry_run: true }, { headers: AUTH })
+    expect(plan.json()).toMatchObject({ design: { resource: SEED, exists: true } })
+    const events = parse((await reqPost(port, PATH, body, { headers: AUTH })).body)
+    expect(events[0]).toEqual({ event: 'plan', data: { steps: ['register'] } })
+    expect(events.at(-1)).toMatchObject({ event: 'done' })
+    expect(await readFile(join(root, 'DESIGN.md'), 'utf8')).toBe('# mine\n')
+  })
+
+  it('已有目录抓取失败：返回与起步端点同一状态码与错误码（502 fetch-failed），不登记', async () => {
+    const root = await tempDir('existing')
+    const seed: { current: DesignSeedFetch } = { current: async () => { throw new Error('offline') } }
+    const { port, paths } = await start(undefined, seed)
+    const events = parse((await reqPost(port, PATH, { mode: 'existing', path: root, instructions: null, design_seed: SEED }, { headers: AUTH })).body)
+    expect(events.find((item) => item.data.id === 'design' && item.data.state === 'failed')?.data).toMatchObject({ code: 'fetch-failed' })
+    expect(events.at(-1)).toMatchObject({ event: 'failed', data: { status: 502, code: 'fetch-failed' } })
+    expect(readProjectRegistry(paths.registryPath)).not.toContain(root)
+    expect(existsSync(join(root, 'DESIGN.md'))).toBe(false)
+  })
+
+  it('执行前校验：未知资源 404、不是 DESIGN.md 400、非法 id 400，均不创建目录', async () => {
+    const parent = await tempDir('parent')
+    const { port } = await start(undefined, fetched('# x\n'))
+    const base = { mode: 'empty', parent, name: 'shop', instructions: null }
+    const unknown = await reqPost(port, PATH, { ...base, design_seed: 'no-such-design' }, { headers: AUTH })
+    expect([unknown.status, unknown.json<{ code: string }>().code]).toEqual([404, 'resource-not-found'])
+    const icons = await reqPost(port, PATH, { ...base, design_seed: 'lucide' }, { headers: AUTH })
+    expect([icons.status, icons.json<{ code: string }>().code]).toEqual([400, 'not-design-md'])
+    const bad = await reqPost(port, PATH, { ...base, design_seed: '../etc' }, { headers: AUTH })
+    expect([bad.status, bad.json<{ code: string }>().code]).toEqual([400, 'invalid'])
+    expect(existsSync(join(parent, 'shop'))).toBe(false)
   })
 })

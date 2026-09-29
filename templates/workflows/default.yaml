@@ -412,6 +412,7 @@ tracks:
         gate: review
         prompt: |-
           需要新增或调整设计时运行 tenon design propose "$TENON_CHANGE_NAME"，在 openspec/changes/<change>/design-system.md 写清修改、理由、影响，随规格评审。
+          选用组件库、图标、动画、DESIGN.md 等前端资源时先查资源目录：tenon resources list --framework <框架> --category <类别>，再用 tenon resources show <id> 看许可与安装命令；只用目录内条目，不可再分发的条目只按安装命令引用。
         skills:
           - id: openspec-propose
           - id: writing-plans

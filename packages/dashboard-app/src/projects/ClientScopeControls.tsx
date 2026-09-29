@@ -3,7 +3,7 @@ import { useT } from '../i18n'
 import type { InstructionLevels } from '../api/instructionsDecoders'
 import { clientName } from './clientModel'
 import { Hinted } from './projectBits'
-import { SegmentTabs } from './SegmentTabs'
+import { SegmentTabs } from '../shared/SegmentTabs'
 import type { Scope } from './useClientEditor'
 
 const LEVELS_KEY: Record<InstructionLevels, string> = {
