@@ -5,6 +5,7 @@ import { I18nProvider } from '../i18n'
 import { LibraryView } from './LibraryView'
 import { LIST_ROW } from './libraryChrome'
 import { LIST_SELECTED } from '../shared/uiRecipes'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 const GO_TEXT = '---\nid: go\ncategory: backend\ntitle: Go\n---\n## 后端（Go）\n'
 const MINE_TEXT = '---\nid: mine\ncategory: backend\ntitle: 我的后端\n---\n## 后端（我的后端）\n'
@@ -46,7 +47,7 @@ function stubFetch(over: { templates?: unknown[]; onWrite?: (call: Calls) => unk
 }
 
 function renderLibrary(onToast?: (message: string) => void) {
-  render(<I18nProvider><LibraryView onToast={onToast} /></I18nProvider>)
+  render(<I18nProvider><TooltipProvider><LibraryView onToast={onToast} /></TooltipProvider></I18nProvider>)
 }
 
 beforeEach(() => {
@@ -107,7 +108,9 @@ describe('库页 · 模板', () => {
     const onToast = vi.fn()
     renderLibrary(onToast)
     await user.click(await screen.findByTestId('lib-tpl-custom-backend-mine'))
-    await user.click(await screen.findByTestId('lib-tpl-tab-edit'))
+    // 自定义模板直接是表单；正文缺省是渲染，切到编辑才有编辑区。
+    expect(await screen.findByTestId('lib-tpl-preview')).toHaveTextContent('后端（我的后端）')
+    await user.click(screen.getByTestId('lib-tpl-body-tab-edit'))
     const editor = await screen.findByTestId('lib-tpl-editor')
     await user.type(editor, '- 规则\n')
     await user.click(screen.getByTestId('lib-tpl-save'))
@@ -148,7 +151,8 @@ describe('库页 · 模板', () => {
     const row = await screen.findByTestId('lib-tpl-custom-backend-go-copy')
     await waitFor(() => expect(row).toHaveAttribute('aria-current', 'true'))
     expect(await screen.findByTestId('lib-tpl-form')).toBeInTheDocument()
-    expect(screen.getByTestId('lib-tpl-tab-edit')).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByTestId('lib-tpl-body-tab-edit')).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByTestId('lib-tpl-editor')).toBeInTheDocument()
   })
 
   it('复制时副本名与标识都不重名：已有 go-copy / 「Go 副本」→ go-copy-2 / 「Go 副本 2」', async () => {
@@ -166,27 +170,36 @@ describe('库页 · 模板', () => {
     })
   })
 
-  it('自定义模板的名称与分类是表单字段：改分类 → 写到新分类并删掉旧文件，正文标题跟着改', async () => {
+  it('自定义模板的名称、分类、适用框架是表单字段：改分类 → 写到新分类并删掉旧文件，正文标题跟着改', async () => {
     const user = userEvent.setup()
     const calls = stubFetch()
     renderLibrary()
     await user.click(await screen.findByTestId('lib-tpl-custom-backend-mine'))
-    await user.click(await screen.findByTestId('lib-tpl-tab-edit'))
     const name = await screen.findByTestId('lib-tpl-name')
     expect(name).toHaveValue('我的后端')
     expect(screen.getByTestId('lib-tpl-category')).toHaveValue('backend')
+    // 后端模板没有适用框架：多选禁用。
+    expect(screen.getByTestId('lib-tpl-frameworks')).toBeDisabled()
     // 正文编辑区只有正文，没有 frontmatter。
+    await user.click(screen.getByTestId('lib-tpl-body-tab-edit'))
     expect(screen.getByTestId('lib-tpl-editor')).toHaveValue('## 后端（我的后端）\n')
     await user.clear(name)
     expect(screen.getByTestId('lib-tpl-save')).toBeDisabled()
+    expect(screen.getByTestId('lib-tpl-title-field-error')).toHaveTextContent('必填')
     await user.type(name, '团队状态')
     await user.selectOptions(screen.getByTestId('lib-tpl-category'), 'state')
+    // 状态管理必须选框架：没选时不能保存，错误在字段下方。
+    expect(screen.getByTestId('lib-tpl-save')).toBeDisabled()
+    await user.click(screen.getByTestId('lib-tpl-frameworks'))
+    await user.click(await screen.findByTestId('lib-tpl-framework-react'))
+    await user.keyboard('{Escape}')
+    expect(screen.getByTestId('lib-tpl-frameworks')).toHaveTextContent('react')
     await user.click(screen.getByTestId('lib-tpl-save'))
     await waitFor(() => {
       const put = calls.find((call) => call.init?.method === 'PUT')
       expect(put?.url).toBe('/api/instruction-templates/custom/state/mine')
       expect((put?.init?.headers as Record<string, string>)['If-Match']).toBe('absent')
-      expect(String(put?.init?.body)).toBe('---\nid: mine\ncategory: state\ntitle: 团队状态\n---\n### 后端（团队状态）\n')
+      expect(String(put?.init?.body)).toBe('---\nid: mine\ncategory: state\ntitle: 团队状态\nframeworks: [react]\n---\n### 后端（团队状态）\n')
       const del = calls.find((call) => call.init?.method === 'DELETE')
       expect(del?.url).toBe('/api/instruction-templates/custom/backend/mine?digest=sha256%3Amine')
     })
@@ -251,7 +264,7 @@ describe('库页 · 模板', () => {
     await waitFor(() => expect(screen.queryByTestId('lib-tpl-custom-backend-mine')).toBeNull())
   })
 
-  it('新建模板：分类 + 标识，保存为 custom', async () => {
+  it('新建模板：名称 → 标识自动生成，分类 + 正文一次写成完整模板，保存为 custom 并进入编辑', async () => {
     const user = userEvent.setup()
     const calls = stubFetch()
     const onToast = vi.fn()
@@ -260,15 +273,28 @@ describe('库页 · 模板', () => {
     // 分类是下拉框：去掉原生外观后要有自己的箭头，不能看起来像文本框。
     expect(screen.getByTestId('lib-tpl-new-category-arrow')).toBeInTheDocument()
     await user.selectOptions(screen.getByTestId('lib-tpl-new-category'), 'backend')
-    await user.type(screen.getByTestId('lib-tpl-new-id'), 'team-go')
-    await user.click(screen.getByTestId('lib-tpl-new-confirm'))
+    await user.type(screen.getByTestId('lib-tpl-new-name'), 'Team Go')
+    expect(screen.getByTestId('lib-tpl-new-id')).toHaveValue('team-go')
+    await user.click(screen.getByTestId('lib-tpl-new-dialog-submit'))
     await waitFor(() => {
       const put = calls.find((call) => call.init?.method === 'PUT')
       expect(put?.url).toBe('/api/instruction-templates/custom/backend/team-go')
       expect((put?.init?.headers as Record<string, string>)['If-Match']).toBe('absent')
-      expect(String(put?.init?.body)).toContain('id: team-go')
+      expect(String(put?.init?.body)).toBe('---\nid: team-go\ncategory: backend\ntitle: Team Go\n---\n## 后端\n\n- \n')
     })
     await waitFor(() => expect(onToast).toHaveBeenCalledWith('已新建模板 team-go'))
+    await waitFor(() => expect(screen.queryByTestId('lib-tpl-new-dialog')).toBeNull())
+  })
+
+  it('新建模板：同分类已有同名标识时在字段下方报错且不能提交', async () => {
+    const user = userEvent.setup()
+    stubFetch()
+    renderLibrary()
+    await user.click(await screen.findByTestId('lib-tpl-new'))
+    await user.selectOptions(screen.getByTestId('lib-tpl-new-category'), 'backend')
+    await user.type(screen.getByTestId('lib-tpl-new-name'), 'mine')
+    expect(screen.getByTestId('lib-tpl-new-id-field-error')).toHaveTextContent('该分类下已有同名标识')
+    expect(screen.getByTestId('lib-tpl-new-dialog-submit')).toBeDisabled()
   })
 
   it('server 返回错误码时按码显示本地文案，并给出重新载入', async () => {
@@ -280,7 +306,7 @@ describe('库页 · 模板', () => {
     })
     renderLibrary()
     await user.click(await screen.findByTestId('lib-tpl-custom-backend-mine'))
-    await user.click(await screen.findByTestId('lib-tpl-tab-edit'))
+    await user.click(await screen.findByTestId('lib-tpl-body-tab-edit'))
     await user.type(await screen.findByTestId('lib-tpl-editor'), 'x')
     await user.click(screen.getByTestId('lib-tpl-save'))
     const error = await screen.findByTestId('lib-tpl-error')

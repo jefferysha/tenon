@@ -1,78 +1,76 @@
-import { useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { useT } from '../i18n'
-import { TEMPLATE_CATEGORIES, type TemplateCategory } from '../api/instructionsDecoders'
-import { Dialog } from '../shared/Dialog'
-import { BUTTON_GHOST, BUTTON_SOLID, FIELD_LABEL, INPUT, SELECT } from '../shared/uiRecipes'
+import type { TemplateCategory } from '../api/instructionsDecoders'
+import { FormDialog } from '../shared/FormDialog'
+import { TemplateForm, type BodyMode } from './TemplateForm'
+import { hasErrors, knownPlaceholders, slugOf, starterBody, validateTemplateDraft, type TemplateDraft } from './templateDraft'
+import { newTemplateText } from './templateText'
 
-const ID = /^[a-z0-9][a-z0-9-]{0,63}$/
-
-/** 新建自定义模板：选分类 + 填标识；正文由调用方给出起始骨架。 */
-export function NewTemplateDialog({
-  busy, onClose, onCreate,
-}: {
+export interface NewTemplateDialogProps {
   busy: boolean
+  /** 已有自定义模板的 `<分类>/<标识>`：同分类下标识不能重复。 */
+  taken: ReadonlySet<string>
+  /** 最近一次写入失败的词典键后缀（`library.errors.<key>`）；只在本对话框提交过之后显示。 */
+  errorKey: string | null
   onClose: () => void
-  onCreate: (category: TemplateCategory, id: string) => void
-}): JSX.Element {
+  onCreate: (category: TemplateCategory, id: string, text: string) => void
+}
+
+/**
+ * 新建自定义模板：名称 · 标识（随名称生成，可改）· 分类 · 适用框架 · 正文，一次写成完整模板。
+ * 外壳是共享的 FormDialog（固定高度、Enter 提交、有输入时 Esc 先确认）。
+ */
+export function NewTemplateDialog({ busy, taken, errorKey, onClose, onCreate }: NewTemplateDialogProps): JSX.Element {
   const { t } = useT()
-  const [category, setCategory] = useState<TemplateCategory>('common')
+  const starter = (category: TemplateCategory): string => starterBody(category, t(`library.categories.${category}`))
+  const [draft, setDraft] = useState<TemplateDraft>(() => ({ title: '', category: 'common', frameworks: [], body: starter('common') }))
   const [id, setId] = useState('')
-  const valid = ID.test(id)
+  const [idTouched, setIdTouched] = useState(false)
+  const [bodyMode, setBodyMode] = useState<BodyMode>('edit')
+  const [submitted, setSubmitted] = useState(false)
+  const placeholders = useMemo(() => knownPlaceholders(null), [])
+  const takenIds = useMemo(() => new Set([...taken].filter((key) => key.startsWith(`${draft.category}/`)).map((key) => key.slice(draft.category.length + 1))), [taken, draft.category])
+  const errors = validateTemplateDraft(draft, { known: new Set(placeholders), id, takenIds })
+  const dirty = draft.title !== '' || id !== '' || draft.frameworks.length > 0 || draft.category !== 'common' || draft.body !== starter('common')
+
+  const onChange = (next: TemplateDraft): void => {
+    // 正文还是起始骨架时，换分类连骨架一起换（标题级别与分类名跟着变）。
+    const body = next.category !== draft.category && draft.body === starter(draft.category) ? starter(next.category) : next.body
+    setDraft({ ...next, body })
+    if (!idTouched && next.title !== draft.title) setId(slugOf(next.title))
+  }
 
   return (
-    <Dialog
+    <FormDialog
       title={t('library.new')}
-      onClose={onClose}
       testid="lib-tpl-new-dialog"
-      actions={(
-        <>
-          <button type="button" className={BUTTON_GHOST} data-testid="lib-tpl-new-cancel" onClick={onClose}>
-            {t('library.cancel')}
-          </button>
-          <button
-            type="button"
-            className={BUTTON_SOLID}
-            data-testid="lib-tpl-new-confirm"
-            disabled={!valid || busy}
-            onClick={() => onCreate(category, id)}
-          >
-            {t('library.confirm')}
-          </button>
-        </>
+      dirty={dirty}
+      busy={busy}
+      canSubmit={!hasErrors(errors)}
+      submitLabel={t('library.confirm')}
+      onSubmit={() => {
+        setSubmitted(true)
+        onCreate(draft.category, id, newTemplateText({ id, title: draft.title.trim(), category: draft.category, frameworks: draft.frameworks, body: draft.body }))
+      }}
+      onClose={onClose}
+      panelClassName="w-[min(880px,94vw)]"
+      bodyClassName="h-[560px]"
+      footer={submitted && errorKey !== null && (
+        <p className="truncate whitespace-nowrap text-caption font-semibold text-red-d" role="alert" data-testid="lib-tpl-new-error">{t(`library.errors.${errorKey}`)}</p>
       )}
     >
-      <div className="grid gap-4">
-        <label className={FIELD_LABEL}>
-          {t('library.category')}
-          {/* SELECT 是 appearance-none：原生箭头被去掉了，这里补一个，否则看起来像文本框。 */}
-          <span className="relative block">
-            <select
-              className={SELECT}
-              value={category}
-              data-testid="lib-tpl-new-category"
-              onChange={(event) => setCategory(TEMPLATE_CATEGORIES.find((value) => value === event.target.value) ?? 'common')}
-            >
-              {TEMPLATE_CATEGORIES.map((value) => (
-                <option key={value} value={value}>{t(`library.categories.${value}`)}</option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-text-3" aria-hidden="true" data-testid="lib-tpl-new-category-arrow" />
-          </span>
-        </label>
-        <label className={FIELD_LABEL}>
-          {t('library.id')}
-          <input
-            className={INPUT}
-            value={id}
-            autoComplete="off"
-            spellCheck={false}
-            aria-invalid={id !== '' && !valid}
-            data-testid="lib-tpl-new-id"
-            onChange={(event) => setId(event.target.value)}
-          />
-        </label>
-      </div>
-    </Dialog>
+      <TemplateForm
+        prefix="lib-tpl-new"
+        draft={draft}
+        disabled={busy}
+        errors={errors}
+        placeholders={placeholders}
+        id={{ value: id, onChange: (value) => { setIdTouched(true); setId(value) } }}
+        bodyMode={bodyMode}
+        onBodyMode={setBodyMode}
+        onChange={onChange}
+        fill
+      />
+    </FormDialog>
   )
 }

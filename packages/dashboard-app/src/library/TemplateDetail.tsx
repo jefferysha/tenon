@@ -3,31 +3,32 @@ import { useT } from '../i18n'
 import { getToken } from '../api/transport'
 import type { TemplateCategory, TemplateDocument, TemplateRef } from '../api/instructionsDecoders'
 import { DetailColumn } from '../shell/ThreeColumns'
-import { SheetTabs, type SheetDef } from '../shared/DetailSheets'
 import { Markdown } from '../shared/Markdown'
 import { BUTTON_GHOST, BUTTON_SOLID } from '../shared/uiRecipes'
 import { ConfirmDeleteDialog } from './ConfirmDeleteDialog'
 import { CopyAsCustomButton, DeleteMenu, DetailTitle, ReadOnlyNote } from './libraryChrome'
-import { protectEscapes, remarkTemplatePlaceholders } from './templatePlaceholders'
-import { TemplateForm, type TemplateDraft } from './TemplateForm'
-import { rewriteTemplate, splitTemplate } from './templateText'
-
-type Sheet = 'preview' | 'edit'
+import { protectEscapes } from './templatePlaceholders'
+import { hasErrors, knownPlaceholders, validateTemplateDraft, type TemplateDraft } from './templateDraft'
+import { TemplateForm, usePlaceholderPlugins, type BodyMode } from './TemplateForm'
+import { frontList, rewriteTemplate, splitTemplate } from './templateText'
 
 function draftOf(ref: TemplateRef, document: TemplateDocument | null): TemplateDraft {
+  const parts = splitTemplate(document?.text ?? '')
   return {
     title: document?.block?.title ?? ref.id,
     category: ref.category,
-    body: splitTemplate(document?.text ?? '')?.body ?? document?.text ?? '',
+    frameworks: document?.block?.frameworks ?? (parts === null ? [] : frontList(parts.front, 'frameworks')),
+    body: parts?.body ?? document?.text ?? '',
   }
 }
 
-const sameDraft = (a: TemplateDraft, b: TemplateDraft): boolean => a.title === b.title && a.category === b.category && a.body === b.body
+const sameDraft = (a: TemplateDraft, b: TemplateDraft): boolean =>
+  a.title === b.title && a.category === b.category && a.body === b.body && a.frameworks.join(',') === b.frameworks.join(',')
 
 /**
- * 右列：模板正文、变量表、解析错误。动作在标题右侧：内建模板只有「复制为自定义」；自定义模板多出
- * 预览 / 编辑页签、「保存」（未修改时禁用）与 ⋯ 里的删除。只有一个视图时不渲染页签。
- * 编辑页签是表单：名称、分类两个字段 + 正文 Markdown；预览里的 `{{…}}` 占位符渲染成淡色标记。
+ * 右列：模板正文、变量表、解析错误。动作在标题右侧：内建模板只有「复制为自定义」，正文渲染只读；
+ * 自定义模板直接是表单（名称 · 分类 · 适用框架 · 正文，正文可在 编辑 / 渲染 间切换），多出「保存」
+ * （未修改或有校验错误时禁用）与 ⋯ 里的删除。预览里的 `{{…}}` 占位符渲染成淡色标记。
  */
 export function TemplateDetail({
   ref_, document, busy, errorKey, editOnOpen = false, onSave, onCopy, onDelete, onReload,
@@ -36,7 +37,7 @@ export function TemplateDetail({
   document: TemplateDocument | null
   busy: boolean
   errorKey: string | null
-  /** 刚「复制为自定义」/「新建」出来的模板：打开即进入编辑页签。 */
+  /** 刚「复制为自定义」/「新建」出来的模板：正文打开即在编辑态。 */
   editOnOpen?: boolean
   onSave: (text: string, category: TemplateCategory) => void
   onCopy: () => void
@@ -45,29 +46,25 @@ export function TemplateDetail({
 }): JSX.Element {
   const { t } = useT()
   const custom = ref_.source === 'custom'
-  const sheets: SheetDef<Sheet>[] = [{ id: 'preview', label: t('library.preview') }, { id: 'edit', label: t('library.edit') }]
-  const [sheet, setSheet] = useState<Sheet>('preview')
   const original = useMemo(() => draftOf(ref_, document), [ref_, document])
   const [draft, setDraft] = useState<TemplateDraft>(original)
+  const [bodyMode, setBodyMode] = useState<BodyMode>('render')
   const [confirmDelete, setConfirmDelete] = useState(false)
   useEffect(() => {
     setDraft(original)
-    setSheet(editOnOpen && custom ? 'edit' : 'preview')
+    setBodyMode(editOnOpen && custom ? 'edit' : 'render')
   }, [original, editOnOpen, custom])
+  const plugins = usePlaceholderPlugins()
   const canWrite = getToken() !== ''
   const dirty = document !== null && !sameDraft(draft, original)
-  const valid = draft.title.trim() !== ''
-  const placeholders = useMemo(() => [remarkTemplatePlaceholders((name) => {
-    const key = name.startsWith('catalog.') ? `resources.category.${name.slice('catalog.'.length)}` : ''
-    const label = key === '' ? key : t(key)
-    return label === '' || label === key ? name : label
-  })], [t])
+  const placeholders = useMemo(() => knownPlaceholders(document?.block ?? null), [document])
+  // 块本身解析失败（block = null）时占位符无从核对，交给服务端报错。
+  const errors = validateTemplateDraft(draft, { known: document?.block ? new Set(placeholders) : null })
 
   return (
     <DetailColumn
       testId="lib-tpl-detail"
       panelId="lib-tpl-panel"
-      labelledBy={custom ? `lib-tpl-tab-${sheet}` : undefined}
       header={(
         <DetailTitle
           testId="lib-tpl"
@@ -84,8 +81,10 @@ export function TemplateDetail({
                     type="button"
                     className={BUTTON_SOLID}
                     data-testid="lib-tpl-save"
-                    disabled={!canWrite || busy || !dirty || !valid}
-                    onClick={() => onSave(rewriteTemplate(document?.text ?? '', { title: draft.title.trim(), category: draft.category, body: draft.body }), draft.category)}
+                    disabled={!canWrite || busy || !dirty || hasErrors(errors)}
+                    onClick={() => onSave(rewriteTemplate(document?.text ?? '', {
+                      title: draft.title.trim(), category: draft.category, frameworks: draft.frameworks, body: draft.body,
+                    }), draft.category)}
                   >
                     {t('library.save')}
                   </button>
@@ -96,7 +95,6 @@ export function TemplateDetail({
           )}
         />
       )}
-      sheets={custom ? <SheetTabs sheets={sheets} active={sheet} onChange={setSheet} ariaLabel={t('library.templates')} idPrefix="lib-tpl" /> : undefined}
     >
       {errorKey !== null && (
         <div className="mb-4 grid gap-2 rounded-md border border-red-b bg-red-t px-4 py-3" role="alert" data-testid="lib-tpl-error">
@@ -116,10 +114,20 @@ export function TemplateDetail({
           </ul>
         </div>
       )}
-      {sheet === 'edit' && custom ? (
-        <TemplateForm draft={draft} disabled={!canWrite || busy} onChange={setDraft} />
+      {custom ? (
+        <TemplateForm
+          key={`${ref_.category}/${ref_.id}`}
+          prefix="lib-tpl"
+          draft={draft}
+          disabled={!canWrite || busy}
+          errors={errors}
+          placeholders={placeholders}
+          bodyMode={bodyMode}
+          onBodyMode={setBodyMode}
+          onChange={setDraft}
+        />
       ) : (
-        <Markdown text={protectEscapes(document?.text ?? '')} testId="lib-tpl-preview" density="compact" plugins={placeholders} />
+        <Markdown text={protectEscapes(document?.text ?? '')} testId="lib-tpl-preview" density="compact" plugins={plugins} />
       )}
       {document?.block !== null && document?.block !== undefined && document.block.variables.length > 0 && (
         <table className="mt-5 w-full table-fixed border-collapse text-base" data-testid="lib-tpl-variables">
