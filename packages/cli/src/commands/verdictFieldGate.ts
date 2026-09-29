@@ -19,7 +19,7 @@
  * 工作流里给这一步声明测试或评审者。
  */
 import {
-  defaultEventGuardFields, isForwardExit, phaseExitGuardFields,
+  defaultEventGuardFields, INLINE_SUITE_PREFIX, isForwardExit, phaseExitGuardFields, renderTestBlocker,
   type EffectiveWorkflowPlan, type EventName, type FieldName, type PipelineState,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
@@ -76,6 +76,12 @@ async function missingEvidence(
   for (const item of tests.items) {
     if (!item.test.required || item.status === 'passed') continue
     missing.push(`必需测试 ${item.test.id} 未通过（${item.status}）；运行：tenon test run ${name} ${item.test.id}`)
+  }
+  // 步骤测试策略（目录套件 × 计划）：旧步骤测试已在上面逐项列过（内联套件 id 以 `step:` 开头，即 INLINE_SUITE_PREFIX），
+  // 待评审批准的豁免留给这一步之后的 review request，不算「结论之前的证据缺口」。
+  for (const blocker of tests.policy?.blockers ?? []) {
+    if (!blocker.blocking || blocker.code === 'waiver-unapproved' || blocker.subject?.startsWith(INLINE_SUITE_PREFIX) === true) continue
+    missing.push(renderTestBlocker(blocker))
   }
   const agents = await agentStepViews(deps, name, dir, state, plan, stepId)
   for (const view of agents.executors) {

@@ -23,7 +23,7 @@ import {
   INTERACTION_PROJECTION_WRITE_FAILED,
   assertOwner,
 } from '@tenon/kernel'
-import type { PipelineState } from '@tenon/kernel'
+import type { PendingWaiver, PipelineState } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName, resolveChangeDir } from '../paths.js'
 import { requireActor } from '../userIdentity.js'
@@ -38,6 +38,7 @@ import {
   writeReviewMarker,
 } from './review-binding.js'
 import { cmdReviewAcknowledge } from './review-acknowledge.js'
+import { freezePendingWaivers, waiverLines } from './review-waivers.js'
 import { resolveReviewEvent as resolveReviewEventFromStep } from './review-event.js'
 
 type ReviewStep = {
@@ -138,10 +139,12 @@ async function checkReviewRequestReadiness(
   }
   // A successful outgoing edge must satisfy the same public exit check that transition will
   // re-evaluate under its own lock. This keeps an agent from freezing knowingly incomplete output.
+  // The one exception is a test-plan waiver awaiting approval: this very review approves it, so it
+  // must not block the request that asks for that approval (transition still requires it).
   return cmdCheck(
     deps,
     name,
-    step.executionModel === 'step-graph' ? { event } : undefined,
+    step.executionModel === 'step-graph' ? { event, releasePendingWaivers: true } : { releasePendingWaivers: true },
   )
 }
 
@@ -184,6 +187,7 @@ export async function cmdReview(
         requestedAt: string
         alreadyPending: boolean
         replacedReceipt: boolean
+        waivers: readonly PendingWaiver[]
       } | undefined
       await deps.store.withLock(dir, async () => {
         const state = await deps.store.read(dir)
@@ -205,9 +209,15 @@ export async function cmdReview(
         }
         const existingAt = scalar(state, 'review_requested_at')
         if (reviewGatePendingFor(state, step.phase, event) && bindingMatches) {
-          await refreshReviewGateBinding(dir, state, step.phase, event, existingAt || deps.clock())
+          const pendingAt = existingAt || deps.clock()
+          await refreshReviewGateBinding(dir, state, step.phase, event, pendingAt)
           requested = {
-            phase: step.phase, event, requestedAt: existingAt || deps.clock(), alreadyPending: true, replacedReceipt: false,
+            phase: step.phase,
+            event,
+            requestedAt: pendingAt,
+            alreadyPending: true,
+            replacedReceipt: false,
+            waivers: await freezePendingWaivers(dir, name, { phase: step.phase, event, requestedAt: pendingAt }),
           }
           if (interaction !== undefined && beforeRevision !== undefined) {
             try {
@@ -264,6 +274,7 @@ export async function cmdReview(
           // Replacing a different/legacy receipt can only revoke a prior decision; it always
           // creates a fresh pending request and therefore never grants the new event permission.
           replacedReceipt: existingStatus !== null,
+          waivers: await freezePendingWaivers(dir, name, { phase: step.phase, event, requestedAt }),
         }
       })
       if (!requested) throw new Error('review request 未产生 receipt')
@@ -279,6 +290,7 @@ export async function cmdReview(
         `[REVIEW] ${name} phase=${requested.phase} event=${requested.event} ` +
         `${requested.alreadyPending ? '仍待确认' : '已请求人工确认'}`,
       )
+      for (const line of waiverLines(requested.waivers)) deps.io.out(line)
       return markerOk ? 0 : 2
     }
     return await cmdReviewAcknowledge(deps, name, dir, opts)

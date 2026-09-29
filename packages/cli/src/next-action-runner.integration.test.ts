@@ -17,7 +17,7 @@ import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { FIXED_CLOCK, freshHarness, realDeps, REPO_ROOT, rm, type Harness } from './integration-harness.js'
-import { seedStepTestPolicy } from './integration-test-policy-support.js'
+import { performFlowAction } from './integration-test-flow-support.js'
 
 const CHANGE = 'nextrun'
 const FIXTURE_PACKAGE_JSON = `${JSON.stringify({
@@ -275,12 +275,11 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
         }
         return false
       }
-      // 步骤测试策略（目录 / 计划 / 豁免）的专门动作不在本运行器的主题内：作者按策略登记已批准的豁免。
-      // 旧步骤测试的阻塞以「测试 <名>」开头，由 run-test 动作处理；其余测试阻塞来自策略判定。
-      if (blockers.some((item) => item.source === 'test' && !item.message.startsWith('测试 '))) {
-        await seedStepTestPolicy(realDeps(h.cwd, [], []), h.cwd, CHANGE, step.id, FIXED_CLOCK)
-        return false
-      }
+      // 策略判定的登记类 / 运行类阻塞各有专门动作（test-discover … run-tests），不该以 fix 下发；
+      // 走到这里的策略阻塞是「已经运行却不满足策略」，本运行器的夹具运行都会通过，所以不该出现。
+      // 旧步骤测试的阻塞以「测试 <名>」开头，由 run-test 动作处理。
+      expect(blockers.filter((item) => item.source === 'test' && !item.message.startsWith('测试 ')),
+        `策略阻塞必须有专门动作：${JSON.stringify(action)}`).toEqual([])
       const items = blockers.filter((item) => item.source === 'tasks').flatMap((item) => item.items ?? [])
       expect(items.length, `fix 必须是能照做的未勾任务（带原文）：${JSON.stringify(action)}`).toBeGreaterThan(0)
       const tasksPath = join(changeDir(), 'tasks.md')
@@ -358,6 +357,11 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
       return true
     }
     default:
+      // 测试体系的登记 / 运行 / 报告动作：夹具替作者经 kernel 写入口做同样的事（真命令是另一批）。
+      if (await performFlowAction(
+        { deps: realDeps(h.cwd, [], []), cwd: h.cwd, change: CHANGE, stepId: step.id, recordedAt: FIXED_CLOCK },
+        action,
+      )) return false
       throw new Error(`runner: next 给了执行不了的动作 ${JSON.stringify(action)}`)
   }
 }
@@ -518,6 +522,29 @@ describe('照着 next 做事的运行器：open → 完结', { timeout: 120_000 
     expect(mainSpec).not.toContain('TBD')
     // Purpose 段与下一个标题之间有空行（上游归档重排时吃掉了它）。
     expect(mainSpec).toContain('## Purpose\nThe runner flow needs a durable capability.\n\n## Requirements')
+    // 测试体系（design §11）：spec 依次 目录 → 计划 → 映射；build / verify 缺的种类补登记后运行；verify 运行完
+    // 把追溯矩阵写进验证报告。每条都是运行器照做就推进的动作（夹具替作者做 T2 命令做的事）。
+    const flowActions = ['test-discover', 'test-plan-seed', 'test-plan-map', 'test-register-files', 'run-tests', 'test-report']
+    expect(actions.filter(({ action }) => flowActions.includes(action.action))
+      .map(({ step, action }) => `${step}:${action.action}`)).toEqual([
+      'spec:test-discover', 'spec:test-plan-seed', 'spec:test-plan-map',
+      'build:test-plan-map', 'build:run-tests',
+      'verify:test-plan-map', 'verify:run-tests', 'verify:test-report',
+    ])
+    const at = (step: string, name: string, from = 0): number => actions.findIndex(({ step: id, action }, index) =>
+      index >= from && id === step && action.action === name)
+    // 排在本步文档之后、评审之前；测试排在评审者之前（执行者 → 技能 → 文档 → 测试 → 评审者）。
+    expect(at('spec', 'test-discover')).toBeGreaterThan(at('spec', 'record-document'))
+    expect(at('spec', 'test-plan-map')).toBeLessThan(at('spec', 'request-review'))
+    expect(at('build', 'test-plan-map')).toBeLessThan(at('build', 'run-tests'))
+    expect(at('build', 'run-tests')).toBeLessThan(at('build', 'run-test'))
+    expect(at('verify', 'run-tests')).toBeLessThan(at('verify', 'run-test'))
+    expect(at('verify', 'run-test')).toBeLessThan(at('verify', 'test-report'))
+    expect(at('verify', 'test-report')).toBeLessThan(at('verify', 'run-agent'))
+    // 报告写进验证报告后文档变过期，被重新登记；追溯矩阵引用了运行 id。
+    expect(at('verify', 'record-document', at('verify', 'test-report'))).toBeGreaterThan(at('verify', 'test-report'))
+    const report = actions.find(({ step, action }) => step === 'verify' && action.action === 'test-report')?.action
+    expect(report).toMatchObject({ command: expect.stringMatching(/^tenon test report nextrun --write \S+$/u) })
     // 交付物在交付步由 next 点名提交，排在交付值 pr_url 之前（开 PR 要先有提交）。
     const deliver = actions.findIndex(({ step, action }) => step === 'ship' && action.action === 'commit')
     expect(deliver).toBeGreaterThan(-1)

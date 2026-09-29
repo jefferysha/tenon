@@ -61,6 +61,11 @@ function renderBuildRevisionBlocker(blocker: BuildRevisionBlocker): string {
 export interface CheckOpts {
   /** Exact custom edge to preflight (used by review request). */
   readonly event?: string
+  /**
+   * 测试计划里等待评审批准的豁免不算阻塞（review request 专用：这次评审正是批准它们的那一步；
+   * transition 与普通 check 仍把它们当阻塞）。
+   */
+  readonly releasePendingWaivers?: boolean
 }
 
 export async function cmdCheck(deps: CliDeps, name: string, opts: CheckOpts = {}): Promise<number> {
@@ -104,7 +109,7 @@ export async function cmdCheck(deps: CliDeps, name: string, opts: CheckOpts = {}
     return 1
   }
   if (plan.capabilities.execution.model === 'step-graph') {
-    return checkGraphWorkflow(deps, name, dir, state, plan, opts.event)
+    return checkGraphWorkflow(deps, name, dir, state, plan, opts.event, opts.releasePendingWaivers === true)
   }
 
   // ── default workflow：coverage policy 必须来自当前项目 effective registry。registry 损坏或
@@ -145,7 +150,7 @@ export async function cmdCheck(deps: CliDeps, name: string, opts: CheckOpts = {}
   let skills: readonly string[]
   try {
     documents = await governedDocumentEvidence(deps, dir, state, plan.capabilities.documents.policy)
-    tests = await stepTestBlockers(deps, name, dir, state, plan)
+    tests = await stepTestBlockers(deps, name, dir, state, plan, { releasePendingWaivers: opts.releasePendingWaivers === true })
     agents = await stepAgentLines(deps, name, dir, state, plan, opts.event)
     skills = await stepSkillLines(deps, dir, state, plan)
   } catch (e) {
@@ -199,6 +204,7 @@ async function checkGraphWorkflow(
   state: PipelineState,
   plan: EffectiveWorkflowPlan,
   event: string | undefined,
+  releasePendingWaivers: boolean,
 ): Promise<number> {
   const currentStepId = str(state.fields.phase)
   const step = resolveStep(plan.workflow, currentStepId)
@@ -252,7 +258,7 @@ async function checkGraphWorkflow(
   let skills: readonly string[]
   try {
     documents = await governedDocumentEvidence(deps, dir, state, plan.capabilities.documents.policy)
-    tests = await stepTestBlockers(deps, name, dir, state, plan)
+    tests = await stepTestBlockers(deps, name, dir, state, plan, { releasePendingWaivers })
     agents = await stepAgentLines(deps, name, dir, state, plan, event)
     skills = await stepSkillLines(deps, dir, state, plan)
   } catch (e) {
