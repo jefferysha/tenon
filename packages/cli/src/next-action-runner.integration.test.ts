@@ -16,7 +16,8 @@ import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { FIXED_CLOCK, freshHarness, REPO_ROOT, rm, type Harness } from './integration-harness.js'
+import { FIXED_CLOCK, freshHarness, realDeps, REPO_ROOT, rm, type Harness } from './integration-harness.js'
+import { seedStepTestPolicy } from './integration-test-policy-support.js'
 
 const CHANGE = 'nextrun'
 const FIXTURE_PACKAGE_JSON = `${JSON.stringify({
@@ -272,6 +273,12 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
           pkg.scripts[script!] = 'node -e "process.exit(0)"'
           await writeFile(join(h.cwd, 'package.json'), `${JSON.stringify(pkg, null, 2)}\n`, 'utf8')
         }
+        return false
+      }
+      // 步骤测试策略（目录 / 计划 / 豁免）的专门动作不在本运行器的主题内：作者按策略登记已批准的豁免。
+      // 旧步骤测试的阻塞以「测试 <名>」开头，由 run-test 动作处理；其余测试阻塞来自策略判定。
+      if (blockers.some((item) => item.source === 'test' && !item.message.startsWith('测试 '))) {
+        await seedStepTestPolicy(realDeps(h.cwd, [], []), h.cwd, CHANGE, step.id, FIXED_CLOCK)
         return false
       }
       const items = blockers.filter((item) => item.source === 'tasks').flatMap((item) => item.items ?? [])

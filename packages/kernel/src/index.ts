@@ -39,6 +39,8 @@ export {
 export type { AgentEntry, AgentLibrary, AgentStoreOptions } from './infrastructure/agent-store.js'
 // 每步测试登记：测试方向、运行记录、基准与门禁判定。
 export * from './test-evidence/index.js'
+// 测试体系 v2：项目测试目录、任务测试计划、步骤测试策略、运行记录 v2 哈希链与策略判定。
+export * from './test-system/index.js'
 export { canonicalMachineStateRoot, machineStateScopeId } from './machine-state-scope.js'
 export { sha256Hex } from './sha256.js'
 export {

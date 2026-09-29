@@ -28,6 +28,7 @@ import { readCurrentRunRevision } from '../state/run-revision-store.js'
 import { testDigest } from '../test-evidence/evaluate.js'
 import { ensureTestEvidenceDirs, testRunRecordPath } from '../test-evidence/paths.js'
 import { publishTestRunRecord } from '../test-evidence/record.js'
+import { seedApprovedTestPolicyWaivers } from '../test-system/test-support.js'
 import type { WorkflowDef } from './types.js'
 import type { WorkflowIR } from './ir.js'
 import type { HistoryEntry } from '../types.js'
@@ -41,8 +42,8 @@ const TEST_EVIDENCE_CONTEXT = {
 }
 
 /**
- * default 的 frontend/backend 轨在 build/verify 声明了必需测试（X16）。主题与测试无关的用例
- * 先把该步骤的测试登记成通过，避免这些用例变成测试证据闸的重复断言。
+ * default 的 frontend/backend 轨在 build/verify 声明了必需测试（X16）与测试策略。主题与测试无关的用例
+ * 先把该步骤的测试登记成通过、策略要求写成已批准豁免，避免这些用例变成测试证据闸的重复断言。
  */
 async function satisfyStepTests(
   root: string,
@@ -55,6 +56,9 @@ async function satisfyStepTests(
   const tests = plan.workflow.steps.find((step) => step.id === phase)?.tests ?? []
   const runId = (await readCurrentRunRevision(changeDir))?.state.runMetadata?.runId
   if (runId === undefined) throw new Error('fixture run identity missing')
+  await seedApprovedTestPolicyWaivers({
+    repoRoot: root, changeDir, changeName: name, plan, stepId: phase, actor: TEST_CREATOR, recordedAt: FIXED_CLOCK(),
+  })
   const slug = userSlug(TEST_CREATOR.id)
   let index = 0
   for (const test of tests) {

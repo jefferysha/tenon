@@ -5,7 +5,7 @@
  * 只读当前用户的记录（CCR-6）：环境不同、基准按用户维护，别人跑过不等于我这份代码跑过。
  * 记录损坏或来自另一个 workflow_run_id 一律忽略（视为未运行），宁可多跑一次也不放行。
  */
-import { readdir } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { sha256Hex } from '../sha256.js'
 import { readCurrentRunRevision } from '../state/run-revision-store.js'
@@ -15,6 +15,11 @@ import type { StepTestIR } from '../workflow/ir.js'
 import { readRunningMarker, readTestRunRecord } from './record.js'
 import { testEvidencePaths, testRunningMarkerPath } from './paths.js'
 import { RUNNING_MARKER_GRACE_MS, type TestRunRecordV1 } from './types.js'
+import { renderPolicyBlockers } from '../test-system/evaluate-v2.js'
+import type { TestPolicyReport } from '../test-system/evaluate-types.js'
+import { evaluateStepTestPolicy } from '../test-system/load.js'
+import { inlineSuiteFromTest } from '../test-system/policy.js'
+import { declaresRecordV2, decodeTestRunRecordV2 } from '../test-system/record-v2-codec.js'
 
 export type TestItemStatus = 'passed' | 'failed' | 'stale' | 'missing' | 'running'
 
@@ -32,6 +37,11 @@ export interface TestEvidenceContext {
   readonly user: { readonly id: string; readonly name: string; readonly slug: string }
   readonly currentCandidate?: () => Promise<string>
   readonly now?: () => number
+  /**
+   * diff（相对 change 起点）里新增 / 修改的仓库相对文件。只有声明了 `test_policy.files: registered`
+   * 的步骤会用到；宿主不提供时跳过未登记文件检查，并在策略报告里留一条提示。
+   */
+  readonly changedFiles?: () => Promise<readonly string[]>
 }
 
 export interface TestEvidenceItem {
@@ -46,6 +56,8 @@ export interface TestEvidenceReport {
   readonly pass: boolean
   readonly blockers: readonly string[]
   readonly items: readonly TestEvidenceItem[]
+  /** 步骤声明了 test_policy 时的结构化判定（阻塞码、套件、追溯矩阵）；未声明时缺省，行为与之前逐字相同。 */
+  readonly policy?: TestPolicyReport
 }
 
 function canonical(value: unknown): string {
@@ -65,6 +77,14 @@ export function testDigest(test: StepTestIR): string {
 
 function stepTests(plan: EffectiveWorkflowPlan, stepId: string): readonly StepTestIR[] {
   return plan.workflow.steps.find((step) => step.id === stepId)?.tests ?? []
+}
+
+/** 离开本步的前进事件：目标在步骤序里更靠后的第一条出边，没有就取第一条。 */
+function exitEvent(plan: EffectiveWorkflowPlan, stepId: string): string | undefined {
+  const ids = plan.workflow.steps.map((step) => step.id)
+  const step = plan.workflow.steps.find((candidate) => candidate.id === stepId)
+  const from = ids.indexOf(stepId)
+  return (step?.transitions.find((transition) => ids.indexOf(transition.to) > from) ?? step?.transitions[0])?.event
 }
 
 async function workflowRunId(changeDir: string): Promise<string | undefined> {
@@ -133,6 +153,16 @@ export async function latestTestRun(
   return runs.filter((entry) => entry.record.workflow_run_id === workflowRunIdValue).at(-1)?.record
 }
 
+/** 同目录的 v2 记录不是损坏的 v1 记录：能按 v2 解码就不计入 v1 损坏列表（v2 损坏由哈希链报告）。 */
+async function isRecordV2File(path: string): Promise<boolean> {
+  try {
+    const value: unknown = JSON.parse(await readFile(path, 'utf8'))
+    return declaresRecordV2(value) && decodeTestRunRecordV2(value) !== undefined
+  } catch {
+    return false
+  }
+}
+
 /** 记录损坏文件名，供 server 快照的诊断列表使用。 */
 export async function corruptTestRunFiles(
   repoRoot: string,
@@ -142,7 +172,9 @@ export async function corruptTestRunFiles(
   const paths = testEvidencePaths(repoRoot, slug, changeName)
   const corrupt: string[] = []
   for (const runId of await runIdsIn(paths.runsDir)) {
-    if (await readTestRunRecord(join(paths.runsDir, `${runId}.json`)) === undefined) corrupt.push(`${runId}.json`)
+    const path = join(paths.runsDir, `${runId}.json`)
+    if (await readTestRunRecord(path) !== undefined || await isRecordV2File(path)) continue
+    corrupt.push(`${runId}.json`)
   }
   return corrupt
 }
@@ -182,7 +214,8 @@ export async function evaluateTestEvidence(input: {
   readonly context: TestEvidenceContext | undefined
 }): Promise<TestEvidenceReport> {
   const tests = stepTests(input.plan, input.stepId)
-  if (tests.length === 0) return { stepId: input.stepId, pass: true, blockers: [], items: [] }
+  const policy = input.plan.workflow.steps.find((step) => step.id === input.stepId)?.test_policy
+  if (tests.length === 0 && policy === undefined) return { stepId: input.stepId, pass: true, blockers: [], items: [] }
   if (input.context === undefined) {
     return {
       stepId: input.stepId,
@@ -240,10 +273,35 @@ export async function evaluateTestEvidence(input: {
     }
     items.push({ test, status: record.result === 'pass' ? 'passed' : 'failed', run: record })
   }
+  if (policy !== undefined) {
+    const event = exitEvent(input.plan, input.stepId)
+    const report = await evaluateStepTestPolicy({
+      repoRoot: input.repoRoot,
+      changeDir: input.changeDir,
+      changeName: input.changeName,
+      slug,
+      stepId: input.stepId,
+      policy,
+      inline: items.map((item) => ({ suite: inlineSuiteFromTest(item.test), status: item.status, ...inlineDetail(item) })),
+      workflowFingerprint: input.plan.workflowFingerprint,
+      workflowRunId: runId,
+      candidate: currentCandidate,
+      ...(input.context.changedFiles === undefined ? {} : { changedFiles: input.context.changedFiles }),
+      now,
+      ...(event === undefined ? {} : { exitEvent: event }),
+    })
+    return { stepId: input.stepId, pass: report.pass, blockers: renderPolicyBlockers(report), items, policy: report }
+  }
   const blockers = items
     .filter((item) => item.test.required && item.status !== 'passed')
     .map((item) => blockerFor(item, input.changeName))
   return { stepId: input.stepId, pass: blockers.length === 0, blockers, items }
+}
+
+function inlineDetail(item: TestEvidenceItem): { readonly detail?: string } {
+  if (item.status === 'stale') return { detail: staleWord(item.staleBecause) }
+  if (item.status === 'failed') return { detail: (item.run?.reasons ?? []).map((reason) => reason.code).join(', ') }
+  return {}
 }
 
 export { statusWord as testStatusWord }
