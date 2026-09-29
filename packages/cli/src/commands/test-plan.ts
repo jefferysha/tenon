@@ -60,7 +60,7 @@ export async function cmdTestPlan(
     const catalog = inputs.catalog.catalog
     const diff = await tryChangedFiles(deps, change)
     const seen: { result?: SeedResult; resetTampered?: boolean } = {}
-    const written = await updateTestPlan(context.dir, change, { actor: context.actor, recordedAt: deps.clock() }, (state) => {
+    const written = await updateTestPlan(context.dir, change, { actor: context.actor, recordedAt: deps.clock(), op: 'seed' }, (state) => {
       seen.resetTampered = state.state === 'tampered'
       const seeded = seedPlan({
         catalog, plan: state.state === 'ok' ? state.plan : emptyTestPlan(change),

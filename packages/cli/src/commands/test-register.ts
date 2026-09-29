@@ -55,10 +55,11 @@ function catalogOf(deps: CliDeps, catalog: Awaited<ReturnType<typeof loadPlanInp
   return undefined
 }
 
+/** 计划写入统一经 kernel 的审计写入口：`op` 是触发写入的子命令，进 `test:plan-write` 审计行。 */
 async function save(
-  deps: CliDeps, context: TestCommandContext, change: string, edit: (plan: TestPlan) => TestPlan,
+  deps: CliDeps, context: TestCommandContext, change: string, op: 'register' | 'unregister' | 'waive', edit: (plan: TestPlan) => TestPlan,
 ): Promise<{ ok: true; digest: string } | { ok: false; message: string }> {
-  const result = await updateTestPlan(context.dir, change, { actor: context.actor, recordedAt: deps.clock() }, (state) => {
+  const result = await updateTestPlan(context.dir, change, { actor: context.actor, recordedAt: deps.clock(), op }, (state) => {
     const plan = editable(state, change)
     return typeof plan === 'string' ? { reject: plan } : { plan: edit(plan) }
   })
@@ -77,7 +78,7 @@ async function registerSuite(deps: CliDeps, context: TestCommandContext, change:
   if (scope !== 'files' && files.length > 0) return fail(deps, '--select-file 只用于 --scope files')
   for (const path of files) if (!isRepoRelativePath(path) || !(await regularFile(deps, path))) return fail(deps, `--select-file '${path}' 不是仓库内已存在的文件`)
   const item: PlanSuite = { suite: id, scope, ...(opts.pattern === undefined ? {} : { pattern: opts.pattern }), ...(files.length === 0 ? {} : { files }) }
-  const saved = await save(deps, context, change, (plan) => withSuite(plan, item))
+  const saved = await save(deps, context, change, 'register', (plan) => withSuite(plan, item))
   if (!saved.ok) return fail(deps, saved.message)
   deps.io.out(`[TEST] 已登记套件 ${id}（scope=${scope}）`)
   return 0
@@ -106,7 +107,7 @@ async function registerFiles(deps: CliDeps, context: TestCommandContext, change:
     neededSuites.add(suite.id)
     entries.push({ path, suite: suite.id, kind: suite.kind })
   }
-  const saved = await save(deps, context, change, (plan) => {
+  const saved = await save(deps, context, change, 'register', (plan) => {
     const withRuns = [...neededSuites].reduce((current, id) => (current.suites.some((item) => item.suite === id) ? current : withSuite(current, { suite: id, scope: 'changed' })), plan)
     return withFiles(withRuns, entries)
   })
@@ -127,7 +128,7 @@ async function registerCase(deps: CliDeps, context: TestCommandContext, change: 
   if (known.length > 0 && !known.includes(covers)) {
     return fail(deps, `${covers} 不是当前 delta spec / tasks.md 里的场景或条目；可选：\n${known.slice(0, 12).map((item) => `  ${item}`).join('\n')}`)
   }
-  const saved = await save(deps, context, change, (plan) => withCase(plan, covers, tests))
+  const saved = await save(deps, context, change, 'register', (plan) => withCase(plan, covers, tests))
   if (!saved.ok) return fail(deps, saved.message)
   deps.io.out(`[TEST] 已映射 ${covers} ← ${tests.join(' | ')}`)
   return 0
@@ -170,7 +171,7 @@ export async function cmdTestUnregister(deps: CliDeps, change: string, opts: Unr
   const context = await resolveTestCommand(deps, change, { requireOwner: true })
   if (typeof context === 'number') return context
   let removed = 0
-  const saved = await save(deps, context, change, (plan) => {
+  const saved = await save(deps, context, change, 'unregister', (plan) => {
     const result = withoutTarget(plan, {
       ...(opts.suite === undefined ? {} : { suite: opts.suite }),
       ...(opts.file === undefined ? {} : { file: normalizeRepoPath(opts.file) }),
@@ -199,7 +200,7 @@ export async function cmdTestWaive(
   const context = await resolveTestCommand(deps, change, { requireOwner: true })
   if (typeof context === 'number') return context
   const kind = opts.kind !== undefined && isTestKind(opts.kind) ? opts.kind : undefined
-  const saved = await save(deps, context, change, (plan) => withWaiver(plan, kind !== undefined
+  const saved = await save(deps, context, change, 'waive', (plan) => withWaiver(plan, kind !== undefined
     ? { kind, reason, approved_by: null }
     : { covers: opts.covers ?? '', reason, approved_by: null }))
   if (!saved.ok) return fail(deps, saved.message)

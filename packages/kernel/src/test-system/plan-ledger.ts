@@ -107,16 +107,19 @@ export async function writeTestPlan(
   plan: TestPlan,
   meta: PlanWriteMeta,
 ): Promise<PlanWriteResult> {
-  return withLock(changeDir, async () => {
-    const written = await writeTestPlanUnderLock(changeDir, plan, meta)
-    if (!written.changed) return { ...written, audit: 'unchanged' as const }
-    const audit = await appendTestAudit(changeDir, testAuditEntry(
-      'plan-write',
-      { op: meta.op, plan: written.digest },
-      { ts: meta.recordedAt, actor: meta.actor },
-    ))
-    return { ...written, audit }
-  })
+  return withLock(changeDir, () => writeAndAudit(changeDir, plan, meta))
+}
+
+/** 持锁：写计划，真的变了就留一行 `test:plan-write`（writeTestPlan 与 updateTestPlan 的唯一写入路径）。 */
+async function writeAndAudit(changeDir: string, plan: TestPlan, meta: PlanWriteMeta): Promise<PlanWriteResult> {
+  const written = await writeTestPlanUnderLock(changeDir, plan, meta)
+  if (!written.changed) return { ...written, audit: 'unchanged' as const }
+  const audit = await appendTestAudit(changeDir, testAuditEntry(
+    'plan-write',
+    { op: meta.op, plan: written.digest },
+    { ts: meta.recordedAt, actor: meta.actor },
+  ))
+  return { ...written, audit }
 }
 
 async function ledgerDigest(changeDir: string): Promise<string | undefined> {
@@ -149,16 +152,17 @@ export type PlanUpdate = { readonly plan: TestPlan } | { readonly reject: string
 /**
  * 读—改—写在同一把 Change 锁内完成：两个并发的 `tenon test register` 不会互相覆盖。mutate 看到的是锁内读到的
  * 当前状态（missing / tampered / ok），由它决定新计划或拒绝。锁不可重入，mutate 里不得再取 Change 锁。
+ * 写入与 `writeTestPlan` 同一条路径：计划真的变了就留一行 `test:plan-write`。
  */
 export async function updateTestPlan(
   changeDir: string,
   changeName: string,
   meta: PlanWriteMeta,
   mutate: (state: TestPlanState) => PlanUpdate | Promise<PlanUpdate>,
-): Promise<{ readonly digest: string } | { readonly rejected: string }> {
+): Promise<PlanWriteResult | { readonly rejected: string }> {
   return withLock(changeDir, async () => {
     const result = await mutate(await readTestPlanState(changeDir, changeName))
     if ('reject' in result) return { rejected: result.reject }
-    return writeTestPlanUnderLock(changeDir, result.plan, meta)
+    return writeAndAudit(changeDir, result.plan, meta)
   })
 }

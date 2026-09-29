@@ -6,7 +6,7 @@ import { withLock } from '../state/lock.js'
 import { formatAuditDetail, testAuditRaw } from './audit.js'
 import { nextBaselineV2, writeTestBaselineV2 } from './baseline-v2.js'
 import { baselineV2Path } from './paths.js'
-import { writeTestPlan, writeTestPlanUnderLock } from './plan-ledger.js'
+import { updateTestPlan, writeTestPlan, writeTestPlanUnderLock } from './plan-ledger.js'
 import { emptyTestPlan } from './plan.js'
 
 const ACTOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' as const }
@@ -45,6 +45,19 @@ describe('计划写入的审计', () => {
     expect(again).toMatchObject({ digest: first.digest, changed: false, audit: 'unchanged' })
     expect(await historyRows()).toEqual([{
       ts: '2026-09-29T10:00:00.000Z', kind: 'tool', raw: `test:plan-write op=register plan=${first.digest}`, actor: ACTOR,
+    }])
+  })
+
+  it('updateTestPlan 与 writeTestPlan 同一条写入路径：变了留一行，没变（幂等）或被拒不留', async () => {
+    const meta = { actor: ACTOR, recordedAt: '2026-09-29T10:00:00.000Z', op: 'register' }
+    const plan = { ...emptyTestPlan('demo'), suites: [{ suite: 'unit', scope: 'full' as const }] }
+    const first = await updateTestPlan(changeDir, 'demo', meta, () => ({ plan }))
+    expect(first).toMatchObject({ changed: true, audit: 'recorded' })
+    const digest = 'digest' in first ? first.digest : ''
+    expect(await updateTestPlan(changeDir, 'demo', meta, () => ({ plan }))).toMatchObject({ digest, changed: false, audit: 'unchanged' })
+    expect(await updateTestPlan(changeDir, 'demo', meta, () => ({ reject: '不行' }))).toEqual({ rejected: '不行' })
+    expect(await historyRows()).toEqual([{
+      ts: '2026-09-29T10:00:00.000Z', kind: 'tool', raw: `test:plan-write op=register plan=${digest}`, actor: ACTOR,
     }])
   })
 

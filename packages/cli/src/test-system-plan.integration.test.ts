@@ -235,6 +235,12 @@ describe('测试体系 v2 · 计划、追溯与命令面', () => {
     expect(plan.plan.suites).toEqual([{ suite: 'unit', scope: 'grep', pattern: '@login' }])
     expect(plan.plan.files).toEqual([{ path: 'src/shots.png', kind: 'visual' }])
 
+    // 计划的每次真实写入都留一行审计（与 kernel 的 writeTestPlan 同一条写入路径），带触发写入的子命令。
+    const audit = (await readFile(join(cwd(), 'openspec', 'changes', 'demo', '.pipeline-history.jsonl'), 'utf8'))
+      .split('\n').filter((line) => line.includes('test:plan-write'))
+      .map((line) => (JSON.parse(line) as { raw: string }).raw.replace(/plan=sha256:[0-9a-f]{64}/u, 'plan=<digest>'))
+    expect(audit).toEqual(['test:plan-write op=register plan=<digest>', 'test:plan-write op=register plan=<digest>'])
+
     await rm(join(cwd(), 'src', 'shots.png'))
     expect(await tenon('test', 'sync', 'demo')).toBe(2)
     expect(out()).toContain('文件已不存在  src/shots.png')
