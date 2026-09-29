@@ -7,6 +7,7 @@ import type {
   Snapshot,
 } from '../types'
 import { isRecord, optionalString, recordOfBooleans, stringArray } from './transport'
+import { decodePlanBrief, decodePolicyReports } from './testPolicyDecoders'
 import {
   decodeAgentRuns, decodeDocuments, decodeSkillRuns, decodeTerminalActivity, decodeTests,
   decodeTodo,
@@ -103,10 +104,15 @@ function decodeChange(value: unknown): ChangeSnapshot | null {
   const skillRuns = value.skillRuns === undefined ? undefined : decodeSkillRuns(value.skillRuns)
   const agentRuns = value.agentRuns === undefined ? undefined : decodeAgentRuns(value.agentRuns)
   const tests = value.tests === undefined ? undefined : decodeTests(value.tests)
+  const testPolicy = value.testPolicy === undefined ? undefined : decodePolicyReports(value.testPolicy)
+  const testPlan = value.testPlan === undefined ? undefined : decodePlanBrief(value.testPlan)
   const testDiagnostics = value.testDiagnostics === undefined
     ? undefined
     : stringArray(value.testDiagnostics) ? value.testDiagnostics : undefined
   if ((value.tests !== undefined && !tests)
+    || (value.testPolicy !== undefined && !testPolicy)
+    || (value.testPlan !== undefined && !testPlan)
+    || (value.testUser !== undefined && typeof value.testUser !== 'string')
     || (value.testDiagnostics !== undefined && !testDiagnostics)
     || (value.reviewHandshake !== undefined && !reviewHandshake)
     || (value.todo !== undefined && !todo)
@@ -136,6 +142,9 @@ function decodeChange(value: unknown): ChangeSnapshot | null {
     ...(skillRuns ? { skillRuns } : {}),
     ...(agentRuns ? { agentRuns } : {}),
     ...(tests ? { tests } : {}),
+    ...(testPolicy ? { testPolicy } : {}),
+    ...(testPlan ? { testPlan } : {}),
+    ...(typeof value.testUser === 'string' ? { testUser: value.testUser } : {}),
     ...(testDiagnostics ? { testDiagnostics } : {}),
   }
 }

@@ -3,6 +3,7 @@ import { decodeSessionLinks, decodeTraceTimeline } from './auditDecoders'
 import { decodeHooksConfig, decodeRouterPreview } from './governanceDecoders'
 import { decodeLoopsSnapshot } from './loopDecoder'
 import { decodeSnapshot } from './snapshotDecoder'
+import { planBrief, verifyReport } from './testSystemFixtures'
 import { selectProgress } from '../model/progressModel'
 import { workflowRulesFromSnapshot } from '../model/workflowModel'
 import type { WorkflowDecompositionPolicySnapshot, WorkflowPolicyRulesSnapshot } from '../types'
@@ -238,6 +239,30 @@ describe('API bounded-context response decoders', () => {
     expect(decodeSnapshot(badRun)).toBeNull()
 
     expect(decodeSnapshot(validSnapshot())?.projects[0]?.changes[0]?.tests).toBeUndefined()
+  })
+
+  it('keeps testPolicy, testPlan and testUser when well-formed and fails closed on any malformed part', () => {
+    const wire = { testPolicy: JSON.parse(JSON.stringify([verifyReport()])) as unknown[], testPlan: planBrief(), testUser: 'a-at-x.io' }
+    const good = validSnapshot()
+    Object.assign(good.projects[0]!.changes[0]!, wire)
+    const decoded = decodeSnapshot(good)?.projects[0]?.changes[0]
+    expect(decoded?.testPolicy).toEqual([verifyReport()])
+    expect(decoded?.testPlan).toEqual(planBrief())
+    expect(decoded?.testUser).toBe('a-at-x.io')
+
+    const badPolicy = validSnapshot()
+    Object.assign(badPolicy.projects[0]!.changes[0]!, { ...wire, testPolicy: [{ ...(wire.testPolicy[0] as object), chain: 'gone' }] })
+    expect(decodeSnapshot(badPolicy)).toBeNull()
+    const badPlan = validSnapshot()
+    Object.assign(badPlan.projects[0]!.changes[0]!, { ...wire, testPlan: { state: 'odd' } })
+    expect(decodeSnapshot(badPlan)).toBeNull()
+    const badUser = validSnapshot()
+    Object.assign(badUser.projects[0]!.changes[0]!, { ...wire, testUser: 7 })
+    expect(decodeSnapshot(badUser)).toBeNull()
+
+    const legacy = decodeSnapshot(validSnapshot())?.projects[0]?.changes[0]
+    expect(legacy?.testPolicy).toBeUndefined()
+    expect(legacy?.testPlan).toBeUndefined()
   })
 
   it('rejects a snapshot with a malformed nested todo item', () => {

@@ -1,3 +1,5 @@
+import { enTests, zhTests } from './testsTranslations'
+
 export type Lang = 'zh' | 'en'
 
 // 嵌套字典；index.tsx 以点路径解析（nav.progress 等）。zh/en 键结构必须逐一对齐（completeness 测试守）。
@@ -9,6 +11,7 @@ export const zh: Dict = {
   // T18 孤儿键清理登记：app.subtitle 与 common.lang/theme_dark/theme_light/refresh/project/
   // phase/track/updated 全仓零消费（HEAD 存量孤儿），随本次修剪删除。
   app: { title: 'Pipeline 控制台' },
+  tests: zhTests,
   navigation: {
     breadcrumbs_label: '当前位置',
     home: '首页',
@@ -2432,6 +2435,7 @@ export const zh: Dict = {
 
 export const en: Dict = {
   app: { title: 'Pipeline Console' },
+  tests: enTests,
   navigation: {
     breadcrumbs_label: 'Breadcrumbs',
     home: 'Home',
