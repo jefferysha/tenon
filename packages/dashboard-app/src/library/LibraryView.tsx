@@ -15,8 +15,8 @@ import { NewTemplateDialog } from './NewTemplateDialog'
 import { ResourceCatalog } from './resources/ResourceCatalog'
 import { useResourceCatalog } from './resources/useResourceCatalog'
 import { rewriteTemplate, uniqueCopyId, uniqueCopyTitle } from './templateText'
-import { TestDirectionsPane } from './TestDirectionsPane'
-import { useTestDirections } from './useTestDirections'
+import { TestTemplatesPane } from './TestTemplatesPane'
+import { useTestTemplates } from './useTestTemplates'
 import { TemplateDetail } from './TemplateDetail'
 import { useTemplateLibrary } from './useTemplateLibrary'
 
@@ -35,7 +35,7 @@ function pickCategory(id: string): CategoryFilter {
 const refKey = (ref: TemplateRef): string => `${ref.source}/${ref.category}/${ref.id}`
 
 /**
- * 库：左列种类（模板 / 资源 / 测试方向 / agent）/ 中列列表 / 右列详情。四个子库同一套形态：
+ * 库：左列种类（模板 / 资源 / 测试模板 / agent）/ 中列列表 / 右列详情。四个子库同一套形态：
  * 中列 H1 + 「新建」、搜索框、单行列表（只有名称，自定义条目带标记）；左列每项都有计数。
  * 「复制为自定义」生成不重名的「… 副本」，选中它并直接进入编辑。
  */
@@ -52,13 +52,13 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
   const [source, setSource] = useState<SourceFilter>('all')
   const [search, setSearch] = useState('')
   const [agentSearch, setAgentSearch] = useState('')
-  const [directionSearch, setDirectionSearch] = useState('')
+  const [testTemplateSearch, setTestTemplateSearch] = useState('')
   /** 刚复制 / 新建出来、打开即进入编辑的条目（模板 refKey 或 agent 名）。 */
   const [editKey, setEditKey] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [agentDialog, setAgentDialog] = useState(false)
   const [section, setSection] = useState<LibrarySection>('templates')
-  const directions = useTestDirections()
+  const testTemplates = useTestTemplates()
   const agents = useAgentLibrary()
   const resources = useResourceCatalog()
 
@@ -103,27 +103,27 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
   }
 
   const agentRows = agents.agents.filter((agent) => matchesQuery(agentSearch, agent.name, agent.description))
-  const directionRows = directions.directions.filter((direction) => matchesQuery(directionSearch, direction.id, direction.label))
-  const directionLibrary = { ...directions, directions: directionRows }
-  // agent / 测试方向同样右列不留空：没选中、或选中项被删掉 / 被搜索筛掉时，打开当前列表第一行（列表先列执行者）。
+  const templateRows = testTemplates.templates.filter((template) => matchesQuery(testTemplateSearch, template.id, template.label))
+  const templateLibrary = { ...testTemplates, templates: templateRows }
+  // agent / 测试模板同样右列不留空：没选中、或选中项被删掉 / 被搜索筛掉时，打开当前列表第一行（列表先列执行者）。
   const firstAgent = agentRows.find((agent) => agentRole(agent) === 'executor') ?? agentRows[0]
   const agentShown = agents.selected !== null && agentRows.some((agent) => agent.name === agents.selected?.name)
   const agentIdle = section === 'agents' && !agents.loading && !agents.busy
   useEffect(() => {
     if (agentIdle && !agentShown && firstAgent !== undefined) agents.select(firstAgent.name)
   }, [agentIdle, agentShown, firstAgent, agents.select])
-  const firstDirection = directionRows[0]
-  const directionShown = directions.selected !== null && directionRows.some((direction) => direction.id === directions.selected?.id)
-  const directionIdle = section === 'directions' && !directions.loading && !directions.busy
+  const firstTemplate = templateRows[0]
+  const templateShown = testTemplates.selected !== null && templateRows.some((template) => template.id === testTemplates.selected?.id)
+  const templateIdle = section === 'test-templates' && !testTemplates.loading
   useEffect(() => {
-    if (directionIdle && !directionShown && firstDirection !== undefined) directions.select(firstDirection.id)
-  }, [directionIdle, directionShown, firstDirection, directions.select])
+    if (templateIdle && !templateShown && firstTemplate !== undefined) testTemplates.select(firstTemplate.id)
+  }, [templateIdle, templateShown, firstTemplate, testTemplates.select])
 
   const rail = (
     <LibraryRail
       section={section}
       templates={library.loading ? null : library.templates.length}
-      directions={directions.loading ? null : directions.directions.length}
+      testTemplates={testTemplates.loading ? null : testTemplates.templates.length}
       agents={agents.loading ? null : agents.agents.length}
       resources={resources.loading ? null : resources.list.entries.length}
       collapsed={railCollapsed}
@@ -188,24 +188,13 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
               />
             )}
           </ListColumn>
-        ) : section === 'directions' ? (
+        ) : section === 'test-templates' ? (
           <ListColumn
             testId="library-list"
-            title={t('library.test_directions')}
-            search={{ value: directionSearch, onChange: setDirectionSearch, placeholder: t('library.search_directions'), label: t('library.search_directions'), name: 'library-direction-search' }}
-            action={directions.loading ? undefined : (
-              <button
-                type="button"
-                className={BUTTON_GHOST}
-                data-testid="lib-dir-new"
-                disabled={!canWrite || directions.busy}
-                onClick={() => { void directions.create().then((ok) => { if (ok) onToast?.(t('common.done_saved')) }) }}
-              >
-                {t('library.direction_new')}
-              </button>
-            )}
+            title={t('library.test_templates')}
+            search={{ value: testTemplateSearch, onChange: setTestTemplateSearch, placeholder: t('library.search_test_templates'), label: t('library.search_test_templates'), name: 'library-test-template-search' }}
           >
-            <TestDirectionsPane slot="list" library={directionLibrary} canWrite={canWrite} onToast={onToast} />
+            <TestTemplatesPane slot="list" library={templateLibrary} />
           </ListColumn>
         ) : (
           <ListColumn
@@ -330,12 +319,12 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
               }}
             />
           )
-        ) : section === 'directions' ? (
-          directions.selected === null ? (
-            <DetailEmpty label={t('library.direction_empty_detail')} testId="lib-dir-empty" />
+        ) : section === 'test-templates' ? (
+          testTemplates.selected === null ? (
+            <DetailEmpty label={t('library.test_template_empty_detail')} testId="lib-tt-empty" />
           ) : (
-            <div className="min-h-0 overflow-y-auto px-10 pt-7 pb-8 max-[900px]:px-4" data-testid="library-direction-detail">
-              <TestDirectionsPane slot="detail" library={directions} canWrite={canWrite} onToast={onToast} />
+            <div className="min-h-0 overflow-y-auto px-10 pt-7 pb-8 max-[900px]:px-4" data-testid="library-test-template-detail">
+              <TestTemplatesPane slot="detail" library={testTemplates} />
             </div>
           )
         ) : library.selected === null || library.document === null ? (
