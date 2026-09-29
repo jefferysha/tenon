@@ -106,6 +106,23 @@ ROWS="$WORKDIR/rows.tsv"
 : > "$REPORT"
 : > "$ROWS"
 
+# default 工作流的验证步骤声明了必需测试 `tenon test code-size --json`。夹具项目不是有提交历史的 git 仓库，
+# 真探针读不到规模，PATH 上的 `tenon` 也可能只是安装引导脚本。与夹具的 npm 脚本同一口径（`exit 0`）：项目
+# 自己兑现声明的命令，这里兑现的是「规模在限额内」。桩放在 WORKDIR 下、不在任何夹具项目里，不会进入
+# 工作区候选指纹。真探针由 packages/cli 的 test-code-size 单测用真 git 仓库覆盖。
+PROBE_BIN="$WORKDIR/.probe-bin"
+mkdir -p "$PROBE_BIN"
+cat > "$PROBE_BIN/tenon" <<'STUB'
+#!/bin/sh
+if [ "$1" = "test" ] && [ "$2" = "code-size" ]; then
+  echo '{"files_changed":0,"lines_added":0,"lines_deleted":0,"largest_added_lines":0}'
+  exit 0
+fi
+echo "tenon oracle stub: unsupported command: $*" >&2
+exit 127
+STUB
+chmod +x "$PROBE_BIN/tenon"
+
 say() { printf '%s\n' "$*" | tee -a "$REPORT"; }
 # 行 = FIXTURE STEP COMMAND STDOUT EXIT YAML STDERR（四面：新增 STDERR，仅 transition 拒绝路径逐字比）
 row() { printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5" "$6" "$7" >> "$ROWS"; }
@@ -377,7 +394,7 @@ ORACLE_TENON_USER_NAME="oracle"
 
 run_new_cli() {
   local dir="$1"; shift
-  (cd "$dir" && TENON_RUNTIME_HOME="$MACHINE_HOME" \
+  (cd "$dir" && PATH="$PROBE_BIN:$PATH" TENON_RUNTIME_HOME="$MACHINE_HOME" \
     TENON_USER="$ORACLE_TENON_USER" TENON_USER_NAME="$ORACLE_TENON_USER_NAME" \
     "${NEW_CMD[@]}" "$@")
 }
