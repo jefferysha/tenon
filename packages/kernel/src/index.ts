@@ -163,7 +163,7 @@ export { WorkflowTrackBranchError, selectTrackBranch, validateWorkflow, validate
 export { projectWorkflowNames, requireTrackForRoot } from './workflow/branch-track-lookup.js'
 export { validateWorkflowTrackReferences } from './workflow/track-reference-validation.js'
 export type {
-  StepDef, StepTestDef, StepTestPassDef, StepTransition, TestInputDef, TestMetricCriterion,
+  StepDef, StepTestDef, StepTestPassDef, StepTestPolicyDef, StepTransition, TestInputDef, TestMetricCriterion,
   TestOutputDef, TestOutputKind, WorkflowActionConfig, WorkflowDecompositionAskCondition,
   WorkflowDecompositionAutoCondition, WorkflowDecompositionMode, WorkflowDecompositionPolicyV1,
   WorkflowDecompositionStrategy, WorkflowDecompositionTarget, WorkflowDef, WorkflowDocumentContractV1,
@@ -247,7 +247,8 @@ export {
   type WorkflowDocumentSlotIo, type WorkflowEffectiveIo, type WorkflowFieldSlotIo, type WorkflowIoSlot, type WorkflowStepIo,
 } from './workflow/effective-io.js'
 export type {
-  ActionInput, CompiledGuardConfig, GuardDecision, GuardInput, StepIR, StepTestIR, StepTransitionIR, WorkflowIR,
+  ActionInput, CompiledGuardConfig, GuardDecision, GuardInput, StepIR, StepTestIR, StepTestPolicyIR, StepTransitionIR,
+  WorkflowIR,
 } from './workflow/ir.js'
 export { readinessByTransition } from './workflow/transition-readiness.js'
 export type {

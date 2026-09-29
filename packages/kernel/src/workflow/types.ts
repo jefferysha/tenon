@@ -195,6 +195,40 @@ export interface StepTestDef {
   readonly outputs?: readonly TestOutputDef[]
 }
 
+/**
+ * 步骤测试策略（定义层）：离开本步骤前必须登记 / 必须在当前代码上跑过并通过的测试种类与门槛。
+ * 种类、范围等值域由 compileStepTestPolicy 校验（test-system/vocabulary.ts 闭集）；parse 只做语法层。
+ * 与旧 `tests[]` 可以并存：后者编译成 `step:` 前缀的内联套件，行为不变。
+ */
+export interface StepTestPolicyDef {
+  /** required（缺省）= 出口要求测试计划存在；optional 只能与不依赖计划的要求同用。 */
+  readonly plan?: 'required' | 'optional'
+  /** 必须登记：计划里有该种类的套件或已批准的豁免。 */
+  readonly kinds?: readonly string[]
+  /** 必须运行：本阶段在当前代码上跑过并通过。 */
+  readonly run?: readonly string[]
+  /** 有则跑：计划登记了该种类的套件时必须运行，没登记不算缺。 */
+  readonly run_if_registered?: readonly string[]
+  /** 运行范围下限：full 只认全量运行（缺省），changed 认任何范围。 */
+  readonly scope?: 'changed' | 'full'
+  /** registered = 出口要求 diff 里没有未登记的测试文件。 */
+  readonly files?: 'registered' | 'any'
+  /** required = 每个 OpenSpec 场景至少映射一个用例或已批准豁免；passing = 且映射用例本轮通过。 */
+  readonly scenarios?: 'off' | 'required' | 'passing'
+  readonly coverage?: {
+    readonly lines?: number
+    readonly branches?: number
+    readonly functions?: number
+    readonly statements?: number
+    readonly changed_lines?: number
+  }
+  readonly flaky?: { readonly max: number; readonly fail_on_new?: boolean }
+  /** require_baseline: true = 没有同机器画像的基线也挡；缺省只提示。 */
+  readonly benchmark?: { readonly require_baseline: boolean }
+  /** 必须出现在报告里的 Playwright project。 */
+  readonly browsers?: readonly string[]
+}
+
 /** 问题级别，由高到低 critical / high / medium / low；评审者的阻断级别取本闭集。 */
 export type AgentSeverity = 'critical' | 'high' | 'medium' | 'low'
 
@@ -250,6 +284,8 @@ export interface StepDef {
   readonly artifacts?: readonly WorkflowArtifactConfig[]
   /** 本步声明的测试项；缺省 = 无测试（编译后不出现 tests 键，指纹逐字不变）。 */
   readonly tests?: readonly StepTestDef[]
+  /** 本步的测试策略；缺省 = 无策略（编译后不出现 test_policy 键，指纹逐字不变）。 */
+  readonly test_policy?: StepTestPolicyDef
   /** 本步的执行者与评审者；两个列表都空时等同缺省。 */
   readonly agents?: StepAgentsDef
   readonly guards: readonly WorkflowGuardConfig[]

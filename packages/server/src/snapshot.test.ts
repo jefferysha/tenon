@@ -1908,7 +1908,7 @@ steps:
       // Historical bytes also predate step prompts (the frontend branch gained them with DESIGN.md).
       steps: legacyBase.steps.map((step) => {
         // Historical bytes also predate step tests (2026-09 per-step test evidence) and step prompts.
-        const { tests: _tests, prompt: _prompt, agents: _agents, ...legacyStep } = step
+        const { tests: _tests, test_policy: _testPolicy, prompt: _prompt, agents: _agents, ...legacyStep } = step
         return {
           ...legacyStep,
           // The last step was labelled 归档 before the 完结 wording.

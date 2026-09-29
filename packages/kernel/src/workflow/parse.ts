@@ -7,7 +7,7 @@
 import { GUARD_DATA_KEYS } from './types.js'
 import type {
   FieldRef, GateKind, SkillRef, StepDef, StepTransition,
-  StepAgentsDef, StepTestDef, WorkflowActionConfig, WorkflowArtifactConfig, WorkflowConditional, WorkflowDef,
+  StepAgentsDef, StepTestDef, StepTestPolicyDef, WorkflowActionConfig, WorkflowArtifactConfig, WorkflowConditional, WorkflowDef,
   WorkflowDocumentContractV1, WorkflowGuardConfig, TrackBranchDef,
 } from './types.js'
 import type { FieldName } from '../types.js'
@@ -17,6 +17,7 @@ import { parseDecompositionPolicy, parseInteractionPolicy } from './parse-policy
 import { parseSkillRefs } from './parse-skill-refs.js'
 import { parseStepAgents } from './parse-agents.js'
 import { parseStepTests } from './parse-tests.js'
+import { parseInlineTestPolicy, parseStepTestPolicy } from './parse-test-policy.js'
 import { indentOf, parseInlineList, parsePromptBlock, parseFieldRefBlock, parseWhenBlock } from './parse-primitives.js'
 import { parseArtifactsBlock } from './parse-artifacts.js'
 import { REMOVED_KEY_ERROR } from './removed-keys.js'
@@ -199,6 +200,7 @@ function parseStep(cur: Cursor): StepDef {
   let outputs: FieldRef[] = []
   let artifacts: WorkflowArtifactConfig[] | undefined
   let tests: StepTestDef[] | undefined
+  let testPolicy: StepTestPolicyDef | undefined
   let agents: StepAgentsDef | undefined
   let guards: WorkflowGuardConfig[] = []
   let transitions: StepTransition[] = []
@@ -236,6 +238,16 @@ function parseStep(cur: Cursor): StepDef {
     if (/^\s*artifacts:\s*$/.test(line)) { cur.i++; artifacts = parseArtifactsBlock(cur, baseIndent); continue }
     if (/^\s*tests:\s*\[\]\s*$/.test(line)) { tests = []; cur.i++; continue }
     if (/^\s*tests:\s*$/.test(line)) { cur.i++; tests = parseStepTests(cur, baseIndent); continue }
+    const policyLine = /^\s*test_policy:\s*(.*?)\s*$/.exec(line)
+    if (policyLine) {
+      if (testPolicy !== undefined) throw new Error(`workflow 解析错误：step '${id}' 重复声明 test_policy`)
+      const keyIndent = indentOf(line)
+      cur.i++
+      testPolicy = (policyLine[1] ?? '') === ''
+        ? parseStepTestPolicy(cur, keyIndent, id)
+        : parseInlineTestPolicy(policyLine[1] ?? '', id)
+      continue
+    }
     if (/^\s*agents:\s*$/.test(line)) {
       if (agents !== undefined) throw new Error(`workflow 解析错误：step '${id}' 重复声明 agents`)
       const keyIndent = indentOf(line)
@@ -255,6 +267,7 @@ function parseStep(cur: Cursor): StepDef {
     ...(prompt !== undefined ? { prompt } : {}),
     ...(artifacts !== undefined ? { artifacts } : {}),
     ...(tests !== undefined ? { tests } : {}),
+    ...(testPolicy !== undefined ? { test_policy: testPolicy } : {}),
     ...(agents !== undefined ? { agents } : {}),
   }
 }

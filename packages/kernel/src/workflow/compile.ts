@@ -12,6 +12,7 @@ import { compileGuards, compileStepGuards } from './compile-guards.js'
 import { compileArtifacts } from './compile-artifacts.js'
 import { compileStepAgents } from './compile-agents.js'
 import { compileStepTests } from './compile-tests.js'
+import { compileStepTestPolicy } from './compile-test-policy.js'
 import { isDefaultWorkflowName } from './identifier.js'
 import {
   compileWorkflowDecompositionPolicy,
@@ -47,7 +48,7 @@ const WORKFLOW_KEYS: ReadonlySet<string> = new Set([
   'name', 'decomposition', 'interaction', 'openspec', 'documentContract', 'steps', 'tracks',
 ])
 const STEP_KEYS: ReadonlySet<string> = new Set([
-  'id', 'label', 'gate', 'prompt', 'skills', 'inputs', 'outputs', 'artifacts', 'tests',
+  'id', 'label', 'gate', 'prompt', 'skills', 'inputs', 'outputs', 'artifacts', 'tests', 'test_policy',
   'agents', 'guards', 'transitions',
 ])
 const SKILL_KEYS: ReadonlySet<string> = new Set(['id', 'depends_on'])
@@ -200,6 +201,8 @@ function compileStep(step: unknown, index: number, allowedPolicies: ReadonlySet<
   const artifacts = compileArtifacts(rec.artifacts, `${path}.artifacts`, outputs, `${path}.outputs`, allowedPolicies)
   // 空数组与缺省同归一为「无 tests 键」：未声明测试的工作流编译成与本特性之前逐字相同的 IR，指纹不变。
   const tests = compileStepTests(rec.tests, `${path}.tests`)
+  // 同 tests：只在声明时进 IR，未声明策略的工作流指纹逐字不变。
+  const testPolicy = compileStepTestPolicy(rec.test_policy, `${path}.test_policy`)
   // 同 tests：两个身份列表都空归一为「无 agents 键」，未声明 agent 的工作流指纹逐字不变。
   const agents = compileStepAgents(rec.agents, `${path}.agents`)
   // gate=auto：自动评审 = 本阶段声明的全部输出齐全即放行——编译成每条出边上的 nonempty-output
@@ -224,6 +227,7 @@ function compileStep(step: unknown, index: number, allowedPolicies: ReadonlySet<
     ...(prompt === undefined ? {} : { prompt }),
     skills, inputs, outputs, guards, artifacts,
     ...(tests === undefined ? {} : { tests }),
+    ...(testPolicy === undefined ? {} : { test_policy: testPolicy }),
     ...(agents === undefined ? {} : { agents }),
     transitions,
   }
