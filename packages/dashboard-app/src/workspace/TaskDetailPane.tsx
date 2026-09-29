@@ -10,7 +10,10 @@ import { DocumentDrawer } from './DocumentDrawer'
 import { StageAgentsPanel } from './StageAgentsPanel'
 import { StageIoPanel } from './StageIoPanel'
 import { StageTestsPanel } from './StageTestsPanel'
+import { SuiteRunDrawer } from './SuiteRunDrawer'
+import { TaskTestsTab } from './TaskTestsTab'
 import { TestRunDrawer } from './TestRunDrawer'
+import { tabCount } from './testsTabModel'
 import { stageTestCount, stageTestRows } from './stageTests'
 import { StageRail } from './StageRail'
 import { fallbackStepIo, gateProgress, isReadyRow, readableFiles, skillsFromRuns, stageInputs, stageOutputs } from './stageIo'
@@ -79,13 +82,17 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
   const files = useMemo(() => readableFiles([...outputs, ...inputs]), [outputs, inputs])
   const [openIndex, setOpenIndex] = useState<number | null>(null)
   const testRows = useMemo(() => stageTestRows(change, selectedStep), [change, selectedStep])
+  const policyReport = change.testPolicy?.find((report) => report.stepId === selectedStep)
+  const hasTestsTab = policyReport !== undefined || testRows.length > 0
   const [openTest, setOpenTest] = useState<string | null>(null)
+  const [openSuite, setOpenSuite] = useState<string | null>(null)
   const [sheet, setSheet] = useState<'inputs' | 'outputs' | 'tests'>('outputs')
   const stepAgents = change.agentRuns?.find((step) => step.stepId === selectedStep)?.agents ?? []
   const [openAgent, setOpenAgent] = useState<string | null>(null)
-  useEffect(() => { setOpenIndex(null); setOpenTest(null); setOpenAgent(null) }, [identity, selectedStep])
-  useEffect(() => { if (sheet === 'tests' && testRows.length === 0) setSheet('outputs') }, [sheet, testRows.length])
+  useEffect(() => { setOpenIndex(null); setOpenTest(null); setOpenSuite(null); setOpenAgent(null) }, [identity, selectedStep])
+  useEffect(() => { if (sheet === 'tests' && !hasTestsTab) setSheet('outputs') }, [sheet, hasTestsTab])
   const activePath = openIndex === null ? null : files[openIndex]?.path ?? null
+  const openedSuite = openSuite === null ? undefined : policyReport?.suites.find((suite) => suite.suite === openSuite)
   const readyOutputs = outputs.filter(isReadyRow).length
   const reviewSatisfied = row.stages.find((stage) => stage.id === selectedStep)?.status === 'done'
     || (change.phase === selectedStep && change.reviewHandshake?.status === 'approved')
@@ -144,15 +151,15 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
             <span className="font-mono text-text-3">· {progress.done}/{progress.total}</span>
           </p>
         )}
-        {(inputs.length > 0 || outputs.length > 0 || testRows.length > 0) && (
+        {(inputs.length > 0 || outputs.length > 0 || hasTestsTab) && (
           <div className="grid gap-4" data-testid="stage-io">
             <SheetTabs
               sheets={[
                 { id: 'inputs', label: t('workspace.inputs'), count: inputs.length },
                 { id: 'outputs', label: t('workspace.outputs'), count: `${readyOutputs}/${outputs.length}` },
-                ...(testRows.length === 0
+                ...(!hasTestsTab
                   ? []
-                  : [{ id: 'tests' as const, label: t('workspace.tests'), count: stageTestCount(testRows) }]),
+                  : [{ id: 'tests' as const, label: t('workspace.tests'), count: policyReport === undefined ? stageTestCount(testRows) : tabCount(policyReport) }]),
               ]}
               active={sheet}
               onChange={setSheet}
@@ -160,7 +167,19 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
               idPrefix="task-io"
             />
             {sheet === 'tests' ? (
-              <StageTestsPanel rows={testRows} activeId={openTest} onOpen={setOpenTest} />
+              policyReport === undefined
+                ? <StageTestsPanel rows={testRows} activeId={openTest} onOpen={setOpenTest} />
+                : (
+                  <TaskTestsTab
+                    report={policyReport}
+                    plan={change.testPlan}
+                    legacyRows={testRows}
+                    activeSuite={openSuite ?? (openTest === null ? null : `step:${openTest}`)}
+                    onOpenSuite={(suite) => {
+                      if (suite.startsWith('step:')) { setOpenSuite(null); setOpenTest(suite.slice('step:'.length)) } else { setOpenTest(null); setOpenSuite(suite) }
+                    }}
+                  />
+                )
             ) : (
               <StageIoPanel
                 direction={sheet}
@@ -179,6 +198,16 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
         root={root}
         agent={stepAgents.find((agent) => agent.agent === openAgent) ?? null}
         onClose={() => setOpenAgent(null)}
+      />
+      <SuiteRunDrawer
+        root={root}
+        change={change.name}
+        target={openedSuite === undefined || openedSuite.runId === undefined || change.testUser === undefined
+          ? null
+          : { user: change.testUser, runId: openedSuite.runId, suite: openedSuite.suite }}
+        verdict={openedSuite}
+        policy={policyReport?.policy}
+        onClose={() => setOpenSuite(null)}
       />
       <TestRunDrawer
         root={root}
