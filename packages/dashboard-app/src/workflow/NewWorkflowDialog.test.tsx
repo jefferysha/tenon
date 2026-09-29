@@ -1,10 +1,10 @@
 import { useEffect } from 'react'
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WbStepDef, WbWorkflowDef } from '../api/governanceTypes'
 import { I18nProvider } from '../i18n'
-import { suggestedName, trackPreviews, useWorkflowCreate, workflowNameError, type CreateState } from '../workbench/useWorkflowCreate'
+import { IMPORT_SOURCE, suggestedName, trackPreviews, useWorkflowCreate, workflowNameError, type CreateState } from '../workbench/useWorkflowCreate'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { NewWorkflowDialog } from './NewWorkflowDialog'
 
@@ -33,11 +33,41 @@ const MULTI: WbWorkflowDef = {
   },
 }
 
-interface Posted { url: string; body: Record<string, unknown> }
+const STEP = (id: string, label: string, transitions = 'transitions: []'): string => `      - id: ${id}
+        label: ${label}
+        gate: null
+        skills: []
+        inputs: []
+        outputs: []
+        guards: []
+        ${transitions}`
 
-function stubApi(options: { post?: (url: string) => Response } = {}): Posted[] {
-  const posted: Posted[] = []
+const IMPORT_YAML = `name: shared-flow
+tracks:
+  alpha:
+    label: 甲
+    steps:
+${STEP('a1', '起草')}
+${STEP('a2', '交付')}
+  beta:
+    steps:
+${STEP('b1', '单步')}
+`
+const IMPORT_SINGLE = `name: solo
+steps:
+${STEP('only', '唯一').replace(/^ {4}/gm, '')}
+`
+
+interface Posted { url: string; body: Record<string, unknown> }
+interface Put { url: string; text: string; type: string | null }
+
+function stubApi(options: { post?: (url: string) => Response; put?: (url: string) => Response } = {}): Posted[] & { puts: Put[] } {
+  const posted = Object.assign([] as Posted[], { puts: [] as Put[] })
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+    if (init?.method === 'PUT') {
+      posted.puts.push({ url, text: String(init.body), type: new Headers(init.headers).get('Content-Type') })
+      return options.put?.(url) ?? new Response(JSON.stringify({ ok: true, name: decodeURIComponent(/workflows\/([^/?]+)\/yaml/u.exec(url)?.[1] ?? '') }), { status: 200 })
+    }
     if (init?.method === 'POST') {
       posted.push({ url, body: JSON.parse(String(init.body)) as Record<string, unknown> })
       return options.post?.(url) ?? new Response(JSON.stringify({ ok: true }), { status: 200 })
@@ -83,7 +113,7 @@ describe('新建工作流：起点 · 名称 · OpenSpec · 预览', () => {
     stubApi()
     renderDialog()
     const sources = within(screen.getByTestId('wb-workflow-sources')).getAllByRole('radio')
-    expect(sources.map((item) => item.textContent)).toEqual(['空白', 'default', 'simple', 'flow'])
+    expect(sources.map((item) => item.textContent)).toEqual(['空白', '导入 YAML', 'default', 'simple', 'flow'])
     expect(screen.getByTestId('wb-workflow-source-default')).toHaveAttribute('aria-checked', 'true')
     await waitFor(() => expect(stages()).toEqual(['1立项', '2实现', '3交付']))
     expect(screen.getByTestId('wb-workflow-preview-count')).toHaveTextContent('3')
@@ -312,9 +342,168 @@ describe('新建工作流：预览同时列出轨道', () => {
   })
 })
 
+const yamlBox = (): HTMLTextAreaElement => screen.getByTestId('wb-workflow-yaml') as HTMLTextAreaElement
+
+/** 直接设值（user.type 会把 { 当作键盘描述符），再触发 React 的 onChange。 */
+function paste(text: string): void {
+  fireEvent.change(yamlBox(), { target: { value: text } })
+}
+
+describe('新建工作流：导入 YAML 起点', () => {
+  it('选「导入 YAML」：左栏出现 YAML 输入与选择文件、OpenSpec 开关让位；名称不预填，预览为空，不能提交', async () => {
+    const user = userEvent.setup()
+    stubApi()
+    renderDialog()
+    await waitFor(() => expect(stages()).toHaveLength(3))
+    expect(screen.getByRole('switch', { name: 'OpenSpec' })).toBeInTheDocument()
+    await user.click(screen.getByTestId('wb-workflow-source-import'))
+    expect(screen.getByTestId('wb-workflow-source-import')).toHaveAttribute('aria-checked', 'true')
+    expect(yamlBox()).toHaveValue('')
+    expect(yamlBox()).toHaveAttribute('wrap', 'off')
+    expect(screen.getByTestId('wb-workflow-yaml-pick')).toHaveTextContent('选择文件')
+    expect(screen.queryByRole('switch', { name: 'OpenSpec' })).toBeNull()
+    expect(screen.getByTestId('wb-workflow-name')).toHaveValue('')
+    expect(screen.queryByTestId('wb-workflow-preview-tracks')).toBeNull()
+    expect(screen.queryAllByRole('listitem')).toHaveLength(0)
+    expect(screen.getByTestId('wb-workflow-create-submit')).toBeDisabled()
+    expect(screen.queryByTestId('wb-workflow-yaml-field-error')).toBeNull()
+    await user.click(screen.getByTestId('wb-workflow-source-default'))
+    expect(screen.queryByTestId('wb-workflow-yaml')).toBeNull()
+    expect(screen.getByRole('switch', { name: 'OpenSpec' })).toBeInTheDocument()
+  })
+
+  it('粘贴 YAML：右栏列出解析出的轨道与阶段，名称预填 YAML 里的 name；点轨道看它的阶段', async () => {
+    const user = userEvent.setup()
+    stubApi()
+    renderDialog()
+    await user.click(screen.getByTestId('wb-workflow-source-import'))
+    paste(IMPORT_YAML)
+    expect(screen.getByTestId('wb-workflow-name')).toHaveValue('shared-flow')
+    expect(trackRows().map((row) => row.textContent)).toEqual(['甲2', 'beta1'])
+    expect(stages()).toEqual(['1起草', '2交付'])
+    await user.click(screen.getByTestId('wb-workflow-preview-track-beta'))
+    expect(stages()).toEqual(['1单步'])
+    expect(screen.queryByTestId('wb-workflow-yaml-field-error')).toBeNull()
+    expect(screen.getByTestId('wb-workflow-create-submit')).toBeEnabled()
+  })
+
+  it('没有轨道的 YAML 只有阶段列表；用户改过名字后再粘贴不覆盖', async () => {
+    const user = userEvent.setup()
+    stubApi()
+    renderDialog()
+    await user.click(screen.getByTestId('wb-workflow-source-import'))
+    const name = screen.getByTestId('wb-workflow-name')
+    await user.type(name, 'mine')
+    paste(IMPORT_SINGLE)
+    expect(stages()).toEqual(['1唯一'])
+    expect(screen.queryByTestId('wb-workflow-preview-tracks')).toBeNull()
+    expect(name).toHaveValue('mine')
+  })
+
+  it('语法错误即时显示在输入框下方（单行截断带原文），预览为空、不能提交；改对后消失', async () => {
+    const user = userEvent.setup()
+    stubApi()
+    renderDialog()
+    await user.click(screen.getByTestId('wb-workflow-source-import'))
+    paste('steps:\n  - id: x\n')
+    const error = screen.getByTestId('wb-workflow-yaml-field-error')
+    expect(error).toHaveTextContent('第一行必须是 \'name: <name>\'')
+    expect(error.className).toContain('truncate')
+    expect(error).toHaveAttribute('title', error.textContent ?? '')
+    expect(yamlBox()).toHaveAttribute('aria-invalid', 'true')
+    expect(yamlBox()).toHaveAttribute('aria-describedby', 'wb-workflow-yaml-error')
+    expect(screen.queryAllByRole('listitem')).toHaveLength(0)
+    await user.type(screen.getByTestId('wb-workflow-name'), 'x')
+    expect(screen.getByTestId('wb-workflow-create-submit')).toBeDisabled()
+    paste(IMPORT_SINGLE)
+    expect(screen.queryByTestId('wb-workflow-yaml-field-error')).toBeNull()
+    expect(yamlBox()).toHaveAttribute('aria-invalid', 'false')
+    expect(screen.getByTestId('wb-workflow-create-submit')).toBeEnabled()
+  })
+
+  it('选 .yaml 文件等同于粘贴', async () => {
+    const user = userEvent.setup()
+    stubApi()
+    renderDialog()
+    await user.click(screen.getByTestId('wb-workflow-source-import'))
+    const input = screen.getByTestId('wb-workflow-yaml-file')
+    expect(input).toHaveAttribute('accept', '.yaml,.yml,text/yaml')
+    await user.upload(input, new File([IMPORT_YAML], 'flow.yaml', { type: 'text/yaml' }))
+    await waitFor(() => expect(yamlBox()).toHaveValue(IMPORT_YAML))
+    expect(screen.getByTestId('wb-workflow-name')).toHaveValue('shared-flow')
+    expect(trackRows()).toHaveLength(2)
+  })
+
+  it('提交：PUT 原文到 /api/workflows/<名称>/yaml（text/yaml，第一行 name 改成对话框里的名称），成功后关闭并回调；不走 POST', async () => {
+    const user = userEvent.setup()
+    const api = stubApi()
+    const onCreated = vi.fn()
+    renderDialog({ onCreated })
+    await user.click(screen.getByTestId('wb-workflow-source-import'))
+    paste(IMPORT_YAML)
+    const name = screen.getByTestId('wb-workflow-name')
+    await user.clear(name)
+    await user.type(name, 'renamed')
+    await user.click(screen.getByTestId('wb-workflow-create-submit'))
+    await waitFor(() => expect(onCreated).toHaveBeenCalledWith('/repo', 'renamed'))
+    expect(api).toHaveLength(0)
+    expect(api.puts).toHaveLength(1)
+    expect(api.puts[0]?.url).toBe('/api/workflows/renamed/yaml?root=%2Frepo')
+    expect(api.puts[0]?.type).toBe('text/yaml; charset=utf-8')
+    expect(api.puts[0]?.text).toBe(IMPORT_YAML.replace('name: shared-flow', 'name: renamed'))
+    expect(screen.queryByTestId('wb-workflow-create')).toBeNull()
+  })
+
+  it('服务端校验不过：错误列表显示在按钮旁，对话框与输入保持不变', async () => {
+    const user = userEvent.setup()
+    stubApi({ put: () => new Response(JSON.stringify({ ok: false, errors: ['skills[0] 不存在', 'agent x 不在库里'] }), { status: 400 }) })
+    renderDialog()
+    await user.click(screen.getByTestId('wb-workflow-source-import'))
+    paste(IMPORT_SINGLE)
+    await user.click(screen.getByTestId('wb-workflow-create-submit'))
+    const errors = await screen.findByTestId('wb-workflow-create-errors')
+    expect(errors).toHaveTextContent('skills[0] 不存在')
+    expect(errors).toHaveTextContent('agent x 不在库里')
+    expect(screen.getByTestId('wb-workflow-create')).toBeInTheDocument()
+    expect(yamlBox()).toHaveValue(IMPORT_SINGLE)
+    expect(screen.getByTestId('wb-workflow-name')).toHaveValue('solo')
+  })
+
+  it('YAML 里的名字与已有工作流重名：名称字段报重名，改名后才能提交；输入过 YAML 后 Esc 先确认', async () => {
+    const user = userEvent.setup()
+    stubApi()
+    renderDialog({ names: ['flow', 'shared-flow'] })
+    await user.click(screen.getByTestId('wb-workflow-source-import'))
+    paste(IMPORT_YAML)
+    expect(screen.getByTestId('wb-workflow-name-field-error')).toHaveTextContent('名称已存在')
+    expect(screen.getByTestId('wb-workflow-create-submit')).toBeDisabled()
+    const name = screen.getByTestId('wb-workflow-name')
+    await user.clear(name)
+    await user.type(name, 'fresh')
+    expect(screen.getByTestId('wb-workflow-create-submit')).toBeEnabled()
+    await user.keyboard('{Escape}')
+    expect(await screen.findByTestId('wb-workflow-create-discard')).toBeInTheDocument()
+  })
+
+  it('重新打开对话框：导入输入清空', async () => {
+    const user = userEvent.setup()
+    stubApi()
+    let latest: CreateState | null = null
+    renderDialog({ expose: (create) => { latest = create } })
+    await user.click(screen.getByTestId('wb-workflow-source-import'))
+    paste(IMPORT_SINGLE)
+    act(() => { (latest as CreateState | null)?.close() })
+    expect(screen.queryByTestId('wb-workflow-create')).toBeNull()
+    act(() => { (latest as CreateState | null)?.openCreate(IMPORT_SOURCE) })
+    expect(yamlBox()).toHaveValue('')
+    expect(screen.getByTestId('wb-workflow-name')).toHaveValue('')
+  })
+})
+
 describe('纯函数', () => {
-  it('suggestedName：空白不预填；占用则递增后缀', () => {
+  it('suggestedName：空白与导入不预填；占用则递增后缀', () => {
     expect(suggestedName(null, new Set())).toBe('')
+    expect(suggestedName(IMPORT_SOURCE, new Set())).toBe('')
     expect(suggestedName('default', new Set(['default-copy']))).toBe('default-copy-2')
   })
 

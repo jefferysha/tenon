@@ -26,8 +26,17 @@ export interface EditorGenerations {
   names: number
 }
 
-/** 起点：null = 空白；否则复制这个工作流（内建 default / simple，或项目里已有的）。 */
+/** 起点：null = 空白；`IMPORT_SOURCE` = 导入 YAML；否则复制这个工作流（内建 default / simple，或项目里已有的）。 */
 export type CreateSource = string | null
+
+/** 预览只读的那部分定义：读接口的 `WbWorkflowDef` 与导入框里解析出的定义都满足它。 */
+export interface PreviewSource {
+  readonly steps: readonly { readonly id: string; readonly label: string }[]
+  readonly tracks?: Readonly<Record<string, {
+    readonly label?: string
+    readonly steps: readonly { readonly id: string; readonly label: string }[]
+  }>>
+}
 
 /** 预览里的一条轨道：名称（有 label 用 label，否则 id）与它的阶段名。 */
 export interface CreatePreviewTrack {
@@ -52,6 +61,11 @@ export interface CreateState {
   setSource: (source: CreateSource) => void
   name: string
   setName: (name: string) => void
+  /** 导入 YAML 起点的输入；名称没被用户改过时随 YAML 里的 `name:`。 */
+  yaml: string
+  setYaml: (text: string) => void
+  /** 导入框的即时语法错误（内核解析器原文）；空或通过为 null。 */
+  yamlError: string | null
   /** 新工作流是否接入 OpenSpec：缺省随起点（空白为关），用户拨过之后保持用户的选择。 */
   openspec: boolean
   setOpenspec: (on: boolean) => void

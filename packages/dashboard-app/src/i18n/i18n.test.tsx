@@ -47,6 +47,8 @@ describe('i18n completeness（zh / en 键结构逐一对齐）', () => {
       'workbench.lp_scope_placeholder',
       'workbench.afk_rd_docker',
       'progress.act_fail_http',
+      'workflow.create_yaml',
+      'workflow.create_yaml_placeholder',
       'workflow.openspec',
       // 纯占位符行（阶段 · 时间 · 归档人），两种语言逐字相同。
       'workspace.archived_meta',
