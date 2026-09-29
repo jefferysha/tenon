@@ -5689,7 +5689,7 @@ function definitelyCompletedStageIds(stages, currentStage) {
 function normalized(value) {
   return value.trim().replace(/^\d+\s*[.)、:：-]\s*/, "").replace(/^phase\s+/i, "").toLocaleLowerCase();
 }
-function stageForHeading(heading, stages) {
+function stageIdForHeading(heading, stages) {
   const candidate2 = normalized(heading);
   for (const stage of stages) {
     const id2 = normalized(stage.id);
@@ -5714,7 +5714,7 @@ function parseTasks(markdown, currentStage, stages, trustedCanonicalProjection =
     if (heading) {
       if (trustedCanonicalProjection && /\s+<!-- task-group:[^>]+ -->\s*$/u.test(heading[1] ?? ""))
         continue;
-      const headingStage = stageForHeading(heading[1] ?? "", stages);
+      const headingStage = stageIdForHeading(heading[1] ?? "", stages);
       if (headingStage !== void 0) {
         target = headingStage;
         structured = true;
@@ -15232,6 +15232,15 @@ function localePatterns(locale) {
   ];
 }
 var PATTERNS = DOCUMENT_LOCALES.flatMap((locale) => localePatterns(locale));
+function findDocumentPlaceholders(content) {
+  const found = [];
+  const lines2 = content.split("\n");
+  for (const [index, text10] of lines2.entries()) {
+    if (PATTERNS.some((pattern) => pattern.test(text10)))
+      found.push({ line: index + 1, text: text10.trim() });
+  }
+  return found;
+}
 
 // packages/kernel/dist/state/default-openspec-scaffold.js
 function defaultOpenSpecScaffoldFiles(change, locale = "zh-CN", workflowSteps, workflowStepLabelSource = "localized-builtin") {
@@ -22517,8 +22526,8 @@ function evaluateTrace(context) {
   const blockers = [];
   const requirement2 = context.policy.scenarios;
   const sources = [
-    ...context.scenarios.map((scenario) => ({ covers: scenario.covers, kind: "spec", title: `${scenario.capability} \xB7 ${scenario.title}` })),
-    ...context.tasks.map((task) => ({ covers: task.covers, kind: "task", title: task.text }))
+    ...context.scenarios.map((scenario) => ({ covers: scenario.covers, kind: "spec", title: `${scenario.capability} \xB7 ${scenario.title}`, required: true })),
+    ...context.tasks.map((task) => ({ covers: task.covers, kind: "task", title: task.text, required: task.required }))
   ];
   for (const source2 of sources) {
     const tests = (mapping.get(source2.covers) ?? []).map((test) => traceTest(test, context.fresh));
@@ -22529,24 +22538,26 @@ function evaluateTrace(context) {
       covers: source2.covers,
       kind: source2.kind,
       title: source2.title,
+      required: source2.required,
       tests,
       ...waiver === void 0 ? {} : { waiver: { approved, reason: waiver.reason } },
       state
     });
-    if (source2.kind !== "spec" || requirement2 === "off" || approved)
+    if (!source2.required || requirement2 === "off" || approved)
       continue;
+    const noun = source2.kind === "spec" ? "\u573A\u666F" : "\u4EFB\u52A1";
     const register = `tenon test register ${context.change} --case ${shellQuote(source2.covers)} --test ${shellQuote("<\u6587\u4EF6> \u203A <\u7528\u4F8B\u540D>")}`;
     if (tests.length === 0) {
       if (waiver !== void 0) {
-        blockers.push(testBlocker("waiver-unapproved", `\u573A\u666F ${source2.title} \u7684\u8C41\u514D\u5C1A\u672A\u7ECF\u8BC4\u5BA1\u6279\u51C6`, { fix: context.reviewFix, subject: source2.covers }));
+        blockers.push(testBlocker("waiver-unapproved", `${noun} ${source2.title} \u7684\u8C41\u514D\u5C1A\u672A\u7ECF\u8BC4\u5BA1\u6279\u51C6`, { fix: context.reviewFix, subject: source2.covers }));
       } else {
-        blockers.push(testBlocker("scenario-uncovered", `\u573A\u666F ${source2.title} \u6CA1\u6709\u6620\u5C04\u4EFB\u4F55\u7528\u4F8B`, { fix: register, subject: source2.covers }));
+        blockers.push(testBlocker("scenario-uncovered", `${noun} ${source2.title} \u6CA1\u6709\u6620\u5C04\u4EFB\u4F55\u7528\u4F8B`, { fix: register, subject: source2.covers }));
       }
       continue;
     }
     if (requirement2 === "passing" && state !== "passing") {
       const detail = state === "failing" ? "\u6620\u5C04\u7684\u7528\u4F8B\u6709\u5931\u8D25" : "\u6620\u5C04\u7684\u7528\u4F8B\u672C\u8F6E\u6CA1\u6709\u901A\u8FC7\u7684\u7ED3\u679C";
-      blockers.push(testBlocker("scenario-failing", `\u573A\u666F ${source2.title}\uFF1A${detail}`, {
+      blockers.push(testBlocker("scenario-failing", `${noun} ${source2.title}\uFF1A${detail}`, {
         fix: `tenon test run ${context.change} --stage`,
         subject: source2.covers
       }));
@@ -23276,6 +23287,7 @@ async function readTestBaselineV2(path14) {
 }
 
 // packages/kernel/dist/test-system/openspec-trace.js
+var TRACE_TASK_STAGE = "build";
 function stripFences(lines2) {
   let fence;
   return lines2.map((line) => {
@@ -23321,18 +23333,29 @@ function extractScenarios(capability, markdown) {
   });
   return out;
 }
-function extractTaskItems(markdown) {
-  const out = [];
+function extractTaskItems(markdown, stages = DEFAULT_WORKFLOW_TODO_STAGES) {
+  const found = [];
   const seen = /* @__PURE__ */ new Set();
   let section2 = 0;
   let inSection = 0;
-  stripFences(markdown.split("\n")).forEach((raw, index) => {
+  let stage = null;
+  let structured = false;
+  const lines2 = markdown.split("\n");
+  stripFences(lines2).forEach((raw, index) => {
     if (raw === void 0)
       return;
     const line = raw.replace(/\r$/, "");
     if (/^##\s+/.test(line)) {
       section2++;
       inSection = 0;
+    }
+    const heading = /^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/.exec(line)?.[1];
+    if (heading !== void 0) {
+      const recognised = /<!-- task-group:[^>]+ -->\s*$/u.test(heading) ? void 0 : stageIdForHeading(heading, stages);
+      if (recognised !== void 0) {
+        stage = recognised;
+        structured = true;
+      }
       return;
     }
     const item2 = /^\s*[-*]\s+\[([ xX])\]\s+(.*?)\s*$/.exec(line);
@@ -23345,9 +23368,15 @@ function extractTaskItems(markdown) {
     if (seen.has(id2))
       return;
     seen.add(id2);
-    out.push({ id: id2, text: numbered?.[2] ?? body2, done: item2[1] !== " ", line: index + 1, covers: taskCoversKey(id2) });
+    found.push({
+      item: { id: id2, text: numbered?.[2] ?? body2, done: item2[1] !== " ", line: index + 1, covers: taskCoversKey(id2), stage },
+      placeholder: findDocumentPlaceholders(line).length > 0
+    });
   });
-  return out;
+  return found.map(({ item: item2, placeholder }) => {
+    const owner = structured ? item2.stage : TRACE_TASK_STAGE;
+    return { ...item2, stage: owner, required: !placeholder && owner === TRACE_TASK_STAGE };
+  });
 }
 
 // packages/kernel/dist/test-system/plan-ledger.js
@@ -23968,9 +23997,9 @@ async function loadDeltaScenarios(changeDir2) {
   }
   return out;
 }
-async function loadTaskItems(changeDir2) {
+async function loadTaskItems(changeDir2, stages) {
   const text10 = await readBounded(join39(changeDir2, "tasks.md"));
-  return text10 === void 0 ? [] : extractTaskItems(text10);
+  return text10 === void 0 ? [] : extractTaskItems(text10, stages);
 }
 async function loadBaselines(repoRoot, catalog2, chain) {
   const out = /* @__PURE__ */ new Map();
@@ -23999,7 +24028,7 @@ async function evaluateStepTestPolicy(input2) {
     readRecordChain(input2.repoRoot, input2.slug, input2.changeName),
     loadKnownFailures(input2.repoRoot),
     loadDeltaScenarios(input2.changeDir),
-    loadTaskItems(input2.changeDir)
+    loadTaskItems(input2.changeDir, input2.stages)
   ]);
   const planInput = plan.state === "ok" ? { state: "ok", plan: plan.plan, digest: plan.digest } : plan;
   const hasRecords = chain.state === "intact" && chain.active.length > 0;
@@ -24196,6 +24225,7 @@ async function evaluateTestEvidence(input2) {
       slug,
       stepId: input2.stepId,
       policy: policy2,
+      stages: input2.plan.workflow.steps.map((step) => ({ id: step.id, label: step.label })),
       inline: items.map((item2) => ({ suite: inlineSuiteFromTest(item2.test), status: item2.status, ...inlineDetail(item2) })),
       workflowFingerprint: input2.plan.workflowFingerprint,
       workflowRunId: runId,
@@ -34203,8 +34233,21 @@ function stageEntries(step, input2) {
     required: test.required ?? true,
     source: "declared"
   }));
-  const reviewers = agentEntries("reviewer", step.agents?.reviewers ?? [], lastWave(tests, afterSkills));
-  return [...executors, ...skills, ...tests, ...reviewers];
+  const covered = new Set((step.tests ?? []).map((test) => kindForDirection(test.direction ?? test.id)));
+  const policyKinds = [...new Set(step.test_policy?.run ?? [])].map((kind) => kindForDirection(kind)).filter((kind, index, all) => all.indexOf(kind) === index && !covered.has(kind));
+  const policyTests = policyKinds.map((kind) => ({
+    kind: "test",
+    id: `kind:${kind}`,
+    label: kind,
+    wave: afterSkills,
+    dependsOn: [],
+    required: true,
+    source: "declared",
+    testKind: kind
+  }));
+  const allTests = [...tests, ...policyTests];
+  const reviewers = agentEntries("reviewer", step.agents?.reviewers ?? [], lastWave(allTests, afterSkills));
+  return [...executors, ...skills, ...allTests, ...reviewers];
 }
 function flowsOf(input2, stages) {
   const flows = [];
@@ -34439,6 +34482,7 @@ function planStepSources(plan) {
     skills: step.skills,
     ...step.agents === void 0 ? {} : { agents: step.agents },
     ...step.tests === void 0 ? {} : { tests: step.tests },
+    ...step.test_policy === void 0 ? {} : { test_policy: step.test_policy },
     transitions: step.transitions
   }));
 }
@@ -42619,6 +42663,7 @@ function traceDto(row) {
     covers: row.covers,
     kind: row.kind,
     title: row.title,
+    required: row.required,
     tests: row.tests.map((test) => ({
       ref: test.ref,
       status: test.status,
@@ -50854,13 +50899,22 @@ function testStatus(status2) {
   if (status2 === "passed") return "done";
   if (status2 === "failed") return "failed";
   if (status2 === "running") return "running";
+  if (status2 === "stale") return "stale";
   return "waiting";
+}
+var WORST = { passed: 0, missing: 1, running: 2, stale: 3, failed: 4 };
+function kindStatus(report, kind) {
+  const states = (report?.suites ?? []).filter((suite2) => suite2.kind === kind).map((suite2) => suite2.state);
+  if (states.length === 0) return "waiting";
+  const worst = states.reduce((acc, state) => WORST[state] > WORST[acc] ? state : acc);
+  return worst === "passed" ? "done" : worst === "missing" ? "waiting" : worst;
 }
 function withRunStatus(orchestration, facts) {
   const current = orchestration.stages.findIndex((stage) => stage.id === facts.phase);
   return orchestration.stages.map((stage, index) => {
     const agents = facts.agents.find((step) => step.stepId === stage.id)?.agents ?? [];
     const tests = facts.tests.find((step) => step.stepId === stage.id)?.items ?? [];
+    const policy2 = facts.policies?.find((report) => report.stepId === stage.id);
     const past = current >= 0 && (index < current || index === current && facts.archived);
     const future = current < 0 || index > current;
     return {
@@ -50868,7 +50922,9 @@ function withRunStatus(orchestration, facts) {
       entries: stage.entries.map((entry2) => {
         if (future) return { ...entry2, status: "waiting" };
         if (entry2.kind === "skill") return { ...entry2, status: past ? "done" : facts.skills.get(entry2.id) ?? "waiting" };
-        if (entry2.kind === "test") return { ...entry2, status: testStatus(tests.find((item2) => item2.id === entry2.id)?.status) };
+        if (entry2.kind === "test") {
+          return { ...entry2, status: entry2.testKind === void 0 ? testStatus(tests.find((item2) => item2.id === entry2.id)?.status) : kindStatus(policy2, entry2.testKind) };
+        }
         return { ...entry2, status: agentStatus(agents.find((view) => view.agent === entry2.id)) };
       })
     };
@@ -50944,7 +51000,7 @@ async function changeOrchestration(input2) {
     workflow: plan.id,
     track: track === "" ? null : track,
     current: phase,
-    stages: withRunStatus(orchestration, { phase, archived, skills, agents, tests: tests.tests ?? [] }),
+    stages: withRunStatus(orchestration, { phase, archived, skills, agents, tests: tests.tests ?? [], policies: tests.testPolicy ?? [] }),
     returns: orchestration.returns,
     flows: orchestration.flows,
     io: io2

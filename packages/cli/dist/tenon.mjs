@@ -8081,7 +8081,7 @@ var DEFAULT_WORKFLOW_TODO_STAGES = DEFAULT_WORKFLOW_STEPS.map((step) => ({ id: s
 function normalized(value) {
   return value.trim().replace(/^\d+\s*[.)、:：-]\s*/, "").replace(/^phase\s+/i, "").toLocaleLowerCase();
 }
-function stageForHeading(heading, stages) {
+function stageIdForHeading(heading, stages) {
   const candidate2 = normalized(heading);
   for (const stage of stages) {
     const id2 = normalized(stage.id);
@@ -8106,7 +8106,7 @@ function parseTasks(markdown, currentStage, stages, trustedCanonicalProjection =
     if (heading) {
       if (trustedCanonicalProjection && /\s+<!-- task-group:[^>]+ -->\s*$/u.test(heading[1] ?? ""))
         continue;
-      const headingStage = stageForHeading(heading[1] ?? "", stages);
+      const headingStage = stageIdForHeading(heading[1] ?? "", stages);
       if (headingStage !== void 0) {
         target = headingStage;
         structured = true;
@@ -28049,8 +28049,8 @@ function evaluateTrace(context) {
   const blockers = [];
   const requirement = context.policy.scenarios;
   const sources = [
-    ...context.scenarios.map((scenario) => ({ covers: scenario.covers, kind: "spec", title: `${scenario.capability} \xB7 ${scenario.title}` })),
-    ...context.tasks.map((task) => ({ covers: task.covers, kind: "task", title: task.text }))
+    ...context.scenarios.map((scenario) => ({ covers: scenario.covers, kind: "spec", title: `${scenario.capability} \xB7 ${scenario.title}`, required: true })),
+    ...context.tasks.map((task) => ({ covers: task.covers, kind: "task", title: task.text, required: task.required }))
   ];
   for (const source of sources) {
     const tests = (mapping.get(source.covers) ?? []).map((test) => traceTest(test, context.fresh));
@@ -28061,24 +28061,26 @@ function evaluateTrace(context) {
       covers: source.covers,
       kind: source.kind,
       title: source.title,
+      required: source.required,
       tests,
       ...waiver === void 0 ? {} : { waiver: { approved, reason: waiver.reason } },
       state
     });
-    if (source.kind !== "spec" || requirement === "off" || approved)
+    if (!source.required || requirement === "off" || approved)
       continue;
+    const noun = source.kind === "spec" ? "\u573A\u666F" : "\u4EFB\u52A1";
     const register = `tenon test register ${context.change} --case ${shellQuote(source.covers)} --test ${shellQuote("<\u6587\u4EF6> \u203A <\u7528\u4F8B\u540D>")}`;
     if (tests.length === 0) {
       if (waiver !== void 0) {
-        blockers.push(testBlocker("waiver-unapproved", `\u573A\u666F ${source.title} \u7684\u8C41\u514D\u5C1A\u672A\u7ECF\u8BC4\u5BA1\u6279\u51C6`, { fix: context.reviewFix, subject: source.covers }));
+        blockers.push(testBlocker("waiver-unapproved", `${noun} ${source.title} \u7684\u8C41\u514D\u5C1A\u672A\u7ECF\u8BC4\u5BA1\u6279\u51C6`, { fix: context.reviewFix, subject: source.covers }));
       } else {
-        blockers.push(testBlocker("scenario-uncovered", `\u573A\u666F ${source.title} \u6CA1\u6709\u6620\u5C04\u4EFB\u4F55\u7528\u4F8B`, { fix: register, subject: source.covers }));
+        blockers.push(testBlocker("scenario-uncovered", `${noun} ${source.title} \u6CA1\u6709\u6620\u5C04\u4EFB\u4F55\u7528\u4F8B`, { fix: register, subject: source.covers }));
       }
       continue;
     }
     if (requirement === "passing" && state !== "passing") {
       const detail = state === "failing" ? "\u6620\u5C04\u7684\u7528\u4F8B\u6709\u5931\u8D25" : "\u6620\u5C04\u7684\u7528\u4F8B\u672C\u8F6E\u6CA1\u6709\u901A\u8FC7\u7684\u7ED3\u679C";
-      blockers.push(testBlocker("scenario-failing", `\u573A\u666F ${source.title}\uFF1A${detail}`, {
+      blockers.push(testBlocker("scenario-failing", `${noun} ${source.title}\uFF1A${detail}`, {
         fix: `tenon test run ${context.change} --stage`,
         subject: source.covers
       }));
@@ -28855,6 +28857,7 @@ function nextBaselineV2(previous, next) {
 }
 
 // packages/kernel/dist/test-system/openspec-trace.js
+var TRACE_TASK_STAGE = "build";
 function stripFences(lines2) {
   let fence;
   return lines2.map((line) => {
@@ -28900,18 +28903,29 @@ function extractScenarios(capability, markdown) {
   });
   return out;
 }
-function extractTaskItems(markdown) {
-  const out = [];
+function extractTaskItems(markdown, stages = DEFAULT_WORKFLOW_TODO_STAGES) {
+  const found = [];
   const seen = /* @__PURE__ */ new Set();
   let section2 = 0;
   let inSection = 0;
-  stripFences(markdown.split("\n")).forEach((raw, index) => {
+  let stage = null;
+  let structured = false;
+  const lines2 = markdown.split("\n");
+  stripFences(lines2).forEach((raw, index) => {
     if (raw === void 0)
       return;
     const line = raw.replace(/\r$/, "");
     if (/^##\s+/.test(line)) {
       section2++;
       inSection = 0;
+    }
+    const heading = /^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/.exec(line)?.[1];
+    if (heading !== void 0) {
+      const recognised = /<!-- task-group:[^>]+ -->\s*$/u.test(heading) ? void 0 : stageIdForHeading(heading, stages);
+      if (recognised !== void 0) {
+        stage = recognised;
+        structured = true;
+      }
       return;
     }
     const item2 = /^\s*[-*]\s+\[([ xX])\]\s+(.*?)\s*$/.exec(line);
@@ -28924,9 +28938,15 @@ function extractTaskItems(markdown) {
     if (seen.has(id2))
       return;
     seen.add(id2);
-    out.push({ id: id2, text: numbered?.[2] ?? body, done: item2[1] !== " ", line: index + 1, covers: taskCoversKey(id2) });
+    found.push({
+      item: { id: id2, text: numbered?.[2] ?? body, done: item2[1] !== " ", line: index + 1, covers: taskCoversKey(id2), stage },
+      placeholder: findDocumentPlaceholders(line).length > 0
+    });
   });
-  return out;
+  return found.map(({ item: item2, placeholder }) => {
+    const owner = structured ? item2.stage : TRACE_TASK_STAGE;
+    return { ...item2, stage: owner, required: !placeholder && owner === TRACE_TASK_STAGE };
+  });
 }
 
 // packages/kernel/dist/test-system/plan-ledger.js
@@ -29590,9 +29610,9 @@ async function loadDeltaScenarios(changeDir7) {
   }
   return out;
 }
-async function loadTaskItems(changeDir7) {
+async function loadTaskItems(changeDir7, stages) {
   const text11 = await readBounded(join43(changeDir7, "tasks.md"));
-  return text11 === void 0 ? [] : extractTaskItems(text11);
+  return text11 === void 0 ? [] : extractTaskItems(text11, stages);
 }
 async function loadBaselines(repoRoot, catalog3, chain) {
   const out = /* @__PURE__ */ new Map();
@@ -29621,7 +29641,7 @@ async function evaluateStepTestPolicy(input2) {
     readRecordChain(input2.repoRoot, input2.slug, input2.changeName),
     loadKnownFailures(input2.repoRoot),
     loadDeltaScenarios(input2.changeDir),
-    loadTaskItems(input2.changeDir)
+    loadTaskItems(input2.changeDir, input2.stages)
   ]);
   const planInput = plan.state === "ok" ? { state: "ok", plan: plan.plan, digest: plan.digest } : plan;
   const hasRecords = chain.state === "intact" && chain.active.length > 0;
@@ -29802,6 +29822,7 @@ async function evaluateTestEvidence(input2) {
       slug: slug2,
       stepId: input2.stepId,
       policy: policy2,
+      stages: input2.plan.workflow.steps.map((step) => ({ id: step.id, label: step.label })),
       inline: items.map((item2) => ({ suite: inlineSuiteFromTest(item2.test), status: item2.status, ...inlineDetail(item2) })),
       workflowFingerprint: input2.plan.workflowFingerprint,
       workflowRunId: runId,
@@ -84002,7 +84023,7 @@ async function loadPlanInputs(deps, context) {
     readCatalogFile(deps.cwd),
     readTestPlanState(context.dir, context.name),
     loadDeltaScenarios(context.dir),
-    loadTaskItems(context.dir)
+    loadTaskItems(context.dir, context.plan.workflow.steps.map((step) => ({ id: step.id, label: step.label })))
   ]);
   return { catalog: catalog3, planState, scenarios, tasks };
 }
@@ -84054,6 +84075,9 @@ function withoutTarget(plan, target) {
   };
   return { plan: next, removed: weight(plan) - weight(next) };
 }
+function splitUnmapped(items) {
+  return { required: items.filter((item2) => item2.required), optional: items.filter((item2) => !item2.required) };
+}
 function touches(suite2, changed) {
   const globs = [...suiteFileGlobs(suite2), ...suiteCoverGlobs(suite2)];
   return changed.some((path15) => matchesAnyGlob(path15, globs));
@@ -84093,8 +84117,8 @@ function seedPlan(input2) {
   plan = withFiles(plan, files);
   const mapped = new Set(plan.cases.map((item2) => item2.covers));
   const unmapped = [
-    ...input2.scenarios.filter((item2) => !mapped.has(item2.covers)).map((item2) => ({ covers: item2.covers, title: `${item2.capability} \xB7 ${item2.title}`, kind: "spec" })),
-    ...input2.tasks.filter((item2) => !mapped.has(item2.covers)).map((item2) => ({ covers: item2.covers, title: item2.text, kind: "task" }))
+    ...input2.scenarios.filter((item2) => !mapped.has(item2.covers)).map((item2) => ({ covers: item2.covers, title: `${item2.capability} \xB7 ${item2.title}`, kind: "spec", required: true })),
+    ...input2.tasks.filter((item2) => !mapped.has(item2.covers)).map((item2) => ({ covers: item2.covers, title: item2.text, kind: "task", required: item2.required }))
   ];
   return { plan, addedSuites, addedFiles: files.map((file) => file.path), orphans: registration.orphans, missingKinds, unmapped };
 }
@@ -84124,13 +84148,19 @@ function printSeed(deps, change, seed) {
     deps.io.out(`  ! \u7B56\u7565\u8981\u6C42 ${kind} \u6D4B\u8BD5\uFF0C\u4F46\u76EE\u5F55\u91CC\u6CA1\u6709\u8BE5\u79CD\u7C7B\u7684\u5957\u4EF6\uFF1Atenon test catalog add ... --kind ${kind}\uFF0C\u6216 tenon test waive ${change} --kind ${kind} --reason ${shellQuote("<\u4E0D\u9002\u7528\u7684\u539F\u56E0>")}`);
   }
   for (const path15 of seed.orphans) deps.io.out(`  ! \u6D4B\u8BD5\u6587\u4EF6 ${path15} \u6CA1\u6709\u5957\u4EF6\u8BA4\u9886\uFF1A\u5148\u5728\u76EE\u5F55\u91CC\u52A0\u5957\u4EF6\uFF08tenon test discover --write\uFF09`);
-  if (seed.unmapped.length > 0) {
-    deps.io.out(`  \u5F85\u6620\u5C04\u7684\u573A\u666F / \u4EFB\u52A1\uFF08${seed.unmapped.length}\uFF09\uFF1A\u5199\u597D\u6D4B\u8BD5\u540E\u9010\u6761\u767B\u8BB0`);
-    for (const item2 of seed.unmapped.slice(0, MAX_LISTED2)) {
+  const { required: required3, optional } = splitUnmapped(seed.unmapped);
+  if (required3.length > 0) {
+    deps.io.out(`  \u5F85\u6620\u5C04\u7684\u573A\u666F / \u4EFB\u52A1\uFF08${required3.length}\uFF09\uFF1A\u5199\u597D\u6D4B\u8BD5\u540E\u9010\u6761\u767B\u8BB0`);
+    for (const item2 of required3.slice(0, MAX_LISTED2)) {
       deps.io.out(`    ${item2.title}
       tenon test register ${change} --case ${shellQuote(item2.covers)} --test ${shellQuote("<\u6587\u4EF6> \u203A <\u7528\u4F8B\u540D>")}`);
     }
-    if (seed.unmapped.length > MAX_LISTED2) deps.io.out(`    \u2026 \u53E6\u6709 ${seed.unmapped.length - MAX_LISTED2} \u6761`);
+    if (required3.length > MAX_LISTED2) deps.io.out(`    \u2026 \u53E6\u6709 ${required3.length - MAX_LISTED2} \u6761`);
+  }
+  if (optional.length > 0) {
+    deps.io.out(`  \u53EF\u9009\u7684\u4EFB\u52A1\uFF08${optional.length}\uFF09\uFF1A\u4E0D\u5728\u5B9E\u73B0\u9636\u6BB5\u5C0F\u8282\uFF0C\u4E0D\u8981\u6C42\u6620\u5C04\u7528\u4F8B\uFF0C\u4E0D\u6321\u51FA\u53E3\uFF1B\u60F3\u8FFD\u6EAF\u65F6\u540C\u6837\u7528 tenon test register ${change} --case '<covers>' --test '<\u6587\u4EF6> \u203A <\u7528\u4F8B\u540D>'`);
+    for (const item2 of optional.slice(0, MAX_LISTED2)) deps.io.out(`    ${item2.covers}  ${item2.title}`);
+    if (optional.length > MAX_LISTED2) deps.io.out(`    \u2026 \u53E6\u6709 ${optional.length - MAX_LISTED2} \u6761`);
   }
 }
 async function cmdTestPlan(deps, change, opts = {}) {
@@ -84196,8 +84226,10 @@ async function cmdTestPlan(deps, change, opts = {}) {
     for (const problem of planCatalogProblems(state.plan, inputs2.catalog.catalog)) deps.io.out(`  [FAIL] ${problem.message}`);
   }
   const mapped = new Set(state.plan.cases.map((item2) => item2.covers));
-  const unmapped = inputs2.scenarios.filter((item2) => !mapped.has(item2.covers)).length + inputs2.tasks.filter((item2) => !mapped.has(item2.covers)).length;
-  if (unmapped > 0) deps.io.out(`  \u8FD8\u6709 ${unmapped} \u4E2A\u573A\u666F / \u4EFB\u52A1\u6761\u76EE\u6CA1\u6709\u6620\u5C04\u7528\u4F8B`);
+  const requiredUnmapped = inputs2.scenarios.filter((item2) => !mapped.has(item2.covers)).length + inputs2.tasks.filter((item2) => item2.required && !mapped.has(item2.covers)).length;
+  const optionalUnmapped = inputs2.tasks.filter((item2) => !item2.required && !mapped.has(item2.covers)).length;
+  if (requiredUnmapped > 0) deps.io.out(`  \u8FD8\u6709 ${requiredUnmapped} \u4E2A\u573A\u666F / \u4EFB\u52A1\u6761\u76EE\u6CA1\u6709\u6620\u5C04\u7528\u4F8B`);
+  if (optionalUnmapped > 0) deps.io.out(`  \u53E6\u6709 ${optionalUnmapped} \u4E2A\u53EF\u9009\u4EFB\u52A1\u6CA1\u6709\u6620\u5C04\u7528\u4F8B\uFF08\u4E0D\u6321\uFF09`);
   return 0;
 }
 
@@ -87582,7 +87614,8 @@ async function cmdTestSync(deps, change, opts = {}) {
   const registration = testFileRegistration({ changedFiles: diff.files, catalog: inputs2.catalog.catalog, plan });
   const gone = plan === void 0 ? [] : await missingOnDisk(deps, plan);
   const mapped = new Set(plan?.cases.map((item2) => item2.covers) ?? []);
-  const unmapped = [...inputs2.scenarios.map((item2) => item2.covers), ...inputs2.tasks.map((item2) => item2.covers)].filter((covers) => !mapped.has(covers));
+  const unmapped = [...inputs2.scenarios.map((item2) => item2.covers), ...inputs2.tasks.filter((item2) => item2.required).map((item2) => item2.covers)].filter((covers) => !mapped.has(covers));
+  const optional = inputs2.tasks.filter((item2) => !item2.required && !mapped.has(item2.covers)).map((item2) => item2.covers);
   const register = (path15, suites) => `tenon test register ${change} --file ${shellQuote(path15)}${suites.length === 1 ? ` --suite ${shellQuote(suites[0] ?? "")}` : ""}`;
   const dirty = registration.unregistered.length + registration.orphans.length + gone.length > 0;
   if (opts.json === true) {
@@ -87593,7 +87626,8 @@ async function cmdTestSync(deps, change, opts = {}) {
       unregistered: registration.unregistered.map((file) => ({ ...file, fix: register(file.path, file.suites) })),
       orphans: registration.orphans,
       registeredButMissing: gone,
-      unmapped
+      unmapped,
+      optionalUnmapped: optional
     }, null, 2));
     return dirty ? 2 : 0;
   }
@@ -87609,6 +87643,11 @@ async function cmdTestSync(deps, change, opts = {}) {
     deps.io.out(`  \u672A\u6620\u5C04\u7684\u573A\u666F / \u4EFB\u52A1 ${unmapped.length} \u4E2A\uFF1A`);
     for (const covers of unmapped.slice(0, MAX_LISTED3)) deps.io.out(`    ${covers}`);
     if (unmapped.length > MAX_LISTED3) deps.io.out(`    \u2026 \u53E6\u6709 ${unmapped.length - MAX_LISTED3} \u4E2A`);
+  }
+  if (optional.length > 0) {
+    deps.io.out(`  \u53EF\u9009\u7684\u4EFB\u52A1 ${optional.length} \u4E2A\uFF08\u4E0D\u5728\u5B9E\u73B0\u9636\u6BB5\u5C0F\u8282\uFF0C\u4E0D\u8981\u6C42\u6620\u5C04\u7528\u4F8B\uFF0C\u4E0D\u6321\u51FA\u53E3\uFF09\uFF1A`);
+    for (const covers of optional.slice(0, MAX_LISTED3)) deps.io.out(`    ${covers}`);
+    if (optional.length > MAX_LISTED3) deps.io.out(`    \u2026 \u53E6\u6709 ${optional.length - MAX_LISTED3} \u4E2A`);
   }
   if (!dirty) deps.io.out("  \u6D4B\u8BD5\u6587\u4EF6\u90FD\u5DF2\u767B\u8BB0");
   return dirty ? 2 : 0;
