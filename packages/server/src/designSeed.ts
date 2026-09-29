@@ -6,7 +6,7 @@
  */
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { ResourceEntry } from '@tenon/kernel'
+import { loadResourceCatalog, readResourceFile, resourceStoreRoot, type ResourceEntry } from '@tenon/kernel'
 
 export const DESIGN_SEED_MAX_BYTES = 512 * 1024
 const FETCH_TIMEOUT_MS = 10_000
@@ -68,4 +68,30 @@ export function writeDesignSeed(root: string, text: string): DesignSeedWritten {
     return { ok: false, code: 'fetch-failed', error: `DESIGN.md 写入失败：${code ?? String(error)}` }
   }
   return { ok: true, path: 'DESIGN.md', bytes: new TextEncoder().encode(text).length }
+}
+
+/** 查条目用的两个根：内建条目的 payload 根、自定义条目所在的 config 根。 */
+export interface DesignSeedRoots { readonly payloadRoot: string; readonly configRoot: string }
+
+/** 目录里按 id 取条目（先同步内建，再读单个文件）；不存在返回 null。 */
+export async function designSeedEntry(id: string, roots: DesignSeedRoots): Promise<ResourceEntry | null> {
+  await loadResourceCatalog(roots)
+  const file = await readResourceFile(resourceStoreRoot(roots.configRoot), id)
+  return file === null ? null : file.stored.entry
+}
+
+export type DesignSeedResult = DesignSeedWritten | { readonly ok: false; readonly code: 'not-found'; readonly error: string }
+
+/** 起步失败码 → HTTP 状态；`POST /api/design/seed` 与新建项目的 design 步骤共用。 */
+export const DESIGN_SEED_STATUS = { 'not-found': 404, 'not-design-md': 400, exists: 409, 'fetch-failed': 502 } as const
+
+/**
+ * 起步全过程：查条目 → 取回 → 写到 `<root>/DESIGN.md`。`POST /api/design/seed` 与新建项目的 design 步骤共用这一份；
+ * 调用方负责先确认 root 可信（已注册，或本次新建时刚锚定）。
+ */
+export async function seedDesign(root: string, id: string, roots: DesignSeedRoots, get: DesignSeedFetch): Promise<DesignSeedResult> {
+  const entry = await designSeedEntry(id, roots)
+  if (entry === null) return { ok: false, code: 'not-found', error: `未知资源：${id}` }
+  const fetched = await fetchDesignSeed(entry, get)
+  return fetched.ok ? writeDesignSeed(root, fetched.text) : fetched
 }

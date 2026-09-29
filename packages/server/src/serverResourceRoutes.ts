@@ -10,7 +10,7 @@ import {
   loadResourceCatalog, readResourceFile, resourceStoreRoot, writeCustomResource,
   type ResourceEntry, type ResourceSource,
 } from '@tenon/kernel'
-import { fetchDesignSeed, httpsDesignSeedFetch, writeDesignSeed, type DesignSeedFetch } from './designSeed.js'
+import { DESIGN_SEED_STATUS, httpsDesignSeedFetch, seedDesign, type DesignSeedFetch } from './designSeed.js'
 import { repoRootForSkills } from './serverSupport.js'
 import type { ServerPaths } from './types.js'
 import type { WorkflowRootAnchor } from './workflowRootAnchor.js'
@@ -122,8 +122,6 @@ async function put(req: IncomingMessage, id: string, deps: ResourceRouteDeps): P
   return { status: 200, body: { ok: true, entry: dto(stored.entry, stored.source, stored.revision) } }
 }
 
-const SEED_STATUS = { 'not-design-md': 400, exists: 409, 'fetch-failed': 502 } as const
-
 async function seed(req: IncomingMessage, deps: ResourceRouteDeps): Promise<ResourceRouteResult> {
   const parsed = deps.readJsonBody ? await deps.readJsonBody(req) : undefined
   const record = typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? Object.fromEntries(Object.entries(parsed)) : null
@@ -135,15 +133,10 @@ async function seed(req: IncomingMessage, deps: ResourceRouteDeps): Promise<Reso
   if (!checked) return failure(404, 'root-not-registered', 'root 未在机器级项目注册表中')
   if (!checked.ok) return { status: checked.code, body: { ok: false, error: checked.error } }
   if (!RESOURCE_ID.test(record.resource)) return failure(404, 'not-found', `未知资源：${record.resource}`)
-  await loadResourceCatalog(options(deps))
-  const file = await readResourceFile(storeRoot(deps), record.resource)
-  if (!file) return failure(404, 'not-found', `未知资源：${record.resource}`)
-  const fetched = await fetchDesignSeed(file.stored.entry, deps.designSeedFetch ?? httpsDesignSeedFetch)
-  if (!fetched.ok) return failure(SEED_STATUS[fetched.code], fetched.code, fetched.error)
-  const written = writeDesignSeed(record.root, fetched.text)
+  const written = await seedDesign(record.root, record.resource, options(deps), deps.designSeedFetch ?? httpsDesignSeedFetch)
   return written.ok
     ? { status: 200, body: { ok: true, path: written.path, bytes: written.bytes } }
-    : failure(SEED_STATUS[written.code], written.code, written.error)
+    : failure(DESIGN_SEED_STATUS[written.code], written.code, written.error)
 }
 
 export function resolveResourceMutation(

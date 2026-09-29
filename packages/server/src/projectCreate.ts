@@ -4,13 +4,15 @@
  * - dry_run：只校验与计算计划（文件新建 / 修改 / 不变的 current 与 next），不产生任何副作用。
  * - 新建目录：全部校验（含 `git --version`）先于任何写入；mkdir 之后任一步失败都删掉本次创建的目录（按 inode 核对）。
  * - 已有目录：从不 `git init`、从不建骨架目录；指令文件按 dry run 拿到的摘要写入；已登记的项目不报错。
+ * - design_seed：资源目录里一条 DESIGN.md 条目，执行时在登记前取回并写到项目根；根下已有 DESIGN.md 时不写（计划标 exists）。
  */
 import { execFile } from 'node:child_process'
 import { isAbsolute, join, resolve as resolvePath } from 'node:path'
 import {
-  PROJECT_INSTRUCTION_FILES, containsManagedMarker, mergeManagedBlocks, normalizeProjectClients, readProjectRegistry,
+  PROJECT_INSTRUCTION_FILES, RESOURCE_ID, containsManagedMarker, mergeManagedBlocks, normalizeProjectClients, readProjectRegistry,
   type ProjectInstructionFile, type RecordActor,
 } from '@tenon/kernel'
+import { designSeedEntry, type DesignSeedFetch, type DesignSeedRoots } from './designSeed.js'
 import { IDENTITY_REQUIRED, recordInstructionAudit } from './instructionAudit.js'
 import { INSTRUCTION_TEXT_MAX_BYTES, type InstructionResult } from './instructionFiles.js'
 import { trustedFsFailure } from './instructionTrustedFs.js'
@@ -29,21 +31,25 @@ export interface ProjectCreateDeps {
   readonly runGit: GitRunner
   /** 新建项目的作者；null = 本机没有声明身份，执行阶段拒绝（dry run 不需要）。 */
   readonly actor: RecordActor | null
+  /** DESIGN.md 起步：查条目的两个根与抓取器；未注入时带 design_seed 的请求一律 400。 */
+  readonly designSeed?: DesignSeedRoots & { readonly fetch: DesignSeedFetch }
 }
 
 
 /**
  * clients：要记入 `.tenon/clients.json` 的客户端（已去重排序）；null = 请求没带，不写。
  * gitInit：已有目录还不是 git 仓库时是否 `git init`（缺省不做）。
+ * designSeed：要取到项目根的 DESIGN.md 资源 id；null / 缺省 = 不取。
  */
 export type ProjectCreatePlan =
   | {
     readonly mode: 'empty'; readonly root: string; readonly parent: string; readonly directories: readonly string[]
-    readonly instructions: InstructionsRequest | null; readonly clients?: readonly string[] | null; readonly dryRun: boolean
+    readonly instructions: InstructionsRequest | null; readonly clients?: readonly string[] | null
+    readonly designSeed?: string | null; readonly dryRun: boolean
   }
   | {
     readonly mode: 'existing'; readonly root: string; readonly instructions: InstructionsRequest | null
-    readonly clients?: readonly string[] | null; readonly gitInit?: boolean; readonly dryRun: boolean
+    readonly clients?: readonly string[] | null; readonly gitInit?: boolean; readonly designSeed?: string | null; readonly dryRun: boolean
   }
 
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/
@@ -93,7 +99,7 @@ function subset(value: unknown, targets: readonly string[], allowed: readonly st
 /** 解码与静态校验；不访问文件系统。 */
 export function decodeProjectCreate(body: unknown): ProjectCreatePlan | InstructionResult {
   const request = record(body)
-  const allowed = ['mode', 'parent', 'name', 'path', 'directories', 'instructions', 'clients', 'git_init', 'dry_run']
+  const allowed = ['mode', 'parent', 'name', 'path', 'directories', 'instructions', 'clients', 'git_init', 'design_seed', 'dry_run']
   if (!request || Object.keys(request).some((key) => !allowed.includes(key))) return fail(400, 'invalid', '请求体不合法')
   const directories = request.directories ?? []
   if (!Array.isArray(directories) || directories.length > 8 || !directories.every((item) => typeof item === 'string' && DIRECTORY.test(item) && item !== './' && item !== '../')
@@ -111,17 +117,19 @@ export function decodeProjectCreate(body: unknown): ProjectCreatePlan | Instruct
     if (!normalized.ok) return fail(400, 'unknown-client', '未知客户端', { unknown: normalized.unknown })
     clients = normalized.enabled
   }
+  const designSeed = request.design_seed ?? null
+  if (designSeed !== null && (typeof designSeed !== 'string' || !RESOURCE_ID.test(designSeed))) return fail(400, 'invalid', 'design_seed 必须是资源 id')
   const dryRun = request.dry_run === true
   if (request.mode === 'empty') {
     if (!absolutePath(request.parent) || typeof request.name !== 'string' || !NAME.test(request.name)) return fail(400, 'invalid-path', '父目录必须是绝对路径，名称只能含字母、数字、. _ -')
     const parent = resolvePath(request.parent)
-    return { mode: 'empty', parent, root: join(parent, request.name), directories: directories.map(String), instructions, clients, dryRun }
+    return { mode: 'empty', parent, root: join(parent, request.name), directories: directories.map(String), instructions, clients, designSeed, dryRun }
   }
   if (request.mode === 'existing') {
     if (!absolutePath(request.path)) return fail(400, 'invalid-path', '路径必须是绝对路径')
     if (directories.length > 0) return fail(400, 'invalid', '已有目录不创建骨架目录')
     if (request.git_init !== undefined && typeof request.git_init !== 'boolean') return fail(400, 'invalid', 'git_init 必须是布尔值')
-    return { mode: 'existing', root: resolvePath(request.path), instructions, clients, gitInit: request.git_init === true, dryRun }
+    return { mode: 'existing', root: resolvePath(request.path), instructions, clients, gitInit: request.git_init === true, designSeed, dryRun }
   }
   return fail(400, 'invalid', 'mode 必须是 empty 或 existing')
 }
@@ -136,8 +144,27 @@ function directoryProblem(path: string, missing: InstructionResult): Instruction
 
 const registered = (deps: ProjectCreateDeps, root: string): boolean => readProjectRegistry(deps.paths.registryPath).includes(root)
 
-/** 校验计划并返回 dry run 结果；新建目录时同时确认 git 可用。 */
+/** 校验计划并返回 dry run 结果；新建目录时同时确认 git 可用；带 design_seed 时计划多一个 design 摘要。 */
 export async function planProjectCreate(plan: ProjectCreatePlan, deps: ProjectCreateDeps): Promise<InstructionResult> {
+  const planned = await planLocation(plan, deps)
+  if (planned.status !== 200) return planned
+  const design = await planDesign(plan, deps)
+  if (design === null) return planned
+  return 'status' in design ? design : { status: 200, body: Object.assign({}, planned.body, { design }) }
+}
+
+/** design_seed 的核对：条目存在且是 DESIGN.md；exists = 项目根下已有 DESIGN.md（执行时跳过，不覆盖）。 */
+async function planDesign(plan: ProjectCreatePlan, deps: ProjectCreateDeps): Promise<{ resource: string; exists: boolean } | InstructionResult | null> {
+  const id = plan.designSeed ?? null
+  if (id === null) return null
+  if (!deps.designSeed) return fail(400, 'invalid', 'design_seed 不可用')
+  const entry = await designSeedEntry(id, deps.designSeed)
+  if (entry === null) return fail(404, 'resource-not-found', `未知资源：${id}`)
+  if (entry.category !== 'design-md') return fail(400, 'not-design-md', `${id} 不是 DESIGN.md 资源`)
+  return { resource: id, exists: plan.mode === 'existing' && lstatIfExists(join(plan.root, 'DESIGN.md')) !== undefined }
+}
+
+async function planLocation(plan: ProjectCreatePlan, deps: ProjectCreateDeps): Promise<InstructionResult> {
   if (plan.mode === 'empty') {
     const parentProblem = directoryProblem(plan.parent, fail(404, 'parent-missing', '父目录不存在'))
     if (parentProblem) return parentProblem.body && (parentProblem.body as { code: string }).code === 'not-directory'

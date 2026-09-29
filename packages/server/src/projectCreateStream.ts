@@ -5,15 +5,18 @@
  * 开始执行前的失败（请求体不合法、目录已存在、git 不可用、缺声明身份…）仍是普通 JSON 错误与原状态码；
  * 一旦开始执行，响应恒为 200，事件依次是：
  *   event: plan    data: { steps: string[] }
- *   event: step    data: { id, state: 'running' | 'done' | 'failed', error?, code? }（每步 running → done / failed）
+ *   event: step    data: { id, state: 'running' | 'done' | 'failed', error?, code? }（每步 running → done / failed；
+ *                  请求带 design_seed 时有一步 id = design，取回 DESIGN.md）
  *   event: done    data: 与 /api/projects/create 成功体相同
  *   event: failed  data: { ok: false, status, code, error, step? }
  * 客户端中途断开不中止执行（新建目录失败会自行回滚，半途停下反而留下半成品）。
  */
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { httpsDesignSeedFetch, type DesignSeedFetch } from './designSeed.js'
 import { auditActor, type ResolveInstructionUser } from './instructionAudit.js'
 import { prepareProjectCreate, runGitCommand, runProjectCreate, type GitRunner, type ProjectCreateDeps } from './projectCreate.js'
 import { createStepIds } from './projectCreateRun.js'
+import { repoRootForSkills } from './serverSupport.js'
 import type { ServerPaths } from './types.js'
 import type { WorkflowRootAnchor } from './workflowRootAnchor.js'
 
@@ -26,6 +29,10 @@ export interface ProjectCreateStreamDeps {
   readonly workflowRootAnchors?: Map<string, WorkflowRootAnchor>
   readonly runGit?: GitRunner
   readonly resolveUser?: ResolveInstructionUser
+  /** DESIGN.md 起步的抓取器（design 步骤）；缺省走 https。 */
+  readonly designSeedFetch?: DesignSeedFetch
+  /** 内建资源的 payload 根；缺省为本 server 所在插件根目录。 */
+  readonly payloadRoot?: string
 }
 
 function write(res: ServerResponse, event: string, data: unknown): void {
@@ -40,6 +47,9 @@ export async function handleProjectCreateStream(req: IncomingMessage, res: Serve
   const createDeps: ProjectCreateDeps = {
     paths: deps.paths, workflowRootAnchors: deps.workflowRootAnchors, runGit: deps.runGit ?? runGitCommand,
     actor: auditActor(deps.resolveUser, ''),
+    designSeed: {
+      payloadRoot: deps.payloadRoot ?? repoRootForSkills(), configRoot: deps.paths.configRoot, fetch: deps.designSeedFetch ?? httpsDesignSeedFetch,
+    },
   }
   const prepared = await prepareProjectCreate(body, createDeps)
   if (!('plan' in prepared)) return deps.sendJson(res, prepared.status, prepared.body)
