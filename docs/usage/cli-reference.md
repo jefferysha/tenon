@@ -207,6 +207,14 @@ revision conflict (Dashboard CAS path only); `4` idempotency conflict; `1`
 invalid command (for example an `--event` that differs from the pending
 receipt) or unexpected error. A failed acknowledgement writes nothing.
 
+`review request` also freezes and lists the test-plan waivers that are still
+unapproved (`waivers[].approved_by` empty). A human `review acknowledge` writes
+`approved_by` for exactly those waivers in the same lock as the approved
+receipt, and leaves a `test:waiver-approve` line in the change history;
+`--delegated` never approves a waiver, and a waiver added after the request stays
+unapproved. Plan writes and baseline updates leave `test:plan-write` /
+`test:baseline-update` lines the same way.
+
 Document structures and project-level spec scaffolds default to Chinese. English
 is explicit:
 

@@ -75,12 +75,17 @@ describe('pre_verify_review_result 绑定本步证据', () => {
 })
 
 describe('verify_result：只有 pm verify 接受手填，且要证据', () => {
-  // default 的 pm verify 没有声明测试或评审者，闸无从核对证据：只收紧到出口要的那个值。
-  test('pm verify：只接受出口要的 pass；fail 要走 verify-fail', async () => {
+  // default 的 pm verify 没有声明旧步骤测试或评审者，只声明了测试策略（smoke）：值收紧到出口要的那个值，
+  // 证据是策略判定——目录 / 计划 / 运行齐全（这里用已批准的豁免满足）才许写。
+  test('pm verify：只接受出口要的 pass，且策略证据齐全；fail 要走 verify-fail', async () => {
     await init('pmv', 'pm')
     await h.seedPhase('pmv', 'verify')
     expect(await h.run(['set', 'pmv', 'verify_result', 'fail'])).toBe(1)
     expect(h.err.join('\n')).toContain("字段 'verify_result' 在步骤 'verify' 只接受 pass")
+    expect(await h.run(['set', 'pmv', 'verify_result', 'pass'])).toBe(1)
+    expect(h.err.join('\n')).toContain('项目还没有测试目录')
+    expect(h.err.join('\n')).toContain('tenon test discover --write')
+    await h.satisfyStepTests('pmv', 'verify')
     expect(await h.run(['set', 'pmv', 'verify_result', 'pass']), h.err.join('\n')).toBe(0)
     expect(await get('pmv', 'verify_result')).toBe('pass')
   })

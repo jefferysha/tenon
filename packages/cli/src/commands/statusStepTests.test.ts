@@ -1,7 +1,10 @@
-import { renderTestBlocker, testBlocker, type TestBlocker, type TestBlockerCode, type TestPolicyReport } from '@tenon/kernel'
+import {
+  TEST_REPORT_BEGIN, TEST_REPORT_END, renderTestBlocker, reportCarriesRuns, testBlocker,
+  type TestBlocker, type TestBlockerCode, type TestPolicyReport,
+} from '@tenon/kernel'
 import { describe, expect, test } from 'vitest'
 import { stepNextActions, type StepNextInput } from './statusStep.js'
-import { classifyTestPolicy, freshRunIds, reportCarriesRuns, type StepTestFlow } from './statusStepTests.js'
+import { classifyTestPolicy, freshRunIds, type StepTestFlow } from './statusStepTests.js'
 import type { StepExit } from './stepExitReport.js'
 
 const CHANGE = 'demo'
@@ -14,7 +17,7 @@ function report(blockers: readonly TestBlocker[], suites: TestPolicyReport['suit
 }
 
 function flow(blockers: readonly TestBlocker[], over: Partial<StepTestFlow> = {}): StepTestFlow {
-  return { ...classifyTestPolicy(report(blockers)), report: null, ...over }
+  return { ...classifyTestPolicy(report(blockers)), report: null, refreshRequest: false, ...over }
 }
 
 function blocker(code: TestBlockerCode, subject?: string, fix?: string): TestBlocker {
@@ -86,7 +89,11 @@ describe('策略阻塞归档', () => {
     expect(classified.files.map((item) => item.subject)).toEqual(['src/a.test.ts', 'e2e/x.spec.ts'])
     expect(classified.run.map((item) => item.code)).toEqual(['test-not-run', 'test-stale', 'record-chain-broken'])
     expect(classified.failed.map((item) => item.code)).toEqual(['test-failed', 'coverage-below'])
-    expect(classified.waivers).toEqual([{ subject: 'benchmark', message: renderTestBlocker(blocker('waiver-unapproved', 'benchmark')) }])
+    expect(classified.waivers).toEqual([{
+      subject: 'benchmark',
+      text: 'waiver-unapproved benchmark',
+      message: renderTestBlocker(blocker('waiver-unapproved', 'benchmark')),
+    }])
   })
 
   test('没有策略判定 = 什么动作都没有', () => {
@@ -102,8 +109,10 @@ describe('策略阻塞归档', () => {
       { suite: 'never', origin: 'catalog', kind: 'unit', reason: 'run', state: 'missing' },
     ]
     expect(freshRunIds(report([], suites))).toEqual(['r-1', 'r-2'])
-    expect(reportCarriesRuns('run r-1\nrun r-2', ['r-1', 'r-2'])).toBe(true)
-    expect(reportCarriesRuns('run r-1', ['r-1', 'r-2'])).toBe(false)
+    const block = (body: string) => `# 报告\n${TEST_REPORT_BEGIN}\n${body}\n${TEST_REPORT_END}\n`
+    expect(reportCarriesRuns(block('run r-1\nrun r-2'), ['r-1', 'r-2'])).toBe(true)
+    expect(reportCarriesRuns(block('run r-1'), ['r-1', 'r-2'])).toBe(false)
+    expect(reportCarriesRuns('run r-1\nrun r-2', ['r-1', 'r-2'])).toBe(false)
   })
 })
 
@@ -193,6 +202,19 @@ describe('评审门上的待批准豁免', () => {
     expect(next({ testFlow: waiting, gate: 'review', exits: [blocked] })).toEqual([
       { action: 'request-review', event: 'verify-pass', waivers: ['benchmark'] },
     ])
+  })
+
+  test('评审已请求，但请求之后又加了豁免：先重新发起（幂等）再等人；回退边的请求不涉及豁免', () => {
+    const stale = flow([waiver], { refreshRequest: true })
+    const pending = { status: 'pending', event: 'verify-pass' }
+    expect(next({ testFlow: stale, gate: 'review', exits: [blocked], review: pending })).toEqual([
+      { action: 'request-review', event: 'verify-pass', waivers: ['benchmark'] },
+    ])
+    expect(names({ testFlow: waiting, gate: 'review', exits: [blocked], review: pending })).toEqual(['await-review'])
+    expect(names({
+      testFlow: stale, gate: 'review', exits: [blocked, exit('verify-fail', 'back')],
+      review: { status: 'pending', event: 'verify-fail' },
+    })).toEqual(['await-review'])
   })
 
   test('还有别的阻塞：豁免不掩盖它们', () => {

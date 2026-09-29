@@ -340,7 +340,14 @@ function exitActions(input: {
   if (requiredEvidenceFailed(input) && back.length > 0) return gatedBackActions(input, back)
   const readyForward = forward.filter((exit) => exit.ready)
   if (input.gate === 'review') {
-    if (input.review.status === 'pending') return [{ action: 'await-review', event: input.review.event }]
+    if (input.review.status === 'pending') {
+      // 请求之后才加进计划的豁免不在冻结清单里，这次确认批准不了它们：先重新发起（幂等）再等人。
+      const pendingExit = input.exits.find((candidate) => candidate.event === input.review.event)
+      if (flow?.refreshRequest === true && input.review.event !== null && pendingExit?.direction !== 'back') {
+        return [{ action: 'request-review', event: input.review.event, waivers: flow.waivers.map((waiver) => waiver.subject) }]
+      }
+      return [{ action: 'await-review', event: input.review.event }]
+    }
     if (input.review.status === 'approved' && input.review.event !== null) {
       const exit = input.exits.find((candidate) => candidate.event === input.review.event)
       // 确认之后才出现的豁免没有被这次确认批准：前进边的 transition 必被拒（回退边不看测试证据）。
@@ -348,7 +355,11 @@ function exitActions(input: {
       if (stranded.length > 0) {
         return [{
           action: 'fix',
-          blockers: stranded.map((waiver) => ({ source: 'test', code: 'waiver-unapproved', message: waiver.message })),
+          blockers: stranded.map((waiver) => ({
+            source: 'test',
+            code: 'waiver-unapproved',
+            message: `${waiver.text}；评审确认时它还不在计划里，没能被批准：撤掉这条豁免，或回退到上一步重新发起评审`,
+          })),
         }]
       }
       return [{

@@ -10,8 +10,8 @@ import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import {
   actorOf, appendTestRunRecordV2, catalogSuite, catalogSuitesDigest, emptyTestPlan, fingerprintWorkspace,
-  isTenonUser, parseTestCatalog, readTestPlanState, resolveTenonUser, testPolicyDigest, testSystemPaths,
-  userSlug, writeTestPlan,
+  isTenonUser, parseTestCatalog, readTestPlanState, replaceTestReportBlock, resolveTenonUser, testPolicyDigest,
+  testSystemPaths, userSlug, writeTestPlan,
   type PlanCase, type PlanSuite, type RecordActor, type SuiteRunV2, type TestCatalog, type TestPlan,
 } from '@tenon/kernel'
 import { fixtureCase, fixtureRecordDraft, fixtureSuiteRun } from '@tenon/kernel/test-system/test-support'
@@ -199,7 +199,8 @@ async function report(context: FlowContext, path: string): Promise<void> {
   const absolute = join(context.cwd, path)
   const body = existsSync(absolute) ? await readFile(absolute, 'utf8') : ''
   const rows = [...(lastRuns.get(context.change)?.entries() ?? [])].map(([suite, run]) => `| ${suite} | ${run} | pass |`)
-  await writeFile(absolute, `${body.trimEnd()}\n\n## 测试追溯\n\n| 套件 | 运行 | 结果 |\n| --- | --- | --- |\n${rows.join('\n')}\n`, 'utf8')
+  const matrix = `## 测试追溯\n\n| 套件 | 运行 | 结果 |\n| --- | --- | --- |\n${rows.join('\n')}`
+  await writeFile(absolute, replaceTestReportBlock(body, matrix), 'utf8')
 }
 
 /** 处理一条测试体系动作；不是这类动作返回 false。 */

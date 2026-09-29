@@ -2533,6 +2533,10 @@ refuse_cmd '复合命令里的第二段' 'tenon test register demo --suite unit 
 refuse_cmd 'tenon 命令自己的输出重定向进计划文件' 'tenon test plan demo --json > openspec/changes/demo/test-plan.yaml'
 refuse_cmd 'git 输出重定向进计划文件' 'git show HEAD:openspec/changes/demo/test-plan.yaml > openspec/changes/demo/test-plan.yaml'
 refuse_cmd '带 .. 的已知失败清单路径' 'echo x > .tenon/tests/../tests/known-failures.yaml'
+refuse_cmd '反斜杠转义的命令名' '\cp /tmp/p openspec/changes/demo/test-plan.yaml'
+refuse_cmd '引号里的路径' "echo x > 'openspec/changes/demo/test-plan.yaml'"
+refuse_cmd '子 shell 里的重定向' '(echo x > openspec/changes/demo/test-plan.yaml)'
+refuse_cmd '命令替换里的重定向' 'echo $(cat /tmp/x > openspec/changes/demo/test-plan.yaml)'
 refuse_cmd 'heredoc 没有结束行：按普通命令再扫一遍' $'cat <<EOF > docs/x.md\nfoo\necho x > openspec/changes/demo/test-plan.yaml'
 printf '{"tool_name":"Bash","cwd":"%s","tool_input":{"command":"echo x >> openspec/changes/demo/test-plan.yaml"}}' "$proj" | TENON_AFK=1 bash "$GATE" >/dev/null 2>&1
 assert_exit "gate shell: AFK 下写任务测试计划仍 exit 2" 2 "$?"

@@ -29,6 +29,8 @@ export interface TestFlowItem {
 
 export interface TestFlowWaiver {
   readonly subject: string | null
+  /** 阻塞说明（不含修复命令）。 */
+  readonly text: string
   /** 与 exits[].blockers 里那条测试阻塞逐字相同，用来把它从「出口未就绪」里放行给 request-review。 */
   readonly message: string
 }
@@ -46,6 +48,11 @@ export interface StepTestFlow {
   readonly waivers: readonly TestFlowWaiver[]
   /** 验证报告还没带上最新运行的追溯矩阵：要 `tenon test report <c> --write <path>`。 */
   readonly report: { readonly command: string; readonly path: string } | null
+  /**
+   * 评审请求已经发出，但请求时冻结的豁免清单少了计划里现在待批准的豁免（请求之后才加的）：
+   * 再发一次 `review request`（幂等，重新冻结）才能让这次确认一并批准它们。
+   */
+  readonly refreshRequest: boolean
 }
 
 const SEED_CODES: ReadonlySet<string> = new Set(['test-plan-missing', 'test-plan-tampered'])
@@ -60,7 +67,9 @@ function toItem(blocker: TestBlocker): TestFlowItem {
 }
 
 /** 策略判定的阻塞项归档；未声明策略（report 缺席）= 没有测试体系动作。 */
-export function classifyTestPolicy(report: TestPolicyReport | undefined): Omit<StepTestFlow, 'report'> {
+export function classifyTestPolicy(
+  report: TestPolicyReport | undefined,
+): Omit<StepTestFlow, 'report' | 'refreshRequest'> {
   const discover: TestFlowItem[] = []
   const seed: TestFlowItem[] = []
   const map: TestFlowItem[] = []
@@ -71,7 +80,7 @@ export function classifyTestPolicy(report: TestPolicyReport | undefined): Omit<S
   for (const blocker of report?.blockers ?? []) {
     if (!blocker.blocking || blocker.subject?.startsWith(INLINE_SUITE_PREFIX) === true) continue
     if (blocker.code === 'waiver-unapproved') {
-      waivers.push({ subject: blocker.subject ?? null, message: renderTestBlocker(blocker) })
+      waivers.push({ subject: blocker.subject ?? null, text: blocker.message, message: renderTestBlocker(blocker) })
     } else if (blocker.code === 'test-catalog-missing') {
       // 没有 subject = 目录本身缺失 / 无效；带 subject = 计划登记的套件已不在目录里。
       (blocker.subject === undefined ? discover : map).push(toItem(blocker))
@@ -96,14 +105,6 @@ export function freshRunIds(report: TestPolicyReport | undefined): readonly stri
     .filter((suite) => suite.origin === 'catalog' && (suite.state === 'passed' || suite.state === 'failed'))
     .flatMap((suite) => suite.run_id === undefined ? [] : [suite.run_id])
   return [...new Set(ids)]
-}
-
-/**
- * 验证报告是否已带上这些运行的追溯矩阵：`tenon test report --write` 写进去的矩阵引用每个套件的最新运行 id，
- * 报告里找不到其中任何一个就是还没写（或写的是更早的运行）。判定收在这一个函数里。
- */
-export function reportCarriesRuns(reportText: string, runIds: readonly string[]): boolean {
-  return runIds.every((id) => reportText.includes(id))
 }
 
 /** 登记类动作：一次只下发最靠前的一类（后一类依赖前一类）。 */

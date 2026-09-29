@@ -528,3 +528,18 @@ most 64 characters, and a manifest contains at most 256 fixtures.
    （新增 `invoked` = 已调用、欠 `pending_documents`）、`exits[].blockers` 与 `next` 都读它；
    `next` 对 `invoked` 的技能下发它欠的 `scaffold-document` / `record-document`（带 `skill`），
    不再发 `load-skill`。不加交互门：headless `claude -p` 没有 AskUserQuestion。
+
+13. **测试体系接入流程（2026-09-29）**：`tenon status --json` 的 `step.next` 读 kernel 的策略判定
+   （`TestEvidenceReport.policy`，与 `tenon check`、transition、工作台同一份）下发测试动作，顺序固定为
+   `test-discover`（无目录）→ `test-plan-seed`（无计划 / 计划被改）→ `test-plan-map`（缺的种类、未映射的场景）→
+   `test-register-files`（有未登记的测试文件）→ `run-tests`（`tenon test run <c> --stage`）→ `test-report`
+   （验证报告还没带上最新运行的追溯矩阵）。登记类一次只发最靠前的一类；整体排在本步文档之后、评审者之前；
+   旧步骤 `tests[]` 仍走 `run-test`。已经运行过却不满足策略的阻塞（用例失败、覆盖率不足……）没有专门动作：
+   非评审门发 `fix`，评审门上有回退边就走回退边。计划里的豁免（`waivers[].approved_by`）只由
+   `tenon review acknowledge` 在提交 receipt 的同一把锁内写入：`review request` 冻结并列出未批准的豁免
+   （`request-review` 带 `waivers`），确认只批准清单里仍原样存在的那几条；`--delegated` 与 AFK 不批准。
+   计划写入、豁免批准、基线更新各在 change 历史里留一行 `test:plan-write|waiver-approve|baseline-update`。
+   写门（`hooks/gate.sh`）拒绝对 `test-plan.yaml`（及台账、冻结清单）、`.tenon/tests/baselines/**`、
+   `.tenon/tests/known-failures.yaml`、按用户的记录目录的编辑类工具写入与 shell 重定向 / tee / cp / mv / rm /
+   `sed -i`，只看写入目标；`tenon` 调用与普通 git 操作放行。声明 `reads_tests` 的评审者提示词附带目录套件最新
+   运行的失败用例、flaky、覆盖率对照门槛与基准变化。

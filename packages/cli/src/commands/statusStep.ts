@@ -273,7 +273,10 @@ export async function buildStatusStep(
   }
   const specApply = await readSpecApplyReceiptStatus(deps.cwd, dir)
   const retired = retiredSkillReferences(plan)
-  const testFlow = await buildStepTestFlow(deps, name, testReport.policy, documents)
+  const testFlow = await buildStepTestFlow(
+    deps, name, dir, testReport.policy, documents,
+    review.status === 'pending' ? str(state.fields.review_requested_at) : null,
+  )
   const block: Omit<StepBlock, 'next'> = {
     schema: 'tenon-step-v1',
     change: name,

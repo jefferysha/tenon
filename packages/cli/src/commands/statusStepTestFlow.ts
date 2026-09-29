@@ -1,15 +1,16 @@
 /**
  * 把 kernel 的策略判定装配成 `next` 用的 `StepTestFlow`：归档逻辑在 statusStepTests.ts（纯函数），
- * 这里只补一件需要读盘的事——验证报告是否已经带上最新运行的追溯矩阵。
+ * 这里只补两件需要读盘的事——验证报告是否已经带上最新运行的追溯矩阵，以及评审请求冻结的豁免清单是否过时。
  */
 import { lstat, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { TestPolicyReport } from '@tenon/kernel'
+import {
+  pendingWaivers, readReviewWaiverSelection, readTestPlanState, reportCarriesRuns,
+  type TestPolicyReport,
+} from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 import type { StepDocumentsView } from './statusStepParts.js'
-import {
-  classifyTestPolicy, freshRunIds, reportCarriesRuns, testReportCommand, type StepTestFlow,
-} from './statusStepTests.js'
+import { classifyTestPolicy, freshRunIds, testReportCommand, type StepTestFlow } from './statusStepTests.js'
 
 /** 追溯矩阵写进的文档 kind（文档契约里的验证报告）。 */
 const REPORT_DOCUMENT_KIND = 'verification-report'
@@ -41,12 +42,35 @@ async function pendingReport(
   return { path: doc.path, command: testReportCommand(change, doc.path) }
 }
 
+/**
+ * 评审请求发出时冻结的豁免清单（review request 写的边车）是否漏了计划里现在待批准的豁免。
+ * 只在评审待确认时才问；清单不属于这一次请求（requestedAt 不同）也算漏了。
+ */
+async function requestListIsStale(dir: string, change: string, requestedAt: string): Promise<boolean> {
+  const plan = await readTestPlanState(dir, change)
+  if (plan.state !== 'ok') return false
+  const pending = pendingWaivers(plan.plan)
+  if (pending.length === 0) return false
+  const frozen = await readReviewWaiverSelection(dir)
+  if (frozen === undefined || frozen.requestedAt !== requestedAt) return true
+  return pending.some((waiver) => !frozen.waivers.some((item) => item.key === waiver.key && item.reason === waiver.reason))
+}
+
 export async function buildStepTestFlow(
   deps: CliDeps,
   change: string,
+  dir: string,
   report: TestPolicyReport | undefined,
   documents: StepDocumentsView,
+  /** 评审待确认时这次请求的时间；其余情况 null。 */
+  pendingRequestedAt: string | null,
 ): Promise<StepTestFlow | undefined> {
   if (report === undefined) return undefined
-  return { ...classifyTestPolicy(report), report: await pendingReport(deps, change, report, documents) }
+  const classified = classifyTestPolicy(report)
+  return {
+    ...classified,
+    report: await pendingReport(deps, change, report, documents),
+    refreshRequest: pendingRequestedAt !== null && classified.waivers.length > 0
+      && await requestListIsStale(dir, change, pendingRequestedAt),
+  }
 }

@@ -233,7 +233,29 @@ describe('豁免的评审批准', () => {
     expect(existsSync(join(changeDir(), '.pipeline-review-waivers.json'))).toBe(false)
     const history = await readFile(join(changeDir(), '.pipeline-history.jsonl'), 'utf8')
     expect(history).toMatch(new RegExp(`"raw":"test:waiver-approve waivers=kind:unit by=${ME.replace('.', '\\.')} plan=sha256:[0-9a-f]{64}"`))
+    // 计划的每次真实写入（含请求之后加的那条豁免）也各有一行审计。
+    expect(history.match(/"raw":"test:plan-write plan=sha256:[0-9a-f]{64}"/gu)).toHaveLength(2)
 
+    expect(await h.run(['transition', CHANGE, 'spec-done']), h.err.join('\n')).toBe(0)
+  })
+
+  test('请求之后又加了豁免：next 先要求重新发起（幂等），重新发起后这次确认一并批准', async () => {
+    await waivedSpec()
+    expect(await h.run(['review', 'request', CHANGE, '--event', 'spec-done']), h.err.join('\n')).toBe(0)
+    expect(names(await readStep())).toEqual(['await-review'])
+
+    const plan = await readPlan()
+    await writePlan({ waivers: [...plan.waivers, { kind: 'lint', reason: '请求之后才加的', approved_by: null }] })
+    // 挡着出口的只有 unit 的豁免；lint 不是策略要求的种类，但冻结清单要与计划里的待批准清单一致。
+    expect((await readStep()).next).toEqual([{ action: 'request-review', event: 'spec-done', waivers: ['unit'] }])
+
+    expect(await h.run(['review', 'request', CHANGE, '--event', 'spec-done']), h.err.join('\n')).toBe(0)
+    expect(h.out.join('\n')).toContain('仍待确认')
+    expect(h.out.join('\n')).toContain('待批准的豁免 2 项')
+    expect(names(await readStep())).toEqual(['await-review'])
+
+    expect(await h.run(['review', 'acknowledge', CHANGE]), h.err.join('\n')).toBe(0)
+    expect((await readPlan()).waivers.map((item) => item.approved_by)).toEqual([ME, ME])
     expect(await h.run(['transition', CHANGE, 'spec-done']), h.err.join('\n')).toBe(0)
   })
 

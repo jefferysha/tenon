@@ -68,6 +68,14 @@ command（存为全局 default 覆盖，只对之后新建的任务生效，已�
 | backend | `unit`、`integration` | `unit`、`typecheck` | `unit`、`integration`、`regression`；已登记则加 `benchmark`；lines 覆盖率 80% |
 | pm | 每个 OpenSpec 场景都有映射 | 无 | `smoke` |
 
+`tenon status` 的 `step.next` 按固定顺序推进测试体系：`test-discover`（无目录）→ `test-plan-seed` → `test-plan-map`
+（缺的种类、未映射的场景）→ `test-register-files`（未登记的测试文件）→ `run-tests`（`tenon test run <change> --stage`）
+→ `test-report`（把追溯矩阵写进验证报告）。它们排在本步文档之后、评审者之前；已经运行过却不满足策略的阻塞变成
+`fix`，评审门上有回退边则走回退边。豁免要人工批准：`tenon review request` 列出计划里待批准的豁免，用户的确认
+（`tenon review acknowledge`，不含 `--delegated`）恰好批准这些。测试计划、基线、已知失败清单和运行记录只经
+`tenon test …` 写入，写门拒绝直接编辑和 shell 重定向，`tenon` 命令与普通 git 操作放行。声明 `reads_tests` 的
+评审者，提示词还附带最新的失败用例、flaky 用例、覆盖率对照门槛与基准变化。
+
 阻塞带稳定的码（`test-catalog-missing`、`test-plan-missing`、`test-kind-missing`、`test-file-unregistered`、`test-not-run`、
 `test-failed`、`test-stale`、`no-tests-ran`、`coverage-below`、`scenario-uncovered` 等）、短标签、完整原因和修复命令。
 

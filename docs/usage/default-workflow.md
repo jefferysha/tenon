@@ -98,6 +98,20 @@ Blockers carry a stable code (`test-catalog-missing`, `test-plan-missing`,
 `test-stale`, `no-tests-ran`, `coverage-below`, `scenario-uncovered`, …), a short
 label, the full reason and the command that fixes it.
 
+`tenon status`'s `step.next` walks the test system in order: `test-discover` (no
+catalog) → `test-plan-seed` → `test-plan-map` (missing kinds, unmapped scenarios) →
+`test-register-files` (unregistered test files) → `run-tests` (`tenon test run
+<change> --stage`) → `test-report` (writes the traceability matrix into the
+verification report). They come after the step's documents and before its reviewers;
+a run that finished but misses the policy becomes a `fix` — or, on a review gate, the
+rollback edge. Waivers need a human: `tenon review request` lists the plan's pending
+waivers, and the user's confirmation (`tenon review acknowledge`, not `--delegated`)
+approves exactly those. The plan, baselines, known failures and run records are
+written only through `tenon test …`; the write gate refuses direct edits and shell
+redirects into them, while `tenon` commands and plain git operations pass. A reviewer
+that declares `reads_tests` also gets the latest failing cases, flaky cases, coverage
+against the thresholds and benchmark deltas in its prompt.
+
 The `chat` track — the default when the Dashboard picks no track — declares no skills. Its document
 contract still governs the outputs, but a default resolution without a track needs no upstream skill
 bytes, so it also holds on a clean checkout.

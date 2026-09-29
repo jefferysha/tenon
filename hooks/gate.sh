@@ -11,7 +11,7 @@
 # marker 只从当前项目根读取：Git worktree / 显式 TENON_PROJECT_ROOT / 当前 cwd 三者之一。
 #   绝不从普通父目录猜测项目根，避免共享 /tmp 下的外部 Change 拦截无关会话。
 # 纯 bash 热路径（CONTRACT §5.4）：不 spawn 任何解释器/外部 JSON 解析器，
-#   stdin JSON 只用 bash 字符串提取所需的键（cwd / tool_name；测试记录门另取写入目标路径）。
+#   stdin JSON 只用 bash 字符串提取所需的键（cwd / tool_name；测试记录门另取写入目标路径与 shell 写入命令的目标）。
 # 例外（Task 9，GOAL 清单 E）：非 default workflow 的 change 调用 Claude Skill 工具，或 Codex
 #   读取当前插件内 SKILL.md 时，文件尾段委托 `node .../tenon.mjs internal-skill-gate` 做 skill DAG
 #   解锁判定。默认 workflow / 无活跃 change / 非技能读取三者任一成立就直接跳过 node；Codex 读取
@@ -150,7 +150,8 @@ pipeline_segment_writes_record() { # $1=segment → 0 = writes a test record
   local segment="${1:-}" token prev='' head='' last='' inplace=0 has_head=0 relevant=0 ch
   local IFS=$' \t'
   local -a tokens
-  for ch in '"' "'" '\' '(' ')' '{' '}' '`'; do segment="${segment//$ch/ }"; done
+  for ch in '"' "'" '(' ')' '{' '}' '`'; do segment="${segment//$ch/ }"; done
+  segment="${segment//\\/}" # 反斜杠直接去掉（`test\-plan.yaml` 还原成 `test-plan.yaml`）；bash 3.2 下变量形式的 `\` 模式不生效
   # `>` 两侧补空格：`x>path` `2>path` `&>path` `>>path` 都变成「操作符 + 路径」两个记号（`>>` 是两个连续的 `>`，
   # `2>&1` 的 `&1` 不是受保护路径）。
   segment="${segment//>/ > }"
