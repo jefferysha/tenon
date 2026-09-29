@@ -2,7 +2,7 @@ import { useT } from '../i18n'
 import { StatusPill, type PillTone } from '../shell/ThreeColumns'
 import { FixCommand } from '../tests/FixCommand'
 import { TestSection } from '../tests/TestSection'
-import { blockerLabel, noticeLabel } from '../tests/testLabels'
+import { blockerLabel, kindLabel, noticeLabel } from '../tests/testLabels'
 import { dataMessage } from '../tests/testText'
 import { COUNT_BADGE, TABLE_HEAD, TABLE_ROW, gridRow } from '../tests/testStyles'
 import type { PolicyReport, TraceRow } from '../api/testSystemTypes'
@@ -59,7 +59,7 @@ export function TestsTabBlockers({ items }: { items: readonly ExtraItem[] }): JS
             <span className={type === 'blocker' ? 'truncate font-semibold text-red-d' : 'truncate text-text-2'} role="cell" title={dataMessage(item)} data-testid="tests-blocker-code">
               {type === 'blocker' ? blockerLabel(item.code, lang) : noticeLabel(item.code, lang)}
             </span>
-            <span className="truncate font-mono text-text-2" role="cell" title={item.subject}>{item.subject ?? '—'}</span>
+            <span className="truncate font-mono text-text-2" role="cell" title={item.subject}>{item.subject === undefined ? '—' : kindLabel(item.subject, t)}</span>
             <span className="min-w-0" role="cell">
               {item.fix === undefined ? <span className="text-text-3">—</span> : <FixCommand command={item.fix} testId={`tests-blocker-fix-${index}`} />}
             </span>

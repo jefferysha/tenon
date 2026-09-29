@@ -11,7 +11,7 @@ export function TestSection({ title, count, action, testId, children }: {
   children: ReactNode
 }): JSX.Element {
   return (
-    <section className="grid gap-2" data-testid={testId}>
+    <section className="grid grid-cols-[minmax(0,1fr)] gap-2" data-testid={testId}>
       <div className="flex min-w-0 items-center gap-2 whitespace-nowrap">
         <h3 className="whitespace-nowrap text-title font-semibold text-text">{title}</h3>
         {count !== undefined && <span className={COUNT_BADGE}>{count}</span>}

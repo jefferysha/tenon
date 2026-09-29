@@ -2,6 +2,7 @@ import { useT } from '../../i18n'
 import { fetchTestRecords } from '../../api/testSystemClient'
 import type { RecordSummary } from '../../api/testSystemTypes'
 import { StatusPill } from '../../shell/ThreeColumns'
+import { Tip } from '../../tests/Tip'
 import { TestSection } from '../../tests/TestSection'
 import { blockerLabel } from '../../tests/testLabels'
 import { formatDuration, formatTime } from '../../tests/testFormat'
@@ -14,11 +15,13 @@ import { cn } from '@/lib/utils'
 const COLUMNS = 'grid-cols-[6rem_minmax(0,1fr)_5rem_5rem_minmax(0,1.4fr)]'
 
 /** 历史：这个套件在本任务里的全部运行（新的在前）；点一行换看那次运行。读取失败只藏本段。 */
-export function RunHistorySection({ root, change, suite, current, onSelect }: {
+export function RunHistorySection({ root, change, suite, current, stageLabelOf, onSelect }: {
   root: string
   change: string
   suite: string
   current: string
+  /** 阶段 id → 任务冻结工作流里的阶段名；缺省 = 原样显示 id。 */
+  stageLabelOf?: (stage: string) => string
   onSelect: (run: RecordSummary) => void
 }): JSX.Element | null {
   const { t, lang } = useT()
@@ -58,7 +61,9 @@ export function RunHistorySection({ root, change, suite, current, onSelect }: {
                   {formatTime(run.finishedAt)}
                 </button>
               </span>
-              <span className="truncate font-mono text-caption text-text-2" role="cell" title={run.step}>{run.step}</span>
+              <span className="truncate text-caption text-text-2" role="cell" data-testid={`run-history-step-${run.runId}`}>
+                <Tip tip={<span className="font-mono">{run.step}</span>}>{stageLabelOf?.(run.step) ?? run.step}</Tip>
+              </span>
               <span role="cell">
                 {run.trusted
                   ? <ResultMark result={suiteRun?.result ?? run.result} />

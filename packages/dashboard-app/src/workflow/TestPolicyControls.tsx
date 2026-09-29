@@ -6,6 +6,7 @@ import { useT } from '../i18n'
 import { handleRadioKey } from '../shared/radioKeyboard'
 import { INPUT } from '../shared/uiRecipes'
 import { KindIcon } from '../tests/KindIcon'
+import { kindLabel } from '../tests/testLabels'
 import { cn } from '@/lib/utils'
 import { Hint } from './Hint'
 import type { Parsed } from './testPolicyEdits'
@@ -42,13 +43,13 @@ export function KindPicker({ label, value, disabled, onChange, testId }: {
   testId: string
 }): JSX.Element {
   const { t } = useT()
-  const text = value.length === 0 ? '—' : value.join(' · ')
+  const text = value.length === 0 ? '—' : value.map((kind) => kindLabel(kind, t)).join(' · ')
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex min-h-10 min-w-0 max-w-full items-center gap-2 rounded-sm border border-border-2 bg-card px-3 text-left font-mono text-body text-text outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-not-allowed disabled:bg-fill disabled:text-text-3"
+          className="flex min-h-10 min-w-0 max-w-full items-center gap-2 rounded-sm border border-border-2 bg-card px-3 text-left text-body text-text outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-not-allowed disabled:bg-fill disabled:text-text-3"
           aria-label={label}
           title={text}
           disabled={disabled}
@@ -63,13 +64,13 @@ export function KindPicker({ label, value, disabled, onChange, testId }: {
           <DropdownMenuCheckboxItem
             key={kind}
             checked={value.includes(kind)}
-            className="min-h-9 whitespace-nowrap font-mono text-body"
+            className="min-h-9 whitespace-nowrap text-body"
             data-testid={`${testId}-option-${kind}`}
             onSelect={(event) => event.preventDefault()}
             onCheckedChange={(checked) => onChange(checked ? [...value, kind] : value.filter((item) => item !== kind))}
           >
             <KindIcon kind={kind} />
-            {kind}
+            <span title={kind}>{kindLabel(kind, t)}</span>
           </DropdownMenuCheckboxItem>
         ))}
       </DropdownMenuContent>

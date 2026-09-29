@@ -2,7 +2,7 @@ import { useT } from '../i18n'
 import { StatusPill } from '../shell/ThreeColumns'
 import { Hint } from '../workflow/Hint'
 import { FixCommand } from '../tests/FixCommand'
-import { KindIcon } from '../tests/KindIcon'
+import { KindLabel } from '../tests/KindLabel'
 import { SuiteStateMark } from '../tests/TestState'
 import { TestSection } from '../tests/TestSection'
 import { blockerLabel } from '../tests/testLabels'
@@ -71,9 +71,8 @@ export function TestsTabMatrix({ rows, openable, activeSuite, onOpen }: {
         </div>
         {rows.map((row) => (
           <div key={row.kind} className={`${gridRow(COLUMNS)} ${TABLE_ROW}`} role="row" data-testid={`tests-kind-${row.kind}`} data-met={row.met}>
-            <span className="flex min-w-0 items-center gap-2" role="cell">
-              <KindIcon kind={row.kind} />
-              <span className="truncate font-mono text-text" title={row.kind}>{row.kind}</span>
+            <span className="flex min-w-0 items-center text-text" role="cell">
+              <KindLabel kind={row.kind} testId={`tests-kind-label-${row.kind}`} />
             </span>
             <span role="cell">
               <Hint label={t(`tests.task.requirement_hint.${row.requirement.replace('-', '_')}`)}>

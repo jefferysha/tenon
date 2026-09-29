@@ -50,17 +50,17 @@ afterEach(() => {
 })
 
 describe('TaskTestsTab · 汇总与顺序', () => {
-  it('一行汇总：套件 · 用例 · 失败 · flaky · 覆盖率；不折行', () => {
+  it('一行汇总：套件 · 用例 · 失败 · 不稳定 · 覆盖率；不折行', () => {
     mount()
     const summary = screen.getByTestId('tests-summary')
-    expect(summary.textContent).toBe('套件 3 · 用例 120 · 失败 0 · flaky 2 · 覆盖率 91.2%')
+    expect(summary.textContent).toBe('套件 3 · 用例 120 · 失败 0 · 不稳定 2 · 覆盖率 91.2%')
     expect(summary.className).toContain('whitespace-nowrap')
     expect(summary).toHaveAttribute('data-pass', 'false')
   })
 
   it('没有任何覆盖率：汇总不带覆盖率一段；空运行集全部为 0', () => {
     mount({ ...verifyReport(), suites: [] })
-    expect(screen.getByTestId('tests-summary').textContent).toBe('套件 0 · 用例 0 · 失败 0 · flaky 0')
+    expect(screen.getByTestId('tests-summary').textContent).toBe('套件 0 · 用例 0 · 失败 0 · 不稳定 0')
   })
 
   it('顺序：汇总 → 未登记文件 → 策略矩阵 → 阻塞 → 场景/任务；没有的段整段不出现', () => {

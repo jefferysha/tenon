@@ -3,7 +3,7 @@ import type { WbWorkflowDef } from '../api/governanceTypes'
 import type { CatalogService, CatalogSuite, KnownFailuresView } from '../api/testSystemTypes'
 import { DetailColumn } from '../shell/ThreeColumns'
 import { CommandLine } from '../shared/CommandLine'
-import { KindIcon } from '../tests/KindIcon'
+import { KindLabel } from '../tests/KindLabel'
 import { DefRow } from '../tests/TestSection'
 import { formatPercent } from '../tests/testFormat'
 import { Hinted } from './projectBits'
@@ -32,15 +32,15 @@ export function SuiteDetail({ root, suite, services, knownFailures, workflow }: 
       panelId="proj-suite-panel"
       header={(
         <div className="mb-5 flex min-w-0 items-center gap-2">
-          <KindIcon kind={suite.kind} className="size-5 flex-none text-text-3" />
+          <KindLabel kind={suite.kind} iconOnly iconClassName="size-5 flex-none text-text-3" />
           <h1 className="min-w-0 flex-1 truncate whitespace-nowrap text-page font-bold tracking-[-.01em] text-text" title={suite.id} data-testid="proj-suite-title">
             {suite.label ?? suite.id}
           </h1>
         </div>
       )}
     >
-      <div className="grid gap-8">
-        <div role="table" aria-label={suite.id}>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-8">
+        <div className="min-w-0" role="table" aria-label={suite.id}>
           <div className="py-1"><CommandLine command={suite.command} testId="proj-suite-command" truncate /></div>
           <DefRow label={t('tests.project.detail.cwd')} testId="proj-suite-cwd"><span title={suite.cwd}>{suite.cwd}</span></DefRow>
           <DefRow label={t('tests.project.detail.timeout')} testId="proj-suite-timeout">{suite.timeoutS}s</DefRow>

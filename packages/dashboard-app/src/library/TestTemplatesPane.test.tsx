@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { I18nProvider } from '../i18n'
 import { LibraryView } from './LibraryView'
 
@@ -58,7 +59,7 @@ function stub(directions: unknown = ALL, status = 200) {
 }
 
 async function open(): Promise<void> {
-  render(<I18nProvider><LibraryView /></I18nProvider>)
+  render(<I18nProvider><TooltipProvider><LibraryView /></TooltipProvider></I18nProvider>)
   await userEvent.click(screen.getByTestId('lib-section-test-templates'))
 }
 
@@ -70,7 +71,7 @@ afterEach(() => {
 describe('库 · 测试模板', () => {
   it('左列条目叫「测试模板」并带计数；不再有「测试方向」字样', async () => {
     stub()
-    render(<I18nProvider><LibraryView /></I18nProvider>)
+    render(<I18nProvider><TooltipProvider><LibraryView /></TooltipProvider></I18nProvider>)
     await waitFor(() => expect(screen.getByTestId('lib-section-test-templates')).toHaveTextContent('5'))
     expect(screen.getByTestId('lib-section-test-templates')).toHaveTextContent('测试模板')
     await userEvent.click(screen.getByTestId('lib-section-test-templates'))
@@ -107,7 +108,7 @@ describe('库 · 测试模板 · 结构化只读字段', () => {
     stub()
     await open()
     await screen.findByTestId('lib-tt-fields')
-    expect(screen.getByTestId('lib-tt-field-kind').textContent).toContain('unit')
+    expect(screen.getByTestId('lib-tt-field-kind').textContent).toBe('种类单测')
     expect(screen.getByTestId('lib-tt-field-kind').querySelector('svg')).toHaveAttribute('data-kind', 'unit')
     expect(screen.getByTestId('lib-tt-field-command').textContent).toContain('npm test')
     expect(screen.getByTestId('lib-tt-field-timeout').textContent).toContain('900s')
@@ -119,7 +120,7 @@ describe('库 · 测试模板 · 结构化只读字段', () => {
     stub()
     await open()
     await userEvent.click(await screen.findByTestId('lib-tt-playwright'))
-    expect(screen.getByTestId('lib-tt-field-kind').textContent).toContain('playwright')
+    expect(screen.getByTestId('lib-tt-field-kind').textContent).toBe('种类Playwright')
     const rows = within(screen.getByTestId('lib-tt-outputs')).getAllByTestId('lib-tt-output')
     expect(rows.map((row) => within(row).getAllByRole('cell').map((cell) => cell.textContent))).toEqual([
       ['playwright-report', '报告', '可选'],
@@ -190,7 +191,7 @@ describe('库 · 测试模板 · 结构化只读字段', () => {
     stub()
     await open()
     await userEvent.click(await screen.findByTestId('lib-tt-my tpl'))
-    expect(screen.getByTestId('lib-tt-field-kind').textContent).toContain('custom')
+    expect(screen.getByTestId('lib-tt-field-kind').textContent).toBe('种类自定义')
   })
 
   it('值不折行：字段值截断、表格单元 nowrap', async () => {

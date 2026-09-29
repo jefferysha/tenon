@@ -109,16 +109,17 @@ describe('项目页 · 「客户端 / 测试」分段', () => {
 })
 
 describe('项目页 · 套件表', () => {
-  it('列：名称（label，缺省 id）· 种类图标 · runner · 最近结果 · flaky 数；没有记录的套件是破折号', async () => {
+  it('列：图标 + 名称（label，缺省 id）· 工具 · 最近结果 · 不稳定数；没有记录的套件是破折号', async () => {
     stub()
     mount()
     await openTests()
     await screen.findByTestId('proj-tests-table')
-    expect(within(screen.getByTestId('proj-tests-head')).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['名称', '', 'runner', '最近结果', 'flaky'])
+    expect(within(screen.getByTestId('proj-tests-head')).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['名称', '工具', '最近结果', '不稳定'])
     expect(within(screen.getByTestId('proj-tests-table')).getAllByRole('row').slice(1).map((row) => within(row).getByRole('button').textContent)).toEqual(['前端单测', '浏览器 e2e', '接口基准', 'types'])
     expect(screen.getByTestId('proj-suite-open-types')).toHaveAttribute('title', 'types')
     expect(screen.getByTestId('proj-suite-kind-web-unit').querySelector('svg')).toHaveAttribute('data-kind', 'unit')
-    expect(screen.getByTestId('proj-suite-kind-web-e2e').textContent).toBe('playwright')
+    expect(screen.getByTestId('proj-suite-kind-web-e2e').textContent).toBe('Playwright')
+    expect(screen.getByTestId('proj-suite-kind-web-e2e')).toHaveAttribute('data-kind', 'playwright')
     expect(screen.getByTestId('proj-suite-web-e2e').textContent).toContain('playwright')
     expect(screen.getByTestId('proj-suite-result-web-unit').textContent).toBe('通过')
     expect(screen.getByTestId('proj-suite-result-web-e2e').textContent).toBe('失败')
@@ -139,6 +140,16 @@ describe('项目页 · 套件表', () => {
     expect(row.className).toContain('whitespace-nowrap')
     expect(row.className).not.toMatch(/rounded-md|bg-card/)
     expect(screen.getByTestId('proj-suite-open-web-unit').className).toContain('truncate')
+  })
+
+  it('工具列固定宽，放得下 playwright（不再被挤成 vit…）；名称格吃剩余宽度', async () => {
+    stub()
+    mount()
+    await openTests()
+    const head = await screen.findByTestId('proj-tests-head')
+    const columns = /grid-cols-\[([^\]]+)\]/u.exec(head.className)?.[1]?.split('_') ?? []
+    expect(columns).toEqual(['minmax(0,1fr)', '5.5rem', '4.5rem', '3.5rem'])
+    expect(screen.getByTestId('proj-suite-web-e2e').className).toContain(head.className.match(/grid-cols-\[[^\]]+\]/u)?.[0] ?? 'missing')
   })
 
   it('默认选中第一个套件（右列不留空）；点行或名称切换，选中态用共享的列表选中类', async () => {
@@ -165,6 +176,11 @@ describe('项目页 · 套件详情', () => {
     await openTests()
     await screen.findByTestId('proj-suite-title')
     expect(screen.getByTestId('proj-suite-command-text').textContent).toContain('npx vitest run')
+    // 命令框不撑破右列：截断 + 全文在 title，复制钮始终可见；外层网格轨道是 minmax(0,1fr)。
+    expect(screen.getByTestId('proj-suite-command-text').className).toContain('truncate')
+    expect(screen.getByTestId('proj-suite-command-text')).toHaveAttribute('title', expect.stringContaining('npx vitest run'))
+    expect(screen.getByTestId('proj-suite-command-copy')).toBeVisible()
+    expect(screen.getByTestId('proj-suite-command').closest('[role="table"]')?.parentElement?.className).toContain('grid-cols-[minmax(0,1fr)]')
     await userEvent.click(screen.getByTestId('proj-suite-command-copy'))
     expect(write).toHaveBeenCalledWith(expect.stringContaining('npx vitest run'))
     expect(screen.getByTestId('proj-suite-cwd').textContent).toContain('packages/dashboard-app')

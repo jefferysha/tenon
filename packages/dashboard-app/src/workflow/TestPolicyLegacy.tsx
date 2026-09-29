@@ -4,7 +4,7 @@ import { useT } from '../i18n'
 import type { WbStepTest } from '../api/governanceTypes'
 import { shellQuote } from '../shared/shellQuote'
 import { FixCommand } from '../tests/FixCommand'
-import { KindIcon } from '../tests/KindIcon'
+import { KindLabel } from '../tests/KindLabel'
 import { TABLE_HEAD, TABLE_ROW, gridRow } from '../tests/testStyles'
 import { Hint } from './Hint'
 
@@ -31,9 +31,8 @@ export function TestPolicyLegacy({ tests }: { tests: readonly WbStepTest[] }): J
       {tests.map((test) => (
         <div key={test.id} className={`${gridRow(COLUMNS)} ${TABLE_ROW}`} role="row" data-testid={`wb-test-${test.id}`}>
           <span className="truncate text-text" role="cell" title={test.id}>{test.label ?? test.id}</span>
-          <span className="flex min-w-0 items-center gap-1.5 font-mono text-caption text-text-2" role="cell">
-            <KindIcon kind={kindForDirection(test.direction)} />
-            <span className="truncate" title={test.direction}>{test.direction}</span>
+          <span className="flex min-w-0 items-center text-caption text-text-2" role="cell" data-direction={test.direction}>
+            <KindLabel kind={kindForDirection(test.direction)} />
           </span>
           <span className="truncate font-mono text-caption text-text-2" role="cell" title={test.command}>{test.command}</span>
           <span className="min-w-0" role="cell">

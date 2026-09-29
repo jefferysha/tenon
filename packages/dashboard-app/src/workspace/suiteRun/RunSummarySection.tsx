@@ -1,8 +1,10 @@
 import { useT } from '../../i18n'
 import { CommandLine } from '../../shared/CommandLine'
 import { StatusPill } from '../../shell/ThreeColumns'
+import { Tip } from '../../tests/Tip'
 import { DefRow, TestSection } from '../../tests/TestSection'
 import { formatDuration } from '../../tests/testFormat'
+import { reasonLabel, scopeLabel } from '../../tests/testLabels'
 import { TABLE_HEAD, TABLE_ROW, gridRow } from '../../tests/testStyles'
 import type { RecordDetail, RunService, SuiteRun } from '../../api/testSystemTypes'
 import { runHref, type RunContext } from './runContext'
@@ -57,7 +59,7 @@ function ServiceRows({ services, ctx }: { services: readonly RunService[]; ctx: 
 
 /** 运行：命令、目录、退出码、耗时、范围、用例合计、原因、机器与服务就绪。 */
 export function RunSummarySection({ run, record, ctx }: { run: SuiteRun; record: RecordDetail; ctx: RunContext }): JSX.Element {
-  const { t } = useT()
+  const { t, lang } = useT()
   return (
     <TestSection title={t('tests.run.section.run')} testId="run-summary">
       <div role="table" aria-label={t('tests.run.section.run')}>
@@ -67,13 +69,21 @@ export function RunSummarySection({ run, record, ctx }: { run: SuiteRun; record:
           {run.exitCode === null ? '—' : run.exitCode}{run.signal === null ? '' : ` · ${run.signal}`}
         </DefRow>
         <DefRow label={t('tests.word.duration')} testId="run-duration">{formatDuration(run.durationMs)}</DefRow>
-        <DefRow label={t('tests.run.field.scope')} testId="run-scope">{run.scope}</DefRow>
+        <DefRow label={t('tests.run.field.scope')} testId="run-scope" mono={false}><span title={run.scope}>{scopeLabel(run.scope, t)}</span></DefRow>
         <DefRow label={t('tests.run.field.totals')} testId="run-totals" mono={false}><span title={totalsLine(run, t)}>{totalsLine(run, t)}</span></DefRow>
-        {run.reasons.map((reason, index) => {
-          const text = reason.detail === undefined ? reason.code : `${reason.code} · ${reason.detail}`
-          return <DefRow key={`${reason.code}-${index}`} label={t('tests.run.field.reasons')} testId={`run-reason-${index}`} danger><span title={text}>{text}</span></DefRow>
-        })}
-        <DefRow label={t('tests.run.field.machine')} testId="run-machine"><span title={record.machineProfile}>{record.machineLabel}</span></DefRow>
+        {run.reasons.map((reason, index) => (
+          <DefRow key={`${reason.code}-${index}`} label={t('tests.run.field.reasons')} testId={`run-reason-${index}`} mono={false} danger>
+            <Tip
+              tip={<><span className="block font-mono">{reason.code}</span>{reason.detail !== undefined && <span className="block">{reason.detail}</span>}</>}
+              testId={`run-reason-label-${index}`}
+            >
+              {reasonLabel(reason.code, lang)}
+            </Tip>
+          </DefRow>
+        ))}
+        <DefRow label={t('tests.run.field.machine')} testId="run-machine">
+          <Tip tip={<span className="font-mono">{record.machineProfile}</span>}>{record.machineLabel === '' ? record.machineProfile : record.machineLabel}</Tip>
+        </DefRow>
       </div>
       {record.services.length > 0 && <ServiceRows services={record.services} ctx={ctx} />}
     </TestSection>

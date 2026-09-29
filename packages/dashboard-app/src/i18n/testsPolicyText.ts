@@ -10,7 +10,7 @@ export const zh: Dict = {
     run: '必跑种类',
     scope: '范围',
     coverage: '覆盖率',
-    flaky: 'flaky 上限',
+    flaky: '不稳定上限',
     baseline: '要求基线',
     scenarios: '场景',
   },

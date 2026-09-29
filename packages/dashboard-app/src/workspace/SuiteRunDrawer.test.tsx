@@ -99,9 +99,10 @@ describe('SuiteRunDrawer · 运行', () => {
     expect(screen.getByTestId('run-command-text').textContent).toContain('npx playwright test')
     expect(screen.getByTestId('run-exit').textContent).toContain('1')
     expect(screen.getByTestId('run-duration').textContent).toContain('1m 23s')
-    expect(screen.getByTestId('run-scope').textContent).toContain('full')
-    expect(within(screen.getByTestId('run-totals')).getByRole('cell').textContent).toBe('通过 45 · 失败 2 · flaky 1')
-    expect(screen.getByTestId('run-reason-0').textContent).toContain('test-failed · 2 failed')
+    expect(screen.getByTestId('run-scope').textContent).toContain('全量')
+    expect(within(screen.getByTestId('run-totals')).getByRole('cell').textContent).toBe('通过 45 · 失败 2 · 不稳定 1')
+    expect(screen.getByTestId('run-reason-0').textContent).toContain('失败')
+    expect(screen.getByTestId('run-reason-0').textContent).not.toContain('test-failed')
     expect(screen.getByTestId('run-machine').textContent).toContain('darwin-arm64-m3max-node22')
     expect(screen.getByTestId('run-body').textContent ?? '').not.toContain('。')
   })
@@ -136,7 +137,19 @@ describe('SuiteRunDrawer · 运行', () => {
 })
 
 describe('SuiteRunDrawer · 失败用例', () => {
-  it('失败在前、flaky 在后；名称含分组路径，位置 file:line，消息取第一行', async () => {
+  it('内容留住右侧内边距：抽屉主体是 minmax(0,1fr) 单列，命令框截断、每一段的网格轨道也被约束', async () => {
+    stub()
+    mount()
+    await ready()
+    expect(screen.getByTestId('run-body').className).toContain('grid-cols-[minmax(0,1fr)]')
+    expect(screen.getByTestId('run-command-text').className).toContain('truncate')
+    for (const id of ['run-summary', 'run-cases', 'run-artifacts', 'run-log', 'run-history']) {
+      const section = screen.queryByTestId(id)
+      if (section !== null) expect(section.className).toContain('grid-cols-[minmax(0,1fr)]')
+    }
+  })
+
+  it('失败在前、不稳定在后；名称含分组路径，位置 file:line，消息取第一行', async () => {
     stub()
     mount()
     await ready()

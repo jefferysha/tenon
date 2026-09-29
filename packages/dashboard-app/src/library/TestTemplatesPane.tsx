@@ -5,7 +5,7 @@ import { formatApiError } from '../api/transport'
 import { CommandLine } from '../shared/CommandLine'
 import { shellQuote } from '../shared/shellQuote'
 import { BUTTON_GHOST } from '../shared/uiRecipes'
-import { KindIcon } from '../tests/KindIcon'
+import { KindLabel } from '../tests/KindLabel'
 import { DefRow, TestSection } from '../tests/TestSection'
 import { TABLE_HEAD, TABLE_ROW, gridRow } from '../tests/testStyles'
 import { CustomMark, DetailTitle, LIST_ROW, LIST_ROW_NAME, ListSkeleton } from './libraryChrome'
@@ -29,8 +29,8 @@ function Definition({ template }: { template: TestTemplate }): JSX.Element {
   return (
     <div className="grid gap-8" data-testid="lib-tt-fields">
       <div role="table" aria-label={template.label}>
-        <DefRow label={t('tests.library.field.kind')} testId="lib-tt-field-kind">
-          <span className="inline-flex items-center gap-2"><KindIcon kind={kind} />{kind}</span>
+        <DefRow label={t('tests.library.field.kind')} testId="lib-tt-field-kind" mono={false}>
+          <KindLabel kind={kind} />
         </DefRow>
         <DefRow label={t('tests.word.command')} testId="lib-tt-field-command"><span title={def.command}>{def.command}</span></DefRow>
         {def.cwd !== undefined && def.cwd !== '' && def.cwd !== '.' && <DefRow label={t('tests.library.field.cwd')} testId="lib-tt-field-cwd">{def.cwd}</DefRow>}

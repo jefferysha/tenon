@@ -249,6 +249,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
           : { user: change.testUser, runId: openedSuite.runId, suite: openedSuite.suite }}
         verdict={openedSuite}
         policy={policyReport?.policy}
+        stageLabelOf={labelOf}
         onClose={() => setOpenSuite(null)}
       />
       <TestRunDrawer

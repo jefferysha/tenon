@@ -1,5 +1,7 @@
 import { FlaskConical } from 'lucide-react'
+import { kindForDirection } from '@tenon/kernel/test-system/vocabulary'
 import { useT } from '../i18n'
+import { KindLabel } from '../tests/KindLabel'
 import { StatusPill, type PillTone } from '../shell/ThreeColumns'
 import { testStatusWord, type TestRow } from './stageTests'
 import type { TestItemStatus } from '../types'
@@ -79,7 +81,9 @@ export function StageTestsPanel({
             />
           )}
         </span>
-        <span className="truncate font-mono text-caption text-text-2" role="cell" title={item.direction}>{item.direction}</span>
+        <span className="flex min-w-0 items-center text-caption text-text-2" role="cell" data-direction={item.direction}>
+          <KindLabel kind={kindForDirection(item.direction)} />
+        </span>
         <span className={cn('truncate font-mono text-caption', run === '' ? 'text-text-3' : 'text-text-2')} role="cell" title={run === '' ? undefined : run}>
           {run === '' ? '—' : run}
         </span>

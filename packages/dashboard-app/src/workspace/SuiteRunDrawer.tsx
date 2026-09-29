@@ -7,7 +7,7 @@ import { fetchTestRecord } from '../api/testSystemClient'
 import { formatApiError } from '../api/transport'
 import type { RecordDetail, StaleBinding, SuiteRun, SuiteVerdict, TestPolicyView } from '../api/testSystemTypes'
 import { Hint } from '../workflow/Hint'
-import { KindIcon } from '../tests/KindIcon'
+import { KindLabel } from '../tests/KindLabel'
 import { blockerLabel } from '../tests/testLabels'
 import { ResultMark } from '../tests/TestState'
 import { useRemote } from '../tests/useRemote'
@@ -35,6 +35,8 @@ export interface SuiteRunDrawerProps {
   verdict?: SuiteVerdict
   /** 所选阶段的策略（覆盖率门槛）。 */
   policy?: TestPolicyView | null
+  /** 阶段 id → 任务冻结工作流里的阶段名（历史表的阶段列）。 */
+  stageLabelOf?: (stage: string) => string
   onClose: () => void
 }
 
@@ -60,7 +62,7 @@ function StaleMarks({ bindings }: { bindings: readonly StaleBinding[] }): JSX.El
   )
 }
 
-function DrawerBody({ root, change, current, record, run, verdict, policy, onSelectRun }: {
+function DrawerBody({ root, change, current, record, run, verdict, policy, stageLabelOf, onSelectRun }: {
   root: string
   change: string
   current: SuiteRunTarget
@@ -68,6 +70,7 @@ function DrawerBody({ root, change, current, record, run, verdict, policy, onSel
   run: SuiteRun
   verdict: SuiteVerdict | undefined
   policy: TestPolicyView | null | undefined
+  stageLabelOf: ((stage: string) => string) | undefined
   onSelectRun: (next: SuiteRunTarget) => void
 }): JSX.Element {
   const { t, lang } = useT()
@@ -80,7 +83,7 @@ function DrawerBody({ root, change, current, record, run, verdict, policy, onSel
   const images = run.artifacts.filter((artifact) => artifact.present && artifact.media === 'image').map((artifact) => artifact.path)
   const sameRun = verdict?.runId === current.runId
   return (
-    <div className="grid gap-6" data-testid="run-body">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6" data-testid="run-body">
       {!record.trusted && (
         <Hint label={t('tests.run.untrusted_hint')}>
           <button type="button" className="justify-self-start rounded-xs outline-none focus-visible:ring-2 focus-visible:ring-(--accent)" data-testid="run-untrusted">
@@ -100,6 +103,7 @@ function DrawerBody({ root, change, current, record, run, verdict, policy, onSel
         change={change}
         suite={current.suite}
         current={current.runId}
+        {...(stageLabelOf === undefined ? {} : { stageLabelOf })}
         onSelect={(next) => onSelectRun({ user: next.user, runId: next.runId, suite: current.suite })}
       />
       <RunImageViewer images={images} current={zoom} ctx={ctx} onChange={setZoom} onClose={() => setZoom(null)} />
@@ -108,7 +112,7 @@ function DrawerBody({ root, change, current, record, run, verdict, policy, onSel
 }
 
 /** 套件运行详情抽屉：命令与退出码、失败用例、产物、覆盖率、基准、日志、历史。只读，不执行也不登记。 */
-export function SuiteRunDrawer({ root, change, target, verdict, policy, onClose }: SuiteRunDrawerProps): JSX.Element | null {
+export function SuiteRunDrawer({ root, change, target, verdict, policy, stageLabelOf, onClose }: SuiteRunDrawerProps): JSX.Element | null {
   const { t } = useT()
   const [selected, setSelected] = useState<SuiteRunTarget | null>(target)
   useEffect(() => { setSelected(target) }, [target?.user, target?.runId, target?.suite])
@@ -131,7 +135,7 @@ export function SuiteRunDrawer({ root, change, target, verdict, policy, onClose 
       ariaLabel={name}
       title={(
         <span className="flex min-w-0 items-center gap-2">
-          <KindIcon kind={run?.kind ?? verdict?.kind ?? 'custom'} />
+          <KindLabel kind={run?.kind ?? verdict?.kind ?? 'custom'} iconOnly />
           <span className="truncate whitespace-nowrap text-title font-semibold text-text" title={current.suite}>{name}</span>
           {run !== undefined && <ResultMark result={run.result} testId="run-result" />}
         </span>
@@ -152,7 +156,7 @@ export function SuiteRunDrawer({ root, change, target, verdict, policy, onClose 
         <p className="truncate whitespace-nowrap text-body text-red-d" role="alert" data-testid="run-suite-missing">{t('common.invalid_response')}</p>
       )}
       {record !== null && run !== undefined && (
-        <DrawerBody root={root} change={change} current={current} record={record} run={run} verdict={verdict} policy={policy} onSelectRun={setSelected} />
+        <DrawerBody root={root} change={change} current={current} record={record} run={run} verdict={verdict} policy={policy} stageLabelOf={stageLabelOf} onSelectRun={setSelected} />
       )}
     </Drawer>
   )
