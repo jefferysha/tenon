@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { orchestrate } from '@tenon/kernel/workflow/orchestration'
@@ -50,14 +50,15 @@ function renderFlow(props: Partial<Parameters<typeof OrchestrationFlow>[0]> = {}
 }
 
 describe('layoutOrchestration · 纯布局', () => {
-  it('列内按位次自上而下，同一位次横排；阶段列从左到右', () => {
+  it('列内按位次自上而下，同一位次的并行条目在列内纵向堆叠；阶段列从左到右', () => {
     const layout = layoutOrchestration(STAGES, 'overview')
     const at = (stage: string, kind: 'skill' | 'test' | 'reviewer', id: string) => layout.entries.find((item) => item.id === entryNodeId(stage, { kind, id }))
     const explore = ['openspec-explore', 'brainstorming', 'grilling', 'domain-modeling'].map((id) => at('explore', 'skill', id))
     expect(explore[0]!.y).toBeLessThan(explore[1]!.y)
-    expect(explore[1]!.y).toBe(explore[2]!.y)
-    expect(explore[1]!.x).toBeLessThan(explore[2]!.x)
-    expect(explore[3]!.y).toBeGreaterThan(explore[1]!.y)
+    // 并行的两个技能：同一列（x 相同）、先后堆叠，不横排。
+    expect(explore[1]!.x).toBe(explore[2]!.x)
+    expect(explore[1]!.y).toBeLessThan(explore[2]!.y)
+    expect(explore[3]!.y).toBeGreaterThan(explore[2]!.y)
     const frames = layout.stages.map((stage) => stage.x)
     expect([...frames].sort((a, b) => a - b)).toEqual(frames)
     // 身份顺序：技能 → 测试 → 评审者。
@@ -65,16 +66,67 @@ describe('layoutOrchestration · 纯布局', () => {
     expect(at('verify', 'test', 'playwright')!.y).toBeLessThan(at('verify', 'reviewer', 'security')!.y)
   })
 
-  it('主线：起点 → 各阶段列头 → 终点；列内同身份照前置连线；两组各多于一个时经汇合点', () => {
+  it('列宽恒为一个条目宽：并行再多（验证的评审者）也不撑宽阶段框，条目不重叠', () => {
+    const many: FlowStage = {
+      id: 'verify', label: '验证', gate: 'review', entries: [
+        entry('skill', 'browser-qa', 0), entry('test', 'playwright', 1), entry('test', 'code-size', 1),
+        ...['a', 'b', 'c', 'd', 'e', 'f'].map((id) => entry('reviewer', id, 2)),
+      ],
+    }
+    const layout = layoutOrchestration([STAGES[0]!, many], 'overview')
+    expect(new Set(layout.stages.map((stage) => stage.width)).size).toBe(1)
+    const inVerify = layout.entries.filter((item) => item.stage === 'verify')
+    expect(new Set(inVerify.map((item) => item.x)).size).toBe(1)
+    const sorted = [...inVerify].sort((a, b) => a.y - b.y)
+    sorted.slice(1).forEach((item, index) => expect(item.y).toBeGreaterThanOrEqual(sorted[index]!.y + sorted[index]!.height))
+    const frame = layout.stages.find((stage) => stage.id === stageNodeId('verify'))!
+    expect(Math.max(...inVerify.map((item) => item.y + item.height))).toBeLessThan(frame.y + frame.height)
+    expect(layout.height).toBe(frame.height)
+  })
+
+  it('主线：起点 → 各阶段列头 → 终点；一对一直连，一对多 / 多对一经列外轨道上的汇合点，不穿过条目', () => {
     const layout = layoutOrchestration(STAGES, 'overview')
     const ids = layout.edges.map((edge) => edge.id)
     expect(ids).toContain(`start->${stageNodeId('open')}`)
     expect(ids).toContain(`${stageNodeId('open')}->${stageNodeId('explore')}`)
     expect(ids).toContain(`${stageNodeId('verify')}->end`)
-    expect(ids).toContain(`${entryNodeId('explore', { kind: 'skill', id: 'openspec-explore' })}->${entryNodeId('explore', { kind: 'skill', id: 'grilling' })}`)
-    expect(layout.junctions.map((point) => point.id)).toEqual([])
+    const skill = (id: string) => entryNodeId('explore', { kind: 'skill', id })
+    // 调研：openspec-explore → (brainstorming ∥ grilling) → domain-modeling，经左轨扇出、右轨汇入。
+    const fork = 'j:explore:skill:1:in'
+    const join = 'j:explore:skill:2:out'
+    expect(ids).toEqual(expect.arrayContaining([
+      `${skill('openspec-explore')}->${fork}`, `${fork}->${skill('brainstorming')}`, `${fork}->${skill('grilling')}`,
+      `${skill('brainstorming')}->${join}`, `${skill('grilling')}->${join}`, `${join}->${skill('domain-modeling')}`,
+    ]))
+    expect(ids).not.toContain(`${skill('openspec-explore')}->${skill('grilling')}`)
+    const edgeOf = (id: string) => layout.edges.find((edge) => edge.id === id)
+    expect(edgeOf(`${fork}->${skill('grilling')}`)).toMatchObject({ sourceHandle: 'bottom', targetHandle: 'left', arrow: true })
+    expect(edgeOf(`${skill('grilling')}->${join}`)).toMatchObject({ sourceHandle: 'right', targetHandle: 'top', arrow: false })
+    // 汇合点都在列外：左轨在条目左缘之外，右轨在右缘之外。
+    const column = layout.entries.filter((item) => item.stage === 'explore')
+    const left = Math.min(...column.map((item) => item.x))
+    const right = Math.max(...column.map((item) => item.x + item.width))
+    const point = (id: string) => layout.junctions.find((item) => item.id === id)!
+    expect(point(fork).x + 1).toBeLessThan(left)
+    expect(point(join).x + 1).toBeGreaterThan(right)
+    // 两组各多于一个时：右轨汇入 → 横穿空隙 → 左轨扇出。
     const fan = layoutOrchestration([{ id: 's', label: 's', gate: null, entries: [entry('skill', 'a', 0), entry('skill', 'b', 0, [], {}), entry('reviewer', 'r1', 1), entry('reviewer', 'r2', 1)] }], 'stage')
-    expect(fan.junctions.map((point) => point.id)).toEqual(['j:s:reviewer'])
+    expect(fan.junctions.map((item) => item.id)).toEqual(['j:s:skill:0:in', 'j:s:reviewer:0:out', 'j:s:reviewer:0:in', 'j:end:out'])
+    expect(fan.edges.find((edge) => edge.id === 'j:s:reviewer:0:out->j:s:reviewer:0:in')).toMatchObject({ arrow: false })
+  })
+
+  it('扇出 / 汇入不交叉：汇合点不落在任何条目里，同一列的条目竖直方向不重叠', () => {
+    const layout = layoutOrchestration(STAGES, 'overview')
+    for (const junction of layout.junctions) {
+      for (const box of layout.entries) {
+        const inside = junction.x >= box.x && junction.x <= box.x + box.width && junction.y >= box.y && junction.y <= box.y + box.height
+        expect(inside).toBe(false)
+      }
+    }
+    for (const stage of STAGES) {
+      const boxes = layout.entries.filter((item) => item.stage === stage.id).sort((a, b) => a.y - b.y)
+      boxes.slice(1).forEach((item, index) => expect(item.y).toBeGreaterThanOrEqual(boxes[index]!.y + boxes[index]!.height))
+    }
   })
 
   it('脉冲段序：进一列、走完这一列，再去下一列（下一段主线在上一列之后）', () => {
@@ -139,6 +191,17 @@ describe('OrchestrationFlow · 总览', () => {
     expect(within(canvas).getByTestId('orch-end').querySelector('[data-pulse-dot]')?.className).toContain('bg-text-3')
     // 没有点阵背景。
     expect(within(canvas).queryByTestId('flow-background')).toBeNull()
+  })
+
+  it('可缩放范围：最小 0.5（再小字就看不清）、最大 1.5；阶段画布恒为 1:1', () => {
+    renderFlow()
+    const flow = within(screen.getByTestId('orchestration-overview')).getByTestId('react-flow')
+    expect(flow).toHaveAttribute('data-min-zoom', '0.5')
+    expect(flow).toHaveAttribute('data-max-zoom', '1.5')
+    cleanup()
+    renderFlow({ mode: 'stage', stages: [STAGES[2]!], returns: [], flows: [] })
+    const stage = within(screen.getByTestId('orchestration-stage')).getByTestId('react-flow')
+    expect([stage.getAttribute('data-min-zoom'), stage.getAttribute('data-max-zoom')]).toEqual(['1', '1'])
   })
 
   it('脉冲持续循环（空闲画布也循环，与运行与否无关）', () => {

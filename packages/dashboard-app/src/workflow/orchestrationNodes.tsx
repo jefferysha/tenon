@@ -6,7 +6,7 @@ import type { FlowEntry, FlowStage, RunStatus } from '../api/workflowOrchestrati
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useT } from '../i18n'
 import { kindLabel } from '../tests/testLabels'
-import { HEADER_H, PORT, type FlowMode } from './orchestrationLayout'
+import { HEADER_H, PORT, returnLift, type FlowMode } from './orchestrationLayout'
 import { EDGE_STYLE, PulseEdge } from './skillFlowNodes'
 import { cn } from '@/lib/utils'
 
@@ -103,6 +103,7 @@ function EntryNodeView({ id, data }: NodeProps<EntryNode>): JSX.Element {
     >
       <span className="pointer-events-none absolute -inset-px rounded-sm border border-(--accent) opacity-0" aria-hidden="true" data-pulse-flash="" />
       <Handle type="target" id="top" position={Position.Top} className={HIDDEN_HANDLE} isConnectable={false} />
+      <Handle type="target" id="left" position={Position.Left} className={HIDDEN_HANDLE} isConnectable={false} />
       <button
         type="button"
         className="grid w-full min-w-0 gap-0.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-default"
@@ -120,6 +121,7 @@ function EntryNodeView({ id, data }: NodeProps<EntryNode>): JSX.Element {
         {entry.status !== undefined && stageMode && <StatusMark status={entry.status} withLabel test={entry.kind === 'test'} />}
       </button>
       <Handle type="source" id="bottom" position={Position.Bottom} className={HIDDEN_HANDLE} isConnectable={false} />
+      <Handle type="source" id="right" position={Position.Right} className={HIDDEN_HANDLE} isConnectable={false} />
     </div>
   )
 }
@@ -252,7 +254,7 @@ const JunctionNodeView = memo(function JunctionNodeView({ id }: NodeProps<Juncti
 /** 回流：从来源阶段标题顶端拱起、落回更早阶段标题顶端的虚线弧；悬停说明从哪退回到哪。 */
 export type ReturnEdgeData = { label: string }
 function ReturnEdge({ id, sourceX, sourceY, targetX, targetY, markerEnd, data }: EdgeProps<Edge<ReturnEdgeData>>): JSX.Element {
-  const lift = 28 + Math.abs(sourceX - targetX) * 0.12
+  const lift = returnLift(sourceX - targetX)
   const top = Math.min(sourceY, targetY) - lift
   const path = `M${sourceX} ${sourceY} C ${sourceX} ${top}, ${targetX} ${top}, ${targetX} ${targetY}`
   return (

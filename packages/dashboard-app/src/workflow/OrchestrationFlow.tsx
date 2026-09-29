@@ -6,15 +6,16 @@ import type { OrchestrationFlow as OutputFlow, OrchestrationKind, OrchestrationR
 import type { FlowEntry, FlowStage } from '../api/workflowOrchestrationClient'
 import { useT } from '../i18n'
 import { prefersReducedMotion, usePulseTimeline } from './flowPulse'
-import { layoutOrchestration, type FlowMode, type OrchestrationLayout } from './orchestrationLayout'
+import { layoutOrchestration, returnHeadroom, type FlowMode, type OrchestrationLayout } from './orchestrationLayout'
+import { FIT_PADDING, OVERVIEW_ZOOM, overviewMinZoom, overviewViewport } from './orchestrationViewport'
 import { CANVAS_EDGE_TYPES, CANVAS_NODE_TYPES, CanvasContext, type CanvasNode, type LaneAction, type OrchestrationCanvasContext } from './orchestrationNodes'
 import { CONTROLS_BAND, CONTROLS_CLASS, READ_ONLY_ZOOM, RESIZE_THROTTLE_MS, readOnlyViewport } from './SkillFlow'
 import { EDGE_STYLE, MARKER, pulseModeOf, useFlowAriaLabels } from './skillFlowNodes'
 import { cn } from '@/lib/utils'
 
-/** 总览可缩放的范围；阶段画布恒为 1:1。 */
-export const OVERVIEW_ZOOM = { min: 0.3, max: 1.5 } as const
-const FIT_PADDING = 0.08
+export { OVERVIEW_ZOOM } from './orchestrationViewport'
+/** 「适应」按钮：把全部装进容器（最小缩放放开，不受交互下限约束），不放大过 1。 */
+const FIT_OPTIONS = { padding: FIT_PADDING, minZoom: 0.05, maxZoom: 1 } as const
 
 export interface OrchestrationFlowProps {
   stages: readonly FlowStage[]
@@ -113,21 +114,28 @@ function OrchestrationFlowInner(props: OrchestrationFlowProps): JSX.Element {
     }
   }, [])
 
-  // 取景：总览适应容器（可缩放、可平移）；阶段画布 1:1、按内容居中。挂载后第一次瞬时，之后 200ms。
+  // 取景：总览进来时取能读清的缩放（不小于 0.85）、第一列靠左，横向平移看其余（「适应」按钮才把全部装进容器）；
+  // 阶段画布 1:1、按内容居中。挂载后第一次瞬时，之后 200ms。
   const [expanded, setExpanded] = useState(false)
+  const [minZoom, setMinZoom] = useState<number>(OVERVIEW_ZOOM.min)
   const framed = useRef(false)
+  const headroom = useMemo(() => returnHeadroom(layout, returns), [layout, returns])
   const refit = useCallback(() => {
     const duration = prefersReducedMotion() || !framed.current ? 0 : 200
     framed.current = true
     const element = containerRef.current
     if (element === null) return
     if (mode === 'overview') {
-      void flowRef.current.fitView({ padding: FIT_PADDING, minZoom: OVERVIEW_ZOOM.min, maxZoom: 1, duration })
+      // 回流弧拱在阶段框上方，算进取景的上界。
+      const bounds = { x: 0, y: -headroom, width: layout.width, height: layout.height + headroom }
+      const size = { width: element.clientWidth, height: element.clientHeight }
+      setMinZoom(overviewMinZoom(bounds, size))
+      void flowRef.current.setViewport(overviewViewport(bounds, size), { duration })
       return
     }
     const size = { width: element.clientWidth, height: Math.max(0, element.clientHeight - CONTROLS_BAND) }
     void flowRef.current.setViewport(readOnlyViewport({ x: 0, y: 0, width: layout.width, height: layout.height }, size), { duration })
-  }, [mode, layout])
+  }, [mode, layout, headroom])
   const refitRef = useRef(refit)
   refitRef.current = refit
   useEffect(() => {
@@ -209,12 +217,12 @@ function OrchestrationFlowInner(props: OrchestrationFlowProps): JSX.Element {
           zoomOnPinch={overview}
           zoomOnDoubleClick={false}
           preventScrolling={overview}
-          minZoom={overview ? OVERVIEW_ZOOM.min : READ_ONLY_ZOOM.min}
+          minZoom={overview ? minZoom : READ_ONLY_ZOOM.min}
           maxZoom={overview ? OVERVIEW_ZOOM.max : READ_ONLY_ZOOM.max}
           proOptions={{ hideAttribution: true }}
           ariaLabelConfig={ariaLabelConfig}
         >
-          <Controls showInteractive={false} showZoom={overview} showFitView position="bottom-right" className={CONTROLS_CLASS}>
+          <Controls showInteractive={false} showZoom={overview} showFitView {...(overview ? { fitViewOptions: FIT_OPTIONS } : {})} position="bottom-right" className={CONTROLS_CLASS}>
             {overview && (
               <ControlButton
                 aria-label={t(expanded ? 'workflow.exit_fullscreen' : 'workflow.fullscreen')}
