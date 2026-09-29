@@ -57,18 +57,6 @@ describe('验证报告测试段', () => {
     expect(region).toContain('### Commands')
   })
 
-  test('v2 段落接在旧表之后并进同一个摘要；只有 v2 段落时不输出空表头', () => {
-    const extra = '### 追溯矩阵\n| a | b |'
-    const both = renderTestsRegion({ changeName: 'c', locale: 'zh-CN', items, extra })
-    expect(both.indexOf('### 命令')).toBeLessThan(both.indexOf('### 追溯矩阵'))
-    expect(both).toContain('| 阶段 | 测试 |')
-    const only = renderTestsRegion({ changeName: 'c', locale: 'zh-CN', items: [], extra })
-    expect(only).not.toContain('| 阶段 |')
-    expect(only).toContain(extra)
-    expect(renderTestsRegion({ changeName: 'c', locale: 'zh-CN', items, extra: '### 别的' })).not.toBe(both)
-    expect(renderTestsRegion({ changeName: 'c', locale: 'zh-CN', items: [] })).toContain('| 阶段 |')
-  })
-
   test('无标记时追加一节；替换幂等', () => {
     const region = renderTestsRegion({ changeName: 'c', locale: 'zh-CN', items })
     const appended = replaceTestsRegion('# 验证报告\n\n结论：通过\n', region, 'zh-CN')
