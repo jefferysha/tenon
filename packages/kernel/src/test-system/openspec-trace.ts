@@ -4,8 +4,18 @@
  *     `## REMOVED Requirements` 下的场景不需要测试覆盖，不产出。
  *   · tasks.md 的勾选条目。条目自带编号（`- [ ] 2.3 …`）时用它；否则按「第几个 `##` 小节 . 小节内第几条」
  *     派生（`task:4.2`），Tenon 的按阶段 tasks.md 与 OpenSpec 的编号 tasks.md 都能引用。
+ *
+ * 哪些条目要求映射用例（`required`）：场景一律要；tasks.md 里只有「实现」阶段小节下、且不是骨架提示词的条目要。
+ * 其余阶段的小节（立项 / 调研 / 规格 / 验证 / 交付 / 完结）与骨架提示词（「将本阶段目标拆成可验证任务」）
+ * 照样进矩阵与报告，但只是可选，绝不出阻塞。阶段小节的识别与 Todo 投影同一份（标题的 id 或名称）；
+ * 整份 tasks.md 没有任何可识别的阶段小节时，沿用 Todo 的历史口径：整份清单都算实现阶段。
  */
+import { findDocumentPlaceholders } from '../documents/document-placeholders.js'
+import { DEFAULT_WORKFLOW_TODO_STAGES, stageIdForHeading, type PipelineTodoStageDefinition } from '../workflow/todo-projection.js'
 import { scenarioCoversKey, taskCoversKey } from './covers.js'
+
+/** 实现阶段的 id：tasks.md 里这个阶段小节下的条目才要求映射用例，其余阶段的条目可选、不挡。 */
+export const TRACE_TASK_STAGE = 'build'
 
 export type DeltaSection = 'added' | 'modified' | 'removed' | 'renamed'
 
@@ -26,6 +36,10 @@ export interface TaskItem {
   readonly line: number
   /** `task:<id>` */
   readonly covers: string
+  /** 所在的阶段小节 id；开头没有可识别的阶段小节时 null。 */
+  readonly stage: string | null
+  /** 要求映射用例：实现阶段小节里、不是骨架提示词的条目。false = 可选，不挡。 */
+  readonly required: boolean
 }
 
 function stripFences(lines: readonly string[]): (string | undefined)[] {
@@ -67,17 +81,32 @@ export function extractScenarios(capability: string, markdown: string): readonly
   return out
 }
 
-export function extractTaskItems(markdown: string): readonly TaskItem[] {
-  const out: TaskItem[] = []
+export function extractTaskItems(
+  markdown: string,
+  stages: readonly PipelineTodoStageDefinition[] = DEFAULT_WORKFLOW_TODO_STAGES,
+): readonly TaskItem[] {
+  const found: { readonly item: Omit<TaskItem, 'required'>; readonly placeholder: boolean }[] = []
   const seen = new Set<string>()
   let section = 0
   let inSection = 0
-  stripFences(markdown.split('\n')).forEach((raw, index) => {
+  let stage: string | null = null
+  let structured = false
+  const lines = markdown.split('\n')
+  stripFences(lines).forEach((raw, index) => {
     if (raw === undefined) return
     const line = raw.replace(/\r$/, '')
     if (/^##\s+/.test(line)) {
       section++
       inSection = 0
+    }
+    const heading = /^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/.exec(line)?.[1]
+    if (heading !== undefined) {
+      // 规范投影里的分组标题（`<!-- task-group:x -->`）在阶段小节之内，不改阶段。
+      const recognised = /<!-- task-group:[^>]+ -->\s*$/u.test(heading) ? undefined : stageIdForHeading(heading, stages)
+      if (recognised !== undefined) {
+        stage = recognised
+        structured = true
+      }
       return
     }
     const item = /^\s*[-*]\s+\[([ xX])\]\s+(.*?)\s*$/.exec(line)
@@ -88,7 +117,14 @@ export function extractTaskItems(markdown: string): readonly TaskItem[] {
     const id = numbered?.[1] ?? `${section}.${inSection}`
     if (seen.has(id)) return
     seen.add(id)
-    out.push({ id, text: numbered?.[2] ?? body, done: item[1] !== ' ', line: index + 1, covers: taskCoversKey(id) })
+    found.push({
+      item: { id, text: numbered?.[2] ?? body, done: item[1] !== ' ', line: index + 1, covers: taskCoversKey(id), stage },
+      placeholder: findDocumentPlaceholders(line).length > 0,
+    })
   })
-  return out
+  // 没有任何可识别的阶段小节：整份清单归实现阶段（Todo 投影同一口径）。
+  return found.map(({ item, placeholder }) => {
+    const owner = structured ? item.stage : TRACE_TASK_STAGE
+    return { ...item, stage: owner, required: !placeholder && owner === TRACE_TASK_STAGE }
+  })
 }

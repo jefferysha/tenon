@@ -107,7 +107,7 @@ export function TestsTabTrace({ report }: { report: PolicyReport }): JSX.Element
               </span>
               <span role="cell">
                 <StatusPill tone={traceTone(report, row)} testId={`tests-trace-state-${row.covers}`}>
-                  {row.state === 'waived' ? t('tests.word.waiver') : t(`tests.task.trace.${row.state}`)}
+                  {row.state === 'waived' ? t('tests.word.waiver') : row.state === 'uncovered' && !row.required ? t('tests.task.trace.optional') : t(`tests.task.trace.${row.state}`)}
                 </StatusPill>
               </span>
             </div>

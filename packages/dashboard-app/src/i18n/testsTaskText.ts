@@ -32,6 +32,7 @@ export const zh: Dict = {
     passing: '通过',
     failing: '失败',
     uncovered: '未覆盖',
+    optional: '可选',
     mapped: '未运行',
   },
   blockers: {
@@ -77,6 +78,7 @@ export const en: Dict = {
     passing: 'Pass',
     failing: 'Fail',
     uncovered: 'Uncovered',
+    optional: 'Optional',
     mapped: 'Not run',
   },
   blockers: {

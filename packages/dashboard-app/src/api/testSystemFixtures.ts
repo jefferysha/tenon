@@ -148,9 +148,9 @@ export function verifyReport(over: Partial<PolicyReport> = {}): PolicyReport {
       }),
     ],
     trace: [
-      { covers: 'spec:auth/登录成功跳转首页', kind: 'spec', title: 'auth · 登录成功跳转首页', state: 'failing', tests: [{ ref: 'e2e/login.spec.ts › 登录成功跳转首页', status: 'fail', suite: 'web-e2e', runId: FIXTURE_RUN }] },
-      { covers: 'spec:auth/退出登录', kind: 'spec', title: 'auth · 退出登录', state: 'uncovered', tests: [] },
-      { covers: 'task:2.3', kind: 'task', title: '2.3 密码为空时禁用提交', state: 'passing', tests: [{ ref: 'Login.test.tsx › 密码为空时禁用提交', status: 'pass', suite: 'web-unit', runId: '20260929T100000Z-abc122' }] },
+      { covers: 'spec:auth/登录成功跳转首页', kind: 'spec', title: 'auth · 登录成功跳转首页', required: true, state: 'failing', tests: [{ ref: 'e2e/login.spec.ts › 登录成功跳转首页', status: 'fail', suite: 'web-e2e', runId: FIXTURE_RUN }] },
+      { covers: 'spec:auth/退出登录', kind: 'spec', title: 'auth · 退出登录', required: true, state: 'uncovered', tests: [] },
+      { covers: 'task:2.3', kind: 'task', title: '2.3 密码为空时禁用提交', required: true, state: 'passing', tests: [{ ref: 'Login.test.tsx › 密码为空时禁用提交', status: 'pass', suite: 'web-unit', runId: '20260929T100000Z-abc122' }] },
     ],
     files: { checked: true, unregistered: [{ path: 'e2e/new.spec.ts', suites: ['web-e2e'] }], orphans: ['scripts/tmp.test.mjs'] },
     ...over,

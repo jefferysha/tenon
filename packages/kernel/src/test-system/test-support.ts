@@ -6,7 +6,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import type { RecordActor } from '../users/user.js'
 import type { EffectiveWorkflowPlan } from '../workflow/effective-plan-types.js'
-import { loadDeltaScenarios } from './load.js'
+import { loadDeltaScenarios, loadTaskItems } from './load.js'
 import { testSystemPaths } from './paths.js'
 import { readTestPlanState, writeTestPlan } from './plan-ledger.js'
 import { emptyTestPlan, type PlanWaiver } from './plan.js'
@@ -44,11 +44,13 @@ export async function seedApprovedTestPolicyWaivers(input: {
   const plan = current.state === 'ok' ? current.plan : emptyTestPlan(input.changeName)
   const kinds: TestKind[] = [...policyRequiredKinds(policy), ...(policy.coverage === undefined ? [] : ['coverage' as const])]
   const scenarios = policy.scenarios === 'off' ? [] : await loadDeltaScenarios(input.changeDir)
+  const stages = input.plan.workflow.steps.map((step) => ({ id: step.id, label: step.label }))
+  const tasks = policy.scenarios === 'off' ? [] : (await loadTaskItems(input.changeDir, stages)).filter((task) => task.required)
   const approved = input.actor.id
   const waivers: PlanWaiver[] = [
     ...plan.waivers,
     ...kinds.map((kind) => ({ kind, reason: '夹具：本用例与测试门禁无关', approved_by: approved })),
-    ...scenarios.map((scenario) => ({ covers: scenario.covers, reason: '夹具：本用例与测试门禁无关', approved_by: approved })),
+    ...[...scenarios, ...tasks].map((item) => ({ covers: item.covers, reason: '夹具：本用例与测试门禁无关', approved_by: approved })),
   ]
   await writeTestPlan(input.changeDir, { ...plan, waivers }, { actor: input.actor, recordedAt: input.recordedAt })
   return true

@@ -160,4 +160,11 @@ describe('extraItems / fileRows / traceNeedsMapping', () => {
     expect(traceNeedsMapping({ ...current, policy: null }, uncovered)).toBe(false)
     expect(traceNeedsMapping(current, current.trace[0]!)).toBe(false)
   })
+
+  it('追溯：可选的任务（非实现阶段小节）未覆盖永远中性，不算缺项', () => {
+    const current = verifyReport()
+    const optional = { ...current.trace.find((row) => row.state === 'uncovered')!, covers: 'task:1.1', kind: 'task' as const, required: false }
+    expect(traceNeedsMapping(current, optional)).toBe(false)
+    expect(traceNeedsMapping(current, { ...optional, required: true })).toBe(true)
+  })
 })

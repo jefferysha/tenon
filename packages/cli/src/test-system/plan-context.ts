@@ -20,7 +20,7 @@ export async function loadPlanInputs(deps: CliDeps, context: TestCommandContext)
     readCatalogFile(deps.cwd),
     readTestPlanState(context.dir, context.name),
     loadDeltaScenarios(context.dir),
-    loadTaskItems(context.dir),
+    loadTaskItems(context.dir, context.plan.workflow.steps.map((step) => ({ id: step.id, label: step.label }))),
   ])
   return { catalog, planState, scenarios, tasks }
 }

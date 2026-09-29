@@ -86,7 +86,8 @@ function normalized(value: string): string {
     .toLocaleLowerCase()
 }
 
-function stageForHeading(heading: string, stages: readonly PipelineTodoStageDefinition[]): string | undefined {
+/** tasks.md 标题 → 阶段 id（`## 4. 实现` / `## build` / `## Phase 实现`）；不认识的标题返回 undefined。 */
+export function stageIdForHeading(heading: string, stages: readonly PipelineTodoStageDefinition[]): string | undefined {
   const candidate = normalized(heading)
   for (const stage of stages) {
     const id = normalized(stage.id)
@@ -115,7 +116,7 @@ function parseTasks(
     const heading = /^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/.exec(line)
     if (heading) {
       if (trustedCanonicalProjection && /\s+<!-- task-group:[^>]+ -->\s*$/u.test(heading[1] ?? '')) continue
-      const headingStage = stageForHeading(heading[1] ?? '', stages)
+      const headingStage = stageIdForHeading(heading[1] ?? '', stages)
       if (headingStage !== undefined) {
         target = headingStage
         structured = true

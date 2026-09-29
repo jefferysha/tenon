@@ -1,6 +1,7 @@
 /**
  * 追溯矩阵（纯函数）：OpenSpec 场景 / tasks 条目 → 计划映射的用例 → 本轮最近的新鲜结果。
- * 场景要求（策略 scenarios）只对 spec 行出阻塞；task 行只进矩阵与报告。
+ * 场景要求（策略 scenarios）对「要求映射」的行出阻塞：所有场景，加上 tasks.md 里实现阶段小节的任务；
+ * 其余任务（立项 / 调研 / 规格 / 验证 / 交付 / 完结小节、骨架提示词）可选，只进矩阵与报告。
  */
 import { shellQuote, testBlocker, testNotice, type TestBlocker, type TestNotice } from './blockers.js'
 import { caseMatchesRef, parseCaseRef } from './covers.js'
@@ -64,8 +65,8 @@ export function evaluateTrace(context: TraceContext): TraceEvaluation {
   const blockers: TestBlocker[] = []
   const requirement = context.policy.scenarios
   const sources = [
-    ...context.scenarios.map((scenario) => ({ covers: scenario.covers, kind: 'spec' as const, title: `${scenario.capability} · ${scenario.title}` })),
-    ...context.tasks.map((task) => ({ covers: task.covers, kind: 'task' as const, title: task.text })),
+    ...context.scenarios.map((scenario) => ({ covers: scenario.covers, kind: 'spec' as const, title: `${scenario.capability} · ${scenario.title}`, required: true })),
+    ...context.tasks.map((task) => ({ covers: task.covers, kind: 'task' as const, title: task.text, required: task.required })),
   ]
   for (const source of sources) {
     const tests = (mapping.get(source.covers) ?? []).map((test) => traceTest(test, context.fresh))
@@ -73,23 +74,24 @@ export function evaluateTrace(context: TraceContext): TraceEvaluation {
     const approved = waiver?.approved_by !== null && waiver?.approved_by !== undefined
     const state = rowState(tests, approved)
     rows.push({
-      covers: source.covers, kind: source.kind, title: source.title, tests,
+      covers: source.covers, kind: source.kind, title: source.title, required: source.required, tests,
       ...(waiver === undefined ? {} : { waiver: { approved, reason: waiver.reason } }),
       state,
     })
-    if (source.kind !== 'spec' || requirement === 'off' || approved) continue
+    if (!source.required || requirement === 'off' || approved) continue
+    const noun = source.kind === 'spec' ? '场景' : '任务'
     const register = `tenon test register ${context.change} --case ${shellQuote(source.covers)} --test ${shellQuote('<文件> › <用例名>')}`
     if (tests.length === 0) {
       if (waiver !== undefined) {
-        blockers.push(testBlocker('waiver-unapproved', `场景 ${source.title} 的豁免尚未经评审批准`, { fix: context.reviewFix, subject: source.covers }))
+        blockers.push(testBlocker('waiver-unapproved', `${noun} ${source.title} 的豁免尚未经评审批准`, { fix: context.reviewFix, subject: source.covers }))
       } else {
-        blockers.push(testBlocker('scenario-uncovered', `场景 ${source.title} 没有映射任何用例`, { fix: register, subject: source.covers }))
+        blockers.push(testBlocker('scenario-uncovered', `${noun} ${source.title} 没有映射任何用例`, { fix: register, subject: source.covers }))
       }
       continue
     }
     if (requirement === 'passing' && state !== 'passing') {
       const detail = state === 'failing' ? '映射的用例有失败' : '映射的用例本轮没有通过的结果'
-      blockers.push(testBlocker('scenario-failing', `场景 ${source.title}：${detail}`, {
+      blockers.push(testBlocker('scenario-failing', `${noun} ${source.title}：${detail}`, {
         fix: `tenon test run ${context.change} --stage`, subject: source.covers,
       }))
     }

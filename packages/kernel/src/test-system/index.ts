@@ -90,7 +90,7 @@ export {
   appendTestRunRecordV2, listRecordDirectory, readRecordChain, recordV2Digest, verifyRecordChain,
 } from './record-chain.js'
 export type { AppendResult, ChainReport, RecordDirectoryListing, RecordFileEntry } from './record-chain.js'
-export { extractScenarios, extractTaskItems } from './openspec-trace.js'
+export { TRACE_TASK_STAGE, extractScenarios, extractTaskItems } from './openspec-trace.js'
 export type { DeltaSection, OpenSpecScenario, TaskItem } from './openspec-trace.js'
 export { normalizeRepoPath, suitesOwningFile, testFileRegistration } from './test-files.js'
 export type { TestFileRegistration, UnregisteredTestFile } from './test-files.js'

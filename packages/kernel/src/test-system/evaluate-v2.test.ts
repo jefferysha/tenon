@@ -451,10 +451,33 @@ describe('evaluateTestPolicy —— 场景追溯', () => {
       waivers: [{ covers: 'spec:auth/密码错误', reason: '沿用旧行为', approved_by: null }],
     }
     const report = evaluate({ policy: { scenarios: 'required' }, plan, input: { scenarios, tasks } })
-    expect(report.blockers.map((item) => [item.code, item.subject])).toEqual([['waiver-unapproved', 'spec:auth/密码错误']])
+    expect(report.blockers.map((item) => [item.code, item.subject])).toEqual([
+      ['waiver-unapproved', 'spec:auth/密码错误'], ['scenario-uncovered', 'task:1.1'],
+    ])
     const uncovered = evaluate({ policy: { scenarios: 'required' }, input: { scenarios, tasks } })
-    expect(uncovered.blockers.map((item) => item.code)).toEqual(['scenario-uncovered', 'scenario-uncovered'])
+    expect(uncovered.blockers.map((item) => item.code)).toEqual(['scenario-uncovered', 'scenario-uncovered', 'scenario-uncovered'])
     expect(uncovered.blockers[0]?.fix).toBe("tenon test register demo --case 'spec:auth/登录成功' --test '<文件> › <用例名>'")
+    expect(uncovered.blockers[2]?.message).toMatch(/^任务 /)
+  })
+
+  it('任务只有实现阶段小节里的要求映射；其余阶段的任务与骨架提示词只进矩阵，不出阻塞', () => {
+    const mixed = extractTaskItems([
+      '## 立项', '- [ ] 将本阶段目标拆成可验证任务。', '',
+      '## 规格', '- [ ] 评审需求 (spec)', '',
+      '## 实现', '- [ ] 写登录页', '- [ ] 将本阶段目标拆成可验证任务。 (build)', '',
+      '## 验证', '- [ ] 手工回归 (verify)',
+    ].join('\n'))
+    const uncovered = evaluate({ policy: { scenarios: 'required' }, input: { scenarios: [], tasks: mixed } })
+    expect(uncovered.blockers.map((item) => [item.code, item.subject])).toEqual([['scenario-uncovered', 'task:3.1']])
+    expect(uncovered.trace.map((row) => [row.covers, row.required, row.state])).toEqual([
+      ['task:1.1', false, 'uncovered'], ['task:2.1', false, 'uncovered'], ['task:3.1', true, 'uncovered'],
+      ['task:3.2', false, 'uncovered'], ['task:4.1', false, 'uncovered'],
+    ])
+    const mapped: TestPlan = { ...BASE_PLAN, cases: [{ covers: 'task:3.1', tests: ['src/a.test.ts › works'] }] }
+    expect(evaluate({ policy: { scenarios: 'required' }, plan: mapped, input: { scenarios: [], tasks: mixed } }).blockers).toEqual([])
+    const off = evaluate({ policy: { scenarios: 'off' }, input: { scenarios: [], tasks: mixed } })
+    expect(off.blockers).toEqual([])
+    expect(off.trace.map((row) => row.required)).toEqual([false, false, true, false, false])
   })
 
   it('scenario-failing：passing 模式下映射用例本轮没有通过；追溯矩阵含 task 行与状态', () => {

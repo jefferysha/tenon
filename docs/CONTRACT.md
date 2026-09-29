@@ -269,9 +269,9 @@
 | owner set | `<name> <email> [--name <name>]` | 同 `owner take` | 0；非当前负责人/邮箱非法=1，其余同 `owner take` |
 | test discover | `[--write] [--json]` | 建议套件表（`--write` 追加进 `.tenon/tests/catalog.yaml`，已存在的 id 不覆盖）；`--json` `{catalog,written,suites[{id,state,source,suite}],notes}` | 0；目录无效=1 |
 | test catalog show/validate/add/set/rm | `show [<id>] [--json]`、`validate [--json]`、`add [<id>] [--from <方向>] [--service] …`、`set <id> … [--service]`、`rm <id> [--service]` | 目录条目；`validate` 逐条 `catalog.yaml:<行>: …`；写出前整份重新解析，写坏的目录不落盘 | 0；`validate` 有问题=2；用法/目录无效/引用缺失=1 |
-| test plan | `<name> [--seed] [--json]` | 计划摘要与各项；`--seed` 只增不减地补套件/文件并列出待映射场景；`--json` `{change,state,digest?,plan?}` | 0；计划缺失或被改动=2；`--seed` 无目录/非负责人=1 |
+| test plan | `<name> [--seed] [--json]` | 计划摘要与各项；`--seed` 只增不减地补套件/文件并列出待映射场景 / 任务（场景与实现阶段小节的任务要求映射；其余阶段的任务与骨架提示词单列为「可选」，不挡）；`--json` `{change,state,digest?,plan?}` | 0；计划缺失或被改动=2；`--seed` 无目录/非负责人=1 |
 | test register/unregister/waive | `register --suite\|--file\|--case+--test`、`unregister --suite\|--file\|--case[--test]\|--waiver <种类\|场景>`、`waive --kind\|--covers --reason` | 一行确认；写入在 Change 锁内读—改—写并更新摘要台账 | 0；计划被改动/校验失败/非负责人=1 |
-| test sync | `<name> [--json]` | 未登记/无套件认领/已不存在的测试文件与修复命令；`--json` `{unregistered,orphans,registeredButMissing,unmapped}` | 0 干净；2 有待处理；读不到 diff 或目录=1 |
+| test sync | `<name> [--json]` | 未登记/无套件认领/已不存在的测试文件与修复命令；`--json` `{unregistered,orphans,registeredButMissing,unmapped,optionalUnmapped}`（`unmapped` 只含要求映射的场景 / 实现阶段任务，`optionalUnmapped` 是不挡的可选任务） | 0 干净；2 有待处理；读不到 diff 或目录=1 |
 | test run | `<name> [--suite <id>]… [--kind <k>]… [--stage [<step>]] [--all] [--changed] [--json]`；旧形式 `<name> <test-id>` | 摘要（每套件一行、前 10 条失败用例、服务、产物位置、出口检查）；`--json` `{run_id,step,result,chain,record_path,artifacts_dir,legacy,gate,record}`；`--stage` 只跑目录套件，旧内联测试仍走 `<name> <test-id>` | 0 全部通过；2 有失败（记录已写）；1 用法/环境错误（无记录） |
 | test baseline | `<name> --suite <id> --run <run-id>`；旧形式 `<name> <test-id> --run <run-id>` | `[BASELINE] 套件 @ 画像：n 项指标 ← run <id>`；写 `.tenon/tests/baselines/<套件>/<画像>.json` 并追加用户 `audit.jsonl` | 0；运行未通过/不在当前链上/无指标=1 |
 | test known | `add --suite --test --reason --expires [--link]`、`rm --suite --test`、`list [--json]` | 一行确认或清单（过期项标出） | 0；参数非法/清单无效=1 |

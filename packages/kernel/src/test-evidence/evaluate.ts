@@ -282,6 +282,7 @@ export async function evaluateTestEvidence(input: {
       slug,
       stepId: input.stepId,
       policy,
+      stages: input.plan.workflow.steps.map((step) => ({ id: step.id, label: step.label })),
       inline: items.map((item) => ({ suite: inlineSuiteFromTest(item.test), status: item.status, ...inlineDetail(item) })),
       workflowFingerprint: input.plan.workflowFingerprint,
       workflowRunId: runId,

@@ -159,9 +159,12 @@ export function fileRows(report: PolicyReport): FileRow[] {
   ]
 }
 
-/** 追溯表里没有映射的场景，在策略要求场景时算缺项；策略不要求时只是中性。 */
+/**
+ * 追溯表里没有映射的行，只有「要求映射」的（场景、实现阶段小节的任务）在策略要求场景时算缺项；
+ * 其余任务可选，永远中性。
+ */
 export function traceNeedsMapping(report: PolicyReport, row: TraceRow): boolean {
-  return row.state === 'uncovered' && report.policy !== null && report.policy.scenarios !== 'off'
+  return row.state === 'uncovered' && row.required && report.policy !== null && report.policy.scenarios !== 'off'
 }
 
 /** 页签计数：满足要求的种类 / 要求的种类（与矩阵同一口径）；没有要求任何种类时不给计数。 */

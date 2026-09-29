@@ -42,6 +42,42 @@ describe('delta spec 场景提取', () => {
   })
 })
 
+describe('tasks.md 条目：哪些要求映射用例', () => {
+  const scaffold = [
+    '# 任务', '',
+    '## 立项', '', '- [ ] 将本阶段目标拆成可验证任务。', '',
+    '## 调研', '', '- [ ] 将本阶段目标拆成可验证任务。 (explore)', '',
+    '## 规格', '', '- [ ] 将本阶段目标拆成可验证任务。 (spec)', '',
+    '## 实现', '', '- [ ] 将本阶段目标拆成可验证任务。 (build)', '- [ ] 写购物车折扣', '',
+    '## 验证', '', '- [ ] 手工回归 (verify)',
+  ].join('\n')
+
+  it('只有实现阶段小节里、不是骨架提示词的条目要求映射；其余可选', () => {
+    const items = extractTaskItems(scaffold)
+    expect(items.map((item) => [item.covers, item.stage, item.required])).toEqual([
+      ['task:1.1', 'open', false], ['task:2.1', 'explore', false], ['task:3.1', 'spec', false],
+      ['task:4.1', 'build', false], ['task:4.2', 'build', true], ['task:5.1', 'verify', false],
+    ])
+  })
+
+  it('阶段小节按传入的工作流阶段认（id 或名称）；认不出的小节沿用上一个阶段', () => {
+    const custom = [{ id: 'build', label: '开发' }, { id: 'verify', label: '验收' }]
+    const items = extractTaskItems(['## 开发', '- [ ] 甲', '### 细节', '- [ ] 乙', '## 验收', '- [ ] 丙'].join('\n'), custom)
+    expect(items.map((item) => [item.text, item.stage, item.required])).toEqual([
+      ['甲', 'build', true], ['乙', 'build', true], ['丙', 'verify', false],
+    ])
+  })
+
+  it('开头没有阶段小节的条目可选；整份没有可识别的阶段小节时整份算实现阶段', () => {
+    const headless = extractTaskItems(['- [ ] 甲', '## 实现', '- [ ] 乙'].join('\n'))
+    expect(headless.map((item) => [item.text, item.stage, item.required])).toEqual([['甲', null, false], ['乙', 'build', true]])
+    const flat = extractTaskItems(['# Tasks', '- [ ] 1.1 甲', '- [x] 1.2 乙', '- [ ] 将本阶段目标拆成可验证任务。'].join('\n'))
+    expect(flat.map((item) => [item.covers, item.stage, item.required])).toEqual([
+      ['task:1.1', 'build', true], ['task:1.2', 'build', true], ['task:0.3', 'build', false],
+    ])
+  })
+})
+
 describe('tasks.md 条目', () => {
   it('自带编号用编号；没有编号按「小节.序号」派生', () => {
     const items = extractTaskItems([

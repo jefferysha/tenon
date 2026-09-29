@@ -105,6 +105,7 @@ function readTrace(value: unknown): TraceRow {
     covers: str(item.covers),
     kind: oneOf(item.kind, ['spec', 'task']),
     title: str(item.title),
+    required: bool(item.required),
     tests: arr(item.tests, (raw) => {
       const test = rec(raw)
       return {

@@ -183,7 +183,10 @@ invocations are replaced by the runner's recommended invocation); `catalog valid
 lists every problem as `catalog.yaml:<line>: …` (exit `2`). `test plan --seed` adds the
 suites that own or cover the files this change touched, one suite per policy-required
 kind, and the changed test files, and lists the scenarios and tasks still to map with
-ready-to-run `register --case` commands. `test sync` diffs the change against its start
+ready-to-run `register --case` commands. Only scenarios and the tasks under the
+implementation (`build`) section of `tasks.md` must be mapped (`scenarios: required|passing`
+blocks on them); tasks in any other stage section, and the scaffold prompt "break this
+stage into verifiable tasks", are listed separately as optional and never block. `test sync` diffs the change against its start
 and lists unregistered test files, files no suite claims, and registrations whose file is
 gone; it uses the same computation as the gate (exit `2` when something is pending).
 

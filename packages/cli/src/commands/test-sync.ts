@@ -43,7 +43,8 @@ export async function cmdTestSync(deps: CliDeps, change: string, opts: { readonl
   const registration = testFileRegistration({ changedFiles: diff.files, catalog: inputs.catalog.catalog, plan })
   const gone = plan === undefined ? [] : await missingOnDisk(deps, plan)
   const mapped = new Set(plan?.cases.map((item) => item.covers) ?? [])
-  const unmapped = [...inputs.scenarios.map((item) => item.covers), ...inputs.tasks.map((item) => item.covers)].filter((covers) => !mapped.has(covers))
+  const unmapped = [...inputs.scenarios.map((item) => item.covers), ...inputs.tasks.filter((item) => item.required).map((item) => item.covers)].filter((covers) => !mapped.has(covers))
+  const optional = inputs.tasks.filter((item) => !item.required && !mapped.has(item.covers)).map((item) => item.covers)
   const register = (path: string, suites: readonly string[]): string =>
     `tenon test register ${change} --file ${shellQuote(path)}${suites.length === 1 ? ` --suite ${shellQuote(suites[0] ?? '')}` : ''}`
   const dirty = registration.unregistered.length + registration.orphans.length + gone.length > 0
@@ -51,7 +52,7 @@ export async function cmdTestSync(deps: CliDeps, change: string, opts: { readonl
     deps.io.out(JSON.stringify({
       change, planState: inputs.planState.state, changed: diff.files.length,
       unregistered: registration.unregistered.map((file) => ({ ...file, fix: register(file.path, file.suites) })),
-      orphans: registration.orphans, registeredButMissing: gone, unmapped,
+      orphans: registration.orphans, registeredButMissing: gone, unmapped, optionalUnmapped: optional,
     }, null, 2))
     return dirty ? 2 : 0
   }
@@ -64,6 +65,11 @@ export async function cmdTestSync(deps: CliDeps, change: string, opts: { readonl
     deps.io.out(`  未映射的场景 / 任务 ${unmapped.length} 个：`)
     for (const covers of unmapped.slice(0, MAX_LISTED)) deps.io.out(`    ${covers}`)
     if (unmapped.length > MAX_LISTED) deps.io.out(`    … 另有 ${unmapped.length - MAX_LISTED} 个`)
+  }
+  if (optional.length > 0) {
+    deps.io.out(`  可选的任务 ${optional.length} 个（不在实现阶段小节，不要求映射用例，不挡出口）：`)
+    for (const covers of optional.slice(0, MAX_LISTED)) deps.io.out(`    ${covers}`)
+    if (optional.length > MAX_LISTED) deps.io.out(`    … 另有 ${optional.length - MAX_LISTED} 个`)
   }
   if (!dirty) deps.io.out('  测试文件都已登记')
   return dirty ? 2 : 0

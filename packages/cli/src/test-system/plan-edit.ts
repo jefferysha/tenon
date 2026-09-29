@@ -85,7 +85,20 @@ export interface SeedResult {
   readonly addedFiles: readonly string[]
   readonly orphans: readonly string[]
   readonly missingKinds: readonly TestKind[]
-  readonly unmapped: readonly { readonly covers: string; readonly title: string; readonly kind: 'spec' | 'task' }[]
+  /** 还没有映射用例的场景 / 任务；required = 要求映射（场景、实现阶段小节的任务），其余可选、不挡。 */
+  readonly unmapped: readonly UnmappedItem[]
+}
+
+export interface UnmappedItem {
+  readonly covers: string
+  readonly title: string
+  readonly kind: 'spec' | 'task'
+  readonly required: boolean
+}
+
+/** 要求映射的排前面，其余（可选）在后；各自保持出现顺序。 */
+export function splitUnmapped(items: readonly UnmappedItem[]): { readonly required: readonly UnmappedItem[]; readonly optional: readonly UnmappedItem[] } {
+  return { required: items.filter((item) => item.required), optional: items.filter((item) => !item.required) }
 }
 
 function touches(suite: CatalogSuite, changed: readonly string[]): boolean {
@@ -128,9 +141,9 @@ export function seedPlan(input: SeedInput): SeedResult {
   }
   plan = withFiles(plan, files)
   const mapped = new Set(plan.cases.map((item) => item.covers))
-  const unmapped = [
-    ...input.scenarios.filter((item) => !mapped.has(item.covers)).map((item) => ({ covers: item.covers, title: `${item.capability} · ${item.title}`, kind: 'spec' as const })),
-    ...input.tasks.filter((item) => !mapped.has(item.covers)).map((item) => ({ covers: item.covers, title: item.text, kind: 'task' as const })),
+  const unmapped: UnmappedItem[] = [
+    ...input.scenarios.filter((item) => !mapped.has(item.covers)).map((item) => ({ covers: item.covers, title: `${item.capability} · ${item.title}`, kind: 'spec' as const, required: true })),
+    ...input.tasks.filter((item) => !mapped.has(item.covers)).map((item) => ({ covers: item.covers, title: item.text, kind: 'task' as const, required: item.required })),
   ]
   return { plan, addedSuites, addedFiles: files.map((file) => file.path), orphans: registration.orphans, missingKinds, unmapped }
 }

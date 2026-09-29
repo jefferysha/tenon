@@ -209,6 +209,44 @@ describe('测试体系 v2 · 计划、追溯与命令面', () => {
     expect(out()).toContain('### Traceability')
   }, 240_000)
 
+  test('E：只有场景与实现阶段小节的任务要求映射；其余阶段的任务单列为可选，seed / sync 分开显示，门禁不挡', async () => {
+    await project(workflow('          run: [unit]\n          scope: full\n          scenarios: passing'))
+    await tenon('test', 'discover', '--write')
+    await writeFile(join(cwd(), 'src', 'login.test.ts'), LOGIN_TEST, 'utf8')
+    await writeFile(join(cwd(), 'openspec', 'changes', 'demo', 'tasks.md'), [
+      '# 任务', '', '## 实现', '- [ ] 1.1 实现登录', '- [ ] 将本阶段目标拆成可验证任务。 (build)', '',
+      '## 验证', '- [ ] 2.1 手工回归 (verify)',
+    ].join('\n'), 'utf8')
+    expect(await tenon('test', 'plan', 'demo', '--seed'), err()).toBe(0)
+    expect(out()).toContain('待映射的场景 / 任务（3）')
+    expect(out()).toContain('tenon test register demo --case task:1.1')
+    expect(out()).toContain('可选的任务（2）')
+    expect(out()).toMatch(/task:1\.2 {2}将本阶段目标拆成可验证任务/u)
+    expect(out()).toMatch(/task:2\.1 {2}手工回归/u)
+    expect(out()).not.toContain('tenon test register demo --case task:2.1')
+
+    expect(await tenon('test', 'sync', 'demo', '--json')).toBe(0)
+    const sync = JSON.parse(out()) as { unmapped: string[]; optionalUnmapped: string[] }
+    expect(sync.unmapped).toEqual(['spec:auth/登录成功', 'spec:auth/密码错误', 'task:1.1'])
+    expect(sync.optionalUnmapped).toEqual(['task:1.2', 'task:2.1'])
+    await tenon('test', 'sync', 'demo')
+    expect(out()).toContain('未映射的场景 / 任务 3 个')
+    expect(out()).toContain('可选的任务 2 个')
+
+    for (const [covers, name] of [['spec:auth/登录成功', '登录成功'], ['spec:auth/密码错误', '密码错误'], ['task:1.1', '登录成功']] as const) {
+      expect(await tenon('test', 'register', 'demo', '--case', covers, '--test', `src/login.test.ts › login › ${name}`), err()).toBe(0)
+    }
+    expect(await tenon('test', 'run', 'demo', '--stage', 'verify'), `${out()}\n${err()}`).toBe(0)
+    const current = await report('verify')
+    expect(blocking(current)).toEqual([])
+    expect(current.policy?.trace.map((row) => [row.covers, row.state])).toEqual([
+      ['spec:auth/登录成功', 'passing'], ['spec:auth/密码错误', 'passing'],
+      ['task:1.1', 'passing'], ['task:1.2', 'uncovered'], ['task:2.1', 'uncovered'],
+    ])
+    await tenon('test', 'plan', 'demo')
+    expect(out()).toContain('另有 2 个可选任务没有映射用例（不挡）')
+  }, 240_000)
+
   test('登记面：套件 scope 校验、文件登记的认领 / 冲突 / 资源文件、取消登记、对账里已删除的文件', async () => {
     await project(workflow('          run: [unit]\n          scope: full'))
     await tenon('test', 'discover', '--write')

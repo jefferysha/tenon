@@ -94,6 +94,7 @@ function traceDto(row: TraceRow): TraceRowDto {
     covers: row.covers,
     kind: row.kind,
     title: row.title,
+    required: row.required,
     tests: row.tests.map((test) => ({
       ref: test.ref,
       status: test.status,

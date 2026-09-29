@@ -20,6 +20,7 @@ import { baselineV2Path, testSystemPaths } from './paths.js'
 import { readTestPlanState } from './plan-ledger.js'
 import { readRecordChain, type ChainReport } from './record-chain.js'
 import type { StepTestPolicyIR } from '../workflow/ir.js'
+import type { PipelineTodoStageDefinition } from '../workflow/todo-projection.js'
 
 const MAX_TEXT_BYTES = 1024 * 1024
 const MAX_CAPABILITIES = 256
@@ -76,9 +77,10 @@ export async function loadDeltaScenarios(changeDir: string): Promise<readonly Op
   return out
 }
 
-export async function loadTaskItems(changeDir: string): Promise<readonly TaskItem[]> {
+/** `stages` = 任务冻结的工作流阶段（id + 名称），用来认 tasks.md 的阶段小节；缺省 = 默认工作流的七个阶段。 */
+export async function loadTaskItems(changeDir: string, stages?: readonly PipelineTodoStageDefinition[]): Promise<readonly TaskItem[]> {
   const text = await readBounded(join(changeDir, 'tasks.md'))
-  return text === undefined ? [] : extractTaskItems(text)
+  return text === undefined ? [] : extractTaskItems(text, stages)
 }
 
 async function loadBaselines(
@@ -110,6 +112,8 @@ export interface StepTestPolicyLoadInput {
   readonly slug: string
   readonly stepId: string
   readonly policy: StepTestPolicyIR
+  /** 任务冻结的工作流阶段；tasks.md 的阶段小节按它识别（缺省 = 默认七阶段）。 */
+  readonly stages?: readonly PipelineTodoStageDefinition[]
   readonly inline: readonly InlineSuiteStatus[]
   readonly workflowFingerprint: string
   readonly workflowRunId: string | undefined
@@ -127,7 +131,7 @@ export async function evaluateStepTestPolicy(input: StepTestPolicyLoadInput): Pr
     readRecordChain(input.repoRoot, input.slug, input.changeName),
     loadKnownFailures(input.repoRoot),
     loadDeltaScenarios(input.changeDir),
-    loadTaskItems(input.changeDir),
+    loadTaskItems(input.changeDir, input.stages),
   ])
   const planInput: PlanInput = plan.state === 'ok' ? { state: 'ok', plan: plan.plan, digest: plan.digest } : plan
   const hasRecords = chain.state === 'intact' && chain.active.length > 0

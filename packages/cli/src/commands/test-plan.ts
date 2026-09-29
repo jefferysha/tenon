@@ -6,7 +6,7 @@
 import { emptyTestPlan, planCatalogProblems, shellQuote, updateTestPlan, type TestPlan } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 import { loadPlanInputs, policiesOf, tryChangedFiles } from '../test-system/plan-context.js'
-import { seedPlan, type SeedResult } from '../test-system/plan-edit.js'
+import { seedPlan, splitUnmapped, type SeedResult } from '../test-system/plan-edit.js'
 import { resolveTestCommand } from './test-context.js'
 
 const MAX_LISTED = 15
@@ -35,12 +35,18 @@ function printSeed(deps: CliDeps, change: string, seed: SeedResult): void {
     deps.io.out(`  ! 策略要求 ${kind} 测试，但目录里没有该种类的套件：tenon test catalog add ... --kind ${kind}，或 tenon test waive ${change} --kind ${kind} --reason ${shellQuote('<不适用的原因>')}`)
   }
   for (const path of seed.orphans) deps.io.out(`  ! 测试文件 ${path} 没有套件认领：先在目录里加套件（tenon test discover --write）`)
-  if (seed.unmapped.length > 0) {
-    deps.io.out(`  待映射的场景 / 任务（${seed.unmapped.length}）：写好测试后逐条登记`)
-    for (const item of seed.unmapped.slice(0, MAX_LISTED)) {
+  const { required, optional } = splitUnmapped(seed.unmapped)
+  if (required.length > 0) {
+    deps.io.out(`  待映射的场景 / 任务（${required.length}）：写好测试后逐条登记`)
+    for (const item of required.slice(0, MAX_LISTED)) {
       deps.io.out(`    ${item.title}\n      tenon test register ${change} --case ${shellQuote(item.covers)} --test ${shellQuote('<文件> › <用例名>')}`)
     }
-    if (seed.unmapped.length > MAX_LISTED) deps.io.out(`    … 另有 ${seed.unmapped.length - MAX_LISTED} 条`)
+    if (required.length > MAX_LISTED) deps.io.out(`    … 另有 ${required.length - MAX_LISTED} 条`)
+  }
+  if (optional.length > 0) {
+    deps.io.out(`  可选的任务（${optional.length}）：不在实现阶段小节，不要求映射用例，不挡出口；想追溯时同样用 tenon test register ${change} --case '<covers>' --test '<文件> › <用例名>'`)
+    for (const item of optional.slice(0, MAX_LISTED)) deps.io.out(`    ${item.covers}  ${item.title}`)
+    if (optional.length > MAX_LISTED) deps.io.out(`    … 另有 ${optional.length - MAX_LISTED} 条`)
   }
 }
 
@@ -107,7 +113,9 @@ export async function cmdTestPlan(
     for (const problem of planCatalogProblems(state.plan, inputs.catalog.catalog)) deps.io.out(`  [FAIL] ${problem.message}`)
   }
   const mapped = new Set(state.plan.cases.map((item) => item.covers))
-  const unmapped = inputs.scenarios.filter((item) => !mapped.has(item.covers)).length + inputs.tasks.filter((item) => !mapped.has(item.covers)).length
-  if (unmapped > 0) deps.io.out(`  还有 ${unmapped} 个场景 / 任务条目没有映射用例`)
+  const requiredUnmapped = inputs.scenarios.filter((item) => !mapped.has(item.covers)).length + inputs.tasks.filter((item) => item.required && !mapped.has(item.covers)).length
+  const optionalUnmapped = inputs.tasks.filter((item) => !item.required && !mapped.has(item.covers)).length
+  if (requiredUnmapped > 0) deps.io.out(`  还有 ${requiredUnmapped} 个场景 / 任务条目没有映射用例`)
+  if (optionalUnmapped > 0) deps.io.out(`  另有 ${optionalUnmapped} 个可选任务没有映射用例（不挡）`)
   return 0
 }

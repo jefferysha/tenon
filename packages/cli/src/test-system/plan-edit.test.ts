@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { emptyTestPlan, extractScenarios, extractTaskItems, parseTestCatalog, type StepTestPolicyIR, type TestCatalog } from '@tenon/kernel'
-import { seedPlan, withCase, withFiles, withSuite, withWaiver, withoutTarget } from './plan-edit.js'
+import { seedPlan, splitUnmapped, withCase, withFiles, withSuite, withWaiver, withoutTarget } from './plan-edit.js'
 
 const parsed = parseTestCatalog(`schema: tenon-test-catalog/v1
 suites:
@@ -98,6 +98,14 @@ describe('seedPlan', () => {
     expect(result.plan.waivers).toEqual(plan.waivers)
     expect(result.addedSuites).toEqual([])
     expect(result.unmapped.map((item) => item.covers)).toEqual(['spec:auth/密码错误', 'task:1.1'])
+  })
+
+  it('待映射分两组：场景与实现阶段小节的任务要求映射，其余阶段的任务与骨架提示词可选', () => {
+    const mixed = extractTaskItems(['## 立项', '- [ ] 将本阶段目标拆成可验证任务。', '## 实现', '- [ ] 做登录', '## 验证', '- [ ] 手工回归'].join('\n'))
+    const result = seedPlan({ catalog: CATALOG, plan: emptyTestPlan('demo'), policies: [], changedFiles: [], scenarios, tasks: mixed })
+    const groups = splitUnmapped(result.unmapped)
+    expect(groups.required.map((item) => item.covers)).toEqual(['spec:auth/登录成功', 'spec:auth/密码错误', 'task:2.1'])
+    expect(groups.optional.map((item) => item.covers)).toEqual(['task:1.1', 'task:3.1'])
   })
 
   it('策略要求的种类目录里没有套件 → missingKinds；读不到 diff 时只按策略补套件', () => {

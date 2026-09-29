@@ -197,7 +197,7 @@ describe('TaskTestsTab · 阻塞与追溯', () => {
     mount()
     const rows = within(screen.getByTestId('tests-blockers')).getAllByTestId('tests-blocker')
     expect(rows.map((row) => [row.getAttribute('data-type'), within(row).getByTestId('tests-blocker-code').textContent])).toEqual([
-      ['blocker', 'flaky 超限'], ['notice', '已修好'],
+      ['blocker', '不稳定超限'], ['notice', '已修好'],
     ])
     expect(within(rows[1] as HTMLElement).getByTestId('tests-blocker-code').className).not.toContain('text-red-d')
     expect(within(rows[0] as HTMLElement).getByTestId('tests-blocker-code').className).toContain('text-red-d')
@@ -235,8 +235,8 @@ describe('TaskTestsTab · 阻塞与追溯', () => {
       policy: { ...base.policy!, scenarios: 'off' },
       trace: [
         ...base.trace,
-        { covers: 'spec:auth/豁免的', kind: 'spec', title: 'auth · 豁免的', state: 'waived', tests: [], waiver: { approved: false, reason: 'r' } },
-        { covers: 'spec:auth/映射了', kind: 'spec', title: 'auth · 映射了', state: 'mapped', tests: [{ ref: 'x.test.ts › y', status: 'not-run' }] },
+        { covers: 'spec:auth/豁免的', kind: 'spec', title: 'auth · 豁免的', required: true, state: 'waived', tests: [], waiver: { approved: false, reason: 'r' } },
+        { covers: 'spec:auth/映射了', kind: 'spec', title: 'auth · 映射了', required: true, state: 'mapped', tests: [{ ref: 'x.test.ts › y', status: 'not-run' }] },
       ],
     }
     mount(report)
@@ -244,6 +244,14 @@ describe('TaskTestsTab · 阻塞与追溯', () => {
     expect(screen.getByTestId('tests-trace-state-spec:auth/豁免的').textContent).toBe('豁免')
     expect(screen.getByTestId('tests-trace-state-spec:auth/豁免的')).toHaveAttribute('data-tone', 'pending')
     expect(screen.getByTestId('tests-trace-state-spec:auth/映射了').textContent).toBe('未运行')
+  })
+
+  it('可选的任务（非实现阶段小节）没映射时写「可选」，中性，不当缺项', () => {
+    const base = verifyReport()
+    mount({ ...base, trace: [...base.trace, { covers: 'task:1.1', kind: 'task', title: '将本阶段目标拆成可验证任务。', required: false, state: 'uncovered', tests: [] }] })
+    expect(screen.getByTestId('tests-trace-state-task:1.1').textContent).toBe('可选')
+    expect(screen.getByTestId('tests-trace-state-task:1.1')).toHaveAttribute('data-tone', 'neutral')
+    expect(screen.getByTestId('tests-trace-state-spec:auth/退出登录')).toHaveAttribute('data-tone', 'blocked')
   })
 
   it('英文界面用 kernel 的英文短标签', () => {
