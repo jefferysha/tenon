@@ -125,6 +125,33 @@ status. It reads `GET /api/skills/sources`, which projects the
 `skills/skills.lock.json` written by setup/update plus the last fetch outcome. The
 page performs no network access and starts no installation.
 
+### Tests
+
+The Dashboard only reads test data and edits the workflow's test policy; it never runs or
+registers tests (`tenon test ...` does). The project page has a client/tests segment
+(catalog suites, baselines per machine profile, known failures), the workbench task has a
+tests tab (policy matrix, scenario trace, unregistered files) with a run drawer (failed
+cases, artifacts, coverage, benchmark against baseline, logs), the workflow page edits each
+stage's `test_policy`, and the library lists read-only test templates.
+
+- `GET /api/tests/catalog?root=` → the parsed catalog (`missing`, `invalid` with line-numbered
+  issues, or `ok`), the known failures and the latest result per suite.
+- `GET /api/tests/baselines?root=&suite=` → baselines per machine profile with history.
+- `GET /api/tests/plan?root=&change=` → the task's test plan state (`missing`, `tampered`, `ok`).
+- `GET /api/tests/records?root=&change=[&suite=]` → v2 run records, newest first, with the
+  hash-chain state; records off an intact chain are flagged `trusted: false`.
+- `GET /api/tests/record?root=&change=&user=&run=` → one run with failed cases, coverage,
+  benchmark metrics, services and the per-file artifact index (`present` says whether the
+  local file still exists).
+- `GET /api/tests/artifact?root=&change=&user=&run=&path=` → one file inside that run's
+  artifact directory. The path must be relative and free of `..`, the target must be a regular
+  file whose real path stays inside the run directory (checked again on the opened inode),
+  and files over 64 MiB answer `413`. Images and video are served inline; zip and HTML
+  are attachments only. Every response carries `nosniff` and `Content-Security-Policy: sandbox`.
+
+Each change in `GET /api/snapshot` also carries `testPolicy` (the verdict of every stage
+that declares a policy), `testPlan` and `testUser`.
+
 ## Status semantics
 
 | State | Meaning | First check |

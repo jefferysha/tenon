@@ -117,6 +117,19 @@ AFK、Machine、Host Plan 等低频能力从设置面板进入，仍保留原有
 
 技能页（`?view=skills`）只读列出 Tenon 自有技能与 `skills/sources.yaml` 声明的上游技能：来源仓库与目录、已安装提交（变化时给出上一提交的对比链接）、许可证、更新时间与状态。数据来自 `GET /api/skills/sources`，即 setup/update 写入的 `skills/skills.lock.json` 与最近一次获取结果，页面本身不联网、不触发安装。
 
+### 测试
+
+Dashboard 只读取测试数据、只编辑工作流的测试策略，不运行也不登记测试（那是 `tenon test ...` 的事）。项目页有「客户端 / 测试」分段（目录套件、按机器画像的基线、已知失败）；工作台任务有「测试」页签（策略矩阵、场景追溯、未登记文件）和运行抽屉（失败用例、产物、覆盖率、基准对基线、日志）；工作流页编辑各阶段的 `test_policy`；库里的测试模板只读。
+
+- `GET /api/tests/catalog?root=` → 解析后的目录（`missing`、带行号问题的 `invalid`、或 `ok`）、已知失败、各套件最近结果。
+- `GET /api/tests/baselines?root=&suite=` → 按机器画像的基线与历史。
+- `GET /api/tests/plan?root=&change=` → 任务测试计划状态（`missing`、`tampered`、`ok`）。
+- `GET /api/tests/records?root=&change=[&suite=]` → v2 运行记录（新的在前）与哈希链状态；不在完好链上的记录标 `trusted: false`。
+- `GET /api/tests/record?root=&change=&user=&run=` → 一次运行的失败用例、覆盖率、基准指标、服务与逐文件产物索引（`present` 表示本机文件是否还在）。
+- `GET /api/tests/artifact?root=&change=&user=&run=&path=` → 该次运行产物目录内的单个文件。路径必须是不含 `..` 的相对路径，目标必须是真实路径仍在运行目录内的普通文件（对已打开的 inode 再核对一次），超过 64 MiB 返回 `413`。图片和视频内联，zip 与 HTML 只作附件；所有响应都带 `nosniff` 与 `Content-Security-Policy: sandbox`。
+
+`GET /api/snapshot` 里每个 change 还带 `testPolicy`（每个声明了策略的阶段的判定）、`testPlan` 与 `testUser`。
+
 ## 本地 API 边界
 
 mutation 端点必须经过 CLI 相同的 schema、CAS、review 和 guard。前端不能直接编辑 canonical JSON 或 `.pipeline.yaml`。
