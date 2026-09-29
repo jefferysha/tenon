@@ -228,6 +228,8 @@ export async function scanAnchoredProject(
         skillRuns,
         ...(agentRuns.length === 0 ? {} : { agentRuns }),
         ...(testEvidence.tests === undefined ? {} : { tests: testEvidence.tests }),
+        ...(testEvidence.testPolicy === undefined ? {} : { testPolicy: testEvidence.testPolicy }),
+        ...(testEvidence.testPlan === undefined ? {} : { testPlan: testEvidence.testPlan, testUser: testEvidence.testUser }),
         ...(testEvidence.diagnostics === undefined ? {} : { testDiagnostics: testEvidence.diagnostics }),
         ...(terminalActivity === undefined ? {} : { terminalActivity }),
       }

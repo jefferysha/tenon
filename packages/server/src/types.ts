@@ -95,6 +95,12 @@ export interface ChangeSnapshot {
   agentRuns?: import('./agentRuns.js').AgentRunsSnapshot
   /** Per-step declared tests; omitted when the change's branch declares none. */
   tests?: TestStepSnapshot[]
+  /** Per-step test policy verdicts (registered kinds, suite results, scenario trace); omitted when no step declares a policy. */
+  testPolicy?: import('./testSystemDtoTypes.js').PolicyReportDto[]
+  /** The change's test plan in brief (state and registered suites); present with `testPolicy`. */
+  testPlan?: import('./testSystemDtoTypes.js').PlanBriefDto
+  /** Slug of the acting user whose v2 records `testPolicy` was judged on. */
+  testUser?: string
   /** Corrupt test record file names of the acting user (at most 20). */
   testDiagnostics?: string[]
   /**

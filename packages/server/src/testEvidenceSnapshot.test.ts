@@ -1,12 +1,14 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
 import {
-  compileEffectiveWorkflowPlan, createStateStore, createTransitionRecordStore,
-  createWorkflowRunRepository, ensureTestEvidenceDirs, publishTestRunRecord, testDigest,
-  testRunRecordPath, type EffectiveWorkflowPlan, type TenonUser, type TestRunRecordV1,
+  appendTestRunRecordV2, catalogSuitesDigest, compileEffectiveWorkflowPlan, createStateStore,
+  createTransitionRecordStore, createWorkflowRunRepository, emptyTestPlan, ensureTestEvidenceDirs,
+  parseTestCatalog, publishTestRunRecord, readTestPlanState, testDigest, testPolicyDigest, testRunRecordPath,
+  testSystemPaths, writeTestPlan, type EffectiveWorkflowPlan, type TenonUser, type TestRunRecordV1,
 } from '@tenon/kernel'
+import { DESIGN_CATALOG, fixtureCase, fixtureRecordDraft, fixtureSuiteRun } from '@tenon/kernel/test-system/test-support'
 import { createCandidateCache } from './testCandidateCache.js'
 import { projectTestEvidence } from './testEvidenceSnapshot.js'
 
@@ -147,5 +149,100 @@ describe('createCandidateCache', () => {
     expect(calls).toBe(2)
     clock += 6000
     expect(await cache('/root')).toBeUndefined()
+  })
+})
+
+function policyPlan(): EffectiveWorkflowPlan {
+  return compileEffectiveWorkflowPlan('policied', {
+    name: 'policied',
+    steps: [
+      {
+        id: 'build', label: '实现', gate: null, skills: [], inputs: [], outputs: [],
+        test_policy: { kinds: ['unit', 'benchmark'], run: ['unit'], coverage: { lines: 80 } },
+        guards: [], transitions: [{ event: 'done', to: 'verify' }],
+      },
+      { id: 'verify', label: '验证', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] },
+    ],
+  })
+}
+
+describe('projectTestEvidence · test_policy', () => {
+  test('只有策略的步骤：没有目录时给出阻塞与缺失的计划，不生成旧式 tests', async () => {
+    const { root, changeDir } = await freshRoot()
+    const projected = await projectTestEvidence({
+      root, changeDir, changeName: CHANGE, plan: policyPlan(), user: USER, candidate: async () => CANDIDATE,
+    })
+    expect(projected.tests).toBeUndefined()
+    expect(projected.testUser).toBe(SLUG)
+    expect(projected.testPlan).toEqual({ state: 'missing' })
+    expect(projected.testPolicy).toHaveLength(1)
+    const step = projected.testPolicy?.[0]
+    expect(step).toMatchObject({
+      stepId: 'build', pass: false, chain: 'empty',
+      policy: { kinds: ['unit', 'benchmark'], run: ['unit'], scope: 'full', files: 'any', coverage: { lines: 80 }, requireBaseline: false },
+    })
+    expect(step?.blockers.map((item) => item.code)).toContain('test-catalog-missing')
+    expect(step?.blockers.find((item) => item.code === 'test-catalog-missing')?.fix).toBe('tenon test discover --write')
+    expect(step?.suites).toEqual([])
+  })
+
+  test('目录 + 计划 + 新鲜记录：套件通过、用例合计与覆盖率进投影；缺的种类给出阻塞与修复命令', async () => {
+    const { root, changeDir } = await freshRoot()
+    const current = policyPlan()
+    const paths = testSystemPaths(root)
+    await mkdir(paths.root, { recursive: true })
+    await writeFile(paths.catalog, DESIGN_CATALOG, 'utf8')
+    const parsed = parseTestCatalog(DESIGN_CATALOG)
+    if (!parsed.ok) throw new Error('fixture catalog invalid')
+    await writeTestPlan(changeDir, { ...emptyTestPlan(CHANGE), suites: [{ suite: 'web-unit', scope: 'full' }] }, {
+      actor: { id: 'a@x.io', name: 'A', trust: 'declared' }, recordedAt: '2026-09-15T10:00:00Z',
+    })
+    const planState = await readTestPlanState(changeDir, CHANGE)
+    const policy = current.workflow.steps[0]?.test_policy
+    if (planState.state !== 'ok' || policy === undefined) throw new Error('fixture plan invalid')
+    await appendTestRunRecordV2(root, SLUG, fixtureRecordDraft({
+      change: CHANGE, step: 'build', workflow: 'policied', workflow_run_id: 'run-1',
+      bindings: {
+        candidate: CANDIDATE, workflow_fingerprint: current.workflowFingerprint,
+        catalog_digest: catalogSuitesDigest(parsed.catalog, ['web-unit']), plan_digest: planState.digest,
+        policy_digest: testPolicyDigest(policy),
+      },
+      suites: [fixtureSuiteRun({
+        suite: 'web-unit', coverage: { lines: 91, changed_lines: 88 },
+        cases: [fixtureCase({ file: 'src/a.test.ts', name: 'works' }), fixtureCase({ file: 'src/a.test.ts', name: 'slow', status: 'flaky', attempts: 2 })],
+      })],
+    }))
+
+    const projected = await projectTestEvidence({
+      root, changeDir, changeName: CHANGE, plan: current, user: USER, candidate: async () => CANDIDATE,
+    })
+    expect(projected.testPlan).toMatchObject({ state: 'ok', suites: [{ suite: 'web-unit', kind: 'unit', scope: 'full' }], files: 0, cases: 0 })
+    const step = projected.testPolicy?.[0]
+    expect(step?.suites).toHaveLength(1)
+    expect(step?.suites[0]).toMatchObject({
+      suite: 'web-unit', origin: 'catalog', kind: 'unit', reason: 'run', state: 'passed',
+      totals: { cases: 2, pass: 1, flaky: 1, fail: 0 }, coverage: { lines: 91, changedLines: 88 },
+    })
+    expect(step?.suites[0]?.runId).toBeTruthy()
+    // benchmark 种类既没有套件也没有豁免。
+    const missing = step?.blockers.find((item) => item.code === 'test-kind-missing')
+    expect(missing).toMatchObject({ subject: 'benchmark', blocking: true })
+    expect(missing?.fix).toContain('tenon test')
+    expect(step?.pass).toBe(false)
+
+    const stale = await projectTestEvidence({
+      root, changeDir, changeName: CHANGE, plan: current, user: USER,
+      candidate: async () => `workspace:sha256:${'b'.repeat(64)}`,
+    })
+    expect(stale.testPolicy?.[0]?.suites[0]).toMatchObject({ state: 'stale', staleBecause: ['candidate'] })
+  })
+
+  test('身份缺失：没有策略判定可给（失败关闭），也不产生计划概要', async () => {
+    const { root, changeDir } = await freshRoot()
+    const anonymous = await projectTestEvidence({
+      root, changeDir, changeName: CHANGE, plan: policyPlan(), user: undefined, candidate: async () => CANDIDATE,
+    })
+    expect(anonymous.testPolicy).toBeUndefined()
+    expect(anonymous.testPlan).toBeUndefined()
   })
 })

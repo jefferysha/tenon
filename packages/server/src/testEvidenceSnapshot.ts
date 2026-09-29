@@ -8,6 +8,9 @@ import {
   type EffectiveWorkflowPlan, type TenonUser,
 } from '@tenon/kernel'
 import type { TestItemSnapshot, TestStepSnapshot } from './types.js'
+import { policyReportDto } from './testPolicyDto.js'
+import type { PlanBriefDto, PolicyReportDto } from './testSystemDtoTypes.js'
+import { readPlanBrief } from './testSystemReads.js'
 
 const MAX_DIAGNOSTICS = 20
 
@@ -19,8 +22,14 @@ export async function projectTestEvidence(input: {
   readonly user: TenonUser | undefined
   /** 缺省 = 宿主没有工作区指纹能力；返回 undefined = 能力在但这次取不到（判定按未知处理）。 */
   readonly candidate?: () => Promise<string | undefined>
-}): Promise<{ readonly tests?: TestStepSnapshot[]; readonly diagnostics?: string[] }> {
-  const declared = input.plan.workflow.steps.filter((step) => (step.tests ?? []).length > 0)
+}): Promise<{
+  readonly tests?: TestStepSnapshot[]
+  readonly testPolicy?: PolicyReportDto[]
+  readonly testPlan?: PlanBriefDto
+  readonly testUser?: string
+  readonly diagnostics?: string[]
+}> {
+  const declared = input.plan.workflow.steps.filter((step) => (step.tests ?? []).length > 0 || step.test_policy !== undefined)
   if (declared.length === 0) return {}
   const user = input.user
   const readCandidate = input.candidate
@@ -37,6 +46,7 @@ export async function projectTestEvidence(input: {
         }),
       }
   const tests: TestStepSnapshot[] = []
+  const policies: PolicyReportDto[] = []
   for (const step of declared) {
     const report = await evaluateTestEvidence({
       repoRoot: input.root,
@@ -65,13 +75,19 @@ export async function projectTestEvidence(input: {
         },
       }),
     }))
-    tests.push({ stepId: step.id, items })
+    if (items.length > 0) tests.push({ stepId: step.id, items })
+    if (report.policy !== undefined) policies.push(policyReportDto(report.policy, step.test_policy))
   }
+  const hasPolicy = declared.some((step) => step.test_policy !== undefined)
   const corrupt = user === undefined
     ? []
     : await corruptTestRunFiles(input.root, input.changeName, userSlug(user.id))
   return {
-    tests,
+    ...(tests.length === 0 ? {} : { tests }),
+    ...(policies.length === 0 ? {} : { testPolicy: policies }),
+    ...(hasPolicy && user !== undefined
+      ? { testPlan: await readPlanBrief(input.root, input.changeDir, input.changeName), testUser: userSlug(user.id) }
+      : {}),
     ...(corrupt.length === 0 ? {} : { diagnostics: [...corrupt].slice(0, MAX_DIAGNOSTICS) }),
   }
 }
