@@ -60,6 +60,8 @@ describe('i18n completeness（zh / en 键结构逐一对齐）', () => {
       'resources.link.design_md',
       'resources.link.llms_txt',
       'resources.link.mcp',
+      // 测试种类里的品牌名：Playwright 两种语言逐字相同。
+      'tests.kind.playwright',
     ])
     const zhLeaves = stringLeaves(zh)
     const enLeaves = stringLeaves(en)
