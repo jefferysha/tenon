@@ -12,7 +12,7 @@ import { mkdir, readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   AGENT_REPORTS_DIR,
-  appendAgentRunRow, currentDocumentStepVisitId, evaluateStepAgents, evaluateTestEvidence, latestTestRun,
+  appendAgentRunRow, currentDocumentStepVisitId, evaluateStepAgents, latestTestRun,
   nextAgentWave, parseAgentReport, projectStepAgents, readAgentRuns, readFrozenAgents, renderAgentBlocker,
   severityRank, sha256Hex,
 } from '@tenon/kernel'
@@ -26,6 +26,7 @@ import { str } from '../render.js'
 import { ensureChangeHostAgents, fallbackOutcome, hostAgentHostOf } from './agent-host.js'
 import { renderAgentPrompt } from './agent-prompt.js'
 import { renderTestPolicySummary } from './agent-prompt-tests.js'
+import { testsReadyFor } from './agent-tests-ready.js'
 import { currentCandidate } from './candidate.js'
 import { resolveChangeCommand, type TestCommandContext } from './test-context.js'
 
@@ -48,34 +49,6 @@ interface AgentContext extends TestCommandContext {
 function stepAgentsOf(plan: EffectiveWorkflowPlan, stepId: string): StepAgentsCapability {
   return plan.capabilities.agents.steps.find((step) => step.stepId === stepId)
     ?? { stepId, executors: [], reviewers: [] }
-}
-
-/** 必需测试是否就绪；测试证据判定缺席（旧 Change、无身份）时视为就绪，拦截由测试自己的门禁负责。 */
-async function testsReadyFor(
-  deps: CliDeps,
-  base: TestCommandContext,
-  stepId: string,
-): Promise<{
-  readonly ready: { readonly ready: boolean; readonly pending: readonly string[] }
-  readonly policy: TestPolicyReport | undefined
-}> {
-  const report = await (deps.testEvidence ?? evaluateTestEvidence)({
-    repoRoot: deps.cwd,
-    changeDir: base.dir,
-    changeName: base.name,
-    plan: base.plan,
-    stepId,
-    context: {
-      user: { id: base.user.id, name: base.user.name, slug: base.slug },
-      ...(deps.workspaceFingerprint === undefined
-        ? {}
-        : { currentCandidate: async () => (await deps.workspaceFingerprint?.(base.name) ?? '').trim() }),
-    },
-  })
-  const pending = report.items
-    .filter((item) => item.test.required && item.status !== 'passed')
-    .map((item) => item.test.id)
-  return { ready: { ready: pending.length === 0, pending }, policy: report.policy }
 }
 
 async function resolveAgentCommand(
