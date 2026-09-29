@@ -158,6 +158,27 @@ export interface WbStepTest {
   outputs?: WbTestOutput[]
 }
 
+/** 覆盖率门槛的指标名（kernel COVERAGE_METRICS；snake_case 上线）。 */
+export type WbCoverageMetric = 'lines' | 'branches' | 'functions' | 'statements' | 'changed_lines'
+
+/**
+ * 步骤测试策略：与 kernel StepTestPolicyDef 同形（snake_case 上线，只含声明过的键）。
+ * 读回的定义原样带着它，保存时原样写回——页面上没有表单项的键也不能被丢掉。
+ */
+export interface WbStepTestPolicy {
+  plan?: 'required' | 'optional'
+  kinds?: string[]
+  run?: string[]
+  run_if_registered?: string[]
+  scope?: 'changed' | 'full'
+  files?: 'registered' | 'any'
+  scenarios?: 'off' | 'required' | 'passing'
+  coverage?: Partial<Record<WbCoverageMetric, number>>
+  flaky?: { max: number; fail_on_new?: boolean }
+  benchmark?: { require_baseline: boolean }
+  browsers?: string[]
+}
+
 export interface WbStepDef {
   id: string
   label: string
@@ -168,6 +189,7 @@ export interface WbStepDef {
   outputs: WbFieldRef[]
   artifacts?: WbArtifactConfig[]
   tests?: WbStepTest[]
+  test_policy?: WbStepTestPolicy
   agents?: WbStepAgents
   guards: WbGuardConfig[]
   transitions: WbTransition[]

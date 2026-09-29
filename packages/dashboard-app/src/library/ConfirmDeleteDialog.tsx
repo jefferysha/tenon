@@ -2,7 +2,7 @@ import { useT } from '../i18n'
 import { Dialog } from '../shared/Dialog'
 import { BUTTON_DANGER, BUTTON_GHOST } from '../shared/uiRecipes'
 
-/** 库里自定义条目（模板 / 智能体 / 测试方向）删除前的确认；与资源目录的删除对话框同一形状。 */
+/** 库里自定义条目（模板 / 智能体）删除前的确认；与资源目录的删除对话框同一形状。 */
 export function ConfirmDeleteDialog({
   name, detail, busy, onCancel, onConfirm,
 }: {

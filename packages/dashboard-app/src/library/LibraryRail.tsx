@@ -2,17 +2,17 @@ import { Bot, FileText, FlaskConical, Package } from 'lucide-react'
 import { useT } from '../i18n'
 import { RailCard, RailColumn } from '../shell/ThreeColumns'
 
-export type LibrarySection = 'templates' | 'resources' | 'directions' | 'agents'
+export type LibrarySection = 'templates' | 'resources' | 'test-templates' | 'agents'
 
-/** 库页左列：模板 / 资源目录 / 测试方向 / agent。各区共用同一条导轨，切换只换中列与右列。 */
+/** 库页左列：模板 / 资源目录 / 测试模板 / agent。各区共用同一条导轨，切换只换中列与右列。 */
 export function LibraryRail({
-  section, templates, resources, directions, agents, collapsed, onSection, onToggle,
+  section, templates, resources, testTemplates, agents, collapsed, onSection, onToggle,
 }: {
   section: LibrarySection
   /** null = 还在读取：计数显示「–」，不显示假的 0。 */
   templates: number | null
   resources: number | null
-  directions: number | null
+  testTemplates: number | null
   agents: number | null
   collapsed: boolean
   onSection: (next: LibrarySection) => void
@@ -47,12 +47,12 @@ export function LibraryRail({
         <li>
           <RailCard
             mark={<FlaskConical />}
-            name={t('library.test_directions')}
-            count={directions ?? '–'}
-            selected={section === 'directions'}
+            name={t('library.test_templates')}
+            count={testTemplates ?? '–'}
+            selected={section === 'test-templates'}
             collapsed={collapsed}
-            onClick={() => onSection('directions')}
-            testId="lib-section-directions"
+            onClick={() => onSection('test-templates')}
+            testId="lib-section-test-templates"
           />
         </li>
         <li>

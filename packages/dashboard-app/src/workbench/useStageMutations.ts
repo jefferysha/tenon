@@ -1,7 +1,7 @@
 import { useCallback, useRef, type Dispatch, type SetStateAction } from 'react'
 import { isDefaultWorkflowName } from '@tenon/kernel/workflow/identifier'
 import type { DocumentKind } from '@tenon/kernel/workflow/document-contract-model'
-import type { WbExecutorRef, WbReviewerRef, WbSkillRef, WbStepDef, WbStepTest, WbTransition, WbWorkflowDef } from '../api/governanceTypes'
+import type { WbExecutorRef, WbReviewerRef, WbSkillRef, WbStepDef, WbStepTestPolicy, WbTransition, WbWorkflowDef } from '../api/governanceTypes'
 import { addDocumentOutputInDef, removeDocumentSlotInDef, setDocumentInputsInDef, setOpenspecInDef } from './documentContractEdits'
 import {
   addSkillToDef,
@@ -15,7 +15,7 @@ import {
   setStageBackInDef,
   setStepAgentsInDef,
   setStepSkillsInDef,
-  setStepTestsInDef,
+  setStepTestPolicyInDef,
 } from './workbenchDefinition'
 
 export interface StageMutations {
@@ -26,7 +26,7 @@ export interface StageMutations {
   reorderStages: (fromId: string, toId: string, after: boolean) => void
   setSkills: (stepId: string, skills: readonly WbSkillRef[]) => void
   setAgents: (stepId: string, patch: { executors?: readonly WbExecutorRef[]; reviewers?: readonly WbReviewerRef[] }) => void
-  setTests: (stepId: string, tests: readonly WbStepTest[]) => void
+  setTestPolicy: (stepId: string, policy: WbStepTestPolicy | undefined) => void
   addSkill: (stepId: string, skillId: string) => void
   removeSkill: (stepId: string, skillId: string) => void
   setOpenspec: (on: boolean) => void
@@ -88,7 +88,7 @@ export function useStageMutations(input: {
   )), [mutate, rememberDisplaced])
   const setSkills = useCallback((stepId: string, skills: readonly WbSkillRef[]) => mutate((previous) => setStepSkillsInDef(previous, stepId, skills)), [mutate])
   const setAgents = useCallback((stepId: string, patch: { executors?: readonly WbExecutorRef[]; reviewers?: readonly WbReviewerRef[] }) => mutate((previous) => setStepAgentsInDef(previous, stepId, patch)), [mutate])
-  const setTests = useCallback((stepId: string, tests: readonly WbStepTest[]) => mutate((previous) => setStepTestsInDef(previous, stepId, tests)), [mutate])
+  const setTestPolicy = useCallback((stepId: string, policy: WbStepTestPolicy | undefined) => mutate((previous) => setStepTestPolicyInDef(previous, stepId, policy)), [mutate])
   const addSkill = useCallback((stepId: string, skillId: string) => mutate((previous) => addSkillToDef(previous, stepId, skillId)), [mutate])
   const removeSkill = useCallback((stepId: string, skillId: string) => mutate((previous) => removeSkillFromDef(previous, stepId, skillId)), [mutate])
   const setOpenspec = useCallback((on: boolean): void => {
@@ -98,7 +98,7 @@ export function useStageMutations(input: {
   const removeDocumentSlot = useCallback((stepId: string, kind: string, direction: 'inputs' | 'outputs') => mutate((previous) => removeDocumentSlotInDef(previous, stepId, kind, direction)), [mutate])
   const setDocumentInputs = useCallback((stepId: string, kinds: readonly string[]) => mutate((previous) => setDocumentInputsInDef(previous, stepId, kinds)), [mutate])
   return {
-    renameStep, setGate, setStageBack, removeStage, reorderStages, setSkills, setAgents, setTests, addSkill, removeSkill,
+    renameStep, setGate, setStageBack, removeStage, reorderStages, setSkills, setAgents, setTestPolicy, addSkill, removeSkill,
     setOpenspec, addDocumentOutput, removeDocumentSlot, setDocumentInputs,
   }
 }

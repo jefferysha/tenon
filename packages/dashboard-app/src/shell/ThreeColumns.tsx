@@ -211,6 +211,7 @@ export function RailCard({
 /** 中列：H1（+ 行尾动作）/ 说明框 / 搜索 / 筛选芯片 / 列表。页面名只在 H1 出现一次，不再有 eyebrow。 */
 export function ListColumn({
   title,
+  tabs,
   action,
   note,
   search,
@@ -220,6 +221,8 @@ export function ListColumn({
   testId,
 }: {
   title: string
+  /** 给了就顶替可见的 H1（同一行）：列头本身是一组分段页签，H1 退成读屏可见的 sr-only 标题。 */
+  tabs?: ReactNode
   /** H1 同行右侧的对象级动作（如「新建」）；不换行。 */
   action?: ReactNode
   note?: ReactNode
@@ -237,7 +240,14 @@ export function ListColumn({
     >
       {/* 头部各块 shrink-0：列表很长时由本列滚动，而不是把搜索框等头部元素压扁。 */}
       <div className="mb-5 flex shrink-0 items-center gap-3" data-testid={`${testId}-head`}>
-        <h1 className="min-w-0 flex-1 truncate whitespace-nowrap text-page font-bold tracking-[-.01em] text-text">{title}</h1>
+        {tabs === undefined
+          ? <h1 className="min-w-0 flex-1 truncate whitespace-nowrap text-page font-bold tracking-[-.01em] text-text">{title}</h1>
+          : (
+            <>
+              <h1 className="sr-only">{title}</h1>
+              <div className="min-w-0 flex-1" data-testid={`${testId}-tabs`}>{tabs}</div>
+            </>
+          )}
         {action !== undefined && <div className="flex flex-none items-center gap-2" data-testid={`${testId}-action`}>{action}</div>}
       </div>
       {note !== undefined && (

@@ -1,42 +1,39 @@
 import { useMemo } from 'react'
 import { Pencil } from 'lucide-react'
 import type { OrchestrationKind, OrchestrationStage } from '@tenon/kernel/workflow/orchestration'
-import type { WbStepTest } from '../api/governanceTypes'
 import type { FlowEntry } from '../api/workflowOrchestrationClient'
 import { useT } from '../i18n'
 import { OrchestrationFlow } from './OrchestrationFlow'
 import type { LaneAction } from './orchestrationNodes'
 import { HEAD_ACTION, SectionHead } from './SectionHead'
-import { TestAddMenu } from './TestAddMenu'
 
 export interface StageFlowSectionProps {
   stage: OrchestrationStage | undefined
-  tests: readonly WbStepTest[]
   editable: boolean
   onEditSkills: () => void
   onEditAgents: (role: 'executors' | 'reviewers') => void
-  onAddTest: (test: WbStepTest) => void
   onOpenSkill: (id: string) => void
-  onOpenTest: (id: string) => void
 }
+
+/** 旧的步骤测试在这里只读：点它没有抽屉，转成目录套件的命令在门禁段的测试表单里。 */
+const openable = (entry: FlowEntry): boolean => entry.kind !== 'test'
 
 /**
  * 「技能」段：与总览同一张画布的单列形态，泳道依次是 执行者 → 技能 → 测试 → 评审者（runner 的真实顺序）。
- * 段头的「编辑」改技能；执行者、测试、评审者的动作在各自泳道旁。测试策略表单归门禁段。
+ * 段头的「编辑」改技能；执行者、评审者的动作在各自泳道旁。测试泳道只读地列出旧的步骤测试，
+ * 测试策略（结构化表单）归门禁段。
  */
-export function StageFlowSection({ stage, tests, editable, onEditSkills, onEditAgents, onAddTest, onOpenSkill, onOpenTest }: StageFlowSectionProps): JSX.Element {
+export function StageFlowSection({ stage, editable, onEditSkills, onEditAgents, onOpenSkill }: StageFlowSectionProps): JSX.Element {
   const { t } = useT()
   const stages = useMemo(() => stage === undefined ? [] : [stage], [stage])
   const skills = stage?.entries.filter((entry) => entry.kind === 'skill').length ?? 0
   const laneActions = useMemo((): Partial<Record<OrchestrationKind, LaneAction>> | undefined => editable ? {
     executor: { icon: 'edit', label: `${t('workflow.edit_skills')} ${t('workflow.executors_title')}`, testId: 'wb-executors-edit', onClick: () => onEditAgents('executors') },
-    test: { icon: 'add', label: t('workflow.test_add'), testId: 'wb-tests-add', onClick: () => undefined, render: () => <TestAddMenu tests={tests} onAdd={onAddTest} /> },
     reviewer: { icon: 'edit', label: `${t('workflow.edit_skills')} ${t('workflow.reviewers_title')}`, testId: 'wb-reviewers-edit', onClick: () => onEditAgents('reviewers') },
-  } : undefined, [editable, t, tests, onAddTest, onEditAgents])
+  } : undefined, [editable, t, onEditAgents])
   function open(_stage: string, entry: FlowEntry): void {
     if (entry.kind === 'skill') onOpenSkill(entry.id)
-    else if (entry.kind === 'test') onOpenTest(entry.id)
-    else if (editable) onEditAgents(entry.kind === 'executor' ? 'executors' : 'reviewers')
+    else if (entry.kind !== 'test' && editable) onEditAgents(entry.kind === 'executor' ? 'executors' : 'reviewers')
   }
   const empty = (stage?.entries.length ?? 0) === 0
   return (
@@ -53,7 +50,7 @@ export function StageFlowSection({ stage, tests, editable, onEditSkills, onEditA
       />
       {empty && !editable
         ? <p className="text-body text-text-3" data-testid="stage-skills-empty">{t('workflow.no_skills')}</p>
-        : <OrchestrationFlow mode="stage" stages={stages} laneActions={laneActions} onOpenEntry={open} ariaLabel={t('workflow.skills_title')} />}
+        : <OrchestrationFlow mode="stage" stages={stages} laneActions={laneActions} onOpenEntry={open} openable={openable} ariaLabel={t('workflow.skills_title')} />}
     </section>
   )
 }

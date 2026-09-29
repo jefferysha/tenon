@@ -3,7 +3,7 @@ import { useGSAP } from '@gsap/react'
 import { Check, Plus } from 'lucide-react'
 import { DOCUMENT_KIND_CATALOG } from '@tenon/kernel/workflow/document-contract-model'
 import type { WorkflowOrchestration } from '@tenon/kernel/workflow/orchestration'
-import type { WbExecutorRef, WbIoSlot, WbReviewerRef, WbStepDef, WbStepTest } from '../api/governanceTypes'
+import type { WbExecutorRef, WbIoSlot, WbReviewerRef, WbStepDef } from '../api/governanceTypes'
 import { useT } from '../i18n'
 import { mergeStepIoAliases } from '../model/ioSlots'
 import { documentInputCandidates, documentKindsForOutput } from '../workbench/documentContractEdits'
@@ -19,7 +19,6 @@ import { IoTable, type IoRow } from './IoTable'
 import { producerSkills } from './producers'
 import { SkillComposer } from './SkillComposer'
 import { SkillDetailDrawer } from './SkillDetail'
-import { TestEditorDrawer } from './TestEditorDrawer'
 import { SaveBar } from './SaveBar'
 import { HEAD_ACTION, SectionHead } from './SectionHead'
 import { StageFlowSection } from './StageFlowSection'
@@ -38,14 +37,14 @@ export const SECTION_STAGGER = 0.03
 // 模块级空列表：每次渲染都给画布与 AgentComposer 同一个引用，而不是新的 `[]`。
 const NO_EXECUTORS: readonly WbExecutorRef[] = []
 const NO_REVIEWERS: readonly WbReviewerRef[] = []
-const NO_TESTS: readonly WbStepTest[] = []
 
 const POPOVER = 'absolute right-0 top-[calc(100%+6px)] z-40 min-w-[260px] rounded-md border border-border bg-card p-1 shadow-lg'
 const POPOVER_ROW = 'flex w-full items-center gap-2 whitespace-nowrap rounded-sm px-2.5 py-2 text-left text-body outline-none hover:bg-fill focus-visible:bg-fill'
 
 /**
  * 工作流页右栏：可编辑标题（工作流名与轨道只在左栏出现一次）；段落顺序 输入 → 技能 → 输出 → 门禁。
- * 「技能」段是与总览同一张画布的单列形态（执行者 / 技能 / 测试 / 评审者四条泳道）；退回并入门禁段。
+ * 「技能」段是与总览同一张画布的单列形态（执行者 / 技能 / 测试 / 评审者四条泳道，测试泳道只读地列旧步骤测试）；
+ * 退回与测试策略并入门禁段（门禁 → 退回 → 测试策略）。
  * 段头一行（标题 · 计数 · 动作），内容满宽。字段输入输出由定义推导；开启 OpenSpec 时文档输出用「+ 输出」声明，文档输入用「+ 输入」勾选。
  */
 export function StageEditorPane({ editor, step, orchestration: provided }: StageEditorPaneProps): JSX.Element {
@@ -57,7 +56,6 @@ export function StageEditorPane({ editor, step, orchestration: provided }: Stage
   const [agentRole, setAgentRole] = useState<'executors' | 'reviewers' | null>(null)
   const [skillDetail, setSkillDetail] = useState<string | null>(null)
   const [outputPicker, setOutputPicker] = useState(false)
-  const [testDetail, setTestDetail] = useState<string | null>(null)
   const [inputPicker, setInputPicker] = useState(false)
   // 本组件按阶段 id 重挂载（WorkflowView 的 key）：每次切换阶段，各段依次轻微上浮淡入。
   const paneRef = useRef<HTMLElement>(null)
@@ -77,9 +75,6 @@ export function StageEditorPane({ editor, step, orchestration: provided }: Stage
   const skillsOf = (id: string): string[] => (stageOf(id)?.entries ?? []).filter((entry) => entry.kind === 'skill').map((entry) => entry.id)
   const stageSkills = skillsOf(step.id)
   const stageLabel = editor.labelOf(step.id)
-  const setTests = editor.setTests
-  const stepTests = step.tests
-  const addTest = useCallback((test: WbStepTest) => { setTests(step.id, [...(stepTests ?? []), test]); setTestDetail(test.id) }, [setTests, step.id, stepTests])
   const openComposer = useCallback(() => setComposerOpen(true), [])
   const documentsEditable = editable && def?.openspec === true
   const outputChoices = documentsEditable && def !== null ? documentKindsForOutput(def, step.id) : []
@@ -207,13 +202,10 @@ export function StageEditorPane({ editor, step, orchestration: provided }: Stage
 
           <StageFlowSection
             stage={stageOf(step.id)}
-            tests={step.tests ?? NO_TESTS}
             editable={editable}
             onEditSkills={openComposer}
             onEditAgents={setAgentRole}
-            onAddTest={addTest}
             onOpenSkill={setSkillDetail}
-            onOpenTest={setTestDetail}
           />
 
           <section className="grid gap-3.5 py-6" data-testid="stage-outputs">
@@ -232,7 +224,7 @@ export function StageEditorPane({ editor, step, orchestration: provided }: Stage
           <GateSection editor={editor} step={step} hasOutputs={outputRows.length > 0} />
         </div>
       </div>
-      {/* 保存条在滚动区之外：出现时挤小滚动区，不盖住最后一段（门禁 / 退回）。 */}
+      {/* 保存条在滚动区之外：出现时挤小滚动区，不盖住最后一段（门禁 / 退回 / 测试策略）。 */}
       <SaveBar editor={editor} className="px-10 py-3 max-[900px]:px-4" />
 
       <SkillComposer
@@ -255,13 +247,6 @@ export function StageEditorPane({ editor, step, orchestration: provided }: Stage
         onSave={(patch) => editor.setAgents(step.id, patch)}
       />
       <SkillDetailDrawer name={skillDetail} onClose={() => setSkillDetail(null)} />
-      <TestEditorDrawer
-        test={(step.tests ?? []).find((test) => test.id === testDetail) ?? null}
-        editable={editable}
-        onApply={(next) => editor.setTests(step.id, (step.tests ?? []).map((test) => test.id === next.id ? next : test))}
-        onDelete={(id) => editor.setTests(step.id, (step.tests ?? []).filter((test) => test.id !== id))}
-        onClose={() => setTestDetail(null)}
-      />
     </section>
   )
 }

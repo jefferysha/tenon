@@ -8,14 +8,15 @@ import { Hint } from './Hint'
 import { issuesFor } from './lint'
 import { lintMessage } from './lintMessages'
 import { SectionHead } from './SectionHead'
+import { TestPolicyForm } from './TestPolicyForm'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 /** Radix Select 不收空字符串值：「不退回」用这个占位值。 */
 const BACK_NONE = '__none__'
 
 /**
- * 「门禁」段：门禁分段控件（不拦 / 评审 / 自动）与退回目标。退回目标只能是本阶段之前的阶段——往后跳在
- * 流程里不存在，从选项里就配不出来。测试策略表单（测试体系）排在退回之后。
+ * 「门禁」段：门禁分段控件（评审 / 自动）→ 退回目标 → 测试策略（结构化表单）。退回目标只能是本阶段之前的
+ * 阶段——往后跳在流程里不存在，从选项里就配不出来。测试策略是放行本阶段要满足的测试条件，所以归在门禁里。
  */
 export function GateSection({ editor, step, hasOutputs }: { editor: WorkflowEditor; step: WbStepDef; hasOutputs: boolean }): JSX.Element {
   const { t } = useT()
@@ -67,6 +68,13 @@ export function GateSection({ editor, step, hasOutputs }: { editor: WorkflowEdit
           )}
         </div>
       )}
+      <TestPolicyForm
+        stepId={step.id}
+        policy={step.test_policy}
+        legacyTests={step.tests ?? []}
+        editable={editable}
+        onChange={(next) => editor.setTestPolicy(step.id, next)}
+      />
     </section>
   )
 }

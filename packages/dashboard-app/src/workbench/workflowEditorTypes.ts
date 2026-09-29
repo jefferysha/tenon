@@ -1,7 +1,7 @@
 import type { RefObject } from 'react'
 import type { DocumentKind } from '@tenon/kernel/workflow/document-contract-model'
 import type { AgentSummary } from '../api/agentClient'
-import type { WbEffectiveIo, WbExecutorRef, WbReviewerRef, WbSkillRef, WbStepDef, WbStepTest, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
+import type { WbEffectiveIo, WbExecutorRef, WbReviewerRef, WbSkillRef, WbStepDef, WbStepTestPolicy, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
 import type { LintIssue } from '../workflow/lint'
 import type { MandatoryState } from './mandatoryState'
 import type { useStageDraftEditor } from './useStageDraftEditor'
@@ -144,7 +144,7 @@ export interface WorkflowEditor {
   reorderStages: (fromId: string, toId: string, after: boolean) => void
   setSkills: (stepId: string, skills: readonly WbSkillRef[]) => void
   setAgents: (stepId: string, patch: { executors?: readonly WbExecutorRef[]; reviewers?: readonly WbReviewerRef[] }) => void
-  setTests: (stepId: string, tests: readonly WbStepTest[]) => void
+  setTestPolicy: (stepId: string, policy: WbStepTestPolicy | undefined) => void
   addSkill: (stepId: string, skillId: string) => void
   removeSkill: (stepId: string, skillId: string) => void
   save: () => Promise<void>

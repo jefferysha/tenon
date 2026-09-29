@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import gsap from 'gsap'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
@@ -57,6 +57,7 @@ function fakeEditor(step: WbStepDef, overrides: Partial<WorkflowEditor> = {}): W
     mandatory: { registry: REGISTRY },
     agents: AGENTS,
     setAgents: vi.fn(),
+    setTestPolicy: vi.fn(),
     renameStep: vi.fn(), removeStage: vi.fn(), setGate: vi.fn(), setSkills: vi.fn(), save: vi.fn(), discardDraft: vi.fn(), reloadDefinition: vi.fn(),
     setStageBack: vi.fn(),
     ...overrides,
@@ -230,15 +231,16 @@ describe('StageEditorPane · 两栏定稿', () => {
     expect(await screen.findByTestId('skill-preview')).toBeInTheDocument()
   })
 
-  it('右栏只有四段：输入 → 技能 → 输出 → 门禁；执行者 / 测试 / 评审者是技能画布里的泳道，退回在门禁段里', () => {
+  it('右栏只有四段：输入 → 技能 → 输出 → 门禁；执行者 / 测试 / 评审者是技能画布里的泳道，退回与测试策略在门禁段里', () => {
     renderPane(SPEC)
     const sections = [...screen.getByTestId('stage-editor-pane').querySelectorAll('[data-stage-sections] > section')].map((section) => section.getAttribute('data-testid'))
     expect(sections).toEqual(['stage-inputs', 'stage-skills', 'stage-outputs', 'stage-gate'])
-    for (const gone of ['stage-executors', 'stage-reviewers', 'stage-tests']) expect(screen.queryByTestId(gone)).toBeNull()
+    for (const gone of ['stage-executors', 'stage-reviewers']) expect(screen.queryByTestId(gone)).toBeNull()
     expect(screen.getByTestId('stage-gate').contains(screen.getByTestId('stage-back'))).toBe(true)
+    expect(screen.getByTestId('stage-gate').contains(screen.getByTestId('stage-tests'))).toBe(true)
   })
 
-  it('泳道按 runner 顺序：执行者 → 技能 → 测试 → 评审者；泳道旁的动作打开对应编辑器', async () => {
+  it('泳道按 runner 顺序：执行者 → 技能 → 测试 → 评审者；泳道旁的动作打开对应编辑器，旧步骤测试节点只读', async () => {
     const user = userEvent.setup()
     const step: WbStepDef = {
       ...EXPLORE,
@@ -257,8 +259,7 @@ describe('StageEditorPane · 两栏定稿', () => {
     await user.click(screen.getByTestId('wb-reviewers-edit'))
     expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
     await user.click(screen.getByTestId('agent-composer-close'))
-    await user.click(screen.getByTestId('orch-open-test-unit'))
-    expect(await screen.findByTestId('test-editor-drawer')).toBeInTheDocument()
+    expect(screen.getByTestId('orch-open-test-unit')).toBeDisabled()
   })
 
   it('门禁是分段控件：fill 轨道，选中项里有白色滑块，没有内联说明图标', () => {
@@ -535,26 +536,58 @@ describe('StageEditorPane · 退回', () => {
   })
 })
 
-describe('StageEditorPane 测试泳道', () => {
-  it('测试是技能画布里的一条泳道（技能之后、评审者之前）；点节点开抽屉，改命令经 setTests 回草稿', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
-      new Response(JSON.stringify({ ok: true, directions: [] }), { status: 200 }))
-    const setTests = vi.fn()
-    const step: WbStepDef = {
-      ...EXPLORE,
-      tests: [{ id: 'unit', direction: 'unit', command: 'npm test', label: '单测', required: true }],
-    }
-    renderPane(step, { setTests, def: { ...DEF, steps: [step, SPEC] } })
+describe('StageEditorPane · 测试', () => {
+  const STEP_WITH_TESTS: WbStepDef = {
+    ...SPEC,
+    tests: [{ id: 'unit', direction: 'unit', command: 'npm test', label: '单测', required: true }],
+    test_policy: { plan: 'required', run: ['unit'] },
+  }
+
+  it('测试是技能画布里的一条泳道（技能之后、评审者之前）；旧步骤测试只读：没有「+」，点节点不开抽屉', async () => {
+    renderPane(STEP_WITH_TESTS, { def: { ...DEF, steps: [EXPLORE, STEP_WITH_TESTS] } })
     const lanes = [...screen.getByTestId('orchestration-stage').querySelectorAll('[data-testid^="orch-lane-"]')].map((node) => node.getAttribute('data-testid'))
     expect(lanes).toEqual(['orch-lane-executor', 'orch-lane-skill', 'orch-lane-test', 'orch-lane-reviewer'])
     expect(screen.getByTestId('orch-node-test-unit')).toHaveTextContent('单测')
-
+    expect(screen.queryByTestId('wb-tests-add')).toBeNull()
+    expect(screen.getByTestId('orch-open-test-unit')).toBeDisabled()
     await userEvent.click(screen.getByTestId('orch-open-test-unit'))
-    // 抽屉里的改动即时进草稿，没有单独的「应用」。
-    expect(screen.queryByTestId('wb-test-apply')).toBeNull()
-    fireEvent.change(screen.getByTestId('wb-test-command'), { target: { value: 'npm run unit' } })
-    expect(setTests).toHaveBeenLastCalledWith('explore', [
-      { id: 'unit', direction: 'unit', command: 'npm run unit', label: '单测', required: true },
-    ])
+    expect(screen.queryByTestId('wb-test-command')).toBeNull()
+  })
+
+  it('没有独立的测试段：测试策略在门禁段里，顺序 门禁 → 退回 → 测试策略', () => {
+    renderPane(STEP_WITH_TESTS, { def: { ...DEF, steps: [EXPLORE, STEP_WITH_TESTS] } })
+    expect(screen.getAllByTestId('stage-tests')).toHaveLength(1)
+    const gate = screen.getByTestId('stage-gate')
+    expect(gate.contains(screen.getByTestId('stage-tests'))).toBe(true)
+    const order = [screen.getByTestId('wb-lane-gate-spec'), screen.getByTestId('stage-back'), screen.getByTestId('stage-tests')]
+    for (let i = 1; i < order.length; i += 1) expect(order[i - 1]!.compareDocumentPosition(order[i]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // 输出与门禁之间没有夹着别的段。
+    const sections = [...screen.getByTestId('stage-editor-pane').querySelectorAll('[data-stage-sections] > section')].map((node) => node.getAttribute('data-testid'))
+    expect(sections).toEqual(['stage-inputs', 'stage-skills', 'stage-outputs', 'stage-gate'])
+  })
+
+  it('策略表单改动经 setTestPolicy 回草稿；旧步骤测试是只读行，只给转成目录套件的命令', async () => {
+    const editor = renderPane(STEP_WITH_TESTS, { def: { ...DEF, steps: [EXPLORE, STEP_WITH_TESTS] } })
+    await userEvent.click(screen.getByTestId('wb-policy-scope-changed'))
+    expect(editor.setTestPolicy).toHaveBeenLastCalledWith('spec', { plan: 'required', run: ['unit'], scope: 'changed' })
+
+    expect(screen.getByTestId('wb-test-unit')).toBeInTheDocument()
+    await userEvent.click(screen.getByTestId('wb-test-unit'))
+    expect(screen.queryByTestId('wb-test-command')).toBeNull()
+    expect(screen.getByTestId('wb-test-convert-unit-text')).toHaveTextContent('tenon test catalog add --from unit')
+  })
+
+  it('没有策略的阶段：测试子块有「策略」添加动作，点它写入 { plan: required }', async () => {
+    const editor = renderPane(EXPLORE)
+    expect(screen.queryByTestId('wb-policy')).toBeNull()
+    await userEvent.click(screen.getByTestId('wb-policy-add'))
+    expect(editor.setTestPolicy).toHaveBeenCalledWith('explore', { plan: 'required' })
+  })
+
+  it('无写入凭证：策略表单只读，没有添加 / 移除动作', () => {
+    renderPane(STEP_WITH_TESTS, { canWrite: false, def: { ...DEF, steps: [EXPLORE, STEP_WITH_TESTS] } })
+    expect(screen.queryByTestId('wb-policy-add')).toBeNull()
+    expect(screen.queryByTestId('wb-policy-remove')).toBeNull()
+    expect(screen.getByTestId('wb-policy-scope-changed')).toBeDisabled()
   })
 })

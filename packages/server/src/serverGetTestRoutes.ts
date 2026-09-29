@@ -7,7 +7,7 @@
  * 目录产物（Playwright 的 test-results/ 等）按记录里的逐文件索引列出，下载的是目录里的单个文件。
  */
 import { createReadStream } from 'node:fs'
-import { lstat, open, realpath } from 'node:fs/promises'
+import { lstat, open, realpath, type FileHandle } from 'node:fs/promises'
 import { constants } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { join, relative, sep } from 'node:path'
@@ -16,6 +16,7 @@ import {
 } from '@tenon/kernel'
 import type { WorkflowRootAnchor } from './workflowRootAnchor.js'
 import { handleTestDirectionGet } from './serverTestDirectionRoutes.js'
+import { resolveTestSystemRoute } from './serverGetTestSystemRoutes.js'
 
 const CHANGE_RE = /^[A-Za-z0-9_-]+$/u
 const IDENT_RE = /^[A-Za-z0-9_-]{1,64}$/u
@@ -40,7 +41,15 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
   '.webp': 'image/webp',
   '.zip': 'application/zip',
   '.json': 'application/json',
+  '.gif': 'image/gif',
+  '.webm': 'video/webm',
+  '.mp4': 'video/mp4',
+  '.html': 'text/html; charset=utf-8',
+  '.htm': 'text/html; charset=utf-8',
 }
+
+/** 会被浏览器当成可执行文档的类型只作附件下载，绝不在 Dashboard 源里渲染。 */
+const ATTACHMENT_TYPES: ReadonlySet<string> = new Set(['application/zip', 'text/html; charset=utf-8'])
 
 function contentTypeFor(path: string): string {
   const dot = path.lastIndexOf('.')
@@ -166,6 +175,11 @@ export async function handleTestGetRoutes(
     deps.sendJson(res, runs.status, runs.body)
     return true
   }
+  const system = await resolveTestSystemRoute(req.url ?? '/', path, deps)
+  if (system !== null) {
+    deps.sendJson(res, system.status, system.body)
+    return true
+  }
   if (await handleTestArtifactRoute(req, res, path, deps)) return true
   const directions = await handleTestDirectionGet(path, { configRoot: deps.configRoot })
   if (directions !== null) {
@@ -203,6 +217,7 @@ export async function handleTestArtifactRoute(
   const runDir = testRunArtifactsDir(readRoot, query.user, query.change, query.run)
   const target = join(runDir, ...query.path.split('/'))
   let size = 0
+  let identity: { dev: number; ino: number }
   try {
     const entry = await lstat(target)
     if (entry.isSymbolicLink() || !entry.isFile()) {
@@ -215,6 +230,7 @@ export async function handleTestArtifactRoute(
       return true
     }
     size = entry.size
+    identity = { dev: entry.dev, ino: entry.ino }
   } catch {
     deps.sendJson(res, 404, { ok: false, error: '产物不存在' })
     return true
@@ -223,16 +239,28 @@ export async function handleTestArtifactRoute(
     deps.sendJson(res, 413, { ok: false, error: `产物超过 ${MAX_ARTIFACT_BYTES} 字节上限` })
     return true
   }
-  const start = tail === undefined ? 0 : Math.max(0, size - tail)
-  const handle = await open(target, constants.O_RDONLY | constants.O_NOFOLLOW)
+  let handle: FileHandle
+  try {
+    handle = await open(target, constants.O_RDONLY | constants.O_NOFOLLOW)
+  } catch {
+    deps.sendJson(res, 404, { ok: false, error: '产物不存在' })
+    return true
+  }
+  // 校验之后到打开之前，路径中间目录可能被换成指向别处的符号链接：打开的必须还是刚才校验的那个文件。
+  const opened = await handle.stat()
+  if (!opened.isFile() || opened.dev !== identity.dev || opened.ino !== identity.ino) {
+    await handle.close()
+    deps.sendJson(res, 403, { ok: false, error: '产物路径逃出运行目录' })
+    return true
+  }
+  const start = tail === undefined ? 0 : Math.max(0, opened.size - tail)
+  const type = contentTypeFor(query.path)
   res.writeHead(200, {
-    'Content-Type': contentTypeFor(query.path),
-    'Content-Length': String(size - start),
+    'Content-Type': type,
+    'Content-Length': String(opened.size - start),
     'X-Content-Type-Options': 'nosniff',
     'Content-Security-Policy': 'sandbox',
-    ...(contentTypeFor(query.path) === 'application/zip'
-      ? { 'Content-Disposition': 'attachment' }
-      : {}),
+    ...(ATTACHMENT_TYPES.has(type) ? { 'Content-Disposition': 'attachment' } : {}),
   })
   await new Promise<void>((resolve) => {
     const stream = createReadStream('', { fd: handle.fd, start, autoClose: false })

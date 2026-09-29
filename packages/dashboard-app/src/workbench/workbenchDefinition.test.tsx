@@ -19,6 +19,7 @@ import {
   reorderStagesInDef,
   selectBranchDef,
   setStepAgentsInDef,
+  setStepTestPolicyInDef,
   workflowNameFromYaml,
   writeBranchDef,
   type WbStepDef,
@@ -420,5 +421,35 @@ describe('setStepAgentsInDef', () => {
     expect(withBoth.steps[0]?.agents?.executors).toEqual([{ agent: 'builder' }])
     const cleared = setStepAgentsInDef(setStepAgentsInDef(withBoth, 'a', { executors: [] }), 'a', { reviewers: [] })
     expect(cleared.steps[0]).not.toHaveProperty('agents')
+  })
+})
+
+describe('setStepTestPolicyInDef', () => {
+  const base = pipeline(stage('a'), stage('b'))
+
+  it('给一个阶段写入策略；别的阶段与入参都不动', () => {
+    const next = setStepTestPolicyInDef(base, 'a', { plan: 'required', run: ['unit'] })
+    expect(next.steps[0]?.test_policy).toEqual({ plan: 'required', run: ['unit'] })
+    expect(next.steps[1]).toBe(base.steps[1])
+    expect(base.steps[0]).not.toHaveProperty('test_policy')
+  })
+
+  it('内容没变时返回原对象（不制造无意义的草稿改动）', () => {
+    const withPolicy = setStepTestPolicyInDef(base, 'a', { plan: 'required', kinds: ['unit'] })
+    expect(setStepTestPolicyInDef(withPolicy, 'a', { plan: 'required', kinds: ['unit'] })).toBe(withPolicy)
+    expect(setStepTestPolicyInDef(base, 'a', undefined)).toBe(base)
+    expect(setStepTestPolicyInDef(base, 'ghost', { plan: 'required' })).toBe(base)
+  })
+
+  it('undefined 删键；写回前整形（definitionForWrite）仍带着策略', () => {
+    const withPolicy = setStepTestPolicyInDef(base, 'a', { plan: 'required', flaky: { max: 1, fail_on_new: true } })
+    expect(definitionForWrite(withPolicy).steps[0]?.test_policy).toEqual({ plan: 'required', flaky: { max: 1, fail_on_new: true } })
+    const cleared = setStepTestPolicyInDef(withPolicy, 'a', undefined)
+    expect(cleared.steps[0]).not.toHaveProperty('test_policy')
+  })
+
+  it('复制工作流保留每个阶段的策略（深拷贝不丢键）', () => {
+    const withPolicy = setStepTestPolicyInDef(base, 'b', { plan: 'optional', files: 'registered' })
+    expect(cloneWorkflowDef(withPolicy, 'copy').steps[1]?.test_policy).toEqual({ plan: 'optional', files: 'registered' })
   })
 })

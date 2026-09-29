@@ -5,7 +5,7 @@ import { MenuButton } from '../shared/MenuButton'
 import { BUTTON_GHOST, LIST_SELECTED_ARIA } from '../shared/uiRecipes'
 
 /**
- * 库的列表行（模板 / 资源 / 测试方向 / agent 共用，一行只有名称 + 行尾标记）：选中 = 中性选中底 + 左侧 2px 内嵌边，
+ * 库的列表行（模板 / 资源 / 测试模板 / agent 共用，一行只有名称 + 行尾标记）：选中 = 中性选中底 + 左侧 2px 内嵌边，
  * 不加描边；与工作台任务卡是同一套选中语汇。`group` 让行内的名称与标记跟随悬停 / 选中。
  */
 export const LIST_ROW = `group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md px-3 py-2.5 text-left outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) ${LIST_SELECTED_ARIA} aria-[current=true]:hover:bg-sel-bg`

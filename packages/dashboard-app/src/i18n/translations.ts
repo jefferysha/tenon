@@ -1,3 +1,5 @@
+import { enTests, zhTests } from './testsTranslations'
+
 export type Lang = 'zh' | 'en'
 
 // 嵌套字典；index.tsx 以点路径解析（nav.progress 等）。zh/en 键结构必须逐一对齐（completeness 测试守）。
@@ -9,6 +11,7 @@ export const zh: Dict = {
   // T18 孤儿键清理登记：app.subtitle 与 common.lang/theme_dark/theme_light/refresh/project/
   // phase/track/updated 全仓零消费（HEAD 存量孤儿），随本次修剪删除。
   app: { title: 'Pipeline 控制台' },
+  tests: zhTests,
   navigation: {
     breadcrumbs_label: '当前位置',
     home: '首页',
@@ -210,7 +213,7 @@ export const zh: Dict = {
   library: {
     title: '库',
     templates: '模板',
-    test_directions: '测试方向',
+    test_templates: '测试模板',
     agents: '智能体',
     agent_empty: '没有智能体',
     agent_empty_detail: '选择智能体',
@@ -236,11 +239,6 @@ export const zh: Dict = {
     tools: '工具',
     model: '模型',
     hosts: '客户端',
-    direction_new: '新建方向',
-    direction_copy: '复制为自定义',
-    direction_delete: '删除',
-    direction_save: '保存',
-    direction_builtin: '内建',
     builtin: '内建',
     custom: '自定义',
     all: '全部',
@@ -262,7 +260,7 @@ export const zh: Dict = {
     id: '标识',
     search: '搜索模板',
     search_agents: '搜索智能体',
-    search_directions: '搜索测试方向',
+    search_test_templates: '搜索测试模板',
     copy_suffix: '副本',
     body: '正文',
     frameworks: '适用框架',
@@ -290,7 +288,7 @@ export const zh: Dict = {
     },
     empty_list: '没有模板',
     empty_detail: '选择模板',
-    direction_empty_detail: '选择测试方向',
+    test_template_empty_detail: '选择测试模板',
     more: '更多',
     errors_title: '错误',
     reload: '重新载入',
@@ -2459,6 +2457,7 @@ export const zh: Dict = {
 
 export const en: Dict = {
   app: { title: 'Pipeline Console' },
+  tests: enTests,
   navigation: {
     breadcrumbs_label: 'Breadcrumbs',
     home: 'Home',
@@ -2652,7 +2651,7 @@ export const en: Dict = {
   library: {
     title: 'Library',
     templates: 'Templates',
-    test_directions: 'Test directions',
+    test_templates: 'Test templates',
     agents: 'Agents',
     agent_empty: 'No agents',
     agent_empty_detail: 'Select an agent',
@@ -2678,11 +2677,6 @@ export const en: Dict = {
     tools: 'Tools',
     model: 'Model',
     hosts: 'Clients',
-    direction_new: 'New direction',
-    direction_copy: 'Copy as custom',
-    direction_delete: 'Delete',
-    direction_save: 'Save',
-    direction_builtin: 'Built-in',
     builtin: 'Built-in',
     custom: 'Custom',
     all: 'All',
@@ -2704,7 +2698,7 @@ export const en: Dict = {
     id: 'ID',
     search: 'Search templates',
     search_agents: 'Search agents',
-    search_directions: 'Search test directions',
+    search_test_templates: 'Search test templates',
     copy_suffix: 'copy',
     body: 'Body',
     frameworks: 'Frameworks',
@@ -2731,7 +2725,7 @@ export const en: Dict = {
     },
     empty_list: 'No templates',
     empty_detail: 'Select a template',
-    direction_empty_detail: 'Select a test direction',
+    test_template_empty_detail: 'Select a test template',
     more: 'More',
     errors_title: 'Errors',
     reload: 'Reload',

@@ -2,6 +2,7 @@
  * 前端契约类型 —— 逐字镜像 packages/server GET /api/snapshot 的响应体（server/src/types.ts）。
  * server 是消费源，前端只读这些形状；改 server 契约须同步改此处（无 npm 依赖跨包，手抄以保零耦合）。
  */
+import type { PolicyReport, TestPlanBrief } from './api/testSystemTypes'
 
 /** snapshot 里单个 change 的投影（.pipeline.yaml 全字段 + 常读字段提升到顶层）。 */
 /** Declared user reference projected by the server (`Name <id>` fields); legacy values are null. */
@@ -38,6 +39,12 @@ export interface ChangeSnapshot {
   agentRuns?: AgentRunsSnapshot
   /** Per-step declared tests with the acting user's latest run; absent when the branch declares none. */
   tests?: TestStepSnapshot[]
+  /** Per-step test policy verdicts (registered kinds, suite results, scenario trace); absent when no step declares a policy. */
+  testPolicy?: PolicyReport[]
+  /** The change's test plan in brief; present together with `testPolicy`. */
+  testPlan?: TestPlanBrief
+  /** Slug of the acting user whose records `testPolicy` was judged on. */
+  testUser?: string
   /** Corrupt test record file names of the acting user. */
   testDiagnostics?: string[]
   /** Fresh, explicitly bound native terminal heartbeat; never a workflow-state field. */

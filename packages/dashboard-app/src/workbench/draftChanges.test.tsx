@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { WbStepDef, WbWorkflowDef } from '../api/governanceTypes'
 import { countDraftChanges } from './draftChanges'
+import { setStepTestPolicyInDef } from './workbenchDefinition'
 
 function stage(id: string, extra: Partial<WbStepDef> = {}): WbStepDef {
   return { id, label: id, gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [], ...extra }
@@ -88,5 +89,16 @@ describe('countDraftChanges：「未保存 N 处」按阶段 / 轨道 / 工作�
     const withRead: WbWorkflowDef = { ...twoOutputs, documentContract: { ...twoOutputs.documentContract!, reads: [{ step: 'b', kinds: ['proposal'] }] } }
     expect(countDraftChanges(base, withRead)).toBe(2)
     expect(countDraftChanges(withRead, { ...withRead, openspec: false, documentContract: undefined })).toBe(1)
+  })
+})
+
+describe('countDraftChanges · 测试策略', () => {
+  it('改策略算所属阶段的 1 处，改回去就不算', () => {
+    const flat: WbWorkflowDef = { name: 'flat', steps: [stage('s')] }
+    const edited = setStepTestPolicyInDef(flat, 's', { plan: 'required' })
+    expect(countDraftChanges(flat, edited)).toBe(1)
+    expect(countDraftChanges(flat, setStepTestPolicyInDef(edited, 's', undefined))).toBe(0)
+    const twice = setStepTestPolicyInDef(edited, 's', { plan: 'required', kinds: ['unit'] })
+    expect(countDraftChanges(edited, twice)).toBe(1)
   })
 })
