@@ -1,6 +1,8 @@
 ---
 name: frontend-quality
 description: 前端质量评审者：类型安全、React 反模式、可访问性、设计体系与动效，只读不改码
+role: reviewer
+version: 1.0.0
 skills: [vercel-react-best-practices, web-design-guidelines, design-taste-frontend, gsap-core, gsap-react, gsap-performance]
 tools: [Read, Grep, Glob, Bash, Skill]
 model: sonnet

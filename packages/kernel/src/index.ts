@@ -33,10 +33,17 @@ export {
 } from './infrastructure/resource-store.js'
 export type { ResourceCatalog, ResourceFile, ResourceStoreOptions } from './infrastructure/resource-store.js'
 export {
-  AgentStoreError, agentStoreRoot, deleteCustomAgent, ensureBuiltinAgents, loadAgentLibrary,
-  prepareAgentFreeze, resolveAgent, writeCustomAgent,
+  AgentStoreError, agentScope, agentStoreRoot, deleteAgent, deleteCustomAgent, effectiveAgent, ensureBuiltinAgents,
+  loadAgentLibrary, prepareAgentFreeze, projectAgentsDir, renameAgentContent, resolveAgent, writeAgent,
+  writeCustomAgent,
 } from './infrastructure/agent-store.js'
-export type { AgentEntry, AgentLibrary, AgentStoreOptions } from './infrastructure/agent-store.js'
+export type { AgentEntry, AgentLibrary, AgentScope, AgentStoreOptions } from './infrastructure/agent-store.js'
+export { agentWorkflowReferences, workflowAgentNames } from './infrastructure/agent-references.js'
+export type { AgentWorkflowReference } from './infrastructure/agent-references.js'
+export {
+  HOST_AGENT_OWNED_MANIFEST, ensureHostAgentFiles, ownedHostAgentNames, pruneHostAgentFiles,
+} from './infrastructure/host-agent-files.js'
+export type { HostAgentFileOutcome, HostAgentPruneResult } from './infrastructure/host-agent-files.js'
 // 每步测试登记：测试方向、运行记录、基准与门禁判定。
 export * from './test-evidence/index.js'
 export { canonicalMachineStateRoot, machineStateScopeId } from './machine-state-scope.js'

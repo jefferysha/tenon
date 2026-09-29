@@ -1,6 +1,8 @@
 ---
 name: spec-consistency
 description: 规格一致性评审者：逐条比对实现与规格，报少做、多做与相悖三类偏差，只读不改码
+role: reviewer
+version: 1.0.0
 skills: []
 tools: [Read, Grep, Glob, Bash]
 model: sonnet

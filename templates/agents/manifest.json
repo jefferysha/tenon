@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "agents": [
+    {
+      "name": "architecture",
+      "version": "1.0.0",
+      "role": "reviewer",
+      "digest": "sha256:8c25045cb237571948f6e8d46b9f53ac272ae1d109974e797eb8125c2458b416"
+    },
+    {
+      "name": "backend-quality",
+      "version": "1.0.0",
+      "role": "reviewer",
+      "digest": "sha256:4357bc3b0fcc3a0141178d7cdabbece2cc9c32809f8dc0872e7220e180eeb6c1"
+    },
+    {
+      "name": "builder",
+      "version": "1.0.0",
+      "role": "executor",
+      "digest": "sha256:c6c6c244cf98889ad89f36a88c343041d8135c684fe9b70c3b3c234dc08b05c6"
+    },
+    {
+      "name": "code-size",
+      "version": "1.0.0",
+      "role": "reviewer",
+      "digest": "sha256:7d54969586ab9117f664c9834f6889b671b4628a70c18f372d40f0aba9bdb16d"
+    },
+    {
+      "name": "e2e",
+      "version": "1.0.0",
+      "role": "reviewer",
+      "digest": "sha256:cf17c12d2d78d6681b6c28be0f087c8e4aa482e62aff7e75dfe366153d5c0359"
+    },
+    {
+      "name": "frontend-quality",
+      "version": "1.0.0",
+      "role": "reviewer",
+      "digest": "sha256:f8ff916aa9c78955b7ee166d9ff910f7ec4fa21b32c586085021e8933b543185"
+    },
+    {
+      "name": "researcher",
+      "version": "1.0.0",
+      "role": "executor",
+      "digest": "sha256:ae6591dda621b119f59cf667419879cc7cb2abc4d62617ddb81d88eb24c9deae"
+    },
+    {
+      "name": "security",
+      "version": "1.0.0",
+      "role": "reviewer",
+      "digest": "sha256:1c58933164d767746f0058858351de89b736760317fa348fbea10b28fda9b915"
+    },
+    {
+      "name": "spec-consistency",
+      "version": "1.0.0",
+      "role": "reviewer",
+      "digest": "sha256:72fc5f7bfdf3d0f6d047b723456cdc1670364ef3d9fce11f3b3f44ea534b7e56"
+    }
+  ]
+}

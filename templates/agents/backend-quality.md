@@ -1,6 +1,8 @@
 ---
 name: backend-quality
 description: 后端质量评审者：correctness、安全、错误处理、数据访问与并发，只读不改码
+role: reviewer
+version: 1.0.0
 skills: []
 tools: [Read, Grep, Glob, Bash, Skill]
 model: sonnet

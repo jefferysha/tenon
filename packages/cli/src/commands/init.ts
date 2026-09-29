@@ -27,6 +27,7 @@ import {
   isDefaultWorkflowName,
   loadEffectiveWorkflowPlan,
   prepareAgentFreeze,
+  readFrozenAgents,
   requireTrackForRoot,
   retiredSkillReferences,
   retiredSkillsWorkflowMessage,
@@ -38,6 +39,18 @@ import { errMsg, type CliDeps } from '../deps.js'
 import { recordHistory } from './fields.js'
 import { isValidChangeName } from '../paths.js'
 import { requireActor } from '../userIdentity.js'
+import { ensureChangeHostAgents, hostAgentHostOf } from './agent-host.js'
+
+/** 冻结 agent 后为当前宿主生成 `tenon-<name>` 子代理文件；终端里不生成，失败只 WARN。 */
+async function generateHostAgents(deps: CliDeps, changeDir: string, runId: string, workflowFingerprint: string): Promise<void> {
+  const host = hostAgentHostOf(deps)
+  if (host === undefined) return
+  try {
+    await ensureChangeHostAgents(deps, host, await readFrozenAgents({ changeDir, runId, workflowFingerprint }))
+  } catch (e) {
+    deps.io.err(`WARN: 宿主 agent 文件未生成（${errMsg(e)}），运行时改用通用子代理`)
+  }
+}
 
 export interface InitCmdOpts {
   // track/preset 为 optional：program.ts 用 .option（非 .requiredOption）注册，缺省时由交互
@@ -283,6 +296,7 @@ export async function cmdInit(
             workflow: plan.workflow,
             resolve: freezeAgent,
           })
+          await generateHostAgents(deps, created, run.id, plan.workflowFingerprint)
         }
         await recordHistory(deps, created, {
           ts: deps.clock(),

@@ -69,6 +69,16 @@ import { createManifestSkillActionAuthorityResolver } from './skill-action-autho
 import { recordWorkflowPhaseSkill } from './integration-phase-skill-test-support.js'
 import { gitRemoteNames } from './gitRemotes.js'
 import { probeGitFinish } from './gitWorkspace.js'
+import { detectHostEnvironment } from './hostKind.js'
+import { pluginSkillIds } from './pluginSkillIds.js'
+
+/** 用例用 `TENON_HARNESS_HOST=claude-code|codex` 模拟宿主；缺省终端。 */
+function harnessHostKind(env: NodeJS.ProcessEnv): 'claude-code' | 'codex' | 'terminal' {
+  const host = env.TENON_HARNESS_HOST
+  if (host === 'claude-code') return detectHostEnvironment({ CLAUDECODE: '1' }).kind
+  if (host === 'codex') return detectHostEnvironment({ CODEX_THREAD_ID: 'harness' }).kind
+  return 'terminal'
+}
 export { recordWorkflowPhaseSkill } from './integration-phase-skill-test-support.js'
 
 /** Track Registry 校验上下文（与 main.ts trackValidationContext 同款，harness 镜像生产装配）。 */
@@ -272,7 +282,11 @@ export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.
     user: () => resolveTenonUser(cwd, env),
     userConfigPath: () => resolveProductPaths({ env }).userConfigPath,
     resourceCatalog: () => loadResourceCatalog({ payloadRoot: REPO_ROOT, configRoot: resolveProductPaths({ env }).configRoot }),
-    agentLibrary: () => loadAgentLibrary({ payloadRoot: REPO_ROOT, configRoot: resolveProductPaths({ env }).configRoot }),
+    agentLibrary: () => loadAgentLibrary({ payloadRoot: REPO_ROOT, configRoot: resolveProductPaths({ env }).configRoot, projectRoot: cwd }),
+    agentPaths: () => ({ payloadRoot: REPO_ROOT, configRoot: resolveProductPaths({ env }).configRoot }),
+    // 测试进程本身常跑在 Claude Code / Codex 里：宿主只认用例显式给的 TENON_HARNESS_HOST，不看继承来的环境。
+    hostKind: () => harnessHostKind(env),
+    knownSkillIds: () => pluginSkillIds(REPO_ROOT),
     creationPrecondition: (input) => designSystemPrecondition({
       ...input, repoRoot: cwd, payloadRoot: REPO_ROOT, configRoot: resolveProductPaths({ env }).configRoot,
     }),

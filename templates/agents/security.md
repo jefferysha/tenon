@@ -1,6 +1,8 @@
 ---
 name: security
 description: 安全评审者：只审本次改动引入或触及的攻击面，给可利用路径与修法，只读不改码
+role: reviewer
+version: 1.0.0
 skills: [security-review]
 tools: [Read, Grep, Glob, Bash, Skill]
 model: sonnet

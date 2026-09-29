@@ -1,6 +1,8 @@
 ---
 name: builder
 description: 实现执行者：在隔离上下文里对单个 task 跑 TDD（红→绿→重构），自测绿后回传精简结果
+role: executor
+version: 1.0.0
 skills: [test-driven-development]
 tools: [Read, Write, Edit, Bash, Grep, Glob, Skill]
 model: sonnet

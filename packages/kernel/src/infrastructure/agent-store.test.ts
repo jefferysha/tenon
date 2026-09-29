@@ -4,7 +4,8 @@ import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { agentDigest } from '../agents/parse.js'
 import {
-  AgentStoreError, agentStoreRoot, deleteCustomAgent, loadAgentLibrary, resolveAgent, writeCustomAgent,
+  AgentStoreError, agentScope, agentStoreRoot, deleteAgent, deleteCustomAgent, effectiveAgent, loadAgentLibrary,
+  renameAgentContent, resolveAgent, writeAgent, writeCustomAgent,
 } from './agent-store.js'
 
 function agent(name: string, description = `${name} 说明`): string {
@@ -154,5 +155,61 @@ describe('writeCustomAgent / deleteCustomAgent', () => {
     await expect(deleteCustomAgent(storeRoot(), 'mine', 'sha256:0')).rejects.toThrowError(/请刷新/u)
     await deleteCustomAgent(storeRoot(), 'mine', created.digest)
     await expect(deleteCustomAgent(storeRoot(), 'mine')).rejects.toThrowError(/不存在/u)
+  })
+})
+
+describe('项目级 agent（.tenon/agents）', () => {
+  const projectRoot = (): string => join(sandbox, 'project')
+  const projectOptions = (): { payloadRoot: string; configRoot: string; projectRoot: string } =>
+    ({ payloadRoot, configRoot, projectRoot: projectRoot() })
+
+  function writeProjectFile(name: string, text = agent(name)): void {
+    const path = join(projectRoot(), '.tenon', 'agents', `${name}.md`)
+    mkdirSync(dirname(path), { recursive: true })
+    writeFileSync(path, text)
+  }
+
+  test('project 与 custom 同名时 project 生效，custom 记为被覆盖并列出', async () => {
+    writeCustomFile('mine', agent('mine', '用户级'))
+    writeProjectFile('mine', agent('mine', '项目级'))
+    const library = await loadAgentLibrary(projectOptions())
+    expect(library.entries.map((entry) => `${entry.source}:${entry.name}`)).toEqual(['custom:mine', 'project:mine'])
+    expect(library.entries.find((entry) => entry.source === 'custom')?.shadowedBy).toBe('project')
+    expect(resolveAgent(library, 'mine').definition.description).toBe('项目级')
+    expect(effectiveAgent(library, 'mine')?.source).toBe('project')
+  })
+
+  test('与官方同名的项目级 agent 是冲突，官方不被覆盖', async () => {
+    writePayload('reviewer')
+    writeProjectFile('reviewer')
+    const library = await loadAgentLibrary(projectOptions())
+    expect(library.entries.find((entry) => entry.source === 'project')?.error).toBe('名称冲突')
+    expect(() => resolveAgent(library, 'reviewer')).toThrowError(/名称冲突/u)
+  })
+
+  test('不给项目根就不读项目层', async () => {
+    writeProjectFile('mine')
+    const library = await loadAgentLibrary(options())
+    expect(library.entries).toEqual([])
+  })
+
+  test('writeAgent / deleteAgent 写项目层；官方名字拒绝', async () => {
+    writePayload('reviewer')
+    await loadAgentLibrary(projectOptions())
+    const scope = agentScope('project', projectOptions())
+    const created = await writeAgent(scope, 'team', agent('team'), { create: true })
+    expect(created.source).toBe('project')
+    expect(readFileSync(join(projectRoot(), '.tenon', 'agents', 'team.md'), 'utf8')).toBe(agent('team'))
+    await expect(writeAgent(scope, 'reviewer', agent('reviewer'), { create: true })).rejects.toThrowError(/已存在/u)
+    await deleteAgent(scope, 'team', created.digest)
+    expect(readdirSync(join(projectRoot(), '.tenon', 'agents')).filter((name) => name.endsWith('.md'))).toEqual([])
+  })
+
+  test('项目层需要项目根', () => {
+    expect(() => agentScope('project', { configRoot })).toThrowError(/项目根/u)
+  })
+
+  test('renameAgentContent 只改 name 行', () => {
+    expect(renameAgentContent(agent('a'), 'b')).toBe(agent('a').replace('name: a', 'name: b'))
   })
 })
