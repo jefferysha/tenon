@@ -88,7 +88,7 @@ describe('智能体库（只展示与编辑正文）', () => {
     // 行尾是纯文字：不换行、不是方框芯片。
     const meta = screen.getByTestId('lib-agent-source-builtin-security').parentElement
     expect(meta?.className).toContain('whitespace-nowrap')
-    expect(screen.getByTestId('lib-agent-source-builtin-security').className).not.toMatch(/border|rounded/u)
+    expect(screen.getByTestId('lib-agent-source-builtin-security').className.split(/\s+/u).filter((name) => /^(?:border|round)/u.test(name))).toEqual([])
   })
 
   it('选中项目时带 root 读项目层；项目级与自定义同名时自定义置灰，详情是项目级', async () => {
