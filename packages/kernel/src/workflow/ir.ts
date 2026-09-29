@@ -26,6 +26,7 @@ import type {
   WorkflowInteractionPolicyV1,
 } from './types.js'
 import type { TrackPredicate } from './predicates.js'
+import type { CoverageMetric, TestKind } from '../test-system/vocabulary.js'
 import type {
   BuildRevisionAssessment, BuildRevisionAssessmentRequest, BuildRevisionBlocker,
 } from './build-revision.js'
@@ -175,6 +176,24 @@ export interface StepTestIR {
   readonly outputs: readonly (TestOutputDef & { readonly kind: TestOutputKind; readonly required: boolean })[]
 }
 
+/**
+ * 步骤测试策略的 IR 形态：默认值补齐、种类去重保序。只在步骤声明了策略时进 IR，
+ * 未声明策略的工作流编译成与本特性之前逐字相同的 IR（指纹不变，冻结的旧任务行为不变）。
+ */
+export interface StepTestPolicyIR {
+  readonly plan: 'required' | 'optional'
+  readonly kinds: readonly TestKind[]
+  readonly run: readonly TestKind[]
+  readonly run_if_registered: readonly TestKind[]
+  readonly scope: 'changed' | 'full'
+  readonly files: 'registered' | 'any'
+  readonly scenarios: 'off' | 'required' | 'passing'
+  readonly coverage?: Readonly<Partial<Record<CoverageMetric, number>>>
+  readonly flaky?: { readonly max: number; readonly fail_on_new: boolean }
+  readonly benchmark: { readonly require_baseline: boolean }
+  readonly browsers: readonly string[]
+}
+
 /** 转换边的 IR 形态：edge 级 guards（该边专属前置）+ actions（走该边的副作用）。
  *  compileWorkflow 补默认值，两者恒为数组（v1 输入无声明 → []）。 */
 export interface StepTransitionIR {
@@ -199,6 +218,8 @@ export interface StepIR {
   readonly artifacts: readonly ArtifactDeclaration[]
   /** 只在本步声明了测试时出现，使无测试的工作流编译成与本特性之前逐字相同的 IR。 */
   readonly tests?: readonly StepTestIR[]
+  /** 本步的测试策略；只在声明时出现。 */
+  readonly test_policy?: StepTestPolicyIR
   /** 本步的执行者与评审者；只在声明了任一身份时出现。agent 内容冻结在 Change 的边车里，不进指纹。 */
   readonly agents?: StepAgentsDef
   readonly transitions: readonly StepTransitionIR[]

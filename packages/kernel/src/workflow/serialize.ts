@@ -17,6 +17,7 @@ import type {
 import type { TrackPredicate } from './predicates.js'
 import { serializeStepAgents } from './serialize-agents.js'
 import { serializeStepTests } from './serialize-tests.js'
+import { serializeStepTestPolicy } from './serialize-test-policy.js'
 
 function serializeSkill(s: SkillRef): string[] {
   const lines = [`      - id: ${s.id}`]
@@ -150,6 +151,7 @@ function serializeStep(step: StepDef): string[] {
   lines.push(...serializeBlockField('outputs', step.outputs, serializeFieldRef))
   lines.push(...serializeArtifactsBlock(step.artifacts))
   lines.push(...serializeStepTests(step.tests))
+  lines.push(...serializeStepTestPolicy(step.test_policy))
   lines.push(...serializeStepAgents(step.agents))
   lines.push(...serializeBlockField('guards', step.guards, (g) => serializeGuard(g, '      ')))
   lines.push(...serializeBlockField('transitions', step.transitions, serializeTransition))

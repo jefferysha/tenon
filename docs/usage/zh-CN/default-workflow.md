@@ -53,6 +53,24 @@ design / delta spec / tasks，语言无关）。证据不齐时写 `pass` 被拒
 在 package.json 加上运行本项目真正这类测试的脚本；项目不用 npm 时在 Dashboard 工作流页改这条测试的
 command（存为全局 default 覆盖，只对之后新建的任务生效，已开始的任务按冻结计划执行）。
 
+步骤还可以声明 `test_policy`，它是测试体系在工作流这一侧的部分（项目的 `.tenon/tests/catalog.yaml` 说明测试怎么跑，
+任务的 `test-plan.yaml` 说明本任务动了哪些套件和测试文件，策略说明每一步必须看到什么）。`kinds` 必须登记进计划
+（该种类的套件或已批准的豁免），`run` 必须在当前代码上跑过并通过，`run_if_registered` 只在计划登记了该种类时才要求，
+`scope` 是最小运行范围（`changed` 认任何范围，`full` 只认全量运行），`files: registered` 在本任务新增或修改的测试文件
+没有登记进计划时阻塞，`scenarios`（`required` / `passing`）要求每个 OpenSpec 场景都映射到测试用例，`coverage`、`flaky`、
+`browsers` 追加门槛。没有 `test_policy` 的步骤行为与之前完全一致，已开始的任务按冻结计划执行，步骤自己的 `tests` 与策略并存可用。
+各轨道默认值（都可在 Dashboard 工作流页修改）：
+
+| 轨道 | spec 登记 | build 运行（changed） | verify 运行（full） |
+| --- | --- | --- | --- |
+| chat / free | `unit` | `unit`、`typecheck` | `unit`、`regression` |
+| frontend | `unit`、`playwright` | `unit`、`typecheck` | `unit`、`regression`、`playwright`（chromium、webkit）；已登记则加 `a11y` / `visual`；lines 覆盖率 80% |
+| backend | `unit`、`integration` | `unit`、`typecheck` | `unit`、`integration`、`regression`；已登记则加 `benchmark`；lines 覆盖率 80% |
+| pm | 每个 OpenSpec 场景都有映射 | 无 | `smoke` |
+
+阻塞带稳定的码（`test-catalog-missing`、`test-plan-missing`、`test-kind-missing`、`test-file-unregistered`、`test-not-run`、
+`test-failed`、`test-stale`、`no-tests-ran`、`coverage-below`、`scenario-uncovered` 等）、短标签、完整原因和修复命令。
+
 ## Verify
 
 独立检查测试、类型、构建、浏览器、安装和安全边界。Verify 不修改实现；失败走 `verify-fail` 返回 Build，返工后重新冻结基线。

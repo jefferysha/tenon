@@ -68,6 +68,8 @@ import {
 import { createManifestSkillActionAuthorityResolver } from './skill-action-authority-provider.js'
 import { recordWorkflowPhaseSkill } from './integration-phase-skill-test-support.js'
 import { gitRemoteNames } from './gitRemotes.js'
+import { seedStepTestPolicy } from './integration-test-policy-support.js'
+import { agentPromptResult, agentWave, pendingRequiredTestIds } from './integration-harness-json.js'
 import { probeGitFinish } from './gitWorkspace.js'
 export { recordWorkflowPhaseSkill } from './integration-phase-skill-test-support.js'
 
@@ -157,54 +159,6 @@ export interface Harness {
    * 无发现的报告、record。不绕过门禁——落的是真台账行。
    */
   satisfyStepAgents: (name: string) => Promise<void>
-}
-
-/** `tenon agent next --json` 的窄解码：只取本波要跑的 agent，形状不符就当没有。 */
-function agentWave(json: string): string[] {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(json)
-  } catch {
-    return []
-  }
-  if (typeof parsed !== 'object' || parsed === null) return []
-  const wave = (parsed as Record<string, unknown>).wave
-  return Array.isArray(wave) ? wave.filter((id): id is string => typeof id === 'string') : []
-}
-
-/** `tenon agent prompt --json` 的窄解码：形状不符返回 null，由调用方 fail-loud。 */
-function agentPromptResult(json: string): { run_id: string; report_path: string; role: string } | null {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(json)
-  } catch {
-    return null
-  }
-  if (typeof parsed !== 'object' || parsed === null) return null
-  const row = parsed as Record<string, unknown>
-  if (typeof row.run_id !== 'string' || typeof row.report_path !== 'string' || typeof row.role !== 'string') return null
-  return { run_id: row.run_id, report_path: row.report_path, role: row.role }
-}
-
-/** `tenon test status --json` 的窄解码：只取还没通过的必需测试 id，形状不符就当没有。 */
-function pendingRequiredTestIds(json: string): string[] {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(json)
-  } catch {
-    return []
-  }
-  if (typeof parsed !== 'object' || parsed === null) return []
-  const items = (parsed as Record<string, unknown>).items
-  if (!Array.isArray(items)) return []
-  const ids: string[] = []
-  for (const item of items) {
-    if (typeof item !== 'object' || item === null) continue
-    const row = item as Record<string, unknown>
-    if (typeof row.id !== 'string' || row.required !== true || row.status === 'passed') continue
-    ids.push(row.id)
-  }
-  return ids
 }
 
 /** 声明式测试项在真实项目里由项目自己的 npm 脚本兑现；夹具项目声明等价的空脚本。 */
@@ -377,11 +331,13 @@ export function makeHarness(cwd: string): Harness {
       const deps = realDeps(cwd, out, err, options?.env === undefined ? process.env : { ...process.env, ...options.env })
       // Transition-centric suites opt in explicitly. Refresh only the current canonical visit;
       // dedicated evidence suites never enter governedFixtures and retain fail-closed coverage.
+      // The same opt-in also satisfies the current step's test_policy with approved waivers.
       for (const name of governedFixtures) {
         const changeDir = join(cwd, 'openspec', 'changes', name)
         const state = await deps.store.read(changeDir)
         const phase = String(state.fields.phase)
         const track = String(state.fields.track)
+        await seedStepTestPolicy(deps, cwd, name, phase, FIXED_CLOCK)
         const historyPath = join(changeDir, '.pipeline-history.jsonl')
         let history = await readFile(historyPath, 'utf8').catch(() => '')
         const completed = completedWorkflowSkillsSinceStepEntry(history, phase)
@@ -441,6 +397,7 @@ export function makeHarness(cwd: string): Harness {
           throw new Error(`harness satisfyStepTests: tenon test run ${name} ${id} exit=${code}\n${harness.err.join('\n')}`)
         }
       }
+      await seedStepTestPolicy(realDeps(cwd, [], []), cwd, name, stepId, FIXED_CLOCK)
     },
     satisfyStepAgents: async (name) => {
       const harness = makeHarness(cwd)

@@ -79,6 +79,9 @@ tracks:
         guards:
           - type: tasks-at-least
             n: 3
+        test_policy:
+          plan: required
+          kinds: [unit]
         transitions:
           - event: spec-complete
             to: build
@@ -105,6 +108,10 @@ tracks:
           - type: field-equals
             field: pre_verify_review_result
             value: pass
+        test_policy:
+          run: [unit, typecheck]
+          scope: changed
+          files: registered
         transitions:
           - event: build-complete
             to: verify
@@ -127,6 +134,10 @@ tracks:
             type: file_path
             producer_policy: effective-phase-skills
         guards: []
+        test_policy:
+          run: [unit, regression]
+          scope: full
+          files: registered
         transitions:
           - event: verify-pass
             to: ship
@@ -246,6 +257,9 @@ tracks:
         guards:
           - type: tasks-at-least
             n: 3
+        test_policy:
+          plan: required
+          scenarios: required
         transitions:
           - event: spec-complete
             to: build
@@ -302,6 +316,9 @@ tracks:
             type: file_path
             producer_policy: effective-phase-skills
         guards: []
+        test_policy:
+          run: [smoke]
+          scope: full
         transitions:
           - event: verify-pass
             to: ship
@@ -429,6 +446,9 @@ tracks:
         guards:
           - type: tasks-at-least
             n: 3
+        test_policy:
+          plan: required
+          kinds: [unit, playwright]
         transitions:
           - event: spec-complete
             to: build
@@ -465,6 +485,10 @@ tracks:
           - type: field-equals
             field: pre_verify_review_result
             value: pass
+        test_policy:
+          run: [unit, typecheck]
+          scope: changed
+          files: registered
         transitions:
           - event: build-complete
             to: verify
@@ -524,6 +548,13 @@ tracks:
               block_at: high
               depends_on: [spec-consistency, frontend-quality, security, e2e]
         guards: []
+        test_policy:
+          run: [unit, regression, playwright]
+          run_if_registered: [a11y, visual]
+          scope: full
+          files: registered
+          coverage: { lines: 80 }
+          browsers: [chromium, webkit]
         transitions:
           - event: verify-pass
             to: ship
@@ -655,6 +686,9 @@ tracks:
         guards:
           - type: tasks-at-least
             n: 3
+        test_policy:
+          plan: required
+          kinds: [unit, integration]
         transitions:
           - event: spec-complete
             to: build
@@ -684,6 +718,10 @@ tracks:
           - type: field-equals
             field: pre_verify_review_result
             value: pass
+        test_policy:
+          run: [unit, typecheck]
+          scope: changed
+          files: registered
         transitions:
           - event: build-complete
             to: verify
@@ -729,6 +767,13 @@ tracks:
               block_at: high
               depends_on: [spec-consistency, backend-quality, security]
         guards: []
+        test_policy:
+          run: [unit, integration, regression]
+          run_if_registered: [benchmark]
+          scope: full
+          files: registered
+          coverage: { lines: 80 }
+          benchmark: { require_baseline: false }
         transitions:
           - event: verify-pass
             to: ship
@@ -847,6 +892,9 @@ tracks:
         guards:
           - type: tasks-at-least
             n: 3
+        test_policy:
+          plan: required
+          kinds: [unit]
         transitions:
           - event: spec-complete
             to: build
@@ -874,6 +922,10 @@ tracks:
           - type: field-equals
             field: pre_verify_review_result
             value: pass
+        test_policy:
+          run: [unit, typecheck]
+          scope: changed
+          files: registered
         transitions:
           - event: build-complete
             to: verify
@@ -897,6 +949,10 @@ tracks:
             type: file_path
             producer_policy: effective-phase-skills
         guards: []
+        test_policy:
+          run: [unit, regression]
+          scope: full
+          files: registered
         transitions:
           - event: verify-pass
             to: ship

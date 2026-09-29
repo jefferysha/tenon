@@ -72,6 +72,32 @@ command on the Dashboard workflow page (saved as the global default override;
 it applies to changes created afterwards, started changes keep their frozen
 plan).
 
+A step can also declare a `test_policy`, the workflow's side of the test system
+(the project's `.tenon/tests/catalog.yaml` says how tests run, the change's
+`test-plan.yaml` says which suites and test files this change touches, the policy
+says what each step must see). `kinds` must be registered in the plan (a suite of
+that kind or an approved waiver), `run` must have passed on the current code,
+`run_if_registered` only when the plan registered that kind, `scope` is the
+minimum run scope (`changed` accepts any, `full` only a full run), `files:
+registered` blocks while a test file added or modified in the change is missing
+from the plan, `scenarios` (`required` / `passing`) maps every OpenSpec scenario
+to a test case, and `coverage`, `flaky` and `browsers` add thresholds. A step
+without `test_policy` behaves exactly as before, a started change keeps the plan
+it froze, and a step's own `tests` keep working next to its policy. Defaults by
+track (all editable on the Dashboard workflow page):
+
+| Track | spec registers | build runs (changed) | verify runs (full) |
+| --- | --- | --- | --- |
+| chat / free | `unit` | `unit`, `typecheck` | `unit`, `regression` |
+| frontend | `unit`, `playwright` | `unit`, `typecheck` | `unit`, `regression`, `playwright` (chromium, webkit); `a11y` / `visual` when registered; lines coverage 80% |
+| backend | `unit`, `integration` | `unit`, `typecheck` | `unit`, `integration`, `regression`; `benchmark` when registered; lines coverage 80% |
+| pm | every OpenSpec scenario mapped | none | `smoke` |
+
+Blockers carry a stable code (`test-catalog-missing`, `test-plan-missing`,
+`test-kind-missing`, `test-file-unregistered`, `test-not-run`, `test-failed`,
+`test-stale`, `no-tests-ran`, `coverage-below`, `scenario-uncovered`, …), a short
+label, the full reason and the command that fixes it.
+
 The `chat` track — the default when the Dashboard picks no track — declares no skills. Its document
 contract still governs the outputs, but a default resolution without a track needs no upstream skill
 bytes, so it also holds on a clean checkout.
