@@ -5,7 +5,7 @@ import type {
   WbSkillRef,
   WbStepAgents,
   WbStepDef,
-  WbStepTest,
+  WbStepTestPolicy,
   WbTrackBranch,
   WbTransition,
   WbWorkflowDef,
@@ -220,20 +220,13 @@ export function setStepAgentsInDef(
   })
 }
 
-/** 步骤测试项整份替换（同 setStepSkillsInDef 的口径：草稿里只改这一步）。 */
-export function setStepTestsInDef(def: WbWorkflowDef, stepId: string, tests: readonly WbStepTest[]): WbWorkflowDef {
-  return mapStep(def, stepId, (step) => ({ ...step, tests: [...tests] }))
-}
-
-/** 把一个测试方向抄成步骤测试项；id 冲突时追加 `-2`、`-3` …（与 kernel testFromDirection 同规则）。 */
-export function testFromDirection(
-  direction: { id: string; label: string } & Omit<WbStepTest, 'id' | 'direction' | 'required' | 'keep_runs' | 'label'>,
-  existingIds: ReadonlySet<string>,
-): WbStepTest {
-  let id = direction.id
-  for (let suffix = 2; existingIds.has(id); suffix++) id = `${direction.id}-${suffix}`
-  const { id: _id, ...rest } = direction
-  return { ...rest, id, direction: direction.id, required: true }
+/** 步骤测试策略整份替换；undefined 删掉这个键（步骤没有策略）。策略没变时返回原对象。 */
+export function setStepTestPolicyInDef(def: WbWorkflowDef, stepId: string, policy: WbStepTestPolicy | undefined): WbWorkflowDef {
+  return mapStep(def, stepId, (step) => {
+    const { test_policy: previous, ...rest } = step
+    if (policy === undefined) return previous === undefined ? step : rest
+    return JSON.stringify(previous) === JSON.stringify(policy) ? step : { ...rest, test_policy: policy }
+  })
 }
 
 /** 追加技能：缺省成为新的末列（串行接在最后）。 */

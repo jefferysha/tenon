@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import gsap from 'gsap'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
@@ -57,6 +57,7 @@ function fakeEditor(step: WbStepDef, overrides: Partial<WorkflowEditor> = {}): W
     mandatory: { registry: REGISTRY },
     agents: AGENTS,
     setAgents: vi.fn(),
+    setTestPolicy: vi.fn(),
     renameStep: vi.fn(), removeStage: vi.fn(), setGate: vi.fn(), setSkills: vi.fn(), save: vi.fn(), discardDraft: vi.fn(), reloadDefinition: vi.fn(),
     setStageBack: vi.fn(),
     ...overrides,
@@ -516,26 +517,34 @@ describe('StageEditorPane · 退回', () => {
 })
 
 describe('StageEditorPane 测试段', () => {
-  it('测试段排在输出与门禁之间，行可点开抽屉，改命令经 setTests 回草稿', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
-      new Response(JSON.stringify({ ok: true, directions: [] }), { status: 200 }))
-    const setTests = vi.fn()
+  it('测试段排在输出与门禁之间；策略表单改动经 setTestPolicy 回草稿；旧步骤测试是只读行，没有新增与编辑入口', async () => {
+    const setTestPolicy = vi.fn()
     const step: WbStepDef = {
       ...EXPLORE,
       tests: [{ id: 'unit', direction: 'unit', command: 'npm test', label: '单测', required: true }],
+      test_policy: { plan: 'required', run: ['unit'] },
     }
-    renderPane(step, { setTests, def: { ...DEF, steps: [step, SPEC] } })
+    renderPane(step, { setTestPolicy, def: { ...DEF, steps: [step, SPEC] } })
     const order = [...document.querySelectorAll('[data-testid]')]
       .map((node) => node.getAttribute('data-testid'))
       .filter((id): id is string => id === 'stage-outputs' || id === 'stage-tests' || id === 'stage-gate')
     expect(order).toEqual(['stage-outputs', 'stage-tests', 'stage-gate'])
 
+    await userEvent.click(screen.getByTestId('wb-policy-scope-changed'))
+    expect(setTestPolicy).toHaveBeenLastCalledWith('explore', { plan: 'required', run: ['unit'], scope: 'changed' })
+
+    expect(screen.getByTestId('wb-test-unit')).toBeInTheDocument()
+    expect(screen.queryByTestId('wb-tests-add')).toBeNull()
     await userEvent.click(screen.getByTestId('wb-test-unit'))
-    // 抽屉里的改动即时进草稿，没有单独的「应用」。
-    expect(screen.queryByTestId('wb-test-apply')).toBeNull()
-    fireEvent.change(screen.getByTestId('wb-test-command'), { target: { value: 'npm run unit' } })
-    expect(setTests).toHaveBeenLastCalledWith('explore', [
-      { id: 'unit', direction: 'unit', command: 'npm run unit', label: '单测', required: true },
-    ])
+    expect(screen.queryByTestId('wb-test-command')).toBeNull()
+    expect(screen.getByTestId('wb-test-convert-unit-text')).toHaveTextContent('tenon test catalog add --from unit')
+  })
+
+  it('没有策略的阶段：段头有「策略」添加动作，点它写入 { plan: required }', async () => {
+    const setTestPolicy = vi.fn()
+    renderPane(EXPLORE, { setTestPolicy })
+    expect(screen.queryByTestId('wb-policy')).toBeNull()
+    await userEvent.click(screen.getByTestId('wb-policy-add'))
+    expect(setTestPolicy).toHaveBeenCalledWith('explore', { plan: 'required' })
   })
 })

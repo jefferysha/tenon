@@ -3,7 +3,7 @@ import { BUILTIN_WORKFLOW_IDS, isBuiltinWorkflowName, isDefaultWorkflowName, isT
 import type { DocumentKind } from '@tenon/kernel/workflow/document-contract-model'
 import { addDocumentOutputInDef, removeDocumentSlotInDef, setDocumentInputsInDef, setOpenspecInDef } from './documentContractEdits'
 import { deleteWorkflowDef, fetchWorkflow, fetchWorkflowIndex, postWorkflowDef, type WorkflowIndex } from '../api/client'
-import type { WbEffectiveIo, WbExecutorRef, WbReviewerRef, WbSkillRef, WbStepDef, WbStepTest, WbTransition, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
+import type { WbEffectiveIo, WbExecutorRef, WbReviewerRef, WbSkillRef, WbStepDef, WbStepTestPolicy, WbTransition, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
 import { formatApiError, getToken } from '../api/transport'
 import { fetchWorkflowYaml } from '../api/workflowYamlClient'
 import { useT } from '../i18n'
@@ -37,7 +37,7 @@ import {
   backTransitionOf,
   setStepAgentsInDef,
   setStepSkillsInDef,
-  setStepTestsInDef,
+  setStepTestPolicyInDef,
   writeBranchDef,
 } from './workbenchDefinition'
 
@@ -113,7 +113,7 @@ export interface WorkflowEditor {
   reorderStages: (fromId: string, toId: string, after: boolean) => void
   setSkills: (stepId: string, skills: readonly WbSkillRef[]) => void
   setAgents: (stepId: string, patch: { executors?: readonly WbExecutorRef[]; reviewers?: readonly WbReviewerRef[] }) => void
-  setTests: (stepId: string, tests: readonly WbStepTest[]) => void
+  setTestPolicy: (stepId: string, policy: WbStepTestPolicy | undefined) => void
   addSkill: (stepId: string, skillId: string) => void
   removeSkill: (stepId: string, skillId: string) => void
   save: () => Promise<void>
@@ -378,7 +378,7 @@ export function useWorkflowEditor({ root, onDirtyChange, initial, onDeleted }: W
   )), [mutate, rememberDisplaced])
   const setSkills = useCallback((stepId: string, skills: readonly WbSkillRef[]) => mutate((previous) => setStepSkillsInDef(previous, stepId, skills)), [mutate])
   const setAgents = useCallback((stepId: string, patch: { executors?: readonly WbExecutorRef[]; reviewers?: readonly WbReviewerRef[] }) => mutate((previous) => setStepAgentsInDef(previous, stepId, patch)), [mutate])
-  const setTests = useCallback((stepId: string, tests: readonly WbStepTest[]) => mutate((previous) => setStepTestsInDef(previous, stepId, tests)), [mutate])
+  const setTestPolicy = useCallback((stepId: string, policy: WbStepTestPolicy | undefined) => mutate((previous) => setStepTestPolicyInDef(previous, stepId, policy)), [mutate])
   const addSkill = useCallback((stepId: string, skillId: string) => mutate((previous) => addSkillToDef(previous, stepId, skillId)), [mutate])
   const removeSkill = useCallback((stepId: string, skillId: string) => mutate((previous) => removeSkillFromDef(previous, stepId, skillId)), [mutate])
   const setOpenspec = useCallback((on: boolean): void => {
@@ -568,7 +568,7 @@ export function useWorkflowEditor({ root, onDirtyChange, initial, onDeleted }: W
     reorderStages,
     setSkills,
     setAgents,
-    setTests,
+    setTestPolicy,
     addSkill,
     removeSkill,
     save,

@@ -19,8 +19,7 @@ import { Hint } from './Hint'
 import { openspecSkills, producerSkills } from './producers'
 import { SkillComposer } from './SkillComposer'
 import { SkillDetailDrawer } from './SkillDetail'
-import { TestEditorDrawer } from './TestEditorDrawer'
-import { TestsSection } from './TestsSection'
+import { TestPolicyForm } from './TestPolicyForm'
 import { SaveBar } from './SaveBar'
 import { SkillFlow } from './SkillFlow'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -70,7 +69,6 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
   const [agentRole, setAgentRole] = useState<'executors' | 'reviewers' | null>(null)
   const [skillDetail, setSkillDetail] = useState<string | null>(null)
   const [outputPicker, setOutputPicker] = useState(false)
-  const [testDetail, setTestDetail] = useState<string | null>(null)
   const [inputPicker, setInputPicker] = useState(false)
   // 本组件按阶段 id 重挂载（WorkflowView 的 key）：每次切换阶段，各段依次轻微上浮淡入。
   const paneRef = useRef<HTMLElement>(null)
@@ -255,11 +253,12 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
             )}
           </section>
 
-          <TestsSection
-            tests={step.tests ?? []}
+          <TestPolicyForm
+            stepId={step.id}
+            policy={step.test_policy}
+            legacyTests={step.tests ?? []}
             editable={editable}
-            onAdd={(test) => { editor.setTests(step.id, [...(step.tests ?? []), test]); setTestDetail(test.id) }}
-            onOpen={setTestDetail}
+            onChange={(next) => editor.setTestPolicy(step.id, next)}
           />
 
           <AgentSection
@@ -333,13 +332,6 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
         onSave={(patch) => editor.setAgents(step.id, patch)}
       />
       <SkillDetailDrawer name={skillDetail} onClose={() => setSkillDetail(null)} />
-      <TestEditorDrawer
-        test={(step.tests ?? []).find((test) => test.id === testDetail) ?? null}
-        editable={editable}
-        onApply={(next) => editor.setTests(step.id, (step.tests ?? []).map((test) => test.id === next.id ? next : test))}
-        onDelete={(id) => editor.setTests(step.id, (step.tests ?? []).filter((test) => test.id !== id))}
-        onClose={() => setTestDetail(null)}
-      />
     </section>
   )
 }

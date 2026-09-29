@@ -95,6 +95,55 @@ describe('WorkflowView · URL 记住工作流 / 轨道 / 阶段', () => {
   })
 })
 
+describe('WorkflowView · 测试策略随保存写回', () => {
+  const POLICY = { plan: 'required', kinds: ['unit'], run: ['unit'], scope: 'full', files: 'registered', coverage: { lines: 80, functions: 60 }, flaky: { max: 2, fail_on_new: true }, browsers: ['chromium'] }
+  const WITH_POLICY: WbWorkflowDef = {
+    ...FLOW,
+    tracks: { alpha: { label: '甲', steps: [{ ...stage('a1', '一', 'a2'), test_policy: POLICY as WbStepDef['test_policy'] }, stage('a2', '二', null)] } },
+  }
+
+  it('改一项策略：未保存 1 处；保存的请求体带完整策略（表单不管的键一并写回）', async () => {
+    const user = userEvent.setup()
+    let posted: { url: string; body: WbWorkflowDef } | undefined
+    stubApi((url, init) => {
+      if (url === '/api/workflows/flow?root=') return new Response(JSON.stringify(WITH_POLICY), { status: 200 })
+      if (init?.method === 'POST' && url === '/api/workflows/flow') {
+        posted = { url, body: JSON.parse(String(init.body)) as WbWorkflowDef }
+        return new Response(JSON.stringify({ ok: true }), { status: 200 })
+      }
+      return undefined
+    })
+    window.history.replaceState(null, '', '/?view=workbench&wf=flow&track=alpha&step=a1')
+    render(<I18nProvider><TooltipProvider><WorkflowView root="" /></TooltipProvider></I18nProvider>)
+    await user.click(await screen.findByTestId('wb-policy-scope-changed'))
+    expect(screen.getByTestId('wb-dirty').textContent).toBe('未保存 1 处')
+    await user.click(screen.getByTestId('wb-save'))
+    await waitFor(() => expect(posted).toBeDefined())
+    expect(posted?.body.tracks?.alpha?.steps[0]?.test_policy).toEqual({ ...POLICY, scope: 'changed' })
+    expect(posted?.body).not.toHaveProperty('effectiveIo')
+  })
+
+  it('整个策略被移除也是一处改动，写回的定义里该阶段没有 test_policy', async () => {
+    const user = userEvent.setup()
+    let posted: WbWorkflowDef | undefined
+    stubApi((url, init) => {
+      if (url === '/api/workflows/flow?root=') return new Response(JSON.stringify(WITH_POLICY), { status: 200 })
+      if (init?.method === 'POST' && url === '/api/workflows/flow') {
+        posted = JSON.parse(String(init.body)) as WbWorkflowDef
+        return new Response(JSON.stringify({ ok: true }), { status: 200 })
+      }
+      return undefined
+    })
+    window.history.replaceState(null, '', '/?view=workbench&wf=flow&track=alpha&step=a1')
+    render(<I18nProvider><TooltipProvider><WorkflowView root="" /></TooltipProvider></I18nProvider>)
+    await user.click(await screen.findByTestId('wb-policy-remove'))
+    expect(screen.getByTestId('wb-dirty').textContent).toBe('未保存 1 处')
+    await user.click(screen.getByTestId('wb-save'))
+    await waitFor(() => expect(posted).toBeDefined())
+    expect(posted?.tracks?.alpha?.steps[0]).not.toHaveProperty('test_policy')
+  })
+})
+
 describe('WorkflowView · 删除阶段', () => {
   it('左栏阶段 ⋯ → 删除阶段 → 确认框（标题点名）→ 阶段消失，保存条写出改动数', async () => {
     const user = userEvent.setup()
