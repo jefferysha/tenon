@@ -8,21 +8,20 @@ import { resolveRequiredSkillSlots, type EffectiveSkillResolver } from './effect
 import { orchestrate, type OrchestrationStepSource, type WorkflowOrchestration } from './orchestration.js'
 
 /**
- * 每步 manifest 叠加的必需技能 token（runner 的必需槽位减去阶段自己声明的那些）。resolver 缺席或轨道
- * 不走矩阵时为空——与技能门同一个 resolveRequiredSkillSlots。
+ * 每步 manifest 叠加的必需技能 token（与声明去重之前的原样）。取法与技能门同一个
+ * resolveRequiredSkillSlots——只是把阶段自己声明的槽位清空，剩下的就是叠加层；resolver 缺席或轨道
+ * 不走矩阵时为空。去重交给 orchestrate，编辑中的草稿与已保存的定义因此同一口径。
  */
 export function manifestSkillOverlay(
   plan: EffectiveWorkflowPlan,
   resolver: EffectiveSkillResolver | undefined,
 ): Readonly<Record<string, readonly string[]>> {
   const capability = plan.capabilities.skills
+  const overlayOnly = { ...capability, steps: capability.steps.map((step) => ({ ...step, requiredSkillIds: [], declared: [] })) }
   const overlay: Record<string, readonly string[]> = {}
   for (const step of capability.steps) {
-    const own = new Set(step.requiredSkillIds)
-    const extra = resolveRequiredSkillSlots(resolver, capability, step.stepId)
-      .map((slot) => slot.token)
-      .filter((token) => !own.has(token))
-    if (extra.length > 0) overlay[step.stepId] = extra
+    const tokens = resolveRequiredSkillSlots(resolver, overlayOnly, step.stepId).map((slot) => slot.token)
+    if (tokens.length > 0) overlay[step.stepId] = tokens
   }
   return overlay
 }

@@ -82,7 +82,7 @@ describe('buildOrchestration · 来源', () => {
     }
     const resolver = createEffectiveSkillResolver(manifest)
     const plan = compileEffectiveWorkflowPlan('default', defaultDef(), builtinTrack('frontend'))
-    expect(manifestSkillOverlay(plan, resolver)).toEqual({ explore: ['extra-skill'] })
+    expect(manifestSkillOverlay(plan, resolver)).toEqual({ explore: ['openspec-explore', 'extra-skill'] })
     const explore = skills(stage(buildOrchestration(plan, resolver).stages, 'explore'))
     expect(explore.at(-1)).toMatchObject({ id: 'extra-skill', source: 'manifest', wave: 4, dependsOn: ['domain-modeling'] })
     expect(manifestSkillOverlay(plan, undefined)).toEqual({})
