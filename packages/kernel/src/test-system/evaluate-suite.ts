@@ -6,14 +6,14 @@ import { evaluateBenchmarkMetric, type BenchmarkMetricVerdict } from './benchmar
 import { shellQuote, testBlocker, testNotice, type TestBlocker, type TestNotice } from './blockers.js'
 import { catalogSuitesDigest, suiteFileGlobs } from './catalog.js'
 import type { CatalogSuite, TestCatalog } from './catalog-types.js'
-import { caseMatchesRef, fileRefMatches, formatCaseRef, parseCaseRef } from './covers.js'
+import { casesMatchingRef, fileRefMatches, formatCaseRef, parseCaseRef, type CaseRef } from './covers.js'
 import { baselineKey, type StaleBinding } from './evaluate-types.js'
 import type { TestBaselineV2 } from './baseline-v2.js'
 import { matchesAnyGlob } from './globs.js'
 import { classifyAgainstKnownFailures, type KnownFailure } from './known-failures.js'
 import type { TestPlan } from './plan.js'
 import type { SuiteReasonCode, SuiteRunV2, TestRunRecordV2 } from './record-v2-types.js'
-import { isCaseReportFormat, type CoverageMetric } from './vocabulary.js'
+import { NODE_TEST_REPORTER_ENV, isCaseReportFormat, type CoverageMetric } from './vocabulary.js'
 import type { StepTestPolicyIR } from '../workflow/ir.js'
 
 export interface SuiteRunRef {
@@ -104,6 +104,13 @@ export interface SuiteResultEvaluation {
   readonly flaky: readonly string[]
   readonly benchmark: readonly BenchmarkMetricVerdict[]
 }
+
+/**
+ * node:test 的内置 junit reporter 在 Node 22 及以前不给用例写 file：报告里的用例没有文件归属，已登记的文件对不上。
+ * 这条提示只在 node-test 套件的这类阻塞里附上，指向 Tenon 随附的 reporter（`tenon test run` 提供路径）。
+ */
+const NODE_TEST_FILE_HINT = '（若报告里的用例没有文件归属——Node 22 及以前内置的 junit reporter 不写 file 属性——'
+  + `命令里改用 --test-reporter="\${${NODE_TEST_REPORTER_ENV}:-junit}"，由 tenon test run 提供带 file 的 reporter）`
 
 function rerun(change: string, suite: string): string {
   return `tenon test run ${change} --suite ${shellQuote(suite)}`
@@ -204,14 +211,22 @@ export function evaluateSuiteResult(suite: CatalogSuite, ref: SuiteRunRef, conte
   }
   const files = planFilesOfSuite(context.plan, suite)
   const executed = run.cases.filter((item) => item.status !== 'skip')
-  const missingFiles = files.filter((path) => !executed.some((item) => fileRefMatches(path, item.file) || fileRefMatches(item.file, path)))
-  const missingRefs = registeredRefs(context.plan, suite, files).filter((test) => {
+  const refs = registeredRefs(context.plan, suite, files).flatMap((test) => {
     const ref = parseCaseRef(test)
-    return ref !== undefined && !executed.some((item) => caseMatchesRef(ref, item))
+    return ref === undefined ? [] : [{ test, ref }]
   })
+  // 引用按「文件 + 标题」对；报告没给文件的用例降级为按名字唯一对（casesMatchingRef）。唯一性要在含跳过用例的全部用例里算，
+  // 命中之后再看有没有真正执行过的。
+  const refRan = (ref: CaseRef): boolean => casesMatchingRef(ref, run.cases).some((item) => item.status !== 'skip')
+  const missingRefs = refs.filter(({ ref }) => !refRan(ref)).map(({ test }) => test)
+  // 文件级：有该文件的用例执行过；或报告没给文件，但登记在该文件下的某条用例按名字对上了。
+  const fileRan = (path: string): boolean => executed.some((item) => fileRefMatches(path, item.file) || fileRefMatches(item.file, path))
+    || refs.some(({ ref }) => fileRefMatches(ref.file, path) && refRan(ref))
+  const missingFiles = files.filter((path) => !fileRan(path))
   if (caseFormat && (missingFiles.length > 0 || missingRefs.length > 0)) {
     const list = [...missingFiles, ...missingRefs]
-    blockers.push(testBlocker('registered-test-not-executed', `套件 ${name} 的报告里没有已登记的测试：${list.slice(0, 5).join('；')}${list.length > 5 ? ' …' : ''}`, { fix, subject: suite.id }))
+    const hint = suite.runner === 'node-test' ? NODE_TEST_FILE_HINT : ''
+    blockers.push(testBlocker('registered-test-not-executed', `套件 ${name} 的报告里没有已登记的测试：${list.slice(0, 5).join('；')}${list.length > 5 ? ' …' : ''}${hint}`, { fix, subject: suite.id }))
   }
   if (suite.coverage !== undefined || suite.kind === 'coverage') {
     const problems = coverageProblems(context.policy, run)

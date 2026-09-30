@@ -5,7 +5,7 @@
  * （retryTimes 重试时大于 1）：失败后重试通过 → flaky。文件整体失败却没有失败用例（导入报错、语法错）时补一条失败用例，
  * 否则这种失败会被误判成「0 用例」。
  */
-import type { CaseFailure } from '@tenon/kernel'
+import { UNKNOWN_CASE_FILE, type CaseFailure } from '@tenon/kernel'
 import { asArray, asNumber, asString, isRecord, parseJson, type JsonRecord } from './json.js'
 import { cleanFailureMessage, cleanName, clip, failureFromText, repoPath, stripAnsi } from './text.js'
 import type { CaseReport, ParseContext, ParsedCase } from './types.js'
@@ -39,7 +39,8 @@ export function parseJestJson(text: string, ctx: ParseContext): CaseReport {
   if (!isRecord(root) || !Array.isArray(root.testResults)) return { ok: false, reason: '缺少 testResults：不是 Jest / Vitest JSON 报告' }
   const cases: ParsedCase[] = []
   for (const fileResult of root.testResults.filter(isRecord)) {
-    const file = repoPath(ctx, asString(fileResult.name) ?? '(unknown)')
+    const fileName = asString(fileResult.name)
+    const file = fileName === undefined ? UNKNOWN_CASE_FILE : repoPath(ctx, fileName)
     let failedInFile = false
     for (const assertion of asArray(fileResult.assertionResults).filter(isRecord)) {
       const invocations = Math.max(1, asNumber(assertion.invocations) ?? 1)

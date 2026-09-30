@@ -66,6 +66,16 @@ export function fileRefMatches(ref: string, path: string): boolean {
   return path === ref || path.endsWith(`/${ref}`)
 }
 
+/**
+ * 报告没有给出用例所属文件时，解析器写进 `file` 的占位值（tap、jest、junit 解析器共用）。它不是任何真实路径，
+ * `fileRefMatches` 也永远不会把它当成某个文件；只有 `casesMatchingRef` 的按名降级会认这个值。
+ */
+export const UNKNOWN_CASE_FILE = '(unknown)'
+
+export function isUnknownCaseFile(file: string): boolean {
+  return file === UNKNOWN_CASE_FILE
+}
+
 /** 一个执行过的用例：文件 + 从外到内的标题路径（describe 分组 … 用例名）。 */
 export interface CaseIdentity {
   readonly file: string
@@ -73,13 +83,35 @@ export interface CaseIdentity {
   readonly name: string
 }
 
-export function caseMatchesRef(ref: CaseRef, identity: CaseIdentity): boolean {
-  if (!fileRefMatches(ref.file, identity.file)) return false
-  if (ref.title.length === 0) return true
+/** 引用的标题路径是否是用例完整标题路径的尾部（逐段相等）；引用没有标题时不成立。 */
+export function caseTitleMatchesRef(ref: CaseRef, identity: CaseIdentity): boolean {
+  if (ref.title.length === 0) return false
   const full = [...identity.suite_path, identity.name]
   if (ref.title.length > full.length) return false
   const tail = full.slice(full.length - ref.title.length)
   return tail.every((segment, index) => segment === ref.title[index])
+}
+
+export function caseMatchesRef(ref: CaseRef, identity: CaseIdentity): boolean {
+  if (!fileRefMatches(ref.file, identity.file)) return false
+  return ref.title.length === 0 || caseTitleMatchesRef(ref, identity)
+}
+
+/**
+ * 一条引用在一次运行的用例里命中哪些用例。
+ *   1. 文件对得上的用例（`caseMatchesRef`）优先，有就只返回它们。
+ *   2. 没有时降级：报告没给文件的用例（`UNKNOWN_CASE_FILE`，例如 Node 22 内置 junit reporter 不写 file）只能按名字对。
+ *      引用要带标题路径，而且整次运行里标题路径尾部与之相同的用例恰好一条、又正好是无文件的那条，才算命中——
+ *      同名不止一条（含别的文件里的同名用例）就无法归属，宁可报「未执行」也不猜。
+ *      降级时引用里的文件部分不参与比对；只写文件的引用在无文件用例上没有任何依据，不降级。
+ */
+export function casesMatchingRef<T extends CaseIdentity>(ref: CaseRef, cases: readonly T[]): readonly T[] {
+  const direct = cases.filter((item) => caseMatchesRef(ref, item))
+  if (direct.length > 0) return direct
+  if (ref.title.length === 0) return []
+  const named = cases.filter((item) => caseTitleMatchesRef(ref, item))
+  const only = named.length === 1 ? named[0] : undefined
+  return only !== undefined && isUnknownCaseFile(only.file) ? [only] : []
 }
 
 export function formatCaseRef(identity: CaseIdentity): string {

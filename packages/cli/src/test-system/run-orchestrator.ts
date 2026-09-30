@@ -3,6 +3,7 @@
  * 回收服务（无论成败）→ 补上整次运行才知道的原因 → 追加记录 v2（哈希链）→ 清理旧产物。
  * 命令层只负责参数、打印与退出码；这里不打印（除了启动前的 announce 回调）。
  */
+import { join } from 'node:path'
 import {
   appendTestRunRecordV2, baselineV2Path, claimRunningMarker, ensureTestEvidenceDirs, listRecordDirectory, pruneTestArtifacts,
   readTestBaselineV2, releaseRunningMarker, testRunArtifactsDir, testRunRecordsDir, testRunningMarkerPath,
@@ -17,6 +18,7 @@ import type { TestCommandContext } from '../commands/test-context.js'
 import { candidateOf, newRunId } from '../commands/test-run.js'
 import { changedFilesFor } from '../testEvidenceContext.js'
 import type { ExecContext, RunItem, SuiteOutcome } from './exec-types.js'
+import { NODE_TEST_REPORTER_ENV, usesNodeTestReporter, writeNodeTestReporter } from './node-test-reporter.js'
 import { applyRunLevelReasons, draftOf, evaluationShell, machineOf } from './run-record.js'
 import { serviceRecord, startService, stopService, type RunningService } from './services.js'
 import { executeSuite } from './suite-exec.js'
@@ -73,6 +75,12 @@ async function claimMarkers(input: RunInput, runId: string, runningDir: string, 
   return claimed
 }
 
+/** 有套件命令引用了 Tenon 随附的 node:test reporter 时，把它落在本次运行的产物目录下并给出环境变量；否则不落文件。 */
+async function reporterEnv(input: RunInput, runDir: string): Promise<NodeJS.ProcessEnv> {
+  const needed = input.items.some((item) => usesNodeTestReporter([item.suite.command, item.suite.select?.files, item.suite.select?.grep]))
+  return needed ? { [NODE_TEST_REPORTER_ENV]: await writeNodeTestReporter(join(runDir, 'reporters')) } : {}
+}
+
 async function startServices(
   input: RunInput, runDir: string, env: NodeJS.ProcessEnv, running: RunningService[],
 ): Promise<ReadonlyMap<string, SuiteReason>> {
@@ -124,7 +132,10 @@ export async function executeRun(input: RunInput): Promise<RunResult> {
     let linesRead = false
     const exec: ExecContext = {
       repoRoot: deps.cwd, runId, runDir, change,
-      env: { ...process.env, TENON_CHANGE_NAME: change, TENON_TEST_RUN_ID: runId, TENON_TEST_ARTIFACTS: runDir, TENON_BASE_BRANCH: str(context.state.fields.base_branch) },
+      env: {
+        ...process.env, TENON_CHANGE_NAME: change, TENON_TEST_RUN_ID: runId, TENON_TEST_ARTIFACTS: runDir,
+        TENON_BASE_BRANCH: str(context.state.fields.base_branch), ...(await reporterEnv(input, runDir)),
+      },
       plan, policy, knownFailures: input.knownFailures, today: startedAt.slice(0, 10), changedFiles,
       changedLines: async () => {
         if (!linesRead) {

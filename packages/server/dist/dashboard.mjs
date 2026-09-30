@@ -9226,6 +9226,7 @@ function compileStepTests(raw, path14) {
 }
 
 // packages/kernel/dist/test-system/vocabulary.js
+var NODE_TEST_REPORTER_ENV = "TENON_NODE_TEST_REPORTER";
 var TEST_KINDS = [
   "unit",
   "integration",
@@ -22144,16 +22145,33 @@ function parseCaseRef(value) {
 function fileRefMatches(ref, path14) {
   return path14 === ref || path14.endsWith(`/${ref}`);
 }
-function caseMatchesRef(ref, identity) {
-  if (!fileRefMatches(ref.file, identity.file))
-    return false;
+var UNKNOWN_CASE_FILE = "(unknown)";
+function isUnknownCaseFile(file) {
+  return file === UNKNOWN_CASE_FILE;
+}
+function caseTitleMatchesRef(ref, identity) {
   if (ref.title.length === 0)
-    return true;
+    return false;
   const full = [...identity.suite_path, identity.name];
   if (ref.title.length > full.length)
     return false;
   const tail = full.slice(full.length - ref.title.length);
   return tail.every((segment, index) => segment === ref.title[index]);
+}
+function caseMatchesRef(ref, identity) {
+  if (!fileRefMatches(ref.file, identity.file))
+    return false;
+  return ref.title.length === 0 || caseTitleMatchesRef(ref, identity);
+}
+function casesMatchingRef(ref, cases) {
+  const direct = cases.filter((item2) => caseMatchesRef(ref, item2));
+  if (direct.length > 0)
+    return direct;
+  if (ref.title.length === 0)
+    return [];
+  const named = cases.filter((item2) => caseTitleMatchesRef(ref, item2));
+  const only = named.length === 1 ? named[0] : void 0;
+  return only !== void 0 && isUnknownCaseFile(only.file) ? [only] : [];
 }
 function formatCaseRef(identity) {
   return [identity.file, ...identity.suite_path, identity.name].join(CASE_REF_SEPARATOR);
@@ -22361,6 +22379,7 @@ var ADVISORY_REASONS = /* @__PURE__ */ new Set([
   "log-truncated",
   "artifact-truncated"
 ]);
+var NODE_TEST_FILE_HINT = `\uFF08\u82E5\u62A5\u544A\u91CC\u7684\u7528\u4F8B\u6CA1\u6709\u6587\u4EF6\u5F52\u5C5E\u2014\u2014Node 22 \u53CA\u4EE5\u524D\u5185\u7F6E\u7684 junit reporter \u4E0D\u5199 file \u5C5E\u6027\u2014\u2014\u547D\u4EE4\u91CC\u6539\u7528 --test-reporter="\${${NODE_TEST_REPORTER_ENV}:-junit}"\uFF0C\u7531 tenon test run \u63D0\u4F9B\u5E26 file \u7684 reporter\uFF09`;
 function rerun(change, suite2) {
   return `tenon test run ${change} --suite ${shellQuote(suite2)}`;
 }
@@ -22459,14 +22478,18 @@ function evaluateSuiteResult(suite2, ref, context) {
   }
   const files = planFilesOfSuite(context.plan, suite2);
   const executed = run2.cases.filter((item2) => item2.status !== "skip");
-  const missingFiles = files.filter((path14) => !executed.some((item2) => fileRefMatches(path14, item2.file) || fileRefMatches(item2.file, path14)));
-  const missingRefs = registeredRefs(context.plan, suite2, files).filter((test) => {
+  const refs = registeredRefs(context.plan, suite2, files).flatMap((test) => {
     const ref2 = parseCaseRef(test);
-    return ref2 !== void 0 && !executed.some((item2) => caseMatchesRef(ref2, item2));
+    return ref2 === void 0 ? [] : [{ test, ref: ref2 }];
   });
+  const refRan = (ref2) => casesMatchingRef(ref2, run2.cases).some((item2) => item2.status !== "skip");
+  const missingRefs = refs.filter(({ ref: ref2 }) => !refRan(ref2)).map(({ test }) => test);
+  const fileRan = (path14) => executed.some((item2) => fileRefMatches(path14, item2.file) || fileRefMatches(item2.file, path14)) || refs.some(({ ref: ref2 }) => fileRefMatches(ref2.file, path14) && refRan(ref2));
+  const missingFiles = files.filter((path14) => !fileRan(path14));
   if (caseFormat && (missingFiles.length > 0 || missingRefs.length > 0)) {
     const list5 = [...missingFiles, ...missingRefs];
-    blockers.push(testBlocker("registered-test-not-executed", `\u5957\u4EF6 ${name} \u7684\u62A5\u544A\u91CC\u6CA1\u6709\u5DF2\u767B\u8BB0\u7684\u6D4B\u8BD5\uFF1A${list5.slice(0, 5).join("\uFF1B")}${list5.length > 5 ? " \u2026" : ""}`, { fix, subject: suite2.id }));
+    const hint = suite2.runner === "node-test" ? NODE_TEST_FILE_HINT : "";
+    blockers.push(testBlocker("registered-test-not-executed", `\u5957\u4EF6 ${name} \u7684\u62A5\u544A\u91CC\u6CA1\u6709\u5DF2\u767B\u8BB0\u7684\u6D4B\u8BD5\uFF1A${list5.slice(0, 5).join("\uFF1B")}${list5.length > 5 ? " \u2026" : ""}${hint}`, { fix, subject: suite2.id }));
   }
   if (suite2.coverage !== void 0 || suite2.kind === "coverage") {
     const problems = coverageProblems(context.policy, run2);
@@ -22516,7 +22539,7 @@ function traceTest(test, fresh) {
     return { ref: test, status: "not-run" };
   let found;
   for (const entry2 of [...fresh].sort(order2)) {
-    const matches = entry2.run.cases.filter((item2) => caseMatchesRef(ref, item2));
+    const matches = casesMatchingRef(ref, entry2.run.cases);
     if (matches.length === 0)
       continue;
     const status2 = matches.some((item2) => item2.status === "fail") ? "fail" : matches.some((item2) => item2.status === "known-fail") ? "known-fail" : matches.some((item2) => item2.status === "flaky") ? "flaky" : matches.every((item2) => item2.status === "skip") ? "skip" : "pass";

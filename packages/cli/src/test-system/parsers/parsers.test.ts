@@ -4,13 +4,18 @@
  * 样例来源（fixtures/PROVENANCE 同款说明）：
  *   captured  —— 用真实工具跑出来的原文，只把机器路径换成 /work/proj：vitest 3（json / junit）、
  *                Playwright 1.61（json / junit，含重试后 flaky 与截图 / trace 附件）、Node 24 内置 test runner
- *                （tap / junit）、Node 24 内置覆盖率（lcov）。
+ *                （tap / junit）、Node 24 内置覆盖率（lcov）；junit/node{20,22,24}-multi.xml 是 Docker 官方镜像
+ *                node:20（20.20.2）/ node:22（22.23.2）/ node:24（24.21.0）在同一个三文件小项目上跑
+ *                `node --test --test-reporter=junit` 的内置 reporter 输出（tests/math.test.mjs、tests/strings.test.mjs、
+ *                tests/nested/deep.test.mjs，两个文件里各有一条同名的 "adds two numbers"），junit/node{20,22,24}-tenon-reporter.xml
+ *                是同一项目在同样三个 Node 上用 Tenon 随附 reporter（node-test-reporter.ts）产出的报告。
  *   authored  —— 本机没有对应工具时，按该工具文档化的输出形状手写：jest-json、go test -json、cobertura、
  *                istanbul coverage-summary / coverage-final、hyperfine、vitest bench、k6、lighthouse、pytest 与 surefire 方言的 junit（按两个工具文档化的输出形状手写）。
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { UNKNOWN_CASE_FILE, casesMatchingRef, parseCaseRef } from '@tenon/kernel'
 import { describe, expect, it } from 'vitest'
 import { parseBenchmarkReport, parseCaseReport, parseCoverageReport } from './index.js'
 import type { CaseReport, CaseReportFormat, ParsedCase } from './types.js'
@@ -136,6 +141,98 @@ describe('node:test（captured）', () => {
     const flat = `TAP version 13\n1..4\nok 1 - adds\nnot ok 2 - subtracts\nok 3 - later # SKIP not now\nnot ok 4 - wip # ${pending} soon\n`
     const report = parseCaseReport('tap', flat, CTX)
     expect(report.ok && report.cases.map((item) => [item.name, item.status])).toEqual([['adds', 'pass'], ['subtracts', 'fail'], ['later', 'skip'], ['wip', 'skip']])
+  })
+})
+
+describe('node:test junit × Node 版本（captured）', () => {
+  const TESTS = 'tests/math.test.mjs'
+  const shape = (list: readonly ParsedCase[]): string[] => list.map((item) => `${item.status} ${[...item.suite_path, item.name].join(' > ')}`)
+  const EXPECTED = [
+    'pass adds two numbers', 'pass division > divides evenly', 'pass division > rejects zero', 'pass division > rounding > keeps fractions',
+    'pass deep case', 'pass adds two numbers', 'pass formatting > trims', 'fail formatting > fails on purpose', 'skip formatting > is skipped',
+  ]
+
+  it('Node 24 内置 reporter：testcase@file 给出文件（绝对路径换算成仓库相对路径）', () => {
+    const list = cases('junit', 'junit/node24-multi.xml')
+    expect(shape(list)).toEqual(EXPECTED)
+    expect(list.map((item) => item.file)).toEqual([
+      TESTS, TESTS, TESTS, TESTS, 'tests/nested/deep.test.mjs', 'tests/strings.test.mjs', 'tests/strings.test.mjs', 'tests/strings.test.mjs', 'tests/strings.test.mjs',
+    ])
+    expect(list[7]?.failure?.message).toContain("'A' !== 'B'")
+  })
+
+  it.each(['node20-multi', 'node22-multi'])('%s：内置 reporter 不写 file，用例如实记为无文件，不把 classname "test" 当文件，分组与状态照常', (name) => {
+    const list = cases('junit', `junit/${name}.xml`)
+    expect(shape(list)).toEqual(EXPECTED)
+    expect(list.every((item) => item.file === UNKNOWN_CASE_FILE)).toBe(true)
+    expect(list[7]?.failure?.message).toContain("'A' !== 'B'")
+    expect(list[7]?.failure?.stack).toContain('ERR_TEST_FAILURE')
+  })
+
+  it('无文件用例的占位值不被套件 cwd 改写成 <cwd>/(unknown)', () => {
+    const report = parseCaseReport('junit', fixture('junit/node22-multi.xml'), { repoRoot: '/work/proj', cwd: '/work/proj/packages/web' })
+    expect(report.ok && report.cases.every((item) => item.file === UNKNOWN_CASE_FILE)).toBe(true)
+  })
+
+  it.each(['node20-tenon-reporter', 'node22-tenon-reporter', 'node24-tenon-reporter'])('%s：随附 reporter 在每个 Node 上都写 file，与 Node 24 内置 reporter 解析出同样的文件、分组与状态', (name) => {
+    const list = cases('junit', `junit/${name}.xml`)
+    const builtin = cases('junit', 'junit/node24-multi.xml')
+    const identity = (items: readonly ParsedCase[]) => items.map((item) => [item.file, item.suite_path, item.name, item.status])
+    expect(identity(list)).toEqual(identity(builtin))
+    expect(list[7]?.failure?.message).toContain("'A' !== 'B'")
+  })
+
+  it('登记的用例引用 × 报告：Node 22 无文件时按名字唯一才对上；同名（跨文件）对不上；Node 24 有文件则都对得上', () => {
+    const identities = (path: string) => cases('junit', path).map((item) => ({ file: item.file, suite_path: item.suite_path, name: item.name }))
+    const ref = (text: string) => {
+      const parsed = parseCaseRef(text)
+      if (parsed === undefined) throw new Error(text)
+      return parsed
+    }
+    const legacy = identities('junit/node22-multi.xml')
+    expect(casesMatchingRef(ref('tests/math.test.mjs › division › divides evenly'), legacy)).toHaveLength(1)
+    expect(casesMatchingRef(ref('tests/nested/deep.test.mjs › deep case'), legacy)).toHaveLength(1)
+    expect(casesMatchingRef(ref('tests/math.test.mjs › adds two numbers'), legacy)).toEqual([])
+    expect(casesMatchingRef(ref('tests/math.test.mjs › not there'), legacy)).toEqual([])
+    const modern = identities('junit/node24-multi.xml')
+    expect(casesMatchingRef(ref('tests/math.test.mjs › adds two numbers'), modern)).toHaveLength(1)
+    expect(casesMatchingRef(ref('tests/strings.test.mjs › adds two numbers'), modern)).toHaveLength(1)
+    expect(casesMatchingRef(ref('tests/strings.test.mjs › division › divides evenly'), modern)).toEqual([])
+  })
+})
+
+describe('junit 文件推断（authored）', () => {
+  const parse = (xml: string) => {
+    const report = parseCaseReport('junit', xml, CTX)
+    if (!report.ok) throw new Error(report.reason)
+    return report.cases
+  }
+
+  it('testcase 没有 file 时取祖先 testsuite@file', () => {
+    const list = parse('<testsuites><testsuite name="math" file="/work/proj/tests/math.test.mjs"><testcase name="adds" classname="test"/><testsuite name="nested" file="/work/proj/tests/nested.mjs"><testcase name="deep" classname="test"/></testsuite></testsuite></testsuites>')
+    expect(list.map((item) => [item.file, item.suite_path.join('>'), item.name])).toEqual([
+      ['tests/math.test.mjs', 'math', 'adds'], ['tests/nested.mjs', 'math>nested', 'deep'],
+    ])
+  })
+
+  it('describe 标题长得像文件名（utils.js）也不是文件：进分组链，文件仍是无文件', () => {
+    const list = parse('<testsuites><testsuite name="utils.js" tests="1"><testcase name="parses" classname="test"/></testsuite></testsuites>')
+    expect(list).toEqual([expect.objectContaining({ file: UNKNOWN_CASE_FILE, suite_path: ['utils.js'], name: 'parses' })])
+  })
+
+  it('classname 是 runner 泛称 / 分组标题（小写词、带空格）时不当文件；像类名的 classname 仍当文件', () => {
+    const list = parse('<testsuites><testsuite name="suite"><testcase name="a" classname="test"/><testcase name="b" classname="should work"/><testcase name="c" classname="division.rounding"/><testcase name="d" classname="com.example.MathTest"/><testcase name="e" classname="MathTest"/></testsuite></testsuites>')
+    expect(list.map((item) => item.file)).toEqual([UNKNOWN_CASE_FILE, UNKNOWN_CASE_FILE, UNKNOWN_CASE_FILE, 'com.example.MathTest', 'MathTest'])
+  })
+
+  it('testcase 没有 classname 时，像路径的 testsuite@name 仍是文件（每个文件一个 testsuite 的方言）', () => {
+    const list = parse('<testsuites><testsuite name="src/a.test.ts"><testcase name="works"/></testsuite></testsuites>')
+    expect(list).toEqual([expect.objectContaining({ file: 'src/a.test.ts', suite_path: [] })])
+  })
+
+  it('testsuite 自己出错：有 file 用 file；describe 标题不当文件', () => {
+    expect(parse('<testsuite name="crash" file="/work/proj/crash.test.js"><error message="boom"/></testsuite>')[0]?.file).toBe('crash.test.js')
+    expect(parse('<testsuites><testsuite name="before hook"><failure message="hook failed"/></testsuite></testsuites>')[0]?.file).toBe(UNKNOWN_CASE_FILE)
   })
 })
 

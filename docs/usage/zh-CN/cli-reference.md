@@ -261,6 +261,20 @@ project 不在报告里（`browser-project-missing`）、服务没有就绪（`s
 可打开或下载。退出码：`0` 全部通过、`2` 有套件失败（记录已落盘）、`1` 用法或环境错误（不落记录）。运行结束会重新计算本步骤的
 出口检查并打印，每个仍在挡的项带修复命令；`--json` 输出记录全文与出口检查。
 
+node:test 的报告要求每个用例都带 `file`，而 Node 22 及以前不写：内置的 `--test-reporter=junit` 不给 `<testcase>` 写 `file`
+（Node 24 才写），没有额外处理时，追溯表、已登记用例的核对和运行详情都无法把用例对应到测试文件。所以 `test discover` 给
+node:test 套件的命令是 `node --test --test-reporter="${TENON_NODE_TEST_REPORTER:-junit}" --test-reporter-destination=test-results/junit.xml`：
+`tenon test run` 把随 CLI bundle 分发的一个小 reporter 写进本次运行自己的产物目录
+（`.tenon/users/<slug>/local/artifacts/<change>/<run-id>/reporters/`，不会写进项目目录树），并把 `TENON_NODE_TEST_REPORTER`
+设成它的 `file:` URL，于是 Node 20、22、24 上的报告都带 `file`；不经 `tenon test run`、手工跑同一条命令时变量为空，退回内置 `junit`。
+命令依赖 POSIX 的 `${VAR:-default}` 展开，和 Playwright 预设的 `VAR=value` 前缀一样。JUnit 解析器按 `testcase@file`、像路径的 `classname`、
+外层 `testsuite@file`、像类名的 `classname`（如 `com.example.MathTest`）的次序确定用例文件；node:test 的 `classname="test"`、
+`utils.js` 这样的 describe 标题都不会被当成文件。确定不了文件的用例记为 `(unknown)`。登记的用例引用 `<文件> › <名字>`
+只在标题路径等于用例路径的尾部、且整次运行里恰好只有一条用例是这个路径时，才按名字对上这种用例（别的文件里的同名用例会让它
+无法归属，不命中，仍是 `registered-test-not-executed`），此时引用里的文件部分不参与比对。登记的文件在它名下某条登记的用例引用
+按此对上时算已执行；没有任何用例引用的登记文件在这样的报告里无法核实，如实报 `registered-test-not-executed`，并提示改用随附的 reporter。
+已知失败清单与 `fail_on_new` 的 flaky 检查仍然需要真实文件：它们不会匹配 `(unknown)` 的用例。
+
 基准先预热 `warmup` 次再采样 `runs` 次，记录每个指标全部样本的中位数、p95 与 MAD；离散度超过退化阈值一半时先多采一轮再判。
 基线按机器画像（OS、架构、CPU、核数、内存档位、运行时主版本，加目录 `profiles_env` 的取值）存到
 `.tenon/tests/baselines/<套件>/<画像>.json`，进 git；不同画像互不比较。该画像没有基线时运行仍通过，并提示
@@ -283,7 +297,7 @@ project 不在报告里（`browser-project-missing`）、服务没有就绪（`s
 内联的步骤测试（`tenon test run <change> <test-id>`）保持 v1 行为：在独立进程组里执行声明的命令，把退出码、耗时、执行人、
 输入摘要与输出文件登记成记录，完整日志与输出副本留在该用户 gitignored 的本机目录；候选版本、测试声明摘要或工作流指纹任一变化
 即过期。命令可读到 `TENON_CHANGE_NAME`、`TENON_TEST_ID`、`TENON_TEST_RUN_ID`、`TENON_TEST_ARTIFACTS` 与 `TENON_BASE_BRANCH`；
-套件运行拿到 `TENON_TEST_SUITE`（套件 id）代替 `TENON_TEST_ID`。内联测试的退出码：`0` 通过、`2` 失败（记录已落盘）、`1` 用法或环境错误（不落记录）。
+套件运行拿到 `TENON_TEST_SUITE`（套件 id）代替 `TENON_TEST_ID`；套件命令或 `select` 模板引用了 `TENON_NODE_TEST_REPORTER` 时还会拿到它。内联测试的退出码：`0` 通过、`2` 失败（记录已落盘）、`1` 用法或环境错误（不落记录）。
 
 ## Session 与恢复
 

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testcase name="adds two numbers" time="0.000368" classname="test"/>
+	<testsuite name="division" time="0.001693" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="demo">
+		<testcase name="divides evenly" time="0.000196" classname="test"/>
+		<testcase name="rejects zero" time="0.000205" classname="test"/>
+		<testsuite name="rounding" time="0.000952" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="demo">
+			<testcase name="keeps fractions" time="0.000819" classname="test"/>
+		</testsuite>
+	</testsuite>
+	<testcase name="deep case" time="0.000353" classname="test"/>
+	<testcase name="adds two numbers" time="0.000466" classname="test"/>
+	<testsuite name="formatting" time="0.001093" disabled="0" errors="0" tests="3" failures="1" skipped="1" hostname="demo">
+		<testcase name="trims" time="0.000152" classname="test"/>
+		<testcase name="fails on purpose" time="0.000516" classname="test" failure="Expected values to be strictly equal:'A' !== 'B'">
+			<failure type="testCodeFailure" message="Expected values to be strictly equal:'A' !== 'B'">
+Error [ERR_TEST_FAILURE]: Expected values to be strictly equal:
+
+'A' !== 'B'
+
+    at async Promise.all (index 0) {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  'A' !== 'B'
+  
+      at TestContext.&lt;anonymous> (file:///work/proj/tests/strings.test.mjs:13:12)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Promise.all (index 0)
+      at async Suite.run (node:internal/test_runner/test:1442:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'A',
+    expected: 'B',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+}
+			</failure>
+		</testcase>
+		<testcase name="is skipped" time="0.000137" classname="test">
+			<skipped type="skipped" message="true"/>
+		</testcase>
+	</testsuite>
+	<!-- tests 9 -->
+	<!-- suites 3 -->
+	<!-- pass 7 -->
+	<!-- fail 1 -->
+	<!-- cancelled 0 -->
+	<!-- skipped 1 -->
+	<!-- todo 0 -->
+	<!-- duration_ms 90.042176 -->
+</testsuites>

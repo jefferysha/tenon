@@ -1,9 +1,10 @@
 /**
  * TAP → 用例，覆盖 node:test 的嵌套输出（`# Subtest:` 缩进块、YAML 诊断块里的 location / error / expected / actual）
  * 与扁平 TAP（`ok 1 - 描述`）。没有子块的结果行是用例，带子块的是分组。
- * TAP 本身不带文件信息：失败用例的 `location` 给出文件，同一顶层分组里其余用例沿用它；仍然没有就记为 (unknown)，
- * 这样「已登记文件未出现在报告里」的核对会如实报出，而不是靠猜测放行。
+ * TAP 本身不带文件信息：失败用例的 `location` 给出文件，同一顶层分组里其余用例沿用它；仍然没有就记为无文件（UNKNOWN_CASE_FILE），
+ * 这样「已登记文件未出现在报告里」的核对会如实报出，而不是靠猜测放行；登记的用例引用只在名字唯一时才按名字对上（kernel 的 casesMatchingRef）。
  */
+import { UNKNOWN_CASE_FILE } from '@tenon/kernel'
 import { cleanFailureMessage, cleanName, clip, repoPath, stripAnsi } from './text.js'
 import type { CaseReport, ParseContext, ParsedCase } from './types.js'
 
@@ -146,7 +147,7 @@ function collect(node: TapNode, groups: readonly string[], file: string | undefi
   if (isFileWrapper || (node.children.length === 0 && node.diag.type === 'suite')) return
   const line = here?.line
   out.push({
-    file: fileName === undefined ? '(unknown)' : repoPath(ctx, fileName),
+    file: fileName === undefined ? UNKNOWN_CASE_FILE : repoPath(ctx, fileName),
     ...(line === undefined ? {} : { line }),
     name: cleanName(node.name, '(未命名用例)'),
     suite_path: groups.map((group) => cleanName(group, '(分组)')),

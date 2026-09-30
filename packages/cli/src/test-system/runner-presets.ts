@@ -2,7 +2,7 @@
  * 各 runner 的推荐调用：让命令产出可解析的报告（reporter 参数）、按文件 / 按用例名选择的模板、报告与产物位置。
  * `tenon test discover` 与 `tenon test catalog add --from <方向>` 共用这一份，两处不会各写一套参数。
  */
-import type { CatalogReport, CatalogSelect, TestRunner } from '@tenon/kernel'
+import { NODE_TEST_REPORTER_ENV, type CatalogReport, type CatalogSelect, type TestRunner } from '@tenon/kernel'
 
 export interface RunnerPreset {
   readonly command: string
@@ -17,7 +17,9 @@ export interface RunnerPreset {
 const VITEST_JSON = '--reporter=default --reporter=json --outputFile.json=test-results/vitest.json'
 const PLAYWRIGHT_ENV = 'PLAYWRIGHT_JSON_OUTPUT_NAME=test-results/results.json PLAYWRIGHT_HTML_OPEN=never'
 const PLAYWRIGHT_REPORTERS = '--reporter=list,json,html'
-const NODE_TEST_JUNIT = '--test-reporter=junit --test-reporter-destination=test-results/junit.xml'
+// Node 22 及以前内置的 junit reporter 不写 file：tenon test run 通过 TENON_NODE_TEST_REPORTER 提供带 file 的 reporter（见 node-test-reporter.ts），
+// 手工在 tenon 之外跑同一条命令时变量为空，退回内置 junit。
+const NODE_TEST_JUNIT = `--test-reporter="\${${NODE_TEST_REPORTER_ENV}:-junit}" --test-reporter-destination=test-results/junit.xml`
 const PYTEST_JUNIT = '--junitxml=test-results/junit.xml'
 
 export const RUNNER_PRESETS: Readonly<Partial<Record<TestRunner, RunnerPreset>>> = {

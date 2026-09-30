@@ -16,7 +16,7 @@ import { looksSandboxDenied } from '../test-runner/classify.js'
 import type { TestProcessOutcome } from '../test-runner/process.js'
 import { collectArtifacts } from './artifacts.js'
 import { executeBenchmark } from './benchmark-exec.js'
-import { isRetained, recordCases, totalsOf, wantedFiles } from './case-records.js'
+import { isRetained, recordCases, totalsOf, wantedFiles, wantedRefs } from './case-records.js'
 import type { ExecContext, RunItem, SuiteOutcome } from './exec-types.js'
 import { createInvoker, type Invoker } from './invoker.js'
 import { exitText, judgeSuite, processReasons } from './judge.js'
@@ -216,7 +216,8 @@ export async function executeSuite(context: ExecContext, item: RunItem, blocked:
   })
   if (artifacts.truncated) reasons.push({ code: 'artifact-truncated', detail: '产物超过单文件 / 单次运行 / 文件数上限，超出的没有收进索引' })
   const records = recordCases(parsedCases, {
-    suiteId: suite.id, wanted, knownFailures: context.knownFailures, today: context.today,
+    suiteId: suite.id, wanted, wantedRefs: wantedRefs(context.plan, context.knownFailures, suite.id),
+    knownFailures: context.knownFailures, today: context.today,
     indexed: (absolute) => artifacts.mapped.get(absolute), resolveAttachment: (path) => real(resolve(cwd, path)),
   })
   const { log, tail } = await invoker.finish()

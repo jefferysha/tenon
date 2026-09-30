@@ -3,11 +3,13 @@
  *   · 已知失败清单里的失败（未过期）标 known-fail，其余失败保持 fail；
  *   · 只保留失败、flaky、已知失败，以及计划登记的文件 / 映射里的用例全量（其余只进 totals，大型套件的记录不膨胀）；
  *   · 用例附件换成本次运行产物索引里的路径。
- * 「已登记用例未执行」的判定依赖第二条：登记过的文件里执行过的用例必须留在记录里。
+ * 「已登记用例未执行」的判定依赖第二条：登记过的文件里执行过的用例必须留在记录里；
+ * 报告没给文件的用例（UNKNOWN_CASE_FILE）只能按名字对，所以名字对得上某条登记引用的无文件用例、
+ * 以及与它们同名的其它用例（别的文件里的同名用例会让「名字唯一」不成立）也必须留下，判定才看得到完整的同名集合。
  */
 import {
-  classifyAgainstKnownFailures, fileRefMatches, formatCaseRef, parseCaseRef,
-  type CaseResultV2, type CaseTotals, type KnownFailure, type TestPlan,
+  caseTitleMatchesRef, classifyAgainstKnownFailures, fileRefMatches, formatCaseRef, isUnknownCaseFile, parseCaseRef,
+  type CaseRef, type CaseResultV2, type CaseTotals, type KnownFailure, type TestPlan,
 } from '@tenon/kernel'
 import type { ParsedCase } from './parsers/index.js'
 
@@ -38,6 +40,18 @@ export function wantedFiles(plan: TestPlan | undefined, planFiles: readonly stri
   return [...planFiles, ...mapped, ...listed]
 }
 
+/** 计划映射与已知失败清单点名的、带标题路径的引用：无文件的用例靠它们按名字留下（只写文件的引用没有名字可对）。 */
+export function wantedRefs(plan: TestPlan | undefined, known: readonly KnownFailure[], suiteId: string): CaseRef[] {
+  const tests = [
+    ...(plan?.cases ?? []).flatMap((item) => item.tests),
+    ...known.filter((entry) => entry.suite === suiteId).map((entry) => entry.test),
+  ]
+  return tests.flatMap((test) => {
+    const ref = parseCaseRef(test)
+    return ref === undefined || ref.title.length === 0 ? [] : [ref]
+  })
+}
+
 export function isRetained(item: Pick<ParsedCase, 'status' | 'file'>, wanted: readonly string[]): boolean {
   return item.status === 'fail' || item.status === 'flaky'
     || wanted.some((file) => fileRefMatches(file, item.file) || fileRefMatches(item.file, file))
@@ -46,6 +60,7 @@ export function isRetained(item: Pick<ParsedCase, 'status' | 'file'>, wanted: re
 export interface RecordContext {
   readonly suiteId: string
   readonly wanted: readonly string[]
+  readonly wantedRefs: readonly CaseRef[]
   readonly knownFailures: readonly KnownFailure[]
   readonly today: string
   /** 附件绝对路径 → 产物索引路径。 */
@@ -53,9 +68,20 @@ export interface RecordContext {
   readonly resolveAttachment: (path: string) => string
 }
 
+/** 名字对得上某条登记引用、且其中有无文件用例的那一组用例（含同名的有文件用例）：判定按名字唯一对时要看到整组。 */
+function keptByName(all: readonly CaseResultV2[], refs: readonly CaseRef[]): ReadonlySet<CaseResultV2> {
+  const kept = new Set<CaseResultV2>()
+  if (!all.some((item) => isUnknownCaseFile(item.file))) return kept
+  for (const ref of refs) {
+    const named = all.filter((item) => caseTitleMatchesRef(ref, item))
+    if (named.some((item) => isUnknownCaseFile(item.file))) for (const item of named) kept.add(item)
+  }
+  return kept
+}
+
 export function recordCases(parsed: readonly ParsedCase[], context: RecordContext): { readonly all: CaseResultV2[]; readonly kept: CaseResultV2[] } {
   const all: CaseResultV2[] = []
-  const kept: CaseResultV2[] = []
+  const always = new Set<CaseResultV2>()
   for (const item of parsed) {
     const identity = { file: item.file, suite_path: item.suite_path, name: item.name }
     let status: CaseResultV2['status'] = item.status
@@ -80,7 +106,8 @@ export function recordCases(parsed: readonly ParsedCase[], context: RecordContex
       artifacts: [...new Set(artifacts)],
     }
     all.push(record)
-    if (status === 'known-fail' || isRetained(item, context.wanted)) kept.push(record)
+    if (status === 'known-fail' || isRetained(item, context.wanted)) always.add(record)
   }
-  return { all, kept }
+  const named = keptByName(all, context.wantedRefs)
+  return { all, kept: all.filter((record) => always.has(record) || named.has(record)) }
 }

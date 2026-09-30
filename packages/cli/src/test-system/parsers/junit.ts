@@ -1,13 +1,15 @@
 /**
  * JUnit XML → 用例。各工具方言差别很大（vitest / Playwright 用 `classname`=文件、`name`=分组 › 用例；node:test 用
  * `file` 属性与嵌套 testsuite；pytest 用点号分隔的 `classname`），所以文件、分组与用例名按下面的次序推断：
- *   文件：testcase@file → 像路径的 classname → 祖先 testsuite@file → 像路径的 testsuite@name → pytest 方言下点号 classname 推成 .py →
- *   原样的 classname / testsuite@name。
+ *   文件：testcase@file → 像路径的 classname → 祖先 testsuite@file → 像路径的 testsuite@name（仅当 testcase 没有 classname）→
+ *   pytest 方言下点号 classname 推成 .py → 像类名的 classname（`com.example.MathTest`，Java / .NET 一类）→ 无文件（UNKNOWN_CASE_FILE）。
+ *   node:test 在 Node 22 及以前不写 testcase@file，classname 恒为 `test`，testsuite 名是 describe 标题：这些都不是文件，
+ *   所以这样的用例如实记为无文件，登记的用例引用改由 kernel 按名字唯一对（casesMatchingRef），而不是把 `test` 或 describe 标题当成文件。
  *   用例名：`name` 按 ` › ` 或 ` > ` 拆成 分组… › 用例；没有分隔符时，非文件名的祖先 testsuite 名当分组。
  * 状态：`<skipped>` 跳过；`<failure>` / `<error>` 失败；只有 flakyFailure / rerunFailure（重试后通过）判 flaky。
  */
 import { basename } from 'node:path'
-import type { CaseFailure } from '@tenon/kernel'
+import { UNKNOWN_CASE_FILE, fileRefMatches, type CaseFailure } from '@tenon/kernel'
 import { cleanName, failureFromText, repoPath } from './text.js'
 import type { CaseReport, ParseContext, ParsedAttachment, ParsedCase } from './types.js'
 import { childrenNamed, parseXml, XmlError, type XmlElement } from './xml.js'
@@ -83,6 +85,11 @@ interface Ancestors {
   readonly suites: readonly XmlElement[]
 }
 
+/** 像类名的 classname：点号 / `::` / `$` 限定的标识符，最后一段首字母大写（`com.example.MathTest`、`MathTest`）；`test`、分组标题不是。 */
+function looksLikeClassName(value: string): boolean {
+  return /^(?:[A-Za-z_][\w$]*(?:\.|::|\$|\+))*[A-Z][\w$]*$/.test(value)
+}
+
 function fileOf(testcase: XmlElement, ancestors: Ancestors, split: SplitName): { file: string; klass: string[] } {
   const declared = testcase.attrs.file
   if (declared !== undefined && declared !== '') return { file: declared, klass: [] }
@@ -93,22 +100,32 @@ function fileOf(testcase: XmlElement, ancestors: Ancestors, split: SplitName): {
     const file = suite.attrs.file
     if (file !== undefined && file !== '') return { file, klass: [] }
   }
-  for (const suite of [...ancestors.suites].reverse()) {
-    const name = suite.attrs.name ?? ''
-    if (looksLikePath(name)) return { file: name, klass: [] }
+  // testsuite 名当文件只对「file 每个 suite」的方言（testcase 没有 classname）成立；有 classname 却不是路径（node:test 的 `test`）
+  // 说明 testsuite 名是 describe 标题，`describe('utils.js')` 不是文件。
+  if (classname === '') {
+    for (const suite of [...ancestors.suites].reverse()) {
+      const name = suite.attrs.name ?? ''
+      if (looksLikePath(name)) return { file: name, klass: [] }
+    }
   }
   // 点号 classname 推成 .py 文件只对 pytest 方言成立（Java 的 com.example.MathTest 不是 Python 模块）。
   const pytest = ancestors.suites.some((suite) => suite.attrs.name === 'pytest')
   const dotted = pytest ? dottedModulePath(classname) : undefined
   if (dotted !== undefined) return dotted
-  const fallback = classname !== '' ? classname : (ancestors.suites.at(-1)?.attrs.name ?? '')
-  return { file: fallback === '' ? '(unknown)' : fallback, klass: [] }
+  const identity = classname !== '' ? classname : (ancestors.suites.at(-1)?.attrs.name ?? '')
+  return { file: looksLikeClassName(identity) ? identity : UNKNOWN_CASE_FILE, klass: [] }
+}
+
+/** 这个 testsuite 名是不是「文件外壳」（vitest / Playwright 每个文件一个 testsuite，名字就是该文件）：与用例文件同名或互为路径尾部。 */
+function isFileSuiteName(name: string, file: string): boolean {
+  if (name === file) return true
+  return file !== UNKNOWN_CASE_FILE && looksLikePath(name) && (fileRefMatches(name, file) || fileRefMatches(file, name))
 }
 
 function groupsFromSuites(ancestors: Ancestors, file: string): string[] {
   return ancestors.suites
     .map((suite) => suite.attrs.name ?? '')
-    .filter((name) => name !== '' && !looksLikePath(name) && name !== file && !/^(?:vitest|jest|mocha|pytest) tests$/i.test(name) && name !== 'pytest')
+    .filter((name) => name !== '' && !isFileSuiteName(name, file) && !/^(?:vitest|jest|mocha|pytest) tests$/i.test(name) && name !== 'pytest')
 }
 
 function isFileWrapper(name: string, file: string): boolean {
@@ -129,7 +146,7 @@ function toCase(testcase: XmlElement, ancestors: Ancestors, ctx: ParseContext): 
   const lineText = testcase.attrs.line
   const line = split.line ?? (lineText !== undefined && /^\d+$/.test(lineText) ? Number(lineText) : undefined)
   return {
-    file: repoPath(ctx, located.file),
+    file: located.file === UNKNOWN_CASE_FILE ? UNKNOWN_CASE_FILE : repoPath(ctx, located.file),
     ...(line === undefined ? {} : { line }),
     name: cleanName(split.name, '(未命名用例)'),
     suite_path: [...located.klass, ...groups].map((group) => cleanName(group, '(分组)')),
@@ -140,6 +157,14 @@ function toCase(testcase: XmlElement, ancestors: Ancestors, ctx: ParseContext): 
     ...(failureSource !== undefined && status !== 'skip' ? { failure: failureOf(failureSource) } : {}),
     attachments: attachmentsOf(testcase),
   }
+}
+
+/** testsuite 自己出错（进程崩溃、hook 失败）时它所属的文件：file 属性，或像路径的名字；describe 标题不是文件。 */
+function suiteFile(suite: XmlElement): string {
+  const declared = suite.attrs.file
+  if (declared !== undefined && declared !== '') return declared
+  const name = suite.attrs.name ?? ''
+  return looksLikePath(name) ? name : UNKNOWN_CASE_FILE
 }
 
 /** 遍历带祖先链的 testcase，并为 testsuite 直接挂的 error / failure 生成一条失败用例。 */
@@ -154,9 +179,9 @@ function walk(root: XmlElement, ctx: ParseContext): ParsedCase[] {
         const chain = [...suites, child]
         const own = [...childrenNamed(child, 'error'), ...childrenNamed(child, 'failure')]
         if (own.length > 0 && own[0] !== undefined) {
-          const file = child.attrs.file ?? child.attrs.name ?? '(unknown)'
+          const file = suiteFile(child)
           cases.push({
-            file: repoPath(ctx, file),
+            file: file === UNKNOWN_CASE_FILE ? UNKNOWN_CASE_FILE : repoPath(ctx, file),
             name: cleanName(child.attrs.name ?? '', '(测试套件无法运行)'),
             suite_path: [],
             project: null,

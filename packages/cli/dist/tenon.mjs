@@ -3032,9 +3032,9 @@ var require_commander = __commonJS({
 // packages/cli/src/main.ts
 import { execFile as execFile14, spawn as spawn10 } from "node:child_process";
 import { existsSync as existsSync14, readFileSync as readFileSync43 } from "node:fs";
-import { readFile as readFile94, stat as stat19, writeFile as writeFile34 } from "node:fs/promises";
+import { readFile as readFile94, stat as stat19, writeFile as writeFile35 } from "node:fs/promises";
 import { homedir as homedir22 } from "node:os";
-import { dirname as dirname45, join as join172 } from "node:path";
+import { dirname as dirname45, join as join174 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // node_modules/commander/esm.mjs
@@ -12780,6 +12780,7 @@ function compileStepTests(raw, path15) {
 }
 
 // packages/kernel/dist/test-system/vocabulary.js
+var NODE_TEST_REPORTER_ENV = "TENON_NODE_TEST_REPORTER";
 var TEST_KINDS = [
   "unit",
   "integration",
@@ -27609,16 +27610,33 @@ function parseCaseRef(value) {
 function fileRefMatches(ref, path15) {
   return path15 === ref || path15.endsWith(`/${ref}`);
 }
-function caseMatchesRef(ref, identity2) {
-  if (!fileRefMatches(ref.file, identity2.file))
-    return false;
+var UNKNOWN_CASE_FILE = "(unknown)";
+function isUnknownCaseFile(file) {
+  return file === UNKNOWN_CASE_FILE;
+}
+function caseTitleMatchesRef(ref, identity2) {
   if (ref.title.length === 0)
-    return true;
+    return false;
   const full2 = [...identity2.suite_path, identity2.name];
   if (ref.title.length > full2.length)
     return false;
   const tail = full2.slice(full2.length - ref.title.length);
   return tail.every((segment, index) => segment === ref.title[index]);
+}
+function caseMatchesRef(ref, identity2) {
+  if (!fileRefMatches(ref.file, identity2.file))
+    return false;
+  return ref.title.length === 0 || caseTitleMatchesRef(ref, identity2);
+}
+function casesMatchingRef(ref, cases) {
+  const direct = cases.filter((item2) => caseMatchesRef(ref, item2));
+  if (direct.length > 0)
+    return direct;
+  if (ref.title.length === 0)
+    return [];
+  const named = cases.filter((item2) => caseTitleMatchesRef(ref, item2));
+  const only = named.length === 1 ? named[0] : void 0;
+  return only !== void 0 && isUnknownCaseFile(only.file) ? [only] : [];
 }
 function formatCaseRef(identity2) {
   return [identity2.file, ...identity2.suite_path, identity2.name].join(CASE_REF_SEPARATOR);
@@ -27884,6 +27902,7 @@ var ADVISORY_REASONS = /* @__PURE__ */ new Set([
   "log-truncated",
   "artifact-truncated"
 ]);
+var NODE_TEST_FILE_HINT = `\uFF08\u82E5\u62A5\u544A\u91CC\u7684\u7528\u4F8B\u6CA1\u6709\u6587\u4EF6\u5F52\u5C5E\u2014\u2014Node 22 \u53CA\u4EE5\u524D\u5185\u7F6E\u7684 junit reporter \u4E0D\u5199 file \u5C5E\u6027\u2014\u2014\u547D\u4EE4\u91CC\u6539\u7528 --test-reporter="\${${NODE_TEST_REPORTER_ENV}:-junit}"\uFF0C\u7531 tenon test run \u63D0\u4F9B\u5E26 file \u7684 reporter\uFF09`;
 function rerun(change, suite2) {
   return `tenon test run ${change} --suite ${shellQuote(suite2)}`;
 }
@@ -27982,14 +28001,18 @@ function evaluateSuiteResult(suite2, ref, context) {
   }
   const files = planFilesOfSuite(context.plan, suite2);
   const executed = run4.cases.filter((item2) => item2.status !== "skip");
-  const missingFiles = files.filter((path15) => !executed.some((item2) => fileRefMatches(path15, item2.file) || fileRefMatches(item2.file, path15)));
-  const missingRefs = registeredRefs(context.plan, suite2, files).filter((test) => {
+  const refs = registeredRefs(context.plan, suite2, files).flatMap((test) => {
     const ref2 = parseCaseRef(test);
-    return ref2 !== void 0 && !executed.some((item2) => caseMatchesRef(ref2, item2));
+    return ref2 === void 0 ? [] : [{ test, ref: ref2 }];
   });
+  const refRan = (ref2) => casesMatchingRef(ref2, run4.cases).some((item2) => item2.status !== "skip");
+  const missingRefs = refs.filter(({ ref: ref2 }) => !refRan(ref2)).map(({ test }) => test);
+  const fileRan = (path15) => executed.some((item2) => fileRefMatches(path15, item2.file) || fileRefMatches(item2.file, path15)) || refs.some(({ ref: ref2 }) => fileRefMatches(ref2.file, path15) && refRan(ref2));
+  const missingFiles = files.filter((path15) => !fileRan(path15));
   if (caseFormat && (missingFiles.length > 0 || missingRefs.length > 0)) {
     const list5 = [...missingFiles, ...missingRefs];
-    blockers.push(testBlocker("registered-test-not-executed", `\u5957\u4EF6 ${name2} \u7684\u62A5\u544A\u91CC\u6CA1\u6709\u5DF2\u767B\u8BB0\u7684\u6D4B\u8BD5\uFF1A${list5.slice(0, 5).join("\uFF1B")}${list5.length > 5 ? " \u2026" : ""}`, { fix, subject: suite2.id }));
+    const hint = suite2.runner === "node-test" ? NODE_TEST_FILE_HINT : "";
+    blockers.push(testBlocker("registered-test-not-executed", `\u5957\u4EF6 ${name2} \u7684\u62A5\u544A\u91CC\u6CA1\u6709\u5DF2\u767B\u8BB0\u7684\u6D4B\u8BD5\uFF1A${list5.slice(0, 5).join("\uFF1B")}${list5.length > 5 ? " \u2026" : ""}${hint}`, { fix, subject: suite2.id }));
   }
   if (suite2.coverage !== void 0 || suite2.kind === "coverage") {
     const problems = coverageProblems(context.policy, run4);
@@ -28039,7 +28062,7 @@ function traceTest(test, fresh) {
     return { ref: test, status: "not-run" };
   let found;
   for (const entry2 of [...fresh].sort(order2)) {
-    const matches2 = entry2.run.cases.filter((item2) => caseMatchesRef(ref, item2));
+    const matches2 = casesMatchingRef(ref, entry2.run.cases);
     if (matches2.length === 0)
       continue;
     const status = matches2.some((item2) => item2.status === "fail") ? "fail" : matches2.some((item2) => item2.status === "known-fail") ? "known-fail" : matches2.some((item2) => item2.status === "flaky") ? "flaky" : matches2.every((item2) => item2.status === "skip") ? "skip" : "pass";
@@ -85184,6 +85207,124 @@ async function execute(deps, context, input2) {
 // packages/cli/src/commands/test-run-suites.ts
 import { relative as relative38 } from "node:path";
 
+// packages/cli/src/test-system/run-orchestrator.ts
+import { join as join164 } from "node:path";
+
+// packages/cli/src/test-system/node-test-reporter.ts
+import { mkdir as mkdir60, writeFile as writeFile33 } from "node:fs/promises";
+import { join as join161 } from "node:path";
+import { pathToFileURL as pathToFileURL2 } from "node:url";
+var NODE_TEST_REPORTER_FILE = "node-test-junit.mjs";
+var NODE_TEST_JUNIT_REPORTER_SOURCE = String.raw`import { inspect } from 'node:util'
+
+const MAX_TEXT = 60000
+
+// XML 1.0 allows only tab, newline, carriage return and code points >= 0x20 that are neither surrogates nor the
+// noncharacters 0xFFFE / 0xFFFF; anything else would make the report unparseable, so it is dropped.
+// Compared by code point, with no unicode escapes and no non-ASCII text in this source: escapes get rewritten into
+// literal characters by editors and bundlers, which would silently change what this file contains.
+function legal(value) {
+  let out = ''
+  for (const char of String(value)) {
+    const code = char.codePointAt(0)
+    if (code === 9 || code === 10 || code === 13 || (code >= 32 && code < 0xD800) || (code > 0xDFFF && code < 0xFFFE) || code > 0xFFFF) out += char
+  }
+  return out
+}
+
+const text = (value) => legal(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+const attr = (value) => text(value).replace(/"/g, '&quot;').replace(/\r/g, '&#13;').replace(/\n/g, '&#10;').replace(/\t/g, '&#9;')
+const clip = (value) => (value.length > MAX_TEXT ? value.slice(0, MAX_TEXT) + '...' : value)
+const seconds = (ms) => (Number(ms) / 1000).toFixed(6)
+
+function describeError(error) {
+  const cause = error && error.cause ? error.cause : error
+  const message = String((cause && cause.message) || (error && error.message) || 'test failed')
+  let body
+  try {
+    body = inspect(error, { colors: false, breakLength: Infinity })
+  } catch {
+    body = message
+  }
+  return { type: (error && error.failureType) || 'testCodeFailure', message: clip(message), body: clip(body) }
+}
+
+function failureXml(error, pad) {
+  const info = describeError(error)
+  return pad + '<failure type="' + attr(info.type) + '" message="' + attr(info.message) + '">\n' + text(info.body) + '\n' + pad + '</failure>\n'
+}
+
+function leaves(node) {
+  return node.children.length === 0 ? [node] : node.children.flatMap(leaves)
+}
+
+function renderCase(node, names, pad) {
+  const classname = names.length > 0 ? names.join('.') : 'test'
+  const attrs = 'name="' + attr(node.name) + '" time="' + seconds(node.ms) + '" classname="' + attr(classname) + '"'
+    + (node.file ? ' file="' + attr(node.file) + '"' : '')
+  if (!node.failed && !node.skipped) return pad + '<testcase ' + attrs + '/>\n'
+  const inner = node.failed ? failureXml(node.error, pad + '\t') : pad + '\t<skipped type="skipped" message="' + attr(node.skipped) + '"/>\n'
+  return pad + '<testcase ' + attrs + '>\n' + inner + pad + '</testcase>\n'
+}
+
+function renderNode(node, names, depth) {
+  const pad = '\t'.repeat(depth + 1)
+  if (node.children.length === 0) return node.suite ? '' : renderCase(node, names, pad)
+  const all = leaves(node).filter((leaf) => !leaf.suite)
+  const failures = all.filter((leaf) => leaf.failed).length
+  const skipped = all.filter((leaf) => !leaf.failed && leaf.skipped).length
+  const own = node.failed && !(node.error && node.error.failureType === 'subtestsFailed') ? failureXml(node.error, pad + '\t') : ''
+  const inside = names.concat([node.name])
+  const body = node.children.map((child) => renderNode(child, inside, depth + 1)).join('')
+  return pad + '<testsuite name="' + attr(node.name) + '"' + (node.file ? ' file="' + attr(node.file) + '"' : '')
+    + ' time="' + seconds(node.ms) + '" disabled="0" errors="0" tests="' + all.length + '" failures="' + failures + '" skipped="' + skipped + '">\n'
+    + own + body + pad + '</testsuite>\n'
+}
+
+export default async function* nodeTestJunit(source) {
+  const roots = []
+  const pending = []
+  for await (const event of source) {
+    if (event.type !== 'test:pass' && event.type !== 'test:fail') continue
+    const data = event.data
+    const details = data.details || {}
+    const node = {
+      name: data.name,
+      file: data.file,
+      nesting: data.nesting,
+      ms: details.duration_ms || 0,
+      failed: event.type === 'test:fail',
+      error: details.error,
+      suite: details.type === 'suite',
+      skipped: data.skip !== undefined && data.skip !== false ? String(data.skip) : data.todo !== undefined && data.todo !== false ? String(data.todo) : '',
+      children: [],
+    }
+    for (let index = 0; index < pending.length;) {
+      const child = pending[index]
+      if (child.nesting === node.nesting + 1 && child.file === node.file) {
+        node.children.push(child)
+        pending.splice(index, 1)
+      } else {
+        index++
+      }
+    }
+    if (node.nesting === 0) roots.push(node)
+    else pending.push(node)
+  }
+  roots.push(...pending)
+  yield '<?xml version="1.0" encoding="utf-8"?>\n<testsuites>\n' + roots.map((root) => renderNode(root, [], 0)).join('') + '</testsuites>\n'
+}
+`;
+function usesNodeTestReporter(commands) {
+  return commands.some((command2) => command2?.includes(NODE_TEST_REPORTER_ENV) === true);
+}
+async function writeNodeTestReporter(dir) {
+  await mkdir60(dir, { recursive: true, mode: 448 });
+  const path15 = join161(dir, NODE_TEST_REPORTER_FILE);
+  await writeFile33(path15, NODE_TEST_JUNIT_REPORTER_SOURCE, { mode: 384 });
+  return pathToFileURL2(path15).href;
+}
+
 // packages/cli/src/test-system/run-record.ts
 function machineOf(catalog3, env) {
   const values = Object.fromEntries(catalog3.profiles_env.map((name2) => [name2, env[name2]]));
@@ -85406,9 +85547,9 @@ import { isAbsolute as isAbsolute45, relative as relative37, resolve as resolve6
 
 // packages/cli/src/test-system/artifacts.ts
 import { createHash as createHash58 } from "node:crypto";
-import { copyFile as copyFile4, lstat as lstat69, mkdir as mkdir60, readdir as readdir30, realpath as realpath19 } from "node:fs/promises";
+import { copyFile as copyFile4, lstat as lstat69, mkdir as mkdir61, readdir as readdir30, realpath as realpath19 } from "node:fs/promises";
 import { createReadStream } from "node:fs";
-import { dirname as dirname43, extname, isAbsolute as isAbsolute43, join as join161, relative as relative34, resolve as resolve60, sep as sep28 } from "node:path";
+import { dirname as dirname43, extname, isAbsolute as isAbsolute43, join as join162, relative as relative34, resolve as resolve60, sep as sep28 } from "node:path";
 var MAX_ARTIFACT_FILE_BYTES2 = 64 * 1024 * 1024;
 var MAX_ARTIFACT_RUN_BYTES2 = 256 * 1024 * 1024;
 var MAX_ARTIFACT_FILES_PER_SUITE = 5e3;
@@ -85455,7 +85596,7 @@ async function walkFiles(dir, limit, out) {
   }
   for (const entry2 of entries2.sort((left, right) => left.name.localeCompare(right.name))) {
     if (entry2.isSymbolicLink()) continue;
-    const path15 = join161(dir, entry2.name);
+    const path15 = join162(dir, entry2.name);
     if (entry2.isDirectory()) {
       if (await walkFiles(path15, limit, out)) return true;
     } else if (entry2.isFile()) {
@@ -85516,11 +85657,11 @@ async function collectArtifacts(input2) {
       truncated = true;
       continue;
     }
-    const destination = join161(input2.runDir, ...indexPath.split("/"));
-    await mkdir60(dirname43(destination), { recursive: true });
+    const destination = join162(input2.runDir, ...indexPath.split("/"));
+    await mkdir61(dirname43(destination), { recursive: true });
     await copyFile4(source, destination);
     input2.budget.used += entry2.size;
-    const isEntry = declaredDirs.some((dir) => source === join161(dir, "index.html"));
+    const isEntry = declaredDirs.some((dir) => source === join162(dir, "index.html"));
     index.push({
       path: indexPath,
       bytes: entry2.size,
@@ -85583,7 +85724,7 @@ function exitText(outcome) {
 
 // packages/cli/src/test-system/report-read.ts
 import { createHash as createHash59 } from "node:crypto";
-import { lstat as lstat70, mkdir as mkdir61, readFile as readFile89, rm as rm26 } from "node:fs/promises";
+import { lstat as lstat70, mkdir as mkdir62, readFile as readFile89, rm as rm26 } from "node:fs/promises";
 import { dirname as dirname44, resolve as resolve62 } from "node:path";
 
 // packages/cli/src/test-system/parsers/json.ts
@@ -86135,7 +86276,8 @@ function parseJestJson(text11, ctx) {
   if (!isRecord27(root) || !Array.isArray(root.testResults)) return { ok: false, reason: "\u7F3A\u5C11 testResults\uFF1A\u4E0D\u662F Jest / Vitest JSON \u62A5\u544A" };
   const cases = [];
   for (const fileResult of root.testResults.filter(isRecord27)) {
-    const file = repoPath(ctx, asString5(fileResult.name) ?? "(unknown)");
+    const fileName = asString5(fileResult.name);
+    const file = fileName === void 0 ? UNKNOWN_CASE_FILE : repoPath(ctx, fileName);
     let failedInFile = false;
     for (const assertion of asArray8(fileResult.assertionResults).filter(isRecord27)) {
       const invocations = Math.max(1, asNumber(assertion.invocations) ?? 1);
@@ -86231,6 +86373,9 @@ function splitName(raw) {
   const name2 = kept.pop() ?? raw.trim();
   return { path: kept, name: name2, project, ...line === void 0 ? {} : { line }, ...fileHint === void 0 ? {} : { fileHint } };
 }
+function looksLikeClassName(value) {
+  return /^(?:[A-Za-z_][\w$]*(?:\.|::|\$|\+))*[A-Z][\w$]*$/.test(value);
+}
 function fileOf(testcase, ancestors, split) {
   const declared = testcase.attrs.file;
   if (declared !== void 0 && declared !== "") return { file: declared, klass: [] };
@@ -86241,18 +86386,24 @@ function fileOf(testcase, ancestors, split) {
     const file = suite2.attrs.file;
     if (file !== void 0 && file !== "") return { file, klass: [] };
   }
-  for (const suite2 of [...ancestors.suites].reverse()) {
-    const name2 = suite2.attrs.name ?? "";
-    if (looksLikePath2(name2)) return { file: name2, klass: [] };
+  if (classname === "") {
+    for (const suite2 of [...ancestors.suites].reverse()) {
+      const name2 = suite2.attrs.name ?? "";
+      if (looksLikePath2(name2)) return { file: name2, klass: [] };
+    }
   }
   const pytest = ancestors.suites.some((suite2) => suite2.attrs.name === "pytest");
   const dotted = pytest ? dottedModulePath(classname) : void 0;
   if (dotted !== void 0) return dotted;
-  const fallback2 = classname !== "" ? classname : ancestors.suites.at(-1)?.attrs.name ?? "";
-  return { file: fallback2 === "" ? "(unknown)" : fallback2, klass: [] };
+  const identity2 = classname !== "" ? classname : ancestors.suites.at(-1)?.attrs.name ?? "";
+  return { file: looksLikeClassName(identity2) ? identity2 : UNKNOWN_CASE_FILE, klass: [] };
+}
+function isFileSuiteName(name2, file) {
+  if (name2 === file) return true;
+  return file !== UNKNOWN_CASE_FILE && looksLikePath2(name2) && (fileRefMatches(name2, file) || fileRefMatches(file, name2));
 }
 function groupsFromSuites(ancestors, file) {
-  return ancestors.suites.map((suite2) => suite2.attrs.name ?? "").filter((name2) => name2 !== "" && !looksLikePath2(name2) && name2 !== file && !/^(?:vitest|jest|mocha|pytest) tests$/i.test(name2) && name2 !== "pytest");
+  return ancestors.suites.map((suite2) => suite2.attrs.name ?? "").filter((name2) => name2 !== "" && !isFileSuiteName(name2, file) && !/^(?:vitest|jest|mocha|pytest) tests$/i.test(name2) && name2 !== "pytest");
 }
 function isFileWrapper(name2, file) {
   return PATH_EXTENSION.test(name2) && !/\s/.test(name2) && basename15(file) === name2;
@@ -86271,7 +86422,7 @@ function toCase(testcase, ancestors, ctx) {
   const lineText = testcase.attrs.line;
   const line = split.line ?? (lineText !== void 0 && /^\d+$/.test(lineText) ? Number(lineText) : void 0);
   return {
-    file: repoPath(ctx, located.file),
+    file: located.file === UNKNOWN_CASE_FILE ? UNKNOWN_CASE_FILE : repoPath(ctx, located.file),
     ...line === void 0 ? {} : { line },
     name: cleanName(split.name, "(\u672A\u547D\u540D\u7528\u4F8B)"),
     suite_path: [...located.klass, ...groups2].map((group) => cleanName(group, "(\u5206\u7EC4)")),
@@ -86282,6 +86433,12 @@ function toCase(testcase, ancestors, ctx) {
     ...failureSource !== void 0 && status !== "skip" ? { failure: failureOf2(failureSource) } : {},
     attachments: attachmentsOf(testcase)
   };
+}
+function suiteFile(suite2) {
+  const declared = suite2.attrs.file;
+  if (declared !== void 0 && declared !== "") return declared;
+  const name2 = suite2.attrs.name ?? "";
+  return looksLikePath2(name2) ? name2 : UNKNOWN_CASE_FILE;
 }
 function walk(root, ctx) {
   const cases = [];
@@ -86294,9 +86451,9 @@ function walk(root, ctx) {
         const chain = [...suites, child];
         const own3 = [...childrenNamed(child, "error"), ...childrenNamed(child, "failure")];
         if (own3.length > 0 && own3[0] !== void 0) {
-          const file = child.attrs.file ?? child.attrs.name ?? "(unknown)";
+          const file = suiteFile(child);
           cases.push({
-            file: repoPath(ctx, file),
+            file: file === UNKNOWN_CASE_FILE ? UNKNOWN_CASE_FILE : repoPath(ctx, file),
             name: cleanName(child.attrs.name ?? "", "(\u6D4B\u8BD5\u5957\u4EF6\u65E0\u6CD5\u8FD0\u884C)"),
             suite_path: [],
             project: null,
@@ -86560,7 +86717,7 @@ function collect4(node, groups2, file, ctx, out) {
   if (isFileWrapper2 || node.children.length === 0 && node.diag.type === "suite") return;
   const line = here?.line;
   out.push({
-    file: fileName === void 0 ? "(unknown)" : repoPath(ctx, fileName),
+    file: fileName === void 0 ? UNKNOWN_CASE_FILE : repoPath(ctx, fileName),
     ...line === void 0 ? {} : { line },
     name: cleanName(node.name, "(\u672A\u547D\u540D\u7528\u4F8B)"),
     suite_path: groups2.map((group) => cleanName(group, "(\u5206\u7EC4)")),
@@ -86620,7 +86777,7 @@ async function prepareOutputs(suite2, cwd) {
   for (const path15 of [suite2.report.path, suite2.coverage?.path]) {
     if (path15 === void 0) continue;
     await rm26(resolve62(cwd, path15), { force: true });
-    await mkdir61(dirname44(resolve62(cwd, path15)), { recursive: true });
+    await mkdir62(dirname44(resolve62(cwd, path15)), { recursive: true });
   }
 }
 async function readReportFile(suite2, cwd) {
@@ -86745,12 +86902,31 @@ function wantedFiles(plan, planFiles, known, suiteId) {
   });
   return [...planFiles, ...mapped, ...listed2];
 }
+function wantedRefs(plan, known, suiteId) {
+  const tests = [
+    ...(plan?.cases ?? []).flatMap((item2) => item2.tests),
+    ...known.filter((entry2) => entry2.suite === suiteId).map((entry2) => entry2.test)
+  ];
+  return tests.flatMap((test) => {
+    const ref = parseCaseRef(test);
+    return ref === void 0 || ref.title.length === 0 ? [] : [ref];
+  });
+}
 function isRetained(item2, wanted) {
   return item2.status === "fail" || item2.status === "flaky" || wanted.some((file) => fileRefMatches(file, item2.file) || fileRefMatches(item2.file, file));
 }
+function keptByName(all, refs) {
+  const kept = /* @__PURE__ */ new Set();
+  if (!all.some((item2) => isUnknownCaseFile(item2.file))) return kept;
+  for (const ref of refs) {
+    const named = all.filter((item2) => caseTitleMatchesRef(ref, item2));
+    if (named.some((item2) => isUnknownCaseFile(item2.file))) for (const item2 of named) kept.add(item2);
+  }
+  return kept;
+}
 function recordCases(parsed2, context) {
   const all = [];
-  const kept = [];
+  const always = /* @__PURE__ */ new Set();
   for (const item2 of parsed2) {
     const identity2 = { file: item2.file, suite_path: item2.suite_path, name: item2.name };
     let status = item2.status;
@@ -86775,22 +86951,23 @@ function recordCases(parsed2, context) {
       artifacts: [...new Set(artifacts)]
     };
     all.push(record9);
-    if (status === "known-fail" || isRetained(item2, context.wanted)) kept.push(record9);
+    if (status === "known-fail" || isRetained(item2, context.wanted)) always.add(record9);
   }
-  return { all, kept };
+  const named = keptByName(all, context.wantedRefs);
+  return { all, kept: all.filter((record9) => always.has(record9) || named.has(record9)) };
 }
 
 // packages/cli/src/test-system/invoker.ts
 import { createHash as createHash60 } from "node:crypto";
-import { appendFile as appendFile10, mkdir as mkdir62, readFile as readFile90, rm as rm27, writeFile as writeFile33 } from "node:fs/promises";
-import { join as join162 } from "node:path";
+import { appendFile as appendFile10, mkdir as mkdir63, readFile as readFile90, rm as rm27, writeFile as writeFile34 } from "node:fs/promises";
+import { join as join163 } from "node:path";
 function createInvoker(input2) {
-  const logsDir = join162(input2.runDir, "logs");
+  const logsDir = join163(input2.runDir, "logs");
   const parts = [];
   return {
     async invoke(command2, label2) {
-      await mkdir62(logsDir, { recursive: true });
-      const path15 = join162(logsDir, `${input2.suite.id}-${parts.length + 1}.part`);
+      await mkdir63(logsDir, { recursive: true });
+      const path15 = join163(logsDir, `${input2.suite.id}-${parts.length + 1}.part`);
       const outcome = await runTestProcess({
         command: command2,
         cwd: input2.cwd,
@@ -86806,9 +86983,9 @@ function createInvoker(input2) {
       return outcome;
     },
     async finish() {
-      await mkdir62(logsDir, { recursive: true });
-      const target = join162(logsDir, `${input2.suite.id}.log`);
-      await writeFile33(target, "", { mode: 384 });
+      await mkdir63(logsDir, { recursive: true });
+      const target = join163(logsDir, `${input2.suite.id}.log`);
+      await writeFile34(target, "", { mode: 384 });
       let bytesTotal = 0;
       for (const part of parts) {
         await appendFile10(target, `
@@ -87092,6 +87269,7 @@ async function executeSuite(context, item2, blocked) {
   const records = recordCases(parsedCases, {
     suiteId: suite2.id,
     wanted,
+    wantedRefs: wantedRefs(context.plan, context.knownFailures, suite2.id),
     knownFailures: context.knownFailures,
     today: context.today,
     indexed: (absolute) => artifacts.mapped.get(absolute),
@@ -87159,6 +87337,10 @@ async function claimMarkers(input2, runId, runningDir, startedAt, startedMs) {
   }
   return claimed;
 }
+async function reporterEnv(input2, runDir) {
+  const needed = input2.items.some((item2) => usesNodeTestReporter([item2.suite.command, item2.suite.select?.files, item2.suite.select?.grep]));
+  return needed ? { [NODE_TEST_REPORTER_ENV]: await writeNodeTestReporter(join164(runDir, "reporters")) } : {};
+}
 async function startServices(input2, runDir, env, running) {
   const failures = /* @__PURE__ */ new Map();
   const needed = [...new Set(input2.items.flatMap((item2) => item2.suite.services))];
@@ -87221,7 +87403,14 @@ async function executeRun(input2) {
       runId,
       runDir,
       change,
-      env: { ...process.env, TENON_CHANGE_NAME: change, TENON_TEST_RUN_ID: runId, TENON_TEST_ARTIFACTS: runDir, TENON_BASE_BRANCH: str2(context.state.fields.base_branch) },
+      env: {
+        ...process.env,
+        TENON_CHANGE_NAME: change,
+        TENON_TEST_RUN_ID: runId,
+        TENON_TEST_ARTIFACTS: runDir,
+        TENON_BASE_BRANCH: str2(context.state.fields.base_branch),
+        ...await reporterEnv(input2, runDir)
+      },
       plan,
       policy: policy2,
       knownFailures: input2.knownFailures,
@@ -87595,13 +87784,13 @@ async function cmdTestStatus(deps, change, opts = {}) {
 
 // packages/cli/src/commands/test-sync.ts
 import { lstat as lstat71 } from "node:fs/promises";
-import { join as join163 } from "node:path";
+import { join as join165 } from "node:path";
 var MAX_LISTED3 = 15;
 async function missingOnDisk(deps, plan) {
   const gone = [];
   for (const file of plan.files) {
     try {
-      if ((await lstat71(join163(deps.cwd, file.path))).isFile()) continue;
+      if ((await lstat71(join165(deps.cwd, file.path))).isFile()) continue;
     } catch {
     }
     gone.push(file.path);
@@ -87668,7 +87857,7 @@ async function cmdTestSync(deps, change, opts = {}) {
 var VITEST_JSON = "--reporter=default --reporter=json --outputFile.json=test-results/vitest.json";
 var PLAYWRIGHT_ENV = "PLAYWRIGHT_JSON_OUTPUT_NAME=test-results/results.json PLAYWRIGHT_HTML_OPEN=never";
 var PLAYWRIGHT_REPORTERS = "--reporter=list,json,html";
-var NODE_TEST_JUNIT = "--test-reporter=junit --test-reporter-destination=test-results/junit.xml";
+var NODE_TEST_JUNIT = `--test-reporter="\${${NODE_TEST_REPORTER_ENV}:-junit}" --test-reporter-destination=test-results/junit.xml`;
 var PYTEST_JUNIT = "--junitxml=test-results/junit.xml";
 var RUNNER_PRESETS = {
   vitest: {
@@ -88020,14 +88209,14 @@ async function cmdCatalogRemove(deps, id2, options) {
 
 // packages/cli/src/test-system/discover.ts
 import { readdir as readdir32 } from "node:fs/promises";
-import { join as join167 } from "node:path";
+import { join as join169 } from "node:path";
 
 // packages/cli/src/test-system/discover-js.ts
-import { join as join165 } from "node:path";
+import { join as join167 } from "node:path";
 
 // packages/cli/src/test-system/discover-bench.ts
 import { readdir as readdir31 } from "node:fs/promises";
-import { join as join164 } from "node:path";
+import { join as join166 } from "node:path";
 
 // packages/cli/src/test-system/discover-support.ts
 import { lstat as lstat72, readFile as readFile91 } from "node:fs/promises";
@@ -88092,13 +88281,13 @@ async function benchFiles(abs2, rel, depth, out) {
     if (entry2.isSymbolicLink()) continue;
     const path15 = rel === "" ? entry2.name : `${rel}/${entry2.name}`;
     if (entry2.isFile() && BENCH_FILE.test(entry2.name)) out.push(path15);
-    else if (entry2.isDirectory() && depth < MAX_DEPTH2 && !SKIP.has(entry2.name) && !entry2.name.startsWith(".")) await benchFiles(join164(abs2, entry2.name), path15, depth + 1, out);
+    else if (entry2.isDirectory() && depth < MAX_DEPTH2 && !SKIP.has(entry2.name) && !entry2.name.startsWith(".")) await benchFiles(join166(abs2, entry2.name), path15, depth + 1, out);
   }
 }
 async function benchNames(dir, files) {
   const names = [];
   for (const file of files) {
-    const text11 = await readSmallText(join164(dir.abs, file));
+    const text11 = await readSmallText(join166(dir.abs, file));
     if (text11 === void 0) continue;
     for (const match of text11.matchAll(BENCH_CALL)) {
       const name2 = match[2] ?? "";
@@ -88143,7 +88332,7 @@ function stringMap(value) {
 }
 async function readManifest(dir) {
   if (!dir.names.has("package.json")) return void 0;
-  const text11 = await readSmallText(join165(dir.abs, "package.json"));
+  const text11 = await readSmallText(join167(dir.abs, "package.json"));
   if (text11 === void 0) return void 0;
   let parsed2;
   try {
@@ -88198,13 +88387,13 @@ async function discoverJsTools(dir, notes) {
   const isVitest = vitestConfig !== void 0 || manifest?.deps.has("vitest") === true;
   const isJest = jestConfig !== void 0 || manifest?.deps.has("jest") === true && !isVitest;
   const isMocha = manifest?.deps.has("mocha") === true || dir.names.has(".mocharc.json") || dir.names.has(".mocharc.js");
-  const playwrightText = playwrightConfig === void 0 ? void 0 : await readSmallText(join165(dir.abs, playwrightConfig));
+  const playwrightText = playwrightConfig === void 0 ? void 0 : await readSmallText(join167(dir.abs, playwrightConfig));
   const e2eDir = stringOption(playwrightText, "testDir")?.replace(/^\.\//, "");
   const bareWorkspaceRoot = manifest?.workspaces === true && dir.rel === "." && vitestConfig === void 0 && jestConfig === void 0 && playwrightConfig === void 0;
   const label2 = dir.rel === "." ? "\u5355\u6D4B" : `${dir.rel.split("/").at(-1) ?? dir.rel} \u5355\u6D4B`;
   if (isVitest && !bareWorkspaceRoot) {
     const vitest = preset("vitest");
-    const included = includeGlobs(vitestConfig === void 0 ? void 0 : await readSmallText(join165(dir.abs, vitestConfig)));
+    const included = includeGlobs(vitestConfig === void 0 ? void 0 : await readSmallText(join167(dir.abs, vitestConfig)));
     const hasCoverageTool = manifest?.deps.has("@vitest/coverage-v8") === true || manifest?.deps.has("@vitest/coverage-istanbul") === true;
     found.push({
       source: `${where}${vitestConfig ?? "package.json"}`,
@@ -88347,15 +88536,15 @@ async function discoverJsTools(dir, notes) {
 }
 
 // packages/cli/src/test-system/discover-other.ts
-import { join as join166 } from "node:path";
+import { join as join168 } from "node:path";
 async function discoverOtherLanguages(dir, notes) {
   const found = [];
   const prefix = idPrefix(dir.rel);
   const where = dir.rel === "." ? "" : `${dir.rel}/`;
   const pytest = RUNNER_PRESETS.pytest;
   const go = RUNNER_PRESETS.go;
-  const pyproject = dir.names.has("pyproject.toml") ? await readSmallText(join166(dir.abs, "pyproject.toml")) : void 0;
-  const isPytest = dir.names.has("pytest.ini") || pyproject !== void 0 && /\[tool\.pytest/.test(pyproject) || dir.names.has("setup.cfg") && /\[tool:pytest\]/.test(await readSmallText(join166(dir.abs, "setup.cfg")) ?? "") || dir.names.has("tox.ini") && /\[pytest\]/.test(await readSmallText(join166(dir.abs, "tox.ini")) ?? "");
+  const pyproject = dir.names.has("pyproject.toml") ? await readSmallText(join168(dir.abs, "pyproject.toml")) : void 0;
+  const isPytest = dir.names.has("pytest.ini") || pyproject !== void 0 && /\[tool\.pytest/.test(pyproject) || dir.names.has("setup.cfg") && /\[tool:pytest\]/.test(await readSmallText(join168(dir.abs, "setup.cfg")) ?? "") || dir.names.has("tox.ini") && /\[pytest\]/.test(await readSmallText(join168(dir.abs, "tox.ini")) ?? "");
   if (isPytest && pytest !== void 0) {
     found.push({
       source: `${where}${dir.names.has("pytest.ini") ? "pytest.ini" : "pyproject.toml"}`,
@@ -88426,7 +88615,7 @@ async function listProjectDirs(repoRoot) {
   let visited = 0;
   const walk2 = async (rel, depth) => {
     if (visited++ > MAX_DIRS) return;
-    const abs2 = rel === "." ? repoRoot : join167(repoRoot, rel);
+    const abs2 = rel === "." ? repoRoot : join169(repoRoot, rel);
     let entries2;
     try {
       entries2 = await readdir32(abs2, { withFileTypes: true });
@@ -89123,7 +89312,7 @@ function buildProgram(deps, runtimes = {}) {
 
 // packages/cli/src/guardContext.ts
 import { readdir as readdir33 } from "node:fs/promises";
-import { join as join168 } from "node:path";
+import { join as join170 } from "node:path";
 async function listChanges(changesRoot2) {
   let entries2;
   try {
@@ -89131,7 +89320,7 @@ async function listChanges(changesRoot2) {
   } catch {
     return [];
   }
-  return entries2.filter((entry2) => entry2.isDirectory() && entry2.name !== "archive").filter((entry2) => stateStorageExistsSync(join168(changesRoot2, entry2.name))).map((entry2) => entry2.name).sort();
+  return entries2.filter((entry2) => entry2.isDirectory() && entry2.name !== "archive").filter((entry2) => stateStorageExistsSync(join170(changesRoot2, entry2.name))).map((entry2) => entry2.name).sort();
 }
 async function listChangeDirs(changesRoot2) {
   let entries2;
@@ -89179,7 +89368,7 @@ import { execFile as execFile12, execFileSync as execFileSync4 } from "node:chil
 import { createHash as createHash61 } from "node:crypto";
 import { accessSync as accessSync6, constants as fsConstants6, readdirSync as readdirSync15, readFileSync as readFileSync41, statSync as statSync13 } from "node:fs";
 import { homedir as homedir21 } from "node:os";
-import { join as join169 } from "node:path";
+import { join as join171 } from "node:path";
 function safeReaddirDirs(dir) {
   try {
     return readdirSync15(dir, { withFileTypes: true }).filter((e) => e.isDirectory() || e.isSymbolicLink()).map((e) => e.name);
@@ -89190,7 +89379,7 @@ function safeReaddirDirs(dir) {
 function readDisabledPluginKeys() {
   const disabled = /* @__PURE__ */ new Set();
   try {
-    const raw = readFileSync41(join169(homedir21(), ".claude", "settings.json"), "utf8");
+    const raw = readFileSync41(join171(homedir21(), ".claude", "settings.json"), "utf8");
     const parsed2 = JSON.parse(raw);
     const ep = typeof parsed2 === "object" && parsed2 !== null && "enabledPlugins" in parsed2 ? parsed2.enabledPlugins : void 0;
     if (ep !== null && typeof ep === "object") {
@@ -89203,26 +89392,26 @@ function readDisabledPluginKeys() {
 function scanInstalledSkillNames() {
   const home = homedir21();
   const names = /* @__PURE__ */ new Set();
-  for (const n of safeReaddirDirs(join169(home, ".claude", "skills"))) names.add(n);
-  for (const n of safeReaddirDirs(join169(home, ".agents", "skills"))) names.add(n);
-  const cache3 = join169(home, ".claude", "plugins", "cache");
+  for (const n of safeReaddirDirs(join171(home, ".claude", "skills"))) names.add(n);
+  for (const n of safeReaddirDirs(join171(home, ".agents", "skills"))) names.add(n);
+  const cache3 = join171(home, ".claude", "plugins", "cache");
   const disabledPlugins = readDisabledPluginKeys();
   for (const marketplace of safeReaddirDirs(cache3)) {
-    const mktDir = join169(cache3, marketplace);
+    const mktDir = join171(cache3, marketplace);
     for (const plugin of safeReaddirDirs(mktDir)) {
       if (disabledPlugins.has(`${plugin}@${marketplace}`)) continue;
       names.add(plugin);
-      for (const skill of safeReaddirDirs(join169(mktDir, plugin, "skills"))) names.add(skill);
+      for (const skill of safeReaddirDirs(join171(mktDir, plugin, "skills"))) names.add(skill);
     }
   }
   return names;
 }
 function scanCodexProjectSkillNames(cwd, root) {
   const names = /* @__PURE__ */ new Set();
-  for (const skillsRoot of [join169(root, "skills"), join169(cwd, ".agents", "skills")]) {
+  for (const skillsRoot of [join171(root, "skills"), join171(cwd, ".agents", "skills")]) {
     for (const name2 of safeReaddirDirs(skillsRoot)) {
       try {
-        if (statSync13(join169(skillsRoot, name2, "SKILL.md")).isFile()) names.add(name2);
+        if (statSync13(join171(skillsRoot, name2, "SKILL.md")).isFile()) names.add(name2);
       } catch {
       }
     }
@@ -89233,7 +89422,7 @@ function scanSkillDigests(skillsRoot) {
   const digests = /* @__PURE__ */ new Map();
   for (const name2 of safeReaddirDirs(skillsRoot)) {
     try {
-      const skillPath = join169(skillsRoot, name2, "SKILL.md");
+      const skillPath = join171(skillsRoot, name2, "SKILL.md");
       if (!statSync13(skillPath).isFile()) continue;
       digests.set(name2, createHash61("sha256").update(readFileSync41(skillPath)).digest("hex"));
     } catch {
@@ -89266,7 +89455,7 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
     if (bash === void 0 || node === void 0) {
       return Promise.resolve({ code: 1, output: "\u53EF\u4FE1 Bash/Node \u4E0D\u53EF\u6267\u884C" });
     }
-    const args = [join169(root, "tools", "verify-skills.sh"), "--quiet", "--root", root, "--node", node.executable];
+    const args = [join171(root, "tools", "verify-skills.sh"), "--quiet", "--root", root, "--node", node.executable];
     try {
       if (!bash.verify() || !node.verify()) {
         return Promise.resolve({ code: 1, output: "\u53EF\u4FE1 Bash/Node \u8EAB\u4EFD\u5DF2\u6F02\u79FB" });
@@ -89300,7 +89489,7 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
     pluginRoot: root,
     manifestError: () => {
       try {
-        loadManifest(join169(root, "templates", "manifest.yaml"));
+        loadManifest(join171(root, "templates", "manifest.yaml"));
         return null;
       } catch (e) {
         return e instanceof Error ? e.message : String(e);
@@ -89331,7 +89520,7 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
     env: (name2) => process.env[name2],
     statuslineConfigured: () => {
       try {
-        return readFileSync41(join169(homedir21(), ".claude", "settings.json"), "utf8").includes("statusline.sh");
+        return readFileSync41(join171(homedir21(), ".claude", "settings.json"), "utf8").includes("statusline.sh");
       } catch {
         return false;
       }
@@ -89375,14 +89564,14 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
       const native = active === "codex" || active === "claude";
       return {
         ...native ? { selectedRoot: root } : {},
-        projectRoot: join169(process.cwd(), ".agents", "skills"),
-        selected: native ? scanSkillDigests(join169(root, "skills")) : /* @__PURE__ */ new Map(),
-        project: scanSkillDigests(join169(process.cwd(), ".agents", "skills"))
+        projectRoot: join171(process.cwd(), ".agents", "skills"),
+        selected: native ? scanSkillDigests(join171(root, "skills")) : /* @__PURE__ */ new Map(),
+        project: scanSkillDigests(join171(process.cwd(), ".agents", "skills"))
       };
     },
     manifestSkills: () => {
       try {
-        const m = loadManifest(join169(root, "templates", "manifest.yaml"));
+        const m = loadManifest(join171(root, "templates", "manifest.yaml"));
         return { mandatory: m.mandatorySkills, recommended: m.recommendedSkills };
       } catch {
         return null;
@@ -89394,7 +89583,7 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
         image: readAutomationJson(process.cwd()).image ?? "sandcastle:local",
         secretsEnv: readSecrets(scope.paths.secretsPath).keys,
         hostEnv: scope.env,
-        defaultCodexHome: join169(scope.homeDir, ".codex")
+        defaultCodexHome: join171(scope.homeDir, ".codex")
       });
     },
     /**
@@ -89407,7 +89596,7 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
         return null;
       }
       try {
-        return skillTextModelInvocable(readFileSync41(join169(root, "skills", skillId, "SKILL.md"), "utf8"));
+        return skillTextModelInvocable(readFileSync41(join171(root, "skills", skillId, "SKILL.md"), "utf8"));
       } catch {
         return null;
       }
@@ -89455,17 +89644,17 @@ function gitRemoteNames(cwd) {
 
 // packages/cli/src/pluginSkillIds.ts
 import { readFileSync as readFileSync42 } from "node:fs";
-import { join as join170 } from "node:path";
+import { join as join172 } from "node:path";
 function pluginSkillIds(pluginRoot2) {
   const ids2 = /* @__PURE__ */ new Set();
   try {
-    for (const source of parseUpstreamSkillSources(readFileSync42(join170(pluginRoot2, "skills", "sources.yaml"), "utf8")).skills) {
+    for (const source of parseUpstreamSkillSources(readFileSync42(join172(pluginRoot2, "skills", "sources.yaml"), "utf8")).skills) {
       ids2.add(source.id);
     }
   } catch {
   }
   try {
-    for (const source of parseSkillSources(readFileSync42(join170(pluginRoot2, "templates", "skill-sources.yaml"), "utf8"))) {
+    for (const source of parseSkillSources(readFileSync42(join172(pluginRoot2, "templates", "skill-sources.yaml"), "utf8"))) {
       ids2.add(source.token);
     }
   } catch {
@@ -89475,7 +89664,7 @@ function pluginSkillIds(pluginRoot2) {
 
 // packages/cli/src/test-system/directions.ts
 import { readFile as readFile93, readdir as readdir34 } from "node:fs/promises";
-import { join as join171 } from "node:path";
+import { join as join173 } from "node:path";
 async function loadTestDirections(roots) {
   const byId2 = /* @__PURE__ */ new Map();
   for (const root of roots) {
@@ -89487,7 +89676,7 @@ async function loadTestDirections(roots) {
     }
     for (const name2 of names) {
       try {
-        const definition = parseTestDirection(await readFile93(join171(root, name2), "utf8"));
+        const definition = parseTestDirection(await readFile93(join173(root, name2), "utf8"));
         if (definition.id === name2.replace(/\.yaml$/u, "")) byId2.set(definition.id, definition);
       } catch {
         continue;
@@ -89512,7 +89701,7 @@ async function readGateMarkers(cwd) {
   const out = [];
   for (const kind of ["confirm", "review", "interaction"]) {
     try {
-      const p = join172(cwd, `.pipeline-pending-${kind}`);
+      const p = join174(cwd, `.pipeline-pending-${kind}`);
       const st = await stat19(p);
       out.push({ kind, ageMs: Date.now() - st.mtimeMs, raw: await readFile94(p, "utf8") });
     } catch {
@@ -89521,10 +89710,10 @@ async function readGateMarkers(cwd) {
   return out;
 }
 function pluginRoot() {
-  return join172(dirname45(fileURLToPath3(import.meta.url)), "..", "..", "..");
+  return join174(dirname45(fileURLToPath3(import.meta.url)), "..", "..", "..");
 }
 function manifestPath2() {
-  return join172(pluginRoot(), "templates", "manifest.yaml");
+  return join174(pluginRoot(), "templates", "manifest.yaml");
 }
 function trackValidationContext(repoRoot, manifest) {
   const skillProfiles = /* @__PURE__ */ new Set();
@@ -89554,7 +89743,7 @@ function readPluginVersion() {
     [".claude-plugin", "plugin.json"]
   ]) {
     try {
-      const raw = readFileSync43(join172(pluginRoot(), ...rel), "utf8");
+      const raw = readFileSync43(join174(pluginRoot(), ...rel), "utf8");
       const parsed2 = JSON.parse(raw);
       const version = typeof parsed2 === "object" && parsed2 !== null && "version" in parsed2 ? parsed2.version : void 0;
       if (typeof version === "string" && version.trim() !== "") return version;
@@ -89664,9 +89853,9 @@ async function main() {
     hostKind: () => detectHostEnvironment(process.env).kind,
     knownSkillIds: () => pluginSkillIds(pluginRoot()),
     testDirections: () => loadTestDirections([
-      join172(pluginRoot(), "templates", "test-directions"),
-      join172(runtimePaths().configRoot, "test-directions", "builtin"),
-      join172(runtimePaths().configRoot, "test-directions", "custom")
+      join174(pluginRoot(), "templates", "test-directions"),
+      join174(runtimePaths().configRoot, "test-directions", "builtin"),
+      join174(runtimePaths().configRoot, "test-directions", "custom")
     ]),
     creationPrecondition: (input2) => designSystemPrecondition({
       ...input2,
@@ -89677,7 +89866,7 @@ async function main() {
     designValidator: {
       // 上游 hue 随插件安装；技能没装时返回空串，命令据此给出安装提示而不是去 spawn 不存在的脚本。
       path: () => {
-        const script = join172(pluginRoot(), "skills", "hue", "scripts", "validate.mjs");
+        const script = join174(pluginRoot(), "skills", "hue", "scripts", "validate.mjs");
         return existsSync14(script) ? script : "";
       },
       run: (script, folder, cwd) => new Promise((resolve64) => {
@@ -89698,7 +89887,7 @@ async function main() {
     guardCtx: makeGuardCtx(process.cwd()),
     doctor: makeDoctorProbes(runtimeScope2, pluginRoot()),
     readGateMarkers: () => readGateMarkers(process.cwd()),
-    writeBreadcrumb: (dir, content) => writeFile34(join172(dir, ".breadcrumb"), content, "utf8"),
+    writeBreadcrumb: (dir, content) => writeFile35(join174(dir, ".breadcrumb"), content, "utf8"),
     history: createHistoryWriter({ actor: currentActor }),
     // init 成功后 best-effort 登记项目根到 Tenon config root 的 projects.json
     registerProject: async (repoRoot) => {
@@ -89709,7 +89898,7 @@ async function main() {
     readSecretsEnv: async () => readSecrets(runtimePaths().secretsPath).keys,
     readHistoryRaw: async (dir) => {
       try {
-        return await readFile94(join172(dir, ".pipeline-history.jsonl"), "utf8");
+        return await readFile94(join174(dir, ".pipeline-history.jsonl"), "utf8");
       } catch {
         return "";
       }
@@ -89725,11 +89914,11 @@ async function main() {
       const revision = kind === "workspace" ? await fingerprintWorkspace(process.cwd()) : await gitHeadSha(process.cwd());
       return createBuildRevisionToken(kind, revision, identity2).value;
     },
-    writeReviewMarker: (content) => writeFile34(join172(process.cwd(), ".pipeline-pending-review"), content, "utf8"),
+    writeReviewMarker: (content) => writeFile35(join174(process.cwd(), ".pipeline-pending-review"), content, "utf8"),
     clearReviewMarker: (change, event) => clearReviewMarkerFor(process.cwd(), change, event),
     pluginVersion: readPluginVersion(),
     readInstalledPlugins: async () => {
-      for (const p of [join172(pluginRoot(), "..", "installed_plugins.json"), join172(process.env.HOME ?? "", ".claude", "installed_plugins.json")]) {
+      for (const p of [join174(pluginRoot(), "..", "installed_plugins.json"), join174(process.env.HOME ?? "", ".claude", "installed_plugins.json")]) {
         try {
           return await readFile94(p, "utf8");
         } catch {

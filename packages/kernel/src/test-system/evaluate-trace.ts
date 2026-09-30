@@ -4,7 +4,7 @@
  * 其余任务（立项 / 调研 / 规格 / 验证 / 交付 / 完结小节、骨架提示词）可选，只进矩阵与报告。
  */
 import { shellQuote, testBlocker, testNotice, type TestBlocker, type TestNotice } from './blockers.js'
-import { caseMatchesRef, parseCaseRef } from './covers.js'
+import { casesMatchingRef, parseCaseRef } from './covers.js'
 import type { SuiteRunRef } from './evaluate-suite.js'
 import type { TraceRow, TraceTest } from './evaluate-types.js'
 import type { OpenSpecScenario, TaskItem } from './openspec-trace.js'
@@ -40,7 +40,7 @@ function traceTest(test: string, fresh: readonly SuiteRunRef[]): TraceTest {
   if (ref === undefined) return { ref: test, status: 'not-run' }
   let found: TraceTest | undefined
   for (const entry of [...fresh].sort(order)) {
-    const matches = entry.run.cases.filter((item) => caseMatchesRef(ref, item))
+    const matches = casesMatchingRef(ref, entry.run.cases)
     if (matches.length === 0) continue
     const status = matches.some((item) => item.status === 'fail') ? 'fail'
       : matches.some((item) => item.status === 'known-fail') ? 'known-fail'

@@ -8,6 +8,7 @@ import { nextBaselineV2, type TestBaselineV2 } from './baseline-v2.js'
 import { TEST_BLOCKER_CODES, TEST_BLOCKER_LABELS, type TestBlockerCode } from './blockers.js'
 import { catalogSuitesDigest, parseTestCatalog } from './catalog.js'
 import type { TestCatalog } from './catalog-types.js'
+import { evaluateSuiteResult } from './evaluate-suite.js'
 import { evaluateTestPolicy, renderPolicyBlockers } from './evaluate-v2.js'
 import { baselineKey, type TestPolicyEvaluationInput, type TestPolicyReport } from './evaluate-types.js'
 import type { KnownFailure } from './known-failures.js'
@@ -337,6 +338,44 @@ describe('evaluateTestPolicy —— 运行记录', () => {
     expect(report.blockers[0]?.message).toMatch(/src\/new\.test\.ts；src\/a\.test\.ts › missing case/)
   })
 
+  it('registered-test-not-executed：报告没给文件的用例按名字唯一对；对不上、同名不唯一、文件无据时仍挡', () => {
+    const unknown = (name: string, path: string[] = [], status: 'pass' | 'skip' = 'pass') => fixtureCase({ file: '(unknown)', name, suite_path: path, status })
+    const plan: TestPlan = {
+      ...BASE_PLAN,
+      files: [{ path: 'src/a.test.ts', suite: 'unit' }, { path: 'src/b.test.ts', suite: 'unit' }],
+      cases: [
+        { covers: 'task:1.1', tests: ['src/a.test.ts › group › works'] },
+        { covers: 'task:1.2', tests: ['src/b.test.ts › shared'] },
+      ],
+    }
+    const named = fixtureSuiteRun({ suite: 'unit', scope: 'changed', cases: [unknown('works', ['group']), unknown('shared'), unknown('shared')] })
+    const twin = evaluate({ plan, runs: [named] })
+    expect(codes(twin)).toEqual(['registered-test-not-executed'])
+    expect(twin.blockers[0]?.message).toMatch(/src\/b\.test\.ts；src\/b\.test\.ts › shared/)
+    expect(twin.blockers[0]?.message).not.toContain('src/a.test.ts')
+    const distinct = fixtureSuiteRun({ suite: 'unit', scope: 'changed', cases: [unknown('works', ['group']), unknown('shared', ['sub'])] })
+    expect(codes(evaluate({ plan, runs: [distinct] }))).toEqual([])
+    const skipped = fixtureSuiteRun({ suite: 'unit', scope: 'changed', cases: [unknown('works', ['group']), unknown('shared', [], 'skip'), unknown('shared', ['sub'])] })
+    expect(evaluate({ plan, runs: [skipped] }).blockers[0]?.message).toMatch(/src\/b\.test\.ts；src\/b\.test\.ts › shared/)
+    const fileOnly: TestPlan = { ...plan, cases: [] }
+    const unverifiable = evaluate({ plan: fileOnly, runs: [distinct] })
+    expect(unverifiable.blockers[0]?.message).toMatch(/src\/a\.test\.ts；src\/b\.test\.ts/)
+  })
+
+  it('registered-test-not-executed：node-test 套件的这类阻塞附 Tenon 随附 reporter 的提示，其它 runner 不附', () => {
+    const plan: TestPlan = { ...BASE_PLAN, files: [{ path: 'src/a.test.ts', suite: 'unit' }] }
+    const run = fixtureSuiteRun({ suite: 'unit', scope: 'changed', cases: [fixtureCase({ file: '(unknown)', name: 'works' })] })
+    expect(evaluate({ plan, runs: [run] }).blockers[0]?.message).not.toContain('TENON_NODE_TEST_REPORTER')
+    const nodeTest = parsedCatalog(CATALOG_TEXT.replace('runner: vitest\n    command: npx vitest run\n', 'runner: node-test\n    command: node --test\n'))
+    const suite = nodeTest.suites.find((entry) => entry.id === 'unit')
+    if (suite === undefined) throw new Error('unit')
+    const ctx = { change: 'demo', policy: compileStepTestPolicy({ run: ['unit'], scope: 'changed' }, 'test'), plan, knownFailures: [], baselines: new Map(), today: '2026-09-29' }
+    if (ctx.policy === undefined) throw new Error('policy')
+    const record = fixtureRecordDraft({ suites: [run] })
+    const verdict = evaluateSuiteResult(suite, { record: fixtureChain([record])[0] as TestRunRecordV2, run }, { ...ctx, policy: ctx.policy })
+    expect(verdict.blockers[0]?.message).toContain('TENON_NODE_TEST_REPORTER')
+  })
+
   it('coverage-below：低于门槛 / 没有数据 / 运行集里没有声明覆盖率的套件（可用 coverage 豁免）', () => {
     const policy: StepTestPolicyDef = { run: ['unit'], scope: 'changed', coverage: { lines: 80, branches: 70 } }
     const low = fixtureSuiteRun({ suite: 'unit', scope: 'changed', coverage: { lines: 75 } })
@@ -508,6 +547,29 @@ describe('evaluateTestPolicy —— 场景追溯', () => {
     const notRun = evaluate({ policy: { scenarios: 'passing' }, plan: { ...plan, cases: plan.cases.slice(0, 2) }, input: { scenarios } })
     expect(notRun.blockers.map((item) => item.code)).toEqual(['scenario-failing', 'scenario-failing'])
     expect(notRun.trace[0]).toMatchObject({ state: 'mapped', tests: [{ status: 'not-run' }] })
+  })
+
+  it('追溯矩阵：报告没给文件的用例按名字唯一对，同名不唯一时保持「未运行」', () => {
+    const plan: TestPlan = {
+      ...BASE_PLAN,
+      cases: [
+        { covers: 'spec:auth/登录成功', tests: ['src/a.test.ts › login › works'] },
+        { covers: 'spec:auth/密码错误', tests: ['src/a.test.ts › rejects'] },
+      ],
+    }
+    const run = fixtureSuiteRun({
+      suite: 'unit', scope: 'changed',
+      cases: [
+        fixtureCase({ file: '(unknown)', name: 'works', suite_path: ['login'] }),
+        fixtureCase({ file: '(unknown)', name: 'rejects' }),
+        fixtureCase({ file: '(unknown)', name: 'rejects', status: 'fail' }),
+      ],
+    })
+    const report = evaluate({ policy: { run: ['unit'], scope: 'changed', scenarios: 'passing' }, plan, runs: [run], input: { scenarios } })
+    expect(report.trace.map((row) => [row.covers, row.state, row.tests.map((test) => test.status)])).toEqual([
+      ['spec:auth/登录成功', 'passing', ['pass']],
+      ['spec:auth/密码错误', 'mapped', ['not-run']],
+    ])
   })
 })
 

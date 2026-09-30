@@ -230,6 +230,30 @@ all suites pass, `2` a suite failed (the record is written), `1` usage or enviro
 error (no record). After the run the command prints the step's exit gate again, with a fix
 command for each remaining blocker. `--json` prints the record and the gate.
 
+node:test reports need a `file` on every case, and Node 22 and earlier do not write one: the
+built-in `--test-reporter=junit` leaves `file` off `<testcase>` (Node 24 writes it), so without help
+the trace, the registered-case check and the run drawer cannot tie a case to its test file.
+`test discover` therefore gives node:test suites
+`node --test --test-reporter="${TENON_NODE_TEST_REPORTER:-junit}" --test-reporter-destination=test-results/junit.xml`.
+`tenon test run` writes a small reporter that ships inside the CLI bundle into the run's own
+artifact directory (`.tenon/users/<slug>/local/artifacts/<change>/<run-id>/reporters/`, never into
+the project tree) and sets `TENON_NODE_TEST_REPORTER` to its `file:` URL, so the report carries
+`file` on Node 20, 22 and 24; run by hand outside `tenon test run` the variable is empty and the
+built-in `junit` reporter is used. The command relies on POSIX `${VAR:-default}` expansion, like
+the Playwright preset's `VAR=value` prefix. The JUnit parser takes a case's file from
+`testcase@file`, a path-like `classname`, the enclosing `testsuite@file`, or a class-like
+`classname` such as `com.example.MathTest`; a `classname` like node:test's `test` or a describe
+title like `utils.js` is never taken for a file. A case whose file cannot be determined is
+recorded with file `(unknown)`. A registered case reference `<file> › <name>` matches such a
+case by name alone only when its title path equals the tail of the case's path and exactly one
+case in the whole run has that path (a same-named case in another file makes it ambiguous, so it
+does not match and stays `registered-test-not-executed`); the file part of the reference is then
+not compared. A registered file counts as executed when one of its registered case references
+matches that way; a registered file with no case reference cannot be verified from such a report
+and is reported as `registered-test-not-executed`, with a hint pointing at the reporter.
+Known-failure entries and the `fail_on_new` flaky check still need a real file: they never match an
+`(unknown)` case.
+
 Benchmarks run `warmup` then `runs` times and keep the median, p95 and MAD of every
 sample. When the spread exceeds half the regression threshold the suite is sampled once
 more before judging. Baselines are stored per machine profile (OS, architecture, CPU,
@@ -273,7 +297,8 @@ duration, actor, input digests and output files, the log and output copies stay 
 gitignored per-user local directory, and the record goes stale when the candidate, the
 test declaration digest or the workflow fingerprint moves. The command receives
 `TENON_CHANGE_NAME`, `TENON_TEST_ID`, `TENON_TEST_RUN_ID`, `TENON_TEST_ARTIFACTS` and
-`TENON_BASE_BRANCH`; suite runs receive `TENON_TEST_SUITE` (the suite id) instead of `TENON_TEST_ID`. Exit codes for
+`TENON_BASE_BRANCH`; suite runs receive `TENON_TEST_SUITE` (the suite id) instead of `TENON_TEST_ID`, plus
+`TENON_NODE_TEST_REPORTER` when a suite command or `select` template references it. Exit codes for
 inline tests: `0` pass, `2` fail (the record is written), `1` usage or environment error
 (no record).
 

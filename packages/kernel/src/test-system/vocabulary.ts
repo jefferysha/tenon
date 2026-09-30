@@ -3,6 +3,12 @@
  * 目录校验、计划校验、工作流策略编译与判定共用这一份，避免多处白名单漂移。
  */
 
+/**
+ * `tenon test run` 提供带 file 的 node:test JUnit reporter 时使用的环境变量名（值是 reporter 的 file URL）。
+ * 套件命令读它（`--test-reporter="${NAME:-junit}"`），判定层的提示文案指向它，两处用同一个名字。
+ */
+export const NODE_TEST_REPORTER_ENV = 'TENON_NODE_TEST_REPORTER'
+
 export const TEST_KINDS = [
   'unit', 'integration', 'regression', 'e2e', 'playwright', 'browser', 'benchmark', 'typecheck', 'lint',
   'coverage', 'a11y', 'visual', 'contract', 'smoke', 'code-size', 'design-system', 'custom',

@@ -71,6 +71,15 @@ describe('buildSuite', () => {
     expect(exotic).toContain('--report-format')
   })
 
+  it('--from 方向模板：裸的 node --test 换成读 TENON_NODE_TEST_REPORTER 的推荐调用；自己写了 reporter 的命令原样保留', () => {
+    const bare = buildSuite('unit', undefined, {}, DIRECTION('id: unit\ncommand: node --test\nlabel: 单测\n'))
+    expect(bare).toMatchObject({ runner: 'node-test', report: { format: 'junit', path: 'test-results/junit.xml' } })
+    expect(typeof bare === 'object' && (bare as CatalogSuite).command).toContain('${TENON_NODE_TEST_REPORTER:-junit}')
+    expect(typeof bare === 'object' && (bare as CatalogSuite).select?.files).toContain('${TENON_NODE_TEST_REPORTER:-junit}')
+    const own = buildSuite('unit', undefined, { reportFormat: 'junit' }, DIRECTION('id: unit\ncommand: node --test --test-reporter=./my-reporter.mjs\nlabel: 单测\n'))
+    expect(typeof own === 'object' && (own as CatalogSuite).command).toBe('node --test --test-reporter=./my-reporter.mjs')
+  })
+
   it('set：只替换给出的字段，列表字段整份替换', () => {
     const base = buildSuite('unit', undefined, { kind: 'unit', command: 'npx vitest run', fileGlob: ['src/**/*.test.ts'], uses: ['web'] }, undefined)
     if (typeof base === 'string') throw new Error(base)

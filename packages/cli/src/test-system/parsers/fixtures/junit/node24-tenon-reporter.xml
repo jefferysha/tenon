@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testcase name="adds two numbers" time="0.000516" classname="test" file="/work/proj/tests/math.test.mjs"/>
+	<testsuite name="division" file="/work/proj/tests/math.test.mjs" time="0.001562" disabled="0" errors="0" tests="3" failures="0" skipped="0">
+		<testcase name="divides evenly" time="0.000134" classname="division" file="/work/proj/tests/math.test.mjs"/>
+		<testcase name="rejects zero" time="0.000198" classname="division" file="/work/proj/tests/math.test.mjs"/>
+		<testsuite name="rounding" file="/work/proj/tests/math.test.mjs" time="0.000947" disabled="0" errors="0" tests="1" failures="0" skipped="0">
+			<testcase name="keeps fractions" time="0.000771" classname="division.rounding" file="/work/proj/tests/math.test.mjs"/>
+		</testsuite>
+	</testsuite>
+	<testcase name="deep case" time="0.000403" classname="test" file="/work/proj/tests/nested/deep.test.mjs"/>
+	<testcase name="adds two numbers" time="0.000500" classname="test" file="/work/proj/tests/strings.test.mjs"/>
+	<testsuite name="formatting" file="/work/proj/tests/strings.test.mjs" time="0.001071" disabled="0" errors="0" tests="3" failures="1" skipped="1">
+		<testcase name="trims" time="0.000136" classname="formatting" file="/work/proj/tests/strings.test.mjs"/>
+		<testcase name="fails on purpose" time="0.000552" classname="formatting" file="/work/proj/tests/strings.test.mjs">
+			<failure type="testCodeFailure" message="Expected values to be strictly equal:&#10;&#10;'A' !== 'B'&#10;">
+Error [ERR_TEST_FAILURE]: Expected values to be strictly equal:
+
+'A' !== 'B'
+
+    at async Promise.all (index 0) {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  'A' !== 'B'
+  
+      at TestContext.&lt;anonymous&gt; (file:///work/proj/tests/strings.test.mjs:13:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Promise.all (index 0)
+      at async Suite.run (node:internal/test_runner/test:1905:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'A',
+    expected: 'B',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+}
+			</failure>
+		</testcase>
+		<testcase name="is skipped" time="0.000076" classname="formatting" file="/work/proj/tests/strings.test.mjs">
+			<skipped type="skipped" message="true"/>
+		</testcase>
+	</testsuite>
+</testsuites>

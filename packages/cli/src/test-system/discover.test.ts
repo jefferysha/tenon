@@ -122,6 +122,19 @@ describe('discoverTests', () => {
     expect(parseTestCatalog(text).ok).toBe(true)
   })
 
+  it('node:test：预设命令读 TENON_NODE_TEST_REPORTER（tenon test run 提供带 file 的 reporter），变量为空退回内置 junit；写出再解析不变', async () => {
+    await put({ 'package.json': JSON.stringify({ scripts: { test: 'node --test' } }) })
+    const suite = (await discoverTests(repo)).suites.find((item) => item.suite.runner === 'node-test')?.suite
+    const reporter = '--test-reporter="${TENON_NODE_TEST_REPORTER:-junit}" --test-reporter-destination=test-results/junit.xml'
+    expect(suite?.command).toBe(`node --test ${reporter}`)
+    expect(suite?.select?.files).toBe(`node --test {files} ${reporter}`)
+    expect(suite?.report).toEqual({ format: 'junit', path: 'test-results/junit.xml' })
+    const text = serializeTestCatalog({ ...emptyCatalog(), suites: suite === undefined ? [] : [suite] })
+    const parsed = parseTestCatalog(text)
+    expect(parsed.ok && parsed.catalog.suites[0]?.command).toBe(`node --test ${reporter}`)
+    expect(parsed.ok && parsed.catalog.suites[0]?.select?.files).toBe(`node --test {files} ${reporter}`)
+  })
+
   it('跳过 node_modules / dist / .tenon 等目录；同 id 冲突自动加序号', async () => {
     await put({
       'node_modules/pkg/package.json': JSON.stringify({ devDependencies: { vitest: '3' } }),

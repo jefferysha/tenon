@@ -1,5 +1,6 @@
 export {
-  COVERAGE_FORMATS, COVERAGE_METRICS, ENV_NAME_RE, EXIT_CODE_KINDS, INLINE_SUITE_PREFIX, PLAN_SCOPES, POLICY_SCOPES,
+  COVERAGE_FORMATS, COVERAGE_METRICS, ENV_NAME_RE, EXIT_CODE_KINDS, INLINE_SUITE_PREFIX, NODE_TEST_REPORTER_ENV, PLAN_SCOPES,
+  POLICY_SCOPES,
   REPORT_FORMATS, RUN_SCOPES, RUNNER_FORMATS, SERVICE_STOP_SIGNALS, SUITE_ID_RE, TEST_FILE_LIKE_PATTERNS, TEST_KINDS,
   TEST_RUNNERS, defaultReportFormat, isCaseReportFormat, isCoverageFormat, isPlanScope, isPolicyScope, isReportFormat,
   isRunScope, isServiceStopSignal, isTestKind, isTestRunner, kindFormatProblem, kindForDirection, kindRunnerProblem,
@@ -30,8 +31,8 @@ export {
 } from './catalog.js'
 export type { CatalogParseResult } from './catalog.js'
 export {
-  CASE_REF_SEPARATOR, caseMatchesRef, fileRefMatches, formatCaseRef, formatCovers, parseCaseRef, parseCovers,
-  scenarioCoversKey, taskCoversKey,
+  CASE_REF_SEPARATOR, UNKNOWN_CASE_FILE, caseMatchesRef, caseTitleMatchesRef, casesMatchingRef, fileRefMatches, formatCaseRef,
+  formatCovers, isUnknownCaseFile, parseCaseRef, parseCovers, scenarioCoversKey, taskCoversKey,
 } from './covers.js'
 export type { CaseIdentity, CaseRef, CoversRef } from './covers.js'
 export {

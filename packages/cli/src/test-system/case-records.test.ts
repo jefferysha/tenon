@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { decodeTestRunRecordV2, type KnownFailure, type TestPlan } from '@tenon/kernel'
+import { UNKNOWN_CASE_FILE, casesMatchingRef, decodeTestRunRecordV2, parseCaseRef, type KnownFailure, type TestPlan } from '@tenon/kernel'
 import { fixtureRecordDraft, fixtureSuiteRun } from '@tenon/kernel/test-system/test-support'
-import { isRetained, recordCases, totalsOf, wantedFiles } from './case-records.js'
+import { isRetained, recordCases, totalsOf, wantedFiles, wantedRefs } from './case-records.js'
 import type { ParsedCase } from './parsers/index.js'
 
 function parsed(overrides: Partial<ParsedCase> & { name: string }): ParsedCase {
@@ -16,7 +16,8 @@ const PLAN: TestPlan = {
 
 function context(extra: Partial<Parameters<typeof recordCases>[1]> = {}) {
   return {
-    suiteId: 'unit', wanted: wantedFiles(PLAN, ['src/registered.test.ts'], KNOWN, 'unit'), knownFailures: KNOWN, today: '2026-09-29',
+    suiteId: 'unit', wanted: wantedFiles(PLAN, ['src/registered.test.ts'], KNOWN, 'unit'), wantedRefs: wantedRefs(PLAN, KNOWN, 'unit'),
+    knownFailures: KNOWN, today: '2026-09-29',
     indexed: (absolute: string) => (absolute === '/repo/shot.png' ? 'artifacts/unit/shot.png' : undefined),
     resolveAttachment: (path: string) => path, ...extra,
   }
@@ -45,6 +46,27 @@ describe('recordCases', () => {
     expect(totalsOf(all)).toEqual({ cases: 7, pass: 4, fail: 1, skip: 1, flaky: 1, known_fail: 0 })
     expect(kept.map((item) => item.name)).toEqual(['bad', 'wobbly', 'in registered', 'works', 'fixed now'])
     expect(isRetained(list[0] as ParsedCase, context().wanted)).toBe(false)
+  })
+
+  it('无文件的用例：名字对得上登记引用的留下，连同与之同名的有文件用例；对不上的只进 totals', () => {
+    const list = [
+      parsed({ name: 'works', file: UNKNOWN_CASE_FILE, suite_path: [] }),
+      parsed({ name: 'works', file: 'src/other.test.ts' }),
+      parsed({ name: 'unrelated', file: UNKNOWN_CASE_FILE, suite_path: [] }),
+      parsed({ name: 'plain', file: 'src/plain.test.ts' }),
+    ]
+    const { all, kept } = recordCases(list, context())
+    expect(totalsOf(all).cases).toBe(4)
+    expect(kept.map((item) => [item.file, item.name])).toEqual([[UNKNOWN_CASE_FILE, 'works'], ['src/other.test.ts', 'works']])
+    // 留下的用例足够让判定看出「同名不止一条」：登记的 src/mapped.test.ts › works 不能归给任何一条。
+    const ref = parseCaseRef('src/mapped.test.ts › works')
+    expect(ref !== undefined && casesMatchingRef(ref, kept)).toEqual([])
+  })
+
+  it('没有名字对得上登记引用的无文件用例时不多留任何用例；只写文件的引用不参与按名字留下', () => {
+    const { kept } = recordCases([parsed({ name: 'works', file: 'src/elsewhere.test.ts' }), parsed({ name: 'plain', file: UNKNOWN_CASE_FILE })], context())
+    expect(kept.map((item) => item.name)).toEqual([])
+    expect(wantedRefs({ ...PLAN, cases: [{ covers: 'task:1', tests: ['src/mapped.test.ts'] }] }, [], 'unit')).toEqual([])
   })
 
   it('失败信息只留给失败 / flaky / 已知失败；附件换成产物索引路径，找不到索引的丢掉', () => {
