@@ -11,6 +11,8 @@ import { runHref, type RunContext } from './runContext'
 const COLUMNS = 'grid-cols-[1.25rem_minmax(0,1.6fr)_minmax(0,1.2fr)_minmax(0,2fr)_6rem_5.5rem]'
 const ORDER: Readonly<Record<string, number>> = { fail: 0, 'known-fail': 1, flaky: 2 }
 const IMAGE = /\.(?:png|jpe?g|webp|gif)$/iu
+/** 报告没给用例所属文件时，记录里存的哨兵值（kernel UNKNOWN_CASE_FILE，记录契约的一部分）；页面上写「未报告文件」。 */
+const NO_FILE_SENTINEL = '(unknown)'
 
 function isListed(item: RunCase): boolean {
   return item.status === 'fail' || item.status === 'known-fail' || item.status === 'flaky'
@@ -95,7 +97,8 @@ export function RunCasesSection({ run, ctx, onZoom }: { run: SuiteRun; ctx: RunC
           const key = `${item.file}\u0000${item.name}\u0000${item.project ?? ''}\u0000${index}`
           const expanded = open === key
           const name = [...item.suitePath, item.name].join(' › ')
-          const location = item.line === undefined ? item.file : `${item.file}:${item.line}`
+          const file = item.file === NO_FILE_SENTINEL ? t('tests.run.cases.no_file') : item.file
+          const location = item.line === undefined ? file : `${file}:${item.line}`
           const full = item.failure === undefined ? '' : dataMessage(item.failure)
           const message = full === '' ? '—' : firstLine(full)
           return (

@@ -32,6 +32,23 @@ describe('recordCases', () => {
     expect(recordCases([known], context({ today: '2027-01-01' })).all[0]?.status).toBe('fail')
   })
 
+  it('报告没给文件的失败用例：已知失败清单按名字对（名字唯一才算），不必写 (unknown) › 名字（产品评估 P2）', () => {
+    const entry: KnownFailure = { suite: 'unit', test: 'test/known.test.js › flaky db', reason: 'r', expires: '2026-12-31', added_by: 'a@x.io' }
+    const failing = parsed({ name: 'flaky db', file: UNKNOWN_CASE_FILE, suite_path: [], status: 'fail', failure: { message: 'boom' } })
+    const withList = (known: KnownFailure[]) => context({ knownFailures: known, wanted: wantedFiles(PLAN, [], known, 'unit'), wantedRefs: wantedRefs(PLAN, known, 'unit') })
+    expect(recordCases([failing], withList([entry])).all[0]?.status).toBe('known-fail')
+    // 同名用例不止一条（别的文件里也有）：无法归属，保持失败。
+    const twin = parsed({ name: 'flaky db', file: 'test/other.test.js', suite_path: [], status: 'fail', failure: { message: 'boom' } })
+    expect(recordCases([failing, twin], withList([entry])).all.map((item) => item.status)).toEqual(['fail', 'fail'])
+    // 过期的不放行；只写文件没有名字的条目没有依据，也不放行。
+    expect(recordCases([failing], { ...withList([entry]), today: '2027-01-01' }).all[0]?.status).toBe('fail')
+    const fileOnly: KnownFailure = { ...entry, test: 'test/known.test.js' }
+    expect(recordCases([failing], withList([fileOnly])).all[0]?.status).toBe('fail')
+    // 旧写法 (unknown) › 名字 照常有效。
+    const literal: KnownFailure = { ...entry, test: `${UNKNOWN_CASE_FILE} › flaky db` }
+    expect(recordCases([failing], withList([literal])).all[0]?.status).toBe('known-fail')
+  })
+
   it('totals 覆盖全部用例；记录只保留失败 / flaky / 已知失败 / 登记文件与映射文件 / 已知失败清单点名文件里的用例', () => {
     const list = [
       parsed({ name: 'plain pass', file: 'src/plain.test.ts' }),
