@@ -42,6 +42,7 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 - 工作流按轨道、按阶段声明 `test_policy`：必须登记哪些种类、必须运行哪些（`changed` 或 `full` 范围）、覆盖率门槛、是否要求基准基线、flaky 上限、必需浏览器以及场景覆盖。`default` 给每条轨道提供默认值（例如 frontend 在 spec 登记 `unit` 与 `playwright`，Verify 运行 `unit`、`regression` 与 chromium、webkit 的 `playwright`，并要求 80% 行覆盖率）。没有策略的阶段与旧的内联 `tests[]` 行为不变。阻塞项有稳定的代码（`test-catalog-missing`、`test-plan-missing`、`test-kind-missing`、`test-not-run`、`test-failed`、`test-stale`、`no-tests-ran`、`coverage-below`、`scenario-uncovered` 等）并带修复命令。
 - 命令：`tenon test discover`、`catalog`、`plan`、`register`、`unregister`、`waive`、`sync`、`run`、`status`、`baseline`、`known`、`report`。`tenon test run <change>` 可按套件、种类、阶段、变更文件或全部运行。`tenon status` 在 `step.next` 里依序给出：发现 → 生成计划 → 映射场景 → 登记文件 → 运行本阶段测试 → 写报告。
 - 结果按用例解析：JUnit（含 pytest 与 surefire）、Playwright JSON、Vitest JSON、Jest JSON、`go test -json`、TAP；基准读取 benchmark JSON、hyperfine、k6 与 Lighthouse。没有报告、报告不可读、0 个用例或全部跳过（`no-tests-ran`，所以 `"test": "exit 0"` 不再算通过）、退出码与报告不一致、已登记文件或已映射用例没有出现在报告里，一律判失败。
+- `tenon test discover` 给出的 node:test 套件使用 Tenon 随附的 JUnit reporter（落在本次运行的产物目录，不往项目里写任何文件），Node 20、22、24 上每个用例都带文件归属。报告里没有文件时，用例的文件记为未知，已登记的用例只在该名称于本次运行中唯一时按名称匹配。
 - 套件可声明服务。服务每次运行只启动一次，在自己的进程组里，按 URL、端口或日志文本探测就绪，结束后连同孙进程一起回收。启动前 URL 或端口已经有响应会被拒绝，因为测试会打到旧服务上。
 - 失败用例按套件的 `retries` 重试；重试后通过的用例标记为 `flaky` 并计数，受步骤策略的上限约束。
 - 覆盖率读取 istanbul summary、lcov、cobertura，按策略门槛判定；`changed_lines` 来自 diff。

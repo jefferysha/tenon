@@ -87,6 +87,10 @@ attached to its steps and tests are required, so read "What you need to do" befo
   -json`, TAP; benchmarks from benchmark JSON, hyperfine, k6 and Lighthouse. A run fails when there is no report, the
   report is unreadable, no case ran or all were skipped (`no-tests-ran`, so `"test": "exit 0"` no longer passes), the
   exit code and the report disagree, or a registered file or mapped case never ran.
+- node:test suites from `tenon test discover` use a Tenon-shipped JUnit reporter (materialised in the run's artifact
+  directory, nothing is written to the project), so every case has its file on Node 20, 22 and 24. When a report has no
+  file, the case's file is recorded as unknown, and a registered case matches it by name only when that name is unique
+  in the run.
 - Suites can declare services. They start once per run in their own process group, are probed by URL, port or log text,
   and are stopped afterwards including grandchild processes. A URL or port that already answers before start is refused,
   because the tests would hit an old server.

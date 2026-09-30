@@ -58,7 +58,7 @@ suites:
     label: 单测 · tools 脚本
     kind: unit
     runner: node-test
-    command: node --test --test-reporter=junit --test-reporter-destination=test-results/tools-node.xml $(ls tools/*.node-test.mjs tools/bench/*.node-test.mjs | grep -v -e build-npx-package -e install-bootstrap -e clean-codex-install-acceptance -e spec-migration-cas -e reconcile-spec-application)
+    command: node --test --test-reporter="${TENON_NODE_TEST_REPORTER:-junit}" --test-reporter-destination=test-results/tools-node.xml $(ls tools/*.node-test.mjs tools/bench/*.node-test.mjs | grep -v -e build-npx-package -e install-bootstrap -e clean-codex-install-acceptance -e spec-migration-cas -e reconcile-spec-application)
     timeout_s: 1800
     files:
       - tools/*.node-test.mjs
@@ -76,7 +76,7 @@ suites:
     label: 单测 · docs-site 脚本
     kind: unit
     runner: node-test
-    command: node --test --test-reporter=junit --test-reporter-destination=test-results/junit.xml scripts/*.node-test.mjs
+    command: node --test --test-reporter="${TENON_NODE_TEST_REPORTER:-junit}" --test-reporter-destination=test-results/junit.xml scripts/*.node-test.mjs
     cwd: docs-site
     timeout_s: 900
     files:
@@ -134,7 +134,7 @@ suites:
     label: 主规格迁移原子 CAS
     kind: integration
     runner: node-test
-    command: node --test --test-reporter=junit --test-reporter-destination=test-results/migration-cas.xml tools/spec-migration-cas.node-test.mjs tools/reconcile-spec-application.node-test.mjs
+    command: node --test --test-reporter="${TENON_NODE_TEST_REPORTER:-junit}" --test-reporter-destination=test-results/migration-cas.xml tools/spec-migration-cas.node-test.mjs tools/reconcile-spec-application.node-test.mjs
     timeout_s: 1200
     files:
       - tools/spec-migration-cas.node-test.mjs
@@ -154,7 +154,7 @@ suites:
     label: npx 引导与干净安装脚本
     kind: custom
     runner: node-test
-    command: node --test --test-reporter=junit --test-reporter-destination=test-results/npx-package.xml tools/build-npx-package.node-test.mjs tools/install-bootstrap.node-test.mjs tools/clean-codex-install-acceptance.node-test.mjs
+    command: node --test --test-reporter="${TENON_NODE_TEST_REPORTER:-junit}" --test-reporter-destination=test-results/npx-package.xml tools/build-npx-package.node-test.mjs tools/install-bootstrap.node-test.mjs tools/clean-codex-install-acceptance.node-test.mjs
     timeout_s: 1800
     files:
       - tools/build-npx-package.node-test.mjs
