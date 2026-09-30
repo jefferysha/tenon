@@ -47062,7 +47062,7 @@ var STEP_IDS = [
   "runtime-readiness"
 ];
 var CONDITIONAL_STEP_IDS = ["plugin-remove", "marketplace-remove"];
-var HOST_PLAN_RELEASE_TAG = "v0.1.10";
+var HOST_PLAN_RELEASE_TAG = "v0.2.0";
 var LATEST_STABLE_TAG = "<latest-stable>";
 var NOTICE_IDS = [
   "host-plan.notice.read-only-generation",

@@ -12,6 +12,98 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 
 面向用户的解释、影响与操作步骤默认使用中文。
 
+## v0.2.0 · 2026-09-30
+
+能力补齐版。智能体改为在终端编写并注册，整条工作流可以在一张画布上看全，每个任务都要登记并运行自己的全部测试。默认工作流随之改变：
+步骤挂上了执行者，并且要求测试，升级项目前请先读「升级动作」。
+
+### 智能体
+
+- 智能体在终端注册：`tenon agent list`、`show`、`new`、`add`、`validate`、`copy`、`rm`、`export`。每个智能体声明 `role`（`executor` 或 `reviewer`）和可选的 semver `version`。`new` 在交互终端里补问缺项，参数齐全时可完全非交互；`rm` 拒绝删除仍被工作流步骤使用的智能体并列出这些步骤。Dashboard 不再新建智能体，只展示。
+- 来源分三层。官方智能体随插件发行（`builder`、`researcher`、`architecture`、`backend-quality`、`code-size`、`e2e`、`frontend-quality`、`security`、`spec-consistency`，名称、版本、角色与摘要记录在 `templates/agents/manifest.json`），只读。自定义智能体在用户配置里。项目智能体在 `.tenon/agents/`，进 git，团队共享。同名时项目级优先于自定义；任何来源都不能占用官方名称，这类冲突会被列出且不会被使用。
+- 技能 `tenon:agent-author`：在 Claude Code 或 Codex 里按你的描述起草智能体（职责、只做与不做、方法、自检、以 `tenon-result` 块结尾的报告），校验后用 `tenon agent add` 注册。它不写任何 Tenon 状态。
+- 任务冻结智能体时，Tenon 为当前宿主生成原生子代理文件：`.claude/agents/tenon-<name>.md` 或 `.codex/agents/tenon-<name>.toml`。`tenon agent prompt` 随后返回 `subagent_type: tenon-<name>`，宿主用该专属子代理执行，工具白名单由宿主真正执行。无法生成文件时回退为通用子代理，并在运行记录里标明。这些文件登记在 `.pipeline-owned.json`；没有运行中任务再使用时被清理（在 Dashboard 里归档任务同样清理）；`tenon uninstall` 只删除自己生成且你没改过的文件。
+- 默认工作流现在挂了执行者：每个 Explore 运行 `researcher`，每个 Build 在评审者之前运行 `builder`（每个相互独立的任务一个子代理，合并为一份报告），每个 Verify 声明 `code-size` 测试（`tenon test code-size --json`，`lines_added` 不超过 2000 即通过）和必需的 `code-size` 评审者。chat 与 free 的 Verify 另外运行 `security` 作为建议性评审者。
+- 库页面按角色分组列出智能体，行内显示来源与版本；详情显示字段、渲染后的正文、使用它的步骤和最近运行；自定义与项目智能体可编辑正文，官方智能体可「复制为自定义」。
+
+### 编排
+
+- 技能按波次执行。声明了 `depends_on` 的技能在其依赖之后运行，同一波内并行，波次之间串行；未声明 `depends_on` 的技能保持按声明顺序串行，与之前一致。技能门、`tenon status` 与画布读取同一份顺序。
+- 内核把一个工作流（或任务冻结的计划）投影成编排：每个阶段按 runner 实际顺序列出执行者、技能、测试、评审者，以及门禁、回流边和文档流向。OpenSpec 注入的技能与 manifest 叠加的技能在内核计算，不再由页面推算。只读接口：`GET /api/workflows/:name/orchestration?track=` 与 `GET /api/change/:c/orchestration?root=`。
+- 工作流页左栏第一行是「总览」，右栏是全宽画布：每个阶段一列（执行者 → 技能 → 测试 → 评审者），门禁图标在列头，回流为虚线弧，悬停显示文档流向；可缩放、适应视图、全屏。工作台任务详情有同一张画布作为「总览」页签，节点带运行状态，当前阶段高亮，读的是任务冻结的计划。
+- 单个阶段的右栏只有四段：输入 → 技能 → 输出 → 门禁。「技能」画布用泳道同时显示执行者、技能、测试与评审者；「退回」并入门禁段。
+- 门禁只有「评审」（由人确认）和「自动」（声明的输出全部设置后才能离开）两种。`gate: null` 与省略 gate 都是「自动」，所以工作流页只提供两档。输出检查只作用于前进边；`verify-fail`、`requirements-changed` 等回流边不受它阻塞；引擎自己写入的输出（`build_sha`、`archived`）不在检查范围内。
+
+### 测试体系
+
+- 每个任务都要登记自己的全部测试。项目有一份测试目录 `.tenon/tests/catalog.yaml`（进 git，人可编辑）：每个套件有 kind、runner、命令、报告格式与路径、可选覆盖率、产物路径、服务、重试、基准设置，以及如何只选变更文件。`tenon test discover [--write]` 识别 vitest、jest、mocha、node:test、Playwright、tsc、eslint、pytest、go，给出带可解析报告参数的建议套件，`--write` 追加尚未在目录里的套件。
+- 每个 change 有一份测试计划 `openspec/changes/<change>/test-plan.yaml`，只由 `tenon test` 命令写入：本任务用到的套件、新增或修改的测试文件，以及 OpenSpec 场景和 `tasks.md` 条目到测试用例的映射。手改计划会变成 `test-plan-tampered`。
+- 新增或修改的测试文件必须全部登记。`tenon test sync` 与阶段出口读取 change 自开始以来的 diff（含暂存、未暂存与未跟踪文件），未登记即以 `test-file-unregistered` 阻塞；读不到 diff 时以 `files-diff-unavailable` 阻塞而不是放行。只有场景和 `tasks.md` 中实现（build）段的任务需要映射到用例，其他任务是可选的。
+- 工作流按轨道、按阶段声明 `test_policy`：必须登记哪些种类、必须运行哪些（`changed` 或 `full` 范围）、覆盖率门槛、是否要求基准基线、flaky 上限、必需浏览器以及场景覆盖。`default` 给每条轨道提供默认值（例如 frontend 在 spec 登记 `unit` 与 `playwright`，Verify 运行 `unit`、`regression` 与 chromium、webkit 的 `playwright`，并要求 80% 行覆盖率）。没有策略的阶段与旧的内联 `tests[]` 行为不变。阻塞项有稳定的代码（`test-catalog-missing`、`test-plan-missing`、`test-kind-missing`、`test-not-run`、`test-failed`、`test-stale`、`no-tests-ran`、`coverage-below`、`scenario-uncovered` 等）并带修复命令。
+- 命令：`tenon test discover`、`catalog`、`plan`、`register`、`unregister`、`waive`、`sync`、`run`、`status`、`baseline`、`known`、`report`。`tenon test run <change>` 可按套件、种类、阶段、变更文件或全部运行。`tenon status` 在 `step.next` 里依序给出：发现 → 生成计划 → 映射场景 → 登记文件 → 运行本阶段测试 → 写报告。
+- 结果按用例解析：JUnit（含 pytest 与 surefire）、Playwright JSON、Vitest JSON、Jest JSON、`go test -json`、TAP；基准读取 benchmark JSON、hyperfine、k6 与 Lighthouse。没有报告、报告不可读、0 个用例或全部跳过（`no-tests-ran`，所以 `"test": "exit 0"` 不再算通过）、退出码与报告不一致、已登记文件或已映射用例没有出现在报告里，一律判失败。
+- 套件可声明服务。服务每次运行只启动一次，在自己的进程组里，按 URL、端口或日志文本探测就绪，结束后连同孙进程一起回收。启动前 URL 或端口已经有响应会被拒绝，因为测试会打到旧服务上。
+- 失败用例按套件的 `retries` 重试；重试后通过的用例标记为 `flaky` 并计数，受步骤策略的上限约束。
+- 覆盖率读取 istanbul summary、lcov、cobertura，按策略门槛判定；`changed_lines` 来自 diff。
+- 基准先预热再运行 N 次，保留中位数、p95 与离散度。基线按机器画像存于 `.tenon/tests/baselines/<套件>/<画像>.json` 并提交。同画像下退化超过阈值即阻塞；该画像没有基线时通过并提示建立基线的命令（策略要求基线时则阻塞）；不同画像之间从不比较。
+- 已知失败清单 `.tenon/tests/known-failures.yaml`（原因、可选链接、到期日）：清单里仍失败的用例不阻塞，新失败阻塞，已修好的用例会提示移出命令，过期条目按普通失败处理。
+- 只有 Playwright 脚本计入浏览器证据。截图、trace、视频与 HTML 报告按文件复制进本次运行，建立带大小与摘要的索引，可逐个打开或下载。
+- 记录为 v2（套件运行、用例、覆盖率、指标、服务、产物索引），并与代码指纹、目录条目、计划、工作流绑定。记录只由 `tenon test run` 写入，按哈希链串联（`.tenon/users/<slug>/tests/<change>/<run-id>.json`，`prev_digest`）。gate hook 拒绝对记录、计划、基线与已知失败的写入和 shell 重定向。改动记录会让链断裂，该次运行视为未运行。对缺失种类或用例的豁免需要人：`tenon review request` 会列出，用户的确认只批准这些项。
+- `tenon test report` 把追溯矩阵（场景或任务 → 用例 → 最近结果）写进验证报告。声明了 `reads_tests` 的评审者还会拿到失败与 flaky 用例、覆盖率和基准差异。
+- Dashboard「测试」视图（只读，页面不运行也不登记测试）：项目页列出目录套件、各机器画像的基线与已知失败；工作台任务有「测试」页签（策略矩阵、场景追溯、未登记文件、用例级失败）和运行抽屉（失败用例、产物、覆盖率、对比基线的基准、日志）；工作流页用表单编辑每个阶段的测试策略；库里按 runner 展示测试模板。接口：`GET /api/tests/catalog`、`baselines`、`plan`、`records`、`record`、`artifact`。
+- Tenon 自己的仓库把全部套件登记在 `.tenon/tests/catalog.yaml`；CI 在 Chromium 上跑 Dashboard 浏览器测试，并对照 CI 画像跑 `tenon status` 与快照生成的基准。
+
+### 表单
+
+- 新建工作流：选择起点（空白、复制内建 `default` 或 `simple`、已有工作流、或导入 YAML）、名称与 OpenSpec 开关；右侧预览轨道与阶段；名称唯一性与合法性即时校验。
+- 新建 / 编辑模板：名称、分类、适用框架（多选）与带「编辑 / 渲染」切换的 Markdown 正文；占位变量说明放在 Tooltip。库里的测试模板按 runner 只读展示。
+- 新建项目在模板与客户端之间多了第五步「资源」：可选组件库、图标集与 DESIGN.md。它与模板步骤同构（点行在右侧预览将写入的内容，预览头部加入或移除，按上一步所选框架过滤，可切到全部）。DESIGN.md 由流式的 design 步骤写入，已有的 `DESIGN.md` 不会被覆盖。默认前端 spec 提示词指向 `tenon resources`。
+- 技能页的「引用」列包含 OpenSpec 注入与 manifest 叠加的技能。
+- 所有新建类对话框行为一致：固定高度、Enter 提交、Esc 关闭（有输入时先确认）、字段下方即时校验、说明进 Tooltip。
+
+### 修复
+
+- Codex：`AGENTS.md` 的受管块仍在描述已删除的各 phase 技能，现改为描述单一的 `tenon` 技能。`tenon sync` 会把该块报告为 `absent`、`current`、`stale` 或 `invalid`，`tenon sync --migrate` 就地刷新过时的块，只改动标记之间的行。
+- Playwright 等目录产物原先被记成一个目录，Dashboard 拒绝打开（403）。现在逐个文件建立索引、逐个打开；下载的产物保留原文件名，而不是 `artifact.zip`。
+- 写入门 hook 原先按整段工具输入匹配，写一份只是提到测试记录路径的文档也被拒绝。现在只看写入目标（`file_path`、`notebook_path`，或 `apply_patch` 的文件头）。
+- 智能体的 `hosts` 限制原先从不生效，因为 `tenon` 技能没有传 `--host`；现已补上。
+- 继承了 `TENON_USER`、`TENON_RUNTIME_HOME`、`TENON_BASE_BRANCH` 或 `TENON_CHANGE_NAME` 的测试运行（例如在 Tenon 会话里跑 `npm test`）不再因身份断言失败，也不再写入真实运行时目录；Vitest 对每个测试文件隔离这六个变量。临时目录清理带重试，迟到的写入不再表现为 `ENOTEMPTY`。Vitest worker 上限为 `min(8, cores)`，完整的 `npm test` 在本机与 CI 表现一致。
+- 文档：已退役的 1.x Release 与标签仍在发布，保留到 v0.x 真实宿主验收之后；`tenon user` 与 `tenon owner` 补进 CLI 参考与契约；AFK 的 fail-closed 报错写明真实缺口（调用方没有注入 `deps.preparation`）。
+
+### 升级动作
+
+从 v0.1.10 升级：运行 `tenon update --codex`（或 `--claude`），然后新开宿主会话并刷新 Dashboard。N-1 兼容门禁在两个方向上用已发布的 v0.1.10 读写本版本的数据。
+
+从 1.x 迁移：为使用的每个宿主各运行一次版本化安装命令：
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.2.0/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.2.0/install.sh | /bin/bash -s -- --codex
+```
+
+然后对每个使用默认工作流的项目：
+
+- 默认工作流现在要求测试。在项目里运行一次 `tenon test discover --write`，检查 `.tenon/tests/catalog.yaml` 并提交。没有目录时，新任务会在第一个带测试策略的阶段以 `test-catalog-missing` 被挡住，`tenon status` 会给出这条命令。
+- Codex 项目运行一次 `tenon sync --migrate`，刷新 `AGENTS.md` 里的受管块。
+- 已经开始的任务保留冻结时的计划：不会获得新的执行者、测试策略或门禁行为，按开始时的规则完成。新任务使用新规则。
+- 要使用自己的智能体：运行 `tenon agent new`（或用 `tenon:agent-author` 技能），再到工作流页把它挂到某个步骤。
+
+### 兼容性
+
+- CLI 的新增是新命令和新的可选字段。没有 `role` 的智能体文件照常读取（角色按工具推断，`tenon agent validate` 会提示补上）；v1 测试记录与声明了内联 `tests[]` 的步骤仍可读、仍生效；`gate: null` 继续可用，含义是「自动」。
+- 新增的项目文件：`.tenon/tests/`（目录、基线、已知失败）、`.tenon/agents/`，以及每个 change 的 `openspec/changes/<change>/test-plan.yaml`。宿主智能体文件 `.claude/agents/tenon-*.md` 与 `.codex/agents/tenon-*.toml` 由 Tenon 生成和清理，不属于任务的交付提交。
+- Dashboard 不运行也不登记测试，也不调用模型；登记在终端完成。
+
+### 验证
+
+```bash
+tenon doctor
+tenon runtime status
+tenon test catalog validate
+```
+
+两个宿主的 inventory、active managed runtime 与 Dashboard 都报告 0.2.0。`tenon test catalog validate` 用于已有目录的项目。打开 Dashboard：工作流页第一步是「总览」，库里按角色分组列出九个官方智能体，已有目录的项目在「测试」下显示其套件。
+
 ## v0.1.10 · 2026-09-25
 
 以真实用户任务逐条走查驱动的 Dashboard 可用性版本。

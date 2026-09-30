@@ -4,6 +4,202 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
+## v0.2.0 · 2026-09-30
+
+A capability release. Agents are now written and registered in the terminal, the whole workflow can be seen as one
+canvas, and every task registers and runs all of its tests. The default workflow changes with it: agents are
+attached to its steps and tests are required, so read "What you need to do" before you upgrade a project.
+
+### Agents
+
+- Agents are registered in the terminal with `tenon agent list`, `show`, `new`, `add`, `validate`, `copy`, `rm` and
+  `export`. Every agent declares a `role` (`executor` or `reviewer`) and an optional semver `version`. `new` asks for
+  what is missing in an interactive terminal and runs non-interactively when all flags are given. `rm` refuses an
+  agent that a workflow step still uses and lists the steps. The Dashboard no longer creates agents; it displays them.
+- Agents come from three sources. Official agents ship with the plugin (`builder`, `researcher`, `architecture`,
+  `backend-quality`, `code-size`, `e2e`, `frontend-quality`, `security`, `spec-consistency`; name, version, role and
+  digest are recorded in `templates/agents/manifest.json`) and are read-only. Custom agents live in the user config.
+  Project agents live in `.tenon/agents/`, are committed, and are shared with the team. A project agent wins over a
+  custom one of the same name; no source can reuse an official name, and such a conflict is listed and never used.
+- The `tenon:agent-author` skill drafts an agent in Claude Code or Codex from your description (responsibility, what
+  it does and does not do, method, self-check, report ending in a `tenon-result` block), validates it and registers it
+  with `tenon agent add`. It writes no Tenon state.
+- When a task freezes its agents, Tenon generates the host's native subagent files: `.claude/agents/tenon-<name>.md`
+  or `.codex/agents/tenon-<name>.toml`. `tenon agent prompt` then returns `subagent_type: tenon-<name>`, so the host
+  runs the agent as its own subagent and the tool allowlist is enforced by the host. If a file cannot be generated,
+  the host falls back to a general subagent and the run record says so. The files are listed in `.pipeline-owned.json`,
+  are removed when no running task uses them (also when the task is archived from the Dashboard), and `tenon
+  uninstall` removes only files it generated and you did not edit.
+- The default workflow now attaches executors: every Explore runs `researcher`, every Build runs `builder` (one
+  subagent per independent task, merged into one report) before its reviewers, and every Verify declares the
+  `code-size` test (`tenon test code-size --json`, passing while `lines_added` stays within 2000) and the required
+  `code-size` reviewer. Chat and free also run `security` as an advisory Verify reviewer.
+- The Library page lists agents grouped by role with source and version, shows the fields, the rendered body, the steps
+  that use the agent and its recent runs, edits the body of custom and project agents, and copies an official agent as
+  a custom one.
+
+### Orchestration
+
+- Skills run in waves. A skill that declares `depends_on` runs after the skills it names; skills in one wave run in
+  parallel and waves run in series; skills without `depends_on` stay serial in declaration order, as before. The skill
+  gate, `tenon status` and the canvas read the same order.
+- The kernel projects a workflow (or a task's frozen plan) into an orchestration: per stage, the executors, skills,
+  tests and reviewers in the order the runner takes them, the gate, return edges and the document flow. OpenSpec-injected
+  and manifest-overlay skills are computed there instead of guessed in the page. Read-only endpoints:
+  `GET /api/workflows/:name/orchestration?track=` and `GET /api/change/:c/orchestration?root=`.
+- The workflow page has a 总览 row as the first step of the left column. Its right side is a full-width canvas with one
+  column per stage (executor → skill → test → reviewer, gate in the column head, return edges dashed, document flow on
+  hover) with zoom, fit and full screen. The workbench task detail has the same canvas as a 总览 tab, with each node's
+  run state, the current stage highlighted, read from the task's frozen plan.
+- The right pane of a single stage has four sections: 输入 → 技能 → 输出 → 门禁. The 技能 canvas shows executors, skills,
+  tests and reviewers in lanes; "back to" moved into the gate section.
+- A gate is 评审 (a person confirms) or 自动 (the declared outputs must all be set). `gate: null` and an omitted gate mean
+  自动, so the workflow page offers two options. The outputs check applies to forward edges only; return edges such as
+  `verify-fail` and `requirements-changed` are never blocked by it, and outputs the engine writes itself (`build_sha`,
+  `archived`) are not part of it.
+
+### Test system
+
+- Every task registers all of its tests. The project has one catalog, `.tenon/tests/catalog.yaml` (tracked, human
+  editable): each suite has a kind, runner, command, report format and path, optional coverage, artifact paths, services,
+  retries, benchmark settings and a way to select changed files. `tenon test discover [--write]` recognises vitest, jest,
+  mocha, node:test, Playwright, tsc, eslint, pytest and go, prints suggested suites with reporter flags that produce
+  parseable reports, and `--write` adds the new ones.
+- Each change has a test plan, `openspec/changes/<change>/test-plan.yaml`, written only by `tenon test` commands: the
+  suites the change uses, the test files it added or changed, and the mapping from OpenSpec scenarios and `tasks.md`
+  items to test cases. A hand-edited plan becomes `test-plan-tampered`.
+- Every added or modified test file must be registered. `tenon test sync` and the step exit read the change's diff
+  since it started (staged, unstaged and untracked files included) and block with `test-file-unregistered`; when the
+  diff cannot be read they block with `files-diff-unavailable` instead of passing. Only scenarios and the tasks in the
+  implementation section of `tasks.md` need a case; other tasks are optional.
+- Workflows declare a `test_policy` per stage and track: which kinds must be registered, which must run (`changed` or
+  `full` scope), coverage thresholds, benchmark baseline requirement, flaky limit, required browsers, and scenario
+  coverage. `default` ships defaults for every track (for example frontend registers `unit` and `playwright` at spec,
+  and Verify runs `unit`, `regression` and `playwright` on chromium and webkit with 80% line coverage). A stage without a
+  policy and the old inline `tests[]` behave as before. Blockers have stable codes (`test-catalog-missing`,
+  `test-plan-missing`, `test-kind-missing`, `test-not-run`, `test-failed`, `test-stale`, `no-tests-ran`,
+  `coverage-below`, `scenario-uncovered`, …) with the fix command.
+- Commands: `tenon test discover`, `catalog`, `plan`, `register`, `unregister`, `waive`, `sync`, `run`, `status`,
+  `baseline`, `known`, `report`. `tenon test run <change>` runs by suite, kind, stage, changed files or everything.
+  `tenon status` walks the flow in `step.next`: discover → seed the plan → map scenarios → register files → run the
+  stage's tests → write the report.
+- Results are parsed per case: JUnit (also pytest and surefire), Playwright JSON, Vitest JSON, Jest JSON, `go test
+  -json`, TAP; benchmarks from benchmark JSON, hyperfine, k6 and Lighthouse. A run fails when there is no report, the
+  report is unreadable, no case ran or all were skipped (`no-tests-ran`, so `"test": "exit 0"` no longer passes), the
+  exit code and the report disagree, or a registered file or mapped case never ran.
+- Suites can declare services. They start once per run in their own process group, are probed by URL, port or log text,
+  and are stopped afterwards including grandchild processes. A URL or port that already answers before start is refused,
+  because the tests would hit an old server.
+- Failed cases are retried per suite (`retries`); a case that passes on retry is `flaky`, counted, and limited by the
+  step policy.
+- Coverage reads istanbul summary, lcov and cobertura and is judged against the policy; `changed_lines` comes from the
+  diff.
+- Benchmarks run warmup then N runs and keep the median, p95 and spread. Baselines are stored per machine profile in
+  `.tenon/tests/baselines/<suite>/<profile>.json` and are committed. A regression beyond the threshold blocks on the
+  same profile; without a baseline for the profile the run passes with a notice and the command to create one, unless the
+  policy requires one; profiles never compare with each other.
+- Known failures, `.tenon/tests/known-failures.yaml` (reason, optional link, expiry date): a listed case that still fails
+  does not block, a new failure blocks, a case that now passes is reported with the command to remove the entry, and an
+  expired entry counts as an ordinary failure.
+- Playwright is the only browser evidence that counts. Screenshots, traces, videos and HTML reports are copied per file
+  into the run, indexed with size and digest, and opened or downloaded one by one.
+- Records are v2 (suite runs, cases, coverage, metrics, services, artifact index) and are bound to the code fingerprint,
+  catalog entries, plan and workflow. They are written only by `tenon test run`, in a hash chain
+  (`.tenon/users/<slug>/tests/<change>/<run-id>.json`, `prev_digest`). The gate hook refuses writes and shell
+  redirects into the records, plans, baselines and known failures. Editing a record breaks the chain and the run counts
+  as not run. Waivers for a missing kind or case need a person: `tenon review request` lists them and the user's
+  confirmation approves exactly those.
+- `tenon test report` writes a traceability matrix (scenario or task → case → latest result) into the verification
+  report. Reviewers that declare `reads_tests` also get the failing and flaky cases, coverage and benchmark deltas.
+- Dashboard 测试 views (read-only, no test is run or registered there): the project page lists the catalog's suites,
+  baselines per machine profile and known failures; the workbench task has a 测试 tab (policy matrix, scenario trace,
+  unregistered files, case-level failures) and a run drawer (failed cases, artifacts, coverage, benchmark against the
+  baseline, logs); the workflow page edits each stage's test policy as a form; the Library shows test templates by
+  runner. Endpoints: `GET /api/tests/catalog`, `baselines`, `plan`, `records`, `record`, `artifact`.
+- Tenon's own repository registers its suites in `.tenon/tests/catalog.yaml`; CI runs the Dashboard browser tests on
+  Chromium and the `tenon status` and snapshot benchmarks against the CI profile.
+
+### Forms
+
+- New workflow: pick a start point (blank, a copy of built-in `default` or `simple`, an existing workflow, or an imported
+  YAML), a name and the OpenSpec switch; the right side previews the tracks and stages; name uniqueness and validity are
+  checked as you type.
+- New and edit template: name, category, frameworks (multi-select) and a Markdown body with an edit/render switch;
+  placeholder variables are explained in a tooltip. Test templates in the Library are shown by runner, read-only.
+- New project has a fifth step, 资源, between templates and clients: choose a component library, an icon set and a
+  DESIGN.md. It works like the templates step (click a row to preview what will be written, add or remove from the
+  preview head, filtered by the frameworks chosen before, switchable to all). The DESIGN.md is written by a streamed
+  design step and an existing `DESIGN.md` is never overwritten. The default frontend spec prompt points at
+  `tenon resources`.
+- The skills page lists OpenSpec-injected and manifest-overlay skills in its references.
+- All create dialogs share one behaviour: fixed height, Enter submits, Esc closes (asking first when there is input),
+  validation under the field, help in tooltips.
+
+### Fixes
+
+- Codex: the managed block in `AGENTS.md` described per-phase skills that were removed. It now describes the single
+  `tenon` skill. `tenon sync` reports the block as `absent`, `current`, `stale` or `invalid`, and `tenon sync --migrate`
+  refreshes a stale one in place, touching only the lines between the markers.
+- Playwright and other directory outputs were recorded as one directory and the Dashboard refused them (403). Every
+  file is indexed and opens on its own; a saved artifact keeps its original file name instead of `artifact.zip`.
+- The write-gate hook matched the whole tool input, so writing a document that merely mentioned a test-record path was
+  refused. It now looks only at the write target (`file_path`, `notebook_path`, or the file headers of an
+  `apply_patch`).
+- The `hosts` list of an agent was never enforced because the `tenon` skill did not pass `--host`; it does now.
+- Test runs that inherit `TENON_USER`, `TENON_RUNTIME_HOME`, `TENON_BASE_BRANCH` or `TENON_CHANGE_NAME` (for example
+  `npm test` inside a Tenon session) no longer fail on identity assertions or write into the real runtime root; Vitest
+  isolates all six variables per test file. Temp-directory cleanup retries, so a late write no longer surfaces as
+  `ENOTEMPTY`. Vitest workers are capped at `min(8, cores)`, so full `npm test` runs alike locally and in CI.
+- Documentation: the retired 1.x releases and tags are still published and stay until the v0.x real-host acceptance;
+  `tenon user` and `tenon owner` are documented in the CLI reference and the contract; the AFK fail-closed error names
+  the real gap (the caller did not inject `deps.preparation`).
+
+### What you need to do
+
+From v0.1.10: run `tenon update --codex` (or `--claude`), open a new host session and reload the Dashboard. The N-1 gate
+reads and writes this release's data with the published v0.1.10 in both directions.
+
+From 1.x: run the versioned installer once for each host you use:
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.2.0/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.2.0/install.sh | /bin/bash -s -- --codex
+```
+
+Then, for every project that uses the default workflow:
+
+- The default workflow now requires tests. Run `tenon test discover --write` once in the project, review
+  `.tenon/tests/catalog.yaml` and commit it. Until a catalog exists, a new task is blocked at its first stage that
+  has a test policy with `test-catalog-missing`, and `tenon status` shows the command.
+- For Codex projects, run `tenon sync --migrate` once to refresh the managed block in `AGENTS.md`.
+- Tasks that are already started keep the plan they froze: they do not get the new executors, test policies or gate
+  behaviour, and finish under the rules they started with. New tasks get the new rules.
+- To use your own agents, run `tenon agent new` (or the `tenon:agent-author` skill) and attach them to a step on the
+  workflow page.
+
+### Compatibility
+
+- The CLI additions are new commands and new optional fields. Agent files without `role` still load (the role is
+  inferred from the tools and `tenon agent validate` asks you to add it); v1 test records and steps that declare
+  inline `tests[]` stay readable and in force; `gate: null` keeps working and means 自动.
+- New project files: `.tenon/tests/` (catalog, baselines, known failures), `.tenon/agents/`, and per change
+  `openspec/changes/<change>/test-plan.yaml`. Host agent files `.claude/agents/tenon-*.md` and
+  `.codex/agents/tenon-*.toml` are generated and removed by Tenon; they are not part of a task's delivery commit.
+- The Dashboard never runs or registers tests and never calls a model; registration happens in the terminal.
+
+### Verify
+
+```bash
+tenon doctor
+tenon runtime status
+tenon test catalog validate
+```
+
+Both hosts' inventory, the active managed runtime and the Dashboard report 0.2.0. `tenon test catalog validate` is for a
+project that has a catalog. Open the Dashboard: the workflow page
+shows 总览 as its first step, the Library lists nine official agents grouped by role, and a project with a catalog shows
+its suites under 测试.
+
 ## v0.1.10 · 2026-09-25
 
 A Dashboard usability release, driven by walking through real user tasks end to end.
