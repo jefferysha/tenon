@@ -4,13 +4,14 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
 import {
   appendTestRunRecordV2, catalogSuitesDigest, compileEffectiveWorkflowPlan, createStateStore,
-  createTransitionRecordStore, createWorkflowRunRepository, emptyTestPlan, ensureTestEvidenceDirs,
+  createTransitionRecordStore, createWorkflowRunRepository, emptyTestPlan, ensureTestEvidenceDirs, fingerprintWorkspace,
   parseTestCatalog, publishTestRunRecord, readTestPlanState, testDigest, testPolicyDigest, testRunRecordPath,
   testSystemPaths, writeTestPlan, type EffectiveWorkflowPlan, type TenonUser, type TestRunRecordV1,
 } from '@tenon/kernel'
 import { DESIGN_CATALOG, fixtureCase, fixtureRecordDraft, fixtureSuiteRun } from '@tenon/kernel/test-system/test-support'
 import { createCandidateCache } from './testCandidateCache.js'
 import { projectTestEvidence } from './testEvidenceSnapshot.js'
+import { captureWorkflowRootAnchor, closeWorkflowRootAnchor } from './workflowRootAnchor.js'
 
 const CHANGE = 'demo'
 const SLUG = 'a-at-x.io'
@@ -235,6 +236,52 @@ describe('projectTestEvidence · test_policy', () => {
       candidate: async () => `workspace:sha256:${'b'.repeat(64)}`,
     })
     expect(stale.testPolicy?.[0]?.suites[0]).toMatchObject({ state: 'stale', staleBecause: ['candidate'] })
+  })
+
+  /**
+   * 生产装配把项目根按锚点读取：Linux 上 readRoot 是 `/proc/self/fd/<n>`，候选指纹也经它计算。
+   * 其它用例都注入一个现成的候选串，碰不到这条路径；这里用真实的锚点和真实的指纹，
+   * 防止「Linux 上每条记录都因候选取不到而过期，macOS 上一切正常」再来一次。
+   */
+  test('经锚点读取项目根：记录绑定的候选就是锚点路径算出的候选，套件保持新鲜', async () => {
+    const { root, changeDir } = await freshRoot()
+    await mkdir(join(root, 'src'), { recursive: true })
+    await writeFile(join(root, 'src', 'a.ts'), 'export const a = 1\n', 'utf8')
+    const current = policyPlan()
+    const paths = testSystemPaths(root)
+    await mkdir(paths.root, { recursive: true })
+    await writeFile(paths.catalog, DESIGN_CATALOG, 'utf8')
+    const parsed = parseTestCatalog(DESIGN_CATALOG)
+    if (!parsed.ok) throw new Error('fixture catalog invalid')
+    await writeTestPlan(changeDir, { ...emptyTestPlan(CHANGE), suites: [{ suite: 'web-unit', scope: 'full' }] }, {
+      actor: { id: 'a@x.io', name: 'A', trust: 'declared' }, recordedAt: '2026-09-15T10:00:00Z',
+    })
+    const planState = await readTestPlanState(changeDir, CHANGE)
+    const policy = current.workflow.steps[0]?.test_policy
+    if (planState.state !== 'ok' || policy === undefined) throw new Error('fixture plan invalid')
+    await appendTestRunRecordV2(root, SLUG, fixtureRecordDraft({
+      change: CHANGE, step: 'build', workflow: 'policied', workflow_run_id: 'run-1',
+      bindings: {
+        candidate: await fingerprintWorkspace(root), workflow_fingerprint: current.workflowFingerprint,
+        catalog_digest: catalogSuitesDigest(parsed.catalog, ['web-unit']), plan_digest: planState.digest,
+        policy_digest: testPolicyDigest(policy),
+      },
+      suites: [fixtureSuiteRun({
+        suite: 'web-unit', coverage: { lines: 91, changed_lines: 88 }, cases: [fixtureCase({ file: 'src/a.test.ts', name: 'works' })],
+      })],
+    }))
+
+    const anchor = captureWorkflowRootAnchor(root)
+    try {
+      const readRoot = anchor.fdPath ?? anchor.path
+      const projected = await projectTestEvidence({
+        root: readRoot, changeDir: join(readRoot, 'openspec', 'changes', CHANGE), changeName: CHANGE, plan: current, user: USER,
+        candidate: () => fingerprintWorkspace(readRoot),
+      })
+      expect(projected.testPolicy?.[0]?.suites[0]).toMatchObject({ state: 'passed', totals: { cases: 1, pass: 1 } })
+    } finally {
+      closeWorkflowRootAnchor(anchor)
+    }
   })
 
   describe('files: registered 用 changedFiles 判定（Dashboard 显示未登记的测试文件）', () => {

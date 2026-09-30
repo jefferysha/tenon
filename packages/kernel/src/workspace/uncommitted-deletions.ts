@@ -14,22 +14,13 @@ import { lstat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { isPlainDirectory } from '../users/user-paths.js'
+import { isProcessLocalFdPath } from './process-local-fd-path.js'
 import { isTaskLifecycleName, taskChangeDir } from './task-archive.js'
+
+export { isProcessLocalFdPath }
 
 const execFileAsync = promisify(execFile)
 const CHANGES_PREFIX = 'openspec/changes/'
-
-/**
- * `/proc/self/fd/<n>` and `/dev/fd/<n>` name an entry in *this* process's descriptor table. A spawned git
- * resolves such a path against its own table, where the descriptor was never opened, and fails with a
- * misleading `cannot change to …: No such file or directory`. A child process must be handed a real path,
- * so these are refused by name instead of turning into an unexplained non-zero exit.
- */
-const PROCESS_LOCAL_FD_PATH = /^\/(?:proc\/(?:self|[0-9]+)|dev)\/fd\/[0-9]+(?:\/|$)/u
-
-export function isProcessLocalFdPath(path: string): boolean {
-  return PROCESS_LOCAL_FD_PATH.test(path)
-}
 
 export interface GitStatusResult {
   readonly code: number

@@ -8866,7 +8866,15 @@ function compileStepAgents(raw, path14) {
 // packages/kernel/dist/workspace/fingerprint.js
 import { createHash as createHash10 } from "node:crypto";
 import { lstat as lstat10, readdir, readFile as readFile9, readlink } from "node:fs/promises";
-import { join as join18 } from "node:path";
+import { join as join18, sep as sep5 } from "node:path";
+
+// packages/kernel/dist/workspace/process-local-fd-path.js
+var PROCESS_LOCAL_FD_PATH = /^\/(?:proc\/(?:self|[0-9]+)|dev)\/fd\/[0-9]+(?:\/|$)/u;
+function isProcessLocalFdPath(path14) {
+  return PROCESS_LOCAL_FD_PATH.test(path14);
+}
+
+// packages/kernel/dist/workspace/fingerprint.js
 var WORKSPACE_BASELINE_PREFIX = "workspace:sha256:";
 var EXCLUDED_TOP_LEVEL = /* @__PURE__ */ new Set([
   ".git",
@@ -8964,8 +8972,14 @@ async function fingerprintEntry(root, relativePath, hash) {
   }
   throw new Error(`workspace baseline does not support non-file entry: ${relativePath}`);
 }
+async function statRoot(root) {
+  const direct = await lstat10(root);
+  if (!direct.isSymbolicLink() || !isProcessLocalFdPath(root))
+    return direct;
+  return lstat10(`${root}${sep5}.`);
+}
 async function fingerprintWorkspace(root) {
-  const rootStat = await lstat10(root);
+  const rootStat = await statRoot(root);
   if (!rootStat.isDirectory())
     throw new Error(`workspace root is not a directory: ${root}`);
   const hash = createHash10("sha256");
@@ -13006,10 +13020,10 @@ import path3 from "node:path";
 
 // packages/kernel/dist/state/trusted-project-path.js
 import { lstat as lstat13, mkdir as mkdir8, realpath as realpath4 } from "node:fs/promises";
-import { isAbsolute as isAbsolute4, relative as relative4, resolve as resolve5, sep as sep5 } from "node:path";
+import { isAbsolute as isAbsolute4, relative as relative4, resolve as resolve5, sep as sep6 } from "node:path";
 function escaped(root, target) {
   const rel = relative4(root, target);
-  return rel === ".." || rel.startsWith(`..${sep5}`) || isAbsolute4(rel);
+  return rel === ".." || rel.startsWith(`..${sep6}`) || isAbsolute4(rel);
 }
 async function ordinaryDirectory(target) {
   const info = await lstat13(target);
@@ -13025,7 +13039,7 @@ async function ensureTrustedProjectDirectory(repoRoot, targetDirectory) {
   }
   await ordinaryDirectory(root);
   let cursor = root;
-  const segments2 = relative4(root, target).split(sep5).filter(Boolean);
+  const segments2 = relative4(root, target).split(sep6).filter(Boolean);
   for (const segment of segments2) {
     cursor = resolve5(cursor, segment);
     try {
@@ -15527,7 +15541,7 @@ async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope, poli
 // packages/kernel/dist/state/spec-migration-evidence.js
 import { createHash as createHash12 } from "node:crypto";
 import { lstat as lstat16, readFile as readFile17, realpath as realpath5 } from "node:fs/promises";
-import { isAbsolute as isAbsolute5, relative as relative5, resolve as resolve7, sep as sep6 } from "node:path";
+import { isAbsolute as isAbsolute5, relative as relative5, resolve as resolve7, sep as sep7 } from "node:path";
 
 // packages/kernel/dist/state/spec-apply-receipt.js
 import { readFile as readFile16 } from "node:fs/promises";
@@ -15628,7 +15642,7 @@ function digest4(content) {
 }
 function escaped2(root, target) {
   const rel = relative5(root, target);
-  return rel === ".." || rel.startsWith(`..${sep6}`) || isAbsolute5(rel);
+  return rel === ".." || rel.startsWith(`..${sep7}`) || isAbsolute5(rel);
 }
 function errorCode6(error2) {
   if (typeof error2 !== "object" || error2 === null || !("code" in error2))
@@ -15642,7 +15656,7 @@ async function trustedOrdinaryFile(repoRoot, candidate2, optional = false) {
   if (escaped2(root, target))
     throw new Error("\u8DEF\u5F84\u8D8A\u8FC7\u9879\u76EE\u6839");
   let cursor = root;
-  const segments2 = relative5(root, target).split(sep6).filter(Boolean);
+  const segments2 = relative5(root, target).split(sep7).filter(Boolean);
   for (const [index, segment] of segments2.entries()) {
     cursor = resolve7(cursor, segment);
     let info;
@@ -24693,10 +24707,6 @@ import { join as join43 } from "node:path";
 import { promisify as promisify3 } from "node:util";
 var execFileAsync2 = promisify3(execFile3);
 var CHANGES_PREFIX = "openspec/changes/";
-var PROCESS_LOCAL_FD_PATH = /^\/(?:proc\/(?:self|[0-9]+)|dev)\/fd\/[0-9]+(?:\/|$)/u;
-function isProcessLocalFdPath(path14) {
-  return PROCESS_LOCAL_FD_PATH.test(path14);
-}
 var gitStatusRunner = async (repoRoot, args) => {
   try {
     const { stdout } = await execFileAsync2("git", ["-C", repoRoot, ...args], {
@@ -26607,7 +26617,7 @@ function isHostSummaryTurn(turn) {
 }
 
 // packages/kernel/dist/mem/filter.js
-import { resolve as resolve12, sep as sep7 } from "node:path";
+import { resolve as resolve12, sep as sep8 } from "node:path";
 function parseIso(iso) {
   if (!iso)
     return null;
@@ -26638,7 +26648,7 @@ function sameProject(sessionCwd, target) {
     return false;
   const a = resolve12(sessionCwd);
   const b = resolve12(target);
-  return a === b || a.startsWith(b + sep7);
+  return a === b || a.startsWith(b + sep8);
 }
 function sameProjectForMemFs(fs, sessionCwd, target) {
   if (!fs.enforcePhysicalProjectScope)
@@ -33166,7 +33176,7 @@ function stripFlowComment(line) {
   const m = line.match(/^(.*?)\s#/);
   return (m ? required(m[1]) : line).trimEnd();
 }
-function splitTopLevel(s, sep19) {
+function splitTopLevel(s, sep20) {
   const out = [];
   let cur = "";
   let quote = "";
@@ -33178,7 +33188,7 @@ function splitTopLevel(s, sep19) {
     } else if (ch === '"' || ch === "'") {
       quote = ch;
       cur += ch;
-    } else if (ch === sep19) {
+    } else if (ch === sep20) {
       out.push(cur);
       cur = "";
     } else {
@@ -35042,20 +35052,20 @@ async function evaluateStepExitReport(input2) {
 
 // packages/kernel/dist/infrastructure/guard-file-context.js
 import { closeSync as closeSync3, constants as constants4, fstatSync as fstatSync2, lstatSync as lstatSync4, openSync as openSync3, readSync as readSync3, readdirSync as readdirSync4, readFileSync as readFileSync15, realpathSync as realpathSync3, statSync as statSync4 } from "node:fs";
-import { dirname as dirname12, isAbsolute as isAbsolute11, join as join54, relative as relative7, sep as sep8 } from "node:path";
+import { dirname as dirname12, isAbsolute as isAbsolute11, join as join54, relative as relative7, sep as sep9 } from "node:path";
 function sameBoundedFile(left, right) {
   return left.dev === right.dev && left.ino === right.ino && left.size === right.size && left.mtimeNs === right.mtimeNs && left.ctimeNs === right.ctimeNs;
 }
 function boundedAncestors(root, path14) {
   const fromRoot = relative7(root, path14);
-  if (fromRoot === "" || fromRoot === ".." || fromRoot.startsWith(`..${sep8}`) || isAbsolute11(fromRoot))
+  if (fromRoot === "" || fromRoot === ".." || fromRoot.startsWith(`..${sep9}`) || isAbsolute11(fromRoot))
     return void 0;
   const rootInfo = lstatSync4(root, { bigint: true });
   if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink())
     return void 0;
   const rootReal = realpathSync3(root);
   const parentFromRoot = dirname12(fromRoot);
-  const segments2 = parentFromRoot === "." ? [] : parentFromRoot.split(sep8);
+  const segments2 = parentFromRoot === "." ? [] : parentFromRoot.split(sep9);
   const ancestors = [{ path: root, info: rootInfo, real: rootReal }];
   let candidate2 = root;
   for (const segment of segments2) {
@@ -35067,7 +35077,7 @@ function boundedAncestors(root, path14) {
   }
   const parentReal = realpathSync3(dirname12(path14));
   const fromRealRoot = relative7(rootReal, parentReal);
-  if (fromRealRoot === ".." || fromRealRoot.startsWith(`..${sep8}`) || isAbsolute11(fromRealRoot))
+  if (fromRealRoot === ".." || fromRealRoot.startsWith(`..${sep9}`) || isAbsolute11(fromRealRoot))
     return void 0;
   return ancestors;
 }
@@ -36513,7 +36523,7 @@ var ACTIONS2 = new Set(WORKFLOW_ACTIONS);
 import { createHash as createHash25 } from "node:crypto";
 import { constants as constants5 } from "node:fs";
 import { chmod, lstat as lstat34, mkdir as mkdir30, open as open6, readdir as readdir15, realpath as realpath7, stat as stat5, writeFile as writeFile17 } from "node:fs/promises";
-import { dirname as dirname15, join as join57, relative as relative9, sep as sep9 } from "node:path";
+import { dirname as dirname15, join as join57, relative as relative9, sep as sep10 } from "node:path";
 
 // packages/automation/dist/skills/types.js
 function isPathSafeSkillId(skillId) {
@@ -36561,13 +36571,13 @@ async function assertDirectoryIdentities(identities, onFailure) {
 async function captureDirectoryIdentities(realRoot, absFile, rootIdentity, onFailure) {
   const parent = dirname15(absFile);
   const fromRoot = relative9(realRoot, parent);
-  if (fromRoot === ".." || fromRoot.startsWith(`..${sep9}`)) {
+  if (fromRoot === ".." || fromRoot.startsWith(`..${sep10}`)) {
     throw onFailure(`\u6587\u4EF6\u7236\u76EE\u5F55\u5DF2\u9003\u9038\u5185\u5BB9\u6839\uFF1A${parent}`);
   }
   const paths = [realRoot];
   let cursor = realRoot;
   if (fromRoot !== "") {
-    for (const segment of fromRoot.split(sep9)) {
+    for (const segment of fromRoot.split(sep10)) {
       cursor = join57(cursor, segment);
       paths.push(cursor);
     }
@@ -40340,7 +40350,7 @@ import {
   realpathSync as realpathSync5,
   unlinkSync
 } from "node:fs";
-import { isAbsolute as isAbsolute13, join as join65, relative as relative10, sep as sep11 } from "node:path";
+import { isAbsolute as isAbsolute13, join as join65, relative as relative10, sep as sep12 } from "node:path";
 
 // packages/server/src/workflowRootAnchor.ts
 import {
@@ -40351,7 +40361,7 @@ import {
   openSync as openSync4,
   realpathSync as realpathSync4
 } from "node:fs";
-import { resolve as resolvePath2, sep as sep10 } from "node:path";
+import { resolve as resolvePath2, sep as sep11 } from "node:path";
 function anchorChildProcessPath(anchor) {
   return anchor.realPath;
 }
@@ -40379,7 +40389,7 @@ function traversableDirectoryFdPath(fd, expected) {
 function traversableDirectoryFdPathFromCandidates(expected, candidates) {
   for (const candidate2 of candidates) {
     try {
-      const current = lstatSync5(`${candidate2}${sep10}.`);
+      const current = lstatSync5(`${candidate2}${sep11}.`);
       if (current.isDirectory() && sameIdentity(current, expected)) return candidate2;
     } catch {
     }
@@ -40455,7 +40465,7 @@ var WorkflowDeleteConflictError = class extends Error {
 // packages/server/src/workflowTrustedFs.ts
 function assertInsideRoot(realRoot, realPath, label) {
   const fromRoot = relative10(realRoot, realPath);
-  if (fromRoot === "" || fromRoot === ".." || fromRoot.startsWith(`..${sep11}`) || isAbsolute13(fromRoot)) {
+  if (fromRoot === "" || fromRoot === ".." || fromRoot.startsWith(`..${sep12}`) || isAbsolute13(fromRoot)) {
     throw new Error(`${label} \u5DF2\u9003\u9038 registered root: ${realPath}`);
   }
 }
@@ -41555,7 +41565,7 @@ import { join as join68 } from "node:path";
 
 // packages/server/src/repositoryFingerprint.ts
 import { lstat as lstat37 } from "node:fs/promises";
-import { join as join67, sep as sep12 } from "node:path";
+import { join as join67, sep as sep13 } from "node:path";
 async function metadataPart(path14, mode = "volatile", lookupPath = path14) {
   try {
     const metadata = await lstat37(lookupPath, { bigint: true });
@@ -41570,7 +41580,7 @@ async function metadataPart(path14, mode = "volatile", lookupPath = path14) {
   }
 }
 async function repositoryTopologyFingerprint(root) {
-  const rootEntry = await metadataPart(root, "stable", `${root}${sep12}.`);
+  const rootEntry = await metadataPart(root, "stable", `${root}${sep13}.`);
   if (rootEntry === null) return [];
   if (!rootEntry.directory) return [rootEntry.value];
   const dotGit = join67(root, ".git");
@@ -41689,7 +41699,7 @@ import {
   openSync as openSync9,
   realpathSync as realpathSync6
 } from "node:fs";
-import { dirname as dirname18, isAbsolute as isAbsolute15, join as join69, relative as relative11, sep as sep13 } from "node:path";
+import { dirname as dirname18, isAbsolute as isAbsolute15, join as join69, relative as relative11, sep as sep14 } from "node:path";
 
 // packages/server/src/stableFileMetadata.ts
 function captureStableFileVersion(stat8) {
@@ -41726,7 +41736,7 @@ function matchesDirectoryMutationVersion(expected) {
 }
 function isInside(base, candidate2) {
   const fromBase = relative11(base, candidate2);
-  return fromBase === "" || fromBase !== ".." && !fromBase.startsWith(`..${sep13}`) && !isAbsolute15(fromBase);
+  return fromBase === "" || fromBase !== ".." && !fromBase.startsWith(`..${sep14}`) && !isAbsolute15(fromBase);
 }
 function readBoundedTasksSource(fd, maxBytes) {
   const bytes = readBounded2(fd, maxBytes);
@@ -42696,7 +42706,7 @@ function policyReportDto(report, policy2) {
 
 // packages/server/src/testSystemReads.ts
 import { lstat as lstat39, readFile as readFile45, readdir as readdir18 } from "node:fs/promises";
-import { join as join73, relative as relative12, sep as sep14 } from "node:path";
+import { join as join73, relative as relative12, sep as sep15 } from "node:path";
 var MAX_TEXT_BYTES2 = 1024 * 1024;
 var MAX_RECORD_BYTES2 = 16 * 1024 * 1024;
 var MAX_USERS = 50;
@@ -42954,7 +42964,7 @@ async function readRecordDetail(readRoot, user, change, runId) {
       durationMs: record11.duration_ms,
       machineProfile: record11.machine_profile,
       machineLabel: record11.machine_label,
-      artifactsDir: relative12(readRoot, runDir).split(sep14).join("/"),
+      artifactsDir: relative12(readRoot, runDir).split(sep15).join("/"),
       actor: { id: record11.actor.id, name: record11.actor.name },
       services,
       suites: await Promise.all(record11.suites.map((run2) => suiteRunDto(run2, runDir)))
@@ -44914,7 +44924,7 @@ import { join as join83 } from "node:path";
 
 // packages/server/src/skillsRegistry.ts
 import { accessSync as accessSync2, constants as constants15, existsSync as existsSync8, readdirSync as readdirSync10, readFileSync as readFileSync24, realpathSync as realpathSync7, statSync as statSync7 } from "node:fs";
-import { delimiter, dirname as dirname21, join as join82, sep as sep15 } from "node:path";
+import { delimiter, dirname as dirname21, join as join82, sep as sep16 } from "node:path";
 function skillDescriptionFrom(path14) {
   try {
     const text10 = readFileSync24(path14, "utf8");
@@ -45052,7 +45062,7 @@ function readSkillFile(name, relPath, repoRoot, claudeDir) {
   try {
     const realRoot = realpathSync7(located.dir);
     const realFile = realpathSync7(absolute);
-    if (!realFile.startsWith(realRoot + sep15) && realFile !== realRoot) return { kind: "invalid-path" };
+    if (!realFile.startsWith(realRoot + sep16) && realFile !== realRoot) return { kind: "invalid-path" };
     const text10 = readFileSync24(realFile, "utf8");
     if (text10.includes("\0")) return { kind: "binary" };
     return { kind: "ok", path: relPath, text: text10 };
@@ -45440,7 +45450,7 @@ async function readAfkRunLog(changeDir2) {
 
 // packages/server/src/contextBundlePreviewSupport.ts
 import { lstatSync as lstatSync10, realpathSync as realpathSync8 } from "node:fs";
-import { isAbsolute as isAbsolute16, join as join85, relative as relative13, sep as sep16 } from "node:path";
+import { isAbsolute as isAbsolute16, join as join85, relative as relative13, sep as sep17 } from "node:path";
 var SCHEMA_VERSION = "context-bundle-preview/v1";
 var SIDE_EFFECTS = "none";
 var ContextBundlePathError = class extends Error {
@@ -45456,7 +45466,7 @@ function missingCode(error2) {
 }
 function inside2(base, candidate2) {
   const fromBase = relative13(base, candidate2);
-  return fromBase !== "" && fromBase !== ".." && !fromBase.startsWith(`..${sep16}`) && !isAbsolute16(fromBase);
+  return fromBase !== "" && fromBase !== ".." && !fromBase.startsWith(`..${sep17}`) && !isAbsolute16(fromBase);
 }
 function captureDirectoryIdentity(path14) {
   const info = lstatSync10(path14, { bigint: true });
@@ -47479,7 +47489,7 @@ function resolveDocumentReadRoute(req, path14, deps) {
 import { createReadStream } from "node:fs";
 import { lstat as lstat40, open as open8, realpath as realpath9 } from "node:fs/promises";
 import { constants as constants17 } from "node:fs";
-import { join as join92, relative as relative14, sep as sep17 } from "node:path";
+import { join as join92, relative as relative14, sep as sep18 } from "node:path";
 
 // packages/server/src/contentDisposition.ts
 var ATTR_CHAR = /^[A-Za-z0-9!#$&+\-.^_`|~]$/u;
@@ -47817,7 +47827,7 @@ async function handleTestArtifactRoute(req, res, path14, deps) {
       return true;
     }
     const contained2 = relative14(await realpath9(runDir), await realpath9(target));
-    if (contained2.startsWith("..") || contained2.startsWith(sep17)) {
+    if (contained2.startsWith("..") || contained2.startsWith(sep18)) {
       deps.sendJson(res, 403, { ok: false, error: "\u4EA7\u7269\u8DEF\u5F84\u9003\u51FA\u8FD0\u884C\u76EE\u5F55" });
       return true;
     }
@@ -50264,7 +50274,7 @@ import {
   openSync as openSync15,
   realpathSync as realpathSync9
 } from "node:fs";
-import { isAbsolute as isAbsolute20, join as join104, posix as posix4, relative as relative15, sep as sep18 } from "node:path";
+import { isAbsolute as isAbsolute20, join as join104, posix as posix4, relative as relative15, sep as sep19 } from "node:path";
 
 // packages/server/src/workflowDefinitionStatus.ts
 function projectWorkflowDefinitionStatus(workflow, frozenFingerprint, current) {
@@ -50301,7 +50311,7 @@ function missing3(error2) {
 }
 function isInside2(base, candidate2) {
   const fromBase = relative15(base, candidate2);
-  return fromBase === "" || fromBase !== ".." && !fromBase.startsWith(`..${sep18}`) && !isAbsolute20(fromBase);
+  return fromBase === "" || fromBase !== ".." && !fromBase.startsWith(`..${sep19}`) && !isAbsolute20(fromBase);
 }
 function readBoundedTasksSource2(fd, maxBytes) {
   const bytes = readBounded2(fd, maxBytes);
@@ -50424,7 +50434,7 @@ async function readAnchoredChangeState(root, changeName) {
     try {
       return readTrustedFile(
         root,
-        posix4.join(prefix, relativePath.replaceAll(sep18, "/")),
+        posix4.join(prefix, relativePath.replaceAll(sep19, "/")),
         2 * 1024 * 1024,
         void 0,
         changeIdentity

@@ -12417,7 +12417,15 @@ function compileStepAgents(raw, path15) {
 // packages/kernel/dist/workspace/fingerprint.js
 import { createHash as createHash13 } from "node:crypto";
 import { lstat as lstat10, readdir, readFile as readFile9, readlink } from "node:fs/promises";
-import { join as join17 } from "node:path";
+import { join as join17, sep as sep4 } from "node:path";
+
+// packages/kernel/dist/workspace/process-local-fd-path.js
+var PROCESS_LOCAL_FD_PATH = /^\/(?:proc\/(?:self|[0-9]+)|dev)\/fd\/[0-9]+(?:\/|$)/u;
+function isProcessLocalFdPath(path15) {
+  return PROCESS_LOCAL_FD_PATH.test(path15);
+}
+
+// packages/kernel/dist/workspace/fingerprint.js
 var WORKSPACE_BASELINE_PREFIX = "workspace:sha256:";
 var EXCLUDED_TOP_LEVEL = /* @__PURE__ */ new Set([
   ".git",
@@ -12518,8 +12526,14 @@ async function fingerprintEntry(root, relativePath, hash) {
   }
   throw new Error(`workspace baseline does not support non-file entry: ${relativePath}`);
 }
+async function statRoot(root) {
+  const direct = await lstat10(root);
+  if (!direct.isSymbolicLink() || !isProcessLocalFdPath(root))
+    return direct;
+  return lstat10(`${root}${sep4}.`);
+}
 async function fingerprintWorkspace(root) {
-  const rootStat = await lstat10(root);
+  const rootStat = await statRoot(root);
   if (!rootStat.isDirectory())
     throw new Error(`workspace root is not a directory: ${root}`);
   const hash = createHash13("sha256");
@@ -16547,10 +16561,10 @@ import path3 from "node:path";
 
 // packages/kernel/dist/state/trusted-project-path.js
 import { lstat as lstat13, mkdir as mkdir8, realpath as realpath4 } from "node:fs/promises";
-import { isAbsolute as isAbsolute4, relative as relative4, resolve as resolve5, sep as sep4 } from "node:path";
+import { isAbsolute as isAbsolute4, relative as relative4, resolve as resolve5, sep as sep5 } from "node:path";
 function escaped(root, target) {
   const rel = relative4(root, target);
-  return rel === ".." || rel.startsWith(`..${sep4}`) || isAbsolute4(rel);
+  return rel === ".." || rel.startsWith(`..${sep5}`) || isAbsolute4(rel);
 }
 async function ordinaryDirectory(target) {
   const info = await lstat13(target);
@@ -16566,7 +16580,7 @@ async function ensureTrustedProjectDirectory(repoRoot, targetDirectory) {
   }
   await ordinaryDirectory(root);
   let cursor = root;
-  const segments = relative4(root, target).split(sep4).filter(Boolean);
+  const segments = relative4(root, target).split(sep5).filter(Boolean);
   for (const segment of segments) {
     cursor = resolve5(cursor, segment);
     try {
@@ -19241,7 +19255,7 @@ async function evaluateDocumentEvidence(repoRoot, changeDir7, phase, scope, poli
 // packages/kernel/dist/state/spec-migration-evidence.js
 import { createHash as createHash15 } from "node:crypto";
 import { lstat as lstat16, readFile as readFile18, realpath as realpath5 } from "node:fs/promises";
-import { isAbsolute as isAbsolute5, relative as relative5, resolve as resolve7, sep as sep5 } from "node:path";
+import { isAbsolute as isAbsolute5, relative as relative5, resolve as resolve7, sep as sep6 } from "node:path";
 
 // packages/kernel/dist/state/spec-apply-receipt.js
 import { readFile as readFile17 } from "node:fs/promises";
@@ -19342,7 +19356,7 @@ function digest6(content) {
 }
 function escaped2(root, target) {
   const rel = relative5(root, target);
-  return rel === ".." || rel.startsWith(`..${sep5}`) || isAbsolute5(rel);
+  return rel === ".." || rel.startsWith(`..${sep6}`) || isAbsolute5(rel);
 }
 function errorCode7(error2) {
   if (typeof error2 !== "object" || error2 === null || !("code" in error2))
@@ -19356,7 +19370,7 @@ async function trustedOrdinaryFile(repoRoot, candidate2, optional = false) {
   if (escaped2(root, target))
     throw new Error("\u8DEF\u5F84\u8D8A\u8FC7\u9879\u76EE\u6839");
   let cursor = root;
-  const segments = relative5(root, target).split(sep5).filter(Boolean);
+  const segments = relative5(root, target).split(sep6).filter(Boolean);
   for (const [index, segment] of segments.entries()) {
     cursor = resolve7(cursor, segment);
     let info;
@@ -21529,7 +21543,7 @@ function stripLegacyHistory(tail) {
 
 // packages/kernel/dist/state/field-subjects.js
 import { readFile as readFile22, stat as stat2 } from "node:fs/promises";
-import { isAbsolute as isAbsolute6, join as join28, relative as relative6, resolve as resolve8, sep as sep6 } from "node:path";
+import { isAbsolute as isAbsolute6, join as join28, relative as relative6, resolve as resolve8, sep as sep7 } from "node:path";
 import { createHash as createHash19 } from "node:crypto";
 var FIELD_SUBJECTS_FILE = ".pipeline-field-subjects.json";
 var FIELD_SUBJECTS_CONTRACT = "field-subjects-v1";
@@ -21649,7 +21663,7 @@ function safeSourcePath(repoRoot, sourcePath) {
   const root = resolve8(repoRoot ?? ".");
   const absolute = resolve8(root, sourcePath);
   const rel = relative6(root, absolute);
-  if (rel === "" || rel.startsWith("..") || rel.includes(`..${sep6}`))
+  if (rel === "" || rel.startsWith("..") || rel.includes(`..${sep7}`))
     return void 0;
   return absolute;
 }
@@ -30557,10 +30571,6 @@ import { join as join49 } from "node:path";
 import { promisify as promisify3 } from "node:util";
 var execFileAsync2 = promisify3(execFile3);
 var CHANGES_PREFIX = "openspec/changes/";
-var PROCESS_LOCAL_FD_PATH = /^\/(?:proc\/(?:self|[0-9]+)|dev)\/fd\/[0-9]+(?:\/|$)/u;
-function isProcessLocalFdPath(path15) {
-  return PROCESS_LOCAL_FD_PATH.test(path15);
-}
 var gitStatusRunner = async (repoRoot, args) => {
   try {
     const { stdout } = await execFileAsync2("git", ["-C", repoRoot, ...args], {
@@ -32393,7 +32403,7 @@ function isHostSummaryTurn(turn) {
 }
 
 // packages/kernel/dist/mem/filter.js
-import { resolve as resolve13, sep as sep7 } from "node:path";
+import { resolve as resolve13, sep as sep8 } from "node:path";
 function parseIso(iso) {
   if (!iso)
     return null;
@@ -32424,7 +32434,7 @@ function sameProject(sessionCwd, target) {
     return false;
   const a = resolve13(sessionCwd);
   const b = resolve13(target);
-  return a === b || a.startsWith(b + sep7);
+  return a === b || a.startsWith(b + sep8);
 }
 function sameProjectForMemFs(fs, sessionCwd, target) {
   if (!fs.enforcePhysicalProjectScope)
@@ -37623,10 +37633,10 @@ function buildHandoff(input2, fs) {
 
 // packages/kernel/dist/compress/ledger-context-bundle-node-source.js
 import { lstat as lstat36, realpath as realpath7 } from "node:fs/promises";
-import { isAbsolute as isAbsolute12, relative as relative8, sep as sep8 } from "node:path";
+import { isAbsolute as isAbsolute12, relative as relative8, sep as sep9 } from "node:path";
 function insideRoot2(root, candidate2) {
   const rel = relative8(root, candidate2);
-  return rel === "" || !isAbsolute12(rel) && rel !== ".." && !rel.startsWith(`..${sep8}`);
+  return rel === "" || !isAbsolute12(rel) && rel !== ".." && !rel.startsWith(`..${sep9}`);
 }
 async function anchorLedgerContextBundleSource(root, absolute, displayPath = "source") {
   const [rootRealpath, info] = await Promise.all([realpath7(root), lstat36(absolute)]);
@@ -40873,7 +40883,7 @@ function stripFlowComment(line) {
   const m = line.match(/^(.*?)\s#/);
   return (m ? required(m[1]) : line).trimEnd();
 }
-function splitTopLevel(s, sep29) {
+function splitTopLevel(s, sep30) {
   const out = [];
   let cur = "";
   let quote = "";
@@ -40885,7 +40895,7 @@ function splitTopLevel(s, sep29) {
     } else if (ch === '"' || ch === "'") {
       quote = ch;
       cur += ch;
-    } else if (ch === sep29) {
+    } else if (ch === sep30) {
       out.push(cur);
       cur = "";
     } else {
@@ -42251,20 +42261,20 @@ async function evaluateStepExitReport(input2) {
 
 // packages/kernel/dist/infrastructure/guard-file-context.js
 import { closeSync as closeSync2, constants as constants5, fstatSync as fstatSync2, lstatSync as lstatSync3, openSync as openSync2, readSync as readSync2, readdirSync as readdirSync3, readFileSync as readFileSync15, realpathSync as realpathSync2, statSync as statSync4 } from "node:fs";
-import { dirname as dirname12, isAbsolute as isAbsolute14, join as join62, relative as relative9, sep as sep9 } from "node:path";
+import { dirname as dirname12, isAbsolute as isAbsolute14, join as join62, relative as relative9, sep as sep10 } from "node:path";
 function sameBoundedFile(left, right) {
   return left.dev === right.dev && left.ino === right.ino && left.size === right.size && left.mtimeNs === right.mtimeNs && left.ctimeNs === right.ctimeNs;
 }
 function boundedAncestors(root, path15) {
   const fromRoot = relative9(root, path15);
-  if (fromRoot === "" || fromRoot === ".." || fromRoot.startsWith(`..${sep9}`) || isAbsolute14(fromRoot))
+  if (fromRoot === "" || fromRoot === ".." || fromRoot.startsWith(`..${sep10}`) || isAbsolute14(fromRoot))
     return void 0;
   const rootInfo = lstatSync3(root, { bigint: true });
   if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink())
     return void 0;
   const rootReal = realpathSync2(root);
   const parentFromRoot = dirname12(fromRoot);
-  const segments = parentFromRoot === "." ? [] : parentFromRoot.split(sep9);
+  const segments = parentFromRoot === "." ? [] : parentFromRoot.split(sep10);
   const ancestors = [{ path: root, info: rootInfo, real: rootReal }];
   let candidate2 = root;
   for (const segment of segments) {
@@ -42276,7 +42286,7 @@ function boundedAncestors(root, path15) {
   }
   const parentReal = realpathSync2(dirname12(path15));
   const fromRealRoot = relative9(rootReal, parentReal);
-  if (fromRealRoot === ".." || fromRealRoot.startsWith(`..${sep9}`) || isAbsolute14(fromRealRoot))
+  if (fromRealRoot === ".." || fromRealRoot.startsWith(`..${sep10}`) || isAbsolute14(fromRealRoot))
     return void 0;
   return ancestors;
 }
@@ -43535,7 +43545,7 @@ async function openArtifactService(options) {
 // packages/automation/dist/submission/service.js
 import { createHash as createHash30 } from "node:crypto";
 import { readFile as readFile46 } from "node:fs/promises";
-import { isAbsolute as isAbsolute15, join as join65, relative as relative11, resolve as resolve19, sep as sep10 } from "node:path";
+import { isAbsolute as isAbsolute15, join as join65, relative as relative11, resolve as resolve19, sep as sep11 } from "node:path";
 var receiptId = (namespace, logicalKey, projection) => `submission:${namespace}:${projection}:${createHash30("sha256").update(logicalKey).digest("hex").slice(0, 32)}`;
 async function openArtifactSubmissionService(options) {
   const now = options.now ?? (() => (/* @__PURE__ */ new Date()).toISOString());
@@ -43543,7 +43553,7 @@ async function openArtifactSubmissionService(options) {
     if (input2.path !== void 0) {
       const repoScoped = input2.projection !== "runtime" && options.repoRoot !== void 0;
       const rel = relative11(repoScoped ? options.repoRoot : options.changeDir, resolve19(options.changeDir, input2.path));
-      if (!rel || isAbsolute15(rel) || rel === ".." || rel.startsWith(`..${sep10}`)) {
+      if (!rel || isAbsolute15(rel) || rel === ".." || rel.startsWith(`..${sep11}`)) {
         throw new Error(repoScoped ? "submission path outside repository" : "submission path outside change scope");
       }
     }
@@ -48341,7 +48351,7 @@ function createLoopAdmission(deps) {
 import { createHash as createHash39 } from "node:crypto";
 import { constants as constants6 } from "node:fs";
 import { chmod, lstat as lstat38, mkdir as mkdir33, open as open7, readdir as readdir18, realpath as realpath8, stat as stat10, writeFile as writeFile19 } from "node:fs/promises";
-import { dirname as dirname16, join as join70, relative as relative13, sep as sep11 } from "node:path";
+import { dirname as dirname16, join as join70, relative as relative13, sep as sep12 } from "node:path";
 
 // packages/automation/dist/skills/types.js
 function isPathSafeSkillId(skillId) {
@@ -48404,13 +48414,13 @@ async function assertDirectoryIdentities(identities, onFailure) {
 async function captureDirectoryIdentities(realRoot, absFile, rootIdentity, onFailure) {
   const parent = dirname16(absFile);
   const fromRoot = relative13(realRoot, parent);
-  if (fromRoot === ".." || fromRoot.startsWith(`..${sep11}`)) {
+  if (fromRoot === ".." || fromRoot.startsWith(`..${sep12}`)) {
     throw onFailure(`\u6587\u4EF6\u7236\u76EE\u5F55\u5DF2\u9003\u9038\u5185\u5BB9\u6839\uFF1A${parent}`);
   }
   const paths = [realRoot];
   let cursor = realRoot;
   if (fromRoot !== "") {
-    for (const segment of fromRoot.split(sep11)) {
+    for (const segment of fromRoot.split(sep12)) {
       cursor = join70(cursor, segment);
       paths.push(cursor);
     }
@@ -51838,7 +51848,7 @@ async function evaluateSkillBundleWiring(loop, deps, resolutionInputs) {
 
 // packages/automation/dist/skills/skill-provenance.js
 import { lstat as lstat42, readFile as readFile51, readdir as readdir21, realpath as realpath10 } from "node:fs/promises";
-import { isAbsolute as isAbsolute17, join as join83, relative as relative14, resolve as resolve25, sep as sep12 } from "node:path";
+import { isAbsolute as isAbsolute17, join as join83, relative as relative14, resolve as resolve25, sep as sep13 } from "node:path";
 
 // packages/automation/dist/skills/mandatory-invocability.js
 import { readFile as readFile50 } from "node:fs/promises";
@@ -51996,7 +52006,7 @@ async function directDistributedSkills(skillsRoot) {
 }
 function pathWithin(root, candidate2) {
   const rel = relative14(root, candidate2);
-  return rel === "" || !isAbsolute17(rel) && rel !== ".." && !rel.startsWith(`..${sep12}`);
+  return rel === "" || !isAbsolute17(rel) && rel !== ".." && !rel.startsWith(`..${sep13}`);
 }
 async function assertPhysicalSkillRoot(skillsRoot, realSkillsRoot, skillId) {
   const path15 = join83(skillsRoot, skillId);
@@ -54494,18 +54504,18 @@ function renderCheckReport(deps, name2, phase, sections) {
 import { createHash as createHash46 } from "node:crypto";
 import { appendFile as appendFile7, mkdir as mkdir39, readFile as readFile59 } from "node:fs/promises";
 import { homedir as homedir6 } from "node:os";
-import { basename as basename8, isAbsolute as isAbsolute23, join as join92, relative as relative19, resolve as resolve31, sep as sep17 } from "node:path";
+import { basename as basename8, isAbsolute as isAbsolute23, join as join92, relative as relative19, resolve as resolve31, sep as sep18 } from "node:path";
 
 // packages/cli/src/codexTranscriptEvidence.ts
 import { homedir as homedir5 } from "node:os";
-import { isAbsolute as isAbsolute22, join as join90, relative as relative18, resolve as resolve29, sep as sep16 } from "node:path";
+import { isAbsolute as isAbsolute22, join as join90, relative as relative18, resolve as resolve29, sep as sep17 } from "node:path";
 import { createInterface as createInterface2 } from "node:readline";
 import { finished } from "node:stream/promises";
 
 // packages/cli/src/codexSkillTrust.ts
 import { lstat as lstat43, readFile as readFile55, realpath as realpath11 } from "node:fs/promises";
 import { homedir as homedir4 } from "node:os";
-import { dirname as dirname18, isAbsolute as isAbsolute18, join as join87, relative as relative15, resolve as resolve26, sep as sep13 } from "node:path";
+import { dirname as dirname18, isAbsolute as isAbsolute18, join as join87, relative as relative15, resolve as resolve26, sep as sep14 } from "node:path";
 
 // packages/cli/src/runtime/release-store-codecs.ts
 import { createHash as createHash45 } from "node:crypto";
@@ -54718,7 +54728,7 @@ var TENON_CACHE_PLUGIN = "tenon";
 var SAFE_PATH_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 function isInside(base, candidate2) {
   const fromBase = relative15(base, candidate2);
-  return fromBase !== "" && fromBase !== ".." && !fromBase.startsWith(`..${sep13}`) && !isAbsolute18(fromBase);
+  return fromBase !== "" && fromBase !== ".." && !fromBase.startsWith(`..${sep14}`) && !isAbsolute18(fromBase);
 }
 function safeAbsolute(value) {
   return value?.trim() && isAbsolute18(value.trim()) ? resolve26(value.trim()) : void 0;
@@ -54744,7 +54754,7 @@ function productionCodexSkillTrustRoots() {
   };
 }
 async function ordinaryDirectoryChain(base, candidate2) {
-  const parts = relative15(base, candidate2).split(sep13).filter((part) => part !== "");
+  const parts = relative15(base, candidate2).split(sep14).filter((part) => part !== "");
   if (parts.some((part) => part === "..")) return false;
   let current = base;
   for (const part of ["", ...parts]) {
@@ -54808,7 +54818,7 @@ async function selectedCacheRoot(roots, homeDir, configured) {
     TENON_CACHE_PLUGIN
   );
   const rel = relative15(cacheBase, logical);
-  if (rel === "" || rel.startsWith("..") || rel.split(sep13).length !== 1) return void 0;
+  if (rel === "" || rel.startsWith("..") || rel.split(sep14).length !== 1) return void 0;
   if (!await ordinaryDirectoryChain(codexHomeRoot(homeDir, configured), logical)) return void 0;
   if (!await cacheIdentityReconciles(logical, rel)) return void 0;
   try {
@@ -54822,7 +54832,7 @@ async function activeReleaseRoot(roots) {
   const runtimeData = safeAbsolute(roots.runtimeDataRoot);
   const runtimeState = safeAbsolute(roots.runtimeStateRoot);
   if (!logical || !runtimeData || !runtimeState || !await samePhysicalDirectory(roots.executingPluginRoot, logical)) return void 0;
-  const rel = relative15(join87(runtimeData, "releases"), logical).split(sep13);
+  const rel = relative15(join87(runtimeData, "releases"), logical).split(sep14);
   if (rel.length !== 2 || !/^sha256-[a-f0-9]{64}$/.test(rel[0] ?? "") || rel[1] !== "payload") return void 0;
   if (!await ordinaryDirectoryChain(runtimeData, logical)) return void 0;
   try {
@@ -55112,7 +55122,7 @@ async function explicitSiblingWorktreeTarget(sessionRoot, commandWorkdir, target
 
 // packages/cli/src/codexTrustedSkillRead.ts
 import { readFile as readFile57 } from "node:fs/promises";
-import { isAbsolute as isAbsolute20, relative as relative16, resolve as resolve28, sep as sep14 } from "node:path";
+import { isAbsolute as isAbsolute20, relative as relative16, resolve as resolve28, sep as sep15 } from "node:path";
 
 // packages/cli/src/codexTranscriptCompletion.ts
 function isRecord16(value) {
@@ -55323,8 +55333,8 @@ function commandTrustedSkillPaths(command2, skillPath) {
     if (path15 === void 0 || !isAbsolute20(path15)) return void 0;
     const resolvedPath = resolve28(path15);
     const siblingPath = relative16(skillsRoot, resolvedPath);
-    if (siblingPath === "" || isAbsolute20(siblingPath) || siblingPath === ".." || siblingPath.startsWith(`..${sep14}`)) return void 0;
-    const sibling = siblingPath.split(sep14);
+    if (siblingPath === "" || isAbsolute20(siblingPath) || siblingPath === ".." || siblingPath.startsWith(`..${sep15}`)) return void 0;
+    const sibling = siblingPath.split(sep15);
     if (sibling.length !== 2 || sibling[0] === "" || sibling[1] !== "SKILL.md") return void 0;
     if (resolvedPath === skillPath) observedRead = true;
     paths.push(resolvedPath);
@@ -55340,7 +55350,7 @@ function transcriptInputTrustedSkillInvocation(input2, skillPath) {
 // packages/cli/src/codexTranscriptDiscovery.ts
 import { constants as constants8 } from "node:fs";
 import { lstat as lstat45, open as open9, opendir as opendir2, realpath as realpath13 } from "node:fs/promises";
-import { isAbsolute as isAbsolute21, join as join89, relative as relative17, sep as sep15 } from "node:path";
+import { isAbsolute as isAbsolute21, join as join89, relative as relative17, sep as sep16 } from "node:path";
 var MAX_TRANSCRIPT_BYTES = 512 * 1024 * 1024;
 var MAX_TOTAL_BYTES = 512 * 1024 * 1024;
 var MAX_TRANSCRIPTS = 32;
@@ -55383,7 +55393,7 @@ async function inspectHostTranscript(physicalRoot, candidate2) {
 }
 function isInside2(base, candidate2) {
   const fromBase = relative17(base, candidate2);
-  return fromBase !== "" && fromBase !== ".." && !fromBase.startsWith(`..${sep15}`) && !isAbsolute21(fromBase);
+  return fromBase !== "" && fromBase !== ".." && !fromBase.startsWith(`..${sep16}`) && !isAbsolute21(fromBase);
 }
 async function recentHostTranscripts(sessionsRoot, limits = DEFAULT_DISCOVERY_LIMITS) {
   if (!Number.isSafeInteger(limits.maxEntries) || limits.maxEntries <= 0 || !Number.isSafeInteger(limits.maxTranscripts) || limits.maxTranscripts <= 0) return void 0;
@@ -55485,7 +55495,7 @@ function asString3(value) {
 }
 function isInside3(base, candidate2) {
   const fromBase = relative18(base, candidate2);
-  return fromBase !== "" && fromBase !== ".." && !fromBase.startsWith(`..${sep16}`) && !isAbsolute22(fromBase);
+  return fromBase !== "" && fromBase !== ".." && !fromBase.startsWith(`..${sep17}`) && !isAbsolute22(fromBase);
 }
 function codexSessionsRoot2(homeDir, configured) {
   return join90(codexHomeRoot(homeDir, configured), "sessions");
@@ -55939,7 +55949,7 @@ function isSafeSkillId(value) {
 }
 function isInside4(base, candidate2) {
   const fromBase = relative19(base, candidate2);
-  return fromBase !== "" && fromBase !== ".." && !fromBase.startsWith(`..${sep17}`) && !isAbsolute23(fromBase);
+  return fromBase !== "" && fromBase !== ".." && !fromBase.startsWith(`..${sep18}`) && !isAbsolute23(fromBase);
 }
 function codexSessionsRoot3(homeDir, configured) {
   const candidate2 = configured?.trim() || process.env.CODEX_HOME?.trim();
@@ -58679,7 +58689,7 @@ import { createHash as createHash48 } from "node:crypto";
 import { execFile as execFile6 } from "node:child_process";
 import { chmod as chmod3, copyFile, lstat as lstat48, mkdir as mkdir41, mkdtemp as mkdtemp2, readFile as readFile61, readdir as readdir24, rm as rm17 } from "node:fs/promises";
 import { tmpdir as tmpdir3 } from "node:os";
-import { basename as basename10, dirname as dirname23, join as join101, relative as relative20, resolve as resolve33, sep as sep18 } from "node:path";
+import { basename as basename10, dirname as dirname23, join as join101, relative as relative20, resolve as resolve33, sep as sep19 } from "node:path";
 
 // packages/cli/src/runtime/plugin-manifest-version.ts
 var STABLE_VERSION3 = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u;
@@ -58717,7 +58727,7 @@ function decodePluginManifestVersion(input2) {
 // packages/cli/src/runtime/release-payload.ts
 function isWithin(root, candidate2) {
   const rel = relative20(root, candidate2);
-  return rel === "" || !rel.startsWith(`..${sep18}`) && rel !== ".." && !rel.includes(`${sep18}..${sep18}`);
+  return rel === "" || !rel.startsWith(`..${sep19}`) && rel !== ".." && !rel.includes(`${sep19}..${sep19}`);
 }
 function candidatePath(root, entry2) {
   const path15 = resolve33(root, entry2);
@@ -62068,7 +62078,7 @@ async function resolveChangeDocumentLocale(changeDirPath, requestedLocale, pinLe
 
 // packages/cli/src/commands/documentScaffoldSafety.ts
 import { lstat as lstat50, realpath as realpath14 } from "node:fs/promises";
-import { dirname as dirname25, isAbsolute as isAbsolute28, relative as relative23, resolve as resolve38, sep as sep19 } from "node:path";
+import { dirname as dirname25, isAbsolute as isAbsolute28, relative as relative23, resolve as resolve38, sep as sep20 } from "node:path";
 function ordinaryDocumentFile(info) {
   return info.isFile() && !info.isSymbolicLink();
 }
@@ -62087,7 +62097,7 @@ function requiredDeltaCapability(requestedCapability) {
 async function assertSafeChangeRoot(repoRoot, changeRoot) {
   const root = resolve38(repoRoot);
   const lexical = relative23(root, resolve38(changeRoot));
-  if (lexical === ".." || lexical.startsWith(`..${sep19}`) || isAbsolute28(lexical)) {
+  if (lexical === ".." || lexical.startsWith(`..${sep20}`) || isAbsolute28(lexical)) {
     throw new Error(`Change \u6839\u8D8A\u8FC7\u9879\u76EE\u6839: ${changeRoot}`);
   }
   const rootInfo = await lstat50(root);
@@ -62095,7 +62105,7 @@ async function assertSafeChangeRoot(repoRoot, changeRoot) {
     throw new Error(`\u9879\u76EE\u6839\u5FC5\u987B\u662F\u975E symlink \u76EE\u5F55: ${root}`);
   }
   let cursor = root;
-  for (const segment of lexical.split(sep19).filter(Boolean)) {
+  for (const segment of lexical.split(sep20).filter(Boolean)) {
     cursor = resolve38(cursor, segment);
     const info = await lstat50(cursor);
     if (!info.isDirectory() || info.isSymbolicLink()) {
@@ -62104,7 +62114,7 @@ async function assertSafeChangeRoot(repoRoot, changeRoot) {
   }
   const [rootReal, changeReal] = await Promise.all([realpath14(root), realpath14(changeRoot)]);
   const escaped3 = relative23(rootReal, changeReal);
-  if (escaped3 === ".." || escaped3.startsWith(`..${sep19}`) || isAbsolute28(escaped3)) {
+  if (escaped3 === ".." || escaped3.startsWith(`..${sep20}`) || isAbsolute28(escaped3)) {
     throw new Error(`Change \u6839\u771F\u5B9E\u8DEF\u5F84\u8D8A\u8FC7\u9879\u76EE\u6839: ${changeRoot}`);
   }
 }
@@ -63270,7 +63280,7 @@ import { isAbsolute as isAbsolute30, join as join112 } from "node:path";
 
 // packages/cli/src/skill-provenance-locator.ts
 import { lstatSync as lstatSync5, readFileSync as readFileSync22, realpathSync as realpathSync5 } from "node:fs";
-import { isAbsolute as isAbsolute29, join as join110, relative as relative25, sep as sep20 } from "node:path";
+import { isAbsolute as isAbsolute29, join as join110, relative as relative25, sep as sep21 } from "node:path";
 var SkillProvenanceLocatorError = class extends Error {
   constructor(category, message2) {
     super(`[${category}] ${message2}`);
@@ -63294,7 +63304,7 @@ function candidateExists(path15) {
 }
 function pathWithin2(root, candidate2) {
   const rel = relative25(root, candidate2);
-  return rel === "" || !isAbsolute29(rel) && rel !== ".." && !rel.startsWith(`..${sep20}`);
+  return rel === "" || !isAbsolute29(rel) && rel !== ".." && !rel.startsWith(`..${sep21}`);
 }
 function assertSafeSkillsRoot(root) {
   let rootEntry;
@@ -69510,12 +69520,12 @@ async function cmdMem(deps, sub, args, fs = nodeMemFs()) {
 
 // packages/cli/src/commands/scaffold.ts
 import { lstat as lstat56, mkdir as mkdir47, readFile as readFile71, rm as rm22, stat as stat15, unlink as unlink9, writeFile as writeFile26 } from "node:fs/promises";
-import { dirname as dirname28, isAbsolute as isAbsolute35, join as join119, relative as relative29, resolve as resolve45, sep as sep23 } from "node:path";
+import { dirname as dirname28, isAbsolute as isAbsolute35, join as join119, relative as relative29, resolve as resolve45, sep as sep24 } from "node:path";
 
 // packages/cli/src/commands/specScaffoldTransaction.ts
 import { lstat as lstat55, mkdir as mkdir46, rename as rename18, rm as rm21, writeFile as writeFile25 } from "node:fs/promises";
 import { randomUUID as randomUUID18 } from "node:crypto";
-import { dirname as dirname27, isAbsolute as isAbsolute34, relative as relative28, resolve as resolve44, sep as sep22 } from "node:path";
+import { dirname as dirname27, isAbsolute as isAbsolute34, relative as relative28, resolve as resolve44, sep as sep23 } from "node:path";
 
 // packages/cli/src/commands/specScaffoldTree.ts
 import { createHash as createHash52 } from "node:crypto";
@@ -69598,7 +69608,7 @@ function ordinaryPathKey(target) {
 
 // packages/cli/src/commands/specScaffoldRecovery.ts
 import { lstat as lstat54, readFile as readFile70, rename as rename17, rm as rm20 } from "node:fs/promises";
-import { basename as basename11, dirname as dirname26, isAbsolute as isAbsolute33, relative as relative27, resolve as resolve43, sep as sep21 } from "node:path";
+import { basename as basename11, dirname as dirname26, isAbsolute as isAbsolute33, relative as relative27, resolve as resolve43, sep as sep22 } from "node:path";
 function errorCode9(error2) {
   if (typeof error2 !== "object" || error2 === null || !("code" in error2)) return void 0;
   const code = Reflect.get(error2, "code");
@@ -69606,7 +69616,7 @@ function errorCode9(error2) {
 }
 function contained2(root, target) {
   const rel = relative27(root, target);
-  return rel !== ".." && !rel.startsWith(`..${sep21}`) && !isAbsolute33(rel);
+  return rel !== ".." && !rel.startsWith(`..${sep22}`) && !isAbsolute33(rel);
 }
 async function existingOrdinaryFile(target) {
   try {
@@ -69781,7 +69791,7 @@ async function acquireTransaction(specDirectory, receipt, anchor) {
 // packages/cli/src/commands/specScaffoldTransaction.ts
 function contained3(root, target) {
   const rel = relative28(root, target);
-  return rel !== ".." && !rel.startsWith(`..${sep22}`) && !isAbsolute34(rel);
+  return rel !== ".." && !rel.startsWith(`..${sep23}`) && !isAbsolute34(rel);
 }
 async function existingOrdinaryDirectory2(target) {
   try {
@@ -69802,7 +69812,7 @@ async function publishSpecScaffoldTransaction(options) {
     throw new Error(`spec scaffold \u4E8B\u52A1\u8DEF\u5F84\u8D8A\u8FC7\u9879\u76EE\u6839: ${options.specDirectory}`);
   }
   const specRelative = relative28(repoRoot, specDirectory);
-  const topLevelName = specRelative.split(sep22).filter(Boolean)[0];
+  const topLevelName = specRelative.split(sep23).filter(Boolean)[0];
   if (!topLevelName) {
     throw new Error("spec scaffold \u4E8B\u52A1\u76EE\u6807\u4E0D\u80FD\u662F\u9879\u76EE\u6839");
   }
@@ -69953,17 +69963,17 @@ var SPEC_STRATEGY_SIGNAL = "TENON_SPEC_STRATEGY";
 function safeSpecDir(cwd, specDir) {
   if (isAbsolute35(specDir)) return false;
   const rel = relative29(resolve45(cwd), resolve45(cwd, specDir));
-  return rel !== ".." && !rel.startsWith(`..${sep23}`) && !isAbsolute35(rel);
+  return rel !== ".." && !rel.startsWith(`..${sep24}`) && !isAbsolute35(rel);
 }
 async function assertExistingParentsSafe(cwd, target) {
   const root = resolve45(cwd);
   const parent = dirname28(target);
   const rel = relative29(root, parent);
-  if (rel === ".." || rel.startsWith(`..${sep23}`) || isAbsolute35(rel)) {
+  if (rel === ".." || rel.startsWith(`..${sep24}`) || isAbsolute35(rel)) {
     throw new Error(`scaffold \u8DEF\u5F84\u8D8A\u8FC7\u9879\u76EE\u6839: ${target}`);
   }
   let cursor = root;
-  for (const segment of rel.split(sep23).filter(Boolean)) {
+  for (const segment of rel.split(sep24).filter(Boolean)) {
     cursor = resolve45(cursor, segment);
     try {
       const info = await lstat56(cursor);
@@ -71467,7 +71477,7 @@ function headerLookup(headers, name2) {
 
 // packages/tap/dist/trace-store.js
 import { appendFileSync as appendFileSync2, closeSync as closeSync5, constants as constants11, existsSync as existsSync9, lstatSync as lstatSync6, mkdirSync as mkdirSync3, openSync as openSync5, readFileSync as readFileSync27, realpathSync as realpathSync7, readSync as readSync4, readdirSync as readdirSync9, renameSync as renameSync2, writeFileSync as writeFileSync2 } from "node:fs";
-import { join as join124, sep as sep24 } from "node:path";
+import { join as join124, sep as sep25 } from "node:path";
 import { randomUUID as randomUUID19 } from "node:crypto";
 
 // packages/tap/dist/trace-codecs.js
@@ -71539,11 +71549,11 @@ var FileTraceStore = class {
     const root = realpathSync7(this.dir);
     const recordsRoot = realpathSync7(this.recordsDir);
     const candidateStat = lstatSync6(candidate2);
-    if (!recordsRoot.startsWith(`${root}${sep24}`) || candidateStat.isSymbolicLink() || !candidateStat.isFile()) {
+    if (!recordsRoot.startsWith(`${root}${sep25}`) || candidateStat.isSymbolicLink() || !candidateStat.isFile()) {
       throw new Error("unsafe trace records path");
     }
     const resolved = realpathSync7(candidate2);
-    if (!resolved.startsWith(`${recordsRoot}${sep24}`))
+    if (!resolved.startsWith(`${recordsRoot}${sep25}`))
       throw new Error("unsafe trace records path");
     const fd = openSync5(candidate2, constants11.O_RDONLY | constants11.O_NOFOLLOW);
     return { fd, size: candidateStat.size };
@@ -84574,7 +84584,7 @@ async function cmdTestReport(deps, change, opts = {}) {
 // packages/cli/src/commands/test-run.ts
 import { randomBytes as randomBytes8 } from "node:crypto";
 import { lstat as lstat68, mkdir as mkdir59, realpath as realpath18 } from "node:fs/promises";
-import { join as join160, relative as relative33, resolve as resolve58, sep as sep26 } from "node:path";
+import { join as join160, relative as relative33, resolve as resolve58, sep as sep27 } from "node:path";
 
 // packages/cli/src/hostKind.ts
 function detectHostEnvironment(env) {
@@ -84587,7 +84597,7 @@ function detectHostEnvironment(env) {
 // packages/cli/src/test-runner/collect.ts
 import { createHash as createHash56, randomBytes as randomBytes7 } from "node:crypto";
 import { copyFile as copyFile3, lstat as lstat67, mkdir as mkdir58, readFile as readFile88, readdir as readdir29, realpath as realpath17, writeFile as writeFile32 } from "node:fs/promises";
-import { dirname as dirname41, join as join159, relative as relative32, resolve as resolve57, sep as sep25 } from "node:path";
+import { dirname as dirname41, join as join159, relative as relative32, resolve as resolve57, sep as sep26 } from "node:path";
 var MAX_DIRECTORY_FILES = 5e3;
 var MAX_DOCUMENT_BYTES = 4 * 1024 * 1024;
 var MAX_ARTIFACT_FILE_BYTES = 64 * 1024 * 1024;
@@ -84600,7 +84610,7 @@ async function insideRepo(repoRoot, path15) {
     const root = await realpath17(repoRoot);
     const target = await realpath17(path15);
     const rel = relative32(root, target);
-    return rel === "" || !rel.startsWith("..") && !rel.startsWith(sep25);
+    return rel === "" || !rel.startsWith("..") && !rel.startsWith(sep26);
   } catch {
     return false;
   }
@@ -84627,7 +84637,7 @@ async function summarizeTree(absolute) {
       }
       files += 1;
       bytes += entry2.size;
-      const rel = relative32(absolute, path15).split(sep25).join("/");
+      const rel = relative32(absolute, path15).split(sep26).join("/");
       entries2.push({ path: rel, bytes: entry2.size });
       lines2.push(`${rel}\0${entry2.size}\0${digestOf2(await readFile88(path15))}`);
     }
@@ -84745,7 +84755,7 @@ async function collectTestOutputs(repoRoot, test, runDir) {
       records.push(absent);
       continue;
     }
-    const artifactRelative = `outputs/${output2.path.split(sep25).join("/")}`;
+    const artifactRelative = `outputs/${output2.path.split(sep26).join("/")}`;
     const destination = join159(runDir, ...artifactRelative.split("/"));
     if (entry2.isFile()) {
       const bytes = await readFile88(absolute);
@@ -84992,7 +85002,7 @@ async function resolvedCwd(repoRoot, cwd) {
   try {
     const target = await realpath18(resolve58(repoRoot, cwd));
     const rel = relative33(await realpath18(repoRoot), target);
-    if (rel !== "" && (rel.startsWith("..") || rel.startsWith(sep26))) return void 0;
+    if (rel !== "" && (rel.startsWith("..") || rel.startsWith(sep27))) return void 0;
     return (await lstat68(target)).isDirectory() ? target : void 0;
   } catch {
     return void 0;
@@ -85398,7 +85408,7 @@ import { isAbsolute as isAbsolute45, relative as relative37, resolve as resolve6
 import { createHash as createHash58 } from "node:crypto";
 import { copyFile as copyFile4, lstat as lstat69, mkdir as mkdir60, readdir as readdir30, realpath as realpath19 } from "node:fs/promises";
 import { createReadStream } from "node:fs";
-import { dirname as dirname43, extname, isAbsolute as isAbsolute43, join as join161, relative as relative34, resolve as resolve60, sep as sep27 } from "node:path";
+import { dirname as dirname43, extname, isAbsolute as isAbsolute43, join as join161, relative as relative34, resolve as resolve60, sep as sep28 } from "node:path";
 var MAX_ARTIFACT_FILE_BYTES2 = 64 * 1024 * 1024;
 var MAX_ARTIFACT_RUN_BYTES2 = 256 * 1024 * 1024;
 var MAX_ARTIFACT_FILES_PER_SUITE = 5e3;
@@ -85500,7 +85510,7 @@ async function collectArtifacts(input2) {
       truncated = true;
       continue;
     }
-    const repoRelative3 = relative34(root, source).split(sep27).join("/");
+    const repoRelative3 = relative34(root, source).split(sep28).join("/");
     const indexPath = `artifacts/${input2.suiteId}/${repoRelative3}`;
     if (indexPath.length > MAX_INDEX_PATH) {
       truncated = true;
@@ -85690,7 +85700,7 @@ function parseBenchmarkReport(format, text11) {
 }
 
 // packages/cli/src/test-system/parsers/text.ts
-import { isAbsolute as isAbsolute44, posix as posix8, relative as relative35, resolve as resolve61, sep as sep28 } from "node:path";
+import { isAbsolute as isAbsolute44, posix as posix8, relative as relative35, resolve as resolve61, sep as sep29 } from "node:path";
 var ANSI = /\u001b\[[0-9;?]*[ -/]*[@-~]/g;
 var MAX_FIELD = 6e4;
 var MAX_NAME2 = 3e3;
@@ -85705,7 +85715,7 @@ function cleanName(value, fallback2) {
   return text11 === "" ? fallback2 : clip(text11, MAX_NAME2);
 }
 function toPosix(path15) {
-  return path15.split(sep28).join("/").replace(/\\/g, "/");
+  return path15.split(sep29).join("/").replace(/\\/g, "/");
 }
 function repoPath(ctx, value, base) {
   if (value === "") return value;

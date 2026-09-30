@@ -1,3 +1,4 @@
+import { closeSync, constants, lstatSync, openSync } from 'node:fs'
 import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -124,5 +125,35 @@ describe('fingerprintWorkspace', () => {
       await writeFile(join(root, 'frontend', segment, 'report.xml'), '<testsuite/>\n')
     }
     expect(await fingerprintWorkspace(root)).toBe(first)
+  })
+
+  // 服务端把已注册的项目根按打开的目录句柄读取。Linux 上那是 /proc/self/fd/<n>，叶子是符号链接，lstat 只看到链接本身；
+  // 这条曾让 Linux 上的 Dashboard 把每条测试记录都判成「候选未知」而过期，本机 macOS 却毫无症状——
+  // macOS 上 /dev/fd/<n> 列不出目录内容，锚点根本不产出句柄别名（见 server 的 traversableDirectoryFdPath），所以只在 Linux 上有可验证的别名。
+  test.skipIf(process.platform !== 'linux')('进程内目录句柄别名 /proc/self/fd/<n> 与真实路径得到同一份指纹', async () => {
+    const root = await freshWorkspace()
+    await mkdir(join(root, 'src'), { recursive: true })
+    await writeFile(join(root, 'src', 'app.js'), 'export const answer = 42\n')
+    const real = await fingerprintWorkspace(root)
+
+    const fd = openSync(root, constants.O_RDONLY | constants.O_DIRECTORY)
+    try {
+      const alias = `/proc/self/fd/${fd}`
+      expect(lstatSync(alias).isSymbolicLink(), '别名的叶子是符号链接，这正是曾经的故障点').toBe(true)
+      expect(await fingerprintWorkspace(alias)).toBe(real)
+
+      await writeFile(join(root, 'src', 'app.js'), 'export const answer = 43\n')
+      expect(await fingerprintWorkspace(alias)).toBe(await fingerprintWorkspace(root))
+      expect(await fingerprintWorkspace(alias)).not.toBe(real)
+    } finally {
+      closeSync(fd)
+    }
+  })
+
+  test('指向目录的符号链接不是工作区根：仍然拒绝，只有进程内句柄别名走「/.」遍历', async () => {
+    const root = await freshWorkspace()
+    const link = join(await freshWorkspace(), 'root-link')
+    await symlink(root, link)
+    await expect(fingerprintWorkspace(link)).rejects.toThrow(/workspace root is not a directory/)
   })
 })

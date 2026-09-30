@@ -14,8 +14,10 @@
  * directories, modes, and symlink targets are represented without following symlinks.
  */
 import { createHash } from 'node:crypto'
+import type { Stats } from 'node:fs'
 import { lstat, readdir, readFile, readlink } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
+import { isProcessLocalFdPath } from './process-local-fd-path.js'
 
 export const WORKSPACE_BASELINE_PREFIX = 'workspace:sha256:'
 
@@ -171,12 +173,27 @@ async function fingerprintEntry(
 }
 
 /**
+ * The root's own stat.  A server that pins its project root through an open directory descriptor reads
+ * it as `/proc/self/fd/<n>` (Linux) or `/dev/fd/<n>`.  On Linux the leaf of that path is a symlink, so a
+ * plain `lstat` reports the link instead of the directory and the capture used to fail with "workspace
+ * root is not a directory" — the Dashboard then read every test record as bound to an unknown candidate.
+ * A trailing `/.` traverses such an alias to the opened directory (path.join would normalize it away).
+ * Only a process-local descriptor alias gets this; a real symlinked root is still refused, and children
+ * are joined under the alias unchanged, so the value equals the one taken through the real path.
+ */
+async function statRoot(root: string): Promise<Stats> {
+  const direct = await lstat(root)
+  if (!direct.isSymbolicLink() || !isProcessLocalFdPath(root)) return direct
+  return lstat(`${root}${sep}.`)
+}
+
+/**
  * Produce a content-addressed target for a project root.  The caller supplies only the root;
  * transient workflow material is excluded by policy above, so the same implementation tree
  * yields the same value before and after its verification evidence is written.
  */
 export async function fingerprintWorkspace(root: string): Promise<string> {
-  const rootStat = await lstat(root)
+  const rootStat = await statRoot(root)
   if (!rootStat.isDirectory()) throw new Error(`workspace root is not a directory: ${root}`)
 
   const hash = createHash('sha256')
