@@ -582,6 +582,13 @@ for kind in confirm review interaction; do
   [ -n "$m" ] || continue
   case "$kind" in confirm) ttl=300 ;; *) ttl=1800 ;; esac
   if fresh "$m" "$ttl"; then
+    # 交互 / 确认 marker 约束的是「主线先问用户、再产出」。子代理（Claude Code 在子代理里触发的 hook 输入带
+    # agent_id，宿主生成、主线伪造不了）没有提问工具，被它挡住只会停工——真机验收 F4：后台执行者连写自己的
+    # 报告都被拦，主线只能等用户回复后替它补写。所以这两类 marker 不拦子代理的调用，也不清 marker；
+    # 复核 marker（transition 之前的人工确认）不在此列，子代理照样被拦。
+    if [ "$kind" != "review" ] && [ -n "$(json_get agent_id || true)" ]; then
+      continue
+    fi
     if [ "$kind" = "review" ]; then
       review_marker_relevant_to_active_change "$m" || continue
       # 观测已在 AFK 放行前按 canonical receipt 记录；这里只保留 HITL 下的拦截体验。
