@@ -32,6 +32,8 @@
 | `.claude-plugin/`、`.claude/`、`.codex/`、`.agents/` | 插件 manifest 与本仓 agent/hook 配置 | 区分可分发配置和本机 `*.local.*`/worktree 状态；不得提交或传播本机秘密与缓存 |
 | `.github/` | CI workflow 与仓库 hook 配置 | CI 是 canonical verify；命令应复用根 scripts，新增外部 secret/权限/发布行为前确认 |
 | `tools/` | 构建、codegen、oracle、sandcastle、hook/adapter/skill/bundle 验收 | 不得成为生产领域逻辑唯一实现；脚本须 fail-closed、跨平台或明确运行平台 |
+| `e2e/` | Dashboard 浏览器 e2e（Playwright，chromium + webkit）及其种子项目 / 被测服务脚本（`e2e/dashboard/`） | 只经 `npm run test:e2e` 或目录套件 `dashboard-e2e` 运行，vitest 不收录；种子与被测服务全部在隔离 HOME / TENON_RUNTIME_HOME 里，不得触碰真实 Tenon 状态；报告只写 `test-results/`、`playwright-report/` |
+| `.tenon/tests/` | 本仓自己的测试目录 `catalog.yaml`（已跟踪、人可编辑）与基线 | 改套件后运行 `node packages/cli/dist/tenon.mjs test catalog validate`；基线只经 `tenon test baseline` 写，且只提交 CI 机器画像的基线 |
 | `docs/` | contract、测试现实、发布、计划、研究、UX 与迭代证据 | `docs/CONTRACT.md`、`TEST-REALITY.md`、`DIST-RELEASE.md` 属高优先维护文档；行为变化需同步 |
 | `README.md`、`GOAL.md`、`BACKLOG.md`、`LOOP.md` | 使用入口、终态/验收、队列与迭代协议 | 不得提前勾选、伪报收官或让命令/已知缺口与实现漂移 |
 | `design-demos/`、`design-qa.md` | dashboard 设计原型、规格、截图与 QA 证据 | 原型不是生产源码；吸收方案时在 dashboard 重实现并验证，`shots/` 只存无敏感信息的证据 |
@@ -95,9 +97,11 @@
 | 静态/生成物门禁 | `npm run check:comments`；`npm run check:default-workflow-freshness` |
 | 分发与兼容验收 | `bash tools/test-hooks.sh`；`bash tools/test-adapters.sh`；`bash tools/verify-skills.sh`；`bash tools/test-bundle.sh`；`npm run oracle` |
 | 浏览器/API smoke | `npm run build:web && npm run build:server` 后按 README 启动 `npx tenon-dashboard`，检查受影响真实流程 |
+| Dashboard 浏览器 e2e | `npm run build` 之后 `npm run test:e2e -- --project=chromium`（webkit 需 `npx playwright install webkit`）；CI 阻塞 Chromium，WebKit 为参考步骤 |
+| 基准 | `npm run bench:status`、`npm run bench:snapshot`；判定与基线走 `tenon test run <change> --suite bench-status --suite bench-snapshot` |
 | Docker/真实 agent | `bash tools/sandcastle/build.sh local`；需要凭证时按 `BACKEND.md` 的 real-Codex 命令运行 |
 
-仓库当前没有独立 lint、format 或通用 E2E npm script；不得编造命令或声称已执行。格式与静态正确性依靠 TypeScript 构建、现有门禁和相邻代码风格；新增工具必须属于当前任务授权范围，并同步根 scripts、CI 和本节。
+仓库当前没有独立 lint、format npm script，浏览器 e2e 只有上面 Dashboard 那一套（`npm run test:e2e`）；不得编造命令或声称已执行。格式与静态正确性依靠 TypeScript 构建、现有门禁和相邻代码风格；新增工具必须属于当前任务授权范围，并同步根 scripts、CI 和本节。
 
 风险分层：
 
