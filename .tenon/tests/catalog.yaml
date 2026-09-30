@@ -2,6 +2,10 @@
 # 报告、覆盖率与产物只写 test-results/、playwright-report/、coverage/（目录校验强制；这样跑测试不会让候选版本失效）。
 # 种类：unit / integration / regression / smoke / typecheck / lint / playwright / benchmark 计入默认策略；
 # custom 与带 slow 标签的套件不在默认 verify 里，需要时用 --suite 点名运行。
+# 单测套件的命令以 env -u 去掉 TENON_USER / TENON_RUNTIME_HOME 与 tenon test run 注入的 TENON_BASE_BRANCH / TENON_CHANGE_NAME：
+# 测试自己的隔离脚本只在这些变量缺席时才给临时身份与临时运行时根；宿主里声明了它们（比如在 Tenon 会话里跑）会让身份与 base 断言失败，
+# 还会把测试写进真实的运行时根。
+# oracle-unit 用 --pool=threads：harness 用例长时间同步等子进程，默认的 forks 池会在 vitest 与 worker 的 RPC 上超时（用例全过、进程退出码却是 1）。
 schema: tenon-test-catalog/v1
 profiles_env:
   - CI
@@ -11,7 +15,7 @@ suites:
     label: 单测 · packages
     kind: unit
     runner: vitest
-    command: npm test -- --reporter=default --reporter=json --outputFile.json=test-results/vitest.json
+    command: env -u TENON_USER -u TENON_USER_NAME -u TENON_RUNTIME_HOME -u TENON_RUNTIME_ROOTS -u TENON_BASE_BRANCH -u TENON_CHANGE_NAME npm test -- --reporter=default --reporter=json --outputFile.json=test-results/vitest.json
     timeout_s: 3600
     files:
       - packages/*/src/**/*.test.ts
@@ -19,8 +23,8 @@ suites:
       - packages/*/src/**
       - templates/**
     select:
-      files: "npx vitest run {files} --reporter=default --reporter=json --outputFile.json=test-results/vitest.json"
-      grep: "npx vitest run -t {pattern} --reporter=default --reporter=json --outputFile.json=test-results/vitest.json"
+      files: "env -u TENON_USER -u TENON_USER_NAME -u TENON_RUNTIME_HOME -u TENON_RUNTIME_ROOTS -u TENON_BASE_BRANCH -u TENON_CHANGE_NAME npx vitest run {files} --reporter=default --reporter=json --outputFile.json=test-results/vitest.json"
+      grep: "env -u TENON_USER -u TENON_USER_NAME -u TENON_RUNTIME_HOME -u TENON_RUNTIME_ROOTS -u TENON_BASE_BRANCH -u TENON_CHANGE_NAME npx vitest run -t {pattern} --reporter=default --reporter=json --outputFile.json=test-results/vitest.json"
     report:
       format: vitest-json
       path: test-results/vitest.json
@@ -32,21 +36,20 @@ suites:
     label: 单测 · dashboard-app
     kind: unit
     runner: vitest
-    command: npx vitest run --reporter=default --reporter=json --outputFile.json=test-results/vitest.json
-    cwd: packages/dashboard-app
+    command: env -u TENON_USER -u TENON_USER_NAME -u TENON_RUNTIME_HOME -u TENON_RUNTIME_ROOTS -u TENON_BASE_BRANCH -u TENON_CHANGE_NAME npx vitest run --config packages/dashboard-app/vitest.config.ts --reporter=default --reporter=json --outputFile.json=test-results/vitest.json
     timeout_s: 1800
     files:
-      - src/**/*.test.tsx
+      - packages/dashboard-app/src/**/*.test.tsx
     covers:
-      - src/**
+      - packages/dashboard-app/src/**
     select:
-      files: "npx vitest run {files} --reporter=default --reporter=json --outputFile.json=test-results/vitest.json"
-      grep: "npx vitest run -t {pattern} --reporter=default --reporter=json --outputFile.json=test-results/vitest.json"
+      files: "env -u TENON_USER -u TENON_USER_NAME -u TENON_RUNTIME_HOME -u TENON_RUNTIME_ROOTS -u TENON_BASE_BRANCH -u TENON_CHANGE_NAME npx vitest run --config packages/dashboard-app/vitest.config.ts {files} --reporter=default --reporter=json --outputFile.json=test-results/vitest.json"
+      grep: "env -u TENON_USER -u TENON_USER_NAME -u TENON_RUNTIME_HOME -u TENON_RUNTIME_ROOTS -u TENON_BASE_BRANCH -u TENON_CHANGE_NAME npx vitest run --config packages/dashboard-app/vitest.config.ts -t {pattern} --reporter=default --reporter=json --outputFile.json=test-results/vitest.json"
     report:
       format: vitest-json
-      path: test-results/vitest.json
+      path: packages/dashboard-app/test-results/vitest.json
     artifacts:
-      - test-results/vitest.json
+      - packages/dashboard-app/test-results/vitest.json
     tags:
       - vitest
       - web
@@ -54,7 +57,7 @@ suites:
     label: 单测 · tools 脚本
     kind: unit
     runner: node-test
-    command: node --test --test-reporter=junit --test-reporter-destination=test-results/tools-node.xml tools/*.node-test.mjs tools/bench/*.node-test.mjs
+    command: env -u TENON_USER -u TENON_USER_NAME -u TENON_RUNTIME_HOME -u TENON_RUNTIME_ROOTS -u TENON_BASE_BRANCH -u TENON_CHANGE_NAME node --test --test-reporter=junit --test-reporter-destination=test-results/tools-node.xml $(ls tools/*.node-test.mjs tools/bench/*.node-test.mjs | grep -v -e build-npx-package -e install-bootstrap -e clean-codex-install-acceptance -e spec-migration-cas -e reconcile-spec-application)
     timeout_s: 1800
     files:
       - tools/*.node-test.mjs
@@ -146,6 +149,28 @@ suites:
       - test-results/migration-cas.xml
     tags:
       - node-test
+  - id: npx-package
+    label: npx 引导与干净安装脚本
+    kind: custom
+    runner: node-test
+    command: node --test --test-reporter=junit --test-reporter-destination=test-results/npx-package.xml tools/build-npx-package.node-test.mjs tools/install-bootstrap.node-test.mjs tools/clean-codex-install-acceptance.node-test.mjs
+    timeout_s: 1800
+    files:
+      - tools/build-npx-package.node-test.mjs
+      - tools/install-bootstrap.node-test.mjs
+      - tools/clean-codex-install-acceptance.node-test.mjs
+    covers:
+      - tools/build-npx-package.mjs
+      - tools/install-bootstrap*
+      - tools/clean-codex-install-acceptance.mjs
+    report:
+      format: junit
+      path: test-results/npx-package.xml
+    artifacts:
+      - test-results/npx-package.xml
+    tags:
+      - node-test
+      - slow
   - id: bundle
     label: CLI 与 dashboard bundle 冒烟
     kind: smoke
@@ -170,7 +195,7 @@ suites:
     label: golden oracle harness 契约
     kind: unit
     runner: vitest
-    command: npx vitest run --reporter=default --reporter=json --outputFile.json=test-results/vitest.json
+    command: env -u TENON_USER -u TENON_USER_NAME -u TENON_RUNTIME_HOME -u TENON_RUNTIME_ROOTS -u TENON_BASE_BRANCH -u TENON_CHANGE_NAME npx vitest run --pool=threads --reporter=default --reporter=json --outputFile.json=test-results/vitest.json
     cwd: tools/oracle
     timeout_s: 1800
     files:
@@ -178,8 +203,8 @@ suites:
     covers:
       - tools/oracle/**
     select:
-      files: "npx vitest run {files} --reporter=default --reporter=json --outputFile.json=test-results/vitest.json"
-      grep: "npx vitest run -t {pattern} --reporter=default --reporter=json --outputFile.json=test-results/vitest.json"
+      files: "env -u TENON_USER -u TENON_USER_NAME -u TENON_RUNTIME_HOME -u TENON_RUNTIME_ROOTS -u TENON_BASE_BRANCH -u TENON_CHANGE_NAME npx vitest run --pool=threads {files} --reporter=default --reporter=json --outputFile.json=test-results/vitest.json"
+      grep: "env -u TENON_USER -u TENON_USER_NAME -u TENON_RUNTIME_HOME -u TENON_RUNTIME_ROOTS -u TENON_BASE_BRANCH -u TENON_CHANGE_NAME npx vitest run --pool=threads -t {pattern} --reporter=default --reporter=json --outputFile.json=test-results/vitest.json"
     report:
       format: vitest-json
       path: test-results/vitest.json
