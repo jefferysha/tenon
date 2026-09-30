@@ -53,3 +53,50 @@ export function blockerLines(blocker: TransitionReadinessBlockerSnapshot): Block
   if (blocker.kind === 'step-exit') return [{ text: blocker.message, label: stepExitLabel(blocker.code, blocker.message, blocker.items) }]
   return [{ text: formatReadinessBlocker(blocker), label: null }]
 }
+
+/** 「下一步」里的一行：`label` 是短标签，`title` 是它背后完整的 CLI 文案。 */
+export interface BlockerRow {
+  label: string
+  title: string
+}
+
+type Translate = (key: string, vars?: Record<string, string | number>) => string
+
+interface Draft {
+  key: string | null
+  vars: Record<string, string | number>
+  names: string[]
+  texts: string[]
+  single: string
+}
+
+/**
+ * 同类阻断合并成一行：同一个短标签模板（如「缺少文档 {name}」）且带 `name` 的多条，合成一行
+ * 「缺少文档 proposal · openspec-design · tasks」，完整文案逐条进 title；合并行落在该类第一条的位置，
+ * 其余（认不出的、没有 name 的）保持原顺序。
+ */
+export function mergeBlockerRows(lines: readonly BlockerLine[], t: Translate): BlockerRow[] {
+  const drafts: Draft[] = []
+  const byKey = new Map<string, Draft>()
+  for (const line of lines) {
+    const label = line.label
+    if (label === null) {
+      drafts.push({ key: null, vars: {}, names: [], texts: [line.text], single: line.text })
+      continue
+    }
+    const name = label.vars.name
+    const existing = typeof name === 'string' ? byKey.get(label.key) : undefined
+    if (typeof name === 'string' && existing !== undefined) {
+      existing.names.push(name)
+      existing.texts.push(line.text)
+      continue
+    }
+    const draft: Draft = { key: label.key, vars: label.vars, names: typeof name === 'string' ? [name] : [], texts: [line.text], single: t(label.key, label.vars) }
+    if (typeof name === 'string') byKey.set(label.key, draft)
+    drafts.push(draft)
+  }
+  return drafts.map((draft) => ({
+    label: draft.key !== null && draft.names.length > 1 ? t(draft.key, { ...draft.vars, name: draft.names.join(' · ') }) : draft.single,
+    title: draft.texts.join('\n'),
+  }))
+}

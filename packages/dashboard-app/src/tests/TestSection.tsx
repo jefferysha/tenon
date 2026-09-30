@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import { CountRoll } from '../shared/CountRoll'
 import { COUNT_BADGE } from './testStyles'
 
 /** 一段：标题一行（标题 · 计数徽标 · 行尾动作），内容满宽。段头永不换行。 */
@@ -14,7 +15,7 @@ export function TestSection({ title, count, action, testId, children }: {
     <section className="grid grid-cols-[minmax(0,1fr)] gap-2" data-testid={testId}>
       <div className="flex min-w-0 items-center gap-2 whitespace-nowrap">
         <h3 className="whitespace-nowrap text-title font-semibold text-text">{title}</h3>
-        {count !== undefined && <span className={COUNT_BADGE}>{count}</span>}
+        {count !== undefined && <span className={COUNT_BADGE}><CountRoll value={count} /></span>}
         {action !== undefined && <span className="ml-auto flex flex-none items-center gap-2">{action}</span>}
       </div>
       {children}

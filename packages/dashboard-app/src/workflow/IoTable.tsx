@@ -15,7 +15,8 @@ export interface IoRow {
 
 /**
  * 等分三列表（输入 / 输出同构，纵向对齐）：文件 · 来源阶段 · 来源技能。不列读取阶段。表头常显，
- * 空格子显示「—」；等宽字只用于文件名。
+ * 空格子显示「—」；等宽字只用于文件名（500 字重，不抢表头）。与上一行相同的来源阶段 / 来源技能降为 text-3，
+ * 读表时眼睛落在变化处，不用把「立项 / openspec-propose」连读三遍。
  * 给了 onRemove 时每行末尾多一条 40px 的列放「×」，悬停或聚焦该行时才显出（字段槽位由 YAML 决定，不给 ×）。
  */
 export function IoTable({ direction, rows, empty, onRemove }: {
@@ -36,14 +37,18 @@ export function IoTable({ direction, rows, empty, onRemove }: {
       </div>
       {rows.length === 0 ? (
         <div className="py-3 text-body text-text-3" role="status">{empty}</div>
-      ) : rows.map(({ slot, stage, skills, path }) => (
+      ) : rows.map(({ slot, stage, skills, path }, index) => {
+        const before = rows[index - 1]
+        const sameStage = before !== undefined && stage !== undefined && before.stage === stage
+        const sameSkills = before !== undefined && skills.length > 0 && before.skills.join(', ') === skills.join(', ')
+        return (
         <div key={`${slot.kind}:${slot.id}`} className={cn('group grid min-h-10 items-center gap-4 whitespace-nowrap border-b border-border py-1 text-body', cols)} role="row" title={slot.kind === 'document' && slot.field !== undefined ? `${path} · ${slot.field}` : path} data-testid={`slot-${slot.kind}-${slot.id}`}>
-          <span className="flex min-w-0 items-center gap-2 font-mono font-semibold text-text" role="cell">
+          <span className="flex min-w-0 items-center gap-2 font-mono font-medium text-text" role="cell">
             <FileText className="size-4 flex-none text-text-3" aria-hidden="true" />
             <span className="truncate">{slot.id}</span>
           </span>
-          <span className={cn('truncate', stage === undefined ? 'text-text-3' : 'text-text')} role="cell" data-testid={`slot-stage-${slot.id}`}>{stage ?? '—'}</span>
-          <span className={cn('truncate', skills.length === 0 ? 'text-text-3' : 'text-text-2')} role="cell" data-testid={`slot-skills-${slot.id}`}>{skills.length === 0 ? '—' : skills.join(', ')}</span>
+          <span className={cn('truncate', stage === undefined || sameStage ? 'text-text-3' : 'text-text')} role="cell" data-repeat={sameStage || undefined} data-testid={`slot-stage-${slot.id}`}>{stage ?? '—'}</span>
+          <span className={cn('truncate', skills.length === 0 || sameSkills ? 'text-text-3' : 'text-text-2')} role="cell" data-repeat={sameSkills || undefined} data-testid={`slot-skills-${slot.id}`}>{skills.length === 0 ? '—' : skills.join(', ')}</span>
           {onRemove !== undefined && (
             <span className="grid justify-end" role="cell">
               {slot.kind === 'document' && (
@@ -60,7 +65,8 @@ export function IoTable({ direction, rows, empty, onRemove }: {
             </span>
           )}
         </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

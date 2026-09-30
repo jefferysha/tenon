@@ -5,6 +5,7 @@ import { chooseFolder, listFolders } from '../api/fsClient'
 import { instructionErrorKey } from '../api/instructionErrorKey'
 import { BUTTON_GHOST, BUTTON_ICON, INPUT } from '../shared/uiRecipes'
 import { FolderBrowser } from './FolderBrowser'
+import { Hinted } from './projectBits'
 
 export interface FolderFieldProps {
   value: string
@@ -101,7 +102,7 @@ export function FolderField({ value, onChange, prompt, testId }: FolderFieldProp
 
   const spinner = <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
   return (
-    <div className="grid gap-1.5">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5">
       {typing ? (
         <input
           className={`${INPUT} font-mono`}
@@ -144,17 +145,19 @@ export function FolderField({ value, onChange, prompt, testId }: FolderFieldProp
               </button>
             </>
           )}
-          <button
-            type="button"
-            className={BUTTON_ICON}
-            aria-label={t('projects.type_path')}
-            title={t('projects.type_path')}
-            disabled={picking}
-            data-testid={`${testId}-type`}
-            onClick={() => { setErrorKey(null); setTyping(true) }}
-          >
-            <TextCursorInput className="size-4" aria-hidden="true" />
-          </button>
+          {/* 图标钮没有文字：名称进 Tooltip（键盘聚焦也出），同时是 aria-label。 */}
+          <Hinted hint={t('projects.type_path')} asChild>
+            <button
+              type="button"
+              className={BUTTON_ICON}
+              aria-label={t('projects.type_path')}
+              disabled={picking}
+              data-testid={`${testId}-type`}
+              onClick={() => { setErrorKey(null); setTyping(true) }}
+            >
+              <TextCursorInput className="size-4" aria-hidden="true" />
+            </button>
+          </Hinted>
         </div>
       )}
       {errorKey !== null && <p className="text-caption text-red-d" role="alert" data-testid={`${testId}-error`}>{t(`projects.errors.${errorKey}`)}</p>}

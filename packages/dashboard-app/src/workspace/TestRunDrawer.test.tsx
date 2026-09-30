@@ -91,6 +91,39 @@ describe('TestRunDrawer', () => {
     expect(screen.getByTestId('test-run-image').getAttribute('src') ?? '').toContain('path=outputs%2Ftest-results%2Fshots%2Fhome.png')
   })
 
+  it('标题里的状态是「点 + 词」，不是药丸：无底色、无描边、圆点之外没有 rounded-full', async () => {
+    stubFetch()
+    render(<I18nProvider><TestRunDrawer root="/repo" change="demo" row={ROW} onClose={() => undefined} /></I18nProvider>)
+    const header = await screen.findByTestId('test-run-drawer')
+    const status = header.querySelector('[data-tone]')
+    if (!(status instanceof HTMLElement)) throw new Error('missing status')
+    expect(status).toHaveAttribute('data-tone', 'done')
+    expect(status).toHaveTextContent('通过')
+    const classes = status.className.split(/\s+/u)
+    expect(classes).not.toContain('rounded-full')
+    expect(classes).not.toContain('border')
+    expect(classes.some((name) => name.startsWith('bg-') || name.startsWith('px-'))).toBe(false)
+    expect(status.querySelector('i')?.className).toContain('rounded-full')
+    expect(status.querySelector('i')?.className).toContain('size-1.5')
+  })
+
+  it('失败用红点 + 词；未运行用中性点 + 词', async () => {
+    stubFetch()
+    const { unmount } = render(<I18nProvider><TestRunDrawer root="/repo" change="demo" row={{ ...ROW, status: 'failed' }} onClose={() => undefined} /></I18nProvider>)
+    expect((await screen.findByTestId('test-run-drawer')).querySelector('[data-tone]')).toHaveAttribute('data-tone', 'blocked')
+    unmount()
+    render(<I18nProvider><TestRunDrawer root="/repo" change="demo" row={{ ...ROW, status: 'missing' }} onClose={() => undefined} /></I18nProvider>)
+    expect((await screen.findByTestId('test-run-drawer')).querySelector('[data-tone]')).toHaveAttribute('data-tone', 'neutral')
+  })
+
+  it('历史行是比例字的等宽数字（时间 · 执行人 · 结果 · 耗时不是 id / 路径 / 命令 / 哈希，不用等宽字体）', async () => {
+    stubFetch()
+    render(<I18nProvider><TestRunDrawer root="/repo" change="demo" row={ROW} onClose={() => undefined} /></I18nProvider>)
+    const entry = await screen.findByTestId('test-run-history-20260915T101530Z-ab12cd')
+    expect(entry.className).toContain('tabular-nums')
+    expect(entry.className).not.toContain('font-mono')
+  })
+
   it('没有运行时不拉记录，历史为空占位', async () => {
     stubFetch()
     const row: TestRow = { id: 'bench', name: 'bench', direction: 'benchmark', required: false, status: 'missing' }

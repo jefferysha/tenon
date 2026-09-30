@@ -59,7 +59,7 @@ export function DocumentDrawer({ root, files, index, onIndex, onClose }: Documen
       actions={(
         <span className="flex flex-none items-center gap-1">
           <button type="button" className={NAV} aria-label={t('workspace.drawer_prev')} data-testid="document-drawer-prev" disabled={index <= 0} onClick={() => onIndex(index - 1)}><ChevronLeft className="size-4" aria-hidden="true" /></button>
-          <span className="font-mono text-caption text-text-3">{index + 1}/{files.length}</span>
+          <span className="text-caption tabular-nums text-text-3">{index + 1}/{files.length}</span>
           <button type="button" className={NAV} aria-label={t('workspace.drawer_next')} data-testid="document-drawer-next" disabled={index >= files.length - 1} onClick={() => onIndex(index + 1)}><ChevronRight className="size-4" aria-hidden="true" /></button>
         </span>
       )}

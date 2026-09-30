@@ -53,7 +53,7 @@ export function TopBarSettings({ lang, onLang, theme, onTheme, barRef }: {
         <button
           ref={triggerRef}
           type="button"
-          className="grid size-10 place-items-center rounded-sm border border-border bg-card text-text-2 outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent)"
+          className="grid size-10 place-items-center rounded-sm text-text-2 outline-none transition-colors duration-(--dur-fast) ease-(--ease-out) hover:bg-fill hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent) data-[state=open]:bg-fill motion-reduce:transition-none"
           aria-label={t('common.settings')}
           data-testid="nav-settings"
         >

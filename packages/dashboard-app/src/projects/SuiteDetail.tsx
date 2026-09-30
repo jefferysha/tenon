@@ -43,7 +43,7 @@ export function SuiteDetail({ root, suite, services, knownFailures, workflow }: 
         <div className="min-w-0" role="table" aria-label={suite.id}>
           <div className="py-1"><CommandLine command={suite.command} testId="proj-suite-command" truncate /></div>
           <DefRow label={t('tests.project.detail.cwd')} testId="proj-suite-cwd"><span title={suite.cwd}>{suite.cwd}</span></DefRow>
-          <DefRow label={t('tests.project.detail.timeout')} testId="proj-suite-timeout">{suite.timeoutS}s</DefRow>
+          <DefRow label={t('tests.project.detail.timeout')} testId="proj-suite-timeout" mono={false}>{suite.timeoutS}s</DefRow>
           <DefRow label={t('tests.project.detail.report')} testId="proj-suite-report">
             <span title={suite.report.path}>{suite.report.path === undefined ? suite.report.format : `${suite.report.format} · ${suite.report.path}`}</span>
           </DefRow>
@@ -64,7 +64,7 @@ export function SuiteDetail({ root, suite, services, knownFailures, workflow }: 
             </DefRow>
           )}
           {suite.browsers.length > 0 && <DefRow label={t('tests.project.detail.browsers')} testId="proj-suite-browsers">{suite.browsers.join(' · ')}</DefRow>}
-          {suite.retries > 0 && <DefRow label={t('tests.project.detail.retries')} testId="proj-suite-retries">{suite.retries}</DefRow>}
+          {suite.retries > 0 && <DefRow label={t('tests.project.detail.retries')} testId="proj-suite-retries" mono={false}>{suite.retries}</DefRow>}
           {suite.tags.length > 0 && <DefRow label={t('tests.project.detail.tags')} testId="proj-suite-tags">{suite.tags.join(' · ')}</DefRow>}
           <DefRow label={t('tests.project.detail.thresholds')} testId="proj-suite-thresholds">
             {thresholds === null

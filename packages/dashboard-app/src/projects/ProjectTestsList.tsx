@@ -11,6 +11,8 @@ import { cn } from '@/lib/utils'
 
 /** 工具列固定宽：放得下 playwright / vitest-bench，不再被挤成 vit…。 */
 const COLUMNS = 'grid-cols-[minmax(0,1fr)_5.5rem_4.5rem_3.5rem]'
+/** 没有「不稳定」列时的三列。 */
+const COLUMNS_QUIET = 'grid-cols-[minmax(0,1fr)_5.5rem_4.5rem]'
 export const DISCOVER_COMMAND = 'tenon test discover --write'
 
 function DiscoverEmpty(): JSX.Element {
@@ -29,13 +31,16 @@ function Rows({ suites, latest, selectedId, onSelect }: {
   onSelect: (id: string) => void
 }): JSX.Element {
   const { t } = useT()
+  // 「不稳定」列只在有非零数据时出现：整列都是 0 / — 只是噪音。
+  const showFlaky = latest.some((run) => run.totals.flaky > 0)
+  const columns = showFlaky ? COLUMNS : COLUMNS_QUIET
   return (
     <div role="table" aria-label={t('tests.word.suite')} data-testid="proj-tests-table">
-      <div className={cn(gridRow(COLUMNS), TABLE_HEAD)} role="row" data-testid="proj-tests-head">
+      <div className={cn(gridRow(columns), TABLE_HEAD)} role="row" data-testid="proj-tests-head">
         <span role="columnheader">{t('tests.project.col.name')}</span>
         <span role="columnheader">{t('tests.word.runner')}</span>
         <span role="columnheader">{t('tests.project.col.result')}</span>
-        <span role="columnheader">{t('tests.word.flaky')}</span>
+        {showFlaky && <span role="columnheader">{t('tests.word.flaky')}</span>}
       </div>
       {suites.map((suite) => {
         const run = latest.find((item) => item.suite === suite.id)
@@ -43,7 +48,7 @@ function Rows({ suites, latest, selectedId, onSelect }: {
         return (
           <div
             key={suite.id}
-            className={cn(gridRow(COLUMNS), TABLE_ROW, 'cursor-pointer hover:bg-fill', selected && LIST_SELECTED)}
+            className={cn(gridRow(columns), TABLE_ROW, 'cursor-pointer hover:bg-fill', selected && LIST_SELECTED)}
             role="row"
             aria-current={selected ? 'true' : undefined}
             data-testid={`proj-suite-${suite.id}`}
@@ -65,9 +70,11 @@ function Rows({ suites, latest, selectedId, onSelect }: {
             <span role="cell" data-testid={`proj-suite-result-${suite.id}`}>
               {run === undefined ? <span className="text-text-3">—</span> : <ResultMark result={run.result} />}
             </span>
-            <span className="font-mono text-caption text-text-2" role="cell" data-testid={`proj-suite-flaky-${suite.id}`}>
-              {run === undefined ? '—' : run.totals.flaky}
-            </span>
+            {showFlaky && (
+              <span className={cn('text-caption tabular-nums', run !== undefined && run.totals.flaky > 0 ? 'text-text' : 'text-text-3')} role="cell" data-testid={`proj-suite-flaky-${suite.id}`}>
+                {run === undefined ? '—' : run.totals.flaky}
+              </span>
+            )}
           </div>
         )
       })}
@@ -75,7 +82,7 @@ function Rows({ suites, latest, selectedId, onSelect }: {
   )
 }
 
-/** 项目页「测试」的中列：套件表（图标 + 名称 · 工具 · 最近结果 · 不稳定数）；没有目录时只给可复制的发现命令。 */
+/** 项目页「测试」的中列：套件表（图标 + 名称 · 工具 · 最近结果 · 不稳定数，后者全 0 时整列隐藏）；没有目录时只给可复制的发现命令。 */
 export function ProjectTestsList({ catalog, selectedId, onSelect, onRetry }: {
   catalog: Remote<TestCatalogResponse>
   selectedId: string | null

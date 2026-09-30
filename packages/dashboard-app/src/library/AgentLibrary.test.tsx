@@ -72,7 +72,7 @@ async function openAgents(root = ''): Promise<void> {
 }
 
 describe('智能体库（只展示与编辑正文）', () => {
-  it('没有新建入口；按文件声明的身份分段；行尾是来源与版本（纯文字，不换行）', async () => {
+  it('没有新建入口；按文件声明的身份分段；行尾来源与版本只给自定义 / 项目来源（纯文字，不换行）', async () => {
     stubFetch([], { rows: [BUILTIN, CUSTOM, MAKER] })
     await openAgents()
     expect(screen.queryByTestId('lib-agent-new')).toBeNull()
@@ -82,13 +82,31 @@ describe('智能体库（只展示与编辑正文）', () => {
     expect(executors.querySelector('[data-testid="lib-agent-custom-maker"]')).not.toBeNull()
     expect(reviewers.querySelector('[data-testid="lib-agent-builtin-security"]')).not.toBeNull()
     expect(reviewers.querySelector('[data-testid="lib-agent-custom-mine"]')).not.toBeNull()
-    expect(screen.getByTestId('lib-agent-source-builtin-security')).toHaveTextContent('官方')
+    // 官方是常态：行尾不写「官方 1.0.0」。
+    expect(screen.queryByTestId('lib-agent-source-builtin-security')).toBeNull()
+    expect(screen.queryByTestId('lib-agent-version-security')).toBeNull()
+    expect(screen.getByTestId('lib-agent-builtin-security')).not.toHaveTextContent('官方')
     expect(screen.getByTestId('lib-agent-source-custom-mine')).toHaveTextContent('自定义')
-    expect(screen.getByTestId('lib-agent-version-security')).toHaveTextContent('1.0.0')
     // 行尾是纯文字：不换行、不是方框芯片。
-    const meta = screen.getByTestId('lib-agent-source-builtin-security').parentElement
-    expect(meta?.className).toContain('whitespace-nowrap')
-    expect(screen.getByTestId('lib-agent-source-builtin-security').className.split(/\s+/u).filter((name) => /^(?:border|round)/u.test(name))).toEqual([])
+    const source = screen.getByTestId('lib-agent-source-custom-mine')
+    expect(source.parentElement?.className).toContain('whitespace-nowrap')
+    expect(source.className.split(/\s+/u).filter((name) => /^(?:border|round)/u.test(name))).toEqual([])
+  })
+
+  it('自定义与项目来源的行才带版本；版本是比例字的等宽数字，不是等宽字体', async () => {
+    stubFetch([], { rows: [BUILTIN, CUSTOM] })
+    await openAgents()
+    const version = screen.getByTestId('lib-agent-version-mine')
+    expect(version).toHaveTextContent('0.1.0')
+    expect(version.className).toContain('tabular-nums')
+    expect(version.className).not.toContain('font-mono')
+    expect(screen.queryByTestId('lib-agent-version-security')).toBeNull()
+  })
+
+  it('官方条目被项目级同名覆盖时保留划线的来源词，那是「被覆盖」的记号', async () => {
+    stubFetch([], { rows: [{ ...BUILTIN, shadowed_by: 'project' }, TEAM] })
+    await openAgents('/work/app')
+    expect(screen.getByTestId('lib-agent-source-builtin-security').className).toContain('line-through')
   })
 
   it('选中项目时带 root 读项目层；项目级与自定义同名时自定义置灰，详情是项目级', async () => {

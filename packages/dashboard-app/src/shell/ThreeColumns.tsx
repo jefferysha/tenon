@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { useT } from '../i18n'
 import { cn } from '@/lib/utils'
 import { LIST_SELECTED_ARIA } from '../shared/uiRecipes'
+import { CountRoll } from '../shared/CountRoll'
 
 export { FilterChip, FilterChipGroup } from '../shared/FilterChip'
 
@@ -104,7 +105,7 @@ export function RailColumn({
         {/* ≤1360px 左列必然折叠，钮无作用即隐藏；≤900px 堆叠后恢复。 */}
         <button
           type="button"
-          className="grid size-10 place-items-center rounded-sm border border-border bg-card text-text-2 outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent) max-[1360px]:hidden max-[900px]:grid"
+          className="grid size-10 place-items-center rounded-sm text-text-3 outline-none hover:bg-fill hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent) max-[1360px]:hidden max-[900px]:grid"
           aria-label={collapsed ? t('shell.rail_expand') : t('shell.rail_collapse')}
           aria-expanded={!collapsed}
           data-testid={`${testId}-toggle`}
@@ -191,16 +192,18 @@ export function RailCard({
             </span>
             {meta !== undefined && (
               <span
-                className={cn('block truncate text-caption max-[900px]:hidden', metaMono && 'font-mono', danger ? 'text-red-d' : 'text-text-2')}
+                // 副行是路径时从头部省略（末段是区分项目的部分）：rtl 令省略号落在左侧，bdi 保持内容自身从左到右。
+                className={cn('block truncate text-caption max-[900px]:hidden', metaMono && 'text-left font-mono [direction:rtl]', danger ? 'text-red-d' : 'text-text-2')}
                 title={metaTitle}
                 data-testid={`${testId}-meta`}
+                data-truncate={metaMono ? 'start' : undefined}
               >
-                {meta}
+                {metaMono ? <bdi dir="ltr">{meta}</bdi> : meta}
               </span>
             )}
           </span>
           {count !== undefined && (
-            <span className="text-caption tabular-nums text-text-3 max-[1360px]:hidden">{count}</span>
+            <CountRoll value={count} className="text-caption tabular-nums text-text-3 max-[1360px]:hidden" />
           )}
         </>
       )}
@@ -323,9 +326,16 @@ export function DetailColumn({
   )
 }
 
-/** 右列空态（未选中对象）：不写字，只留空白；可访问名称（label）仍说明要选什么。全站详情空态只用这一个。 */
-export function DetailEmpty({ label, testId }: { label: string; testId: string }): JSX.Element {
-  return <section className="min-h-0 bg-surface-detail" aria-label={label} data-testid={testId} />
+/**
+ * 右列空态（未选中对象）：不写字，只留空白；可访问名称（label）仍说明要选什么。全站详情空态只用这一个。
+ * 空到没有可选对象时（如项目还没启用任何客户端），children 放一个居中的幽灵动作按钮，仍然不写句子。
+ */
+export function DetailEmpty({ label, testId, children }: { label: string; testId: string; children?: ReactNode }): JSX.Element {
+  return (
+    <section className={cn('min-h-0 bg-surface-detail', children !== undefined && 'grid place-items-center')} aria-label={label} data-testid={testId}>
+      {children}
+    </section>
+  )
 }
 
 /**

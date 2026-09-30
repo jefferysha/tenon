@@ -78,6 +78,7 @@ export function ProjectsView({
   }
 
   const canWrite = getToken() !== ''
+  const noClients = segment === 'clients' && currentRoot !== '' && editor.ready && !editor.loading && editor.loadErrorKey === null && editor.groups.length === 0
   const readers = editor.scope === 'user' ? [client ?? ''] : group?.clients ?? []
 
   return (
@@ -163,8 +164,10 @@ export function ProjectsView({
         detail={segment === 'tests' ? (
           <ProjectTestsDetail root={currentRoot} tests={tests} />
         ) : target === null || client === null ? (
-          // 详情空态不写字，只留空白；可访问名称仍说明要选什么。
-          <DetailEmpty label={t(currentRoot === '' ? 'projects.empty_detail' : 'projects.add_client')} testId="proj-detail-empty" />
+          // 详情空态不写字，只留空白；可访问名称仍说明要选什么。项目还没启用任何客户端时，空白正中是一个幽灵「＋ 客户端」。
+          <DetailEmpty label={t(currentRoot === '' ? 'projects.empty_detail' : 'projects.add_client')} testId="proj-detail-empty">
+            {noClients ? <AddClientMenu ghost hosts={editor.hosts} enabled={editor.enabled} disabled={!canWrite} onEnable={editor.enable} /> : undefined}
+          </DetailEmpty>
         ) : (
           <InstructionEditor
             key={`${editor.scope}:${target.id}`}

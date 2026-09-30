@@ -66,10 +66,10 @@ export function SuiteBaselines({ root, suite }: { root: string; suite: CatalogSu
               <span className="truncate font-mono text-text" role="cell">
                 <Hinted hint={t(`tests.project.baseline.better_${row.better}`)}><span>{row.name}</span></Hinted>
               </span>
-              <span className="font-mono text-text" role="cell">{formatMetric(row.median)}{row.unit === undefined ? '' : ` ${row.unit}`}</span>
-              <span className="font-mono text-text-2" role="cell">{formatMetric(row.p95)}</span>
-              <span className="font-mono text-text-2" role="cell">{row.samples}</span>
-              <span className="font-mono text-caption text-text-2" role="cell">{formatTime(baseline.updatedAt)}</span>
+              <span className="tabular-nums text-text" role="cell">{formatMetric(row.median)}{row.unit === undefined ? '' : ` ${row.unit}`}</span>
+              <span className="tabular-nums text-text-2" role="cell">{formatMetric(row.p95)}</span>
+              <span className="tabular-nums text-text-2" role="cell">{row.samples}</span>
+              <span className="text-caption tabular-nums text-text-2" role="cell">{formatTime(baseline.updatedAt)}</span>
               <span role="cell">
                 <HistoryChart values={row.trend} label={`${row.name} ${formatMetric(row.trend[0] ?? row.median)} → ${formatMetric(row.median)}`} testId={`proj-baseline-chart-${baseline.profile}-${row.name}`} />
               </span>

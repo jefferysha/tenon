@@ -39,7 +39,7 @@ export function TestPolicyForm({ stepId, policy, legacyTests, editable, onChange
       <div className="flex items-center justify-between gap-3 whitespace-nowrap">
         <h3 className="text-body font-medium text-text">
           {t('tests.word.test')}
-          {count !== undefined && <span className="ml-2 font-mono text-caption font-normal text-text-3" data-testid="wb-policy-count">{count}</span>}
+          {count !== undefined && <span className="ml-2 text-caption font-normal tabular-nums text-text-3" data-testid="wb-policy-count">{count}</span>}
         </h3>
         {editable && policy === undefined && (
           <button type="button" className={HEAD_ACTION} aria-label={t('tests.policy.add_label')} data-testid="wb-policy-add" onClick={() => onChange(newPolicy())}>

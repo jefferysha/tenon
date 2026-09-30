@@ -90,7 +90,7 @@ export function StageIoPanel({ direction, items, activePath, onOpen, definitionS
             </button>
           )}
         </span>
-        <span className={cn('truncate font-mono text-caption', skills.text === '' ? 'text-text-3' : 'text-text-2')} role="cell" title={skills.title === '' ? undefined : skills.title}>
+        <span className={cn('truncate text-caption', skills.text === '' ? 'text-text-3' : 'text-text-2')} role="cell" title={skills.title === '' ? undefined : skills.title}>
           {skills.text === '' ? '—' : skills.text}
         </span>
         <span

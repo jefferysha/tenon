@@ -69,7 +69,7 @@ export function RunHistorySection({ root, change, suite, current, stageLabelOf, 
                   ? <ResultMark result={suiteRun?.result ?? run.result} />
                   : <StatusPill tone="blocked" title={t('tests.run.untrusted_hint')} testId={`run-history-untrusted-${run.runId}`}>{blockerLabel('record-chain-broken', lang)}</StatusPill>}
               </span>
-              <span className="font-mono text-caption text-text-2" role="cell">{formatDuration(run.durationMs)}</span>
+              <span className="text-caption tabular-nums text-text-2" role="cell">{formatDuration(run.durationMs)}</span>
               <span className="truncate font-mono text-caption text-text-2" role="cell">
                 {suiteRun === undefined ? '—' : `${suiteRun.totals.pass}/${suiteRun.totals.cases}`}
               </span>

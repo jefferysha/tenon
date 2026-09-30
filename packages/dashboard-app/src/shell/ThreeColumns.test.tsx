@@ -81,6 +81,21 @@ describe('FilterChip / FilterChipGroup（H3）', () => {
   })
 })
 
+describe('计数变化滚动（160ms 纵向）', () => {
+  it('筛选芯片与左栏项的计数：值变了才带 count-roll，首次渲染不动', () => {
+    const chip = (count: number): JSX.Element => <FilterChip label="全部" count={count} selected testId="chip" onClick={() => undefined} />
+    const { rerender } = render(<FilterChipGroup label="状态">{chip(2)}</FilterChipGroup>)
+    expect(screen.getByText('2').className).not.toContain('count-roll')
+    rerender(<FilterChipGroup label="状态">{chip(3)}</FilterChipGroup>)
+    expect(screen.getByText('3').className).toContain('count-roll')
+    const card = (count: number): JSX.Element => <RailCard mark={<svg />} name="tenon" count={count} selected={false} collapsed={false} onClick={() => undefined} testId="card" />
+    const rail = render(card(5))
+    expect(screen.getByText('5').className).not.toContain('count-roll')
+    rail.rerender(card(6))
+    expect(screen.getByText('6').className).toContain('count-roll')
+  })
+})
+
 describe('StatusPill（B4：语义点 + 文字）', () => {
   it('无底色、无药丸圆角；圆点与文字同色调，文字总在', () => {
     render(<StatusPill tone="pending" testId="pill">待复核</StatusPill>)
@@ -108,6 +123,15 @@ describe('DetailEmpty（B19）', () => {
   })
 })
 
+describe('DetailEmpty · 居中动作', () => {
+  it('给了 children：内容居中，仍不写句子；不给则维持纯空白', () => {
+    render(<DetailEmpty label="添加客户端" testId="with"><button type="button">＋ 客户端</button></DetailEmpty>)
+    expect(classesOf(screen.getByTestId('with'))).toContain('place-items-center')
+    expect(screen.getByTestId('with')).toHaveAttribute('aria-label', '添加客户端')
+    expect(screen.getByRole('button', { name: '＋ 客户端' })).toBeInTheDocument()
+  })
+})
+
 describe('RailColumn（A5 / H4 / J1）', () => {
   it('lead 插槽渲染在列表之前、同一滚动区；折叠钮 40px 且 ≤1360px 隐藏', () => {
     render(
@@ -128,6 +152,18 @@ describe('RailColumn（A5 / H4 / J1）', () => {
     expect(lead.compareDocumentPosition(screen.getByTestId('rail-first')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(classesOf(screen.getByTestId('rail-all'))).toContain('min-h-11')
     expect(classesOf(screen.getByTestId('rail-toggle'))).toEqual(expect.arrayContaining(['size-10', 'max-[1360px]:hidden', 'max-[900px]:grid']))
+  })
+
+  it('折叠钮与「+」一样不画边框：只有悬停底色', () => {
+    render(
+      <I18nProvider>
+        <RailColumn title="项目" collapsed={false} onToggle={() => undefined} testId="rail"><ul /></RailColumn>
+      </I18nProvider>,
+    )
+    const toggle = classesOf(screen.getByTestId('rail-toggle'))
+    expect(toggle).not.toContain('border')
+    expect(toggle.some((name) => name.startsWith('border-'))).toBe(false)
+    expect(toggle).toContain('hover:bg-fill')
   })
 })
 
@@ -152,6 +188,25 @@ describe('RailCard（E11 / D6）', () => {
     expect(meta).toHaveAttribute('title', '/Users/me/work/code/tenon')
     expect(classesOf(meta)).toEqual(expect.arrayContaining(['font-mono', 'truncate', 'text-red-d']))
     expect(classesOf(screen.getByTestId('card-mark'))).toContain('text-red-d')
+  })
+
+  it('副行是路径时从头部省略（末段是区分项目的部分）：rtl 令省略号落在左侧，bdi 保持内容从左到右；完整路径在 title', () => {
+    render(<RailCard mark={<svg />} name="tenon" meta="~/…/projects/tenon-local" metaTitle="/Users/me/code/projects/tenon-local" metaMono selected={false} collapsed={false} onClick={() => undefined} testId="card" />)
+    const meta = screen.getByTestId('card-meta')
+    expect(meta).toHaveAttribute('data-truncate', 'start')
+    expect(classesOf(meta)).toEqual(expect.arrayContaining(['truncate', 'text-left', '[direction:rtl]']))
+    const bdi = meta.querySelector('bdi')
+    expect(bdi).toHaveAttribute('dir', 'ltr')
+    expect(bdi).toHaveTextContent('~/…/projects/tenon-local')
+    expect(meta).toHaveAttribute('title', '/Users/me/code/projects/tenon-local')
+  })
+
+  it('副行不是路径（如「不可读」）仍从尾部截断，不加 rtl', () => {
+    render(<RailCard mark={<svg />} name="tenon" meta="不可读" selected={false} collapsed={false} onClick={() => undefined} testId="card" />)
+    const meta = screen.getByTestId('card-meta')
+    expect(meta).not.toHaveAttribute('data-truncate')
+    expect(classesOf(meta)).not.toContain('[direction:rtl]')
+    expect(meta.querySelector('bdi')).toBeNull()
   })
 
   it('图标不套方块（无边框、无底色）；未选中 text-3，行高 44、px-3 gap-3', () => {

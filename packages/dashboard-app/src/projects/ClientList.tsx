@@ -2,7 +2,7 @@ import { MoreHorizontal, Plus } from 'lucide-react'
 import { useT } from '../i18n'
 import type { InstructionHostRow } from '../api/instructionsDecoders'
 import { StatusPill } from '../shell/ThreeColumns'
-import { BUTTON_ICON, LIST_SELECTED } from '../shared/uiRecipes'
+import { BUTTON_GHOST, BUTTON_ICON, LIST_SELECTED } from '../shared/uiRecipes'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -13,28 +13,33 @@ import { COUNT_BADGE, Hinted, STATUS_KEY, STATUS_TONE } from './projectBits'
 
 const MENU_ITEM = 'min-h-10 gap-3 text-body text-text'
 
-/** 「+ 添加客户端」：只列尚未启用的客户端；需配置的置灰，原因在 Tooltip。 */
-export function AddClientMenu({ hosts, enabled, disabled = false, onEnable }: {
+/**
+ * 「+ 添加客户端」：只列尚未启用的客户端；需配置的置灰，原因在 Tooltip。
+ * ghost = 右列空态里居中的幽灵按钮「＋ 客户端」（图标 + 名词，不写句子）；缺省是列头的「+」图标钮。
+ */
+export function AddClientMenu({ hosts, enabled, disabled = false, onEnable, ghost = false }: {
   hosts: readonly InstructionHostRow[]
   enabled: readonly string[]
   /** 没有写权限（无 token）。 */
   disabled?: boolean
   onEnable: (clientId: string) => void
+  ghost?: boolean
 }): JSX.Element {
   const { t } = useT()
   const candidates = hosts.filter((host) => !enabled.includes(host.id))
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className={BUTTON_ICON}
+        className={ghost ? BUTTON_GHOST : BUTTON_ICON}
         aria-label={t('projects.add_client')}
         title={t('projects.add_client')}
         disabled={disabled || candidates.length === 0}
-        data-testid="proj-add-client"
+        data-testid={ghost ? 'proj-add-client-empty' : 'proj-add-client'}
       >
         <Plus className="size-4" aria-hidden="true" />
+        {ghost && t('projects.clients')}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-56" data-testid="proj-add-client-menu">
+      <DropdownMenuContent align={ghost ? 'center' : 'end'} className="min-w-56" data-testid={ghost ? 'proj-add-client-empty-menu' : 'proj-add-client-menu'}>
         {candidates.map((host) => {
           const label = <span className="min-w-0 flex-1 truncate whitespace-nowrap">{clientName(host.id)}</span>
           return (

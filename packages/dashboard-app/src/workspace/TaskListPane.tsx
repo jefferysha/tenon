@@ -2,6 +2,7 @@ import { Fragment, type ReactNode } from 'react'
 import { SlidersHorizontal, Trash2 } from 'lucide-react'
 import { useT } from '../i18n'
 import { ListColumn } from '../shell/ThreeColumns'
+import { CountRoll } from '../shared/CountRoll'
 import { FilterChip, FilterChipGroup } from '../shared/FilterChip'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem,
@@ -86,7 +87,7 @@ function FilterMenu({ groups, filter, onFilter }: { groups: readonly FilterMenuG
               {group.options.map((option) => (
                 <DropdownMenuRadioItem key={option.id} value={option.id} className="min-h-10 whitespace-nowrap text-body" data-testid={`task-facet-${group.id}-${option.id}`}>
                   <span className={cn('min-w-0 flex-1 truncate', group.mono && option.id !== 'all' && 'font-mono')} title={option.label}>{option.label}</span>
-                  <span className="text-caption tabular-nums text-text-3">{option.count}</span>
+                  <CountRoll value={option.count} className="text-caption tabular-nums text-text-3" />
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
@@ -154,7 +155,7 @@ export function TaskListPane({
         onClick={() => onListMode(archivedView ? 'active' : 'archived')}
       >
         {t('workspace.archived_view')}
-        <span className="text-caption tabular-nums">{archivedCount}</span>
+        <CountRoll value={archivedCount} className="text-caption tabular-nums" />
       </button>
     </>
   )
@@ -210,7 +211,7 @@ export function TaskListPane({
                   menu={menuOf(row)}
                 />
                 {archivedView && row.archive !== undefined && (
-                  <p className="truncate whitespace-nowrap px-3.5 pb-3 font-mono text-caption text-text-3" data-testid={`task-archived-meta-${row.change.name}`}>
+                  <p className="truncate whitespace-nowrap px-3.5 pb-3 text-caption tabular-nums text-text-3" data-testid={`task-archived-meta-${row.change.name}`}>
                     <span title={row.archive.archivedAt}>
                       {t('workspace.archived_meta', { stage: stageLabel(row.archive.phase, row.rules), time: localTime(row.archive.archivedAt, lang), actor: row.archive.actor.name })}
                     </span>

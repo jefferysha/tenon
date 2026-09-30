@@ -132,6 +132,32 @@ afterEach(() => {
   delete window.__TENON_DASHBOARD_TOKEN__
 })
 
+describe('TaskDetailPane 详情头', () => {
+  it('头像在标题行、⋯ 之前；状态词只在头部这一处（「阻塞」不在下一步里重复）', () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('no request expected'))))
+    const snapshot = change({
+      workflowExecution: {
+        readinessByTransition: { build: { 'build-complete': { ready: false, blockers: [{ kind: 'step-exit', source: 'skill', code: 'skill-incomplete', message: '尚未完成声明的 skill：tdd' }] } } },
+      },
+    } as unknown as Partial<ChangeSnapshot>)
+    const row: TaskRow = { ...snapshotRow(snapshot), owner: ann, summary: summaryOf(snapshot, snapshot.workflowRules) }
+    render(<I18nProvider><TaskDetailPane row={row} fetchDefinition={false} menu={[{ id: 'archive', label: '归档', icon: null, danger: false, onSelect: () => undefined }]} /></I18nProvider>)
+    const title = screen.getByTestId('task-detail-title')
+    const owner = screen.getByTestId('task-detail-owner')
+    const menu = screen.getByTestId('task-detail-menu')
+    expect(title.parentElement).toContainElement(owner)
+    expect(title.parentElement).toContainElement(menu)
+    expect(owner.compareDocumentPosition(menu) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(title.compareDocumentPosition(owner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // 副行不再放头像，只有 workflow/track 与状态。
+    expect(screen.getByTestId('task-detail-meta').parentElement).not.toContainElement(owner)
+    expect(screen.getByTestId('task-detail-meta').parentElement).toContainElement(screen.getByTestId('task-detail-badge'))
+    expect(screen.getByTestId('task-detail-badge')).toHaveTextContent('阻塞 1')
+    const pane = screen.getByTestId('task-detail-pane')
+    expect(pane.textContent?.match(/阻塞/gu) ?? []).toHaveLength(1)
+  })
+})
+
 describe('TaskDetailPane header and records', () => {
   it('标题右侧 ⋯ 菜单承载动作；没有底部动作条，也没有重复阶段名的 eyebrow', async () => {
     stubFetch()
@@ -441,6 +467,56 @@ describe('TaskDetailPane · 下一步', () => {
     expect(command).toHaveAttribute('title', 'cd /repo && tenon status demo')
     expect(screen.getByTestId('task-next-command-copy').className).toContain('flex-none')
     expect(screen.getByTestId('task-next-takeover').className).toContain('flex-none')
+  })
+
+  it('下一步：标题旁不放计数；每条阻断是 40px 行 + 2px 琥珀左条', () => {
+    renderSnapshotPane(blocked())
+    const next = screen.getByTestId('task-next')
+    expect(within(next).getByRole('heading', { name: '下一步' }).textContent).toBe('下一步')
+    for (const line of within(next).getAllByTestId('task-next-blocker')) {
+      const classes = line.className.split(/\s+/u)
+      expect(classes).toEqual(expect.arrayContaining(['h-10', 'border-l-2', 'border-amber-d']))
+    }
+  })
+
+  it('下一步：同类阻断合并成一行「缺少文档 proposal · openspec-design · tasks」，完整文案逐条进 title', () => {
+    const doc = (name: string) => ({ kind: 'step-exit', source: 'document', code: 'document-evidence', message: `缺少 document '${name}'；执行 tenon document record <change> ${name} <path> --producer <skill>` })
+    renderSnapshotPane(change({
+      workflowExecution: {
+        readinessByTransition: {
+          build: {
+            'build-complete': {
+              ready: false,
+              blockers: [
+                doc('proposal'),
+                { kind: 'step-exit', source: 'tasks', code: 'tasks-incomplete', message: 'tasks.md 仍有 1 项未勾', items: ['a'] },
+                doc('openspec-design'),
+                doc('tasks'),
+              ],
+            },
+          },
+        },
+      },
+    } as unknown as Partial<ChangeSnapshot>))
+    const lines = within(screen.getByTestId('task-next')).getAllByTestId('task-next-blocker')
+    expect(lines.map((line) => line.textContent)).toEqual(['缺少文档 proposal · openspec-design · tasks', 'tasks.md 未勾 1 项'])
+    expect(lines[0]?.getAttribute('title')).toContain("缺少 document 'proposal'")
+    expect(lines[0]?.getAttribute('title')).toContain("缺少 document 'openspec-design'")
+    expect(lines[0]?.getAttribute('title')?.split('\n')).toHaveLength(3)
+    expect(lines[1]?.getAttribute('title')).toBe('tasks.md 仍有 1 项未勾')
+  })
+
+  it('下一步：命令从头部省略，保留末尾的 tenon status <change>；复制的仍是完整命令', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    renderSnapshotPane(blocked())
+    const command = screen.getByTestId('task-next-command-text')
+    expect(command).toHaveAttribute('data-truncate', 'start')
+    expect(command.className.split(/\s+/u)).toEqual(expect.arrayContaining(['truncate', 'text-left', '[direction:rtl]']))
+    expect(command.querySelector('bdi')).toHaveAttribute('dir', 'ltr')
+    expect(command.textContent).toBe('cd /repo && tenon status demo')
+    await userEvent.click(screen.getByTestId('task-next-command-copy'))
+    expect(writeText).toHaveBeenCalledWith('cd /repo && tenon status demo')
   })
 
   it('阻断状态用警示琥珀，不用错误红', () => {

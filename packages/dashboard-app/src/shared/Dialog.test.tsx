@@ -16,9 +16,11 @@ describe('Dialog', () => {
     const overlay = screen.getByTestId('motion-dialog')
     const content = screen.getByRole('dialog')
     expect(overlay).toHaveAttribute('data-state', 'open')
-    for (const name of ['bg-scrim', 'backdrop-blur-[2px]', 'data-[state=open]:animate-in', 'data-[state=open]:fade-in-0', 'data-[state=open]:duration-(--dur-base)']) {
+    for (const name of ['bg-scrim', 'data-[state=open]:animate-in', 'data-[state=open]:fade-in-0', 'data-[state=open]:duration-(--dur-base)']) {
       expect(overlay).toHaveClass(name)
     }
+    // 浅色下模糊 + 遮罩会把整页压成脏灰：遮罩只是半透明色，不做背景模糊。
+    expect(overlay.className).not.toContain('backdrop-blur')
     for (const name of ['rounded-lg', 'shadow-(--shadow-3)', 'data-[state=open]:animate-in', 'data-[state=open]:fade-in-0', 'data-[state=open]:zoom-in-[.97]', 'data-[state=open]:slide-in-from-bottom-2', 'data-[state=open]:duration-(--dur-panel)', 'data-[state=open]:ease-(--ease-out)', 'data-[state=closed]:duration-(--dur-exit)']) {
       expect(content).toHaveClass(name)
     }

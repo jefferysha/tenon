@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useT } from '../i18n'
 import { StatusPill } from '../shell/ThreeColumns'
 import { Hint } from '../workflow/Hint'
@@ -7,7 +9,7 @@ import { SuiteStateMark } from '../tests/TestState'
 import { TestSection } from '../tests/TestSection'
 import { blockerLabel } from '../tests/testLabels'
 import { dataMessage } from '../tests/testText'
-import { TABLE_HEAD, TABLE_ROW, gridRow } from '../tests/testStyles'
+import { TABLE_HEAD, gridRow } from '../tests/testStyles'
 import { LIST_SELECTED } from '../shared/uiRecipes'
 import { cn } from '@/lib/utils'
 import type { MatrixRow, MatrixSuite } from './testsTabModel'
@@ -50,14 +52,79 @@ function SuiteCell({ row, openable, activeSuite, onOpen }: {
   )
 }
 
-/** 策略矩阵：要求的种类 × 是否登记 × 最近结果；缺项直接给短标签和可复制的修复命令。 */
+/**
+ * 一行 = 一个种类。缺项只写短标签（红字）；修复命令收进行展开——点标签旁的箭头才在行下显示可复制的命令，
+ * 表里不再堆截断的命令。
+ */
+function MatrixRowView({ row, openable, activeSuite, onOpen }: {
+  row: MatrixRow
+  openable: (suite: MatrixSuite) => boolean
+  activeSuite: string | null
+  onOpen: (suite: string) => void
+}): JSX.Element {
+  const { t, lang } = useT()
+  const [open, setOpen] = useState(false)
+  const fix = row.blocker?.fix
+  const Chevron = open ? ChevronDown : ChevronRight
+  return (
+    <div className="border-b border-border last:border-0" role="rowgroup" data-testid={`tests-group-${row.kind}`}>
+      <div className={`${gridRow(COLUMNS)} min-h-10 px-1 py-1 text-body`} role="row" data-testid={`tests-kind-${row.kind}`} data-met={row.met}>
+        <span className="flex min-w-0 items-center text-text" role="cell">
+          <KindLabel kind={row.kind} testId={`tests-kind-label-${row.kind}`} />
+        </span>
+        <span role="cell">
+          <Hint label={t(`tests.task.requirement_hint.${row.requirement.replace('-', '_')}`)}>
+            <button type="button" className="whitespace-nowrap rounded-xs text-text-2 outline-none focus-visible:ring-2 focus-visible:ring-(--accent)" data-testid={`tests-requirement-${row.kind}`}>
+              {t(`tests.task.requirement.${row.requirement.replace('-', '_')}`)}
+            </button>
+          </Hint>
+        </span>
+        <SuiteCell row={row} openable={openable} activeSuite={activeSuite} onOpen={onOpen} />
+        <span role="cell" data-testid={`tests-result-${row.kind}`}>
+          {row.result === null ? <span className="text-text-3">—</span> : <SuiteStateMark state={row.result} />}
+        </span>
+        <span className="flex min-w-0 items-center gap-1" role="cell" data-testid={`tests-blocker-${row.kind}`}>
+          {row.blocker !== null && (
+            <>
+              <span className="min-w-0 truncate whitespace-nowrap text-body font-semibold text-red-d" title={dataMessage(row.blocker)} data-testid={`tests-blocker-label-${row.kind}`}>
+                {blockerLabel(row.blocker.code, lang)}
+              </span>
+              {fix !== undefined && (
+                <button
+                  type="button"
+                  className="relative grid size-8 flex-none place-items-center rounded-sm text-text-3 outline-none after:absolute after:-inset-1 after:content-[''] hover:bg-fill-2 hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent)"
+                  aria-expanded={open}
+                  aria-label={t(open ? 'tests.task.matrix.fix_hide' : 'tests.task.matrix.fix_show')}
+                  title={t(open ? 'tests.task.matrix.fix_hide' : 'tests.task.matrix.fix_show')}
+                  data-testid={`tests-fix-toggle-${row.kind}`}
+                  onClick={() => setOpen((value) => !value)}
+                >
+                  <Chevron className="size-4" aria-hidden="true" />
+                </button>
+              )}
+            </>
+          )}
+        </span>
+      </div>
+      {fix !== undefined && open && (
+        <div className="min-w-0 px-1 pb-2" role="row" data-testid={`tests-fix-row-${row.kind}`}>
+          <span className="block min-w-0 rounded-sm bg-(--code-bg) pl-3" role="cell">
+            <FixCommand command={fix} testId={`tests-fix-${row.kind}`} />
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** 策略矩阵：要求的种类 × 是否登记 × 最近结果；缺项给短标签，可复制的修复命令收在行展开里。 */
 export function TestsTabMatrix({ rows, openable, activeSuite, onOpen }: {
   rows: readonly MatrixRow[]
   openable: (suite: MatrixSuite) => boolean
   activeSuite: string | null
   onOpen: (suite: string) => void
 }): JSX.Element | null {
-  const { t, lang } = useT()
+  const { t } = useT()
   if (rows.length === 0) return null
   return (
     <TestSection title={t('tests.task.section.matrix')} count={rows.length} testId="tests-matrix">
@@ -69,34 +136,7 @@ export function TestsTabMatrix({ rows, openable, activeSuite, onOpen }: {
           <span role="columnheader">{t('tests.task.matrix.result')}</span>
           <span role="columnheader">{t('tests.task.matrix.blocker')}</span>
         </div>
-        {rows.map((row) => (
-          <div key={row.kind} className={`${gridRow(COLUMNS)} ${TABLE_ROW}`} role="row" data-testid={`tests-kind-${row.kind}`} data-met={row.met}>
-            <span className="flex min-w-0 items-center text-text" role="cell">
-              <KindLabel kind={row.kind} testId={`tests-kind-label-${row.kind}`} />
-            </span>
-            <span role="cell">
-              <Hint label={t(`tests.task.requirement_hint.${row.requirement.replace('-', '_')}`)}>
-                <button type="button" className="whitespace-nowrap rounded-xs text-text-2 outline-none focus-visible:ring-2 focus-visible:ring-(--accent)" data-testid={`tests-requirement-${row.kind}`}>
-                  {t(`tests.task.requirement.${row.requirement.replace('-', '_')}`)}
-                </button>
-              </Hint>
-            </span>
-            <SuiteCell row={row} openable={openable} activeSuite={activeSuite} onOpen={onOpen} />
-            <span role="cell" data-testid={`tests-result-${row.kind}`}>
-              {row.result === null ? <span className="text-text-3">—</span> : <SuiteStateMark state={row.result} />}
-            </span>
-            <span className="flex min-w-0 items-center gap-2" role="cell" data-testid={`tests-blocker-${row.kind}`}>
-              {row.blocker !== null && (
-                <>
-                  <span className="flex-none whitespace-nowrap text-body font-semibold text-red-d" title={dataMessage(row.blocker)} data-testid={`tests-blocker-label-${row.kind}`}>
-                    {blockerLabel(row.blocker.code, lang)}
-                  </span>
-                  {row.blocker.fix !== undefined && <FixCommand command={row.blocker.fix} testId={`tests-fix-${row.kind}`} />}
-                </>
-              )}
-            </span>
-          </div>
-        ))}
+        {rows.map((row) => <MatrixRowView key={row.kind} row={row} openable={openable} activeSuite={activeSuite} onOpen={onOpen} />)}
       </div>
     </TestSection>
   )

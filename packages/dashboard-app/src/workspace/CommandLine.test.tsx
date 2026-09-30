@@ -31,6 +31,23 @@ describe('CommandLine（A10）', () => {
     expect(text.className).not.toContain('accent')
   })
 
+  it("truncate='start' 从头部省略（rtl + bdi），文字与 title 仍是完整命令；默认与 true 仍从尾部截断", () => {
+    const { unmount } = render(<I18nProvider><CommandLine command="cd /a/very/long/path && tenon status demo" testId="cmd" truncate="start" /></I18nProvider>)
+    const text = screen.getByTestId('cmd-text')
+    expect(text).toHaveAttribute('data-truncate', 'start')
+    expect(text.className.split(/\s+/u)).toEqual(expect.arrayContaining(['truncate', 'text-left', '[direction:rtl]']))
+    expect(text.querySelector('bdi')).toHaveAttribute('dir', 'ltr')
+    expect(text.textContent).toBe('cd /a/very/long/path && tenon status demo')
+    expect(text).toHaveAttribute('title', 'cd /a/very/long/path && tenon status demo')
+    unmount()
+    render(<I18nProvider><CommandLine command="tenon x" testId="tail" truncate /></I18nProvider>)
+    const tail = screen.getByTestId('tail-text')
+    expect(tail).not.toHaveAttribute('data-truncate')
+    expect(tail.className).toContain('truncate')
+    expect(tail.className).not.toContain('[direction:rtl]')
+    expect(tail.querySelector('bdi')).toBeNull()
+  })
+
   it('复制按钮视觉 32px，点击区经伪元素外扩 4px 到 40px', () => {
     render(<I18nProvider><CommandLine command="tenon init x" testId="cmd" /></I18nProvider>)
     const classes = screen.getByTestId('cmd-copy').className.split(/\s+/u)

@@ -1,10 +1,12 @@
+import { CountRoll } from '../shared/CountRoll'
+
 /** 右栏段头一行：标题 · 计数 · 动作。 */
 export function SectionHead({ title, count, action }: { title: string; count?: number; action?: JSX.Element }): JSX.Element {
   return (
     <div className="flex items-baseline justify-between gap-3">
       <h2 className="whitespace-nowrap text-title font-semibold text-text">
         {title}
-        {count !== undefined && <span className="ml-2 font-mono text-caption font-normal text-text-3">{count}</span>}
+        {count !== undefined && <CountRoll value={count} className="ml-2 text-caption font-normal tabular-nums text-text-3" />}
       </h2>
       {action}
     </div>

@@ -14,32 +14,56 @@ test.describe('工作台任务 · 测试页签', () => {
     }).toPass({ timeout: 20_000 })
   })
 
-  test('汇总一行：套件 · 用例 · 失败 · 不稳定', async ({ page }) => {
+  test('汇总：套件 · 用例 · 失败 · 不稳定是并排的大数字，0 退成灰，失败非零是红；一行不折行', async ({ page }) => {
     const summary = page.getByTestId('tests-summary')
-    await expect(summary).toHaveText('套件 3 · 用例 2 · 失败 1 · 不稳定 0')
     await expect(summary).toHaveAttribute('data-pass', 'false')
+    for (const [id, text] of [['suite', '3套件'], ['case', '2用例'], ['fail', '1失败'], ['flaky', '0不稳定']] as const) {
+      await expect(page.getByTestId(`tests-stat-${id}`)).toHaveText(text)
+    }
     const style = await summary.evaluate((el) => getComputedStyle(el).whiteSpace)
     expect(style).toBe('nowrap')
+    // 24px / 600 的等宽数字。
+    const fail = page.getByTestId('tests-stat-value-fail')
+    const face = await fail.evaluate((el) => {
+      const computed = getComputedStyle(el)
+      return { size: computed.fontSize, weight: computed.fontWeight, numeric: computed.fontVariantNumeric }
+    })
+    expect(face.size).toBe('24px')
+    expect(face.weight).toBe('600')
+    expect(face.numeric).toContain('tabular-nums')
+    // 失败非零是红；0 与非零的正文色不同。
+    const colorOf = (id: string) => page.getByTestId(`tests-stat-value-${id}`).evaluate((el) => getComputedStyle(el).color)
+    const [failColor, flakyColor, caseColor] = [await colorOf('fail'), await colorOf('flaky'), await colorOf('case')]
+    expect(failColor).not.toBe(flakyColor)
+    expect(flakyColor).not.toBe(caseColor)
   })
 
-  test('策略矩阵：单测失败，集成豁免待批准，回归缺种类；缺项带可复制命令', async ({ page }) => {
+  test('策略矩阵：单测失败，集成豁免待批准，回归缺种类；缺项只写短标签，可复制命令收进行展开', async ({ page }) => {
     await expect(page.getByTestId('tests-matrix')).toBeVisible()
     await expect(page.getByTestId('tests-result-unit')).toHaveText('失败')
     await expect(page.getByTestId('tests-registered-unit')).toContainText('Demo unit')
+    await expect(page.getByTestId('tests-fix-unit-text'), '默认收起').toHaveCount(0)
+    await page.getByTestId('tests-fix-toggle-unit').click()
     await expect(page.getByTestId('tests-fix-unit-text')).toHaveText(`tenon test run ${CHANGE} --suite demo-unit`)
 
     await expect(page.getByTestId('tests-waiver-integration')).toContainText('待批准')
     await expect(page.getByTestId('tests-blocker-label-integration')).toHaveText('豁免未批准')
+    await page.getByTestId('tests-fix-toggle-integration').click()
     await expect(page.getByTestId('tests-fix-integration-text')).toHaveText(`tenon review request ${CHANGE} --event verify-pass`)
 
     await expect(page.getByTestId('tests-blocker-label-regression')).toHaveText('缺测试种类')
     await expect(page.getByTestId('tests-registered-regression')).toHaveText('—')
+    await page.getByTestId('tests-fix-toggle-regression').click()
     await expect(page.getByTestId('tests-fix-regression-text')).toContainText(`tenon test waive ${CHANGE} --kind regression`)
     await expect(page.getByTestId('tests-fix-regression-copy')).toBeVisible()
   })
 
-  test('追溯表：任务 = 编号 · 阶段名 · 文字，场景 = 能力 · 场景；一行不折行', async ({ page }) => {
+  test('追溯表：任务 = 编号 · 阶段名 · 文字，场景 = 能力 · 场景；可选任务合并成「N 可选」一行；一行不折行', async ({ page }) => {
     const titles = page.getByTestId('tests-trace-title')
+    // 骨架任务（可选）默认收起在「N 可选」一行里，点开才逐条列出。
+    await expect(page.getByTestId('tests-trace-optional-toggle')).toContainText('可选')
+    await expect(titles.filter({ hasText: /^1\.1 · 立项 · / })).toHaveCount(0)
+    await page.getByTestId('tests-trace-optional-toggle').click()
     await expect(titles.filter({ hasText: /^4\.1 · 实现 · / })).toHaveCount(1)
     await expect(titles.filter({ hasText: /^1\.1 · 立项 · / })).toHaveCount(1)
     await expect(page.getByTestId('tests-trace-spec:auth/Valid password signs in').getByTestId('tests-trace-title')).toHaveText('auth · Valid password signs in')

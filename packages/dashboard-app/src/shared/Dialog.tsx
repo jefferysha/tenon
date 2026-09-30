@@ -201,7 +201,7 @@ export function Dialog({ title, onClose, children, actions, testid, role = 'dial
       {/* 显式 container：内容与调用方同一次提交挂载；缺省时 Radix 晚一拍挂出，子树 effect 会排到调用方 effect 之后。 */}
       <Primitive.Portal container={document.body}>
         <Primitive.Overlay
-          className={`fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-[2px] ${OVERLAY_MOTION} ${variant === 'workspace' ? 'p-4 mobile:p-3' : ''}`}
+          className={`fixed inset-0 z-50 flex items-center justify-center bg-scrim ${OVERLAY_MOTION} ${variant === 'workspace' ? 'p-4 mobile:p-3' : ''}`}
           data-testid={testid}
           ref={setOverlay}
           aria-hidden={interactionDisabled || undefined}

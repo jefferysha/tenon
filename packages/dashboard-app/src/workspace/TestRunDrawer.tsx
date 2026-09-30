@@ -176,7 +176,7 @@ export function TestRunDrawer({
                   <li key={`${entry.user}/${entry.runId}`}>
                     <button
                       type="button"
-                      className="flex w-full items-center gap-2 truncate rounded-md border border-border bg-card px-3 py-2 text-left font-mono text-caption text-text-2 hover:border-accent-b aria-pressed:border-accent-b"
+                      className="flex w-full items-center gap-2 truncate rounded-md border border-border bg-card px-3 py-2 text-left text-caption tabular-nums text-text-2 hover:border-accent-b aria-pressed:border-accent-b"
                       aria-pressed={selected?.runId === entry.runId}
                       data-testid={`test-run-history-${entry.runId}`}
                       onClick={() => setSelected({ user: entry.user, runId: entry.runId })}

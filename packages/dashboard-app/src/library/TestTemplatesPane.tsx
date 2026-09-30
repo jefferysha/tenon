@@ -89,9 +89,9 @@ function Definition({ template }: { template: TestTemplate }): JSX.Element {
             {metrics.map((metric) => (
               <div key={metric.name} className={`${gridRow(METRIC_COLUMNS)} ${TABLE_ROW}`} role="row" data-testid="lib-tt-metric">
                 <span className="truncate font-mono text-text" role="cell" title={metric.name}>{metric.name}</span>
-                <span className="font-mono text-text-2" role="cell">{metric.max ?? '—'}</span>
-                <span className="font-mono text-text-2" role="cell">{metric.min ?? '—'}</span>
-                <span className="font-mono text-text-2" role="cell">{metric.max_regression_pct === undefined ? '—' : `${metric.max_regression_pct}%`}</span>
+                <span className="tabular-nums text-text-2" role="cell">{metric.max ?? '—'}</span>
+                <span className="tabular-nums text-text-2" role="cell">{metric.min ?? '—'}</span>
+                <span className="tabular-nums text-text-2" role="cell">{metric.max_regression_pct === undefined ? '—' : `${metric.max_regression_pct}%`}</span>
                 <span className="truncate text-text-2" role="cell">{metric.better === undefined ? '—' : t(`tests.library.metric.${metric.better}`)}</span>
               </div>
             ))}

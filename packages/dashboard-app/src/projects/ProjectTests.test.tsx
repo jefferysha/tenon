@@ -130,6 +130,27 @@ describe('项目页 · 套件表', () => {
     expect(screen.getByTestId('proj-suite-flaky-api-bench').textContent).toBe('—')
   })
 
+  it('「不稳定」整列都是 0 / 没有记录时不出这一列（只剩名称 · 工具 · 最近结果）；有一个非零就整列出现', async () => {
+    const quiet = catalogResponse()
+    stub({ catalog: { ...quiet, latest: quiet.latest.map((run) => ({ ...run, totals: { ...run.totals, flaky: 0 } })) } })
+    const view = mount()
+    await openTests()
+    const head = await screen.findByTestId('proj-tests-head')
+    expect(within(head).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['名称', '工具', '最近结果'])
+    expect(screen.queryByTestId('proj-suite-flaky-web-unit')).toBeNull()
+    expect(/grid-cols-\[([^\]]+)\]/u.exec(head.className)?.[1]?.split('_')).toEqual(['minmax(0,1fr)', '5.5rem', '4.5rem'])
+    expect(screen.getByTestId('proj-suite-web-e2e').className).toContain('grid-cols-[minmax(0,1fr)_5.5rem_4.5rem]')
+    view.unmount()
+    vi.unstubAllGlobals()
+    stub()
+    mount()
+    await openTests()
+    expect(within(await screen.findByTestId('proj-tests-head')).getAllByRole('columnheader')).toHaveLength(4)
+    // 非零用正文色，0 与破折号退成 text-3。
+    expect(screen.getByTestId('proj-suite-flaky-web-e2e').className).toContain('text-text')
+    expect(screen.getByTestId('proj-suite-flaky-web-unit').className).toContain('text-text-3')
+  })
+
   it('表不是卡片：无 ul / li，行为 grid 单行不折行，名称截断', async () => {
     stub()
     mount()

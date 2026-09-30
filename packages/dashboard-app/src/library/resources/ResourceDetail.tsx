@@ -177,7 +177,7 @@ export function ResourceDetail({
         </Section>
       )}
       <Section title={t('resources.section.verified')} testId="res-section-verified">
-        <p className="font-mono text-caption text-text-2">{entry.verified_at}</p>
+        <p className="text-caption tabular-nums text-text-2">{entry.verified_at}</p>
       </Section>
     </DetailColumn>
   )

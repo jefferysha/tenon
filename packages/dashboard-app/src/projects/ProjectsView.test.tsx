@@ -754,6 +754,33 @@ describe('项目页 · 控件外观', () => {
     await waitFor(() => expect(editor.style.height).toMatch(/px$/u))
   })
 
+  it('项目没有启用任何客户端：右列正中是一个幽灵「＋ 客户端」，不写句子；点开选一个即启用', async () => {
+    const user = userEvent.setup()
+    const calls = stubFetch({ clients: [] })
+    renderView()
+    const add = await screen.findByTestId('proj-add-client-empty')
+    const empty = screen.getByTestId('proj-detail-empty')
+    expect(empty.textContent).toBe('客户端')
+    expect(empty.className).toContain('place-items-center')
+    expect(empty).toContainElement(add)
+    expect(add).toHaveAccessibleName('添加客户端')
+    expect(add.className).toContain('border')
+    await user.click(add)
+    const menu = await screen.findByTestId('proj-add-client-empty-menu')
+    expect(within(menu).getByTestId('proj-add-claude')).toBeInTheDocument()
+    await user.click(within(menu).getByTestId('proj-add-claude'))
+    await waitFor(() => expect(JSON.parse(String(post(calls)?.init?.body))).toEqual({ root: '/repo', enabled: ['claude'] }))
+    await screen.findByTestId('proj-client-claude')
+    expect(screen.queryByTestId('proj-add-client-empty')).toBeNull()
+  })
+
+  it('已有客户端但没选中，或还在读取：详情空态仍是空白，没有幽灵按钮', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => undefined)))
+    renderView()
+    expect(screen.queryByTestId('proj-add-client-empty')).toBeNull()
+    expect(screen.getByTestId('proj-detail-empty').className).not.toContain('place-items-center')
+  })
+
   it('详情空态不写字（可访问名称仍在）', () => {
     vi.stubGlobal('fetch', vi.fn(() => new Promise(() => undefined)))
     renderView()

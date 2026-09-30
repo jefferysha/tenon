@@ -4,6 +4,7 @@ import { DropdownMenu as DropdownMenuPrimitive } from 'radix-ui'
 import type { CurrentUserState } from '../api/userClient'
 import { useT } from '../i18n'
 import type { Lang } from '../i18n/translations'
+import { CountRoll } from '../shared/CountRoll'
 import { SLIDING_INDICATOR_CLS, useSlidingIndicator } from '../shared/useSlidingIndicator'
 import { TopBarSettings } from './TopBarSettings'
 import { VIEWS, type ThemePreference, type View } from './views'
@@ -171,7 +172,7 @@ export function TopBar({
                     data-testid="progress-badge"
                     onClick={onDecisions}
                   >
-                    <span aria-hidden="true">{decisionCount}</span>
+                    <span aria-hidden="true"><CountRoll value={decisionCount} /></span>
                   </button>
                 </TooltipTrigger>
                 <TooltipContent sideOffset={4}>{decisionLabel}</TooltipContent>

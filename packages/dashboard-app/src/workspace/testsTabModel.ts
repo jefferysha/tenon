@@ -182,3 +182,33 @@ export function tabCount(report: PolicyReport, plan: TestPlanBrief | undefined):
   const rows = buildMatrix(report, plan)
   return rows.length === 0 ? undefined : `${rows.filter((row) => row.met).length}/${rows.length}`
 }
+
+/** 追溯里「可选」的行：没有映射、也不要求映射的任务条目（骨架任务）——它们合并成一行，不各占一行。 */
+export function isOptionalTrace(row: TraceRow): boolean {
+  return row.state === 'uncovered' && !row.required
+}
+
+/** 展示顺序权重：失败 → 缺映射 → 已映射未跑 → 待批准的豁免 → 通过 → 其余中性。 */
+function traceRank(report: PolicyReport, row: TraceRow): number {
+  switch (row.state) {
+    case 'failing': return 0
+    case 'uncovered': return traceNeedsMapping(report, row) ? 1 : 5
+    case 'mapped': return 2
+    case 'waived': return row.waiver?.approved === false ? 3 : 5
+    case 'passing': return 4
+  }
+}
+
+/**
+ * 追溯表的投影：`shown` = 需要看的行（失败排最前，同权重保持服务端顺序）；`optional` = 合并成一行「N 可选」的行。
+ */
+export function traceRows(report: PolicyReport): { shown: TraceRow[]; optional: TraceRow[] } {
+  const optional = report.trace.filter(isOptionalTrace)
+  const shown = report.trace
+    .map((row, index) => ({ row, index, rank: traceRank(report, row) }))
+    .filter((item) => !isOptionalTrace(item.row))
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((item) => item.row)
+  return { shown, optional }
+}
+

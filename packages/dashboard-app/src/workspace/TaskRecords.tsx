@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useT } from '../i18n'
+import { CountRoll } from '../shared/CountRoll'
 import { getHistory } from '../api/governanceClient'
 import type { ChangeHistoryEntry } from '../api/governanceTypes'
 
@@ -60,12 +61,12 @@ export function TaskRecords({ root, change, signature, stageLabelOf }: {
     <section className="mt-8" data-testid="task-records">
       <h2 className="mb-3 text-title font-semibold text-text">
         {t('workspace.records')}
-        <span className="ml-2 font-mono text-caption font-normal text-text-3">{items.length}</span>
+        <CountRoll value={items.length} className="ml-2 text-caption font-normal tabular-nums text-text-3" />
       </h2>
       <ul className="grid gap-1.5">
         {items.map((item) => (
           <li key={item.key} data-kind={item.kind} className="flex min-w-0 items-center gap-2 whitespace-nowrap text-body text-text-2">
-            <span className="flex-none font-mono text-caption text-text-3">{formatTime(item.ts)}</span>
+            <span className="flex-none text-caption tabular-nums text-text-3">{formatTime(item.ts)}</span>
             <span className="flex-none text-text-3" aria-hidden="true">·</span>
             <span className="min-w-0 truncate text-text">{item.label}</span>
             <span className="flex-none text-text-3" aria-hidden="true">·</span>

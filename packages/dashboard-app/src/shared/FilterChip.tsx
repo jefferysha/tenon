@@ -1,5 +1,6 @@
 import type { KeyboardEvent, ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import { CountRoll } from './CountRoll'
 import { handleRadioKey } from './radioKeyboard'
 import { SLIDING_INDICATOR_CLS, useSlidingIndicator } from './useSlidingIndicator'
 
@@ -73,7 +74,7 @@ export function FilterChip({
       onKeyDown={onChipKey}
     >
       {label}
-      {count !== undefined && <span className={cn('text-caption tabular-nums', selected ? 'text-(--accent)' : 'text-text-3')}>{count}</span>}
+      {count !== undefined && <CountRoll value={count} className={cn('text-caption tabular-nums', selected ? 'text-(--accent)' : 'text-text-3')} />}
     </button>
   )
 }

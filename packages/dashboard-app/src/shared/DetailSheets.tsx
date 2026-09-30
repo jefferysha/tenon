@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type KeyboardEvent } from 'react'
+import { CountRoll } from './CountRoll'
 
 export interface SheetDef<Id extends string = string> {
   readonly id: Id
@@ -64,7 +65,7 @@ export function SheetTabs<Id extends string>({
           >
             {sheet.label}
             {sheet.count !== undefined && (
-              <span className="ml-1.5 text-body text-text-3 aria-selected:text-(--accent)" aria-hidden="true">{sheet.count}</span>
+              <span className="ml-1.5 text-body tabular-nums text-text-3 aria-selected:text-(--accent)" aria-hidden="true"><CountRoll value={sheet.count} /></span>
             )}
           </button>
         )

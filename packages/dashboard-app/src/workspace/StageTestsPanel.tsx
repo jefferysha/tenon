@@ -84,7 +84,7 @@ export function StageTestsPanel({
         <span className="flex min-w-0 items-center text-caption text-text-2" role="cell" data-direction={item.direction}>
           <KindLabel kind={kindForDirection(item.direction)} />
         </span>
-        <span className={cn('truncate font-mono text-caption', run === '' ? 'text-text-3' : 'text-text-2')} role="cell" title={run === '' ? undefined : run}>
+        <span className={cn('truncate text-caption tabular-nums', run === '' ? 'text-text-3' : 'text-text-2')} role="cell" title={run === '' ? undefined : run}>
           {run === '' ? '—' : run}
         </span>
         <span className="min-w-0" role="cell">

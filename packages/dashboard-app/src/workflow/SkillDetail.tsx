@@ -134,7 +134,7 @@ export function SkillDetail({ name, layout = 'split' }: SkillDetailProps): JSX.E
 export function SkillDetailDrawer({ name, onClose }: { name: string | null; onClose: () => void }): JSX.Element {
   const { t } = useT()
   return (
-    <Drawer open={name !== null} onClose={onClose} width="lg" title={<span className="font-mono">{name ?? ''}</span>} ariaLabel={t('workflow.preview_skill', { id: name ?? '' })} testId="skill-preview">
+    <Drawer open={name !== null} onClose={onClose} width="lg" title={<span className="font-medium">{name ?? ''}</span>} ariaLabel={t('workflow.preview_skill', { id: name ?? '' })} testId="skill-preview">
       {name !== null && <SkillDetail name={name} />}
     </Drawer>
   )

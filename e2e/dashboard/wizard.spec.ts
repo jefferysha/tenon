@@ -25,6 +25,16 @@ test.describe('新建项目向导', () => {
     await expect(page.getByTestId('np-steps').getByRole('button')).toHaveText(STEPS.map((_, index) => new RegExp(`${index + 1}`)))
     await expect(page.getByTestId('np-step-location')).toHaveAttribute('aria-current', 'step')
 
+    // 首步高度贴内容（不再固定 384px 留大片空白）；遮罩不做背景模糊；⌶ 钮有可访问名称和 Tooltip。
+    const frame = page.getByTestId('np-frame')
+    await expect(frame).toHaveAttribute('data-fit', 'hug')
+    await expect.poll(async () => (await frame.boundingBox())?.height ?? 999, { timeout: 5_000 }).toBeLessThan(200)
+    expect(await dialog.evaluate((el) => getComputedStyle(el).backdropFilter)).toBe('none')
+    const type = page.getByTestId('np-existing-type')
+    await expect(type).toHaveAccessibleName('输入路径')
+    await type.hover()
+    await expect(page.getByRole('tooltip')).toHaveText('输入路径')
+
     // 位置：新建目录 = 选父目录（走打桩的选择器）+ 文件夹名。
     await page.getByTestId('np-mode-empty').click()
     await page.getByTestId('np-parent-choose').click()

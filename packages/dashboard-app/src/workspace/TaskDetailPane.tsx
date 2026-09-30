@@ -123,17 +123,18 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
         panelId="task-detail-panel"
         header={(
           <>
+            {/* 头像与 ⋯ 同在标题行；状态词只在这一处（下一步区块不再重复「阻塞」与计数）。 */}
             <div className="mb-1.5 flex min-w-0 items-center gap-2">
               <h1 className="min-w-0 flex-1 truncate text-page font-bold tracking-[-.01em] text-text" title={change.name} data-testid="task-detail-title">{change.name}</h1>
+              {row.owner !== null && <OwnerAvatar name={row.owner.name} testId="task-detail-owner" />}
               <TaskMenu items={menu} testId="task-detail-menu" />
             </div>
-            <div className="mb-4 flex min-w-0 items-center gap-2">
+            <div className="mb-4 flex min-w-0 items-center gap-3">
               <p className="min-w-0 flex-1 truncate whitespace-nowrap font-mono text-base text-text-2" data-testid="task-detail-meta">{change.track === '' ? row.workflow : `${row.workflow}/${change.track}`}</p>
-              {row.owner !== null && <OwnerAvatar name={row.owner.name} testId="task-detail-owner" />}
+              <p className="flex-none" data-testid="task-detail-status">
+                <StatusPill tone={summaryTone(row)} testId="task-detail-badge">{summaryShort(row, t)}</StatusPill>
+              </p>
             </div>
-            <p className="mb-4" data-testid="task-detail-status">
-              <StatusPill tone={summaryTone(row)} testId="task-detail-badge">{summaryShort(row, t)}</StatusPill>
-            </p>
             {!archived && <NextStepPanel row={row} onToast={onToast} />}
             {showReviewConsole && !archived && change.reviewHandshake?.status === 'pending' && (
               <ReviewDecisionPanel root={root} change={change.name} snapshotSignature={decisionSignature} rules={row.rules ?? change.workflowRules} phase={change.phase} onRefresh={onRefresh} onToast={onToast} />
@@ -189,7 +190,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
                   ? <ShieldCheck className="size-4 flex-none text-amber-d" aria-hidden="true" />
                   : <Zap className="size-4 flex-none text-(--accent)" aria-hidden="true" />}
                 {t(`workspace.gate_${progress.gate}`)}
-                <span className="font-mono text-text-3">· {progress.done}/{progress.total}</span>
+                <span className="tabular-nums text-text-3">· {progress.done}/{progress.total}</span>
               </p>
             )}
             {(inputs.length > 0 || outputs.length > 0 || hasTestsTab) && (

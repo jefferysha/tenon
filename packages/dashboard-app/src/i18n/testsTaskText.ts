@@ -13,6 +13,8 @@ export const zh: Dict = {
     registered: '已登记',
     result: '最近结果',
     blocker: '缺项',
+    fix_show: '展开修复命令',
+    fix_hide: '收起修复命令',
   },
   requirement: {
     register: '登记',
@@ -59,6 +61,8 @@ export const en: Dict = {
     registered: 'Registered',
     result: 'Latest result',
     blocker: 'Missing',
+    fix_show: 'Show fix command',
+    fix_hide: 'Hide fix command',
   },
   requirement: {
     register: 'Register',

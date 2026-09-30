@@ -40,13 +40,110 @@ afterEach(() => {
 })
 
 describe('SkillsView', () => {
-  it('renders seven column headers and one row per skill', async () => {
+  it('renders the column headers (no 来源 column: the source is the group title; no 引用 until there is data) and one row per skill', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(FIXTURE), { status: 200 }))
     renderView()
     await screen.findByTestId('skills-row-hue')
-    expect(screen.getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['技能', '来源', '引用', '提交', '许可证', '更新', '状态'])
+    expect(screen.getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['技能', '提交', '许可证', '更新', '状态'])
     expect(screen.getAllByTestId(/^skills-row-/u)).toHaveLength(4)
     expect(screen.getByTestId('skills-updated')).toHaveTextContent('更新 2026-09-15 08:00')
+  })
+
+  it('has a page title and a left rail like the sibling pages: rail = status filters with counts, list = H1 + search + table', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(FIXTURE), { status: 200 }))
+    renderView()
+    await screen.findByTestId('skills-row-hue')
+    expect(screen.getByRole('heading', { level: 1, name: '技能' })).toBeInTheDocument()
+    const rail = screen.getByTestId('skills-rail')
+    expect(within(rail).getByText('状态')).toBeInTheDocument()
+    expect(['all', 'changed', 'failed'].map((id) => screen.getByTestId(`skills-filter-${id}`).textContent)).toEqual(['全部4', '变化1', '失败1'])
+    expect(screen.getByTestId('skills-filter-all')).toHaveAttribute('aria-current', 'true')
+    expect(screen.getByTestId('skills-view')).toHaveAttribute('data-detail-collapsed', 'true')
+    expect(screen.getByTestId('skills')).toContainElement(screen.getByTestId('skills-search'))
+    expect(screen.getByTestId('skills')).toContainElement(screen.getByTestId('skills-table'))
+    // 页头不再有那一排芯片。
+    expect(screen.queryByRole('radiogroup')).toBeNull()
+  })
+
+  it('groups skills by source under a sticky subtitle instead of repeating the source on every row', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(FIXTURE), { status: 200 }))
+    renderView()
+    await screen.findByTestId('skills-row-hue')
+    const groups = screen.getByTestId('skills-table').querySelectorAll('tbody')
+    expect([...groups].map((group) => group.getAttribute('data-testid'))).toEqual([
+      'skills-group-builtin', 'skills-group-dominikmartn/hue', 'skills-group-obra/superpowers', 'skills-group-vercel-labs/agent-skills',
+    ])
+    const head = screen.getByTestId('skills-group-head-obra/superpowers')
+    expect(head).toHaveTextContent('obra/superpowers')
+    expect(head).toHaveTextContent('1')
+    expect(head.className).toContain('sticky')
+    expect(head.className).toContain('top-9')
+    expect(head.className).toContain('bg-card')
+    expect(screen.getByTestId('skills-group-head-builtin')).toHaveTextContent('内建')
+    // 表头在最上层、小标题贴在它下面：两层都是 36px。
+    const header = screen.getAllByRole('columnheader')[0] as HTMLElement
+    expect(header.className).toContain('sticky')
+    expect(header.className).toContain('top-0')
+    expect(header.className).toContain('h-9')
+    expect(head.className).toContain('h-9')
+    // 行里不再重复来源仓库名。
+    expect(within(screen.getByTestId('skills-row-brainstorming')).queryByText('obra/superpowers')).toBeNull()
+    expect(within(screen.getByTestId('skills-group-obra/superpowers')).getAllByTestId(/^skills-row-/u)).toHaveLength(1)
+  })
+
+  it('groups only what the filter leaves: a group with no visible rows disappears', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(FIXTURE), { status: 200 }))
+    renderView()
+    await screen.findByTestId('skills-row-hue')
+    await userEvent.click(screen.getByTestId('skills-filter-failed'))
+    expect([...screen.getByTestId('skills-table').querySelectorAll('tbody')].map((group) => group.getAttribute('data-testid'))).toEqual(['skills-group-vercel-labs/agent-skills'])
+  })
+
+  it('shows the update time short (09-15), the full stamp on hover; a different year keeps its year', async () => {
+    const body = {
+      ...FIXTURE,
+      rows: [
+        { ...FIXTURE.rows[2], fetchedAt: '2026-09-21T22:02:00.000Z' },
+        { ...FIXTURE.rows[1], fetchedAt: '2025-12-30T01:00:00.000Z' },
+      ],
+    }
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(body), { status: 200 }))
+    renderView()
+    await screen.findByTestId('skills-row-hue')
+    const updated = (id: string): HTMLElement => within(screen.getByTestId(`skills-row-${id}`)).getAllByRole('cell')[3] as HTMLElement
+    expect(updated('brainstorming')).toHaveTextContent(/^09-21$/u)
+    expect(updated('brainstorming')).toHaveAttribute('title', '2026-09-21 22:02')
+    expect(updated('hue')).toHaveTextContent(/^2025-12-30$/u)
+    expect(updated('brainstorming').className).toContain('tabular-nums')
+  })
+
+  it('hides the 引用 column while no skill has a reference, and shows it as soon as one does', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(FIXTURE), { status: 200 }))
+    renderView()
+    await screen.findByTestId('skills-row-hue')
+    expect(screen.getAllByRole('columnheader').map((cell) => cell.textContent)).not.toContain('引用')
+    expect(screen.queryByTestId('skills-used-hue')).toBeNull()
+    expect(screen.getByRole('table').querySelectorAll('col')).toHaveLength(5)
+  })
+
+  it('skill names are the regular face (Inter 500), mono is kept for commit hashes', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(FIXTURE), { status: 200 }))
+    renderView()
+    const name = await screen.findByTestId('skills-open-brainstorming')
+    expect(name.className).toContain('font-medium')
+    expect(name.className).not.toContain('font-mono')
+    expect(screen.getByTestId('skills-compare-hue').closest('td')?.className).toContain('font-mono')
+  })
+
+  it('hover paints the whole row (background on tr, contiguous cell borders), never per cell', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(FIXTURE), { status: 200 }))
+    renderView()
+    const row = await screen.findByTestId('skills-row-hue')
+    expect(row.className).toContain('hover:bg-fill')
+    for (const cell of within(row).getAllByRole('cell')) expect(cell.className).not.toContain('hover:')
+    const table = screen.getByRole('table')
+    expect(table.className).toContain('border-separate')
+    expect(table.className).toContain('border-spacing-0')
   })
 
   it('shows a status word only for changed / failed rows and filters to failed rows', async () => {
@@ -111,7 +208,7 @@ describe('SkillsView', () => {
     compare.addEventListener('click', (event) => event.preventDefault())
     await userEvent.click(compare)
     expect(screen.queryByTestId('skill-preview')).toBeNull()
-    await userEvent.click(within(screen.getByTestId('skills-row-hue')).getAllByRole('cell')[3] as HTMLElement)
+    await userEvent.click(within(screen.getByTestId('skills-row-hue')).getAllByRole('cell')[2] as HTMLElement)
     expect(await screen.findByTestId('skill-preview')).toBeInTheDocument()
   })
 
@@ -135,15 +232,15 @@ describe('SkillsView', () => {
     for (const head of screen.getAllByRole('columnheader')) expect(head.className).toContain('border-b')
   })
 
-  it('filters with single-select chips, not tabs', async () => {
+  it('filters from the rail with single-select cards (aria-current), not tabs', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(FIXTURE), { status: 200 }))
     renderView()
     await screen.findByTestId('skills-row-hue')
     expect(screen.queryByRole('tablist')).toBeNull()
-    const group = screen.getByRole('radiogroup')
-    expect(within(group).getAllByRole('radio').map((chip) => chip.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false'])
+    const cards = ['all', 'changed', 'failed'].map((id) => screen.getByTestId(`skills-filter-${id}`))
+    expect(cards.map((card) => card.getAttribute('aria-current'))).toEqual(['true', null, null])
     await userEvent.click(screen.getByTestId('skills-filter-changed'))
-    expect(screen.getByTestId('skills-filter-changed')).toHaveAttribute('aria-checked', 'true')
+    expect(cards.map((card) => card.getAttribute('aria-current'))).toEqual([null, 'true', null])
     expect(screen.getAllByTestId(/^skills-row-/u).map((row) => row.dataset.testid)).toEqual(['skills-row-hue'])
   })
 
@@ -162,7 +259,7 @@ describe('SkillsView', () => {
     expect(commit?.className).toContain('font-mono')
     expect(commit?.className).toContain('text-text-3')
     const cells = within(screen.getByTestId('skills-row-hue')).getAllByRole('cell')
-    expect(cells[5]?.className).toContain('tabular-nums')
+    expect(cells[3]?.className).toContain('tabular-nums')
     expect(screen.getByTestId('skills-updated').className).toContain('tabular-nums')
   })
 
@@ -171,7 +268,7 @@ describe('SkillsView', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(quiet), { status: 200 }))
     renderView()
     await screen.findByTestId('skills-row-brainstorming')
-    expect(screen.getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['技能', '来源', '引用', '提交', '许可证', '更新'])
+    expect(screen.getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['技能', '提交', '许可证', '更新'])
     expect(screen.queryByTestId('skills-status-brainstorming')).toBeNull()
   })
 
@@ -180,15 +277,17 @@ describe('SkillsView', () => {
     renderView()
     await screen.findByTestId('skills-row-hue')
     const cols = screen.getByRole('table').querySelectorAll('col')
-    expect(cols).toHaveLength(7)
-    expect(cols[6]?.className).toBe('w-24')
+    expect(cols).toHaveLength(5)
+    expect(cols[4]?.className).toBe('w-24')
   })
 
   it('names bundled skills with the same source word as the rest of the dashboard (内建)', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(FIXTURE), { status: 200 }))
     renderView()
     const row = await screen.findByTestId('skills-row-tenon')
-    expect(within(row).getAllByRole('cell')[1]).toHaveTextContent('内建')
+    // 内建是「内建」组的小标题，行内不再重复。
+    expect(screen.getByTestId('skills-group-builtin')).toContainElement(row)
+    expect(screen.getByTestId('skills-group-head-builtin')).toHaveTextContent('内建')
   })
 
   it('expands a failed row into its reason and copyable fix commands', async () => {
@@ -247,6 +346,7 @@ describe('SkillsView', () => {
     renderView()
     await screen.findByTestId('skills-row-hue')
     await waitFor(() => expect(screen.getByTestId('skills-used-brainstorming')).toHaveTextContent('default · 调研+1'))
+    expect(screen.getAllByRole('columnheader').map((cell) => cell.textContent)).toContain('引用')
     expect(screen.getByTestId('skills-used-brainstorming')).toHaveAttribute('title', 'default · 调研\ndefault · 实现')
     expect(screen.getByTestId('skills-used-hue')).toHaveAttribute('title', 'default · 实现\ndefault · 界面 · 设计')
     expect(screen.getByTestId('skills-used-tenon')).toHaveTextContent('—')

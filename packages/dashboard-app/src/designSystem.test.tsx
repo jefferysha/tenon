@@ -103,6 +103,27 @@ describe('Dashboard 电脑端设计系统契约', () => {
     expect(css).toMatch(/--color-tooltip-fg:\s*var\(--tooltip-fg\)/)
   })
 
+  it('浅色 --border 调到约 #dcdbd4（两个浅色块），控件描边 --border-2 保持更深一档；暗色不动', () => {
+    const pair = (selector: string): string => new RegExp(`${selector}\\s*\{[\\s\\S]*?--border:\\s*(#[0-9a-f]{6});\\s*--border-2:\\s*(#[0-9a-f]{6})`, 'i').exec(css)?.slice(1).join(' ') ?? ''
+    expect(pair(':root')).toBe('#dcdbd4 #d5d4cc')
+    expect(pair(':root\\[data-theme="light"\\]')).toBe('#dcdbd4 #d5d4cc')
+    expect(pair(':root\\[data-theme="dark"\\]')).toBe('#2c2f2c #3b3f3b')
+    expect(css).toMatch(/:root:not\(\[data-theme="light"\]\) \{[\s\S]*?--border:\s*#2c2f2c;/)
+    expect(css).not.toContain('--border: #e6e5df')
+  })
+
+  it('数字一律 tabular-nums：body 上声明一次，计数变化的 160ms 纵向滚动在 count-roll 关键帧里', () => {
+    const base = /@layer base \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? ''
+    expect(base).toMatch(/body\s*\{\s*font-variant-numeric:\s*tabular-nums;/)
+    expect(css).toMatch(/@keyframes count-roll/)
+    expect(css).toMatch(/animation:\s*count-roll 160ms var\(--ease-out\)/)
+  })
+
+  it('对话框与抽屉的遮罩不做背景模糊（浅色下会把整页压成脏灰）', () => {
+    expect(readSource('shared/Dialog.tsx')).not.toContain('backdrop-blur')
+    expect(readSource('shared/Drawer.tsx')).not.toContain('backdrop-blur')
+  })
+
   it('Inter 只引入 latin 子集，中文走系统黑体', () => {
     expect(css).toContain("@fontsource-variable/inter/files/inter-latin-wght-normal.woff2")
     expect(css).not.toMatch(/inter-(?:cyrillic|greek|vietnamese|latin-ext)/)

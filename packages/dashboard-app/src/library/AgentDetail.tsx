@@ -107,7 +107,7 @@ export function AgentDetail({
           meta={(
             <span className="flex flex-none items-baseline gap-2 text-caption whitespace-nowrap" data-testid="lib-agent-meta">
               <span className="text-text-3" data-testid="lib-agent-source">{t(SOURCE_KEY[document.source])}</span>
-              {summary?.version !== undefined && <span className="font-mono tabular-nums text-text-4">{summary.version}</span>}
+              {summary?.version !== undefined && <span className="tabular-nums text-text-4">{summary.version}</span>}
             </span>
           )}
           actions={(

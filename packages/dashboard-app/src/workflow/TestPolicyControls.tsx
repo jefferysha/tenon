@@ -115,7 +115,7 @@ export function NumberField({ id, label, suffix, value, parse, disabled, onCommi
         type="text"
         inputMode="decimal"
         autoComplete="off"
-        className={cn(INPUT, 'w-20 text-right font-mono')}
+        className={cn(INPUT, 'w-20 text-right tabular-nums')}
         value={text}
         disabled={disabled}
         aria-invalid={invalid || undefined}

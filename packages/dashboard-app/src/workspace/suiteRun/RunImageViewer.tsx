@@ -52,7 +52,7 @@ export function RunImageViewer({ images, current, ctx, onChange, onClose }: {
         >
           <div className="flex min-w-0 items-center gap-2">
             <DialogPrimitive.Title className="min-w-0 flex-1 truncate whitespace-nowrap font-mono text-body text-text" title={current}>{name}</DialogPrimitive.Title>
-            <span className="whitespace-nowrap font-mono text-caption text-text-3" data-testid="run-viewer-position">{index + 1} / {images.length}</span>
+            <span className="whitespace-nowrap text-caption tabular-nums text-text-3" data-testid="run-viewer-position">{index + 1} / {images.length}</span>
             <button type="button" className={BUTTON_ICON} aria-label={t('tests.run.artifact.prev')} data-testid="run-viewer-prev" disabled={images.length < 2} onClick={() => step(-1)}>
               <ChevronLeft className="size-4" aria-hidden="true" />
             </button>

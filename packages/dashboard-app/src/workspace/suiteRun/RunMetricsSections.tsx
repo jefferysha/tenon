@@ -31,11 +31,11 @@ export function RunCoverageSection({ coverage, thresholds }: { coverage: SuiteRu
           return (
             <div key={row.key} className={`${gridRow(COVERAGE_COLUMNS)} ${TABLE_ROW}`} role="row" data-testid={`run-coverage-${row.key}`} data-below={below}>
               <span className="truncate" role="cell">{t(`tests.run.coverage.${row.key}`)}</span>
-              <span className={cn('flex items-center gap-1.5 font-mono', below ? 'text-red-d' : 'text-text')} role="cell">
+              <span className={cn('flex items-center gap-1.5 tabular-nums', below ? 'text-red-d' : 'text-text')} role="cell">
                 {below && <i className="size-1.5 flex-none rounded-full bg-red" aria-hidden="true" />}
                 {row.actual === undefined ? '—' : formatPercent(row.actual)}
               </span>
-              <span className="font-mono text-text-2" role="cell">{row.threshold === undefined ? '—' : formatPercent(row.threshold)}</span>
+              <span className="tabular-nums text-text-2" role="cell">{row.threshold === undefined ? '—' : formatPercent(row.threshold)}</span>
             </div>
           )
         })}
@@ -68,12 +68,12 @@ export function RunBenchmarkSection({ metrics, verdicts }: { metrics: readonly R
           return (
             <div key={metric.name} className={`${gridRow(BENCH_COLUMNS)} ${TABLE_ROW}`} role="row" data-testid={`run-metric-${metric.name}`} data-failed={failed}>
               <span className="truncate font-mono text-text" role="cell" title={metric.name}>{metric.name}</span>
-              <span className="font-mono text-text" role="cell">{formatMetric(metric.median)}{unit}</span>
-              <span className="font-mono text-text-2" role="cell">{formatMetric(metric.p95)}</span>
-              <span className="font-mono text-text-2" role="cell" data-testid={`run-metric-baseline-${metric.name}`}>
+              <span className="tabular-nums text-text" role="cell">{formatMetric(metric.median)}{unit}</span>
+              <span className="tabular-nums text-text-2" role="cell">{formatMetric(metric.p95)}</span>
+              <span className="tabular-nums text-text-2" role="cell" data-testid={`run-metric-baseline-${metric.name}`}>
                 {verdict === undefined ? '—' : verdict.baseline === null ? '—' : formatMetric(verdict.baseline)}
               </span>
-              <span className={cn('flex items-center gap-1.5 font-mono', failed ? 'text-red-d' : 'text-text-2')} role="cell" data-testid={`run-metric-delta-${metric.name}`}>
+              <span className={cn('flex items-center gap-1.5 tabular-nums', failed ? 'text-red-d' : 'text-text-2')} role="cell" data-testid={`run-metric-delta-${metric.name}`}>
                 {failed && <i className="size-1.5 flex-none rounded-full bg-red" aria-hidden="true" />}
                 {verdict === undefined ? '—' : formatDelta(verdict.deltaPct)}
               </span>

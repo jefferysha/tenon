@@ -83,7 +83,7 @@ describe('TaskDetailPane · 测试页签（策略判定）', () => {
     await userEvent.click(tab)
     expect(screen.getByTestId('task-tests')).toBeInTheDocument()
     expect(screen.queryByTestId('stage-tests-head')).toBeNull()
-    expect(screen.getByTestId('tests-summary').textContent).toContain('套件 3')
+    expect(screen.getByTestId('tests-stat-suite').textContent).toBe('3套件')
   })
 
   it('点套件名打开运行详情：目标用户是快照里的 testUser，运行 id 来自判定；再点同一处关闭抽屉后可再开', async () => {

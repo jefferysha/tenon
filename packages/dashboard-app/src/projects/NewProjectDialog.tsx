@@ -14,6 +14,7 @@ import { CreateProgress } from './CreateProgress'
 import { catalogFor, effectivePicks, frontendFrameworks, type ResourcePicks } from './designResources'
 import { LocationStep } from './LocationStep'
 import { ResourceStep } from './ResourceStep'
+import { StepFrame } from './StepFrame'
 import { TemplateStep, selectionKey, type TemplateSelection } from './TemplateStep'
 import { useDesignResources } from './useDesignResources'
 import { WizardSteps } from './WizardSteps'
@@ -192,6 +193,8 @@ export function NewProjectDialog({ onClose, onCreated, onOpen = onCreated }: New
     next()
   }
   const running = view === 'progress' && run.status === 'running'
+  // 模板 / 资源是左列表 + 右预览，占满外框；其余步骤高度贴内容。
+  const fills = view === 'wizard' && (step === 'templates' || step === 'resources')
   const requestClose = (): void => {
     if (running) return
     if (dirty && run.status !== 'done') setDiscarding(true)
@@ -227,95 +230,98 @@ export function NewProjectDialog({ onClose, onCreated, onOpen = onCreated }: New
       <Dialog title={t('projects.new_project')} onClose={requestClose} testid="np-dialog" panelClassName="w-[min(640px,92vw)]" actions={actions}>
         <div className="grid gap-4" onKeyDown={onKeyDown}>
           {view === 'wizard' && <WizardSteps current={step} onBack={(target) => { clearError(); setStep(target) }} />}
-          <div key={view === 'wizard' ? step : 'progress'} className={`h-96 overflow-y-auto ${STEP_MOTION}`} data-testid="np-body">
-            {view === 'progress' && (
-              <CreateProgress run={run} root={root} rolledBack={mode === 'empty' && failedRow !== undefined && failedRow.id !== 'directory'} onRetry={create} />
-            )}
-            {view === 'wizard' && step === 'location' && (
-              <LocationStep
-                mode={mode}
-                onMode={(value) => { setMode(value); invalidate() }}
-                path={path}
-                onPath={(value) => { setPath(value); setFileModes({}); invalidate() }}
-                parent={parent}
-                onParent={(value) => { setParent(value); invalidate() }}
-                name={name}
-                onName={(value) => { setName(value); setFocus(null); invalidate() }}
-                gitInit={gitInit}
-                onGitInit={(value) => { setGitInit(value); invalidate() }}
-                check={check}
-                onOpen={onOpen}
-                focus={focus}
-              />
-            )}
-            {view === 'wizard' && step === 'templates' && (
-              <TemplateStep
-                templates={templates}
-                selected={selected}
-                focused={focused}
-                documents={documents}
-                values={values}
-                onFocus={(selection) => { setFocused(selection); loadDocument(selection) }}
-                onToggle={(selection) => {
-                  const key = selectionKey(selection)
-                  invalidate()
-                  setSelected((current) => (current.some((item) => selectionKey(item) === key)
-                    ? current.filter((item) => selectionKey(item) !== key)
-                    : [...current, selection]))
-                }}
-                onValue={(key, value) => { invalidate(); setValues((current) => ({ ...current, [key]: value })) }}
-              />
-            )}
-            {view === 'wizard' && step === 'resources' && (
-              <ResourceStep
-                entries={resources.entries}
-                loading={resources.loading}
-                failed={resources.failed}
-                onRetry={resources.reload}
-                frameworks={frameworks}
-                picks={chosen}
-                onPick={(category, id) => {
-                  invalidate()
-                  setPicks((current) => {
-                    const next = { ...current }
-                    if (id === undefined) delete next[category]
-                    else next[category] = id
-                    return next
-                  })
-                }}
-              />
-            )}
-            {view === 'wizard' && step === 'clients' && (
-              <ClientStep
-                primary={clientGroups.primary}
-                more={clientGroups.more}
-                selected={clients}
-                onToggle={(id) => {
-                  clientsTouched.current = true
-                  invalidate()
-                  setClients((current) => {
-                    const nextSet = new Set(current)
-                    if (nextSet.has(id)) nextSet.delete(id)
-                    else nextSet.add(id)
-                    return nextSet
-                  })
-                }}
-              />
-            )}
-            {view === 'wizard' && step === 'confirm' && plan === null && busy && (
-              <LoaderCircle className="mx-auto mt-10 size-5 animate-spin text-text-3 motion-reduce:animate-none" aria-label={t('common.loading')} />
-            )}
-            {view === 'wizard' && step === 'confirm' && plan !== null && (
-              <ConfirmStep
-                plan={plan}
-                mode={mode}
-                clients={enabledClients}
-                fileModes={fileModes}
-                onFileMode={(file, value) => setFileModes((current) => ({ ...current, [file]: value }))}
-                designName={resources.entries.find((entry) => entry.id === chosen['design-md'])?.name}
-              />
-            )}
-          </div>
+          {/* 高度贴内容（200ms 过渡），首步不留大片空白；铺满型步骤固定 384px。 */}
+          <StepFrame fill={fills}>
+            <div key={view === 'wizard' ? step : 'progress'} className={`${fills ? 'h-full ' : ''}${STEP_MOTION}`} data-testid="np-body">
+              {view === 'progress' && (
+                <CreateProgress run={run} root={root} rolledBack={mode === 'empty' && failedRow !== undefined && failedRow.id !== 'directory'} onRetry={create} />
+              )}
+              {view === 'wizard' && step === 'location' && (
+                <LocationStep
+                  mode={mode}
+                  onMode={(value) => { setMode(value); invalidate() }}
+                  path={path}
+                  onPath={(value) => { setPath(value); setFileModes({}); invalidate() }}
+                  parent={parent}
+                  onParent={(value) => { setParent(value); invalidate() }}
+                  name={name}
+                  onName={(value) => { setName(value); setFocus(null); invalidate() }}
+                  gitInit={gitInit}
+                  onGitInit={(value) => { setGitInit(value); invalidate() }}
+                  check={check}
+                  onOpen={onOpen}
+                  focus={focus}
+                />
+              )}
+              {view === 'wizard' && step === 'templates' && (
+                <TemplateStep
+                  templates={templates}
+                  selected={selected}
+                  focused={focused}
+                  documents={documents}
+                  values={values}
+                  onFocus={(selection) => { setFocused(selection); loadDocument(selection) }}
+                  onToggle={(selection) => {
+                    const key = selectionKey(selection)
+                    invalidate()
+                    setSelected((current) => (current.some((item) => selectionKey(item) === key)
+                      ? current.filter((item) => selectionKey(item) !== key)
+                      : [...current, selection]))
+                  }}
+                  onValue={(key, value) => { invalidate(); setValues((current) => ({ ...current, [key]: value })) }}
+                />
+              )}
+              {view === 'wizard' && step === 'resources' && (
+                <ResourceStep
+                  entries={resources.entries}
+                  loading={resources.loading}
+                  failed={resources.failed}
+                  onRetry={resources.reload}
+                  frameworks={frameworks}
+                  picks={chosen}
+                  onPick={(category, id) => {
+                    invalidate()
+                    setPicks((current) => {
+                      const next = { ...current }
+                      if (id === undefined) delete next[category]
+                      else next[category] = id
+                      return next
+                    })
+                  }}
+                />
+              )}
+              {view === 'wizard' && step === 'clients' && (
+                <ClientStep
+                  primary={clientGroups.primary}
+                  more={clientGroups.more}
+                  selected={clients}
+                  onToggle={(id) => {
+                    clientsTouched.current = true
+                    invalidate()
+                    setClients((current) => {
+                      const nextSet = new Set(current)
+                      if (nextSet.has(id)) nextSet.delete(id)
+                      else nextSet.add(id)
+                      return nextSet
+                    })
+                  }}
+                />
+              )}
+              {view === 'wizard' && step === 'confirm' && plan === null && busy && (
+                <LoaderCircle className="mx-auto mt-10 size-5 animate-spin text-text-3 motion-reduce:animate-none" aria-label={t('common.loading')} />
+              )}
+              {view === 'wizard' && step === 'confirm' && plan !== null && (
+                <ConfirmStep
+                  plan={plan}
+                  mode={mode}
+                  clients={enabledClients}
+                  fileModes={fileModes}
+                  onFileMode={(file, value) => setFileModes((current) => ({ ...current, [file]: value }))}
+                  designName={resources.entries.find((entry) => entry.id === chosen['design-md'])?.name}
+                />
+              )}
+            </div>
+          </StepFrame>
           {view === 'wizard' && errorKey !== null && (
             <div className="grid gap-1 rounded-md border border-red-b bg-red-t px-4 py-3" role="alert" data-testid="np-error">
               <span className="text-body font-semibold text-red-d">{t(`projects.errors.${errorKey}`)}</span>

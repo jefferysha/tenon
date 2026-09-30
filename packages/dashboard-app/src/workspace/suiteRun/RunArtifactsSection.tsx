@@ -123,7 +123,7 @@ export function RunArtifactsSection({ run, ctx, onZoom }: { run: SuiteRun; ctx: 
             {others.slice(0, OTHER_CAP).map((artifact, index) => (
               <li key={artifact.path} className="grid min-h-9 grid-cols-[minmax(0,1fr)_5rem_auto] items-center gap-3 border-b border-border py-1 whitespace-nowrap last:border-0" data-testid="run-file">
                 <span className="truncate font-mono text-body text-text" title={artifact.path}>{artifact.path}</span>
-                <span className="font-mono text-caption text-text-3">{formatBytes(artifact.bytes)}</span>
+                <span className="text-caption tabular-nums text-text-3">{formatBytes(artifact.bytes)}</span>
                 <DownloadLink ctx={ctx} artifact={artifact} testId={`run-file-download-${index}`} />
               </li>
             ))}

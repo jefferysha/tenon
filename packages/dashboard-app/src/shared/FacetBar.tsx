@@ -5,6 +5,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { CountRoll } from './CountRoll'
 import { cn } from '@/lib/utils'
 import { GAP, fitCount, priorityOf } from './facetLayout'
 import { FILTER_CHIP_CLS, FilterChip, FilterChipGroup } from './FilterChip'
@@ -80,7 +81,7 @@ const COUNT_CLS = 'text-caption tabular-nums text-text-3'
 
 function Count({ value, selected }: { value: number | undefined; selected?: boolean }): JSX.Element | null {
   if (value === undefined) return null
-  return <span className={cn(COUNT_CLS, selected && 'text-(--accent)')}>{value}</span>
+  return <CountRoll value={value} className={cn(COUNT_CLS, selected && 'text-(--accent)')} />
 }
 
 function selectedOption(group: FacetGroup): FacetOption | undefined {

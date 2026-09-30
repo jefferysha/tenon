@@ -55,7 +55,7 @@ export function LocationStep(props: LocationStepProps): JSX.Element {
   const existingFiles = plan?.files.filter((file) => file.current !== null) ?? []
   const nameError = check.status === 'error' && check.errorKey !== null && NAME_ERRORS.has(check.errorKey)
   return (
-    <div className="grid gap-4" data-testid="np-location">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4" data-testid="np-location">
       <div role="radiogroup" aria-label={t('projects.step_location')} className="grid grid-cols-2 gap-1 rounded-sm bg-fill p-0.5">
         {MODES.map((option) => (
           <button
@@ -72,7 +72,7 @@ export function LocationStep(props: LocationStepProps): JSX.Element {
         ))}
       </div>
       {mode === 'existing' ? (
-        <div className="grid gap-2">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
           <FolderField value={path} onChange={onPath} prompt={t('projects.pick_existing_title')} testId="np-existing" />
           <CheckStatus check={check} testId="np-existing" />
           {plan?.registration === 'already' && (
@@ -102,7 +102,7 @@ export function LocationStep(props: LocationStepProps): JSX.Element {
           )}
         </div>
       ) : (
-        <div className="grid gap-3">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
           <div className={FIELD_LABEL}>
             <span>{t('projects.parent')}</span>
             <FolderField value={parent} onChange={onParent} prompt={t('projects.pick_parent_title')} testId="np-parent" />

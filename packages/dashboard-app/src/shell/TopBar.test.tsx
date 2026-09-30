@@ -92,6 +92,15 @@ describe('TopBar', () => {
     expect(screen.getByTestId('conn-indicator')).toHaveAttribute('data-on', 'false')
   })
 
+  it('设置齿轮是顶栏上唯一的图标钮，不带描边：悬停只出现底色', () => {
+    renderBar()
+    const gear = screen.getByTestId('nav-settings')
+    const classes = gear.className.split(/\s+/u)
+    expect(classes).not.toContain('border')
+    expect(classes.some((name) => name.startsWith('border-'))).toBe(false)
+    expect(classes).toContain('hover:bg-fill')
+  })
+
   it('语言名永远用各自的语言：英文界面里也是「中文 / English」', async () => {
     localStorage.setItem('tenon-dashboard-lang', 'en')
     renderBar({ lang: 'en' })

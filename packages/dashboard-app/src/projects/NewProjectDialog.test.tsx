@@ -242,6 +242,31 @@ describe('向导：步骤、返回与键盘', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
+  it('首步高度贴内容，不再固定 384px 留大片空白；模板 / 资源（左列表 + 右预览）才铺满', async () => {
+    const user = userEvent.setup()
+    stubFetch({ picks: [{ ok: true, path: '/code/legacy' }], git: 'existing' })
+    renderDialog()
+    const frame = screen.getByTestId('np-frame')
+    expect(frame).toHaveAttribute('data-fit', 'hug')
+    expect(screen.getByTestId('np-body').className).not.toContain('h-full')
+    expect(screen.getByTestId('np-body').className).not.toContain('h-96')
+    // 200ms 高度过渡；reduced-motion 不做过渡；最高仍是 384px，再多则内部滚动。
+    for (const name of ['transition-[height]', 'duration-200', 'motion-reduce:transition-none', 'max-h-96', 'overflow-y-auto']) expect(frame).toHaveClass(name)
+    await pickExisting(user)
+    await waitNext()
+    await user.click(screen.getByTestId('np-next'))
+    expect(await screen.findByTestId('np-templates')).toBeInTheDocument()
+    expect(screen.getByTestId('np-frame')).toHaveAttribute('data-fit', 'fill')
+    expect(screen.getByTestId('np-frame')).toHaveStyle({ height: '384px' })
+    expect(screen.getByTestId('np-body').className).toContain('h-full')
+    await user.click(screen.getByTestId('np-next'))
+    expect(await screen.findByTestId('np-resources')).toBeInTheDocument()
+    expect(screen.getByTestId('np-frame')).toHaveAttribute('data-fit', 'fill')
+    await user.click(screen.getByTestId('np-next'))
+    expect(await screen.findByTestId('np-clients')).toBeInTheDocument()
+    expect(screen.getByTestId('np-frame')).toHaveAttribute('data-fit', 'hug')
+  })
+
   it('没有输入时取消直接关闭', async () => {
     const user = userEvent.setup()
     stubFetch()
@@ -315,6 +340,19 @@ describe('位置：即时校验', () => {
     expect(await screen.findByTestId('np-existing-path')).toHaveTextContent('/home/me/code')
     expect(calls.some((call) => call.url === `/api/fs/list?dir=${encodeURIComponent('/home/me/code')}`)).toBe(true)
     expect(screen.getByTestId('np-location')).toBeInTheDocument()
+  })
+})
+
+describe('选择文件夹：输入路径钮', () => {
+  it('⌶ 钮有可访问名称，也有 Tooltip（悬停 / 聚焦都出），不再靠原生 title', async () => {
+    const user = userEvent.setup()
+    stubFetch()
+    renderDialog()
+    const type = screen.getByTestId('np-existing-type')
+    expect(type).toHaveAccessibleName('输入路径')
+    expect(type).not.toHaveAttribute('title')
+    await user.hover(type)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('输入路径')
   })
 })
 

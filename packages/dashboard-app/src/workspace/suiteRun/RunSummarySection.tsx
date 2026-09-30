@@ -38,12 +38,12 @@ function ServiceRows({ services, ctx }: { services: readonly RunService[]; ctx: 
         return (
           <div key={service.id} className={`${gridRow(SERVICE_COLUMNS)} ${TABLE_ROW}`} role="row" data-testid={`run-service-${service.id}`}>
             <span className="truncate font-mono text-text" role="cell" title={service.id}>{service.id}</span>
-            <span className="font-mono text-text-2" role="cell">{service.readyMs === null ? '—' : formatDuration(service.readyMs)}</span>
+            <span className="tabular-nums text-text-2" role="cell">{service.readyMs === null ? '—' : formatDuration(service.readyMs)}</span>
             <span role="cell">
               <StatusPill tone={danger ? 'blocked' : 'done'} testId={`run-service-exit-${service.id}`}>
                 {t(`tests.run.service.exit_${service.exit.replace(/-/gu, '_')}`)}
               </StatusPill>
-              {service.leaked > 0 && <span className="ml-2 font-mono text-caption text-red-d" title={t('tests.run.service.leaked')} data-testid={`run-service-leaked-${service.id}`}>{service.leaked}</span>}
+              {service.leaked > 0 && <span className="ml-2 text-caption tabular-nums text-red-d" title={t('tests.run.service.leaked')} data-testid={`run-service-leaked-${service.id}`}>{service.leaked}</span>}
             </span>
             <span className="truncate" role="cell">
               {service.logPresent && service.log !== null
@@ -65,10 +65,10 @@ export function RunSummarySection({ run, record, ctx }: { run: SuiteRun; record:
       <div role="table" aria-label={t('tests.run.section.run')}>
         <div className="py-1" data-testid="run-command-row"><CommandLine command={run.command} testId="run-command" truncate /></div>
         <DefRow label={t('tests.run.field.cwd')} testId="run-cwd"><span title={run.cwd}>{run.cwd}</span></DefRow>
-        <DefRow label={t('tests.run.field.exit')} testId="run-exit" danger={run.exitCode !== 0}>
+        <DefRow label={t('tests.run.field.exit')} testId="run-exit" mono={false} danger={run.exitCode !== 0}>
           {run.exitCode === null ? '—' : run.exitCode}{run.signal === null ? '' : ` · ${run.signal}`}
         </DefRow>
-        <DefRow label={t('tests.word.duration')} testId="run-duration">{formatDuration(run.durationMs)}</DefRow>
+        <DefRow label={t('tests.word.duration')} testId="run-duration" mono={false}>{formatDuration(run.durationMs)}</DefRow>
         <DefRow label={t('tests.run.field.scope')} testId="run-scope" mono={false}><span title={run.scope}>{scopeLabel(run.scope, t)}</span></DefRow>
         <DefRow label={t('tests.run.field.totals')} testId="run-totals" mono={false}><span title={totalsLine(run, t)}>{totalsLine(run, t)}</span></DefRow>
         {run.reasons.map((reason, index) => (

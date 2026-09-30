@@ -50,18 +50,50 @@ afterEach(() => {
   window.localStorage.clear()
 })
 
+/** 修复命令收在行展开里：点该行的箭头才出现。 */
+async function openFix(kind: string): Promise<HTMLElement> {
+  await userEvent.click(screen.getByTestId(`tests-fix-toggle-${kind}`))
+  return screen.getByTestId(`tests-fix-${kind}-text`)
+}
+
 describe('TaskTestsTab · 汇总与顺序', () => {
-  it('一行汇总：套件 · 用例 · 失败 · 不稳定 · 覆盖率；不折行', () => {
+  it('汇总：套件 · 用例 · 失败 · 不稳定（+ 覆盖率）是并排的大数字，标签在数字下；一行不折行', () => {
     mount()
     const summary = screen.getByTestId('tests-summary')
-    expect(summary.textContent).toBe('套件 3 · 用例 120 · 失败 0 · 不稳定 2 · 覆盖率 91.2%')
     expect(summary.className).toContain('whitespace-nowrap')
+    expect(summary.className).toContain('flex-nowrap')
     expect(summary).toHaveAttribute('data-pass', 'false')
+    const stat = (id: string): string => screen.getByTestId(`tests-stat-${id}`).textContent ?? ''
+    expect(['suite', 'case', 'fail', 'flaky', 'coverage'].map(stat)).toEqual(['3套件', '120用例', '0失败', '2不稳定', '91.2%覆盖率'])
+    // 24px / 600 的等宽数字 + 13px 标签。
+    const value = screen.getByTestId('tests-stat-value-case')
+    expect(value.className).toContain('text-section')
+    expect(value.className).toContain('font-semibold')
+    expect(value.className).toContain('tabular-nums')
+    expect(screen.getByTestId('tests-stat-case').querySelector('span:not([data-testid])')?.className).toContain('text-micro')
+    expect(summary).toHaveAttribute('aria-label', '套件 3 · 用例 120 · 失败 0 · 不稳定 2 · 覆盖率 91.2%')
   })
 
-  it('没有任何覆盖率：汇总不带覆盖率一段；空运行集全部为 0', () => {
+  it('0 退成 text-3；失败非零用红，其余非零是正文色', () => {
+    const base = verifyReport()
+    mount({ ...base, suites: base.suites.map((suite, index) => (index === 0 ? { ...suite, totals: { cases: 4, pass: 3, fail: 1, skip: 0, flaky: 0, knownFail: 0 } } : suite)) })
+    const tone = (id: string): string => screen.getByTestId(`tests-stat-value-${id}`).className
+    expect(tone('fail')).toContain('text-red-d')
+    expect(screen.getByTestId('tests-stat-fail')).toHaveAttribute('data-zero', 'false')
+    expect(tone('case')).toContain('text-text')
+    reset()
+    mount({ ...base, suites: [] })
+    for (const id of ['suite', 'case', 'fail', 'flaky']) {
+      expect(tone(id), id).toContain('text-text-3')
+      expect(tone(id), id).not.toContain('text-red-d')
+      expect(screen.getByTestId(`tests-stat-${id}`)).toHaveAttribute('data-zero', 'true')
+    }
+  })
+
+  it('没有任何覆盖率：汇总不带覆盖率一格；空运行集全部为 0', () => {
     mount({ ...verifyReport(), suites: [] })
-    expect(screen.getByTestId('tests-summary').textContent).toBe('套件 0 · 用例 0 · 失败 0 · 不稳定 0')
+    expect(screen.queryByTestId('tests-stat-coverage')).toBeNull()
+    expect(['suite', 'case', 'fail', 'flaky'].map((id) => screen.getByTestId(`tests-stat-${id}`).textContent)).toEqual(['0套件', '0用例', '0失败', '0不稳定'])
   })
 
   it('顺序：汇总 → 未登记文件 → 策略矩阵 → 阻塞 → 场景/任务；没有的段整段不出现', () => {
@@ -121,14 +153,30 @@ describe('TaskTestsTab · 策略矩阵', () => {
     expect((await screen.findAllByText('计划里必须有这个种类的套件或已批准的豁免')).length).toBeGreaterThan(0)
   })
 
-  it('缺项：短标签 + 可复制的修复命令；满足的行没有', () => {
+  it('缺项：行内只有短标签，修复命令收进行展开（点箭头才显示，可再收起）；满足的行没有', async () => {
     mount()
     expect(screen.getByTestId('tests-blocker-label-playwright').textContent).toBe('过期')
-    expect(screen.getByTestId('tests-fix-playwright-text').textContent).toBe('tenon test run add-login --suite web-e2e')
+    expect(screen.queryByTestId('tests-fix-playwright-text'), '默认收起').toBeNull()
+    expect(screen.getByTestId('tests-fix-toggle-playwright')).toHaveAttribute('aria-expanded', 'false')
+    expect((await openFix('playwright')).textContent).toBe('tenon test run add-login --suite web-e2e')
+    expect(screen.getByTestId('tests-fix-toggle-playwright')).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByTestId('tests-fix-toggle-playwright')).toHaveAccessibleName('收起修复命令')
     expect(screen.getByTestId('tests-blocker-label-a11y').textContent).toBe('缺测试种类')
-    expect(screen.getByTestId('tests-fix-a11y-text').textContent).toContain('tenon test waive add-login --kind a11y')
+    expect((await openFix('a11y')).textContent).toContain('tenon test waive add-login --kind a11y')
     expect(screen.getByTestId('tests-blocker-label-benchmark').textContent).toBe('基准退化')
     expect(screen.getByTestId('tests-blocker-unit').textContent).toBe('')
+    expect(screen.queryByTestId('tests-fix-toggle-unit'), '满足的行没有展开钮').toBeNull()
+    await userEvent.click(screen.getByTestId('tests-fix-toggle-playwright'))
+    expect(screen.queryByTestId('tests-fix-playwright-text')).toBeNull()
+  })
+
+  it('展开的修复命令可复制', async () => {
+    const write = vi.fn(async () => undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: write }, configurable: true })
+    mount()
+    await openFix('playwright')
+    await userEvent.click(screen.getByTestId('tests-fix-playwright-copy'))
+    expect(write).toHaveBeenCalledWith('tenon test run add-login --suite web-e2e')
   })
 
   it('豁免：待批准显示为待批准的点 + 词', () => {
@@ -172,7 +220,7 @@ describe('TaskTestsTab · 策略矩阵', () => {
     expect(screen.getByTestId('tests-suite-step:smoke-old').tagName).toBe('SPAN')
   })
 
-  it('计划被改动 / 目录缺失：所有缺项行退到全局阻塞，一行一个短标签与修复命令', () => {
+  it('计划被改动 / 目录缺失：所有缺项行退到全局阻塞，一行一个短标签与修复命令', async () => {
     const report: PolicyReport = {
       ...verifyReport(), suites: [],
       blockers: [{ code: 'test-plan-tampered', blocking: true, message: 'm', fix: 'tenon test plan add-login --seed' }],
@@ -180,15 +228,16 @@ describe('TaskTestsTab · 策略矩阵', () => {
     mount(report, { plan: { state: 'tampered', reason: 'x' } })
     for (const kind of ['unit', 'playwright', 'a11y', 'benchmark']) {
       expect(screen.getByTestId(`tests-blocker-label-${kind}`).textContent).toBe('计划被改动')
-      expect(screen.getByTestId(`tests-fix-${kind}-text`).textContent).toBe('tenon test plan add-login --seed')
+      expect((await openFix(kind)).textContent).toBe('tenon test plan add-login --seed')
     }
   })
 
-  it('每个格子不折行：种类、套件、缺项都是 truncate / nowrap', () => {
+  it('每个格子不折行：种类、套件、缺项都是 truncate / nowrap', async () => {
     mount()
     const row = screen.getByTestId('tests-kind-playwright')
     expect(row.className).toContain('whitespace-nowrap')
-    expect(within(row).getByTestId('tests-fix-playwright-text').className).toContain('truncate')
+    expect(within(row).getByTestId('tests-blocker-label-playwright').className).toContain('truncate')
+    expect((await openFix('playwright')).className).toContain('truncate')
     expect(within(row).getByTestId('tests-suite-web-e2e').className).toContain('truncate')
   })
 })
@@ -247,7 +296,7 @@ describe('TaskTestsTab · 阻塞与追溯', () => {
     expect(screen.getByTestId('tests-trace-state-spec:auth/映射了').textContent).toBe('未运行')
   })
 
-  it('追溯行一行：任务 = 编号 · 阶段名 · 文字，场景 = 能力 · 场景；截断并带完整 title；没有阶段小节时省略阶段', () => {
+  it('追溯行一行：任务 = 编号 · 阶段名 · 文字，场景 = 能力 · 场景；截断并带完整 title；没有阶段小节时省略阶段', async () => {
     const base = verifyReport()
     mount({
       ...base,
@@ -257,6 +306,8 @@ describe('TaskTestsTab · 阻塞与追溯', () => {
         { covers: 'task:5.2', kind: 'task', title: '没有阶段小节的条目', required: false, state: 'uncovered', tests: [] },
       ],
     })
+    // 骨架任务（可选）合并进「N 可选」，展开后才逐条出现。
+    await userEvent.click(screen.getByTestId('tests-trace-optional-toggle'))
     const titleOf = (covers: string): HTMLElement => within(screen.getByTestId(`tests-trace-${covers}`)).getByTestId('tests-trace-title')
     expect(titleOf('task:4.1').textContent).toBe('4.1 · spec · 将本阶段目标拆成可验证任务。')
     expect(titleOf('task:5.2').textContent).toBe('5.2 · 没有阶段小节的条目')
@@ -269,9 +320,11 @@ describe('TaskTestsTab · 阻塞与追溯', () => {
     }
   })
 
-  it('可选的任务（非实现阶段小节）没映射时写「可选」，中性，不当缺项', () => {
+  it('可选的任务（非实现阶段小节）没映射时写「可选」，中性，不当缺项；合并成一行，展开才逐条列出', async () => {
     const base = verifyReport()
     mount({ ...base, trace: [...base.trace, { covers: 'task:1.1', kind: 'task', title: '将本阶段目标拆成可验证任务。', required: false, state: 'uncovered', tests: [] }] })
+    expect(screen.queryByTestId('tests-trace-task:1.1'), '默认收起').toBeNull()
+    await userEvent.click(screen.getByTestId('tests-trace-optional-toggle'))
     expect(screen.getByTestId('tests-trace-state-task:1.1').textContent).toBe('可选')
     expect(screen.getByTestId('tests-trace-state-task:1.1')).toHaveAttribute('data-tone', 'neutral')
     expect(screen.getByTestId('tests-trace-state-spec:auth/退出登录')).toHaveAttribute('data-tone', 'blocked')
@@ -282,6 +335,37 @@ describe('TaskTestsTab · 阻塞与追溯', () => {
     mount()
     expect(screen.getByTestId('tests-blocker-label-playwright').textContent).toBe('Stale')
     expect(screen.getByTestId('tests-blocker-label-a11y').textContent).toBe('Kind missing')
-    expect(screen.getByTestId('tests-summary').textContent).toBe('Suite 3 · Case 120 · Fail 0 · Flaky 2 · Coverage 91.2%')
+    expect(screen.getByTestId('tests-summary')).toHaveAttribute('aria-label', 'Suite 3 · Case 120 · Fail 0 · Flaky 2 · Coverage 91.2%')
+    expect(screen.getByTestId('tests-stat-fail').textContent).toBe('0Fail')
+  })
+
+  it('可选任务合并成一行「N 可选」：计数随数量，默认收起，可展开再收起；表头计数仍是全部条目', async () => {
+    const base = verifyReport()
+    const optional = (id: string) => ({ covers: `task:${id}`, kind: 'task' as const, title: '将本阶段目标拆成可验证任务。', stage: 'spec', required: false, state: 'uncovered' as const, tests: [] })
+    mount({ ...base, trace: [...base.trace, optional('1.1'), optional('2.1'), optional('3.1')] })
+    const toggle = screen.getByTestId('tests-trace-optional-toggle')
+    expect(toggle.textContent).toBe('3 可选')
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(within(screen.getByTestId('tests-trace')).getAllByTestId('tests-trace-title')).toHaveLength(3)
+    await userEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(within(screen.getByTestId('tests-trace')).getAllByTestId('tests-trace-title')).toHaveLength(6)
+    await userEvent.click(toggle)
+    expect(within(screen.getByTestId('tests-trace')).getAllByTestId('tests-trace-title')).toHaveLength(3)
+  })
+
+  it('没有可选任务：不出现「N 可选」行', () => {
+    mount()
+    expect(screen.queryByTestId('tests-trace-optional')).toBeNull()
+  })
+
+  it('失败的行排在最前，其后按 缺映射 → 未运行 → 通过 的顺序；同权重保持服务端顺序', () => {
+    const base = verifyReport()
+    const row = (covers: string, state: 'passing' | 'failing' | 'mapped' | 'uncovered'): PolicyReport['trace'][number] => ({
+      covers: `spec:${covers}`, kind: 'spec', title: covers, required: true, state, tests: [],
+    })
+    mount({ ...base, trace: [row('a-pass', 'passing'), row('b-mapped', 'mapped'), row('c-fail', 'failing'), row('d-uncovered', 'uncovered'), row('e-fail', 'failing')] })
+    expect(within(screen.getByTestId('tests-trace')).getAllByTestId('tests-trace-title').map((cell) => cell.textContent))
+      .toEqual(['c-fail', 'e-fail', 'd-uncovered', 'b-mapped', 'a-pass'])
   })
 })
