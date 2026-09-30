@@ -23,6 +23,7 @@ import { useChangeOrchestration } from './useChangeOrchestration'
 import { ReviewDecisionPanel } from './ReviewDecisionPanel'
 import { OwnerAvatar, summaryTone } from './TaskCard'
 import { NextStepPanel } from './NextStepPanel'
+import { BUTTON_GHOST } from '../shared/uiRecipes'
 import { TaskMenu, type TaskMenuEntry } from './TaskMenu'
 import { readWorkspaceParam, writeWorkspaceParam } from './workspaceLocation'
 import { matchesTaskRef } from './taskRef'
@@ -39,6 +40,11 @@ export interface TaskDetailPaneProps {
   menu?: readonly TaskMenuEntry[]
   /** 已归档视图：不显示评审台。 */
   archived?: boolean
+  /**
+   * The task's evidence (documents, runs, tests) comes from `GET /api/change/:name/snapshot`, not from the list row.
+   * `loading` / `error` say it is not in `row` yet; absent = `row` already holds it.
+   */
+  evidence?: { status: 'loading' } | { status: 'error'; error: unknown; onRetry: () => void }
 }
 
 /** URL 里的 step 只对它所属的任务生效：change 缺省（隐式选中首条）或与本任务同名。 */
@@ -56,7 +62,7 @@ type DetailView = 'stage' | 'overview'
  * 测试 → 评审者，带运行状态）→ 输出与输入；总览页 = 整条工作流的同一张画布，当前阶段高亮。
  * 编排与输入输出都读任务冻结的计划（不读当前定义）。
  */
-export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = true, fetchDefinition = true, menu = [], archived = false }: TaskDetailPaneProps): JSX.Element {
+export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = true, fetchDefinition = true, menu = [], archived = false, evidence }: TaskDetailPaneProps): JSX.Element {
   const { t } = useT()
   const { change, root } = row
   const current = row.stages.find((stage) => stage.status === 'current')?.id ?? change.phase
@@ -66,7 +72,8 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
   // SSE replaces the whole snapshot object; only this change's own state should reload its decisions.
   const decisionSignature = [change.phase, change.phase_status, change.updated_at, JSON.stringify(change.reviewHandshake ?? null)].join('\n')
   // 编排的运行状态跟着技能 / agent / 测试 / 文档证据走，这些变了也要重取。
-  const runSignature = [decisionSignature, JSON.stringify([change.skillRuns ?? null, change.agentRuns ?? null, change.tests ?? null, change.documents ?? null])].join('\n')
+  // A list row names its evidence by `rev`; a row that carries the evidence itself is compared by content.
+  const runSignature = [decisionSignature, change.rev ?? JSON.stringify([change.skillRuns ?? null, change.agentRuns ?? null, change.tests ?? null, change.documents ?? null])].join('\n')
   // 任务推进到新阶段时跟过去；首次挂载保留 URL 里的 step。
   const seen = useRef(`${identity}\n${current}`)
   useEffect(() => {
@@ -159,6 +166,15 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
       >
         {orchestration.status === 'error' && (
           <p className="mb-6 truncate whitespace-nowrap text-body text-red-d" role="alert" data-testid="task-orchestration-error">{t('workspace.orchestration_error', { msg: formatApiError(orchestration.error, t) })}</p>
+        )}
+        {evidence?.status === 'error' && (
+          <div className="mb-6 flex min-w-0 items-center gap-3 text-body text-red-d" role="alert" data-testid="task-detail-error">
+            <p className="min-w-0 flex-1 truncate whitespace-nowrap">{t('workspace.detail_error', { msg: formatApiError(evidence.error, t) })}</p>
+            <button type="button" className={BUTTON_GHOST} onClick={evidence.onRetry} data-testid="task-detail-retry">{t('common.snapshot_retry')}</button>
+          </div>
+        )}
+        {evidence?.status === 'loading' && (
+          <p className="mb-6 text-body text-text-3" role="status" data-testid="task-detail-loading">{t('common.loading')}</p>
         )}
         {view === 'overview' ? (
           ready === null

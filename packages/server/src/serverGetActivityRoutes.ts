@@ -4,7 +4,7 @@ import { listAutomationPolicyTemplates, stateStorageExistsSync } from '@tenon/ke
 import { buildAfkLog, buildAfkSnapshot, readAfkRunLog } from './afk.js'
 import { handleContextBundlePreview } from './contextBundlePreview.js'
 import { buildRunDetail } from './runDetail.js'
-import { sendSharedSnapshot } from './snapshotCache.js'
+import { sendSharedBody } from './snapshotShared.js'
 import { readChangeHistory } from './transition.js'
 import { handleGetUserRoute } from './serverUserRoutes.js'
 import type { GetRouteDeps } from './serverGetRoutes.js'
@@ -62,9 +62,12 @@ export async function handleGetActivityRoutes(
     if (path === '/api/context-bundle/preview') {
       return handleContextBundlePreview(req, res, deps)
     }
+    // `?view=list` is the Dashboard's tier: rows without the per-change evidence, which it reads from
+    // /api/change/:name/snapshot. Without a view the response is the documented full snapshot.
     if (path === '/api/snapshot') {
       try {
-        return sendSharedSnapshot(req, res, await snapshotCache.current())
+        const view = new URL(req.url ?? '/', 'http://localhost').searchParams.get('view')
+        return sendSharedBody(req, res, view === 'list' ? await snapshotCache.list() : await snapshotCache.full())
       } catch (e) {
         return sendJson(res, 500, { ok: false, error: errMsg(e) })
       }
@@ -85,14 +88,14 @@ export async function handleGetActivityRoutes(
     // ── #29d AFK 指挥面数据端：聚合 automation_* → 泳道 + 调度器 doctor 灯 + 流水 ──
     if (path === '/api/afk/snapshot') {
       try {
-        return sendJson(res, 200, buildAfkSnapshot((await snapshotCache.current()).snapshot, clock))
+        return sendJson(res, 200, buildAfkSnapshot((await snapshotCache.list()).snapshot, clock))
       } catch (e) {
         return sendJson(res, 500, { ok: false, error: errMsg(e) })
       }
     }
     if (path === '/api/afk/log') {
       try {
-        return sendJson(res, 200, buildAfkLog((await snapshotCache.current()).snapshot, clock))
+        return sendJson(res, 200, buildAfkLog((await snapshotCache.list()).snapshot, clock))
       } catch (e) {
         return sendJson(res, 500, { ok: false, error: errMsg(e) })
       }
@@ -156,6 +159,32 @@ export async function handleGetActivityRoutes(
         return sendJson(res, 400, { ok: false, error: '找不到该 change（无 canonical/legacy 状态）' })
       }
       return sendJson(res, 200, { entries: await readChangeHistory(dir, { store, recordStore }) })
+    }
+    // ── GET /api/change/:name/snapshot?root= —— 一个 change 带全部证据（documents / skillRuns / agentRuns / tests /
+    //    testPolicy / 规则 policy / 全部 fields）的详情，与完整快照里该 change 的形状一致，另带 `rev`；归档的 change
+    //    再带 `archive`。列表快照（?view=list）不含这些，打开任务时才读。校验顺序同 history：名字格式 → root 信任锚 → 状态存在。
+    const mChangeSnapshot = /^\/api\/change\/([^/]+)\/snapshot$/.exec(path)
+    if (mChangeSnapshot) {
+      const segment = mChangeSnapshot[1]
+      if (segment === undefined) return sendJson(res, 400, { ok: false, error: '非法 change 路径' })
+      const name = decodeURIComponent(segment)
+      if (!name || !/^[a-zA-Z0-9_-]+$/.test(name) || name.includes('..')) {
+        return sendJson(res, 400, { ok: false, error: '非法 change 名（仅允许 a-z A-Z 0-9 - _）' })
+      }
+      const root = new URL(req.url ?? '/', 'http://localhost').searchParams.get('root') ?? ''
+      if (!isRegisteredRoot(root)) {
+        return sendJson(res, 404, { ok: false, error: 'root 未在机器级项目注册表中' })
+      }
+      if (!stateStorageExistsSync(join(root, 'openspec', 'changes', name))) {
+        return sendJson(res, 400, { ok: false, error: '找不到该 change（无 canonical/legacy 状态）' })
+      }
+      try {
+        const shared = await snapshotCache.detail(root, name)
+        if (shared === null) return sendJson(res, 404, { ok: false, code: 'CHANGE_SNAPSHOT_UNREADABLE', error: '该 change 的状态不可读' })
+        return sendSharedBody(req, res, shared)
+      } catch (error) {
+        return sendJson(res, 500, { ok: false, error: errMsg(error) })
+      }
     }
     // ── Control Room：canonical WorkflowRun + TransitionRecord + 关联 loop ledger 审计真相源。──
     const mRunDetail = /^\/api\/change\/([^/]+)\/run-detail$/.exec(path)

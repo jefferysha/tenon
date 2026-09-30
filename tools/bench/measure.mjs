@@ -24,6 +24,7 @@ export function readOptions(argv) {
       changes: { type: 'string', default: String(DEFAULT_CHANGES) },
       'fixture-dir': { type: 'string' },
       'max-p95-ms': { type: 'string' },
+      scenarios: { type: 'string', default: 'cold' },
     },
   })
   const positive = (name, raw, min) => {
@@ -40,6 +41,8 @@ export function readOptions(argv) {
     changes: positive('changes', values.changes, 1),
     // 开发机反复量同一份夹具时用；CI 不传，每次都是新的临时夹具。
     fixtureDir: values['fixture-dir'] === undefined || values['fixture-dir'] === '' ? undefined : resolve(values['fixture-dir']),
+    // 要跑哪些场景（逗号分隔）；各脚本自己校验名字。
+    scenarios: String(values.scenarios).split(',').map((name) => name.trim()).filter((name) => name !== ''),
     // 主指标 p95 的硬上限（毫秒）：超了脚本自己以非零退出，目录套件据此判失败；不传就不设。
     maxP95Ms: values['max-p95-ms'] === undefined ? undefined : positive('max-p95-ms', values['max-p95-ms'], 1),
   }

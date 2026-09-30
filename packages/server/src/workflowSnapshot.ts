@@ -27,6 +27,7 @@ import {
 } from '@tenon/kernel'
 import type {
   LegacyWorkflowRulesSnapshot,
+  ListWorkflowRulesSnapshot,
   WorkflowConfiguredPolicySnapshot,
   WorkflowExecutionSnapshot,
   WorkflowRulesSnapshot,
@@ -182,16 +183,12 @@ export function snapshotTodoStages(
   return phase === '' ? [] : [{ id: phase, label: phase }]
 }
 
-export function snapshotWorkflowRules(
-  plan: EffectiveWorkflowPlan,
-  configured: WorkflowConfiguredPolicySnapshot = { status: 'unavailable' },
-  authority?: WorkflowSnapshotAuthorityInput,
-): WorkflowRulesSnapshot {
-  const configuredAvailable = configured.status === 'available'
-  const fingerprintChanged = configuredAvailable
-    ? configured.workflowFingerprint !== plan.workflowFingerprint
-    : null
-  const policyChanged = configuredAvailable ? !samePolicy(configured, plan) : null
+/**
+ * The part of the rules that is a pure function of the immutable plan: steps, exits, gates, labels and
+ * outputs. The list snapshot carries only this (every change on one plan shares it); the `policy` block,
+ * which depends on the configured workflow and each change's authority record, is detail-tier data.
+ */
+export function snapshotWorkflowRulesStructure(plan: EffectiveWorkflowPlan): ListWorkflowRulesSnapshot {
   return {
     executionModel: plan.capabilities.execution.model,
     steps: plan.workflow.steps.map((step) => step.id),
@@ -209,6 +206,21 @@ export function snapshotWorkflowRules(
       step.id,
       step.outputs.map((output) => output.field),
     ])),
+  }
+}
+
+export function snapshotWorkflowRules(
+  plan: EffectiveWorkflowPlan,
+  configured: WorkflowConfiguredPolicySnapshot = { status: 'unavailable' },
+  authority?: WorkflowSnapshotAuthorityInput,
+): WorkflowRulesSnapshot {
+  const configuredAvailable = configured.status === 'available'
+  const fingerprintChanged = configuredAvailable
+    ? configured.workflowFingerprint !== plan.workflowFingerprint
+    : null
+  const policyChanged = configuredAvailable ? !samePolicy(configured, plan) : null
+  return {
+    ...snapshotWorkflowRulesStructure(plan),
     policy: {
       schema: 'workflow-policy/v1',
       configured,

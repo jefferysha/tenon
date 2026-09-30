@@ -1,5 +1,5 @@
 import type { Snapshot } from '../types'
-import { decodeSnapshot } from './snapshotDecoder'
+import { applySnapshotDelta, decodeSnapshot, decodeSnapshotDelta } from './snapshotDecoder'
 import { ApiError, getToken, isRecord, readJson, throwDetailedApiError, wrapNetwork } from './transport'
 
 /** The last decoded snapshot and its ETag: when the server answers 304, a refresh reuses it as is. */
@@ -9,7 +9,8 @@ export async function fetchSnapshot(): Promise<Snapshot> {
   const known = lastSnapshot
   let response: Response
   try {
-    response = await fetch('/api/snapshot', {
+    // The list tier: rows without the per-change evidence, which the open task reads from /api/change/:name/snapshot.
+    response = await fetch('/api/snapshot?view=list', {
       headers: known === undefined ? { Accept: 'application/json' } : { Accept: 'application/json', 'If-None-Match': known.etag },
     })
   } catch (error) {
@@ -47,34 +48,53 @@ export async function postTransition(name: string, root: string, event: string):
   if (!response.ok) await throwDetailedApiError(response, '转换失败')
 }
 
+/**
+ * The stream delivers the list tier: one full `snapshot` frame, then a `snapshot-delta` frame holding only the
+ * projects whose bytes moved. The last snapshot delivered is the base every delta applies to; a delta that cannot be
+ * applied (no base, a project neither side knows) is reported like a broken connection so the caller reconnects.
+ */
 export function subscribeSnapshot(
   onSnapshot: (snapshot: Snapshot) => void,
   onError?: () => void,
 ): () => void {
-  const source = new EventSource('/api/stream')
+  const source = new EventSource('/api/stream?view=list')
+  let current: Snapshot | null = null
+  const frameData = (event: Event): unknown => {
+    if (!isRecord(event) || typeof event.data !== 'string') return undefined
+    try {
+      return JSON.parse(event.data)
+    } catch {
+      return undefined
+    }
+  }
+  // An invalid frame cannot be treated as an authoritative state update. Surface the same
+  // failure signal as EventSource.onerror so consumers stop presenting stale data as live.
   const handleSnapshot = (event: Event): void => {
-    if (!isRecord(event) || typeof event.data !== 'string') {
+    const snapshot = decodeSnapshot(frameData(event))
+    if (snapshot === null) {
       onError?.()
       return
     }
-    try {
-      const snapshot = decodeSnapshot(JSON.parse(event.data))
-      if (snapshot === null) {
-        onError?.()
-        return
-      }
-      onSnapshot(snapshot)
-    } catch {
-      // An invalid frame cannot be treated as an authoritative state update. Surface the same
-      // failure signal as EventSource.onerror so consumers stop presenting stale data as live.
+    current = snapshot
+    onSnapshot(snapshot)
+  }
+  const handleDelta = (event: Event): void => {
+    const delta = decodeSnapshotDelta(frameData(event))
+    const next = delta === null || current === null ? null : applySnapshotDelta(current, delta)
+    if (next === null) {
       onError?.()
+      return
     }
+    current = next
+    onSnapshot(next)
   }
   const handleError = (): void => onError?.()
   source.addEventListener('snapshot', handleSnapshot)
+  source.addEventListener('snapshot-delta', handleDelta)
   if (onError) source.addEventListener('error', handleError)
   return () => {
     source.removeEventListener('snapshot', handleSnapshot)
+    source.removeEventListener('snapshot-delta', handleDelta)
     if (onError) source.removeEventListener('error', handleError)
     source.close()
   }

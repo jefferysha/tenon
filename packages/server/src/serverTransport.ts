@@ -4,7 +4,9 @@ import { join } from 'node:path'
 import { gzipSync } from 'node:zlib'
 import type { SnapshotDeps } from './snapshot.js'
 import { createSnapshotCache } from './snapshotCache.js'
+import { acceptsGzip, type SharedListSnapshot } from './snapshotShared.js'
 import { singleFlight } from './singleFlight.js'
+import { noteBodyRoot } from './snapshotWriteScope.js'
 
 const MAX_POST_BODY = 64 * 1024
 
@@ -21,16 +23,50 @@ export function createServerTransport(options: ServerTransportOptions) {
 // /api/snapshot, the SSE first frame, poll broadcasts and the AFK views all read this one cache.
 const snapshotCache = createSnapshotCache({ snapshotDeps })
 const clients = new Set<ServerResponse>()
+/**
+ * What each connected stream has been sent. A `list` client receives the list tier: one full `snapshot` frame, then a
+ * `snapshot-delta` frame holding only the projects whose bytes moved (the digests it was last sent are in `sent`). A
+ * `full` client receives the documented full snapshot, re-sent whole whenever the fingerprint moves.
+ */
+interface StreamClient {
+  readonly view: 'list' | 'full'
+  primed: boolean
+  sent: Map<string, string>
+  order: string
+}
+const streamClients = new WeakMap<ServerResponse, StreamClient>()
 let lastFp = ''
 let lastBeat = Date.now()
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
-function broadcast(event: string, data: string): void {
+function write(res: ServerResponse, frame: string): void {
+  try { res.write(frame) } catch { /* 断开的连接会在 close 事件里清理 */ }
+}
+
+function broadcast(event: string, data: string, view: StreamClient['view']): void {
   lastBeat = Date.now()
   const frame = `event: ${event}\ndata: ${data}\n\n`
   for (const res of clients) {
-    try { res.write(frame) } catch { /* 断开的连接会在 close 事件里清理 */ }
+    const client = streamClients.get(res)
+    if (client?.view === view && client.primed) write(res, frame)
   }
+}
+
+/** Send `client` what it is missing of `shared`: the whole snapshot the first time, afterwards only changed projects. */
+function sendList(res: ServerResponse, client: StreamClient, shared: SharedListSnapshot): void {
+  const order = shared.chunks.map((chunk) => chunk.root)
+  const orderKey = order.join('\u0000')
+  if (!client.primed) {
+    write(res, `event: snapshot\ndata: ${shared.body}\n\n`)
+    client.primed = true
+  } else {
+    const changed = shared.chunks.filter((chunk) => client.sent.get(chunk.root) !== chunk.digest)
+    if (changed.length === 0 && orderKey === client.order) return
+    write(res, `event: snapshot-delta\ndata: ${shared.envelope.slice(0, -1)},"roots":${JSON.stringify(order)},"projects":[${changed.map((chunk) => chunk.json).join(',')}]}\n\n`)
+  }
+  client.sent = new Map(shared.chunks.map((chunk) => [chunk.root, chunk.digest]))
+  client.order = orderKey
+  lastBeat = Date.now()
 }
 
 function stopPoll(): void {
@@ -38,6 +74,11 @@ function stopPoll(): void {
     clearInterval(pollTimer)
     pollTimer = null
   }
+}
+
+function hasClients(view: StreamClient['view']): boolean {
+  for (const res of clients) if (streamClients.get(res)?.view === view) return true
+  return false
 }
 
 const pollTick = singleFlight(async (): Promise<void> => {
@@ -49,17 +90,25 @@ const pollTick = singleFlight(async (): Promise<void> => {
     const fp = await snapshotCache.fingerprint()
     if (fp !== lastFp) {
       try {
-        const shared = await snapshotCache.current()
-        lastFp = shared.fingerprint
-        broadcast('snapshot', shared.body)
+        if (hasClients('list')) {
+          const shared = await snapshotCache.list()
+          lastFp = shared.fingerprint
+          for (const res of clients) {
+            const client = streamClients.get(res)
+            if (client?.view === 'list' && client.primed) sendList(res, client, shared)
+          }
+        }
+        if (hasClients('full')) {
+          const shared = await snapshotCache.full()
+          lastFp = shared.fingerprint
+          broadcast('snapshot', shared.body, 'full')
+        }
       } catch {
         /* 一次失败下轮再试 */
       }
     } else if (Date.now() - lastBeat > heartbeatMs) {
       lastBeat = Date.now()
-      for (const res of clients) {
-        try { res.write(': ping\n\n') } catch { /* ignore */ }
-      }
+      for (const res of clients) write(res, ': ping\n\n')
     }
   } catch {
     return
@@ -108,7 +157,11 @@ function readJsonBody(req: IncomingMessage): Promise<unknown> {
       data += c
     })
     req.on('end', () => {
-      try { finish(JSON.parse(data)) } catch { finish(undefined) }
+      try {
+        const parsed: unknown = JSON.parse(data)
+        noteBodyRoot(req, parsed)
+        finish(parsed)
+      } catch { finish(undefined) }
     })
     req.on('error', () => finish(undefined))
   })
@@ -122,11 +175,23 @@ async function handleStream(req: IncomingMessage, res: ServerResponse): Promise<
     Connection: 'keep-alive',
     'X-Accel-Buffering': 'no',
   })
+  const view = new URL(req.url ?? '/', 'http://localhost').searchParams.get('view') === 'list' ? 'list' : 'full'
+  const client: StreamClient = { view, primed: false, sent: new Map(), order: '' }
+  streamClients.set(res, client)
   clients.add(res)
   try {
-    const shared = await snapshotCache.current()
-    lastFp = shared.fingerprint
-    res.write(`event: snapshot\ndata: ${shared.body}\n\n`)
+    if (view === 'list') {
+      const shared = await snapshotCache.list()
+      lastFp = shared.fingerprint
+      sendList(res, client, shared)
+      // 首帧构建期间落下的变化（轮询广播跳过了尚未就绪的连接）在这里补上。
+      sendList(res, client, await snapshotCache.list())
+    } else {
+      const shared = await snapshotCache.full()
+      lastFp = shared.fingerprint
+      write(res, `event: snapshot\ndata: ${shared.body}\n\n`)
+      client.primed = true
+    }
   } catch {
     /* 初始快照失败不影响后续推送 */
   }
@@ -148,19 +213,6 @@ const GZIP_MIN_BYTES = 1_024
 const GZIP_TYPES = new Set(['.js', '.css', '.html', '.json', '.svg'])
 const gzipCache = new Map<string, Buffer>()
 
-function acceptsGzip(header: string | string[] | undefined): boolean {
-  if (header === undefined) return false
-  const accepted = new Map<string, number>()
-  for (const entry of (Array.isArray(header) ? header.join(',') : header).split(',')) {
-    const [rawName, ...params] = entry.trim().toLowerCase().split(';')
-    if (!rawName) continue
-    const qParam = params.map((param) => param.trim()).find((param) => param.startsWith('q='))
-    const parsed = qParam === undefined ? 1 : Number(qParam.slice(2))
-    accepted.set(rawName, Number.isFinite(parsed) ? parsed : 0)
-  }
-  const gzip = accepted.get('gzip')
-  return (gzip ?? accepted.get('*') ?? 0) > 0
-}
 function serveIndexWithToken(res: ServerResponse): boolean {
   if (!webRoot) return false
   try {

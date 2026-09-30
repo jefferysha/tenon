@@ -108,6 +108,12 @@ export interface ChangeSnapshot {
    * observability, not canonical workflow state; omitted as soon as its short lease expires.
    */
   terminalActivity?: TerminalActivitySnapshot
+  /**
+   * Identity of the inputs this change was read from (state, tasks, documents, test-record directories,
+   * terminal heartbeat). Stamped by the snapshot cache, absent on a bare scan; a list row and the detail
+   * read for it carry the same value, so a reader knows when its detail is stale.
+   */
+  rev?: string
 }
 
 export type SkillRunStatus = 'idle' | 'running' | 'done'
@@ -194,6 +200,9 @@ export type WorkflowConfiguredPolicySnapshot =
     }
   | { status: 'missing' | 'invalid' | 'unavailable' }
 
+/** The plan-derived rules a list row needs; the `policy` block is detail-tier data. */
+export type ListWorkflowRulesSnapshot = Omit<WorkflowRulesSnapshot, 'policy'>
+
 /** Rolling-upgrade projection consumed only by an already-open pre-v1.0.1 Dashboard. */
 export interface LegacyWorkflowRulesSnapshot extends Omit<WorkflowRulesSnapshot, 'executionModel' | 'policy'> {
   nonemptyOutputByStep: Record<string, boolean>
@@ -248,6 +257,31 @@ export interface ProjectSnapshot {
   /** Remove only after the declared rolling compatibility window ends. */
   workflowRules: Record<string, LegacyWorkflowRulesSnapshot>
   error?: string
+}
+
+/**
+ * The list tier of a change: everything a row, the progress board and the inbox render, without the
+ * per-change evidence (documents, skill / agent runs, tests, test policy) that only the open task reads
+ * through `GET /api/change/:name/snapshot`. `rev` identifies the inputs the detail was built from; a list
+ * row whose `rev` moved on tells the reader its detail is stale.
+ */
+export type ChangeListSnapshot = Omit<ChangeSnapshot,
+  'workflowRules' | 'documents' | 'skillRuns' | 'agentRuns' | 'tests' | 'testPolicy' | 'testPlan' | 'testUser' | 'testDiagnostics'
+> & { workflowRules: ListWorkflowRulesSnapshot }
+
+export type ArchivedChangeListSnapshot = ChangeListSnapshot & { archive: ArchivedChangeSnapshot['archive'] }
+
+/** One project in the list tier. A full `ProjectSnapshot` is assignable to it. */
+export interface ProjectListSnapshot extends Omit<ProjectSnapshot, 'changes' | 'archived' | 'workflowRules'> {
+  changes: ChangeListSnapshot[]
+  archived?: ArchivedChangeListSnapshot[]
+}
+
+/** The list-tier aggregate: what the Dashboard loads first. A full `Snapshot` is assignable to it. */
+export interface ListSnapshot extends Omit<Snapshot, 'projects'> {
+  /** Marks the tier on the wire; a full snapshot carries no view. */
+  view?: 'list'
+  projects: ProjectListSnapshot[]
 }
 
 /** GET /api/snapshot 的完整响应体：聚合本机所有注册 Project。 */

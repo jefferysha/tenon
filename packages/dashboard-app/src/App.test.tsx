@@ -63,7 +63,7 @@ beforeEach(() => {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) => {
-      if (url === '/api/snapshot') {
+      if (url === '/api/snapshot?view=list') {
         return { ok: true, json: async () => makeSnapshot([makeProject('/repo', [makeChange('seed-c', 'build')])]) }
       }
       if (url.startsWith('/api/workflows?root=')) {
@@ -136,7 +136,7 @@ function stubEditableWorkbench(options: {
     window.history.replaceState({ page: 'workbench' }, '', '/?view=workflow&root=%2Frepo')
   }
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-    if (url === '/api/snapshot') {
+    if (url === '/api/snapshot?view=list') {
       return new Response(JSON.stringify(makeSnapshot(
         roots.map((root) => makeProject(root, [makeChange(`seed-${root.split('/').filter(Boolean).at(-1) ?? 'root'}`, 'build')])),
       )), { status: 200 })
@@ -1155,7 +1155,7 @@ describe('App 首个快照未到', () => {
     window.history.replaceState({}, '', `/?view=${view}&root=%2Frepo`)
     let resolveSnapshot: (value: unknown) => void = () => undefined
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      if (url === '/api/snapshot') {
+      if (url === '/api/snapshot?view=list') {
         return new Promise((resolve) => { resolveSnapshot = resolve })
       }
       if (url.startsWith('/api/instructions?')) {
@@ -1192,7 +1192,7 @@ describe('App 初始 snapshot 错误恢复', () => {
     localStorage.setItem('tenon-dashboard-lang', 'en')
     window.history.replaceState({}, '', '/?view=workspace')
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      if (url !== '/api/snapshot') throw new Error(`unexpected fetch ${url}`)
+      if (url !== '/api/snapshot?view=list') throw new Error(`unexpected fetch ${url}`)
       return {
         ok: false,
         status: 500,
@@ -1211,7 +1211,7 @@ describe('App 初始 snapshot 错误恢复', () => {
     localStorage.setItem('tenon-dashboard-lang', 'en')
     window.history.replaceState({}, '', '/?view=workspace')
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      if (url !== '/api/snapshot') throw new Error(`unexpected fetch ${url}`)
+      if (url !== '/api/snapshot?view=list') throw new Error(`unexpected fetch ${url}`)
       return {
         ok: true,
         status: 200,
@@ -1228,7 +1228,7 @@ describe('App 初始 snapshot 错误恢复', () => {
     window.history.replaceState({}, '', '/?view=workspace')
     let snapshotAttempts = 0
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      if (url !== '/api/snapshot') throw new Error(`unexpected fetch ${url}`)
+      if (url !== '/api/snapshot?view=list') throw new Error(`unexpected fetch ${url}`)
       snapshotAttempts += 1
       if (snapshotAttempts === 1) {
         return {
@@ -1263,7 +1263,7 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
   it('有已注册项目但 URL 无 root：保持未选择、停留在进度并显示项目引导，不调用 per-root API', async () => {
     window.history.replaceState({}, '', '/?debug=1&view=workspace')
     const fetchMock = vi.fn(async (url: string) => {
-      if (url === '/api/snapshot') {
+      if (url === '/api/snapshot?view=list') {
         return { ok: true, json: async () => makeSnapshot([makeProject('/repo-a', [makeChange('a1', 'build')])]) }
       }
       // 所有项目视图默认选中第一项：只为这一项按需取冻结编排与记录，列表本身不发 per-root 请求。
@@ -1291,7 +1291,7 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
   it('失效 root 深链：清除 root/change 并保持无选择，聚合展示而不重定向首个项目', async () => {
     window.history.replaceState({}, '', '/?debug=1&view=progress&root=%2Fmissing&change=ghost')
     const fetchMock = vi.fn(async (url: string) => {
-      if (url === '/api/snapshot') {
+      if (url === '/api/snapshot?view=list') {
         return { ok: true, json: async () => makeSnapshot([makeProject('/repo-a', [makeChange('a1', 'build')])]) }
       }
       // 所有项目视图默认选中第一项：只为这一项按需取冻结编排与记录，列表本身不发 per-root 请求。
@@ -1319,7 +1319,7 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
   it('已登记但不可达的 root 深链也必须清除，不能挂载 per-root 视图', async () => {
     window.history.replaceState({}, '', '/?view=workspace&root=%2Foffline&change=stale')
     const fetchMock = vi.fn(async (url: string) => {
-      if (url === '/api/snapshot') {
+      if (url === '/api/snapshot?view=list') {
         return {
           ok: true,
           json: async () => makeSnapshot([
@@ -1345,13 +1345,13 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
       expect(params.get('change')).toBeNull()
     })
     // Only the aggregate snapshot and the machine-level identity (top bar user); no per-root request.
-    await waitFor(() => expect(new Set(fetchMock.mock.calls.map(([url]) => url))).toEqual(new Set(['/api/snapshot', '/api/user'])))
+    await waitFor(() => expect(new Set(fetchMock.mock.calls.map(([url]) => url))).toEqual(new Set(['/api/snapshot?view=list', '/api/user'])))
   })
 
   it('无项目选择时从跨项目 snapshot 读取自定义 workflow gate，不发 per-root 请求也不误报', async () => {
     window.history.replaceState({}, '', '/?view=workspace')
     const fetchMock = vi.fn(async (url: string) => {
-      if (url === '/api/snapshot') {
+      if (url === '/api/snapshot?view=list') {
         return {
           ok: true,
           json: async () => makeSnapshot([
@@ -1436,7 +1436,7 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
   it('macOS /tmp 深链能命中 snapshot 的 /private/tmp canonical root，不回落到首个旧项目', async () => {
     window.history.replaceState({}, '', '/?view=workspace&root=%2Ftmp%2Fpipeline-ui-project.V60AOf&change=ui-real-browser')
     ;(global.fetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
-      if (url === '/api/snapshot') {
+      if (url === '/api/snapshot?view=list') {
         return {
           ok: true,
           json: async () => makeSnapshot([
@@ -1476,7 +1476,7 @@ describe('App 视图切换（v9-flowdeck 两视图接线）', () => {
   it('项目非零但全部不可达（ok=false）：工作流页仍然打开——工作流是全局的，不依赖任何项目', async () => {
     localStorage.setItem('tenon-dashboard-view', 'workbench')
     ;(global.fetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
-      if (url === '/api/snapshot') {
+      if (url === '/api/snapshot?view=list') {
         return { ok: true, json: async () => makeSnapshot([makeProject('/repo', [], { ok: false })]) }
       }
       if (url === '/api/workflows?root=') return { ok: true, json: async () => ({ names: [], default: { source: 'builtin' } }) }
@@ -1665,7 +1665,7 @@ describe('App G18 教学空状态（T17 起纯教学态）', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
-        if (url === '/api/snapshot') return { ok: true, json: async () => makeSnapshot([]) }
+        if (url === '/api/snapshot?view=list') return { ok: true, json: async () => makeSnapshot([]) }
         if (url.startsWith('/api/workflows?root=')) return { ok: true, json: async () => ({ names: [] }) }
         throw new Error(`unexpected fetch ${url}`)
       }),
@@ -1689,7 +1689,7 @@ describe('App G18 教学空状态（T17 起纯教学态）', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
-        if (url === '/api/snapshot') return { ok: true, json: async () => makeSnapshot([makeProject('/repo', [])]) }
+        if (url === '/api/snapshot?view=list') return { ok: true, json: async () => makeSnapshot([makeProject('/repo', [])]) }
         if (url.startsWith('/api/workflows?root=')) return { ok: true, json: async () => ({ names: [] }) }
         throw new Error(`unexpected fetch ${url}`)
       }),
@@ -1716,7 +1716,7 @@ describe('App G18 教学空状态（T17 起纯教学态）', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
-        if (url === '/api/snapshot') return { ok: true, json: async () => makeSnapshot([project]) }
+        if (url === '/api/snapshot?view=list') return { ok: true, json: async () => makeSnapshot([project]) }
         throw new Error(`unexpected fetch ${url}`)
       }),
     )
@@ -1739,7 +1739,7 @@ describe('App G18 教学空状态（T17 起纯教学态）', () => {
       }],
     })
     const fetchMock = vi.fn(async (url: string) => {
-      if (url === '/api/snapshot') return { ok: true, json: async () => makeSnapshot([project]) }
+      if (url === '/api/snapshot?view=list') return { ok: true, json: async () => makeSnapshot([project]) }
       throw new Error(`unexpected fetch ${url}`)
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -1769,7 +1769,7 @@ describe('App G18 教学空状态（T17 起纯教学态）', () => {
     })
     let attempts = 0
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      if (url !== '/api/snapshot') throw new Error(`unexpected fetch ${url}`)
+      if (url !== '/api/snapshot?view=list') throw new Error(`unexpected fetch ${url}`)
       attempts += 1
       if (attempts === 2) {
         return {
@@ -1804,7 +1804,7 @@ describe('App G18 教学空状态（T17 起纯教学态）', () => {
       json: () => Promise<ReturnType<typeof makeSnapshot>>
     }) => void) | undefined
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      if (url !== '/api/snapshot') throw new Error(`unexpected fetch ${url}`)
+      if (url !== '/api/snapshot?view=list') throw new Error(`unexpected fetch ${url}`)
       attempts += 1
       if (attempts === 2) {
         return {
@@ -1869,7 +1869,7 @@ describe('App G18 教学空状态（T17 起纯教学态）', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
-        if (url === '/api/snapshot') return { ok: true, json: async () => makeSnapshot([project]) }
+        if (url === '/api/snapshot?view=list') return { ok: true, json: async () => makeSnapshot([project]) }
         throw new Error(`unexpected fetch ${url}`)
       }),
     )
@@ -1894,7 +1894,7 @@ describe('App currentRoot 语义（只消费显式选择）', () => {
       ]),
     ])
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      if (url === '/api/snapshot') return { ok: true, json: async () => next }
+      if (url === '/api/snapshot?view=list') return { ok: true, json: async () => next }
       throw new Error(`unexpected fetch ${url}`)
     }))
     render(<App />)
@@ -1915,7 +1915,7 @@ describe('App 聚合语境（root=\'\' + 工作台 → 聚合全部可读项目�
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
-        if (url === '/api/snapshot') {
+        if (url === '/api/snapshot?view=list') {
           return {
             ok: true,
             json: async () =>
@@ -1943,7 +1943,7 @@ describe('App 聚合语境（root=\'\' + 工作台 → 聚合全部可读项目�
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
-        if (url === '/api/snapshot') {
+        if (url === '/api/snapshot?view=list') {
           return {
             ok: true,
             json: async () =>
@@ -1970,7 +1970,7 @@ describe('App 聚合语境（root=\'\' + 工作台 → 聚合全部可读项目�
   it('未选择项目时不把首个项目写进 URL，停留在聚合工作台', async () => {
     window.history.replaceState({}, '', '/?view=workspace')
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      if (url === '/api/snapshot') {
+      if (url === '/api/snapshot?view=list') {
         return { ok: true, json: async () => makeSnapshot([
           makeProject('/repo-a', [makeChange('a1', 'build')]),
           makeProject('/repo-b', [makeChange('b1', 'build')]),
@@ -1987,7 +1987,7 @@ describe('App 聚合语境（root=\'\' + 工作台 → 聚合全部可读项目�
   it('聚合工作台选中任务也写 change；离开工作台时去掉 status / step', async () => {
     window.history.replaceState({}, '', '/?view=workspace&status=running')
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      if (url === '/api/snapshot') {
+      if (url === '/api/snapshot?view=list') {
         return { ok: true, json: async () => makeSnapshot([
           makeProject('/repo-a', [makeChange('a1', 'build')]),
           makeProject('/repo-b', [makeChange('b1', 'build')]),
@@ -2012,7 +2012,7 @@ describe('App 聚合语境（root=\'\' + 工作台 → 聚合全部可读项目�
   it('换视图压一条历史：浏览器返回回到工作台，仍选中原来的任务', async () => {
     window.history.replaceState({}, '', '/?view=workspace')
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      if (url === '/api/snapshot') {
+      if (url === '/api/snapshot?view=list') {
         return { ok: true, json: async () => makeSnapshot([
           makeProject('/repo-a', [makeChange('a1', 'build')]),
           makeProject('/repo-b', [makeChange('b1', 'build')]),
@@ -2040,7 +2040,7 @@ describe('待决策徽标与「需要你」芯片同一口径', () => {
   it('徽标数字 = 「需要你」芯片数字', async () => {
     window.history.replaceState({}, '', '/?view=workspace')
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      if (url === '/api/snapshot') {
+      if (url === '/api/snapshot?view=list') {
         return { ok: true, json: async () => makeSnapshot([
           makeProject('/repo', [
             reviewPendingChange('ready-1', { fields: { verify_result: 'pass', agent_review_result: 'pass', codex_review_result: 'pass' } }),
@@ -2130,12 +2130,12 @@ describe('App 断线横幅 + 重连（评审 P2-13，Task 5）', () => {
     await screen.findByTestId('offline-banner')
 
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>
-    const before = fetchMock.mock.calls.filter((c: unknown[]) => c[0] === '/api/snapshot').length
+    const before = fetchMock.mock.calls.filter((c: unknown[]) => c[0] === '/api/snapshot?view=list').length
 
     fireEvent.click(screen.getByTestId('offline-reconnect'))
 
     await waitFor(() => {
-      const after = fetchMock.mock.calls.filter((c: unknown[]) => c[0] === '/api/snapshot').length
+      const after = fetchMock.mock.calls.filter((c: unknown[]) => c[0] === '/api/snapshot?view=list').length
       expect(after).toBe(before + 1)
     })
     expect(lastEventSource()).not.toBe(es)
@@ -2243,7 +2243,7 @@ describe('ErrorBoundary 顶层兜底（render 抛错不白屏）', () => {
 describe('App 视图声明是否需要快照（A1）', () => {
   function pendingSnapshotFetch(): void {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      if (url === '/api/snapshot') return new Promise(() => undefined)
+      if (url === '/api/snapshot?view=list') return new Promise(() => undefined)
       if (url === '/api/skills/sources') {
         return { ok: true, json: async () => ({ updatedAt: null, lastRunAt: null, rows: [{ id: 'tenon', origin: 'tenon', status: 'bundled' }] }) }
       }
@@ -2267,7 +2267,7 @@ describe('App 视图声明是否需要快照（A1）', () => {
   it('快照失败只挡读快照的视图：技能页照常渲染，不出整页错误', async () => {
     window.history.replaceState({}, '', '/?view=skills')
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      if (url === '/api/snapshot') return { ok: false, status: 500, json: async () => ({ ok: false, error: 'boom' }) }
+      if (url === '/api/snapshot?view=list') return { ok: false, status: 500, json: async () => ({ ok: false, error: 'boom' }) }
       if (url === '/api/skills/sources') {
         return { ok: true, json: async () => ({ updatedAt: null, lastRunAt: null, rows: [{ id: 'tenon', origin: 'tenon', status: 'bundled' }] }) }
       }
@@ -2275,7 +2275,7 @@ describe('App 视图声明是否需要快照（A1）', () => {
     }))
     render(<App />)
     expect(await screen.findByTestId('skills-view')).toBeInTheDocument()
-    await waitFor(() => expect((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.some((c: unknown[]) => c[0] === '/api/snapshot')).toBe(true))
+    await waitFor(() => expect((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.some((c: unknown[]) => c[0] === '/api/snapshot?view=list')).toBe(true))
     expect(screen.queryByTestId('snapshot-error')).toBeNull()
     fireEvent.click(screen.getByTestId('nav-workspace'))
     expect(await screen.findByTestId('snapshot-error')).toBeInTheDocument()

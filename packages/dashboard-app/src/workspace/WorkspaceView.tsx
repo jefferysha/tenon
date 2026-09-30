@@ -4,6 +4,7 @@ import { useT } from '../i18n'
 import { CanonicalStateVersionNotice } from '../progress/CanonicalStateVersionNotice'
 import { SnapshotInlineError } from '../progress/SnapshotInlineError'
 import { isProjectNavigable } from '../state/projectSelectionModel'
+import { useChangeDetail } from '../state/useChangeDetail'
 import type { WorkflowRules } from '../model/workflowModel'
 import type { Snapshot, UserRefView } from '../types'
 import { matchesQuery } from '../shell/GlobalSearch'
@@ -115,6 +116,12 @@ export function WorkspaceView({
     return explicit ?? visibleRows[0] ?? null
   }, [rows, visibleRows, selectedChange, currentRoot])
 
+  // The list snapshot leaves out the evidence; the open task reads it on demand and again when its `rev` moves.
+  const detail = useChangeDetail(selectedRow?.root ?? '', selectedRow?.change.name ?? '', selectedRow?.change.rev)
+  const detailRow: TaskRow | null = selectedRow !== null && detail.state.status === 'ready'
+    ? { ...selectedRow, change: detail.state.change }
+    : selectedRow
+
   const emptyKind = archivedView
     ? (rows.length === 0 ? 'no-archived' : 'filtered')
     : rows.length === 0
@@ -159,15 +166,20 @@ export function WorkspaceView({
         />
       )}
       // 默认选中第一项；列表为空时右列收起（空态已在中列说明）。
-      detail={selectedRow
+      detail={selectedRow && detailRow
         ? (
           <TaskDetailPane
             key={selectedRow.key}
-            row={selectedRow}
+            row={detailRow}
             onToast={onToast}
             onRefresh={onRefresh}
             menu={menuOf(selectedRow, 'detail')}
             archived={archivedView}
+            {...(detail.state.status === 'loading'
+              ? { evidence: { status: 'loading' as const } }
+              : detail.state.status === 'error'
+                ? { evidence: { status: 'error' as const, error: detail.state.error, onRetry: detail.retry } }
+                : {})}
           />
         )
         : null}

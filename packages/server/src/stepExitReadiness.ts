@@ -22,6 +22,7 @@ import {
   type PhaseExitFileContext,
   type PipelineState,
   type ReadinessByTransition,
+  type RecordChainCache,
   type StepBlocker,
   type TenonUser,
   type TestEvidenceContext,
@@ -163,6 +164,8 @@ export function projectStepExitDeps(input: {
   readonly user: TenonUser | undefined
   readonly candidate: (() => Promise<string | undefined>) | undefined
   readonly changedFiles?: (state: PipelineState) => Promise<ChangedFilesSource>
+  /** Skip re-reading and re-hashing record files whose identity has not moved (snapshot reads only). */
+  readonly recordChainCache?: RecordChainCache
 }): ((changeName: string) => StepExitSnapshotDeps) | undefined {
   const flow = input.flow
   if (flow === undefined) return undefined
@@ -180,6 +183,7 @@ export function projectStepExitDeps(input: {
             return candidate
           },
         }),
+        ...(input.recordChainCache === undefined ? {} : { recordChainCache: input.recordChainCache }),
       }
   return (changeName) => ({
     guardCheck: (state, ctx) => flow.guardCheck(state, ctx),
