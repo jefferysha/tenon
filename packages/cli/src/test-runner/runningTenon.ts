@@ -4,7 +4,7 @@
  * 默认工作流的必需测试 `tenon test code-size --json` 是个 PATH 命令；用户自己的 CI 或没装启动器的机器上
  * PATH 解析不到 tenon，命令以 127 失败并挡住 Verify（真机验收 F17）。测试进程因此把运行中的 tenon 所在
  * 目录前置到 PATH：
- *   · 经稳定启动器（`~/.local/bin/tenon`）启动的（进程环境带 TENON_RUNTIME_ROOTS）：前置启动器目录，
+ *   · 经稳定启动器（`~/.local/bin/tenon`）启动的（当前入口在受管 runtime 的发布目录里）：前置启动器目录，
  *     子进程解析到的就是同一个受管 runtime；
  *   · 直接 `node …/tenon.mjs` 跑的（开发检出、npx）：在本次运行的产物目录里写一个转发脚本，指向
  *     当前 Node 与当前入口。入口不是 tenon.mjs（vitest、被嵌入的调用）时什么都不加。
@@ -13,8 +13,9 @@
 import { accessSync, constants as fsConstants, statSync } from 'node:fs'
 import { chmod, mkdir, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { basename, delimiter, dirname, join } from 'node:path'
+import { basename, delimiter, dirname, isAbsolute, join, relative } from 'node:path'
 import { stableLauncherPaths } from '../runtime/launchers.js'
+import { resolveRuntimePaths } from '../runtime/paths.js'
 
 export interface RunningTenonOptions {
   /** 本次运行的产物目录；需要转发脚本时写在它的 `bin/` 下。 */
@@ -38,6 +39,17 @@ function isRegularFile(path: string): boolean {
   }
 }
 
+/** 当前入口是否在受管 runtime 的发布目录里（= 经稳定启动器 / bootstrap 启动的，而不是直接 node 跑的检出）。 */
+function insideManagedRelease(entry: string | undefined, home: string, env: NodeJS.ProcessEnv): boolean {
+  if (entry === undefined) return false
+  try {
+    const rel = relative(resolveRuntimePaths({ homeDir: home, env }).releasesRoot, entry)
+    return rel !== '' && rel !== '..' && !rel.startsWith(`..${'/'}`) && !isAbsolute(rel)
+  } catch {
+    return false
+  }
+}
+
 function isExecutableFile(path: string): boolean {
   try {
     accessSync(path, fsConstants.X_OK)
@@ -53,11 +65,12 @@ export async function runningTenonBinDir(
   options: RunningTenonOptions,
 ): Promise<string | undefined> {
   if ((options.platform ?? process.platform) === 'win32') return undefined
-  if (env.TENON_RUNTIME_ROOTS !== undefined) {
-    const launcher = stableLauncherPaths(options.home ?? homedir()).tenon
+  const entry = options.entry ?? process.argv[1]
+  const home = options.home ?? homedir()
+  if (insideManagedRelease(entry, home, env)) {
+    const launcher = stableLauncherPaths(home).tenon
     if (isExecutableFile(launcher)) return dirname(launcher)
   }
-  const entry = options.entry ?? process.argv[1]
   if (entry === undefined || basename(entry) !== 'tenon.mjs' || !isRegularFile(entry)) return undefined
   const dir = join(options.runDir, 'bin')
   await mkdir(dir, { recursive: true })

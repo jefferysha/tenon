@@ -221,6 +221,8 @@
   `types.ts GATE_TTL_MS`，bash 侧 gate.sh/statusline.sh/session-start.sh 镜像）：
   **confirm 300s**（漏确认安全网，爆炸半径 5min）；**review / interaction 1800s**（跨整个
   决策 phase，缩短会中途误清 → 绕过强制复核）。边界同老内核：age > TTL 才陈旧。
+  **子代理**：宿主在子代理里触发的 PreToolUse 输入带 `agent_id`；`-confirm` / `-interaction` 约束的是主线「先问用户再产出」，
+  子代理没有提问工具，这两类 marker 不拦带 `agent_id` 的调用（也不清 marker）。`-review` 不在此列，对子代理照拦（人工确认不能被绕过）。
 - **持续交互授权投影（不是第四道 gate）**：用户在正常对话明确说“后续不用问 / 自主执行完成”后，
   `pipeline session activate <change> --continuous --host-session <id>` 或带合法 `session_id` 的 UserPromptSubmit 会写
   当前用户的 `.tenon/users/<slug>/local/authority`。它是版本化、原子发布、只含 `change/scope/review/issued_at` 的

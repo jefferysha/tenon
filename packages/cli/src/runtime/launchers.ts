@@ -67,7 +67,6 @@ export TENON_RUNTIME_CONFIG_ROOT=${shellQuote(paths.configRoot)}
 exec node ${shellQuote(bootstrap)} ${mode} "$@"
 `
 }
-/** 稳定启动器所在位置（`~/.local/bin/tenon` 与 `tenon-hook`）；不检查文件是否存在。 */
 export function stableLauncherPaths(homeDir: string): StableLauncherPaths {
   const binDir = join(homeDir, '.local', 'bin')
   return {

@@ -7,6 +7,7 @@ import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { resolveRuntimePaths } from '../runtime/paths.js'
 import { runningTenonBinDir, withRunningTenon } from './runningTenon.js'
 
 let dir = ''
@@ -41,16 +42,16 @@ describe('withRunningTenon', () => {
     expect(env.PATH?.endsWith(BARE_PATH)).toBe(true)
   })
 
-  it('经稳定启动器启动（环境带 TENON_RUNTIME_ROOTS）且启动器在盘上：前置启动器目录，不另写转发脚本', async () => {
+  it('经稳定启动器启动（入口在受管 runtime 的发布目录里）且启动器在盘上：前置启动器目录，不另写转发脚本', async () => {
     const home = join(dir, 'home')
     const launcherDir = join(home, '.local', 'bin')
     await mkdir(launcherDir, { recursive: true })
     await writeFile(join(launcherDir, 'tenon'), '#!/bin/sh\necho launcher "$@"\n', 'utf8')
     await chmod(join(launcherDir, 'tenon'), 0o755)
 
-    const env = await withRunningTenon({ PATH: BARE_PATH, TENON_RUNTIME_ROOTS: '{}' }, {
-      runDir: join(dir, 'run'), entry: join(dir, 'payload', 'packages', 'cli', 'dist', 'tenon.mjs'), home,
-    })
+    const releases = resolveRuntimePaths({ homeDir: home, env: { PATH: BARE_PATH } }).releasesRoot
+    const managedEntry = join(releases, `sha256-${'a'.repeat(64)}`, 'payload', 'packages', 'cli', 'dist', 'tenon.mjs')
+    const env = await withRunningTenon({ PATH: BARE_PATH }, { runDir: join(dir, 'run'), entry: managedEntry, home })
     expect(sh('tenon status', env)).toEqual({ code: 0, out: 'launcher status' })
     expect(env.PATH?.split(':')[0]).toBe(launcherDir)
     await expect(runningTenonBinDir({ PATH: BARE_PATH }, { runDir: join(dir, 'other'), entry: join(dir, 'missing', 'tenon.mjs'), home }))
