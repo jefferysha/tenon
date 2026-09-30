@@ -45,7 +45,15 @@ export interface GitFinishProbe {
   readonly housekeeping: readonly string[]
   /** 已跟踪、但按当前忽略规则应被忽略的终端心跳文件。 */
   readonly untrack: readonly string[]
+  /**
+   * 设计体系任务的产物（项目根的 `DESIGN.md` 与 `design/`）里 git 能 `add` 的那些：有文件且没被忽略才列
+   * （缺失、空目录、被忽略的路径会让 `git add` 整条失败）。是否并进完结提交由工作流决定（statusStepFinish）。
+   */
+  readonly designSystem: readonly string[]
 }
+
+/** 设计体系任务的产物：`DESIGN.md` 与预览、模型、方向文档所在的 `design/`。 */
+export const DESIGN_SYSTEM_PATHS: readonly string[] = ['DESIGN.md', 'design']
 
 export const FINISH_HOUSEKEEPING_PATHS: readonly string[] = [
   '.pipeline/.gitignore',
@@ -154,6 +162,12 @@ export async function probeGitFinish(cwd: string, change: string): Promise<GitFi
   if (ownedTracked.code === 0 && ownedTracked.stdout !== '') housekeeping.push(OWNED_MANIFEST_PATH)
   else if (existsSync(join(cwd, OWNED_MANIFEST_PATH))
     && (await git(cwd, ['check-ignore', '-q', '--', OWNED_MANIFEST_PATH])).code === 1) housekeeping.push(OWNED_MANIFEST_PATH)
+  const designSystem: string[] = []
+  for (const path of DESIGN_SYSTEM_PATHS) {
+    // 已跟踪（含已删除的）或未跟踪且没被忽略的文件至少有一个，`git add -A -- <path>` 才一次成功。
+    const listed = await git(cwd, ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', path])
+    if (listed.code === 0 && listed.stdout !== '') designSystem.push(path)
+  }
   const untrack = ignoredTracked.code === 0
     ? nulList(ignoredTracked.stdout).filter((path) => basename(path).startsWith(TERMINAL_ACTIVITY_PREFIX))
     : []
@@ -165,5 +179,6 @@ export async function probeGitFinish(cwd: string, change: string): Promise<GitFi
     delivered: subjects.code === 0 && subjects.stdout.split('\n').includes(firstDeliveryMessage(change)),
     housekeeping,
     untrack,
+    designSystem,
   }
 }
