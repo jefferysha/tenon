@@ -94,6 +94,14 @@ export const HIDDEN_HANDLE = '!size-px !min-h-0 !min-w-0 !border-0 !bg-transpare
 /** 可拉线的句柄要有抓得住的热区：8px（圆点 6px 画在它里面）。 */
 const CONNECT_HANDLE = '!size-2 !min-h-0 !min-w-0 !border-0 !bg-transparent'
 
+/** 只读画布的节点四边中点各一个 6px 圆点：一层背景图、悬停淡入（比每个句柄一个子元素省 DOM）。 */
+export const PORT_DOTS = [
+  'radial-gradient(circle at 50% 3px, var(--flow-line) 2.5px, transparent 3px)',
+  'radial-gradient(circle at 50% calc(100% - 3px), var(--flow-line) 2.5px, transparent 3px)',
+  'radial-gradient(circle at 3px 50%, var(--flow-line) 2.5px, transparent 3px)',
+  'radial-gradient(circle at calc(100% - 3px) 50%, var(--flow-line) 2.5px, transparent 3px)',
+].join(', ')
+
 /**
  * 端口：悬停节点时出现的 6px 圆点，是 Handle 的子元素，随外层 `group` 的悬停淡入。
  * 只读画布的 Handle 只有 1px（连线落在边框上）；可编辑画布的 Handle 8px，从这里拉线。

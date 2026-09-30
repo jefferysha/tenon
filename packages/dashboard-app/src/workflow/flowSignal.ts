@@ -55,7 +55,8 @@ export interface SignalRuntime {
 const LAYER_SELECTOR = (id: string): string => `path[data-signal-layer="${id}"]`
 
 function resetNode(node: NodeRecord): void {
-  for (const el of [node.flash, node.port, node.icon]) if (el !== null) el.style.opacity = ''
+  for (const el of [node.flash, node.port]) if (el !== null) el.style.opacity = ''
+  if (node.icon !== null) node.icon.style.color = ''
   if (node.ring !== null) { node.ring.style.opacity = ''; node.ring.style.transform = '' }
   node.active = false
 }
@@ -163,7 +164,10 @@ export function createSignalRuntime(root: Element, mode: Exclude<SignalMode, 'of
       node.active = true
       if (node.flash !== null) node.flash.style.opacity = String(arrivalGlow(since) * params.opacity)
       if (node.port !== null) node.port.style.opacity = String(portGlow(since))
-      if (node.icon !== null) node.icon.style.opacity = String(iconGlow(since))
+      if (node.icon !== null) {
+        const mix = Math.round(iconGlow(since) * 100)
+        node.icon.style.color = mix === 0 ? '' : `color-mix(in srgb, var(--accent) ${mix}%, var(--text-3))`
+      }
       if (node.ring !== null) {
         const frame = ringFrame(since)
         node.ring.style.opacity = frame === null ? '0' : String(frame.opacity * params.opacity)

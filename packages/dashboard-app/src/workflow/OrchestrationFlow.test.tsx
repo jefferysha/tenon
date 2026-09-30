@@ -304,6 +304,12 @@ describe('OrchestrationFlow · 总览', () => {
     // 定义画布没有运行状态：不画状态符号，也没有状态字。
     expect(node.querySelector('[data-testid="flow-glyph"]')).toBeNull()
     expect(within(node).queryByTestId('orch-status')).toBeNull()
+    // 端口：悬停节点才出现的四个 6px 圆点（一层背景图，平时 opacity 0）；类别图标带到达反馈的钩子。
+    const ports = within(node).getByTestId('orch-ports')
+    expect(ports.className).toContain('opacity-0')
+    expect(ports.className).toContain('group-hover:opacity-100')
+    expect(ports.style.backgroundImage.split('radial-gradient').length - 1).toBe(4)
+    expect(node.querySelector('[data-signal-icon]')).not.toBeNull()
     // 热区：视觉 32px，点击区由伪元素补到 40px。
     expect(screen.getByTestId('orch-open-skill-openspec-propose').className).toContain('before:-inset-y-1')
   })
@@ -347,10 +353,10 @@ describe('OrchestrationFlow · 总览', () => {
       renderFlow({ onOpenStage })
       await userEvent.click(screen.getByTestId('orch-stage-verify'))
       expect(onOpenStage).not.toHaveBeenCalled()
-      const zoomed = viewportCalls.at(-1)!
+      // 取景的自动 refit（挂载 60ms 后）也会调 setViewport：认有缓动函数的那一次才是点列头的放大。
+      const zoomed = viewportCalls.find((call) => typeof call.options?.ease === 'function')!
       expect(zoomed.viewport.zoom).toBe(1)
       expect(zoomed.options?.duration).toBe(320)
-      expect(typeof zoomed.options?.ease).toBe('function')
       cleanup()
       setTestZoom(1)
       renderFlow({ onOpenStage })

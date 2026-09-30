@@ -9,7 +9,7 @@ import { kindLabel } from '../tests/testLabels'
 import { MiddleText, StateGlyph } from './flowGlyphs'
 import { HEADER_H, PORT, returnLift, type FlowMode } from './orchestrationLayout'
 import type { ZoomLevel } from './orchestrationViewport'
-import { ArrivalMarks, EDGE_STYLE, HIDDEN_HANDLE, PortHandle, SignalEdge } from './skillFlowNodes'
+import { ArrivalMarks, EDGE_STYLE, HIDDEN_HANDLE, PORT_DOTS, SignalEdge } from './skillFlowNodes'
 import { cn } from '@/lib/utils'
 
 /** 画布级的交互与状态：节点从这里取回调与悬停高亮，节点 data 只放布局。 */
@@ -64,23 +64,18 @@ const STATUS_TEXT: Record<RunStatus, string> = { done: 'text-green-d', running: 
 /** 测试节点的状态词与测试页签同一套（通过 / 失败 / 过期 / 未运行 / 运行中）。 */
 const TEST_STATE: Record<RunStatus, string> = { done: 'passed', running: 'running', failed: 'failed', waiting: 'missing', stale: 'stale' }
 
-/** 类别图标：安静的灰；叠一层强调色的同形图标，节点收到信号时只动它的 opacity。 */
+/** 类别图标：安静的灰；节点收到信号时 Signal 的 tick 把它的颜色向强调色混（200ms）。 */
 function SourceMark({ entry }: { entry: FlowEntry }): JSX.Element {
   const { t } = useT()
   const Icon = entry.source === 'openspec' ? FileCheck : entry.source === 'manifest' ? Layers : KIND_ICON[entry.kind]
   const title = entry.source === 'openspec' ? t('workflow.skill_injected') : entry.source === 'manifest' ? t('workflow.skill_manifest') : t(KIND_TITLE[entry.kind])
   return (
-    <span className={cn('relative inline-flex flex-none', entry.source === 'declared' ? 'text-text-3' : 'text-(--accent)')} role="img" aria-label={title} title={title} data-testid={`orch-source-${entry.source}`}>
+    <span className={cn('inline-flex flex-none', entry.source === 'declared' ? 'text-text-3' : 'text-(--accent)')} role="img" aria-label={title} title={title} data-testid={`orch-source-${entry.source}`} data-signal-icon="">
       <Icon className="size-3.5" aria-hidden="true" />
-      <span className="pointer-events-none absolute inset-0 text-(--accent) opacity-0" aria-hidden="true" data-signal-icon=""><Icon className="size-3.5" /></span>
     </span>
   )
 }
 
-/*
- * React Flow 给既不可选也不可拖的节点把包裹层设成 pointer-events:none，子元素继承——按钮会点不到。
- * 所以节点里会被点的东西（条目按钮、列头、泳道动作、幽灵「＋」）都显式写 pointer-events-auto。
- */
 function EntryNodeView({ id, data }: NodeProps<EntryNode>): JSX.Element {
   const { t } = useT()
   const context = useContext(CanvasContext)
@@ -110,8 +105,9 @@ function EntryNodeView({ id, data }: NodeProps<EntryNode>): JSX.Element {
       data-status={status}
     >
       <ArrivalMarks />
-      <PortHandle type="target" id="top" position={Position.Top} isConnectable={false} />
-      <PortHandle type="target" id="left" position={Position.Left} isConnectable={false} />
+      <span className="pointer-events-none absolute -inset-[3px] opacity-0 transition-opacity duration-(--dur-fast) group-hover:opacity-100" style={{ backgroundImage: PORT_DOTS }} aria-hidden="true" data-testid="orch-ports" />
+      <Handle type="target" id="top" position={Position.Top} className={HIDDEN_HANDLE} isConnectable={false} />
+      <Handle type="target" id="left" position={Position.Left} className={HIDDEN_HANDLE} isConnectable={false} />
       <button
         type="button"
         className={cn('pointer-events-auto flex h-full w-full min-w-0 items-center gap-2 px-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-default', !stageMode && 'before:absolute before:inset-x-0 before:-inset-y-1 before:content-[""]')}
@@ -130,8 +126,8 @@ function EntryNodeView({ id, data }: NodeProps<EntryNode>): JSX.Element {
         )}
         {status !== undefined && <SourceMark entry={entry} />}
       </button>
-      <PortHandle type="source" id="bottom" position={Position.Bottom} isConnectable={false} />
-      <PortHandle type="source" id="right" position={Position.Right} isConnectable={false} />
+      <Handle type="source" id="bottom" position={Position.Bottom} className={HIDDEN_HANDLE} isConnectable={false} />
+      <Handle type="source" id="right" position={Position.Right} className={HIDDEN_HANDLE} isConnectable={false} />
     </div>
   )
 }
