@@ -213,6 +213,8 @@ export async function executeSuite(context: ExecContext, item: RunItem, blocked:
   const artifacts = await collectArtifacts({
     repoRoot: context.repoRoot, cwd, suiteId: suite.id, artifactPaths: suite.artifacts, extraFiles: attachments,
     runDir: context.runDir, budget: context.budget,
+    // 文件系统的时间戳精度可能是整秒：起点取整秒，宁可多收同一秒内写的，也不漏本次的产物。
+    modifiedSinceMs: Math.floor(started / 1000) * 1000,
   })
   if (artifacts.truncated) reasons.push({ code: 'artifact-truncated', detail: '产物超过单文件 / 单次运行 / 文件数上限，超出的没有收进索引' })
   const records = recordCases(parsedCases, {
