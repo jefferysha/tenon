@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createDashboardServer, resolveServerPaths } from '@tenon/server'
+import { installSessionFetch } from '../../../server/src/test-support.js'
 import { createFlowEngine, createStateStore, loadManifest } from '@tenon/kernel'
 import { decodeWorkflowDefinition } from './governanceSchema'
 import { definitionForWrite } from '../workbench/workbenchDefinition'
@@ -37,7 +38,8 @@ async function start(): Promise<{ port: number; root: string; token: string }> {
     resolveUser: () => ({ id: 'tester@tenon.test', name: 'Tester', slug: 'tester-at-tenon.test', source: 'env', trust: 'declared' }),
   })
   const { port } = await srv.listen(0, '127.0.0.1')
-  closers.push(() => srv.close())
+  const restoreFetch = await installSessionFetch(srv, port)
+  closers.push(async () => { restoreFetch(); await srv.close() })
   return { port, root, token: srv.token }
 }
 

@@ -9,7 +9,7 @@ import type { DesignSeedFetch } from './designSeed.js'
 import { resolveServerPaths } from './paths.js'
 import type { GitRunner } from './projectCreate.js'
 import { createStepIds } from './projectCreateRun.js'
-import { createDashboardServer } from './server.js'
+import { createTestDashboardServer } from './test-server.js'
 import { reqPost } from './test-support.js'
 import type { DashboardServer, ServerPaths } from './types.js'
 
@@ -35,7 +35,7 @@ async function tempDir(label: string): Promise<string> {
 async function start(runGit?: { current: GitRunner }, designSeed?: { current: DesignSeedFetch }): Promise<{ port: number; paths: ServerPaths }> {
   const home = await tempDir('home')
   const paths = resolveServerPaths({ home, env: {} })
-  const srv = createDashboardServer({
+  const srv = createTestDashboardServer({
     version: '9.9.9', hostHome: home, paths, token: TOKEN, registry: () => [], pollIntervalMs: 1000, cadence: false,
     manifestPath: fileURLToPath(new URL('../../../templates/manifest.yaml', import.meta.url)), resolveUser: () => TEST_USER,
     ...(runGit ? { projectCreateGit: (args: readonly string[], cwd: string) => runGit.current(args, cwd) } : {}),

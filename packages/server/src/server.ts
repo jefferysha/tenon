@@ -16,7 +16,7 @@ import {
   writeRegistryWithGovernance,
   createOrchestrationLedger,
 } from '@tenon/kernel'
-import { artifactNamespaceForChange, createRunnerSkillContentLocator, createProductionExecutionRuntimeV2, evaluateLoopExecutionWiring, openArtifactService, type ArtifactService } from '@tenon/automation'
+import { artifactNamespaceForChange, createProductionExecutionRuntimeV2, openArtifactService, type ArtifactService } from '@tenon/automation'
 import type { FreezeWorkflowInputV2 } from './serverOrchestrationV2Routes.js'
 import type {
   ChangeRefScan, CreateTrackSpec, ExtendedManifestData, FlowEngine, GraduationFs, StateStore, TrackDefinition,
@@ -71,6 +71,10 @@ import {
 } from './serverSupport.js'
 import { createFreezeHandlers } from './serverFreezeHandlers.js'
 import { createServerTransport } from './serverTransport.js'
+import { createAccessControl } from './serverAccess.js'
+import { createLoopActivationValidator } from './loopActivationWiring.js'
+import { createSessionAuthority } from './serverSession.js'
+import { openInBrowser } from './browserOpener.js'
 import { createServerGovernance } from './serverGovernance.js'
 import { AdapterInstallManager } from './adapterInstall.js'
 import { createFolderChooser } from './folderChooser.js'
@@ -134,28 +138,12 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
   const validateLoopActivation: LoopActivationValidator | undefined = options.validateLoopActivation
     ?? (loadedManifest === undefined
       ? undefined
-      : async ({ root, loopId, candidate }) => {
-          const loop = candidate.loops.find((entry) => entry.id === loopId)
-          if (loop === undefined) return { ok: false, error: `候选 registry 中找不到 loop "${loopId}"` }
-          const resolver = rootSkillResolver(root, loadedManifest)
-          const wiringForRunner = (runner: string) => ({
-            resolver,
-            locator: createRunnerSkillContentLocator({
-              runner,
-              home: hostHome,
-              bundledRoot: join(repoRootForSkills(), 'skills'),
-            }),
-            isSkillProfileKnown: (profileId: string) => profileId === '_all' || trackSkillProfiles.has(profileId),
-          })
-          const wiring = await evaluateLoopExecutionWiring(loop, candidate.loops, {
-            repoRoot: root,
-            skillBundleWiring: wiringForRunner(loop.runner),
-            skillBundleWiringForLoop: (entry) => wiringForRunner(entry.runner),
-          })
-          return wiring.status === 'ready'
-            ? { ok: true }
-            : { ok: false, error: `${wiring.dimension}: ${wiring.reason}` }
-        })
+      : createLoopActivationValidator({
+          manifest: loadedManifest,
+          hostHome,
+          trackSkillProfiles,
+          resolverForRoot: (root, manifest) => rootSkillResolver(root, manifest),
+        }))
   const pollIntervalMs = options.pollIntervalMs ?? 1000
   const heartbeatMs = options.heartbeatMs ?? 15000
   const gitHeadSha = options.gitHeadSha
@@ -262,6 +250,11 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
   }
 
   let boundPort = 0
+  // Sessions live only in this process; the gate runs before any route sees the request.
+  const access = createAccessControl({
+    authority: createSessionAuthority(), boundPort: () => boundPort, isLocalHost, sendJson, sendHtml,
+    openBrowser: options.openBrowser ?? openInBrowser,
+  })
   // ── 路由 ──
   const mutateTrackForRoutes = async (
     anchor: WorkflowRootAnchor,
@@ -308,6 +301,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
       relatedSessionSearch, folderChooser, runGit: options.projectCreateGit, designSeedFetch: options.designSeedFetch,
       resolveUser,
       taskLifecycle,
+      presence: access.presence,
       orchestrationV2: { ledger: orchestrationLedger, workflowRootForRequest, freezePipeline, freezeWorkflow, runChange: (changeDir) => createProductionExecutionRuntimeV2({ change_dir: changeDir, ledger: orchestrationLedger, worker_id: `server:${process.pid}` }).then(runtime => runtime.run()) },
       adapterInstall,
     })
@@ -336,9 +330,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
     handleDeleteRoute(req, res, path, mutationRouteDeps)
   const handlePut = (req: IncomingMessage, res: ServerResponse, path: string): Promise<void> =>
     handlePutRoute(req, res, path, mutationRouteDeps)
-  const httpServer: Server = createServer((req, res) => {
-    const path = (req.url ?? '/').split('?', 1)[0] ?? '/'
-    const method = req.method ?? 'GET'
+  const dispatch = (req: IncomingMessage, res: ServerResponse, path: string, method: string): void => {
     if (method !== 'GET') snapshotCache.invalidate()
     const handler = method === 'GET'
       ? handleGet(req, res, path)
@@ -355,12 +347,22 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
     handler.catch((e) => {
       try { sendJson(res, 500, { ok: false, error: errMsg(e) }) } catch { /* 已写头 */ }
     })
+  }
+  const httpServer: Server = createServer((req, res) => {
+    const path = (req.url ?? '/').split('?', 1)[0] ?? '/'
+    const method = req.method ?? 'GET'
+    access.handle(req, res, path, method).then((handled) => {
+      if (!handled) dispatch(req, res, path, method)
+    }).catch((e) => {
+      try { sendJson(res, 500, { ok: false, error: errMsg(e) }) } catch { /* 已写头 */ }
+    })
   })
 
   return {
     token,
     version,
     httpServer,
+    issueLoginUrl: access.issueLoginUrl,
     listen(port = 0, host = '127.0.0.1'): Promise<{ port: number; host: string }> {
       return new Promise((resolve, reject) => {
         const onError = (e: Error): void => reject(e)

@@ -9,6 +9,7 @@ import {
   isArchivedForUser,
   isTenonUser,
   USER_MISSING_HINT,
+  type TenonUser,
   type RecordActor,
   createReviewDecisionLedger,
   executeReviewAcknowledge,
@@ -28,8 +29,13 @@ import { readPendingDecisionProjection, readReviewBindingSafely } from './decisi
 import { resolveSnapshotTrack } from './skillRuns.js'
 import { resolveSnapshotEffectivePlan } from './workflowSnapshot.js'
 import { TASK_ARCHIVED_HTTP_ERROR } from './serverTaskLifecycleRoutes.js'
+import { PRESENCE_TTL_MS } from './serverSession.js'
 
-type DecisionRouteDeps = Pick<PostRouteDeps, 'sendJson' | 'readJsonBody' | 'isRegisteredRoot' | 'store' | 'clock' | 'history' | 'recordStore' | 'resolveUser'>
+type DecisionRouteDeps = Pick<PostRouteDeps, 'sendJson' | 'readJsonBody' | 'isRegisteredRoot' | 'store' | 'clock' | 'history' | 'recordStore' | 'resolveUser' | 'presence'>
+
+/** A person, not a script, must be behind a Dashboard approval: the nonce comes from the confirm step. */
+export const PRESENCE_HEADER = 'x-tenon-presence'
+const PRESENCE_REQUIRED = '评审确认需要在 Dashboard 里由本人二次确认；请在页面上点击确认（缺少或已失效的在场证明）'
 
 /** Fixed 500 text: filesystem codes and paths never reach the client. */
 export const DECISION_COMMAND_FAILED = '决策命令处理失败'
@@ -54,6 +60,72 @@ function reviewExitsFor(root: string, state: PipelineState, phase: string): read
   return stepExitTransitions(plan, phase, state).map((transition) => transition.event)
 }
 
+interface DecisionTarget {
+  readonly root: string
+  readonly ref: string
+  readonly name: string
+  readonly dir: string
+  readonly expectedRevision: number
+  readonly idempotencyKey: string
+  readonly user: TenonUser
+}
+
+/**
+ * Shared validation of the two decision routes; answers the request itself on failure.
+ * The presence step does not carry an idempotency key, so it is only required for the approval.
+ */
+async function resolveDecisionTarget(
+  req: IncomingMessage,
+  res: ServerResponse,
+  name: string,
+  deps: DecisionRouteDeps,
+  needsIdempotencyKey: boolean,
+): Promise<DecisionTarget | null> {
+  const { readJsonBody, sendJson, isRegisteredRoot } = deps
+  const body = await readJsonBody(req)
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    sendJson(res, 400, { ok: false, error: '请求体须为 JSON 对象' })
+    return null
+  }
+  const input = body as Record<string, unknown>
+  const root = typeof input.root === 'string' ? input.root : ''
+  const ref = typeof input.ref === 'string' ? input.ref : ''
+  const expectedRevision = typeof input.expected_revision === 'number' ? input.expected_revision : null
+  const idempotencyKey = typeof input.idempotency_key === 'string' ? input.idempotency_key : ''
+  if (!root || !ref || expectedRevision === null || (needsIdempotencyKey && !idempotencyKey)) {
+    sendJson(res, 400, {
+      ok: false,
+      error: needsIdempotencyKey
+        ? 'root / ref / expected_revision / idempotency_key 为必填'
+        : 'root / ref / expected_revision 为必填',
+    })
+    return null
+  }
+  if (!isRegisteredRoot(root)) {
+    sendJson(res, 404, { ok: false, error: 'root 非已知 Project（未注册或不可信）' })
+    return null
+  }
+  if (!/^[A-Za-z0-9_-]+$/.test(name) || name.includes('..')) {
+    sendJson(res, 400, { ok: false, error: '非法 change 名' })
+    return null
+  }
+  const dir = join(root, 'openspec', 'changes', name)
+  if (!stateStorageExistsSync(dir)) {
+    sendJson(res, 400, { ok: false, error: '找不到该 change（无 canonical/legacy 状态）' })
+    return null
+  }
+  const user = deps.resolveUser(root)
+  if (!isTenonUser(user)) {
+    sendJson(res, 412, { ok: false, code: 'user-missing', error: USER_MISSING_HINT })
+    return null
+  }
+  if (await isArchivedForUser(root, user, name)) {
+    sendJson(res, 409, { ok: false, code: 'task-archived', error: TASK_ARCHIVED_HTTP_ERROR })
+    return null
+  }
+  return { root, ref, name, dir, expectedRevision, idempotencyKey, user }
+}
+
 /** Handle Dashboard review decisions; returns false when the path belongs to another route. */
 export async function handlePostDecisionRoutes(
   req: IncomingMessage,
@@ -61,46 +133,26 @@ export async function handlePostDecisionRoutes(
   path: string,
   deps: DecisionRouteDeps,
 ): Promise<boolean> {
-  const match = /^\/api\/change\/([^/]+)\/decisions$/.exec(path)
+  const presenceMatch = /^\/api\/change\/([^/]+)\/decisions\/presence$/.exec(path)
+  const match = presenceMatch ?? /^\/api\/change\/([^/]+)\/decisions$/.exec(path)
   if (!match) return false
-  const { readJsonBody, sendJson, isRegisteredRoot } = deps
-  const body = await readJsonBody(req)
-  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
-    sendJson(res, 400, { ok: false, error: '请求体须为 JSON 对象' })
-    return true
-  }
-  const input = body as Record<string, unknown>
-  const root = typeof input.root === 'string' ? input.root : ''
-  const ref = typeof input.ref === 'string' ? input.ref : ''
-  const expectedRevision = typeof input.expected_revision === 'number' ? input.expected_revision : null
-  const idempotencyKey = typeof input.idempotency_key === 'string' ? input.idempotency_key : ''
-  if (!root || !ref || expectedRevision === null || !idempotencyKey) {
-    sendJson(res, 400, { ok: false, error: 'root / ref / expected_revision / idempotency_key 为必填' })
-    return true
-  }
-  if (!isRegisteredRoot(root)) {
-    sendJson(res, 404, { ok: false, error: 'root 非已知 Project（未注册或不可信）' })
-    return true
-  }
+  const { sendJson } = deps
   const name = decodeURIComponent(match[1] ?? '')
-  if (!/^[A-Za-z0-9_-]+$/.test(name) || name.includes('..')) {
-    sendJson(res, 400, { ok: false, error: '非法 change 名' })
+  const target = await resolveDecisionTarget(req, res, name, deps, presenceMatch === null)
+  if (target === null) return true
+  const binding = { root: target.root, change: name, ref: target.ref, expectedRevision: target.expectedRevision }
+  if (presenceMatch !== null) {
+    const nonce = deps.presence.issue(req, binding)
+    if (nonce === null) sendJson(res, 401, { ok: false, code: 'session-required', error: '需要登录' })
+    else sendJson(res, 200, { ok: true, nonce, expires_in_ms: PRESENCE_TTL_MS })
     return true
   }
-  const dir = join(root, 'openspec', 'changes', name)
-  if (!stateStorageExistsSync(dir)) {
-    sendJson(res, 400, { ok: false, error: '找不到该 change（无 canonical/legacy 状态）' })
+  const header = req.headers[PRESENCE_HEADER]
+  if (!deps.presence.verify(req, binding, Array.isArray(header) ? header[0] : header)) {
+    sendJson(res, 403, { ok: false, code: 'presence-required', error: PRESENCE_REQUIRED })
     return true
   }
-  const user = deps.resolveUser(root)
-  if (!isTenonUser(user)) {
-    sendJson(res, 412, { ok: false, code: 'user-missing', error: USER_MISSING_HINT })
-    return true
-  }
-  if (await isArchivedForUser(root, user, name)) {
-    sendJson(res, 409, { ok: false, code: 'task-archived', error: TASK_ARCHIVED_HTTP_ERROR })
-    return true
-  }
+  const { root, dir, ref, expectedRevision, idempotencyKey, user } = target
   let acknowledged: Acknowledged
   try {
     acknowledged = await acknowledgeFromDashboard({ deps, root, dir, name, ref, expectedRevision, idempotencyKey, actor: actorOf(user) })

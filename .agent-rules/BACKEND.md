@@ -27,7 +27,7 @@
 | `packages/channel/` | event-sourced worker 总线、事件/过滤/存储/监督与兼容面 | pipeline 核心状态机规则、HTTP 展示或 CLI 命令编排 | 实现旁单元测试；进程/存储行为补 integration test |
 | `packages/automation/` | 队列、scheduler、admission、runner、lifecycle、triage、verifier、skill snapshot 与 Docker 执行编排 | 复制 kernel 状态机、dashboard 协议渲染、CLI 输出格式 | 单元测试、跨进程/容器 integration test；Docker 不可用时诚实记录 skip |
 | `packages/cli/` | Commander 程序、命令参数/输出、依赖装配、用户交互与 bundle 入口 | 可复用领域不变量、直接复制其他包内部逻辑 | 命令旁 `*.test.ts`、根级 `*.integration.test.ts`、bundle smoke 与 real-Codex 定向验收 |
-| `packages/server/` | 原生 HTTP/SSE 边界、Host/token/content-type 守卫、请求校验、响应映射、静态前端托管和跨包应用编排 | 在 handler 中重写 kernel/automation 领域规则；数据库/ORM 抽象 | 模块旁 `*.test.ts`、`server.test.ts` 与前端 serverIntegration 测试 |
+| `packages/server/` | 原生 HTTP/SSE 边界、Host/会话/token/content-type 守卫、请求校验、响应映射、静态前端托管和跨包应用编排 | 在 handler 中重写 kernel/automation 领域规则；数据库/ORM 抽象 | 模块旁 `*.test.ts`、`server.test.ts` 与前端 serverIntegration 测试 |
 | `packages/tap/` | 本地代理、CA/TLS MITM、记录、重建和 trace store | 通用状态机、dashboard 组件或无关自动化策略 | 安全、证书、代理与 daemon 的单元/integration 测试 |
 | `hooks/` | Claude/Codex 事件接入的 bash 薄 shim 和门禁 | 可在 TypeScript 包表达的复杂业务状态机、重复 codec | `bash tools/test-hooks.sh`；改门禁时运行 oracle/相关 CLI 测试 |
 | `templates/`、`skills/`、`adapters/`、`commands/` | 分发契约、默认 workflow/manifest、技能与多 agent 适配资产 | 构建缓存、真实凭证、只在源码生效但未同步分发的副本 | `tools/verify-skills.sh`、`tools/test-adapters.sh`、codegen freshness 与 bundle smoke |
@@ -42,7 +42,7 @@
 - HTTP/CLI request、response、DTO 与持久化 codec 类型必须和 kernel 领域类型分离；转换发生在边界层，协议对象不得直接替代领域状态或绕过 validator。
 - 所有文件、HTTP、子进程、Docker、Git 与供应商调用必须保留原始因果信息并映射为稳定错误语义；不得静默吞错、把失败伪装成成功，或无界重试。只有既有契约明确“查不到是正常状态”时才可返回成功空结果。
 - 本项目的事务边界是锁、revision/epoch CAS、临时文件 + 原子 rename、ledger/repository 提交或既有等价原语；多文件操作必须说明提交顺序、失败恢复和并发冲突，不得以普通 read-modify-write 替代。
-- 写端点必须保持 Host 守卫、token 鉴权、content-type、路径/root 信任锚和输入校验的既有顺序与失败码；新增写能力不得复用只读端点的宽松权限。
+- 所有非公开端点（公开的只有 `/api/health` 与 `/assets/*`）必须先过 `serverAccess.ts` 的会话门；写端点在其后保持 Host 守卫、token 鉴权、content-type、路径/root 信任锚和输入校验的既有顺序与失败码；新增写能力不得复用只读端点的宽松权限，也不得把登录码、会话或 token 写盘、写进响应或日志；人工评审确认只能经「会话 + 在场 nonce」。
 - 配置必须经现有 config/paths 层读取并验证；不得散落读取 `process.env`、用户 home 或 cwd 假设。日志和错误响应不得包含 token、凭证明文、私钥、完整敏感路径内容或原始用户数据。
 - 新增或修改行为必须覆盖每个可达的成功、校验失败、鉴权失败、并发/CAS 冲突、I/O 失败、恢复和向后兼容分支；涉及跨进程、锁或原子发布的语义不能只用 mock 单元测试证明。
 - 公共导出、CLI 输出、HTTP JSON、YAML/JSONL codec 和分发 bundle 都是兼容面；破坏性变更必须有明确授权，并同步更新调用方、fixture、contract、迁移/兼容读取路径及定向验收。
@@ -125,7 +125,7 @@ HTTP API 保持现有 `/api` 前缀和端点契约，不统一增加 `/v1`，也
 | golden oracle | `npm run oracle` | 状态机、guard、转换、历史兼容或模板契约改动 |
 | Docker sandcastle | `bash tools/sandcastle/build.sh local` | runner、镜像、挂载、凭证传递或真实隔离执行改动；要求本机 Docker |
 | real-Codex 验收 | `TENON_REQUIRE_REAL_CODEX=1 npx vitest run packages/cli/src/loop-run.real.integration.test.ts` | Codex runner/AFK 真实路径；仅在可安全使用凭证和网络的环境运行，不得输出密钥 |
-| API smoke | 先执行 `npm run build:web && npm run build:server`，按 README 启动 `npx tenon-dashboard`，检查 `/api/health`、受影响读端点及带同源 token 的真实写流程 | server 路由、鉴权、静态托管、SSE 或 client/server contract 改动 |
+| API smoke | 先执行 `npm run build:web && npm run build:server`，按 README 启动 `npx tenon-dashboard`，检查 `/api/health`、用 `tenon dashboard --open` 登录后受影响的读端点及带同源 token 的真实写流程 | server 路由、鉴权、静态托管、SSE 或 client/server contract 改动 |
 
 项目没有数据库迁移命令；持久化 schema/codec 变更必须用旧 fixture、幂等迁移测试、跨进程 repository 测试和恢复场景代替。仓库当前没有独立 lint/format npm script，不得声称运行过；除非任务明确授权，不得为满足规则临时编造或引入工具。
 

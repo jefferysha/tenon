@@ -6,7 +6,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { ensureUserLocalDir, serializeTaskArchive, type StateStore, type TenonUserResolution } from '@tenon/kernel'
-import { createDashboardServer } from './server.js'
+import { createTestDashboardServer } from './test-server.js'
 import { resolveServerPaths } from './paths.js'
 import { computeFingerprint } from './snapshot.js'
 import type { DashboardServer, Snapshot } from './types.js'
@@ -45,7 +45,7 @@ async function start(opts: { resolveUser?: (root: string) => TenonUserResolution
   await recordWorkflowPhaseSkill(root, changeDir)
   const { store, builds } = countingStore(base)
   let tick = 0
-  const srv = createDashboardServer({
+  const srv = createTestDashboardServer({
     paths: resolveServerPaths({ home: await makeTempHome(), env: {} }),
     version: '9.9.9', token: 'secret', registry: () => [root], store, flow: testFlow(),
     clock: () => `2026-07-07T00:00:${String(tick++).padStart(2, '0')}Z`,

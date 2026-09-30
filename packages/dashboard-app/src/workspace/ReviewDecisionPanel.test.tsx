@@ -10,6 +10,7 @@ import { ReviewDecisionPanel } from './ReviewDecisionPanel'
 
 const pendingItem = (revision: number) => ({ ref: { id: 'decision:1', kind: 'review', change: 'demo', anchor: 'verify:verify-pass', revision }, type: 'review', status: 'pending', anchor: { phase: 'verify', event: 'verify-pass' }, revision, evidence: ['canonical-review-receipt'], source: 'terminal', channel: 'terminal', command: 'review-acknowledge' })
 const view = (revision: number, items: unknown[], waivers?: unknown[]) => new Response(JSON.stringify({ schemaVersion: 'pending-decision-view/v1', revision, items, ...(waivers === undefined ? {} : { waivers }) }), { status: 200 })
+const presence = () => new Response(JSON.stringify({ ok: true, nonce: 'nonce-1', expires_in_ms: 30000 }), { status: 200 })
 const failure = (status: number, code?: string) => new Response(JSON.stringify(code === undefined ? { ok: false, error: 'internal' } : { ok: false, error: 'rejected', code }), { status })
 
 const RULES = {
@@ -27,10 +28,18 @@ function renderPanel(props: { snapshotSignature?: string; onRefresh?: () => void
   return { ...utils, rerenderWith: (signature: string) => utils.rerender(element(signature)) }
 }
 
+/** Bodies of the approval POSTs (the ones that carry an idempotency key), not of the presence requests. */
 function postBodies(fetchMock: { mock: { calls: ReadonlyArray<readonly [unknown, RequestInit?]> } }): Array<Record<string, unknown>> {
   return fetchMock.mock.calls
     .filter((call) => call[1]?.method === 'POST')
     .map((call) => JSON.parse(String(call[1]?.body)) as Record<string, unknown>)
+    .filter((body) => 'idempotency_key' in body)
+}
+
+/** The deliberate two-click approval: ask, then confirm. */
+async function approveAndConfirm(): Promise<void> {
+  await userEvent.click(await screen.findByTestId('review-console-approve'))
+  await userEvent.click(await screen.findByTestId('review-console-confirm'))
 }
 
 afterEach(() => { vi.restoreAllMocks() })
@@ -39,14 +48,36 @@ describe('ReviewDecisionPanel', () => {
   it('only exposes review approve and refreshes after acknowledgement', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(view(3, [pendingItem(3)]))
+      .mockResolvedValueOnce(presence())
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, ref: 'decision:1', changed: true, idempotent: false, channel: 'dashboard' }), { status: 200 }))
       .mockResolvedValueOnce(view(4, []))
     const onRefresh = vi.fn()
     renderPanel({ onRefresh })
     expect(await screen.findByTestId('review-console-approve')).toBeEnabled()
     await userEvent.click(screen.getByTestId('review-console-approve'))
+    await userEvent.click(await screen.findByTestId('review-console-confirm'))
     await waitFor(() => expect(onRefresh).toHaveBeenCalledTimes(1))
-    expect(fetchMock.mock.calls[1]?.[1]).toEqual(expect.objectContaining({ method: 'POST' }))
+    // First the proof of presence for exactly this review, then the approval that carries it.
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/change/demo/decisions/presence')
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({ root: '/repo', ref: 'decision:1', expected_revision: 3 })
+    expect(fetchMock.mock.calls[2]?.[0]).toBe('/api/change/demo/decisions')
+    expect(fetchMock.mock.calls[2]?.[1]).toEqual(expect.objectContaining({ method: 'POST' }))
+    expect(new Headers(fetchMock.mock.calls[2]?.[1]?.headers).get('X-Tenon-Presence')).toBe('nonce-1')
+  })
+
+  it('does nothing on the first click: a second, explicit click confirms, and cancel backs out', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(view(3, [pendingItem(3)]))
+    renderPanel()
+    await userEvent.click(await screen.findByTestId('review-console-approve'))
+    expect(screen.getByTestId('review-console-confirm-box')).toHaveTextContent('请亲自确认')
+    expect(screen.getByTestId('review-console-confirm-box')).toHaveTextContent('交付')
+    expect(screen.getByTestId('review-console-cancel')).toHaveFocus()
+    expect(screen.getByTestId('review-console-approve')).toBeDisabled()
+    expect(fetchMock.mock.calls.filter((call) => call[1]?.method === 'POST')).toHaveLength(0)
+    await userEvent.click(screen.getByTestId('review-console-cancel'))
+    expect(screen.queryByTestId('review-console-confirm-box')).toBeNull()
+    expect(screen.getByTestId('review-console-approve')).toBeEnabled()
+    expect(fetchMock.mock.calls.filter((call) => call[1]?.method === 'POST')).toHaveLength(0)
   })
 
   it('事件显示它通向的阶段名；「退回到…」列出退回边的阶段名，选中后复制退回命令而不直接改状态', async () => {
@@ -72,32 +103,60 @@ describe('ReviewDecisionPanel', () => {
   ])('maps HTTP %i %s to its text and keeps it after the review disappears', async (status, code, text) => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(view(3, [pendingItem(3)]))
+      .mockResolvedValueOnce(presence())
       .mockResolvedValueOnce(failure(status, code))
       .mockResolvedValue(view(4, []))
     renderPanel()
-    await userEvent.click(await screen.findByTestId('review-console-approve'))
+    await approveAndConfirm()
     if (status === 409) {
       const alert = await screen.findByTestId('review-console-error')
       expect(alert).toHaveTextContent(text)
-      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4))
       expect(screen.queryByTestId('review-console')).toBeNull()
       expect(screen.getByTestId('review-console-error')).toHaveTextContent(text)
     } else {
       expect(await screen.findByTestId('review-console-submit-error')).toHaveTextContent(text)
-      expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(fetchMock).toHaveBeenCalledTimes(3)
     }
+  })
+
+  it.each([
+    [403, 'presence-required', '需要你在页面上亲自确认'],
+    [401, 'session-required', '登录已失效'],
+  ])('maps the auth rejection %i %s to a prompt to act in person / sign in again', async (status, code, text) => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(view(3, [pendingItem(3)]))
+      .mockResolvedValueOnce(presence())
+      .mockResolvedValueOnce(failure(status, code))
+    renderPanel()
+    await approveAndConfirm()
+    expect(await screen.findByTestId('review-console-submit-error')).toHaveTextContent(text)
+    expect(screen.getByTestId('review-console-approve')).toBeEnabled()
+  })
+
+  it('stops at the presence step when the server refuses to issue a nonce', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(view(3, [pendingItem(3)]))
+      .mockResolvedValueOnce(failure(401, 'session-required'))
+    renderPanel()
+    await approveAndConfirm()
+    expect(await screen.findByTestId('review-console-submit-error')).toHaveTextContent('登录已失效')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(postBodies(fetchMock)).toHaveLength(0)
   })
 
   it('reuses the idempotency key when the same ref and revision is retried', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(view(3, [pendingItem(3)]))
+      .mockResolvedValueOnce(presence())
       .mockRejectedValueOnce(new TypeError('offline'))
+      .mockResolvedValueOnce(presence())
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, ref: 'decision:1', changed: true, idempotent: true, channel: 'dashboard' }), { status: 200 }))
       .mockResolvedValue(view(4, []))
     renderPanel()
-    await userEvent.click(await screen.findByTestId('review-console-approve'))
+    await approveAndConfirm()
     expect(await screen.findByTestId('review-console-submit-error')).toHaveTextContent('网络错误')
-    await userEvent.click(screen.getByTestId('review-console-approve'))
+    await approveAndConfirm()
     await waitFor(() => expect(postBodies(fetchMock)).toHaveLength(2))
     const [first, second] = postBodies(fetchMock)
     expect(first?.idempotency_key).toBe(reviewIdempotencyKey('decision:1', 3))
@@ -110,6 +169,7 @@ describe('ReviewDecisionPanel', () => {
         { key: 'kind:unit', reason: '纯文档改动' },
         { key: 'covers:spec:auth/登录成功', reason: '手工验收' },
       ]))
+      .mockResolvedValueOnce(presence())
       .mockResolvedValueOnce(new Response(JSON.stringify({
         ok: true, ref: 'decision:1', changed: true, idempotent: false, channel: 'dashboard',
         waivers: { approved: ['kind:unit', 'covers:spec:auth/登录成功'], skipped: [] },
@@ -128,9 +188,9 @@ describe('ReviewDecisionPanel', () => {
     // A waiver row never wraps.
     for (const row of list.querySelectorAll('li')) expect(row.className).toContain('whitespace-nowrap')
 
-    await userEvent.click(screen.getByTestId('review-console-approve'))
+    await approveAndConfirm()
     await waitFor(() => expect(onToast).toHaveBeenCalledWith('已批准，并批准豁免 2 项，正在刷新状态'))
-    expect(fetchMock.mock.calls.filter((call) => call[1]?.method === 'POST')).toHaveLength(1)
+    expect(postBodies(fetchMock)).toHaveLength(1)
   })
 
   it('shows no waiver block when the request froze none', async () => {

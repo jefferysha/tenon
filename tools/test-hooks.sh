@@ -328,11 +328,18 @@ run_gate_self_approval() { # $1=stdin-json $2=AFK value → 设 RC / ERR；日�
 proj="$TMP/gate-self-approval"
 mkdir -p "$proj/openspec/changes"
 SA_TOKEN="$proj/state home/tenon/dashboard-token.json"
+# 脚本文件形状：命令文本里没有任何 URL，控制面地址只在它所执行的文件里。
+printf '#!/bin/sh\nH=127.0.0.1\ncurl -s "http://$H:18765/"\n' > "$proj/poke.sh"
+printf 'import urllib.request\nurllib.request.urlopen("http://localhost:18765/").read()\n' > "$proj/poke.py"
+printf '#!/bin/sh\necho building\n' > "$proj/build.sh"
 for desc_payload in \
   "Bash ls|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"ls -la\"}" \
   "Read 普通文件|{\"cwd\":\"$proj\",\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"$proj/README.md\"}}" \
   "远端 /api/|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"curl https://example.test/api/change/x/decisions\"}" \
-  "loopback 非 api|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"curl http://127.0.0.1:18765/health\"}" \
+  "loopback 无端口|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"curl -s http://localhost/health\"}" \
+  "hosts 文件检索|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"grep -n localhost /etc/hosts\"}" \
+  "普通解释器命令|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"python3 -m pytest -q\"}" \
+  "无关脚本文件|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"sh build.sh\"}" \
   "Read src/api 路径|{\"cwd\":\"$proj\",\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"$proj/src/api/users.ts\"}}" \
   "Edit 内容含 /api/|{\"cwd\":\"$proj\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$proj/a.ts\",\"new_string\":\"fetch('/api/users')\"}}"; do
   desc="${desc_payload%%|*}"
@@ -354,7 +361,26 @@ for desc_payload in \
   "curl -d @f|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"curl -d @body.json http://[::1]:18765/api/change/x/transition\"}" \
   "命令替换 Authorization|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"curl -H \\\"Authorization: Bearer \$(cat ~/s/dashboard-token.json)\\\" http://127.0.0.1:1/api/x\"}" \
   "管道|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"cat ~/s/dashboard-token.json | jq -r .token\"}" \
-  "codex exec argv|{\"cwd\":\"$proj\",\"tool_name\":\"exec\",\"cmd\":[\"bash\",\"-lc\",\"wget -qO- localhost:18765/api/snapshot\"]}"; do
+  "codex exec argv|{\"cwd\":\"$proj\",\"tool_name\":\"exec\",\"cmd\":[\"bash\",\"-lc\",\"wget -qO- localhost:18765/api/snapshot\"]}" \
+  "其它端口（hook 只召回，是否 Dashboard 端口由 CLI 判定）|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"curl http://localhost:3000/api/users\"}" \
+  "无 /api/ 的根请求（旧首页在这里发 token）|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"curl -s http://127.0.0.1:18765/\"}" \
+  "无 scheme 的主机:端口|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"curl -s localhost:18765\"}" \
+  "loopback 非 api 路径|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"curl http://127.0.0.1:18765/health\"}" \
+  "nc 直连|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"nc localhost 18765 < request.txt\"}" \
+  "/dev/tcp|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"exec 3<>/dev/tcp/127.0.0.1/18765\"}" \
+  "十进制 IP|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"curl http://2130706433:18765/\"}" \
+  "十六进制 IP|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"curl http://0x7f000001:18765/\"}" \
+  "IPv4 映射的 IPv6|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"curl 'http://[::ffff:127.0.0.1]:18765/'\"}" \
+  "变量拼 URL|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"H=127.0.0.1; curl http://\$H:\$PORT/\"}" \
+  "python3 -c|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"python3 -c \\\"import urllib.request as u; u.urlopen('http://localhost:18765/')\\\"\"}" \
+  "node -e|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"node -e \\\"fetch('http://127.0.0.1:18765/')\\\"\"}" \
+  "脚本文件 sh|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"sh poke.sh\"}" \
+  "脚本文件 ./|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"./poke.sh\"}" \
+  "脚本文件 python 链式|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"cd $proj && python3 poke.py\"}" \
+  "env 包装的脚本|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"env FOO=1 bash poke.sh\"}" \
+  "登录端点|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"curl -X POST -H 'Content-Type: application/json' -d {} http://127.0.0.1:18765/api/session/open\"}" \
+  "前台启动 Dashboard|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"tenon dashboard\"}" \
+  "直接跑 server bundle|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"node packages/server/dist/dashboard.mjs\"}"; do
   desc="${desc_payload%%|*}"
   run_gate_self_approval "${desc_payload#*|}" 1
   assert_exit "self-approval: AFK 候选仍放行（${desc}）" 0 "$RC"
@@ -383,6 +409,27 @@ assert_contains "self-approval: HITL 拦截保留原提示" "$ERR" "禁止读取
 assert_contains "self-approval: HITL 拦截前已调用记录器" "$(cat "$SA_LOG" 2>/dev/null || true)" "internal-self-approval"
 run_gate_self_approval "{\"cwd\":\"$proj\",\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"$SA_TOKEN\"}}" 1
 assert_exit "self-approval: AFK 下 pending review 读取 token 不拦截" 0 "$RC"
+# 新机制：未登录的请求在 server 拿不到任何东西，hook 只保证「任意程序/脚本」在 pending review 期间 fail-closed，
+# 并在拦截时指向唯一合法的入口（`tenon dashboard --open` 由 server 替用户打开已登录的浏览器）。
+for desc_cmd in \
+  "根请求（旧首页在这里发 token）|curl -s http://127.0.0.1:18765/" \
+  "nc 直连|nc localhost 18765 < request.txt" \
+  "脚本文件|sh poke.sh" \
+  "python 脚本文件|python3 poke.py" \
+  "前台启动 Dashboard|tenon dashboard" \
+  "带私货的 --open|tenon dashboard --open && curl http://127.0.0.1:18765/" \
+  "--open 端口非数字|tenon dashboard --open --port x"; do
+  desc="${desc_cmd%%|*}"
+  run_gate_self_approval "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"${desc_cmd#*|}\"}" 0
+  assert_exit "self-approval: HITL pending review 下触达控制面被拦截（${desc}）" 2 "$RC"
+  assert_contains "self-approval: HITL 拦截指向 tenon dashboard --open（${desc}）" "$ERR" "tenon dashboard --open"
+  run_gate_self_approval "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"${desc_cmd#*|}\"}" 1
+  assert_exit "self-approval: AFK 下同一命令不拦截（${desc}）" 0 "$RC"
+done
+for sanctioned in "tenon dashboard --open" "tenon dashboard --open --port 18765" "cd $proj && tenon dashboard --open"; do
+  run_gate_self_approval "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"$sanctioned\"}" 0
+  assert_exit "self-approval: HITL pending review 下放行 ${sanctioned}" 0 "$RC"
+done
 rm -f "$proj/.pipeline-pending-review"; clear_active "$proj"
 
 # ───── 1a. 门 TTL 分级（BACKLOG #13，对齐老内核 pipeline-gate.sh：confirm 300s / review·interaction 1800s） ─────

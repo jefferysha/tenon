@@ -10,7 +10,7 @@ import { join } from 'node:path'
 import {
   compareVersions, decidePreemption, parseListenerPids, preemptOldServer, probeHealth, probePortOpen, readPidfile,
 } from './preempt.js'
-import { createDashboardServer } from './server.js'
+import { createTestDashboardServer } from './test-server.js'
 import type { DashboardServer } from './types.js'
 import { makeTempHome, testFlow } from './test-support.js'
 import { resolveServerPaths } from './paths.js'
@@ -174,7 +174,7 @@ describe('decidePreemption —— bind / reuse / preempt', () => {
 
 describe('probeHealth —— 真 HTTP 探测既有 server', () => {
   it('活着 → 回 health（含 version）；关掉 → null', async () => {
-    const srv = createDashboardServer({
+    const srv = createTestDashboardServer({
       paths: resolveServerPaths({ home: await makeTempHome(), env: {} }),
       version: '5.5.5',
       token: 't',

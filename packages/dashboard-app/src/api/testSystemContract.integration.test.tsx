@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createDashboardServer, resolveServerPaths } from '@tenon/server'
+import { installSessionFetch } from '../../../server/src/test-support.js'
 import {
   appendTestRunRecordV2, baselineV2Path, createFlowEngine, createStateStore, emptyTestPlan, loadManifest,
   nextBaselineV2, serializeKnownFailures, testRunArtifactsDir, testSystemPaths, writeTestBaselineV2, writeTestPlan,
@@ -52,7 +53,8 @@ async function start(): Promise<{ base: string; root: string; changeDir: string 
     resolveUser: () => ({ ...ACTOR, slug: SLUG, source: 'env' }),
   })
   const { port } = await srv.listen(0, '127.0.0.1')
-  closers.push(() => srv.close())
+  const restoreFetch = await installSessionFetch(srv, port)
+  closers.push(async () => { restoreFetch(); await srv.close() })
   return { base: `http://127.0.0.1:${port}`, root, changeDir }
 }
 

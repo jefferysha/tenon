@@ -1224,6 +1224,39 @@ describe('App 初始 snapshot 错误恢复', () => {
     expect(await screen.findByTestId('snapshot-error')).toHaveTextContent('Invalid server response.')
   })
 
+  it('401（没有会话：服务刚升级 / 重启，或 cookie 过期）给出重新登录的命令，而不是泛泛的加载失败', async () => {
+    window.history.replaceState({}, '', '/?view=workspace')
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url !== '/api/snapshot') throw new Error(`unexpected fetch ${url}`)
+      return {
+        ok: false,
+        status: 401,
+        json: async () => ({ ok: false, code: 'session-required', error: '需要登录' }),
+      }
+    }))
+
+    render(<App />)
+
+    const errorState = await screen.findByTestId('snapshot-error')
+    expect(errorState).toHaveTextContent('需要重新登录 Dashboard')
+    expect(errorState).toHaveTextContent('浏览器会自动打开并登录')
+    expect(screen.getByTestId('session-expired-command-text')).toHaveTextContent('tenon dashboard --open')
+    expect(errorState).not.toHaveTextContent('无法加载 Tenon 数据')
+  })
+
+  it('English 401 names the same command', async () => {
+    localStorage.setItem('tenon-dashboard-lang', 'en')
+    window.history.replaceState({}, '', '/?view=workspace')
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 401, json: async () => ({ ok: false, code: 'session-required' }) })))
+
+    render(<App />)
+
+    const errorState = await screen.findByTestId('snapshot-error')
+    expect(errorState).toHaveTextContent('Sign in to the Dashboard again')
+    expect(errorState.textContent).not.toMatch(/[㐀-鿿]/u)
+    expect(screen.getByTestId('session-expired-command-text')).toHaveTextContent('tenon dashboard --open')
+  })
+
   it('首次 500 显示明确错误与重试入口，重试成功后恢复项目总览', async () => {
     window.history.replaceState({}, '', '/?view=workspace')
     let snapshotAttempts = 0

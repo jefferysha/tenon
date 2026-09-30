@@ -9,7 +9,8 @@ import { existsSync } from 'node:fs'
 import { appendFile, mkdir, mkdtemp, readFile, readdir, rename, stat, symlink, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { createDashboardServer } from './server.js'
+import { createTestDashboardServer } from './test-server.js'
+import { ANONYMOUS, withSession } from './test-support.js'
 import { resolveServerPaths } from './paths.js'
 import type { DashboardServer, DashboardServerOptions, ServerPaths } from './types.js'
 import {
@@ -112,7 +113,7 @@ async function start(opts?: {
   const worktreeDir = await makeWorktreeDir()
   const hostHome = opts?.hostHome ?? await makeTempHome()
   const paths = opts?.paths ?? resolveServerPaths({ home: hostHome, env: {} })
-  const srv = createDashboardServer({
+  const srv = createTestDashboardServer({
     version: opts?.version ?? '9.9.9',
     releaseId: opts?.releaseId,
     transactionId: opts?.transactionId,
@@ -825,7 +826,7 @@ describe('GET /api/snapshot —— 聚合注册 Project 的真 .pipeline.yaml', 
     const b = await makeProject()
     await initChange(store, a, 'alpha')
     await initChange(store, b, 'beta')
-    const srv = createDashboardServer({
+    const srv = createTestDashboardServer({
       paths: resolveServerPaths({ home: await makeTempHome(), env: {} }),
       version: '9.9.9', token: 't', registry: () => [a, b], store, flow: testFlow(),
     })
@@ -998,13 +999,24 @@ describe('GET 未知路由 → 404', () => {
   })
 })
 
-describe('GET / —— 前端落地页 + 同源 token 注入（B5 交付）', () => {
-  it('200 text/html，内嵌本 server 的一次性 token（同源前端读取）', async () => {
+describe('GET / —— 前端落地页 + 写 token 只注入带会话的页面（B5 交付 + v0.3 本机鉴权）', () => {
+  it('带会话 → 200 text/html，内嵌本 server 的写 token（同源前端读取）', async () => {
     const h = await start({ token: 'inject-me-xyz' })
     const r = await reqGet(h.port, '/')
     expect(r.status).toBe(200)
     expect(String(r.headers['content-type'])).toContain('text/html')
     expect(r.body).toContain('inject-me-xyz')
+    expect(String(r.headers['content-security-policy'])).toContain("frame-ancestors 'none'")
+  })
+
+  it('匿名 → 401 登录提示页，页面里没有 token', async () => {
+    const h = await start({ token: 'inject-me-xyz' })
+    const r = await reqGet(h.port, '/', '127.0.0.1', ANONYMOUS)
+    expect(r.status).toBe(401)
+    expect(String(r.headers['content-type'])).toContain('text/html')
+    expect(r.body).toContain('tenon dashboard --open')
+    expect(r.body).not.toContain('inject-me-xyz')
+    expect(r.body).not.toContain('__TENON_DASHBOARD_TOKEN__')
   })
 })
 
@@ -1020,7 +1032,7 @@ describe('GET / + /assets/* —— webRoot 存在时服务真 SPA（BACKLOG #26c
     const store = newStore()
     const root = await makeProject()
     await initChange(store, root, 'c1')
-    const srv = createDashboardServer({
+    const srv = createTestDashboardServer({
       paths: resolveServerPaths({ home: await makeTempHome(), env: {} }),
       token: 'spa-token', registry: () => [root], store, flow: testFlow(),
       clock: () => '2026-07-07T00:00:00Z', webRoot: web,
@@ -3553,7 +3565,7 @@ describe('GET /api/workflows —— 列出自定义 workflow（GOAL E8）', () =
     const store = newStore()
     const root = await makeProject()
     const roots: string[] = []
-    const srv = createDashboardServer({
+    const srv = createTestDashboardServer({
       paths: resolveServerPaths({ home: await makeTempHome(), env: {} }),
       token: 'dynamic-registry-token',
       registry: () => roots,
@@ -5274,7 +5286,7 @@ async function startWithHome(opts?: { runPipelineCli?: PipelineCliRunner; resolv
   const home = await makeTempHome()
   const store = newStore()
   const paths = resolveServerPaths({ home, env: {} })
-  const srv = createDashboardServer({
+  const srv = createTestDashboardServer({
     version: '9.9.9',
     token: 'secret-token-abc',
     hostHome: home,
@@ -6177,7 +6189,7 @@ function reqPutText(port: number, path: string, text: string, headers: Record<st
   return new Promise((resolve, reject) => {
     const http = require('node:http') as typeof import('node:http')
     const req = http.request(
-      { host: '127.0.0.1', port, path, method: 'PUT', headers: { 'Content-Type': 'text/yaml', 'Content-Length': String(Buffer.byteLength(text)), ...headers } },
+      { host: '127.0.0.1', port, path, method: 'PUT', headers: { 'Content-Type': 'text/yaml', 'Content-Length': String(Buffer.byteLength(text)), ...withSession(port, headers) } },
       (res) => {
         let body = ''
         res.setEncoding('utf8')

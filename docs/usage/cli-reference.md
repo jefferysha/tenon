@@ -35,6 +35,13 @@ tenon doctor [--json]
 tenon uninstall [--dry-run] [-y]
 ```
 
+`tenon dashboard --open` signs you in: the running (or freshly started) server opens your
+browser itself with a one-time login link that is never returned to the command, so the
+page loads already signed in. A bare `tenon dashboard` runs the server in the foreground and
+prints that link to an interactive terminal; a launcher that reads the server's stdout can ask
+for it with `TENON_DASHBOARD_PRINT_LINK=1`. See
+[Signing in](dashboard-and-local-api.md#signing-in).
+
 `host-target-plan` is a machine-readable, read-only contract. With only
 `--json` it returns the registered host catalog; with both `--host` and
 `--operation` it returns one `host-target-plan/v1` preview. It never runs

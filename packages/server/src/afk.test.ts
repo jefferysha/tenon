@@ -5,7 +5,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest'
 import { join } from 'node:path'
-import { createDashboardServer } from './server.js'
+import { createTestDashboardServer } from './test-server.js'
 import { resolveServerPaths } from './paths.js'
 import { writeFile } from 'node:fs/promises'
 import { ensureUserLocalDir, serializeTaskArchive } from '@tenon/kernel'
@@ -46,7 +46,7 @@ async function startWith(states: Record<string, Partial<Record<string, string>>>
     const dir = join(root, 'openspec', 'changes', name)
     await store.setMany(dir, buildAutomationKv(fields) as never)
   }
-  const srv = createDashboardServer({
+  const srv = createTestDashboardServer({
     paths: resolveServerPaths({ home: await makeTempHome(), env: {} }),
     version: '9.9.9', token: 't', registry: () => [root], store, flow: testFlow(),
     clock: () => '2026-07-07T00:00:00Z',

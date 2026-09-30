@@ -8,7 +8,7 @@
 
 核心维护目标是保持 CLI、YAML/JSON/JSONL、hook、adapter、技能包和 dashboard API 的既有兼容性，同时继续演进 workflow/automation 能力。当前属于功能成熟但持续演进阶段；公共契约、tracked bundle、生成 workflow artifact 与分发资产必须同步，不能只让源码测试通过。
 
-最高风险边界包括：人工复核门与写工具阻断不得失效；状态/ledger/history 必须在跨进程并发下保持锁、CAS 与原子发布语义；本机 HTTP 写端点必须维持 Host、token、content-type 和 root 信任锚；Docker/runner、shell、Git、TLS 代理和反序列化输入必须按不可信边界处理；任何凭证只能通过既有受控配置/环境通道传递，禁止进入日志、trace、fixture、仓库或最终回复。
+最高风险边界包括：人工复核门与写工具阻断不得失效；状态/ledger/history 必须在跨进程并发下保持锁、CAS 与原子发布语义；本机 HTTP 端点必须维持 Host、登录会话（匿名请求 401）、写 token、content-type 和 root 信任锚，评审确认还须「人在场」nonce；Docker/runner、shell、Git、TLS 代理和反序列化输入必须按不可信边界处理；任何凭证只能通过既有受控配置/环境通道传递，禁止进入日志、trace、fixture、仓库或最终回复。
 
 ## 根路径结构与职责
 
@@ -21,7 +21,7 @@
 | `packages/channel/` | 历史迁移/experimental worker event bus 兼容面 | 非默认 agent runtime；不得在无明确目标时扩建或重新并入 kernel |
 | `packages/automation/` | AFK 队列、调度、admission、runner、lifecycle、triage、verifier 与技能快照 | 修改执行/合并/凭证通道时覆盖 Docker、Git、冲突保留和取消/恢复路径 |
 | `packages/cli/` | Commander CLI、命令、装配与单文件分发 | `src/` 是源码；tracked `dist/tenon.mjs` 必须由 `npm run bundle` 生成并通过 freshness/smoke，禁止手改 dist |
-| `packages/server/` | 本机 dashboard HTTP/SSE server、鉴权与跨包应用编排 | 保持 loopback/Host/token/root 安全模型；构建产物在 `dist/`，不得手改 |
+| `packages/server/` | 本机 dashboard HTTP/SSE server、鉴权与跨包应用编排 | 保持 loopback/Host/会话/token/root 安全模型（不落盘任何凭证，匿名请求 401）；构建产物在 `dist/`，不得手改 |
 | `packages/dashboard-app/` | React dashboard SPA | 前端详细边界见 `FRONTEND.md`；`dist/` 为 Vite 生成物，源码/样式/交互改动需真实浏览器验证 |
 | `packages/tap/` | 本地 LLM 流量代理、TLS/WS、trace store 与诊断 | 证书、header、prompt 和凭证按敏感数据处理；capture 默认与降级语义不得被弱化 |
 | `hooks/` | Session/Prompt/PreToolUse/PostToolUse 的 bash 薄 shim 与三门阻断 | 必须兼容 macOS/BSD 与 Linux/GNU 工具；复杂规则回收到 TypeScript，修改后跑 hook 与 workflow 集成测试 |

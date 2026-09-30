@@ -92,6 +92,8 @@ async function post(root: string, body: Record<string, unknown>): Promise<Captur
       clock: () => FIXED_CLOCK,
       history: createHistoryWriter(),
       resolveUser: () => ({ id: 'tester@tenon.test', name: 'Tester', slug: 'tester-at-tenon.test', source: 'env', trust: 'declared' }),
+      // These cases exercise the command; the presence gate itself is covered in serverPresence.test.ts.
+      presence: { issue: () => 'test-nonce', verify: () => true },
     },
   )
   return captured

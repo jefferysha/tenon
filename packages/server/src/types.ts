@@ -28,35 +28,17 @@ import type { WorkflowDefinitionStatusResponse } from './workflowDefinitionStatu
 
 /** Tenon 产品自有路径。宿主资产发现由 DashboardServerOptions.hostHome 独立表达。 */
 export interface ServerPaths extends ProductPaths {
-  /** Tenon state root 下的一次性 token 握手文件（0600）。 */
+  /**
+   * 已淘汰的写 token 握手文件位置：server 不再写它，启动时只据此删除旧版本遗留的文件（R5 迁移）。
+   * 没有任何凭证再落盘，见 docs/usage/security-model.md。
+   */
   tokenPath: string
   /** Tenon state root 下的 pidfile（pid/port/version，B4 版本抢占用）。 */
   pidfilePath: string
 }
 
-/** 工作台「测试」页签的一项：状态 + 当前用户最近一次运行的摘要。 */
-export interface TestItemSnapshot {
-  id: string
-  label?: string
-  direction: string
-  required: boolean
-  status: 'passed' | 'failed' | 'stale' | 'missing' | 'running'
-  run?: {
-    runId: string
-    user: string
-    actor: { id: string; name: string }
-    result: 'pass' | 'fail'
-    exitCode: number | null
-    durationMs: number
-    finishedAt: string
-    reasons: string[]
-  }
-}
-
-export interface TestStepSnapshot {
-  stepId: string
-  items: TestItemSnapshot[]
-}
+import type { TestStepSnapshot } from './typesTestSnapshot.js'
+export type { TestItemSnapshot, TestStepSnapshot } from './typesTestSnapshot.js'
 
 /** snapshot 里单个 change 的投影（.pipeline.yaml 全字段 + 常读字段提升到顶层）。 */
 export interface ChangeSnapshot {
@@ -306,8 +288,16 @@ export interface DashboardServerOptions {
   designSeedFetch?: import('./designSeed.js').DesignSeedFetch
   /** 覆盖注册表读取（默认读 registryPath 的 JSON 字符串数组）。 */
   registry?: () => string[]
-  /** 覆盖 token（默认启动生成一次性随机 token）。 */
+  /**
+   * 覆盖写 token（默认启动生成随机值）。它只在带有效会话的 `GET /` 里注入页面，是写端点的 CSRF/写门，
+   * 不是登录凭证；进程内嵌入方（测试）自己持有它。
+   */
   token?: string
+  /**
+   * 把一次性登录 URL 交给用户浏览器的实现（缺省调系统 opener）。`POST /api/session/open` 只经它交付，
+   * 调用方拿不到 URL；测试注入假实现来扮演“用户的浏览器”。
+   */
+  openBrowser?: (url: string) => Promise<boolean>
   /** ISO8601 UTC 注入时钟（业务码禁散落 new Date()）。 */
   clock?: () => string
   /** SSE 变更轮询间隔（ms，默认 1000；测试传小值加速）。 */
@@ -380,9 +370,14 @@ export interface DashboardServerOptions {
 }
 
 export interface DashboardServer {
-  /** 一次性 token（同源前端注入 + 写端点校验的真相源）。 */
+  /** 写 token（仅注入带会话的页面 + 写端点校验的真相源）；不是登录凭证，进程外拿不到。 */
   readonly token: string
   readonly version: string
+  /**
+   * 铸一条新的一次性登录 URL（须已 listen）。只给启动者自己的终端 / 进程内嵌入方；
+   * 不得放进任何 HTTP 响应。
+   */
+  issueLoginUrl(): string
   /** 底层 http.Server（真起真监听，测试用 listen(0) 随机端口）。 */
   readonly httpServer: import('node:http').Server
   listen(port?: number, host?: string): Promise<{ port: number; host: string }>

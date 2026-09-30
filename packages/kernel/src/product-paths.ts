@@ -25,6 +25,11 @@ export interface ProductPaths {
   readonly auditPath: string
   readonly registryPath: string
   readonly secretsPath: string
+  /**
+   * Where releases before 0.3 kept the Dashboard write token.  Nothing writes it any more (no credential
+   * is stored on disk); the server deletes a leftover at startup and the self-approval classifier still
+   * recognises the name.
+   */
   readonly dashboardTokenPath: string
   readonly dashboardPidfilePath: string
   /** Machine-local declared identity override `{ id, name }` (below `TENON_USER`, above git config). */

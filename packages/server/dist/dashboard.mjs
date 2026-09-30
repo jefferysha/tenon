@@ -3,8 +3,8 @@ import { createRequire as __cr } from 'node:module'; const require = __cr(import
 
 // packages/server/src/main.ts
 import { execFile as execFile12 } from "node:child_process";
-import { mkdirSync as mkdirSync10, unlinkSync as unlinkSync5, writeFileSync as writeFileSync9 } from "node:fs";
-import { dirname as dirname28, join as join120 } from "node:path";
+import { mkdirSync as mkdirSync10, rmSync as rmSync2, unlinkSync as unlinkSync5, writeFileSync as writeFileSync9 } from "node:fs";
+import { dirname as dirname28, join as join121 } from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 
 // packages/tap/dist/paths.js
@@ -3094,8 +3094,8 @@ function parseWorkflowGovernanceBinding(raw) {
     "document_governance_fingerprint",
     "workflow_plan_fingerprint"
   ]);
-  const digest15 = (candidate2) => typeof candidate2 === "string" && /^[0-9a-f]{64}$/.test(candidate2);
-  if (Object.keys(record11).some((key) => !allowed.has(key)) || record11.version !== 1 || typeof record11.run_id !== "string" || record11.run_id === "" || record11.document_profile !== void 0 && record11.document_profile !== "legacy-full" && record11.document_profile !== "document-v1" || record11.document_governance_fingerprint !== void 0 && !digest15(record11.document_governance_fingerprint) || record11.workflow_plan_fingerprint !== void 0 && !digest15(record11.workflow_plan_fingerprint) || record11.document_governance_fingerprint !== void 0 && record11.document_profile === void 0) {
+  const digest16 = (candidate2) => typeof candidate2 === "string" && /^[0-9a-f]{64}$/.test(candidate2);
+  if (Object.keys(record11).some((key) => !allowed.has(key)) || record11.version !== 1 || typeof record11.run_id !== "string" || record11.run_id === "" || record11.document_profile !== void 0 && record11.document_profile !== "legacy-full" && record11.document_profile !== "document-v1" || record11.document_governance_fingerprint !== void 0 && !digest16(record11.document_governance_fingerprint) || record11.workflow_plan_fingerprint !== void 0 && !digest16(record11.workflow_plan_fingerprint) || record11.document_governance_fingerprint !== void 0 && record11.document_profile === void 0) {
     throw new Error("workflow governance binding \u5F62\u72B6\u975E\u6CD5");
   }
   return {
@@ -5241,8 +5241,8 @@ function artifactSubjectId(namespace, logicalKey) {
   assertArtifactNamespace(namespace);
   if (logicalKey.length === 0 || logicalKey.length > 1024)
     throw new Error("artifact subject logical key must be non-empty");
-  const digest15 = createHash7("sha256").update(`${namespace}\0${logicalKey}`, "utf8").digest("hex").slice(0, 32);
-  return `subject:${namespace}:${digest15}`;
+  const digest16 = createHash7("sha256").update(`${namespace}\0${logicalKey}`, "utf8").digest("hex").slice(0, 32);
+  return `subject:${namespace}:${digest16}`;
 }
 function newArtifactSubjectId(namespace) {
   assertArtifactNamespace(namespace);
@@ -5270,20 +5270,20 @@ function parseReceipt(value, recordIndex, receiptIndex) {
   if (!item2)
     throw new DocumentLedgerError(`document ledger records[${recordIndex}].reads[${receiptIndex}] \u5FC5\u987B\u662F\u5BF9\u8C61`);
   const phase = string2(item2.phase);
-  const digest15 = string2(item2.sha256);
+  const digest16 = string2(item2.sha256);
   const readAt = string2(item2.readAt);
   const visitId = item2.visitId === void 0 ? void 0 : string2(item2.visitId);
   if (!phase || !/^[A-Za-z0-9_-]+$/.test(phase)) {
     throw new DocumentLedgerError(`document ledger records[${recordIndex}].reads[${receiptIndex}].phase \u975E\u6CD5`);
   }
-  if (!digest15 || !validDigest(digest15)) {
+  if (!digest16 || !validDigest(digest16)) {
     throw new DocumentLedgerError(`document ledger records[${recordIndex}].reads[${receiptIndex}].sha256 \u975E\u6CD5`);
   }
   if (!readAt)
     throw new DocumentLedgerError(`document ledger records[${recordIndex}].reads[${receiptIndex}].readAt \u5FC5\u987B\u662F\u975E\u7A7A\u5B57\u7B26\u4E32`);
   if (item2.visitId !== void 0 && !visitId)
     throw new DocumentLedgerError(`document ledger records[${recordIndex}].reads[${receiptIndex}].visitId \u975E\u6CD5`);
-  return { phase, sha256: digest15, readAt, ...visitId === void 0 ? {} : { visitId } };
+  return { phase, sha256: digest16, readAt, ...visitId === void 0 ? {} : { visitId } };
 }
 function receiptKey(receipt) {
   return JSON.stringify([receipt.phase, receipt.visitId ?? "legacy"]);
@@ -5294,7 +5294,7 @@ function parseRecord3(value, index) {
     throw new DocumentLedgerError(`document ledger records[${index}] \u5FC5\u987B\u662F\u5BF9\u8C61`);
   const kind = string2(item2.kind);
   const path14 = string2(item2.path);
-  const digest15 = string2(item2.sha256);
+  const digest16 = string2(item2.sha256);
   const producer = string2(item2.producer);
   const recordedAt = string2(item2.recordedAt);
   if (!kind || !isDocumentKind(kind))
@@ -5302,7 +5302,7 @@ function parseRecord3(value, index) {
   if (!path14 || !isSafeProjectRelativePath(path14)) {
     throw new DocumentLedgerError(`document ledger records[${index}].path \u5FC5\u987B\u662F\u5B89\u5168\u7684\u9879\u76EE\u76F8\u5BF9\u8DEF\u5F84`);
   }
-  if (!digest15 || !validDigest(digest15))
+  if (!digest16 || !validDigest(digest16))
     throw new DocumentLedgerError(`document ledger records[${index}].sha256 \u975E\u6CD5`);
   if (!producer || !/^[A-Za-z0-9_-]+(?::[A-Za-z0-9_-]+)*$/.test(producer)) {
     throw new DocumentLedgerError(`document ledger records[${index}].producer \u975E\u6CD5`);
@@ -5330,7 +5330,7 @@ function parseRecord3(value, index) {
   return {
     kind,
     path: path14,
-    sha256: digest15,
+    sha256: digest16,
     producer,
     recordedAt,
     ...producerInvocation === void 0 ? {} : { producerInvocation },
@@ -7166,13 +7166,13 @@ function checkSha2562(value, key, path14, errors, optional = false) {
       errors.push(`${path14}.${key}: \u7F3A\u5931\uFF08\u5FC5\u586B sha256\uFF09`);
     return;
   }
-  const digest15 = value[key];
-  if (typeof digest15 !== "string") {
-    errors.push(`${path14}.${key}: \u5E94\u4E3A string\uFF0C\u5B9E\u5F97 ${typeName2(digest15)}`);
+  const digest16 = value[key];
+  if (typeof digest16 !== "string") {
+    errors.push(`${path14}.${key}: \u5E94\u4E3A string\uFF0C\u5B9E\u5F97 ${typeName2(digest16)}`);
     return;
   }
-  if (!SHA256_HEX_RE.test(digest15)) {
-    errors.push(`${path14}.${key}: \u5E94\u4E3A 64 \u4F4D\u5C0F\u5199\u5341\u516D\u8FDB\u5236 sha256\uFF0C\u5B9E\u5F97 ${JSON.stringify(digest15)}`);
+  if (!SHA256_HEX_RE.test(digest16)) {
+    errors.push(`${path14}.${key}: \u5E94\u4E3A 64 \u4F4D\u5C0F\u5199\u5341\u516D\u8FDB\u5236 sha256\uFF0C\u5B9E\u5F97 ${JSON.stringify(digest16)}`);
   }
 }
 function checkPattern(value, key, pattern, path14, errors) {
@@ -15417,8 +15417,8 @@ function item(kind, status2, requiredRead, records, phase, currentVisitId, reaso
     }))
   };
 }
-function receiptMatchesVisit(receipt, phase, digest15, visitId) {
-  return receipt.phase === phase && receipt.sha256 === digest15 && receipt.visitId === visitId;
+function receiptMatchesVisit(receipt, phase, digest16, visitId) {
+  return receipt.phase === phase && receipt.sha256 === digest16 && receipt.visitId === visitId;
 }
 async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope, policy2) {
   let ledger;
@@ -15602,9 +15602,9 @@ async function readSpecApplyReceiptStatus(repoRoot, changeDir2) {
   for (const row of asArray6(receipt.deltas)) {
     const entry2 = asRecord7(row);
     const path14 = asText(entry2?.path);
-    const digest15 = asText(entry2?.sha256);
-    if (path14 !== void 0 && digest15 !== void 0)
-      recorded.set(path14, digest15);
+    const digest16 = asText(entry2?.sha256);
+    if (path14 !== void 0 && digest16 !== void 0)
+      recorded.set(path14, digest16);
   }
   if (recorded.size !== deltas.length) {
     return { rehearsed: false, applied: false, mode, reason: "spec-apply-receipt-stale" };
@@ -19989,7 +19989,7 @@ async function exists(path14) {
     return false;
   }
 }
-async function replaceTarget(library, parent, targetDir, files, digest15) {
+async function replaceTarget(library, parent, targetDir, files, digest16) {
   const base = basename2(targetDir);
   const staging = join30(parent, `${base}.staging-${process.pid}-${randomUUID10()}`);
   const old = join30(parent, `${base}.old-${randomUUID10()}`);
@@ -20000,7 +20000,7 @@ async function replaceTarget(library, parent, targetDir, files, digest15) {
       await mkdir15(dirname6(destination), { recursive: true });
       await writeFile10(destination, file.bytes, { flag: "wx", mode: 420 });
     }
-    const marker = { version: 1, library: library.id, source_digest: digest15, synced_at: (/* @__PURE__ */ new Date()).toISOString() };
+    const marker = { version: 1, library: library.id, source_digest: digest16, synced_at: (/* @__PURE__ */ new Date()).toISOString() };
     await writeFile10(join30(staging, BUILTIN_LIBRARY_MARKER), `${JSON.stringify(marker)}
 `, { flag: "wx", mode: 420 });
     if (!await exists(targetDir)) {
@@ -20026,16 +20026,16 @@ async function syncBuiltinLibrary(library, payloadRoot, configRoot) {
     const problems = files.flatMap((file) => library.validate(file.path, file.bytes.toString("utf8")).map((detail) => `${file.path}: ${detail}`));
     if (problems.length > 0)
       return { id: library.id, state: "failed", detail: problems.join("; ") };
-    const digest15 = builtinSourceDigest(files);
+    const digest16 = builtinSourceDigest(files);
     const targetDir = join30(configRoot, ...library.target.split("/"));
     const parent = dirname6(targetDir);
     await mkdir15(parent, { recursive: true });
     return await withLock(parent, async () => {
       await removeStale(parent, basename2(targetDir));
       const marker = await readMarker(targetDir);
-      if (marker?.library === library.id && marker.source_digest === digest15)
+      if (marker?.library === library.id && marker.source_digest === digest16)
         return { id: library.id, state: "unchanged" };
-      await replaceTarget(library, parent, targetDir, files, digest15);
+      await replaceTarget(library, parent, targetDir, files, digest16);
       return { id: library.id, state: "updated" };
     });
   } catch (error2) {
@@ -20271,11 +20271,11 @@ async function ensureBuiltinAgents(options3) {
   return syncBuiltinLibrary(builtinLibrary("agents"), options3.payloadRoot, options3.configRoot);
 }
 function entryFor(name, source2, path14, content) {
-  const digest15 = agentDigest(content);
+  const digest16 = agentDigest(content);
   try {
-    return { name, source: source2, digest: digest15, content, path: path14, definition: parseAgentFile(content, name) };
+    return { name, source: source2, digest: digest16, content, path: path14, definition: parseAgentFile(content, name) };
   } catch (error2) {
-    return { name, source: source2, digest: digest15, content, path: path14, error: error2 instanceof Error ? error2.message : String(error2) };
+    return { name, source: source2, digest: digest16, content, path: path14, error: error2 instanceof Error ? error2.message : String(error2) };
   }
 }
 async function readLayer(dir, source2) {
@@ -20394,7 +20394,7 @@ async function writeAgent(scope, name, content, options3 = {}) {
     return { name, source: scope.source, digest: agentDigest(content), content, path: path14, definition };
   });
 }
-async function deleteAgent(scope, name, digest15) {
+async function deleteAgent(scope, name, digest16) {
   if (!AGENT_NAME_RE.test(name))
     throw new AgentStoreError("agent-missing", `agent \u5E93\u4E2D\u4E0D\u5B58\u5728 '${name}'`);
   await mkdir17(scope.lockDir, { recursive: true });
@@ -20405,7 +20405,7 @@ async function deleteAgent(scope, name, digest15) {
     const now = await currentDigest(path14);
     if (now === null)
       throw new AgentStoreError("agent-missing", `agent \u5E93\u4E2D\u4E0D\u5B58\u5728 '${name}'`);
-    if (digest15 !== void 0 && now !== digest15)
+    if (digest16 !== void 0 && now !== digest16)
       throw new AgentStoreError("agent-stale", "agent \u5DF2\u88AB\u4FEE\u6539\uFF0C\u8BF7\u5237\u65B0");
     await rm8(path14);
   });
@@ -23471,15 +23471,15 @@ async function readTestPlanState(changeDir2, changeName) {
   const ledger = decodeTestPlanLedger(parsed2);
   if (ledger === void 0)
     return { state: "tampered", reason: "\u8BA1\u5212\u6458\u8981\u53F0\u8D26\u635F\u574F" };
-  const digest15 = testPlanBytesDigest(text10);
-  if (digest15 !== ledger.digest)
+  const digest16 = testPlanBytesDigest(text10);
+  if (digest16 !== ledger.digest)
     return { state: "tampered", reason: "\u8BA1\u5212\u6587\u4EF6\u5185\u5BB9\u4E0E\u767B\u8BB0\u6458\u8981\u4E0D\u7B26\uFF08\u88AB\u624B\u5DE5\u6539\u52A8\uFF09" };
   const result2 = parseTestPlan(text10, changeName);
   if (!result2.ok) {
     const first = result2.issues[0];
     return { state: "tampered", reason: `\u8BA1\u5212\u6587\u4EF6\u65E0\u6CD5\u89E3\u6790${first === void 0 ? "" : `\uFF1A\u7B2C ${first.line} \u884C ${first.message}`}` };
   }
-  return { state: "ok", plan: result2.plan, digest: digest15, ledger };
+  return { state: "ok", plan: result2.plan, digest: digest16, ledger };
 }
 async function ledgerDigest(changeDir2) {
   try {
@@ -23491,13 +23491,13 @@ async function ledgerDigest(changeDir2) {
 }
 async function writeTestPlanUnderLock(changeDir2, plan, meta2) {
   const bytes = serializeTestPlan(plan);
-  const digest15 = testPlanBytesDigest(bytes);
-  const changed = await ledgerDigest(changeDir2) !== digest15;
-  const ledger = { version: 1, digest: digest15, recorded_at: meta2.recordedAt, actor: meta2.actor };
+  const digest16 = testPlanBytesDigest(bytes);
+  const changed = await ledgerDigest(changeDir2) !== digest16;
+  const ledger = { version: 1, digest: digest16, recorded_at: meta2.recordedAt, actor: meta2.actor };
   await atomicReplaceFile(testPlanPath(changeDir2), bytes);
   await atomicReplaceFile(testPlanLedgerPath(changeDir2), `${JSON.stringify(ledger, null, 2)}
 `);
-  return { digest: digest15, changed };
+  return { digest: digest16, changed };
 }
 
 // packages/kernel/dist/test-system/record-chain.js
@@ -24394,8 +24394,8 @@ function canonicalMachineStateRoot(stateRoot) {
   return resolve9(stateRoot);
 }
 function machineStateScopeId(stateRoot) {
-  const digest15 = createHash17("sha256").update(STATE_SCOPE_NAMESPACE).update(canonicalMachineStateRoot(stateRoot)).digest("hex");
-  return `sha256-v1-${digest15}`;
+  const digest16 = createHash17("sha256").update(STATE_SCOPE_NAMESPACE).update(canonicalMachineStateRoot(stateRoot)).digest("hex");
+  return `sha256-v1-${digest16}`;
 }
 
 // packages/kernel/dist/workspace/build-revision-identity.js
@@ -32003,11 +32003,11 @@ function eventPath(changeDir2, revision, eventId) {
   safeId(eventId, "event id");
   return path8.join(dirFor(changeDir2, ORCHESTRATION_EVENTS_DIR), `${String(revision).padStart(12, "0")}-${eventId}.json`);
 }
-function snapshotPath(changeDir2, revision, digest15) {
+function snapshotPath(changeDir2, revision, digest16) {
   if (!integer4(revision))
     throw new LedgerPathError("snapshot revision must be a non-negative integer");
-  safeId(digest15, "snapshot digest");
-  return path8.join(dirFor(changeDir2, ORCHESTRATION_SNAPSHOTS_DIR), `${String(revision).padStart(12, "0")}-${digest15.slice(7, 23)}.json`);
+  safeId(digest16, "snapshot digest");
+  return path8.join(dirFor(changeDir2, ORCHESTRATION_SNAPSHOTS_DIR), `${String(revision).padStart(12, "0")}-${digest16.slice(7, 23)}.json`);
 }
 function idempotencyPath(changeDir2, commandId) {
   safeId(commandId, "command id");
@@ -32237,8 +32237,8 @@ var FsOrchestrationLedger = class {
         return existing;
       }
       const aggregate = createAggregateV2(seed2.project_id, seed2.change_id, seed2.correlation_id, seed2.updated_at);
-      const digest15 = checksum(aggregate);
-      await publishImmutable(dirFor(changeDir2, ORCHESTRATION_SNAPSHOTS_DIR), snapshotPath(changeDir2, 0, digest15), "snapshot", aggregate);
+      const digest16 = checksum(aggregate);
+      await publishImmutable(dirFor(changeDir2, ORCHESTRATION_SNAPSHOTS_DIR), snapshotPath(changeDir2, 0, digest16), "snapshot", aggregate);
       await atomicReplaceFile(currentPath(changeDir2), json(envelope("snapshot", aggregate)));
       return aggregate;
     });
@@ -33190,6 +33190,11 @@ async function executeReviewAcknowledge(ports) {
 
 // packages/kernel/dist/decision/self-approval.js
 var SELF_APPROVAL_SIGNAL_MAX_BYTES = 1024 * 1024;
+var LOOPBACK_HOST = String.raw`(?:localhost\.?|127(?:\.[0-9A-Fa-fxX]+){1,3}|0[xX]7[fF][0-9A-Fa-f.xX]*|0177(?:\.[0-7]+){0,3}` + String.raw`|017700000001|2130706433|0\.0\.0\.0|(?:0{0,4}:){2,6}0{0,4}1|::1` + String.raw`|::[fF]{4}:(?:127(?:\.[0-9]+){3}|7[fF][0-9A-Fa-f]{2}:[0-9A-Fa-f]{1,4}))`;
+var HOST_START = String.raw`(?<![A-Za-z0-9.-])`;
+var HOST_END = String.raw`(?![A-Za-z0-9-]|\.[A-Za-z0-9])`;
+var LOOPBACK_AUTHORITY_RE = new RegExp(String.raw`${HOST_START}\[?${LOOPBACK_HOST}\]?${HOST_END}(?::([^\s/'"\\]{0,64}))?`, "giu");
+var DEV_TCP_RE = new RegExp(String.raw`/dev/tcp/\[?${LOOPBACK_HOST}\]?/([^\s'"\\]{1,64})`, "giu");
 
 // packages/kernel/dist/skills/flow-yaml.js
 function stripFlowComment(line) {
@@ -35675,7 +35680,7 @@ function createTransitionApplication(deps) {
 
 // packages/server/src/server.ts
 import { createServer } from "node:http";
-import { join as join119, join as joinPath3 } from "node:path";
+import { join as join120, join as joinPath3 } from "node:path";
 
 // packages/automation/dist/types.js
 var AUTOMATION_STATES = [
@@ -36767,7 +36772,7 @@ var AFK_RUN_SCRIPT_SHA256 = "baaa2b93afb4526579f71cdb7bda9240b6d93cb9af8f56eb75e
 var AFK_RUN_DRIFT_EXIT_CODE = 95;
 var IMAGE_AFK_RUN_PATH = "/usr/local/bin/tenon-afk-run";
 var IMAGE_ATTESTATION_PATH = "/opt/pipeline/image-attestation.env";
-var checksumGuard = (path14, digest15, attestationKey, label) => `actual_sha="$(sha256sum ${path14} 2>/dev/null | awk '{print $1}')"; [ "$actual_sha" = "${digest15}" ] && grep -qx "${attestationKey}=${digest15}" ${IMAGE_ATTESTATION_PATH} 2>/dev/null || { echo "sandcastle \u955C\u50CF\u5185 ${label} \u4E0E host \u671F\u671B\u6216\u955C\u50CF attestation \u4E0D\u4E00\u81F4\u2014\u2014\u8BF7\u91CD\u5EFA\u955C\u50CF\uFF1Atools/sandcastle/build.sh" >&2; exit ${AFK_RUN_DRIFT_EXIT_CODE}; }`;
+var checksumGuard = (path14, digest16, attestationKey, label) => `actual_sha="$(sha256sum ${path14} 2>/dev/null | awk '{print $1}')"; [ "$actual_sha" = "${digest16}" ] && grep -qx "${attestationKey}=${digest16}" ${IMAGE_ATTESTATION_PATH} 2>/dev/null || { echo "sandcastle \u955C\u50CF\u5185 ${label} \u4E0E host \u671F\u671B\u6216\u955C\u50CF attestation \u4E0D\u4E00\u81F4\u2014\u2014\u8BF7\u91CD\u5EFA\u955C\u50CF\uFF1Atools/sandcastle/build.sh" >&2; exit ${AFK_RUN_DRIFT_EXIT_CODE}; }`;
 var AFK_RUN_DRIFT_GUARD = checksumGuard(IMAGE_AFK_RUN_PATH, AFK_RUN_SCRIPT_SHA256, "pipeline_afk_run_sha256", "tenon-afk-run");
 
 // packages/automation/dist/lifecycle/worktree.js
@@ -37613,7 +37618,7 @@ function isRecord9(value) {
 function validAttempt(value) {
   if (!isRecord9(value))
     return false;
-  return typeof value.attempt_id === "string" && safeId2(value.attempt_id) && typeof value.work_item_id === "string" && safeId2(value.work_item_id) && Number.isSafeInteger(value.attempt_number) && Number(value.attempt_number) > 0 && ["pending", "running", "succeeded", "failed", "cancelled"].includes(String(value.status)) && typeof value.recorded_at === "string" && !Number.isNaN(Date.parse(value.recorded_at)) && isRecord9(value.input_digests) && Object.entries(value.input_digests).every(([key, digest15]) => safeId2(key) && typeof digest15 === "string") && (value.output_digest === void 0 || typeof value.output_digest === "string") && (value.error_code === void 0 || typeof value.error_code === "string");
+  return typeof value.attempt_id === "string" && safeId2(value.attempt_id) && typeof value.work_item_id === "string" && safeId2(value.work_item_id) && Number.isSafeInteger(value.attempt_number) && Number(value.attempt_number) > 0 && ["pending", "running", "succeeded", "failed", "cancelled"].includes(String(value.status)) && typeof value.recorded_at === "string" && !Number.isNaN(Date.parse(value.recorded_at)) && isRecord9(value.input_digests) && Object.entries(value.input_digests).every(([key, digest16]) => safeId2(key) && typeof digest16 === "string") && (value.output_digest === void 0 || typeof value.output_digest === "string") && (value.error_code === void 0 || typeof value.error_code === "string");
 }
 function validOperation(value) {
   if (!isRecord9(value))
@@ -37625,7 +37630,7 @@ function validValidator(value) {
     return false;
   const scope = String(value.scope);
   const targetValid = scope === "run" ? value.target_id === void 0 : typeof value.target_id === "string" && safeId2(value.target_id);
-  return typeof value.validator_id === "string" && safeId2(value.validator_id) && ["work-item", "group", "run"].includes(scope) && targetValid && ["pending", "passed", "failed", "invalidated"].includes(String(value.status)) && (value.code === void 0 || typeof value.code === "string" && safeId2(value.code)) && (value.input_digests === void 0 || isRecord9(value.input_digests) && Object.entries(value.input_digests).every(([key, digest15]) => safeId2(key) && typeof digest15 === "string")) && typeof value.recorded_at === "string" && !Number.isNaN(Date.parse(value.recorded_at));
+  return typeof value.validator_id === "string" && safeId2(value.validator_id) && ["work-item", "group", "run"].includes(scope) && targetValid && ["pending", "passed", "failed", "invalidated"].includes(String(value.status)) && (value.code === void 0 || typeof value.code === "string" && safeId2(value.code)) && (value.input_digests === void 0 || isRecord9(value.input_digests) && Object.entries(value.input_digests).every(([key, digest16]) => safeId2(key) && typeof digest16 === "string")) && typeof value.recorded_at === "string" && !Number.isNaN(Date.parse(value.recorded_at));
 }
 function sameInputDigests(left, right) {
   const leftEntries = Object.entries(left).sort(([a], [b]) => a.localeCompare(b));
@@ -39356,12 +39361,12 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
   async reconcileNow() {
     const next = await this.snapshot();
     const changes = [];
-    for (const [relative16, digest15] of next) {
+    for (const [relative16, digest16] of next) {
       const previous = this.baseline.get(relative16);
       if (previous === void 0)
-        changes.push({ path: relative16, kind: "created", digest: digest15 });
-      else if (previous !== digest15)
-        changes.push({ path: relative16, kind: "changed", digest: digest15 });
+        changes.push({ path: relative16, kind: "created", digest: digest16 });
+      else if (previous !== digest16)
+        changes.push({ path: relative16, kind: "changed", digest: digest16 });
     }
     for (const relative16 of this.baseline.keys())
       if (!next.has(relative16))
@@ -43505,13 +43510,8 @@ async function computeFingerprint(roots, nowMs = Date.now(), rootAnchor, readCha
 
 // packages/server/src/token.ts
 import { randomBytes as randomBytes2, timingSafeEqual } from "node:crypto";
-import { writeFile as writeFile19 } from "node:fs/promises";
 function generateToken() {
   return randomBytes2(32).toString("hex");
-}
-async function writeTokenHandshake(tokenPath, token, meta2) {
-  const payload = JSON.stringify({ token, ...meta2 });
-  await writeFile19(tokenPath, payload, { encoding: "utf8", mode: 384 });
 }
 function tokenFromHeaders(headers) {
   const auth = headers["authorization"];
@@ -44252,7 +44252,7 @@ function writeAutomationSettings(root, settings) {
 
 // packages/server/src/config.ts
 import { readFileSync as readFileSync22 } from "node:fs";
-import { readFile as readFile46, rename as rename15, rm as rm12, writeFile as writeFile20 } from "node:fs/promises";
+import { readFile as readFile46, rename as rename15, rm as rm12, writeFile as writeFile19 } from "node:fs/promises";
 import { dirname as dirname20 } from "node:path";
 var ConfigError = class extends Error {
   constructor(message) {
@@ -44434,7 +44434,7 @@ async function writeMandatorySkills(manifestPath3, phase, track, skills) {
     const patched = next.join("\n");
     const tmpPath = `${manifestPath3}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     try {
-      await writeFile20(tmpPath, patched, "utf8");
+      await writeFile19(tmpPath, patched, "utf8");
       let reparsed;
       try {
         reparsed = loadManifest(tmpPath);
@@ -45287,7 +45287,7 @@ import { join as join88, resolve as resolvePath4 } from "node:path";
 
 // packages/server/src/afk.ts
 import { execFile as execFile8 } from "node:child_process";
-import { readFile as readFile47, writeFile as writeFile21 } from "node:fs/promises";
+import { readFile as readFile47, writeFile as writeFile20 } from "node:fs/promises";
 import { join as join84 } from "node:path";
 var AFK_LANES = ["queued", "running", "merged", "failed", "conflict", "paused"];
 function isAutomationState(value) {
@@ -45409,7 +45409,7 @@ async function cancelAfkRun(store, changeDir2) {
     return { ok: false, error: "\u7F3A automation_worktree/automation_sandbox\uFF0C\u65E0\u6CD5\u5B9A\u4F4D\u5BB9\u5668" };
   }
   try {
-    await writeFile21(join84(worktree, CANCEL_MARKER_FILE), "1", "utf8");
+    await writeFile20(join84(worktree, CANCEL_MARKER_FILE), "1", "utf8");
   } catch (err) {
     const code = err?.code ?? "unknown";
     return {
@@ -47961,7 +47961,7 @@ function indexHtml(token) {
   return `<!doctype html><meta charset="utf-8"><title>Tenon Dashboard</title>
 <h1>Pipeline Global Dashboard</h1>
 <p>TS \u5168\u5C40 server \u5DF2\u5C31\u7EEA\u3002\u53EA\u8BFB\u6570\u636E\u89C1 <code>/api/snapshot</code> / <code>/api/stream</code>\uFF1B\u5065\u5EB7\u63A2\u9488 <code>/api/health</code>\u3002</p>
-<p>\u5199\u7AEF\u70B9\u9700\u5E26\u4E00\u6B21\u6027 token\uFF08B5\uFF09\u3002\u524D\u7AEF\u4FE1\u606F\u67B6\u6784\u91CD\u6784\uFF1ABACKLOG #26\u3002</p>
+<p>\u5199\u7AEF\u70B9\u9700\u5E26\u5199 token\uFF08\u4EC5\u767B\u5F55\u4F1A\u8BDD\u7684\u9875\u9762\u91CC\u6709\uFF09\u3002\u524D\u7AEF\u4FE1\u606F\u67B6\u6784\u91CD\u6784\uFF1ABACKLOG #26\u3002</p>
 <script>window.__TENON_DASHBOARD_TOKEN__ = ${jsToken};</script>`;
 }
 
@@ -48207,12 +48207,12 @@ function writeTrustedFile(root, dirs, name, content, baseDigest, maxBytes) {
     }
   });
 }
-function unlinkTrustedFile(root, dirs, name, digest15, maxBytes) {
+function unlinkTrustedFile(root, dirs, name, digest16, maxBytes) {
   return withTrustedDirectoryChain(root, dirs, false, () => ({ ok: false, code: "missing" }), (directory) => {
     const current = readChild(root, directory, name, maxBytes);
     if (current.error) return { ok: false, code: current.error };
     if (current.bytes === null || current.identity === void 0) return { ok: false, code: "missing" };
-    if (current.digest !== digest15) return { ok: false, code: "changed", digest: current.digest };
+    if (current.digest !== digest16) return { ok: false, code: "changed", digest: current.digest };
     const target = childEntry(directory, name);
     assertTrusted(directory, root);
     assertEntryMatches(target, current.identity, "\u76EE\u6807\u6587\u4EF6");
@@ -48341,8 +48341,8 @@ function copyTemplate(anchor, from, id2) {
   if (written.code === "changed") return fail8(409, "template-exists", "\u540C\u540D\u81EA\u5B9A\u4E49\u6A21\u677F\u5DF2\u5B58\u5728");
   return fail8(409, written.code, "\u6A21\u677F\u6587\u4EF6\u4E0D\u53EF\u5199");
 }
-function deleteCustomTemplate(anchor, category, id2, digest15) {
-  const removed = unlinkTrustedFile(anchor, ["custom", category], `${id2}.md`, digest15, INSTRUCTION_BLOCK_MAX_BYTES);
+function deleteCustomTemplate(anchor, category, id2, digest16) {
+  const removed = unlinkTrustedFile(anchor, ["custom", category], `${id2}.md`, digest16, INSTRUCTION_BLOCK_MAX_BYTES);
   if (removed.ok) return { status: 200, body: { ok: true } };
   if (removed.code === "missing") return fail8(404, "template-not-found", "\u6A21\u677F\u4E0D\u5B58\u5728");
   if (removed.code === "changed") return fail8(409, "template-changed", "\u6A21\u677F\u5DF2\u88AB\u4FEE\u6539", { digest: removed.digest });
@@ -48576,20 +48576,20 @@ function applyInstructions(scope, rawText, targets) {
   }
   return { status: 200, body: { ok: true, files: written } };
 }
-function deleteInstructionTarget(scope, targetId, digest15) {
+function deleteInstructionTarget(scope, targetId, digest16) {
   try {
     const result2 = withLocation(scope, targetId, false, (location) => {
       const current = readCurrent2(location);
       if ("error" in current) return currentFailure(targetId, current.error);
       if (current.bytes === null || !location.root) return fail9(404, "instruction-file-missing", "\u6587\u4EF6\u4E0D\u5B58\u5728", { id: targetId });
-      if (current.digest !== digest15) return fail9(409, "instruction-file-changed", "\u6587\u4EF6\u5DF2\u88AB\u5916\u90E8\u4FEE\u6539", { id: targetId, digest: current.digest });
+      if (current.digest !== digest16) return fail9(409, "instruction-file-changed", "\u6587\u4EF6\u5DF2\u88AB\u5916\u90E8\u4FEE\u6539", { id: targetId, digest: current.digest });
       const remaining = contentAfterDelete(current.blocks);
       if (remaining === null) {
-        const removed = unlinkTrustedFile(location.root, location.dirs, location.name, digest15, INSTRUCTION_TEXT_MAX_BYTES);
+        const removed = unlinkTrustedFile(location.root, location.dirs, location.name, digest16, INSTRUCTION_TEXT_MAX_BYTES);
         if (removed.ok) return { status: 200, body: { ok: true, result: "removed" } };
         return removed.code === "changed" ? fail9(409, "instruction-file-changed", "\u6587\u4EF6\u5DF2\u88AB\u5916\u90E8\u4FEE\u6539", { id: targetId, digest: removed.digest }) : fail9(409, removed.code, "\u6307\u4EE4\u6587\u4EF6\u4E0D\u53EF\u5220\u9664", { id: targetId });
       }
-      const kept = writeTrustedFile(location.root, location.dirs, location.name, remaining, digest15, INSTRUCTION_TEXT_MAX_BYTES);
+      const kept = writeTrustedFile(location.root, location.dirs, location.name, remaining, digest16, INSTRUCTION_TEXT_MAX_BYTES);
       if (kept.ok) return { status: 200, body: { ok: true, result: "managed-kept", digest: kept.digest } };
       return kept.code === "changed" ? fail9(409, "instruction-file-changed", "\u6587\u4EF6\u5DF2\u88AB\u5916\u90E8\u4FEE\u6539", { id: targetId, digest: kept.digest }) : fail9(409, kept.code, "\u6307\u4EE4\u6587\u4EF6\u4E0D\u53EF\u5199", { id: targetId });
     });
@@ -48881,7 +48881,7 @@ function removeCreated(root, anchor) {
   } catch {
   }
 }
-function writeFile23(anchor, request, id2, baseDigest) {
+function writeFile22(anchor, request, id2, baseDigest) {
   const preview = previewProjectFile(anchor, request, id2);
   const planned = Reflect.get(Object(preview.body), "files");
   const current = Array.isArray(planned) ? Reflect.get(Object(planned[0]), "current") : null;
@@ -48937,7 +48937,7 @@ async function executeEmpty(plan, deps, report) {
     const files = [];
     const instructions = plan.instructions;
     for (const id2 of instructions?.targets ?? []) {
-      if (instructions) files.push(await runStep(`file:${id2}`, report, () => writeFile23(anchor, instructions, id2, "absent")));
+      if (instructions) files.push(await runStep(`file:${id2}`, report, () => writeFile22(anchor, instructions, id2, "absent")));
     }
     await recordClients(plan, anchor, report);
     await seedDesignStep(plan, deps, report);
@@ -48964,7 +48964,7 @@ async function executeExisting(plan, deps, report) {
       const anchor = captureWorkflowRootAnchor(plan.root);
       try {
         for (const id2 of instructions?.targets ?? []) {
-          if (instructions) files.push(await runStep(`file:${id2}`, report, () => writeFile23(anchor, instructions, id2, instructions.baseDigests[id2] ?? "absent")));
+          if (instructions) files.push(await runStep(`file:${id2}`, report, () => writeFile22(anchor, instructions, id2, instructions.baseDigests[id2] ?? "absent")));
         }
         await recordClients(plan, anchor, report);
       } finally {
@@ -49225,12 +49225,12 @@ function deleteInstructions(req, deps) {
   const scope = scopeFor(root, deps);
   if (!isScope(scope)) return scope;
   const target = query.get("target") ?? "";
-  const digest15 = query.get("digest") ?? "";
-  if (target === "" || digest15 === "") return failure2(400, "invalid-target", "\u7F3A\u5C11 target \u6216 digest");
+  const digest16 = query.get("digest") ?? "";
+  if (target === "" || digest16 === "") return failure2(400, "invalid-target", "\u7F3A\u5C11 target \u6216 digest");
   const actor3 = actorFor(deps, root);
   if (!isActor(actor3)) return actor3;
-  const removed = deleteInstructionTarget(scope, target, digest15);
-  if (removed.status === 200) audit(deps, actor3, "instruction-delete", instructionTarget(root, target), digest15, digestOf2(removed));
+  const removed = deleteInstructionTarget(scope, target, digest16);
+  if (removed.status === 200) audit(deps, actor3, "instruction-delete", instructionTarget(root, target), digest16, digestOf2(removed));
   return removed;
 }
 var failure2 = (status2, code, error2) => ({ status: status2, body: { ok: false, code, error: error2 } });
@@ -49363,12 +49363,12 @@ function deleteTemplate(req, path14, deps) {
   const ref = rest.length === 0 ? parseTemplateRef(source2, category, id2) : null;
   if (!ref) return failure2(400, "invalid-template-ref", "\u6A21\u677F\u8DEF\u5F84\u4E0D\u5408\u6CD5");
   if (ref.source === "builtin") return failure2(409, "template-builtin-readonly", "\u5185\u5EFA\u6A21\u677F\u53EA\u8BFB");
-  const digest15 = new URL(req.url ?? "/", "http://localhost").searchParams.get("digest") ?? "";
-  if (digest15 === "") return failure2(428, "if-match-required", "\u7F3A\u5C11 digest");
+  const digest16 = new URL(req.url ?? "/", "http://localhost").searchParams.get("digest") ?? "";
+  if (digest16 === "") return failure2(428, "if-match-required", "\u7F3A\u5C11 digest");
   const actor3 = actorFor(deps, "");
   if (!isActor(actor3)) return actor3;
-  const removed = guarded(() => deleteCustomTemplate(templateLibraryAnchor(deps.paths.configRoot), ref.category, ref.id, digest15));
-  if (removed.status === 200) audit(deps, actor3, "template-delete", `custom/${ref.category}/${ref.id}`, digest15, "absent");
+  const removed = guarded(() => deleteCustomTemplate(templateLibraryAnchor(deps.paths.configRoot), ref.category, ref.id, digest16));
+  if (removed.status === 200) audit(deps, actor3, "template-delete", `custom/${ref.category}/${ref.id}`, digest16, "absent");
   return removed;
 }
 function resolveInstructionMutation(req, method, path14, deps) {
@@ -52777,7 +52777,7 @@ async function handlePutRoute(req, res, path14, deps) {
 
 // packages/server/src/changeLaunch.ts
 import { randomUUID as randomUUID17 } from "node:crypto";
-import { lstat as lstat41, rename as rename16, unlink as unlink6, writeFile as writeFile24 } from "node:fs/promises";
+import { lstat as lstat41, rename as rename16, unlink as unlink6, writeFile as writeFile23 } from "node:fs/promises";
 import { join as join110 } from "node:path";
 var CHANGE_TASK_FILE = "REAL_AGENT_TASK.md";
 var MAX_TASK_PROMPT_CHARS = 24e3;
@@ -52820,7 +52820,7 @@ async function writeChangeTaskPrompt(changeDir2, prompt) {
   if (targetExists) throw new Error("\u4EFB\u52A1\u63D0\u793A\u8BCD\u5DF2\u5B58\u5728\uFF0C\u62D2\u7EDD\u8986\u76D6");
   const temporary = join110(changeDir2, `.${CHANGE_TASK_FILE}.${randomUUID17()}.tmp`);
   try {
-    await writeFile24(temporary, `${prompt}
+    await writeFile23(temporary, `${prompt}
 `, { encoding: "utf8", flag: "wx", mode: 384 });
     await rename16(temporary, target);
   } catch (error2) {
@@ -53089,6 +53089,130 @@ import { join as join112 } from "node:path";
 
 // packages/server/src/serverPostDecisionRoutes.ts
 import { join as join111 } from "node:path";
+
+// packages/server/src/serverSession.ts
+import { createHash as createHash34, randomBytes as randomBytes3 } from "node:crypto";
+var BOOTSTRAP_CODE_TTL_MS = 12e4;
+var SESSION_IDLE_MS = 12 * 60 * 60 * 1e3;
+var SESSION_ABSOLUTE_MS = 7 * 24 * 60 * 60 * 1e3;
+var MAX_SESSIONS = 64;
+var MAX_OUTSTANDING_CODES = 16;
+var PRESENCE_TTL_MS = 3e4;
+var MAX_PRESENCE_PER_SESSION = 8;
+var MAX_SECRET_LENGTH = 128;
+function digest15(secret) {
+  return createHash34("sha256").update(secret, "utf8").digest("hex");
+}
+function bindingKey(binding) {
+  return JSON.stringify([binding.root, binding.change, binding.ref, binding.expectedRevision]);
+}
+function createSessionAuthority(options3 = {}) {
+  const now = options3.now ?? Date.now;
+  const codes = /* @__PURE__ */ new Map();
+  const sessions = /* @__PURE__ */ new Map();
+  const presences = /* @__PURE__ */ new Map();
+  function purgeCodes(at) {
+    for (const [key, expiresAt] of codes) if (expiresAt <= at) codes.delete(key);
+  }
+  function alive(record11, at) {
+    return at - record11.lastSeen < SESSION_IDLE_MS && at - record11.createdAt < SESSION_ABSOLUTE_MS;
+  }
+  function purgeSessions(at) {
+    for (const [key, record11] of sessions) if (!alive(record11, at)) sessions.delete(key);
+  }
+  function purgePresences(at) {
+    for (const [key, record11] of presences) {
+      if (record11.expiresAt <= at || !sessions.has(record11.sessionId)) presences.delete(key);
+    }
+  }
+  return {
+    mintCode() {
+      const at = now();
+      purgeCodes(at);
+      while (codes.size >= MAX_OUTSTANDING_CODES) {
+        const oldest = codes.keys().next().value;
+        if (oldest === void 0) break;
+        codes.delete(oldest);
+      }
+      const code = randomBytes3(32).toString("base64url");
+      codes.set(digest15(code), at + BOOTSTRAP_CODE_TTL_MS);
+      return code;
+    },
+    discardCode(code) {
+      codes.delete(digest15(code));
+    },
+    exchange(code) {
+      if (code === "" || code.length > MAX_SECRET_LENGTH) return null;
+      const at = now();
+      const key = digest15(code);
+      const expiresAt = codes.get(key);
+      codes.delete(key);
+      if (expiresAt === void 0 || expiresAt <= at) return null;
+      purgeSessions(at);
+      while (sessions.size >= MAX_SESSIONS) {
+        let oldest;
+        let oldestSeen = Infinity;
+        for (const [id2, record11] of sessions) {
+          if (record11.lastSeen < oldestSeen) {
+            oldest = id2;
+            oldestSeen = record11.lastSeen;
+          }
+        }
+        if (oldest === void 0) break;
+        sessions.delete(oldest);
+      }
+      const secret = randomBytes3(32).toString("base64url");
+      sessions.set(digest15(secret), { createdAt: at, lastSeen: at });
+      return secret;
+    },
+    resolve(secret) {
+      if (secret === void 0 || secret === "" || secret.length > MAX_SECRET_LENGTH) return null;
+      const at = now();
+      const id2 = digest15(secret);
+      const record11 = sessions.get(id2);
+      if (record11 === void 0) return null;
+      if (!alive(record11, at)) {
+        sessions.delete(id2);
+        return null;
+      }
+      record11.lastSeen = at;
+      return { id: id2 };
+    },
+    issuePresence(session, binding) {
+      const at = now();
+      purgePresences(at);
+      const own = [...presences.entries()].filter(([, record11]) => record11.sessionId === session.id);
+      if (own.length >= MAX_PRESENCE_PER_SESSION) {
+        own.sort((a, b) => a[1].issuedAt - b[1].issuedAt);
+        for (const [key] of own.slice(0, own.length - MAX_PRESENCE_PER_SESSION + 1)) presences.delete(key);
+      }
+      const nonce = randomBytes3(16).toString("base64url");
+      presences.set(digest15(nonce), {
+        sessionId: session.id,
+        binding: bindingKey(binding),
+        expiresAt: at + PRESENCE_TTL_MS,
+        issuedAt: at
+      });
+      return nonce;
+    },
+    consumePresence(session, binding, nonce) {
+      if (nonce === void 0 || nonce === "" || nonce.length > MAX_SECRET_LENGTH) return false;
+      const key = digest15(nonce);
+      const record11 = presences.get(key);
+      presences.delete(key);
+      if (record11 === void 0) return false;
+      return record11.expiresAt > now() && record11.sessionId === session.id && record11.binding === bindingKey(binding);
+    },
+    sessionCount() {
+      purgeSessions(now());
+      return sessions.size;
+    }
+  };
+}
+
+// packages/server/src/serverPostDecisionRoutes.ts
+var PRESENCE_HEADER = "x-tenon-presence";
+var PRESENCE_REQUIRED = "\u8BC4\u5BA1\u786E\u8BA4\u9700\u8981\u5728 Dashboard \u91CC\u7531\u672C\u4EBA\u4E8C\u6B21\u786E\u8BA4\uFF1B\u8BF7\u5728\u9875\u9762\u4E0A\u70B9\u51FB\u786E\u8BA4\uFF08\u7F3A\u5C11\u6216\u5DF2\u5931\u6548\u7684\u5728\u573A\u8BC1\u660E\uFF09";
 var DECISION_COMMAND_FAILED = "\u51B3\u7B56\u547D\u4EE4\u5904\u7406\u5931\u8D25";
 function scalar14(state, field5) {
   const value = state.fields[field5];
@@ -53107,47 +53231,70 @@ function reviewExitsFor(root, state, phase) {
   if (!step || step.gate !== "review") return null;
   return stepExitTransitions(plan, phase, state).map((transition) => transition.event);
 }
-async function handlePostDecisionRoutes(req, res, path14, deps) {
-  const match = /^\/api\/change\/([^/]+)\/decisions$/.exec(path14);
-  if (!match) return false;
+async function resolveDecisionTarget(req, res, name, deps, needsIdempotencyKey) {
   const { readJsonBody, sendJson, isRegisteredRoot } = deps;
   const body2 = await readJsonBody(req);
   if (typeof body2 !== "object" || body2 === null || Array.isArray(body2)) {
     sendJson(res, 400, { ok: false, error: "\u8BF7\u6C42\u4F53\u987B\u4E3A JSON \u5BF9\u8C61" });
-    return true;
+    return null;
   }
   const input2 = body2;
   const root = typeof input2.root === "string" ? input2.root : "";
   const ref = typeof input2.ref === "string" ? input2.ref : "";
   const expectedRevision = typeof input2.expected_revision === "number" ? input2.expected_revision : null;
   const idempotencyKey = typeof input2.idempotency_key === "string" ? input2.idempotency_key : "";
-  if (!root || !ref || expectedRevision === null || !idempotencyKey) {
-    sendJson(res, 400, { ok: false, error: "root / ref / expected_revision / idempotency_key \u4E3A\u5FC5\u586B" });
-    return true;
+  if (!root || !ref || expectedRevision === null || needsIdempotencyKey && !idempotencyKey) {
+    sendJson(res, 400, {
+      ok: false,
+      error: needsIdempotencyKey ? "root / ref / expected_revision / idempotency_key \u4E3A\u5FC5\u586B" : "root / ref / expected_revision \u4E3A\u5FC5\u586B"
+    });
+    return null;
   }
   if (!isRegisteredRoot(root)) {
     sendJson(res, 404, { ok: false, error: "root \u975E\u5DF2\u77E5 Project\uFF08\u672A\u6CE8\u518C\u6216\u4E0D\u53EF\u4FE1\uFF09" });
-    return true;
+    return null;
   }
-  const name = decodeURIComponent(match[1] ?? "");
   if (!/^[A-Za-z0-9_-]+$/.test(name) || name.includes("..")) {
     sendJson(res, 400, { ok: false, error: "\u975E\u6CD5 change \u540D" });
-    return true;
+    return null;
   }
   const dir = join111(root, "openspec", "changes", name);
   if (!stateStorageExistsSync(dir)) {
     sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
-    return true;
+    return null;
   }
   const user = deps.resolveUser(root);
   if (!isTenonUser(user)) {
     sendJson(res, 412, { ok: false, code: "user-missing", error: USER_MISSING_HINT });
-    return true;
+    return null;
   }
   if (await isArchivedForUser(root, user, name)) {
     sendJson(res, 409, { ok: false, code: "task-archived", error: TASK_ARCHIVED_HTTP_ERROR });
+    return null;
+  }
+  return { root, ref, name, dir, expectedRevision, idempotencyKey, user };
+}
+async function handlePostDecisionRoutes(req, res, path14, deps) {
+  const presenceMatch = /^\/api\/change\/([^/]+)\/decisions\/presence$/.exec(path14);
+  const match = presenceMatch ?? /^\/api\/change\/([^/]+)\/decisions$/.exec(path14);
+  if (!match) return false;
+  const { sendJson } = deps;
+  const name = decodeURIComponent(match[1] ?? "");
+  const target = await resolveDecisionTarget(req, res, name, deps, presenceMatch === null);
+  if (target === null) return true;
+  const binding = { root: target.root, change: name, ref: target.ref, expectedRevision: target.expectedRevision };
+  if (presenceMatch !== null) {
+    const nonce = deps.presence.issue(req, binding);
+    if (nonce === null) sendJson(res, 401, { ok: false, code: "session-required", error: "\u9700\u8981\u767B\u5F55" });
+    else sendJson(res, 200, { ok: true, nonce, expires_in_ms: PRESENCE_TTL_MS });
     return true;
   }
+  const header = req.headers[PRESENCE_HEADER];
+  if (!deps.presence.verify(req, binding, Array.isArray(header) ? header[0] : header)) {
+    sendJson(res, 403, { ok: false, code: "presence-required", error: PRESENCE_REQUIRED });
+    return true;
+  }
+  const { root, dir, ref, expectedRevision, idempotencyKey, user } = target;
   let acknowledged;
   try {
     acknowledged = await acknowledgeFromDashboard({ deps, root, dir, name, ref, expectedRevision, idempotencyKey, actor: actorOf(user) });
@@ -53507,7 +53654,7 @@ async function handlePostExecutionRoutes(req, res, path14, deps) {
       return sendTrackError(res, error2);
     }
   }
-  const decisionHandled = await handlePostDecisionRoutes(req, res, path14, { sendJson, readJsonBody, isRegisteredRoot, store, recordStore: deps.recordStore, clock, history, resolveUser: deps.resolveUser });
+  const decisionHandled = await handlePostDecisionRoutes(req, res, path14, { sendJson, readJsonBody, isRegisteredRoot, store, recordStore: deps.recordStore, clock, history, resolveUser: deps.resolveUser, presence: deps.presence });
   if (decisionHandled) return;
   const mTr = /^\/api\/change\/([^/]+)\/transition$/.exec(path14);
   if (!mTr) return sendJson(res, 404, { ok: false, error: "\u672A\u77E5\u5199\u56DE\u7AEF\u70B9" });
@@ -54701,7 +54848,11 @@ data: ${data}
     res.writeHead(code, {
       "Content-Type": "text/html; charset=utf-8",
       "Content-Length": body2.length,
-      "Cache-Control": "no-store"
+      "Cache-Control": "no-store",
+      "Content-Security-Policy": "frame-ancestors 'none'",
+      "X-Frame-Options": "DENY",
+      "Referrer-Policy": "no-referrer",
+      "X-Content-Type-Options": "nosniff"
     });
     res.end(body2);
   }
@@ -54843,10 +54994,221 @@ data: ${shared.body}
   };
 }
 
+// packages/server/src/serverAccess.ts
+var ROUTED_METHODS = /* @__PURE__ */ new Set(["GET", "POST", "PATCH", "PUT", "DELETE"]);
+var COOKIE_MAX_AGE_S = 7 * 24 * 60 * 60;
+var OPEN_MIN_INTERVAL_MS = 1500;
+var OPEN_WINDOW_MS = 6e4;
+var OPEN_MAX_PER_WINDOW = 10;
+function sessionCookieName(port) {
+  return `tenon_session_${port}`;
+}
+function headerValue(req, name) {
+  const value = req.headers[name];
+  return Array.isArray(value) ? value[0] : value;
+}
+function cookieValue(header, name) {
+  if (header === void 0) return void 0;
+  for (const part of header.split(";")) {
+    const eq = part.indexOf("=");
+    if (eq < 0) continue;
+    if (part.slice(0, eq).trim() === name) return part.slice(eq + 1).trim();
+  }
+  return void 0;
+}
+function hasBrowserMetadata(req) {
+  return req.headers.origin !== void 0 || Object.keys(req.headers).some((name) => name.startsWith("sec-fetch-"));
+}
+var PAGE_STYLE = "body{font:15px/1.6 system-ui,sans-serif;max-width:34rem;margin:12vh auto;padding:0 1.25rem;color:#1f2328;background:#fff}code{background:#0000000f;padding:.15em .4em;border-radius:4px}a{color:#0a58ca}@media(prefers-color-scheme:dark){body{color:#e6e8eb;background:#12151a}code{background:#ffffff1f}a{color:#79b8ff}}";
+function signInPage(reason3) {
+  const zh = reason3 === "required" ? "<h1>\u9700\u8981\u767B\u5F55</h1><p>Dashboard \u4E0D\u5411\u672A\u767B\u5F55\u7684\u8BF7\u6C42\u63D0\u4F9B\u4EFB\u4F55\u6570\u636E\u3002\u8BF7\u5728\u7EC8\u7AEF\u8FD0\u884C\uFF1A</p>" : "<h1>\u767B\u5F55\u94FE\u63A5\u65E0\u6548\u6216\u5DF2\u8FC7\u671F</h1><p>\u4E00\u6B21\u6027\u767B\u5F55\u94FE\u63A5\u53EA\u80FD\u7528\u4E00\u6B21\uFF0C\u4E14 2 \u5206\u949F\u5185\u6709\u6548\u3002\u8BF7\u5728\u7EC8\u7AEF\u91CD\u65B0\u8FD0\u884C\uFF1A</p>";
+  const en = reason3 === "required" ? "The Dashboard serves nothing to unauthenticated requests. Run <code>tenon dashboard --open</code> in a terminal;" : "A one-time sign-in link works once and expires after 2 minutes. Run <code>tenon dashboard --open</code> again;";
+  return `<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tenon Dashboard</title><style>${PAGE_STYLE}</style></head><body data-testid="sign-in-required">${zh}<p><code>tenon dashboard --open</code></p><p>\u6D4F\u89C8\u5668\u4F1A\u81EA\u52A8\u6253\u5F00\u5E76\u767B\u5F55\u3002\u5DF2\u7ECF\u767B\u5F55\u8FC7\uFF1F<a href="/">\u70B9\u6B64\u8FDB\u5165 Dashboard</a>\u3002</p><p lang="en">${en} your browser opens signed in. Already signed in? <a href="/">Continue</a>.</p></body></html>`;
+}
+function createAccessControl(deps) {
+  const { authority, sendJson, sendHtml } = deps;
+  const now = deps.now ?? Date.now;
+  const sessions = /* @__PURE__ */ new WeakMap();
+  const opens = [];
+  function openAllowed(at) {
+    while (opens.length > 0 && at - (opens[0] ?? at) > OPEN_WINDOW_MS) opens.shift();
+    const last = opens[opens.length - 1];
+    if (last !== void 0 && at - last < OPEN_MIN_INTERVAL_MS) return false;
+    if (opens.length >= OPEN_MAX_PER_WINDOW) return false;
+    opens.push(at);
+    return true;
+  }
+  function loginUrl() {
+    const port = deps.boundPort();
+    if (port === 0) throw new Error("dashboard server is not listening yet");
+    return `http://127.0.0.1:${port}/session/start?code=${authority.mintCode()}`;
+  }
+  function startSession(req, res, method) {
+    if (method !== "GET") {
+      sendJson(res, 405, { ok: false, error: "method not allowed" });
+      return true;
+    }
+    const site = headerValue(req, "sec-fetch-site");
+    if (site !== void 0 && site !== "none" && site !== "same-origin") {
+      sendHtml(res, 403, signInPage("invalid"));
+      return true;
+    }
+    const code = new URL(req.url ?? "/", "http://localhost").searchParams.get("code") ?? "";
+    const secret = authority.exchange(code);
+    if (secret === null) {
+      sendHtml(res, 403, signInPage("invalid"));
+      return true;
+    }
+    res.writeHead(303, {
+      Location: "/",
+      "Set-Cookie": `${sessionCookieName(deps.boundPort())}=${secret}; Max-Age=${COOKIE_MAX_AGE_S}; Path=/; HttpOnly; SameSite=Strict`,
+      "Cache-Control": "no-store",
+      "Referrer-Policy": "no-referrer",
+      "Content-Length": 0
+    });
+    res.end();
+    return true;
+  }
+  async function openSession(req, res, method) {
+    if (method !== "POST") {
+      sendJson(res, 405, { ok: false, error: "method not allowed" });
+      return true;
+    }
+    req.resume();
+    if (hasBrowserMetadata(req)) {
+      sendJson(res, 403, { ok: false, code: "browser-request-refused", error: "\u8BE5\u7AEF\u70B9\u53EA\u63A5\u53D7\u672C\u673A\u547D\u4EE4\u884C\u8C03\u7528" });
+      return true;
+    }
+    const ctype = (String(req.headers["content-type"] ?? "").split(";", 1)[0] ?? "").trim().toLowerCase();
+    if (ctype !== "application/json") {
+      sendJson(res, 400, { ok: false, error: "\u8981\u6C42 Content-Type: application/json" });
+      return true;
+    }
+    if (!openAllowed(now())) {
+      sendJson(res, 429, { ok: false, code: "rate-limited", error: "\u6253\u5F00\u6D4F\u89C8\u5668\u7684\u8BF7\u6C42\u8FC7\u4E8E\u9891\u7E41\uFF08\u4E24\u6B21\u95F4\u9694\u4E0D\u8DB3 1.5 \u79D2\uFF0C\u6216\u4E00\u5206\u949F\u5185\u8D85\u8FC7 10 \u6B21\uFF09" });
+      return true;
+    }
+    const url = loginUrl();
+    const code = new URL(url).searchParams.get("code") ?? "";
+    let opened = false;
+    try {
+      opened = await deps.openBrowser(url);
+    } catch {
+      opened = false;
+    }
+    if (!opened) authority.discardCode(code);
+    sendJson(res, 200, { ok: true, opened });
+    return true;
+  }
+  function crossSiteRefusal(req, path14, method) {
+    const site = headerValue(req, "sec-fetch-site");
+    const navigation = method === "GET" && headerValue(req, "sec-fetch-mode") === "navigate" && (path14 === "/" || path14 === "/index.html");
+    if (site !== void 0 && site !== "same-origin" && site !== "none" && !navigation) return "cross-site";
+    if (method !== "GET") {
+      const origin = headerValue(req, "origin");
+      const host = (req.headers.host ?? "").toLowerCase();
+      if (origin !== void 0 && origin.toLowerCase() !== `http://${host}`) return "origin";
+    }
+    return null;
+  }
+  return {
+    presence: {
+      issue(req, binding) {
+        const session = sessions.get(req);
+        return session === void 0 ? null : authority.issuePresence(session, binding);
+      },
+      verify(req, binding, nonce) {
+        const session = sessions.get(req);
+        return session !== void 0 && authority.consumePresence(session, binding, nonce);
+      }
+    },
+    issueLoginUrl: loginUrl,
+    async handle(req, res, path14, method) {
+      if (method === "GET" && (path14 === "/api/health" || path14.startsWith("/assets/"))) return false;
+      const port = deps.boundPort();
+      if (!deps.isLocalHost(req.headers.host, port)) {
+        sendJson(res, 403, { ok: false, code: "host-invalid", error: "Host header \u4E0D\u5408\u6CD5\uFF08\u7591\u4F3C DNS \u91CD\u7ED1\u5B9A\u653B\u51FB\uFF09" });
+        return true;
+      }
+      if (path14 === "/session/start") return startSession(req, res, method);
+      if (path14 === "/api/session/open") return openSession(req, res, method);
+      if (!ROUTED_METHODS.has(method)) return false;
+      const session = authority.resolve(cookieValue(req.headers.cookie, sessionCookieName(port)));
+      if (session === null) {
+        if (method === "GET" && (path14 === "/" || path14 === "/index.html")) sendHtml(res, 401, signInPage("required"));
+        else sendJson(res, 401, { ok: false, code: "session-required", error: "\u9700\u8981\u767B\u5F55\uFF1A\u8BF7\u5728\u7EC8\u7AEF\u8FD0\u884C tenon dashboard --open" });
+        return true;
+      }
+      const refusal = crossSiteRefusal(req, path14, method);
+      if (refusal !== null) {
+        sendJson(res, 403, { ok: false, code: refusal === "origin" ? "origin-refused" : "cross-site-refused", error: "\u8DE8\u7AD9\u8BF7\u6C42\u88AB\u62D2\u7EDD" });
+        return true;
+      }
+      sessions.set(req, session);
+      return false;
+    }
+  };
+}
+
+// packages/server/src/loopActivationWiring.ts
+import { join as join116 } from "node:path";
+function createLoopActivationValidator(deps) {
+  return async ({ root, loopId, candidate: candidate2 }) => {
+    const loop = candidate2.loops.find((entry2) => entry2.id === loopId);
+    if (loop === void 0) return { ok: false, error: `\u5019\u9009 registry \u4E2D\u627E\u4E0D\u5230 loop "${loopId}"` };
+    const resolver = deps.resolverForRoot(root, deps.manifest);
+    const wiringForRunner = (runner) => ({
+      resolver,
+      locator: createRunnerSkillContentLocator({
+        runner,
+        home: deps.hostHome,
+        bundledRoot: join116(repoRootForSkills(), "skills")
+      }),
+      isSkillProfileKnown: (profileId) => profileId === "_all" || deps.trackSkillProfiles.has(profileId)
+    });
+    const wiring = await evaluateLoopExecutionWiring(loop, candidate2.loops, {
+      repoRoot: root,
+      skillBundleWiring: wiringForRunner(loop.runner),
+      skillBundleWiringForLoop: (entry2) => wiringForRunner(entry2.runner)
+    });
+    return wiring.status === "ready" ? { ok: true } : { ok: false, error: `${wiring.dimension}: ${wiring.reason}` };
+  };
+}
+
+// packages/server/src/browserOpener.ts
+import { spawn as spawn3 } from "node:child_process";
+var EXIT_GRACE_MS = 1500;
+function openerCommand(url, platform) {
+  if (platform === "darwin") return { file: "open", args: [url] };
+  if (platform === "win32") return { file: "cmd.exe", args: ["/c", "start", "", url] };
+  return { file: "xdg-open", args: [url] };
+}
+function openInBrowser(url, platform = process.platform) {
+  const command = openerCommand(url, platform);
+  return new Promise((resolveOpened) => {
+    let settled = false;
+    let timer;
+    const finish = (opened) => {
+      if (settled) return;
+      settled = true;
+      if (timer !== void 0) clearTimeout(timer);
+      resolveOpened(opened);
+    };
+    const child = spawn3(command.file, command.args, { detached: true, stdio: "ignore" });
+    child.once("error", () => finish(false));
+    child.once("exit", (code) => finish(code === 0));
+    child.once("spawn", () => {
+      child.unref();
+      timer = setTimeout(() => finish(true), EXIT_GRACE_MS);
+      timer.unref?.();
+    });
+  });
+}
+
 // packages/server/src/serverGovernance.ts
 import { mkdirSync as mkdirSync9 } from "node:fs";
 import { readdir as readdir22 } from "node:fs/promises";
-import { join as join116, resolve as resolvePath12 } from "node:path";
+import { join as join117, resolve as resolvePath12 } from "node:path";
 function createServerGovernance(options3) {
   const { registry, globalWorkflowRoot: globalWorkflowRoot2, store, sendJson, trackSkillProfiles, operationsAvailable, operationRunner } = options3;
   function trackRegistryBody(trackRegistry) {
@@ -54858,7 +55220,7 @@ function createServerGovernance(options3) {
     };
   }
   async function scanActiveTrackChanges(root) {
-    const changesRoot = join116(root, "openspec", "changes");
+    const changesRoot = join117(root, "openspec", "changes");
     let entries2;
     try {
       entries2 = await readdir22(changesRoot, { withFileTypes: true });
@@ -54871,7 +55233,7 @@ function createServerGovernance(options3) {
     const unreadable = [];
     for (const name of names) {
       try {
-        const state = await store.read(join116(changesRoot, name));
+        const state = await store.read(join117(changesRoot, name));
         const track = state.fields.track;
         const workflow = state.fields.workflow;
         refs.push({
@@ -54993,7 +55355,7 @@ function createServerGovernance(options3) {
   const globalWorkflowStore = () => {
     try {
       if (globalAnchor === null) {
-        mkdirSync9(join116(globalWorkflowRoot2, ".pipeline", "workflows"), { recursive: true });
+        mkdirSync9(join117(globalWorkflowRoot2, ".pipeline", "workflows"), { recursive: true });
         globalAnchor = captureWorkflowRootAnchor(globalWorkflowRoot2);
       } else {
         assertWorkflowRootAnchor(globalAnchor);
@@ -55203,9 +55565,9 @@ function createRelatedSessionSearchExecutor(runner) {
 }
 
 // packages/server/src/sessionLinkResolver.ts
-import { join as join117 } from "node:path";
+import { join as join118 } from "node:path";
 async function resolveSessionLink(root, name, deps) {
-  const changeDir2 = join117(root, "openspec", "changes", name);
+  const changeDir2 = join118(root, "openspec", "changes", name);
   try {
     const wtRaw = await deps.store.get(changeDir2, "automation_worktree");
     const wt = Array.isArray(wtRaw) ? wtRaw.join(",") : wtRaw ?? "";
@@ -55231,7 +55593,7 @@ async function resolveSessionLink(root, name, deps) {
 
 // packages/server/src/version.ts
 import { readFileSync as readFileSync29 } from "node:fs";
-import { basename as basename9, dirname as dirname26, join as join118 } from "node:path";
+import { basename as basename9, dirname as dirname26, join as join119 } from "node:path";
 var SERVER_VERSION = "0.1.0";
 var RELEASE_ID = /^sha256-[a-f0-9]{64}$/;
 function isPluginManifestVersion(value) {
@@ -55240,7 +55602,7 @@ function isPluginManifestVersion(value) {
 function resolveReleaseVersion(pluginRoot2) {
   for (const relative16 of [".codex-plugin/plugin.json", ".claude-plugin/plugin.json"]) {
     try {
-      const parsed2 = JSON.parse(readFileSync29(join118(pluginRoot2, relative16), "utf8"));
+      const parsed2 = JSON.parse(readFileSync29(join119(pluginRoot2, relative16), "utf8"));
       if (isPluginManifestVersion(parsed2) && typeof parsed2.version === "string" && /^\d+\.\d+\.\d+$/.test(parsed2.version)) {
         return parsed2.version;
       }
@@ -55295,26 +55657,12 @@ function createDashboardServer(options3) {
     }
     return s;
   })();
-  const validateLoopActivation = options3.validateLoopActivation ?? (loadedManifest === void 0 ? void 0 : async ({ root, loopId, candidate: candidate2 }) => {
-    const loop = candidate2.loops.find((entry2) => entry2.id === loopId);
-    if (loop === void 0) return { ok: false, error: `\u5019\u9009 registry \u4E2D\u627E\u4E0D\u5230 loop "${loopId}"` };
-    const resolver = rootSkillResolver(root, loadedManifest);
-    const wiringForRunner = (runner) => ({
-      resolver,
-      locator: createRunnerSkillContentLocator({
-        runner,
-        home: hostHome,
-        bundledRoot: join119(repoRootForSkills(), "skills")
-      }),
-      isSkillProfileKnown: (profileId) => profileId === "_all" || trackSkillProfiles.has(profileId)
-    });
-    const wiring = await evaluateLoopExecutionWiring(loop, candidate2.loops, {
-      repoRoot: root,
-      skillBundleWiring: wiringForRunner(loop.runner),
-      skillBundleWiringForLoop: (entry2) => wiringForRunner(entry2.runner)
-    });
-    return wiring.status === "ready" ? { ok: true } : { ok: false, error: `${wiring.dimension}: ${wiring.reason}` };
-  });
+  const validateLoopActivation = options3.validateLoopActivation ?? (loadedManifest === void 0 ? void 0 : createLoopActivationValidator({
+    manifest: loadedManifest,
+    hostHome,
+    trackSkillProfiles,
+    resolverForRoot: (root, manifest) => rootSkillResolver(root, manifest)
+  }));
   const pollIntervalMs = options3.pollIntervalMs ?? 1e3;
   const heartbeatMs = options3.heartbeatMs ?? 15e3;
   const gitHeadSha2 = options3.gitHeadSha;
@@ -55422,6 +55770,14 @@ function createDashboardServer(options3) {
     return checked.ok ? checked.anchor : void 0;
   };
   let boundPort = 0;
+  const access = createAccessControl({
+    authority: createSessionAuthority(),
+    boundPort: () => boundPort,
+    isLocalHost,
+    sendJson,
+    sendHtml,
+    openBrowser: options3.openBrowser ?? openInBrowser
+  });
   const mutateTrackForRoutes = async (anchor, revision, mutate) => mutateTrackForApi(anchor, revision, async ({ config }) => mutate({ config }));
   const handleGet2 = (req, res, path14) => handleGet(req, res, path14, {
     cadenceScheduler,
@@ -55505,7 +55861,7 @@ function createDashboardServer(options3) {
     manifestPath: manifestPath3,
     paths,
     validateLoopActivation,
-    skillsRoot: options3.skillsRoot ?? join119(repoRootForSkills(), "skills"),
+    skillsRoot: options3.skillsRoot ?? join120(repoRootForSkills(), "skills"),
     mutateTrackForApi: mutateTrackForRoutes,
     trackRegistryBody,
     sendTrackError,
@@ -55517,6 +55873,7 @@ function createDashboardServer(options3) {
     designSeedFetch: options3.designSeedFetch,
     resolveUser,
     taskLifecycle,
+    presence: access.presence,
     orchestrationV2: { ledger: orchestrationLedger, workflowRootForRequest, freezePipeline, freezeWorkflow, runChange: (changeDir2) => createProductionExecutionRuntimeV2({ change_dir: changeDir2, ledger: orchestrationLedger, worker_id: `server:${process.pid}` }).then((runtime) => runtime.run()) },
     adapterInstall
   });
@@ -55542,13 +55899,23 @@ function createDashboardServer(options3) {
   const handlePatch = (req, res, path14) => handlePatchRoute(req, res, path14, mutationRouteDeps);
   const handleDelete = (req, res, path14) => handleDeleteRoute(req, res, path14, mutationRouteDeps);
   const handlePut = (req, res, path14) => handlePutRoute(req, res, path14, mutationRouteDeps);
-  const httpServer = createServer((req, res) => {
-    const path14 = (req.url ?? "/").split("?", 1)[0] ?? "/";
-    const method = req.method ?? "GET";
+  const dispatch = (req, res, path14, method) => {
     if (method !== "GET") snapshotCache.invalidate();
     const handler = method === "GET" ? handleGet2(req, res, path14) : method === "POST" ? handlePost(req, res, path14) : method === "PATCH" ? handlePatch(req, res, path14) : method === "DELETE" ? handleDelete(req, res, path14) : method === "PUT" ? handlePut(req, res, path14) : Promise.resolve(sendJson(res, 405, { ok: false, error: "method not allowed" }));
     if (method !== "GET") void handler.finally(snapshotCache.invalidate).catch(() => void 0);
     handler.catch((e) => {
+      try {
+        sendJson(res, 500, { ok: false, error: errMsg(e) });
+      } catch {
+      }
+    });
+  };
+  const httpServer = createServer((req, res) => {
+    const path14 = (req.url ?? "/").split("?", 1)[0] ?? "/";
+    const method = req.method ?? "GET";
+    access.handle(req, res, path14, method).then((handled) => {
+      if (!handled) dispatch(req, res, path14, method);
+    }).catch((e) => {
       try {
         sendJson(res, 500, { ok: false, error: errMsg(e) });
       } catch {
@@ -55559,6 +55926,7 @@ function createDashboardServer(options3) {
     token,
     version,
     httpServer,
+    issueLoginUrl: access.issueLoginUrl,
     listen(port = 0, host = "127.0.0.1") {
       return new Promise((resolve20, reject3) => {
         const onError = (e) => reject3(e);
@@ -55831,10 +56199,10 @@ function managedTransactionId() {
   return value;
 }
 function pluginRoot() {
-  return join120(dirname28(fileURLToPath4(import.meta.url)), "..", "..", "..");
+  return join121(dirname28(fileURLToPath4(import.meta.url)), "..", "..", "..");
 }
 function manifestPath2() {
-  return join120(pluginRoot(), "templates", "manifest.yaml");
+  return join121(pluginRoot(), "templates", "manifest.yaml");
 }
 function gitHeadSha(cwd) {
   return new Promise((resolve20) => {
@@ -55873,6 +56241,7 @@ async function main() {
   if (decision === "reuse") {
     process.stdout.write(`[dashboard-server] \u590D\u7528\u65E2\u6709 Global server :${port}\uFF08\u7248\u672C ${existing?.version} \u2265 ${version}\uFF09
 `);
+    process.stdout.write("[dashboard-server] \u9875\u9762\u9700\u8981\u767B\u5F55\uFF1A\u8FD0\u884C tenon dashboard --open\uFF0C\u6D4F\u89C8\u5668\u4F1A\u81EA\u52A8\u6253\u5F00\u5E76\u767B\u5F55\u3002\n");
     return;
   }
   if (decision === "preempt") {
@@ -55889,19 +56258,17 @@ async function main() {
       return;
     }
   }
-  const token = generateToken();
   const srv = createDashboardServer({
     version,
     releaseId,
     transactionId,
     paths,
     hostHome: paths.homeDir,
-    token,
     manifestPath: manifestPath2(),
     gitHeadSha,
     workspaceFingerprint: (cwd) => fingerprintWorkspace(cwd),
     // dashboard-app 构建产物（BACKLOG #26c）：存在则服务真 SPA，否则回退最小落地页
-    webRoot: join120(dirname28(fileURLToPath4(import.meta.url)), "..", "..", "dashboard-app", "dist"),
+    webRoot: join121(dirname28(fileURLToPath4(import.meta.url)), "..", "..", "dashboard-app", "dist"),
     // tap 流量查看器数据源：只读 sessions/records/timeline；完整 reader 才声明 traffic=true。
     // tap capture 默认 OFF，无捕获时返回空会话——数据端仍在线（#34e：只读本地、不外发）
     traceStore: createTraceStore(),
@@ -55918,7 +56285,7 @@ async function main() {
     return;
   }
   try {
-    await writeTokenHandshake(paths.tokenPath, token, { pid: process.pid, port, version, created: Date.now() });
+    rmSync2(paths.tokenPath, { force: true });
   } catch {
   }
   try {
@@ -55935,6 +56302,10 @@ async function main() {
     `[dashboard-server] Global server http://${host}:${port}  version=${version}${releaseId === void 0 ? "" : ` release=${releaseId}`}
 `
   );
+  if (process.stdout.isTTY === true || process.env.TENON_DASHBOARD_PRINT_LINK === "1") {
+    process.stdout.write(`[dashboard-server] \u767B\u5F55\u94FE\u63A5\uFF08\u4E00\u6B21\u6027\uFF0C2 \u5206\u949F\u5185\u6709\u6548\uFF09\uFF1A${srv.issueLoginUrl()}
+`);
+  }
   const shutdown = () => {
     void srv.close().finally(() => {
       try {

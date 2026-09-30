@@ -3,7 +3,8 @@ import { mkdir, realpath, rename, symlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { Worker } from 'node:worker_threads'
 import { nodeMemFs, type MemFs } from '@tenon/kernel'
-import { createDashboardServer } from './server.js'
+import { createTestDashboardServer } from './test-server.js'
+import { testSessionCookie } from './test-support.js'
 import { resolveServerPaths } from './paths.js'
 import type {
   DashboardServer,
@@ -62,7 +63,7 @@ async function start(
     calls.push(request)
     return runner(request)
   }
-  const server = createDashboardServer({
+  const server = createTestDashboardServer({
     paths: resolveServerPaths({ home, env: {} }),
     hostHome: home,
     registry: () => [root],
@@ -92,6 +93,8 @@ function auth(token: string): { headers: Record<string, string> } {
 async function prepareQueuedPost(options: {
   port: number
   token: string
+  /** Session cookie (`name=value`) of the server under test. */
+  cookie: string
   body: Record<string, string>
   scanSignal: SharedArrayBuffer
 }): Promise<{ result: Promise<{ status: number; body: string }>; worker: Worker }> {
@@ -104,6 +107,7 @@ async function prepareQueuedPost(options: {
       'POST /api/mem/related-sessions/search HTTP/1.1',
       'Host: 127.0.0.1:' + workerData.port,
       'Authorization: Bearer ' + workerData.token,
+      'Cookie: ' + workerData.cookie,
       'Content-Type: application/json',
       'Content-Length: ' + Buffer.byteLength(body),
       'Connection: close',
@@ -202,7 +206,7 @@ describe('POST /api/mem/related-sessions/search', () => {
         },
       }),
     ].join('\n'))
-    const server = createDashboardServer({
+    const server = createTestDashboardServer({
       paths: resolveServerPaths({ home, env: {} }),
       hostHome: home,
       registry: () => [root],
@@ -511,7 +515,7 @@ describe('POST /api/mem/related-sessions/search', () => {
         return sourceReadTextBounded?.(path, maxBytes)
       },
     }
-    const server = createDashboardServer({
+    const server = createTestDashboardServer({
       paths: resolveServerPaths({ home, env: {} }),
       hostHome: home,
       registry: () => [root],
@@ -527,6 +531,7 @@ describe('POST /api/mem/related-sessions/search', () => {
     const queued = await prepareQueuedPost({
       port,
       token: server.token,
+      cookie: testSessionCookie(port) ?? '',
       body: requestBody(root),
       scanSignal,
     })

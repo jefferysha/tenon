@@ -25,7 +25,7 @@ export type {
   TraceTimelineSummary,
   TraceTimelineWarning,
 } from './traces.js'
-export { generateToken, writeTokenHandshake, tokenFromHeaders, tokensMatch } from './token.js'
+export { generateToken, tokenFromHeaders, tokensMatch } from './token.js'
 export {
   resolveOrchestrationV2GetRoute,
   resolveOrchestrationV2PostRoute,

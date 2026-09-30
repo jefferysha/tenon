@@ -13,6 +13,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises'
+import { get as httpGet } from 'node:http'
 import { createConnection, createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
@@ -660,6 +661,48 @@ async function installPublic(env, cwd, ref) {
   })
 }
 
+/** One bounded GET that never follows redirects and exposes headers (fetch hides Set-Cookie and Sec-Fetch-*). */
+function probeHttp(url, label, headers = {}) {
+  const target = new URL(url)
+  return new Promise((resolveProbe, rejectProbe) => {
+    const request = httpGet({
+      host: target.hostname,
+      port: Number(target.port),
+      path: `${target.pathname}${target.search}`,
+      headers,
+      timeout: 5_000,
+    }, (response) => {
+      let body = ''
+      response.setEncoding('utf8')
+      response.on('data', (chunk) => { body += chunk })
+      response.on('end', () => resolveProbe({ status: response.statusCode ?? 0, headers: response.headers, body }))
+    })
+    request.on('timeout', () => request.destroy(new Error(`${label} timed out`)))
+    request.on('error', rejectProbe)
+  })
+}
+
+async function readOpenedLink(openedFile) {
+  const deadline = Date.now() + 5_000
+  while (Date.now() < deadline) {
+    const text = await readFile(openedFile, 'utf8').catch(() => '')
+    const link = text.trim().split('\n').at(-1)
+    if (link !== undefined && /^http:\/\/127\.0\.0\.1:[0-9]+\/session\/start\?code=[A-Za-z0-9_-]+$/u.test(link)) return link
+    await new Promise((resolveWait) => setTimeout(resolveWait, 100))
+  }
+  throw new Error('tenon dashboard --open did not hand a one-time login link to the browser opener')
+}
+
+/** PATH shim that stands in for the desktop's `open` / `xdg-open`: records the URL it was given. */
+async function installFakeBrowserOpener(dir) {
+  await mkdir(dir, { recursive: true })
+  for (const name of ['open', 'xdg-open']) {
+    const script = join(dir, name)
+    await writeFile(script, '#!/bin/sh\nprintf \'%s\\n\' "$1" >> "$TENON_ACCEPTANCE_OPENED_URL"\n', 'utf8')
+    await chmod(script, 0o755)
+  }
+}
+
 export async function assertInstalledRuntime(
   env,
   cwd,
@@ -701,14 +744,39 @@ export async function assertInstalledRuntime(
   assertDashboardHealthIdentity(health, activeRelease, active.source.pluginVersion)
   registerOwnedHealth(health)
   const dashboardUrl = `http://127.0.0.1:${port}/`
-  const { response: htmlResponse, body: html } = await fetchWithTimeout(
-    dashboardUrl,
-    5_000,
-    `Dashboard HTML on port ${port}`,
-  )
-  if (!htmlResponse.ok || !/<title>Tenon Dashboard<\/title>/.test(html)) {
+  // An unauthenticated caller gets the sign-in prompt: no data, no write token.
+  const anonymous = await probeHttp(dashboardUrl, `anonymous Dashboard HTML on port ${port}`)
+  if (!/<title>Tenon Dashboard<\/title>/.test(anonymous.body)) {
     throw new Error('Dashboard HTML is not the Tenon product')
   }
+  if (anonymous.status !== 401 || anonymous.body.includes('__TENON_DASHBOARD_TOKEN__')) {
+    throw new Error('Dashboard served its page or write token to an unauthenticated caller')
+  }
+  const anonymousSnapshot = await probeHttp(`http://127.0.0.1:${port}/api/snapshot`, 'anonymous snapshot')
+  if (anonymousSnapshot.status !== 401) {
+    throw new Error(`Dashboard answered an unauthenticated snapshot request with ${anonymousSnapshot.status}`)
+  }
+  // The supported sign-in: `tenon dashboard --open` makes the server hand a one-time link to the
+  // browser (a fake opener on PATH plays it here); the link works once and yields a session cookie.
+  const openedFile = env.TENON_ACCEPTANCE_OPENED_URL
+  if (typeof openedFile !== 'string') throw new Error('acceptance environment has no fake browser opener')
+  await rm(openedFile, { force: true })
+  await runCommand(launcher, ['dashboard', '--open'], { cwd, env, timeoutMs: 60_000 })
+  const link = await readOpenedLink(openedFile)
+  const exchange = await probeHttp(link, 'one-time login link', { 'Sec-Fetch-Site': 'none' })
+  const cookie = exchange.headers['set-cookie']?.[0]?.split(';', 1)[0]
+  if (exchange.status !== 303 || cookie === undefined) throw new Error('the one-time login link did not yield a session')
+  if ((await probeHttp(link, 'replayed login link', { 'Sec-Fetch-Site': 'none' })).status !== 403) {
+    throw new Error('the one-time login link can be used twice')
+  }
+  const signedIn = { Cookie: cookie, 'Sec-Fetch-Site': 'none' }
+  const page = await probeHttp(dashboardUrl, `signed-in Dashboard HTML on port ${port}`, signedIn)
+  const html = page.body
+  if (page.status !== 200 || !/<title>Tenon Dashboard<\/title>/.test(html)) {
+    throw new Error('Dashboard HTML is not the Tenon product')
+  }
+  const snapshot = await probeHttp(`http://127.0.0.1:${port}/api/snapshot`, 'signed-in snapshot', signedIn)
+  if (snapshot.status !== 200) throw new Error(`Dashboard refused a signed-in snapshot request (${snapshot.status})`)
   const moduleSource = html.match(/<script[^>]+type="module"[^>]+src="([^"]+)"/)?.[1]
   if (moduleSource === undefined) {
     throw new Error('Dashboard HTML is missing its product module')
@@ -1025,12 +1093,15 @@ export async function main(argv = process.argv.slice(2)) {
     port = await reservePort()
     const inheritedPath = process.env.PATH
     if (inheritedPath === undefined) throw new Error('PATH is required for real Codex acceptance')
+    const fakeBrowserDir = join(fixture, 'fake-browser')
+    await installFakeBrowserOpener(fakeBrowserDir)
     const env = {
       HOME: home,
       CODEX_HOME: codexHome,
       TENON_RUNTIME_HOME: runtimeHome,
       TENON_DASHBOARD_PORT: String(port),
-      PATH: `${join(home, '.local/bin')}:${inheritedPath}`,
+      PATH: `${fakeBrowserDir}:${join(home, '.local/bin')}:${inheritedPath}`,
+      TENON_ACCEPTANCE_OPENED_URL: join(fixture, 'opened-url.txt'),
       LANG: process.env.LANG ?? 'C.UTF-8',
       CI: '1',
     }

@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { FolderChooser, FolderPick, FolderPickRequest } from './folderChooser.js'
 import { FOLDER_LIST_MAX, listFolders } from './folderList.js'
 import { resolveServerPaths } from './paths.js'
-import { createDashboardServer } from './server.js'
+import { createTestDashboardServer } from './test-server.js'
 import { reqGet, reqPost } from './test-support.js'
 import type { DashboardServer } from './types.js'
 
@@ -33,7 +33,7 @@ function fakeChooser(answer: FolderPick): FolderChooser & { requests: FolderPick
 
 async function start(chooser: FolderChooser): Promise<{ port: number; home: string }> {
   const home = await tempDir('home')
-  const srv = createDashboardServer({
+  const srv = createTestDashboardServer({
     version: '9.9.9', hostHome: home, paths: resolveServerPaths({ home, env: {} }), token: TOKEN, registry: () => [],
     pollIntervalMs: 1000, cadence: false, folderChooser: chooser,
     manifestPath: fileURLToPath(new URL('../../../templates/manifest.yaml', import.meta.url)),

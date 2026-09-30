@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createDashboardServer, resolveServerPaths } from '@tenon/server'
+import { installSessionFetch } from '../../server/src/test-support.js'
 import { afterEach, describe, expect, test } from 'vitest'
 import { freshHarness, rm, type Harness } from './integration-harness.js'
 
@@ -183,8 +184,10 @@ describe('真实 e2e —— 每步测试登记', () => {
       registry: () => [h.cwd], pollIntervalMs: 1000, cadence: false,
       manifestPath: fileURLToPath(new URL('../../../templates/manifest.yaml', import.meta.url)),
     })
+    let restoreFetch = (): void => undefined
     try {
       const { port } = await server.listen(0, '127.0.0.1')
+      restoreFetch = await installSessionFetch(server, port)
       const base = `http://127.0.0.1:${port}`
       const query = `root=${encodeURIComponent(h.cwd)}&change=demo&user=${SLUG_A}&run=${runId}`
       const detail = await fetch(`${base}/api/tests/run?${query}`)
@@ -202,6 +205,7 @@ describe('真实 e2e —— 每步测试登记', () => {
       expect((await fetch(`${base}/api/tests/artifact?${query}&path=outputs/test-results`)).status).toBe(403)
       expect((await fetch(`${base}/api/tests/artifact?${query}&path=${encodeURIComponent('outputs/test-results/../../../x')}`)).status).toBe(400)
     } finally {
+      restoreFetch()
       await server.close()
       await rm(home, { recursive: true, force: true })
     }

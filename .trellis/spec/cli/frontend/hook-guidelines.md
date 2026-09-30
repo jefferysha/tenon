@@ -136,27 +136,44 @@ independently trusted identity provider.
 
 - **Order.** Candidate detection and the recorder call run **before** the
   `TENON_AFK=1` exit. AFK skips blocking only; it never skips recording. Outside
-  AFK, a token-file candidate with a fresh relevant v2 review marker still exits
-  2 with the existing message, and loopback API calls fall through to the
-  ordinary non-read-only block.
-- **Hook = broad recall, pure bash.** A raw-input `case` pre-filter
-  (`dashboard-token.json`, or a loopback host together with `/api/`) runs right
-  after stdin is read; under `TENON_AFK=1` a non-candidate exits there, before
-  any JSON parsing or project-root resolution. Non-candidates (including
-  `src/api/…` paths and remote `/api/` URLs) never spawn node or parse the
-  candidate. Candidates: Read/Grep/Glob/Search `file_path` / `path` / `pattern`
-  / `glob` containing `dashboard-token.json`; command text containing
-  `dashboard-token.json`, or a loopback host (`localhost`, `127.0.0.1`,
-  `[::1]`) together with `/api/`. No curl argument parsing, no skipping of
-  `$(` / `|` / wrappers, no runtime-root environment variable, no marker
-  freshness condition.
+  AFK, a legacy token-file candidate with a fresh relevant v2 review marker still
+  exits 2 with the existing message; a command that reaches the Dashboard control
+  surface is blocked with a message that points at `tenon dashboard --open`
+  (unless it is strictly read-only, in which case it is only recorded).
+- **Audit signal, not the boundary.** Since v0.3 the boundary is the server: no
+  credential is stored anywhere a process can read, an anonymous request gets 401,
+  and approving a review over HTTP needs a browser session plus a per-review
+  presence nonce (`docs/usage/security-model.md`). The hook only records and
+  explains; the fail-closed read-only allowlist during a pending review is what
+  stops an arbitrary program or script.
+- **Hook = broad recall, pure bash, on decoded words.** The decision is made on
+  the decoded command (`command` / `cmd` / `argv`), never on the raw JSON. There
+  is no raw-input `case` pre-filter; under `TENON_AFK=1` only a call with no
+  executable payload at all (no `command` / `cmd` / `argv` field) exits before
+  parsing. A command is a candidate when its words name a loopback host in any
+  spelling (`localhost`, `127.*`, `::1`, `0.0.0.0`, `[::ffff:127.*]`, integer /
+  hex / octal IPv4, `/dev/tcp/`) together with any port (`:3000`, `nc host 18765`,
+  a `:$VAR` expansion; the hook does not know which port the server really uses,
+  the CLI decides), or names `tenon dashboard`,
+  `tenon-dashboard`, `dashboard.mjs`, `/session/start` or `/api/session/open`.
+  No `/api/` requirement (the old index page handed out the token on `GET /`).
+  When the first word of a segment is an interpreter or a path, the relevant lines
+  of the script it runs (up to three files, 128 KiB each, 8 KiB of excerpt) are
+  appended, so `sh poke.sh` and `./poke.sh` are caught. Read/Grep/Glob/Search
+  only match the legacy `dashboard-token` file name. Non-candidates never spawn
+  node. No curl argument parsing, no skipping of `$(` / `|` / wrappers, no
+  runtime-root environment variable, no marker freshness condition.
+  `tenon dashboard --open [--port N]` is allowed through a pending review: the
+  server delivers the one-time login link to the browser and never returns it.
 - **CLI = precision.** `tenon internal-self-approval <payload> [change]` reads a
   closed 0600 temp payload (`candidate`, `tool_name`, `tool_use_id`,
   `process_or_host_identity`; the hook runs node in the background and `wait`s
   under a HUP/INT/TERM trap, so the file is deleted after the call and also when
   the host kills the hook during a lock wait; SIGKILL remains uncovered), classifies
-  with kernel `classifySelfApprovalCandidate` against `resolveProductPaths()`,
-  scans all Changes when no change is given, and re-reads the canonical pending
+  with kernel `classifySelfApprovalCandidate` against the Dashboard ports
+  (default, `TENON_DASHBOARD_PORT`, the pidfile's port), the launcher / login
+  endpoints and the legacy token path (the unauthenticated `/api/health` probe is
+  not a hit), scans all Changes when no change is given, and re-reads the canonical pending
   receipt + binding under each Change lock. No pending receipt → zero writes
   (no lock artifact, no identity key).
 - **Record.** `channel=terminal`, `kind`, `observation_key` dedupe,

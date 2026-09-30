@@ -24,6 +24,7 @@ import {
   type ReleasedDashboardOptions,
 } from './dashboard-launch-options.js'
 import { freezeTrustedExecutable, type TrustedExecutable } from './trusted-executable.js'
+import { attachToRunningDashboard, OPEN_FAILED_GUIDANCE, requestDashboardBrowserOpen } from './dashboard-open.js'
 import {
   releasedDashboardSession,
   type ReleasedDashboardSession,
@@ -69,6 +70,10 @@ export interface DashboardRuntime {
     expectedTransactionId?: string | '*',
   ): Promise<DashboardHealthIdentity | null>
   stopOwnedDashboard(identity: DashboardHealthIdentity): Promise<boolean>
+  /**
+   * Asks the server behind `url` to open the user's browser signed in (the login URL never reaches the caller);
+   * resolves false when nothing was opened.
+   */
   openBrowser(url: string): Promise<boolean>
 }
 
@@ -101,29 +106,6 @@ const REAL_DASHBOARD_COMMAND_ENV: DashboardCommandEnvironment = {
   resolveTrustedNode: () => freezeTrustedExecutable(process.execPath),
 }
 
-/** Opens a URL through the platform's registered browser without shell interpolation. */
-function openBrowser(url: string): Promise<boolean> {
-  const command = process.platform === 'darwin'
-    ? { file: 'open', args: [url] }
-    : process.platform === 'win32'
-      ? { file: 'cmd.exe', args: ['/c', 'start', '', url] }
-      : { file: 'xdg-open', args: [url] }
-  return new Promise((resolveOpened) => {
-    let settled = false
-    const finish = (opened: boolean): void => {
-      if (settled) return
-      settled = true
-      resolveOpened(opened)
-    }
-    const child = spawn(command.file, command.args, { detached: true, stdio: 'ignore' })
-    child.once('error', () => finish(false))
-    child.once('spawn', () => {
-      child.unref()
-      finish(true)
-    })
-  })
-}
-
 /** Resolve the active payload root without consulting the caller's project directory. */
 function resolveDashboardRoot(): string {
   const declared = process.env.PLUGIN_ROOT ?? process.env.CLAUDE_PLUGIN_ROOT
@@ -151,7 +133,8 @@ export const REAL_DASHBOARD_RUNTIME: DashboardRuntime = {
         : { expectedTransactionId: transactionId }),
     }),
   stopOwnedDashboard,
-  openBrowser,
+  // The server opens the browser itself with a one-time login URL nobody else sees.
+  openBrowser: requestDashboardBrowserOpen,
 }
 
 interface DashboardAssets {
@@ -294,8 +277,9 @@ async function startManagedDashboard(
   }
   if (!browserOpened) {
     // Browser policy/headless hosts can reject an OS open request even though the product is up.
-    // The validated URL remains actionable, so do not roll back a healthy immutable runtime.
-    deps.io.err(`[dashboard] 无法自动打开浏览器；请在浏览器访问 ${url}`)
+    // Do not roll back a healthy immutable runtime; the plain URL only shows a sign-in prompt, so
+    // point at the two ways to obtain a signed-in page instead.
+    deps.io.err(OPEN_FAILED_GUIDANCE)
   }
   return {
     state: 'ready',
@@ -356,6 +340,12 @@ export async function cmdDashboard(
   if (opts.dryRun) {
     deps.io.out('[dashboard] --dry-run：未启动 server。')
     return 0
+  }
+  // A dashboard that already runs needs no new process, so no Node identity either: `--open` only asks it
+  // to open the browser.
+  if (opts.background === true || opts.open === true) {
+    const attached = await attachToRunningDashboard(deps, port, opts.open === true, runtime)
+    if (attached !== null) return attached
   }
   const trustedNode = commandEnv.resolveTrustedNode()
   if (trustedNode === undefined) {

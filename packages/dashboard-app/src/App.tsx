@@ -148,6 +148,8 @@ function AppShell(): JSX.Element {
   }, [capturePendingNavigation, leavesDirtyView])
   const { snapshot, loading, error, connected, refresh, reconnect } = useSnapshot()
   const snapshotError = error === null ? null : formatApiError(error, t)
+  // 401: this page has no (or no longer a) session — the service was restarted/upgraded or the cookie expired.
+  const signedOut = error?.status === 401
   const staleSnapshotError =
     error === null
       ? null
@@ -319,9 +321,9 @@ function AppShell(): JSX.Element {
           data-testid="offline-banner"
         >
           <span className="size-2 flex-none rounded-full bg-red" aria-hidden="true" />
-          <span className="min-w-0 flex-1 truncate whitespace-nowrap max-[900px]:sr-only">{t('common.offline')}</span>
+          <span className="min-w-0 flex-1 truncate whitespace-nowrap max-[900px]:sr-only" data-signed-out={signedOut}>{signedOut ? t('common.session_expired') : t('common.offline')}</span>
           <div className="w-[300px] min-w-0 flex-none font-normal max-[900px]:w-auto max-[900px]:flex-1">
-            <CommandLine command="tenon dashboard --background" testId="offline-restart" />
+            <CommandLine command={signedOut ? 'tenon dashboard --open' : 'tenon dashboard --background'} testId="offline-restart" />
           </div>
           <button
             type="button"
@@ -383,9 +385,10 @@ function AppShell(): JSX.Element {
             aria-live="assertive"
             data-testid="snapshot-error"
           >
-            <h1 className="text-title font-bold text-text">{t('common.snapshot_error_title')}</h1>
+            <h1 className="text-title font-bold text-text">{signedOut ? t('common.session_expired_title') : t('common.snapshot_error_title')}</h1>
             <p className="mt-2 break-words text-body leading-6">{snapshotError}</p>
-            <p className="mt-1 text-body leading-6 text-text-2">{t('common.snapshot_error_hint')}</p>
+            <p className="mt-1 text-body leading-6 text-text-2">{signedOut ? t('common.session_expired_hint') : t('common.snapshot_error_hint')}</p>
+            {signedOut && <div className="mt-3"><CommandLine command="tenon dashboard --open" testId="session-expired-command" /></div>}
             <button
               type="button"
               className={`${BUTTON_GHOST} mt-4 border-red-b bg-card text-red-d enabled:hover:border-red-b enabled:hover:bg-red-t enabled:hover:text-red-d`}

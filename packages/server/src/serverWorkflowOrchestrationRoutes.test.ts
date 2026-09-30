@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { DEFAULT_WORKFLOW_SOURCE, parseWorkflow, serializeWorkflow, type WorkflowDef } from '@tenon/kernel'
-import { createDashboardServer } from './server.js'
+import { createTestDashboardServer } from './test-server.js'
 import { resolveServerPaths } from './paths.js'
 import type { DashboardServer } from './types.js'
 import { initChange, makeProject, makeTempHome, newStore, recordWorkflowPhaseSkill, reqGet, testFlow } from './test-support.js'
@@ -22,7 +22,7 @@ async function start(): Promise<{ port: number; root: string; changeDir: string 
   const root = await makeProject()
   const changeDir = await initChange(store, root, 'orch', { track: 'frontend' })
   const hostHome = await makeTempHome()
-  const srv = createDashboardServer({
+  const srv = createTestDashboardServer({
     version: '9.9.9',
     hostHome,
     paths: resolveServerPaths({ home: hostHome, env: {} }),

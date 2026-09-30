@@ -17,8 +17,9 @@ try {
   server = await startDashboard({ env: fixture.env, cwd: fixture.scratch, logFile: join(fixture.scratch, 'dashboard.log') })
   let bytes = 0
   const rebuild = async () => {
-    await fetch(`${server.url}/api/bench-invalidate`, { method: 'DELETE' })
-    const response = await fetch(`${server.url}/api/snapshot`)
+    const headers = { Cookie: server.session.header }
+    await fetch(`${server.url}/api/bench-invalidate`, { method: 'DELETE', headers })
+    const response = await fetch(`${server.url}/api/snapshot`, { headers })
     if (!response.ok) throw new Error(`GET /api/snapshot 返回 ${response.status}`)
     bytes = (await response.arrayBuffer()).byteLength
   }

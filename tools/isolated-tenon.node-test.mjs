@@ -2,12 +2,14 @@ import assert from 'node:assert/strict'
 import {
   chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync,
 } from 'node:fs'
+import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { pathToFileURL } from 'node:url'
 import {
-  REPO_ROOT, createScratch, freePort, isTrustedExecutable, isolatedEnv, isolatedNode, prepareTrustedNode, removeScratch,
+  REPO_ROOT, createScratch, exchangeLoginLink, freePort, isTrustedExecutable, isolatedEnv, isolatedNode, prepareTrustedNode,
+  readLoginLink, removeScratch,
 } from './lib/isolated-tenon.mjs'
 
 test('isolatedEnv points HOME and the runtime home at the scratch root and drops host plugin variables', () => {
@@ -179,5 +181,39 @@ test('createScratch removes the fresh scratch and throws when the copied node ca
     else process.env.TMPDIR = previousTmp
     rmSync(root, { recursive: true, force: true })
     rmSync(privateTmp, { recursive: true, force: true })
+  }
+})
+
+test('readLoginLink picks the one-time link the server printed to its launcher, and gives up without one', async () => {
+  const root = tempRoot()
+  try {
+    const log = join(root, 'dashboard.log')
+    writeFileSync(log, '[dashboard-server] Global server http://127.0.0.1:18765  version=1\n')
+    await assert.rejects(readLoginLink(log, { timeoutMs: 150 }), /TENON_DASHBOARD_PRINT_LINK=1/)
+    writeFileSync(log, '[dashboard-server] 登录链接（一次性，2 分钟内有效）：http://127.0.0.1:18765/session/start?code=abc_DEF-123\n', { flag: 'a' })
+    assert.equal(await readLoginLink(log), 'http://127.0.0.1:18765/session/start?code=abc_DEF-123')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('exchangeLoginLink follows the link like a browser and returns the session cookie, once', async () => {
+  let used = false
+  const seen = []
+  const server = createServer((req, res) => {
+    seen.push(req.headers['sec-fetch-site'])
+    if (used) { res.writeHead(403); res.end(); return }
+    used = true
+    res.writeHead(303, { location: '/', 'set-cookie': 'tenon_session_1=secret; HttpOnly; SameSite=Strict; Path=/' })
+    res.end()
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const link = `http://127.0.0.1:${server.address().port}/session/start?code=x`
+    assert.deepEqual(await exchangeLoginLink(link), { name: 'tenon_session_1', value: 'secret', header: 'tenon_session_1=secret' })
+    assert.deepEqual(seen, ['none'])
+    await assert.rejects(exchangeLoginLink(link), /只能用一次/)
+  } finally {
+    await new Promise((resolve) => server.close(resolve))
   }
 })

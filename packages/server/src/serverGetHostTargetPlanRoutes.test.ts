@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { openSync, readdirSync, renameSync, symlinkSync, unlinkSync, type Dirent } from 'node:fs'
 import { mkdir, symlink, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { createDashboardServer } from './server.js'
+import { createTestDashboardServer } from './test-server.js'
 import { resolveServerPaths } from './paths.js'
 import {
   createHostTargetPlanRuntime,
@@ -237,7 +237,7 @@ afterEach(async () => {
 
 async function start(runner: PipelineCliRunner): Promise<{ port: number }> {
   const hostHome = await makeTempHome()
-  const srv = createDashboardServer({
+  const srv = createTestDashboardServer({
     paths: resolveServerPaths({ home: hostHome, env: {} }),
     hostHome,
     registry: () => [],

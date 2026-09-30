@@ -34,6 +34,8 @@ export function decisionErrorText(error: unknown, t: Translate): string {
       case 'review-approval-required': return t('review_console.error_review_required')
       case 'revision-conflict': return t('review_console.error_revision_conflict')
       case 'idempotency-conflict': return t('review_console.error_idempotency_conflict')
+      case 'presence-required': return t('review_console.error_presence')
+      case 'session-required': return t('common.session_expired')
       default: break
     }
     if (error.status === undefined) return formatApiError(error, t)
@@ -50,6 +52,10 @@ export function ReviewDecisionPanel({ root, change, snapshotSignature, rules, ph
   const [view, setView] = useState<{ revision: number | null; items: readonly PendingDecision[]; waivers: readonly PendingWaiver[] } | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  // Approving acts as the person at the keyboard, so the first click only asks; the second, explicit
+  // click is what requests the presence nonce and submits (see postReviewAcknowledge).
+  const [confirming, setConfirming] = useState(false)
+  const cancelRef = useRef<HTMLButtonElement>(null)
   const [loadError, setLoadError] = useState<unknown>(null)
   // Kept apart from loadError: a rejected approval stays visible after the refresh it triggers,
   // including when that refresh no longer contains the review.
@@ -77,12 +83,17 @@ export function ReviewDecisionPanel({ root, change, snapshotSignature, rules, ph
   }, [load, snapshotSignature])
 
   const review = useMemo(() => view?.items.find((item) => item.type === 'review' && item.status === 'pending') ?? null, [view])
+  const reviewRef = review?.ref.id
+  // A different review (or none) must never inherit the previous click's confirmation.
+  useEffect(() => { setConfirming(false) }, [reviewRef])
+  // The safe choice takes focus so a stray Enter cannot approve.
+  useEffect(() => { if (confirming) cancelRef.current?.focus() }, [confirming])
   const retry = (): void => { setSubmitError(null); void load() }
 
   async function approve(): Promise<void> {
     const revision = view?.revision
     if (review === null || revision === null || revision === undefined || submitting) return
-    setSubmitting(true); setSubmitError(null)
+    setConfirming(false); setSubmitting(true); setSubmitError(null)
     try {
       const result = await postReviewAcknowledge({ root, change, ref: review.ref.id, expectedRevision: revision })
       const approvedWaivers = result.waivers.approved.length
@@ -160,8 +171,20 @@ export function ReviewDecisionPanel({ root, change, snapshotSignature, rules, ph
           </ul>
         </div>
       )}
+      {confirming && (
+        <div className="mt-4 grid gap-2 rounded-md border border-amber-b bg-card p-3" role="group" aria-labelledby="review-console-confirm-title" data-testid="review-console-confirm-box">
+          <p id="review-console-confirm-title" className="font-semibold text-text">{t('review_console.confirm_title')}</p>
+          <p className="text-caption text-text-2">{t('review_console.confirm_body', { stage: eventText })}</p>
+          <div className="flex items-center gap-2">
+            <button type="button" className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-md bg-ink px-4 text-base font-semibold text-ink-fg hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)" onClick={() => void approve()} data-testid="review-console-confirm">
+              <CheckCircle2 className="size-4" aria-hidden="true" />{t('review_console.confirm')}
+            </button>
+            <button ref={cancelRef} type="button" className={BUTTON_GHOST} onClick={() => setConfirming(false)} data-testid="review-console-cancel">{t('review_console.cancel')}</button>
+          </div>
+        </div>
+      )}
       <div className="mt-4 flex items-center gap-2">
-        <button type="button" className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-md bg-ink px-4 text-base font-semibold text-ink-fg hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-wait disabled:opacity-60" disabled={submitting || view?.revision === null} onClick={() => void approve()} data-testid="review-console-approve">
+        <button type="button" className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-md bg-ink px-4 text-base font-semibold text-ink-fg hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-wait disabled:opacity-60" disabled={submitting || confirming || view?.revision === null} onClick={() => setConfirming(true)} data-testid="review-console-approve">
           <CheckCircle2 className="size-4" aria-hidden="true" />{submitting ? t('review_console.submitting') : t('review_console.approve')}
         </button>
         {backEdges.length > 0 && (

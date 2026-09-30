@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { rm } from 'node:fs/promises'
-import { createDashboardServer } from './server.js'
+import { createTestDashboardServer } from './test-server.js'
 import { resolveServerPaths } from './paths.js'
 import { createOrchestrationLedger, type DevelopmentRequestV2, type RepositoryContextV2 } from '@tenon/kernel'
 import { artifactNamespaceForChange, openArtifactService } from '@tenon/automation'
@@ -40,7 +40,7 @@ describe('V2 orchestration dashboard HTTP integration', () => {
     const root = await makeProject(); roots.push(root)
     await initChange(newStore(), root, 'change-1')
     const home = await makeTempHome(); roots.push(home)
-    const server = createDashboardServer({
+    const server = createTestDashboardServer({
       paths: resolveServerPaths({ home, env: {} }), token: 'e2e-token', registry: () => [root],
       store: newStore(), flow: testFlow(), clock: () => now, orchestrationLedger: createOrchestrationLedger(),
     })
@@ -79,7 +79,7 @@ describe('V2 orchestration dashboard HTTP integration', () => {
     await initChange(newStore(), root, 'change-1')
     const home = await makeTempHome(); roots.push(home)
     const ledger = createOrchestrationLedger()
-    const server = createDashboardServer({
+    const server = createTestDashboardServer({
       paths: resolveServerPaths({ home, env: {} }), token: 'e2e-token', registry: () => [root],
       store: newStore(), flow: testFlow(), clock: () => now, orchestrationLedger: ledger,
     })
@@ -126,7 +126,7 @@ describe('V2 orchestration dashboard HTTP integration', () => {
     // Use the real durable service instance as the server's injected boundary;
     // this keeps the test focused on snapshot projection while avoiding a
     // second open racing the migration check in this fixture.
-    const server = createDashboardServer({ paths: resolveServerPaths({ home, env: {} }), token: 'e2e-token', registry: () => [root], store, flow: testFlow(), clock: () => now, artifactServiceForRoot: async () => artifacts })
+    const server = createTestDashboardServer({ paths: resolveServerPaths({ home, env: {} }), token: 'e2e-token', registry: () => [root], store, flow: testFlow(), clock: () => now, artifactServiceForRoot: async () => artifacts })
     open.push(server); const { port } = await server.listen(0, '127.0.0.1')
     const response = await reqGet(port, '/api/snapshot')
     expect(response.status).toBe(200)

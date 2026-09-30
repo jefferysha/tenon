@@ -145,11 +145,34 @@ export function reviewIdempotencyKey(ref: string, expectedRevision: number): str
   return `dashboard-review-${btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`
 }
 
+/** Request header that carries the proof-of-presence nonce on the approval. */
+export const PRESENCE_HEADER = 'X-Tenon-Presence'
+
+/**
+ * Step one of a human approval: the server issues a short-lived, single-use nonce bound to this
+ * session, change, ref and revision.  Call it from the click that confirms the approval, never ahead
+ * of time: the nonce is what proves a person acted on this page for this exact review.
+ */
+async function requestPresenceNonce(input: { root: string; change: string; ref: string; expectedRevision: number }): Promise<string> {
+  let response: Response
+  try {
+    response = await fetch(`/api/change/${encodeURIComponent(input.change)}/decisions/presence`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+      body: JSON.stringify({ root: input.root, ref: input.ref, expected_revision: input.expectedRevision }),
+    })
+  } catch (error) { wrapNetwork(error) }
+  if (!response.ok) await throwApiError(response, '复核确认失败')
+  const body = await readJson(response)
+  if (!isRecord(body) || body.ok !== true || !isString(body.nonce) || body.nonce === '') throw new ApiError('在场证明响应格式无效', response.status)
+  return body.nonce
+}
+
 export async function postReviewAcknowledge(input: { root: string; change: string; ref: string; expectedRevision: number }): Promise<ReviewAcknowledgeResponse> {
+  const nonce = await requestPresenceNonce(input)
   let response: Response
   try {
     response = await fetch(`/api/change/${encodeURIComponent(input.change)}/decisions`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}`, [PRESENCE_HEADER]: nonce },
       body: JSON.stringify({ root: input.root, ref: input.ref, expected_revision: input.expectedRevision, idempotency_key: reviewIdempotencyKey(input.ref, input.expectedRevision) }),
     })
   } catch (error) { wrapNetwork(error) }

@@ -5,6 +5,7 @@ import { basename } from 'node:path'
 import {
   classifySelfApprovalCandidate,
   createSelfApprovalSignal,
+  DEFAULT_SELF_APPROVAL_DASHBOARD_PORT,
   readReviewGateBinding,
   resolveProductPaths,
   reviewDecisionAnchor,
@@ -15,6 +16,7 @@ import {
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 import { changeDir, changesRoot, isValidChangeName } from '../paths.js'
+import { parseDashboardPort } from './dashboard-launch-options.js'
 import { loadOrCreateObservationKey, observationIdentityDigest } from './selfApprovalIdentity.js'
 import { appendObservationUnderLock } from './selfApprovalObservationLog.js'
 
@@ -52,6 +54,24 @@ async function readPayloadObject(payloadPath: string): Promise<Record<string, un
   } finally {
     await handle.close()
   }
+}
+
+/**
+ * Ports a request to the local Dashboard control surface may target: the default, the launcher's
+ * `TENON_DASHBOARD_PORT`, and the port the running server recorded in its pidfile.
+ */
+async function dashboardPorts(deps: CliDeps, pidfilePath: string): Promise<readonly number[]> {
+  const ports = new Set<number>([DEFAULT_SELF_APPROVAL_DASHBOARD_PORT])
+  const declared = parseDashboardPort(deps.env?.('TENON_DASHBOARD_PORT'))
+  if (declared !== null) ports.add(declared)
+  try {
+    const recorded: unknown = JSON.parse(await readFile(pidfilePath, 'utf8'))
+    const port = typeof recorded === 'object' && recorded !== null ? Reflect.get(recorded, 'port') : undefined
+    if (typeof port === 'number' && Number.isSafeInteger(port) && port >= 1 && port <= 65_535) ports.add(port)
+  } catch {
+    // No running server recorded: the declared and default ports still apply.
+  }
+  return [...ports]
 }
 
 function optionalString(payload: Record<string, unknown>, key: string): string | undefined {
@@ -142,8 +162,9 @@ async function recordForChange(
 
 /**
  * Internal hook boundary (precise half of self-approval detection).  The hook forwards any broad
- * candidate; this command classifies it against the product-resolved token path and loopback API
- * shape, then re-reads the canonical pending receipt and binding under each Change lock.  The hook
+ * candidate; this command classifies it against the Dashboard's loopback ports, launcher and the
+ * legacy token path, then re-reads the canonical pending receipt and binding under each Change
+ * lock.  The hook
  * marker is never consulted, so AFK mode and stale markers do not suppress a record, and a Change
  * without a pending receipt receives zero writes.
  */
@@ -160,6 +181,7 @@ export async function cmdInternalSelfApproval(
     const kinds = classifySelfApprovalCandidate(payload.candidate, {
       tokenPath: paths.dashboardTokenPath,
       tokenFileName: basename(paths.dashboardTokenPath),
+      dashboardPorts: await dashboardPorts(deps, paths.dashboardPidfilePath),
     })
     if (kinds.length === 0) return 0
     let key: Promise<Buffer> | undefined
