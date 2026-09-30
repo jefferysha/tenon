@@ -22,7 +22,7 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 - 智能体在终端注册：`tenon agent list`、`show`、`new`、`add`、`validate`、`copy`、`rm`、`export`。每个智能体声明 `role`（`executor` 或 `reviewer`）和可选的 semver `version`。`new` 在交互终端里补问缺项，参数齐全时可完全非交互；`rm` 拒绝删除仍被工作流步骤使用的智能体并列出这些步骤。Dashboard 不再新建智能体，只展示。
 - 来源分三层。官方智能体随插件发行（`builder`、`researcher`、`architecture`、`backend-quality`、`code-size`、`e2e`、`frontend-quality`、`security`、`spec-consistency`，名称、版本、角色与摘要记录在 `templates/agents/manifest.json`），只读。自定义智能体在用户配置里。项目智能体在 `.tenon/agents/`，进 git，团队共享。同名时项目级优先于自定义；任何来源都不能占用官方名称，这类冲突会被列出且不会被使用。
 - 技能 `tenon:agent-author`：在 Claude Code 或 Codex 里按你的描述起草智能体（职责、只做与不做、方法、自检、以 `tenon-result` 块结尾的报告），校验后用 `tenon agent add` 注册。它不写任何 Tenon 状态。
-- 任务冻结智能体时，Tenon 为当前宿主生成原生子代理文件：`.claude/agents/tenon-<name>.md` 或 `.codex/agents/tenon-<name>.toml`。`tenon agent prompt` 随后返回 `subagent_type: tenon-<name>`，宿主用该专属子代理执行，工具白名单由宿主真正执行。无法生成文件时回退为通用子代理，并在运行记录里标明。这些文件登记在 `.pipeline-owned.json`；没有运行中任务再使用时被清理（在 Dashboard 里归档任务同样清理）；`tenon uninstall` 只删除自己生成且你没改过的文件。
+- 任务冻结智能体时，Tenon 为当前宿主生成原生子代理文件：`.claude/agents/tenon-<name>.md` 或 `.codex/agents/tenon-<name>.toml`。`tenon agent prompt` 随后返回 `subagent_type: tenon-<name>`，宿主用该专属子代理执行（Claude Code 强制执行 `tools` 白名单；Codex 没有按 agent 的工具白名单，只为写不了文件、跑不了命令的 agent 设只读沙箱）。无法生成文件时回退为通用子代理，并在运行记录里标明。这些文件登记在 `.pipeline-owned.json`；没有运行中任务再使用时被清理（在 Dashboard 里归档任务同样清理）；`tenon uninstall` 只删除自己生成且你没改过的文件。
 - 默认工作流现在挂了执行者：每个 Explore 运行 `researcher`，每个 Build 在评审者之前运行 `builder`（每个相互独立的任务一个子代理，合并为一份报告），每个 Verify 声明 `code-size` 测试（`tenon test code-size --json`，`lines_added` 不超过 2000 即通过）和必需的 `code-size` 评审者。chat 与 free 的 Verify 另外运行 `security` 作为建议性评审者。
 - 库页面按角色分组列出智能体，行内显示来源与版本；详情显示字段、渲染后的正文、使用它的步骤和最近运行；自定义与项目智能体可编辑正文，官方智能体可「复制为自定义」。
 

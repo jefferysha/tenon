@@ -26,7 +26,7 @@ attached to its steps and tests are required, so read "What you need to do" befo
   with `tenon agent add`. It writes no Tenon state.
 - When a task freezes its agents, Tenon generates the host's native subagent files: `.claude/agents/tenon-<name>.md`
   or `.codex/agents/tenon-<name>.toml`. `tenon agent prompt` then returns `subagent_type: tenon-<name>`, so the host
-  runs the agent as its own subagent and the tool allowlist is enforced by the host. If a file cannot be generated,
+  runs the agent as its own subagent (Claude Code enforces its `tools` allowlist; Codex has no per-agent tool allowlist, only a read-only sandbox for agents that cannot write or run commands). If a file cannot be generated,
   the host falls back to a general subagent and the run record says so. The files are listed in `.pipeline-owned.json`,
   are removed when no running task uses them (also when the task is archived from the Dashboard), and `tenon
   uninstall` removes only files it generated and you did not edit.

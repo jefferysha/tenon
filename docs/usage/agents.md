@@ -68,6 +68,9 @@ tenon agent rm <name> [--scope user|project]
 tenon agent export <name> --host claude|codex
 ```
 
+- The official layer is called "official" in text and in `--source official`; the machine-readable
+  value in `--json` and in `GET /api/agents` is `source: "builtin"` (`--source builtin` is accepted as
+  an alias). Scripts should compare against `builtin`.
 - `new` asks for whatever is missing in an interactive terminal; with every
   required flag it runs non-interactively. Without `--from` it writes a body
   skeleton with the five sections; `--from builder` starts from an official
@@ -93,9 +96,13 @@ the current host:
 | Codex | `.codex/agents/tenon-<name>.toml` | name, description, developer_instructions, model; `sandbox_mode = "read-only"` when the tools cannot write or run commands |
 
 - `tenon agent prompt <change> <agent> --host claude|codex --json` returns
-  `subagent_type: tenon-<name>`; the host runs the agent as that subagent, so
-  its tool allowlist is enforced by the host. A model alias the host does not
-  know is omitted.
+  `subagent_type: tenon-<name>`; the host runs the agent as that subagent. Claude
+  Code enforces the `tools` allowlist. Codex custom agents have no per-agent tool
+  allowlist: Tenon only sets `sandbox_mode = "read-only"` for an agent whose tools
+  cannot write or run commands, and every other restriction is an instruction in
+  the agent body. A tool the host does not provide (for example `Grep` in some
+  headless runs) answers `No such tool available`; the agent uses the shell
+  equivalent. A model alias the host does not know is omitted.
 - If a file cannot be generated (a same-named file that Tenon did not write, a
   file you edited, a symlinked path), the host falls back to a general subagent
   and the run record says so. When the host cannot load the subagent it was

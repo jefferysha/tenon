@@ -62,6 +62,8 @@ tenon agent export <name> --host claude|codex
 - `new` 在交互终端里逐个问缺的项；必填参数给全时非交互也能用。没有 `--from` 时写一份五节的正文骨架；
   `--from builder` 以官方智能体的字段与正文为底。
 - `validate` 检查 frontmatter 与正文、每个技能在插件里存在、工具名是合法的 Claude Code 工具。
+- 官方这一层在文字输出和 `--source official` 里叫「官方 / official」；`--json` 与 `GET /api/agents` 里机器可读的值是
+  `source: "builtin"`（`--source builtin` 作为别名同样接受）。脚本请按 `builtin` 比较。
 - `rm` 拒绝删除官方智能体和仍被工作流步骤引用的智能体，并列出这些步骤（exit 2）。
 - 在 Claude Code 或 Codex 里，`tenon:agent-author` 技能按你的描述起草正文（职责、只做与不做、方法、
   自检、带 `tenon-result` 块的报告格式），校验草稿后用 `tenon agent add` 登记；它不写任何 Tenon 状态。
@@ -77,7 +79,10 @@ tenon agent export <name> --host claude|codex
 | Codex | `.codex/agents/tenon-<name>.toml` | name、description、developer_instructions、model；工具既不能写也不能跑命令时加 `sandbox_mode = "read-only"` |
 
 - `tenon agent prompt <change> <agent> --host claude|codex --json` 返回 `subagent_type: tenon-<name>`，
-  宿主用这个专属子代理执行，工具白名单由宿主强制。宿主不认识的型号别名直接省略。
+  宿主用这个专属子代理执行。Claude Code 强制执行 `tools` 白名单；Codex 的自定义智能体没有按 agent 的工具白名单，
+  Tenon 只在 agent 的工具里没有写文件或执行命令的能力时设 `sandbox_mode = "read-only"`，其余限制只是 agent 正文里的
+  指令。宿主不提供的工具（例如部分无头运行里的 `Grep`）会回答 `No such tool available`，agent 改用 shell 里的等价命令。
+  宿主不认识的型号别名直接省略。
 - 生成不了时（同名文件不是 Tenon 写的、文件被你改过、路径是符号链接），宿主退回通用子代理，运行记录里
   写明。宿主加载不了给它的子代理时，用 `tenon agent record <change> <run-id> --subagent <type>` 记下实际
   用的类型。
