@@ -53,8 +53,9 @@ trap 'rm -rf "$TMP"' EXIT
 
 PASS=0
 FAIL=0
-ok()  { PASS=$((PASS + 1)); printf 'ok   - %s\n' "$1"; }
-bad() { FAIL=$((FAIL + 1)); printf 'FAIL - %s\n       %s\n' "$1" "${2:-}"; }
+source "$ROOT/tools/tap-out.sh"; tap_init tools/test-adapters.sh
+ok()  { PASS=$((PASS + 1)); printf 'ok   - %s\n' "$1"; tap_result ok "$1"; }
+bad() { FAIL=$((FAIL + 1)); printf 'FAIL - %s\n       %s\n' "$1" "${2:-}"; tap_result 'not ok' "$1"; }
 assert_eq()       { if [ "$2" = "$3" ]; then ok "$1"; else bad "$1" "期望「$2」实得「$3」"; fi; }
 assert_ne()       { if [ "$2" != "$3" ]; then ok "$1"; else bad "$1" "期望不等，两者皆「$2」"; fi; }
 assert_contains() { case "$2" in *"$3"*) ok "$1" ;; *) bad "$1" "输出未含「$3」；实际：${2:0:200}" ;; esac; }

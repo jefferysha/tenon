@@ -17,8 +17,9 @@ BUNDLE="$ROOT/packages/cli/dist/tenon.mjs"
 DASHBOARD_SERVER="$ROOT/packages/server/dist/dashboard.mjs"
 DASHBOARD_INDEX="$ROOT/packages/dashboard-app/dist/index.html"
 PASS=0; FAIL=0
-ok()  { PASS=$((PASS+1)); printf 'ok   - %s\n' "$1"; }
-bad() { FAIL=$((FAIL+1)); printf 'FAIL - %s（%s）\n' "$1" "${2:-}"; }
+source "$ROOT/tools/tap-out.sh"; tap_init tools/test-bundle.sh
+ok()  { PASS=$((PASS+1)); printf 'ok   - %s\n' "$1"; tap_result ok "$1"; }
+bad() { FAIL=$((FAIL+1)); printf 'FAIL - %s（%s）\n' "$1" "${2:-}"; tap_result 'not ok' "$1"; }
 
 # 1. 产物存在 + shebang
 if [ -f "$BUNDLE" ]; then ok "bundle: tenon.mjs 存在"; else bad "bundle: tenon.mjs 存在" "先 npm run build"; fi

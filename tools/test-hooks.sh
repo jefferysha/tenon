@@ -43,8 +43,9 @@ trap 'rm -rf "$TMP"' EXIT
 
 PASS=0
 FAIL=0
-ok()   { PASS=$((PASS + 1)); printf 'ok   - %s\n' "$1"; }
-bad()  { FAIL=$((FAIL + 1)); printf 'FAIL - %s\n       %s\n' "$1" "${2:-}"; }
+source "$ROOT/tools/tap-out.sh"; tap_init tools/test-hooks.sh
+ok()   { PASS=$((PASS + 1)); printf 'ok   - %s\n' "$1"; tap_result ok "$1"; }
+bad()  { FAIL=$((FAIL + 1)); printf 'FAIL - %s\n       %s\n' "$1" "${2:-}"; tap_result 'not ok' "$1"; }
 assert_exit() { # desc expected actual
   if [ "$2" = "$3" ]; then ok "$1"; else bad "$1" "期望 exit ${2}，实得 ${3}"; fi
 }

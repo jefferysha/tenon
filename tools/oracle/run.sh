@@ -1288,6 +1288,18 @@ say "=== 汇总（命令 × 三面：STDOUT / EXIT / YAML）==="
 } | tee -a "$REPORT"
 say ""
 
+# TENON_TAP_OUT：把汇总表的每一行（一个命令 × 四个面）也写成一条 TAP 用例，任一面 FAIL 即 not ok。
+# 这样 `tenon test run` 能按用例读这份回归结果；未设置时不产生任何输出。
+source "$ORACLE_DIR/../tap-out.sh"
+tap_init tools/oracle/run.sh
+while IFS=$'\t' read -r c1 c2 c3 c4 c5 c6 c7; do
+  if [ "$c4" = FAIL ] || [ "$c5" = FAIL ] || [ "$c6" = FAIL ] || [ "$c7" = FAIL ]; then
+    tap_result 'not ok' "$c1 #$c2 $c3"
+  else
+    tap_result ok "$c1 #$c2 $c3"
+  fi
+done < "$ROWS"
+
 if [ "$MODE" = degraded ]; then
   say "DEGRADED: 契约测试模式（未做双跑）。原因: $DEGRADED_REASON"
   say "结果: 契约不符 $FAILS 项（降级运行恒 exit 0，报告已标明降级）"
