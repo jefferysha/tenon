@@ -2,7 +2,7 @@
  * `tenon agent prompt` 的提示词渲染。布局固定、逐字确定：宿主把它作为子代理（专属 `tenon-<name>`
  * 或退回的通用子代理）的 prompt 派发，两种都拿到同一份全文；Tenon 不调用模型。
  */
-import type { AgentRole, FrozenAgent } from '@tenon/kernel'
+import { qualifySkillReferences, type AgentRole, type FrozenAgent } from '@tenon/kernel'
 import type { TestRunRecordV1 } from '@tenon/kernel'
 
 export interface AgentPromptInput {
@@ -52,7 +52,7 @@ export function renderAgentPrompt(input: AgentPromptInput): string {
   return [
     header.join('\n'),
     '',
-    definition.body.trim(),
+    qualifySkillReferences(definition.body, definition.skills).trim(),
     '',
     '## tenon-result',
     `报告末尾写一个 \`\`\`tenon-result\`\`\` 代码块：${RESULT_HINT[input.role]}`,

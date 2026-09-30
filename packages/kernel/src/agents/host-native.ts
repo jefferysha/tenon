@@ -87,8 +87,25 @@ function tomlMultiline(value: string): string {
   return `"""\n${escaped}"""`
 }
 
+/** 插件技能在宿主里的命名空间：宿主按 `<插件>:<技能>` 解析，裸名可能落到同名的外部技能上。 */
+export const HOST_SKILL_NAMESPACE = 'tenon'
+
+/**
+ * 正文里用反引号写的、本 agent 声明过的技能名，改成带插件前缀的全名。裸名 `deep-research` 在宿主里会被
+ * 解析到机器上另一个同名技能（真机验收 F5：被 disable-model-invocation 拒绝，研究者退化成不用技能）；
+ * `tenon:<id>` 只指向插件自带的那份。已带前缀、名字只是前缀相同、没声明的反引号内容都不动；幂等。
+ */
+export function qualifySkillReferences(body: string, skills: readonly string[]): string {
+  let out = body
+  for (const id of skills) {
+    if (id.includes(':') || id === '') continue
+    out = out.split(`\`${id}\``).join(`\`${HOST_SKILL_NAMESPACE}:${id}\``)
+  }
+  return out
+}
+
 const bodyOf = (definition: AgentDefinition): string => {
-  const trimmed = definition.body.replace(/^\n+/u, '')
+  const trimmed = qualifySkillReferences(definition.body, definition.skills).replace(/^\n+/u, '')
   return trimmed.endsWith('\n') ? trimmed : `${trimmed}\n`
 }
 

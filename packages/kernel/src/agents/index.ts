@@ -4,8 +4,8 @@ export {
   AGENT_SOURCES, AGENT_TOOL_RE, AGENT_VERSION_RE, AgentFileError, KNOWN_AGENT_HOSTS, inferAgentRole,
 } from './types.js'
 export {
-  CLAUDE_AGENT_TOOLS, HOST_AGENT_FALLBACK, HOST_AGENT_HOSTS, HOST_AGENT_PREFIX, claudeAgentModel, codexAgentModel,
-  hostAgentName, hostAgentPath, parseHostAgentPath, renderHostAgent,
+  CLAUDE_AGENT_TOOLS, HOST_AGENT_FALLBACK, HOST_AGENT_HOSTS, HOST_AGENT_PREFIX, HOST_SKILL_NAMESPACE, claudeAgentModel, codexAgentModel,
+  hostAgentName, hostAgentPath, parseHostAgentPath, qualifySkillReferences, renderHostAgent,
 } from './host-native.js'
 export type { HostAgentHost } from './host-native.js'
 export type { AgentDefinition, AgentRole, AgentSource } from './types.js'
