@@ -357,8 +357,10 @@ function exitActions(input: {
           action: 'fix',
           blockers: stranded.map((waiver) => ({
             source: 'test',
-            code: 'waiver-unapproved',
-            message: `${waiver.text}；评审确认时它还不在计划里，没能被批准：撤掉这条豁免，或回退到上一步重新发起评审`,
+            code: waiver.protected === true ? 'protected-file-unapproved' : 'waiver-unapproved',
+            message: waiver.protected === true
+              ? `${waiver.text}；评审确认时它的内容与现在不同，没能被批准：重新发起 review request 让用户确认现在的内容`
+              : `${waiver.text}；评审确认时它还不在计划里，没能被批准：撤掉这条豁免，或回退到上一步重新发起评审`,
           })),
         }]
       }

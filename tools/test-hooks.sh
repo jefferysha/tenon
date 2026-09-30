@@ -2412,7 +2412,7 @@ assert_contains "gate: 拒绝文案点名两条登记命令" "$ERR" 'tenon test 
 ( printf '{"tool_name":"Bash","cwd":"%s","command":"apply_patch <<EOF\\n*** Update File: .tenon/users/%s/tests/demo/r.json\\nEOF"}' \
     "$proj" "$HOOK_USER_SLUG" | bash "$GATE" >/dev/null 2>&1 )
 assert_exit "gate: Codex apply_patch 改测试记录 → exit 2" 2 "$?"
-( printf '{"tool_name":"Write","cwd":"%s","file_path":"%s/.tenon/users/%s/local/env.key"}' \
+( printf '{"tool_name":"Write","cwd":"%s","file_path":"%s/.tenon/users/%s/local/active-change"}' \
     "$proj" "$proj" "$HOOK_USER_SLUG" | bash "$GATE" >/dev/null 2>&1 )
 assert_exit "gate: 同目录下的 local 文件不受本规则影响" 0 "$?"
 ( printf '{"tool_name":"Write","cwd":"%s","file_path":"%s/src/tests/demo.ts"}' "$proj" "$proj" | bash "$GATE" >/dev/null 2>&1 )
@@ -2555,7 +2555,6 @@ allow_cmd 'tenon test baseline' 'tenon test baseline demo --suite s --run r'
 allow_cmd 'tenon test known add' "tenon test known add --suite unit --test 'a.test.ts › x' --reason r --expires 2027-01-01"
 allow_cmd 'tenon review request' 'tenon review request demo --event verify-pass'
 allow_cmd 'git add / commit 提交这些文件' "git add openspec/changes/demo/test-plan.yaml .tenon/tests/known-failures.yaml && git commit -m 'update test plan'"
-allow_cmd 'git checkout 还原基线' 'git checkout -- .tenon/tests/baselines'
 allow_cmd 'git mv 走这些路径' 'git mv old-plan.yaml openspec/changes/demo/test-plan.yaml'
 allow_cmd 'git diff 重定向到别处' 'git diff -- .tenon/tests/known-failures.yaml > /tmp/known.patch'
 allow_cmd 'cat 读计划' 'cat openspec/changes/demo/test-plan.yaml'
@@ -2590,6 +2589,251 @@ RC=$?
 big_elapsed=$((SECONDS - big_start))
 assert_exit "大 heredoc: 真的写任务测试计划 → exit 2" 2 "$RC"
 if [ "$big_elapsed" -le 3 ]; then ok "大 heredoc: 写计划被拒 ${big_elapsed}s 内完成"; else bad "大 heredoc: 写计划被拒 3s 内完成" "耗时 ${big_elapsed}s"; fi
+
+# ── 10d5. gate.sh：13 种绕过 `tenon test …` 写证据的写法（审计 §2.3）+ 信任决定只能由用户给 ──
+# 每种写法至少一条拒绝（exit 2）+ 相邻的放行用例。静态认不出的（字符串拼接出来的路径、来自别处的变量）
+# 由转换时检出兜底（kernel evaluate-v2 的 record-unsealed / protected-file-tampered），不在这里。
+SHAPE_KF='.tenon/tests/known-failures.yaml'
+SHAPE_BASE='.tenon/tests/baselines'
+SHAPE_PLAN='openspec/changes/demo/test-plan.yaml'
+SHAPE_REC="$RECORD_USERS/hooks-at-tenon.test/tests/demo/r.json"
+SHAPE_SEAL="$RECORD_USERS/hooks-at-tenon.test/local/test-seal.json"
+SHAPE_KEY="$RECORD_USERS/hooks-at-tenon.test/local/env.key"
+
+# 形态 1 · python 内联代码
+refuse_cmd '形态 1: python3 -c 写已知失败清单' "python3 -c \"open('$SHAPE_KF','w').write('x')\""
+refuse_cmd '形态 1: python -c 重命名进基线目录' "python -c \"import os; os.rename('/tmp/x','$SHAPE_BASE/a.json')\""
+refuse_cmd '形态 1: python3 -c 写任务测试计划' "python3 -c 'open(\"$SHAPE_PLAN\",\"a\").write(\"x\")'"
+allow_cmd '形态 1: python3 -c 与受保护路径无关' "python3 -c \"print('hello')\""
+allow_cmd '形态 1: python3 脚本文件不点名受保护路径' 'python3 tools/not-there.py'
+# 形态 2 · node / perl / ruby 内联代码
+refuse_cmd '形态 2: node -e 写基线' "node -e \"require('fs').writeFileSync('$SHAPE_BASE/web/a.json','{}')\""
+refuse_cmd '形态 2: node -p 写已知失败清单' "node -p \"require('fs').writeFileSync('$SHAPE_KF','x')\""
+refuse_cmd '形态 2: perl -e 写已知失败清单' "perl -e 'open(F, \">$SHAPE_KF\"); print F 1'"
+refuse_cmd '形态 2: ruby -e 写任务测试计划' "ruby -e \"File.write('$SHAPE_PLAN','x')\""
+allow_cmd '形态 2: node -e 与受保护路径无关' "node -e \"console.log(1)\""
+allow_cmd '形态 2: node --version' 'node --version'
+# 形态 3 · curl / wget 输出
+refuse_cmd '形态 3: curl -o 写已知失败清单' "curl -o $SHAPE_KF https://example.test/k.yaml"
+refuse_cmd '形态 3: curl --output 写任务测试计划' "curl --output $SHAPE_PLAN https://example.test/p.yaml"
+refuse_cmd '形态 3: curl 短选项簇 -sSLo 写基线' "curl -sSLo $SHAPE_BASE/a/b.json https://example.test/b"
+refuse_cmd '形态 3: curl --output= 写记录目录' "curl --output=$SHAPE_REC https://example.test/r"
+refuse_cmd '形态 3: wget -O 写已知失败清单' "wget -O $SHAPE_KF https://example.test/k.yaml"
+refuse_cmd '形态 3: wget --output-document= 写已知失败清单' "wget --output-document=$SHAPE_KF https://example.test/k.yaml"
+refuse_cmd '形态 3: wget -P 下载进基线目录' "wget -P $SHAPE_BASE https://example.test/b.json"
+refuse_cmd '形态 3: 在基线目录里 curl -O' "cd $SHAPE_BASE && curl -O https://example.test/b.json"
+allow_cmd '形态 3: curl -o 写到 /tmp' 'curl -o /tmp/x.json https://example.test/x'
+allow_cmd '形态 3: curl 只读' 'curl -s https://example.test/api'
+allow_cmd '形态 3: wget -O 写到 /tmp' 'wget -O /tmp/out https://example.test/x'
+# 形态 4 · tar / unzip 解包
+refuse_cmd '形态 4: tar -xf -C 解进 .tenon/tests' "tar -xf /tmp/x.tar -C .tenon/tests"
+refuse_cmd '形态 4: tar xzf（无 -）-C 解进基线目录' "tar xzf /tmp/b.tgz -C $SHAPE_BASE"
+refuse_cmd '形态 4: tar --directory= 解进基线目录' "tar -xf /tmp/x.tar --directory=$SHAPE_BASE"
+refuse_cmd '形态 4: tar 解出点名的成员到当前目录' "tar -xf /tmp/x.tar $SHAPE_KF"
+refuse_cmd '形态 4: 在基线目录里 tar -x' "cd $SHAPE_BASE && tar -xf /tmp/x.tar"
+refuse_cmd '形态 4: unzip -d 解进基线目录' "unzip -o /tmp/x.zip -d $SHAPE_BASE"
+allow_cmd '形态 4: tar -c 打包受保护目录是读' "tar -czf /tmp/out.tgz .tenon/tests"
+allow_cmd '形态 4: tar -x 解到 /tmp' 'tar -xf /tmp/x.tar -C /tmp/out'
+allow_cmd '形态 4: tar -t 列出内容' 'tar -tf /tmp/x.tar'
+allow_cmd '形态 4: unzip -l 列出内容' 'unzip -l /tmp/x.zip'
+# 形态 5 · git 用别处的内容覆盖
+refuse_cmd '形态 5: git checkout HEAD~3 -- 基线目录' "git checkout HEAD~3 -- $SHAPE_BASE"
+refuse_cmd '形态 5: git checkout -- 已知失败清单（不看来源）' "git checkout -- $SHAPE_KF"
+refuse_cmd '形态 5: git restore --source 基线' "git restore --source=HEAD~2 --staged --worktree -- $SHAPE_BASE"
+refuse_cmd '形态 5: git restore 已知失败清单' "git restore $SHAPE_KF"
+refuse_cmd '形态 5: git -C . checkout main -- 任务测试计划' "git -C . checkout main -- $SHAPE_PLAN"
+refuse_cmd '形态 5: git rm 已知失败清单' "git rm $SHAPE_KF"
+refuse_cmd '形态 5: git clean 基线目录' "git clean -fd $SHAPE_BASE"
+allow_cmd '形态 5: git checkout 切分支' 'git checkout main'
+allow_cmd '形态 5: git checkout -b' 'git checkout -b feature/x'
+allow_cmd '形态 5: git restore 源码文件' 'git restore src/app.ts'
+allow_cmd '形态 5: git diff / log / show 读受保护路径' "git diff -- $SHAPE_KF && git log --oneline -- $SHAPE_BASE && git show HEAD:$SHAPE_KF"
+allow_cmd '形态 5: git add / commit 提交受保护文件' "git add $SHAPE_KF $SHAPE_BASE && git commit -m 'update known failures'"
+# 形态 6 · git apply / patch
+SHAPE_PATCH_PROTECTED="$TMP/shape-protected.patch"
+SHAPE_PATCH_SRC="$TMP/shape-src.patch"
+printf -- '--- a/%s\n+++ b/%s\n@@ -1 +1 @@\n-a\n+b\n' "$SHAPE_KF" "$SHAPE_KF" > "$SHAPE_PATCH_PROTECTED"
+printf -- 'diff --git a/src/app.js b/src/app.js\n--- a/src/app.js\n+++ b/src/app.js\n@@ -1 +1 @@\n-a\n+b\n' > "$SHAPE_PATCH_SRC"
+refuse_cmd '形态 6: git apply 补丁文件点名已知失败清单' "git apply $SHAPE_PATCH_PROTECTED"
+refuse_cmd '形态 6: git apply --index' "git apply --index $SHAPE_PATCH_PROTECTED"
+refuse_cmd '形态 6: git am 补丁文件' "git am $SHAPE_PATCH_PROTECTED"
+refuse_cmd '形态 6: patch -p1 < 补丁文件' "patch -p1 < $SHAPE_PATCH_PROTECTED"
+refuse_cmd '形态 6: patch -i 补丁文件' "patch -p1 -i $SHAPE_PATCH_PROTECTED"
+refuse_cmd '形态 6: patch 直接点名受保护文件' "patch $SHAPE_KF /tmp/x.diff"
+refuse_cmd '形态 6: heredoc 补丁喂给 git apply' $'git apply <<\'EOF\'\n--- a/.tenon/tests/known-failures.yaml\n+++ b/.tenon/tests/known-failures.yaml\n@@ -1 +1 @@\n-a\n+b\nEOF'
+refuse_cmd '形态 6: heredoc 补丁喂给 patch' $'patch -p1 <<EOF\ndiff --git a/openspec/changes/demo/test-plan.yaml b/openspec/changes/demo/test-plan.yaml\n--- a/openspec/changes/demo/test-plan.yaml\n+++ b/openspec/changes/demo/test-plan.yaml\nEOF'
+allow_cmd '形态 6: git apply 不相关的补丁' "git apply $SHAPE_PATCH_SRC"
+allow_cmd '形态 6: patch 不相关的补丁' "patch -p1 < $SHAPE_PATCH_SRC"
+allow_cmd '形态 6: heredoc 补丁只改源码' $'git apply <<\'EOF\'\n--- a/src/app.js\n+++ b/src/app.js\n@@ -1 +1 @@\n-a\n+b\nEOF'
+# 形态 7 · 变量路径
+refuse_cmd '形态 7: 赋值后 > $P' "P=$SHAPE_KF; echo x > \$P"
+refuse_cmd '形态 7: 赋值后 > "\${D}/文件"' "D=.tenon/tests; echo x > \"\${D}/known-failures.yaml\""
+refuse_cmd '形态 7: export 之后 cp 到 "$F"' "export F=$SHAPE_PLAN && cp /tmp/p \"\$F\""
+refuse_cmd '形态 7: 多行赋值再 tee $P' $'P=.tenon/tests/baselines/a.json\nprintf x | tee $P'
+refuse_cmd '形态 7: 变量由嵌套变量拼成' "A=.tenon; B=\$A/tests; echo x > \$B/known-failures.yaml"
+refuse_cmd '形态 7: 变量值来自命令替换（值未知）写受保护路径的命令里' "T=\$(echo $SHAPE_KF); echo x > \"\$T\""
+refuse_cmd '形态 7: 展开不了的变量目标 + 命令名了受保护路径' "echo x > \"\$TARGET\"; ls .tenon/tests"
+allow_cmd '形态 7: 展开不了的变量目标但命令与受保护路径无关' 'echo x > "$OUT"'
+allow_cmd '形态 7: 变量展开成普通路径' "P=/tmp/out.txt; echo x > \$P; ls .tenon/tests"
+allow_cmd '形态 7: 读受保护文件写到变量解析出的普通目录' "D=src; cat $SHAPE_KF > \$D/copy.txt"
+allow_cmd '形态 7: $PATH 这类长名字不被 $P 吞掉' "P=/tmp/out.txt; echo \$PATH > \$P; ls .tenon/tests"
+# 形态 8 · 脚本文件（需要真的 git 仓库来区分「干净的跟踪文件」和「刚写出来的」）
+SHAPE_REPO="$TMP/gate-shape-scripts"
+mkdir -p "$SHAPE_REPO/src"
+printf '#!/bin/sh\necho x > %s\n' "$SHAPE_KF" > "$SHAPE_REPO/tracked-clean.sh"
+printf '#!/bin/sh\necho x > %s\n' "$SHAPE_KF" > "$SHAPE_REPO/modified.sh"
+printf '#!/bin/sh\necho hi\n' > "$SHAPE_REPO/plain.sh"
+chmod +x "$SHAPE_REPO/tracked-clean.sh"
+( cd "$SHAPE_REPO" && git init -q . && git -c user.email=t@t.test -c user.name=t add -A && git -c user.email=t@t.test -c user.name=t -c commit.gpgsign=false commit -q -m base ) >/dev/null 2>&1
+printf 'echo y >> %s\n' "$SHAPE_KF" >> "$SHAPE_REPO/modified.sh"
+printf '#!/bin/sh\necho x > %s\n' "$SHAPE_KF" > "$SHAPE_REPO/new.sh"
+printf "open('%s','w').write('x')\n" "$SHAPE_KF" > "$SHAPE_REPO/fix.py"
+printf "require('fs').writeFileSync('%s','x')\n" "$SHAPE_KF" > "$SHAPE_REPO/fix.js"
+printf "p = '%s'\n" ".ten""on/tests/baselines" > "$SHAPE_REPO/fix.rb"
+printf 'print("plain")\n' > "$SHAPE_REPO/plain.py"
+chmod +x "$SHAPE_REPO/new.sh"
+SAVED_PROJ="$proj"
+proj="$SHAPE_REPO"
+refuse_cmd '形态 8: bash 运行新写的脚本' 'bash new.sh'
+refuse_cmd '形态 8: sh ./ 运行新写的脚本' 'sh ./new.sh'
+refuse_cmd '形态 8: 直接 ./new.sh' './new.sh'
+refuse_cmd '形态 8: source 新写的脚本' 'source new.sh'
+refuse_cmd '形态 8: 绝对路径运行新写的脚本' "bash $SHAPE_REPO/new.sh"
+refuse_cmd '形态 8: 跟踪过但已被改动的脚本' 'bash modified.sh'
+refuse_cmd '形态 8: python3 运行新写的脚本' 'python3 fix.py'
+refuse_cmd '形态 8: node 运行新写的脚本' 'node fix.js'
+refuse_cmd '形态 8: ruby 运行新写的脚本' 'ruby fix.rb'
+refuse_cmd '形态 8: 组合命令里的脚本' 'echo start && bash new.sh'
+printf '#!/bin/sh\necho x > %s\n' "$SHAPE_KF" > "$TMP/shape-outside.sh"
+refuse_cmd '形态 8: 仓库外的脚本（文件写好之后）' "bash $TMP/shape-outside.sh"
+allow_cmd '形态 8: 干净的跟踪脚本（项目自己维护的代码）' 'bash tracked-clean.sh'
+allow_cmd '形态 8: 新脚本但不点名受保护路径' 'bash plain.sh'
+allow_cmd '形态 8: python 脚本不点名受保护路径' 'python3 plain.py'
+allow_cmd '形态 8: 脚本文件不存在' 'bash missing.sh'
+allow_cmd '形态 8: bash -c 内联命令没有写入' "bash -c 'echo hi'"
+proj="$SAVED_PROJ"
+# 形态 9 · xargs / parallel / find
+refuse_cmd '形态 9: xargs sh -c 写路径' "printf '%s\\n' $SHAPE_KF | xargs -I{} sh -c 'echo x > {}'"
+refuse_cmd '形态 9: xargs rm 基线目录里的文件' "ls $SHAPE_BASE | xargs rm"
+refuse_cmd '形态 9: xargs -n1 tee' "echo $SHAPE_KF | xargs -n1 tee"
+refuse_cmd '形态 9: parallel 写文件' "echo $SHAPE_KF | parallel 'echo x > {}'"
+refuse_cmd '形态 9: find -delete 基线目录' "find $SHAPE_BASE -type f -delete"
+refuse_cmd '形态 9: find -exec rm' "find .tenon/tests -name '*.json' -exec rm {} \\;"
+refuse_cmd '形态 9: find . -exec sh -c 写已知失败清单' "find . -name known-failures.yaml -exec sh -c 'echo x > \"\$1\"' _ {} \\;"
+allow_cmd '形态 9: xargs cat 是读' "git ls-files .tenon/tests | xargs cat"
+allow_cmd '形态 9: xargs grep 是读' "ls .tenon/tests | xargs grep -l x"
+allow_cmd '形态 9: find -print 是读' "find .tenon/tests -name '*.json' -print"
+allow_cmd '形态 9: find 别处 -exec grep' "find src -name '*.ts' -exec grep -l known-failures {} \\;"
+# 形态 10 · cp / mv / install / rsync / ln 变体
+refuse_cmd '形态 10: cp -r 整个目录进基线目录' "cp -r /tmp/b/. $SHAPE_BASE/"
+refuse_cmd '形态 10: cp --target-directory=' "cp --target-directory=$SHAPE_BASE /tmp/m.json"
+refuse_cmd '形态 10: mv 换掉已知失败清单' "mv /tmp/k.yaml $SHAPE_KF"
+refuse_cmd '形态 10: mv 把受保护文件移走' "mv $SHAPE_KF /tmp/gone"
+refuse_cmd '形态 10: install 写已知失败清单' "install -m644 /tmp/k.yaml $SHAPE_KF"
+refuse_cmd '形态 10: install -D 写基线' "install -D /tmp/m.json $SHAPE_BASE/a/b.json"
+refuse_cmd '形态 10: rsync 整个目录进基线目录' "rsync -a /tmp/b/ $SHAPE_BASE/"
+refuse_cmd '形态 10: ln -sf 用符号链接换掉已知失败清单' "ln -sf /tmp/k.yaml $SHAPE_KF"
+refuse_cmd '形态 10: ln -s 换掉任务测试计划' "ln -s /tmp/evil $SHAPE_PLAN"
+allow_cmd '形态 10: cp 把受保护文件复制出去' "cp $SHAPE_KF /tmp/backup.yaml"
+allow_cmd '形态 10: rsync 把基线目录同步出去' "rsync -a $SHAPE_BASE/ /tmp/bk/"
+allow_cmd '形态 10: ln -s 从受保护路径指向 /tmp' "ln -s $SHAPE_BASE /tmp/link"
+allow_cmd '形态 10: install 普通文件' 'install -m644 src/a.txt /tmp/b.txt'
+# 形态 11 · tee 变体
+refuse_cmd '形态 11: tee -a' "echo x | tee -a $SHAPE_KF"
+refuse_cmd '形态 11: sudo tee' "echo x | sudo tee $SHAPE_KF"
+refuse_cmd '形态 11: tee 多个目标之一' "echo x | tee /tmp/a $SHAPE_BASE/x.json"
+refuse_cmd '形态 11: 进程替换 >(tee f)' "echo x > >(tee $SHAPE_KF)"
+refuse_cmd '形态 11: tee 写记录目录并丢弃 stdout' "echo x | tee $SHAPE_REC >/dev/null"
+refuse_cmd '形态 11: 链尾的 tee' "cat /tmp/x | tr a b | tee $SHAPE_PLAN"
+allow_cmd '形态 11: tee 写 /tmp' 'echo x | tee /tmp/a.log'
+allow_cmd '形态 11: tee 写目录 catalog（人可编辑的配置）' "echo x | tee .tenon/tests/catalog.yaml"
+# 形态 12 · 重定向变体
+refuse_cmd '形态 12: >|' "echo x >| $SHAPE_KF"
+refuse_cmd '形态 12: &>' "echo x &> $SHAPE_KF"
+refuse_cmd '形态 12: &>>' "echo x &>> $SHAPE_PLAN"
+refuse_cmd '形态 12: 1>' "echo x 1> $SHAPE_KF"
+refuse_cmd '形态 12: 2>>' "echo x 2>> $SHAPE_PLAN"
+refuse_cmd '形态 12: 冒号 : >' ": > $SHAPE_KF"
+refuse_cmd '形态 12: 裸 >' "> $SHAPE_KF"
+refuse_cmd '形态 12: exec 3>' "exec 3> $SHAPE_KF"
+refuse_cmd '形态 12: 花括号组合' "{ echo a; echo b; } > $SHAPE_KF"
+refuse_cmd '形态 12: here-string 再重定向' "cat <<< x > $SHAPE_KF"
+refuse_cmd '形态 12: $(pwd)/ 前缀' "echo x > \$(pwd)/$SHAPE_KF"
+refuse_cmd '形态 12: "$PWD/" 前缀' "echo x > \"\$PWD/$SHAPE_KF\""
+refuse_cmd '形态 12: 命令替换算出的前缀' "echo x > \$(git rev-parse --show-toplevel)/$SHAPE_KF"
+refuse_cmd '形态 12: heredoc 喂给 bash，正文里重定向' $'bash <<\'EOF\'\necho x > .tenon/tests/known-failures.yaml\nEOF'
+refuse_cmd '形态 12: heredoc 喂给 sh -s，正文里 cp' $'sh -s <<EOF\ncp /tmp/p openspec/changes/demo/test-plan.yaml\nEOF'
+refuse_cmd '形态 12: heredoc 喂给 python3 -' $'python3 - <<\'EOF\'\nopen(".tenon/tests/known-failures.yaml", "w").write("x")\nEOF'
+refuse_cmd '形态 12: cat <<EOF | bash' $'cat <<\'EOF\' | bash\necho x > .tenon/tests/known-failures.yaml\nEOF'
+allow_cmd '形态 12: 重定向到 /tmp 下同名文件' "echo x > /tmp/known-failures.yaml"
+allow_cmd '形态 12: heredoc 写文档，正文点名路径' $'cat > docs/a.md <<\'EOF\'\n.tenon/tests/known-failures.yaml\nEOF'
+allow_cmd '形态 12: heredoc 喂给 bash 只读目录文件' $'bash <<\'EOF\'\ncat .tenon/tests/catalog.yaml\nEOF'
+allow_cmd '形态 12: heredoc 喂给 python3 不点名受保护路径' $'python3 - <<\'EOF\'\nprint(1)\nEOF'
+# 形态 13 · 就地编辑与破坏性动词
+refuse_cmd '形态 13: sed -i -e' "sed -i -e 's/a/b/' $SHAPE_KF"
+refuse_cmd '形态 13: perl -pi -e' "perl -pi -e 's/a/b/' $SHAPE_KF"
+refuse_cmd '形态 13: perl -i.bak -pe' "perl -i.bak -pe 's/a/b/' $SHAPE_PLAN"
+refuse_cmd '形态 13: ruby -i -pe' "ruby -i -pe '\$_.upcase!' $SHAPE_KF"
+refuse_cmd '形态 13: awk -i inplace' "awk -i inplace '{print}' $SHAPE_KF"
+refuse_cmd '形态 13: truncate' "truncate -s 0 $SHAPE_KF"
+refuse_cmd '形态 13: dd of=' "dd if=/dev/null of=$SHAPE_BASE/a.json"
+refuse_cmd '形态 13: rm -f' "rm -f $SHAPE_KF"
+refuse_cmd '形态 13: shred -u' "shred -u $SHAPE_KF"
+refuse_cmd '形态 13: touch' "touch $SHAPE_BASE/a.json"
+refuse_cmd '形态 13: sed w 命令写文件' "sed -n 'w $SHAPE_KF' /tmp/in"
+refuse_cmd '形态 13: sed s///w 标志写文件' "sed 's/a/b/w $SHAPE_KF' /tmp/in"
+allow_cmd '形态 13: sed -n 只是输出' "sed -n '1,5p' $SHAPE_KF"
+allow_cmd '形态 13: grep 读' "grep x $SHAPE_KF"
+allow_cmd '形态 13: sed -i 改普通文件' "sed -i.bak 's/a/b/' src/app.ts"
+
+# 本机封存文件与密钥：Write / Edit 与 shell 都不能写
+gate_tool Write file_path "$proj/$SHAPE_SEAL" ',"content":"{}"'
+assert_exit "封存: Write 封存文件 → exit 2" 2 "$?"
+gate_tool Edit file_path "$proj/$SHAPE_KEY" ',"old_string":"a","new_string":"b"'
+assert_exit "封存: Edit 封存密钥 → exit 2" 2 "$?"
+refuse_cmd '封存: 重定向写封存文件' "echo '{}' > $SHAPE_SEAL"
+refuse_cmd '封存: cp 覆盖封存文件' "cp /tmp/s $SHAPE_SEAL"
+refuse_cmd '封存: rm 封存密钥' "rm $SHAPE_KEY"
+refuse_cmd '封存: python 内联改封存密钥' "python3 -c \"open('$SHAPE_KEY','w').write('k')\""
+gate_tool Write file_path "$proj/$RECORD_USERS/hooks-at-tenon.test/local/active-change" ',"content":"demo"'
+assert_exit "封存: 同目录的别的本机文件不受影响 → 放行" 0 "$?"
+allow_cmd '封存: 读封存文件' "cat $SHAPE_SEAL"
+
+# 信任决定只能由用户给（R6）：命令位置的 tenon test trust / TENON_TEST_TRUST= 前缀一律拒；文档里出现这些字样不算
+refuse_cmd '信任: tenon test trust' 'tenon test trust'
+refuse_cmd '信任: tenon test trust 带任务与 --yes' 'tenon test trust demo --yes'
+refuse_cmd '信任: 绝对路径的 tenon' '/usr/local/bin/tenon test trust --yes'
+refuse_cmd '信任: node …/tenon.mjs test trust' 'node packages/cli/dist/tenon.mjs test trust --yes'
+refuse_cmd '信任: npx tenon test trust' 'npx tenon test trust --yes'
+refuse_cmd '信任: sudo tenon test trust' 'sudo tenon test trust --yes'
+refuse_cmd '信任: 组合命令里的 tenon test trust' 'cd /repo && tenon test trust --yes'
+refuse_cmd '信任: bash -lc 包装' 'bash -lc "tenon test trust --yes"'
+refuse_cmd '信任: TENON_TEST_TRUST=1 前缀运行测试' 'TENON_TEST_TRUST=1 tenon test run demo --stage'
+refuse_cmd '信任: env TENON_TEST_TRUST=1' 'env TENON_TEST_TRUST=1 tenon test run demo'
+refuse_cmd '信任: export TENON_TEST_TRUST=1' 'export TENON_TEST_TRUST=1'
+refuse_cmd '信任: export TENON_TEST_TRUST（取环境里的值）' 'export TENON_TEST_TRUST'
+printf '{"tool_name":"Bash","cwd":"%s","tool_input":{"command":"tenon test trust --yes"}}' "$proj" | TENON_AFK=1 bash "$GATE" >/dev/null 2>&1
+assert_exit "信任: AFK 下也拒" 2 "$?"
+ERR="$(printf '{"tool_name":"Bash","cwd":"%s","tool_input":{"command":"tenon test trust --yes"}}' "$proj" | bash "$GATE" 2>&1 >/dev/null)"
+assert_contains "信任: 拒绝文案告诉用户在自己的终端里做" "$ERR" '自己的终端'
+allow_cmd '信任: tenon test trust --status 只读' 'tenon test trust --status'
+allow_cmd '信任: grep 文档里的字样' 'grep -rn "tenon test trust" docs/'
+allow_cmd '信任: git commit 信息里的字样' "git commit -m 'docs: tenon test trust and TENON_TEST_TRUST'"
+allow_cmd '信任: echo 里的 TENON_TEST_TRUST=' 'echo "CI sets TENON_TEST_TRUST=1"'
+allow_cmd '信任: 正常的 tenon test run' 'tenon test run demo --stage'
+allow_cmd '信任: tenon test known list' 'tenon test known list'
+
+# 性能：带受保护字样的大命令仍然线性（不因新增的形态扫描变慢）。
+BIG_SHAPE_LINE='echo "see .tenon/tests/known-failures.yaml and baselines" | tr a b >/dev/null\n'
+BIG_SHAPE_BODY="$BIG_SHAPE_LINE"
+for _ in 1 2 3 4 5 6 7 8; do BIG_SHAPE_BODY="$BIG_SHAPE_BODY$BIG_SHAPE_BODY"; done
+printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"${BIG_SHAPE_BODY}true\"}}" > "$TMP/big-shape-read.json"
+big_start=$SECONDS
+bash "$GATE" < "$TMP/big-shape-read.json" >/dev/null 2>&1
+RC=$?
+big_elapsed=$((SECONDS - big_start))
+assert_exit "大命令: 名了受保护路径但只是读 → 放行" 0 "$RC"
+if [ "$big_elapsed" -le 5 ]; then ok "大命令: 形态扫描 ${big_elapsed}s 内完成"; else bad "大命令: 形态扫描 5s 内完成" "耗时 ${big_elapsed}s"; fi
 
 # ── 10e. 红线自证：PostToolUse 热路径保持 bash；唯二 producer hook 只允许精确 managed CLI bridge ──
 for f in "$CC" "$CP" "$DR" "$ST" "$IG" "$IA" "$TA" "$TN"; do

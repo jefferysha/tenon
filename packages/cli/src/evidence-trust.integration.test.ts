@@ -249,6 +249,11 @@ describe('测试证据可信根', () => {
     expect(codes(current.json)).toEqual(['protected-file-unapproved'])
     expect(current.json.policy?.blockers[0]).toMatchObject({ subject: KNOWN_PATH, fix: 'tenon review request demo --event build-done' })
 
+    // `tenon status` 的下一步：评审门上只剩待确认的配置改动时，下发 request-review（把它们连同摘要展示给用户），而不是回退或 fix。
+    expect(await tenon(USER, 'status', 'demo', '--json'), err()).toBe(0)
+    const next = (JSON.parse(out()) as { step: { next: Array<{ action: string; event?: string; waivers?: string[] }> } }).step.next
+    expect(next).toEqual([expect.objectContaining({ action: 'request-review', event: 'build-done', waivers: [KNOWN_PATH] })])
+
     expect(await tenon(USER, 'session', 'activate', 'demo', '--continuous', '--host-session', SESSION), err()).toBe(0)
     expect(await tenon(USER, 'review', 'request', 'demo', '--event', 'build-done'), err()).toBe(0)
     expect(out()).toContain('待确认的测试配置改动 1 项')

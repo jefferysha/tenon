@@ -131,13 +131,14 @@ review（缺失、已被消费、binding 失效或 event 已不是 workflow 出�
 `test:waiver-approve`；`--delegated` 从不批准豁免，计划里有待批准的豁免时它被整个拒绝（不写任何东西，评审仍待确认）；请求之后才加进计划的豁免
 也不在那次确认里（`step.next` 会先要求重新发起请求）。Dashboard 复核决策台的「通过」是同一种人工确认：
 列出并批准同一份冻结清单，留同一行 `test:waiver-approve`。计划写入与基线更新同样各留
-`test:plan-write` / `test:baseline-update` 一行。
+`test:plan-write` / `test:baseline-update` 一行。同一份冻结清单还带着任务里受保护的测试配置改动（目录、基线、已知失败清单、
+项目工作流，见「测试证据的可信根」），批准它们留一行 `test:protected-approve`。
 
 自动评审与人工确认是两套不同边界：前者是步骤声明的 agent，后者是 `gate: review`，可以叠加。
 
 ```bash
 tenon agent next <change> [--json]
-tenon agent prompt <change> <agent> [--host <id>] [--json]
+tenon agent prompt <change> <agent> [--host <id>] [--rerun-reason <text>] [--json]
 tenon agent record <change> <run-id> [--subagent <type>] [--json]
 ```
 
@@ -145,7 +146,10 @@ tenon agent record <change> <run-id> [--subagent <type>] [--json]
 模型一律由宿主跑。`next` 给出本波要跑的 agent，`prompt` 开始或续跑一个 agent 并打印交接内容，
 `--host claude|codex` 时为宿主生成 `tenon-<name>` 专属子代理文件并返回 `subagent_type`；
 `record` 读报告末尾的 ```tenon-result``` 块登记结论，`--subagent` 记下实际用的子代理。评审结论由
-Tenon 从问题级别与 `block_at` 计算，评审者不自报结论。
+Tenon 从问题级别与 `block_at` 计算，评审者不自报结论。同一候选（同一份代码）上评审者的每一次运行都保留，结论取最严的一次，
+所以重跑翻不掉一条发现：评审者在当前候选上已有结论后，`agent prompt` 拒绝再开一次（exit `2`），除非改了代码，或用
+`--rerun-reason <原因>` 写明为什么重跑——带原因的那次以它为准，原因留痕。`agent next`、`status --json`（`step.reviewers[]`）
+与 Dashboard 显示重跑次数（`reruns`）、结论是否翻转（`flipped`）和原因（`rerun_reason`）。
 
 智能体库在终端登记（详见[智能体](./agents.md)）：
 
@@ -206,6 +210,7 @@ tenon test register <change> --case <covers> --test "<文件> › <用例名>"�
 tenon test unregister <change> --suite <id> | --file <path> | --case <covers> [--test <ref>] | --waiver <种类|场景>
 tenon test waive <change> (--kind <k> | --covers <covers>) --reason <原因>
 tenon test sync <change> [--json]
+tenon test trust [<change>] [--yes] [--status] [--json]
 tenon test run <change> [--suite <id>]… [--kind <k>]… [--stage [<step>]] [--all] [--changed] [--json]
 tenon test run <change> <test-id> [--json]
 tenon test status <change> [--step <id>] [--json]
@@ -221,7 +226,9 @@ tenon test code-size [--base <ref>]
 测试分三层登记。项目**目录**（`.tenon/tests/catalog.yaml`，进 git，人可直接改）说明项目有哪些套件、怎么跑：
 `kind`、`runner`、`command`、`cwd`、报告格式与路径、可选的覆盖率、产物路径、`select` 模板（`{files}` / `{pattern}`）、
 `services`、`retries`、`parallel`，基准套件还有 `benchmark` 段。报告、覆盖率与产物路径必须在 `test-results/`、
-`playwright-report/` 或 `coverage/` 之下，产出它们不会改变工作区指纹。任务**计划**
+`playwright-report/` 或 `coverage/` 之下（声明不可能借此藏起源码）。把运行记录绑到代码上的工作区指纹，只忽略目录声明的路径
+（报告、覆盖率与 `artifacts`，按套件 `cwd` 换算）和在途任务冻结工作流里内联测试的 `outputs`：任意层级里没有声明的
+`coverage/`、`test-results/` 目录都算候选的一部分。任务**计划**
 （`openspec/changes/<change>/test-plan.yaml`）列出本任务用到的套件、新增或修改的测试文件、场景 / 任务 → 用例的映射
 （`spec:<capability>/<Scenario 标题>` 或 `task:<编号>`）和豁免。计划只经 `tenon test` 命令写入，每次写入把摘要记进
 任务目录里的台账，手改文件就是 `test-plan-tampered`。工作流**策略**（`steps[].test_policy`）说明一个步骤要什么：
@@ -282,7 +289,29 @@ node:test 套件的命令是 `node --test --test-reporter="${TENON_NODE_TEST_REP
 上通过的运行，并往用户的 `audit.jsonl` 追加一行审计。
 
 `known add` 往 `.tenon/tests/known-failures.yaml` 写一项，带原因、可选链接与到期日：清单内的用例仍失败记 `known-fail`，不挡出口；
-通过了会提示「已修好」并给出 `known rm` 命令；过期条目按普通失败处理；清单外的失败照挡。`known list` 标出过期项。
+通过了会提示「已修好」并给出 `known rm` 命令；过期条目按普通失败处理；清单外的失败照挡。`known list` 标出过期项。已知失败是暂时的例外，不是白名单：`--test` 必须指向具体用例（`<文件> › <用例名>`，只写文件被拒），
+到期日距今最多 30 天（手写得更晚的条目不被承认，该用例照普通失败处理，并给 `known-failure-too-long` 提示），
+新增或改动条目本身是 `known-failures.yaml` 的改动，需要下面说的人工确认。
+
+**测试证据的可信根。** 四层互相独立，专防想要一次绿色运行的 agent：
+
+- *报告*：每次调用前 Tenon 先删掉套件的旧报告；读到的报告必须比本次调用的开始时间新（用 `cp -p` / `touch -d` 回填的旧文件是
+  `report-untrusted`），并且 Tenon 把它复制进本次运行的产物目录、记下摘要——读完之后又被改写的报告、没有副本的报告同样是
+  `report-untrusted`。报告与退出码的交叉校验不变。
+- *本机封存*：按用户、gitignored 的 `<用户目录>/local/test-seal.json`，用 `local/env.key` 里的密钥做 HMAC 签名，记着每个任务记录链
+  的链头摘要、Tenon 命令写出的基线与 `known-failures.yaml` 的摘要、你在评审里做过的批准、你做过的信任决定。链头不等于封存链头的记录
+  链（记录是绕开 `tenon test run` 写进来的）判 `record-unsealed`，没有人工批准的出口，下一次 `tenon test run` 另起新链取代它。
+  封存缺失、损坏或被改动一律读成空，绝不读成放行。
+- *人工确认*：任务 diff 里出现 `.tenon/tests/catalog.yaml`、`.tenon/tests/baselines/**`、`.tenon/tests/known-failures.yaml`、
+  `.pipeline/workflows/*.yaml` 的改动，会挡住每个 `gate: review` 步骤（`protected-file-unapproved`），直到你确认确切的内容。
+  `tenon review request` 逐个列出文件、状态与摘要，目录与已知失败清单还列出新增 / 改动 / 移出的套件、服务与条目；人工的
+  `tenon review acknowledge`（或 Dashboard 的「通过」）把这些摘要的批准封存下来，待确认时 `--delegated` 被拒，之后再改一个字节就要重新
+  确认。与 Tenon 上次写出的内容对不上的基线或 `known-failures.yaml` 判 `protected-file-tampered`，并标注「台账外改动」。
+- *首次信任*：`tenon test run` 拒绝执行你在本机还没信任过的目录（内联步骤测试则是冻结工作流里的测试命令）：套件 `command`、`select`
+  模板、`cwd`、声明的环境变量名和服务的 start / ready / stop，按摘要记（改标签、`covers` 不会再问，改任何一条命令会）。
+  `tenon test trust [<change>]` 列出将执行的命令，交互终端里问 `[y/N]`（`--yes` 给你自己的脚本，`--status` 只看是否已信任、
+  未信任 exit `2`，`--json`）。CI 由运行器显式设置 `TENON_TEST_TRUST=1`，之后每次运行都会打一行说明信任来自环境。Tenon 的 hook
+  会拒绝 agent 的 shell 调用里出现 `tenon test trust` 或 `TENON_TEST_TRUST=` 赋值，所以这个决定只留给你。
 
 `test status` 用与转换拦截完全相同的判定列出该步骤每项测试，所以这里通过就是转换会放行；声明了 `test_policy` 的步骤在 `--json`
 里还带 `policy` 对象（带修复命令的阻塞码、提示、套件、场景 / 任务追溯、文件登记与记录链状态）。有阻塞时 exit 2。候选代码、

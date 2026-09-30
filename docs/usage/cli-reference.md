@@ -142,6 +142,7 @@ tenon test register <change> --case <covers> --test "<file › name>"…
 tenon test unregister <change> --suite <id> | --file <path> | --case <covers> [--test <ref>] | --waiver <kind|covers>
 tenon test waive <change> (--kind <k> | --covers <covers>) --reason <text>
 tenon test sync <change> [--json]
+tenon test trust [<change>] [--yes] [--status] [--json]
 tenon test run <change> [--suite <id>]… [--kind <k>]… [--stage [<step>]] [--all] [--changed] [--json]
 tenon test run <change> <test-id> [--json]
 tenon test status <change> [--step <id>] [--json]
@@ -159,8 +160,12 @@ Tests are registered on three levels. The project **catalog**
 to run them: `kind`, `runner`, `command`, `cwd`, the report format and path, optional
 coverage, artifact paths, `select` templates (`{files}` / `{pattern}`), `services`,
 `retries`, `parallel`, and a `benchmark` block for benchmark suites. Report, coverage
-and artifact paths must sit under `test-results/`, `playwright-report/` or `coverage/`,
-so producing them never changes the workspace fingerprint. The per-change **plan**
+and artifact paths must sit under `test-results/`, `playwright-report/` or `coverage/`
+(a declaration can never hide source). The workspace fingerprint that binds a run record to
+the code ignores exactly the paths the catalog declares (report, coverage and `artifacts`,
+resolved against the suite `cwd`) and the `outputs` of the inline tests in the frozen
+workflow of open changes: an undeclared `coverage/` or `test-results/` directory, at any
+depth, is part of the candidate. The per-change **plan**
 (`openspec/changes/<change>/test-plan.yaml`) lists the suites this change uses, the test
 files it added or changed, the scenario/task → case mapping (`spec:<capability>/<Scenario
 title>` or `task:<number>`) and waivers. Only the `tenon test` commands write it: every
@@ -268,7 +273,47 @@ on the current record chain and appends an audit line to the user's `audit.jsonl
 `.tenon/tests/known-failures.yaml`: a listed case that still fails is `known-fail` and
 does not block; one that passes is reported as fixed, with the `known rm` command; an
 expired entry is treated as an ordinary failure; a failure outside the list blocks.
-`known list` marks expired entries.
+`known list` marks expired entries. A known failure is a temporary exception, not an
+allow-list: `--test` must name one case (`<file> › <name>`; a bare file is refused), the
+expiry is at most 30 days from today (a hand-written entry further out is not honored, the
+case fails like any other and a `known-failure-too-long` notice explains), and adding or
+changing an entry is a change to `known-failures.yaml` that needs the human confirmation
+described next.
+
+**Trust root of test evidence.** Four independent layers keep an agent that wants a green run
+from getting one:
+
+- *Reports.* Before each invocation Tenon deletes the suite's old report; the report it reads
+  must be newer than the start of that invocation (a file back-dated with `cp -p` or `touch
+  -d` is `report-untrusted`) and Tenon copies it into the run's artifact directory, recording
+  its digest, so a report rewritten after it was read, or one with no copy, is
+  `report-untrusted` too. Exit-code/report cross-checking is unchanged.
+- *Local seal.* Per user and gitignored, `<user-dir>/local/test-seal.json` is signed with an
+  HMAC key in `local/env.key`. It holds the head digest of each change's record chain, the
+  digests of baselines and `known-failures.yaml` as written by Tenon commands, your review
+  approvals, and your trust decisions. A chain whose head is not the sealed head (records
+  written around `tenon test run`) is `record-unsealed`, has no approval path, and the next
+  `tenon test run` starts a new chain over it. A missing, damaged or edited seal reads as
+  empty, never as permissive.
+- *Human confirmation.* Changes to `.tenon/tests/catalog.yaml`, `.tenon/tests/baselines/**`,
+  `.tenon/tests/known-failures.yaml` and `.pipeline/workflows/*.yaml` in the change's diff
+  block every `gate: review` step (`protected-file-unapproved`) until you confirm the exact
+  content. `tenon review request` lists each file with its state and digest, and for the
+  catalog and known failures the added, changed or removed suites, services and entries; a
+  human `tenon review acknowledge` (or the Dashboard's Approve) seals the approval for those
+  digests, `--delegated` is refused while any is pending, and a later edit needs a new
+  confirmation. A baseline or known-failures file that no longer matches what Tenon last wrote
+  is `protected-file-tampered` and is labeled as changed outside a Tenon command.
+- *First-run trust.* `tenon test run` refuses to execute a catalog (and, for inline step tests,
+  the frozen workflow's test commands) whose executable text you have not trusted on this
+  machine: suite `command`, `select` templates, `cwd`, declared env names and service start,
+  ready and stop settings, keyed by digest (a label or `covers` edit does not ask again; any
+  command edit does). `tenon test trust [<change>]` lists the commands and asks `[y/N]` in an
+  interactive terminal (`--yes` for your own scripts, `--status` to only check, exit `2` if
+  untrusted, `--json`). CI sets `TENON_TEST_TRUST=1` explicitly; every run then prints a line
+  saying trust came from the environment. The Tenon hook refuses an agent's shell call that
+  contains `tenon test trust` or a `TENON_TEST_TRUST=` assignment, so the decision stays with
+  you.
 
 `test status` reports each declared test of the step with the same evaluation the
 transition uses, so a status pass is a transition pass; with `--json` a step that declares
@@ -329,7 +374,7 @@ tenon artifact register <change> <field> <path> --producer <skill-id>
 tenon review request <change> --event <event>
 tenon review acknowledge <change> [--delegated]
 tenon agent next <change> [--json]
-tenon agent prompt <change> <agent> [--host <id>] [--json]
+tenon agent prompt <change> <agent> [--host <id>] [--rerun-reason <text>] [--json]
 tenon agent record <change> <run-id> [--subagent <type>] [--json]
 tenon agent list [--role executor|reviewer] [--source official|custom|project] [--json]
 tenon agent show <name> [--json]
@@ -350,7 +395,13 @@ it generates the host's `tenon-<name>` subagent file and returns
 the report (`--subagent` records the subagent that actually ran). The library
 commands register agents in the terminal; see [Agents](agents.md). A reviewer never reports its own
 verdict: Tenon derives pass or fail from the finding severities and the step's
-`block_at`. Human `review request/acknowledge` remains a separate exact-event
+`block_at`. Every run of a reviewer on the same candidate (the same code) is kept and the most
+severe verdict wins, so a rerun cannot flip a finding away: once a reviewer has a verdict on the
+current candidate, `agent prompt` refuses to start it again (exit `2`) unless you change the
+code or pass `--rerun-reason <text>`; a run that carries a reason is the verdict that counts
+and the reason is recorded. `agent next`, `status --json` (`step.reviewers[]`) and the
+Dashboard show the rerun count (`reruns`), whether the verdict was flipped (`flipped`) and the
+reason (`rerun_reason`). Human `review request/acknowledge` remains a separate exact-event
 confirmation boundary and may be combined with reviewers.
 
 `review acknowledge` exit codes: `0` approved, replayed, or approved with a
@@ -369,7 +420,10 @@ stays pending) while the plan has one, and a waiver added after the request is n
 approved by that confirmation (`step.next` asks for a fresh request first). The Dashboard review console's
 Approve is the same human confirmation: it lists and approves the same frozen list and leaves the same
 `test:waiver-approve` line. Plan writes and baseline updates leave `test:plan-write` /
-`test:baseline-update` lines the same way.
+`test:baseline-update` lines the same way. The same frozen list carries the protected
+test-configuration changes of the change (catalog, baselines, known failures, project
+workflows) described under *Trust root of test evidence*; approving them leaves a
+`test:protected-approve` line.
 
 Document structures and project-level spec scaffolds default to Chinese. English
 is explicit:

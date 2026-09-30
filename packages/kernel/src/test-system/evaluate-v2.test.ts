@@ -693,10 +693,17 @@ describe('evaluateTestPolicy —— 证据来源（R1 / R4）', () => {
     expect(codes(evaluate({ runs: [UNIT_PASS], protected: approval('sha256:old') }))).toEqual(['protected-file-unapproved'])
   })
 
-  it('读不出受保护改动（评审门）：失败关闭', () => {
-    const report = evaluate({ runs: [UNIT_PASS], protected: sealed(undefined, { changesError: '仓库读取失败' }) })
-    expect(codes(report)).toEqual(['files-diff-unavailable'])
-    expect(report.blockers[0]?.message).toContain('仓库读取失败')
+  it('读不出受保护改动：策略要求 diff（files: registered）的评审门失败关闭；不要求 diff 的步骤只提示', () => {
+    const closed = evaluate({
+      policy: { run: ['unit'], scope: 'changed', files: 'registered' },
+      runs: [UNIT_PASS],
+      protected: sealed(undefined, { changesError: '仓库读取失败' }),
+    })
+    expect(codes(closed)).toContain('files-diff-unavailable')
+    expect(closed.blockers.find((item) => item.message.includes('仓库读取失败'))).toBeDefined()
+    const open = evaluate({ runs: [UNIT_PASS], protected: sealed(undefined, { changesError: '仓库读取失败' }) })
+    expect(open.pass).toBe(true)
+    expect(open.notices).toEqual([expect.objectContaining({ code: 'files-unchecked', message: expect.stringContaining('仓库读取失败') })])
   })
 
   it('宿主没有提供读取受保护改动的能力（changes 缺省）：跳过这项检查', () => {

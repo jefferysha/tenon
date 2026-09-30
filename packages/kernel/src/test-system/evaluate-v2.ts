@@ -278,9 +278,11 @@ function checkProtected(input: TestPolicyEvaluationInput, reviewFix: string, out
   }
   if (!evidence.reviewGated) return
   if (evidence.changesError !== undefined) {
-    out.blockers.push(testBlocker('files-diff-unavailable', `无法读取本任务对测试配置（目录、基线、已知失败清单、工作流）的改动（${evidence.changesError}），不能确认它们已经过人工确认`, {
-      fix: reviewFix,
-    }))
+    // 与登记检查同口径：策略要求 diff（`files: registered`）的步骤读不出就失败关闭；不要求 diff 的步骤（例如 spec）只提示，
+    // 否则不是版本库的项目连规格步骤都过不了。
+    const message = `无法读取本任务对测试配置（目录、基线、已知失败清单、工作流）的改动（${evidence.changesError}），不能确认它们已经过人工确认`
+    if (input.policy.files === 'registered') out.blockers.push(testBlocker('files-diff-unavailable', message, { fix: reviewFix }))
+    else out.notices.push(testNotice('files-unchecked', message))
     return
   }
   if (evidence.changes === undefined) return

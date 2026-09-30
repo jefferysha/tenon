@@ -96,6 +96,21 @@ describe('策略阻塞归档', () => {
     }])
   })
 
+  test('证据来源（v0.3）：受保护配置改动只等用户在评审里确认（与豁免同路），记录来源不明要重跑命令', () => {
+    const classified = classifyTestPolicy(report([
+      blocker('protected-file-unapproved', '.tenon/tests/known-failures.yaml'),
+      blocker('protected-file-tampered', '.tenon/tests/baselines/bench/darwin.json'),
+      blocker('record-unsealed'),
+      blocker('report-untrusted', 'unit'),
+    ]))
+    expect(classified.waivers.map((item) => [item.subject, item.protected])).toEqual([
+      ['.tenon/tests/known-failures.yaml', true],
+      ['.tenon/tests/baselines/bench/darwin.json', true],
+    ])
+    expect(classified.run.map((item) => item.code)).toEqual(['record-unsealed'])
+    expect(classified.failed.map((item) => item.code)).toEqual(['report-untrusted'])
+  })
+
   test('没有策略判定 = 什么动作都没有', () => {
     expect(classifyTestPolicy(undefined)).toEqual({ discover: [], seed: [], map: [], files: [], run: [], failed: [], waivers: [] })
   })

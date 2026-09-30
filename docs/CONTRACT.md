@@ -561,3 +561,27 @@ most 64 characters, and a manifest contains at most 256 fixtures.
    `.tenon/tests/known-failures.yaml`、按用户的记录目录的编辑类工具写入与 shell 重定向 / tee / cp / mv / rm /
    `sed -i`，只看写入目标；`tenon` 调用与普通 git 操作放行。声明 `reads_tests` 的评审者提示词附带目录套件最新
    运行的失败用例、flaky、覆盖率对照门槛与基准变化。
+
+14. **测试证据的可信根（v0.3）**：证据必须是「被它约束的 agent 造不出来」的东西。
+   · 本机封存 `<用户目录>/local/test-seal.json`（按用户、gitignored、HMAC-SHA256，密钥 `local/env.key`）：记录链头
+   （`appendTestRunRecordV2` 在链锁内更新）、Tenon 命令写出的共享受保护文件摘要（`known add|rm`、`baseline --suite`）、
+   人工批准（change + 路径 + 内容摘要）、用户的信任决定。缺失 / 损坏 / mac 不符读成空封存，绝不放行。链头不等于封存链头
+   的记录链判 `record-unsealed`（无人工出口；下一次 `tenon test run` 另起新链取代它，`chain: reset`）。
+   · 受保护配置改动（`.tenon/tests/catalog.yaml`、`baselines/**`、`known-failures.yaml`、`.pipeline/workflows/*.yaml`）出现在任务
+   diff（含删除）里，在 `gate: review` 步骤判 `protected-file-unapproved`（封存里没有同内容的批准）或 `protected-file-tampered`
+   （Tenon 命令写出之后又被改）；`review request` 把它们连同语义摘要冻结进 `.pipeline-review-waivers.json` 的 `protected`，人工
+   `review acknowledge`（与 Dashboard 通过共用 `approveFrozenWaivers`，入参多一个 `repoRoot`）把仍同摘要的项写进封存，
+   `--delegated` 在有待确认项时整个被拒；POST 成功响应多 `protectedChanges: { approved, skipped }`，历史多一行
+   `test:protected-approve`。读不出 diff：策略要求 `files: registered` 的步骤 `files-diff-unavailable`，其余只提示 `files-unchecked`。
+   · 已知失败：`test` 必须是 `<文件> › <用例名>`；`expires` 距今 ≤ 30 天（`known add` 拒绝更长的，手写更长的判定时不被承认，
+   提示 `known-failure-too-long`）。
+   · 报告：必须新于本次调用开始（否则 `report-untrusted`），并复制进本次运行产物目录 `artifacts/<套件>/<仓库相对路径>`，
+   记录里 `report.digest` 必须等于副本摘要（`evaluateSuiteResult` 重算同一判断）。
+   · 首次信任：`tenon test run` 执行前校验目录可执行摘要（`catalogExecDigest`）/ 冻结工作流内联测试摘要（`stepTestsExecDigest`）
+   在封存 `trusted` 里，或环境变量 `TENON_TEST_TRUST=1`（CI）；`tenon test trust [change] [--yes] [--status]` 由用户在终端给出。
+   · 指纹：`fingerprintWorkspace(root, { declaredOutputs })` 只忽略声明的产物路径；生产口径是 `candidateFingerprint`
+   （目录声明 ∪ 在途任务冻结工作流里内联测试的 `outputs`）。
+   · 评审者：`agent-runs` 行可带 `rerun_reason`；同候选上已有结论时 `tenon agent prompt` 需要 `--rerun-reason`，判定取同候选全部
+   已结束运行里最严的一次（最后一次带原因时以它为准）；`AgentView` 多 `reruns / flipped / rerunReason`。
+   · 写门（`hooks/gate.sh`）认 13 种写法（见安全模型），并拒绝 agent 的 shell 调用里的 `tenon test trust` 与 `TENON_TEST_TRUST=`
+   前缀赋值（只在命令位置匹配）。
