@@ -211,7 +211,10 @@ export async function saveAgent(name: string, content: string, digest: string, s
 }
 
 export async function deleteAgent(name: string, digest: string, source: AgentSource = 'custom', root = ''): Promise<void> {
-  const scope = source === 'project' ? `&source=project&root=${encodeURIComponent(root)}` : ''
+  // root 也随自定义层的删除发出：server 据它扫描该项目工作流库里的引用；项目层删除必带。
+  const scope = source === 'project'
+    ? `&source=project&root=${encodeURIComponent(root)}`
+    : root === '' ? '' : `&root=${encodeURIComponent(root)}`
   await send(`/api/agents/${encodeURIComponent(name)}?digest=${encodeURIComponent(digest)}${scope}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${getToken()}` },

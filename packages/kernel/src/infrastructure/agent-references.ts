@@ -1,7 +1,7 @@
 /**
  * 一个 agent 被哪些工作流步骤引用。删除前用它给出引用位置（CLI `tenon agent rm` 与 Dashboard 共用）。
  *
- * 扫的是全局工作流存储、项目遗留的 `.pipeline/workflows`（给出项目根时）加内建工作流的全部分支；
+ * 扫的是项目库 `.pipeline/workflows`（给出项目根时）、全局工作流存储加内建工作流的全部分支；
  * Change 里的冻结副本不扫——删库文件永远不影响已经开始的任务。读不动或解析不了的工作流一律跳过：
  * 删除提示不该因为别处一个坏文件而失败。
  */
@@ -58,32 +58,42 @@ function readUnder(root: string, name: string): string | undefined {
   }
 }
 
-/** 全局存储（`<configRoot>/workflows`）与项目遗留目录里的工作流 + 未被覆盖的内建工作流（default 与 simple）。 */
+/**
+ * 项目库（`<项目>/.pipeline/workflows`，解析顺序里排在全局之前）、全局存储（`<configRoot>/workflows`）里的
+ * 工作流 + 没有被任何一层覆盖的内建工作流（default 与 simple）。两层各扫一遍、不互相遮蔽：项目里
+ * 覆盖了同名工作流，全局那份仍被别的项目用着，删 agent 前两处引用都要列出。
+ */
 export function agentWorkflowReferences(
   input: { readonly configRoot: string; readonly projectRoot?: string },
   agent: string,
 ): readonly AgentWorkflowReference[] {
   const found: AgentWorkflowReference[] = []
-  const seen = new Set<string>()
-  const roots = [join(input.configRoot, 'workflows'), ...(input.projectRoot === undefined ? [] : [input.projectRoot])]
+  const overridden = new Set<string>()
+  const roots = [...(input.projectRoot === undefined ? [] : [input.projectRoot]), join(input.configRoot, 'workflows')]
   for (const root of roots) {
     for (const name of workflowNamesUnder(root)) {
-      if (seen.has(name)) continue
-      seen.add(name)
+      overridden.add(name)
       const definition = parsed(readUnder(root, name))
-      if (definition !== undefined) found.push(...referencesIn(name, definition, agent))
+      if (definition === undefined) continue
+      for (const reference of referencesIn(name, definition, agent)) {
+        if (!found.some((item) => sameReference(item, reference))) found.push(reference)
+      }
     }
   }
-  if (!seen.has('default')) {
+  if (!overridden.has('default')) {
     const definition = parsed(DEFAULT_WORKFLOW_SOURCE)
     if (definition !== undefined) found.push(...referencesIn('default', definition, agent))
   }
   for (const name of BUILTIN_WORKFLOW_IDS) {
-    if (seen.has(name)) continue
+    if (overridden.has(name)) continue
     const definition = builtinWorkflow(name)
     if (definition !== null) found.push(...referencesIn(name, definition, agent))
   }
   return found
+}
+
+function sameReference(left: AgentWorkflowReference, right: AgentWorkflowReference): boolean {
+  return left.workflow === right.workflow && left.track === right.track && left.step === right.step && left.role === right.role
 }
 
 /** 一份工作流定义（全部分支）里引用到的 agent 名，去重排序。 */

@@ -165,6 +165,19 @@ describe('智能体库（只展示与编辑正文）', () => {
       && url.startsWith('/api/agents/team?digest=') && url.includes('source=project'))).toBe(true))
   })
 
+  it('删除自定义智能体也带当前项目的 root：server 据此看项目级工作流里的引用（真机验收 F1）', async () => {
+    const calls: Array<[string, string, string]> = []
+    stubFetch(calls, { rows: [BUILTIN, CUSTOM, TEAM] })
+    await openAgents('/work/app')
+    await userEvent.click(screen.getByTestId('lib-agent-custom-mine'))
+    await waitFor(() => expect(screen.getByTestId('lib-agent-title').textContent).toBe('mine'))
+    await userEvent.click(screen.getByTestId('lib-agent-more'))
+    await userEvent.click(screen.getByTestId('lib-agent-more-delete'))
+    await userEvent.click(await screen.findByTestId('lib-delete-confirm'))
+    await waitFor(() => expect(calls.some(([method, url]) => method === 'DELETE'
+      && url.startsWith('/api/agents/mine?digest=') && url.includes('root=%2Fwork%2Fapp') && !url.includes('source='))).toBe(true))
+  })
+
   it('删除被引用的智能体：409 的引用位置显示在详情页', async () => {
     stubFetch([], {
       mutation: (method) => (method === 'DELETE'
