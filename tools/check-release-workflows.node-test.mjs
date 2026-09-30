@@ -234,6 +234,52 @@ test('canonical CI actions are immutable full-SHA pins', async () => {
   assert.doesNotMatch(ci, /actions\/(?:checkout|setup-node)@v\d+\b/)
 })
 
+test('canonical CI runs the dashboard e2e right after the Chromium install and uploads the report on failure', async () => {
+  const [ci, packageJson] = await Promise.all([text('.github/workflows/ci.yml'), text('package.json')])
+  const scripts = JSON.parse(packageJson).scripts
+  const install = ci.indexOf('npx playwright install --with-deps chromium')
+  const e2e = ci.indexOf('npm run test:e2e -- --project=chromium')
+  const upload = ci.indexOf('name: dashboard-e2e-chromium')
+
+  assert.ok(install > 0 && e2e > install, 'the e2e step must come after the Chromium install')
+  assert.ok(upload > e2e, 'the report upload must follow the e2e step')
+  assert.equal(scripts['test:e2e'], 'playwright test -c e2e/dashboard/playwright.config.ts')
+  assert.match(ci, /id: dashboard-e2e\n\s+run: npm run test:e2e -- --project=chromium/)
+  assert.match(ci, /if: \$\{\{ !cancelled\(\) && steps\.dashboard-e2e\.outcome == 'failure' \}\}/)
+  const uploadBlock = ci.slice(upload, ci.indexOf('- name:', upload))
+  assert.match(uploadBlock, /playwright-report\//)
+  assert.match(uploadBlock, /test-results\//)
+  assert.match(ci, /actions\/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02/)
+  assert.doesNotMatch(ci, /uses:\s+actions\/[^@\s]+@v\d+\b/)
+})
+
+test('canonical CI keeps WebKit advisory: it never blocks the verify job', async () => {
+  const ci = await text('.github/workflows/ci.yml')
+  const start = ci.indexOf('- name: Dashboard browser e2e (WebKit, advisory)')
+  const block = ci.slice(start, ci.indexOf('- name:', start + 1))
+
+  assert.ok(start > 0)
+  assert.match(block, /continue-on-error: true/)
+  assert.match(block, /npx playwright install --with-deps webkit/)
+  assert.match(block, /npm run test:e2e -- --project=webkit/)
+})
+
+test('canonical CI benchmarks run the catalog suites with the 15 percent regression gate and publish a baseline candidate', async () => {
+  const [ci, catalog] = await Promise.all([text('.github/workflows/ci.yml'), text('.tenon/tests/catalog.yaml')])
+  const start = ci.indexOf('- name: 基准 (benchmarks against the CI-profile baseline)')
+  const block = ci.slice(start, ci.indexOf('- name:', start + 1))
+
+  assert.ok(start > 0)
+  for (const suite of ['bench-status', 'bench-snapshot']) {
+    assert.match(block, new RegExp(`test register ci-bench --suite ${suite}`))
+    assert.match(catalog, new RegExp(`- id: ${suite}\\n[\\s\\S]*?max_regression_pct: 15\\b`))
+  }
+  assert.match(block, /test run ci-bench --suite bench-status --suite bench-snapshot --json/)
+  assert.match(block, /exit "\$bench_exit"/, 'a benchmark regression must fail the step')
+  assert.match(ci, /name: bench-baseline-candidate/)
+  assert.match(ci, /\.tenon\/tests\/baselines\//)
+})
+
 test('canonical CI sets only TENON_* env switches that repository code reads', async () => {
   const ci = await text('.github/workflows/ci.yml')
   const names = [...new Set([...ci.matchAll(/^\s+(TENON_[A-Z0-9_]+):/gmu)].map((match) => match[1]))]

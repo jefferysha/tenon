@@ -103,6 +103,14 @@ npm run oracle
 git diff --check
 ```
 
+Dashboard browser e2e and benchmarks need a built tree (`npm run build`):
+
+```bash
+npm run test:e2e -- --project=chromium
+npm run bench:status
+npm run bench:snapshot
+```
+
 Run `npm run check:docs` when that script exists in the branch. Dashboard
 behavior requires focused tests, the full web checks, and real-browser
 acceptance against the exact built local release.

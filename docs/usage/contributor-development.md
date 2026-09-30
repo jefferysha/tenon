@@ -69,8 +69,33 @@ npm run oracle
 git diff --check
 ```
 
-The repository currently has no general lint or format npm script. Do not claim
-one ran.
+Dashboard browser e2e and benchmarks (run `npm run build` first):
+
+```bash
+npm run test:e2e -- --project=chromium
+npm run test:e2e
+npm run bench:status
+npm run bench:snapshot
+```
+
+`test:e2e` drives the built CLI and Dashboard from `e2e/dashboard/` with Playwright
+(chromium and webkit projects; install with `npx playwright install chromium webkit`). It seeds
+throw-away projects in an isolated `HOME` and `TENON_RUNTIME_HOME` and starts the
+Dashboard on a random port, so it never touches your real Tenon state. The same suites are
+registered in `.tenon/tests/catalog.yaml` (`dashboard-e2e`, `bench-status`,
+`bench-snapshot`, and the rest of the repository's own suites); run them through
+`tenon test run <change> --suite <id>`. CI blocks on Chromium, runs WebKit as an advisory
+step, and uploads `playwright-report/` and `test-results/` when the Chromium run fails.
+
+Benchmark regressions (`max_regression_pct: 15`) are judged against a baseline of the same
+machine profile. Baselines are not committed from a developer laptop: CI runs the two
+suites with `tenon test run`, and after a green run it writes the run as a baseline candidate
+to `.tenon/tests/baselines/<suite>/<profile>.json` and uploads it as the
+`bench-baseline-candidate` artifact. To establish or refresh the CI-profile baseline,
+download that artifact from a green `main` run and commit the files unchanged. Until the
+CI profile has a baseline the run only reports `baseline-missing`.
+
+The repository has no general lint or format npm script. Do not claim one ran.
 
 ## Change-specific responsibilities
 

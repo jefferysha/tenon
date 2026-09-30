@@ -91,6 +91,45 @@ jobs:
       - name: Install Playwright Chromium for browser runtime tests
         run: npx playwright install --with-deps chromium
 
+      # Dashboard 浏览器 e2e（e2e/dashboard，套件 dashboard-e2e）：被测 dashboard 由 e2e/dashboard/support/serve.mjs 用刚构建的
+      # CLI 在隔离的 HOME / TENON_RUNTIME_HOME 里播种并起在随机端口，不碰 runner 上的任何真实状态。
+      # 阻塞的是 Chromium；WebKit 在下一步作为参考（见下），因为 Linux 上的 WebKit 是否与 macOS 一致本仓还没有 CI 证据。
+      - name: Dashboard browser e2e (Chromium)
+        id: dashboard-e2e
+        run: npm run test:e2e -- --project=chromium
+
+      # 失败时把 HTML 报告（含失败截图与 trace）和原始产物传上来；先于 WebKit 步骤，免得后者覆盖 playwright-report。
+      - name: Upload dashboard e2e report on failure
+        if: ${{ !cancelled() && steps.dashboard-e2e.outcome == 'failure' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dashboard-e2e-chromium
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      # WebKit 不阻塞：装浏览器要再拉一批系统依赖，Linux 上的渲染差异也还没有基线。失败会留下 artifact 与黄色注解，
+      # 有稳定的绿之后把 continue-on-error 去掉即可升级成阻塞。
+      - name: Dashboard browser e2e (WebKit, advisory)
+        id: dashboard-e2e-webkit
+        continue-on-error: true
+        run: |
+          npx playwright install --with-deps webkit
+          npm run test:e2e -- --project=webkit
+
+      - name: Upload dashboard e2e WebKit report on failure
+        if: ${{ !cancelled() && steps.dashboard-e2e-webkit.outcome == 'failure' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dashboard-e2e-webkit
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
       # 完整插件 runtime 新鲜度门：marketplace 安装没有本机 node_modules/build 步，因此 CLI、dashboard
       # server 和 SPA 都必须与当前源码逐字节一致。后面的 smoke 只测行为，不能证明提交资产是最新构建。
       - name: 校验入库完整插件 runtime 与当前 src 一致 (release freshness)
@@ -201,3 +240,38 @@ jobs:
 
       - name: golden-oracle dual-run
         run: npm run oracle
+
+      # 基准（catalog 里的 bench-status / bench-snapshot，阈值 max_regression_pct 15）：用一次性的 change 走 tenon test run，
+      # 阈值、噪声重跑与「同机器画像才比」都是 Tenon 自己的判定。仓库里已提交本 runner 画像的基线时，退化超限会 exit 2 挡住；
+      # 还没有该画像的基线只提示 baseline-missing、不挡。
+      # 建立 / 刷新 CI 画像基线：每次绿的运行都会把「这次运行作为基线」的文件写进 .tenon/tests/baselines/ 并上传成 artifact
+      # bench-baseline-candidate；维护者从一次绿的 main 运行下载、原样提交那几个 <套件>/<画像>.json，之后同画像的运行就有基线可比。
+      # 画像 = OS + 架构 + CPU + 核数 + 内存档位 + Node 主版本 + CI 环境变量，文件名里带画像哈希，开发机的基线不会与它互比。
+      - name: 基准 (benchmarks against the CI-profile baseline)
+        env:
+          TENON_USER: ci@tenon.test
+          TENON_USER_NAME: CI
+        run: |
+          set -euo pipefail
+          tenon() { node packages/cli/dist/tenon.mjs "$@"; }
+          tenon init ci-bench --track backend --preset full
+          tenon test register ci-bench --suite bench-status
+          tenon test register ci-bench --suite bench-snapshot
+          bench_exit=0
+          tenon test run ci-bench --suite bench-status --suite bench-snapshot --json > "$RUNNER_TEMP/bench-run.json" || bench_exit=$?
+          if [ "$bench_exit" -eq 0 ]; then
+            run_id="$(node -p "JSON.parse(require('node:fs').readFileSync(process.argv[1], 'utf8')).run_id" "$RUNNER_TEMP/bench-run.json")"
+            for suite in bench-status bench-snapshot; do tenon test baseline ci-bench --suite "$suite" --run "$run_id"; done
+          fi
+          exit "$bench_exit"
+
+      - name: Upload benchmark baseline candidate
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bench-baseline-candidate
+          path: |
+            .tenon/tests/baselines/
+            test-results/bench-*.json
+          if-no-files-found: ignore
+          retention-days: 30
