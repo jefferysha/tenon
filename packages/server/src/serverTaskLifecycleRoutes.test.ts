@@ -8,7 +8,7 @@ import { readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, describe, expect, it } from 'vitest'
-import { ensureUserLocalDir, serializeTaskArchive, userProjectPaths, type TenonUserResolution } from '@tenon/kernel'
+import { ensureHostAgentFiles, ensureUserLocalDir, serializeTaskArchive, userProjectPaths, type TenonUserResolution } from '@tenon/kernel'
 import { resolveServerPaths } from './paths.js'
 import { createDashboardServer } from './server.js'
 import { initChange, makeProject, makeTempHome, newStore, reqDelete, reqGet, reqPost, testFlow } from './test-support.js'
@@ -252,6 +252,28 @@ describe('DELETE /api/change/:name', () => {
     }>()
     expect(snapshot.projects[0]?.changes.map((c) => c.name)).toEqual(['other'])
     expect(snapshot.projects[0]?.uncommittedDeletions).toBe(1)
+  })
+
+  it('delete and archive also reclaim the generated host agent files nobody else uses (P2)', async () => {
+    const h = await start(['feat', 'other'])
+    await ensureHostAgentFiles({
+      repoRoot: h.root, host: 'claude',
+      agents: [{ name: 'x', definition: { name: 'x', description: 'd', role: 'reviewer', skills: [], tools: ['Read'], body: '\n正文\n' } }],
+    })
+    const file = join(h.root, '.claude', 'agents', 'tenon-x.md')
+    expect(await exists(file)).toBe(true)
+    const archived = await reqPost(h.port, '/api/change/feat/archive', { root: h.root, acknowledged: [] }, { headers: AUTH })
+    expect(archived.status).toBe(200)
+    expect(await exists(file)).toBe(false)
+    expect(await exists(join(h.root, '.claude'))).toBe(false)
+
+    await ensureHostAgentFiles({
+      repoRoot: h.root, host: 'claude',
+      agents: [{ name: 'y', definition: { name: 'y', description: 'd', role: 'reviewer', skills: [], tools: ['Read'], body: '\n正文\n' } }],
+    })
+    const deleted = await reqDelete(h.port, `/api/change/other?root=${encodeURIComponent(h.root)}`, { headers: AUTH })
+    expect(deleted.status).toBe(200)
+    expect(await exists(join(h.root, '.claude', 'agents', 'tenon-y.md'))).toBe(false)
   })
 
   it('refuses an unacknowledged confirmation and a blocker without touching the directory', async () => {
