@@ -6,8 +6,8 @@ import { join } from 'node:path'
 import { commitBase, createScratch, isolatedEnv, removeScratch, runTenon, writeProjectFile } from '../lib/isolated-tenon.mjs'
 
 export function createBenchFixture({ projects, changes }) {
-  const { scratch, home, runtime } = createScratch('tenon-bench')
-  const env = isolatedEnv({ home, runtime })
+  const { scratch, home, runtime, node } = createScratch('tenon-bench')
+  const env = isolatedEnv({ home, runtime, node })
   const roots = []
   for (let project = 1; project <= projects; project++) {
     const root = join(scratch, `project-${project}`)

@@ -4,14 +4,14 @@
  * 用法：node tools/bench/status.mjs --json test-results/bench-status.json [--runs 15] [--warmup 2]
  */
 import { spawn } from 'node:child_process'
-import { TENON_CLI } from '../lib/isolated-tenon.mjs'
+import { TENON_CLI, isolatedNode } from '../lib/isolated-tenon.mjs'
 import { createBenchFixture } from './fixture.mjs'
 import { readOptions, sample, writeReport } from './measure.mjs'
 
 function statusOnce(fixture) {
   const root = fixture.roots[0]
   return new Promise((resolveRun, reject) => {
-    const child = spawn(process.execPath, [TENON_CLI, 'status', 'change-1', '--json'], { cwd: root, env: fixture.env, stdio: 'ignore' })
+    const child = spawn(isolatedNode(fixture.env), [TENON_CLI, 'status', 'change-1', '--json'], { cwd: root, env: fixture.env, stdio: 'ignore' })
     child.once('error', reject)
     child.once('exit', (code) => (code === 0 ? resolveRun() : reject(new Error(`tenon status 退出 ${code}`))))
   })

@@ -22,12 +22,12 @@ const LOG_FILE = join(STATE_DIR, 'dashboard.log')
 async function main() {
   mkdirSync(STATE_DIR, { recursive: true })
   rmSync(STATE_FILE, { force: true })
-  const { scratch, home, runtime } = createScratch('tenon-e2e')
+  const { scratch, home, runtime, node } = createScratch('tenon-e2e')
   const project = join(scratch, 'demo')
   const sandbox = join(scratch, 'sandbox')
   mkdirSync(project)
   mkdirSync(sandbox)
-  const env = isolatedEnv({ home, runtime })
+  const env = isolatedEnv({ home, runtime, node })
 
   let server = null
   let stopping = false

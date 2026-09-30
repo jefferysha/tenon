@@ -3,9 +3,21 @@
  *
  * 隔离 = 一个临时根：HOME、TENON_RUNTIME_HOME 与项目全部在里面，不读也不写开发机的 ~/.tenon、
  * ~/.codex、~/.claude 和项目注册表；身份固定为 e2e@tenon.test。播种只走真实的 CLI，不手写任何 Tenon 状态文件。
+ *
+ * 可信 Node：`tenon dashboard` 只肯用「物理身份可证明」的 Node 启动 server（packages/cli/src/commands/trusted-executable.ts：
+ * 可执行文件本身、以及它的任一父目录，不得对组 / 其他人可写（sticky 目录除外），文件属主必须是 root 或当前用户）。
+ * GitHub 托管 runner 上 setup-node 装在 /opt/hostedtoolcache 下，不满足这个条件，dashboard 会以
+ * 「Dashboard 启动前无法冻结当前 Node 物理身份」退出 1。这个守卫是安全边界，不能放宽，所以由本工具在隔离根里备一份可信 Node：
+ * `createScratch` 先用与守卫相同的条件检查 process.execPath，能过就直接用（开发机、已经备好可信 Node 的 PATH），
+ * 过不了才把它复制到 <scratch>/node-bin/node（目录 0700、文件 0755、属主是当前用户，父目录是 sticky 的系统临时目录）。
+ * 复制出来的那份随 `removeScratch` 一起删除。之后所有子进程（播种用的 CLI、dashboard、基准里的 status 采样）都用这一个 Node，
+ * 路径经 env.TENON_ISOLATED_NODE 传递（见 `isolatedNode`）。
  */
 import { spawn, spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, openSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  accessSync, chmodSync, constants as fsConstants, copyFileSync, lstatSync, mkdirSync, mkdtempSync, openSync,
+  realpathSync, rmSync, writeFileSync,
+} from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -19,18 +31,99 @@ const GIT_ENV = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null'
 const HEALTH_TIMEOUT_MS = 60_000
 const STOP_GRACE_MS = 5_000
 
-/** 新建隔离根（realpath：macOS 的 /var 是 /private/var 的别名，注册表记的是真实路径）。 */
-export function createScratch(prefix) {
+/**
+ * `tenon` 的可信 Node 守卫是否会接受这个可执行文件——按 trusted-executable.ts `freezeTrustedExecutable` 的接受条件镜像
+ * （只判定可否通过，不做物理身份冻结）：realpath 后是可执行的普通文件；文件不能对组 / 其他人可写；属主是 root 或当前用户；
+ * 从它的目录一路到根，每一级都是真目录，且不能是「其他人可写」或「别的属主的组可写」——sticky 目录（/tmp）除外。
+ * Windows 上守卫不检查权限位，这里同样直接放行。
+ */
+export function isTrustedExecutable(path, platform = process.platform) {
+  let executable
+  try {
+    executable = realpathSync(path)
+    accessSync(executable, fsConstants.X_OK)
+  } catch {
+    return false
+  }
+  if (platform === 'win32') return true
+  let file
+  try {
+    file = lstatSync(executable)
+  } catch {
+    return false
+  }
+  if (!file.isFile() || file.isSymbolicLink()) return false
+  const currentUid = typeof process.getuid === 'function' ? process.getuid() : file.uid
+  if ((file.mode & 0o022) !== 0 || (file.uid !== 0 && file.uid !== currentUid)) return false
+  let cursor = dirname(executable)
+  while (true) {
+    let dir
+    try {
+      dir = lstatSync(cursor)
+    } catch {
+      return false
+    }
+    const otherWritable = (dir.mode & 0o002) !== 0
+    const groupWritableByAnotherOwner = (dir.mode & 0o020) !== 0 && dir.uid !== file.uid
+    const sticky = (dir.mode & 0o1000) !== 0
+    if (!dir.isDirectory() || dir.isSymbolicLink() || ((otherWritable || groupWritableByAnotherOwner) && !sticky)) return false
+    const parent = dirname(cursor)
+    if (parent === cursor) return true
+    cursor = parent
+  }
+}
+
+/**
+ * 给 tenon 备一个可信 Node：`source`（默认 process.execPath）已经能过守卫就原样返回；否则复制到 <scratch>/node-bin/node
+ * （0700 目录 + 0755 文件）并返回复制品路径。复制品仍过不了守卫、或者复制出来跑不起来（Node 依赖相对安装目录的动态库，
+ * 例如 Homebrew 的 libnode）时抛错，不悄悄退回不可信的那份。
+ */
+export function prepareTrustedNode(scratch, { source = process.execPath } = {}) {
+  if (isTrustedExecutable(source)) return source
+  const dir = join(scratch, 'node-bin')
+  const target = join(dir, 'node')
+  mkdirSync(dir, { recursive: true })
+  chmodSync(dir, 0o700)
+  copyFileSync(realpathSync(source), target)
+  chmodSync(target, 0o755)
+  if (!isTrustedExecutable(target)) {
+    throw new Error(`${source} 不在 tenon 可信 Node 守卫接受的位置，复制到 ${target} 后仍不被接受（检查临时目录 ${tmpdir()} 及其父目录的权限）`)
+  }
+  const probe = spawnSync(target, ['--version'], { encoding: 'utf8' })
+  if (probe.status !== 0) {
+    throw new Error(`复制出来的 Node ${target} 无法独立运行（它可能依赖安装目录里的动态库）：请改用独立打包的 Node（如 actions/setup-node 装的）。\n${probe.stderr ?? ''}`)
+  }
+  return target
+}
+
+/**
+ * 新建隔离根（realpath：macOS 的 /var 是 /private/var 的别名，注册表记的是真实路径）。
+ * 返回值里的 `node` 是这个隔离根该用的可信 Node（见文件头），传给 `isolatedEnv`；`nodeSource` 只给测试换掉要检查的 Node。
+ * 备可信 Node 失败时先删掉刚建的隔离根再抛错。
+ */
+export function createScratch(prefix, { nodeSource = process.execPath } = {}) {
   const scratch = realpathSync(mkdtempSync(join(tmpdir(), `${prefix}-`)))
   const home = join(scratch, 'home')
   const runtime = join(scratch, 'runtime')
   mkdirSync(home, { recursive: true })
   mkdirSync(runtime, { recursive: true })
-  return { scratch, home, runtime }
+  let node
+  try {
+    node = prepareTrustedNode(scratch, { source: nodeSource })
+  } catch (error) {
+    removeScratch(scratch)
+    throw error
+  }
+  return { scratch, home, runtime, node }
 }
 
-/** 子进程环境：继承宿主 PATH 等，但 HOME / 运行时根 / 身份换成隔离的，并去掉会让 CLI 找到真实插件或端口的变量。 */
-export function isolatedEnv({ home, runtime }) {
+const NODE_ENV = 'TENON_ISOLATED_NODE'
+
+/**
+ * 子进程环境：继承宿主 PATH 等，但 HOME / 运行时根 / 身份换成隔离的，并去掉会让 CLI 找到真实插件或端口的变量。
+ * 传入 `node`（createScratch 的返回值）时，把它记在 TENON_ISOLATED_NODE 里，runTenon / startDashboard 用它代替 process.execPath。
+ */
+export function isolatedEnv({ home, runtime, node }) {
   const env = {
     ...process.env,
     HOME: home,
@@ -42,7 +135,14 @@ export function isolatedEnv({ home, runtime }) {
   delete env.TENON_DASHBOARD_PORT
   delete env.CLAUDE_PLUGIN_ROOT
   delete env.PLUGIN_ROOT
+  delete env[NODE_ENV]
+  if (node !== undefined) env[NODE_ENV] = node
   return env
+}
+
+/** 该环境该用哪个 Node 去跑 tenon：isolatedEnv 记下的可信 Node；没记就是当前进程自己的。 */
+export function isolatedNode(env) {
+  return env[NODE_ENV] ?? process.execPath
 }
 
 export function writeProjectFile(root, path, text) {
@@ -53,7 +153,7 @@ export function writeProjectFile(root, path, text) {
 
 /** 跑一次 tenon；退出码不在 allow 里就抛错（带 stdout / stderr）。 */
 export function runTenon(env, cwd, args, { allow = [0] } = {}) {
-  const result = spawnSync(process.execPath, [TENON_CLI, ...args], { cwd, env, encoding: 'utf8' })
+  const result = spawnSync(isolatedNode(env), [TENON_CLI, ...args], { cwd, env, encoding: 'utf8' })
   if (result.error !== undefined) throw result.error
   if (!allow.includes(result.status)) {
     throw new Error(`tenon ${args.join(' ')} 退出 ${result.status}\n${result.stdout}\n${result.stderr}`)
@@ -124,7 +224,7 @@ export async function startDashboard({ env, cwd, logFile }) {
   const url = `http://127.0.0.1:${port}`
   mkdirSync(dirname(logFile), { recursive: true })
   const log = openSync(logFile, 'w')
-  const child = spawn(process.execPath, [TENON_CLI, 'dashboard', '--port', String(port)], {
+  const child = spawn(isolatedNode(env), [TENON_CLI, 'dashboard', '--port', String(port)], {
     cwd, env, detached: true, stdio: ['ignore', log, log],
   })
   const deadline = Date.now() + HEALTH_TIMEOUT_MS
@@ -137,7 +237,7 @@ export async function startDashboard({ env, cwd, logFile }) {
   throw new Error(`dashboard 在 ${HEALTH_TIMEOUT_MS / 1000}s 内没有就绪，日志：${logFile}`)
 }
 
-// 刚停下的 dashboard / CLI 子进程可能还在收尾写文件，递归删除带重试，不然 ENOTEMPTY 会盖住真正的失败。
+// 刚停下的 dashboard / CLI 子进程可能还在收尾写文件，递归删除带重试，不然 ENOTEMPTY 会盖住真正的失败；复制出来的 node-bin 也在这个根里，一并删除。
 export function removeScratch(scratch) {
   rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 }

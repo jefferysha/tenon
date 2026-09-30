@@ -100,6 +100,17 @@ registered in `.tenon/tests/catalog.yaml` (`dashboard-e2e`, `bench-status`,
 non-blocking WebKit job would rebuild the whole tree, and Linux WebKit has no evidence yet),
 so run both projects locally before changing the pages they cover.
 
+`tenon dashboard` only starts its server with a Node whose executable and parent directories
+are not group- or world-writable (sticky directories excepted) and are owned by root or the
+current user. A Node from a shared tool cache (for example `actions/setup-node` on GitHub-hosted
+runners) fails that check, and the guard stays as it is. `tools/lib/isolated-tenon.mjs`, used by
+the e2e server and the benchmarks, checks `process.execPath` against the same conditions and,
+only when it fails, copies it to `<scratch>/node-bin/node` (mode 0700 directory, 0755 file) and
+runs every `tenon` child with that copy; the scratch cleanup removes it. The copy must run on
+its own (an official binary does). A Node that fails the check and also loads sibling shared
+libraries (for example Homebrew's `libnode`) cannot be copied; the helper then stops with an
+error instead of falling back to the untrusted one.
+
 Benchmark regressions (`max_regression_pct: 15`) are judged against a baseline of the same
 machine profile. Baselines are not committed from a developer laptop: CI runs the two
 suites with `tenon test run`, and after a green run it writes the run as a baseline candidate
