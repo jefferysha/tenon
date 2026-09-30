@@ -1,0 +1,491 @@
+# Tenon 仓库自己的测试目录：`tenon test discover` 起草，再按仓库真实的验收入口细化。
+# 报告、覆盖率与产物只写 test-results/、playwright-report/、coverage/（目录校验强制；这样跑测试不会让候选版本失效）。
+# 种类：unit / integration / regression / smoke / typecheck / lint / playwright / benchmark 计入默认策略；
+# custom 与带 slow 标签的套件不在默认 verify 里，需要时用 --suite 点名运行。
+schema: tenon-test-catalog/v1
+profiles_env:
+  - CI
+suites:
+  # ── 单测 ────────────────────────────────────────────────────────────
+  - id: unit
+    label: 单测 · packages
+    kind: unit
+    runner: vitest
+    command: npm test -- --reporter=default --reporter=json --outputFile.json=test-results/vitest.json
+    timeout_s: 3600
+    files:
+      - packages/*/src/**/*.test.ts
+    covers:
+      - packages/*/src/**
+      - templates/**
+    select:
+      files: "npx vitest run {files} --reporter=default --reporter=json --outputFile.json=test-results/vitest.json"
+      grep: "npx vitest run -t {pattern} --reporter=default --reporter=json --outputFile.json=test-results/vitest.json"
+    report:
+      format: vitest-json
+      path: test-results/vitest.json
+    artifacts:
+      - test-results/vitest.json
+    tags:
+      - vitest
+  - id: dashboard-app-unit
+    label: 单测 · dashboard-app
+    kind: unit
+    runner: vitest
+    command: npx vitest run --reporter=default --reporter=json --outputFile.json=test-results/vitest.json
+    cwd: packages/dashboard-app
+    timeout_s: 1800
+    files:
+      - src/**/*.test.tsx
+    covers:
+      - src/**
+    select:
+      files: "npx vitest run {files} --reporter=default --reporter=json --outputFile.json=test-results/vitest.json"
+      grep: "npx vitest run -t {pattern} --reporter=default --reporter=json --outputFile.json=test-results/vitest.json"
+    report:
+      format: vitest-json
+      path: test-results/vitest.json
+    artifacts:
+      - test-results/vitest.json
+    tags:
+      - vitest
+      - web
+  - id: tools-node
+    label: 单测 · tools 与 docs-site 脚本
+    kind: unit
+    runner: node-test
+    command: node --test --test-reporter=junit --test-reporter-destination=test-results/tools-node.xml tools/*.node-test.mjs tools/bench/*.node-test.mjs docs-site/scripts/*.node-test.mjs
+    timeout_s: 1800
+    files:
+      - tools/*.node-test.mjs
+      - tools/bench/*.node-test.mjs
+      - docs-site/scripts/*.node-test.mjs
+    covers:
+      - tools/**
+      - docs-site/scripts/**
+    report:
+      format: junit
+      path: test-results/tools-node.xml
+    artifacts:
+      - test-results/tools-node.xml
+    tags:
+      - node-test
+  # ── 集成 / 冒烟 ─────────────────────────────────────────────────────
+  - id: hooks
+    label: hook 脚本
+    kind: integration
+    runner: custom
+    command: TENON_TAP_OUT=test-results/hooks.tap bash tools/test-hooks.sh
+    timeout_s: 1800
+    files:
+      - tools/test-hooks.sh
+    covers:
+      - hooks/**
+      - tools/verify-skills.sh
+      - tools/tap-out.sh
+    report:
+      format: tap
+      path: test-results/hooks.tap
+    artifacts:
+      - test-results/hooks.tap
+    tags:
+      - bash
+  - id: adapters
+    label: 适配器 conformance
+    kind: integration
+    runner: custom
+    command: TENON_TAP_OUT=test-results/adapters.tap bash tools/test-adapters.sh
+    timeout_s: 1800
+    files:
+      - tools/test-adapters.sh
+    covers:
+      - adapters/**
+      - hooks/**
+      - tools/tap-out.sh
+    report:
+      format: tap
+      path: test-results/adapters.tap
+    artifacts:
+      - test-results/adapters.tap
+    tags:
+      - bash
+  - id: migration-cas
+    label: 主规格迁移原子 CAS
+    kind: integration
+    runner: node-test
+    command: node --test --test-reporter=junit --test-reporter-destination=test-results/migration-cas.xml tools/spec-migration-cas.node-test.mjs tools/reconcile-spec-application.node-test.mjs
+    timeout_s: 1200
+    files:
+      - tools/spec-migration-cas.node-test.mjs
+      - tools/reconcile-spec-application.node-test.mjs
+    covers:
+      - tools/spec-migration-cas.mjs
+      - tools/spec-migration-cas-helper.c
+      - tools/reconcile-spec-application.mjs
+    report:
+      format: junit
+      path: test-results/migration-cas.xml
+    artifacts:
+      - test-results/migration-cas.xml
+    tags:
+      - node-test
+  - id: bundle
+    label: CLI 与 dashboard bundle 冒烟
+    kind: smoke
+    runner: custom
+    command: TENON_TAP_OUT=test-results/bundle.tap bash tools/test-bundle.sh
+    timeout_s: 1800
+    files:
+      - tools/test-bundle.sh
+    covers:
+      - packages/cli/src/**
+      - packages/server/src/**
+      - templates/**
+      - tools/tap-out.sh
+    report:
+      format: tap
+      path: test-results/bundle.tap
+    artifacts:
+      - test-results/bundle.tap
+    tags:
+      - bash
+  - id: oracle-harness
+    label: golden oracle harness 契约
+    kind: unit
+    runner: vitest
+    command: npx vitest run --reporter=default --reporter=json --outputFile.json=test-results/vitest.json
+    cwd: tools/oracle
+    timeout_s: 1800
+    files:
+      - "**/*.test.ts"
+    covers:
+      - tools/oracle/**
+    select:
+      files: "npx vitest run {files} --reporter=default --reporter=json --outputFile.json=test-results/vitest.json"
+      grep: "npx vitest run -t {pattern} --reporter=default --reporter=json --outputFile.json=test-results/vitest.json"
+    report:
+      format: vitest-json
+      path: test-results/vitest.json
+    artifacts:
+      - test-results/vitest.json
+    tags:
+      - vitest
+      - slow
+  # ── 回归 ────────────────────────────────────────────────────────────
+  - id: oracle
+    label: golden oracle 双跑
+    kind: regression
+    runner: custom
+    command: TENON_TAP_OUT=test-results/oracle.tap npm run oracle
+    timeout_s: 3600
+    covers:
+      - tools/oracle/**
+      - packages/kernel/src/**
+      - packages/cli/src/**
+      - templates/workflows/**
+    report:
+      format: tap
+      path: test-results/oracle.tap
+    artifacts:
+      - test-results/oracle.tap
+    tags:
+      - oracle
+  # ── 类型检查 ────────────────────────────────────────────────────────
+  - id: typecheck-packages
+    label: 类型检查 · packages
+    kind: typecheck
+    runner: tsc
+    command: npx tsc -b packages/kernel packages/channel packages/tap packages/automation packages/cli packages/server
+    timeout_s: 1800
+    covers:
+      - packages/*/src/**
+      - tsconfig.base.json
+    report:
+      format: exit-code
+  - id: typecheck-web
+    label: 类型检查 · dashboard-app
+    kind: typecheck
+    runner: tsc
+    command: npm run typecheck:web
+    timeout_s: 1200
+    covers:
+      - packages/dashboard-app/src/**
+      - packages/kernel/src/**
+    report:
+      format: exit-code
+  - id: typecheck-e2e
+    label: 类型检查 · e2e
+    kind: typecheck
+    runner: tsc
+    command: npx tsc -p e2e/dashboard
+    timeout_s: 600
+    covers:
+      - e2e/dashboard/**
+    report:
+      format: exit-code
+  # ── 静态检查 ────────────────────────────────────────────────────────
+  - id: lint-architecture
+    label: 架构边界
+    kind: lint
+    runner: custom
+    command: npm run check:architecture
+    timeout_s: 600
+    covers:
+      - packages/*/src/**
+      - tools/check-architecture.mjs
+    report:
+      format: exit-code
+    tags:
+      - static
+  - id: lint-comments
+    label: 注释可信度
+    kind: lint
+    runner: custom
+    command: npm run check:comments
+    timeout_s: 600
+    covers:
+      - hooks/**
+      - packages/**
+      - tools/**
+    report:
+      format: exit-code
+    tags:
+      - static
+  - id: lint-identity
+    label: 产品身份
+    kind: lint
+    runner: custom
+    command: npm run check:identity
+    timeout_s: 600
+    report:
+      format: exit-code
+    tags:
+      - static
+  - id: lint-design-scale
+    label: 排版 / 间距 / 圆角刻度
+    kind: lint
+    runner: custom
+    command: npm run check:design-scale
+    timeout_s: 600
+    covers:
+      - packages/dashboard-app/src/**
+    report:
+      format: exit-code
+    tags:
+      - static
+  - id: lint-docs
+    label: 文档链接与产品声明
+    kind: lint
+    runner: custom
+    command: npm run check:docs
+    timeout_s: 600
+    covers:
+      - docs/**
+      - README*.md
+    report:
+      format: exit-code
+    tags:
+      - static
+  - id: lint-openspec
+    label: OpenSpec 严格校验
+    kind: lint
+    runner: custom
+    command: npm run check:openspec
+    timeout_s: 900
+    covers:
+      - openspec/**
+    report:
+      format: exit-code
+    tags:
+      - static
+  - id: lint-hygiene
+    label: 仓库与图片卫生
+    kind: lint
+    runner: custom
+    command: npm run check:repository-hygiene
+    timeout_s: 600
+    report:
+      format: exit-code
+    tags:
+      - static
+  - id: lint-release-workflows
+    label: 发布工作流防绕过
+    kind: lint
+    runner: custom
+    command: npm run check:release-workflows
+    timeout_s: 900
+    covers:
+      - .github/workflows/**
+      - tools/check-release-workflows.node-test.mjs
+    report:
+      format: exit-code
+    tags:
+      - static
+  - id: lint-dashboard-dist
+    label: dashboard dist 新鲜度
+    kind: lint
+    runner: custom
+    command: npm run check:dashboard-dist-freshness
+    timeout_s: 600
+    covers:
+      - packages/dashboard-app/**
+    report:
+      format: exit-code
+    tags:
+      - static
+  - id: lint-templates
+    label: 文档与指令模板
+    kind: lint
+    runner: custom
+    command: npm run check:document-templates && npm run check:instruction-templates && npm run check:agents
+    timeout_s: 900
+    covers:
+      - templates/**
+      - agents/**
+    report:
+      format: exit-code
+    tags:
+      - static
+  # ── 浏览器 e2e ──────────────────────────────────────────────────────
+  - id: dashboard-e2e
+    label: Dashboard 浏览器 e2e
+    kind: playwright
+    runner: playwright
+    command: npx playwright test -c e2e/dashboard/playwright.config.ts
+    timeout_s: 2400
+    files:
+      - e2e/dashboard/*.spec.ts
+    covers:
+      - packages/dashboard-app/src/**
+      - packages/server/src/**
+      - e2e/dashboard/**
+    select:
+      files: "npx playwright test -c e2e/dashboard/playwright.config.ts {files}"
+      grep: "npx playwright test -c e2e/dashboard/playwright.config.ts --grep {pattern}"
+    report:
+      format: playwright-json
+      path: test-results/dashboard-e2e.json
+    artifacts:
+      - playwright-report
+      - test-results/dashboard-e2e
+    services:
+      - dashboard-e2e
+    retries: 1
+    browsers:
+      - chromium
+      - webkit
+    tags:
+      - e2e
+  - id: dashboard-e2e-chromium
+    label: Dashboard 浏览器 e2e · chromium
+    kind: playwright
+    runner: playwright
+    command: npx playwright test -c e2e/dashboard/playwright.config.ts --project=chromium
+    timeout_s: 1800
+    files:
+      - e2e/dashboard/*.spec.ts
+    covers:
+      - packages/dashboard-app/src/**
+      - packages/server/src/**
+      - e2e/dashboard/**
+    select:
+      files: "npx playwright test -c e2e/dashboard/playwright.config.ts --project=chromium {files}"
+      grep: "npx playwright test -c e2e/dashboard/playwright.config.ts --project=chromium --grep {pattern}"
+    report:
+      format: playwright-json
+      path: test-results/dashboard-e2e.json
+    artifacts:
+      - playwright-report
+      - test-results/dashboard-e2e
+    services:
+      - dashboard-e2e
+    retries: 1
+    browsers:
+      - chromium
+    tags:
+      - e2e
+  # ── 基准 ────────────────────────────────────────────────────────────
+  - id: bench-status
+    label: 基准 · tenon status 耗时
+    kind: benchmark
+    runner: custom
+    command: node tools/bench/status.mjs --json test-results/bench-status.json
+    timeout_s: 900
+    covers:
+      - packages/cli/src/**
+      - packages/kernel/src/**
+      - tools/bench/**
+    report:
+      format: benchmark-json
+      path: test-results/bench-status.json
+    artifacts:
+      - test-results/bench-status.json
+    tags:
+      - perf
+    benchmark:
+      runs: 1
+      warmup: 0
+      metrics:
+        - name: status_ms
+          unit: ms
+          better: lower
+          max_regression_pct: 15
+          max: 3000
+  - id: bench-snapshot
+    label: 基准 · dashboard 快照重建耗时
+    kind: benchmark
+    runner: custom
+    command: node tools/bench/snapshot.mjs --json test-results/bench-snapshot.json
+    timeout_s: 900
+    covers:
+      - packages/server/src/**
+      - packages/kernel/src/**
+      - tools/bench/**
+    report:
+      format: benchmark-json
+      path: test-results/bench-snapshot.json
+    artifacts:
+      - test-results/bench-snapshot.json
+    tags:
+      - perf
+    benchmark:
+      runs: 1
+      warmup: 0
+      metrics:
+        - name: snapshot_ms
+          unit: ms
+          better: lower
+          max_regression_pct: 15
+          max: 8000
+  # ── 慢速验收（不在默认 verify 里）──────────────────────────────────
+  - id: docs-smoke
+    label: 文档站构建与 smoke
+    kind: custom
+    runner: custom
+    command: npm run docs:sync && npm run docs:check && npm run docs:build && npm run docs:smoke
+    timeout_s: 1800
+    covers:
+      - docs-site/**
+      - docs/**
+    report:
+      format: exit-code
+    tags:
+      - docs
+      - slow
+  - id: clean-install
+    label: 干净环境安装验收
+    kind: custom
+    runner: custom
+    command: npm run test:clean-install
+    timeout_s: 3600
+    report:
+      format: exit-code
+    tags:
+      - slow
+services:
+  - id: dashboard-e2e
+    start: node e2e/dashboard/support/serve.mjs
+    ready:
+      log: dashboard-e2e ready
+      timeout_s: 240
+    stop: SIGTERM
