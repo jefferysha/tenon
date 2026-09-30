@@ -52,14 +52,15 @@ describe('tasks.md 条目：哪些要求映射用例', () => {
     '## 验证', '', '- [ ] 手工回归 (verify)',
   ].join('\n')
 
-  it('骨架提示词不是任务，不产出条目；编号仍按它占的序号数（作者把它改写成真任务时编号不变）；只有实现阶段小节里的条目要求映射', () => {
+  it('只有实现阶段小节里、不是骨架提示词的条目要求映射；其余可选', () => {
     const items = extractTaskItems(scaffold)
     expect(items.map((item) => [item.covers, item.stage, item.required])).toEqual([
-      ['task:4.2', 'build', true], ['task:5.1', 'verify', false],
+      ['task:1.1', 'open', false], ['task:2.1', 'explore', false], ['task:3.1', 'spec', false],
+      ['task:4.1', 'build', false], ['task:4.2', 'build', true], ['task:5.1', 'verify', false],
     ])
-    const rewritten = extractTaskItems(scaffold.replace('- [ ] 将本阶段目标拆成可验证任务。\n', '- [ ] 梳理范围\n'))
-    expect(rewritten.map((item) => [item.covers, item.text, item.required])).toEqual([
-      ['task:1.1', '梳理范围', false], ['task:4.2', '写购物车折扣', true], ['task:5.1', '手工回归 (verify)', false],
+    // 骨架提示词带 placeholder 标记（计划初稿 / 对账的清单据此不列它们）；作者写的条目没有。
+    expect(items.map((item) => [item.covers, item.placeholder])).toEqual([
+      ['task:1.1', true], ['task:2.1', true], ['task:3.1', true], ['task:4.1', true], ['task:4.2', false], ['task:5.1', false],
     ])
   })
 
@@ -76,7 +77,7 @@ describe('tasks.md 条目：哪些要求映射用例', () => {
     expect(headless.map((item) => [item.text, item.stage, item.required])).toEqual([['甲', null, false], ['乙', 'build', true]])
     const flat = extractTaskItems(['# Tasks', '- [ ] 1.1 甲', '- [x] 1.2 乙', '- [ ] 将本阶段目标拆成可验证任务。'].join('\n'))
     expect(flat.map((item) => [item.covers, item.stage, item.required])).toEqual([
-      ['task:1.1', 'build', true], ['task:1.2', 'build', true],
+      ['task:1.1', 'build', true], ['task:1.2', 'build', true], ['task:0.3', 'build', false],
     ])
   })
 })

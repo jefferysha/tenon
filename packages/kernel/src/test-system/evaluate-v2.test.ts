@@ -554,7 +554,7 @@ describe('evaluateTestPolicy —— 场景追溯', () => {
     expect(uncovered.blockers[2]?.message).toMatch(/^任务 /)
   })
 
-  it('任务只有实现阶段小节里的要求映射；其余阶段的任务只进矩阵、不出阻塞；骨架提示词不是任务，矩阵里没有它', () => {
+  it('任务只有实现阶段小节里的要求映射；其余阶段的任务与骨架提示词只进矩阵，不出阻塞', () => {
     const mixed = extractTaskItems([
       '## 立项', '- [ ] 将本阶段目标拆成可验证任务。', '',
       '## 规格', '- [ ] 评审需求 (spec)', '',
@@ -564,15 +564,16 @@ describe('evaluateTestPolicy —— 场景追溯', () => {
     const uncovered = evaluate({ policy: { scenarios: 'required' }, input: { scenarios: [], tasks: mixed } })
     expect(uncovered.blockers.map((item) => [item.code, item.subject])).toEqual([['scenario-uncovered', 'task:3.1']])
     expect(uncovered.trace.map((row) => [row.covers, row.required, row.state])).toEqual([
-      ['task:2.1', false, 'uncovered'], ['task:3.1', true, 'uncovered'], ['task:4.1', false, 'uncovered'],
+      ['task:1.1', false, 'uncovered'], ['task:2.1', false, 'uncovered'], ['task:3.1', true, 'uncovered'],
+      ['task:3.2', false, 'uncovered'], ['task:4.1', false, 'uncovered'],
     ])
     // 任务行带上所在阶段小节的 id（展示用，不参与判定）；场景没有。
-    expect(uncovered.trace.map((row) => row.stage)).toEqual(['spec', 'build', 'verify'])
+    expect(uncovered.trace.map((row) => row.stage)).toEqual(['open', 'spec', 'build', 'build', 'verify'])
     const mapped: TestPlan = { ...BASE_PLAN, cases: [{ covers: 'task:3.1', tests: ['src/a.test.ts › works'] }] }
     expect(evaluate({ policy: { scenarios: 'required' }, plan: mapped, input: { scenarios: [], tasks: mixed } }).blockers).toEqual([])
     const off = evaluate({ policy: { scenarios: 'off' }, input: { scenarios: [], tasks: mixed } })
     expect(off.blockers).toEqual([])
-    expect(off.trace.map((row) => row.required)).toEqual([false, true, false])
+    expect(off.trace.map((row) => row.required)).toEqual([false, false, true, false, false])
   })
 
   it('scenario-failing：passing 模式下映射用例本轮没有通过；追溯矩阵含 task 行与状态', () => {

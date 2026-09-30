@@ -162,7 +162,7 @@ export function seedPlan(input: SeedInput): SeedResult {
   const mapped = new Set(plan.cases.map((item) => item.covers))
   const unmapped: UnmappedItem[] = [
     ...input.scenarios.filter((item) => !mapped.has(item.covers)).map((item) => ({ covers: item.covers, title: `${item.capability} · ${item.title}`, kind: 'spec' as const, required: true })),
-    ...input.tasks.filter((item) => !mapped.has(item.covers)).map((item) => ({ covers: item.covers, title: item.text, kind: 'task' as const, required: item.required })),
+    ...input.tasks.filter((item) => !mapped.has(item.covers) && !item.placeholder).map((item) => ({ covers: item.covers, title: item.text, kind: 'task' as const, required: item.required })),
   ]
   return { plan, addedSuites, addedFiles: files.map((file) => file.path), orphans: registration.orphans, missingKinds, unmapped }
 }

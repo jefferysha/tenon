@@ -114,7 +114,7 @@ export async function cmdTestPlan(
   }
   const mapped = new Set(state.plan.cases.map((item) => item.covers))
   const requiredUnmapped = inputs.scenarios.filter((item) => !mapped.has(item.covers)).length + inputs.tasks.filter((item) => item.required && !mapped.has(item.covers)).length
-  const optionalUnmapped = inputs.tasks.filter((item) => !item.required && !mapped.has(item.covers)).length
+  const optionalUnmapped = inputs.tasks.filter((item) => !item.required && !item.placeholder && !mapped.has(item.covers)).length
   if (requiredUnmapped > 0) deps.io.out(`  还有 ${requiredUnmapped} 个场景 / 任务条目没有映射用例`)
   if (optionalUnmapped > 0) deps.io.out(`  另有 ${optionalUnmapped} 个可选任务没有映射用例（不挡）`)
   return 0

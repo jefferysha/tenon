@@ -23563,9 +23563,9 @@ function extractTaskItems(markdown, stages = DEFAULT_WORKFLOW_TODO_STAGES) {
       placeholder: findDocumentPlaceholders(line).length > 0
     });
   });
-  return found.filter(({ placeholder }) => !placeholder).map(({ item: item2 }) => {
+  return found.map(({ item: item2, placeholder }) => {
     const owner = structured ? item2.stage : TRACE_TASK_STAGE;
-    return { ...item2, stage: owner, required: owner === TRACE_TASK_STAGE };
+    return { ...item2, stage: owner, required: !placeholder && owner === TRACE_TASK_STAGE, placeholder };
   });
 }
 

@@ -248,7 +248,7 @@ vitest 工程里的 `*.bench.*` 文件会识别成 `vitest-bench` 基准套件�
 的套件、改动的测试文件，并列出还没映射的场景与任务，附可直接执行的 `register --case` 命令；策略里 `run_if_registered` 的种类
 只要目录里有套件也一并登记（基准除外）。只有场景和 `tasks.md`「实现」（`build`）小节下的任务要求映射
 （`scenarios: required|passing` 对它们出阻塞）；其他阶段小节的任务单列为可选（验证报告里写「可选」而不是「未覆盖」），永不挡；
-骨架提示词（「将本阶段目标拆成可验证任务」）不是任务，不会出现。`test register <change> --auto` 是一条命令的形态：缺目录先识别，
+骨架提示词（「将本阶段目标拆成可验证任务」）不是作者写的任务：种子、`test sync`、`test plan` 不再列它，追溯矩阵里它显示为可选。`test register <change> --auto` 是一条命令的形态：缺目录先识别，
 把没有套件认领的测试文件并进套件的 `files` glob（`test/x.test.js` 得到 `test/**/*.test.js`；`e2e/` 下的用例进 Playwright 套件，
 辅助文件和 `*.bench.*` 不会自动认领），再生成计划初稿并登记这些文件；只增不减，可重复运行。`test sync` 拿本任务相对起点的
 diff 对账：未登记的测试文件、没有套件认领的文件、登记了但文件已不存在的项，与门禁是同一份计算（有待处理 exit `2`）。

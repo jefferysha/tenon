@@ -207,7 +207,8 @@ step lists in `run_if_registered` (benchmarks excepted). Only scenarios and the 
 implementation (`build`) section of `tasks.md` must be mapped (`scenarios: required|passing`
 blocks on them); tasks in any other stage section are listed separately as optional (shown as
 "optional", not "uncovered", in the verification report) and never block. The scaffold prompt
-"break this stage into verifiable tasks" is not a task and never appears. `test register
+"break this stage into verifiable tasks" is not a task the author wrote: the seed, `test sync` and
+`test plan` no longer list it, and the traceability matrix shows it as optional. `test register
 <change> --auto` is the one-command form: it discovers a missing catalog, widens the
 `files` globs of a suite so that test files no suite claims are claimed (a `test/**/*.test.js`
 glob for `test/x.test.js`; `e2e/` specs go to a Playwright suite, helpers and `*.bench.*`

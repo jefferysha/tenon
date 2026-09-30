@@ -222,7 +222,7 @@ describe('测试体系 v2 · 计划、追溯与命令面', () => {
     expect(await tenon('test', 'plan', 'demo', '--seed'), err()).toBe(0)
     expect(out()).toContain('待映射的场景 / 任务（3）')
     expect(out()).toContain('tenon test register demo --case task:1.1')
-    // 骨架提示词（task:1.2）不是任务，不占行；只剩验证小节里作者写的 task:2.1 是可选。
+    // 骨架提示词（task:1.2）不是作者写的任务，计划初稿不列它；只剩验证小节里作者写的 task:2.1 是可选。
     expect(out()).toContain('可选的任务（1）')
     expect(out()).not.toContain('将本阶段目标拆成可验证任务')
     expect(out()).toMatch(/task:2\.1 {2}手工回归/u)
@@ -244,12 +244,13 @@ describe('测试体系 v2 · 计划、追溯与命令面', () => {
     expect(blocking(current)).toEqual([])
     expect(current.policy?.trace.map((row) => [row.covers, row.state])).toEqual([
       ['spec:auth/登录成功', 'passing'], ['spec:auth/密码错误', 'passing'],
-      ['task:1.1', 'passing'], ['task:2.1', 'uncovered'],
+      ['task:1.1', 'passing'], ['task:1.2', 'uncovered'], ['task:2.1', 'uncovered'],
     ])
     await tenon('test', 'plan', 'demo')
     expect(out()).toContain('另有 1 个可选任务没有映射用例（不挡）')
     // 验证报告的追溯矩阵：不要求映射的任务写「可选」，不写「未覆盖」。
     await tenon('test', 'report', 'demo', '--step', 'verify')
+    expect(out()).toMatch(/task:1\.2[^\n]*\| 可选 \|/u)
     expect(out()).toMatch(/task:2\.1[^\n]*\| 可选 \|/u)
     expect(out()).not.toContain('未覆盖')
     await tenon('test', 'report', 'demo', '--step', 'verify', '--locale', 'en')

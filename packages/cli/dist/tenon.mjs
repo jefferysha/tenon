@@ -29104,9 +29104,9 @@ function extractTaskItems(markdown, stages = DEFAULT_WORKFLOW_TODO_STAGES) {
       placeholder: findDocumentPlaceholders(line).length > 0
     });
   });
-  return found.filter(({ placeholder }) => !placeholder).map(({ item: item2 }) => {
+  return found.map(({ item: item2, placeholder }) => {
     const owner = structured ? item2.stage : TRACE_TASK_STAGE;
-    return { ...item2, stage: owner, required: owner === TRACE_TASK_STAGE };
+    return { ...item2, stage: owner, required: !placeholder && owner === TRACE_TASK_STAGE, placeholder };
   });
 }
 
@@ -85029,7 +85029,7 @@ function seedPlan(input2) {
   const mapped = new Set(plan.cases.map((item2) => item2.covers));
   const unmapped = [
     ...input2.scenarios.filter((item2) => !mapped.has(item2.covers)).map((item2) => ({ covers: item2.covers, title: `${item2.capability} \xB7 ${item2.title}`, kind: "spec", required: true })),
-    ...input2.tasks.filter((item2) => !mapped.has(item2.covers)).map((item2) => ({ covers: item2.covers, title: item2.text, kind: "task", required: item2.required }))
+    ...input2.tasks.filter((item2) => !mapped.has(item2.covers) && !item2.placeholder).map((item2) => ({ covers: item2.covers, title: item2.text, kind: "task", required: item2.required }))
   ];
   return { plan, addedSuites, addedFiles: files.map((file) => file.path), orphans: registration.orphans, missingKinds, unmapped };
 }
@@ -85138,7 +85138,7 @@ async function cmdTestPlan(deps, change, opts = {}) {
   }
   const mapped = new Set(state.plan.cases.map((item2) => item2.covers));
   const requiredUnmapped = inputs2.scenarios.filter((item2) => !mapped.has(item2.covers)).length + inputs2.tasks.filter((item2) => item2.required && !mapped.has(item2.covers)).length;
-  const optionalUnmapped = inputs2.tasks.filter((item2) => !item2.required && !mapped.has(item2.covers)).length;
+  const optionalUnmapped = inputs2.tasks.filter((item2) => !item2.required && !item2.placeholder && !mapped.has(item2.covers)).length;
   if (requiredUnmapped > 0) deps.io.out(`  \u8FD8\u6709 ${requiredUnmapped} \u4E2A\u573A\u666F / \u4EFB\u52A1\u6761\u76EE\u6CA1\u6709\u6620\u5C04\u7528\u4F8B`);
   if (optionalUnmapped > 0) deps.io.out(`  \u53E6\u6709 ${optionalUnmapped} \u4E2A\u53EF\u9009\u4EFB\u52A1\u6CA1\u6709\u6620\u5C04\u7528\u4F8B\uFF08\u4E0D\u6321\uFF09`);
   return 0;
@@ -88799,7 +88799,7 @@ async function cmdTestSync(deps, change, opts = {}) {
   const gone = plan === void 0 ? [] : await missingOnDisk(deps, plan);
   const mapped = new Set(plan?.cases.map((item2) => item2.covers) ?? []);
   const unmapped = [...inputs2.scenarios.map((item2) => item2.covers), ...inputs2.tasks.filter((item2) => item2.required).map((item2) => item2.covers)].filter((covers) => !mapped.has(covers));
-  const optional = inputs2.tasks.filter((item2) => !item2.required && !mapped.has(item2.covers)).map((item2) => item2.covers);
+  const optional = inputs2.tasks.filter((item2) => !item2.required && !item2.placeholder && !mapped.has(item2.covers)).map((item2) => item2.covers);
   const register = (path15, suites) => `tenon test register ${change} --file ${shellQuote(path15)}${suites.length === 1 ? ` --suite ${shellQuote(suites[0] ?? "")}` : ""}`;
   const dirty = registration.unregistered.length + registration.orphans.length + gone.length > 0;
   if (opts.json === true) {
