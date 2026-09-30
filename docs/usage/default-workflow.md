@@ -108,9 +108,9 @@ label, the full reason and the command that fixes it.
 
 `tenon status`'s `step.next` walks the test system in order: `test-discover` (no
 catalog) → `test-plan-seed` → `test-plan-map` (missing kinds, unmapped scenarios) →
-`test-register-files` (unregistered test files) → `run-tests` (`tenon test run
-<change> --stage`) → `test-report` (writes the traceability matrix into the
-verification report). They come after the step's documents and before its reviewers;
+`test-register-files` (unregistered test files) → `run-tests`
+(`tenon test run <change> --stage`) → `test-report` (writes the traceability matrix
+into the verification report). They come after the step's documents and before its reviewers;
 a run that finished but misses the policy becomes a `fix` — or, on a review gate, the
 rollback edge. Waivers need a human: `tenon review request` lists the plan's pending
 waivers, and the user's confirmation (`tenon review acknowledge`, not `--delegated`)
