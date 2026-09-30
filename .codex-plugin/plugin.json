@@ -20,9 +20,9 @@
     "capabilities": ["Interactive", "Write"],
     "websiteURL": "https://github.com/jefferysha/tenon",
     "defaultPrompt": [
-      "Create a new default pipeline change for this feature.",
-      "Show the active pipeline change and its required evidence.",
-      "Run the current pipeline phase and record its OpenSpec outputs."
+      "Start a Tenon task for this feature and follow its workflow.",
+      "Resume the active Tenon task from its next step.",
+      "Show the active task's next step and the evidence it still needs."
     ],
     "brandColor": "#2563EB"
   }
