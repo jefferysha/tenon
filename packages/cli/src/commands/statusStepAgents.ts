@@ -24,6 +24,11 @@ export interface StepAgentView {
   /** 本次运行的报告路径（仓库相对）；`running` 时运行器把报告写到这里再 `tenon agent record`。 */
   readonly report_path: string | null
   readonly blocking_findings: number
+  /** 评审者：当前候选上除判定那次外的已结束运行数；重跑不能换来通过（取最严，除非重跑写明了原因）。 */
+  readonly reruns: number
+  /** 评审者：同一候选上前面有不通过、判定那次却通过（结论是重跑翻转的）。 */
+  readonly flipped: boolean
+  readonly rerun_reason: string | null
 }
 
 function statusOf(
@@ -90,6 +95,9 @@ export async function agentStepViews(
       run_id: view.runId,
       report_path: view.reportPath,
       blocking_findings: view.blocking,
+      reruns: view.reruns,
+      flipped: view.flipped,
+      rerun_reason: view.rerunReason,
     }))
   return { executors: project('executor'), reviewers: project('reviewer') }
 }

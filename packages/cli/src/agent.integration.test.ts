@@ -108,10 +108,13 @@ describe('真实 e2e —— 步骤 agent', () => {
   async function runAgent(
     agent: string,
     findings: readonly { severity: string; location: string; message: string }[] = [],
-    options: { readonly result?: 'done' | 'failed'; readonly env?: Record<string, string> } = {},
+    options: { readonly result?: 'done' | 'failed'; readonly env?: Record<string, string>; readonly rerunReason?: string } = {},
   ): Promise<number> {
     const env = options.env ?? USER_A
-    const started = await h.run(['agent', 'prompt', 'demo', agent, '--json'], { env })
+    const started = await h.run(
+      ['agent', 'prompt', 'demo', agent, '--json', ...(options.rerunReason === undefined ? [] : ['--rerun-reason', options.rerunReason])],
+      { env },
+    )
     if (started !== 0) return started
     const payload = JSON.parse(h.out.join('')) as { run_id: string; report_path: string }
     const body = options.result === undefined
@@ -233,12 +236,59 @@ describe('真实 e2e —— 步骤 agent', () => {
     expect(view.pass).toBe(false)
     expect(view.blockers.find((item) => item.kind === 'reviewer-failed')?.agent).toBe('security')
 
-    expect(await runAgent('security')).toBe(0)
+    // 同一份代码（候选没变）上已经有结论，不写原因就重跑：拒绝；写明原因的重跑留痕并以它为准。
+    expect(await runAgent('security')).toBe(2)
+    expect(h.err.join('\n')).toContain('同一份代码不能靠重跑换结论')
+    expect(await runAgent('security', [], { rerunReason: '上一轮提示缺少 DESIGN.md，补充后重跑' })).toBe(0)
     view = await next()
     expect(view.wave).toEqual(['architecture'])
     // 参考评审者报 critical 也不拦。
     expect(await runAgent('architecture', [{ severity: 'critical', location: 'b.ts:2', message: '环' }])).toBe(0)
     expect((await next()).pass).toBe(true)
+  })
+
+  test('F8 重跑防刷：同候选写明原因的重跑留痕（次数、翻转、原因）；改代码换候选后的重跑不需要原因', async () => {
+    await seed()
+    expect(await runAgent('builder', [], { result: 'done' })).toBe(0)
+    expect(await runAgent('researcher', [], { result: 'done' })).toBe(0)
+    expect(await h.run(['transition', 'demo', 'build-done'], { env: USER_A })).toBe(0)
+    expect(await runAgent('spec-consistency')).toBe(0)
+    expect(await runAgent('security', [{ severity: 'medium', location: 'a.ts:1', message: '缺少校验' }])).toBe(0)
+    expect(await runAgent('security', [], { rerunReason: '   ' })).toBe(1)
+    expect(h.err.join('\n')).toContain('--rerun-reason')
+    expect(await runAgent('security', [], { rerunReason: '补充了设计稿后重跑' })).toBe(0)
+    const view = (await next()).agents.find((item) => item.agent === 'security') as unknown as Record<string, unknown>
+    expect(view).toMatchObject({ result: 'pass', reruns: 1, flipped: true, rerun_reason: '补充了设计稿后重跑' })
+    expect(await h.run(['agent', 'next', 'demo'], { env: USER_A })).toBe(0)
+    expect(h.out.join('\n')).toContain('security 评审者 已完成 通过 重跑 1 次（结论翻转）：补充了设计稿后重跑')
+    // 台账留着每一次运行，原因在最后一行上。
+    const rows = (await h.readIn('demo', '.pipeline-agent-runs.jsonl')).trim().split('\n').map((line) => JSON.parse(line) as { agent: string; status: string; rerun_reason?: string })
+    expect(rows.filter((row) => row.agent === 'security' && row.status === 'finished')).toHaveLength(2)
+    expect(rows.filter((row) => row.agent === 'security').at(-1)?.rerun_reason).toBe('补充了设计稿后重跑')
+
+    // 换候选（代码真的变了）之后，上一候选的结论过期，新候选上的第一次运行不需要原因。
+    await writeFile(join(h.cwd, 'fix.ts'), 'export const fixed = true\n', 'utf8')
+    expect(await runAgent('security', [{ severity: 'high', location: 'fix.ts:1', message: '新问题' }])).toBe(0)
+    expect((await next()).agents.find((item) => item.agent === 'security')).toMatchObject({ result: 'fail', findings: 1 })
+  })
+
+  test('F8 台账里没有原因的同候选重跑（旧版本写的行、手工追加的行）：取最严结论，重跑换不来通过', async () => {
+    await seed()
+    expect(await runAgent('builder', [], { result: 'done' })).toBe(0)
+    expect(await runAgent('researcher', [], { result: 'done' })).toBe(0)
+    expect(await h.run(['transition', 'demo', 'build-done'], { env: USER_A })).toBe(0)
+    expect(await runAgent('spec-consistency')).toBe(0)
+    expect(await runAgent('security', [{ severity: 'high', location: 'a.ts:1', message: '注入' }])).toBe(0)
+    const rows = (await h.readIn('demo', '.pipeline-agent-runs.jsonl')).trim().split('\n').map((line) => JSON.parse(line) as Record<string, unknown>)
+    const failed = rows.filter((row) => row.agent === 'security').at(-1) as Record<string, unknown>
+    // 不走 CLI、直接往台账追加一条同候选的「通过」运行（没有 rerun_reason）。
+    await appendFile(join(h.cwd, 'openspec/changes/demo/.pipeline-agent-runs.jsonl'), `${JSON.stringify({
+      ...failed, run_id: 'forged-pass', result: 'pass', findings: [], finished_at: '2099-01-01T00:00:00Z',
+    })}\n`, 'utf8')
+    const view = await next()
+    expect(view.pass).toBe(false)
+    expect(view.blockers.find((item) => item.kind === 'reviewer-failed')?.agent).toBe('security')
+    expect(view.agents.find((item) => item.agent === 'security')).toMatchObject({ result: 'fail', findings: 1, reruns: 1, flipped: true, rerun_reason: null })
   })
 
   test('候选变化：已完成的评审结论过期，进行中的登记被拒', async () => {
@@ -355,7 +405,7 @@ tracks:
     expect(await h.run(['transition', 'demo', 'verify-pass'], { env: USER_A })).toBe(2)
     expect(h.err.join('\n')).toContain('a.ts:1 注入')
 
-    expect(await runAgent('security')).toBe(0)
+    expect(await runAgent('security', [], { rerunReason: '修完注入问题后复审' })).toBe(0)
     // 参考评审者报 critical 也不拦。
     expect(await runAgent('architecture', [{ severity: 'critical', location: 'b.ts:2', message: '环' }])).toBe(0)
     expect(await h.run(['transition', 'demo', 'verify-pass'], { env: USER_A }), h.err.join('\n')).toBe(0)

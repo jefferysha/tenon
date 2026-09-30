@@ -277,3 +277,72 @@ describe('renderAgentBlocker', () => {
     expect(line).toContain('tenon agent prompt c a')
   })
 })
+
+
+describe('评审者同候选多次运行（F8：重跑刷结论）', () => {
+  const FAIL = [{ severity: 'high' as const, location: 'a.ts:1', message: '越权' }]
+  const first = run({ run_id: 'r1', result: 'fail', findings: FAIL, finished_at: '2026-09-20T01:10:00Z' })
+  const flip = run({ run_id: 'r2', result: 'pass', findings: [], finished_at: '2026-09-20T01:20:00Z' })
+  const step = { reviewers: [reviewer('security', { blockAt: 'medium' })] }
+
+  it('第一次不通过、同候选再跑一次通过且没写原因：仍取最严结论（不通过），并标出重跑次数与翻转', () => {
+    const data = input(step, [first, flip])
+    const result = evaluateStepAgents(data)
+    expect(result.pass).toBe(false)
+    expect(result.blockers).toEqual([expect.objectContaining({ kind: 'reviewer-failed', agent: 'security', reruns: 1 })])
+    const [view] = projectStepAgents(data)
+    expect(view).toMatchObject({ result: 'fail', blocking: 1, runId: 'r1', reruns: 1, flipped: true, rerunReason: null })
+    expect(renderAgentBlocker(result.blockers[0] as never, 'demo')).toContain('同一候选上已跑 2 次，取最严的结论')
+  })
+
+  it('最后一次运行写明了重跑原因：以它为准并留痕（仍标出翻转与原因）', () => {
+    const justified = { ...flip, rerun_reason: '第一轮提示词没带 DESIGN.md' }
+    const data = input(step, [first, justified])
+    expect(evaluateStepAgents(data).pass).toBe(true)
+    const [view] = projectStepAgents(data)
+    expect(view).toMatchObject({ result: 'pass', runId: 'r2', reruns: 1, flipped: true, rerunReason: '第一轮提示词没带 DESIGN.md' })
+  })
+
+  it('有原因的重跑如果又失败，照样不通过', () => {
+    const again = run({ run_id: 'r2', result: 'fail', findings: FAIL, rerun_reason: '补充上下文后重跑' })
+    expect(evaluateStepAgents(input(step, [flip, again])).pass).toBe(false)
+  })
+
+  it('三次运行、无原因：取最严的一次（级别最高），而不是最新或最早的', () => {
+    const low = run({ run_id: 'r1', result: 'pass', findings: [{ severity: 'low', location: 'x', message: 'nit' }] })
+    const critical = run({ run_id: 'r2', result: 'fail', findings: [{ severity: 'critical', location: 'a.ts:9', message: '注入' }] })
+    const clean = run({ run_id: 'r3', result: 'pass', findings: [] })
+    const [view] = projectStepAgents(input(step, [low, critical, clean]))
+    expect(view).toMatchObject({ runId: 'r2', result: 'fail', reruns: 2, flipped: true })
+  })
+
+  it('候选变了之后的运行是新候选上的第一次：旧候选上的失败不算，也不算重跑', () => {
+    const before = run({ run_id: 'r1', result: 'fail', findings: FAIL, candidate: OTHER })
+    const after = run({ run_id: 'r2', result: 'pass', findings: [] })
+    const data = input(step, [before, after])
+    expect(evaluateStepAgents(data).pass).toBe(true)
+    expect(projectStepAgents(data)[0]).toMatchObject({ reruns: 0, flipped: false, rerunReason: null })
+  })
+
+  it('最后一次是进行中 / 候选已变：仍按原规则（running / stale），不把旧结论当成新结论', () => {
+    const running = run({ run_id: 'r2', status: 'running', result: null, findings: [] })
+    expect(evaluateStepAgents(input(step, [first, running])).blockers).toEqual([{ kind: 'reviewer-running', agent: 'security', runId: 'r2' }])
+    const stale = run({ run_id: 'r2', result: 'pass', candidate: OTHER })
+    expect(evaluateStepAgents(input(step, [first, stale])).blockers).toEqual([{ kind: 'reviewer-stale', agent: 'security' }])
+  })
+
+  it('执行者不受影响；单次运行的评审者 reruns 为 0', () => {
+    const builder = run({ agent: 'builder', role: 'executor', result: 'done' })
+    const [view] = projectStepAgents(input({ executors: [executor('builder')] }, [builder, { ...builder, run_id: 'r2' }]))
+    expect(view).toMatchObject({ reruns: 0, flipped: false })
+    expect(projectStepAgents(input(step, [first]))[0]).toMatchObject({ reruns: 0, flipped: false })
+  })
+
+  it('一个评审者失败后换个提示重跑通过，不会把另一个评审者的记录混进来', () => {
+    const other = run({ agent: 'quality', run_id: 'q1', result: 'pass' })
+    const data = input({ reviewers: [reviewer('security'), reviewer('quality')] }, [first, other, flip])
+    const views = projectStepAgents(data)
+    expect(views.find((view) => view.agent === 'quality')).toMatchObject({ reruns: 0, result: 'pass' })
+    expect(views.find((view) => view.agent === 'security')).toMatchObject({ reruns: 1, result: 'fail' })
+  })
+})

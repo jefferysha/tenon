@@ -11,7 +11,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
-  AGENT_REPORTS_DIR,
+  AGENT_REPORTS_DIR, AGENT_RERUN_REASON_MAX,
   appendAgentRunRow, currentDocumentStepVisitId, evaluateStepAgents, latestTestRun,
   nextAgentWave, parseAgentReport, projectStepAgents, readAgentRuns, readFrozenAgents, renderAgentBlocker,
   severityRank, sha256Hex,
@@ -103,6 +103,9 @@ const viewJson = (view: AgentView, waiting: readonly { agent: string; for: reado
   findings: view.findings,
   blocking: view.blocking,
   run_id: view.runId,
+  reruns: view.reruns,
+  flipped: view.flipped,
+  rerun_reason: view.rerunReason,
   waiting_for: waiting.find((item) => item.agent === view.agent)?.for ?? [],
 })
 
@@ -131,7 +134,8 @@ export async function cmdAgentNext(deps: CliDeps, name: string, json: boolean): 
   for (const view of views) {
     const result = view.result === null ? '' : ` ${RESULT_WORD[view.result]}`
     const findings = view.findings === 0 ? '' : ` 问题 ${view.findings}`
-    deps.io.out(`${view.agent} ${ROLE_WORD[view.role]} ${STATE_WORD[view.state]}${result}${findings}`)
+    const reruns = view.reruns === 0 ? '' : ` 重跑 ${view.reruns} 次${view.flipped ? '（结论翻转）' : ''}${view.rerunReason === null ? '' : `：${view.rerunReason}`}`
+    deps.io.out(`${view.agent} ${ROLE_WORD[view.role]} ${STATE_WORD[view.state]}${result}${findings}${reruns}`)
   }
   for (const line of waveSummary(name, views, wave, waiting, verdict)) deps.io.out(line)
   return 0
@@ -198,8 +202,13 @@ export async function cmdAgentPrompt(
   deps: CliDeps,
   name: string,
   agent: string,
-  options: { readonly host?: string; readonly json?: boolean },
+  options: { readonly host?: string; readonly json?: boolean; readonly rerunReason?: string },
 ): Promise<number> {
+  const rerunReason = options.rerunReason?.trim()
+  if (options.rerunReason !== undefined && (rerunReason === '' || (rerunReason?.length ?? 0) > AGENT_RERUN_REASON_MAX || /[\r\n]/u.test(rerunReason ?? ''))) {
+    deps.io.err(`ERROR: --rerun-reason 需要一行不超过 ${AGENT_RERUN_REASON_MAX} 字的原因`)
+    return 1
+  }
   const host = hostAgentHostOf(deps, options.host)
   let hostFiles: ReadonlyMap<string, HostAgentFileOutcome> = new Map()
   const context = await resolveAgentCommand(deps, name, {
@@ -232,6 +241,19 @@ export async function cmdAgentPrompt(
   const existing = context.runs.find((row) =>
     row.agent === agent && row.step_visit === context.stepVisit
     && row.status === 'running' && row.candidate === context.candidate)
+  // 评审者防刷（F8）：同一份代码上已经有结论，再开一次必须写明原因；没有原因的重跑在判定里取最严结论。
+  const priorOnCandidate = role === 'reviewer' && existing === undefined
+    ? context.runs.filter((row) => row.agent === agent && row.step_visit === context.stepVisit
+      && row.status === 'finished' && row.candidate === context.candidate)
+    : []
+  if (priorOnCandidate.length > 0 && rerunReason === undefined) {
+    deps.io.err(
+      `ERROR: 评审者 '${agent}' 在当前候选上已经有 ${priorOnCandidate.length} 次结论（${priorOnCandidate.map((row) => `${row.result ?? '?'}`).join('、')}）：同一份代码不能靠重跑换结论。`
+      + `改代码换候选后再重跑；确有需要（例如上次的提示缺上下文）用 tenon agent prompt ${name} ${agent} --rerun-reason <原因> 写明并留痕，`
+      + '判定会把同一候选上的所有运行一并看（没有原因的重跑取最严结论，有原因的以最后一次为准）',
+    )
+    return 2
+  }
   const runId = existing?.run_id ?? randomUUID()
   const reportPath = join('openspec', 'changes', name, AGENT_REPORTS_DIR, `${runId}.md`)
   // 专属子代理 `tenon-<name>` 只在宿主文件确实生成（或已是同一份）时下发；否则退回通用子代理并记下。
@@ -258,6 +280,7 @@ export async function cmdAgentPrompt(
       started_at: deps.clock(),
       finished_at: null,
       ...(subagent === undefined ? {} : { subagent }),
+      ...(priorOnCandidate.length > 0 && rerunReason !== undefined ? { rerun_reason: rerunReason } : {}),
     }
     try {
       await mkdir(join(context.dir, AGENT_REPORTS_DIR), { recursive: true })

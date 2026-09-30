@@ -3,6 +3,10 @@
  *
  * 相关的运行是「本次步骤访问（step_visit）内该 agent 的最后一次运行」；更早访问的运行只是历史。
  * 评审者按候选版本判过期（代码变了旧结论就不算），执行者不判——它们本身就是改代码的人。
+ *
+ * 评审者防刷（F8）：同一候选代码上同一评审者的多次运行全部保留，结论取最严——任一次有不低于 block_at 的发现就不通过，
+ * 重跑换不来通过；唯一的例外是最后一次运行带 `rerun_reason`（重跑时写明了为什么，例如提示词缺上下文），
+ * 此时以它为准，原因随 `AgentView.rerunReason` 留痕、`reruns` / `flipped` 让人一眼看出结论是靠重跑换的。
  */
 import { DEFAULT_EVENT_POLICY } from '../flow/default-event-policy.js'
 import { IMPLICIT_COMPLETION_EVENT, isForwardStepEdge } from './implicit-completion.js'
@@ -29,6 +33,12 @@ export interface AgentView {
   readonly reportPath: string | null
   readonly actor: { readonly id: string; readonly name: string } | null
   readonly finishedAt: string | null
+  /** 评审者：当前候选上除第一次以外的已结束运行数（被判定的那次之外还有几次）。 */
+  readonly reruns: number
+  /** 评审者：同一候选上前面有不通过的运行、判定的那次却通过了（结论是重跑翻转出来的）。 */
+  readonly flipped: boolean
+  /** 判定所依据的那次重跑写明的原因；没有重跑或没写原因为 null。 */
+  readonly rerunReason: string | null
 }
 
 export type AgentBlocker =
@@ -48,6 +58,8 @@ export type AgentBlocker =
       readonly agent: string
       readonly blockAt: AgentSeverity
       readonly blocking: readonly AgentFinding[]
+      /** 同一候选上另有几次运行（取最严的结论时提示，0 时缺省）。 */
+      readonly reruns?: number
     }
   | { readonly kind: 'agent-records-invalid'; readonly reason: string }
 
@@ -72,6 +84,38 @@ function blockingFindings(row: AgentRunRow, blockAt: AgentSeverity): readonly Ag
   return row.findings.filter((finding) => severityRank(finding.severity) >= severityRank(blockAt))
 }
 
+function worstRank(row: AgentRunRow): number {
+  return row.findings.reduce((worst, finding) => Math.max(worst, severityRank(finding.severity)), 0)
+}
+
+interface JudgedRun {
+  /** 判定所依据的运行（评审者同候选多次运行时是最严的那次，或带原因的最后一次）。 */
+  readonly row: AgentRunRow | undefined
+  readonly reruns: number
+  readonly flipped: boolean
+  readonly reason: string | null
+}
+
+/**
+ * 评审者在当前候选上的判定运行：同一候选上已结束的运行全部参与，最严的那次说了算；最后一次带 `rerun_reason`
+ * 时以它为准。进行中、候选已变（过期）以及执行者都只看最后一次运行。
+ */
+function judgedRun(input: StepAgentsInput, agent: string, role: AgentRole, blockAt: AgentSeverity | undefined): JudgedRun {
+  const latest = latestRun(input, agent)
+  if (role !== 'reviewer' || latest === undefined || latest.status === 'running' || latest.candidate !== input.candidate) {
+    return { row: latest, reruns: 0, flipped: false, reason: null }
+  }
+  const same = input.runs.filter((row) => row.agent === agent && row.step_visit === input.stepVisit
+    && row.status === 'finished' && row.candidate === input.candidate)
+  const reruns = Math.max(0, same.length - 1)
+  const failed = (row: AgentRunRow): boolean => blockAt !== undefined && blockingFindings(row, blockAt).length > 0
+  const flipped = reruns > 0 && !failed(latest) && same.slice(0, -1).some(failed)
+  const reason = latest.rerun_reason ?? null
+  if (reruns === 0 || reason !== null) return { row: latest, reruns, flipped, reason }
+  const severest = same.reduce((worst, row) => (worstRank(row) > worstRank(worst) ? row : worst), latest)
+  return { row: severest, reruns, flipped, reason: null }
+}
+
 function stateOf(row: AgentRunRow | undefined, role: AgentRole, candidate: string): AgentRunState {
   if (row === undefined) return 'idle'
   const fresh = row.candidate === candidate
@@ -88,7 +132,7 @@ function viewOf(
   readsTests: readonly string[],
   blockAt?: AgentSeverity,
 ): AgentView {
-  const row = latestRun(input, agent)
+  const { row, reruns, flipped, reason } = judgedRun(input, agent, role, blockAt)
   const state = stateOf(row, role, input.candidate)
   const blocking = row === undefined || blockAt === undefined ? [] : blockingFindings(row, blockAt)
   const result = row === undefined || row.status === 'running'
@@ -109,6 +153,9 @@ function viewOf(
     reportPath: row?.report_path ?? null,
     actor: row === undefined ? null : { id: row.actor.id, name: row.actor.name },
     finishedAt: row?.finished_at ?? null,
+    reruns,
+    flipped,
+    rerunReason: reason,
   }
 }
 
@@ -139,7 +186,7 @@ export function evaluateStepAgents(
   }
   for (const ref of input.step.reviewers) {
     if (!ref.required) continue
-    const row = latestRun(input, ref.agent)
+    const { row, reruns } = judgedRun(input, ref.agent, 'reviewer', ref.blockAt)
     const state = stateOf(row, 'reviewer', input.candidate)
     if (state === 'idle') { blockers.push({ kind: 'reviewer-missing', agent: ref.agent }); continue }
     if (state === 'running') {
@@ -148,7 +195,9 @@ export function evaluateStepAgents(
     }
     if (state === 'stale') { blockers.push({ kind: 'reviewer-stale', agent: ref.agent }); continue }
     const blocking = row === undefined ? [] : blockingFindings(row, ref.blockAt)
-    if (blocking.length > 0) blockers.push({ kind: 'reviewer-failed', agent: ref.agent, blockAt: ref.blockAt, blocking })
+    if (blocking.length > 0) {
+      blockers.push({ kind: 'reviewer-failed', agent: ref.agent, blockAt: ref.blockAt, blocking, ...(reruns > 0 ? { reruns } : {}) })
+    }
   }
   return { pass: blockers.length === 0, blockers }
 }
@@ -254,7 +303,10 @@ export function renderAgentBlocker(blocker: AgentBlocker, change: string): strin
       const shown = blocker.blocking.slice(0, FINDING_PREVIEW)
         .map((finding) => `${finding.location} ${finding.message}`)
         .join('；')
-      return `评审者 '${blocker.agent}' 未通过（${blocker.blocking.length} 个问题 ≥ ${blocker.blockAt}）：${shown}；`
+      const reruns = blocker.reruns === undefined
+        ? ''
+        : `；同一候选上已跑 ${blocker.reruns + 1} 次，取最严的结论——重跑换不来通过，改代码换候选后再重跑`
+      return `评审者 '${blocker.agent}' 未通过（${blocker.blocking.length} 个问题 ≥ ${blocker.blockAt}）：${shown}${reruns}；`
         + `修复后重跑：tenon agent prompt ${change} ${blocker.agent}`
     }
     case 'agent-records-invalid':

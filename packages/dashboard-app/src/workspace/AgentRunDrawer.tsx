@@ -55,10 +55,13 @@ export function AgentRunDrawer({
     : agent.state === 'stale'
       ? t('workspace.agent_stale')
       : agent.result === null ? t('workspace.agent_idle') : t(RESULT_KEY[agent.result])
+  const reruns = agent.reruns ?? 0
   const facts = [
     t(`workspace.agent_${agent.role}`),
     verdict,
     t('workspace.agent_findings', { n: agent.findings }),
+    ...(reruns > 0 ? [t('workspace.agent_reruns', { n: reruns })] : []),
+    ...(agent.flipped === true ? [t('workspace.agent_flipped')] : []),
     agent.actor?.name ?? '—',
     agent.finishedAt ?? '—',
   ].join(' · ')
@@ -72,7 +75,7 @@ export function AgentRunDrawer({
       title={(
         <>
           <span className="block truncate font-mono text-base font-semibold text-text" data-testid="agent-run-title">{agent.agent}</span>
-          <span className="block truncate font-mono text-caption text-text-3" data-testid="agent-run-facts">{facts}</span>
+          <span className="block truncate font-mono text-caption text-text-3" title={agent.rerunReason ?? undefined} data-testid="agent-run-facts">{facts}</span>
         </>
       )}
       actions={<StatusPill tone={TONE[agent.state]} testId="agent-run-state">{verdict}</StatusPill>}

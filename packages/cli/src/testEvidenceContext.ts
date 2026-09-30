@@ -45,6 +45,8 @@ export function testEvidenceContextFor(deps: CliDeps, changeName: string): TestE
   return {
     user: { id: user.id, name: user.name, slug: userSlug(user.id) },
     ...(fingerprint === undefined ? {} : { currentCandidate: () => fingerprint(changeName) }),
+    // 已知失败的到期判定与 `known add` 的 30 天上限读同一个时钟（生产里就是真实时间）。
+    now: () => Date.parse(deps.clock()),
     changedFiles: changedFilesFor(deps, changeName),
     protectedChanges: protectedChangesFor(deps, changeName),
   }

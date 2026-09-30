@@ -83,7 +83,10 @@ export function decodeAgentView(value: unknown): AgentRunView | null {
     || typeof value.blocking !== 'number' || !Number.isInteger(value.blocking) || value.blocking < 0
     || (value.runId !== null && typeof value.runId !== 'string')
     || (value.reportPath !== null && typeof value.reportPath !== 'string')
-    || (value.finishedAt !== null && typeof value.finishedAt !== 'string')) return null
+    || (value.finishedAt !== null && typeof value.finishedAt !== 'string')
+    || (value.reruns !== undefined && (typeof value.reruns !== 'number' || !Number.isInteger(value.reruns) || value.reruns < 0))
+    || (value.flipped !== undefined && typeof value.flipped !== 'boolean')
+    || (value.rerunReason !== undefined && value.rerunReason !== null && typeof value.rerunReason !== 'string')) return null
   const actor = value.actor
   let actorView: AgentRunView['actor'] = null
   if (actor !== null) {
@@ -105,6 +108,9 @@ export function decodeAgentView(value: unknown): AgentRunView | null {
     reportPath: value.reportPath,
     actor: actorView,
     finishedAt: value.finishedAt,
+    ...(value.reruns === undefined ? {} : { reruns: value.reruns as number }),
+    ...(value.flipped === undefined ? {} : { flipped: value.flipped as boolean }),
+    ...(value.rerunReason === undefined ? {} : { rerunReason: value.rerunReason as string | null }),
   }
 }
 

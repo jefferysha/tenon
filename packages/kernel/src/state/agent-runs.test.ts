@@ -65,6 +65,18 @@ describe('readAgentRuns', () => {
     expect(runs[1]?.subagent).toEqual({ host: 'claude', type: 'tenon-security', native: true })
   })
 
+  it('rerun_reason 可选：旧行没有，新行记下原因（与 subagent 可同时出现）；空、多行、超长 → 损坏', async () => {
+    const good = row({ rerun_reason: '第一轮提示词没带 DESIGN.md', subagent: { host: 'claude', type: 'tenon-security', native: true } })
+    await writeFile(join(changeDir, AGENT_RUNS_FILE), `${JSON.stringify(good)}\n`)
+    expect((await readAgentRuns(changeDir))[0]).toEqual(good)
+    for (const bad of ['', '   ', 'a\nb', 'x'.repeat(301)]) {
+      await writeFile(join(changeDir, AGENT_RUNS_FILE), `${JSON.stringify({ ...good, rerun_reason: bad })}\n`)
+      await expect(readAgentRuns(changeDir), JSON.stringify(bad)).rejects.toMatchObject({ code: 'runs-corrupt' })
+    }
+    await writeFile(join(changeDir, AGENT_RUNS_FILE), `${JSON.stringify({ ...good, rerun_reason: 7 })}\n`)
+    await expect(readAgentRuns(changeDir)).rejects.toMatchObject({ code: 'runs-corrupt' })
+  })
+
   it('subagent 形状非法 → 损坏', async () => {
     await writeFile(runsPath(), `${JSON.stringify({ ...row(), subagent: { host: 'claude', type: '', native: true } })}\n`)
     await expect(readAgentRuns(changeDir)).rejects.toThrowError(AgentRunError)

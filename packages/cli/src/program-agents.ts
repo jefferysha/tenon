@@ -82,10 +82,12 @@ export function registerAgentCommands(program: Command, deps: CliDeps): void {
     .command('prompt <change> <agent>')
     .description('开始（或续跑）一个 agent 并打印交接内容；为宿主生成 tenon-<name> 子代理文件；未轮到 / 宿主不支持 exit 2')
     .option('--host <id>', '宿主 id（claude / codex 时生成专属子代理文件）；agent 声明了 hosts 时据此校验')
+    .option('--rerun-reason <text>', '评审者在同一份代码（同一候选）上已有结论时再跑一次必须写明原因；原因随运行留痕，没有原因的重跑取最严结论')
     .option('--json', 'JSON 输出（run_id / subagent_type / native / model / tools / skills / report_path / prompt）')
-    .action(async (change: string, agentName: string, opts: { host?: string; json?: boolean }) =>
+    .action(async (change: string, agentName: string, opts: { host?: string; json?: boolean; rerunReason?: string }) =>
       bail(await cmdAgentPrompt(deps, change, agentName, {
         ...(opts.host === undefined ? {} : { host: opts.host }),
+        ...(opts.rerunReason === undefined ? {} : { rerunReason: opts.rerunReason }),
         json: opts.json === true,
       })))
   agent
