@@ -1,16 +1,29 @@
 /**
- * 总览画布的取景（纯函数）。总览很宽（七列），整幅缩进容器字就看不清，所以进来时不缩到「适应」，
- * 而是取一个能读清的缩放（不小于 0.85），第一列靠左留一点边，其余靠横向平移看；「适应」按钮仍然把全部装进容器。
+ * 编排画布的取景（纯函数）。总览默认按宽度适配（缩放不小于 0.6）：八列尽量一屏看全，字小时只画符号（语义缩放），
+ * 点列头再缓动放大到那一阶段；阶段画布恒 1:1、左对齐。
  */
 
-/** 用户可缩放的范围；最小 0.5，再小字就看不清。 */
+/** 用户可缩放的范围；最小 0.5，再小连符号都糊了。 */
 export const OVERVIEW_ZOOM = { min: 0.5, max: 1.5 } as const
-/** 进来时的缩放范围：按高度装得下就用，但不小于 0.85（读得清）、不大于 1。 */
-export const OVERVIEW_READABLE = { min: 0.85, max: 1 } as const
+/** 进来时的缩放范围：按宽度装得下就用，但不小于 0.6、不大于 1。 */
+export const OVERVIEW_READABLE = { min: 0.6, max: 1 } as const
 /** 「适应」按钮的留白（占容器比例）。 */
 export const FIT_PADDING = 0.1
-/** 进来时贴边的留白（px）。 */
+/** 总览贴边的留白（px）。 */
 export const EDGE_PAD = 16
+/** 阶段画布的四周留白（px）：左对齐 24，上下各 24（含起点 / 终点标签）。 */
+export const STAGE_PAD = 24
+/** 点列头缓动放大到那一阶段：时长（ms）与缩放（名称可读的 1）。 */
+export const FOCUS_MS = 320
+export const FOCUS_ZOOM = 1
+
+/** 语义缩放：< 0.7 只画符号，1 附近画名称，≥ 1.25 再画元信息。 */
+export const ZOOM_GLYPH_BELOW = 0.7
+export const ZOOM_META_FROM = 1.25
+export type ZoomLevel = 'glyph' | 'name' | 'meta'
+export function zoomLevelOf(zoom: number): ZoomLevel {
+  return zoom < ZOOM_GLYPH_BELOW ? 'glyph' : zoom >= ZOOM_META_FROM ? 'meta' : 'name'
+}
 
 export interface Bounds { readonly x: number; readonly y: number; readonly width: number; readonly height: number }
 export interface Size { readonly width: number; readonly height: number }
@@ -20,10 +33,13 @@ export interface Viewport { readonly x: number; readonly y: number; readonly zoo
 const MIN_FLOOR = 0.1
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value))
 
-/** 进来时的视口：缩放按高度取（读得清优先），左边贴 bounds 左缘留 EDGE_PAD，竖向装得下就居中、装不下就顶对齐。 */
+/**
+ * 进来时的视口：缩放按宽度取（0.6–1），左边贴 bounds 留 EDGE_PAD（整幅比容器宽就靠平移看其余）；
+ * 竖向装得下就居中（bounds 含回流弧的上界，弧不会被裁），装不下就顶对齐。
+ */
 export function overviewViewport(bounds: Bounds, size: Size): Viewport {
-  const byHeight = (size.height - 2 * EDGE_PAD) / Math.max(bounds.height, 1)
-  const zoom = clamp(byHeight, OVERVIEW_READABLE.min, OVERVIEW_READABLE.max)
+  const byWidth = (size.width - 2 * EDGE_PAD) / Math.max(bounds.width, 1)
+  const zoom = clamp(byWidth, OVERVIEW_READABLE.min, OVERVIEW_READABLE.max)
   const height = bounds.height * zoom
   return {
     x: EDGE_PAD - bounds.x * zoom,
@@ -45,4 +61,16 @@ export function overviewFitZoom(bounds: Bounds, size: Size): number {
 export function overviewMinZoom(bounds: Bounds, size: Size): number {
   if (size.width <= 0 || size.height <= 0) return OVERVIEW_ZOOM.min
   return Math.max(MIN_FLOOR, Math.min(OVERVIEW_ZOOM.min, overviewFitZoom(bounds, size)))
+}
+
+/** 点列头放大到那一阶段：缩放 1，列带水平居中（比容器宽就靠左留边），列头贴顶并给回流弧留出 headroom。 */
+export function stageFocusViewport(band: Bounds, size: Size, headroom = 0): Viewport {
+  const width = band.width * FOCUS_ZOOM
+  const x = width + 2 * EDGE_PAD <= size.width ? (size.width - width) / 2 - band.x * FOCUS_ZOOM : EDGE_PAD - band.x * FOCUS_ZOOM
+  return { x, y: EDGE_PAD + headroom * FOCUS_ZOOM - band.y * FOCUS_ZOOM, zoom: FOCUS_ZOOM }
+}
+
+/** 阶段画布：1:1，内容左上角落在 (24, 24)。 */
+export function stageViewport(): Viewport {
+  return { x: STAGE_PAD, y: STAGE_PAD, zoom: 1 }
 }

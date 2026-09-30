@@ -106,6 +106,42 @@ describe('theme semantic foreground contrast', () => {
     for (const name of ['tooltip-bg', 'tooltip-fg', 'tooltip-border', 'surface-raised']) expect(hexToken(source, name)).toMatch(/^#/)
   })
 
+  // 画布连线 / 彗星 / 阶段条（Signal 规格）：线 ≥ 3:1（card 与 4% 列带），节点轮廓可以更安静，阶段条「已完成」与「当前」亮度差 ≥ 3:1。
+  describe.each(themes)('%s flow tokens', (_label, source) => {
+    const band = (): string => {
+      // --flow-band = 4% 文字色叠在卡片上（color-mix），在这里直接按同样的公式算出实色。
+      const text = rgb(hexToken(source, 'text'))
+      const card = rgb(hexToken(source, 'card'))
+      const mixed = card.map((channel, index) => Math.round(channel * 0.96 + text[index]! * 0.04))
+      return `#${mixed.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`
+    }
+
+    it('--flow-line clears 3:1 on card, the column band and bg', () => {
+      const line = hexToken(source, 'flow-line')
+      expect(contrast(line, hexToken(source, 'card'))).toBeGreaterThanOrEqual(3)
+      expect(contrast(line, band())).toBeGreaterThanOrEqual(3)
+      expect(contrast(line, hexToken(source, 'bg'))).toBeGreaterThanOrEqual(3)
+    })
+
+    it('node outlines are quieter than wires but still visible against the card (> 1.5:1)', () => {
+      const node = hexToken(source, 'flow-node-border')
+      expect(contrast(node, hexToken(source, 'card'))).toBeGreaterThan(1.5)
+      expect(contrast(node, hexToken(source, 'card'))).toBeLessThan(contrast(hexToken(source, 'flow-line'), hexToken(source, 'card')))
+    })
+
+    it('stage-rail done (warm grey) and current (accent) differ by at least 3:1', () => {
+      expect(contrast(hexToken(source, 'flow-step-done'), hexToken(source, 'accent'))).toBeGreaterThanOrEqual(3)
+    })
+
+    it('the comet core is readable on the card (dark uses the brighter accent-d)', () => {
+      expect(contrast(hexToken(source, 'flow-comet'), hexToken(source, 'card'))).toBeGreaterThanOrEqual(4.5)
+    })
+
+    it('the hold tick (amber) is readable on the card', () => {
+      expect(contrast(hexToken(source, 'flow-hold'), hexToken(source, 'card'))).toBeGreaterThanOrEqual(3)
+    })
+  })
+
   it('uses the shared ease-out token for Tailwind transitions', () => {
     expect(css).toContain('--default-transition-timing-function: var(--ease-out);')
   })

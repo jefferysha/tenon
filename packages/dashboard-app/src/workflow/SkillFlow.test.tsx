@@ -6,7 +6,7 @@ import type { WbSkillRef } from '../api/governanceTypes'
 import { I18nProvider } from '../i18n'
 import { useReactFlow } from './reactFlowTestDouble'
 import { addSkillAt, appendSerial, canvasHeight, CONTROLS_BAND, CONTROLS_CLASS, dropTargetFor, edgesOf, editViewport, graphToSkills, isColumnLink, lanesOf, layoutSkills, readOnlyViewport, REFIT_MS, RESIZE_THROTTLE_MS, SkillFlow, skillsSignature, wouldCycle } from './SkillFlow'
-import { pulseModeOf } from './skillFlowNodes'
+import { signalModeOf } from './flowSignal'
 
 vi.mock('@xyflow/react', () => import('./reactFlowTestDouble'))
 vi.mock('@xyflow/react/dist/style.css', () => ({}))
@@ -164,22 +164,34 @@ function stubMatchMedia(reduce: boolean): void {
 }
 
 describe('SkillFlow · 节点与点阵外观', () => {
-  it('波次标签用无衬线 + 等宽数字；节点名 mono 中等字重；节点细描边 + 柔影；连接点平时隐藏、悬停节点才出现', () => {
+  it('波次标签用无衬线 + 等宽数字；节点名常规字体 Inter 500（不再 mono）；节点细描边走 --flow-node-border；连接点是 1px 句柄 + 悬停才出现的 6px 圆点', () => {
     render(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
     const label = screen.getAllByTestId('flow-wave-label')[0]!
     expect(label.className).toContain('font-sans')
     expect(label.className).toContain('tabular-nums')
     expect(label.className).not.toContain('font-mono')
     const name = screen.getByTestId('flow-name-brainstorming')
-    expect(name.className).toContain('font-mono')
+    expect(name.className).toContain('font-sans')
     expect(name.className).toContain('font-medium')
+    expect(name.className).not.toContain('font-mono')
     expect(name.className).not.toContain('font-semibold')
     const node = screen.getByTestId('flow-node-brainstorming')
-    expect(node.className).toContain('border-border')
+    expect(node.className).toContain('border-(--flow-node-border)')
     expect(node.className).not.toContain('border-border-2')
-    expect(node.className).toContain('shadow-(--shadow)')
+    expect(node.className).toContain('group')
     expect(node).toHaveAttribute('data-flow-node', 'brainstorming')
-    expect(node.querySelector('[data-pulse-flash]')).not.toBeNull()
+    expect(node).toHaveAttribute('data-transit', '260')
+    // 到达反馈：边框 + 光晕层、顶端端口点，都是预渲染的 opacity 层。
+    expect(node.querySelector('[data-signal-flash]')).not.toBeNull()
+    expect(node.querySelector('[data-signal-port]')).not.toBeNull()
+  })
+
+  it('长名中间截断保尾：头部可截断，尾部 6 个字符固定', () => {
+    render(<I18nProvider><SkillFlow skills={[{ id: 'test-driven-development' }]} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
+    const middle = screen.getByTestId('flow-name-test-driven-development').querySelector('[title="test-driven-development"]')!
+    expect([...middle.children].map((part) => part.textContent)).toEqual(['test-driven-devel', 'opment'])
+    expect(middle.children[0]).toHaveClass('truncate')
+    expect(middle.children[1]).toHaveClass('flex-none')
   })
 
   it('点阵淡：颜色取 --border、间距 18', () => {
@@ -188,23 +200,38 @@ describe('SkillFlow · 节点与点阵外观', () => {
     expect(screen.getByTestId('flow-background')).toHaveAttribute('data-color', 'var(--border)')
   })
 
-  it('每条边带段序：起点→首波 0，首波→汇合 1，汇合→次波 2，末波→终点 3', () => {
+  it('串行的每一跳不画箭头：箭头只在汇入下一步的边与终点；所有线都是 signal 类型，未运行时都是 todo', () => {
     render(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
     const flow = screen.getByTestId('react-flow')
     const ids = (flow.getAttribute('data-edges') ?? '').split(',')
-    const orders = (flow.getAttribute('data-edge-orders') ?? '').split(',')
-    const orderOf = (id: string): string | undefined => orders[ids.indexOf(id)]
-    expect(orderOf('start->tenon-explore')).toBe('0')
-    expect(orderOf('tenon-explore->j0')).toBe('1')
-    expect(orderOf('j0->brainstorming')).toBe('2')
-    expect(orderOf('grill-with-docs->end')).toBe('3')
+    const arrows = (flow.getAttribute('data-edge-arrows') ?? '').split(',')
+    const arrowOf = (id: string): string | undefined => arrows[ids.indexOf(id)]
+    expect(arrowOf('start->tenon-explore')).toBe('0')
+    expect(arrowOf('tenon-explore->j0')).toBe('0')
+    expect(arrowOf('j0->brainstorming')).toBe('1')
+    expect(arrowOf('j0->grill-with-docs')).toBe('1')
+    expect(arrowOf('grill-with-docs->end')).toBe('1')
+    expect(new Set((flow.getAttribute('data-edge-states') ?? '').split(','))).toEqual(new Set(['todo']))
   })
 
-  it('起终点实心：终点带脉冲光环与圆点', () => {
+  it('线三态：接入已完成的节点 = done，接入运行中的节点 = live', () => {
+    render(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable={false} onOpen={() => undefined} statusOf={(id) => (id === 'tenon-explore' ? { state: 'done', label: '完成' } : id === 'brainstorming' ? { state: 'running', label: '运行中' } : null)} /></I18nProvider>)
+    const flow = screen.getByTestId('react-flow')
+    const ids = (flow.getAttribute('data-edges') ?? '').split(',')
+    const states = (flow.getAttribute('data-edge-states') ?? '').split(',')
+    const stateOf = (id: string): string | undefined => states[ids.indexOf(id)]
+    expect(stateOf('start->tenon-explore')).toBe('done')
+    expect(stateOf('tenon-explore->j0')).toBe('done')
+    expect(stateOf('j0->brainstorming')).toBe('live')
+    expect(stateOf('j0->grill-with-docs')).toBe('todo')
+  })
+
+  it('起终点实心：起点强调色、终点灰；起点放光环、终点收光环', () => {
     render(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
-    expect(screen.getByTestId('flow-end').querySelector('[data-pulse-dot]')).toHaveClass('rounded-full', 'bg-text-3')
-    expect(screen.getByTestId('flow-end').querySelector('[data-pulse-ring]')).not.toBeNull()
-    expect(screen.getByTestId('flow-start').querySelector('.bg-\\(--accent\\)')).not.toBeNull()
+    expect(screen.getByTestId('flow-end-dot')).toHaveClass('rounded-full', 'bg-text-3')
+    expect(screen.getByTestId('flow-start-dot')).toHaveClass('rounded-full', 'bg-(--accent)')
+    expect(screen.getByTestId('flow-end').querySelector('[data-signal-ring]')).not.toBeNull()
+    expect(screen.getByTestId('flow-start').querySelector('[data-signal-ring]')).not.toBeNull()
   })
 })
 
@@ -318,27 +345,37 @@ describe('SkillFlow · 画布尺寸与取景', () => {
   })
 })
 
-describe('SkillFlow · 脉冲只在该动时动', () => {
+describe('SkillFlow · Signal 只在该动时动', () => {
   afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
-  // 用户规则：脉冲持续从起点依次传到终点；v0.1.9 改成「只在运行 / 编辑后播」，画布平时是静的，被用户指出「脉冲没了」。
-  it('pulseModeOf：可见就循环，不可见就停', () => {
-    expect(pulseModeOf({ visible: true, running: false, edits: 0 })).toBe('loop')
-    expect(pulseModeOf({ visible: true, running: true, edits: 3 })).toBe('loop')
-    expect(pulseModeOf({ visible: false, running: true, edits: 2 })).toBe('off')
+  // 用户规则：信号持续从起点流到终点；空闲画布也在流（慢速环境流），不能只在运行 / 编辑后才动。
+  it('signalModeOf：看不见就停；阻塞或减少动态效果只留静态；在跑用运行流，否则环境流', () => {
+    expect(signalModeOf({ visible: true, running: false, blocked: false })).toBe('ambient')
+    expect(signalModeOf({ visible: true, running: true, blocked: false })).toBe('running')
+    expect(signalModeOf({ visible: false, running: true, blocked: false })).toBe('off')
+    expect(signalModeOf({ visible: true, running: false, blocked: false, reduced: true })).toBe('still')
   })
 
-  it('只读、未运行的画布也在循环播放脉冲', () => {
+  it('只读、未运行的画布也在流（环境流）；每条线带彗星层', () => {
     render(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
-    expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-pulse', 'loop')
+    expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-signal', 'ambient')
+    expect(Number(screen.getByTestId('react-flow').getAttribute('data-edge-signals'))).toBeGreaterThan(0)
   })
 
-  it('画布离开视口时停', () => {
+  it('有技能在运行 = 运行流；画布离开视口时停', () => {
     const observers: Array<(entries: Array<{ isIntersecting: boolean }>) => void> = []
     vi.stubGlobal('IntersectionObserver', class { constructor(callback: (entries: Array<{ isIntersecting: boolean }>) => void) { observers.push(callback) } observe(): void {} disconnect(): void {} })
     render(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable={false} onOpen={() => undefined} statusOf={() => ({ state: 'running', label: '进行中' })} /></I18nProvider>)
-    expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-pulse', 'loop')
+    expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-signal', 'running')
     act(() => { observers[observers.length - 1]!([{ isIntersecting: false }]) })
-    expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-pulse', 'off')
+    expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-signal', 'off')
+    expect(screen.getByTestId('react-flow').getAttribute('data-edge-signals')).toBe('0')
+  })
+
+  it('系统要求减少动态效果：不流动，不渲染彗星层，只剩静态高亮', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('reduce'), media: query, onchange: null, addListener: () => undefined, removeListener: () => undefined, addEventListener: () => undefined, removeEventListener: () => undefined, dispatchEvent: () => false }))
+    render(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
+    expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-signal', 'still')
+    expect(screen.getByTestId('react-flow').getAttribute('data-edge-signals')).toBe('0')
   })
 })

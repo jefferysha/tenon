@@ -292,7 +292,7 @@ describe('WorkflowView · 总览', () => {
     expect(screen.getByTestId('wb-overview')).toHaveAttribute('aria-current', 'true')
     expect(screen.getByTestId('wb-step-a1')).not.toHaveAttribute('aria-current')
     expect(await screen.findByTestId('workflow-overview-pane')).toBeInTheDocument()
-    expect(screen.getByTestId('orchestration-overview')).toHaveAttribute('data-pulse', 'loop')
+    expect(screen.getByTestId('orchestration-overview')).toHaveAttribute('data-signal', 'ambient')
     expect(screen.queryByTestId('stage-editor-pane')).toBeNull()
     await waitFor(() => expect(params().get('step')).toBe(':overview'))
     // 叠加层按 (工作流, 轨道) 问一次服务端；编排本身按草稿就地算。

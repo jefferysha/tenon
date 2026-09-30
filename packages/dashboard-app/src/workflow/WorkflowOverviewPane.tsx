@@ -9,7 +9,7 @@ export const OVERVIEW_STEP = ':overview'
 
 /**
  * 工作流页「总览」：右栏整宽一张画布，每阶段一列，列内是 runner 真实顺序的 执行者 → 技能 → 测试 → 评审者，
- * 列头带门禁图标，回流为列头之间的虚线弧，悬停列头看输出流向。点列头进入该阶段。
+ * 列头带门禁图标，回流为列头之间的虚线弧，悬停列头看输出流向。点列头：缩得很小时缓动放大到该阶段，能读清时进入该阶段。
  */
 export function WorkflowOverviewPane({ editor, orchestration, onOpenStage }: {
   editor: WorkflowEditor

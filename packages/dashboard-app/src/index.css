@@ -35,6 +35,11 @@
 
 :root {
   color-scheme: light;
+  /* 画布连线 / 彗星 / 节点边框（Signal 规格）：线 ≥ 3:1（card / 列带 / bg），节点轮廓可以更安静；done = 强调色；
+   * 阶段条「已完成」是暖灰（与强调色亮度差 ≥ 3:1）；列带是 4% 文字色叠在卡片上的实色（彗星从它下面穿过时被挡住）。 */
+  --flow-line: #8f8e85; --flow-done: var(--accent); --flow-comet: var(--accent); --flow-halo: var(--accent);
+  --flow-node-border: #c9c8bf; --flow-band: color-mix(in srgb, var(--text) 4%, var(--card));
+  --flow-step-done: #b9b8af; --flow-hold: var(--amber-d);
   --bg: #f6f6f3; --card: #ffffff; --fill: #f0efea; --fill-2: #e7e6e0;
   --border: #e6e5df; --border-2: #d5d4cc;
   --text: #1a1a17; --text-2: #57574f; --text-3: #6c6c64; --text-4: #a09f96;
@@ -83,6 +88,9 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
+    --flow-line: #6a706a; --flow-done: var(--accent); --flow-comet: var(--accent-d); --flow-halo: var(--accent);
+    --flow-node-border: #4a4f4a; --flow-band: color-mix(in srgb, var(--text) 4%, var(--card));
+    --flow-step-done: #56564f; --flow-hold: var(--amber-d);
     --bg: #131513; --card: #1a1c1a; --fill: #232623; --fill-2: #2b2e2b;
     --border: #2c2f2c; --border-2: #3b3f3b;
     --text: #ebebe6; --text-2: #b8b8b0; --text-3: #909088; --text-4: #62625c;
@@ -115,6 +123,9 @@
 }
 :root[data-theme="light"] {
   color-scheme: light;
+  --flow-line: #8f8e85; --flow-done: var(--accent); --flow-comet: var(--accent); --flow-halo: var(--accent);
+  --flow-node-border: #c9c8bf; --flow-band: color-mix(in srgb, var(--text) 4%, var(--card));
+  --flow-step-done: #b9b8af; --flow-hold: var(--amber-d);
   --bg: #f6f6f3; --card: #ffffff; --fill: #f0efea; --fill-2: #e7e6e0;
   --border: #e6e5df; --border-2: #d5d4cc;
   --text: #1a1a17; --text-2: #57574f; --text-3: #6c6c64; --text-4: #a09f96;
@@ -151,6 +162,9 @@
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
+  --flow-line: #6a706a; --flow-done: var(--accent); --flow-comet: var(--accent-d); --flow-halo: var(--accent);
+  --flow-node-border: #4a4f4a; --flow-band: color-mix(in srgb, var(--text) 4%, var(--card));
+  --flow-step-done: #56564f; --flow-hold: var(--amber-d);
   --bg: #131513; --card: #1a1c1a; --fill: #232623; --fill-2: #2b2e2b;
   --border: #2c2f2c; --border-2: #3b3f3b;
   --text: #ebebe6; --text-2: #b8b8b0; --text-3: #909088; --text-4: #62625c;
@@ -473,6 +487,11 @@
 @keyframes flow-in {
   from { opacity: 0; transform: scale(.9); }
   to { opacity: 1; transform: scale(1); }
+}
+
+/* 运行中的节点：12px 弧形符号匀速旋转（transform 走合成器）；reduced-motion 由调用方 motion-reduce:animate-none 关掉。 */
+@keyframes flow-spin {
+  to { transform: rotate(360deg); }
 }
 
 /*

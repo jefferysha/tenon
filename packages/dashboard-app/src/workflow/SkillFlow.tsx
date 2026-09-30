@@ -17,9 +17,9 @@ import '@xyflow/react/dist/style.css'
 import type { WbSkillEntry, WbSkillRef } from '../api/governanceTypes'
 import { useT } from '../i18n'
 import { wavesOf } from '../workbench/skillWaves'
-import { EDGE_STYLE, EDGE_TYPES, MARKER, NODE_HEIGHT, NODE_TYPES, NODE_WIDTH, PORT_SIZE, isVirtualId, pulseModeOf, useFlowAriaLabels, type FlowNode, type GhostNode, type JunctionNode, type LabelNode, type PortNode, type PulseData, type SkillNode, type SkillRunState } from './skillFlowNodes'
+import { EDGE_TYPES, NODE_HEIGHT, NODE_TYPES, NODE_WIDTH, PORT_SIZE, isVirtualId, markerFor, useFlowAriaLabels, type EdgeState, type FlowNode, type GhostNode, type JunctionNode, type LabelNode, type PortNode, type SignalEdgeData, type SkillNode, type SkillRunState } from './skillFlowNodes'
 import { addSkillAt, appendSerial, canvasHeight, CONTROLS_BAND, dropTargetFor, edgesOf, graphToSkills, isColumnLink, editViewport, lanesOf, layoutSkills, nodeHeightFor, readOnlyViewport, rowGapFor, skillsSignature, wouldCycle, type DropTarget } from './skillFlowGraph'
-import { prefersReducedMotion, usePulseTimeline, type PulseMode } from './flowPulse'
+import { prefersReducedMotion, signalModeOf, useOnScreen, useReducedMotion, useSignal, type SignalMode } from './flowSignal'
 import { cn } from '@/lib/utils'
 
 export { addSkillAt, appendSerial, canvasHeight, CONTROLS_BAND, dropTargetFor, edgesOf, editViewport, graphToSkills, isColumnLink, lanesOf, layoutSkills, readOnlyViewport, skillsSignature, wouldCycle }
@@ -155,25 +155,13 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
     return () => { observer.disconnect(); if (timer !== null) clearTimeout(timer) }
   }, [])
 
-  // 脉冲只在该动的时候动：有技能在运行就循环；技能被编辑过（签名变了）就走一遍；画布不在视口里就停。
-  const [visible, setVisible] = useState(true)
-  useEffect(() => {
-    const element = containerRef.current
-    if (element === null || typeof IntersectionObserver === 'undefined') return
-    const observer = new IntersectionObserver((entries) => {
-      const entry = entries[entries.length - 1]
-      if (entry !== undefined) setVisible(entry.isIntersecting)
-    })
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [])
-  const [edits, setEdits] = useState(0)
-  const mountedSignature = useRef(signature)
-  useEffect(() => {
-    if (signature !== mountedSignature.current) setEdits((count) => count + 1)
-  }, [signature])
+  // Signal 只在看得见的时候流：空闲是慢速环境流，有技能在跑换成运行流；画布离屏停，减少动态效果只留静态高亮。
+  const visible = useOnScreen(containerRef)
+  const reduced = useReducedMotion()
   const running = statusOf !== undefined && skills.some((skill) => statusOf(skill.id)?.state === 'running')
-  const pulseMode: PulseMode = pulseModeOf({ visible, running, edits })
+  const statusSignature = statusOf === undefined ? '' : skills.map((skill) => statusOf(skill.id)?.state ?? '').join(',')
+  const signalMode: SignalMode = signalModeOf({ visible, running, blocked: false, reduced })
+  const animate = signalMode === 'ambient' || signalMode === 'running'
 
   // 可编辑：图的签名与传入技能不同才回写。nodes 还不是当前技能的布局（挂载那一拍、父级刚换技能）时不回写，
   // 否则空图会回写 []，持有状态的父组件清空技能、再布局、再回写，无限循环。
@@ -204,11 +192,14 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
     }
     const first = waves[0] ?? []
     const last = waves[waves.length - 1] ?? []
-    const portEdge = { deletable: false, selectable: false, style: { ...EDGE_STYLE, opacity: 0.7 } }
-    /** 段序：起点→首波 0，第 k 波→汇合 2k+1，汇合→第 k+1 波 2k+2，末波→终点 2N-1（N = 波数）。 */
-    const depth = new Map<string, number>()
-    waves.forEach((wave, index) => wave.forEach((id) => depth.set(id, index)))
-    const pulse = (order: number): { data: PulseData } => ({ data: { order } })
+    const portEdge = { deletable: false, selectable: false }
+    /** 线三态：接入已完成节点 = done，接入运行中节点 = live；连向汇合点 / 终点的线看它的源节点是否已完成。 */
+    const edgeData = (source: string, target: string): { data: SignalEdgeData } => {
+      const sink = byId.get(target)?.data.status
+      const from = byId.get(source)?.data.status
+      const state: EdgeState = byId.has(target) ? (sink === 'done' ? 'done' : sink === 'running' ? 'live' : 'todo') : (from === 'done' ? 'done' : 'todo')
+      return { data: { state, signal: animate } }
+    }
     const sized = (id: string, width: number, height: number) => ({ width, height, measured: virtualMeasured[id] ?? { width, height } })
     const ports: PortNode[] = [
       { id: 'start', type: 'port', position: { x: minX - PORT_GAP, y: centerY(first) - PORT_SIZE / 2 }, data: { label: t('workflow.flow_start') }, draggable: false, selectable: false, deletable: false, connectable: false, ...sized('start', PORT_SIZE, PORT_SIZE) },
@@ -231,30 +222,31 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
       const leftEdge = Math.min(...next.map((id) => byId.get(id)?.position.x ?? 0))
       const junctionId = `j${index}`
       junctions.push({ id: junctionId, type: 'junction', position: { x: (rightEdge + leftEdge) / 2 - 1, y: (centerY(wave) + centerY(next)) / 2 - 1 }, data: {}, draggable: false, selectable: false, deletable: false, connectable: false, ...sized(junctionId, 2, 2) })
-      for (const id of wave) { junctionEdges.push({ id: `${id}->${junctionId}`, source: id, target: junctionId, ...portEdge, markerEnd: undefined, ...pulse(2 * index + 1) }) }
-      for (const id of next) { junctionEdges.push({ id: `${junctionId}->${id}`, source: junctionId, target: id, deletable: false, selectable: false, ...pulse(2 * index + 2) }) }
+      for (const id of wave) { junctionEdges.push({ id: `${id}->${junctionId}`, source: id, target: junctionId, ...portEdge, ...edgeData(id, junctionId) }) }
+      for (const id of next) { junctionEdges.push({ id: `${junctionId}->${id}`, source: junctionId, target: id, ...portEdge, markerEnd: markerFor(edgeData(junctionId, id).data.state ?? 'todo'), ...edgeData(junctionId, id) }) }
       for (const edge of edges) if (wave.includes(edge.source) && next.includes(edge.target)) replaced.add(edge.id)
     })
     const hasDependent = new Set(edges.map((edge) => edge.source))
     const virtual: Edge[] = [
-      ...first.map((id) => ({ id: `start->${id}`, source: 'start', target: id, ...portEdge, ...pulse(0) })),
-      ...nodes.filter((node) => !hasDependent.has(node.id)).map((node) => ({ id: `${node.id}->end`, source: node.id, target: 'end', ...portEdge, markerEnd: undefined, ...pulse(2 * waves.length - 1) })),
+      ...first.map((id) => ({ id: `start->${id}`, source: 'start', target: id, ...portEdge, ...edgeData('start', id) })),
+      ...nodes.filter((node) => !hasDependent.has(node.id)).map((node) => ({ id: `${node.id}->end`, source: node.id, target: 'end', ...portEdge, markerEnd: markerFor(edgeData(node.id, 'end').data.state ?? 'todo'), ...edgeData(node.id, 'end') })),
     ]
-    const direct = edges.filter((edge) => !replaced.has(edge.id)).map((edge) => ({ ...edge, ...pulse(2 * (depth.get(edge.source) ?? 0) + 1) }))
+    const direct = edges.filter((edge) => !replaced.has(edge.id)).map((edge) => ({ ...edge, ...edgeData(edge.source, edge.target) }))
     const ghostNodes: GhostNode[] = ghost === null ? [] : [{ id: 'ghost', type: 'ghost', position: { x: ghost.x, y: ghost.y }, data: { label: ghost.label, mode: ghost.target.kind === 'join' ? t('workflow.parallel_n', { n: (waves[ghost.target.wave]?.length ?? 0) + 1 }) : t('workflow.serial') }, draggable: false, selectable: false, deletable: false, connectable: false, ...sized('ghost', NODE_WIDTH, NODE_HEIGHT) }]
     const ghostEdges: Edge[] = ghost === null ? [] : (
       ghost.target.kind === 'after' ? last.map((id) => ({ id: `${id}->ghost`, source: id, target: 'ghost' }))
         : ghost.target.kind === 'before' ? first.map((id) => ({ id: `ghost->${id}`, source: 'ghost', target: id }))
           : (waves[ghost.target.wave - 1] ?? []).map((id) => ({ id: `${id}->ghost`, source: id, target: 'ghost' }))
     ).map((edge) => ({ ...edge, deletable: false, selectable: false, style: { stroke: 'var(--accent-b)', strokeWidth: 1.5, strokeDasharray: '4 4' } }))
-    // defaultEdgeOptions 只作用于 onConnect 新建的边；props 传入的边要显式指定类型。
-    const typed = (list: Edge[]): Edge[] => list.map((edge) => ({ ...edge, type: 'pulse', style: edge.style ?? EDGE_STYLE, markerEnd: 'markerEnd' in edge ? edge.markerEnd : MARKER }))
+    // defaultEdgeOptions 只作用于 onConnect 新建的边；props 传入的边要显式指定类型。串行的每一跳不画箭头，箭头只在汇入处与终点。
+    const typed = (list: Edge[]): Edge[] => list.map((edge) => ({ ...edge, type: 'signal' }))
     return {
       nodes: [...labels, ...ports, ...junctions, ...nodes, ...ghostNodes],
       edges: [...typed(direct), ...typed(junctionEdges), ...typed(virtual), ...typed(ghostEdges)],
     }
-  }, [nodes, edges, graph, ghost, virtualMeasured, t])
-  usePulseTimeline(containerRef, pulseMode, edits, `${signature}#${decorated.edges.length}`)
+  }, [nodes, edges, graph, ghost, virtualMeasured, t, animate])
+  const drawnEdges = decorated.edges.filter((edge) => edge.target !== 'ghost' && edge.source !== 'ghost').length
+  useSignal(containerRef, signalMode, { signature: `${signature}#${statusSignature}`, expected: drawnEdges })
 
   const onNodesChange = useCallback((changes: NodeChange<FlowNode>[]) => {
     const own: NodeChange<SkillNode>[] = []
@@ -349,7 +341,7 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
       data-editable={editable}
       data-nodes={nodes.length}
       data-edges={edges.length}
-      data-pulse={pulseMode}
+      data-signal={signalMode}
       onDragOver={editable ? onDragOver : undefined}
       onDragLeave={editable ? (event) => { if (!event.currentTarget.contains(event.relatedTarget as globalThis.Node | null)) setGhost(null) } : undefined}
       onDrop={editable ? onDrop : undefined}
@@ -375,7 +367,7 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
         minZoom={editable ? EDIT_ZOOM.min : READ_ONLY_ZOOM.min}
         maxZoom={editable ? EDIT_ZOOM.max : READ_ONLY_ZOOM.max}
         proOptions={{ hideAttribution: true }}
-        defaultEdgeOptions={{ type: 'pulse', style: EDGE_STYLE, markerEnd: MARKER }}
+        defaultEdgeOptions={{ type: 'signal' }}
         deleteKeyCode={editable ? ['Backspace', 'Delete'] : null}
         ariaLabelConfig={ariaLabelConfig}
       >

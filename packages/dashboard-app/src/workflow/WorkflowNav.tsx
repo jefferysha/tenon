@@ -79,10 +79,10 @@ export function backEdgePath(fromIndex: number, toIndex: number): string {
   const y2 = toIndex * STEP_PITCH + STEP_HEIGHT / 2
   return `M0 ${y1} C 18 ${y1}, 18 ${y2}, 0 ${y2}`
 }
-/** 回流弧目标端的 4px 开口箭头（弧从右侧回到目标阶段，箭头朝左指向它）。 */
+/** 回流弧目标端的 5px 开口箭头（弧从右侧回到目标阶段，箭头朝左指向它）。 */
 export function backArrowPath(toIndex: number): string {
   const y = toIndex * STEP_PITCH + STEP_HEIGHT / 2
-  return `M4 ${y - 4} L0 ${y} L4 ${y + 4}`
+  return `M5 ${y - 3.5} L0 ${y} L5 ${y + 3.5}`
 }
 
 type MenuEntry = { id: string; label: string; icon: ReactNode; onSelect: () => void; disabled: boolean; danger?: boolean; checked?: boolean; hint?: string }
@@ -247,13 +247,13 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
                   const active = hovered === edge.from || hovered === edge.to || hovered === `${edge.from}->${edge.to}`
                   const label = t('workflow.back_arc', { from: labelOf(edge.from), to: labelOf(edge.to) })
                   return (
-                    <g key={`${edge.from}-${edge.to}`} className={cn('fill-none transition-[stroke] duration-(--dur-fast) ease-(--ease-out) motion-reduce:transition-none', active ? 'stroke-accent-b' : 'stroke-border-2')} data-testid={`wb-back-arc-${edge.from}-${edge.to}`} data-active={active || undefined}>
+                    <g key={`${edge.from}-${edge.to}`} className={cn('fill-none transition-[stroke] duration-(--dur-fast) ease-(--ease-out) motion-reduce:transition-none', active ? 'stroke-(--accent)' : 'stroke-(--flow-line)')} data-testid={`wb-back-arc-${edge.from}-${edge.to}`} data-active={active || undefined}>
                       {/* 悬停标签：透明宽描边接住指针，原生 title 说明从哪退回到哪。 */}
                       <path d={backEdgePath(edge.fromIndex, edge.toIndex)} className="cursor-default" style={{ pointerEvents: 'stroke' }} stroke="transparent" strokeWidth="10" data-testid={`wb-back-hit-${edge.from}-${edge.to}`} onMouseEnter={() => setHovered(`${edge.from}->${edge.to}`)} onMouseLeave={() => setHovered(null)}>
                         <title>{label}</title>
                       </path>
-                      <path d={backEdgePath(edge.fromIndex, edge.toIndex)} strokeWidth="1.2" strokeDasharray="3 3" data-testid={`wb-back-edge-${edge.from}-${edge.to}`} />
-                      <path d={backArrowPath(edge.toIndex)} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" data-testid={`wb-back-arrow-${edge.from}-${edge.to}`} />
+                      <path d={backEdgePath(edge.fromIndex, edge.toIndex)} strokeWidth="1.25" strokeDasharray="2 3" data-testid={`wb-back-edge-${edge.from}-${edge.to}`} />
+                      <path d={backArrowPath(edge.toIndex)} strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" data-testid={`wb-back-arrow-${edge.from}-${edge.to}`} />
                     </g>
                   )
                 })}
