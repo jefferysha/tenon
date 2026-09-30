@@ -4,6 +4,9 @@
  *
  *   · `seedDemo`：git 仓库 + AGENTS.md + 一个 change（default 工作流，后端轨道），带测试计划和一次
  *     失败的 v2 运行（node:test 的一个失败用例，附截图与 trace 产物）。工作台「测试」页签读它。
+ *     JUnit 由种子项目自带的小 reporter 写：Node 22 内置的 junit reporter 不给 <testcase> 写 file 属性（较新的 Node 才写），
+ *     用例落在文件 "test"（classname）上，追溯表对不上已登记的 tests/auth.test.mjs——CI 用 Node 22，本机可能是更新的 Node，
+ *     种子的结果不能随运行它的 Node 版本变。
  *   · `seedSandbox`：只有 git 仓库和 AGENTS.md，项目页启停客户端会改它的文件，所以不与 demo 共用
  *     （改工作区文件会让 demo 的测试运行记录过期）。
  */
@@ -17,6 +20,7 @@ export const UNIT_SUITE = 'demo-unit'
 export const CHECK_SUITE = 'demo-check'
 export const FAILING_CASE = 'login rejects a wrong password'
 export const TEST_FILE = 'tests/auth.test.mjs'
+const REPORTER_FILE = 'tools/junit-file-reporter.mjs'
 
 function crc32(bytes) {
   let crc = 0xffffffff
@@ -68,13 +72,42 @@ test('${FAILING_CASE}', () => {
 })
 `
 
+/**
+ * node:test 的自定义 reporter：与较新 Node 内置 junit reporter 同一方言（classname="test"、testcase@file、failure 正文是原始堆栈），
+ * 但文件相对项目根、且在所有 Node 版本上都写。只用 test:pass / test:fail 事件；套件（describe）本身不是用例。
+ * String.raw：下面是另一个文件的源码，反斜杠原样写进去。
+ */
+const JUNIT_REPORTER = String.raw`import { relative } from 'node:path'
+
+const escape = (value) => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+export default async function* junitWithFile(source) {
+  const cases = []
+  for await (const { type, data } of source) {
+    if ((type !== 'test:pass' && type !== 'test:fail') || data.details?.type === 'suite') continue
+    const file = data.file === undefined ? '' : relative(process.cwd(), data.file).split('\\').join('/')
+    const failure = type === 'test:fail' ? (data.details.error?.cause ?? data.details.error) : undefined
+    const attrs = 'name="' + escape(data.name) + '" time="' + (data.details.duration_ms / 1000).toFixed(6) + '" classname="test"'
+      + (file === '' ? '' : ' file="' + escape(file) + '"')
+    if (failure === undefined) {
+      cases.push('  <testcase ' + attrs + '/>')
+      continue
+    }
+    const message = String(failure.message ?? failure).split('\n').filter((line) => line.trim() !== '').join(' ')
+    cases.push('  <testcase ' + attrs + '>\n    <failure type="testCodeFailure" message="' + escape(message) + '">'
+      + escape(failure.stack ?? failure) + '</failure>\n  </testcase>')
+  }
+  yield '<?xml version="1.0" encoding="utf-8"?>\n<testsuites>\n' + cases.join('\n') + '\n</testsuites>\n'
+}
+`
+
 const CATALOG = `schema: tenon-test-catalog/v1
 suites:
   - id: ${UNIT_SUITE}
     label: Demo unit
     kind: unit
     runner: node-test
-    command: node --test --test-reporter=junit --test-reporter-destination=test-results/demo-unit.xml tests/*.test.mjs
+    command: node --test --test-reporter=./${REPORTER_FILE} --test-reporter-destination=test-results/demo-unit.xml tests/*.test.mjs
     files:
       - tests/**/*.test.mjs
     report:
@@ -112,6 +145,7 @@ export function seedDemo(context) {
   const tenon = (...args) => runTenon(env, root, args)
   writeProjectFile(root, 'AGENTS.md', '# Demo\n\nSeed project for the dashboard e2e.\n')
   writeProjectFile(root, TEST_FILE, AUTH_TESTS)
+  writeProjectFile(root, REPORTER_FILE, JUNIT_REPORTER)
   mkdirSync(join(root, 'tests', 'fixtures'), { recursive: true })
   writeFileSync(join(root, 'tests', 'fixtures', 'failure.png'), solidPng(320, 180, [196, 60, 52]))
   commitBase(root, env)
