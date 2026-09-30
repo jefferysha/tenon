@@ -24,6 +24,7 @@ import { collectTestInputs, collectTestOutputs } from '../test-runner/collect.js
 import { classifyTestRun, SANDBOX_ESCALATION_HINT } from '../test-runner/classify.js'
 import { GRACE_MS, LOG_TAIL_BYTES, MAX_LOG_BYTES, runTestProcess } from '../test-runner/process.js'
 import { unconfiguredMessage, unconfiguredNpmScript } from '../test-runner/npmScript.js'
+import { withRunningTenon } from '../test-runner/runningTenon.js'
 import { declaredTestIds, locateTest, resolveTestCommand, type TestCommandContext } from './test-context.js'
 
 const FAILURE_TAIL_CHARS = 4096
@@ -143,14 +144,14 @@ async function execute(deps: CliDeps, context: TestCommandContext, input: RunInp
     : await runTestProcess({
         command: test.command,
         cwd: workDir,
-        env: {
+        env: await withRunningTenon({
           ...process.env,
           TENON_CHANGE_NAME: change,
           TENON_TEST_ID: test.id,
           TENON_TEST_RUN_ID: runId,
           TENON_TEST_ARTIFACTS: runDir,
           TENON_BASE_BRANCH: str(context.state.fields.base_branch),
-        },
+        }, { runDir }),
         timeoutMs: test.timeout_s * 1000,
         graceMs: GRACE_MS,
         logPath,

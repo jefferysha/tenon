@@ -14,6 +14,7 @@ import {
 import type { CliDeps } from '../deps.js'
 import { detectHostEnvironment } from '../hostKind.js'
 import { str } from '../render.js'
+import { withRunningTenon } from '../test-runner/runningTenon.js'
 import type { TestCommandContext } from '../commands/test-context.js'
 import { candidateOf, newRunId } from '../commands/test-run.js'
 import { changedFilesFor } from '../testEvidenceContext.js'
@@ -132,10 +133,10 @@ export async function executeRun(input: RunInput): Promise<RunResult> {
     let linesRead = false
     const exec: ExecContext = {
       repoRoot: deps.cwd, runId, runDir, change,
-      env: {
+      env: await withRunningTenon({
         ...process.env, TENON_CHANGE_NAME: change, TENON_TEST_RUN_ID: runId, TENON_TEST_ARTIFACTS: runDir,
         TENON_BASE_BRANCH: str(context.state.fields.base_branch), ...(await reporterEnv(input, runDir)),
-      },
+      }, { runDir }),
       plan, policy, knownFailures: input.knownFailures, today: startedAt.slice(0, 10), changedFiles,
       changedLines: async () => {
         if (!linesRead) {

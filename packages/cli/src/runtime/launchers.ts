@@ -67,7 +67,8 @@ export TENON_RUNTIME_CONFIG_ROOT=${shellQuote(paths.configRoot)}
 exec node ${shellQuote(bootstrap)} ${mode} "$@"
 `
 }
-function launcherPaths(homeDir: string): StableLauncherPaths {
+/** 稳定启动器所在位置（`~/.local/bin/tenon` 与 `tenon-hook`）；不检查文件是否存在。 */
+export function stableLauncherPaths(homeDir: string): StableLauncherPaths {
   const binDir = join(homeDir, '.local', 'bin')
   return {
     tenon: join(binDir, 'tenon'),
@@ -98,7 +99,7 @@ export async function captureStableLaunchers(
   _paths: RuntimePaths,
   homeDir = homedir(),
 ): Promise<RuntimeLauncherSnapshot> {
-  const paths = launcherPaths(homeDir)
+  const paths = stableLauncherPaths(homeDir)
   const [tenon, hook] = await Promise.all([
     captureLauncher(paths.tenon),
     captureLauncher(paths.hook),
@@ -112,7 +113,7 @@ export function expectedStableLaunchers(
   nodeExecutable = process.execPath,
   nodeProof?: TrustedExecutableProof,
 ): RuntimeLauncherSnapshot {
-  const stable = launcherPaths(homeDir)
+  const stable = stableLauncherPaths(homeDir)
   return {
     tenon: {
       path: stable.tenon,
@@ -128,7 +129,7 @@ export function expectedLegacyStableLaunchersV101(
   paths: RuntimePaths,
   homeDir = homedir(),
 ): RuntimeLauncherSnapshot {
-  const stable = launcherPaths(homeDir)
+  const stable = stableLauncherPaths(homeDir)
   return {
     tenon: {
       path: stable.tenon,
@@ -464,7 +465,7 @@ export async function writeStableLaunchers(
   homeDir = homedir(),
   options: StableLauncherWriteOptions = {},
 ): Promise<StableLauncherPaths> {
-  const { tenon, hook } = launcherPaths(homeDir)
+  const { tenon, hook } = stableLauncherPaths(homeDir)
   const binDir = join(homeDir, '.local', 'bin')
   await mkdir(binDir, { recursive: true })
   options.verifyNode?.()

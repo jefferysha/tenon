@@ -146,6 +146,12 @@ export interface DoctorProbes {
    * 值永不回显（只 set+source）。缺省 undefined = 未装配 → afk:* 四检自身折算 red（探针缺口可见）。
    */
   afkReadiness?: () => Promise<AfkReadiness>
+  /**
+   * PATH 上能不能解析出 `tenon`（`resolved`），以及稳定启动器 `~/.local/bin/tenon` 是否在盘上（`launcher`，
+   * 路径或 null）。必需测试 `tenon test code-size --json` 与技能里的 `tenon …` 命令都依赖 PATH 命令；
+   * 缺省 undefined = 未装配 → env:path-tenon 折算 red。
+   */
+  tenonOnPath?: () => { readonly resolved: string | null; readonly launcher: string | null }
   /** skills/sources.yaml + skills/skills.lock.json + last-update.json 的只读视图；清单或锁无效时返回 error。 */
   upstreamSkillView?: () => import('@tenon/kernel').UpstreamSkillView | { error: string }
   /**
