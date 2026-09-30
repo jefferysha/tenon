@@ -12,13 +12,14 @@ import { readTestBaselineV2, type TestBaselineV2 } from './baseline-v2.js'
 import { formatCatalogIssues, parseTestCatalog } from './catalog.js'
 import { evaluateTestPolicy } from './evaluate-v2.js'
 import {
-  baselineKey, type CatalogInput, type InlineSuiteStatus, type PlanInput, type TestPolicyReport,
+  baselineKey, type CatalogInput, type ChangedFilesReport, type ChangedFilesSource, type InlineSuiteStatus, type PlanInput,
+  type TestPolicyEvaluationInput, type TestPolicyReport,
 } from './evaluate-types.js'
 import { parseKnownFailures, type KnownFailure } from './known-failures.js'
 import { extractScenarios, extractTaskItems, type OpenSpecScenario, type TaskItem } from './openspec-trace.js'
 import { baselineV2Path, testSystemPaths } from './paths.js'
 import { readTestPlanState } from './plan-ledger.js'
-import { readRecordChain, type ChainReport } from './record-chain.js'
+import { readRecordChain, type ChainReport, type RecordChainCache } from './record-chain.js'
 import type { StepTestPolicyIR } from '../workflow/ir.js'
 import type { PipelineTodoStageDefinition } from '../workflow/todo-projection.js'
 
@@ -119,16 +120,19 @@ export interface StepTestPolicyLoadInput {
   readonly workflowRunId: string | undefined
   /** undefined = 宿主没有指纹能力；null = 能力在但取不到。 */
   readonly candidate: () => Promise<string | null | undefined>
-  readonly changedFiles?: () => Promise<readonly string[]>
+  /** 纯列表，或带「未跟踪文件被截断」标记的结果；后者让测试策略给出显式提示。 */
+  readonly changedFiles?: () => Promise<ChangedFilesSource>
   readonly now: number
   readonly exitEvent?: string
+  /** 长驻进程（Dashboard 快照）传入：记录文件指纹没变就不重读、不重算摘要；缺省 = 每次从磁盘完整校验。 */
+  readonly recordChainCache?: RecordChainCache
 }
 
 export async function evaluateStepTestPolicy(input: StepTestPolicyLoadInput): Promise<TestPolicyReport> {
   const [catalog, plan, chain, knownFailures, scenarios, tasks] = await Promise.all([
     loadCatalogInput(input.repoRoot),
     readTestPlanState(input.changeDir, input.changeName),
-    readRecordChain(input.repoRoot, input.slug, input.changeName),
+    readRecordChain(input.repoRoot, input.slug, input.changeName, input.recordChainCache),
     loadKnownFailures(input.repoRoot),
     loadDeltaScenarios(input.changeDir),
     loadTaskItems(input.changeDir, input.stages),
@@ -137,10 +141,14 @@ export async function evaluateStepTestPolicy(input: StepTestPolicyLoadInput): Pr
   const hasRecords = chain.state === 'intact' && chain.active.length > 0
   const candidate = hasRecords ? await input.candidate() : undefined
   let changedFiles: readonly string[] | undefined
+  let changedFilesTruncated: TestPolicyEvaluationInput['changedFilesTruncated']
   let changedFilesError: string | undefined
   if (input.policy.files === 'registered' && input.changedFiles !== undefined) {
     try {
-      changedFiles = await input.changedFiles()
+      const source = await input.changedFiles()
+      const report: ChangedFilesReport = Array.isArray(source) ? { files: source } : (source as ChangedFilesReport)
+      changedFiles = report.files
+      changedFilesTruncated = report.untrackedTruncated
     } catch (error) {
       changedFilesError = error instanceof Error ? error.message.slice(0, 200) : '读取失败'
     }
@@ -157,6 +165,7 @@ export async function evaluateStepTestPolicy(input: StepTestPolicyLoadInput): Pr
     baselines: await loadBaselines(input.repoRoot, catalog, chain),
     changedFiles,
     ...(changedFilesError === undefined ? {} : { changedFilesError }),
+    ...(changedFilesTruncated === undefined ? {} : { changedFilesTruncated }),
     scenarios,
     tasks,
     bindings: { candidate, workflowFingerprint: input.workflowFingerprint, workflowRunId: input.workflowRunId },

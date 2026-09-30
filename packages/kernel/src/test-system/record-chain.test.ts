@@ -1,10 +1,10 @@
-import { mkdtemp, readFile, readdir, rm, unlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm, stat, unlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { testRunRecordsDir } from './paths.js'
 import {
-  appendTestRunRecordV2, listRecordDirectory, readRecordChain, recordV2Digest, verifyRecordChain,
+  appendTestRunRecordV2, createRecordChainCache, listRecordDirectory, readRecordChain, recordV2Digest, verifyRecordChain,
 } from './record-chain.js'
 import { declaresRecordV2, decodeTestRunRecordV2 } from './record-v2-codec.js'
 import type { TestRunRecordV2 } from './record-v2-types.js'
@@ -157,5 +157,72 @@ describe('追加与读取（真文件系统）', () => {
     await expect(appendTestRunRecordV2(repo, SLUG, draft)).rejects.toThrow()
     await expect(appendTestRunRecordV2(repo, SLUG, { ...fixtureRecordDraft(), suites: [fixtureSuiteRun({ suite: 'x', kind: 'nope' as 'unit' })] }))
       .rejects.toThrow(/形状非法/)
+  })
+})
+
+describe('记录链缓存：按文件指纹复用校验结果，改动仍然逐条发现', () => {
+  let repo: string
+  beforeEach(async () => { repo = await mkdtemp(join(tmpdir(), 'tenon-chain-cache-')) })
+  afterEach(async () => { await rm(repo, { recursive: true, force: true }) })
+
+  it('没有任何文件变化：直接返回上一次的链报告，记录对象也是同一批', async () => {
+    const cache = createRecordChainCache()
+    await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    const first = await readRecordChain(repo, SLUG, 'demo', cache)
+    const second = await readRecordChain(repo, SLUG, 'demo', cache)
+    expect(second).toBe(first)
+    expect(first).toEqual(await readRecordChain(repo, SLUG, 'demo'))
+  })
+
+  it('追加一条：旧记录不重读（同一对象），新链含新记录', async () => {
+    const cache = createRecordChainCache()
+    await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    const before = await readRecordChain(repo, SLUG, 'demo', cache)
+    await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    const after = await readRecordChain(repo, SLUG, 'demo', cache)
+    expect(after.state === 'intact' ? after.active.length : 0).toBe(2)
+    if (before.state !== 'intact' || after.state !== 'intact') throw new Error('chain')
+    expect(after.active[0]).toBe(before.active[0])
+  })
+
+  it('改文件内容、保持大小并把 mtime 还原：ctime 变了，缓存不放过 → broken', async () => {
+    const cache = createRecordChainCache()
+    const one = await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    expect((await readRecordChain(repo, SLUG, 'demo', cache)).state).toBe('intact')
+    const original = await stat(one.path)
+    const text = await readFile(one.path, 'utf8')
+    const edited = text.replace('"result": "pass"', '"result": "fail"')
+    expect(edited.length).toBe(text.length)
+    await writeFile(one.path, edited, 'utf8')
+    await utimes(one.path, original.atime, original.mtime)
+    expect((await readRecordChain(repo, SLUG, 'demo', cache)).state).toBe('broken')
+  })
+
+  it('删除中间记录、放进坏文件、删掉整个目录：都立刻反映', async () => {
+    const cache = createRecordChainCache()
+    await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    const middle = await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    expect((await readRecordChain(repo, SLUG, 'demo', cache)).state).toBe('intact')
+    await unlink(middle.path)
+    expect((await readRecordChain(repo, SLUG, 'demo', cache)).state).toBe('broken')
+    const dir = testRunRecordsDir(repo, SLUG, 'demo')
+    await rm(dir, { recursive: true, force: true })
+    expect(await readRecordChain(repo, SLUG, 'demo', cache)).toEqual({ state: 'empty' })
+    await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    await writeFile(join(dir, 'zz.json'), 'not json', 'utf8')
+    expect(await readRecordChain(repo, SLUG, 'demo', cache)).toMatchObject({ state: 'broken', files: ['zz.json'] })
+  })
+
+  it('缓存的目录数有上限，最久没用的先丢；丢掉之后照样读得对', async () => {
+    const cache = createRecordChainCache(1)
+    await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    await appendTestRunRecordV2(repo, SLUG, { ...fixtureRecordDraft(), change: 'other' })
+    expect((await readRecordChain(repo, SLUG, 'demo', cache)).state).toBe('intact')
+    expect((await readRecordChain(repo, SLUG, 'other', cache)).state).toBe('intact')
+    expect(cache.directories.size).toBe(1)
+    expect((await readRecordChain(repo, SLUG, 'demo', cache)).state).toBe('intact')
   })
 })

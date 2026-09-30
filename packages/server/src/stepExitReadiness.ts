@@ -7,7 +7,7 @@
  * 判定本身抛错时不猜「可前进」：每条出边都挂一条 evaluation-error 的 step-exit 阻断。
  */
 import {
-  changedFilesForState,
+  changedFilesResultForState,
   completedWorkflowSkillsSinceStepEntry,
   evaluateStepExitReport,
   HISTORY_FILE,
@@ -15,6 +15,7 @@ import {
   makeGuardFileContext,
   userSlug,
   type AgentBlocker,
+  type ChangedFilesSource,
   type EffectiveSkillResolver,
   type EffectiveWorkflowPlan,
   type FlowEngine,
@@ -36,6 +37,11 @@ export interface StepExitSnapshotDeps {
   readonly fileContext: PhaseExitFileContext | undefined
   readonly testContext: TestEvidenceContext | undefined
   readonly skillResolver: EffectiveSkillResolver | undefined
+  /**
+   * 自任务起点以来的改动文件（按该任务的 state 起点读）。项目扫描传同一个项目会话的读取器，
+   * 这样一个项目里的所有任务共用 git 调用；缺省 = 逐次读取（只读单测、单任务调用）。
+   */
+  readonly changedFiles?: (state: PipelineState) => Promise<ChangedFilesSource>
 }
 
 export interface StepExitReadinessInput {
@@ -113,7 +119,11 @@ export async function withStepExitReadiness(
       testEvidence: {
         context: input.deps.testContext === undefined
           ? undefined
-          : { ...input.deps.testContext, changedFiles: input.deps.testContext.changedFiles ?? (() => changedFilesForState(input.root, input.state)) },
+          : {
+              ...input.deps.testContext,
+              changedFiles: input.deps.testContext.changedFiles
+                ?? (() => (input.deps.changedFiles ?? ((state) => changedFilesResultForState(input.root, state)))(input.state)),
+            },
       },
       skills: async () => judgeStepSkillsFromHistory({
         resolver: input.deps.skillResolver,
@@ -152,6 +162,7 @@ export function projectStepExitDeps(input: {
   readonly fileRoot: string
   readonly user: TenonUser | undefined
   readonly candidate: (() => Promise<string | undefined>) | undefined
+  readonly changedFiles?: (state: PipelineState) => Promise<ChangedFilesSource>
 }): ((changeName: string) => StepExitSnapshotDeps) | undefined {
   const flow = input.flow
   if (flow === undefined) return undefined
@@ -175,5 +186,6 @@ export function projectStepExitDeps(input: {
     fileContext: files(changeName),
     testContext,
     skillResolver: input.skillResolver,
+    ...(input.changedFiles === undefined ? {} : { changedFiles: input.changedFiles }),
   })
 }

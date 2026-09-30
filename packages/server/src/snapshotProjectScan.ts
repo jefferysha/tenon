@@ -1,6 +1,6 @@
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { changedFilesForState, creatorOf, isTenonUser, ownerOf, readTaskArchiveOf, stateStorageSourcePathSync, projectPipelineTodo, type EffectiveWorkflowPlan, type SkillTable, type StateStore, type TaskArchive, type TrackDefinition, UnsupportedRunStateVersionError } from '@tenon/kernel'
+import { changeStartOfFields, createChangedFilesSession, creatorOf, isTenonUser, ownerOf, readTaskArchiveOf, stateStorageSourcePathSync, projectPipelineTodo, type EffectiveWorkflowPlan, type SkillTable, type StateStore, type TaskArchive, type TrackDefinition, UnsupportedRunStateVersionError } from '@tenon/kernel'
 import type { ArchivedChangeSnapshot, ProjectSnapshot, ChangeSnapshot } from './types.js'
 import { readRepositoryIdentity } from './repositoryIdentity.js'
 import { agentBlockersOf, projectAgentRuns } from './agentRuns.js'
@@ -17,6 +17,8 @@ import { projectTestEvidence } from './testEvidenceSnapshot.js'
 import { defaultResolveUser } from './serverUserRoutes.js'
 import { projectStepExitDeps } from './stepExitReadiness.js'
 const MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES = 100
+/** 快照扫描里单个 git 命令的超时：一个卡住的仓库最多拖住它自己的项目这么久，其余命令随即放弃。 */
+const SNAPSHOT_GIT_TIMEOUT_MS = 8_000
 function str(v: string | string[] | undefined): string { return Array.isArray(v) ? v.join(',') : v ?? '' }
 
 /** Read the viewer's archive once per project; no viewer or a malformed store hides nothing. */
@@ -117,12 +119,15 @@ export async function scanAnchoredProject(
   const candidate = workspaceFingerprint === undefined
     ? undefined
     : createCandidateCache((target) => workspaceFingerprint(target, ''))
+  // 同一个项目的所有任务共用一个 git 会话：相同的 git 命令只跑一次，超时后其余任务直接失败而不是各等一遍。
+  const changedFilesSession = createChangedFilesSession(childProcessRoot, { timeoutMs: SNAPSHOT_GIT_TIMEOUT_MS })
   const stepExitsFor = projectStepExitDeps({
     flow: deps.flow,
     skillResolver: deps.skillResolverFor?.(root),
     fileRoot: childProcessRoot,
     user: actingUser,
     candidate: candidate === undefined ? undefined : () => candidate(readRoot),
+    changedFiles: (state) => changedFilesSession.changedFiles(changeStartOfFields(state.fields)),
   })
   let compatibilityIssueOverflow = 0
   for (const e of [...entries].sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0)) {
@@ -173,7 +178,7 @@ export async function scanAnchoredProject(
           plan,
           user: actingUser,
           ...(candidate === undefined ? {} : { candidate: () => candidate(readRoot) }),
-          changedFiles: () => changedFilesForState(readRoot, state),
+          changedFiles: () => changedFilesSession.changedFiles(changeStartOfFields(state.fields)),
         }),
         projectAgentRuns({
           changeDir,

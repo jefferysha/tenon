@@ -105,6 +105,10 @@ function checkFiles(input: TestPolicyEvaluationInput, plan: TestPlan | undefined
     return none
   }
   if (input.catalog.state !== 'ok') return none
+  if (input.changedFilesTruncated !== undefined) {
+    const { found, limit } = input.changedFilesTruncated
+    out.notices.push(testNotice('files-truncated', `未跟踪文件有 ${found} 个，只检查了前 ${limit} 个；其余的测试文件没有核对是否已登记。把构建产物、依赖目录加入 .gitignore 后重新检查`))
+  }
   const registration = testFileRegistration({ changedFiles: input.changedFiles, catalog: input.catalog.catalog, plan })
   const register = (file: UnregisteredTestFile): string =>
     `tenon test register ${input.change} --file ${shellQuote(file.path)}${file.suites.length === 1 ? ` --suite ${shellQuote(file.suites[0] ?? '')}` : ''}`

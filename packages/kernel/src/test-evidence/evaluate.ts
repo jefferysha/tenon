@@ -16,8 +16,9 @@ import { readRunningMarker, readTestRunRecord } from './record.js'
 import { testEvidencePaths, testRunningMarkerPath } from './paths.js'
 import { RUNNING_MARKER_GRACE_MS, type TestRunRecordV1 } from './types.js'
 import { renderPolicyBlockers } from '../test-system/evaluate-v2.js'
-import type { TestPolicyReport } from '../test-system/evaluate-types.js'
+import type { ChangedFilesSource, TestPolicyReport } from '../test-system/evaluate-types.js'
 import { evaluateStepTestPolicy } from '../test-system/load.js'
+import type { RecordChainCache } from '../test-system/record-chain.js'
 import { inlineSuiteFromTest } from '../test-system/policy.js'
 import { declaresRecordV2, decodeTestRunRecordV2 } from '../test-system/record-v2-codec.js'
 
@@ -41,7 +42,9 @@ export interface TestEvidenceContext {
    * diff（相对 change 起点）里新增 / 修改的仓库相对文件。只有声明了 `test_policy.files: registered`
    * 的步骤会用到；宿主不提供时跳过未登记文件检查，并在策略报告里留一条提示。
    */
-  readonly changedFiles?: () => Promise<readonly string[]>
+  readonly changedFiles?: () => Promise<ChangedFilesSource>
+  /** 记录链校验缓存（只有长驻进程的读取路径传；转换门禁不传，每次完整校验）。 */
+  readonly recordChainCache?: RecordChainCache
 }
 
 export interface TestEvidenceItem {
@@ -288,6 +291,7 @@ export async function evaluateTestEvidence(input: {
       workflowRunId: runId,
       candidate: currentCandidate,
       ...(input.context.changedFiles === undefined ? {} : { changedFiles: input.context.changedFiles }),
+      ...(input.context.recordChainCache === undefined ? {} : { recordChainCache: input.context.recordChainCache }),
       now,
       ...(event === undefined ? {} : { exitEvent: event }),
     })

@@ -8,8 +8,8 @@
  * 改动文件列表（全量登记强制）是另一回事：生产装配恒提供「自任务起点以来的改动文件」，读取失败时
  * 抛错，kernel 据此阻塞（files-diff-unavailable），绝不降级成「没有改动」。
  */
-import { changedFilesForState, evaluateTestEvidence, isTenonUser, userSlug } from '@tenon/kernel'
-import type { TestEvidenceContext, TestEvidenceReader } from '@tenon/kernel'
+import { changedFilesResultForState, evaluateTestEvidence, isTenonUser, userSlug } from '@tenon/kernel'
+import type { ChangedFilesReport, ChangedFilesSource, TestEvidenceContext, TestEvidenceReader } from '@tenon/kernel'
 import type { CliDeps } from './deps.js'
 import { resolveChangeDir } from './paths.js'
 
@@ -18,11 +18,20 @@ export function testEvidenceReaderFor(deps: CliDeps): TestEvidenceReader {
   return deps.testEvidence ?? evaluateTestEvidence
 }
 
-/** 自任务起点以来改动的文件；CliDeps.changedFiles 只供测试装配覆写。 */
-export function changedFilesFor(deps: CliDeps, changeName: string): () => Promise<readonly string[]> {
+/** 自任务起点以来改动的文件，带「未跟踪文件被截断」标记；CliDeps.changedFiles 只供测试装配覆写。 */
+export function changedFilesReportFor(deps: CliDeps, changeName: string): () => Promise<ChangedFilesSource> {
   return async () => {
     if (deps.changedFiles !== undefined) return deps.changedFiles(changeName)
-    return changedFilesForState(deps.cwd, await deps.store.read(resolveChangeDir(deps.cwd, changeName)))
+    return changedFilesResultForState(deps.cwd, await deps.store.read(resolveChangeDir(deps.cwd, changeName)))
+  }
+}
+
+/** 只要文件列表的调用方（计划登记、运行编排）用这个；截断标记只在测试策略的判定里显示。 */
+export function changedFilesFor(deps: CliDeps, changeName: string): () => Promise<readonly string[]> {
+  const report = changedFilesReportFor(deps, changeName)
+  return async () => {
+    const source = await report()
+    return Array.isArray(source) ? source : (source as ChangedFilesReport).files
   }
 }
 
@@ -33,6 +42,6 @@ export function testEvidenceContextFor(deps: CliDeps, changeName: string): TestE
   return {
     user: { id: user.id, name: user.name, slug: userSlug(user.id) },
     ...(fingerprint === undefined ? {} : { currentCandidate: () => fingerprint(changeName) }),
-    changedFiles: changedFilesFor(deps, changeName),
+    changedFiles: changedFilesReportFor(deps, changeName),
   }
 }

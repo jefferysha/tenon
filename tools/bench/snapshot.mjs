@@ -11,7 +11,7 @@ import { createBenchFixture } from './fixture.mjs'
 import { readOptions, sample, writeReport } from './measure.mjs'
 
 const options = readOptions(process.argv.slice(2))
-const fixture = createBenchFixture(options)
+const fixture = await createBenchFixture(options)
 let server = null
 try {
   server = await startDashboard({ env: fixture.env, cwd: fixture.scratch, logFile: join(fixture.scratch, 'dashboard.log') })
