@@ -14,6 +14,7 @@ import { anchorChildProcessPath, assertWorkflowRootAnchor, type WorkflowRootAnch
 import { readTasksProjection } from './snapshotTasks.js'
 import { createCandidateCache } from './testCandidateCache.js'
 import { projectTestEvidence } from './testEvidenceSnapshot.js'
+import { evidenceUserFor } from './testEvidenceUser.js'
 import { defaultResolveUser } from './serverUserRoutes.js'
 import { projectStepExitDeps } from './stepExitReadiness.js'
 const MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES = 100
@@ -153,6 +154,8 @@ export async function scanAnchoredProject(
       const phase = str(f.phase)
       const workflowName = str(f.workflow) || 'default'
       const track = str(f.track)
+      // 测试状态按负责人的记录判定（真机验收 F15），没有负责人才退回查看者。
+      const evidenceUser = evidenceUserFor(f, actingUser)
       const plan = resolveSnapshotEffectivePlan(readRoot, workflowName, {
         documentProfile: state.runMetadata?.documentProfile,
         documentGovernanceFingerprint: state.runMetadata?.documentGovernanceFingerprint,
@@ -171,7 +174,7 @@ export async function scanAnchoredProject(
           changeDir,
           changeName: e.name,
           plan,
-          user: actingUser,
+          user: evidenceUser,
           ...(candidate === undefined ? {} : { candidate: () => candidate(readRoot) }),
           changedFiles: () => changedFilesForState(readRoot, state),
         }),
@@ -220,7 +223,7 @@ export async function scanAnchoredProject(
           {
             ...capabilityDeps,
             stepAgents: async () => agentBlockersOf(agentRuns, plan, phase),
-            ...(stepExitsFor === undefined ? {} : { stepExits: stepExitsFor(e.name) }),
+            ...(stepExitsFor === undefined ? {} : { stepExits: stepExitsFor(e.name, evidenceUser) }),
           },
         ),
         reviewHandshake: projectReviewHandshake(state, plan, phase),

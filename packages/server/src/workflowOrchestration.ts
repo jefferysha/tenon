@@ -18,6 +18,7 @@ import {
 } from '@tenon/kernel'
 import { projectAgentRuns, type AgentRunsSnapshot } from './agentRuns.js'
 import { projectTestEvidence } from './testEvidenceSnapshot.js'
+import { evidenceUserFor } from './testEvidenceUser.js'
 import type { PolicyReportDto } from './testSystemDtoTypes.js'
 import type { TestStepSnapshot } from './types.js'
 
@@ -214,7 +215,7 @@ export async function changeOrchestration(input: {
       changeDir: input.changeDir,
       changeName: input.changeName,
       plan,
-      user: input.user,
+      user: evidenceUserFor(state.fields, input.user),
       ...(input.candidate === undefined ? {} : { candidate: input.candidate }),
     }),
   ])

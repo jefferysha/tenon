@@ -25,6 +25,7 @@ function mount(report: PolicyReport = verifyReport(), extra: {
   legacyRows?: readonly TestRow[]
   activeSuite?: string | null
   onOpenSuite?: (suite: string) => void
+  recordedBy?: string
 } = {}) {
   const onOpenSuite = extra.onOpenSuite ?? vi.fn()
   const view = render(
@@ -36,6 +37,7 @@ function mount(report: PolicyReport = verifyReport(), extra: {
           legacyRows={extra.legacyRows ?? []}
           activeSuite={extra.activeSuite ?? null}
           onOpenSuite={onOpenSuite}
+          {...(extra.recordedBy === undefined ? {} : { recordedBy: extra.recordedBy })}
           stageLabelOf={(stage) => (stage === 'build' ? '实现' : stage)}
         />
       </TooltipProvider>
@@ -57,6 +59,13 @@ describe('TaskTestsTab · 汇总与顺序', () => {
     expect(summary.textContent).toBe('套件 3 · 用例 120 · 失败 0 · 不稳定 2 · 覆盖率 91.2%')
     expect(summary.className).toContain('whitespace-nowrap')
     expect(summary).toHaveAttribute('data-pass', 'false')
+  })
+
+  it('记录是负责人的：汇总行末尾只加一个名字（真机验收 F15），不新增句子', () => {
+    mount(verifyReport(), { recordedBy: 'Alice' })
+    const summary = screen.getByTestId('tests-summary')
+    expect(summary.textContent).toBe('套件 3 · 用例 120 · 失败 0 · 不稳定 2 · 覆盖率 91.2% · Alice')
+    expect(summary).toHaveAttribute('title', summary.textContent ?? '')
   })
 
   it('没有任何覆盖率：汇总不带覆盖率一段；空运行集全部为 0', () => {

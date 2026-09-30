@@ -1,14 +1,15 @@
 /**
  * 工作台的测试投影：把每个步骤的测试证据判定成状态 + 最近一次运行的摘要。
  * 与转换拦截同一份 evaluateTestEvidence，所以工作台显示的通过就是转换会放行的通过。
- * 判定读的是当前用户的记录；损坏的记录文件进 diagnostics，不冒充「未运行」之外的任何结论。
+ * 判定读的是 `user` 的记录（调用方传负责人，见 testEvidenceUser.ts）；损坏的记录文件进 diagnostics，不冒充「未运行」之外的任何结论。
  */
 import {
   corruptTestRunFiles, evaluateTestEvidence, userSlug,
-  type EffectiveWorkflowPlan, type TenonUser,
+  type EffectiveWorkflowPlan,
 } from '@tenon/kernel'
 import type { TestItemSnapshot, TestStepSnapshot } from './types.js'
 import { policyReportDto } from './testPolicyDto.js'
+import type { EvidenceUser } from './testEvidenceUser.js'
 import type { PlanBriefDto, PolicyReportDto } from './testSystemDtoTypes.js'
 import { readPlanBrief } from './testSystemReads.js'
 
@@ -19,7 +20,8 @@ export async function projectTestEvidence(input: {
   readonly changeDir: string
   readonly changeName: string
   readonly plan: EffectiveWorkflowPlan
-  readonly user: TenonUser | undefined
+  /** 按谁的记录判定：见 evidenceUserFor（负责人优先）。 */
+  readonly user: EvidenceUser | undefined
   /** 缺省 = 宿主没有工作区指纹能力；返回 undefined = 能力在但这次取不到（判定按未知处理）。 */
   readonly candidate?: () => Promise<string | undefined>
   /** 自任务起点以来的改动文件（与 CLI / 转换同源）；只在策略要求 `files: registered` 时才被调用，读不到时判定以 files-diff-unavailable 阻塞。 */

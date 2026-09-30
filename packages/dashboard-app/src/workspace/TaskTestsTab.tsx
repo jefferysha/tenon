@@ -11,7 +11,7 @@ import type { TestRow } from './stageTests'
  * 工作台任务「测试」页签：一行汇总 → 未登记文件（置顶于表格之上）→ 策略矩阵 → 阻塞 → 场景/任务追溯。
  * 只展示服务端的判定（与转换拦截同一份），不登记也不执行。套件名可点则打开运行详情。
  */
-export function TaskTestsTab({ report, plan, legacyRows, activeSuite, onOpenSuite, stageLabelOf }: {
+export function TaskTestsTab({ report, plan, legacyRows, activeSuite, onOpenSuite, stageLabelOf, recordedBy }: {
   report: PolicyReport
   plan: TestPlanBrief | undefined
   /** 旧步骤测试的行：内联套件（`step:` 前缀）凭它打开旧式运行详情。 */
@@ -20,6 +20,8 @@ export function TaskTestsTab({ report, plan, legacyRows, activeSuite, onOpenSuit
   onOpenSuite: (suite: string) => void
   /** 阶段 id → 工作流里的阶段名（追溯表里任务条目所在的阶段）。 */
   stageLabelOf: (stage: string) => string
+  /** 记录属于谁（任务负责人）：汇总行末尾多一个名字，别人打开页面时知道看的是谁的测试。 */
+  recordedBy?: string
 }): JSX.Element {
   const { t } = useT()
   const summary = useMemo(() => summarize(report), [report])
@@ -38,6 +40,7 @@ export function TaskTestsTab({ report, plan, legacyRows, activeSuite, onOpenSuit
     `${t('tests.case.fail')} ${summary.fail}`,
     `${t('tests.word.flaky')} ${summary.flaky}`,
     ...(summary.coverage === null ? [] : [`${t('tests.word.coverage')} ${formatPercent(summary.coverage)}`]),
+    ...(recordedBy === undefined ? [] : [recordedBy]),
   ]
   return (
     <div className="grid gap-6" data-testid="task-tests">
