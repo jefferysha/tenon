@@ -5,7 +5,7 @@
 import { lstat, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
-  pendingWaivers, readReviewWaiverSelection, readTestPlanState, reportCarriesRuns,
+  pendingReviewWaivers, readReviewWaiverSelection, reportCarriesRuns,
   type TestPolicyReport,
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
@@ -46,10 +46,8 @@ async function pendingReport(
  * 评审请求发出时冻结的豁免清单（review request 写的边车）是否漏了计划里现在待批准的豁免。
  * 只在评审待确认时才问；清单不属于这一次请求（requestedAt 不同）也算漏了。
  */
-async function requestListIsStale(dir: string, change: string, requestedAt: string): Promise<boolean> {
-  const plan = await readTestPlanState(dir, change)
-  if (plan.state !== 'ok') return false
-  const pending = pendingWaivers(plan.plan)
+async function requestListIsStale(repoRoot: string, dir: string, change: string, requestedAt: string): Promise<boolean> {
+  const pending = await pendingReviewWaivers({ repoRoot, dir, change })
   if (pending.length === 0) return false
   const frozen = await readReviewWaiverSelection(dir)
   if (frozen === undefined || frozen.requestedAt !== requestedAt) return true
@@ -71,6 +69,6 @@ export async function buildStepTestFlow(
     ...classified,
     report: await pendingReport(deps, change, report, documents),
     refreshRequest: pendingRequestedAt !== null && classified.waivers.length > 0
-      && await requestListIsStale(dir, change, pendingRequestedAt),
+      && await requestListIsStale(deps.cwd, dir, change, pendingRequestedAt),
   }
 }

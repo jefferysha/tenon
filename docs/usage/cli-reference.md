@@ -135,7 +135,9 @@ tenon test catalog validate [--json]
 tenon test catalog add [<id>] [--from <direction>] [--kind <k> --command <cmd> …] [--service --start <cmd> …]
 tenon test catalog set <id> [<same options>] [--service]
 tenon test catalog rm <id> [--service]
+tenon test catalog not-applicable <kind> --reason <text> | --rm
 tenon test plan <change> [--seed] [--json]
+tenon test register <change> --auto
 tenon test register <change> --suite <id> [--scope full|changed|files|grep] [--pattern <regex>] [--select-file <path>]…
 tenon test register <change> --file <path>… [--suite <id>] [--kind <kind>]
 tenon test register <change> --case <covers> --test "<file › name>"…
@@ -169,11 +171,28 @@ write records a digest in a change-local ledger, so a hand-edited plan becomes
 needs: kinds to register, kinds to run, minimum scope, coverage thresholds, flaky limit,
 benchmark baseline requirement, browsers, scenario coverage and `files: registered`.
 Steps that still declare inline `tests[]` keep working: they run as before and are
-judged together with the policy.
+judged together with the policy. The default workflow is zero-waiver: only `unit`
+is mandatory and every other kind is `run_if_registered` (see the
+[default workflow](default-workflow.md)).
+
+A kind that does not apply to the whole project is declared in the catalog instead of waived
+per change: `test catalog not-applicable <kind> --reason <text>` writes
+`not_applicable: [{kind, reason, approved_by}]` into `catalog.yaml` (`--rm` withdraws it). It
+takes effect only after one human confirmation: `review request` lists it as
+`not-applicable:<kind>` next to the plan's pending waivers, `review acknowledge` (not
+`--delegated`) approves it and records the approver in `approved_by`; until then the policy
+still requires the kind and reports `waiver-unapproved`. Changing the reason clears the
+approval.
 
 `test discover` scans package scripts and tool configs (vitest, jest, mocha, node:test,
 Playwright, tsc, eslint, pytest, go) and prints suggested suites with reporter flags that
 produce parseable reports; `--write` appends the ones whose id is not yet in the catalog.
+`tenon init` runs it for you when a workflow with a `test_policy` finds no catalog and says
+so on stderr (nothing is written when no tool is recognised, and an existing catalog is never
+touched). For JavaScript unit suites without an `include` in the tool config, the test-file
+globs cover `src/`, `test/`, `tests/`, `__tests__/` and root-level `*.test.*` / `*.spec.*`
+files (when none of those directories exists, any `*.test.*` / `*.spec.*` file below the
+suite's `cwd`).
 `*.bench.*` files in a vitest project become a `vitest-bench` benchmark suite whose metrics
 are `<bench name>.mean_ms` for every `bench('name', …)` it can read (a name it cannot read is
 never guessed); any other `bench` script is reported with the exact `catalog add` command to
@@ -183,10 +202,17 @@ invocations are replaced by the runner's recommended invocation); `catalog valid
 lists every problem as `catalog.yaml:<line>: …` (exit `2`). `test plan --seed` adds the
 suites that own or cover the files this change touched, one suite per policy-required
 kind, and the changed test files, and lists the scenarios and tasks still to map with
-ready-to-run `register --case` commands. Only scenarios and the tasks under the
+ready-to-run `register --case` commands; it also registers the catalog suites of the kinds a
+step lists in `run_if_registered` (benchmarks excepted). Only scenarios and the tasks under the
 implementation (`build`) section of `tasks.md` must be mapped (`scenarios: required|passing`
-blocks on them); tasks in any other stage section, and the scaffold prompt "break this
-stage into verifiable tasks", are listed separately as optional and never block. `test sync` diffs the change against its start
+blocks on them); tasks in any other stage section are listed separately as optional (shown as
+"optional", not "uncovered", in the verification report) and never block. The scaffold prompt
+"break this stage into verifiable tasks" is not a task and never appears. `test register
+<change> --auto` is the one-command form: it discovers a missing catalog, widens the
+`files` globs of a suite so that test files no suite claims are claimed (a `test/**/*.test.js`
+glob for `test/x.test.js`; `e2e/` specs go to a Playwright suite, helpers and `*.bench.*`
+files are never claimed automatically), then seeds the plan and registers those files. It only
+adds, so it is safe to repeat. `test sync` diffs the change against its start
 and lists unregistered test files, files no suite claims, and registrations whose file is
 gone; it uses the same computation as the gate (exit `2` when something is pending).
 

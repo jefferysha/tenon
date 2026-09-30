@@ -127,6 +127,8 @@ describe('测试体系 v2 · vitest 工程', () => {
 
   test('A1：缺目录 → 缺计划 → 缺种类，spec 出口被挡且原因可读；补齐后放行', async () => {
     await project({ specKinds: 'unit, playwright' })
+    // init 已经自动识别并写入了目录；这条用例要从「项目没有目录」起步，先删掉它。
+    await rm(join((h as Harness).cwd, '.tenon', 'tests', 'catalog.yaml'))
     let current = await status('spec')
     expect(current.code).toBe(2)
     expect(codes(current.json)).toEqual(['test-catalog-missing', 'test-plan-missing'])
@@ -144,7 +146,7 @@ describe('测试体系 v2 · vitest 工程', () => {
     expect(out()).toContain('策略要求 playwright 测试')
     current = await status('spec')
     expect(codes(current.json)).toEqual(['test-kind-missing'])
-    expect(current.json.policy?.blockers[0]).toMatchObject({ subject: 'playwright', fix: expect.stringContaining('tenon test waive demo --kind playwright') })
+    expect(current.json.policy?.blockers[0]).toMatchObject({ subject: 'playwright', fix: expect.stringContaining('tenon test catalog not-applicable playwright') })
 
     expect(await tenon('test', 'waive', 'demo', '--kind', 'playwright', '--reason', '本任务没有浏览器界面'), err()).toBe(0)
     current = await status('spec')

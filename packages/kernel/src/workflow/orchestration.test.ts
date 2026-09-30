@@ -91,20 +91,20 @@ describe('buildOrchestration · 来源', () => {
 })
 
 describe('buildOrchestration · 阶段内顺序与流向', () => {
-  it('前端 verify：技能串行 → 测试（playwright 与 code-size 同波）→ 评审者波次（architecture 等四个评审者，code-size 评审者读测试后同波）', () => {
+  it('前端 verify：技能串行 → 测试（unit 与 code-size 同波）→ 评审者波次（architecture 等四个评审者，code-size 评审者读测试后同波）', () => {
     const plan = compileEffectiveWorkflowPlan('default', defaultDef(), builtinTrack('frontend'))
     const verify = stage(buildOrchestration(plan).stages, 'verify')
     expect(verify.gate).toBe('review')
     expect(verify.entries.map((entry) => [entry.kind, entry.id, entry.wave])).toEqual([
       ['skill', 'browser-qa', 0], ['skill', 'web-design-guidelines', 1], ['skill', 'design-taste-frontend', 2],
       ['skill', 'verification-before-completion', 3], ['skill', 'e2e-testing', 4],
-      ['test', 'playwright', 5], ['test', 'code-size', 5], ['test', 'kind:unit', 5], ['test', 'kind:regression', 5],
+      ['test', 'code-size', 5], ['test', 'kind:unit', 5],
       ['reviewer', 'spec-consistency', 6], ['reviewer', 'frontend-quality', 6], ['reviewer', 'security', 6], ['reviewer', 'e2e', 6],
       ['reviewer', 'architecture', 7], ['reviewer', 'code-size', 6],
     ])
     const architecture = verify.entries.find((entry) => entry.id === 'architecture')
     expect(architecture).toMatchObject({ required: false, dependsOn: ['spec-consistency', 'frontend-quality', 'security', 'e2e'] })
-    expect(verify.entries.find((entry) => entry.id === 'playwright')?.label).toBe('Playwright')
+    expect(verify.entries.find((entry) => entry.id === 'code-size')?.label).toBe('代码规模')
   })
 
   it('执行者在最前，与技能、测试、评审者按 runner 顺序排位次', () => {

@@ -16,6 +16,7 @@ import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { execFileSync, spawnSync } from 'node:child_process'
+import { DEFAULT_WORKFLOW_SOURCE } from '@tenon/kernel'
 import { FIXED_CLOCK, freshHarness, realDeps, REPO_ROOT, rm, type Harness } from './integration-harness.js'
 import { performFlowAction } from './integration-test-flow-support.js'
 
@@ -24,8 +25,23 @@ const FIXTURE_PACKAGE_JSON = `${JSON.stringify({
   name: 'tenon-next-runner-fixture',
   private: true,
   version: '0.0.0',
-  scripts: { test: 'exit 0', typecheck: 'exit 0', 'test:integration': 'exit 0', bench: 'exit 0' },
+  // `npm test` 是 node:test：tenon init 据此自动识别出 unit 套件（typecheck 脚本识别成 typecheck 套件，bench 只给提示）。
+  scripts: { test: 'node --test', typecheck: 'exit 0', 'test:integration': 'exit 0', bench: 'exit 0' },
 }, null, 2)}\n`
+
+/**
+ * 项目自己的 default 工作流：在 backend 验证步骤多要一条必需的 npm 脚本测试 `integration`。内置默认不再要求它
+ * （集成套件目录里有才跑），但项目仍可以这样声明；「脚本没配」（test-unconfigured）这条路径因此还在。
+ */
+function projectDefaultWithIntegration(): string {
+  const backend = DEFAULT_WORKFLOW_SOURCE.indexOf('\n  backend:\n')
+  const verifyTests = DEFAULT_WORKFLOW_SOURCE.indexOf('        tests:\n', DEFAULT_WORKFLOW_SOURCE.indexOf('      - id: verify', backend))
+  const at = verifyTests + '        tests:\n'.length
+  return `${DEFAULT_WORKFLOW_SOURCE.slice(0, at)}${[
+    '          - id: integration', '            direction: integration', '            command: npm run test:integration',
+    '            label: 集成', '            timeout_s: 1800', '            required: true',
+  ].join('\n')}\n${DEFAULT_WORKFLOW_SOURCE.slice(at)}`
+}
 
 interface StepDocumentView {
   readonly kind: string
@@ -384,6 +400,8 @@ afterEach(async () => {
 })
 
 interface WalkOptions {
+  /** 项目级的 default 工作流源文本（写进 .pipeline/workflows/default.yaml，init 之前）。 */
+  readonly projectWorkflow?: string
   readonly track?: string
   readonly editAt?: string
   /** 每条动作照做之前的观察点（用例在这里探测 CLI 对「越过 next 的写法」的拒绝）。 */
@@ -396,6 +414,9 @@ async function walk(options: WalkOptions = {}): Promise<{
   readonly actions: readonly { readonly step: string; readonly action: StepAction }[]
 }> {
   const track = options.track ?? 'backend'
+  if (options.projectWorkflow !== undefined) {
+    await put('.pipeline/workflows/default.yaml', options.projectWorkflow)
+  }
   expect(await h.run(['init', CHANGE, '--track', track, '--preset', 'full'])).toBe(0)
   // Skill 回执绑定当前用户的活跃任务，真实宿主会话就是这样起头的。
   expect(await h.run(['session', 'activate', CHANGE])).toBe(0)
@@ -437,9 +458,9 @@ async function walk(options: WalkOptions = {}): Promise<{
       expect(tests.finished).toBe(true)
       expect(tests.report).toBe(`tenon test report ${CHANGE}`)
       expect(tests.items.map((item) => [item.step, item.id, item.run?.result]))
-        // 每条轨道的验证都声明了 code-size 测试；backend 另有 build 的 unit 与 verify 的 integration。
-        .toEqual(track === 'backend'
-          ? [['build', 'unit', 'pass'], ['verify', 'integration', 'pass'], ['verify', 'code-size', 'pass']]
+        // 每条轨道的验证都声明了 code-size 测试；项目自己的 default 多要 backend 验证的 integration。
+        .toEqual(options.projectWorkflow !== undefined && track === 'backend'
+          ? [['verify', 'integration', 'pass'], ['verify', 'code-size', 'pass']]
           : [['verify', 'code-size', 'pass']])
       await run(['list', '--finished', '--json'])
       const finished = JSON.parse(h.out.join('\n')) as { finished: readonly { name: string; archived: string }[] }
@@ -529,22 +550,21 @@ describe('照着 next 做事的运行器：open → 完结', { timeout: 120_000 
     expect(mainSpec).not.toContain('TBD')
     // Purpose 段与下一个标题之间有空行（上游归档重排时吃掉了它）。
     expect(mainSpec).toContain('## Purpose\nThe runner flow needs a durable capability.\n\n## Requirements')
-    // 测试体系（design §11）：spec 依次 目录 → 计划 → 映射；build / verify 缺的种类补登记后运行；verify 运行完
-    // 把追溯矩阵写进验证报告。每条都是运行器照做就推进的动作（夹具替作者做 T2 命令做的事）。
+    // 测试体系（design §11）：init 已按 package.json 自动识别出目录（所以没有 test-discover 动作）；spec 依次 计划 → 映射；
+    // 默认策略只强制目录里的 unit：build / verify 不再有缺的种类要登记，直接运行；verify 运行完把追溯矩阵写进验证报告。
+    // 每条都是运行器照做就推进的动作（夹具替作者做 T2 命令做的事）。
     const flowActions = ['test-discover', 'test-plan-seed', 'test-plan-map', 'test-register-files', 'run-tests', 'test-report']
     expect(actions.filter(({ action }) => flowActions.includes(action.action))
       .map(({ step, action }) => `${step}:${action.action}`)).toEqual([
-      'spec:test-discover', 'spec:test-plan-seed', 'spec:test-plan-map',
-      'build:test-plan-map', 'build:run-tests',
-      'verify:test-plan-map', 'verify:run-tests', 'verify:test-report',
+      'spec:test-plan-seed', 'spec:test-plan-map',
+      'build:run-tests',
+      'verify:run-tests', 'verify:test-report',
     ])
     const at = (step: string, name: string, from = 0): number => actions.findIndex(({ step: id, action }, index) =>
       index >= from && id === step && action.action === name)
     // 排在本步文档之后、评审之前；测试排在评审者之前（执行者 → 技能 → 文档 → 测试 → 评审者）。
-    expect(at('spec', 'test-discover')).toBeGreaterThan(at('spec', 'record-document'))
+    expect(at('spec', 'test-plan-seed')).toBeGreaterThan(at('spec', 'record-document'))
     expect(at('spec', 'test-plan-map')).toBeLessThan(at('spec', 'request-review'))
-    expect(at('build', 'test-plan-map')).toBeLessThan(at('build', 'run-tests'))
-    expect(at('build', 'run-tests')).toBeLessThan(at('build', 'run-test'))
     expect(at('verify', 'run-tests')).toBeLessThan(at('verify', 'run-test'))
     expect(at('verify', 'run-test')).toBeLessThan(at('verify', 'test-report'))
     expect(at('verify', 'test-report')).toBeLessThan(at('verify', 'run-agent'))
@@ -646,6 +666,7 @@ describe('照着 next 做事的运行器：open → 完结', { timeout: 120_000 
     await writeFile(join(h.cwd, 'package.json'), `${JSON.stringify(pkg, null, 2)}\n`, 'utf8')
     let probed = false
     const { actions } = await walk({
+      projectWorkflow: projectDefaultWithIntegration(),
       before: async (step, action) => {
         if (probed || action.action !== 'fix') return
         probed = true
@@ -691,6 +712,7 @@ describe('照着 next 做事的运行器：open → 完结', { timeout: 120_000 
   test('build 才发现未配置：决定字段在前，fix 只要求补脚本；只改 package.json 不回退 spec', async () => {
     let removed = false
     const { actions } = await walk({
+      projectWorkflow: projectDefaultWithIntegration(),
       before: async (step) => {
         if (removed || step.id !== 'build') return
         removed = true

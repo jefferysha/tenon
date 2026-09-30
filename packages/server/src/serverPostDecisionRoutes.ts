@@ -165,7 +165,7 @@ async function acknowledgeFromDashboard(input: {
     writeState: async (state) => {
       // Waivers first, receipt second: a failed plan write leaves the receipt uncommitted and the
       // same approval can be retried (already approved waivers are recognised as such).
-      waivers = await approveFrozenWaivers({ dir, change: name, state, actor: input.actor, recordedAt: deps.clock() })
+      waivers = await approveFrozenWaivers({ repoRoot: root, dir, change: name, state, actor: input.actor, recordedAt: deps.clock() })
       await deps.store.writeUnderLock(dir, state, { kind: 'set-many' })
       await clearReviewWaiverSelection(dir).catch(() => undefined)
     },

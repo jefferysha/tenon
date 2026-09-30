@@ -2,15 +2,9 @@
  * `tenon test discover [--write] [--json]` —— 识别项目里的测试工具，给出建议的目录套件。
  * 不带 --write 只打印差异；带 --write 把目录里还没有的套件追加进 .tenon/tests/catalog.yaml，已存在的 id 不覆盖。
  */
-import { formatCatalogIssues, parseTestCatalog, serializeTestCatalog, type CatalogSuite } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
-import { discoverTests } from '../test-system/discover.js'
-import { emptyCatalog, readCatalogFile, updateCatalog } from '../test-system/project-files.js'
-
-function invalidReason(suite: CatalogSuite): string | undefined {
-  const parsed = parseTestCatalog(serializeTestCatalog({ ...emptyCatalog(), suites: [suite] }))
-  return parsed.ok ? undefined : formatCatalogIssues(parsed.issues).slice(0, 2).join('；')
-}
+import { usableDiscovery } from '../test-system/auto-discover.js'
+import { readCatalogFile, updateCatalog } from '../test-system/project-files.js'
 
 export async function cmdTestDiscover(
   deps: CliDeps,
@@ -23,13 +17,7 @@ export async function cmdTestDiscover(
     return 1
   }
   const existing = new Set(current.state === 'ok' ? current.catalog.suites.map((suite) => suite.id) : [])
-  const result = await discoverTests(deps.cwd)
-  const notes = [...result.notes]
-  const usable = result.suites.filter((found) => {
-    const problem = invalidReason(found.suite)
-    if (problem !== undefined) notes.push(`跳过建议套件 ${found.suite.id}：${problem}`)
-    return problem === undefined
-  })
+  const { suites: usable, notes } = await usableDiscovery(deps.cwd)
   const fresh = usable.filter((found) => !existing.has(found.suite.id))
   let written = false
   if (opts.write === true && fresh.length > 0) {

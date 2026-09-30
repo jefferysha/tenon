@@ -100,12 +100,38 @@ describe('seedPlan', () => {
     expect(result.unmapped.map((item) => item.covers)).toEqual(['spec:auth/密码错误', 'task:1.1'])
   })
 
-  it('待映射分两组：场景与实现阶段小节的任务要求映射，其余阶段的任务与骨架提示词可选', () => {
+  it('待映射分两组：场景与实现阶段小节的任务要求映射，其余阶段的任务可选；骨架提示词不是任务，不占待映射行', () => {
     const mixed = extractTaskItems(['## 立项', '- [ ] 将本阶段目标拆成可验证任务。', '## 实现', '- [ ] 做登录', '## 验证', '- [ ] 手工回归'].join('\n'))
     const result = seedPlan({ catalog: CATALOG, plan: emptyTestPlan('demo'), policies: [], changedFiles: [], scenarios, tasks: mixed })
     const groups = splitUnmapped(result.unmapped)
     expect(groups.required.map((item) => item.covers)).toEqual(['spec:auth/登录成功', 'spec:auth/密码错误', 'task:2.1'])
-    expect(groups.optional.map((item) => item.covers)).toEqual(['task:1.1', 'task:3.1'])
+    expect(groups.optional.map((item) => item.covers)).toEqual(['task:3.1'])
+    const scaffold = extractTaskItems(['## 立项', '- [ ] 将本阶段目标拆成可验证任务。', '## 调研', '- [ ] 将本阶段目标拆成可验证任务。 (explore)'].join('\n'))
+    expect(seedPlan({ catalog: CATALOG, plan: emptyTestPlan('demo'), policies: [], changedFiles: [], scenarios: [], tasks: scaffold }).unmapped).toEqual([])
+  })
+
+  it('run_if_registered 的种类：目录里有就登记（基准除外，性能相关才主动选）；没有就什么都不要求', () => {
+    const optional: StepTestPolicyIR = { ...policy(['unit']), run: ['unit'], run_if_registered: ['playwright', 'regression', 'benchmark', 'typecheck'] }
+    const result = seedPlan({ catalog: CATALOG, plan: emptyTestPlan('demo'), policies: [optional], changedFiles: [], scenarios: [], tasks: [] })
+    expect(result.plan.suites).toEqual([
+      { suite: 'web-unit', scope: 'full' }, { suite: 'web-e2e', scope: 'full' }, { suite: 'api-regression', scope: 'full' },
+    ])
+    expect(result.missingKinds).toEqual([])
+    const bare = seedPlan({ catalog: { ...CATALOG, suites: CATALOG.suites.filter((suite) => suite.kind === 'unit') }, plan: emptyTestPlan('demo'), policies: [optional], changedFiles: [], scenarios: [], tasks: [] })
+    expect(bare.plan.suites).toEqual([{ suite: 'web-unit', scope: 'full' }])
+    expect(bare.missingKinds).toEqual([])
+  })
+
+  it('regression 没有专门套件时由 unit 套件全量运行顶上；目录声明了不适用的种类既不补套件也不算缺', () => {
+    const noRegression: TestCatalog = { ...CATALOG, suites: CATALOG.suites.filter((suite) => suite.kind !== 'regression') }
+    const needsRegression: StepTestPolicyIR = { ...policy(['regression'], ['regression']), scope: 'full' }
+    const aliased = seedPlan({ catalog: noRegression, plan: emptyTestPlan('demo'), policies: [needsRegression], changedFiles: [], scenarios: [], tasks: [] })
+    expect(aliased.plan.suites).toEqual([{ suite: 'web-unit', scope: 'full' }])
+    expect(aliased.missingKinds).toEqual([])
+    const declared: TestCatalog = { ...noRegression, not_applicable: [{ kind: 'benchmark', reason: '无性能路径', approved_by: null }] }
+    const skipped = seedPlan({ catalog: declared, plan: emptyTestPlan('demo'), policies: [policy(['unit', 'benchmark'])], changedFiles: [], scenarios: [], tasks: [] })
+    expect(skipped.missingKinds).toEqual([])
+    expect(skipped.plan.suites).toEqual([{ suite: 'web-unit', scope: 'full' }])
   })
 
   it('策略要求的种类目录里没有套件 → missingKinds；读不到 diff 时只按策略补套件', () => {

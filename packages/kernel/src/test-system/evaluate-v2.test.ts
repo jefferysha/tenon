@@ -158,12 +158,68 @@ describe('evaluateTestPolicy —— 目录与计划', () => {
     expect(report.blockers[0]?.message).toMatch(/被手工改动/)
   })
 
-  it('test-kind-missing：有候选套件给登记命令，没有给豁免命令', () => {
+  it('test-kind-missing：有候选套件给登记命令，没有给项目级不适用声明命令（说明单个任务用 waive）', () => {
     const report = evaluate({ policy: { kinds: ['playwright', 'integration'] }, runs: [UNIT_PASS] })
     expect(report.blockers.map((item) => [item.code, item.fix])).toEqual([
       ['test-kind-missing', 'tenon test register demo --suite e2e'],
-      ['test-kind-missing', "tenon test waive demo --kind integration --reason '<不适用的原因>'"],
+      ['test-kind-missing', "tenon test catalog not-applicable integration --reason '<本项目为什么不适用>'"],
     ])
+    expect(report.blockers[1]?.message).toContain('tenon test waive')
+  })
+
+  describe('目录里项目级的 not_applicable', () => {
+    const WITH_NA = (approvedBy: string): string => `${CATALOG_TEXT}not_applicable:
+  - kind: integration
+    reason: 本项目没有集成面
+    approved_by: ${approvedBy}
+`
+    const catalogWith = (approvedBy: string): TestPolicyEvaluationInput['catalog'] => ({ state: 'ok', catalog: parsedCatalog(WITH_NA(approvedBy)) })
+
+    it('已批准：策略不再要求该种类（登记与运行都不要求），不需要任务级豁免', () => {
+      const report = evaluate({ policy: { kinds: ['integration'], run: ['unit', 'integration'], scope: 'changed' }, runs: [UNIT_PASS], input: { catalog: catalogWith('reviewer@x') } })
+      expect(report.blockers).toEqual([])
+      expect(report.pass).toBe(true)
+    })
+
+    it('未批准：不解除阻塞，给 waiver-unapproved，修复命令是发起评审（与计划豁免同一条路径）', () => {
+      const report = evaluate({ policy: { kinds: ['integration'] }, runs: [UNIT_PASS], input: { catalog: catalogWith('null') } })
+      expect(report.blockers).toEqual([expect.objectContaining({
+        code: 'waiver-unapproved', subject: 'integration', fix: 'tenon review request demo --event build-complete',
+        message: expect.stringContaining('尚未经评审批准'),
+      })])
+    })
+
+    it('只对声明的种类生效；计划里登记了该种类的套件时套件照常参与判定', () => {
+      const other = evaluate({ policy: { kinds: ['playwright', 'integration'] }, runs: [UNIT_PASS], input: { catalog: catalogWith('reviewer@x') } })
+      expect(other.blockers.map((item) => [item.code, item.subject])).toEqual([['test-kind-missing', 'playwright']])
+      const typecheckNa = parsedCatalog(`${CATALOG_TEXT}not_applicable:\n  - { kind: typecheck, reason: 纯 JS, approved_by: r@x }\n`)
+      const plan: TestPlan = { ...BASE_PLAN, suites: [{ suite: 'unit', scope: 'changed' }, { suite: 'types', scope: 'full' }] }
+      const report = evaluate({ policy: { run: ['unit', 'typecheck'], scope: 'changed' }, plan, runs: [UNIT_PASS], input: { catalog: { state: 'ok', catalog: typecheckNa } } })
+      expect(report.blockers.map((item) => [item.code, item.subject])).toEqual([['test-not-run', 'types']])
+    })
+  })
+
+  describe('regression：同一套件 scope=full 即满足', () => {
+    it('run 要求 regression 且 scope: full：unit 套件满足登记并被纳入运行集（reason: run）', () => {
+      const policy: StepTestPolicyDef = { kinds: ['unit', 'regression'], run: ['unit', 'regression'], scope: 'full' }
+      const plan: TestPlan = { ...BASE_PLAN, suites: [{ suite: 'unit', scope: 'full' }] }
+      const ran = evaluate({ policy, plan, runs: [fixtureSuiteRun({ suite: 'unit', scope: 'full' })] })
+      expect(ran.blockers).toEqual([])
+      expect(ran.suites).toEqual([expect.objectContaining({ suite: 'unit', reason: 'run', state: 'passed' })])
+      const notRun = evaluate({ policy, plan })
+      expect(codes(notRun)).toEqual(['test-not-run'])
+    })
+
+    it('scope 是 changed：只跑改动范围的单测不是回归，仍要 regression 种类的套件或豁免', () => {
+      const policy: StepTestPolicyDef = { run: ['unit', 'regression'], scope: 'changed' }
+      const report = evaluate({ policy, runs: [UNIT_PASS] })
+      expect(report.blockers.map((item) => [item.code, item.subject])).toEqual([['test-kind-missing', 'regression']])
+    })
+
+    it('只在 kinds 里要求登记时（规格阶段），有 unit 套件就够', () => {
+      const report = evaluate({ policy: { plan: 'required', kinds: ['unit', 'regression'] }, runs: [] })
+      expect(report.blockers).toEqual([])
+    })
   })
 
   it('waiver-unapproved：未批准的豁免不解除阻塞；批准后放行', () => {
@@ -186,7 +242,7 @@ describe('evaluateTestPolicy —— 测试文件登记', () => {
     })
     expect(report.blockers.map((item) => [item.code, item.subject, item.fix])).toEqual([
       ['test-file-unregistered', 'src/new.test.ts', 'tenon test register demo --file src/new.test.ts --suite unit'],
-      ['test-file-orphan', 'tools/x.spec.js', 'tenon test discover'],
+      ['test-file-orphan', 'tools/x.spec.js', 'tenon test register demo --auto'],
     ])
     expect(report.files).toMatchObject({ checked: true, orphans: ['tools/x.spec.js'] })
     const unchecked = evaluate({ policy: { run: ['unit'], scope: 'changed', files: 'registered' }, runs: [UNIT_PASS] })
@@ -376,7 +432,7 @@ describe('evaluateTestPolicy —— 运行记录', () => {
     expect(verdict.blockers[0]?.message).toContain('TENON_NODE_TEST_REPORTER')
   })
 
-  it('coverage-below：低于门槛 / 没有数据 / 运行集里没有声明覆盖率的套件（可用 coverage 豁免）', () => {
+  it('coverage-below：低于门槛 / 没有数据；运行集里没有套件声明覆盖率时门槛不生效（不需要豁免）', () => {
     const policy: StepTestPolicyDef = { run: ['unit'], scope: 'changed', coverage: { lines: 80, branches: 70 } }
     const low = fixtureSuiteRun({ suite: 'unit', scope: 'changed', coverage: { lines: 75 } })
     expect(evaluate({ policy, runs: [low] }).blockers[0]?.message).toMatch(/lines 75% < 80%；branches 未报告/)
@@ -385,9 +441,7 @@ describe('evaluateTestPolicy —— 运行记录', () => {
     const typesOnly: TestPlan = { ...BASE_PLAN, suites: [{ suite: 'types', scope: 'full' }] }
     const typesRun = fixtureSuiteRun({ suite: 'types', kind: 'typecheck', runner: 'tsc', scope: 'full', cases: [], report: { format: 'exit-code', path: null, digest: null } })
     const noSuite = evaluate({ policy: { run: ['typecheck'], coverage: { lines: 80 } }, plan: typesOnly, runs: [typesRun] })
-    expect(codes(noSuite)).toEqual(['coverage-below'])
-    const waived = { ...typesOnly, waivers: [{ kind: 'coverage' as const, reason: '纯类型改动', approved_by: 'r' }] }
-    expect(codes(evaluate({ policy: { run: ['typecheck'], coverage: { lines: 80 } }, plan: waived, runs: [typesRun] }))).toEqual([])
+    expect(codes(noSuite)).toEqual([])
   })
 
   describe('基准', () => {
@@ -500,7 +554,7 @@ describe('evaluateTestPolicy —— 场景追溯', () => {
     expect(uncovered.blockers[2]?.message).toMatch(/^任务 /)
   })
 
-  it('任务只有实现阶段小节里的要求映射；其余阶段的任务与骨架提示词只进矩阵，不出阻塞', () => {
+  it('任务只有实现阶段小节里的要求映射；其余阶段的任务只进矩阵、不出阻塞；骨架提示词不是任务，矩阵里没有它', () => {
     const mixed = extractTaskItems([
       '## 立项', '- [ ] 将本阶段目标拆成可验证任务。', '',
       '## 规格', '- [ ] 评审需求 (spec)', '',
@@ -510,16 +564,15 @@ describe('evaluateTestPolicy —— 场景追溯', () => {
     const uncovered = evaluate({ policy: { scenarios: 'required' }, input: { scenarios: [], tasks: mixed } })
     expect(uncovered.blockers.map((item) => [item.code, item.subject])).toEqual([['scenario-uncovered', 'task:3.1']])
     expect(uncovered.trace.map((row) => [row.covers, row.required, row.state])).toEqual([
-      ['task:1.1', false, 'uncovered'], ['task:2.1', false, 'uncovered'], ['task:3.1', true, 'uncovered'],
-      ['task:3.2', false, 'uncovered'], ['task:4.1', false, 'uncovered'],
+      ['task:2.1', false, 'uncovered'], ['task:3.1', true, 'uncovered'], ['task:4.1', false, 'uncovered'],
     ])
     // 任务行带上所在阶段小节的 id（展示用，不参与判定）；场景没有。
-    expect(uncovered.trace.map((row) => row.stage)).toEqual(['open', 'spec', 'build', 'build', 'verify'])
+    expect(uncovered.trace.map((row) => row.stage)).toEqual(['spec', 'build', 'verify'])
     const mapped: TestPlan = { ...BASE_PLAN, cases: [{ covers: 'task:3.1', tests: ['src/a.test.ts › works'] }] }
     expect(evaluate({ policy: { scenarios: 'required' }, plan: mapped, input: { scenarios: [], tasks: mixed } }).blockers).toEqual([])
     const off = evaluate({ policy: { scenarios: 'off' }, input: { scenarios: [], tasks: mixed } })
     expect(off.blockers).toEqual([])
-    expect(off.trace.map((row) => row.required)).toEqual([false, false, true, false, false])
+    expect(off.trace.map((row) => row.required)).toEqual([false, true, false])
   })
 
   it('scenario-failing：passing 模式下映射用例本轮没有通过；追溯矩阵含 task 行与状态', () => {

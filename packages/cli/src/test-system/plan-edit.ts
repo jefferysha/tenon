@@ -3,7 +3,8 @@
  * 涉及磁盘的检查（文件是否存在、目录是否有该套件）在命令层做。
  */
 import {
-  policyRequiredKinds, suiteCoverGlobs, suiteFileGlobs, matchesAnyGlob, suitesOwningFile, testFileRegistration,
+  catalogNotApplicable, planKindsSatisfy, policyRequiredKinds, suiteCoverGlobs, suiteFileGlobs, matchesAnyGlob,
+  suitesOwningFile, testFileRegistration,
   type CatalogSuite, type OpenSpecScenario, type PlanCase, type PlanFile, type PlanScope, type PlanSuite, type PlanWaiver,
   type StepTestPolicyIR, type TaskItem, type TestCatalog, type TestKind, type TestPlan,
 } from '@tenon/kernel'
@@ -106,7 +107,18 @@ function touches(suite: CatalogSuite, changed: readonly string[]): boolean {
   return changed.some((path) => matchesAnyGlob(path, globs))
 }
 
-/** 计划初稿：只增不减。套件来自「diff 碰到的套件」与「策略要求的种类」，文件来自 diff 里未登记的测试文件。 */
+/** 「有则跑」的种类里，基准是按变更主动选的（性能相关才跑），种子不自动登记；其余目录里有的都登记。 */
+const SEED_SKIPPED_OPTIONAL: ReadonlySet<TestKind> = new Set<TestKind>(['benchmark'])
+
+function plannedKinds(plan: TestPlan, catalog: TestCatalog): TestKind[] {
+  return plan.suites.flatMap((item) => catalog.suites.find((suite) => suite.id === item.suite)?.kind ?? [])
+}
+
+/**
+ * 计划初稿：只增不减。套件来自「diff 碰到的套件」、「策略要求的种类」（unit 等）和「策略里 run_if_registered 的种类，
+ * 目录里有就登记」——后者让 typecheck / integration / e2e 这类项目有才跑的测试自动进计划，没有的项目不需要豁免。
+ * 项目在目录里声明了某种类不适用（not_applicable）时，该种类既不补套件也不算缺。文件来自 diff 里未登记的测试文件。
+ */
 export function seedPlan(input: SeedInput): SeedResult {
   let plan = input.plan
   const planned = new Set(plan.suites.map((item) => item.suite))
@@ -120,13 +132,20 @@ export function seedPlan(input: SeedInput): SeedResult {
   const changed = input.changedFiles ?? []
   for (const suite of input.catalog.suites) if (touches(suite, changed)) add(suite, 'changed')
   const missingKinds: TestKind[] = []
-  const required = [...new Set(input.policies.flatMap((policy) => policyRequiredKinds(policy)))]
-  for (const kind of required) {
-    const have = plan.suites.some((item) => input.catalog.suites.find((suite) => suite.id === item.suite)?.kind === kind)
-    if (have) continue
-    const candidates = input.catalog.suites.filter((suite) => suite.kind === kind)
-    if (candidates.length === 0) missingKinds.push(kind)
-    for (const suite of candidates) add(suite, 'full')
+  for (const policy of input.policies) {
+    for (const kind of policyRequiredKinds(policy)) {
+      if (planKindsSatisfy(policy, plannedKinds(plan, input.catalog), kind)) continue
+      if (catalogNotApplicable(input.catalog, kind) !== undefined) continue
+      // regression 没有专门的套件时由 unit 套件全量运行顶上。
+      const own = input.catalog.suites.filter((suite) => suite.kind === kind)
+      const candidates = own.length > 0 || kind !== 'regression' ? own : input.catalog.suites.filter((suite) => suite.kind === 'unit')
+      if (candidates.length === 0 && !missingKinds.includes(kind)) missingKinds.push(kind)
+      for (const suite of candidates) add(suite, 'full')
+    }
+    for (const kind of policy.run_if_registered) {
+      if (SEED_SKIPPED_OPTIONAL.has(kind) || catalogNotApplicable(input.catalog, kind) !== undefined) continue
+      for (const suite of input.catalog.suites) if (suite.kind === kind) add(suite, 'full')
+    }
   }
   const registration = testFileRegistration({ changedFiles: changed, catalog: input.catalog, plan })
   const files: PlanFile[] = registration.unregistered.map((file) => {

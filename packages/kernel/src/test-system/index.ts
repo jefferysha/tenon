@@ -22,9 +22,16 @@ export {
   CATALOG_DEFAULT_TIMEOUT_S, SERVICE_DEFAULT_READY_TIMEOUT_S, TEST_CATALOG_SCHEMA,
 } from './catalog-types.js'
 export type {
-  BenchmarkMetricSpec, BenchmarkSpec, CatalogCoverage, CatalogReport, CatalogSelect, CatalogService,
-  CatalogServiceReady, CatalogSuite, TestCatalog,
+  BenchmarkMetricSpec, BenchmarkSpec, CatalogCoverage, CatalogNotApplicable, CatalogReport, CatalogSelect,
+  CatalogService, CatalogServiceReady, CatalogSuite, TestCatalog,
 } from './catalog-types.js'
+export {
+  NOT_APPLICABLE_KEY_PREFIX, approveNotApplicable, catalogNotApplicable, isNotApplicableKey, notApplicableKey,
+  pendingNotApplicable, withNotApplicable, withoutNotApplicable,
+} from './catalog-na.js'
+export type { NotApplicableApproval } from './catalog-na.js'
+export { emptyCatalog, readCatalogFile, updateCatalog } from './catalog-file.js'
+export type { CatalogFile, UpdateOutcome } from './catalog-file.js'
 export {
   TEST_CATALOG_FILE_LABEL, catalogDigest, catalogSuite, catalogSuitesDigest, formatCatalogIssues, parseTestCatalog,
   serializeTestCatalog, suiteCoverGlobs, suiteFileGlobs,
@@ -47,7 +54,7 @@ export { approveWaivers, pendingWaivers, testPlanApprovalFreeDigest } from './pl
 export type { PendingWaiver, WaiverApproval, WaiverSkipReason } from './plan-waivers.js'
 export {
   REVIEW_WAIVERS_FILE, approveFrozenWaivers, boundReviewWaiverSelection, clearReviewWaiverSelection,
-  readReviewWaiverSelection, writeReviewWaiverSelection,
+  pendingReviewWaivers, readReviewWaiverSelection, writeReviewWaiverSelection,
 } from './review-waivers.js'
 export type { ReviewWaiverSelection, WaiverApprovalOutcome } from './review-waivers.js'
 export type { PlanUpdate, PlanWriteMeta, PlanWriteResult, TestPlanLedger, TestPlanState } from './plan-ledger.js'
@@ -101,7 +108,8 @@ export {
 } from './blockers.js'
 export type { ShortLabel, TestBlocker, TestBlockerCode, TestNotice, TestNoticeCode } from './blockers.js'
 export {
-  inlineSuiteFromTest, inlineSuiteId, policyRequiredKinds, stepTestRequirements, testPolicyDigest,
+  inlineSuiteFromTest, inlineSuiteId, planKindsSatisfy, policyRequiredKinds, policyRunReason, stepTestRequirements,
+  testPolicyDigest,
 } from './policy.js'
 export type { InlineSuite, StepTestRequirements } from './policy.js'
 export { STALE_WORDS, evaluateSuiteResult, latestSuiteRuns, planFilesOfSuite, staleBindings } from './evaluate-suite.js'

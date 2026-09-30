@@ -6,8 +6,10 @@
  *     派生（`task:4.2`），Tenon 的按阶段 tasks.md 与 OpenSpec 的编号 tasks.md 都能引用。
  *
  * 哪些条目要求映射用例（`required`）：场景一律要；tasks.md 里只有「实现」阶段小节下、且不是骨架提示词的条目要。
- * 其余阶段的小节（立项 / 调研 / 规格 / 验证 / 交付 / 完结）与骨架提示词（「将本阶段目标拆成可验证任务」）
- * 照样进矩阵与报告，但只是可选，绝不出阻塞。阶段小节的识别与 Todo 投影同一份（标题的 id 或名称）；
+ * 其余阶段的小节（立项 / 调研 / 规格 / 验证 / 交付 / 完结）里作者写的条目照样进矩阵与报告，但只是可选，绝不出阻塞。
+ * 骨架提示词（「将本阶段目标拆成可验证任务」，`document scaffold` 每个阶段铺一行）不是任务，不产出条目——
+ * 计划初稿、追溯矩阵与报告里都不会再出现这些占位行；条目编号仍按它们占位的序号数，作者把占位行改写成真任务时编号不变。
+ * 阶段小节的识别与 Todo 投影同一份（标题的 id 或名称）；
  * 整份 tasks.md 没有任何可识别的阶段小节时，沿用 Todo 的历史口径：整份清单都算实现阶段。
  */
 import { findDocumentPlaceholders } from '../documents/document-placeholders.js'
@@ -38,7 +40,7 @@ export interface TaskItem {
   readonly covers: string
   /** 所在的阶段小节 id；开头没有可识别的阶段小节时 null。 */
   readonly stage: string | null
-  /** 要求映射用例：实现阶段小节里、不是骨架提示词的条目。false = 可选，不挡。 */
+  /** 要求映射用例：实现阶段小节里的条目。false = 可选（其余阶段小节），不挡。 */
   readonly required: boolean
 }
 
@@ -122,9 +124,9 @@ export function extractTaskItems(
       placeholder: findDocumentPlaceholders(line).length > 0,
     })
   })
-  // 没有任何可识别的阶段小节：整份清单归实现阶段（Todo 投影同一口径）。
-  return found.map(({ item, placeholder }) => {
+  // 没有任何可识别的阶段小节：整份清单归实现阶段（Todo 投影同一口径）。骨架提示词不是任务，丢掉。
+  return found.filter(({ placeholder }) => !placeholder).map(({ item }) => {
     const owner = structured ? item.stage : TRACE_TASK_STAGE
-    return { ...item, stage: owner, required: !placeholder && owner === TRACE_TASK_STAGE }
+    return { ...item, stage: owner, required: owner === TRACE_TASK_STAGE }
   })
 }

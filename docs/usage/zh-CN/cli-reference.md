@@ -199,7 +199,9 @@ tenon test catalog validate [--json]
 tenon test catalog add [<id>] [--from <方向>] [--kind <k> --command <cmd> …] [--service --start <cmd> …]
 tenon test catalog set <id> [同上选项] [--service]
 tenon test catalog rm <id> [--service]
+tenon test catalog not-applicable <kind> --reason <原因> | --rm
 tenon test plan <change> [--seed] [--json]
+tenon test register <change> --auto
 tenon test register <change> --suite <id> [--scope full|changed|files|grep] [--pattern <regex>] [--select-file <path>]…
 tenon test register <change> --file <path>… [--suite <id>] [--kind <kind>]
 tenon test register <change> --case <covers> --test "<文件> › <用例名>"…
@@ -226,17 +228,29 @@ tenon test code-size [--base <ref>]
 （`spec:<capability>/<Scenario 标题>` 或 `task:<编号>`）和豁免。计划只经 `tenon test` 命令写入，每次写入把摘要记进
 任务目录里的台账，手改文件就是 `test-plan-tampered`。工作流**策略**（`steps[].test_policy`）说明一个步骤要什么：
 必须登记的种类、必须运行的种类、最小范围、覆盖率门槛、flaky 上限、基线要求、浏览器、场景覆盖与 `files: registered`。
-仍写着内联 `tests[]` 的步骤照旧可用：照旧运行，并和策略一起判定。
+仍写着内联 `tests[]` 的步骤照旧可用：照旧运行，并和策略一起判定。默认工作流是零豁免的：只强制 `unit`，其余种类都是
+`run_if_registered`（见[默认工作流](./default-workflow.md)）。
+
+某个种类对整个项目都不适用时，在目录里声明，不必每个任务各豁免一次：`test catalog not-applicable <kind> --reason <原因>`
+在 `catalog.yaml` 写入 `not_applicable: [{kind, reason, approved_by}]`（`--rm` 撤销）。它要经一次人工确认才生效：
+`review request` 把它以 `not-applicable:<kind>` 和计划里待批准的豁免一起列出，`review acknowledge`（不含 `--delegated`）批准它并把
+批准人记进 `approved_by`；在此之前策略仍要求这个种类，报 `waiver-unapproved`。改理由会让批准清零。
 
 `test discover` 扫描包脚本与各工具配置（vitest、jest、mocha、node:test、Playwright、tsc、eslint、pytest、go），
 给出带推荐 reporter 参数的建议套件，让每个套件都产出可解析的报告；`--write` 追加目录里还没有的 id。
+声明了 `test_policy` 的工作流在项目没有目录时，`tenon init` 会替你跑它并在 stderr 说明（没有识别到测试工具就不写，已有目录一律不动）。
+JavaScript 单测套件在工具配置里没有 `include` 时，测试文件 glob 覆盖 `src/`、`test/`、`tests/`、`__tests__/` 和根目录下的
+`*.test.*` / `*.spec.*`（这几个目录一个都没有时，取套件 `cwd` 下任意位置的 `*.test.*` / `*.spec.*`）。
 vitest 工程里的 `*.bench.*` 文件会识别成 `vitest-bench` 基准套件，指标取自能读出的每个 `bench('名字', …)`（`<名字>.mean_ms`，读不出
 名字的不猜）；其它 `bench` 脚本只给出登记它的 `catalog add` 命令，因为基准必须声明指标与阈值。
 `catalog add --from <方向>` 用测试方向起步（裸的工具调用会换成该 runner 的推荐调用）；`catalog validate` 逐条列出
 `catalog.yaml:<行>: …`（有问题 exit `2`）。`test plan --seed` 补上「拥有或覆盖了本任务改动文件」的套件、策略要求的每个种类
-的套件、改动的测试文件，并列出还没映射的场景与任务，附可直接执行的 `register --case` 命令。只有场景和 `tasks.md`
-「实现」（`build`）小节下的任务要求映射（`scenarios: required|passing` 对它们出阻塞）；其他阶段小节的任务与骨架提示词
-（「将本阶段目标拆成可验证任务」）单列为可选，永不挡。`test sync` 拿本任务相对起点的
+的套件、改动的测试文件，并列出还没映射的场景与任务，附可直接执行的 `register --case` 命令；策略里 `run_if_registered` 的种类
+只要目录里有套件也一并登记（基准除外）。只有场景和 `tasks.md`「实现」（`build`）小节下的任务要求映射
+（`scenarios: required|passing` 对它们出阻塞）；其他阶段小节的任务单列为可选（验证报告里写「可选」而不是「未覆盖」），永不挡；
+骨架提示词（「将本阶段目标拆成可验证任务」）不是任务，不会出现。`test register <change> --auto` 是一条命令的形态：缺目录先识别，
+把没有套件认领的测试文件并进套件的 `files` glob（`test/x.test.js` 得到 `test/**/*.test.js`；`e2e/` 下的用例进 Playwright 套件，
+辅助文件和 `*.bench.*` 不会自动认领），再生成计划初稿并登记这些文件；只增不减，可重复运行。`test sync` 拿本任务相对起点的
 diff 对账：未登记的测试文件、没有套件认领的文件、登记了但文件已不存在的项，与门禁是同一份计算（有待处理 exit `2`）。
 
 任务的起点是与基线分支的 merge-base；直接在基线分支上做时取任务创建之前的最后一个提交；diff 包含暂存、未暂存与

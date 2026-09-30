@@ -127,12 +127,12 @@ describe('discoverTests', () => {
     const suite = (await discoverTests(repo)).suites.find((item) => item.suite.runner === 'node-test')?.suite
     const reporter = '--test-reporter="${TENON_NODE_TEST_REPORTER:-junit}" --test-reporter-destination=test-results/junit.xml'
     expect(suite?.command).toBe(`node --test ${reporter}`)
-    expect(suite?.select?.files).toBe(`node --test {files} ${reporter}`)
+    expect(suite?.select?.files).toBe(`node --test ${reporter} {files}`)
     expect(suite?.report).toEqual({ format: 'junit', path: 'test-results/junit.xml' })
     const text = serializeTestCatalog({ ...emptyCatalog(), suites: suite === undefined ? [] : [suite] })
     const parsed = parseTestCatalog(text)
     expect(parsed.ok && parsed.catalog.suites[0]?.command).toBe(`node --test ${reporter}`)
-    expect(parsed.ok && parsed.catalog.suites[0]?.select?.files).toBe(`node --test {files} ${reporter}`)
+    expect(parsed.ok && parsed.catalog.suites[0]?.select?.files).toBe(`node --test ${reporter} {files}`)
   })
 
   it('跳过 node_modules / dist / .tenon 等目录；同 id 冲突自动加序号', async () => {

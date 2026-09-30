@@ -178,6 +178,8 @@ describe('测试体系 v2 · node:test 工程', () => {
 
   test('报告里的用例没有文件（Node 22 内置 reporter 的形状）：名字唯一的引用按名字对上；同名的挡下并指向随附 reporter', async () => {
     await project({ 'legacy/report.xml': LEGACY_REPORT })
+    // init 已经自动识别并写入了目录（里面有 discover 给的 unit）；这条用例要用自己的 unit，先删掉它。
+    await rm(join(cwd(), '.tenon', 'tests', 'catalog.yaml'))
     const command = 'mkdir -p test-results && cp legacy/report.xml test-results/legacy.xml'
     expect(await tenon(
       'test', 'catalog', 'add', 'unit', '--kind', 'unit', '--runner', 'node-test', '--command', command,

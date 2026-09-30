@@ -1,5 +1,6 @@
 /**
  * `tenon test register|unregister|waive <change> …` —— 任务测试计划的登记入口（计划只经这里写入）。
+ *   register --auto                                            识别缺的目录、认领没人管的测试文件（扩展套件 glob）、生成计划初稿并登记文件
  *   register --suite <id> [--scope full|changed|files|grep] [--pattern p] [--select-file path…]
  *   register --file <path>… [--suite <id>] [--kind <k>]         登记本任务新增 / 修改的测试文件
  *   register --case <covers> --test "<文件> › <用例名>"…         场景 / 任务 → 用例映射
@@ -18,6 +19,7 @@ import type { CliDeps } from '../deps.js'
 import { loadPlanInputs } from '../test-system/plan-context.js'
 import { withCase, withFiles, withSuite, withWaiver, withoutTarget } from '../test-system/plan-edit.js'
 import { resolveTestCommand, type TestCommandContext } from './test-context.js'
+import { cmdTestRegisterAuto } from './test-register-auto.js'
 
 export interface RegisterOptions {
   readonly suite?: string
@@ -28,6 +30,8 @@ export interface RegisterOptions {
   readonly kind?: string
   readonly case?: string
   readonly test?: readonly string[]
+  /** 一条命令登记到能往下走：缺目录先识别、没套件认领的测试文件并进套件 glob、生成计划初稿并登记文件。 */
+  readonly auto?: boolean
 }
 
 function fail(deps: CliDeps, message: string): number {
@@ -135,9 +139,17 @@ async function registerCase(deps: CliDeps, context: TestCommandContext, change: 
 }
 
 export async function cmdTestRegister(deps: CliDeps, change: string, opts: RegisterOptions): Promise<number> {
+  if (opts.auto === true) {
+    if (opts.file !== undefined || opts.case !== undefined || opts.suite !== undefined || opts.kind !== undefined
+      || opts.scope !== undefined || opts.pattern !== undefined || opts.selectFile !== undefined || opts.test !== undefined) {
+      return fail(deps, '--auto 不能和 --suite / --file / --case 等一起用：它自己识别、认领并登记')
+    }
+    const context = await resolveTestCommand(deps, change, { requireOwner: true })
+    return typeof context === 'number' ? context : cmdTestRegisterAuto(deps, change, context)
+  }
   const modes = [opts.file !== undefined, opts.case !== undefined].filter(Boolean).length
   if (modes > 1 || (opts.file === undefined && opts.case === undefined && opts.suite === undefined)) {
-    return fail(deps, 'register 三选一：--suite <id>、--file <path>、--case <covers> --test <ref>')
+    return fail(deps, 'register 四选一：--auto、--suite <id>、--file <path>、--case <covers> --test <ref>')
   }
   const context = await resolveTestCommand(deps, change, { requireOwner: true })
   if (typeof context === 'number') return context

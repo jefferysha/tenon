@@ -5,6 +5,9 @@
  * 清单里的那几条，且清单必须绑定同一次请求（phase / event / requestedAt 与 receipt 逐项相同）。
  * 请求之后才加进计划的豁免因此不会被这次确认顺带批准。
  *
+ * 清单里除了计划豁免（`kind:<k>` / `covers:<…>`），还有目录里未批准的项目级「不适用」声明
+ * （`not-applicable:<k>`，见 catalog-na.ts）：确认时它们写回 `catalog.yaml` 的 `approved_by`，一次批准对全项目生效。
+ *
  * 读取失败一律当作「没有清单」（失败关闭：什么都不批准）；写入与清除由持有 Change 锁的调用方负责。
  */
 import { rm } from 'node:fs/promises'
@@ -14,12 +17,14 @@ import { readOptionalBoundedRegularTextFile } from '../state/document-path.js'
 import { reviewGateEvent } from '../state/review-gate.js'
 import type { PipelineState } from '../types.js'
 import type { RecordActor } from '../users/user.js'
+import { isNotApplicableKey, approveNotApplicable, pendingNotApplicable } from './catalog-na.js'
+import { readCatalogFile, updateCatalog } from './catalog-file.js'
 import { readTestPlanState, writeTestPlanUnderLock } from './plan-ledger.js'
-import { approveWaivers, type PendingWaiver, type WaiverSkipReason } from './plan-waivers.js'
+import { approveWaivers, pendingWaivers, type PendingWaiver, type WaiverSkipReason } from './plan-waivers.js'
 
 export const REVIEW_WAIVERS_FILE = '.pipeline-review-waivers.json'
 const MAX_REVIEW_WAIVERS_BYTES = 64 * 1024
-const KEY_RE = /^(kind|covers):\S.*$/
+const KEY_RE = /^(kind|covers|not-applicable):\S.*$/
 
 export interface ReviewWaiverSelection {
   readonly version: 1
@@ -118,11 +123,33 @@ export interface WaiverApprovalOutcome {
 const NO_APPROVAL: WaiverApprovalOutcome = { approved: [], skipped: [], digest: null, note: null }
 
 /**
+ * 评审请求要列给用户的待批准项：计划里未批准的豁免 + 目录里未批准的项目级「不适用」声明。
+ * 计划缺失 / 不可信、目录缺失 / 无效时对应的一半为空（那些状态由测试门禁自己挡）。
+ */
+export async function pendingReviewWaivers(input: {
+  readonly repoRoot: string
+  readonly dir: string
+  readonly change: string
+}): Promise<readonly PendingWaiver[]> {
+  const [plan, catalog] = await Promise.all([
+    readTestPlanState(input.dir, input.change),
+    readCatalogFile(input.repoRoot).catch(() => undefined),
+  ])
+  return [
+    ...(plan.state === 'ok' ? pendingWaivers(plan.plan) : []),
+    ...(catalog?.state === 'ok' ? pendingNotApplicable(catalog.catalog) : []),
+  ]
+}
+
+/**
  * 在提交 approved receipt 的那把锁内批准冻结清单里的豁免（调用方持有 Change 锁；CLI 人工确认与 Dashboard
  * 确认共用）。清单必须绑定 `state` 里的这一次请求，否则什么都不批准。写入失败向上抛：receipt 尚未提交，
  * 用户重试同一条确认即可（已批准的豁免会被识别为「已经批准过」）。
+ *
+ * 计划豁免写进计划（`approved_by`），项目级「不适用」声明写进 `catalog.yaml`；两处各自幂等，批准人都是确认者。
  */
 export async function approveFrozenWaivers(input: {
+  readonly repoRoot: string
   readonly dir: string
   readonly change: string
   readonly state: PipelineState
@@ -132,12 +159,39 @@ export async function approveFrozenWaivers(input: {
   const { selection, unbound } = await boundReviewWaiverSelection(input.dir, input.state)
   if (unbound) return { ...NO_APPROVAL, note: '豁免清单不属于这一次 review request，未批准任何豁免' }
   if (selection === undefined) return NO_APPROVAL
-  const plan = await readTestPlanState(input.dir, input.change)
-  if (plan.state !== 'ok') {
-    return { ...NO_APPROVAL, note: `测试计划${plan.state === 'missing' ? '不存在' : `不可信（${plan.reason}）`}，未批准任何豁免` }
+  const planPart = selection.waivers.filter((item) => !isNotApplicableKey(item.key))
+  const catalogPart = selection.waivers.filter((item) => isNotApplicableKey(item.key))
+  const approved: string[] = []
+  const skipped: { key: string; why: WaiverSkipReason }[] = []
+  let digest: string | null = null
+  let note: string | null = null
+  if (planPart.length > 0) {
+    const plan = await readTestPlanState(input.dir, input.change)
+    if (plan.state !== 'ok') {
+      note = `测试计划${plan.state === 'missing' ? '不存在' : `不可信（${plan.reason}）`}，${catalogPart.length === 0 ? '未批准任何豁免' : '未批准计划里的豁免'}`
+    } else {
+      const result = approveWaivers(plan.plan, planPart, input.actor.id)
+      skipped.push(...result.skipped)
+      if (result.approved.length > 0) {
+        const written = await writeTestPlanUnderLock(input.dir, result.plan, { actor: input.actor, recordedAt: input.recordedAt })
+        approved.push(...result.approved)
+        digest = written.digest
+      }
+    }
   }
-  const result = approveWaivers(plan.plan, selection.waivers, input.actor.id)
-  if (result.approved.length === 0) return { ...NO_APPROVAL, skipped: result.skipped }
-  const written = await writeTestPlanUnderLock(input.dir, result.plan, { actor: input.actor, recordedAt: input.recordedAt })
-  return { approved: result.approved, skipped: result.skipped, digest: written.digest, note: null }
+  if (catalogPart.length > 0) {
+    const catalog = await readCatalogFile(input.repoRoot).catch(() => undefined)
+    if (catalog?.state !== 'ok') {
+      note = `${note === null ? '' : `${note}；`}测试目录（catalog.yaml）${catalog?.state === 'missing' ? '不存在' : '无效或读不了'}，未批准「不适用」声明`
+    } else {
+      const outcome = await updateCatalog(input.repoRoot, (current) => {
+        const result = approveNotApplicable(current, catalogPart, input.actor.id)
+        return { catalog: result.catalog, value: result }
+      })
+      if (!outcome.ok) throw new Error(outcome.message)
+      approved.push(...outcome.value.approved)
+      skipped.push(...outcome.value.skipped)
+    }
+  }
+  return { approved, skipped, digest, note }
 }

@@ -91,12 +91,25 @@ export interface CatalogService {
   readonly env: readonly string[]
 }
 
+/**
+ * 项目级「这个种类在本项目不适用」声明（如纯 JavaScript 项目的 typecheck）。策略对已批准的种类不再要求登记 / 运行；
+ * `approved_by` 由评审确认写入（`tenon review request` 列出、`tenon review acknowledge` 批准，与计划豁免同一机制），
+ * null = 还没批准，不生效。
+ */
+export interface CatalogNotApplicable {
+  readonly kind: TestKind
+  readonly reason: string
+  readonly approved_by: string | null
+}
+
 export interface TestCatalog {
   readonly schema: typeof TEST_CATALOG_SCHEMA
   /** 参与机器画像的环境变量名。 */
   readonly profiles_env: readonly string[]
   readonly suites: readonly CatalogSuite[]
   readonly services: readonly CatalogService[]
+  /** 项目级不适用声明；没有声明时省略（目录摘要与旧目录逐字相同）。 */
+  readonly not_applicable?: readonly CatalogNotApplicable[]
 }
 
 export const CATALOG_DEFAULT_TIMEOUT_S = 900

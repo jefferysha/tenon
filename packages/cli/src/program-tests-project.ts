@@ -2,6 +2,7 @@
 import type { Command } from 'commander'
 import type { CliDeps } from './deps.js'
 import { cmdCatalogAdd, cmdCatalogRemove, cmdCatalogSet, cmdCatalogShow, cmdCatalogValidate } from './commands/test-catalog.js'
+import { cmdCatalogNotApplicable } from './commands/test-catalog-na.js'
 import type { ServiceOptions, SuiteOptions } from './commands/test-catalog-edit.js'
 import { cmdTestDiscover } from './commands/test-discover.js'
 import { cmdKnownAdd, cmdKnownList, cmdKnownRemove } from './commands/test-known.js'
@@ -57,9 +58,9 @@ export function registerTestProjectCommands(test: Command, deps: CliDeps): void 
     .action(async (opts: { write?: boolean; json?: boolean }) => bail(await cmdTestDiscover(deps, { write: opts.write === true, json: opts.json === true })))
   const catalog = test
     .command('catalog')
-    .description('项目测试目录：show / validate / add / set / rm')
+    .description('项目测试目录：show / validate / add / set / rm / not-applicable')
     .action(() => {
-      deps.io.err('用法：tenon test catalog show|validate|add|set|rm ...')
+      deps.io.err('用法：tenon test catalog show|validate|add|set|rm|not-applicable ...')
       bail(1)
     })
   catalog
@@ -86,6 +87,15 @@ export function registerTestProjectCommands(test: Command, deps: CliDeps): void 
     .description('移除套件或服务（服务还被套件引用时拒绝）')
     .option('--service', '移除的是服务')
     .action(async (id: string, opts: { service?: boolean }) => bail(await cmdCatalogRemove(deps, id, { service: opts.service === true })))
+  catalog
+    .command('not-applicable <kind>')
+    .alias('na')
+    .description('声明某个测试种类在本项目不适用（如纯 JavaScript 项目的 typecheck）；经评审确认一次后，所有任务的策略不再要求它')
+    .option('--reason <text>', '为什么本项目不适用')
+    .option('--rm', '撤销这个种类的声明')
+    .action(async (kind: string, opts: { reason?: string; rm?: boolean }) => bail(await cmdCatalogNotApplicable(deps, kind, {
+      ...(opts.reason === undefined ? {} : { reason: opts.reason }), rm: opts.rm === true,
+    })))
   const known = test
     .command('known')
     .description('已知失败清单：add / rm / list')

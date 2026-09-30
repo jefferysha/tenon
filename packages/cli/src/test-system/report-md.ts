@@ -17,6 +17,8 @@ interface Words {
   readonly blockers: string
   readonly none: string
   readonly rowState: Readonly<Record<TraceRow['state'], string>>
+  /** 不要求映射用例（非实现阶段的任务）且没有映射：不是缺口，写「可选」而不是「未覆盖」。 */
+  readonly optional: string
   readonly caseState: Readonly<Record<TraceTest['status'], string>>
   readonly suiteState: Readonly<Record<SuiteVerdict['state'], string>>
   readonly waived: string
@@ -37,6 +39,7 @@ const WORDS: Readonly<Record<ReportLocale, Words>> = {
     blockers: '### 仍挡出口的项',
     none: '无',
     rowState: { uncovered: '未覆盖', mapped: '已映射未通过', passing: '通过', failing: '有失败', waived: '已豁免' },
+    optional: '可选',
     caseState: { pass: '通过', fail: '失败', skip: '跳过', flaky: 'flaky', 'known-fail': '已知失败', 'not-run': '未运行' },
     suiteState: { passed: '通过', failed: '失败', stale: '过期', missing: '未运行', running: '运行中' },
     waived: '豁免（已批准）',
@@ -55,6 +58,7 @@ const WORDS: Readonly<Record<ReportLocale, Words>> = {
     blockers: '### Still blocking the exit',
     none: 'none',
     rowState: { uncovered: 'uncovered', mapped: 'mapped, not passing', passing: 'passing', failing: 'failing', waived: 'waived' },
+    optional: 'optional',
     caseState: { pass: 'pass', fail: 'fail', skip: 'skip', flaky: 'flaky', 'known-fail': 'known failure', 'not-run': 'not run' },
     suiteState: { passed: 'pass', failed: 'fail', stale: 'stale', missing: 'not run', running: 'running' },
     waived: 'waived (approved)',
@@ -76,7 +80,8 @@ function matrixRows(rows: readonly TraceRow[], words: Words): string[][] {
     const cases = row.tests.map((test) => `\`${test.ref}\``).join('<br>')
     const results = row.tests.map((test) => `${words.caseState[test.status]}${test.suite === undefined ? '' : `（${test.suite}）`}`).join('<br>')
     const waiver = row.waiver === undefined ? '' : ` ${row.waiver.approved ? words.waived : words.unapproved}：${row.waiver.reason}`
-    return [`${row.title} \`${row.covers}\``, cases === '' ? '—' : cases, results === '' ? '—' : results, `${words.rowState[row.state]}${waiver}`]
+    const state = !row.required && row.state === 'uncovered' ? words.optional : words.rowState[row.state]
+    return [`${row.title} \`${row.covers}\``, cases === '' ? '—' : cases, results === '' ? '—' : results, `${state}${waiver}`]
   })
 }
 

@@ -9,6 +9,7 @@ import {
   renderTestBlocker, shellQuote, testBlocker, testNotice, type TestBlocker, type TestNotice,
 } from './blockers.js'
 import { catalogSuite } from './catalog.js'
+import { catalogNotApplicable } from './catalog-na.js'
 import type { CatalogSuite } from './catalog-types.js'
 import { formatCaseRef, fileRefMatches } from './covers.js'
 import {
@@ -20,7 +21,7 @@ import type {
 } from './evaluate-types.js'
 import { planCatalogProblems, type TestPlan } from './plan.js'
 import { testPlanApprovalFreeDigest } from './plan-waivers.js'
-import { policyRequiredKinds, testPolicyDigest } from './policy.js'
+import { planKindsSatisfy, policyRequiredKinds, policyRunReason, testPolicyDigest } from './policy.js'
 import { testFileRegistration, type UnregisteredTestFile } from './test-files.js'
 import type { TestKind } from './vocabulary.js'
 
@@ -59,10 +60,11 @@ function checkCatalogAndPlan(input: TestPolicyEvaluationInput, out: Collector): 
   }
 }
 
-function suitesOfKind(plan: TestPlan, input: TestPolicyEvaluationInput, kind: TestKind): readonly CatalogSuite[] {
+/** 计划里登记的目录套件的种类（目录里已不存在的套件另由 planCatalogProblems 报）。 */
+function plannedKinds(plan: TestPlan, input: TestPolicyEvaluationInput): readonly TestKind[] {
   if (input.catalog.state !== 'ok') return []
   const catalog = input.catalog.catalog
-  return plan.suites.map((item) => catalogSuite(catalog, item.suite)).filter((suite): suite is CatalogSuite => suite?.kind === kind)
+  return plan.suites.flatMap((item) => catalogSuite(catalog, item.suite)?.kind ?? [])
 }
 
 function kindWaiver(plan: TestPlan, kind: TestKind): { readonly approved: boolean } | undefined {
@@ -70,21 +72,33 @@ function kindWaiver(plan: TestPlan, kind: TestKind): { readonly approved: boolea
   return waiver === undefined ? undefined : { approved: waiver.approved_by !== null }
 }
 
+/**
+ * 策略要求的每个种类，计划里要有该种类的套件（regression 可由全量跑的 unit 套件顶上），或有已批准的豁免，
+ * 或目录里有已批准的项目级「不适用」声明（catalog.yaml 的 not_applicable）。豁免 / 声明未批准时给 waiver-unapproved，
+ * 由评审确认一并批准；都没有才是 test-kind-missing。
+ */
 function checkKinds(input: TestPolicyEvaluationInput, plan: TestPlan, reviewFix: string, out: Collector): void {
   if (input.catalog.state !== 'ok') return
   const catalog = input.catalog.catalog
+  const kinds = plannedKinds(plan, input)
   for (const kind of policyRequiredKinds(input.policy)) {
-    if (suitesOfKind(plan, input, kind).length > 0) continue
+    if (planKindsSatisfy(input.policy, kinds, kind)) continue
     const waiver = kindWaiver(plan, kind)
     if (waiver?.approved === true) continue
+    const projectWide = catalogNotApplicable(catalog, kind)
+    if (projectWide !== undefined && projectWide.approved_by !== null) continue
     if (waiver !== undefined) {
       out.blockers.push(testBlocker('waiver-unapproved', `测试种类 ${kind} 的豁免尚未经评审批准`, { fix: reviewFix, subject: kind }))
       continue
     }
+    if (projectWide !== undefined) {
+      out.blockers.push(testBlocker('waiver-unapproved', `测试种类 ${kind} 在 catalog.yaml 里声明了「本项目不适用」，但尚未经评审批准`, { fix: reviewFix, subject: kind }))
+      continue
+    }
     const candidate = catalog.suites.find((suite) => suite.kind === kind)
-    out.blockers.push(testBlocker('test-kind-missing', `本阶段要求 ${kind} 测试，计划里既没有该种类的套件也没有已批准的豁免${candidate === undefined ? '（目录里也没有这类套件）' : ''}`, {
+    out.blockers.push(testBlocker('test-kind-missing', `本阶段要求 ${kind} 测试，计划里既没有该种类的套件也没有已批准的豁免${candidate === undefined ? '（目录里也没有这类套件；只有这个任务不适用用 tenon test waive，整个项目都不适用就在目录里声明 not_applicable）' : ''}`, {
       fix: candidate === undefined
-        ? `tenon test waive ${input.change} --kind ${kind} --reason ${shellQuote('<不适用的原因>')}`
+        ? `tenon test catalog not-applicable ${kind} --reason ${shellQuote('<本项目为什么不适用>')}`
         : `tenon test register ${input.change} --suite ${shellQuote(candidate.id)}`,
       subject: kind,
     }))
@@ -112,8 +126,8 @@ function checkFiles(input: TestPolicyEvaluationInput, plan: TestPlan | undefined
     out.blockers.push(testBlocker('test-file-unregistered', `测试文件 ${file.path} 在本任务里新增或修改，但没有登记进测试计划`, { fix: register(file), subject: file.path }))
   }
   for (const path of registration.orphans) {
-    out.blockers.push(testBlocker('test-file-orphan', `测试文件 ${path} 没有任何目录套件认领；先在目录里加套件再登记`, {
-      fix: 'tenon test discover', subject: path,
+    out.blockers.push(testBlocker('test-file-orphan', `测试文件 ${path} 没有任何目录套件认领；把它并进对应套件的文件 glob 再登记（没有可用的套件就先在目录里加）`, {
+      fix: `tenon test register ${input.change} --auto`, subject: path,
     }))
   }
   return { checked: true, unregistered: registration.unregistered, orphans: registration.orphans }
@@ -131,8 +145,8 @@ function runSet(input: TestPolicyEvaluationInput, plan: TestPlan | undefined): r
   for (const item of plan.suites) {
     const suite = catalogSuite(catalog, item.suite)
     if (suite === undefined) continue
-    if (input.policy.run.includes(suite.kind)) out.push({ suite, reason: 'run' })
-    else if (input.policy.run_if_registered.includes(suite.kind)) out.push({ suite, reason: 'if-registered' })
+    const reason = policyRunReason(input.policy, suite.kind)
+    if (reason !== undefined) out.push({ suite, reason })
   }
   return out
 }
@@ -228,18 +242,10 @@ function evaluateInline(
 function checkAggregates(
   input: TestPolicyEvaluationInput,
   plan: TestPlan | undefined,
-  entries: readonly RunEntry[],
   fresh: readonly SuiteRunRef[],
   out: Collector,
 ): void {
   const stageFix = `tenon test run ${input.change} --stage`
-  if (input.policy.coverage !== undefined && plan !== undefined && input.catalog.state === 'ok'
-    && !entries.some((entry) => entry.suite.coverage !== undefined || entry.suite.kind === 'coverage')
-    && kindWaiver(plan, 'coverage')?.approved !== true) {
-    out.blockers.push(testBlocker('coverage-below', '本阶段有覆盖率门槛，但运行集里没有声明 coverage 的套件', {
-      fix: `tenon test waive ${input.change} --kind coverage --reason ${shellQuote('<不适用的原因>')}`,
-    }))
-  }
   const flaky = input.policy.flaky
   if (flaky === undefined) return
   const total = fresh.reduce((sum, ref) => sum + ref.run.totals.flaky, 0)
@@ -286,7 +292,7 @@ export function evaluateTestPolicy(input: TestPolicyEvaluationInput): TestPolicy
   const entries = runSet(input, plan)
   const evaluated = evaluateRunSet(input, entries, latest, freshness, plan, chainBroken, out)
   const inline = evaluateInline(input, latest, freshness, out)
-  checkAggregates(input, plan, entries, evaluated.fresh, out)
+  checkAggregates(input, plan, evaluated.fresh, out)
   let trace: readonly TraceRow[] = []
   if (plan !== undefined) {
     const fresh = [...latest.values()].filter((ref) => staleBindings(ref, freshness).length === 0)

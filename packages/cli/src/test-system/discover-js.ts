@@ -59,9 +59,18 @@ function projectNames(config: string | undefined): string[] {
   return [...new Set(names.filter((name) => /^[A-Za-z0-9][A-Za-z0-9 _.-]{0,63}$/.test(name)))]
 }
 
+/** 常见的单测所在目录：源码旁（src）、独立的测试目录（test / tests / __tests__）。 */
+const UNIT_TEST_DIRS: readonly string[] = ['src', 'test', 'tests', '__tests__']
+
+/**
+ * 单测文件 glob。配置里写了 include 就照它；没写时，只要项目有 src / test / tests / __tests__ 之一，
+ * 就把这四个目录和根目录下的测试文件都列上——只认 src 会让 `test/x.test.js` 这类文件「没有套件认领」，
+ * 而提示里的 `discover --write` 又救不了它。四个目录都没有时，测试文件可能放在任何位置，取整个 cwd。
+ */
 function unitFiles(dir: ProjectDir, included: readonly string[]): string[] {
   if (included.length > 0) return [...included]
-  return [dir.names.has('src') ? `src/**/*.${TEST_EXT}` : `**/*.${TEST_EXT}`]
+  if (!UNIT_TEST_DIRS.some((name) => dir.names.has(name))) return [`**/*.${TEST_EXT}`]
+  return [...UNIT_TEST_DIRS.map((name) => `${name}/**/*.${TEST_EXT}`), `*.${TEST_EXT}`]
 }
 
 function scriptRunsNodeTest(scripts: Readonly<Record<string, string>>): boolean {

@@ -41,7 +41,9 @@ describe('init —— stdout 空 / [INIT] 走 stderr；0/1（oracle 实测回写
     const code = await cmdInit(deps, 'demo', { track: 'backend', preset: 'full' })
     expect(code).toBe(0)
     expect(deps.outLines).toEqual([])
-    expect(deps.errLines).toEqual(['[INIT] /repo/openspec/changes/demo'])
+    // default 工作流声明了测试策略而 /repo 里没有测试目录：[INIT] 之后另有一行自动识别的说明（没找到测试工具）。
+    expect(deps.errLines[0]).toBe('[INIT] /repo/openspec/changes/demo')
+    expect(deps.errLines.slice(1)).toEqual([expect.stringContaining('[TEST] 项目还没有测试目录，自动识别没有找到测试工具')])
   })
 
   test('成功记一条 kind=init 历史，actor 为当前声明身份', async () => {
@@ -204,7 +206,7 @@ describe('init 项目注册表登记（决策 D，best-effort）', () => {
     deps.registerProject = undefined
     const code = await cmdInit(deps, 'demo', { track: 'backend', preset: 'full' })
     expect(code).toBe(0)
-    expect(deps.errLines).toEqual(['[INIT] /repo/openspec/changes/demo'])
+    expect(deps.errLines.filter((line) => !line.startsWith('[TEST]'))).toEqual(['[INIT] /repo/openspec/changes/demo'])
   })
 
   test('init 失败（store.init 抛错）：不触发登记', async () => {

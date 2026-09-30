@@ -52,6 +52,11 @@ export async function cmdCatalogShow(deps: CliDeps, id: string | undefined, opts
   for (const suite of catalog.suites) deps.io.out(suiteLine(suite))
   if (catalog.services.length > 0) deps.io.out('  服务：')
   for (const service of catalog.services) deps.io.out(serviceLine(service))
+  const notApplicable = catalog.not_applicable ?? []
+  if (notApplicable.length > 0) deps.io.out('  本项目不适用的种类：')
+  for (const entry of notApplicable) {
+    deps.io.out(`  ${entry.kind}  ${entry.approved_by === null ? '[未批准]' : `[已批准 ${entry.approved_by}]`}  ${entry.reason}`)
+  }
   return 0
 }
 
