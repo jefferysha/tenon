@@ -68018,6 +68018,10 @@ async function discoverJsTools(dir, notes) {
       })
     });
   }
+  const testScript = manifest?.scripts.test;
+  if (testScript !== void 0 && !found.some((item2) => item2.suite.kind === "unit") && !/no test specified/u.test(testScript) && !bareWorkspaceRoot) {
+    notes.push(`${where}package.json \u7684 test \u811A\u672C\uFF08${testScript}\uFF09\u4E0D\u662F\u80FD\u8BC6\u522B\u7684\u6D4B\u8BD5\u5DE5\u5177\uFF08vitest / jest / mocha / node --test\uFF09\uFF0C\u6CA1\u6709\u751F\u6210 unit \u5957\u4EF6\uFF1A\u8BA9\u5B83\u5199\u51FA junit / tap \u7B49\u53EF\u89E3\u6790\u7684\u62A5\u544A\uFF0C\u518D tenon test catalog add unit --kind unit --runner custom --command "<\u547D\u4EE4>"${dir.rel === "." ? "" : ` --cwd ${dir.rel}`} --report-format junit --report-path test-results/junit.xml --artifact test-results\uFF1B\u9879\u76EE\u786E\u5B9E\u6CA1\u6709\u5355\u6D4B\u5C31 tenon test catalog not-applicable unit --reason '<\u539F\u56E0>'`);
+  }
   if (isVitest && !bareWorkspaceRoot) {
     const bench = await discoverVitestBench(dir, notes);
     if (bench !== void 0) found.push(bench);
@@ -68280,6 +68284,7 @@ async function announceAutoDiscover(deps) {
       for (const note2 of outcome.notes) deps.io.err(`  \u63D0\u793A\uFF1A${note2}`);
     } else if (outcome.state === "none") {
       deps.io.err("[TEST] \u9879\u76EE\u8FD8\u6CA1\u6709\u6D4B\u8BD5\u76EE\u5F55\uFF0C\u81EA\u52A8\u8BC6\u522B\u6CA1\u6709\u627E\u5230\u6D4B\u8BD5\u5DE5\u5177\uFF1A\u7528 tenon test catalog add \u767B\u8BB0\u5957\u4EF6\uFF1B\u9879\u76EE\u786E\u5B9E\u6CA1\u6709\u6D4B\u8BD5\u5C31 tenon test catalog not-applicable unit --reason '<\u539F\u56E0>'\uFF08\u7ECF\u8BC4\u5BA1\u786E\u8BA4\u4E00\u6B21\u540E\u751F\u6548\uFF09");
+      for (const note2 of outcome.notes) deps.io.err(`  \u63D0\u793A\uFF1A${note2}`);
     } else if (outcome.state === "failed") {
       deps.io.err(`WARN: \u81EA\u52A8\u8BC6\u522B\u6D4B\u8BD5\u76EE\u5F55\u5931\u8D25\uFF08${outcome.message}\uFF09\uFF1B\u7A0D\u540E\u6267\u884C tenon test discover --write`);
     }

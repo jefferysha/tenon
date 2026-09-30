@@ -149,6 +149,16 @@ export async function discoverJsTools(dir: ProjectDir, notes: string[]): Promise
     })
   }
 
+  // `npm test` 跑的是认不出的工具：不猜，说清楚怎么登记（单测套件必须有可解析的报告，exit-code 不够）。
+  const testScript = manifest?.scripts.test
+  if (testScript !== undefined && !found.some((item) => item.suite.kind === 'unit') && !/no test specified/u.test(testScript)
+    && !bareWorkspaceRoot) {
+    notes.push(`${where}package.json 的 test 脚本（${testScript}）不是能识别的测试工具（vitest / jest / mocha / node --test），没有生成 unit 套件：`
+      + '让它写出 junit / tap 等可解析的报告，再 tenon test catalog add unit --kind unit --runner custom '
+      + `--command "<命令>"${dir.rel === '.' ? '' : ` --cwd ${dir.rel}`} --report-format junit --report-path test-results/junit.xml --artifact test-results；`
+      + '项目确实没有单测就 tenon test catalog not-applicable unit --reason \'<原因>\'')
+  }
+
   if (isVitest && !bareWorkspaceRoot) {
     const bench = await discoverVitestBench(dir, notes)
     if (bench !== undefined) found.push(bench)

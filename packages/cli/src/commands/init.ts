@@ -67,6 +67,7 @@ async function announceAutoDiscover(deps: CliDeps): Promise<void> {
       for (const note of outcome.notes) deps.io.err(`  提示：${note}`)
     } else if (outcome.state === 'none') {
       deps.io.err('[TEST] 项目还没有测试目录，自动识别没有找到测试工具：用 tenon test catalog add 登记套件；项目确实没有测试就 tenon test catalog not-applicable unit --reason \'<原因>\'（经评审确认一次后生效）')
+      for (const note of outcome.notes) deps.io.err(`  提示：${note}`)
     } else if (outcome.state === 'failed') {
       deps.io.err(`WARN: 自动识别测试目录失败（${outcome.message}）；稍后执行 tenon test discover --write`)
     }

@@ -135,6 +135,18 @@ describe('discoverTests', () => {
     expect(parsed.ok && parsed.catalog.suites[0]?.select?.files).toBe(`node --test ${reporter} {files}`)
   })
 
+  it('npm test 跑的是认不出的工具：不猜套件，提示怎么登记；默认占位脚本与已识别的工程不提示', async () => {
+    await put({ 'package.json': JSON.stringify({ scripts: { test: 'tap' } }) })
+    const unknown = await discoverTests(repo)
+    expect(unknown.suites).toEqual([])
+    expect(unknown.notes.join('\n')).toContain('test 脚本（tap）不是能识别的测试工具')
+    expect(unknown.notes.join('\n')).toContain('tenon test catalog not-applicable unit')
+    await put({ 'package.json': JSON.stringify({ scripts: { test: 'echo "Error: no test specified" && exit 1' } }) })
+    expect((await discoverTests(repo)).notes.join('\n')).not.toContain('不是能识别的测试工具')
+    await put({ 'package.json': JSON.stringify({ scripts: { test: 'node --test' } }) })
+    expect((await discoverTests(repo)).notes.join('\n')).not.toContain('不是能识别的测试工具')
+  })
+
   it('跳过 node_modules / dist / .tenon 等目录；同 id 冲突自动加序号', async () => {
     await put({
       'node_modules/pkg/package.json': JSON.stringify({ devDependencies: { vitest: '3' } }),
