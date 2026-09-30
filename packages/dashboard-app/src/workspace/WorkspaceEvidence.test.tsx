@@ -44,7 +44,7 @@ function mount(rev: string | undefined) {
   return { ...rendered, rerenderWith: (next: string | undefined) => rendered.rerender(view(next)) }
 }
 
-function detailCalls(fetchMock: ReturnType<typeof vi.fn>): string[] {
+function detailCalls(fetchMock: { mock: { calls: readonly (readonly unknown[])[] } }): string[] {
   return fetchMock.mock.calls.map(([url]) => String(url)).filter((url) => url.startsWith('/api/change/demo/snapshot'))
 }
 

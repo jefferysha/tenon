@@ -85,7 +85,7 @@ export const SNAPSHOT_IDENTITY_TTL_MS = 30_000
 /** Aged-out cells refreshed by one read. */
 export const MAX_AGE_REFRESH_PER_READ = 4
 /** Projects built at once on a cold or partially invalidated cache. */
-const BUILD_CONCURRENCY = 4
+const BUILD_CONCURRENCY = 8
 /** Detail entries kept per project, least recently built first out. */
 const MAX_DETAILS_PER_PROJECT = 64
 

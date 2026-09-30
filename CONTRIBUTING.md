@@ -109,6 +109,7 @@ Dashboard browser e2e and benchmarks need a built tree (`npm run build`):
 npm run test:e2e -- --project=chromium
 npm run bench:status
 npm run bench:snapshot
+npm run bench:snapshot:large   # 30 projects x 30 changes; fails when the write-then-read p95 reaches 1.5 s
 ```
 
 Run `npm run check:docs` when that script exists in the branch. Dashboard

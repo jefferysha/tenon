@@ -223,12 +223,14 @@ jobs:
       - name: golden-oracle dual-run
         run: npm run oracle
 
-      # 基准（catalog 里的 bench-status / bench-snapshot，阈值 max_regression_pct 15）：用一次性的 change 走 tenon test run，
+      # 基准（catalog 里的 bench-status / bench-snapshot / bench-snapshot-large，阈值 max_regression_pct 15）：用一次性的 change 走 tenon test run，
       # 阈值、噪声重跑与「同机器画像才比」都是 Tenon 自己的判定。仓库里已提交本 runner 画像的基线时，退化超限会 exit 2 挡住；
       # 还没有该画像的基线只提示 baseline-missing、不挡。
       # 建立 / 刷新 CI 画像基线：每次绿的运行都会把「这次运行作为基线」的文件写进 .tenon/tests/baselines/ 并上传成 artifact
       # bench-baseline-candidate；维护者从一次绿的 main 运行下载、原样提交那几个 <套件>/<画像>.json，之后同画像的运行就有基线可比。
       # 画像 = OS + 架构 + CPU + 核数 + 内存档位 + Node 主版本 + CI 环境变量，文件名里带画像哈希，开发机的基线不会与它互比。
+      # bench-snapshot-large 是 30 项目 × 30 任务的夹具：写入一个任务后列表快照重建的 p95 必须 < 1.5 s（脚本自己判，超了退出码非零），
+      # 首屏载荷必须 < 1 MB，与有没有基线无关；夹具由 900 次真实 `tenon init` 建成，这一步因此要多花一两分钟。
       - name: 基准 (benchmarks against the CI-profile baseline)
         env:
           TENON_USER: ci@tenon.test
@@ -239,11 +241,12 @@ jobs:
           tenon init ci-bench --track backend --preset full
           tenon test register ci-bench --suite bench-status
           tenon test register ci-bench --suite bench-snapshot
+          tenon test register ci-bench --suite bench-snapshot-large
           bench_exit=0
-          tenon test run ci-bench --suite bench-status --suite bench-snapshot --json > "$RUNNER_TEMP/bench-run.json" || bench_exit=$?
+          tenon test run ci-bench --suite bench-status --suite bench-snapshot --suite bench-snapshot-large --json > "$RUNNER_TEMP/bench-run.json" || bench_exit=$?
           if [ "$bench_exit" -eq 0 ]; then
             run_id="$(node -p "JSON.parse(require('node:fs').readFileSync(process.argv[1], 'utf8')).run_id" "$RUNNER_TEMP/bench-run.json")"
-            for suite in bench-status bench-snapshot; do tenon test baseline ci-bench --suite "$suite" --run "$run_id"; done
+            for suite in bench-status bench-snapshot bench-snapshot-large; do tenon test baseline ci-bench --suite "$suite" --run "$run_id"; done
           fi
           exit "$bench_exit"
 

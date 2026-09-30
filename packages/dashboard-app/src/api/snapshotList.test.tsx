@@ -107,7 +107,7 @@ describe('decodeSnapshot —— 列表线格式', () => {
 
 describe('snapshot-delta', () => {
   const base = (): Snapshot => decodeSnapshot(listSnapshot([wireProject('/a', [makeChange('a1', 'open')]), wireProject('/b', [makeChange('b1', 'open')])])) as Snapshot
-  const delta = (projects: Wire[], roots: string[]): unknown => ({ ...listSnapshot(projects), roots })
+  const delta = (projects: Wire[], roots: string[]): Wire => ({ ...listSnapshot(projects), roots })
 
   it('只换被重发的项目，其余项目保持对象身份；顺序跟 roots', () => {
     const before = base()

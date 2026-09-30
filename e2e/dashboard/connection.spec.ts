@@ -1,10 +1,13 @@
 import { expect, openView, test } from './support/fixtures'
 
+// 页面订阅的是列表流（/api/stream?view=list），带查询串。
+const STREAM = /\/api\/stream(\?|$)/
+
 test.describe('断线', () => {
   test('实时流断开：只出现一个「重连」按钮，恢复后横幅消失', async ({ page, server }) => {
     // 浏览器到 server 的实时流（SSE）打桩成连不上；其余请求照常走真实 server。
     let blocked = true
-    await page.route('**/api/stream', async (route) => {
+    await page.route(STREAM, async (route) => {
       if (blocked) await route.abort('connectionrefused')
       else await route.continue()
     })
@@ -27,7 +30,7 @@ test.describe('断线', () => {
   })
 
   test('重连时仍连不上：横幅还在，按钮还是只有一个', async ({ page, server }) => {
-    await page.route('**/api/stream', (route) => route.abort('connectionrefused'))
+    await page.route(STREAM, (route) => route.abort('connectionrefused'))
     await openView(page, 'workspace', { root: server.project })
     const reconnect = page.getByTestId('offline-reconnect')
     await expect(reconnect).toBeVisible()

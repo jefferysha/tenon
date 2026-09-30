@@ -271,11 +271,11 @@ test('canonical CI benchmarks run the catalog suites with the 15 percent regress
   const block = ci.slice(start, ci.indexOf('- name:', start + 1))
 
   assert.ok(start > 0)
-  for (const suite of ['bench-status', 'bench-snapshot']) {
+  for (const suite of ['bench-status', 'bench-snapshot', 'bench-snapshot-large']) {
     assert.match(block, new RegExp(`test register ci-bench --suite ${suite}`))
     assert.match(catalog, new RegExp(`- id: ${suite}\\n[\\s\\S]*?max_regression_pct: 15\\b`))
   }
-  assert.match(block, /test run ci-bench --suite bench-status --suite bench-snapshot --json/)
+  assert.match(block, /test run ci-bench --suite bench-status --suite bench-snapshot --suite bench-snapshot-large --json/)
   assert.match(block, /exit "\$bench_exit"/, 'a benchmark regression must fail the step')
   assert.match(ci, /name: bench-baseline-candidate/)
   assert.match(ci, /\.tenon\/tests\/baselines\//)

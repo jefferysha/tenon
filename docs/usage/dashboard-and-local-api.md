@@ -156,7 +156,9 @@ stage's `test_policy`, and the library lists read-only test templates.
   saved download keeps its name instead of arriving as `artifact.zip`.
 
 Each change in `GET /api/snapshot` also carries `testPolicy` (the verdict of every stage
-that declares a policy), `testPlan` and `testUser`.
+that declares a policy), `testPlan` and `testUser`. The Dashboard itself reads the lighter
+list tier described under "Local API" and fetches this per-change evidence from
+`GET /api/change/:name/snapshot` when a task is opened.
 
 ## Status semantics
 
@@ -230,14 +232,37 @@ The production server negotiates gzip for compressible generated assets and
 returns `Vary: Accept-Encoding`. Clients that decline gzip receive the original
 bytes; API JSON remains `no-store`.
 
-`/api/snapshot`, the first `/api/stream` frame, SSE broadcasts, and the AFK
-snapshot/log views share one server-side snapshot. Concurrent readers share a
-single build; a built snapshot is reused, with its original `generated_at`,
-while the input fingerprint (state, tasks, documents, tests, archive, git HEAD,
-terminal activity, and the viewer identity) is unchanged, for at most 30
-seconds. Every non-GET request drops it before it runs and again after it
-settles. `/api/snapshot` sends an `ETag` and answers a matching
-`If-None-Match` with `304`.
+The snapshot comes in two tiers. `GET /api/snapshot` (no view) is the full snapshot:
+every change with its documents, skill and agent runs, tests, test policy, the rules'
+`policy` block and all `.pipeline.yaml` fields. `GET /api/snapshot?view=list` and
+`GET /api/stream?view=list` are the tier the Dashboard loads: the same rows without that
+per-change evidence (`fields` is narrowed to `workflow` and `automation`, `todo` to stage
+statuses, `workflowRules` to the plan-derived part), each change stamped with a `rev`, and
+the sub-trees many changes share (workflow rules, current-step readiness, stage statuses,
+owner/creator references) written once per project in a `shared` table that a change
+points at by integer. The evidence of one change comes from
+`GET /api/change/:name/snapshot?root=<project root>`: the same object the full snapshot
+holds for it, plus `rev` (and `archive` for a change the viewer archived). A list row's
+`rev` moves whenever any input of that change moves, so a reader re-reads the detail
+exactly when its `rev` changes. With 30 projects x 30 changes the list body is about
+0.65 MB (about 22 KB gzipped) where the full snapshot is 11 MB.
+
+The list stream sends one full `snapshot` event and afterwards a `snapshot-delta` event
+holding only the projects whose serialized bytes changed, plus `roots` (the registry
+order) so removed projects disappear; a stream without `view=list` keeps re-sending the
+whole full snapshot as `snapshot` events.
+
+The snapshot is cached per project. Each project's list build, full build and change
+details are keyed by that project's input fingerprint (state, tasks, documents, test-record
+directories, archive, git HEAD, terminal activity, and the viewer identity), so a change in
+one project rebuilds that project only. An unchanged build is reused, with its original
+`generated_at`, for at most 30 seconds; at most four aged-out projects are refreshed per read
+so a cold start does not expire into one large rebuild. A write request drops the projects it
+names (`root` in the query or JSON body) once it settles, and before it runs when the query
+names them; a write that names no project drops everything. Concurrent readers share a single
+build. `/api/snapshot`, `/api/change/:name/snapshot` and the AFK snapshot/log views share
+these builds; the snapshot and change responses send an `ETag`, answer a matching
+`If-None-Match` with `304`, and are gzipped for clients that accept it.
 
 Mutation requests require:
 

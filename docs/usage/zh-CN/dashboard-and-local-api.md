@@ -129,6 +129,30 @@ Dashboard 只读取测试数据、只编辑工作流的测试策略，不运行�
 - `GET /api/tests/artifact?root=&change=&user=&run=&path=` → 该次运行产物目录内的单个文件。路径必须是不含 `..` 的相对路径，目标必须是真实路径仍在运行目录内的普通文件（对已打开的 inode 再核对一次），超过 64 MiB 返回 `413`。图片和视频内联，zip 与 HTML 只作附件；所有响应都带 `nosniff`、`Content-Security-Policy: sandbox`，以及带原文件名的 `Content-Disposition`（`attachment; filename="trace.zip"` 或 `inline; filename="home.png"`；文件名含非 ASCII 时补 RFC 5987 的 `filename*=UTF-8''…`），下载存下来的仍是原名，不会变成 `artifact.zip`。
 
 `GET /api/snapshot` 里每个 change 还带 `testPolicy`（每个声明了策略的阶段的判定）、`testPlan` 与 `testUser`。
+Dashboard 自己读的是更轻的「列表层」（见下文「快照分层与缓存」），打开一个任务时才从
+`GET /api/change/:name/snapshot` 读这些逐任务的证据。
+
+## 快照分层与缓存
+
+快照分两层。`GET /api/snapshot`（不带 view）是完整快照：每个 change 都带 documents、技能 / agent 运行、测试、
+测试策略、规则的 `policy` 块和 `.pipeline.yaml` 全部字段。`GET /api/snapshot?view=list` 与
+`GET /api/stream?view=list` 是 Dashboard 加载的那一层：同样的行，去掉逐任务证据（`fields` 只留 `workflow` 与
+`automation`，`todo` 只留阶段状态，`workflowRules` 只留由计划决定的部分），每个 change 带一个 `rev`；许多 change
+共用的子树（工作流规则、当前步骤的就绪判定、阶段状态、负责人 / 创建者引用）在每个项目里只写一次，放进 `shared`
+表，change 用整数指向它。单个任务的证据走 `GET /api/change/:name/snapshot?root=<项目根>`：与完整快照里该任务
+同一个对象，另带 `rev`（查看者已归档的任务还带 `archive`）。列表行的 `rev` 会在该任务的任何输入变化时变掉，
+读取方据此在 `rev` 变化时重读详情。30 个项目 × 每项目 30 个任务时，列表响应约 0.65 MB（gzip 后约 22 KB），
+完整快照是 11 MB。
+
+列表流先发一个完整的 `snapshot` 事件，之后只发 `snapshot-delta` 事件：序列化字节变了的项目，加上 `roots`
+（注册表顺序，被移除的项目随之消失）；不带 `view=list` 的流仍然每次整份重发完整快照。
+
+快照按项目缓存。每个项目的列表构建、完整构建和任务详情都以该项目自己的输入指纹（状态、tasks、documents、
+测试记录目录、归档、git HEAD、终端心跳、查看者身份）为键，所以一个项目里的变化只重建这个项目。未变化的构建
+最多复用 30 秒，沿用原来的 `generated_at`；每次读取最多刷新四个过期项目，服务刚起时不会在同一刻全部过期成一次
+巨大的重建。写请求在结束后丢掉它点名的项目（query 或 JSON body 里的 `root`），query 里点名时开始前也丢；
+没有点名任何项目的写丢掉全部。并发读取共用一次构建。`/api/snapshot`、`/api/change/:name/snapshot` 与 AFK
+快照 / 日志视图共用这些构建；快照与任务详情响应带 `ETag`，`If-None-Match` 命中返回 `304`，接受 gzip 的调用方拿到压缩字节。
 
 ## 本地 API 边界
 

@@ -87,6 +87,7 @@ npm run test:e2e -- --project=chromium
 npm run test:e2e
 npm run bench:status
 npm run bench:snapshot
+npm run bench:snapshot:large
 ```
 
 `test:e2e` drives the built CLI and Dashboard from `e2e/dashboard/` with Playwright
@@ -94,7 +95,7 @@ npm run bench:snapshot
 throw-away projects in an isolated `HOME` and `TENON_RUNTIME_HOME` and starts the
 Dashboard on a random port, so it never touches your real Tenon state. The same suites are
 registered in `.tenon/tests/catalog.yaml` (`dashboard-e2e`, `bench-status`,
-`bench-snapshot`, and the rest of the repository's own suites); run them through
+`bench-snapshot`, `bench-snapshot-large`, and the rest of the repository's own suites); run them through
 `tenon test run <change> --suite <id>`. CI runs and blocks on Chromium only and uploads
 `playwright-report/` and `test-results/` when it fails; WebKit is not installed in CI (a
 non-blocking WebKit job would rebuild the whole tree, and Linux WebKit has no evidence yet),
