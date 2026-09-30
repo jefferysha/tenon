@@ -165,13 +165,14 @@ describe('GET /api/tests/artifact', () => {
     expect(log.headers['x-content-type-options']).toBe('nosniff')
     expect(log.headers['content-security-policy']).toBe('sandbox')
     expect(String(log.headers['content-type'])).toContain('text/plain')
+    expect(log.headers['content-disposition'], '日志也带原文件名，`<a download>` 才不会存成 artifact.txt').toBe('inline; filename="output.log"')
 
     expect((await reqGet(h.port, `/api/tests/artifact?${query}&path=output.log&tail=2`)).body).toBe('gs')
 
     await writeFile(join(runDir, 'trace.zip'), 'PK', 'utf8')
     const zip = await reqGet(h.port, `/api/tests/artifact?${query}&path=trace.zip`)
     expect(zip.headers['content-type']).toBe('application/zip')
-    expect(zip.headers['content-disposition']).toBe('attachment')
+    expect(zip.headers['content-disposition']).toBe('attachment; filename="trace.zip"')
 
     await writeFile(join(runDir, 'shot.png'), 'png', 'utf8')
     expect((await reqGet(h.port, `/api/tests/artifact?${query}&path=shot.png`)).headers['content-type']).toBe('image/png')

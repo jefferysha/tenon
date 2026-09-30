@@ -150,7 +150,10 @@ stage's `test_policy`, and the library lists read-only test templates.
   artifact directory. The path must be relative and free of `..`, the target must be a regular
   file whose real path stays inside the run directory (checked again on the opened inode),
   and files over 64 MiB answer `413`. Images and video are served inline; zip and HTML
-  are attachments only. Every response carries `nosniff` and `Content-Security-Policy: sandbox`.
+  are attachments only. Every response carries `nosniff`, `Content-Security-Policy: sandbox`
+  and a `Content-Disposition` with the file's original basename (`attachment; filename="trace.zip"`
+  or `inline; filename="home.png"`; a non-ASCII name adds an RFC 5987 `filename*=UTF-8''…`), so a
+  saved download keeps its name instead of arriving as `artifact.zip`.
 
 Each change in `GET /api/snapshot` also carries `testPolicy` (the verdict of every stage
 that declares a policy), `testPlan` and `testUser`.

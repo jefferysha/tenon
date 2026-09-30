@@ -126,7 +126,7 @@ Dashboard 只读取测试数据、只编辑工作流的测试策略，不运行�
 - `GET /api/tests/plan?root=&change=` → 任务测试计划状态（`missing`、`tampered`、`ok`）。
 - `GET /api/tests/records?root=&change=[&suite=]` → v2 运行记录（新的在前）与哈希链状态；不在完好链上的记录标 `trusted: false`。
 - `GET /api/tests/record?root=&change=&user=&run=` → 一次运行的失败用例、覆盖率、基准指标、服务与逐文件产物索引（`present` 表示本机文件是否还在）。
-- `GET /api/tests/artifact?root=&change=&user=&run=&path=` → 该次运行产物目录内的单个文件。路径必须是不含 `..` 的相对路径，目标必须是真实路径仍在运行目录内的普通文件（对已打开的 inode 再核对一次），超过 64 MiB 返回 `413`。图片和视频内联，zip 与 HTML 只作附件；所有响应都带 `nosniff` 与 `Content-Security-Policy: sandbox`。
+- `GET /api/tests/artifact?root=&change=&user=&run=&path=` → 该次运行产物目录内的单个文件。路径必须是不含 `..` 的相对路径，目标必须是真实路径仍在运行目录内的普通文件（对已打开的 inode 再核对一次），超过 64 MiB 返回 `413`。图片和视频内联，zip 与 HTML 只作附件；所有响应都带 `nosniff`、`Content-Security-Policy: sandbox`，以及带原文件名的 `Content-Disposition`（`attachment; filename="trace.zip"` 或 `inline; filename="home.png"`；文件名含非 ASCII 时补 RFC 5987 的 `filename*=UTF-8''…`），下载存下来的仍是原名，不会变成 `artifact.zip`。
 
 `GET /api/snapshot` 里每个 change 还带 `testPolicy`（每个声明了策略的阶段的判定）、`testPlan` 与 `testUser`。
 

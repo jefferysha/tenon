@@ -94,19 +94,23 @@ test.describe('工作台任务 · 测试页签', () => {
     const href = await link.getAttribute('href')
     expect(href).toContain('/api/tests/artifact')
     const [download] = await Promise.all([page.waitForEvent('download'), link.click()])
-    expect(download.suggestedFilename()).toMatch(/\.zip$/)
+    // 浏览器存下来的必须是产物的原文件名，而不是按 URL 末段猜出的 artifact.zip。
+    expect(download.suggestedFilename()).toBe('trace.zip')
     const saved = await download.path()
     expect(readFileSync(saved).subarray(0, 4).toString('hex'), '文件头是 zip 的 PK').toBe('504b0506')
 
     // 同一个链接直接请求也是 200，且是附件。
     const response = await request.get(new URL(href ?? '', baseURL).toString())
     expect(response.status()).toBe(200)
-    expect(response.headers()['content-disposition'] ?? '').toContain('attachment')
+    expect(response.headers()['content-disposition']).toBe('attachment; filename="trace.zip"')
+    expect(response.headers()['x-content-type-options']).toBe('nosniff')
+    expect(response.headers()['content-security-policy']).toBe('sandbox')
     expect((await response.body()).length).toBe(22)
 
     // 报告文件同样可下载。
     const report = page.getByTestId('run-file-download-0')
     const [reportDownload] = await Promise.all([page.waitForEvent('download'), report.click()])
+    expect(reportDownload.suggestedFilename(), '文本产物同样带原文件名，不是 artifact.txt').toBe('demo-unit.xml')
     expect(readFileSync(await reportDownload.path(), 'utf8')).toContain(FAILING)
   })
 

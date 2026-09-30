@@ -2,8 +2,10 @@
  * 工作台读测试记录与产物：`GET /api/tests/runs|run|artifact`。全部 loopback 只读，root 必须已登记。
  *
  * 产物是原始字节（trace zip、截图、报告），所以这条路由直接写 res：按扩展名白名单给 content-type，
- * 一律带 nosniff 与 `CSP: sandbox`，zip 作为附件下载；打开前 lstat 必须是普通文件，realpath 必须仍在
+ * 一律带 nosniff 与 `CSP: sandbox`，zip 与 HTML 作为附件下载；打开前 lstat 必须是普通文件，realpath 必须仍在
  * 该 run 的产物目录内，O_NOFOLLOW 打开，超过上限给 413。HTML 报告永不在 Dashboard 源里渲染。
+ * 每个响应的 Content-Disposition 都带原文件名（非 ASCII 走 RFC 5987 `filename*`，见 contentDisposition.ts），
+ * 所以 `<a download>` 存下来的是 `trace.zip`，不是按 URL 末段猜出的 `artifact.zip`。
  * 目录产物（Playwright 的 test-results/ 等）按记录里的逐文件索引列出，下载的是目录里的单个文件。
  */
 import { createReadStream } from 'node:fs'
@@ -15,6 +17,7 @@ import {
   listTestRuns, readTestRunRecord, testEvidencePaths, testRunArtifactsDir, TEST_RUN_ID_RE,
 } from '@tenon/kernel'
 import type { WorkflowRootAnchor } from './workflowRootAnchor.js'
+import { contentDisposition } from './contentDisposition.js'
 import { handleTestDirectionGet } from './serverTestDirectionRoutes.js'
 import { resolveTestSystemRoute } from './serverGetTestSystemRoutes.js'
 
@@ -55,6 +58,11 @@ function contentTypeFor(path: string): string {
   const dot = path.lastIndexOf('.')
   const extension = dot < 0 ? '' : path.slice(dot).toLowerCase()
   return CONTENT_TYPES[extension] ?? 'text/plain; charset=utf-8'
+}
+
+/** 校验过的相对路径的最后一段：下载时给浏览器的原文件名（否则另存为会退回 `artifact.zip` / `artifact.txt`）。 */
+function basename(path: string): string {
+  return path.slice(path.lastIndexOf('/') + 1)
 }
 
 function isSafeArtifactPath(path: string): boolean {
@@ -260,7 +268,7 @@ export async function handleTestArtifactRoute(
     'Content-Length': String(opened.size - start),
     'X-Content-Type-Options': 'nosniff',
     'Content-Security-Policy': 'sandbox',
-    ...(ATTACHMENT_TYPES.has(type) ? { 'Content-Disposition': 'attachment' } : {}),
+    'Content-Disposition': contentDisposition(ATTACHMENT_TYPES.has(type) ? 'attachment' : 'inline', basename(query.path)),
   })
   await new Promise<void>((resolve) => {
     const stream = createReadStream('', { fd: handle.fd, start, autoClose: false })

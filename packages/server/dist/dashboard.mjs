@@ -47481,6 +47481,31 @@ import { lstat as lstat40, open as open8, realpath as realpath9 } from "node:fs/
 import { constants as constants17 } from "node:fs";
 import { join as join92, relative as relative14, sep as sep17 } from "node:path";
 
+// packages/server/src/contentDisposition.ts
+var ATTR_CHAR = /^[A-Za-z0-9!#$&+\-.^_`|~]$/u;
+function asciiFallback(filename) {
+  let out = "";
+  for (const char of filename) {
+    const code = char.codePointAt(0) ?? 0;
+    const printable = code >= 32 && code <= 126;
+    out += printable && char !== '"' && char !== "\\" && char !== "%" ? char : "_";
+  }
+  return out;
+}
+function extendedValue(filename) {
+  let out = "";
+  for (const byte of Buffer.from(filename, "utf8")) {
+    const char = String.fromCharCode(byte);
+    out += byte < 128 && ATTR_CHAR.test(char) ? char : `%${byte.toString(16).toUpperCase().padStart(2, "0")}`;
+  }
+  return out;
+}
+function contentDisposition(type, filename) {
+  const fallback = asciiFallback(filename);
+  const header = `${type}; filename="${fallback}"`;
+  return fallback === filename ? header : `${header}; filename*=UTF-8''${extendedValue(filename)}`;
+}
+
 // packages/server/src/serverTestDirectionRoutes.ts
 import { mkdir as mkdir33, readFile as readFile50, readdir as readdir20, rm as rm13 } from "node:fs/promises";
 import { join as join91 } from "node:path";
@@ -47656,6 +47681,9 @@ function contentTypeFor(path14) {
   const extension = dot < 0 ? "" : path14.slice(dot).toLowerCase();
   return CONTENT_TYPES[extension] ?? "text/plain; charset=utf-8";
 }
+function basename7(path14) {
+  return path14.slice(path14.lastIndexOf("/") + 1);
+}
 function isSafeArtifactPath(path14) {
   if (path14 === "" || path14.startsWith("/") || path14.includes("\\")) return false;
   return path14.split("/").every((segment) => segment !== "" && segment !== "." && segment !== "..");
@@ -47823,7 +47851,7 @@ async function handleTestArtifactRoute(req, res, path14, deps) {
     "Content-Length": String(opened.size - start),
     "X-Content-Type-Options": "nosniff",
     "Content-Security-Policy": "sandbox",
-    ...ATTACHMENT_TYPES.has(type) ? { "Content-Disposition": "attachment" } : {}
+    "Content-Disposition": contentDisposition(ATTACHMENT_TYPES.has(type) ? "attachment" : "inline", basename7(query.path))
   });
   await new Promise((resolve20) => {
     const stream = createReadStream("", { fd: handle.fd, start, autoClose: false });
@@ -54442,7 +54470,7 @@ async function handlePostRoute(req, res, path14, deps) {
 }
 
 // packages/server/src/serverFreezeHandlers.ts
-import { basename as basename7 } from "node:path";
+import { basename as basename8 } from "node:path";
 function createFreezeHandlers(deps) {
   const { orchestrationLedger, clock } = { orchestrationLedger: deps.ledger, clock: deps.clock };
   const freezePipeline = async (changeDir2, pipeline) => {
@@ -54473,7 +54501,7 @@ function createFreezeHandlers(deps) {
     const request = requestDecoded.value;
     const context = contextDecoded.value;
     if (request.change_id !== context.change_id || request.project_id !== context.project_id || request.correlation_id !== context.correlation_id) throw new Error("request/context identity mismatch");
-    if (basename7(changeDir2) !== request.change_id) throw new Error("request/path change mismatch");
+    if (basename8(changeDir2) !== request.change_id) throw new Error("request/path change mismatch");
     const catalog2 = normalizeCapabilityCatalogV2(input2.catalog);
     if (!catalog2.ok) throw new Error(`catalog schema \u65E0\u6548: ${catalog2.issues.join(", ")}`);
     const workflow = decodeWorkflowDef(input2.workflow_definition, "custom");
@@ -55170,7 +55198,7 @@ async function resolveSessionLink(root, name, deps) {
 
 // packages/server/src/version.ts
 import { readFileSync as readFileSync29 } from "node:fs";
-import { basename as basename8, dirname as dirname26, join as join118 } from "node:path";
+import { basename as basename9, dirname as dirname26, join as join118 } from "node:path";
 var SERVER_VERSION = "0.1.0";
 var RELEASE_ID = /^sha256-[a-f0-9]{64}$/;
 function isPluginManifestVersion(value) {
@@ -55189,8 +55217,8 @@ function resolveReleaseVersion(pluginRoot2) {
   return SERVER_VERSION;
 }
 function resolvePayloadReleaseId(pluginRoot2) {
-  if (basename8(pluginRoot2) !== "payload") return void 0;
-  const releaseId = basename8(dirname26(pluginRoot2));
+  if (basename9(pluginRoot2) !== "payload") return void 0;
+  const releaseId = basename9(dirname26(pluginRoot2));
   return RELEASE_ID.test(releaseId) ? releaseId : void 0;
 }
 

@@ -195,9 +195,10 @@ describe('真实 e2e —— 每步测试登记', () => {
       const image = await fetch(`${base}/api/tests/artifact?${query}&path=${encodeURIComponent('outputs/test-results/shots/home.png')}`)
       expect(image.status).toBe(200)
       expect(image.headers.get('content-type')).toBe('image/png')
+      expect(image.headers.get('content-disposition')).toBe('inline; filename="home.png"')
       expect(await image.text()).toBe('png-bytes')
       const trace = await fetch(`${base}/api/tests/artifact?${query}&path=${encodeURIComponent('outputs/test-results/trace.zip')}`)
-      expect(trace.headers.get('content-disposition')).toBe('attachment')
+      expect(trace.headers.get('content-disposition')).toBe('attachment; filename="trace.zip"')
       expect((await fetch(`${base}/api/tests/artifact?${query}&path=outputs/test-results`)).status).toBe(403)
       expect((await fetch(`${base}/api/tests/artifact?${query}&path=${encodeURIComponent('outputs/test-results/../../../x')}`)).status).toBe(400)
     } finally {

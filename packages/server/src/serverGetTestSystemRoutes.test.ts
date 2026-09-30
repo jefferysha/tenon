@@ -335,26 +335,46 @@ describe('v2 产物下载（目录内逐文件）', () => {
     return { query: `root=${encodeURIComponent(root)}&change=${CHANGE}&user=${SLUG}&run=${result.record.run_id}`, runDir }
   }
 
-  it('截图内联、视频内联、trace 与 HTML 报告只作附件；一律带 nosniff 与 sandbox', async () => {
+  it('截图内联、视频内联、trace 与 HTML 报告只作附件；每个都带原文件名；一律带 nosniff 与 sandbox', async () => {
     const h = await start()
     const { query } = await seedArtifacts(h.root)
     const fetchPath = (path: string) => reqGet(h.port, `/api/tests/artifact?${query}&path=${encodeURIComponent(path)}`)
     const image = await fetchPath('test-results/shots/a.png')
     expect(image.status).toBe(200)
     expect(image.headers['content-type']).toBe('image/png')
-    expect(image.headers['content-disposition']).toBeUndefined()
+    expect(image.headers['content-disposition']).toBe('inline; filename="a.png"')
     const video = await fetchPath('test-results/video.webm')
     expect(video.headers['content-type']).toBe('video/webm')
-    expect(video.headers['content-disposition']).toBeUndefined()
+    expect(video.headers['content-disposition']).toBe('inline; filename="video.webm"')
     const trace = await fetchPath('test-results/trace.zip')
-    expect(trace.headers['content-disposition']).toBe('attachment')
+    expect(trace.headers['content-disposition']).toBe('attachment; filename="trace.zip"')
     const report = await fetchPath('playwright-report/index.html')
     expect(report.status).toBe(200)
-    expect(report.headers['content-disposition']).toBe('attachment')
+    expect(report.headers['content-disposition']).toBe('attachment; filename="index.html"')
     for (const res of [image, video, trace, report]) {
       expect(res.headers['x-content-type-options']).toBe('nosniff')
       expect(res.headers['content-security-policy']).toBe('sandbox')
     }
+  })
+
+  it('非 ASCII 与带引号的文件名：ASCII 兜底 + RFC 5987 filename*，还原得到原名；头值里没有裸引号', async () => {
+    const h = await start()
+    const { query, runDir } = await seedArtifacts(h.root)
+    await writeFile(join(runDir, 'test-results', '追踪 1.zip'), 'PK', 'utf8')
+    await writeFile(join(runDir, 'test-results', 'say "hi".txt'), 'hi', 'utf8')
+    const fetchPath = (path: string) => reqGet(h.port, `/api/tests/artifact?${query}&path=${encodeURIComponent(path)}`)
+
+    const zip = await fetchPath('test-results/追踪 1.zip')
+    expect(zip.status).toBe(200)
+    expect(zip.headers['content-disposition']).toBe('attachment; filename="__ 1.zip"; filename*=UTF-8\'\'%E8%BF%BD%E8%B8%AA%201.zip')
+    expect(zip.headers['content-security-policy']).toBe('sandbox')
+    expect(zip.headers['x-content-type-options']).toBe('nosniff')
+
+    const quoted = await fetchPath('test-results/say "hi".txt')
+    expect(quoted.status).toBe(200)
+    const header = String(quoted.headers['content-disposition'])
+    expect(header).toBe('inline; filename="say _hi_.txt"; filename*=UTF-8\'\'say%20%22hi%22.txt')
+    expect(decodeURIComponent(header.split("filename*=UTF-8''")[1] ?? '')).toBe('say "hi".txt')
   })
 
   it('逃逸、绝对路径、目录、符号链接（文件与目录）、别的用户与别的运行都被拒', async () => {
