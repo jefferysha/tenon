@@ -84,8 +84,10 @@ throw-away projects in an isolated `HOME` and `TENON_RUNTIME_HOME` and starts th
 Dashboard on a random port, so it never touches your real Tenon state. The same suites are
 registered in `.tenon/tests/catalog.yaml` (`dashboard-e2e`, `bench-status`,
 `bench-snapshot`, and the rest of the repository's own suites); run them through
-`tenon test run <change> --suite <id>`. CI blocks on Chromium, runs WebKit as an advisory
-step, and uploads `playwright-report/` and `test-results/` when the Chromium run fails.
+`tenon test run <change> --suite <id>`. CI runs and blocks on Chromium only and uploads
+`playwright-report/` and `test-results/` when it fails; WebKit is not installed in CI (a
+non-blocking WebKit job would rebuild the whole tree, and Linux WebKit has no evidence yet),
+so run both projects locally before changing the pages they cover.
 
 Benchmark regressions (`max_regression_pct: 15`) are judged against a baseline of the same
 machine profile. Baselines are not committed from a developer laptop: CI runs the two

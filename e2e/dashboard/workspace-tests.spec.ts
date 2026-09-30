@@ -7,8 +7,11 @@ const FAILING = 'login rejects a wrong password'
 test.describe('工作台任务 · 测试页签', () => {
   test.beforeEach(async ({ page, server }) => {
     await openView(page, 'workspace', { root: server.project, change: CHANGE, step: 'verify' })
-    await page.getByTestId('task-io-tab-tests').click()
-    await expect(page.getByTestId('task-tests')).toBeVisible()
+    // 快照在页面加载后还会刷新一两次（项目注册表、其它用例留下的痕迹），刷新会把详情的页签重置：点到面板真出现为止。
+    await expect(async () => {
+      await page.getByTestId('task-io-tab-tests').click()
+      await expect(page.getByTestId('task-tests')).toBeVisible({ timeout: 1_500 })
+    }).toPass({ timeout: 20_000 })
   })
 
   test('汇总一行：套件 · 用例 · 失败 · 不稳定', async ({ page }) => {

@@ -91,39 +91,21 @@ jobs:
       - name: Install Playwright Chromium for browser runtime tests
         run: npx playwright install --with-deps chromium
 
-      # Dashboard 浏览器 e2e（e2e/dashboard，套件 dashboard-e2e）：被测 dashboard 由 e2e/dashboard/support/serve.mjs 用刚构建的
-      # CLI 在隔离的 HOME / TENON_RUNTIME_HOME 里播种并起在随机端口，不碰 runner 上的任何真实状态。
-      # 阻塞的是 Chromium；WebKit 在下一步作为参考（见下），因为 Linux 上的 WebKit 是否与 macOS 一致本仓还没有 CI 证据。
+      # Dashboard 浏览器 e2e（e2e/dashboard，目录套件 dashboard-e2e-chromium）：被测 dashboard 由 e2e/dashboard/support/serve.mjs
+      # 用刚构建的 CLI 在隔离的 HOME / TENON_RUNTIME_HOME 里播种并起在随机端口，不碰 runner 上的任何真实状态。
+      # 这里只跑 Chromium：再装 WebKit 需要另拉一批系统依赖，而 Linux 上的 WebKit 是否与 macOS 一致本仓还没有证据；
+      # 一个不阻塞的 WebKit job 得重新 checkout + 构建一遍，收益不抵成本。两个浏览器项目在本机用
+      # npm run test:e2e（或目录套件 dashboard-e2e）一起跑，WebKit 的安装步骤见 docs/usage/contributor-development.md。
       - name: Dashboard browser e2e (Chromium)
         id: dashboard-e2e
         run: npm run test:e2e -- --project=chromium
 
-      # 失败时把 HTML 报告（含失败截图与 trace）和原始产物传上来；先于 WebKit 步骤，免得后者覆盖 playwright-report。
+      # 失败时把 HTML 报告（含失败截图与 trace）和原始产物传上来。
       - name: Upload dashboard e2e report on failure
         if: ${{ !cancelled() && steps.dashboard-e2e.outcome == 'failure' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: dashboard-e2e-chromium
-          path: |
-            playwright-report/
-            test-results/
-          if-no-files-found: ignore
-          retention-days: 7
-
-      # WebKit 不阻塞：装浏览器要再拉一批系统依赖，Linux 上的渲染差异也还没有基线。失败会留下 artifact 与黄色注解，
-      # 有稳定的绿之后把 continue-on-error 去掉即可升级成阻塞。
-      - name: Dashboard browser e2e (WebKit, advisory)
-        id: dashboard-e2e-webkit
-        continue-on-error: true
-        run: |
-          npx playwright install --with-deps webkit
-          npm run test:e2e -- --project=webkit
-
-      - name: Upload dashboard e2e WebKit report on failure
-        if: ${{ !cancelled() && steps.dashboard-e2e-webkit.outcome == 'failure' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: dashboard-e2e-webkit
           path: |
             playwright-report/
             test-results/

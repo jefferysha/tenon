@@ -253,15 +253,12 @@ test('canonical CI runs the dashboard e2e right after the Chromium install and u
   assert.doesNotMatch(ci, /uses:\s+actions\/[^@\s]+@v\d+\b/)
 })
 
-test('canonical CI keeps WebKit advisory: it never blocks the verify job', async () => {
+test('canonical CI verify job has no continue-on-error and runs the e2e on Chromium only', async () => {
   const ci = await text('.github/workflows/ci.yml')
-  const start = ci.indexOf('- name: Dashboard browser e2e (WebKit, advisory)')
-  const block = ci.slice(start, ci.indexOf('- name:', start + 1))
 
-  assert.ok(start > 0)
-  assert.match(block, /continue-on-error: true/)
-  assert.match(block, /npx playwright install --with-deps webkit/)
-  assert.match(block, /npm run test:e2e -- --project=webkit/)
+  assert.doesNotMatch(ci, /continue-on-error/, 'a required verify step must not be able to fail silently')
+  assert.doesNotMatch(ci, /playwright install[^\n]*webkit/, 'WebKit is not installed in CI; it runs locally or through the dashboard-e2e suite')
+  assert.doesNotMatch(ci, /test:e2e -- --project=webkit/)
 })
 
 test('canonical CI benchmarks run the catalog suites with the 15 percent regression gate and publish a baseline candidate', async () => {
