@@ -22,7 +22,7 @@ const RESOURCES = [
   resource('element-plus', 'Element Plus', 'component-lib', ['vue']),
   resource('lucide', 'Lucide', 'icons', []),
   resource('design-md-claude', 'Claude', 'design-md', [], { design_md: 'https://example.test/claude/DESIGN.md' }),
-  resource('awesome-design-md', 'awesome-design-md', 'design-md', []),
+  resource('design-md-collection', 'DESIGN.md collection', 'design-md', []),
 ]
 
 const VARIABLES: Record<string, { key: string; default: string | null }[]> = {
@@ -463,7 +463,7 @@ describe('资源', () => {
     await user.hover(screen.getByTestId('np-res-tab-icons'))
     expect((await screen.findAllByText('先加入匹配的前端模板')).length).toBeGreaterThan(0)
     const claude = await screen.findByTestId('np-res-design-md-claude')
-    expect(screen.queryByTestId('np-res-awesome-design-md')).toBeNull()
+    expect(screen.queryByTestId('np-res-design-md-collection')).toBeNull()
     expect(screen.getByTestId('np-res-preview-name')).toHaveTextContent('Claude')
     expect(screen.getByTestId('np-res-toggle')).toHaveTextContent('加入')
     await add(user, 'design-md-claude')
