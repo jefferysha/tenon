@@ -55,6 +55,17 @@ npm run typecheck:web
 npm run build
 ```
 
+`npm test` runs Vitest with at most `min(8, cores)` workers (`vitest.config.ts`). The
+real-filesystem, subprocess and Docker integration suites time out when a many-core machine
+runs its default of about one worker per core, so the cap keeps local runs and CI on one
+concurrency rule; pass `--maxWorkers=N` to override it for a single run. The Vitest setup
+(`tools/vitest.isolate-runtime-home.mjs`) also gives every test file its own declared
+identity and runtime home and clears `TENON_RUNTIME_ROOTS`, `TENON_BASE_BRANCH` and
+`TENON_CHANGE_NAME`, whatever the host process declares, so the suites pass the same way inside
+a Tenon session or under `tenon test run`. Test cleanup that removes temp directories goes
+through `rm` with retries (the CLI harness `rm`, `rmDir` in the tap test support) so a late
+async write cannot turn into an `ENOTEMPTY` that hides the real failure.
+
 Contracts and distribution:
 
 ```bash

@@ -87,6 +87,8 @@ npm run oracle
 git diff --check
 ```
 
+`npm test` 的 Vitest 最多用 `min(8, 核数)` 个 worker（`vitest.config.ts`）：真实文件系统、子进程和 Docker 的集成套件在多核机器上按默认每核一个 worker 跑时会超时，上限让本地与 CI 用同一条并发规则；单次运行可用 `--maxWorkers=N` 覆盖。Vitest 的 setup（`tools/vitest.isolate-runtime-home.mjs`）还会给每个测试文件独立的声明身份与运行时 home，并清掉 `TENON_RUNTIME_ROOTS`、`TENON_BASE_BRANCH`、`TENON_CHANGE_NAME`，不论宿主进程声明了什么，所以在 Tenon 会话里或经 `tenon test run` 跑，结果与手敲 `npm test` 一致。删除临时目录的测试清理走带重试的 `rm`（CLI harness 的 `rm`、tap 测试基座的 `rmDir`），避免晚到的异步写变成盖住真实失败的 `ENOTEMPTY`。
+
 修改文档模板时还要运行 `npm run check:document-templates`；修改文档站时运行完整 docs 命令和浏览器验收。
 
 ## 常见失败
