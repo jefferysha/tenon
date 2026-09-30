@@ -4,7 +4,7 @@
  */
 import {
   CATALOG_DEFAULT_TIMEOUT_S, COVERAGE_FORMATS, EXIT_CODE_KINDS, REPORT_FORMATS, SERVICE_DEFAULT_READY_TIMEOUT_S,
-  TEST_KINDS, TEST_RUNNERS, isCoverageFormat, isReportFormat, isTestKind, isTestRunner, kindForDirection,
+  TEST_KINDS, TEST_RUNNERS, isCoverageFormat, isReportFormat, isTestKind, isTestRunner, kindForDirection, kindFormatProblem,
   type BenchmarkMetricSpec, type CatalogService, type CatalogServiceReady, type CatalogSuite, type ReportFormat,
   type TestDirectionDef, type TestKind, type TestRunner,
 } from '@tenon/kernel'
@@ -136,7 +136,13 @@ export function buildSuite(
   if (formatText === undefined) return '这个套件需要报告：加 --report-format 与 --report-path（只有 typecheck/lint/code-size/custom 可以只看退出码）'
   if (!isReportFormat(formatText)) return `--report-format '${formatText}' 不在闭集内（可选：${REPORT_FORMATS.join('/')}）`
   const reportFormat: ReportFormat = formatText
-  const reportPath = opts.reportPath ?? (opts.reportFormat === undefined ? seed.report?.path ?? preset?.report.path : `test-results/${id}.${reportExtension(reportFormat)}`)
+  // exit-code 没有报告文件：不补默认路径；显式给了 --report-path 就说明为什么不行，而不是写盘后才报 catalog.yaml:<行>。
+  if (reportFormat === 'exit-code' && opts.reportPath !== undefined) return `--report-format exit-code 没有报告文件，去掉 --report-path（套件 '${id}'）`
+  const formatProblem = kindFormatProblem(kind, runner, reportFormat)
+  if (formatProblem !== undefined) return `套件 '${id}'：${formatProblem}`
+  const reportPath = reportFormat === 'exit-code'
+    ? undefined
+    : opts.reportPath ?? (opts.reportFormat === undefined ? seed.report?.path ?? preset?.report.path : `test-results/${id}.${reportExtension(reportFormat)}`)
   const metrics: BenchmarkMetricSpec[] = []
   for (const text of opts.metric ?? []) {
     const parsed = parseMetric(text)

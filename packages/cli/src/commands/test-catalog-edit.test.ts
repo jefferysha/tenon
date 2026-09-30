@@ -49,6 +49,24 @@ describe('buildSuite', () => {
     expect(suite).toMatchObject({ report: { format: 'exit-code' } })
   })
 
+  it('--report-format exit-code 不带默认报告路径（真机验收 F10：catalog.yaml 拒绝 exit-code 写 path）', () => {
+    const custom = buildSuite('probe-x', undefined, { kind: 'custom', runner: 'custom', command: 'true', reportFormat: 'exit-code' }, undefined)
+    expect(custom).toMatchObject({ kind: 'custom', report: { format: 'exit-code' } })
+    if (typeof custom === 'string') return
+    expect(custom.report.path).toBeUndefined()
+    expect(roundTrips(custom)).toBe(true)
+    const lint = buildSuite('lint', undefined, { kind: 'lint', runner: 'eslint', command: 'npx eslint .', reportFormat: 'exit-code' }, undefined)
+    expect(lint).toMatchObject({ kind: 'lint', runner: 'eslint', report: { format: 'exit-code' } })
+    if (typeof lint !== 'string') expect(roundTrips(lint)).toBe(true)
+  })
+
+  it('exit-code 同时给 --report-path、或用在必须有报告的种类上：说明原因，不写进目录再报 catalog.yaml 行号', () => {
+    expect(buildSuite('x', undefined, { kind: 'custom', command: 'true', reportFormat: 'exit-code', reportPath: 'test-results/x.json' }, undefined))
+      .toContain('exit-code 没有报告文件')
+    expect(buildSuite('x', undefined, { kind: 'smoke', command: 'true', reportFormat: 'exit-code' }, undefined))
+      .toContain('typecheck')
+  })
+
   it('benchmark 套件带 runs / warmup / metrics', () => {
     const suite = buildSuite('bench', undefined, {
       kind: 'benchmark', runner: 'custom', command: 'node bench.mjs', reportFormat: 'benchmark-json', reportPath: 'test-results/b.json',
