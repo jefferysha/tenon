@@ -86,9 +86,9 @@ export async function cmdReviewAcknowledge(
       // 同一把锁、同一次确认：先批准冻结清单里的豁免，再提交 receipt。前一步失败 receipt 不提交，
       // 重试同一条命令即可；后一步失败时已批准的豁免在重试里被识别为「已经批准过」。
       if (delegatedAuthority === null) {
-        waivers = await approveFrozenWaivers({ dir, change: name, state, actor, recordedAt: deps.clock() })
+        waivers = await approveFrozenWaivers({ repoRoot: deps.cwd, dir, change: name, state, actor, recordedAt: deps.clock() })
       } else {
-        await refuseDelegatedWhileWaiversPending(dir, name)
+        await refuseDelegatedWhileWaiversPending(deps, dir, name, actor.id)
       }
       await deps.store.writeUnderLock(dir, state, { kind: 'set-many' })
       await retireFrozenWaivers(dir)
@@ -128,6 +128,9 @@ async function reportWaivers(
   await auditWaiverApproval(deps, dir, outcome, approver)
   if (outcome.approved.length > 0) {
     deps.io.out(`[REVIEW] 已批准豁免 ${outcome.approved.length} 项：${outcome.approved.join('、')}`)
+  }
+  if (outcome.protectedApproved.length > 0) {
+    deps.io.out(`[REVIEW] 已批准测试配置改动 ${outcome.protectedApproved.length} 项：${outcome.protectedApproved.join('、')}`)
   }
   if (outcome.note !== null) deps.io.err(`WARN: ${outcome.note}`)
   for (const line of skippedWaiverLines(outcome)) deps.io.out(line)

@@ -30,7 +30,7 @@ import {
   createWorkflowRunRepository,
   DocumentLedgerError,
   ensureDocumentLedger,
-  fingerprintWorkspace,
+  candidateFingerprint,
   loadManifest,
   loadTrackRegistry,
   loadWorkflow,
@@ -230,7 +230,8 @@ export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.
       manifest,
     }),
     cwd,
-    env: (name) => env[name],
+    // 测试装配默认视为已信任仓库自带的测试命令（R6 的首次信任另有专测：传 TENON_TEST_TRUST='' 关掉这条默认）。
+    env: (name) => (name === 'TENON_TEST_TRUST' && env[name] === undefined ? '1' : env[name]),
     user: () => resolveTenonUser(cwd, env),
     userConfigPath: () => resolveProductPaths({ env }).userConfigPath,
     resourceCatalog: () => loadResourceCatalog({ payloadRoot: REPO_ROOT, configRoot: resolveProductPaths({ env }).configRoot }),
@@ -278,14 +279,14 @@ export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.
     // 真跑 `git remote`：临时项目不是 git 仓，与真机「本地仓库没有远端」同一口径。
     gitRemotes: () => gitRemoteNames(cwd),
     gitFinishProbe: (change) => probeGitFinish(cwd, change),
-    workspaceFingerprint: () => fingerprintWorkspace(cwd),
+    workspaceFingerprint: () => candidateFingerprint(cwd),
     // 临时项目不是 git 仓：登记检查的 diff 来源定桩为「没有改动」。专测全量登记强制的用例在项目里 git init，
     // 并用 TENON_TEST_REAL_DIFF=1 走真实的 git 提供者。
-    ...(env.TENON_TEST_REAL_DIFF === '1' ? {} : { changedFiles: async () => [] }),
+    ...(env.TENON_TEST_REAL_DIFF === '1' ? {} : { changedFiles: async () => [], protectedChanges: async () => [] }),
     buildRevisionIdentity: async () => TEST_BUILD_REVISION_IDENTITY,
     captureBuildRevision: async (isolation) => createBuildRevisionToken(
       isolation === 'in-place' ? 'workspace' : 'git',
-      isolation === 'in-place' ? await fingerprintWorkspace(cwd) : TEST_GIT_HEAD,
+      isolation === 'in-place' ? await candidateFingerprint(cwd) : TEST_GIT_HEAD,
       TEST_BUILD_REVISION_IDENTITY,
     ).value,
     writeReviewMarker: (content) => writeFile(join(cwd, '.pipeline-pending-review'), content, 'utf8'),

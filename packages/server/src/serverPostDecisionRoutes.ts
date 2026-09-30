@@ -117,11 +117,12 @@ export async function handlePostDecisionRoutes(
     ok: true, code: result.code, ref, changed: result.changed, idempotent: result.idempotent,
     channel: 'dashboard', deferred: result.deferred,
     waivers: { approved: waivers.approved, skipped: waivers.skipped },
+    protectedChanges: { approved: waivers.protectedApproved, skipped: waivers.protectedSkipped },
   })
   return true
 }
 
-const NO_WAIVERS: WaiverApprovalOutcome = { approved: [], skipped: [], digest: null, note: null }
+const NO_WAIVERS: WaiverApprovalOutcome = { approved: [], skipped: [], digest: null, note: null, protectedApproved: [], protectedSkipped: [] }
 
 interface Acknowledged {
   readonly result: ReviewAcknowledgeResult
@@ -165,7 +166,7 @@ async function acknowledgeFromDashboard(input: {
     writeState: async (state) => {
       // Waivers first, receipt second: a failed plan write leaves the receipt uncommitted and the
       // same approval can be retried (already approved waivers are recognised as such).
-      waivers = await approveFrozenWaivers({ dir, change: name, state, actor: input.actor, recordedAt: deps.clock() })
+      waivers = await approveFrozenWaivers({ repoRoot: root, dir, change: name, state, actor: input.actor, recordedAt: deps.clock() })
       await deps.store.writeUnderLock(dir, state, { kind: 'set-many' })
       await clearReviewWaiverSelection(dir).catch(() => undefined)
     },
@@ -180,6 +181,11 @@ async function acknowledgeFromDashboard(input: {
     // Best effort like every post-commit record: the approval itself is already committed.
     await deps.history.append(dir, testAuditEntry('waiver-approve', {
       waivers: waivers.approved.join(','), by: input.actor.id, plan: waivers.digest ?? undefined,
+    }, { ts: deps.clock(), actor: input.actor })).catch(() => undefined)
+  }
+  if (result.ok && waivers.protectedApproved.length > 0) {
+    await deps.history.append(dir, testAuditEntry('protected-approve', {
+      files: waivers.protectedApproved.join(','), by: input.actor.id,
     }, { ts: deps.clock(), actor: input.actor })).catch(() => undefined)
   }
   return { result, waivers }

@@ -373,6 +373,11 @@ export interface CliDeps {
    */
   workspaceFingerprint?: (changeName: string) => Promise<string>
   /**
+   * 自任务起点以来改动的受保护测试配置（目录、基线、已知失败清单、工作流；含删除，带内容摘要）。Omit it in
+   * production: kernel 从 state 与 git 推出；测试装配覆写它来隔离 git。
+   */
+  protectedChanges?: (changeName: string) => Promise<readonly import('@tenon/kernel').ProtectedChange[]>
+  /**
    * 自任务起点以来改动的仓库相对文件（全量登记强制与 changed 范围用）。Omit it in production: kernel
    * 从 state 的 base_branch / created_at 与 git 推出；测试装配覆写它来隔离 git。
    */

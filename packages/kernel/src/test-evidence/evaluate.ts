@@ -18,6 +18,7 @@ import { RUNNING_MARKER_GRACE_MS, type TestRunRecordV1 } from './types.js'
 import { renderPolicyBlockers } from '../test-system/evaluate-v2.js'
 import type { TestPolicyReport } from '../test-system/evaluate-types.js'
 import { evaluateStepTestPolicy } from '../test-system/load.js'
+import type { ProtectedChange } from '../test-system/protected-files.js'
 import { inlineSuiteFromTest } from '../test-system/policy.js'
 import { declaresRecordV2, decodeTestRunRecordV2 } from '../test-system/record-v2-codec.js'
 
@@ -42,6 +43,8 @@ export interface TestEvidenceContext {
    * 的步骤会用到；宿主不提供时跳过未登记文件检查，并在策略报告里留一条提示。
    */
   readonly changedFiles?: () => Promise<readonly string[]>
+  /** diff（相对 change 起点）里的受保护测试配置改动（含删除）；评审门步骤的人工确认判定用，宿主不提供就不检查。 */
+  readonly protectedChanges?: () => Promise<readonly ProtectedChange[]>
 }
 
 export interface TestEvidenceItem {
@@ -288,6 +291,8 @@ export async function evaluateTestEvidence(input: {
       workflowRunId: runId,
       candidate: currentCandidate,
       ...(input.context.changedFiles === undefined ? {} : { changedFiles: input.context.changedFiles }),
+      ...(input.context.protectedChanges === undefined ? {} : { protectedChanges: input.context.protectedChanges }),
+      reviewGated: input.plan.workflow.steps.find((step) => step.id === input.stepId)?.gate === 'review',
       now,
       ...(event === undefined ? {} : { exitEvent: event }),
     })

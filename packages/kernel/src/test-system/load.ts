@@ -18,7 +18,9 @@ import { parseKnownFailures, type KnownFailure } from './known-failures.js'
 import { extractScenarios, extractTaskItems, type OpenSpecScenario, type TaskItem } from './openspec-trace.js'
 import { baselineV2Path, testSystemPaths } from './paths.js'
 import { readTestPlanState } from './plan-ledger.js'
+import type { ProtectedChange } from './protected-files.js'
 import { readRecordChain, type ChainReport } from './record-chain.js'
+import { readTestSeal } from './seal.js'
 import type { StepTestPolicyIR } from '../workflow/ir.js'
 import type { PipelineTodoStageDefinition } from '../workflow/todo-projection.js'
 
@@ -120,6 +122,10 @@ export interface StepTestPolicyLoadInput {
   /** undefined = 宿主没有指纹能力；null = 能力在但取不到。 */
   readonly candidate: () => Promise<string | null | undefined>
   readonly changedFiles?: () => Promise<readonly string[]>
+  /** 本任务 diff 里的受保护配置改动（含删除）；宿主不提供就不检查，抛错则失败关闭。 */
+  readonly protectedChanges?: () => Promise<readonly ProtectedChange[]>
+  /** 本步是评审门：受保护改动的人工确认在这里给。 */
+  readonly reviewGated?: boolean
   readonly now: number
   readonly exitEvent?: string
 }
@@ -145,6 +151,17 @@ export async function evaluateStepTestPolicy(input: StepTestPolicyLoadInput): Pr
       changedFilesError = error instanceof Error ? error.message.slice(0, 200) : '读取失败'
     }
   }
+  const sealed = await readTestSeal(input.repoRoot, input.slug)
+  const reviewGated = input.reviewGated === true
+  let protectedChanges: readonly ProtectedChange[] | undefined
+  let protectedChangesError: string | undefined
+  if (reviewGated && input.protectedChanges !== undefined) {
+    try {
+      protectedChanges = await input.protectedChanges()
+    } catch (error) {
+      protectedChangesError = error instanceof Error ? error.message.slice(0, 200) : '读取失败'
+    }
+  }
   return evaluateTestPolicy({
     change: input.changeName,
     stepId: input.stepId,
@@ -162,5 +179,12 @@ export async function evaluateStepTestPolicy(input: StepTestPolicyLoadInput): Pr
     bindings: { candidate, workflowFingerprint: input.workflowFingerprint, workflowRunId: input.workflowRunId },
     today: new Date(input.now).toISOString().slice(0, 10),
     ...(input.exitEvent === undefined ? {} : { exitEvent: input.exitEvent }),
+    protected: {
+      reviewGated,
+      changes: protectedChanges,
+      ...(protectedChangesError === undefined ? {} : { changesError: protectedChangesError }),
+      seal: sealed.seal,
+      sealState: sealed.state,
+    },
   })
 }

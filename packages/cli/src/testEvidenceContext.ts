@@ -8,7 +8,10 @@
  * 改动文件列表（全量登记强制）是另一回事：生产装配恒提供「自任务起点以来的改动文件」，读取失败时
  * 抛错，kernel 据此阻塞（files-diff-unavailable），绝不降级成「没有改动」。
  */
-import { changedFilesForState, evaluateTestEvidence, isTenonUser, userSlug } from '@tenon/kernel'
+import {
+  changeStartOfFields, changedFilesForState, evaluateTestEvidence, isTenonUser, protectedChangesSinceChangeStart, userSlug,
+  type ProtectedChange,
+} from '@tenon/kernel'
 import type { TestEvidenceContext, TestEvidenceReader } from '@tenon/kernel'
 import type { CliDeps } from './deps.js'
 import { resolveChangeDir } from './paths.js'
@@ -26,6 +29,15 @@ export function changedFilesFor(deps: CliDeps, changeName: string): () => Promis
   }
 }
 
+/** 自任务起点以来改动的受保护测试配置（含删除）；CliDeps.protectedChanges 只供测试装配覆写。 */
+export function protectedChangesFor(deps: CliDeps, changeName: string): () => Promise<readonly ProtectedChange[]> {
+  return async () => {
+    if (deps.protectedChanges !== undefined) return deps.protectedChanges(changeName)
+    const state = await deps.store.read(resolveChangeDir(deps.cwd, changeName))
+    return protectedChangesSinceChangeStart(deps.cwd, changeStartOfFields(state.fields))
+  }
+}
+
 export function testEvidenceContextFor(deps: CliDeps, changeName: string): TestEvidenceContext | undefined {
   const user = deps.user()
   if (!isTenonUser(user)) return undefined
@@ -34,5 +46,6 @@ export function testEvidenceContextFor(deps: CliDeps, changeName: string): TestE
     user: { id: user.id, name: user.name, slug: userSlug(user.id) },
     ...(fingerprint === undefined ? {} : { currentCandidate: () => fingerprint(changeName) }),
     changedFiles: changedFilesFor(deps, changeName),
+    protectedChanges: protectedChangesFor(deps, changeName),
   }
 }

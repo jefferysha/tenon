@@ -12,8 +12,9 @@ import { readTestPlanState, writeTestPlan } from './plan-ledger.js'
 import { emptyTestPlan, type PlanWaiver } from './plan.js'
 import { policyRequiredKinds } from './policy.js'
 import { recordV2Digest } from './record-chain.js'
+import { repoGlob } from './globs.js'
 import type {
-  CaseResultV2, SuiteRunV2, TestRunRecordV2, TestRunRecordV2Draft,
+  ArtifactIndexEntry, CaseResultV2, SuiteRunV2, TestRunRecordV2, TestRunRecordV2Draft,
 } from './record-v2-types.js'
 import type { TestKind } from './vocabulary.js'
 
@@ -72,10 +73,18 @@ export function fixtureCase(overrides: Partial<CaseResultV2> & { readonly file: 
   }
 }
 
+/** 报告在本次运行产物目录里的副本索引项（运行时 collectArtifacts 恒会写它；判定层据此确认报告可信）。 */
+export function fixtureReportCopy(run: Pick<SuiteRunV2, 'suite' | 'cwd' | 'report'>): ArtifactIndexEntry[] {
+  if (run.report.path === null || run.report.digest === null) return []
+  return [{
+    path: `artifacts/${run.suite}/${repoGlob(run.cwd, run.report.path)}`, bytes: 1, digest: run.report.digest, media: 'text',
+  }]
+}
+
 export function fixtureSuiteRun(overrides: Partial<SuiteRunV2> & { readonly suite: string }): SuiteRunV2 {
   const cases = overrides.cases ?? [fixtureCase({ file: 'src/a.test.ts', name: 'works' })]
   const count = (status: CaseResultV2['status']): number => cases.filter((item) => item.status === status).length
-  return {
+  const run: SuiteRunV2 = {
     origin: overrides.suite.startsWith('step:') ? 'step' : 'catalog',
     kind: 'unit',
     runner: 'vitest',
@@ -101,6 +110,7 @@ export function fixtureSuiteRun(overrides: Partial<SuiteRunV2> & { readonly suit
     log: { artifact: 'output.log', bytes_total: 0, bytes_kept: 0, truncated: false, digest: FIXTURE_DIGEST },
     ...overrides,
   }
+  return overrides.artifacts === undefined ? { ...run, artifacts: fixtureReportCopy(run) } : run
 }
 
 let sequence = 0

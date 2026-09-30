@@ -7,7 +7,9 @@
  * 判定本身抛错时不猜「可前进」：每条出边都挂一条 evaluation-error 的 step-exit 阻断。
  */
 import {
+  changeStartOfFields,
   changedFilesForState,
+  protectedChangesSinceChangeStart,
   completedWorkflowSkillsSinceStepEntry,
   evaluateStepExitReport,
   HISTORY_FILE,
@@ -113,7 +115,12 @@ export async function withStepExitReadiness(
       testEvidence: {
         context: input.deps.testContext === undefined
           ? undefined
-          : { ...input.deps.testContext, changedFiles: input.deps.testContext.changedFiles ?? (() => changedFilesForState(input.root, input.state)) },
+          : {
+              ...input.deps.testContext,
+              changedFiles: input.deps.testContext.changedFiles ?? (() => changedFilesForState(input.root, input.state)),
+              protectedChanges: input.deps.testContext.protectedChanges
+                ?? (() => protectedChangesSinceChangeStart(input.root, changeStartOfFields(input.state.fields))),
+            },
       },
       skills: async () => judgeStepSkillsFromHistory({
         resolver: input.deps.skillResolver,

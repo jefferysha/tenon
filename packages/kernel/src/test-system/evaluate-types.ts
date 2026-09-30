@@ -7,6 +7,8 @@ import type { BenchmarkMetricVerdict } from './benchmark.js'
 import type { TestBlocker, TestNotice } from './blockers.js'
 import type { TestCatalog } from './catalog-types.js'
 import type { KnownFailure } from './known-failures.js'
+import type { ProtectedChange } from './protected-files.js'
+import type { SealState, TestSeal } from './seal.js'
 import type { OpenSpecScenario, TaskItem } from './openspec-trace.js'
 import type { TestPlan } from './plan.js'
 import type { InlineSuite } from './policy.js'
@@ -41,6 +43,21 @@ export interface CurrentBindings {
   readonly workflowRunId: string | undefined
 }
 
+/**
+ * 证据来源的输入（R1 / R4）：本任务 diff 里的受保护配置改动，以及本机封存文件（记录链头、Tenon 命令的写入、人工批准）。
+ * 不提供（纯函数单测、没有这两项能力的宿主）就整体跳过这些检查；生产装配（load.ts）恒提供。
+ */
+export interface ProtectedEvidenceInput {
+  /** 本步是评审门：受保护改动的人工确认只能在评审门给出，无门步骤不判（否则没有人可批准）。 */
+  readonly reviewGated: boolean
+  /** undefined = 宿主没有提供读取受保护改动的能力。 */
+  readonly changes: readonly ProtectedChange[] | undefined
+  /** 宿主提供了能力，但这次读取失败（原因）：失败关闭。 */
+  readonly changesError?: string
+  readonly seal: TestSeal
+  readonly sealState: SealState
+}
+
 export interface TestPolicyEvaluationInput {
   readonly change: string
   readonly stepId: string
@@ -65,6 +82,7 @@ export interface TestPolicyEvaluationInput {
   readonly today: string
   /** 离开本步的前进事件；豁免批准的修复命令用。 */
   readonly exitEvent?: string
+  readonly protected?: ProtectedEvidenceInput
 }
 
 export type SuiteState = 'passed' | 'failed' | 'stale' | 'missing' | 'running'

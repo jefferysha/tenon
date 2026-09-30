@@ -18,7 +18,7 @@ import {
   clearReviewMarkerFor, createTaskLifecycleApplication,
   BUILTIN_TRACK_DEFINITIONS, createEffectiveSkillResolver, createFlowEngine, createHistoryWriter, createStateStore,
   createInteractionEventRecorder, createTransitionRecordStore, createWorkflowRunRepository, loadManifest, loadTrackRegistry, loadWorkflow,
-  designSystemPrecondition, fingerprintWorkspace, loadAgentLibrary, loadResourceCatalog, mutateTrackRegistry, readSecrets, registerProjectRoot,
+  candidateFingerprint, designSystemPrecondition, loadAgentLibrary, loadResourceCatalog, mutateTrackRegistry, readSecrets, registerProjectRoot,
   createBuildRevisionToken, probeBuildRevisionIdentity, createOrchestrationLedger,
   type BoardCommandV2, type BoardSnapshotV2, type WorkflowPipelinePlanV2,
   withTrackRegistryLock, resolveTenonUser, type TenonUserResolution, actorOf, isTenonUser, USER_MISSING_HINT,
@@ -295,13 +295,13 @@ async function main(): Promise<void> {
     gitHeadSha: () => gitHeadSha(process.cwd()),
     gitRemotes: () => gitRemoteNames(process.cwd()),
     gitFinishProbe: (change) => probeGitFinish(process.cwd(), change),
-    workspaceFingerprint: () => fingerprintWorkspace(process.cwd()),
+    workspaceFingerprint: () => candidateFingerprint(process.cwd()),
     captureBuildRevision: async (isolation) => {
       const identity = await probeBuildRevisionIdentity(process.cwd())
       if (!identity) throw new Error('build revision identity unavailable')
       const kind = isolation === 'in-place' ? 'workspace' as const : 'git' as const
       const revision = kind === 'workspace'
-        ? await fingerprintWorkspace(process.cwd())
+        ? await candidateFingerprint(process.cwd())
         : await gitHeadSha(process.cwd())
       return createBuildRevisionToken(kind, revision, identity).value
     },

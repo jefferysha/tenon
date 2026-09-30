@@ -8,6 +8,7 @@ import {
 } from './record-chain.js'
 import { declaresRecordV2, decodeTestRunRecordV2 } from './record-v2-codec.js'
 import type { TestRunRecordV2 } from './record-v2-types.js'
+import { readTestSeal } from './seal.js'
 import { fixtureCase, fixtureChain, fixtureRecordDraft, fixtureSuiteRun } from './test-support.js'
 
 const SLUG = 'tester-at-tenon.test'
@@ -149,6 +150,31 @@ describe('追加与读取（真文件系统）', () => {
     expect(await readRecordChain(repo, SLUG, 'demo')).toMatchObject({ state: 'broken', files: ['zz.json'] })
     expect((await listRecordDirectory(join(repo, 'nope'))).records).toEqual([])
     expect((await readdir(dir)).some((name) => name.startsWith('.test-run-v2'))).toBe(false)
+  })
+
+  it('每次追加都把新链头封存；绕开命令补写一条重算过摘要的记录，链仍完好但链头对不上封存，下次追加另起新链取代它', async () => {
+    await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    const second = await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    expect((await readTestSeal(repo, SLUG)).seal.heads.demo).toBe(second.record.digest)
+    const dir = testRunRecordsDir(repo, SLUG, 'demo')
+    const { digest: _digest, ...forgedBody } = {
+      ...second.record,
+      run_id: '20260929T235959Z-ffffff',
+      prev_digest: second.record.digest,
+      suites: [fixtureSuiteRun({ suite: 'e2e', kind: 'playwright', runner: 'playwright' })],
+    }
+    const forged = { ...forgedBody, digest: recordV2Digest(forgedBody as Omit<TestRunRecordV2, 'digest'>) }
+    await writeFile(join(dir, `${forged.run_id}.json`), JSON.stringify(forged, null, 2), 'utf8')
+    const chain = await readRecordChain(repo, SLUG, 'demo')
+    expect(chain.state).toBe('intact')
+    expect(chain.state === 'intact' ? chain.head : '').toBe(forged.digest)
+    expect((await readTestSeal(repo, SLUG)).seal.heads.demo).not.toBe(forged.digest)
+    const next = await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    expect(next.chain).toBe('reset')
+    expect(next.record.chain_reset?.superseded).toContain(`${forged.run_id}.json`)
+    const after = await readRecordChain(repo, SLUG, 'demo')
+    expect(after.state === 'intact' ? after.active.map((record) => record.run_id) : []).toEqual([next.record.run_id])
+    expect((await readTestSeal(repo, SLUG)).seal.heads.demo).toBe(next.record.digest)
   })
 
   it('同 run-id 不覆盖；形状非法拒绝写入', async () => {

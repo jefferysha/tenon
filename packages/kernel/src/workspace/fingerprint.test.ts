@@ -62,7 +62,6 @@ describe('fingerprintWorkspace', () => {
     await mkdir(join(root, '.worktrees', 'verify-copy'), { recursive: true })
     await mkdir(join(root, 'node_modules', 'fixture'), { recursive: true })
     await mkdir(join(root, 'packages', 'web', 'node_modules', '.vite', 'vitest'), { recursive: true })
-    await mkdir(join(root, 'coverage'), { recursive: true })
     await mkdir(join(root, '.playwright-mcp', 'runs'), { recursive: true })
     await mkdir(join(root, '.playwright-tmp', 'shots'), { recursive: true })
     await mkdir(join(root, 'e2e-runs', 'simple'), { recursive: true })
@@ -78,7 +77,6 @@ describe('fingerprintWorkspace', () => {
     await writeFile(join(root, '.worktrees', 'verify-copy', 'receipt.log'), 'temporary worktree\n')
     await writeFile(join(root, 'node_modules', 'fixture', 'index.js'), 'ignored\n')
     await writeFile(join(root, 'packages', 'web', 'node_modules', '.vite', 'vitest', 'results.json'), '{}\n')
-    await writeFile(join(root, 'coverage', 'coverage-final.json'), '{}\n')
     await writeFile(join(root, '.playwright-mcp', 'runs', 'network.json'), '{}\n')
     await writeFile(join(root, '.playwright-tmp', 'shots', 'acceptance.png'), 'ignored\n')
     await writeFile(join(root, 'e2e-runs', 'simple', 'screenshot.png'), 'ignored\n')
@@ -115,16 +113,55 @@ describe('fingerprintWorkspace', () => {
     expect(await fingerprintWorkspace(root)).not.toBe(first)
   })
 
-  test('声明式测试输出目录段全部属于工作区指纹排除段，产出报告不会动候选版本', async () => {
+  test('未声明的 coverage / test-results / playwright-report / .cache 目录属于候选：任意层级都不再整体忽略', async () => {
     const root = await freshWorkspace()
     await mkdir(join(root, 'frontend'))
     await writeFile(join(root, 'frontend', 'src.ts'), 'export const a = 1\n')
     const first = await fingerprintWorkspace(root)
-    for (const segment of TEST_OUTPUT_DIR_SEGMENTS) {
+    for (const segment of [...TEST_OUTPUT_DIR_SEGMENTS, '.cache']) {
+      const before = await fingerprintWorkspace(root)
       await mkdir(join(root, 'frontend', segment), { recursive: true })
-      await writeFile(join(root, 'frontend', segment, 'report.xml'), '<testsuite/>\n')
+      await writeFile(join(root, 'frontend', segment, 'payload.js'), 'export const smuggled = true\n')
+      expect(await fingerprintWorkspace(root), `${segment} 里的未声明文件必须动候选`).not.toBe(before)
     }
-    expect(await fingerprintWorkspace(root)).toBe(first)
+    expect(await fingerprintWorkspace(root)).not.toBe(first)
+  })
+
+  test('只忽略声明的产物路径：声明的文件与目录不动候选，同目录下未声明的文件仍动候选', async () => {
+    const root = await freshWorkspace()
+    await mkdir(join(root, 'frontend', 'src'), { recursive: true })
+    await writeFile(join(root, 'frontend', 'src', 'app.ts'), 'export const a = 1\n')
+    const declaredOutputs = ['frontend/test-results/report.xml', 'frontend/coverage', 'playwright-report']
+    const first = await fingerprintWorkspace(root, { declaredOutputs })
+    // 第一次产出报告才新建 test-results/ 与 coverage/：只装着声明产物的外壳目录不动候选。
+    await mkdir(join(root, 'frontend', 'test-results'), { recursive: true })
+    await writeFile(join(root, 'frontend', 'test-results', 'report.xml'), '<testsuite/>\n')
+    await mkdir(join(root, 'frontend', 'coverage', 'lcov-report'), { recursive: true })
+    await writeFile(join(root, 'frontend', 'coverage', 'lcov-report', 'index.html'), '<html/>\n')
+    await mkdir(join(root, 'playwright-report', 'data'), { recursive: true })
+    await writeFile(join(root, 'playwright-report', 'data', 'trace.zip'), 'zip\n')
+    expect(await fingerprintWorkspace(root, { declaredOutputs })).toBe(first)
+    // 不带声明时同一棵树是另一个候选。
+    expect(await fingerprintWorkspace(root)).not.toBe(await fingerprintWorkspace(root, { declaredOutputs }))
+    // 声明的是 report.xml，同目录的别的文件不在声明里。
+    await writeFile(join(root, 'frontend', 'test-results', 'notes.txt'), 'not declared\n')
+    expect(await fingerprintWorkspace(root, { declaredOutputs })).not.toBe(first)
+    // 声明不是通配：另一个包里的 coverage/ 不受影响。
+    const withNotes = await fingerprintWorkspace(root, { declaredOutputs })
+    await mkdir(join(root, 'other', 'coverage'), { recursive: true })
+    await writeFile(join(root, 'other', 'coverage', 'x.js'), 'export {}\n')
+    expect(await fingerprintWorkspace(root, { declaredOutputs })).not.toBe(withNotes)
+  })
+
+  test('声明里的绝对路径、.. 段与反斜杠被忽略，不能借声明把源码排除出候选', async () => {
+    const root = await freshWorkspace()
+    await mkdir(join(root, 'src'), { recursive: true })
+    await writeFile(join(root, 'src', 'app.ts'), 'export const a = 1\n')
+    const first = await fingerprintWorkspace(root)
+    const hostile = ['/src', '../src', 'src/../src', 'a\\b', '', '.']
+    expect(await fingerprintWorkspace(root, { declaredOutputs: hostile })).toBe(first)
+    await writeFile(join(root, 'src', 'app.ts'), 'export const a = 2\n')
+    expect(await fingerprintWorkspace(root, { declaredOutputs: hostile })).not.toBe(first)
   })
 
   // 服务端把已注册的项目根按打开的目录句柄读取。Linux 上那是 /proc/self/fd/<n>，叶子是符号链接，lstat 只看到链接本身；

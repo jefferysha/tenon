@@ -14,7 +14,7 @@ import type { ReportFormat, RunScope, TestKind, TestRunner } from './vocabulary.
 export const TEST_RUN_V2_SCHEMA = 'tenon-test-run-v2'
 
 export const SUITE_REASON_CODES = [
-  'test-failed', 'no-tests-ran', 'report-missing', 'report-unreadable', 'exit-report-mismatch',
+  'test-failed', 'no-tests-ran', 'report-missing', 'report-unreadable', 'report-untrusted', 'exit-report-mismatch',
   'registered-test-not-executed', 'coverage-below', 'coverage-unreadable', 'benchmark-regression',
   'baseline-missing', 'flaky-over-limit', 'browser-project-missing', 'service-not-ready',
   'exit-code', 'command-not-found', 'not-executable', 'spawn-error', 'cwd-invalid', 'timeout', 'interrupted',

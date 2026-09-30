@@ -25,6 +25,7 @@ import { classifyTestRun, SANDBOX_ESCALATION_HINT } from '../test-runner/classif
 import { GRACE_MS, LOG_TAIL_BYTES, MAX_LOG_BYTES, runTestProcess } from '../test-runner/process.js'
 import { unconfiguredMessage, unconfiguredNpmScript } from '../test-runner/npmScript.js'
 import { declaredTestIds, locateTest, resolveTestCommand, type TestCommandContext } from './test-context.js'
+import { ensureTrusted, stepTestsTrustTarget } from './test-trust.js'
 
 const FAILURE_TAIL_CHARS = 4096
 
@@ -96,6 +97,9 @@ export async function cmdTestRun(
     deps.io.err(`ERROR: ${unconfiguredMessage(test.id, test.command, gap)}`)
     return 1
   }
+  // 步骤测试命令来自项目工作流：首次执行前需要用户在本机确认（R6）。
+  const trustTarget = stepTestsTrustTarget(context.plan)
+  if (trustTarget !== undefined && !(await ensureTrusted(deps, context.slug, trustTarget, change))) return 1
   const runId = newRunId(deps.clock())
   const paths = await ensureTestEvidenceDirs(deps.cwd, context.slug, change, runId)
   const markerPath = testRunningMarkerPath(deps.cwd, context.slug, change, test.id)

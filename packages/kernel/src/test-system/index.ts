@@ -26,8 +26,8 @@ export type {
   CatalogServiceReady, CatalogSuite, TestCatalog,
 } from './catalog-types.js'
 export {
-  TEST_CATALOG_FILE_LABEL, catalogDigest, catalogSuite, catalogSuitesDigest, formatCatalogIssues, parseTestCatalog,
-  serializeTestCatalog, suiteCoverGlobs, suiteFileGlobs,
+  TEST_CATALOG_FILE_LABEL, catalogDigest, catalogExecDigest, catalogSuite, catalogSuitesDigest, formatCatalogIssues,
+  parseTestCatalog, serializeTestCatalog, stepTestsExecDigest, suiteCoverGlobs, suiteFileGlobs,
 } from './catalog.js'
 export type { CatalogParseResult } from './catalog.js'
 export {
@@ -49,7 +49,9 @@ export {
   REVIEW_WAIVERS_FILE, approveFrozenWaivers, boundReviewWaiverSelection, clearReviewWaiverSelection,
   readReviewWaiverSelection, writeReviewWaiverSelection,
 } from './review-waivers.js'
-export type { ReviewWaiverSelection, WaiverApprovalOutcome } from './review-waivers.js'
+export type {
+  FrozenProtectedChange, ProtectedSkipReason, ReviewWaiverSelection, WaiverApprovalOutcome,
+} from './review-waivers.js'
 export type { PlanUpdate, PlanWriteMeta, PlanWriteResult, TestPlanLedger, TestPlanState } from './plan-ledger.js'
 export { appendTestAudit, formatAuditDetail, testAuditEntry, testAuditRaw } from './audit.js'
 export {
@@ -63,8 +65,8 @@ export {
 } from './paths.js'
 export type { TestSystemPaths } from './paths.js'
 export {
-  KNOWN_FAILURES_SCHEMA, classifyAgainstKnownFailures, findKnownFailure, knownFailureExpired, parseKnownFailures,
-  serializeKnownFailures,
+  KNOWN_FAILURE_MAX_DAYS, KNOWN_FAILURES_SCHEMA, classifyAgainstKnownFailures, findKnownFailure, knownFailureExpired,
+  knownFailureTooLong, latestKnownFailureExpiry, parseKnownFailures, serializeKnownFailures,
 } from './known-failures.js'
 export type { KnownFailure, KnownFailureVerdict, KnownFailuresParseResult } from './known-failures.js'
 export { machineProfile, memoryTierGiB, readMachineProfileInput } from './machine-profile.js'
@@ -104,16 +106,30 @@ export {
   inlineSuiteFromTest, inlineSuiteId, policyRequiredKinds, stepTestRequirements, testPolicyDigest,
 } from './policy.js'
 export type { InlineSuite, StepTestRequirements } from './policy.js'
-export { STALE_WORDS, evaluateSuiteResult, latestSuiteRuns, planFilesOfSuite, staleBindings } from './evaluate-suite.js'
+export {
+  STALE_WORDS, evaluateSuiteResult, latestSuiteRuns, planFilesOfSuite, reportCopyProblem, staleBindings,
+} from './evaluate-suite.js'
 export type { FreshnessContext, SuiteResultContext, SuiteResultEvaluation, SuiteRunRef } from './evaluate-suite.js'
 export { evaluateTrace } from './evaluate-trace.js'
 export { evaluateTestPolicy, renderPolicyBlockers } from './evaluate-v2.js'
 export { baselineKey } from './evaluate-types.js'
 export type {
-  CatalogInput, CurrentBindings, InlineSuiteStatus, PlanInput, StaleBinding, SuiteState, SuiteVerdict,
-  TestPolicyEvaluationInput, TestPolicyReport, TraceRow, TraceTest, TraceTestStatus,
+  CatalogInput, CurrentBindings, InlineSuiteStatus, PlanInput, ProtectedEvidenceInput, StaleBinding, SuiteState,
+  SuiteVerdict, TestPolicyEvaluationInput, TestPolicyReport, TraceRow, TraceTest, TraceTestStatus,
 } from './evaluate-types.js'
 export {
   evaluateStepTestPolicy, loadCatalogInput, loadDeltaScenarios, loadKnownFailures, loadTaskItems,
 } from './load.js'
 export type { StepTestPolicyLoadInput } from './load.js'
+export {
+  DELETED_DIGEST, PROTECTED_PATHSPECS, isSealedSharedFile, protectedChangeLine, protectedChangesSinceChangeStart,
+  protectedFileBlockers, protectedFileDigest, protectedKindOf, protectedOrigin, readProtectedChanges,
+} from './protected-files.js'
+export type { ProtectedChange, ProtectedKind, ProtectedOrigin } from './protected-files.js'
+export {
+  EMPTY_TEST_SEAL, TEST_SEAL_FILE, TEST_SEAL_SCHEMA, isApproved, isTrusted, readTestSeal, sealRecordHead, sealSharedWrite,
+  testSealPath, updateTestSeal,
+} from './seal.js'
+export type { SealApproval, SealRead, SealState, SealTrust, SealWrite, TestSeal } from './seal.js'
+export { describeProtectedChange } from './protected-summary.js'
+export { candidateFingerprint, catalogDeclaredOutputs, declaredTestOutputs, inlineTestDeclaredOutputs } from './candidate.js'

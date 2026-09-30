@@ -95,6 +95,46 @@ export async function changedFilesSinceChangeStart(repoRoot: string, input: Chan
   return [...new Set([...nulList(tracked), ...await untrackedFiles(repoRoot)])].sort()
 }
 
+export type PathChangeStatus = 'added' | 'modified' | 'deleted'
+
+export interface PathChange {
+  readonly path: string
+  readonly status: PathChangeStatus
+}
+
+/**
+ * 只看给定 pathspec 的「自任务起点以来的改动」，含删除（changedFilesSinceChangeStart 只列新增 / 修改）。
+ * 受保护的测试配置（目录、基线、已知失败清单、工作流）用它：删掉一个已知失败或一份基线同样是需要人看的改动。
+ * pathspec 限定了 git 的工作量，所以比全量 diff 便宜得多；读不出照样抛 ChangedFilesUnavailableError。
+ */
+export async function pathChangesSinceChangeStart(
+  repoRoot: string,
+  input: ChangeStartInput,
+  pathspecs: readonly string[],
+): Promise<readonly PathChange[]> {
+  const start = await resolveChangeStart(repoRoot, input)
+  const tracked = await git(repoRoot, ['diff', '--name-status', '--no-renames', '-z', start, '--', ...pathspecs])
+  if (tracked === undefined) throw new ChangedFilesUnavailableError('git diff 失败')
+  const out = new Map<string, PathChangeStatus>()
+  const tokens = nulList(tracked)
+  for (let index = 0; index + 1 < tokens.length; index += 2) {
+    const letter = tokens[index]?.[0]
+    const path = tokens[index + 1]
+    if (path === undefined) continue
+    out.set(path, letter === 'D' ? 'deleted' : letter === 'A' ? 'added' : 'modified')
+  }
+  const untracked = await git(repoRoot, ['ls-files', '--others', '--exclude-standard', '-z', '--', ...pathspecs])
+  if (untracked === undefined) throw new ChangedFilesUnavailableError('git ls-files 失败')
+  for (const path of nulList(untracked)) if (!out.has(path)) out.set(path, 'added')
+  return [...out].map(([path, status]) => ({ path, status })).sort((left, right) => (left.path < right.path ? -1 : left.path > right.path ? 1 : 0))
+}
+
+/** 起点提交（或空树）时该路径的文件内容；起点不存在该文件返回 undefined。 */
+export async function fileAtChangeStart(repoRoot: string, input: ChangeStartInput, path: string): Promise<string | undefined> {
+  const start = await resolveChangeStart(repoRoot, input)
+  return git(repoRoot, ['show', `${start}:${path}`])
+}
+
 const HUNK = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/
 
 /** unified=0 的 diff 文本 → 仓库相对路径 → 新增 / 修改的行号。 */

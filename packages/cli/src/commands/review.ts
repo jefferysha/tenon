@@ -23,7 +23,7 @@ import {
   INTERACTION_PROJECTION_WRITE_FAILED,
   assertOwner,
 } from '@tenon/kernel'
-import type { PendingWaiver, PipelineState } from '@tenon/kernel'
+import type { PipelineState } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName, resolveChangeDir } from '../paths.js'
 import { requireActor } from '../userIdentity.js'
@@ -38,7 +38,7 @@ import {
   writeReviewMarker,
 } from './review-binding.js'
 import { cmdReviewAcknowledge } from './review-acknowledge.js'
-import { freezePendingWaivers, waiverLines } from './review-waivers.js'
+import { freezePendingWaivers, reviewItemLines, type PendingReviewItems } from './review-waivers.js'
 import { resolveReviewEvent as resolveReviewEventFromStep } from './review-event.js'
 
 type ReviewStep = {
@@ -187,7 +187,8 @@ export async function cmdReview(
         requestedAt: string
         alreadyPending: boolean
         replacedReceipt: boolean
-        waivers: readonly PendingWaiver[]
+        items: PendingReviewItems
+        state: PipelineState
       } | undefined
       await deps.store.withLock(dir, async () => {
         const state = await deps.store.read(dir)
@@ -217,7 +218,8 @@ export async function cmdReview(
             requestedAt: pendingAt,
             alreadyPending: true,
             replacedReceipt: false,
-            waivers: await freezePendingWaivers(dir, name, { phase: step.phase, event, requestedAt: pendingAt }),
+            items: await freezePendingWaivers(deps, dir, name, actor.id, { phase: step.phase, event, requestedAt: pendingAt }),
+            state,
           }
           if (interaction !== undefined && beforeRevision !== undefined) {
             try {
@@ -274,7 +276,8 @@ export async function cmdReview(
           // Replacing a different/legacy receipt can only revoke a prior decision; it always
           // creates a fresh pending request and therefore never grants the new event permission.
           replacedReceipt: existingStatus !== null,
-          waivers: await freezePendingWaivers(dir, name, { phase: step.phase, event, requestedAt }),
+          items: await freezePendingWaivers(deps, dir, name, actor.id, { phase: step.phase, event, requestedAt }),
+          state: requestedState,
         }
       })
       if (!requested) throw new Error('review request 未产生 receipt')
@@ -290,7 +293,7 @@ export async function cmdReview(
         `[REVIEW] ${name} phase=${requested.phase} event=${requested.event} ` +
         `${requested.alreadyPending ? '仍待确认' : '已请求人工确认'}`,
       )
-      for (const line of waiverLines(requested.waivers)) deps.io.out(line)
+      for (const line of await reviewItemLines(deps, requested.state, requested.items)) deps.io.out(line)
       return markerOk ? 0 : 2
     }
     return await cmdReviewAcknowledge(deps, name, dir, opts)

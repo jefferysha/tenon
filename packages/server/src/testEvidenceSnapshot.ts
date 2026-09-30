@@ -5,7 +5,7 @@
  */
 import {
   corruptTestRunFiles, evaluateTestEvidence, userSlug,
-  type EffectiveWorkflowPlan, type TenonUser,
+  type EffectiveWorkflowPlan, type ProtectedChange, type TenonUser,
 } from '@tenon/kernel'
 import type { TestItemSnapshot, TestStepSnapshot } from './types.js'
 import { policyReportDto } from './testPolicyDto.js'
@@ -24,6 +24,8 @@ export async function projectTestEvidence(input: {
   readonly candidate?: () => Promise<string | undefined>
   /** 自任务起点以来的改动文件（与 CLI / 转换同源）；只在策略要求 `files: registered` 时才被调用，读不到时判定以 files-diff-unavailable 阻塞。 */
   readonly changedFiles?: () => Promise<readonly string[]>
+  /** 自任务起点以来改动的受保护测试配置（评审门步骤的人工确认判定用；读不到时判定以 files-diff-unavailable 阻塞）。 */
+  readonly protectedChanges?: () => Promise<readonly ProtectedChange[]>
 }): Promise<{
   readonly tests?: TestStepSnapshot[]
   readonly testPolicy?: PolicyReportDto[]
@@ -47,6 +49,7 @@ export async function projectTestEvidence(input: {
           },
         }),
         ...(input.changedFiles === undefined ? {} : { changedFiles: input.changedFiles }),
+        ...(input.protectedChanges === undefined ? {} : { protectedChanges: input.protectedChanges }),
       }
   const tests: TestStepSnapshot[] = []
   const policies: PolicyReportDto[] = []

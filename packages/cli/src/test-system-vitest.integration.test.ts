@@ -234,7 +234,7 @@ describe('测试体系 v2 · vitest 工程', () => {
     expect(await tenon('test', 'run', 'demo', '--suite', 'unit')).toBe(2)
     expect(out()).toContain('src/broken.test.ts › known bug')
 
-    expect(await tenon('test', 'known', 'add', '--suite', 'unit', '--test', 'src/broken.test.ts › known bug', '--reason', '等上游修复', '--expires', '2026-12-31', '--link', 'https://example.com/issues/12'), err()).toBe(0)
+    expect(await tenon('test', 'known', 'add', '--suite', 'unit', '--test', 'src/broken.test.ts › known bug', '--reason', '等上游修复', '--expires', '2026-07-20', '--link', 'https://example.com/issues/12'), err()).toBe(0)
     expect(await tenon('test', 'run', 'demo', '--suite', 'unit'), `${out()}\n${err()}`).toBe(0)
     let record = await lastRecord()
     expect(record.suites[0]?.totals).toMatchObject({ fail: 0, known_fail: 1 })

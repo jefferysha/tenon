@@ -9,12 +9,14 @@ export const TEST_BLOCKER_CODES = [
   'report-unreadable', 'exit-report-mismatch', 'registered-test-not-executed', 'coverage-below',
   'benchmark-regression', 'baseline-missing', 'flaky-over-limit', 'browser-project-missing', 'scenario-uncovered',
   'scenario-failing', 'service-not-ready', 'record-chain-broken', 'waiver-unapproved',
+  'protected-file-unapproved', 'protected-file-tampered', 'record-unsealed', 'report-untrusted',
 ] as const
 export type TestBlockerCode = (typeof TEST_BLOCKER_CODES)[number]
 
 /** 不属于阻塞集的提示：已知失败已修好 / 已过期、基准噪声大、映射指向不存在的场景、未能检查 diff。 */
 export const TEST_NOTICE_CODES = [
-  'known-failure-fixed', 'known-failure-expired', 'benchmark-noisy', 'trace-mapping-stale', 'files-unchecked',
+  'known-failure-fixed', 'known-failure-expired', 'known-failure-too-long', 'benchmark-noisy', 'trace-mapping-stale',
+  'files-unchecked',
 ] as const
 export type TestNoticeCode = (typeof TEST_NOTICE_CODES)[number]
 
@@ -49,11 +51,16 @@ export const TEST_BLOCKER_LABELS: Readonly<Record<TestBlockerCode, ShortLabel>> 
   'service-not-ready': { zh: '服务未就绪', en: 'Service not ready' },
   'record-chain-broken': { zh: '记录被改动', en: 'Records tampered' },
   'waiver-unapproved': { zh: '豁免未批准', en: 'Waiver unapproved' },
+  'protected-file-unapproved': { zh: '配置改动待确认', en: 'Config change unapproved' },
+  'protected-file-tampered': { zh: '台账外改动', en: 'Changed outside Tenon' },
+  'record-unsealed': { zh: '记录来源不明', en: 'Records unsealed' },
+  'report-untrusted': { zh: '报告不可信', en: 'Report untrusted' },
 }
 
 export const TEST_NOTICE_LABELS: Readonly<Record<TestNoticeCode, ShortLabel>> = {
   'known-failure-fixed': { zh: '已修好', en: 'Fixed' },
   'known-failure-expired': { zh: '已知失败过期', en: 'Known failure expired' },
+  'known-failure-too-long': { zh: '已知失败期限过长', en: 'Known failure too long' },
   'benchmark-noisy': { zh: '基准波动大', en: 'Noisy benchmark' },
   'trace-mapping-stale': { zh: '映射失效', en: 'Stale mapping' },
   'files-unchecked': { zh: '未检查文件', en: 'Files unchecked' },

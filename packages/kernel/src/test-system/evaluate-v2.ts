@@ -21,6 +21,7 @@ import type {
 import { planCatalogProblems, type TestPlan } from './plan.js'
 import { testPlanApprovalFreeDigest } from './plan-waivers.js'
 import { policyRequiredKinds, testPolicyDigest } from './policy.js'
+import { protectedFileBlockers } from './protected-files.js'
 import { testFileRegistration, type UnregisteredTestFile } from './test-files.js'
 import type { TestKind } from './vocabulary.js'
 
@@ -257,6 +258,35 @@ function checkAggregates(
   }
 }
 
+/**
+ * 记录链头必须是 Tenon 命令写出的那个（封存文件里的链头）。不等 = 有人绕开 `tenon test run` 写了或重写了记录：
+ * 这些记录一律不算证据，也没有人工批准的出口——重跑 `tenon test run` 生成带封存的记录。
+ */
+function recordsUnsealed(input: TestPolicyEvaluationInput): boolean {
+  const evidence = input.protected
+  return evidence !== undefined && input.chain.state === 'intact' && evidence.seal.heads[input.change] !== input.chain.head
+}
+
+function checkProtected(input: TestPolicyEvaluationInput, reviewFix: string, out: Collector): void {
+  const evidence = input.protected
+  if (evidence === undefined) return
+  if (recordsUnsealed(input)) {
+    const why = evidence.sealState === 'invalid'
+      ? '本机封存文件损坏或被改动'
+      : '这些记录的链头不是本机 tenon test run 写下的（记录被绕开命令写入，或来自别的机器）'
+    out.blockers.push(testBlocker('record-unsealed', `测试记录来源不明：${why}，本任务的 v2 记录全部视为未运行`, { fix: `tenon test run ${input.change} --stage` }))
+  }
+  if (!evidence.reviewGated) return
+  if (evidence.changesError !== undefined) {
+    out.blockers.push(testBlocker('files-diff-unavailable', `无法读取本任务对测试配置（目录、基线、已知失败清单、工作流）的改动（${evidence.changesError}），不能确认它们已经过人工确认`, {
+      fix: reviewFix,
+    }))
+    return
+  }
+  if (evidence.changes === undefined) return
+  out.blockers.push(...protectedFileBlockers({ change: input.change, changes: evidence.changes, seal: evidence.seal, reviewFix }))
+}
+
 export function evaluateTestPolicy(input: TestPolicyEvaluationInput): TestPolicyReport {
   const out: Collector = { blockers: [], notices: [] }
   const reviewFix = `tenon review request ${input.change}${input.exitEvent === undefined ? '' : ` --event ${input.exitEvent}`}`
@@ -264,14 +294,16 @@ export function evaluateTestPolicy(input: TestPolicyEvaluationInput): TestPolicy
   const plan = input.plan.state === 'ok' ? input.plan.plan : undefined
   if (plan !== undefined) checkKinds(input, plan, reviewFix, out)
   const files = checkFiles(input, plan, out)
-  const chainBroken = input.chain.state === 'broken'
+  checkProtected(input, reviewFix, out)
+  const unsealed = recordsUnsealed(input)
+  const chainBroken = input.chain.state === 'broken' || unsealed
   if (input.chain.state === 'broken') {
     out.blockers.push(testBlocker('record-chain-broken', `测试记录被改动（${input.chain.reason}：${input.chain.files.slice(0, 3).join('、')}），本任务的 v2 记录全部视为未运行`, {
       fix: `tenon test run ${input.change} --stage`,
     }))
   }
   const runId = input.bindings.workflowRunId
-  const records = input.chain.state === 'intact' && runId !== undefined
+  const records = input.chain.state === 'intact' && !unsealed && runId !== undefined
     ? input.chain.active.filter((record) => record.workflow_run_id === runId)
     : []
   const latest = latestSuiteRuns(records)
