@@ -327,7 +327,7 @@ tenon document read <change> <kind|all>
 tenon document status <change> [--json]
 tenon artifact register <change> <field> <path> --producer <skill-id>
 tenon review request <change> --event <event>
-tenon review acknowledge <change> [--delegated]
+tenon review acknowledge <change> [--delegated] [--as reviewer]
 tenon agent next <change> [--json]
 tenon agent prompt <change> <agent> [--host <id>] [--json]
 tenon agent record <change> <run-id> [--subagent <type>] [--json]
@@ -352,6 +352,12 @@ commands register agents in the terminal; see [Agents](agents.md). A reviewer ne
 verdict: Tenon derives pass or fail from the finding severities and the step's
 `block_at`. Human `review request/acknowledge` remains a separate exact-event
 confirmation boundary and may be combined with reviewers.
+
+Who may confirm a review: the task owner, like every other write on the task (`transition`, `set`,
+`review request`). Someone else reviewing the owner's work says so explicitly with
+`review acknowledge <change> --as reviewer`; the confirmation is then recorded in the change history with
+`as=reviewer owner=<id>`. Without the flag a non-owner is refused and nothing is written; the alternative is
+`tenon owner take <change>`, which moves ownership. The Dashboard's Approve is confirmed by the top-bar user.
 
 `review acknowledge` exit codes: `0` approved, replayed, or approved with a
 review-marker cleanup warning; `2` no matching pending review (missing, already

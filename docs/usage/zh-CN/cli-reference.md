@@ -118,9 +118,15 @@ workflow token 始终保持英文。冲突策略使用 `--strategy skip|overwrit
 tenon review request <change> --event <event>
 tenon review acknowledge <change>
 tenon review acknowledge <change> --delegated
+tenon review acknowledge <change> --as reviewer
 ```
 
 delegated 需要 Change 绑定的持续授权，且不能跳过 check。
+
+谁能确认评审：任务负责人，与任务上其余写操作（`transition`、`set`、`review request`）一致。负责人之外的人评审
+负责人的工作，要显式写 `review acknowledge <change> --as reviewer`；这次确认会在 change 历史里记
+`as=reviewer owner=<id>`。不带该标志的非负责人被拒绝、不写任何东西；另一条路是 `tenon owner take <change>`，
+它会转移负责人。Dashboard 的「通过」由顶栏用户确认。
 
 `review acknowledge` 退出码：`0` 已确认、重复确认或确认成功但 review marker 清理告警；`2` 没有匹配的待确认
 review（缺失、已被消费、binding 失效或 event 已不是 workflow 出口）；`3` revision 冲突（仅 Dashboard CAS

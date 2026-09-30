@@ -1,6 +1,6 @@
 import { readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createStateStore, createTransitionRecordStore } from '@tenon/kernel'
 import { freshHarness, type Harness } from './integration-harness.js'
 
@@ -9,6 +9,7 @@ const B = { TENON_USER: 'b@x.io', TENON_USER_NAME: 'B' }
 const cleanups: string[] = []
 
 afterEach(async () => {
+  vi.unstubAllEnvs()
   for (const dir of cleanups.splice(0)) await rm(dir, { recursive: true, force: true })
 })
 
@@ -17,6 +18,20 @@ async function owned(): Promise<Harness> {
   cleanups.push(h.cwd)
   expect(await h.run(['init', 'x', '--track', 'backend', '--preset', 'full'], { env: A })).toBe(0)
   await h.seedGovernedDocumentEvidence('x')
+  return h
+}
+
+/** A owns x; it has left Open and A has asked for the Explore review (the first review gate of the default flow). */
+async function exploreReviewRequested(): Promise<Harness> {
+  // The harness helpers that run a step's tests and agents take no per-call identity: they run as the process user.
+  vi.stubEnv('TENON_USER', A.TENON_USER)
+  vi.stubEnv('TENON_USER_NAME', A.TENON_USER_NAME)
+  const h = await owned()
+  expect(await h.run(['transition', 'x', 'open-complete'], { env: A }), h.err.join('\n')).toBe(0)
+  await h.seedArtifact('x', 'design_doc', 'openspec/changes/x/design.md')
+  await h.satisfyStepTests('x', 'explore')
+  await h.satisfyStepAgents('x')
+  expect(await h.run(['review', 'request', 'x', '--event', 'explore-complete'], { env: A }), h.err.join('\n')).toBe(0)
   return h
 }
 
@@ -67,6 +82,42 @@ describe('owner rule across two declared users', () => {
 
     expect(await h.run(['transition', 'x', 'explore-complete'], { env: A })).toBe(1)
     expect(h.err.join('\n')).toContain('任务 x 的负责人是 B <b@x.io>')
+  })
+
+  it('review acknowledge: only the owner confirms; a non-owner reviewer must say --as reviewer (F16)', async () => {
+    const h = await exploreReviewRequested()
+
+    // B is not the owner: refused with the rule and both ways forward, and the receipt stays pending.
+    expect(await h.run(['review', 'acknowledge', 'x'], { env: B })).toBe(1)
+    const refusal = h.err.join('\n')
+    expect(refusal).toContain('任务 x 的负责人是 A <a@x.io>')
+    expect(refusal).toContain('--as reviewer')
+    expect(refusal).toContain('tenon owner take x')
+    expect(await h.read('x')).toMatch(/^review_gate_status: pending$/m)
+    expect(await history(h)).not.toContain('review:acknowledge')
+
+    // Only the documented role is accepted, and it never replaces the delegated authority check.
+    expect(await h.run(['review', 'acknowledge', 'x', '--as', 'owner'], { env: B })).toBe(1)
+    expect(h.err.join('\n')).toContain('--as 只支持 reviewer')
+
+    // Explicit reviewer role: confirmed, and the history row says who confirmed and in which role.
+    expect(await h.run(['review', 'acknowledge', 'x', '--as', 'reviewer'], { env: B }), h.err.join('\n')).toBe(0)
+    expect(h.out.join('\n')).toContain('评审人 B <b@x.io>')
+    expect(await h.read('x')).toMatch(/^review_gate_status: approved$/m)
+    const ack = (await history(h)).trim().split('\n').map((line) => JSON.parse(line) as Record<string, unknown>)
+      .find((row) => typeof row.raw === 'string' && row.raw.startsWith('review:acknowledge'))
+    expect(ack).toMatchObject({ actor: { id: 'b@x.io' } })
+    expect(String(ack?.raw)).toContain('as=reviewer')
+    expect(String(ack?.raw)).toContain('owner=a@x.io')
+
+    // The owner advances on the confirmation given by the reviewer.
+    expect(await h.run(['transition', 'x', 'explore-complete'], { env: A }), h.err.join('\n')).toBe(0)
+  })
+
+  it('review acknowledge by the owner needs no flag and records no role', async () => {
+    const h = await exploreReviewRequested()
+    expect(await h.run(['review', 'acknowledge', 'x'], { env: A }), h.err.join('\n')).toBe(0)
+    expect(await history(h)).not.toContain('as=reviewer')
   })
 
   it('assignee is not a generic field; hand-over is owner-only; missing identity is refused', async () => {
