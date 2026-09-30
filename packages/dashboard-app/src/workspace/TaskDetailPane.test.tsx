@@ -273,7 +273,8 @@ describe('TaskDetailPane · 编排画布与运行状态', () => {
       .map((id) => within(canvas).getByTestId(`orch-node-${id}`))
     expect(states.map((node) => node.getAttribute('data-status'))).toEqual(['done', 'running', 'failed', 'waiting'])
     expect(states.map((node) => within(node).getByTestId('orch-status').textContent)).toEqual(['完成', '运行中', '失败', '等待'])
-    expect(canvas).toHaveAttribute('data-pulse', 'loop')
+    // 有条目在运行：运行流（只走未完成的线）。
+    expect(canvas).toHaveAttribute('data-signal', 'running')
   })
 
   it('总览页：整条工作流一张画布，当前阶段高亮；点列头回到阶段页并选中该阶段', async () => {
@@ -289,6 +290,36 @@ describe('TaskDetailPane · 编排画布与运行状态', () => {
     await userEvent.click(within(overview).getByTestId('orch-stage-verify'))
     expect(screen.getByTestId('stage-rail-verify')).toHaveAttribute('aria-pressed', 'true')
     expect(within(screen.getByTestId('orchestration-stage')).getByTestId('orch-node-skill-browser-qa')).toHaveAttribute('data-status', 'waiting')
+  })
+
+  it('评审待确认：阶段页与总览的 Signal 都停在评审门前（still，线尽头琥珀短横，门图标围琥珀环）；不在被拦阶段时阶段页照常流', async () => {
+    stubOrchestration()
+    const pending = { status: 'pending' as const, event: 'build-complete', requestedAt: 'a' }
+    const held = snapshotRow(change({ reviewHandshake: pending }))
+    renderPane({ row: { ...held, summary: { kind: 'review' } } })
+    const stage = await screen.findByTestId('orchestration-stage')
+    expect(stage).toHaveAttribute('data-signal', 'still')
+    expect(within(stage).getByTestId('react-flow').getAttribute('data-edge-holds')).toContain('end')
+    await userEvent.click(screen.getByTestId('task-view-tab-overview'))
+    const overview = screen.getByTestId('orchestration-overview')
+    expect(overview).toHaveAttribute('data-signal', 'still')
+    expect(within(within(overview).getByTestId('orch-frame-build')).getByTestId('orch-gate')).toHaveAttribute('data-holding', 'true')
+    expect(within(overview).getByTestId('react-flow').getAttribute('data-edge-holds')).toBe('s:build->s:verify')
+    // 选中另一个阶段看：那一阶段没被拦。
+    await userEvent.click(within(overview).getByTestId('orch-stage-verify'))
+    expect(within(screen.getByTestId('orchestration-stage')).getByTestId('react-flow').getAttribute('data-edge-holds')).toBe('')
+  })
+
+  it('阶段轨：任务在跑时当前段上有一颗彗星；评审待确认（阻塞）时没有，也不呼吸', async () => {
+    stubOrchestration()
+    const view = renderPane({ row: snapshotRow(change()) })
+    await screen.findByTestId('orchestration-stage')
+    expect(within(screen.getByTestId('stage-rail-bar-build')).getByTestId('stage-rail-comet')).toBeInTheDocument()
+    expect(screen.queryAllByTestId('stage-rail-comet')).toHaveLength(1)
+    view.unmount()
+    renderPane({ row: { ...snapshotRow(change({ reviewHandshake: { status: 'pending', event: 'build-complete', requestedAt: 'a' } })), summary: { kind: 'review' } } })
+    await screen.findByTestId('orchestration-stage')
+    expect(screen.queryByTestId('stage-rail-comet')).toBeNull()
   })
 
   it('读不到编排时写出错误（role=alert），其余照常', async () => {

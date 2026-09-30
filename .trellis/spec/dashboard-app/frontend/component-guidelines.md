@@ -202,8 +202,7 @@ those, never class names.
   description, left target / right source handles), edges = `depends_on` (`edgesOf`), columns = waves
   (`layoutSkills`: x by depth, y by index in wave). Serial / parallel must be visible even when no `depends_on`
   exists: the canvas adds virtual 起点 / 终点 port nodes (`flow-start` / `flow-end`) with edges start → first wave and
-  last-in-chain → end, a wave label above each column (`flow-wave-label`: 第 n 步 · 并行 k when k > 1), arrowheads
-  (`MarkerType.ArrowClosed`) and the pulse (below) on every edge. Virtual nodes / edges are derived in render, never
+  last-in-chain → end, a wave label above each column (`flow-wave-label`: 第 n 步 · 并行 k when k > 1), the Signal (below) on every edge (arrowheads only at fan-in and the end). Virtual nodes / edges are derived in render, never
   stored; `data-nodes` / `data-edges` count skills and `depends_on` edges only. Effects key on
   `skillsSignature(skills)` (ids + sorted depends_on), not on array identity, and `onChange` fires only when the
   graph's signature differs from the prop — this is what stops the reopen-after-delete render loop.
@@ -215,16 +214,23 @@ those, never class names.
   (`dragLabel` comes from the composer because `dataTransfer` is unreadable during dragover); the new node plays
   `flow-in` (`data-entering`), disabled under reduced motion. Ports are solid dots with a caption (起点 accent,
   终点 grey); port edges are static, only `depends_on` edges animate.
-  **Pulse.** Every edge is the custom `pulse` type (set explicitly on each decorated edge — `defaultEdgeOptions`
-  only applies to edges created by `onConnect`): `BaseEdge` plus an accent overlay path whose dash pattern shows one segment
-  (`stroke-dasharray = segment + gap`). `workflow/flowPulse.ts` builds **one** GSAP timeline for the whole canvas
-  (`usePulseTimeline`): legs are ordered by `data.order / total` (起点→首波 0, 波 k→汇合 2k+1, 汇合→波 k+1 2k+2,
-  末波→终点 2N-1), each leg lasts `length / PULSE_SPEED` (420px/s, ease none), the highlight is
-  `clamp(36, length × .35, 64)` px and fades in / out over the first / last 5%; on arrival the target node's border
-  flashes (160ms) and the solid 终点 dot scales 1→1.35 with a fading ring (320ms). Loop mode repeats with 0.8s
-  between runs; reduced motion builds no timeline. No travelling dot (rejected as choppy), no CSS `offset-path`, no
-  CSS dash scrolling. React
-  Flow's CSS `animated` dashes are not used. Virtual nodes (ports, labels, junctions, ghost) are not in the nodes
+  **Signal.** Every edge is the custom `signal` type (set explicitly on each decorated edge — `defaultEdgeOptions`
+  only applies to edges created by `onConnect`): a smooth-step `BaseEdge` (radius 8, `--flow-line` 1.25px; done =
+  `--flow-done` solid, 55% opacity; the segment into a running node = `--flow-done`) plus, while the canvas is
+  flowing, four clone paths of the same `d` (`data-signal-layer` halo 72 / trail 48 / trail 26 / core 10) inside a
+  `g[data-signal-edge]` that stays `visibility:hidden` until a comet touches it. `workflow/flowSignal.ts` is the
+  only clock: pure `planSignal(edges, nodes)` gives every edge a start distance `a` (a = arrival(source) + transit,
+  fork branches share `a`, a join waits for its slowest input, `after` makes an edge wait for other nodes) so speed
+  is constant everywhere; `createSignalRuntime` measures path lengths once and, per `gsap.ticker` frame, writes the
+  four `stroke-dashoffset` values of the hot edges only (`mod(a + L - phase, spacing)`). Modes: `ambient` (idle,
+  140px/s, spacing clamp(route/3, 320, 720), ×0.7), `running` (300px/s, spacing 360, edges with
+  `data-signal-state=done` are skipped), `still` (reduced motion / blocked: no ticker; with `hold` one comet is
+  parked on the wire into the gate node and the wire ends in an amber tick), `off` (offscreen). The ticker is
+  detached while `document.hidden`. Arrival feedback is analytic, not tweened: nodes carry pre-rendered
+  `data-signal-flash` (border + 4px halo), `-port`, `-icon` and `-ring` layers whose opacity (and, for the ring,
+  transform) the tick writes. Arrowheads (5px) only at fan-in entries and the end dot. No travelling dot unless
+  profiling shows the dash writes cost more than 2ms per frame (then each comet becomes one MotionPath circle).
+  Virtual nodes (ports, labels, junctions, ghost) are not in the nodes
   state, so their `dimensions` changes are captured into `virtualMeasured` and written back as `measured` — otherwise
   React Flow treats them as unmeasured, hides the edges attached to them and re-reports sizes every frame.
   **Routing.** `layoutSkills` centres every wave on one midline (the tallest wave sets the height), and port /

@@ -1,12 +1,13 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import gsap from 'gsap'
 import { useT } from '../i18n'
+import { COMET_LAYERS, COMET_REACH, RUNNING, prefersReducedMotion } from '../workflow/flowSignal'
 import type { StageState } from './taskModel'
 import { cn } from '@/lib/utils'
 
-/** 段 4px 高、段间 2px：已完成 = 成功绿，当前 = 强调色（GSAP 呼吸），未到 = 边框灰。无描边、无内填。 */
-const BAR_CLS: Record<StageState['status'], string> = {
-  done: 'bg-green',
+/** 段 3px 高、段间 2px：已完成 = 暖灰（与强调色亮度差 ≥ 3:1），当前 = 强调色，未到 = 边框灰。无描边、无内填、不呼吸。 */
+export const RAIL_BAR_CLS: Record<StageState['status'], string> = {
+  done: 'bg-(--flow-step-done)',
   current: 'bg-(--accent)',
   todo: 'bg-border',
 }
@@ -16,27 +17,33 @@ const LABEL_CLS: Record<StageState['status'], string> = {
   todo: 'text-text-2',
 }
 
-function prefersReducedMotion(): boolean {
-  return typeof window === 'undefined' || typeof window.matchMedia !== 'function' || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+/**
+ * 任务在跑时，当前段上匀速滑过一颗与画布同款的 Signal 彗星（四层：光晕 72 / 拖尾 48、26 / 核 10，头部对齐右缘）：
+ * 只动一个容器的 transform，按运行流的速度与间距循环；减少动态效果时不挂。
+ */
+function SegmentComet(): JSX.Element {
+  const ref = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    const element = ref.current
+    const bar = element?.parentElement
+    if (element === null || bar === null || bar === undefined || prefersReducedMotion()) return
+    const travel = bar.clientWidth + COMET_REACH
+    const tween = gsap.fromTo(element, { x: -COMET_REACH }, { x: bar.clientWidth, duration: travel / RUNNING.speed, ease: 'none', repeat: -1, repeatDelay: Math.max(0, RUNNING.spacing - travel) / RUNNING.speed })
+    return () => { tween.kill(); gsap.set(element, { clearProps: 'transform' }) }
+  }, [])
+  return (
+    <span ref={ref} className="pointer-events-none absolute inset-y-0 left-0" style={{ width: COMET_REACH }} aria-hidden="true" data-testid="stage-rail-comet">
+      {COMET_LAYERS.map((layer) => (
+        <span key={layer.id} className="absolute inset-y-0 right-0 bg-(--flow-comet)" style={{ width: layer.length, opacity: layer.opacity }} />
+      ))}
+    </span>
+  )
 }
 
-/** 当前段持续呼吸（不透明度 1 ↔ .45 往复）；reduced-motion 不播放。 */
-function useCurrentPulse(currentId: string | undefined): (element: HTMLElement | null) => void {
-  const target = useRef<HTMLElement | null>(null)
-  useLayoutEffect(() => {
-    const element = target.current
-    if (currentId === undefined || element === null || prefersReducedMotion()) return
-    const tween = gsap.to(element, { opacity: 0.45, duration: 0.9, ease: 'sine.inOut', repeat: -1, yoyo: true })
-    return () => { tween.kill(); gsap.set(element, { clearProps: 'opacity' }) }
-  }, [currentId])
-  return (element) => { target.current = element }
-}
-
-/** 右列阶段轨：每段一个阶段，点段 = 查看该阶段的输入 / 输出；所选阶段的名称加粗。 */
-export function StageRail({ stages, selected, onSelect }: { stages: readonly StageState[]; selected: string | null; onSelect: (step: string) => void }): JSX.Element {
+/** 右列阶段轨：每段一个阶段，点段 = 查看该阶段的输入 / 输出；所选阶段的标签下一条 2px 墨色下划线。 */
+export function StageRail({ stages, selected, onSelect, running = false }: { stages: readonly StageState[]; selected: string | null; onSelect: (step: string) => void; running?: boolean }): JSX.Element {
   const { t } = useT()
   const current = stages.find((stage) => stage.status === 'current')
-  const pulseRef = useCurrentPulse(current?.id)
   return (
     <div
       className="grid gap-x-0.5"
@@ -57,12 +64,15 @@ export function StageRail({ stages, selected, onSelect }: { stages: readonly Sta
           onClick={() => onSelect(stage.id)}
         >
           <span
-            ref={stage.status === 'current' ? pulseRef : undefined}
-            className={cn('block h-1', BAR_CLS[stage.status])}
+            className={cn('relative block h-[3px] overflow-hidden', RAIL_BAR_CLS[stage.status])}
             aria-hidden="true"
             data-testid={`stage-rail-bar-${stage.id}`}
-          />
-          <span className={cn('truncate pr-2 text-body group-hover:text-text', LABEL_CLS[stage.status], selected === stage.id && 'font-semibold text-text', stage.status === 'current' && 'text-(--accent)')}>{stage.label}</span>
+          >
+            {running && stage.status === 'current' && <SegmentComet />}
+          </span>
+          <span className="min-w-0 pr-2">
+            <span className={cn('inline-block max-w-full truncate border-b-2 pb-1 align-top text-body group-hover:text-text', LABEL_CLS[stage.status], selected === stage.id ? 'border-(--ink)' : 'border-transparent')}>{stage.label}</span>
+          </span>
         </button>
       ))}
     </div>

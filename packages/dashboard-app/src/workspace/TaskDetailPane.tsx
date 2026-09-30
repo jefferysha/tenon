@@ -115,6 +115,8 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
   const openable = useCallback((entry: FlowEntry): boolean => entry.kind !== 'skill' && entry.testKind === undefined, [])
   const openStage = useCallback((id: string): void => { setSelectedStep(id); setView('stage') }, [])
   const currentStage = row.stages.find((candidate) => candidate.status === 'current')?.id ?? null
+  // 评审待确认：信号停在这一阶段的评审门前（总览与这一阶段的画布），不再流动。
+  const heldStage = row.summary.kind === 'review' ? change.phase : null
 
   return (
     <>
@@ -152,7 +154,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
             )}
             {view === 'stage' && row.stages.length > 0 && (
               <div className="mb-6 border-b border-border pb-6">
-                <StageRail stages={row.stages} selected={selectedStep} onSelect={setSelectedStep} />
+                <StageRail stages={row.stages} selected={selectedStep} onSelect={setSelectedStep} running={row.summary.kind === 'running'} />
               </div>
             )}
           </>
@@ -172,6 +174,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
                 flows={ready.flows}
                 current={currentStage}
                 withStatus
+                holding={heldStage}
                 onOpenStage={openStage}
                 ariaLabel={t('workspace.tab_overview')}
                 className="h-[min(70vh,640px)]"
@@ -181,7 +184,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
           <>
             {stageFlow.length > 0 && (
               <section className="mb-8" data-testid="stage-skills">
-                <OrchestrationFlow key={`${identity} ${selectedStep}`} mode="stage" stages={stageFlow} withStatus onOpenEntry={openEntry} openable={openable} ariaLabel={t('workflow.skills_title')} />
+                <OrchestrationFlow key={`${identity} ${selectedStep}`} mode="stage" stages={stageFlow} withStatus holding={selectedStep === heldStage ? heldStage : null} onOpenEntry={openEntry} openable={openable} ariaLabel={t('workflow.skills_title')} />
               </section>
             )}
             {progress !== null && (

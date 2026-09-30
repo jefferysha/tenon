@@ -150,14 +150,19 @@ describe('StageEditorPane · 两栏定稿', () => {
     expect(within(screen.getByTestId('io-inputs')).getByRole('status')).toHaveTextContent('无')
   })
 
-  it('只读且本阶段什么都没有（也没有 OpenSpec 注入）：段内只写「无」，不渲染空画布；可编辑时四条泳道都在', () => {
+  it('只读且本阶段什么都没有（也没有 OpenSpec 注入）：段内只写「无」，不渲染空画布；可编辑时有动作的空泳道（执行者、评审者）各留一个「＋」', () => {
     renderPane({ ...EXPLORE, skills: [] }, { effectiveIo: {}, canWrite: false, readOnly: true })
     expect(screen.getByTestId('stage-skills-empty')).toHaveTextContent('无')
     expect(within(screen.getByTestId('stage-skills')).queryByTestId('orchestration-stage')).toBeNull()
     cleanup()
     renderPane({ ...EXPLORE, skills: [] }, { effectiveIo: {} })
     const canvas = within(screen.getByTestId('stage-skills')).getByTestId('orchestration-stage')
-    expect(['executor', 'skill', 'test', 'reviewer'].map((kind) => within(canvas).getByTestId(`orch-lane-${kind}`).textContent)).toEqual(['执行者0', '技能0', '测试0', '评审者0'])
+    expect(['executor', 'reviewer'].map((kind) => within(canvas).getByTestId(`orch-lane-${kind}`).textContent)).toEqual(['执行者0', '评审者0'])
+    // 技能、测试没有泳道动作：空着就不画；有动作的空泳道是一个幽灵「＋」，点它 = 该泳道的动作。
+    expect(within(canvas).queryByTestId('orch-lane-skill')).toBeNull()
+    expect(within(canvas).queryByTestId('orch-lane-test')).toBeNull()
+    expect(within(within(canvas).getByTestId('orch-ghost-executor')).getByTestId('wb-executors-edit')).toBeInTheDocument()
+    expect(within(within(canvas).getByTestId('orch-ghost-reviewer')).getByTestId('wb-reviewers-edit')).toBeInTheDocument()
   })
 
   it('保存条只在有改动时渲染：写「未保存 N 处」，在滚动区之外（不盖住门禁 / 退回）；没改动（含无写入凭证）整条不渲染', () => {
@@ -221,7 +226,7 @@ describe('StageEditorPane · 两栏定稿', () => {
     renderPane(EXPLORE)
     const canvas = within(screen.getByTestId('stage-skills')).getByTestId('orchestration-stage')
     expect(canvas).toHaveAttribute('data-nodes', '3')
-    expect(canvas).toHaveAttribute('data-pulse', 'loop')
+    expect(canvas).toHaveAttribute('data-signal', 'ambient')
     expect(screen.getByTestId('orch-node-skill-grill-with-docs')).toHaveAttribute('data-wave', '1')
     await user.click(screen.getByTestId('wb-skills-edit'))
     expect(screen.getByTestId('skill-composer')).toBeInTheDocument()

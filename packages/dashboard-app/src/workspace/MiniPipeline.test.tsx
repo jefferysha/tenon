@@ -23,17 +23,17 @@ afterEach(() => {
 })
 
 describe('MiniPipeline', () => {
-  it('与阶段轨同款：4px 段、2px 段距；完成 = 成功绿，当前 = 强调色，未到 = 边框灰；无内填', () => {
+  it('与阶段轨同款：3px 段、2px 段距；完成 = 暖灰，当前 = 强调色，未到 = 边框灰；无内填', () => {
     renderPipeline(1)
     const pipeline = screen.getByTestId('pipe')
     expect(pipeline.className).toContain('gap-x-0.5')
     const segments = [...pipeline.querySelectorAll('[data-status]')]
     expect(segments.map((segment) => segment.getAttribute('data-status'))).toEqual(['done', 'current', 'todo'])
     for (const segment of segments) {
-      expect(segment.className).toContain('h-1')
+      expect(segment.className).toContain('h-[3px]')
       expect(segment.childElementCount).toBe(0)
     }
-    expect(segments[0]?.className).toContain('bg-green')
+    expect(segments[0]?.className).toContain('bg-(--flow-step-done)')
     expect(segments[1]?.className).toContain('bg-(--accent)')
     expect(segments[2]?.className).toContain('bg-border')
     expect(pipeline.innerHTML).not.toMatch(/seg-now|amber|w-2\/5/)
