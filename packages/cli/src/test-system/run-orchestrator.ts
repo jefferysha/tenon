@@ -5,7 +5,7 @@
  */
 import { join } from 'node:path'
 import {
-  appendTestRunRecordV2, baselineV2Path, claimRunningMarker, ensureTestEvidenceDirs, listRecordDirectory, pruneTestArtifacts,
+  appendTestRunRecordV2, baselineV2Path, claimRunningMarker, ensureTestEvidenceDirs, listRecordDirectory, pruneRecordChain, pruneTestArtifacts, RECORD_RETENTION,
   readTestBaselineV2, releaseRunningMarker, testRunArtifactsDir, testRunRecordsDir, testRunningMarkerPath,
   changedLinesSinceChangeStart, changeStartOfFields, testPlanApprovalFreeDigest,
   type AppendResult, type KnownFailure, type MachineProfile, type ServiceRunV2, type StepIR, type SuiteReason, type SuiteRunV2,
@@ -15,6 +15,7 @@ import type { CliDeps } from '../deps.js'
 import { detectHostEnvironment } from '../hostKind.js'
 import { str } from '../render.js'
 import { withRunningTenon } from '../test-runner/runningTenon.js'
+import { ensureLocalExcludes, TEST_OUTPUT_EXCLUDES } from '../localExcludes.js'
 import type { TestCommandContext } from '../commands/test-context.js'
 import { candidateOf, newRunId } from '../commands/test-run.js'
 import { changedFilesFor } from '../testEvidenceContext.js'
@@ -113,6 +114,7 @@ export async function executeRun(input: RunInput): Promise<RunResult> {
   const running: RunningService[] = []
   try {
     input.announce(runId)
+    await ensureLocalExcludes(deps.cwd, TEST_OUTPUT_EXCLUDES)
     const profile = machineOf(catalog, process.env)
     const host = detectHostEnvironment(process.env)
     const head = deps.gitHeadSha === undefined ? null : await deps.gitHeadSha().catch(() => null)
@@ -173,6 +175,8 @@ export async function executeRun(input: RunInput): Promise<RunResult> {
     const services = running.map((service) => serviceRecord(service, `services/${service.service.id}.log`))
     const draft = draftOf({ ...base, candidate: candidateAfter, services, suites: runs, finishedAt: deps.clock(), durationMs: Date.now() - startedMs })
     const appended = await appendTestRunRecordV2(deps.cwd, context.slug, draft)
+    // 记录入版本库，不设上限就随每次运行增长（真机验收 F14：一次交付提交带上 27 份）；只留最新的 RECORD_RETENTION 条。
+    await pruneRecordChain(deps.cwd, context.slug, change, RECORD_RETENTION)
     const listing = await listRecordDirectory(testRunRecordsDir(deps.cwd, context.slug, change))
     await pruneTestArtifacts(paths.artifactsDir, listing.records.map((entry) => entry.record.run_id).sort(), KEEP_RUNS)
     return { runId, runDir, appended, outcomes: ordered, services, profile }

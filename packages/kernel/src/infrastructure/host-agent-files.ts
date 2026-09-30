@@ -198,7 +198,13 @@ export async function pruneHostAgentFiles(input: {
       removed.push(key)
       touchedDirs.add(dirname(key))
     }
-    for (const dir of touchedDirs) await removeEmptyDir(abs(repoRoot, dir))
+    for (const dir of touchedDirs) {
+      await removeEmptyDir(abs(repoRoot, dir))
+      // `.claude/agents` 的父目录 `.claude`（`.codex` 同理）多半是 Tenon 为第一个文件建出来的；空了就一并移除，
+      // 里面还有用户自己的东西时 rmdir 失败，原样保留。
+      const parent = dirname(dir)
+      if (parent !== '.' && !parent.includes('/')) await removeEmptyDir(abs(repoRoot, parent))
+    }
     return { next: manifest, result: { removed, preserved } }
   })
 }

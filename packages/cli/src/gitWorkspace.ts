@@ -87,11 +87,26 @@ export const HOST_AGENT_COMMIT_EXCLUDES: readonly string[] = [
   ':(exclude,glob).codex/agents/tenon-*.toml',
 ]
 
-/** `git add -A -- <这些>` = 整个工作区，去掉仓库根的本机文件与宿主 agent 文件（exclude 不要求匹配到文件）。 */
+/**
+ * 本机生成、不随交付提交的其余文件（真机验收 F14）：
+ *   · `.pipeline-owned.json`——宿主 agent 文件的所有权清单，生成与回收时都会改写，工作区指纹也把它排除在候选之外；
+ *     提交它只会在归档提交里再被删掉；
+ *   · 测试输出目录 `test-results/`、`playwright-report/`（任意层级）与仓库根的 `coverage/`：测试命令每次重写，
+ *     证据在 `.tenon/users/<u>/tests` 的运行记录里。嵌套的 `coverage/` 可能是真实的源码目录，不在此列。
+ */
+export const GENERATED_COMMIT_EXCLUDES: readonly string[] = [
+  `:(exclude)${OWNED_MANIFEST_PATH}`,
+  ':(exclude,glob)**/test-results/**',
+  ':(exclude,glob)**/playwright-report/**',
+  ':(exclude,glob)coverage/**',
+]
+
+/** `git add -A -- <这些>` = 整个工作区，去掉仓库根的本机文件、宿主 agent 文件与本机生成物（exclude 不要求匹配到文件）。 */
 export const WORKSPACE_COMMIT_PATHS: readonly string[] = [
   '.',
   ...LOCAL_ROOT_FILES.map((name) => `:(exclude)${name}`),
   ...HOST_AGENT_COMMIT_EXCLUDES,
+  ...GENERATED_COMMIT_EXCLUDES,
 ]
 
 const TERMINAL_ACTIVITY_PREFIX = '.pipeline-terminal-activity.'

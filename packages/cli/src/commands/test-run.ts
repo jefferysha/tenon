@@ -6,11 +6,11 @@
  * （命令要的 npm 脚本在项目里不存在：不是失败，不执行、不落记录，说明怎么配置）。
  */
 import { randomBytes } from 'node:crypto'
-import { lstat, mkdir, realpath } from 'node:fs/promises'
+import { lstat, mkdir, realpath, rm } from 'node:fs/promises'
 import { join, relative, resolve, sep } from 'node:path'
 import {
   claimRunningMarker, ensureTestEvidenceDirs, evaluateMetricCriteria, listTestRuns, publishTestRunRecord,
-  pruneTestArtifacts, readMetrics, readTestBaseline, releaseRunningMarker,
+  pruneTestArtifacts, readMetrics, readTestBaseline, RECORD_RETENTION, releaseRunningMarker,
   testBaselinePath, testDigest, testRunArtifactsDir, testRunRecordPath, testRunningMarkerPath,
   TEST_LOG_ARTIFACT, TEST_RUN_SCHEMA,
 } from '@tenon/kernel'
@@ -25,6 +25,7 @@ import { classifyTestRun, SANDBOX_ESCALATION_HINT } from '../test-runner/classif
 import { GRACE_MS, LOG_TAIL_BYTES, MAX_LOG_BYTES, runTestProcess } from '../test-runner/process.js'
 import { unconfiguredMessage, unconfiguredNpmScript } from '../test-runner/npmScript.js'
 import { withRunningTenon } from '../test-runner/runningTenon.js'
+import { ensureLocalExcludes, TEST_OUTPUT_EXCLUDES } from '../localExcludes.js'
 import { declaredTestIds, locateTest, resolveTestCommand, type TestCommandContext } from './test-context.js'
 
 const FAILURE_TAIL_CHARS = 4096
@@ -127,6 +128,8 @@ async function execute(deps: CliDeps, context: TestCommandContext, input: RunInp
   const runDir = testRunArtifactsDir(deps.cwd, context.slug, change, runId)
   const logPath = join(runDir, TEST_LOG_ARTIFACT)
   await mkdir(runDir, { recursive: true })
+  // 测试命令写的 test-results/ 等输出目录是本机的：加进本机忽略（真机验收 F14 / P2）。
+  await ensureLocalExcludes(deps.cwd, TEST_OUTPUT_EXCLUDES)
   const candidateBefore = await candidateOf(deps, change)
   const gitHead = deps.gitHeadSha === undefined ? null : await deps.gitHeadSha().catch(() => null)
   const inputs = await collectTestInputs(deps.cwd, context.dir, test, input.paths.envKey)
@@ -229,6 +232,10 @@ async function execute(deps: CliDeps, context: TestCommandContext, input: RunInp
   const runsOfTest = (await listTestRuns(deps.cwd, change, { slug: context.slug, testId: test.id }))
     .map((entry) => entry.record.run_id)
   await pruneTestArtifacts(input.paths.artifactsDir, runsOfTest, test.keep_runs)
+  // v1 记录没有链：同一测试项只留最新的 RECORD_RETENTION 条（真机验收 F14）。
+  for (const runId of runsOfTest.slice(0, Math.max(0, runsOfTest.length - RECORD_RETENTION))) {
+    await rm(testRunRecordPath(deps.cwd, context.slug, change, runId), { force: true })
+  }
 
   const relativeRecord = relative(deps.cwd, recordPath)
   const relativeLog = relative(deps.cwd, logPath)
