@@ -8,6 +8,9 @@
  */
 import { dependencyWaves, directDependencies } from './dag-waves.js'
 
+/** 波次的唯一算法；Dashboard 画布经这个子路径使用同一份，不再自己算。 */
+export { dependencyWaves } from './dag-waves.js'
+
 /** Pipeline 自有技能在宿主里以 `tenon:<id>` 出现；workflow 数据用裸 id。 */
 export function bareSkillId(id: string): string {
   return id.startsWith('tenon:') ? id.slice('tenon:'.length) : id
