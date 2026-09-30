@@ -31,7 +31,7 @@ export function ensureCodeSizeProbeOnPath(): void {
     const file = join(dir, 'tenon')
     writeFileSync(file, STUB, 'utf8')
     chmodSync(file, 0o755)
-    process.once('exit', () => { rmSync(dir, { recursive: true, force: true }) })
+    process.once('exit', () => { rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) })
   }
   const entries = (process.env.PATH ?? '').split(delimiter)
   if (entries[0] !== stubDir) process.env.PATH = [stubDir, ...entries.filter((entry) => entry !== stubDir)].join(delimiter)

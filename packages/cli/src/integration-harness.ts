@@ -8,8 +8,8 @@
  * 注意：文件名 *-harness.ts 不带 .test.，不会被 vitest 当测试收集（无用例）。
  */
 import { execFileSync } from 'node:child_process'
-import { appendFile, mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { appendFile, mkdtemp, mkdir, readFile, rm as fsRm, stat, writeFile } from 'node:fs/promises'
+import { existsSync, readdirSync, readFileSync, statSync, type PathLike, type RmOptions } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -467,4 +467,15 @@ export async function freshHarness(): Promise<Harness> {
   return makeHarness(cwd)
 }
 
-export { rm }
+const RM_MAX_RETRIES = 10
+const RM_RETRY_DELAY_MS = 100
+
+/**
+ * 清理临时项目的唯一入口（测试都从这里 import rm）。递归删除默认带重试：用例超时或刚被取消时，
+ * 上一步还在收尾的异步写会在 rm 遍历目录的同时往里建文件，裸 rm 会以 ENOTEMPTY 失败并把真正的失败盖住。
+ * 调用方显式传的选项优先。
+ */
+export function rm(path: PathLike, options?: RmOptions): Promise<void> {
+  return fsRm(path, { maxRetries: RM_MAX_RETRIES, retryDelay: RM_RETRY_DELAY_MS, ...options })
+}
+

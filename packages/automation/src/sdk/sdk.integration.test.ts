@@ -197,7 +197,8 @@ describe('createAutomation SDK', () => {
   })
   afterEach(async () => {
     vi.restoreAllMocks()
-    await rm(root, { recursive: true, force: true })
+    // 上一步的异步写可能还在往 root 里建文件（用例超时时尤其如此）：带重试，避免 ENOTEMPTY 盖住真正的失败。
+    await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   })
 
   const initBuild = async (name: string) => {

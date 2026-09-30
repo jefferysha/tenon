@@ -137,6 +137,7 @@ export async function startDashboard({ env, cwd, logFile }) {
   throw new Error(`dashboard 在 ${HEALTH_TIMEOUT_MS / 1000}s 内没有就绪，日志：${logFile}`)
 }
 
+// 刚停下的 dashboard / CLI 子进程可能还在收尾写文件，递归删除带重试，不然 ENOTEMPTY 会盖住真正的失败。
 export function removeScratch(scratch) {
-  rmSync(scratch, { recursive: true, force: true })
+  rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 }

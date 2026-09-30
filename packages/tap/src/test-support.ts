@@ -197,8 +197,9 @@ export async function tempTapDir(): Promise<string> {
   return mkdtemp(join(tmpdir(), 'pl-tap-'))
 }
 
+/** 递归删除带重试：daemon / 代理刚停下时还在收尾写文件，裸 rm 会以 ENOTEMPTY 失败。 */
 export async function rmDir(dir: string): Promise<void> {
-  await rm(dir, { recursive: true, force: true })
+  await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 }
 
 export function sleep(ms: number): Promise<void> {
