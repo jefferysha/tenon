@@ -51,23 +51,40 @@ suites:
       - vitest
       - web
   - id: tools-node
-    label: 单测 · tools 与 docs-site 脚本
+    label: 单测 · tools 脚本
     kind: unit
     runner: node-test
-    command: node --test --test-reporter=junit --test-reporter-destination=test-results/tools-node.xml tools/*.node-test.mjs tools/bench/*.node-test.mjs docs-site/scripts/*.node-test.mjs
+    command: node --test --test-reporter=junit --test-reporter-destination=test-results/tools-node.xml tools/*.node-test.mjs tools/bench/*.node-test.mjs
     timeout_s: 1800
     files:
       - tools/*.node-test.mjs
       - tools/bench/*.node-test.mjs
-      - docs-site/scripts/*.node-test.mjs
     covers:
       - tools/**
-      - docs-site/scripts/**
     report:
       format: junit
       path: test-results/tools-node.xml
     artifacts:
       - test-results/tools-node.xml
+    tags:
+      - node-test
+  - id: docs-site-unit
+    label: 单测 · docs-site 脚本
+    kind: unit
+    runner: node-test
+    command: node --test --test-reporter=junit --test-reporter-destination=test-results/junit.xml scripts/*.node-test.mjs
+    cwd: docs-site
+    timeout_s: 900
+    files:
+      - scripts/*.node-test.mjs
+    covers:
+      - scripts/**
+      - content-manifest.mjs
+    report:
+      format: junit
+      path: test-results/junit.xml
+    artifacts:
+      - test-results/junit.xml
     tags:
       - node-test
   # ── 集成 / 冒烟 ─────────────────────────────────────────────────────
@@ -149,7 +166,7 @@ suites:
       - test-results/bundle.tap
     tags:
       - bash
-  - id: oracle-harness
+  - id: oracle-unit
     label: golden oracle harness 契约
     kind: unit
     runner: vitest
