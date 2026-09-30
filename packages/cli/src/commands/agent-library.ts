@@ -19,6 +19,16 @@ import { errMsg, type CliDeps } from '../deps.js'
 export const ROLE_WORD: Readonly<Record<AgentRole, string>> = { executor: '执行者', reviewer: '评审者' }
 export const SOURCE_WORD: Readonly<Record<AgentSource, string>> = { builtin: '官方', custom: '自定义', project: '项目' }
 
+/**
+ * `tenon agent new` 写出的正文骨架里的占位符（单一来源：骨架由它生成，validate / add 用它识别没补全的骨架）。
+ * 只认这几句：正文里普通的尖括号（命令形如 `<change>`）不是占位符。
+ */
+export const SKELETON_DO_PLACEHOLDER: Readonly<Record<AgentRole, string>> = {
+  executor: '<这个执行者负责的那一件事>',
+  reviewer: '<这个评审者负责的那一件事>',
+}
+export const SKELETON_PLACEHOLDERS: readonly string[] = ['<第一步>', '<第二步>', '<写报告前必须满足的条件>']
+
 /** `--scope user|project` → 可写的一层；缺省 user。 */
 export function scopeOf(deps: CliDeps, raw: string | undefined): AgentScope | string {
   const paths = deps.agentPaths?.()
@@ -138,9 +148,23 @@ export async function cmdAgentShow(deps: CliDeps, name: string, json: boolean): 
 
 export interface AgentCheck { readonly level: 'ok' | 'warn' | 'fail'; readonly message: string }
 
-/** 解析之外的检查：role 是否显式、技能是否存在、工具名按宿主是否合法。 */
-export function checkDefinition(definition: AgentDefinition, knownSkills: ReadonlySet<string> | undefined): readonly AgentCheck[] {
+/**
+ * 解析之外的检查：role 是否显式、技能是否存在、正文骨架是否补全、工具名按宿主是否合法。
+ * `allowSkeleton`：`agent new` 刚写出的骨架带占位符是预期的（之后靠 validate 催补全），只有它传 true。
+ */
+export function checkDefinition(
+  definition: AgentDefinition,
+  knownSkills: ReadonlySet<string> | undefined,
+  options: { readonly allowSkeleton?: boolean } = {},
+): readonly AgentCheck[] {
   const checks: AgentCheck[] = [{ level: 'ok', message: `frontmatter 与正文（${ROLE_WORD[definition.role]}）` }]
+  if (options.allowSkeleton !== true) {
+    for (const placeholder of [SKELETON_DO_PLACEHOLDER[definition.role], ...SKELETON_PLACEHOLDERS]) {
+      if (definition.body.includes(placeholder)) {
+        checks.push({ level: 'fail', message: `正文还有骨架占位符 ${placeholder}：写成真实内容再登记` })
+      }
+    }
+  }
   if (definition.roleInferred === true) {
     checks.push({ level: 'warn', message: `缺 role，按工具推断为 ${definition.role}；补一行 role: ${definition.role}` })
   }
@@ -156,12 +180,17 @@ export function checkDefinition(definition: AgentDefinition, knownSkills: Readon
     }
   }
   const hosts = definition.hosts ?? KNOWN_AGENT_HOSTS
+  const unknownTools = definition.tools.filter((tool) => !CLAUDE_AGENT_TOOLS.has(tool) && !tool.startsWith('mcp__'))
   if (hosts.includes('claude')) {
-    for (const tool of definition.tools) {
-      if (!CLAUDE_AGENT_TOOLS.has(tool) && !tool.startsWith('mcp__')) {
-        checks.push({ level: 'fail', message: `工具 '${tool}' 不是 Claude Code 的工具名` })
-      }
+    for (const tool of unknownTools) checks.push({ level: 'fail', message: `工具 '${tool}' 不是 Claude Code 的工具名` })
+  } else if (hosts.includes('codex')) {
+    // 只写 Codex：Codex 不按工具名限制，名字写错不会被宿主拒绝，也不会起任何作用，所以是提示而不是失败。
+    for (const tool of unknownTools) {
+      checks.push({ level: 'warn', message: `工具 '${tool}' 不是已知的工具名；Codex 不按工具名限制，它只影响是否设只读沙箱` })
     }
+  }
+  if (hosts.includes('codex') && definition.tools.length > 0) {
+    checks.push({ level: 'ok', message: 'Codex：工具清单不被宿主按名限制；没有写文件或执行命令能力的 agent 会设只读沙箱，其余限制是正文里的指令' })
   }
   return checks
 }

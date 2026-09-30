@@ -61,7 +61,9 @@ tenon agent export <name> --host claude|codex
 
 - `new` 在交互终端里逐个问缺的项；必填参数给全时非交互也能用。没有 `--from` 时写一份五节的正文骨架；
   `--from builder` 以官方智能体的字段与正文为底。
-- `validate` 检查 frontmatter 与正文、每个技能在插件里存在、工具名是合法的 Claude Code 工具。
+- `validate`（`add` 同样）检查 frontmatter 与正文、每个技能在插件里存在、正文里不再有 `new` 写出的骨架占位符
+  （`<第一步>`、`<第二步>`、`<写报告前必须满足的条件>` 和「做：」那一行），以及按宿主检查工具名：Claude Code 上未知工具名是失败；
+  只给 Codex 用的 agent 只是警告，因为 Codex 不按名限制工具。`new` 自己照常登记骨架并提示补全，补全之前 `validate` 失败。
 - 官方这一层在文字输出和 `--source official` 里叫「官方 / official」；`--json` 与 `GET /api/agents` 里机器可读的值是
   `source: "builtin"`（`--source builtin` 作为别名同样接受）。脚本请按 `builtin` 比较。
 - `rm` 拒绝删除官方智能体和仍被工作流步骤引用的智能体，并列出这些步骤（exit 2）。

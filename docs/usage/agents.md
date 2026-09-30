@@ -75,8 +75,13 @@ tenon agent export <name> --host claude|codex
   required flag it runs non-interactively. Without `--from` it writes a body
   skeleton with the five sections; `--from builder` starts from an official
   agent's fields and body.
-- `validate` checks the frontmatter and body, that every skill exists in the
-  plugin, and that tool names are valid Claude Code tools.
+- `validate` (and `add`) check the frontmatter and body, that every skill exists
+  in the plugin, that the body no longer contains the skeleton placeholders
+  `new` writes (`<第一步>`, `<第二步>`, `<写报告前必须满足的条件>` and the
+  "what this agent does" line), and the tool names per host: for Claude Code an
+  unknown tool name fails; for an agent only for Codex it is a warning, because
+  Codex does not restrict tools by name. `new` itself registers the skeleton and
+  asks you to complete it; `validate` fails until you do.
 - `rm` refuses an official agent and any agent a workflow step still uses, and
   lists those steps (exit 2).
 - In Claude Code or Codex, the `tenon:agent-author` skill drafts the body from
