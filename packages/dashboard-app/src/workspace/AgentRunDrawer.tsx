@@ -110,7 +110,7 @@ export function AgentRunDrawer({
   root: string
   /** 任务名：拼 `tenon agent prompt <change> <agent>`。 */
   change: string
-  /** 这个步骤现在能开始（是任务的当前步骤、未归档）；否则不给命令。 */
+  /** 这个步骤还没过去（任务当前所在或之后的步骤）且任务未归档：才给启动命令；已过去的步骤、已归档的任务不给。 */
   runnable: boolean
   agent: AgentRunView | null
   onClose: () => void

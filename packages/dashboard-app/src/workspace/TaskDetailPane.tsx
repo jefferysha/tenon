@@ -87,6 +87,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
   const orchestration = useChangeOrchestration(root, change.name, runSignature, fetchDefinition)
   const ready = orchestration.status === 'ready' ? orchestration.orchestration : null
   const labelOf = (id: string): string => stageLabel(id, row.rules)
+  const stepIds = row.stages.map((candidate) => candidate.id)
   const stepIo = ready !== null
     ? ready.io[selectedStep]
     : orchestration.status === 'disabled' ? fallbackStepIo(change, selectedStep) : undefined
@@ -267,7 +268,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
       <AgentRunDrawer
         root={root}
         change={change.name}
-        runnable={selectedStep === change.phase && !row.archived}
+        runnable={!archived && !row.archived && stepIds.indexOf(selectedStep) >= stepIds.indexOf(current)}
         agent={stepAgents.find((agent) => agent.agent === openAgent) ?? null}
         onClose={() => setOpenAgent(null)}
       />
