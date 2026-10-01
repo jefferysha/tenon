@@ -584,8 +584,9 @@ describe('API bounded-context response decoders', () => {
     readiness.finish = {
       ready: false,
       blockers: [
-        { kind: 'step-exit', source: 'skill', code: 'skill-incomplete', message: '尚未完成声明的 skill：tdd' },
-        { kind: 'step-exit', source: 'tasks', code: 'tasks-incomplete', message: 'tasks.md 仍有 1 项未勾', items: ['a'] },
+        { kind: 'step-exit', source: 'skill', code: 'skill-incomplete', message: '尚未完成声明的 skill：tdd', subject: 'tdd', state: 'not-run' },
+        { kind: 'step-exit', source: 'tasks', code: 'tasks-incomplete', message: 'tasks.md 仍有 1 项未勾', items: ['a'], count: 1 },
+        { kind: 'step-exit', source: 'document', code: 'document-evidence', message: 'm', subject: 'proposal', state: 'missing' },
       ],
     }
     const decoded = decodeSnapshot(valid)
@@ -595,6 +596,10 @@ describe('API bounded-context response decoders', () => {
       { kind: 'step-exit', source: 'skill', code: 'x', message: '' },
       { kind: 'step-exit', source: 'skill', code: 'x', message: 'm', leak: '/abs/path' },
       { kind: 'step-exit', source: 'tasks', code: 'x', message: 'm', items: [1] },
+      { kind: 'step-exit', source: 'tasks', code: 'x', message: 'm', count: -1 },
+      { kind: 'step-exit', source: 'tasks', code: 'x', message: 'm', count: 1.5 },
+      { kind: 'step-exit', source: 'document', code: 'x', message: 'm', subject: 7 },
+      { kind: 'step-exit', source: 'document', code: 'x', message: 'm', state: ['missing'] },
     ]) {
       const broken = structuredClone(valid)
       ;(broken.projects[0].changes[0].workflowExecution.readinessByTransition.open as unknown as Record<string, { ready: boolean; blockers: unknown[] }>)

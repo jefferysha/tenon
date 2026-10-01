@@ -1,5 +1,5 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -31,7 +31,7 @@ function freePort(): Promise<number> {
 }
 
 /** The real bundle in an isolated home; resolves once it says where it listens. */
-async function startBundle(extraEnv: NodeJS.ProcessEnv): Promise<{ port: number; stdout: () => string; stateRoot: string }> {
+async function startBundle(extraEnv: NodeJS.ProcessEnv): Promise<{ port: number; stdout: () => string; stateRoot: string; child: ChildProcess }> {
   const home = await mkdtemp(join(tmpdir(), 'tenon-server-bundle-'))
   dirs.push(home)
   const runtimeHome = join(home, 'runtime')
@@ -55,7 +55,7 @@ async function startBundle(extraEnv: NodeJS.ProcessEnv): Promise<{ port: number;
     if (child.exitCode !== null) throw new Error(`dashboard bundle exited early (${child.exitCode}): ${out}`)
     await new Promise((resolve) => setTimeout(resolve, 50))
   }
-  return { port, stdout: () => out, stateRoot: paths.stateRoot }
+  return { port, stdout: () => out, stateRoot: paths.stateRoot, child }
 }
 
 describe('Dashboard server bundle process contract', () => {
@@ -99,6 +99,27 @@ describe('Dashboard server bundle process contract', () => {
     const started = await startBundle({ TENON_DASHBOARD_PRINT_LINK: '1' })
     expect(existsSync(join(started.stateRoot, 'dashboard-token.json'))).toBe(false)
     expect(existsSync(join(started.stateRoot, 'dashboard-server.json'))).toBe(true) // pid/port/version only
+  }, 60_000)
+
+  test('mirrors its output into state/logs/dashboard.log (0600): startup and shutdown are recorded, the login code never is', async () => {
+    const started = await startBundle({ TENON_DASHBOARD_PRINT_LINK: '1' })
+    const code = /session\/start\?code=([A-Za-z0-9_-]+)/u.exec(started.stdout())?.[1]
+    expect(code).toBeDefined()
+    const logPath = join(started.stateRoot, 'logs', 'dashboard.log')
+    expect(existsSync(logPath)).toBe(true)
+    if (process.platform !== 'win32') expect(statSync(logPath).mode & 0o777).toBe(0o600)
+    const running = readFileSync(logPath, 'utf8')
+    expect(running).toMatch(/ event \[dashboard-server\] starting pid=\d+ port=\d+ version=/u)
+    expect(running).toContain('Global server http://127.0.0.1:')
+    expect(running).toContain('/session/start?code=[REDACTED:token]')
+    expect(running).not.toContain(code ?? 'unreachable')
+
+    const exited = new Promise<void>((resolve) => started.child.once('exit', () => resolve()))
+    started.child.kill('SIGTERM')
+    await exited
+    const stopped = readFileSync(logPath, 'utf8')
+    expect(stopped).toMatch(/\[dashboard-server\] stopping pid=\d+/u)
+    expect(stopped).not.toContain(code ?? 'unreachable')
   }, 60_000)
 
   test('prints no login link when nobody asked for one (managed background start: stdout is not a terminal)', async () => {

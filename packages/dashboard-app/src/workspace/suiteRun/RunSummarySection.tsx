@@ -62,8 +62,8 @@ export function RunSummarySection({ run, record, ctx }: { run: SuiteRun; record:
   const { t, lang } = useT()
   return (
     <TestSection title={t('tests.run.section.run')} testId="run-summary">
+      <div className="py-1" data-testid="run-command-row"><CommandLine command={run.command} testId="run-command" truncate /></div>
       <div role="table" aria-label={t('tests.run.section.run')}>
-        <div className="py-1" data-testid="run-command-row"><CommandLine command={run.command} testId="run-command" truncate /></div>
         <DefRow label={t('tests.run.field.cwd')} testId="run-cwd"><span title={run.cwd}>{run.cwd}</span></DefRow>
         <DefRow label={t('tests.run.field.exit')} testId="run-exit" mono={false} danger={run.exitCode !== 0}>
           {run.exitCode === null ? '—' : run.exitCode}{run.signal === null ? '' : ` · ${run.signal}`}

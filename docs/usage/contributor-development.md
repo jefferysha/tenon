@@ -90,6 +90,12 @@ npm run bench:snapshot
 npm run bench:snapshot:large
 ```
 
+`e2e/dashboard/a11y.spec.ts` runs axe-core (`@axe-core/playwright`) on the main pages (workspace
+incl. the Tests tab, workflow overview and stage, projects incl. the Tests segment, every library
+section, skills and a skill detail, the new-project wizard and the settings popover) in light and dark;
+the run fails on any `serious` or `critical` violation and prints the rule, the nodes and the fix hint.
+Add a page or a state there when you add one to the app.
+
 `test:e2e` drives the built CLI and Dashboard from `e2e/dashboard/` with Playwright
 (chromium and webkit projects; install with `npx playwright install chromium webkit`). It seeds
 throw-away projects in an isolated `HOME` and `TENON_RUNTIME_HOME` and starts the

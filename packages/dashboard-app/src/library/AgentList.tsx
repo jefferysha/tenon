@@ -76,14 +76,14 @@ export function AgentList({
                       )}
                       {showsOrigin(agent) && (
                         <span
-                          className={agent.shadowedBy === 'project' ? 'text-text-4 line-through' : 'text-text-3'}
+                          className={agent.shadowedBy === 'project' ? 'text-text-3 line-through' : 'text-text-3'}
                           data-testid={`lib-agent-source-${agent.source}-${agent.name}`}
                         >
                           {t(SOURCE_KEY[agent.source])}
                         </span>
                       )}
                       {showsOrigin(agent) && agent.version !== undefined && (
-                        <span className="tabular-nums text-text-4" data-testid={`lib-agent-version-${agent.name}`}>{agent.version}</span>
+                        <span className="tabular-nums text-text-3" data-testid={`lib-agent-version-${agent.name}`}>{agent.version}</span>
                       )}
                     </span>
                   </button>

@@ -27,6 +27,8 @@ export function createDispatcher(deps: DispatchDeps): (req: IncomingMessage, res
       : route(req, res, path)
     if (method !== 'GET') void handler.finally(() => dropWrittenProjects(snapshotCache, req, path, 'after')).catch(() => undefined)
     handler.catch((e) => {
+      // 未预期的失败进 server 日志（只记方法、路径与消息，不记查询串：登录码在查询里）。
+      process.stderr.write(`[dashboard-server] 500 ${method} ${path}: ${errMsg(e)}\n`)
       try { sendJson(res, 500, { ok: false, error: errMsg(e) }) } catch { /* 已写头 */ }
     })
   }

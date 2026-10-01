@@ -125,6 +125,16 @@ describe('WorkflowNav', () => {
     expect(onNewTrack).toHaveBeenCalledTimes(1)
   })
 
+  it('tablist 里只有 tab：新建轨道的「+」在它旁边（aria-required-children）', () => {
+    renderNav()
+    const tablist = screen.getByTestId('wb-tracks')
+    expect(tablist).toHaveAttribute('role', 'tablist')
+    const children = Array.from(tablist.children)
+    expect(children.length).toBeGreaterThan(0)
+    for (const child of children) expect(child).toHaveAttribute('role', 'tab')
+    expect(tablist.contains(screen.getByTestId('wb-track-new'))).toBe(false)
+  })
+
   it('回流弧：--flow-line 1.25px 虚线 2 3、目标端 5px 开口箭头；悬停相关阶段整条弧转强调色，离开复原', async () => {
     const user = userEvent.setup()
     renderNav()

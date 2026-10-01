@@ -3,10 +3,11 @@
  * store/flow 按 types.ts 契约注入；测试全 mock，绝不 import kernel 实现。
  */
 import type { GitFinishProbe } from './gitWorkspace.js'
-import type { BoardSnapshotV2, DocumentContractPhase, DocumentEvidenceReport, EffectiveSkillResolver, FlowEngine, HistoryWriter, InteractionEventRecorder, MutationOutcome, PhaseExitFileContext, PipelineState, ProjectTrackConfig, RegistrySnapshot, SkillTable, StateStore, TrackRegistry, WorkflowRunRepository, WorkflowPipelinePlanV2 } from '@tenon/kernel'
+import type { BoardSnapshotV2, DocumentContractPhase, DocumentEvidenceReport, EffectiveSkillResolver, FlowEngine, HistoryWriter, InteractionEventRecorder, MutationOutcome, PhaseExitFileContext, PipelineState, ProductPaths, ProjectTrackConfig, RegistrySnapshot, SkillTable, StateStore, TrackRegistry, WorkflowRunRepository, WorkflowPipelinePlanV2 } from '@tenon/kernel'
 import type { ArtifactSubmissionService, ExecutionRuntimeV2, SkillActionAuthorityResolver } from '@tenon/automation'
 import type { AfkReadiness } from './afkReadiness.js'
 import type { CodexAuthStatus } from './codexAuth.js'
+import type { CliLocale } from './i18n/locale.js'
 
 export type { BoundedFileRead } from '@tenon/kernel'
 
@@ -331,6 +332,13 @@ export interface CliDeps {
     readonly policy?: import('@tenon/kernel').DocumentGovernancePolicy
   }) => Promise<string | null>
   io: CliIO
+  /**
+   * 输出语言（`TENON_LANG` → `LC_ALL` → `LC_MESSAGES` → `LANG`，main.ts 解析一次）。缺省 = 历史的中文输出，
+   * 所以只构造 deps 的单测不用关心它；已登记进消息目录的提示与错误按它选语言。
+   */
+  locale?: CliLocale
+  /** Tenon 产品自有路径（日志、注册表、pidfile …）；`logs` 与 `support bundle` 读它。缺省 = 未装配，命令 exit 1。 */
+  productPaths?: () => ProductPaths
   /** ISO8601 UTC 注入时钟（CONTRACT §5.6：业务码禁止散落 new Date()） */
   clock: () => string
   /** 枚举 changesRoot 下的活跃 change 目录名（不含 archive 目录）；main.ts 用 fs 实现 */

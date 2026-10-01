@@ -178,14 +178,21 @@ export function decodeTransitionReadinessBlocker(value: unknown): TransitionRead
       || typeof value.code !== 'string' || value.code === ''
       || typeof value.message !== 'string' || value.message === ''
       || (value.items !== undefined && !(Array.isArray(value.items) && value.items.every((item) => typeof item === 'string')))
+      || (value.subject !== undefined && typeof value.subject !== 'string')
+      || (value.state !== undefined && typeof value.state !== 'string')
+      || (value.count !== undefined && !(typeof value.count === 'number' && Number.isInteger(value.count) && value.count >= 0))
       || !Object.keys(value).every((key) =>
-        key === 'kind' || key === 'source' || key === 'code' || key === 'message' || key === 'items')) return null
+        key === 'kind' || key === 'source' || key === 'code' || key === 'message' || key === 'items'
+        || key === 'subject' || key === 'state' || key === 'count')) return null
     return {
       kind: 'step-exit',
       source: value.source as StepExitBlockerSource,
       code: value.code,
       message: value.message,
       ...(value.items === undefined ? {} : { items: [...(value.items as string[])] }),
+      ...(typeof value.subject === 'string' ? { subject: value.subject } : {}),
+      ...(typeof value.state === 'string' ? { state: value.state } : {}),
+      ...(typeof value.count === 'number' ? { count: value.count } : {}),
     }
   }
   if (typeof value.guardType !== 'string' || !GUARD_TYPES.has(value.guardType)) return null

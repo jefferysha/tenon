@@ -57,10 +57,18 @@ export interface TestEvidenceItem {
   readonly staleBecause?: 'candidate' | 'declaration' | 'workflow'
 }
 
+/** 一条内联测试阻断的结构化描述：显示名与状态；客户端据此分类，不解析整句。 */
+export interface TestBlockerDetail {
+  readonly subject: string
+  readonly state: 'running' | 'missing' | 'stale' | 'failed'
+}
+
 export interface TestEvidenceReport {
   readonly stepId: string
   readonly pass: boolean
   readonly blockers: readonly string[]
+  /** 与 `blockers` 逐项对齐；策略（套件）阻断与「无法验证」没有结构化描述，该项为 undefined 或整体缺席。 */
+  readonly blockerDetails?: readonly (TestBlockerDetail | undefined)[]
   readonly items: readonly TestEvidenceItem[]
   /** 步骤声明了 test_policy 时的结构化判定（阻塞码、套件、追溯矩阵）；未声明时缺省，行为与之前逐字相同。 */
   readonly policy?: TestPolicyReport
@@ -302,10 +310,12 @@ export async function evaluateTestEvidence(input: {
     })
     return { stepId: input.stepId, pass: report.pass, blockers: renderPolicyBlockers(report), items, policy: report }
   }
-  const blockers = items
-    .filter((item) => item.test.required && item.status !== 'passed')
-    .map((item) => blockerFor(item, input.changeName))
-  return { stepId: input.stepId, pass: blockers.length === 0, blockers, items }
+  const open = items.filter((item) => item.test.required && item.status !== 'passed')
+  const blockers = open.map((item) => blockerFor(item, input.changeName))
+  const blockerDetails = open.map((item): TestBlockerDetail | undefined => item.status === 'passed'
+    ? undefined
+    : { subject: item.test.label ?? item.test.id, state: item.status })
+  return { stepId: input.stepId, pass: blockers.length === 0, blockers, blockerDetails, items }
 }
 
 function inlineDetail(item: TestEvidenceItem): { readonly detail?: string } {

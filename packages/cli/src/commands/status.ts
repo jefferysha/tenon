@@ -19,6 +19,7 @@ import { display, renderKV, renderTable, str } from '../render.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
 import { buildStatusStep, finishedStatusStep, type StepBlock } from './statusStep.js'
 import { finishedLabel } from './finishedLabel.js'
+import { msg } from '../i18n/messages.js'
 
 interface Row {
   name: string
@@ -41,7 +42,7 @@ async function collectActive(deps: CliDeps): Promise<Row[]> {
       if (str(state.fields.archived) === 'true') continue
       rows.push({ name, state })
     } catch (e) {
-      deps.io.err(`WARN: 跳过 ${name}（读取失败: ${errMsg(e)}）`)
+      deps.io.err(`WARN: ${msg(deps, 'status.skipped', { name, error: errMsg(e) })}`)
     }
   }
   return rows
@@ -71,7 +72,7 @@ export async function cmdStatus(
 ): Promise<number> {
   if (name !== undefined) {
     if (!isValidChangeName(name)) {
-      deps.io.err(`ERROR: change-name 非法: '${name}' (仅允许 a-z A-Z 0-9 - _)`)
+      deps.io.err(`ERROR: ${msg(deps, 'change.nameInvalid', { name })}`)
       return 1
     }
     let state: PipelineState
@@ -86,7 +87,7 @@ export async function cmdStatus(
       // 不存在的任务是产品层的一句话，不是一行 `ENOENT ... open '.../.pipeline.yaml'`：那行既点名
       // 了内部存储文件，又不告诉读者该怎么办。`tenon get` 早已是这个口径，这里与它同一句。
       const code = typeof e === 'object' && e !== null ? Reflect.get(e, 'code') : undefined
-      deps.io.err(code === 'ENOENT' ? `ERROR: change 不存在: ${name}` : `ERROR: ${errMsg(e)}`)
+      deps.io.err(code === 'ENOENT' ? `ERROR: ${msg(deps, 'change.notFound', { name })}` : `ERROR: ${errMsg(e)}`)
       return 1
     }
     const row: Row = { name, state }
@@ -149,7 +150,7 @@ export async function cmdStatus(
     return 0
   }
   if (rows.length === 0) {
-    deps.io.out('无活跃 change')
+    deps.io.out(msg(deps, 'status.none'))
     return 0
   }
   const table = renderTable(
@@ -184,7 +185,7 @@ async function collectFinished(deps: CliDeps): Promise<Row[]> {
       const state = await deps.store.read(changeDir(deps.cwd, name))
       if (str(state.fields.archived) === 'true') rows.set(name, { name, state })
     } catch (e) {
-      deps.io.err(`WARN: 跳过 ${name}（读取失败: ${errMsg(e)}）`)
+      deps.io.err(`WARN: ${msg(deps, 'status.skipped', { name, error: errMsg(e) })}`)
     }
   }
   let entries
@@ -202,7 +203,7 @@ async function collectFinished(deps: CliDeps): Promise<Row[]> {
       // 归档目录里的那份是既成事实的记录，同名时以它为准。
       rows.set(name, { name, state: await deps.store.read(dir) })
     } catch (e) {
-      deps.io.err(`WARN: 跳过 ${entry.name}（读取失败: ${errMsg(e)}）`)
+      deps.io.err(`WARN: ${msg(deps, 'status.skipped', { name: entry.name, error: errMsg(e) })}`)
     }
   }
   return [...rows.values()].sort((a, b) => a.name.localeCompare(b.name))
@@ -225,7 +226,7 @@ export async function cmdListFinished(deps: CliDeps, opts: { json?: boolean }): 
     return 0
   }
   if (rows.length === 0) {
-    deps.io.out('无已完结 change')
+    deps.io.out(msg(deps, 'status.noneFinished'))
     return 0
   }
   const table = renderTable(
@@ -262,7 +263,7 @@ export async function cmdList(deps: CliDeps, opts: { json?: boolean }): Promise<
     return 0
   }
   if (rows.length === 0) {
-    deps.io.out('无活跃 change')
+    deps.io.out(msg(deps, 'status.none'))
     return 0
   }
   const table = renderTable(

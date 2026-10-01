@@ -137,7 +137,7 @@ describe('TaskDetailPane 详情头', () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('no request expected'))))
     const snapshot = change({
       workflowExecution: {
-        readinessByTransition: { build: { 'build-complete': { ready: false, blockers: [{ kind: 'step-exit', source: 'skill', code: 'skill-incomplete', message: '尚未完成声明的 skill：tdd' }] } } },
+        readinessByTransition: { build: { 'build-complete': { ready: false, blockers: [{ kind: 'step-exit', source: 'skill', code: 'skill-incomplete', message: '尚未完成声明的 skill：tdd', subject: 'tdd', state: 'not-run' }] } } },
       },
     } as unknown as Partial<ChangeSnapshot>)
     const row: TaskRow = { ...snapshotRow(snapshot), owner: ann, summary: summaryOf(snapshot, snapshot.workflowRules) }
@@ -208,6 +208,15 @@ describe('TaskDetailPane header and records', () => {
     expect(fetchSpy.mock.calls.some((call) => String(call[0]).startsWith('/api/workflows/'))).toBe(false)
     // 输入 / 输出槽位来自冻结计划的 IO。
     expect(screen.getByTestId('task-io-tab-inputs')).toHaveTextContent('1')
+    // 页签引用的面板真的在 DOM 里，并由当前页签命名（aria-controls 不悬空）。
+    for (const tabId of ['task-view-tab-stage', 'task-io-tab-inputs']) {
+      const tab = screen.getByTestId(tabId)
+      const panel = document.getElementById(tab.getAttribute('aria-controls') ?? '')
+      expect(panel, tabId).not.toBeNull()
+      expect(panel).toHaveAttribute('role', 'tabpanel')
+      const selected = tab.closest('[role="tablist"]')?.querySelector('[aria-selected="true"]')
+      expect(panel?.getAttribute('aria-labelledby')).toBe(selected?.id)
+    }
   })
 
   it('没有菜单项时不渲染 ⋯', () => {
@@ -492,8 +501,8 @@ describe('TaskDetailPane · 下一步', () => {
           'build-complete': {
             ready: false,
             blockers: [
-              { kind: 'step-exit', source: 'skill', code: 'skill-incomplete', message: '尚未完成声明的 skill：tdd' },
-              { kind: 'step-exit', source: 'tasks', code: 'tasks-incomplete', message: 'tasks.md 仍有 2 项未勾', items: ['a', 'b'] },
+              { kind: 'step-exit', source: 'skill', code: 'skill-incomplete', message: '尚未完成声明的 skill：tdd', subject: 'tdd', state: 'not-run' },
+              { kind: 'step-exit', source: 'tasks', code: 'tasks-incomplete', message: 'tasks.md 仍有 2 项未勾', items: ['a', 'b'], count: 2 },
             ],
           },
         },
@@ -531,7 +540,7 @@ describe('TaskDetailPane · 下一步', () => {
   })
 
   it('下一步：同类阻断合并成一行「缺少文档 proposal · openspec-design · tasks」，完整文案逐条进 title', () => {
-    const doc = (name: string) => ({ kind: 'step-exit', source: 'document', code: 'document-evidence', message: `缺少 document '${name}'；执行 tenon document record <change> ${name} <path> --producer <skill>` })
+    const doc = (name: string) => ({ kind: 'step-exit', source: 'document', code: 'document-evidence', message: `缺少 document '${name}'；执行 tenon document record <change> ${name} <path> --producer <skill>`, subject: name, state: 'missing' })
     renderSnapshotPane(change({
       workflowExecution: {
         readinessByTransition: {
@@ -540,7 +549,7 @@ describe('TaskDetailPane · 下一步', () => {
               ready: false,
               blockers: [
                 doc('proposal'),
-                { kind: 'step-exit', source: 'tasks', code: 'tasks-incomplete', message: 'tasks.md 仍有 1 项未勾', items: ['a'] },
+                { kind: 'step-exit', source: 'tasks', code: 'tasks-incomplete', message: 'tasks.md 仍有 1 项未勾', items: ['a'], count: 1 },
                 doc('openspec-design'),
                 doc('tasks'),
               ],
@@ -588,6 +597,20 @@ describe('TaskDetailPane · 下一步', () => {
     await userEvent.click(screen.getByTestId('task-next-takeover'))
     expect(writeText).toHaveBeenCalledWith('/tenon 继续 demo')
     await waitFor(() => expect(onToast).toHaveBeenCalledWith('接管命令已复制'))
+  })
+
+  it('界面是英文时复制英文恢复提示词（router hook 同样认 continue）', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('no request expected'))))
+    localStorage.setItem('tenon-dashboard-lang', 'en')
+    try {
+      render(<I18nProvider><TaskDetailPane row={snapshotRow(blocked())} fetchDefinition={false} /></I18nProvider>)
+      await userEvent.click(screen.getByTestId('task-next-takeover'))
+      expect(writeText).toHaveBeenCalledWith('/tenon continue demo')
+    } finally {
+      localStorage.removeItem('tenon-dashboard-lang')
+    }
   })
 
   it('已完结不显示下一步', () => {

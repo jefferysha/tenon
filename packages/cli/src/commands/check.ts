@@ -47,6 +47,7 @@ import { phaseExitGuardContext } from './phaseExitGuard.js'
 import { stepSkillLines } from './check-skills.js'
 import { stepTestBlockers } from './check-test-evidence.js'
 import { resolveBuildRevisionAssessor } from './buildRevisionAssessor.js'
+import { msg } from '../i18n/messages.js'
 
 function renderBuildRevisionBlocker(blocker: BuildRevisionBlocker): string {
   return [
@@ -70,7 +71,7 @@ export interface CheckOpts {
 
 export async function cmdCheck(deps: CliDeps, name: string, opts: CheckOpts = {}): Promise<number> {
   if (!isValidChangeName(name)) {
-    deps.io.err(`ERROR: change-name 非法: '${name}' (仅允许 a-z A-Z 0-9 - _)`)
+    deps.io.err(`ERROR: ${msg(deps, 'change.nameInvalid', { name })}`)
     return 1
   }
   const dir = resolveChangeDir(deps.cwd, name)
@@ -99,7 +100,7 @@ export async function cmdCheck(deps: CliDeps, name: string, opts: CheckOpts = {}
   }
   if (!plan) {
     const workflowName = resolveWorkflowName(state)
-    deps.io.err(`ERROR: workflow '${workflowName}' 未找到（期望 .pipeline/workflows/${workflowName}.yaml）`)
+    deps.io.err(`ERROR: ${msg(deps, 'workflow.notFound', { workflow: workflowName })}`)
     return 1
   }
   // 引用已删除技能的快照没有兼容层：check 与 transition 给同一句话，别让它先报别的错。
@@ -209,7 +210,7 @@ async function checkGraphWorkflow(
   const currentStepId = str(state.fields.phase)
   const step = resolveStep(plan.workflow, currentStepId)
   if (!step) {
-    deps.io.err(`ERROR: step '${currentStepId}' 不在 workflow '${plan.id}' 里`)
+    deps.io.err(`ERROR: ${msg(deps, 'workflow.stepNotInGraph', { step: currentStepId, workflow: plan.id })}`)
     return 1
   }
   // Declared exits plus the implicit `archived` completion edge of a step without a forward exit.
@@ -220,9 +221,11 @@ async function checkGraphWorkflow(
   } else {
     const selectedEdge = exits.find((transition) => transition.event === event)
     if (selectedEdge === undefined) {
-      deps.io.err(
-        `ERROR: step '${currentStepId}' 不支持 event '${event}'；可选：${exits.map((transition) => transition.event).join(', ') || '(无)'}`,
-      )
+      deps.io.err(`ERROR: ${msg(deps, 'workflow.eventUnsupportedCheck', {
+        step: currentStepId,
+        event,
+        available: exits.map((transition) => transition.event).join(', ') || msg(deps, 'transition.noLegalEvents'),
+      })}`)
       return 1
     }
     guards = effectiveLifecyclePolicy(

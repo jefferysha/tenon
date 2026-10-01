@@ -39,8 +39,8 @@ function change(over: Partial<ChangeSnapshot> & { fields?: Record<string, string
   }
 }
 
-const SKILL_BLOCKER = { kind: 'step-exit' as const, source: 'skill' as const, code: 'skill-incomplete', message: '尚未完成声明的 skill：tdd' }
-const TASKS_BLOCKER = { kind: 'step-exit' as const, source: 'tasks' as const, code: 'tasks-incomplete', message: 'tasks.md 仍有 2 项未勾', items: ['a', 'b'] }
+const SKILL_BLOCKER = { kind: 'step-exit' as const, source: 'skill' as const, code: 'skill-incomplete', message: '尚未完成声明的 skill：tdd', subject: 'tdd', state: 'not-run' }
+const TASKS_BLOCKER = { kind: 'step-exit' as const, source: 'tasks' as const, code: 'tasks-incomplete', message: 'tasks.md 仍有 2 项未勾', items: ['a', 'b'], count: 2 }
 const BLOCKED = {
   readinessByTransition: {
     build: {

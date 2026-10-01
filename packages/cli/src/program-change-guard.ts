@@ -12,6 +12,7 @@ import type { Command } from 'commander'
 import type { CliDeps } from './deps.js'
 import { changeDir, isValidChangeName, readChangeForDisplay } from './paths.js'
 import { CliExit } from './program-exit.js'
+import { msg } from './i18n/messages.js'
 
 export const CHANGE_COMMANDS: ReadonlySet<string> = new Set([
   'set', 'set-many', 'cas', 'transition', 'check', 'advance', 'handoff',
@@ -50,7 +51,7 @@ export function registerChangeExistenceGuard(program: Command, deps: CliDeps): v
       await readChangeForDisplay((dir) => deps.store.read(dir), deps.cwd, name)
     } catch (error) {
       if (!isMissing(error) || entryExists(changeDir(deps.cwd, name))) return
-      deps.io.err(`ERROR: change 不存在: ${name}`)
+      deps.io.err(`ERROR: ${msg(deps, 'change.notFound', { name })}`)
       throw new CliExit(1)
     }
   })

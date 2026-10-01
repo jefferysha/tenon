@@ -20,7 +20,10 @@ const USER: TenonUser = { id: 'tester@tenon.test', name: 'Tester', trust: 'decla
 interface CliExit {
   readonly event: string
   readonly ready: boolean
-  readonly blockers: ReadonlyArray<{ readonly source: string; readonly code: string; readonly message: string; readonly items?: readonly string[] }>
+  readonly blockers: ReadonlyArray<{
+    readonly source: string; readonly code: string; readonly message: string; readonly items?: readonly string[]
+    readonly subject?: string; readonly state?: string; readonly count?: number
+  }>
 }
 
 async function cliExits(root: string, name: string): Promise<readonly CliExit[]> {
@@ -82,7 +85,28 @@ describe('snapshot readiness = tenon status exits', () => {
         .filter((blocker) => blocker.source !== 'revision' && blocker.source !== 'reviewer')
         .map((blocker) => blocker.message)
       expect(projectedMessages, exit.event).toEqual(cliMessages)
+      // 结构化字段（subject / state / count）两边同一份：Dashboard 按它分类，不解析中文整句。
+      const detailsOf = (blockers: ReadonlyArray<{ subject?: string; state?: string; count?: number }>) =>
+        blockers.map((blocker) => ({ subject: blocker.subject, state: blocker.state, count: blocker.count }))
+      const projectedDetails = detailsOf((projected?.blockers ?? []).flatMap((blocker) => blocker.kind === 'step-exit' ? [blocker] : []))
+      const cliDetails = detailsOf(exit.blockers
+        .filter((blocker) => !(blocker.source === 'guard' && blocker.code === 'guard-failed'))
+        .filter((blocker) => blocker.source !== 'revision' && blocker.source !== 'reviewer'))
+      expect(projectedDetails, exit.event).toEqual(cliDetails)
     }
+    // 三类阻断各自带着结构化字段：tasks 有未勾项数，文档有 kind + 状态，技能有 token + 状态。
+    const blockers = forward?.blockers ?? []
+    expect(blockers.find((blocker) => blocker.source === 'tasks')).toMatchObject({ code: 'tasks-incomplete', count: 2 })
+    const document = blockers.find((blocker) => blocker.source === 'document')
+    expect(document).toMatchObject({ code: 'document-evidence', state: 'missing' })
+    expect(typeof document?.subject).toBe('string')
+    const skill = blockers.find((blocker) => blocker.source === 'skill')
+    expect(skill).toMatchObject({ code: 'skill-incomplete' })
+    expect(['not-run', 'unrecorded']).toContain(skill?.state)
+    expect(typeof skill?.subject).toBe('string')
+    // 这些字段是服务端的协议；整句只是人读的补充，快照里的 message 保持原文。
+    const projectedTasks = (readiness['build-complete']?.blockers ?? []).find((blocker) => blocker.kind === 'step-exit' && blocker.source === 'tasks')
+    expect(projectedTasks).toMatchObject({ kind: 'step-exit', code: 'tasks-incomplete', count: 2 })
   })
 
   it('未注入 flow 的只读快照不做 step-exit 判定（向后兼容的最小 readiness）', async () => {

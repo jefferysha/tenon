@@ -24,7 +24,7 @@ export {
   corruptTestRunFiles, evaluateTestEvidence, latestTestRun, listTestRuns, testDigest,
   testEvidenceUserRoot, testStatusWord,
 } from './evaluate.js'
-export type { TestEvidenceContext, TestEvidenceItem, TestEvidenceReport, TestItemStatus } from './evaluate.js'
+export type { TestBlockerDetail, TestEvidenceContext, TestEvidenceItem, TestEvidenceReport, TestItemStatus } from './evaluate.js'
 export {
   renderTestsRegion, replaceTestsRegion, TESTS_REGION_END, TESTS_REGION_START,
 } from './report.js'

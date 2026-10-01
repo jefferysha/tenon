@@ -292,6 +292,10 @@ export type TransitionReadinessBlockerSnapshot =
       code: string
       message: string
       items?: string[]
+      /** 服务端的结构化描述（对象 / 状态 / 未勾项数）：展示按 code + 这三项分类，不解析 message；缺席 = 展示整句。 */
+      subject?: string
+      state?: string
+      count?: number
     }
 
 export type StepExitBlockerSource = 'guard' | 'document' | 'skill' | 'test' | 'reviewer' | 'revision' | 'spec' | 'tasks'

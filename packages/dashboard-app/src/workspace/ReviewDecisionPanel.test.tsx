@@ -73,7 +73,6 @@ describe('ReviewDecisionPanel', () => {
     renderPanel()
     await userEvent.click(await screen.findByTestId('review-console-approve'))
     expect(screen.getByTestId('review-console-confirm-box')).toHaveTextContent('请亲自确认')
-    expect(screen.getByTestId('review-console-confirm-box')).toHaveTextContent('交付')
     expect(screen.getByTestId('review-console-cancel')).toHaveFocus()
     expect(screen.getByTestId('review-console-approve')).toBeDisabled()
     expect(fetchMock.mock.calls.filter((call) => call[1]?.method === 'POST')).toHaveLength(0)
@@ -81,6 +80,30 @@ describe('ReviewDecisionPanel', () => {
     expect(screen.queryByTestId('review-console-confirm-box')).toBeNull()
     expect(screen.getByTestId('review-console-approve')).toBeEnabled()
     expect(fetchMock.mock.calls.filter((call) => call[1]?.method === 'POST')).toHaveLength(0)
+  })
+
+  it('确认框只留动作与 确认 / 取消：没有说明句，说明在可聚焦按钮的 Tooltip 里；一行不折', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(view(3, [pendingItem(3)]))
+    renderPanel()
+    await userEvent.click(await screen.findByTestId('review-console-approve'))
+    const box = screen.getByTestId('review-console-confirm-box')
+    // 句子不在页面上：框里只有标题、说明钮（图标）、两个按钮。
+    expect(box.textContent).toBe(`请亲自确认${screen.getByTestId('review-console-confirm').textContent}${screen.getByTestId('review-console-cancel').textContent}`)
+    expect(box.textContent).not.toContain('代表你本人')
+    expect(box.querySelectorAll('p')).toHaveLength(1)
+    expect(Array.from(box.querySelectorAll('button')).map((button) => button.getAttribute('data-testid')))
+      .toEqual(['review-console-confirm-hint', 'review-console-confirm', 'review-console-cancel'])
+    const hint = screen.getByTestId('review-console-confirm-hint')
+    expect(hint).toHaveAccessibleName('批准后放行到「交付」。这一步代表你本人，只能在这里由你点击确认。')
+    hint.focus()
+    expect((await screen.findAllByText('批准后放行到「交付」。这一步代表你本人，只能在这里由你点击确认。')).length).toBeGreaterThan(0)
+    // 不折行：标题行 nowrap，按钮容器不收缩。
+    expect(box.querySelector('p')?.className).toContain('whitespace-nowrap')
+    expect(screen.getByTestId('review-console-confirm').className).toContain('whitespace-nowrap')
+    // 键盘路径：说明钮在确认之前、取消先拿焦点（Enter 不会误批准）。
+    expect(screen.getByTestId('review-console-cancel')).not.toHaveFocus()
+    screen.getByTestId('review-console-cancel').focus()
+    expect(screen.getByTestId('review-console-cancel')).toHaveFocus()
   })
 
   it('事件显示它通向的阶段名；「退回到…」列出退回边的阶段名，选中后复制退回命令而不直接改状态', async () => {

@@ -91,21 +91,20 @@ export function SkillsView(): JSX.Element {
         railCollapsed={railCollapsed}
         rail={(
           <RailColumn title={t('skills.col_status')} collapsed={railCollapsed} onToggle={() => setRailCollapsed((value) => !value)} testId="skills-rail">
-            <ul className="grid gap-1" role="group" aria-label={t('skills.col_status')} data-testid="skills-filter">
+            <div className="grid gap-1" role="group" aria-label={t('skills.col_status')} data-testid="skills-filter">
               {FILTERS.map(({ id, icon }) => (
-                <li key={id}>
-                  <RailCard
-                    mark={icon}
-                    name={t(`skills.filter_${id}`)}
-                    {...(loaded ? { count: counts[id] } : {})}
-                    selected={filter === id}
-                    collapsed={railCollapsed}
-                    testId={`skills-filter-${id}`}
-                    onClick={() => setFilter(id)}
-                  />
-                </li>
+                <RailCard
+                  key={id}
+                  mark={icon}
+                  name={t(`skills.filter_${id}`)}
+                  {...(loaded ? { count: counts[id] } : {})}
+                  selected={filter === id}
+                  collapsed={railCollapsed}
+                  testId={`skills-filter-${id}`}
+                  onClick={() => setFilter(id)}
+                />
               ))}
-            </ul>
+            </div>
           </RailColumn>
         )}
         list={(

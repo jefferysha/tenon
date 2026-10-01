@@ -92,7 +92,7 @@
 | 定向 Vitest | `npx vitest run --config packages/dashboard-app/vitest.config.ts <test-file>` | 低风险局部改动的快速反馈；交付时列出实际文件 |
 | 前端生产构建 | `npm run build:web` | 依赖、资源、样式、Vite 配置或准备交付的前端改动 |
 | 跨端构建 | `npm run build` | 共享类型、server/client 契约或全栈改动 |
-| Dashboard 浏览器 e2e | `npm run build` 后 `npm run test:e2e -- --project=chromium`（`e2e/dashboard/`，隔离 HOME 与随机端口，种子项目经真实 CLI 建） | 新建项目向导、项目页、工作流页、工作台测试页签、库、断线重连等已覆盖流程的改动；改这些页面的 `data-testid` 或文案须同步 e2e |
+| Dashboard 浏览器 e2e | `npm run build` 后 `npm run test:e2e -- --project=chromium`（`e2e/dashboard/`，隔离 HOME 与随机端口，种子项目经真实 CLI 建） | 新建项目向导、项目页、工作流页、工作台测试页签、库、断线重连等已覆盖流程的改动；改这些页面的 `data-testid` 或文案须同步 e2e；`a11y.spec.ts` 用 axe 扫主要页面（亮/暗），新增页面或状态要补进去，serious/critical 违规必须为零 |
 | 真实浏览器 smoke | 先执行 `npm run build:web && npm run build:server`，再按 README 启动 `npx tenon-dashboard`，检查真实同源页面 | 布局、交互、主题、响应式、SSE、写端点或鉴权行为；至少覆盖受影响的桌面/移动视口与明/暗主题 |
 
 仓库当前没有专用 lint、format npm script；Dashboard 的浏览器 e2e 是上表的 `npm run test:e2e`，其余前端 E2E 不存在，不得声称已运行。只有当前任务明确要求并授权新增工具时，才可引入相应配置，并同时更新本节和 CI/文档。

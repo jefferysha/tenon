@@ -359,6 +359,27 @@ OS、架构、核数、运行时主版本加 `profiles_env` 的取值（形如 `
 即过期。命令可读到 `TENON_CHANGE_NAME`、`TENON_TEST_ID`、`TENON_TEST_RUN_ID`、`TENON_TEST_ARTIFACTS` 与 `TENON_BASE_BRANCH`；
 套件运行拿到 `TENON_TEST_SUITE`（套件 id）代替 `TENON_TEST_ID`；套件命令或 `select` 模板引用了 `TENON_NODE_TEST_REPORTER` 时还会拿到它。内联测试的退出码：`0` 通过、`2` 失败（记录已落盘）、`1` 用法或环境错误（不落记录）。
 
+## 支持、日志与语言
+
+```bash
+tenon support bundle [--out <路径>] [--json]
+tenon logs [--follow] [--lines <n>]
+```
+
+`support bundle` 在本机生成脱敏的 `.tar.gz`（缺省 `~/tenon-support-<时间>.tar.gz`，权限 `0600`，不超过 5 MiB）：
+版本、`doctor`、`runtime status`、配置摘要（只有键名与计数，没有值）、最近的 Dashboard server 日志，以及
+有记录时的 hook 耗时。token、API key、cookie、会话码/登录码、私钥、URL 里的密码、邮箱、home 路径和用户名
+在写入前抹掉；命令会逐项打印包含了什么、哪些被截断（日志保留最新的部分）以及抹掉了多少处。不会上传任何东西。
+`--json` 给脚本输出同样的事实。
+
+`logs` 读取 `<state>/logs/dashboard.log` 与它的轮转文件（`.1`、`.2`，每个 1 MiB，共 3 个）。server 把自己的
+stdout/stderr 镜像到那里，凭证在落盘前已抹掉。`--lines` 缺省 100；`--follow` 轮询新增行，轮转后继续，Ctrl+C 结束。
+
+输出语言：`TENON_LANG=en|zh`，其次 `LC_ALL`、`LC_MESSAGES`、`LANG`。没有信号或为 `C`/`POSIX` 时保持历史的中文输出
+（hook 为输出稳定会钉 `LC_ALL=C`）。每条命令与选项的说明都有英文；用法错误和最常见的错误在两种语言里都有目录条目
+（稳定的消息码，见 `packages/cli/src/i18n/`）；JSON 字段、`ERROR:`/`WARN:` 前缀和退出码不随语言变化。
+还没进目录的文案仍是中文。`tenon transition` 遇到非法或未知 event 时，会在第二行用当前语言列出当前 step 的合法 event。
+
 ## Session 与恢复
 
 ```bash

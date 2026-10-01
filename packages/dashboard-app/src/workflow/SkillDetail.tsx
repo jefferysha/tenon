@@ -6,6 +6,7 @@ import { formatApiError } from '../api/transport'
 import { useT } from '../i18n'
 import { Drawer } from '../shared/Drawer'
 import { isMarkdownPath, Markdown } from '../shared/Markdown'
+import { ScrollablePre } from '../shared/ScrollablePre'
 import { SkillSourceIcon } from './SkillSourceIcon'
 import { cn } from '@/lib/utils'
 
@@ -103,7 +104,7 @@ export function SkillDetail({ name, layout = 'split' }: SkillDetailProps): JSX.E
           })}
         </ul>
       </aside>
-      <section className={cn('min-h-0 min-w-0 overflow-y-auto', stacked && 'flex-1')} aria-label={selected} data-testid="skill-detail-content">
+      <section tabIndex={0} className={cn('min-h-0 min-w-0 overflow-y-auto outline-none focus-visible:ring-2 focus-visible:ring-(--accent)', stacked && 'flex-1')} aria-label={selected} data-testid="skill-detail-content">
         {file.kind === 'loading' ? (
           <p className="text-body text-text-3" role="status">{t('workflow.preview_loading')}</p>
         ) : file.kind === 'error' ? (
@@ -123,7 +124,7 @@ export function SkillDetail({ name, layout = 'split' }: SkillDetailProps): JSX.E
             <Markdown text={parsed.body} testId="skill-detail-markdown" density="compact" />
           </>
         ) : (
-          <pre className="overflow-x-auto rounded-sm border border-code-border bg-code-bg p-3 font-mono text-caption leading-5 text-text" data-testid="skill-detail-text">{file.text}</pre>
+          <ScrollablePre label={selected} className="overflow-x-auto rounded-sm border border-code-border bg-code-bg p-3 font-mono text-caption leading-5 text-text" testId="skill-detail-text">{file.text}</ScrollablePre>
         )}
       </section>
     </div>

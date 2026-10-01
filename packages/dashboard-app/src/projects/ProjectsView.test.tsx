@@ -129,6 +129,18 @@ describe('项目页 · 左列与客户端', () => {
     expect(onSelectProject).toHaveBeenCalledWith('/repo')
   })
 
+  it('列头页签控制的面板真的存在，并由当前页签命名（aria-controls 不悬空）', async () => {
+    stubFetch()
+    renderView()
+    await screen.findByTestId('proj-clients')
+    const tab = screen.getByTestId('proj-segment-tab-clients')
+    const panel = document.getElementById(tab.getAttribute('aria-controls') ?? '')
+    expect(panel).not.toBeNull()
+    expect(panel).toHaveAttribute('role', 'tabpanel')
+    expect(panel).toHaveAttribute('aria-labelledby', 'proj-segment-tab-clients')
+    expect(panel?.contains(screen.getByTestId('proj-clients'))).toBe(true)
+  })
+
   it('只显示项目已启用的客户端（来自 /api/projects/clients）', async () => {
     const calls = stubFetch({ clients: ['claude', 'codex'], targets: () => [target('AGENTS.md'), target('CLAUDE.md'), missing('GEMINI.md')] })
     renderView()
@@ -481,7 +493,8 @@ describe('项目页 · 布局与读取', () => {
     renderView()
     const loading = screen.getByTestId('proj-loading')
     expect(loading.textContent).toBe('')
-    expect(loading.querySelectorAll('li').length).toBeGreaterThan(0)
+    expect(loading.querySelectorAll('div').length).toBeGreaterThan(0)
+    expect(loading.querySelector('li')).toBeNull()
     await act(async () => { release() })
     expect(await screen.findByTestId('proj-clients')).toBeInTheDocument()
   })

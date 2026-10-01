@@ -39,6 +39,15 @@ describe('Markdown · 注释、表格代码与任务列表', () => {
     expect(preview.querySelector('pre')).toHaveTextContent('<!-- 保留 -->')
   })
 
+  it('代码块是可聚焦、有名字的区域（键盘能滚动横向溢出的代码）；没有 I18nProvider 也能渲染', () => {
+    render(<Markdown text={'```ts\nconst veryLongLine = 1\n```\n'} testId="md" />)
+    const block = screen.getByTestId('md').querySelector('pre')
+    expect(block).toHaveAttribute('tabindex', '0')
+    expect(block).toHaveAttribute('role', 'region')
+    expect(block).toHaveAttribute('aria-label', '代码块')
+    expect(block?.querySelector('code')).toHaveTextContent('const veryLongLine = 1')
+  })
+
   it('表格里的行内代码不断行，表格可横向滚动', () => {
     render(<Markdown text={'| 键 | 值 |\n| --- | --- |\n| `a-very-long-identifier` | x |\n'} testId="md" density="compact" />)
     const root = screen.getByTestId('md')

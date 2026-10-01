@@ -54,12 +54,16 @@ import { registerSkillInvocationInternalCommands } from './program-skill-invocat
 import { registerAgentCommands } from './program-agents.js'
 import { registerReviewCommands } from './program-review.js'
 import { registerTestCommands } from './program-tests.js'
-import { LOOPS_HELP } from './program-help.js'
+import { loopsHelp, triageSourceHelp } from './program-help.js'
+import { applyCliLocale } from './i18n/help.js'
+import { DEFAULT_CLI_LOCALE } from './i18n/locale.js'
+import { msg } from './i18n/messages.js'
+import { registerSupportCommands, type SupportRuntimes } from './program-support.js'
 import { registerOrchestrationCommands } from './program-orchestration.js'
 import { registerUserCommands } from './program-users.js'
 export { CliExit } from './program-exit.js'
 
-export interface ProgramRuntimes {
+export interface ProgramRuntimes extends SupportRuntimes {
   readonly triage?: TriageCommandRuntime
   /** Injectable only for command tests; production resolves the installed plugin root. */
   readonly dashboard?: DashboardRuntime
@@ -273,7 +277,7 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
     .option('--max-pages <n>', '本次最多提交页数（默认 4；到限可原命令续跑）', '4')
     .option('--max-high-candidates <n>', '每页最多创建的 high WorkflowRun（默认 10）', '10')
     .option('--json', '单行稳定 JSON 输出')
-    .addHelpText('after', '\nsource: git-commits（当前仓 HEAD）| loop-run-terminals（当前仓 durable loop ledger）')
+    .addHelpText('after', triageSourceHelp(deps.locale ?? DEFAULT_CLI_LOCALE))
     .action(async (source: string, opts: import('./commands/triage.js').TriageCmdOpts) =>
       bail(await cmdTriage(deps, source, opts, runtimes.triage)))
 
@@ -318,7 +322,7 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
     .allowUnknownOption()
     // 子命令是手解析的（loops <sub> [args...] 单命令），commander 的 --help 只显父用法看不到 init 的
     // --id/--goal 等（小白无法从 --help 发现）。补一段 after-help 列出子命令 + init 关键 flags + 示例。
-    .addHelpText('after', LOOPS_HELP)
+    .addHelpText('after', loopsHelp(deps.locale ?? DEFAULT_CLI_LOCALE))
     .action(async (sub: string, args: string[]) => bail(await cmdLoops(deps, sub, args)))
 
   program
@@ -380,10 +384,10 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
   registerDesignCommands(program, deps)
   registerMotionGateCommand(program, deps)
 
-  program.addHelpText(
-    'after',
-    '\n首次安装：tenon setup --codex（或 --claude；安装完整打包插件并配就绪）——随后再用 init 起 change。',
-  )
+  registerSupportCommands(program, deps, runtimes)
 
+  program.addHelpText('after', `\n${msg(deps, 'help.footerSetup')}`)
+
+  applyCliLocale(program, deps.locale ?? DEFAULT_CLI_LOCALE)
   return program
 }

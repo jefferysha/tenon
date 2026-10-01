@@ -21,6 +21,7 @@ import {
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName } from '../paths.js'
 import { cmdSpecApply } from './specApply.js'
+import { msg } from '../i18n/messages.js'
 
 export type { InjectOutcome, InjectChunk, SpecEntry, SpecListing } from '@tenon/kernel'
 
@@ -35,7 +36,7 @@ const REAL_FS: SpecFs = { listSpecs: listSpecEntries, inject: injectJsonl }
 /** change 名校验（显式挡 undefined/空——同 task.ts checkName）。 */
 function checkName(deps: CliDeps, name: string | undefined): name is string {
   if (name !== undefined && name !== '' && isValidChangeName(name)) return true
-  deps.io.err(`ERROR: change-name 非法: '${name ?? ''}' (仅允许 a-z A-Z 0-9 - _)`)
+  deps.io.err(`ERROR: ${msg(deps, 'change.nameInvalid', { name: name ?? '' })}`)
   return false
 }
 

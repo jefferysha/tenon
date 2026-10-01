@@ -1337,6 +1337,8 @@ describe('POST /api/change/<name>/transition —— Verify revision rejection co
         source: 'skill',
         code: 'skill-incomplete',
         message: expect.stringContaining('verification-before-completion'),
+        subject: 'verification-before-completion',
+        state: 'not-run',
       }],
     })
     expect(JSON.stringify(projectedReadiness)).not.toContain(malformed)

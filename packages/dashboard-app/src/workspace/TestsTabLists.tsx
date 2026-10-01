@@ -128,16 +128,18 @@ export function TestsTabTrace({ report, stageLabelOf }: { report: PolicyReport; 
         {shown.map((row) => <TraceLine key={row.covers} report={report} row={row} stageLabelOf={stageLabelOf} />)}
         {optional.length > 0 && (
           <div role="row" className={TABLE_ROW} data-testid="tests-trace-optional">
-            <button
-              type="button"
-              className="flex min-h-10 w-full items-center gap-2 rounded-xs text-left text-text-2 outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent)"
-              aria-expanded={showOptional}
-              data-testid="tests-trace-optional-toggle"
-              onClick={() => setShowOptional((value) => !value)}
-            >
-              <Chevron className="size-4 flex-none text-text-3" aria-hidden="true" />
-              <span className="tabular-nums"><CountRoll value={optional.length} /> {t('tests.task.trace.optional')}</span>
-            </button>
+            <div role="cell">
+              <button
+                type="button"
+                className="flex min-h-10 w-full items-center gap-2 rounded-xs text-left text-text-2 outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent)"
+                aria-expanded={showOptional}
+                data-testid="tests-trace-optional-toggle"
+                onClick={() => setShowOptional((value) => !value)}
+              >
+                <Chevron className="size-4 flex-none text-text-3" aria-hidden="true" />
+                <span className="tabular-nums"><CountRoll value={optional.length} /> {t('tests.task.trace.optional')}</span>
+              </button>
+            </div>
           </div>
         )}
         {showOptional && optional.map((row) => <TraceLine key={row.covers} report={report} row={row} stageLabelOf={stageLabelOf} />)}

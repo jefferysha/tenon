@@ -156,6 +156,7 @@ describe('evaluateTestEvidence', () => {
     const missing = await evaluate(current)
     expect(missing.items[0]?.status).toBe('missing')
     expect(missing.blockers[0]).toBe(`测试 unit（unit）未运行；执行 tenon test run ${CHANGE} unit`)
+    expect(missing.blockerDetails).toEqual([{ subject: 'unit', state: 'missing' }])
 
     await publish(SLUG, record(current, 'unit'))
     expect((await evaluate(current)).items[0]?.status).toBe('passed')
@@ -168,6 +169,7 @@ describe('evaluateTestEvidence', () => {
     expect(failed.items[0]?.status).toBe('failed')
     expect(failed.blockers[0]).toContain('失败：exit-code, sandbox-denied')
     expect(failed.blockers[0]).toContain('sandbox_permissions=require_escalated')
+    expect(failed.blockerDetails).toEqual([{ subject: 'unit', state: 'failed' }])
   })
 
   test('候选版本 / 声明摘要 / 工作流指纹任一不同都判过期', async () => {
@@ -176,6 +178,7 @@ describe('evaluateTestEvidence', () => {
     const byCandidate = await evaluate(current)
     expect(byCandidate.items[0]).toMatchObject({ status: 'stale', staleBecause: 'candidate' })
     expect(byCandidate.blockers[0]).toContain('过期：代码已变化')
+    expect(byCandidate.blockerDetails).toEqual([{ subject: 'unit', state: 'stale' }])
 
     await publish(SLUG, record(current, 'unit', { test_digest: `sha256:${'c'.repeat(64)}` }))
     expect((await evaluate(current)).items[0]).toMatchObject({ status: 'stale', staleBecause: 'declaration' })
@@ -204,6 +207,7 @@ describe('evaluateTestEvidence', () => {
     const running = await evaluate(current)
     expect(running.items[0]?.status).toBe('running')
     expect(running.blockers[0]).toBe('测试 unit（unit）运行中')
+    expect(running.blockerDetails).toEqual([{ subject: 'unit', state: 'running' }])
 
     await writeFile(markerPath, JSON.stringify({
       run_id: '20260915T101500Z-ab12cd', pid: 1, started_at: '2026-09-15T10:00:00Z',

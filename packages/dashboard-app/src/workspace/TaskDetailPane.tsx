@@ -130,6 +130,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
       <DetailColumn
         testId="task-detail-pane"
         panelId="task-detail-panel"
+        {...(fetchDefinition ? { labelledBy: `task-view-tab-${view}` } : {})}
         header={(
           <>
             {/* 头像与 ⋯ 同在标题行；状态词只在这一处（下一步区块不再重复「阻塞」与计数）。 */}
@@ -156,6 +157,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
                   onChange={setView}
                   ariaLabel={t('workspace.detail_tabs')}
                   idPrefix="task-view"
+                  controls="task-detail-panel"
                 />
               </div>
             )}
@@ -227,6 +229,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
                   ariaLabel={t('workspace.io_sheets')}
                   idPrefix="task-io"
                 />
+                <div role="tabpanel" id="task-io-panel" aria-labelledby={`task-io-tab-${sheet}`}>
                 {sheet === 'tests' ? (
                   policyReport === undefined
                     ? <StageTestsPanel rows={testRows} activeId={openTest} onOpen={setOpenTest} />
@@ -252,6 +255,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
                     onOpen={(path) => setOpenIndex(files.findIndex((file) => file.path === path))}
                   />
                 )}
+                </div>
               </div>
             )}
             {fetchDefinition && <TaskRecords root={root} change={change.name} signature={decisionSignature} stageLabelOf={labelOf} />}

@@ -74,6 +74,7 @@ import { probeGitFinish } from './gitWorkspace.js'
 import { harnessAgentDeps } from './integration-harness-agents.js'
 import { ensureCodeSizeProbeOnPath } from './integration-harness-probe.js'
 import { loadTestDirections } from './test-system/directions.js'
+import { resolveCliLocale } from './i18n/locale.js'
 export { recordWorkflowPhaseSkill } from './integration-phase-skill-test-support.js'
 
 /** Track Registry 校验上下文（与 main.ts trackValidationContext 同款，harness 镜像生产装配）。 */
@@ -242,6 +243,9 @@ export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.
       ...input, repoRoot: cwd, payloadRoot: REPO_ROOT, configRoot: resolveProductPaths({ env }).configRoot,
     }),
     io: { out: (l) => out.push(l), err: (l) => err.push(l) },
+    // 与 main.ts 同款：TENON_LANG / LC_* / LANG 选语言；vitest 启动时把 TENON_LANG 钉成 zh，英文用例经 run(env) 覆盖。
+    locale: resolveCliLocale((name) => env[name]),
+    productPaths: () => resolveProductPaths({ env }),
     // TENON_TEST_TICKING_CLOCK=1：每次读时钟前进一秒（同一固定起点），测试记录的完成时间才分得出先后。
     clock: env.TENON_TEST_TICKING_CLOCK === '1' ? tickingClock : () => FIXED_CLOCK,
     listChanges: async (root) => {

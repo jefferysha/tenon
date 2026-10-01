@@ -46,6 +46,7 @@ import { probeGitFinish } from './gitWorkspace.js'
 import { detectHostEnvironment } from './hostKind.js'
 import { pluginSkillIds } from './pluginSkillIds.js'
 import { loadTestDirections } from './test-system/directions.js'
+import { resolveCliLocale } from './i18n/locale.js'
 
 /** ISO8601 UTC 秒级（对齐老内核 date -u +%Y-%m-%dT%H:%M:%SZ 口径） */
 function isoNow(): string {
@@ -270,6 +271,8 @@ async function main(): Promise<void> {
       out: (line: string) => process.stdout.write(`${line}\n`),
       err: (line: string) => process.stderr.write(`${line}\n`),
     },
+    locale: resolveCliLocale((name) => process.env[name]),
+    productPaths: runtimePaths,
     clock: isoNow,
     listChanges,
     listChangeDirs,

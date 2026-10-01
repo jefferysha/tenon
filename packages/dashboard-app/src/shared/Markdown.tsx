@@ -1,5 +1,8 @@
+import type { ReactNode } from 'react'
 import ReactMarkdown, { type Options } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { useOptionalT } from '../i18n'
+import { ScrollablePre } from './ScrollablePre'
 
 /**
  * 两种密度：正文限 72ch 行长；行内代码为所在文字的 0.9em（不低于 13px）、左右 5px；代码块里的 code 沿用 pre 字号。
@@ -78,6 +81,12 @@ export function remarkStripHtmlComments(): (tree: MdNode) => void {
 }
 
 /** 标准 GFM 渲染；不输出原始 HTML（react-markdown 缺省即如此），HTML 注释整段不渲染。开头的 frontmatter 不渲染。 */
+/** 代码块可能横向滚动：聚焦得到、有名字（ScrollablePre）；样式仍由外层 [&_pre] 选择器给。 */
+function CodeBlock({ children }: { children?: ReactNode }): JSX.Element {
+  const t = useOptionalT()
+  return <ScrollablePre label={t('common.code_block')} className="">{children}</ScrollablePre>
+}
+
 export function Markdown({ text, testId, density = 'default', plugins = [] }: {
   text: string
   testId?: string
@@ -87,7 +96,7 @@ export function Markdown({ text, testId, density = 'default', plugins = [] }: {
 }): JSX.Element {
   return (
     <div className={density === 'compact' ? COMPACT_CLS : MD_CLS} data-testid={testId} data-density={density}>
-      <ReactMarkdown remarkPlugins={[remarkGfm, remarkStripHtmlComments, ...plugins]}>{stripFrontmatter(text)}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkStripHtmlComments, ...plugins]} components={{ pre: CodeBlock }}>{stripFrontmatter(text)}</ReactMarkdown>
     </div>
   )
 }

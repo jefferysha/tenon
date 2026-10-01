@@ -395,7 +395,7 @@ describe('库页 · 列表与空态外观', () => {
     expect(row.className).not.toContain('accent-t')
   })
 
-  it('行名 500、选中 600；列表里的「自定义」平时 text-4，悬停 / 选中才 text-3', async () => {
+  it('行名 500、选中 600；列表里的「自定义」平时 text-3（text-4 只给装饰），悬停 / 选中才 text-2', async () => {
     stubFetch()
     renderLibrary()
     const row = await screen.findByTestId('lib-tpl-builtin-backend-go')
@@ -404,9 +404,10 @@ describe('库页 · 列表与空态外观', () => {
     expect(name?.className).toContain('font-medium')
     expect(name?.className).toContain('group-aria-[current=true]:font-semibold')
     const mark = screen.getByTestId('lib-tpl-mark-mine')
-    expect(mark.className).toContain('text-text-4')
-    expect(mark.className).toContain('group-hover:text-text-3')
-    expect(mark.className).toContain('group-aria-[current=true]:text-text-3')
+    expect(mark.className).toContain('text-text-3')
+    expect(mark.className).not.toContain('text-text-4')
+    expect(mark.className).toContain('group-hover:text-text-2')
+    expect(mark.className).toContain('group-aria-[current=true]:text-text-2')
     expect(mark.className).toContain('whitespace-nowrap')
   })
 

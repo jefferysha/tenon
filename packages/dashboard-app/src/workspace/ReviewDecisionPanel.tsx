@@ -195,10 +195,17 @@ export function ReviewDecisionPanel({ root, change, snapshotSignature, rules, ph
         </div>
       )}
       {confirming && (
-        <div className="mt-4 grid gap-2 rounded-md border border-amber-b bg-card p-3" role="group" aria-labelledby="review-console-confirm-title" data-testid="review-console-confirm-box">
-          <p id="review-console-confirm-title" className="font-semibold text-text">{t('review_console.confirm_title')}</p>
-          <p className="text-caption text-text-2">{t('review_console.confirm_body', { stage: eventText })}</p>
-          <div className="flex items-center gap-2">
+        <div className="mt-4 flex min-w-0 items-center justify-between gap-3 rounded-md border border-amber-b bg-card p-3" role="group" aria-labelledby="review-console-confirm-title" data-testid="review-console-confirm-box">
+          <p id="review-console-confirm-title" className="flex min-w-0 items-center gap-1.5 whitespace-nowrap font-semibold text-text">
+            <span className="truncate">{t('review_console.confirm_title')}</span>
+            {/* 说明是句子，页面上只留动作：它进 Tooltip（键盘聚焦也出）。 */}
+            <Hint label={t('review_console.confirm_hint', { stage: eventText })}>
+              <button type="button" className="grid size-6 flex-none place-items-center rounded-sm text-text-3 outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent)" aria-label={t('review_console.confirm_hint', { stage: eventText })} data-testid="review-console-confirm-hint">
+                <Info className="size-3.5" aria-hidden="true" />
+              </button>
+            </Hint>
+          </p>
+          <div className="flex flex-none items-center gap-2">
             <button type="button" className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-md bg-ink px-4 text-base font-semibold text-ink-fg hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)" onClick={() => void approve()} data-testid="review-console-confirm">
               <CheckCircle2 className="size-4" aria-hidden="true" />{t('review_console.confirm')}
             </button>

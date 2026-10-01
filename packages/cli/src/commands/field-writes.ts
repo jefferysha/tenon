@@ -14,11 +14,12 @@ import { requireActor } from '../userIdentity.js'
 import { effectiveArtifactFields } from './effective-artifacts.js'
 import { isValidChangeName } from '../paths.js'
 import { fieldPatch, scalarField, trackWorkflowAllowed } from './field-values.js'
+import { msg } from '../i18n/messages.js'
 
 
 export function checkName(deps: CliDeps, name: string): boolean {
   if (isValidChangeName(name)) return true
-  deps.io.err(`ERROR: change-name 非法: '${name}' (仅允许 a-z A-Z 0-9 - _)`)
+  deps.io.err(`ERROR: ${msg(deps, 'change.nameInvalid', { name })}`)
   return false
 }
 

@@ -5,16 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="data:," />
     <title>Tenon Dashboard</title>
+    <script>
+      /* 首帧就让 <html lang> 与已选界面语言一致（读与 i18n/index.tsx 同一个 localStorage 键）；之后每次切换由 I18nProvider 同步。 */
+      try { document.documentElement.lang = localStorage.getItem('tenon-dashboard-lang') === 'en' ? 'en' : 'zh' } catch (error) { /* 无存储：保持 zh */ }
+    </script>
     <!--
       同源 token 注入锚（server GET / 在此处注入 window.__TENON_DASHBOARD_TOKEN__，见 #25 / server.ts indexHtml）。
       dev/独立预览下无注入 → getToken() 回退空串（只读端点无需 token，写端点会 401，符合安全模型）。
     -->
-    <script type="module" crossorigin src="./assets/index-B_oDCxpD.js"></script>
+    <script type="module" crossorigin src="./assets/index-U79z8yGU.js"></script>
     <link rel="modulepreload" crossorigin href="./assets/react-vendor-Bzraq2Yz.js">
     <link rel="modulepreload" crossorigin href="./assets/icons-vendor-Bc7tG-pq.js">
     <link rel="modulepreload" crossorigin href="./assets/radix-vendor-BfZ9APXO.js">
     <link rel="modulepreload" crossorigin href="./assets/motion-vendor-C46-5VOr.js">
-    <link rel="stylesheet" crossorigin href="./assets/index-DhnYivn5.css">
+    <link rel="stylesheet" crossorigin href="./assets/index-CbvEdiEp.css">
   </head>
   <body>
     <div id="root"></div>

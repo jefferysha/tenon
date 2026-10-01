@@ -51,6 +51,10 @@ export type TransitionReadinessBlocker =
       readonly code: string
       readonly message: string
       readonly items?: readonly string[]
+      /** 结构化描述（见 StepBlockerDetail）：客户端按它分类展示，不解析 `message`。 */
+      readonly subject?: string
+      readonly state?: string
+      readonly count?: number
     }
 
 export interface TransitionReadiness {

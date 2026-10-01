@@ -257,10 +257,12 @@
 | set | `<name> <field> <value>` | 无输出 | 0；四闸/枚举/未知字段拒写=1 |
 | set-many | `<name> k=v...` | 无输出 | 同上 |
 | cas | `<name> <field> <expect> <new>` | 无输出 | 0；不匹配=3；错误=1 |
-| transition | `<name> <event>` | 无（`[TRANSITION] name: old -> new` 走 stderr） | 0；非法/未知事件=1 |
+| transition | `<name> <event>` | 无（`[TRANSITION] name: old -> new` 走 stderr）；非法/未知事件的首行形状不变（`illegal transition: a -> b` / `未知 event: x`），第二行 `当前 step '<s>' 的合法 event：…`（语言随 `TENON_LANG`） | 0；非法/未知事件=1 |
 | check | `<name>` | guard 报告（人读） | 0 过 / 2 不过 / 1 错误 |
 | review | `request\|acknowledge <name> [--delegated]` | review receipt 状态 | 0 成功；2 投影写/清失败（receipt 已提交）；1 用法/状态错误 |
-| status | `[name] [--json]` | 单 change 摘要 | 0 |
+| status | `[name] [--json]` | 单 change 摘要；`--json` 的 `step.exits[].blockers[]` 另带可选的结构化字段 `subject` / `state` / `count`（客户端据此分类，不解析 `message`） | 0 |
+| support bundle | `[--out <path>] [--json]` | 本机脱敏诊断包 `.tar.gz`（版本、doctor、runtime status、配置摘要、最近 Dashboard 日志、hook 耗时；≤ 5 MiB，权限 0600，缺省 `~/tenon-support-<时间>.tar.gz`）；逐项打印包含的文件、截断与脱敏计数；`--json` `{path,bytes,entries,redactions,not_included}` | 0；`--out` 是目录/写失败=1 |
+| logs | `[--follow] [--lines <n>]` | Dashboard server 日志 `<state>/logs/dashboard.log`（+ `.1` `.2` 轮转，共 3 个）的最近 n 行（缺省 100），行内凭证再脱敏一次；`--follow` 轮询新增行直到 SIGINT；没有日志文件 → stderr 提示、stdout 空 | 0；`--lines` 非正整数/读失败=1 |
 | list | `[--json] [--archived]` | 活跃 change 表；`--archived` 为当前用户已归档表 `NAME PHASE ARCHIVED_AT BY` | 0；归档记录损坏=1 |
 | task delete | `<name> [--yes] [--json]` | 无（`[DELETE] name` 与 `未提交删除 n` 走 stderr）；`--json` `{change,removed,uncommitted_deletions}` | 0；用法/名/缺任务/身份/记录损坏/失败=1；待确认=2；被阻止=3 |
 | task archive | `<name> [--yes] [--json]` | 无（`[ARCHIVE] name phase=<phase>` 走 stderr）；`--json` `{change,changed,archived_at,phase}` | 同上 |
@@ -278,6 +280,8 @@
 | test baseline | `<name> --suite <id> --run <run-id>`；旧形式 `<name> <test-id> --run <run-id>` | `[BASELINE] 套件 @ 画像：n 项指标 ← run <id>`；写 `.tenon/tests/baselines/<套件>/<画像>.json` 并追加用户 `audit.jsonl` | 0；运行未通过/不在当前链上/无指标=1 |
 | test known | `add --suite --test --reason --expires [--link]`、`rm --suite --test`、`list [--json]` | 一行确认或清单（过期项标出） | 0；参数非法/清单无效=1 |
 | test report | `<name> [--step <id>] [--write <path>] [--locale zh-CN\|en]` | 验证报告测试段：旧步骤测试表（`tenon:tests:*`，仅有内联测试时）+ v2 块（`tenon:test-report:begin/end`：追溯矩阵/套件与各套件最新 run_id/基准/flaky/阻塞）；`--write` 只替换各自标记区间 | 0；写目标非法=1 |
+
+输出语言：`TENON_LANG=en|zh`，其次 `LC_ALL` → `LC_MESSAGES` → `LANG`；无信号或 `C`/`POSIX` 保持历史中文输出（hook 钉 `LC_ALL=C`）。命令/选项的 `--help` 文案、commander 用法错误与最常见的错误/提示经消息目录（`packages/cli/src/i18n/`，稳定消息码）出两种语言；JSON 字段、`ERROR:`/`WARN:` 前缀与退出码不随语言变化。
 
 身份与负责人命令 `tenon user` / `tenon user set` / `tenon owner take` / `tenon owner set` 只登记自报身份，不做认证；`owner set` 仅当前负责人可执行，与 Dashboard 的负责人移交共用 kernel `transferOwner`。
 

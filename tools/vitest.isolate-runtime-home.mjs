@@ -14,6 +14,7 @@ const ISOLATED_ENV = [
   'TENON_USER_NAME',
   'TENON_BASE_BRANCH',
   'TENON_CHANGE_NAME',
+  'TENON_LANG',
 ]
 
 const saved = new Map(ISOLATED_ENV.map((name) => [name, process.env[name]]))
@@ -25,6 +26,8 @@ process.env.TENON_RUNTIME_HOME = mkdtempSync(join(tmpdir(), 'tenon-vitest-home-'
 // 声明身份给每个文件一个测试用户；用例需要第二个用户或缺失身份时自行覆盖 env。
 process.env.TENON_USER = 'tester@tenon.test'
 process.env.TENON_USER_NAME = 'Tester'
+// CLI 输出语言钉成 zh：断言按中文文案写，不随开发机的 LANG 漂移；英文用例自己覆盖 TENON_LANG。
+process.env.TENON_LANG = 'zh'
 
 afterAll(() => {
   for (const [name, value] of saved) {

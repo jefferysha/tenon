@@ -14,20 +14,39 @@ Read:
 - [CLI reference](docs/usage/cli-reference.md)
 - [Security model](docs/usage/security-model.md)
 
-Run the read-only diagnostic bundle:
+Build the diagnostic package. It is created on your machine, never uploaded, and
+redacted before it is written:
 
 ```bash
-tenon doctor --json
-tenon runtime status --json
-tenon list --json
-tenon status <change-name> --json
-tenon document status <change-name> --json
+tenon support bundle                      # ~/tenon-support-<time>.tar.gz
+tenon support bundle --out ./support.tar.gz
 ```
 
-For Dashboard problems:
+The package holds the Tenon/Node/OS versions, `tenon doctor --json`,
+`tenon runtime status --json`, a configuration summary (names and counts, never
+values), the recent Dashboard server log (three rotated files, newest part kept)
+and hook timings when they exist. It stays under 5 MiB, the file mode is `0600`,
+and the command prints exactly what went in and what was removed.
+
+Redaction removes tokens, API keys, cookies, session and one-time login codes,
+private keys, `user:password@` URLs, email addresses, your home directory
+(replaced by `~`, including the account name inside paths) and your user name.
+Project directory names below `~` can still appear (for example in `doctor`
+details): open the archive and read it before you attach it to an Issue.
+
+For Dashboard problems, `tenon logs` shows the same server log and
+`tenon logs --follow` tails it. When the server does not answer:
 
 ```bash
 curl --fail http://127.0.0.1:18765/api/health
+```
+
+The per-Change reads are still useful when the problem is about one Change:
+
+```bash
+tenon list --json
+tenon status <change-name> --json
+tenon document status <change-name> --json
 ```
 
 ## Questions and non-sensitive bugs
@@ -43,7 +62,7 @@ Include:
 - operating system and Node.js version;
 - relevant plugin/CLI/runtime identity;
 - the selected Workflow and Track;
-- sanitized command output and exit codes;
+- the support package (or sanitized command output and exit codes);
 - whether the problem reproduces in a new host session;
 - whether Codex hook trust is active.
 

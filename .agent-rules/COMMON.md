@@ -97,7 +97,7 @@
 | 静态/生成物门禁 | `npm run check:comments`；`npm run check:default-workflow-freshness` |
 | 分发与兼容验收 | `bash tools/test-hooks.sh`；`bash tools/test-adapters.sh`；`bash tools/verify-skills.sh`；`bash tools/test-bundle.sh`；`npm run oracle` |
 | 浏览器/API smoke | `npm run build:web && npm run build:server` 后按 README 启动 `npx tenon-dashboard`，检查受影响真实流程 |
-| Dashboard 浏览器 e2e | `npm run build` 之后 `npm run test:e2e -- --project=chromium`（webkit 需 `npx playwright install webkit`）；CI 三处阻塞地跑：verify（Node 22，Chromium）、node-matrix（Node 20/22/24，Chromium，另跑测试体系 / reporter / 解析器套件）、独立的 dashboard-e2e-webkit 作业；ci.yml 不允许任何 `continue-on-error`；`npm test` 在 CI 带 `TENON_E2E=1`（缺 Chromium 即失败） |
+| Dashboard 浏览器 e2e | `npm run build` 之后 `npm run test:e2e -- --project=chromium`（webkit 需 `npx playwright install webkit`）；CI 三处阻塞地跑：verify（Node 22，Chromium）、node-matrix（Node 20/22/24，Chromium，另跑测试体系 / reporter / 解析器套件）、独立的 dashboard-e2e-webkit 作业；ci.yml 不允许任何 `continue-on-error`；`npm test` 在 CI 带 `TENON_E2E=1`（缺 Chromium 即失败）；含 `e2e/dashboard/a11y.spec.ts` 的 axe 无障碍检查（主要页面亮/暗主题，serious/critical 必须为零） |
 | 基准 | `npm run bench:status`、`npm run bench:snapshot`、`npm run bench:snapshot:large`（30 项目 × 30 任务，写入后重建 p95 < 1.5 s）；判定与基线走 `tenon test run <change> --suite bench-status --suite bench-snapshot --suite bench-snapshot-large` |
 | Docker/真实 agent | `bash tools/sandcastle/build.sh local`；需要凭证时按 `BACKEND.md` 的 real-Codex 命令运行 |
 

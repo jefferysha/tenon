@@ -229,6 +229,16 @@ it is the correct Dashboard. The other reads (`/api/snapshot`,
 answer `401` to `curl` by design; use the CLI equivalents above, or the signed-in
 browser.
 
+### Server log
+
+The server mirrors its stdout/stderr into `<state>/logs/dashboard.log` (rotated by
+size, three files: the current one plus `.1` and `.2`, 1 MiB each) and records
+unexpected `500` responses as `[dashboard-server] 500 <method> <path>: <message>`
+(the query string is never logged). Credentials, cookies and one-time login codes
+are redacted before a line reaches the file. Read it with `tenon logs [--follow]
+[--lines N]`; `tenon support bundle` packages the recent part, redacted again for
+sharing.
+
 ## Local API
 
 The loopback API exposes current health/snapshot/SSE plus local operations for
@@ -286,6 +296,16 @@ The list stream sends one full `snapshot` event and afterwards a `snapshot-delta
 holding only the projects whose serialized bytes changed, plus `roots` (the registry
 order) so removed projects disappear; a stream without `view=list` keeps re-sending the
 whole full snapshot as `snapshot` events.
+
+A `step-exit` readiness blocker (`readinessByTransition[...].blockers[]`) carries the
+human sentence in `message` (the same text as the CLI, shown only as a tooltip) and the
+machine-readable parts in `code`, `source` and the optional `subject`, `state` and
+`count`: `subject` is the blocked object (document kind, skill token, test display name),
+`state` its state (documents `missing|stale|unread`, skills `not-run|unrecorded`, inline
+tests `running|missing|stale|failed`) and `count` the number of unchecked `tasks.md`
+items. The Dashboard labels blockers from `code` and these fields only and never parses
+`message`; a blocker without them is shown as its full sentence. `tenon status --json`
+`exits[].blockers[]` has the same fields.
 
 The snapshot is cached per project. Each project's list build, full build and change
 details are keyed by that project's input fingerprint (state, tasks, documents, test-record

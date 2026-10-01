@@ -46,6 +46,7 @@ import {
 } from './advance-support.js'
 import { dryRunDefaultPlan } from './advance-default-dry-run.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
+import { msg } from '../i18n/messages.js'
 
 export type { AdvanceOpts } from './advance-support.js'
 
@@ -53,7 +54,7 @@ const DEFAULT_MAX_STEPS = 12
 
 export async function cmdAdvance(deps: CliDeps, name: string, opts: AdvanceOpts = {}): Promise<number> {
   if (!isValidChangeName(name)) {
-    deps.io.err(`ERROR: change-name 非法: '${name}' (仅允许 a-z A-Z 0-9 - _)`)
+    deps.io.err(`ERROR: ${msg(deps, 'change.nameInvalid', { name })}`)
     return 1
   }
   if (await refuseArchived(deps, name)) return 1

@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="data:," />
     <title>Tenon Dashboard</title>
+    <script>
+      /* 首帧就让 <html lang> 与已选界面语言一致（读与 i18n/index.tsx 同一个 localStorage 键）；之后每次切换由 I18nProvider 同步。 */
+      try { document.documentElement.lang = localStorage.getItem('tenon-dashboard-lang') === 'en' ? 'en' : 'zh' } catch (error) { /* 无存储：保持 zh */ }
+    </script>
     <!--
       同源 token 注入锚（server GET / 在此处注入 window.__TENON_DASHBOARD_TOKEN__，见 #25 / server.ts indexHtml）。
       dev/独立预览下无注入 → getToken() 回退空串（只读端点无需 token，写端点会 401，符合安全模型）。

@@ -142,9 +142,9 @@ export function SuiteRunDrawer({ root, change, target, verdict, policy, stageLab
       )}
     >
       {state.status === 'loading' && (
-        <ul className="grid gap-3" role="status" aria-label={t('common.loading')} data-testid="run-loading">
-          {[0, 1, 2].map((index) => <li key={index} className="h-10 animate-pulse rounded-md bg-fill motion-reduce:animate-none" />)}
-        </ul>
+        <div className="grid gap-3" role="status" aria-label={t('common.loading')} data-testid="run-loading">
+          {[0, 1, 2].map((index) => <div key={index} className="h-10 animate-pulse rounded-md bg-fill motion-reduce:animate-none" />)}
+        </div>
       )}
       {state.status === 'error' && (
         <div className="flex min-w-0 items-center gap-3" data-testid="run-error">

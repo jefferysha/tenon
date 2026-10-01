@@ -4,6 +4,7 @@ import { useT } from '../i18n'
 import type { ProjectCreatePlan } from '../api/instructionsDecoders'
 import { cn } from '@/lib/utils'
 import { CLIENTS, FILE_MODES, stepLabelKey, type FileMode } from './newProjectModel'
+import { ScrollablePre } from '../shared/ScrollablePre'
 
 const clientNames = (ids: readonly string[]): string =>
   ids.map((id) => CLIENTS.find((client) => client.id === id)?.name ?? id).join(', ')
@@ -94,9 +95,9 @@ export function ConfirmStep({ plan, mode, clients, fileModes, onFileMode, design
                 {fileMode !== null && <ModeChoice file={file.id} value={fileMode} onChange={(next) => onFileMode(file.id, next)} />}
               </div>
               {expanded && (
-                <pre className="max-h-60 overflow-auto border-t border-border bg-fill/45 px-3 py-2 font-mono text-micro text-text-2 animate-in fade-in-0 duration-(--dur-base)" data-testid={`np-plan-content-${file.id}`}>
+                <ScrollablePre label={file.id} className="max-h-60 overflow-auto border-t border-border bg-fill/45 px-3 py-2 font-mono text-micro text-text-2 animate-in fade-in-0 duration-(--dur-base)" testId={`np-plan-content-${file.id}`}>
                   {skipped ? file.current : file.next}
-                </pre>
+                </ScrollablePre>
               )}
             </li>
           )

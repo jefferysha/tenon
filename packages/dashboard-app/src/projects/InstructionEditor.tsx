@@ -89,7 +89,7 @@ export function InstructionEditor({
                 </Hinted>
               )}
               {tooLarge && (
-                <Hinted hint={t('projects.errors.too_large')} testId="proj-size">
+                <Hinted hint={t('projects.errors.too_large')} label={t('projects.errors.too_large')} testId="proj-size">
                   <span className={COUNT_BADGE}>32KiB</span>
                 </Hinted>
               )}
@@ -119,7 +119,7 @@ export function InstructionEditor({
         sheets={<div className="mt-5"><SegmentTabs sheets={sheets} active={sheet} onChange={setSheet} ariaLabel={t('projects.file')} idPrefix="proj" /></div>}
       >
         {/* 正在编辑的文件：编辑区顶部固定一行完整路径（截断 + title），编辑 / 渲染都在。 */}
-        <p className="mb-3 truncate whitespace-nowrap font-mono text-caption text-text-3" title={target.path} data-testid="proj-path">{target.path}</p>
+        <p id="proj-editor-path" className="mb-3 truncate whitespace-nowrap font-mono text-caption text-text-3" title={target.path} data-testid="proj-path">{target.path}</p>
         {external && (
           <div className="mb-4 flex flex-wrap items-center gap-3 rounded-md border border-amber-b bg-amber-t px-4 py-3" role="status" data-testid="proj-external">
             <span className="text-body font-semibold text-amber-d">{t('projects.external')}</span>
@@ -142,6 +142,7 @@ export function InstructionEditor({
           <textarea
             ref={editorRef}
             className={EDITOR}
+            aria-labelledby="proj-editor-path"
             value={text}
             spellCheck={false}
             data-testid="proj-editor"

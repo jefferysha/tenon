@@ -201,7 +201,9 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
       </div>
 
       {tracks.length > 0 && (
-        <div className="flex items-end gap-3.5 overflow-x-auto border-b border-border" role="tablist" aria-label={t('workflow.tracks_title')} data-testid="wb-tracks">
+        <div className="flex items-end gap-3.5 border-b border-border">
+          {/* tablist 里只能有 tab：新建轨道的 + 在它旁边，不在它里面。 */}
+          <div className="flex min-w-0 items-end gap-3.5 overflow-x-auto" role="tablist" aria-label={t('workflow.tracks_title')} data-testid="wb-tracks">
           {tracks.map((candidate) => {
             const active = candidate.id === branch
             return (
@@ -218,7 +220,8 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
               </button>
             )
           })}
-          <button type="button" className="ml-auto mb-1.5 grid size-6 place-items-center rounded-xs text-text-3 outline-none hover:bg-fill hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-not-allowed disabled:opacity-50" aria-label={t('workflow.new_track')} title={t('workflow.new_track')} disabled={!canWrite || busy} data-testid="wb-track-new" onClick={props.onNewTrack}>
+          </div>
+          <button type="button" className="ml-auto mb-1.5 grid size-6 flex-none place-items-center rounded-xs text-text-3 outline-none hover:bg-fill hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-not-allowed disabled:opacity-50" aria-label={t('workflow.new_track')} title={t('workflow.new_track')} disabled={!canWrite || busy} data-testid="wb-track-new" onClick={props.onNewTrack}>
             <Plus className="size-3.5" aria-hidden="true" />
           </button>
         </div>

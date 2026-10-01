@@ -60,7 +60,7 @@ export function ClientScopeControls({ scope, onScope, userReaders, reader, onRea
         const Icon = LEVELS_ICON[levels]
         const hint = t('projects.load_mode_hint', { mode: t(LEVELS_KEY[levels]) })
         return (
-          <Hinted hint={hint} testId="proj-levels">
+          <Hinted hint={hint} label={hint} testId="proj-levels">
             <Icon className="size-4 text-text-3" aria-hidden="true" />
           </Hinted>
         )

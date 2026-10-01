@@ -6,6 +6,7 @@
  * 漏改一处就是一条静默的假绿。现在两轨都调这一个函数，分类顺序与计数只有一处定义。
  */
 import type { CliDeps } from '../deps.js'
+import { msg } from '../i18n/messages.js'
 
 /** 各类证据的未通过项；顺序即渲染顺序。空数组 = 该类全过或本轨不适用。 */
 export interface CheckSections {
@@ -40,12 +41,12 @@ export function renderCheckReport(
   ]
   const total = groups.reduce((sum, [, lines]) => sum + lines.length, 0)
   if (total === 0) {
-    deps.io.out('  [PASS] 所有检查通过')
+    deps.io.out(`  [PASS] ${msg(deps, 'check.pass')}`)
     return 0
   }
   for (const [prefix, lines] of groups) {
     for (const line of lines) deps.io.out(`  [FAIL] ${prefix}${line}`)
   }
-  deps.io.out(`  [FAIL] 共 ${total} 项未通过`)
+  deps.io.out(`  [FAIL] ${msg(deps, 'check.failTotal', { count: total })}`)
   return 2
 }

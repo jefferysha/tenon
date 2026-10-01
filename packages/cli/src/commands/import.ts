@@ -8,6 +8,7 @@
 import { parseLegacyHistory, stripLegacyHistory, type HistoryWriter } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName } from '../paths.js'
+import { msg } from '../i18n/messages.js'
 
 async function runImportUnderLock(
   deps: CliDeps,
@@ -60,7 +61,7 @@ async function runImportUnderLock(
 
 export async function cmdImport(deps: CliDeps, name: string, opts: { strip?: boolean }): Promise<number> {
   if (!isValidChangeName(name)) {
-    deps.io.err(`ERROR: change-name 非法: '${name}' (仅允许 a-z A-Z 0-9 - _)`)
+    deps.io.err(`ERROR: ${msg(deps, 'change.nameInvalid', { name })}`)
     return 1
   }
   if (!deps.history) {

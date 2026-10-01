@@ -13,7 +13,19 @@ problems with read-only checks before applying a bounded repair.
 
 ## First-response bundle
 
-Run:
+Build the redacted diagnostic package; it is local only and prints what it contains:
+
+```bash
+tenon support bundle [--out <path>]
+```
+
+It includes versions, `doctor`, `runtime status`, a configuration summary, the
+recent Dashboard server log and hook timings when available, stays under 5 MiB and
+is written with mode `0600`. Tokens, cookies, login codes, private keys, emails,
+your home path and your user name are removed before anything is written, but read
+the archive before sharing it.
+
+The individual read-only checks, when you want one answer:
 
 ```bash
 tenon doctor --json
@@ -36,6 +48,31 @@ CLI reads, or sign in with `tenon dashboard --open`.
 
 Collect error messages and exit codes, but remove secrets and sensitive Tap
 content before sharing.
+
+### Reading the Dashboard server log
+
+The server mirrors its output into `<state>/logs/dashboard.log` (rotated by size:
+the current file plus `.1` and `.2`, 1 MiB each). Credentials, cookies and one-time
+login codes are redacted before they reach the file.
+
+```bash
+tenon logs                 # last 100 lines across the rotated files
+tenon logs --lines 500
+tenon logs --follow        # keep printing new lines until Ctrl+C
+```
+
+The managed background server has no terminal, so this file is the only place its
+warnings and unexpected `500` responses (method, path and message, never the query)
+are recorded.
+
+### Changing the CLI language
+
+CLI help, usage errors and the most common errors follow `TENON_LANG=en|zh`, then
+`LC_ALL`, `LC_MESSAGES` and `LANG`. With no signal, or with `LC_ALL=C`/`POSIX`
+(hooks pin this for stable output), the historical Chinese output is kept. Message
+codes and exit codes do not depend on the language. An illegal or unknown
+`tenon transition` event lists the legal events for the current step in either
+language.
 
 ## Symptom guide
 

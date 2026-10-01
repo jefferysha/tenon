@@ -120,11 +120,19 @@ export interface DocumentEvidenceItem {
   }[]
 }
 
+/** 一条文档阻断的结构化描述：对象（文档 kind）与状态；客户端据此分类，不解析整句。 */
+export interface DocumentBlockerDetail {
+  readonly subject: string
+  readonly state: 'missing' | 'stale' | 'unread'
+}
+
 export interface DocumentEvidenceReport {
   readonly phase: string
   readonly hasLedger: boolean
   readonly pass: boolean
   readonly blockers: readonly string[]
+  /** 与 `blockers` 逐项对齐；没有结构化描述的阻断（账本不可读、step visit 不可验证）为 undefined。 */
+  readonly blockerDetails?: readonly (DocumentBlockerDetail | undefined)[]
   readonly items: readonly DocumentEvidenceItem[]
 }
 
@@ -235,6 +243,11 @@ export async function evaluateDocumentEvidence(
   const gatingKinds = new Set<DocumentKind>([...recordKinds, ...readRequirements, ...requiredKinds])
   const kinds = new Set<DocumentKind>([...gatingKinds, ...mutableKinds])
   const blockers: string[] = []
+  const blockerDetails: Array<DocumentBlockerDetail | undefined> = []
+  const block = (message: string, detail?: DocumentBlockerDetail): void => {
+    blockers.push(message)
+    blockerDetails.push(detail)
+  }
   const items: DocumentEvidenceItem[] = []
   let confirmations
   let invocationEvents: readonly SkillInvocationEventV1[]
@@ -242,7 +255,7 @@ export async function evaluateDocumentEvidence(
     confirmations = await readDocumentSkillConfirmations(changeDir)
     invocationEvents = await readSkillInvocationEventsForApplication(changeDir)
   } catch (error) {
-    blockers.push(`document producer invocation evidence 不可验证: ${error instanceof Error ? error.message : String(error)}`)
+    block(`document producer invocation evidence 不可验证: ${error instanceof Error ? error.message : String(error)}`)
     confirmations = []
     invocationEvents = []
   }
@@ -251,15 +264,13 @@ export async function evaluateDocumentEvidence(
     try {
       currentVisitId = await currentDocumentStepVisitId(changeDir)
     } catch (error) {
-      blockers.push(
-        `current step visit 不可验证: ${error instanceof Error ? error.message : String(error)}`,
-      )
+      block(`current step visit 不可验证: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
   /** Record a verdict; update-only slots are projected but never gate their step's exits. */
-  const gate = (kind: DocumentKind, message: string): void => {
-    if (gatingKinds.has(kind)) blockers.push(message)
+  const gate = (kind: DocumentKind, message: string, state: DocumentBlockerDetail['state']): void => {
+    if (gatingKinds.has(kind)) block(message, { subject: kind, state })
   }
 
   for (const kind of kinds) {
@@ -272,17 +283,17 @@ export async function evaluateDocumentEvidence(
         if (await projectDocumentPresent(repoRoot, kind, projectPath)) {
           items.push({ kind, status: 'recorded', requiredRead, paths: [projectPath], producers: [], timeline: [] })
         } else {
-          gate(kind, `缺少项目文档 '${kind}'（${projectPath}）`)
+          gate(kind, `缺少项目文档 '${kind}'（${projectPath}）`, 'missing')
           items.push(item(kind, 'missing', requiredRead, records, phase, currentVisitId))
         }
         continue
       }
-      gate(kind, `缺少 document '${kind}'；执行 tenon document record <change> ${kind} <path> --producer <skill>`)
+      gate(kind, `缺少 document '${kind}'；执行 tenon document record <change> ${kind} <path> --producer <skill>`, 'missing')
       items.push(item(kind, 'missing', requiredRead, records, phase, currentVisitId))
       continue
     }
     if (records.some((record) => !isRecordedDocumentProducerAllowedThroughPolicyStep(policy, kind, phase, record.producer))) {
-      gate(kind, `document '${kind}' 的 producer 不符合当前 document contract`)
+      gate(kind, `document '${kind}' 的 producer 不符合当前 document contract`, 'stale')
       items.push(item(kind, 'stale', requiredRead, records, phase, currentVisitId, 'producer'))
       continue
     }
@@ -293,6 +304,7 @@ export async function evaluateDocumentEvidence(
       gate(
         kind,
         `存在旧 delta-spec 记录，必须用 tenon document migrate-delta 显式迁移: ${legacyDelta.map((record) => record.path).join(', ')}`,
+        'stale',
       )
       items.push(item(kind, 'stale', requiredRead, records, phase, currentVisitId, 'legacy-path'))
       continue
@@ -302,7 +314,7 @@ export async function evaluateDocumentEvidence(
       digests.push(await currentRecordDigest(repoRoot, record))
     }
     if (records.some((record, index) => digests[index] !== record.sha256)) {
-      gate(kind, `document '${kind}' 已缺失或内容变化；重新执行 tenon document record 后再继续`)
+      gate(kind, `document '${kind}' 已缺失或内容变化；重新执行 tenon document record 后再继续`, 'stale')
       items.push(item(kind, 'stale', requiredRead, records, phase, currentVisitId, 'changed'))
       continue
     }
@@ -329,6 +341,7 @@ export async function evaluateDocumentEvidence(
       gate(
         kind,
         `document '${kind}' 的 producer invocation/artifact 尚未原子完成: ${incompleteProducer.path}；执行 tenon document record <change> ${kind} ${incompleteProducer.path} --producer ${incompleteProducer.producer}`,
+        'stale',
       )
       items.push(item(kind, 'stale', requiredRead, records, phase, currentVisitId, 'invocation'))
       continue
@@ -343,6 +356,7 @@ export async function evaluateDocumentEvidence(
         gate(
           kind,
           `document '${kind}' 尚未由 ${phase} 的当前 step visit 读取；执行 tenon document read <change> ${kind}`,
+          'unread',
         )
       }
       items.push(item(kind, 'unread', requiredRead, records, phase, currentVisitId))
@@ -350,5 +364,5 @@ export async function evaluateDocumentEvidence(
     }
     items.push(item(kind, 'recorded', requiredRead, records, phase, currentVisitId))
   }
-  return { phase, hasLedger: true, pass: blockers.length === 0, blockers, items }
+  return { phase, hasLedger: true, pass: blockers.length === 0, blockers, blockerDetails, items }
 }

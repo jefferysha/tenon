@@ -32,6 +32,10 @@ export interface ProductPaths {
    */
   readonly dashboardTokenPath: string
   readonly dashboardPidfilePath: string
+  /** Rotating diagnostic logs (`tenon logs`, `tenon support bundle`); nothing here ever holds a credential. */
+  readonly logsRoot: string
+  /** Current Dashboard server log; rotated siblings are `<path>.1` and `<path>.2`. */
+  readonly dashboardLogPath: string
   /** Machine-local declared identity override `{ id, name }` (below `TENON_USER`, above git config). */
   readonly userConfigPath: string
   /** Per-install 0600 random key for HMAC identity digests in pending-decision security observations. */
@@ -162,6 +166,8 @@ export function resolveProductPaths(input: ProductPathInput = {}): ProductPaths 
     secretsPath: paths.join(configRoot, 'secrets.json'),
     dashboardTokenPath: paths.join(stateRoot, 'dashboard-token.json'),
     dashboardPidfilePath: paths.join(stateRoot, 'dashboard-server.json'),
+    logsRoot: paths.join(stateRoot, 'logs'),
+    dashboardLogPath: paths.join(stateRoot, 'logs', 'dashboard.log'),
     userConfigPath: paths.join(configRoot, 'user.json'),
     decisionObservationKeyPath: paths.join(stateRoot, 'decision-observation-identity.key'),
     managedTransactionRoot: paths.join(stateRoot, 'managed-release-transaction'),

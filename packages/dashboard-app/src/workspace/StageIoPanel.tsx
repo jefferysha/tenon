@@ -111,16 +111,17 @@ export function StageIoPanel({ direction, items, activePath, onOpen, definitionS
       ) : definitionState === 'error' ? (
         <p className="text-body text-red-d" role="alert">{t('workspace.definition_error')}</p>
       ) : (
+        <>
         <div className="grid min-w-0" role="table" aria-label={t(`workspace.${direction}`)}>
           <div className={cn(COLS, 'border-b border-border px-1 pb-2 text-caption text-text-3')} role="row" data-testid={`stage-${direction}-head`}>
             <span role="columnheader">{t('workspace.io_col_file')}</span>
             <span role="columnheader">{t('workspace.io_col_skill')}</span>
             <span role="columnheader">{t('workspace.io_col_status')}</span>
           </div>
-          {items.length === 0
-            ? <p className="py-3 text-body text-text-3" role="status">{t('workspace.none')}</p>
-            : items.map(row)}
+          {items.map(row)}
         </div>
+        {items.length === 0 && <p className="py-3 text-body text-text-3" role="status">{t('workspace.none')}</p>}
+        </>
       )}
     </section>
   )
