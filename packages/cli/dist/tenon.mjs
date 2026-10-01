@@ -16432,8 +16432,8 @@ function isWorkflowIr(value) {
   const record9 = ownRecord5(value);
   return record9 !== void 0 && typeof record9.name === "string" && Array.isArray(record9.steps);
 }
-var VERIFIED_PLAN_TEXTS_LIMIT = 512;
-var verifiedPlanTexts = /* @__PURE__ */ new Set();
+var VERIFIED_PLANS_LIMIT = 512;
+var verifiedPlans = /* @__PURE__ */ new Set();
 function parseWorkflowPlanSnapshot(raw) {
   let value;
   try {
@@ -16501,14 +16501,14 @@ function parseWorkflowPlanSnapshot(raw) {
     interaction: plan.interaction,
     workflowFingerprint: plan.workflowFingerprint
   };
-  const digest18 = sha256Hex(raw);
-  if (!verifiedPlanTexts.has(digest18)) {
+  const digest18 = sha256Hex(JSON.stringify(snapshot2));
+  if (!verifiedPlans.has(digest18)) {
     effectiveWorkflowPlanFromSnapshot(snapshot2);
-    verifiedPlanTexts.add(digest18);
-    if (verifiedPlanTexts.size > VERIFIED_PLAN_TEXTS_LIMIT) {
-      const oldest = verifiedPlanTexts.values().next().value;
+    verifiedPlans.add(digest18);
+    if (verifiedPlans.size > VERIFIED_PLANS_LIMIT) {
+      const oldest = verifiedPlans.values().next().value;
       if (oldest !== void 0)
-        verifiedPlanTexts.delete(oldest);
+        verifiedPlans.delete(oldest);
     }
   }
   return { version: 1, run_id: envelope2.run_id, plan: snapshot2 };
@@ -84279,7 +84279,10 @@ async function loadPlanInputs(deps, context) {
 }
 async function tryChangedFiles(deps, change) {
   try {
-    return { ok: true, files: await changedFilesFor(deps, change)() };
+    const source = await changedFilesReportFor(deps, change)();
+    if (Array.isArray(source)) return { ok: true, files: source };
+    const report2 = source;
+    return { ok: true, files: report2.files, ...report2.untrackedTruncated === void 0 ? {} : { untrackedTruncated: report2.untrackedTruncated } };
   } catch (error2) {
     return { ok: false, reason: error2 instanceof Error ? error2.message.slice(0, 200) : "\u8BFB\u53D6\u5931\u8D25" };
   }
@@ -88039,6 +88042,7 @@ async function cmdTestSync(deps, change, opts = {}) {
       change,
       planState: inputs2.planState.state,
       changed: diff.files.length,
+      ...diff.untrackedTruncated === void 0 ? {} : { untrackedTruncated: diff.untrackedTruncated },
       unregistered: registration.unregistered.map((file) => ({ ...file, fix: register(file.path, file.suites) })),
       orphans: registration.orphans,
       registeredButMissing: gone,
@@ -88048,6 +88052,9 @@ async function cmdTestSync(deps, change, opts = {}) {
     return dirty ? 2 : 0;
   }
   deps.io.out(`[TEST] sync ${change}\uFF1Adiff \u91CC ${diff.files.length} \u4E2A\u6587\u4EF6\uFF1B\u672A\u767B\u8BB0\u7684\u6D4B\u8BD5\u6587\u4EF6 ${registration.unregistered.length} \u4E2A\uFF0C\u65E0\u5957\u4EF6\u8BA4\u9886 ${registration.orphans.length} \u4E2A`);
+  if (diff.untrackedTruncated !== void 0) {
+    deps.io.out(`  \u63D0\u793A\uFF1A\u672A\u8DDF\u8E2A\u6587\u4EF6\u6709 ${diff.untrackedTruncated.found} \u4E2A\uFF0C\u53EA\u68C0\u67E5\u4E86\u524D ${diff.untrackedTruncated.limit} \u4E2A\uFF1B\u5176\u4F59\u7684\u6D4B\u8BD5\u6587\u4EF6\u6CA1\u6709\u6838\u5BF9\u662F\u5426\u5DF2\u767B\u8BB0\u3002\u628A\u6784\u5EFA\u4EA7\u7269\u3001\u4F9D\u8D56\u76EE\u5F55\u52A0\u5165 .gitignore \u540E\u91CD\u65B0\u68C0\u67E5`);
+  }
   if (inputs2.planState.state !== "ok") deps.io.out(`  \u8BA1\u5212${inputs2.planState.state === "missing" ? "\u8FD8\u6CA1\u6709\u767B\u8BB0" : "\u4E0D\u53EF\u4FE1"}\uFF1Atenon test plan ${change} --seed`);
   for (const file of registration.unregistered) deps.io.out(`  \u672A\u767B\u8BB0  ${file.path}
     ${register(file.path, file.suites)}`);

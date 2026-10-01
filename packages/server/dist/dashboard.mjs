@@ -4,7 +4,7 @@ import { createRequire as __cr } from 'node:module'; const require = __cr(import
 // packages/server/src/main.ts
 import { execFile as execFile12 } from "node:child_process";
 import { mkdirSync as mkdirSync10, unlinkSync as unlinkSync5, writeFileSync as writeFileSync9 } from "node:fs";
-import { dirname as dirname28, join as join120 } from "node:path";
+import { dirname as dirname28, join as join121 } from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 
 // packages/tap/dist/paths.js
@@ -3094,8 +3094,8 @@ function parseWorkflowGovernanceBinding(raw) {
     "document_governance_fingerprint",
     "workflow_plan_fingerprint"
   ]);
-  const digest15 = (candidate2) => typeof candidate2 === "string" && /^[0-9a-f]{64}$/.test(candidate2);
-  if (Object.keys(record11).some((key) => !allowed.has(key)) || record11.version !== 1 || typeof record11.run_id !== "string" || record11.run_id === "" || record11.document_profile !== void 0 && record11.document_profile !== "legacy-full" && record11.document_profile !== "document-v1" || record11.document_governance_fingerprint !== void 0 && !digest15(record11.document_governance_fingerprint) || record11.workflow_plan_fingerprint !== void 0 && !digest15(record11.workflow_plan_fingerprint) || record11.document_governance_fingerprint !== void 0 && record11.document_profile === void 0) {
+  const digest17 = (candidate2) => typeof candidate2 === "string" && /^[0-9a-f]{64}$/.test(candidate2);
+  if (Object.keys(record11).some((key) => !allowed.has(key)) || record11.version !== 1 || typeof record11.run_id !== "string" || record11.run_id === "" || record11.document_profile !== void 0 && record11.document_profile !== "legacy-full" && record11.document_profile !== "document-v1" || record11.document_governance_fingerprint !== void 0 && !digest17(record11.document_governance_fingerprint) || record11.workflow_plan_fingerprint !== void 0 && !digest17(record11.workflow_plan_fingerprint) || record11.document_governance_fingerprint !== void 0 && record11.document_profile === void 0) {
     throw new Error("workflow governance binding \u5F62\u72B6\u975E\u6CD5");
   }
   return {
@@ -5241,8 +5241,8 @@ function artifactSubjectId(namespace, logicalKey) {
   assertArtifactNamespace(namespace);
   if (logicalKey.length === 0 || logicalKey.length > 1024)
     throw new Error("artifact subject logical key must be non-empty");
-  const digest15 = createHash7("sha256").update(`${namespace}\0${logicalKey}`, "utf8").digest("hex").slice(0, 32);
-  return `subject:${namespace}:${digest15}`;
+  const digest17 = createHash7("sha256").update(`${namespace}\0${logicalKey}`, "utf8").digest("hex").slice(0, 32);
+  return `subject:${namespace}:${digest17}`;
 }
 function newArtifactSubjectId(namespace) {
   assertArtifactNamespace(namespace);
@@ -5270,20 +5270,20 @@ function parseReceipt(value, recordIndex, receiptIndex) {
   if (!item2)
     throw new DocumentLedgerError(`document ledger records[${recordIndex}].reads[${receiptIndex}] \u5FC5\u987B\u662F\u5BF9\u8C61`);
   const phase = string2(item2.phase);
-  const digest15 = string2(item2.sha256);
+  const digest17 = string2(item2.sha256);
   const readAt = string2(item2.readAt);
   const visitId = item2.visitId === void 0 ? void 0 : string2(item2.visitId);
   if (!phase || !/^[A-Za-z0-9_-]+$/.test(phase)) {
     throw new DocumentLedgerError(`document ledger records[${recordIndex}].reads[${receiptIndex}].phase \u975E\u6CD5`);
   }
-  if (!digest15 || !validDigest(digest15)) {
+  if (!digest17 || !validDigest(digest17)) {
     throw new DocumentLedgerError(`document ledger records[${recordIndex}].reads[${receiptIndex}].sha256 \u975E\u6CD5`);
   }
   if (!readAt)
     throw new DocumentLedgerError(`document ledger records[${recordIndex}].reads[${receiptIndex}].readAt \u5FC5\u987B\u662F\u975E\u7A7A\u5B57\u7B26\u4E32`);
   if (item2.visitId !== void 0 && !visitId)
     throw new DocumentLedgerError(`document ledger records[${recordIndex}].reads[${receiptIndex}].visitId \u975E\u6CD5`);
-  return { phase, sha256: digest15, readAt, ...visitId === void 0 ? {} : { visitId } };
+  return { phase, sha256: digest17, readAt, ...visitId === void 0 ? {} : { visitId } };
 }
 function receiptKey(receipt) {
   return JSON.stringify([receipt.phase, receipt.visitId ?? "legacy"]);
@@ -5294,7 +5294,7 @@ function parseRecord3(value, index) {
     throw new DocumentLedgerError(`document ledger records[${index}] \u5FC5\u987B\u662F\u5BF9\u8C61`);
   const kind = string2(item2.kind);
   const path14 = string2(item2.path);
-  const digest15 = string2(item2.sha256);
+  const digest17 = string2(item2.sha256);
   const producer = string2(item2.producer);
   const recordedAt = string2(item2.recordedAt);
   if (!kind || !isDocumentKind(kind))
@@ -5302,7 +5302,7 @@ function parseRecord3(value, index) {
   if (!path14 || !isSafeProjectRelativePath(path14)) {
     throw new DocumentLedgerError(`document ledger records[${index}].path \u5FC5\u987B\u662F\u5B89\u5168\u7684\u9879\u76EE\u76F8\u5BF9\u8DEF\u5F84`);
   }
-  if (!digest15 || !validDigest(digest15))
+  if (!digest17 || !validDigest(digest17))
     throw new DocumentLedgerError(`document ledger records[${index}].sha256 \u975E\u6CD5`);
   if (!producer || !/^[A-Za-z0-9_-]+(?::[A-Za-z0-9_-]+)*$/.test(producer)) {
     throw new DocumentLedgerError(`document ledger records[${index}].producer \u975E\u6CD5`);
@@ -5330,7 +5330,7 @@ function parseRecord3(value, index) {
   return {
     kind,
     path: path14,
-    sha256: digest15,
+    sha256: digest17,
     producer,
     recordedAt,
     ...producerInvocation === void 0 ? {} : { producerInvocation },
@@ -7166,13 +7166,13 @@ function checkSha2562(value, key, path14, errors, optional = false) {
       errors.push(`${path14}.${key}: \u7F3A\u5931\uFF08\u5FC5\u586B sha256\uFF09`);
     return;
   }
-  const digest15 = value[key];
-  if (typeof digest15 !== "string") {
-    errors.push(`${path14}.${key}: \u5E94\u4E3A string\uFF0C\u5B9E\u5F97 ${typeName2(digest15)}`);
+  const digest17 = value[key];
+  if (typeof digest17 !== "string") {
+    errors.push(`${path14}.${key}: \u5E94\u4E3A string\uFF0C\u5B9E\u5F97 ${typeName2(digest17)}`);
     return;
   }
-  if (!SHA256_HEX_RE.test(digest15)) {
-    errors.push(`${path14}.${key}: \u5E94\u4E3A 64 \u4F4D\u5C0F\u5199\u5341\u516D\u8FDB\u5236 sha256\uFF0C\u5B9E\u5F97 ${JSON.stringify(digest15)}`);
+  if (!SHA256_HEX_RE.test(digest17)) {
+    errors.push(`${path14}.${key}: \u5E94\u4E3A 64 \u4F4D\u5C0F\u5199\u5341\u516D\u8FDB\u5236 sha256\uFF0C\u5B9E\u5F97 ${JSON.stringify(digest17)}`);
   }
 }
 function checkPattern(value, key, pattern, path14, errors) {
@@ -12891,6 +12891,8 @@ function isWorkflowIr(value) {
   const record11 = ownRecord5(value);
   return record11 !== void 0 && typeof record11.name === "string" && Array.isArray(record11.steps);
 }
+var VERIFIED_PLANS_LIMIT = 512;
+var verifiedPlans = /* @__PURE__ */ new Set();
 function parseWorkflowPlanSnapshot(raw) {
   let value;
   try {
@@ -12958,7 +12960,16 @@ function parseWorkflowPlanSnapshot(raw) {
     interaction: plan.interaction,
     workflowFingerprint: plan.workflowFingerprint
   };
-  effectiveWorkflowPlanFromSnapshot(snapshot);
+  const digest17 = sha256Hex(JSON.stringify(snapshot));
+  if (!verifiedPlans.has(digest17)) {
+    effectiveWorkflowPlanFromSnapshot(snapshot);
+    verifiedPlans.add(digest17);
+    if (verifiedPlans.size > VERIFIED_PLANS_LIMIT) {
+      const oldest = verifiedPlans.values().next().value;
+      if (oldest !== void 0)
+        verifiedPlans.delete(oldest);
+    }
+  }
   return { version: 1, run_id: envelope2.run_id, plan: snapshot };
 }
 function workflowPlanSnapshotContent(runId, snapshot) {
@@ -15417,8 +15428,8 @@ function item(kind, status2, requiredRead, records, phase, currentVisitId, reaso
     }))
   };
 }
-function receiptMatchesVisit(receipt, phase, digest15, visitId) {
-  return receipt.phase === phase && receipt.sha256 === digest15 && receipt.visitId === visitId;
+function receiptMatchesVisit(receipt, phase, digest17, visitId) {
+  return receipt.phase === phase && receipt.sha256 === digest17 && receipt.visitId === visitId;
 }
 async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope, policy2) {
   let ledger;
@@ -15602,9 +15613,9 @@ async function readSpecApplyReceiptStatus(repoRoot, changeDir2) {
   for (const row of asArray6(receipt.deltas)) {
     const entry2 = asRecord7(row);
     const path14 = asText(entry2?.path);
-    const digest15 = asText(entry2?.sha256);
-    if (path14 !== void 0 && digest15 !== void 0)
-      recorded.set(path14, digest15);
+    const digest17 = asText(entry2?.sha256);
+    if (path14 !== void 0 && digest17 !== void 0)
+      recorded.set(path14, digest17);
   }
   if (recorded.size !== deltas.length) {
     return { rehearsed: false, applied: false, mode, reason: "spec-apply-receipt-stale" };
@@ -19989,7 +20000,7 @@ async function exists(path14) {
     return false;
   }
 }
-async function replaceTarget(library, parent, targetDir, files, digest15) {
+async function replaceTarget(library, parent, targetDir, files, digest17) {
   const base = basename2(targetDir);
   const staging = join30(parent, `${base}.staging-${process.pid}-${randomUUID10()}`);
   const old = join30(parent, `${base}.old-${randomUUID10()}`);
@@ -20000,7 +20011,7 @@ async function replaceTarget(library, parent, targetDir, files, digest15) {
       await mkdir15(dirname6(destination), { recursive: true });
       await writeFile10(destination, file.bytes, { flag: "wx", mode: 420 });
     }
-    const marker = { version: 1, library: library.id, source_digest: digest15, synced_at: (/* @__PURE__ */ new Date()).toISOString() };
+    const marker = { version: 1, library: library.id, source_digest: digest17, synced_at: (/* @__PURE__ */ new Date()).toISOString() };
     await writeFile10(join30(staging, BUILTIN_LIBRARY_MARKER), `${JSON.stringify(marker)}
 `, { flag: "wx", mode: 420 });
     if (!await exists(targetDir)) {
@@ -20026,16 +20037,16 @@ async function syncBuiltinLibrary(library, payloadRoot, configRoot) {
     const problems = files.flatMap((file) => library.validate(file.path, file.bytes.toString("utf8")).map((detail) => `${file.path}: ${detail}`));
     if (problems.length > 0)
       return { id: library.id, state: "failed", detail: problems.join("; ") };
-    const digest15 = builtinSourceDigest(files);
+    const digest17 = builtinSourceDigest(files);
     const targetDir = join30(configRoot, ...library.target.split("/"));
     const parent = dirname6(targetDir);
     await mkdir15(parent, { recursive: true });
     return await withLock(parent, async () => {
       await removeStale(parent, basename2(targetDir));
       const marker = await readMarker(targetDir);
-      if (marker?.library === library.id && marker.source_digest === digest15)
+      if (marker?.library === library.id && marker.source_digest === digest17)
         return { id: library.id, state: "unchanged" };
-      await replaceTarget(library, parent, targetDir, files, digest15);
+      await replaceTarget(library, parent, targetDir, files, digest17);
       return { id: library.id, state: "updated" };
     });
   } catch (error2) {
@@ -20271,11 +20282,11 @@ async function ensureBuiltinAgents(options3) {
   return syncBuiltinLibrary(builtinLibrary("agents"), options3.payloadRoot, options3.configRoot);
 }
 function entryFor(name, source2, path14, content) {
-  const digest15 = agentDigest(content);
+  const digest17 = agentDigest(content);
   try {
-    return { name, source: source2, digest: digest15, content, path: path14, definition: parseAgentFile(content, name) };
+    return { name, source: source2, digest: digest17, content, path: path14, definition: parseAgentFile(content, name) };
   } catch (error2) {
-    return { name, source: source2, digest: digest15, content, path: path14, error: error2 instanceof Error ? error2.message : String(error2) };
+    return { name, source: source2, digest: digest17, content, path: path14, error: error2 instanceof Error ? error2.message : String(error2) };
   }
 }
 async function readLayer(dir, source2) {
@@ -20394,7 +20405,7 @@ async function writeAgent(scope, name, content, options3 = {}) {
     return { name, source: scope.source, digest: agentDigest(content), content, path: path14, definition };
   });
 }
-async function deleteAgent(scope, name, digest15) {
+async function deleteAgent(scope, name, digest17) {
   if (!AGENT_NAME_RE.test(name))
     throw new AgentStoreError("agent-missing", `agent \u5E93\u4E2D\u4E0D\u5B58\u5728 '${name}'`);
   await mkdir17(scope.lockDir, { recursive: true });
@@ -20405,7 +20416,7 @@ async function deleteAgent(scope, name, digest15) {
     const now = await currentDigest(path14);
     if (now === null)
       throw new AgentStoreError("agent-missing", `agent \u5E93\u4E2D\u4E0D\u5B58\u5728 '${name}'`);
-    if (digest15 !== void 0 && now !== digest15)
+    if (digest17 !== void 0 && now !== digest17)
       throw new AgentStoreError("agent-stale", "agent \u5DF2\u88AB\u4FEE\u6539\uFF0C\u8BF7\u5237\u65B0");
     await rm8(path14);
   });
@@ -22957,6 +22968,10 @@ function checkFiles(input2, plan, out) {
   }
   if (input2.catalog.state !== "ok")
     return none;
+  if (input2.changedFilesTruncated !== void 0) {
+    const { found, limit } = input2.changedFilesTruncated;
+    out.notices.push(testNotice("files-truncated", `\u672A\u8DDF\u8E2A\u6587\u4EF6\u6709 ${found} \u4E2A\uFF0C\u53EA\u68C0\u67E5\u4E86\u524D ${limit} \u4E2A\uFF1B\u5176\u4F59\u7684\u6D4B\u8BD5\u6587\u4EF6\u6CA1\u6709\u6838\u5BF9\u662F\u5426\u5DF2\u767B\u8BB0\u3002\u628A\u6784\u5EFA\u4EA7\u7269\u3001\u4F9D\u8D56\u76EE\u5F55\u52A0\u5165 .gitignore \u540E\u91CD\u65B0\u68C0\u67E5`));
+  }
   const registration = testFileRegistration({ changedFiles: input2.changedFiles, catalog: input2.catalog.catalog, plan });
   const register = (file) => `tenon test register ${input2.change} --file ${shellQuote(file.path)}${file.suites.length === 1 ? ` --suite ${shellQuote(file.suites[0] ?? "")}` : ""}`;
   for (const file of registration.unregistered) {
@@ -23471,15 +23486,15 @@ async function readTestPlanState(changeDir2, changeName) {
   const ledger = decodeTestPlanLedger(parsed2);
   if (ledger === void 0)
     return { state: "tampered", reason: "\u8BA1\u5212\u6458\u8981\u53F0\u8D26\u635F\u574F" };
-  const digest15 = testPlanBytesDigest(text10);
-  if (digest15 !== ledger.digest)
+  const digest17 = testPlanBytesDigest(text10);
+  if (digest17 !== ledger.digest)
     return { state: "tampered", reason: "\u8BA1\u5212\u6587\u4EF6\u5185\u5BB9\u4E0E\u767B\u8BB0\u6458\u8981\u4E0D\u7B26\uFF08\u88AB\u624B\u5DE5\u6539\u52A8\uFF09" };
   const result2 = parseTestPlan(text10, changeName);
   if (!result2.ok) {
     const first = result2.issues[0];
     return { state: "tampered", reason: `\u8BA1\u5212\u6587\u4EF6\u65E0\u6CD5\u89E3\u6790${first === void 0 ? "" : `\uFF1A\u7B2C ${first.line} \u884C ${first.message}`}` };
   }
-  return { state: "ok", plan: result2.plan, digest: digest15, ledger };
+  return { state: "ok", plan: result2.plan, digest: digest17, ledger };
 }
 async function ledgerDigest(changeDir2) {
   try {
@@ -23491,13 +23506,13 @@ async function ledgerDigest(changeDir2) {
 }
 async function writeTestPlanUnderLock(changeDir2, plan, meta2) {
   const bytes = serializeTestPlan(plan);
-  const digest15 = testPlanBytesDigest(bytes);
-  const changed = await ledgerDigest(changeDir2) !== digest15;
-  const ledger = { version: 1, digest: digest15, recorded_at: meta2.recordedAt, actor: meta2.actor };
+  const digest17 = testPlanBytesDigest(bytes);
+  const changed = await ledgerDigest(changeDir2) !== digest17;
+  const ledger = { version: 1, digest: digest17, recorded_at: meta2.recordedAt, actor: meta2.actor };
   await atomicReplaceFile(testPlanPath(changeDir2), bytes);
   await atomicReplaceFile(testPlanLedgerPath(changeDir2), `${JSON.stringify(ledger, null, 2)}
 `);
-  return { digest: digest15, changed };
+  return { digest: digest17, changed };
 }
 
 // packages/kernel/dist/test-system/record-chain.js
@@ -23891,6 +23906,18 @@ function recordV2Digest(record11) {
   const { digest: _digest, ...content } = record11;
   return `sha256:${sha256Hex(canonicalJson(content))}`;
 }
+var cacheOwned = /* @__PURE__ */ new WeakSet();
+var digestVerdicts = /* @__PURE__ */ new WeakMap();
+function digestMatches(record11) {
+  if (!cacheOwned.has(record11))
+    return recordV2Digest(record11) === record11.digest;
+  const known = digestVerdicts.get(record11);
+  if (known !== void 0)
+    return known;
+  const verdict = recordV2Digest(record11) === record11.digest;
+  digestVerdicts.set(record11, verdict);
+  return verdict;
+}
 function order3(left, right) {
   if (left.finished_at !== right.finished_at)
     return left.finished_at < right.finished_at ? -1 : 1;
@@ -23910,7 +23937,7 @@ function verifyRecordChain(listing) {
   if (problems.length > 0)
     return { state: "broken", reason: "\u6709\u8BB0\u5F55\u6587\u4EF6\u65E0\u6CD5\u8BFB\u53D6\u6216\u683C\u5F0F\u975E\u6CD5", files: problems };
   const remaining = listing.records.filter((entry2) => !superseded.has(entry2.file));
-  const tampered = remaining.filter((entry2) => entry2.file !== `${entry2.record.run_id}.json` || recordV2Digest(entry2.record) !== entry2.record.digest);
+  const tampered = remaining.filter((entry2) => entry2.file !== `${entry2.record.run_id}.json` || !digestMatches(entry2.record));
   if (tampered.length > 0)
     return { state: "broken", reason: "\u8BB0\u5F55\u5185\u5BB9\u4E0E\u6458\u8981\u4E0D\u7B26\uFF08\u88AB\u6539\u52A8\uFF09", files: tampered.map((entry2) => entry2.file) };
   const byPrev = /* @__PURE__ */ new Map();
@@ -23956,15 +23983,77 @@ async function readRecordFile(path14) {
     return "problem";
   }
 }
-async function listRecordDirectory(dir) {
+function createRecordChainCache(maxDirectories = 256) {
+  return { directories: /* @__PURE__ */ new Map(), maxDirectories };
+}
+async function fileStamp(path14) {
+  try {
+    const entry2 = await lstat26(path14, { bigint: true });
+    return `${entry2.ino}:${entry2.size}:${entry2.mtimeNs}:${entry2.ctimeNs}:${entry2.isFile() ? "f" : "x"}`;
+  } catch {
+    return "unreadable";
+  }
+}
+function listingOf(files, names) {
+  const records = [];
+  const problems = [];
+  for (const file of names) {
+    const result2 = files.get(file)?.parsed;
+    if (result2 === void 0 || result2 === "v1")
+      continue;
+    if (result2 === "problem")
+      problems.push(file);
+    else
+      records.push({ file, record: result2 });
+  }
+  return { records, problems };
+}
+async function listCachedRecordDirectory(dir, names, cache2) {
+  const previous = cache2.directories.get(dir);
+  const stamps = await Promise.all(names.map((file) => fileStamp(join38(dir, file))));
+  const listingKey = names.map((file, index) => `${file}\0${stamps[index]}`).join("\n");
+  if (previous !== void 0 && previous.listingKey === listingKey && !stamps.includes("unreadable")) {
+    cache2.directories.delete(dir);
+    cache2.directories.set(dir, previous);
+    return previous.listing;
+  }
+  const files = /* @__PURE__ */ new Map();
+  for (const [index, file] of names.entries()) {
+    const stamp = stamps[index] ?? "unreadable";
+    const known = previous?.files.get(file);
+    if (known !== void 0 && known.stamp === stamp && stamp !== "unreadable") {
+      files.set(file, known);
+      continue;
+    }
+    const parsed2 = await readRecordFile(join38(dir, file));
+    if (typeof parsed2 === "object")
+      cacheOwned.add(parsed2);
+    files.set(file, { stamp, parsed: parsed2 });
+  }
+  const entry2 = { files, listingKey, listing: listingOf(files, names) };
+  cache2.directories.delete(dir);
+  cache2.directories.set(dir, entry2);
+  while (cache2.directories.size > cache2.maxDirectories) {
+    const oldest = cache2.directories.keys().next().value;
+    if (oldest === void 0)
+      break;
+    cache2.directories.delete(oldest);
+  }
+  return entry2.listing;
+}
+async function listRecordDirectory(dir, cache2) {
   let names;
   try {
     names = (await readdir10(dir)).filter((name) => name.endsWith(".json")).sort();
   } catch (error2) {
-    if (error2.code === "ENOENT")
+    if (error2.code === "ENOENT") {
+      cache2?.directories.delete(dir);
       return { records: [], problems: [] };
+    }
     throw error2;
   }
+  if (cache2 !== void 0)
+    return listCachedRecordDirectory(dir, names, cache2);
   const records = [];
   const problems = [];
   for (const file of names) {
@@ -23978,8 +24067,18 @@ async function listRecordDirectory(dir) {
   }
   return { records, problems };
 }
-async function readRecordChain(repoRoot, slug, change) {
-  return verifyRecordChain(await listRecordDirectory(testRunRecordsDir(repoRoot, slug, change)));
+async function readRecordChain(repoRoot, slug, change, cache2) {
+  const dir = testRunRecordsDir(repoRoot, slug, change);
+  const listing = await listRecordDirectory(dir, cache2);
+  if (cache2 === void 0)
+    return verifyRecordChain(listing);
+  const entry2 = cache2.directories.get(dir);
+  if (entry2?.listing === listing && entry2.chain !== void 0)
+    return entry2.chain;
+  const chain = verifyRecordChain(listing);
+  if (entry2?.listing === listing)
+    entry2.chain = chain;
+  return chain;
 }
 
 // packages/kernel/dist/test-system/load.js
@@ -24063,7 +24162,7 @@ async function evaluateStepTestPolicy(input2) {
   const [catalog2, plan, chain, knownFailures, scenarios, tasks] = await Promise.all([
     loadCatalogInput(input2.repoRoot),
     readTestPlanState(input2.changeDir, input2.changeName),
-    readRecordChain(input2.repoRoot, input2.slug, input2.changeName),
+    readRecordChain(input2.repoRoot, input2.slug, input2.changeName, input2.recordChainCache),
     loadKnownFailures(input2.repoRoot),
     loadDeltaScenarios(input2.changeDir),
     loadTaskItems(input2.changeDir, input2.stages)
@@ -24072,10 +24171,14 @@ async function evaluateStepTestPolicy(input2) {
   const hasRecords = chain.state === "intact" && chain.active.length > 0;
   const candidate2 = hasRecords ? await input2.candidate() : void 0;
   let changedFiles;
+  let changedFilesTruncated;
   let changedFilesError;
   if (input2.policy.files === "registered" && input2.changedFiles !== void 0) {
     try {
-      changedFiles = await input2.changedFiles();
+      const source2 = await input2.changedFiles();
+      const report = Array.isArray(source2) ? { files: source2 } : source2;
+      changedFiles = report.files;
+      changedFilesTruncated = report.untrackedTruncated;
     } catch (error2) {
       changedFilesError = error2 instanceof Error ? error2.message.slice(0, 200) : "\u8BFB\u53D6\u5931\u8D25";
     }
@@ -24092,6 +24195,7 @@ async function evaluateStepTestPolicy(input2) {
     baselines: await loadBaselines(input2.repoRoot, catalog2, chain),
     changedFiles,
     ...changedFilesError === void 0 ? {} : { changedFilesError },
+    ...changedFilesTruncated === void 0 ? {} : { changedFilesTruncated },
     scenarios,
     tasks,
     bindings: { candidate: candidate2, workflowFingerprint: input2.workflowFingerprint, workflowRunId: input2.workflowRunId },
@@ -24269,6 +24373,7 @@ async function evaluateTestEvidence(input2) {
       workflowRunId: runId,
       candidate: currentCandidate,
       ...input2.context.changedFiles === void 0 ? {} : { changedFiles: input2.context.changedFiles },
+      ...input2.context.recordChainCache === void 0 ? {} : { recordChainCache: input2.context.recordChainCache },
       now,
       ...event === void 0 ? {} : { exitEvent: event }
     });
@@ -24394,8 +24499,8 @@ function canonicalMachineStateRoot(stateRoot) {
   return resolve9(stateRoot);
 }
 function machineStateScopeId(stateRoot) {
-  const digest15 = createHash17("sha256").update(STATE_SCOPE_NAMESPACE).update(canonicalMachineStateRoot(stateRoot)).digest("hex");
-  return `sha256-v1-${digest15}`;
+  const digest17 = createHash17("sha256").update(STATE_SCOPE_NAMESPACE).update(canonicalMachineStateRoot(stateRoot)).digest("hex");
+  return `sha256-v1-${digest17}`;
 }
 
 // packages/kernel/dist/workspace/build-revision-identity.js
@@ -24435,10 +24540,10 @@ async function probeBuildRevisionIdentity(root) {
       return void 0;
     const common = await physicalDirectory(commonRaw);
     const top = await physicalDirectory(topRaw);
-    const git2 = await physicalDirectory(gitRaw);
-    if (!common || !top || !git2)
+    const git = await physicalDirectory(gitRaw);
+    if (!common || !top || !git)
       return void 0;
-    return { repository: common, worktree: `${top}\0${git2}` };
+    return { repository: common, worktree: `${top}\0${git}` };
   } catch {
     return void 0;
   }
@@ -24446,12 +24551,15 @@ async function probeBuildRevisionIdentity(root) {
 
 // packages/kernel/dist/workspace/changed-files.js
 import { execFile as execFile2 } from "node:child_process";
+import { lstat as lstat29, readFile as readFile32 } from "node:fs/promises";
+import { join as join42 } from "node:path";
 import { promisify as promisify2 } from "node:util";
 var run = promisify2(execFile2);
-var GIT_TIMEOUT_MS = 2e4;
+var CHANGED_FILES_GIT_TIMEOUT_MS = 2e4;
 var MAX_BUFFER = 64 * 1024 * 1024;
 var MAX_UNTRACKED_BYTES = 1024 * 1024;
-var MAX_UNTRACKED_FILES = 2e4;
+var UNTRACKED_FILE_LIMIT = 2e4;
+var HISTORY_WINDOW = 2e3;
 var EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 var ChangedFilesUnavailableError = class extends Error {
   constructor(reason3) {
@@ -24459,13 +24567,6 @@ var ChangedFilesUnavailableError = class extends Error {
     this.name = "ChangedFilesUnavailableError";
   }
 };
-async function git(repoRoot, args) {
-  try {
-    return (await run("git", [...args], { cwd: repoRoot, timeout: GIT_TIMEOUT_MS, maxBuffer: MAX_BUFFER })).stdout;
-  } catch {
-    return void 0;
-  }
-}
 function usableBase(value) {
   const base = value.trim();
   return base === "" || base === "null" || base.startsWith("-") ? void 0 : base;
@@ -24473,46 +24574,208 @@ function usableBase(value) {
 function usableTime(value) {
   return Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : void 0;
 }
-async function resolveChangeStart(repoRoot, input2) {
-  const inside3 = await git(repoRoot, ["rev-parse", "--is-inside-work-tree"]);
-  if (inside3?.trim() !== "true")
-    throw new ChangedFilesUnavailableError("\u5F53\u524D\u76EE\u5F55\u4E0D\u662F git \u4ED3\u5E93");
-  const head = (await git(repoRoot, ["rev-parse", "--verify", "-q", "HEAD"]))?.trim();
-  if (head === void 0 || head === "")
-    return EMPTY_TREE;
-  const base = usableBase(input2.baseBranch);
-  if (base !== void 0) {
-    const mergeBase = (await git(repoRoot, ["merge-base", "HEAD", base]))?.trim();
-    if (mergeBase !== void 0 && mergeBase !== "" && mergeBase !== head)
-      return mergeBase;
-  }
-  const since = usableTime(input2.createdAt);
-  if (since === void 0) {
-    if (base !== void 0) {
-      const mergeBase = (await git(repoRoot, ["merge-base", "HEAD", base]))?.trim();
-      if (mergeBase !== void 0 && mergeBase !== "")
-        return mergeBase;
-    }
-    throw new ChangedFilesUnavailableError("\u4EFB\u52A1\u6CA1\u6709\u53EF\u7528\u7684\u521B\u5EFA\u65F6\u95F4\u4E0E\u57FA\u7EBF\u5206\u652F\uFF0C\u5B9A\u4E0D\u51FA\u8D77\u70B9");
-  }
-  const before = (await git(repoRoot, ["rev-list", "-1", `--before=${since}`, "HEAD"]))?.trim();
-  return before === void 0 || before === "" ? EMPTY_TREE : before;
-}
 function nulList(stdout) {
   return stdout.split("\0").filter((entry2) => entry2 !== "");
 }
-async function untrackedFiles(repoRoot) {
-  const out = await git(repoRoot, ["ls-files", "--others", "--exclude-standard", "-z"]);
-  if (out === void 0)
-    throw new ChangedFilesUnavailableError("git ls-files \u5931\u8D25");
-  return nulList(out).slice(0, MAX_UNTRACKED_FILES);
+function createChangedFilesSession(repoRoot, options3 = {}) {
+  const timeoutMs = options3.timeoutMs ?? CHANGED_FILES_GIT_TIMEOUT_MS;
+  const untrackedLimit = options3.untrackedLimit ?? UNTRACKED_FILE_LIMIT;
+  const runGit = options3.runGit;
+  const commands = /* @__PURE__ */ new Map();
+  let abandoned = false;
+  const timeoutReason = (what) => `git ${what} \u8D85\u65F6\uFF08\u8D85\u8FC7 ${Math.max(1, Math.round(timeoutMs / 1e3))} \u79D2\uFF09`;
+  async function execute(args) {
+    if (abandoned)
+      return { ok: false, stdout: "", timedOut: true };
+    try {
+      const options4 = { cwd: repoRoot, timeout: timeoutMs, maxBuffer: MAX_BUFFER };
+      const { stdout } = await (runGit ?? ((argv, opts) => run("git", [...argv], opts)))(args, options4);
+      return { ok: true, stdout };
+    } catch (error2) {
+      const failure13 = error2;
+      const timedOut = failure13.killed === true && failure13.signal === "SIGTERM" && failure13.code !== "ERR_CHILD_PROCESS_STDIO_MAXBUFFER";
+      if (timedOut)
+        abandoned = true;
+      return { ok: false, stdout: typeof failure13.stdout === "string" ? failure13.stdout : "", timedOut };
+    }
+  }
+  function git(args) {
+    const key = args.join("\0");
+    const known = commands.get(key);
+    if (known !== void 0)
+      return known;
+    const pending = execute(args);
+    commands.set(key, pending);
+    return pending;
+  }
+  async function gitText(args) {
+    const outcome = await git(args);
+    if (outcome.ok)
+      return outcome.stdout;
+    if (outcome.timedOut)
+      throw new ChangedFilesUnavailableError(timeoutReason(args[0] ?? ""));
+    return void 0;
+  }
+  let repo;
+  function repository() {
+    repo ??= (async () => {
+      const outcome = await git(["rev-parse", "--is-inside-work-tree", "--verify", "-q", "HEAD"]);
+      if (!outcome.ok && outcome.timedOut)
+        throw new ChangedFilesUnavailableError(timeoutReason("rev-parse"));
+      const [inside3, head] = outcome.stdout.split("\n").map((line) => line.trim());
+      if (inside3 !== "true")
+        throw new ChangedFilesUnavailableError("\u5F53\u524D\u76EE\u5F55\u4E0D\u662F git \u4ED3\u5E93");
+      return { head: outcome.ok && head !== void 0 && head !== "" ? head : void 0 };
+    })();
+    return repo;
+  }
+  let history;
+  function historyWindow() {
+    history ??= (async () => {
+      const out = await gitText(["rev-list", "--timestamp", `--max-count=${HISTORY_WINDOW}`, "HEAD"]);
+      if (out === void 0)
+        return void 0;
+      const entries2 = [];
+      for (const line of out.split("\n")) {
+        const [ts, sha] = line.trim().split(" ");
+        if (ts === void 0 || sha === void 0 || !/^\d+$/.test(ts))
+          continue;
+        entries2.push({ sha, ts: Number(ts) });
+      }
+      return { entries: entries2, truncated: entries2.length >= HISTORY_WINDOW };
+    })();
+    return history;
+  }
+  async function lastCommitBefore(sinceIso) {
+    const seconds = Math.floor(Date.parse(sinceIso) / 1e3);
+    const window = await historyWindow();
+    if (window !== void 0) {
+      const hit = window.entries.find((entry2) => entry2.ts <= seconds);
+      if (hit !== void 0)
+        return hit.sha;
+      if (!window.truncated)
+        return EMPTY_TREE;
+    }
+    const before = (await gitText(["rev-list", "-1", `--before=${sinceIso}`, "HEAD"]))?.trim();
+    return before === void 0 || before === "" ? EMPTY_TREE : before;
+  }
+  async function computeStart(input2) {
+    const { head } = await repository();
+    if (head === void 0)
+      return EMPTY_TREE;
+    const base = usableBase(input2.baseBranch);
+    if (base !== void 0) {
+      const mergeBase = (await gitText(["merge-base", "HEAD", base]))?.trim();
+      if (mergeBase !== void 0 && mergeBase !== "" && mergeBase !== head)
+        return mergeBase;
+    }
+    const since = usableTime(input2.createdAt);
+    if (since === void 0) {
+      if (base !== void 0) {
+        const mergeBase = (await gitText(["merge-base", "HEAD", base]))?.trim();
+        if (mergeBase !== void 0 && mergeBase !== "")
+          return mergeBase;
+      }
+      throw new ChangedFilesUnavailableError("\u4EFB\u52A1\u6CA1\u6709\u53EF\u7528\u7684\u521B\u5EFA\u65F6\u95F4\u4E0E\u57FA\u7EBF\u5206\u652F\uFF0C\u5B9A\u4E0D\u51FA\u8D77\u70B9");
+    }
+    return lastCommitBefore(since);
+  }
+  const starts = /* @__PURE__ */ new Map();
+  function resolveStart(input2) {
+    const key = `${input2.baseBranch}\0${input2.createdAt}`;
+    let pending = starts.get(key);
+    if (pending === void 0) {
+      pending = computeStart(input2);
+      starts.set(key, pending);
+    }
+    return pending;
+  }
+  let untracked;
+  function untrackedFiles() {
+    untracked ??= (async () => {
+      const out = await gitText(["ls-files", "--others", "--exclude-standard", "-z"]);
+      if (out === void 0)
+        throw new ChangedFilesUnavailableError("git ls-files \u5931\u8D25");
+      const all = nulList(out);
+      return { files: all.length > untrackedLimit ? all.slice(0, untrackedLimit) : all, found: all.length };
+    })();
+    return untracked;
+  }
+  const results = /* @__PURE__ */ new Map();
+  async function computeChangedFiles(start) {
+    const tracked = await gitText(["diff", "--name-only", "--diff-filter=ACMR", "--no-renames", "-z", start]);
+    if (tracked === void 0)
+      throw new ChangedFilesUnavailableError("git diff \u5931\u8D25");
+    const others = await untrackedFiles();
+    return {
+      files: [.../* @__PURE__ */ new Set([...nulList(tracked), ...others.files])].sort(),
+      ...others.found > untrackedLimit ? { untrackedTruncated: { found: others.found, limit: untrackedLimit } } : {}
+    };
+  }
+  return {
+    resolveStart,
+    async changedFiles(input2) {
+      const start = await resolveStart(input2);
+      let pending = results.get(start);
+      if (pending === void 0) {
+        pending = computeChangedFiles(start);
+        results.set(start, pending);
+      }
+      return pending;
+    },
+    async changedLines(input2) {
+      const start = await resolveStart(input2);
+      const diff = await gitText(["diff", "-U0", "--no-color", "--no-renames", "--diff-filter=ACMR", start]);
+      if (diff === void 0)
+        throw new ChangedFilesUnavailableError("git diff \u5931\u8D25");
+      const out = new Map(parseAddedLines(diff));
+      for (const path14 of (await untrackedFiles()).files) {
+        const lines2 = await lineCount(join42(repoRoot, path14));
+        if (lines2 > 0)
+          out.set(path14, new Set(Array.from({ length: lines2 }, (_, index) => index + 1)));
+      }
+      return out;
+    }
+  };
 }
-async function changedFilesSinceChangeStart(repoRoot, input2) {
-  const start = await resolveChangeStart(repoRoot, input2);
-  const tracked = await git(repoRoot, ["diff", "--name-only", "--diff-filter=ACMR", "--no-renames", "-z", start]);
-  if (tracked === void 0)
-    throw new ChangedFilesUnavailableError("git diff \u5931\u8D25");
-  return [.../* @__PURE__ */ new Set([...nulList(tracked), ...await untrackedFiles(repoRoot)])].sort();
+var HUNK = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/;
+function parseAddedLines(diff) {
+  const out = /* @__PURE__ */ new Map();
+  let current;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("+++ ")) {
+      const path14 = line.slice(4).trim();
+      if (path14 === "/dev/null") {
+        current = void 0;
+        continue;
+      }
+      const relative16 = path14.startsWith("b/") ? path14.slice(2) : path14;
+      current = out.get(relative16) ?? /* @__PURE__ */ new Set();
+      out.set(relative16, current);
+      continue;
+    }
+    const hunk = HUNK.exec(line);
+    if (hunk === null || current === void 0)
+      continue;
+    const first = Number(hunk[1]);
+    const count3 = hunk[2] === void 0 ? 1 : Number(hunk[2]);
+    for (let offset = 0; offset < count3; offset++)
+      current.add(first + offset);
+  }
+  return out;
+}
+async function lineCount(path14) {
+  try {
+    const entry2 = await lstat29(path14);
+    if (!entry2.isFile() || entry2.size > MAX_UNTRACKED_BYTES)
+      return 0;
+    const text10 = await readFile32(path14, "utf8");
+    if (text10 === "")
+      return 0;
+    return text10.endsWith("\n") ? text10.split("\n").length - 1 : text10.split("\n").length;
+  } catch {
+    return 0;
+  }
 }
 function scalar8(value) {
   return value === void 0 ? "" : typeof value === "string" ? value : value.join(",");
@@ -24520,8 +24783,8 @@ function scalar8(value) {
 function changeStartOfFields(fields) {
   return { baseBranch: scalar8(fields.base_branch), createdAt: scalar8(fields.created_at) };
 }
-function changedFilesForState(repoRoot, state) {
-  return changedFilesSinceChangeStart(repoRoot, changeStartOfFields(state.fields));
+async function changedFilesResultForState(repoRoot, state) {
+  return createChangedFilesSession(repoRoot).changedFiles(changeStartOfFields(state.fields));
 }
 
 // packages/kernel/dist/workspace/terminal-activity.js
@@ -24596,8 +24859,8 @@ var OPENSPEC_LOCAL_GITIGNORE = [
 ].join("\n");
 
 // packages/kernel/dist/workspace/task-archive.js
-import { lstat as lstat29, readFile as readFile32 } from "node:fs/promises";
-import { join as join42 } from "node:path";
+import { lstat as lstat30, readFile as readFile33 } from "node:fs/promises";
+import { join as join43 } from "node:path";
 var MAX_ARCHIVE_BYTES = 1048576;
 var CHANGE_NAME2 = /^[A-Za-z0-9_-]+$/u;
 var RESERVED_CHANGE_DIR = "archive";
@@ -24606,7 +24869,7 @@ function isTaskLifecycleName(name) {
   return CHANGE_NAME2.test(name) && name !== RESERVED_CHANGE_DIR;
 }
 function taskChangeDir(repoRoot, change) {
-  return join42(repoRoot, "openspec", "changes", change);
+  return join43(repoRoot, "openspec", "changes", change);
 }
 function entryOf(value) {
   if (typeof value !== "object" || value === null || Array.isArray(value))
@@ -24670,10 +24933,10 @@ async function readTaskArchiveOf(repoRoot, slug) {
   const path14 = userProjectPaths(repoRoot, slug).archived;
   let text10;
   try {
-    const item2 = await lstat29(path14);
+    const item2 = await lstat30(path14);
     if (!item2.isFile() || item2.size > MAX_ARCHIVE_BYTES)
       return { kind: "corrupt", path: path14 };
-    text10 = await readFile32(path14, "utf8");
+    text10 = await readFile33(path14, "utf8");
   } catch {
     return { kind: "ok", archive: EMPTY_TASK_ARCHIVE };
   }
@@ -24689,7 +24952,7 @@ async function writeTaskArchiveOf(repoRoot, slug, archive) {
   const text10 = serializeTaskArchive(archive);
   let current = null;
   try {
-    current = await readFile32(path14, "utf8");
+    current = await readFile33(path14, "utf8");
   } catch {
     current = null;
   }
@@ -24725,8 +24988,8 @@ async function isArchivedForUser(repoRoot, user, change) {
 
 // packages/kernel/dist/workspace/uncommitted-deletions.js
 import { execFile as execFile3 } from "node:child_process";
-import { lstat as lstat30 } from "node:fs/promises";
-import { join as join43 } from "node:path";
+import { lstat as lstat31 } from "node:fs/promises";
+import { join as join44 } from "node:path";
 import { promisify as promisify3 } from "node:util";
 var execFileAsync2 = promisify3(execFile3);
 var CHANGES_PREFIX = "openspec/changes/";
@@ -24756,20 +25019,20 @@ function changeNameOf(path14) {
 }
 async function hasRepository(repoRoot) {
   try {
-    await lstat30(join43(repoRoot, ".git"));
+    await lstat31(join44(repoRoot, ".git"));
     return true;
   } catch {
     return false;
   }
 }
-async function probeUncommittedTaskDeletions(repoRoot, git2 = gitStatusRunner) {
+async function probeUncommittedTaskDeletions(repoRoot, git = gitStatusRunner) {
   if (isProcessLocalFdPath(repoRoot)) {
     return { kind: "unavailable", reason: `\u8FDB\u7A0B\u79C1\u6709 fd \u8DEF\u5F84\u65E0\u6CD5\u4EA4\u7ED9\u5B50\u8FDB\u7A0B\u89E3\u6790\uFF1A${repoRoot}` };
   }
   if (!await hasRepository(repoRoot)) {
     return { kind: "absent", reason: `\u4E0D\u662F git \u4ED3\u5E93\u6839\uFF1A${repoRoot}` };
   }
-  const result2 = await git2(repoRoot, [
+  const result2 = await git(repoRoot, [
     "status",
     "--porcelain=v1",
     "-z",
@@ -24803,18 +25066,18 @@ async function probeUncommittedTaskDeletions(repoRoot, git2 = gitStatusRunner) {
   }
   return { kind: "ok", count: count3 };
 }
-async function probeChangeTracked(repoRoot, name, git2 = gitStatusRunner) {
+async function probeChangeTracked(repoRoot, name, git = gitStatusRunner) {
   if (!isTaskLifecycleName(name) || isProcessLocalFdPath(repoRoot))
     return "unknown";
   if (!await hasRepository(repoRoot))
     return "untracked";
-  const result2 = await git2(repoRoot, ["ls-files", "-z", "--", `${CHANGES_PREFIX}${name}`]);
+  const result2 = await git(repoRoot, ["ls-files", "-z", "--", `${CHANGES_PREFIX}${name}`]);
   if (result2.code !== 0)
     return "unknown";
   return result2.stdout.split("\0").some((path14) => path14 !== "") ? "tracked" : "untracked";
 }
-async function countUncommittedTaskDeletions(repoRoot, git2 = gitStatusRunner) {
-  const probe = await probeUncommittedTaskDeletions(repoRoot, git2);
+async function countUncommittedTaskDeletions(repoRoot, git = gitStatusRunner) {
+  const probe = await probeUncommittedTaskDeletions(repoRoot, git);
   return probe.kind === "ok" ? probe.count : null;
 }
 
@@ -24823,8 +25086,8 @@ import { appendFile as appendFile4, mkdir as mkdir23 } from "node:fs/promises";
 import { dirname as dirname9 } from "node:path";
 
 // packages/kernel/dist/workspace/task-delete.js
-import { lstat as lstat31, mkdir as mkdir22, readdir as readdir13, readFile as readFile33, rename as rename11, rm as rm11 } from "node:fs/promises";
-import { isAbsolute as isAbsolute8, join as join44, relative as relative6, resolve as resolve11 } from "node:path";
+import { lstat as lstat32, mkdir as mkdir22, readdir as readdir13, readFile as readFile34, rename as rename11, rm as rm11 } from "node:fs/promises";
+import { isAbsolute as isAbsolute8, join as join45, relative as relative6, resolve as resolve11 } from "node:path";
 var MAX_POINTER_BYTES = 4096;
 var SESSION_MARKERS = GATE_MARKERS.filter((name) => name !== REVIEW_MARKER_FILE);
 function repoRelative2(repoRoot, target) {
@@ -24837,7 +25100,7 @@ async function removeInside(repoRoot, target) {
     return null;
   let item2;
   try {
-    item2 = await lstat31(target);
+    item2 = await lstat32(target);
   } catch {
     return null;
   }
@@ -24852,17 +25115,17 @@ async function removeInside(repoRoot, target) {
 }
 async function isPlainFile(path14) {
   try {
-    return (await lstat31(path14)).isFile();
+    return (await lstat32(path14)).isFile();
   } catch {
     return false;
   }
 }
 async function readPointer(path14) {
   try {
-    const item2 = await lstat31(path14);
+    const item2 = await lstat32(path14);
     if (!item2.isFile() || item2.size > MAX_POINTER_BYTES)
       return null;
-    return await readFile33(path14, "utf8");
+    return await readFile34(path14, "utf8");
   } catch {
     return null;
   }
@@ -24870,7 +25133,7 @@ async function readPointer(path14) {
 async function checkoutSlugs(repoRoot) {
   let entries2;
   try {
-    entries2 = await readdir13(join44(repoRoot, TENON_PROJECT_DIR, "users"), { withFileTypes: true });
+    entries2 = await readdir13(join45(repoRoot, TENON_PROJECT_DIR, "users"), { withFileTypes: true });
   } catch {
     return [];
   }
@@ -24899,7 +25162,7 @@ function bindsChange(text10, change) {
   }
 }
 async function removeSessionBindings(repoRoot, change) {
-  const dir = join44(repoRoot, TERMINAL_SESSION_BINDINGS_DIR);
+  const dir = join45(repoRoot, TERMINAL_SESSION_BINDINGS_DIR);
   let entries2;
   try {
     entries2 = await readdir13(dir, { withFileTypes: true });
@@ -24910,10 +25173,10 @@ async function removeSessionBindings(repoRoot, change) {
   for (const entry2 of entries2) {
     if (!entry2.isFile() || !entry2.name.endsWith(".json"))
       continue;
-    const text10 = await readPointer(join44(dir, entry2.name));
+    const text10 = await readPointer(join45(dir, entry2.name));
     if (text10 === null || !bindsChange(text10, change))
       continue;
-    const rel = await removeInside(repoRoot, join44(dir, entry2.name));
+    const rel = await removeInside(repoRoot, join45(dir, entry2.name));
     if (rel !== null)
       removed.push(rel);
   }
@@ -24929,13 +25192,13 @@ async function sweepTaskTombstones(deletingDir) {
   for (const entry2 of entries2) {
     if (entry2.isSymbolicLink())
       continue;
-    await rm11(join44(deletingDir, entry2.name), { recursive: true, force: true }).catch(() => {
+    await rm11(join45(deletingDir, entry2.name), { recursive: true, force: true }).catch(() => {
     });
   }
 }
 async function stageTaskForDelete(changeDir2, deletingDir, change, nowMs) {
   await mkdir22(deletingDir, { recursive: true, mode: 448 });
-  const tombstone = join44(deletingDir, `${change}-${nowMs}`);
+  const tombstone = join45(deletingDir, `${change}-${nowMs}`);
   await rename11(changeDir2, tombstone);
   return tombstone;
 }
@@ -24959,7 +25222,7 @@ async function cleanupDeletedChangeReferences(repoRoot, change, actingSlug) {
       if (rel !== null)
         removed.push(rel);
     }
-    for (const dir of [join44(paths.testsDir, change), join44(paths.artifactsDir, change), join44(paths.runningDir, change)]) {
+    for (const dir of [join45(paths.testsDir, change), join45(paths.artifactsDir, change), join45(paths.runningDir, change)]) {
       const rel = await removeInside(repoRoot, dir);
       if (rel !== null)
         removed.push(rel);
@@ -24974,7 +25237,7 @@ async function cleanupDeletedChangeReferences(repoRoot, change, actingSlug) {
   }
   if (clearedOwnPointer) {
     for (const marker of SESSION_MARKERS) {
-      const rel = await removeInside(repoRoot, join44(repoRoot, marker));
+      const rel = await removeInside(repoRoot, join45(repoRoot, marker));
       if (rel !== null)
         removed.push(rel);
     }
@@ -24986,16 +25249,16 @@ async function cleanupDeletedChangeReferences(repoRoot, change, actingSlug) {
 }
 
 // packages/kernel/dist/workspace/task-terminal-activity.js
-import { lstat as lstat32, readFile as readFile34 } from "node:fs/promises";
-import { join as join45 } from "node:path";
+import { lstat as lstat33, readFile as readFile35 } from "node:fs/promises";
+import { join as join46 } from "node:path";
 var MAX_SIDECAR_BYTES = 4096;
 async function defaultTerminalActivityLive(changeDir2, change, nowMs) {
-  const path14 = join45(changeDir2, TERMINAL_ACTIVITY_FILE);
+  const path14 = join46(changeDir2, TERMINAL_ACTIVITY_FILE);
   try {
-    const item2 = await lstat32(path14);
+    const item2 = await lstat33(path14);
     if (!item2.isFile() || item2.size > MAX_SIDECAR_BYTES)
       return false;
-    const record11 = parseTerminalActivityRecord(JSON.parse(await readFile34(path14, "utf8")));
+    const record11 = parseTerminalActivityRecord(JSON.parse(await readFile35(path14, "utf8")));
     if (record11 === null || record11.change !== change)
       return false;
     return liveTerminalActivity(record11, nowMs) !== null;
@@ -26084,7 +26347,7 @@ function serializeTrackRegistry(config) {
 // packages/kernel/dist/tracks/registry.js
 import { createHash as createHash18 } from "node:crypto";
 import { readFileSync as readFileSync12 } from "node:fs";
-import { mkdir as mkdir24, readFile as readFile35 } from "node:fs/promises";
+import { mkdir as mkdir24, readFile as readFile36 } from "node:fs/promises";
 import path7 from "node:path";
 var TENON_DIR = ".pipeline";
 var TRACKS_FILE = "tracks.yaml";
@@ -26200,7 +26463,7 @@ function assertWorkflowAllowed(track, workflowId) {
 async function freshReadUnderLock(file, context) {
   let text10 = null;
   try {
-    text10 = await readFile35(file, "utf8");
+    text10 = await readFile36(file, "utf8");
   } catch (e) {
     if (e.code !== "ENOENT")
       throw e;
@@ -26582,7 +26845,7 @@ function mtimeIso(fs, path14) {
 // packages/kernel/dist/mem/adapters/opencode.js
 import { statSync as statSync3 } from "node:fs";
 import { createRequire } from "node:module";
-import { join as join46 } from "node:path";
+import { join as join47 } from "node:path";
 import { pathToFileURL } from "node:url";
 
 // packages/kernel/dist/mem/dialogue.js
@@ -27262,8 +27525,8 @@ function loadSqlite() {
 }
 function opencodeDbPath(fs) {
   const xdgData = fs.env?.("XDG_DATA_HOME");
-  const dataHome = xdgData && xdgData.trim() ? xdgData : join46(fs.home, ".local", "share");
-  return join46(dataHome, "opencode", "opencode.db");
+  const dataHome = xdgData && xdgData.trim() ? xdgData : join47(fs.home, ".local", "share");
+  return join47(dataHome, "opencode", "opencode.db");
 }
 function createRelatedImmutableTarget(fs, dbPath) {
   const walPath = `${dbPath}-wal`;
@@ -27605,7 +27868,7 @@ function splitShellArgs(s) {
 }
 
 // packages/kernel/dist/mem/adapters/claude.js
-import { basename as basename3, dirname as dirname10, join as join48 } from "node:path";
+import { basename as basename3, dirname as dirname10, join as join49 } from "node:path";
 
 // packages/kernel/dist/mem/jsonl.js
 var OPEN_BRACE = 123;
@@ -27662,7 +27925,7 @@ function findInJsonl(text10, predicate, maxLines = 200) {
 }
 
 // packages/kernel/dist/mem/paths.js
-import { join as join47, resolve as resolve14 } from "node:path";
+import { join as join48, resolve as resolve14 } from "node:path";
 var SEP_RE = /[/\\:_.]/g;
 var PI_SEP_RE = /[/\\:]/g;
 var PI_LEAD_RE = /^[/\\]/;
@@ -27670,29 +27933,29 @@ function expandHome(fs, p) {
   if (p === "~")
     return fs.home;
   if (p.startsWith("~/") || p.startsWith("~\\"))
-    return join47(fs.home, p.slice(2));
+    return join48(fs.home, p.slice(2));
   return p;
 }
 function claudeProjectsRoot(fs) {
-  return join47(fs.home, ".claude", "projects");
+  return join48(fs.home, ".claude", "projects");
 }
 function codexSessionsRoot(fs) {
-  return join47(fs.home, ".codex", "sessions");
+  return join48(fs.home, ".codex", "sessions");
 }
 function claudeProjectDirFromCwd(fs, cwd) {
-  return join47(claudeProjectsRoot(fs), cwd.replace(SEP_RE, "-"));
+  return join48(claudeProjectsRoot(fs), cwd.replace(SEP_RE, "-"));
 }
 function piAgentDir(fs) {
   const env = fs.env?.("PI_CODING_AGENT_DIR");
-  return expandHome(fs, env || join47(fs.home, ".pi", "agent"));
+  return expandHome(fs, env || join48(fs.home, ".pi", "agent"));
 }
 function piProjectDirFromCwd(fs, cwd) {
   const resolved = resolve14(cwd);
   const safe = "--" + resolved.replace(PI_LEAD_RE, "").replace(PI_SEP_RE, "-") + "--";
-  return join47(piAgentDir(fs), "sessions", safe);
+  return join48(piAgentDir(fs), "sessions", safe);
 }
 function readPiSettingsSessionDir(fs) {
-  const raw = fs.readText(join47(piAgentDir(fs), "settings.json"));
+  const raw = fs.readText(join48(piAgentDir(fs), "settings.json"));
   if (!raw)
     return null;
   let parsed2;
@@ -27709,7 +27972,7 @@ function readPiSettingsSessionDir(fs) {
   return null;
 }
 function piSessionRoots(fs) {
-  const roots = [join47(piAgentDir(fs), "sessions")];
+  const roots = [join48(piAgentDir(fs), "sessions")];
   const envSess = fs.env?.("PI_CODING_AGENT_SESSION_DIR");
   if (envSess)
     roots.push(expandHome(fs, envSess));
@@ -27737,7 +28000,7 @@ function walkDir(fs, root) {
     if (cur === void 0)
       break;
     for (const e of fs.readDir(cur)) {
-      const full = join47(cur, e.name);
+      const full = join48(cur, e.name);
       if (e.isDirectory)
         stack.push(full);
       else if (e.isFile)
@@ -27805,7 +28068,7 @@ function walkDirForRelatedSearch(fs, root, accept, fileLimit, source2, shouldDes
         break;
       }
       budget.consumeDiscoveryEntries(source2, 1);
-      const path14 = join47(current.path, entry2.name);
+      const path14 = join48(current.path, entry2.name);
       ranked.push({ entry: entry2, path: path14, mtime: entry2.isFile ? fs.mtimeMs(path14) ?? 0 : 0 });
     }
     ranked.sort((left, right) => {
@@ -27850,7 +28113,7 @@ function claudeListSessions(fs, f) {
     return [];
   const out = [];
   const projectDirs = () => {
-    const allDirs = () => fs.readDir(root).filter((entry2) => entry2.isDirectory).map((entry2) => join48(root, entry2.name));
+    const allDirs = () => fs.readDir(root).filter((entry2) => entry2.isDirectory).map((entry2) => join49(root, entry2.name));
     if (!f.cwd)
       return allDirs();
     const derived = claudeProjectDirFromCwd(fs, f.cwd);
@@ -27862,7 +28125,7 @@ function claudeListSessions(fs, f) {
     if (cached)
       return cached;
     const indexById = /* @__PURE__ */ new Map();
-    const indexPath = join48(directory, "sessions-index.json");
+    const indexPath = join49(directory, "sessions-index.json");
     const indexRaw = fs.exists(indexPath) ? fs.readText(indexPath) : void 0;
     if (indexRaw) {
       try {
@@ -27882,8 +28145,8 @@ function claudeListSessions(fs, f) {
     directory: dirname10(file),
     entry: { name: basename3(file), isFile: true, isDirectory: false }
   })) : projectDirs().flatMap((directory) => fs.readDir(directory).filter((entry2) => entry2.isFile && entry2.name.endsWith(".jsonl")).map((entry2) => ({ directory, entry: entry2 }))).sort((left, right) => {
-    const leftPath = join48(left.directory, left.entry.name);
-    const rightPath = join48(right.directory, right.entry.name);
+    const leftPath = join49(left.directory, left.entry.name);
+    const rightPath = join49(right.directory, right.entry.name);
     return (fs.mtimeMs(rightPath) ?? 0) - (fs.mtimeMs(leftPath) ?? 0);
   });
   for (const { directory, entry: entry2 } of sessionEntries) {
@@ -27891,7 +28154,7 @@ function claudeListSessions(fs, f) {
       fs.contentReadBudget.noteTotalExhausted();
       break;
     }
-    const filePath = join48(directory, entry2.name);
+    const filePath = join49(directory, entry2.name);
     const sid = entry2.name.slice(0, -".jsonl".length);
     const idx = indexFor(directory).get(sid);
     let cwd = idx?.cwd ?? null;
@@ -28110,7 +28373,7 @@ function codexSearch(fs, s, kw) {
 }
 
 // packages/kernel/dist/mem/adapters/pi.js
-import { basename as basename5, join as join49, resolve as resolve15 } from "node:path";
+import { basename as basename5, join as join50, resolve as resolve15 } from "node:path";
 function piListSessions(fs, f) {
   const out = [];
   const files = candidateFiles(fs, f).sort((left, right) => (fs.mtimeMs(right) ?? 0) - (fs.mtimeMs(left) ?? 0));
@@ -28171,7 +28434,7 @@ function piListSessions(fs, f) {
   return out;
 }
 function candidateFiles(fs, f) {
-  const defaultRoot = join49(piAgentDir(fs), "sessions");
+  const defaultRoot = join50(piAgentDir(fs), "sessions");
   const seen = /* @__PURE__ */ new Set();
   const out = [];
   const pushJsonl = (root, fileLimit) => {
@@ -29401,10 +29664,10 @@ async function applyLevelChange(repoRoot, loopId, target, opts, fs) {
 // packages/kernel/dist/loops/drafts.js
 import { readFileSync as readFileSync14 } from "node:fs";
 import { mkdir as mkdir25, rename as rename12, writeFile as writeFile15 } from "node:fs/promises";
-import { dirname as dirname11, join as join50 } from "node:path";
+import { dirname as dirname11, join as join51 } from "node:path";
 var DRAFT_MARKS_FILE = "loops.drafts.json";
 function draftMarksPath(repoRoot) {
-  return join50(repoRoot, ".pipeline", DRAFT_MARKS_FILE);
+  return join51(repoRoot, ".pipeline", DRAFT_MARKS_FILE);
 }
 function readDraftMarks(path14) {
   try {
@@ -29598,16 +29861,16 @@ function updateLoopInYaml(text10, loopId, patch) {
 
 // packages/kernel/dist/loops/governance.js
 import { createHash as createHash19, randomBytes } from "node:crypto";
-import { mkdir as mkdir26, open as open5, readFile as readFile36, rename as rename13 } from "node:fs/promises";
-import { join as join51, resolve as resolve16 } from "node:path";
+import { mkdir as mkdir26, open as open5, readFile as readFile37, rename as rename13 } from "node:fs/promises";
+import { join as join52, resolve as resolve16 } from "node:path";
 var LOOPS_REL = [".pipeline", "loops.yaml"];
 var GOVERNANCE_LOCK_BASE = [".pipeline", "loops", "governance"];
 var ABSENT_REGISTRY_EPOCH = "absent";
 function loopsYamlPath(repoRoot) {
-  return join51(repoRoot, ...LOOPS_REL);
+  return join52(repoRoot, ...LOOPS_REL);
 }
 function governanceLockBase(repoRoot) {
-  return join51(repoRoot, ...GOVERNANCE_LOCK_BASE);
+  return join52(repoRoot, ...GOVERNANCE_LOCK_BASE);
 }
 async function withRegistryGovernanceLock(repoRoot, fn) {
   const base = resolve16(governanceLockBase(repoRoot));
@@ -29617,7 +29880,7 @@ async function withRegistryGovernanceLock(repoRoot, fn) {
 async function readRegistrySnapshot(repoRoot) {
   let text10;
   try {
-    text10 = await readFile36(loopsYamlPath(repoRoot), "utf8");
+    text10 = await readFile37(loopsYamlPath(repoRoot), "utf8");
   } catch (e) {
     if (e.code === "ENOENT") {
       return { text: "", epoch: ABSENT_REGISTRY_EPOCH, registry: null, errors: [] };
@@ -29629,10 +29892,10 @@ async function readRegistrySnapshot(repoRoot) {
   return { text: text10, epoch, registry: data, errors };
 }
 async function writeRegistryTextAtomic(repoRoot, text10) {
-  const dir = join51(repoRoot, ".pipeline");
+  const dir = join52(repoRoot, ".pipeline");
   await mkdir26(dir, { recursive: true });
   const finalPath = loopsYamlPath(repoRoot);
-  const tmp = join51(dir, `.loops.yaml.tmp.${process.pid}.${randomBytes(6).toString("hex")}`);
+  const tmp = join52(dir, `.loops.yaml.tmp.${process.pid}.${randomBytes(6).toString("hex")}`);
   const fh = await open5(tmp, "w");
   try {
     await fh.writeFile(text10, "utf8");
@@ -30498,7 +30761,7 @@ async function compileLedgerContextBundleWithPorts(input2) {
 
 // packages/kernel/dist/compress/ledger-context-bundle-node-adapter.js
 import { createHash as createHash21 } from "node:crypto";
-import { isAbsolute as isAbsolute10, join as join52, posix as posix2 } from "node:path";
+import { isAbsolute as isAbsolute10, join as join53, posix as posix2 } from "node:path";
 var nodeLedgerContextBundlePrimitives = {
   isAbsoluteRoot: isAbsolute10,
   ledgerPath: (change) => posix2.join("openspec", "changes", change, ".pipeline-documents.json"),
@@ -31954,7 +32217,7 @@ function decideV2(aggregate, command) {
 }
 
 // packages/kernel/dist/orchestration/ledger.js
-import { mkdir as mkdir27, lstat as lstat33, readFile as readFile37, readdir as readdir14 } from "node:fs/promises";
+import { mkdir as mkdir27, lstat as lstat34, readFile as readFile38, readdir as readdir14 } from "node:fs/promises";
 import path8 from "node:path";
 var ORCHESTRATION_LEDGER_DIR = ".orchestration-v2";
 var ORCHESTRATION_CURRENT_FILE = "current.json";
@@ -32003,11 +32266,11 @@ function eventPath(changeDir2, revision, eventId) {
   safeId(eventId, "event id");
   return path8.join(dirFor(changeDir2, ORCHESTRATION_EVENTS_DIR), `${String(revision).padStart(12, "0")}-${eventId}.json`);
 }
-function snapshotPath(changeDir2, revision, digest15) {
+function snapshotPath(changeDir2, revision, digest17) {
   if (!integer4(revision))
     throw new LedgerPathError("snapshot revision must be a non-negative integer");
-  safeId(digest15, "snapshot digest");
-  return path8.join(dirFor(changeDir2, ORCHESTRATION_SNAPSHOTS_DIR), `${String(revision).padStart(12, "0")}-${digest15.slice(7, 23)}.json`);
+  safeId(digest17, "snapshot digest");
+  return path8.join(dirFor(changeDir2, ORCHESTRATION_SNAPSHOTS_DIR), `${String(revision).padStart(12, "0")}-${digest17.slice(7, 23)}.json`);
 }
 function idempotencyPath(changeDir2, commandId) {
   safeId(commandId, "command id");
@@ -32024,17 +32287,17 @@ var LedgerInitializationError = class extends Error {
 };
 async function ensureDirectory(directory) {
   await mkdir27(directory, { recursive: true });
-  const item2 = await lstat33(directory);
+  const item2 = await lstat34(directory);
   if (!item2.isDirectory() || item2.isSymbolicLink())
     throw new LedgerPathError(`ledger directory is not a regular directory: ${directory}`);
 }
 async function boundedRead(file) {
-  const item2 = await lstat33(file);
+  const item2 = await lstat34(file);
   if (!item2.isFile() || item2.isSymbolicLink())
     throw new LedgerCorruptionError(`symlink or non-regular ledger record: ${file}`);
   if (item2.size > ORCHESTRATION_MAX_RECORD_BYTES)
     throw new LedgerCorruptionError(`ledger record exceeds ${ORCHESTRATION_MAX_RECORD_BYTES} bytes: ${file}`);
-  const raw = await readFile37(file, "utf8");
+  const raw = await readFile38(file, "utf8");
   if (Buffer.byteLength(raw, "utf8") > ORCHESTRATION_MAX_RECORD_BYTES)
     throw new LedgerCorruptionError(`ledger record exceeds byte limit: ${file}`);
   return raw;
@@ -32237,8 +32500,8 @@ var FsOrchestrationLedger = class {
         return existing;
       }
       const aggregate = createAggregateV2(seed2.project_id, seed2.change_id, seed2.correlation_id, seed2.updated_at);
-      const digest15 = checksum(aggregate);
-      await publishImmutable(dirFor(changeDir2, ORCHESTRATION_SNAPSHOTS_DIR), snapshotPath(changeDir2, 0, digest15), "snapshot", aggregate);
+      const digest17 = checksum(aggregate);
+      await publishImmutable(dirFor(changeDir2, ORCHESTRATION_SNAPSHOTS_DIR), snapshotPath(changeDir2, 0, digest17), "snapshot", aggregate);
       await atomicReplaceFile(currentPath(changeDir2), json(envelope("snapshot", aggregate)));
       return aggregate;
     });
@@ -32816,7 +33079,7 @@ function projectPendingDecisions(input2) {
 import { createHash as createHash22 } from "node:crypto";
 
 // packages/kernel/dist/decision/idempotency.js
-import { join as join53 } from "node:path";
+import { join as join54 } from "node:path";
 var REVIEW_DECISION_IDEMPOTENCY_FILE = ".pipeline-decision-idempotency.jsonl";
 var REVIEW_DECISION_IDEMPOTENCY_MAX_BYTES = 1024 * 1024;
 function isReviewDecisionIdempotencyRecord(value) {
@@ -32852,7 +33115,7 @@ function storedCode(record11) {
   return record11.code === "idempotent-replay" ? "idempotent-replay" : "approved";
 }
 function createReviewDecisionLedger(changeDir2, fs) {
-  const path14 = join53(changeDir2, REVIEW_DECISION_IDEMPOTENCY_FILE);
+  const path14 = join54(changeDir2, REVIEW_DECISION_IDEMPOTENCY_FILE);
   return {
     lookup: async (key, payloadDigest) => {
       const raw = await fs.readText(path14);
@@ -35075,7 +35338,7 @@ async function evaluateStepExitReport(input2) {
 
 // packages/kernel/dist/infrastructure/guard-file-context.js
 import { closeSync as closeSync3, constants as constants4, fstatSync as fstatSync2, lstatSync as lstatSync4, openSync as openSync3, readSync as readSync3, readdirSync as readdirSync4, readFileSync as readFileSync15, realpathSync as realpathSync3, statSync as statSync4 } from "node:fs";
-import { dirname as dirname12, isAbsolute as isAbsolute11, join as join54, relative as relative7, sep as sep9 } from "node:path";
+import { dirname as dirname12, isAbsolute as isAbsolute11, join as join55, relative as relative7, sep as sep9 } from "node:path";
 function sameBoundedFile(left, right) {
   return left.dev === right.dev && left.ino === right.ino && left.size === right.size && left.mtimeNs === right.mtimeNs && left.ctimeNs === right.ctimeNs;
 }
@@ -35092,7 +35355,7 @@ function boundedAncestors(root, path14) {
   const ancestors = [{ path: root, info: rootInfo, real: rootReal }];
   let candidate2 = root;
   for (const segment of segments2) {
-    candidate2 = join54(candidate2, segment);
+    candidate2 = join55(candidate2, segment);
     const info = lstatSync4(candidate2, { bigint: true });
     if (!info.isDirectory() || info.isSymbolicLink())
       return void 0;
@@ -35158,7 +35421,7 @@ function readBoundedRegularFileSync(path14, maxBytes, root, hooks = {}) {
 }
 function activeCanonicalArchived(cwd, dep) {
   try {
-    const current = readCurrentRunRevisionSync(join54(cwd, "openspec", "changes", dep));
+    const current = readCurrentRunRevisionSync(join55(cwd, "openspec", "changes", dep));
     return current?.state.fields.archived === "true";
   } catch {
     return false;
@@ -35166,13 +35429,13 @@ function activeCanonicalArchived(cwd, dep) {
 }
 function physicallyArchived(cwd, dep) {
   try {
-    return readdirSync4(join54(cwd, "openspec", "changes", "archive"), { withFileTypes: true }).some((entry2) => entry2.isDirectory() && entry2.name.endsWith(`-${dep}`));
+    return readdirSync4(join55(cwd, "openspec", "changes", "archive"), { withFileTypes: true }).some((entry2) => entry2.isDirectory() && entry2.name.endsWith(`-${dep}`));
   } catch {
     return false;
   }
 }
 function makeGuardFileContext(cwd, options3) {
-  const abs2 = (relativePath) => join54(cwd, relativePath);
+  const abs2 = (relativePath) => join55(cwd, relativePath);
   return (name) => ({
     changeDirRel: `openspec/changes/${name}`,
     stateExists: (changeDirRel) => stateStorageExistsSync(abs2(changeDirRel)),
@@ -35675,7 +35938,7 @@ function createTransitionApplication(deps) {
 
 // packages/server/src/server.ts
 import { createServer } from "node:http";
-import { join as join119, join as joinPath3 } from "node:path";
+import { join as join120, join as joinPath3 } from "node:path";
 
 // packages/automation/dist/types.js
 var AUTOMATION_STATES = [
@@ -35698,12 +35961,12 @@ var DEFAULT_CONFIG = {
 
 // packages/automation/dist/artifacts/service.js
 import { createHash as createHash23 } from "node:crypto";
-import { cp, mkdir as mkdir29, readFile as readFile39, stat as stat4, writeFile as writeFile16 } from "node:fs/promises";
-import { dirname as dirname14, join as join56, relative as relative8, resolve as resolve17 } from "node:path";
+import { cp, mkdir as mkdir29, readFile as readFile40, stat as stat4, writeFile as writeFile16 } from "node:fs/promises";
+import { dirname as dirname14, join as join57, relative as relative8, resolve as resolve17 } from "node:path";
 
 // packages/automation/dist/submission/registry.js
-import { readFile as readFile38, mkdir as mkdir28 } from "node:fs/promises";
-import { dirname as dirname13, join as join55 } from "node:path";
+import { readFile as readFile39, mkdir as mkdir28 } from "node:fs/promises";
+import { dirname as dirname13, join as join56 } from "node:path";
 var ARTIFACT_SUBJECT_REGISTRY_FILE = ".pipeline-artifact-subjects.json";
 var emptyRegistry = () => ({ version: 1, records: [] });
 function isRecord8(value) {
@@ -35736,7 +35999,7 @@ function decodeRegistry(value) {
 }
 async function readArtifactSubjectRegistry(changeDir2) {
   try {
-    return decodeRegistry(JSON.parse(await readFile38(join55(changeDir2, ARTIFACT_SUBJECT_REGISTRY_FILE), "utf8")));
+    return decodeRegistry(JSON.parse(await readFile39(join56(changeDir2, ARTIFACT_SUBJECT_REGISTRY_FILE), "utf8")));
   } catch (error2) {
     if (error2.code === "ENOENT")
       return emptyRegistry();
@@ -35748,8 +36011,8 @@ async function recordArtifactSubjectProjection(changeDir2, record11) {
   const records = current.records.filter((candidate2) => candidate2.receiptId !== record11.receiptId);
   records.push(record11);
   const next = { version: 1, records };
-  await mkdir28(dirname13(join55(changeDir2, ARTIFACT_SUBJECT_REGISTRY_FILE)), { recursive: true });
-  await atomicReplaceFile(join55(changeDir2, ARTIFACT_SUBJECT_REGISTRY_FILE), `${JSON.stringify(next, null, 2)}
+  await mkdir28(dirname13(join56(changeDir2, ARTIFACT_SUBJECT_REGISTRY_FILE)), { recursive: true });
+  await atomicReplaceFile(join56(changeDir2, ARTIFACT_SUBJECT_REGISTRY_FILE), `${JSON.stringify(next, null, 2)}
 `);
   return next;
 }
@@ -35827,14 +36090,14 @@ function decodeState(value) {
 }
 async function openArtifactService(options3) {
   const root = resolve17(options3.rootDir);
-  const store = join56(root, ".pipeline-artifacts", options3.scopeId);
-  const legacyStore = join56(root, ".pipeline-artifacts", "runtime-artifacts");
-  const blobs = join56(store, "blobs");
-  const statePath = join56(store, "state.json");
+  const store = join57(root, ".pipeline-artifacts", options3.scopeId);
+  const legacyStore = join57(root, ".pipeline-artifacts", "runtime-artifacts");
+  const blobs = join57(store, "blobs");
+  const statePath = join57(store, "state.json");
   const now = options3.now ?? (() => (/* @__PURE__ */ new Date()).toISOString());
   let legacyScopeCopied = false;
   if (!options3.readOnly && options3.scopeId !== "runtime-artifacts") {
-    await mkdir29(join56(root, ".pipeline-artifacts"), { recursive: true });
+    await mkdir29(join57(root, ".pipeline-artifacts"), { recursive: true });
     await mkdir29(store, { recursive: true });
     const existingMigration = scopeMigrationLocks.get(store);
     const migration = existingMigration ?? (async () => {
@@ -35851,7 +36114,7 @@ async function openArtifactService(options3) {
           }
           let legacyExists = true;
           try {
-            await stat4(join56(legacyStore, "state.json"));
+            await stat4(join57(legacyStore, "state.json"));
           } catch (error2) {
             if (error2.code === "ENOENT")
               legacyExists = false;
@@ -35861,8 +36124,8 @@ async function openArtifactService(options3) {
           if (!legacyExists)
             return;
           if (targetExists) {
-            const target = decodeState(JSON.parse(await readFile39(statePath, "utf8")));
-            const legacy = decodeState(JSON.parse(await readFile39(join56(legacyStore, "state.json"), "utf8")));
+            const target = decodeState(JSON.parse(await readFile40(statePath, "utf8")));
+            const legacy = decodeState(JSON.parse(await readFile40(join57(legacyStore, "state.json"), "utf8")));
             const known = new Set(target.artifacts.flatMap((record11) => record11.versions.map((version) => `${version.contentDigest}:${version.source?.path ?? ""}`)));
             const knownAttempts = new Set(target.attempts.map((attempt2) => attempt2.stageAttemptId));
             const knownEvents = new Set(target.events.map((event) => event.idempotencyKey));
@@ -35884,7 +36147,7 @@ async function openArtifactService(options3) {
             return;
           }
           await cp(legacyStore, store, { recursive: true });
-          const migrated = decodeState(JSON.parse(await readFile39(statePath, "utf8")));
+          const migrated = decodeState(JSON.parse(await readFile40(statePath, "utf8")));
           const receiptId = `migration:scope:runtime-artifacts:${options3.scopeId}`;
           if (!migrated.migrationReceipts.some((receipt) => receipt.receipt_id === receiptId)) {
             migrated.migrationReceipts.push({ receipt_id: receiptId, legacy_artifact_id: "scope:runtime-artifacts", subject_id: `scope:${options3.scopeId}`, namespace: options3.scopeId, content_digest: `sha256:${"0".repeat(64)}`, migrated_at: now(), kind: "legacy-scope", legacy_scope_path: relative8(root, legacyStore), canonical_scope_path: relative8(root, store), retention: "preserved-awaiting-confirmation" });
@@ -35899,8 +36162,8 @@ async function openArtifactService(options3) {
       scopeMigrationLocks.set(store, migration);
     await migration;
     try {
-      const current = decodeState(JSON.parse(await readFile39(statePath, "utf8")));
-      await stat4(join56(legacyStore, "state.json"));
+      const current = decodeState(JSON.parse(await readFile40(statePath, "utf8")));
+      await stat4(join57(legacyStore, "state.json"));
       legacyScopeCopied = Array.isArray(current.migrationReceipts) && !current.migrationReceipts.some((receipt) => receipt.receipt_id === `migration:scope:runtime-artifacts:${options3.scopeId}`);
     } catch {
     }
@@ -35912,7 +36175,7 @@ async function openArtifactService(options3) {
     await mkdir29(blobs, { recursive: true });
   async function load() {
     try {
-      return decodeState(JSON.parse(await readFile39(statePath, "utf8")));
+      return decodeState(JSON.parse(await readFile40(statePath, "utf8")));
     } catch (e) {
       if (e.code === "ENOENT")
         return emptyState();
@@ -35975,7 +36238,7 @@ async function openArtifactService(options3) {
     if (options3.readOnly)
       throw new Error("artifact service is read-only");
     const sha = digest9(bytes);
-    const path14 = join56(blobs, sha);
+    const path14 = join57(blobs, sha);
     try {
       await stat4(path14);
     } catch {
@@ -36096,7 +36359,7 @@ async function openArtifactService(options3) {
       if (input2.data !== void 0 || input2.content !== void 0)
         bytes = bytesOf(input2.data ?? input2.content);
       else if (input2.path)
-        bytes = new Uint8Array(await readFile39(safePath(root, input2.path)));
+        bytes = new Uint8Array(await readFile40(safePath(root, input2.path)));
       else
         throw new Error("artifact content or path required");
       result2.push(await versionFor(s, input2, bytes, a));
@@ -36352,7 +36615,7 @@ async function openArtifactService(options3) {
     }
   };
   async function readBlob(sha, max) {
-    const b = new Uint8Array(await readFile39(join56(blobs, sha)));
+    const b = new Uint8Array(await readFile40(join57(blobs, sha)));
     return max && b.byteLength > max ? b.slice(0, max) : b;
   }
   return service2;
@@ -36444,7 +36707,7 @@ var outputSchema = JSON.stringify({
 import { execFile as execFile4, spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 var mergedEnv = (env) => env ? { ...process.env, ...env } : process.env;
-var spawnStreaming = (file, args, opts) => new Promise((resolve20) => {
+var spawnStreaming = (file, args, opts) => new Promise((resolve21) => {
   const maxTail = opts.maxTailChars ?? MAX_TAIL_CHARS;
   const proc = spawn(file, args, {
     cwd: opts.cwd,
@@ -36477,19 +36740,19 @@ var spawnStreaming = (file, args, opts) => new Promise((resolve20) => {
   }
   proc.on("error", (err) => {
     stderrTail.push(String(err.message ?? err));
-    resolve20({ stdout: stdoutTail.toString(), stderr: stderrTail.toString(), exitCode: 127 });
+    resolve21({ stdout: stdoutTail.toString(), stderr: stderrTail.toString(), exitCode: 127 });
   });
   proc.on("close", (code) => {
-    resolve20({ stdout: stdoutTail.toString(), stderr: stderrTail.toString(), exitCode: code ?? 0 });
+    resolve21({ stdout: stdoutTail.toString(), stderr: stderrTail.toString(), exitCode: code ?? 0 });
   });
 });
 var nodeExec = (file, args, opts) => {
   if (opts?.onLine || opts?.input !== void 0)
     return spawnStreaming(file, args, opts);
-  return new Promise((resolve20) => {
+  return new Promise((resolve21) => {
     execFile4(file, args, { cwd: opts?.cwd, env: mergedEnv(opts?.env), maxBuffer: 64 * 1024 * 1024, encoding: "utf-8" }, (error2, stdout, stderr) => {
       const code = error2 && typeof error2.code === "number" ? error2.code : error2 ? 1 : 0;
-      resolve20({ stdout: String(stdout), stderr: String(stderr), exitCode: code });
+      resolve21({ stdout: String(stdout), stderr: String(stderr), exitCode: code });
     });
   });
 };
@@ -36545,8 +36808,8 @@ var ACTIONS2 = new Set(WORKFLOW_ACTIONS);
 // packages/automation/dist/skills/snapshot-manifest.js
 import { createHash as createHash25 } from "node:crypto";
 import { constants as constants5 } from "node:fs";
-import { chmod, lstat as lstat34, mkdir as mkdir30, open as open6, readdir as readdir15, realpath as realpath7, stat as stat5, writeFile as writeFile17 } from "node:fs/promises";
-import { dirname as dirname15, join as join57, relative as relative9, sep as sep10 } from "node:path";
+import { chmod, lstat as lstat35, mkdir as mkdir30, open as open6, readdir as readdir15, realpath as realpath7, stat as stat5, writeFile as writeFile17 } from "node:fs/promises";
+import { dirname as dirname15, join as join58, relative as relative9, sep as sep10 } from "node:path";
 
 // packages/automation/dist/skills/types.js
 function isPathSafeSkillId(skillId) {
@@ -36579,7 +36842,7 @@ async function assertDirectoryIdentities(identities, onFailure) {
   for (const expected of identities) {
     let current;
     try {
-      current = await lstat34(expected.absPath);
+      current = await lstat35(expected.absPath);
     } catch (e) {
       throw onFailure(`\u7956\u5148\u76EE\u5F55\u4E0D\u53EF\u8BBF\u95EE\uFF1A${expected.absPath}\uFF08${e.message}\uFF09`);
     }
@@ -36601,7 +36864,7 @@ async function captureDirectoryIdentities(realRoot, absFile, rootIdentity, onFai
   let cursor = realRoot;
   if (fromRoot !== "") {
     for (const segment of fromRoot.split(sep10)) {
-      cursor = join57(cursor, segment);
+      cursor = join58(cursor, segment);
       paths.push(cursor);
     }
   }
@@ -36609,7 +36872,7 @@ async function captureDirectoryIdentities(realRoot, absFile, rootIdentity, onFai
   for (const absPath of paths) {
     let current;
     try {
-      current = await lstat34(absPath);
+      current = await lstat35(absPath);
     } catch (e) {
       throw onFailure(`\u7956\u5148\u76EE\u5F55\u4E0D\u53EF\u8BBF\u95EE\uFF1A${absPath}\uFF08${e.message}\uFF09`);
     }
@@ -36690,7 +36953,7 @@ async function buildCanonicalManifest(skillId, sourceDir2, hooks = {}) {
     }
     for (const d of dirents) {
       const relPath = relDir ? `${relDir}/${d.name}` : d.name;
-      const absPath = join57(realDir, d.name);
+      const absPath = join58(realDir, d.name);
       if (d.isSymbolicLink()) {
         let real;
         try {
@@ -36767,7 +37030,7 @@ var AFK_RUN_SCRIPT_SHA256 = "baaa2b93afb4526579f71cdb7bda9240b6d93cb9af8f56eb75e
 var AFK_RUN_DRIFT_EXIT_CODE = 95;
 var IMAGE_AFK_RUN_PATH = "/usr/local/bin/tenon-afk-run";
 var IMAGE_ATTESTATION_PATH = "/opt/pipeline/image-attestation.env";
-var checksumGuard = (path14, digest15, attestationKey, label) => `actual_sha="$(sha256sum ${path14} 2>/dev/null | awk '{print $1}')"; [ "$actual_sha" = "${digest15}" ] && grep -qx "${attestationKey}=${digest15}" ${IMAGE_ATTESTATION_PATH} 2>/dev/null || { echo "sandcastle \u955C\u50CF\u5185 ${label} \u4E0E host \u671F\u671B\u6216\u955C\u50CF attestation \u4E0D\u4E00\u81F4\u2014\u2014\u8BF7\u91CD\u5EFA\u955C\u50CF\uFF1Atools/sandcastle/build.sh" >&2; exit ${AFK_RUN_DRIFT_EXIT_CODE}; }`;
+var checksumGuard = (path14, digest17, attestationKey, label) => `actual_sha="$(sha256sum ${path14} 2>/dev/null | awk '{print $1}')"; [ "$actual_sha" = "${digest17}" ] && grep -qx "${attestationKey}=${digest17}" ${IMAGE_ATTESTATION_PATH} 2>/dev/null || { echo "sandcastle \u955C\u50CF\u5185 ${label} \u4E0E host \u671F\u671B\u6216\u955C\u50CF attestation \u4E0D\u4E00\u81F4\u2014\u2014\u8BF7\u91CD\u5EFA\u955C\u50CF\uFF1Atools/sandcastle/build.sh" >&2; exit ${AFK_RUN_DRIFT_EXIT_CODE}; }`;
 var AFK_RUN_DRIFT_GUARD = checksumGuard(IMAGE_AFK_RUN_PATH, AFK_RUN_SCRIPT_SHA256, "pipeline_afk_run_sha256", "tenon-afk-run");
 
 // packages/automation/dist/lifecycle/worktree.js
@@ -36812,11 +37075,11 @@ var GIT_REVISION_VERIFIER_ISSUER_IDENTITY = Object.freeze({
 });
 
 // packages/automation/dist/lifecycle/spec-complete.js
-import { join as join59 } from "node:path";
+import { join as join60 } from "node:path";
 
 // packages/automation/dist/config/automationJson.js
 import { readFileSync as readFileSync16 } from "node:fs";
-import { join as join58 } from "node:path";
+import { join as join59 } from "node:path";
 var AUTOMATION_JSON_LIMITS = {
   maxParallel: { min: 1, max: 8 },
   maxRetries: { min: 0, max: 3 },
@@ -36824,7 +37087,7 @@ var AUTOMATION_JSON_LIMITS = {
 };
 var AUTOMATION_IMAGE_RE = /^[a-zA-Z0-9._/:@-]+$/;
 function automationJsonPath(root) {
-  return join58(root, ".pipeline", "automation.json");
+  return join59(root, ".pipeline", "automation.json");
 }
 var intIn = (v, min, max) => typeof v === "number" && Number.isInteger(v) && v >= min && v <= max;
 function isValidImageRef(v) {
@@ -36871,7 +37134,7 @@ async function enqueueAfterSpecComplete(deps, transition) {
     return { kind: "not-applicable" };
   }
   const config = resolveAutomationConfig(deps);
-  const changeDir2 = join59(deps.repoRoot, "openspec", "changes", transition.changeName);
+  const changeDir2 = join60(deps.repoRoot, "openspec", "changes", transition.changeName);
   return deps.store.withLock(changeDir2, async () => {
     const state = await deps.store.read(changeDir2);
     if (scalar12(state.fields.phase) !== "build")
@@ -36903,8 +37166,8 @@ var DEFAULT_IDLE_TIMEOUT_MS = 20 * 60 * 1e3;
 var DEFAULT_COMPLETION_TIMEOUT_MS = 60 * 1e3;
 
 // packages/automation/dist/skills/content-locator.js
-import { lstat as lstat35, realpath as realpath8, stat as stat6 } from "node:fs/promises";
-import { join as join60 } from "node:path";
+import { lstat as lstat36, realpath as realpath8, stat as stat6 } from "node:fs/promises";
+import { join as join61 } from "node:path";
 var SkillContentNotFoundError = class extends Error {
   name = "SkillContentNotFoundError";
   _tag = "SkillContentNotFoundError";
@@ -36931,9 +37194,9 @@ function createFsSkillContentLocator(roots) {
       }
       const candidates = [];
       for (const root of roots) {
-        const candidate2 = join60(root, skillId);
+        const candidate2 = join61(root, skillId);
         try {
-          await lstat35(candidate2);
+          await lstat36(candidate2);
         } catch (err) {
           if (errnoCode5(err) === "ENOENT")
             continue;
@@ -36981,7 +37244,7 @@ function createFsSkillContentLocator(roots) {
 
 // packages/automation/dist/skills/production-content-locator.js
 import { readdirSync as readdirSync5, readFileSync as readFileSync17 } from "node:fs";
-import { isAbsolute as isAbsolute12, join as join61 } from "node:path";
+import { isAbsolute as isAbsolute12, join as join62 } from "node:path";
 var SkillRootRegistryError = class extends Error {
   name = "SkillRootRegistryError";
   _tag = "SkillRootRegistryError";
@@ -37022,13 +37285,13 @@ function append(map, key, value) {
 }
 function codexPluginRoots(home, read2) {
   const result2 = /* @__PURE__ */ new Map();
-  const cache2 = join61(home, ".codex", "plugins", "cache");
+  const cache2 = join62(home, ".codex", "plugins", "cache");
   for (const authority of checkedNames(read2, cache2)) {
-    const authorityDir = join61(cache2, authority);
+    const authorityDir = join62(cache2, authority);
     for (const plugin of checkedNames(read2, authorityDir)) {
-      const pluginDir = join61(authorityDir, plugin);
+      const pluginDir = join62(authorityDir, plugin);
       for (const version of checkedNames(read2, pluginDir)) {
-        append(result2, plugin, join61(pluginDir, version, "skills"));
+        append(result2, plugin, join62(pluginDir, version, "skills"));
       }
     }
   }
@@ -37074,7 +37337,7 @@ function claudeInstalledRoots(raw) {
       if (typeof installPath !== "string" || installPath.trim() === "" || !isAbsolute12(installPath)) {
         throw new SkillRootRegistryError(`Claude plugins.${key}[${index}].installPath \u5FC5\u987B\u662F\u7EDD\u5BF9\u8DEF\u5F84`);
       }
-      append(result2, plugin, join61(installPath, "skills"));
+      append(result2, plugin, join62(installPath, "skills"));
     }
   }
   return result2;
@@ -37099,28 +37362,28 @@ function createRunnerSkillContentLocator(options3) {
   };
   const getCodexFlat = () => {
     codexFlat ??= createFsSkillContentLocator([
-      join61(options3.home, ".codex", "skills"),
-      join61(options3.home, ".codex", "skills", ".system"),
+      join62(options3.home, ".codex", "skills"),
+      join62(options3.home, ".codex", "skills", ".system"),
       // skills CLI 的 Codex/global 安装真落点是 agent-neutral ~/.agents/skills；它不属于
       // Claude 私有面，Codex runner 必须可读，否则 setup/doctor 绿而 H10 readiness 必红。
-      join61(options3.home, ".agents", "skills"),
+      join62(options3.home, ".agents", "skills"),
       ...flatten(getCodexPlugins())
     ]);
     return codexFlat;
   };
   const getClaudePlugins = () => {
-    claudePlugins ??= claudeInstalledRoots((options3.readInstalledPluginsJson ?? realInstalledJson)(join61(options3.home, ".claude", "plugins", "installed_plugins.json")));
+    claudePlugins ??= claudeInstalledRoots((options3.readInstalledPluginsJson ?? realInstalledJson)(join62(options3.home, ".claude", "plugins", "installed_plugins.json")));
     return claudePlugins;
   };
   const getClaudeFlat = () => {
     if (claudeFlat !== void 0)
       return claudeFlat;
-    const roots = [join61(options3.home, ".claude", "skills"), join61(options3.home, ".agents", "skills")];
-    const cache2 = join61(options3.home, ".claude", "plugins", "cache");
+    const roots = [join62(options3.home, ".claude", "skills"), join62(options3.home, ".agents", "skills")];
+    const cache2 = join62(options3.home, ".claude", "plugins", "cache");
     for (const marketplace of checkedNames(readDirs, cache2)) {
-      const marketplaceDir = join61(cache2, marketplace);
+      const marketplaceDir = join62(cache2, marketplace);
       for (const plugin of checkedNames(readDirs, marketplaceDir)) {
-        roots.push(join61(marketplaceDir, plugin, "skills"));
+        roots.push(join62(marketplaceDir, plugin, "skills"));
       }
     }
     roots.push(...flatten(getClaudePlugins()));
@@ -37286,14 +37549,14 @@ async function evaluateSkillBundleWiring(loop, deps, resolutionInputs) {
 }
 
 // packages/automation/dist/skills/mandatory-invocability.js
-import { readFile as readFile40 } from "node:fs/promises";
-import { join as join62 } from "node:path";
+import { readFile as readFile41 } from "node:fs/promises";
+import { join as join63 } from "node:path";
 async function verdictFor(skillsRoot, skillId) {
   if (skillId.includes(":") || skillId.includes("/"))
     return "unknown";
   let text10;
   try {
-    text10 = await readFile40(join62(skillsRoot, skillId, "SKILL.md"), "utf8");
+    text10 = await readFile41(join63(skillsRoot, skillId, "SKILL.md"), "utf8");
   } catch {
     return "unknown";
   }
@@ -37319,7 +37582,7 @@ var CATEGORY_ORDER = new Map(SKILL_PROVENANCE_ERROR_CATEGORIES.map((category, in
 
 // packages/automation/dist/skills/upstream-skill-view.js
 import { readFileSync as readFileSync18 } from "node:fs";
-import { join as join63 } from "node:path";
+import { join as join64 } from "node:path";
 function readOptional2(path14) {
   try {
     return readFileSync18(path14, "utf8");
@@ -37330,7 +37593,7 @@ function readOptional2(path14) {
   }
 }
 function upstreamSkillRunReportPath(stateRoot) {
-  return join63(stateRoot, "skills", "last-update.json");
+  return join64(stateRoot, "skills", "last-update.json");
 }
 function readUpstreamSkillRunReport(stateRoot) {
   try {
@@ -37341,10 +37604,10 @@ function readUpstreamSkillRunReport(stateRoot) {
   }
 }
 function readUpstreamSkillView(pluginRoot2, stateRoot) {
-  const registryText = readOptional2(join63(pluginRoot2, "templates", "skill-sources.yaml"));
+  const registryText = readOptional2(join64(pluginRoot2, "templates", "skill-sources.yaml"));
   const bundledIds = registryText === null ? [] : parseSkillProvenanceRegistry(registryText).skills.map((entry2) => entry2.token);
-  const sourcesText = readOptional2(join63(pluginRoot2, "skills", "sources.yaml"));
-  const lockText = readOptional2(join63(pluginRoot2, "skills", "skills.lock.json"));
+  const sourcesText = readOptional2(join64(pluginRoot2, "skills", "sources.yaml"));
+  const lockText = readOptional2(join64(pluginRoot2, "skills", "skills.lock.json"));
   if (sourcesText === null && lockText !== null) {
     throw new UpstreamSkillError("invalid-skill-lock", "skills/skills.lock.json \u5B58\u5728\u4F46\u7F3A\u5C11 skills/sources.yaml");
   }
@@ -37594,8 +37857,8 @@ async function evaluateLoopExecutionWiring(loop, loops, deps) {
 
 // packages/automation/dist/task-plan-run/journal.js
 import { constants as constants6 } from "node:fs";
-import { lstat as lstat36, mkdir as mkdir31, open as open7 } from "node:fs/promises";
-import { join as join64 } from "node:path";
+import { lstat as lstat37, mkdir as mkdir31, open as open7 } from "node:fs/promises";
+import { join as join65 } from "node:path";
 var JOURNAL_SCHEMA_VERSION = "task-run-event/v1";
 var MAX_JOURNAL_BYTES = 8 * 1024 * 1024;
 var TaskRunRevisionConflictError = class extends Error {
@@ -37613,7 +37876,7 @@ function isRecord9(value) {
 function validAttempt(value) {
   if (!isRecord9(value))
     return false;
-  return typeof value.attempt_id === "string" && safeId2(value.attempt_id) && typeof value.work_item_id === "string" && safeId2(value.work_item_id) && Number.isSafeInteger(value.attempt_number) && Number(value.attempt_number) > 0 && ["pending", "running", "succeeded", "failed", "cancelled"].includes(String(value.status)) && typeof value.recorded_at === "string" && !Number.isNaN(Date.parse(value.recorded_at)) && isRecord9(value.input_digests) && Object.entries(value.input_digests).every(([key, digest15]) => safeId2(key) && typeof digest15 === "string") && (value.output_digest === void 0 || typeof value.output_digest === "string") && (value.error_code === void 0 || typeof value.error_code === "string");
+  return typeof value.attempt_id === "string" && safeId2(value.attempt_id) && typeof value.work_item_id === "string" && safeId2(value.work_item_id) && Number.isSafeInteger(value.attempt_number) && Number(value.attempt_number) > 0 && ["pending", "running", "succeeded", "failed", "cancelled"].includes(String(value.status)) && typeof value.recorded_at === "string" && !Number.isNaN(Date.parse(value.recorded_at)) && isRecord9(value.input_digests) && Object.entries(value.input_digests).every(([key, digest17]) => safeId2(key) && typeof digest17 === "string") && (value.output_digest === void 0 || typeof value.output_digest === "string") && (value.error_code === void 0 || typeof value.error_code === "string");
 }
 function validOperation(value) {
   if (!isRecord9(value))
@@ -37625,7 +37888,7 @@ function validValidator(value) {
     return false;
   const scope = String(value.scope);
   const targetValid = scope === "run" ? value.target_id === void 0 : typeof value.target_id === "string" && safeId2(value.target_id);
-  return typeof value.validator_id === "string" && safeId2(value.validator_id) && ["work-item", "group", "run"].includes(scope) && targetValid && ["pending", "passed", "failed", "invalidated"].includes(String(value.status)) && (value.code === void 0 || typeof value.code === "string" && safeId2(value.code)) && (value.input_digests === void 0 || isRecord9(value.input_digests) && Object.entries(value.input_digests).every(([key, digest15]) => safeId2(key) && typeof digest15 === "string")) && typeof value.recorded_at === "string" && !Number.isNaN(Date.parse(value.recorded_at));
+  return typeof value.validator_id === "string" && safeId2(value.validator_id) && ["work-item", "group", "run"].includes(scope) && targetValid && ["pending", "passed", "failed", "invalidated"].includes(String(value.status)) && (value.code === void 0 || typeof value.code === "string" && safeId2(value.code)) && (value.input_digests === void 0 || isRecord9(value.input_digests) && Object.entries(value.input_digests).every(([key, digest17]) => safeId2(key) && typeof digest17 === "string")) && typeof value.recorded_at === "string" && !Number.isNaN(Date.parse(value.recorded_at));
 }
 function sameInputDigests(left, right) {
   const leftEntries = Object.entries(left).sort(([a], [b]) => a.localeCompare(b));
@@ -37692,7 +37955,7 @@ function assertRegularJournalFile(stat8) {
 async function assertJournalPathIdentity(path14, expected) {
   let current;
   try {
-    current = await lstat36(path14);
+    current = await lstat37(path14);
   } catch {
     throw new TaskRunJournalCorruptError("Task run journal leaf changed during access");
   }
@@ -37745,7 +38008,7 @@ async function readEventsFromHandle(path14, handle) {
 async function ordinaryDirectory2(path14) {
   try {
     const openedDirectoryPath = process.platform === "linux" && /^\/(?:dev\/fd|proc\/self\/fd)\/\d+$/.test(path14) ? `${path14}/.` : path14;
-    const info = await lstat36(openedDirectoryPath);
+    const info = await lstat37(openedDirectoryPath);
     return info.isDirectory() && !info.isSymbolicLink();
   } catch {
     return false;
@@ -37757,7 +38020,7 @@ async function journalDirectory(changeDir2, revisionId, create) {
   }
   let current = changeDir2;
   for (const segment of [".pipeline", "task-runs", revisionId]) {
-    current = join64(current, segment);
+    current = join65(current, segment);
     if (create) {
       try {
         await mkdir31(current);
@@ -37767,7 +38030,7 @@ async function journalDirectory(changeDir2, revisionId, create) {
       }
     } else {
       try {
-        await lstat36(current);
+        await lstat37(current);
       } catch (error2) {
         if (isRecord9(error2) && error2.code === "ENOENT")
           return null;
@@ -37784,7 +38047,7 @@ async function events(changeDir2, revisionId) {
   const directory = await journalDirectory(changeDir2, revisionId, false);
   if (directory === null)
     return [];
-  const path14 = join64(directory, "events.jsonl");
+  const path14 = join65(directory, "events.jsonl");
   const handle = await openJournalFile(path14, constants6.O_RDONLY | constants6.O_NONBLOCK | constants6.O_NOFOLLOW);
   if (handle === null)
     return [];
@@ -37839,7 +38102,7 @@ async function appendEvent(changeDir2, revisionId, expectedRunRevision, event) {
     const directory = await journalDirectory(changeDir2, revisionId, true);
     if (directory === null)
       throw new TaskRunJournalCorruptError("Task run journal directory is missing");
-    const path14 = join64(directory, "events.jsonl");
+    const path14 = join65(directory, "events.jsonl");
     const handle = await openJournalFile(path14, constants6.O_RDWR | constants6.O_APPEND | constants6.O_CREAT | constants6.O_NONBLOCK | constants6.O_NOFOLLOW, 384);
     if (handle === null)
       throw new TaskRunJournalCorruptError("Task run journal leaf disappeared");
@@ -38959,7 +39222,7 @@ function resultFor3(run2, observation, report, now, issue2, outputSchemaId) {
 }
 
 // packages/automation/dist/orchestration/input-materialization-v2.js
-import { readFile as readFile41 } from "node:fs/promises";
+import { readFile as readFile42 } from "node:fs/promises";
 import { createHash as createHash29 } from "node:crypto";
 import path10 from "node:path";
 var MAX_INPUT_BYTES = 1024 * 1024;
@@ -38981,7 +39244,7 @@ function byteLength2(value) {
 function rawDigest(value) {
   return typeof value === "string" ? `sha256:${createHash29("sha256").update(new TextEncoder().encode(value)).digest("hex")}` : void 0;
 }
-function digestMatches(value, expected, normalized2) {
+function digestMatches2(value, expected, normalized2) {
   return normalized2 === expected || rawDigest(value) === expected;
 }
 function resultProjection(result2) {
@@ -39079,7 +39342,7 @@ function createFilesystemArtifactResolverV2(changeDir2) {
           throw new InputMaterializationErrorV2("artifact-invalid", `input reference escapes change directory: ${ref}`);
       }
       try {
-        const value = await readFile41(target, "utf8");
+        const value = await readFile42(target, "utf8");
         if (byteLength2(value) > MAX_INPUT_BYTES)
           throw new InputMaterializationErrorV2("bundle-too-large", `input ${ref} exceeds ${MAX_INPUT_BYTES} bytes`);
         try {
@@ -39111,7 +39374,7 @@ async function materializeRunInputsV2(input2) {
     if (entry2.content !== void 0) {
       const snap2 = snapshotJsonBoundary(entry2.content, { maxBytes, maxDepth: 40, maxNodes: 8192 });
       const actual2 = digest12(snap2.value);
-      if (!digestMatches(snap2.value, entry2.expected_digest, actual2))
+      if (!digestMatches2(snap2.value, entry2.expected_digest, actual2))
         throw new InputMaterializationErrorV2("artifact-digest-mismatch", `input digest mismatch for ${entry2.ref}`);
       total += snap2.bytes;
       if (total > maxBytes)
@@ -39129,7 +39392,7 @@ async function materializeRunInputsV2(input2) {
     }
     const snap = snapshotJsonBoundary(raw, { maxBytes, maxDepth: 40, maxNodes: 8192 });
     const actual = digest12(snap.value);
-    if (!digestMatches(snap.value, entry2.expected_digest, actual))
+    if (!digestMatches2(snap.value, entry2.expected_digest, actual))
       throw new InputMaterializationErrorV2("artifact-digest-mismatch", `input digest mismatch for ${entry2.ref}`);
     total += snap.bytes;
     if (total > maxBytes)
@@ -39302,7 +39565,7 @@ function chooseWave(snapshot, policy2) {
 
 // packages/automation/dist/artifact-runtime/stage-runtime.js
 import { createHash as createHash30 } from "node:crypto";
-import { readFile as readFile42, readdir as readdir16, stat as stat7 } from "node:fs/promises";
+import { readFile as readFile43, readdir as readdir16, stat as stat7 } from "node:fs/promises";
 import path11 from "node:path";
 var StageArtifactRuntime = class _StageArtifactRuntime {
   service;
@@ -39356,12 +39619,12 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
   async reconcileNow() {
     const next = await this.snapshot();
     const changes = [];
-    for (const [relative16, digest15] of next) {
+    for (const [relative16, digest17] of next) {
       const previous = this.baseline.get(relative16);
       if (previous === void 0)
-        changes.push({ path: relative16, kind: "created", digest: digest15 });
-      else if (previous !== digest15)
-        changes.push({ path: relative16, kind: "changed", digest: digest15 });
+        changes.push({ path: relative16, kind: "created", digest: digest17 });
+      else if (previous !== digest17)
+        changes.push({ path: relative16, kind: "changed", digest: digest17 });
     }
     for (const relative16 of this.baseline.keys())
       if (!next.has(relative16))
@@ -39369,7 +39632,7 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
     const observed = changes.filter((change) => change.kind !== "deleted");
     const inputs = await Promise.all(observed.map(async (change) => ({
       source: { path: change.path },
-      data: await readFile42(this.resolve(change.path)),
+      data: await readFile43(this.resolve(change.path)),
       mediaType: mediaTypeFor(change.path),
       origin: "unknown",
       observationSource: "reconcile"
@@ -39399,7 +39662,7 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
   async publish(relativePath, disposition = "candidate") {
     const relative16 = this.safeRelative(relativePath);
     const absolute = this.resolve(relative16);
-    const bytes = await readFile42(absolute);
+    const bytes = await readFile43(absolute);
     const currentDigest2 = digest13(bytes);
     const prior = this.observedVersionsByPath.get(relative16);
     const needsManagedObservation = prior === void 0 || prior.contentDigest !== currentDigest2 || prior.origin !== "stage" || prior.producer?.stageAttemptId !== this.stageAttemptId;
@@ -39431,7 +39694,7 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
     const relative16 = this.safeRelative(relativePath);
     if (this.service.submitArtifactOutput === void 0)
       return this.publish(relative16, disposition);
-    const bytes = await readFile42(this.resolve(relative16));
+    const bytes = await readFile43(this.resolve(relative16));
     const version = await this.service.submitArtifactOutput(this.stageAttemptId, {
       data: bytes,
       path: relative16,
@@ -39452,7 +39715,7 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
   }
   async observePath(relativePath, options3 = {}) {
     const relative16 = this.safeRelative(relativePath);
-    const bytes = await readFile42(this.resolve(relative16));
+    const bytes = await readFile43(this.resolve(relative16));
     const value = await this.service.observe(this.stageAttemptId, { source: { path: relative16 }, data: bytes, mediaType: mediaTypeFor(relative16), origin: "stage", producer: { workflowRunId: this.workflowRunId, stageAttemptId: this.stageAttemptId, ...this.skillId ? { skillId: this.skillId } : {}, ...this.actorId ? { actorId: this.actorId } : {} }, observationSource: options3.source ?? "managed-tool", ...options3.toolCallId ? { toolCallId: options3.toolCallId } : {} });
     const version = value;
     this.observedDigestsByPath.set(relative16, digest13(bytes));
@@ -39526,7 +39789,7 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
         if (entry2.isDirectory())
           await walk(absolute);
         else if (entry2.isFile() && !this.isIgnored(path11.relative(this.rootDir, absolute))) {
-          const bytes = await readFile42(absolute);
+          const bytes = await readFile43(absolute);
           result2.set(path11.relative(this.rootDir, absolute), createHash30("sha256").update(bytes).digest("hex"));
         }
       }
@@ -40373,7 +40636,7 @@ import {
   realpathSync as realpathSync5,
   unlinkSync
 } from "node:fs";
-import { isAbsolute as isAbsolute13, join as join65, relative as relative10, sep as sep12 } from "node:path";
+import { isAbsolute as isAbsolute13, join as join66, relative as relative10, sep as sep12 } from "node:path";
 
 // packages/server/src/workflowRootAnchor.ts
 import {
@@ -40526,8 +40789,8 @@ function assertDirectoryStillTrusted(directory, root) {
 function openTrustedChildDirectory(root, parent, name, create) {
   if (parent.lexicalPath === root.path) assertWorkflowRootAnchor(root);
   else assertDirectoryStillTrusted(parent, root);
-  const lexicalPath = join65(parent.lexicalPath, name);
-  const operationPath = join65(parent.fdPath ?? parent.lexicalPath, name);
+  const lexicalPath = join66(parent.lexicalPath, name);
+  const operationPath = join66(parent.fdPath ?? parent.lexicalPath, name);
   let before = lstatIfExists(operationPath);
   if (!before) {
     if (!create) return void 0;
@@ -40653,8 +40916,8 @@ function assertWorkflowDirectoriesStillTrusted(directories2) {
 }
 function childEntry(directory, name) {
   return {
-    lexical: join65(directory.lexicalPath, name),
-    operation: join65(directory.fdPath ?? directory.lexicalPath, name)
+    lexical: join66(directory.lexicalPath, name),
+    operation: join66(directory.fdPath ?? directory.lexicalPath, name)
   };
 }
 var WORKFLOW_NAME_RE2 = /^[\p{L}\p{N}\p{M}_-]+$/u;
@@ -41218,7 +41481,7 @@ function deleteWorkflowForApi(root, name, permit) {
 
 // packages/server/src/snapshot.ts
 import { closeSync as closeSync6, constants as constants13, fstatSync as fstatSync9, lstatSync as lstatSync9, openSync as openSync10 } from "node:fs";
-import { join as join76 } from "node:path";
+import { join as join77 } from "node:path";
 
 // packages/server/src/contextBundleTrustedReader.ts
 import { constants as constants11, fstatSync as fstatSync7, openSync as openSync8, readSync as readSync5 } from "node:fs";
@@ -41497,7 +41760,7 @@ async function mapWithConcurrency(items, limit, mapper) {
 // packages/server/src/repositoryIdentity.ts
 import { execFile as execFile5 } from "node:child_process";
 import { createHash as createHash31 } from "node:crypto";
-import { basename as basename6, dirname as dirname17, isAbsolute as isAbsolute14, join as join66, normalize as normalize2, resolve as resolve19 } from "node:path";
+import { basename as basename6, dirname as dirname17, isAbsolute as isAbsolute14, join as join67, normalize as normalize2, resolve as resolve19 } from "node:path";
 var REPOSITORY_IDENTITY_TIMEOUT_MS = 1500;
 var REPOSITORY_IDENTITY_MAX_OUTPUT_BYTES = 4096;
 var REPOSITORY_IDENTITY_ARGS = [
@@ -41572,7 +41835,7 @@ async function probeRepositoryIdentity(root, deps = {}) {
   const topLevel = normalize2(resolve19(topLevelRaw));
   const gitDirectory = normalize2(resolve19(gitDirectoryRaw));
   const commonName = basename6(commonDirectory);
-  const conventionalDotGit = commonName === ".git" && (commonDirectory === normalize2(resolve19(join66(topLevel, ".git"))) || gitDirectory !== commonDirectory);
+  const conventionalDotGit = commonName === ".git" && (commonDirectory === normalize2(resolve19(join67(topLevel, ".git"))) || gitDirectory !== commonDirectory);
   const label = conventionalDotGit ? basename6(dirname17(commonDirectory)) : commonName.endsWith(".git") && commonName.length > ".git".length ? commonName.slice(0, -".git".length) : basename6(topLevel);
   if (!label) return void 0;
   return {
@@ -41583,15 +41846,16 @@ async function probeRepositoryIdentity(root, deps = {}) {
 }
 
 // packages/server/src/snapshotFingerprint.ts
-import { lstat as lstat38, readdir as readdir17 } from "node:fs/promises";
-import { join as join68 } from "node:path";
+import { createHash as createHash32 } from "node:crypto";
+import { lstat as lstat39, readdir as readdir17 } from "node:fs/promises";
+import { join as join69 } from "node:path";
 
 // packages/server/src/repositoryFingerprint.ts
-import { lstat as lstat37 } from "node:fs/promises";
-import { join as join67, sep as sep13 } from "node:path";
+import { lstat as lstat38 } from "node:fs/promises";
+import { join as join68, sep as sep13 } from "node:path";
 async function metadataPart(path14, mode = "volatile", lookupPath = path14) {
   try {
-    const metadata = await lstat37(lookupPath, { bigint: true });
+    const metadata = await lstat38(lookupPath, { bigint: true });
     const kind = metadata.isDirectory() ? "directory" : metadata.isFile() ? "file" : "other";
     const stableIdentity = mode === "stable" || mode === "stable-directory" && metadata.isDirectory();
     return {
@@ -41606,22 +41870,24 @@ async function repositoryTopologyFingerprint(root) {
   const rootEntry = await metadataPart(root, "stable", `${root}${sep13}.`);
   if (rootEntry === null) return [];
   if (!rootEntry.directory) return [rootEntry.value];
-  const dotGit = join67(root, ".git");
+  const dotGit = join68(root, ".git");
   const entry2 = await metadataPart(dotGit, "stable-directory");
   if (entry2 === null) return [rootEntry.value];
   if (!entry2.directory) return [rootEntry.value, entry2.value];
-  const worktrees = await metadataPart(join67(dotGit, "worktrees"));
+  const worktrees = await metadataPart(join68(dotGit, "worktrees"));
   return worktrees === null ? [rootEntry.value, entry2.value] : [rootEntry.value, entry2.value, worktrees.value];
 }
 
 // packages/server/src/snapshotFingerprint.ts
+var CHANGE_STAT_CONCURRENCY = 16;
+var ROOT_CONCURRENCY = 8;
 async function viewerFingerprintParts(readRoot, viewer) {
   const parts = [`viewer:${readRoot}:${viewer === void 0 ? "none" : isTenonUser(viewer) ? viewer.slug : "missing"}`];
-  const targets = [join68(readRoot, ".git", "logs", "HEAD")];
+  const targets = [join69(readRoot, ".git", "logs", "HEAD")];
   if (viewer !== void 0 && isTenonUser(viewer)) targets.push(userProjectPaths(readRoot, viewer.slug).archived);
   for (const target of targets) {
     try {
-      const stat8 = await lstat38(target, { bigint: true });
+      const stat8 = await lstat39(target, { bigint: true });
       parts.push(`${target}:${stat8.size}:${stat8.mtimeNs}`);
     } catch {
     }
@@ -41630,87 +41896,118 @@ async function viewerFingerprintParts(readRoot, viewer) {
 }
 async function userSlugs2(readRoot) {
   try {
-    return (await readdir17(join68(readRoot, TENON_PROJECT_DIR, "users"), { withFileTypes: true })).filter((entry2) => entry2.isDirectory()).map((entry2) => entry2.name).sort();
+    return (await readdir17(join69(readRoot, TENON_PROJECT_DIR, "users"), { withFileTypes: true })).filter((entry2) => entry2.isDirectory()).map((entry2) => entry2.name).sort();
   } catch {
     return [];
   }
 }
-async function computeSnapshotFingerprint(roots, nowMs, rootAnchor, readTerminalActivity2, readChangesDirectory, viewer) {
-  const parts = [];
-  for (const root of dedupeRoots(roots)) {
-    parts.push(`registry:${root}`);
-    let anchor;
-    let ownsAnchor = false;
+async function statPart(target) {
+  try {
+    const stat8 = await lstat39(target, { bigint: true });
+    return `${target}:${stat8.size}:${stat8.mtimeNs}`;
+  } catch {
+    return void 0;
+  }
+}
+async function changeParts(changesRoot, readRoot, slugs, name, nowMs, readTerminalActivity2) {
+  const changeDir2 = join69(changesRoot, name);
+  const source2 = stateStorageSourcePathSync(changeDir2);
+  if (source2 === void 0) return [];
+  const activity = join69(changeDir2, TERMINAL_ACTIVITY_FILE);
+  const targets = [
+    source2,
+    join69(changeDir2, "tasks.md"),
+    join69(changeDir2, ".pipeline-documents.json"),
+    ...slugs.flatMap((slug) => [
+      join69(readRoot, TENON_PROJECT_DIR, "users", slug, "tests", name),
+      join69(readRoot, TENON_PROJECT_DIR, "users", slug, "local", "running", name)
+    ])
+  ];
+  const [stats, activityStat] = await Promise.all([
+    Promise.all(targets.map(statPart)),
+    lstat39(activity, { bigint: true }).catch(() => void 0)
+  ]);
+  const parts = stats.filter((part) => part !== void 0);
+  if (activityStat !== void 0) {
     try {
-      if (rootAnchor !== void 0) {
-        anchor = rootAnchor(root);
-        if (anchor === void 0) throw new Error("registered root \u6CA1\u6709\u53EF\u4FE1\u76EE\u5F55\u951A");
-      } else {
-        anchor = captureWorkflowRootAnchor(root);
-        ownsAnchor = true;
-      }
-      assertWorkflowRootAnchor(anchor);
-      const readRoot = anchor.fdPath ?? anchor.realPath;
-      parts.push(`root:${root}:${anchor.dev}:${anchor.ino}`);
-      parts.push(...await repositoryTopologyFingerprint(readRoot));
-      parts.push(...await viewerFingerprintParts(readRoot, viewer?.(root)));
-      const changesRoot = join68(readRoot, "openspec", "changes");
-      let entries2;
-      try {
-        entries2 = readChangesDirectory === void 0 ? await readdir17(changesRoot, { withFileTypes: true }) : await readChangesDirectory(changesRoot);
-      } catch (error2) {
-        assertWorkflowRootAnchor(anchor);
-        if (typeof error2 !== "object" || error2 === null || Reflect.get(error2, "code") !== "ENOENT") throw error2;
-        entries2 = [];
-      }
-      assertWorkflowRootAnchor(anchor);
-      for (const entry2 of entries2) {
-        if (!entry2.isDirectory() || entry2.name === "archive") continue;
-        const changeDir2 = join68(changesRoot, entry2.name);
-        const source2 = stateStorageSourcePathSync(changeDir2);
-        if (source2 === void 0) continue;
-        try {
-          const stat8 = await lstat38(source2, { bigint: true });
-          parts.push(`${source2}:${stat8.size}:${stat8.mtimeNs}`);
-        } catch {
-        }
-        for (const name of ["tasks.md", ".pipeline-documents.json"]) {
-          const target = join68(changeDir2, name);
-          try {
-            const stat8 = await lstat38(target, { bigint: true });
-            parts.push(`${target}:${stat8.size}:${stat8.mtimeNs}`);
-          } catch {
-          }
-        }
-        for (const slug of await userSlugs2(readRoot)) {
-          for (const dir of [
-            join68(readRoot, TENON_PROJECT_DIR, "users", slug, "tests", entry2.name),
-            join68(readRoot, TENON_PROJECT_DIR, "users", slug, "local", "running", entry2.name)
-          ]) {
-            try {
-              const stat8 = await lstat38(dir, { bigint: true });
-              parts.push(`${dir}:${stat8.size}:${stat8.mtimeNs}`);
-            } catch {
-            }
-          }
-        }
-        const activity = join68(changeDir2, TERMINAL_ACTIVITY_FILE);
-        try {
-          const stat8 = await lstat38(activity, { bigint: true });
-          const live = await readTerminalActivity2(changeDir2, entry2.name, nowMs);
-          parts.push(`${activity}:${stat8.size}:${stat8.mtimeNs}:${live === void 0 ? "stale" : "live"}`);
-        } catch {
-        }
-      }
-      assertWorkflowRootAnchor(anchor);
+      const live = await readTerminalActivity2(changeDir2, name, nowMs);
+      parts.push(`${activity}:${activityStat.size}:${activityStat.mtimeNs}:${live === void 0 ? "stale" : "live"}`);
     } catch {
-      parts.push(`unreadable:${root}`);
-    } finally {
-      if (ownsAnchor && anchor !== void 0) closeWorkflowRootAnchor(anchor);
     }
   }
-  parts.sort();
-  return parts.join("|");
+  return parts;
+}
+async function collectRootFingerprint(root, nowMs, rootAnchor, readTerminalActivity2, readChangesDirectory, viewer) {
+  const parts = [`registry:${root}`];
+  const changes = /* @__PURE__ */ new Map();
+  let anchor;
+  let ownsAnchor = false;
+  try {
+    if (rootAnchor !== void 0) {
+      anchor = rootAnchor(root);
+      if (anchor === void 0) throw new Error("registered root \u6CA1\u6709\u53EF\u4FE1\u76EE\u5F55\u951A");
+    } else {
+      anchor = captureWorkflowRootAnchor(root);
+      ownsAnchor = true;
+    }
+    assertWorkflowRootAnchor(anchor);
+    const readRoot = anchor.fdPath ?? anchor.realPath;
+    parts.push(`root:${root}:${anchor.dev}:${anchor.ino}`);
+    parts.push(...await repositoryTopologyFingerprint(readRoot));
+    parts.push(...await viewerFingerprintParts(readRoot, viewer?.(root)));
+    const changesRoot = join69(readRoot, "openspec", "changes");
+    let entries2;
+    try {
+      entries2 = readChangesDirectory === void 0 ? await readdir17(changesRoot, { withFileTypes: true }) : await readChangesDirectory(changesRoot);
+    } catch (error2) {
+      assertWorkflowRootAnchor(anchor);
+      if (typeof error2 !== "object" || error2 === null || Reflect.get(error2, "code") !== "ENOENT") throw error2;
+      entries2 = [];
+    }
+    assertWorkflowRootAnchor(anchor);
+    const names = entries2.filter((entry2) => entry2.isDirectory() && entry2.name !== "archive").map((entry2) => entry2.name);
+    const slugs = names.length === 0 ? [] : await userSlugs2(readRoot);
+    const perChange = await mapWithConcurrency(names, CHANGE_STAT_CONCURRENCY, (name) => changeParts(
+      changesRoot,
+      readRoot,
+      slugs,
+      name,
+      nowMs,
+      readTerminalActivity2
+    ));
+    for (const [index, name] of names.entries()) {
+      const contributed = perChange[index] ?? [];
+      changes.set(name, contributed);
+      parts.push(...contributed);
+    }
+    assertWorkflowRootAnchor(anchor);
+  } catch {
+    parts.push(`unreadable:${root}`);
+  } finally {
+    if (ownsAnchor && anchor !== void 0) closeWorkflowRootAnchor(anchor);
+  }
+  return { root, parts, changes };
+}
+function digest14(parts, length) {
+  return createHash32("sha1").update([...parts].sort().join("|")).digest("hex").slice(0, length);
+}
+function rootFingerprintOf(parts) {
+  return {
+    root: parts.root,
+    key: digest14(parts.parts, 20),
+    revs: new Map([...parts.changes].map(([name, contributed]) => [name, digest14(contributed, 12)]))
+  };
+}
+async function computeRootFingerprints(roots, nowMs, rootAnchor, readTerminalActivity2, readChangesDirectory, viewer) {
+  const collected = await mapWithConcurrency(dedupeRoots([...roots]), ROOT_CONCURRENCY, (root) => collectRootFingerprint(
+    root,
+    nowMs,
+    rootAnchor,
+    readTerminalActivity2,
+    readChangesDirectory,
+    viewer
+  ));
+  return collected.map(rootFingerprintOf);
 }
 
 // packages/server/src/snapshotTasks.ts
@@ -41722,7 +42019,7 @@ import {
   openSync as openSync9,
   realpathSync as realpathSync6
 } from "node:fs";
-import { dirname as dirname18, isAbsolute as isAbsolute15, join as join69, relative as relative11, sep as sep14 } from "node:path";
+import { dirname as dirname18, isAbsolute as isAbsolute15, join as join70, relative as relative11, sep as sep14 } from "node:path";
 
 // packages/server/src/stableFileMetadata.ts
 function captureStableFileVersion(stat8) {
@@ -41769,7 +42066,7 @@ function readBoundedTasksSource(fd, maxBytes) {
   return decodeUtf8Text(bytes, "tasks.md snapshot");
 }
 async function readTasksProjection(changeDir2, hooks = {}, rootAnchor) {
-  const lexicalTarget = join69(changeDir2, "tasks.md");
+  const lexicalTarget = join70(changeDir2, "tasks.md");
   let changeFd;
   let fd;
   let rootVersion2;
@@ -41797,7 +42094,7 @@ async function readTasksProjection(changeDir2, hooks = {}, rootAnchor) {
     const anchoredChangeDir = traversableDirectoryFdPath(changeFd, openedDir) ?? changeDir2;
     if (!openedChangeDir.isDirectory() || !sameIdentity(openedChangeDir, openedDir)) return void 0;
     assertTrustContext();
-    const target = join69(anchoredChangeDir, "tasks.md");
+    const target = join70(anchoredChangeDir, "tasks.md");
     hooks.beforeOpen?.();
     fd = openSync9(target, constants12.O_RDONLY | constants12.O_NOFOLLOW | constants12.O_NONBLOCK);
     const opened = fstatSync8(fd, { bigint: true });
@@ -41832,7 +42129,10 @@ async function readTasksProjection(changeDir2, hooks = {}, rootAnchor) {
 
 // packages/server/src/snapshotProjectScan.ts
 import { readdir as readdir19 } from "node:fs/promises";
-import { join as join75 } from "node:path";
+
+// packages/server/src/snapshotChangeScan.ts
+import { lstat as lstat41 } from "node:fs/promises";
+import { join as join76 } from "node:path";
 
 // packages/server/src/agentRuns.ts
 var PAST_CANDIDATE = "past";
@@ -41938,9 +42238,39 @@ function agentBlockersOf(runs, plan, phase) {
   return blockers;
 }
 
+// packages/server/src/reviewHandshake.ts
+function stringField3(value) {
+  return Array.isArray(value) ? value.join(",") : value ?? "";
+}
+function projectReviewHandshake(state, plan, phase) {
+  const receipt = {
+    phase: stringField3(state.fields.review_gate_phase),
+    status: stringField3(state.fields.review_gate_status),
+    event: stringField3(state.fields.review_gate_event),
+    requestedAt: stringField3(state.fields.review_requested_at),
+    acknowledgedAt: stringField3(state.fields.review_acknowledged_at)
+  };
+  if (Object.values(receipt).every((value) => value === "")) {
+    return { status: "not-requested" };
+  }
+  const step = plan.workflow.steps.find((candidate2) => candidate2.id === phase);
+  const eventExists = stepExitTransitions(plan, phase).some((transition) => transition.event === receipt.event);
+  const pending = receipt.status === "pending" && receipt.acknowledgedAt === "";
+  const approved = receipt.status === "approved" && receipt.acknowledgedAt !== "";
+  if (step?.gate !== "review" || receipt.phase !== phase || receipt.event === "" || !eventExists || receipt.requestedAt === "" || !pending && !approved) {
+    throw new Error("review handshake canonical receipt \u4E0E\u5F53\u524D\u51BB\u7ED3 workflow \u4E0D\u4E00\u81F4");
+  }
+  return pending ? { status: "pending", event: receipt.event, requestedAt: receipt.requestedAt } : {
+    status: "approved",
+    event: receipt.event,
+    requestedAt: receipt.requestedAt,
+    acknowledgedAt: receipt.acknowledgedAt
+  };
+}
+
 // packages/server/src/skillRuns.ts
-import { readFile as readFile43 } from "node:fs/promises";
-import { join as join70 } from "node:path";
+import { readFile as readFile44 } from "node:fs/promises";
+import { join as join71 } from "node:path";
 var BUILTIN_SKILL_PROFILES = new Set(
   BUILTIN_TRACK_IDS.map((id2) => builtinTrack(id2).policyProfile.skills.profile).filter((profile) => profile !== "_all")
 );
@@ -41961,7 +42291,7 @@ function resolveSnapshotTrack(root, trackId, workflowName) {
 async function readHistoryLines(changeDir2) {
   let text10;
   try {
-    text10 = await readFile43(join70(changeDir2, HISTORY_FILE), "utf8");
+    text10 = await readFile44(join71(changeDir2, HISTORY_FILE), "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT") return [];
     throw error2;
@@ -42040,69 +42370,91 @@ async function projectSkillRuns(changeDir2, plan, phase, track, mandatorySkills)
   });
 }
 
-// packages/server/src/workflowSnapshotAuthority.ts
-function snapshotAuthorityStringField(value) {
-  return Array.isArray(value) ? value.join(",") : value ?? "";
+// packages/server/src/serverUserRoutes.ts
+import { join as join72 } from "node:path";
+function defaultResolveUser(root) {
+  return root === "" ? resolveTenonUser(void 0, process.env) : resolveTenonUser(root, process.env);
 }
-function sameGrants(left, right) {
-  return left.length === right.length && left.every((grant, index) => right[index] === grant);
-}
-function projectLayer(snapshot, name) {
-  const layer = snapshot.layers.find((candidate2) => candidate2.layer === name);
-  return layer === void 0 ? void 0 : { status: layer.status, grants: [...layer.grants] };
-}
-async function readWorkflowSnapshotAuthority(changeDir2, state, plan) {
-  const iterationId = state.runMetadata?.iterationId;
-  if (iterationId === void 0) return void 0;
-  let snapshot;
-  try {
-    snapshot = await readWorkflowActionAuthorityRecord(changeDir2, iterationId);
-  } catch {
-    return void 0;
+var OWNER_ROUTE = /^\/api\/change\/([^/]+)\/owner$/;
+function handleGetUserRoute(req, res, path14, deps) {
+  if (path14 !== "/api/user") return false;
+  const root = new URL(req.url ?? "/", "http://localhost").searchParams.get("root") ?? "";
+  if (root !== "" && !deps.isRegisteredRoot(root)) {
+    deps.sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
+    return true;
   }
-  return projectWorkflowSnapshotAuthority(snapshot, state, plan);
+  deps.sendJson(res, 200, { ok: true, ...userResolutionView(deps.resolveUser(root)) });
+  return true;
 }
-function projectWorkflowSnapshotAuthority(snapshot, state, plan) {
-  const metadata = state.runMetadata;
-  const frozenPlan = metadata?.workflowPlanSnapshot;
-  const iterationId = metadata?.iterationId;
-  if (metadata === void 0 || frozenPlan === void 0 || iterationId === void 0) return void 0;
-  const workflowId = snapshotAuthorityStringField(state.fields.workflow) || "default";
-  const trackId = snapshotAuthorityStringField(state.fields.track);
-  const skillBundleId = metadata.automationPolicy?.skill_bundle_id;
-  if (snapshot === void 0 || snapshot.workflow_run_id !== metadata.runId || snapshot.workflow_id !== workflowId || snapshot.workflow_id !== frozenPlan.workflowId || snapshot.workflow_id !== plan.id || snapshot.workflow_fingerprint !== metadata.workflowPlanFingerprint || snapshot.workflow_fingerprint !== frozenPlan.workflowFingerprint || snapshot.workflow_fingerprint !== plan.workflowFingerprint || snapshot.loop_id !== metadata.loopId || snapshot.iteration_id !== iterationId || snapshot.skill_bundle_id !== skillBundleId || snapshot.track_id !== trackId) return void 0;
-  const platform = projectLayer(snapshot, "platform");
-  const skill = projectLayer(snapshot, "skill");
-  const project = projectLayer(snapshot, "project");
-  const workflow = projectLayer(snapshot, "workflow");
-  const run2 = projectLayer(snapshot, "run");
-  if (platform === void 0 || skill === void 0 || project === void 0 || workflow === void 0 || run2 === void 0) return void 0;
-  const frozenWorkflowLayer = workflowPolicyPermissionLayer(plan);
-  if (workflow.status !== frozenWorkflowLayer.status || !sameGrants(workflow.grants, frozenWorkflowLayer.grants)) return void 0;
-  return {
-    layers: { platform, skill, project, run: run2 },
-    authority: {
-      authority_id: snapshot.authorization_fingerprint,
-      workflow_run_id: snapshot.workflow_run_id,
-      workflow_fingerprint: snapshot.workflow_fingerprint
+function exactKeys2(body2, keys2) {
+  if (typeof body2 !== "object" || body2 === null || Array.isArray(body2)) return false;
+  const actual = Object.keys(body2).sort();
+  return actual.length === keys2.length && actual.every((key, index) => key === keys2[index]);
+}
+async function saveUser(req, res, deps) {
+  const body2 = await deps.readJsonBody(req);
+  if (!exactKeys2(body2, ["id", "name"]) || typeof body2.id !== "string" || typeof body2.name !== "string") {
+    return deps.sendJson(res, 400, { ok: false, code: "invalid-user", error: '\u8BF7\u6C42\u4F53\u5FC5\u987B\u662F {"id","name"}' });
+  }
+  if (validateUserId(body2.id) === null) {
+    return deps.sendJson(res, 400, { ok: false, code: "invalid-user", error: `\u7528\u6237\u90AE\u7BB1\u975E\u6CD5: ${body2.id}` });
+  }
+  try {
+    await writeUserConfig(deps.paths.userConfigPath, { id: body2.id, name: body2.name });
+  } catch {
+    return deps.sendJson(res, 500, { ok: false, error: "user.json \u5199\u5165\u5931\u8D25" });
+  }
+  deps.sendJson(res, 200, { ok: true, ...userResolutionView(deps.resolveUser("")) });
+}
+async function takeOwner(req, res, segment, deps) {
+  const body2 = await deps.readJsonBody(req);
+  if (!exactKeys2(body2, ["root"]) || typeof body2.root !== "string") {
+    return deps.sendJson(res, 400, { ok: false, error: '\u8BF7\u6C42\u4F53\u5FC5\u987B\u662F {"root"}' });
+  }
+  const root = body2.root;
+  if (!deps.isRegisteredRoot(root)) return deps.sendJson(res, 404, { ok: false, error: "root \u975E\u5DF2\u77E5 Project\uFF08\u672A\u6CE8\u518C\u6216\u4E0D\u53EF\u4FE1\uFF09" });
+  let name;
+  try {
+    name = decodeURIComponent(segment);
+  } catch {
+    return deps.sendJson(res, 400, { ok: false, error: "\u975E\u6CD5 change \u540D" });
+  }
+  if (!/^[A-Za-z0-9_-]+$/.test(name)) return deps.sendJson(res, 400, { ok: false, error: "\u975E\u6CD5 change \u540D" });
+  const dir = join72(root, "openspec", "changes", name);
+  if (!stateStorageExistsSync(dir)) return deps.sendJson(res, 404, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change" });
+  const user = deps.resolveUser(root);
+  if (!isTenonUser(user)) return deps.sendJson(res, 412, { ok: false, code: "user-missing", error: USER_MISSING_HINT });
+  try {
+    const result2 = await transferOwner(
+      { store: deps.store, history: deps.history, clock: deps.clock },
+      { changeDir: dir, change: name, actor: actorOf(user) }
+    );
+    if (result2.kind === "owner-required") {
+      return deps.sendJson(res, 403, {
+        ok: false,
+        code: "owner-required",
+        owner: result2.owner,
+        error: ownerRequiredMessage(name, result2.owner)
+      });
     }
-  };
-}
-
-// packages/server/src/projectCapabilities.ts
-import { statSync as statSync5 } from "node:fs";
-import { join as join71 } from "node:path";
-function projectFileExists(root, repoRelativePath) {
-  try {
-    return statSync5(join71(root, repoRelativePath)).isFile();
+    if (result2.kind === "changed" && result2.historyError !== void 0) {
+      process.stderr.write(`WARN: history \u5199\u5165\u5931\u8D25: ${result2.historyError instanceof Error ? result2.historyError.message : String(result2.historyError)}
+`);
+    }
+    deps.sendJson(res, 200, { ok: true, owner: result2.to, changed: result2.kind === "changed" });
   } catch {
-    return false;
+    deps.sendJson(res, 500, { ok: false, error: "\u8D1F\u8D23\u4EBA\u66F4\u65B0\u5931\u8D25" });
   }
+}
+async function handlePostUserRoutes(req, res, path14, deps) {
+  if (path14 === "/api/user") return saveUser(req, res, deps);
+  const owner = OWNER_ROUTE.exec(path14);
+  if (owner !== null) return takeOwner(req, res, owner[1] ?? "", deps);
 }
 
 // packages/server/src/stepExitReadiness.ts
-import { readFile as readFile44 } from "node:fs/promises";
-import { join as join72 } from "node:path";
+import { readFile as readFile45 } from "node:fs/promises";
+import { join as join73 } from "node:path";
 function alreadyTyped(blocker3) {
   return blocker3.source === "guard" && blocker3.code === "guard-failed" || blocker3.source === "revision" || blocker3.source === "reviewer";
 }
@@ -42117,7 +42469,7 @@ function toReadinessBlocker(blocker3) {
 }
 async function historyRaw(changeDir2) {
   try {
-    return await readFile44(join72(changeDir2, HISTORY_FILE), "utf8");
+    return await readFile45(join73(changeDir2, HISTORY_FILE), "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT") return "";
     throw error2;
@@ -42152,7 +42504,10 @@ async function withStepExitReadiness(readiness, input2) {
       fileContext: input2.deps.fileContext,
       // 与 CLI 的 testEvidenceContextFor 同源：自任务起点以来的改动文件（读不到时门禁以 files-diff-unavailable 阻塞）。
       testEvidence: {
-        context: input2.deps.testContext === void 0 ? void 0 : { ...input2.deps.testContext, changedFiles: input2.deps.testContext.changedFiles ?? (() => changedFilesForState(input2.root, input2.state)) }
+        context: input2.deps.testContext === void 0 ? void 0 : {
+          ...input2.deps.testContext,
+          changedFiles: input2.deps.testContext.changedFiles ?? (() => (input2.deps.changedFiles ?? ((state) => changedFilesResultForState(input2.root, state)))(input2.state))
+        }
       },
       skills: async () => judgeStepSkillsFromHistory({
         resolver: input2.deps.skillResolver,
@@ -42194,241 +42549,16 @@ function projectStepExitDeps(input2) {
         if (candidate2 === void 0) throw new Error("workspace fingerprint unavailable");
         return candidate2;
       }
-    }
+    },
+    ...input2.recordChainCache === void 0 ? {} : { recordChainCache: input2.recordChainCache }
   };
   return (changeName) => ({
     guardCheck: (state, ctx) => flow.guardCheck(state, ctx),
     fileContext: files(changeName),
     testContext,
-    skillResolver: input2.skillResolver
+    skillResolver: input2.skillResolver,
+    ...input2.changedFiles === void 0 ? {} : { changedFiles: input2.changedFiles }
   });
-}
-
-// packages/server/src/workflowSnapshot.ts
-var ACTION_CLASSIFICATION = {
-  "suggest-decomposition": "routine-reversible",
-  "materialize-work-items": "routine-reversible",
-  "create-child-pipeline": "routine-reversible",
-  "apply-recommended-default": "routine-reversible",
-  "enter-afk": "routine-reversible",
-  "write-filesystem": "routine-reversible",
-  "create-branch": "routine-reversible",
-  "create-pull-request": "external-side-effect",
-  "merge-pull-request": "irreversible",
-  "call-external-api": "external-side-effect",
-  "publish-external": "publication",
-  "operate-production": "production",
-  "incur-cost": "cost",
-  "access-credentials": "credentials",
-  "perform-irreversible-action": "irreversible"
-};
-function samePolicy(configured, plan) {
-  const left = configured.decomposition;
-  const right = plan.decomposition;
-  return left.version === right.version && left.mode === right.mode && left.target === right.target && left.strategy === right.strategy && left.max_items === right.max_items && left.max_depth === right.max_depth && left.auto_when.length === right.auto_when.length && left.auto_when.every((condition, index) => right.auto_when[index] === condition) && left.ask_when.length === right.ask_when.length && left.ask_when.every((condition, index) => right.ask_when[index] === condition) && configured.interaction.version === plan.interaction.version && configured.interaction.mode === plan.interaction.mode;
-}
-function effectivePolicy(plan, input2) {
-  if (input2 === void 0) return { status: "unavailable", reason: "authority-input-unavailable" };
-  const workflow = workflowPolicyPermissionLayer(plan);
-  const evaluations = WORKFLOW_ACTIONS.map((action) => evaluateWorkflowAction({
-    action,
-    classification: ACTION_CLASSIFICATION[action],
-    interactionMode: plan.interaction.mode,
-    layers: { ...input2.layers, workflow },
-    authority: input2.authority,
-    hardConfirmation: input2.hardConfirmations?.[action]
-  }));
-  return {
-    status: "available",
-    grants: evaluations.filter((evaluation) => evaluation.allowed).map((evaluation) => evaluation.action),
-    denials: evaluations.flatMap((evaluation) => evaluation.denials.map((denial) => ({
-      ...denial,
-      action: evaluation.action
-    })))
-  };
-}
-function resolveConfiguredWorkflowPolicy(workflowName, loadDefinition) {
-  const plan = resolveEffectiveWorkflowPlan(workflowName, (name) => {
-    const definition = builtinWorkflow(name) ?? loadDefinition(name);
-    return definition === null ? null : compileWorkflow(definition);
-  }, void 0, () => loadDefinition("default"));
-  if (plan === null) return { status: "missing" };
-  return {
-    status: "available",
-    workflowFingerprint: plan.workflowFingerprint,
-    decomposition: structuredClone(plan.decomposition),
-    interaction: structuredClone(plan.interaction)
-  };
-}
-function resolveConfiguredWorkflowPolicySafely(workflowName, loadDefinition, rethrow) {
-  try {
-    return resolveConfiguredWorkflowPolicy(workflowName, loadDefinition);
-  } catch (error2) {
-    if (rethrow?.(error2) === true) throw error2;
-    return { status: "invalid" };
-  }
-}
-function resolveSnapshotEffectivePlan(root, workflowName, binding, loadDefinition = (name) => loadWorkflow(root, name), track) {
-  const plan = resolveBoundEffectiveWorkflowPlan(workflowName, binding, (name) => {
-    const definition = builtinWorkflow(name) ?? loadDefinition(name);
-    return definition === null ? null : compileWorkflow(definition);
-  }, track, binding.workflowPlanSnapshot);
-  if (plan === null) throw new Error(`workflow '${workflowName}' \u672A\u627E\u5230`);
-  return plan;
-}
-function snapshotTodoStages(plan, phase) {
-  if (plan) {
-    return plan.workflow.steps.map((step) => ({
-      id: step.id,
-      label: step.label || step.id,
-      transitions: step.transitions.map((transition) => transition.to)
-    }));
-  }
-  return phase === "" ? [] : [{ id: phase, label: phase }];
-}
-function snapshotWorkflowRules(plan, configured = { status: "unavailable" }, authority) {
-  const configuredAvailable = configured.status === "available";
-  const fingerprintChanged = configuredAvailable ? configured.workflowFingerprint !== plan.workflowFingerprint : null;
-  const policyChanged = configuredAvailable ? !samePolicy(configured, plan) : null;
-  return {
-    executionModel: plan.capabilities.execution.model,
-    steps: plan.workflow.steps.map((step) => step.id),
-    // Structural exits: a step without a forward edge also lists its implicit `archived` edge, so
-    // readiness and a pending `archived` review handshake decode against the same rules.
-    transitions: Object.fromEntries(plan.workflow.steps.map((step) => [
-      step.id,
-      stepExitTransitions(plan, step.id).map((transition) => ({ event: transition.event, to: transition.to }))
-    ])),
-    gateByStep: Object.fromEntries(plan.workflow.steps.map((step) => [step.id, step.gate])),
-    labelByStep: Object.fromEntries(
-      plan.workflow.steps.map((step) => [step.id, step.label || step.id])
-    ),
-    outputsByStep: Object.fromEntries(plan.workflow.steps.map((step) => [
-      step.id,
-      step.outputs.map((output2) => output2.field)
-    ])),
-    policy: {
-      schema: "workflow-policy/v1",
-      configured,
-      frozen: {
-        workflowFingerprint: plan.workflowFingerprint,
-        decomposition: structuredClone(plan.decomposition),
-        interaction: structuredClone(plan.interaction),
-        workflowCeiling: workflowPolicyPermissionLayer(plan)
-      },
-      effective: effectivePolicy(plan, authority),
-      drift: {
-        status: configuredAvailable ? fingerprintChanged || policyChanged ? "changed" : "current" : configured.status,
-        fingerprintChanged,
-        policyChanged
-      }
-    }
-  };
-}
-function snapshotWorkflowRulesAtRoot(plan, root, workflowName, authority) {
-  return snapshotWorkflowRules(
-    plan,
-    resolveConfiguredWorkflowPolicySafely(workflowName, (name) => loadWorkflow(root, name)),
-    authority
-  );
-}
-function legacySnapshotWorkflowRules(plan) {
-  const current = snapshotWorkflowRules(plan);
-  return {
-    steps: current.steps,
-    transitions: current.transitions,
-    gateByStep: current.gateByStep,
-    labelByStep: current.labelByStep,
-    outputsByStep: current.outputsByStep,
-    nonemptyOutputByStep: Object.fromEntries(plan.workflow.steps.map((step) => [
-      step.id,
-      step.guards.some((guard) => guard.type === "output-present")
-    ]))
-  };
-}
-async function snapshotWorkflowExecution(plan, state, root, changeDir2, changeName, deps) {
-  const fileExists = deps.fileExists ?? projectFileExists;
-  const gitHeadSha2 = deps.gitHeadSha;
-  const workspaceFingerprint = deps.workspaceFingerprint;
-  const assessBuildRevision = deps.assessBuildRevision ?? (async (request) => {
-    const identity = await probeBuildRevisionIdentity(deps.childProcessRoot ?? root);
-    const observe = async () => {
-      const kind = request.isolation === "in-place" ? "workspace" : "git";
-      const revision = kind === "workspace" ? await workspaceFingerprint?.(root, changeName) ?? "" : await gitHeadSha2?.(root) ?? "";
-      if (!identity) throw new Error("build revision identity unavailable");
-      return { kind, revision, identity };
-    };
-    const provenance = async () => {
-      const validated = await readValidatedTransitionHead(changeDir2);
-      if (!validated) return void 0;
-      const { current, record: record11 } = validated;
-      const stateBuildSha = current.state.fields.build_sha;
-      return {
-        currentStep: String(current.state.fields.phase ?? ""),
-        stateHash: safeRevisionHash(current.state.fields),
-        stateBuildSha: Array.isArray(stateBuildSha) ? stateBuildSha.join(",") : stateBuildSha,
-        recordTo: record11.to,
-        buildShaEffects: record11.effects.filter((effect) => effect.field === "build_sha").map((effect) => typeof effect.to === "string" ? effect.to : "")
-      };
-    };
-    return assessBuildRevisionTrust({ ...request, observe, provenance });
-  });
-  const guardContext = {
-    fileExists: (path14) => fileExists(root, path14),
-    gitHeadSha: gitHeadSha2 === void 0 ? void 0 : () => gitHeadSha2(root),
-    workspaceFingerprint: workspaceFingerprint === void 0 ? void 0 : () => workspaceFingerprint(root, changeName),
-    assessBuildRevision
-  };
-  const readiness = await readinessByTransition(plan, state, {
-    changeDirAbs: changeDir2,
-    ...guardContext,
-    specMigrationStatus: () => evaluateSpecMigrationEvidence(root, changeDir2, changeName),
-    ...deps.stepAgents === void 0 ? {} : { stepAgents: deps.stepAgents }
-  });
-  const stepExits = deps.stepExits;
-  if (stepExits === void 0) return { readinessByTransition: readiness };
-  return {
-    readinessByTransition: await withStepExitReadiness(readiness, {
-      plan,
-      state,
-      root,
-      changeDir: changeDir2,
-      changeName,
-      guardContext,
-      agentBlockers: deps.stepAgents ?? (async () => []),
-      deps: stepExits
-    })
-  };
-}
-
-// packages/server/src/reviewHandshake.ts
-function stringField3(value) {
-  return Array.isArray(value) ? value.join(",") : value ?? "";
-}
-function projectReviewHandshake(state, plan, phase) {
-  const receipt = {
-    phase: stringField3(state.fields.review_gate_phase),
-    status: stringField3(state.fields.review_gate_status),
-    event: stringField3(state.fields.review_gate_event),
-    requestedAt: stringField3(state.fields.review_requested_at),
-    acknowledgedAt: stringField3(state.fields.review_acknowledged_at)
-  };
-  if (Object.values(receipt).every((value) => value === "")) {
-    return { status: "not-requested" };
-  }
-  const step = plan.workflow.steps.find((candidate2) => candidate2.id === phase);
-  const eventExists = stepExitTransitions(plan, phase).some((transition) => transition.event === receipt.event);
-  const pending = receipt.status === "pending" && receipt.acknowledgedAt === "";
-  const approved = receipt.status === "approved" && receipt.acknowledgedAt !== "";
-  if (step?.gate !== "review" || receipt.phase !== phase || receipt.event === "" || !eventExists || receipt.requestedAt === "" || !pending && !approved) {
-    throw new Error("review handshake canonical receipt \u4E0E\u5F53\u524D\u51BB\u7ED3 workflow \u4E0D\u4E00\u81F4");
-  }
-  return pending ? { status: "pending", event: receipt.event, requestedAt: receipt.requestedAt } : {
-    status: "approved",
-    event: receipt.event,
-    requestedAt: receipt.requestedAt,
-    acknowledgedAt: receipt.acknowledgedAt
-  };
 }
 
 // packages/server/src/testCandidateCache.ts
@@ -42728,8 +42858,8 @@ function policyReportDto(report, policy2) {
 }
 
 // packages/server/src/testSystemReads.ts
-import { lstat as lstat39, readFile as readFile45, readdir as readdir18 } from "node:fs/promises";
-import { join as join73, relative as relative12, sep as sep15 } from "node:path";
+import { lstat as lstat40, readFile as readFile46, readdir as readdir18 } from "node:fs/promises";
+import { join as join74, relative as relative12, sep as sep15 } from "node:path";
 var MAX_TEXT_BYTES2 = 1024 * 1024;
 var MAX_RECORD_BYTES2 = 16 * 1024 * 1024;
 var MAX_USERS = 50;
@@ -42741,10 +42871,10 @@ var PRESENCE_BATCH = 64;
 var MAX_RECORD_RUNS = 50;
 async function readBoundedText(path14) {
   try {
-    const entry2 = await lstat39(path14);
+    const entry2 = await lstat40(path14);
     if (!entry2.isFile()) return { state: "invalid", reason: "\u4E0D\u662F\u666E\u901A\u6587\u4EF6" };
     if (entry2.size > MAX_TEXT_BYTES2) return { state: "invalid", reason: "\u8D85\u8FC7 1 MiB" };
-    return { state: "ok", text: await readFile45(path14, "utf8") };
+    return { state: "ok", text: await readFile46(path14, "utf8") };
   } catch (error2) {
     if (error2.code === "ENOENT") return { state: "missing" };
     return { state: "invalid", reason: "\u65E0\u6CD5\u8BFB\u53D6" };
@@ -42775,13 +42905,13 @@ async function directoryNames(dir, limit) {
   }
 }
 async function userSlugsOf(readRoot) {
-  return directoryNames(join73(readRoot, TENON_PROJECT_DIR, "users"), MAX_USERS);
+  return directoryNames(join74(readRoot, TENON_PROJECT_DIR, "users"), MAX_USERS);
 }
 async function readRecordFile2(path14) {
   try {
-    const entry2 = await lstat39(path14);
+    const entry2 = await lstat40(path14);
     if (!entry2.isFile() || entry2.size > MAX_RECORD_BYTES2) return void 0;
-    const value = JSON.parse(await readFile45(path14, "utf8"));
+    const value = JSON.parse(await readFile46(path14, "utf8"));
     return declaresRecordV2(value) ? decodeTestRunRecordV2(value) : void 0;
   } catch {
     return void 0;
@@ -42790,10 +42920,10 @@ async function readRecordFile2(path14) {
 async function recentRecordLocators(readRoot, limit) {
   const found = [];
   for (const user of await userSlugsOf(readRoot)) {
-    const testsDir = join73(readRoot, TENON_PROJECT_DIR, "users", user, "tests");
+    const testsDir = join74(readRoot, TENON_PROJECT_DIR, "users", user, "tests");
     for (const change of await directoryNames(testsDir, MAX_CHANGES_PER_USER)) {
       try {
-        for (const entry2 of await readdir18(join73(testsDir, change), { withFileTypes: true })) {
+        for (const entry2 of await readdir18(join74(testsDir, change), { withFileTypes: true })) {
           if (entry2.isFile() && entry2.name.endsWith(".json")) found.push({ user, change, runId: entry2.name.slice(0, -".json".length) });
         }
       } catch {
@@ -42805,7 +42935,7 @@ async function recentRecordLocators(readRoot, limit) {
 async function readSuiteLatest(readRoot) {
   const records = [];
   for (const locator of await recentRecordLocators(readRoot, MAX_RECENT_RECORDS)) {
-    const record11 = await readRecordFile2(join73(testRunRecordsDir(readRoot, locator.user, locator.change), `${locator.runId}.json`));
+    const record11 = await readRecordFile2(join74(testRunRecordsDir(readRoot, locator.user, locator.change), `${locator.runId}.json`));
     if (record11 !== void 0) records.push({ locator, record: record11 });
   }
   records.sort((left, right) => left.record.finished_at < right.record.finished_at ? 1 : left.record.finished_at > right.record.finished_at ? -1 : 0);
@@ -42828,7 +42958,7 @@ async function readSuiteLatest(readRoot) {
 }
 async function readSuiteBaselines(readRoot, suite2) {
   if (!SUITE_ID_RE.test(suite2)) return { baselines: [], corrupt: [] };
-  const dir = join73(testSystemPaths(readRoot).baselinesDir, suite2);
+  const dir = join74(testSystemPaths(readRoot).baselinesDir, suite2);
   let names;
   try {
     names = (await readdir18(dir, { withFileTypes: true })).filter((entry2) => entry2.isFile() && entry2.name.endsWith(".json")).map((entry2) => entry2.name.slice(0, -".json".length)).sort().slice(0, MAX_BASELINE_PROFILES);
@@ -42855,7 +42985,7 @@ function suiteKindOf(catalog2) {
   return (suite2) => catalog2 === void 0 ? null : catalogSuite(catalog2, suite2)?.kind ?? null;
 }
 async function readPlanView(readRoot, change) {
-  const state = await readTestPlanState(join73(readRoot, "openspec", "changes", change), change);
+  const state = await readTestPlanState(join74(readRoot, "openspec", "changes", change), change);
   if (state.state === "missing") return { state: "missing" };
   if (state.state === "tampered") return { state: "tampered", reason: state.reason };
   return planDto(state.plan, suiteKindOf(catalogOf(await loadCatalogInput(readRoot))));
@@ -42890,7 +43020,7 @@ async function readRecordListing(readRoot, change, suite2) {
 }
 async function isRegularFile(path14) {
   try {
-    return (await lstat39(path14)).isFile();
+    return (await lstat40(path14)).isFile();
   } catch {
     return false;
   }
@@ -42902,7 +43032,7 @@ async function presence(runDir, paths) {
     out.push(...await Promise.all(batch.map((path14) => {
       const segments2 = path14.split("/");
       if (path14 === "" || path14.startsWith("/") || path14.includes("\\") || segments2.some((segment) => segment === "" || segment === "." || segment === "..")) return false;
-      return isRegularFile(join73(runDir, ...segments2));
+      return isRegularFile(join74(runDir, ...segments2));
     })));
   }
   return out;
@@ -43011,7 +43141,8 @@ async function projectTestEvidence(input2) {
         return candidate2;
       }
     },
-    ...input2.changedFiles === void 0 ? {} : { changedFiles: input2.changedFiles }
+    ...input2.changedFiles === void 0 ? {} : { changedFiles: input2.changedFiles },
+    ...input2.recordChainCache === void 0 ? {} : { recordChainCache: input2.recordChainCache }
   };
   const tests = [];
   const policies = [];
@@ -43056,141 +43187,280 @@ async function projectTestEvidence(input2) {
   };
 }
 
-// packages/server/src/serverUserRoutes.ts
-import { join as join74 } from "node:path";
-function defaultResolveUser(root) {
-  return root === "" ? resolveTenonUser(void 0, process.env) : resolveTenonUser(root, process.env);
+// packages/server/src/workflowSnapshotAuthority.ts
+function snapshotAuthorityStringField(value) {
+  return Array.isArray(value) ? value.join(",") : value ?? "";
 }
-var OWNER_ROUTE = /^\/api\/change\/([^/]+)\/owner$/;
-function handleGetUserRoute(req, res, path14, deps) {
-  if (path14 !== "/api/user") return false;
-  const root = new URL(req.url ?? "/", "http://localhost").searchParams.get("root") ?? "";
-  if (root !== "" && !deps.isRegisteredRoot(root)) {
-    deps.sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
-    return true;
-  }
-  deps.sendJson(res, 200, { ok: true, ...userResolutionView(deps.resolveUser(root)) });
-  return true;
+function sameGrants(left, right) {
+  return left.length === right.length && left.every((grant, index) => right[index] === grant);
 }
-function exactKeys2(body2, keys2) {
-  if (typeof body2 !== "object" || body2 === null || Array.isArray(body2)) return false;
-  const actual = Object.keys(body2).sort();
-  return actual.length === keys2.length && actual.every((key, index) => key === keys2[index]);
+function projectLayer(snapshot, name) {
+  const layer = snapshot.layers.find((candidate2) => candidate2.layer === name);
+  return layer === void 0 ? void 0 : { status: layer.status, grants: [...layer.grants] };
 }
-async function saveUser(req, res, deps) {
-  const body2 = await deps.readJsonBody(req);
-  if (!exactKeys2(body2, ["id", "name"]) || typeof body2.id !== "string" || typeof body2.name !== "string") {
-    return deps.sendJson(res, 400, { ok: false, code: "invalid-user", error: '\u8BF7\u6C42\u4F53\u5FC5\u987B\u662F {"id","name"}' });
-  }
-  if (validateUserId(body2.id) === null) {
-    return deps.sendJson(res, 400, { ok: false, code: "invalid-user", error: `\u7528\u6237\u90AE\u7BB1\u975E\u6CD5: ${body2.id}` });
-  }
+async function readWorkflowSnapshotAuthority(changeDir2, state, plan) {
+  const iterationId = state.runMetadata?.iterationId;
+  if (iterationId === void 0) return void 0;
+  let snapshot;
   try {
-    await writeUserConfig(deps.paths.userConfigPath, { id: body2.id, name: body2.name });
+    snapshot = await readWorkflowActionAuthorityRecord(changeDir2, iterationId);
   } catch {
-    return deps.sendJson(res, 500, { ok: false, error: "user.json \u5199\u5165\u5931\u8D25" });
+    return void 0;
   }
-  deps.sendJson(res, 200, { ok: true, ...userResolutionView(deps.resolveUser("")) });
+  return projectWorkflowSnapshotAuthority(snapshot, state, plan);
 }
-async function takeOwner(req, res, segment, deps) {
-  const body2 = await deps.readJsonBody(req);
-  if (!exactKeys2(body2, ["root"]) || typeof body2.root !== "string") {
-    return deps.sendJson(res, 400, { ok: false, error: '\u8BF7\u6C42\u4F53\u5FC5\u987B\u662F {"root"}' });
-  }
-  const root = body2.root;
-  if (!deps.isRegisteredRoot(root)) return deps.sendJson(res, 404, { ok: false, error: "root \u975E\u5DF2\u77E5 Project\uFF08\u672A\u6CE8\u518C\u6216\u4E0D\u53EF\u4FE1\uFF09" });
-  let name;
-  try {
-    name = decodeURIComponent(segment);
-  } catch {
-    return deps.sendJson(res, 400, { ok: false, error: "\u975E\u6CD5 change \u540D" });
-  }
-  if (!/^[A-Za-z0-9_-]+$/.test(name)) return deps.sendJson(res, 400, { ok: false, error: "\u975E\u6CD5 change \u540D" });
-  const dir = join74(root, "openspec", "changes", name);
-  if (!stateStorageExistsSync(dir)) return deps.sendJson(res, 404, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change" });
-  const user = deps.resolveUser(root);
-  if (!isTenonUser(user)) return deps.sendJson(res, 412, { ok: false, code: "user-missing", error: USER_MISSING_HINT });
-  try {
-    const result2 = await transferOwner(
-      { store: deps.store, history: deps.history, clock: deps.clock },
-      { changeDir: dir, change: name, actor: actorOf(user) }
-    );
-    if (result2.kind === "owner-required") {
-      return deps.sendJson(res, 403, {
-        ok: false,
-        code: "owner-required",
-        owner: result2.owner,
-        error: ownerRequiredMessage(name, result2.owner)
-      });
+function projectWorkflowSnapshotAuthority(snapshot, state, plan) {
+  const metadata = state.runMetadata;
+  const frozenPlan = metadata?.workflowPlanSnapshot;
+  const iterationId = metadata?.iterationId;
+  if (metadata === void 0 || frozenPlan === void 0 || iterationId === void 0) return void 0;
+  const workflowId = snapshotAuthorityStringField(state.fields.workflow) || "default";
+  const trackId = snapshotAuthorityStringField(state.fields.track);
+  const skillBundleId = metadata.automationPolicy?.skill_bundle_id;
+  if (snapshot === void 0 || snapshot.workflow_run_id !== metadata.runId || snapshot.workflow_id !== workflowId || snapshot.workflow_id !== frozenPlan.workflowId || snapshot.workflow_id !== plan.id || snapshot.workflow_fingerprint !== metadata.workflowPlanFingerprint || snapshot.workflow_fingerprint !== frozenPlan.workflowFingerprint || snapshot.workflow_fingerprint !== plan.workflowFingerprint || snapshot.loop_id !== metadata.loopId || snapshot.iteration_id !== iterationId || snapshot.skill_bundle_id !== skillBundleId || snapshot.track_id !== trackId) return void 0;
+  const platform = projectLayer(snapshot, "platform");
+  const skill = projectLayer(snapshot, "skill");
+  const project = projectLayer(snapshot, "project");
+  const workflow = projectLayer(snapshot, "workflow");
+  const run2 = projectLayer(snapshot, "run");
+  if (platform === void 0 || skill === void 0 || project === void 0 || workflow === void 0 || run2 === void 0) return void 0;
+  const frozenWorkflowLayer = workflowPolicyPermissionLayer(plan);
+  if (workflow.status !== frozenWorkflowLayer.status || !sameGrants(workflow.grants, frozenWorkflowLayer.grants)) return void 0;
+  return {
+    layers: { platform, skill, project, run: run2 },
+    authority: {
+      authority_id: snapshot.authorization_fingerprint,
+      workflow_run_id: snapshot.workflow_run_id,
+      workflow_fingerprint: snapshot.workflow_fingerprint
     }
-    if (result2.kind === "changed" && result2.historyError !== void 0) {
-      process.stderr.write(`WARN: history \u5199\u5165\u5931\u8D25: ${result2.historyError instanceof Error ? result2.historyError.message : String(result2.historyError)}
-`);
-    }
-    deps.sendJson(res, 200, { ok: true, owner: result2.to, changed: result2.kind === "changed" });
-  } catch {
-    deps.sendJson(res, 500, { ok: false, error: "\u8D1F\u8D23\u4EBA\u66F4\u65B0\u5931\u8D25" });
-  }
-}
-async function handlePostUserRoutes(req, res, path14, deps) {
-  if (path14 === "/api/user") return saveUser(req, res, deps);
-  const owner = OWNER_ROUTE.exec(path14);
-  if (owner !== null) return takeOwner(req, res, owner[1] ?? "", deps);
+  };
 }
 
-// packages/server/src/snapshotProjectScan.ts
-var MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES = 100;
+// packages/server/src/projectCapabilities.ts
+import { statSync as statSync5 } from "node:fs";
+import { join as join75 } from "node:path";
+function projectFileExists(root, repoRelativePath) {
+  try {
+    return statSync5(join75(root, repoRelativePath)).isFile();
+  } catch {
+    return false;
+  }
+}
+
+// packages/server/src/workflowSnapshot.ts
+var ACTION_CLASSIFICATION = {
+  "suggest-decomposition": "routine-reversible",
+  "materialize-work-items": "routine-reversible",
+  "create-child-pipeline": "routine-reversible",
+  "apply-recommended-default": "routine-reversible",
+  "enter-afk": "routine-reversible",
+  "write-filesystem": "routine-reversible",
+  "create-branch": "routine-reversible",
+  "create-pull-request": "external-side-effect",
+  "merge-pull-request": "irreversible",
+  "call-external-api": "external-side-effect",
+  "publish-external": "publication",
+  "operate-production": "production",
+  "incur-cost": "cost",
+  "access-credentials": "credentials",
+  "perform-irreversible-action": "irreversible"
+};
+function samePolicy(configured, plan) {
+  const left = configured.decomposition;
+  const right = plan.decomposition;
+  return left.version === right.version && left.mode === right.mode && left.target === right.target && left.strategy === right.strategy && left.max_items === right.max_items && left.max_depth === right.max_depth && left.auto_when.length === right.auto_when.length && left.auto_when.every((condition, index) => right.auto_when[index] === condition) && left.ask_when.length === right.ask_when.length && left.ask_when.every((condition, index) => right.ask_when[index] === condition) && configured.interaction.version === plan.interaction.version && configured.interaction.mode === plan.interaction.mode;
+}
+function effectivePolicy(plan, input2) {
+  if (input2 === void 0) return { status: "unavailable", reason: "authority-input-unavailable" };
+  const workflow = workflowPolicyPermissionLayer(plan);
+  const evaluations = WORKFLOW_ACTIONS.map((action) => evaluateWorkflowAction({
+    action,
+    classification: ACTION_CLASSIFICATION[action],
+    interactionMode: plan.interaction.mode,
+    layers: { ...input2.layers, workflow },
+    authority: input2.authority,
+    hardConfirmation: input2.hardConfirmations?.[action]
+  }));
+  return {
+    status: "available",
+    grants: evaluations.filter((evaluation) => evaluation.allowed).map((evaluation) => evaluation.action),
+    denials: evaluations.flatMap((evaluation) => evaluation.denials.map((denial) => ({
+      ...denial,
+      action: evaluation.action
+    })))
+  };
+}
+function resolveConfiguredWorkflowPolicy(workflowName, loadDefinition) {
+  const plan = resolveEffectiveWorkflowPlan(workflowName, (name) => {
+    const definition = builtinWorkflow(name) ?? loadDefinition(name);
+    return definition === null ? null : compileWorkflow(definition);
+  }, void 0, () => loadDefinition("default"));
+  if (plan === null) return { status: "missing" };
+  return {
+    status: "available",
+    workflowFingerprint: plan.workflowFingerprint,
+    decomposition: structuredClone(plan.decomposition),
+    interaction: structuredClone(plan.interaction)
+  };
+}
+function resolveConfiguredWorkflowPolicySafely(workflowName, loadDefinition, rethrow) {
+  try {
+    return resolveConfiguredWorkflowPolicy(workflowName, loadDefinition);
+  } catch (error2) {
+    if (rethrow?.(error2) === true) throw error2;
+    return { status: "invalid" };
+  }
+}
+function resolveSnapshotEffectivePlan(root, workflowName, binding, loadDefinition = (name) => loadWorkflow(root, name), track) {
+  const plan = resolveBoundEffectiveWorkflowPlan(workflowName, binding, (name) => {
+    const definition = builtinWorkflow(name) ?? loadDefinition(name);
+    return definition === null ? null : compileWorkflow(definition);
+  }, track, binding.workflowPlanSnapshot);
+  if (plan === null) throw new Error(`workflow '${workflowName}' \u672A\u627E\u5230`);
+  return plan;
+}
+function snapshotTodoStages(plan, phase) {
+  if (plan) {
+    return plan.workflow.steps.map((step) => ({
+      id: step.id,
+      label: step.label || step.id,
+      transitions: step.transitions.map((transition) => transition.to)
+    }));
+  }
+  return phase === "" ? [] : [{ id: phase, label: phase }];
+}
+function snapshotWorkflowRulesStructure(plan) {
+  return {
+    executionModel: plan.capabilities.execution.model,
+    steps: plan.workflow.steps.map((step) => step.id),
+    // Structural exits: a step without a forward edge also lists its implicit `archived` edge, so
+    // readiness and a pending `archived` review handshake decode against the same rules.
+    transitions: Object.fromEntries(plan.workflow.steps.map((step) => [
+      step.id,
+      stepExitTransitions(plan, step.id).map((transition) => ({ event: transition.event, to: transition.to }))
+    ])),
+    gateByStep: Object.fromEntries(plan.workflow.steps.map((step) => [step.id, step.gate])),
+    labelByStep: Object.fromEntries(
+      plan.workflow.steps.map((step) => [step.id, step.label || step.id])
+    ),
+    outputsByStep: Object.fromEntries(plan.workflow.steps.map((step) => [
+      step.id,
+      step.outputs.map((output2) => output2.field)
+    ]))
+  };
+}
+function snapshotWorkflowRules(plan, configured = { status: "unavailable" }, authority) {
+  const configuredAvailable = configured.status === "available";
+  const fingerprintChanged = configuredAvailable ? configured.workflowFingerprint !== plan.workflowFingerprint : null;
+  const policyChanged = configuredAvailable ? !samePolicy(configured, plan) : null;
+  return {
+    ...snapshotWorkflowRulesStructure(plan),
+    policy: {
+      schema: "workflow-policy/v1",
+      configured,
+      frozen: {
+        workflowFingerprint: plan.workflowFingerprint,
+        decomposition: structuredClone(plan.decomposition),
+        interaction: structuredClone(plan.interaction),
+        workflowCeiling: workflowPolicyPermissionLayer(plan)
+      },
+      effective: effectivePolicy(plan, authority),
+      drift: {
+        status: configuredAvailable ? fingerprintChanged || policyChanged ? "changed" : "current" : configured.status,
+        fingerprintChanged,
+        policyChanged
+      }
+    }
+  };
+}
+function snapshotWorkflowRulesAtRoot(plan, root, workflowName, authority) {
+  return snapshotWorkflowRules(
+    plan,
+    resolveConfiguredWorkflowPolicySafely(workflowName, (name) => loadWorkflow(root, name)),
+    authority
+  );
+}
+function legacySnapshotWorkflowRules(plan) {
+  const current = snapshotWorkflowRules(plan);
+  return {
+    steps: current.steps,
+    transitions: current.transitions,
+    gateByStep: current.gateByStep,
+    labelByStep: current.labelByStep,
+    outputsByStep: current.outputsByStep,
+    nonemptyOutputByStep: Object.fromEntries(plan.workflow.steps.map((step) => [
+      step.id,
+      step.guards.some((guard) => guard.type === "output-present")
+    ]))
+  };
+}
+async function snapshotWorkflowExecution(plan, state, root, changeDir2, changeName, deps) {
+  const fileExists = deps.fileExists ?? projectFileExists;
+  const gitHeadSha2 = deps.gitHeadSha;
+  const workspaceFingerprint = deps.workspaceFingerprint;
+  const assessBuildRevision = deps.assessBuildRevision ?? (async (request) => {
+    const identity = await probeBuildRevisionIdentity(deps.childProcessRoot ?? root);
+    const observe = async () => {
+      const kind = request.isolation === "in-place" ? "workspace" : "git";
+      const revision = kind === "workspace" ? await workspaceFingerprint?.(root, changeName) ?? "" : await gitHeadSha2?.(root) ?? "";
+      if (!identity) throw new Error("build revision identity unavailable");
+      return { kind, revision, identity };
+    };
+    const provenance = async () => {
+      const validated = await readValidatedTransitionHead(changeDir2);
+      if (!validated) return void 0;
+      const { current, record: record11 } = validated;
+      const stateBuildSha = current.state.fields.build_sha;
+      return {
+        currentStep: String(current.state.fields.phase ?? ""),
+        stateHash: safeRevisionHash(current.state.fields),
+        stateBuildSha: Array.isArray(stateBuildSha) ? stateBuildSha.join(",") : stateBuildSha,
+        recordTo: record11.to,
+        buildShaEffects: record11.effects.filter((effect) => effect.field === "build_sha").map((effect) => typeof effect.to === "string" ? effect.to : "")
+      };
+    };
+    return assessBuildRevisionTrust({ ...request, observe, provenance });
+  });
+  const guardContext = {
+    fileExists: (path14) => fileExists(root, path14),
+    gitHeadSha: gitHeadSha2 === void 0 ? void 0 : () => gitHeadSha2(root),
+    workspaceFingerprint: workspaceFingerprint === void 0 ? void 0 : () => workspaceFingerprint(root, changeName),
+    assessBuildRevision
+  };
+  const readiness = await readinessByTransition(plan, state, {
+    changeDirAbs: changeDir2,
+    ...guardContext,
+    specMigrationStatus: () => evaluateSpecMigrationEvidence(root, changeDir2, changeName),
+    ...deps.stepAgents === void 0 ? {} : { stepAgents: deps.stepAgents }
+  });
+  const stepExits = deps.stepExits;
+  if (stepExits === void 0) return { readinessByTransition: readiness };
+  return {
+    readinessByTransition: await withStepExitReadiness(readiness, {
+      plan,
+      state,
+      root,
+      changeDir: changeDir2,
+      changeName,
+      guardContext,
+      agentBlockers: deps.stepAgents ?? (async () => []),
+      deps: stepExits
+    })
+  };
+}
+
+// packages/server/src/snapshotChangeScan.ts
+var SNAPSHOT_GIT_TIMEOUT_MS = 8e3;
+var recordChains = createRecordChainCache();
 function str2(v) {
   return Array.isArray(v) ? v.join(",") : v ?? "";
 }
-async function viewerArchive(deps, readRoot, root) {
-  const viewer = deps.viewer?.(root);
-  if (viewer === void 0 || !isTenonUser(viewer)) return void 0;
-  const read2 = await readTaskArchiveOf(readRoot, viewer.slug);
-  return read2.kind === "ok" ? read2.archive : void 0;
-}
-async function uncommittedDeletions(deps, anchor) {
-  const count3 = await deps.countDeletions?.(anchorChildProcessPath(anchor));
-  return count3 === void 0 || count3 === null ? void 0 : count3;
-}
-async function scanAnchoredProject(deps, root, readRoot, anchor, nowMs) {
-  const { store } = deps;
+function createProjectScanContext(deps, root, readRoot, anchor, nowMs) {
   const childProcessRoot = anchorChildProcessPath(anchor);
-  const repository = await readRepositoryIdentity(childProcessRoot, deps.repositoryIdentity);
-  assertWorkflowRootAnchor(anchor);
-  const changesRoot = join75(readRoot, "openspec", "changes");
-  const displayChangesRoot = join75(root, "openspec", "changes");
-  let entries2;
-  try {
-    entries2 = deps.readChangesDirectory === void 0 ? await readdir19(changesRoot, { withFileTypes: true }) : await deps.readChangesDirectory(changesRoot);
-  } catch (error2) {
-    assertWorkflowRootAnchor(anchor);
-    if (typeof error2 !== "object" || error2 === null || Reflect.get(error2, "code") !== "ENOENT") throw error2;
-    const deletions2 = await uncommittedDeletions(deps, anchor);
-    return {
-      root,
-      ok: true,
-      changes: [],
-      workflowRules: {},
-      ...deletions2 === void 0 ? {} : { uncommittedDeletions: deletions2 },
-      ...repository === void 0 ? {} : { repository }
-    };
-  }
-  assertWorkflowRootAnchor(anchor);
-  const archive = await viewerArchive(deps, readRoot, root);
-  const changes = [];
-  const archived = [];
-  const compatibilityIssues = [];
-  const legacyWorkflowRules = {};
-  const errors = [];
+  const changesRoot = join76(readRoot, "openspec", "changes");
   let gitHeadPromise;
   const workspaceFingerprints = /* @__PURE__ */ new Map();
   const trackDefinitions = /* @__PURE__ */ new Map();
-  const trackDefinition = (trackId, workflowName) => {
-    const key = `${workflowName}\0${trackId}`;
-    if (!trackDefinitions.has(key)) trackDefinitions.set(key, resolveSnapshotTrack(readRoot, trackId, workflowName));
-    return trackDefinitions.get(key);
-  };
   const gitHeadSha2 = deps.gitHeadSha;
   const workspaceFingerprint = deps.workspaceFingerprint;
   const capabilityDeps = {
@@ -43216,160 +43486,315 @@ async function scanAnchoredProject(deps, root, readRoot, anchor, nowMs) {
   };
   const resolved = (deps.resolveUser ?? defaultResolveUser)(root);
   const actingUser = isTenonUser(resolved) ? resolved : void 0;
-  const candidate2 = workspaceFingerprint === void 0 ? void 0 : createCandidateCache((target) => workspaceFingerprint(target, ""));
+  const candidateCache = workspaceFingerprint === void 0 ? void 0 : createCandidateCache((target) => workspaceFingerprint(target, ""));
+  const candidate2 = candidateCache === void 0 ? void 0 : () => candidateCache(readRoot);
+  const changedFiles = createChangedFilesSession(childProcessRoot, { timeoutMs: SNAPSHOT_GIT_TIMEOUT_MS });
   const stepExitsFor = projectStepExitDeps({
     flow: deps.flow,
     skillResolver: deps.skillResolverFor?.(root),
     fileRoot: childProcessRoot,
     user: actingUser,
-    candidate: candidate2 === void 0 ? void 0 : () => candidate2(readRoot)
+    candidate: candidate2,
+    changedFiles: (state) => changedFiles.changedFiles(changeStartOfFields(state.fields)),
+    recordChainCache: recordChains
   });
-  let compatibilityIssueOverflow = 0;
-  for (const e of [...entries2].sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0)) {
-    if (!e.isDirectory() || e.name === "archive") continue;
-    assertWorkflowRootAnchor(anchor);
-    const changeDir2 = join75(changesRoot, e.name);
-    let source2;
-    try {
-      source2 = stateStorageSourcePathSync(changeDir2);
-    } catch (error2) {
-      errors.push(`${e.name}: \u72B6\u6001\u6765\u6E90\u68C0\u67E5\u5931\u8D25\uFF08${error2 instanceof Error ? error2.message : String(error2)}\uFF09`);
-      continue;
-    }
-    if (source2 === void 0) continue;
-    try {
-      const projection = await store.inspectProjection(changeDir2);
-      if (projection.status === "missing" || projection.status === "stale" || projection.status === "legacy-compatible") {
-        await store.repairProjection(changeDir2);
-      } else if (projection.status === "drift") {
-        errors.push(`${e.name}: YAML projection drift\uFF08${projection.reason}\uFF09`);
-      }
-      const state = await store.read(changeDir2);
-      const f = state.fields;
-      const phase = str2(f.phase);
-      const workflowName = str2(f.workflow) || "default";
-      const track = str2(f.track);
+  const trackDefinition = (trackId, workflowName) => {
+    const key = `${workflowName}\0${trackId}`;
+    if (!trackDefinitions.has(key)) trackDefinitions.set(key, resolveSnapshotTrack(readRoot, trackId, workflowName));
+    return trackDefinitions.get(key);
+  };
+  const plans = /* @__PURE__ */ new Map();
+  const listRules = /* @__PURE__ */ new Map();
+  const legacyRules = /* @__PURE__ */ new Map();
+  return {
+    deps,
+    root,
+    readRoot,
+    anchor,
+    nowMs,
+    changesRoot,
+    changedFiles,
+    actingUser,
+    capabilityDeps,
+    candidate: candidate2,
+    stepExitsFor,
+    trackDefinition,
+    displayChangesRoot: join76(root, "openspec", "changes"),
+    changeDir: (name) => join76(changesRoot, name),
+    // A plan is a function of its identity (workflow, track, frozen fingerprint, document governance binding), so the
+    // many changes of one project that run on the same frozen plan resolve it once. A run without a frozen fingerprint
+    // resolves from the live definition and is not shared.
+    planFor: (state, workflowName, track) => {
+      const meta2 = state.runMetadata;
+      const key = [workflowName, track, meta2?.workflowPlanFingerprint ?? "", meta2?.documentProfile ?? "", meta2?.documentGovernanceFingerprint ?? ""].join("\0");
+      const known = plans.get(key);
+      if (known !== void 0) return known;
       const plan = resolveSnapshotEffectivePlan(readRoot, workflowName, {
-        documentProfile: state.runMetadata?.documentProfile,
-        documentGovernanceFingerprint: state.runMetadata?.documentGovernanceFingerprint,
-        workflowPlanFingerprint: state.runMetadata?.workflowPlanFingerprint,
-        workflowPlanSnapshot: state.runMetadata?.workflowPlanSnapshot
+        documentProfile: meta2?.documentProfile,
+        documentGovernanceFingerprint: meta2?.documentGovernanceFingerprint,
+        workflowPlanFingerprint: meta2?.workflowPlanFingerprint,
+        workflowPlanSnapshot: meta2?.workflowPlanSnapshot
       }, void 0, trackDefinition(track, workflowName));
-      legacyWorkflowRules[workflowName] ??= legacySnapshotWorkflowRules(plan);
-      const [documents, terminalActivity, authority, skillRuns, artifactScope, testEvidence, agentRuns] = await Promise.all([
-        documentEvidence2(readRoot, changeDir2, plan, phase),
-        readTerminalActivity(changeDir2, e.name, nowMs),
-        readWorkflowSnapshotAuthority(changeDir2, state, plan),
-        projectSkillRuns(changeDir2, plan, phase, trackDefinition(track, workflowName), deps.mandatorySkills),
-        projectArtifactScopeIssue(deps, changeDir2, anchor),
-        projectTestEvidence({
-          root: readRoot,
-          changeDir: changeDir2,
-          changeName: e.name,
-          plan,
-          user: actingUser,
-          ...candidate2 === void 0 ? {} : { candidate: () => candidate2(readRoot) },
-          changedFiles: () => changedFilesForState(readRoot, state)
-        }),
-        projectAgentRuns({
-          changeDir: changeDir2,
-          plan,
-          state,
-          phase,
-          ...candidate2 === void 0 ? {} : { candidate: () => candidate2(readRoot) }
-        })
-      ]);
-      if (artifactScope.compatibilityIssue !== void 0) {
-        if (compatibilityIssues.length < MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES) {
-          compatibilityIssues.push({ severity: "warning", kind: "legacy-scope-unmerged", change: e.name, legacyScopePath: artifactScope.compatibilityIssue.legacyScopePath, action: "merge-or-remove-legacy-scope" });
-        } else compatibilityIssueOverflow += 1;
+      if (meta2?.workflowPlanFingerprint !== void 0) plans.set(key, plan);
+      return plan;
+    },
+    listRulesFor: (plan) => {
+      let rules = listRules.get(plan);
+      if (rules === void 0) {
+        rules = snapshotWorkflowRulesStructure(plan);
+        listRules.set(plan, rules);
       }
-      const tasksProjection = await readTasksProjection(changeDir2, {}, anchor);
-      const todo = projectPipelineTodo({
-        phase,
-        tasksMarkdown: tasksProjection?.source,
-        trustedCanonicalProjection: tasksProjection?.trustedCanonicalProjection,
-        stages: snapshotTodoStages(plan, phase),
-        additionalItemsByStage: documentTodoItems(plan, documents)
-      });
-      const snapshot = {
-        name: e.name,
-        path: join75(displayChangesRoot, e.name),
-        phase,
-        phase_status: str2(f.phase_status),
-        track,
-        preset: str2(f.preset),
-        archived: str2(f.archived),
-        updated_at: str2(f.updated_at),
-        fields: f,
-        owner: ownerOf(f),
-        creator: creatorOf(f),
-        workflowPlanFingerprint: plan.workflowFingerprint,
-        workflowRules: snapshotWorkflowRulesAtRoot(plan, readRoot, workflowName, authority),
-        workflowExecution: await snapshotWorkflowExecution(
-          plan,
-          state,
-          readRoot,
-          changeDir2,
-          e.name,
-          // readiness 的 agent 面与工作台读同一份投影：这里只把已算好的阻断交出去。
-          {
-            ...capabilityDeps,
-            stepAgents: async () => agentBlockersOf(agentRuns, plan, phase),
-            ...stepExitsFor === void 0 ? {} : { stepExits: stepExitsFor(e.name) }
-          }
-        ),
-        reviewHandshake: projectReviewHandshake(state, plan, phase),
-        todo,
-        documents,
-        skillRuns,
-        ...agentRuns.length === 0 ? {} : { agentRuns },
-        ...testEvidence.tests === void 0 ? {} : { tests: testEvidence.tests },
-        ...testEvidence.testPolicy === void 0 ? {} : { testPolicy: testEvidence.testPolicy },
-        ...testEvidence.testPlan === void 0 ? {} : { testPlan: testEvidence.testPlan, testUser: testEvidence.testUser },
-        ...testEvidence.diagnostics === void 0 ? {} : { testDiagnostics: testEvidence.diagnostics },
-        ...terminalActivity === void 0 ? {} : { terminalActivity }
-      };
-      const entry2 = archive?.changes[e.name];
-      if (entry2 === void 0) changes.push(snapshot);
-      else archived.push({ ...snapshot, archive: { archivedAt: entry2.archivedAt, phase: entry2.phase, actor: entry2.actor } });
-    } catch (error2) {
-      if (error2 instanceof UnsupportedRunStateVersionError) {
-        if (compatibilityIssues.length < MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES) {
-          compatibilityIssues.push({
-            severity: "blocking",
-            kind: "unsupported-canonical-version",
-            change: e.name,
-            foundVersion: error2.foundVersion,
-            supportedVersion: error2.supportedVersion,
-            action: "upgrade-runtime"
-          });
-        } else {
-          compatibilityIssueOverflow += 1;
-        }
-        continue;
+      return rules;
+    },
+    legacyRulesFor: (plan) => {
+      let rules = legacyRules.get(plan);
+      if (rules === void 0) {
+        rules = legacySnapshotWorkflowRules(plan);
+        legacyRules.set(plan, rules);
       }
-      errors.push(
-        `${e.name}: \u72B6\u6001\u635F\u574F\u6216\u4E0D\u53EF\u8BFB [${source2}]\uFF08${error2 instanceof Error ? error2.message : String(error2)}\uFF09`
-      );
+      return rules;
     }
+  };
+}
+var SKIPPED = { errors: [] };
+async function hasTasksFile(changeDir2) {
+  try {
+    const entry2 = await lstat41(join76(changeDir2, "tasks.md"));
+    return entry2.isFile();
+  } catch {
+    return false;
   }
-  changes.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
-  archived.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
-  const deletions = await uncommittedDeletions(deps, anchor);
-  compatibilityIssues.sort((a, b) => a.change < b.change ? -1 : a.change > b.change ? 1 : 0);
+}
+async function scanChange(ctx, name, tier) {
+  const { deps, readRoot, anchor, nowMs } = ctx;
+  assertWorkflowRootAnchor(anchor);
+  const changeDir2 = ctx.changeDir(name);
+  let source2;
+  try {
+    source2 = stateStorageSourcePathSync(changeDir2);
+  } catch (error2) {
+    return { errors: [`${name}: \u72B6\u6001\u6765\u6E90\u68C0\u67E5\u5931\u8D25\uFF08${error2 instanceof Error ? error2.message : String(error2)}\uFF09`] };
+  }
+  if (source2 === void 0) return SKIPPED;
+  const errors = [];
+  try {
+    const projection = await deps.store.inspectProjection(changeDir2);
+    if (projection.status === "missing" || projection.status === "stale" || projection.status === "legacy-compatible") {
+      await deps.store.repairProjection(changeDir2);
+    } else if (projection.status === "drift") {
+      errors.push(`${name}: YAML projection drift\uFF08${projection.reason}\uFF09`);
+    }
+    const state = await deps.store.read(changeDir2);
+    const f = state.fields;
+    const phase = str2(f.phase);
+    const workflowName = str2(f.workflow) || "default";
+    const track = str2(f.track);
+    const plan = ctx.planFor(state, workflowName, track);
+    const [terminalActivity, artifactScope, agentRuns] = await Promise.all([
+      readTerminalActivity(changeDir2, name, nowMs),
+      projectArtifactScopeIssue(deps, changeDir2, anchor),
+      projectAgentRuns({
+        changeDir: changeDir2,
+        plan,
+        state,
+        phase,
+        ...ctx.candidate === void 0 ? {} : { candidate: ctx.candidate }
+      })
+    ]);
+    const legacyScope = artifactScope.compatibilityIssue === void 0 ? void 0 : { legacyScopePath: artifactScope.compatibilityIssue.legacyScopePath };
+    const workflowExecution = await snapshotWorkflowExecution(plan, state, readRoot, changeDir2, name, {
+      ...ctx.capabilityDeps,
+      // readiness 的 agent 面与工作台读同一份投影：这里只把已算好的阻断交出去。
+      stepAgents: async () => agentBlockersOf(agentRuns, plan, phase),
+      ...ctx.stepExitsFor === void 0 ? {} : { stepExits: ctx.stepExitsFor(name) }
+    });
+    const common = {
+      name,
+      path: join76(ctx.displayChangesRoot, name),
+      phase,
+      phase_status: str2(f.phase_status),
+      track,
+      preset: str2(f.preset),
+      archived: str2(f.archived),
+      updated_at: str2(f.updated_at),
+      fields: f,
+      owner: ownerOf(f),
+      creator: creatorOf(f),
+      workflowPlanFingerprint: plan.workflowFingerprint,
+      workflowExecution,
+      reviewHandshake: projectReviewHandshake(state, plan, phase),
+      ...terminalActivity === void 0 ? {} : { terminalActivity }
+    };
+    if (tier === "list") {
+      const todo2 = projectPipelineTodo({
+        phase,
+        tasksMarkdown: await hasTasksFile(changeDir2) ? "" : void 0,
+        stages: snapshotTodoStages(plan, phase)
+      });
+      const change2 = { ...common, workflowRules: ctx.listRulesFor(plan), todo: todo2 };
+      return { change: change2, errors, ...legacyScope === void 0 ? {} : { legacyScope } };
+    }
+    const [documents, authority, skillRuns, testEvidence, tasksProjection] = await Promise.all([
+      documentEvidence2(readRoot, changeDir2, plan, phase),
+      readWorkflowSnapshotAuthority(changeDir2, state, plan),
+      projectSkillRuns(changeDir2, plan, phase, ctx.trackDefinition(track, workflowName), deps.mandatorySkills),
+      projectTestEvidence({
+        root: readRoot,
+        changeDir: changeDir2,
+        changeName: name,
+        plan,
+        user: ctx.actingUser,
+        ...ctx.candidate === void 0 ? {} : { candidate: ctx.candidate },
+        changedFiles: () => ctx.changedFiles.changedFiles(changeStartOfFields(state.fields)),
+        recordChainCache: recordChains
+      }),
+      readTasksProjection(changeDir2, {}, anchor)
+    ]);
+    const todo = projectPipelineTodo({
+      phase,
+      tasksMarkdown: tasksProjection?.source,
+      trustedCanonicalProjection: tasksProjection?.trustedCanonicalProjection,
+      stages: snapshotTodoStages(plan, phase),
+      additionalItemsByStage: documentTodoItems(plan, documents)
+    });
+    const change = {
+      ...common,
+      workflowRules: snapshotWorkflowRulesAtRoot(plan, readRoot, workflowName, authority),
+      todo,
+      documents,
+      skillRuns,
+      ...agentRuns.length === 0 ? {} : { agentRuns },
+      ...testEvidence.tests === void 0 ? {} : { tests: testEvidence.tests },
+      ...testEvidence.testPolicy === void 0 ? {} : { testPolicy: testEvidence.testPolicy },
+      ...testEvidence.testPlan === void 0 ? {} : { testPlan: testEvidence.testPlan, testUser: testEvidence.testUser },
+      ...testEvidence.diagnostics === void 0 ? {} : { testDiagnostics: testEvidence.diagnostics }
+    };
+    return {
+      change,
+      errors,
+      legacyRules: { workflow: workflowName, rules: ctx.legacyRulesFor(plan) },
+      ...legacyScope === void 0 ? {} : { legacyScope }
+    };
+  } catch (error2) {
+    if (error2 instanceof UnsupportedRunStateVersionError) {
+      return { errors, unsupported: { foundVersion: error2.foundVersion, supportedVersion: error2.supportedVersion } };
+    }
+    return {
+      errors: [...errors, `${name}: \u72B6\u6001\u635F\u574F\u6216\u4E0D\u53EF\u8BFB [${source2}]\uFF08${error2 instanceof Error ? error2.message : String(error2)}\uFF09`]
+    };
+  }
+}
+
+// packages/server/src/snapshotProjectScan.ts
+var MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES = 100;
+var CHANGE_SCAN_CONCURRENCY = 4;
+async function viewerArchive(deps, readRoot, root) {
+  const viewer = deps.viewer?.(root);
+  if (viewer === void 0 || !isTenonUser(viewer)) return void 0;
+  const read2 = await readTaskArchiveOf(readRoot, viewer.slug);
+  return read2.kind === "ok" ? read2.archive : void 0;
+}
+async function uncommittedDeletions(deps, anchor) {
+  const count3 = await deps.countDeletions?.(anchorChildProcessPath(anchor));
+  return count3 === void 0 || count3 === null ? void 0 : count3;
+}
+function byName(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+async function scanChanges(ctx, names, archive, scan2) {
+  const sorted = [...names].sort(byName);
+  const outcomes = await mapWithConcurrency(sorted, CHANGE_SCAN_CONCURRENCY, (name) => scan2(name));
+  const out = { changes: [], archived: [], compatibilityIssues: [], overflow: 0, legacyWorkflowRules: {}, errors: [] };
+  let overflow = 0;
+  for (const [index, name] of sorted.entries()) {
+    const outcome = outcomes[index];
+    if (outcome === void 0) continue;
+    out.errors.push(...outcome.errors);
+    if (outcome.legacyRules !== void 0) out.legacyWorkflowRules[outcome.legacyRules.workflow] ??= outcome.legacyRules.rules;
+    if (outcome.legacyScope !== void 0) {
+      if (out.compatibilityIssues.length < MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES) {
+        out.compatibilityIssues.push({ severity: "warning", kind: "legacy-scope-unmerged", change: name, legacyScopePath: outcome.legacyScope.legacyScopePath, action: "merge-or-remove-legacy-scope" });
+      } else overflow += 1;
+    }
+    if (outcome.unsupported !== void 0) {
+      if (out.compatibilityIssues.length < MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES) {
+        out.compatibilityIssues.push({
+          severity: "blocking",
+          kind: "unsupported-canonical-version",
+          change: name,
+          foundVersion: outcome.unsupported.foundVersion,
+          supportedVersion: outcome.unsupported.supportedVersion,
+          action: "upgrade-runtime"
+        });
+      } else overflow += 1;
+    }
+    if (outcome.change === void 0) continue;
+    const entry2 = archive?.changes[name];
+    if (entry2 === void 0) out.changes.push(outcome.change);
+    else out.archived.push({ ...outcome.change, archive: { archivedAt: entry2.archivedAt, phase: entry2.phase, actor: entry2.actor } });
+  }
+  out.compatibilityIssues.sort((a, b) => byName(a.change, b.change));
+  return { ...out, overflow };
+}
+function projectEnvelope(root, scanned, deletions, repository) {
   return {
     root,
-    ok: errors.length === 0 && compatibilityIssues.every((issue2) => issue2.severity === "warning"),
-    changes,
-    ...archived.length === 0 ? {} : { archived },
+    ok: scanned.errors.length === 0 && scanned.compatibilityIssues.every((issue2) => issue2.severity === "warning"),
     ...deletions === void 0 ? {} : { uncommittedDeletions: deletions },
     ...repository === void 0 ? {} : { repository },
-    ...compatibilityIssues.length === 0 ? {} : { compatibilityIssues },
-    ...compatibilityIssueOverflow === 0 ? {} : { compatibilityIssuesTruncated: true },
-    workflowRules: legacyWorkflowRules,
-    ...errors.length === 0 ? {} : { error: errors.join("; ") }
+    ...scanned.compatibilityIssues.length === 0 ? {} : { compatibilityIssues: scanned.compatibilityIssues },
+    ...scanned.overflow === 0 ? {} : { compatibilityIssuesTruncated: true },
+    ...scanned.errors.length === 0 ? {} : { error: scanned.errors.join("; ") }
   };
+}
+async function scanAnchoredProject(deps, root, readRoot, anchor, nowMs, tier) {
+  const repository = await readRepositoryIdentity(anchorChildProcessPath(anchor), deps.repositoryIdentity);
+  assertWorkflowRootAnchor(anchor);
+  const ctx = createProjectScanContext(deps, root, readRoot, anchor, nowMs);
+  let entries2;
+  try {
+    entries2 = deps.readChangesDirectory === void 0 ? await readdir19(ctx.changesRoot, { withFileTypes: true }) : await deps.readChangesDirectory(ctx.changesRoot);
+  } catch (error2) {
+    assertWorkflowRootAnchor(anchor);
+    if (typeof error2 !== "object" || error2 === null || Reflect.get(error2, "code") !== "ENOENT") throw error2;
+    const deletions2 = await uncommittedDeletions(deps, anchor);
+    const empty2 = {
+      root,
+      ok: true,
+      changes: [],
+      ...deletions2 === void 0 ? {} : { uncommittedDeletions: deletions2 },
+      ...repository === void 0 ? {} : { repository }
+    };
+    return tier === "full" ? { ...empty2, workflowRules: {} } : empty2;
+  }
+  assertWorkflowRootAnchor(anchor);
+  const archive = await viewerArchive(deps, readRoot, root);
+  const names = entries2.filter((entry2) => entry2.isDirectory() && entry2.name !== "archive").map((entry2) => entry2.name);
+  if (tier === "list") {
+    const scanned2 = await scanChanges(ctx, names, archive, (name) => scanChange(ctx, name, "list"));
+    const deletions2 = await uncommittedDeletions(deps, anchor);
+    return {
+      ...projectEnvelope(root, scanned2, deletions2, repository),
+      changes: scanned2.changes,
+      ...scanned2.archived.length === 0 ? {} : { archived: scanned2.archived }
+    };
+  }
+  const scanned = await scanChanges(ctx, names, archive, (name) => scanChange(ctx, name, "full"));
+  const deletions = await uncommittedDeletions(deps, anchor);
+  return {
+    ...projectEnvelope(root, scanned, deletions, repository),
+    changes: scanned.changes,
+    ...scanned.archived.length === 0 ? {} : { archived: scanned.archived },
+    workflowRules: scanned.legacyWorkflowRules
+  };
+}
+async function scanAnchoredChange(deps, root, readRoot, anchor, nowMs, name) {
+  const ctx = createProjectScanContext(deps, root, readRoot, anchor, nowMs);
+  const outcome = await scanChange(ctx, name, "full");
+  if (outcome.change === void 0) return void 0;
+  const archive = (await viewerArchive(deps, readRoot, root))?.changes[name];
+  assertWorkflowRootAnchor(anchor);
+  return archive === void 0 ? { change: outcome.change } : { change: outcome.change, archive: { archivedAt: archive.archivedAt, phase: archive.phase, actor: archive.actor } };
 }
 
 // packages/server/src/snapshot.ts
@@ -43390,7 +43815,7 @@ async function projectArtifactScopeIssue(deps, changeDir2, anchor) {
   return {};
 }
 async function readTerminalActivity(changeDir2, changeName, nowMs) {
-  const target = join76(changeDir2, TERMINAL_ACTIVITY_FILE);
+  const target = join77(changeDir2, TERMINAL_ACTIVITY_FILE);
   let fd;
   try {
     fd = openSync10(target, constants13.O_RDONLY | constants13.O_NOFOLLOW | constants13.O_NONBLOCK);
@@ -43462,7 +43887,7 @@ function documentTodoItems(plan, evidence) {
     }))
   ]));
 }
-async function scanProject(deps, root, nowMs) {
+async function withRootAnchor(deps, root, read2, fallback) {
   let anchor;
   let ownsAnchor = false;
   try {
@@ -43474,20 +43899,41 @@ async function scanProject(deps, root, nowMs) {
       ownsAnchor = true;
     }
     assertWorkflowRootAnchor(anchor);
-    const project = await scanAnchoredProject(deps, root, anchor.fdPath ?? anchor.realPath, anchor, nowMs);
+    const result2 = await read2(anchor, anchor.fdPath ?? anchor.realPath);
     assertWorkflowRootAnchor(anchor);
-    return project;
+    return result2;
   } catch {
-    return { root, ok: false, changes: [], workflowRules: {}, error: "root \u4E0D\u5B58\u5728\u3001\u4E0D\u53EF\u8FBE\u6216\u5DF2\u88AB\u66FF\u6362" };
+    return fallback();
   } finally {
     if (ownsAnchor && anchor !== void 0) closeWorkflowRootAnchor(anchor);
   }
 }
-async function buildSnapshot(deps) {
-  const roots = dedupeRoots(deps.registry());
-  const nowMs = deps.now?.() ?? Date.now();
-  const projects = normalizeRepositoryLabels(await mapWithConcurrency(roots, 4, (root) => scanProject(deps, root, nowMs)));
-  const change_count = projects.reduce((n, p) => n + p.changes.length, 0);
+var UNREACHABLE_ROOT = "root \u4E0D\u5B58\u5728\u3001\u4E0D\u53EF\u8FBE\u6216\u5DF2\u88AB\u66FF\u6362";
+async function scanProject(deps, root, nowMs, tier) {
+  if (tier === "list") {
+    return withRootAnchor(
+      deps,
+      root,
+      (anchor, readRoot) => scanAnchoredProject(deps, root, readRoot, anchor, nowMs, "list"),
+      () => ({ root, ok: false, changes: [], error: UNREACHABLE_ROOT })
+    );
+  }
+  return withRootAnchor(
+    deps,
+    root,
+    (anchor, readRoot) => scanAnchoredProject(deps, root, readRoot, anchor, nowMs, "full"),
+    () => ({ root, ok: false, changes: [], workflowRules: {}, error: UNREACHABLE_ROOT })
+  );
+}
+function scanChangeDetail(deps, root, name, nowMs) {
+  return withRootAnchor(
+    deps,
+    root,
+    (anchor, readRoot) => scanAnchoredChange(deps, root, readRoot, anchor, nowMs, name),
+    () => void 0
+  );
+}
+function snapshotEnvelope(deps, projects) {
   return {
     snapshot_protocol: "tenon-snapshot/v2",
     version: deps.version,
@@ -43495,12 +43941,8 @@ async function buildSnapshot(deps) {
     // 能力声明（GOAL B6）：基线 4 域恒 true；afk/traffic 等由 server 按真实接线注入合并（未接线不谎报）。
     capabilities: { snapshot: true, health: true, stream: true, transition: true, ...deps.capabilities ?? {} },
     project_count: projects.length,
-    change_count,
-    projects
+    change_count: projects.reduce((n, p) => n + p.changes.length, 0)
   };
-}
-async function computeFingerprint(roots, nowMs = Date.now(), rootAnchor, readChangesDirectory, viewer) {
-  return computeSnapshotFingerprint(roots, nowMs, rootAnchor, readTerminalActivity, readChangesDirectory, viewer);
 }
 
 // packages/server/src/token.ts
@@ -43688,15 +44130,15 @@ function hasTraceTimelineReader(store) {
 // packages/server/src/operations.ts
 import { execFile as execFile6 } from "node:child_process";
 import { existsSync as existsSync6 } from "node:fs";
-import { dirname as dirname19, join as join77 } from "node:path";
+import { dirname as dirname19, join as join78 } from "node:path";
 import { fileURLToPath } from "node:url";
 function pipelineCliBundlePath() {
-  return join77(dirname19(fileURLToPath(import.meta.url)), "..", "..", "cli", "dist", "tenon.mjs");
+  return join78(dirname19(fileURLToPath(import.meta.url)), "..", "..", "cli", "dist", "tenon.mjs");
 }
 function pipelineCliAvailable() {
   return existsSync6(pipelineCliBundlePath());
 }
-var runPipelineCli = (repoRoot, args, options3) => new Promise((resolve20, reject3) => {
+var runPipelineCli = (repoRoot, args, options3) => new Promise((resolve21, reject3) => {
   const bundle = pipelineCliBundlePath();
   if (!existsSync6(bundle)) {
     reject3(new Error(`Tenon CLI bundle \u4E0D\u5B58\u5728\uFF1A${bundle}\uFF1B\u8BF7\u5148\u6267\u884C npm run bundle`));
@@ -43715,12 +44157,12 @@ var runPipelineCli = (repoRoot, args, options3) => new Promise((resolve20, rejec
     },
     (error2, stdout, stderr) => {
       if (error2 === null) {
-        resolve20({ exitCode: 0, stdout, stderr });
+        resolve21({ exitCode: 0, stdout, stderr });
         return;
       }
       const code = typeof error2.code === "number" ? error2.code : 1;
       if (typeof error2.code === "number") {
-        resolve20({ exitCode: code, stdout, stderr });
+        resolve21({ exitCode: code, stdout, stderr });
         return;
       }
       reject3(error2);
@@ -43849,7 +44291,7 @@ function routerSuppressionReason(prompt) {
   return null;
 }
 function scoreRouterPatternWithGrep(pattern, prompt) {
-  return new Promise((resolve20, reject3) => {
+  return new Promise((resolve21, reject3) => {
     const child = spawn2("grep", ["-ciE", "--", pattern], {
       env: { ...process.env, LC_ALL: "C" },
       stdio: ["pipe", "pipe", "pipe"]
@@ -43882,12 +44324,12 @@ function scoreRouterPatternWithGrep(pattern, prompt) {
         if (signal !== null) return reject3(new Error(`router grep \u88AB\u4FE1\u53F7 ${signal} \u7EC8\u6B62`));
         if (code !== 0 && code !== 1) return reject3(new Error(`router grep exit ${String(code)}\uFF1A${stderr.trim() || "unknown error"}`));
         if (stdinError !== null) return reject3(new Error(`router grep stdin \u5931\u8D25\uFF1A${stdinError.message}`));
-        if (code === 1) return resolve20(0);
+        if (code === 1) return resolve21(0);
         const score = Number(stdout.trim());
         if (!Number.isSafeInteger(score) || score < 0) {
           return reject3(new Error(`router grep \u8FD4\u56DE\u975E\u6CD5\u8BA1\u5206\uFF1A${JSON.stringify(stdout.trim())}`));
         }
-        return resolve20(score);
+        return resolve21(score);
       });
     });
     child.stdin.on("error", (error2) => {
@@ -44090,20 +44532,20 @@ function createCadenceScheduler(options3) {
 
 // packages/server/src/serverGetRoutes.ts
 import { lstatSync as lstatSync18 } from "node:fs";
-import { dirname as dirname25, join as join109 } from "node:path";
+import { dirname as dirname25, join as join110 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // packages/server/src/afkReadiness.ts
 import { accessSync, constants as fsConstants, statSync as statSync6 } from "node:fs";
-import { join as join78 } from "node:path";
+import { join as join79 } from "node:path";
 
 // packages/server/src/dockerImages.ts
 import { execFile as execFile7 } from "node:child_process";
-var nodeExecDocker = (args) => new Promise((resolve20) => {
+var nodeExecDocker = (args) => new Promise((resolve21) => {
   execFile7("docker", [...args], (err, stdout, stderr) => {
     const code = err?.code;
     const exitCode = err === null ? 0 : typeof code === "number" ? code : 1;
-    resolve20({ stdout: String(stdout ?? ""), stderr: String(stderr ?? ""), exitCode });
+    resolve21({ stdout: String(stdout ?? ""), stderr: String(stderr ?? ""), exitCode });
   });
 });
 async function execDocker(args, opts) {
@@ -44111,8 +44553,8 @@ async function execDocker(args, opts) {
   const timeoutMs = opts?.timeoutMs ?? 5e3;
   let timer;
   try {
-    const timeout = new Promise((resolve20) => {
-      timer = setTimeout(() => resolve20(null), timeoutMs);
+    const timeout = new Promise((resolve21) => {
+      timer = setTimeout(() => resolve21(null), timeoutMs);
     });
     const result2 = await Promise.race([exec(args).catch(() => null), timeout]);
     return result2;
@@ -44171,7 +44613,7 @@ async function buildAfkReadiness(opts) {
         CODEX_HOME: codexHomeCredentialLight(
           hostEnv.CODEX_HOME,
           opts.defaultCodexHome,
-          (home) => (opts.canReadFile ?? canReadFile)(join78(home, "auth.json"))
+          (home) => (opts.canReadFile ?? canReadFile)(join79(home, "auth.json"))
         )
       }
     }
@@ -44180,7 +44622,7 @@ async function buildAfkReadiness(opts) {
 
 // packages/server/src/automationConfig.ts
 import { mkdirSync as mkdirSync4, readFileSync as readFileSync21, renameSync as renameSync4, writeFileSync as writeFileSync4 } from "node:fs";
-import { join as join79 } from "node:path";
+import { join as join80 } from "node:path";
 var AUTOMATION_DEFAULTS = {
   enabled: false,
   max_parallel: 4,
@@ -44189,7 +44631,7 @@ var AUTOMATION_DEFAULTS = {
   image: ""
 };
 function automationConfigPath(root) {
-  return join79(root, ".pipeline", "automation.json");
+  return join80(root, ".pipeline", "automation.json");
 }
 var intIn2 = (v, min, max) => typeof v === "number" && Number.isInteger(v) && v >= min && v <= max;
 var validImage = (v) => v === "" || isValidImageRef(v);
@@ -44241,7 +44683,7 @@ function writeAutomationSettings(root, settings) {
     default_opt_in: settings.default_opt_in
   };
   if (settings.image !== "") payload.image = settings.image;
-  const dir = join79(root, ".pipeline");
+  const dir = join80(root, ".pipeline");
   mkdirSync4(dir, { recursive: true });
   const file = automationConfigPath(root);
   const tmp = `${file}.tmp.${process.pid}`;
@@ -44252,7 +44694,7 @@ function writeAutomationSettings(root, settings) {
 
 // packages/server/src/config.ts
 import { readFileSync as readFileSync22 } from "node:fs";
-import { readFile as readFile46, rename as rename15, rm as rm12, writeFile as writeFile20 } from "node:fs/promises";
+import { readFile as readFile47, rename as rename15, rm as rm12, writeFile as writeFile20 } from "node:fs/promises";
 import { dirname as dirname20 } from "node:path";
 var ConfigError = class extends Error {
   constructor(message) {
@@ -44385,7 +44827,7 @@ async function writeMandatorySkills(manifestPath3, phase, track, skills) {
   }
   const key = `${phase}.${track}`;
   await withLock(dirname20(manifestPath3), async () => {
-    const original = await readFile46(manifestPath3, "utf8");
+    const original = await readFile47(manifestPath3, "utf8");
     const lines2 = original.split("\n");
     let sectionStart = -1;
     for (let i = 0; i < lines2.length; i++) {
@@ -44468,7 +44910,7 @@ import {
   unlinkSync as unlinkSync3,
   writeFileSync as writeFileSync5
 } from "node:fs";
-import { join as join80 } from "node:path";
+import { join as join81 } from "node:path";
 var HOOK_METAS = [
   { id: "session-start", event: "SessionStart", matcher: "*", script: "hooks/session-start.sh", configurable: true },
   { id: "breadcrumb", event: "UserPromptSubmit", matcher: "*", script: "hooks/breadcrumb.sh", configurable: true },
@@ -44663,7 +45105,7 @@ async function withHooksConfigLock(rootInput, operation) {
   const { anchor, owned } = acquireHooksRoot(rootInput);
   try {
     ensureWorkflowProjectCoordinationPath(anchor);
-    await withLock(join80(anchor.path, ".pipeline"), async () => {
+    await withLock(join81(anchor.path, ".pipeline"), async () => {
       assertWorkflowRootAnchor(anchor);
       operation(anchor);
     });
@@ -44701,17 +45143,17 @@ async function writePromptRoutingBypass(root, value) {
 
 // packages/server/src/loops.ts
 import { existsSync as existsSync7, readdirSync as readdirSync9, readFileSync as readFileSync23 } from "node:fs";
-import { join as join81 } from "node:path";
+import { join as join82 } from "node:path";
 function readRunLogText(root) {
   try {
-    return readFileSync23(join81(root, ".superpowers", "loops", "progress.md"), "utf8");
+    return readFileSync23(join82(root, ".superpowers", "loops", "progress.md"), "utf8");
   } catch {
     return null;
   }
 }
 function readLoopDocText(root) {
   try {
-    return readFileSync23(join81(root, "LOOP.md"), "utf8");
+    return readFileSync23(join82(root, "LOOP.md"), "utf8");
   } catch {
     return null;
   }
@@ -44725,7 +45167,7 @@ var READONLY_GRADUATION_FS = {
 };
 function listMatchedChanges(root, changePrefix) {
   try {
-    return readdirSync9(join81(root, "openspec", "changes"), { withFileTypes: true }).filter((e) => e.isDirectory() && e.name !== "archive" && e.name.startsWith(changePrefix)).map((e) => e.name).sort();
+    return readdirSync9(join82(root, "openspec", "changes"), { withFileTypes: true }).filter((e) => e.isDirectory() && e.name !== "archive" && e.name.startsWith(changePrefix)).map((e) => e.name).sort();
   } catch {
     return [];
   }
@@ -44943,11 +45385,11 @@ async function removeSecret(path14, key) {
 }
 
 // packages/server/src/serverGetSkillsRoutes.ts
-import { join as join83 } from "node:path";
+import { join as join84 } from "node:path";
 
 // packages/server/src/skillsRegistry.ts
 import { accessSync as accessSync2, constants as constants15, existsSync as existsSync8, readdirSync as readdirSync10, readFileSync as readFileSync24, realpathSync as realpathSync7, statSync as statSync7 } from "node:fs";
-import { delimiter, dirname as dirname21, join as join82, sep as sep16 } from "node:path";
+import { delimiter, dirname as dirname21, join as join83, sep as sep16 } from "node:path";
 function skillDescriptionFrom(path14) {
   try {
     const text10 = readFileSync24(path14, "utf8");
@@ -44966,7 +45408,7 @@ function skillDescriptionFrom(path14) {
 }
 function installedPluginRoots(claudeDir) {
   try {
-    const parsed2 = JSON.parse(readFileSync24(join82(claudeDir, "plugins", "installed_plugins.json"), "utf8"));
+    const parsed2 = JSON.parse(readFileSync24(join83(claudeDir, "plugins", "installed_plugins.json"), "utf8"));
     const plugins = typeof parsed2 === "object" && parsed2 !== null ? Reflect.get(parsed2, "plugins") : void 0;
     if (typeof plugins !== "object" || plugins === null || Array.isArray(plugins)) return [];
     return Object.values(plugins).flat().map((entry2) => typeof entry2 === "object" && entry2 !== null ? Reflect.get(entry2, "installPath") : void 0).filter((path14) => typeof path14 === "string" && path14.trim() !== "");
@@ -44983,25 +45425,25 @@ function descriptionForSkill(name, repoRoot, claudeDir, meta2) {
     name.includes(":") ? name.split(":").at(-1) : void 0
   ].filter((candidate2) => typeof candidate2 === "string" && candidate2 !== ""))];
   const roots = [
-    join82(repoRoot, "skills"),
-    join82(claudeDir, "skills"),
-    join82(home, ".agents", "skills"),
-    ...installedPluginRoots(claudeDir).map((root) => join82(root, "skills"))
+    join83(repoRoot, "skills"),
+    join83(claudeDir, "skills"),
+    join83(home, ".agents", "skills"),
+    ...installedPluginRoots(claudeDir).map((root) => join83(root, "skills"))
   ];
   for (const root of roots) {
     for (const candidate2 of candidates) {
-      const description = skillDescriptionFrom(join82(root, candidate2, "SKILL.md"));
+      const description = skillDescriptionFrom(join83(root, candidate2, "SKILL.md"));
       if (description) return description;
     }
   }
   if (meta2?.tool === "claude-plugin") {
     const plugin = meta2.skill ?? name.split(":")[0] ?? name;
-    const cache2 = join82(home, ".codex", "plugins", "cache");
+    const cache2 = join83(home, ".codex", "plugins", "cache");
     for (const marketplace of childDirsIn(cache2)) {
-      const pluginRoot2 = join82(cache2, marketplace, plugin);
+      const pluginRoot2 = join83(cache2, marketplace, plugin);
       for (const version of childDirsIn(pluginRoot2)) {
         for (const candidate2 of candidates) {
-          const description = skillDescriptionFrom(join82(pluginRoot2, version, "skills", candidate2, "SKILL.md")) ?? skillDescriptionFrom(join82(pluginRoot2, version, "skills", "SKILL.md"));
+          const description = skillDescriptionFrom(join83(pluginRoot2, version, "skills", candidate2, "SKILL.md")) ?? skillDescriptionFrom(join83(pluginRoot2, version, "skills", "SKILL.md"));
           if (description) return description;
         }
       }
@@ -45014,16 +45456,16 @@ var MAX_LISTED_FILE_BYTES = 1024 * 1024;
 function skillRoots(repoRoot, claudeDir) {
   const home = dirname21(claudeDir);
   const roots = [
-    { dir: join82(repoRoot, "skills"), source: "local-plugin", origin: "tenon" },
-    { dir: join82(claudeDir, "skills"), source: "user", origin: "~/.claude/skills" },
-    { dir: join82(home, ".agents", "skills"), source: "user", origin: "~/.agents/skills" },
-    ...installedPluginRoots(claudeDir).map((root) => ({ dir: join82(root, "skills"), source: "external-marketplace", origin: root.split("/").filter(Boolean).at(-1) ?? root }))
+    { dir: join83(repoRoot, "skills"), source: "local-plugin", origin: "tenon" },
+    { dir: join83(claudeDir, "skills"), source: "user", origin: "~/.claude/skills" },
+    { dir: join83(home, ".agents", "skills"), source: "user", origin: "~/.agents/skills" },
+    ...installedPluginRoots(claudeDir).map((root) => ({ dir: join83(root, "skills"), source: "external-marketplace", origin: root.split("/").filter(Boolean).at(-1) ?? root }))
   ];
-  const cache2 = join82(home, ".codex", "plugins", "cache");
+  const cache2 = join83(home, ".codex", "plugins", "cache");
   for (const marketplace of childDirsIn(cache2)) {
-    for (const plugin of childDirsIn(join82(cache2, marketplace))) {
-      for (const version of childDirsIn(join82(cache2, marketplace, plugin))) {
-        roots.push({ dir: join82(cache2, marketplace, plugin, version, "skills"), source: "external-marketplace", origin: `${marketplace}/${plugin}@${version}` });
+    for (const plugin of childDirsIn(join83(cache2, marketplace))) {
+      for (const version of childDirsIn(join83(cache2, marketplace, plugin))) {
+        roots.push({ dir: join83(cache2, marketplace, plugin, version, "skills"), source: "external-marketplace", origin: `${marketplace}/${plugin}@${version}` });
       }
     }
   }
@@ -45033,9 +45475,9 @@ function locateSkillDir(name, repoRoot, claudeDir) {
   const candidates = [...new Set([name, name.includes(":") ? name.split(":").at(-1) : void 0].filter((candidate2) => typeof candidate2 === "string" && candidate2 !== ""))];
   for (const root of skillRoots(repoRoot, claudeDir)) {
     for (const candidate2 of candidates) {
-      const dir = join82(root.dir, candidate2);
+      const dir = join83(root.dir, candidate2);
       try {
-        if (statSync7(join82(dir, "SKILL.md")).isFile()) return { dir, source: root.source, origin: root.origin };
+        if (statSync7(join83(dir, "SKILL.md")).isFile()) return { dir, source: root.source, origin: root.origin };
       } catch {
         continue;
       }
@@ -45047,7 +45489,7 @@ function walkFiles(root, rel = "") {
   const out = [];
   let entries2;
   try {
-    entries2 = readdirSync10(join82(root, rel)).sort();
+    entries2 = readdirSync10(join83(root, rel)).sort();
   } catch {
     return out;
   }
@@ -45056,7 +45498,7 @@ function walkFiles(root, rel = "") {
     const relPath = rel === "" ? entry2 : `${rel}/${entry2}`;
     let info;
     try {
-      info = statSync7(join82(root, relPath));
+      info = statSync7(join83(root, relPath));
     } catch {
       continue;
     }
@@ -45081,7 +45523,7 @@ function readSkillFile(name, relPath, repoRoot, claudeDir) {
   const entry2 = listed.files.find((file) => file.path === relPath);
   if (located === void 0 || entry2 === void 0) return { kind: "not-found" };
   if (entry2.bytes > MAX_SKILL_FILE_BYTES) return { kind: "too-large" };
-  const absolute = join82(located.dir, relPath);
+  const absolute = join83(located.dir, relPath);
   try {
     const realRoot = realpathSync7(located.dir);
     const realFile = realpathSync7(absolute);
@@ -45097,9 +45539,9 @@ function skillDirsIn(dir) {
   if (!existsSync8(dir)) return [];
   try {
     return readdirSync10(dir).filter((name) => {
-      const p = join82(dir, name);
+      const p = join83(dir, name);
       try {
-        return statSync7(p).isDirectory() && existsSync8(join82(p, "SKILL.md"));
+        return statSync7(p).isDirectory() && existsSync8(join83(p, "SKILL.md"));
       } catch {
         return false;
       }
@@ -45113,7 +45555,7 @@ function childDirsIn(dir) {
   try {
     return readdirSync10(dir).filter((name) => {
       try {
-        return statSync7(join82(dir, name)).isDirectory();
+        return statSync7(join83(dir, name)).isDirectory();
       } catch {
         return false;
       }
@@ -45123,23 +45565,23 @@ function childDirsIn(dir) {
   }
 }
 function localSkillDirs(repoRoot) {
-  return skillDirsIn(join82(repoRoot, "skills"));
+  return skillDirsIn(join83(repoRoot, "skills"));
 }
 function detectInstalled(claudeDir) {
-  const skills = new Set(skillDirsIn(join82(claudeDir, "skills")));
-  for (const name of skillDirsIn(join82(dirname21(claudeDir), ".agents", "skills"))) skills.add(name);
+  const skills = new Set(skillDirsIn(join83(claudeDir, "skills")));
+  for (const name of skillDirsIn(join83(dirname21(claudeDir), ".agents", "skills"))) skills.add(name);
   const pluginBases = /* @__PURE__ */ new Set();
   const codexPluginBases = /* @__PURE__ */ new Set();
-  const codexCache = join82(dirname21(claudeDir), ".codex", "plugins", "cache");
+  const codexCache = join83(dirname21(claudeDir), ".codex", "plugins", "cache");
   for (const marketplace of childDirsIn(codexCache)) {
-    for (const plugin of childDirsIn(join82(codexCache, marketplace))) codexPluginBases.add(plugin);
+    for (const plugin of childDirsIn(join83(codexCache, marketplace))) codexPluginBases.add(plugin);
   }
   try {
-    const raw = readFileSync24(join82(claudeDir, "plugins", "installed_plugins.json"), "utf8");
+    const raw = readFileSync24(join83(claudeDir, "plugins", "installed_plugins.json"), "utf8");
     const parsed2 = JSON.parse(raw);
     let disabled = {};
     try {
-      const settings = JSON.parse(readFileSync24(join82(claudeDir, "settings.json"), "utf8"));
+      const settings = JSON.parse(readFileSync24(join83(claudeDir, "settings.json"), "utf8"));
       if (typeof settings === "object" && settings !== null) {
         const candidate2 = Reflect.get(settings, "enabledPlugins");
         if (typeof candidate2 === "object" && candidate2 !== null && !Array.isArray(candidate2)) {
@@ -45159,7 +45601,7 @@ function detectInstalled(claudeDir) {
         if (typeof entry2 !== "object" || entry2 === null) continue;
         const installPath = Reflect.get(entry2, "installPath");
         if (typeof installPath !== "string") continue;
-        for (const name of skillDirsIn(join82(installPath, "skills"))) skills.add(name);
+        for (const name of skillDirsIn(join83(installPath, "skills"))) skills.add(name);
       }
     }
   } catch {
@@ -45168,7 +45610,7 @@ function detectInstalled(claudeDir) {
 }
 function sourceRegistry(repoRoot) {
   try {
-    const rows = parseSkillSources(readFileSync24(join82(repoRoot, "templates", "skill-sources.yaml"), "utf8"));
+    const rows = parseSkillSources(readFileSync24(join83(repoRoot, "templates", "skill-sources.yaml"), "utf8"));
     return new Map(rows.map((row) => [row.token, row]));
   } catch {
     return /* @__PURE__ */ new Map();
@@ -45182,7 +45624,7 @@ function executableOnPath(bin) {
   for (const dir of (process.env.PATH ?? "").split(delimiter)) {
     if (dir === "") continue;
     try {
-      accessSync2(join82(dir, bin), constants15.X_OK);
+      accessSync2(join83(dir, bin), constants15.X_OK);
       return true;
     } catch {
     }
@@ -45245,7 +45687,7 @@ function listAllSkillsDetailed(repoRoot, claudeDir) {
 // packages/server/src/serverGetSkillsRoutes.ts
 function resolveSkillsGet(req, res, path14, deps) {
   const { hostHome, repoRoot, stateRoot, sendJson, errMsg: errMsg2 } = deps;
-  const claudeDir = join83(hostHome, ".claude");
+  const claudeDir = join84(hostHome, ".claude");
   const mSkillFiles = /^\/api\/skills\/([^/]+)\/(files|file)$/.exec(path14);
   if (mSkillFiles) {
     const raw = decodeURIComponent(mSkillFiles[1] ?? "");
@@ -45283,12 +45725,12 @@ function resolveSkillsGet(req, res, path14, deps) {
 }
 
 // packages/server/src/serverGetActivityRoutes.ts
-import { join as join88, resolve as resolvePath4 } from "node:path";
+import { join as join89, resolve as resolvePath4 } from "node:path";
 
 // packages/server/src/afk.ts
 import { execFile as execFile8 } from "node:child_process";
-import { readFile as readFile47, writeFile as writeFile21 } from "node:fs/promises";
-import { join as join84 } from "node:path";
+import { readFile as readFile48, writeFile as writeFile21 } from "node:fs/promises";
+import { join as join85 } from "node:path";
 var AFK_LANES = ["queued", "running", "merged", "failed", "conflict", "paused"];
 function isAutomationState(value) {
   return AUTOMATION_STATES.includes(value);
@@ -45355,9 +45797,9 @@ function buildAfkSnapshot(snapshot, clock) {
       lanes[card.lane].push(card);
     }
   }
-  const byName = (a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
-  for (const lane of AFK_LANES) lanes[lane].sort(byName);
-  cards.sort(byName);
+  const byName2 = (a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+  for (const lane of AFK_LANES) lanes[lane].sort(byName2);
+  cards.sort(byName2);
   const queued = lanes.queued.length;
   const running = lanes.running.length;
   const merged = lanes.merged.length;
@@ -45409,7 +45851,7 @@ async function cancelAfkRun(store, changeDir2) {
     return { ok: false, error: "\u7F3A automation_worktree/automation_sandbox\uFF0C\u65E0\u6CD5\u5B9A\u4F4D\u5BB9\u5668" };
   }
   try {
-    await writeFile21(join84(worktree, CANCEL_MARKER_FILE), "1", "utf8");
+    await writeFile21(join85(worktree, CANCEL_MARKER_FILE), "1", "utf8");
   } catch (err) {
     const code = err?.code ?? "unknown";
     return {
@@ -45417,8 +45859,8 @@ async function cancelAfkRun(store, changeDir2) {
       error: `\u65E0\u6CD5\u5728 automation_worktree \u76EE\u5F55\u843D\u53D6\u6D88\u6807\u8BB0\uFF08${code}\uFF09\uFF1Aworktree \u76EE\u5F55\u53EF\u80FD\u5DF2\u88AB\u6E05\u7406\uFF0C\u6216\u5B57\u6BB5\u503C\u66FE\u88AB\u65E7\u7248\u622A\u65AD\u635F\u574F\u2014\u2014\u82E5\u4EFB\u52A1\u5B9E\u9645\u5DF2\u4E0D\u5728\u8DD1\uFF0C\u53EF\u76F4\u63A5\u91CD\u8BD5/\u653E\u5F03\u8BE5\u4EFB\u52A1`
     };
   }
-  await new Promise((resolve20) => {
-    execFile8("docker", ["kill", sandbox], () => resolve20());
+  await new Promise((resolve21) => {
+    execFile8("docker", ["kill", sandbox], () => resolve21());
   });
   return { ok: true };
 }
@@ -45465,7 +45907,7 @@ async function enqueueAfkRun(store, changeDir2, clock, eligibility) {
 }
 async function readAfkRunLog(changeDir2) {
   try {
-    return await readFile47(join84(changeDir2, ".sandcastle-run.log"), "utf8");
+    return await readFile48(join85(changeDir2, ".sandcastle-run.log"), "utf8");
   } catch {
     return null;
   }
@@ -45473,7 +45915,7 @@ async function readAfkRunLog(changeDir2) {
 
 // packages/server/src/contextBundlePreviewSupport.ts
 import { lstatSync as lstatSync10, realpathSync as realpathSync8 } from "node:fs";
-import { isAbsolute as isAbsolute16, join as join85, relative as relative13, sep as sep17 } from "node:path";
+import { isAbsolute as isAbsolute16, join as join86, relative as relative13, sep as sep17 } from "node:path";
 var SCHEMA_VERSION = "context-bundle-preview/v1";
 var SIDE_EFFECTS = "none";
 var ContextBundlePathError = class extends Error {
@@ -45506,7 +45948,7 @@ function captureDirectoryIdentity(path14) {
 }
 function captureChangeParentPathAnchor(root) {
   const chain = [];
-  for (const path14 of [join85(root.path, "openspec"), join85(root.path, "openspec", "changes")]) {
+  for (const path14 of [join86(root.path, "openspec"), join86(root.path, "openspec", "changes")]) {
     try {
       chain.push(captureDirectoryIdentity(path14));
     } catch (error2) {
@@ -45518,9 +45960,9 @@ function captureChangeParentPathAnchor(root) {
 }
 function captureChangePathAnchor(root, change) {
   const chainPaths = [
-    join85(root.path, "openspec"),
-    join85(root.path, "openspec", "changes"),
-    join85(root.path, "openspec", "changes", change)
+    join86(root.path, "openspec"),
+    join86(root.path, "openspec", "changes"),
+    join86(root.path, "openspec", "changes", change)
   ];
   const chain = [];
   for (const path14 of chainPaths) {
@@ -46023,126 +46465,54 @@ async function buildRunDetail(repoRoot, changeDir2, changeName, deps) {
   };
 }
 
-// packages/server/src/snapshotCache.ts
-import { createHash as createHash32 } from "node:crypto";
-var SNAPSHOT_CACHE_MAX_AGE_MS = 3e4;
-var SNAPSHOT_IDENTITY_TTL_MS = 3e4;
-function defaultFingerprint(deps, nowMs) {
-  return computeFingerprint(deps.registry(), nowMs, deps.rootAnchor, deps.readChangesDirectory, deps.viewer);
+// packages/server/src/snapshotShared.ts
+import { createHash as createHash33 } from "node:crypto";
+import { gzipSync } from "node:zlib";
+var GZIP_MIN_BYTES = 1024;
+function acceptsGzip(header) {
+  if (header === void 0) return false;
+  const accepted = /* @__PURE__ */ new Map();
+  for (const entry2 of (Array.isArray(header) ? header.join(",") : header).split(",")) {
+    const [rawName, ...params2] = entry2.trim().toLowerCase().split(";");
+    if (!rawName) continue;
+    const qParam = params2.map((param) => param.trim()).find((param) => param.startsWith("q="));
+    const parsed2 = qParam === void 0 ? 1 : Number(qParam.slice(2));
+    accepted.set(rawName, Number.isFinite(parsed2) ? parsed2 : 0);
+  }
+  const gzip = accepted.get("gzip");
+  return (gzip ?? accepted.get("*") ?? 0) > 0;
 }
-function createSnapshotCache(options3) {
-  const build2 = options3.build ?? buildSnapshot;
-  const fingerprintOf = options3.fingerprint ?? defaultFingerprint;
-  const now = options3.now ?? Date.now;
-  const maxAgeMs = options3.maxAgeMs ?? SNAPSHOT_CACHE_MAX_AGE_MS;
-  const identityTtlMs = options3.identityTtlMs ?? SNAPSHOT_IDENTITY_TTL_MS;
-  let generation = 0;
-  let seq = 0;
-  let entry2;
-  let pending;
-  let fingerprintInFlight;
-  const identities = /* @__PURE__ */ new Map();
-  function remembered(role, resolve20) {
-    return (root) => {
-      const key = `${role}\0${root}`;
-      const at = now();
-      const hit = identities.get(key);
-      if (hit !== void 0 && at - hit.at < identityTtlMs) return hit.value;
-      const value = resolve20(root);
-      identities.set(key, { at, value });
-      return value;
-    };
-  }
-  function depsAt(nowMs) {
-    const deps = options3.snapshotDeps(nowMs);
-    return {
-      ...deps,
-      ...deps.viewer === void 0 ? {} : { viewer: remembered("viewer", deps.viewer) },
-      resolveUser: remembered("acting", deps.resolveUser ?? defaultResolveUser)
-    };
-  }
-  function fingerprint() {
-    if (fingerprintInFlight !== void 0 && fingerprintInFlight.generation === generation) return fingerprintInFlight.promise;
-    const nowMs = now();
-    const promise = fingerprintOf(depsAt(nowMs), nowMs);
-    const flight = { generation, promise };
-    fingerprintInFlight = flight;
-    const clear = () => {
-      if (fingerprintInFlight === flight) fingerprintInFlight = void 0;
-    };
-    promise.then(clear, clear);
-    return promise;
-  }
-  function share(snapshot, fp) {
-    const body2 = JSON.stringify(snapshot);
-    return { snapshot, body: body2, etag: `"${createHash32("sha1").update(body2).digest("base64url")}"`, fingerprint: fp };
-  }
-  async function current() {
-    let fp;
-    try {
-      fp = await fingerprint();
-    } catch {
-      return share(await build2(depsAt(now())), "");
-    }
-    const cached = entry2;
-    if (cached !== void 0 && cached.generation === generation && cached.value.fingerprint === fp && now() - cached.builtAt < maxAgeMs) {
-      return cached.value;
-    }
-    if (pending !== void 0 && pending.generation === generation && pending.fingerprint === fp) return pending.promise;
-    const startedGeneration = generation;
-    const startedSeq = ++seq;
-    const nowMs = now();
-    const promise = build2(depsAt(nowMs)).then((snapshot) => {
-      const value = share(snapshot, fp);
-      if (startedGeneration === generation && (entry2 === void 0 || entry2.seq < startedSeq)) {
-        entry2 = { generation: startedGeneration, seq: startedSeq, builtAt: nowMs, value };
-      }
-      return value;
-    });
-    const flight = { generation: startedGeneration, fingerprint: fp, promise };
-    pending = flight;
-    const clear = () => {
-      if (pending === flight) pending = void 0;
-    };
-    promise.then(clear, clear);
-    return promise;
-  }
-  return {
-    current,
-    fingerprint,
-    invalidate() {
-      generation += 1;
-      entry2 = void 0;
-      pending = void 0;
-      fingerprintInFlight = void 0;
-      identities.clear();
-    }
-  };
+function sharedBody(body2) {
+  return { body: body2, etag: `"${createHash33("sha1").update(body2).digest("base64url")}"` };
 }
 function etagMatches(header, etag) {
   if (header === void 0) return false;
   const values = (Array.isArray(header) ? header.join(",") : header).split(",").map((value) => value.trim());
   return values.some((value) => value === "*" || value === etag || value === `W/${etag}`);
 }
-function sendSharedSnapshot(req, res, shared) {
+function sendSharedBody(req, res, shared) {
   if (etagMatches(req.headers["if-none-match"], shared.etag)) {
-    res.writeHead(304, { ETag: shared.etag, "Cache-Control": "no-store" });
+    res.writeHead(304, { ETag: shared.etag, "Cache-Control": "no-store", Vary: "Accept-Encoding" });
     res.end();
     return;
   }
-  const body2 = Buffer.from(shared.body, "utf8");
+  const compress = shared.body.length >= GZIP_MIN_BYTES && acceptsGzip(req.headers["accept-encoding"]);
+  if (compress) shared.gzip ??= gzipSync(shared.body);
+  const body2 = compress && shared.gzip !== void 0 ? shared.gzip : Buffer.from(shared.body, "utf8");
   res.writeHead(200, {
     "Content-Type": "application/json; charset=utf-8",
     "Content-Length": body2.length,
     "Cache-Control": "no-store",
-    ETag: shared.etag
+    ETag: shared.etag,
+    Vary: "Accept-Encoding",
+    ...compress ? { "Content-Encoding": "gzip" } : {}
   });
   res.end(body2);
 }
 
 // packages/server/src/transition.ts
-import { readFile as readFile49 } from "node:fs/promises";
-import { join as join87 } from "node:path";
+import { readFile as readFile50 } from "node:fs/promises";
+import { join as join88 } from "node:path";
 
 // packages/server/src/transitionResult.ts
 function errText4(e) {
@@ -46313,8 +46683,8 @@ async function pruneHostAgentsAfterArchive(store, root, changeDir2, name) {
 }
 
 // packages/server/src/transitionHistory.ts
-import { readFile as readFile48 } from "node:fs/promises";
-import { join as join86 } from "node:path";
+import { readFile as readFile49 } from "node:fs/promises";
+import { join as join87 } from "node:path";
 function decodeHistoryEntry(value) {
   if (typeof value !== "object" || value === null) return null;
   const record11 = value;
@@ -46344,7 +46714,7 @@ function decodeHistoryEntry(value) {
 async function readJsonlHistory(changeDir2) {
   let text10;
   try {
-    text10 = await readFile48(join86(changeDir2, HISTORY_FILE), "utf8");
+    text10 = await readFile49(join87(changeDir2, HISTORY_FILE), "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT") return [];
     throw error2;
@@ -46411,7 +46781,7 @@ async function performTransition(deps, root, name, event) {
   if (!name || !CHANGE_NAME_RE2.test(name) || name.includes("..")) {
     return { code: 400, body: { ok: false, error: "\u975E\u6CD5 change \u540D\uFF08\u4EC5\u5141\u8BB8 a-z A-Z 0-9 - _\uFF09" } };
   }
-  const dir = join87(root, "openspec", "changes", name);
+  const dir = join88(root, "openspec", "changes", name);
   if (!stateStorageExistsSync(dir)) {
     return { code: 404, body: { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" } };
   }
@@ -46476,7 +46846,7 @@ async function performTransition(deps, root, name, event) {
       changedFiles: async () => {
         const current = await readCurrentRunRevision(dir);
         if (current === void 0) throw new Error("\u65E0\u6CD5\u8BFB\u53D6\u4EFB\u52A1\u72B6\u6001");
-        return changedFilesForState(root, current.state);
+        return changedFilesResultForState(root, current.state);
       }
     },
     flow: deps.flow,
@@ -46497,7 +46867,7 @@ async function performTransition(deps, root, name, event) {
     missingStepSkills: async ({ changeDir: targetDir, stepId, capability, plan }) => {
       let historyRaw3 = "";
       try {
-        historyRaw3 = await readFile49(join87(targetDir, HISTORY_FILE), "utf8");
+        historyRaw3 = await readFile50(join88(targetDir, HISTORY_FILE), "utf8");
       } catch (error2) {
         if (error2.code !== "ENOENT") throw error2;
       }
@@ -46623,7 +46993,8 @@ async function handleGetActivityRoutes(req, res, path14, deps) {
   }
   if (path14 === "/api/snapshot") {
     try {
-      return sendSharedSnapshot(req, res, await snapshotCache.current());
+      const view = new URL(req.url ?? "/", "http://localhost").searchParams.get("view");
+      return sendSharedBody(req, res, view === "list" ? await snapshotCache.list() : await snapshotCache.full());
     } catch (e) {
       return sendJson(res, 500, { ok: false, error: errMsg2(e) });
     }
@@ -46642,14 +47013,14 @@ async function handleGetActivityRoutes(req, res, path14, deps) {
   }
   if (path14 === "/api/afk/snapshot") {
     try {
-      return sendJson(res, 200, buildAfkSnapshot((await snapshotCache.current()).snapshot, clock));
+      return sendJson(res, 200, buildAfkSnapshot((await snapshotCache.list()).snapshot, clock));
     } catch (e) {
       return sendJson(res, 500, { ok: false, error: errMsg2(e) });
     }
   }
   if (path14 === "/api/afk/log") {
     try {
-      return sendJson(res, 200, buildAfkLog((await snapshotCache.current()).snapshot, clock));
+      return sendJson(res, 200, buildAfkLog((await snapshotCache.list()).snapshot, clock));
     } catch (e) {
       return sendJson(res, 500, { ok: false, error: errMsg2(e) });
     }
@@ -46666,7 +47037,7 @@ async function handleGetActivityRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join88(root, "openspec", "changes", name);
+    const dir = join89(root, "openspec", "changes", name);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
@@ -46684,11 +47055,34 @@ async function handleGetActivityRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join88(root, "openspec", "changes", name);
+    const dir = join89(root, "openspec", "changes", name);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
     return sendJson(res, 200, { entries: await readChangeHistory(dir, { store, recordStore }) });
+  }
+  const mChangeSnapshot = /^\/api\/change\/([^/]+)\/snapshot$/.exec(path14);
+  if (mChangeSnapshot) {
+    const segment = mChangeSnapshot[1];
+    if (segment === void 0) return sendJson(res, 400, { ok: false, error: "\u975E\u6CD5 change \u8DEF\u5F84" });
+    const name = decodeURIComponent(segment);
+    if (!name || !/^[a-zA-Z0-9_-]+$/.test(name) || name.includes("..")) {
+      return sendJson(res, 400, { ok: false, error: "\u975E\u6CD5 change \u540D\uFF08\u4EC5\u5141\u8BB8 a-z A-Z 0-9 - _\uFF09" });
+    }
+    const root = new URL(req.url ?? "/", "http://localhost").searchParams.get("root") ?? "";
+    if (!isRegisteredRoot(root)) {
+      return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
+    }
+    if (!stateStorageExistsSync(join89(root, "openspec", "changes", name))) {
+      return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
+    }
+    try {
+      const shared = await snapshotCache.detail(root, name);
+      if (shared === null) return sendJson(res, 404, { ok: false, code: "CHANGE_SNAPSHOT_UNREADABLE", error: "\u8BE5 change \u7684\u72B6\u6001\u4E0D\u53EF\u8BFB" });
+      return sendSharedBody(req, res, shared);
+    } catch (error2) {
+      return sendJson(res, 500, { ok: false, error: errMsg2(error2) });
+    }
   }
   const mRunDetail = /^\/api\/change\/([^/]+)\/run-detail$/.exec(path14);
   if (mRunDetail) {
@@ -46702,7 +47096,7 @@ async function handleGetActivityRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join88(root, "openspec", "changes", name);
+    const dir = join89(root, "openspec", "changes", name);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
@@ -46719,7 +47113,7 @@ async function handleGetActivityRoutes(req, res, path14, deps) {
 }
 
 // packages/server/src/serverGetSessionRoutes.ts
-import { join as join89 } from "node:path";
+import { join as join90 } from "node:path";
 function isChangeName(name) {
   return name !== "" && /^[a-zA-Z0-9_-]+$/.test(name) && !name.includes("..");
 }
@@ -46734,7 +47128,7 @@ async function handleSessionLink(req, res, deps) {
   if (!deps.isRegisteredRoot(root)) {
     return deps.sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
   }
-  if (!stateStorageExistsSync(join89(root, "openspec", "changes", name))) {
+  if (!stateStorageExistsSync(join90(root, "openspec", "changes", name))) {
     return deps.sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
   }
   return deps.sendJson(res, 200, await deps.resolveSessionLink(root, name));
@@ -46754,7 +47148,7 @@ async function handleSessionLinks(req, res, deps) {
     roots.map(async (root, index) => {
       const name = names[index] ?? "";
       const key = `${name}@${root}`;
-      const valid = isChangeName(name) && root !== "" && deps.isRegisteredRoot(root) && stateStorageExistsSync(join89(root, "openspec", "changes", name));
+      const valid = isChangeName(name) && root !== "" && deps.isRegisteredRoot(root) && stateStorageExistsSync(join90(root, "openspec", "changes", name));
       links2[key] = valid ? await deps.resolveSessionLink(root, name) : { found: false, reason: "invalid" };
     })
   );
@@ -46833,13 +47227,13 @@ function handleGetTraceRoutes(req, res, path14, deps) {
 
 // packages/server/src/hostTargetDetection.ts
 import { closeSync as closeSync7, constants as constants16, fstatSync as fstatSync11, lstatSync as lstatSync11, openSync as openSync12, readSync as readSync7, readdirSync as readdirSync11 } from "node:fs";
-import { join as join90 } from "node:path";
+import { join as join91 } from "node:path";
 var MAX_HOST_INVENTORY_BYTES = 256 * 1024;
 function captureDirectoryChain(hostHome, segments2) {
   const identities = [];
   let candidate2 = hostHome;
   for (const segment of ["", ...segments2]) {
-    if (segment !== "") candidate2 = join90(candidate2, segment);
+    if (segment !== "") candidate2 = join91(candidate2, segment);
     try {
       const descriptor = openSync12(
         candidate2,
@@ -46892,7 +47286,7 @@ function hasInstalledPlugin(hostHome, namespaceSegments, markerSegments, options
   if (namespace === null) return false;
   try {
     try {
-      const path14 = join90(hostHome, ...namespaceSegments);
+      const path14 = join91(hostHome, ...namespaceSegments);
       const versions = options3.readPluginCacheEntries?.(path14) ?? readdirSync11(path14, { withFileTypes: true });
       if (versions.length > 128 || !directoryChainIsStable(namespace)) return false;
       return versions.some((version) => {
@@ -46900,7 +47294,7 @@ function hasInstalledPlugin(hostHome, namespaceSegments, markerSegments, options
         const segments2 = [...namespaceSegments, version.name, ...markerSegments];
         const directories2 = captureDirectoryChain(hostHome, segments2.slice(0, -1));
         if (directories2 === null) return false;
-        const marker = join90(hostHome, ...segments2);
+        const marker = join91(hostHome, ...segments2);
         let descriptor;
         try {
           if (!directoryChainIsStable(namespace) || !directoryChainIsStable(directories2)) return false;
@@ -46929,7 +47323,7 @@ function readBoundedHostFile(hostHome, segments2) {
   if (segments2.length === 0) return null;
   const directories2 = captureDirectoryChain(hostHome, segments2.slice(0, -1));
   if (directories2 === null) return null;
-  const path14 = join90(hostHome, ...segments2);
+  const path14 = join91(hostHome, ...segments2);
   let descriptor;
   try {
     descriptor = openSync12(
@@ -47379,10 +47773,10 @@ function createHostTargetPlanRuntime(options3 = {}) {
     }
   };
   const schedule = (load) => {
-    const scheduled = new Promise((resolve20, reject3) => {
+    const scheduled = new Promise((resolve21, reject3) => {
       queue.push({
         load,
-        resolve: resolve20,
+        resolve: resolve21,
         reject: reject3,
         deadline: now() + timeoutMs
       });
@@ -47510,9 +47904,9 @@ function resolveDocumentReadRoute(req, path14, deps) {
 
 // packages/server/src/serverGetTestRoutes.ts
 import { createReadStream } from "node:fs";
-import { lstat as lstat40, open as open8, realpath as realpath9 } from "node:fs/promises";
+import { lstat as lstat42, open as open8, realpath as realpath9 } from "node:fs/promises";
 import { constants as constants17 } from "node:fs";
-import { join as join92, relative as relative14, sep as sep18 } from "node:path";
+import { join as join93, relative as relative14, sep as sep18 } from "node:path";
 
 // packages/server/src/contentDisposition.ts
 var ATTR_CHAR = /^[A-Za-z0-9!#$&+\-.^_`|~]$/u;
@@ -47540,15 +47934,15 @@ function contentDisposition(type, filename) {
 }
 
 // packages/server/src/serverTestDirectionRoutes.ts
-import { mkdir as mkdir33, readFile as readFile50, readdir as readdir20, rm as rm13 } from "node:fs/promises";
-import { join as join91 } from "node:path";
+import { mkdir as mkdir33, readFile as readFile51, readdir as readdir20, rm as rm13 } from "node:fs/promises";
+import { join as join92 } from "node:path";
 var TEST_DIRECTION_MAX_BYTES = 64 * 1024;
 var ID_RE3 = /^[A-Za-z0-9_-]{1,64}$/u;
 function directionsRoot(configRoot) {
-  return join91(configRoot, "test-directions");
+  return join92(configRoot, "test-directions");
 }
 async function readScope(configRoot, source2) {
-  const dir = join91(directionsRoot(configRoot), source2);
+  const dir = join92(directionsRoot(configRoot), source2);
   let names;
   try {
     names = (await readdir20(dir)).filter((name) => name.endsWith(".yaml")).sort();
@@ -47558,7 +47952,7 @@ async function readScope(configRoot, source2) {
   const entries2 = [];
   for (const name of names) {
     try {
-      const yaml = await readFile50(join91(dir, name), "utf8");
+      const yaml = await readFile51(join92(dir, name), "utf8");
       const definition = parseTestDirection(yaml);
       if (definition.id !== name.replace(/\.yaml$/u, "")) continue;
       entries2.push({ id: definition.id, label: definition.label, source: source2, yaml, definition });
@@ -47584,7 +47978,7 @@ function idOf(path14) {
 }
 async function isBuiltin(configRoot, id2) {
   try {
-    await readFile50(join91(directionsRoot(configRoot), "builtin", `${id2}.yaml`), "utf8");
+    await readFile51(join92(directionsRoot(configRoot), "builtin", `${id2}.yaml`), "utf8");
     return true;
   } catch {
     return false;
@@ -47598,11 +47992,11 @@ async function handleTestDirectionMutation(method, path14, body2, deps) {
   if (await isBuiltin(deps.configRoot, id2)) {
     return { status: 409, body: { ok: false, error: `\u5185\u5EFA\u65B9\u5411 '${id2}' \u53EA\u8BFB\uFF1B\u5148\u590D\u5236\u6210\u81EA\u5B9A\u4E49\u518D\u6539` } };
   }
-  const customDir = join91(directionsRoot(deps.configRoot), "custom");
-  const target = join91(customDir, `${id2}.yaml`);
+  const customDir = join92(directionsRoot(deps.configRoot), "custom");
+  const target = join92(customDir, `${id2}.yaml`);
   if (method === "DELETE") {
     try {
-      await readFile50(target, "utf8");
+      await readFile51(target, "utf8");
     } catch {
       return { status: 404, body: { ok: false, error: `\u65B9\u5411 '${id2}' \u4E0D\u5B58\u5728` } };
     }
@@ -47735,14 +48129,14 @@ function params(url) {
 }
 async function isRegularFile2(path14) {
   try {
-    return (await lstat40(path14)).isFile();
+    return (await lstat42(path14)).isFile();
   } catch {
     return false;
   }
 }
 async function artifactsPresent(readRoot, slug, change, runId) {
   try {
-    return (await lstat40(testRunArtifactsDir(readRoot, slug, change, runId))).isDirectory();
+    return (await lstat42(testRunArtifactsDir(readRoot, slug, change, runId))).isDirectory();
   } catch {
     return false;
   }
@@ -47781,10 +48175,10 @@ async function resolveTestRunsRoute(url, path14, deps) {
   if (!SLUG_RE2.test(query.user) || !TEST_RUN_ID_RE.test(query.run)) {
     return { status: 400, body: { ok: false, error: "user \u6216 run \u53C2\u6570\u975E\u6CD5" } };
   }
-  const recordPath2 = join92(testEvidencePaths(readRoot, query.user, query.change).runsDir, `${query.run}.json`);
+  const recordPath2 = join93(testEvidencePaths(readRoot, query.user, query.change).runsDir, `${query.run}.json`);
   let exists2 = false;
   try {
-    exists2 = (await lstat40(recordPath2)).isFile();
+    exists2 = (await lstat42(recordPath2)).isFile();
   } catch {
     exists2 = false;
   }
@@ -47796,10 +48190,10 @@ async function resolveTestRunsRoute(url, path14, deps) {
   for (const output2 of record11.outputs) {
     if (output2.artifact === null) continue;
     for (const artifact2 of output2.artifact_files ?? [output2.artifact]) {
-      if (await isRegularFile2(join92(runDir, ...artifact2.split("/")))) files.push(artifact2);
+      if (await isRegularFile2(join93(runDir, ...artifact2.split("/")))) files.push(artifact2);
     }
   }
-  const log3 = await lstat40(join92(runDir, record11.log.artifact)).then(() => true, () => false);
+  const log3 = await lstat42(join93(runDir, record11.log.artifact)).then(() => true, () => false);
   return { status: 200, body: { ok: true, record: record11, artifacts: { log: log3, files } } };
 }
 async function handleTestGetRoutes(req, res, path14, deps) {
@@ -47840,11 +48234,11 @@ async function handleTestArtifactRoute(req, res, path14, deps) {
   }
   const readRoot = rootCheck2.anchor.fdPath ?? rootCheck2.anchor.realPath;
   const runDir = testRunArtifactsDir(readRoot, query.user, query.change, query.run);
-  const target = join92(runDir, ...query.path.split("/"));
+  const target = join93(runDir, ...query.path.split("/"));
   let size = 0;
   let identity;
   try {
-    const entry2 = await lstat40(target);
+    const entry2 = await lstat42(target);
     if (entry2.isSymbolicLink() || !entry2.isFile()) {
       deps.sendJson(res, 403, { ok: false, error: "\u4EA7\u7269\u5FC5\u987B\u662F\u666E\u901A\u6587\u4EF6" });
       return true;
@@ -47886,10 +48280,10 @@ async function handleTestArtifactRoute(req, res, path14, deps) {
     "Content-Security-Policy": "sandbox",
     "Content-Disposition": contentDisposition(ATTACHMENT_TYPES.has(type) ? "attachment" : "inline", basename7(query.path))
   });
-  await new Promise((resolve20) => {
+  await new Promise((resolve21) => {
     const stream = createReadStream("", { fd: handle.fd, start, autoClose: false });
-    stream.on("end", () => resolve20());
-    stream.on("error", () => resolve20());
+    stream.on("end", () => resolve21());
+    stream.on("error", () => resolve21());
     stream.pipe(res);
   });
   await handle.close();
@@ -47899,20 +48293,20 @@ async function handleTestArtifactRoute(req, res, path14, deps) {
 
 // packages/server/src/serverSupport.ts
 import { readFileSync as readFileSync25 } from "node:fs";
-import { dirname as dirname22, join as join93 } from "node:path";
+import { dirname as dirname22, join as join94 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 var REAL_GRADUATION_FS = {
   loadRegistry: (repoRoot) => loadRegistry(repoRoot),
   readRunLog: (repoRoot) => {
     try {
-      return readFileSync25(join93(repoRoot, ".superpowers", "loops", "progress.md"), "utf8");
+      return readFileSync25(join94(repoRoot, ".superpowers", "loops", "progress.md"), "utf8");
     } catch {
       return null;
     }
   },
   readLoopDoc: (repoRoot) => {
     try {
-      return readFileSync25(join93(repoRoot, "LOOP.md"), "utf8");
+      return readFileSync25(join94(repoRoot, "LOOP.md"), "utf8");
     } catch {
       return null;
     }
@@ -47927,7 +48321,7 @@ var REAL_GRADUATION_FS = {
   }
 };
 function repoRootForSkills() {
-  return join93(dirname22(fileURLToPath2(import.meta.url)), "..", "..", "..");
+  return join94(dirname22(fileURLToPath2(import.meta.url)), "..", "..", "..");
 }
 function isoNow() {
   return (/* @__PURE__ */ new Date()).toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -48005,12 +48399,12 @@ function resolveWorkflowYamlGet(req, path14, deps) {
   }
 }
 function readTextBody(req, maxBytes) {
-  return new Promise((resolve20) => {
+  return new Promise((resolve21) => {
     let done = false;
     const finish = (value) => {
       if (!done) {
         done = true;
-        resolve20(value);
+        resolve21(value);
       }
     };
     const declared = Number.parseInt(String(req.headers["content-length"] ?? ""), 10);
@@ -48085,18 +48479,18 @@ function readDefaultOverride(anchor) {
 }
 
 // packages/server/src/instructionRoutes.ts
-import { join as join101 } from "node:path";
+import { join as join102 } from "node:path";
 
 // packages/server/src/instructionAudit.ts
 import { closeSync as closeSync8, constants as constants18, mkdirSync as mkdirSync5, openSync as openSync13, writeFileSync as writeFileSync6 } from "node:fs";
-import { dirname as dirname23, join as join94 } from "node:path";
+import { dirname as dirname23, join as join95 } from "node:path";
 var IDENTITY_REQUIRED = { status: 412, body: { ok: false, code: "user-missing", error: USER_MISSING_HINT } };
-function auditActor(resolve20, root) {
-  const resolution = resolve20?.(root);
+function auditActor(resolve21, root) {
+  const resolution = resolve21?.(root);
   return resolution !== void 0 && isTenonUser(resolution) ? actorOf(resolution) : null;
 }
 function recordInstructionAudit(configRoot, row) {
-  const path14 = join94(configRoot, "templates", "instructions", "audit.jsonl");
+  const path14 = join95(configRoot, "templates", "instructions", "audit.jsonl");
   let fd;
   try {
     mkdirSync5(dirname23(path14), { recursive: true });
@@ -48113,7 +48507,7 @@ function recordInstructionAudit(configRoot, row) {
 
 // packages/server/src/instructionLibrary.ts
 import { mkdirSync as mkdirSync6 } from "node:fs";
-import { join as join95 } from "node:path";
+import { join as join96 } from "node:path";
 
 // packages/server/src/instructionTrustedFs.ts
 import { randomUUID as randomUUID15 } from "node:crypto";
@@ -48207,12 +48601,12 @@ function writeTrustedFile(root, dirs, name, content, baseDigest, maxBytes) {
     }
   });
 }
-function unlinkTrustedFile(root, dirs, name, digest15, maxBytes) {
+function unlinkTrustedFile(root, dirs, name, digest17, maxBytes) {
   return withTrustedDirectoryChain(root, dirs, false, () => ({ ok: false, code: "missing" }), (directory) => {
     const current = readChild(root, directory, name, maxBytes);
     if (current.error) return { ok: false, code: current.error };
     if (current.bytes === null || current.identity === void 0) return { ok: false, code: "missing" };
-    if (current.digest !== digest15) return { ok: false, code: "changed", digest: current.digest };
+    if (current.digest !== digest17) return { ok: false, code: "changed", digest: current.digest };
     const target = childEntry(directory, name);
     assertTrusted(directory, root);
     assertEntryMatches(target, current.identity, "\u76EE\u6807\u6587\u4EF6");
@@ -48236,7 +48630,7 @@ function trustedFsFailure(error2) {
 // packages/server/src/instructionLibrary.ts
 var anchors = /* @__PURE__ */ new Map();
 function templateLibraryAnchor(configRoot) {
-  const root = join95(configRoot, "templates", "instructions");
+  const root = join96(configRoot, "templates", "instructions");
   const cached = anchors.get(root);
   if (cached) {
     try {
@@ -48341,8 +48735,8 @@ function copyTemplate(anchor, from, id2) {
   if (written.code === "changed") return fail8(409, "template-exists", "\u540C\u540D\u81EA\u5B9A\u4E49\u6A21\u677F\u5DF2\u5B58\u5728");
   return fail8(409, written.code, "\u6A21\u677F\u6587\u4EF6\u4E0D\u53EF\u5199");
 }
-function deleteCustomTemplate(anchor, category, id2, digest15) {
-  const removed = unlinkTrustedFile(anchor, ["custom", category], `${id2}.md`, digest15, INSTRUCTION_BLOCK_MAX_BYTES);
+function deleteCustomTemplate(anchor, category, id2, digest17) {
+  const removed = unlinkTrustedFile(anchor, ["custom", category], `${id2}.md`, digest17, INSTRUCTION_BLOCK_MAX_BYTES);
   if (removed.ok) return { status: 200, body: { ok: true } };
   if (removed.code === "missing") return fail8(404, "template-not-found", "\u6A21\u677F\u4E0D\u5B58\u5728");
   if (removed.code === "changed") return fail8(409, "template-changed", "\u6A21\u677F\u5DF2\u88AB\u4FEE\u6539", { digest: removed.digest });
@@ -48411,7 +48805,7 @@ function composeFromRequest(anchor, body2, catalog2) {
 
 // packages/server/src/instructionFiles.ts
 import { mkdirSync as mkdirSync7 } from "node:fs";
-import { join as join96 } from "node:path";
+import { join as join97 } from "node:path";
 var INSTRUCTION_TEXT_MAX_BYTES = 256 * 1024;
 var fail9 = (status2, code, error2, extra = {}) => ({ status: status2, body: { ok: false, code, error: error2, ...extra } });
 function targetIdsFor(scope) {
@@ -48426,12 +48820,12 @@ function captureRoot(path14, create) {
 }
 function locate(scope, id2, create) {
   if (!targetIdsFor(scope).includes(id2)) return null;
-  if (scope.level === "project") return { root: scope.anchor, owned: false, dirs: [], name: id2, path: join96(scope.anchor.path, id2) };
+  if (scope.level === "project") return { root: scope.anchor, owned: false, dirs: [], name: id2, path: join97(scope.anchor.path, id2) };
   const segments2 = userInstructionPath(id2, scope);
   const [rootPath, ...rest] = segments2 ?? [];
   const name = rest.at(-1);
   if (rootPath === void 0 || name === void 0) return null;
-  return { root: captureRoot(rootPath, create), owned: true, dirs: rest.slice(0, -1), name, path: join96(rootPath, ...rest) };
+  return { root: captureRoot(rootPath, create), owned: true, dirs: rest.slice(0, -1), name, path: join97(rootPath, ...rest) };
 }
 function release2(location) {
   if (location.owned && location.root) closeWorkflowRootAnchor(location.root);
@@ -48482,7 +48876,7 @@ function readInstructionTargets(scope) {
     if (scope.level === "user") return { id: host.id, levels: host.levels, target: hasUserInstructionFile(host.id) ? host.id : null };
     const row = { id: host.id, levels: host.levels, target: host.projectFile };
     if (host.id !== "zed") return row;
-    return { ...row, effective_file: zedEffectiveFile((file) => lstatIfExists(join96(scope.anchor.path, file)) !== void 0) };
+    return { ...row, effective_file: zedEffectiveFile((file) => lstatIfExists(join97(scope.anchor.path, file)) !== void 0) };
   });
   return {
     status: 200,
@@ -48576,20 +48970,20 @@ function applyInstructions(scope, rawText, targets) {
   }
   return { status: 200, body: { ok: true, files: written } };
 }
-function deleteInstructionTarget(scope, targetId, digest15) {
+function deleteInstructionTarget(scope, targetId, digest17) {
   try {
     const result2 = withLocation(scope, targetId, false, (location) => {
       const current = readCurrent2(location);
       if ("error" in current) return currentFailure(targetId, current.error);
       if (current.bytes === null || !location.root) return fail9(404, "instruction-file-missing", "\u6587\u4EF6\u4E0D\u5B58\u5728", { id: targetId });
-      if (current.digest !== digest15) return fail9(409, "instruction-file-changed", "\u6587\u4EF6\u5DF2\u88AB\u5916\u90E8\u4FEE\u6539", { id: targetId, digest: current.digest });
+      if (current.digest !== digest17) return fail9(409, "instruction-file-changed", "\u6587\u4EF6\u5DF2\u88AB\u5916\u90E8\u4FEE\u6539", { id: targetId, digest: current.digest });
       const remaining = contentAfterDelete(current.blocks);
       if (remaining === null) {
-        const removed = unlinkTrustedFile(location.root, location.dirs, location.name, digest15, INSTRUCTION_TEXT_MAX_BYTES);
+        const removed = unlinkTrustedFile(location.root, location.dirs, location.name, digest17, INSTRUCTION_TEXT_MAX_BYTES);
         if (removed.ok) return { status: 200, body: { ok: true, result: "removed" } };
         return removed.code === "changed" ? fail9(409, "instruction-file-changed", "\u6587\u4EF6\u5DF2\u88AB\u5916\u90E8\u4FEE\u6539", { id: targetId, digest: removed.digest }) : fail9(409, removed.code, "\u6307\u4EE4\u6587\u4EF6\u4E0D\u53EF\u5220\u9664", { id: targetId });
       }
-      const kept = writeTrustedFile(location.root, location.dirs, location.name, remaining, digest15, INSTRUCTION_TEXT_MAX_BYTES);
+      const kept = writeTrustedFile(location.root, location.dirs, location.name, remaining, digest17, INSTRUCTION_TEXT_MAX_BYTES);
       if (kept.ok) return { status: 200, body: { ok: true, result: "managed-kept", digest: kept.digest } };
       return kept.code === "changed" ? fail9(409, "instruction-file-changed", "\u6587\u4EF6\u5DF2\u88AB\u5916\u90E8\u4FEE\u6539", { id: targetId, digest: kept.digest }) : fail9(409, kept.code, "\u6307\u4EE4\u6587\u4EF6\u4E0D\u53EF\u5199", { id: targetId });
     });
@@ -48600,14 +48994,14 @@ function deleteInstructionTarget(scope, targetId, digest15) {
 }
 
 // packages/server/src/projectClients.ts
-import { join as join97 } from "node:path";
+import { join as join98 } from "node:path";
 var failed = (status2, code, error2) => ({ ok: false, status: status2, code, error: error2 });
 function readProjectClients(anchor) {
   const read2 = readTrustedFile2(anchor, PROJECT_CLIENTS_DIRS, PROJECT_CLIENTS_FILE, PROJECT_CLIENTS_MAX_BYTES);
   if (read2.error) return failed(409, read2.error, "clients.json \u4E0D\u53EF\u8BFB");
   if (read2.bytes === null) {
     const enabled2 = inferProjectClients((file) => {
-      const entry2 = lstatIfExists(join97(anchor.path, file));
+      const entry2 = lstatIfExists(join98(anchor.path, file));
       return entry2 !== void 0 && entry2.isFile();
     });
     return { ok: true, enabled: enabled2, source: "inferred", digest: read2.digest };
@@ -48636,7 +49030,7 @@ function writeProjectClients(anchor, enabled) {
 
 // packages/server/src/designSeed.ts
 import { writeFileSync as writeFileSync8 } from "node:fs";
-import { join as join98 } from "node:path";
+import { join as join99 } from "node:path";
 var DESIGN_SEED_MAX_BYTES = 512 * 1024;
 var FETCH_TIMEOUT_MS = 1e4;
 var httpsDesignSeedFetch = async (url) => {
@@ -48673,7 +49067,7 @@ async function fetchDesignSeed(entry2, get) {
 }
 function writeDesignSeed(root, text10) {
   try {
-    writeFileSync8(join98(root, "DESIGN.md"), text10, { encoding: "utf8", flag: "wx" });
+    writeFileSync8(join99(root, "DESIGN.md"), text10, { encoding: "utf8", flag: "wx" });
   } catch (error2) {
     const code = error2.code;
     if (code === "EEXIST") return { ok: false, code: "exists", error: "DESIGN.md \u5DF2\u5B58\u5728" };
@@ -48696,11 +49090,11 @@ async function seedDesign(root, id2, roots, get) {
 
 // packages/server/src/projectCreate.ts
 import { execFile as execFile9 } from "node:child_process";
-import { isAbsolute as isAbsolute17, join as join100, resolve as resolvePath6 } from "node:path";
+import { isAbsolute as isAbsolute17, join as join101, resolve as resolvePath6 } from "node:path";
 
 // packages/server/src/projectCreateRun.ts
 import { lstatSync as lstatSync14, mkdirSync as mkdirSync8, rmSync } from "node:fs";
-import { join as join99 } from "node:path";
+import { join as join100 } from "node:path";
 
 // packages/server/src/projectInstructionText.ts
 var REFERENCE_FILES = ["CLAUDE.md", "GEMINI.md"];
@@ -48852,7 +49246,7 @@ function createStepIds(plan) {
   if (plan.mode === "existing") return [...needsGitInit(plan) ? ["git"] : [], ...files, "register"];
   return ["directory", "git", ...plan.directories.length > 0 ? ["skeleton"] : [], ...files, "register"];
 }
-var needsDesignSeed = (plan) => (plan.designSeed ?? null) !== null && lstatIfExists(join99(plan.root, "DESIGN.md")) === void 0;
+var needsDesignSeed = (plan) => (plan.designSeed ?? null) !== null && lstatIfExists(join100(plan.root, "DESIGN.md")) === void 0;
 async function seedDesignStep(plan, deps, report) {
   const id2 = plan.designSeed ?? null;
   if (id2 === null || !needsDesignSeed(plan)) return;
@@ -48894,14 +49288,14 @@ function writeFile23(anchor, request, id2, baseDigest) {
   const files = Reflect.get(Object(applied.body), "files");
   return Array.isArray(files) ? files[0] : void 0;
 }
-var needsGitInit = (plan) => plan.mode === "existing" && plan.gitInit === true && lstatIfExists(join99(plan.root, ".git")) === void 0;
+var needsGitInit = (plan) => plan.mode === "existing" && plan.gitInit === true && lstatIfExists(join100(plan.root, ".git")) === void 0;
 async function gitInit(plan, deps, report) {
   await runStep("git", report, async () => {
-    const git2 = await deps.runGit(["init"], plan.root);
-    if (git2.code !== 0) {
+    const git = await deps.runGit(["init"], plan.root);
+    if (git.code !== 0) {
       throw new StepFailure(
         "git",
-        `git init: ${git2.stderr.trim() || `exit ${git2.code}`}`,
+        `git init: ${git.stderr.trim() || `exit ${git.code}`}`,
         void 0,
         fail10(500, "project-create-failed", "\u65B0\u5EFA\u9879\u76EE\u5931\u8D25", { step: "git-init" })
       );
@@ -48972,14 +49366,14 @@ async function executeExisting(plan, deps, report) {
       }
     }
     await seedDesignStep(plan, deps, report);
-    const git2 = initialized ? "init" : lstatIfExists(join99(plan.root, ".git")) ? "existing" : "none";
+    const git = initialized ? "init" : lstatIfExists(join100(plan.root, ".git")) ? "existing" : "none";
     const registration = await runStep("register", report, async () => {
       if (readProjectRegistry(deps.paths.registryPath).includes(plan.root)) return "already";
       const added = await registerProjectAnchored(deps.paths, deps.workflowRootAnchors, plan.root);
       if (!added.ok) throw new StepFailure("register", added.error, "registration-failed", fail10(added.code, "registration-failed", added.error));
       return "add";
     });
-    return { status: 200, body: { ok: true, root: plan.root, git: git2, registration, directories: [], files } };
+    return { status: 200, body: { ok: true, root: plan.root, git, registration, directories: [], files } };
   } catch (error2) {
     if (error2 instanceof StepFailure && error2.result !== null) return error2.result;
     throw error2 instanceof StepFailure && error2.original !== null ? error2.original : error2;
@@ -48990,10 +49384,10 @@ async function executeExisting(plan, deps, report) {
 var NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
 var DIRECTORY2 = /^[a-z0-9._-]+\/$/;
 var fail11 = (status2, code, error2, extra = {}) => ({ status: status2, body: { ok: false, code, error: error2, ...extra } });
-var runGitCommand = (args, cwd) => new Promise((resolve20) => {
+var runGitCommand = (args, cwd) => new Promise((resolve21) => {
   execFile9("git", [...args], { cwd, timeout: 1e4 }, (error2, _stdout, stderr) => {
     const exit = error2 === null ? 0 : typeof error2.code === "number" ? error2.code : 1;
-    resolve20({ code: exit, stderr: String(stderr ?? "") });
+    resolve21({ code: exit, stderr: String(stderr ?? "") });
   });
 });
 function record9(value) {
@@ -49049,7 +49443,7 @@ function decodeProjectCreate(body2) {
   if (request.mode === "empty") {
     if (!absolutePath(request.parent) || typeof request.name !== "string" || !NAME.test(request.name)) return fail11(400, "invalid-path", "\u7236\u76EE\u5F55\u5FC5\u987B\u662F\u7EDD\u5BF9\u8DEF\u5F84\uFF0C\u540D\u79F0\u53EA\u80FD\u542B\u5B57\u6BCD\u3001\u6570\u5B57\u3001. _ -");
     const parent = resolvePath6(request.parent);
-    return { mode: "empty", parent, root: join100(parent, request.name), directories: directories2.map(String), instructions, clients, designSeed, dryRun };
+    return { mode: "empty", parent, root: join101(parent, request.name), directories: directories2.map(String), instructions, clients, designSeed, dryRun };
   }
   if (request.mode === "existing") {
     if (!absolutePath(request.path)) return fail11(400, "invalid-path", "\u8DEF\u5F84\u5FC5\u987B\u662F\u7EDD\u5BF9\u8DEF\u5F84");
@@ -49081,7 +49475,7 @@ async function planDesign(plan, deps) {
   const entry2 = await designSeedEntry(id2, deps.designSeed);
   if (entry2 === null) return fail11(404, "resource-not-found", `\u672A\u77E5\u8D44\u6E90\uFF1A${id2}`);
   if (entry2.category !== "design-md") return fail11(400, "not-design-md", `${id2} \u4E0D\u662F DESIGN.md \u8D44\u6E90`);
-  return { resource: id2, exists: plan.mode === "existing" && lstatIfExists(join100(plan.root, "DESIGN.md")) !== void 0 };
+  return { resource: id2, exists: plan.mode === "existing" && lstatIfExists(join101(plan.root, "DESIGN.md")) !== void 0 };
 }
 async function planLocation(plan, deps) {
   if (plan.mode === "empty") {
@@ -49099,7 +49493,7 @@ async function planLocation(plan, deps) {
         directories: plan.directories.map((path14) => ({ path: path14, exists: false })),
         files: (plan.instructions?.targets ?? []).map((id2) => ({
           id: id2,
-          path: join100(plan.root, id2),
+          path: join101(plan.root, id2),
           base_digest: "absent",
           current: null,
           next: plan.instructions ? mergeManagedBlocks(effectiveText(plan.instructions, id2, null), []) : ""
@@ -49109,7 +49503,7 @@ async function planLocation(plan, deps) {
   }
   const problem = directoryProblem(plan.root, fail11(404, "path-missing", "\u8DEF\u5F84\u4E0D\u5B58\u5728"));
   if (problem) return problem;
-  const hasGit = lstatIfExists(join100(plan.root, ".git")) !== void 0;
+  const hasGit = lstatIfExists(join101(plan.root, ".git")) !== void 0;
   if (!hasGit && plan.gitInit === true && (await deps.runGit(["--version"], plan.root)).code !== 0) return fail11(422, "git-unavailable", "\u65E0\u6CD5\u8FD0\u884C git");
   let files = [];
   if (plan.instructions) {
@@ -49188,7 +49582,7 @@ function digestOf2(result2) {
   const body2 = result2.body;
   return typeof body2?.digest === "string" ? body2.digest : "absent";
 }
-var instructionTarget = (root, id2) => root === "" ? `user/${id2}` : join101(root, id2);
+var instructionTarget = (root, id2) => root === "" ? `user/${id2}` : join102(root, id2);
 function objectBody(value, keys2) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   const record11 = Object.fromEntries(Object.entries(value));
@@ -49225,12 +49619,12 @@ function deleteInstructions(req, deps) {
   const scope = scopeFor(root, deps);
   if (!isScope(scope)) return scope;
   const target = query.get("target") ?? "";
-  const digest15 = query.get("digest") ?? "";
-  if (target === "" || digest15 === "") return failure2(400, "invalid-target", "\u7F3A\u5C11 target \u6216 digest");
+  const digest17 = query.get("digest") ?? "";
+  if (target === "" || digest17 === "") return failure2(400, "invalid-target", "\u7F3A\u5C11 target \u6216 digest");
   const actor3 = actorFor(deps, root);
   if (!isActor(actor3)) return actor3;
-  const removed = deleteInstructionTarget(scope, target, digest15);
-  if (removed.status === 200) audit(deps, actor3, "instruction-delete", instructionTarget(root, target), digest15, digestOf2(removed));
+  const removed = deleteInstructionTarget(scope, target, digest17);
+  if (removed.status === 200) audit(deps, actor3, "instruction-delete", instructionTarget(root, target), digest17, digestOf2(removed));
   return removed;
 }
 var failure2 = (status2, code, error2) => ({ status: status2, body: { ok: false, code, error: error2 } });
@@ -49279,7 +49673,7 @@ async function postProjectClients(req, deps) {
     if (!written.ok) {
       return { status: written.status, body: { ok: false, code: written.code, error: written.error, ...written.unknown ? { unknown: written.unknown } : {} } };
     }
-    audit(deps, actor3, "project-clients", join101(root, ".tenon", "clients.json"), written.digest_before, written.digest);
+    audit(deps, actor3, "project-clients", join102(root, ".tenon", "clients.json"), written.digest_before, written.digest);
     return { status: 200, body: { enabled: written.enabled, source: "file" } };
   });
 }
@@ -49363,12 +49757,12 @@ function deleteTemplate(req, path14, deps) {
   const ref = rest.length === 0 ? parseTemplateRef(source2, category, id2) : null;
   if (!ref) return failure2(400, "invalid-template-ref", "\u6A21\u677F\u8DEF\u5F84\u4E0D\u5408\u6CD5");
   if (ref.source === "builtin") return failure2(409, "template-builtin-readonly", "\u5185\u5EFA\u6A21\u677F\u53EA\u8BFB");
-  const digest15 = new URL(req.url ?? "/", "http://localhost").searchParams.get("digest") ?? "";
-  if (digest15 === "") return failure2(428, "if-match-required", "\u7F3A\u5C11 digest");
+  const digest17 = new URL(req.url ?? "/", "http://localhost").searchParams.get("digest") ?? "";
+  if (digest17 === "") return failure2(428, "if-match-required", "\u7F3A\u5C11 digest");
   const actor3 = actorFor(deps, "");
   if (!isActor(actor3)) return actor3;
-  const removed = guarded(() => deleteCustomTemplate(templateLibraryAnchor(deps.paths.configRoot), ref.category, ref.id, digest15));
-  if (removed.status === 200) audit(deps, actor3, "template-delete", `custom/${ref.category}/${ref.id}`, digest15, "absent");
+  const removed = guarded(() => deleteCustomTemplate(templateLibraryAnchor(deps.paths.configRoot), ref.category, ref.id, digest17));
+  if (removed.status === 200) audit(deps, actor3, "template-delete", `custom/${ref.category}/${ref.id}`, digest17, "absent");
   return removed;
 }
 function resolveInstructionMutation(req, method, path14, deps) {
@@ -49407,7 +49801,7 @@ import { isAbsolute as isAbsolute19 } from "node:path";
 
 // packages/server/src/folderList.ts
 import { lstatSync as lstatSync15, readdirSync as readdirSync13 } from "node:fs";
-import { dirname as dirname24, isAbsolute as isAbsolute18, join as join102, resolve as resolvePath7 } from "node:path";
+import { dirname as dirname24, isAbsolute as isAbsolute18, join as join103, resolve as resolvePath7 } from "node:path";
 var FOLDER_LIST_MAX = 2e3;
 var fail12 = (status2, code, error2) => ({ status: status2, body: { ok: false, code, error: error2 } });
 function listFolders(rawDir, showHidden, home) {
@@ -49429,7 +49823,7 @@ function listFolders(rawDir, showHidden, home) {
     const code = error2 instanceof Error ? Reflect.get(error2, "code") : void 0;
     return code === "EACCES" || code === "EPERM" ? fail12(403, "permission-denied", "\u6CA1\u6709\u8BFB\u53D6\u6743\u9650") : fail12(404, "path-missing", "\u8DEF\u5F84\u4E0D\u5B58\u5728");
   }
-  const entries2 = names.filter((item2) => item2.isDirectory() && (showHidden || !item2.name.startsWith("."))).map((item2) => ({ name: item2.name, path: join102(dir, item2.name) })).sort((a, b) => a.name.localeCompare(b.name));
+  const entries2 = names.filter((item2) => item2.isDirectory() && (showHidden || !item2.name.startsWith("."))).map((item2) => ({ name: item2.name, path: join103(dir, item2.name) })).sort((a, b) => a.name.localeCompare(b.name));
   const parent = dirname24(dir);
   return {
     status: 200,
@@ -49488,7 +49882,7 @@ function resolveFsPost(req, path14, deps) {
 
 // packages/server/src/agentRecentRuns.ts
 import { readdir as readdir21 } from "node:fs/promises";
-import { join as join103 } from "node:path";
+import { join as join104 } from "node:path";
 var MAX_CHANGES = 400;
 var RECENT_RUNS_LIMIT = 5;
 async function directories(dir) {
@@ -49499,9 +49893,9 @@ async function directories(dir) {
   }
 }
 async function agentRecentRuns(root, agent, limit = RECENT_RUNS_LIMIT) {
-  const changesRoot = join103(root, "openspec", "changes");
-  const active = (await directories(changesRoot)).filter((name) => name !== "archive").map((name) => ({ name, dir: join103(changesRoot, name) }));
-  const archived = (await directories(join103(changesRoot, "archive"))).map((name) => ({ name, dir: join103(changesRoot, "archive", name) }));
+  const changesRoot = join104(root, "openspec", "changes");
+  const active = (await directories(changesRoot)).filter((name) => name !== "archive").map((name) => ({ name, dir: join104(changesRoot, name) }));
+  const archived = (await directories(join104(changesRoot, "archive"))).map((name) => ({ name, dir: join104(changesRoot, "archive", name) }));
   const found = [];
   for (const change of [...active, ...archived].slice(0, MAX_CHANGES)) {
     let rows;
@@ -49827,7 +50221,7 @@ function resolveResourceMutation(req, method, path14, deps) {
 }
 
 // packages/server/src/definitionCatalog.ts
-import { createHash as createHash33 } from "node:crypto";
+import { createHash as createHash34 } from "node:crypto";
 function capabilityProjection(hostId) {
   const row = ADAPTER_CAPABILITY_BY_HOST.get(hostId);
   if (row === void 0) {
@@ -49843,8 +50237,8 @@ function stableJson(value) {
   }
   return JSON.stringify(value);
 }
-function digest14(value) {
-  return createHash33("sha256").update(stableJson(value), "utf8").digest("hex").slice(0, 32);
+function digest15(value) {
+  return createHash34("sha256").update(stableJson(value), "utf8").digest("hex").slice(0, 32);
 }
 function workflowEntry(workflow, source2) {
   const steps = workflow.steps.map((step, order4) => ({
@@ -49859,7 +50253,7 @@ function workflowEntry(workflow, source2) {
   return {
     id: workflow.name,
     version: "v1",
-    fingerprint: digest14(workflow),
+    fingerprint: digest15(workflow),
     source: source2,
     readonly: source2 === "builtin",
     steps
@@ -49888,7 +50282,7 @@ function pipelineEntry(workflow, track) {
     // pipeline identity so a selected pipeline can be replayed verbatim.
     id: `${workflow.id}:${track.id}:main`,
     version: "v1",
-    fingerprint: digest14(source2),
+    fingerprint: digest15(source2),
     source: workflow.source === "builtin" && track.source === "builtin" ? "builtin" : "project",
     workflow_id: workflow.id,
     track_id: track.id,
@@ -49953,14 +50347,14 @@ async function buildDefinitionCatalog(deps) {
   const base = {
     schema_version: "definition-catalog/v1",
     generated_at: deps.generatedAt,
-    project: { root: deps.anchor.path, identity: digest14(deps.anchor.path) },
+    project: { root: deps.anchor.path, identity: digest15(deps.anchor.path) },
     adapters: adapterEntries(hostCatalog, deps.hostHome),
     workflows,
     tracks,
     pipelines
   };
   const { generated_at: _generatedAt, ...semanticBase } = base;
-  const fingerprint = digest14(semanticBase);
+  const fingerprint = digest15(semanticBase);
   const catalog2 = { ...base, revision: fingerprint.slice(0, 16), fingerprint };
   if (!validateDefinitionCatalogV1(catalog2)) throw new Error("definition catalog \u5185\u90E8\u6821\u9A8C\u5931\u8D25");
   return catalog2;
@@ -50297,7 +50691,7 @@ import {
   openSync as openSync15,
   realpathSync as realpathSync9
 } from "node:fs";
-import { isAbsolute as isAbsolute20, join as join104, posix as posix4, relative as relative15, sep as sep19 } from "node:path";
+import { isAbsolute as isAbsolute20, join as join105, posix as posix4, relative as relative15, sep as sep19 } from "node:path";
 
 // packages/server/src/workflowDefinitionStatus.ts
 function projectWorkflowDefinitionStatus(workflow, frozenFingerprint, current) {
@@ -50355,7 +50749,7 @@ async function readAnchoredTasksProjection(changeAnchor, readSource = readBounde
     }
   };
   assertTrustContext();
-  const lexicalTarget = join104(changeAnchor.changeDir, "tasks.md");
+  const lexicalTarget = join105(changeAnchor.changeDir, "tasks.md");
   const changeIdentity = changeAnchor.chain.at(-1);
   if (changeIdentity === void 0) {
     throw new ContextBundlePathError(403, "Change tasks directory identity is missing");
@@ -50377,7 +50771,7 @@ async function readAnchoredTasksProjection(changeAnchor, readSource = readBounde
     throw new ContextBundlePathError(403, "Change tasks directory identity changed while anchoring");
   }
   assertTrustContext();
-  const target = join104(anchoredChangeDir, "tasks.md");
+  const target = join105(anchoredChangeDir, "tasks.md");
   let fd;
   try {
     fd = openSync15(
@@ -50941,8 +51335,8 @@ async function resolveOrchestrationRoutes(rawUrl, path14, deps) {
 }
 
 // packages/server/src/workflowOrchestration.ts
-import { readFile as readFile51 } from "node:fs/promises";
-import { join as join105 } from "node:path";
+import { readFile as readFile52 } from "node:fs/promises";
+import { join as join106 } from "node:path";
 function definitionOrchestration(input2) {
   const plan = compileEffectiveWorkflowPlan(input2.name, input2.definition, input2.track);
   return {
@@ -50995,7 +51389,7 @@ function withRunStatus(orchestration, facts) {
 }
 async function historyRaw2(changeDir2) {
   try {
-    return await readFile51(join105(changeDir2, HISTORY_FILE), "utf8");
+    return await readFile52(join106(changeDir2, HISTORY_FILE), "utf8");
   } catch (error2) {
     if (typeof error2 === "object" && error2 !== null && Reflect.get(error2, "code") === "ENOENT") return "";
     throw error2;
@@ -51210,7 +51604,7 @@ async function resolveWorkflowOrchestrationRoute(rawUrl, path14, deps) {
 }
 
 // packages/server/src/serverOrchestrationV2Routes.ts
-import { join as join106 } from "node:path";
+import { join as join107 } from "node:path";
 var CHANGE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
 var PROJECT_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u;
 var CURSOR = /^(?:0|[1-9][0-9]{0,9})$/u;
@@ -51224,7 +51618,7 @@ function validChangeId(value) {
   return value !== "." && value !== ".." && CHANGE_ID.test(value) && !value.includes("/") && !value.includes("\\");
 }
 function changeDir(anchor, changeId) {
-  return join106(anchor.path, "openspec", "changes", changeId);
+  return join107(anchor.path, "openspec", "changes", changeId);
 }
 function rootCheck(deps, root) {
   if (root === "") return failure8(400, "ORCHESTRATION_V2_ROOT_REQUIRED", "\u7F3A\u5C11 root \u53C2\u6570");
@@ -51910,7 +52304,7 @@ async function resolveSkillInvocationRoute(rawUrl, path14, deps) {
 }
 
 // packages/server/src/serverGetDecisionRoutes.ts
-import { join as join107 } from "node:path";
+import { join as join108 } from "node:path";
 
 // packages/server/src/decisionProjection.ts
 async function readReviewBindingSafely(dir) {
@@ -51959,7 +52353,7 @@ async function handleGetDecisionRoute(req, res, path14, deps) {
   const root = query.get("root") ?? "";
   const checked = deps.workflowRootForRequest(root);
   if (!checked.ok) return deps.sendJson(res, checked.code, { ok: false, error: checked.error }), true;
-  const dir = join107(checked.anchor.path, "openspec", "changes", name);
+  const dir = join108(checked.anchor.path, "openspec", "changes", name);
   if (!stateStorageExistsSync(dir)) return deps.sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" }), true;
   try {
     const view = await readPendingDecisionProjection({
@@ -51976,7 +52370,7 @@ async function handleGetDecisionRoute(req, res, path14, deps) {
 }
 
 // packages/server/src/serverTaskLifecycleRoutes.ts
-import { join as join108 } from "node:path";
+import { join as join109 } from "node:path";
 var DELETE_FAILED = "\u5220\u9664\u5931\u8D25";
 var TASK_ARCHIVED_HTTP_ERROR = "\u4EFB\u52A1\u5DF2\u5F52\u6863\uFF0C\u5148\u53D6\u6D88\u5F52\u6863";
 var REASON_CODES = [
@@ -52153,7 +52547,7 @@ async function handleTaskLifecycleDelete(req, res, path14, deps) {
     sendJson(res, 500, { ok: false, code: "delete-failed", error: DELETE_FAILED });
     return true;
   }
-  taskLifecycle.evictChange(join108(repoRoot, "openspec", "changes", change));
+  taskLifecycle.evictChange(join109(repoRoot, "openspec", "changes", change));
   sendJson(res, 200, {
     ok: true,
     removed: outcome.removed,
@@ -52164,7 +52558,7 @@ async function handleTaskLifecycleDelete(req, res, path14, deps) {
 
 // packages/server/src/serverGetRoutes.ts
 function repoRootForSkills2() {
-  return join109(dirname25(fileURLToPath3(import.meta.url)), "..", "..", "..");
+  return join110(dirname25(fileURLToPath3(import.meta.url)), "..", "..", "..");
 }
 function isWorkflowName2(name) {
   return name !== "" && /^[\p{L}\p{N}\p{M}_-]+$/u.test(name);
@@ -52287,7 +52681,7 @@ async function handleGet(req, res, path14, deps) {
       assertWorkflowRootAnchor(rootCheck2.anchor);
       let pipelineExists = true;
       try {
-        lstatSync18(join109(rootCheck2.anchor.path, ".pipeline"));
+        lstatSync18(join110(rootCheck2.anchor.path, ".pipeline"));
       } catch (error2) {
         if (error2.code === "ENOENT") pipelineExists = false;
         else throw error2;
@@ -52310,7 +52704,7 @@ async function handleGet(req, res, path14, deps) {
       assertWorkflowRootAnchor(rootCheck2.anchor);
       let pipelineExists = true;
       try {
-        lstatSync18(join109(rootCheck2.anchor.path, ".pipeline"));
+        lstatSync18(join110(rootCheck2.anchor.path, ".pipeline"));
       } catch (e) {
         if (e.code === "ENOENT") pipelineExists = false;
         else throw e;
@@ -52476,7 +52870,7 @@ async function handleGet(req, res, path14, deps) {
       image,
       secretsPath: paths.secretsPath,
       exec: options3.execDocker,
-      defaultCodexHome: join109(hostHome, ".codex")
+      defaultCodexHome: join110(hostHome, ".codex")
     });
     return sendJson(res, 200, r);
   }
@@ -52777,8 +53171,8 @@ async function handlePutRoute(req, res, path14, deps) {
 
 // packages/server/src/changeLaunch.ts
 import { randomUUID as randomUUID17 } from "node:crypto";
-import { lstat as lstat41, rename as rename16, unlink as unlink6, writeFile as writeFile24 } from "node:fs/promises";
-import { join as join110 } from "node:path";
+import { lstat as lstat43, rename as rename16, unlink as unlink6, writeFile as writeFile24 } from "node:fs/promises";
+import { join as join111 } from "node:path";
 var CHANGE_TASK_FILE = "REAL_AGENT_TASK.md";
 var MAX_TASK_PROMPT_CHARS = 24e3;
 function errorCode8(error2) {
@@ -52805,20 +53199,20 @@ function parseChangeSessionActivation(value, hasTaskPrompt) {
   return { ok: true, value };
 }
 async function writeChangeTaskPrompt(changeDir2, prompt) {
-  const dirStat = await lstat41(changeDir2);
+  const dirStat = await lstat43(changeDir2);
   if (!dirStat.isDirectory() || dirStat.isSymbolicLink()) {
     throw new Error("Change \u76EE\u5F55\u4E0D\u662F\u53EF\u4FE1\u666E\u901A\u76EE\u5F55\uFF0C\u62D2\u7EDD\u4FDD\u5B58\u4EFB\u52A1\u63D0\u793A\u8BCD");
   }
-  const target = join110(changeDir2, CHANGE_TASK_FILE);
+  const target = join111(changeDir2, CHANGE_TASK_FILE);
   let targetExists = false;
   try {
-    await lstat41(target);
+    await lstat43(target);
     targetExists = true;
   } catch (error2) {
     if (errorCode8(error2) !== "ENOENT") throw error2;
   }
   if (targetExists) throw new Error("\u4EFB\u52A1\u63D0\u793A\u8BCD\u5DF2\u5B58\u5728\uFF0C\u62D2\u7EDD\u8986\u76D6");
-  const temporary = join110(changeDir2, `.${CHANGE_TASK_FILE}.${randomUUID17()}.tmp`);
+  const temporary = join111(changeDir2, `.${CHANGE_TASK_FILE}.${randomUUID17()}.tmp`);
   try {
     await writeFile24(temporary, `${prompt}
 `, { encoding: "utf8", flag: "wx", mode: 384 });
@@ -53085,10 +53479,10 @@ async function handlePostChangesRoutes(req, res, path14, deps) {
 
 // packages/server/src/serverPostExecutionRoutes.ts
 import { randomUUID as randomUUID18 } from "node:crypto";
-import { join as join112 } from "node:path";
+import { join as join113 } from "node:path";
 
 // packages/server/src/serverPostDecisionRoutes.ts
-import { join as join111 } from "node:path";
+import { join as join112 } from "node:path";
 var DECISION_COMMAND_FAILED = "\u51B3\u7B56\u547D\u4EE4\u5904\u7406\u5931\u8D25";
 function scalar14(state, field5) {
   const value = state.fields[field5];
@@ -53134,7 +53528,7 @@ async function handlePostDecisionRoutes(req, res, path14, deps) {
     sendJson(res, 400, { ok: false, error: "\u975E\u6CD5 change \u540D" });
     return true;
   }
-  const dir = join111(root, "openspec", "changes", name);
+  const dir = join112(root, "openspec", "changes", name);
   if (!stateStorageExistsSync(dir)) {
     sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     return true;
@@ -53383,7 +53777,7 @@ async function handlePostExecutionRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join112(root2, "openspec", "changes", name2);
+    const dir = join113(root2, "openspec", "changes", name2);
     const result2 = await cancelAfkRun(store, dir);
     return sendJson(res, result2.ok ? 200 : 400, result2);
   }
@@ -53403,7 +53797,7 @@ async function handlePostExecutionRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join112(root2, "openspec", "changes", name2);
+    const dir = join113(root2, "openspec", "changes", name2);
     const result2 = await retryAfkRun(store, dir);
     return sendJson(res, result2.ok ? 200 : 400, result2);
   }
@@ -53423,7 +53817,7 @@ async function handlePostExecutionRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join112(root2, "openspec", "changes", name2);
+    const dir = join113(root2, "openspec", "changes", name2);
     const result2 = await dismissAfkRun(store, dir);
     return sendJson(res, result2.ok ? 200 : 400, result2);
   }
@@ -53443,7 +53837,7 @@ async function handlePostExecutionRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join112(root2, "openspec", "changes", name2);
+    const dir = join113(root2, "openspec", "changes", name2);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
@@ -53783,7 +54177,7 @@ async function handlePostGovernanceRoutes(req, res, path14, deps) {
 
 // packages/server/src/serverPostOperationsRoutes.ts
 import { lstatSync as lstatSync19 } from "node:fs";
-import { join as join113 } from "node:path";
+import { join as join114 } from "node:path";
 
 // packages/server/src/loopScopePreview.ts
 import {
@@ -53815,7 +54209,7 @@ function registryReadError(error2) {
   const detail = error2 instanceof Error ? error2.message : String(error2);
   return new RegistryReadError(`loops.yaml \u8BFB\u5931\u8D25\uFF08${code}\uFF09\uFF1A${detail}`);
 }
-function readTrustedLoopRegistry(anchor, readFile53 = (fd) => readFileSync27(fd, "utf8")) {
+function readTrustedLoopRegistry(anchor, readFile54 = (fd) => readFileSync27(fd, "utf8")) {
   return readWithLoopScopeRootTrust(
     () => assertWorkflowRootAnchor(anchor),
     () => {
@@ -53863,7 +54257,7 @@ function readTrustedLoopRegistry(anchor, readFile53 = (fd) => readFileSync27(fd,
               assertDirectoryStillTrusted(pipeline, anchor);
               let text10;
               try {
-                text10 = readFile53(fd);
+                text10 = readFile54(fd);
               } catch (error2) {
                 throw registryReadError(error2);
               }
@@ -54072,7 +54466,7 @@ async function handlePostOperationsRoutes(req, res, path14, deps) {
       assertWorkflowRootAnchor(rootCheck2.anchor);
       let pipelineExists = true;
       try {
-        lstatSync19(join113(rootCheck2.anchor.path, ".pipeline"));
+        lstatSync19(join114(rootCheck2.anchor.path, ".pipeline"));
       } catch (error2) {
         if (error2.code === "ENOENT") pipelineExists = false;
         else throw error2;
@@ -54259,7 +54653,7 @@ async function handlePostOperationsRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join113(root, "openspec", "changes", name);
+    const dir = join114(root, "openspec", "changes", name);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
@@ -54288,7 +54682,7 @@ async function handlePostOperationsRoutes(req, res, path14, deps) {
 }
 
 // packages/server/src/serverPostMemoryRoutes.ts
-import { join as join114 } from "node:path";
+import { join as join115 } from "node:path";
 var RELATED_SEARCH_PATH = "/api/mem/related-sessions/search";
 var PLATFORM_VALUES = /* @__PURE__ */ new Set(["all", "claude", "codex", "opencode", "pi"]);
 var CHANGE_NAME_RE3 = /^[a-zA-Z0-9_-]+$/;
@@ -54327,7 +54721,7 @@ async function handlePostMemoryRoutes(req, res, path14, deps) {
   const anchoredRoot = rootCheck2.anchor.path;
   let changeExists = false;
   try {
-    changeExists = stateStorageExistsSync(join114(anchoredRoot, "openspec", "changes", name));
+    changeExists = stateStorageExistsSync(join115(anchoredRoot, "openspec", "changes", name));
   } catch {
     return missingTarget(deps, res);
   }
@@ -54608,8 +55002,352 @@ function createFreezeHandlers(deps) {
 
 // packages/server/src/serverTransport.ts
 import { readFileSync as readFileSync28 } from "node:fs";
-import { join as join115 } from "node:path";
-import { gzipSync } from "node:zlib";
+import { join as join116 } from "node:path";
+import { gzipSync as gzipSync2 } from "node:zlib";
+
+// packages/server/src/snapshotCache.ts
+import { resolve as resolve20 } from "node:path";
+
+// packages/server/src/snapshotAssembly.ts
+import { createHash as createHash35 } from "node:crypto";
+
+// packages/server/src/snapshotWire.ts
+var LIST_FIELD_KEYS = ["workflow", "automation"];
+var InternTable = class {
+  index = /* @__PURE__ */ new Map();
+  entries = [];
+  /** Identity keys (objects the scan already shares) or JSON strings (equal values built separately). */
+  intern(key, value) {
+    const known = this.index.get(key);
+    if (known !== void 0) return known;
+    const next = this.entries.length;
+    this.index.set(key, next);
+    this.entries.push(value);
+    return next;
+  }
+};
+function listFields(fields) {
+  const picked = {};
+  for (const key of LIST_FIELD_KEYS) {
+    const value = fields[key];
+    if (value !== void 0) picked[key] = value;
+  }
+  return picked;
+}
+function encodeListProject(project, revs) {
+  const tables = {
+    workflowRules: new InternTable(),
+    workflowExecution: new InternTable(),
+    todo: new InternTable(),
+    user: new InternTable()
+  };
+  const user = (ref) => ref === null ? null : tables.user.intern(`${ref.id}\0${ref.name}\0${ref.slug}`, ref);
+  const wire = (change) => {
+    const { workflowRules, workflowExecution, todo, owner, creator, fields, ...rest } = change;
+    const rev = revs.get(change.name);
+    return {
+      ...rest,
+      fields: listFields(fields),
+      ...rev === void 0 ? {} : { rev },
+      owner: user(owner),
+      creator: user(creator),
+      workflowRules: tables.workflowRules.intern(workflowRules, workflowRules),
+      workflowExecution: tables.workflowExecution.intern(JSON.stringify(workflowExecution), workflowExecution),
+      ...todo === void 0 ? {} : { todo: tables.todo.intern(JSON.stringify(todo), todo) }
+    };
+  };
+  const { changes, archived, ...envelope2 } = project;
+  const wiredChanges = changes.map(wire);
+  const wiredArchived = archived?.map((entry2) => wire(entry2));
+  return JSON.stringify({
+    ...envelope2,
+    changes: wiredChanges,
+    ...wiredArchived === void 0 ? {} : { archived: wiredArchived },
+    shared: Object.fromEntries(Object.entries(tables).map(([name, table]) => [name, table.entries]))
+  });
+}
+
+// packages/server/src/snapshotAssembly.ts
+function digest16(text10) {
+  return createHash35("sha1").update(text10).digest("hex").slice(0, 16);
+}
+function assemblySignature(fingerprint, builts, projects) {
+  return `${fingerprint}\0${builts.map((built, index) => `${built.seq}:${projects[index]?.repository?.label ?? ""}`).join("|")}`;
+}
+function listChunk(built, project) {
+  const label = project.repository?.label;
+  if (built.chunk !== void 0 && built.chunk.label === label) return built.chunk.value;
+  const json2 = encodeListProject(project, built.revs);
+  const value = { root: project.root, json: json2, digest: digest16(json2) };
+  built.chunk = { label, value };
+  return value;
+}
+function assembleList(builts, projects, fingerprint, deps) {
+  const chunks = builts.map((built, index) => listChunk(built, projects[index] ?? built.project));
+  const snapshot = { ...snapshotEnvelope(deps, projects), view: "list", projects };
+  const { projects: _projects, ...head } = snapshot;
+  const envelope2 = JSON.stringify(head);
+  const body2 = `${envelope2.slice(0, -1)},"projects":[${chunks.map((chunk) => chunk.json).join(",")}]}`;
+  return { ...sharedBody(body2), snapshot, fingerprint, chunks, envelope: envelope2 };
+}
+function assembleFull(projects, fingerprint, deps) {
+  const snapshot = { ...snapshotEnvelope(deps, projects), projects };
+  return { ...sharedBody(JSON.stringify(snapshot)), snapshot, fingerprint };
+}
+
+// packages/server/src/snapshotCache.ts
+var PRODUCTION_SCANNERS = {
+  list: (deps, root, nowMs) => scanProject(deps, root, nowMs, "list"),
+  full: (deps, root, nowMs) => scanProject(deps, root, nowMs, "full"),
+  detail: (deps, root, name, nowMs) => scanChangeDetail(deps, root, name, nowMs)
+};
+var SNAPSHOT_CACHE_MAX_AGE_MS = 3e4;
+var SNAPSHOT_IDENTITY_TTL_MS = 3e4;
+var MAX_AGE_REFRESH_PER_READ = 4;
+var BUILD_CONCURRENCY = 8;
+var MAX_DETAILS_PER_PROJECT = 16;
+var FULL_RETENTION_MS = 12e4;
+function createSnapshotCache(options3) {
+  const scanners = { ...PRODUCTION_SCANNERS, ...options3.scanners };
+  const now = options3.now ?? Date.now;
+  const maxAgeMs = options3.maxAgeMs ?? SNAPSHOT_CACHE_MAX_AGE_MS;
+  const identityTtlMs = options3.identityTtlMs ?? SNAPSHOT_IDENTITY_TTL_MS;
+  const fingerprintOf = options3.fingerprints ?? ((deps, nowMs, roots) => computeRootFingerprints(
+    roots,
+    nowMs,
+    deps.rootAnchor,
+    readTerminalActivity,
+    deps.readChangesDirectory,
+    deps.viewer
+  ));
+  let epoch = 0;
+  let seq = 0;
+  const cells = /* @__PURE__ */ new Map();
+  let fingerprintFlight;
+  let listAssembly;
+  let fullAssembly;
+  let fullReadAt;
+  const identities = /* @__PURE__ */ new Map();
+  function remembered(role, resolveIdentity) {
+    return (root) => {
+      const key = `${role}\0${resolve20(root)}`;
+      const at = now();
+      const hit = identities.get(key);
+      if (hit !== void 0 && at - hit.at < identityTtlMs) return hit.value;
+      const value = resolveIdentity(root);
+      identities.set(key, { at, value });
+      return value;
+    };
+  }
+  function depsAt(nowMs) {
+    const deps = options3.snapshotDeps(nowMs);
+    return {
+      ...deps,
+      ...deps.viewer === void 0 ? {} : { viewer: remembered("viewer", deps.viewer) },
+      resolveUser: remembered("acting", deps.resolveUser ?? defaultResolveUser)
+    };
+  }
+  function fingerprints() {
+    if (fingerprintFlight !== void 0 && fingerprintFlight.epoch === epoch) return fingerprintFlight.promise;
+    const nowMs = now();
+    const deps = depsAt(nowMs);
+    const promise = fingerprintOf(deps, nowMs, deps.registry());
+    const flight = { epoch, promise };
+    fingerprintFlight = flight;
+    const clear = () => {
+      if (fingerprintFlight === flight) fingerprintFlight = void 0;
+    };
+    promise.then(clear, clear);
+    return promise;
+  }
+  function cellFor(root) {
+    let cell = cells.get(root);
+    if (cell === void 0) {
+      cell = { root, validFrom: 0, list: {}, full: {}, details: /* @__PURE__ */ new Map(), detailFlights: /* @__PURE__ */ new Map() };
+      cells.set(root, cell);
+    }
+    return cell;
+  }
+  function retain(fps) {
+    const live = new Set(fps.map((fp) => fp.root));
+    for (const root of cells.keys()) if (!live.has(root)) cells.delete(root);
+  }
+  function ensure(cell, slot, fp, build2, refreshAged) {
+    const stored = slot.built;
+    if (stored !== void 0 && stored.key === fp.key && (!refreshAged || now() - stored.builtAt < maxAgeMs)) {
+      return Promise.resolve(stored);
+    }
+    if (slot.flight !== void 0 && slot.flight.key === fp.key) return slot.flight.promise;
+    const startedEpoch = epoch;
+    const mine = ++seq;
+    const nowMs = now();
+    const promise = build2(depsAt(nowMs), nowMs).then((project) => {
+      const built = { seq: mine, key: fp.key, builtAt: nowMs, project, revs: fp.revs };
+      if (cells.get(cell.root) === cell && startedEpoch >= cell.validFrom && (slot.built === void 0 || slot.built.seq < mine)) {
+        slot.built = built;
+      }
+      return built;
+    });
+    const flight = { key: fp.key, promise };
+    slot.flight = flight;
+    const clear = () => {
+      if (slot.flight === flight) slot.flight = void 0;
+    };
+    promise.then(clear, clear);
+    return promise;
+  }
+  function agedRoots(fps, slotOf) {
+    const aged = fps.map((fp) => ({ root: fp.root, built: slotOf(cellFor(fp.root)).built, key: fp.key })).filter((item2) => item2.built !== void 0 && item2.built.key === item2.key && now() - item2.built.builtAt >= maxAgeMs).sort((left, right) => (left.built?.builtAt ?? 0) - (right.built?.builtAt ?? 0));
+    return new Set(aged.slice(0, MAX_AGE_REFRESH_PER_READ).map((item2) => item2.root));
+  }
+  async function buildAll(fps, slotOf, build2) {
+    const refresh = agedRoots(fps, slotOf);
+    return mapWithConcurrency(fps, BUILD_CONCURRENCY, (fp) => ensure(
+      cellFor(fp.root),
+      slotOf(cellFor(fp.root)),
+      fp,
+      (deps, nowMs) => build2(deps, nowMs, fp.root),
+      refresh.has(fp.root)
+    ));
+  }
+  async function buildUncached(build2) {
+    const nowMs = now();
+    const deps = depsAt(nowMs);
+    return mapWithConcurrency(dedupeRoots(deps.registry()), BUILD_CONCURRENCY, async (root) => ({
+      seq: ++seq,
+      key: "",
+      builtAt: nowMs,
+      project: await build2(depsAt(nowMs), nowMs, root),
+      revs: /* @__PURE__ */ new Map()
+    }));
+  }
+  function assembledList(builts, fingerprint) {
+    const projects = normalizeRepositoryLabels(builts.map((built) => built.project));
+    const signature = assemblySignature(fingerprint ?? "", builts, projects);
+    if (fingerprint !== void 0 && listAssembly?.signature === signature) return listAssembly.value;
+    const value = assembleList(builts, projects, fingerprint ?? "", depsAt(now()));
+    if (fingerprint !== void 0) listAssembly = { signature, value };
+    return value;
+  }
+  function assembledFull(builts, fingerprint) {
+    const projects = normalizeRepositoryLabels(builts.map((built) => built.project));
+    const signature = assemblySignature(fingerprint ?? "", builts, projects);
+    if (fingerprint !== void 0 && fullAssembly?.signature === signature) return fullAssembly.value;
+    const value = assembleFull(projects, fingerprint ?? "", depsAt(now()));
+    if (fingerprint !== void 0) fullAssembly = { signature, value };
+    return value;
+  }
+  function releaseFullTier() {
+    if (fullReadAt === void 0 || now() - fullReadAt < FULL_RETENTION_MS) return;
+    fullReadAt = void 0;
+    fullAssembly = void 0;
+    for (const cell of cells.values()) cell.full = {};
+  }
+  const joined = (fps) => fps.map((fp) => `${fp.root}:${fp.key}`).join("|");
+  async function tryFingerprints() {
+    try {
+      const fps = await fingerprints();
+      retain(fps);
+      return fps;
+    } catch {
+      return void 0;
+    }
+  }
+  async function list5() {
+    const fps = await tryFingerprints();
+    if (fps === void 0) return assembledList(await buildUncached((deps, nowMs, root) => scanners.list(deps, root, nowMs)), void 0);
+    releaseFullTier();
+    const builts = await buildAll(fps, (cell) => cell.list, (deps, nowMs, root) => scanners.list(deps, root, nowMs));
+    return assembledList(builts, joined(fps));
+  }
+  async function full() {
+    const fps = await tryFingerprints();
+    fullReadAt = now();
+    if (fps === void 0) return assembledFull(await buildUncached((deps, nowMs, root) => scanners.full(deps, root, nowMs)), void 0);
+    const builts = await buildAll(fps, (cell) => cell.full, (deps, nowMs, root) => scanners.full(deps, root, nowMs));
+    return assembledFull(builts, joined(fps));
+  }
+  function buildDetail(cell, root, name, rev) {
+    const flightKey = `${name}\0${rev}`;
+    const known = cell.detailFlights.get(name);
+    if (known !== void 0 && known.key === flightKey) return known.promise;
+    const startedEpoch = epoch;
+    const nowMs = now();
+    const promise = scanners.detail(depsAt(nowMs), root, name, nowMs).then((scanned) => {
+      const shared = scanned === void 0 ? null : {
+        ...sharedBody(JSON.stringify({ ...scanned.change, rev, ...scanned.archive === void 0 ? {} : { archive: scanned.archive } })),
+        change: { ...scanned.change, rev },
+        ...scanned.archive === void 0 ? {} : { archive: scanned.archive },
+        rev
+      };
+      if (cells.get(root) === cell && startedEpoch >= cell.validFrom) {
+        cell.details.delete(name);
+        cell.details.set(name, { builtAt: nowMs, rev, shared });
+        while (cell.details.size > MAX_DETAILS_PER_PROJECT) {
+          const oldest = cell.details.keys().next().value;
+          if (oldest === void 0) break;
+          cell.details.delete(oldest);
+        }
+      }
+      return shared;
+    });
+    const flight = { key: flightKey, promise };
+    cell.detailFlights.set(name, flight);
+    const clear = () => {
+      if (cell.detailFlights.get(name) === flight) cell.detailFlights.delete(name);
+    };
+    promise.then(clear, clear);
+    return promise;
+  }
+  async function detail(root, name) {
+    const normalized2 = resolve20(root);
+    const nowMs = now();
+    const deps = depsAt(nowMs);
+    let fp;
+    try {
+      fp = (await fingerprintOf(deps, nowMs, [normalized2]))[0];
+    } catch {
+      fp = void 0;
+    }
+    const rev = fp?.revs.get(name);
+    if (rev === void 0) return null;
+    const cell = cellFor(normalized2);
+    const stored = cell.details.get(name);
+    if (stored !== void 0 && stored.rev === rev && now() - stored.builtAt < maxAgeMs) return stored.shared;
+    return buildDetail(cell, normalized2, name, rev);
+  }
+  return {
+    list: list5,
+    full,
+    detail,
+    async fingerprint() {
+      return joined(await fingerprints());
+    },
+    invalidate(roots) {
+      epoch += 1;
+      fingerprintFlight = void 0;
+      listAssembly = void 0;
+      fullAssembly = void 0;
+      if (roots === void 0) {
+        cells.clear();
+        identities.clear();
+        return;
+      }
+      for (const root of roots) {
+        const normalized2 = resolve20(root);
+        const cell = cells.get(normalized2);
+        if (cell !== void 0) {
+          cell.validFrom = epoch;
+          cell.list = {};
+          cell.full = {};
+          cell.details.clear();
+          cell.detailFlights.clear();
+        }
+        for (const role of ["viewer", "acting"]) identities.delete(`${role}\0${normalized2}`);
+      }
+    }
+  };
+}
 
 // packages/server/src/singleFlight.ts
 function singleFlight(task) {
@@ -54625,33 +55363,83 @@ function singleFlight(task) {
   };
 }
 
+// packages/server/src/snapshotWriteScope.ts
+var bodyRoots = /* @__PURE__ */ new WeakMap();
+var READ_ONLY_WRITES = /* @__PURE__ */ new Set(["/api/router/preview", "/api/loops/scope-preview"]);
+function dropWrittenProjects(cache2, req, path14, when) {
+  const scope = writeScopeOf(req, path14);
+  if (when === "before" ? scope !== void 0 && scope.length > 0 : scope === void 0 || scope.length > 0) cache2.invalidate(scope);
+}
+function noteBodyRoot(req, body2) {
+  if (typeof body2 !== "object" || body2 === null) return;
+  const root = Reflect.get(body2, "root");
+  if (typeof root !== "string" || root === "") return;
+  const known = bodyRoots.get(req) ?? /* @__PURE__ */ new Set();
+  known.add(root);
+  bodyRoots.set(req, known);
+}
+function writeScopeOf(req, path14) {
+  if (READ_ONLY_WRITES.has(path14)) return [];
+  const roots = new Set(bodyRoots.get(req) ?? []);
+  const query = new URL(req.url ?? "/", "http://localhost").searchParams.get("root");
+  if (query !== null && query !== "") roots.add(query);
+  return roots.size === 0 ? void 0 : [...roots];
+}
+
 // packages/server/src/serverTransport.ts
 var MAX_POST_BODY = 64 * 1024;
 function createServerTransport(options3) {
   const { snapshotDeps, heartbeatMs, pollIntervalMs, token } = options3;
   const snapshotCache = createSnapshotCache({ snapshotDeps });
   const clients = /* @__PURE__ */ new Set();
+  const streamClients = /* @__PURE__ */ new WeakMap();
   let lastFp = "";
   let lastBeat = Date.now();
   let pollTimer = null;
-  function broadcast(event, data) {
+  function write2(res, frame) {
+    try {
+      res.write(frame);
+    } catch {
+    }
+  }
+  function broadcastFull(body2) {
     lastBeat = Date.now();
-    const frame = `event: ${event}
-data: ${data}
+    const frame = `event: snapshot
+data: ${body2}
 
 `;
-    for (const res of clients) {
-      try {
-        res.write(frame);
-      } catch {
-      }
+    for (const res of clients) if (streamClients.get(res)?.view === "full") write2(res, frame);
+  }
+  function sendList(res, client, shared) {
+    const order4 = shared.chunks.map((chunk) => chunk.root);
+    const orderKey = order4.join("\0");
+    if (!client.primed) {
+      write2(res, `event: snapshot
+data: ${shared.body}
+
+`);
+      client.primed = true;
+    } else {
+      const changed = shared.chunks.filter((chunk) => client.sent.get(chunk.root) !== chunk.digest);
+      if (changed.length === 0 && orderKey === client.order) return;
+      write2(res, `event: snapshot-delta
+data: ${shared.envelope.slice(0, -1)},"roots":${JSON.stringify(order4)},"projects":[${changed.map((chunk) => chunk.json).join(",")}]}
+
+`);
     }
+    client.sent = new Map(shared.chunks.map((chunk) => [chunk.root, chunk.digest]));
+    client.order = orderKey;
+    lastBeat = Date.now();
   }
   function stopPoll() {
     if (pollTimer) {
       clearInterval(pollTimer);
       pollTimer = null;
     }
+  }
+  function hasClients2(view) {
+    for (const res of clients) if (streamClients.get(res)?.view === view) return true;
+    return false;
   }
   const pollTick = singleFlight(async () => {
     if (clients.size === 0) {
@@ -54662,19 +55450,24 @@ data: ${data}
       const fp = await snapshotCache.fingerprint();
       if (fp !== lastFp) {
         try {
-          const shared = await snapshotCache.current();
-          lastFp = shared.fingerprint;
-          broadcast("snapshot", shared.body);
+          if (hasClients2("list")) {
+            const shared = await snapshotCache.list();
+            lastFp = shared.fingerprint;
+            for (const res of clients) {
+              const client = streamClients.get(res);
+              if (client?.view === "list") sendList(res, client, shared);
+            }
+          }
+          if (hasClients2("full")) {
+            const shared = await snapshotCache.full();
+            lastFp = shared.fingerprint;
+            broadcastFull(shared.body);
+          }
         } catch {
         }
       } else if (Date.now() - lastBeat > heartbeatMs) {
         lastBeat = Date.now();
-        for (const res of clients) {
-          try {
-            res.write(": ping\n\n");
-          } catch {
-          }
-        }
+        for (const res of clients) write2(res, ": ping\n\n");
       }
     } catch {
       return;
@@ -54706,12 +55499,12 @@ data: ${data}
     res.end(body2);
   }
   function readJsonBody(req) {
-    return new Promise((resolve20) => {
+    return new Promise((resolve21) => {
       let done = false;
       const finish = (v) => {
         if (!done) {
           done = true;
-          resolve20(v);
+          resolve21(v);
         }
       };
       const len = Number.parseInt(String(req.headers["content-length"] ?? ""), 10);
@@ -54730,7 +55523,9 @@ data: ${data}
       });
       req.on("end", () => {
         try {
-          finish(JSON.parse(data));
+          const parsed2 = JSON.parse(data);
+          noteBodyRoot(req, parsed2);
+          finish(parsed2);
         } catch {
           finish(void 0);
         }
@@ -54745,14 +55540,24 @@ data: ${data}
       Connection: "keep-alive",
       "X-Accel-Buffering": "no"
     });
+    const view = new URL(req.url ?? "/", "http://localhost").searchParams.get("view") === "list" ? "list" : "full";
+    const client = { view, primed: view === "full", sent: /* @__PURE__ */ new Map(), order: "" };
+    streamClients.set(res, client);
     clients.add(res);
     try {
-      const shared = await snapshotCache.current();
-      lastFp = shared.fingerprint;
-      res.write(`event: snapshot
+      if (view === "list") {
+        const shared = await snapshotCache.list();
+        if (!client.primed) sendList(res, client, shared);
+        sendList(res, client, await snapshotCache.list());
+        if (clients.size === 1) lastFp = shared.fingerprint;
+      } else {
+        const shared = await snapshotCache.full();
+        write2(res, `event: snapshot
 data: ${shared.body}
 
 `);
+        if (clients.size === 1) lastFp = shared.fingerprint;
+      }
     } catch {
     }
     startPoll();
@@ -54771,26 +55576,13 @@ data: ${shared.body}
     ".ico": "image/x-icon",
     ".woff2": "font/woff2"
   };
-  const GZIP_MIN_BYTES = 1024;
+  const GZIP_MIN_BYTES2 = 1024;
   const GZIP_TYPES = /* @__PURE__ */ new Set([".js", ".css", ".html", ".json", ".svg"]);
   const gzipCache = /* @__PURE__ */ new Map();
-  function acceptsGzip(header) {
-    if (header === void 0) return false;
-    const accepted = /* @__PURE__ */ new Map();
-    for (const entry2 of (Array.isArray(header) ? header.join(",") : header).split(",")) {
-      const [rawName, ...params2] = entry2.trim().toLowerCase().split(";");
-      if (!rawName) continue;
-      const qParam = params2.map((param) => param.trim()).find((param) => param.startsWith("q="));
-      const parsed2 = qParam === void 0 ? 1 : Number(qParam.slice(2));
-      accepted.set(rawName, Number.isFinite(parsed2) ? parsed2 : 0);
-    }
-    const gzip = accepted.get("gzip");
-    return (gzip ?? accepted.get("*") ?? 0) > 0;
-  }
   function serveIndexWithToken(res) {
     if (!webRoot) return false;
     try {
-      let html = readFileSync28(join115(webRoot, "index.html"), "utf8");
+      let html = readFileSync28(join116(webRoot, "index.html"), "utf8");
       const jsToken = JSON.stringify(token).replace(/</g, "\\u003c");
       const inject = `<script>window.__TENON_DASHBOARD_TOKEN__ = ${jsToken};</script>`;
       html = html.includes("</head>") ? html.replace("</head>", `${inject}</head>`) : `${inject}${html}`;
@@ -54804,16 +55596,16 @@ data: ${shared.body}
     if (!webRoot || !path14.startsWith("/assets/")) return false;
     const rel = path14.slice(1);
     if (rel.includes("..")) return false;
-    const abs2 = join115(webRoot, rel);
-    if (!abs2.startsWith(join115(webRoot, "assets"))) return false;
+    const abs2 = join116(webRoot, rel);
+    if (!abs2.startsWith(join116(webRoot, "assets"))) return false;
     try {
       const source2 = readFileSync28(abs2);
       const ext = abs2.slice(abs2.lastIndexOf("."));
-      const compressible = GZIP_TYPES.has(ext) && source2.length >= GZIP_MIN_BYTES;
+      const compressible = GZIP_TYPES.has(ext) && source2.length >= GZIP_MIN_BYTES2;
       const gzip = compressible && acceptsGzip(req.headers["accept-encoding"]);
       let body2 = source2;
       if (gzip) {
-        const compressed = gzipCache.get(abs2) ?? gzipSync(source2);
+        const compressed = gzipCache.get(abs2) ?? gzipSync2(source2);
         gzipCache.set(abs2, compressed);
         body2 = compressed;
       }
@@ -54846,7 +55638,7 @@ data: ${shared.body}
 // packages/server/src/serverGovernance.ts
 import { mkdirSync as mkdirSync9 } from "node:fs";
 import { readdir as readdir22 } from "node:fs/promises";
-import { join as join116, resolve as resolvePath12 } from "node:path";
+import { join as join117, resolve as resolvePath12 } from "node:path";
 function createServerGovernance(options3) {
   const { registry, globalWorkflowRoot: globalWorkflowRoot2, store, sendJson, trackSkillProfiles, operationsAvailable, operationRunner } = options3;
   function trackRegistryBody(trackRegistry) {
@@ -54858,7 +55650,7 @@ function createServerGovernance(options3) {
     };
   }
   async function scanActiveTrackChanges(root) {
-    const changesRoot = join116(root, "openspec", "changes");
+    const changesRoot = join117(root, "openspec", "changes");
     let entries2;
     try {
       entries2 = await readdir22(changesRoot, { withFileTypes: true });
@@ -54871,7 +55663,7 @@ function createServerGovernance(options3) {
     const unreadable = [];
     for (const name of names) {
       try {
-        const state = await store.read(join116(changesRoot, name));
+        const state = await store.read(join117(changesRoot, name));
         const track = state.fields.track;
         const workflow = state.fields.workflow;
         refs.push({
@@ -54993,7 +55785,7 @@ function createServerGovernance(options3) {
   const globalWorkflowStore = () => {
     try {
       if (globalAnchor === null) {
-        mkdirSync9(join116(globalWorkflowRoot2, ".pipeline", "workflows"), { recursive: true });
+        mkdirSync9(join117(globalWorkflowRoot2, ".pipeline", "workflows"), { recursive: true });
         globalAnchor = captureWorkflowRootAnchor(globalWorkflowRoot2);
       } else {
         assertWorkflowRootAnchor(globalAnchor);
@@ -55104,7 +55896,7 @@ function normalizePickedPath(stdout) {
     return null;
   }
 }
-var runPickerProcess = (command, timeoutMs) => new Promise((resolve20) => {
+var runPickerProcess = (command, timeoutMs) => new Promise((resolve21) => {
   execFile10(command.file, [...command.args], {
     timeout: timeoutMs,
     killSignal: "SIGTERM",
@@ -55113,11 +55905,11 @@ var runPickerProcess = (command, timeoutMs) => new Promise((resolve20) => {
     env: command.env === void 0 ? process.env : { ...process.env, ...command.env }
   }, (error2, stdout, stderr) => {
     if (error2 === null) {
-      resolve20({ code: 0, stdout: String(stdout), stderr: String(stderr), notFound: false, timedOut: false });
+      resolve21({ code: 0, stdout: String(stdout), stderr: String(stderr), notFound: false, timedOut: false });
       return;
     }
     const errno = Reflect.get(error2, "code");
-    resolve20({
+    resolve21({
       code: typeof errno === "number" ? errno : -1,
       stdout: String(stdout ?? ""),
       stderr: String(stderr ?? ""),
@@ -55191,21 +55983,21 @@ function createRelatedSessionSearchExecutor(runner) {
     if (inFlight) return { ok: false, reason: "busy" };
     inFlight = true;
     try {
-      await new Promise((resolve20) => setImmediate(resolve20));
+      await new Promise((resolve21) => setImmediate(resolve21));
       return { ok: true, response: await runner(request) };
     } catch {
       return { ok: false, reason: "unavailable" };
     } finally {
-      await new Promise((resolve20) => setImmediate(resolve20));
+      await new Promise((resolve21) => setImmediate(resolve21));
       inFlight = false;
     }
   };
 }
 
 // packages/server/src/sessionLinkResolver.ts
-import { join as join117 } from "node:path";
+import { join as join118 } from "node:path";
 async function resolveSessionLink(root, name, deps) {
-  const changeDir2 = join117(root, "openspec", "changes", name);
+  const changeDir2 = join118(root, "openspec", "changes", name);
   try {
     const wtRaw = await deps.store.get(changeDir2, "automation_worktree");
     const wt = Array.isArray(wtRaw) ? wtRaw.join(",") : wtRaw ?? "";
@@ -55231,7 +56023,7 @@ async function resolveSessionLink(root, name, deps) {
 
 // packages/server/src/version.ts
 import { readFileSync as readFileSync29 } from "node:fs";
-import { basename as basename9, dirname as dirname26, join as join118 } from "node:path";
+import { basename as basename9, dirname as dirname26, join as join119 } from "node:path";
 var SERVER_VERSION = "0.1.0";
 var RELEASE_ID = /^sha256-[a-f0-9]{64}$/;
 function isPluginManifestVersion(value) {
@@ -55240,7 +56032,7 @@ function isPluginManifestVersion(value) {
 function resolveReleaseVersion(pluginRoot2) {
   for (const relative16 of [".codex-plugin/plugin.json", ".claude-plugin/plugin.json"]) {
     try {
-      const parsed2 = JSON.parse(readFileSync29(join118(pluginRoot2, relative16), "utf8"));
+      const parsed2 = JSON.parse(readFileSync29(join119(pluginRoot2, relative16), "utf8"));
       if (isPluginManifestVersion(parsed2) && typeof parsed2.version === "string" && /^\d+\.\d+\.\d+$/.test(parsed2.version)) {
         return parsed2.version;
       }
@@ -55304,7 +56096,7 @@ function createDashboardServer(options3) {
       locator: createRunnerSkillContentLocator({
         runner,
         home: hostHome,
-        bundledRoot: join119(repoRootForSkills(), "skills")
+        bundledRoot: join120(repoRootForSkills(), "skills")
       }),
       isSkillProfileKnown: (profileId) => profileId === "_all" || trackSkillProfiles.has(profileId)
     });
@@ -55505,7 +56297,7 @@ function createDashboardServer(options3) {
     manifestPath: manifestPath3,
     paths,
     validateLoopActivation,
-    skillsRoot: options3.skillsRoot ?? join119(repoRootForSkills(), "skills"),
+    skillsRoot: options3.skillsRoot ?? join120(repoRootForSkills(), "skills"),
     mutateTrackForApi: mutateTrackForRoutes,
     trackRegistryBody,
     sendTrackError,
@@ -55545,9 +56337,9 @@ function createDashboardServer(options3) {
   const httpServer = createServer((req, res) => {
     const path14 = (req.url ?? "/").split("?", 1)[0] ?? "/";
     const method = req.method ?? "GET";
-    if (method !== "GET") snapshotCache.invalidate();
+    if (method !== "GET") dropWrittenProjects(snapshotCache, req, path14, "before");
     const handler = method === "GET" ? handleGet2(req, res, path14) : method === "POST" ? handlePost(req, res, path14) : method === "PATCH" ? handlePatch(req, res, path14) : method === "DELETE" ? handleDelete(req, res, path14) : method === "PUT" ? handlePut(req, res, path14) : Promise.resolve(sendJson(res, 405, { ok: false, error: "method not allowed" }));
-    if (method !== "GET") void handler.finally(snapshotCache.invalidate).catch(() => void 0);
+    if (method !== "GET") void handler.finally(() => dropWrittenProjects(snapshotCache, req, path14, "after")).catch(() => void 0);
     handler.catch((e) => {
       try {
         sendJson(res, 500, { ok: false, error: errMsg(e) });
@@ -55560,7 +56352,7 @@ function createDashboardServer(options3) {
     version,
     httpServer,
     listen(port = 0, host = "127.0.0.1") {
-      return new Promise((resolve20, reject3) => {
+      return new Promise((resolve21, reject3) => {
         const onError = (e) => reject3(e);
         httpServer.once("error", onError);
         httpServer.listen(port, host, () => {
@@ -55572,12 +56364,12 @@ function createDashboardServer(options3) {
           }
           boundPort = address.port;
           cadenceScheduler?.start();
-          resolve20({ port: boundPort, host });
+          resolve21({ port: boundPort, host });
         });
       });
     },
     close() {
-      return new Promise((resolve20) => {
+      return new Promise((resolve21) => {
         stopPoll();
         cadenceScheduler?.stop();
         for (const anchor of workflowRootAnchors.values()) closeWorkflowRootAnchor(anchor);
@@ -55589,7 +56381,7 @@ function createDashboardServer(options3) {
           }
         }
         clients.clear();
-        httpServer.close(() => resolve20());
+        httpServer.close(() => resolve21());
         const closeAllConnections = Reflect.get(httpServer, "closeAllConnections");
         if (typeof closeAllConnections === "function") closeAllConnections.call(httpServer);
       });
@@ -55670,14 +56462,14 @@ function readPidfile(pidfilePath) {
   }
 }
 function probeHealth(port, host = "127.0.0.1", timeoutMs = 500) {
-  return new Promise((resolve20) => {
+  return new Promise((resolve21) => {
     let done = false;
     let wallClockTimer;
     const finish = (v) => {
       if (done) return;
       done = true;
       if (wallClockTimer !== void 0) clearTimeout(wallClockTimer);
-      resolve20(v);
+      resolve21(v);
     };
     const req = httpGet({ host, port, path: "/api/health", timeout: timeoutMs }, (res) => {
       let body2 = "";
@@ -55734,28 +56526,28 @@ function parseListenerPids(stdout) {
   return [...new Set(stdout.split(/\r?\n/).map((line) => Number.parseInt(line.trim(), 10)).filter((pid) => Number.isSafeInteger(pid) && pid > 0))];
 }
 function listenerPids(port) {
-  return new Promise((resolve20) => {
+  return new Promise((resolve21) => {
     execFile11("lsof", ["-nP", "-t", `-iTCP:${port}`, "-sTCP:LISTEN"], { encoding: "utf8" }, (error2, stdout) => {
       if (error2 === null) {
-        resolve20(parseListenerPids(String(stdout ?? "")));
+        resolve21(parseListenerPids(String(stdout ?? "")));
         return;
       }
       const code = error2.code;
       if (code === 1) {
-        resolve20([]);
+        resolve21([]);
         return;
       }
-      resolve20(null);
+      resolve21(null);
     });
   });
 }
 function probePortOpen(port, host = "127.0.0.1", timeoutMs = 250) {
-  return new Promise((resolve20) => {
+  return new Promise((resolve21) => {
     let done = false;
     const finish = (open9) => {
       if (done) return;
       done = true;
-      resolve20(open9);
+      resolve21(open9);
     };
     const socket = createConnection({ host, port });
     socket.setTimeout(timeoutMs);
@@ -55831,14 +56623,14 @@ function managedTransactionId() {
   return value;
 }
 function pluginRoot() {
-  return join120(dirname28(fileURLToPath4(import.meta.url)), "..", "..", "..");
+  return join121(dirname28(fileURLToPath4(import.meta.url)), "..", "..", "..");
 }
 function manifestPath2() {
-  return join120(pluginRoot(), "templates", "manifest.yaml");
+  return join121(pluginRoot(), "templates", "manifest.yaml");
 }
 function gitHeadSha(cwd) {
-  return new Promise((resolve20) => {
-    execFile12("git", ["rev-parse", "HEAD"], { cwd }, (_err, stdout) => resolve20((stdout ?? "").trim()));
+  return new Promise((resolve21) => {
+    execFile12("git", ["rev-parse", "HEAD"], { cwd }, (_err, stdout) => resolve21((stdout ?? "").trim()));
   });
 }
 async function main() {
@@ -55901,7 +56693,7 @@ async function main() {
     gitHeadSha,
     workspaceFingerprint: (cwd) => fingerprintWorkspace(cwd),
     // dashboard-app 构建产物（BACKLOG #26c）：存在则服务真 SPA，否则回退最小落地页
-    webRoot: join120(dirname28(fileURLToPath4(import.meta.url)), "..", "..", "dashboard-app", "dist"),
+    webRoot: join121(dirname28(fileURLToPath4(import.meta.url)), "..", "..", "dashboard-app", "dist"),
     // tap 流量查看器数据源：只读 sessions/records/timeline；完整 reader 才声明 traffic=true。
     // tap capture 默认 OFF，无捕获时返回空会话——数据端仍在线（#34e：只读本地、不外发）
     traceStore: createTraceStore(),
