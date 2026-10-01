@@ -91,6 +91,10 @@ git diff --check
 
 修改文档模板时还要运行 `npm run check:document-templates`；修改文档站时运行完整 docs 命令和浏览器验收。
 
+Dashboard 浏览器 e2e 用 `npm run test:e2e`（`e2e/dashboard/`，Chromium 与 WebKit 两个项目；WebKit 用 `npx playwright install webkit` 安装），只碰隔离的 `HOME` 与 `TENON_RUNTIME_HOME`。CI 在三处阻塞地跑它，失败时上传 `playwright-report/` 与 `test-results/`：`verify` 作业（Node 22，Chromium）、`node-matrix` 作业（Node 20、22、24 上的 Chromium，同时跑测试体系、reporter、解析器套件和 `tools/` 下的 `node:test` 脚本）、独立的 `dashboard-e2e-webkit` 作业（WebKit 项目，加 `TENON_E2E_WEBKIT=1` 的 Playwright 工程集成测试）。CI 任何步骤都没有 `continue-on-error`，出现了 `npm run check:release-workflows` 会失败。`verify` 里的 `npm test` 带 `TENON_E2E=1`：缺 Chromium 时真实 Playwright 集成测试失败，而不是被悄悄跳过。Linux 上的 WebKit 只能在 GitHub 的运行器上验证，本机 WebKit 绿不能替代；改动相关页面前仍要在本机跑两个项目。
+
+基准的退化（`max_regression_pct: 15`）只与同机器画像的基线比。仓库目录设了 `profile: coarse`，画像由 OS、架构、核数、Node 主版本（加 `CI` 变量）组成，形如 `linux-x64-4c-node22-<哈希>`；CPU 型号与内存档位不参与，所以同规格的托管运行器即使落在不同代的 CPU 上也共用一份基线。基线不从开发机提交，CI 也从不自己提交：绿的一次运行把「这次运行作为基线」的文件写到 `.tenon/tests/baselines/<套件>/<画像>.json` 并上传成 `bench-baseline-candidate` artifact，由维护者从一次绿的 `main` 运行下载并原样提交。某个套件还没有 CI 画像的基线时，运行只报 `baseline-missing`（不挡），基准步骤另打一条 GitHub `::notice` 注解指出套件和要提交的文件，让缺口在运行页上可见。目前还没有提交粗口径 CI 画像的基线。
+
 ## 常见失败
 
 - 只改 `dist`：生成物会被下一次 build 覆盖，应修改源码并重建；

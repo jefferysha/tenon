@@ -77,6 +77,12 @@ export type DoctorProductIdentity =
       readonly remediation: string
     }
 
+/** doctor 的平台事实：Node 的 process.platform 与「是否在 WSL 内」。 */
+export interface DoctorPlatform {
+  readonly os: NodeJS.Platform
+  readonly wsl: boolean
+}
+
 export interface DoctorProbes {
   /** process.version 形如 'v22.1.0' */
   nodeVersion: () => string
@@ -152,6 +158,12 @@ export interface DoctorProbes {
    * 缺省 undefined = 未装配 → env:path-tenon 折算 red。
    */
   tenonOnPath?: () => { readonly resolved: string | null; readonly launcher: string | null }
+  /**
+   * 当前平台：`os` 是 Node 的 process.platform，`wsl` 仅在 linux 上可能为 true（WSL 内的 Linux）。
+   * 受支持的是 macOS、Linux 与 WSL，原生 Windows（win32）在 env:platform 折算 red 并指向 WSL。
+   * 缺省 undefined = 未装配 → env:platform 折算 red。
+   */
+  platform?: () => DoctorPlatform
   /** skills/sources.yaml + skills/skills.lock.json + last-update.json 的只读视图；清单或锁无效时返回 error。 */
   upstreamSkillView?: () => import('@tenon/kernel').UpstreamSkillView | { error: string }
   /**

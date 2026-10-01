@@ -65,6 +65,19 @@ describe('draftOf', () => {
     expect(shell).toMatchObject({ machine_profile: profile.id, prev_digest: null })
   })
 
+  it('目录的 profile: coarse 选粗口径：id 不含 CPU 型号与内存，仍随 profiles_env 的取值变化', () => {
+    const coarseParsed = parseTestCatalog('schema: tenon-test-catalog/v1\nprofile: coarse\nprofiles_env: [CI]\nsuites: []\n')
+    if (!coarseParsed.ok) throw new Error('fixture catalog')
+    const coarse = machineOf(coarseParsed.catalog, { CI: 'true' })
+    expect(coarse.mode).toBe('coarse')
+    expect(coarse.label).toMatch(/^[a-z0-9]+-[a-z0-9]+-\d+c-node\d+$/u)
+    expect(machineOf(coarseParsed.catalog, { CI: 'true' }).id).toBe(coarse.id)
+    expect(machineOf(coarseParsed.catalog, {}).id).not.toBe(coarse.id)
+    const fine = machineOf(CATALOG, { CI: 'true' })
+    expect(fine.mode).toBe('fine')
+    expect(fine.id).not.toBe(coarse.id)
+  })
+
   it('没有套件（评估外壳）时目录摘要为 null', () => {
     const profile = machineOf(CATALOG, {})
     const draft = draftOf({

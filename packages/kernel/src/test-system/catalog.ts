@@ -5,7 +5,7 @@
  * 与门禁都据此列出 `catalog.yaml:<行>: …`。
  *
  * 摘要：`catalogDigest` 覆盖整份目录；运行记录绑定的是 `catalogSuitesDigest`——只取本次运行涉及的套件
- * 条目、它们引用的服务与 `profiles_env`，改动无关套件不会让别的记录过期。
+ * 条目、它们引用的服务与机器画像口径（`profile`、`profiles_env`），改动无关套件不会让别的记录过期。
  */
 import { sha256Hex } from '../sha256.js'
 import { decodeCatalogService, decodeCatalogSuite } from './catalog-decode.js'
@@ -15,9 +15,10 @@ import {
 } from './catalog-types.js'
 import { canonicalJson } from './canonical.js'
 import { repoGlob } from './globs.js'
+import { MACHINE_PROFILE_MODES, isMachineProfileMode, type MachineProfileMode } from './machine-profile.js'
 import { ENV_NAME_RE } from './vocabulary.js'
 import { emitYaml, type YamlValue } from './yaml-emit.js'
-import { IssueSink, asMap, asSeq, checkKeys, field, formatIssue, str, strList, type DecodeIssue } from './yaml-read.js'
+import { IssueSink, asMap, asSeq, checkKeys, field, formatIssue, oneOf, str, strList, type DecodeIssue } from './yaml-read.js'
 import { YamlSubsetError, parseYamlSubset } from './yaml-subset.js'
 
 export const TEST_CATALOG_FILE_LABEL = 'catalog.yaml'
@@ -37,11 +38,12 @@ export function parseTestCatalog(text: string): CatalogParseResult {
   const sink = new IssueSink()
   const map = asMap(root, sink, '目录')
   if (map === undefined) return { ok: false, issues: sink.issues }
-  checkKeys(map, ['schema', 'profiles_env', 'suites', 'services', 'not_applicable'], sink, '目录')
+  checkKeys(map, ['schema', 'profile', 'profiles_env', 'suites', 'services', 'not_applicable'], sink, '目录')
   const schema = str(field(map, 'schema'), sink, 'schema', map.line)
   if (schema !== undefined && schema !== TEST_CATALOG_SCHEMA) {
     sink.add(field(map, 'schema')?.line ?? map.line, `schema 必须是 ${TEST_CATALOG_SCHEMA}（实际 '${schema}'）`)
   }
+  const profileMode = oneOf<MachineProfileMode>(field(map, 'profile'), sink, 'profile', isMachineProfileMode, MACHINE_PROFILE_MODES)
   const profilesEnv = strList(field(map, 'profiles_env'), sink, 'profiles_env', { pattern: ENV_NAME_RE, hint: '环境变量名' })
   const suites: CatalogSuite[] = []
   const suiteLines = new Map<string, number>()
@@ -77,7 +79,9 @@ export function parseTestCatalog(text: string): CatalogParseResult {
   return {
     ok: true,
     catalog: {
-      schema: TEST_CATALOG_SCHEMA, profiles_env: profilesEnv, suites, services,
+      schema: TEST_CATALOG_SCHEMA,
+      ...(profileMode === 'coarse' ? { profile: profileMode } : {}),
+      profiles_env: profilesEnv, suites, services,
       ...(notApplicable.length === 0 ? {} : { not_applicable: notApplicable }),
     },
   }
@@ -105,7 +109,8 @@ export function catalogSuitesDigest(catalog: TestCatalog, suiteIds: readonly str
   const suites = ids.map((id) => catalogSuite(catalog, id) ?? { id, missing: true })
   const serviceIds = new Set(ids.flatMap((id) => catalogSuite(catalog, id)?.services ?? []))
   const services = catalog.services.filter((service) => serviceIds.has(service.id))
-  return digestOf({ profiles_env: catalog.profiles_env, suites, services })
+  // 细口径不进摘要：没有声明 profile 的旧目录，摘要与引入 profile 之前逐字相同。
+  return digestOf({ ...(catalog.profile === 'coarse' ? { profile: 'coarse' } : {}), profiles_env: catalog.profiles_env, suites, services })
 }
 
 /**
@@ -196,6 +201,7 @@ function serviceValue(service: CatalogService): YamlValue {
 export function serializeTestCatalog(catalog: TestCatalog): string {
   return emitYaml({
     schema: catalog.schema,
+    profile: catalog.profile === 'coarse' ? 'coarse' : undefined,
     profiles_env: catalog.profiles_env.length === 0 ? undefined : catalog.profiles_env,
     suites: catalog.suites.map(suiteValue),
     services: catalog.services.length === 0 ? undefined : catalog.services.map(serviceValue),

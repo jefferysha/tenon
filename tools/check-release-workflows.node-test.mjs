@@ -17,6 +17,25 @@ async function text(path) {
   return readFile(join(root, path), 'utf8')
 }
 
+/** One top-level job of a workflow: from its `  <id>:` key to the next job key, comments between jobs excluded. */
+function jobBlock(workflow, jobId) {
+  const lines = workflow.split('\n').filter((line) => !line.trim().startsWith('#'))
+  const start = lines.findIndex((line) => line === `  ${jobId}:`)
+  assert.notEqual(start, -1, `missing workflow job: ${jobId}`)
+  const end = lines.findIndex((line, index) => index > start && /^ {2}[A-Za-z0-9_-]+:\s*$/.test(line))
+  return lines.slice(start, end === -1 ? lines.length : end).join('\n').trimEnd()
+}
+
+/** One step of a job block: from its `- name:` line to the next step, comments excluded. */
+function stepBlock(block, stepName) {
+  const lines = block.split('\n').filter((line) => !line.trim().startsWith('#'))
+  const start = lines.findIndex((line) => line.trim() === `- name: ${stepName}`)
+  assert.notEqual(start, -1, `missing workflow step: ${stepName}`)
+  const indent = lines[start].match(/^\s*/)[0].length
+  const end = lines.findIndex((line, index) => index > start && line.trim() !== '' && line.match(/^\s*/)[0].length <= indent)
+  return lines.slice(start, end === -1 ? lines.length : end).join('\n').trimEnd()
+}
+
 function workflowRunScript(workflow, stepName) {
   const lines = workflow.split('\n')
   const nameIndex = lines.findIndex((line) => line.trim() === `- name: ${stepName}`)
@@ -257,12 +276,76 @@ test('canonical CI runs the dashboard e2e right after the Chromium install and u
   assert.doesNotMatch(ci, /uses:\s+actions\/[^@\s]+@v\d+\b/)
 })
 
-test('canonical CI verify job has no continue-on-error and runs the e2e on Chromium only', async () => {
+test('canonical CI has no continue-on-error key in any job, and verify runs the e2e on Chromium on Node 22', async () => {
   const ci = await text('.github/workflows/ci.yml')
+  const verify = jobBlock(ci, 'verify')
 
-  assert.doesNotMatch(ci, /continue-on-error/, 'a required verify step must not be able to fail silently')
-  assert.doesNotMatch(ci, /playwright install[^\n]*webkit/, 'WebKit is not installed in CI; it runs locally or through the dashboard-e2e suite')
-  assert.doesNotMatch(ci, /test:e2e -- --project=webkit/)
+  // The raw text, comments included: the H14 policy test (loop-run.real.integration.test.ts) slices the verify job by
+  // job key, so a comment above the next job would count as part of verify.
+  assert.doesNotMatch(ci, /continue-on-error/, 'a required step must not be able to fail silently')
+  assert.match(verify, /node-version: '22'/)
+  assert.doesNotMatch(verify, /matrix/, 'the full verify job stays on one Node version; the matrix is its own job')
+  assert.doesNotMatch(verify, /webkit/i, 'WebKit is its own blocking job, not a step that could be made optional inside verify')
+  assert.match(verify, /npm run test:e2e -- --project=chromium/)
+})
+
+test('canonical CI npm test sets TENON_E2E=1 after the Chromium install so the real Playwright integration tests cannot skip', async () => {
+  const ci = await text('.github/workflows/ci.yml')
+  const verify = jobBlock(ci, 'verify')
+  const step = stepBlock(verify, 'vitest (kernel/cli/server/automation/tap)')
+
+  assert.match(step, /env:\n\s+TENON_E2E: '1'\n\s+run: npm test$/)
+  assert.ok(
+    verify.indexOf('npx playwright install --with-deps chromium') > 0
+      && verify.indexOf('npx playwright install --with-deps chromium') < verify.indexOf(step),
+    'the browser must be installed before the step that requires it',
+  )
+  const integration = await text('packages/cli/src/test-system-playwright.integration.test.ts')
+  assert.match(integration, /process\.env\.TENON_E2E === '1'/, 'TENON_E2E=1 is what turns a missing browser into a failure')
+})
+
+test('canonical CI runs the test-system, reporter and parser suites and the dashboard e2e on Node 20, 22 and 24 in a separate job', async () => {
+  const ci = await text('.github/workflows/ci.yml')
+  const matrix = jobBlock(ci, 'node-matrix')
+  const suites = stepBlock(matrix, 'Test system, reporter and parser suites (Node ${{ matrix.node }})')
+  const e2e = stepBlock(matrix, 'Dashboard browser e2e (Chromium, Node ${{ matrix.node }})')
+
+  assert.match(matrix, /fail-fast: false/, 'one red Node version must not hide the other two')
+  assert.match(matrix, /matrix:\n\s+node: \['20', '22', '24'\]/)
+  assert.match(matrix, /node-version: \$\{\{ matrix\.node \}\}/)
+  assert.match(suites, /TENON_E2E: '1'/)
+  assert.match(suites, /run: npx vitest run packages\/kernel\/src\/test-system packages\/cli\/src\/test-system packages\/cli\/src\/test-runner$/)
+  assert.match(stepBlock(matrix, 'node:test tools (bench measure, TAP output)'), /run: node --test tools\/bench\/\*\.node-test\.mjs tools\/tap-out\.node-test\.mjs$/)
+  assert.match(e2e, /run: npm run test:e2e -- --project=chromium$/)
+  assert.doesNotMatch(matrix, /webkit/i)
+  const order = ['npm ci', 'npm run build', 'playwright install --with-deps chromium', 'vitest run', 'node --test', 'test:e2e'].map((needle) => matrix.indexOf(needle))
+  assert.ok(order.every((index, position) => index > 0 && (position === 0 || index > order[position - 1])), `matrix steps out of order: ${order}`)
+  assert.match(matrix, /name: dashboard-e2e-chromium-node\$\{\{ matrix\.node \}\}/, 'each Node version uploads its own report')
+  // The listed paths and scripts must exist, or the job would run nothing and still be green.
+  for (const path of ['packages/kernel/src/test-system', 'packages/cli/src/test-system', 'packages/cli/src/test-runner', 'tools/tap-out.node-test.mjs', 'tools/bench/measure.node-test.mjs']) {
+    assert.equal(spawnSync('git', ['ls-files', '--error-unmatch', '--', path], { cwd: root }).status, 0, `${path} is not tracked`)
+  }
+  const reporter = await text('packages/cli/src/test-system/node-test-reporter.ts')
+  assert.match(reporter, /Node 20 \/ 22 \/ 24/, 'the matrix exists because the shipped reporter claims these three Node lines')
+})
+
+test('canonical CI runs WebKit in its own blocking job with the WebKit Playwright project integration', async () => {
+  const ci = await text('.github/workflows/ci.yml')
+  const webkit = jobBlock(ci, 'dashboard-e2e-webkit')
+  const e2e = stepBlock(webkit, 'Dashboard browser e2e (WebKit)')
+  const integration = stepBlock(webkit, 'Playwright project integration (Chromium + WebKit)')
+
+  assert.match(webkit, /npx playwright install --with-deps chromium webkit/)
+  assert.match(e2e, /run: npm run test:e2e -- --project=webkit$/)
+  assert.doesNotMatch(e2e, /\n\s+if:/, 'the WebKit run must not be conditional')
+  assert.match(integration, /env:\n\s+TENON_E2E: '1'\n\s+TENON_E2E_WEBKIT: '1'\n\s+run: npx vitest run packages\/cli\/src\/test-system-playwright\.integration\.test\.ts$/)
+  assert.doesNotMatch(webkit, /matrix/)
+  assert.ok(webkit.indexOf('npm run build') < webkit.indexOf('playwright install'), 'e2e needs the built CLI and Dashboard')
+  assert.match(webkit, /name: dashboard-e2e-webkit/)
+  const playwrightConfig = await text('e2e/dashboard/playwright.config.ts')
+  assert.match(playwrightConfig, /name: 'webkit'/, 'the WebKit project the job selects must exist')
+  const integrationTest = await text('packages/cli/src/test-system-playwright.integration.test.ts')
+  assert.match(integrationTest, /process\.env\.TENON_E2E_WEBKIT === '1'/)
 })
 
 test('canonical CI benchmarks run the catalog suites with the 15 percent regression gate and publish a baseline candidate', async () => {
@@ -279,6 +362,22 @@ test('canonical CI benchmarks run the catalog suites with the 15 percent regress
   assert.match(block, /exit "\$bench_exit"/, 'a benchmark regression must fail the step')
   assert.match(ci, /name: bench-baseline-candidate/)
   assert.match(ci, /\.tenon\/tests\/baselines\//)
+})
+
+test('canonical CI benchmarks compare on the coarse machine profile and make a missing committed baseline a visible notice', async () => {
+  const [ci, catalog] = await Promise.all([text('.github/workflows/ci.yml'), text('.tenon/tests/catalog.yaml')])
+  const step = stepBlock(jobBlock(ci, 'verify'), '基准 (benchmarks against the CI-profile baseline)')
+  const notice = step.indexOf('::notice title=Benchmark baseline missing::')
+  const existence = step.indexOf('[ ! -f ".tenon/tests/baselines/$suite/$profile.json" ]')
+  const candidate = step.indexOf('tenon test baseline ci-bench --suite "$suite" --run "$run_id"')
+
+  // Hosted runners of one size land on different CPU generations; only the coarse profile (OS, architecture,
+  // cores, Node major) lets them share a committed baseline.
+  assert.match(catalog, /^profile: coarse$/m)
+  assert.ok(existence > 0 && notice > existence, 'the notice is raised for a suite whose committed baseline file is absent')
+  assert.ok(candidate > notice, 'the candidate baseline is written only after the committed one was looked up')
+  assert.match(step, /machine_profile/, 'the profile id comes from the run record, not from a guessed name')
+  assert.match(step, /\n\s+if \[ "\$bench_exit" -eq 0 \]; then/, 'baselines are only looked up after a passing run')
 })
 
 test('canonical CI sets only TENON_* env switches that repository code reads', async () => {

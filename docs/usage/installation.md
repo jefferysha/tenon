@@ -15,6 +15,29 @@ verify the managed runtime, and load its packaged hooks and Skills.
 
 Tenon does not require users to install mandatory Skills one by one.
 
+## Supported platforms
+
+Tenon's hooks and installer are bash scripts, and test services are started and stopped through
+`/bin/sh`. It supports macOS, Linux and WSL. Native Windows is not supported.
+
+| Platform | Support | What backs it |
+| --- | --- | --- |
+| macOS | Supported | The maintainers' acceptance runs were on Apple Silicon. CI has no macOS job. |
+| Linux | Supported | Full CI on Ubuntu x64: build, every test suite, Dashboard e2e (Chromium and WebKit), clean install. Other architectures are untested. |
+| Windows with WSL 2 | Supported, as Linux | Install and run everything inside the WSL terminal and keep projects in the WSL file system. CI runs on Ubuntu, not inside WSL. |
+| Native Windows (PowerShell, cmd, Git Bash) | Not supported | `tenon doctor` reports `env:platform` red and points here. CI runs only two native-executable trust test files on Windows; that is not a support claim. |
+| Other Unix (for example FreeBSD) | Unverified | `tenon doctor` reports `env:platform` yellow. |
+
+`tenon doctor` reports the platform it found as `env:platform`: green on macOS, Linux and WSL, red on native
+Windows (the fix is WSL 2: run `wsl --install` in an administrator PowerShell, then follow this page inside the WSL
+terminal), yellow elsewhere.
+
+| Node.js | Tenon | In CI |
+| --- | --- | --- |
+| 22 and 24 | Supported | 22 runs the full verification; 22 and 24 both run the test-system, reporter and parser suites and the Dashboard e2e. |
+| 20 | Not supported (`tenon doctor` reports `env:node` red) | The same reporter, parser and Dashboard e2e jobs run on 20, because the `node:test` reporter that `tenon test run` supplies to your project's tests must keep working in projects that still run Node 20. |
+| Older than 20 | Not supported | Not run. |
+
 ## Native host setup
 
 New users install the complete Codex plugin without cloning the repository:
@@ -194,7 +217,8 @@ Payload, state, and configuration use OS-standard application-data locations:
 
 - macOS: `~/Library/Application Support/tenon/`
 - Linux: XDG data/state/config locations
-- Windows: Local AppData for data/state and Roaming AppData for configuration
+- Windows: Local AppData for data/state and Roaming AppData for configuration (the path scheme is resolved in
+  code; native Windows is still not a supported platform, see Supported platforms)
 
 Tenon-owned files never use `~/.claude` or `~/.codex` as storage. The project registry and
 credentials live in the Tenon config root; runtime selection, audit, Dashboard token, and pidfile
@@ -248,6 +272,11 @@ an installation failure.
 
 They are optional for interactive workflows. Configure them only before using
 AFK with the corresponding runner.
+
+### `env:platform` is red in doctor
+
+You are on native Windows, which Tenon does not support. Install WSL 2 (`wsl --install`
+in an administrator PowerShell), then install and run Tenon from the WSL terminal.
 
 ## Next action
 

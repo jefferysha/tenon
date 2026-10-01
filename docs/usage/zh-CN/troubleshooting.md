@@ -80,6 +80,12 @@ Platform API Key 按用量计费。Tenon 不会替你登录，也不会读取凭
 `tenon` 放到 `PATH` 最前，所以必需测试 `tenon test code-size --json` 在没有启动器的环境里也能跑；宿主自己的 Bash 和你的 CI
 仍然需要它。把启动器目录（通常是 `~/.local/bin`）加进 `PATH`，或运行 `tenon setup --claude` / `tenon setup --codex` 装上启动器。
 
+#### `tenon doctor` 的 `env:platform` 是红灯
+
+你在原生 Windows 上，Tenon 不支持（hooks 与安装脚本是 bash，测试服务的启停走 `/bin/sh`）。装 WSL 2（管理员 PowerShell
+运行 `wsl --install`），再在 WSL 终端里安装并运行 Tenon，项目放在 WSL 的文件系统里。完整的平台与 Node 版本矩阵见
+[安装与宿主配置](./installation.md#支持的平台)。
+
 #### Pages 或本地预览 404
 
 本仓是 project site，base 必须为 `/tenon/`：

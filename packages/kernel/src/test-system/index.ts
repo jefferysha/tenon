@@ -76,8 +76,10 @@ export {
   knownFailureTooLong, latestKnownFailureExpiry, parseKnownFailures, serializeKnownFailures,
 } from './known-failures.js'
 export type { KnownFailure, KnownFailureVerdict, KnownFailuresParseResult } from './known-failures.js'
-export { machineProfile, memoryTierGiB, readMachineProfileInput } from './machine-profile.js'
-export type { MachineProfile, MachineProfileInput } from './machine-profile.js'
+export {
+  MACHINE_PROFILE_MODES, isMachineProfileMode, machineProfile, memoryTierGiB, readMachineProfileInput,
+} from './machine-profile.js'
+export type { MachineProfile, MachineProfileInput, MachineProfileMode } from './machine-profile.js'
 export {
   evaluateBenchmarkMetric, median, medianAbsoluteDeviation, percentile, regressionPct, summarizeSamples,
 } from './benchmark.js'

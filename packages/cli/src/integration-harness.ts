@@ -52,6 +52,7 @@ import {
   type TrackValidationContext,
 } from '@tenon/kernel'
 import type { CliDeps, GuardFileContext } from './deps.js'
+import { detectPlatform, readProcVersion } from './commands/doctor-platform.js'
 import {
   FIXED_CLOCK, readGovernedDocumentsForCurrentVisit, recordBoundDocumentsForCurrentVisit, seedAppliedSpec,
   seedGovernedDocumentEvidence,
@@ -295,6 +296,7 @@ export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.
     readInstalledPlugins: async () => undefined,
     doctor: {
       nodeVersion: () => process.version,
+      platform: () => detectPlatform({ platform: process.platform, env: process.env, procVersion: readProcVersion }),
       gitAvailable: async () => { try { execFileSync('git', ['--version'], { stdio: 'ignore' }); return true } catch { return false } },
       pluginRoot: REPO_ROOT,
       manifestError: () => { try { loadManifest(MANIFEST); return null } catch (e) { return e instanceof Error ? e.message : String(e) } },

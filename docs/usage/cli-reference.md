@@ -309,7 +309,14 @@ sample. When the spread exceeds half the regression threshold the suite is sampl
 more before judging. Baselines are stored per machine profile (OS, architecture, CPU,
 cores, memory tier, runtime major version and the catalog's `profiles_env` values) in
 `.tenon/tests/baselines/<suite>/<profile>.json` and are tracked in git; profiles never
-compare with each other. Without a baseline for the profile the run passes with a
+compare with each other. A catalog may set `profile: coarse` at the top level to use the
+coarse profile instead: OS, architecture, core count and runtime major version plus the
+`profiles_env` values (for example `linux-x64-4c-node22-1a2b3c4d`), without CPU model and memory
+tier, so hosted CI runners of one size share one baseline. The default is `profile: fine`
+(the same as leaving it out); an unknown value is rejected. Changing it makes earlier run
+records stale (the catalog digest they bind changes) and points baseline lookups at a different
+profile id. A catalog with a `profile:` key is rejected by a Tenon older than
+the release that introduced it. Without a baseline for the profile the run passes with a
 `baseline-missing` notice and the command to create one (`test baseline --suite --run`),
 unless the step policy requires a baseline. `test baseline` accepts only a passing run
 on the current record chain and appends an audit line to the user's `audit.jsonl`.

@@ -125,6 +125,28 @@ describe('测试体系 v2 · 基准', () => {
     expect((await verdicts()).filter((item) => item.blocking)).toEqual([])
   }, 120_000)
 
+  test('目录 profile: coarse：记录与基线用粗口径画像（OS-架构-核数-Node 主版本），同画像的下一次运行拿这份基线判退化', async () => {
+    const catalogPath = join(h.cwd, '.tenon', 'tests', 'catalog.yaml')
+    await writeFile(catalogPath, `profile: coarse\n${await readFile(catalogPath, 'utf8')}`, 'utf8')
+    expect(await tenon('test', 'catalog', 'validate'), err()).toBe(0)
+
+    process.env.BENCH_P95 = '100'
+    expect(await tenon('test', 'run', 'demo', '--suite', 'bench'), `${out()}\n${err()}`).toBe(0)
+    const first = await latestRun()
+    expect(first.machine_profile).toMatch(/^[a-z0-9]+-[a-z0-9]+-\d+c-node\d+-[a-f0-9]{8}$/)
+    expect(first.suites[0]?.reasons.map((reason) => reason.code)).toContain('baseline-missing')
+
+    expect(await tenon('test', 'baseline', 'demo', '--suite', 'bench', '--run', first.run_id), err()).toBe(0)
+    expect(await readdir(join(h.cwd, '.tenon', 'tests', 'baselines', 'bench'))).toEqual([`${first.machine_profile}.json`])
+
+    process.env.BENCH_P95 = '130'
+    expect(await tenon('test', 'run', 'demo', '--suite', 'bench')).toBe(2)
+    const second = await latestRun()
+    expect(second.machine_profile).toBe(first.machine_profile)
+    expect(second.suites[0]?.reasons.map((reason) => reason.code)).toContain('benchmark-regression')
+    expect(second.suites[0]?.reasons.map((reason) => reason.code)).not.toContain('baseline-missing')
+  }, 120_000)
+
   test('噪声保护：样本离散度大 → 自动多采一轮再判；基线更新把旧值压进历史', async () => {
     process.env.BENCH_P95 = '140'
     process.env.BENCH_NOISY = 'first'

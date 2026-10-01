@@ -8,6 +8,10 @@
 # tools-node 与 oracle-unit 不经过该脚本，它们本就不读这些变量（在带这些变量的环境里跑过，结果与干净环境一致）。
 # oracle-unit 用 --pool=threads：harness 用例长时间同步等子进程，默认的 forks 池会在 vitest 与 worker 的 RPC 上超时（用例全过、进程退出码却是 1）。
 schema: tenon-test-catalog/v1
+# 机器画像口径 coarse = OS + 架构 + 核数 + Node 主版本 + profiles_env（CPU 型号与内存档位不参与）：CI 上同规格的托管运行器
+# 会落在不同代的 CPU 上，细口径下每换一代就是一个新画像，已提交的基线永远对不上；粗口径让它们共用 .tenon/tests/baselines/ 里的一份。
+# 开发机的画像因此也带核数（如 darwin-arm64-14c-node24-…），仍与 CI 的画像（CI 变量不同）互不比较。
+profile: coarse
 profiles_env:
   - CI
 suites:
@@ -506,7 +510,8 @@ suites:
   #   snapshot_ms        缓存全丢后的冷重建（服务刚起、或一次没有点名项目的写之后）：只做回归护栏，不是验收线。
   #   change_detail_ms   打开一个任务时读它的全部证据。
   #   snapshot_bytes     列表快照的原始字节数，首屏载荷 < 1 MB（传输时 gzip 后只有几十 KB）。
-  # 夹具本身（900 次真实 `tenon init`）在 CI 上要一两分钟；不提交开发机画像的基线，CI 画像的基线走 bench-baseline-candidate。
+  # 夹具本身（900 次真实 `tenon init`）在 CI 上要一两分钟；不提交开发机画像的基线，CI 画像的基线走 bench-baseline-candidate
+  # （CI 上传候选，维护者从一次绿的 main 运行下载后原样提交；在此之前 CI 只对每个缺基线的套件打一条 notice，不挡）。
   - id: bench-snapshot-large
     label: 基准 · dashboard 快照规模（30 项目 × 30 任务）
     kind: benchmark

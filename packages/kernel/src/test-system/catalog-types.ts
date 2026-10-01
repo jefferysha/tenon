@@ -6,6 +6,7 @@
  * 路径约定：`files` / `covers` / `report.path` / `coverage.path` / `artifacts` 都相对套件的 `cwd`；
  * 报告、覆盖率与产物必须落在工作区指纹排除的测试输出目录下，否则跑一次测试就会让记录绑定的候选失效。
  */
+import type { MachineProfileMode } from './machine-profile.js'
 import type {
   CoverageFormat, ReportFormat, ServiceStopSignal, TestKind, TestRunner,
 } from './vocabulary.js'
@@ -104,6 +105,11 @@ export interface CatalogNotApplicable {
 
 export interface TestCatalog {
   readonly schema: typeof TEST_CATALOG_SCHEMA
+  /**
+   * 机器画像口径（machine-profile.ts）：省略 = 细口径 `fine`；`coarse` 让同规格的运行器（如托管 CI）共用一份基线。
+   * 解析时显式写的 `fine` 归一为省略，没有声明的旧目录摘要逐字不变。
+   */
+  readonly profile?: MachineProfileMode
   /** 参与机器画像的环境变量名。 */
   readonly profiles_env: readonly string[]
   readonly suites: readonly CatalogSuite[]
