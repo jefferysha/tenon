@@ -11,7 +11,9 @@ import {
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 import { REAL_INIT_WIZARD_ENV, type InitWizardEnv } from './init.js'
-import { ROLE_WORD, SOURCE_WORD, checkDefinition, loadLibrary, registerAgent, scopeOf } from './agent-library.js'
+import {
+  ROLE_WORD, SKELETON_DO_PLACEHOLDER, SKELETON_PLACEHOLDERS, SOURCE_WORD, checkDefinition, loadLibrary, registerAgent, scopeOf,
+} from './agent-library.js'
 
 export interface AgentNewOpts {
   readonly role?: string
@@ -55,17 +57,17 @@ export function agentBodySkeleton(name: string, role: AgentRole, description: st
     '',
     '## 只做与不做',
     '',
-    `- 做：<这个${ROLE_WORD[role]}负责的那一件事>`,
+    `- 做：${SKELETON_DO_PLACEHOLDER[role]}`,
     `- 不做：${readOnly}`,
     '',
     '## 方法',
     '',
-    '1. <第一步>',
-    '2. <第二步>',
+    `1. ${SKELETON_PLACEHOLDERS[0]}`,
+    `2. ${SKELETON_PLACEHOLDERS[1]}`,
     '',
     '## 自检',
     '',
-    '- <写报告前必须满足的条件>',
+    `- ${SKELETON_PLACEHOLDERS[2]}`,
     '',
     '## 报告',
     '',
@@ -188,7 +190,8 @@ export async function cmdAgentNew(
     body: base?.body ?? agentBodySkeleton(answers.name, role, answers.description),
   }
   const content = renderAgentFile(definition)
-  const checks = checkDefinition({ ...definition }, deps.knownSkillIds?.())
+  // 刚写出的骨架带占位符是预期的（登记后提示补全、validate 催补全）；用 --from 沿用的正文照常检查。
+  const checks = checkDefinition({ ...definition }, deps.knownSkillIds?.(), { allowSkeleton: base === undefined })
   const failed = checks.filter((check) => check.level === 'fail')
   if (failed.length > 0) {
     for (const check of failed) deps.io.err(`ERROR: ${check.message}`)

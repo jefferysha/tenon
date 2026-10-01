@@ -211,3 +211,58 @@ describe('finish-change 的提交：一次成功', () => {
     expect(status.step?.next[0]).toMatchObject({ action: 'finish-change', commit: null })
   })
 })
+
+/**
+ * 真机验收 F7：design-system 任务归档只提交了 openspec/changes/archive 与几个 .gitignore，`DESIGN.md`（10 章）和
+ * `design/`（模型、方向文档、预览页，约 2350 行）留在工作区，随后的前端任务 `tenon test code-size` 把它们算成
+ * 候选改动（4354 行）。设计体系任务的收尾提交要带上它们；别的工作流不动项目根的 DESIGN.md。
+ */
+describe('finish-change 的提交：design-system 任务带上 DESIGN.md 与 design/', () => {
+  const DS = 'shop-design'
+
+  async function archivedDesignSystem(): Promise<Commit> {
+    expect(await h.run(['init', DS, '--workflow', 'design-system', '--track', 'free', '--preset', 'full']), h.err.join('\n')).toBe(0)
+    await h.seedPhase(DS, 'review')
+    await h.seedArtifact(DS, 'archived', 'true')
+    await h.seedArtifact(DS, 'archived_at', '2026-09-20T00:00:00Z')
+    expect(await h.run(['status', DS, '--json']), h.err.join('\n')).toBe(0)
+    const action = (JSON.parse(h.out.join('\n')) as StatusJson).step?.next[0]
+    expect(action?.action).toBe('finish-change')
+    expect(action?.commit).toBeTruthy()
+    return action!.commit!
+  }
+
+  test('DESIGN.md 与 design/ 在 paths 里；照动作提交后它们已入库、工作区干净', async () => {
+    await writeFile(join(h.cwd, 'DESIGN.md'), '---\nschema: tenon-design/v1\n---\n# 1. Philosophy\n', 'utf8')
+    await mkdir(join(h.cwd, 'design'), { recursive: true })
+    await writeFile(join(h.cwd, 'design', 'design-model.yaml'), 'schema: tenon-design-model/v1\n', 'utf8')
+    await writeFile(join(h.cwd, 'design', 'preview.html'), '<html></html>\n', 'utf8')
+    expect(git(['init', '-q']).status).toBe(0)
+    const commit = await archivedDesignSystem()
+    expect(commit.paths).toEqual(expect.arrayContaining(['DESIGN.md', 'design', 'openspec/changes/archive']))
+    const root = join(h.cwd, 'openspec', 'changes')
+    await mkdir(join(root, 'archive'), { recursive: true })
+    await rename(join(root, DS), join(root, 'archive', `2026-09-20-${DS}`))
+    const add = git(['add', '-A', '--', ...commit.paths])
+    expect(add.status, add.output).toBe(0)
+    const done = git(['commit', '-q', '-m', commit.message])
+    expect(done.status, done.output).toBe(0)
+    // 夹具项目自带一套就绪的设计体系（design/ 下还有别的文件）：这里只看本测试写下的三个，以及整体已干净。
+    expect(git(['ls-files', '--', 'DESIGN.md', 'design']).output.trim().split('\n'))
+      .toEqual(expect.arrayContaining(['DESIGN.md', 'design/design-model.yaml', 'design/preview.html']))
+    expect(git(['status', '--porcelain', '--', 'DESIGN.md', 'design']).output).toBe('')
+  })
+
+  test('被忽略或不存在的设计文件不进 paths（git add 会整条失败）；default 工作流的收尾不带它们', async () => {
+    await rm(join(h.cwd, 'design'), { recursive: true, force: true })
+    await writeFile(join(h.cwd, 'DESIGN.md'), '# ignored\n', 'utf8')
+    await writeFile(join(h.cwd, '.gitignore'), 'DESIGN.md\n', 'utf8')
+    expect(git(['init', '-q']).status).toBe(0)
+    const commit = await archivedDesignSystem()
+    expect(commit.paths).not.toContain('DESIGN.md')
+    expect(commit.paths).not.toContain('design')
+
+    const plain = await statusOf()
+    expect(plain.step?.next[0]?.commit?.paths).not.toContain('DESIGN.md')
+  })
+})

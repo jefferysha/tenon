@@ -118,9 +118,15 @@ workflow token 始终保持英文。冲突策略使用 `--strategy skip|overwrit
 tenon review request <change> --event <event>
 tenon review acknowledge <change>
 tenon review acknowledge <change> --delegated
+tenon review acknowledge <change> --as reviewer
 ```
 
 delegated 需要 Change 绑定的持续授权，且不能跳过 check。
+
+谁能确认评审：任务负责人，与任务上其余写操作（`transition`、`set`、`review request`）一致。负责人之外的人评审
+负责人的工作，要显式写 `review acknowledge <change> --as reviewer`；这次确认会在 change 历史里记
+`as=reviewer owner=<id>`。不带该标志的非负责人被拒绝、不写任何东西；另一条路是 `tenon owner take <change>`，
+它会转移负责人。Dashboard 的「通过」由顶栏用户确认。
 
 `review acknowledge` 退出码：`0` 已确认、重复确认或确认成功但 review marker 清理告警；`2` 没有匹配的待确认
 review（缺失、已被消费、binding 失效或 event 已不是 workflow 出口）；`3` revision 冲突（仅 Dashboard CAS
@@ -243,7 +249,13 @@ diff 对账：未登记的测试文件、没有套件认领的文件、登记了
 未跟踪文件。读不到 diff 时门禁以 `files-diff-unavailable` 阻塞（失败关闭，不降级成提示）。
 
 `test run` 每次调用写一份 v2 记录（`.tenon/users/<slug>/tests/<change>/<run-id>.json`），按 `prev_digest` 串成链；
-手改记录就断链，该任务的全部 v2 记录视为未运行，直到重跑另起新链。选择：`--suite`、`--kind`、`--all`（计划里的全部
+手改记录就断链，该任务的全部 v2 记录视为未运行，直到重跑另起新链。记录按设计入库（它们是别人和 CI 读的证据），所以数量有上限：
+每次运行之后，每个用户每个任务只保留最新的 20 条（内联步骤测试按测试项算）。清理删掉最老的一段，并在记录旁留一个
+`chain-base` 标记，写明被删的最后一条的摘要，剩下的链仍可校验；中间缺记录、标记对不上或标记损坏，照旧是断链。测试进程的 `PATH`
+最前是正在运行的 `tenon`（启动器所在目录；直接 `node …/tenon.mjs` 跑时是一个转发脚本），所以没有启动器在 `PATH` 上的环境里
+`tenon test code-size --json` 也能跑；宿主自己的 Bash 解析不到 `tenon` 时 `tenon doctor` 的 `env:path-tenon` 会提示。交付提交从不包含
+`.pipeline-owned.json`、`test-results/`、`playwright-report/` 和仓库根的 `coverage/`；生成的 `tenon-<name>` 宿主 agent 文件与这些输出目录
+会加进本克隆的 `.git/info/exclude`（不改项目的 `.gitignore`）。选择：`--suite`、`--kind`、`--all`（计划里的全部
 套件，全量）、`--changed`（套件有 `select.files` 模板且只改了它的测试文件时只跑这些，否则整套跑）、
 `--stage [<step>]`（该步骤策略的 `run` 种类，加上计划登记了的 `run_if_registered` 种类；策略要求 `scope: full` 时一律
 全量）。没有任何选择参数时缺省就是 `--stage`。`--stage` 只跑目录套件：内联的 `tests[]`（套件 id 以 `step:` 开头）仍走

@@ -3,7 +3,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
-import { probeGitFinish } from './gitWorkspace.js'
+import { probeGitFinish, WORKSPACE_COMMIT_PATHS } from './gitWorkspace.js'
 
 const LEDGERS = [
   '.pipeline-history.jsonl',
@@ -28,6 +28,42 @@ function repoWithDeliveredChange(): string {
   git('commit', '-qm', 'feat(demo): deliver')
   return dir
 }
+
+describe('交付提交的范围（真机验收 F14）', () => {
+  function stagedBy(dir: string): string[] {
+    const run = (...args: string[]): string =>
+      execFileSync('git', ['-c', 'user.email=t@x.test', '-c', 'user.name=t', ...args], { cwd: dir, encoding: 'utf8' })
+    run('add', '-A', '--', ...WORKSPACE_COMMIT_PATHS)
+    return run('diff', '--cached', '--name-only').split('\n').filter((line) => line !== '').sort()
+  }
+
+  test('本机生成的文件不进交付提交：所有权清单、测试输出目录、宿主 agent 文件；源码照常提交', () => {
+    root = repoWithDeliveredChange()
+    const put = (path: string, text = 'x\n'): void => {
+      mkdirSync(join(root, path, '..'), { recursive: true })
+      writeFileSync(join(root, path), text)
+    }
+    put('.pipeline-owned.json', '{}\n')
+    put('.claude/agents/tenon-builder.md')
+    put('test-results/unit.xml')
+    put('packages/web/test-results/pw/shot.png')
+    put('packages/web/playwright-report/index.html')
+    put('coverage/lcov.info')
+    put('src/cart.js', 'export {}\n')
+    put('src/coverage/report.js', 'export {}\n')
+    expect(stagedBy(root)).toEqual(['src/cart.js', 'src/coverage/report.js'])
+  })
+
+  test('只剩这些本机文件时工作区算干净（不会发一条 nothing to commit 的提交）', async () => {
+    root = repoWithDeliveredChange()
+    writeFileSync(join(root, '.pipeline-owned.json'), '{}\n')
+    mkdirSync(join(root, 'test-results'), { recursive: true })
+    writeFileSync(join(root, 'test-results', 'unit.xml'), 'x\n')
+    const probe = await probeGitFinish(root, 'demo')
+    expect(probe?.workspaceDirty).toBe(false)
+    expect(probe?.deliverablesDirty).toBe(false)
+  })
+})
 
 describe('probeGitFinish · 交付步收尾的「还要不要提交」', () => {
   // 真机第六轮：交付步收尾后用户回复「继续」，续轮本身追加了交互 / 技能调用 / 技能确认台账，

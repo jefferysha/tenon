@@ -5,6 +5,7 @@ import {
   HISTORY_FILE,
   aliasesForSkill,
   builtinTrack,
+  dependencyWaves,
   isBuiltinTrackId,
   loadTrackRegistry,
   requireTrackForRoot,
@@ -95,13 +96,6 @@ function skillNamesOf(raw: string): readonly string[] {
   return [...new Set([token, token.slice(token.lastIndexOf(':') + 1)])]
 }
 
-function waveOf(id: string, dependsOn: ReadonlyMap<string, readonly string[]>, seen: Set<string> = new Set()): number {
-  const deps = dependsOn.get(id) ?? []
-  if (deps.length === 0 || seen.has(id)) return 0
-  seen.add(id)
-  return 1 + Math.max(...deps.map((dependency) => waveOf(dependency, dependsOn, seen)))
-}
-
 /**
  * 轨道叠加层：分支后的阶段技能已是全集；manifest-overlay 计划（default）另叠加机器级 manifest mandatory 表
  * （与 resolver 同口径——default 分支与该表由 check:default-skill-matrix 保持一致，叠加只是去重）。
@@ -150,12 +144,14 @@ export async function projectSkillRuns(
     const step = capability.steps.find((candidate) => candidate.stepId === stepId)
     const dependsOn = new Map((step?.declared ?? []).map((skill) => [skill.id, skill.dependsOn]))
     const ids = [...new Set([...(step?.requiredSkillIds ?? []), ...overlaySkills(capability, stepId, track, mandatorySkills)])]
+    // 波次只有 kernel 的 dependencyWaves 一个算法（编排、技能门、画布都用它）；前置指向图外的名字不计。
+    const waves = dependencyWaves(ids.map((id) => ({ id, dependsOn: dependsOn.get(id) ?? [] })))
     const skills = ids.map((id) => {
       let status: SkillRunStatus
       if (index < currentIndex) status = 'done'
       else if (index > currentIndex) status = 'idle'
       else status = any(finished, id) ? 'done' : any(started, id) ? 'running' : 'idle'
-      return { id, status, wave: waveOf(id, dependsOn) }
+      return { id, status, wave: waves.get(id) ?? 0 }
     })
     return { stepId, skills }
   })

@@ -25,6 +25,7 @@ function mount(report: PolicyReport = verifyReport(), extra: {
   legacyRows?: readonly TestRow[]
   activeSuite?: string | null
   onOpenSuite?: (suite: string) => void
+  recordedBy?: string
 } = {}) {
   const onOpenSuite = extra.onOpenSuite ?? vi.fn()
   const view = render(
@@ -36,6 +37,7 @@ function mount(report: PolicyReport = verifyReport(), extra: {
           legacyRows={extra.legacyRows ?? []}
           activeSuite={extra.activeSuite ?? null}
           onOpenSuite={onOpenSuite}
+          {...(extra.recordedBy === undefined ? {} : { recordedBy: extra.recordedBy })}
           stageLabelOf={(stage) => (stage === 'build' ? '实现' : stage)}
         />
       </TooltipProvider>
@@ -88,6 +90,28 @@ describe('TaskTestsTab · 汇总与顺序', () => {
       expect(tone(id), id).not.toContain('text-red-d')
       expect(screen.getByTestId(`tests-stat-${id}`)).toHaveAttribute('data-zero', 'true')
     }
+  })
+
+  it('记录是负责人的：汇总行末尾只加一个「· 名字」（真机验收 F15），13px text-3，不新增句子，不折行', () => {
+    mount(verifyReport(), { recordedBy: 'Alice' })
+    const summary = screen.getByTestId('tests-summary')
+    const owner = screen.getByTestId('tests-summary-owner')
+    expect(owner.textContent).toBe('· Alice')
+    expect(owner).toHaveAttribute('title', 'Alice')
+    expect(owner.className).toContain('text-micro')
+    expect(owner.className).toContain('text-text-3')
+    expect(owner.className).toContain('truncate')
+    // 名字在数字行里最后一个，数字与标签原样；朗读文字以名字收尾。
+    expect(summary.lastElementChild).toBe(owner)
+    expect(summary.className).toContain('whitespace-nowrap')
+    expect(summary.className).toContain('flex-nowrap')
+    expect(['suite', 'case', 'fail', 'flaky', 'coverage'].map((id) => screen.getByTestId(`tests-stat-${id}`).textContent)).toEqual(['3套件', '120用例', '0失败', '2不稳定', '91.2%覆盖率'])
+    expect(summary).toHaveAttribute('aria-label', '套件 3 · 用例 120 · 失败 0 · 不稳定 2 · 覆盖率 91.2% · Alice')
+  })
+
+  it('没有负责人：汇总行没有名字这一格', () => {
+    mount()
+    expect(screen.queryByTestId('tests-summary-owner')).toBeNull()
   })
 
   it('没有任何覆盖率：汇总不带覆盖率一格；空运行集全部为 0', () => {

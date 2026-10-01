@@ -9,6 +9,7 @@ import {
   type FrozenAgent, type HostAgentFileOutcome, type HostAgentHost, type HostAgentPruneResult,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
+import { ensureLocalExcludes, HOST_AGENT_EXCLUDES } from '../localExcludes.js'
 import { str } from '../render.js'
 
 /** `--host` 优先；没给时按进程环境判定的当前宿主（终端 = 无宿主，不生成）。 */
@@ -31,6 +32,8 @@ export async function ensureChangeHostAgents(
     .map((agent) => ({ name: agent.name, definition: agent.definition }))
   if (agents.length === 0) return new Map()
   try {
+    // 生成的文件是本机的、完结时回收：加进本机忽略，版本库状态里不显示为未跟踪（真机验收 F14）。
+    await ensureLocalExcludes(deps.cwd, HOST_AGENT_EXCLUDES)
     const outcomes = await ensureHostAgentFiles({ repoRoot: deps.cwd, host, agents })
     for (const outcome of outcomes) {
       if (!outcome.native) deps.io.err(`WARN: 宿主 agent ${outcome.path} 未生成（${outcome.detail ?? outcome.state}），改用通用子代理`)

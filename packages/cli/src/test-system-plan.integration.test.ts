@@ -95,6 +95,9 @@ describe('测试体系 v2 · 计划、追溯与命令面', () => {
     expect(await tenon('test', 'catalog', 'show')).toBe(1)
     expect(await tenon('test', 'catalog', 'add', '--from', 'unit', '--runner', 'vitest', '--file-glob', 'src/**/*.test.ts'), err()).toBe(0)
     expect(await tenon('test', 'catalog', 'add', 'typecheck', '--kind', 'typecheck', '--command', 'npx tsc --noEmit'), err()).toBe(0)
+    // 真机验收 F10：--report-format exit-code 曾恒失败（CLI 自己补了默认 path，catalog.yaml 又拒绝 path）。
+    expect(await tenon('test', 'catalog', 'add', 'probe-x', '--kind', 'custom', '--runner', 'custom', '--command', 'true', '--report-format', 'exit-code'), err()).toBe(0)
+    expect(await tenon('test', 'catalog', 'rm', 'probe-x'), err()).toBe(0)
     expect(await tenon('test', 'catalog', 'show')).toBe(0)
     expect(out()).toContain('unit  unit/vitest')
     expect(out()).toContain('typecheck  typecheck/tsc')

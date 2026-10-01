@@ -1,8 +1,9 @@
-import { effectiveSkillDependencies, minimalSkillDependencies } from '@tenon/kernel/workflow/skill-order'
+import { dependencyWaves, effectiveSkillDependencies, minimalSkillDependencies } from '@tenon/kernel/workflow/skill-order'
 import type { WbSkillRef } from '../api/governanceTypes'
 
 /**
  * 图的执行波次：按 depends_on 拓扑深度分组——同一波并行、波与波之间串行，未写依赖的节点在第 0 波。
+ * 深度由 kernel 的 dependencyWaves 算（编排、技能门、服务端投影同一个算法，这里不再有自己的一份）。
  * 这是画布（SkillFlow）的图口径，节点的依赖都已显式给出；技能在阶段里「没写 depends_on = 按声明顺序
  * 串行」的规则由 kernel skill-order 负责，进画布之前先用 explicitSkillRefs 展开。
  * 只认同阶段内的依赖；环依赖按深度 0 处理（kernel 校验期会拒绝环，这里不重复报错）。
@@ -11,28 +12,13 @@ export function skillExecutionWaves(
   skills: readonly string[],
   depsBySkill: Readonly<Record<string, string[]>>,
 ): string[][] {
-  const skillSet = new Set(skills)
-  const memo = new Map<string, number>()
-
-  function depthOf(skillId: string, trail: ReadonlySet<string>): number {
-    const cached = memo.get(skillId)
-    if (cached !== undefined) return cached
-    if (trail.has(skillId)) return 0
-    const nextTrail = new Set(trail).add(skillId)
-    const dependencies = (depsBySkill[skillId] ?? []).filter((dependency) => skillSet.has(dependency))
-    const depth = dependencies.length === 0
-      ? 0
-      : Math.max(...dependencies.map((dependency) => depthOf(dependency, nextTrail))) + 1
-    memo.set(skillId, depth)
-    return depth
-  }
-
+  const depth = dependencyWaves(skills.map((id) => ({ id, dependsOn: depsBySkill[id] ?? [] })))
   const waves: string[][] = []
   for (const skillId of skills) {
-    const depth = depthOf(skillId, new Set())
-    const wave = waves[depth] ?? []
+    const index = depth.get(skillId) ?? 0
+    const wave = waves[index] ?? []
     wave.push(skillId)
-    waves[depth] = wave
+    waves[index] = wave
   }
   return waves.filter((wave) => wave.length > 0)
 }

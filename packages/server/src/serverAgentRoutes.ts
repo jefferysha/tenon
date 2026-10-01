@@ -130,7 +130,7 @@ export function resolveAgentGet(
           source: entry.source,
           content: entry.content,
           digest: entry.digest,
-          references: agentWorkflowReferences({ configRoot: deps.paths.configRoot }, name),
+          references: agentWorkflowReferences({ configRoot: deps.paths.configRoot, ...(located.root === undefined ? {} : { projectRoot: located.root }) }, name),
           runs: located.root === undefined ? [] : await agentRecentRuns(located.root, name),
           ...(entry.error === undefined ? {} : { error: entry.error }),
         },
@@ -199,6 +199,9 @@ async function update(req: IncomingMessage, name: string, deps: AgentRouteDeps):
 
 async function remove(req: IncomingMessage, name: string, deps: AgentRouteDeps): Promise<AgentRouteResult> {
   const query = new URL(req.url ?? '/', 'http://localhost').searchParams
+  // 引用要看请求所在项目的工作流库（`root`），与 CLI 在项目里运行 `agent rm` 一致；root 不在注册表里就拒绝。
+  const scanned = projectRootOf(query.get('root') ?? '', deps)
+  if (isResult(scanned)) return scanned
   const writable = writableScope({ source: query.get('source') ?? undefined, root: query.get('root') ?? undefined }, deps)
   if (!isWritable(writable)) return writable
   const library = await loadAgentLibrary(options(deps, writable.projectRoot))
@@ -206,7 +209,7 @@ async function remove(req: IncomingMessage, name: string, deps: AgentRouteDeps):
   const named = library.entries.filter((candidate) => candidate.name === name)
   if (named.length === 0) return failure(404, 'agent-missing', `agent 库中不存在 '${name}'`)
   if (named.some((candidate) => candidate.source === 'builtin')) return failure(403, 'agent-builtin-readonly', '官方 agent 只读')
-  const references = agentWorkflowReferences({ configRoot: deps.paths.configRoot }, name)
+  const references = agentWorkflowReferences({ configRoot: deps.paths.configRoot, ...(scanned.root === undefined ? {} : { projectRoot: scanned.root }) }, name)
   if (references.length > 0) {
     return failure(409, 'agent-referenced', 'agent 被工作流引用', { references })
   }

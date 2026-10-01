@@ -11,11 +11,16 @@
  *
  * 追加（appendTestRunRecordV2，只供 `tenon test run`）：在本机锁内列目录、校验、补链字段、独占发布，
  * 两个并发运行不会分叉。
+ *
+ * 保留上限清理（pruneRecordChain，同一把锁）：记录是入版本库的，不清理会随每次运行无界增长，一次交付提交带上几十份。
+ * 清理只删最老的前缀，并在同目录写一个链基点标记 `chain-base`：`base` 是被删的最后一条记录的摘要，保留下来的最老
+ * 一条的 `prev_digest` 必须等于它，链才算从这里开始；`pruned` 列出本次要删的文件（先写标记、再删文件，中途崩溃时这些
+ * 文件被当作不存在）。标记只放行「最老一端的前缀被清理」：中间缺记录、基点对不上、标记损坏，照旧是断链。
  */
-import { lstat, mkdir, readFile, readdir } from 'node:fs/promises'
+import { lstat, mkdir, readFile, readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { sha256Hex } from '../sha256.js'
-import { atomicLinkPublish } from '../state/atomic-publish.js'
+import { atomicLinkPublish, atomicReplaceFile } from '../state/atomic-publish.js'
 import { withLock } from '../state/lock.js'
 import { TEST_RUN_SCHEMA } from '../test-evidence/types.js'
 import { canonicalJson } from './canonical.js'
@@ -35,10 +40,25 @@ export interface RecordFileEntry {
   readonly record: TestRunRecordV2
 }
 
+/** 链基点标记：最老一端的前缀已被清理，链从 `prev_digest === base` 的那条记录开始。 */
+export interface ChainBase {
+  readonly base: string
+  /** 已决定清理、可能还没删干净的文件名；校验时当作不存在。 */
+  readonly pruned: readonly string[]
+}
+
+/** 每个用户每个任务保留的运行记录条数（v1 按测试项、v2 按链）；更老的在下一次运行后被清理。 */
+export const RECORD_RETENTION = 20
+export const CHAIN_BASE_FILE = 'chain-base'
+const CHAIN_BASE_SCHEMA = 'tenon-record-chain-base/v1'
+const DIGEST_RE = /^sha256:[0-9a-f]{64}$/
+
 export interface RecordDirectoryListing {
   readonly records: readonly RecordFileEntry[]
   /** 无法读取、非 JSON、schema 不认识或声明 v2 却解码失败的文件名。v1 记录不在此列。 */
   readonly problems: readonly string[]
+  /** 目录里的链基点标记；没有标记（从未清理过）时缺省。 */
+  readonly base?: ChainBase
 }
 
 export type ChainReport =
@@ -58,18 +78,22 @@ function order(left: TestRunRecordV2, right: TestRunRecordV2): number {
 }
 
 export function verifyRecordChain(listing: RecordDirectoryListing): ChainReport {
-  const geneses = listing.records.filter((entry) => entry.record.prev_digest === null)
+  const base = listing.base
+  const pruned = new Set(base?.pruned ?? [])
+  const visible = listing.records.filter((entry) => !pruned.has(entry.file))
+  const geneses = visible.filter((entry) => entry.record.prev_digest === null
+    || (base !== undefined && entry.record.prev_digest === base.base))
     .sort((left, right) => order(left.record, right.record))
   const genesis = geneses.at(-1)
   if (genesis === undefined) {
-    if (listing.records.length === 0 && listing.problems.length === 0) return { state: 'empty' }
-    const files = [...listing.problems, ...listing.records.map((entry) => entry.file)].sort()
+    if (visible.length === 0 && listing.problems.length === 0) return { state: 'empty' }
+    const files = [...listing.problems, ...visible.map((entry) => entry.file)].sort()
     return { state: 'broken', reason: '找不到链首记录', files }
   }
   const superseded = new Set(genesis.record.chain_reset?.superseded ?? [])
   const problems = listing.problems.filter((file) => !superseded.has(file))
   if (problems.length > 0) return { state: 'broken', reason: '有记录文件无法读取或格式非法', files: problems }
-  const remaining = listing.records.filter((entry) => !superseded.has(entry.file))
+  const remaining = visible.filter((entry) => !superseded.has(entry.file))
   const tampered = remaining.filter((entry) => entry.file !== `${entry.record.run_id}.json`
     || recordV2Digest(entry.record) !== entry.record.digest)
   if (tampered.length > 0) return { state: 'broken', reason: '记录内容与摘要不符（被改动）', files: tampered.map((entry) => entry.file) }
@@ -111,6 +135,28 @@ async function readRecordFile(path: string): Promise<'v1' | 'problem' | TestRunR
   }
 }
 
+async function readChainBase(dir: string): Promise<ChainBase | 'problem' | undefined> {
+  let text: string
+  try {
+    text = await readFile(join(dir, CHAIN_BASE_FILE), 'utf8')
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'ENOENT' ? undefined : 'problem'
+  }
+  try {
+    const value: unknown = JSON.parse(text)
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return 'problem'
+    const record = Object.fromEntries(Object.entries(value))
+    const keys = Object.keys(record).sort().join(',')
+    if (keys !== 'base,pruned,schema' || record.schema !== CHAIN_BASE_SCHEMA) return 'problem'
+    const { base, pruned } = record
+    if (typeof base !== 'string' || !DIGEST_RE.test(base) || !Array.isArray(pruned)) return 'problem'
+    if (pruned.length > 100_000 || !pruned.every((file) => typeof file === 'string' && /^[A-Za-z0-9._-]+\.json$/.test(file))) return 'problem'
+    return { base, pruned: pruned.map(String) }
+  } catch {
+    return 'problem'
+  }
+}
+
 /** 列出一个记录目录：v2 记录解码，v1 记录跳过，其余 `.json` 文件记为问题。目录不存在 = 空。 */
 export async function listRecordDirectory(dir: string): Promise<RecordDirectoryListing> {
   let names: string[]
@@ -122,13 +168,15 @@ export async function listRecordDirectory(dir: string): Promise<RecordDirectoryL
   }
   const records: RecordFileEntry[] = []
   const problems: string[] = []
+  const base = await readChainBase(dir)
+  if (base === 'problem') problems.push(CHAIN_BASE_FILE)
   for (const file of names) {
     const result = await readRecordFile(join(dir, file))
     if (result === 'v1') continue
     if (result === 'problem') problems.push(file)
     else records.push({ file, record: result })
   }
-  return { records, problems }
+  return { records, problems, ...(base === undefined || base === 'problem' ? {} : { base }) }
 }
 
 export async function readRecordChain(repoRoot: string, slug: string, change: string): Promise<ChainReport> {
@@ -177,5 +225,39 @@ export async function appendTestRunRecordV2(
       chain: previous.state === 'intact' ? 'appended' : previous.state === 'empty' ? 'started' : 'reset',
       previous,
     }
+  })
+}
+
+/**
+ * 保留上限清理：链完好且记录多于 `keep` 时，只留最新的 `keep` 条。链已断、没有多余记录或目录不存在时什么都不做。
+ * 返回被删的文件名。先写链基点标记（列出要删的文件）、再删文件、最后把标记收敛成只有基点；中途崩溃时链依然完好，
+ * 下一次清理把遗留的文件收掉。
+ */
+export async function pruneRecordChain(
+  repoRoot: string,
+  slug: string,
+  change: string,
+  keep: number,
+): Promise<readonly string[]> {
+  const dir = testRunRecordsDir(repoRoot, slug, change)
+  if ((await listRecordDirectory(dir)).records.length === 0) return []
+  const lockDir = testRecordChainLockDir(repoRoot, slug, change)
+  await mkdir(lockDir, { recursive: true })
+  return withLock(lockDir, async () => {
+    const listing = await listRecordDirectory(dir)
+    const report = verifyRecordChain(listing)
+    if (report.state !== 'intact') return []
+    const present = new Set(listing.records.map((entry) => entry.file))
+    const leftovers = (listing.base?.pruned ?? []).filter((file) => present.has(file))
+    const dropped = report.active.slice(0, Math.max(0, report.active.length - Math.max(1, keep)))
+    const base = dropped.at(-1)?.digest ?? listing.base?.base
+    if (base === undefined || (dropped.length === 0 && leftovers.length === 0)) return []
+    const files = [...new Set([...leftovers, ...dropped.map((record) => `${record.run_id}.json`)])]
+    const marker = (pruned: readonly string[]): string =>
+      `${JSON.stringify({ schema: CHAIN_BASE_SCHEMA, base, pruned }, null, 2)}\n`
+    await atomicReplaceFile(join(dir, CHAIN_BASE_FILE), marker(files))
+    for (const file of files) await rm(join(dir, file), { force: true })
+    await atomicReplaceFile(join(dir, CHAIN_BASE_FILE), marker([]))
+    return files
   })
 }

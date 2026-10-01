@@ -8,7 +8,8 @@
  * 以及与它们同名的其它用例（别的文件里的同名用例会让「名字唯一」不成立）也必须留下，判定才看得到完整的同名集合。
  */
 import {
-  caseTitleMatchesRef, classifyAgainstKnownFailures, fileRefMatches, formatCaseRef, isUnknownCaseFile, parseCaseRef,
+  caseTitleMatchesRef, casesMatchingRef, classifyAgainstKnownFailures, fileRefMatches, formatCaseRef, isUnknownCaseFile,
+  knownFailureExpired, parseCaseRef,
   type CaseRef, type CaseResultV2, type CaseTotals, type KnownFailure, type TestPlan,
 } from '@tenon/kernel'
 import type { ParsedCase } from './parsers/index.js'
@@ -79,13 +80,34 @@ function keptByName(all: readonly CaseResultV2[], refs: readonly CaseRef[]): Rea
   return kept
 }
 
+/**
+ * 报告没给文件的失败用例（`(unknown)`）：已知失败清单里写了真实文件的条目对不上它，但带标题的条目可以按名字对——
+ * 名字唯一（整次运行里这条引用只命中这一个无文件用例）才算，与登记映射的降级同一条规则。没过期才放行。
+ * 这样不必为 TAP 一类不带文件的报告手写 `(unknown) › 名字`（产品评估 P2）。
+ */
+function knownByName(parsed: readonly ParsedCase[], context: RecordContext): ReadonlySet<ParsedCase> {
+  const matched = new Set<ParsedCase>()
+  if (!parsed.some((item) => item.status === 'fail' && isUnknownCaseFile(item.file))) return matched
+  for (const entry of context.knownFailures) {
+    if (entry.suite !== context.suiteId || knownFailureExpired(entry, context.today)) continue
+    const ref = parseCaseRef(entry.test)
+    if (ref === undefined || ref.title.length === 0) continue
+    const hits = casesMatchingRef(ref, parsed)
+    const only = hits.length === 1 ? hits[0] : undefined
+    if (only !== undefined && isUnknownCaseFile(only.file) && only.status === 'fail') matched.add(only)
+  }
+  return matched
+}
+
 export function recordCases(parsed: readonly ParsedCase[], context: RecordContext): { readonly all: CaseResultV2[]; readonly kept: CaseResultV2[] } {
   const all: CaseResultV2[] = []
   const always = new Set<CaseResultV2>()
+  const byName = knownByName(parsed, context)
   for (const item of parsed) {
     const identity = { file: item.file, suite_path: item.suite_path, name: item.name }
     let status: CaseResultV2['status'] = item.status
-    if (status === 'fail' && classifyAgainstKnownFailures(context.knownFailures, context.suiteId, identity, 'fail', context.today).verdict === 'known-fail') {
+    if (status === 'fail' && (byName.has(item)
+      || classifyAgainstKnownFailures(context.knownFailures, context.suiteId, identity, 'fail', context.today).verdict === 'known-fail')) {
       status = 'known-fail'
     }
     const artifacts = item.attachments.flatMap((attachment) => {

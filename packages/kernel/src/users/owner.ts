@@ -43,3 +43,12 @@ export function assertOwner(change: string, fields: ChangeFields, actor: RecordA
   const decision = ownerDecision(fields, actor)
   if (!decision.allowed) throw new OwnerRequiredError(change, decision.owner)
 }
+
+/**
+ * `tenon review acknowledge` 的负责人规则：确认评审同样只认负责人；负责人之外的人做评审要显式声明
+ * 评审人身份（`--as reviewer`，写进历史），或先 `tenon owner take` 接手。
+ */
+export function reviewerRequiredMessage(change: string, owner: UserRef | null): string {
+  const who = owner === null ? `任务 ${change} 没有负责人` : `任务 ${change} 的负责人是 ${formatUserRef(owner)}`
+  return `${who}，评审确认默认只认负责人；以评审人身份确认请加 --as reviewer，要接手任务请先 tenon owner take ${change}`
+}

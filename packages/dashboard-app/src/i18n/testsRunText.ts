@@ -34,6 +34,7 @@ export const zh: Dict = {
   cases: {
     name: '名称',
     location: '位置',
+    no_file: '未报告文件',
     message: '消息',
     browser: '浏览器',
     stack: '堆栈',
@@ -138,6 +139,7 @@ export const en: Dict = {
   cases: {
     name: 'Name',
     location: 'Location',
+    no_file: 'No file reported',
     message: 'Message',
     browser: 'Browser',
     stack: 'Stack',

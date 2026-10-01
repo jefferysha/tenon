@@ -85,7 +85,13 @@ describe('真实 e2e —— tenon agent 库命令', () => {
     expect(text).toContain('```tenon-result')
     const row = (await list(['--source', 'custom'])).agents[0]
     expect(row).toMatchObject({ name: 'sql-review', source: 'custom', role: 'reviewer', version: '0.1.0' })
-    expect(await run(['agent', 'validate', 'sql-review'])).toBe(0)
+    // 骨架里的占位符没补全就不能过 validate（产品评估 P2）；补全后通过。
+    expect(await run(['agent', 'validate', 'sql-review'])).toBe(1)
+    expect(h.out.join('\n')).toContain('骨架占位符 <第一步>')
+    await writeFile(customPath('sql-review'), text
+      .replace('<第一步>', '读查询').replace('<第二步>', '对照索引').replace('<这个评审者负责的那一件事>', '查注入与索引')
+      .replace('<写报告前必须满足的条件>', '每条发现有位置'), 'utf8')
+    expect(await run(['agent', 'validate', 'sql-review']), h.out.join('\n')).toBe(0)
   })
 
   test('new：非交互缺参数 exit 1 且不落盘；技能不存在 exit 1；与官方同名 exit 1', async () => {

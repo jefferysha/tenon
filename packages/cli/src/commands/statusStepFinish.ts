@@ -48,6 +48,11 @@ export interface StepFinishFacts {
   readonly git: GitFinishProbe | null
   /** 这次运行以验证通过收尾（verify_result=pass）；scope-expanded 之类的放弃出口不提交。 */
   readonly verified: boolean
+  /**
+   * 这是设计体系任务（design-system 工作流）：`DESIGN.md` 与 `design/` 是它的交付物，随完结提交入库——
+   * 否则它们留在工作区，被后续任务的 code-size 算成候选改动（真机验收 F7）。缺省 false。
+   */
+  readonly designSystem?: boolean
 }
 
 /**
@@ -97,6 +102,7 @@ export function finishActions(
         paths: [
           ...(git.changeDirTracked ? [`openspec/changes/${change}`] : []),
           'openspec/changes/archive',
+          ...(finish.designSystem === true ? git.designSystem : []),
           ...git.housekeeping,
         ],
         untrack: git.untrack,

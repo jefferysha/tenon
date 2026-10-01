@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { testRunRecordsDir } from './paths.js'
 import {
-  appendTestRunRecordV2, listRecordDirectory, readRecordChain, recordV2Digest, verifyRecordChain,
+  appendTestRunRecordV2, listRecordDirectory, pruneRecordChain, readRecordChain, recordV2Digest, verifyRecordChain,
 } from './record-chain.js'
 import { declaresRecordV2, decodeTestRunRecordV2 } from './record-v2-codec.js'
 import type { TestRunRecordV2 } from './record-v2-types.js'
@@ -157,5 +157,100 @@ describe('追加与读取（真文件系统）', () => {
     await expect(appendTestRunRecordV2(repo, SLUG, draft)).rejects.toThrow()
     await expect(appendTestRunRecordV2(repo, SLUG, { ...fixtureRecordDraft(), suites: [fixtureSuiteRun({ suite: 'x', kind: 'nope' as 'unit' })] }))
       .rejects.toThrow(/形状非法/)
+  })
+})
+
+describe('保留上限清理（真机验收 F14 / P2：记录永不清理，一次交付提交带上 27 份）', () => {
+  let repo: string
+  beforeEach(async () => { repo = await mkdtemp(join(tmpdir(), 'tenon-chain-prune-')) })
+  afterEach(async () => { await rm(repo, { recursive: true, force: true }) })
+  const dirOf = () => testRunRecordsDir(repo, SLUG, 'demo')
+
+  async function append(count: number): Promise<string[]> {
+    const ids: string[] = []
+    for (let i = 0; i < count; i++) ids.push((await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())).record.run_id)
+    return ids
+  }
+
+  it('超过上限：只留最新的 N 条，链仍 intact、链首是保留的最老一条；之后照常追加', async () => {
+    const ids = await append(6)
+    const removed = await pruneRecordChain(repo, SLUG, 'demo', 3)
+    expect(removed).toEqual(ids.slice(0, 3).map((id) => `${id}.json`))
+    const report = await readRecordChain(repo, SLUG, 'demo')
+    expect(report.state).toBe('intact')
+    expect(report.state === 'intact' ? report.active.map((record) => record.run_id) : []).toEqual(ids.slice(3))
+    expect((await readdir(dirOf())).filter((name) => name.endsWith('.json')).sort()).toEqual(ids.slice(3).map((id) => `${id}.json`).sort())
+    const next = await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    expect(next.chain).toBe('appended')
+    expect(next.record.prev_digest).toBe(report.state === 'intact' ? report.head : null)
+    expect((await readRecordChain(repo, SLUG, 'demo')).state).toBe('intact')
+  })
+
+  it('没超过上限、目录不存在、链已断：什么都不删', async () => {
+    expect(await pruneRecordChain(repo, SLUG, 'demo', 3)).toEqual([])
+    const ids = await append(3)
+    expect(await pruneRecordChain(repo, SLUG, 'demo', 3)).toEqual([])
+    expect((await readdir(dirOf())).filter((name) => name.endsWith('.json'))).toHaveLength(3)
+    await unlink(join(dirOf(), `${ids[1]}.json`))
+    expect((await readRecordChain(repo, SLUG, 'demo')).state).toBe('broken')
+    expect(await pruneRecordChain(repo, SLUG, 'demo', 1)).toEqual([])
+    expect((await readdir(dirOf())).filter((name) => name.endsWith('.json'))).toHaveLength(2)
+  })
+
+  it('反复清理：每次留最新的 N 条，标记跟着走', async () => {
+    await append(5)
+    await pruneRecordChain(repo, SLUG, 'demo', 4)
+    const more = await append(3)
+    const removed = await pruneRecordChain(repo, SLUG, 'demo', 4)
+    expect(removed).toHaveLength(3)
+    const report = await readRecordChain(repo, SLUG, 'demo')
+    expect(report.state).toBe('intact')
+    expect(report.state === 'intact' ? report.active : []).toHaveLength(4)
+    expect(report.state === 'intact' ? report.active.at(-1)?.run_id : '').toBe(more.at(-1))
+  })
+
+  it('清理中途崩溃的现场（标记已写、旧文件还在）：链仍 intact，下一次清理收尾', async () => {
+    const ids = await append(5)
+    const dir = dirOf()
+    const listing = await listRecordDirectory(dir)
+    const dropped = listing.records.slice(0, 2)
+    const last = dropped.at(-1)?.record.digest
+    await writeFile(join(dir, 'chain-base'), JSON.stringify({ schema: 'tenon-record-chain-base/v1', base: last, pruned: dropped.map((entry) => entry.file) }), 'utf8')
+    const report = await readRecordChain(repo, SLUG, 'demo')
+    expect(report.state).toBe('intact')
+    expect(report.state === 'intact' ? report.active.map((record) => record.run_id) : []).toEqual(ids.slice(2))
+    await pruneRecordChain(repo, SLUG, 'demo', 10)
+    expect((await readdir(dir)).filter((name) => name.endsWith('.json')).sort()).toEqual(ids.slice(2).map((id) => `${id}.json`).sort())
+    expect((await readRecordChain(repo, SLUG, 'demo')).state).toBe('intact')
+  })
+
+  it('标记不放行缺口：手工删掉保留下来的记录、或标记指向别的摘要，仍是 broken', async () => {
+    const ids = await append(5)
+    await pruneRecordChain(repo, SLUG, 'demo', 3)
+    const dir = dirOf()
+    const marker = await readFile(join(dir, 'chain-base'), 'utf8')
+    await writeFile(join(dir, 'chain-base'), marker.replace(/sha256:[0-9a-f]{64}/, `sha256:${'0'.repeat(64)}`), 'utf8')
+    expect((await readRecordChain(repo, SLUG, 'demo')).state).toBe('broken')
+    await writeFile(join(dir, 'chain-base'), marker, 'utf8')
+    expect((await readRecordChain(repo, SLUG, 'demo')).state).toBe('intact')
+    await unlink(join(dir, `${ids[3]}.json`))
+    expect((await readRecordChain(repo, SLUG, 'demo')).state).toBe('broken')
+    await writeFile(join(dir, 'chain-base'), 'not json', 'utf8')
+    expect(await readRecordChain(repo, SLUG, 'demo')).toMatchObject({ state: 'broken', files: expect.arrayContaining(['chain-base']) })
+  })
+
+  it('重新另起链（断链后重跑）之后，标记里旧的基点不再起作用', async () => {
+    await append(5)
+    await pruneRecordChain(repo, SLUG, 'demo', 2)
+    const dir = dirOf()
+    const [keep] = (await listRecordDirectory(dir)).records
+    if (keep === undefined) throw new Error('fixture')
+    await unlink(join(dir, keep.file))
+    expect((await readRecordChain(repo, SLUG, 'demo')).state).toBe('broken')
+    const again = await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    expect(again.chain).toBe('reset')
+    const report = await readRecordChain(repo, SLUG, 'demo')
+    expect(report.state).toBe('intact')
+    expect(report.state === 'intact' ? report.active.map((record) => record.run_id) : []).toEqual([again.record.run_id])
   })
 })

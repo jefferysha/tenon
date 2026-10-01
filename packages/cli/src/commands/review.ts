@@ -52,6 +52,8 @@ export interface ReviewOpts {
   readonly event?: string
   /** Explicit user-delegated review confirmation for the active Change only. */
   readonly delegated?: boolean
+  /** acknowledge only: a non-owner confirms as `reviewer` (F16). */
+  readonly as?: string
 }
 
 function scalar(state: PipelineState, field: keyof PipelineState['fields']): string {
@@ -155,7 +157,7 @@ export async function cmdReview(
   opts: ReviewOpts = {},
 ): Promise<number> {
   if (sub !== 'request' && sub !== 'acknowledge') {
-    deps.io.err('ERROR: 用法：tenon review request <change> [--event <event>] | acknowledge <change> [--delegated]')
+    deps.io.err('ERROR: 用法：tenon review request <change> [--event <event>] | acknowledge <change> [--delegated] [--as reviewer]')
     return 1
   }
   if (!name || !isValidChangeName(name)) {
@@ -171,6 +173,10 @@ export async function cmdReview(
     if (sub === 'request') {
       if (opts.delegated === true) {
         deps.io.err('ERROR: --delegated 只可用于 review acknowledge；request 仍必须先完成真实 review 证据')
+        return 1
+      }
+      if (opts.as !== undefined) {
+        deps.io.err('ERROR: --as 只可用于 review acknowledge；request 只有负责人能发起')
         return 1
       }
       const actor = requireActor(deps)

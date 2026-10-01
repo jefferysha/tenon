@@ -45,7 +45,15 @@ export interface GitFinishProbe {
   readonly housekeeping: readonly string[]
   /** 已跟踪、但按当前忽略规则应被忽略的终端心跳文件。 */
   readonly untrack: readonly string[]
+  /**
+   * 设计体系任务的产物（项目根的 `DESIGN.md` 与 `design/`）里 git 能 `add` 的那些：有文件且没被忽略才列
+   * （缺失、空目录、被忽略的路径会让 `git add` 整条失败）。是否并进完结提交由工作流决定（statusStepFinish）。
+   */
+  readonly designSystem: readonly string[]
 }
+
+/** 设计体系任务的产物：`DESIGN.md` 与预览、模型、方向文档所在的 `design/`。 */
+export const DESIGN_SYSTEM_PATHS: readonly string[] = ['DESIGN.md', 'design']
 
 export const FINISH_HOUSEKEEPING_PATHS: readonly string[] = [
   '.pipeline/.gitignore',
@@ -79,11 +87,26 @@ export const HOST_AGENT_COMMIT_EXCLUDES: readonly string[] = [
   ':(exclude,glob).codex/agents/tenon-*.toml',
 ]
 
-/** `git add -A -- <这些>` = 整个工作区，去掉仓库根的本机文件与宿主 agent 文件（exclude 不要求匹配到文件）。 */
+/**
+ * 本机生成、不随交付提交的其余文件（真机验收 F14）：
+ *   · `.pipeline-owned.json`——宿主 agent 文件的所有权清单，生成与回收时都会改写，工作区指纹也把它排除在候选之外；
+ *     提交它只会在归档提交里再被删掉；
+ *   · 测试输出目录 `test-results/`、`playwright-report/`（任意层级）与仓库根的 `coverage/`：测试命令每次重写，
+ *     证据在 `.tenon/users/<u>/tests` 的运行记录里。嵌套的 `coverage/` 可能是真实的源码目录，不在此列。
+ */
+export const GENERATED_COMMIT_EXCLUDES: readonly string[] = [
+  `:(exclude)${OWNED_MANIFEST_PATH}`,
+  ':(exclude,glob)**/test-results/**',
+  ':(exclude,glob)**/playwright-report/**',
+  ':(exclude,glob)coverage/**',
+]
+
+/** `git add -A -- <这些>` = 整个工作区，去掉仓库根的本机文件、宿主 agent 文件与本机生成物（exclude 不要求匹配到文件）。 */
 export const WORKSPACE_COMMIT_PATHS: readonly string[] = [
   '.',
   ...LOCAL_ROOT_FILES.map((name) => `:(exclude)${name}`),
   ...HOST_AGENT_COMMIT_EXCLUDES,
+  ...GENERATED_COMMIT_EXCLUDES,
 ]
 
 const TERMINAL_ACTIVITY_PREFIX = '.pipeline-terminal-activity.'
@@ -154,6 +177,12 @@ export async function probeGitFinish(cwd: string, change: string): Promise<GitFi
   if (ownedTracked.code === 0 && ownedTracked.stdout !== '') housekeeping.push(OWNED_MANIFEST_PATH)
   else if (existsSync(join(cwd, OWNED_MANIFEST_PATH))
     && (await git(cwd, ['check-ignore', '-q', '--', OWNED_MANIFEST_PATH])).code === 1) housekeeping.push(OWNED_MANIFEST_PATH)
+  const designSystem: string[] = []
+  for (const path of DESIGN_SYSTEM_PATHS) {
+    // 已跟踪（含已删除的）或未跟踪且没被忽略的文件至少有一个，`git add -A -- <path>` 才一次成功。
+    const listed = await git(cwd, ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', path])
+    if (listed.code === 0 && listed.stdout !== '') designSystem.push(path)
+  }
   const untrack = ignoredTracked.code === 0
     ? nulList(ignoredTracked.stdout).filter((path) => basename(path).startsWith(TERMINAL_ACTIVITY_PREFIX))
     : []
@@ -165,5 +194,6 @@ export async function probeGitFinish(cwd: string, change: string): Promise<GitFi
     delivered: subjects.code === 0 && subjects.stdout.split('\n').includes(firstDeliveryMessage(change)),
     housekeeping,
     untrack,
+    designSystem,
   }
 }

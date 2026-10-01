@@ -6,6 +6,7 @@
  */
 import { join } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { pruneHostAgentsForRemovedTask } from './hostAgentPrune.js'
 import { createTaskLifecycleApplication, probeChangeTracked, probeUncommittedTaskDeletions, USER_MISSING_HINT } from '@tenon/kernel'
 import type {
   StateStore, TaskLifecycleApplication, TaskLifecycleAssessOutcome, TaskLifecycleOutcome,
@@ -28,6 +29,8 @@ export interface TaskLifecycleRouteDeps {
   readonly viewer: (root: string) => TenonUserResolution
   /** Drop the cached artifact service of a Change whose directory is gone. */
   readonly evictChange: (changeDir: string) => void
+  /** 任务删除 / 归档之后回收它生成的宿主 agent 文件（尽力而为）。 */
+  readonly reclaimHostAgents: (repoRoot: string, change: string) => Promise<void>
 }
 
 export interface TaskLifecycleHandlerDeps {
@@ -76,6 +79,7 @@ export function createTaskLifecycleRouteDeps(input: {
     app: createTaskLifecycleApplication({ store: input.store, clock: input.clock, nowMs: () => Date.now() }),
     viewer: input.viewer,
     evictChange: (changeDir) => { input.artifactServices.delete(changeDir) },
+    reclaimHostAgents: (repoRoot, change) => pruneHostAgentsForRemovedTask(input.store, repoRoot, change),
   }
 }
 
@@ -198,6 +202,7 @@ export async function handleTaskLifecyclePost(
     return true
   }
   if (outcome.kind === 'archived') {
+    await taskLifecycle.reclaimHostAgents(repoRoot, change)
     sendJson(res, 200, {
       ok: true, changed: outcome.changed, archived_at: outcome.entry.archivedAt, phase: outcome.entry.phase,
     })
@@ -245,6 +250,7 @@ export async function handleTaskLifecycleDelete(
     return true
   }
   taskLifecycle.evictChange(join(repoRoot, 'openspec', 'changes', change))
+  await taskLifecycle.reclaimHostAgents(repoRoot, change)
   sendJson(res, 200, {
     ok: true, removed: outcome.removed, uncommittedDeletions: outcome.uncommittedDeletions,
   })

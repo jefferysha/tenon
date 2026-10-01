@@ -197,7 +197,18 @@ unstaged and untracked files. When that diff cannot be read the gate blocks with
 
 `test run` writes one v2 record per invocation (`.tenon/users/<slug>/tests/<change>/<run-id>.json`)
 chained by `prev_digest`; editing a record breaks the chain and every v2 record of that
-change counts as not run until a new run starts a fresh chain. Selection: `--suite`,
+change counts as not run until a new run starts a fresh chain. Records are tracked in the
+repository by design (they are the evidence other people and CI read), so their number is capped:
+after each run only the newest 20 per user and change are kept (inline step tests: per test).
+Pruning removes the oldest prefix and leaves a `chain-base` marker next to the records naming the
+last removed digest, so the remaining chain still verifies; a missing middle record, a marker that
+does not match, or a damaged marker is still a broken chain. Test processes run with the running
+`tenon` first on `PATH` (the launcher's directory, or a forwarding script for a direct
+`node …/tenon.mjs`), so `tenon test code-size --json` also works where no launcher is on `PATH`;
+`tenon doctor` reports `env:path-tenon` when the agent's own shell cannot resolve `tenon`. The
+delivery commit never includes `.pipeline-owned.json`, `test-results/`, `playwright-report/` or a
+root `coverage/`, and the generated `tenon-<name>` host agent files plus those output directories are
+added to the clone's `.git/info/exclude` (the project `.gitignore` is not touched). Selection: `--suite`,
 `--kind`, `--all` (every plan suite, full), `--changed` (narrow to changed test files when
 the suite has a `select.files` template, otherwise the whole suite), `--stage [<step>]`
 (the step policy's `run` kinds, plus `run_if_registered` kinds that the plan registered;
@@ -327,7 +338,7 @@ tenon document read <change> <kind|all>
 tenon document status <change> [--json]
 tenon artifact register <change> <field> <path> --producer <skill-id>
 tenon review request <change> --event <event>
-tenon review acknowledge <change> [--delegated]
+tenon review acknowledge <change> [--delegated] [--as reviewer]
 tenon agent next <change> [--json]
 tenon agent prompt <change> <agent> [--host <id>] [--json]
 tenon agent record <change> <run-id> [--subagent <type>] [--json]
@@ -352,6 +363,12 @@ commands register agents in the terminal; see [Agents](agents.md). A reviewer ne
 verdict: Tenon derives pass or fail from the finding severities and the step's
 `block_at`. Human `review request/acknowledge` remains a separate exact-event
 confirmation boundary and may be combined with reviewers.
+
+Who may confirm a review: the task owner, like every other write on the task (`transition`, `set`,
+`review request`). Someone else reviewing the owner's work says so explicitly with
+`review acknowledge <change> --as reviewer`; the confirmation is then recorded in the change history with
+`as=reviewer owner=<id>`. Without the flag a non-owner is refused and nothing is written; the alternative is
+`tenon owner take <change>`, which moves ownership. The Dashboard's Approve is confirmed by the top-bar user.
 
 `review acknowledge` exit codes: `0` approved, replayed, or approved with a
 review-marker cleanup warning; `2` no matching pending review (missing, already

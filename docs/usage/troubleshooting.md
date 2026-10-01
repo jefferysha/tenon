@@ -146,6 +146,14 @@ Do not accept a page solely because the port responds.
 Use the packaged same-origin `tenon dashboard`. Vite dev does not own the
 production handshake token.
 
+### `tenon: command not found` (exit 127) in a test or in the agent's shell
+
+`tenon doctor` reports `env:path-tenon` yellow when `tenon` cannot be resolved on `PATH`. `tenon test run`
+already puts the running `tenon` first on `PATH` for the test process, so a required test such as
+`tenon test code-size --json` works even where no launcher is on `PATH`; the host's own shell and your CI
+still need it. Add the launcher directory (normally `~/.local/bin`) to `PATH`, or run
+`tenon setup --claude` / `tenon setup --codex` to install the launcher.
+
 ### AFK is queued but not running
 
 Check Docker, image, credentials, loop admission, budget, concurrency, and

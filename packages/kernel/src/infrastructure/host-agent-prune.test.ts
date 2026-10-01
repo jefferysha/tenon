@@ -67,6 +67,21 @@ describe('pruneUnusedHostAgentFiles', () => {
     expect(exists('.claude/agents/tenon-a.md')).toBe(true)
   })
 
+  test('回收后 agents 目录和 Tenon 自己建出来的空 .claude/.codex 一起消失；用户的其他文件让父目录留下（真机验收 F14）', async () => {
+    await ensureHostAgentFiles({ repoRoot: repo, host: 'codex', agents: [{ name: 'x', definition: definition('x') }] })
+    await generate(['a'])
+    await pruneUnusedHostAgentFiles({ repoRoot: repo, isFinished: async () => false })
+    expect(exists('.claude')).toBe(false)
+    expect(exists('.codex')).toBe(false)
+    expect(exists('.pipeline-owned.json')).toBe(false)
+
+    await generate(['a'])
+    writeFileSync(join(repo, '.claude', 'settings.json'), '{}\n')
+    await pruneUnusedHostAgentFiles({ repoRoot: repo, isFinished: async () => false })
+    expect(exists('.claude/agents')).toBe(false)
+    expect(exists('.claude/settings.json')).toBe(true)
+  })
+
   test('用户改过的文件保留并报出', async () => {
     await generate(['a'])
     writeFileSync(join(repo, '.claude', 'agents', 'tenon-a.md'), '改过\n')

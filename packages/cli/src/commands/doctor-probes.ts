@@ -2,7 +2,7 @@ import { execFile, execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { accessSync, constants as fsConstants, readdirSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { readAutomationJson, readUpstreamSkillView } from '@tenon/automation'
 import {
   loadManifest,
@@ -18,6 +18,7 @@ import { createDoctorProductIdentityProbe } from './doctor-product-identity.js'
 import { parseHostPluginInventory } from './plugin-host.js'
 import { resolveCommandOnPath } from './commandExists.js'
 import { REAL_RUNTIME_INSTALLER } from '../runtime/installer.js'
+import { stableLauncherPaths } from '../runtime/launchers.js'
 import type { RuntimeScopeSnapshot } from '../runtime/scope.js'
 import { freezeTrustedExecutable, type TrustedExecutable } from './trusted-executable.js'
 
@@ -195,6 +196,14 @@ export function makeDoctorProbes(
       try { return statSync(p).isDirectory() } catch { return false }
     },
     env: (name) => process.env[name],
+    tenonOnPath: () => {
+      const scope = runtimeScope()
+      const launcher = stableLauncherPaths(scope.homeDir).tenon
+      return {
+        resolved: resolveCommandOnPath('tenon', { pathValue: scope.env.PATH ?? '', requireAbsolutePathEntries: true }) ?? null,
+        launcher: resolveCommandOnPath('tenon', { pathValue: dirname(launcher), requireAbsolutePathEntries: true }) ?? null,
+      }
+    },
     statuslineConfigured: () => {
       try {
         return readFileSync(join(homedir(), '.claude', 'settings.json'), 'utf8').includes('statusline.sh')

@@ -66,6 +66,12 @@ Platform API Key 按用量计费。Tenon 不会替你登录，也不会读取凭
 `auth:codex` 是本机 Codex 宿主登录态；`afk:credential-codex` 是 AFK 容器能否收到 API Key
 或可读 Codex home。两个灯相互独立，不能用其中一个绿色推断另一个也已就绪。
 
+#### 测试或宿主 Bash 里 `tenon: command not found`（exit 127）
+
+`tenon` 在 `PATH` 上解析不到时，`tenon doctor` 的 `env:path-tenon` 是黄灯。`tenon test run` 会给测试进程把正在运行的
+`tenon` 放到 `PATH` 最前，所以必需测试 `tenon test code-size --json` 在没有启动器的环境里也能跑；宿主自己的 Bash 和你的 CI
+仍然需要它。把启动器目录（通常是 `~/.local/bin`）加进 `PATH`，或运行 `tenon setup --claude` / `tenon setup --codex` 装上启动器。
+
 #### Pages 或本地预览 404
 
 本仓是 project site，base 必须为 `/tenon/`：

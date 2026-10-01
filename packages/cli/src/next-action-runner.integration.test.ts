@@ -115,6 +115,11 @@ const WORKSPACE_PATHS = [
   // 任务期间为宿主生成的子代理文件本机生成、完结时回收，不随交付入库。
   ':(exclude,glob).claude/agents/tenon-*.md',
   ':(exclude,glob).codex/agents/tenon-*.toml',
+  // 本机生成物同样不入库：所有权清单与测试输出目录（真机验收 F14）。
+  ':(exclude).pipeline-owned.json',
+  ':(exclude,glob)**/test-results/**',
+  ':(exclude,glob)**/playwright-report/**',
+  ':(exclude,glob)coverage/**',
 ]
 
 /** 完结动作的提交：照动作给的 paths / untrack / message 原样执行，每条命令都必须一次成功。 */

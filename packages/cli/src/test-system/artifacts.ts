@@ -90,6 +90,18 @@ async function realOrSame(path: string): Promise<string> {
   }
 }
 
+async function writtenSince(files: readonly string[], sinceMs: number): Promise<string[]> {
+  const kept: string[] = []
+  for (const file of files) {
+    try {
+      if ((await lstat(file)).mtimeMs >= sinceMs) kept.push(file)
+    } catch {
+      // 读取过程中被删掉的文件不收。
+    }
+  }
+  return kept
+}
+
 /** 复制并索引；artifactPaths 相对套件 cwd，extraFiles 是绝对路径（用例附件，可以是 realpath 或软链路径）。 */
 export async function collectArtifacts(input: {
   readonly repoRoot: string
@@ -99,10 +111,16 @@ export async function collectArtifacts(input: {
   readonly extraFiles: readonly string[]
   readonly runDir: string
   readonly budget: ArtifactBudget
+  /**
+   * 声明的产物路径只收这个时刻（毫秒）之后写下的文件：`test-results/` 这类目录常被几个套件共用，
+   * 目录里还留着别的套件、上一次运行写的文件（真机验收 F9：unit 的索引里挂着 Playwright 的 trace）。
+   * 用例附件是报告点名的，不受影响；缺省 = 不过滤。
+   */
+  readonly modifiedSinceMs?: number
 }): Promise<CollectedArtifacts> {
   const root = await realOrSame(input.repoRoot)
   const cwd = await realOrSame(input.cwd)
-  const files: string[] = []
+  const declaredFiles: string[] = []
   let truncated = false
   for (const declared of input.artifactPaths) {
     const target = resolve(cwd, declared)
@@ -113,9 +131,12 @@ export async function collectArtifacts(input: {
       continue
     }
     if (entry.isSymbolicLink() || !(await insideRepo(root, target))) continue
-    if (entry.isFile()) files.push(target)
-    else if (entry.isDirectory() && await walkFiles(target, MAX_ARTIFACT_FILES_PER_SUITE, files)) truncated = true
+    if (entry.isFile()) declaredFiles.push(target)
+    else if (entry.isDirectory() && await walkFiles(target, MAX_ARTIFACT_FILES_PER_SUITE, declaredFiles)) truncated = true
   }
+  const files = input.modifiedSinceMs === undefined
+    ? declaredFiles
+    : await writtenSince(declaredFiles, input.modifiedSinceMs)
   const extras = await Promise.all(input.extraFiles.map((file) => realOrSame(resolve(cwd, file))))
   const all = [...new Set([...files, ...extras])]
   const index: ArtifactIndexEntry[] = []

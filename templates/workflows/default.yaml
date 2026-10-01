@@ -145,6 +145,10 @@ tracks:
             label: 代码规模
             timeout_s: 120
             required: true
+            pass:
+              metrics:
+                - name: lines_added
+                  max: 2000
         agents:
           reviewers:
             - agent: code-size
@@ -348,6 +352,10 @@ tracks:
             label: 代码规模
             timeout_s: 120
             required: true
+            pass:
+              metrics:
+                - name: lines_added
+                  max: 2000
         agents:
           reviewers:
             - agent: code-size
@@ -580,6 +588,10 @@ tracks:
             label: 代码规模
             timeout_s: 120
             required: true
+            pass:
+              metrics:
+                - name: lines_added
+                  max: 2000
         agents:
           reviewers:
             - agent: spec-consistency
@@ -818,6 +830,10 @@ tracks:
             label: 代码规模
             timeout_s: 120
             required: true
+            pass:
+              metrics:
+                - name: lines_added
+                  max: 2000
         agents:
           reviewers:
             - agent: spec-consistency
@@ -1031,6 +1047,10 @@ tracks:
             label: 代码规模
             timeout_s: 120
             required: true
+            pass:
+              metrics:
+                - name: lines_added
+                  max: 2000
         agents:
           reviewers:
             - agent: code-size

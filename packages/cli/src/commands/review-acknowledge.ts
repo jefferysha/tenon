@@ -8,11 +8,14 @@ import {
   approveFrozenWaivers,
   createReviewDecisionLedger,
   executeReviewAcknowledge,
+  formatUserRef,
   INTERACTION_PROJECTION_WRITE_FAILED,
   nodeReviewDecisionLedgerFs,
+  ownerDecision,
   readCurrentRunRevision,
   resolveStep,
   reviewAcknowledgeExitCode,
+  reviewerRequiredMessage,
   stepExitTransitions,
   type PipelineState,
   type ReviewAcknowledgeDeferred,
@@ -42,12 +45,19 @@ function reviewExits(deps: CliDeps, state: PipelineState, phase: string): readon
   return stepExitTransitions(plan, phase, state).map((transition) => transition.event)
 }
 
+/** `--as` 目前只有一个角色：非负责人以评审人身份确认。 */
+const REVIEWER_ROLE = 'reviewer'
+
 export async function cmdReviewAcknowledge(
   deps: CliDeps,
   name: string,
   dir: string,
-  opts: { readonly event?: string; readonly delegated?: boolean },
+  opts: { readonly event?: string; readonly delegated?: boolean; readonly as?: string },
 ): Promise<number> {
+  if (opts.as !== undefined && opts.as !== REVIEWER_ROLE) {
+    deps.io.err(`ERROR: --as 只支持 ${REVIEWER_ROLE}（收到 '${opts.as}'）`)
+    return 1
+  }
   const user = requireUser(deps)
   if (user === null) return 1
   const actor = actorOf(user)
@@ -64,19 +74,32 @@ export async function cmdReviewAcknowledge(
     return 1
   }
   const { interaction, history } = deps
+  // 确认评审只认负责人（真机验收 F16）：非负责人显式 --as reviewer 才行，角色与负责人记进历史。
+  const owner = ownerDecision((await deps.store.read(dir)).fields, actor)
+  if (!owner.allowed && opts.as !== REVIEWER_ROLE) {
+    deps.io.err(`ERROR: ${reviewerRequiredMessage(name, owner.owner)}`)
+    return 1
+  }
+  const roleDetail = owner.allowed ? '' : `as=${REVIEWER_ROLE} owner=${owner.owner?.id ?? 'none'}`
   // 豁免只由人工确认批准：委托确认（--delegated）不批准，留下的豁免继续挡出口。
   let waivers: WaiverApprovalOutcome | undefined
   const result = await executeReviewAcknowledge({
     change: name,
     command: delegatedAuthority === null
-      ? { channel: 'terminal', requestedEvent: opts.event }
+      ? { channel: 'terminal', requestedEvent: opts.event, ...(roleDetail === '' ? {} : { historyDetail: roleDetail }) }
       : {
           channel: 'delegated',
           requestedEvent: opts.event,
-          historyDetail: `authority_issued_at=${delegatedAuthority.issuedAt} authority_host_session=${delegatedAuthority.hostSessionId ?? ''}`,
+          historyDetail: `authority_issued_at=${delegatedAuthority.issuedAt} authority_host_session=${delegatedAuthority.hostSessionId ?? ''}${roleDetail === '' ? '' : ` ${roleDetail}`}`,
         },
     withLock: (fn) => deps.store.withLock(dir, fn),
-    readState: () => deps.store.read(dir),
+    readState: async () => {
+      const state = await deps.store.read(dir)
+      // 负责人在预检与加锁之间换了人：没有 --as reviewer 就不能沿用预检的结论。
+      const decision = ownerDecision(state.fields, actor)
+      if (!decision.allowed && opts.as !== REVIEWER_ROLE) throw new Error(reviewerRequiredMessage(name, decision.owner))
+      return state
+    },
     readRevision: () => readCurrentRunRevision(dir),
     readBinding: () => readReviewGateBindingForRequest(dir),
     ledger: createReviewDecisionLedger(dir, nodeReviewDecisionLedgerFs),
@@ -111,7 +134,8 @@ export async function cmdReviewAcknowledge(
   }
   deps.io.out(
     `[REVIEW] ${name} phase=${result.phase} event=${result.event} ` +
-    `${delegatedAuthority === null ? '已确认' : '已按用户委托的持续授权确认'}，可重发 transition`,
+    `${delegatedAuthority === null ? '已确认' : '已按用户委托的持续授权确认'}` +
+    `${owner.allowed ? '' : `（评审人 ${formatUserRef(user)}，负责人 ${owner.owner === null ? '无' : formatUserRef(owner.owner)}）`}，可重发 transition`,
   )
   await reportWaivers(deps, dir, actor.id, waivers)
   return 0

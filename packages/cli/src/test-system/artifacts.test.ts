@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, symlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -63,6 +63,33 @@ describe('collectArtifacts', () => {
     })
     expect(result.index.map((item) => item.path)).toEqual(['artifacts/unit/shot.png'])
     expect([...result.mapped.values()]).toEqual(['artifacts/unit/shot.png'])
+  })
+
+  it('声明的产物目录被几个套件共用时，只收本套件开始之后写下的文件（真机验收 F9：unit 的索引里挂着上一次 Playwright 的 trace）', async () => {
+    await put(join(root, 'test-results', 'pw', 'old-trace.zip'), 'PK')
+    await put(join(root, 'test-results', 'vitest.json'), '{}')
+    const past = new Date(Date.now() - 60_000)
+    await utimes(join(root, 'test-results', 'pw', 'old-trace.zip'), past, past)
+    const startedMs = Date.now() - 1_000
+    const shared = { repoRoot: root, cwd: root, artifactPaths: ['test-results'], extraFiles: [], runDir, budget: { used: 0 } }
+    const unit = await collectArtifacts({ ...shared, suiteId: 'unit', modifiedSinceMs: startedMs })
+    expect(unit.index.map((item) => item.path)).toEqual(['artifacts/unit/test-results/vitest.json'])
+    // 不给起点时行为不变（整目录展开）。
+    const all = await collectArtifacts({ ...shared, suiteId: 'all' })
+    expect(all.index.map((item) => item.path)).toEqual([
+      'artifacts/all/test-results/pw/old-trace.zip', 'artifacts/all/test-results/vitest.json',
+    ])
+  })
+
+  it('用例附件是报告点名的，不受起点过滤', async () => {
+    await put(join(root, 'elsewhere', 'shot.png'), 'png')
+    const past = new Date(Date.now() - 60_000)
+    await utimes(join(root, 'elsewhere', 'shot.png'), past, past)
+    const result = await collectArtifacts({
+      repoRoot: root, cwd: root, suiteId: 'e2e', artifactPaths: [], extraFiles: [join(root, 'elsewhere', 'shot.png')],
+      runDir, budget: { used: 0 }, modifiedSinceMs: Date.now(),
+    })
+    expect(result.index.map((item) => item.path)).toEqual(['artifacts/e2e/elsewhere/shot.png'])
   })
 
   it('单次运行的总量上限：超出的文件跳过并报 truncated', async () => {

@@ -218,6 +218,30 @@ for command in \
 done
 rm -f "$proj/.pipeline-pending-interaction"
 
+# 子代理（Claude Code 在子代理里触发的 hook 输入带 agent_id）：交互 / 确认 marker 约束的是主线先问用户再产出，
+# 子代理没有提问工具，被它挡住只会停工（真机验收 F4：后台执行者连写自己的报告都被拦）。所以这两类 marker 对子代理
+# 调用放行；复核 marker（管 transition 之前的人工确认）对子代理照拦；主线（无 agent_id）照旧被拦；marker 都不清。
+proj="$TMP/gate-subagent"
+mkdir -p "$proj"
+for kind in interaction confirm; do
+  touch "$proj/.pipeline-pending-$kind"
+  for tool in Write Bash WebFetch; do
+    run_gate "{\"cwd\":\"$proj\",\"tool_name\":\"$tool\",\"agent_id\":\"aadd18e4814a28ac2\",\"agent_type\":\"tenon-researcher\"}"
+    assert_exit "gate: ${kind} marker 不拦子代理的 ${tool}（agent_id）" 0 "$RC"
+  done
+  run_gate "{\"cwd\":\"$proj\",\"tool_name\":\"Write\"}"
+  assert_exit "gate: ${kind} marker 仍拦主线的 Write（无 agent_id）" 2 "$RC"
+  run_gate "{\"cwd\":\"$proj\",\"tool_name\":\"Write\",\"agent_id\":\"\"}"
+  assert_exit "gate: agent_id 为空串不算子代理（${kind}）" 2 "$RC"
+  [ -f "$proj/.pipeline-pending-$kind" ] && ok "gate: 放行子代理不清 ${kind} marker" || bad "gate: 放行子代理不清 ${kind} marker" "marker 被错误删除"
+  rm -f "$proj/.pipeline-pending-$kind"
+done
+proj="$TMP/gate-subagent-review"
+mkdir -p "$proj"
+write_v2_review_marker "$proj" review-demo explore
+run_gate "{\"cwd\":\"$proj\",\"tool_name\":\"Write\",\"agent_id\":\"aadd18e4814a28ac2\"}"
+assert_exit "gate: 复核 marker 对子代理照拦（人工确认不能被子代理绕过）" 2 "$RC"
+
 # ── 1a'. HITL 解封路径（contract §2 唯一解封写路径）与 cwd 归一，按各宿主真实载荷形状驱动 ──
 # 回归背景：解封逃生口曾要求「工具名被识别为命令工具」**且**「能取到 command」，而 cursor/cline/amp
 # 把宿主原生工具名直传或丢弃命令体 → `tenon review acknowledge` 被自己的门拦下，用户只剩等 TTL、

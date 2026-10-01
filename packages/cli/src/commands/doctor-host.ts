@@ -6,10 +6,10 @@
  * 登录步骤，同时跳过 Claude 的 statusline 检查——两项都答错了自己的问题。纯终端（既非 Codex 也非
  * Claude Code）时没有会话宿主可言，才退回安装来源。
  */
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import type { DoctorProbes } from '../deps.js'
 import { renderCodexAuthLines } from '../codexAuth.js'
-import { green, yellow, type DoctorCheck } from './doctor-check.js'
+import { green, red, yellow, type DoctorCheck } from './doctor-check.js'
 
 export async function activeHost(p: DoctorProbes): Promise<'codex' | 'claude' | null> {
   const live = p.hostKind()
@@ -45,5 +45,31 @@ export async function checkCodexAuth(p: DoctorProbes): Promise<DoctorCheck> {
       ? 'Codex CLI 尚未登录；插件已安装，但调用 Codex 前需要完成认证'
       : '暂时无法确认 Codex CLI 登录状态；插件仍可安装和检查',
     lines.slice(1).map((line) => line.trim()).join('；'),
+  )
+}
+
+/**
+ * `tenon` 能不能被 PATH 解析出来。技能里的 `tenon …` 命令与默认工作流的必需测试 `tenon test code-size --json`
+ * 都按 PATH 命令写；解析不到时命令以 127 失败并挡住 Verify（真机验收 F17）。`tenon test run` 会给测试进程
+ * 前置运行中的 tenon，所以这里是黄灯（降级但可运行）：宿主的 Bash 与用户自己的 CI 仍然需要它在 PATH 上。
+ */
+export function checkTenonOnPath(p: DoctorProbes): DoctorCheck {
+  if (p.tenonOnPath === undefined) {
+    return red('env:path-tenon', 'PATH 探针未装配（main.ts 集成缺口，无法确认 PATH 上有 tenon）', '排除探针环境问题后重跑 tenon doctor')
+  }
+  const { resolved, launcher } = p.tenonOnPath()
+  if (resolved !== null) return green('env:path-tenon', `PATH 上的 tenon：${resolved}`)
+  if (launcher !== null) {
+    const dir = dirname(launcher)
+    return yellow(
+      'env:path-tenon',
+      `PATH 上解析不到 tenon（启动器在 ${launcher}，其目录不在 PATH）；tenon test 会给测试进程补上，宿主 Bash 与 CI 不会`,
+      `把启动器目录加进 PATH：export PATH="${dir}:$PATH"（写进 shell 配置文件）`,
+    )
+  }
+  return yellow(
+    'env:path-tenon',
+    'PATH 上解析不到 tenon，也没有找到稳定启动器；必需测试 tenon test code-size 在没有 tenon 的环境里会以 127 失败',
+    '运行 tenon setup --claude 或 tenon setup --codex 安装启动器，并确认它所在目录（~/.local/bin）在 PATH 上',
   )
 }

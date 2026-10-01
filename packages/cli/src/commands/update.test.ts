@@ -1824,6 +1824,38 @@ describe('tenon update', () => {
     expect(calls.writes).toEqual([])
   })
 
+  test('a registered project with a Tenon Codex block in AGENTS.md is told to refresh it with sync --migrate, still without writing (P2)', async () => {
+    const deps = makeDeps()
+    const { env, calls } = updateEnv((cmd, args) => {
+      if (cmd === 'codex' && args.join(' ') === 'plugin list --json') {
+        return { code: 0, stdout: CODEX_INVENTORY, stderr: '' }
+      }
+      return { code: 0, stdout: '', stderr: '' }
+    })
+    const baseReadText = env.readText
+    env.readText = (path) => {
+      if (path === resolveRuntimePaths({ homeDir: '/home/update-test', env: {} }).registryPath) {
+        return JSON.stringify(['/repo/with-block', '/repo/plain'])
+      }
+      if (path === '/repo/with-block/.pipeline-version' || path === '/repo/plain/.pipeline-version') return '0.2.0\n'
+      if (path === '/repo/with-block/AGENTS.md') {
+        return '# Rules\n\n<!-- PIPELINE:CODEX:START -->\nold text\n<!-- PIPELINE:CODEX:END -->\n'
+      }
+      if (path === '/repo/plain/AGENTS.md') return '# Rules only\n'
+      return baseReadText(path)
+    }
+
+    expect(await cmdUpdate(deps, { codex: true }, env, fakeRuntimeInstaller().installer, fakeDashboardStarter().starter, STABLE_RESOLVER)).toBe(0)
+    const lines = deps.outLines.filter((line) => line.startsWith('  cd '))
+    expect(lines).toEqual([
+      expect.stringContaining("cd '/repo/with-block' && tenon sync --migrate"),
+      expect.stringContaining("cd '/repo/plain' && tenon sync"),
+    ])
+    expect(lines[0]).toContain('AGENTS.md')
+    expect(lines[1]).not.toContain('--migrate')
+    expect(calls.writes).toEqual([])
+  })
+
   test('a local Codex marketplace is replaced by the frozen stable Git Release', async () => {
     const deps = makeDeps()
     const { env, calls } = updateEnv((cmd, args) => {

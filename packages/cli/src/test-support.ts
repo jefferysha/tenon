@@ -475,6 +475,7 @@ export function mockDoctorProbes(overrides: Partial<DoctorProbes> = {}): DoctorP
     ]),
     hostPluginInventory: async () => ({ kind: 'native', host: 'claude', enabledIds: new Set(['tenon@tenon']) }),
     manifestSkills: () => DEFAULT_MANIFEST_SKILLS,
+    tenonOnPath: () => ({ resolved: '/usr/local/bin/tenon', launcher: '/usr/local/bin/tenon' }),
     // 缺省无 skills/sources.yaml：skills:upstream 绿，--skills 表只有表头。
     upstreamSkillView: () => ({ updatedAt: null, lastRunAt: null, rows: [] }),
     // 缺省把每个随包技能当成可调用：双绿基线里强制表只有 bundled token。

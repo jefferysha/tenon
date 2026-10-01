@@ -221,6 +221,8 @@
   `types.ts GATE_TTL_MS`，bash 侧 gate.sh/statusline.sh/session-start.sh 镜像）：
   **confirm 300s**（漏确认安全网，爆炸半径 5min）；**review / interaction 1800s**（跨整个
   决策 phase，缩短会中途误清 → 绕过强制复核）。边界同老内核：age > TTL 才陈旧。
+  **子代理**：宿主在子代理里触发的 PreToolUse 输入带 `agent_id`；`-confirm` / `-interaction` 约束的是主线「先问用户再产出」，
+  子代理没有提问工具，这两类 marker 不拦带 `agent_id` 的调用（也不清 marker）。`-review` 不在此列，对子代理照拦（人工确认不能被绕过）。
 - **持续交互授权投影（不是第四道 gate）**：用户在正常对话明确说“后续不用问 / 自主执行完成”后，
   `pipeline session activate <change> --continuous --host-session <id>` 或带合法 `session_id` 的 UserPromptSubmit 会写
   当前用户的 `.tenon/users/<slug>/local/authority`。它是版本化、原子发布、只含 `change/scope/review/issued_at` 的
@@ -279,7 +281,7 @@
 
 身份与负责人命令 `tenon user` / `tenon user set` / `tenon owner take` / `tenon owner set` 只登记自报身份，不做认证；`owner set` 仅当前负责人可执行，与 Dashboard 的负责人移交共用 kernel `transferOwner`。
 
-测试体系（`tenon test …`）三层落盘契约：项目目录 `.tenon/tests/catalog.yaml`（人可编辑，加载时校验，报告/覆盖率/产物路径必须在 `test-results/`、`playwright-report/`、`coverage/` 之下）、任务计划 `openspec/changes/<name>/test-plan.yaml`（只经 `tenon test` 命令写入，字节摘要记进同目录 `.pipeline-test-plan.json` 台账，不符即 `test-plan-tampered`）、工作流步骤策略 `steps[].test_policy`。运行记录 v2 写入 `.tenon/users/<slug>/tests/<change>/<run-id>.json`，按 `prev_digest` 哈希链串联，`tenon test run` 是唯一写入方；断链则该用户该任务的 v2 记录全部视为未运行，重跑另起新链。基线 `.tenon/tests/baselines/<套件>/<画像>.json` 与已知失败 `.tenon/tests/known-failures.yaml` 进 git，只经 `test baseline` / `test known` 写。「自任务起点以来改动的文件」由 kernel `changedFilesSinceChangeStart` 提供（起点=与 `base_branch` 的 merge-base，直接在基线分支上做时取 `created_at` 之前的最后一个提交，含暂存/未暂存/未跟踪），CLI 与 server 快照共用；提供者抛错时策略 `files: registered` 以 `files-diff-unavailable` 阻塞（失败关闭）。`tenon test run` 写入的套件结论与门禁重算调用同一个 kernel `evaluateSuiteResult`；旧步骤 `tests[]` 与 v1 记录不变，`tenon test run <name> <test-id>` 与 `tenon test baseline <name> <test-id>` 保持原行为。
+测试体系（`tenon test …`）三层落盘契约：项目目录 `.tenon/tests/catalog.yaml`（人可编辑，加载时校验，报告/覆盖率/产物路径必须在 `test-results/`、`playwright-report/`、`coverage/` 之下）、任务计划 `openspec/changes/<name>/test-plan.yaml`（只经 `tenon test` 命令写入，字节摘要记进同目录 `.pipeline-test-plan.json` 台账，不符即 `test-plan-tampered`）、工作流步骤策略 `steps[].test_policy`。运行记录 v2 写入 `.tenon/users/<slug>/tests/<change>/<run-id>.json`，按 `prev_digest` 哈希链串联，`tenon test run` 是唯一写入方；断链则该用户该任务的 v2 记录全部视为未运行，重跑另起新链。每次运行后只保留最新 20 条（`RECORD_RETENTION`；v1 按测试项）：清理删最老的前缀并写同目录的链基点标记 `chain-base`（`{schema: tenon-record-chain-base/v1, base, pruned}`，`base` 是被删的最后一条的摘要，保留下来的最老一条的 `prev_digest` 必须等于它；先写标记再删文件，标记里的 `pruned` 校验时当作不存在），中间缺记录、基点对不上、标记损坏仍是断链。基线 `.tenon/tests/baselines/<套件>/<画像>.json` 与已知失败 `.tenon/tests/known-failures.yaml` 进 git，只经 `test baseline` / `test known` 写。「自任务起点以来改动的文件」由 kernel `changedFilesSinceChangeStart` 提供（起点=与 `base_branch` 的 merge-base，直接在基线分支上做时取 `created_at` 之前的最后一个提交，含暂存/未暂存/未跟踪），CLI 与 server 快照共用；提供者抛错时策略 `files: registered` 以 `files-diff-unavailable` 阻塞（失败关闭）。`tenon test run` 写入的套件结论与门禁重算调用同一个 kernel `evaluateSuiteResult`；旧步骤 `tests[]` 与 v1 记录不变，`tenon test run <name> <test-id>` 与 `tenon test baseline <name> <test-id>` 保持原行为。
 
 get/set/transition 的 stdout 与 exit code 以 **golden-oracle 双跑逐字一致**为准
 （oracle=老内核 `skills/pipeline/scripts/pipeline-state.sh`，diff 白名单仅时间戳字段值）。

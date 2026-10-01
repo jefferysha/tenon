@@ -217,6 +217,44 @@ steps:
     expect(listed.map((agent) => agent.name)).not.toContain('mine')
   })
 
+  it('带 root：详情与 DELETE 也看项目级工作流库里的引用（真机验收 F1：详情 references 为空、DELETE 能删被引用的 agent）', async () => {
+    const root = await project()
+    const { port, paths } = await start([root])
+    await seedCustom(paths, 'mine')
+    const projectWorkflows = join(root, '.pipeline', 'workflows')
+    await mkdir(projectWorkflows, { recursive: true })
+    await writeFile(join(projectWorkflows, 'default.yaml'), (await readFile(fileURLToPath(new URL('../../../templates/workflows/default.yaml', import.meta.url)), 'utf8'))
+      .replace('            - agent: security\n              required: false\n              block_at: medium\n',
+        '            - agent: security\n              required: false\n              block_at: medium\n            - agent: mine\n              required: true\n              block_at: medium\n'), 'utf8')
+    const query = `?root=${encodeURIComponent(root)}`
+
+    const detail = parse((await reqGet(port, `/api/agents/mine${query}`)).body)
+    expect(detail.references).toEqual(expect.arrayContaining([
+      expect.objectContaining({ workflow: 'default', step: 'verify', role: 'reviewer' }),
+    ]))
+    // 不带 root 时项目库不在视野内：与 CLI 在项目外运行一致。
+    expect(parse((await reqGet(port, '/api/agents/mine')).body).references).toEqual([])
+
+    const refused = await reqDelete(port, `/api/agents/mine${query}`, { headers: AUTH })
+    expect(refused.status, refused.body).toBe(409)
+    const body = parse(refused.body)
+    expect(body.code).toBe('agent-referenced')
+    expect(body.references).toEqual(expect.arrayContaining([expect.objectContaining({ workflow: 'default', step: 'verify' })]))
+    expect((await reqGet(port, `/api/agents/mine${query}`)).status).toBe(200)
+
+    await rm(join(projectWorkflows, 'default.yaml'))
+    expect((await reqDelete(port, `/api/agents/mine${query}`, { headers: AUTH })).status).toBe(200)
+  })
+
+  it('DELETE 带未注册的 root：404，不越过 root 信任锚', async () => {
+    const root = await project()
+    const { port, paths } = await start([root])
+    await seedCustom(paths, 'mine')
+    const denied = await reqDelete(port, `/api/agents/mine?root=${encodeURIComponent(join(root, 'elsewhere'))}`, { headers: AUTH })
+    expect(denied.status).toBe(404)
+    expect(parse(denied.body).code).toBe('root-invalid')
+  })
+
   it('非法内容 400；name 与路径不一致 400', async () => {
     const { port, paths } = await start()
     await seedCustom(paths, 'mine')

@@ -36,30 +36,55 @@ export interface ServiceStart {
   readonly failure?: string
 }
 
-async function probeUrl(url: string): Promise<boolean> {
+/** 一次就绪探测的结果；未就绪时 `detail` 说明这次看到了什么（状态码 / 超时 / 连接错误）。 */
+interface Probe {
+  readonly ok: boolean
+  readonly detail: string
+  /** 永远不会就绪的原因（如 URL 端口在 fetch 规范的禁用表里）：不必等满超时。 */
+  readonly fatal?: boolean
+}
+
+const PROBE_TIMEOUT_MS = 1_500
+
+function fetchFailure(url: string, error: unknown): Probe {
+  if (error instanceof Error && error.name === 'TimeoutError') return { ok: false, detail: `探测超时（${PROBE_TIMEOUT_MS / 1000}s 内没有响应）` }
+  const cause = error instanceof Error && error.cause instanceof Error ? error.cause : undefined
+  const message = cause?.message ?? (error instanceof Error ? error.message : String(error))
+  if (message === 'bad port') {
+    const port = new URL(url).port
+    return {
+      ok: false, fatal: true,
+      detail: `端口 ${port} 在 fetch 规范的禁用端口表里，探测请求不会发出，服务再怎么起来也判不了就绪；换一个端口`,
+    }
+  }
+  return { ok: false, detail: message }
+}
+
+async function probeUrl(url: string): Promise<Probe> {
   try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(1_500), redirect: 'manual' })
+    const response = await fetch(url, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS), redirect: 'manual' })
     await response.body?.cancel()
-    return response.status >= 200 && response.status < 400
-  } catch {
-    return false
+    const ok = response.status >= 200 && response.status < 400
+    return { ok, detail: `HTTP ${response.status}` }
+  } catch (error) {
+    return fetchFailure(url, error)
   }
 }
 
-function probePort(port: number): Promise<boolean> {
+function probePort(port: number): Promise<Probe> {
   return new Promise((resolveProbe) => {
     let settled = false
-    const done = (value: boolean): void => {
+    const done = (probe: Probe): void => {
       if (settled) return
       settled = true
       socket.destroy()
-      resolveProbe(value)
+      resolveProbe(probe)
     }
     const socket = connect({ port, host: '127.0.0.1' })
     socket.setTimeout(1_000)
-    socket.once('connect', () => done(true))
-    socket.once('timeout', () => done(false))
-    socket.once('error', () => done(false))
+    socket.once('connect', () => done({ ok: true, detail: '已连上' }))
+    socket.once('timeout', () => done({ ok: false, detail: `连接 127.0.0.1:${port} 超时` }))
+    socket.once('error', (error) => done({ ok: false, detail: error.message }))
   })
 }
 
@@ -71,22 +96,23 @@ export function logTail(path: string): string {
   }
 }
 
-async function probeReady(service: CatalogService, logPath: string): Promise<boolean> {
+async function probeReady(service: CatalogService, logPath: string): Promise<Probe> {
   const ready = service.ready
   if ('url' in ready) return probeUrl(ready.url)
   if ('port' in ready) return probePort(ready.port)
   try {
-    return readFileSync(logPath, 'utf8').includes(ready.log)
+    const found = readFileSync(logPath, 'utf8').includes(ready.log)
+    return { ok: found, detail: found ? '日志已出现' : `服务日志里还没出现 "${ready.log}"` }
   } catch {
-    return false
+    return { ok: false, detail: '服务日志读不到' }
   }
 }
 
-function alreadyServing(service: CatalogService): Promise<boolean> {
+async function alreadyServing(service: CatalogService): Promise<boolean> {
   const ready = service.ready
-  if ('url' in ready) return probeUrl(ready.url)
-  if ('port' in ready) return probePort(ready.port)
-  return Promise.resolve(false)
+  if ('url' in ready) return (await probeUrl(ready.url)).ok
+  if ('port' in ready) return (await probePort(ready.port)).ok
+  return false
 }
 
 function describeProbe(service: CatalogService): string {
@@ -118,20 +144,28 @@ export async function startService(
   }
   const started = Date.now()
   const deadline = started + service.ready.timeout_s * 1000
+  let last: Probe = { ok: false, detail: '还没有探测过' }
   while (Date.now() < deadline) {
     if (running.exited) {
       running.exit = 'crashed'
       return { running, start: { id: service.id, ok: false, failure: `服务在就绪前退出。日志尾部：\n${logTail(options.logPath)}` } }
     }
-    if (await probeReady(service, options.logPath)) {
+    last = await probeReady(service, options.logPath)
+    if (last.ok) {
       running.readyMs = Date.now() - started
       return { running, start: { id: service.id, ok: true } }
     }
+    if (last.fatal === true) break
     await sleep(POLL_MS)
   }
   await stopService(running)
   running.exit = 'not-ready'
-  return { running, start: { id: service.id, ok: false, failure: `${service.ready.timeout_s}s 内没等到 ${describeProbe(service)}。日志尾部：\n${logTail(options.logPath)}` } }
+  const waited = last.fatal === true ? '就绪探测不可能成功' : `${service.ready.timeout_s}s 内没等到 ${describeProbe(service)}`
+  const tail = logTail(options.logPath)
+  return {
+    running,
+    start: { id: service.id, ok: false, failure: `${waited}。最后一次探测：${last.detail}。日志尾部：${tail === '' ? '（服务没有输出）' : `\n${tail}`}` },
+  }
 }
 
 async function groupMembers(pgid: number): Promise<number[]> {

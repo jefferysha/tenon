@@ -56,6 +56,15 @@ describe('renderAgentPrompt', () => {
     expect(prompt).not.toContain('"result"')
   })
 
+  it('正文里声明过的技能按 tenon:<id> 写：通用子代理拿到的提示词也不会用裸名解析到外部同名技能（F5）', () => {
+    const prompt = renderAgentPrompt({
+      change: 'c', step: 'explore', role: 'executor', runId: 'r', candidate: `sha256:${'2'.repeat(64)}`,
+      frozen: { ...frozen, definition: { ...frozen.definition, body: '\n加载 `a` 再加载 `b`，不动 `c`。\n' } },
+      reportPath: 'r.md', tests: [],
+    })
+    expect(prompt).toContain('加载 `tenon:a` 再加载 `tenon:b`，不动 `c`。')
+  })
+
   it('执行者：结果形状含 result；缺省字段整行不出现', () => {
     const prompt = renderAgentPrompt({
       change: 'c',

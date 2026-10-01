@@ -16,8 +16,9 @@ interface Stat {
 /**
  * 测试页签的汇总：四个 24/600 的等宽数字（套件 · 用例 · 失败 · 不稳定）+ 13px 标签。0 退成 text-3，
  * 失败非零用红；报告了行覆盖率才多一格。单行，不折行；数字变化时纵向滚动。
+ * `recordedBy`（记录属于谁，即任务负责人）给了才在行尾多一个 13px text-3 的「· 名字」，过长截断、完整名在 title。
  */
-export function TestsTabStats({ summary, pass }: { summary: TabSummary; pass: boolean }): JSX.Element {
+export function TestsTabStats({ summary, pass, recordedBy }: { summary: TabSummary; pass: boolean; recordedBy?: string }): JSX.Element {
   const { t } = useT()
   const stats: Stat[] = [
     { id: 'suite', label: t('tests.word.suite'), value: summary.suites, zero: summary.suites === 0, danger: false },
@@ -30,14 +31,14 @@ export function TestsTabStats({ summary, pass }: { summary: TabSummary; pass: bo
   ]
   return (
     <div
-      className="flex flex-nowrap items-end gap-8 whitespace-nowrap"
+      className="flex min-w-0 flex-nowrap items-end gap-8 whitespace-nowrap"
       role="group"
-      aria-label={stats.map((stat) => `${stat.label} ${stat.value}`).join(' · ')}
+      aria-label={[...stats.map((stat) => `${stat.label} ${stat.value}`), ...(recordedBy === undefined ? [] : [recordedBy])].join(' · ')}
       data-testid="tests-summary"
       data-pass={pass}
     >
       {stats.map((stat) => (
-        <div key={stat.id} className="grid min-w-0 gap-0.5" data-testid={`tests-stat-${stat.id}`} data-zero={stat.zero}>
+        <div key={stat.id} className="grid min-w-0 shrink-0 gap-0.5" data-testid={`tests-stat-${stat.id}`} data-zero={stat.zero}>
           <CountRoll
             value={stat.value}
             className={cn('text-section font-semibold tabular-nums', stat.danger ? 'text-red-d' : stat.zero ? 'text-text-3' : 'text-text')}
@@ -46,6 +47,9 @@ export function TestsTabStats({ summary, pass }: { summary: TabSummary; pass: bo
           <span className="text-micro text-text-3">{stat.label}</span>
         </div>
       ))}
+      {recordedBy !== undefined && (
+        <span className="min-w-0 truncate text-micro text-text-3" title={recordedBy} data-testid="tests-summary-owner">· {recordedBy}</span>
+      )}
     </div>
   )
 }

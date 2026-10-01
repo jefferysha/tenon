@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, test } from 'vitest'
 import {
-  claudeAgentModel, codexAgentModel, hostAgentName, hostAgentPath, parseHostAgentPath, renderHostAgent,
+  claudeAgentModel, codexAgentModel, hostAgentName, hostAgentPath, parseHostAgentPath, qualifySkillReferences, renderHostAgent,
 } from './host-native.js'
 import { parseAgentFile } from './parse.js'
 import type { AgentDefinition } from './types.js'
@@ -99,5 +99,40 @@ describe('renderHostAgent', () => {
     const builder = parseAgentFile(text, 'builder')
     expect(renderHostAgent('claude', builder)).toContain('tools: Read, Write, Edit, Bash, Grep, Glob, Skill')
     expect(renderHostAgent('codex', builder)).toContain('name = "tenon-builder"')
+  })
+})
+
+describe('技能引用带插件前缀（真机验收 F5：裸名 deep-research 被宿主解析到同名外部技能后拒绝）', () => {
+  const body = '\n1. 用 Skill 工具加载 `deep-research`（竞品再加 `market-research`）。\n2. 不要动 `deep-research-notes`、`tenon:market-research` 或 `grep`。\n'
+  const agent = definition({ skills: ['deep-research', 'market-research'], body })
+
+  test.each(['claude', 'codex'] as const)('%s：声明过的技能名按 tenon:<id> 写，别的反引号内容不动', (host) => {
+    const text = renderHostAgent(host, agent)
+    expect(text).toContain('加载 `tenon:deep-research`（竞品再加 `tenon:market-research`）')
+    expect(text).toContain('`deep-research-notes`')
+    expect(text).toContain('`tenon:market-research` 或 `grep`')
+    expect(text).not.toContain('`tenon:tenon:')
+    expect(text).not.toMatch(/`deep-research`/u)
+  })
+
+  test('只改声明过的技能；没有声明技能的 agent 正文原样', () => {
+    const plain = definition({ skills: [], body })
+    expect(renderHostAgent('claude', plain)).toContain('加载 `deep-research`')
+    expect(qualifySkillReferences(body, [])).toBe(body)
+    expect(qualifySkillReferences(qualifySkillReferences(body, ['deep-research']), ['deep-research']))
+      .toBe(qualifySkillReferences(body, ['deep-research']))
+  })
+
+  test('官方 researcher：渲染出的两份宿主文件里没有裸的 deep-research / market-research 引用', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const text = readFileSync(join(import.meta.dirname, '..', '..', '..', '..', 'templates', 'agents', 'researcher.md'), 'utf8')
+    const researcher = parseAgentFile(text, 'researcher')
+    for (const host of ['claude', 'codex'] as const) {
+      const rendered = renderHostAgent(host, researcher)
+      expect(rendered).toContain('`tenon:deep-research`')
+      expect(rendered).toContain('`tenon:market-research`')
+      expect(rendered).not.toMatch(/`(?:deep|market)-research`/u)
+    }
   })
 })

@@ -84,6 +84,33 @@ describe('startService / stopService', () => {
     expect(running.child.pid !== undefined && alive(running.child.pid)).toBe(false)
   })
 
+  it('URL 探测一直得到非 2xx/3xx：失败原因带最后一次状态码（真机验收 F18）', async () => {
+    // 服务启动后才开始响应（启动前不在响应，否则会被当成「别的进程占着」）：被测命令自己起监听，探测得到 503。
+    const port = await freePort()
+    const listener = `require('http').createServer((q,r)=>{r.statusCode=503;r.end('no')}).listen(${port},'127.0.0.1')`
+    const { start: result } = await start(service({ start: `node -e "${listener}"`, ready: { url: `http://127.0.0.1:${port}/`, timeout_s: 2 } }))
+    expect(result.ok).toBe(false)
+    expect(result.failure).toContain('HTTP 503')
+  })
+
+  it('URL 探测连不上：失败原因带连接错误而不是空的日志尾部', async () => {
+    const port = await freePort()
+    const { start: result } = await start(service({ start: `node -e "setInterval(()=>{},1000)"`, ready: { url: `http://127.0.0.1:${port}/`, timeout_s: 1 } }))
+    expect(result.ok).toBe(false)
+    expect(result.failure).toContain('最后一次探测')
+    expect(result.failure).toContain('ECONNREFUSED')
+  })
+
+  it('URL 落在 fetch 禁用端口表里：立即失败并点名端口，不等满超时', async () => {
+    const begin = Date.now()
+    const { start: result, running } = await start(service({ start: `node -e "setInterval(()=>{},1000)"`, ready: { url: 'http://127.0.0.1:4190/', timeout_s: 20 } }))
+    expect(result.ok).toBe(false)
+    expect(result.failure).toContain('4190')
+    expect(result.failure).toContain('禁用')
+    expect(Date.now() - begin).toBeLessThan(10_000)
+    expect(running.exit).toBe('not-ready')
+  })
+
   it('启动前 URL / 端口已经在响应 → 拒绝复用（别的进程占着，测试会打到旧代码上）', async () => {
     const server = createServer((_request, response) => response.end('old')).listen(0, '127.0.0.1')
     servers.push(server)

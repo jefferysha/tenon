@@ -162,6 +162,16 @@ describe('SuiteRunDrawer · 失败用例', () => {
     for (const cell of screen.getAllByTestId('run-case-name')) expect(cell.className).toContain('truncate')
   })
 
+  it('报告没给文件的用例：位置写「未报告文件」，不把哨兵值 (unknown) 摆上页面（产品评估 P2）', async () => {
+    const base = suiteRun().cases[1]!
+    stub({ record: withRun({ cases: [{ ...base, file: '(unknown)', line: undefined, name: '结算' }] }) })
+    mount()
+    await ready()
+    const row = screen.getAllByTestId('run-case')[0] as HTMLElement
+    expect(within(row).getByTestId('run-case-location').textContent).toBe('未报告文件')
+    expect(screen.queryByText('(unknown)')).toBeNull()
+  })
+
   it('展开看堆栈与 expected / actual，以及该用例的产物；键盘可展开与收起', async () => {
     stub()
     mount()

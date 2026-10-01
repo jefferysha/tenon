@@ -22,13 +22,13 @@ import {
   type PipelineState,
   type ReadinessByTransition,
   type StepBlocker,
-  type TenonUser,
   type TestEvidenceContext,
   type TransitionContext,
   type TransitionReadinessBlocker,
 } from '@tenon/kernel'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import type { EvidenceUser } from './testEvidenceUser.js'
 
 export interface StepExitSnapshotDeps {
   readonly guardCheck: FlowEngine['guardCheck']
@@ -145,20 +145,20 @@ export async function withStepExitReadiness(
 /**
  * 一个项目的 step-exit 读取能力：文件面相对项目真实路径（有界读取要校验祖先目录，进程内 fd 句柄路径过不了），
  * 身份与候选版本与测试投影同源。没有注入 flow（只读单测）时返回 undefined，readiness 只判出边 guard。
+ * 按谁的记录判定由调用方逐任务传入（负责人优先，见 testEvidenceUser.ts）；不传则用 `input.user`。
  */
 export function projectStepExitDeps(input: {
   readonly flow: Pick<FlowEngine, 'guardCheck'> | undefined
   readonly skillResolver: EffectiveSkillResolver | undefined
   readonly fileRoot: string
-  readonly user: TenonUser | undefined
+  readonly user: EvidenceUser | undefined
   readonly candidate: (() => Promise<string | undefined>) | undefined
-}): ((changeName: string) => StepExitSnapshotDeps) | undefined {
+}): ((changeName: string, user?: EvidenceUser) => StepExitSnapshotDeps) | undefined {
   const flow = input.flow
   if (flow === undefined) return undefined
   const files = makeGuardFileContext(input.fileRoot, { automationRunner: false })
-  const user = input.user
   const readCandidate = input.candidate
-  const testContext: TestEvidenceContext | undefined = user === undefined
+  const contextFor = (user: EvidenceUser | undefined): TestEvidenceContext | undefined => user === undefined
     ? undefined
     : {
         user: { id: user.id, name: user.name, slug: userSlug(user.id) },
@@ -170,10 +170,10 @@ export function projectStepExitDeps(input: {
           },
         }),
       }
-  return (changeName) => ({
+  return (changeName, user) => ({
     guardCheck: (state, ctx) => flow.guardCheck(state, ctx),
     fileContext: files(changeName),
-    testContext,
+    testContext: contextFor(user ?? input.user),
     skillResolver: input.skillResolver,
   })
 }

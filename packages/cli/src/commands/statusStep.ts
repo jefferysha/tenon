@@ -142,8 +142,9 @@ async function withPrUrlRecommendation(
 /** 完结收尾要的 git 事实；只在状态机已归档时才去问 git（活跃步骤的每次 status 不付这份开销）。 */
 async function finishFacts(deps: CliDeps, name: string, state: PipelineState): Promise<StepFinishFacts> {
   const verified = str(state.fields.verify_result) === 'pass'
-  if (str(state.fields.archived) !== 'true') return { git: null, verified }
-  return { git: await (deps.gitFinishProbe?.(name) ?? Promise.resolve(null)), verified }
+  const designSystem = str(state.fields.workflow) === 'design-system'
+  if (str(state.fields.archived) !== 'true') return { git: null, verified, designSystem }
+  return { git: await (deps.gitFinishProbe?.(name) ?? Promise.resolve(null)), verified, designSystem }
 }
 
 /** 交付值：记录「这次交付」的自由文本字段。声明了它的步骤就是交付步。 */

@@ -26,7 +26,7 @@ import {
   checkMandatorySkillInvocability, checkOpenspecCli, checkSkills, checkWorkflowSkills,
 } from './doctor-skills.js'
 import { checkCodexProjectSkills } from './doctor-codex-skills.js'
-import { checkCodexAuth, checkStatusline } from './doctor-host.js'
+import { checkCodexAuth, checkStatusline, checkTenonOnPath } from './doctor-host.js'
 import { checkProductIdentity } from './doctor-product-identity.js'
 import { checkUpstreamSkills, renderUpstreamSkillTable, upstreamSkillViewOf } from './doctor-upstream-skills.js'
 
@@ -268,6 +268,7 @@ export async function cmdDoctor(
   const runners: ReadonlyArray<[string, () => DoctorCheck | Promise<DoctorCheck>]> = [
     ['env:node', () => checkNode(p)],
     ['env:git', () => checkGit(p)],
+    ['env:path-tenon', () => checkTenonOnPath(p)],
     ['asset:manifest', () => checkManifest(p)],
     ['asset:hooks', () => checkHookAssets(p)],
     ['guard:gate', () => checkGateEffective(p)],

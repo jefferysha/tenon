@@ -329,26 +329,45 @@ describe('SkillsView', () => {
     expect(screen.getByTestId('skills-fix-hue-1-text')).toHaveTextContent('tenon update --claude')
   })
 
-  it('lists which workflows / tracks / stages use a skill', async () => {
-    const step = (id: string, label: string, skills: string[]) => ({ id, label, gate: null, skills: skills.map((skill) => ({ id: skill })), inputs: [], outputs: [], guards: [], transitions: [] })
-    const workflow = {
-      name: 'default',
-      steps: [step('explore', '调研', ['brainstorming']), step('build', '实现', ['hue', 'brainstorming'])],
-      tracks: { ui: { label: '界面', steps: [step('design', '设计', ['hue'])] } },
+  it('lists which workflows / tracks / stages use a skill, read from the orchestration: declared, OpenSpec-injected and manifest-overlay alike', async () => {
+    const entry = (id: string, source: 'declared' | 'openspec' | 'manifest' = 'declared') =>
+      ({ kind: 'skill', id, label: id, wave: 0, dependsOn: [], required: true, source })
+    const stage = (id: string, label: string, entries: unknown[]) => ({ id, label, gate: null, entries })
+    const orchestration = (track: string, stages: unknown[]) => ({ workflow: 'default', track, stages, returns: [], flows: [], overlay: {} })
+    // 定义只用来知道有哪些轨道（id / label）；引用来自每条轨道的编排，而不是定义里的 step.skills。
+    const definition = { name: 'default', steps: [], tracks: { ui: { label: '界面', steps: [] }, backend: { steps: [] } } }
+    const branches: Record<string, unknown> = {
+      ui: orchestration('ui', [
+        stage('explore', '调研', [entry('superpowers:brainstorming')]),
+        stage('design', '设计', [entry('hue'), entry('openspec-propose', 'openspec')]),
+      ]),
+      backend: orchestration('backend', [
+        stage('explore', '调研', [entry('brainstorming|opsx:explore', 'manifest')]),
+        stage('build', '实现', [entry('hue')]),
+      ]),
     }
+    const withInjected = { ...FIXTURE, rows: [...FIXTURE.rows, { ...FIXTURE.rows[2], id: 'openspec-propose' }] }
+    const requested: string[] = []
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
-      if (url.startsWith('/api/skills/sources')) return new Response(JSON.stringify(FIXTURE), { status: 200 })
+      requested.push(url)
+      if (url.startsWith('/api/skills/sources')) return new Response(JSON.stringify(withInjected), { status: 200 })
       if (url.startsWith('/api/workflows?')) return new Response(JSON.stringify({ names: ['default'] }), { status: 200 })
-      if (url.startsWith('/api/workflows/default')) return new Response(JSON.stringify(workflow), { status: 200 })
+      const branch = /^\/api\/workflows\/default\/orchestration\?.*track=([a-z]+)/u.exec(url)?.[1]
+      if (branch !== undefined && branches[branch] !== undefined) return new Response(JSON.stringify(branches[branch]), { status: 200 })
+      if (url.startsWith('/api/workflows/default')) return new Response(JSON.stringify(definition), { status: 200 })
       return new Response('{}', { status: 404 })
     })
     renderView()
     await screen.findByTestId('skills-row-hue')
-    await waitFor(() => expect(screen.getByTestId('skills-used-brainstorming')).toHaveTextContent('default · 调研+1'))
+    await waitFor(() => expect(screen.getByTestId('skills-used-brainstorming')).toHaveTextContent('default · 界面 · 调研+1'))
+    // 有了引用数据，被隐藏的 引用 列出现。
     expect(screen.getAllByRole('columnheader').map((cell) => cell.textContent)).toContain('引用')
-    expect(screen.getByTestId('skills-used-brainstorming')).toHaveAttribute('title', 'default · 调研\ndefault · 实现')
-    expect(screen.getByTestId('skills-used-hue')).toHaveAttribute('title', 'default · 实现\ndefault · 界面 · 设计')
+    expect(screen.getByTestId('skills-used-brainstorming')).toHaveAttribute('title', 'default · 界面 · 调研\ndefault · backend · 调研')
+    expect(screen.getByTestId('skills-used-hue')).toHaveAttribute('title', 'default · 界面 · 设计\ndefault · backend · 实现')
+    expect(screen.getByTestId('skills-used-openspec-propose')).toHaveTextContent('default · 界面 · 设计')
     expect(screen.getByTestId('skills-used-tenon')).toHaveTextContent('—')
+    expect(requested.some((url) => url.includes('/orchestration?') && url.includes('track=ui'))).toBe(true)
+    expect(requested.some((url) => url.includes('/orchestration?') && url.includes('track=backend'))).toBe(true)
   })
 })
