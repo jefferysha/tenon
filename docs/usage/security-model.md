@@ -194,6 +194,17 @@ can expose prompts, headers, tokens, bodies, and CA private material. Keep all
 captures local, minimize retention, and sanitize before sharing. Never put raw
 traces or secrets in GitHub Issues.
 
+## Logs and the support package
+
+The Dashboard server log (`<state>/logs/dashboard.log`) never receives a credential:
+every line passes the shared redactor first (tokens, API keys, cookies, session and
+one-time login codes, private keys, URL passwords), the file is mode `0600`, and the
+managed background server's login link is never returned or logged in the clear.
+`tenon support bundle` runs a second, stricter pass for anything that leaves the
+machine (adds emails, home paths and user names), caps the archive at 5 MiB and
+uploads nothing. Redaction is pattern based: open the archive and read it before
+sharing, and report a miss as a bug.
+
 ## Reporting
 
 Use the private instructions in [SECURITY.md](../../SECURITY.md). Do not disclose

@@ -19,6 +19,13 @@ canonical state 只由 Tenon CLI 写。路径必须落在项目允许范围，�
 
 不得把 API key、OAuth token、prompt、headers、Tap trace、CA 私钥或真实用户数据写入 README、Issue、Pages artifact 或验证截图。诊断输出先脱敏。
 
+## 日志与支持包
+
+Dashboard server 日志（`<state>/logs/dashboard.log`）里没有任何凭证：每一行先过同一个脱敏器（token、API key、cookie、
+会话码/一次性登录码、私钥、URL 密码），文件权限 `0600`，受管后台 server 的登录链接既不会返回也不会明文写进日志。
+`tenon support bundle` 对要离开本机的内容再过一遍更严的脱敏（另加邮箱、home 路径、用户名），归档上限 5 MiB，
+不上传任何东西。脱敏是模式匹配：分享前解开看一遍，漏抹按缺陷报告。
+
 ## 本机边界防的是谁
 
 | 对手 | 能做什么 | 什么拦住它 |

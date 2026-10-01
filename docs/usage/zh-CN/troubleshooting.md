@@ -17,6 +17,18 @@
 
 ### 1. 采集基础事实
 
+先在本机生成脱敏诊断包（不联网、不上传，会逐项打印包含了什么与抹掉了什么）：
+
+```bash
+tenon support bundle [--out <路径>]
+```
+
+包里有版本、`doctor`、`runtime status`、配置摘要（只有名称与计数，没有值）、最近的 Dashboard server 日志和
+hook 耗时（有记录才有），总大小不超过 5 MiB，文件权限 `0600`。写入前会抹掉 token、cookie、一次性登录码、
+私钥、邮箱、home 路径与用户名；分享前仍要自己解开看一遍。
+
+再按需逐项采集：
+
 ```bash
 tenon status <change> --json
 tenon document status <change> --json
@@ -91,6 +103,25 @@ npm run docs:smoke
 ```
 
 如果 HTML 200 但哈希 JS 404，通常是 preview 进程仍缓存旧 dist 文件表。停止旧 preview，基于当前 dist 重启，再验证搜索、主题和移动导航。
+
+#### 看 Dashboard server 日志
+
+server 把自己的输出镜像进 `<state>/logs/dashboard.log`，按大小轮转（当前文件 + `.1` + `.2`，每个 1 MiB）；
+凭证、cookie 与一次性登录码在落盘前已抹掉。
+
+```bash
+tenon logs                 # 轮转文件合起来的最近 100 行
+tenon logs --lines 500
+tenon logs --follow        # 持续输出新增日志，Ctrl+C 结束
+```
+
+受管后台 server 没有终端，这个文件是它的告警和意外 `500`（只记方法、路径与消息，不记查询串）唯一的去处。
+
+#### 切换 CLI 语言
+
+CLI 的帮助、用法错误和最常见的错误按 `TENON_LANG=en|zh`，其次 `LC_ALL`、`LC_MESSAGES`、`LANG` 选语言；
+没有语言信号、或 `LC_ALL=C`/`POSIX`（hook 为输出稳定会这样钉）时保持历史的中文输出。消息码和退出码与语言无关。
+`tenon transition` 遇到非法或未知 event 时，会用当前语言列出当前 step 的合法 event。
 
 ### 3. 选择恢复路径
 

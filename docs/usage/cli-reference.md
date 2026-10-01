@@ -94,6 +94,8 @@ tenon state status|repair-projection|import-legacy <name> [--json]
 
 `get` returns an empty line with exit `0` for a missing/unknown field. CAS
 mismatch exits `3`; failed guard check exits `2`; invalid transitions exit `1`.
+An illegal or unknown `transition` event also lists the legal events for the
+current step, on a second line, in the active language.
 Use command help and machine-readable output before scripting additional
 assumptions.
 
@@ -562,6 +564,34 @@ tenon loops level <loop> [set <L1|L2|L3>] [--confirm]
 tenon loops run <loop|pattern> [--dry-run] [--level <level>] [--commit] [--json]
 tenon loops sync <loop> <--dry-run|--apply> [...]
 ```
+
+## Support, logs and language
+
+```text
+tenon support bundle [--out <path>] [--json]
+tenon logs [--follow] [--lines <n>]
+```
+
+`support bundle` writes a local redacted `.tar.gz` (default
+`~/tenon-support-<time>.tar.gz`, mode `0600`, at most 5 MiB): versions,
+`doctor`, `runtime status`, a configuration summary (key names and counts, never
+values), the recent Dashboard server log and hook timings when recorded. Tokens,
+API keys, cookies, session/login codes, private keys, URL passwords, emails, home
+paths and user names are removed before writing; the command prints each entry,
+what was truncated (logs keep their newest part) and how many items were
+redacted. Nothing is uploaded. `--json` prints the same facts for scripts.
+
+`logs` reads `<state>/logs/dashboard.log` and its rotations (`.1`, `.2`, 1 MiB each,
+three files in total). The server mirrors its stdout/stderr there with credentials
+redacted before they reach disk. `--lines` defaults to 100; `--follow` polls for new
+lines and survives rotation until Ctrl+C.
+
+Output language: `TENON_LANG=en|zh`, then `LC_ALL`, `LC_MESSAGES`, `LANG`. No
+signal, or `C`/`POSIX`, keeps the historical Chinese output (hooks pin `LC_ALL=C` for
+stable text). Every command and option description has an English text, usage errors
+and the most common errors are catalogued in both languages (stable message codes,
+see `packages/cli/src/i18n/`), and JSON fields, `ERROR:`/`WARN:` prefixes and exit
+codes never depend on the language. Strings not yet in the catalog stay in Chinese.
 
 ## Advanced
 

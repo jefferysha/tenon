@@ -172,6 +172,12 @@ Dashboard 自己读的是更轻的「列表层」（见下文「快照分层与�
 没有点名任何项目的写丢掉全部。并发读取共用一次构建。`/api/snapshot`、`/api/change/:name/snapshot` 与 AFK
 快照 / 日志视图共用这些构建；快照与任务详情响应带 `ETag`，`If-None-Match` 命中返回 `304`，接受 gzip 的调用方拿到压缩字节。
 
+### Server 日志
+
+server 把自己的 stdout/stderr 镜像进 `<state>/logs/dashboard.log`（按大小轮转，共 3 个文件：当前 + `.1` + `.2`，每个 1 MiB），
+并把意外的 `500` 记成 `[dashboard-server] 500 <方法> <路径>: <消息>`（从不记录查询串）。凭证、cookie 与一次性登录码在
+落盘前已抹掉。用 `tenon logs [--follow] [--lines N]` 查看；`tenon support bundle` 会把最近的部分打进诊断包并再次脱敏。
+
 ## 本地 API 边界
 
 mutation 端点必须经过 CLI 相同的 schema、CAS、review 和 guard。前端不能直接编辑 canonical JSON 或 `.pipeline.yaml`。
@@ -194,6 +200,12 @@ mutation 端点必须经过 CLI 相同的 schema、CAS、review 和 guard。前�
 Tenon 已注册宿主以及 `setup`/`update` 操作，返回
 `host-target-plan/v1`，不会执行预览命令。原生宿主计划面向用户级安装；适配器宿主计划使用
 当前项目目录（`--target .`），不会输出可被 shell 误解的占位符。
+
+readiness 里 `step-exit` 类阻断（`readinessByTransition[...].blockers[]`）的 `message` 是给人读的整句（与 CLI 同一份，页面只放进
+Tooltip），机器可读的部分是 `code`、`source` 和可选的 `subject`、`state`、`count`：`subject` 是被阻断的对象（文档 kind、技能 token、
+测试显示名），`state` 是它的状态（文档 `missing|stale|unread`、技能 `not-run|unrecorded`、内联测试 `running|missing|stale|failed`），
+`count` 是 `tasks.md` 未勾选的项数。Dashboard 只按 `code` 与这些字段给阻断贴短标签，从不解析 `message`；缺这些字段的阻断显示整句。
+`tenon status --json` 的 `exits[].blockers[]` 有同样的字段。
 
 生产 server 会为可压缩的生成资源协商 gzip，并返回 `Vary: Accept-Encoding`；明确拒绝 gzip
 的客户端仍获得原始字节，API JSON 继续使用 `no-store`。
