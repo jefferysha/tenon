@@ -27,7 +27,8 @@ import { defaultResolveUser } from './serverUserRoutes.js'
 import { projectStepExitDeps, type StepExitSnapshotDeps } from './stepExitReadiness.js'
 import { createCandidateCache } from './testCandidateCache.js'
 import { projectTestEvidence } from './testEvidenceSnapshot.js'
-import type { ChangeListSnapshot, ChangeSnapshot, LegacyWorkflowRulesSnapshot, ListWorkflowRulesSnapshot } from './types.js'
+import type { ChangeSnapshot, LegacyWorkflowRulesSnapshot } from './types.js'
+import type { ChangeListSnapshot, ListWorkflowRulesSnapshot } from './snapshotListTypes.js'
 import { readWorkflowSnapshotAuthority } from './workflowSnapshotAuthority.js'
 import {
   legacySnapshotWorkflowRules, resolveSnapshotEffectivePlan, snapshotTodoStages, snapshotWorkflowExecution,

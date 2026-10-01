@@ -1,5 +1,6 @@
 import type { Snapshot } from '../types'
-import { applySnapshotDelta, decodeSnapshot, decodeSnapshotDelta } from './snapshotDecoder'
+import { decodeSnapshot } from './snapshotDecoder'
+import { applySnapshotDelta, decodeSnapshotDelta } from './snapshotDeltaDecoder'
 import { ApiError, getToken, isRecord, readJson, throwDetailedApiError, wrapNetwork } from './transport'
 
 /** The last decoded snapshot and its ETag: when the server answers 304, a refresh reuses it as is. */

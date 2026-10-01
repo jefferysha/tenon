@@ -12,6 +12,21 @@ const bodyRoots = new WeakMap<IncomingMessage, Set<string>>()
 /** POST routes that only compute an answer from the request and write no state. */
 const READ_ONLY_WRITES: ReadonlySet<string> = new Set(['/api/router/preview', '/api/loops/scope-preview'])
 
+/**
+ * Drop what a write may have touched from the snapshot cache. `before` runs as the request arrives: the body is
+ * not read yet, so only a project named in the query can be dropped. `after` runs once the handler settled and
+ * knows the body's project too; a write that names none drops every project.
+ */
+export function dropWrittenProjects(
+  cache: { invalidate(roots?: readonly string[]): void },
+  req: IncomingMessage,
+  path: string,
+  when: 'before' | 'after',
+): void {
+  const scope = writeScopeOf(req, path)
+  if (when === 'before' ? scope !== undefined && scope.length > 0 : scope === undefined || scope.length > 0) cache.invalidate(scope)
+}
+
 /** Remember the project a parsed JSON body names (called by the body reader). */
 export function noteBodyRoot(req: IncomingMessage, body: unknown): void {
   if (typeof body !== 'object' || body === null) return

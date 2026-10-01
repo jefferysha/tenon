@@ -19,7 +19,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { AUTOMATION_STATES, CANCEL_MARKER_FILE, type AutomationState } from '@tenon/automation'
 import { stateStorageExistsSync, type StateStore } from '@tenon/kernel'
-import type { ListSnapshot } from './types.js'
+import type { ListSnapshot } from './snapshotListTypes.js'
 
 /** AFK 泳道（对位 automation AUTOMATION_STATES 的活跃子集；off 不入板，scheduled 归 running，见 laneOf）。 */
 export const AFK_LANES = ['queued', 'running', 'merged', 'failed', 'conflict', 'paused'] as const

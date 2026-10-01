@@ -8,7 +8,8 @@ import {
 import type { SnapshotDeps } from './snapshot.js'
 import type { RootFingerprint } from './snapshotFingerprint.js'
 import { sharedBody, type SharedSnapshot } from './snapshotShared.js'
-import type { ChangeListSnapshot, ChangeSnapshot, ProjectListSnapshot, ProjectSnapshot, Snapshot } from './types.js'
+import type { ChangeSnapshot, ProjectSnapshot, Snapshot } from './types.js'
+import type { ChangeListSnapshot, ProjectListSnapshot } from './snapshotListTypes.js'
 
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void; reject: (error: unknown) => void } {
   let resolve!: (value: T) => void
@@ -227,6 +228,29 @@ describe('createSnapshotCache —— 按项目缓存与按指纹复用', () => {
     registered = ['/a', '/b']
     await cache.list()
     expect(builds.sort()).toEqual(['/a', '/b', '/b'])
+  })
+
+  it('没有任何项目注册：列表快照同样被复用（同一份字节、同一个 ETag）', async () => {
+    const h = harness({ roots: [] })
+    const first = await h.cache.list()
+    const second = await h.cache.list()
+    expect(second).toBe(first)
+    expect(first.snapshot.project_count).toBe(0)
+  })
+
+  it('完整层级只在有人用文档化的 API 读它时才驻留：停读两分钟后，下一次列表读取释放它', async () => {
+    const h = harness({ roots: ['/a'], maxAgeMs: 10_000_000 })
+    await h.cache.full()
+    await h.cache.full()
+    expect(h.builds).toEqual(['full:/a'])
+    h.advance(119_000)
+    await h.cache.list()
+    await h.cache.full()
+    expect(h.builds).toEqual(['full:/a', 'list:/a'])
+    h.advance(120_001)
+    await h.cache.list()
+    await h.cache.full()
+    expect(h.builds).toEqual(['full:/a', 'list:/a', 'full:/a'])
   })
 
   it('整体指纹是各项目指纹的拼接，任一项目变化它就变', async () => {

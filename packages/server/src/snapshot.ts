@@ -23,14 +23,8 @@ import {
   type TrackDefinition,
 } from '@tenon/kernel'
 import { ArtifactScopeMigrationError, type ArtifactService } from '@tenon/automation'
-import type {
-  ChangeSnapshot,
-  DocumentEvidenceSnapshot,
-  ListSnapshot,
-  ProjectListSnapshot, ProjectSnapshot, ProjectRepositoryIdentity,
-  Snapshot,
-  TerminalActivitySnapshot,
-} from './types.js'
+import type { ChangeSnapshot, DocumentEvidenceSnapshot, ProjectSnapshot, ProjectRepositoryIdentity, Snapshot, TerminalActivitySnapshot } from './types.js'
+import type { ListSnapshot, ProjectListSnapshot } from './snapshotListTypes.js'
 import { projectReviewHandshake } from './reviewHandshake.js'
 import { projectSkillRuns, resolveSnapshotTrack } from './skillRuns.js'
 import { readWorkflowSnapshotAuthority } from './workflowSnapshotAuthority.js'

@@ -71,7 +71,7 @@ import {
 } from './serverSupport.js'
 import { createFreezeHandlers } from './serverFreezeHandlers.js'
 import { createServerTransport } from './serverTransport.js'
-import { writeScopeOf } from './snapshotWriteScope.js'
+import { dropWrittenProjects } from './snapshotWriteScope.js'
 import { createServerGovernance } from './serverGovernance.js'
 import { AdapterInstallManager } from './adapterInstall.js'
 import { createFolderChooser } from './folderChooser.js'
@@ -340,12 +340,8 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
   const httpServer: Server = createServer((req, res) => {
     const path = (req.url ?? '/').split('?', 1)[0] ?? '/'
     const method = req.method ?? 'GET'
-    // A write drops only the projects it names (query or body root); one that names none drops everything once it
-    // settles. The body is not read yet here, so only a project named in the query can be dropped up front.
-    if (method !== 'GET') {
-      const early = writeScopeOf(req, path)
-      if (early !== undefined && early.length > 0) snapshotCache.invalidate(early)
-    }
+    // A write drops only the projects it names (query or body root), everything when it names none.
+    if (method !== 'GET') dropWrittenProjects(snapshotCache, req, path, 'before')
     const handler = method === 'GET'
       ? handleGet(req, res, path)
       : method === 'POST'
@@ -357,12 +353,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
             : method === 'PUT'
               ? handlePut(req, res, path)
               : Promise.resolve(sendJson(res, 405, { ok: false, error: 'method not allowed' }))
-    if (method !== 'GET') {
-      void handler.finally(() => {
-        const settled = writeScopeOf(req, path)
-        if (settled === undefined || settled.length > 0) snapshotCache.invalidate(settled)
-      }).catch(() => undefined)
-    }
+    if (method !== 'GET') void handler.finally(() => dropWrittenProjects(snapshotCache, req, path, 'after')).catch(() => undefined)
     handler.catch((e) => {
       try { sendJson(res, 500, { ok: false, error: errMsg(e) }) } catch { /* 已写头 */ }
     })

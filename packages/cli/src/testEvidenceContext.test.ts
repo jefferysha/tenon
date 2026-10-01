@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { mockState, makeDeps } from './test-support.js'
+import { tryChangedFiles } from './test-system/plan-context.js'
 import { changedFilesFor, testEvidenceContextFor } from './testEvidenceContext.js'
 
 describe('testEvidenceContextFor —— 改动文件提供者', () => {
@@ -21,5 +22,24 @@ describe('testEvidenceContextFor —— 改动文件提供者', () => {
   it('缺省用 kernel 的 changedFilesForState：项目目录不是 git 仓库时抛 ChangedFilesUnavailableError', async () => {
     const deps = makeDeps({ state: mockState({ base_branch: 'main', created_at: '2026-01-01T00:00:00Z' }) })
     await expect(changedFilesFor({ ...deps, cwd: '/nonexistent-tenon-cwd' }, 'demo')()).rejects.toThrow(/git/)
+  })
+})
+
+describe('改动文件的截断标记', () => {
+  const truncated = { files: ['src/a.test.ts'], untrackedTruncated: { found: 25_000, limit: 20_000 } }
+
+  it('测试策略拿到带标记的结果；只要列表的调用方拿到纯文件列表', async () => {
+    const deps = { ...makeDeps({ state: mockState() }), changedFiles: async () => truncated }
+    expect(await testEvidenceContextFor(deps, 'demo')?.changedFiles?.()).toEqual(truncated)
+    expect(await changedFilesFor(deps, 'demo')()).toEqual(['src/a.test.ts'])
+  })
+
+  it('tenon test plan / sync 的输入读取把标记带出来；纯列表没有标记；失败带原因', async () => {
+    const base = makeDeps({ state: mockState() })
+    expect(await tryChangedFiles({ ...base, changedFiles: async () => truncated }, 'demo')).toEqual({
+      ok: true, files: ['src/a.test.ts'], untrackedTruncated: { found: 25_000, limit: 20_000 },
+    })
+    expect(await tryChangedFiles({ ...base, changedFiles: async () => ['x.ts'] }, 'demo')).toEqual({ ok: true, files: ['x.ts'] })
+    expect(await tryChangedFiles({ ...base, changedFiles: async () => { throw new Error('git 超时') } }, 'demo')).toEqual({ ok: false, reason: 'git 超时' })
   })
 })

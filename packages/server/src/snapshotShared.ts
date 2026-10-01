@@ -5,7 +5,8 @@
 import { createHash } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { gzipSync } from 'node:zlib'
-import type { ArchivedChangeSnapshot, ChangeSnapshot, ListSnapshot, Snapshot } from './types.js'
+import type { ArchivedChangeSnapshot, ChangeSnapshot, Snapshot } from './types.js'
+import type { ListSnapshot } from './snapshotListTypes.js'
 
 /** Below this the compression header and CPU cost more than they save. */
 const GZIP_MIN_BYTES = 1_024

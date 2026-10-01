@@ -12,7 +12,8 @@ import { ensureUserLocalDir, serializeTaskArchive, type StateStore, type TenonUs
 import { createDashboardServer } from './server.js'
 import { resolveServerPaths } from './paths.js'
 import { computeFingerprint } from './snapshot.js'
-import type { DashboardServer, ListSnapshot, Snapshot } from './types.js'
+import type { DashboardServer, Snapshot } from './types.js'
+import type { ListSnapshot } from './snapshotListTypes.js'
 import {
   initChange, makeProject, makeTempHome, newStore, openSSE, recordWorkflowPhaseSkill, reqGet, reqPost,
   seedGovernedDocumentEvidence, testFlow,
@@ -39,7 +40,7 @@ function countingStore(store: StateStore): { store: StateStore; builds: () => nu
   return { store: counted, builds: () => builds }
 }
 
-async function start(opts: { resolveUser?: (root: string) => TenonUserResolution; projects?: number } = {}) {
+async function start(opts: { resolveUser?: (root: string) => TenonUserResolution; projects?: number; pollIntervalMs?: number } = {}) {
   const base = newStore()
   const root = await makeProject()
   const name = 'my-change'
@@ -59,12 +60,12 @@ async function start(opts: { resolveUser?: (root: string) => TenonUserResolution
     paths: resolveServerPaths({ home: await makeTempHome(), env: {} }),
     version: '9.9.9', token: 'secret', registry: () => roots, store, flow: testFlow(),
     clock: () => `2026-07-07T00:00:${String(tick++).padStart(2, '0')}Z`,
-    pollIntervalMs: 20,
+    pollIntervalMs: opts.pollIntervalMs ?? 20,
     ...(opts.resolveUser === undefined ? {} : { resolveUser: opts.resolveUser }),
   })
   openServers.push(srv)
   const { port } = await srv.listen(0, '127.0.0.1')
-  return { port, root, roots, name, builds }
+  return { port, root, roots, name, builds, changeDir, base }
 }
 
 const phaseOf = (snapshot: Snapshot): string | undefined => snapshot.projects[0]?.changes[0]?.phase
@@ -278,5 +279,20 @@ describe('列表层级、项目级失效、增量推送与详情', () => {
     const again = await stream.waitFor((event) => event.event === 'snapshot' && phaseOf(JSON.parse(event.data) as Snapshot) === 'explore', 10_000)
     stream.close()
     expect(JSON.parse(again.data).projects[0].changes[0].documents).toBeDefined()
+  })
+
+  it('后来的连接不会吞掉先到的连接还没收到的变化（标记只在唯一客户端时前移）', async () => {
+    const h = await start({ pollIntervalMs: 1_500 })
+    const first = await openSSE(h.port, '/api/stream?view=list')
+    await first.waitFor((event) => event.event === 'snapshot', 10_000)
+    // 终端里的写：不经 server，只有指纹能发现它。
+    await h.base.set(h.changeDir, 'phase', 'explore')
+    const second = await openSSE(h.port, '/api/stream?view=list')
+    const initial = await second.waitFor((event) => event.event === 'snapshot', 10_000)
+    expect(phaseOf(JSON.parse(initial.data) as Snapshot)).toBe('explore')
+    const delta = await first.waitFor((event) => event.event === 'snapshot-delta', 10_000)
+    first.close()
+    second.close()
+    expect(JSON.parse(delta.data).projects[0].changes[0].phase).toBe('explore')
   })
 })

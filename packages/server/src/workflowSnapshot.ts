@@ -25,13 +25,8 @@ import {
   type WorkflowPermissionLayers,
   type WorkflowPlanSnapshot,
 } from '@tenon/kernel'
-import type {
-  LegacyWorkflowRulesSnapshot,
-  ListWorkflowRulesSnapshot,
-  WorkflowConfiguredPolicySnapshot,
-  WorkflowExecutionSnapshot,
-  WorkflowRulesSnapshot,
-} from './types.js'
+import type { LegacyWorkflowRulesSnapshot, WorkflowConfiguredPolicySnapshot, WorkflowExecutionSnapshot, WorkflowRulesSnapshot } from './types.js'
+import type { ListWorkflowRulesSnapshot } from './snapshotListTypes.js'
 import { projectFileExists } from './projectCapabilities.js'
 import { withStepExitReadiness, type StepExitSnapshotDeps } from './stepExitReadiness.js'
 

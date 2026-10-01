@@ -43,13 +43,11 @@ function write(res: ServerResponse, frame: string): void {
   try { res.write(frame) } catch { /* 断开的连接会在 close 事件里清理 */ }
 }
 
-function broadcast(event: string, data: string, view: StreamClient['view']): void {
+/** The documented full snapshot goes to every `full` client whole, every time. */
+function broadcastFull(body: string): void {
   lastBeat = Date.now()
-  const frame = `event: ${event}\ndata: ${data}\n\n`
-  for (const res of clients) {
-    const client = streamClients.get(res)
-    if (client?.view === view && client.primed) write(res, frame)
-  }
+  const frame = `event: snapshot\ndata: ${body}\n\n`
+  for (const res of clients) if (streamClients.get(res)?.view === 'full') write(res, frame)
 }
 
 /** Send `client` what it is missing of `shared`: the whole snapshot the first time, afterwards only changed projects. */
@@ -95,13 +93,14 @@ const pollTick = singleFlight(async (): Promise<void> => {
           lastFp = shared.fingerprint
           for (const res of clients) {
             const client = streamClients.get(res)
-            if (client?.view === 'list' && client.primed) sendList(res, client, shared)
+            // A list client that has not received its first frame yet gets it here; the rest get the delta.
+            if (client?.view === 'list') sendList(res, client, shared)
           }
         }
         if (hasClients('full')) {
           const shared = await snapshotCache.full()
           lastFp = shared.fingerprint
-          broadcast('snapshot', shared.body, 'full')
+          broadcastFull(shared.body)
         }
       } catch {
         /* 一次失败下轮再试 */
@@ -176,21 +175,23 @@ async function handleStream(req: IncomingMessage, res: ServerResponse): Promise<
     'X-Accel-Buffering': 'no',
   })
   const view = new URL(req.url ?? '/', 'http://localhost').searchParams.get('view') === 'list' ? 'list' : 'full'
-  const client: StreamClient = { view, primed: false, sent: new Map(), order: '' }
+  // A full client has no per-client state: it is sent whole snapshots as they are built, so it is primed from the start.
+  const client: StreamClient = { view, primed: view === 'full', sent: new Map(), order: '' }
   streamClients.set(res, client)
   clients.add(res)
   try {
     if (view === 'list') {
       const shared = await snapshotCache.list()
-      lastFp = shared.fingerprint
-      sendList(res, client, shared)
-      // 首帧构建期间落下的变化（轮询广播跳过了尚未就绪的连接）在这里补上。
+      // The poll may have sent the first frame while this one was being built; a frame that old must not follow it.
+      if (!client.primed) sendList(res, client, shared)
+      // Whatever changed while the first frame was being built is sent now.
       sendList(res, client, await snapshotCache.list())
+      if (clients.size === 1) lastFp = shared.fingerprint
     } else {
       const shared = await snapshotCache.full()
-      lastFp = shared.fingerprint
       write(res, `event: snapshot\ndata: ${shared.body}\n\n`)
-      client.primed = true
+      // Only the sole client may move the marker: any other client still has to be told what changed since its frame.
+      if (clients.size === 1) lastFp = shared.fingerprint
     }
   } catch {
     /* 初始快照失败不影响后续推送 */

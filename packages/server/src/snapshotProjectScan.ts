@@ -1,8 +1,7 @@
 import { readdir } from 'node:fs/promises'
 import { isTenonUser, readTaskArchiveOf, type TaskArchive } from '@tenon/kernel'
-import type {
-  ArchivedChangeSnapshot, ChangeListSnapshot, ChangeSnapshot, LegacyWorkflowRulesSnapshot, ProjectListSnapshot, ProjectSnapshot,
-} from './types.js'
+import type { ArchivedChangeSnapshot, ChangeSnapshot, LegacyWorkflowRulesSnapshot, ProjectSnapshot } from './types.js'
+import type { ChangeListSnapshot, ProjectListSnapshot } from './snapshotListTypes.js'
 import { readRepositoryIdentity } from './repositoryIdentity.js'
 import type { SnapshotDeps } from './snapshot.js'
 import { createProjectScanContext, scanChange, type ChangeScanOutcome, type ProjectScanContext } from './snapshotChangeScan.js'

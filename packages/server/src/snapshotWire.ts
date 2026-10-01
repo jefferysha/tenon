@@ -7,14 +7,14 @@
  *
  *   workflowRules      every change on one frozen plan carries the same rules
  *   workflowExecution  the readiness blockers of the current step, identical for changes stuck on the same thing
- *   todo               the stage statuses, identical for changes in the same phase of the same plan
+ *   stage statuses    the `todo` stages, identical for changes in the same phase of the same plan
  *   user               the owner / creator references, a handful of people per project
  *
  * The client expands the integers back into the same objects before it validates anything (see the dashboard's
  * `snapshotWire.ts`), so nothing downstream of the decoder knows the table exists. `fields` is narrowed to the keys a
  * list row reads; the full field set is detail-tier data.
  */
-import type { ArchivedChangeListSnapshot, ChangeListSnapshot, ProjectListSnapshot } from './types.js'
+import type { ArchivedChangeListSnapshot, ChangeListSnapshot, ProjectListSnapshot } from './snapshotListTypes.js'
 
 /** The `.pipeline.yaml` fields a list row, the progress board and the inbox read. */
 export const LIST_FIELD_KEYS = ['workflow', 'automation'] as const

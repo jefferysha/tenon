@@ -13,23 +13,19 @@
  * by an age limit: a cell older than `maxAgeMs` is rebuilt when read. At most MAX_AGE_REFRESH_PER_READ aged cells are
  * refreshed per read, oldest first, so the cells built together at start-up do not all expire into one huge rebuild.
  */
-import { createHash } from 'node:crypto'
 import { resolve } from 'node:path'
 import type { TenonUserResolution } from '@tenon/kernel'
 import { mapWithConcurrency } from './concurrentMap.js'
 import { dedupeRoots } from './projectRoots.js'
 import { normalizeRepositoryLabels } from './repositoryIdentity.js'
 import { defaultResolveUser } from './serverUserRoutes.js'
-import {
-  readTerminalActivity, scanChangeDetail, scanProject, snapshotEnvelope, type SnapshotDeps,
-} from './snapshot.js'
+import { readTerminalActivity, scanChangeDetail, scanProject, type SnapshotDeps } from './snapshot.js'
+import { assembleFull, assembleList, assemblySignature, type Built } from './snapshotAssembly.js'
 import { computeRootFingerprints, type RootFingerprint } from './snapshotFingerprint.js'
+import type { ProjectListSnapshot } from './snapshotListTypes.js'
 import type { ScannedChange } from './snapshotProjectScan.js'
-import {
-  sendSharedBody, sharedBody, type SharedChange, type SharedListSnapshot, type SharedProjectChunk, type SharedSnapshot,
-} from './snapshotShared.js'
-import { encodeListProject } from './snapshotWire.js'
-import type { ListSnapshot, ProjectListSnapshot, ProjectSnapshot, Snapshot } from './types.js'
+import { sharedBody, type SharedChange, type SharedListSnapshot, type SharedProjectChunk, type SharedSnapshot } from './snapshotShared.js'
+import type { ProjectSnapshot } from './types.js'
 
 export type { SharedChange, SharedListSnapshot, SharedProjectChunk, SharedSnapshot } from './snapshotShared.js'
 export { sendSharedBody as sendSharedSnapshot } from './snapshotShared.js'
@@ -87,17 +83,10 @@ export const MAX_AGE_REFRESH_PER_READ = 4
 /** Projects built at once on a cold or partially invalidated cache. */
 const BUILD_CONCURRENCY = 8
 /** Detail entries kept per project, least recently built first out. */
-const MAX_DETAILS_PER_PROJECT = 64
+const MAX_DETAILS_PER_PROJECT = 16
+/** How long the full tier (11 MB at 30 x 30) stays in memory after the last read that asked for it. */
+const FULL_RETENTION_MS = 120_000
 
-interface Built<P> {
-  readonly seq: number
-  readonly key: string
-  readonly builtAt: number
-  readonly project: P
-  readonly revs: ReadonlyMap<string, string>
-  /** List tier only: the serialized project, valid for the repository label it was written with. */
-  chunk?: { readonly label: string | undefined; readonly value: SharedProjectChunk }
-}
 interface Flight<T> { readonly key: string; readonly promise: Promise<T> }
 interface Slot<P> { built?: Built<P>; flight?: Flight<Built<P>> }
 interface DetailEntry { readonly builtAt: number; readonly rev: string; readonly shared: SharedChange | null }
@@ -109,10 +98,6 @@ interface Cell {
   full: Slot<ProjectSnapshot>
   details: Map<string, DetailEntry>
   detailFlights: Map<string, Flight<SharedChange | null>>
-}
-
-function digest(text: string): string {
-  return createHash('sha1').update(text).digest('hex').slice(0, 16)
 }
 
 export function createSnapshotCache(options: SnapshotCacheOptions): SnapshotCache {
@@ -131,6 +116,7 @@ export function createSnapshotCache(options: SnapshotCacheOptions): SnapshotCach
   let fingerprintFlight: { readonly epoch: number; readonly promise: Promise<RootFingerprint[]> } | undefined
   let listAssembly: { readonly signature: string; readonly value: SharedListSnapshot } | undefined
   let fullAssembly: { readonly signature: string; readonly value: SharedSnapshot } | undefined
+  let fullReadAt: number | undefined
   const identities = new Map<string, { readonly at: number; readonly value: TenonUserResolution }>()
 
   function remembered(role: 'viewer' | 'acting', resolveIdentity: (root: string) => TenonUserResolution) {
@@ -241,38 +227,31 @@ export function createSnapshotCache(options: SnapshotCacheOptions): SnapshotCach
     }))
   }
 
-  function listChunk(built: Built<ProjectListSnapshot>, project: ProjectListSnapshot): SharedProjectChunk {
-    const label = project.repository?.label
-    if (built.chunk !== undefined && built.chunk.label === label) return built.chunk.value
-    const json = encodeListProject(project, built.revs)
-    const value = { root: project.root, json, digest: digest(json) }
-    built.chunk = { label, value }
+  /** `fingerprint` is undefined when nothing proves the builds current; such an aggregate is never kept. */
+  function assembledList(builts: readonly Built<ProjectListSnapshot>[], fingerprint: string | undefined): SharedListSnapshot {
+    const projects = normalizeRepositoryLabels(builts.map((built) => built.project))
+    const signature = assemblySignature(fingerprint ?? '', builts, projects)
+    if (fingerprint !== undefined && listAssembly?.signature === signature) return listAssembly.value
+    const value = assembleList(builts, projects, fingerprint ?? '', depsAt(now()))
+    if (fingerprint !== undefined) listAssembly = { signature, value }
     return value
   }
 
-  function assembleList(builts: readonly Built<ProjectListSnapshot>[], fingerprint: string): SharedListSnapshot {
+  function assembledFull(builts: readonly Built<ProjectSnapshot>[], fingerprint: string | undefined): SharedSnapshot {
     const projects = normalizeRepositoryLabels(builts.map((built) => built.project))
-    const signature = `${fingerprint}\u0000${builts.map((built, index) => `${built.seq}:${projects[index]?.repository?.label ?? ''}`).join('|')}`
-    if (fingerprint !== '' && listAssembly?.signature === signature) return listAssembly.value
-    const chunks = builts.map((built, index) => listChunk(built, projects[index] ?? built.project))
-    const deps = depsAt(now())
-    const snapshot: ListSnapshot = { ...snapshotEnvelope(deps, projects), view: 'list', projects }
-    const { projects: _projects, ...head } = snapshot
-    const envelope = JSON.stringify(head)
-    const body = `${envelope.slice(0, -1)},"projects":[${chunks.map((chunk) => chunk.json).join(',')}]}`
-    const value: SharedListSnapshot = { ...sharedBody(body), snapshot, fingerprint, chunks, envelope }
-    if (fingerprint !== '') listAssembly = { signature, value }
+    const signature = assemblySignature(fingerprint ?? '', builts, projects)
+    if (fingerprint !== undefined && fullAssembly?.signature === signature) return fullAssembly.value
+    const value = assembleFull(projects, fingerprint ?? '', depsAt(now()))
+    if (fingerprint !== undefined) fullAssembly = { signature, value }
     return value
   }
 
-  function assembleFull(builts: readonly Built<ProjectSnapshot>[], fingerprint: string): SharedSnapshot {
-    const projects = normalizeRepositoryLabels(builts.map((built) => built.project))
-    const signature = `${fingerprint}\u0000${builts.map((built, index) => `${built.seq}:${projects[index]?.repository?.label ?? ''}`).join('|')}`
-    if (fingerprint !== '' && fullAssembly?.signature === signature) return fullAssembly.value
-    const snapshot: Snapshot = { ...snapshotEnvelope(depsAt(now()), projects), projects }
-    const value: SharedSnapshot = { ...sharedBody(JSON.stringify(snapshot)), snapshot, fingerprint }
-    if (fingerprint !== '') fullAssembly = { signature, value }
-    return value
+  /** The full tier is for callers of the documented API; the Dashboard never asks, so it is not kept once they stop. */
+  function releaseFullTier(): void {
+    if (fullReadAt === undefined || now() - fullReadAt < FULL_RETENTION_MS) return
+    fullReadAt = undefined
+    fullAssembly = undefined
+    for (const cell of cells.values()) cell.full = {}
   }
 
   const joined = (fps: readonly RootFingerprint[]): string => fps.map((fp) => `${fp.root}:${fp.key}`).join('|')
@@ -289,16 +268,18 @@ export function createSnapshotCache(options: SnapshotCacheOptions): SnapshotCach
 
   async function list(): Promise<SharedListSnapshot> {
     const fps = await tryFingerprints()
-    if (fps === undefined) return assembleList(await buildUncached((deps, nowMs, root) => scanners.list(deps, root, nowMs)), '')
+    if (fps === undefined) return assembledList(await buildUncached((deps, nowMs, root) => scanners.list(deps, root, nowMs)), undefined)
+    releaseFullTier()
     const builts = await buildAll(fps, (cell) => cell.list, (deps, nowMs, root) => scanners.list(deps, root, nowMs))
-    return assembleList(builts, joined(fps))
+    return assembledList(builts, joined(fps))
   }
 
   async function full(): Promise<SharedSnapshot> {
     const fps = await tryFingerprints()
-    if (fps === undefined) return assembleFull(await buildUncached((deps, nowMs, root) => scanners.full(deps, root, nowMs)), '')
+    fullReadAt = now()
+    if (fps === undefined) return assembledFull(await buildUncached((deps, nowMs, root) => scanners.full(deps, root, nowMs)), undefined)
     const builts = await buildAll(fps, (cell) => cell.full, (deps, nowMs, root) => scanners.full(deps, root, nowMs))
-    return assembleFull(builts, joined(fps))
+    return assembledFull(builts, joined(fps))
   }
 
   function buildDetail(cell: Cell, root: string, name: string, rev: string): Promise<SharedChange | null> {
