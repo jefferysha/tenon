@@ -5,6 +5,7 @@ import {
   type DashboardOpts,
   type DashboardRuntime,
 } from './commands/dashboard.js'
+import { cmdInternalLauncherHeal } from './commands/launcher-heal.js'
 import { cmdInternalSkillUpstream } from './commands/internal-skill-upstream.js'
 import { cmdRuntime, type RuntimeCommandOpts } from './commands/runtime.js'
 import {
@@ -92,6 +93,13 @@ export function registerInstallCommands(
     .option('--json', '机器可读输出')
     .action(async (sub: string, opts: RuntimeCommandOpts) => {
       bail(await cmdRuntime(deps, sub, opts))
+    })
+
+  program
+    .command('internal-launcher-heal', { hidden: true })
+    .description('[内部] 把设备号钉死的旧版稳定 launcher 重写为重启安全格式；由 bootstrap 检出旧 launcher 时调用')
+    .action(async () => {
+      bail(await cmdInternalLauncherHeal(deps))
     })
 
   program

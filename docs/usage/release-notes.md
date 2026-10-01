@@ -30,6 +30,14 @@ named was refused by the same check, so the install could not repair itself.
   directory). It never blocks the host; it exits with a non-blocking status the first time and 0 afterwards.
 - The payload digest cache (`payload-digest-cache.json` in the state directory) no longer keys on the device number
   either, so the first dispatch after a restart does not re-hash the whole payload.
+- The release repairs v0.2.0-format launchers on its own. `tenon update` run by v0.2.0 writes the old format again, so
+  the first Tenon command or session start after the update checks the two launchers. If they still pin a device
+  number, are Tenon's own files (not symlinks), pin the Node that is running and its recorded SHA-256, and export the
+  same roots, it rewrites both with the same writer `tenon setup` uses. A command prints one line when it did that, or
+  one line naming `tenon setup --claude` / `--codex` if it could not; hooks stay silent and never wait for it. It does
+  nothing when anything differs, an install is in progress, or a launcher is not Tenon's.
+- `tenon doctor` has a new check, `runtime:launcher`: WARN while a launcher still pins a device number (the fix is
+  named), PASS otherwise.
 
 ### What you need to do
 
@@ -41,15 +49,17 @@ does not go through the broken launcher:
 /usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.2.1/install.sh | /bin/bash -s -- --codex
 ```
 
-If v0.2.0 still works for you, run `tenon update --codex` (or `--claude`) and then `tenon setup --codex` (or
-`--claude`) once more. The updater that runs is still v0.2.0 and rewrites the old launchers; the setup that follows
-runs v0.2.1 and writes the fixed ones. A fresh install of v0.2.1 needs nothing.
+If v0.2.0 still works for you, run `tenon update --codex` (or `--claude`). The updater that runs is still v0.2.0 and
+writes the old launchers once more; the first Tenon command or new session after it switches them to the restart-safe
+format automatically. `tenon setup --codex` (or `--claude`) does the same by hand. A fresh install of v0.2.1 needs
+nothing.
 
 ### Compatibility
 
 - No CLI command, option, project file or Dashboard API changed. The launcher text changes (no device number, new
   failure messages); projects and the runtime state are untouched.
-- A launcher written by v0.2.0 keeps the old behaviour until setup rewrites it, as described above.
+- A launcher written by v0.2.0 keeps the old behaviour until the first Tenon command or session after the update (or
+  `tenon setup`) rewrites it. Later releases keep the same repair.
 
 ### Verify
 
@@ -59,8 +69,8 @@ tenon doctor
 grep -c '%d' ~/.local/bin/tenon
 ```
 
-The runtime reports the active release and doctor is green. The `grep` prints `0`: the launcher stores no device number.
-After the next restart `tenon runtime status` still works.
+The runtime reports the active release and doctor is green, including `runtime:launcher`. The `grep` prints `0`: the
+launcher stores no device number. After the next restart `tenon runtime status` still works.
 
 ## v0.2.0 · 2026-09-30
 

@@ -25,6 +25,8 @@ v0.2.0 的热修复版。macOS 重启之后，每条 `tenon` 命令和每个 hoo
   - Node 被替换或删除（例如原地升级了 Node）：钉住的程序已经不在，所以没有任何命令能经 launcher 运行。它打印的那一行是一条完整命令，用你 `PATH` 上的 Node 运行 bootstrap：`env TENON_RUNTIME_ROOTS=… node …/bootstrap/active.mjs cli setup --claude`（Codex 用 `--codex`）。setup 随后钉住这个 Node。
 - hook 不再在每次工具调用前重复打印同一条错误。launcher 无法验证 Node 时，hook 打印一条消息，之后 30 分钟保持静默（标记文件 `launcher-node-identity.notice` 在 Tenon 状态目录里）。它从不阻断宿主：第一次以非阻断状态码退出，之后退出码为 0。
 - 载荷摘要缓存（状态目录里的 `payload-digest-cache.json`）也不再用设备号作键，所以重启后的第一次分发不会重新哈希整个载荷。
+- 新版本会自己修复 v0.2.0 格式的 launcher。v0.2.0 运行的 `tenon update` 会把旧格式再写一遍，所以更新后的第一条 Tenon 命令或第一次会话启动会检查这两个 launcher：如果它们仍钉着设备号、是 Tenon 自己写的普通文件（不是符号链接）、钉的正是当前运行的 Node 且记录的 SHA-256 一致、导出的 roots 也相同，就用 `tenon setup` 同一个写入器把两个文件重写。命令行在修复时打印一行说明；修复失败则打印一行，提示运行 `tenon setup --claude` / `--codex`；hook 全程静默，也不会等待它。任何一项不一致、有安装事务在进行、或 launcher 不是 Tenon 写的，都不会改动。
+- `tenon doctor` 新增检查 `runtime:launcher`：launcher 仍钉着设备号时为 WARN（并写明修复方法），否则 PASS。
 
 ### 升级动作
 
@@ -35,12 +37,12 @@ v0.2.0 的热修复版。macOS 重启之后，每条 `tenon` 命令和每个 hoo
 /usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.2.1/install.sh | /bin/bash -s -- --codex
 ```
 
-如果 v0.2.0 对你还能用，先运行 `tenon update --codex`（或 `--claude`），再运行一次 `tenon setup --codex`（或 `--claude`）。正在运行的更新程序仍是 v0.2.0，它会把旧 launcher 原样写回；随后的 setup 运行的是 v0.2.1，才会写入修复后的 launcher。全新安装 v0.2.1 无需额外操作。
+如果 v0.2.0 对你还能用，运行 `tenon update --codex`（或 `--claude`）即可。正在运行的更新程序仍是 v0.2.0，它会把旧 launcher 再写一遍；更新之后的第一条 Tenon 命令或新会话会自动把它们切换成重启安全格式。也可以手动运行 `tenon setup --codex`（或 `--claude`）。全新安装 v0.2.1 无需额外操作。
 
 ### 兼容性
 
 - 没有改变任何 CLI 命令、选项、项目文件或 Dashboard API。变化的只是 launcher 文本（不含设备号、失败提示更明确），项目和 runtime 状态不受影响。
-- v0.2.0 写下的 launcher 在 setup 重写之前保持旧行为，见上文。
+- v0.2.0 写下的 launcher 在更新后的第一条 Tenon 命令或第一次会话（或 `tenon setup`）重写它之前保持旧行为。之后的版本保留同样的修复。
 
 ### 验证
 
@@ -50,7 +52,7 @@ tenon doctor
 grep -c '%d' ~/.local/bin/tenon
 ```
 
-runtime 报告 active release，doctor 为绿。`grep` 输出 `0`：launcher 不再保存设备号。下次重启后 `tenon runtime status` 仍然可用。
+runtime 报告 active release，doctor 为绿，包括 `runtime:launcher`。`grep` 输出 `0`：launcher 不再保存设备号。下次重启后 `tenon runtime status` 仍然可用。
 
 ## v0.2.0 · 2026-09-30
 

@@ -85,6 +85,7 @@ npm run docs:smoke
 - 提示里写的是 `tenon setup --claude`（或 `--codex`）：Node 的字节没变，只是身份信息变了。`tenon setup`、`tenon update`、`tenon doctor` 和 `tenon runtime` 仍能经 launcher 运行，对你的宿主运行 setup 命令即可重新钉住。
 - 提示里打印的是以 `env TENON_RUNTIME_ROOTS=` 开头的命令：钉住的 Node 被替换或删除了，例如原地升级了 Node。原样运行这条命令，它用你 `PATH` 上的 Node 启动 bootstrap，setup 会钉住这个 Node。Codex 把 `--claude` 换成 `--codex`。
 - v0.2.0 的 launcher 已经拒绝一切命令时，对该宿主运行一次版本化的 `install.sh`，它不经过 launcher。
+- launcher 仍钉着设备号但还能用（例如刚用 v0.2.0 执行过 `tenon update`）时，v0.2.1 及之后版本的第一条 Tenon 命令或会话启动会把它重写掉。在那之前 `tenon doctor` 的 `runtime:launcher` 显示 WARN，并写明手动修复方法 `tenon setup --claude` / `--codex`。
 
 hook 最多每 30 分钟打印一次这条消息，其余时候无输出地以 0 退出，从不阻断宿主。标记文件是 Tenon 状态目录里的 `launcher-node-identity.notice`。
 

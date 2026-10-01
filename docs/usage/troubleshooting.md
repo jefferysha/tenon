@@ -173,6 +173,9 @@ which macOS changes at every restart, so every command and hook failed after one
   `PATH`, and setup pins that Node. Use `--codex` instead of `--claude` for Codex.
 - If a v0.2.0 launcher already refuses everything, run the versioned `install.sh` for the host once; it does not use the
   launcher.
+- A launcher that still pins a device number but works (for example right after a v0.2.0 `tenon update`) is rewritten
+  by the first Tenon command or session start that runs from v0.2.1 or later. `tenon doctor` shows `runtime:launcher`
+  as WARN until then and names `tenon setup --claude` / `--codex` as the manual fix.
 
 Hooks print this message at most once every 30 minutes and otherwise exit 0 without output. They never block the host.
 The marker is `launcher-node-identity.notice` in the Tenon state directory.

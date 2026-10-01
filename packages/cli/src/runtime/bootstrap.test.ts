@@ -1,16 +1,19 @@
 import { createHash } from 'node:crypto'
 import { spawn, spawnSync } from 'node:child_process'
-import { realpathSync } from 'node:fs'
-import { chmod, copyFile, mkdtemp, mkdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
+import { existsSync, realpathSync } from 'node:fs'
+import { chmod, copyFile, lstat, mkdtemp, mkdir, readdir, readFile, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { serializeProductRootContract } from '@tenon/kernel'
 import { afterEach, describe, expect, it } from 'vitest'
 import { freezeTrustedExecutable } from '../commands/trusted-executable.js'
 import { expectedStableLaunchers, writeStableLaunchers } from './launchers.js'
 import { resolveRuntimePaths } from './paths.js'
 import { hashReleasePayload } from './release-payload.js'
 import { runtimeReleaseIdV2 } from './release-store-codecs.js'
+import { legacyV020LauncherText } from './test-support.js'
+import type { RuntimePaths, TrustedExecutableProof } from './types.js'
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..')
 const bootstrapSource = join(repoRoot, 'runtime', 'tenon-bootstrap.mjs')
@@ -66,6 +69,7 @@ async function createRelease(
   await mkdir(join(stagingPayload, 'hooks'), { recursive: true })
   await writeFile(join(stagingPayload, 'packages', 'cli', 'dist', 'tenon.mjs'), cliSource, 'utf8')
   await writeFile(join(stagingPayload, 'hooks', 'probe.sh'), '#!/bin/bash\nprintf TRUSTED_HOOK\n', 'utf8')
+  await writeFile(join(stagingPayload, 'hooks', 'session-start.sh'), '#!/bin/bash\nprintf TRUSTED_SESSION_START\n', 'utf8')
   await copyFile(bootstrapSource, join(stagingPayload, 'runtime', 'tenon-bootstrap.mjs'))
   await chmod(join(stagingPayload, 'runtime', 'tenon-bootstrap.mjs'), 0o755)
   const digest = await payloadDigest(stagingPayload)
@@ -76,6 +80,7 @@ async function createRelease(
   await mkdir(join(releaseRoot, 'payload', 'hooks'), { recursive: true })
   await copyFile(join(stagingPayload, 'packages', 'cli', 'dist', 'tenon.mjs'), join(releaseRoot, 'payload', 'packages', 'cli', 'dist', 'tenon.mjs'))
   await copyFile(join(stagingPayload, 'hooks', 'probe.sh'), join(releaseRoot, 'payload', 'hooks', 'probe.sh'))
+  await copyFile(join(stagingPayload, 'hooks', 'session-start.sh'), join(releaseRoot, 'payload', 'hooks', 'session-start.sh'))
   await copyFile(join(stagingPayload, 'runtime', 'tenon-bootstrap.mjs'), join(releaseRoot, 'payload', 'runtime', 'tenon-bootstrap.mjs'))
   await chmod(join(releaseRoot, 'payload', 'runtime', 'tenon-bootstrap.mjs'), 0o755)
   await writeFile(join(releaseRoot, 'release.json'), `${JSON.stringify({
@@ -765,5 +770,317 @@ describe('stable runtime bootstrap', () => {
     expect(repaired.stderr).toBe('')
     expect(repaired.status).toBe(0)
     expect(repaired.stdout).toBe('CLI:setup --claude')
+  })
+})
+
+
+const distMain = join(repoRoot, 'packages', 'cli', 'dist', 'main.js')
+const e2eNode = (() => {
+  try {
+    return process.platform !== 'win32'
+      && existsSync(distMain)
+      && realpathSync(process.execPath) === process.execPath
+      && freezeTrustedExecutable(process.execPath) !== undefined
+  } catch {
+    return false
+  }
+})()
+
+describe.skipIf(process.platform === 'win32')('legacy launcher self-heal in the bootstrap', () => {
+  interface Install {
+    readonly root: string
+    readonly home: string
+    readonly bin: string
+    readonly tenon: string
+    readonly hook: string
+    readonly bootstrap: string
+    readonly log: string
+    readonly paths: RuntimePaths
+    readonly marker: string
+  }
+
+  const stubCli = (log: string, outcome: string, code: number, healDelayMs: number) => `
+import { appendFileSync } from 'node:fs'
+const args = process.argv.slice(2)
+if (args[0] === 'internal-launcher-heal') {
+  appendFileSync(${JSON.stringify(log)}, 'heal\\n')
+  await new Promise((resolve) => setTimeout(resolve, ${healDelayMs}))
+  process.stdout.write(JSON.stringify({ outcome: ${JSON.stringify(outcome)} }) + '\\n')
+} else {
+  appendFileSync(${JSON.stringify(log)}, 'cmd:' + args.join(' ') + '\\n')
+  process.exitCode = ${code}
+}
+`
+
+  function fakeProof(node: string): TrustedExecutableProof {
+    const entry = (path: string) => ({ path, dev: 1, ino: 2, mode: 0o100755, uid: 0, size: 3 })
+    return {
+      version: 1,
+      platform: process.platform === 'darwin' ? 'darwin' : 'linux',
+      requestedPath: node,
+      executable: entry(node),
+      parents: [],
+      sha256: 'cd'.repeat(32),
+    }
+  }
+
+  async function install(label: string, options: {
+    readonly outcome?: string
+    readonly code?: number
+    readonly healDelayMs?: number
+    readonly cliSource?: string
+    readonly launchers?: (paths: RuntimePaths, node: string) => { readonly tenon: string; readonly hook: string } | 'none'
+  } = {}): Promise<Install> {
+    const root = await freshRoot(label)
+    const log = join(root, 'calls.log')
+    const release = await createRelease(
+      root,
+      label,
+      options.cliSource ?? stubCli(log, options.outcome ?? 'repaired', options.code ?? 0, options.healDelayMs ?? 0),
+    )
+    const bootstrap = await installBootstrap(root)
+    const state = join(root, 'state')
+    await mkdir(state, { recursive: true })
+    await writeFile(join(state, 'selection.json'), `${JSON.stringify({
+      version: 1,
+      revision: 1,
+      activeRelease: release,
+      previousRelease: null,
+      updatedAt: '2026-07-24T00:00:00Z',
+    })}\n`, 'utf8')
+    const home = join(root, 'home')
+    const bin = join(home, '.local', 'bin')
+    await mkdir(bin, { recursive: true })
+    const paths = resolveRuntimePaths({ env: { TENON_RUNTIME_HOME: root }, homeDir: home, platform: process.platform })
+    expect(paths.dataRoot).toBe(join(root, 'data'))
+    const node = '/opt/fake-node/bin/node'
+    const written = (options.launchers ?? ((p, n) => ({
+      tenon: legacyV020LauncherText(p, 'cli', n, fakeProof(n)),
+      hook: legacyV020LauncherText(p, 'hook', n, fakeProof(n)),
+    })))(paths, node)
+    if (written !== 'none') {
+      await writeFile(join(bin, 'tenon'), written.tenon, { mode: 0o755 })
+      await writeFile(join(bin, 'tenon-hook'), written.hook, { mode: 0o755 })
+    }
+    return {
+      root, home, bin, tenon: join(bin, 'tenon'), hook: join(bin, 'tenon-hook'), bootstrap, log, paths,
+      marker: join(state, 'launcher-heal.retry'),
+    }
+  }
+
+  async function calls(fx: Install): Promise<string[]> {
+    return (await readFile(fx.log, 'utf8').catch(() => '')).split('\n').filter((line) => line !== '')
+  }
+
+  const lines = (text: string) => text.split('\n').filter((line) => line !== '')
+
+  it('repairs on the first CLI command after an update, says so once, and keeps the command exit code', async () => {
+    const fx = await install('heal-cli', { outcome: 'repaired', code: 7 })
+
+    const first = await runBootstrap(fx.root, fx.bootstrap, ['cli', 'status'])
+
+    expect(first.code).toBe(7)
+    expect(lines(first.stderr)).toEqual(['tenon: stable launchers updated to the restart-safe format.'])
+    expect(await calls(fx)).toEqual(['heal', 'cmd:status'])
+  })
+
+  it('names `tenon setup` once when the repair fails, keeps the exit code, and backs off for 30 minutes', async () => {
+    const fx = await install('heal-failed', { outcome: 'failed', code: 3 })
+
+    const first = await runBootstrap(fx.root, fx.bootstrap, ['cli', 'status'])
+    expect(first.code).toBe(3)
+    expect(lines(first.stderr)).toHaveLength(1)
+    expect(first.stderr).toContain('tenon setup --claude')
+    expect(first.stderr).toContain('tenon setup --codex')
+
+    const second = await runBootstrap(fx.root, fx.bootstrap, ['cli', 'status'])
+    expect(second.code).toBe(3)
+    expect(second.stderr).toBe('')
+    expect(await calls(fx)).toEqual(['heal', 'cmd:status', 'cmd:status'])
+
+    const stale = new Date(Date.now() - 31 * 60_000)
+    await utimes(fx.marker, stale, stale)
+    const third = await runBootstrap(fx.root, fx.bootstrap, ['cli', 'status'])
+    expect(lines(third.stderr)).toHaveLength(1)
+    expect(await calls(fx)).toEqual(['heal', 'cmd:status', 'cmd:status', 'heal', 'cmd:status'])
+  })
+
+  it('stays silent when the repair declines because the install is not provably the same', async () => {
+    const fx = await install('heal-declined', { outcome: 'skipped' })
+
+    const result = await runBootstrap(fx.root, fx.bootstrap, ['cli', 'status'])
+
+    expect(result.code).toBe(0)
+    expect(result.stderr).toBe('')
+    expect(await calls(fx)).toEqual(['heal', 'cmd:status'])
+  })
+
+  it('never starts a repair for setup or update, which rewrite the launchers themselves', async () => {
+    const fx = await install('heal-excluded')
+
+    await runBootstrap(fx.root, fx.bootstrap, ['cli', 'setup', '--claude'])
+    await runBootstrap(fx.root, fx.bootstrap, ['cli', 'update', '--codex'])
+
+    expect(await calls(fx)).toEqual(['cmd:setup --claude', 'cmd:update --codex'])
+  })
+
+  it('leaves current-format, absent and unmanaged launchers alone', async () => {
+    const current = await install('heal-current', {
+      launchers: (paths, node) => {
+        const expected = expectedStableLaunchers(paths, join(paths.dataRoot, '..', 'home'), node, fakeProof(node))
+        if (expected.tenon.state.kind !== 'file' || expected.hook.state.kind !== 'file') throw new Error('launcher files')
+        return { tenon: expected.tenon.state.content, hook: expected.hook.state.content }
+      },
+    })
+    const absent = await install('heal-absent', { launchers: () => 'none' })
+    const foreign = await install('heal-foreign', {
+      launchers: () => ({
+        tenon: "#!/bin/sh\n# stat -f '%d:%i' -- my own wrapper\nexec tenon-real \"$@\"\n",
+        hook: "#!/bin/sh\nexec tenon-hook-real \"$@\"\n",
+      }),
+    })
+    const linked = await install('heal-linked')
+    const target = join(linked.root, 'real-tenon')
+    await writeFile(target, await readFile(linked.tenon, 'utf8'), { mode: 0o755 })
+    await rm(linked.tenon)
+    await symlink(target, linked.tenon)
+    const lone = await install('heal-lone')
+    await rm(lone.tenon)
+
+    for (const fx of [current, absent, foreign, linked, lone]) {
+      const result = await runBootstrap(fx.root, fx.bootstrap, ['cli', 'status'])
+      expect(result.code).toBe(0)
+      expect(result.stderr).toBe('')
+      expect(await calls(fx)).toEqual(['cmd:status'])
+    }
+    expect((await lstat(linked.tenon)).isSymbolicLink()).toBe(true)
+  })
+
+  it('starts the repair detached from a session-start hook, so the session does not wait for it', async () => {
+    const fx = await install('heal-hook', { outcome: 'repaired', healDelayMs: 5000 })
+    const started = Date.now()
+
+    const result = await runBootstrap(fx.root, fx.bootstrap, ['hook', 'session-start'])
+
+    expect(result).toMatchObject({ code: 0, stdout: 'TRUSTED_SESSION_START', stderr: '' })
+    expect(Date.now() - started).toBeLessThan(3000)
+    for (let waited = 0; (await calls(fx)).length === 0 && waited < 10_000; waited += 50) {
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    expect(await calls(fx)).toEqual(['heal'])
+  })
+
+  it('repairs only from session-start, not from other hooks', async () => {
+    const fx = await install('heal-other-hook', { outcome: 'repaired' })
+
+    const result = await runBootstrap(fx.root, fx.bootstrap, ['hook', 'probe'])
+    await new Promise((resolve) => setTimeout(resolve, 300))
+
+    expect(result).toMatchObject({ code: 0, stdout: 'TRUSTED_HOOK', stderr: '' })
+    expect(await calls(fx)).toEqual([])
+  })
+
+  describe.skipIf(!e2eNode)('with the real repair', () => {
+    const shim = `await import(${JSON.stringify(pathToFileURL(distMain).href)})\n`
+
+    async function realInstall(label: string, nodeOverride?: string): Promise<Install & { readonly expected: () => { tenon: string; hook: string } }> {
+      const trusted = freezeTrustedExecutable(process.execPath)
+      if (trusted === undefined) throw new Error('canonical test Node must be trustworthy')
+      const pinned = nodeOverride ?? trusted.executable
+      const fx = await install(label, {
+        cliSource: shim,
+        launchers: (paths) => ({
+          tenon: legacyV020LauncherText(paths, 'cli', pinned, trusted.proof),
+          hook: legacyV020LauncherText(paths, 'hook', pinned, trusted.proof),
+        }),
+      })
+      return {
+        ...fx,
+        expected: () => {
+          const expected = expectedStableLaunchers(fx.paths, fx.home, trusted.executable, trusted.proof)
+          if (expected.tenon.state.kind !== 'file' || expected.hook.state.kind !== 'file') throw new Error('launcher files')
+          return { tenon: expected.tenon.state.content, hook: expected.hook.state.content }
+        },
+      }
+    }
+
+    async function expectRepaired(fx: Awaited<ReturnType<typeof realInstall>>): Promise<void> {
+      const expected = fx.expected()
+      expect(await readFile(fx.tenon, 'utf8')).toBe(expected.tenon)
+      expect(await readFile(fx.hook, 'utf8')).toBe(expected.hook)
+      expect(expected.tenon).not.toContain('%d')
+      expect((await readdir(fx.bin)).sort()).toEqual(['tenon', 'tenon-hook'])
+      expect((await stat(fx.tenon)).mode & 0o777).toBe(0o755)
+    }
+
+    it('repairs a v0.2.0 install through the real CLI path and then stays quiet', async () => {
+      const fx = await realInstall('real-cli')
+
+      const first = await runBootstrap(fx.root, fx.bootstrap, ['cli', '--help'])
+      expect(first.code, first.stderr).toBe(0)
+      expect(lines(first.stderr)).toEqual(['tenon: stable launchers updated to the restart-safe format.'])
+      await expectRepaired(fx)
+
+      const second = await runBootstrap(fx.root, fx.bootstrap, ['cli', '--help'])
+      expect(second.code).toBe(0)
+      expect(second.stderr).toBe('')
+    }, 60_000)
+
+    it('repairs a v0.2.0 install from a session-start hook without printing anything', async () => {
+      const fx = await realInstall('real-hook')
+
+      const result = await runBootstrap(fx.root, fx.bootstrap, ['hook', 'session-start'])
+      expect(result).toMatchObject({ code: 0, stdout: 'TRUSTED_SESSION_START', stderr: '' })
+
+      const expected = fx.expected()
+      for (let waited = 0; (await readFile(fx.tenon, 'utf8').catch(() => '')) !== expected.tenon && waited < 30_000; waited += 100) {
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
+      await expectRepaired(fx)
+    }, 60_000)
+
+    it('is safe when several sessions start at once: one repair, one message, a working pair', async () => {
+      const fx = await realInstall('real-concurrent')
+
+      const results = await Promise.all(Array.from({ length: 4 }, () => runBootstrap(fx.root, fx.bootstrap, ['cli', '--help'])))
+
+      for (const result of results) expect(result.code, result.stderr).toBe(0)
+      expect(results.flatMap((result) => lines(result.stderr))).toEqual(['tenon: stable launchers updated to the restart-safe format.'])
+      await expectRepaired(fx)
+    }, 90_000)
+
+    it('serializes repair processes that race past the retry marker', async () => {
+      const fx = await realInstall('real-writer-race')
+      const release = JSON.parse(await readFile(join(fx.root, 'state', 'selection.json'), 'utf8')).activeRelease as string
+      const cli = join(fx.root, 'data', 'releases', release, 'payload', 'packages', 'cli', 'dist', 'tenon.mjs')
+      const roots = serializeProductRootContract(fx.paths)
+      const heal = () => new Promise<string>((resolveHeal) => {
+        const child = spawn(process.execPath, [cli, 'internal-launcher-heal'], {
+          env: { ...process.env, HOME: fx.home, TENON_RUNTIME_ROOTS: roots },
+        })
+        let out = ''
+        child.stdout.setEncoding('utf8')
+        child.stdout.on('data', (chunk: string) => { out += chunk })
+        child.on('close', () => resolveHeal(out.trim()))
+      })
+
+      const outcomes = (await Promise.all(Array.from({ length: 4 }, heal))).map((line) => JSON.parse(line).outcome as string)
+
+      expect(outcomes.filter((outcome) => outcome === 'repaired')).toHaveLength(1)
+      for (const outcome of outcomes) expect(['repaired', 'current']).toContain(outcome)
+      await expectRepaired(fx)
+    }, 90_000)
+
+    it('leaves a launcher that pins a different Node than the running one untouched and says nothing', async () => {
+      const other = '/opt/some-other-node/bin/node'
+      const fx = await realInstall('real-other-node', other)
+      const before = [await readFile(fx.tenon, 'utf8'), await readFile(fx.hook, 'utf8')]
+
+      const result = await runBootstrap(fx.root, fx.bootstrap, ['cli', '--help'])
+
+      expect(result.code, result.stderr).toBe(0)
+      expect(result.stderr).toBe('')
+      expect([await readFile(fx.tenon, 'utf8'), await readFile(fx.hook, 'utf8')]).toEqual(before)
+    }, 60_000)
   })
 })

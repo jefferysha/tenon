@@ -19,6 +19,7 @@ import { parseHostPluginInventory } from './plugin-host.js'
 import { resolveCommandOnPath } from './commandExists.js'
 import { REAL_RUNTIME_INSTALLER } from '../runtime/installer.js'
 import type { RuntimeScopeSnapshot } from '../runtime/scope.js'
+import { inspectStableLauncherFormat } from '../runtime/stable-launcher-format.js'
 import { freezeTrustedExecutable, type TrustedExecutable } from './trusted-executable.js'
 
 export interface DoctorProbeRuntime {
@@ -210,6 +211,7 @@ export function makeDoctorProbes(
     codexAuthStatus: () => probeCodexAuth(),
     runVerifySkills,
     productIdentity: createDoctorProductIdentityProbe(runtimeScope, REAL_RUNTIME_INSTALLER),
+    stableLauncherFormat: () => inspectStableLauncherFormat(runtimeScope().homeDir),
     tapStatus: () => {
       const s = tapStatus()
       return { intercepting: s.intercepting, captureEnabled: s.captureEnabled, message: s.message }

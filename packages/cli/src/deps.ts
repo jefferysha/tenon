@@ -7,6 +7,7 @@ import type { BoardSnapshotV2, DocumentContractPhase, DocumentEvidenceReport, Ef
 import type { ArtifactSubmissionService, ExecutionRuntimeV2, SkillActionAuthorityResolver } from '@tenon/automation'
 import type { AfkReadiness } from './afkReadiness.js'
 import type { CodexAuthStatus } from './codexAuth.js'
+import type { StableLauncherFormat } from './runtime/stable-launcher-format.js'
 
 export type { BoundedFileRead } from '@tenon/kernel'
 
@@ -146,6 +147,11 @@ export interface DoctorProbes {
    * 值永不回显（只 set+source）。缺省 undefined = 未装配 → afk:* 四检自身折算 red（探针缺口可见）。
    */
   afkReadiness?: () => Promise<AfkReadiness>
+  /**
+   * 稳定 launcher（~/.local/bin/tenon、tenon-hook）的格式：legacy = v0.2.0 的 Node 检查钉了设备号，
+   * macOS 重启后会把用户锁在外面。只读两个小文件；缺省 undefined = 未装配 → 检查自身折算 red。
+   */
+  stableLauncherFormat?: () => Promise<StableLauncherFormat>
   /** skills/sources.yaml + skills/skills.lock.json + last-update.json 的只读视图；清单或锁无效时返回 error。 */
   upstreamSkillView?: () => import('@tenon/kernel').UpstreamSkillView | { error: string }
   /**

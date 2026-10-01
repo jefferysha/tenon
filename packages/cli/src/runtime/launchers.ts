@@ -67,7 +67,7 @@ export TENON_RUNTIME_CONFIG_ROOT=${shellQuote(paths.configRoot)}
 exec node ${shellQuote(bootstrap)} ${mode} "$@"
 `
 }
-function launcherPaths(homeDir: string): StableLauncherPaths {
+export function launcherPaths(homeDir: string): StableLauncherPaths {
   const binDir = join(homeDir, '.local', 'bin')
   return {
     tenon: join(binDir, 'tenon'),
