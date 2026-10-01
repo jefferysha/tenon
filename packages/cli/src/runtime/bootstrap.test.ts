@@ -1069,10 +1069,16 @@ if (args[0] === 'internal-launcher-heal') {
         child.on('close', () => resolveHeal(out.trim()))
       })
 
-      const outcomes = (await Promise.all(Array.from({ length: 4 }, heal))).map((line) => JSON.parse(line).outcome as string)
+      const results = (await Promise.all(Array.from({ length: 4 }, heal)))
+        .map((line) => JSON.parse(line) as { readonly outcome: string; readonly reason?: string })
 
-      expect(outcomes.filter((outcome) => outcome === 'repaired')).toHaveLength(1)
-      for (const outcome of outcomes) expect(['repaired', 'current']).toContain(outcome)
+      expect(results.filter((result) => result.outcome === 'repaired')).toHaveLength(1)
+      // A racer either finds the pair already repaired, or finds the managed-transaction lock held by the
+      // repairing process and declines. Any other skip reason, or a failure, is a real defect.
+      for (const result of results) {
+        if (result.outcome === 'repaired' || result.outcome === 'current') continue
+        expect(result).toEqual({ outcome: 'skipped', reason: 'install-in-progress' })
+      }
       await expectRepaired(fx)
     }, 90_000)
 
