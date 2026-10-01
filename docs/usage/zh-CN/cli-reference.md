@@ -312,7 +312,10 @@ node:test 套件的命令是 `node --test --test-reporter="${TENON_NODE_TEST_REP
 
 基准先预热 `warmup` 次再采样 `runs` 次，记录每个指标全部样本的中位数、p95 与 MAD；离散度超过退化阈值一半时先多采一轮再判。
 基线按机器画像（OS、架构、CPU、核数、内存档位、运行时主版本，加目录 `profiles_env` 的取值）存到
-`.tenon/tests/baselines/<套件>/<画像>.json`，进 git；不同画像互不比较。该画像没有基线时运行仍通过，并提示
+`.tenon/tests/baselines/<套件>/<画像>.json`，进 git；不同画像互不比较。目录可在顶层写 `profile: coarse` 改用粗口径画像：
+OS、架构、核数、运行时主版本加 `profiles_env` 的取值（形如 `linux-x64-4c-node22-1a2b3c4d`），不含 CPU 型号与内存档位，
+让同规格的托管 CI 运行器共用一份基线。缺省是 `profile: fine`（与不写相同）；未知取值会被拒绝。改它会让早先的运行记录过期（它们绑定的目录摘要变了），
+基线查找也转向另一个画像 id。带 `profile:` 键的目录会被引入该键之前的 Tenon 拒绝读取。该画像没有基线时运行仍通过，并提示
 `baseline-missing` 与建立基线的命令（`test baseline --suite --run`），除非步骤策略要求必须有基线。`test baseline` 只认当前记录链
 上通过的运行，并往用户的 `audit.jsonl` 追加一行审计。
 

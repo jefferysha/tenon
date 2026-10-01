@@ -116,6 +116,18 @@ describe('评审批准（纯函数）', () => {
   })
 })
 
+describe('撤销最后一条不适用声明时不丢目录的其他顶层声明', () => {
+  it('profile: coarse 与 profiles_env 原样保留', () => {
+    const catalog = parse('schema: tenon-test-catalog/v1\nprofile: coarse\nprofiles_env: [CI]\nsuites: []\nnot_applicable:\n  - { kind: lint, reason: 没有 lint }\n')
+    const result = withoutNotApplicable(catalog, 'lint')
+    expect(result.removed).toBe(true)
+    expect(result.catalog.profile).toBe('coarse')
+    expect(result.catalog.profiles_env).toEqual(['CI'])
+    expect(result.catalog.not_applicable).toBeUndefined()
+    expect(serializeTestCatalog(result.catalog)).toContain('profile: coarse')
+  })
+})
+
 describe('声明与撤销（CLI 用）', () => {
   it('新声明未批准，按种类排序；同种类同理由原样保留（已批准不丢），换理由批准清零', () => {
     const empty = parse(BASE)

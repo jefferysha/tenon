@@ -45,6 +45,30 @@ describe('parseTestCatalog', () => {
     expect(serializeTestCatalog(ok(text))).toBe(text)
   })
 
+  it('profile 选机器画像口径：coarse 保留并原样写出，fine 等同没写，其余拒绝', () => {
+    const head = 'schema: tenon-test-catalog/v1\nprofiles_env: [CI]\nsuites: []\n'
+    const plain = ok(head)
+    const coarse = ok(`schema: tenon-test-catalog/v1\nprofile: coarse\nprofiles_env: [CI]\nsuites: []\n`)
+    expect(plain.profile).toBeUndefined()
+    expect(coarse.profile).toBe('coarse')
+    // 显式写的 fine 归一为省略：对象、写出文本与摘要都与没写完全一致。
+    const fine = ok(`schema: tenon-test-catalog/v1\nprofile: fine\nprofiles_env: [CI]\nsuites: []\n`)
+    expect(fine).toEqual(plain)
+    expect(serializeTestCatalog(fine)).toBe(serializeTestCatalog(plain))
+    expect(catalogDigest(fine)).toBe(catalogDigest(plain))
+    expect(serializeTestCatalog(plain)).not.toContain('profile:')
+    // coarse 在规范化写出里排在 profiles_env 前，读回同一份目录。
+    const text = serializeTestCatalog(coarse)
+    expect(text).toMatch(/^schema: tenon-test-catalog\/v1\nprofile: coarse\nprofiles_env:/u)
+    expect(ok(text)).toEqual(coarse)
+    // 口径变了画像 id 就变，绑定旧画像的记录必须过期。
+    expect(catalogDigest(coarse)).not.toBe(catalogDigest(plain))
+    expect(catalogSuitesDigest(coarse, [])).not.toBe(catalogSuitesDigest(plain, []))
+    expect(issues('schema: tenon-test-catalog/v1\nprofile: medium\nsuites: []\n').join('\n'))
+      .toMatch(/catalog\.yaml:2: profile 'medium' 不在闭集（fine\/coarse）/u)
+    expect(issues('schema: tenon-test-catalog/v1\nprofile:\nsuites: []\n').join('\n')).toMatch(/profile 'null' 不在闭集/u)
+  })
+
   it('每条错误带 catalog.yaml:<行>，且一次列全', () => {
     const found = issues([
       'schema: tenon-test-catalog/v1',

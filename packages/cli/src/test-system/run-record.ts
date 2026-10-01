@@ -8,9 +8,10 @@ import {
   type TestHostKind, type TestPlan, type TestRunRecordV2, type TestRunRecordV2Draft,
 } from '@tenon/kernel'
 
+/** 画像口径取自目录的 `profile:`（缺省细口径）；同一份目录在每台机器上用同一口径，基线才可比。 */
 export function machineOf(catalog: TestCatalog, env: NodeJS.ProcessEnv): MachineProfile {
   const values = Object.fromEntries(catalog.profiles_env.map((name) => [name, env[name]]))
-  return machineProfile(readMachineProfileInput(process.version, values))
+  return machineProfile(readMachineProfileInput(process.version, values), catalog.profile ?? 'fine')
 }
 
 function withReason(run: SuiteRunV2, reason: SuiteReason, fails: boolean): SuiteRunV2 {

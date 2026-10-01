@@ -9,7 +9,7 @@ import {
 import {
   evaluateBenchmarkMetric, median, medianAbsoluteDeviation, percentile, regressionPct, summarizeSamples,
 } from './benchmark.js'
-import { machineProfile, memoryTierGiB } from './machine-profile.js'
+import { isMachineProfileMode, machineProfile, memoryTierGiB } from './machine-profile.js'
 
 describe('基准统计', () => {
   it('中位数、分位数、MAD', () => {
@@ -55,6 +55,62 @@ describe('机器画像', () => {
     expect(machineProfile({ ...input, env: { CI: 'true' } }).id).not.toBe(profile.id)
     expect(machineProfile({ ...input, cores: 8 }).id).not.toBe(profile.id)
     expect(machineProfile({ ...input, cpuModel: 'Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz' }).label).toBe('darwin-arm64-i79750h-node22')
+  })
+
+  it('细口径的 id 不随新增的粗口径改变（已提交的基线文件名依赖它）', () => {
+    expect(machineProfile(input).id).toBe('darwin-arm64-m3max-node22-8510794d')
+    expect(machineProfile(input, 'fine')).toEqual(machineProfile(input))
+    expect(machineProfile(input).mode).toBe('fine')
+  })
+
+  describe('粗口径：OS + 架构 + 核数 + 运行时主版本', () => {
+    const runner = {
+      platform: 'linux', arch: 'x64', cpuModel: 'AMD EPYC 7763 64-Core Processor', cores: 4, memoryBytes: 16 * 1024 ** 3,
+      runtimeVersion: 'v22.10.0', env: { CI: 'true' },
+    }
+
+    it('可读名带核数，id 合法且确定', () => {
+      const profile = machineProfile(runner, 'coarse')
+      expect(profile.label).toBe('linux-x64-4c-node22')
+      expect(profile.id).toMatch(/^linux-x64-4c-node22-[a-f0-9]{8}$/)
+      expect(profile.mode).toBe('coarse')
+      expect(profile.facts).toEqual({ platform: 'linux', arch: 'x64', cores: 4, runtime: 'node22' })
+      expect(machineProfile(runner, 'coarse')).toEqual(profile)
+    })
+
+    it('同规格运行器共用一个画像：CPU 型号、内存档位、运行时补丁版本都不参与', () => {
+      const profile = machineProfile(runner, 'coarse')
+      for (const other of [
+        { ...runner, cpuModel: 'AMD EPYC 9V74 80-Core Processor' },
+        { ...runner, cpuModel: 'Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz' },
+        { ...runner, memoryBytes: 32 * 1024 ** 3 },
+        { ...runner, runtimeVersion: 'v22.23.3' },
+      ]) expect(machineProfile(other, 'coarse').id).toBe(profile.id)
+      // 同样两台机器在细口径下是两个画像，这正是需要粗口径的原因。
+      expect(machineProfile({ ...runner, cpuModel: 'AMD EPYC 9V74 80-Core Processor' }).id).not.toBe(machineProfile(runner).id)
+    })
+
+    it('OS、架构、核数、运行时主版本、profiles_env 的取值各自改变画像', () => {
+      const profile = machineProfile(runner, 'coarse')
+      for (const other of [
+        { ...runner, platform: 'darwin' },
+        { ...runner, arch: 'arm64' },
+        { ...runner, cores: 2 },
+        { ...runner, runtimeVersion: 'v24.1.0' },
+        { ...runner, env: { CI: undefined } },
+      ]) expect(machineProfile(other, 'coarse').id).not.toBe(profile.id)
+    })
+
+    it('粗细两种口径的 id 永远不同', () => {
+      expect(machineProfile(runner, 'coarse').id).not.toBe(machineProfile(runner, 'fine').id)
+    })
+  })
+
+  it('口径闭集', () => {
+    expect(isMachineProfileMode('coarse')).toBe(true)
+    expect(isMachineProfileMode('fine')).toBe(true)
+    expect(isMachineProfileMode('medium')).toBe(false)
+    expect(isMachineProfileMode(undefined)).toBe(false)
   })
 
   it('内存档位向下取 2 的幂', () => {

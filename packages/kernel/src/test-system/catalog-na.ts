@@ -133,7 +133,8 @@ export function withoutNotApplicable(catalog: TestCatalog, kind: TestKind): { re
   if (!entries.some((entry) => entry.kind === kind)) return { catalog, removed: false }
   const rest = entries.filter((entry) => entry.kind !== kind)
   const bare: TestCatalog = {
-    schema: catalog.schema, profiles_env: catalog.profiles_env, suites: catalog.suites, services: catalog.services,
+    schema: catalog.schema, ...(catalog.profile === undefined ? {} : { profile: catalog.profile }),
+    profiles_env: catalog.profiles_env, suites: catalog.suites, services: catalog.services,
   }
   return { catalog: rest.length === 0 ? bare : { ...catalog, not_applicable: rest }, removed: true }
 }
