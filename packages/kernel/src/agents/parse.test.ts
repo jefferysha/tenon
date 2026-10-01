@@ -38,6 +38,16 @@ describe('parseAgentFile', () => {
     expect(parsed.model).toBeUndefined()
   })
 
+  it('attach_on：路径类闭集、去重；缺省缺席；空列表与未知类拒绝', () => {
+    const scoped = parseAgentFile(file(['name: a', 'description: d', 'attach_on: [auth, dependency, auth]']), 'a')
+    expect(scoped.attachOn).toEqual(['auth', 'dependency'])
+    expect(parseAgentFile(file(['name: a', 'description: d']), 'a').attachOn).toBeUndefined()
+    expect(() => parseAgentFile(file(['name: a', 'description: d', 'attach_on: []']), 'a')).toThrow(/至少写一个路径类/)
+    expect(() => parseAgentFile(file(['name: a', 'description: d', 'attach_on: [auth, secrets]']), 'a'))
+      .toThrow(/attach_on 的 'secrets' 不是路径类/)
+    expect(() => parseAgentFile(file(['name: a', 'description: d', 'attach_on: auth']), 'a')).toThrow(AgentFileError)
+  })
+
   it('缺 role 时按工具推断并标记，读取照常', () => {
     const reviewer = parseAgentFile(file(['name: a', 'description: d', 'tools: [Read, Bash]']), 'a')
     expect(reviewer.role).toBe('reviewer')

@@ -6,6 +6,7 @@
  */
 import type { PipelineState } from '../types.js'
 import { isForwardExit } from './agent-verdict.js'
+import { isAbandonEvent } from './implicit-completion.js'
 import type { EffectiveWorkflowPlan } from './effective-plan-types.js'
 import type { TransitionApplicationDeps, TransitionRejection } from './transition-application-types.js'
 
@@ -20,6 +21,7 @@ export async function rejectOnStepGates(input: {
   readonly event: string
 }): Promise<TransitionRejection | undefined> {
   const { deps, plan, workflowName, from } = input
+  if (isAbandonEvent(input.event)) return undefined
   if (deps.missingStepSkills !== undefined) {
     const missing = await deps.missingStepSkills({
       changeDir: input.changeDir,

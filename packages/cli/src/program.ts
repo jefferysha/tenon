@@ -14,10 +14,10 @@ import {
   cmdDocumentInit,
   cmdDocumentMigrateDelta,
   cmdDocumentRead,
-  cmdDocumentRecord,
   cmdDocumentScaffold,
   cmdDocumentStatus,
 } from './commands/document.js'
+import { cmdDocumentRecordCommand, type RecordCommandOptions } from './commands/document-batch.js'
 import { cmdImport } from './commands/import.js'
 import { cmdInbox } from './commands/inbox.js'
 import { cmdAdvance } from './commands/advance.js'
@@ -59,6 +59,7 @@ import { applyCliLocale } from './i18n/help.js'
 import { DEFAULT_CLI_LOCALE } from './i18n/locale.js'
 import { msg } from './i18n/messages.js'
 import { registerSupportCommands, type SupportRuntimes } from './program-support.js'
+import { registerStepCommands } from './program-step.js'
 import { registerOrchestrationCommands } from './program-orchestration.js'
 import { registerUserCommands } from './program-users.js'
 export { CliExit } from './program-exit.js'
@@ -131,12 +132,13 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
     .action(async (change: string, kind: string, opts: { locale?: string; capability?: string }) =>
       bail(await cmdDocumentScaffold(deps, change, kind, opts.locale, opts.capability)))
   document
-    .command('record <change> <kind> <path>')
-    .description('登记当前 phase 产出或允许更新的文档和实际 Skill 调用证据；旧 Change 可显式 --backfill 首次补登记前序文档')
-    .requiredOption('--producer <skill-id>', '实际生成该文档的具体 skill id')
+    .command('record <change> [kind] [path]')
+    .description('登记当前 phase 产出或允许更新的文档和实际 Skill 调用证据；旧 Change 可显式 --backfill 首次补登记前序文档；--all 一次登记本步所有已写好的文档')
+    .option('--producer <skill-id>', '实际生成该文档的具体 skill id（逐份登记必填；--all 缺省取各文档合法的 producer）')
+    .option('--all', '登记当前步骤所有文件已写好的文档（不带 kind / path；已是最新的不动，没写完的列出并跳过）')
     .option('--backfill', '仅升级旧 Change 时首次补登记此前 phase 的未登记文档；不得覆盖已有 record，仍须有真实 skill 证据')
-    .action(async (change: string, kind: string, path: string, opts: { producer: string; backfill?: boolean }) =>
-      bail(await cmdDocumentRecord(deps, change, kind, path, opts.producer, opts.backfill === true)))
+    .action(async (change: string, kind: string | undefined, path: string | undefined, opts: RecordCommandOptions) =>
+      bail(await cmdDocumentRecordCommand(deps, change, kind, path, opts)))
   document
     .command('migrate-delta <change> <legacy-path> <canonical-path>')
     .description('显式迁移一个旧 delta record；仅当 canonical 文件与旧 digest 完全一致时原子替换，可幂等重试')
@@ -160,6 +162,7 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
 
   registerReviewCommands(program, deps)
   registerTestCommands(program, deps)
+  registerStepCommands(program, deps)
   registerAgentCommands(program, deps)
 
   program

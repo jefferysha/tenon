@@ -394,7 +394,7 @@ describe('validateTrackRegistry —— 总量上限', () => {
 
   test('内建 6 + 额外 27 = 33 → 合法；新增 builtin 不挤占历史 27 个额外名额', () => {
     expect(validateTrackRegistry(cfg({ tracks: manyTracks(27) }), CTX)).toEqual([])
-    expect(MAX_TRACKS).toBe(33)
+    expect(MAX_TRACKS).toBe(34)
     expectError(cfg({ tracks: manyTracks(28) }), `超过上限 ${MAX_CUSTOM_TRACKS}`)
   })
 })

@@ -24,7 +24,7 @@ import type { EffectiveWorkflowPlan } from './effective-plan.js'
 import { resolveRequiredSkillSlots, type EffectiveSkillResolver } from './effective-skill-resolver.js'
 import { resolveStep } from './engine.js'
 import { effectiveLifecyclePolicy } from './governed-lifecycle-policy.js'
-import { stepExitTransitions } from './implicit-completion.js'
+import { isAbandonEvent, stepExitTransitions } from './implicit-completion.js'
 import { phaseExitGuardContext, unfinishedTaskItems, type PhaseExitFileContext } from './phase-exit-context.js'
 import { evaluateWorkflowIrStepGuards } from './stepGuard.js'
 
@@ -238,7 +238,10 @@ export async function evaluateStepExitReport(input: StepExitReportInput): Promis
       ? 'completion'
       : forward ? 'forward' : 'back'
     const guards = await guardBlockers(input, stepId, transition.event, transition.to)
-    const blockers = forward ? [...guards, ...skills, ...shared] : [...guards, ...skills]
+    // 放弃边只看它自己的守卫：任务要被放弃了，没做完的证据不该拦着它出去。
+    const blockers = isAbandonEvent(transition.event)
+      ? [...guards]
+      : forward ? [...guards, ...skills, ...shared] : [...guards, ...skills]
     exits.push({ event: transition.event, to: transition.to, direction, ready: blockers.length === 0, blockers })
   }
   return {

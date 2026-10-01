@@ -3,13 +3,14 @@
  * 不做通用 YAML——保存回盘时逐字写回同样的形态，所以往返保真且没有隐藏语义。
  */
 import { sha256Hex } from '../sha256.js'
+import { PATH_CLASSES, isPathClass, type PathClass } from '../workspace/path-classes.js'
 import {
   AGENT_DESCRIPTION_MAX, AGENT_FILE_MAX_BYTES, AGENT_MODEL_RE, AGENT_NAME_RE, AGENT_ROLES, AGENT_SKILL_RE,
   AGENT_TOOL_RE, AGENT_VERSION_RE, AgentFileError, KNOWN_AGENT_HOSTS, inferAgentRole,
   type AgentDefinition, type AgentRole,
 } from './types.js'
 
-const KEYS: readonly string[] = ['name', 'description', 'role', 'version', 'skills', 'tools', 'model', 'hosts']
+const KEYS: readonly string[] = ['name', 'description', 'role', 'version', 'skills', 'tools', 'model', 'hosts', 'attach_on']
 
 const isRole = (value: string): value is AgentRole => (AGENT_ROLES as readonly string[]).includes(value)
 
@@ -69,6 +70,16 @@ export function parseAgentFile(text: string, expectedName: string): AgentDefinit
   for (const host of hosts ?? []) {
     if (!KNOWN_AGENT_HOSTS.includes(host)) fail(`hosts 的 '${host}' 不是已知宿主`, 'hosts')
   }
+  const rawAttachOn = fields.get('attach_on')
+  const attachOn = rawAttachOn === undefined ? undefined : inlineList(rawAttachOn, 'attach_on')
+  if (attachOn !== undefined && attachOn.length === 0) {
+    fail(`attach_on 至少写一个路径类（${PATH_CLASSES.join(' | ')}）；总是挂载就不要写这个字段`, 'attach_on')
+  }
+  const attachClasses: PathClass[] = []
+  for (const item of attachOn ?? []) {
+    if (!isPathClass(item)) fail(`attach_on 的 '${item}' 不是路径类（${PATH_CLASSES.join(' | ')}）`, 'attach_on')
+    if (!attachClasses.includes(item)) attachClasses.push(item)
+  }
   const body = lines.slice(close + 1).join('\n')
   if (body.trim() === '') fail('正文不得为空')
   return {
@@ -79,6 +90,7 @@ export function parseAgentFile(text: string, expectedName: string): AgentDefinit
     skills, tools,
     ...(model === undefined ? {} : { model }),
     ...(hosts === undefined ? {} : { hosts }),
+    ...(attachOn === undefined ? {} : { attachOn: attachClasses }),
     body,
   }
 }

@@ -11,10 +11,23 @@
 import { chmodSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
+/** tsc 产出的 CLI 入口（src 与 dist 下的本文件都解析到同一个位置）。 */
+const REAL_CLI = fileURLToPath(new URL('../dist/main.js', import.meta.url))
+
+/**
+ * `test diff-risk` 同样默认兑现「风险在限内」；测试进程环境里设 TENON_TEST_REAL_DIFF=1 就转交真实 CLI，
+ * 让 standard 通道的集成测试读到夹具仓库里的真实改动。
+ */
 const STUB = `#!/bin/sh
 if [ "$1" = "test" ] && [ "$2" = "code-size" ]; then
   echo '{"files_changed":0,"lines_added":0,"lines_deleted":0,"largest_added_lines":0}'
+  exit 0
+fi
+if [ "$1" = "test" ] && [ "$2" = "diff-risk" ]; then
+  if [ "$TENON_TEST_REAL_DIFF" = "1" ]; then exec node '${REAL_CLI}' "$@"; fi
+  echo '{"files_changed":0,"contract_files":0,"auth_files":0,"dependency_files":0,"migration_files":0,"deleted_tests":0,"protected_test_files":0}'
   exit 0
 fi
 echo "tenon harness stub: unsupported command: $*" >&2

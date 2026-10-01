@@ -61,10 +61,12 @@ describe('真实 e2e —— tenon agent 库命令', () => {
     return JSON.parse(h.out.join('')) as ListJson
   }
 
-  test('list：官方 9 个带身份与版本；--role / --source 过滤；非法取值 exit 1', async () => {
+  test('list：官方 10 个带身份与版本；--role / --source 过滤；非法取值 exit 1', async () => {
     const all = await list()
-    expect(all.agents).toHaveLength(9)
-    expect(all.agents.every((agent) => agent.source === 'builtin' && agent.version === '1.0.0')).toBe(true)
+    expect(all.agents).toHaveLength(10)
+    // security 因按风险挂载（attach_on）、e2e 因不重跑目录套件而升到 1.1.0，其余仍是 1.0.0。
+    expect(all.agents.every((agent) => agent.source === 'builtin'
+      && agent.version === (agent.name === 'security' || agent.name === 'e2e' ? '1.1.0' : '1.0.0'))).toBe(true)
     expect((await list(['--role', 'executor'])).agents.map((agent) => agent.name)).toEqual(['builder', 'researcher'])
     expect((await list(['--source', 'custom'])).agents).toEqual([])
     expect(await run(['agent', 'list', '--role', 'boss'])).toBe(1)

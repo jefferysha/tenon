@@ -339,7 +339,7 @@ describe('锁序回归 — withTrackRegistryLock 内嵌 change 锁不死锁', ()
     const got = await withTrackRegistryLock(repoRoot, CTX, async ({ registry }) => {
       return withLock(changeDir, async () => `${registry.ordered.length}-inner`)
     })
-    expect(got).toBe('6-inner')
+    expect(got).toBe('7-inner')
   })
 
   test('并发两个 registry→change 嵌套 job 串行完成（不互相死锁）', async () => {

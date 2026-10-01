@@ -112,5 +112,5 @@ test('发行记录逐条记 name / version / role / digest', () => {
 test('仓库里的官方 agent 全部合法', () => {
   const { failures, definitions } = checkAgents({ kernel })
   assert.deepEqual(failures, [])
-  assert.equal(definitions.length, 9)
+  assert.equal(definitions.length, 10)
 })

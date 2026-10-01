@@ -10,7 +10,7 @@ import { execFile } from 'node:child_process'
 import { lstat, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
-import { isWorkspaceCandidatePath } from '@tenon/kernel'
+import { isCodePath } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 
 const run = promisify(execFile)
@@ -24,12 +24,8 @@ export interface CodeSizeMetrics {
   readonly largest_added_lines: number
 }
 
-const DOCUMENT_EXTENSION = /\.(?:md|mdx|markdown)$/iu
-
-/** 仓库相对路径是否计入代码规模。 */
-export function isCodePath(path: string): boolean {
-  return isWorkspaceCandidatePath(path) && !DOCUMENT_EXTENSION.test(path)
-}
+/** 仓库相对路径是否计入代码规模（口径与改动风险探针同一份，定义在 kernel）。 */
+export { isCodePath }
 
 async function git(cwd: string, args: readonly string[]): Promise<string | undefined> {
   try {

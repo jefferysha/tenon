@@ -6,9 +6,9 @@
  * transition / check / 技能门里，各自失败关闭。
  */
 import {
-  currentDocumentStepVisitId, projectStepAgents, readAgentRuns, readFrozenAgents,
-  type AgentBlocker, type AgentRunRow, type AgentView, type EffectiveWorkflowPlan, type PipelineState,
-  type StepAgentsCapability,
+  currentDocumentStepVisitId, projectStepAgents, readAgentRuns, readFrozenAgents, unattachedReviewers,
+  type AgentBlocker, type AgentRunRow, type AgentView, type EffectiveWorkflowPlan, type FrozenAgent, type PathClass,
+  type PipelineState, type StepAgentsCapability,
 } from '@tenon/kernel'
 
 export interface StepAgentRuns { readonly stepId: string; readonly agents: readonly AgentView[] }
@@ -23,6 +23,11 @@ export interface AgentRunsInput {
   readonly candidate?: () => Promise<string | undefined>
   /** 必需测试是否就绪；缺省视为就绪（等待项只影响波次提示，不影响结论）。 */
   readonly testsReady?: { readonly ready: boolean; readonly pending: readonly string[] }
+  /**
+   * 本任务的改动命中的路径类（评审者 `attach_on` 用）；缺席或读出 undefined = 读不出改动，评审者全部挂载。
+   * 只在有评审者声明了 `attach_on` 时才会被调用。
+   */
+  readonly touchedClasses?: () => Promise<ReadonlySet<PathClass> | undefined>
 }
 
 /** 更早步骤的占位候选：让投影里不出现「过期」。 */
@@ -47,9 +52,10 @@ export async function projectAgentRuns(input: AgentRunsInput): Promise<AgentRuns
   const runId = input.state.runMetadata?.runId
   let runs: readonly AgentRunRow[] = []
   let stepVisit = ''
+  let frozen: ReadonlyMap<string, FrozenAgent> = new Map<string, FrozenAgent>()
   if (runId !== undefined && runId !== '') {
     try {
-      await readFrozenAgents({
+      frozen = await readFrozenAgents({
         changeDir: input.changeDir,
         runId,
         workflowFingerprint: input.plan.workflowFingerprint,
@@ -73,7 +79,18 @@ export async function projectAgentRuns(input: AgentRunsInput): Promise<AgentRuns
       candidate = ''
     }
   }
+  const attachOnOf = (agent: string): readonly PathClass[] | undefined => frozen.get(agent)?.definition.attachOn
+  const scoped = steps.some((step) => step.reviewers.some((ref) => attachOnOf(ref.agent) !== undefined))
+  let touched: ReadonlySet<PathClass> | undefined
+  if (scoped && input.touchedClasses !== undefined) {
+    try {
+      touched = await input.touchedClasses()
+    } catch {
+      touched = undefined
+    }
+  }
   return steps.map((step) => {
+    const unattached = unattachedReviewers(step.reviewers, attachOnOf, touched)
     const index = stepIds.indexOf(step.stepId)
     if (index > currentIndex || currentIndex < 0) return empty(step)
     if (index < currentIndex) {
@@ -85,6 +102,7 @@ export async function projectAgentRuns(input: AgentRunsInput): Promise<AgentRuns
         stepId: step.stepId,
         agents: projectStepAgents({
           step,
+          unattached,
           runs: own.map((row) => ({ ...row, candidate: PAST_CANDIDATE })),
           stepVisit: lastVisit,
           candidate: PAST_CANDIDATE,
@@ -96,6 +114,7 @@ export async function projectAgentRuns(input: AgentRunsInput): Promise<AgentRuns
       stepId: step.stepId,
       agents: projectStepAgents({
         step,
+        unattached,
         runs,
         stepVisit,
         candidate,

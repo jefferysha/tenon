@@ -66,10 +66,15 @@ export {
   fingerprintWorkspace, isWorkspaceBaseline, isWorkspaceCandidatePath, TEST_OUTPUT_DIR_SEGMENTS, WORKSPACE_BASELINE_PREFIX,
 } from './workspace/fingerprint.js'
 export type { FingerprintOptions } from './workspace/fingerprint.js'
+// 路径类与改动风险指标：standard 通道的风险探针与评审者 attach_on 共用同一份分类。
+export { PATH_CLASSES, classifyPath, isPathClass, pathTokens } from './workspace/path-classes.js'
+export type { PathClass } from './workspace/path-classes.js'
+export { assessDiffRisk, isCodePath, isTestPath, touchedPathClasses } from './workspace/diff-risk.js'
+export type { DiffRiskMetrics } from './workspace/diff-risk.js'
 export { probeBuildRevisionIdentity } from './workspace/build-revision-identity.js'
 // 「自任务起点以来的改动文件 / 改动行」：全量登记强制、changed 范围与 changed_lines 覆盖率的共同来源。
 export {
-  CHANGED_FILES_GIT_TIMEOUT_MS, ChangedFilesUnavailableError, UNTRACKED_FILE_LIMIT, changeStartOfFields,
+  CHANGED_FILES_GIT_TIMEOUT_MS, ChangedFilesUnavailableError, UNTRACKED_FILE_LIMIT, allPathChangesForState, changeStartOfFields,
   changedFilesForState, changedFilesResultForState, changedFilesSinceChangeStart, changedLinesSinceChangeStart,
   createChangedFilesSession, fileAtChangeStart, parseAddedLines, pathChangesSinceChangeStart, resolveChangeStart,
 } from './workspace/changed-files.js'
@@ -143,7 +148,7 @@ export { workflowNamesUnder } from './infrastructure/workflow-global-store.js'
 export type { WorkflowDirectoryReader } from './workflow/global-store.js'
 export { BUILTIN_WORKFLOW_IDS, builtinWorkflow } from './workflow/builtin-workflows.js'
 export type { BuiltinWorkflowId } from './workflow/builtin-workflows.js'
-export { DEFAULT_WORKFLOW_SOURCE } from './workflow/default-workflow.generated.js'
+export { DEFAULT_WORKFLOW_SOURCE, STANDARD_WORKFLOW_SOURCE } from './workflow/default-workflow.generated.js'
 export {
   canonicalWorkflowSkillId,
   completedWorkflowSkillsSinceStepEntry,
@@ -153,8 +158,9 @@ export {
   RETIRED_SKILL_IDS, retiredSkillReferences, retiredSkillsChangeMessage, retiredSkillsWorkflowMessage,
 } from './workflow/retired-skills.js'
 export {
-  agentWaves, evaluateStepAgents, isForwardExit, nextAgentWave, projectStepAgents, renderAgentBlocker,
+  agentWaves, attachedReviewers, evaluateStepAgents, isForwardExit, nextAgentWave, projectStepAgents, renderAgentBlocker,
 } from './workflow/agent-verdict.js'
+export { unattachedReviewers } from './workflow/agent-scope.js'
 export type {
   AgentBlocker, AgentRole, AgentRunState, AgentView, AgentWave, StepAgentsInput,
 } from './workflow/agent-verdict.js'
@@ -171,14 +177,14 @@ export type {
 export { applyStepTransition, firstStep, planStepTransition, resolveStep, resolveWorkflowName } from './workflow/engine.js'
 export type { StepTransitionPlan } from './workflow/engine.js'
 export {
-  IMPLICIT_COMPLETION_EVENT, implicitCompletionTransition, stepExitTransitions,
+  ABANDON_EVENT, IMPLICIT_COMPLETION_EVENT, implicitCompletionTransition, isAbandonEvent, stepExitTransitions,
 } from './workflow/implicit-completion.js'
 export type { ImplicitCompletionPlan } from './workflow/implicit-completion.js'
 export {
   TEMPLATE_WORKFLOW_NAMES, isDefaultWorkflowName, isTemplateWorkflowName, isValidWorkflowName,
 } from './workflow/identifier.js'
 export type { TemplateWorkflowName } from './workflow/identifier.js'
-export { templateWorkflowSource } from './workflow/template-workflows.js'
+export { templateWorkflowDefinition, templateWorkflowSource } from './workflow/template-workflows.js'
 export { isSkillUnlocked } from './workflow/skillDag.js'
 export { dependencyWaves, directDependencies, type DependencyRef } from './workflow/dag-waves.js'
 export {

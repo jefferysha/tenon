@@ -52,19 +52,19 @@ describe('tenon tracks —— list/show（只读）', () => {
   beforeEach(async () => { h = await freshHarness() })
   afterEach(async () => { await rm(h.cwd, { recursive: true, force: true }) })
 
-  test('list（无 tracks.yaml）：固定列 + 内建六轨固定序，纯 stdout', async () => {
+  test('list（无 tracks.yaml）：固定列 + 内建七轨固定序，纯 stdout', async () => {
     expect(await h.run(['tracks', 'list'])).toBe(0)
     expect(h.out[0]).toMatch(/^ID\s+LABEL\s+BUILTIN\s+DEFAULT\s+ALLOWED\s+POLICY/)
-    expect(h.out.slice(1).map((l) => l.split(/\s+/)[0])).toEqual(['chat', 'simple', 'pm', 'frontend', 'backend', 'free'])
+    expect(h.out.slice(1).map((l) => l.split(/\s+/)[0])).toEqual(['chat', 'simple', 'standard', 'pm', 'frontend', 'backend', 'free'])
     expect(h.err).toEqual([])
   })
 
-  test('list --json：array 6 条、schema 完整、纯 stdout', async () => {
+  test('list --json：array 7 条、schema 完整、纯 stdout', async () => {
     expect(await h.run(['tracks', 'list', '--json'])).toBe(0)
     expect(h.out).toHaveLength(1)
     const arr = JSON.parse(h.out[0]!)
-    expect(arr).toHaveLength(6)
-    expect(arr.map((t: { id: string }) => t.id)).toEqual(['chat', 'simple', 'pm', 'frontend', 'backend', 'free'])
+    expect(arr).toHaveLength(7)
+    expect(arr.map((t: { id: string }) => t.id)).toEqual(['chat', 'simple', 'standard', 'pm', 'frontend', 'backend', 'free'])
     for (const t of arr) {
       expect(t).toMatchObject({ builtin: true, source: 'builtin' })
       expect(Object.keys(t)).toEqual(expect.arrayContaining(['id', 'label', 'builtin', 'workflow', 'policyProfile', 'revision']))

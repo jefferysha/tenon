@@ -14,7 +14,7 @@
 import { lstat } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
-  changeStartOfFields, createChangedFilesSession, createRecordChainCache, creatorOf, isTenonUser, ownerOf,
+  changeStartOfFields, createChangedFilesSession, createRecordChainCache, creatorOf, isTenonUser, ownerOf, touchedPathClasses,
   projectPipelineTodo, protectedChangesInSession, stateStorageSourcePathSync, UnsupportedRunStateVersionError,
   type ChangedFilesSession, type EffectiveWorkflowPlan, type PipelineState, type TenonUser, type TrackDefinition,
 } from '@tenon/kernel'
@@ -255,6 +255,7 @@ export async function scanChange(
         state,
         phase,
         ...(ctx.candidate === undefined ? {} : { candidate: ctx.candidate }),
+        touchedClasses: async () => touchedPathClasses(await ctx.changedFiles.pathChanges(changeStartOfFields(state.fields), [])),
       }),
     ])
     const legacyScope = artifactScope.compatibilityIssue === undefined

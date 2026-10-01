@@ -8,6 +8,7 @@
  *  - 没有登记进目录的文案保持原样（中文），逐步迁移，覆盖面见 docs/usage/cli-reference。
  */
 import { COMMON_MESSAGES } from './messages-common.js'
+import { STANDARD_MESSAGES } from './messages-standard.js'
 import { SUPPORT_MESSAGES } from './messages-support.js'
 import { TRANSITION_MESSAGES } from './messages-transition.js'
 import { DEFAULT_CLI_LOCALE, type CliLocale } from './locale.js'
@@ -21,6 +22,7 @@ export const MESSAGES = {
   ...COMMON_MESSAGES,
   ...TRANSITION_MESSAGES,
   ...SUPPORT_MESSAGES,
+  ...STANDARD_MESSAGES,
 } as const satisfies Readonly<Record<string, MessageEntry>>
 
 export type MessageCode = keyof typeof MESSAGES

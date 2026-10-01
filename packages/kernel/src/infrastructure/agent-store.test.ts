@@ -97,11 +97,11 @@ describe('loadAgentLibrary', () => {
   test('templates/agents 下的每个内建 agent 都能解析', async () => {
     const repoAgents = join(import.meta.dirname, '..', '..', '..', '..', 'templates', 'agents')
     const names = readdirSync(repoAgents).filter((name) => name.endsWith('.md'))
-    expect(names.length).toBe(9)
+    expect(names.length).toBe(10)
     for (const name of names) writePayload(name.slice(0, -3), readFileSync(join(repoAgents, name), 'utf8'))
     const library = await loadAgentLibrary(options())
     expect(library.sync.state).toBe('updated')
-    expect(library.entries.filter((entry) => entry.definition !== undefined)).toHaveLength(9)
+    expect(library.entries.filter((entry) => entry.definition !== undefined)).toHaveLength(10)
   })
 })
 

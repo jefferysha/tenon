@@ -5,4 +5,4 @@ hash_algorithm: tree-sha256-v1
 
 skills:
   agent-author: { tool: bundled, source: tenon, content_skill: agent-author, tier: optional, official: true, source_kind: bundled, source_ref: skills/agent-author, content_hash: sha256:a73ece50dadc9efee5863a92b1aeb26aea39747cb5d96e083fe5ef9dc384ede5, coordinate: tenon:skills/agent-author@sha256:a73ece50dadc9efee5863a92b1aeb26aea39747cb5d96e083fe5ef9dc384ede5 }
-  tenon: { tool: bundled, source: tenon, content_skill: tenon, tier: mandatory, official: true, source_kind: bundled, source_ref: skills/tenon, content_hash: sha256:3298f7527d3a33138f7a541044e31ba02fb0a87abf46f8a5ac29a8a769795a33, coordinate: tenon:skills/tenon@sha256:3298f7527d3a33138f7a541044e31ba02fb0a87abf46f8a5ac29a8a769795a33 }
+  tenon: { tool: bundled, source: tenon, content_skill: tenon, tier: mandatory, official: true, source_kind: bundled, source_ref: skills/tenon, content_hash: sha256:a02175a84247382cad64a9d3277aaa1fff32c6c84f0ea44564b12de649c3367a, coordinate: tenon:skills/tenon@sha256:a02175a84247382cad64a9d3277aaa1fff32c6c84f0ea44564b12de649c3367a }

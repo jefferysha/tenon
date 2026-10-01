@@ -15,7 +15,7 @@
  */
 import type { TrackDefinition, TrackWorkflowBinding } from './types.js'
 
-export const BUILTIN_TRACK_IDS = ['chat', 'simple', 'pm', 'frontend', 'backend', 'free'] as const
+export const BUILTIN_TRACK_IDS = ['chat', 'simple', 'standard', 'pm', 'frontend', 'backend', 'free'] as const
 export type BuiltinTrackId = (typeof BUILTIN_TRACK_IDS)[number]
 
 export function isBuiltinTrackId(id: string): id is BuiltinTrackId {
@@ -26,6 +26,12 @@ export function isBuiltinTrackId(id: string): id is BuiltinTrackId {
 export const BUILTIN_ROUTER_PATTERNS = {
   simple:
     '((错别字|拼写|typo|文案|注释|comment|快速修复|quick patch|移除未使用|unused import|格式化|formatting|配置值|小改|微调).*(README|CHANGELOG|文档|docs/|文件|[A-Za-z0-9_./-]+\\.(md|txt|json|ya?ml|toml|tsx?|jsx?|vue|css|scss|html|py|go|rs|java)|组件|页面|按钮|标题|标签|字段|键|key|一行|单行)|(README|CHANGELOG|文档|docs/|文件|[A-Za-z0-9_./-]+\\.(md|txt|json|ya?ml|toml|tsx?|jsx?|vue|css|scss|html|py|go|rs|java)|组件|页面|按钮|标题|标签|字段|键|key|一行|单行).*(错别字|拼写|typo|文案|注释|comment|快速修复|quick patch|移除未使用|unused import|格式化|formatting|配置值|小改|微调))',
+  // 实现类请求的默认通道：改、修、加、删、重构……（中文子串；英文动词要在句首 / 标点后 / please、to、and 这类祈使引导词之后，
+  // 并带词边界，不用 \b——BSD grep 没有——以免把 “the add function”“show me the add module” 里的名词当成动词）。
+  // 重型信号由下面的排除正则挡掉，那些请求回到 default 的领域轨；风险较低的实现请求先走 standard，
+  // 做完后按 diff 实测风险决定要不要升级，而不是靠关键词在开工前预测。
+  standard:
+    '(修复|修正|修一下|修个|修改|改一下|改成|改为|调整|实现|新增|增加|添加|加一个|加个|加上|补上|补一个|补个|删除|删掉|去掉|移除|替换|重命名|重构|整理|优化|拆分|抽取|提取|合并|支持|(^|[.!?;:,]|，|。|；|：|、|(^|[[:space:]])(please|pls|then|and|also|just|now|first|to|should|must|can you|could you|would you|will you|let.s|help me)[[:space:]])[[:space:]]*(fix|fixes|add|adds|implement|create|remove|delete|rename|refactor|extract|rewrite|update|change|modify|make|support|patch|handle|replace|rework|tweak|move|split|merge)([^a-z]|$))',
   frontend:
     '(前端|UI|页面|组件|React|Vue|Next|Tailwind|样式|shadcn|\\.tsx|\\.jsx|\\.vue|web 设计|响应式|button|form|layout)',
   backend:
@@ -37,6 +43,8 @@ export const BUILTIN_ROUTER_PATTERNS = {
 export const BUILTIN_ROUTER_EXCLUDE_PATTERNS = {
   simple:
     '(跨模块|多模块|多文件|整个项目|全项目|全仓|所有文件|批量|新功能|feature|重构|架构|算法|业务逻辑|核心逻辑|行为变更|API|接口|公共契约|contract|协议|schema|migration|数据库|登录|认证|鉴权|权限|auth|security|安全|并发|事务|transaction|依赖|dependency|package|npm|pnpm|yarn|bun|升级|升到|更新版本|生产数据|部署|发布|release|外部副作用|多端|前后端|全栈)',
+  standard:
+    '(架构|architecture|跨模块|多模块|多个模块|整个项目|全项目|全仓|所有文件|批量|迁移|migration|schema|数据库|database|鉴权|认证|登录|权限|auth|security|安全|依赖升级|升级依赖|升到|发布|部署|release|deploy|生产数据|全栈|前后端|多端|完整流程|调研|竞品|市场|商业模式|PRD|用户旅程)',
 } as const
 
 const WORKFLOW_ANY: TrackWorkflowBinding = { default: 'default', allowed: '*' }
@@ -69,6 +77,24 @@ export const BUILTIN_TRACK_DEFINITIONS: readonly TrackDefinition[] = [
         pattern: BUILTIN_ROUTER_PATTERNS.simple,
         excludePattern: BUILTIN_ROUTER_EXCLUDE_PATTERNS.simple,
         priority: 1000,
+      },
+      skills: { matrix: false, profile: '_all' },
+    },
+  },
+  {
+    id: 'standard',
+    label: 'Standard',
+    builtin: true,
+    workflow: { default: 'standard', allowed: ['standard'] },
+    policyProfile: {
+      reviewSeed: 'pending',
+      automationEligible: false,
+      coverageProfile: 'none',
+      routing: {
+        enabled: true,
+        pattern: BUILTIN_ROUTER_PATTERNS.standard,
+        excludePattern: BUILTIN_ROUTER_EXCLUDE_PATTERNS.standard,
+        priority: 500,
       },
       skills: { matrix: false, profile: '_all' },
     },

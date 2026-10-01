@@ -396,6 +396,14 @@ export async function changedFilesResultForState(repoRoot: string, state: { read
   return createChangedFilesSession(repoRoot).changedFiles(changeStartOfFields(state.fields))
 }
 
+/**
+ * 自任务起点以来的全部路径改动（新增 / 修改 / 删除，含未跟踪文件）：改动风险探针与评审者按风险挂载读它。
+ * 与 changedFilesForState 同一个起点、同一套失败语义——读不出来抛 ChangedFilesUnavailableError。
+ */
+export function allPathChangesForState(repoRoot: string, state: { readonly fields: StateFields }): Promise<readonly PathChange[]> {
+  return createChangedFilesSession(repoRoot).pathChanges(changeStartOfFields(state.fields), [])
+}
+
 /** 自任务起点以来新增 / 修改的行（changed_lines 覆盖率用）；未跟踪文件的每一行都算新增。 */
 export function changedLinesSinceChangeStart(
   repoRoot: string,

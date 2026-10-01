@@ -4,6 +4,7 @@ import type { CliDeps } from './deps.js'
 import { cmdTestBaseline } from './commands/test-baseline.js'
 import { cmdTestBaselineSuite } from './commands/test-baseline-suite.js'
 import { cmdTestCodeSize } from './commands/test-code-size.js'
+import { cmdTestDiffRisk } from './commands/test-diff-risk.js'
 import { cmdTestPlan } from './commands/test-plan.js'
 import { cmdTestRegister, cmdTestUnregister, cmdTestWaive } from './commands/test-register.js'
 import { cmdTestReport } from './commands/test-report.js'
@@ -27,9 +28,9 @@ interface RunCliOptions {
 export function registerTestCommands(program: Command, deps: CliDeps): void {
   const test = program
     .command('test')
-    .description('测试体系：discover / catalog / plan / register / sync / trust / run / status / baseline / known / report / code-size')
+    .description('测试体系：discover / catalog / plan / register / sync / trust / run / status / baseline / known / report / code-size / diff-risk')
     .action(() => {
-      deps.io.err('用法：tenon test discover|catalog|plan|register|unregister|waive|sync|trust|run|status|baseline|known|report|code-size ...')
+      deps.io.err('用法：tenon test discover|catalog|plan|register|unregister|waive|sync|trust|run|status|baseline|known|report|code-size|diff-risk ...')
       bail(1)
     })
   registerTestProjectCommands(test, deps)
@@ -154,6 +155,12 @@ export function registerTestCommands(program: Command, deps: CliDeps): void {
         ...(opts.locale === undefined ? {} : { locale: opts.locale }),
       }))
     })
+  test
+    .command('diff-risk [change]')
+    .description('改动风险探针（standard 通道）：自任务起点的改动文件数、契约/鉴权/依赖/迁移路径数、被删的测试、受保护的测试配置，输出一行 JSON 指标；阈值是工作流里这条测试的 pass.metrics')
+    .option('--json', '输出一行 JSON 指标（供测试指标判定读取）')
+    .action(async (change: string | undefined, opts: { json?: boolean }) =>
+      bail(await cmdTestDiffRisk(deps, change, { json: opts.json === true })))
   test
     .command('code-size')
     .description('代码规模探针：与 base 的 merge-base 做 numstat，输出一行 JSON 指标')

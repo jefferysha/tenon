@@ -48,7 +48,7 @@ function workflowMode(workflow: string): 'default' | 'custom' {
 
 function trackKind(track: string): 'built-in' | 'free' | 'custom' {
   if (track === 'free') return 'free'
-  if (['chat', 'simple', 'pm', 'frontend', 'backend'].includes(track)) return 'built-in'
+  if (['chat', 'simple', 'standard', 'pm', 'frontend', 'backend'].includes(track)) return 'built-in'
   return 'custom'
 }
 

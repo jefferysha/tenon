@@ -34,6 +34,15 @@ model: sonnet
   `tenon agent validate` asks you to add the line.
 - `version` is optional semver. `hosts` (optional) limits the agent to some
   hosts; `model` is passed only to a host that knows it.
+- `attach_on` (optional, reviewers) scopes a reviewer by risk: `attach_on: [auth,
+  dependency, contract]` attaches it to a step only when the task's changes touch a
+  path in one of those classes (`auth`, `dependency`, `contract`, `migration`; the
+  same classification as the `standard` lane's risk probe). A reviewer that is not
+  attached is not listed, not waited for and not required; `agent prompt` refuses it
+  (exit `2`). If the changes cannot be read the reviewer is attached (fail closed).
+  The official `security` reviewer declares `[auth, dependency, contract]`. Without
+  the field a reviewer is always attached, and a task that froze an older copy keeps
+  its old behaviour.
 - The report the agent writes ends with a `tenon-result` block. A reviewer lists
   findings and never states its own verdict — Tenon derives pass or fail from
   the severities and the step's `block_at`. An executor reports `done` or
@@ -52,8 +61,10 @@ listed as overridden). No layer can reuse an official name; such a file is
 listed as a conflict and never used.
 
 The official agents are `builder` and `researcher` (executors) and
-`architecture`, `backend-quality`, `code-size`, `e2e`, `frontend-quality`,
-`security` and `spec-consistency` (reviewers).
+`architecture`, `backend-quality`, `code-review`, `code-size`, `e2e`,
+`frontend-quality`, `security` and `spec-consistency` (reviewers). `code-review` is
+the `standard` lane's reviewer: it reads the diff against the goal and acceptance check
+the host appends to its prompt, and needs no specification documents.
 
 ## Author in the terminal
 

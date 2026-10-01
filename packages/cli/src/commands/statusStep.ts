@@ -36,6 +36,8 @@ import {
 } from './statusStepNext.js'
 import { deliveryCommit, finishedStop } from './statusStepFinish.js'
 import { buildStepTestFlow } from './statusStepTestFlow.js'
+import { stepEscalation } from './statusStepEscalation.js'
+import { trustAnnotated } from './statusStepTrust.js'
 
 export interface StepBlock {
   readonly schema: 'tenon-step-v1'
@@ -313,7 +315,7 @@ export async function buildStatusStep(
   }
   return {
     ...block,
-    next: stepNextActions({
+    next: await trustAnnotated(deps, name, plan, stepNextActions({
       change: name,
       loaded: completed.has(TENON_SKILL),
       skills,
@@ -339,10 +341,11 @@ export async function buildStatusStep(
       testConfigGaps: await testConfigGaps(deps, plan, stepId, tests, report.exits,
         documents.records.some((doc) => PLAN_DOCUMENT_KINDS.has(doc.kind))),
       ...await deliveryFacts(deps, name, state, fields),
+      escalation: stepEscalation(testReport.items, report.exits),
       reviewBar: await downstreamReviewBar(dir, state, plan, stepId,
         report.exits.filter((exit) => exit.direction === 'forward').map((exit) => exit.to)),
       ...(testFlow === undefined ? {} : { testFlow }),
-    }),
+    })),
   }
 }
 

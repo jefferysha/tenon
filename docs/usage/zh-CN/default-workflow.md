@@ -52,6 +52,10 @@ design / delta spec / tasks，语言无关）。证据不齐时写 `pass` 被拒
 （`tenon test code-size --json`，新增行数不超过 2000 为通过）并挂必需评审者 `code-size` 读取它的结果。
 对话与自由轨道的验证再加参考评审者 `security`，它的问题不拦截。执行者没有 `done` 之前不能离开步骤。
 
+评审者按风险挂载。`security` 声明了 `attach_on: [auth, dependency, contract]`（见[智能体](./agents.md)），所以在验证要求它的轨道上，
+只有任务的改动碰到鉴权、依赖清单或接口契约路径时才挂上；一个都没碰到的任务不会等它、也不会派发它。同一个任务也可以先走更轻的
+[`standard` 通道](./routing-and-workflows.md#标准通道)，改动长大了再升级到本工作流。
+
 步骤自己的必需测试（`tests`）命令是 npm 脚本而项目里没有这个脚本时，这条测试是「未配置」，不是失败：`tenon test run`
 拒跑、不落记录，并给出配置方式；`step.next` 在本步或上一步（配置是一次工作区改动，要赶在 Build 冻结候选版本之前）入口
 就以 `fix`（`test-unconfigured`）提出。默认工作流里仍是必需的步骤测试只有 `code-size`（每条轨道的验证）和设计体系校验

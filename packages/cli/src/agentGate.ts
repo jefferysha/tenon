@@ -12,6 +12,7 @@ import type {
 } from '@tenon/kernel'
 import { currentCandidate } from './commands/candidate.js'
 import { errMsg, type CliDeps } from './deps.js'
+import { unattachedReviewersFor } from './diffRisk.js'
 import { testEvidenceContextFor, testEvidenceReaderFor } from './testEvidenceContext.js'
 
 export function stepAgentsOf(plan: EffectiveWorkflowPlan, stepId: string): StepAgentsCapability {
@@ -59,13 +60,14 @@ export async function agentEvaluationInput(
   const runId = input.state.runMetadata?.runId
   if (runId === undefined || runId === '') return { invalid: 'Change 缺少 run 身份' }
   try {
-    await readFrozenAgents({
+    const frozen = await readFrozenAgents({
       changeDir: input.dir,
       runId,
       workflowFingerprint: input.plan.workflowFingerprint,
     })
     return {
       step,
+      unattached: await unattachedReviewersFor(input.deps, input.name, step, frozen),
       runs: await readAgentRuns(input.dir),
       stepVisit: await currentDocumentStepVisitId(input.dir),
       candidate: await currentCandidate(input.deps, input.name, input.state, input.plan, input.stepId),

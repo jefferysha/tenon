@@ -2,11 +2,12 @@
  * Track Router 公共预览用例。
  *
  * 真相源仍是 effective Track Registry；本模块只复刻 hooks/router.sh 的热路径决策：
- * `grep -ciE` 行命中数 → score → priority → registry order。生产 scorer 直接执行 grep，
- * 不用 JavaScript RegExp 另造一套 ERE 方言。UI 与测试可注入 scorer，但同一决策函数不分叉。
+ * `grep -ciE` 行命中数 → score → priority → registry order，再加 standard 通道的两条规则
+ * （见 `applyStandardLane`）。生产 scorer 直接执行 grep，不用 JavaScript RegExp 另造一套 ERE 方言。
+ * UI 与测试可注入 scorer，但同一决策函数不分叉。
  */
 import { spawn } from 'node:child_process'
-import type { TrackDefinition } from '@tenon/kernel'
+import { isDefaultWorkflowName, type TrackDefinition } from '@tenon/kernel'
 
 export type RouterPatternScorer = (pattern: string, prompt: string) => Promise<number>
 
@@ -163,6 +164,35 @@ export function scoreRouterPatternWithGrep(pattern: string, prompt: string): Pro
   })
 }
 
+const STANDARD_TRACK = 'standard'
+const DOMAIN_TRACKS: readonly string[] = ['frontend', 'backend']
+
+function isBuiltin(candidate: RouterPreviewCandidate, id: string): boolean {
+  return candidate.track.id === id && candidate.track.builtin && candidate.routable
+}
+
+/**
+ * hooks/router.sh 在评分循环之后的两条 standard 通道规则，这里逐条镜像：
+ *   1. 评分是按行计数的，多行 prompt 里 frontend / backend 可能以更高的行数压过 standard；只要 standard 本轮命中
+ *      （得分 > 0、没被重型信号排除），就让它赢过 default 工作流的领域轨。
+ *   2. 重型的实现类请求（standard 的正则命中、却被排除正则挡掉）而没有任何轨道认领：回落到 backend 轨，不能无人治理。
+ */
+async function applyStandardLane(
+  winner: RouterPreviewCandidate | null,
+  candidates: readonly RouterPreviewCandidate[],
+  prompt: string,
+  scorer: RouterPatternScorer,
+): Promise<RouterPreviewCandidate | null> {
+  const standard = candidates.find((candidate) => isBuiltin(candidate, STANDARD_TRACK))
+  const domain = winner !== null && DOMAIN_TRACKS.includes(winner.track.id) && winner.track.builtin
+    && isDefaultWorkflowName(winner.track.workflow.default)
+  if (domain && standard !== undefined && standard.score > 0) return standard
+  if (winner !== null || standard === undefined || !standard.excluded || !standard.track.policyProfile.routing.enabled) return winner
+  if (await scorer(standard.track.policyProfile.routing.pattern, prompt) <= 0) return winner
+  const backend = candidates.find((candidate) => isBuiltin(candidate, 'backend'))
+  return backend === undefined ? winner : { ...backend, score: 1 }
+}
+
 export async function previewTrackRouting(
   prompt: string,
   tracks: readonly TrackDefinition[],
@@ -198,7 +228,7 @@ export async function previewTrackRouting(
   }
   const suppressedReason = routerSuppressionReason(prompt)
   return {
-    winner: suppressedReason === null ? winner : null,
+    winner: suppressedReason === null ? await applyStandardLane(winner, candidates, prompt, scorer) : null,
     candidates,
     suppressed_reason: suppressedReason,
   }

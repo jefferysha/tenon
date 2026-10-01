@@ -42,7 +42,7 @@ function catalogOptions(command: 'add' | 'set'): Record<string, string> {
 }
 
 export const HELP_EN_TESTS: Readonly<Record<string, string>> = {
-  test: 'Test system: discover / catalog / plan / register / sync / trust / run / status / baseline / known / report / code-size',
+  test: 'Test system: discover / catalog / plan / register / sync / trust / run / status / baseline / known / report / code-size / diff-risk',
   'test discover': 'Detect the project\'s test tools and suggest catalog suites; --write appends them to .tenon/tests/catalog.yaml (existing ids are not overwritten)',
   'test discover --write': 'Write the catalog',
   'test discover --json': 'JSON output',
@@ -126,4 +126,6 @@ export const HELP_EN_TESTS: Readonly<Record<string, string>> = {
   'test code-size': 'Code-size probe: numstat against the merge-base with base, printing one JSON metric line',
   'test code-size --base': 'Comparison base; TENON_BASE_BRANCH by default, then HEAD',
   'test code-size --json': 'JSON output (JSON is the default; kept to match the direction template command)',
+  'test diff-risk': 'Change-risk probe (standard lane): files changed since the task started, files on contract / auth / dependency / migration paths, deleted tests and protected test config, printed as one JSON metric line; the thresholds are the pass.metrics of this test in the workflow',
+  'test diff-risk --json': 'Print one JSON metric line (read by the test metric check)',
 }

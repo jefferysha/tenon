@@ -164,6 +164,7 @@ tenon test known rm --suite <id> --test "<file › name>"
 tenon test known list [--json]
 tenon test report <change> [--step <id>] [--write <path>] [--locale zh-CN|en]
 tenon test code-size [--base <ref>]
+tenon test diff-risk [<change>] [--json]
 ```
 
 Tests are registered on three levels. The project **catalog**
@@ -388,7 +389,20 @@ whether the report still needs regenerating by looking for the latest run ids in
 block. `test code-size` is the deterministic probe behind the builtin
 `code-size` direction and prints one JSON line of metrics. It counts source files only: the
 same path scope as the workspace candidate (no `openspec/`, `.tenon/`, `.pipeline/`,
-`docs/`, dependencies or test caches) and no Markdown files.
+`docs/`, dependencies or test caches) and no Markdown files. `test diff-risk` is the
+probe behind the builtin `diff-risk` direction, the risk gate of the `standard` lane
+([Routing and execution modes](routing-and-workflows.md#the-standard-lane)). It only reads
+the repository and prints one JSON line measured from the task's starting point (committed
+and uncommitted changes both count): `files_changed` (source files, same scope as
+`code-size`), `contract_files`, `auth_files`, `dependency_files` and `migration_files`
+(files in those path classes: OpenAPI/proto/GraphQL/schema and `contract` names; auth,
+login, session, jwt, password, permission, crypto and secret names and `.env*`; package
+manifests and lock files; migration directories), `deleted_tests` (deleted test files) and
+`protected_test_files` (changes to the test catalog, baselines, known failures or project
+workflows; the catalog that `tenon init` generated for a project that had none is not
+counted). The thresholds are not in the command: they are the `pass.metrics` of the
+workflow's `diff-risk` step test, so changing a limit is a workflow YAML edit. The task name
+is the argument or `TENON_CHANGE_NAME`.
 
 Inline step tests (`tenon test run <change> <test-id>`) keep their v1 behavior:
 the command is executed in its own process group and recorded with the exit code,
@@ -404,7 +418,26 @@ inline tests: `0` pass, `2` fail (the record is written), `1` usage or environme
 `tenon status <name> --json` also carries a `step` block: the whole input the
 single `tenon` skill needs for the current step — its skills, executors,
 reviewers, tests, documents, fields, review receipt, exits with blockers, and a
-closed `next` action list to execute in order.
+closed `next` action list to execute in order. `run-tests` and `run-test` carry a
+`trust` object when the commands they will run have not been trusted by the user yet
+(ask the user to run `trust.command` in their own terminal first). A `transition`
+carrying `escalate` means the task has outgrown its lane: the standard lane's risk probe
+failed, `escalate.reasons` names the breached limits, and `escalate.then` says to open a
+`default` task after the transition.
+
+```text
+tenon step run <change> [--json]
+```
+
+`step run` performs the deterministic part of `step.next` in one call and says what it
+did: `scaffold-document` (`document scaffold`), `record-document` (`document record`,
+only when the file exists and its skeleton placeholders are replaced), `read-documents`
+(`document read <change> all`) and `test-plan-seed` (`test plan <change> --seed`). It
+stops at the first action that needs the host or the author (loading a skill, dispatching
+an agent, writing document content, running tests, review, transitions) and prints why,
+together with the fresh `step.next`, so no `status` call is needed afterwards. It is
+idempotent: with nothing to do it changes nothing and exits `0`; a refused command exits `2`
+and keeps what was already done. `--json` prints `{ change, step_id, did[], stopped, step }`.
 
 ```text
 tenon spec apply <change> [--dry-run] [--json]
@@ -422,6 +455,7 @@ on PATH, `4` a main spec changed during the rehearsal.
 ```text
 tenon document init <change>
 tenon document record <change> <kind> <path> --producer <skill-id>
+tenon document record <change> --all [--producer <skill-id>]
 tenon document read <change> <kind|all>
 tenon document status <change> [--json]
 tenon artifact register <change> <field> <path> --producer <skill-id>
@@ -439,6 +473,19 @@ tenon agent copy <from> <to> [--scope user|project]
 tenon agent rm <name> [--scope user|project]
 tenon agent export <name> --host claude|codex
 ```
+
+`document record --all` records every document of the current step whose file is already
+written, one `document record` each with all its checks (placeholders, the producer's skill
+receipt, owner, archive gate): documents the step produces and still lacks or has gone
+stale, inputs the step may edit that changed since they were recorded, and documents an
+invoked skill still owes. The producer is the one the step accepts that was invoked in this
+visit (`--producer` overrides it). Documents that are up to date are left alone, documents
+not written or still holding `[待填写…]` placeholders are listed and skipped, and a
+document whose path the author must name (a delta spec without `--capability`) is skipped;
+only a refused record exits `2`. Reviewers can declare `attach_on` in their agent file
+(`auth`, `dependency`, `contract`, `migration`): they join a step's reviewer set only when
+the task's changes touch such a path, so `agent next`, `status --json` and the Dashboard do
+not list an unattached reviewer and `agent prompt` refuses it with exit `2`.
 
 `tenon agent` drives the executors and reviewers a step declares. Tenon only
 orders them, renders the handoff, records the verdict, and binds it to the

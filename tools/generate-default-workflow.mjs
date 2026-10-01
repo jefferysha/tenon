@@ -27,6 +27,8 @@ const OUT_FILE = join(REPO_ROOT, 'packages', 'kernel', 'src', 'workflow', 'defau
 const SOURCE_REL = 'templates/workflows/default.yaml'
 const DESIGN_SYSTEM_YAML = join(REPO_ROOT, 'templates', 'workflows', 'design-system.yaml')
 const DESIGN_SYSTEM_REL = 'templates/workflows/design-system.yaml'
+const STANDARD_YAML = join(REPO_ROOT, 'templates', 'workflows', 'standard.yaml')
+const STANDARD_REL = 'templates/workflows/standard.yaml'
 
 const PRODUCER_POLICIES = new Set(['effective-step-skills', 'effective-phase-skills'])
 
@@ -292,13 +294,13 @@ function renderDefaultStep(step) {
 }
 
 /** 规范化表 + 默认步骤元数据 → generated TS 文本（DO NOT EDIT 头 + 来源路径 + as const）。 */
-export function renderGenerated(table, steps, yamlText, designSystemYaml = '') {
+export function renderGenerated(table, steps, yamlText, designSystemYaml = '', standardYaml = '') {
   const out = []
   out.push('/**')
   out.push(' * DO NOT EDIT —— 生成文件。')
   out.push(` * 由 tools/generate-default-workflow.mjs 从 ${SOURCE_REL} 生成。`)
   out.push(' * 重新生成：npm run generate:default-workflow')
-  out.push(` * 来源：${SOURCE_REL}、${DESIGN_SYSTEM_REL}`)
+  out.push(` * 来源：${SOURCE_REL}、${DESIGN_SYSTEM_REL}、${STANDARD_REL}`)
   out.push(' *')
   out.push(' * 含稳定排序的 default step 元数据（通用分支）与按分支（_base + tracks.<id>）的 artifact declaration 纯数据；查询在')
   out.push(' * 手写层 default-artifacts.ts / todo-projection.ts。改 default.yaml 后须重跑生成（CI freshness')
@@ -309,6 +311,8 @@ export function renderGenerated(table, steps, yamlText, designSystemYaml = '') {
   out.push(`export const DEFAULT_WORKFLOW_SOURCE = ${JSON.stringify(yamlText)}`)
   out.push('')
   out.push(`export const DESIGN_SYSTEM_WORKFLOW_SOURCE = ${JSON.stringify(designSystemYaml)}`)
+  out.push('')
+  out.push(`export const STANDARD_WORKFLOW_SOURCE = ${JSON.stringify(standardYaml)}`)
   out.push('')
   out.push('export const DEFAULT_WORKFLOW_STEPS = [')
   for (const step of steps) out.push(renderDefaultStep(step))
@@ -328,8 +332,8 @@ export function renderGenerated(table, steps, yamlText, designSystemYaml = '') {
   return out.join('\n') + '\n'
 }
 
-/** default.yaml + kernel types.ts + design-system.yaml → generated TS 文本（纯函数，供测试与 main 复用）。 */
-export function generate(yamlText, typesText, designSystemYaml = '') {
+/** default.yaml + kernel types.ts + design-system.yaml + standard.yaml → generated TS 文本（纯函数，供测试与 main 复用）。 */
+export function generate(yamlText, typesText, designSystemYaml = '', standardYaml = '') {
   const fieldOrder = extractFieldOrder(typesText)
   const parsed = parseDefaultWorkflow(yamlText)
   const table = validateAndNormalize(parsed, fieldOrder)
@@ -337,13 +341,15 @@ export function generate(yamlText, typesText, designSystemYaml = '') {
   const firstBranch = Object.values(parsed.tracks ?? {})[0]
   const metaSteps = parsed.steps.length > 0 ? parsed.steps : (firstBranch?.steps ?? [])
   if (metaSteps.length === 0) fail('default.yaml 没有任何阶段（steps 或 tracks 至少一个）')
-  return renderGenerated(table, metaSteps, yamlText, designSystemYaml)
+  return renderGenerated(table, metaSteps, yamlText, designSystemYaml, standardYaml)
 }
 
 function main() {
   const yamlText = readFileSync(DEFAULT_YAML, 'utf8')
   const typesText = readFileSync(KERNEL_TYPES, 'utf8')
-  const generated = generate(yamlText, typesText, readFileSync(DESIGN_SYSTEM_YAML, 'utf8'))
+  const generated = generate(
+    yamlText, typesText, readFileSync(DESIGN_SYSTEM_YAML, 'utf8'), readFileSync(STANDARD_YAML, 'utf8'),
+  )
   writeFileSync(OUT_FILE, generated, 'utf8')
   process.stdout.write(`generated ${OUT_FILE}\n`)
 }

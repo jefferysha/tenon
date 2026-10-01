@@ -105,7 +105,7 @@ describe('loadTrackRegistry —— 缺文件 fallback', () => {
     const reg = loadTrackRegistry(repoRoot, CTX)
     expect(reg.source).toBe('builtin-only')
     expect(reg.ordered).toEqual(BUILTIN_TRACK_DEFINITIONS)
-    expect(reg.ordered.map((t) => t.id)).toEqual(['chat', 'simple', 'pm', 'frontend', 'backend', 'free'])
+    expect(reg.ordered.map((t) => t.id)).toEqual(['chat', 'simple', 'standard', 'pm', 'frontend', 'backend', 'free'])
     expect(reg.revision).toBe(registryRevision({ version: 1 }))
     expect(reg.revision).toMatch(/^[0-9a-f]{16}$/)
     expect(reg.byId.get('pm')?.policyProfile.reviewSeed).toBe('skipped')
@@ -122,7 +122,7 @@ describe('loadTrackRegistry —— 项目文件合成', () => {
     await seedProjectFile(PROJECT_FILE)
     const reg = loadTrackRegistry(repoRoot, CTX)
     expect(reg.source).toBe('project-file')
-    expect(reg.ordered.map((t) => t.id)).toEqual(['chat', 'simple', 'pm', 'frontend', 'backend', 'free', 'data', 'ops'])
+    expect(reg.ordered.map((t) => t.id)).toEqual(['chat', 'simple', 'standard', 'pm', 'frontend', 'backend', 'free', 'data', 'ops'])
 
     const builtinChat = BUILTIN_TRACK_DEFINITIONS[0]!
     const builtinPm = BUILTIN_TRACK_DEFINITIONS.find((track) => track.id === 'pm')!
@@ -182,7 +182,7 @@ describe('requireTrack / assertWorkflowAllowed', () => {
     const reg = loadTrackRegistry(repoRoot, CTX)
     expect(requireTrack(reg, 'frontend').label).toBe('Frontend')
     expect(() => requireTrack(reg, 'data')).toThrow(/未注册的 track 'data'/)
-    expect(() => requireTrack(reg, 'data')).toThrow(/chat, simple, pm, frontend, backend/)
+    expect(() => requireTrack(reg, 'data')).toThrow(/chat, simple, standard, pm, frontend, backend/)
   })
 
   test("assertWorkflowAllowed：'*' 全放行；数组按 membership；拒绝时列出允许值", async () => {
@@ -202,7 +202,7 @@ describe('writeTrackRegistry —— 原子写 + revision 冲突', () => {
   test('全新仓（无 .pipeline）写入：建目录、落文件、返回 effective，与读回一致', async () => {
     const written = await writeTrackRegistry(repoRoot, NEXT, CTX)
     expect(written.source).toBe('project-file')
-    expect(written.ordered.map((t) => t.id)).toEqual(['chat', 'simple', 'pm', 'frontend', 'backend', 'free', 'data'])
+    expect(written.ordered.map((t) => t.id)).toEqual(['chat', 'simple', 'standard', 'pm', 'frontend', 'backend', 'free', 'data'])
 
     const onDisk = await readFile(trackRegistryPath(repoRoot), 'utf8')
     expect(onDisk).toBe(serializeTrackRegistry(NEXT))

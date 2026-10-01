@@ -20,6 +20,12 @@
       "digest": "sha256:c6c6c244cf98889ad89f36a88c343041d8135c684fe9b70c3b3c234dc08b05c6"
     },
     {
+      "name": "code-review",
+      "version": "1.0.0",
+      "role": "reviewer",
+      "digest": "sha256:bdb2c22aa19f53b9d52ec9deb6c9cb5cc7226aabd19dbcb71c2e8f2c49917384"
+    },
+    {
       "name": "code-size",
       "version": "1.0.0",
       "role": "reviewer",
@@ -27,9 +33,9 @@
     },
     {
       "name": "e2e",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "role": "reviewer",
-      "digest": "sha256:cf17c12d2d78d6681b6c28be0f087c8e4aa482e62aff7e75dfe366153d5c0359"
+      "digest": "sha256:e08e0671a670788495a0a7234eb1f4dfcb0e30df4fff4d5ea0d445a8b213d162"
     },
     {
       "name": "frontend-quality",
@@ -45,9 +51,9 @@
     },
     {
       "name": "security",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "role": "reviewer",
-      "digest": "sha256:1c58933164d767746f0058858351de89b736760317fa348fbea10b28fda9b915"
+      "digest": "sha256:17bb7362f8897090f57e17e111f1b0877e737546fa1e7c99117cbe53607d9440"
     },
     {
       "name": "spec-consistency",

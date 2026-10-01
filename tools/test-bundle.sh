@@ -59,7 +59,7 @@ grep -q 'repo-zero-output' "$plugin_runtime_spec" \
 # 内建 agent 在 templates/agents/ 下（插件根 agents/ 会被宿主自动加载，任务级 agent 不能进那里）。
 builtin_agents="$ROOT/templates/agents"
 missing_agents=""
-for agent in architecture backend-quality builder code-size e2e frontend-quality researcher security spec-consistency; do
+for agent in architecture backend-quality builder code-review code-size e2e frontend-quality researcher security spec-consistency; do
   [ -f "$builtin_agents/$agent.md" ] || missing_agents="$missing_agents $agent"
 done
 [ -z "$missing_agents" ] && [ ! -d "$ROOT/agents" ] \

@@ -92,6 +92,7 @@ export function renderAgentFile(definition: Omit<AgentDefinition, 'roleInferred'
     `tools: [${definition.tools.join(', ')}]`,
     ...(definition.model === undefined ? [] : [`model: ${definition.model}`]),
     ...(definition.hosts === undefined ? [] : [`hosts: [${definition.hosts.join(', ')}]`]),
+    ...(definition.attachOn === undefined ? [] : [`attach_on: [${definition.attachOn.join(', ')}]`]),
     '---',
     '',
     definition.body.replace(/^\n+/u, ''),
@@ -187,6 +188,7 @@ export async function cmdAgentNew(
     tools: list(answers.tools) ?? base?.tools ?? defaultTools(role, skills),
     ...(answers.model === '' ? {} : { model: answers.model }),
     ...(hosts === undefined ? (base?.hosts === undefined ? {} : { hosts: base.hosts }) : { hosts }),
+    ...(base?.attachOn === undefined ? {} : { attachOn: base.attachOn }),
     body: base?.body ?? agentBodySkeleton(answers.name, role, answers.description),
   }
   const content = renderAgentFile(definition)

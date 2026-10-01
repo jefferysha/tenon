@@ -2,11 +2,12 @@
  * `step` 分块的执行者 / 评审者投影：与 `tenon agent next` 同一份判定，只换一个形状。
  */
 import {
-  agentWaves, currentDocumentStepVisitId, evaluateTestEvidence, nextAgentWave, projectStepAgents,
+  agentWaves, attachedReviewers, currentDocumentStepVisitId, evaluateTestEvidence, nextAgentWave, projectStepAgents,
   readAgentRuns, readFrozenAgents,
   type EffectiveWorkflowPlan, type FrozenAgent, type PipelineState, type StepAgentsCapability,
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
+import { unattachedReviewersFor } from '../diffRisk.js'
 import { testEvidenceContextFor } from '../testEvidenceContext.js'
 import { currentCandidate } from './candidate.js'
 
@@ -68,8 +69,10 @@ export async function agentStepViews(
   const pending = report.items
     .filter((item) => item.test.required && item.status !== 'passed')
     .map((item) => item.test.id)
+  const unattached = await unattachedReviewersFor(deps, name, step, frozen)
   const input = {
     step,
+    unattached,
     runs: await readAgentRuns(dir),
     stepVisit: await currentDocumentStepVisitId(dir),
     candidate: await currentCandidate(deps, name, state, plan, stepId),
@@ -80,7 +83,7 @@ export async function agentStepViews(
   const { wave, waiting } = nextAgentWave(input)
   const waves = {
     executor: agentWaves(step.executors),
-    reviewer: agentWaves(step.reviewers),
+    reviewer: agentWaves(attachedReviewers(input)),
   }
   const project = (role: 'executor' | 'reviewer'): readonly StepAgentView[] =>
     views.filter((view) => view.role === role).map((view) => ({

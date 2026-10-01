@@ -16,6 +16,56 @@ change ⇄ verify → done
 
 它不生成 default 的 proposal/design/tasks 链。短 workflow 如果声明三份文档，就只生成并读取这三份。
 
+## 标准通道
+
+`standard` 是「既不是错字级、也谈不上重型」的实现类请求的默认通道：修 bug、加一个函数、重构一个模块。它是随插件发布的
+模板工作流（`templates/workflows/standard.yaml`，和 `design-system` 一样可编辑、可被项目文件覆盖），绑定内建 `standard` 轨道，
+没有 OpenSpec 契约，所以没有要铺骨架、要登记的文档：
+
+```text
+open → build → verify → done
+```
+
+| 步骤 | 做什么 | 证据 |
+| --- | --- | --- |
+| `open` | 用一句话复述目标和验收检查；不调研、不加载访谈类技能 | 无 |
+| `build` | `test-driven-development`，然后单测（范围 `changed`；登记了 `typecheck` 就跑）和 `diff-risk` 探针 | 单测运行、测试文件已登记、探针通过 |
+| `verify`（评审门） | `verification-before-completion`，全量单测（登记了 `regression`、`integration`、`e2e`、`playwright`、`a11y`、`visual` 也跑），一个必需评审者 `code-review`；用户只确认这一次 | 测试、评审者、人工确认 |
+| `done` / `escalated` | 终态；`done` 把整个工作区一次提交（`chore(tenon): finish <change>`） | |
+
+测试策略与 default 的零豁免默认一致：只有 `unit` 必需，其余有就跑。评审者是 `code-review`（必需，`block_at: medium`；它对照宿主写在
+提示末尾的目标与验收检查看 diff，不读规格）和 `security`——后者声明了 `attach_on: [auth, dependency, contract]`，只有任务的改动碰到
+这类路径才加入；default 工作流里的 `security` 同样按这条规则挂载。集成测试（`standard-lane.integration.test.ts`，一个三文件缺陷修复）
+实测：23 次 `tenon` 调用、2 次用户回复（一次确认测试命令的信任、一次确认 `verify`）；审计对 default 后端小改动的估算是 70–90 次调用、6 次以上回复。
+
+### 风险升级
+
+走哪条通道由改动实际长成什么样决定，不靠开工前猜 prompt。`build` 声明了一个必需的 `diff-risk` 步骤测试
+（`tenon test diff-risk --json`），它的 `pass.metrics` 就是阈值，全部可以在工作流 YAML 里改：
+
+| 指标 | 默认上限 | 超限的情形 |
+| --- | --- | --- |
+| `files_changed` | 8 | 改动的源码文件数超过上限 |
+| `contract_files` | 0 | 动了 OpenAPI、proto、GraphQL、schema 或 `contract` 路径 |
+| `auth_files` | 0 | 动了 auth、login、session、jwt、password、permission、crypto、secret 路径（或 `.env*`） |
+| `dependency_files` | 0 | 动了包清单或锁文件 |
+| `migration_files` | 0 | 动了迁移路径 |
+| `deleted_tests` | 0 | 删了测试文件 |
+| `protected_test_files` | 0 | 动了测试目录、基线、已知失败清单或项目工作流 |
+
+探针不过时，`tenon status --json`（以及 `tenon step run`）不再催着把本步做完，而是只给一个 `scope-expanded` 的 `transition`，
+附 `escalate`（被突破的阈值，以及「另开 `default` 任务并 `tenon set <新任务> depends_on <本任务>`」的指引）。探针没跑或已过期只是一条
+普通的必需测试，所以直接 `build-complete` 会被拒绝：探针是闸，不是建议。`scope-expanded` 本身是放弃边：走它不要求单测、评审者、文档或技能证据，
+工作区的改动原样留给接手的 `default` 任务，不替它提交。不要为了让探针通过去拆改动、藏文件。
+
+### 路由进通道
+
+实现类请求（修、改、加、删、实现、重构、重命名，中英文都认）路由到 `standard`；它的优先级高于 `frontend`、`backend` 轨道，后两者点名才用。
+带重型信号的请求不进 `standard`（架构、跨模块或全项目、schema、迁移或数据库、鉴权或权限、依赖升级、发布或部署、生产数据、全栈）：照旧进 default
+工作流，没有领域轨认领时落到 `backend` 轨，不会无人治理。错字级仍走 `simple`，调研与产品类走 `pm`。没有任何轨道命中、却像在改代码的请求
+（带源码路径、反引号代码、函数调用，或函数、模块、测试、bug、报错这类词）不再被悄悄放过：路由器输出一行提示，说明它没有被治理、怎样起一个
+`standard` 任务。纯讨论的 prompt 从不提示。
+
 ## Default
 
 适用于跨模块、需求可能变化、需要架构取舍或真实验收的任务：
@@ -52,6 +102,7 @@ Change 的指令优先级仍然最高。绑定文件只负责会话身份和运�
 | --- | --- |
 | 只需要解释或诊断？ | discussion |
 | 三个以内明确修改、无架构决策？ | simple |
+| 修 bug、加函数、小重构这类实现，没有重型信号？ | standard（改完按 diff 实测风险，越线再升级到 default） |
 | 需要规格、跨层实现或浏览器验收？ | default |
 | 需要七阶段但不想套领域模板？ | free |
 | 团队已有自定义 DAG？ | custom |

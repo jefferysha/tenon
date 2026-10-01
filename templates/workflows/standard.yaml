@@ -1,0 +1,121 @@
+name: standard
+steps:
+  - id: open
+    label: 立项
+    gate: null
+    prompt: |-
+      用一句话向用户复述目标，并写出可验证的验收标准（哪个失败的用例该变成通过）。目标已经清楚就不提问、不写文档、不加载访谈类技能；含糊到没法开工才问一个问题。
+      一开始就能看出要动接口契约、鉴权、依赖、数据迁移或十几个文件，不要在这里硬做：走 scope-expanded，改开 default 任务。
+    skills: []
+    inputs: []
+    outputs: []
+    guards: []
+    transitions:
+      - event: open-complete
+        to: build
+      - event: scope-expanded
+        to: escalated
+        actions:
+          - type: archive-run
+  - id: build
+    label: 实现
+    gate: null
+    prompt: |-
+      先写（或确认已有）能复现问题、验证新行为的测试，再改代码到测试通过；只改目标需要的文件，不顺手重构。
+      改完照 next 跑本阶段测试和改动风险探针 diff-risk。探针不过（改动文件太多，或碰了契约、鉴权、依赖、迁移，或删了测试、改了受保护的测试配置）说明任务超出标准通道：照 next 走 scope-expanded，再新建 default 任务并 tenon set <新任务> depends_on <本任务>；不要为了让探针通过去拆改动、藏文件。
+    skills:
+      - id: test-driven-development
+    inputs: []
+    outputs: []
+    tests:
+      - id: diff-risk
+        direction: diff-risk
+        command: tenon test diff-risk --json
+        label: 改动风险
+        timeout_s: 60
+        required: true
+        pass:
+          metrics:
+            - name: files_changed
+              max: 8
+            - name: contract_files
+              max: 0
+            - name: auth_files
+              max: 0
+            - name: dependency_files
+              max: 0
+            - name: migration_files
+              max: 0
+            - name: deleted_tests
+              max: 0
+            - name: protected_test_files
+              max: 0
+    guards: []
+    test_policy:
+      plan: required
+      kinds: [unit]
+      run: [unit]
+      run_if_registered: [typecheck]
+      scope: changed
+      files: registered
+    transitions:
+      - event: build-complete
+        to: verify
+      - event: scope-expanded
+        to: escalated
+        actions:
+          - type: archive-run
+  - id: verify
+    label: 验证
+    gate: review
+    prompt: |-
+      先加载验证技能，再照 next 跑全量测试和评审者。派发评审者时，在提示末尾写明用户的原始目标和验收标准，评审者没有规格文档可读。
+      评审者给出 medium 及以上的问题就走 verify-fail 回到实现修掉；不要靠重跑评审者换结论。
+    skills:
+      - id: verification-before-completion
+    inputs: []
+    outputs: []
+    agents:
+      reviewers:
+        - agent: code-review
+          required: true
+          block_at: medium
+        - agent: security
+          required: true
+          block_at: medium
+    guards: []
+    test_policy:
+      run: [unit]
+      run_if_registered: [regression, typecheck, integration, e2e, playwright, a11y, visual]
+      scope: full
+      files: registered
+    transitions:
+      - event: verify-pass
+        to: done
+        actions:
+          - type: mark-verification-passed
+          - type: archive-run
+      - event: verify-fail
+        to: build
+        actions:
+          - type: mark-verification-failed
+      - event: scope-expanded
+        to: escalated
+        actions:
+          - type: archive-run
+  - id: done
+    label: 完结
+    gate: null
+    skills: []
+    inputs: []
+    outputs: []
+    guards: []
+    transitions: []
+  - id: escalated
+    label: 已升级
+    gate: null
+    skills: []
+    inputs: []
+    outputs: []
+    guards: []
+    transitions: []

@@ -25,7 +25,7 @@ const TRACK_CONTEXT: TrackValidationContext = {
 }
 
 describe('readConfigSnapshot（manifest + kernel effective track registry 的 dashboard 契约）', () => {
-  it('缺 tracks.yaml 时返回 builtin-only 六轨、matrix/policy profile 与真实写能力', async () => {
+  it('缺 tracks.yaml 时返回 builtin-only 七轨、matrix/policy profile 与真实写能力', async () => {
     const repoRoot = await mkdtemp(join(tmpdir(), 'pl-cfg-builtin-tracks-'))
 
     const snapshot = readConfigSnapshot({
@@ -39,7 +39,7 @@ describe('readConfigSnapshot（manifest + kernel effective track registry 的 da
     expect(snapshot.generated_at).toBe('2026-07-19T00:00:00Z')
     expect(snapshot.source).toBe('builtin-only')
     expect(snapshot.revision).toMatch(/^[0-9a-f]{16}$/)
-    expect(snapshot.tracks.map((track) => track.id)).toEqual(['chat', 'simple', 'pm', 'frontend', 'backend', 'free'])
+    expect(snapshot.tracks.map((track) => track.id)).toEqual(['chat', 'simple', 'standard', 'pm', 'frontend', 'backend', 'free'])
     expect(snapshot.tracks[0]).toMatchObject({
       id: 'chat',
       builtin: true,
@@ -101,7 +101,7 @@ tracks:
     })
 
     expect(snapshot.source).toBe('project-file')
-    expect(snapshot.tracks.map((track) => track.id)).toEqual(['chat', 'simple', 'pm', 'frontend', 'backend', 'free', 'qa'])
+    expect(snapshot.tracks.map((track) => track.id)).toEqual(['chat', 'simple', 'standard', 'pm', 'frontend', 'backend', 'free', 'qa'])
     expect(snapshot.tracks.find((track) => track.id === 'qa')).toEqual({
       id: 'qa',
       label: 'Quality',

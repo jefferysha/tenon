@@ -303,7 +303,7 @@ _GEN_MJS="$PLUGIN_ROOT/hooks/router-gen.mjs"
 # This release-owned digest is checked on every cache hit with bash builtins only. A unit test
 # pins it to kernel.routerContractRevision(manifest), so builtin/skill/breadcrumb changes cannot
 # silently retain a prior project cache even when plugin mtimes are older than that cache.
-ROUTER_CONTRACT_REV="8540a13de06c72010b429b79f0b1fbecc5facfdcbf61f92d51f3ac20a914040f"
+ROUTER_CONTRACT_REV="1b753306435ce66449df00d4bc1172abdca611712c22ce2e6ee7b1f89f7d259e"
 
 # Bash 3.2-compatible parallel arrays（不使用 associative array 或动态变量名）。
 _router_clear_cache() {
@@ -422,7 +422,7 @@ _router_load_cache() { # file expected-root expected-tracks-present expected-con
           || { _router_clear_cache; return 1; }
         order="${PARTS[1]}"; priority="${PARTS[2]}"
         _uint_ok "$order" && _uint_ok "$priority" || { _router_clear_cache; return 1; }
-        [ "$order" -le 32 ] && [ "${#ROUTER_IDS[@]}" -lt 33 ] || { _router_clear_cache; return 1; }
+        [ "$order" -le 33 ] && [ "${#ROUTER_IDS[@]}" -lt 34 ] || { _router_clear_cache; return 1; }
         [ "$order" -gt "$previous_order" ] || { _router_clear_cache; return 1; }
         previous_order="$order"
         _hex_decode "${PARTS[3]}" || { _router_clear_cache; return 1; }; id="$HEX_VALUE"
@@ -605,6 +605,7 @@ score_track() {
 }
 
 BEST_SCORE=0 BEST_PRIORITY=0 TRACK="" PROFILE="" MATRIX="" BEST_WORKFLOW="default"
+ROUTE_SCORES=() HEAVY_IMPLEMENTATION=0
 i=0
 while [ "$i" -lt "${#ROUTER_IDS[@]}" ]; do
   if [ "${ROUTER_ROUTABLES[$i]}" != "1" ]; then
@@ -617,6 +618,12 @@ while [ "$i" -lt "${#ROUTER_IDS[@]}" ]; do
     [ "$EXCLUSION_SCORE" -gt 0 ] && EXCLUDED=1
   fi
   if [ "$EXCLUDED" -eq 1 ]; then SCORE=0; else SCORE="$(score_track "${ROUTER_PATTERNS[$i]}")"; fi
+  ROUTE_SCORES[$i]="$SCORE"
+  # standard 被重型信号排除、但请求本身确是实现类：记下来，没有别的轨道认领时回落到 default 的 backend 轨。
+  if [ "$EXCLUDED" -eq 1 ] && [ "${ROUTER_IDS[$i]}" = "standard" ] && [ "${ROUTER_BUILTINS[$i]}" = "1" ] \
+    && [ "$(score_track "${ROUTER_PATTERNS[$i]}")" -gt 0 ]; then
+    HEAVY_IMPLEMENTATION=1
+  fi
   if [ "$SCORE" -gt 0 ] && {
     [ "$SCORE" -gt "$BEST_SCORE" ] \
       || { [ "$SCORE" -eq "$BEST_SCORE" ] && [ "${ROUTER_PRIORITIES[$i]}" -gt "$BEST_PRIORITY" ]; }
@@ -630,6 +637,43 @@ while [ "$i" -lt "${#ROUTER_IDS[@]}" ]; do
   fi
   i=$((i + 1))
 done
+
+# standard 通道是实现类请求的默认通道：评分是按行计数的，多行 prompt 里领域轨（frontend / backend）可能以更高的
+# 行数压过 standard。只要 standard 本轮命中（得分 > 0，没被重型信号排除），就让它赢过 default 工作流的领域轨；
+# 重型请求本来就被 standard 的排除正则挡掉（得分 0），仍落回领域轨。
+if [ "$BEST_WORKFLOW" = "default" ] && { [ "$TRACK" = "frontend" ] || [ "$TRACK" = "backend" ]; }; then
+  i=0
+  while [ "$i" -lt "${#ROUTER_IDS[@]}" ]; do
+    if [ "${ROUTER_IDS[$i]}" = "standard" ] && [ "${ROUTER_BUILTINS[$i]}" = "1" ] && [ "${ROUTE_SCORES[$i]:-0}" -gt 0 ]; then
+      BEST_SCORE="${ROUTE_SCORES[$i]}"
+      BEST_PRIORITY="${ROUTER_PRIORITIES[$i]}"
+      TRACK="standard"
+      PROFILE="${ROUTER_PROFILES[$i]}"
+      MATRIX="${ROUTER_MATRICES[$i]}"
+      BEST_WORKFLOW="${ROUTER_WORKFLOWS[$i]}"
+      break
+    fi
+    i=$((i + 1))
+  done
+fi
+
+# 重型的实现类请求（standard 的正则命中、却被架构 / 鉴权 / 迁移这类信号排除）而没有任何领域轨认领：不能静默放过，
+# 回落到 default 工作流的 backend 轨，由完整流程治理。
+if [ "$HEAVY_IMPLEMENTATION" -eq 1 ] && { [ "$BEST_SCORE" -le 0 ] || [ -z "$TRACK" ]; }; then
+  i=0
+  while [ "$i" -lt "${#ROUTER_IDS[@]}" ]; do
+    if [ "${ROUTER_IDS[$i]}" = "backend" ] && [ "${ROUTER_BUILTINS[$i]}" = "1" ] && [ "${ROUTER_ROUTABLES[$i]}" = "1" ]; then
+      BEST_SCORE=1
+      BEST_PRIORITY="${ROUTER_PRIORITIES[$i]}"
+      TRACK="backend"
+      PROFILE="${ROUTER_PROFILES[$i]}"
+      MATRIX="${ROUTER_MATRICES[$i]}"
+      BEST_WORKFLOW="${ROUTER_WORKFLOWS[$i]}"
+      break
+    fi
+    i=$((i + 1))
+  done
+fi
 
 # 用户点名轨道（「走 free 轨道」「用 backend 轨道」「track=pm」「use the frontend track」）比内容评分更强。
 # 只认 effective registry 里的 id（含 chat/free 这类不参与评分的内建轨道与项目自定义轨道）；点名多个或
@@ -733,6 +777,12 @@ fi
 
 if [ "$RESUME_TRACK_BOUND" -ne 1 ] && [ "$NAMED_TRACK_BOUND" -ne 1 ] && [ "$DISPATCH_INTENT" != "select" ] \
   && { [ "$BEST_SCORE" -le 0 ] || [ -z "$TRACK" ]; }; then
+  # 没有任何轨道命中，但这条请求带着「在改代码」的记号（源码路径 / 反引号代码 / 函数调用 / 函数、模块、测试、
+  # 缺陷、报错等词）：别悄悄放过去不治理，给一行提示。纯讨论在更前面已经早退；这里只是兜底，不替代路由。
+  if [ "$DISPATCH_INTENT" = "new" ] \
+    && printf '%s' "$PROMPT" | grep -qiE -- '([A-Za-z0-9_./-]+\.(js|jsx|ts|tsx|mjs|cjs|py|go|rs|java|kt|rb|php|c|cc|cpp|h|cs|swift|vue|svelte|sh|sql|css|scss|html)([^A-Za-z0-9]|$))|`[^`]+`|[A-Za-z_][A-Za-z0-9_]*\([^)]*\)|(^|[^a-z])(function|method|class|module|endpoint|component|test|tests|bug|error|exception|crash|regression|compile|lint)([^a-z]|$)|函数|方法|模块|接口|组件|测试|缺陷|报错|崩溃|异常|编译|代码|脚本|源码'; then
+    printf '\n<workflow-state>\nrouter: 未命中任何轨道规则，但这条请求像是在改代码，当前不会被 Tenon 治理。确实要改代码就先调用 tenon 创建 standard 任务（tenon init <名字> --workflow standard --track standard，再 tenon session activate）后再动手；纯问答或讨论请忽略这一行。\n</workflow-state>\n'
+  fi
   exit 0
 fi
 
@@ -745,15 +795,15 @@ if [ "$DISPATCH_INTENT" = "select" ] && [ -z "$TRACK" ]; then
 fi
 
 # A project-defined routable Track or a project-selected non-default workflow is a real
-# project-level choice. The plugin-owned simple→simple pair is the only non-default built-in pair
-# that is versioned policy rather than project configuration, so it must keep the direct lightweight
-# route. The hook may recommend every other winner, but it must not silently bind that choice.
+# project-level choice. The plugin-owned simple→simple and standard→standard pairs are the only non-default
+# built-in pairs that are versioned policy rather than project configuration, so they keep the direct route. The hook may recommend every other winner, but it must not silently bind that choice.
 CUSTOM_SELECTION_AVAILABLE=0
 i=0
 while [ "$i" -lt "${#ROUTER_IDS[@]}" ]; do
   if [ "${ROUTER_ROUTABLES[$i]}" = "1" ] && { [ "${ROUTER_BUILTINS[$i]}" = "0" ] \
     || { [ "${ROUTER_WORKFLOWS[$i]}" != "default" ] \
-      && ! { [ "${ROUTER_IDS[$i]}" = "simple" ] && [ "${ROUTER_WORKFLOWS[$i]}" = "simple" ]; }; }; }; then
+      && ! { [ "${ROUTER_IDS[$i]}" = "simple" ] && [ "${ROUTER_WORKFLOWS[$i]}" = "simple" ]; } \
+      && ! { [ "${ROUTER_IDS[$i]}" = "standard" ] && [ "${ROUTER_WORKFLOWS[$i]}" = "standard" ]; }; }; }; then
     CUSTOM_SELECTION_AVAILABLE=1
     break
   fi
@@ -817,7 +867,9 @@ fi
 
 if [ "$DISPATCH_INTENT" = "resume" ] && [ -n "$CHANGE_NAME" ]; then
   HDR="change=${CHANGE_NAME} · phase=${EFF_PHASE} · track=${TRACK}（状态绑定）"
-  if [ "$CHANGE_WORKFLOW" = "simple" ]; then
+  if [ "$CHANGE_WORKFLOW" = "standard" ]; then
+    TAIL="已恢复 standard Change。必须立即调用 tenon，并只按冻结的 standard 工作流当前 step 的 step.next 执行；Todo 来自 tenon workflow plan 的步骤标签（open/build/verify/done/escalated），不读取 default tasks.md 或 OpenSpec 文档链。"
+  elif [ "$CHANGE_WORKFLOW" = "simple" ]; then
     TAIL="已恢复 simple Change。必须立即调用 tenon，并只按内建 simple DAG 的当前 step 分派 skill；Todo 来自 change/verify/done/escalated，不读取 default tasks.md 或 OpenSpec 文档链。"
   elif [ "$TRACK" = "free" ]; then
     TAIL="已恢复自由模式 Change。必须立即调用 tenon，并只按绑定 Workflow '${CHANGE_WORKFLOW}' 的真实 DAG、skills、gates 与 OpenSpec contract 推进；不得叠加 PM/frontend/backend 的 profile 或技能矩阵。"
@@ -840,7 +892,9 @@ else
     TAIL="${TRACK_TASK_PHRASE}。项目内已有 change 仅是显式恢复时的候选，严禁把它们绑定到本轮或复用其 phase/tasks。项目已声明自定义 routable Track：必须立即调用 Skill 工具的 tenon，由入口 skill 先根据下方推荐 pair 与候选 pair 询问用户选择 Track/workflow；在用户选择前严禁创建 Change、严禁假定 default。选定后才创建并激活独立 Change。"
   else
     HDR="${TRACK_LABEL} · 独立新任务"
-    if [ "$BEST_WORKFLOW" = "simple" ]; then
+    if [ "$BEST_WORKFLOW" = "standard" ]; then
+      TAIL="已命中 standard 通道（实现类请求的默认通道）。必须立即调用 tenon，用 tenon init <名字> --workflow standard --track standard 创建并激活独立 standard Change，按 open → build → verify → done 执行：不做 explore 与访谈，改完跑测试和改动风险探针，只有 verify 一道评审门。若探针显示改动越过了标准通道（文件太多，或碰了契约、鉴权、依赖、迁移，或删了测试），照 step.next 走 scope-expanded，再新建 default 任务并 tenon set <新任务> depends_on <本任务>；不得生成 default 的 PM/前后端/OpenSpec 文档链。"
+    elif [ "$BEST_WORKFLOW" = "simple" ]; then
       TAIL="已命中严格边界内的 simple 任务。必须立即调用 tenon，创建并激活独立 simple Change，按 change → verify → done 的轻量 DAG 执行；不得生成 default 的 PM/前后端/OpenSpec 文档链。若执行中边界扩大，必须走 scope-expanded 并升级为新的 default Change。"
     elif [ "$TRACK" = "free" ]; then
       TAIL="用户已显式选择自由模式。必须立即调用 tenon，先复核 free Track 与精确 Workflow 的 allowed 关系，再创建独立 Change；只执行所选 Workflow 自己的 DAG、skills、gates 与 OpenSpec contract，不叠加 PM/frontend/backend profile，也不得把自由模式解释为跳过 Workflow。"
@@ -856,6 +910,9 @@ elif [ "$NON_DEFAULT_WORKFLOW_DISPATCH" = "1" ]; then
   if { [ "$DISPATCH_INTENT" = "new" ] && [ "$BEST_WORKFLOW" = "simple" ]; } \
     || { [ "$DISPATCH_INTENT" = "resume" ] && [ "$CHANGE_WORKFLOW" = "simple" ]; }; then
     TAIL="$TAIL simple workflow 是插件内建只读图；项目同名文件不可覆盖，router 不注入 default breadcrumb 或 skill matrix。"
+  elif { [ "$DISPATCH_INTENT" = "new" ] && [ "$BEST_WORKFLOW" = "standard" ]; } \
+    || { [ "$DISPATCH_INTENT" = "resume" ] && [ "$CHANGE_WORKFLOW" = "standard" ]; }; then
+    TAIL="$TAIL standard workflow 是随插件发布的模板（阈值可在工作流 YAML 里改）；router 不注入 default breadcrumb 或 skill matrix。"
   else
     TAIL="$TAIL 当前 Change 绑定自定义 workflow '${CHANGE_WORKFLOW}'：此路由器不会用 default 的 breadcrumb 或 skill 矩阵伪造该阶段要求；必须先调用 tenon，由它以 canonical state 与项目 workflow 图解析本阶段的真实 DAG、OpenSpec 约束和依赖顺序后再分派。"
   fi
@@ -912,13 +969,18 @@ if [ "$SELECTION_REQUIRED" = "1" ]; then
   done
   printf 'selection_required: true\nsuggested_track: %s\nsuggested_workflow: %s\n' "$TRACK" "$BEST_WORKFLOW"
 fi
-if [ "$DISPATCH_INTENT" = "resume" ] && [ -n "$CHANGE_NAME" ]; then
+if [ "$DISPATCH_INTENT" = "resume" ] && [ -n "$CHANGE_NAME" ] && [ "$CHANGE_WORKFLOW" = "standard" ]; then
+  # standard 不走 OpenSpec 文档链，没有 tasks.md；Todo 来自冻结计划的步骤标签。
+  printf 'change: %s\nphase: %s\ntodo_source: tenon-workflow-plan\n' "$CHANGE_NAME" "$EFF_PHASE"
+elif [ "$DISPATCH_INTENT" = "resume" ] && [ -n "$CHANGE_NAME" ]; then
   printf 'change: %s\nphase: %s\ntodo_source: openspec/changes/%s/tasks.md\n' "$CHANGE_NAME" "$EFF_PHASE" "$CHANGE_NAME"
 elif [ "$DISPATCH_INTENT" = "select" ]; then
   printf 'phase: select\ntodo_source: tenon-active-change-selection\n'
 else
   if [ "$DISPATCH_WORKFLOW" = "simple" ]; then
     printf 'phase: change\ntodo_source: builtin-workflow:simple\n'
+  elif [ "$DISPATCH_WORKFLOW" = "standard" ]; then
+    printf 'phase: open\ntodo_source: tenon-workflow-plan\n'
   else
     printf 'phase: open\ntodo_source: tenon-phase-template\n'
   fi
