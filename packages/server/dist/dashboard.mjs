@@ -6372,9 +6372,9 @@ function extractEvidenceItem(raw) {
       const path14 = raw.path;
       if (path14 !== void 0)
         out.path = path14;
-      const sha2562 = raw.sha256;
-      if (sha2562 !== void 0)
-        out.sha256 = sha2562;
+      const sha2563 = raw.sha256;
+      if (sha2563 !== void 0)
+        out.sha256 = sha2563;
       const revision_sha = raw.revision_sha;
       if (revision_sha !== void 0)
         out.revision_sha = revision_sha;
@@ -18302,10 +18302,10 @@ function decodeDoubleQuotedYamlKey(token) {
       decoded += char;
       continue;
     }
-    const escape2 = body2[++i];
-    if (escape2 === void 0)
+    const escape3 = body2[++i];
+    if (escape3 === void 0)
       return void 0;
-    const width = escape2 === "x" ? 2 : escape2 === "u" ? 4 : escape2 === "U" ? 8 : 0;
+    const width = escape3 === "x" ? 2 : escape3 === "u" ? 4 : escape3 === "U" ? 8 : 0;
     if (width > 0) {
       const hex = body2.slice(i + 1, i + 1 + width);
       if (hex.length !== width || !/^[0-9A-Fa-f]+$/.test(hex))
@@ -18336,7 +18336,7 @@ function decodeDoubleQuotedYamlKey(token) {
       L: "\u2028",
       P: "\u2029"
     };
-    const value = simple[escape2];
+    const value = simple[escape3];
     if (value === void 0)
       return void 0;
     decoded += value;
@@ -57794,7 +57794,7 @@ data: ${shared.envelope.slice(0, -1)},"roots":${JSON.stringify(order4)},"project
     });
     res.end(body2);
   }
-  function sendHtml(res, code, html) {
+  function sendHtml(res, code, html, headers = {}) {
     const body2 = Buffer.from(html, "utf8");
     res.writeHead(code, {
       "Content-Type": "text/html; charset=utf-8",
@@ -57803,7 +57803,8 @@ data: ${shared.envelope.slice(0, -1)},"roots":${JSON.stringify(order4)},"project
       "Content-Security-Policy": "frame-ancestors 'none'",
       "X-Frame-Options": "DENY",
       "Referrer-Policy": "no-referrer",
-      "X-Content-Type-Options": "nosniff"
+      "X-Content-Type-Options": "nosniff",
+      ...headers
     });
     res.end(body2);
   }
@@ -57944,6 +57945,116 @@ data: ${shared.body}
   };
 }
 
+// packages/server/src/serverSignIn.ts
+import { createHash as createHash38 } from "node:crypto";
+var COPY = {
+  zh: {
+    required: {
+      heading: "\u9700\u8981\u767B\u5F55",
+      why: "Dashboard \u4E0D\u5411\u672A\u767B\u5F55\u7684\u8BF7\u6C42\u63D0\u4F9B\u4EFB\u4F55\u6570\u636E\u3002\u5728\u7EC8\u7AEF\u8FD0\u884C\u8FD9\u6761\u547D\u4EE4\uFF0C\u6D4F\u89C8\u5668\u4F1A\u81EA\u52A8\u6253\u5F00\u5E76\u767B\u5F55\u3002",
+      copy: "\u590D\u5236\u547D\u4EE4",
+      copied: "\u5DF2\u590D\u5236",
+      continue: "\u7EE7\u7EED",
+      continueHint: "\u5DF2\u7ECF\u767B\u5F55\u8FC7\uFF1A\u8FDB\u5165 Dashboard"
+    },
+    invalid: {
+      heading: "\u767B\u5F55\u94FE\u63A5\u65E0\u6548\u6216\u5DF2\u8FC7\u671F",
+      why: "\u4E00\u6B21\u6027\u767B\u5F55\u94FE\u63A5\u53EA\u80FD\u7528\u4E00\u6B21\uFF0C\u4E14 2 \u5206\u949F\u5185\u6709\u6548\u3002\u5728\u7EC8\u7AEF\u91CD\u65B0\u8FD0\u884C\u8FD9\u6761\u547D\u4EE4\u3002",
+      copy: "\u590D\u5236\u547D\u4EE4",
+      copied: "\u5DF2\u590D\u5236",
+      continue: "\u7EE7\u7EED",
+      continueHint: "\u5DF2\u7ECF\u767B\u5F55\u8FC7\uFF1A\u8FDB\u5165 Dashboard"
+    }
+  },
+  en: {
+    required: {
+      heading: "Sign in required",
+      why: "The Dashboard serves nothing to unauthenticated requests. Run this command in a terminal; your browser opens signed in.",
+      copy: "Copy command",
+      copied: "Copied",
+      continue: "Continue",
+      continueHint: "Already signed in: open the Dashboard"
+    },
+    invalid: {
+      heading: "Sign-in link invalid or expired",
+      why: "A one-time sign-in link works once and expires after 2 minutes. Run this command in a terminal again.",
+      copy: "Copy command",
+      copied: "Copied",
+      continue: "Continue",
+      continueHint: "Already signed in: open the Dashboard"
+    }
+  }
+};
+var SIGN_IN_COMMAND = "tenon dashboard --open";
+function signInLanguage(acceptLanguage) {
+  if (acceptLanguage === void 0) return "zh";
+  let best = null;
+  for (const part of acceptLanguage.split(",")) {
+    const [range = "", ...params2] = part.trim().split(";");
+    const primary = range.trim().toLowerCase().split("-", 1)[0];
+    if (primary !== "en" && primary !== "zh") continue;
+    const given = params2.map((param) => param.trim()).find((param) => /^q=/iu.test(param));
+    const q = given === void 0 ? 1 : Number.parseFloat(given.slice(2));
+    if (!Number.isFinite(q) || q <= 0) continue;
+    if (best === null || q > best.q) best = { lang: primary, q };
+  }
+  return best?.lang ?? "zh";
+}
+var STYLE = `
+:root{color-scheme:light dark;--bg:#f6f6f3;--card:#fff;--border:#dcdbd4;--text:#1a1a17;--text-2:#57574f;--text-3:#6c6c64;--accent:#236a50;--accent-d:#17543e;--code-bg:#f1f0eb;--code-border:#e6e5df;--fill:#e7e6e0;--ink:#18251f;--ink-fg:#fff;--shadow:0 0 0 1px rgb(24 32 27/.06),0 2px 4px -1px rgb(24 32 27/.06),0 12px 28px -6px rgb(24 32 27/.14);--font:"Inter Variable",Inter,"PingFang SC","Microsoft YaHei UI","Microsoft YaHei","Noto Sans CJK SC",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace}
+@media(prefers-color-scheme:dark){:root{--bg:#131513;--card:#1a1c1a;--border:#2c2f2c;--text:#ebebe6;--text-2:#b8b8b0;--text-3:#909088;--accent:#74c29e;--accent-d:#9dd5bb;--code-bg:#202320;--code-border:#2c2f2c;--fill:#2b2e2b;--ink:#ebebe6;--ink-fg:#131513;--shadow:inset 0 1px 0 rgb(255 255 255/.04),0 0 0 1px rgb(0 0 0/.5),0 12px 32px -6px rgb(0 0 0/.55)}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{min-height:100vh;display:grid;place-items:center;padding:16px;background:var(--bg);color:var(--text);font:400 16px/22px var(--font);-webkit-font-smoothing:antialiased}
+main{width:100%;max-width:440px;display:grid;gap:24px;padding:32px;background:var(--card);border-radius:14px;box-shadow:var(--shadow)}
+.mark{display:grid;place-items:center;width:36px;height:36px;border-radius:8px;background:var(--ink);color:var(--ink-fg);font:600 19px/1 var(--font)}
+h1{margin:0;font-size:24px;line-height:34px;font-weight:600;letter-spacing:-.015em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cmd{display:flex;align-items:center;gap:4px;min-width:0;padding-left:12px;border-radius:8px;background:var(--code-bg);border:1px solid var(--code-border)}
+code{flex:1;min-width:0;padding:8px 0;font:400 16px/22px var(--mono);white-space:nowrap;overflow-x:auto;color:var(--text)}
+button{position:relative;flex:none;display:grid;place-items:center;width:32px;height:32px;margin:0;padding:0;border:0;border-radius:8px;background:transparent;color:var(--text-3);cursor:pointer}
+button::after{content:"";position:absolute;inset:-4px}
+button:hover{background:var(--fill);color:var(--text)}
+button svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+button .ok{display:none;color:var(--accent)}
+button[data-copied=true] .ok{display:block}
+button[data-copied=true] .copy{display:none}
+a{justify-self:start;display:inline-flex;align-items:center;min-height:40px;padding:0 4px;margin:-8px 0 -8px -4px;border-radius:4px;font-size:14px;line-height:19px;font-weight:500;color:var(--accent);text-decoration:none;white-space:nowrap}
+a:hover{color:var(--accent-d);text-decoration:underline;text-underline-offset:3px}
+a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+`.trim();
+var SCRIPT = `
+(function(){
+var b=document.getElementById('copy'),c=document.getElementById('cmd'),s=document.getElementById('status');
+if(!b||!c)return;
+function pick(){var r=document.createRange();r.selectNodeContents(c);var g=window.getSelection();if(g){g.removeAllRanges();g.addRange(r)}}
+function done(){
+b.setAttribute('data-copied','true');b.setAttribute('aria-label',b.getAttribute('data-done'));b.title=b.getAttribute('data-done');if(s)s.textContent=b.getAttribute('data-done');
+setTimeout(function(){b.removeAttribute('data-copied');b.setAttribute('aria-label',b.getAttribute('data-label'));b.title=b.getAttribute('data-label');if(s)s.textContent=''},1200)}
+b.addEventListener('click',function(){
+var t=c.textContent||'';
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,pick)}else{pick()}
+})
+})();
+`.trim();
+var sha2562 = (text11) => `'sha256-${createHash38("sha256").update(text11, "utf8").digest("base64")}'`;
+var SIGN_IN_CSP = [
+  "default-src 'none'",
+  `style-src ${sha2562(STYLE)}`,
+  `script-src ${sha2562(SCRIPT)}`,
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'"
+].join("; ");
+var escape2 = (text11) => text11.replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;").replace(/"/gu, "&quot;");
+var COPY_ICON = '<svg class="copy" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg>';
+var OK_ICON = '<svg class="ok" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+function signInPage(reason3, acceptLanguage) {
+  const lang = signInLanguage(acceptLanguage);
+  const text11 = COPY[lang][reason3];
+  return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Tenon Dashboard</title><style>${STYLE}</style></head><body data-testid="sign-in-required" data-reason="${reason3}"><main><span class="mark" aria-hidden="true">t</span><h1 title="${escape2(text11.why)}" data-testid="sign-in-heading">${escape2(text11.heading)}</h1><div class="cmd" title="${escape2(text11.why)}" data-testid="sign-in-command-block"><code id="cmd" data-testid="sign-in-command">${SIGN_IN_COMMAND}</code><button type="button" id="copy" aria-label="${escape2(text11.copy)}" title="${escape2(text11.copy)}" data-label="${escape2(text11.copy)}" data-done="${escape2(text11.copied)}" data-testid="sign-in-copy">${COPY_ICON}${OK_ICON}</button></div><a href="/" title="${escape2(text11.continueHint)}" data-testid="sign-in-continue">${escape2(text11.continue)}</a><span class="sr" id="status" role="status"></span></main><script>${SCRIPT}</script></body></html>`;
+}
+
 // packages/server/src/serverAccess.ts
 var ROUTED_METHODS = /* @__PURE__ */ new Set(["GET", "POST", "PATCH", "PUT", "DELETE"]);
 var COOKIE_MAX_AGE_S = 7 * 24 * 60 * 60;
@@ -57969,14 +58080,11 @@ function cookieValue(header, name) {
 function hasBrowserMetadata(req) {
   return req.headers.origin !== void 0 || Object.keys(req.headers).some((name) => name.startsWith("sec-fetch-"));
 }
-var PAGE_STYLE = "body{font:15px/1.6 system-ui,sans-serif;max-width:34rem;margin:12vh auto;padding:0 1.25rem;color:#1f2328;background:#fff}code{background:#0000000f;padding:.15em .4em;border-radius:4px}a{color:#0a58ca}@media(prefers-color-scheme:dark){body{color:#e6e8eb;background:#12151a}code{background:#ffffff1f}a{color:#79b8ff}}";
-function signInPage(reason3) {
-  const zh = reason3 === "required" ? "<h1>\u9700\u8981\u767B\u5F55</h1><p>Dashboard \u4E0D\u5411\u672A\u767B\u5F55\u7684\u8BF7\u6C42\u63D0\u4F9B\u4EFB\u4F55\u6570\u636E\u3002\u8BF7\u5728\u7EC8\u7AEF\u8FD0\u884C\uFF1A</p>" : "<h1>\u767B\u5F55\u94FE\u63A5\u65E0\u6548\u6216\u5DF2\u8FC7\u671F</h1><p>\u4E00\u6B21\u6027\u767B\u5F55\u94FE\u63A5\u53EA\u80FD\u7528\u4E00\u6B21\uFF0C\u4E14 2 \u5206\u949F\u5185\u6709\u6548\u3002\u8BF7\u5728\u7EC8\u7AEF\u91CD\u65B0\u8FD0\u884C\uFF1A</p>";
-  const en = reason3 === "required" ? "The Dashboard serves nothing to unauthenticated requests. Run <code>tenon dashboard --open</code> in a terminal;" : "A one-time sign-in link works once and expires after 2 minutes. Run <code>tenon dashboard --open</code> again;";
-  return `<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tenon Dashboard</title><style>${PAGE_STYLE}</style></head><body data-testid="sign-in-required">${zh}<p><code>tenon dashboard --open</code></p><p>\u6D4F\u89C8\u5668\u4F1A\u81EA\u52A8\u6253\u5F00\u5E76\u767B\u5F55\u3002\u5DF2\u7ECF\u767B\u5F55\u8FC7\uFF1F<a href="/">\u70B9\u6B64\u8FDB\u5165 Dashboard</a>\u3002</p><p lang="en">${en} your browser opens signed in. Already signed in? <a href="/">Continue</a>.</p></body></html>`;
-}
 function createAccessControl(deps) {
   const { authority, sendJson, sendHtml } = deps;
+  function sendSignIn(req, res, code, reason3) {
+    sendHtml(res, code, signInPage(reason3, headerValue(req, "accept-language")), { "Content-Security-Policy": SIGN_IN_CSP, Vary: "Accept-Language" });
+  }
   const now = deps.now ?? Date.now;
   const sessions = /* @__PURE__ */ new WeakMap();
   const opens = [];
@@ -58000,13 +58108,13 @@ function createAccessControl(deps) {
     }
     const site = headerValue(req, "sec-fetch-site");
     if (site !== void 0 && site !== "none" && site !== "same-origin") {
-      sendHtml(res, 403, signInPage("invalid"));
+      sendSignIn(req, res, 403, "invalid");
       return true;
     }
     const code = new URL(req.url ?? "/", "http://localhost").searchParams.get("code") ?? "";
     const secret = authority.exchange(code);
     if (secret === null) {
-      sendHtml(res, 403, signInPage("invalid"));
+      sendSignIn(req, res, 403, "invalid");
       return true;
     }
     res.writeHead(303, {
@@ -58085,7 +58193,7 @@ function createAccessControl(deps) {
       if (!ROUTED_METHODS.has(method)) return false;
       const session = authority.resolve(cookieValue(req.headers.cookie, sessionCookieName(port)));
       if (session === null) {
-        if (method === "GET" && (path14 === "/" || path14 === "/index.html")) sendHtml(res, 401, signInPage("required"));
+        if (method === "GET" && (path14 === "/" || path14 === "/index.html")) sendSignIn(req, res, 401, "required");
         else sendJson(res, 401, { ok: false, code: "session-required", error: "\u9700\u8981\u767B\u5F55\uFF1A\u8BF7\u5728\u7EC8\u7AEF\u8FD0\u884C tenon dashboard --open" });
         return true;
       }
