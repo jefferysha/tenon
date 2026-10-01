@@ -394,7 +394,5 @@ function exitActions(input: {
   if (readyForward.length > 1) {
     return [{ action: 'choose-exit', exits: readyForward.map((exit) => exit.event) }]
   }
-  const blockers: StepBlocker[] = []
-  for (const exit of forward) blockers.push(...exit.blockers)
-  return [{ action: 'fix', blockers }]
+  return [{ action: 'fix', blockers: forward.flatMap((exit) => exit.blockers) }]
 }

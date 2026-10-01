@@ -120,3 +120,29 @@ describe('Router preview draft override', () => {
       .toThrow(/内建 Track/)
   })
 })
+
+describe('Router preview · standard 通道（真 grep、内建 registry，与 hooks/router.sh 同一决策）', () => {
+  const winnerOf = async (prompt: string): Promise<string | null> =>
+    (await previewTrackRouting(prompt, BUILTIN_TRACK_DEFINITIONS)).winner?.track.id ?? null
+
+  it.each([
+    // 审计里漏判的四个例子：实现类请求默认进 standard。
+    ['add a subtract function to src/add.js', 'standard'],
+    ['refactor the add module', 'standard'],
+    ['给 src/add.js 加一个减法函数', 'standard'],
+    ['重构 add 模块', 'standard'],
+    ['Please fix the null check in parseConfig', 'standard'],
+    ['帮我实现一个 React 组件，做个响应式页面 UI', 'standard'],
+    // 错字级仍归 simple，调研 / 产品归 pm。
+    ['fix a typo in README.md', 'simple'],
+    ['做一个竞品调研并写 PRD', 'pm'],
+    // 重型信号不进 standard：回到 default 的领域轨；没有领域轨认领的回落 backend。
+    ['迁移数据库 schema 并更新 API', 'backend'],
+    ['新增用户登录鉴权', 'backend'],
+    // 名词里的 add / 纯问答不是实现类请求。
+    ['the add function returns the wrong value', null],
+    ['what is the add module', null],
+  ])('%s → %s', async (prompt, expected) => {
+    expect(await winnerOf(prompt)).toBe(expected)
+  })
+})

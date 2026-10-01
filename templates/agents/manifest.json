@@ -33,9 +33,9 @@
     },
     {
       "name": "e2e",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "role": "reviewer",
-      "digest": "sha256:cf17c12d2d78d6681b6c28be0f087c8e4aa482e62aff7e75dfe366153d5c0359"
+      "digest": "sha256:e08e0671a670788495a0a7234eb1f4dfcb0e30df4fff4d5ea0d445a8b213d162"
     },
     {
       "name": "frontend-quality",

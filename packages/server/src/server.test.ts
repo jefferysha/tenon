@@ -619,10 +619,10 @@ describe('POST /api/router/preview —— 公共 Track Router 真决策预览', 
       suppressed_reason: string | null
     }>()
     expect(body.suppressed_reason).toBeNull()
-    expect(body.winner).toMatchObject({ track: { id: 'frontend' }, score: 2, priority: 300, order: 3 })
-    expect(body.candidates.map((candidate) => candidate.track.id)).toEqual(['chat', 'simple', 'pm', 'frontend', 'backend', 'free'])
+    expect(body.winner).toMatchObject({ track: { id: 'frontend' }, score: 2, priority: 300, order: 4 })
+    expect(body.candidates.map((candidate) => candidate.track.id)).toEqual(['chat', 'simple', 'standard', 'pm', 'frontend', 'backend', 'free'])
     expect(body.candidates[0]).toMatchObject({ score: 0, routable: false, order: 0 })
-    expect(score).toHaveBeenCalledTimes(5)
+    expect(score).toHaveBeenCalledTimes(7)
   })
 
   it('讨论型 prompt 返回 suppression；空 prompt/root 未注册在执行 scorer 前拒绝', async () => {
@@ -644,7 +644,30 @@ describe('POST /api/router/preview —— 公共 Track Router 真决策预览', 
     const outsider = await makeProject()
     const unknownRoot = await reqPost(h.port, '/api/router/preview', { root: outsider, prompt: 'backend' }, auth)
     expect(unknownRoot.status).toBe(404)
-    expect(score).toHaveBeenCalledTimes(4)
+    expect(score).toHaveBeenCalledTimes(5)
+  })
+
+  it('standard 通道的两条规则与 hook 一致：命中的 standard 压过 frontend / backend；被重型信号排除的实现类请求回落 backend', async () => {
+    const standardHit = vi.fn<RouterPatternScorer>(async (pattern) => {
+      if (pattern.includes('UI')) return 3
+      if (pattern.includes('修复|修正')) return 1
+      return 0
+    })
+    const h = await start({ scoreRouterPattern: standardHit })
+    const auth = { headers: { Authorization: `Bearer ${h.token}` } }
+    const dominated = await reqPost(h.port, '/api/router/preview', { root: h.root, prompt: 'fix the UI' }, auth)
+    expect(dominated.json<{ winner: { track: { id: string } } }>().winner.track.id).toBe('standard')
+
+    const heavy = vi.fn<RouterPatternScorer>(async (pattern) => {
+      if (pattern.includes('架构|architecture')) return 1
+      if (pattern.includes('修复|修正')) return 1
+      return 0
+    })
+    const h2 = await start({ scoreRouterPattern: heavy })
+    const fallback = await reqPost(h2.port, '/api/router/preview', { root: h2.root, prompt: '新增登录鉴权' }, {
+      headers: { Authorization: `Bearer ${h2.token}` },
+    })
+    expect(fallback.json<{ winner: { track: { id: string }; score: number } }>().winner).toMatchObject({ track: { id: 'backend' }, score: 1 })
   })
 
   it('draft_track 仅在本次预览追加 custom 候选，生产 scorer 看见未保存 pattern', async () => {
@@ -666,7 +689,7 @@ describe('POST /api/router/preview —— 公共 Track Router 真决策预览', 
     expect(response.status).toBe(200)
     expect(response.json<{ winner: { track: { id: string } }; candidates: Array<{ track: { id: string } }> }>()).toMatchObject({
       winner: { track: { id: 'release' } },
-      candidates: [{ track: { id: 'chat' } }, { track: { id: 'simple' } }, { track: { id: 'pm' } }, { track: { id: 'frontend' } }, { track: { id: 'backend' } }, { track: { id: 'free' } }, { track: { id: 'release' } }],
+      candidates: [{ track: { id: 'chat' } }, { track: { id: 'simple' } }, { track: { id: 'standard' } }, { track: { id: 'pm' } }, { track: { id: 'frontend' } }, { track: { id: 'backend' } }, { track: { id: 'free' } }, { track: { id: 'release' } }],
     })
     expect(score).toHaveBeenCalledWith('draft-only', 'representative intent')
   })
@@ -2063,7 +2086,7 @@ tracks:
     expect(body.generated_at).toBe('2026-07-07T00:00:00Z')
     expect(body.source).toBe('project-file')
     expect(body.revision).toMatch(/^[0-9a-f]{16}$/)
-    expect(body.tracks.map((track: { id: string }) => track.id)).toEqual(['chat', 'simple', 'pm', 'frontend', 'backend', 'free', 'qa'])
+    expect(body.tracks.map((track: { id: string }) => track.id)).toEqual(['chat', 'simple', 'standard', 'pm', 'frontend', 'backend', 'free', 'qa'])
     expect(body.tracks.find((track: { id: string }) => track.id === 'qa')).toEqual({
       id: 'qa',
       label: 'Quality',
@@ -2082,13 +2105,13 @@ tracks:
     expect(body.mandatory_skills['open._all']).toContain('openspec-propose')
   })
 
-  it('项目无 tracks.yaml → kernel 合法 builtin-only 六轨，不要求迁移文件', async () => {
+  it('项目无 tracks.yaml → kernel 合法 builtin-only 七轨，不要求迁移文件', async () => {
     const h = await startWithConfig()
     const r = await reqGet(h.port, `/api/config?root=${encodeURIComponent(h.root)}`)
     expect(r.status).toBe(200)
     const body = r.json<any>()
     expect(body.source).toBe('builtin-only')
-    expect(body.tracks.map((track: { id: string }) => track.id)).toEqual(['chat', 'simple', 'pm', 'frontend', 'backend', 'free'])
+    expect(body.tracks.map((track: { id: string }) => track.id)).toEqual(['chat', 'simple', 'standard', 'pm', 'frontend', 'backend', 'free'])
   })
 
   it('缺 root → 400；未注册 root → 404', async () => {
@@ -2189,7 +2212,7 @@ describe('GET/POST/PATCH/DELETE /api/tracks —— v3 Studio Track CRUD', () => 
     const initial = await reqGet(h.port, `/api/tracks?root=${encodeURIComponent(h.root)}`)
     expect(initial.status).toBe(200)
     const first = initial.json<any>()
-    expect(first.tracks.map((track: { id: string }) => track.id)).toEqual(['chat', 'simple', 'pm', 'frontend', 'backend', 'free'])
+    expect(first.tracks.map((track: { id: string }) => track.id)).toEqual(['chat', 'simple', 'standard', 'pm', 'frontend', 'backend', 'free'])
 
     const created = await reqPost(h.port, '/api/tracks', {
       root: h.root,
@@ -3534,7 +3557,7 @@ describe('工作流全局存储（root 为空 = 用户级 configRoot/workflows�
 
     const list = await reqGet(h.port, '/api/workflows')
     expect(list.status).toBe(200)
-    expect(list.json<{ names: string[]; default: { source: string } }>()).toEqual({ names: ['shared', 'design-system'], default: { source: 'builtin' } })
+    expect(list.json<{ names: string[]; default: { source: string } }>()).toEqual({ names: ['shared', 'design-system', 'standard'], default: { source: 'builtin' } })
 
     const one = await reqGet(h.port, '/api/workflows/shared')
     expect(one.status).toBe(200)
@@ -3579,7 +3602,7 @@ describe('GET /api/workflows —— 列出自定义 workflow（GOAL E8）', () =
     const r = await reqGet(port, `/api/workflows?root=${encodeURIComponent(root)}`)
     expect(r.status).toBe(200)
     // 模板工作流恒在列表里（default 例外：它由 default 字段表达来源）。
-    expect(r.json<{ names: string[] }>().names).toEqual(['design-system'])
+    expect(r.json<{ names: string[] }>().names).toEqual(['design-system', 'standard'])
   })
 
   it('真扫 .pipeline/workflows/*.yaml，排除 default，200 返回 names', async () => {
@@ -3592,14 +3615,14 @@ describe('GET /api/workflows —— 列出自定义 workflow（GOAL E8）', () =
     await writeFile(join(dir, 'default.yaml'), wf.replace('onboarding', 'default'), 'utf8')
     const r = await reqGet(h.port, `/api/workflows?root=${encodeURIComponent(h.root)}`)
     expect(r.status).toBe(200)
-    expect(r.json<{ names: string[] }>().names).toEqual(['onboarding', 'design-system'])
+    expect(r.json<{ names: string[] }>().names).toEqual(['onboarding', 'design-system', 'standard'])
   })
 
   it('无 .pipeline/workflows 目录 → 200 + 只有模板名（不是错误）', async () => {
     const h = await start()
     const r = await reqGet(h.port, `/api/workflows?root=${encodeURIComponent(h.root)}`)
     expect(r.status).toBe(200)
-    expect(r.json<{ names: string[] }>().names).toEqual(['design-system'])
+    expect(r.json<{ names: string[] }>().names).toEqual(['design-system', 'standard'])
   })
 
   it('server 启动后 registered root 被改名并在原路径换成外部 symlink → 403，绝不读取外部 workflow', async () => {
@@ -3998,7 +4021,7 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     expect(override.tracks.backend?.documentContract).toEqual(tracks.backend?.documentContract)
     expect(override.tracks.backend?.steps[0]?.skills.map((skill) => skill.id)).toEqual(['openspec-propose', 'brainstorming'])
     const listed = await reqGet(h.port, `/api/workflows?root=${encodeURIComponent(h.root)}`)
-    expect(listed.json<{ names: string[]; default: { source: string } }>()).toEqual({ names: ['design-system'], default: { source: 'project' } })
+    expect(listed.json<{ names: string[]; default: { source: string } }>()).toEqual({ names: ['design-system', 'standard'], default: { source: 'project' } })
 
     const removed = await reqDelete(
       h.port, `/api/workflows/default?root=${encodeURIComponent(h.root)}`,
@@ -5351,7 +5374,7 @@ describe('POST /api/projects —— 注册项目进机器级注册表（G18）',
     expect(await registerProjectRoot(h.registryPath, proj)).toBe(true)
     const listed = await reqGet(h.port, `/api/workflows?root=${encodeURIComponent(proj)}`)
     expect(listed.status).toBe(200)
-    expect(listed.json<{ names: string[] }>().names).toEqual(['design-system'])
+    expect(listed.json<{ names: string[] }>().names).toEqual(['design-system', 'standard'])
 
     const created = await reqPost(h.port, '/api/workflows/dynamic', {
       root: proj,

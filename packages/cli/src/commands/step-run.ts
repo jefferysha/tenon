@@ -43,7 +43,7 @@ const BATCHABLE: ReadonlySet<string> = new Set(['scaffold-document', 'record-doc
 const HOST_ACTIONS: ReadonlySet<string> = new Set(['load-tenon', 'load-skill', 'run-agent'])
 
 function describeAction(action: StepAction): string {
-  const detail = ['event', 'skill', 'agent', 'test', 'kind', 'field']
+  const detail = ['event', 'kind', 'skill', 'agent', 'test', 'field']
     .map((key) => action[key]).find((value) => typeof value === 'string')
   return detail === undefined ? action.action : `${action.action} ${String(detail)}`
 }
@@ -54,7 +54,8 @@ function stopFor(action: StepAction): StepRunStop {
   return { kind: 'work', action: action.action, reason: `${what} 要实际工作，不是批量命令能代做的` }
 }
 
-interface Outcome { readonly done: StepRunDone; readonly stop?: StepRunStop }
+/** `done` 缺席 = 没有可做的事（例如骨架文件已经在），不进「已做」清单也不算推进。 */
+interface Outcome { readonly done?: StepRunDone; readonly stop?: StepRunStop }
 
 async function perform(deps: CliDeps, change: string, step: StepBlock, action: StepAction): Promise<Outcome> {
   const kind = String(action.kind)
@@ -75,6 +76,7 @@ async function perform(deps: CliDeps, change: string, step: StepBlock, action: S
           stop: { kind: 'author', action: action.action, reason: `${kind} 的路径要作者定名（delta-spec：tenon document scaffold ${change} delta-spec --capability <名>）` },
         }
       }
+      if (existsSync(resolve(deps.cwd, path))) return {}
       return finish(command, await cmdDocumentScaffold(captured.deps, change, kind), captured.out.at(-1) ?? path)
     }
     case 'record-document': {
@@ -88,10 +90,13 @@ async function perform(deps: CliDeps, change: string, step: StepBlock, action: S
       }
       const result = await recordOneDocument(deps, change, action, step.skills)
       if (result.outcome === 'recorded') return { done: { action: action.action, command, ok: true, detail: result.detail } }
-      const author = result.outcome === 'skipped'
+      // 作者还没写完不是「做了又失败」：什么都没改，只说停在哪；真被拒才进「已做」清单。
+      if (result.outcome === 'skipped') {
+        return { stop: { kind: 'author', action: action.action, reason: `${path ?? kind}：${result.detail}；写完再跑一次 tenon step run ${change}` } }
+      }
       return {
         done: { action: action.action, command, ok: false, detail: result.detail },
-        stop: { kind: author ? 'author' : 'error', action: action.action, reason: author ? `${result.detail}；写完再跑一次 tenon step run ${change}` : result.detail },
+        stop: { kind: 'error', action: action.action, reason: result.detail },
       }
     }
     case 'read-documents':
@@ -122,18 +127,22 @@ export async function cmdStepRun(deps: CliDeps, change: string, opts: { readonly
       break
     }
     let progressed = false
-    for (const action of step.next) {
+    // 同一波里先铺完所有骨架，再登记：next 是一份文档一对 scaffold / record 地交替下发的，
+    // 照原样走会在第一份文档的占位符上停下，后面的骨架就没铺。
+    const wave = [...step.next.filter((action) => action.action === 'scaffold-document'),
+      ...step.next.filter((action) => action.action !== 'scaffold-document')]
+    for (const action of wave) {
       if (!BATCHABLE.has(action.action)) {
         stopped = stopFor(action)
         break
       }
       const outcome = await perform(deps, change, step, action)
-      did.push(outcome.done)
+      if (outcome.done !== undefined) did.push(outcome.done)
       if (outcome.stop !== undefined) {
         stopped = outcome.stop
         break
       }
-      progressed = true
+      if (outcome.done?.ok === true) progressed = true
     }
     if (!progressed && stopped === null) break
     const reread = await loadStepBlock(deps, change)

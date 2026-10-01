@@ -61,7 +61,11 @@ export async function recordOneDocument(
   if (path === null) return skipped('路径要作者定名（delta-spec 先 tenon document scaffold <change> delta-spec --capability <名>）')
   if (!existsSync(resolve(deps.cwd, path))) return skipped(`文件还没写：先 tenon document scaffold ${change} ${kind} 再写内容`)
   const refusal = await placeholderRefusal(deps.cwd, kind, path)
-  if (refusal !== null) return skipped(`骨架占位符还没替换完：${refusal.split('\n')[0] ?? ''}`)
+  if (refusal !== null) {
+    const [header = '', first = ''] = refusal.split('\n')
+    const count = /仍含 (\d+) 处/u.exec(header)?.[1]
+    return skipped(`骨架里还有 ${count ?? '若干'} 处占位符没替换（${first.trim()}）`)
+  }
   if (producer === null) return { kind, path, producer, outcome: 'failed', detail: '这份文档在当前步骤没有合法的 producer' }
   const captured = capturing(deps)
   const code = await cmdDocumentRecord(captured.deps, change, kind, path, producer)

@@ -143,7 +143,7 @@ export { workflowNamesUnder } from './infrastructure/workflow-global-store.js'
 export type { WorkflowDirectoryReader } from './workflow/global-store.js'
 export { BUILTIN_WORKFLOW_IDS, builtinWorkflow } from './workflow/builtin-workflows.js'
 export type { BuiltinWorkflowId } from './workflow/builtin-workflows.js'
-export { DEFAULT_WORKFLOW_SOURCE } from './workflow/default-workflow.generated.js'
+export { DEFAULT_WORKFLOW_SOURCE, STANDARD_WORKFLOW_SOURCE } from './workflow/default-workflow.generated.js'
 export {
   canonicalWorkflowSkillId,
   completedWorkflowSkillsSinceStepEntry,
