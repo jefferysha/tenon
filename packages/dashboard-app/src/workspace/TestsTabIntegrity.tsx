@@ -5,7 +5,11 @@ import { integrityLabel } from '../tests/testLabels'
 import { TABLE_HEAD, TABLE_ROW, gridRow } from '../tests/testStyles'
 import type { IntegrityReport } from '../api/testSystemTypes'
 
-const COLUMNS = 'grid-cols-[minmax(0,1.3fr)_minmax(0,2.4fr)_minmax(0,1fr)_minmax(0,1fr)_5rem]'
+/**
+ * 明细（`lines 80 → 60`、`-3 +1`）是读这张表的目的，给它一个不会被挤掉的下限（12rem，够 20 个等宽字符）；
+ * 对象多是路径，最先让位：它可以缩到 0 并截断（完整路径在 title）。信号名其次，套件名通常最短。
+ */
+const COLUMNS = 'grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)_minmax(12rem,1.5fr)_minmax(0,0.8fr)_5rem]'
 
 /**
  * 测试完整性：相对任务起点，证据有没有变弱（用例数、跳过、断言、快照、基线、已知失败、覆盖率门槛）。

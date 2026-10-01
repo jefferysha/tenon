@@ -74,6 +74,18 @@ describe('TestsTabIntegrity · 工作台测试页签的完整性段', () => {
     expect(within(long).getByTestId('tests-integrity-signal')).toHaveAttribute('title', 'test-skipped')
   })
 
+  it('列宽：明细有下限（够放 `lines 80 → 60`），对象可以缩到 0 先让位；表头与每一行共用同一组列宽', () => {
+    mount({ mode: 'notice', state: 'ok', signals: SIGNALS })
+    const section = screen.getByTestId('tests-integrity')
+    const grids = [within(section).getAllByRole('row')[0] as HTMLElement, ...within(section).getAllByTestId('tests-integrity-row')]
+      .map((row) => /grid-cols-\[([^\]]+)\]/u.exec(row.className)?.[1])
+    expect(new Set(grids).size).toBe(1)
+    const tracks = (grids[0] ?? '').split('_')
+    expect(tracks).toHaveLength(5)
+    expect(tracks[1]).toMatch(/^minmax\(0,/u)
+    expect(tracks[2]).toMatch(/^minmax\(1[2-9]rem,/u)
+  })
+
   it('读不出改动行：一行「未检查」，原因放 title，不写句子；运行记录类信号照常列出', () => {
     mount({ mode: 'block', state: 'unavailable', reason: '当前目录不是 git 仓库', signals: SIGNALS.slice(0, 1) })
     const row = screen.getByTestId('tests-integrity-unavailable')
