@@ -22,6 +22,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TENON_NODE_PATH="$(command -v node 2>/dev/null || true)"
 export TENON_NODE_PATH
 GATE="$ROOT/hooks/gate.sh"
+GATE_LIB="$ROOT/hooks/lib/protected-writes.sh" # gate.sh 在原始输入名了受保护路径 / 解释器时才加载的写入识别
 BC="$ROOT/hooks/breadcrumb.sh"
 SS="$ROOT/hooks/session-start.sh"
 VS="$ROOT/tools/verify-skills.sh"
@@ -704,12 +705,12 @@ if [ "$gate_node_n" -gt 0 ] 2>/dev/null; then
 else
   bad "gate.sh 合法引用 node（统一 workflow skill DAG 委托分支，Task 9）" "实得 0 行——是否误删了 Task 9 分支？"
 fi
-for f in "$GATE" "$BC" "$SS" "$SL"; do
+for f in "$GATE" "$GATE_LIB" "$BC" "$SS" "$SL"; do
   base="$(basename "$f")"
   n="$(grep -c "python" "$f" || true)"
   [ "$n" = "0" ] && ok "红线: $base 内无 python" || bad "红线: $base 内无 python" "实得 ${n} 行"
 done
-for f in "$GATE" "$BC" "$SL"; do
+for f in "$GATE" "$GATE_LIB" "$BC" "$SL"; do
   base="$(basename "$f")"
   n="$(grep -c "jq" "$f" || true)"
   [ "$n" = "0" ] && ok "红线: $base 不依赖 jq" || bad "红线: $base 不依赖 jq" "实得 ${n} 行"

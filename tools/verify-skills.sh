@@ -206,6 +206,10 @@ if [ -f "$HOOKS_JSON" ]; then
     [ -f "$p" ] && [ -x "$p" ] \
       || add_fail "缺失或不可执行 hook 脚本: $rel" "hooks/hooks.json" "把 $rel 纳入发布包并 chmod +x"
   done
+  # gate.sh 在原始输入名了受保护路径 / 解释器时才加载的写入识别：缺了它，门会对写测试记录的调用放行。
+  N_PATH=$((N_PATH + 1))
+  [ -f "$ROOT/hooks/lib/protected-writes.sh" ] \
+    || add_fail "缺失 hook 辅助脚本: hooks/lib/protected-writes.sh" "hooks/gate.sh" "把 hooks/lib/protected-writes.sh 纳入发布包"
   while IFS= read -r shell_file; do
     [ -n "$shell_file" ] || continue
     N_PATH=$((N_PATH + 1))
