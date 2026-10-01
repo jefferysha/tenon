@@ -223,6 +223,27 @@ tenon runtime repair --rollback
 
 If no verified previous release exists, rerun host-scoped setup.
 
+### `tenon runtime Node identity changed`
+
+The stable launchers pin the Node binary chosen at setup: no symlinks on its path, its inode, mode, owner and size, the
+inode, mode and owner of each parent directory, and the SHA-256 of its bytes. v0.2.0 also pinned the device number,
+which macOS changes at every restart, so every command and hook failed after one. v0.2.1 does not store it.
+
+- The message names `tenon setup --claude` (or `--codex`): the Node bytes are unchanged and only their identity moved.
+  `tenon setup`, `tenon update`, `tenon doctor` and `tenon runtime` still run through the launcher. Run the setup
+  command for your host to re-pin.
+- The message prints a command that starts with `env TENON_RUNTIME_ROOTS=`: the pinned Node was replaced or removed,
+  for example by an in-place Node upgrade. Run that command as printed. It starts the bootstrap with the Node on your
+  `PATH`, and setup pins that Node. Use `--codex` instead of `--claude` for Codex.
+- If a v0.2.0 launcher already refuses everything, run the versioned `install.sh` for the host once; it does not use the
+  launcher.
+- A launcher that still pins a device number but works (for example right after a v0.2.0 `tenon update`) is rewritten
+  by the first Tenon command or session start that runs from v0.2.1 or later. `tenon doctor` shows `runtime:launcher`
+  as WARN until then and names `tenon setup --claude` / `--codex` as the manual fix.
+
+Hooks print this message at most once every 30 minutes and otherwise exit 0 without output. They never block the host.
+The marker is `launcher-node-identity.notice` in the Tenon state directory.
+
 ### YAML projection drift
 
 ```bash

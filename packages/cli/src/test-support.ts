@@ -442,6 +442,7 @@ export function mockDoctorProbes(overrides: Partial<DoctorProbes> = {}): DoctorP
     hostKind: () => 'terminal',
     codexAuthStatus: async () => ({ state: 'authenticated' }),
     runVerifySkills: async () => ({ code: 0, output: '[verify-skills] OK' }),
+    stableLauncherFormat: async () => 'current' as const,
     productIdentity: async () => {
       const releaseId = `sha256-${'a'.repeat(64)}`
       return {

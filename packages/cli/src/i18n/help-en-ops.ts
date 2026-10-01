@@ -9,6 +9,7 @@ export const HELP_EN_OPS: Readonly<Record<string, string>> = {
   'internal-skill-gate': '[internal] Skill DAG unlock decision for non-default workflows (the target gate.sh delegates to; 0 = allow, 2 = block)',
   'internal-constraint-gate': '[internal] AutomationPolicy path authorization (0 = allow, 2 = deny, 1 = corrupt input)',
   'internal-codex-jsonl': '[internal] Parse host-owned codex exec --json events (usage|transitions)',
+  'internal-launcher-heal': '[internal] Rewrite a v0.2.0 stable launcher that pins a device number into the restart-safe format; called by the bootstrap when it finds a legacy launcher',
   'internal-skill-provenance': '[internal] Canonical Skill provenance verify|sync (used by the bundled verifier)',
   'internal-skill-provenance --root': 'Plugin/release root',
   'internal-skill-provenance --json': 'Print structured findings',

@@ -39,6 +39,7 @@ const EXPECTED_IDS = [
   'afk:credential-claude-code',
   'afk:credential-codex',
   'skills:upstream',
+  'runtime:launcher',
 ] as const
 
 async function runJson(deps: TestDeps): Promise<{ code: number; payload: DoctorJson }> {
@@ -78,7 +79,7 @@ describe('doctor skills:upstream', () => {
   ] as const)('%s', async (_label, probe, status, detail, hint) => {
     const deps = makeDeps({ doctor: { upstreamSkillView: probe } })
     const { code, payload } = await runJson(deps)
-    expect(payload.checks.at(-1)?.id).toBe('skills:upstream')
+    expect(payload.checks.at(-2)?.id).toBe('skills:upstream')
     const check = byId(payload, 'skills:upstream')
     expect(check.status).toBe(status)
     expect(check.detail).toContain(detail)
@@ -109,14 +110,48 @@ describe('doctor skills:upstream', () => {
   })
 })
 
+describe('doctor runtime:launcher', () => {
+  test.each([
+    ['current', 'green', '重启安全格式', ''],
+    ['absent', 'green', '未安装稳定 launcher', ''],
+    ['unmanaged', 'green', '不是 Tenon 生成', ''],
+    ['legacy', 'yellow', '设备号钉死格式', 'tenon setup --claude'],
+  ] as const)('%s launchers', async (format, status, detail, hint) => {
+    const deps = makeDeps({ doctor: { stableLauncherFormat: async () => format } })
+    const { code, payload } = await runJson(deps)
+    const check = byId(payload, 'runtime:launcher')
+    expect(check.status).toBe(status)
+    expect(check.detail).toContain(detail)
+    expect(check.hint).toContain(hint)
+    if (format === 'legacy') expect(check.hint).toContain('tenon setup --codex')
+    expect(code).toBe(0)
+  })
+
+  test('a legacy launcher is a WARN line with its fix, not a failure', async () => {
+    const deps = makeDeps({ doctor: { stableLauncherFormat: async () => 'legacy' } })
+    expect(await cmdDoctor(deps, {})).toBe(0)
+    const text = deps.outLines.join('\n')
+    expect(text).toMatch(/\[WARN\] runtime:launcher/u)
+    expect(text).toContain('fix: 运行 tenon setup --claude 或 tenon setup --codex')
+  })
+
+  test('an unwired probe shows as red instead of silently passing', async () => {
+    const deps = makeDeps()
+    delete (deps.doctor as { stableLauncherFormat?: unknown }).stableLauncherFormat
+    const { code, payload } = await runJson(deps)
+    expect(byId(payload, 'runtime:launcher').status).toBe('red')
+    expect(code).toBe(1)
+  })
+})
+
 describe('doctor —— 统一健康面（BACKLOG #26b，GOAL B8 降级可见 / D10 > tenon doctor）', () => {
-  test('全绿基线：26 项检查全 green，exit 0，人读输出含汇总行、无 WARN/FAIL', async () => {
+  test('全绿基线：27 项检查全 green，exit 0，人读输出含汇总行、无 WARN/FAIL', async () => {
     const deps = makeDeps()
     const code = await cmdDoctor(deps, {})
     expect(code).toBe(0)
     const text = deps.outLines.join('\n')
     expect(text).toContain('[DOCTOR]')
-    expect(text).toContain('绿 26')
+    expect(text).toContain('绿 27')
     expect(text).not.toContain('[WARN]')
     expect(text).not.toContain('[FAIL]')
     expect(text).not.toContain('fix:')
@@ -145,7 +180,7 @@ describe('doctor —— 统一健康面（BACKLOG #26b，GOAL B8 降级可见 / 
       expect(typeof c.detail).toBe('string')
       expect(typeof c.hint).toBe('string')
     }
-    expect(payload.summary).toEqual({ green: 26, yellow: 0, red: 0 })
+    expect(payload.summary).toEqual({ green: 27, yellow: 0, red: 0 })
   })
 
   test('native host/runtime/Dashboard 任一版本漂移时 identity:release red', async () => {
@@ -767,7 +802,7 @@ describe('doctor —— 统一健康面（BACKLOG #26b，GOAL B8 降级可见 / 
     }
     expect(code).toBe(0)
     const payload = JSON.parse(deps.outLines.join('\n')) as DoctorJson
-    expect(payload.summary).toEqual({ green: 26, yellow: 0, red: 0 })
+    expect(payload.summary).toEqual({ green: 27, yellow: 0, red: 0 })
   })
 })
 

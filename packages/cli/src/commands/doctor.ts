@@ -27,6 +27,7 @@ import {
 } from './doctor-skills.js'
 import { checkCodexProjectSkills } from './doctor-codex-skills.js'
 import { checkCodexAuth, checkStatusline, checkTenonOnPath } from './doctor-host.js'
+import { checkStableLauncher } from './doctor-launcher.js'
 import { checkPlatform } from './doctor-platform.js'
 import { checkProductIdentity } from './doctor-product-identity.js'
 import { checkUpstreamSkills, renderUpstreamSkillTable, upstreamSkillViewOf } from './doctor-upstream-skills.js'
@@ -345,6 +346,12 @@ export async function cmdDoctor(
     checks.push(await checkUpstreamSkills(p))
   } catch (e) {
     checks.push(red('skills:upstream', `检查自身异常: ${errMsg(e)}`, '排除探针环境问题后重跑 tenon doctor'))
+  }
+
+  try {
+    checks.push(await checkStableLauncher(p))
+  } catch (e) {
+    checks.push(red('runtime:launcher', `检查自身异常: ${errMsg(e)}`, '排除探针环境问题后重跑 tenon doctor'))
   }
 
   const summary = {

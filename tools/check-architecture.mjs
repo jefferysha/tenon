@@ -278,6 +278,7 @@ const USER_IDENTITY_SHELL_MIRROR = 'hooks/tenon-user.sh'
 const PRODUCT_ROOT_CONTRACT_SITES = new Set([
   PRODUCT_PATH_OWNER,
   'packages/cli/src/runtime/launchers.ts',
+  'packages/cli/src/runtime/stable-launcher-format.ts',
   'runtime/tenon-bootstrap.mjs',
   USER_IDENTITY_SHELL_MIRROR,
 ])

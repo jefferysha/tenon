@@ -4,6 +4,66 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
+## v0.2.1 · 2026-10-01
+
+A hotfix for v0.2.0. After a restart of macOS every `tenon` command and every hook failed with
+`tenon runtime Node identity changed; rerun tenon setup --codex or tenon setup --claude`, and the command that message
+named was refused by the same check, so the install could not repair itself.
+
+### Fixed
+
+- The stable launchers (`~/.local/bin/tenon` and `tenon-hook`) pinned the device number (`st_dev`) of the Node binary
+  and of each parent directory. macOS gives the same volume a new device number at every restart, so the pin never
+  survived one. Launchers no longer store it. They still refuse a symlink on the Node path, pin the inode, mode, owner
+  and size of the binary and the inode, mode and owner of its parent directories, and compare the Node's SHA-256 with
+  the digest taken at setup. Linux gets the same change.
+- A launcher that fails its Node check no longer locks you out. If the Node bytes are unchanged and only their identity
+  moved, `tenon setup`, `update`, `doctor` and `runtime` still run, so `tenon setup --claude` (or `--codex`) re-pins;
+  any other command prints one line naming that repair. If the Node was replaced or removed, the line is a complete
+  command that runs the bootstrap with the Node on your `PATH`:
+  `env TENON_RUNTIME_ROOTS=… node …/bootstrap/active.mjs cli setup --claude` (`--codex` for Codex).
+- Hooks print that message at most once every 30 minutes and otherwise exit 0 without output. They never block the host.
+- The release repairs v0.2.0-format launchers itself. `tenon update` run by v0.2.0 writes the old format again, so the
+  first Tenon command or session start afterwards rewrites both launchers with the writer `setup` uses, but only when
+  they are Tenon's own files (not symlinks), export the same roots, and pin the Node that is running with its recorded
+  SHA-256. A command prints one line when it did so, or one line naming `tenon setup --claude` / `--codex` if it could
+  not. Hooks stay silent and never wait for it. Anything else is left untouched.
+- `tenon doctor` has a new check, `runtime:launcher`: WARN while a launcher still pins a device number, PASS otherwise.
+- The payload digest cache no longer keys on the device number, so the first dispatch after a restart does not re-hash
+  the whole payload.
+
+### What you need to do
+
+If every command already fails with `Node identity changed`, run the versioned installer once for each host you use. It
+does not go through the broken launcher:
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.2.1/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.2.1/install.sh | /bin/bash -s -- --codex
+```
+
+If v0.2.0 still works for you, run `tenon update --codex` (or `--claude`). The updater that runs is still v0.2.0 and
+writes the old launchers once more; the first Tenon command or new session after it switches them to the restart-safe
+format automatically. `tenon setup --codex` (or `--claude`) does the same by hand. A fresh install of v0.2.1 needs
+nothing.
+
+### Compatibility
+
+No public command, option, project file or Dashboard API changed. The additions are the `runtime:launcher` doctor check
+and an internal repair command; the launcher text changes (no device number, new failure messages). Projects and
+runtime state are untouched.
+
+### Verify
+
+```bash
+tenon runtime status
+tenon doctor
+grep -c '%d' ~/.local/bin/tenon
+```
+
+The runtime reports the active release and doctor is green, including `runtime:launcher`. The `grep` prints `0`. After
+the next restart `tenon runtime status` still works.
+
 ## v0.2.0 · 2026-09-30
 
 A capability release. Agents are now written and registered in the terminal, the whole workflow can be seen as one

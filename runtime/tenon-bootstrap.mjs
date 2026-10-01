@@ -10,7 +10,7 @@
 import { chmod, lstat, mkdir, readFile, rename, rm, writeFile, appendFile, readdir, stat, utimes } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { homedir } from 'node:os'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { createHash, randomBytes } from 'node:crypto'
 
 const RELEASE_ID = /^sha256-[a-f0-9]{64}$/
@@ -333,9 +333,11 @@ async function hashPayload(root, manifestVersion) {
 
 // Stat fingerprint of the same payload tree, without reading file bytes. ctime and inode are part of the
 // key, and ordinary writers cannot preserve them, so any content or mode change forces a full re-hash.
+// The device number is deliberately not part of it: the cache persists across reboots, and macOS assigns
+// a new st_dev per mount after every restart, which would force a needless full re-hash on first use.
 async function payloadStatFingerprint(root) {
   const hash = createHash('sha256')
-  hashFrame(hash, 'tenon-payload-stat-v1')
+  hashFrame(hash, 'tenon-payload-stat-v2')
   async function visit(dir, rel) {
     const entries = await readdir(dir, { withFileTypes: true })
     entries.sort(compareUtf8Names)
@@ -347,7 +349,7 @@ async function payloadStatFingerprint(root) {
         throw new Error(`payload contains unsupported entry: ${childRel}`)
       }
       for (const field of [
-        item.isDirectory() ? 'directory' : 'file', childRel, item.mode, item.size, item.mtimeNs, item.ctimeNs, item.ino, item.dev,
+        item.isDirectory() ? 'directory' : 'file', childRel, item.mode, item.size, item.mtimeNs, item.ctimeNs, item.ino,
       ]) hashFrame(hash, String(field))
       if (item.isDirectory()) await visit(child, childRel)
     }
@@ -630,9 +632,11 @@ function shellQuote(value) {
   return `'${value.replace(/'/g, `'"'"'`)}'`
 }
 
+// Only fields that survive a reboot are persisted: macOS assigns a new st_dev per mount after every
+// restart, so pinning it locked users out of tenon. Inode, mode, owner, size and the digest remain.
 function launcherStatValue(proof, includeSize) {
   const mode = process.platform === 'darwin' ? proof.mode.toString(8) : proof.mode.toString(16)
-  return [proof.dev, proof.ino, mode, proof.uid, ...(includeSize ? [proof.size] : [])].join(':')
+  return [proof.ino, mode, proof.uid, ...(includeSize ? [proof.size] : [])].join(':')
 }
 
 async function currentNodeProof() {
@@ -673,28 +677,73 @@ async function currentNodeProof() {
   }
 }
 
-function launcherNodeGuard(proof) {
+// Mirrors packages/cli/src/runtime/stable-launcher-node-guard.ts byte for byte; a bootstrap test pins parity.
+const HOOK_NOTICE_QUIET_MINUTES = 30
+const REPAIR_COMMANDS = 'setup|update|doctor|runtime'
+
+function launcherNodeGuard(proof, context) {
   if (proof === undefined) return ''
-  const statArgs = process.platform === 'darwin' ? "-f '%d:%i:%p:%u:%z'" : "-c '%d:%i:%f:%u:%s'"
-  const dirStatArgs = process.platform === 'darwin' ? "-f '%d:%i:%p:%u'" : "-c '%d:%i:%f:%u'"
-  const followArgs = process.platform === 'darwin' ? "-L -f '%d:%i'" : "-L -c '%d:%i'"
-  const hash = process.platform === 'darwin'
-    ? `/usr/bin/shasum -a 256 ${shellQuote(proof.executable.path)}`
-    : `/usr/bin/sha256sum ${shellQuote(proof.executable.path)}`
-  const parentChecks = proof.parents.map((parent) => `
-[ ! -L ${shellQuote(parent.path)} ] || tenon_node_identity_changed
-[ "$(/usr/bin/stat ${dirStatArgs} ${shellQuote(parent.path)} 2>/dev/null)" = ${shellQuote(launcherStatValue(parent, false))} ] || tenon_node_identity_changed`).join('')
-  return `
-tenon_node_identity_changed() {
-  printf 'tenon runtime Node identity changed; rerun tenon setup --codex or tenon setup --claude\\n' >&2
+  const darwin = process.platform === 'darwin'
+  const exe = shellQuote(proof.executable.path)
+  const statArgs = darwin ? "-f '%i:%p:%u:%z'" : "-c '%i:%f:%u:%s'"
+  const dirStatArgs = darwin ? "-f '%i:%p:%u'" : "-c '%i:%f:%u'"
+  const followArgs = darwin ? "-L -f '%i'" : "-L -c '%i'"
+  const hash = darwin ? `/usr/bin/shasum -a 256 ${exe}` : `/usr/bin/sha256sum ${exe}`
+  const plainChecks = [proof.executable, ...proof.parents].map((entry) => `[ ! -L ${shellQuote(entry.path)} ]`)
+  const pinChecks = [
+    `[ "$(/usr/bin/stat ${statArgs} ${exe} 2>/dev/null)" = ${shellQuote(launcherStatValue(proof.executable, true))} ]`,
+    `[ "$(/usr/bin/stat ${followArgs} ${shellQuote(proof.requestedPath)} 2>/dev/null)" = ${shellQuote(String(proof.executable.ino))} ]`,
+    ...proof.parents.map((parent) =>
+      `[ "$(/usr/bin/stat ${dirStatArgs} ${shellQuote(parent.path)} 2>/dev/null)" = ${shellQuote(launcherStatValue(parent, false))} ]`),
+  ]
+  const moved = 'tenon runtime Node identity changed (the pinned Node binary itself is unchanged); '
+    + 'repair with: tenon setup --claude   (Codex: tenon setup --codex)'
+  const changed = 'tenon runtime Node identity changed (the pinned Node binary was replaced or removed); '
+    + 'trust the Node on your PATH and repair with: '
+    + `env TENON_RUNTIME_ROOTS=${shellQuote(context.rootContract)} node ${shellQuote(context.bootstrap)} `
+    + 'cli setup --claude   (Codex: use --codex)'
+  const marker = shellQuote(`${context.stateRoot}/launcher-node-identity.notice`)
+  const outcome = context.mode === 'cli'
+    ? `case "$tenon_node_state" in
+  ok) ;;
+  moved)
+    # The bytes are the pinned bytes, so setup/update (which re-pin) and the diagnostics may run.
+    case "\${1:-}" in
+      ${REPAIR_COMMANDS}) ;;
+      *) printf '%s\\n' ${shellQuote(moved)} >&2; exit 126 ;;
+    esac ;;
+  *) printf '%s\\n' ${shellQuote(changed)} >&2; exit 126 ;;
+esac`
+    : `# A hook must never block or spam the host: print one notice per quiet window, then fail open.
+tenon_node_notice() {
+  tenon_notice_marker=${marker}
+  if [ -f "$tenon_notice_marker" ] && [ ! -L "$tenon_notice_marker" ] \\
+    && [ -n "$(/usr/bin/find "$tenon_notice_marker" -mmin -${HOOK_NOTICE_QUIET_MINUTES} 2>/dev/null)" ]; then
+    exit 0
+  fi
+  /bin/mkdir -p ${shellQuote(context.stateRoot)} 2>/dev/null || exit 0
+  /bin/rm -f "$tenon_notice_marker" 2>/dev/null || exit 0
+  ( set -C; : > "$tenon_notice_marker" ) 2>/dev/null || exit 0
+  printf '%s\\n' "$1" >&2
   exit 126
 }
-[ ! -L ${shellQuote(proof.executable.path)} ] || tenon_node_identity_changed
-[ "$(/usr/bin/stat ${statArgs} ${shellQuote(proof.executable.path)} 2>/dev/null)" = ${shellQuote(launcherStatValue(proof.executable, true))} ] || tenon_node_identity_changed
-[ "$(/usr/bin/stat ${followArgs} ${shellQuote(proof.requestedPath)} 2>/dev/null)" = ${shellQuote(`${proof.executable.dev}:${proof.executable.ino}`)} ] || tenon_node_identity_changed${parentChecks}
-tenon_node_digest_output="$(${hash} 2>/dev/null)" || tenon_node_identity_changed
-tenon_node_digest="${'${tenon_node_digest_output%% *}'}"
-[ "$tenon_node_digest" = ${shellQuote(proof.sha256)} ] || tenon_node_identity_changed
+case "$tenon_node_state" in
+  ok) ;;
+  moved) tenon_node_notice ${shellQuote(moved)} ;;
+  *) tenon_node_notice ${shellQuote(changed)} ;;
+esac`
+  return `
+tenon_node_state=changed
+if ${plainChecks.join(' \\\n  && ')}; then
+  tenon_node_digest_output="$(${hash} 2>/dev/null)" || tenon_node_digest_output=''
+  if [ "\${tenon_node_digest_output%% *}" = ${shellQuote(proof.sha256)} ]; then
+    tenon_node_state=moved
+    if ${pinChecks.join(' \\\n      && ')}; then
+      tenon_node_state=ok
+    fi
+  fi
+fi
+${outcome}
 `
 }
 
@@ -720,7 +769,7 @@ export TENON_RUNTIME_DATA_ROOT=${shellQuote(paths.dataRoot)}
 export TENON_RUNTIME_STATE_ROOT=${shellQuote(paths.stateRoot)}
 export TENON_RUNTIME_CONFIG_ROOT=${shellQuote(paths.configRoot)}
 [ -f ${shellQuote(bootstrap)} ] || { ${missing}; }
-${launcherNodeGuard(nodeProof)}
+${launcherNodeGuard(nodeProof, { mode, bootstrap, rootContract: productRootContract(paths), stateRoot: paths.stateRoot })}
 exec ${legacy ? 'node' : shellQuote(process.execPath)} ${shellQuote(bootstrap)} ${mode} "$@"
 `
 }
@@ -1057,7 +1106,106 @@ async function emitBootstrapStatus(paths, asJson) {
   return 0
 }
 
+// v0.2.0 stable launchers pin a device number (st_dev) that macOS changes at every restart, and `tenon
+// update` run by v0.2.0 writes that format again. The release that is active afterwards repairs them: a
+// cheap read of the two launcher files decides whether to start `internal-launcher-heal`, which owns every
+// safety check (same roots, same running Node, same pinned digest, no install in progress).
+const STABLE_LAUNCHER_HEAD = '#!/bin/sh\nset -eu\nexport TENON_RUNTIME_ROOTS='
+const STABLE_LAUNCHER_MAX_BYTES = 256 * 1024
+const LEGACY_DEVICE_PIN = /-[fc] '%d:/
+const LAUNCHER_HEAL_MARKER = 'launcher-heal.retry'
+const LAUNCHER_HEAL_RETRY_MS = 30 * 60 * 1000
+const LAUNCHER_HEAL_TIMEOUT_MS = 8000
+
+async function legacyStableLaunchersPresent() {
+  const bin = join(homedir(), '.local', 'bin')
+  let legacy = false
+  for (const name of ['tenon', 'tenon-hook']) {
+    const path = join(bin, name)
+    try {
+      const item = await lstat(path)
+      if (!item.isFile() || item.isSymbolicLink() || item.size > STABLE_LAUNCHER_MAX_BYTES) return false
+      const text = await readFile(path, 'utf8')
+      if (!text.startsWith(STABLE_LAUNCHER_HEAD)) return false
+      if (LEGACY_DEVICE_PIN.test(text)) legacy = true
+    } catch {
+      return false
+    }
+  }
+  return legacy
+}
+
+// Only one process at a time starts a repair, and a failed or refused repair is not retried for 30 minutes.
+async function claimLauncherHeal(paths) {
+  const marker = join(paths.stateRoot, LAUNCHER_HEAL_MARKER)
+  try {
+    const item = await lstat(marker)
+    if (Date.now() - item.mtimeMs < LAUNCHER_HEAL_RETRY_MS) return false
+    await rm(marker, { force: true })
+  } catch (error) {
+    if (!(error && typeof error === 'object' && error.code === 'ENOENT')) return false
+  }
+  try {
+    await mkdir(paths.stateRoot, { recursive: true })
+    await writeFile(marker, `${process.pid}\n`, { encoding: 'utf8', flag: 'wx', mode: 0o600 })
+    return true
+  } catch {
+    return false
+  }
+}
+
+function launcherHealOutcome(result) {
+  const line = String(result.stdout ?? '').trim().split('\n').at(-1) ?? ''
+  try {
+    const parsed = JSON.parse(line)
+    if (isRecord(parsed)) return parsed.outcome === 'repaired' || parsed.outcome === 'failed' ? parsed.outcome : null
+  } catch {
+    // No JSON line: an older release without the command, or a crash.
+  }
+  return result.error !== undefined || result.signal !== null ? 'failed' : null
+}
+
+// wait=true (CLI): run it now and report the outcome. wait=false (hooks): start it detached so the session
+// never waits for it.
+async function healLegacyLaunchers(paths, release, wait) {
+  if (!await legacyStableLaunchersPresent() || !await claimLauncherHeal(paths)) return null
+  const command = [join(release.payload, 'packages', 'cli', 'dist', 'tenon.mjs'), 'internal-launcher-heal']
+  const env = await childEnv(release, paths)
+  if (!wait) {
+    const child = spawn(process.execPath, command, { cwd: process.cwd(), env, detached: true, stdio: 'ignore' })
+    child.on('error', () => {})
+    child.unref()
+    return null
+  }
+  return launcherHealOutcome(spawnSync(process.execPath, command, {
+    cwd: process.cwd(),
+    env,
+    encoding: 'utf8',
+    timeout: LAUNCHER_HEAL_TIMEOUT_MS,
+    stdio: ['ignore', 'pipe', 'ignore'],
+  }))
+}
+
+// setup and update rewrite the launchers themselves, and a rollback must not race a rewrite.
+async function healBeforeCli(paths, args) {
+  if (args[0] === 'setup' || args[0] === 'update' || (args[0] === 'runtime' && args[1] === 'repair')) return
+  try {
+    if (!await legacyStableLaunchersPresent()) return
+    const selection = await readSelection(paths)
+    const active = selection === null || selection.activeRelease === null ? null : await releasePayload(paths, selection.activeRelease)
+    if (active === null) return
+    const outcome = await healLegacyLaunchers(paths, active, true)
+    if (outcome === 'repaired') process.stderr.write('tenon: stable launchers updated to the restart-safe format.\n')
+    else if (outcome === 'failed') {
+      process.stderr.write('tenon: could not update the stable launchers to the restart-safe format; run tenon setup --claude (or tenon setup --codex).\n')
+    }
+  } catch {
+    // The repair is best effort and must never change what the command does.
+  }
+}
+
 async function runCli(paths, args) {
+  await healBeforeCli(paths, args)
   if (args.length >= 2 && args[0] === 'runtime' && args[1] === 'repair' && args.length === 3 && args[2] === '--rollback') {
     try {
       const selection = await rollback(paths)
@@ -1118,6 +1266,7 @@ async function runHook(paths, hookId) {
     input,
     stdio: ['pipe', 'inherit', 'inherit'],
   })
+  if (hookId === 'session-start') await healLegacyLaunchers(paths, active, false).catch(() => {})
   return exitFor(result)
 }
 

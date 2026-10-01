@@ -32,20 +32,20 @@ function launcherText(
   nodeProof?: TrustedExecutableProof,
 ): string {
   const bootstrap = join(paths.bootstrapRoot, 'active.mjs')
-  const rootContract = serializeProductRootContract(paths)
+  const rootAssignment = `TENON_RUNTIME_ROOTS=${shellQuote(serializeProductRootContract(paths))}`
   const missing = mode === 'hook'
     ? 'exit 0'
     : 'printf "tenon runtime bootstrap unavailable; run tenon setup --codex or tenon setup --claude\\n" >&2\n  exit 1'
   return `#!/bin/sh
 set -eu
-export TENON_RUNTIME_ROOTS=${shellQuote(rootContract)}
+export ${rootAssignment}
 # N-1 bootstrap ABI: previous verified releases read these exact roots during rollback.
 export TENON_RUNTIME_DATA_ROOT=${shellQuote(paths.dataRoot)}
 export TENON_RUNTIME_STATE_ROOT=${shellQuote(paths.stateRoot)}
 export TENON_RUNTIME_CONFIG_ROOT=${shellQuote(paths.configRoot)}
 export TENON_NODE_PATH=${shellQuote(nodeExecutable)}
 [ -f ${shellQuote(bootstrap)} ] || { ${missing}; }
-${nodeIdentityGuard(nodeProof)}
+${nodeIdentityGuard(nodeProof, { mode, bootstrap, rootAssignment, stateRoot: paths.stateRoot })}
 exec ${shellQuote(nodeExecutable)} ${shellQuote(bootstrap)} ${mode} "$@"
 `
 }

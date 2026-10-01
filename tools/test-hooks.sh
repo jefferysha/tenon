@@ -3344,6 +3344,79 @@ for ar_tool in node jq python; do
     || bad "task-archive 红线: task-archive.sh 可执行行无 $ar_tool" "实得 ${n} 行"
 done
 
+# ─────────────── 13. stable tenon-hook launcher：Node 身份失败不刷屏、不阻断 ───────────────
+# v0.2.0 把 st_dev 钉进 launcher；macOS 重启后设备号变化，每次 Pre/PostToolUse 都打印同一条报错。
+# 用真实生成器写 launcher：假 Node 内容未变、但登记的 inode 被改（= 身份漂移），黑盒验证
+#   首次：stderr 恰一行通知、exit 126（非阻断码 2）；
+#   同一静默窗口内之后的每次：零输出 exit 0；marker 落在 state dir；
+#   marker 过期（>30 分钟）后再通知一次，随后又静默。
+LNI_DIST="$ROOT/packages/cli/dist"
+if [ -f "$LNI_DIST/runtime/launchers.js" ] && [ -f "$LNI_DIST/commands/trusted-executable.js" ] && [ -n "$TENON_NODE_PATH" ]; then
+  lni_work="$TMP/launcher-node-identity"
+  mkdir -p "$lni_work"
+  lni_made="$("$TENON_NODE_PATH" --input-type=module -e '
+    import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
+    import { join } from "node:path";
+    import { pathToFileURL } from "node:url";
+    const [dist, work] = process.argv.slice(1);
+    const load = (rel) => import(pathToFileURL(join(dist, rel)).href);
+    const { freezeTrustedExecutable } = await load("commands/trusted-executable.js");
+    const { writeStableLaunchers } = await load("runtime/launchers.js");
+    const { resolveRuntimePaths } = await load("runtime/paths.js");
+    const node = join(work, "pinned-node");
+    writeFileSync(node, "#!/bin/sh\nexit 0\n");
+    chmodSync(node, 0o755);
+    const trusted = freezeTrustedExecutable(node);
+    if (!trusted) process.exit(3);
+    const paths = resolveRuntimePaths({ env: { TENON_RUNTIME_HOME: join(work, "runtime") }, homeDir: work });
+    mkdirSync(paths.bootstrapRoot, { recursive: true });
+    writeFileSync(join(paths.bootstrapRoot, "active.mjs"), "");
+    const proof = { ...trusted.proof, executable: { ...trusted.proof.executable, ino: trusted.proof.executable.ino + 1 } };
+    const out = await writeStableLaunchers(paths, work, { nodeExecutable: trusted.executable, nodeProof: proof, verifyNode: trusted.assert });
+    process.stdout.write(out.hook + "\n" + paths.stateRoot + "\n");
+  ' "$LNI_DIST" "$lni_work" 2>/dev/null)" || lni_made=''
+  lni_hook="$(printf '%s\n' "$lni_made" | sed -n '1p')"
+  lni_state="$(printf '%s\n' "$lni_made" | sed -n '2p')"
+  if [ -n "$lni_hook" ] && [ -f "$lni_hook" ]; then
+    lni_marker="$lni_state/launcher-node-identity.notice"
+    lni_call() { # $1=hook id；结果落在 LNI_RC / LNI_OUT / LNI_ERR
+      LNI_RC=0
+      LNI_OUT="$(/bin/sh "$lni_hook" "$1" </dev/null 2>"$lni_work/stderr")" || LNI_RC=$?
+      LNI_ERR="$(cat "$lni_work/stderr")"
+    }
+    lni_call gate
+    assert_exit "launcher Node 身份漂移: 首次 hook 退出 126（非阻断码 2）" 126 "$LNI_RC"
+    assert_contains "launcher Node 身份漂移: 首次 stderr 给出修复命令" "$LNI_ERR" "tenon setup --claude"
+    assert_contains "launcher Node 身份漂移: 首次 stderr 说明 Node identity changed" "$LNI_ERR" "Node identity changed"
+    lni_lines="$(printf '%s\n' "$LNI_ERR" | grep -c .)"
+    assert_exit "launcher Node 身份漂移: 首次 stderr 恰一行" 1 "$lni_lines"
+    assert_empty "launcher Node 身份漂移: 首次 stdout 为空" "$LNI_OUT"
+    [ -f "$lni_marker" ] && ok "launcher Node 身份漂移: marker 写入 state dir" \
+      || bad "launcher Node 身份漂移: marker 写入 state dir" "缺少 $lni_marker"
+
+    lni_noisy=''
+    for lni_id in gate breadcrumb gate statusline gate; do
+      lni_call "$lni_id"
+      if [ "$LNI_RC" != 0 ] || [ -n "$LNI_OUT" ] || [ -n "$LNI_ERR" ]; then
+        lni_noisy="${lni_noisy}${lni_id}: rc=${LNI_RC} out=${LNI_OUT} err=${LNI_ERR}; "
+      fi
+    done
+    [ -z "$lni_noisy" ] && ok "launcher Node 身份漂移: 静默窗口内后续 hook 零输出 exit 0（不刷屏）" \
+      || bad "launcher Node 身份漂移: 静默窗口内后续 hook 零输出 exit 0（不刷屏）" "$lni_noisy"
+
+    "$TENON_NODE_PATH" -e 'const t = (Date.now() - 31 * 60000) / 1000; require("node:fs").utimesSync(process.argv[1], t, t)' "$lni_marker"
+    lni_call gate
+    assert_exit "launcher Node 身份漂移: marker 过期后再通知一次" 126 "$LNI_RC"
+    lni_call gate
+    assert_exit "launcher Node 身份漂移: 再通知后重新静默" 0 "$LNI_RC"
+    assert_empty "launcher Node 身份漂移: 再通知后重新静默无输出" "$LNI_ERR"
+  else
+    bad "launcher Node 身份漂移: 夹具 launcher 生成失败" "dist 生成器可用但没有写出 tenon-hook"
+  fi
+else
+  ok "launcher Node 身份漂移黑盒（缺 packages/cli/dist 生成器或 node，按约定跳过）"
+fi
+
 # ───────────────────────── 汇总 ─────────────────────────
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" = 0 ]
