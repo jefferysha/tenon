@@ -19,7 +19,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { AUTOMATION_STATES, CANCEL_MARKER_FILE, type AutomationState } from '@tenon/automation'
 import { stateStorageExistsSync, type StateStore } from '@tenon/kernel'
-import type { Snapshot } from './types.js'
+import type { ListSnapshot } from './snapshotListTypes.js'
 
 /** AFK 泳道（对位 automation AUTOMATION_STATES 的活跃子集；off 不入板，scheduled 归 running，见 laneOf）。 */
 export const AFK_LANES = ['queued', 'running', 'merged', 'failed', 'conflict', 'paused'] as const
@@ -115,7 +115,7 @@ function emptyLanes(): Record<AfkLane, AfkCard[]> {
 }
 
 /** 从一个 change 投影（automation=off/未知 → null，不入板）。 */
-function cardOf(root: string, c: Snapshot['projects'][number]['changes'][number]): AfkCard | null {
+function cardOf(root: string, c: ListSnapshot['projects'][number]['changes'][number]): AfkCard | null {
   const automation = str(c.fields.automation)
   const lane = laneOf(automation)
   if (!lane) return null
@@ -141,7 +141,7 @@ function cardOf(root: string, c: Snapshot['projects'][number]['changes'][number]
 }
 
 /** 聚合快照 → AFK 泳道 + 调度器灯。off 的 change 被排除（不入 cards/lanes/total）。 */
-export function buildAfkSnapshot(snapshot: Snapshot, clock: () => string): AfkSnapshot {
+export function buildAfkSnapshot(snapshot: ListSnapshot, clock: () => string): AfkSnapshot {
   const lanes = emptyLanes()
   const cards: AfkCard[] = []
   for (const proj of snapshot.projects) {
@@ -188,7 +188,7 @@ export function buildAfkSnapshot(snapshot: Snapshot, clock: () => string): AfkSn
  * 每个非 off 的 change 贡献：queued_at → 'queued' 流水；last_error → 'error' 流水；当前态 → 'state' 流水。
  * 按时间戳降序（缺时间戳者排后，回落 generated_at）。
  */
-export function buildAfkLog(snapshot: Snapshot, clock: () => string): AfkLog {
+export function buildAfkLog(snapshot: ListSnapshot, clock: () => string): AfkLog {
   const now = clock()
   const entries: AfkLogEntry[] = []
   for (const proj of snapshot.projects) {

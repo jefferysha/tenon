@@ -1,44 +1,59 @@
-import { createHash } from 'node:crypto'
-import type { IncomingMessage, ServerResponse } from 'node:http'
+/**
+ * The Dashboard's snapshot state, cached per project instead of as one monolith.
+ *
+ * Each registered project owns a cell holding what was built from it, keyed by the project's own input fingerprint:
+ *   list    the rows every view renders (`?view=list`), already serialized for the wire
+ *   full    every change with all its evidence (`GET /api/snapshot` without a view), built only when asked for
+ *   details one change with all its evidence (`GET /api/change/:name/snapshot`), keyed by that change's `rev`
+ * A project whose fingerprint did not move is not rebuilt; a write invalidates only the projects it names. The
+ * aggregate a reader receives is assembled from the cells, so one changed project costs one project's scan plus a
+ * string join, not a rebuild of every registered project.
+ *
+ * Inputs the fingerprint does not cover (working-tree content, workflow files edited elsewhere, history) are caught
+ * by an age limit: a cell older than `maxAgeMs` is rebuilt when read. At most MAX_AGE_REFRESH_PER_READ aged cells are
+ * refreshed per read, oldest first, so the cells built together at start-up do not all expire into one huge rebuild.
+ */
+import { resolve } from 'node:path'
 import type { TenonUserResolution } from '@tenon/kernel'
-import { buildSnapshot, computeFingerprint, type SnapshotDeps } from './snapshot.js'
+import { mapWithConcurrency } from './concurrentMap.js'
+import { dedupeRoots } from './projectRoots.js'
+import { normalizeRepositoryLabels } from './repositoryIdentity.js'
 import { defaultResolveUser } from './serverUserRoutes.js'
-import type { Snapshot } from './types.js'
+import { readTerminalActivity, scanChangeDetail, scanProject, type SnapshotDeps } from './snapshot.js'
+import { assembleFull, assembleList, assemblySignature, type Built } from './snapshotAssembly.js'
+import { computeRootFingerprints, type RootFingerprint } from './snapshotFingerprint.js'
+import type { ProjectListSnapshot } from './snapshotListTypes.js'
+import type { ScannedChange } from './snapshotProjectScan.js'
+import { sharedBody, type SharedChange, type SharedListSnapshot, type SharedProjectChunk, type SharedSnapshot } from './snapshotShared.js'
+import type { ProjectSnapshot } from './types.js'
 
-/** One built snapshot shared by every reader until its input fingerprint changes. */
-export interface SharedSnapshot {
-  readonly snapshot: Snapshot
-  /** Serialized once; `/api/snapshot`, the SSE first frame and broadcasts all send these bytes. */
-  readonly body: string
-  readonly etag: string
-  /** The `computeFingerprint` value this snapshot was built under (includes the viewer identity). */
-  readonly fingerprint: string
-}
+export type { SharedChange, SharedListSnapshot, SharedProjectChunk, SharedSnapshot } from './snapshotShared.js'
+export { sendSharedBody as sendSharedSnapshot } from './snapshotShared.js'
 
 export interface SnapshotCache {
-  /** Current snapshot: reused while the fingerprint holds, concurrent callers share one build. */
-  current(): Promise<SharedSnapshot>
-  /** The input fingerprint; concurrent callers share one computation. */
+  /** The list tier of every registered project: what the Dashboard renders. */
+  list(): Promise<SharedListSnapshot>
+  /** The full tier: every change with all its evidence (the documented `GET /api/snapshot`). */
+  full(): Promise<SharedSnapshot>
+  /** One change with all its evidence; `null` when the project is not registered or holds no readable change of that name. */
+  detail(root: string, name: string): Promise<SharedChange | null>
+  /** The input fingerprint of every registered project; concurrent callers share one computation. */
   fingerprint(): Promise<string>
   /**
-   * Drop the cached snapshot, any in-flight build and the remembered identities; the next read
-   * rebuilds. The server calls this before every non-GET request runs and again once it settles: a
-   * server-side write may touch inputs the fingerprint does not cover (or the declared identity), and
-   * the next read must see its result.
+   * Drop what was built for `roots` (every project when omitted), any in-flight build of it and the remembered
+   * identities; the next read rebuilds only those. The server calls this once a write settles: the write may have
+   * touched inputs the fingerprint does not cover (or the declared identity), and the next read must see its result.
    */
-  invalidate(): void
+  invalidate(roots?: readonly string[]): void
 }
 
 export interface SnapshotCacheOptions {
   snapshotDeps: (nowMs?: number) => SnapshotDeps
-  build?: (deps: SnapshotDeps) => Promise<Snapshot>
-  fingerprint?: (deps: SnapshotDeps, nowMs: number) => Promise<string>
+  /** @internal test seams: replace the per-project builders and the fingerprint computation. */
+  scanners?: Partial<ProjectScanners>
+  fingerprints?: (deps: SnapshotDeps, nowMs: number, roots: readonly string[]) => Promise<RootFingerprint[]>
   now?: () => number
-  /**
-   * Upper bound on reuse. The fingerprint covers state, tasks, documents, tests, archive and git HEAD,
-   * but not every input (working-tree deletions, workspace content, workflow files edited outside the
-   * server), so a cached snapshot is rebuilt at least this often even when the fingerprint holds.
-   */
+  /** Upper bound on reuse of one project's list / full build (see the file header). */
   maxAgeMs?: number
   /**
    * How long a root's resolved viewer / acting user is reused. Resolution may run `git config`
@@ -48,37 +63,69 @@ export interface SnapshotCacheOptions {
   identityTtlMs?: number
 }
 
-export const SNAPSHOT_CACHE_MAX_AGE_MS = 30_000
-export const SNAPSHOT_IDENTITY_TTL_MS = 30_000
-
-function defaultFingerprint(deps: SnapshotDeps, nowMs: number): Promise<string> {
-  return computeFingerprint(deps.registry(), nowMs, deps.rootAnchor, deps.readChangesDirectory, deps.viewer)
+/** What the cache builds from: one project per tier, one change with its evidence. */
+export interface ProjectScanners {
+  list(deps: SnapshotDeps, root: string, nowMs: number): Promise<ProjectListSnapshot>
+  full(deps: SnapshotDeps, root: string, nowMs: number): Promise<ProjectSnapshot>
+  detail(deps: SnapshotDeps, root: string, name: string, nowMs: number): Promise<ScannedChange | undefined>
 }
 
-interface Entry { readonly generation: number; readonly seq: number; readonly builtAt: number; readonly value: SharedSnapshot }
-interface Pending { readonly generation: number; readonly fingerprint: string; readonly promise: Promise<SharedSnapshot> }
+const PRODUCTION_SCANNERS: ProjectScanners = {
+  list: (deps, root, nowMs) => scanProject(deps, root, nowMs, 'list'),
+  full: (deps, root, nowMs) => scanProject(deps, root, nowMs, 'full'),
+  detail: (deps, root, name, nowMs) => scanChangeDetail(deps, root, name, nowMs),
+}
+
+export const SNAPSHOT_CACHE_MAX_AGE_MS = 30_000
+export const SNAPSHOT_IDENTITY_TTL_MS = 30_000
+/** Aged-out cells refreshed by one read. */
+export const MAX_AGE_REFRESH_PER_READ = 4
+/** Projects built at once on a cold or partially invalidated cache. */
+const BUILD_CONCURRENCY = 8
+/** Detail entries kept per project, least recently built first out. */
+const MAX_DETAILS_PER_PROJECT = 16
+/** How long the full tier (11 MB at 30 x 30) stays in memory after the last read that asked for it. */
+const FULL_RETENTION_MS = 120_000
+
+interface Flight<T> { readonly key: string; readonly promise: Promise<T> }
+interface Slot<P> { built?: Built<P>; flight?: Flight<Built<P>> }
+interface DetailEntry { readonly builtAt: number; readonly rev: string; readonly shared: SharedChange | null }
+interface Cell {
+  readonly root: string
+  /** The epoch of the latest invalidation that named this project; a build that started before it is never stored. */
+  validFrom: number
+  list: Slot<ProjectListSnapshot>
+  full: Slot<ProjectSnapshot>
+  details: Map<string, DetailEntry>
+  detailFlights: Map<string, Flight<SharedChange | null>>
+}
 
 export function createSnapshotCache(options: SnapshotCacheOptions): SnapshotCache {
-  const build = options.build ?? buildSnapshot
-  const fingerprintOf = options.fingerprint ?? defaultFingerprint
+  const scanners: ProjectScanners = { ...PRODUCTION_SCANNERS, ...options.scanners }
   const now = options.now ?? Date.now
   const maxAgeMs = options.maxAgeMs ?? SNAPSHOT_CACHE_MAX_AGE_MS
   const identityTtlMs = options.identityTtlMs ?? SNAPSHOT_IDENTITY_TTL_MS
-  // A write bumps the generation: builds and fingerprints started before it are never reused after it.
-  let generation = 0
+  const fingerprintOf = options.fingerprints ?? ((deps: SnapshotDeps, nowMs: number, roots: readonly string[]) => computeRootFingerprints(
+    roots, nowMs, deps.rootAnchor, readTerminalActivity, deps.readChangesDirectory, deps.viewer,
+  ))
+  // Every invalidation advances the epoch. A build remembers the epoch it started in and is only stored when no
+  // invalidation named its project afterwards, so nothing built before a write is kept after it.
+  let epoch = 0
   let seq = 0
-  let entry: Entry | undefined
-  let pending: Pending | undefined
-  let fingerprintInFlight: { readonly generation: number; readonly promise: Promise<string> } | undefined
+  const cells = new Map<string, Cell>()
+  let fingerprintFlight: { readonly epoch: number; readonly promise: Promise<RootFingerprint[]> } | undefined
+  let listAssembly: { readonly signature: string; readonly value: SharedListSnapshot } | undefined
+  let fullAssembly: { readonly signature: string; readonly value: SharedSnapshot } | undefined
+  let fullReadAt: number | undefined
   const identities = new Map<string, { readonly at: number; readonly value: TenonUserResolution }>()
 
-  function remembered(role: 'viewer' | 'acting', resolve: (root: string) => TenonUserResolution) {
+  function remembered(role: 'viewer' | 'acting', resolveIdentity: (root: string) => TenonUserResolution) {
     return (root: string): TenonUserResolution => {
-      const key = `${role}\u0000${root}`
+      const key = `${role}\u0000${resolve(root)}`
       const at = now()
       const hit = identities.get(key)
       if (hit !== undefined && at - hit.at < identityTtlMs) return hit.value
-      const value = resolve(root)
+      const value = resolveIdentity(root)
       identities.set(key, { at, value })
       return value
     }
@@ -93,86 +140,229 @@ export function createSnapshotCache(options: SnapshotCacheOptions): SnapshotCach
     }
   }
 
-  function fingerprint(): Promise<string> {
-    if (fingerprintInFlight !== undefined && fingerprintInFlight.generation === generation) return fingerprintInFlight.promise
+  function fingerprints(): Promise<RootFingerprint[]> {
+    if (fingerprintFlight !== undefined && fingerprintFlight.epoch === epoch) return fingerprintFlight.promise
     const nowMs = now()
-    const promise = fingerprintOf(depsAt(nowMs), nowMs)
-    const flight = { generation, promise }
-    fingerprintInFlight = flight
-    const clear = (): void => { if (fingerprintInFlight === flight) fingerprintInFlight = undefined }
+    const deps = depsAt(nowMs)
+    const promise = fingerprintOf(deps, nowMs, deps.registry())
+    const flight = { epoch, promise }
+    fingerprintFlight = flight
+    const clear = (): void => { if (fingerprintFlight === flight) fingerprintFlight = undefined }
     promise.then(clear, clear)
     return promise
   }
 
-  function share(snapshot: Snapshot, fp: string): SharedSnapshot {
-    const body = JSON.stringify(snapshot)
-    return { snapshot, body, etag: `"${createHash('sha1').update(body).digest('base64url')}"`, fingerprint: fp }
+  function cellFor(root: string): Cell {
+    let cell = cells.get(root)
+    if (cell === undefined) {
+      cell = { root, validFrom: 0, list: {}, full: {}, details: new Map(), detailFlights: new Map() }
+      cells.set(root, cell)
+    }
+    return cell
   }
 
-  async function current(): Promise<SharedSnapshot> {
-    let fp: string
-    try {
-      fp = await fingerprint()
-    } catch {
-      // Without a fingerprint nothing proves a cached snapshot is current: build fresh, keep nothing.
-      return share(await build(depsAt(now())), '')
+  /** Forget cells of projects that are no longer registered. */
+  function retain(fps: readonly RootFingerprint[]): void {
+    const live = new Set(fps.map((fp) => fp.root))
+    for (const root of cells.keys()) if (!live.has(root)) cells.delete(root)
+  }
+
+  /** The slot's build for this fingerprint: the stored one, the one in flight, or a new one. */
+  function ensure<P>(
+    cell: Cell,
+    slot: Slot<P>,
+    fp: RootFingerprint,
+    build: (deps: SnapshotDeps, nowMs: number) => Promise<P>,
+    refreshAged: boolean,
+  ): Promise<Built<P>> {
+    const stored = slot.built
+    if (stored !== undefined && stored.key === fp.key && (!refreshAged || now() - stored.builtAt < maxAgeMs)) {
+      return Promise.resolve(stored)
     }
-    const cached = entry
-    if (cached !== undefined && cached.generation === generation && cached.value.fingerprint === fp
-      && now() - cached.builtAt < maxAgeMs) {
-      return cached.value
-    }
-    if (pending !== undefined && pending.generation === generation && pending.fingerprint === fp) return pending.promise
-    const startedGeneration = generation
-    const startedSeq = ++seq
+    if (slot.flight !== undefined && slot.flight.key === fp.key) return slot.flight.promise
+    const startedEpoch = epoch
+    const mine = ++seq
     const nowMs = now()
-    const promise = build(depsAt(nowMs)).then((snapshot): SharedSnapshot => {
-      const value = share(snapshot, fp)
+    const promise = build(depsAt(nowMs), nowMs).then((project): Built<P> => {
+      const built: Built<P> = { seq: mine, key: fp.key, builtAt: nowMs, project, revs: fp.revs }
       // An older build finishing late never replaces a newer one, and nothing built before a write is kept.
-      if (startedGeneration === generation && (entry === undefined || entry.seq < startedSeq)) {
-        entry = { generation: startedGeneration, seq: startedSeq, builtAt: nowMs, value }
+      if (cells.get(cell.root) === cell && startedEpoch >= cell.validFrom && (slot.built === undefined || slot.built.seq < mine)) {
+        slot.built = built
       }
-      return value
+      return built
     })
-    const flight: Pending = { generation: startedGeneration, fingerprint: fp, promise }
-    pending = flight
-    const clear = (): void => { if (pending === flight) pending = undefined }
+    const flight = { key: fp.key, promise }
+    slot.flight = flight
+    const clear = (): void => { if (slot.flight === flight) slot.flight = undefined }
     promise.then(clear, clear)
     return promise
+  }
+
+  /** The aged cells allowed a refresh in this read: the oldest MAX_AGE_REFRESH_PER_READ of them. */
+  function agedRoots<P>(fps: readonly RootFingerprint[], slotOf: (cell: Cell) => Slot<P>): ReadonlySet<string> {
+    const aged = fps
+      .map((fp) => ({ root: fp.root, built: slotOf(cellFor(fp.root)).built, key: fp.key }))
+      .filter((item) => item.built !== undefined && item.built.key === item.key && now() - item.built.builtAt >= maxAgeMs)
+      .sort((left, right) => (left.built?.builtAt ?? 0) - (right.built?.builtAt ?? 0))
+    return new Set(aged.slice(0, MAX_AGE_REFRESH_PER_READ).map((item) => item.root))
+  }
+
+  async function buildAll<P>(
+    fps: readonly RootFingerprint[],
+    slotOf: (cell: Cell) => Slot<P>,
+    build: (deps: SnapshotDeps, nowMs: number, root: string) => Promise<P>,
+  ): Promise<Built<P>[]> {
+    const refresh = agedRoots(fps, slotOf)
+    return mapWithConcurrency(fps, BUILD_CONCURRENCY, (fp) => ensure(
+      cellFor(fp.root), slotOf(cellFor(fp.root)), fp, (deps, nowMs) => build(deps, nowMs, fp.root), refresh.has(fp.root),
+    ))
+  }
+
+  /** Projects of a cache that cannot fingerprint: nothing proves a stored build is current, so build fresh and keep nothing. */
+  async function buildUncached<P>(build: (deps: SnapshotDeps, nowMs: number, root: string) => Promise<P>): Promise<Built<P>[]> {
+    const nowMs = now()
+    const deps = depsAt(nowMs)
+    return mapWithConcurrency(dedupeRoots(deps.registry()), BUILD_CONCURRENCY, async (root) => ({
+      seq: ++seq, key: '', builtAt: nowMs, project: await build(depsAt(nowMs), nowMs, root), revs: new Map<string, string>(),
+    }))
+  }
+
+  /** `fingerprint` is undefined when nothing proves the builds current; such an aggregate is never kept. */
+  function assembledList(builts: readonly Built<ProjectListSnapshot>[], fingerprint: string | undefined): SharedListSnapshot {
+    const projects = normalizeRepositoryLabels(builts.map((built) => built.project))
+    const signature = assemblySignature(fingerprint ?? '', builts, projects)
+    if (fingerprint !== undefined && listAssembly?.signature === signature) return listAssembly.value
+    const value = assembleList(builts, projects, fingerprint ?? '', depsAt(now()))
+    if (fingerprint !== undefined) listAssembly = { signature, value }
+    return value
+  }
+
+  function assembledFull(builts: readonly Built<ProjectSnapshot>[], fingerprint: string | undefined): SharedSnapshot {
+    const projects = normalizeRepositoryLabels(builts.map((built) => built.project))
+    const signature = assemblySignature(fingerprint ?? '', builts, projects)
+    if (fingerprint !== undefined && fullAssembly?.signature === signature) return fullAssembly.value
+    const value = assembleFull(projects, fingerprint ?? '', depsAt(now()))
+    if (fingerprint !== undefined) fullAssembly = { signature, value }
+    return value
+  }
+
+  /** The full tier is for callers of the documented API; the Dashboard never asks, so it is not kept once they stop. */
+  function releaseFullTier(): void {
+    if (fullReadAt === undefined || now() - fullReadAt < FULL_RETENTION_MS) return
+    fullReadAt = undefined
+    fullAssembly = undefined
+    for (const cell of cells.values()) cell.full = {}
+  }
+
+  const joined = (fps: readonly RootFingerprint[]): string => fps.map((fp) => `${fp.root}:${fp.key}`).join('|')
+
+  async function tryFingerprints(): Promise<RootFingerprint[] | undefined> {
+    try {
+      const fps = await fingerprints()
+      retain(fps)
+      return fps
+    } catch {
+      return undefined
+    }
+  }
+
+  async function list(): Promise<SharedListSnapshot> {
+    const fps = await tryFingerprints()
+    if (fps === undefined) return assembledList(await buildUncached((deps, nowMs, root) => scanners.list(deps, root, nowMs)), undefined)
+    releaseFullTier()
+    const builts = await buildAll(fps, (cell) => cell.list, (deps, nowMs, root) => scanners.list(deps, root, nowMs))
+    return assembledList(builts, joined(fps))
+  }
+
+  async function full(): Promise<SharedSnapshot> {
+    const fps = await tryFingerprints()
+    fullReadAt = now()
+    if (fps === undefined) return assembledFull(await buildUncached((deps, nowMs, root) => scanners.full(deps, root, nowMs)), undefined)
+    const builts = await buildAll(fps, (cell) => cell.full, (deps, nowMs, root) => scanners.full(deps, root, nowMs))
+    return assembledFull(builts, joined(fps))
+  }
+
+  function buildDetail(cell: Cell, root: string, name: string, rev: string): Promise<SharedChange | null> {
+    const flightKey = `${name}\u0000${rev}`
+    const known = cell.detailFlights.get(name)
+    if (known !== undefined && known.key === flightKey) return known.promise
+    const startedEpoch = epoch
+    const nowMs = now()
+    const promise = scanners.detail(depsAt(nowMs), root, name, nowMs).then((scanned): SharedChange | null => {
+      const shared: SharedChange | null = scanned === undefined
+        ? null
+        : {
+            ...sharedBody(JSON.stringify({ ...scanned.change, rev, ...(scanned.archive === undefined ? {} : { archive: scanned.archive }) })),
+            change: { ...scanned.change, rev },
+            ...(scanned.archive === undefined ? {} : { archive: scanned.archive }),
+            rev,
+          }
+      if (cells.get(root) === cell && startedEpoch >= cell.validFrom) {
+        cell.details.delete(name)
+        cell.details.set(name, { builtAt: nowMs, rev, shared })
+        while (cell.details.size > MAX_DETAILS_PER_PROJECT) {
+          const oldest = cell.details.keys().next().value
+          if (oldest === undefined) break
+          cell.details.delete(oldest)
+        }
+      }
+      return shared
+    })
+    const flight = { key: flightKey, promise }
+    cell.detailFlights.set(name, flight)
+    const clear = (): void => { if (cell.detailFlights.get(name) === flight) cell.detailFlights.delete(name) }
+    promise.then(clear, clear)
+    return promise
+  }
+
+  async function detail(root: string, name: string): Promise<SharedChange | null> {
+    const normalized = resolve(root)
+    const nowMs = now()
+    const deps = depsAt(nowMs)
+    let fp: RootFingerprint | undefined
+    try {
+      fp = (await fingerprintOf(deps, nowMs, [normalized]))[0]
+    } catch {
+      fp = undefined
+    }
+    const rev = fp?.revs.get(name)
+    if (rev === undefined) return null
+    const cell = cellFor(normalized)
+    const stored = cell.details.get(name)
+    if (stored !== undefined && stored.rev === rev && now() - stored.builtAt < maxAgeMs) return stored.shared
+    return buildDetail(cell, normalized, name, rev)
   }
 
   return {
-    current,
-    fingerprint,
-    invalidate(): void {
-      generation += 1
-      entry = undefined
-      pending = undefined
-      fingerprintInFlight = undefined
-      identities.clear()
+    list,
+    full,
+    detail,
+    async fingerprint(): Promise<string> {
+      return joined(await fingerprints())
+    },
+    invalidate(roots?: readonly string[]): void {
+      epoch += 1
+      fingerprintFlight = undefined
+      listAssembly = undefined
+      fullAssembly = undefined
+      if (roots === undefined) {
+        cells.clear()
+        identities.clear()
+        return
+      }
+      for (const root of roots) {
+        const normalized = resolve(root)
+        const cell = cells.get(normalized)
+        if (cell !== undefined) {
+          cell.validFrom = epoch
+          cell.list = {}
+          cell.full = {}
+          cell.details.clear()
+          cell.detailFlights.clear()
+        }
+        for (const role of ['viewer', 'acting']) identities.delete(`${role}\u0000${normalized}`)
+      }
     },
   }
 }
 
-function etagMatches(header: string | string[] | undefined, etag: string): boolean {
-  if (header === undefined) return false
-  const values = (Array.isArray(header) ? header.join(',') : header).split(',').map((value) => value.trim())
-  return values.some((value) => value === '*' || value === etag || value === `W/${etag}`)
-}
-
-/** `GET /api/snapshot` response: the shared bytes with an ETag, or 304 when the client already has them. */
-export function sendSharedSnapshot(req: IncomingMessage, res: ServerResponse, shared: SharedSnapshot): void {
-  if (etagMatches(req.headers['if-none-match'], shared.etag)) {
-    res.writeHead(304, { ETag: shared.etag, 'Cache-Control': 'no-store' })
-    res.end()
-    return
-  }
-  const body = Buffer.from(shared.body, 'utf8')
-  res.writeHead(200, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Content-Length': body.length,
-    'Cache-Control': 'no-store',
-    ETag: shared.etag,
-  })
-  res.end(body)
-}

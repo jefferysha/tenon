@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { corruptTestRunFiles } from '../test-evidence/evaluate.js'
+import type { ChangedFilesSource } from './evaluate-types.js'
 import { evaluateStepTestPolicy, loadCatalogInput, loadDeltaScenarios, loadKnownFailures, loadTaskItems } from './load.js'
 import { testRunRecordsDir, testSystemPaths } from './paths.js'
 import { appendTestRunRecordV2 } from './record-chain.js'
@@ -63,7 +64,7 @@ describe('策略判定的 IO 装配', () => {
 })
 
 describe('diff 文件列表提供者', () => {
-  async function evaluateWith(changedFiles: (() => Promise<readonly string[]>) | undefined) {
+  async function evaluateWith(changedFiles: (() => Promise<ChangedFilesSource>) | undefined) {
     const policy = compileStepTestPolicy({ run: ['unit'], scope: 'changed', files: 'registered' }, 'test')
     if (policy === undefined) throw new Error('policy')
     await put(testSystemPaths(repo).catalog, EMPTY_TEST_CATALOG)
@@ -92,5 +93,16 @@ describe('diff 文件列表提供者', () => {
     expect(empty.blockers.map((item) => item.code)).not.toContain('files-diff-unavailable')
     const none = await evaluateWith(undefined)
     expect(none.notices.map((item) => item.code)).toEqual(['files-unchecked'])
+  })
+
+  it('未跟踪文件被截断 → 登记检查照常做，另给一条 files-truncated 提示（不是阻塞，也不是静默）', async () => {
+    const truncated = await evaluateWith(async () => ({ files: ['src/a.ts'], untrackedTruncated: { found: 25_000, limit: 20_000 } }))
+    expect(truncated.files.checked).toBe(true)
+    expect(truncated.notices.map((item) => item.code)).toEqual(['files-truncated'])
+    expect(truncated.notices[0]?.message).toContain('25000')
+    expect(truncated.notices[0]?.message).toContain('20000')
+    expect(truncated.blockers.filter((item) => item.blocking).map((item) => item.code)).not.toContain('files-diff-unavailable')
+    const whole = await evaluateWith(async () => ({ files: ['src/a.ts'] }))
+    expect(whole.notices.map((item) => item.code)).toEqual([])
   })
 })

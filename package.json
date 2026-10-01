@@ -49,6 +49,7 @@
     "test:e2e": "playwright test -c e2e/dashboard/playwright.config.ts",
     "bench:status": "node tools/bench/status.mjs --json test-results/bench-status.json",
     "bench:snapshot": "node tools/bench/snapshot.mjs --json test-results/bench-snapshot.json",
+    "bench:snapshot:large": "node tools/bench/snapshot.mjs --json test-results/bench-snapshot-large.json --projects 30 --changes 30 --runs 10 --warmup 1 --scenarios cold,write,detail --max-p95-ms 1500",
     "test:hooks": "bash tools/test-hooks.sh",
     "test:migration-cas": "node --test tools/spec-migration-cas.node-test.mjs tools/reconcile-spec-application.node-test.mjs",
     "test:all": "npm run test && npm run test:web",

@@ -382,7 +382,7 @@ export interface CliDeps {
    * 自任务起点以来改动的仓库相对文件（全量登记强制与 changed 范围用）。Omit it in production: kernel
    * 从 state 的 base_branch / created_at 与 git 推出；测试装配覆写它来隔离 git。
    */
-  changedFiles?: (changeName: string) => Promise<readonly string[]>
+  changedFiles?: (changeName: string) => Promise<import('@tenon/kernel').ChangedFilesSource>
   /** 测试方向库（内建 + 自定义，只读）；`tenon test catalog add --from <方向>` 用它当套件模板。 */
   testDirections?: () => Promise<readonly import('@tenon/kernel').TestDirectionDef[]>
   /** Trusted Build revision token capture; missing capability fails Build closed. */

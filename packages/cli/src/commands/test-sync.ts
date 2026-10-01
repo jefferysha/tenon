@@ -51,12 +51,16 @@ export async function cmdTestSync(deps: CliDeps, change: string, opts: { readonl
   if (opts.json === true) {
     deps.io.out(JSON.stringify({
       change, planState: inputs.planState.state, changed: diff.files.length,
+      ...(diff.untrackedTruncated === undefined ? {} : { untrackedTruncated: diff.untrackedTruncated }),
       unregistered: registration.unregistered.map((file) => ({ ...file, fix: register(file.path, file.suites) })),
       orphans: registration.orphans, registeredButMissing: gone, unmapped, optionalUnmapped: optional,
     }, null, 2))
     return dirty ? 2 : 0
   }
   deps.io.out(`[TEST] sync ${change}：diff 里 ${diff.files.length} 个文件；未登记的测试文件 ${registration.unregistered.length} 个，无套件认领 ${registration.orphans.length} 个`)
+  if (diff.untrackedTruncated !== undefined) {
+    deps.io.out(`  提示：未跟踪文件有 ${diff.untrackedTruncated.found} 个，只检查了前 ${diff.untrackedTruncated.limit} 个；其余的测试文件没有核对是否已登记。把构建产物、依赖目录加入 .gitignore 后重新检查`)
+  }
   if (inputs.planState.state !== 'ok') deps.io.out(`  计划${inputs.planState.state === 'missing' ? '还没有登记' : '不可信'}：tenon test plan ${change} --seed`)
   for (const file of registration.unregistered) deps.io.out(`  未登记  ${file.path}\n    ${register(file.path, file.suites)}`)
   for (const path of registration.orphans) deps.io.out(`  无套件  ${path}\n    先在目录里加套件（tenon test discover --write），再 tenon test register ${change} --file ${shellQuote(path)}`)

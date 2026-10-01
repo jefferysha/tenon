@@ -42,6 +42,8 @@ describe('testLabels', () => {
     expect(blockerLabel('nope', 'zh')).toBe('nope')
     expect(blockerLabel('constructor', 'zh')).toBe('constructor')
     expect(noticeLabel('known-failure-fixed', 'zh')).toBe('已修好')
+    expect(noticeLabel('files-truncated', 'zh')).toBe('文件检查被截断')
+    expect(noticeLabel('files-truncated', 'en')).toBe('File check truncated')
     expect(noticeLabel('nope', 'en')).toBe('nope')
   })
 })

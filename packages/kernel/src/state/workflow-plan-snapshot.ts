@@ -12,6 +12,7 @@ import type {
   WorkflowInteractionPolicyV1,
 } from '../workflow/types.js'
 import type { RetiredReviewBudget } from '../workflow/workflow-plan-snapshot-types.js'
+import { sha256Hex } from '../sha256.js'
 import { atomicLinkPublish } from './atomic-publish.js'
 
 export const WORKFLOW_PLAN_SNAPSHOT_FILE = '.pipeline-workflow-plan.json'
@@ -39,6 +40,15 @@ function isWorkflowIr(value: unknown): value is WorkflowIR {
     && typeof record.name === 'string'
     && Array.isArray(record.steps)
 }
+
+/**
+ * Plans (by content digest) that have already been rebuilt and matched their fingerprint. Rebuilding a plan (clone,
+ * compile, freeze, fingerprint) is the expensive part of reading a change's state, and many changes carry the same
+ * plan under different run ids; the rebuild is a pure function of the plan, so a plan that passed once passes again.
+ * A plan that fails is never remembered. Bounded: the oldest entries go first.
+ */
+const VERIFIED_PLANS_LIMIT = 512
+const verifiedPlans = new Set<string>()
 
 export function parseWorkflowPlanSnapshot(raw: string): WorkflowPlanSnapshotEnvelope {
   let value: unknown
@@ -121,7 +131,15 @@ export function parseWorkflowPlanSnapshot(raw: string): WorkflowPlanSnapshotEnve
           interaction: plan.interaction as WorkflowInteractionPolicyV1,
           workflowFingerprint: plan.workflowFingerprint,
         }
-  effectiveWorkflowPlanFromSnapshot(snapshot)
+  const digest = sha256Hex(JSON.stringify(snapshot))
+  if (!verifiedPlans.has(digest)) {
+    effectiveWorkflowPlanFromSnapshot(snapshot)
+    verifiedPlans.add(digest)
+    if (verifiedPlans.size > VERIFIED_PLANS_LIMIT) {
+      const oldest = verifiedPlans.values().next().value
+      if (oldest !== undefined) verifiedPlans.delete(oldest)
+    }
+  }
   return { version: 1, run_id: envelope.run_id, plan: snapshot }
 }
 

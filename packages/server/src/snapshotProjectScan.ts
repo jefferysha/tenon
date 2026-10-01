@@ -1,24 +1,16 @@
 import { readdir } from 'node:fs/promises'
-import { join } from 'node:path'
-import { changedFilesForState, creatorOf, isTenonUser, ownerOf, readTaskArchiveOf, stateStorageSourcePathSync, projectPipelineTodo, type EffectiveWorkflowPlan, type SkillTable, type StateStore, type TaskArchive, type TrackDefinition, UnsupportedRunStateVersionError } from '@tenon/kernel'
-import type { ArchivedChangeSnapshot, ProjectSnapshot, ChangeSnapshot } from './types.js'
+import { isTenonUser, readTaskArchiveOf, type TaskArchive } from '@tenon/kernel'
+import type { ArchivedChangeSnapshot, ChangeSnapshot, LegacyWorkflowRulesSnapshot, ProjectSnapshot } from './types.js'
+import type { ChangeListSnapshot, ProjectListSnapshot } from './snapshotListTypes.js'
 import { readRepositoryIdentity } from './repositoryIdentity.js'
-import { agentBlockersOf, projectAgentRuns } from './agentRuns.js'
-import { resolveSnapshotTrack, projectSkillRuns } from './skillRuns.js'
-import { readWorkflowSnapshotAuthority } from './workflowSnapshotAuthority.js'
-import { legacySnapshotWorkflowRules, resolveSnapshotEffectivePlan, snapshotTodoStages, snapshotWorkflowExecution, snapshotWorkflowRulesAtRoot, type WorkflowSnapshotCapabilityDeps } from './workflowSnapshot.js'
-import { projectReviewHandshake } from './reviewHandshake.js'
-import { documentEvidence, documentTodoItems, type SnapshotDeps } from './snapshot.js'
-import { projectArtifactScopeIssue, readTerminalActivity } from './snapshot.js'
+import type { SnapshotDeps } from './snapshot.js'
+import { createProjectScanContext, scanChange, type ChangeScanOutcome, type ProjectScanContext } from './snapshotChangeScan.js'
+import { mapWithConcurrency } from './concurrentMap.js'
 import { anchorChildProcessPath, assertWorkflowRootAnchor, type WorkflowRootAnchor } from './workflowRootAnchor.js'
-import { readTasksProjection } from './snapshotTasks.js'
-import { createCandidateCache } from './testCandidateCache.js'
-import { projectTestEvidence } from './testEvidenceSnapshot.js'
-import { evidenceUserFor } from './testEvidenceUser.js'
-import { defaultResolveUser } from './serverUserRoutes.js'
-import { projectStepExitDeps } from './stepExitReadiness.js'
+
 const MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES = 100
-function str(v: string | string[] | undefined): string { return Array.isArray(v) ? v.join(',') : v ?? '' }
+/** Changes of one project scanned at once; their reads overlap, the shared git session and plan memo do not care. */
+const CHANGE_SCAN_CONCURRENCY = 4
 
 /** Read the viewer's archive once per project; no viewer or a malformed store hides nothing. */
 async function viewerArchive(deps: SnapshotDeps, readRoot: string, root: string): Promise<TaskArchive | undefined> {
@@ -37,246 +29,161 @@ async function uncommittedDeletions(deps: SnapshotDeps, anchor: WorkflowRootAnch
   return count === undefined || count === null ? undefined : count
 }
 
+type Archived<C> = C & { archive: ArchivedChangeSnapshot['archive'] }
+
+interface ScannedChanges<C> {
+  readonly changes: C[]
+  readonly archived: Archived<C>[]
+  readonly compatibilityIssues: NonNullable<ProjectSnapshot['compatibilityIssues']>
+  readonly overflow: number
+  readonly legacyWorkflowRules: Record<string, LegacyWorkflowRulesSnapshot>
+  readonly errors: string[]
+}
+
+function byName(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0
+}
+
+/** Scan every change directory (changes of one project overlap) and fold the outcomes in name order. */
+async function scanChanges<C extends { readonly name: string }>(
+  ctx: ProjectScanContext,
+  names: readonly string[],
+  archive: TaskArchive | undefined,
+  scan: (name: string) => Promise<ChangeScanOutcome<C>>,
+): Promise<ScannedChanges<C>> {
+  const sorted = [...names].sort(byName)
+  const outcomes = await mapWithConcurrency(sorted, CHANGE_SCAN_CONCURRENCY, (name) => scan(name))
+  const out: ScannedChanges<C> = { changes: [], archived: [], compatibilityIssues: [], overflow: 0, legacyWorkflowRules: {}, errors: [] }
+  let overflow = 0
+  for (const [index, name] of sorted.entries()) {
+    const outcome = outcomes[index]
+    if (outcome === undefined) continue
+    out.errors.push(...outcome.errors)
+    if (outcome.legacyRules !== undefined) out.legacyWorkflowRules[outcome.legacyRules.workflow] ??= outcome.legacyRules.rules
+    if (outcome.legacyScope !== undefined) {
+      if (out.compatibilityIssues.length < MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES) {
+        out.compatibilityIssues.push({ severity: 'warning', kind: 'legacy-scope-unmerged', change: name, legacyScopePath: outcome.legacyScope.legacyScopePath, action: 'merge-or-remove-legacy-scope' })
+      } else overflow += 1
+    }
+    if (outcome.unsupported !== undefined) {
+      if (out.compatibilityIssues.length < MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES) {
+        out.compatibilityIssues.push({
+          severity: 'blocking',
+          kind: 'unsupported-canonical-version',
+          change: name,
+          foundVersion: outcome.unsupported.foundVersion,
+          supportedVersion: outcome.unsupported.supportedVersion,
+          action: 'upgrade-runtime',
+        })
+      } else overflow += 1
+    }
+    if (outcome.change === undefined) continue
+    const entry = archive?.changes[name]
+    if (entry === undefined) out.changes.push(outcome.change)
+    else out.archived.push({ ...outcome.change, archive: { archivedAt: entry.archivedAt, phase: entry.phase, actor: entry.actor } })
+  }
+  out.compatibilityIssues.sort((a, b) => byName(a.change, b.change))
+  return { ...out, overflow }
+}
+
+/** The fields both tiers share once the changes are scanned. */
+function projectEnvelope<C>(
+  root: string,
+  scanned: ScannedChanges<C>,
+  deletions: number | undefined,
+  repository: ProjectSnapshot['repository'],
+) {
+  return {
+    root,
+    ok: scanned.errors.length === 0 && scanned.compatibilityIssues.every((issue) => issue.severity === 'warning'),
+    ...(deletions === undefined ? {} : { uncommittedDeletions: deletions }),
+    ...(repository === undefined ? {} : { repository }),
+    ...(scanned.compatibilityIssues.length === 0 ? {} : { compatibilityIssues: scanned.compatibilityIssues }),
+    ...(scanned.overflow === 0 ? {} : { compatibilityIssuesTruncated: true as const }),
+    ...(scanned.errors.length === 0 ? {} : { error: scanned.errors.join('; ') }),
+  }
+}
+
+export function scanAnchoredProject(
+  deps: SnapshotDeps, root: string, readRoot: string, anchor: WorkflowRootAnchor, nowMs: number, tier: 'full',
+): Promise<ProjectSnapshot>
+export function scanAnchoredProject(
+  deps: SnapshotDeps, root: string, readRoot: string, anchor: WorkflowRootAnchor, nowMs: number, tier: 'list',
+): Promise<ProjectListSnapshot>
 export async function scanAnchoredProject(
   deps: SnapshotDeps,
   root: string,
   readRoot: string,
   anchor: WorkflowRootAnchor,
   nowMs: number,
-): Promise<ProjectSnapshot> {
-  const { store } = deps
+  tier: 'full' | 'list',
+): Promise<ProjectSnapshot | ProjectListSnapshot> {
   // git runs in a child process, so every probe below takes the anchor's real path, never readRoot.
-  const childProcessRoot = anchorChildProcessPath(anchor)
-  const repository = await readRepositoryIdentity(childProcessRoot, deps.repositoryIdentity)
+  const repository = await readRepositoryIdentity(anchorChildProcessPath(anchor), deps.repositoryIdentity)
   assertWorkflowRootAnchor(anchor)
 
-  const changesRoot = join(readRoot, 'openspec', 'changes')
-  const displayChangesRoot = join(root, 'openspec', 'changes')
+  const ctx = createProjectScanContext(deps, root, readRoot, anchor, nowMs)
   let entries
   try {
     entries = deps.readChangesDirectory === undefined
-      ? await readdir(changesRoot, { withFileTypes: true })
-      : await deps.readChangesDirectory(changesRoot)
+      ? await readdir(ctx.changesRoot, { withFileTypes: true })
+      : await deps.readChangesDirectory(ctx.changesRoot)
   } catch (error) {
     assertWorkflowRootAnchor(anchor)
     if (typeof error !== 'object' || error === null || Reflect.get(error, 'code') !== 'ENOENT') throw error
     // 已注册但尚无 openspec/changes —— 合法空项目
     const deletions = await uncommittedDeletions(deps, anchor)
-    return {
-      root, ok: true, changes: [], workflowRules: {},
+    const empty = {
+      root, ok: true, changes: [],
       ...(deletions === undefined ? {} : { uncommittedDeletions: deletions }),
       ...(repository === undefined ? {} : { repository }),
     }
+    return tier === 'full' ? { ...empty, workflowRules: {} } : empty
   }
   assertWorkflowRootAnchor(anchor)
 
   const archive = await viewerArchive(deps, readRoot, root)
-  const changes: ChangeSnapshot[] = []
-  const archived: ArchivedChangeSnapshot[] = []
-  const compatibilityIssues: NonNullable<ProjectSnapshot['compatibilityIssues']> = []
-  const legacyWorkflowRules: ProjectSnapshot['workflowRules'] = {}
-  const errors: string[] = []
-  let gitHeadPromise: Promise<string> | undefined
-  const workspaceFingerprints = new Map<string, Promise<string>>()
-  const trackDefinitions = new Map<string, TrackDefinition | undefined>()
-  const trackDefinition = (trackId: string, workflowName: string): TrackDefinition | undefined => {
-    const key = `${workflowName}\u0000${trackId}`
-    if (!trackDefinitions.has(key)) trackDefinitions.set(key, resolveSnapshotTrack(readRoot, trackId, workflowName))
-    return trackDefinitions.get(key)
-  }
-  const gitHeadSha = deps.gitHeadSha
-  const workspaceFingerprint = deps.workspaceFingerprint
-  const capabilityDeps: WorkflowSnapshotCapabilityDeps = {
-    childProcessRoot,
-    ...(deps.fileExists === undefined ? {} : { fileExists: deps.fileExists }),
-    ...(deps.assessBuildRevision === undefined ? {} : { assessBuildRevision: deps.assessBuildRevision }),
-    ...(gitHeadSha === undefined
-      ? {}
-      : {
-          gitHeadSha: () => {
-            gitHeadPromise ??= gitHeadSha(childProcessRoot)
-            return gitHeadPromise
-          },
-        }),
-    ...(workspaceFingerprint === undefined
-      ? {}
-      : {
-          workspaceFingerprint: (_root, changeName) => {
-            let pending = workspaceFingerprints.get(changeName)
-            if (pending === undefined) {
-              pending = workspaceFingerprint(readRoot, changeName)
-              workspaceFingerprints.set(changeName, pending)
-            }
-            return pending
-          },
-        }),
-  }
-  // 候选版本对整个 root 只算一次（TTL 内复用）：测试新鲜度判定需要它，但指纹遍历整棵树。
-  const resolved = (deps.resolveUser ?? defaultResolveUser)(root)
-  const actingUser = isTenonUser(resolved) ? resolved : undefined
-  // 能力缺席时不传 candidate（判定跳过候选比对），而不是传一个恒 undefined 的读取器。
-  const candidate = workspaceFingerprint === undefined
-    ? undefined
-    : createCandidateCache((target) => workspaceFingerprint(target, ''))
-  const stepExitsFor = projectStepExitDeps({
-    flow: deps.flow,
-    skillResolver: deps.skillResolverFor?.(root),
-    fileRoot: childProcessRoot,
-    user: actingUser,
-    candidate: candidate === undefined ? undefined : () => candidate(readRoot),
-  })
-  let compatibilityIssueOverflow = 0
-  for (const e of [...entries].sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0)) {
-    if (!e.isDirectory() || e.name === 'archive') continue
-    assertWorkflowRootAnchor(anchor)
-    const changeDir = join(changesRoot, e.name)
-    let source: string | undefined
-    try {
-      source = stateStorageSourcePathSync(changeDir)
-    } catch (error) {
-      errors.push(`${e.name}: 状态来源检查失败（${error instanceof Error ? error.message : String(error)}）`)
-      continue
-    }
-    // 普通目录不是 pipeline change，仍允许跳过；一旦 canonical/legacy 状态入口存在，其损坏就
-    // 必须进入项目错误面，不能伪装成“这里没有 change”。
-    if (source === undefined) continue
-    try {
-      const projection = await store.inspectProjection(changeDir)
-      if (projection.status === 'missing' || projection.status === 'stale'
-        || projection.status === 'legacy-compatible') {
-        // 只自动前滚能由 revision metadata 证明的 adapter 状态；unknown drift 永不静默覆盖。
-        await store.repairProjection(changeDir)
-      } else if (projection.status === 'drift') {
-        errors.push(`${e.name}: YAML projection drift（${projection.reason}）`)
-      }
-      const state = await store.read(changeDir)
-      const f = state.fields
-      const phase = str(f.phase)
-      const workflowName = str(f.workflow) || 'default'
-      const track = str(f.track)
-      // 测试状态按负责人的记录判定（真机验收 F15），没有负责人才退回查看者。
-      const evidenceUser = evidenceUserFor(f, actingUser)
-      const plan = resolveSnapshotEffectivePlan(readRoot, workflowName, {
-        documentProfile: state.runMetadata?.documentProfile,
-        documentGovernanceFingerprint: state.runMetadata?.documentGovernanceFingerprint,
-        workflowPlanFingerprint: state.runMetadata?.workflowPlanFingerprint,
-        workflowPlanSnapshot: state.runMetadata?.workflowPlanSnapshot,
-      }, undefined, trackDefinition(track, workflowName))
-      legacyWorkflowRules[workflowName] ??= legacySnapshotWorkflowRules(plan)
-      const [documents, terminalActivity, authority, skillRuns, artifactScope, testEvidence, agentRuns] = await Promise.all([
-        documentEvidence(readRoot, changeDir, plan, phase),
-        readTerminalActivity(changeDir, e.name, nowMs),
-        readWorkflowSnapshotAuthority(changeDir, state, plan),
-        projectSkillRuns(changeDir, plan, phase, trackDefinition(track, workflowName), deps.mandatorySkills),
-        projectArtifactScopeIssue(deps, changeDir, anchor),
-        projectTestEvidence({
-          root: readRoot,
-          changeDir,
-          changeName: e.name,
-          plan,
-          user: evidenceUser,
-          ...(candidate === undefined ? {} : { candidate: () => candidate(readRoot) }),
-          changedFiles: () => changedFilesForState(readRoot, state),
-        }),
-        projectAgentRuns({
-          changeDir,
-          plan,
-          state,
-          phase,
-          ...(candidate === undefined ? {} : { candidate: () => candidate(readRoot) }),
-        }),
-      ])
-      if (artifactScope.compatibilityIssue !== undefined) {
-        if (compatibilityIssues.length < MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES) {
-          compatibilityIssues.push({ severity: 'warning', kind: 'legacy-scope-unmerged', change: e.name, legacyScopePath: artifactScope.compatibilityIssue.legacyScopePath, action: 'merge-or-remove-legacy-scope' })
-        } else compatibilityIssueOverflow += 1
-      }
-      const tasksProjection = await readTasksProjection(changeDir, {}, anchor)
-      const todo = projectPipelineTodo({
-        phase,
-        tasksMarkdown: tasksProjection?.source,
-        trustedCanonicalProjection: tasksProjection?.trustedCanonicalProjection,
-        stages: snapshotTodoStages(plan, phase),
-        additionalItemsByStage: documentTodoItems(plan, documents),
-      })
-      const snapshot: ChangeSnapshot = {
-        name: e.name,
-        path: join(displayChangesRoot, e.name),
-        phase,
-        phase_status: str(f.phase_status),
-        track,
-        preset: str(f.preset),
-        archived: str(f.archived),
-        updated_at: str(f.updated_at),
-        fields: f,
-        owner: ownerOf(f),
-        creator: creatorOf(f),
-        workflowPlanFingerprint: plan.workflowFingerprint,
-        workflowRules: snapshotWorkflowRulesAtRoot(plan, readRoot, workflowName, authority),
-        workflowExecution: await snapshotWorkflowExecution(
-          plan,
-          state,
-          readRoot,
-          changeDir,
-          e.name,
-          // readiness 的 agent 面与工作台读同一份投影：这里只把已算好的阻断交出去。
-          {
-            ...capabilityDeps,
-            stepAgents: async () => agentBlockersOf(agentRuns, plan, phase),
-            ...(stepExitsFor === undefined ? {} : { stepExits: stepExitsFor(e.name, evidenceUser) }),
-          },
-        ),
-        reviewHandshake: projectReviewHandshake(state, plan, phase),
-        todo,
-        documents,
-        skillRuns,
-        ...(agentRuns.length === 0 ? {} : { agentRuns }),
-        ...(testEvidence.tests === undefined ? {} : { tests: testEvidence.tests }),
-        ...(testEvidence.testPolicy === undefined ? {} : { testPolicy: testEvidence.testPolicy }),
-        ...(testEvidence.testPlan === undefined ? {} : { testPlan: testEvidence.testPlan, testUser: testEvidence.testUser }),
-        ...(testEvidence.diagnostics === undefined ? {} : { testDiagnostics: testEvidence.diagnostics }),
-        ...(terminalActivity === undefined ? {} : { terminalActivity }),
-      }
-      const entry = archive?.changes[e.name]
-      if (entry === undefined) changes.push(snapshot)
-      else archived.push({ ...snapshot, archive: { archivedAt: entry.archivedAt, phase: entry.phase, actor: entry.actor } })
-    } catch (error) {
-      if (error instanceof UnsupportedRunStateVersionError) {
-        if (compatibilityIssues.length < MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES) {
-          compatibilityIssues.push({
-            severity: 'blocking',
-            kind: 'unsupported-canonical-version',
-            change: e.name,
-            foundVersion: error.foundVersion,
-            supportedVersion: error.supportedVersion,
-            action: 'upgrade-runtime',
-          })
-        } else {
-          compatibilityIssueOverflow += 1
-        }
-        continue
-      }
-      errors.push(
-        `${e.name}: 状态损坏或不可读 [${source}]（${error instanceof Error ? error.message : String(error)}）`,
-      )
+  const names = entries.filter((entry) => entry.isDirectory() && entry.name !== 'archive').map((entry) => entry.name)
+  if (tier === 'list') {
+    const scanned = await scanChanges<ChangeListSnapshot>(ctx, names, archive, (name) => scanChange(ctx, name, 'list'))
+    const deletions = await uncommittedDeletions(deps, anchor)
+    return {
+      ...projectEnvelope(root, scanned, deletions, repository),
+      changes: scanned.changes,
+      ...(scanned.archived.length === 0 ? {} : { archived: scanned.archived }),
     }
   }
-  changes.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
-  archived.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+  const scanned = await scanChanges<ChangeSnapshot>(ctx, names, archive, (name) => scanChange(ctx, name, 'full'))
   const deletions = await uncommittedDeletions(deps, anchor)
-  compatibilityIssues.sort((a, b) => (
-    a.change < b.change ? -1 : a.change > b.change ? 1 : 0
-  ))
   return {
-    root,
-    ok: errors.length === 0 && compatibilityIssues.every((issue) => issue.severity === 'warning'),
-    changes,
-    ...(archived.length === 0 ? {} : { archived }),
-    ...(deletions === undefined ? {} : { uncommittedDeletions: deletions }),
-    ...(repository === undefined ? {} : { repository }),
-    ...(compatibilityIssues.length === 0 ? {} : { compatibilityIssues }),
-    ...(compatibilityIssueOverflow === 0 ? {} : { compatibilityIssuesTruncated: true as const }),
-    workflowRules: legacyWorkflowRules,
-    ...(errors.length === 0 ? {} : { error: errors.join('; ') }),
+    ...projectEnvelope(root, scanned, deletions, repository),
+    changes: scanned.changes,
+    ...(scanned.archived.length === 0 ? {} : { archived: scanned.archived }),
+    workflowRules: scanned.legacyWorkflowRules,
   }
+}
+
+export interface ScannedChange {
+  readonly change: ChangeSnapshot
+  /** Present when the viewer has archived this change. */
+  readonly archive?: ArchivedChangeSnapshot['archive']
+}
+
+/** One change with all its evidence, for the task detail read; `undefined` when the directory holds no readable change. */
+export async function scanAnchoredChange(
+  deps: SnapshotDeps,
+  root: string,
+  readRoot: string,
+  anchor: WorkflowRootAnchor,
+  nowMs: number,
+  name: string,
+): Promise<ScannedChange | undefined> {
+  const ctx = createProjectScanContext(deps, root, readRoot, anchor, nowMs)
+  const outcome = await scanChange(ctx, name, 'full')
+  if (outcome.change === undefined) return undefined
+  const archive = (await viewerArchive(deps, readRoot, root))?.changes[name]
+  assertWorkflowRootAnchor(anchor)
+  return archive === undefined
+    ? { change: outcome.change }
+    : { change: outcome.change, archive: { archivedAt: archive.archivedAt, phase: archive.phase, actor: archive.actor } }
 }

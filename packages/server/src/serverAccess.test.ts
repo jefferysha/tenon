@@ -95,7 +95,10 @@ describe('anonymous callers get nothing', () => {
 
   it.each([
     '/api/snapshot',
+    '/api/snapshot?view=list',
     '/api/stream',
+    '/api/stream?view=list',
+    '/api/change/demo/snapshot?root=/tmp',
     '/api/afk/snapshot',
     '/api/secrets',
     '/api/config?root=/tmp',

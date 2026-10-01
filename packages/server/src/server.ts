@@ -75,6 +75,7 @@ import { createAccessControl } from './serverAccess.js'
 import { createLoopActivationValidator } from './loopActivationWiring.js'
 import { createSessionAuthority } from './serverSession.js'
 import { openInBrowser } from './browserOpener.js'
+import { dropWrittenProjects } from './snapshotWriteScope.js'
 import { createServerGovernance } from './serverGovernance.js'
 import { AdapterInstallManager } from './adapterInstall.js'
 import { createFolderChooser } from './folderChooser.js'
@@ -331,7 +332,8 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
   const handlePut = (req: IncomingMessage, res: ServerResponse, path: string): Promise<void> =>
     handlePutRoute(req, res, path, mutationRouteDeps)
   const dispatch = (req: IncomingMessage, res: ServerResponse, path: string, method: string): void => {
-    if (method !== 'GET') snapshotCache.invalidate()
+    // A write drops only the projects it names (query or body root), everything when it names none.
+    if (method !== 'GET') dropWrittenProjects(snapshotCache, req, path, 'before')
     const handler = method === 'GET'
       ? handleGet(req, res, path)
       : method === 'POST'
@@ -343,7 +345,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
             : method === 'PUT'
               ? handlePut(req, res, path)
               : Promise.resolve(sendJson(res, 405, { ok: false, error: 'method not allowed' }))
-    if (method !== 'GET') void handler.finally(snapshotCache.invalidate).catch(() => undefined)
+    if (method !== 'GET') void handler.finally(() => dropWrittenProjects(snapshotCache, req, path, 'after')).catch(() => undefined)
     handler.catch((e) => {
       try { sendJson(res, 500, { ok: false, error: errMsg(e) }) } catch { /* 已写头 */ }
     })

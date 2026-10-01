@@ -475,7 +475,7 @@ suites:
           max_regression_pct: 15
           max: 3000
   - id: bench-snapshot
-    label: 基准 · dashboard 快照重建耗时
+    label: 基准 · dashboard 列表快照冷重建（2 项目 × 6 任务）
     kind: benchmark
     runner: custom
     command: node tools/bench/snapshot.mjs --json test-results/bench-snapshot.json
@@ -499,7 +499,55 @@ suites:
           unit: ms
           better: lower
           max_regression_pct: 15
-          max: 8000
+          max: 3000
+  # 大规模夹具：30 个项目 × 每个 30 个任务（900 个 change，量级取自审计里的真实机器）。三个场景：
+  #   snapshot_write_ms  终端里动了一个项目的一个任务之后，页面取到新列表快照要多久——只有被改的项目重建，其余走缓存。验收线：p95 < 1500 ms；
+  #                      脚本自己按 p95 判（--max-p95-ms，超了以非零退出），目录里再给中位数设同一条上限。
+  #   snapshot_ms        缓存全丢后的冷重建（服务刚起、或一次没有点名项目的写之后）：只做回归护栏，不是验收线。
+  #   change_detail_ms   打开一个任务时读它的全部证据。
+  #   snapshot_bytes     列表快照的原始字节数，首屏载荷 < 1 MB（传输时 gzip 后只有几十 KB）。
+  # 夹具本身（900 次真实 `tenon init`）在 CI 上要一两分钟；不提交开发机画像的基线，CI 画像的基线走 bench-baseline-candidate。
+  - id: bench-snapshot-large
+    label: 基准 · dashboard 快照规模（30 项目 × 30 任务）
+    kind: benchmark
+    runner: custom
+    command: node tools/bench/snapshot.mjs --json test-results/bench-snapshot-large.json --projects 30 --changes 30 --runs 10 --warmup 1 --scenarios cold,write,detail --max-p95-ms 1500
+    timeout_s: 1800
+    covers:
+      - packages/server/src/**
+      - packages/kernel/src/**
+      - tools/bench/**
+    report:
+      format: benchmark-json
+      path: test-results/bench-snapshot-large.json
+    artifacts:
+      - test-results/bench-snapshot-large.json
+    tags:
+      - perf
+      - slow
+    benchmark:
+      runs: 1
+      warmup: 0
+      metrics:
+        - name: snapshot_write_ms
+          unit: ms
+          better: lower
+          max_regression_pct: 15
+          max: 1500
+        - name: snapshot_ms
+          unit: ms
+          better: lower
+          max_regression_pct: 15
+          max: 15000
+        - name: change_detail_ms
+          unit: ms
+          better: lower
+          max_regression_pct: 15
+          max: 1000
+        - name: snapshot_bytes
+          unit: bytes
+          better: lower
+          max: 1000000
   # ── 慢速验收（不在默认 verify 里）──────────────────────────────────
   - id: docs-smoke
     label: 文档站构建与 smoke

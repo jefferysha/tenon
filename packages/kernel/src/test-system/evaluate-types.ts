@@ -41,6 +41,13 @@ export interface CurrentBindings {
   readonly workflowRunId: string | undefined
 }
 
+/** 宿主给出的「自任务起点以来的改动文件」：纯列表，或带「未跟踪文件被截断」标记的结果。 */
+export interface ChangedFilesReport {
+  readonly files: readonly string[]
+  readonly untrackedTruncated?: { readonly found: number; readonly limit: number }
+}
+export type ChangedFilesSource = readonly string[] | ChangedFilesReport
+
 export interface TestPolicyEvaluationInput {
   readonly change: string
   readonly stepId: string
@@ -56,6 +63,8 @@ export interface TestPolicyEvaluationInput {
   readonly changedFiles: readonly string[] | undefined
   /** 宿主提供了 diff 文件列表的能力，但这次读取失败（原因）：失败关闭，挡出口而不是降级为提示。 */
   readonly changedFilesError?: string
+  /** 未跟踪文件超过读取上限被截断：登记检查照常做，另给一条显式提示（不是静默截断）。 */
+  readonly changedFilesTruncated?: { readonly found: number; readonly limit: number }
   readonly scenarios: readonly OpenSpecScenario[]
   readonly tasks: readonly TaskItem[]
   readonly bindings: CurrentBindings

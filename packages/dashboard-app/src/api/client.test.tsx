@@ -221,7 +221,7 @@ describe('subscribeSnapshot（真 EventSource stub，组件真收帧）', () => 
     const received: unknown[] = []
     const unsub = subscribeSnapshot((s) => received.push(s))
     const es = lastEventSource()!
-    expect(es.url).toBe('/api/stream')
+    expect(es.url).toBe('/api/stream?view=list')
     es.emit('snapshot', JSON.stringify(makeSnapshot([])))
     expect(received).toHaveLength(1)
     expect((received[0] as { version: string }).version).toBe('0.1.0')

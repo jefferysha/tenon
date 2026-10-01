@@ -8,7 +8,8 @@ import { join } from 'node:path'
 import { createStateStore, type TenonUser } from '@tenon/kernel'
 import { afterEach, describe, expect, test } from 'vitest'
 import { freshHarness, type Harness } from '../../cli/src/integration-harness.js'
-import { buildSnapshot } from './snapshot.js'
+import { testFlow } from './test-support.js'
+import { buildListSnapshot, buildSnapshot, scanChangeDetail, type SnapshotDeps } from './snapshot.js'
 
 const FIXED = '2026-09-30T10:00:00Z'
 const OWNER: TenonUser = { id: 'a@x.io', name: 'A', slug: 'a-at-x.io', source: 'env', trust: 'declared' }
@@ -27,7 +28,11 @@ steps:
         command: "true"
         label: 探针
         timeout_s: 60
+        required: true
     guards: []
+    test_policy:
+      run: [unit]
+      scope: full
     transitions:
       - event: build-done
         to: done
@@ -59,10 +64,15 @@ async function ownedProject(): Promise<Harness> {
   return h
 }
 
-async function changeSeenBy(h: Harness, viewer: TenonUser) {
-  const snapshot = await buildSnapshot({
+function depsFor(h: Harness, viewer: TenonUser, withFlow = false): SnapshotDeps {
+  return {
     registry: () => [h.cwd], store: createStateStore(), version: '1', clock: () => FIXED, resolveUser: () => viewer,
-  })
+    ...(withFlow ? { flow: testFlow() } : {}),
+  }
+}
+
+async function changeSeenBy(h: Harness, viewer: TenonUser) {
+  const snapshot = await buildSnapshot(depsFor(h, viewer))
   const change = snapshot.projects[0]?.changes.find((candidate) => candidate.name === 'demo')
   if (change === undefined) throw new Error('demo change missing from the snapshot')
   return change
@@ -87,5 +97,25 @@ describe('快照里的测试状态按负责人的记录判定', () => {
     await store.writeUnderLock(dir, { ...state, fields: { ...state.fields, assignee: 'unknown' } }, { kind: 'set-many' })
     const other = await changeSeenBy(h, VIEWER)
     expect(other.tests?.[0]?.items.map((item) => [item.id, item.status])).toEqual([['probe', 'missing']])
+  })
+
+  test('列表层级的 readiness 与单任务详情读同一份负责人记录（拆分后的两条读取路径不各算各的）', async () => {
+    const h = await ownedProject()
+    const detailBy = async (viewer: TenonUser) => {
+      const scanned = await scanChangeDetail(depsFor(h, viewer), h.cwd, 'demo', Date.parse(FIXED))
+      if (scanned === undefined) throw new Error('demo detail missing')
+      return scanned.change
+    }
+    const own = await detailBy(OWNER)
+    const other = await detailBy(VIEWER)
+    expect(own.tests?.[0]?.items.map((item) => [item.id, item.status])).toEqual([['probe', 'passed']])
+    expect(other.tests?.[0]?.items.map((item) => [item.id, item.status])).toEqual([['probe', 'passed']])
+    expect(other.tests?.[0]?.items[0]?.run).toMatchObject({ user: OWNER.slug, actor: { id: OWNER.id } })
+
+    const listed = await buildListSnapshot(depsFor(h, VIEWER, true))
+    const listChange = listed.projects[0]?.changes.find((candidate) => candidate.name === 'demo')
+    const readiness = (change: typeof listChange | undefined) => JSON.stringify(change?.workflowExecution?.readinessByTransition ?? null)
+    const listedAsOwner = await buildListSnapshot(depsFor(h, OWNER, true))
+    expect(readiness(listChange)).toBe(readiness(listedAsOwner.projects[0]?.changes.find((candidate) => candidate.name === 'demo')))
   })
 })

@@ -95,9 +95,12 @@ export type {
 } from './record-v2-types.js'
 export { declaresRecordV2, decodeTestRunRecordV2 } from './record-v2-codec.js'
 export {
-  appendTestRunRecordV2, listRecordDirectory, pruneRecordChain, readRecordChain, RECORD_RETENTION, recordV2Digest, verifyRecordChain,
+  appendTestRunRecordV2, createRecordChainCache, listRecordDirectory, pruneRecordChain, readRecordChain, RECORD_RETENTION,
+  recordV2Digest, verifyRecordChain,
 } from './record-chain.js'
-export type { AppendResult, ChainBase, ChainReport, RecordDirectoryListing, RecordFileEntry } from './record-chain.js'
+export type {
+  AppendResult, ChainBase, ChainReport, RecordChainCache, RecordDirectoryListing, RecordFileEntry,
+} from './record-chain.js'
 export { TRACE_TASK_STAGE, extractScenarios, extractTaskItems } from './openspec-trace.js'
 export type { DeltaSection, OpenSpecScenario, TaskItem } from './openspec-trace.js'
 export { normalizeRepoPath, suitesOwningFile, testFileRegistration } from './test-files.js'
@@ -118,7 +121,8 @@ export { evaluateTrace } from './evaluate-trace.js'
 export { evaluateTestPolicy, renderPolicyBlockers } from './evaluate-v2.js'
 export { baselineKey } from './evaluate-types.js'
 export type {
-  CatalogInput, CurrentBindings, InlineSuiteStatus, PlanInput, StaleBinding, SuiteState, SuiteVerdict,
+  CatalogInput, ChangedFilesReport, ChangedFilesSource, CurrentBindings, InlineSuiteStatus, PlanInput, StaleBinding,
+  SuiteState, SuiteVerdict,
   TestPolicyEvaluationInput, TestPolicyReport, TraceRow, TraceTest, TraceTestStatus,
 } from './evaluate-types.js'
 export {

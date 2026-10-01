@@ -49,6 +49,13 @@ export interface ChangeSnapshot {
   testDiagnostics?: string[]
   /** Fresh, explicitly bound native terminal heartbeat; never a workflow-state field. */
   terminalActivity?: TerminalActivitySnapshot
+  /**
+   * Identity of the inputs the server read this change from. The list snapshot (`?view=list`) omits the per-change
+   * evidence above (documents, runs, tests, test policy) and stamps each row with `rev`; the open task reads the
+   * evidence from `GET /api/change/:name/snapshot` and re-reads it when the row's `rev` moves. Absent on a full
+   * snapshot and on servers that predate the list tier, where the row already holds everything.
+   */
+  rev?: string
 }
 
 export type TestItemStatus = 'passed' | 'failed' | 'stale' | 'missing' | 'running'
@@ -329,6 +336,8 @@ export interface ProjectSnapshot {
 /** GET /api/snapshot 的完整响应体。 */
 export interface Snapshot {
   snapshot_protocol?: 'tenon-snapshot/v2'
+  /** `list` = the list tier (rows without per-change evidence); absent = the full snapshot. */
+  view?: 'list'
   version: string
   generated_at: string
   /** 能力声明（GOAL B6）：前端按声明渲染，未接线域不谎报（Advanced 占位据此标注）。 */

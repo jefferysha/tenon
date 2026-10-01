@@ -16432,6 +16432,8 @@ function isWorkflowIr(value) {
   const record9 = ownRecord5(value);
   return record9 !== void 0 && typeof record9.name === "string" && Array.isArray(record9.steps);
 }
+var VERIFIED_PLANS_LIMIT = 512;
+var verifiedPlans = /* @__PURE__ */ new Set();
 function parseWorkflowPlanSnapshot(raw) {
   let value;
   try {
@@ -16499,7 +16501,16 @@ function parseWorkflowPlanSnapshot(raw) {
     interaction: plan.interaction,
     workflowFingerprint: plan.workflowFingerprint
   };
-  effectiveWorkflowPlanFromSnapshot(snapshot2);
+  const digest18 = sha256Hex(JSON.stringify(snapshot2));
+  if (!verifiedPlans.has(digest18)) {
+    effectiveWorkflowPlanFromSnapshot(snapshot2);
+    verifiedPlans.add(digest18);
+    if (verifiedPlans.size > VERIFIED_PLANS_LIMIT) {
+      const oldest = verifiedPlans.values().next().value;
+      if (oldest !== void 0)
+        verifiedPlans.delete(oldest);
+    }
+  }
   return { version: 1, run_id: envelope2.run_id, plan: snapshot2 };
 }
 function workflowPlanSnapshotContent(runId, snapshot2) {
@@ -28638,6 +28649,10 @@ function checkFiles(input2, plan, out) {
   }
   if (input2.catalog.state !== "ok")
     return none;
+  if (input2.changedFilesTruncated !== void 0) {
+    const { found, limit } = input2.changedFilesTruncated;
+    out.notices.push(testNotice("files-truncated", `\u672A\u8DDF\u8E2A\u6587\u4EF6\u6709 ${found} \u4E2A\uFF0C\u53EA\u68C0\u67E5\u4E86\u524D ${limit} \u4E2A\uFF1B\u5176\u4F59\u7684\u6D4B\u8BD5\u6587\u4EF6\u6CA1\u6709\u6838\u5BF9\u662F\u5426\u5DF2\u767B\u8BB0\u3002\u628A\u6784\u5EFA\u4EA7\u7269\u3001\u4F9D\u8D56\u76EE\u5F55\u52A0\u5165 .gitignore \u540E\u91CD\u65B0\u68C0\u67E5`));
+  }
   const registration = testFileRegistration({ changedFiles: input2.changedFiles, catalog: input2.catalog.catalog, plan });
   const register = (file) => `tenon test register ${input2.change} --file ${shellQuote(file.path)}${file.suites.length === 1 ? ` --suite ${shellQuote(file.suites[0] ?? "")}` : ""}`;
   for (const file of registration.unregistered) {
@@ -29622,6 +29637,18 @@ function recordV2Digest(record9) {
   const { digest: _digest, ...content } = record9;
   return `sha256:${sha256Hex(canonicalJson(content))}`;
 }
+var cacheOwned = /* @__PURE__ */ new WeakSet();
+var digestVerdicts = /* @__PURE__ */ new WeakMap();
+function digestMatches(record9) {
+  if (!cacheOwned.has(record9))
+    return recordV2Digest(record9) === record9.digest;
+  const known = digestVerdicts.get(record9);
+  if (known !== void 0)
+    return known;
+  const verdict = recordV2Digest(record9) === record9.digest;
+  digestVerdicts.set(record9, verdict);
+  return verdict;
+}
 var RECORD_RETENTION = 20;
 var CHAIN_BASE_FILE = "chain-base";
 var CHAIN_BASE_SCHEMA = "tenon-record-chain-base/v1";
@@ -29648,7 +29675,7 @@ function verifyRecordChain(listing) {
   if (problems.length > 0)
     return { state: "broken", reason: "\u6709\u8BB0\u5F55\u6587\u4EF6\u65E0\u6CD5\u8BFB\u53D6\u6216\u683C\u5F0F\u975E\u6CD5", files: problems };
   const remaining = visible.filter((entry2) => !superseded.has(entry2.file));
-  const tampered = remaining.filter((entry2) => entry2.file !== `${entry2.record.run_id}.json` || recordV2Digest(entry2.record) !== entry2.record.digest);
+  const tampered = remaining.filter((entry2) => entry2.file !== `${entry2.record.run_id}.json` || !digestMatches(entry2.record));
   if (tampered.length > 0)
     return { state: "broken", reason: "\u8BB0\u5F55\u5185\u5BB9\u4E0E\u6458\u8981\u4E0D\u7B26\uFF08\u88AB\u6539\u52A8\uFF09", files: tampered.map((entry2) => entry2.file) };
   const byPrev = /* @__PURE__ */ new Map();
@@ -29719,15 +29746,81 @@ async function readChainBase(dir) {
     return "problem";
   }
 }
-async function listRecordDirectory(dir) {
+async function fileStamp(path15) {
+  try {
+    const entry2 = await lstat26(path15, { bigint: true });
+    return `${entry2.ino}:${entry2.size}:${entry2.mtimeNs}:${entry2.ctimeNs}:${entry2.isFile() ? "f" : "x"}`;
+  } catch (error2) {
+    return error2.code === "ENOENT" ? "absent" : "unreadable";
+  }
+}
+function listingOf(files, names, base) {
+  const records = [];
+  const problems = [];
+  if (base === "problem")
+    problems.push(CHAIN_BASE_FILE);
+  for (const file of names) {
+    const result2 = files.get(file)?.parsed;
+    if (result2 === void 0 || result2 === "v1")
+      continue;
+    if (result2 === "problem")
+      problems.push(file);
+    else
+      records.push({ file, record: result2 });
+  }
+  return { records, problems, ...base === void 0 || base === "problem" ? {} : { base } };
+}
+async function listCachedRecordDirectory(dir, names, cache3) {
+  const previous = cache3.directories.get(dir);
+  const [baseStamp, ...stamps] = await Promise.all([
+    fileStamp(join42(dir, CHAIN_BASE_FILE)),
+    ...names.map((file) => fileStamp(join42(dir, file)))
+  ]);
+  const cacheable = baseStamp !== "unreadable" && !stamps.some((stamp) => stamp === "unreadable" || stamp === "absent");
+  const listingKey = [`${CHAIN_BASE_FILE}\0${baseStamp}`, ...names.map((file, index) => `${file}\0${stamps[index]}`)].join("\n");
+  if (previous !== void 0 && cacheable && previous.listingKey === listingKey) {
+    cache3.directories.delete(dir);
+    cache3.directories.set(dir, previous);
+    return previous.listing;
+  }
+  const files = /* @__PURE__ */ new Map();
+  for (const [index, file] of names.entries()) {
+    const stamp = stamps[index] ?? "unreadable";
+    const known = previous?.files.get(file);
+    if (known !== void 0 && known.stamp === stamp && stamp !== "unreadable" && stamp !== "absent") {
+      files.set(file, known);
+      continue;
+    }
+    const parsed2 = await readRecordFile(join42(dir, file));
+    if (typeof parsed2 === "object")
+      cacheOwned.add(parsed2);
+    files.set(file, { stamp, parsed: parsed2 });
+  }
+  const base = previous !== void 0 && baseStamp !== "unreadable" && previous.baseStamp === baseStamp ? previous.base : await readChainBase(dir);
+  const entry2 = { files, baseStamp, base, listingKey, listing: listingOf(files, names, base) };
+  cache3.directories.delete(dir);
+  cache3.directories.set(dir, entry2);
+  while (cache3.directories.size > cache3.maxDirectories) {
+    const oldest = cache3.directories.keys().next().value;
+    if (oldest === void 0)
+      break;
+    cache3.directories.delete(oldest);
+  }
+  return entry2.listing;
+}
+async function listRecordDirectory(dir, cache3) {
   let names;
   try {
     names = (await readdir12(dir)).filter((name2) => name2.endsWith(".json")).sort();
   } catch (error2) {
-    if (error2.code === "ENOENT")
+    if (error2.code === "ENOENT") {
+      cache3?.directories.delete(dir);
       return { records: [], problems: [] };
+    }
     throw error2;
   }
+  if (cache3 !== void 0)
+    return listCachedRecordDirectory(dir, names, cache3);
   const records = [];
   const problems = [];
   const base = await readChainBase(dir);
@@ -29744,8 +29837,18 @@ async function listRecordDirectory(dir) {
   }
   return { records, problems, ...base === void 0 || base === "problem" ? {} : { base } };
 }
-async function readRecordChain(repoRoot, slug2, change) {
-  return verifyRecordChain(await listRecordDirectory(testRunRecordsDir(repoRoot, slug2, change)));
+async function readRecordChain(repoRoot, slug2, change, cache3) {
+  const dir = testRunRecordsDir(repoRoot, slug2, change);
+  const listing = await listRecordDirectory(dir, cache3);
+  if (cache3 === void 0)
+    return verifyRecordChain(listing);
+  const entry2 = cache3.directories.get(dir);
+  if (entry2?.listing === listing && entry2.chain !== void 0)
+    return entry2.chain;
+  const chain = verifyRecordChain(listing);
+  if (entry2?.listing === listing)
+    entry2.chain = chain;
+  return chain;
 }
 async function appendTestRunRecordV2(repoRoot, slug2, draft) {
   const dir = testRunRecordsDir(repoRoot, slug2, draft.change);
@@ -29884,7 +29987,7 @@ async function evaluateStepTestPolicy(input2) {
   const [catalog3, plan, chain, knownFailures, scenarios, tasks] = await Promise.all([
     loadCatalogInput(input2.repoRoot),
     readTestPlanState(input2.changeDir, input2.changeName),
-    readRecordChain(input2.repoRoot, input2.slug, input2.changeName),
+    readRecordChain(input2.repoRoot, input2.slug, input2.changeName, input2.recordChainCache),
     loadKnownFailures(input2.repoRoot),
     loadDeltaScenarios(input2.changeDir),
     loadTaskItems(input2.changeDir, input2.stages)
@@ -29893,10 +29996,14 @@ async function evaluateStepTestPolicy(input2) {
   const hasRecords = chain.state === "intact" && chain.active.length > 0;
   const candidate2 = hasRecords ? await input2.candidate() : void 0;
   let changedFiles;
+  let changedFilesTruncated;
   let changedFilesError;
   if (input2.policy.files === "registered" && input2.changedFiles !== void 0) {
     try {
-      changedFiles = await input2.changedFiles();
+      const source = await input2.changedFiles();
+      const report2 = Array.isArray(source) ? { files: source } : source;
+      changedFiles = report2.files;
+      changedFilesTruncated = report2.untrackedTruncated;
     } catch (error2) {
       changedFilesError = error2 instanceof Error ? error2.message.slice(0, 200) : "\u8BFB\u53D6\u5931\u8D25";
     }
@@ -29913,6 +30020,7 @@ async function evaluateStepTestPolicy(input2) {
     baselines: await loadBaselines(input2.repoRoot, catalog3, chain),
     changedFiles,
     ...changedFilesError === void 0 ? {} : { changedFilesError },
+    ...changedFilesTruncated === void 0 ? {} : { changedFilesTruncated },
     scenarios,
     tasks,
     bindings: { candidate: candidate2, workflowFingerprint: input2.workflowFingerprint, workflowRunId: input2.workflowRunId },
@@ -30074,6 +30182,7 @@ async function evaluateTestEvidence(input2) {
       workflowRunId: runId,
       candidate: currentCandidate2,
       ...input2.context.changedFiles === void 0 ? {} : { changedFiles: input2.context.changedFiles },
+      ...input2.context.recordChainCache === void 0 ? {} : { recordChainCache: input2.context.recordChainCache },
       now,
       ...event === void 0 ? {} : { exitEvent: event }
     });
@@ -30481,10 +30590,10 @@ async function probeBuildRevisionIdentity(root) {
       return void 0;
     const common2 = await physicalDirectory(commonRaw);
     const top = await physicalDirectory(topRaw);
-    const git4 = await physicalDirectory(gitRaw);
-    if (!common2 || !top || !git4)
+    const git3 = await physicalDirectory(gitRaw);
+    if (!common2 || !top || !git3)
       return void 0;
-    return { repository: common2, worktree: `${top}\0${git4}` };
+    return { repository: common2, worktree: `${top}\0${git3}` };
   } catch {
     return void 0;
   }
@@ -30496,10 +30605,11 @@ import { lstat as lstat29, readFile as readFile38 } from "node:fs/promises";
 import { join as join46 } from "node:path";
 import { promisify as promisify2 } from "node:util";
 var run = promisify2(execFile2);
-var GIT_TIMEOUT_MS = 2e4;
+var CHANGED_FILES_GIT_TIMEOUT_MS = 2e4;
 var MAX_BUFFER = 64 * 1024 * 1024;
 var MAX_UNTRACKED_BYTES = 1024 * 1024;
-var MAX_UNTRACKED_FILES = 2e4;
+var UNTRACKED_FILE_LIMIT = 2e4;
+var HISTORY_WINDOW = 2e3;
 var EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 var ChangedFilesUnavailableError = class extends Error {
   constructor(reason3) {
@@ -30507,13 +30617,6 @@ var ChangedFilesUnavailableError = class extends Error {
     this.name = "ChangedFilesUnavailableError";
   }
 };
-async function git(repoRoot, args) {
-  try {
-    return (await run("git", [...args], { cwd: repoRoot, timeout: GIT_TIMEOUT_MS, maxBuffer: MAX_BUFFER })).stdout;
-  } catch {
-    return void 0;
-  }
-}
 function usableBase(value) {
   const base = value.trim();
   return base === "" || base === "null" || base.startsWith("-") ? void 0 : base;
@@ -30521,46 +30624,169 @@ function usableBase(value) {
 function usableTime(value) {
   return Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : void 0;
 }
-async function resolveChangeStart(repoRoot, input2) {
-  const inside3 = await git(repoRoot, ["rev-parse", "--is-inside-work-tree"]);
-  if (inside3?.trim() !== "true")
-    throw new ChangedFilesUnavailableError("\u5F53\u524D\u76EE\u5F55\u4E0D\u662F git \u4ED3\u5E93");
-  const head = (await git(repoRoot, ["rev-parse", "--verify", "-q", "HEAD"]))?.trim();
-  if (head === void 0 || head === "")
-    return EMPTY_TREE;
-  const base = usableBase(input2.baseBranch);
-  if (base !== void 0) {
-    const mergeBase = (await git(repoRoot, ["merge-base", "HEAD", base]))?.trim();
-    if (mergeBase !== void 0 && mergeBase !== "" && mergeBase !== head)
-      return mergeBase;
-  }
-  const since = usableTime(input2.createdAt);
-  if (since === void 0) {
-    if (base !== void 0) {
-      const mergeBase = (await git(repoRoot, ["merge-base", "HEAD", base]))?.trim();
-      if (mergeBase !== void 0 && mergeBase !== "")
-        return mergeBase;
-    }
-    throw new ChangedFilesUnavailableError("\u4EFB\u52A1\u6CA1\u6709\u53EF\u7528\u7684\u521B\u5EFA\u65F6\u95F4\u4E0E\u57FA\u7EBF\u5206\u652F\uFF0C\u5B9A\u4E0D\u51FA\u8D77\u70B9");
-  }
-  const before = (await git(repoRoot, ["rev-list", "-1", `--before=${since}`, "HEAD"]))?.trim();
-  return before === void 0 || before === "" ? EMPTY_TREE : before;
-}
 function nulList(stdout) {
   return stdout.split("\0").filter((entry2) => entry2 !== "");
 }
-async function untrackedFiles(repoRoot) {
-  const out = await git(repoRoot, ["ls-files", "--others", "--exclude-standard", "-z"]);
-  if (out === void 0)
-    throw new ChangedFilesUnavailableError("git ls-files \u5931\u8D25");
-  return nulList(out).slice(0, MAX_UNTRACKED_FILES);
-}
-async function changedFilesSinceChangeStart(repoRoot, input2) {
-  const start = await resolveChangeStart(repoRoot, input2);
-  const tracked = await git(repoRoot, ["diff", "--name-only", "--diff-filter=ACMR", "--no-renames", "-z", start]);
-  if (tracked === void 0)
-    throw new ChangedFilesUnavailableError("git diff \u5931\u8D25");
-  return [.../* @__PURE__ */ new Set([...nulList(tracked), ...await untrackedFiles(repoRoot)])].sort();
+function createChangedFilesSession(repoRoot, options = {}) {
+  const timeoutMs = options.timeoutMs ?? CHANGED_FILES_GIT_TIMEOUT_MS;
+  const untrackedLimit = options.untrackedLimit ?? UNTRACKED_FILE_LIMIT;
+  const runGit = options.runGit;
+  const commands = /* @__PURE__ */ new Map();
+  let abandoned = false;
+  const timeoutReason = (what) => `git ${what} \u8D85\u65F6\uFF08\u8D85\u8FC7 ${Math.max(1, Math.round(timeoutMs / 1e3))} \u79D2\uFF09`;
+  async function execute2(args) {
+    if (abandoned)
+      return { ok: false, stdout: "", timedOut: true };
+    try {
+      const options2 = { cwd: repoRoot, timeout: timeoutMs, maxBuffer: MAX_BUFFER };
+      const { stdout } = await (runGit ?? ((argv, opts) => run("git", [...argv], opts)))(args, options2);
+      return { ok: true, stdout };
+    } catch (error2) {
+      const failure3 = error2;
+      const timedOut = failure3.killed === true && failure3.signal === "SIGTERM" && failure3.code !== "ERR_CHILD_PROCESS_STDIO_MAXBUFFER";
+      if (timedOut)
+        abandoned = true;
+      return { ok: false, stdout: typeof failure3.stdout === "string" ? failure3.stdout : "", timedOut };
+    }
+  }
+  function git3(args) {
+    const key = args.join("\0");
+    const known = commands.get(key);
+    if (known !== void 0)
+      return known;
+    const pending = execute2(args);
+    commands.set(key, pending);
+    return pending;
+  }
+  async function gitText(args) {
+    const outcome = await git3(args);
+    if (outcome.ok)
+      return outcome.stdout;
+    if (outcome.timedOut)
+      throw new ChangedFilesUnavailableError(timeoutReason(args[0] ?? ""));
+    return void 0;
+  }
+  let repo;
+  function repository() {
+    repo ??= (async () => {
+      const outcome = await git3(["rev-parse", "--is-inside-work-tree", "--verify", "-q", "HEAD"]);
+      if (!outcome.ok && outcome.timedOut)
+        throw new ChangedFilesUnavailableError(timeoutReason("rev-parse"));
+      const [inside3, head] = outcome.stdout.split("\n").map((line) => line.trim());
+      if (inside3 !== "true")
+        throw new ChangedFilesUnavailableError("\u5F53\u524D\u76EE\u5F55\u4E0D\u662F git \u4ED3\u5E93");
+      return { head: outcome.ok && head !== void 0 && head !== "" ? head : void 0 };
+    })();
+    return repo;
+  }
+  let history;
+  function historyWindow() {
+    history ??= (async () => {
+      const out = await gitText(["rev-list", "--timestamp", `--max-count=${HISTORY_WINDOW}`, "HEAD"]);
+      if (out === void 0)
+        return void 0;
+      const entries2 = [];
+      for (const line of out.split("\n")) {
+        const [ts, sha] = line.trim().split(" ");
+        if (ts === void 0 || sha === void 0 || !/^\d+$/.test(ts))
+          continue;
+        entries2.push({ sha, ts: Number(ts) });
+      }
+      return { entries: entries2, truncated: entries2.length >= HISTORY_WINDOW };
+    })();
+    return history;
+  }
+  async function lastCommitBefore(sinceIso) {
+    const seconds3 = Math.floor(Date.parse(sinceIso) / 1e3);
+    const window = await historyWindow();
+    if (window !== void 0) {
+      const hit = window.entries.find((entry2) => entry2.ts <= seconds3);
+      if (hit !== void 0)
+        return hit.sha;
+      if (!window.truncated)
+        return EMPTY_TREE;
+    }
+    const before = (await gitText(["rev-list", "-1", `--before=${sinceIso}`, "HEAD"]))?.trim();
+    return before === void 0 || before === "" ? EMPTY_TREE : before;
+  }
+  async function computeStart(input2) {
+    const { head } = await repository();
+    if (head === void 0)
+      return EMPTY_TREE;
+    const base = usableBase(input2.baseBranch);
+    if (base !== void 0) {
+      const mergeBase = (await gitText(["merge-base", "HEAD", base]))?.trim();
+      if (mergeBase !== void 0 && mergeBase !== "" && mergeBase !== head)
+        return mergeBase;
+    }
+    const since = usableTime(input2.createdAt);
+    if (since === void 0) {
+      if (base !== void 0) {
+        const mergeBase = (await gitText(["merge-base", "HEAD", base]))?.trim();
+        if (mergeBase !== void 0 && mergeBase !== "")
+          return mergeBase;
+      }
+      throw new ChangedFilesUnavailableError("\u4EFB\u52A1\u6CA1\u6709\u53EF\u7528\u7684\u521B\u5EFA\u65F6\u95F4\u4E0E\u57FA\u7EBF\u5206\u652F\uFF0C\u5B9A\u4E0D\u51FA\u8D77\u70B9");
+    }
+    return lastCommitBefore(since);
+  }
+  const starts = /* @__PURE__ */ new Map();
+  function resolveStart(input2) {
+    const key = `${input2.baseBranch}\0${input2.createdAt}`;
+    let pending = starts.get(key);
+    if (pending === void 0) {
+      pending = computeStart(input2);
+      starts.set(key, pending);
+    }
+    return pending;
+  }
+  let untracked;
+  function untrackedFiles() {
+    untracked ??= (async () => {
+      const out = await gitText(["ls-files", "--others", "--exclude-standard", "-z"]);
+      if (out === void 0)
+        throw new ChangedFilesUnavailableError("git ls-files \u5931\u8D25");
+      const all = nulList(out);
+      return { files: all.length > untrackedLimit ? all.slice(0, untrackedLimit) : all, found: all.length };
+    })();
+    return untracked;
+  }
+  const results = /* @__PURE__ */ new Map();
+  async function computeChangedFiles(start) {
+    const tracked = await gitText(["diff", "--name-only", "--diff-filter=ACMR", "--no-renames", "-z", start]);
+    if (tracked === void 0)
+      throw new ChangedFilesUnavailableError("git diff \u5931\u8D25");
+    const others = await untrackedFiles();
+    return {
+      files: [.../* @__PURE__ */ new Set([...nulList(tracked), ...others.files])].sort(),
+      ...others.found > untrackedLimit ? { untrackedTruncated: { found: others.found, limit: untrackedLimit } } : {}
+    };
+  }
+  return {
+    resolveStart,
+    async changedFiles(input2) {
+      const start = await resolveStart(input2);
+      let pending = results.get(start);
+      if (pending === void 0) {
+        pending = computeChangedFiles(start);
+        results.set(start, pending);
+      }
+      return pending;
+    },
+    async changedLines(input2) {
+      const start = await resolveStart(input2);
+      const diff = await gitText(["diff", "-U0", "--no-color", "--no-renames", "--diff-filter=ACMR", start]);
+      if (diff === void 0)
+        throw new ChangedFilesUnavailableError("git diff \u5931\u8D25");
+      const out = new Map(parseAddedLines(diff));
+      for (const path15 of (await untrackedFiles()).files) {
+        const lines2 = await lineCount(join46(repoRoot, path15));
+        if (lines2 > 0)
+          out.set(path15, new Set(Array.from({ length: lines2 }, (_, index) => index + 1)));
+      }
+      return out;
+    }
+  };
 }
 var HUNK = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/;
 function parseAddedLines(diff) {
@@ -30607,21 +30833,11 @@ function scalar9(value) {
 function changeStartOfFields(fields) {
   return { baseBranch: scalar9(fields.base_branch), createdAt: scalar9(fields.created_at) };
 }
-function changedFilesForState(repoRoot, state) {
-  return changedFilesSinceChangeStart(repoRoot, changeStartOfFields(state.fields));
+async function changedFilesResultForState(repoRoot, state) {
+  return createChangedFilesSession(repoRoot).changedFiles(changeStartOfFields(state.fields));
 }
-async function changedLinesSinceChangeStart(repoRoot, input2) {
-  const start = await resolveChangeStart(repoRoot, input2);
-  const diff = await git(repoRoot, ["diff", "-U0", "--no-color", "--no-renames", "--diff-filter=ACMR", start]);
-  if (diff === void 0)
-    throw new ChangedFilesUnavailableError("git diff \u5931\u8D25");
-  const out = new Map(parseAddedLines(diff));
-  for (const path15 of await untrackedFiles(repoRoot)) {
-    const lines2 = await lineCount(join46(repoRoot, path15));
-    if (lines2 > 0)
-      out.set(path15, new Set(Array.from({ length: lines2 }, (_, index) => index + 1)));
-  }
-  return out;
+function changedLinesSinceChangeStart(repoRoot, input2) {
+  return createChangedFilesSession(repoRoot).changedLines(input2);
 }
 
 // packages/kernel/dist/workspace/terminal-activity.js
@@ -30910,14 +31126,14 @@ async function hasRepository(repoRoot) {
     return false;
   }
 }
-async function probeUncommittedTaskDeletions(repoRoot, git4 = gitStatusRunner) {
+async function probeUncommittedTaskDeletions(repoRoot, git3 = gitStatusRunner) {
   if (isProcessLocalFdPath(repoRoot)) {
     return { kind: "unavailable", reason: `\u8FDB\u7A0B\u79C1\u6709 fd \u8DEF\u5F84\u65E0\u6CD5\u4EA4\u7ED9\u5B50\u8FDB\u7A0B\u89E3\u6790\uFF1A${repoRoot}` };
   }
   if (!await hasRepository(repoRoot)) {
     return { kind: "absent", reason: `\u4E0D\u662F git \u4ED3\u5E93\u6839\uFF1A${repoRoot}` };
   }
-  const result2 = await git4(repoRoot, [
+  const result2 = await git3(repoRoot, [
     "status",
     "--porcelain=v1",
     "-z",
@@ -30951,8 +31167,8 @@ async function probeUncommittedTaskDeletions(repoRoot, git4 = gitStatusRunner) {
   }
   return { kind: "ok", count: count3 };
 }
-async function countUncommittedTaskDeletions(repoRoot, git4 = gitStatusRunner) {
-  const probe = await probeUncommittedTaskDeletions(repoRoot, git4);
+async function countUncommittedTaskDeletions(repoRoot, git3 = gitStatusRunner) {
+  const probe = await probeUncommittedTaskDeletions(repoRoot, git3);
   return probe.kind === "ok" ? probe.count : null;
 }
 
@@ -49460,7 +49676,7 @@ var BarrierDriftError = class extends Error {
   }
 };
 var deriveBarrierSha = async (input2) => {
-  const { git: git4, branch, commits, sandboxReportedSha } = input2;
+  const { git: git3, branch, commits, sandboxReportedSha } = input2;
   if (commits.length === 0)
     return { buildSha: void 0 };
   const landed = commits[commits.length - 1]?.sha;
@@ -49468,7 +49684,7 @@ var deriveBarrierSha = async (input2) => {
     return { buildSha: void 0 };
   let branchHead;
   try {
-    branchHead = await git4.revParse(`refs/heads/${branch}`);
+    branchHead = await git3.revParse(`refs/heads/${branch}`);
   } catch (err) {
     throw new BarrierDriftError(`barrier: cannot resolve host branch ${branch} for build_sha: ${String(err)}`);
   }
@@ -49942,17 +50158,17 @@ var mergeTreeSupported = async (exec, hostRepoDir) => {
 
 // packages/automation/dist/lifecycle/mergeback.js
 var GIT_ENV3 = { LC_ALL: "C" };
-var transactionCommitIsVisible = async (git4, baseRef, mergedCommit, markerRef) => {
-  const marker = await git4(["rev-parse", markerRef]);
+var transactionCommitIsVisible = async (git3, baseRef, mergedCommit, markerRef) => {
+  const marker = await git3(["rev-parse", markerRef]);
   if (marker.exitCode !== 0 || marker.stdout.trim() !== mergedCommit)
     return false;
-  const base = await git4(["rev-parse", baseRef]);
+  const base = await git3(["rev-parse", baseRef]);
   return base.exitCode === 0 && base.stdout.trim() === mergedCommit;
 };
 var TRANSACTION_MARKER_NAMESPACE = "refs/pipeline/mergeback-transactions/";
 var transactionMarkerRef = () => `${TRANSACTION_MARKER_NAMESPACE}${randomUUID12().replaceAll("-", "")}`;
-var cleanupStaleTransactionMarkers = async (git4, preserve) => {
-  const listed2 = await git4([
+var cleanupStaleTransactionMarkers = async (git3, preserve) => {
+  const listed2 = await git3([
     "for-each-ref",
     "--format=%(refname) %(objectname)",
     TRANSACTION_MARKER_NAMESPACE
@@ -49987,19 +50203,19 @@ var cleanupStaleTransactionMarkers = async (git4, preserve) => {
     "commit",
     ""
   ].join("\n");
-  const removed = await git4(["update-ref", "--stdin"], transaction);
+  const removed = await git3(["update-ref", "--stdin"], transaction);
   if (removed.exitCode !== 0) {
     throw preserve(`atomic cleanup of ${stale.length} stale merge transaction marker(s) failed (exit ${removed.exitCode}): ${(removed.stderr || removed.stdout).slice(0, 160)} \u2014 refusing to create another marker.`);
   }
 };
-var cleanupTransactionMarker = async (git4, markerRef, mergedCommit) => {
-  await git4(["update-ref", "-d", markerRef, mergedCommit]);
+var cleanupTransactionMarker = async (git3, markerRef, mergedCommit) => {
+  await git3(["update-ref", "-d", markerRef, mergedCommit]);
 };
 var mergeBackToBase = async (exec, input2) => {
   const { hostRepoDir, worktreePath, branch, base, expectedBaseSha, expectedBranchSha, onIntent, onLanded } = input2;
   const baseShort = base.replace(/^refs\/heads\//, "");
-  const git4 = (args, input3) => exec("git", args, { cwd: hostRepoDir, env: GIT_ENV3, input: input3 });
-  const headRef = await git4(["symbolic-ref", "HEAD"]);
+  const git3 = (args, input3) => exec("git", args, { cwd: hostRepoDir, env: GIT_ENV3, input: input3 });
+  const headRef = await git3(["symbolic-ref", "HEAD"]);
   const head = headRef.exitCode === 0 ? headRef.stdout.trim() : "";
   const headShort = head.replace(/^refs\/heads\//, "");
   if (headShort === "" || headShort !== baseShort) {
@@ -50008,14 +50224,14 @@ var mergeBackToBase = async (exec, input2) => {
   const lock = await acquireMergeLock(exec, hostRepoDir, worktreePath);
   const preserve = (message2, opts) => new SyncError(`${message2} The named branch '${branch}' and worktree are PRESERVED at ${worktreePath}.`, worktreePath, opts);
   try {
-    await cleanupStaleTransactionMarkers(git4, preserve);
-    const headRp = await git4(["rev-parse", "HEAD"]);
+    await cleanupStaleTransactionMarkers(git3, preserve);
+    const headRp = await git3(["rev-parse", "HEAD"]);
     if (headRp.exitCode !== 0) {
       throw preserve(`git rev-parse HEAD failed while merging '${branch}' into '${base}' (exit ${headRp.exitCode}): ${headRp.stderr.slice(0, 160)}.`);
     }
     const headSha = headRp.stdout.trim();
     const baseTip = expectedBaseSha !== void 0 && expectedBaseSha !== "" ? expectedBaseSha : headSha;
-    const branchRp = await git4(["rev-parse", `refs/heads/${branch}`]);
+    const branchRp = await git3(["rev-parse", `refs/heads/${branch}`]);
     if (branchRp.exitCode !== 0) {
       throw preserve(`git rev-parse refs/heads/${branch} failed while merging into '${base}' (exit ${branchRp.exitCode}): ${branchRp.stderr.slice(0, 160)}.`);
     }
@@ -50029,7 +50245,7 @@ var mergeBackToBase = async (exec, input2) => {
     const support = await mergeTreeSupported(exec, hostRepoDir);
     const mergeMsg = `Merge branch '${branch}' into '${baseShort}'`;
     if (support.ok) {
-      const mt = await git4(["merge-tree", "--write-tree", baseTip, branchTip]);
+      const mt = await git3(["merge-tree", "--write-tree", baseTip, branchTip]);
       if (mt.exitCode === 1) {
         throw preserve(`Merge of '${branch}' into base '${base}' failed (content conflict). To retry: cd ${worktreePath} && git merge ${base} (resolve conflicts manually, then commit).`);
       }
@@ -50040,7 +50256,7 @@ var mergeBackToBase = async (exec, input2) => {
       if (mergeTree === "") {
         throw preserve(`git merge-tree returned an empty tree merging '${branch}' into '${base}'.`);
       }
-      const commit = await git4(["commit-tree", mergeTree, "-p", baseTip, "-p", branchTip, "-m", mergeMsg]);
+      const commit = await git3(["commit-tree", mergeTree, "-p", baseTip, "-p", branchTip, "-m", mergeMsg]);
       const mergedCommit = commit.stdout.trim();
       if (commit.exitCode !== 0 || mergedCommit === "") {
         throw preserve(`git commit-tree failed merging '${branch}' into '${base}': ${commit.stderr.slice(0, 160)}.`);
@@ -50067,12 +50283,12 @@ var mergeBackToBase = async (exec, input2) => {
         "commit",
         ""
       ].join("\n");
-      const upd = await git4(["update-ref", "--stdin"], refTxn);
-      const committedDespiteError = upd.exitCode !== 0 && await transactionCommitIsVisible(git4, `refs/heads/${baseShort}`, mergedCommit, markerRef);
+      const upd = await git3(["update-ref", "--stdin"], refTxn);
+      const committedDespiteError = upd.exitCode !== 0 && await transactionCommitIsVisible(git3, `refs/heads/${baseShort}`, mergedCommit, markerRef);
       if (upd.exitCode !== 0 && !committedDespiteError) {
         throw preserve(`base '${base}' or verified branch '${branch}' changed since this run was frozen (atomic ref transaction failed: ${upd.stderr.slice(0, 160)}) \u2014 refusing to auto-merge onto un-verified refs. To recover: re-run against the current '${base}' in the host repo (${hostRepoDir}).`, { baseAdvanced: true });
       }
-      await cleanupTransactionMarker(git4, markerRef, mergedCommit);
+      await cleanupTransactionMarker(git3, markerRef, mergedCommit);
       let landedJournalError;
       const landedReceipt = {
         landed: true,
@@ -50086,7 +50302,7 @@ var mergeBackToBase = async (exec, input2) => {
       } catch (error2) {
         landedJournalError = safeMergeJournalMessage(error2);
       }
-      const sync = await git4(["read-tree", "-m", "-u", baseTip, mergedCommit]);
+      const sync = await git3(["read-tree", "-m", "-u", baseTip, mergedCommit]);
       if (sync.exitCode !== 0) {
         const hostSyncError = `git read-tree: ${(sync.stderr || sync.stdout).slice(0, 160)}`;
         try {
@@ -50120,36 +50336,36 @@ var mergeBackToBase = async (exec, input2) => {
       }
       return { landed: true, hostSynced: true, mergedCommit, baseBefore: baseTip, branchTip, landedJournalError };
     }
-    return await mergeBackFallback(git4, { branch, base, baseShort, headSha, branchTip, casExpectedOld: baseTip, mergeMsg, preserve, onIntent, onLanded });
+    return await mergeBackFallback(git3, { branch, base, baseShort, headSha, branchTip, casExpectedOld: baseTip, mergeMsg, preserve, onIntent, onLanded });
   } finally {
     await rmdir7(lock).catch(() => {
     });
   }
 };
-var mergeBackFallback = async (git4, ctx) => {
+var mergeBackFallback = async (git3, ctx) => {
   const { branch, base, baseShort, headSha, branchTip, casExpectedOld, mergeMsg, preserve, onIntent, onLanded } = ctx;
   const cleanup2 = async () => {
-    const cur = await git4(["rev-parse", `refs/heads/${baseShort}`]);
+    const cur = await git3(["rev-parse", `refs/heads/${baseShort}`]);
     const target = cur.exitCode === 0 ? cur.stdout.trim() : "";
     if (target === "")
       return " [cleanup: cannot read current base ref \u2014 host may be left mid-merge]";
-    const reset2 = await git4(["reset", "--hard", target]);
+    const reset2 = await git3(["reset", "--hard", target]);
     return reset2.exitCode === 0 ? "" : ` [cleanup: git reset --hard ${target.slice(0, 12)} failed (exit ${reset2.exitCode})]`;
   };
   const failCleanup = async (message2, opts) => {
     const note2 = await cleanup2();
     throw preserve(`${message2}${note2}`, opts);
   };
-  const merge = await git4([...NO_CONFIG_LOCK_FLAGS, "merge", "--no-ff", "--no-commit", `refs/heads/${branch}`]);
+  const merge = await git3([...NO_CONFIG_LOCK_FLAGS, "merge", "--no-ff", "--no-commit", `refs/heads/${branch}`]);
   if (parseMergeResult(merge).conflict) {
     await failCleanup(`Merge of '${branch}' into base '${base}' failed (conflict). To retry in the worktree: git merge ${base} (resolve conflicts manually, then commit).`);
   }
-  const treeRes = await git4(["write-tree"]);
+  const treeRes = await git3(["write-tree"]);
   const tree = treeRes.stdout.trim();
   if (treeRes.exitCode !== 0 || tree === "") {
     await failCleanup(`git write-tree failed merging '${branch}' into '${base}' (exit ${treeRes.exitCode}): ${treeRes.stderr.slice(0, 160)}.`);
   }
-  const commit = await git4(["commit-tree", tree, "-p", headSha, "-p", branchTip, "-m", mergeMsg]);
+  const commit = await git3(["commit-tree", tree, "-p", headSha, "-p", branchTip, "-m", mergeMsg]);
   const mergedCommit = commit.stdout.trim();
   if (commit.exitCode !== 0 || mergedCommit === "") {
     await failCleanup(`git commit-tree failed merging '${branch}' into '${base}': ${commit.stderr.slice(0, 160)}.`);
@@ -50175,19 +50391,19 @@ var mergeBackFallback = async (git4, ctx) => {
     "commit",
     ""
   ].join("\n");
-  const upd = await git4(["update-ref", "--stdin"], refTxn);
-  const committedDespiteError = upd.exitCode !== 0 && await transactionCommitIsVisible(git4, `refs/heads/${baseShort}`, mergedCommit, markerRef);
+  const upd = await git3(["update-ref", "--stdin"], refTxn);
+  const committedDespiteError = upd.exitCode !== 0 && await transactionCommitIsVisible(git3, `refs/heads/${baseShort}`, mergedCommit, markerRef);
   if (upd.exitCode !== 0 && !committedDespiteError) {
     await failCleanup(`base '${base}' or verified branch '${branch}' changed since this run was frozen, or this Git cannot provide the required atomic ref transaction (exit ${upd.exitCode}: ${upd.stderr.slice(0, 160)}) \u2014 refusing to auto-merge onto un-verified refs; single-ref fallback is forbidden.`, { baseAdvanced: true });
   }
-  await cleanupTransactionMarker(git4, markerRef, mergedCommit);
+  await cleanupTransactionMarker(git3, markerRef, mergedCommit);
   let landedJournalError;
   try {
     await onLanded?.({ landed: true, hostSynced: false, mergedCommit, baseBefore: casExpectedOld, branchTip });
   } catch (error2) {
     landedJournalError = safeMergeJournalMessage(error2);
   }
-  const reset = await git4(["reset", "--mixed", "HEAD"]);
+  const reset = await git3(["reset", "--mixed", "HEAD"]);
   if (reset.exitCode !== 0) {
     const hostSyncError = `git reset --mixed HEAD failed (exit ${reset.exitCode}): ${(reset.stderr || reset.stdout).slice(0, 160)}`;
     try {
@@ -53213,7 +53429,7 @@ function byteLength2(value) {
 function rawDigest(value) {
   return typeof value === "string" ? `sha256:${createHash43("sha256").update(new TextEncoder().encode(value)).digest("hex")}` : void 0;
 }
-function digestMatches(value, expected, normalized2) {
+function digestMatches2(value, expected, normalized2) {
   return normalized2 === expected || rawDigest(value) === expected;
 }
 function resultProjection(result2) {
@@ -53343,7 +53559,7 @@ async function materializeRunInputsV2(input2) {
     if (entry2.content !== void 0) {
       const snap2 = snapshotJsonBoundary(entry2.content, { maxBytes, maxDepth: 40, maxNodes: 8192 });
       const actual2 = digest15(snap2.value);
-      if (!digestMatches(snap2.value, entry2.expected_digest, actual2))
+      if (!digestMatches2(snap2.value, entry2.expected_digest, actual2))
         throw new InputMaterializationErrorV2("artifact-digest-mismatch", `input digest mismatch for ${entry2.ref}`);
       total += snap2.bytes;
       if (total > maxBytes)
@@ -53361,7 +53577,7 @@ async function materializeRunInputsV2(input2) {
     }
     const snap = snapshotJsonBoundary(raw, { maxBytes, maxDepth: 40, maxNodes: 8192 });
     const actual = digest15(snap.value);
-    if (!digestMatches(snap.value, entry2.expected_digest, actual))
+    if (!digestMatches2(snap.value, entry2.expected_digest, actual))
       throw new InputMaterializationErrorV2("artifact-digest-mismatch", `input digest mismatch for ${entry2.ref}`);
     total += snap.bytes;
     if (total > maxBytes)
@@ -54752,10 +54968,17 @@ async function currentCandidate(deps, change, state, plan, scope) {
 function testEvidenceReaderFor(deps) {
   return deps.testEvidence ?? evaluateTestEvidence;
 }
-function changedFilesFor(deps, changeName) {
+function changedFilesReportFor(deps, changeName) {
   return async () => {
     if (deps.changedFiles !== void 0) return deps.changedFiles(changeName);
-    return changedFilesForState(deps.cwd, await deps.store.read(resolveChangeDir2(deps.cwd, changeName)));
+    return changedFilesResultForState(deps.cwd, await deps.store.read(resolveChangeDir2(deps.cwd, changeName)));
+  };
+}
+function changedFilesFor(deps, changeName) {
+  const report2 = changedFilesReportFor(deps, changeName);
+  return async () => {
+    const source = await report2();
+    return Array.isArray(source) ? source : source.files;
   };
 }
 function testEvidenceContextFor(deps, changeName) {
@@ -54765,7 +54988,7 @@ function testEvidenceContextFor(deps, changeName) {
   return {
     user: { id: user.id, name: user.name, slug: userSlug(user.id) },
     ...fingerprint === void 0 ? {} : { currentCandidate: () => fingerprint(changeName) },
-    changedFiles: changedFilesFor(deps, changeName)
+    changedFiles: changedFilesReportFor(deps, changeName)
   };
 }
 
@@ -61090,19 +61313,19 @@ function freezeTrustedLifecycleCommands(env) {
   const gitBinding = env.resolveTrustedCommandBinding?.("git");
   const nodeBinding = env.resolveTrustedCommandBinding?.("node");
   const bash = bashBinding?.executable;
-  const git4 = gitBinding?.executable;
+  const git3 = gitBinding?.executable;
   const node = nodeBinding?.executable;
   return {
     enforced: true,
     ...bash === void 0 ? {} : { bash },
-    ...git4 === void 0 ? {} : { git: git4 },
+    ...git3 === void 0 ? {} : { git: git3 },
     ...node === void 0 ? {} : { node },
     ...bashBinding === void 0 ? {} : { bashBinding },
     ...gitBinding === void 0 ? {} : { gitBinding },
     ...nodeBinding === void 0 ? {} : { nodeBinding },
     missing: [
       ...bash === void 0 ? ["bash"] : [],
-      ...git4 === void 0 ? ["git"] : [],
+      ...git3 === void 0 ? ["git"] : [],
       ...node === void 0 ? ["node"] : []
     ]
   };
@@ -76098,7 +76321,7 @@ var HOOK_APPENDED_LEDGERS = [
 function firstDeliveryMessage(change) {
   return `feat(${change}): deliver`;
 }
-function git2(cwd, args) {
+function git(cwd, args) {
   return new Promise((resolve65) => {
     execFile9("git", [...args], { cwd, timeout: 5e3, maxBuffer: 4 * 1024 * 1024 }, (error2, stdout) => {
       if (error2 === null) {
@@ -76114,30 +76337,30 @@ function nulList2(stdout) {
   return stdout.split("\0").filter((entry2) => entry2 !== "");
 }
 async function probeGitFinish(cwd, change) {
-  const inside3 = await git2(cwd, ["rev-parse", "--is-inside-work-tree"]);
+  const inside3 = await git(cwd, ["rev-parse", "--is-inside-work-tree"]);
   if (inside3.code !== 0 || inside3.stdout.trim() !== "true") return null;
-  const statusOf4 = (paths) => git2(cwd, ["status", "--porcelain", "-z", "--untracked-files=normal", "--", ...paths]);
+  const statusOf4 = (paths) => git(cwd, ["status", "--porcelain", "-z", "--untracked-files=normal", "--", ...paths]);
   const [tracked, status, deliverables, step, ignoredTracked, subjects] = await Promise.all([
-    git2(cwd, ["ls-files", "-z", "--", `openspec/changes/${change}`]),
+    git(cwd, ["ls-files", "-z", "--", `openspec/changes/${change}`]),
     statusOf4(WORKSPACE_COMMIT_PATHS),
     statusOf4([...WORKSPACE_COMMIT_PATHS, `:(exclude)openspec/changes/${change}`]),
     statusOf4([...WORKSPACE_COMMIT_PATHS, ...HOOK_APPENDED_LEDGERS.map((file) => `:(exclude)openspec/changes/${change}/${file}`)]),
-    git2(cwd, ["ls-files", "-z", "-c", "-i", "--exclude-standard", "--", "openspec/changes"]),
+    git(cwd, ["ls-files", "-z", "-c", "-i", "--exclude-standard", "--", "openspec/changes"]),
     // 还没有任何提交时 git log 以 128 退出：按「还没交付过」处理。
-    git2(cwd, ["log", "--format=%s", "--fixed-strings", `--grep=${firstDeliveryMessage(change)}`])
+    git(cwd, ["log", "--format=%s", "--fixed-strings", `--grep=${firstDeliveryMessage(change)}`])
   ]);
   if (tracked.code !== 0 || status.code !== 0 || deliverables.code !== 0 || step.code !== 0) return null;
   const housekeeping = [];
   for (const path15 of FINISH_HOUSEKEEPING_PATHS) {
     if (!existsSync12(join133(cwd, path15))) continue;
-    if ((await git2(cwd, ["check-ignore", "-q", "--", path15])).code === 1) housekeeping.push(path15);
+    if ((await git(cwd, ["check-ignore", "-q", "--", path15])).code === 1) housekeeping.push(path15);
   }
-  const ownedTracked = await git2(cwd, ["ls-files", "-z", "--", OWNED_MANIFEST_PATH]);
+  const ownedTracked = await git(cwd, ["ls-files", "-z", "--", OWNED_MANIFEST_PATH]);
   if (ownedTracked.code === 0 && ownedTracked.stdout !== "") housekeeping.push(OWNED_MANIFEST_PATH);
-  else if (existsSync12(join133(cwd, OWNED_MANIFEST_PATH)) && (await git2(cwd, ["check-ignore", "-q", "--", OWNED_MANIFEST_PATH])).code === 1) housekeeping.push(OWNED_MANIFEST_PATH);
+  else if (existsSync12(join133(cwd, OWNED_MANIFEST_PATH)) && (await git(cwd, ["check-ignore", "-q", "--", OWNED_MANIFEST_PATH])).code === 1) housekeeping.push(OWNED_MANIFEST_PATH);
   const designSystem = [];
   for (const path15 of DESIGN_SYSTEM_PATHS) {
-    const listed2 = await git2(cwd, ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", path15]);
+    const listed2 = await git(cwd, ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", path15]);
     if (listed2.code === 0 && listed2.stdout !== "") designSystem.push(path15);
   }
   const untrack = ignoredTracked.code === 0 ? nulList2(ignoredTracked.stdout).filter((path15) => basename13(path15).startsWith(TERMINAL_ACTIVITY_PREFIX)) : [];
@@ -76159,36 +76382,36 @@ function stop(code, message2) {
 }
 
 // packages/cli/src/commands/statusStepFinish.ts
-function deliveryCommit(change, git4, scope = "deliverables") {
-  if (git4 === null || !(scope === "step" ? git4.stepDirty : git4.deliverablesDirty)) return null;
-  const message2 = git4.delivered ? `chore(${change}): update deliverables` : firstDeliveryMessage(change);
-  return { paths: WORKSPACE_COMMIT_PATHS, untrack: git4.untrack, message: message2 };
+function deliveryCommit(change, git3, scope = "deliverables") {
+  if (git3 === null || !(scope === "step" ? git3.stepDirty : git3.deliverablesDirty)) return null;
+  const message2 = git3.delivered ? `chore(${change}): update deliverables` : firstDeliveryMessage(change);
+  return { paths: WORKSPACE_COMMIT_PATHS, untrack: git3.untrack, message: message2 };
 }
 function finishedStop(change) {
   return stop("finished", `\u4EFB\u52A1 '${change}' \u5DF2\u5B8C\u7ED3\uFF0C\u6CA1\u6709\u8981\u505A\u7684\u4E8B\u4E86`);
 }
 function finishActions(change, governedOpenspec, finish) {
-  const git4 = finish.git;
+  const git3 = finish.git;
   if (!governedOpenspec) {
-    if (!finish.verified || git4 === null || !git4.workspaceDirty && git4.untrack.length === 0) {
+    if (!finish.verified || git3 === null || !git3.workspaceDirty && git3.untrack.length === 0) {
       return finishedStop(change);
     }
     return [{
       action: "finish-change",
       change,
       command: null,
-      commit: { paths: WORKSPACE_COMMIT_PATHS, untrack: git4.untrack, message: `chore(tenon): finish ${change}` }
+      commit: { paths: WORKSPACE_COMMIT_PATHS, untrack: git3.untrack, message: `chore(tenon): finish ${change}` }
     }];
   }
   const command2 = `openspec archive ${change} --skip-specs --yes --json`;
-  const commit = git4 === null ? null : {
+  const commit = git3 === null ? null : {
     paths: [
-      ...git4.changeDirTracked ? [`openspec/changes/${change}`] : [],
+      ...git3.changeDirTracked ? [`openspec/changes/${change}`] : [],
       "openspec/changes/archive",
-      ...finish.designSystem === true ? git4.designSystem : [],
-      ...git4.housekeeping
+      ...finish.designSystem === true ? git3.designSystem : [],
+      ...git3.housekeeping
     ],
-    untrack: git4.untrack,
+    untrack: git3.untrack,
     message: `chore(openspec): archive ${change}`
   };
   return [{ action: "finish-change", change, command: command2, commit }];
@@ -76570,8 +76793,8 @@ async function deliveryFacts(deps, name2, state, fields) {
   const none = { delivery: null, settle: null };
   if (str2(state.fields.archived) === "true") return none;
   if (!fields.some((field4) => DELIVERY_FIELDS.has(field4.field) && field4.writer === "set")) return none;
-  const git4 = await (deps.gitFinishProbe?.(name2) ?? Promise.resolve(null));
-  return { delivery: deliveryCommit(name2, git4), settle: deliveryCommit(name2, git4, "step") };
+  const git3 = await (deps.gitFinishProbe?.(name2) ?? Promise.resolve(null));
+  return { delivery: deliveryCommit(name2, git3), settle: deliveryCommit(name2, git3, "step") };
 }
 var PLAN_DOCUMENT_KINDS = /* @__PURE__ */ new Set(["plan", "superpower-plan"]);
 function downstreamSteps(plan, stepId) {
@@ -85203,13 +85426,13 @@ import { lstat as lstat65, readFile as readFile89 } from "node:fs/promises";
 import { join as join161 } from "node:path";
 import { promisify as promisify4 } from "node:util";
 var run2 = promisify4(execFile11);
-var MAX_UNTRACKED_FILES2 = 5e3;
+var MAX_UNTRACKED_FILES = 5e3;
 var MAX_UNTRACKED_BYTES2 = 1024 * 1024;
 var DOCUMENT_EXTENSION = /\.(?:md|mdx|markdown)$/iu;
 function isCodePath(path15) {
   return isWorkspaceCandidatePath(path15) && !DOCUMENT_EXTENSION.test(path15);
 }
-async function git3(cwd, args) {
+async function git2(cwd, args) {
   try {
     return (await run2("git", [...args], { cwd, maxBuffer: 32 * 1024 * 1024 })).stdout;
   } catch {
@@ -85228,9 +85451,9 @@ async function countLines(path15) {
   }
 }
 async function collectCodeSize(cwd, base) {
-  const mergeBase = (await git3(cwd, ["merge-base", "HEAD", base]))?.trim();
+  const mergeBase = (await git2(cwd, ["merge-base", "HEAD", base]))?.trim();
   if (mergeBase === void 0 || mergeBase === "") return void 0;
-  const numstat = await git3(cwd, ["diff", "--numstat", "--no-renames", "-z", mergeBase]);
+  const numstat = await git2(cwd, ["diff", "--numstat", "--no-renames", "-z", mergeBase]);
   if (numstat === void 0) return void 0;
   let filesChanged = 0;
   let linesAdded = 0;
@@ -85249,7 +85472,7 @@ async function collectCodeSize(cwd, base) {
     }
     if (Number.isFinite(minus)) linesDeleted += minus;
   }
-  const untracked = (await git3(cwd, ["ls-files", "--others", "--exclude-standard", "-z"]) ?? "").split("\0").filter((path15) => path15 !== "" && isCodePath(path15)).slice(0, MAX_UNTRACKED_FILES2);
+  const untracked = (await git2(cwd, ["ls-files", "--others", "--exclude-standard", "-z"]) ?? "").split("\0").filter((path15) => path15 !== "" && isCodePath(path15)).slice(0, MAX_UNTRACKED_FILES);
   for (const path15 of untracked) {
     const lines2 = await countLines(join161(cwd, path15));
     filesChanged += 1;
@@ -85286,7 +85509,10 @@ async function loadPlanInputs(deps, context) {
 }
 async function tryChangedFiles(deps, change) {
   try {
-    return { ok: true, files: await changedFilesFor(deps, change)() };
+    const source = await changedFilesReportFor(deps, change)();
+    if (Array.isArray(source)) return { ok: true, files: source };
+    const report2 = source;
+    return { ok: true, files: report2.files, ...report2.untrackedTruncated === void 0 ? {} : { untrackedTruncated: report2.untrackedTruncated } };
   } catch (error2) {
     return { ok: false, reason: error2 instanceof Error ? error2.message.slice(0, 200) : "\u8BFB\u53D6\u5931\u8D25" };
   }
@@ -85569,7 +85795,7 @@ import { readdir as readdir31 } from "node:fs/promises";
 import { join as join162 } from "node:path";
 import { promisify as promisify5 } from "node:util";
 var run3 = promisify5(execFile12);
-var GIT_TIMEOUT_MS2 = 2e4;
+var GIT_TIMEOUT_MS = 2e4;
 var MAX_BUFFER2 = 64 * 1024 * 1024;
 var MAX_FILES3 = 2e5;
 var MAX_DIRS2 = 2e4;
@@ -85599,7 +85825,7 @@ async function gitFiles(repoRoot) {
   try {
     const { stdout } = await run3("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], {
       cwd: repoRoot,
-      timeout: GIT_TIMEOUT_MS2,
+      timeout: GIT_TIMEOUT_MS,
       maxBuffer: MAX_BUFFER2
     });
     return stdout.split("\0").filter((entry2) => entry2 !== "").slice(0, MAX_FILES3);
@@ -89281,6 +89507,7 @@ async function cmdTestSync(deps, change, opts = {}) {
       change,
       planState: inputs2.planState.state,
       changed: diff.files.length,
+      ...diff.untrackedTruncated === void 0 ? {} : { untrackedTruncated: diff.untrackedTruncated },
       unregistered: registration.unregistered.map((file) => ({ ...file, fix: register(file.path, file.suites) })),
       orphans: registration.orphans,
       registeredButMissing: gone,
@@ -89290,6 +89517,9 @@ async function cmdTestSync(deps, change, opts = {}) {
     return dirty ? 2 : 0;
   }
   deps.io.out(`[TEST] sync ${change}\uFF1Adiff \u91CC ${diff.files.length} \u4E2A\u6587\u4EF6\uFF1B\u672A\u767B\u8BB0\u7684\u6D4B\u8BD5\u6587\u4EF6 ${registration.unregistered.length} \u4E2A\uFF0C\u65E0\u5957\u4EF6\u8BA4\u9886 ${registration.orphans.length} \u4E2A`);
+  if (diff.untrackedTruncated !== void 0) {
+    deps.io.out(`  \u63D0\u793A\uFF1A\u672A\u8DDF\u8E2A\u6587\u4EF6\u6709 ${diff.untrackedTruncated.found} \u4E2A\uFF0C\u53EA\u68C0\u67E5\u4E86\u524D ${diff.untrackedTruncated.limit} \u4E2A\uFF1B\u5176\u4F59\u7684\u6D4B\u8BD5\u6587\u4EF6\u6CA1\u6709\u6838\u5BF9\u662F\u5426\u5DF2\u767B\u8BB0\u3002\u628A\u6784\u5EFA\u4EA7\u7269\u3001\u4F9D\u8D56\u76EE\u5F55\u52A0\u5165 .gitignore \u540E\u91CD\u65B0\u68C0\u67E5`);
+  }
   if (inputs2.planState.state !== "ok") deps.io.out(`  \u8BA1\u5212${inputs2.planState.state === "missing" ? "\u8FD8\u6CA1\u6709\u767B\u8BB0" : "\u4E0D\u53EF\u4FE1"}\uFF1Atenon test plan ${change} --seed`);
   for (const file of registration.unregistered) deps.io.out(`  \u672A\u767B\u8BB0  ${file.path}
     ${register(file.path, file.suites)}`);
@@ -90450,10 +90680,10 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
   return {
     nodeVersion: () => process.version,
     gitAvailable: () => {
-      const git4 = trustedCommand("git");
-      if (git4 === void 0) return Promise.resolve(false);
+      const git3 = trustedCommand("git");
+      if (git3 === void 0) return Promise.resolve(false);
       return new Promise((resolve65) => {
-        execFile14(git4.executable, ["--version"], (err) => resolve65(!err));
+        execFile14(git3.executable, ["--version"], (err) => resolve65(!err));
       });
     },
     pluginRoot: root,

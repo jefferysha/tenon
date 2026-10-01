@@ -23,13 +23,8 @@ import {
   type TrackDefinition,
 } from '@tenon/kernel'
 import { ArtifactScopeMigrationError, type ArtifactService } from '@tenon/automation'
-import type {
-  ChangeSnapshot,
-  DocumentEvidenceSnapshot,
-  ProjectSnapshot, ProjectRepositoryIdentity,
-  Snapshot,
-  TerminalActivitySnapshot,
-} from './types.js'
+import type { ChangeSnapshot, DocumentEvidenceSnapshot, ProjectSnapshot, ProjectRepositoryIdentity, Snapshot, TerminalActivitySnapshot } from './types.js'
+import type { ListSnapshot, ProjectListSnapshot } from './snapshotListTypes.js'
 import { projectReviewHandshake } from './reviewHandshake.js'
 import { projectSkillRuns, resolveSnapshotTrack } from './skillRuns.js'
 import { readWorkflowSnapshotAuthority } from './workflowSnapshotAuthority.js'
@@ -224,9 +219,19 @@ export function documentTodoItems(
   ]))
 }
 
-import { scanAnchoredProject } from './snapshotProjectScan.js'
+import { scanAnchoredChange, scanAnchoredProject, type ScannedChange } from './snapshotProjectScan.js'
 
-async function scanProject(deps: SnapshotDeps, root: string, nowMs: number): Promise<ProjectSnapshot> {
+/**
+ * Run `read` against a registered root held by its trusted anchor (the server's long-lived one, or a point-in-time
+ * capture released afterwards). Any failure means the root is gone, unreachable or was swapped; `fallback` says how
+ * the caller reports that.
+ */
+async function withRootAnchor<T>(
+  deps: SnapshotDeps,
+  root: string,
+  read: (anchor: WorkflowRootAnchor, readRoot: string) => Promise<T>,
+  fallback: () => T,
+): Promise<T> {
   let anchor: WorkflowRootAnchor | undefined
   let ownsAnchor = false
   try {
@@ -240,21 +245,59 @@ async function scanProject(deps: SnapshotDeps, root: string, nowMs: number): Pro
     assertWorkflowRootAnchor(anchor)
     // Linux 用 fd-relative 根彻底固定 lookup；Darwin/Node 没有可遍历 fd path 时使用捕获时的
     // canonical 路径，避免词法路径任一祖先 symlink 换位把后续异步读取改道。
-    const project = await scanAnchoredProject(deps, root, anchor.fdPath ?? anchor.realPath, anchor, nowMs)
+    const result = await read(anchor, anchor.fdPath ?? anchor.realPath)
     assertWorkflowRootAnchor(anchor)
-    return project
+    return result
   } catch {
-    return { root, ok: false, changes: [], workflowRules: {}, error: 'root 不存在、不可达或已被替换' }
+    return fallback()
   } finally {
     if (ownsAnchor && anchor !== undefined) closeWorkflowRootAnchor(anchor)
   }
 }
 
-export async function buildSnapshot(deps: SnapshotDeps): Promise<Snapshot> {
-  const roots = dedupeRoots(deps.registry())
-  const nowMs = deps.now?.() ?? Date.now()
-  const projects = normalizeRepositoryLabels(await mapWithConcurrency(roots, 4, (root) => scanProject(deps, root, nowMs)))
-  const change_count = projects.reduce((n, p) => n + p.changes.length, 0)
+const UNREACHABLE_ROOT = 'root 不存在、不可达或已被替换'
+
+/** One registered project at the full tier (every change with all its evidence). */
+export function scanProject(deps: SnapshotDeps, root: string, nowMs: number, tier: 'full'): Promise<ProjectSnapshot>
+/** One registered project at the list tier (what the Dashboard loads first). */
+export function scanProject(deps: SnapshotDeps, root: string, nowMs: number, tier: 'list'): Promise<ProjectListSnapshot>
+export async function scanProject(
+  deps: SnapshotDeps,
+  root: string,
+  nowMs: number,
+  tier: 'full' | 'list',
+): Promise<ProjectSnapshot | ProjectListSnapshot> {
+  if (tier === 'list') {
+    return withRootAnchor<ProjectListSnapshot>(
+      deps, root,
+      (anchor, readRoot) => scanAnchoredProject(deps, root, readRoot, anchor, nowMs, 'list'),
+      () => ({ root, ok: false, changes: [], error: UNREACHABLE_ROOT }),
+    )
+  }
+  return withRootAnchor<ProjectSnapshot>(
+    deps, root,
+    (anchor, readRoot) => scanAnchoredProject(deps, root, readRoot, anchor, nowMs, 'full'),
+    () => ({ root, ok: false, changes: [], workflowRules: {}, error: UNREACHABLE_ROOT }),
+  )
+}
+
+/**
+ * One change with all its evidence, exactly as it appears in the full snapshot; `undefined` when the root is
+ * unreachable or the directory holds no readable change.
+ */
+export function scanChangeDetail(deps: SnapshotDeps, root: string, name: string, nowMs: number): Promise<ScannedChange | undefined> {
+  return withRootAnchor(
+    deps, root,
+    (anchor, readRoot) => scanAnchoredChange(deps, root, readRoot, anchor, nowMs, name),
+    () => undefined,
+  )
+}
+
+/** The envelope shared by every tier: protocol, version, capabilities and counts around the projects. */
+export function snapshotEnvelope(
+  deps: Pick<SnapshotDeps, 'version' | 'clock' | 'capabilities'>,
+  projects: readonly { readonly changes: readonly unknown[] }[],
+): Omit<Snapshot, 'projects'> {
   return {
     snapshot_protocol: 'tenon-snapshot/v2',
     version: deps.version,
@@ -262,9 +305,23 @@ export async function buildSnapshot(deps: SnapshotDeps): Promise<Snapshot> {
     // 能力声明（GOAL B6）：基线 4 域恒 true；afk/traffic 等由 server 按真实接线注入合并（未接线不谎报）。
     capabilities: { snapshot: true, health: true, stream: true, transition: true, ...(deps.capabilities ?? {}) },
     project_count: projects.length,
-    change_count,
-    projects,
+    change_count: projects.reduce((n, p) => n + p.changes.length, 0),
   }
+}
+
+export async function buildSnapshot(deps: SnapshotDeps): Promise<Snapshot> {
+  const roots = dedupeRoots(deps.registry())
+  const nowMs = deps.now?.() ?? Date.now()
+  const projects = normalizeRepositoryLabels(await mapWithConcurrency(roots, 4, (root) => scanProject(deps, root, nowMs, 'full')))
+  return { ...snapshotEnvelope(deps, projects), projects }
+}
+
+/** The list tier of every registered project; see `ChangeListSnapshot`. */
+export async function buildListSnapshot(deps: SnapshotDeps): Promise<ListSnapshot> {
+  const roots = dedupeRoots(deps.registry())
+  const nowMs = deps.now?.() ?? Date.now()
+  const projects = normalizeRepositoryLabels(await mapWithConcurrency(roots, 4, (root) => scanProject(deps, root, nowMs, 'list')))
+  return { ...snapshotEnvelope(deps, projects), projects }
 }
 
 /**

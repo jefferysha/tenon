@@ -90,6 +90,8 @@ export interface ChangeSnapshot {
    * observability, not canonical workflow state; omitted as soon as its short lease expires.
    */
   terminalActivity?: TerminalActivitySnapshot
+  /** Identity of the inputs this change was read from; stamped by the snapshot cache, equal on a list row and its detail. */
+  rev?: string
 }
 
 export type SkillRunStatus = 'idle' | 'running' | 'done'

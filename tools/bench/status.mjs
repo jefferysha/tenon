@@ -18,7 +18,7 @@ function statusOnce(fixture) {
 }
 
 const options = readOptions(process.argv.slice(2))
-const fixture = createBenchFixture({ projects: 1, changes: options.changes })
+const fixture = await createBenchFixture({ projects: 1, changes: options.changes })
 try {
   const samples = await sample(options, () => statusOnce(fixture))
   writeReport(options.json, { status_ms: samples }, { changes: options.changes, runs: options.runs, warmup: options.warmup })

@@ -19,7 +19,7 @@ import { makeChange, makeProject, makeSnapshot } from '../testkit'
 
 function stubFetch(): ReturnType<typeof vi.fn> {
   const fetchMock = vi.fn(async (url: string) => {
-    if (url === '/api/snapshot') return { ok: true, json: async () => makeSnapshot([]) }
+    if (url === '/api/snapshot?view=list') return { ok: true, json: async () => makeSnapshot([]) }
     throw new Error(`unexpected fetch ${url}`)
   })
   vi.stubGlobal('fetch', fetchMock)
@@ -41,7 +41,7 @@ describe('useSnapshot().reconnect —— 重连下沉本体（评审修复：担
 
     const es = lastEventSource()
     expect(es).toBeDefined()
-    expect(es!.url).toBe('/api/stream')
+    expect(es!.url).toBe('/api/stream?view=list')
     expect(es!.readyState).not.toBe(2) // 非 CLOSED
   })
 
@@ -71,14 +71,14 @@ describe('useSnapshot().reconnect —— 重连下沉本体（评审修复：担
     const { result } = renderHook(() => useSnapshot())
     await waitFor(() => expect(result.current.loading).toBe(false))
 
-    const before = fetchMock.mock.calls.filter((c: unknown[]) => c[0] === '/api/snapshot').length
+    const before = fetchMock.mock.calls.filter((c: unknown[]) => c[0] === '/api/snapshot?view=list').length
 
     act(() => {
       result.current.reconnect()
     })
 
     await waitFor(() => {
-      const after = fetchMock.mock.calls.filter((c: unknown[]) => c[0] === '/api/snapshot').length
+      const after = fetchMock.mock.calls.filter((c: unknown[]) => c[0] === '/api/snapshot?view=list').length
       expect(after).toBe(before + 1)
     })
   })

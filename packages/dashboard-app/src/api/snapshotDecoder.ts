@@ -15,6 +15,7 @@ import {
 import {
   decodeWorkflowExecution, decodeWorkflowRules, exactKeys, workflowRulesSemanticKey,
 } from './snapshotWorkflowDecoders'
+import { expandWireProject } from './snapshotWire'
 
 function decodeFields(value: unknown): Record<string, string | string[]> | null {
   if (!isRecord(value)) return null
@@ -72,7 +73,7 @@ function decodeUserRefKey(value: Record<string, unknown>, key: 'owner' | 'creato
   return { id: ref.id, name: ref.name, slug: ref.slug }
 }
 
-function decodeChange(value: unknown): ChangeSnapshot | null {
+export function decodeChange(value: unknown): ChangeSnapshot | null {
   if (!isRecord(value)) return null
   const fields = decodeFields(value.fields)
   const workflowRules = decodeWorkflowRules(value.workflowRules)
@@ -94,7 +95,8 @@ function decodeChange(value: unknown): ChangeSnapshot | null {
     || !workflowRules.steps.includes(value.phase)
     || !fields
     || owner === undefined
-    || creator === undefined) return null
+    || creator === undefined
+    || (value.rev !== undefined && (typeof value.rev !== 'string' || value.rev === ''))) return null
   const reviewHandshake = value.reviewHandshake === undefined
     ? undefined
     : decodeReviewHandshake(value.reviewHandshake, workflowRules, value.phase)
@@ -135,6 +137,7 @@ function decodeChange(value: unknown): ChangeSnapshot | null {
     workflowPlanFingerprint: value.workflowPlanFingerprint,
     workflowRules,
     workflowExecution,
+    ...(typeof value.rev === 'string' ? { rev: value.rev } : {}),
     ...(reviewHandshake ? { reviewHandshake } : {}),
     ...(todo ? { todo } : {}),
     ...(documents ? { documents } : {}),
@@ -166,7 +169,9 @@ function decodeRepositoryIdentity(value: unknown): ProjectRepositoryIdentity | n
   }
 }
 
-function decodeProject(value: unknown): ProjectSnapshot | null {
+export function decodeProject(wire: unknown): ProjectSnapshot | null {
+  // The list wire writes shared sub-trees once per project; put them back before validating anything.
+  const value = expandWireProject(wire)
   if (!isRecord(value)
     || typeof value.root !== 'string'
     || typeof value.ok !== 'boolean'
@@ -289,6 +294,7 @@ export function decodeSnapshot(value: unknown): Snapshot | null {
     ...(value.snapshot_protocol === 'tenon-snapshot/v2'
       ? { snapshot_protocol: value.snapshot_protocol }
       : {}),
+    ...(value.view === 'list' ? { view: 'list' as const } : {}),
     version: value.version,
     generated_at: value.generated_at,
     capabilities: value.capabilities,

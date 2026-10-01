@@ -1,10 +1,11 @@
-import { mkdtemp, readFile, readdir, rm, unlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm, stat, unlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { testRunRecordsDir } from './paths.js'
 import {
-  appendTestRunRecordV2, listRecordDirectory, pruneRecordChain, readRecordChain, recordV2Digest, verifyRecordChain,
+  appendTestRunRecordV2, createRecordChainCache, listRecordDirectory, pruneRecordChain, readRecordChain, recordV2Digest,
+  verifyRecordChain,
 } from './record-chain.js'
 import { declaresRecordV2, decodeTestRunRecordV2 } from './record-v2-codec.js'
 import type { TestRunRecordV2 } from './record-v2-types.js'
@@ -252,5 +253,95 @@ describe('保留上限清理（真机验收 F14 / P2：记录永不清理，一�
     const report = await readRecordChain(repo, SLUG, 'demo')
     expect(report.state).toBe('intact')
     expect(report.state === 'intact' ? report.active.map((record) => record.run_id) : []).toEqual([again.record.run_id])
+  })
+})
+
+describe('记录链缓存：按文件指纹复用校验结果，改动仍然逐条发现', () => {
+  let repo: string
+  beforeEach(async () => { repo = await mkdtemp(join(tmpdir(), 'tenon-chain-cache-')) })
+  afterEach(async () => { await rm(repo, { recursive: true, force: true }) })
+
+  it('没有任何文件变化：直接返回上一次的链报告，记录对象也是同一批', async () => {
+    const cache = createRecordChainCache()
+    await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    const first = await readRecordChain(repo, SLUG, 'demo', cache)
+    const second = await readRecordChain(repo, SLUG, 'demo', cache)
+    expect(second).toBe(first)
+    expect(first).toEqual(await readRecordChain(repo, SLUG, 'demo'))
+  })
+
+  it('追加一条：旧记录不重读（同一对象），新链含新记录', async () => {
+    const cache = createRecordChainCache()
+    await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    const before = await readRecordChain(repo, SLUG, 'demo', cache)
+    await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    const after = await readRecordChain(repo, SLUG, 'demo', cache)
+    expect(after.state === 'intact' ? after.active.length : 0).toBe(2)
+    if (before.state !== 'intact' || after.state !== 'intact') throw new Error('chain')
+    expect(after.active[0]).toBe(before.active[0])
+  })
+
+  it('改文件内容、保持大小并把 mtime 还原：ctime 变了，缓存不放过 → broken', async () => {
+    const cache = createRecordChainCache()
+    const one = await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    expect((await readRecordChain(repo, SLUG, 'demo', cache)).state).toBe('intact')
+    const original = await stat(one.path)
+    const text = await readFile(one.path, 'utf8')
+    const edited = text.replace('"result": "pass"', '"result": "fail"')
+    expect(edited.length).toBe(text.length)
+    await writeFile(one.path, edited, 'utf8')
+    await utimes(one.path, original.atime, original.mtime)
+    expect((await readRecordChain(repo, SLUG, 'demo', cache)).state).toBe('broken')
+  })
+
+  it('删除中间记录、放进坏文件、删掉整个目录：都立刻反映', async () => {
+    const cache = createRecordChainCache()
+    await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    const middle = await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    expect((await readRecordChain(repo, SLUG, 'demo', cache)).state).toBe('intact')
+    await unlink(middle.path)
+    expect((await readRecordChain(repo, SLUG, 'demo', cache)).state).toBe('broken')
+    const dir = testRunRecordsDir(repo, SLUG, 'demo')
+    await rm(dir, { recursive: true, force: true })
+    expect(await readRecordChain(repo, SLUG, 'demo', cache)).toEqual({ state: 'empty' })
+    await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    await writeFile(join(dir, 'zz.json'), 'not json', 'utf8')
+    expect(await readRecordChain(repo, SLUG, 'demo', cache)).toMatchObject({ state: 'broken', files: ['zz.json'] })
+  })
+
+  it('缓存的目录数有上限，最久没用的先丢；丢掉之后照样读得对', async () => {
+    const cache = createRecordChainCache(1)
+    await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())
+    await appendTestRunRecordV2(repo, SLUG, { ...fixtureRecordDraft(), change: 'other' })
+    expect((await readRecordChain(repo, SLUG, 'demo', cache)).state).toBe('intact')
+    expect((await readRecordChain(repo, SLUG, 'other', cache)).state).toBe('intact')
+    expect(cache.directories.size).toBe(1)
+    expect((await readRecordChain(repo, SLUG, 'demo', cache)).state).toBe('intact')
+  })
+
+  it('清理（链基点标记）后缓存跟着变：基点、被删的文件、被改坏的标记都立刻反映', async () => {
+    const cache = createRecordChainCache()
+    const ids: string[] = []
+    for (let i = 0; i < 5; i++) ids.push((await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft())).record.run_id)
+    const before = await readRecordChain(repo, SLUG, 'demo', cache)
+    expect(before.state === 'intact' ? before.active.length : 0).toBe(5)
+    expect(await pruneRecordChain(repo, SLUG, 'demo', 3)).toHaveLength(2)
+    const pruned = await readRecordChain(repo, SLUG, 'demo', cache)
+    expect(pruned.state).toBe('intact')
+    expect(pruned.state === 'intact' ? pruned.active.map((record) => record.run_id) : []).toEqual(ids.slice(2))
+    expect(await readRecordChain(repo, SLUG, 'demo', cache)).toBe(pruned)
+    const dir = testRunRecordsDir(repo, SLUG, 'demo')
+    const marker = await readFile(join(dir, 'chain-base'), 'utf8')
+    await writeFile(join(dir, 'chain-base'), marker.replace(/sha256:[0-9a-f]{64}/, `sha256:${'0'.repeat(64)}`), 'utf8')
+    expect((await readRecordChain(repo, SLUG, 'demo', cache)).state).toBe('broken')
+    await writeFile(join(dir, 'chain-base'), 'not json', 'utf8')
+    expect(await readRecordChain(repo, SLUG, 'demo', cache)).toMatchObject({ state: 'broken', files: expect.arrayContaining(['chain-base']) })
+    await writeFile(join(dir, 'chain-base'), marker, 'utf8')
+    expect((await readRecordChain(repo, SLUG, 'demo', cache)).state).toBe('intact')
+    await rm(join(dir, 'chain-base'))
+    expect((await readRecordChain(repo, SLUG, 'demo', cache)).state).toBe('broken')
   })
 })

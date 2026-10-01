@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { basename, dirname, isAbsolute, join, normalize, resolve } from 'node:path'
-import type { ProjectRepositoryIdentity, ProjectSnapshot } from './types.js'
+import type { ProjectRepositoryIdentity } from './types.js'
 
 const REPOSITORY_IDENTITY_TIMEOUT_MS = 1_500
 const REPOSITORY_IDENTITY_MAX_OUTPUT_BYTES = 4_096
@@ -50,7 +50,7 @@ export async function readRepositoryIdentity(
   }
 }
 
-export function normalizeRepositoryLabels(projects: readonly ProjectSnapshot[]): ProjectSnapshot[] {
+export function normalizeRepositoryLabels<P extends { readonly root: string; readonly repository?: ProjectRepositoryIdentity }>(projects: readonly P[]): P[] {
   const labels = new Map<string, { label: string; primary: boolean; root: string }>()
   for (const project of projects) {
     const repository = project.repository
@@ -68,7 +68,7 @@ export function normalizeRepositoryLabels(projects: readonly ProjectSnapshot[]):
       labels.set(repository.id, candidate)
     }
   }
-  return projects.map((project): ProjectSnapshot => {
+  return projects.map((project): P => {
     const repository = project.repository
     if (repository === undefined) return project
     const label = labels.get(repository.id)?.label ?? repository.label

@@ -4,8 +4,9 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
-  ChangedFilesUnavailableError, changeStartOfFields, changedFilesForState, changedFilesSinceChangeStart,
-  changedLinesSinceChangeStart, parseAddedLines,
+  ChangedFilesUnavailableError, changeStartOfFields, changedFilesForState, changedFilesResultForState,
+  changedFilesSinceChangeStart, changedLinesSinceChangeStart, createChangedFilesSession, parseAddedLines,
+  resolveChangeStart, type ChangedFilesSessionOptions,
 } from './changed-files.js'
 
 let repo = ''
@@ -124,5 +125,112 @@ describe('changedLinesSinceChangeStart', () => {
     expect([...(parsed.get('x.ts') ?? [])]).toEqual([3, 10, 11, 12])
     expect(parsed.has('y.ts')).toBe(false)
     expect([...(parsed.get('z.ts') ?? [])]).toEqual([])
+  })
+})
+
+type RunGit = NonNullable<ChangedFilesSessionOptions['runGit']>
+
+/** 真 git，但把每次调用的参数记下来：数子进程个数用。 */
+function countingGit(calls: string[][]): RunGit {
+  return async (args, options) => {
+    calls.push([...args])
+    return { stdout: execFileSync('git', [...args], { cwd: options.cwd, encoding: 'utf8', env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' } }) }
+  }
+}
+
+describe('createChangedFilesSession：同一个仓库的多个任务共用 git 调用', () => {
+  it('N 个起点不同的任务只跑 O(1) 个 git 子进程，结果与逐个读取一致', async () => {
+    git(['init', '-q', '-b', 'main'])
+    await put('src/old.test.ts', 'old\n')
+    commit('base', '2026-01-01T00:00:00Z')
+    await put('src/mid.test.ts', 'mid\n')
+    commit('mid', '2026-03-01T00:00:00Z')
+    await put('src/wip.ts', 'wip\n')
+    const inputs = ['2026-01-15T00:00:00Z', '2026-02-01T00:00:00Z', '2026-03-15T00:00:00Z', '2026-04-01T00:00:00Z', '2025-12-01T00:00:00Z']
+      .map((createdAt) => ({ baseBranch: 'main', createdAt }))
+    const calls: string[][] = []
+    const session = createChangedFilesSession(repo, { runGit: countingGit(calls) })
+    const results = await Promise.all(inputs.map((input) => session.changedFiles(input)))
+    for (const [index, input] of inputs.entries()) {
+      expect(results[index]?.files).toEqual(await changedFilesSinceChangeStart(repo, input))
+    }
+    const verbs = calls.map((args) => args[0])
+    expect(verbs.filter((verb) => verb === 'rev-parse')).toHaveLength(1)
+    expect(verbs.filter((verb) => verb === 'merge-base')).toHaveLength(1)
+    expect(verbs.filter((verb) => verb === 'rev-list')).toHaveLength(1)
+    expect(verbs.filter((verb) => verb === 'ls-files')).toHaveLength(1)
+    // 五个任务落在三个不同的起点（早于全部提交 = 空树），每个起点只 diff 一次。
+    expect(verbs.filter((verb) => verb === 'diff')).toHaveLength(3)
+    expect(calls.length).toBeLessThanOrEqual(7)
+  })
+
+  it('创建时间落在乱序提交时间、合并提交之间：与逐个 rev-list --before 的结果一致', async () => {
+    git(['init', '-q', '-b', 'main'])
+    await put('a.txt', '1\n')
+    commit('c1', '2026-01-10T00:00:00Z')
+    git(['checkout', '-q', '-b', 'side'])
+    await put('side.txt', 's\n')
+    commit('side work', '2026-05-20T00:00:00Z')
+    git(['checkout', '-q', 'main'])
+    await put('main.txt', 'm\n')
+    commit('main work with an older clock', '2026-02-01T00:00:00Z')
+    git(['-c', 'user.email=t@t.test', '-c', 'user.name=t', '-c', 'commit.gpgsign=false', 'merge', '-q', '--no-ff', 'side', '-m', 'merge'], { GIT_AUTHOR_DATE: '2026-03-01T00:00:00Z', GIT_COMMITTER_DATE: '2026-03-01T00:00:00Z' })
+    for (const createdAt of ['2026-01-05T00:00:00Z', '2026-01-10T00:00:00Z', '2026-01-20T00:00:00Z', '2026-02-15T00:00:00Z', '2026-04-01T00:00:00Z', '2026-06-01T00:00:00Z']) {
+      const expected = git(['rev-list', '-1', `--before=${new Date(createdAt).toISOString()}`, 'HEAD']).trim()
+      const start = await resolveChangeStart(repo, { baseBranch: '', createdAt })
+      expect(start, createdAt).toBe(expected === '' ? '4b825dc642cb6eb9a060e54bf8d69288fbee4904' : expected)
+    }
+  })
+
+  it('git 超时：抛出带原因的 ChangedFilesUnavailableError，之后的命令直接放弃而不是各等一遍', async () => {
+    git(['init', '-q', '-b', 'main'])
+    await put('src/a.ts', 'a\n')
+    commit('a', '2026-01-01T00:00:00Z')
+    const calls: string[][] = []
+    const runGit: RunGit = async (args, options) => {
+      calls.push([...args])
+      if (args[0] === 'diff') throw Object.assign(new Error('timed out'), { killed: true, signal: 'SIGTERM', code: null, stdout: '' })
+      return countingGit([])(args, options)
+    }
+    const session = createChangedFilesSession(repo, { timeoutMs: 3_000, runGit })
+    const a = { baseBranch: 'main', createdAt: '2026-06-01T00:00:00Z' }
+    const b = { baseBranch: 'main', createdAt: '2026-07-01T00:00:00Z' }
+    await expect(session.changedFiles(a)).rejects.toThrow(/git diff 超时（超过 3 秒）/)
+    const before = calls.length
+    await expect(session.changedFiles(b)).rejects.toBeInstanceOf(ChangedFilesUnavailableError)
+    expect(calls.length).toBe(before)
+  })
+
+  it('普通失败（非超时）沿用原来的措辞', async () => {
+    git(['init', '-q', '-b', 'main'])
+    const runGit: RunGit = async (args) => {
+      if (args[0] === 'ls-files') throw Object.assign(new Error('boom'), { code: 128, stdout: '' })
+      return { stdout: args[0] === 'rev-parse' ? 'true\n' : '' }
+    }
+    const session = createChangedFilesSession(repo, { runGit })
+    await expect(session.changedFiles({ baseBranch: '', createdAt: '2026-06-01T00:00:00Z' })).rejects.toThrow('git ls-files 失败')
+  })
+
+  it('未跟踪文件超过上限：只读前 limit 个，并显式带出被截断的个数', async () => {
+    git(['init', '-q', '-b', 'main'])
+    await put('README.md', 'r\n')
+    commit('base', '2026-01-01T00:00:00Z')
+    for (const name of ['a', 'b', 'c', 'd', 'e']) await put(`untracked/${name}.test.ts`, `${name}\n`)
+    const session = createChangedFilesSession(repo, { untrackedLimit: 3 })
+    const result = await session.changedFiles({ baseBranch: '', createdAt: '2026-06-01T00:00:00Z' })
+    expect(result.files).toEqual(['untracked/a.test.ts', 'untracked/b.test.ts', 'untracked/c.test.ts'])
+    expect(result.untrackedTruncated).toEqual({ found: 5, limit: 3 })
+    const full = await createChangedFilesSession(repo).changedFiles({ baseBranch: '', createdAt: '2026-06-01T00:00:00Z' })
+    expect(full.untrackedTruncated).toBeUndefined()
+    expect(full.files).toHaveLength(5)
+  })
+
+  it('changedFilesResultForState 与 changedFilesForState 同一份文件列表', async () => {
+    git(['init', '-q', '-b', 'main'])
+    await put('src/a.test.ts', 'a\n')
+    commit('base', '2026-01-01T00:00:00Z')
+    await put('src/b.test.ts', 'b\n')
+    const state = { fields: { base_branch: 'main', created_at: '2026-06-01T00:00:00Z' } }
+    expect((await changedFilesResultForState(repo, state)).files).toEqual(await changedFilesForState(repo, state))
   })
 })
