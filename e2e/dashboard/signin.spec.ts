@@ -88,3 +88,110 @@ test.describe('登录', () => {
     await expect(page.getByTestId('offline-restart-text')).toHaveText('tenon dashboard --open')
   })
 })
+
+/** 匿名页的语言按 Accept-Language 选（浏览器的界面语言决定它）；配色跟随系统。 */
+const ANONYMOUS_PAGES = [
+  { name: '中文', locale: 'zh-CN', lang: 'zh', heading: '需要登录', invalid: '登录链接无效或已过期', copy: '复制命令', copied: '已复制', continue: '继续' },
+  { name: 'English', locale: 'en-US', lang: 'en', heading: 'Sign in required', invalid: 'Sign-in link invalid or expired', copy: 'Copy command', copied: 'Copied', continue: 'Continue' },
+] as const
+
+for (const scheme of ['light', 'dark'] as const) {
+  for (const spec of ANONYMOUS_PAGES) {
+    test.describe(`登录页 · ${spec.name} · ${scheme}`, () => {
+      test('一种语言、Dashboard 的 token、严格 CSP；标题 + 一条命令 + 复制钮 + 继续链接', async ({ browser, browserName, server }) => {
+        const context = await browser.newContext({ baseURL: server.url, colorScheme: scheme, locale: spec.locale, viewport: { width: 1000, height: 640 } })
+        try {
+          const violations: string[] = []
+          const page = await context.newPage()
+          page.on('console', (message) => { if (/content security policy|refused to/iu.test(message.text())) violations.push(message.text()) })
+          const requests: string[] = []
+          page.on('request', (request) => requests.push(request.url()))
+          const response = await page.goto('/')
+          expect(response?.status()).toBe(401)
+          const csp = response?.headers()['content-security-policy'] ?? ''
+          expect(csp).toContain("default-src 'none'")
+          expect(csp).not.toContain('unsafe-inline')
+
+          await expect(page.locator('html')).toHaveAttribute('lang', spec.lang)
+          await expect(page.getByTestId('sign-in-heading')).toHaveText(spec.heading)
+          await expect(page.getByTestId('sign-in-command')).toHaveText('tenon dashboard --open')
+          await expect(page.getByTestId('sign-in-copy')).toHaveAttribute('aria-label', spec.copy)
+          await expect(page.getByTestId('sign-in-continue')).toHaveText(spec.continue)
+          await expect(page.getByTestId('sign-in-continue')).toHaveAttribute('href', '/')
+          // 一种语言：另一种语言的标题不在页面上；可见文字只有标志（t）、标题、命令、继续。
+          const other = ANONYMOUS_PAGES.find((candidate) => candidate.lang !== spec.lang)
+          expect(await page.content()).not.toContain(other?.heading ?? '\u0000')
+          expect((await page.locator('main').innerText()).replace(/\s+/gu, ' ').trim()).toBe(`t ${spec.heading} tenon dashboard --open ${spec.continue}`)
+          // 解释放在 title，不写在页面上。
+          expect(await page.getByTestId('sign-in-command-block').getAttribute('title')).not.toBe('')
+
+          // Dashboard 的 token：暖灰底 / 深绿 accent / 应用字体栈 / 刻度内字号。
+          const look = await page.evaluate(() => {
+            const style = (selector: string) => getComputedStyle(document.querySelector(selector) as Element)
+            return {
+              background: style('body').backgroundColor, card: style('main').backgroundColor, link: style('a').color,
+              heading: style('h1').fontSize, command: style('code').fontSize, linkSize: style('a').fontSize, family: style('body').fontFamily,
+              mono: style('code').fontFamily, scrollW: document.documentElement.scrollWidth, clientW: document.documentElement.clientWidth,
+              button: { w: (document.getElementById('copy') as HTMLElement).offsetWidth, h: (document.getElementById('copy') as HTMLElement).offsetHeight },
+            }
+          })
+          expect(look.background).toBe(scheme === 'light' ? 'rgb(246, 246, 243)' : 'rgb(19, 21, 19)')
+          expect(look.card).toBe(scheme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(26, 28, 26)')
+          expect(look.link).toBe(scheme === 'light' ? 'rgb(35, 106, 80)' : 'rgb(116, 194, 158)')
+          expect([look.heading, look.command, look.linkSize]).toEqual(['24px', '16px', '14px'])
+          expect(look.family).toContain('Inter')
+          expect(look.mono).toContain('monospace')
+          expect(look.scrollW).toBeLessThanOrEqual(look.clientW)
+          expect(look.button).toEqual({ w: 32, h: 32 })
+
+          // 复制：Chromium 读得出剪贴板；其它引擎至少给出已复制状态或选中命令。
+          if (browserName === 'chromium') await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: server.url })
+          await page.getByTestId('sign-in-copy').click()
+          if (browserName === 'chromium') {
+            await expect(page.getByTestId('sign-in-copy')).toHaveAttribute('aria-label', spec.copied)
+            expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('tenon dashboard --open')
+            await expect(page.getByTestId('sign-in-copy')).toHaveAttribute('aria-label', spec.copy, { timeout: 3_000 })
+          } else {
+            expect(await page.evaluate(() => document.getElementById('copy')?.getAttribute('data-copied') === 'true' || String(getSelection()) === 'tenon dashboard --open')).toBe(true)
+          }
+
+          // 只请求了页面自己；没有任何 CSP 违规。
+          expect(requests.every((url) => new URL(url).origin === new URL(server.url).origin)).toBe(true)
+          expect(requests.every((url) => !new URL(url).pathname.startsWith('/api/'))).toBe(true)
+          expect(violations).toEqual([])
+        } finally {
+          await context.close()
+        }
+      })
+
+      test('登录链接无效或已过期的页面用同样的样式与语言', async ({ browser, server }) => {
+        const context = await browser.newContext({ baseURL: server.url, colorScheme: scheme, locale: spec.locale })
+        try {
+          const page = await context.newPage()
+          const response = await page.goto('/session/start?code=not-a-real-code')
+          expect(response?.status()).toBe(403)
+          await expect(page.locator('html')).toHaveAttribute('lang', spec.lang)
+          await expect(page.getByTestId('sign-in-heading')).toHaveText(spec.invalid)
+          await expect(page.getByTestId('sign-in-command')).toHaveText('tenon dashboard --open')
+          expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(scheme === 'light' ? 'rgb(246, 246, 243)' : 'rgb(19, 21, 19)')
+          expect(await context.cookies(server.url)).toEqual([])
+        } finally {
+          await context.close()
+        }
+      })
+    })
+  }
+}
+
+test('已经登录过的人点「继续」就回到 Dashboard', async ({ browser, server }) => {
+  const context = await browser.newContext({ baseURL: server.url, locale: 'en-US' })
+  try {
+    const page = await context.newPage()
+    expect((await page.goto('/'))?.status()).toBe(401)
+    await context.addCookies([{ name: server.session.name, value: server.session.value, url: server.url, httpOnly: true, sameSite: 'Strict' }])
+    await page.getByTestId('sign-in-continue').click()
+    await expect(page.getByTestId('primary-nav')).toBeVisible()
+  } finally {
+    await context.close()
+  }
+})
