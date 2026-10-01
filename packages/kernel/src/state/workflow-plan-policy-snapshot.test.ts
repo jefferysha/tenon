@@ -26,7 +26,7 @@ describe('workflow plan policy snapshot codec', () => {
     }))).toThrow(/形状非法/)
   })
 
-  it('a text that already verified is not rebuilt, but a different text with the same claimed fingerprint still fails', () => {
+  it('a plan that already verified is not rebuilt (also under another run id), but different content with the same claimed fingerprint still fails', () => {
     const snapshot = workflowPlanSnapshot(compileEffectiveWorkflowPlan('memo-policy', {
       name: 'memo-policy',
       steps: [{ id: 'one', label: 'One', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] }],
@@ -34,7 +34,8 @@ describe('workflow plan policy snapshot codec', () => {
     const text = workflowPlanSnapshotContent('run-verified', snapshot)
     expect(parseWorkflowPlanSnapshot(text).plan.workflowFingerprint).toBe(snapshot.workflowFingerprint)
     expect(parseWorkflowPlanSnapshot(text).plan.workflowFingerprint).toBe(snapshot.workflowFingerprint)
-    // Same claimed fingerprint, different content: the remembered text must not vouch for it.
+    expect(parseWorkflowPlanSnapshot(workflowPlanSnapshotContent('run-other', snapshot)).run_id).toBe('run-other')
+    // Same claimed fingerprint, different content: the remembered plan must not vouch for it.
     const first = snapshot.workflow.steps[0]
     if (first === undefined) throw new Error('the custom workflow has one step')
     const forged = { ...snapshot, workflow: { ...snapshot.workflow, steps: [{ ...first, label: 'One (edited)' }] } }

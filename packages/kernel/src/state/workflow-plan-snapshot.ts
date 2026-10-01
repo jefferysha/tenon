@@ -42,13 +42,13 @@ function isWorkflowIr(value: unknown): value is WorkflowIR {
 }
 
 /**
- * Snapshot texts whose plan has already been rebuilt and matched its fingerprint. Rebuilding a plan (clone, compile,
- * freeze, fingerprint) is the expensive part of reading a change's state, and many changes carry byte-identical
- * snapshots; the rebuild is a pure function of the text, so a text that passed once passes again. A text that fails
- * is never remembered. Bounded: the oldest entries go first.
+ * Plans (by content digest) that have already been rebuilt and matched their fingerprint. Rebuilding a plan (clone,
+ * compile, freeze, fingerprint) is the expensive part of reading a change's state, and many changes carry the same
+ * plan under different run ids; the rebuild is a pure function of the plan, so a plan that passed once passes again.
+ * A plan that fails is never remembered. Bounded: the oldest entries go first.
  */
-const VERIFIED_PLAN_TEXTS_LIMIT = 512
-const verifiedPlanTexts = new Set<string>()
+const VERIFIED_PLANS_LIMIT = 512
+const verifiedPlans = new Set<string>()
 
 export function parseWorkflowPlanSnapshot(raw: string): WorkflowPlanSnapshotEnvelope {
   let value: unknown
@@ -131,13 +131,13 @@ export function parseWorkflowPlanSnapshot(raw: string): WorkflowPlanSnapshotEnve
           interaction: plan.interaction as WorkflowInteractionPolicyV1,
           workflowFingerprint: plan.workflowFingerprint,
         }
-  const digest = sha256Hex(raw)
-  if (!verifiedPlanTexts.has(digest)) {
+  const digest = sha256Hex(JSON.stringify(snapshot))
+  if (!verifiedPlans.has(digest)) {
     effectiveWorkflowPlanFromSnapshot(snapshot)
-    verifiedPlanTexts.add(digest)
-    if (verifiedPlanTexts.size > VERIFIED_PLAN_TEXTS_LIMIT) {
-      const oldest = verifiedPlanTexts.values().next().value
-      if (oldest !== undefined) verifiedPlanTexts.delete(oldest)
+    verifiedPlans.add(digest)
+    if (verifiedPlans.size > VERIFIED_PLANS_LIMIT) {
+      const oldest = verifiedPlans.values().next().value
+      if (oldest !== undefined) verifiedPlans.delete(oldest)
     }
   }
   return { version: 1, run_id: envelope.run_id, plan: snapshot }
