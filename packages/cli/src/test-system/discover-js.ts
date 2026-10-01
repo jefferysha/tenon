@@ -59,9 +59,18 @@ function projectNames(config: string | undefined): string[] {
   return [...new Set(names.filter((name) => /^[A-Za-z0-9][A-Za-z0-9 _.-]{0,63}$/.test(name)))]
 }
 
+/** 常见的单测所在目录：源码旁（src）、独立的测试目录（test / tests / __tests__）。 */
+const UNIT_TEST_DIRS: readonly string[] = ['src', 'test', 'tests', '__tests__']
+
+/**
+ * 单测文件 glob。配置里写了 include 就照它；没写时，只要项目有 src / test / tests / __tests__ 之一，
+ * 就把这四个目录和根目录下的测试文件都列上——只认 src 会让 `test/x.test.js` 这类文件「没有套件认领」，
+ * 而提示里的 `discover --write` 又救不了它。四个目录都没有时，测试文件可能放在任何位置，取整个 cwd。
+ */
 function unitFiles(dir: ProjectDir, included: readonly string[]): string[] {
   if (included.length > 0) return [...included]
-  return [dir.names.has('src') ? `src/**/*.${TEST_EXT}` : `**/*.${TEST_EXT}`]
+  if (!UNIT_TEST_DIRS.some((name) => dir.names.has(name))) return [`**/*.${TEST_EXT}`]
+  return [...UNIT_TEST_DIRS.map((name) => `${name}/**/*.${TEST_EXT}`), `*.${TEST_EXT}`]
 }
 
 function scriptRunsNodeTest(scripts: Readonly<Record<string, string>>): boolean {
@@ -138,6 +147,16 @@ export async function discoverJsTools(dir: ProjectDir, notes: string[]): Promise
         ...(nodeTest.select === undefined ? {} : { select: nodeTest.select }), report: nodeTest.report, artifacts: nodeTest.artifacts,
       }),
     })
+  }
+
+  // `npm test` 跑的是认不出的工具：不猜，说清楚怎么登记（单测套件必须有可解析的报告，exit-code 不够）。
+  const testScript = manifest?.scripts.test
+  if (testScript !== undefined && !found.some((item) => item.suite.kind === 'unit') && !/no test specified/u.test(testScript)
+    && !bareWorkspaceRoot) {
+    notes.push(`${where}package.json 的 test 脚本（${testScript}）不是能识别的测试工具（vitest / jest / mocha / node --test），没有生成 unit 套件：`
+      + '让它写出 junit / tap 等可解析的报告，再 tenon test catalog add unit --kind unit --runner custom '
+      + `--command "<命令>"${dir.rel === '.' ? '' : ` --cwd ${dir.rel}`} --report-format junit --report-path test-results/junit.xml --artifact test-results；`
+      + '项目确实没有单测就 tenon test catalog not-applicable unit --reason \'<原因>\'')
   }
 
   if (isVitest && !bareWorkspaceRoot) {

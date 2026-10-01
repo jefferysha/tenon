@@ -60,3 +60,34 @@ export function testPolicyDigest(policy: StepTestPolicyIR): string {
 export function policyRequiredKinds(policy: StepTestPolicyIR): readonly TestKind[] {
   return [...new Set([...policy.kinds, ...policy.run])]
 }
+
+/**
+ * 回归就是「全量跑单测」，不需要单独的套件：策略的 `run` 要求 regression 且 `scope: full` 时，
+ * unit 套件（全量运行）满足它，运行集里也带上 unit 套件。scope 是 changed 时不成立——只跑改动范围的单测不是回归。
+ */
+function unitServesRegression(policy: Pick<StepTestPolicyIR, 'run' | 'scope'>, suiteKind: TestKind): boolean {
+  return suiteKind === 'unit' && policy.scope === 'full' && policy.run.includes('regression')
+}
+
+/** 一个计划里的套件在本阶段为什么要跑：必跑 / 有则跑；策略不涉及它的种类时 undefined。 */
+export function policyRunReason(
+  policy: Pick<StepTestPolicyIR, 'run' | 'run_if_registered' | 'scope'>,
+  suiteKind: TestKind,
+): 'run' | 'if-registered' | undefined {
+  if (policy.run.includes(suiteKind) || unitServesRegression(policy, suiteKind)) return 'run'
+  return policy.run_if_registered.includes(suiteKind) ? 'if-registered' : undefined
+}
+
+/**
+ * 计划里种类为 `suiteKinds` 的套件能否满足策略要求的 `required` 种类：同种类，或 regression 由 unit 套件顶上
+ * （只在 `kinds` 里要求登记时有 unit 套件即可；`run` 里要求运行 regression 时另外要求 scope: full，见 unitServesRegression）。
+ */
+export function planKindsSatisfy(
+  policy: Pick<StepTestPolicyIR, 'run' | 'scope'>,
+  suiteKinds: readonly TestKind[],
+  required: TestKind,
+): boolean {
+  if (suiteKinds.includes(required)) return true
+  if (required !== 'regression' || !suiteKinds.includes('unit')) return false
+  return !policy.run.includes('regression') || policy.scope === 'full'
+}

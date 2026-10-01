@@ -44,7 +44,7 @@ export async function cmdTestSync(deps: CliDeps, change: string, opts: { readonl
   const gone = plan === undefined ? [] : await missingOnDisk(deps, plan)
   const mapped = new Set(plan?.cases.map((item) => item.covers) ?? [])
   const unmapped = [...inputs.scenarios.map((item) => item.covers), ...inputs.tasks.filter((item) => item.required).map((item) => item.covers)].filter((covers) => !mapped.has(covers))
-  const optional = inputs.tasks.filter((item) => !item.required && !mapped.has(item.covers)).map((item) => item.covers)
+  const optional = inputs.tasks.filter((item) => !item.required && !item.placeholder && !mapped.has(item.covers)).map((item) => item.covers)
   const register = (path: string, suites: readonly string[]): string =>
     `tenon test register ${change} --file ${shellQuote(path)}${suites.length === 1 ? ` --suite ${shellQuote(suites[0] ?? '')}` : ''}`
   const dirty = registration.unregistered.length + registration.orphans.length + gone.length > 0

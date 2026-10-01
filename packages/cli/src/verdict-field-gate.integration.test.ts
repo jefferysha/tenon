@@ -55,14 +55,16 @@ describe('转换管理的状态字段（D10）', () => {
 })
 
 describe('pre_verify_review_result 绑定本步证据', () => {
-  test('backend build：必需测试与 builder 没过不许置 pass；都过了才许；pending 永远可写', async () => {
+  test('backend build：必需的 unit 套件与 builder 没过不许置 pass；都过了才许；pending 永远可写', async () => {
     await init('pv', 'backend')
     await h.seedPhase('pv', 'build')
     expect(await h.run(['set', 'pv', 'pre_verify_review_result', 'pass'])).toBe(1)
     const err = h.err.join('\n')
     expect(err).toContain("字段 'pre_verify_review_result' 是步骤 'build' 的通过结论")
-    expect(err).toContain('必需测试 unit 未通过')
-    expect(err).toContain('tenon test run pv unit')
+    // default 的 backend build 只强制目录里的 unit 套件（步骤自己不再声明必需测试）：没有目录、没有计划就是证据不齐。
+    expect(err).toContain('项目还没有测试目录')
+    expect(err).toContain('tenon test discover --write')
+    expect(err).toContain('tenon test plan pv --seed')
     expect(await get('pv', 'pre_verify_review_result')).toBe('pending')
     expect(await h.run(['set-many', 'pv', 'build_mode=direct', 'pre_verify_review_result=pass'])).toBe(1)
     expect(await get('pv', 'build_mode')).toBe('null')

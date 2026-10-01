@@ -41,7 +41,8 @@ export function registerTestCommands(program: Command, deps: CliDeps): void {
       bail(await cmdTestPlan(deps, change, { seed: opts.seed === true, json: opts.json === true })))
   test
     .command('register <change>')
-    .description('登记：--suite 套件 / --file 测试文件 / --case + --test 场景或任务到用例的映射')
+    .description('登记：--auto 一条命令登记到能往下走 / --suite 套件 / --file 测试文件 / --case + --test 场景或任务到用例的映射')
+    .option('--auto', '识别缺的目录、把没有套件认领的测试文件并进套件的文件 glob、生成计划初稿并登记这些文件（只增不减）')
     .option('--suite <id>', '目录套件 id（配合 --file 时指定认领它的套件）')
     .option('--scope <scope>', 'full | changed | files | grep（缺省 full）')
     .option('--pattern <regex>', 'scope grep 的用例名过滤')
@@ -52,6 +53,7 @@ export function registerTestCommands(program: Command, deps: CliDeps): void {
     .option('--test <ref>', '映射的用例 "<文件> › <用例名>"（可重复）', collect)
     .action(async (change: string, opts: {
       suite?: string; scope?: string; pattern?: string; selectFile?: string[]; file?: string[]; kind?: string; case?: string; test?: string[]
+      auto?: boolean
     }) => bail(await cmdTestRegister(deps, change, opts)))
   test
     .command('unregister <change>')

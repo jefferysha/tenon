@@ -5,19 +5,14 @@
  */
 import { mkdir, readFile } from 'node:fs/promises'
 import {
-  TEST_CATALOG_SCHEMA, atomicReplaceFile, formatCatalogIssues, parseKnownFailures, parseTestCatalog,
-  serializeKnownFailures, serializeTestCatalog, testSystemPaths, withLock,
-  type KnownFailure, type TestCatalog,
+  atomicReplaceFile, parseKnownFailures, serializeKnownFailures, testSystemPaths, withLock,
+  type KnownFailure,
 } from '@tenon/kernel'
+import type { UpdateOutcome } from '@tenon/kernel'
 
-export type CatalogFile =
-  | { readonly state: 'missing' }
-  | { readonly state: 'invalid'; readonly issues: readonly string[] }
-  | { readonly state: 'ok'; readonly catalog: TestCatalog }
-
-export function emptyCatalog(): TestCatalog {
-  return { schema: TEST_CATALOG_SCHEMA, profiles_env: [], suites: [], services: [] }
-}
+// 目录文件的读—改—写在 kernel（评审确认批准「不适用」声明时同样要写目录）；CLI 这里只是原有的导入位置。
+export { emptyCatalog, readCatalogFile, updateCatalog } from '@tenon/kernel'
+export type { CatalogFile, UpdateOutcome } from '@tenon/kernel'
 
 async function readText(path: string): Promise<string | undefined> {
   try {
@@ -26,38 +21,6 @@ async function readText(path: string): Promise<string | undefined> {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
     throw error
   }
-}
-
-export async function readCatalogFile(repoRoot: string): Promise<CatalogFile> {
-  const text = await readText(testSystemPaths(repoRoot).catalog)
-  if (text === undefined) return { state: 'missing' }
-  const parsed = parseTestCatalog(text)
-  return parsed.ok ? { state: 'ok', catalog: parsed.catalog } : { state: 'invalid', issues: formatCatalogIssues(parsed.issues) }
-}
-
-export type UpdateOutcome<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly message: string }
-
-/**
- * 目录的读—改—写。目录不存在时从空目录起步；已存在但无效时拒绝（不覆盖人写坏的文件，先 validate 修好）。
- * mutate 返回新目录，或抛 Error(message) / 返回 string 拒绝；写出前再整份解析一遍，写坏的目录进不了盘。
- */
-export async function updateCatalog<T>(
-  repoRoot: string,
-  mutate: (current: TestCatalog) => { readonly catalog: TestCatalog; readonly value: T } | string,
-): Promise<UpdateOutcome<T>> {
-  const paths = testSystemPaths(repoRoot)
-  await mkdir(paths.root, { recursive: true })
-  return withLock(paths.root, async () => {
-    const current = await readCatalogFile(repoRoot)
-    if (current.state === 'invalid') return { ok: false, message: `catalog.yaml 无效，先修好再改：${current.issues.slice(0, 3).join('；')}` }
-    const result = mutate(current.state === 'ok' ? current.catalog : emptyCatalog())
-    if (typeof result === 'string') return { ok: false, message: result }
-    const text = serializeTestCatalog(result.catalog)
-    const check = parseTestCatalog(text)
-    if (!check.ok) return { ok: false, message: `改动后的目录不合法：${formatCatalogIssues(check.issues).slice(0, 3).join('；')}` }
-    await atomicReplaceFile(paths.catalog, text)
-    return { ok: true, value: result.value }
-  })
 }
 
 export type KnownFailuresFile =

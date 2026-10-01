@@ -43,8 +43,8 @@ Tenon 自有的 skill 只有一个 `tenon`：它读任务冻结的工作流计�
 `verify-build-revision-untrusted`，修复标识为 `return-to-build-and-capture-current-revision`。不要手动 `set build_sha`。
 
 `pre_verify_review_result=pass` 是 Build 的通过结论，`tenon set` 写入前核对本步声明的就绪证据。
-每条轨道的 Build 都声明了可核对的证据：frontend 是必需测试 `typecheck` + `unit`，backend 是 `unit`，
-pm / free / chat 是必需评审者 `spec-consistency`（`block_at: medium`，逐条比对实现与 proposal /
+每条轨道的 Build 都声明了可核对的证据：frontend、backend、chat、free 要求项目测试目录里的 `unit` 套件通过（Build 的
+`test_policy`），pm / free / chat 另有必需评审者 `spec-consistency`（`block_at: medium`，逐条比对实现与 proposal /
 design / delta spec / tasks，语言无关）。证据不齐时写 `pass` 被拒，并点名缺的测试或评审者。
 
 每条轨道都挂了[智能体](./agents.md)：调研步骤的执行者是 `researcher`；实现步骤的执行者是 `builder`
@@ -52,11 +52,10 @@ design / delta spec / tasks，语言无关）。证据不齐时写 `pass` 被拒
 （`tenon test code-size --json`，新增行数不超过 2000 为通过）并挂必需评审者 `code-size` 读取它的结果。
 对话与自由轨道的验证再加参考评审者 `security`，它的问题不拦截。执行者没有 `done` 之前不能离开步骤。
 
-必需测试的命令是 npm 脚本（`npm test`、`npm run test:integration` 等）而项目里没有这个脚本时，这条测试是
-「未配置」，不是失败：`tenon test run` 拒跑、不落记录，并给出配置方式；`step.next` 在本步或上一步
-（配置是一次工作区改动，要赶在 Build 冻结候选版本之前）入口就以 `fix`（`test-unconfigured`）提出。配置方式：
-在 package.json 加上运行本项目真正这类测试的脚本；项目不用 npm 时在 Dashboard 工作流页改这条测试的
-command（存为全局 default 覆盖，只对之后新建的任务生效，已开始的任务按冻结计划执行）。
+步骤自己的必需测试（`tests`）命令是 npm 脚本而项目里没有这个脚本时，这条测试是「未配置」，不是失败：`tenon test run`
+拒跑、不落记录，并给出配置方式；`step.next` 在本步或上一步（配置是一次工作区改动，要赶在 Build 冻结候选版本之前）入口
+就以 `fix`（`test-unconfigured`）提出。默认工作流里仍是必需的步骤测试只有 `code-size`（每条轨道的验证）和设计体系校验
+（pm 的交付）；项目自己的测试来自测试目录，所以一个普通项目不会为了满足工作流去补 `typecheck` 或 `test:integration` 脚本。
 
 步骤还可以声明 `test_policy`，它是测试体系在工作流这一侧的部分（项目的 `.tenon/tests/catalog.yaml` 说明测试怎么跑，
 任务的 `test-plan.yaml` 说明本任务动了哪些套件和测试文件，策略说明每一步必须看到什么）。`kinds` 必须登记进计划
@@ -64,19 +63,36 @@ command（存为全局 default 覆盖，只对之后新建的任务生效，已�
 `scope` 是最小运行范围（`changed` 认任何范围，`full` 只认全量运行），`files: registered` 在本任务新增或修改的测试文件
 没有登记进计划时阻塞，`scenarios`（`required` / `passing`）要求每个 OpenSpec 场景都映射到测试用例，`coverage`、`flaky`、
 `browsers` 追加门槛。没有 `test_policy` 的步骤行为与之前完全一致，已开始的任务按冻结计划执行，步骤自己的 `tests` 与策略并存可用。
-各轨道默认值（都可在 Dashboard 工作流页修改）：
+
+零豁免默认值：**只强制 `unit`**（规格步登记，实现步按 `changed` 运行，验证步按 `full` 运行）。其余种类项目里有才跑：
+`typecheck`、`integration`、`regression`、`e2e`、`playwright`、`a11y`、`visual`、`benchmark`、`smoke` 都是
+`run_if_registered`，种子（`tenon test plan <change> --seed`、`tenon test register <change> --auto`）会把目录里这些种类的
+套件（基准除外）登记进计划。覆盖率门槛（frontend / backend 验证，lines 80%）只对目录里声明了 `coverage` 的套件生效，
+目录没声明覆盖率就不会被它挡；Playwright 要哪些浏览器由套件自己的 `browsers` 决定。`regression` 不需要单独的套件：
+策略要求 `regression` 且 `scope: full` 时，全量运行的 `unit` 套件即满足。各轨道默认值（都可在 Dashboard 工作流页修改）：
 
 | 轨道 | spec 登记 | build 运行（changed） | verify 运行（full） |
 | --- | --- | --- | --- |
-| chat / free | `unit` | `unit`、`typecheck` | `unit`、`regression` |
-| frontend | `unit`、`playwright` | `unit`、`typecheck` | `unit`、`regression`、`playwright`（chromium、webkit）；已登记则加 `a11y` / `visual`；lines 覆盖率 80% |
-| backend | `unit`、`integration` | `unit`、`typecheck` | `unit`、`integration`、`regression`；已登记则加 `benchmark`；lines 覆盖率 80% |
-| pm | 每个 OpenSpec 场景都有映射 | 无 | `smoke` |
+| chat / free | `unit` | `unit`；已登记则加 `typecheck` | `unit`；已登记则加 `regression` |
+| frontend | `unit` | `unit`；已登记则加 `typecheck` | `unit`；已登记则加 `regression`、`e2e`、`playwright`、`a11y`、`visual`；套件声明了覆盖率时 lines 80% |
+| backend | `unit` | `unit`；已登记则加 `typecheck` | `unit`；已登记则加 `integration`、`regression`、`benchmark`；套件声明了覆盖率时 lines 80% |
+| pm | 每个 OpenSpec 场景都有映射 | 无 | 已登记则跑 `smoke` |
+
+某个种类对整个项目都不适用（纯 JavaScript 项目没有类型检查）时，在目录里声明一次，不必每个任务各豁免一次：
+`tenon test catalog not-applicable typecheck --reason '<原因>'` 会在 `.tenon/tests/catalog.yaml` 写入一条 `not_applicable`。
+它要经一次人工确认才生效：`tenon review request` 把它和计划里的豁免一起列出（键 `not-applicable:<kind>`），用户的确认
+（`tenon review acknowledge`，不含 `--delegated`）批准它，`approved_by` 记录批准人；在此之前策略仍要求这个种类，
+报 `waiver-unapproved`。只有单个任务不适用时仍用 `tenon test waive`。
+
+项目还没有测试目录时，`tenon init`（声明了 `test_policy` 的工作流）会自己跑 `tenon test discover --write` 并在 stderr 说明；
+请审阅生成的 `.tenon/tests/catalog.yaml` 后提交。discover 认领 `src/`、`test/`、`tests/`、`__tests__/` 和项目根目录下的单测文件
+（`*.test.*`、`*.spec.*`）。`tenon test register <change> --auto` 一条命令做完剩下的：缺目录先识别，把没有套件认领的测试文件
+并进套件的 `files` glob，生成计划初稿并登记这些文件。
 
 `tenon status` 的 `step.next` 按固定顺序推进测试体系：`test-discover`（无目录）→ `test-plan-seed` → `test-plan-map`
 （缺的种类、未映射的场景）→ `test-register-files`（未登记的测试文件）→ `run-tests`（`tenon test run <change> --stage`）
 → `test-report`（把追溯矩阵写进验证报告）。它们排在本步文档之后、评审者之前；已经运行过却不满足策略的阻塞变成
-`fix`，评审门上有回退边则走回退边。豁免要人工批准：`tenon review request` 列出计划里待批准的豁免，用户的确认
+`fix`，评审门上有回退边则走回退边。豁免与目录里的 `not_applicable` 要人工批准：`tenon review request` 列出待批准的项，用户的确认
 （`tenon review acknowledge`，不含 `--delegated`）恰好批准这些。测试计划、基线、已知失败清单和运行记录只经
 `tenon test …` 写入，写门拒绝直接编辑和 shell 重定向，`tenon` 命令与普通 git 操作放行。声明 `reads_tests` 的
 评审者，提示词还附带最新的失败用例、flaky 用例、覆盖率对照门槛与基准变化。

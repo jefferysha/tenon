@@ -49,7 +49,9 @@ export const RUNNER_PRESETS: Readonly<Partial<Record<TestRunner, RunnerPreset>>>
   },
   'node-test': {
     command: `node --test ${NODE_TEST_JUNIT}`,
-    select: { files: `node --test {files} ${NODE_TEST_JUNIT}` },
+    // reporter 参数必须在文件之前：`node --test <file> --test-reporter=…` 里文件后面的选项是传给测试脚本的参数，
+    // reporter 不生效、报告落不了盘（report-missing）。
+    select: { files: `node --test ${NODE_TEST_JUNIT} {files}` },
     report: { format: 'junit', path: 'test-results/junit.xml' },
     artifacts: ['test-results'],
     bare: [/^node --test$/],

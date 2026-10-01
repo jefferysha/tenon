@@ -172,43 +172,60 @@ describe('兼容：未声明策略的工作流 IR 与指纹逐字不变；旧 te
   })
 })
 
-describe('default 工作流的默认策略（设计 §4）', () => {
+describe('default 工作流的默认策略（零豁免：只强制 unit）', () => {
   const def = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
   const policy = (track: string, step: string): StepDef['test_policy'] =>
     def.tracks?.[track]?.steps.find((candidate) => candidate.id === step)?.test_policy
 
-  it('对话 / 自由：spec 要求 unit；build 跑 unit+typecheck（changed）；verify 跑 unit+regression（full）', () => {
+  it('对话 / 自由：spec 要求 unit；build 跑 unit、有 typecheck 才跑（changed）；verify 跑 unit（full），有 regression 套件才跑', () => {
     for (const track of ['chat', 'free']) {
       expect(policy(track, 'spec')).toEqual({ plan: 'required', kinds: ['unit'] })
-      expect(policy(track, 'build')).toEqual({ run: ['unit', 'typecheck'], scope: 'changed', files: 'registered' })
-      expect(policy(track, 'verify')).toEqual({ run: ['unit', 'regression'], scope: 'full', files: 'registered' })
+      expect(policy(track, 'build')).toEqual({ run: ['unit'], run_if_registered: ['typecheck'], scope: 'changed', files: 'registered' })
+      expect(policy(track, 'verify')).toEqual({ run: ['unit'], run_if_registered: ['regression'], scope: 'full', files: 'registered' })
     }
   })
 
-  it('前端加 playwright（chromium+webkit）、a11y / visual 有则跑、覆盖率 lines 80', () => {
+  it('前端：playwright / e2e / a11y / visual / regression 目录里有才跑；覆盖率门槛只对声明覆盖率的套件生效', () => {
+    expect(policy('frontend', 'spec')).toEqual({ plan: 'required', kinds: ['unit'] })
+    expect(policy('frontend', 'build')).toEqual({ run: ['unit'], run_if_registered: ['typecheck'], scope: 'changed', files: 'registered' })
     expect(policy('frontend', 'verify')).toEqual({
-      run: ['unit', 'regression', 'playwright'], run_if_registered: ['a11y', 'visual'], scope: 'full', files: 'registered',
-      coverage: { lines: 80 }, browsers: ['chromium', 'webkit'],
+      run: ['unit'], run_if_registered: ['regression', 'e2e', 'playwright', 'a11y', 'visual'], scope: 'full', files: 'registered',
+      coverage: { lines: 80 },
     })
   })
 
-  it('后端加 integration、regression（full）、benchmark 有则跑、覆盖率 lines 80', () => {
-    expect(policy('backend', 'spec')).toEqual({ plan: 'required', kinds: ['unit', 'integration'] })
+  it('后端：integration / regression / benchmark 目录里有才跑', () => {
+    expect(policy('backend', 'spec')).toEqual({ plan: 'required', kinds: ['unit'] })
     expect(policy('backend', 'verify')).toEqual({
-      run: ['unit', 'integration', 'regression'], run_if_registered: ['benchmark'], scope: 'full', files: 'registered',
+      run: ['unit'], run_if_registered: ['integration', 'regression', 'benchmark'], scope: 'full', files: 'registered',
       coverage: { lines: 80 }, benchmark: { require_baseline: false },
     })
   })
 
-  it('产品：spec 要求场景映射；verify 跑冒烟', () => {
+  it('产品：spec 要求场景映射；冒烟有才跑', () => {
     expect(policy('pm', 'spec')).toEqual({ plan: 'required', scenarios: 'required' })
-    expect(policy('pm', 'verify')).toEqual({ run: ['smoke'], scope: 'full' })
+    expect(policy('pm', 'verify')).toEqual({ run_if_registered: ['smoke'], scope: 'full' })
     expect(policy('pm', 'build')).toBeUndefined()
   })
 
-  it('旧 tests[] 仍在并与策略并存', () => {
-    const build = def.tracks?.frontend?.steps.find((step) => step.id === 'build')
-    expect(build?.tests?.map((test) => test.id)).toEqual(['typecheck', 'unit'])
-    expect(build?.test_policy?.run).toEqual(['unit', 'typecheck'])
+  it('全部轨道的全部步骤：策略强制的种类只有 unit；旧的必需内联测试只剩 code-size 与设计体系校验', () => {
+    const required = new Set<string>()
+    const inline = new Set<string>()
+    for (const track of Object.values(def.tracks ?? {})) {
+      for (const step of track.steps) {
+        for (const kind of step.test_policy === undefined ? [] : [...(step.test_policy.kinds ?? []), ...(step.test_policy.run ?? [])]) required.add(kind)
+        for (const test of step.tests ?? []) if (test.required !== false) inline.add(test.id)
+      }
+    }
+    expect([...required]).toEqual(['unit'])
+    expect([...inline].sort()).toEqual(['code-size', 'design-system'])
+  })
+
+  it('unit 之外的种类都是 run_if_registered：目录里没有就不要求，不需要豁免', () => {
+    const optional = new Set<string>()
+    for (const track of Object.values(def.tracks ?? {})) {
+      for (const step of track.steps) for (const kind of step.test_policy?.run_if_registered ?? []) optional.add(kind)
+    }
+    expect([...optional].sort()).toEqual(['a11y', 'benchmark', 'e2e', 'integration', 'playwright', 'regression', 'smoke', 'typecheck', 'visual'])
   })
 })

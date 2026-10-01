@@ -38,7 +38,7 @@ test.describe('工作台任务 · 测试页签', () => {
     expect(flakyColor).not.toBe(caseColor)
   })
 
-  test('策略矩阵：单测失败，集成豁免待批准，回归缺种类；缺项只写短标签，可复制命令收进行展开', async ({ page }) => {
+  test('策略矩阵：单测失败，集成豁免待批准，e2e 缺种类；缺项只写短标签，可复制命令收进行展开', async ({ page }) => {
     await expect(page.getByTestId('tests-matrix')).toBeVisible()
     await expect(page.getByTestId('tests-result-unit')).toHaveText('失败')
     await expect(page.getByTestId('tests-registered-unit')).toContainText('Demo unit')
@@ -51,11 +51,11 @@ test.describe('工作台任务 · 测试页签', () => {
     await page.getByTestId('tests-fix-toggle-integration').click()
     await expect(page.getByTestId('tests-fix-integration-text')).toHaveText(`tenon review request ${CHANGE} --event verify-pass`)
 
-    await expect(page.getByTestId('tests-blocker-label-regression')).toHaveText('缺测试种类')
-    await expect(page.getByTestId('tests-registered-regression')).toHaveText('—')
-    await page.getByTestId('tests-fix-toggle-regression').click()
-    await expect(page.getByTestId('tests-fix-regression-text')).toContainText(`tenon test waive ${CHANGE} --kind regression`)
-    await expect(page.getByTestId('tests-fix-regression-copy')).toBeVisible()
+    await expect(page.getByTestId('tests-blocker-label-e2e')).toHaveText('缺测试种类')
+    await expect(page.getByTestId('tests-registered-e2e')).toHaveText('—')
+    await page.getByTestId('tests-fix-toggle-e2e').click()
+    await expect(page.getByTestId('tests-fix-e2e-text')).toContainText('tenon test catalog not-applicable e2e')
+    await expect(page.getByTestId('tests-fix-e2e-copy')).toBeVisible()
   })
 
   test('追溯表：任务 = 编号 · 阶段名 · 文字，场景 = 能力 · 场景；可选任务合并成「N 可选」一行；一行不折行', async ({ page }) => {

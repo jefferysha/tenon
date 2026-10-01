@@ -1,7 +1,7 @@
 /**
- * 测试计划豁免的评审批准。
+ * 测试计划豁免与目录里项目级「不适用」声明（catalog.yaml 的 not_applicable）的评审批准。
  *
- *   · `tenon review request`：在 Change 锁内把计划里未批准的豁免冻结成清单（边车），并逐条列给用户；
+ *   · `tenon review request`：在 Change 锁内把计划里未批准的豁免、目录里未批准的「不适用」声明冻结成清单（边车），并逐条列给用户；
  *   · `tenon review acknowledge`（人工确认，非 `--delegated`）：在提交 approved receipt 的同一把锁内，
  *     只把清单里仍原样存在的豁免写上 `approved_by`（kernel `approveFrozenWaivers`，与 Dashboard 的确认共用），随后留一行审计。
  *
@@ -11,20 +11,20 @@
  * 走人工确认，批准豁免并放行。
  */
 import {
-  clearReviewWaiverSelection, pendingWaivers, readTestPlanState, writeReviewWaiverSelection,
+  clearReviewWaiverSelection, pendingReviewWaivers, writeReviewWaiverSelection,
   type PendingWaiver, type WaiverApprovalOutcome, type WaiverSkipReason,
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 import { recordTestAudit } from '../testAudit.js'
 
-/** 冻结清单（调用方持有 Change 锁）。计划缺失 / 不可信 / 没有待批准豁免时清掉旧清单。 */
+/** 冻结清单（调用方持有 Change 锁）。没有待批准的豁免 / 声明（计划缺失、不可信也算）时清掉旧清单。 */
 export async function freezePendingWaivers(
+  repoRoot: string,
   dir: string,
   change: string,
   request: { readonly phase: string; readonly event: string; readonly requestedAt: string },
 ): Promise<readonly PendingWaiver[]> {
-  const plan = await readTestPlanState(dir, change)
-  const pending = plan.state === 'ok' ? pendingWaivers(plan.plan) : []
+  const pending = await pendingReviewWaivers({ repoRoot, dir, change })
   if (pending.length === 0) await clearReviewWaiverSelection(dir)
   else await writeReviewWaiverSelection(dir, { ...request, waivers: pending })
   return pending
@@ -33,7 +33,7 @@ export async function freezePendingWaivers(
 export function waiverLines(waivers: readonly PendingWaiver[]): readonly string[] {
   if (waivers.length === 0) return []
   return [
-    `[REVIEW] 待批准的豁免 ${waivers.length} 项（用户的确认同时批准这些豁免，请连同理由一并展示给用户）：`,
+    `[REVIEW] 待批准的豁免 ${waivers.length} 项（用户的确认同时批准这些豁免；\`not-applicable:<种类>\` 是 catalog.yaml 里项目级的「不适用」声明，批准一次对全项目生效。请连同理由一并展示给用户）：`,
     ...waivers.map((waiver) => `  ${waiver.key} — ${waiver.reason}`),
   ]
 }
@@ -49,17 +49,15 @@ export function skippedWaiverLines(outcome: WaiverApprovalOutcome): readonly str
 }
 
 /**
- * 委托确认在提交 approved receipt 之前的检查（锁内）：计划里还有未批准的豁免就拒绝，抛错、不写任何东西。
- * 计划缺失或不可信时没有可批准的豁免，放行（这些状态由测试门禁自己挡）。
+ * 委托确认在提交 approved receipt 之前的检查（锁内）：计划里还有未批准的豁免、或目录里还有未批准的「不适用」声明就拒绝，
+ * 抛错、不写任何东西。计划缺失或不可信时没有可批准的计划豁免，放行（这些状态由测试门禁自己挡）。
  */
-export async function refuseDelegatedWhileWaiversPending(dir: string, change: string): Promise<void> {
-  const plan = await readTestPlanState(dir, change)
-  if (plan.state !== 'ok') return
-  const pending = pendingWaivers(plan.plan)
+export async function refuseDelegatedWhileWaiversPending(repoRoot: string, dir: string, change: string): Promise<void> {
+  const pending = await pendingReviewWaivers({ repoRoot, dir, change })
   if (pending.length === 0) return
   throw new Error(
-    `计划里有 ${pending.length} 项测试豁免待人工批准（${pending.map((item) => item.key).join('、')}）：`
-    + '委托确认不批准豁免；请用户回复「确认继续」人工确认，或先撤掉这些豁免',
+    `有 ${pending.length} 项测试豁免 / 不适用声明待人工批准（${pending.map((item) => item.key).join('、')}）：`
+    + '委托确认不批准豁免（也不批准目录里的「不适用」声明）；请用户回复「确认继续」人工确认，或先撤掉它们',
   )
 }
 

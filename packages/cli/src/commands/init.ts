@@ -38,6 +38,7 @@ import type { DocumentLocale } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { recordHistory } from './fields.js'
 import { isValidChangeName } from '../paths.js'
+import { autoDiscoverCatalog } from '../test-system/auto-discover.js'
 import { requireActor } from '../userIdentity.js'
 import { ensureChangeHostAgents, hostAgentHostOf } from './agent-host.js'
 
@@ -49,6 +50,29 @@ async function generateHostAgents(deps: CliDeps, changeDir: string, runId: strin
     await ensureChangeHostAgents(deps, host, await readFrozenAgents({ changeDir, runId, workflowFingerprint }))
   } catch (e) {
     deps.io.err(`WARN: 宿主 agent 文件未生成（${errMsg(e)}），运行时改用通用子代理`)
+  }
+}
+
+/**
+ * 工作流声明了测试策略而项目还没有测试目录时，立项后自动识别并写入 `.tenon/tests/catalog.yaml`，并明说做了什么、
+ * 请用户审阅——否则第一个任务会在规格步被 `test-catalog-missing` 挡住，要手动跑一遍 discover。
+ * 只在没有目录时动手：已有目录（含无效的）不碰；识别失败只提示，不让已成功的 init 失败。
+ */
+async function announceAutoDiscover(deps: CliDeps): Promise<void> {
+  try {
+    const outcome = await autoDiscoverCatalog(deps.cwd)
+    if (outcome.state === 'written') {
+      deps.io.err(`[TEST] 项目还没有测试目录：已自动识别 ${outcome.suites.length} 个套件并写入 .tenon/tests/catalog.yaml（${outcome.suites.join('、')}）`)
+      deps.io.err('  请审阅每个套件的命令、报告路径和文件 glob 后提交（tenon test catalog show 查看；tenon test discover 重新识别）')
+      for (const note of outcome.notes) deps.io.err(`  提示：${note}`)
+    } else if (outcome.state === 'none') {
+      deps.io.err('[TEST] 项目还没有测试目录，自动识别没有找到测试工具：用 tenon test catalog add 登记套件；项目确实没有测试就 tenon test catalog not-applicable unit --reason \'<原因>\'（经评审确认一次后生效）')
+      for (const note of outcome.notes) deps.io.err(`  提示：${note}`)
+    } else if (outcome.state === 'failed') {
+      deps.io.err(`WARN: 自动识别测试目录失败（${outcome.message}）；稍后执行 tenon test discover --write`)
+    }
+  } catch (e) {
+    deps.io.err(`WARN: 自动识别测试目录失败（${errMsg(e)}）；稍后执行 tenon test discover --write`)
   }
 }
 
@@ -183,8 +207,9 @@ export async function cmdInit(
   // 做权威校验、再创建 change，堵住「锁外读 registry、之后才写 change」与 tracks delete 竞争的跨锁
   // TOCTOU（delete 扫描期 init 同轨必等待）。坏 tracks.yaml 在锁内 load 处 fail-loud（外层 catch →
   // exit 1）。requireTrack/assertWorkflowAllowed 全部先于落盘（不留引用坏 workflow 的半成品 change）。
+  const wants = { catalog: false }
   try {
-    return await deps.withRegistryLock(async ({ registry }) => {
+    const code = await deps.withRegistryLock(async ({ registry }) => {
       // track 合法性改走锁内 fresh registry（requireTrack）：未注册即拒（缺 tracks.yaml 时等价旧四轨枚举）。
       let track: TrackDefinition
       try {
@@ -313,12 +338,16 @@ export async function cmdInit(
           }
         }
         deps.io.err(`[INIT] ${created}`)
+        wants.catalog = plan.workflow.steps.some((step) => step.test_policy !== undefined)
         return 0
       } catch (e) {
         deps.io.err(`ERROR: ${errMsg(e)}`)
         return 1
       }
     })
+    // 识别要扫目录树，放在仓级 registry 锁之外。
+    if (code === 0 && wants.catalog) await announceAutoDiscover(deps)
+    return code
   } catch (e) {
     deps.io.err(`ERROR: ${errMsg(e)}`)
     return 1

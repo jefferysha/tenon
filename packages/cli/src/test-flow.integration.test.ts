@@ -310,6 +310,77 @@ describe('豁免的评审批准', () => {
   })
 })
 
+describe('目录里项目级「不适用」声明的评审批准', () => {
+  const NA_CATALOG = [
+    '# 人手写的注释：批准会把目录规范化重写，注释不保留', 'schema: tenon-test-catalog/v1', 'suites: []', 'not_applicable:',
+    '  - { kind: unit, reason: 本项目没有单测, approved_by: null }', '',
+  ].join('\n')
+
+  async function declaredSpec(): Promise<string> {
+    await loadTenon()
+    const path = testSystemPaths(h.cwd).catalog
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, NA_CATALOG, 'utf8')
+    await writePlan({})
+    return path
+  }
+
+  test('未批准的声明挡出口并随 request 列出；人工确认批准并把批准人写回目录；批准后放行，后续任务同样生效', async () => {
+    const path = await declaredSpec()
+    const before = await readStep()
+    // 只剩声明待批准：可以发起评审，请求里带上它；出口本身仍把它当阻塞。
+    expect(before.next).toEqual([{ action: 'request-review', event: 'spec-done', waivers: ['unit'] }])
+    expect(before.exits[0]).toMatchObject({ ready: false, blockers: [expect.objectContaining({ message: expect.stringContaining('声明了「本项目不适用」，但尚未经评审批准') })] })
+    expect(await h.run(['transition', CHANGE, 'spec-done'])).toBe(1)
+
+    expect(await h.run(['review', 'request', CHANGE, '--event', 'spec-done']), h.err.join('\n')).toBe(0)
+    expect(h.out.join('\n')).toContain('待批准的豁免 1 项')
+    expect(h.out.join('\n')).toContain('not-applicable:unit — 本项目没有单测')
+    expect(existsSync(join(changeDir(), '.pipeline-review-waivers.json'))).toBe(true)
+    expect(names(await readStep())).toEqual(['await-review'])
+
+    expect(await h.run(['review', 'acknowledge', CHANGE]), h.err.join('\n')).toBe(0)
+    expect(h.out.join('\n')).toContain('已批准豁免 1 项：not-applicable:unit')
+    const catalog = await readFile(path, 'utf8')
+    expect(catalog).toContain(`approved_by: ${ME}`)
+    expect(catalog).toContain('kind: unit')
+    expect(existsSync(join(changeDir(), '.pipeline-review-waivers.json'))).toBe(false)
+    const history = await readFile(join(changeDir(), '.pipeline-history.jsonl'), 'utf8')
+    expect(history).toContain(`test:waiver-approve waivers=not-applicable:unit by=${ME}`)
+    expect(await h.run(['transition', CHANGE, 'spec-done']), h.err.join('\n')).toBe(0)
+
+    // 一次批准对全项目生效：目录里的声明已批准，策略不再要求 unit（计划里没有套件、没有任何豁免）。
+    await h.run(['test', 'status', CHANGE, '--step', 'spec', '--json'])
+    expect((JSON.parse(h.out.join('\n')) as { policy: { blockers: unknown[] } }).policy.blockers).toEqual([])
+    expect((await readPlan()).waivers).toEqual([])
+  })
+
+  test('委托确认（--delegated）不批准声明：被拒、目录与 receipt 都不动；人工确认之后才放行', async () => {
+    expect(await h.run(['session', 'activate', CHANGE, '--continuous', '--host-session', SESSION]), h.err.join('\n')).toBe(0)
+    const path = await declaredSpec()
+    expect(await h.run(['review', 'request', CHANGE, '--event', 'spec-done']), h.err.join('\n')).toBe(0)
+    expect(await h.run(['review', 'acknowledge', CHANGE, '--delegated'], { env: { TENON_HOST_SESSION_ID: SESSION } })).toBe(1)
+    expect(h.err.join('\n')).toContain('委托确认不批准豁免')
+    expect(h.err.join('\n')).toContain('not-applicable:unit')
+    expect(await readFile(path, 'utf8')).toBe(NA_CATALOG)
+    expect(names(await readStep())).toEqual(['await-review'])
+    expect(await h.run(['review', 'acknowledge', CHANGE]), h.err.join('\n')).toBe(0)
+    expect(await h.run(['transition', CHANGE, 'spec-done']), h.err.join('\n')).toBe(0)
+  })
+
+  test('请求之后才改了理由的声明不会被这次确认批准；重新 request 之后才行', async () => {
+    const path = await declaredSpec()
+    expect(await h.run(['review', 'request', CHANGE, '--event', 'spec-done']), h.err.join('\n')).toBe(0)
+    await writeFile(path, NA_CATALOG.replace('本项目没有单测', '请求之后换的理由'), 'utf8')
+    // 冻结清单与目录里现在待批准的声明不一致：next 先要求重新发起。
+    expect((await readStep()).next).toEqual([{ action: 'request-review', event: 'spec-done', waivers: ['unit'] }])
+    expect(await h.run(['review', 'acknowledge', CHANGE]), h.err.join('\n')).toBe(0)
+    expect(h.out.join('\n')).toContain('未批准：请求之后理由被改过')
+    expect(await readFile(path, 'utf8')).toContain('approved_by: null')
+    expect(await h.run(['transition', CHANGE, 'spec-done'])).toBe(1)
+  })
+})
+
 describe('build：未登记的测试文件与运行', () => {
   async function buildWithUnitSuite(): Promise<void> {
     await writeCatalog()

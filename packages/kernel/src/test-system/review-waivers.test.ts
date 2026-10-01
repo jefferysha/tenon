@@ -1,13 +1,15 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { PipelineState } from '../types.js'
+import { readCatalogFile } from './catalog-file.js'
+import { testSystemPaths } from './paths.js'
 import { readTestPlanState, writeTestPlan } from './plan-ledger.js'
 import { emptyTestPlan, type PlanWaiver } from './plan.js'
 import {
   REVIEW_WAIVERS_FILE, approveFrozenWaivers, boundReviewWaiverSelection, clearReviewWaiverSelection,
-  readReviewWaiverSelection, writeReviewWaiverSelection,
+  pendingReviewWaivers, readReviewWaiverSelection, writeReviewWaiverSelection,
 } from './review-waivers.js'
 
 let dir: string
@@ -86,7 +88,7 @@ describe('approveFrozenWaivers', () => {
       { kind: 'unit', reason: '请求之后才加的', approved_by: null },
     ])
     await writeReviewWaiverSelection(dir, FROZEN)
-    const outcome = await approveFrozenWaivers({ dir, change: 'demo', state: reviewState(), actor: ACTOR, recordedAt: STAMP })
+    const outcome = await approveFrozenWaivers({ repoRoot: dir, dir, change: 'demo', state: reviewState(), actor: ACTOR, recordedAt: STAMP })
     expect(outcome).toMatchObject({ approved: ['kind:benchmark'], skipped: [], note: null })
     expect(outcome.digest).toMatch(/^sha256:[0-9a-f]{64}$/)
     const plan = await readTestPlanState(dir, 'demo')
@@ -101,18 +103,18 @@ describe('approveFrozenWaivers', () => {
     await writePlanWith([{ kind: 'benchmark', reason: '换了理由', approved_by: null }])
     await writeReviewWaiverSelection(dir, FROZEN)
     const before = await readTestPlanState(dir, 'demo')
-    const outcome = await approveFrozenWaivers({ dir, change: 'demo', state: reviewState(), actor: ACTOR, recordedAt: STAMP })
+    const outcome = await approveFrozenWaivers({ repoRoot: dir, dir, change: 'demo', state: reviewState(), actor: ACTOR, recordedAt: STAMP })
     expect(outcome).toEqual({ approved: [], skipped: [{ key: 'kind:benchmark', why: 'reason-changed' }], digest: null, note: null })
     expect(await readTestPlanState(dir, 'demo')).toEqual(before)
   })
 
   it('清单不属于这一次请求：什么都不批准并说明；没有清单：无操作', async () => {
     await writePlanWith([{ kind: 'benchmark', reason: '纯文案改动', approved_by: null }])
-    expect(await approveFrozenWaivers({ dir, change: 'demo', state: reviewState(), actor: ACTOR, recordedAt: STAMP }))
+    expect(await approveFrozenWaivers({ repoRoot: dir, dir, change: 'demo', state: reviewState(), actor: ACTOR, recordedAt: STAMP }))
       .toEqual({ approved: [], skipped: [], digest: null, note: null })
     await writeReviewWaiverSelection(dir, FROZEN)
     const outcome = await approveFrozenWaivers({
-      dir, change: 'demo', state: reviewState({ requestedAt: '2026-01-01T00:00:00.000Z' }), actor: ACTOR, recordedAt: STAMP,
+      repoRoot: dir, dir, change: 'demo', state: reviewState({ requestedAt: '2026-01-01T00:00:00.000Z' }), actor: ACTOR, recordedAt: STAMP,
     })
     expect(outcome.approved).toEqual([])
     expect(outcome.note).toContain('不属于这一次 review request')
@@ -120,7 +122,75 @@ describe('approveFrozenWaivers', () => {
 
   it('计划不存在：不批准，说明原因', async () => {
     await writeReviewWaiverSelection(dir, FROZEN)
-    const outcome = await approveFrozenWaivers({ dir, change: 'demo', state: reviewState(), actor: ACTOR, recordedAt: STAMP })
+    const outcome = await approveFrozenWaivers({ repoRoot: dir, dir, change: 'demo', state: reviewState(), actor: ACTOR, recordedAt: STAMP })
     expect(outcome).toMatchObject({ approved: [], digest: null, note: '测试计划不存在，未批准任何豁免' })
+  })
+})
+
+describe('目录里项目级「不适用」声明的评审批准', () => {
+  const CATALOG = [
+    '# 人手写的注释', 'schema: tenon-test-catalog/v1', 'suites: []', 'not_applicable:',
+    '  - { kind: typecheck, reason: 纯 JavaScript 项目, approved_by: null }',
+    '  - { kind: integration, reason: 没有集成面, approved_by: null }', '',
+  ].join('\n')
+  const FROZEN = {
+    ...SELECTION,
+    waivers: [
+      { key: 'kind:benchmark', reason: '纯文案改动' },
+      { key: 'not-applicable:typecheck', reason: '纯 JavaScript 项目' },
+    ],
+  }
+
+  async function writeCatalog(text = CATALOG): Promise<string> {
+    const path = testSystemPaths(dir).catalog
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, text, 'utf8')
+    return path
+  }
+
+  it('pendingReviewWaivers = 计划里未批准的豁免 + 目录里未批准的声明；目录缺失 / 计划缺失时各自为空', async () => {
+    expect(await pendingReviewWaivers({ repoRoot: dir, dir, change: 'demo' })).toEqual([])
+    await writeCatalog()
+    expect(await pendingReviewWaivers({ repoRoot: dir, dir, change: 'demo' })).toEqual([
+      { key: 'not-applicable:integration', reason: '没有集成面' },
+      { key: 'not-applicable:typecheck', reason: '纯 JavaScript 项目' },
+    ])
+    await writePlanWith([{ kind: 'benchmark', reason: '纯文案改动', approved_by: null }])
+    expect((await pendingReviewWaivers({ repoRoot: dir, dir, change: 'demo' })).map((item) => item.key)).toEqual([
+      'kind:benchmark', 'not-applicable:integration', 'not-applicable:typecheck',
+    ])
+  })
+
+  it('冻结清单里的声明被批准并写回 catalog.yaml（记录批准人）；清单外的不动；计划豁免同一次批准', async () => {
+    await writeCatalog()
+    await writePlanWith([{ kind: 'benchmark', reason: '纯文案改动', approved_by: null }])
+    await writeReviewWaiverSelection(dir, FROZEN)
+    const outcome = await approveFrozenWaivers({ repoRoot: dir, dir, change: 'demo', state: reviewState(), actor: ACTOR, recordedAt: STAMP })
+    expect(outcome).toMatchObject({ approved: ['kind:benchmark', 'not-applicable:typecheck'], skipped: [], note: null })
+    const catalog = await readCatalogFile(dir)
+    expect(catalog.state === 'ok' && catalog.catalog.not_applicable).toEqual([
+      { kind: 'typecheck', reason: '纯 JavaScript 项目', approved_by: ACTOR.id },
+      { kind: 'integration', reason: '没有集成面', approved_by: null },
+    ])
+  })
+
+  it('理由被改过 / 已批准过 / 声明已不在目录里：不批准并说明；没有可批准的就不重写目录文件', async () => {
+    const path = await writeCatalog(CATALOG.replace('纯 JavaScript 项目', '换了理由'))
+    await writeReviewWaiverSelection(dir, { ...SELECTION, waivers: [{ key: 'not-applicable:typecheck', reason: '纯 JavaScript 项目' }, { key: 'not-applicable:lint', reason: 'x' }] })
+    const before = await readFile(path, 'utf8')
+    const outcome = await approveFrozenWaivers({ repoRoot: dir, dir, change: 'demo', state: reviewState(), actor: ACTOR, recordedAt: STAMP })
+    expect(outcome.approved).toEqual([])
+    expect(outcome.skipped).toEqual([
+      { key: 'not-applicable:typecheck', why: 'reason-changed' }, { key: 'not-applicable:lint', why: 'missing' },
+    ])
+    expect(await readFile(path, 'utf8')).toBe(before)
+  })
+
+  it('目录不存在：不批准，说明原因；计划豁免不受影响', async () => {
+    await writePlanWith([{ kind: 'benchmark', reason: '纯文案改动', approved_by: null }])
+    await writeReviewWaiverSelection(dir, FROZEN)
+    const outcome = await approveFrozenWaivers({ repoRoot: dir, dir, change: 'demo', state: reviewState(), actor: ACTOR, recordedAt: STAMP })
+    expect(outcome.approved).toEqual(['kind:benchmark'])
+    expect(outcome.note).toContain('测试目录（catalog.yaml）不存在')
   })
 })

@@ -109,9 +109,9 @@ export async function cmdReviewAcknowledge(
       // 同一把锁、同一次确认：先批准冻结清单里的豁免，再提交 receipt。前一步失败 receipt 不提交，
       // 重试同一条命令即可；后一步失败时已批准的豁免在重试里被识别为「已经批准过」。
       if (delegatedAuthority === null) {
-        waivers = await approveFrozenWaivers({ dir, change: name, state, actor, recordedAt: deps.clock() })
+        waivers = await approveFrozenWaivers({ repoRoot: deps.cwd, dir, change: name, state, actor, recordedAt: deps.clock() })
       } else {
-        await refuseDelegatedWhileWaiversPending(dir, name)
+        await refuseDelegatedWhileWaiversPending(deps.cwd, dir, name)
       }
       await deps.store.writeUnderLock(dir, state, { kind: 'set-many' })
       await retireFrozenWaivers(dir)

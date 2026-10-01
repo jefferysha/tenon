@@ -58,6 +58,10 @@ describe('tasks.md 条目：哪些要求映射用例', () => {
       ['task:1.1', 'open', false], ['task:2.1', 'explore', false], ['task:3.1', 'spec', false],
       ['task:4.1', 'build', false], ['task:4.2', 'build', true], ['task:5.1', 'verify', false],
     ])
+    // 骨架提示词带 placeholder 标记（计划初稿 / 对账的清单据此不列它们）；作者写的条目没有。
+    expect(items.map((item) => [item.covers, item.placeholder])).toEqual([
+      ['task:1.1', true], ['task:2.1', true], ['task:3.1', true], ['task:4.1', true], ['task:4.2', false], ['task:5.1', false],
+    ])
   })
 
   it('阶段小节按传入的工作流阶段认（id 或名称）；认不出的小节沿用上一个阶段', () => {

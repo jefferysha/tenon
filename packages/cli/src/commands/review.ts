@@ -223,7 +223,7 @@ export async function cmdReview(
             requestedAt: pendingAt,
             alreadyPending: true,
             replacedReceipt: false,
-            waivers: await freezePendingWaivers(dir, name, { phase: step.phase, event, requestedAt: pendingAt }),
+            waivers: await freezePendingWaivers(deps.cwd, dir, name, { phase: step.phase, event, requestedAt: pendingAt }),
           }
           if (interaction !== undefined && beforeRevision !== undefined) {
             try {
@@ -280,7 +280,7 @@ export async function cmdReview(
           // Replacing a different/legacy receipt can only revoke a prior decision; it always
           // creates a fresh pending request and therefore never grants the new event permission.
           replacedReceipt: existingStatus !== null,
-          waivers: await freezePendingWaivers(dir, name, { phase: step.phase, event, requestedAt }),
+          waivers: await freezePendingWaivers(deps.cwd, dir, name, { phase: step.phase, event, requestedAt }),
         }
       })
       if (!requested) throw new Error('review request 未产生 receipt')

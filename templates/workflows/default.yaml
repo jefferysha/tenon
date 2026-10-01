@@ -114,7 +114,8 @@ tracks:
             field: pre_verify_review_result
             value: pass
         test_policy:
-          run: [unit, typecheck]
+          run: [unit]
+          run_if_registered: [typecheck]
           scope: changed
           files: registered
         transitions:
@@ -160,7 +161,8 @@ tracks:
               block_at: medium
         guards: []
         test_policy:
-          run: [unit, regression]
+          run: [unit]
+          run_if_registered: [regression]
           scope: full
           files: registered
         transitions:
@@ -364,7 +366,7 @@ tracks:
               reads_tests: [code-size]
         guards: []
         test_policy:
-          run: [smoke]
+          run_if_registered: [smoke]
           scope: full
         transitions:
           - event: verify-pass
@@ -498,7 +500,7 @@ tracks:
             n: 3
         test_policy:
           plan: required
-          kinds: [unit, playwright]
+          kinds: [unit]
         transitions:
           - event: spec-complete
             to: build
@@ -518,19 +520,6 @@ tracks:
         outputs:
           - field: build_sha
             type: string
-        tests:
-          - id: typecheck
-            direction: typecheck
-            command: npm run typecheck
-            label: 类型检查
-            timeout_s: 600
-            required: true
-          - id: unit
-            direction: unit
-            command: npm test
-            label: 单测
-            timeout_s: 900
-            required: true
         agents:
           executors:
             - agent: builder
@@ -539,7 +528,8 @@ tracks:
             field: pre_verify_review_result
             value: pass
         test_policy:
-          run: [unit, typecheck]
+          run: [unit]
+          run_if_registered: [typecheck]
           scope: changed
           files: registered
         transitions:
@@ -569,19 +559,6 @@ tracks:
             type: file_path
             producer_policy: effective-phase-skills
         tests:
-          - id: playwright
-            direction: playwright
-            command: npx playwright test
-            label: Playwright
-            timeout_s: 1800
-            required: true
-            outputs:
-              - path: playwright-report
-                kind: report
-                required: false
-              - path: test-results
-                kind: trace
-                required: false
           - id: code-size
             direction: code-size
             command: tenon test code-size --json
@@ -616,12 +593,11 @@ tracks:
               reads_tests: [code-size]
         guards: []
         test_policy:
-          run: [unit, regression, playwright]
-          run_if_registered: [a11y, visual]
+          run: [unit]
+          run_if_registered: [regression, e2e, playwright, a11y, visual]
           scope: full
           files: registered
           coverage: { lines: 80 }
-          browsers: [chromium, webkit]
         transitions:
           - event: verify-pass
             to: ship
@@ -758,7 +734,7 @@ tracks:
             n: 3
         test_policy:
           plan: required
-          kinds: [unit, integration]
+          kinds: [unit]
         transitions:
           - event: spec-complete
             to: build
@@ -777,13 +753,6 @@ tracks:
         outputs:
           - field: build_sha
             type: string
-        tests:
-          - id: unit
-            direction: unit
-            command: npm test
-            label: 单测
-            timeout_s: 900
-            required: true
         agents:
           executors:
             - agent: builder
@@ -792,7 +761,8 @@ tracks:
             field: pre_verify_review_result
             value: pass
         test_policy:
-          run: [unit, typecheck]
+          run: [unit]
+          run_if_registered: [typecheck]
           scope: changed
           files: registered
         transitions:
@@ -818,12 +788,6 @@ tracks:
             type: file_path
             producer_policy: effective-phase-skills
         tests:
-          - id: integration
-            direction: integration
-            command: npm run test:integration
-            label: 集成
-            timeout_s: 1800
-            required: true
           - id: code-size
             direction: code-size
             command: tenon test code-size --json
@@ -855,8 +819,8 @@ tracks:
               reads_tests: [code-size]
         guards: []
         test_policy:
-          run: [unit, integration, regression]
-          run_if_registered: [benchmark]
+          run: [unit]
+          run_if_registered: [integration, regression, benchmark]
           scope: full
           files: registered
           coverage: { lines: 80 }
@@ -1015,7 +979,8 @@ tracks:
             field: pre_verify_review_result
             value: pass
         test_policy:
-          run: [unit, typecheck]
+          run: [unit]
+          run_if_registered: [typecheck]
           scope: changed
           files: registered
         transitions:
@@ -1062,7 +1027,8 @@ tracks:
               block_at: medium
         guards: []
         test_policy:
-          run: [unit, regression]
+          run: [unit]
+          run_if_registered: [regression]
           scope: full
           files: registered
         transitions:

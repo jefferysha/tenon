@@ -5633,7 +5633,7 @@ import { lstat as lstat8, mkdir as mkdir6, opendir, realpath as realpath2 } from
 import { isAbsolute as isAbsolute2, join as join13, relative as relative2, sep as sep3 } from "node:path";
 
 // packages/kernel/dist/workflow/default-workflow.generated.js
-var DEFAULT_WORKFLOW_SOURCE = 'name: default\nopenspec: true\ntracks:\n  chat:\n    label: \u5BF9\u8BDD\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills: []\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills: []\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        agents:\n          executors:\n            - agent: researcher\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills: []\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        test_policy:\n          plan: required\n          kinds: [unit]\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills: []\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        agents:\n          executors:\n            - agent: builder\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        test_policy:\n          run: [unit, typecheck]\n          scope: changed\n          files: registered\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills: []\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n            pass:\n              metrics:\n                - name: lines_added\n                  max: 2000\n        agents:\n          reviewers:\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n            - agent: security\n              required: false\n              block_at: medium\n        guards: []\n        test_policy:\n          run: [unit, regression]\n          scope: full\n          files: registered\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills: []\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  pm:\n    label: \u4EA7\u54C1\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: brainstorming\n          - id: grilling\n          - id: domain-modeling\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        agents:\n          executors:\n            - agent: researcher\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: openspec-propose\n          - id: brainstorming\n          - id: writing-plans\n          - id: grilling\n          - id: domain-modeling\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts: []\n        guards:\n          - type: tasks-at-least\n            n: 3\n        test_policy:\n          plan: required\n          scenarios: required\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        prompt: |-\n          \u539F\u578B\u4E3A\u4EA4\u4ED8\u7EA7\u9AD8\u4FDD\u771F\uFF0C\u8986\u76D6\u5173\u952E\u5C4F\u4E0E\u7A7A\u3001\u52A0\u8F7D\u3001\u9519\u8BEF\u3001\u6210\u529F\u6001\uFF1B\u7528\u6237\u9009\u5B9A\u4E00\u4E2A\u65B9\u6848\u540E\u53EA\u7CBE\u4FEE\u8BE5\u65B9\u6848\u3002\n        skills:\n          - id: prototype\n          - id: frontend-design\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        agents:\n          executors:\n            - agent: builder\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: browser-qa\n          - id: web-design-guidelines\n          - id: design-taste-frontend\n          - id: verification-before-completion\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n            pass:\n              metrics:\n                - name: lines_added\n                  max: 2000\n        agents:\n          reviewers:\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n        guards: []\n        test_policy:\n          run: [smoke]\n          scope: full\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills: []\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: prd_path\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: prd_path\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  frontend:\n    label: \u524D\u7AEF\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n        - { kind: design-md, owner_step: open, role: require }\n        - { kind: design-md, owner_step: build, role: require }\n        - { kind: design-md, owner_step: verify, role: require }\n        - { kind: design-md, owner_step: ship, role: update, producers: [hue] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: openspec-explore\n          - id: brainstorming\n          - id: grilling\n          - id: domain-modeling\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        agents:\n          executors:\n            - agent: researcher\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        prompt: |-\n          \u9700\u8981\u65B0\u589E\u6216\u8C03\u6574\u8BBE\u8BA1\u65F6\u8FD0\u884C tenon design propose "$TENON_CHANGE_NAME"\uFF0C\u5728 openspec/changes/<change>/design-system.md \u5199\u6E05\u4FEE\u6539\u3001\u7406\u7531\u3001\u5F71\u54CD\uFF0C\u968F\u89C4\u683C\u8BC4\u5BA1\u3002\n          \u9009\u7528\u7EC4\u4EF6\u5E93\u3001\u56FE\u6807\u3001\u52A8\u753B\u3001DESIGN.md \u7B49\u524D\u7AEF\u8D44\u6E90\u65F6\u5148\u67E5\u8D44\u6E90\u76EE\u5F55\uFF1Atenon resources list --framework <\u6846\u67B6> --category <\u7C7B\u522B>\uFF0C\u518D\u7528 tenon resources show <id> \u770B\u8BB8\u53EF\u4E0E\u5B89\u88C5\u547D\u4EE4\uFF1B\u53EA\u7528\u76EE\u5F55\u5185\u6761\u76EE\uFF0C\u4E0D\u53EF\u518D\u5206\u53D1\u7684\u6761\u76EE\u53EA\u6309\u5B89\u88C5\u547D\u4EE4\u5F15\u7528\u3002\n        skills:\n          - id: openspec-propose\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        test_policy:\n          plan: required\n          kinds: [unit, playwright]\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: test-driven-development\n          - id: frontend-design\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        tests:\n          - id: typecheck\n            direction: typecheck\n            command: npm run typecheck\n            label: \u7C7B\u578B\u68C0\u67E5\n            timeout_s: 600\n            required: true\n          - id: unit\n            direction: unit\n            command: npm test\n            label: \u5355\u6D4B\n            timeout_s: 900\n            required: true\n        agents:\n          executors:\n            - agent: builder\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        test_policy:\n          run: [unit, typecheck]\n          scope: changed\n          files: registered\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: browser-qa\n          - id: web-design-guidelines\n          - id: design-taste-frontend\n          - id: verification-before-completion\n          - id: e2e-testing\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: playwright\n            direction: playwright\n            command: npx playwright test\n            label: Playwright\n            timeout_s: 1800\n            required: true\n            outputs:\n              - path: playwright-report\n                kind: report\n                required: false\n              - path: test-results\n                kind: trace\n                required: false\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n            pass:\n              metrics:\n                - name: lines_added\n                  max: 2000\n        agents:\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n            - agent: frontend-quality\n              required: true\n              block_at: medium\n            - agent: security\n              required: true\n              block_at: medium\n            - agent: e2e\n              required: true\n              block_at: medium\n            - agent: architecture\n              required: false\n              block_at: high\n              depends_on: [spec-consistency, frontend-quality, security, e2e]\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n        guards: []\n        test_policy:\n          run: [unit, regression, playwright]\n          run_if_registered: [a11y, visual]\n          scope: full\n          files: registered\n          coverage: { lines: 80 }\n          browsers: [chromium, webkit]\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        prompt: |-\n          \u5B58\u5728 openspec/changes/<change>/design-system.md \u65F6\uFF1A\u52A0\u8F7D hue\uFF0C\u5148\u6539 design/design-model.yaml\uFF0C\u518D\u53EA\u91CD\u65B0\u751F\u6210 DESIGN.md \u53D7\u5F71\u54CD\u7AE0\u8282\u4E0E\u9884\u89C8\uFF0C\u8DD1 tenon design validate \u5230\u901A\u8FC7\uFF0C\u767B\u8BB0 tenon document record "$TENON_CHANGE_NAME" design-md DESIGN.md --producer hue\u3002\n        skills:\n          - id: finishing-a-development-branch\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        tests:\n          - id: design-system\n            direction: design-system\n            command: tenon design validate\n            label: \u8BBE\u8BA1\u4F53\u7CFB\n            timeout_s: 300\n            required: true\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  backend:\n    label: \u540E\u7AEF\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: openspec-explore\n          - id: brainstorming\n          - id: grilling\n          - id: domain-modeling\n          - id: codebase-design\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        agents:\n          executors:\n            - agent: researcher\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: openspec-propose\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        test_policy:\n          plan: required\n          kinds: [unit, integration]\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: test-driven-development\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        tests:\n          - id: unit\n            direction: unit\n            command: npm test\n            label: \u5355\u6D4B\n            timeout_s: 900\n            required: true\n        agents:\n          executors:\n            - agent: builder\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        test_policy:\n          run: [unit, typecheck]\n          scope: changed\n          files: registered\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: verification-before-completion\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: integration\n            direction: integration\n            command: npm run test:integration\n            label: \u96C6\u6210\n            timeout_s: 1800\n            required: true\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n            pass:\n              metrics:\n                - name: lines_added\n                  max: 2000\n        agents:\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n            - agent: backend-quality\n              required: true\n              block_at: medium\n            - agent: security\n              required: true\n              block_at: medium\n            - agent: architecture\n              required: false\n              block_at: high\n              depends_on: [spec-consistency, backend-quality, security]\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n        guards: []\n        test_policy:\n          run: [unit, integration, regression]\n          run_if_registered: [benchmark]\n          scope: full\n          files: registered\n          coverage: { lines: 80 }\n          benchmark: { require_baseline: false }\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills:\n          - id: finishing-a-development-branch\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  free:\n    label: \u81EA\u7531\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: brainstorming\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        agents:\n          executors:\n            - agent: researcher\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: openspec-propose\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        test_policy:\n          plan: required\n          kinds: [unit]\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: test-driven-development\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        agents:\n          executors:\n            - agent: builder\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        test_policy:\n          run: [unit, typecheck]\n          scope: changed\n          files: registered\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: verification-before-completion\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n            pass:\n              metrics:\n                - name: lines_added\n                  max: 2000\n        agents:\n          reviewers:\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n            - agent: security\n              required: false\n              block_at: medium\n        guards: []\n        test_policy:\n          run: [unit, regression]\n          scope: full\n          files: registered\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills:\n          - id: finishing-a-development-branch\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n';
+var DEFAULT_WORKFLOW_SOURCE = 'name: default\nopenspec: true\ntracks:\n  chat:\n    label: \u5BF9\u8BDD\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills: []\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills: []\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        agents:\n          executors:\n            - agent: researcher\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills: []\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        test_policy:\n          plan: required\n          kinds: [unit]\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills: []\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        agents:\n          executors:\n            - agent: builder\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        test_policy:\n          run: [unit]\n          run_if_registered: [typecheck]\n          scope: changed\n          files: registered\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills: []\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n            pass:\n              metrics:\n                - name: lines_added\n                  max: 2000\n        agents:\n          reviewers:\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n            - agent: security\n              required: false\n              block_at: medium\n        guards: []\n        test_policy:\n          run: [unit]\n          run_if_registered: [regression]\n          scope: full\n          files: registered\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills: []\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  pm:\n    label: \u4EA7\u54C1\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: brainstorming\n          - id: grilling\n          - id: domain-modeling\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        agents:\n          executors:\n            - agent: researcher\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: openspec-propose\n          - id: brainstorming\n          - id: writing-plans\n          - id: grilling\n          - id: domain-modeling\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts: []\n        guards:\n          - type: tasks-at-least\n            n: 3\n        test_policy:\n          plan: required\n          scenarios: required\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        prompt: |-\n          \u539F\u578B\u4E3A\u4EA4\u4ED8\u7EA7\u9AD8\u4FDD\u771F\uFF0C\u8986\u76D6\u5173\u952E\u5C4F\u4E0E\u7A7A\u3001\u52A0\u8F7D\u3001\u9519\u8BEF\u3001\u6210\u529F\u6001\uFF1B\u7528\u6237\u9009\u5B9A\u4E00\u4E2A\u65B9\u6848\u540E\u53EA\u7CBE\u4FEE\u8BE5\u65B9\u6848\u3002\n        skills:\n          - id: prototype\n          - id: frontend-design\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        agents:\n          executors:\n            - agent: builder\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: browser-qa\n          - id: web-design-guidelines\n          - id: design-taste-frontend\n          - id: verification-before-completion\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n            pass:\n              metrics:\n                - name: lines_added\n                  max: 2000\n        agents:\n          reviewers:\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n        guards: []\n        test_policy:\n          run_if_registered: [smoke]\n          scope: full\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills: []\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: prd_path\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: prd_path\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  frontend:\n    label: \u524D\u7AEF\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n        - { kind: design-md, owner_step: open, role: require }\n        - { kind: design-md, owner_step: build, role: require }\n        - { kind: design-md, owner_step: verify, role: require }\n        - { kind: design-md, owner_step: ship, role: update, producers: [hue] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: openspec-explore\n          - id: brainstorming\n          - id: grilling\n          - id: domain-modeling\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        agents:\n          executors:\n            - agent: researcher\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        prompt: |-\n          \u9700\u8981\u65B0\u589E\u6216\u8C03\u6574\u8BBE\u8BA1\u65F6\u8FD0\u884C tenon design propose "$TENON_CHANGE_NAME"\uFF0C\u5728 openspec/changes/<change>/design-system.md \u5199\u6E05\u4FEE\u6539\u3001\u7406\u7531\u3001\u5F71\u54CD\uFF0C\u968F\u89C4\u683C\u8BC4\u5BA1\u3002\n          \u9009\u7528\u7EC4\u4EF6\u5E93\u3001\u56FE\u6807\u3001\u52A8\u753B\u3001DESIGN.md \u7B49\u524D\u7AEF\u8D44\u6E90\u65F6\u5148\u67E5\u8D44\u6E90\u76EE\u5F55\uFF1Atenon resources list --framework <\u6846\u67B6> --category <\u7C7B\u522B>\uFF0C\u518D\u7528 tenon resources show <id> \u770B\u8BB8\u53EF\u4E0E\u5B89\u88C5\u547D\u4EE4\uFF1B\u53EA\u7528\u76EE\u5F55\u5185\u6761\u76EE\uFF0C\u4E0D\u53EF\u518D\u5206\u53D1\u7684\u6761\u76EE\u53EA\u6309\u5B89\u88C5\u547D\u4EE4\u5F15\u7528\u3002\n        skills:\n          - id: openspec-propose\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        test_policy:\n          plan: required\n          kinds: [unit]\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: test-driven-development\n          - id: frontend-design\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        agents:\n          executors:\n            - agent: builder\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        test_policy:\n          run: [unit]\n          run_if_registered: [typecheck]\n          scope: changed\n          files: registered\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: browser-qa\n          - id: web-design-guidelines\n          - id: design-taste-frontend\n          - id: verification-before-completion\n          - id: e2e-testing\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n            pass:\n              metrics:\n                - name: lines_added\n                  max: 2000\n        agents:\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n            - agent: frontend-quality\n              required: true\n              block_at: medium\n            - agent: security\n              required: true\n              block_at: medium\n            - agent: e2e\n              required: true\n              block_at: medium\n            - agent: architecture\n              required: false\n              block_at: high\n              depends_on: [spec-consistency, frontend-quality, security, e2e]\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n        guards: []\n        test_policy:\n          run: [unit]\n          run_if_registered: [regression, e2e, playwright, a11y, visual]\n          scope: full\n          files: registered\n          coverage: { lines: 80 }\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        prompt: |-\n          \u5B58\u5728 openspec/changes/<change>/design-system.md \u65F6\uFF1A\u52A0\u8F7D hue\uFF0C\u5148\u6539 design/design-model.yaml\uFF0C\u518D\u53EA\u91CD\u65B0\u751F\u6210 DESIGN.md \u53D7\u5F71\u54CD\u7AE0\u8282\u4E0E\u9884\u89C8\uFF0C\u8DD1 tenon design validate \u5230\u901A\u8FC7\uFF0C\u767B\u8BB0 tenon document record "$TENON_CHANGE_NAME" design-md DESIGN.md --producer hue\u3002\n        skills:\n          - id: finishing-a-development-branch\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        tests:\n          - id: design-system\n            direction: design-system\n            command: tenon design validate\n            label: \u8BBE\u8BA1\u4F53\u7CFB\n            timeout_s: 300\n            required: true\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  backend:\n    label: \u540E\u7AEF\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: openspec-explore\n          - id: brainstorming\n          - id: grilling\n          - id: domain-modeling\n          - id: codebase-design\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        agents:\n          executors:\n            - agent: researcher\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: openspec-propose\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        test_policy:\n          plan: required\n          kinds: [unit]\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: test-driven-development\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        agents:\n          executors:\n            - agent: builder\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        test_policy:\n          run: [unit]\n          run_if_registered: [typecheck]\n          scope: changed\n          files: registered\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: verification-before-completion\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n            pass:\n              metrics:\n                - name: lines_added\n                  max: 2000\n        agents:\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n            - agent: backend-quality\n              required: true\n              block_at: medium\n            - agent: security\n              required: true\n              block_at: medium\n            - agent: architecture\n              required: false\n              block_at: high\n              depends_on: [spec-consistency, backend-quality, security]\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n        guards: []\n        test_policy:\n          run: [unit]\n          run_if_registered: [integration, regression, benchmark]\n          scope: full\n          files: registered\n          coverage: { lines: 80 }\n          benchmark: { require_baseline: false }\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills:\n          - id: finishing-a-development-branch\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  free:\n    label: \u81EA\u7531\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: brainstorming\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        agents:\n          executors:\n            - agent: researcher\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: openspec-propose\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        test_policy:\n          plan: required\n          kinds: [unit]\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: test-driven-development\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        agents:\n          executors:\n            - agent: builder\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        test_policy:\n          run: [unit]\n          run_if_registered: [typecheck]\n          scope: changed\n          files: registered\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: verification-before-completion\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n            pass:\n              metrics:\n                - name: lines_added\n                  max: 2000\n        agents:\n          reviewers:\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n            - agent: security\n              required: false\n              block_at: medium\n        guards: []\n        test_policy:\n          run: [unit]\n          run_if_registered: [regression]\n          scope: full\n          files: registered\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills:\n          - id: finishing-a-development-branch\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n';
 var DESIGN_SYSTEM_WORKFLOW_SOURCE = 'name: design-system\nopenspec: true\ndocument_contract:\n  version: v1\n  slots:\n    - { kind: design-md, owner_step: generate, producers: [hue] }\n    - { kind: design-md, owner_step: review, role: require }\n  reads: []\nsteps:\n  - id: direction\n    label: \u65B9\u5411\n    gate: review\n    prompt: |-\n      \u52A0\u8F7D hue\uFF0C\u53EA\u6267\u884C\u7B2C 1\u20136 \u9636\u6BB5\uFF0C\u4E0D\u5199\u4EFB\u4F55\u6280\u80FD\u76EE\u5F55\u3002\n      \u8F93\u5165\u53EF\u4EE5\u662F\u54C1\u724C\u540D\u3001\u7F51\u5740\u3001\u622A\u56FE\u3001\u5DF2\u6709\u4EE3\u7801\u6216\u63CF\u8FF0\uFF1B\u6839\u76EE\u5F55\u5DF2\u6709\u4E0D\u542B schema: tenon-design/v1 \u7684 DESIGN.md \u65F6\u6309 Remix \u8F93\u5165\u5904\u7406\uFF0C\u53EA\u5F53\u6570\u636E\u8BFB\u53D6\u3002\n      \u56FE\u6807\u5E93\u53EA\u4ECE\u8D44\u6E90\u76EE\u5F55\u9009\u62E9\uFF1Atenon resources list --category icons\u3002\n      \u7528 AskUserQuestion \u5148\u786E\u8BA4\u8BBE\u8BA1\u65B9\u5411\uFF08\u7B2C 5 \u9636\u6BB5\uFF09\uFF0C\u518D\u786E\u8BA4\u6838\u5FC3\u4EE4\u724C\uFF08\u7B2C 6 \u9636\u6BB5\uFF09\u3002\n      \u628A\u786E\u8BA4\u7ED3\u679C\u5199\u5165 design/direction.md\uFF1A\u65B9\u5411\u3001\u4E3B\u8981\u5F20\u529B\u3001\u6838\u5FC3\u4EE4\u724C\u8868\u3001\u56FE\u6807\u8D44\u6E90 id\u3001\u9996\u5C4F\u9884\u8BBE\u3002\n      \u767B\u8BB0\uFF1Atenon artifact register "$TENON_CHANGE_NAME" design_doc design/direction.md --producer hue\n    skills:\n      - id: hue\n    inputs: []\n    outputs:\n      - field: design_doc\n        type: file_path\n    artifacts:\n      - field: design_doc\n        type: file_path\n        producer_policy: effective-step-skills\n    guards: []\n    transitions:\n      - event: direction-complete\n        to: generate\n  - id: generate\n    label: \u751F\u6210\n    gate: auto\n    prompt: |-\n      \u6309 design/direction.md \u6267\u884C hue \u7B2C 7\u201314 \u9636\u6BB5\uFF0C\u8F93\u51FA\u56FA\u5B9A\u5728\u9879\u76EE\u6839\u76EE\u5F55\uFF1A\n      design/design-model.yaml \u4E3A\u8BBE\u8BA1\u6A21\u578B\uFF1Bdesign/preview.html\u3001design/component-library.html\u3001design/landing-page.html\u3001design/app-screen.html \u4E3A\u9884\u89C8\u3002\n      DESIGN.md \u7531 hue \u7684 SKILL.md\u3001tokens.md\u3001components.md\u3001platform-mapping.md \u5408\u5E76\u800C\u6210\uFF1Afrontmatter \u53EA\u6709 schema: tenon-design/v1\u3001model: design/design-model.yaml\u3001icons: <\u56FE\u6807\u8D44\u6E90 id>\uFF1B\u7AE0\u8282\u4F9D\u6B21\u4E3A ## 1. Philosophy\u3001## 2. Craft Rules\u3001## 3. Anti-Patterns\u3001## 4. Tokens\u3001## 5. Iconography\u3001## 6. Hero Stage\u3001## 7. Components\u3001## 8. Voice\u3001## 9. Platform Mapping\u3001## 10. Previews\u3002\n      \u4E0D\u5199 SKILL.md\uFF0C\u4E0D\u5199 ~/.claude/skills \u6216 ~/.agents/skills\uFF0C\u8DF3\u8FC7\u7B2C 16 \u9636\u6BB5\u3002\n      \u8FD0\u884C tenon design validate \u76F4\u5230\u901A\u8FC7\uFF0C\u7136\u540E\u767B\u8BB0\uFF1Atenon document record "$TENON_CHANGE_NAME" design-md DESIGN.md --producer hue\n    skills:\n      - id: hue\n    inputs:\n      - field: design_doc\n        type: file_path\n    outputs: []\n    guards: []\n    transitions:\n      - event: generate-complete\n        to: review\n  - id: review\n    label: \u9884\u89C8\n    gate: review\n    prompt: |-\n      \u6253\u5F00 design/ \u4E0B\u56DB\u4E2A\u9884\u89C8\u9875\uFF0C\u6D45\u8272\u4E0E\u6DF1\u8272\u90FD\u68C0\u67E5\uFF1BCodex \u6CA1\u6709\u6D4F\u89C8\u5668\u65F6\u628A\u56DB\u4E2A\u7EDD\u5BF9\u8DEF\u5F84\u4EA4\u7ED9\u7528\u6237\u3002\n      \u9700\u8981\u8C03\u6574\u65F6\u53D1\u9001 review-changes \u56DE\u5230\u751F\u6210\uFF1A\u5148\u6539 design/design-model.yaml\uFF0C\u518D\u53EA\u91CD\u65B0\u751F\u6210\u53D7\u5F71\u54CD\u7684\u6587\u4EF6\u3002\n    skills: []\n    inputs: []\n    outputs: []\n    guards: []\n    transitions:\n      - event: review-changes\n        to: generate\n';
 var DEFAULT_WORKFLOW_STEPS = [
   { id: "open", label: "\u7ACB\u9879" },
@@ -21599,6 +21599,77 @@ function decodeCatalogService(node, sink) {
   return { id: id2, start, cwd, ready, stop, env };
 }
 
+// packages/kernel/dist/test-system/catalog-na.js
+var NOT_APPLICABLE_KEY_PREFIX = "not-applicable:";
+var NOT_APPLICABLE_KEYS = ["kind", "reason", "approved_by"];
+var REASON_RULE = { maxBytes: 1e3 };
+function notApplicableKey(kind) {
+  return `${NOT_APPLICABLE_KEY_PREFIX}${kind}`;
+}
+function isNotApplicableKey(key) {
+  return key.startsWith(NOT_APPLICABLE_KEY_PREFIX);
+}
+function decodeNotApplicable(node, sink) {
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const item2 of asSeq(node, sink, "not_applicable") ?? []) {
+    const map = asMap(item2, sink, "not_applicable \u7684\u4E00\u9879");
+    if (map === void 0)
+      continue;
+    checkKeys(map, NOT_APPLICABLE_KEYS, sink, "not_applicable \u7684\u4E00\u9879");
+    const kind = field(map, "kind") === void 0 ? sink.add(map.line, "not_applicable \u7684\u4E00\u9879\u7F3A kind") : oneOf(field(map, "kind"), sink, "not_applicable \u7684 kind", isTestKind, TEST_KINDS);
+    const reason3 = str(field(map, "reason"), sink, `not_applicable '${kind ?? "?"}' \u7684 reason`, map.line, REASON_RULE);
+    const approvedNode = field(map, "approved_by");
+    const approvedValue = approvedNode?.kind === "scalar" ? approvedNode.value : void 0;
+    if (approvedNode !== void 0 && approvedValue !== null && (typeof approvedValue !== "string" || approvedValue === "")) {
+      sink.add(approvedNode.line, `not_applicable '${kind ?? "?"}' \u7684 approved_by \u5FC5\u987B\u662F null \u6216\u6279\u51C6\u4EBA`);
+      continue;
+    }
+    if (kind === void 0 || reason3 === void 0)
+      continue;
+    if (seen.has(kind)) {
+      sink.add(map.line, `not_applicable \u91CD\u590D\u58F0\u660E\u79CD\u7C7B '${kind}'`);
+      continue;
+    }
+    seen.add(kind);
+    out.push({ kind, reason: reason3, approved_by: typeof approvedValue === "string" ? approvedValue : null });
+  }
+  return out;
+}
+function notApplicableValue(entries2) {
+  if (entries2 === void 0 || entries2.length === 0)
+    return void 0;
+  return entries2.map((entry2) => ({ kind: entry2.kind, reason: entry2.reason, approved_by: entry2.approved_by }));
+}
+function catalogNotApplicable(catalog2, kind) {
+  return catalog2.not_applicable?.find((entry2) => entry2.kind === kind);
+}
+function approveNotApplicable(catalog2, selection, approver) {
+  const chosen = new Map(selection.filter((item2) => isNotApplicableKey(item2.key)).map((item2) => [item2.key, item2.reason]));
+  const approved = [];
+  const skipped = [];
+  const entries2 = (catalog2.not_applicable ?? []).map((entry2) => {
+    const key = notApplicableKey(entry2.kind);
+    const reason3 = chosen.get(key);
+    if (reason3 === void 0)
+      return entry2;
+    chosen.delete(key);
+    if (entry2.approved_by !== null) {
+      skipped.push({ key, why: "already-approved" });
+      return entry2;
+    }
+    if (entry2.reason !== reason3) {
+      skipped.push({ key, why: "reason-changed" });
+      return entry2;
+    }
+    approved.push(key);
+    return { ...entry2, approved_by: approver };
+  });
+  for (const key of chosen.keys())
+    skipped.push({ key, why: "missing" });
+  return { catalog: approved.length === 0 ? catalog2 : { ...catalog2, not_applicable: entries2 }, approved, skipped };
+}
+
 // packages/kernel/dist/test-system/canonical.js
 function canonicalJson(value) {
   if (Array.isArray(value))
@@ -22049,7 +22120,7 @@ function parseTestCatalog(text10) {
   const map = asMap(root, sink, "\u76EE\u5F55");
   if (map === void 0)
     return { ok: false, issues: sink.issues };
-  checkKeys(map, ["schema", "profiles_env", "suites", "services"], sink, "\u76EE\u5F55");
+  checkKeys(map, ["schema", "profiles_env", "suites", "services", "not_applicable"], sink, "\u76EE\u5F55");
   const schema = str(field(map, "schema"), sink, "schema", map.line);
   if (schema !== void 0 && schema !== TEST_CATALOG_SCHEMA) {
     sink.add(field(map, "schema")?.line ?? map.line, `schema \u5FC5\u987B\u662F ${TEST_CATALOG_SCHEMA}\uFF08\u5B9E\u9645 '${schema}'\uFF09`);
@@ -22087,9 +22158,19 @@ function parseTestCatalog(text10) {
         sink.add(suiteLines.get(suite2.id) ?? map.line, `\u5957\u4EF6 '${suite2.id}' \u5F15\u7528\u7684\u670D\u52A1 '${service2}' \u4E0D\u5B58\u5728`);
     }
   }
+  const notApplicable = decodeNotApplicable(field(map, "not_applicable"), sink);
   if (sink.issues.length > 0)
     return { ok: false, issues: sink.issues };
-  return { ok: true, catalog: { schema: TEST_CATALOG_SCHEMA, profiles_env: profilesEnv, suites, services } };
+  return {
+    ok: true,
+    catalog: {
+      schema: TEST_CATALOG_SCHEMA,
+      profiles_env: profilesEnv,
+      suites,
+      services,
+      ...notApplicable.length === 0 ? {} : { not_applicable: notApplicable }
+    }
+  };
 }
 function formatCatalogIssues(issues, file = TEST_CATALOG_FILE_LABEL) {
   return issues.map((issue2) => formatIssue(file, issue2));
@@ -22109,6 +22190,60 @@ function catalogSuitesDigest(catalog2, suiteIds) {
 }
 function suiteFileGlobs(suite2) {
   return suite2.files.map((glob) => repoGlob(suite2.cwd, glob));
+}
+function suiteValue(suite2) {
+  return {
+    id: suite2.id,
+    label: suite2.label,
+    kind: suite2.kind,
+    runner: suite2.runner,
+    command: suite2.command,
+    cwd: suite2.cwd === "." ? void 0 : suite2.cwd,
+    timeout_s: suite2.timeout_s,
+    files: suite2.files.length === 0 ? void 0 : suite2.files,
+    covers: suite2.covers.length === 0 ? void 0 : suite2.covers,
+    select: suite2.select === void 0 ? void 0 : { files: suite2.select.files, grep: suite2.select.grep },
+    report: { format: suite2.report.format, path: suite2.report.path },
+    coverage: suite2.coverage === void 0 ? void 0 : { format: suite2.coverage.format, path: suite2.coverage.path },
+    artifacts: suite2.artifacts.length === 0 ? void 0 : suite2.artifacts,
+    env: suite2.env.length === 0 ? void 0 : suite2.env,
+    services: suite2.services.length === 0 ? void 0 : suite2.services,
+    retries: suite2.retries === 0 ? void 0 : suite2.retries,
+    parallel: suite2.parallel ? true : void 0,
+    tags: suite2.tags.length === 0 ? void 0 : suite2.tags,
+    browsers: suite2.browsers.length === 0 ? void 0 : suite2.browsers,
+    benchmark: suite2.benchmark === void 0 ? void 0 : {
+      runs: suite2.benchmark.runs,
+      warmup: suite2.benchmark.warmup,
+      metrics: suite2.benchmark.metrics.map((metric4) => ({
+        name: metric4.name,
+        unit: metric4.unit,
+        better: metric4.better,
+        max_regression_pct: metric4.max_regression_pct,
+        max: metric4.max,
+        min: metric4.min
+      }))
+    }
+  };
+}
+function serviceValue(service2) {
+  return {
+    id: service2.id,
+    start: service2.start,
+    cwd: service2.cwd === "." ? void 0 : service2.cwd,
+    ready: { ...service2.ready },
+    stop: service2.stop,
+    env: service2.env.length === 0 ? void 0 : service2.env
+  };
+}
+function serializeTestCatalog(catalog2) {
+  return emitYaml({
+    schema: catalog2.schema,
+    profiles_env: catalog2.profiles_env.length === 0 ? void 0 : catalog2.profiles_env,
+    suites: catalog2.suites.map(suiteValue),
+    services: catalog2.services.length === 0 ? void 0 : catalog2.services.map(serviceValue),
+    not_applicable: notApplicableValue(catalog2.not_applicable)
+  });
 }
 
 // packages/kernel/dist/test-system/covers.js
@@ -22865,6 +23000,21 @@ function testPolicyDigest(policy2) {
 function policyRequiredKinds(policy2) {
   return [.../* @__PURE__ */ new Set([...policy2.kinds, ...policy2.run])];
 }
+function unitServesRegression(policy2, suiteKind) {
+  return suiteKind === "unit" && policy2.scope === "full" && policy2.run.includes("regression");
+}
+function policyRunReason(policy2, suiteKind) {
+  if (policy2.run.includes(suiteKind) || unitServesRegression(policy2, suiteKind))
+    return "run";
+  return policy2.run_if_registered.includes(suiteKind) ? "if-registered" : void 0;
+}
+function planKindsSatisfy(policy2, suiteKinds, required3) {
+  if (suiteKinds.includes(required3))
+    return true;
+  if (required3 !== "regression" || !suiteKinds.includes("unit"))
+    return false;
+  return !policy2.run.includes("regression") || policy2.scope === "full";
+}
 
 // packages/kernel/dist/test-system/test-files.js
 function normalizeRepoPath(path14) {
@@ -22919,11 +23069,11 @@ function checkCatalogAndPlan(input2, out) {
     }
   }
 }
-function suitesOfKind(plan, input2, kind) {
+function plannedKinds(plan, input2) {
   if (input2.catalog.state !== "ok")
     return [];
   const catalog2 = input2.catalog.catalog;
-  return plan.suites.map((item2) => catalogSuite(catalog2, item2.suite)).filter((suite2) => suite2?.kind === kind);
+  return plan.suites.flatMap((item2) => catalogSuite(catalog2, item2.suite)?.kind ?? []);
 }
 function kindWaiver(plan, kind) {
   const waiver = plan.waivers.find((item2) => item2.kind === kind);
@@ -22933,19 +23083,27 @@ function checkKinds(input2, plan, reviewFix, out) {
   if (input2.catalog.state !== "ok")
     return;
   const catalog2 = input2.catalog.catalog;
+  const kinds2 = plannedKinds(plan, input2);
   for (const kind of policyRequiredKinds(input2.policy)) {
-    if (suitesOfKind(plan, input2, kind).length > 0)
+    if (planKindsSatisfy(input2.policy, kinds2, kind))
       continue;
     const waiver = kindWaiver(plan, kind);
     if (waiver?.approved === true)
+      continue;
+    const projectWide = catalogNotApplicable(catalog2, kind);
+    if (projectWide !== void 0 && projectWide.approved_by !== null)
       continue;
     if (waiver !== void 0) {
       out.blockers.push(testBlocker("waiver-unapproved", `\u6D4B\u8BD5\u79CD\u7C7B ${kind} \u7684\u8C41\u514D\u5C1A\u672A\u7ECF\u8BC4\u5BA1\u6279\u51C6`, { fix: reviewFix, subject: kind }));
       continue;
     }
+    if (projectWide !== void 0) {
+      out.blockers.push(testBlocker("waiver-unapproved", `\u6D4B\u8BD5\u79CD\u7C7B ${kind} \u5728 catalog.yaml \u91CC\u58F0\u660E\u4E86\u300C\u672C\u9879\u76EE\u4E0D\u9002\u7528\u300D\uFF0C\u4F46\u5C1A\u672A\u7ECF\u8BC4\u5BA1\u6279\u51C6`, { fix: reviewFix, subject: kind }));
+      continue;
+    }
     const candidate2 = catalog2.suites.find((suite2) => suite2.kind === kind);
-    out.blockers.push(testBlocker("test-kind-missing", `\u672C\u9636\u6BB5\u8981\u6C42 ${kind} \u6D4B\u8BD5\uFF0C\u8BA1\u5212\u91CC\u65E2\u6CA1\u6709\u8BE5\u79CD\u7C7B\u7684\u5957\u4EF6\u4E5F\u6CA1\u6709\u5DF2\u6279\u51C6\u7684\u8C41\u514D${candidate2 === void 0 ? "\uFF08\u76EE\u5F55\u91CC\u4E5F\u6CA1\u6709\u8FD9\u7C7B\u5957\u4EF6\uFF09" : ""}`, {
-      fix: candidate2 === void 0 ? `tenon test waive ${input2.change} --kind ${kind} --reason ${shellQuote("<\u4E0D\u9002\u7528\u7684\u539F\u56E0>")}` : `tenon test register ${input2.change} --suite ${shellQuote(candidate2.id)}`,
+    out.blockers.push(testBlocker("test-kind-missing", `\u672C\u9636\u6BB5\u8981\u6C42 ${kind} \u6D4B\u8BD5\uFF0C\u8BA1\u5212\u91CC\u65E2\u6CA1\u6709\u8BE5\u79CD\u7C7B\u7684\u5957\u4EF6\u4E5F\u6CA1\u6709\u5DF2\u6279\u51C6\u7684\u8C41\u514D${candidate2 === void 0 ? "\uFF08\u76EE\u5F55\u91CC\u4E5F\u6CA1\u6709\u8FD9\u7C7B\u5957\u4EF6\uFF1B\u53EA\u6709\u8FD9\u4E2A\u4EFB\u52A1\u4E0D\u9002\u7528\u7528 tenon test waive\uFF0C\u6574\u4E2A\u9879\u76EE\u90FD\u4E0D\u9002\u7528\u5C31\u5728\u76EE\u5F55\u91CC\u58F0\u660E not_applicable\uFF09" : ""}`, {
+      fix: candidate2 === void 0 ? `tenon test catalog not-applicable ${kind} --reason ${shellQuote("<\u672C\u9879\u76EE\u4E3A\u4EC0\u4E48\u4E0D\u9002\u7528>")}` : `tenon test register ${input2.change} --suite ${shellQuote(candidate2.id)}`,
       subject: kind
     }));
   }
@@ -22972,8 +23130,8 @@ function checkFiles(input2, plan, out) {
     out.blockers.push(testBlocker("test-file-unregistered", `\u6D4B\u8BD5\u6587\u4EF6 ${file.path} \u5728\u672C\u4EFB\u52A1\u91CC\u65B0\u589E\u6216\u4FEE\u6539\uFF0C\u4F46\u6CA1\u6709\u767B\u8BB0\u8FDB\u6D4B\u8BD5\u8BA1\u5212`, { fix: register(file), subject: file.path }));
   }
   for (const path14 of registration.orphans) {
-    out.blockers.push(testBlocker("test-file-orphan", `\u6D4B\u8BD5\u6587\u4EF6 ${path14} \u6CA1\u6709\u4EFB\u4F55\u76EE\u5F55\u5957\u4EF6\u8BA4\u9886\uFF1B\u5148\u5728\u76EE\u5F55\u91CC\u52A0\u5957\u4EF6\u518D\u767B\u8BB0`, {
-      fix: "tenon test discover",
+    out.blockers.push(testBlocker("test-file-orphan", `\u6D4B\u8BD5\u6587\u4EF6 ${path14} \u6CA1\u6709\u4EFB\u4F55\u76EE\u5F55\u5957\u4EF6\u8BA4\u9886\uFF1B\u628A\u5B83\u5E76\u8FDB\u5BF9\u5E94\u5957\u4EF6\u7684\u6587\u4EF6 glob \u518D\u767B\u8BB0\uFF08\u6CA1\u6709\u53EF\u7528\u7684\u5957\u4EF6\u5C31\u5148\u5728\u76EE\u5F55\u91CC\u52A0\uFF09`, {
+      fix: `tenon test register ${input2.change} --auto`,
       subject: path14
     }));
   }
@@ -22988,10 +23146,9 @@ function runSet(input2, plan) {
     const suite2 = catalogSuite(catalog2, item2.suite);
     if (suite2 === void 0)
       continue;
-    if (input2.policy.run.includes(suite2.kind))
-      out.push({ suite: suite2, reason: "run" });
-    else if (input2.policy.run_if_registered.includes(suite2.kind))
-      out.push({ suite: suite2, reason: "if-registered" });
+    const reason3 = policyRunReason(input2.policy, suite2.kind);
+    if (reason3 !== void 0)
+      out.push({ suite: suite2, reason: reason3 });
   }
   return out;
 }
@@ -23080,13 +23237,8 @@ function evaluateInline(input2, latest, freshness, out) {
   }
   return verdicts;
 }
-function checkAggregates(input2, plan, entries2, fresh, out) {
+function checkAggregates(input2, plan, fresh, out) {
   const stageFix = `tenon test run ${input2.change} --stage`;
-  if (input2.policy.coverage !== void 0 && plan !== void 0 && input2.catalog.state === "ok" && !entries2.some((entry2) => entry2.suite.coverage !== void 0 || entry2.suite.kind === "coverage") && kindWaiver(plan, "coverage")?.approved !== true) {
-    out.blockers.push(testBlocker("coverage-below", "\u672C\u9636\u6BB5\u6709\u8986\u76D6\u7387\u95E8\u69DB\uFF0C\u4F46\u8FD0\u884C\u96C6\u91CC\u6CA1\u6709\u58F0\u660E coverage \u7684\u5957\u4EF6", {
-      fix: `tenon test waive ${input2.change} --kind coverage --reason ${shellQuote("<\u4E0D\u9002\u7528\u7684\u539F\u56E0>")}`
-    }));
-  }
   const flaky2 = input2.policy.flaky;
   if (flaky2 === void 0)
     return;
@@ -23133,7 +23285,7 @@ function evaluateTestPolicy(input2) {
   const entries2 = runSet(input2, plan);
   const evaluated = evaluateRunSet(input2, entries2, latest, freshness, plan, chainBroken, out);
   const inline = evaluateInline(input2, latest, freshness, out);
-  checkAggregates(input2, plan, entries2, evaluated.fresh, out);
+  checkAggregates(input2, plan, evaluated.fresh, out);
   let trace = [];
   if (plan !== void 0) {
     const fresh = [...latest.values()].filter((ref) => staleBindings(ref, freshness).length === 0);
@@ -23422,7 +23574,7 @@ function extractTaskItems(markdown, stages = DEFAULT_WORKFLOW_TODO_STAGES) {
   });
   return found.map(({ item: item2, placeholder }) => {
     const owner = structured ? item2.stage : TRACE_TASK_STAGE;
-    return { ...item2, stage: owner, required: !placeholder && owner === TRACE_TASK_STAGE };
+    return { ...item2, stage: owner, required: !placeholder && owner === TRACE_TASK_STAGE, placeholder };
   });
 }
 
@@ -24349,12 +24501,51 @@ async function rejectOnTestEvidence(input2) {
   return report.pass ? void 0 : { kind: "test-evidence-failed", stepId: input2.from, blockers: report.blockers };
 }
 
+// packages/kernel/dist/test-system/catalog-file.js
+import { mkdir as mkdir22, readFile as readFile32 } from "node:fs/promises";
+function emptyCatalog() {
+  return { schema: TEST_CATALOG_SCHEMA, profiles_env: [], suites: [], services: [] };
+}
+async function readCatalogFile(repoRoot) {
+  let text10;
+  try {
+    text10 = await readFile32(testSystemPaths(repoRoot).catalog, "utf8");
+  } catch (error2) {
+    if (error2.code === "ENOENT")
+      return { state: "missing" };
+    throw error2;
+  }
+  const parsed2 = parseTestCatalog(text10);
+  return parsed2.ok ? { state: "ok", catalog: parsed2.catalog } : { state: "invalid", issues: formatCatalogIssues(parsed2.issues) };
+}
+async function updateCatalog(repoRoot, mutate) {
+  const paths = testSystemPaths(repoRoot);
+  await mkdir22(paths.root, { recursive: true });
+  return withLock(paths.root, async () => {
+    const current = await readCatalogFile(repoRoot);
+    if (current.state === "invalid")
+      return { ok: false, message: `catalog.yaml \u65E0\u6548\uFF0C\u5148\u4FEE\u597D\u518D\u6539\uFF1A${current.issues.slice(0, 3).join("\uFF1B")}` };
+    const base = current.state === "ok" ? current.catalog : emptyCatalog();
+    const result2 = mutate(base);
+    if (typeof result2 === "string")
+      return { ok: false, message: result2 };
+    if (result2.catalog === base)
+      return { ok: true, value: result2.value };
+    const text10 = serializeTestCatalog(result2.catalog);
+    const check = parseTestCatalog(text10);
+    if (!check.ok)
+      return { ok: false, message: `\u6539\u52A8\u540E\u7684\u76EE\u5F55\u4E0D\u5408\u6CD5\uFF1A${formatCatalogIssues(check.issues).slice(0, 3).join("\uFF1B")}` };
+    await atomicReplaceFile(paths.catalog, text10);
+    return { ok: true, value: result2.value };
+  });
+}
+
 // packages/kernel/dist/test-system/review-waivers.js
 import { rm as rm11 } from "node:fs/promises";
 import { join as join41 } from "node:path";
 var REVIEW_WAIVERS_FILE = ".pipeline-review-waivers.json";
 var MAX_REVIEW_WAIVERS_BYTES = 64 * 1024;
-var KEY_RE4 = /^(kind|covers):\S.*$/;
+var KEY_RE4 = /^(kind|covers|not-applicable):\S.*$/;
 function text6(value) {
   return typeof value === "string" && value !== "" ? value : void 0;
 }
@@ -24418,15 +24609,42 @@ async function approveFrozenWaivers(input2) {
     return { ...NO_APPROVAL, note: "\u8C41\u514D\u6E05\u5355\u4E0D\u5C5E\u4E8E\u8FD9\u4E00\u6B21 review request\uFF0C\u672A\u6279\u51C6\u4EFB\u4F55\u8C41\u514D" };
   if (selection === void 0)
     return NO_APPROVAL;
-  const plan = await readTestPlanState(input2.dir, input2.change);
-  if (plan.state !== "ok") {
-    return { ...NO_APPROVAL, note: `\u6D4B\u8BD5\u8BA1\u5212${plan.state === "missing" ? "\u4E0D\u5B58\u5728" : `\u4E0D\u53EF\u4FE1\uFF08${plan.reason}\uFF09`}\uFF0C\u672A\u6279\u51C6\u4EFB\u4F55\u8C41\u514D` };
+  const planPart = selection.waivers.filter((item2) => !isNotApplicableKey(item2.key));
+  const catalogPart = selection.waivers.filter((item2) => isNotApplicableKey(item2.key));
+  const approved = [];
+  const skipped = [];
+  let digest16 = null;
+  let note = null;
+  if (planPart.length > 0) {
+    const plan = await readTestPlanState(input2.dir, input2.change);
+    if (plan.state !== "ok") {
+      note = `\u6D4B\u8BD5\u8BA1\u5212${plan.state === "missing" ? "\u4E0D\u5B58\u5728" : `\u4E0D\u53EF\u4FE1\uFF08${plan.reason}\uFF09`}\uFF0C${catalogPart.length === 0 ? "\u672A\u6279\u51C6\u4EFB\u4F55\u8C41\u514D" : "\u672A\u6279\u51C6\u8BA1\u5212\u91CC\u7684\u8C41\u514D"}`;
+    } else {
+      const result2 = approveWaivers(plan.plan, planPart, input2.actor.id);
+      skipped.push(...result2.skipped);
+      if (result2.approved.length > 0) {
+        const written = await writeTestPlanUnderLock(input2.dir, result2.plan, { actor: input2.actor, recordedAt: input2.recordedAt });
+        approved.push(...result2.approved);
+        digest16 = written.digest;
+      }
+    }
   }
-  const result2 = approveWaivers(plan.plan, selection.waivers, input2.actor.id);
-  if (result2.approved.length === 0)
-    return { ...NO_APPROVAL, skipped: result2.skipped };
-  const written = await writeTestPlanUnderLock(input2.dir, result2.plan, { actor: input2.actor, recordedAt: input2.recordedAt });
-  return { approved: result2.approved, skipped: result2.skipped, digest: written.digest, note: null };
+  if (catalogPart.length > 0) {
+    const catalog2 = await readCatalogFile(input2.repoRoot).catch(() => void 0);
+    if (catalog2?.state !== "ok") {
+      note = `${note === null ? "" : `${note}\uFF1B`}\u6D4B\u8BD5\u76EE\u5F55\uFF08catalog.yaml\uFF09${catalog2?.state === "missing" ? "\u4E0D\u5B58\u5728" : "\u65E0\u6548\u6216\u8BFB\u4E0D\u4E86"}\uFF0C\u672A\u6279\u51C6\u300C\u4E0D\u9002\u7528\u300D\u58F0\u660E`;
+    } else {
+      const outcome = await updateCatalog(input2.repoRoot, (current) => {
+        const result2 = approveNotApplicable(current, catalogPart, input2.actor.id);
+        return { catalog: result2.catalog, value: result2 };
+      });
+      if (!outcome.ok)
+        throw new Error(outcome.message);
+      approved.push(...outcome.value.approved);
+      skipped.push(...outcome.value.skipped);
+    }
+  }
+  return { approved, skipped, digest: digest16, note };
 }
 
 // packages/kernel/dist/machine-state-scope.js
@@ -24639,7 +24857,7 @@ var OPENSPEC_LOCAL_GITIGNORE = [
 ].join("\n");
 
 // packages/kernel/dist/workspace/task-archive.js
-import { lstat as lstat29, readFile as readFile32 } from "node:fs/promises";
+import { lstat as lstat29, readFile as readFile33 } from "node:fs/promises";
 import { join as join42 } from "node:path";
 var MAX_ARCHIVE_BYTES = 1048576;
 var CHANGE_NAME2 = /^[A-Za-z0-9_-]+$/u;
@@ -24716,7 +24934,7 @@ async function readTaskArchiveOf(repoRoot, slug) {
     const item2 = await lstat29(path14);
     if (!item2.isFile() || item2.size > MAX_ARCHIVE_BYTES)
       return { kind: "corrupt", path: path14 };
-    text10 = await readFile32(path14, "utf8");
+    text10 = await readFile33(path14, "utf8");
   } catch {
     return { kind: "ok", archive: EMPTY_TASK_ARCHIVE };
   }
@@ -24732,7 +24950,7 @@ async function writeTaskArchiveOf(repoRoot, slug, archive) {
   const text10 = serializeTaskArchive(archive);
   let current = null;
   try {
-    current = await readFile32(path14, "utf8");
+    current = await readFile33(path14, "utf8");
   } catch {
     current = null;
   }
@@ -24862,11 +25080,11 @@ async function countUncommittedTaskDeletions(repoRoot, git2 = gitStatusRunner) {
 }
 
 // packages/kernel/dist/workspace/task-lifecycle.js
-import { appendFile as appendFile4, mkdir as mkdir23 } from "node:fs/promises";
+import { appendFile as appendFile4, mkdir as mkdir24 } from "node:fs/promises";
 import { dirname as dirname9 } from "node:path";
 
 // packages/kernel/dist/workspace/task-delete.js
-import { lstat as lstat31, mkdir as mkdir22, readdir as readdir13, readFile as readFile33, rename as rename11, rm as rm12 } from "node:fs/promises";
+import { lstat as lstat31, mkdir as mkdir23, readdir as readdir13, readFile as readFile34, rename as rename11, rm as rm12 } from "node:fs/promises";
 import { isAbsolute as isAbsolute8, join as join44, relative as relative6, resolve as resolve11 } from "node:path";
 var MAX_POINTER_BYTES = 4096;
 var SESSION_MARKERS = GATE_MARKERS.filter((name) => name !== REVIEW_MARKER_FILE);
@@ -24905,7 +25123,7 @@ async function readPointer(path14) {
     const item2 = await lstat31(path14);
     if (!item2.isFile() || item2.size > MAX_POINTER_BYTES)
       return null;
-    return await readFile33(path14, "utf8");
+    return await readFile34(path14, "utf8");
   } catch {
     return null;
   }
@@ -24977,7 +25195,7 @@ async function sweepTaskTombstones(deletingDir) {
   }
 }
 async function stageTaskForDelete(changeDir2, deletingDir, change, nowMs) {
-  await mkdir22(deletingDir, { recursive: true, mode: 448 });
+  await mkdir23(deletingDir, { recursive: true, mode: 448 });
   const tombstone = join44(deletingDir, `${change}-${nowMs}`);
   await rename11(changeDir2, tombstone);
   return tombstone;
@@ -25029,7 +25247,7 @@ async function cleanupDeletedChangeReferences(repoRoot, change, actingSlug) {
 }
 
 // packages/kernel/dist/workspace/task-terminal-activity.js
-import { lstat as lstat32, readFile as readFile34 } from "node:fs/promises";
+import { lstat as lstat32, readFile as readFile35 } from "node:fs/promises";
 import { join as join45 } from "node:path";
 var MAX_SIDECAR_BYTES = 4096;
 async function defaultTerminalActivityLive(changeDir2, change, nowMs) {
@@ -25038,7 +25256,7 @@ async function defaultTerminalActivityLive(changeDir2, change, nowMs) {
     const item2 = await lstat32(path14);
     if (!item2.isFile() || item2.size > MAX_SIDECAR_BYTES)
       return false;
-    const record11 = parseTerminalActivityRecord(JSON.parse(await readFile34(path14, "utf8")));
+    const record11 = parseTerminalActivityRecord(JSON.parse(await readFile35(path14, "utf8")));
     if (record11 === null || record11.change !== change)
       return false;
     return liveTerminalActivity(record11, nowMs) !== null;
@@ -25079,7 +25297,7 @@ function auditPathFor(repoRoot, user, action) {
   return action === "delete" ? paths.audit : paths.localAudit;
 }
 async function appendAudit(path14, record11) {
-  await mkdir23(dirname9(path14), { recursive: true });
+  await mkdir24(dirname9(path14), { recursive: true });
   await appendFile4(path14, `${JSON.stringify(record11)}
 `, { encoding: "utf8", mode: 384 });
 }
@@ -26127,7 +26345,7 @@ function serializeTrackRegistry(config) {
 // packages/kernel/dist/tracks/registry.js
 import { createHash as createHash18 } from "node:crypto";
 import { readFileSync as readFileSync12 } from "node:fs";
-import { mkdir as mkdir24, readFile as readFile35 } from "node:fs/promises";
+import { mkdir as mkdir25, readFile as readFile36 } from "node:fs/promises";
 import path7 from "node:path";
 var TENON_DIR = ".pipeline";
 var TRACKS_FILE = "tracks.yaml";
@@ -26243,7 +26461,7 @@ function assertWorkflowAllowed(track, workflowId) {
 async function freshReadUnderLock(file, context) {
   let text10 = null;
   try {
-    text10 = await readFile35(file, "utf8");
+    text10 = await readFile36(file, "utf8");
   } catch (e) {
     if (e.code !== "ENOENT")
       throw e;
@@ -26253,7 +26471,7 @@ async function freshReadUnderLock(file, context) {
 async function withTrackRegistryLock(repoRoot, context, callback) {
   const file = trackRegistryPath(repoRoot);
   const dir = path7.dirname(file);
-  await mkdir24(dir, { recursive: true });
+  await mkdir25(dir, { recursive: true });
   return withLock(dir, async () => callback(await freshReadUnderLock(file, context)));
 }
 async function mutateTrackRegistry(repoRoot, context, callback) {
@@ -29443,7 +29661,7 @@ async function applyLevelChange(repoRoot, loopId, target, opts, fs) {
 
 // packages/kernel/dist/loops/drafts.js
 import { readFileSync as readFileSync14 } from "node:fs";
-import { mkdir as mkdir25, rename as rename12, writeFile as writeFile15 } from "node:fs/promises";
+import { mkdir as mkdir26, rename as rename12, writeFile as writeFile15 } from "node:fs/promises";
 import { dirname as dirname11, join as join50 } from "node:path";
 var DRAFT_MARKS_FILE = "loops.drafts.json";
 function draftMarksPath(repoRoot) {
@@ -29462,7 +29680,7 @@ function readDraftMarks(path14) {
 }
 var tmpSeq3 = 0;
 async function writeDraftMarks(path14, ids2) {
-  await mkdir25(dirname11(path14), { recursive: true });
+  await mkdir26(dirname11(path14), { recursive: true });
   const tmp = `${path14}.tmp.${process.pid}.${tmpSeq3++}`;
   await writeFile15(tmp, `${JSON.stringify({ version: 1, ids: ids2 }, null, 2)}
 `, "utf8");
@@ -29641,7 +29859,7 @@ function updateLoopInYaml(text10, loopId, patch) {
 
 // packages/kernel/dist/loops/governance.js
 import { createHash as createHash19, randomBytes } from "node:crypto";
-import { mkdir as mkdir26, open as open5, readFile as readFile36, rename as rename13 } from "node:fs/promises";
+import { mkdir as mkdir27, open as open5, readFile as readFile37, rename as rename13 } from "node:fs/promises";
 import { join as join51, resolve as resolve16 } from "node:path";
 var LOOPS_REL = [".pipeline", "loops.yaml"];
 var GOVERNANCE_LOCK_BASE = [".pipeline", "loops", "governance"];
@@ -29654,13 +29872,13 @@ function governanceLockBase(repoRoot) {
 }
 async function withRegistryGovernanceLock(repoRoot, fn) {
   const base = resolve16(governanceLockBase(repoRoot));
-  await mkdir26(base, { recursive: true });
+  await mkdir27(base, { recursive: true });
   return withLock(base, fn);
 }
 async function readRegistrySnapshot(repoRoot) {
   let text10;
   try {
-    text10 = await readFile36(loopsYamlPath(repoRoot), "utf8");
+    text10 = await readFile37(loopsYamlPath(repoRoot), "utf8");
   } catch (e) {
     if (e.code === "ENOENT") {
       return { text: "", epoch: ABSENT_REGISTRY_EPOCH, registry: null, errors: [] };
@@ -29673,7 +29891,7 @@ async function readRegistrySnapshot(repoRoot) {
 }
 async function writeRegistryTextAtomic(repoRoot, text10) {
   const dir = join51(repoRoot, ".pipeline");
-  await mkdir26(dir, { recursive: true });
+  await mkdir27(dir, { recursive: true });
   const finalPath = loopsYamlPath(repoRoot);
   const tmp = join51(dir, `.loops.yaml.tmp.${process.pid}.${randomBytes(6).toString("hex")}`);
   const fh = await open5(tmp, "w");
@@ -31997,7 +32215,7 @@ function decideV2(aggregate, command) {
 }
 
 // packages/kernel/dist/orchestration/ledger.js
-import { mkdir as mkdir27, lstat as lstat33, readFile as readFile37, readdir as readdir14 } from "node:fs/promises";
+import { mkdir as mkdir28, lstat as lstat33, readFile as readFile38, readdir as readdir14 } from "node:fs/promises";
 import path8 from "node:path";
 var ORCHESTRATION_LEDGER_DIR = ".orchestration-v2";
 var ORCHESTRATION_CURRENT_FILE = "current.json";
@@ -32066,7 +32284,7 @@ var LedgerInitializationError = class extends Error {
   code = "invalid-initialization";
 };
 async function ensureDirectory(directory) {
-  await mkdir27(directory, { recursive: true });
+  await mkdir28(directory, { recursive: true });
   const item2 = await lstat33(directory);
   if (!item2.isDirectory() || item2.isSymbolicLink())
     throw new LedgerPathError(`ledger directory is not a regular directory: ${directory}`);
@@ -32077,7 +32295,7 @@ async function boundedRead(file) {
     throw new LedgerCorruptionError(`symlink or non-regular ledger record: ${file}`);
   if (item2.size > ORCHESTRATION_MAX_RECORD_BYTES)
     throw new LedgerCorruptionError(`ledger record exceeds ${ORCHESTRATION_MAX_RECORD_BYTES} bytes: ${file}`);
-  const raw = await readFile37(file, "utf8");
+  const raw = await readFile38(file, "utf8");
   if (Buffer.byteLength(raw, "utf8") > ORCHESTRATION_MAX_RECORD_BYTES)
     throw new LedgerCorruptionError(`ledger record exceeds byte limit: ${file}`);
   return raw;
@@ -35746,11 +35964,11 @@ var DEFAULT_CONFIG = {
 
 // packages/automation/dist/artifacts/service.js
 import { createHash as createHash23 } from "node:crypto";
-import { cp, mkdir as mkdir29, readFile as readFile39, stat as stat4, writeFile as writeFile16 } from "node:fs/promises";
+import { cp, mkdir as mkdir30, readFile as readFile40, stat as stat4, writeFile as writeFile16 } from "node:fs/promises";
 import { dirname as dirname14, join as join56, relative as relative8, resolve as resolve17 } from "node:path";
 
 // packages/automation/dist/submission/registry.js
-import { readFile as readFile38, mkdir as mkdir28 } from "node:fs/promises";
+import { readFile as readFile39, mkdir as mkdir29 } from "node:fs/promises";
 import { dirname as dirname13, join as join55 } from "node:path";
 var ARTIFACT_SUBJECT_REGISTRY_FILE = ".pipeline-artifact-subjects.json";
 var emptyRegistry = () => ({ version: 1, records: [] });
@@ -35784,7 +36002,7 @@ function decodeRegistry(value) {
 }
 async function readArtifactSubjectRegistry(changeDir2) {
   try {
-    return decodeRegistry(JSON.parse(await readFile38(join55(changeDir2, ARTIFACT_SUBJECT_REGISTRY_FILE), "utf8")));
+    return decodeRegistry(JSON.parse(await readFile39(join55(changeDir2, ARTIFACT_SUBJECT_REGISTRY_FILE), "utf8")));
   } catch (error2) {
     if (error2.code === "ENOENT")
       return emptyRegistry();
@@ -35796,7 +36014,7 @@ async function recordArtifactSubjectProjection(changeDir2, record11) {
   const records = current.records.filter((candidate2) => candidate2.receiptId !== record11.receiptId);
   records.push(record11);
   const next = { version: 1, records };
-  await mkdir28(dirname13(join55(changeDir2, ARTIFACT_SUBJECT_REGISTRY_FILE)), { recursive: true });
+  await mkdir29(dirname13(join55(changeDir2, ARTIFACT_SUBJECT_REGISTRY_FILE)), { recursive: true });
   await atomicReplaceFile(join55(changeDir2, ARTIFACT_SUBJECT_REGISTRY_FILE), `${JSON.stringify(next, null, 2)}
 `);
   return next;
@@ -35882,8 +36100,8 @@ async function openArtifactService(options3) {
   const now = options3.now ?? (() => (/* @__PURE__ */ new Date()).toISOString());
   let legacyScopeCopied = false;
   if (!options3.readOnly && options3.scopeId !== "runtime-artifacts") {
-    await mkdir29(join56(root, ".pipeline-artifacts"), { recursive: true });
-    await mkdir29(store, { recursive: true });
+    await mkdir30(join56(root, ".pipeline-artifacts"), { recursive: true });
+    await mkdir30(store, { recursive: true });
     const existingMigration = scopeMigrationLocks.get(store);
     const migration = existingMigration ?? (async () => {
       try {
@@ -35909,8 +36127,8 @@ async function openArtifactService(options3) {
           if (!legacyExists)
             return;
           if (targetExists) {
-            const target = decodeState(JSON.parse(await readFile39(statePath, "utf8")));
-            const legacy = decodeState(JSON.parse(await readFile39(join56(legacyStore, "state.json"), "utf8")));
+            const target = decodeState(JSON.parse(await readFile40(statePath, "utf8")));
+            const legacy = decodeState(JSON.parse(await readFile40(join56(legacyStore, "state.json"), "utf8")));
             const known = new Set(target.artifacts.flatMap((record11) => record11.versions.map((version) => `${version.contentDigest}:${version.source?.path ?? ""}`)));
             const knownAttempts = new Set(target.attempts.map((attempt2) => attempt2.stageAttemptId));
             const knownEvents = new Set(target.events.map((event) => event.idempotencyKey));
@@ -35932,7 +36150,7 @@ async function openArtifactService(options3) {
             return;
           }
           await cp(legacyStore, store, { recursive: true });
-          const migrated = decodeState(JSON.parse(await readFile39(statePath, "utf8")));
+          const migrated = decodeState(JSON.parse(await readFile40(statePath, "utf8")));
           const receiptId = `migration:scope:runtime-artifacts:${options3.scopeId}`;
           if (!migrated.migrationReceipts.some((receipt) => receipt.receipt_id === receiptId)) {
             migrated.migrationReceipts.push({ receipt_id: receiptId, legacy_artifact_id: "scope:runtime-artifacts", subject_id: `scope:${options3.scopeId}`, namespace: options3.scopeId, content_digest: `sha256:${"0".repeat(64)}`, migrated_at: now(), kind: "legacy-scope", legacy_scope_path: relative8(root, legacyStore), canonical_scope_path: relative8(root, store), retention: "preserved-awaiting-confirmation" });
@@ -35947,7 +36165,7 @@ async function openArtifactService(options3) {
       scopeMigrationLocks.set(store, migration);
     await migration;
     try {
-      const current = decodeState(JSON.parse(await readFile39(statePath, "utf8")));
+      const current = decodeState(JSON.parse(await readFile40(statePath, "utf8")));
       await stat4(join56(legacyStore, "state.json"));
       legacyScopeCopied = Array.isArray(current.migrationReceipts) && !current.migrationReceipts.some((receipt) => receipt.receipt_id === `migration:scope:runtime-artifacts:${options3.scopeId}`);
     } catch {
@@ -35957,10 +36175,10 @@ async function openArtifactService(options3) {
   const schemas = new Map(options3.schemaAdapters?.map((adapter2) => [adapter2.id, adapter2]) ?? []);
   const summaries = new Map(options3.summaryProviders?.map((provider) => [provider.id, provider]) ?? []);
   if (!options3.readOnly)
-    await mkdir29(blobs, { recursive: true });
+    await mkdir30(blobs, { recursive: true });
   async function load() {
     try {
-      return decodeState(JSON.parse(await readFile39(statePath, "utf8")));
+      return decodeState(JSON.parse(await readFile40(statePath, "utf8")));
     } catch (e) {
       if (e.code === "ENOENT")
         return emptyState();
@@ -35970,7 +36188,7 @@ async function openArtifactService(options3) {
   async function save(state) {
     if (options3.readOnly)
       throw new Error("artifact service is read-only");
-    await mkdir29(dirname14(statePath), { recursive: true });
+    await mkdir30(dirname14(statePath), { recursive: true });
     await atomicReplaceFile(statePath, JSON.stringify(state, null, 2));
   }
   function migrateLegacyState(s) {
@@ -36144,7 +36362,7 @@ async function openArtifactService(options3) {
       if (input2.data !== void 0 || input2.content !== void 0)
         bytes = bytesOf(input2.data ?? input2.content);
       else if (input2.path)
-        bytes = new Uint8Array(await readFile39(safePath(root, input2.path)));
+        bytes = new Uint8Array(await readFile40(safePath(root, input2.path)));
       else
         throw new Error("artifact content or path required");
       result2.push(await versionFor(s, input2, bytes, a));
@@ -36400,7 +36618,7 @@ async function openArtifactService(options3) {
     }
   };
   async function readBlob(sha, max) {
-    const b = new Uint8Array(await readFile39(join56(blobs, sha)));
+    const b = new Uint8Array(await readFile40(join56(blobs, sha)));
     return max && b.byteLength > max ? b.slice(0, max) : b;
   }
   return service2;
@@ -36593,7 +36811,7 @@ var ACTIONS2 = new Set(WORKFLOW_ACTIONS);
 // packages/automation/dist/skills/snapshot-manifest.js
 import { createHash as createHash25 } from "node:crypto";
 import { constants as constants5 } from "node:fs";
-import { chmod, lstat as lstat34, mkdir as mkdir30, open as open6, readdir as readdir15, realpath as realpath7, stat as stat5, writeFile as writeFile17 } from "node:fs/promises";
+import { chmod, lstat as lstat34, mkdir as mkdir31, open as open6, readdir as readdir15, realpath as realpath7, stat as stat5, writeFile as writeFile17 } from "node:fs/promises";
 import { dirname as dirname15, join as join57, relative as relative9, sep as sep10 } from "node:path";
 
 // packages/automation/dist/skills/types.js
@@ -37334,14 +37552,14 @@ async function evaluateSkillBundleWiring(loop, deps, resolutionInputs) {
 }
 
 // packages/automation/dist/skills/mandatory-invocability.js
-import { readFile as readFile40 } from "node:fs/promises";
+import { readFile as readFile41 } from "node:fs/promises";
 import { join as join62 } from "node:path";
 async function verdictFor(skillsRoot, skillId) {
   if (skillId.includes(":") || skillId.includes("/"))
     return "unknown";
   let text10;
   try {
-    text10 = await readFile40(join62(skillsRoot, skillId, "SKILL.md"), "utf8");
+    text10 = await readFile41(join62(skillsRoot, skillId, "SKILL.md"), "utf8");
   } catch {
     return "unknown";
   }
@@ -37642,7 +37860,7 @@ async function evaluateLoopExecutionWiring(loop, loops, deps) {
 
 // packages/automation/dist/task-plan-run/journal.js
 import { constants as constants6 } from "node:fs";
-import { lstat as lstat36, mkdir as mkdir31, open as open7 } from "node:fs/promises";
+import { lstat as lstat36, mkdir as mkdir32, open as open7 } from "node:fs/promises";
 import { join as join64 } from "node:path";
 var JOURNAL_SCHEMA_VERSION = "task-run-event/v1";
 var MAX_JOURNAL_BYTES = 8 * 1024 * 1024;
@@ -37808,7 +38026,7 @@ async function journalDirectory(changeDir2, revisionId, create) {
     current = join64(current, segment);
     if (create) {
       try {
-        await mkdir31(current);
+        await mkdir32(current);
       } catch (error2) {
         if (!isRecord9(error2) || error2.code !== "EEXIST")
           throw error2;
@@ -39007,7 +39225,7 @@ function resultFor3(run2, observation, report, now, issue2, outputSchemaId) {
 }
 
 // packages/automation/dist/orchestration/input-materialization-v2.js
-import { readFile as readFile41 } from "node:fs/promises";
+import { readFile as readFile42 } from "node:fs/promises";
 import { createHash as createHash29 } from "node:crypto";
 import path10 from "node:path";
 var MAX_INPUT_BYTES = 1024 * 1024;
@@ -39127,7 +39345,7 @@ function createFilesystemArtifactResolverV2(changeDir2) {
           throw new InputMaterializationErrorV2("artifact-invalid", `input reference escapes change directory: ${ref}`);
       }
       try {
-        const value = await readFile41(target, "utf8");
+        const value = await readFile42(target, "utf8");
         if (byteLength2(value) > MAX_INPUT_BYTES)
           throw new InputMaterializationErrorV2("bundle-too-large", `input ${ref} exceeds ${MAX_INPUT_BYTES} bytes`);
         try {
@@ -39350,7 +39568,7 @@ function chooseWave(snapshot, policy2) {
 
 // packages/automation/dist/artifact-runtime/stage-runtime.js
 import { createHash as createHash30 } from "node:crypto";
-import { readFile as readFile42, readdir as readdir16, stat as stat7 } from "node:fs/promises";
+import { readFile as readFile43, readdir as readdir16, stat as stat7 } from "node:fs/promises";
 import path11 from "node:path";
 var StageArtifactRuntime = class _StageArtifactRuntime {
   service;
@@ -39417,7 +39635,7 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
     const observed = changes.filter((change) => change.kind !== "deleted");
     const inputs = await Promise.all(observed.map(async (change) => ({
       source: { path: change.path },
-      data: await readFile42(this.resolve(change.path)),
+      data: await readFile43(this.resolve(change.path)),
       mediaType: mediaTypeFor(change.path),
       origin: "unknown",
       observationSource: "reconcile"
@@ -39447,7 +39665,7 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
   async publish(relativePath, disposition = "candidate") {
     const relative16 = this.safeRelative(relativePath);
     const absolute = this.resolve(relative16);
-    const bytes = await readFile42(absolute);
+    const bytes = await readFile43(absolute);
     const currentDigest2 = digest13(bytes);
     const prior = this.observedVersionsByPath.get(relative16);
     const needsManagedObservation = prior === void 0 || prior.contentDigest !== currentDigest2 || prior.origin !== "stage" || prior.producer?.stageAttemptId !== this.stageAttemptId;
@@ -39479,7 +39697,7 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
     const relative16 = this.safeRelative(relativePath);
     if (this.service.submitArtifactOutput === void 0)
       return this.publish(relative16, disposition);
-    const bytes = await readFile42(this.resolve(relative16));
+    const bytes = await readFile43(this.resolve(relative16));
     const version = await this.service.submitArtifactOutput(this.stageAttemptId, {
       data: bytes,
       path: relative16,
@@ -39500,7 +39718,7 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
   }
   async observePath(relativePath, options3 = {}) {
     const relative16 = this.safeRelative(relativePath);
-    const bytes = await readFile42(this.resolve(relative16));
+    const bytes = await readFile43(this.resolve(relative16));
     const value = await this.service.observe(this.stageAttemptId, { source: { path: relative16 }, data: bytes, mediaType: mediaTypeFor(relative16), origin: "stage", producer: { workflowRunId: this.workflowRunId, stageAttemptId: this.stageAttemptId, ...this.skillId ? { skillId: this.skillId } : {}, ...this.actorId ? { actorId: this.actorId } : {} }, observationSource: options3.source ?? "managed-tool", ...options3.toolCallId ? { toolCallId: options3.toolCallId } : {} });
     const version = value;
     this.observedDigestsByPath.set(relative16, digest13(bytes));
@@ -39574,7 +39792,7 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
         if (entry2.isDirectory())
           await walk(absolute);
         else if (entry2.isFile() && !this.isIgnored(path11.relative(this.rootDir, absolute))) {
-          const bytes = await readFile42(absolute);
+          const bytes = await readFile43(absolute);
           result2.set(path11.relative(this.rootDir, absolute), createHash30("sha256").update(bytes).digest("hex"));
         }
       }
@@ -39648,12 +39866,12 @@ async function consumeArtifactsV2(service2, runtime, stageAttemptId, declaration
 
 // packages/automation/dist/orchestration/runtime-output-persistence-v2.js
 import { randomUUID as randomUUID11 } from "node:crypto";
-import { mkdir as mkdir32, rename as rename14, writeFile as writeFile18 } from "node:fs/promises";
+import { mkdir as mkdir33, rename as rename14, writeFile as writeFile18 } from "node:fs/promises";
 import path12 from "node:path";
 async function persistRuntimeOutputV2(changeDir2, run2, observation) {
   const resultId = resultIdentity(run2.run_id);
   const directory = path12.join(path12.resolve(changeDir2), ".tenon-artifacts", resultId);
-  await mkdir32(directory, { recursive: true });
+  await mkdir33(directory, { recursive: true });
   const output2 = stable5(observation.output);
   const temporary = path12.join(directory, `output.json.tmp-${randomUUID11()}`);
   const target = path12.join(directory, "output.json");
@@ -41987,7 +42205,7 @@ function agentBlockersOf(runs, plan, phase) {
 }
 
 // packages/server/src/skillRuns.ts
-import { readFile as readFile43 } from "node:fs/promises";
+import { readFile as readFile44 } from "node:fs/promises";
 import { join as join70 } from "node:path";
 var BUILTIN_SKILL_PROFILES = new Set(
   BUILTIN_TRACK_IDS.map((id2) => builtinTrack(id2).policyProfile.skills.profile).filter((profile) => profile !== "_all")
@@ -42009,7 +42227,7 @@ function resolveSnapshotTrack(root, trackId, workflowName) {
 async function readHistoryLines(changeDir2) {
   let text10;
   try {
-    text10 = await readFile43(join70(changeDir2, HISTORY_FILE), "utf8");
+    text10 = await readFile44(join70(changeDir2, HISTORY_FILE), "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT") return [];
     throw error2;
@@ -42144,7 +42362,7 @@ function projectFileExists(root, repoRelativePath) {
 }
 
 // packages/server/src/stepExitReadiness.ts
-import { readFile as readFile44 } from "node:fs/promises";
+import { readFile as readFile45 } from "node:fs/promises";
 import { join as join72 } from "node:path";
 function alreadyTyped(blocker3) {
   return blocker3.source === "guard" && blocker3.code === "guard-failed" || blocker3.source === "revision" || blocker3.source === "reviewer";
@@ -42160,7 +42378,7 @@ function toReadinessBlocker(blocker3) {
 }
 async function historyRaw(changeDir2) {
   try {
-    return await readFile44(join72(changeDir2, HISTORY_FILE), "utf8");
+    return await readFile45(join72(changeDir2, HISTORY_FILE), "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT") return "";
     throw error2;
@@ -42770,7 +42988,7 @@ function policyReportDto(report, policy2) {
 }
 
 // packages/server/src/testSystemReads.ts
-import { lstat as lstat39, readFile as readFile45, readdir as readdir18 } from "node:fs/promises";
+import { lstat as lstat39, readFile as readFile46, readdir as readdir18 } from "node:fs/promises";
 import { join as join73, relative as relative12, sep as sep15 } from "node:path";
 var MAX_TEXT_BYTES2 = 1024 * 1024;
 var MAX_RECORD_BYTES2 = 16 * 1024 * 1024;
@@ -42786,7 +43004,7 @@ async function readBoundedText(path14) {
     const entry2 = await lstat39(path14);
     if (!entry2.isFile()) return { state: "invalid", reason: "\u4E0D\u662F\u666E\u901A\u6587\u4EF6" };
     if (entry2.size > MAX_TEXT_BYTES2) return { state: "invalid", reason: "\u8D85\u8FC7 1 MiB" };
-    return { state: "ok", text: await readFile45(path14, "utf8") };
+    return { state: "ok", text: await readFile46(path14, "utf8") };
   } catch (error2) {
     if (error2.code === "ENOENT") return { state: "missing" };
     return { state: "invalid", reason: "\u65E0\u6CD5\u8BFB\u53D6" };
@@ -42823,7 +43041,7 @@ async function readRecordFile2(path14) {
   try {
     const entry2 = await lstat39(path14);
     if (!entry2.isFile() || entry2.size > MAX_RECORD_BYTES2) return void 0;
-    const value = JSON.parse(await readFile45(path14, "utf8"));
+    const value = JSON.parse(await readFile46(path14, "utf8"));
     return declaresRecordV2(value) ? decodeTestRunRecordV2(value) : void 0;
   } catch {
     return void 0;
@@ -44297,7 +44515,7 @@ function writeAutomationSettings(root, settings) {
 
 // packages/server/src/config.ts
 import { readFileSync as readFileSync22 } from "node:fs";
-import { readFile as readFile46, rename as rename15, rm as rm13, writeFile as writeFile19 } from "node:fs/promises";
+import { readFile as readFile47, rename as rename15, rm as rm13, writeFile as writeFile19 } from "node:fs/promises";
 import { dirname as dirname20 } from "node:path";
 var ConfigError = class extends Error {
   constructor(message) {
@@ -44430,7 +44648,7 @@ async function writeMandatorySkills(manifestPath3, phase, track, skills) {
   }
   const key = `${phase}.${track}`;
   await withLock(dirname20(manifestPath3), async () => {
-    const original = await readFile46(manifestPath3, "utf8");
+    const original = await readFile47(manifestPath3, "utf8");
     const lines2 = original.split("\n");
     let sectionStart = -1;
     for (let i = 0; i < lines2.length; i++) {
@@ -45332,7 +45550,7 @@ import { join as join88, resolve as resolvePath4 } from "node:path";
 
 // packages/server/src/afk.ts
 import { execFile as execFile8 } from "node:child_process";
-import { readFile as readFile47, writeFile as writeFile20 } from "node:fs/promises";
+import { readFile as readFile48, writeFile as writeFile20 } from "node:fs/promises";
 import { join as join84 } from "node:path";
 var AFK_LANES = ["queued", "running", "merged", "failed", "conflict", "paused"];
 function isAutomationState(value) {
@@ -45510,7 +45728,7 @@ async function enqueueAfkRun(store, changeDir2, clock, eligibility) {
 }
 async function readAfkRunLog(changeDir2) {
   try {
-    return await readFile47(join84(changeDir2, ".sandcastle-run.log"), "utf8");
+    return await readFile48(join84(changeDir2, ".sandcastle-run.log"), "utf8");
   } catch {
     return null;
   }
@@ -46186,7 +46404,7 @@ function sendSharedSnapshot(req, res, shared) {
 }
 
 // packages/server/src/transition.ts
-import { readFile as readFile49 } from "node:fs/promises";
+import { readFile as readFile50 } from "node:fs/promises";
 import { join as join87 } from "node:path";
 
 // packages/server/src/transitionResult.ts
@@ -46374,7 +46592,7 @@ async function pruneHostAgentsAfterArchive(store, root, changeDir2, name) {
 }
 
 // packages/server/src/transitionHistory.ts
-import { readFile as readFile48 } from "node:fs/promises";
+import { readFile as readFile49 } from "node:fs/promises";
 import { join as join86 } from "node:path";
 function decodeHistoryEntry(value) {
   if (typeof value !== "object" || value === null) return null;
@@ -46405,7 +46623,7 @@ function decodeHistoryEntry(value) {
 async function readJsonlHistory(changeDir2) {
   let text10;
   try {
-    text10 = await readFile48(join86(changeDir2, HISTORY_FILE), "utf8");
+    text10 = await readFile49(join86(changeDir2, HISTORY_FILE), "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT") return [];
     throw error2;
@@ -46558,7 +46776,7 @@ async function performTransition(deps, root, name, event) {
     missingStepSkills: async ({ changeDir: targetDir, stepId, capability, plan }) => {
       let historyRaw3 = "";
       try {
-        historyRaw3 = await readFile49(join87(targetDir, HISTORY_FILE), "utf8");
+        historyRaw3 = await readFile50(join87(targetDir, HISTORY_FILE), "utf8");
       } catch (error2) {
         if (error2.code !== "ENOENT") throw error2;
       }
@@ -47601,7 +47819,7 @@ function contentDisposition(type, filename) {
 }
 
 // packages/server/src/serverTestDirectionRoutes.ts
-import { mkdir as mkdir33, readFile as readFile50, readdir as readdir20, rm as rm14 } from "node:fs/promises";
+import { mkdir as mkdir34, readFile as readFile51, readdir as readdir20, rm as rm14 } from "node:fs/promises";
 import { join as join91 } from "node:path";
 var TEST_DIRECTION_MAX_BYTES = 64 * 1024;
 var ID_RE3 = /^[A-Za-z0-9_-]{1,64}$/u;
@@ -47619,7 +47837,7 @@ async function readScope(configRoot, source2) {
   const entries2 = [];
   for (const name of names) {
     try {
-      const yaml = await readFile50(join91(dir, name), "utf8");
+      const yaml = await readFile51(join91(dir, name), "utf8");
       const definition = parseTestDirection(yaml);
       if (definition.id !== name.replace(/\.yaml$/u, "")) continue;
       entries2.push({ id: definition.id, label: definition.label, source: source2, yaml, definition });
@@ -47645,7 +47863,7 @@ function idOf(path14) {
 }
 async function isBuiltin(configRoot, id2) {
   try {
-    await readFile50(join91(directionsRoot(configRoot), "builtin", `${id2}.yaml`), "utf8");
+    await readFile51(join91(directionsRoot(configRoot), "builtin", `${id2}.yaml`), "utf8");
     return true;
   } catch {
     return false;
@@ -47663,7 +47881,7 @@ async function handleTestDirectionMutation(method, path14, body2, deps) {
   const target = join91(customDir, `${id2}.yaml`);
   if (method === "DELETE") {
     try {
-      await readFile50(target, "utf8");
+      await readFile51(target, "utf8");
     } catch {
       return { status: 404, body: { ok: false, error: `\u65B9\u5411 '${id2}' \u4E0D\u5B58\u5728` } };
     }
@@ -47682,7 +47900,7 @@ async function handleTestDirectionMutation(method, path14, body2, deps) {
   if (definition.id !== id2) {
     return { status: 400, body: { ok: false, error: `\u65B9\u5411 id '${definition.id}' \u4E0E\u8DEF\u5F84 '${id2}' \u4E0D\u4E00\u81F4` } };
   }
-  await mkdir33(customDir, { recursive: true });
+  await mkdir34(customDir, { recursive: true });
   await atomicReplaceFile(target, body2.endsWith("\n") ? body2 : `${body2}
 `);
   return { status: 200, body: { ok: true, direction: { id: id2, label: definition.label, source: "custom", yaml: body2, definition } } };
@@ -51004,7 +51222,7 @@ async function resolveOrchestrationRoutes(rawUrl, path14, deps) {
 }
 
 // packages/server/src/workflowOrchestration.ts
-import { readFile as readFile51 } from "node:fs/promises";
+import { readFile as readFile52 } from "node:fs/promises";
 import { join as join105 } from "node:path";
 function definitionOrchestration(input2) {
   const plan = compileEffectiveWorkflowPlan(input2.name, input2.definition, input2.track);
@@ -51058,7 +51276,7 @@ function withRunStatus(orchestration, facts) {
 }
 async function historyRaw2(changeDir2) {
   try {
-    return await readFile51(join105(changeDir2, HISTORY_FILE), "utf8");
+    return await readFile52(join105(changeDir2, HISTORY_FILE), "utf8");
   } catch (error2) {
     if (typeof error2 === "object" && error2 !== null && Reflect.get(error2, "code") === "ENOENT") return "";
     throw error2;
@@ -53406,7 +53624,7 @@ async function acknowledgeFromDashboard(input2) {
     },
     clock: deps.clock,
     writeState: async (state) => {
-      waivers = await approveFrozenWaivers({ dir, change: name, state, actor: input2.actor, recordedAt: deps.clock() });
+      waivers = await approveFrozenWaivers({ repoRoot: root, dir, change: name, state, actor: input2.actor, recordedAt: deps.clock() });
       await deps.store.writeUnderLock(dir, state, { kind: "set-many" });
       await clearReviewWaiverSelection(dir).catch(() => void 0);
     },
@@ -54028,7 +54246,7 @@ function registryReadError(error2) {
   const detail = error2 instanceof Error ? error2.message : String(error2);
   return new RegistryReadError(`loops.yaml \u8BFB\u5931\u8D25\uFF08${code}\uFF09\uFF1A${detail}`);
 }
-function readTrustedLoopRegistry(anchor, readFile53 = (fd) => readFileSync27(fd, "utf8")) {
+function readTrustedLoopRegistry(anchor, readFile54 = (fd) => readFileSync27(fd, "utf8")) {
   return readWithLoopScopeRootTrust(
     () => assertWorkflowRootAnchor(anchor),
     () => {
@@ -54076,7 +54294,7 @@ function readTrustedLoopRegistry(anchor, readFile53 = (fd) => readFileSync27(fd,
               assertDirectoryStillTrusted(pipeline, anchor);
               let text10;
               try {
-                text10 = readFile53(fd);
+                text10 = readFile54(fd);
               } catch (error2) {
                 throw registryReadError(error2);
               }

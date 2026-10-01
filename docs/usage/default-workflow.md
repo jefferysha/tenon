@@ -54,11 +54,12 @@ Skills declared per step (default, by track):
 
 `pre_verify_review_result=pass` is Build's verdict; `tenon set` checks the step's
 declared readiness evidence before writing it. Every track's Build declares
-evidence that can be checked: frontend requires the `typecheck` and `unit`
-tests, backend requires `unit`, and pm / free / chat require the
-`spec-consistency` reviewer (`block_at: medium`, a language-agnostic comparison
-of the implementation against the proposal, design, delta spec and tasks).
-Writing `pass` without that evidence is refused and names what is missing.
+evidence that can be checked: frontend, backend, chat and free require the
+`unit` suites of the project's test catalog to pass (Build's `test_policy`), and
+pm / free / chat also require the `spec-consistency` reviewer (`block_at:
+medium`, a language-agnostic comparison of the implementation against the
+proposal, design, delta spec and tasks). Writing `pass` without that evidence is
+refused and names what is missing.
 
 Every track also declares [agents](agents.md): Explore runs the `researcher`
 executor; Build runs the `builder` executor (one subagent per independent task,
@@ -68,17 +69,15 @@ test (`tenon test code-size --json`, passing while `lines_added` stays within
 free, Verify also runs `security` as an advisory reviewer whose findings never
 block. A step cannot be left until its executors finish `done`.
 
-When a required test's command is an npm script (`npm test`,
-`npm run test:integration`, …) that the project does not define, the test is
-*unconfigured*, not failed: `tenon test run` refuses it without writing a
-record and explains how to configure it, and `step.next` raises it as a `fix`
-(`test-unconfigured`) at the entry of its own step or the step before it
-(configuring is a workspace change and must land before Build freezes the
-candidate). Configure it by adding a script that runs the project's real tests
-of that kind, or — for a project that does not use npm — by editing the test's
-command on the Dashboard workflow page (saved as the global default override;
-it applies to changes created afterwards, started changes keep their frozen
-plan).
+When a required step test's command is an npm script that the project does not
+define, the test is *unconfigured*, not failed: `tenon test run` refuses it
+without writing a record and explains how to configure it, and `step.next` raises
+it as a `fix` (`test-unconfigured`) at the entry of its own step or the step
+before it (configuring is a workspace change and must land before Build freezes
+the candidate). The default workflow's only required step tests are `code-size`
+(every track's Verify) and the design-system check (pm's Ship); the project's own
+tests come from the catalog, so an ordinary project is never asked to add
+`typecheck` or `test:integration` scripts just to satisfy the workflow.
 
 A step can also declare a `test_policy`, the workflow's side of the test system
 (the project's `.tenon/tests/catalog.yaml` says how tests run, the change's
@@ -91,15 +90,45 @@ registered` blocks while a test file added or modified in the change is missing
 from the plan, `scenarios` (`required` / `passing`) maps every OpenSpec scenario
 to a test case, and `coverage`, `flaky` and `browsers` add thresholds. A step
 without `test_policy` behaves exactly as before, a started change keeps the plan
-it froze, and a step's own `tests` keep working next to its policy. Defaults by
-track (all editable on the Dashboard workflow page):
+it froze, and a step's own `tests` keep working next to its policy.
+
+Zero-waiver defaults: **only `unit` is mandatory** (registered at Spec, run at
+Build with scope `changed` and at Verify with scope `full`). Everything else runs
+only when the project has it: `typecheck`, `integration`, `regression`, `e2e`,
+`playwright`, `a11y`, `visual`, `benchmark`, `smoke` are `run_if_registered`, and
+the seed (`tenon test plan <change> --seed`, `tenon test register <change> --auto`)
+registers every catalog suite of those kinds except benchmarks. A coverage
+threshold (frontend / backend Verify, lines 80%) applies only to a suite whose
+catalog entry declares `coverage`; a catalog without coverage is never blocked by
+it, and the Playwright browser list is whatever the suite's own `browsers`
+declares. `regression` needs no suite of its own: a policy that requires
+`regression` with `scope: full` is satisfied by the `unit` suite run in full.
+Defaults by track (all editable on the Dashboard workflow page):
 
 | Track | spec registers | build runs (changed) | verify runs (full) |
 | --- | --- | --- | --- |
-| chat / free | `unit` | `unit`, `typecheck` | `unit`, `regression` |
-| frontend | `unit`, `playwright` | `unit`, `typecheck` | `unit`, `regression`, `playwright` (chromium, webkit); `a11y` / `visual` when registered; lines coverage 80% |
-| backend | `unit`, `integration` | `unit`, `typecheck` | `unit`, `integration`, `regression`; `benchmark` when registered; lines coverage 80% |
-| pm | every OpenSpec scenario mapped | none | `smoke` |
+| chat / free | `unit` | `unit`; `typecheck` when registered | `unit`; `regression` when registered |
+| frontend | `unit` | `unit`; `typecheck` when registered | `unit`; `regression`, `e2e`, `playwright`, `a11y`, `visual` when registered; lines coverage 80% when the suite declares coverage |
+| backend | `unit` | `unit`; `typecheck` when registered | `unit`; `integration`, `regression`, `benchmark` when registered; lines coverage 80% when the suite declares coverage |
+| pm | every OpenSpec scenario mapped | none | `smoke` when registered |
+
+A kind that does not apply to the whole project (a plain-JavaScript project has
+no type check) is declared once in the catalog instead of waived per change:
+`tenon test catalog not-applicable typecheck --reason '<why>'` writes a
+`not_applicable` entry to `.tenon/tests/catalog.yaml`. It takes effect only after
+a human confirmation: `tenon review request` lists it next to the plan's waivers
+(`not-applicable:<kind>`), the user's confirmation (`tenon review acknowledge`,
+not `--delegated`) approves it, and `approved_by` records who. Until then the
+policy still requires the kind and reports `waiver-unapproved`. A per-change
+`tenon test waive` remains for the one-off case.
+
+`tenon init` runs `tenon test discover --write` itself when the project has no
+catalog yet (for workflows that declare a `test_policy`) and says so on stderr;
+review the generated `.tenon/tests/catalog.yaml` and commit it. Discover claims
+unit test files under `src/`, `test/`, `tests/`, `__tests__/` and the project root
+(`*.test.*`, `*.spec.*`). `tenon test register <change> --auto` does the rest in
+one command: it discovers a missing catalog, widens a suite's `files` globs to
+claim test files nobody owns, seeds the plan and registers those files.
 
 Blockers carry a stable code (`test-catalog-missing`, `test-plan-missing`,
 `test-kind-missing`, `test-file-unregistered`, `test-not-run`, `test-failed`,
@@ -112,9 +141,9 @@ catalog) → `test-plan-seed` → `test-plan-map` (missing kinds, unmapped scena
 (`tenon test run <change> --stage`) → `test-report` (writes the traceability matrix
 into the verification report). They come after the step's documents and before its reviewers;
 a run that finished but misses the policy becomes a `fix` — or, on a review gate, the
-rollback edge. Waivers need a human: `tenon review request` lists the plan's pending
-waivers, and the user's confirmation (`tenon review acknowledge`, not `--delegated`)
-approves exactly those. The plan, baselines, known failures and run records are
+rollback edge. Waivers and catalog `not_applicable` entries need a human: `tenon review
+request` lists the pending ones, and the user's confirmation (`tenon review acknowledge`,
+not `--delegated`) approves exactly those. The plan, baselines, known failures and run records are
 written only through `tenon test …`; the write gate refuses direct edits and shell
 redirects into them, while `tenon` commands and plain git operations pass. A reviewer
 that declares `reads_tests` also gets the latest failing cases, flaky cases, coverage

@@ -10,8 +10,9 @@
  *   · `seedSandbox`：只有 git 仓库和 AGENTS.md，项目页启停客户端会改它的文件，所以不与 demo 共用
  *     （改工作区文件会让 demo 的测试运行记录过期）。
  */
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { deflateSync } from 'node:zlib'
 import { commitBase, runTenon, writeProjectFile } from '../../../tools/lib/isolated-tenon.mjs'
 
@@ -71,6 +72,26 @@ test('${FAILING_CASE}', () => {
 })
 `
 
+/**
+ * 演示项目自己的 default 工作流：内置默认只强制 unit（其余种类项目里有才跑），而「测试」页签要展示的
+ * 豁免待批准、缺测试种类都出在被强制的种类上。所以这个项目像一个要求更严的团队那样，在 backend 的验证步骤
+ * 多要 integration（策略 + 内联测试）和 e2e——这是项目级覆盖（.pipeline/workflows/default.yaml），内置模板不变。
+ */
+function strictDefaultWorkflow() {
+  const source = readFileSync(fileURLToPath(new URL('../../../templates/workflows/default.yaml', import.meta.url)), 'utf8')
+  const policy = '          run: [unit]\n          run_if_registered: [integration, regression, benchmark]\n'
+  if (!source.includes(policy)) throw new Error('seed: templates/workflows/default.yaml 的 backend 验证策略变了，请同步这里')
+  const strict = source.replace(policy, '          run: [unit, integration, e2e]\n          run_if_registered: [benchmark]\n')
+  const backend = strict.indexOf('\n  backend:\n')
+  const tests = strict.indexOf('        tests:\n', strict.indexOf('      - id: verify', backend))
+  const at = tests + '        tests:\n'.length
+  const inline = [
+    '          - id: integration', '            direction: integration', '            command: npm run test:integration',
+    '            label: 集成', '            timeout_s: 1800', '            required: true',
+  ].join('\n')
+  return `${strict.slice(0, at)}${inline}\n${strict.slice(at)}`
+}
+
 const CATALOG = `schema: tenon-test-catalog/v1
 suites:
   - id: ${UNIT_SUITE}
@@ -115,6 +136,7 @@ export function seedDemo(context) {
   const tenon = (...args) => runTenon(env, root, args)
   writeProjectFile(root, 'AGENTS.md', '# Demo\n\nSeed project for the dashboard e2e.\n')
   writeProjectFile(root, TEST_FILE, AUTH_TESTS)
+  writeProjectFile(root, '.pipeline/workflows/default.yaml', strictDefaultWorkflow())
   mkdirSync(join(root, 'tests', 'fixtures'), { recursive: true })
   writeFileSync(join(root, 'tests', 'fixtures', 'failure.png'), solidPng(320, 180, [196, 60, 52]))
   commitBase(root, env)

@@ -93,10 +93,10 @@ repeat:
 | `validate-spec` | `tenon spec apply <c> --dry-run`；退出码 2 就按报错改 delta spec 再跑。 |
 | `apply-spec` | `tenon spec apply <c>`。 |
 | `run-test` | `tenon test run <c> <test>`；`fail` 先改代码再重跑，不改就重跑没有意义。报「未配置（test-unconfigured）」不是失败：按提示配置（见 `fix`）。 |
-| `test-discover` | 项目还没有测试目录：跑 `command`（`tenon test discover --write`），核对生成的 `.tenon/tests/catalog.yaml`（每个套件的命令、报告路径、种类）；缺的套件补进目录。 |
+| `test-discover` | 项目还没有测试目录（`tenon init` 通常已经自动识别过；没识别到就是没找到测试工具）：跑 `command`（`tenon test discover --write`），核对 `.tenon/tests/catalog.yaml`（每个套件的命令、报告路径、种类、测试文件 glob）；缺的套件补进目录（`tenon test catalog add`）。项目确实没有某类测试就在目录里声明不适用：`tenon test catalog not-applicable <kind> --reason <原因>`——它要经评审确认一次才生效。 |
 | `test-plan-seed` | 跑 `command`（`tenon test plan <c> --seed`）生成本任务的测试计划初稿。计划、基线、已知失败清单只经 `tenon test …` 写入，不要手改 `test-plan.yaml`（会被判 `test-plan-tampered`），hook 也会拒绝。 |
-| `test-plan-map` | 逐条处理 `items`，每条自带 `fix` 命令：缺的种类 `tenon test register <c> --suite <id>`，没映射的场景 `--case "<covers>" --test "<文件> › <用例名>"`（用例要真的存在）。确实不适用的种类才 `tenon test waive <c> --kind <k> --reason <原因>`——豁免要评审批准，不是绕过。`show` 是查看当前计划的命令。 |
-| `test-register-files` | `files` 是本任务新增或修改、还没登记的测试文件：逐个执行各自的 `fix`（`tenon test register <c> --file <path> --suite <id>`）；没有套件认领的先补目录。 |
+| `test-plan-map` | 逐条处理 `items`，每条自带 `fix` 命令：缺的种类 `tenon test register <c> --suite <id>`，没映射的场景 `--case "<covers>" --test "<文件> › <用例名>"`（用例要真的存在）。确实不适用的种类：整个项目都不适用用 `tenon test catalog not-applicable <k> --reason <原因>`（评审确认一次后对所有任务生效），只有本任务不适用才 `tenon test waive <c> --kind <k> --reason <原因>`——两者都要评审批准，不是绕过。`show` 是查看当前计划的命令。 |
+| `test-register-files` | `files` 是本任务新增或修改、还没登记的测试文件：逐个执行各自的 `fix`（`tenon test register <c> --file <path> --suite <id>`）；没有套件认领的（`test-file-orphan`）执行它的 `fix`（`tenon test register <c> --auto`：把文件并进合适套件的 glob 并登记），没有合适的套件才先补目录。 |
 | `run-tests` | 执行 `command`（`tenon test run <c> --stage`）：一条命令跑完本阶段要求的全部套件。跑完用例失败、覆盖率不足之类不是「没跑」，`next` 会改发 `fix`（评审门上有回退边就走回退边）。 |
 | `test-report` | 执行 `command`：把追溯矩阵写进验证报告。报告是已登记文档，写完会变过期，照 `next` 重新登记。 |
 | `fix` | 逐条解决 `blockers[]`（改代码或文档），然后回到循环。`source: tasks` 的 blocker 带 `items`（截至本步仍未勾的任务原文）：把这些任务真的做完，再在 tasks.md 里勾上。`code: test-unconfigured`：项目没有这条必需测试要的 npm 脚本——在 package.json 加上运行本项目真正这类测试的脚本，不要复制别的测试命令凑数；在计划步提出时，把「写这类测试」列进本步的计划与 tasks，并把新增的测试脚本与测试同步写进 proposal（What Changes / Impact）与 design，删掉与之矛盾的表述（如「不改 package.json」）；在之后的步骤提出时只补 package.json 的脚本（及它要跑的测试代码），不要改已登记的规格文档（proposal / design / plan）。项目不用 npm 时停下告诉用户去改工作流的测试命令。 |

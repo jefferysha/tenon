@@ -9,6 +9,7 @@
  */
 import { sha256Hex } from '../sha256.js'
 import { decodeCatalogService, decodeCatalogSuite } from './catalog-decode.js'
+import { decodeNotApplicable, notApplicableValue } from './catalog-na.js'
 import {
   TEST_CATALOG_SCHEMA, type CatalogService, type CatalogSuite, type TestCatalog,
 } from './catalog-types.js'
@@ -36,7 +37,7 @@ export function parseTestCatalog(text: string): CatalogParseResult {
   const sink = new IssueSink()
   const map = asMap(root, sink, '目录')
   if (map === undefined) return { ok: false, issues: sink.issues }
-  checkKeys(map, ['schema', 'profiles_env', 'suites', 'services'], sink, '目录')
+  checkKeys(map, ['schema', 'profiles_env', 'suites', 'services', 'not_applicable'], sink, '目录')
   const schema = str(field(map, 'schema'), sink, 'schema', map.line)
   if (schema !== undefined && schema !== TEST_CATALOG_SCHEMA) {
     sink.add(field(map, 'schema')?.line ?? map.line, `schema 必须是 ${TEST_CATALOG_SCHEMA}（实际 '${schema}'）`)
@@ -71,8 +72,15 @@ export function parseTestCatalog(text: string): CatalogParseResult {
       if (!serviceLines.has(service)) sink.add(suiteLines.get(suite.id) ?? map.line, `套件 '${suite.id}' 引用的服务 '${service}' 不存在`)
     }
   }
+  const notApplicable = decodeNotApplicable(field(map, 'not_applicable'), sink)
   if (sink.issues.length > 0) return { ok: false, issues: sink.issues }
-  return { ok: true, catalog: { schema: TEST_CATALOG_SCHEMA, profiles_env: profilesEnv, suites, services } }
+  return {
+    ok: true,
+    catalog: {
+      schema: TEST_CATALOG_SCHEMA, profiles_env: profilesEnv, suites, services,
+      ...(notApplicable.length === 0 ? {} : { not_applicable: notApplicable }),
+    },
+  }
 }
 
 export function formatCatalogIssues(issues: readonly DecodeIssue[], file = TEST_CATALOG_FILE_LABEL): readonly string[] {
@@ -162,5 +170,6 @@ export function serializeTestCatalog(catalog: TestCatalog): string {
     profiles_env: catalog.profiles_env.length === 0 ? undefined : catalog.profiles_env,
     suites: catalog.suites.map(suiteValue),
     services: catalog.services.length === 0 ? undefined : catalog.services.map(serviceValue),
+    not_applicable: notApplicableValue(catalog.not_applicable),
   })
 }

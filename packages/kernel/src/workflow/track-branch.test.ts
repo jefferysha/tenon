@@ -189,7 +189,8 @@ describe('default 分支', () => {
   /**
    * build 的通过结论（pre_verify_review_result=pass）由 CLI 按本步声明的就绪证据核对；真机里
    * free / pm / chat 的 build 什么都不声明，模型直接 set pass 自批。每条分支的 build 都必须声明
-   * 至少一项可核对的必需证据：frontend / backend 是测试，其余是语言无关的 spec-consistency 评审者。
+   * 至少一项可核对的必需证据：frontend / backend / chat / free 是策略要求运行的 unit 套件（测试目录里的），
+   * pm 是语言无关的 spec-consistency 评审者。
    */
   it('每条分支的 build 都声明必需的就绪证据（测试或评审者）', () => {
     const def = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
@@ -199,15 +200,19 @@ describe('default 分支', () => {
         track,
         (build?.tests ?? []).filter((test) => test.required !== false).map((test) => test.id),
         (build?.agents?.reviewers ?? []).filter((reviewer) => reviewer.required).map((reviewer) => reviewer.agent),
+        build?.test_policy?.run ?? [],
       ]
     })
     expect(evidence).toEqual([
-      ['chat', [], ['spec-consistency']],
-      ['pm', [], ['spec-consistency']],
-      ['frontend', ['typecheck', 'unit'], []],
-      ['backend', ['unit'], []],
-      ['free', [], ['spec-consistency']],
+      ['chat', [], ['spec-consistency'], ['unit']],
+      ['pm', [], ['spec-consistency'], []],
+      ['frontend', [], [], ['unit']],
+      ['backend', [], [], ['unit']],
+      ['free', [], ['spec-consistency'], ['unit']],
     ])
+    for (const [track, tests, reviewers, run] of evidence) {
+      expect((tests as string[]).length + (reviewers as string[]).length + (run as string[]).length, `${String(track)} 的 build 没有任何就绪证据`).toBeGreaterThan(0)
+    }
   })
 
   it('测试 id 在分支内唯一；不同分支可以重名', () => {

@@ -558,6 +558,11 @@ most 64 characters, and a manifest contains at most 256 fixtures.
    （`request-review` 带 `waivers`），确认只批准清单里仍原样存在的那几条；`--delegated` 不批准豁免，计划里有待批准的豁免时它整个被拒
    （receipt 保持待确认，等人工确认），避免留下谁也批准不了的豁免。Dashboard 的 `GET …/pending-decisions`
    带 `waivers`（这次通过会批准的冻结清单，绑定当前请求，否则为空），POST 成功响应带 `waivers: { approved, skipped }`。
+   项目目录里的「本项目不适用」声明（`catalog.yaml` 的 `not_applicable: [{kind, reason, approved_by}]`，由
+   `tenon test catalog not-applicable <kind> --reason` 写入）走同一条批准路径：未批准的声明以 `not-applicable:<kind>`
+   进冻结清单，确认时写回 `catalog.yaml` 的 `approved_by`（批准人），批准前策略照旧要求该种类并报 `waiver-unapproved`。
+   默认策略只强制 `unit`，其余种类为 `run_if_registered`；覆盖率门槛只对目录里声明了 `coverage` 的套件生效；
+   策略要求 `regression` 且 `scope: full` 时由全量运行的 `unit` 套件满足。
    计划写入、豁免批准、基线更新各在 change 历史里留一行 `test:plan-write|waiver-approve|baseline-update`。
    写门（`hooks/gate.sh`）拒绝对 `test-plan.yaml`（及台账、冻结清单）、`.tenon/tests/baselines/**`、
    `.tenon/tests/known-failures.yaml`、按用户的记录目录的编辑类工具写入与 shell 重定向 / tee / cp / mv / rm /
