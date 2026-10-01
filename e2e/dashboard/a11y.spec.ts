@@ -14,8 +14,6 @@ interface Target {
   readonly name: string
   /** 打开页面并等它真正画好（不是只等导航出现）。 */
   readonly open: (page: Page, server: { project: string; sandbox: string }) => Promise<void>
-  /** 不扫的区域。只用于有意的禁用态：WCAG 对停用的控件不要求对比度。 */
-  readonly exclude?: readonly string[]
 }
 
 const TARGETS: readonly Target[] = [
@@ -86,13 +84,15 @@ const TARGETS: readonly Target[] = [
   },
   {
     name: '工作流 · 评审者编辑器（执行宿主）',
-    // 已放进画布的候选行被有意压暗（opacity-45，「+」同时停用）：那是停用态，不参与对比度判定；宿主下拉在右栏，照扫。
-    exclude: ['[data-testid^="palette-agent-"][data-placed="true"]'],
     open: async (page) => {
       await openView(page, 'workflow', { wf: 'default', step: 'verify' })
       await page.getByTestId('wb-reviewers-edit').click()
       await expect(page.getByTestId('agent-composer')).toBeVisible()
       await expect(page.locator('[data-testid^="wb-agent-host-"]')).toBeVisible()
+      // 已放进画布的候选行压暗成停用态（点行与「+」原生 disabled）：这些行也在扫描范围内，所以先确认它们真的存在。
+      const placed = page.locator('[data-testid^="palette-agent-"][data-placed="true"]')
+      await expect(placed.first()).toBeVisible()
+      await expect(placed.first().locator('[data-testid^="palette-agent-open-"]')).toBeDisabled()
     },
   },
   {
@@ -163,11 +163,10 @@ const TARGETS: readonly Target[] = [
   },
 ]
 
-async function violationsOf(page: Page, exclude: readonly string[] = []): Promise<string[]> {
+async function violationsOf(page: Page): Promise<string[]> {
   // 动画（页面切换淡入、彗星）会让对比度读数落在半透明态：等一帧稳定后再扫。
   await page.waitForTimeout(600)
-  const builder = exclude.reduce((axe, selector) => axe.exclude(selector), new AxeBuilder({ page }))
-  const results = await builder.analyze()
+  const results = await new AxeBuilder({ page }).analyze()
   return results.violations
     .filter((violation) => violation.impact !== null && violation.impact !== undefined && BLOCKING.has(violation.impact))
     .map((violation) => {
@@ -183,7 +182,7 @@ for (const scheme of ['light', 'dark'] as const) {
     for (const target of TARGETS) {
       test(`${target.name}：没有 serious / critical 违规`, async ({ page, server }) => {
         await target.open(page, server)
-        const violations = await violationsOf(page, target.exclude)
+        const violations = await violationsOf(page)
         expect(violations, `\n${violations.join('\n')}\n`).toEqual([])
       })
     }

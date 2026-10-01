@@ -246,6 +246,8 @@ function PaletteItem({ agent, placed, active, onOpen, onAdd, onDragging }: {
     onDragging(agent.name)
   }
   // 点行 = 在右栏看说明与设置（不加入）；行尾「+」= 串行追加；拖拽 = 按落点加入。
+  // 已在画布上的行是停用态：整行压暗，点行与「+」都用原生 disabled（读屏器读出「不可用」，axe 也按停用控件处理，
+  // 不再要求压暗后的名称满足对比度）。已放进画布的 agent 从画布节点上查看与设置。
   return (
     <li
       className={paletteRowClass(active, placed)}
@@ -259,6 +261,7 @@ function PaletteItem({ agent, placed, active, onOpen, onAdd, onDragging }: {
         type="button"
         className="flex min-h-10 min-w-0 flex-1 items-center gap-2 px-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
         aria-pressed={active}
+        disabled={placed}
         data-testid={`palette-agent-open-${agent.name}`}
         onClick={() => onOpen(agent.name)}
       >

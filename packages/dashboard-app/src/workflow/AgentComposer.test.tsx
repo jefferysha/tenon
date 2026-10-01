@@ -113,7 +113,7 @@ describe('AgentComposer', () => {
     const onSave = vi.fn()
     renderComposer('reviewers', onSave)
     await user.click(screen.getByTestId('palette-agent-add-security'))
-    await user.click(screen.getByTestId('palette-agent-open-security'))
+    await user.click(screen.getByTestId('flow-open-security'))
     await user.click(screen.getByTestId('wb-agent-required-security-no'))
     await user.selectOptions(screen.getByTestId('wb-agent-block-security'), 'medium')
     await user.click(screen.getByTestId('wb-agent-test-security-unit'))
@@ -128,7 +128,7 @@ describe('AgentComposer', () => {
     const onSave = vi.fn()
     renderComposer('reviewers', onSave)
     await user.click(screen.getByTestId('palette-agent-add-security'))
-    await user.click(screen.getByTestId('palette-agent-open-security'))
+    await user.click(screen.getByTestId('flow-open-security'))
     const host = screen.getByTestId('wb-agent-host-security')
     expect(host).toHaveValue('')
     expect(Array.from(host.querySelectorAll('option')).map((option) => option.textContent)).toEqual(['—', 'Codex', 'Claude', '不限'])
@@ -201,6 +201,32 @@ describe('AgentComposer', () => {
     await user.click(add)
     expect(screen.getByTestId('flow-node-builder')).toBeInTheDocument()
     expect(screen.getByTestId('palette-agent-add-builder')).toBeDisabled()
+  })
+
+  // 已放进画布的行压暗成停用态：读屏器与 axe 都要读到「不可用」，所以点行与「+」是原生 disabled，不是只靠透明度。
+  it('已放进画布的候选行是停用态：点行与「+」原生 disabled、不可拖拽；没放进的行可点可拖；放进的 agent 从画布节点查看', async () => {
+    const user = userEvent.setup()
+    renderComposer('reviewers', vi.fn(), [{ agent: 'security', required: true, block_at: 'high' }])
+    const placed = screen.getByTestId('palette-agent-security')
+    expect(placed).toHaveAttribute('data-placed', 'true')
+    expect(placed).toHaveAttribute('draggable', 'false')
+    expect(screen.getByTestId('palette-agent-open-security')).toBeDisabled()
+    expect(screen.getByTestId('palette-agent-add-security')).toBeDisabled()
+    const free = screen.getByTestId('palette-agent-builder')
+    expect(free).toHaveAttribute('data-placed', 'false')
+    expect(free).toHaveAttribute('draggable', 'true')
+    expect(screen.getByTestId('palette-agent-open-builder')).toBeEnabled()
+    expect(screen.getByTestId('palette-agent-add-builder')).toBeEnabled()
+
+    await user.click(screen.getByTestId('palette-agent-add-builder'))
+    expect(screen.getByTestId('palette-agent-builder')).toHaveAttribute('draggable', 'false')
+    expect(screen.getByTestId('palette-agent-open-builder')).toBeDisabled()
+    // 点停用行什么也不发生；放进去的 agent 从画布节点选中，设置面板照常出现。
+    await user.click(screen.getByTestId('palette-agent-open-builder'))
+    expect(screen.getByTestId('palette-agent-open-builder')).toHaveAttribute('aria-pressed', 'false')
+    await user.click(screen.getByTestId('flow-open-builder'))
+    expect(screen.getByTestId('palette-agent-open-builder')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('wb-agent-block-builder')).toBeInTheDocument()
   })
 
   it('评审者设置：字段名是「级别」与「阻断阈值」', () => {
