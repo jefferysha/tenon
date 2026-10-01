@@ -5,6 +5,7 @@ import { DOCUMENT_KIND_CATALOG } from '@tenon/kernel/workflow/document-contract-
 import type { WorkflowOrchestration } from '@tenon/kernel/workflow/orchestration'
 import type { WbExecutorRef, WbIoSlot, WbReviewerRef, WbStepDef } from '../api/governanceTypes'
 import { useT } from '../i18n'
+import { useBuiltinLabels } from '../i18n/builtinLabels'
 import { mergeStepIoAliases } from '../model/ioSlots'
 import { documentInputCandidates, documentKindsForOutput } from '../workbench/documentContractEdits'
 import type { WorkflowEditor } from '../workbench/useWorkflowEditor'
@@ -49,6 +50,7 @@ const POPOVER_ROW = 'flex w-full items-center gap-2 whitespace-nowrap rounded-sm
  */
 export function StageEditorPane({ editor, step, orchestration: provided }: StageEditorPaneProps): JSX.Element {
   const { t } = useT()
+  const builtin = useBuiltinLabels()
   const def = editor.def
   const steps = def?.steps ?? []
   const editable = editor.canWrite
@@ -181,7 +183,7 @@ export function StageEditorPane({ editor, step, orchestration: provided }: Stage
           <span className="sr-only" data-testid={`wb-lane-name-${step.id}`}>{stageLabel}</span>
           <input
             className="min-w-0 flex-1 rounded-xs border-b border-transparent bg-transparent pb-0.5 text-page font-bold tracking-[-.01em] text-text outline-none transition-colors hover:border-border focus:border-accent-b disabled:cursor-default disabled:hover:border-transparent"
-            value={step.label}
+            value={builtin.step(editor.wfName, step.id, step.label)}
             disabled={!editable}
             aria-label={t('workflow.stage_name')}
             data-testid={`wb-lane-name-input-${step.id}`}

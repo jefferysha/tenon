@@ -335,7 +335,7 @@ describe('WorkflowView · 内置工作流的出厂名按界面语言显示', () 
 
   afterEach(() => window.localStorage.clear())
 
-  it('英文：阶段名与轨道页签显示英文；改过的名字原样；编辑框里仍是存下来的名字', async () => {
+  it('英文：阶段名与轨道页签显示英文；改过的名字原样；阶段标题（编辑框）显示同一个名字，没改就不写回', async () => {
     window.localStorage.setItem('tenon-dashboard-lang', 'en')
     stubBuiltin()
     window.history.replaceState(null, '', '/?view=workbench&wf=default&track=backend&step=build')
@@ -344,8 +344,9 @@ describe('WorkflowView · 内置工作流的出厂名按界面语言显示', () 
     expect(screen.getByTestId('wb-step-build')).toHaveTextContent('Build')
     expect(screen.getByTestId('wb-track-backend')).toHaveTextContent('Backend')
     expect(screen.getByTestId('wb-track-chat')).toHaveTextContent('聊天')
-    // 阶段名输入框是存储值，不是显示名。
-    expect(await screen.findByDisplayValue('实现')).toBeInTheDocument()
+    // 阶段标题的编辑框显示同一个名字（仍是出厂名时显示英文）；没有编辑就没有未保存的改动。
+    expect(await screen.findByDisplayValue('Build')).toBeInTheDocument()
+    expect(screen.queryByTestId('wb-dirty')).toBeNull()
     await userEvent.setup().click(screen.getByTestId('wb-track-chat'))
     expect(await screen.findByTestId('wb-step-build')).toHaveTextContent('开发')
     expect(screen.getByTestId('wb-step-open')).toHaveTextContent('Open')

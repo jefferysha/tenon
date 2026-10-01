@@ -43,8 +43,8 @@ test.describe('英文界面 · 内置工作流数据', () => {
     }
     // 阶段画布里的出厂测试项（代码规模）。
     await expect(page.getByTestId('orch-node-test-code-size')).toContainText('Code size')
-    // 阶段名输入框是存储值，不是显示名。
-    await expect(page.getByTestId('wb-lane-name-input-verify')).toHaveValue('验证')
+    // 阶段标题（编辑框）与左栏显示同一个名字。
+    await expect(page.getByTestId('wb-lane-name-input-verify')).toHaveValue('Verify')
     await expect(page.getByTestId('wb-lane-name-verify')).toHaveText('Verify')
 
     await openView(page, 'workflow', { wf: 'default', track: 'backend', step: ':overview' })

@@ -66,7 +66,8 @@ describe('AgentRunDrawer · 宿主一行与启动命令', () => {
     expect(host).toHaveTextContent('宿主— · codex要求')
     expect(within(host).queryByTestId('agent-run-host-mismatch')).toBeNull()
     const mark = within(required).getByTestId('agent-run-host-required-mark')
-    expect(mark.className).not.toMatch(/rounded|\bbg-|\bborder\b/u)
+    // 标记是 13px 灰字，不是药丸：没有圆角、底色或边框类。
+    expect([...mark.classList].filter((name) => name.startsWith('round') || name.startsWith('bg-') || name.startsWith('border'))).toEqual([])
     expect(screen.getByTestId('agent-run-binding').textContent).not.toMatch(/[。.]$/u)
   })
 
