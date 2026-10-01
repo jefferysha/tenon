@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2, CornerUpLeft, Info, RefreshCw } from 'lucide-react'
-import { fetchPendingDecisions, postReviewAcknowledge, type PendingDecision, type PendingWaiver } from '../api/decisionClient'
+import { fetchPendingDecisions, postReviewAcknowledge, type PendingDecision, type PendingProtectedChange, type PendingWaiver } from '../api/decisionClient'
 import { ApiError, formatApiError } from '../api/transport'
 import { useT } from '../i18n'
 import type { WorkflowRules } from '../model/workflowModel'
@@ -49,7 +49,7 @@ export function decisionErrorText(error: unknown, t: Translate): string {
  */
 export function ReviewDecisionPanel({ root, change, snapshotSignature, rules, phase, onRefresh, onToast }: ReviewDecisionPanelProps): JSX.Element {
   const { t } = useT()
-  const [view, setView] = useState<{ revision: number | null; items: readonly PendingDecision[]; waivers: readonly PendingWaiver[] } | null>(null)
+  const [view, setView] = useState<{ revision: number | null; items: readonly PendingDecision[]; waivers: readonly PendingWaiver[]; protectedChanges: readonly PendingProtectedChange[] } | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   // Approving acts as the person at the keyboard, so the first click only asks; the second, explicit
@@ -96,7 +96,7 @@ export function ReviewDecisionPanel({ root, change, snapshotSignature, rules, ph
     setConfirming(false); setSubmitting(true); setSubmitError(null)
     try {
       const result = await postReviewAcknowledge({ root, change, ref: review.ref.id, expectedRevision: revision })
-      const approvedWaivers = result.waivers.approved.length
+      const approvedWaivers = result.waivers.approved.length + result.protectedChanges.approved.length
       onToast?.(result.idempotent
         ? t('review_console.approved_idempotent')
         : approvedWaivers > 0 ? t('review_console.approved_waivers', { count: approvedWaivers }) : t('review_console.approved'))
@@ -130,6 +130,7 @@ export function ReviewDecisionPanel({ root, change, snapshotSignature, rules, ph
 
   const evidence = review.evidence.join(' · ')
   const waivers = view?.waivers ?? []
+  const protectedChanges = view?.protectedChanges ?? []
   const reviewPhase = review.anchor.phase ?? phase
   const edges = rules.transitions[reviewPhase] ?? []
   const target = edges.find((edge) => edge.event === review.anchor.event)?.to
@@ -166,6 +167,28 @@ export function ReviewDecisionPanel({ root, change, snapshotSignature, rules, ph
               <li key={waiver.key} className="flex min-w-0 gap-2 whitespace-nowrap" data-testid={`review-console-waiver-${waiver.key}`}>
                 <span className="shrink-0 font-mono text-text">{waiver.key}</span>
                 <span className="truncate" title={waiver.reason}>{waiver.reason}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {protectedChanges.length > 0 && (
+        <div className="mt-3 grid gap-1 text-caption text-text-2" data-testid="review-console-protected">
+          <p className="flex items-center gap-1.5 whitespace-nowrap font-semibold">
+            {t('review_console.protected', { count: protectedChanges.length })}
+            <Hint label={t('review_console.protected_hint')}>
+              <button type="button" className="grid size-6 flex-none place-items-center rounded-sm text-text-3 outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent)" aria-label={t('review_console.protected_hint')} data-testid="review-console-protected-hint">
+                <Info className="size-3.5" aria-hidden="true" />
+              </button>
+            </Hint>
+          </p>
+          <ul className="grid gap-1">
+            {protectedChanges.map((item) => (
+              <li key={item.path} className="flex min-w-0 gap-2 whitespace-nowrap" data-testid={`review-console-protected-${item.path}`}>
+                <span className="min-w-0 truncate font-mono text-text" title={item.path}>{item.path}</span>
+                <span className="shrink-0" title={item.digest}>
+                  {t(`review_console.change_${item.status}`)}{item.origin === 'outside-command' ? ` · ${t('review_console.outside_command')}` : ''}
+                </span>
               </li>
             ))}
           </ul>

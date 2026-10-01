@@ -392,10 +392,12 @@ say ""
 ORACLE_TENON_USER="oracle@tenon.test"
 ORACLE_TENON_USER_NAME="oracle"
 
+# 这是运行器不是克隆来的仓库：fixture 里的测试命令是 harness 自己写的，跟 CI 一样显式预先信任
+# （TENON_TEST_TRUST=1）。真实用户的首次执行信任由 `tenon test trust` 在终端里确认。
 run_new_cli() {
   local dir="$1"; shift
   (cd "$dir" && PATH="$PROBE_BIN:$PATH" TENON_RUNTIME_HOME="$MACHINE_HOME" \
-    TENON_USER="$ORACLE_TENON_USER" TENON_USER_NAME="$ORACLE_TENON_USER_NAME" \
+    TENON_USER="$ORACLE_TENON_USER" TENON_USER_NAME="$ORACLE_TENON_USER_NAME" TENON_TEST_TRUST=1 \
     "${NEW_CMD[@]}" "$@")
 }
 

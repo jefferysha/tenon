@@ -7,10 +7,12 @@ import { readCatalogFile } from './catalog-file.js'
 import { testSystemPaths } from './paths.js'
 import { readTestPlanState, writeTestPlan } from './plan-ledger.js'
 import { emptyTestPlan, type PlanWaiver } from './plan.js'
+import { protectedFileDigest } from './protected-files.js'
 import {
   REVIEW_WAIVERS_FILE, approveFrozenWaivers, boundReviewWaiverSelection, clearReviewWaiverSelection,
-  pendingReviewWaivers, readReviewWaiverSelection, writeReviewWaiverSelection,
+  pendingReviewWaivers, readReviewWaiverSelection, writeReviewWaiverSelection, type FrozenProtectedChange,
 } from './review-waivers.js'
+import { isApproved, readTestSeal } from './seal.js'
 
 let dir: string
 beforeEach(async () => { dir = await mkdtemp(join(tmpdir(), 'tenon-review-waivers-')) })
@@ -104,14 +106,14 @@ describe('approveFrozenWaivers', () => {
     await writeReviewWaiverSelection(dir, FROZEN)
     const before = await readTestPlanState(dir, 'demo')
     const outcome = await approveFrozenWaivers({ repoRoot: dir, dir, change: 'demo', state: reviewState(), actor: ACTOR, recordedAt: STAMP })
-    expect(outcome).toEqual({ approved: [], skipped: [{ key: 'kind:benchmark', why: 'reason-changed' }], digest: null, note: null })
+    expect(outcome).toEqual({ approved: [], skipped: [{ key: 'kind:benchmark', why: 'reason-changed' }], digest: null, note: null, protectedApproved: [], protectedSkipped: [] })
     expect(await readTestPlanState(dir, 'demo')).toEqual(before)
   })
 
   it('清单不属于这一次请求：什么都不批准并说明；没有清单：无操作', async () => {
     await writePlanWith([{ kind: 'benchmark', reason: '纯文案改动', approved_by: null }])
     expect(await approveFrozenWaivers({ repoRoot: dir, dir, change: 'demo', state: reviewState(), actor: ACTOR, recordedAt: STAMP }))
-      .toEqual({ approved: [], skipped: [], digest: null, note: null })
+      .toEqual({ approved: [], skipped: [], digest: null, note: null, protectedApproved: [], protectedSkipped: [] })
     await writeReviewWaiverSelection(dir, FROZEN)
     const outcome = await approveFrozenWaivers({
       repoRoot: dir, dir, change: 'demo', state: reviewState({ requestedAt: '2026-01-01T00:00:00.000Z' }), actor: ACTOR, recordedAt: STAMP,
@@ -192,5 +194,138 @@ describe('目录里项目级「不适用」声明的评审批准', () => {
     const outcome = await approveFrozenWaivers({ repoRoot: dir, dir, change: 'demo', state: reviewState(), actor: ACTOR, recordedAt: STAMP })
     expect(outcome.approved).toEqual(['kind:benchmark'])
     expect(outcome.note).toContain('测试目录（catalog.yaml）不存在')
+  })
+})
+
+describe('冻结清单里的受保护配置改动（R1 / R3）', () => {
+  const KF_PATH = '.tenon/tests/known-failures.yaml'
+  const CATALOG_PATH = '.tenon/tests/catalog.yaml'
+  const SLUG = 'tester-at-tenon.test'
+
+  async function writeProtected(path: string, body: string): Promise<void> {
+    await mkdir(join(dir, '.tenon', 'tests'), { recursive: true })
+    await writeFile(join(dir, path), body)
+  }
+
+  async function frozen(path: string, kind: FrozenProtectedChange['kind'], origin: FrozenProtectedChange['origin'] = 'pending'): Promise<FrozenProtectedChange> {
+    return { path, kind, status: 'modified', digest: await protectedFileDigest(dir, path), origin }
+  }
+
+  it('protected 键随清单原样写入读回；旧清单（没有该键）照常读；坏形状当作没有清单', async () => {
+    await writeProtected(KF_PATH, 'a\n')
+    const item = await frozen(KF_PATH, 'known-failures', 'outside-command')
+    await writeReviewWaiverSelection(dir, { ...SELECTION, protected: [item] })
+    expect(await readReviewWaiverSelection(dir)).toEqual({ version: 1, ...SELECTION, protected: [item] })
+    await writeReviewWaiverSelection(dir, SELECTION)
+    expect((await readReviewWaiverSelection(dir))?.protected).toBeUndefined()
+    const base = { version: 1, phase: 'verify', event: 'e', requestedAt: 't', waivers: [] }
+    for (const bad of [
+      { ...base, protected: [{ path: 'src/a.ts', kind: 'catalog', status: 'modified', digest: 'sha256:x', origin: 'pending' }] },
+      { ...base, protected: [{ path: CATALOG_PATH, kind: 'known-failures', status: 'modified', digest: 'sha256:x', origin: 'pending' }] },
+      { ...base, protected: [{ path: CATALOG_PATH, kind: 'catalog', status: 'weird', digest: 'sha256:x', origin: 'pending' }] },
+      { ...base, protected: [{ path: CATALOG_PATH, kind: 'catalog', status: 'added', digest: 'sha256:x', origin: 'approved' }] },
+      { ...base, protected: [{ path: CATALOG_PATH, kind: 'catalog', status: 'added', digest: 'sha256:x', origin: 'pending', extra: 1 }] },
+      { ...base, protected: 'nope' },
+    ]) {
+      await writeFile(join(dir, REVIEW_WAIVERS_FILE), JSON.stringify(bad), 'utf8')
+      expect(await readReviewWaiverSelection(dir), JSON.stringify(bad)).toBeUndefined()
+    }
+  })
+
+  it('只有受保护改动、没有豁免的清单也算数（绑定请求、可被批准）', async () => {
+    await writeProtected(KF_PATH, 'a\n')
+    await writeReviewWaiverSelection(dir, { ...SELECTION, waivers: [], protected: [await frozen(KF_PATH, 'known-failures')] })
+    expect((await boundReviewWaiverSelection(dir, reviewState())).selection?.protected).toHaveLength(1)
+    expect(await boundReviewWaiverSelection(dir, reviewState({ event: 'other' }))).toEqual({ selection: undefined, unbound: true })
+  })
+
+  it('人工确认把冻结摘要仍然相同的项写进本机封存；批准绑定 change + 路径 + 摘要', async () => {
+    await writeProtected(KF_PATH, 'entries\n')
+    await writeProtected(CATALOG_PATH, 'suites\n')
+    const kf = await frozen(KF_PATH, 'known-failures')
+    const catalog = await frozen(CATALOG_PATH, 'catalog')
+    await writeReviewWaiverSelection(dir, { ...SELECTION, waivers: [], protected: [kf, catalog] })
+    const outcome = await approveFrozenWaivers({ repoRoot: dir, dir, change: 'demo', state: reviewState(), actor: ACTOR, recordedAt: STAMP })
+    expect(outcome).toMatchObject({ approved: [], protectedApproved: [KF_PATH, CATALOG_PATH], protectedSkipped: [] })
+    const { seal } = await readTestSeal(dir, SLUG)
+    expect(isApproved(seal, 'demo', KF_PATH, kf.digest)).toBe(true)
+    expect(isApproved(seal, 'demo', CATALOG_PATH, catalog.digest)).toBe(true)
+    expect(isApproved(seal, 'other', KF_PATH, kf.digest)).toBe(false)
+    expect(seal.approvals[0]).toMatchObject({ by: ACTOR.id, at: STAMP })
+    // 重试同一条确认是幂等的：不重复记批准。
+    await approveFrozenWaivers({ repoRoot: dir, dir, change: 'demo', state: reviewState(), actor: ACTOR, recordedAt: STAMP })
+    expect((await readTestSeal(dir, SLUG)).seal.approvals).toHaveLength(2)
+  })
+
+  it('请求之后文件又被改（含被删）：不批准，报 content-changed', async () => {
+    await writeProtected(KF_PATH, 'as requested\n')
+    await writeProtected(CATALOG_PATH, 'as requested\n')
+    await writeReviewWaiverSelection(dir, {
+      ...SELECTION, waivers: [], protected: [await frozen(KF_PATH, 'known-failures'), await frozen(CATALOG_PATH, 'catalog')],
+    })
+    await writeProtected(KF_PATH, 'sneaky extra entry\n')
+    await rm(join(dir, CATALOG_PATH))
+    const outcome = await approveFrozenWaivers({ repoRoot: dir, dir, change: 'demo', state: reviewState(), actor: ACTOR, recordedAt: STAMP })
+    expect(outcome.protectedApproved).toEqual([])
+    expect(outcome.protectedSkipped).toEqual([
+      { path: KF_PATH, why: 'content-changed' },
+      { path: CATALOG_PATH, why: 'content-changed' },
+    ])
+    expect((await readTestSeal(dir, SLUG)).seal.approvals).toEqual([])
+  })
+
+  it('清单不属于这一次请求：受保护改动也一并不批准', async () => {
+    await writeProtected(KF_PATH, 'x\n')
+    await writeReviewWaiverSelection(dir, { ...SELECTION, waivers: [], protected: [await frozen(KF_PATH, 'known-failures')] })
+    const outcome = await approveFrozenWaivers({
+      repoRoot: dir, dir, change: 'demo', state: reviewState({ requestedAt: '2026-01-01T00:00:00.000Z' }), actor: ACTOR, recordedAt: STAMP,
+    })
+    expect(outcome.protectedApproved).toEqual([])
+    expect(outcome.note).toContain('不属于这一次 review request')
+    expect((await readTestSeal(dir, SLUG)).seal.approvals).toEqual([])
+  })
+
+  it('目录改动与它里面的「不适用」声明同一次确认一起批准：批准会重写 catalog.yaml，目录项按写入之后的内容记批准', async () => {
+    await writeProtected(CATALOG_PATH, [
+      'schema: tenon-test-catalog/v1', 'suites: []', 'not_applicable:',
+      '  - { kind: typecheck, reason: 纯 JavaScript 项目, approved_by: null }', '',
+    ].join('\n'))
+    const catalog = await frozen(CATALOG_PATH, 'catalog')
+    await writeReviewWaiverSelection(dir, {
+      ...SELECTION, waivers: [{ key: 'not-applicable:typecheck', reason: '纯 JavaScript 项目' }], protected: [catalog],
+    })
+    const outcome = await approveFrozenWaivers({ repoRoot: dir, dir, change: 'demo', state: reviewState(), actor: ACTOR, recordedAt: STAMP })
+    expect(outcome).toMatchObject({ approved: ['not-applicable:typecheck'], protectedApproved: [CATALOG_PATH], protectedSkipped: [] })
+    const after = await protectedFileDigest(dir, CATALOG_PATH)
+    expect(after).not.toBe(catalog.digest)
+    const { seal } = await readTestSeal(dir, SLUG)
+    expect(isApproved(seal, 'demo', CATALOG_PATH, after)).toBe(true)
+    expect(isApproved(seal, 'demo', CATALOG_PATH, catalog.digest)).toBe(false)
+    // 批准之后目录再被改（哪怕只改一个字）又要重新确认。
+    await writeProtected(CATALOG_PATH, `${await readFile(join(dir, CATALOG_PATH), 'utf8')}# 事后加的\n`)
+    expect(isApproved((await readTestSeal(dir, SLUG)).seal, 'demo', CATALOG_PATH, await protectedFileDigest(dir, CATALOG_PATH))).toBe(false)
+  })
+
+  it('目录项在请求之后又被改：不批准目录项，也不连带批准它里面的声明之外的内容', async () => {
+    await writeProtected(CATALOG_PATH, 'schema: tenon-test-catalog/v1\nsuites: []\nnot_applicable:\n  - { kind: typecheck, reason: 纯 JavaScript 项目, approved_by: null }\n')
+    const catalog = await frozen(CATALOG_PATH, 'catalog')
+    await writeReviewWaiverSelection(dir, {
+      ...SELECTION, waivers: [{ key: 'not-applicable:typecheck', reason: '纯 JavaScript 项目' }], protected: [catalog],
+    })
+    await writeProtected(CATALOG_PATH, 'schema: tenon-test-catalog/v1\nsuites: []\nnot_applicable:\n  - { kind: typecheck, reason: 纯 JavaScript 项目, approved_by: null }\n# 请求之后加的\n')
+    const outcome = await approveFrozenWaivers({ repoRoot: dir, dir, change: 'demo', state: reviewState(), actor: ACTOR, recordedAt: STAMP })
+    expect(outcome.protectedApproved).toEqual([])
+    expect(outcome.protectedSkipped).toEqual([{ path: CATALOG_PATH, why: 'content-changed' }])
+    expect((await readTestSeal(dir, SLUG)).seal.approvals).toEqual([])
+  })
+
+  it('豁免与受保护改动同一次确认一起批准', async () => {
+    await writePlanWith([{ kind: 'benchmark', reason: '纯文案改动', approved_by: null }])
+    await writeProtected(KF_PATH, 'x\n')
+    await writeReviewWaiverSelection(dir, {
+      ...SELECTION, waivers: [{ key: 'kind:benchmark', reason: '纯文案改动' }], protected: [await frozen(KF_PATH, 'known-failures')],
+    })
+    const outcome = await approveFrozenWaivers({ repoRoot: dir, dir, change: 'demo', state: reviewState(), actor: ACTOR, recordedAt: STAMP })
+    expect(outcome).toMatchObject({ approved: ['kind:benchmark'], protectedApproved: [KF_PATH] })
   })
 })

@@ -19,6 +19,7 @@ import { RunBusyError, executeRun, type RunResult } from '../test-system/run-orc
 import { planRunSet } from '../test-system/run-set.js'
 import { noticeLines, serviceLines, suiteLines } from '../test-system/run-summary.js'
 import { resolveTestCommand, type TestCommandContext } from './test-context.js'
+import { catalogTrustTarget, ensureTrusted } from './test-trust.js'
 
 export interface RunSuitesOptions {
   readonly suite?: readonly string[]
@@ -65,7 +66,7 @@ function printResult(deps: CliDeps, change: string, result: RunResult, gate: Gat
   }
   for (const line of serviceLines(result.services)) deps.io.out(line)
   for (const line of noticeLines(result.outcomes.flatMap((outcome) => outcome.notices))) deps.io.out(line)
-  if (result.appended.chain === 'reset') deps.io.out('  注意：旧记录链已断（记录被改动或损坏），已另起新链，旧记录视为未运行')
+  if (result.appended.chain === 'reset') deps.io.out('  注意：旧记录链已断或来源不明（记录被改动、损坏，或不是本机 tenon test run 写下的），已另起新链，旧记录视为未运行')
   deps.io.out(`  记录：${recordPath}`)
   deps.io.out(`  产物：${relative(deps.cwd, result.runDir)}/`)
   for (const line of gate.lines) deps.io.out(line)
@@ -106,6 +107,9 @@ export async function cmdTestRunSuites(deps: CliDeps, change: string, opts: RunS
     else deps.io.out(`[TEST] ${change} ${note}`)
     return 0
   }
+
+  // 目录里的命令来自仓库：首次执行前需要用户在本机确认（R6）。未信任不执行任何命令、不写记录。
+  if (!(await ensureTrusted(deps, context.slug, catalogTrustTarget(catalog), change))) return 1
 
   let result: RunResult
   try {

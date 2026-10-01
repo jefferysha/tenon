@@ -33,6 +33,8 @@ export interface TestFlowWaiver {
   readonly text: string
   /** 与 exits[].blockers 里那条测试阻塞逐字相同，用来把它从「出口未就绪」里放行给 request-review。 */
   readonly message: string
+  /** true = 不是豁免而是受保护的测试配置改动（目录、基线、已知失败清单、工作流）：同样只等用户在评审里确认。 */
+  readonly protected?: true
 }
 
 export interface StepTestFlow {
@@ -58,7 +60,9 @@ export interface StepTestFlow {
 const SEED_CODES: ReadonlySet<string> = new Set(['test-plan-missing', 'test-plan-tampered'])
 const MAP_CODES: ReadonlySet<string> = new Set(['test-kind-missing', 'scenario-uncovered'])
 const FILE_CODES: ReadonlySet<string> = new Set(['test-file-unregistered', 'test-file-orphan'])
-const RUN_CODES: ReadonlySet<string> = new Set(['test-not-run', 'test-stale', 'record-chain-broken'])
+const RUN_CODES: ReadonlySet<string> = new Set(['test-not-run', 'test-stale', 'record-chain-broken', 'record-unsealed'])
+/** 只等用户在评审里确认（review request 列出、acknowledge 同一次批准）的受保护配置改动。 */
+const CONFIRM_CODES: ReadonlySet<string> = new Set(['protected-file-unapproved', 'protected-file-tampered'])
 /** 已运行的阻塞里，就地能解开（不必改代码 / 退回实现）的那几类。 */
 const IN_PLACE_CODES: ReadonlySet<string> = new Set(['baseline-missing'])
 
@@ -81,6 +85,8 @@ export function classifyTestPolicy(
     if (!blocker.blocking || blocker.subject?.startsWith(INLINE_SUITE_PREFIX) === true) continue
     if (blocker.code === 'waiver-unapproved') {
       waivers.push({ subject: blocker.subject ?? null, text: blocker.message, message: renderTestBlocker(blocker) })
+    } else if (CONFIRM_CODES.has(blocker.code)) {
+      waivers.push({ subject: blocker.subject ?? null, text: blocker.message, message: renderTestBlocker(blocker), protected: true })
     } else if (blocker.code === 'test-catalog-missing') {
       // 没有 subject = 目录本身缺失 / 无效；带 subject = 计划登记的套件已不在目录里。
       (blocker.subject === undefined ? discover : map).push(toItem(blocker))

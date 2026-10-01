@@ -9,8 +9,8 @@ import type { CatalogSuite, TestCatalog } from './catalog-types.js'
 import { casesMatchingRef, fileRefMatches, formatCaseRef, parseCaseRef, type CaseRef } from './covers.js'
 import { baselineKey, type StaleBinding } from './evaluate-types.js'
 import type { TestBaselineV2 } from './baseline-v2.js'
-import { matchesAnyGlob } from './globs.js'
-import { classifyAgainstKnownFailures, type KnownFailure } from './known-failures.js'
+import { matchesAnyGlob, repoGlob } from './globs.js'
+import { KNOWN_FAILURE_MAX_DAYS, classifyAgainstKnownFailures, type KnownFailure } from './known-failures.js'
 import type { TestPlan } from './plan.js'
 import type { SuiteReasonCode, SuiteRunV2, TestRunRecordV2 } from './record-v2-types.js'
 import { NODE_TEST_REPORTER_ENV, isCaseReportFormat, type CoverageMetric } from './vocabulary.js'
@@ -72,9 +72,9 @@ export const STALE_WORDS: Readonly<Record<StaleBinding, string>> = {
   policy: '本阶段测试策略已变化',
 }
 
-type DirectReason = 'no-tests-ran' | 'report-missing' | 'report-unreadable' | 'exit-report-mismatch' | 'service-not-ready'
+type DirectReason = 'no-tests-ran' | 'report-missing' | 'report-unreadable' | 'report-untrusted' | 'exit-report-mismatch' | 'service-not-ready'
 const DIRECT_REASONS: readonly DirectReason[] = [
-  'no-tests-ran', 'report-missing', 'report-unreadable', 'exit-report-mismatch', 'service-not-ready',
+  'no-tests-ran', 'report-missing', 'report-unreadable', 'report-untrusted', 'exit-report-mismatch', 'service-not-ready',
 ]
 
 function isDirectReason(code: SuiteReasonCode): code is DirectReason {
@@ -111,6 +111,18 @@ export interface SuiteResultEvaluation {
  */
 const NODE_TEST_FILE_HINT = '（若报告里的用例没有文件归属——Node 22 及以前内置的 junit reporter 不写 file 属性——'
   + `命令里改用 --test-reporter="\${${NODE_TEST_REPORTER_ENV}:-junit}"，由 tenon test run 提供带 file 的 reporter）`
+
+/**
+ * 报告必须落在本次运行的产物目录副本里（R2）：报告文件被读走的同时复制进 `artifacts/<套件>/<仓库相对路径>` 并索引，
+ * 记录里的报告摘要必须等于这份副本的摘要。副本缺失或摘要不同，说明报告在读取之后又被改写，或根本不是这次运行留下的。
+ */
+export function reportCopyProblem(run: SuiteRunV2): string | undefined {
+  if (run.report.path === null || run.report.digest === null) return undefined
+  const expected = `artifacts/${run.suite}/${repoGlob(run.cwd, run.report.path)}`
+  const copy = run.artifacts.find((entry) => entry.path === expected)
+  if (copy === undefined) return `运行的产物目录里没有报告 ${run.report.path} 的副本`
+  return copy.digest === run.report.digest ? undefined : `报告 ${run.report.path} 在被读取之后又被改写（副本摘要与记录不符）`
+}
 
 function rerun(change: string, suite: string): string {
   return `tenon test run ${change} --suite ${shellQuote(suite)}`
@@ -165,16 +177,19 @@ export function evaluateSuiteResult(suite: CatalogSuite, ref: SuiteRunRef, conte
       processReasons.push(reason.detail === undefined ? reason.code : `${reason.code}（${reason.detail}）`)
     }
   }
+  const copyProblem = direct.has('report-missing') || direct.has('report-unreadable') ? undefined : reportCopyProblem(run)
+  if (copyProblem !== undefined) direct.add('report-untrusted')
   const caseFormat = isCaseReportFormat(run.report.format)
-  if (caseFormat && !direct.has('report-missing') && !direct.has('report-unreadable')
+  if (caseFormat && !direct.has('report-missing') && !direct.has('report-unreadable') && !direct.has('report-untrusted')
     && (run.totals.cases === 0 || run.totals.skip === run.totals.cases)) direct.add('no-tests-ran')
   for (const code of direct) {
-    const detail = run.reasons.find((reason) => reason.code === code)?.detail
+    const detail = run.reasons.find((reason) => reason.code === code)?.detail ?? (code === 'report-untrusted' ? copyProblem : undefined)
     const base = code === 'no-tests-ran' ? `套件 ${name} 没有执行任何用例（0 用例或全部跳过）`
       : code === 'report-missing' ? `套件 ${name} 没有产出报告`
         : code === 'report-unreadable' ? `套件 ${name} 的报告无法解析`
-          : code === 'exit-report-mismatch' ? `套件 ${name} 的退出码与报告结论不一致`
-            : `套件 ${name} 依赖的服务未就绪`
+          : code === 'report-untrusted' ? `套件 ${name} 的报告不可信`
+            : code === 'exit-report-mismatch' ? `套件 ${name} 的退出码与报告结论不一致`
+              : `套件 ${name} 依赖的服务未就绪`
     blockers.push(testBlocker(code, detail === undefined ? base : `${base}：${detail}`, { fix, subject: suite.id }))
   }
   const failing: string[] = []
@@ -190,6 +205,13 @@ export function evaluateSuiteResult(suite: CatalogSuite, ref: SuiteRunRef, conte
       failing.push(refText)
       notices.push(testNotice('known-failure-expired', `已知失败 ${refText} 已于 ${verdict.entry.expires} 过期，按普通失败处理`, {
         fix: `tenon test known add --suite ${shellQuote(suite.id)} --test ${shellQuote(verdict.entry.test)} --expires <YYYY-MM-DD> --reason ${shellQuote(verdict.entry.reason)}`,
+        subject: refText,
+      }))
+    }
+    if (verdict.verdict === 'too-long') {
+      failing.push(refText)
+      notices.push(testNotice('known-failure-too-long', `已知失败 ${refText} 的到期日 ${verdict.entry.expires} 超过登记后 ${KNOWN_FAILURE_MAX_DAYS} 天的上限，不被承认，按普通失败处理`, {
+        fix: `tenon test known add --suite ${shellQuote(suite.id)} --test ${shellQuote(verdict.entry.test)} --expires <${KNOWN_FAILURE_MAX_DAYS} 天内的日期> --reason ${shellQuote(verdict.entry.reason)}`,
         subject: refText,
       }))
     }

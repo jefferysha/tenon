@@ -17,6 +17,7 @@ export const AGENT_RUN_SCHEMA = 'agent-run/v1'
 export const AGENT_FINDINGS_MAX = 200
 export const AGENT_FINDING_LOCATION_MAX = 200
 export const AGENT_FINDING_MESSAGE_MAX = 500
+export const AGENT_RERUN_REASON_MAX = 300
 
 export const AGENT_SEVERITIES: readonly AgentSeverity[] = ['critical', 'high', 'medium', 'low']
 const SEVERITY_RANK: Readonly<Record<AgentSeverity, number>> = { low: 1, medium: 2, high: 3, critical: 4 }
@@ -62,6 +63,11 @@ export interface AgentRunRow {
   readonly started_at: string
   readonly finished_at: string | null
   readonly subagent?: AgentRunSubagent
+  /**
+   * 评审者在同一候选上再跑一次时写明的原因（`tenon agent prompt --rerun-reason`）。有原因的重跑被视为有说明的重跑，
+   * 结论以它为准并留痕；没有原因的同候选重跑取最严结论（agent-verdict.ts）。
+   */
+  readonly rerun_reason?: string
 }
 
 export type AgentRunErrorCode =
@@ -80,7 +86,7 @@ const ROW_KEYS = [
   'actor', 'agent', 'agent_digest', 'candidate', 'findings', 'finished_at', 'report_digest',
   'report_path', 'result', 'role', 'run_id', 'schema', 'started_at', 'status', 'step', 'step_visit',
 ].join(',')
-const ROW_KEYS_WITH_SUBAGENT = [...ROW_KEYS.split(','), 'subagent'].sort().join(',')
+const OPTIONAL_ROW_KEYS = ['rerun_reason', 'subagent'] as const
 const RESULTS: ReadonlySet<string> = new Set<AgentRunResult>(['pass', 'fail', 'done', 'failed'])
 const SUBAGENT_TEXT_MAX = 128
 
@@ -109,11 +115,16 @@ function decodeFinding(value: unknown): AgentFinding | undefined {
 function decodeRow(value: unknown): AgentRunRow | undefined {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
   const record = value as Record<string, unknown>
-  const keys = Object.keys(record).sort().join(',')
-  if (keys !== ROW_KEYS && keys !== ROW_KEYS_WITH_SUBAGENT) return undefined
+  const present = Object.keys(record).sort()
+  const required = ROW_KEYS.split(',')
+  if (!required.every((key) => present.includes(key))) return undefined
+  if (present.some((key) => !required.includes(key) && !(OPTIONAL_ROW_KEYS as readonly string[]).includes(key))) return undefined
   if (record.schema !== AGENT_RUN_SCHEMA) return undefined
   const subagent = record.subagent === undefined ? undefined : decodeSubagent(record.subagent)
   if (record.subagent !== undefined && subagent === undefined) return undefined
+  const rerunReason = record.rerun_reason
+  if (rerunReason !== undefined && (typeof rerunReason !== 'string' || rerunReason.trim() === ''
+    || rerunReason.length > AGENT_RERUN_REASON_MAX || /[\r\n]/.test(rerunReason))) return undefined
   const strings = ['run_id', 'agent', 'agent_digest', 'step', 'step_visit', 'candidate', 'report_path', 'started_at']
   for (const key of strings) if (typeof record[key] !== 'string' || record[key] === '') return undefined
   if (record.role !== 'executor' && record.role !== 'reviewer') return undefined
@@ -148,6 +159,7 @@ function decodeRow(value: unknown): AgentRunRow | undefined {
     started_at: record.started_at as string,
     finished_at: record.finished_at as string | null,
     ...(subagent === undefined ? {} : { subagent }),
+    ...(rerunReason === undefined ? {} : { rerun_reason: rerunReason as string }),
   }
 }
 

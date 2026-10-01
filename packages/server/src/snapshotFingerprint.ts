@@ -3,7 +3,7 @@ import { lstat, readdir } from 'node:fs/promises'
 import type { Dirent } from 'node:fs'
 import { join } from 'node:path'
 import {
-  isTenonUser, stateStorageSourcePathSync, TENON_PROJECT_DIR, TERMINAL_ACTIVITY_FILE, userProjectPaths,
+  isTenonUser, stateStorageSourcePathSync, TENON_PROJECT_DIR, TERMINAL_ACTIVITY_FILE, TEST_SEAL_FILE, userProjectPaths,
   type TenonUserResolution,
 } from '@tenon/kernel'
 import { mapWithConcurrency } from './concurrentMap.js'
@@ -72,6 +72,27 @@ async function statPart(target: string): Promise<string | undefined> {
     // An absent optional input is represented by its absence from the fingerprint.
     return undefined
   }
+}
+
+/**
+ * What the test verdict is anchored to, which is not under any change directory: each user's local seal and its key
+ * (record-chain heads, approvals and trust live in the seal; a seal that stops verifying turns every record of that
+ * user into `record-unsealed`), and the shared files the seal pins (catalog and known failures; a changed digest is a
+ * protected change or a `protected-file-tampered`). Every change of the project carries these parts, so a seal break
+ * moves the project key and each change's rev, and nothing cached before it is served afterwards. Files under
+ * baselines/ and the project workflows are not stat'ed here (a directory's mtime does not see an edit in place); they
+ * are covered by the cell's age limit and by the server writes that invalidate it.
+ */
+async function testTrustParts(readRoot: string, slugs: readonly string[]): Promise<string[]> {
+  const targets = [
+    ...slugs.flatMap((slug) => {
+      const paths = userProjectPaths(readRoot, slug)
+      return [join(paths.localDir, TEST_SEAL_FILE), paths.envKey]
+    }),
+    join(readRoot, TENON_PROJECT_DIR, 'tests', 'catalog.yaml'),
+    join(readRoot, TENON_PROJECT_DIR, 'tests', 'known-failures.yaml'),
+  ]
+  return (await Promise.all(targets.map(statPart))).filter((part): part is string => part !== undefined)
 }
 
 /** Every fingerprint part one change directory contributes. */
@@ -162,14 +183,17 @@ export async function collectRootFingerprint(
     assertWorkflowRootAnchor(anchor)
     const names = entries.filter((entry) => entry.isDirectory() && entry.name !== 'archive').map((entry) => entry.name)
     const slugs = names.length === 0 ? [] : await userSlugs(readRoot)
+    const trustParts = names.length === 0 ? [] : await testTrustParts(readRoot, slugs)
     const perChange = await mapWithConcurrency(names, CHANGE_STAT_CONCURRENCY, (name) => changeParts(
       changesRoot, readRoot, slugs, name, nowMs, readTerminalActivity,
     ))
     for (const [index, name] of names.entries()) {
-      const contributed = perChange[index] ?? []
-      changes.set(name, contributed)
-      parts.push(...contributed)
+      const own = perChange[index] ?? []
+      // A directory that is not a change contributes nothing, not even the shared parts.
+      changes.set(name, own.length === 0 ? own : [...own, ...trustParts])
+      parts.push(...own)
     }
+    parts.push(...trustParts)
     assertWorkflowRootAnchor(anchor)
   } catch {
     parts.push(`unreadable:${root}`)

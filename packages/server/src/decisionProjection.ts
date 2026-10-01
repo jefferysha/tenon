@@ -8,6 +8,7 @@ import {
   reviewGateDecisionStateDigest,
   reviewGateStatus,
   REVIEW_GATE_PENDING,
+  type FrozenProtectedChange,
   type PendingWaiver,
   type ReviewGateBinding,
   type StateStore,
@@ -64,9 +65,21 @@ export async function readPendingReviewWaivers(input: {
   readonly dir: string
   readonly store: StateStore
 }): Promise<readonly PendingWaiver[]> {
+  return (await readPendingReviewItems(input)).waivers
+}
+
+/**
+ * Everything a Dashboard approval of the pending review would approve: the frozen waivers and the protected
+ * test-configuration changes (catalog, baselines, known failures, project workflows) the review request listed.
+ * The approval is a human confirmation of exactly these, so the console must show them before the button works.
+ */
+export async function readPendingReviewItems(input: {
+  readonly dir: string
+  readonly store: StateStore
+}): Promise<{ readonly waivers: readonly PendingWaiver[]; readonly protectedChanges: readonly FrozenProtectedChange[] }> {
   const current = await readCurrentRunRevision(input.dir)
   const state = current?.state ?? await input.store.read(input.dir)
-  if (reviewGateStatus(state) !== REVIEW_GATE_PENDING) return []
+  if (reviewGateStatus(state) !== REVIEW_GATE_PENDING) return { waivers: [], protectedChanges: [] }
   const { selection } = await boundReviewWaiverSelection(input.dir, state)
-  return selection?.waivers ?? []
+  return { waivers: selection?.waivers ?? [], protectedChanges: selection?.protected ?? [] }
 }

@@ -8,7 +8,11 @@ import {
   createHistoryWriter,
   createStateStore,
   emptyTestPlan,
+  isApproved,
+  protectedFileDigest,
   readTestPlanState,
+  readTestSeal,
+  writeReviewWaiverSelection,
   writeTestPlan,
   type TestPlan,
   createTransitionRecordStore,
@@ -60,7 +64,7 @@ async function pendingChange(): Promise<Harness> {
   return h
 }
 
-async function getView(root: string): Promise<{ status?: number; items: ViewItem[]; waivers: { key: string; reason: string }[] }> {
+async function getView(root: string): Promise<{ status?: number; items: ViewItem[]; waivers: { key: string; reason: string }[]; protectedChanges: unknown[] }> {
   const captured: Captured = {}
   await handleGetDecisionRoute(
     { url: `/api/change/demo/pending-decisions?root=${encodeURIComponent(root)}`, headers: {} } as never,
@@ -73,8 +77,8 @@ async function getView(root: string): Promise<{ status?: number; items: ViewItem
       workflowRootForRequest: (candidate) => ({ ok: true, anchor: { path: candidate } }),
     },
   )
-  const body = captured.body as { items?: ViewItem[]; waivers?: { key: string; reason: string }[] }
-  return { status: captured.status, items: body.items ?? [], waivers: body.waivers ?? [] }
+  const body = captured.body as { items?: ViewItem[]; waivers?: { key: string; reason: string }[]; protectedChanges?: unknown[] }
+  return { status: captured.status, items: body.items ?? [], waivers: body.waivers ?? [], protectedChanges: body.protectedChanges ?? [] }
 }
 
 async function post(root: string, body: Record<string, unknown>): Promise<Captured> {
@@ -429,6 +433,48 @@ async function waivedPendingChange(): Promise<Harness> {
   return h
 }
 
+describe('decision server adapters · protected test-configuration changes', () => {
+  const KNOWN = '.tenon/tests/known-failures.yaml'
+  const SLUG = 'tester-at-tenon.test'
+
+  async function pendingWithProtected(): Promise<{ h: Harness; digest: string }> {
+    const h = await pendingChange()
+    await mkdir(join(h.cwd, '.tenon', 'tests'), { recursive: true })
+    await writeFile(join(h.cwd, KNOWN), 'schema: tenon-known-failures/v1\nentries: []\n', 'utf8')
+    const digest = await protectedFileDigest(h.cwd, KNOWN)
+    const fields = (await createStateStore().read(changeDir(h))).fields
+    const text = (value: unknown): string => (Array.isArray(value) ? value.join(',') : String(value ?? ''))
+    await writeReviewWaiverSelection(changeDir(h), {
+      phase: text(fields.review_gate_phase), event: 'explore-complete', requestedAt: text(fields.review_requested_at),
+      waivers: [], protected: [{ path: KNOWN, kind: 'known-failures', status: 'added', digest, origin: 'pending' }],
+    })
+    return { h, digest }
+  }
+
+  it('GET lists exactly the protected changes frozen in the request; approving seals those digests with one audit row', async () => {
+    const { h, digest } = await pendingWithProtected()
+    const view = await getView(h.cwd)
+    expect(view.protectedChanges).toEqual([{ path: KNOWN, kind: 'known-failures', status: 'added', digest, origin: 'pending' }])
+    const item = view.items.find((candidate) => candidate.type === 'review')!
+
+    const approved = await post(h.cwd, { ref: item.ref.id, expected_revision: item.revision, idempotency_key: 'protected-1' })
+    expect(approved).toMatchObject({ status: 200, body: { ok: true, protectedChanges: { approved: [KNOWN], skipped: [] } } })
+    expect(isApproved((await readTestSeal(h.cwd, SLUG)).seal, 'demo', KNOWN, digest)).toBe(true)
+    const history = await readFile(join(changeDir(h), '.pipeline-history.jsonl'), 'utf8')
+    expect(history.match(/test:protected-approve files=\.tenon\/tests\/known-failures\.yaml/gu)).toHaveLength(1)
+    expect((await getView(h.cwd)).protectedChanges).toEqual([])
+  })
+
+  it('a file edited after the request is not approved by it', async () => {
+    const { h, digest } = await pendingWithProtected()
+    await writeFile(join(h.cwd, KNOWN), 'schema: tenon-known-failures/v1\nentries:\n  - sneaky\n', 'utf8')
+    const item = (await getView(h.cwd)).items.find((candidate) => candidate.type === 'review')!
+    const result = await post(h.cwd, { ref: item.ref.id, expected_revision: item.revision, idempotency_key: 'protected-2' })
+    expect(result).toMatchObject({ status: 200, body: { ok: true, protectedChanges: { approved: [], skipped: [{ path: KNOWN, why: 'content-changed' }] } } })
+    expect(isApproved((await readTestSeal(h.cwd, SLUG)).seal, 'demo', KNOWN, digest)).toBe(false)
+  })
+})
+
 describe('decision server adapters · test-plan waivers', () => {
   it('GET lists exactly the waivers frozen in the request; approving approves those and only those, with one audit row', async () => {
     const h = await waivedPendingChange()
@@ -502,5 +548,82 @@ describe('decision server adapters · test-plan waivers', () => {
     const result = await post(h.cwd, { ref: item.ref.id, expected_revision: item.revision, idempotency_key: 'waiver-changed' })
     expect(result).toMatchObject({ status: 200, body: { ok: true, waivers: { approved: [], skipped: [{ key: 'kind:unit', why: 'reason-changed' }] } } })
     expect((await planOf(h)).waivers).toEqual([{ ...REQUEST_WAIVER, reason: '请求之后换的理由' }])
+  })
+})
+
+describe('decision server adapters · one approval approves exactly the frozen set', () => {
+  const KNOWN = '.tenon/tests/known-failures.yaml'
+  const CATALOG = '.tenon/tests/catalog.yaml'
+  const SLUG = 'tester-at-tenon.test'
+  const NA_ENTRY = '  - { kind: typecheck, reason: 纯 JavaScript 项目, approved_by: null }\n'
+  const catalogText = (extra = ''): string => `schema: tenon-test-catalog/v1\nsuites: []\nnot_applicable:\n${NA_ENTRY}${extra}`
+
+  /** A plan waiver, a not-applicable declaration in the catalog and two protected files (the catalog itself and the known failures), all frozen by one request. */
+  async function pendingWithEverything(): Promise<Harness> {
+    const h = await waivedPendingChange()
+    await mkdir(join(h.cwd, '.tenon', 'tests'), { recursive: true })
+    await writeFile(join(h.cwd, CATALOG), catalogText(), 'utf8')
+    await writeFile(join(h.cwd, KNOWN), 'schema: tenon-known-failures/v1\nentries: []\n', 'utf8')
+    const fields = (await createStateStore().read(changeDir(h))).fields
+    const text = (value: unknown): string => (Array.isArray(value) ? value.join(',') : String(value ?? ''))
+    await writeReviewWaiverSelection(changeDir(h), {
+      phase: text(fields.review_gate_phase), event: 'explore-complete', requestedAt: text(fields.review_requested_at),
+      waivers: [{ key: 'kind:unit', reason: '纯文档改动' }, { key: 'not-applicable:typecheck', reason: '纯 JavaScript 项目' }],
+      protected: [
+        { path: CATALOG, kind: 'catalog', status: 'added', digest: await protectedFileDigest(h.cwd, CATALOG), origin: 'pending' },
+        { path: KNOWN, kind: 'known-failures', status: 'added', digest: await protectedFileDigest(h.cwd, KNOWN), origin: 'pending' },
+      ],
+    })
+    return h
+  }
+
+  it('GET lists the waiver, the not-applicable declaration and both protected files; one approval approves all four and nothing else', async () => {
+    const h = await pendingWithEverything()
+    const view = await getView(h.cwd)
+    expect(view.waivers.map((item) => item.key)).toEqual(['kind:unit', 'not-applicable:typecheck'])
+    expect((view.protectedChanges as { path: string }[]).map((item) => item.path)).toEqual([CATALOG, KNOWN])
+    const item = view.items.find((candidate) => candidate.type === 'review')!
+
+    const approved = await post(h.cwd, { ref: item.ref.id, expected_revision: item.revision, idempotency_key: 'everything-1' })
+    expect(approved).toMatchObject({
+      status: 200,
+      body: {
+        ok: true,
+        waivers: { approved: ['kind:unit', 'not-applicable:typecheck'], skipped: [] },
+        protectedChanges: { approved: [CATALOG, KNOWN], skipped: [] },
+      },
+    })
+    expect((await planOf(h)).waivers).toEqual([{ ...REQUEST_WAIVER, approved_by: TESTER }])
+    const catalogAfter = await readFile(join(h.cwd, CATALOG), 'utf8')
+    expect(catalogAfter).toContain(TESTER)
+    // Approving the declaration rewrote the catalog, so the approval is bound to the content that was written.
+    const { seal } = await readTestSeal(h.cwd, SLUG)
+    expect(isApproved(seal, 'demo', CATALOG, await protectedFileDigest(h.cwd, CATALOG))).toBe(true)
+    expect(isApproved(seal, 'demo', KNOWN, await protectedFileDigest(h.cwd, KNOWN))).toBe(true)
+    const history = await readFile(join(changeDir(h), '.pipeline-history.jsonl'), 'utf8')
+    expect(history.match(/test:waiver-approve/gu)).toHaveLength(1)
+    expect(history.match(/test:protected-approve/gu)).toHaveLength(1)
+    const view2 = await getView(h.cwd)
+    expect(view2.waivers).toEqual([])
+    expect(view2.protectedChanges).toEqual([])
+  })
+
+  it('a declaration or edit made after the request stays unapproved: the catalog item is skipped and the declaration added later is untouched', async () => {
+    const h = await pendingWithEverything()
+    await writeFile(join(h.cwd, CATALOG), catalogText('  - { kind: integration, reason: 请求之后才声明的, approved_by: null }\n'), 'utf8')
+    const item = (await getView(h.cwd)).items.find((candidate) => candidate.type === 'review')!
+    const result = await post(h.cwd, { ref: item.ref.id, expected_revision: item.revision, idempotency_key: 'everything-2' })
+    expect(result).toMatchObject({
+      status: 200,
+      body: {
+        ok: true,
+        waivers: { approved: ['kind:unit', 'not-applicable:typecheck'] },
+        protectedChanges: { approved: [KNOWN], skipped: [{ path: CATALOG, why: 'content-changed' }] },
+      },
+    })
+    const catalogAfter = await readFile(join(h.cwd, CATALOG), 'utf8')
+    expect(catalogAfter).toMatch(/kind: integration\s+reason: 请求之后才声明的\s+approved_by: null/u)
+    const { seal } = await readTestSeal(h.cwd, SLUG)
+    expect(isApproved(seal, 'demo', CATALOG, await protectedFileDigest(h.cwd, CATALOG))).toBe(false)
   })
 })

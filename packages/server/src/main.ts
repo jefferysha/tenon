@@ -16,7 +16,7 @@ import { mkdirSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createTraceStore } from '@tenon/tap'
-import { createOrchestrationLedger, fingerprintWorkspace, machineStateScopeId, syncBuiltinLibraries } from '@tenon/kernel'
+import { candidateFingerprint, createOrchestrationLedger, machineStateScopeId, syncBuiltinLibraries } from '@tenon/kernel'
 import { createDashboardServer } from './server.js'
 import { resolveServerPaths } from './paths.js'
 import { decidePreemption, preemptOldServer, probeHealth } from './preempt.js'
@@ -124,7 +124,7 @@ async function main(): Promise<void> {
     hostHome: paths.homeDir,
     manifestPath: manifestPath(),
     gitHeadSha,
-    workspaceFingerprint: (cwd) => fingerprintWorkspace(cwd),
+    workspaceFingerprint: (cwd) => candidateFingerprint(cwd),
     // dashboard-app 构建产物（BACKLOG #26c）：存在则服务真 SPA，否则回退最小落地页
     webRoot: join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'dashboard-app', 'dist'),
     // tap 流量查看器数据源：只读 sessions/records/timeline；完整 reader 才声明 traffic=true。

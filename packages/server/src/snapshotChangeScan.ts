@@ -15,7 +15,7 @@ import { lstat } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   changeStartOfFields, createChangedFilesSession, createRecordChainCache, creatorOf, isTenonUser, ownerOf,
-  projectPipelineTodo, stateStorageSourcePathSync, UnsupportedRunStateVersionError,
+  projectPipelineTodo, protectedChangesInSession, stateStorageSourcePathSync, UnsupportedRunStateVersionError,
   type ChangedFilesSession, type EffectiveWorkflowPlan, type PipelineState, type TenonUser, type TrackDefinition,
 } from '@tenon/kernel'
 import { agentBlockersOf, projectAgentRuns } from './agentRuns.js'
@@ -132,6 +132,7 @@ export function createProjectScanContext(
     user: actingUser,
     candidate,
     changedFiles: (state) => changedFiles.changedFiles(changeStartOfFields(state.fields)),
+    protectedChanges: (state) => protectedChangesInSession(readRoot, changedFiles, changeStartOfFields(state.fields)),
     recordChainCache: recordChains,
   })
   const trackDefinition = (trackId: string, workflowName: string): TrackDefinition | undefined => {
@@ -304,6 +305,7 @@ export async function scanChange(
         user: evidenceUser,
         ...(ctx.candidate === undefined ? {} : { candidate: ctx.candidate }),
         changedFiles: () => ctx.changedFiles.changedFiles(changeStartOfFields(state.fields)),
+        protectedChanges: () => protectedChangesInSession(readRoot, ctx.changedFiles, changeStartOfFields(state.fields)),
         recordChainCache: recordChains,
       }),
       readTasksProjection(changeDir, {}, anchor),

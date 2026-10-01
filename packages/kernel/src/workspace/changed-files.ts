@@ -86,10 +86,21 @@ export interface ChangedFilesResult {
   readonly untrackedTruncated?: { readonly found: number; readonly limit: number }
 }
 
+export type PathChangeStatus = 'added' | 'modified' | 'deleted'
+
+export interface PathChange {
+  readonly path: string
+  readonly status: PathChangeStatus
+}
+
 export interface ChangedFilesSession {
   resolveStart(input: ChangeStartInput): Promise<string>
   changedFiles(input: ChangeStartInput): Promise<ChangedFilesResult>
   changedLines(input: ChangeStartInput): Promise<ReadonlyMap<string, ReadonlySet<number>>>
+  /** 只看给定 pathspec 的改动（含删除）；见 pathChangesSinceChangeStart。 */
+  pathChanges(input: ChangeStartInput, pathspecs: readonly string[]): Promise<readonly PathChange[]>
+  /** 起点提交（或空树）时该路径的文件内容；起点不存在该文件返回 undefined。 */
+  fileAtStart(input: ChangeStartInput, path: string): Promise<string | undefined>
 }
 
 interface HistoryWindow {
@@ -244,8 +255,39 @@ export function createChangedFilesSession(repoRoot: string, options: ChangedFile
     }
   }
 
+  const pathResults = new Map<string, Promise<readonly PathChange[]>>()
+  async function computePathChanges(start: string, pathspecs: readonly string[]): Promise<readonly PathChange[]> {
+    const tracked = await gitText(['diff', '--name-status', '--no-renames', '-z', start, '--', ...pathspecs])
+    if (tracked === undefined) throw new ChangedFilesUnavailableError('git diff 失败')
+    const out = new Map<string, PathChangeStatus>()
+    const tokens = nulList(tracked)
+    for (let index = 0; index + 1 < tokens.length; index += 2) {
+      const letter = tokens[index]?.[0]
+      const path = tokens[index + 1]
+      if (path === undefined) continue
+      out.set(path, letter === 'D' ? 'deleted' : letter === 'A' ? 'added' : 'modified')
+    }
+    const untracked = await gitText(['ls-files', '--others', '--exclude-standard', '-z', '--', ...pathspecs])
+    if (untracked === undefined) throw new ChangedFilesUnavailableError('git ls-files 失败')
+    for (const path of nulList(untracked)) if (!out.has(path)) out.set(path, 'added')
+    return [...out].map(([path, status]) => ({ path, status })).sort((left, right) => (left.path < right.path ? -1 : left.path > right.path ? 1 : 0))
+  }
+
   return {
     resolveStart,
+    async pathChanges(input, pathspecs) {
+      const start = await resolveStart(input)
+      const key = `${start}\0${pathspecs.join('\0')}`
+      let pending = pathResults.get(key)
+      if (pending === undefined) {
+        pending = computePathChanges(start, pathspecs)
+        pathResults.set(key, pending)
+      }
+      return pending
+    },
+    async fileAtStart(input, path) {
+      return gitText(['show', `${await resolveStart(input)}:${path}`])
+    },
     async changedFiles(input) {
       const start = await resolveStart(input)
       let pending = results.get(start)
@@ -277,6 +319,25 @@ export function resolveChangeStart(repoRoot: string, input: ChangeStartInput): P
 
 export async function changedFilesSinceChangeStart(repoRoot: string, input: ChangeStartInput): Promise<readonly string[]> {
   return (await createChangedFilesSession(repoRoot).changedFiles(input)).files
+}
+
+/**
+ * 只看给定 pathspec 的「自任务起点以来的改动」，含删除（changedFilesSinceChangeStart 只列新增 / 修改）。
+ * 受保护的测试配置（目录、基线、已知失败清单、工作流）用它：删掉一个已知失败或一份基线同样是需要人看的改动。
+ * pathspec 限定了 git 的工作量，所以比全量 diff 便宜得多；读不出照样抛 ChangedFilesUnavailableError。
+ * 批量读取时用 `createChangedFilesSession().pathChanges`，与改动文件共用同一次起点解析与 git 结果缓存。
+ */
+export function pathChangesSinceChangeStart(
+  repoRoot: string,
+  input: ChangeStartInput,
+  pathspecs: readonly string[],
+): Promise<readonly PathChange[]> {
+  return createChangedFilesSession(repoRoot).pathChanges(input, pathspecs)
+}
+
+/** 起点提交（或空树）时该路径的文件内容；起点不存在该文件返回 undefined。 */
+export function fileAtChangeStart(repoRoot: string, input: ChangeStartInput, path: string): Promise<string | undefined> {
+  return createChangedFilesSession(repoRoot).fileAtStart(input, path)
 }
 
 const HUNK = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/

@@ -1,13 +1,14 @@
 /**
  * `tenon test baseline <change> --suite <id> --run <run-id>` —— 用一次通过的运行的基准指标当作该机器画像下的基线。
  * 基线存 `.tenon/tests/baselines/<套件>/<画像>.json`（进 git，团队共享），旧值压进历史（≤20）；不同画像互不比较。
- * 只认当前记录链上的运行（链断的记录视为未运行），且该套件在那次运行里必须通过并带有指标。更新动作追加进用户的 audit.jsonl。
+ * 只认当前记录链上的运行（链断的记录、链头没有封存的记录视为未运行），且该套件在那次运行里必须通过并带有指标。
+ * 更新动作追加进用户的 audit.jsonl，并把基线文件的摘要记进本机封存；基线改动出现在本任务 diff 里，评审门需要用户确认（R1）。
  */
 import { appendFile, mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import {
-  SUITE_ID_RE, TEST_RUN_ID_RE, baselineV2Path, nextBaselineV2, readRecordChain, readTestBaselineV2, userProjectPaths,
-  writeTestBaselineV2, type BaselineMetricV2,
+  BASELINES_REPO_PATH, SUITE_ID_RE, TEST_RUN_ID_RE, baselineV2Path, nextBaselineV2, protectedFileDigest, readRecordChain,
+  readTestBaselineV2, readTestSeal, sealSharedWrite, userProjectPaths, writeTestBaselineV2, type BaselineMetricV2,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { resolveTestCommand } from './test-context.js'
@@ -28,6 +29,9 @@ export async function cmdTestBaselineSuite(
   if (typeof context === 'number') return context
   const chain = await readRecordChain(deps.cwd, context.slug, change)
   if (chain.state === 'broken') return fail(deps, `测试记录被改动（${chain.reason}）；先重跑 tenon test run ${change} --stage 另起新链`)
+  if (chain.state === 'intact' && (await readTestSeal(deps.cwd, context.slug)).seal.heads[change] !== chain.head) {
+    return fail(deps, `测试记录来源不明（链头不是本机 tenon test run 写下的）；先重跑 tenon test run ${change} --stage 生成带封存的记录`)
+  }
   const record = chain.state === 'intact' ? chain.active.find((entry) => entry.run_id === opts.run) : undefined
   if (record === undefined) return fail(deps, `当前用户的记录链上找不到运行 '${opts.run}'`)
   const run = record.suites.find((entry) => entry.suite === opts.suite)
@@ -51,6 +55,8 @@ export async function cmdTestBaselineSuite(
       source: { change, run_id: record.run_id, commit: record.git_head }, actor: context.actor, updated_at: updatedAt,
     })
     await writeTestBaselineV2(path, baseline)
+    const repoPath = `${BASELINES_REPO_PATH}/${opts.suite}/${record.machine_profile}.json`
+    await sealSharedWrite(deps.cwd, context.slug, [{ path: repoPath, digest: await protectedFileDigest(deps.cwd, repoPath) }], updatedAt)
     const audit = userProjectPaths(deps.cwd, context.slug).audit
     await mkdir(dirname(audit), { recursive: true })
     await appendFile(audit, `${JSON.stringify({

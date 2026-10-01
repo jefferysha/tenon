@@ -22,7 +22,9 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
+  changeStartOfFields,
   changedFilesResultForState,
+  protectedChangesSinceChangeStart,
   compileWorkflow,
   completedWorkflowSkillsSinceStepEntry,
   createTransitionApplication,
@@ -205,6 +207,11 @@ export async function performTransition(
         const current = await readCurrentRunRevision(dir)
         if (current === undefined) throw new Error('无法读取任务状态')
         return changedFilesResultForState(root, current.state)
+      },
+      protectedChanges: async () => {
+        const current = await readCurrentRunRevision(dir)
+        if (current === undefined) throw new Error('无法读取任务状态')
+        return protectedChangesSinceChangeStart(root, changeStartOfFields(current.state.fields))
       },
     },
     flow: deps.flow,

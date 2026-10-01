@@ -9,7 +9,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import {
-  actorOf, appendTestRunRecordV2, catalogSuite, catalogSuitesDigest, emptyTestPlan, fingerprintWorkspace,
+  actorOf, appendTestRunRecordV2, catalogSuite, catalogSuitesDigest, candidateFingerprint, emptyTestPlan,
   isTenonUser, parseTestCatalog, readTestPlanState, replaceTestReportBlock, resolveTenonUser, testPolicyDigest,
   testSystemPaths, userSlug, writeTestPlan,
   type PlanCase, type PlanSuite, type RecordActor, type SuiteRunV2, type TestCatalog, type TestPlan,
@@ -171,7 +171,7 @@ export async function appendFlowRecord(
     })
   })
   const slug = userSlug(actorFor(context.cwd).id)
-  const candidate = await fingerprintWorkspace(context.cwd)
+  const candidate = await candidateFingerprint(context.cwd)
   const written = await appendTestRunRecordV2(context.cwd, slug, fixtureRecordDraft({
     change: context.change,
     workflow_run_id: state.runMetadata?.runId ?? '',

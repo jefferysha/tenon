@@ -1,9 +1,11 @@
 /**
- * 评审请求时冻结的「待批准豁免」清单（change 目录内的边车 `.pipeline-review-waivers.json`）。
+ * 评审请求时冻结的「待批准」清单（change 目录内的边车 `.pipeline-review-waivers.json`）：待批准的测试豁免，
+ * 以及本任务 diff 里待人确认的受保护配置改动（测试目录、基线、已知失败清单、工作流；见 protected-files.ts）。
  *
- * `tenon review request` 列出计划里未批准的豁免并把清单写在这里；`tenon review acknowledge` 只批准
+ * `tenon review request` 列出未批准的项并把清单写在这里；`tenon review acknowledge` 只批准
  * 清单里的那几条，且清单必须绑定同一次请求（phase / event / requestedAt 与 receipt 逐项相同）。
- * 请求之后才加进计划的豁免因此不会被这次确认顺带批准。
+ * 请求之后才加进计划的豁免、请求之后又改过内容的受保护文件因此不会被这次确认顺带批准。
+ * 豁免的批准写进任务测试计划；受保护改动的批准（路径 + 内容摘要）写进本机封存文件（seal.ts）。
  *
  * 清单里除了计划豁免（`kind:<k>` / `covers:<…>`），还有目录里未批准的项目级「不适用」声明
  * （`not-applicable:<k>`，见 catalog-na.ts）：确认时它们写回 `catalog.yaml` 的 `approved_by`，一次批准对全项目生效。
@@ -16,15 +18,28 @@ import { atomicReplaceFile } from '../state/atomic-publish.js'
 import { readOptionalBoundedRegularTextFile } from '../state/document-path.js'
 import { reviewGateEvent } from '../state/review-gate.js'
 import type { PipelineState } from '../types.js'
-import type { RecordActor } from '../users/user.js'
+import { userSlug, type RecordActor } from '../users/user.js'
+import type { PathChangeStatus } from '../workspace/changed-files.js'
 import { isNotApplicableKey, approveNotApplicable, pendingNotApplicable } from './catalog-na.js'
 import { readCatalogFile, updateCatalog } from './catalog-file.js'
 import { readTestPlanState, writeTestPlanUnderLock } from './plan-ledger.js'
 import { approveWaivers, pendingWaivers, type PendingWaiver, type WaiverSkipReason } from './plan-waivers.js'
+import { protectedFileDigest, protectedKindOf, type ProtectedKind, type ProtectedOrigin } from './protected-files.js'
+import { updateTestSeal } from './seal.js'
 
 export const REVIEW_WAIVERS_FILE = '.pipeline-review-waivers.json'
 const MAX_REVIEW_WAIVERS_BYTES = 64 * 1024
 const KEY_RE = /^(kind|covers|not-applicable):\S.*$/
+
+/** 冻结在评审请求里的一项受保护配置改动：确认时它的当前摘要必须仍等于这里的摘要才算数。 */
+export interface FrozenProtectedChange {
+  readonly path: string
+  readonly kind: ProtectedKind
+  readonly status: PathChangeStatus
+  readonly digest: string
+  /** 请求时的来源：待确认 / 台账外改动（Tenon 命令写出之后又被改）。展示用。 */
+  readonly origin: Exclude<ProtectedOrigin, 'approved'>
+}
 
 export interface ReviewWaiverSelection {
   readonly version: 1
@@ -32,16 +47,41 @@ export interface ReviewWaiverSelection {
   readonly event: string
   readonly requestedAt: string
   readonly waivers: readonly PendingWaiver[]
+  /** 缺省 = 没有待确认的受保护改动（旧版本写的清单没有这一项）。 */
+  readonly protected?: readonly FrozenProtectedChange[]
 }
 
 function text(value: unknown): string | undefined {
   return typeof value === 'string' && value !== '' ? value : undefined
 }
 
+const STATUSES: ReadonlySet<string> = new Set<PathChangeStatus>(['added', 'modified', 'deleted'])
+
+function decodeProtected(value: unknown): readonly FrozenProtectedChange[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const out: FrozenProtectedChange[] = []
+  for (const raw of value as unknown[]) {
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined
+    const item = raw as Record<string, unknown>
+    if (Object.keys(item).sort().join(',') !== 'digest,kind,origin,path,status') return undefined
+    const path = text(item.path)
+    const digest = text(item.digest)
+    const kind = path === undefined ? undefined : protectedKindOf(path)
+    if (path === undefined || digest === undefined || kind === undefined || kind !== item.kind) return undefined
+    if (typeof item.status !== 'string' || !STATUSES.has(item.status)) return undefined
+    if (item.origin !== 'pending' && item.origin !== 'outside-command') return undefined
+    out.push({ path, kind, status: item.status as PathChangeStatus, digest, origin: item.origin })
+  }
+  return out
+}
+
 function decodeSelection(value: unknown): ReviewWaiverSelection | undefined {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
   const record = value as Record<string, unknown>
-  if (Object.keys(record).sort().join(',') !== 'event,phase,requestedAt,version,waivers' || record.version !== 1) return undefined
+  const keys = Object.keys(record).sort().join(',')
+  if ((keys !== 'event,phase,requestedAt,version,waivers' && keys !== 'event,phase,protected,requestedAt,version,waivers') || record.version !== 1) return undefined
+  const frozen = record.protected === undefined ? [] : decodeProtected(record.protected)
+  if (frozen === undefined) return undefined
   const phase = text(record.phase)
   const event = text(record.event)
   const requestedAt = text(record.requestedAt)
@@ -55,7 +95,7 @@ function decodeSelection(value: unknown): ReviewWaiverSelection | undefined {
     if (Object.keys(item).length !== 2 || key === undefined || reason === undefined || !KEY_RE.test(key)) return undefined
     waivers.push({ key, reason })
   }
-  return { version: 1, phase, event, requestedAt, waivers }
+  return { version: 1, phase, event, requestedAt, waivers, ...(frozen.length === 0 ? {} : { protected: frozen }) }
 }
 
 /** 调用方已持有 Change 锁。 */
@@ -104,12 +144,16 @@ export async function boundReviewWaiverSelection(
   state: PipelineState,
 ): Promise<{ readonly selection: ReviewWaiverSelection | undefined; readonly unbound: boolean }> {
   const selection = await readReviewWaiverSelection(changeDir)
-  if (selection === undefined || selection.waivers.length === 0) return { selection: undefined, unbound: false }
+  if (selection === undefined || (selection.waivers.length === 0 && (selection.protected ?? []).length === 0)) {
+    return { selection: undefined, unbound: false }
+  }
   const bound = selection.phase === scalar(state, 'review_gate_phase')
     && selection.event === reviewGateEvent(state)
     && selection.requestedAt === scalar(state, 'review_requested_at')
   return bound ? { selection, unbound: false } : { selection: undefined, unbound: true }
 }
+
+export type ProtectedSkipReason = 'content-changed' | 'unreadable'
 
 export interface WaiverApprovalOutcome {
   readonly approved: readonly string[]
@@ -118,9 +162,66 @@ export interface WaiverApprovalOutcome {
   readonly digest: string | null
   /** 清单存在却没能批准的原因（计划缺失 / 不可信 / 清单不属于这次请求），用于提示。 */
   readonly note: string | null
+  /** 本次确认批准的受保护配置改动（路径）。 */
+  readonly protectedApproved: readonly string[]
+  readonly protectedSkipped: readonly { readonly path: string; readonly why: ProtectedSkipReason }[]
 }
 
-const NO_APPROVAL: WaiverApprovalOutcome = { approved: [], skipped: [], digest: null, note: null }
+const NO_APPROVAL: WaiverApprovalOutcome = {
+  approved: [], skipped: [], digest: null, note: null, protectedApproved: [], protectedSkipped: [],
+}
+
+/**
+ * 冻结清单里的受保护改动逐项重读当前摘要：仍等于冻结摘要的才可批准（请求之后又被改过的不批准，留给下一次请求）。
+ * 只读：必须在任何批准写入之前做，因为批准目录里的「不适用」声明会重写 catalog.yaml，而 catalog.yaml 本身就是受保护文件。
+ */
+async function checkProtectedChanges(
+  repoRoot: string,
+  frozen: readonly FrozenProtectedChange[],
+): Promise<{
+  readonly matched: readonly FrozenProtectedChange[]
+  readonly skipped: readonly { readonly path: string; readonly why: ProtectedSkipReason }[]
+}> {
+  const matched: FrozenProtectedChange[] = []
+  const skipped: { path: string; why: ProtectedSkipReason }[] = []
+  for (const item of frozen) {
+    const current = await protectedFileDigest(repoRoot, item.path)
+    if (current === 'unreadable' || item.digest === 'unreadable') skipped.push({ path: item.path, why: 'unreadable' })
+    else if (current !== item.digest) skipped.push({ path: item.path, why: 'content-changed' })
+    else matched.push(item)
+  }
+  return { matched, skipped }
+}
+
+/**
+ * 把通过检查的受保护改动写进封存 approvals（change + 路径 + 摘要）。已经批准过的原样保留，重试同一条确认是幂等的。
+ * 批准目录里的「不适用」声明会让 catalog.yaml 多出批准人，这一次确认批准的正是带批准人的那份内容，
+ * 所以目录项按批准写入之后的摘要记；其余文件不会被批准动作改写，仍记冻结摘要。
+ */
+async function sealProtectedApprovals(input: {
+  readonly repoRoot: string
+  readonly change: string
+  readonly actor: RecordActor
+  readonly recordedAt: string
+  readonly matched: readonly FrozenProtectedChange[]
+}): Promise<readonly string[]> {
+  if (input.matched.length === 0) return []
+  const entries: { path: string; digest: string }[] = []
+  for (const item of input.matched) {
+    const digest = item.kind === 'catalog' ? await protectedFileDigest(input.repoRoot, item.path) : item.digest
+    if (digest === 'unreadable') continue
+    entries.push({ path: item.path, digest })
+  }
+  if (entries.length === 0) return []
+  await updateTestSeal(input.repoRoot, userSlug(input.actor.id), (seal) => ({
+    ...seal,
+    approvals: [
+      ...seal.approvals.filter((entry) => !entries.some((item) => entry.change === input.change && entry.path === item.path && entry.digest === item.digest)),
+      ...entries.map((item) => ({ change: input.change, path: item.path, digest: item.digest, by: input.actor.id, at: input.recordedAt })),
+    ],
+  }))
+  return entries.map((item) => item.path)
+}
 
 /**
  * 评审请求要列给用户的待批准项：计划里未批准的豁免 + 目录里未批准的项目级「不适用」声明。
@@ -157,8 +258,9 @@ export async function approveFrozenWaivers(input: {
   readonly recordedAt: string
 }): Promise<WaiverApprovalOutcome> {
   const { selection, unbound } = await boundReviewWaiverSelection(input.dir, input.state)
-  if (unbound) return { ...NO_APPROVAL, note: '豁免清单不属于这一次 review request，未批准任何豁免' }
+  if (unbound) return { ...NO_APPROVAL, note: '待批准清单不属于这一次 review request，未批准任何豁免或受保护改动' }
   if (selection === undefined) return NO_APPROVAL
+  const checked = await checkProtectedChanges(input.repoRoot, selection.protected ?? [])
   const planPart = selection.waivers.filter((item) => !isNotApplicableKey(item.key))
   const catalogPart = selection.waivers.filter((item) => isNotApplicableKey(item.key))
   const approved: string[] = []
@@ -193,5 +295,8 @@ export async function approveFrozenWaivers(input: {
       skipped.push(...outcome.value.skipped)
     }
   }
-  return { approved, skipped, digest, note }
+  const protectedApproved = await sealProtectedApprovals({
+    repoRoot: input.repoRoot, change: input.change, actor: input.actor, recordedAt: input.recordedAt, matched: checked.matched,
+  })
+  return { approved, skipped, digest, note, protectedApproved, protectedSkipped: checked.skipped }
 }

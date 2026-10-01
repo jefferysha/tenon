@@ -111,6 +111,12 @@ export interface AgentRunView {
   readonly reportPath: string | null
   readonly actor: { readonly id: string; readonly name: string } | null
   readonly finishedAt: string | null
+  /** 评审者：当前候选上除判定那次外的运行数（缺省 = 0；重跑换不来通过）。 */
+  readonly reruns?: number
+  /** 评审者：同一候选上前面不通过、判定那次通过（结论是重跑翻转的）。 */
+  readonly flipped?: boolean
+  /** 判定所依据的重跑写明的原因。 */
+  readonly rerunReason?: string | null
 }
 
 export type AgentRunsSnapshot = ReadonlyArray<{

@@ -10,7 +10,9 @@ import { catalogSuitesDigest, parseTestCatalog } from './catalog.js'
 import type { TestCatalog } from './catalog-types.js'
 import { evaluateSuiteResult } from './evaluate-suite.js'
 import { evaluateTestPolicy, renderPolicyBlockers } from './evaluate-v2.js'
-import { baselineKey, type TestPolicyEvaluationInput, type TestPolicyReport } from './evaluate-types.js'
+import { baselineKey, type ProtectedEvidenceInput, type TestPolicyEvaluationInput, type TestPolicyReport } from './evaluate-types.js'
+import { EMPTY_TEST_SEAL } from './seal.js'
+import type { ProtectedChange } from './protected-files.js'
 import type { KnownFailure } from './known-failures.js'
 import { extractScenarios, extractTaskItems } from './openspec-trace.js'
 import { emptyTestPlan, testPlanDigest, type TestPlan } from './plan.js'
@@ -67,6 +69,8 @@ interface Scenario {
   readonly runs?: readonly SuiteRunV2[]
   readonly records?: (context: { policyDigest: string; planDigest: string }) => readonly TestRunRecordV2Draft[]
   readonly input?: Partial<TestPolicyEvaluationInput>
+  /** 由算出的记录链构造证据来源输入（封存文件里的链头要等于链的真实链头，测试才写得出来）。 */
+  readonly protected?: (chain: ChainReport) => ProtectedEvidenceInput
 }
 
 function recordFor(runs: readonly SuiteRunV2[], context: { policyDigest: string; planDigest: string }, catalog = CATALOG): TestRunRecordV2Draft {
@@ -109,6 +113,7 @@ function evaluate(scenario: Scenario = {}): TestPolicyReport {
     bindings: { candidate: undefined, workflowFingerprint: FIXTURE_FINGERPRINT, workflowRunId: 'run-1' },
     today: '2026-09-29',
     exitEvent: 'build-complete',
+    ...(scenario.protected === undefined ? {} : { protected: scenario.protected(chain) }),
     ...scenario.input,
   })
 }
@@ -355,9 +360,9 @@ describe('evaluateTestPolicy —— 运行记录', () => {
 
   it('已知失败：清单内失败不挡、过期按失败挡并提示、已修好提示移出', () => {
     const known: KnownFailure[] = [
-      { suite: 'unit', test: 'src/a.test.ts › breaks', reason: 'x', expires: '2026-12-31', added_by: 'a' },
+      { suite: 'unit', test: 'src/a.test.ts › breaks', reason: 'x', expires: '2026-10-20', added_by: 'a' },
       { suite: 'unit', test: 'src/b.test.ts › old', reason: 'x', expires: '2026-01-01', added_by: 'a' },
-      { suite: 'unit', test: 'src/c.test.ts › fixed', reason: 'x', expires: '2026-12-31', added_by: 'a' },
+      { suite: 'unit', test: 'src/c.test.ts › fixed', reason: 'x', expires: '2026-10-20', added_by: 'a' },
     ]
     const run = fixtureSuiteRun({
       suite: 'unit', scope: 'changed', result: 'fail',
@@ -373,6 +378,25 @@ describe('evaluateTestPolicy —— 运行记录', () => {
     const report = evaluate({ runs: [expired], input: { knownFailures: known } })
     expect(codes(report)).toEqual(['test-failed'])
     expect(report.notices.map((item) => item.code)).toEqual(['known-failure-expired'])
+  })
+
+  it('已知失败：到期日超过登记后 30 天的手写条目不被承认，按普通失败挡并提示', () => {
+    const known: KnownFailure[] = [
+      { suite: 'unit', test: 'src/a.test.ts › breaks', reason: 'x', expires: '2026-10-29', added_by: 'a' },
+      { suite: 'unit', test: 'src/b.test.ts › forever', reason: 'x', expires: '2026-10-30', added_by: 'a' },
+    ]
+    const run = fixtureSuiteRun({
+      suite: 'unit', scope: 'changed', result: 'fail',
+      cases: [
+        fixtureCase({ file: 'src/a.test.ts', name: 'breaks', status: 'known-fail' }),
+        fixtureCase({ file: 'src/b.test.ts', name: 'forever', status: 'fail' }),
+      ],
+    })
+    const report = evaluate({ runs: [run], input: { knownFailures: known } })
+    expect(codes(report)).toEqual(['test-failed'])
+    expect(report.blockers[0]?.message).toContain('src/b.test.ts › forever')
+    expect(report.blockers[0]?.message).not.toContain('src/a.test.ts')
+    expect(report.notices).toEqual([expect.objectContaining({ code: 'known-failure-too-long', subject: 'src/b.test.ts › forever' })])
   })
 
   it.each([
@@ -665,5 +689,114 @@ describe('evaluateTestPolicy —— 旧步骤测试（内联套件）并入', ()
   it('渲染成既有文案口径（只含阻塞项）', () => {
     const report = evaluate({ runs: [fixtureSuiteRun({ suite: 'bench', kind: 'benchmark', runner: 'custom' })] })
     expect(renderPolicyBlockers(report)).toEqual(['套件 unit（unit）本阶段还没有在当前代码上运行；执行 tenon test run demo --suite unit'])
+  })
+})
+
+
+describe('evaluateTestPolicy —— 证据来源（R1 / R4）', () => {
+  const sealed = (changes: readonly ProtectedChange[] | undefined, extra: Partial<ProtectedEvidenceInput> = {}) => (chain: ChainReport): ProtectedEvidenceInput => ({
+    reviewGated: true,
+    changes,
+    seal: { ...EMPTY_TEST_SEAL, heads: chain.state === 'intact' ? { demo: chain.head } : {} },
+    sealState: 'ok',
+    ...extra,
+  })
+  const KF: ProtectedChange = { path: '.tenon/tests/known-failures.yaml', kind: 'known-failures', status: 'modified', digest: 'sha256:aaa' }
+
+  it('链头等于封存链头：记录算证据，没有受保护改动就放行', () => {
+    const report = evaluate({ runs: [UNIT_PASS], protected: sealed([]) })
+    expect(report.blockers).toEqual([])
+    expect(report.suites[0]).toMatchObject({ suite: 'unit', state: 'passed' })
+  })
+
+  it('record-unsealed：记录不是 tenon test run 写的（封存里没有这个链头）→ 记录不算证据，也没有人工批准出口', () => {
+    const report = evaluate({
+      runs: [UNIT_PASS],
+      protected: (chain) => ({ ...sealed([])(chain), seal: EMPTY_TEST_SEAL, sealState: 'missing' }),
+    })
+    expect(codes(report)).toEqual(['record-unsealed'])
+    expect(report.blockers[0]).toMatchObject({ fix: 'tenon test run demo --stage' })
+    expect(report.blockers[0]?.message).toContain('链头不是本机 tenon test run 写下的')
+    expect(report.suites[0]).toMatchObject({ suite: 'unit', state: 'missing' })
+    const broken = evaluate({
+      runs: [UNIT_PASS],
+      protected: (chain) => ({ ...sealed([])(chain), seal: EMPTY_TEST_SEAL, sealState: 'invalid' }),
+    })
+    expect(broken.blockers[0]?.message).toContain('本机封存文件损坏或被改动')
+  })
+
+  it('封存里的链头是另一个摘要（记录被重写后重算过链）→ 同样 record-unsealed，无论步骤有没有评审门', () => {
+    const report = evaluate({
+      runs: [UNIT_PASS],
+      protected: (chain) => ({ ...sealed([])(chain), reviewGated: false, seal: { ...EMPTY_TEST_SEAL, heads: { demo: 'sha256:other' } } }),
+    })
+    expect(codes(report)).toEqual(['record-unsealed'])
+  })
+
+  it('protected-file-unapproved：评审门上受保护改动没有人工批准就挡；无门步骤不判', () => {
+    const gated = evaluate({ runs: [UNIT_PASS], protected: sealed([KF]) })
+    expect(codes(gated)).toEqual(['protected-file-unapproved'])
+    expect(gated.blockers[0]).toMatchObject({ subject: KF.path, fix: 'tenon review request demo --event build-complete' })
+    expect(gated.pass).toBe(false)
+    const ungated = evaluate({ runs: [UNIT_PASS], protected: sealed([KF], { reviewGated: false }) })
+    expect(codes(ungated)).toEqual([])
+    expect(ungated.pass).toBe(true)
+  })
+
+  it('批准之后放行；批准的是旧摘要（之后文件又变）就重新挡', () => {
+    const approval = (digest: string) => (chain: ChainReport): ProtectedEvidenceInput => ({
+      ...sealed([KF])(chain),
+      seal: {
+        ...EMPTY_TEST_SEAL,
+        heads: chain.state === 'intact' ? { demo: chain.head } : {},
+        approvals: [{ change: 'demo', path: KF.path, digest, by: 'a@x.io', at: 't' }],
+      },
+    })
+    expect(evaluate({ runs: [UNIT_PASS], protected: approval('sha256:aaa') }).pass).toBe(true)
+    expect(codes(evaluate({ runs: [UNIT_PASS], protected: approval('sha256:old') }))).toEqual(['protected-file-unapproved'])
+  })
+
+  it('读不出受保护改动：策略要求 diff（files: registered）的评审门失败关闭；不要求 diff 的步骤只提示', () => {
+    const closed = evaluate({
+      policy: { run: ['unit'], scope: 'changed', files: 'registered' },
+      runs: [UNIT_PASS],
+      protected: sealed(undefined, { changesError: '仓库读取失败' }),
+    })
+    expect(codes(closed)).toContain('files-diff-unavailable')
+    expect(closed.blockers.find((item) => item.message.includes('仓库读取失败'))).toBeDefined()
+    const open = evaluate({ runs: [UNIT_PASS], protected: sealed(undefined, { changesError: '仓库读取失败' }) })
+    expect(open.pass).toBe(true)
+    expect(open.notices).toEqual([expect.objectContaining({ code: 'files-unchecked', message: expect.stringContaining('仓库读取失败') })])
+  })
+
+  it('宿主没有提供读取受保护改动的能力（changes 缺省）：跳过这项检查', () => {
+    expect(evaluate({ runs: [UNIT_PASS], protected: sealed(undefined) }).pass).toBe(true)
+  })
+
+  it('report-untrusted：报告在读取之后又被改写 / 产物目录里没有报告副本 → 阻塞', () => {
+    const rewritten = fixtureSuiteRun({
+      suite: 'unit', scope: 'changed',
+      artifacts: [{ path: 'artifacts/unit/test-results/junit.xml', bytes: 1, digest: `sha256:${'1'.repeat(64)}`, media: 'text' }],
+    })
+    const changed = evaluate({ runs: [rewritten] })
+    expect(codes(changed)).toEqual(['report-untrusted'])
+    expect(changed.blockers[0]?.message).toContain('被读取之后又被改写')
+    const noCopy = evaluate({ runs: [fixtureSuiteRun({ suite: 'unit', scope: 'changed', artifacts: [] })] })
+    expect(codes(noCopy)).toEqual(['report-untrusted'])
+    expect(noCopy.blockers[0]?.message).toContain('没有报告 test-results/junit.xml 的副本')
+    const recorded = evaluate({
+      runs: [fixtureSuiteRun({ suite: 'unit', scope: 'changed', result: 'fail', reasons: [{ code: 'report-untrusted', detail: '报告修改时间早于运行开始' }] })],
+    })
+    expect(codes(recorded)).toEqual(['report-untrusted'])
+    expect(recorded.blockers[0]?.message).toContain('报告修改时间早于运行开始')
+  })
+
+  it('exit-code 格式没有报告文件，不查副本', () => {
+    const typecheck = fixtureSuiteRun({
+      suite: 'types', kind: 'typecheck', runner: 'tsc', scope: 'changed', cases: [],
+      report: { format: 'exit-code', path: null, digest: null },
+    })
+    const plan: TestPlan = { ...BASE_PLAN, suites: [{ suite: 'types', scope: 'changed' }] }
+    expect(evaluate({ plan, policy: { run: ['typecheck'], scope: 'changed' }, runs: [typecheck] }).pass).toBe(true)
   })
 })

@@ -21,7 +21,7 @@ import type { ExecContext, RunItem, SuiteOutcome } from './exec-types.js'
 import { createInvoker, type Invoker } from './invoker.js'
 import { exitText, judgeSuite, processReasons } from './judge.js'
 import type { ParsedCase } from './parsers/index.js'
-import { parseCases, parseCoverage, prepareOutputs, readCoverageFiles, readReportFile } from './report-read.js'
+import { parseCases, parseCoverage, prepareOutputs, readCoverageFiles, readReportFile, staleReportDetail } from './report-read.js'
 import { planCommand, planRerun, type PlannedCommand } from './select.js'
 import { mergeRerun } from './rerun.js'
 
@@ -48,6 +48,7 @@ function real(path: string): string {
 }
 
 async function runForCases(suite: CatalogSuite, context: ExecContext, cwd: string, invoker: Invoker, command: string, label: string): Promise<Loaded> {
+  const since = Date.now()
   await prepareOutputs(suite, cwd)
   const outcome = await invoker.invoke(command, label)
   const read = await readReportFile(suite, cwd)
@@ -56,6 +57,8 @@ async function runForCases(suite: CatalogSuite, context: ExecContext, cwd: strin
     return { outcome, projects: [], digest: null, problem: { code: 'report-missing', detail: `${label}：退出码 ${exitText(outcome)}，没有生成 ${path}` } }
   }
   if (read.state === 'unreadable') return { outcome, projects: [], digest: null, problem: { code: 'report-unreadable', detail: `${label}：${read.reason}` } }
+  const stale = staleReportDetail(read, since, path)
+  if (stale !== undefined) return { outcome, projects: [], digest: read.digest, problem: { code: 'report-untrusted', detail: `${label}：${stale}`.slice(0, 1900) } }
   // 工具报告的绝对路径是 realpath（macOS 的 /tmp 是 /private/tmp 的软链），换算相对路径也要用 realpath。
   const parsed = parseCases(suite, read.text, await realpath(context.repoRoot), await realpath(cwd))
   if (!parsed.ok) return { outcome, projects: [], digest: read.digest, problem: { code: 'report-unreadable', detail: `${label}：${parsed.reason}` } }
@@ -68,8 +71,9 @@ function nativelyRetried(item: ParsedCase, retries: number): boolean {
 
 async function retryFailures(
   suite: CatalogSuite, context: ExecContext, cwd: string, invoker: Invoker, first: readonly ParsedCase[], notes: string[],
-): Promise<{ readonly cases: readonly ParsedCase[]; readonly outcomes: readonly TestProcessOutcome[] }> {
+): Promise<{ readonly cases: readonly ParsedCase[]; readonly outcomes: readonly TestProcessOutcome[]; readonly digest: string | null }> {
   let cases = first
+  let digest: string | null = null
   const outcomes: TestProcessOutcome[] = []
   for (let attempt = 1; attempt <= suite.retries; attempt++) {
     const failed = cases.filter((item) => item.status === 'fail' && !nativelyRetried(item, suite.retries))
@@ -86,8 +90,10 @@ async function retryFailures(
       break
     }
     cases = mergeRerun(cases, failed, again.cases)
+    // 磁盘上留下的是最后一次重跑的报告；记录里的报告摘要和产物目录里的副本都以它为准。
+    digest = again.digest
   }
-  return { cases, outcomes }
+  return { cases, outcomes, digest }
 }
 
 async function coverageOf(
@@ -188,8 +194,11 @@ export async function executeSuite(context: ExecContext, item: RunItem, blocked:
       if (clean && first.cases.length > 0 && ((exit === 0 && rawFailed) || (exit !== 0 && !rawFailed))) {
         reasons.push({ code: 'exit-report-mismatch', detail: exit === 0 ? '退出码 0，但报告里有失败的用例' : `退出码 ${exitText(first.outcome)}，但报告里没有失败的用例（覆盖率门槛、全局钩子或报告不完整）` })
       }
-      const retried = suite.retries > 0 && rawFailed ? await retryFailures(suite, context, cwd, invoker, first.cases, notes) : { cases: first.cases, outcomes: [] }
+      const retried = suite.retries > 0 && rawFailed
+        ? await retryFailures(suite, context, cwd, invoker, first.cases, notes)
+        : { cases: first.cases, outcomes: [], digest: null }
       parsedCases = retried.cases
+      if (retried.digest !== null) digest = retried.digest
       outcomes = [first.outcome, ...retried.outcomes]
       projects = first.projects
     }
@@ -210,9 +219,11 @@ export async function executeSuite(context: ExecContext, item: RunItem, blocked:
   const wanted = wantedFiles(context.plan, planFilesOfSuite(context.plan, suite), context.knownFailures, suite.id)
   const attachments = parsedCases.flatMap((entry) => (isRetained(entry, wanted)
     ? entry.attachments.map((attachment) => resolve(cwd, attachment.path)) : []))
+  // 报告永远第一个复制：判定层据此确认记录里的报告摘要就是这次运行留下的文件（没进产物目录的报告不可信）。
+  const reportFiles = suite.report.path === undefined ? [] : [resolve(cwd, suite.report.path)]
   const artifacts = await collectArtifacts({
     repoRoot: context.repoRoot, cwd, suiteId: suite.id, artifactPaths: suite.artifacts, extraFiles: attachments,
-    runDir: context.runDir, budget: context.budget,
+    priorityFiles: reportFiles, runDir: context.runDir, budget: context.budget,
     // 文件系统的时间戳精度可能是整秒：起点取整秒，宁可多收同一秒内写的，也不漏本次的产物。
     modifiedSinceMs: Math.floor(started / 1000) * 1000,
   })

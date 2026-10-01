@@ -78,9 +78,10 @@ async function missingEvidence(
     missing.push(`必需测试 ${item.test.id} 未通过（${item.status}）；运行：tenon test run ${name} ${item.test.id}`)
   }
   // 步骤测试策略（目录套件 × 计划）：旧步骤测试已在上面逐项列过（内联套件 id 以 `step:` 开头，即 INLINE_SUITE_PREFIX），
-  // 待评审批准的豁免留给这一步之后的 review request，不算「结论之前的证据缺口」。
+  // 待评审批准的豁免与待确认的测试配置改动留给这一步之后的 review request，不算「结论之前的证据缺口」。
   for (const blocker of tests.policy?.blockers ?? []) {
-    if (!blocker.blocking || blocker.code === 'waiver-unapproved' || blocker.subject?.startsWith(INLINE_SUITE_PREFIX) === true) continue
+    if (!blocker.blocking || blocker.code === 'waiver-unapproved' || blocker.code === 'protected-file-unapproved'
+      || blocker.code === 'protected-file-tampered' || blocker.subject?.startsWith(INLINE_SUITE_PREFIX) === true) continue
     missing.push(renderTestBlocker(blocker))
   }
   const agents = await agentStepViews(deps, name, dir, state, plan, stepId)

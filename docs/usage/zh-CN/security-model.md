@@ -49,6 +49,30 @@ canonical state 只由 Tenon CLI 写。路径必须落在项目允许范围，�
 
 pending review 期间，PreToolUse 门只放行严格只读命令集（以及 `tenon review request|acknowledge` 与 `tenon dashboard --open`——后者不会给 agent 任何会话），其余一律拦截，包括以任何写法触达回环控制面的命令。可能触达 Dashboard 的命令还会作为安全信号记到 pending receipt 上。这个检测读的是解码后的命令词和命令所执行的脚本，而不是原始请求；它是尽力而为的（计算出来的地址、编码过的载荷会漏过）。hook 没触发时——宿主没装 hook、或 AFK 下——起作用的是上面 server 侧的规则。
 
+## 测试证据
+
+测试记录只有在「被它约束的 agent 造不出来」时才算证据。威胁模型是：想让门变绿的 coding agent，和你同一个系统用户。Tenon
+把这件事变贵、并留下痕迹，不声称能拦住一个能读你文件的恶意进程。
+
+- **证据只由 Tenon 写。** hook 拒绝 shell 与编辑器对运行记录、任务测试计划及其台账、共享基线、`known-failures.yaml`、
+  本机封存文件与它的密钥的写入，认 13 种写法：解释器内联代码（`python -c`、`node -e`、`perl -e`）、`curl -o` 与 `wget -O`、
+  `tar -x` 与 `unzip -d`、`git checkout|restore … -- <路径>`、`git apply` 与 `patch`、变量路径、点名了受保护路径又不是干净跟踪文件的
+  脚本文件、`xargs sh -c` 与 `find -exec`、`cp/mv/install/rsync/ln` 变体、`tee` 变体、重定向变体（含喂给解释器的 heredoc）和就地编辑器。
+  匹配是静态、尽力而为的。
+- **hook 看不见的，由门检出。** 每个任务记录链的链头由 `tenon test run` 封存进按用户、HMAC 签名的本机文件；绕开命令写进来的记录使链头
+  对不上封存（`record-unsealed`，没有人工出口，下一次运行另起新链）。Tenon 写出之后又被改动的基线与已知失败清单判
+  `protected-file-tampered`。
+- **「什么算通过」的定义要人确认。** 任务 diff 里的测试目录、基线、已知失败清单和项目工作流的改动会挡住评审门，直到你确认确切内容
+  （`tenon review request` 逐项列出，委托确认不能批准它们）。已知失败只能指向一个具体用例，最长 30 天。
+- **报告和候选被钉住。** 报告必须比本次运行新，并带摘要复制进本次运行的产物目录；工作区指纹只忽略目录或冻结工作流声明过的测试产物，
+  所以没有东西能藏在一个只是看起来像测试输出的目录里。
+- **仓库自带的命令首次执行前不可信。** 你在本机对目录与内联测试命令的确切文字运行过 `tenon test trust` 之后，`tenon test run` 才会执行；
+  CI 显式设置 `TENON_TEST_TRUST=1`。agent 的调用里出现这两者，hook 一律拒绝。
+- **评审者重跑不出通过。** 同一候选上评审者的每次运行都算数，取最严的结论，除非重跑写明并记录了原因。
+
+残余风险：拥有你权限的进程可以读封存密钥、伪造一致的封存，可以构造 hook 解析不了的路径，也可以经 Dashboard 编辑
+`.pipeline/workflows/*.yaml`；后两者靠评审里的人工确认兜底。
+
 ## 自动化
 
 持续授权不包含发布、付费、外部通信或生产数据操作。AFK/loop 必须有预算、停止条件、隔离和可审计 policy snapshot。
@@ -112,6 +136,8 @@ release 使用内容寻址或不可变版本目录，更新通过指针切换；
 | 路径或 symlink 逃逸 | realpath 边界与普通文件校验 |
 | 并发覆盖文档 | 原子 no-replace |
 | review 被错误复用 | exact phase/event receipt |
+| agent 伪造或改写测试证据 | hook 拒绝 13 种写法 + 本机封存链头 + 评审里对测试配置改动的人工确认 |
+| 克隆来的仓库带恶意测试命令 | 首次执行前由用户 `tenon test trust`，CI 显式 `TENON_TEST_TRUST=1` |
 | 自动更新破坏历史 | 不可变 release 与 sidecar |
 | 内部信息进入 Pages | 白名单、扫描、main-only deploy |
 

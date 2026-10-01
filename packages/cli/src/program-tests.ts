@@ -11,6 +11,7 @@ import { cmdTestRun } from './commands/test-run.js'
 import { cmdTestRunSuites } from './commands/test-run-suites.js'
 import { cmdTestStatus } from './commands/test-status.js'
 import { cmdTestSync } from './commands/test-sync.js'
+import { cmdTestTrust } from './commands/test-trust.js'
 import { registerTestProjectCommands } from './program-tests-project.js'
 import { bail, collect } from './program-exit.js'
 
@@ -26,9 +27,9 @@ interface RunCliOptions {
 export function registerTestCommands(program: Command, deps: CliDeps): void {
   const test = program
     .command('test')
-    .description('测试体系：discover / catalog / plan / register / sync / run / status / baseline / known / report / code-size')
+    .description('测试体系：discover / catalog / plan / register / sync / trust / run / status / baseline / known / report / code-size')
     .action(() => {
-      deps.io.err('用法：tenon test discover|catalog|plan|register|unregister|waive|sync|run|status|baseline|known|report|code-size ...')
+      deps.io.err('用法：tenon test discover|catalog|plan|register|unregister|waive|sync|trust|run|status|baseline|known|report|code-size ...')
       bail(1)
     })
   registerTestProjectCommands(test, deps)
@@ -103,6 +104,14 @@ export function registerTestCommands(program: Command, deps: CliDeps): void {
         all: opts.all === true, changed: opts.changed === true, json: opts.json === true,
       }))
     })
+  test
+    .command('trust [change]')
+    .description('首次执行仓库自带的测试命令前由你本人确认：列出目录（与给定任务的步骤测试）里将要执行的命令，确认后记在你本机；命令改动后需重新确认')
+    .option('--yes', '不再询问（只在你自己的终端 / CI 里用；宿主 hook 会拒绝 agent 执行本命令）')
+    .option('--status', '只看是否已信任（全部已信任 exit 0，否则 exit 2）')
+    .option('--json', 'JSON 列出各项摘要与是否已信任')
+    .action(async (change: string | undefined, opts: { yes?: boolean; status?: boolean; json?: boolean }) =>
+      bail(await cmdTestTrust(deps, change, { yes: opts.yes === true, status: opts.status === true, json: opts.json === true })))
   test
     .command('status <change>')
     .description('该步骤每项测试的状态、耗时与最近执行时间（有拦截 exit 2）')

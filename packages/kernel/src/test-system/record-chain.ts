@@ -27,6 +27,7 @@ import { canonicalJson } from './canonical.js'
 import { testRecordChainLockDir, testRunRecordsDir } from './paths.js'
 import { declaresRecordV2, decodeTestRunRecordV2 } from './record-v2-codec.js'
 import type { TestRunRecordV2, TestRunRecordV2Draft } from './record-v2-types.js'
+import { readTestSeal, sealRecordHead } from './seal.js'
 
 const MAX_RECORD_BYTES = 16 * 1024 * 1024
 
@@ -315,12 +316,16 @@ export async function readRecordChain(repoRoot: string, slug: string, change: st
 export interface AppendResult {
   readonly record: TestRunRecordV2
   readonly path: string
-  /** appended = 接在完好的链尾；started = 第一条；reset = 旧链已断，另起新链。 */
+  /** appended = 接在完好且已封存的链尾；started = 第一条；reset = 旧链已断或来源不明（链头没有封存），另起新链。 */
   readonly chain: 'appended' | 'started' | 'reset'
   readonly previous: ChainReport
 }
 
-/** 只供 `tenon test run` 调用。锁在本机 gitignored 目录；同一 run-id 已存在即失败（绝不覆盖）。 */
+/**
+ * 只供 `tenon test run` 调用。锁在本机 gitignored 目录；同一 run-id 已存在即失败（绝不覆盖）。
+ * 写完后把新链头封存进本机封存文件（seal.ts）：之后门禁只承认链头等于封存链头的记录链。
+ * 追加前当前链若完好却与封存链头不符（记录是绕开命令写进来的），一律另起新链取代它们，不在伪造的记录后面接续。
+ */
 export async function appendTestRunRecordV2(
   repoRoot: string,
   slug: string,
@@ -333,7 +338,9 @@ export async function appendTestRunRecordV2(
     await mkdir(dir, { recursive: true })
     const listing = await listRecordDirectory(dir)
     const previous = verifyRecordChain(listing)
-    const base = previous.state === 'intact'
+    const sealedHead = (await readTestSeal(repoRoot, slug)).seal.heads[draft.change]
+    const continuing = previous.state === 'intact' && previous.head === sealedHead
+    const base = previous.state === 'intact' && continuing
       ? { ...draft, prev_digest: previous.head }
       : previous.state === 'empty'
         ? { ...draft, prev_digest: null }
@@ -348,10 +355,11 @@ export async function appendTestRunRecordV2(
     }
     const path = join(dir, `${record.run_id}.json`)
     await atomicLinkPublish(dir, '.test-run-v2', path, `${JSON.stringify(record, null, 2)}\n`)
+    await sealRecordHead(repoRoot, slug, draft.change, record.digest)
     return {
       record,
       path,
-      chain: previous.state === 'intact' ? 'appended' : previous.state === 'empty' ? 'started' : 'reset',
+      chain: continuing ? 'appended' : previous.state === 'empty' ? 'started' : 'reset',
       previous,
     }
   })

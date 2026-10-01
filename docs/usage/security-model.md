@@ -132,6 +132,46 @@ not authorize:
 - changing production systems or real user data;
 - weakening security boundaries.
 
+## Test evidence
+
+A test record is evidence only if it could not have been produced by the agent it is
+meant to constrain. The threat model is a coding agent that wants a green gate, running
+as the same OS user: Tenon raises the cost and leaves a trace, it does not claim to stop
+a hostile process that can read your files.
+
+- **Only Tenon writes evidence.** The hook refuses shell and editor writes to run
+  records, the per-change test plan and its ledger, shared baselines and
+  `known-failures.yaml`, and to the local seal and its key. It recognises 13 write
+  shapes: inline interpreter code (`python -c`, `node -e`, `perl -e`), `curl -o` and
+  `wget -O`, `tar -x` and `unzip -d`, `git checkout|restore … -- <path>`, `git apply` and
+  `patch`, variable paths, script files that name a protected path and are not clean
+  tracked files, `xargs sh -c` and `find -exec`, `cp/mv/install/rsync/ln` variants, `tee`
+  variants, redirect variants (including heredocs fed to an interpreter) and in-place
+  editors. The match is static and best effort.
+- **What the hook cannot see, the gate detects.** Each change's record chain head is
+  sealed by `tenon test run` in a per-user, HMAC-signed local file; records written around
+  the command leave a chain whose head is not the sealed one (`record-unsealed`, no human
+  override, the next run starts a new chain). Baselines and known failures that changed
+  after Tenon last wrote them are `protected-file-tampered`.
+- **Definitions of "pass" need a human.** Changes to the test catalog, baselines, the known
+  failure list and project workflows in a change's diff block review gates until you
+  confirm the exact content (`tenon review request` lists them; delegated confirmation
+  cannot approve them). Known failures name one case and expire within 30 days.
+- **Reports and the candidate are pinned.** A report must be newer than the run and is
+  copied, with its digest, into the run's artifact directory. The workspace fingerprint
+  excludes only test outputs that the catalog or the frozen workflow declares, so nothing
+  can hide under a directory that merely looks like test output.
+- **Repository-provided commands are untrusted on first use.** `tenon test run` executes
+  catalog and inline-test commands only after you ran `tenon test trust` on this machine
+  for their exact text; CI declares `TENON_TEST_TRUST=1`. The hook refuses an agent call
+  that contains either.
+- **Reviewers cannot be rerun into a pass.** Every run of a reviewer on the same candidate
+  counts and the most severe verdict wins, unless the rerun carries a recorded reason.
+
+Residual risk: a process with your privileges can read the seal key and forge a consistent
+seal, build a path the hook cannot parse, or edit `.pipeline/workflows/*.yaml` through the
+Dashboard; the human confirmation in review is the backstop for the last two.
+
 ## Credentials and AFK
 
 AFK runner credentials are read through controlled environment/config sources
@@ -179,7 +219,8 @@ controls in [AFK and loops](automation-and-loops.md).
 - placing tokens in logs or fixtures;
 - running an untrusted AFK image;
 - enabling Tap interception without a retention plan;
-- assuming every adapter has a hard pre-tool veto.
+- assuming every adapter has a hard pre-tool veto;
+- running `tenon test trust --yes` on a repository whose commands you have not read.
 
 ## Next action
 

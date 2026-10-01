@@ -109,6 +109,8 @@ export async function collectArtifacts(input: {
   readonly suiteId: string
   readonly artifactPaths: readonly string[]
   readonly extraFiles: readonly string[]
+  /** 先于其余文件复制（运行预算不够时也要保住它们），例如套件报告。 */
+  readonly priorityFiles?: readonly string[]
   readonly runDir: string
   readonly budget: ArtifactBudget
   /**
@@ -138,7 +140,8 @@ export async function collectArtifacts(input: {
     ? declaredFiles
     : await writtenSince(declaredFiles, input.modifiedSinceMs)
   const extras = await Promise.all(input.extraFiles.map((file) => realOrSame(resolve(cwd, file))))
-  const all = [...new Set([...files, ...extras])]
+  const priority = await Promise.all((input.priorityFiles ?? []).map((file) => realOrSame(resolve(cwd, file))))
+  const all = [...new Set([...priority, ...files, ...extras])]
   const index: ArtifactIndexEntry[] = []
   const mapped = new Map<string, string>()
   const declaredDirs = input.artifactPaths.map((declared) => resolve(cwd, declared))

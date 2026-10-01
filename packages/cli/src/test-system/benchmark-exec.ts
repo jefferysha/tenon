@@ -10,7 +10,7 @@ import {
 import type { TestProcessOutcome } from '../test-runner/process.js'
 import type { Invoker } from './invoker.js'
 import { exitText, processReasons } from './judge.js'
-import { parseBenchmark, prepareOutputs, readReportFile } from './report-read.js'
+import { parseBenchmark, prepareOutputs, readReportFile, staleReportDetail } from './report-read.js'
 
 export interface BenchmarkExecution {
   readonly outcomes: readonly TestProcessOutcome[]
@@ -65,6 +65,7 @@ export async function executeBenchmark(input: {
   let digest: string | null = null
 
   const sample = async (label: string, keep: boolean): Promise<boolean> => {
+    const since = Date.now()
     await prepareOutputs(suite, input.cwd)
     const outcome = await invoker.invoke(input.command, label)
     outcomes.push(outcome)
@@ -78,6 +79,11 @@ export async function executeBenchmark(input: {
       return false
     }
     digest = read.digest
+    const stale = staleReportDetail(read, since, suite.report.path ?? '报告')
+    if (stale !== undefined) {
+      reasons.push({ code: 'report-untrusted', detail: `${label}：${stale}`.slice(0, 1900) })
+      return false
+    }
     const parsed = parseBenchmark(suite, read.text)
     if (!parsed.ok) {
       reasons.push({ code: 'report-unreadable', detail: `${label}：${parsed.reason}` })

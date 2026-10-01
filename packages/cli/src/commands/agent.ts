@@ -25,6 +25,7 @@ import { errMsg, type CliDeps } from '../deps.js'
 import { str } from '../render.js'
 import { ensureChangeHostAgents, fallbackOutcome, hostAgentHostOf } from './agent-host.js'
 import { renderAgentPrompt } from './agent-prompt.js'
+import { parseRerunReason, priorRunsOnCandidate, rerunNote, rerunRefusal } from './agent-rerun.js'
 import { renderTestPolicySummary } from './agent-prompt-tests.js'
 import { testsReadyFor } from './agent-tests-ready.js'
 import { currentCandidate } from './candidate.js'
@@ -103,6 +104,7 @@ const viewJson = (view: AgentView, waiting: readonly { agent: string; for: reado
   findings: view.findings,
   blocking: view.blocking,
   run_id: view.runId,
+  reruns: view.reruns, flipped: view.flipped, rerun_reason: view.rerunReason,
   waiting_for: waiting.find((item) => item.agent === view.agent)?.for ?? [],
 })
 
@@ -131,7 +133,7 @@ export async function cmdAgentNext(deps: CliDeps, name: string, json: boolean): 
   for (const view of views) {
     const result = view.result === null ? '' : ` ${RESULT_WORD[view.result]}`
     const findings = view.findings === 0 ? '' : ` 问题 ${view.findings}`
-    deps.io.out(`${view.agent} ${ROLE_WORD[view.role]} ${STATE_WORD[view.state]}${result}${findings}`)
+    deps.io.out(`${view.agent} ${ROLE_WORD[view.role]} ${STATE_WORD[view.state]}${result}${findings}${rerunNote(view)}`)
   }
   for (const line of waveSummary(name, views, wave, waiting, verdict)) deps.io.out(line)
   return 0
@@ -198,8 +200,10 @@ export async function cmdAgentPrompt(
   deps: CliDeps,
   name: string,
   agent: string,
-  options: { readonly host?: string; readonly json?: boolean },
+  options: { readonly host?: string; readonly json?: boolean; readonly rerunReason?: string },
 ): Promise<number> {
+  const rerunReason = parseRerunReason(deps, options.rerunReason)
+  if (rerunReason === null) return 1
   const host = hostAgentHostOf(deps, options.host)
   let hostFiles: ReadonlyMap<string, HostAgentFileOutcome> = new Map()
   const context = await resolveAgentCommand(deps, name, {
@@ -232,6 +236,14 @@ export async function cmdAgentPrompt(
   const existing = context.runs.find((row) =>
     row.agent === agent && row.step_visit === context.stepVisit
     && row.status === 'running' && row.candidate === context.candidate)
+  // 评审者防刷（F8）：同一份代码上已经有结论，再开一次必须写明原因；没有原因的重跑在判定里取最严结论。
+  const priorOnCandidate = role === 'reviewer' && existing === undefined
+    ? priorRunsOnCandidate(context.runs, agent, context.stepVisit, context.candidate)
+    : []
+  if (priorOnCandidate.length > 0 && rerunReason === undefined) {
+    deps.io.err(rerunRefusal(name, agent, priorOnCandidate))
+    return 2
+  }
   const runId = existing?.run_id ?? randomUUID()
   const reportPath = join('openspec', 'changes', name, AGENT_REPORTS_DIR, `${runId}.md`)
   // 专属子代理 `tenon-<name>` 只在宿主文件确实生成（或已是同一份）时下发；否则退回通用子代理并记下。
@@ -258,6 +270,7 @@ export async function cmdAgentPrompt(
       started_at: deps.clock(),
       finished_at: null,
       ...(subagent === undefined ? {} : { subagent }),
+      ...(priorOnCandidate.length > 0 && rerunReason !== undefined ? { rerun_reason: rerunReason } : {}),
     }
     try {
       await mkdir(join(context.dir, AGENT_REPORTS_DIR), { recursive: true })

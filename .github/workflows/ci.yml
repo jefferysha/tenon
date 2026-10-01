@@ -235,6 +235,8 @@ jobs:
         env:
           TENON_USER: ci@tenon.test
           TENON_USER_NAME: CI
+          # CI 是运行器显式信任：这个 checkout 里的目录命令就是要跑的代码（本地用户要在自己的终端 `tenon test trust`）。
+          TENON_TEST_TRUST: '1'
         run: |
           set -euo pipefail
           tenon() { node packages/cli/dist/tenon.mjs "$@"; }

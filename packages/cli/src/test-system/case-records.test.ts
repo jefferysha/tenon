@@ -8,7 +8,7 @@ function parsed(overrides: Partial<ParsedCase> & { name: string }): ParsedCase {
   return { file: 'src/a.test.ts', suite_path: ['grp'], project: null, status: 'pass', duration_ms: 3, attempts: 1, attachments: [], ...overrides }
 }
 
-const KNOWN: KnownFailure[] = [{ suite: 'unit', test: 'src/known.test.ts › known bug', reason: 'r', expires: '2026-12-31', added_by: 'a@x.io' }]
+const KNOWN: KnownFailure[] = [{ suite: 'unit', test: 'src/known.test.ts › known bug', reason: 'r', expires: '2026-10-20', added_by: 'a@x.io' }]
 const PLAN: TestPlan = {
   schema: 'tenon-test-plan/v1', change: 'demo', suites: [], files: [{ path: 'src/registered.test.ts', suite: 'unit' }],
   cases: [{ covers: 'task:1', tests: ['src/mapped.test.ts › works'] }], waivers: [],

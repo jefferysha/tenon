@@ -7,7 +7,9 @@
  * 判定本身抛错时不猜「可前进」：每条出边都挂一条 evaluation-error 的 step-exit 阻断。
  */
 import {
+  changeStartOfFields,
   changedFilesResultForState,
+  protectedChangesSinceChangeStart,
   completedWorkflowSkillsSinceStepEntry,
   evaluateStepExitReport,
   HISTORY_FILE,
@@ -21,6 +23,7 @@ import {
   type FlowEngine,
   type PhaseExitFileContext,
   type PipelineState,
+  type ProtectedChange,
   type ReadinessByTransition,
   type RecordChainCache,
   type StepBlocker,
@@ -43,6 +46,8 @@ export interface StepExitSnapshotDeps {
    * 这样一个项目里的所有任务共用 git 调用；缺省 = 逐次读取（只读单测、单任务调用）。
    */
   readonly changedFiles?: (state: PipelineState) => Promise<ChangedFilesSource>
+  /** 同上，受保护测试配置的改动（评审门步骤的人工确认判定用）；项目扫描传同一个会话的读取器。 */
+  readonly protectedChanges?: (state: PipelineState) => Promise<readonly ProtectedChange[]>
 }
 
 export interface StepExitReadinessInput {
@@ -124,6 +129,9 @@ export async function withStepExitReadiness(
               ...input.deps.testContext,
               changedFiles: input.deps.testContext.changedFiles
                 ?? (() => (input.deps.changedFiles ?? ((state) => changedFilesResultForState(input.root, state)))(input.state)),
+              protectedChanges: input.deps.testContext.protectedChanges
+                ?? (() => (input.deps.protectedChanges
+                  ?? ((state) => protectedChangesSinceChangeStart(input.root, changeStartOfFields(state.fields))))(input.state)),
             },
       },
       skills: async () => judgeStepSkillsFromHistory({
@@ -165,6 +173,7 @@ export function projectStepExitDeps(input: {
   readonly user: EvidenceUser | undefined
   readonly candidate: (() => Promise<string | undefined>) | undefined
   readonly changedFiles?: (state: PipelineState) => Promise<ChangedFilesSource>
+  readonly protectedChanges?: (state: PipelineState) => Promise<readonly ProtectedChange[]>
   /** Skip re-reading and re-hashing record files whose identity has not moved (snapshot reads only). */
   readonly recordChainCache?: RecordChainCache
 }): ((changeName: string, user?: EvidenceUser) => StepExitSnapshotDeps) | undefined {
@@ -191,5 +200,6 @@ export function projectStepExitDeps(input: {
     testContext: contextFor(user ?? input.user),
     skillResolver: input.skillResolver,
     ...(input.changedFiles === undefined ? {} : { changedFiles: input.changedFiles }),
+    ...(input.protectedChanges === undefined ? {} : { protectedChanges: input.protectedChanges }),
   })
 }

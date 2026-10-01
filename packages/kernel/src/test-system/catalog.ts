@@ -108,6 +108,35 @@ export function catalogSuitesDigest(catalog: TestCatalog, suiteIds: readonly str
   return digestOf({ profiles_env: catalog.profiles_env, suites, services })
 }
 
+/**
+ * 目录里「会被 Tenon 执行的文字」的摘要：套件的命令、选择模板、工作目录、声明的环境变量与依赖服务，
+ * 服务的启动命令、工作目录、就绪探测与停止方式。用户在本机首次执行前确认的就是这份摘要（R6）：
+ * 改标签、标签页、covers、报告路径不会让信任失效，改任何一条要执行的命令一定会。
+ */
+export function catalogExecDigest(catalog: TestCatalog): string {
+  const byId = (left: { readonly id: string }, right: { readonly id: string }): number => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0)
+  return digestOf({
+    suites: [...catalog.suites].sort(byId).map((suite) => ({
+      id: suite.id, cwd: suite.cwd, command: suite.command,
+      select_files: suite.select?.files ?? null, select_grep: suite.select?.grep ?? null,
+      env: [...suite.env].sort(), services: [...suite.services].sort(),
+    })),
+    services: [...catalog.services].sort(byId).map((service) => ({
+      id: service.id, start: service.start, cwd: service.cwd, ready: service.ready, stop: service.stop, env: [...service.env].sort(),
+    })),
+  })
+}
+
+/**
+ * 任务冻结工作流里步骤内联测试（旧的 `tests[]`）的可执行摘要：id + 命令 + 工作目录。它们来自项目的工作流定义，
+ * 和测试目录一样是仓库带来的、会被执行的文字，同样需要用户在本机首次执行前确认（R6）。
+ */
+export function stepTestsExecDigest(tests: readonly { readonly id: string; readonly command: string; readonly cwd: string }[]): string {
+  const rows = tests.map((test) => ({ id: test.id, command: test.command, cwd: test.cwd }))
+    .sort((left, right) => (left.id + '\u0000' + left.command < right.id + '\u0000' + right.command ? -1 : 1))
+  return digestOf({ step_tests: rows })
+}
+
 /** 套件拥有的测试文件 glob，换算成仓库相对。 */
 export function suiteFileGlobs(suite: CatalogSuite): readonly string[] {
   return suite.files.map((glob) => repoGlob(suite.cwd, glob))

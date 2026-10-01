@@ -148,6 +148,8 @@ export function seedDemo(context) {
   writeProjectFile(root, `openspec/changes/${CHANGE}/specs/auth/spec.md`, SPEC)
   writeProjectFile(root, '.tenon/tests/catalog.yaml', CATALOG)
   tenon('test', 'catalog', 'validate')
+  // 目录与任务的步骤测试命令在首次执行前要得到用户信任：种子项目在隔离环境里做的就是用户在自己终端里做的那一步。
+  tenon('test', 'trust', CHANGE, '--yes')
   tenon('test', 'register', CHANGE, '--suite', UNIT_SUITE)
   tenon('test', 'register', CHANGE, '--suite', CHECK_SUITE)
   tenon('test', 'register', CHANGE, '--file', TEST_FILE, '--suite', UNIT_SUITE, '--kind', 'unit')

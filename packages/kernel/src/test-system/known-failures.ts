@@ -6,6 +6,10 @@
  *   · 清单内用例通过 → fixed，提示移出清单；
  *   · 清单内但已过期的用例失败 → 按普通失败挡，并提示续期或修复；
  *   · 清单外失败 → new-fail，挡。
+ *
+ * 清单是「暂时不挡」的例外，不是白名单：条目必须指向具体用例（`<文件> › <用例名>`，不能只写文件），
+ * 期限最长 30 天（`known add` 拒绝更长的；手写超长的条目在判定时不被承认，按普通失败处理），
+ * 新增与改动本身出现在任务 diff 里，需要人在评审门确认（protected-files.ts）。
  */
 import { caseMatchesRef, parseCaseRef, type CaseIdentity } from './covers.js'
 import { SUITE_ID_RE } from './vocabulary.js'
@@ -15,6 +19,14 @@ import { YamlSubsetError, parseYamlSubset, type YamlNode } from './yaml-subset.j
 
 export const KNOWN_FAILURES_SCHEMA = 'tenon-known-failures/v1'
 const DATE_RE = /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])$/
+
+/** 已知失败的最长期限（天，从登记当天算起）。 */
+export const KNOWN_FAILURE_MAX_DAYS = 30
+
+/** 今天登记时允许的最晚到期日（YYYY-MM-DD）。 */
+export function latestKnownFailureExpiry(today: string): string {
+  return new Date(Date.parse(`${today}T00:00:00Z`) + KNOWN_FAILURE_MAX_DAYS * 86_400_000).toISOString().slice(0, 10)
+}
 
 export interface KnownFailure {
   readonly suite: string
@@ -43,7 +55,9 @@ function decodeEntry(node: YamlNode, sink: IssueSink): KnownFailure | undefined 
   const addedBy = str(field(map, 'added_by'), sink, '已知失败 added_by', map.line, { maxBytes: 320 })
   if (suite === undefined || test === undefined || reason === undefined || expires === undefined || addedBy === undefined) return undefined
   if (field(map, 'link') !== undefined && link === undefined) return undefined
-  if (parseCaseRef(test) === undefined) return sink.add(map.line, `已知失败 test '${test}' 非法（<文件> › <用例名>）`)
+  const ref = parseCaseRef(test)
+  if (ref === undefined) return sink.add(map.line, `已知失败 test '${test}' 非法（<文件> › <用例名>）`)
+  if (ref.title.length === 0) return sink.add(map.line, `已知失败 test '${test}' 只指向文件；必须指向具体用例（<文件> › <用例名>）`)
   return { suite, test, reason, ...(link === undefined ? {} : { link }), expires, added_by: addedBy }
 }
 
@@ -94,6 +108,11 @@ export function knownFailureExpired(entry: KnownFailure, today: string): boolean
   return entry.expires < today
 }
 
+/** 到期日比「今天 + 30 天」还晚：不被承认（`known add` 不会写出这样的条目，只可能是手写）。 */
+export function knownFailureTooLong(entry: KnownFailure, today: string): boolean {
+  return entry.expires > latestKnownFailureExpiry(today)
+}
+
 export function findKnownFailure(
   entries: readonly KnownFailure[],
   suite: string,
@@ -108,7 +127,7 @@ export function findKnownFailure(
 
 export type KnownFailureVerdict =
   | { readonly verdict: 'pass' | 'new-fail' | 'skip' }
-  | { readonly verdict: 'known-fail' | 'fixed' | 'expired'; readonly entry: KnownFailure }
+  | { readonly verdict: 'known-fail' | 'fixed' | 'expired' | 'too-long'; readonly entry: KnownFailure }
 
 /** status 是报告里的最终结果（known-fail 视同 fail 重新判定，清单可能在运行后已变）。 */
 export function classifyAgainstKnownFailures(
@@ -123,5 +142,6 @@ export function classifyAgainstKnownFailures(
   const failed = status === 'fail' || status === 'known-fail'
   if (entry === undefined) return { verdict: failed ? 'new-fail' : 'pass' }
   if (!failed) return { verdict: 'fixed', entry }
-  return knownFailureExpired(entry, today) ? { verdict: 'expired', entry } : { verdict: 'known-fail', entry }
+  if (knownFailureExpired(entry, today)) return { verdict: 'expired', entry }
+  return knownFailureTooLong(entry, today) ? { verdict: 'too-long', entry } : { verdict: 'known-fail', entry }
 }

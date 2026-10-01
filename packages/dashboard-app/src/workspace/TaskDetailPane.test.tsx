@@ -346,6 +346,26 @@ describe('TaskDetailPane · 编排画布与运行状态', () => {
     await userEvent.click(screen.getByTestId('orch-open-reviewer-security'))
     expect(screen.getByTestId('agent-run-facts')).toHaveTextContent('评审者 · 不通过 · 问题 2 · Ann')
   })
+
+  it('同一候选上重跑过的评审者：抽屉事实里写出重跑次数与翻转，原因在悬停提示里', async () => {
+    stubOrchestration()
+    const RUNS = [{
+      stepId: 'build',
+      agents: [{
+        agent: 'security', role: 'reviewer' as const, required: true, blockAt: 'high' as const,
+        dependsOn: [], readsTests: ['unit'], state: 'done' as const, result: 'pass' as const,
+        findings: 0, blocking: 0, runId: 'r3', reportPath: 'openspec/changes/demo/.pipeline-agent-reports/r3.md',
+        actor: { id: 'ann@x.io', name: 'Ann' }, finishedAt: '2026-09-20T02:00:00Z',
+        reruns: 2, flipped: true, rerunReason: '第一轮提示词没带 DESIGN.md',
+      }],
+    }]
+    renderPane({ row: snapshotRow(change({ agentRuns: RUNS })) })
+    await screen.findByTestId('orchestration-stage')
+    await userEvent.click(screen.getByTestId('orch-open-reviewer-security'))
+    const facts = screen.getByTestId('agent-run-facts')
+    expect(facts).toHaveTextContent('评审者 · 通过 · 问题 0 · 重跑 2 · 翻转 · Ann')
+    expect(facts).toHaveAttribute('title', '第一轮提示词没带 DESIGN.md')
+  })
 })
 
 describe('TaskDetailPane · 门禁行与输出计数', () => {
