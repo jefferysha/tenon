@@ -17,7 +17,7 @@ export const CHANGE_COMMANDS: ReadonlySet<string> = new Set([
   'set', 'set-many', 'cas', 'transition', 'check', 'advance', 'handoff',
   'test run', 'test status', 'test baseline', 'test report',
   'agent next', 'agent prompt', 'agent record',
-  'workflow plan',
+  'workflow plan', 'evidence export',
   'document status', 'document read', 'document record', 'document scaffold',
   'artifact register',
 ])

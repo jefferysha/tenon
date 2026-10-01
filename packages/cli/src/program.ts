@@ -57,6 +57,7 @@ import { registerTestCommands } from './program-tests.js'
 import { LOOPS_HELP } from './program-help.js'
 import { registerOrchestrationCommands } from './program-orchestration.js'
 import { registerUserCommands } from './program-users.js'
+import { registerVerifyCommands } from './program-verify.js'
 export { CliExit } from './program-exit.js'
 
 export interface ProgramRuntimes {
@@ -156,6 +157,7 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
 
   registerReviewCommands(program, deps)
   registerTestCommands(program, deps)
+  registerVerifyCommands(program, deps)
   registerAgentCommands(program, deps)
 
   program
