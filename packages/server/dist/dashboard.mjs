@@ -56299,6 +56299,23 @@ function openInBrowser(url, platform = process.platform) {
   });
 }
 
+// packages/server/src/serverDispatch.ts
+function createDispatcher(deps) {
+  const { routes, snapshotCache, sendJson, errMsg: errMsg2 } = deps;
+  return (req, res, path14, method) => {
+    if (method !== "GET") dropWrittenProjects(snapshotCache, req, path14, "before");
+    const route = routes.get(method);
+    const handler = route === void 0 ? Promise.resolve(sendJson(res, 405, { ok: false, error: "method not allowed" })) : route(req, res, path14);
+    if (method !== "GET") void handler.finally(() => dropWrittenProjects(snapshotCache, req, path14, "after")).catch(() => void 0);
+    handler.catch((e) => {
+      try {
+        sendJson(res, 500, { ok: false, error: errMsg2(e) });
+      } catch {
+      }
+    });
+  };
+}
+
 // packages/server/src/serverGovernance.ts
 import { mkdirSync as mkdirSync9 } from "node:fs";
 import { readdir as readdir22 } from "node:fs/promises";
@@ -56993,17 +57010,12 @@ function createDashboardServer(options3) {
   const handlePatch = (req, res, path14) => handlePatchRoute(req, res, path14, mutationRouteDeps);
   const handleDelete = (req, res, path14) => handleDeleteRoute(req, res, path14, mutationRouteDeps);
   const handlePut = (req, res, path14) => handlePutRoute(req, res, path14, mutationRouteDeps);
-  const dispatch = (req, res, path14, method) => {
-    if (method !== "GET") dropWrittenProjects(snapshotCache, req, path14, "before");
-    const handler = method === "GET" ? handleGet2(req, res, path14) : method === "POST" ? handlePost(req, res, path14) : method === "PATCH" ? handlePatch(req, res, path14) : method === "DELETE" ? handleDelete(req, res, path14) : method === "PUT" ? handlePut(req, res, path14) : Promise.resolve(sendJson(res, 405, { ok: false, error: "method not allowed" }));
-    if (method !== "GET") void handler.finally(() => dropWrittenProjects(snapshotCache, req, path14, "after")).catch(() => void 0);
-    handler.catch((e) => {
-      try {
-        sendJson(res, 500, { ok: false, error: errMsg(e) });
-      } catch {
-      }
-    });
-  };
+  const dispatch = createDispatcher({
+    routes: /* @__PURE__ */ new Map([["GET", handleGet2], ["POST", handlePost], ["PATCH", handlePatch], ["DELETE", handleDelete], ["PUT", handlePut]]),
+    snapshotCache,
+    sendJson,
+    errMsg
+  });
   const httpServer = createServer((req, res) => {
     const path14 = (req.url ?? "/").split("?", 1)[0] ?? "/";
     const method = req.method ?? "GET";

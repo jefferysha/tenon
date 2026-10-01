@@ -15,6 +15,9 @@ test.describe('登录', () => {
       expect(await page.content()).not.toContain('__TENON_DASHBOARD_TOKEN__')
 
       expect((await page.request.get('/api/snapshot')).status()).toBe(401)
+      expect((await page.request.get('/api/snapshot?view=list')).status()).toBe(401)
+      expect((await page.request.get('/api/stream?view=list')).status()).toBe(401)
+      expect((await page.request.get('/api/change/demo/snapshot?root=%2Ftmp')).status()).toBe(401)
       expect((await page.request.get('/api/health')).status()).toBe(200)
     } finally {
       await context.close()
@@ -73,7 +76,8 @@ test.describe('登录', () => {
 
   test('会话失效后已打开的页面给出重新登录的命令，而不是泛泛的断线', async ({ page, context, server }) => {
     // 实时流起不来（服务重启 / 升级会掐断已有连接）：页面先带着会话把首个快照加载出来。
-    await page.route('**/api/stream', (route) => route.abort('connectionrefused'))
+    // 页面订阅的是列表流（/api/stream?view=list），带查询串。
+    await page.route(/\/api\/stream(\?|$)/, (route) => route.abort('connectionrefused'))
     await openView(page, 'workspace', { root: server.project })
     await expect(page.getByTestId('offline-banner')).toContainText('连接断开')
     // 重启 / 升级后会话没了（或 cookie 过期）：下一次请求没有会话。

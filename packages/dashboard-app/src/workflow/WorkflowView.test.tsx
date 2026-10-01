@@ -67,7 +67,8 @@ describe('WorkflowView · URL 记住工作流 / 轨道 / 阶段', () => {
   it('深链点名的工作流不存在：落到 default，并把 URL 改成实际选择', async () => {
     window.history.replaceState(null, '', '/?view=workbench&wf=ghost&step=zz')
     render(<I18nProvider><TooltipProvider><WorkflowView root="" /></TooltipProvider></I18nProvider>)
-    expect(await screen.findByTestId('wb-step-open')).toHaveAttribute('aria-current', 'true')
+    // 找不到的工作流先渲染 default，选中态随后落定：整套并行跑时两者之间会隔一拍，所以等到选中而不是读一次。
+    await waitFor(() => expect(screen.getByTestId('wb-step-open')).toHaveAttribute('aria-current', 'true'))
     await waitFor(() => expect(params().get('wf')).toBe('default'))
     expect(params().get('step')).toBe('open')
   })

@@ -75,7 +75,7 @@ import { createAccessControl } from './serverAccess.js'
 import { createLoopActivationValidator } from './loopActivationWiring.js'
 import { createSessionAuthority } from './serverSession.js'
 import { openInBrowser } from './browserOpener.js'
-import { dropWrittenProjects } from './snapshotWriteScope.js'
+import { createDispatcher } from './serverDispatch.js'
 import { createServerGovernance } from './serverGovernance.js'
 import { AdapterInstallManager } from './adapterInstall.js'
 import { createFolderChooser } from './folderChooser.js'
@@ -331,25 +331,10 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
     handleDeleteRoute(req, res, path, mutationRouteDeps)
   const handlePut = (req: IncomingMessage, res: ServerResponse, path: string): Promise<void> =>
     handlePutRoute(req, res, path, mutationRouteDeps)
-  const dispatch = (req: IncomingMessage, res: ServerResponse, path: string, method: string): void => {
-    // A write drops only the projects it names (query or body root), everything when it names none.
-    if (method !== 'GET') dropWrittenProjects(snapshotCache, req, path, 'before')
-    const handler = method === 'GET'
-      ? handleGet(req, res, path)
-      : method === 'POST'
-        ? handlePost(req, res, path)
-        : method === 'PATCH'
-          ? handlePatch(req, res, path)
-          : method === 'DELETE'
-            ? handleDelete(req, res, path)
-            : method === 'PUT'
-              ? handlePut(req, res, path)
-              : Promise.resolve(sendJson(res, 405, { ok: false, error: 'method not allowed' }))
-    if (method !== 'GET') void handler.finally(() => dropWrittenProjects(snapshotCache, req, path, 'after')).catch(() => undefined)
-    handler.catch((e) => {
-      try { sendJson(res, 500, { ok: false, error: errMsg(e) }) } catch { /* 已写头 */ }
-    })
-  }
+  const dispatch = createDispatcher({
+    routes: new Map([['GET', handleGet], ['POST', handlePost], ['PATCH', handlePatch], ['DELETE', handleDelete], ['PUT', handlePut]]),
+    snapshotCache, sendJson, errMsg,
+  })
   const httpServer: Server = createServer((req, res) => {
     const path = (req.url ?? '/').split('?', 1)[0] ?? '/'
     const method = req.method ?? 'GET'

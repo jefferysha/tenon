@@ -1227,7 +1227,7 @@ describe('App 初始 snapshot 错误恢复', () => {
   it('401（没有会话：服务刚升级 / 重启，或 cookie 过期）给出重新登录的命令，而不是泛泛的加载失败', async () => {
     window.history.replaceState({}, '', '/?view=workspace')
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      if (url !== '/api/snapshot') throw new Error(`unexpected fetch ${url}`)
+      if (url !== '/api/snapshot?view=list') throw new Error(`unexpected fetch ${url}`)
       return {
         ok: false,
         status: 401,
