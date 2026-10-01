@@ -140,6 +140,42 @@ describe('agentBlockersOf', () => {
     expect(agentBlockersOf([], plan, 'verify')).toEqual([])
   })
 
+  it('跨厂商评审：要求 codex 的评审登记成 claude → 视图 stale + wrongHost，阻断是 reviewer-wrong-host（不是过期）；codex 登记则通过', async () => {
+    const hosted = compileEffectiveWorkflowPlan('hosted', {
+      ...DEFINITION,
+      steps: DEFINITION.steps.map((step) => step.id === 'verify'
+        ? { ...step, agents: { executors: [], reviewers: [{ agent: 'security', required: true, block_at: 'medium' as const, host: 'codex' as const }] } }
+        : step),
+    })
+    await ensureAgentFreeze({
+      changeDir, runId: RUN_ID, workflowFingerprint: hosted.workflowFingerprint, workflow: hosted.workflow,
+      resolve: (name) => ({ source: 'custom', content: agentFile(name) }),
+    })
+    const project = () => projectAgentRuns({ changeDir, plan: hosted, state: state('verify'), phase: 'verify', candidate: async () => CANDIDATE })
+    await ledger([row({ agent: 'security', host: 'claude', host_source: 'detected' })])
+    const wrong = await project()
+    expect(wrong.find((item) => item.stepId === 'verify')?.agents[0]).toMatchObject({
+      state: 'stale', result: null, requiredHost: 'codex', host: 'claude', hostSource: 'detected', wrongHost: true, candidate: CANDIDATE,
+    })
+    expect(agentBlockersOf(wrong, hosted, 'verify')).toEqual([
+      { kind: 'reviewer-wrong-host', agent: 'security', required: 'codex', recorded: 'claude' },
+    ])
+    await ledger([row({ agent: 'security', host: 'codex', host_source: 'declared' })])
+    const right = await project()
+    expect(right.find((item) => item.stepId === 'verify')?.agents[0]).toMatchObject({
+      state: 'done', result: 'pass', host: 'codex', hostSource: 'declared', wrongHost: false, candidate: CANDIDATE,
+    })
+    expect(agentBlockersOf(right, hosted, 'verify')).toEqual([])
+  })
+
+  it('已离开的步骤：视图展示真实绑定的候选，而不是"不判过期"用的占位值', async () => {
+    await ledger([row({ agent: 'builder', role: 'executor', step: 'build', result: 'done' })])
+    const runs = await projectAgentRuns({
+      changeDir, plan, state: state('verify'), phase: 'verify', candidate: async () => `sha256:${'9'.repeat(64)}`,
+    })
+    expect(runs.find((item) => item.stepId === 'build')?.agents[0]).toMatchObject({ state: 'done', candidate: CANDIDATE })
+  })
+
   it('执行者未运行时 build 步骤有一条阻断', async () => {
     const runs = await projectAgentRuns({ changeDir, plan, state: state('build'), phase: 'build' })
     expect(agentBlockersOf(runs, plan, 'build')).toEqual([{ kind: 'executor-missing', agent: 'builder' }])

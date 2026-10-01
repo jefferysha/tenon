@@ -98,6 +98,8 @@ export async function projectAgentRuns(input: AgentRunsInput): Promise<AgentRuns
       // 占位值，投影里就不会出现 stale。
       const own = runs.filter((row) => row.step === step.stepId)
       const lastVisit = own.at(-1)?.step_visit ?? ''
+      // 占位候选只为不判过期；展示给人的仍是那次运行真正绑定的候选。
+      const bound = new Map(own.map((row) => [row.run_id, row.candidate]))
       return {
         stepId: step.stepId,
         agents: projectStepAgents({
@@ -107,7 +109,7 @@ export async function projectAgentRuns(input: AgentRunsInput): Promise<AgentRuns
           stepVisit: lastVisit,
           candidate: PAST_CANDIDATE,
           testsReady: { ready: true, pending: [] },
-        }),
+        }).map((view) => ({ ...view, candidate: view.runId === null ? view.candidate : bound.get(view.runId) ?? view.candidate })),
       }
     }
     return {
@@ -150,6 +152,9 @@ export function agentBlockersOf(
     if (view.state === 'idle') blockers.push({ kind: 'reviewer-missing', agent: view.agent })
     else if (view.state === 'running') {
       blockers.push({ kind: 'reviewer-running', agent: view.agent, runId: view.runId })
+    }
+    else if (view.wrongHost && view.requiredHost !== null) {
+      blockers.push({ kind: 'reviewer-wrong-host', agent: view.agent, required: view.requiredHost, recorded: view.host })
     }
     else if (view.state === 'stale') blockers.push({ kind: 'reviewer-stale', agent: view.agent })
     else if (view.result === 'fail') {

@@ -3,7 +3,8 @@
  * （唯一例外是测试目录 catalog.yaml——它本来就是给人编辑的配置）。
  *
  *   · `seedDemo`：git 仓库 + AGENTS.md + 一个 change（default 工作流，后端轨道），带测试计划和一次
- *     失败的 v2 运行（node:test 的一个失败用例，附截图与 trace 产物）。工作台「测试」页签读它。
+ *     失败的 v2 运行（node:test 的一个失败用例，附截图与 trace 产物）；任务开始后覆盖率门槛从 80 降到 60
+ *     （一条完整性信号）。工作台「测试」页签读它。
  *     套件命令用 node-test 预设的 reporter 写法（`--test-reporter="${TENON_NODE_TEST_REPORTER:-junit}"`）：`tenon test run` 把随附的、
  *     每个用例都带 file 的 reporter 落在本次运行的产物目录下并经该环境变量提供，所以 Node 22（内置 junit 不写 file）与较新的
  *     Node 得到同样的用例文件归属；种子项目里不放任何 reporter 文件。
@@ -76,12 +77,17 @@ test('${FAILING_CASE}', () => {
  * 演示项目自己的 default 工作流：内置默认只强制 unit（其余种类项目里有才跑），而「测试」页签要展示的
  * 豁免待批准、缺测试种类都出在被强制的种类上。所以这个项目像一个要求更严的团队那样，在 backend 的验证步骤
  * 多要 integration（策略 + 内联测试）和 e2e——这是项目级覆盖（.pipeline/workflows/default.yaml），内置模板不变。
+ * 另外让 architecture 评审者要求在 codex 上跑（跨厂商评审）：它还没有运行，运行抽屉里只有「要求的宿主」那一行。
  */
 function strictDefaultWorkflow() {
   const source = readFileSync(fileURLToPath(new URL('../../../templates/workflows/default.yaml', import.meta.url)), 'utf8')
   const policy = '          run: [unit]\n          run_if_registered: [integration, regression, benchmark]\n'
   if (!source.includes(policy)) throw new Error('seed: templates/workflows/default.yaml 的 backend 验证策略变了，请同步这里')
-  const strict = source.replace(policy, '          run: [unit, integration, e2e]\n          run_if_registered: [benchmark]\n')
+  const reviewer = '            - agent: architecture\n              required: false\n              block_at: high\n'
+  const reviewerAt = source.indexOf(reviewer, source.indexOf('\n  backend:\n'))
+  if (reviewerAt < 0) throw new Error('seed: templates/workflows/default.yaml 的 backend architecture 评审者变了，请同步这里')
+  const withHost = `${source.slice(0, reviewerAt + reviewer.length)}              host: codex\n${source.slice(reviewerAt + reviewer.length)}`
+  const strict = withHost.replace(policy, '          run: [unit, integration, e2e]\n          run_if_registered: [benchmark]\n')
   const backend = strict.indexOf('\n  backend:\n')
   const tests = strict.indexOf('        tests:\n', strict.indexOf('      - id: verify', backend))
   const at = tests + '        tests:\n'.length
@@ -129,6 +135,9 @@ const SPEC = `## ADDED Requirements
 - THEN access is denied
 `
 
+/** 覆盖率门槛：任务开始之后把它从 80 降到 60，就是一条「测试完整性」信号（Dashboard 测试页签的完整性段）。 */
+const COVERAGE_CONFIG = (lines) => `{\n  "check-coverage": true,\n  "lines": ${lines}\n}\n`
+
 export function seedSandbox(context) {
   writeProjectFile(context.sandbox, 'AGENTS.md', '# Sandbox\n\nClient files for the project page e2e.\n')
   commitBase(context.sandbox, context.env)
@@ -140,11 +149,13 @@ export function seedDemo(context) {
   const tenon = (...args) => runTenon(env, root, args)
   writeProjectFile(root, 'AGENTS.md', '# Demo\n\nSeed project for the dashboard e2e.\n')
   writeProjectFile(root, TEST_FILE, AUTH_TESTS)
+  writeProjectFile(root, '.nycrc.json', COVERAGE_CONFIG(80))
   writeProjectFile(root, '.pipeline/workflows/default.yaml', strictDefaultWorkflow())
   mkdirSync(join(root, 'tests', 'fixtures'), { recursive: true })
   writeFileSync(join(root, 'tests', 'fixtures', 'failure.png'), solidPng(320, 180, [196, 60, 52]))
   commitBase(root, env)
   tenon('init', CHANGE, '--track', 'backend', '--preset', 'full')
+  writeProjectFile(root, '.nycrc.json', COVERAGE_CONFIG(60))
   writeProjectFile(root, `openspec/changes/${CHANGE}/specs/auth/spec.md`, SPEC)
   writeProjectFile(root, '.tenon/tests/catalog.yaml', CATALOG)
   tenon('test', 'catalog', 'validate')

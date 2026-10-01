@@ -7,13 +7,17 @@
  * 评审者防刷（F8）：同一候选代码上同一评审者的多次运行全部保留，结论取最严——任一次有不低于 block_at 的发现就不通过，
  * 重跑换不来通过；唯一的例外是最后一次运行带 `rerun_reason`（重跑时写明了为什么，例如提示词缺上下文），
  * 此时以它为准，原因随 `AgentView.rerunReason` 留痕、`reruns` / `flipped` 让人一眼看出结论是靠重跑换的。
+ *
+ * 跨厂商评审：评审者声明了 `host: codex|claude` 时，登记的宿主不符的运行不算裁决（既不进「同一候选上的多次运行」，
+ * 也不能放行）；候选绑定照常——候选变了更是过期。要求没满足时单独报 `reviewer-wrong-host`，不与过期混为一谈。
  */
 import { DEFAULT_EVENT_POLICY } from '../flow/default-event-policy.js'
 import { IMPLICIT_COMPLETION_EVENT, isForwardStepEdge } from './implicit-completion.js'
 import { dependencyWaves } from './dag-waves.js'
-import { severityRank, type AgentFinding, type AgentRunRow } from '../state/agent-runs.js'
+import { hostRunValid } from '../agents/reviewer-host.js'
+import { severityRank, type AgentFinding, type AgentRunHostSource, type AgentRunRow } from '../state/agent-runs.js'
 import type { EffectiveWorkflowPlan, StepAgentsCapability } from './effective-plan-types.js'
-import type { AgentSeverity } from './types.js'
+import type { AgentSeverity, ReviewerHost } from './types.js'
 
 export type AgentRunState = 'idle' | 'running' | 'done' | 'stale'
 export type AgentRole = 'executor' | 'reviewer'
@@ -39,11 +43,27 @@ export interface AgentView {
   readonly flipped: boolean
   /** 判定所依据的那次重跑写明的原因；没有重跑或没写原因为 null。 */
   readonly rerunReason: string | null
+  /** 工作流对这个评审者声明的执行宿主（claude / codex）；没声明或写 any 为 null。 */
+  readonly requiredHost: 'claude' | 'codex' | null
+  /** 展示所依据的那次运行登记的宿主；没登记为 null。 */
+  readonly host: string | null
+  readonly hostSource: AgentRunHostSource | null
+  /** 评审在当前候选上已结束，但登记的宿主不满足 requiredHost：裁决无效（状态显示为 stale，不能放行）。 */
+  readonly wrongHost: boolean
+  /** 展示所依据的那次运行绑定的候选（评审时代码的内容哈希）；没有运行为 null。 */
+  readonly candidate: string | null
 }
 
 export type AgentBlocker =
   | { readonly kind: 'executor-missing' | 'executor-failed'; readonly agent: string }
   | { readonly kind: 'reviewer-missing' | 'reviewer-stale'; readonly agent: string }
+  /** 评审在当前候选上结束了，但登记的宿主不是工作流要求的：裁决无效，要在 `required` 宿主上重跑。 */
+  | {
+      readonly kind: 'reviewer-wrong-host'
+      readonly agent: string
+      readonly required: 'claude' | 'codex'
+      readonly recorded: string | null
+    }
   /**
    * 还在跑的那次运行的 id。解锁命令要的就是它，而它此刻就在同一份台账（也在 status 投影的
    * `step.reviewers[].run_id`）里——不带上它，阻断行只能印一个字面量 `<run>` 让人自己去找。
@@ -108,30 +128,42 @@ interface JudgedRun {
   readonly reruns: number
   readonly flipped: boolean
   readonly reason: string | null
+  /** 当前候选上有已结束的评审，但没有一次满足宿主要求；`row` 是其中最后一次，仅供展示。 */
+  readonly wrongHost: boolean
 }
 
 /**
- * 评审者在当前候选上的判定运行：同一候选上已结束的运行全部参与，最严的那次说了算；最后一次带 `rerun_reason`
- * 时以它为准。进行中、候选已变（过期）以及执行者都只看最后一次运行。
+ * 评审者在当前候选上的判定运行：同一候选上已结束且满足宿主要求的运行全部参与，最严的那次说了算；最后一次带
+ * `rerun_reason` 时以它为准。进行中、候选已变（过期）以及执行者都只看最后一次运行。
  */
-function judgedRun(input: StepAgentsInput, agent: string, role: AgentRole, blockAt: AgentSeverity | undefined): JudgedRun {
-  const latest = latestRun(input, agent)
-  if (role !== 'reviewer' || latest === undefined || latest.status === 'running' || latest.candidate !== input.candidate) {
-    return { row: latest, reruns: 0, flipped: false, reason: null }
+function judgedRun(
+  input: StepAgentsInput,
+  agent: string,
+  role: AgentRole,
+  blockAt: AgentSeverity | undefined,
+  host: ReviewerHost | undefined,
+): JudgedRun {
+  const found = latestRun(input, agent)
+  if (role !== 'reviewer' || found === undefined || found.status === 'running' || found.candidate !== input.candidate) {
+    return { row: found, reruns: 0, flipped: false, reason: null, wrongHost: false }
   }
-  const same = input.runs.filter((row) => row.agent === agent && row.step_visit === input.stepVisit
+  const finished = input.runs.filter((row) => row.agent === agent && row.step_visit === input.stepVisit
     && row.status === 'finished' && row.candidate === input.candidate)
+  const same = finished.filter((row) => hostRunValid(host, row.host))
+  const latest = same[same.length - 1]
+  if (latest === undefined) return { row: found, reruns: 0, flipped: false, reason: null, wrongHost: true }
   const reruns = Math.max(0, same.length - 1)
   const failed = (row: AgentRunRow): boolean => blockAt !== undefined && blockingFindings(row, blockAt).length > 0
   const flipped = reruns > 0 && !failed(latest) && same.slice(0, -1).some(failed)
   const reason = latest.rerun_reason ?? null
-  if (reruns === 0 || reason !== null) return { row: latest, reruns, flipped, reason }
+  if (reruns === 0 || reason !== null) return { row: latest, reruns, flipped, reason, wrongHost: false }
   const severest = same.reduce((worst, row) => (worstRank(row) > worstRank(worst) ? row : worst), latest)
-  return { row: severest, reruns, flipped, reason: null }
+  return { row: severest, reruns, flipped, reason: null, wrongHost: false }
 }
 
-function stateOf(row: AgentRunRow | undefined, role: AgentRole, candidate: string): AgentRunState {
+function stateOf(row: AgentRunRow | undefined, role: AgentRole, candidate: string, wrongHost = false): AgentRunState {
   if (row === undefined) return 'idle'
+  if (wrongHost) return 'stale'
   const fresh = row.candidate === candidate
   if (row.status === 'running') return role === 'reviewer' && !fresh ? 'stale' : 'running'
   return role === 'executor' || fresh ? 'done' : 'stale'
@@ -145,11 +177,12 @@ function viewOf(
   dependsOn: readonly string[],
   readsTests: readonly string[],
   blockAt?: AgentSeverity,
+  host?: ReviewerHost,
 ): AgentView {
-  const { row, reruns, flipped, reason } = judgedRun(input, agent, role, blockAt)
-  const state = stateOf(row, role, input.candidate)
-  const blocking = row === undefined || blockAt === undefined ? [] : blockingFindings(row, blockAt)
-  const result = row === undefined || row.status === 'running'
+  const { row, reruns, flipped, reason, wrongHost } = judgedRun(input, agent, role, blockAt, host)
+  const state = stateOf(row, role, input.candidate, wrongHost)
+  const blocking = row === undefined || blockAt === undefined || wrongHost ? [] : blockingFindings(row, blockAt)
+  const result = row === undefined || row.status === 'running' || wrongHost
     ? null
     : role === 'reviewer' ? (blocking.length > 0 ? 'fail' : 'pass') : row.result
   return {
@@ -170,6 +203,11 @@ function viewOf(
     reruns,
     flipped,
     rerunReason: reason,
+    requiredHost: host === 'claude' || host === 'codex' ? host : null,
+    host: row?.host ?? null,
+    hostSource: row?.host_source ?? null,
+    wrongHost,
+    candidate: row?.candidate ?? null,
   }
 }
 
@@ -178,7 +216,7 @@ export function projectStepAgents(input: StepAgentsInput): readonly AgentView[] 
   return [
     ...input.step.executors.map((ref) => viewOf(input, ref.agent, 'executor', true, ref.dependsOn, [])),
     ...attachedReviewers(input).map((ref) =>
-      viewOf(input, ref.agent, 'reviewer', ref.required, ref.dependsOn, ref.readsTests, ref.blockAt)),
+      viewOf(input, ref.agent, 'reviewer', ref.required, ref.dependsOn, ref.readsTests, ref.blockAt, ref.host)),
   ]
 }
 
@@ -200,7 +238,11 @@ export function evaluateStepAgents(
   }
   for (const ref of attachedReviewers(input)) {
     if (!ref.required) continue
-    const { row, reruns } = judgedRun(input, ref.agent, 'reviewer', ref.blockAt)
+    const { row, reruns, wrongHost } = judgedRun(input, ref.agent, 'reviewer', ref.blockAt, ref.host)
+    if (wrongHost && (ref.host === 'claude' || ref.host === 'codex')) {
+      blockers.push({ kind: 'reviewer-wrong-host', agent: ref.agent, required: ref.host, recorded: row?.host ?? null })
+      continue
+    }
     const state = stateOf(row, 'reviewer', input.candidate)
     if (state === 'idle') { blockers.push({ kind: 'reviewer-missing', agent: ref.agent }); continue }
     if (state === 'running') {
@@ -313,6 +355,9 @@ export function renderAgentBlocker(blocker: AgentBlocker, change: string): strin
       return `评审者 '${blocker.agent}' 进行中；完成后：tenon agent record ${change} ${runRef(blocker.runId, change)}`
     case 'reviewer-stale':
       return `评审者 '${blocker.agent}' 的结论已过期（候选已变化）；重跑：tenon agent prompt ${change} ${blocker.agent}`
+    case 'reviewer-wrong-host':
+      return `评审者 '${blocker.agent}' 须在 ${blocker.required} 上运行，登记的宿主是 ${blocker.recorded ?? '未记录'}，这份结论无效；`
+        + `在 ${blocker.required} 上重跑：tenon agent prompt ${change} ${blocker.agent}`
     case 'reviewer-failed': {
       const shown = blocker.blocking.slice(0, FINDING_PREVIEW)
         .map((finding) => `${finding.location} ${finding.message}`)

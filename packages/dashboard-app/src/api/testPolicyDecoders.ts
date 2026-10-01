@@ -1,6 +1,6 @@
 /** 步骤策略判定与计划概要的严格解码（快照 `testPolicy[]` / `testPlan`）。 */
 import type {
-  BenchmarkVerdict, NotApplicableKind, PolicyReport, StaleBinding, SuiteVerdict, TestBlocker, TestCoverage, TestNotice, TestPlanBrief,
+  BenchmarkVerdict, IntegrityReport, NotApplicableKind, PolicyReport, StaleBinding, SuiteVerdict, TestBlocker, TestCoverage, TestNotice, TestPlanBrief,
   TestPolicyView, TestTotals, TraceCaseStatus, TraceRow,
 } from './testSystemTypes'
 import { arr, bad, bool, guard, int, maybe, nnum, num, oneOf, opt, rec, str, strs } from './strictReader'
@@ -39,6 +39,8 @@ function readPolicy(value: unknown): TestPolicyView {
     scope: oneOf(item.scope, ['changed', 'full']),
     files: oneOf(item.files, ['registered', 'any']),
     scenarios: oneOf(item.scenarios, ['off', 'required', 'passing']),
+    // 缺省 = notice（兼容不带这个字段的旧服务端）。
+    integrity: opt(item.integrity, (raw) => oneOf(raw, ['notice', 'block'])) ?? 'notice',
     ...maybe('coverage', opt(item.coverage, readCoverage)),
     ...maybe('flaky', flaky),
     requireBaseline: bool(item.requireBaseline),
@@ -127,6 +129,26 @@ function readNotApplicable(value: unknown): NotApplicableKind {
   return { kind: str(item.kind), reason: str(item.reason), approved: bool(item.approved) }
 }
 
+function readIntegrity(value: unknown): IntegrityReport {
+  const item = rec(value)
+  return {
+    mode: oneOf(item.mode, ['notice', 'block']),
+    state: oneOf(item.state, ['ok', 'unavailable']),
+    ...maybe('reason', opt(item.reason, str)),
+    signals: arr(item.signals, (raw) => {
+      const signal = rec(raw)
+      return {
+        code: str(signal.code), subject: str(signal.subject), detail: str(signal.detail),
+        ...maybe('suite', opt(signal.suite, str)),
+      }
+    }),
+    ...maybe('truncated', opt(item.truncated, (raw) => {
+      const found = rec(raw)
+      return { found: int(found.found), limit: int(found.limit) }
+    })),
+  }
+}
+
 function readReport(value: unknown): PolicyReport {
   const item = rec(value)
   const files = rec(item.files)
@@ -149,6 +171,7 @@ function readReport(value: unknown): PolicyReport {
     },
     // 缺省 = 没有声明（兼容不带这个字段的旧服务端）；出现则每一项都必须合形。
     notApplicable: opt(item.notApplicable, (raw) => arr(raw, readNotApplicable)) ?? [],
+    ...maybe('integrity', opt(item.integrity, readIntegrity)),
   }
 }
 

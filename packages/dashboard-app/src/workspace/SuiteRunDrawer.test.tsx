@@ -297,7 +297,7 @@ describe('SuiteRunDrawer · 产物', () => {
 describe('SuiteRunDrawer · 覆盖率与基准', () => {
   it('覆盖率对门槛：低于门槛与「要求却没报告」用危险色，达标与无门槛不用', async () => {
     stub({ record: withRun({ coverage: { lines: 78.5, branches: 70, changedLines: 92 } }) })
-    mount({ policy: { plan: 'required', kinds: [], run: [], runIfRegistered: [], scope: 'full', files: 'any', scenarios: 'off', requireBaseline: false, browsers: [], coverage: { lines: 80, changedLines: 90, functions: 60 } } })
+    mount({ policy: { plan: 'required', kinds: [], run: [], runIfRegistered: [], scope: 'full', files: 'any', scenarios: 'off', integrity: 'notice', requireBaseline: false, browsers: [], coverage: { lines: 80, changedLines: 90, functions: 60 } } })
     await ready()
     expect(screen.getByTestId('run-coverage-lines')).toHaveAttribute('data-below', 'true')
     expect(screen.getByTestId('run-coverage-lines').textContent).toContain('78.5%')

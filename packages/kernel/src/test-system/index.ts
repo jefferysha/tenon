@@ -128,7 +128,7 @@ export { evaluateTestPolicy, renderPolicyBlockers } from './evaluate-v2.js'
 export { baselineKey } from './evaluate-types.js'
 export type {
   CatalogInput, ChangedFilesReport, ChangedFilesSource, CurrentBindings, InlineSuiteStatus, NotApplicableStatus,
-  PlanInput, ProtectedEvidenceInput, StaleBinding, SuiteState, SuiteVerdict,
+  IntegrityEvidenceInput, PlanInput, ProtectedEvidenceInput, StaleBinding, SuiteState, SuiteVerdict,
   TestPolicyEvaluationInput, TestPolicyReport, TraceRow, TraceTest, TraceTestStatus,
 } from './evaluate-types.js'
 export {
@@ -147,4 +147,16 @@ export {
 } from './seal.js'
 export type { SealApproval, SealRead, SealState, SealTrust, SealWrite, TestSeal } from './seal.js'
 export { describeProtectedChange } from './protected-summary.js'
+export {
+  INTEGRITY_SIGNAL_CODES, INTEGRITY_SIGNAL_LABELS, evaluateIntegrity, integrityRunSamples, integritySummary, unavailableIntegrity,
+} from './integrity.js'
+export { loadIntegrityReport } from './integrity-load.js'
+export type {
+  IntegrityDiff, IntegrityFileDiff, IntegrityInput, IntegrityMode, IntegrityRunSample, IntegritySignal,
+  IntegritySignalCode, TestIntegrityReport,
+} from './integrity.js'
+export {
+  INTEGRITY_FILE_LIMIT, integrityDiffInSession, integrityPathFilter, integritySuiteOf,
+} from './integrity-diff.js'
+export type { IntegrityDiffSource, IntegrityPathFilter } from './integrity-diff.js'
 export { candidateFingerprint, catalogDeclaredOutputs, declaredTestOutputs, inlineTestDeclaredOutputs } from './candidate.js'

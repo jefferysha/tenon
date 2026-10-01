@@ -15,10 +15,12 @@ import type { StepTestIR } from '../workflow/ir.js'
 import { readRunningMarker, readTestRunRecord } from './record.js'
 import { testEvidencePaths, testRunningMarkerPath } from './paths.js'
 import { RUNNING_MARKER_GRACE_MS, type TestRunRecordV1 } from './types.js'
+import type { TestBlocker } from '../test-system/blockers.js'
 import { renderPolicyBlockers } from '../test-system/evaluate-v2.js'
 import type { ChangedFilesSource, TestPolicyReport } from '../test-system/evaluate-types.js'
 import { evaluateStepTestPolicy } from '../test-system/load.js'
 import type { RecordChainCache } from '../test-system/record-chain.js'
+import type { IntegrityDiffSource } from '../test-system/integrity-diff.js'
 import type { ProtectedChange } from '../test-system/protected-files.js'
 import { inlineSuiteFromTest } from '../test-system/policy.js'
 import { declaresRecordV2, decodeTestRunRecordV2 } from '../test-system/record-v2-codec.js'
@@ -46,6 +48,8 @@ export interface TestEvidenceContext {
   readonly changedFiles?: () => Promise<ChangedFilesSource>
   /** diff（相对 change 起点）里的受保护测试配置改动（含删除）；评审门步骤的人工确认判定用，宿主不提供就不检查。 */
   readonly protectedChanges?: () => Promise<readonly ProtectedChange[]>
+  /** 自任务起点以来相关文件的改动行（测试完整性）；宿主不提供就不检查完整性。 */
+  readonly integrityDiff?: IntegrityDiffSource
   /** 记录链校验缓存（只有长驻进程的读取路径传；转换门禁不传，每次完整校验）。 */
   readonly recordChainCache?: RecordChainCache
   /** 本机封存是否参与判定；缺省 `local`。`none` 只给 CI 的 `tenon verify --ci`（没有本机封存可读）。 */
@@ -59,17 +63,20 @@ export interface TestEvidenceItem {
   readonly staleBecause?: 'candidate' | 'declaration' | 'workflow'
 }
 
-/** 一条内联测试阻断的结构化描述：显示名与状态；客户端据此分类，不解析整句。 */
+/**
+ * 一条测试阻断的结构化描述：显示名与状态；客户端据此分类，不解析整句。内联测试带显示名；策略阻断里只有
+ * 测试完整性（`integrity`）与读不到改动（`diff-unavailable`）带描述，它们不指向某一个测试，所以没有 subject。
+ */
 export interface TestBlockerDetail {
-  readonly subject: string
-  readonly state: 'running' | 'missing' | 'stale' | 'failed'
+  readonly subject?: string
+  readonly state: 'running' | 'missing' | 'stale' | 'failed' | 'integrity' | 'diff-unavailable'
 }
 
 export interface TestEvidenceReport {
   readonly stepId: string
   readonly pass: boolean
   readonly blockers: readonly string[]
-  /** 与 `blockers` 逐项对齐；策略（套件）阻断与「无法验证」没有结构化描述，该项为 undefined 或整体缺席。 */
+  /** 与 `blockers` 逐项对齐；套件阻断与「无法验证」没有结构化描述，该项为 undefined 或整体缺席。 */
   readonly blockerDetails?: readonly (TestBlockerDetail | undefined)[]
   readonly items: readonly TestEvidenceItem[]
   /** 步骤声明了 test_policy 时的结构化判定（阻塞码、套件、追溯矩阵）；未声明时缺省，行为与之前逐字相同。 */
@@ -307,11 +314,13 @@ export async function evaluateTestEvidence(input: {
       ...(input.context.recordChainCache === undefined ? {} : { recordChainCache: input.context.recordChainCache }),
       ...(input.context.protectedChanges === undefined ? {} : { protectedChanges: input.context.protectedChanges }),
       ...(input.context.seal === undefined ? {} : { seal: input.context.seal }),
+      ...(input.context.integrityDiff === undefined ? {} : { integrityDiff: input.context.integrityDiff }),
       reviewGated: input.plan.workflow.steps.find((step) => step.id === input.stepId)?.gate === 'review',
       now,
       ...(event === undefined ? {} : { exitEvent: event }),
     })
-    return { stepId: input.stepId, pass: report.pass, blockers: renderPolicyBlockers(report), items, policy: report }
+    const blockerDetails = report.blockers.filter((item) => item.blocking).map(policyBlockerDetail)
+    return { stepId: input.stepId, pass: report.pass, blockers: renderPolicyBlockers(report), blockerDetails, items, policy: report }
   }
   const open = items.filter((item) => item.test.required && item.status !== 'passed')
   const blockers = open.map((item) => blockerFor(item, input.changeName))
@@ -319,6 +328,13 @@ export async function evaluateTestEvidence(input: {
     ? undefined
     : { subject: item.test.label ?? item.test.id, state: item.status })
   return { stepId: input.stepId, pass: blockers.length === 0, blockers, blockerDetails, items }
+}
+
+/** 与 `renderPolicyBlockers` 同一过滤与顺序：测试完整性与读不到改动带结构化状态，其余策略阻断没有。 */
+function policyBlockerDetail(blocker: TestBlocker): TestBlockerDetail | undefined {
+  if (blocker.code === 'test-integrity') return { state: 'integrity' }
+  if (blocker.code === 'files-diff-unavailable') return { state: 'diff-unavailable' }
+  return undefined
 }
 
 function inlineDetail(item: TestEvidenceItem): { readonly detail?: string } {

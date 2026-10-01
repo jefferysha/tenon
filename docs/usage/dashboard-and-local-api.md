@@ -300,12 +300,17 @@ whole full snapshot as `snapshot` events.
 A `step-exit` readiness blocker (`readinessByTransition[...].blockers[]`) carries the
 human sentence in `message` (the same text as the CLI, shown only as a tooltip) and the
 machine-readable parts in `code`, `source` and the optional `subject`, `state` and
-`count`: `subject` is the blocked object (document kind, skill token, test display name),
-`state` its state (documents `missing|stale|unread`, skills `not-run|unrecorded`, inline
-tests `running|missing|stale|failed`) and `count` the number of unchecked `tasks.md`
-items. The Dashboard labels blockers from `code` and these fields only and never parses
+`count`: `subject` is the blocked object (document kind, skill token, test display name,
+the reviewer whose host does not match), `state` its state (documents
+`missing|stale|unread`, skills `not-run|unrecorded`, inline tests
+`running|missing|stale|failed`, test-policy blockers `integrity` and `diff-unavailable`
+which name no single test and so carry no `subject`, reviewers `wrong-host` with
+`code: reviewer-wrong-host`) and `count` the number of unchecked `tasks.md` items.
+The Dashboard labels blockers from `code` and these fields only and never parses
 `message`; a blocker without them is shown as its full sentence. `tenon status --json`
-`exits[].blockers[]` has the same fields.
+`exits[].blockers[]` has the same fields. Reviewer blockers are also projected as an
+`agents-incomplete` blocker (`agents[]` with `agent` and `reason`, where `reason` is the
+kernel blocker code such as `reviewer-wrong-host`).
 
 The snapshot is cached per project. Each project's list build, full build and change
 details are keyed by that project's input fingerprint (state, tasks, documents, test-record

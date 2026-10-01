@@ -1,6 +1,6 @@
 /**
  * `test_policy:` 块的写回（parse-test-policy.ts 的反向），恒写块形态。键序固定
- * `plan, kinds, run, run_if_registered, scope, files, scenarios, coverage, flaky, benchmark, browsers`；
+ * `plan, kinds, run, run_if_registered, scope, files, scenarios, integrity, coverage, flaky, benchmark, browsers`；
  * 缺省键不写，coverage / flaky / benchmark 写单行 `{ k: v }`。
  */
 import type { StepTestPolicyDef } from './types.js'
@@ -22,6 +22,7 @@ export function serializeStepTestPolicy(policy: StepTestPolicyDef | undefined): 
   if (policy.scope !== undefined) lines.push(`${pad}scope: ${policy.scope}`)
   if (policy.files !== undefined) lines.push(`${pad}files: ${policy.files}`)
   if (policy.scenarios !== undefined) lines.push(`${pad}scenarios: ${policy.scenarios}`)
+  if (policy.integrity !== undefined) lines.push(`${pad}integrity: ${policy.integrity}`)
   if (policy.coverage !== undefined) lines.push(`${pad}coverage: ${inlineMap(policy.coverage)}`)
   if (policy.flaky !== undefined) lines.push(`${pad}flaky: ${inlineMap(policy.flaky)}`)
   if (policy.benchmark !== undefined) lines.push(`${pad}benchmark: ${inlineMap(policy.benchmark)}`)

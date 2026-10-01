@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { GripVertical, Plus, Search } from 'lucide-react'
 import type { AgentSummary } from '../api/agentClient'
-import type { WbAgentSeverity, WbExecutorRef, WbReviewerRef, WbSkillRef, WbStepTest } from '../api/governanceTypes'
+import type { WbAgentSeverity, WbExecutorRef, WbReviewerHost, WbReviewerRef, WbSkillRef, WbStepTest } from '../api/governanceTypes'
 import { useT } from '../i18n'
 import { Dialog } from '../shared/Dialog'
 import { agentEntries, refsToSkills, skillsToExecutors, skillsToReviewers } from './agentFlow'
@@ -11,6 +11,7 @@ import { SkillSourceIcon } from './SkillSourceIcon'
 import { cn } from '@/lib/utils'
 
 const SEVERITIES: readonly WbAgentSeverity[] = ['critical', 'high', 'medium', 'low']
+const HOSTS: readonly WbReviewerHost[] = ['codex', 'claude', 'any']
 
 export interface AgentComposerProps {
   open: boolean
@@ -26,7 +27,7 @@ export interface AgentComposerProps {
 
 /**
  * agent 编辑器，三栏：agent 库（拖到画布或点「+」加入）/ React Flow 画布（连线 = depends_on）/
- * 选中项设置（评审者才有 必需 · 阻断 · 测试）。保存才写回步骤定义。
+ * 选中项设置（评审者才有 必需 · 阻断 · 执行宿主 · 测试）。保存才写回步骤定义。
  */
 export function AgentComposer({
   open, role, stageLabel, executors, reviewers, tests, agents, onClose, onSave,
@@ -177,6 +178,20 @@ export function AgentComposer({
                     >
                       {SEVERITIES.map((value) => (
                         <option key={value} value={value}>{t(`workflow.severity_${value}`)}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid gap-1.5 text-caption font-semibold text-text-2">
+                    {t('workflow.agent_host')}
+                    <select
+                      className="min-h-9 rounded-sm border border-border bg-card px-2 text-body text-text outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+                      value={current.host ?? ''}
+                      data-testid={`wb-agent-host-${selected}`}
+                      onChange={(event) => patch(selected, { host: HOSTS.find((value) => value === event.target.value) })}
+                    >
+                      <option value="">—</option>
+                      {HOSTS.map((value) => (
+                        <option key={value} value={value}>{value === 'any' ? t('workflow.host_any') : value === 'codex' ? 'Codex' : 'Claude'}</option>
                       ))}
                     </select>
                   </label>

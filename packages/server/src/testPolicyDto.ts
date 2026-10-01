@@ -2,10 +2,10 @@
  * 步骤策略判定（TestPolicyReport）到快照响应形状的纯转换。列表按上限截断，不让一个大任务撑爆快照。
  */
 import type {
-  BenchmarkMetricVerdict, StepTestPolicyIR, SuiteVerdict, TestBlocker, TestNotice, TestPolicyReport, TraceRow,
+  BenchmarkMetricVerdict, StepTestPolicyIR, SuiteVerdict, TestBlocker, TestIntegrityReport, TestNotice, TestPolicyReport, TraceRow,
 } from '@tenon/kernel'
 import {
-  MAX_DTO_BLOCKERS, MAX_DTO_TRACE_ROWS, type BenchmarkVerdictDto, type BlockerDto, type NoticeDto,
+  MAX_DTO_BLOCKERS, MAX_DTO_TRACE_ROWS, type BenchmarkVerdictDto, type BlockerDto, type IntegrityDto, type NoticeDto,
   type PolicyDto, type PolicyReportDto, type SuiteVerdictDto, type TraceRowDto,
 } from './testSystemDtoTypes.js'
 import { coverageDto, totalsDto } from './testSystemDto.js'
@@ -19,6 +19,7 @@ export function policyDto(policy: StepTestPolicyIR): PolicyDto {
     scope: policy.scope,
     files: policy.files,
     scenarios: policy.scenarios,
+    integrity: policy.integrity ?? 'notice',
     ...(policy.coverage === undefined ? {} : {
       coverage: coverageDto({
         ...(policy.coverage.lines === undefined ? {} : { lines: policy.coverage.lines }),
@@ -107,6 +108,21 @@ function traceDto(row: TraceRow): TraceRowDto {
   }
 }
 
+function integrityDto(report: TestIntegrityReport): IntegrityDto {
+  return {
+    mode: report.mode,
+    state: report.state,
+    ...(report.reason === undefined ? {} : { reason: report.reason }),
+    signals: report.signals.slice(0, MAX_DTO_BLOCKERS).map((signal) => ({
+      code: signal.code,
+      subject: signal.subject,
+      detail: signal.detail,
+      ...(signal.suite === undefined ? {} : { suite: signal.suite }),
+    })),
+    ...(report.truncated === undefined ? {} : { truncated: report.truncated }),
+  }
+}
+
 export function policyReportDto(report: TestPolicyReport, policy: StepTestPolicyIR | undefined): PolicyReportDto {
   return {
     stepId: report.stepId,
@@ -123,6 +139,7 @@ export function policyReportDto(report: TestPolicyReport, policy: StepTestPolicy
       orphans: report.files.orphans,
     },
     notApplicable: report.notApplicable.map((entry) => ({ kind: entry.kind, reason: entry.reason, approved: entry.approved })),
+    ...(report.integrity === undefined ? {} : { integrity: integrityDto(report.integrity) }),
   }
 }
 

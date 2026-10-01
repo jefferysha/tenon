@@ -294,13 +294,9 @@ function pendingAgents(views: readonly StepAgentView[], rerunFailed: boolean): r
   const running = views.filter((view) => view.status === 'running')
   if (running.length > 0) {
     return running.map((view) => ({
-      action: 'run-agent',
-      agent: view.agent,
-      role: view.role,
-      wave: view.wave,
-      status: 'running',
-      run_id: view.run_id,
-      report_path: view.report_path,
+      action: 'run-agent', agent: view.agent, role: view.role, wave: view.wave,
+      status: 'running', run_id: view.run_id, report_path: view.report_path,
+      ...(view.route_host === null ? {} : { host: view.route_host }),
     }))
   }
   const pending = views.filter((view) =>
@@ -310,6 +306,7 @@ function pendingAgents(views: readonly StepAgentView[], rerunFailed: boolean): r
     agent: view.agent,
     role: view.role,
     wave: view.wave,
+    ...(view.route_host === null ? {} : { host: view.route_host }),
   }))
 }
 

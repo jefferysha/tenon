@@ -123,6 +123,40 @@ describe('AgentComposer', () => {
     })
   })
 
+  it('评审者执行宿主：缺省为「—」不写键；选 Codex 写 host: codex；选回「—」去掉键；已有的 host 带进来并在重排后保留', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn()
+    renderComposer('reviewers', onSave)
+    await user.click(screen.getByTestId('palette-agent-add-security'))
+    await user.click(screen.getByTestId('palette-agent-open-security'))
+    const host = screen.getByTestId('wb-agent-host-security')
+    expect(host).toHaveValue('')
+    expect(Array.from(host.querySelectorAll('option')).map((option) => option.textContent)).toEqual(['—', 'Codex', 'Claude', '不限'])
+    await user.selectOptions(host, 'codex')
+    await user.click(screen.getByTestId('agent-composer-save'))
+    expect(onSave).toHaveBeenLastCalledWith({ reviewers: [{ agent: 'security', required: true, block_at: 'high', host: 'codex' }] })
+    await user.selectOptions(host, '')
+    await user.selectOptions(host, 'any')
+    await user.selectOptions(host, '')
+    await user.click(screen.getByTestId('agent-composer-save'))
+    expect(onSave).toHaveBeenLastCalledWith({ reviewers: [{ agent: 'security', required: true, block_at: 'high' }] })
+  })
+
+  it('已有评审者带 host：设置面板显示它，加别的评审者重排后原样保留', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn()
+    renderComposer('reviewers', onSave, [{ agent: 'security', required: true, block_at: 'high', host: 'claude' }])
+    expect(screen.getByTestId('wb-agent-host-security')).toHaveValue('claude')
+    await user.click(screen.getByTestId('palette-agent-add-builder'))
+    await user.click(screen.getByTestId('agent-composer-save'))
+    expect(onSave).toHaveBeenCalledWith({
+      reviewers: [
+        { agent: 'security', required: true, block_at: 'high', host: 'claude' },
+        { agent: 'builder', required: true, block_at: 'high', depends_on: ['security'] },
+      ],
+    })
+  })
+
   it('已有评审者的设置原样带进来，不因为重排丢失', async () => {
     const user = userEvent.setup()
     const onSave = vi.fn()

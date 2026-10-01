@@ -23,6 +23,9 @@ import { execFile } from 'node:child_process'
 import { lstat, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
+import { readFileDiffs, type FileDiffsResult } from './file-diffs.js'
+
+export type { FileDiffEntry, FileDiffsResult } from './file-diffs.js'
 
 const run = promisify(execFile)
 export const CHANGED_FILES_GIT_TIMEOUT_MS = 20_000
@@ -101,6 +104,8 @@ export interface ChangedFilesSession {
   pathChanges(input: ChangeStartInput, pathspecs: readonly string[]): Promise<readonly PathChange[]>
   /** 起点提交（或空树）时该路径的文件内容；起点不存在该文件返回 undefined。 */
   fileAtStart(input: ChangeStartInput, path: string): Promise<string | undefined>
+  /** 满足 `accept` 的文件（含删除）相对起点的改动行；测试完整性读它。 */
+  fileDiffs(input: ChangeStartInput, accept: (path: string) => boolean, limit: number): Promise<FileDiffsResult>
 }
 
 interface HistoryWindow {
@@ -275,6 +280,10 @@ export function createChangedFilesSession(repoRoot: string, options: ChangedFile
 
   return {
     resolveStart,
+    async fileDiffs(input, accept, limit) {
+      const port = { gitText, untracked: async () => (await untrackedFiles()).files, fail: (what: string) => new ChangedFilesUnavailableError(what) }
+      return readFileDiffs(port, repoRoot, await resolveStart(input), accept, limit)
+    },
     async pathChanges(input, pathspecs) {
       const start = await resolveStart(input)
       const key = `${start}\0${pathspecs.join('\0')}`

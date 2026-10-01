@@ -375,6 +375,62 @@ describe('TaskDetailPane · 编排画布与运行状态', () => {
     expect(facts).toHaveTextContent('评审者 · 通过 · 问题 0 · 重跑 2 · 翻转 · Ann')
     expect(facts).toHaveAttribute('title', '第一轮提示词没带 DESIGN.md')
   })
+
+  const CANDIDATE = `sha256:${'1a2b3c4d'.repeat(8)}`
+  const reviewer = (over: Record<string, unknown>) => [{
+    stepId: 'build',
+    agents: [{
+      agent: 'security', role: 'reviewer' as const, required: true, blockAt: 'high' as const,
+      dependsOn: [], readsTests: [], state: 'done' as const, result: 'pass' as const,
+      findings: 0, blocking: 0, runId: 'r4', reportPath: 'openspec/changes/demo/.pipeline-agent-reports/r4.md',
+      actor: { id: 'ann@x.io', name: 'Ann' }, finishedAt: '2026-09-20T02:00:00Z',
+      ...over,
+    }],
+  }]
+
+  it('跨厂商评审：抽屉里两行定义表——宿主（登记的 · 声明）与绑定的候选（短形式，完整哈希在 title）；一行不折行', async () => {
+    stubOrchestration()
+    renderPane({ row: snapshotRow(change({ agentRuns: reviewer({ requiredHost: 'codex', host: 'codex', hostSource: 'declared', wrongHost: false, candidate: CANDIDATE }) })) })
+    await screen.findByTestId('orchestration-stage')
+    await userEvent.click(screen.getByTestId('orch-open-reviewer-security'))
+    const host = screen.getByTestId('agent-run-host')
+    expect(host).toHaveTextContent('宿主codex · 声明')
+    expect(screen.getByTestId('agent-run-host-declared')).toBeInTheDocument()
+    expect(within(host).queryByTestId('agent-run-host-mismatch')).toBeNull()
+    const candidate = screen.getByTestId('agent-run-candidate')
+    expect(candidate).toHaveTextContent(/候选sha256:1a2b3c4d…3c4d$/)
+    expect(candidate.querySelector('[title]')).toHaveAttribute('title', CANDIDATE)
+    for (const cell of within(candidate).getAllByRole('cell')) expect(cell.className).toContain('truncate')
+    expect(screen.getByTestId('agent-run-binding').textContent).not.toContain('。')
+  })
+
+  it('登记的宿主不符：红点 + 「宿主不符」，要求的宿主在 title；仍显示登记的宿主与候选', async () => {
+    stubOrchestration()
+    renderPane({ row: snapshotRow(change({ agentRuns: reviewer({ state: 'stale', result: null, requiredHost: 'codex', host: 'claude', hostSource: 'detected', wrongHost: true, candidate: CANDIDATE }) })) })
+    await screen.findByTestId('orchestration-stage')
+    await userEvent.click(screen.getByTestId('orch-open-reviewer-security'))
+    const mismatch = screen.getByTestId('agent-run-host-mismatch')
+    expect(mismatch).toHaveAttribute('data-tone', 'blocked')
+    expect(mismatch).toHaveTextContent('宿主不符')
+    expect(mismatch).toHaveAttribute('title', 'codex')
+    expect(screen.getByTestId('agent-run-host')).toHaveTextContent('claude')
+    expect(screen.getByTestId('agent-run-candidate')).toBeInTheDocument()
+  })
+
+  it('要求了宿主但还没登记：宿主一格是破折号；没有宿主也没有候选的旧快照：整块不出现', async () => {
+    stubOrchestration()
+    const view = renderPane({ row: snapshotRow(change({ agentRuns: reviewer({ state: 'running', result: null, requiredHost: 'codex', host: null, candidate: null }) })) })
+    await screen.findByTestId('orchestration-stage')
+    await userEvent.click(screen.getByTestId('orch-open-reviewer-security'))
+    expect(screen.getByTestId('agent-run-host')).toHaveTextContent('宿主—')
+    expect(screen.queryByTestId('agent-run-candidate')).toBeNull()
+    view.unmount()
+    stubOrchestration()
+    renderPane({ row: snapshotRow(change({ agentRuns: reviewer({}) })) })
+    await screen.findByTestId('orchestration-stage')
+    await userEvent.click(screen.getByTestId('orch-open-reviewer-security'))
+    expect(screen.queryByTestId('agent-run-binding')).toBeNull()
+  })
 })
 
 describe('TaskDetailPane · 门禁行与输出计数', () => {

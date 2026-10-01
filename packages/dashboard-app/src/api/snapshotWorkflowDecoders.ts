@@ -127,7 +127,7 @@ export const GUARD_CAPABILITIES = new Set([
 export const STEP_EXIT_SOURCES = new Set(['guard', 'document', 'skill', 'test', 'reviewer', 'revision', 'spec', 'tasks'])
 export const AGENT_BLOCKER_REASONS = new Set([
   'executor-missing', 'executor-running', 'executor-failed',
-  'reviewer-missing', 'reviewer-running', 'reviewer-stale', 'reviewer-failed',
+  'reviewer-missing', 'reviewer-running', 'reviewer-stale', 'reviewer-failed', 'reviewer-wrong-host',
   'agent-records-invalid',
 ])
 

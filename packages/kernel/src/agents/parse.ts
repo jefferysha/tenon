@@ -6,11 +6,11 @@ import { sha256Hex } from '../sha256.js'
 import { PATH_CLASSES, isPathClass, type PathClass } from '../workspace/path-classes.js'
 import {
   AGENT_DESCRIPTION_MAX, AGENT_FILE_MAX_BYTES, AGENT_MODEL_RE, AGENT_NAME_RE, AGENT_ROLES, AGENT_SKILL_RE,
-  AGENT_TOOL_RE, AGENT_VERSION_RE, AgentFileError, KNOWN_AGENT_HOSTS, inferAgentRole,
-  type AgentDefinition, type AgentRole,
+  AGENT_TOOL_RE, AGENT_VERSION_RE, AgentFileError, KNOWN_AGENT_HOSTS, REVIEWER_HOSTS, inferAgentRole,
+  type AgentDefinition, type AgentRole, type ReviewerHost,
 } from './types.js'
 
-const KEYS: readonly string[] = ['name', 'description', 'role', 'version', 'skills', 'tools', 'model', 'hosts', 'attach_on']
+const KEYS: readonly string[] = ['name', 'description', 'role', 'version', 'skills', 'tools', 'model', 'hosts', 'attach_on', 'host']
 
 const isRole = (value: string): value is AgentRole => (AGENT_ROLES as readonly string[]).includes(value)
 
@@ -80,6 +80,10 @@ export function parseAgentFile(text: string, expectedName: string): AgentDefinit
     if (!isPathClass(item)) fail(`attach_on 的 '${item}' 不是路径类（${PATH_CLASSES.join(' | ')}）`, 'attach_on')
     if (!attachClasses.includes(item)) attachClasses.push(item)
   }
+  const rawHost = fields.get('host')
+  if (rawHost !== undefined && !(REVIEWER_HOSTS as readonly string[]).includes(rawHost)) {
+    fail(`host 必须是 ${REVIEWER_HOSTS.join(' | ')}`, 'host')
+  }
   const body = lines.slice(close + 1).join('\n')
   if (body.trim() === '') fail('正文不得为空')
   return {
@@ -91,6 +95,7 @@ export function parseAgentFile(text: string, expectedName: string): AgentDefinit
     ...(model === undefined ? {} : { model }),
     ...(hosts === undefined ? {} : { hosts }),
     ...(attachOn === undefined ? {} : { attachOn: attachClasses }),
+    ...(rawHost === undefined ? {} : { host: rawHost as ReviewerHost }),
     body,
   }
 }

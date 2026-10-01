@@ -36,6 +36,14 @@ export function inferAgentRole(tools: readonly string[]): AgentRole {
   return tools.some((tool) => WRITE_TOOLS.has(tool)) ? 'executor' : 'reviewer'
 }
 
+/**
+ * 评审者在哪个宿主上跑（跨厂商评审：Claude 写、Codex 审）。工作流步骤写 `claude` / `codex` = 必须在该宿主，
+ * 裁决记录里的宿主不符即失效；`any` = 不限（盖过 agent 定义里的建议）。步骤没写 = 不要求。
+ * agent 定义里的 `host` 只是建议：用于路由（`tenon agent prompt` 指给你该在哪个宿主跑），不判失效。
+ */
+export const REVIEWER_HOSTS = ['codex', 'claude', 'any'] as const
+export type ReviewerHost = (typeof REVIEWER_HOSTS)[number]
+
 export interface AgentDefinition {
   readonly name: string
   readonly description: string
@@ -53,6 +61,8 @@ export interface AgentDefinition {
    * 评审者集合。缺省 = 总是挂载。
    */
   readonly attachOn?: readonly PathClass[]
+  /** 建议在哪个宿主上跑（只对评审者有意义；路由用，不判失效）。与 `hosts`（能在哪些宿主上跑）是两件事。 */
+  readonly host?: ReviewerHost
   readonly body: string
 }
 

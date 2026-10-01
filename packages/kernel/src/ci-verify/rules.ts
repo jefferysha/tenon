@@ -108,9 +108,15 @@ function policyRule(id: string, short: string, level: CiSeverity): CiRule {
   }
 }
 
+const BLOCKER_CODES: ReadonlySet<string> = new Set(TEST_BLOCKER_CODES)
+
+/**
+ * 同一个码可以既是阻塞又是提示（`test-integrity`：测试策略 `integrity: block` 时是阻塞，缺省的 notice 时是提示）。
+ * 规则只列一条（规则 id 必须唯一），默认级别取阻塞；每条发现的级别由它自己的 severity 决定，不看规则默认值。
+ */
 const POLICY_RULES: readonly CiRule[] = [
   ...TEST_BLOCKER_CODES.map((code) => policyRule(code, TEST_BLOCKER_LABELS[code].en, 'error')),
-  ...TEST_NOTICE_CODES.map((code) => policyRule(code, TEST_NOTICE_LABELS[code].en, 'note')),
+  ...TEST_NOTICE_CODES.filter((code) => !BLOCKER_CODES.has(code)).map((code) => policyRule(code, TEST_NOTICE_LABELS[code].en, 'note')),
 ]
 
 export const CI_RULES: readonly CiRule[] = [...CI_ONLY, ...POLICY_RULES]

@@ -92,6 +92,7 @@ export function AgentDetail({
     ['tools', summary.tools.join(' ')],
     ['model', summary.model ?? ''],
     ['hosts', (summary.hosts ?? []).join(' ')],
+    ['host', summary.host ?? ''],
   ]
 
   return (

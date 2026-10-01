@@ -205,6 +205,28 @@ describe('API bounded-context response decoders', () => {
     expect(decodeSnapshot(legacy)?.projects[0]?.changes[0]?.agentRuns).toBeUndefined()
   })
 
+  it('keeps the cross-vendor host fields of an agent run and fails closed on a malformed one', () => {
+    const view = {
+      agent: 'security', role: 'reviewer', required: true, blockAt: 'high',
+      dependsOn: [], readsTests: [], state: 'stale', result: null,
+      findings: 0, blocking: 0, runId: 'r1', reportPath: 'openspec/changes/x/.pipeline-agent-reports/r1.md',
+      actor: { id: 'a@x.io', name: 'A' }, finishedAt: '2026-09-20T01:00:00Z',
+      requiredHost: 'codex', host: 'claude', hostSource: 'detected', wrongHost: true, candidate: `sha256:${'a'.repeat(64)}`,
+    }
+    const decoded = (agent: unknown) => {
+      const snapshot = validSnapshot()
+      Object.assign(snapshot.projects[0]!.changes[0]!, { agentRuns: [{ stepId: 'open', agents: [agent] }] })
+      return decodeSnapshot(snapshot)?.projects[0]?.changes[0]?.agentRuns
+    }
+    expect(decoded(view)).toEqual([{ stepId: 'open', agents: [view] }])
+    expect(decoded({ ...view, requiredHost: null, host: null, hostSource: null, candidate: null, wrongHost: false })).toBeDefined()
+    for (const bad of [{ requiredHost: 'gemini' }, { host: 3 }, { hostSource: 'guessed' }, { wrongHost: 'yes' }, { candidate: 5 }]) {
+      const snapshot = validSnapshot()
+      Object.assign(snapshot.projects[0]!.changes[0]!, { agentRuns: [{ stepId: 'open', agents: [{ ...view, ...bad }] }] })
+      expect(decodeSnapshot(snapshot), JSON.stringify(bad)).toBeNull()
+    }
+  })
+
   it('keeps tests when well-formed and fails closed on an unknown status or malformed run', () => {
     const runSummary = {
       runId: '20260915T101530Z-ab12cd', user: 'a-at-x.io', actor: { id: 'a@x.io', name: 'A' },

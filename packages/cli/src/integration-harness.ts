@@ -290,6 +290,7 @@ export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.
     ...(env.TENON_TEST_REAL_DIFF === '1' ? {} : {
       changedFiles: async () => [],
       protectedChanges: async () => [],
+      integrityDiff: async () => ({ files: [] }),
       // 临时项目不是仓库，读不出改动：按生产口径失败关闭（按风险挂载的评审者一律挂上）。
       diffChanges: async () => { throw new Error('临时项目读不出改动') },
     }),

@@ -20,6 +20,8 @@ export interface AgentSummary {
   readonly tools: readonly string[]
   readonly model?: string
   readonly hosts?: readonly string[]
+  /** 建议在哪个宿主上跑（评审者；codex | claude | any）。与 hosts（能在哪些宿主上跑）是两件事。 */
+  readonly host?: 'codex' | 'claude' | 'any'
   readonly digest: string
   /** 同名项目级 agent 生效，本条（自定义）不参与解析。 */
   readonly shadowedBy?: 'project'
@@ -152,6 +154,7 @@ function decodeSummary(value: unknown): AgentSummary | null {
   if (value.version !== undefined && typeof value.version !== 'string') return null
   if (value.model !== undefined && typeof value.model !== 'string') return null
   if (value.hosts !== undefined && strings(value.hosts) === null) return null
+  if (value.host !== undefined && value.host !== 'codex' && value.host !== 'claude' && value.host !== 'any') return null
   if (value.error !== undefined && typeof value.error !== 'string') return null
   return {
     name: value.name,
@@ -165,6 +168,7 @@ function decodeSummary(value: unknown): AgentSummary | null {
     digest: value.digest,
     ...(value.model === undefined ? {} : { model: value.model }),
     ...(value.hosts === undefined ? {} : { hosts: strings(value.hosts) as readonly string[] }),
+    ...(value.host === undefined ? {} : { host: value.host }),
     ...(value.shadowed_by === 'project' ? { shadowedBy: 'project' as const } : {}),
     ...(value.error === undefined ? {} : { error: value.error }),
   }

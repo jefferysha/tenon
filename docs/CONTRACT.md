@@ -596,5 +596,14 @@ most 64 characters, and a manifest contains at most 256 fixtures.
    （目录声明 ∪ 在途任务冻结工作流里内联测试的 `outputs`）。
    · 评审者：`agent-runs` 行可带 `rerun_reason`；同候选上已有结论时 `tenon agent prompt` 需要 `--rerun-reason`，判定取同候选全部
    已结束运行里最严的一次（最后一次带原因时以它为准）；`AgentView` 多 `reruns / flipped / rerunReason`。
+   · 跨厂商评审：工作流评审者可声明 `host: codex|claude|any`（IR 里只在声明时出现，不改旧工作流指纹），agent 定义可用 `host:` 建议一个
+   （只路由）。`agent-runs` 行可带 `host` / `host_source`（`detected|declared`）；步骤声明了 `codex|claude` 时，登记的宿主不符的运行不是裁决
+   （`AgentView.wrongHost`、状态 `stale`、阻断 `reviewer-wrong-host`，也不计入"同候选已有结论"）；`tenon agent record` 在宿主不符时 exit 2 不写；
+   候选绑定沿用 `candidate`。`AgentView` 多 `requiredHost / host / hostSource / wrongHost / candidate`。`tenon agent prompt` 在当前宿主不是要求的宿主时
+   把提示词写进 `<change>/.pipeline-agent-reports/<run-id>.prompt.md` 并给出 `codex exec` / `claude -p` 命令（JSON 的 `host.run_on`），不替用户起另一家的 CLI。
+   · 测试完整性：`test_policy.integrity: notice|block`（缺省 notice，不进 IR，不改指纹与策略摘要）。`TestPolicyReport.integrity` 报告十种信号
+   （运行记录：`case-count-drop`、`skip-count-rise`；diff：`test-file-deleted`、`tests-removed`、`test-skipped`、`assertion-weakened`、
+   `snapshot-rewritten`、`baseline-changed`、`known-failure-added`、`coverage-threshold-lowered`），notice 汇成一条 `test-integrity` 提示，block 汇成
+   一条 `test-integrity` 阻塞（读不出 diff 时失败关闭 `files-diff-unavailable`）；宿主经 `TestEvidenceContext.integrityDiff` 提供改动行。`tenon test integrity` 输出同一份报告。
    · 写门（`hooks/gate.sh`）认 13 种写法（见安全模型），并拒绝 agent 的 shell 调用里的 `tenon test trust` 与 `TENON_TEST_TRUST=`
    前缀赋值（只在命令位置匹配）。

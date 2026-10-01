@@ -4,9 +4,10 @@ import type { WbCoverageMetric, WbStepTestPolicy } from './governanceTypes'
 import { allowedKeys, exactKeys, record } from './governanceBaseDecoders'
 
 const POLICY_KEYS = [
-  'plan', 'kinds', 'run', 'run_if_registered', 'scope', 'files', 'scenarios', 'coverage', 'flaky', 'benchmark', 'browsers',
+  'plan', 'kinds', 'run', 'run_if_registered', 'scope', 'files', 'scenarios', 'integrity', 'coverage', 'flaky', 'benchmark', 'browsers',
 ] as const
 const PLANS = ['required', 'optional'] as const
+const INTEGRITY = ['notice', 'block'] as const
 const FILES = ['registered', 'any'] as const
 const SCENARIOS = ['off', 'required', 'passing'] as const
 
@@ -84,6 +85,11 @@ export function decodeStepTestPolicy(value: unknown): WbStepTestPolicy | null {
     const scenarios = choice(item.scenarios, SCENARIOS)
     if (scenarios === null) return null
     out.scenarios = scenarios
+  }
+  if (item.integrity !== undefined) {
+    const integrity = choice(item.integrity, INTEGRITY)
+    if (integrity === null) return null
+    out.integrity = integrity
   }
   if (item.coverage !== undefined) {
     const decoded = coverage(item.coverage)

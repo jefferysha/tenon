@@ -68,7 +68,16 @@ export interface AgentRunRow {
    * 结论以它为准并留痕；没有原因的同候选重跑取最严结论（agent-verdict.ts）。
    */
   readonly rerun_reason?: string
+  /**
+   * 实际跑这次评审的宿主（`tenon agent record` 写下，Tenon 宿主 id，如 claude / codex）。工作流步骤对评审者声明了
+   * `host: codex|claude` 时，裁决只在这里的宿主与声明相符时有效（agent-verdict.ts）；旧记录没有这一项。
+   */
+  readonly host?: string
+  /** 宿主怎么得来的：detected = 进程环境判出的（评审是在该宿主里登记的）；declared = 登记者用 `--host` 声明的。 */
+  readonly host_source?: AgentRunHostSource
 }
+
+export type AgentRunHostSource = 'detected' | 'declared'
 
 export type AgentRunErrorCode =
   | 'runs-corrupt' | 'runs-limit' | 'report-invalid' | 'run-not-running' | 'candidate-changed'
@@ -86,7 +95,8 @@ const ROW_KEYS = [
   'actor', 'agent', 'agent_digest', 'candidate', 'findings', 'finished_at', 'report_digest',
   'report_path', 'result', 'role', 'run_id', 'schema', 'started_at', 'status', 'step', 'step_visit',
 ].join(',')
-const OPTIONAL_ROW_KEYS = ['rerun_reason', 'subagent'] as const
+const OPTIONAL_ROW_KEYS = ['host', 'host_source', 'rerun_reason', 'subagent'] as const
+const RUN_HOST_RE = /^[a-z][a-z0-9-]{0,31}$/u
 const RESULTS: ReadonlySet<string> = new Set<AgentRunResult>(['pass', 'fail', 'done', 'failed'])
 const SUBAGENT_TEXT_MAX = 128
 
@@ -125,6 +135,10 @@ function decodeRow(value: unknown): AgentRunRow | undefined {
   const rerunReason = record.rerun_reason
   if (rerunReason !== undefined && (typeof rerunReason !== 'string' || rerunReason.trim() === ''
     || rerunReason.length > AGENT_RERUN_REASON_MAX || /[\r\n]/.test(rerunReason))) return undefined
+  const host = record.host
+  if (host !== undefined && (typeof host !== 'string' || !RUN_HOST_RE.test(host))) return undefined
+  const hostSource = record.host_source
+  if (hostSource !== undefined && ((hostSource !== 'detected' && hostSource !== 'declared') || host === undefined)) return undefined
   const strings = ['run_id', 'agent', 'agent_digest', 'step', 'step_visit', 'candidate', 'report_path', 'started_at']
   for (const key of strings) if (typeof record[key] !== 'string' || record[key] === '') return undefined
   if (record.role !== 'executor' && record.role !== 'reviewer') return undefined
@@ -159,6 +173,8 @@ function decodeRow(value: unknown): AgentRunRow | undefined {
     started_at: record.started_at as string,
     finished_at: record.finished_at as string | null,
     ...(subagent === undefined ? {} : { subagent }),
+    ...(host === undefined ? {} : { host: host as string }),
+    ...(hostSource === undefined ? {} : { host_source: hostSource as AgentRunHostSource }),
     ...(rerunReason === undefined ? {} : { rerun_reason: rerunReason as string }),
   }
 }

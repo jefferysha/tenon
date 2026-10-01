@@ -30,6 +30,14 @@ describe('parseAgentFile', () => {
     })
   })
 
+  it('host 是建议在哪个宿主上跑（codex | claude | any），与"能在哪些宿主上跑"的 hosts 是两件事；写错值被拒', () => {
+    const parsed = parseAgentFile(file(['name: a', 'description: d', 'role: reviewer', 'hosts: [claude, codex]', 'host: codex']), 'a')
+    expect(parsed).toMatchObject({ hosts: ['claude', 'codex'], host: 'codex' })
+    expect(parseAgentFile(file(['name: a', 'description: d', 'host: any']), 'a').host).toBe('any')
+    expect(parseAgentFile(file(['name: a', 'description: d']), 'a')).not.toHaveProperty('host')
+    expect(() => parseAgentFile(file(['name: a', 'description: d', 'host: gemini']), 'a')).toThrowError(/host 必须是 codex \| claude \| any/u)
+  })
+
   it('skills/tools 缺省是空列表，hosts 缺省缺席', () => {
     const parsed = parseAgentFile(file(['name: a', 'description: d']), 'a')
     expect(parsed.skills).toEqual([])

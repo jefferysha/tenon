@@ -1,6 +1,6 @@
 /**
  * agent 段落与技能画布之间的换算。画布只认 `{ id, depends_on }`，所以 agent 引用按名字进出，
- * 身份自己的设置（必需 / 阻断 / 读哪些测试）在回写时按名字找回，画布不碰它们。
+ * 身份自己的设置（必需 / 阻断 / 读哪些测试 / 执行宿主）在回写时按名字找回，画布不碰它们。
  */
 import type { AgentSummary } from '../api/agentClient'
 import type { WbExecutorRef, WbReviewerRef, WbSkillEntry, WbSkillRef } from '../api/governanceTypes'
@@ -40,6 +40,7 @@ export function skillsToReviewers(skills: readonly WbSkillRef[], previous: reado
       block_at: before?.block_at ?? REVIEWER_DEFAULTS.block_at,
       ...(skill.depends_on === undefined ? {} : { depends_on: [...skill.depends_on] }),
       ...(before?.reads_tests === undefined ? {} : { reads_tests: [...before.reads_tests] }),
+      ...(before?.host === undefined ? {} : { host: before.host }),
     }
   })
 }

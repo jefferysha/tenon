@@ -9,6 +9,8 @@
 import {
   changeStartOfFields,
   changedFilesResultForState,
+  createChangedFilesSession,
+  integrityDiffInSession,
   protectedChangesSinceChangeStart,
   completedWorkflowSkillsSinceStepEntry,
   evaluateStepExitReport,
@@ -21,6 +23,8 @@ import {
   type EffectiveSkillResolver,
   type EffectiveWorkflowPlan,
   type FlowEngine,
+  type IntegrityDiff,
+  type IntegrityPathFilter,
   type PhaseExitFileContext,
   type PipelineState,
   type ProtectedChange,
@@ -48,6 +52,8 @@ export interface StepExitSnapshotDeps {
   readonly changedFiles?: (state: PipelineState) => Promise<ChangedFilesSource>
   /** 同上，受保护测试配置的改动（评审门步骤的人工确认判定用）；项目扫描传同一个会话的读取器。 */
   readonly protectedChanges?: (state: PipelineState) => Promise<readonly ProtectedChange[]>
+  /** 同上，相关测试文件的改动行（测试完整性）；项目扫描传同一个会话的读取器。 */
+  readonly integrityDiff?: (state: PipelineState, accept: IntegrityPathFilter) => Promise<IntegrityDiff>
 }
 
 export interface StepExitReadinessInput {
@@ -135,6 +141,9 @@ export async function withStepExitReadiness(
               protectedChanges: input.deps.testContext.protectedChanges
                 ?? (() => (input.deps.protectedChanges
                   ?? ((state) => protectedChangesSinceChangeStart(input.root, changeStartOfFields(state.fields))))(input.state)),
+              integrityDiff: input.deps.testContext.integrityDiff
+                ?? ((accept) => (input.deps.integrityDiff
+                  ?? ((state, filter) => integrityDiffInSession(createChangedFilesSession(input.root), changeStartOfFields(state.fields))(filter)))(input.state, accept)),
             },
       },
       skills: async () => judgeStepSkillsFromHistory({
@@ -177,6 +186,7 @@ export function projectStepExitDeps(input: {
   readonly candidate: (() => Promise<string | undefined>) | undefined
   readonly changedFiles?: (state: PipelineState) => Promise<ChangedFilesSource>
   readonly protectedChanges?: (state: PipelineState) => Promise<readonly ProtectedChange[]>
+  readonly integrityDiff?: (state: PipelineState, accept: IntegrityPathFilter) => Promise<IntegrityDiff>
   /** Skip re-reading and re-hashing record files whose identity has not moved (snapshot reads only). */
   readonly recordChainCache?: RecordChainCache
 }): ((changeName: string, user?: EvidenceUser) => StepExitSnapshotDeps) | undefined {
@@ -204,5 +214,6 @@ export function projectStepExitDeps(input: {
     skillResolver: input.skillResolver,
     ...(input.changedFiles === undefined ? {} : { changedFiles: input.changedFiles }),
     ...(input.protectedChanges === undefined ? {} : { protectedChanges: input.protectedChanges }),
+    ...(input.integrityDiff === undefined ? {} : { integrityDiff: input.integrityDiff }),
   })
 }

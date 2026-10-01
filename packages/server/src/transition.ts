@@ -24,6 +24,8 @@ import { join } from 'node:path'
 import {
   changeStartOfFields,
   changedFilesResultForState,
+  createChangedFilesSession,
+  integrityDiffInSession,
   protectedChangesSinceChangeStart,
   compileWorkflow,
   completedWorkflowSkillsSinceStepEntry,
@@ -212,6 +214,11 @@ export async function performTransition(
         const current = await readCurrentRunRevision(dir)
         if (current === undefined) throw new Error('无法读取任务状态')
         return protectedChangesSinceChangeStart(root, changeStartOfFields(current.state.fields))
+      },
+      integrityDiff: async (accept) => {
+        const current = await readCurrentRunRevision(dir)
+        if (current === undefined) throw new Error('无法读取任务状态')
+        return integrityDiffInSession(createChangedFilesSession(root), changeStartOfFields(current.state.fields))(accept)
       },
     },
     flow: deps.flow,

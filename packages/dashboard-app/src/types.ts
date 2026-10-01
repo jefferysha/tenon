@@ -2,7 +2,12 @@
  * 前端契约类型 —— 逐字镜像 packages/server GET /api/snapshot 的响应体（server/src/types.ts）。
  * server 是消费源，前端只读这些形状；改 server 契约须同步改此处（无 npm 依赖跨包，手抄以保零耦合）。
  */
+import type { TransitionReadinessSnapshot } from './api/snapshotReadinessTypes'
 import type { PolicyReport, TestPlanBrief } from './api/testSystemTypes'
+
+export type {
+  StepExitBlockerSource, TransitionReadinessBlockerSnapshot, TransitionReadinessSnapshot,
+} from './api/snapshotReadinessTypes'
 
 /** snapshot 里单个 change 的投影（.pipeline.yaml 全字段 + 常读字段提升到顶层）。 */
 /** Declared user reference projected by the server (`Name <id>` fields); legacy values are null. */
@@ -117,6 +122,12 @@ export interface AgentRunView {
   readonly flipped?: boolean
   /** 判定所依据的重跑写明的原因。 */
   readonly rerunReason?: string | null
+  /** 跨厂商评审：要求的宿主 / 登记的宿主 / 来源（检测或声明）/ 宿主不符使结论无效（状态 stale）/ 绑定的候选（代码内容哈希）。 */
+  readonly requiredHost?: 'claude' | 'codex' | null
+  readonly host?: string | null
+  readonly hostSource?: 'detected' | 'declared' | null
+  readonly wrongHost?: boolean
+  readonly candidate?: string | null
 }
 
 export type AgentRunsSnapshot = ReadonlyArray<{
@@ -245,60 +256,6 @@ export interface WorkflowInteractionPolicySnapshot {
 export interface WorkflowExecutionSnapshot {
   readinessByTransition: Record<string, Record<string, TransitionReadinessSnapshot>>
 }
-
-export interface TransitionReadinessSnapshot {
-  ready: boolean
-  blockers: TransitionReadinessBlockerSnapshot[]
-}
-
-export type TransitionReadinessBlockerSnapshot =
-  | {
-      kind: 'verify-build-revision-untrusted'
-      code: 'verify-build-revision-untrusted'
-      reason:
-        | 'missing' | 'null' | 'ambiguous' | 'malformed' | 'isolation-mismatch'
-        | 'capability-unavailable' | 'provenance-missing' | 'provenance-mismatch'
-        | 'state-stale' | 'revision-stale' | 'project-mismatch' | 'worktree-mismatch'
-        | 'evaluation-error'
-      remediation: 'return-to-build-and-capture-current-revision'
-      stateHash?: string
-      revisionHash?: string
-    }
-  | {
-      kind: 'guard-failed'
-      guardType: string
-      field?: string
-      actual?: string
-      expected?: string[]
-    }
-  | {
-      kind: 'capability-unavailable'
-      guardType: string
-      capability: string
-    }
-  | {
-      kind: 'evaluation-error'
-      guardType: string
-      capability?: string
-    }
-  | {
-      kind: 'agents-incomplete'
-      agents: { agent: string; reason: string }[]
-    }
-  | {
-      /** `tenon status` exits 里出边 guard 之外的阻断；message 与 CLI 同一份文案。 */
-      kind: 'step-exit'
-      source: StepExitBlockerSource
-      code: string
-      message: string
-      items?: string[]
-      /** 服务端的结构化描述（对象 / 状态 / 未勾项数）：展示按 code + 这三项分类，不解析 message；缺席 = 展示整句。 */
-      subject?: string
-      state?: string
-      count?: number
-    }
-
-export type StepExitBlockerSource = 'guard' | 'document' | 'skill' | 'test' | 'reviewer' | 'revision' | 'spec' | 'tasks'
 
 /** 单个已注册 Project 的聚合。 */
 export interface CanonicalStateCompatibilityIssue {

@@ -5,11 +5,11 @@
  * 两个列表都空归一为「无 agents 键」，未声明 agent 的工作流编译成与本特性之前逐字相同的 IR。
  */
 import { AGENT_NAME_RE } from '../agents/types.js'
-import type { AgentSeverity, StepAgentsDef, StepExecutorRef, StepReviewerRef } from './types.js'
+import { REVIEWER_HOSTS, type AgentSeverity, type ReviewerHost, type StepAgentsDef, type StepExecutorRef, type StepReviewerRef } from './types.js'
 
 const AGENTS_KEYS: ReadonlySet<string> = new Set(['executors', 'reviewers'])
 const EXECUTOR_KEYS: ReadonlySet<string> = new Set(['agent', 'depends_on'])
-const REVIEWER_KEYS: ReadonlySet<string> = new Set(['agent', 'required', 'block_at', 'depends_on', 'reads_tests'])
+const REVIEWER_KEYS: ReadonlySet<string> = new Set(['agent', 'required', 'block_at', 'depends_on', 'reads_tests', 'host'])
 const SEVERITIES: readonly AgentSeverity[] = ['critical', 'high', 'medium', 'low']
 
 function compileError(path: string, message: string): never {
@@ -67,12 +67,16 @@ function compileReviewer(raw: unknown, path: string): StepReviewerRef {
   }
   const dependsOn = nameList(record.depends_on, `${path}.depends_on`)
   const readsTests = nameList(record.reads_tests, `${path}.reads_tests`)
+  if (record.host !== undefined && !(REVIEWER_HOSTS as readonly string[]).includes(record.host as string)) {
+    compileError(`${path}.host`, `必须是 ${REVIEWER_HOSTS.join(' | ')}`)
+  }
   return {
     agent: agentName(record.agent, path),
     required: record.required,
     block_at: record.block_at as AgentSeverity,
     ...(dependsOn === undefined ? {} : { depends_on: dependsOn }),
     ...(readsTests === undefined ? {} : { reads_tests: readsTests }),
+    ...(record.host === undefined ? {} : { host: record.host as ReviewerHost }),
   }
 }
 

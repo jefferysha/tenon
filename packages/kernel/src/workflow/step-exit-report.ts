@@ -33,9 +33,10 @@ export type StepBlockerSource = 'guard' | 'document' | 'skill' | 'test' | 'revie
 /**
  * 阻断的结构化描述：`message` 是给人读的整句（中文、与 CLI 同一份），客户端不得再去解析它；
  * 需要按类别展示时读这三个字段。只有该类阻断知道的字段才出现，其余缺席（客户端退回整句）。
- *  - `subject`：被阻断的对象——文档 kind、技能 token、测试的显示名；
+ *  - `subject`：被阻断的对象——文档 kind、技能 token、测试的显示名、宿主不符的评审者；
  *  - `state`：对象的状态——文档 `missing | stale | unread`、技能 `not-run | unrecorded`、
- *    测试 `running | missing | stale | failed`；
+ *    测试 `running | missing | stale | failed`，策略阻断里的测试完整性 `integrity` 与读不到改动 `diff-unavailable`
+ *    （这两项没有 subject），评审者 `wrong-host`；
  *  - `count`：计数——tasks.md 里仍未勾选的项数。
  */
 export interface StepBlockerDetail {
@@ -100,6 +101,11 @@ const IMPLICIT_COMPLETION_EVENT = 'archived'
 
 function blocker(source: StepBlockerSource, code: string, message: string, detail?: StepBlockerDetail): StepBlocker {
   return detail === undefined ? { source, code, message } : { source, code, message, ...detail }
+}
+
+/** 评审者阻断的结构化描述：只有「宿主不符」带（对象 = 评审者，状态 = wrong-host）；其余评审者阻断沿用整句。 */
+function reviewerDetail(item: AgentBlocker): StepBlockerDetail | undefined {
+  return item.kind === 'reviewer-wrong-host' ? { subject: item.agent, state: 'wrong-host' } : undefined
 }
 
 /** 没有宿主回执时的技能判定：history 里的受理记录 + 本次访问已登记的文档。 */
@@ -208,7 +214,7 @@ export async function evaluateStepExitReport(input: StepExitReportInput): Promis
     })
   })
   const reviewers = (await input.agentBlockers()).map((item) =>
-    blocker('reviewer', item.kind, renderAgentBlocker(item, input.changeName)))
+    blocker('reviewer', item.kind, renderAgentBlocker(item, input.changeName), reviewerDetail(item)))
   const migration = stepId === 'ship' && plan.capabilities.documents.governed
     ? await evaluateSpecMigrationEvidence(input.repoRoot, input.changeDir, input.changeName)
     : undefined

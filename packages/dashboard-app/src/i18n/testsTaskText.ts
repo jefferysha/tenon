@@ -7,6 +7,16 @@ export const zh: Dict = {
     matrix: '策略',
     trace: '场景/任务',
     blockers: '阻塞',
+    integrity: '完整性',
+  },
+  integrity: {
+    signal: '信号',
+    detail: '明细',
+    mode: '策略',
+    notice: '提示',
+    block: '阻塞',
+    unavailable: '未检查',
+    truncated: '截断',
   },
   matrix: {
     requirement: '要求',
@@ -55,6 +65,16 @@ export const en: Dict = {
     matrix: 'Policy',
     trace: 'Scenario/Task',
     blockers: 'Blockers',
+    integrity: 'Integrity',
+  },
+  integrity: {
+    signal: 'Signal',
+    detail: 'Detail',
+    mode: 'Policy',
+    notice: 'Notice',
+    block: 'Block',
+    unavailable: 'Unchecked',
+    truncated: 'Truncated',
   },
   matrix: {
     requirement: 'Requirement',

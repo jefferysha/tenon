@@ -1,5 +1,6 @@
 /**
- * 无障碍：主要页面（工作台、工作流总览与阶段、项目、库、技能、新建项目向导）在真实浏览器里跑 axe-core，
+ * 无障碍：主要页面（工作台与它的测试页签 / 完整性段 / 智能体运行抽屉、工作流总览与阶段 / 测试策略 / 评审者编辑器、
+ * 项目、库、技能、新建项目向导）在真实浏览器里跑 axe-core，
  * serious / critical 违规必须为零（moderate / minor 只在报告里列出，不挡）。亮色、暗色各跑一遍——
  * 两套主题的对比度 token 不同，只测一套等于没测另一套。
  */
@@ -13,6 +14,8 @@ interface Target {
   readonly name: string
   /** 打开页面并等它真正画好（不是只等导航出现）。 */
   readonly open: (page: Page, server: { project: string; sandbox: string }) => Promise<void>
+  /** 不扫的区域。只用于有意的禁用态：WCAG 对停用的控件不要求对比度。 */
+  readonly exclude?: readonly string[]
 }
 
 const TARGETS: readonly Target[] = [
@@ -47,6 +50,49 @@ const TARGETS: readonly Target[] = [
         await page.getByTestId('task-io-tab-tests').click()
         await expect(page.getByTestId('task-tests')).toBeVisible({ timeout: 1_500 })
       }).toPass({ timeout: 20_000 })
+    },
+  },
+  {
+    // 种子项目在任务开始后把覆盖率门槛从 80 降到 60：测试页签多出「完整性」段（一条信号，策略缺省 notice）。
+    name: '工作台 · 测试页签 · 完整性',
+    open: async (page, server) => {
+      await openView(page, 'workspace', { root: server.project, change: 'add-login', step: 'verify' })
+      await expect(async () => {
+        await page.getByTestId('task-io-tab-tests').click()
+        await expect(page.getByTestId('tests-integrity')).toBeVisible({ timeout: 1_500 })
+      }).toPass({ timeout: 20_000 })
+      await expect(page.getByTestId('tests-integrity-row')).toHaveAttribute('data-code', 'coverage-threshold-lowered')
+    },
+  },
+  {
+    // 种子的 backend 验证步骤要求 architecture 评审者在 codex 上跑；它还没有运行，抽屉里是「要求的宿主」那一行。
+    name: '工作台 · 智能体运行抽屉（宿主）',
+    open: async (page, server) => {
+      await openView(page, 'workspace', { root: server.project, change: 'add-login', step: 'verify' })
+      await expect(async () => {
+        await page.getByTestId('orch-open-reviewer-architecture').click()
+        await expect(page.getByTestId('agent-run-binding')).toBeVisible({ timeout: 1_500 })
+      }).toPass({ timeout: 20_000 })
+      // 还没有运行：登记的宿主是「—」，要求的宿主（codex）放在 title 里。
+      await expect(page.getByTestId('agent-run-host').locator('[title="codex"]')).toBeVisible()
+    },
+  },
+  {
+    name: '工作流 · 阶段 · 测试策略（完整性）',
+    open: async (page) => {
+      await openView(page, 'workflow', { wf: 'default', step: 'verify' })
+      await expect(page.getByTestId('wb-policy-integrity')).toBeVisible()
+    },
+  },
+  {
+    name: '工作流 · 评审者编辑器（执行宿主）',
+    // 已放进画布的候选行被有意压暗（opacity-45，「+」同时停用）：那是停用态，不参与对比度判定；宿主下拉在右栏，照扫。
+    exclude: ['[data-testid^="palette-agent-"][data-placed="true"]'],
+    open: async (page) => {
+      await openView(page, 'workflow', { wf: 'default', step: 'verify' })
+      await page.getByTestId('wb-reviewers-edit').click()
+      await expect(page.getByTestId('agent-composer')).toBeVisible()
+      await expect(page.locator('[data-testid^="wb-agent-host-"]')).toBeVisible()
     },
   },
   {
@@ -117,10 +163,11 @@ const TARGETS: readonly Target[] = [
   },
 ]
 
-async function violationsOf(page: Page): Promise<string[]> {
+async function violationsOf(page: Page, exclude: readonly string[] = []): Promise<string[]> {
   // 动画（页面切换淡入、彗星）会让对比度读数落在半透明态：等一帧稳定后再扫。
   await page.waitForTimeout(600)
-  const results = await new AxeBuilder({ page }).analyze()
+  const builder = exclude.reduce((axe, selector) => axe.exclude(selector), new AxeBuilder({ page }))
+  const results = await builder.analyze()
   return results.violations
     .filter((violation) => violation.impact !== null && violation.impact !== undefined && BLOCKING.has(violation.impact))
     .map((violation) => {
@@ -136,7 +183,7 @@ for (const scheme of ['light', 'dark'] as const) {
     for (const target of TARGETS) {
       test(`${target.name}：没有 serious / critical 违规`, async ({ page, server }) => {
         await target.open(page, server)
-        const violations = await violationsOf(page)
+        const violations = await violationsOf(page, target.exclude)
         expect(violations, `\n${violations.join('\n')}\n`).toEqual([])
       })
     }

@@ -3,7 +3,7 @@
  */
 import {
   agentWaves, attachedReviewers, currentDocumentStepVisitId, evaluateTestEvidence, nextAgentWave, projectStepAgents,
-  readAgentRuns, readFrozenAgents,
+  readAgentRuns, readFrozenAgents, reviewerHostRequirement,
   type EffectiveWorkflowPlan, type FrozenAgent, type PipelineState, type StepAgentsCapability,
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
@@ -30,6 +30,15 @@ export interface StepAgentView {
   /** 评审者：同一候选上前面有不通过、判定那次却通过（结论是重跑翻转的）。 */
   readonly flipped: boolean
   readonly rerun_reason: string | null
+  /** 工作流对这个评审者要求的宿主（claude / codex）；没要求为 null。 */
+  readonly required_host: 'claude' | 'codex' | null
+  /** 该在哪个宿主上跑（含 agent 定义的建议）；不限为 null。运行器据此决定在本宿主还是另一个宿主上跑。 */
+  readonly route_host: 'claude' | 'codex' | null
+  /** 评审登记的宿主；没登记为 null。 */
+  readonly host: string | null
+  readonly host_source: 'detected' | 'declared' | null
+  /** 评审已结束但登记的宿主不符 required_host：结论无效。 */
+  readonly wrong_host: boolean
 }
 
 function statusOf(
@@ -40,6 +49,18 @@ function statusOf(
   if (view.state === 'running') return 'running'
   if (view.state === 'stale') return 'stale'
   return waiting ? 'waiting' : 'pending'
+}
+
+/** 该在哪个宿主上跑：步骤声明的优先，其次 agent 定义的建议；不限（含两处都没写）为 null。 */
+function routeHostOf(
+  required: 'claude' | 'codex' | null,
+  step: StepAgentsCapability,
+  frozen: ReadonlyMap<string, FrozenAgent>,
+  agent: string,
+): 'claude' | 'codex' | null {
+  const declared = step.reviewers.find((ref) => ref.agent === agent)?.host
+  const effective = reviewerHostRequirement(declared, frozen.get(agent)?.definition.host).host
+  return required ?? (effective === 'claude' || effective === 'codex' ? effective : null)
 }
 
 export async function agentStepViews(
@@ -101,6 +122,11 @@ export async function agentStepViews(
       reruns: view.reruns,
       flipped: view.flipped,
       rerun_reason: view.rerunReason,
+      required_host: view.requiredHost,
+      route_host: routeHostOf(view.requiredHost, step, frozen, view.agent),
+      host: view.host,
+      host_source: view.hostSource,
+      wrong_host: view.wrongHost,
     }))
   return { executors: project('executor'), reviewers: project('reviewer') }
 }

@@ -76,6 +76,7 @@ const entryJson = (entry: AgentEntry): Record<string, unknown> => ({
   tools: entry.definition?.tools ?? [],
   model: entry.definition?.model ?? null,
   hosts: entry.definition?.hosts ?? null,
+  host: entry.definition?.host ?? null,
   digest: entry.digest,
   path: entry.path ?? null,
   shadowed_by: entry.shadowedBy ?? null,

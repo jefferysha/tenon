@@ -55,6 +55,34 @@ describe('blockerLines · 按阻断 code 与服务端字段的短标签', () => 
     expect(labels(stepExit('test', 'test-evidence', 'x', { subject: 'e2e', state: 'running' }), 'en')).toEqual(['Test e2e running'])
   })
 
+  it('测试完整性 / 读不到改动：策略阻断只有状态（没有名字）也出短标签；整句文案仍在 text（进 title）', () => {
+    const whole = '测试完整性未通过：用例被跳过 src/a.test.js +1；执行 tenon test integrity demo'
+    const [line] = blockerLines(stepExit('test', 'test-evidence', whole, { state: 'integrity' }))
+    expect(line?.text).toBe(whole)
+    expect(line?.label).toEqual({ key: 'workspace.blocker_test_integrity', vars: {} })
+    expect(labels(stepExit('test', 'test-evidence', whole, { state: 'integrity' }))).toEqual(['测试完整性未通过'])
+    expect(labels(stepExit('test', 'test-evidence', 'English whole sentence', { state: 'integrity' }), 'en')).toEqual(['Test integrity failed'])
+    expect(labels(stepExit('test', 'test-evidence', 'x', { state: 'diff-unavailable' }))).toEqual(['读不到任务改动'])
+    expect(labels(stepExit('test', 'test-evidence', 'x', { state: 'diff-unavailable' }), 'en')).toEqual(['Task diff unreadable'])
+  })
+
+  it('评审者宿主不符：step-exit（CLI status 的出边）与 agents-incomplete（快照 readiness）都按评审者名出短标签', () => {
+    const whole = "评审者 'security' 须在 codex 上运行，登记的宿主是 claude，这份结论无效；在 codex 上重跑：tenon agent prompt demo security"
+    expect(labels(stepExit('reviewer', 'reviewer-wrong-host', whole, { subject: 'security', state: 'wrong-host' }))).toEqual(['评审者 security 宿主不符'])
+    expect(labels(stepExit('reviewer', 'reviewer-wrong-host', 'x', { subject: 'security', state: 'wrong-host' }), 'en')).toEqual(['Reviewer security wrong host'])
+    // 字段缺席退回整句；其余评审者阻断不受影响。
+    expect(labels(stepExit('reviewer', 'reviewer-wrong-host', whole))).toEqual([whole])
+    expect(labels(stepExit('reviewer', 'reviewer-stale', '评审者 x 的结论已过期'))).toEqual(['评审者 x 的结论已过期'])
+
+    const agents: TransitionReadinessBlockerSnapshot = {
+      kind: 'agents-incomplete',
+      agents: [{ agent: 'security', reason: 'reviewer-wrong-host' }, { agent: 'spec', reason: 'reviewer-stale' }],
+    }
+    expect(labels(agents)).toEqual(['评审者 security 宿主不符', 'spec · reviewer-stale'])
+    expect(labels(agents, 'en')).toEqual(['Reviewer security wrong host', 'spec · reviewer-stale'])
+    expect(blockerLines(agents)[0]?.text).toBe('security · reviewer-wrong-host')
+  })
+
   it('不再解析服务端的中文整句：字段缺席时即使文案长得像也退回完整文案；字段在时文案内容无关紧要', () => {
     const text = "缺少 document 'proposal'；执行 tenon document record <change> proposal <path>"
     expect(labels(stepExit('document', 'document-evidence', text))).toEqual([text])

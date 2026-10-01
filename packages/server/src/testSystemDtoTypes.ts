@@ -146,6 +146,8 @@ export interface PolicyDto {
   readonly scope: 'changed' | 'full'
   readonly files: 'registered' | 'any'
   readonly scenarios: 'off' | 'required' | 'passing'
+  /** 测试完整性策略：notice（缺省）只提示，block 让信号挡住出口。 */
+  readonly integrity: 'notice' | 'block'
   readonly coverage?: CoverageDto
   readonly flaky?: { readonly max: number; readonly failOnNew: boolean }
   readonly requireBaseline: boolean
@@ -219,6 +221,22 @@ export interface NotApplicableDto {
   readonly approved: boolean
 }
 
+export interface IntegritySignalDto {
+  readonly code: string
+  readonly subject: string
+  readonly detail: string
+  readonly suite?: string
+}
+
+/** 测试完整性报告：相对任务起点，证据有没有变弱。 */
+export interface IntegrityDto {
+  readonly mode: 'notice' | 'block'
+  readonly state: 'ok' | 'unavailable'
+  readonly reason?: string
+  readonly signals: readonly IntegritySignalDto[]
+  readonly truncated?: { readonly found: number; readonly limit: number }
+}
+
 export interface PolicyReportDto {
   readonly stepId: string
   readonly pass: boolean
@@ -234,6 +252,8 @@ export interface PolicyReportDto {
     readonly orphans: readonly string[]
   }
   readonly notApplicable: readonly NotApplicableDto[]
+  /** 步骤会运行测试（或声明了 integrity: block）且宿主提供了改动行时才有。 */
+  readonly integrity?: IntegrityDto
 }
 
 export interface ArtifactDto {

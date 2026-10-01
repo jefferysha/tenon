@@ -82,7 +82,8 @@ export {
   createChangedFilesSession, fileAtChangeStart, parseAddedLines, pathChangesSinceChangeStart, resolveChangeStart,
 } from './workspace/changed-files.js'
 export type {
-  ChangedFilesResult, ChangedFilesSession, ChangedFilesSessionOptions, ChangeStartInput, PathChange, PathChangeStatus,
+  ChangedFilesResult, ChangedFilesSession, ChangedFilesSessionOptions, ChangeStartInput, FileDiffEntry, FileDiffsResult,
+  PathChange, PathChangeStatus,
 } from './workspace/changed-files.js'
 // Native terminal sessions are a dashboard-only liveness projection, never workflow state.
 export {

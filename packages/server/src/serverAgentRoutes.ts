@@ -83,6 +83,7 @@ function summary(entry: AgentEntry): Record<string, unknown> {
     tools: definition?.tools ?? [],
     ...(definition?.model === undefined ? {} : { model: definition.model }),
     ...(definition?.hosts === undefined ? {} : { hosts: definition.hosts }),
+    ...(definition?.host === undefined ? {} : { host: definition.host }),
     digest: entry.digest,
     ...(entry.shadowedBy === undefined ? {} : { shadowed_by: entry.shadowedBy }),
     ...(entry.error === undefined ? {} : { error: entry.error }),

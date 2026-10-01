@@ -203,9 +203,11 @@ Tenon 已注册宿主以及 `setup`/`update` 操作，返回
 
 readiness 里 `step-exit` 类阻断（`readinessByTransition[...].blockers[]`）的 `message` 是给人读的整句（与 CLI 同一份，页面只放进
 Tooltip），机器可读的部分是 `code`、`source` 和可选的 `subject`、`state`、`count`：`subject` 是被阻断的对象（文档 kind、技能 token、
-测试显示名），`state` 是它的状态（文档 `missing|stale|unread`、技能 `not-run|unrecorded`、内联测试 `running|missing|stale|failed`），
+测试显示名、宿主不符的评审者），`state` 是它的状态（文档 `missing|stale|unread`、技能 `not-run|unrecorded`、内联测试 `running|missing|stale|failed`，
+测试策略阻断里的 `integrity` 与 `diff-unavailable`——它们不指向某一个测试，所以没有 `subject`，评审者的 `wrong-host`，此时 `code: reviewer-wrong-host`），
 `count` 是 `tasks.md` 未勾选的项数。Dashboard 只按 `code` 与这些字段给阻断贴短标签，从不解析 `message`；缺这些字段的阻断显示整句。
-`tenon status --json` 的 `exits[].blockers[]` 有同样的字段。
+`tenon status --json` 的 `exits[].blockers[]` 有同样的字段。评审者阻断另以 `agents-incomplete` 阻断投影（`agents[]` 里每项 `agent` 与 `reason`，
+`reason` 是 kernel 的阻断码，如 `reviewer-wrong-host`）。
 
 生产 server 会为可压缩的生成资源协商 gzip，并返回 `Vary: Accept-Encoding`；明确拒绝 gzip
 的客户端仍获得原始字节，API JSON 继续使用 `no-store`。

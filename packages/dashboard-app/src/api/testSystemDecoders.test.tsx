@@ -136,6 +136,30 @@ describe('快照里的策略判定', () => {
     expect(decodePolicyReports(one((d) => { d.notApplicable = 'a11y' }))).toBeNull()
   })
 
+  it('测试完整性：往返相等；缺省 = 没有这段；策略里缺省 notice；任一字段不合都拒绝', () => {
+    const integrity = {
+      mode: 'block' as const,
+      state: 'unavailable' as const,
+      reason: '不是 git 仓库',
+      signals: [{ code: 'test-skipped', subject: 'src/a.test.ts', detail: '+1', suite: 'unit' }, { code: 'case-count-drop', subject: 'unit', detail: '5 → 3' }],
+      truncated: { found: 500, limit: 400 },
+    }
+    const reports = [verifyReport({ integrity })]
+    expect(decodePolicyReports(JSON.parse(JSON.stringify(reports)))).toEqual(reports)
+    expect(decodePolicyReports(JSON.parse(JSON.stringify([verifyReport()])))?.[0]).not.toHaveProperty('integrity')
+    expect(decodePolicyReports([mutate(verifyReport(), (d) => { delete (d.policy as Record<string, unknown>).integrity })])?.[0]?.policy?.integrity).toBe('notice')
+    expect(decodePolicyReports([mutate(verifyReport(), (d) => { (d.policy as Record<string, unknown>).integrity = 'block' })])?.[0]?.policy?.integrity).toBe('block')
+    const one = (edit: (draft: Record<string, unknown>) => void): unknown => [mutate(verifyReport({ integrity }), edit)]
+    const section = (d: Record<string, unknown>): Record<string, unknown> => d.integrity as Record<string, unknown>
+    expect(decodePolicyReports(one((d) => { section(d).mode = 'warn' }))).toBeNull()
+    expect(decodePolicyReports(one((d) => { section(d).state = 'maybe' }))).toBeNull()
+    expect(decodePolicyReports(one((d) => { delete section(d).signals }))).toBeNull()
+    expect(decodePolicyReports(one((d) => { ((section(d).signals as Array<Record<string, unknown>>)[0] ?? {}).detail = 1 }))).toBeNull()
+    expect(decodePolicyReports(one((d) => { delete ((section(d).signals as Array<Record<string, unknown>>)[0] ?? {}).subject }))).toBeNull()
+    expect(decodePolicyReports(one((d) => { (section(d).truncated as Record<string, unknown>).found = -1 }))).toBeNull()
+    expect(decodePolicyReports([mutate(verifyReport(), (d) => { (d.policy as Record<string, unknown>).integrity = 'off' })])).toBeNull()
+  })
+
   it('没有策略（只有旧步骤测试）时 policy 为 null', () => {
     const decoded = decodePolicyReports([mutate(verifyReport(), (d) => { d.policy = null })])
     expect(decoded?.[0]?.policy).toBeNull()

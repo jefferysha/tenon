@@ -157,6 +157,7 @@ tenon test trust [<change>] [--yes] [--status] [--json]
 tenon test run <change> [--suite <id>]… [--kind <k>]… [--stage [<step>]] [--all] [--changed] [--json]
 tenon test run <change> <test-id> [--json]
 tenon test status <change> [--step <id>] [--json]
+tenon test integrity <change> [--step <id>] [--json]
 tenon test baseline <change> --suite <id> --run <run-id>
 tenon test baseline <change> <test-id> --run <run-id>
 tenon test known add --suite <id> --test "<file › name>" --reason <text> --expires <YYYY-MM-DD> [--link <url>]
@@ -370,6 +371,38 @@ from getting one:
   contains `tenon test trust` or a `TENON_TEST_TRUST=` assignment, so the decision stays with
   you.
 
+**Test integrity.** `tenon test integrity <change>` answers one question: is the evidence weaker
+than at the start of the change? It compares the change with its start (the same start as the
+changed-files list) and reports ten signals, each with a subject and a one-line fact:
+
+| Signal | Source | Fires when |
+| --- | --- | --- |
+| `case-count-drop` | run records | the latest full run of a suite has fewer cases than an earlier full run in this change |
+| `skip-count-rise` | run records | the latest full run has more skipped cases than the first full run |
+| `test-file-deleted` | diff | a test file is deleted (a delete plus a same-named file added elsewhere counts as a move) |
+| `tests-removed` | diff | a modified test file declares fewer cases (`it(`, `test(`, `def test_`, `func Test…`, `@Test`, `#[test]` …) |
+| `test-skipped` | diff | a skip marker is added (`.skip`, `xit`, `describe.skip`, `test.todo`, `@pytest.mark.skip`/`xfail`, `@unittest.skip`, `t.Skip`, `@Disabled`/`@Ignore`, `#[ignore]` …) |
+| `assertion-weakened` | diff | cases are still there but assertion lines (`expect(`, `assert`, `t.Errorf`, `assert_eq!` …) were removed |
+| `snapshot-rewritten` | diff | a snapshot file (`__snapshots__/`, `*.snap`, `*-snapshots/`) is modified, deleted or a binary snapshot changed; only adding snapshots is not a rewrite |
+| `baseline-changed` | diff | anything under `.tenon/tests/baselines/` changed |
+| `known-failure-added` | diff | `known-failures.yaml` gained a case |
+| `coverage-threshold-lowered` | diff | a coverage threshold (`lines`, `branches`, `functions`, `statements`, `fail_under`, `threshold`, `target`) went down or was removed in a test-runner config, `pyproject.toml`/`setup.cfg`/`.coveragerc`, `package.json` or `.pipeline/workflows/*.yaml` |
+
+All of them are text heuristics over `git diff -U0` and the run records: a signal says "worth a
+look", not "tampered", and a renamed case or a swapped assertion library can still show up.
+The policy key `test_policy.integrity` decides what a signal does: `notice` (the default,
+also what the default workflow and the standard lane use) lists the signals as one
+`test-integrity` notice in `test status`, `status` and the Dashboard Tests tab and never blocks;
+`block` turns the same signals into one `test-integrity` blocker at that step, and an
+unreadable diff then fails closed (`files-diff-unavailable`). `block` has no per-signal waiver:
+restore the test, or change the policy. Writing `integrity: notice` is the same as omitting it
+(it does not enter the compiled workflow, so existing fingerprints and run records stay valid).
+The check runs only on steps that run tests (`run` / `run_if_registered`) or declare
+`integrity: block`. `tenon test integrity` exits `0` unless the step's policy is `block` and
+there is a signal (or the diff cannot be read): then `2`. `--step` picks another step's policy;
+`--json` prints `{ change, step, pass, mode, state, signals[], truncated? }`. At most 400 relevant
+files are read; beyond that a `files-truncated` notice says so.
+
 `test status` reports each declared test of the step with the same evaluation the
 transition uses, so a status pass is a transition pass; with `--json` a step that declares
 `test_policy` also carries a `policy` object (blockers with fix commands, notices, suites,
@@ -497,10 +530,10 @@ tenon review request <change> --event <event>
 tenon review acknowledge <change> [--delegated] [--as reviewer]
 tenon agent next <change> [--json]
 tenon agent prompt <change> <agent> [--host <id>] [--rerun-reason <text>] [--json]
-tenon agent record <change> <run-id> [--subagent <type>] [--json]
+tenon agent record <change> <run-id> [--subagent <type>] [--host <id>] [--json]
 tenon agent list [--role executor|reviewer] [--source official|custom|project] [--json]
 tenon agent show <name> [--json]
-tenon agent new [<name>] --role <role> --description <text> [--skills a,b] [--tools A,B] [--model <m>] [--hosts a,b] [--scope user|project] [--from <agent>]
+tenon agent new [<name>] --role <role> --description <text> [--skills a,b] [--tools A,B] [--model <m>] [--hosts a,b] [--host codex|claude|any] [--scope user|project] [--from <agent>]
 tenon agent add <file> [--scope user|project] [--replace]
 tenon agent validate <file|name>
 tenon agent copy <from> <to> [--scope user|project]
@@ -538,6 +571,42 @@ and the reason is recorded. `agent next`, `status --json` (`step.reviewers[]`) a
 Dashboard show the rerun count (`reruns`), whether the verdict was flipped (`flipped`) and the
 reason (`rerun_reason`). Human `review request/acknowledge` remains a separate exact-event
 confirmation boundary and may be combined with reviewers.
+
+**Cross-vendor review.** A reviewer in a workflow step can declare `host: codex | claude | any`
+(Claude writes, Codex reviews), and an agent definition may suggest one with its own `host:`
+line (`tenon agent new --host`). The step's declaration is binding, the agent's suggestion only
+routes, and `host: any` on the step overrides a suggestion. When the host that runs
+`tenon agent prompt` is not the required one (or when no host is detected: a plain terminal), the
+run row is still created, but the prompt is written to
+`openspec/changes/<change>/.pipeline-agent-reports/<run-id>.prompt.md` and Tenon prints the exact
+commands instead of the prompt:
+
+```text
+[ROUTE] reviewer 'security' must run on codex … current host: claude
+prompt: openspec/changes/demo/.pipeline-agent-reports/<run-id>.prompt.md
+run: codex exec --sandbox workspace-write - < <prompt file>      # or: claude -p --allowedTools "…" < <prompt file>
+record: tenon agent record demo <run-id> --host codex
+```
+
+With `--json` the same information is in `host`: `{ required, source: step|agent|none, enforced,
+current, run_on: { host, command, prompt_file, record } | null }`, and the full `prompt` is still
+returned. Tenon never starts the other vendor's CLI itself: you, or the agent in the current host,
+run the command. `tenon agent record` stores the host that ran the review (`host`) and how it
+knows (`host_source`: `detected` from the process environment, or `declared` with `--host`, which is
+how an orchestrating host records a review it ran through the other CLI). The verdict is bound to
+the candidate (the content hash of the reviewed code) as before: a candidate change during the
+review refuses the record, and a later change makes the verdict stale. When the step requires a
+host, a record whose host differs, or is unknown, is refused (`exit 2`, nothing written), and a
+record that is in the ledger anyway (written around the command, or from before the requirement)
+is not a verdict: `agent next`/`status` show `wrong_host`, the state is `stale`, the exit is
+blocked with `reviewer-wrong-host`, and such runs do not count as "a verdict exists", so rerunning
+on the right host needs no `--rerun-reason`. The host is a claim by the recorder (the same trust
+model as the rest of the ledger), not a cryptographic proof. `agent next --json` and
+`status --json` (`step.reviewers[]`) carry `required_host`, `host`, `host_source`, `wrong_host`
+(and `route_host` in `status`), and `run-agent` actions carry `host` when the reviewer should run
+elsewhere. Scoping by `attach_on` comes first: a reviewer that is not attached to the task is not
+listed, routed, waited for or checked for its host, so it never reports `reviewer-wrong-host`; the
+host rules apply to the reviewers that are attached.
 
 Who may confirm a review: the task owner, like every other write on the task (`transition`, `set`,
 `review request`). Someone else reviewing the owner's work says so explicitly with

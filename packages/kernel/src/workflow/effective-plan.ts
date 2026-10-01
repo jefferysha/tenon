@@ -86,6 +86,7 @@ function planFromIr(
         blockAt: ref.block_at,
         dependsOn: [...(ref.depends_on ?? [])],
         readsTests: [...(ref.reads_tests ?? [])],
+        ...(ref.host === undefined ? {} : { host: ref.host }),
       })),
     }))
   const projectionSteps = projectionStepsOf(workflow.steps)

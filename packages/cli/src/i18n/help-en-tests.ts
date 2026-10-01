@@ -42,7 +42,7 @@ function catalogOptions(command: 'add' | 'set'): Record<string, string> {
 }
 
 export const HELP_EN_TESTS: Readonly<Record<string, string>> = {
-  test: 'Test system: discover / catalog / plan / register / sync / trust / run / status / baseline / known / report / code-size / diff-risk',
+  test: 'Test system: discover / catalog / plan / register / sync / trust / run / status / baseline / known / integrity / report / code-size / diff-risk',
   'test discover': 'Detect the project\'s test tools and suggest catalog suites; --write appends them to .tenon/tests/catalog.yaml (existing ids are not overwritten)',
   'test discover --write': 'Write the catalog',
   'test discover --json': 'JSON output',
@@ -116,6 +116,9 @@ export const HELP_EN_TESTS: Readonly<Record<string, string>> = {
   'test status': 'Status, duration and last run time of each test of the step (exit 2 when something blocks)',
   'test status --step': 'Pick a step; the current stage by default',
   'test status --json': 'JSON output',
+  'test integrity': 'Test integrity: whether, since the task started, the case count, skips, assertions, snapshots, baselines, known failures and coverage thresholds got weaker (exit 2 when there are signals and the policy is integrity: block)',
+  'test integrity --step': 'Pick a step (its integrity policy applies); the current stage by default',
+  'test integrity --json': 'JSON output',
   'test baseline': 'Use the metrics of one passing run as the baseline: --suite is a catalog suite (per machine profile, goes into git), <test-id> is an old step test (per user)',
   'test baseline --run': 'Run id to use as the baseline',
   'test baseline --suite': 'Benchmark suite in the catalog',

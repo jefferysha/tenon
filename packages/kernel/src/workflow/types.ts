@@ -10,6 +10,7 @@
  * 运行层的 CompiledGuardConfig 从本层 WorkflowGuardConfig 派生（Exclude 掉 nonempty-output），
  * 变体清单单一真相源在此，ir.ts 不再重复罗列。
  */
+import type { ReviewerHost } from '../agents/types.js'
 import type { FieldName } from '../types.js'
 import type { TrackPredicate } from './predicates.js'
 
@@ -215,6 +216,11 @@ export interface StepTestPolicyDef {
   readonly files?: 'registered' | 'any'
   /** required = 每个 OpenSpec 场景至少映射一个用例或已批准豁免；passing = 且映射用例本轮通过。 */
   readonly scenarios?: 'off' | 'required' | 'passing'
+  /**
+   * 测试完整性（用例数下降、删除 / 跳过 / 弱化的测试、快照改写、基线与已知失败改动、覆盖率门槛降低）：
+   * notice（缺省）= 只提示；block = 出现信号即阻塞。缺省与显式写 notice 等价，编译时都不进 IR。
+   */
+  readonly integrity?: 'notice' | 'block'
   readonly coverage?: {
     readonly lines?: number
     readonly branches?: number
@@ -232,6 +238,8 @@ export interface StepTestPolicyDef {
 /** 问题级别，由高到低 critical / high / medium / low；评审者的阻断级别取本闭集。 */
 export type AgentSeverity = 'critical' | 'high' | 'medium' | 'low'
 
+export { REVIEWER_HOSTS, type ReviewerHost } from '../agents/types.js'
+
 /** 步骤执行者：完成本步工作；depends_on 指同一步骤 executors 列表内的其它 agent。 */
 export interface StepExecutorRef {
   readonly agent: string
@@ -241,7 +249,8 @@ export interface StepExecutorRef {
 /**
  * 步骤评审者：在产出与必需测试就绪后、离开本步骤前检查。
  * `required` 决定它是否参与放行判定，`block_at` 决定多高级别的问题算不通过，
- * `reads_tests` 引用同一步骤 `tests[].id`（结果由 Tenon 执行后交给它，评审者自己不跑测试）。
+ * `reads_tests` 引用同一步骤 `tests[].id`（结果由 Tenon 执行后交给它，评审者自己不跑测试），
+ * `host` 指定执行宿主（见 REVIEWER_HOSTS）；不写 = 不要求。
  */
 export interface StepReviewerRef {
   readonly agent: string
@@ -249,6 +258,7 @@ export interface StepReviewerRef {
   readonly block_at: AgentSeverity
   readonly depends_on?: readonly string[]
   readonly reads_tests?: readonly string[]
+  readonly host?: ReviewerHost
 }
 
 /** 步骤 agent 块；两个列表都空时归一为「无 agents 键」，往返保真。 */

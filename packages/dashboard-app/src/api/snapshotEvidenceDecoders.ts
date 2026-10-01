@@ -86,7 +86,12 @@ export function decodeAgentView(value: unknown): AgentRunView | null {
     || (value.finishedAt !== null && typeof value.finishedAt !== 'string')
     || (value.reruns !== undefined && (typeof value.reruns !== 'number' || !Number.isInteger(value.reruns) || value.reruns < 0))
     || (value.flipped !== undefined && typeof value.flipped !== 'boolean')
-    || (value.rerunReason !== undefined && value.rerunReason !== null && typeof value.rerunReason !== 'string')) return null
+    || (value.rerunReason !== undefined && value.rerunReason !== null && typeof value.rerunReason !== 'string')
+    || (value.requiredHost !== undefined && value.requiredHost !== null && value.requiredHost !== 'claude' && value.requiredHost !== 'codex')
+    || (value.host !== undefined && value.host !== null && typeof value.host !== 'string')
+    || (value.hostSource !== undefined && value.hostSource !== null && value.hostSource !== 'detected' && value.hostSource !== 'declared')
+    || (value.wrongHost !== undefined && typeof value.wrongHost !== 'boolean')
+    || (value.candidate !== undefined && value.candidate !== null && typeof value.candidate !== 'string')) return null
   const actor = value.actor
   let actorView: AgentRunView['actor'] = null
   if (actor !== null) {
@@ -111,6 +116,11 @@ export function decodeAgentView(value: unknown): AgentRunView | null {
     ...(value.reruns === undefined ? {} : { reruns: value.reruns as number }),
     ...(value.flipped === undefined ? {} : { flipped: value.flipped as boolean }),
     ...(value.rerunReason === undefined ? {} : { rerunReason: value.rerunReason as string | null }),
+    ...(value.requiredHost === undefined ? {} : { requiredHost: value.requiredHost as AgentRunView['requiredHost'] }),
+    ...(value.host === undefined ? {} : { host: value.host as string | null }),
+    ...(value.hostSource === undefined ? {} : { hostSource: value.hostSource as AgentRunView['hostSource'] }),
+    ...(value.wrongHost === undefined ? {} : { wrongHost: value.wrongHost as boolean }),
+    ...(value.candidate === undefined ? {} : { candidate: value.candidate as string | null }),
   }
 }
 

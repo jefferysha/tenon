@@ -49,6 +49,17 @@ describe('rules', () => {
     }
     expect(new Set(CI_RULES.map((rule) => rule.id)).size).toBe(CI_RULES.length)
   })
+
+  it('既是阻塞又是提示的码（test-integrity：block 时阻塞、notice 时提示）只有一条规则，每条发现按自己的级别出结果', () => {
+    expect(CI_RULES.filter((rule) => rule.id === 'test-integrity')).toHaveLength(1)
+    const log = toSarif(report([change([
+      finding({ code: 'test-integrity', severity: 'note', subject: 'a' }),
+      finding({ code: 'test-integrity', severity: 'error', subject: 'b' }),
+    ])]))
+    const run = log.runs[0]
+    expect(run.tool.driver.rules.map((rule) => rule.id)).toEqual(['tenon/test-integrity'])
+    expect(run.results.map((result) => result.level)).toEqual(['note', 'error'])
+  })
 })
 
 describe('toSarif', () => {

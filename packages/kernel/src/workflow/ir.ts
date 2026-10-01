@@ -188,6 +188,8 @@ export interface StepTestPolicyIR {
   readonly scope: 'changed' | 'full'
   readonly files: 'registered' | 'any'
   readonly scenarios: 'off' | 'required' | 'passing'
+  /** 只在声明 `block` 时出现；缺省（notice）不进 IR，所以没声明它的策略摘要与指纹逐字不变。 */
+  readonly integrity?: 'block'
   readonly coverage?: Readonly<Partial<Record<CoverageMetric, number>>>
   readonly flaky?: { readonly max: number; readonly fail_on_new: boolean }
   readonly benchmark: { readonly require_baseline: boolean }

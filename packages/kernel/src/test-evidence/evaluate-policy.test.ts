@@ -145,6 +145,32 @@ describe('evaluateTestEvidence × test_policy', () => {
     expect(report.items.map((item) => item.status)).toEqual(['missing'])
   })
 
+  test('完整性 / 读不到改动 两类策略阻断带结构化状态（不带 subject），其余策略阻断没有；与渲染后的阻塞一一对齐', async () => {
+    await seedCatalog()
+    await seedPlan({ ...emptyTestPlan(CHANGE) })
+    const current = plan({ plan: 'optional', integrity: 'block' })
+    const withDiff = (integrityDiff: NonNullable<TestEvidenceContext['integrityDiff']>): TestEvidenceContext => ({ ...context(), integrityDiff })
+
+    const signal = await evaluateTestEvidence({
+      repoRoot, changeDir, changeName: CHANGE, plan: current, stepId: 'build',
+      context: withDiff(async () => ({ files: [{ path: 'src/a.test.ts', status: 'modified', added: ["it.skip('one', () => {})"], removed: [] }] })),
+    })
+    expect(signal.policy?.blockers.map((item) => item.code)).toEqual(['test-integrity'])
+    expect(signal.blockers).toHaveLength(1)
+    expect(signal.blockerDetails).toEqual([{ state: 'integrity' }])
+
+    const unreadable = await evaluateTestEvidence({
+      repoRoot, changeDir, changeName: CHANGE, plan: current, stepId: 'build',
+      context: withDiff(async () => { throw new Error('diff unreadable') }),
+    })
+    expect(unreadable.policy?.blockers.map((item) => item.code)).toEqual(['files-diff-unavailable'])
+    expect(unreadable.blockerDetails).toEqual([{ state: 'diff-unavailable' }])
+
+    const other = await evaluate(plan({ run: ['unit'], scope: 'changed' }))
+    expect(other.policy?.blockers.map((item) => item.code)).toEqual(['test-kind-missing'])
+    expect(other.blockerDetails).toEqual([undefined])
+  })
+
   test('没有身份 → 与旧口径一致失败关闭', async () => {
     const report = await evaluateTestEvidence({ repoRoot, changeDir, changeName: CHANGE, plan: plan({}), stepId: 'build', context: undefined })
     expect(report).toMatchObject({ pass: false, blockers: ['测试证据无法验证：宿主未提供用户身份'] })

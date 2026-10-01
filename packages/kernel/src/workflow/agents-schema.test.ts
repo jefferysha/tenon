@@ -163,6 +163,28 @@ describe('agents 编译', () => {
     expect(() => compileWorkflow(build({ lanes: [] }))).toThrowError(/附加键 'lanes'/u)
   })
 
+  it('评审者 host：codex | claude | any 进 IR，写错值编译失败，不写则 IR 里没有这个键', () => {
+    for (const host of ['codex', 'claude', 'any'] as const) {
+      const ir = compileWorkflow(build({ reviewers: [{ agent: 'a', required: true, block_at: 'high', host }] }))
+      expect(ir.steps[0]?.agents?.reviewers[0]).toMatchObject({ host })
+    }
+    expect(() => compileWorkflow(build({ reviewers: [{ agent: 'a', required: true, block_at: 'high', host: 'gemini' }] })))
+      .toThrowError(/host.*codex \| claude \| any/u)
+    expect(compileWorkflow(build({ reviewers: [{ agent: 'a', required: true, block_at: 'high' }] })).steps[0]?.agents?.reviewers[0])
+      .not.toHaveProperty('host')
+  })
+
+  it('评审者 host：解析 → 序列化 → 解析深度相等（键序在 reads_tests 之后）；执行者不接受 host', () => {
+    const source = BLOCK.replace('          block_at: medium\n          reads_tests: [unit]', '          block_at: medium\n          reads_tests: [unit]\n          host: codex')
+    const parsed = parseWorkflow(source)
+    expect(parsed.steps[0]?.agents?.reviewers[1]).toMatchObject({ agent: 'code-size', host: 'codex' })
+    const written = serializeWorkflow(parsed)
+    expect(written).toContain('          reads_tests: [unit]\n          host: codex')
+    expect(parseWorkflow(written)).toEqual(parsed)
+    expect(() => parseWorkflow(source.replace('          host: codex', '          host: nobody'))).toThrowError(/host: 必须是 codex \| claude \| any/u)
+    expect(() => parseWorkflow(source.replace('        - agent: builder\n', '        - agent: builder\n          host: codex\n'))).toThrowError(/未知字段 'host'/u)
+  })
+
   it('两个列表都空编译成无 agents 键', () => {
     const ir = compileWorkflow(build({ executors: [], reviewers: [] }))
     expect(ir.steps[0]).not.toHaveProperty('agents')

@@ -112,6 +112,19 @@ describe('step.next 顺序', () => {
     }])
   })
 
+  test('评审者要求在另一个宿主上跑：run-agent 动作带 host（待跑与进行中都带）；没要求的不带', () => {
+    const codex = { ...agent('security', 'reviewer', 'pending', true), route_host: 'codex' }
+    const free = { ...agent('spec-consistency', 'reviewer', 'pending', true), route_host: null }
+    expect(stepNextActions(input({ reviewers: [codex, free] }))).toEqual([
+      { action: 'run-agent', agent: 'security', role: 'reviewer', wave: 0, host: 'codex' },
+      { action: 'run-agent', agent: 'spec-consistency', role: 'reviewer', wave: 0 },
+    ])
+    const running = { ...codex, status: 'running' as const, wave_ready: false, run_id: 'r-9', report_path: 'x/r-9.md' }
+    expect(stepNextActions(input({ reviewers: [running] }))).toEqual([{
+      action: 'run-agent', agent: 'security', role: 'reviewer', wave: 0, status: 'running', run_id: 'r-9', report_path: 'x/r-9.md', host: 'codex',
+    }])
+  })
+
   test('必需评审者不通过：不再要结果字段，直接指向回退边（D2）', () => {
     const base = {
       gate: 'review',

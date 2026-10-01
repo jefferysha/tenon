@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { WbStepTestPolicy } from '../api/governanceTypes'
 import {
-  newPolicy, parseLimit, parsePercent, withCoverage, withFlakyMax, withKinds, withRequireBaseline, withScenarios, withScope,
+  newPolicy, parseLimit, parsePercent, withCoverage, withFlakyMax, withIntegrity, withKinds, withRequireBaseline, withScenarios, withScope,
 } from './testPolicyEdits'
 
 const FULL: WbStepTestPolicy = {
@@ -31,6 +31,14 @@ describe('testPolicyEdits', () => {
     expect(withCoverage(FULL, 'branches', 70).coverage).toEqual({ lines: 80, functions: 60, statements: 55, branches: 70 })
     expect(withFlakyMax(FULL, 5).flaky).toEqual({ max: 5, fail_on_new: true })
     expect(JSON.stringify(FULL)).toBe(before)
+  })
+
+  it('完整性：block 写出，notice 是缺省所以选它就删键；其余键不动', () => {
+    const blocked = withIntegrity(FULL, 'block')
+    expect(blocked).toEqual({ ...FULL, integrity: 'block' })
+    expect(withIntegrity(blocked, 'notice')).toEqual(FULL)
+    expect(withIntegrity(FULL, 'notice')).not.toHaveProperty('integrity')
+    expect(withIntegrity({ plan: 'required', integrity: 'notice' }, 'notice')).toEqual({ plan: 'required' })
   })
 
   it('种类清空就删键（稀疏）', () => {
