@@ -16,6 +16,8 @@ tenon runtime repair --rollback
 tenon dashboard --open
 ```
 
+`tenon dashboard --open` 负责登录：已在运行（或刚启动）的 server 自己用一次性登录链接打开你的浏览器，链接不会返回给这条命令，所以页面打开时已是登录状态。直接运行 `tenon dashboard` 会在前台启动 server，并把链接打印到交互终端；读取 server stdout 的启动者可用 `TENON_DASHBOARD_PRINT_LINK=1` 要求打印。详见[登录](dashboard-and-local-api.md#登录)。
+
 `host-target-plan` 是机器可读的只读契约。仅传 `--json` 时返回已注册宿主目录；同时传入
 `--host` 与 `--operation setup|update` 时返回一个 `host-target-plan/v1` 计划。
 它不会执行 setup/update，也不接受自定义宿主 ID。原生宿主计划面向用户级安装；适配器宿主

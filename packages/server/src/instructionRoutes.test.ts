@@ -7,7 +7,8 @@ import { fileURLToPath } from 'node:url'
 import type { TenonUserResolution } from '@tenon/kernel'
 import { afterEach, describe, expect, it } from 'vitest'
 import { resolveServerPaths } from './paths.js'
-import { createDashboardServer } from './server.js'
+import { createTestDashboardServer } from './test-server.js'
+import { withSession } from './test-support.js'
 import { reqDelete, reqGet, reqPost } from './test-support.js'
 import type { DashboardServer, ServerPaths } from './types.js'
 
@@ -32,7 +33,7 @@ async function start(
   const home = await mkdtemp(join(tmpdir(), 'tenon-instruction-routes-'))
   homes.push(home)
   const paths = resolveServerPaths({ home, env: {} })
-  const srv = createDashboardServer({
+  const srv = createTestDashboardServer({
     version: '9.9.9', hostHome: home, paths, token: TOKEN, registry: () => [...roots], pollIntervalMs: 1000, cadence: false,
     manifestPath: fileURLToPath(new URL('../../../templates/manifest.yaml', import.meta.url)), resolveUser,
   })
@@ -51,7 +52,7 @@ function reqPut(port: number, path: string, text: string, headers: Record<string
   return new Promise<{ status: number; body: string }>((resolve, reject) => {
     const req = httpRequest({
       host: '127.0.0.1', port, path, method: 'PUT',
-      headers: { 'Content-Type': 'text/markdown', 'Content-Length': String(Buffer.byteLength(text)), ...headers },
+      headers: { 'Content-Type': 'text/markdown', 'Content-Length': String(Buffer.byteLength(text)), ...withSession(port, headers) },
     }, (res) => {
       let body = ''
       res.setEncoding('utf8')

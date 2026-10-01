@@ -11,7 +11,7 @@ import {
   DESIGN_CATALOG, fixtureCase, fixtureRecordDraft, fixtureSuiteRun,
 } from '@tenon/kernel/test-system/test-support'
 import { resolveServerPaths } from './paths.js'
-import { createDashboardServer } from './server.js'
+import { createTestDashboardServer } from './test-server.js'
 import { reqGet } from './test-support.js'
 import type { DashboardServer } from './types.js'
 
@@ -31,7 +31,7 @@ async function start(): Promise<{ port: number; root: string }> {
   const home = await mkdtemp(join(tmpdir(), 'tenon-test-system-home-'))
   const root = await mkdtemp(join(tmpdir(), 'tenon-test-system-root-'))
   dirs.push(home, root)
-  const srv = createDashboardServer({
+  const srv = createTestDashboardServer({
     version: '9.9.9', hostHome: home, paths: resolveServerPaths({ home, env: {} }), token: TOKEN,
     registry: () => [root], pollIntervalMs: 1000, cadence: false,
     manifestPath: fileURLToPath(new URL('../../../templates/manifest.yaml', import.meta.url)),

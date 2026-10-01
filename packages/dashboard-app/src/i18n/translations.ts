@@ -393,6 +393,9 @@ export const zh: Dict = {
     // 意图迁移（评审 P2-13，Task 5）：旧「离线（轮询）」暗示仍在悄悄轮询兜底，与实况不符
     // （SSE 断线后并无轮询兜底）；新文案只陈述真相 + 提示数据可能过期，配断线横幅的「重连」钮。
     offline: '连接断开——数据可能过期',
+    session_expired: '登录已失效——数据不再更新',
+    session_expired_title: '需要重新登录 Dashboard',
+    session_expired_hint: '未登录的请求拿不到任何数据。在终端运行下面的命令，浏览器会自动打开并登录；服务刚升级或重启后也需要这一步。',
     reconnect: '重连',
     // Bug3 配套：顶层 ErrorBoundary 兜底文案（任意子树 render 抛错 → 局部降级不白屏）。
     app_error: '界面出了点问题——已隔离到这块，刷新即可恢复；其余数据不受影响。',
@@ -605,6 +608,11 @@ export const zh: Dict = {
     error_review_required: '缺少复核请求',
     error_revision_conflict: '状态已变化',
     error_idempotency_conflict: '重复请求冲突',
+    confirm_title: '请亲自确认',
+    confirm_body: '批准后放行到「{stage}」。这一步代表你本人，只能在这里由你点击确认。',
+    confirm: '确认批准',
+    cancel: '取消',
+    error_presence: '需要你在页面上亲自确认：请重新点击批准并确认',
   },
   workflow: {
     rail_title: '工作流',
@@ -2832,6 +2840,9 @@ export const en: Dict = {
     connection_live: 'Live',
     connection_offline: 'Offline',
     offline: 'Disconnected — data may be stale',
+    session_expired: 'Signed out — data is no longer updating',
+    session_expired_title: 'Sign in to the Dashboard again',
+    session_expired_hint: 'Unauthenticated requests get no data. Run the command below in a terminal; your browser opens signed in. You need this after the service is upgraded or restarted.',
     reconnect: 'Reconnect',
     app_error: 'Something went wrong in the UI — it has been contained here; reload to recover. Other data is unaffected.',
     app_error_reload: 'Reload',
@@ -3041,6 +3052,11 @@ export const en: Dict = {
     error_review_required: 'Review request missing',
     error_revision_conflict: 'State changed',
     error_idempotency_conflict: 'Duplicate request conflict',
+    confirm_title: 'Please confirm in person',
+    confirm_body: 'Approving releases the task to "{stage}". This acts as you, and only your click here can confirm it.',
+    confirm: 'Confirm approval',
+    cancel: 'Cancel',
+    error_presence: 'A person must confirm on this page: click approve and confirm again',
   },
   workflow: {
     rail_title: 'Workflows',

@@ -160,6 +160,66 @@ describe('tenon dashboard', () => {
     expect(deps.outLines.join('\n')).toContain('健康检查通过')
   })
 
+  describe('a dashboard that already runs', () => {
+    const running = (port = 18765) => ({
+      version: 1 as const,
+      port,
+      pid: 4242,
+      releaseId: 'unmanaged',
+      stateScopeId: `sha256-v1-${'1'.repeat(64)}`,
+    })
+
+    test('--open asks the running server to open the signed-in browser; it starts and freezes nothing', async () => {
+      const deps = makeDeps()
+      const { runtime: dashboard, calls } = runtime({ probeHealthyServer: async () => running() })
+      // No trusted Node is needed to talk to a server that is already up.
+      const noNode: DashboardCommandEnvironment = { resolveTrustedNode: () => undefined }
+
+      expect(await cmdDashboard(deps, { open: true }, dashboard, noNode)).toBe(0)
+      expect(calls.detached).toEqual([])
+      expect(calls.launches).toEqual([])
+      expect(calls.openedUrls).toEqual(['http://127.0.0.1:18765/'])
+      const output = deps.outLines.join('\n')
+      expect(output).toContain('已在运行')
+      expect(output).toContain('一次性登录链接只交给浏览器')
+    })
+
+    test('--background is a no-op that says how to sign in', async () => {
+      const deps = makeDeps()
+      const { runtime: dashboard, calls } = runtime({ probeHealthyServer: async () => running() })
+
+      expect(await cmdDashboard(deps, { background: true }, dashboard, TEST_DASHBOARD_COMMAND_ENV)).toBe(0)
+      expect(calls.detached).toEqual([])
+      expect(calls.openedUrls).toEqual([])
+      expect(deps.outLines.join('\n')).toContain('tenon dashboard --open')
+    })
+
+    test('--open fails with headless guidance when the server could not open a browser', async () => {
+      const deps = makeDeps()
+      const { runtime: dashboard, calls } = runtime({
+        probeHealthyServer: async () => running(),
+        openBrowser: async () => false,
+      })
+
+      expect(await cmdDashboard(deps, { open: true }, dashboard, TEST_DASHBOARD_COMMAND_ENV)).toBe(1)
+      expect(calls.detached).toEqual([])
+      const errors = deps.errLines.join('\n')
+      expect(errors).toContain('无法自动打开浏览器')
+      expect(errors).toContain('一次性登录链接')
+    })
+
+    test('a probe that throws falls back to the normal managed start', async () => {
+      const deps = makeDeps()
+      const { runtime: dashboard, calls } = runtime({
+        probeHealthyServer: async () => { throw new Error('probe exploded') },
+      })
+
+      expect(await cmdDashboard(deps, { open: true }, dashboard, TEST_DASHBOARD_COMMAND_ENV)).toBe(0)
+      expect(calls.detached).toHaveLength(1)
+      expect(calls.openedUrls).toEqual(['http://127.0.0.1:18765/'])
+    })
+  })
+
   test('release coordinator inspect observes any transaction identity without granting ownership', async () => {
     const identity = {
       version: 1 as const,

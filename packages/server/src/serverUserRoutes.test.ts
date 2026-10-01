@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { resolveTenonUser, type TenonUserResolution } from '@tenon/kernel'
 import { resolveServerPaths } from './paths.js'
-import { createDashboardServer } from './server.js'
+import { createTestDashboardServer } from './test-server.js'
 import { initChange, makeProject, makeTempHome, newStore, reqGet, reqPost, testFlow } from './test-support.js'
 import type { DashboardServer, ServerPaths } from './types.js'
 
@@ -27,7 +27,7 @@ async function start(resolve?: (home: string) => (root: string) => TenonUserReso
     PATH: process.env.PATH, HOME: home, GIT_CONFIG_GLOBAL: join(home, 'no-gitconfig'), GIT_CONFIG_NOSYSTEM: '1',
   })
   const resolver = resolve?.(home) ?? machine
-  const srv = createDashboardServer({
+  const srv = createTestDashboardServer({
     paths, hostHome: home, token: 'tok', registry: () => [root], flow: testFlow(),
     resolveUser: (candidate) => {
       roots.push(candidate)

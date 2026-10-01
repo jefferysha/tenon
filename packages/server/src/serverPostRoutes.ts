@@ -85,6 +85,7 @@ import { PROJECT_CREATE_STREAM_PATH, handleProjectCreateStream } from './project
 import { resolveAgentMutation } from './serverAgentRoutes.js'
 import { resolveResourceMutation } from './serverResourceRoutes.js'
 import type { AdapterInstallManager } from './adapterInstall.js'
+import type { PresencePort } from './serverAccess.js'
 
 type WorkflowRootCheck =
   | { ok: true; anchor: WorkflowRootAnchor }
@@ -145,6 +146,8 @@ export interface PostRouteDeps {
   adapterInstall?: AdapterInstallManager
   /** Declared identity for a request root (`''` = aggregate view). */
   resolveUser: import('./serverUserRoutes.js').ResolveUser
+  /** Proof-of-presence nonces that gate the human review confirmation (`POST …/decisions`). */
+  presence: PresencePort
   /** 归档 / 取消归档 的共享 application；未装配时这两条路由不存在（不谎报）。 */
   taskLifecycle?: TaskLifecycleRouteDeps
 }

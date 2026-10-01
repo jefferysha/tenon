@@ -112,6 +112,84 @@ describe('pending review self-approval detector (hook → CLI)', () => {
     }
   })
 
+  // The previous raw-JSON filter ("token file name, or loopback host plus /api/") let all of these through
+  // unrecorded; GET / used to hand out the write token, so a path-less request was the useful one.
+  test('every shape the old filter missed is recorded, in AFK and with a script file', async () => {
+    await writeFile(join(h.cwd, 'poke.sh'), '#!/bin/sh\nH=127.0.0.1\nP=18765\ncurl -s "http://$H:$P/"\n')
+    await writeFile(join(h.cwd, 'poke.py'), 'import urllib.request\nurllib.request.urlopen("http://localhost:18765/").read()\n')
+    await writeFile(join(h.cwd, 'build.sh'), '#!/bin/sh\necho building\n')
+    const shapes: Array<[string, string]> = [
+      ['root-get', 'curl -s http://127.0.0.1:18765/'],
+      ['bare-host', 'curl -s localhost:18765'],
+      ['no-api-path', 'curl http://127.0.0.1:18765/health'],
+      ['netcat', 'nc localhost 18765'],
+      ['dev-tcp', 'exec 3<>/dev/tcp/127.0.0.1/18765'],
+      ['decimal-ip', 'curl http://2130706433:18765/'],
+      ['hex-ip', 'curl http://0x7f000001:18765/'],
+      ['mapped-v6', 'curl "http://[::ffff:127.0.0.1]:18765/"'],
+      ['variables', 'H=127.0.0.1; curl http://$H:$PORT/'],
+      ['python-inline', 'python3 -c "import urllib.request as u; u.urlopen(\'http://localhost:18765/\')"'],
+      ['node-inline', 'node -e "fetch(\'http://127.0.0.1:18765/\')"'],
+      ['shell-script', 'sh poke.sh'],
+      ['shell-script-dot', './poke.sh'],
+      ['python-script', 'python3 poke.py'],
+      ['chained-script', 'cd . && python3 poke.py'],
+      ['session-open', 'curl -X POST -H "Content-Type: application/json" -d {} http://127.0.0.1:18765/api/session/open'],
+      ['launcher', 'tenon dashboard'],
+      ['server-bundle', 'node packages/server/dist/dashboard.mjs'],
+    ]
+    for (const [id, command] of shapes) {
+      const result = runGate({ cwd: h.cwd, tool_name: 'Bash', tool_use_id: `toolu_${id}`, command }, runtimeHome, true)
+      expect(result.code, `${id}: ${result.stderr}`).toBe(0)
+    }
+    const signals = (await signalFile()).trim().split('\n').map((line) => JSON.parse(line) as Record<string, unknown>)
+    expect(signals).toHaveLength(shapes.length)
+    expect(new Set(signals.map((signal) => signal.kind))).toEqual(new Set(['local-control-api-call']))
+    const raw = await signalFile()
+    for (const forbidden of ['poke', '127.0.0.1', 'localhost', '18765', 'curl', 'toolu_']) expect(raw).not.toContain(forbidden)
+  })
+
+  test('commands that cannot reach the control surface are not recorded', async () => {
+    await writeFile(join(h.cwd, 'build.sh'), '#!/bin/sh\necho building\n')
+    for (const command of [
+      'sh build.sh',
+      'curl -s http://127.0.0.1:18765/api/health',
+      'curl -s http://localhost:3000/api/users',
+      'grep -n localhost /etc/hosts',
+      'tenon dashboard --open',
+      'git status',
+    ]) {
+      const result = runGate({ cwd: h.cwd, tool_name: 'Bash', command }, runtimeHome, true)
+      expect(result.code, `${command}: ${result.stderr}`).toBe(0)
+    }
+    await expect(lstat(join(h.cwd, 'openspec', 'changes', 'demo', SIGNAL_FILE))).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  test('the recorded port follows the running server recorded in the pidfile, not only 18765', async () => {
+    await writeFile(
+      resolveProductPaths({ env: { TENON_RUNTIME_HOME: runtimeHome }, homeDir: h.cwd }).dashboardPidfilePath,
+      JSON.stringify({ pid: 1, port: 19765, version: '0.3.0' }),
+    )
+    runGate({ cwd: h.cwd, tool_name: 'Bash', command: 'curl -s http://127.0.0.1:19765/' }, runtimeHome, true)
+    expect((await signalFile()).trim().split('\n')).toHaveLength(1)
+  })
+
+  test('HITL blocks reaching the control surface with a pointer to the sanctioned path, but lets `tenon dashboard --open` through', async () => {
+    const blocked = runGate({ cwd: h.cwd, tool_name: 'Bash', command: 'curl -s http://127.0.0.1:18765/' }, runtimeHome, false)
+    expect(blocked.code).toBe(2)
+    expect(blocked.stderr).toContain('Dashboard 控制面')
+    expect(blocked.stderr).toContain('tenon dashboard --open')
+    const foreground = runGate({ cwd: h.cwd, tool_name: 'Bash', command: 'tenon dashboard' }, runtimeHome, false)
+    expect(foreground.code).toBe(2)
+    const opened = runGate({ cwd: h.cwd, tool_name: 'Bash', command: 'tenon dashboard --open' }, runtimeHome, false)
+    expect(opened.code, opened.stderr).toBe(0)
+    const chained = runGate({ cwd: h.cwd, tool_name: 'Bash', command: 'cd . && tenon dashboard --open --port 18765' }, runtimeHome, false)
+    expect(chained.code, chained.stderr).toBe(0)
+    for (const smuggled of ['tenon dashboard --open && curl http://127.0.0.1:18765/', 'tenon dashboard --open --port 1;id', 'tenon dashboard --open --port x']) {
+      expect(runGate({ cwd: h.cwd, tool_name: 'Bash', command: smuggled }, runtimeHome, false).code, smuggled).toBe(2)
+    }
+  })
+
   test('the same tool_use_id is recorded once', async () => {
     const payload = { cwd: h.cwd, tool_name: 'Bash', tool_use_id: 'toolu_repeat', command: `cat "${tokenPath}"` }
     runGate(payload, runtimeHome, true)

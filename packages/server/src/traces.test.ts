@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createDashboardServer } from './server.js'
+import { createTestDashboardServer } from './test-server.js'
 import { resolveServerPaths } from './paths.js'
 import type { DashboardServer } from './types.js'
 import { projectTraceTimeline, type TraceStoreReader, type TraceTimelineStoreReader } from './traces.js'
@@ -40,7 +40,7 @@ async function startServer(traceStore?: TraceStoreReader): Promise<{ srv: Dashbo
   const store = newStore()
   const root = await makeProject()
   await initChange(store, root, 'demo')
-  const srv = createDashboardServer({
+  const srv = createTestDashboardServer({
     paths: resolveServerPaths({ home: await makeTempHome(), env: {} }),
     version: '9.9.9', token: 't', registry: () => [root], store, flow: testFlow(),
     clock: () => '2026-07-07T00:00:00Z', traceStore,

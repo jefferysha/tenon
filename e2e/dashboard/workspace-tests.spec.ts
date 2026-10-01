@@ -83,7 +83,7 @@ test.describe('工作台任务 · 测试页签', () => {
     }
   })
 
-  test('运行抽屉：失败用例展开看堆栈与产物，截图放大，trace 与报告可下载', async ({ page, request, baseURL }) => {
+  test('运行抽屉：失败用例展开看堆栈与产物，截图放大，trace 与报告可下载', async ({ page, baseURL }) => {
     await page.getByTestId('tests-suite-demo-unit').click()
     await expect(page.getByTestId('run-result')).toHaveText('失败')
     await expect(page.getByTestId('run-exit')).toContainText('1')
@@ -123,8 +123,8 @@ test.describe('工作台任务 · 测试页签', () => {
     const saved = await download.path()
     expect(readFileSync(saved).subarray(0, 4).toString('hex'), '文件头是 zip 的 PK').toBe('504b0506')
 
-    // 同一个链接直接请求也是 200，且是附件。
-    const response = await request.get(new URL(href ?? '', baseURL).toString())
+    // 同一个链接直接请求也是 200，且是附件（page.request 带着页面的会话 cookie）。
+    const response = await page.request.get(new URL(href ?? '', baseURL).toString())
     expect(response.status()).toBe(200)
     expect(response.headers()['content-disposition']).toBe('attachment; filename="trace.zip"')
     expect(response.headers()['x-content-type-options']).toBe('nosniff')

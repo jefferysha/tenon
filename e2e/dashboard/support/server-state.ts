@@ -24,6 +24,10 @@ export interface ServerState {
   readonly project: string
   /** 项目页启停客户端用的项目（改它的文件不影响 project 的测试运行记录）。 */
   readonly sandbox: string
+  /** serve.mjs 用 server 打印给启动者的一次性登录链接换来的会话 cookie；每个浏览器上下文都带它。 */
+  readonly session: { readonly name: string; readonly value: string }
+  /** 假桌面 opener 收到的登录链接追加到这个文件（`POST /api/session/open` 的交付物）。 */
+  readonly openedUrlFile: string
 }
 
 export function readServerState(): ServerState {

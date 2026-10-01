@@ -78,6 +78,6 @@ export function indexHtml(token: string): string {
   return `<!doctype html><meta charset="utf-8"><title>Tenon Dashboard</title>
 <h1>Pipeline Global Dashboard</h1>
 <p>TS 全局 server 已就绪。只读数据见 <code>/api/snapshot</code> / <code>/api/stream</code>；健康探针 <code>/api/health</code>。</p>
-<p>写端点需带一次性 token（B5）。前端信息架构重构：BACKLOG #26。</p>
+<p>写端点需带写 token（仅登录会话的页面里有）。前端信息架构重构：BACKLOG #26。</p>
 <script>window.__TENON_DASHBOARD_TOKEN__ = ${jsToken};</script>`
 }

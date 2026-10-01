@@ -24,7 +24,8 @@ tenon dashboard --open
 ```
 
 `--open` implies a managed background start and waits for a compatible health
-response before opening the browser.
+response before opening the browser. If a Dashboard is already running it does
+not start another: it asks that server to open your browser.
 
 Other supported forms:
 
@@ -43,6 +44,36 @@ http://127.0.0.1:18765/
 
 One server owns the built SPA and `/api/*` on the same origin. Vite's separate
 development port is not a second production frontend.
+
+### Signing in
+
+The Dashboard serves nothing to a caller that has not signed in: `GET /` answers
+`401` with a short sign-in prompt, and every `/api/*` read or write answers `401`
+until the request carries a session cookie. Only `/api/health` and the static
+`/assets/*` stay public. There is no token file to read and nothing in a
+response that can be exchanged for access.
+
+`tenon dashboard --open` is how you sign in. The server mints a one-time login
+link (valid for 2 minutes, usable once), opens it in your default browser itself,
+and the page trades it for an `HttpOnly; SameSite=Strict` session cookie before
+redirecting to `/`. The link is never returned to the command that asked, so a
+script that merely runs the command cannot sign in. Reloading keeps working
+through the cookie; a session lasts 12 hours idle or 7 days at most and lives in
+server memory, so restarting or upgrading the server signs you out.
+
+| Situation | What to do |
+| --- | --- |
+| First visit, expired session, or after a restart/upgrade | `tenon dashboard --open` (the open page shows the same prompt and command) |
+| A browser window that says "signed out" | run the command again; the old tab can be closed |
+| No desktop session (SSH, container, WSL without a browser) | run `tenon dashboard --port 19765` in a terminal (any free port): the foreground server prints a one-time login link, which you open in a browser that can reach that port |
+| A script or test harness that starts its own server | set `TENON_DASHBOARD_PRINT_LINK=1`; the server prints the link to the stdout of the process that launched it, and only there |
+
+The link is printed only to an interactive terminal or when the launcher opted in
+with `TENON_DASHBOARD_PRINT_LINK=1`; a managed background server prints nothing.
+Sessions are per port: two Dashboards on different ports on the same machine do
+not sign each other out. The cookie belongs to the host in the link, which is
+always `127.0.0.1`; typing `http://localhost:18765/` yourself is a different
+site to the browser and shows the sign-in prompt again.
 
 ## Views
 
@@ -184,13 +215,14 @@ HTTP checks:
 
 ```bash
 curl --fail http://127.0.0.1:18765/api/health
-curl --fail http://127.0.0.1:18765/api/snapshot
-curl --fail http://127.0.0.1:18765/api/host-targets
-curl --fail 'http://127.0.0.1:18765/api/host-target-plan?host=codex&operation=setup'
 ```
 
-Health includes release and state-scope identity. A process merely listening on
-18765 is not enough to prove it is the correct Dashboard.
+Health is the only API read that needs no session. It includes release and
+state-scope identity; a process merely listening on 18765 is not enough to prove
+it is the correct Dashboard. The other reads (`/api/snapshot`,
+`/api/host-targets`, `/api/host-target-plan?host=codex&operation=setup`, ...)
+answer `401` to `curl` by design; use the CLI equivalents above, or the signed-in
+browser.
 
 ## Local API
 
@@ -239,13 +271,27 @@ seconds. Every non-GET request drops it before it runs and again after it
 settles. `/api/snapshot` sends an `ETag` and answers a matching
 `If-None-Match` with `304`.
 
-Mutation requests require:
+Every request except `/api/health` and `/assets/*` requires:
 
-- loopback/local Host validation;
-- the random Dashboard handshake token;
+- loopback/local Host validation (reads included, so DNS rebinding reads nothing);
+- a live session cookie from the sign-in above;
+- browser Fetch-Metadata sanity: a request marked cross-site is refused, and a
+  write whose `Origin` is not the Dashboard itself is refused.
+
+Mutation requests additionally require:
+
+- the write token, which is embedded only in the page served to a signed-in
+  session (`GET /` without a session contains no token);
 - JSON content type;
 - a bounded request body;
 - a trusted registered project root where filesystem access is involved.
+
+Approving a review in the Dashboard also needs proof that a person is present:
+the page asks you to confirm a second time, and only then requests a
+single-use nonce (`POST /api/change/<name>/decisions/presence`, bound to your
+session, the change, the review ref and revision, valid 30 seconds) that
+`POST /api/change/<name>/decisions` must present in `X-Tenon-Presence`.
+`tenon review acknowledge` in the terminal is unchanged.
 
 Use the same-origin Dashboard for ordinary mutations. The API is a local
 integration surface, not a public hosted or multi-tenant API, and no independent
@@ -278,10 +324,18 @@ managed release may be preempted. For an intentional alternate port:
 tenon dashboard --port 19765 --open
 ```
 
+### The page says "Sign in" / requests return 401
+
+The session is missing or gone (first visit, cookie expired, or the server was
+restarted or upgraded). Run `tenon dashboard --open`. If it reports that it could
+not open a browser, see the headless row in [Signing in](#signing-in).
+
 ### Vite loads but writes return 401
 
-The development server does not own the production token handshake. Use the
-packaged `tenon dashboard`.
+The development server does not serve the signed-in page, so it never receives
+the write token. Sign in on the packaged `tenon dashboard` first (its session
+cookie is sent to the Vite port too, which makes reads work); for writes use the
+packaged Dashboard.
 
 ### UI is waiting forever
 

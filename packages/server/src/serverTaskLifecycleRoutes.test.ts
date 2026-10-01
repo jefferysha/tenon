@@ -10,7 +10,7 @@ import { promisify } from 'node:util'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ensureHostAgentFiles, ensureUserLocalDir, serializeTaskArchive, userProjectPaths, type TenonUserResolution } from '@tenon/kernel'
 import { resolveServerPaths } from './paths.js'
-import { createDashboardServer } from './server.js'
+import { createTestDashboardServer } from './test-server.js'
 import { initChange, makeProject, makeTempHome, newStore, reqDelete, reqGet, reqPost, testFlow } from './test-support.js'
 import type { DashboardServer } from './types.js'
 
@@ -45,7 +45,7 @@ async function start(
   dirs.push(home, root)
   const store = newStore()
   for (const name of changes) await initChange(store, root, name)
-  const srv = createDashboardServer({
+  const srv = createTestDashboardServer({
     paths: resolveServerPaths({ home, env: {} }),
     hostHome: home, token: 'tok', registry: () => [root], store, flow: testFlow(),
     version: '9.9.9', clock: () => '2026-09-15T12:00:00.000Z',
@@ -183,7 +183,7 @@ describe('POST /api/change/:name/archive|unarchive', () => {
     expect((await reqPost(h.port, '/api/change/feat/archive', { root: h.root }, { headers: AUTH })).status).toBe(200)
     const forBob = await start([], bob)
     // Bob's server reads the same checkout through its own registry entry.
-    const srv = createDashboardServer({
+    const srv = createTestDashboardServer({
       paths: resolveServerPaths({ home: await makeTempHome(), env: {} }),
       token: 'tok', registry: () => [h.root], store: h.store, flow: testFlow(), resolveUser: () => bob,
     })

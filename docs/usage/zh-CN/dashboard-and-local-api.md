@@ -12,7 +12,24 @@ Dashboard 是本地控制面，不是公共文档托管服务。它显示项目�
 tenon dashboard --open
 ```
 
+`--open` 隐含受管后台启动，等健康检查通过后才打开浏览器。如果 Dashboard 已经在运行，它不会再起一个，而是请已在运行的 server 替你打开浏览器。
+
 默认只绑定 loopback。打开页面后先核对 Tenon 标题、项目 root 和 Change 名，避免把其他端口上的应用误当成当前 Dashboard。
+
+### 登录
+
+Dashboard 不向未登录的调用方提供任何东西：`GET /` 返回 `401` 和一页简短的登录提示，所有 `/api/*` 读写在请求没带会话 cookie 之前都返回 `401`；只有 `/api/health` 和静态 `/assets/*` 公开。没有 token 文件可读，任何响应里也没有能换来访问权的内容。
+
+`tenon dashboard --open` 就是登录方式：server 铸一条一次性登录链接（2 分钟内有效、只能用一次），由 server 自己交给默认浏览器；页面用它换一个 `HttpOnly; SameSite=Strict` 会话 cookie，然后跳转到 `/`。链接不会返回给发起命令的进程，所以仅仅运行这个命令的脚本登录不了。刷新页面靠 cookie 继续有效；会话空闲 12 小时或最长 7 天后失效，且只保存在 server 内存里，重启或升级 server 会让你退出登录。
+
+| 情形 | 怎么做 |
+| --- | --- |
+| 首次访问、会话过期、重启/升级之后 | 运行 `tenon dashboard --open`（已打开的页面会显示同一句提示和命令） |
+| 浏览器窗口提示「登录已失效」 | 再运行一次命令，旧标签页可以关掉 |
+| 没有桌面会话（SSH、容器、没有浏览器的 WSL） | 在终端前台运行 `tenon dashboard --port 19765`（任意空闲端口）：前台 server 会打印一条一次性登录链接，在能访问该端口的浏览器里打开 |
+| 自己启动 server 的脚本或测试工具 | 设 `TENON_DASHBOARD_PRINT_LINK=1`：server 只把链接打印到启动它的那个进程的 stdout |
+
+只有交互终端，或启动者用 `TENON_DASHBOARD_PRINT_LINK=1` 明确要求时，才会打印链接；受管后台 server 什么都不打印。会话按端口区分：同一台机器上不同端口的两个 Dashboard 不会互相把对方登出。cookie 属于链接里的主机，也就是 `127.0.0.1`；自己手敲 `http://localhost:18765/` 对浏览器来说是另一个站点，会再次看到登录提示。
 
 ## 状态为何显示“等待”
 
@@ -134,6 +151,19 @@ Dashboard 只读取测试数据、只编辑工作流的测试策略，不运行�
 
 mutation 端点必须经过 CLI 相同的 schema、CAS、review 和 guard。前端不能直接编辑 canonical JSON 或 `.pipeline.yaml`。
 
+除 `/api/health` 与 `/assets/*` 外，每个请求都要：
+
+- 通过 loopback Host 校验（读请求也一样，DNS 重绑定读不到任何东西）；
+- 带有效会话 cookie（见上文「登录」）；
+- 通过浏览器 Fetch-Metadata 检查：被标为跨站的请求直接拒绝，`Origin` 不是 Dashboard 自己的写请求也拒绝。
+
+写请求另外要：
+
+- 写 token——它只嵌在服务给已登录会话的页面里（没有会话的 `GET /` 里没有 token）；
+- JSON content type、有界请求体，以及涉及文件系统时的已注册项目 root。
+
+在 Dashboard 里批准评审还要证明「人在场」：页面会让你二次确认，确认那一下才去请求一次性 nonce（`POST /api/change/<name>/decisions/presence`，绑定你的会话、change、评审 ref 与 revision，30 秒有效、只能用一次），`POST /api/change/<name>/decisions` 必须在 `X-Tenon-Presence` 头里带上它。终端里的 `tenon review acknowledge` 规则不变。
+
 `GET /api/host-targets` 与
 `GET /api/host-target-plan?host=codex&operation=setup` 是严格只读端点，只接受
 Tenon 已注册宿主以及 `setup`/`update` 操作，返回
@@ -145,8 +175,10 @@ Tenon 已注册宿主以及 `setup`/`update` 操作，返回
 
 ```bash
 lsof -nP -iTCP:18765 -sTCP:LISTEN
-curl -fsS -o /dev/null http://127.0.0.1:18765/
+curl -fsS http://127.0.0.1:18765/api/health
 ```
+
+`/api/health` 是唯一不需要会话的 API 读：它带 release 与状态域身份，只监听 18765 的进程不等于就是正确的 Dashboard。其余读（`/api/snapshot` 等）对 `curl` 一律返回 `401`，这是有意的；请用对应的 CLI 命令，或已登录的浏览器。
 
 页面标题、项目 root 和 Change 必须与目标一致；端口可访问不等于页面就是当前插件。
 

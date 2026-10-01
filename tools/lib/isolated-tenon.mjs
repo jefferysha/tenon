@@ -14,9 +14,10 @@
  * 路径经 env.TENON_ISOLATED_NODE 传递（见 `isolatedNode`）。
  */
 import { spawn, spawnSync } from 'node:child_process'
+import { get as httpGet } from 'node:http'
 import {
   accessSync, chmodSync, constants as fsConstants, copyFileSync, lstatSync, mkdirSync, mkdtempSync, openSync,
-  realpathSync, rmSync, writeFileSync,
+  readFileSync, realpathSync, rmSync, writeFileSync,
 } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -218,19 +219,79 @@ export async function stopGroup(child) {
   }
 }
 
-/** 用 `tenon dashboard --port <空闲端口>` 起服务并等到 /api/health 通；日志写 logFile。返回 { url, port, child }。 */
+/**
+ * 在隔离环境里放一个假的桌面 opener（`open` / `xdg-open`），把它收到的 URL 追加到 openedFile，并把它排到 PATH 最前：
+ * dashboard 的 `POST /api/session/open`（即 `tenon dashboard --open`）会交给它一条一次性登录链接，测试从文件里读出来，
+ * 扮演“用户的浏览器”。不这样的话 server 会去开开发机上真正的浏览器。返回要并进子进程环境的变量。
+ */
+export function installFakeBrowserOpener(dir, openedFile, env) {
+  mkdirSync(dir, { recursive: true })
+  for (const name of ['open', 'xdg-open']) {
+    const script = join(dir, name)
+    writeFileSync(script, `#!/bin/sh\nprintf '%s\\n' "$1" >> '${openedFile}'\n`)
+    chmodSync(script, 0o755)
+  }
+  return { ...env, PATH: `${dir}:${env.PATH ?? ''}` }
+}
+
+const LOGIN_LINK = /登录链接[^\n]*?：(http:\/\/127\.0\.0\.1:\d+\/session\/start\?code=[A-Za-z0-9_-]+)/u
+
+/**
+ * 读 dashboard 日志里启动者专属的一次性登录链接。server 只在 stdout 是 TTY 或 `TENON_DASHBOARD_PRINT_LINK=1` 时打印它
+ * （自动化自己创建日志、自己读，见 docs/usage/security-model.md）；链接 2 分钟内有效、只能用一次。
+ */
+export async function readLoginLink(logFile, { timeoutMs = 10_000 } = {}) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const match = LOGIN_LINK.exec(readFileSync(logFile, 'utf8'))
+    if (match !== null) return match[1]
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+  throw new Error(`${logFile} 里没有一次性登录链接（启动 dashboard 时需设 TENON_DASHBOARD_PRINT_LINK=1）`)
+}
+
+/** 像浏览器一样打开登录链接，换出会话 cookie：{ name, value, header }，header 可直接放进 `Cookie:`。 */
+export function exchangeLoginLink(link) {
+  const target = new URL(link)
+  return new Promise((resolve, reject) => {
+    const req = httpGet({
+      host: target.hostname, port: Number(target.port), path: `${target.pathname}${target.search}`,
+      headers: { 'Sec-Fetch-Site': 'none' },
+    }, (res) => {
+      res.resume()
+      const raw = res.headers['set-cookie']?.[0]
+      if (res.statusCode !== 303 || raw === undefined) {
+        reject(new Error(`登录链接没有换出会话（HTTP ${res.statusCode}）：它只能用一次，且 2 分钟内有效`))
+        return
+      }
+      const pair = raw.split(';', 1)[0]
+      const eq = pair.indexOf('=')
+      resolve({ name: pair.slice(0, eq), value: pair.slice(eq + 1), header: pair })
+    })
+    req.on('error', reject)
+  })
+}
+
+/**
+ * 用 `tenon dashboard --port <空闲端口>` 起服务并等到 /api/health 通；日志写 logFile。
+ * 返回 { url, port, child, session }：session 是启动者（本函数）用日志里的一次性链接换来的会话 cookie，
+ * 之后的读写请求带 `Cookie: session.header`，浏览器上下文用 `session.name` / `session.value`。
+ */
 export async function startDashboard({ env, cwd, logFile }) {
   const port = await freePort()
   const url = `http://127.0.0.1:${port}`
   mkdirSync(dirname(logFile), { recursive: true })
   const log = openSync(logFile, 'w')
   const child = spawn(isolatedNode(env), [TENON_CLI, 'dashboard', '--port', String(port)], {
-    cwd, env, detached: true, stdio: ['ignore', log, log],
+    cwd, env: { ...env, TENON_DASHBOARD_PRINT_LINK: '1' }, detached: true, stdio: ['ignore', log, log],
   })
   const deadline = Date.now() + HEALTH_TIMEOUT_MS
   while (Date.now() < deadline) {
     if (child.exitCode !== null) throw new Error(`dashboard 提前退出（exit ${child.exitCode}），日志：${logFile}`)
-    if (await healthy(url)) return { url, port, child }
+    if (await healthy(url)) {
+      const session = await exchangeLoginLink(await readLoginLink(logFile))
+      return { url, port, child, session }
+    }
     await new Promise((resolve) => setTimeout(resolve, 200))
   }
   await stopGroup(child)

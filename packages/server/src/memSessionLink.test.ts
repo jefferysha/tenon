@@ -22,7 +22,7 @@ import { mkdir, utimes, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { nodeMemFs } from '@tenon/kernel'
-import { createDashboardServer } from './server.js'
+import { createTestDashboardServer } from './test-server.js'
 import { resolveServerPaths } from './paths.js'
 import type { DashboardServer } from './types.js'
 import { initChange, makeProject, makeTempHome, makeWorktreeDir, newStore, reqGet, testFlow } from './test-support.js'
@@ -109,7 +109,7 @@ async function startWith(changes: Record<string, { worktree?: string }>): Promis
       await store.set(join(root, 'openspec', 'changes', name), 'automation_worktree' as never, cfg.worktree)
     }
   }
-  const srv = createDashboardServer({
+  const srv = createTestDashboardServer({
     paths: resolveServerPaths({ home, env: {} }),
     hostHome: home,
     version: '9.9.9', token: 't', registry: () => [root], store, flow: testFlow(),
@@ -135,7 +135,7 @@ async function startWithDefaultMemFs(name: string, worktree: string): Promise<Ha
     'automation_worktree' as never,
     worktree,
   )
-  const srv = createDashboardServer({
+  const srv = createTestDashboardServer({
     paths: resolveServerPaths({ home: productHome, env: {} }),
     hostHome,
     version: '9.9.9',

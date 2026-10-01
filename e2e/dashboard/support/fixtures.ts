@@ -9,6 +9,13 @@ interface DashboardFixtures {
 export const test = base.extend<DashboardFixtures>({
   server: async ({}, use) => { await use(readServerState()) },
   baseURL: async ({ server }, use) => { await use(server.url) },
+  // Dashboard 不向未登录的请求提供任何东西：每个上下文带着 serve.mjs 登录得到的会话 cookie（HttpOnly、SameSite=Strict）。
+  context: async ({ context, server }, use) => {
+    await context.addCookies([{
+      name: server.session.name, value: server.session.value, url: server.url, httpOnly: true, sameSite: 'Strict',
+    }])
+    await use(context)
+  },
 })
 
 export { expect }

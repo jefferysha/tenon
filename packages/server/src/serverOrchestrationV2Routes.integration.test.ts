@@ -1,16 +1,16 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { createDashboardServer } from './server.js'
+import { createTestDashboardServer } from './test-server.js'
 import { resolveServerPaths } from './paths.js'
 import { makeProject, makeTempHome, newStore, reqGet, reqPost, testFlow, openSSE } from './test-support.js'
 
 describe('orchestration v2 HTTP control plane', () => {
-  const servers: Array<ReturnType<typeof createDashboardServer>> = []
+  const servers: Array<ReturnType<typeof createTestDashboardServer>> = []
   afterEach(async () => { while (servers.length) await servers.pop()!.close() })
 
   it('creates, reads and streams a canonical change over real HTTP', async () => {
     const root = await makeProject()
     const home = await makeTempHome()
-    const server = createDashboardServer({
+    const server = createTestDashboardServer({
       paths: resolveServerPaths({ home, env: {} }), hostHome: home, token: 'integration-token',
       registry: () => [root], store: newStore(), flow: testFlow(), pollIntervalMs: 10,
     })

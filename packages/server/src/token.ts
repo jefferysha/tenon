@@ -1,24 +1,14 @@
 /**
- * B5 一次性 token —— 修老仓「写端点无鉴权（已接受风险）」欠账（欠账 #4 / CONTEXT.md L33）。
- * 启动生成 256-bit 随机 token；写 0600 握手文件供同源前端 / 本机可信工具读取；
- * 所有 POST 写端点校验 header（Authorization: Bearer / X-Pipeline-Token）——常量时间比较防时序侧信道。
+ * 写 token（B5 起）：启动生成 256-bit 随机值，只存在 server 内存里。
+ * 它不再落盘、不再出现在任何匿名可达的响应里：只有带有效会话 cookie 的 `GET /` 会把它注入页面。
+ * 所有写端点校验 header（Authorization: Bearer / X-Pipeline-Token）——常量时间比较防时序侧信道。
+ * 登录凭证（一次性登录码 + 会话）见 serverSession.ts。
  */
 import { randomBytes, timingSafeEqual } from 'node:crypto'
-import { writeFile } from 'node:fs/promises'
 import type { IncomingHttpHeaders } from 'node:http'
 
 export function generateToken(): string {
   return randomBytes(32).toString('hex')
-}
-
-/** 写握手文件（0600：仅属主可读写——挡同机其它用户）。内容 = {token, ...meta}。 */
-export async function writeTokenHandshake(
-  tokenPath: string,
-  token: string,
-  meta: Record<string, unknown>,
-): Promise<void> {
-  const payload = JSON.stringify({ token, ...meta })
-  await writeFile(tokenPath, payload, { encoding: 'utf8', mode: 0o600 })
 }
 
 /** 从请求头取 token：优先 Authorization: Bearer <t>，回退 X-Pipeline-Token: <t>；无 → null。 */

@@ -95,6 +95,8 @@ Tenon 版本号已重置为从 0.1.0 开始；已退役的 1.x Release 与标签
 
 安装会启动并等待 Dashboard 就绪。curl/CI 安装不会自动打开浏览器，而会打印已验证 URL；需要时运行
 `tenon dashboard --open`。交互式终端中的首次 `tenon setup` 可以自动打开，手动或后台更新不会。
+Dashboard 不向未登录的调用方提供任何东西，所以直接访问 URL 只会看到登录提示：`tenon dashboard --open`
+会替你打开已登录的浏览器（见[登录](docs/usage/zh-CN/dashboard-and-local-api.md#登录)）。
 
 Codex 插件安装与账号认证是两个独立步骤。安装完成后，Tenon 只读运行
 `codex login status`，不会自动登录或读取凭证内容。若尚未登录：

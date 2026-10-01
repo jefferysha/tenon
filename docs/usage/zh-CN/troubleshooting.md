@@ -55,6 +55,14 @@ openspec/changes/<change>/.pipeline-document-locale.json
 
 比较 canonical state、host session 和 AFK executor。queued、review waiting、session ended 和 running 是不同状态。生产 Dashboard 默认地址是 `127.0.0.1:18765`；先确认该端口服务的页面标题和项目根。
 
+#### Dashboard 页面或 API 返回 401
+
+没有会话时 Dashboard 什么都不提供。运行 `tenon dashboard --open`，浏览器会自动打开并登录；server 重启或升级后需要再运行一次。提示无法打开浏览器时见[登录](dashboard-and-local-api.md#登录)。`curl /api/snapshot` 返回 `401` 是有意的，读状态请用 `tenon status --json` 等 CLI 命令；只有 `/api/health` 不需要会话。写操作还需要打包后的同源 Dashboard：Vite 开发端口拿不到写 token。
+
+#### 在 Dashboard 里批准评审提示需要本人确认
+
+批准需要页面上的第二次明确点击（它会为这一次评审申请一次性 nonce）。脚本做不到这一步；如果点击之后仍出现这条提示，刷新页面重新批准。
+
 #### Codex 插件已安装但认证为黄灯
 
 先运行 `codex login status`。若未登录，ChatGPT 方案包含 Codex 时运行 `codex login`；远程或

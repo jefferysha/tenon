@@ -28,8 +28,11 @@ If Dashboard is involved:
 
 ```bash
 curl --fail http://127.0.0.1:18765/api/health
-curl --fail http://127.0.0.1:18765/api/snapshot
 ```
+
+`/api/health` is the only API read that needs no session; `/api/snapshot` and the
+rest answer `401` to `curl` by design. Use `tenon status --json` and the other
+CLI reads, or sign in with `tenon dashboard --open`.
 
 Collect error messages and exit codes, but remove secrets and sensitive Tap
 content before sharing.
@@ -141,10 +144,19 @@ tenon dashboard --port 19765 --open
 
 Do not accept a page solely because the port responds.
 
-### Dashboard mutations return 401
+### Dashboard pages or API calls return 401
 
-Use the packaged same-origin `tenon dashboard`. Vite dev does not own the
-production handshake token.
+Nothing is served without a session. Run `tenon dashboard --open` to open your
+browser already signed in; the same command is needed after the server restarts
+or upgrades. If it reports that no browser could be opened, see
+[Signing in](dashboard-and-local-api.md#signing-in). For mutations also use the
+packaged same-origin Dashboard: Vite dev never receives the write token.
+
+### Approving a review in the Dashboard says a person must confirm
+
+The approval needs the second, explicit click in the page (it requests a
+single-use nonce for exactly that review). A script cannot do this; if the
+message appears after you clicked, reload the page and approve again.
 
 ### `tenon: command not found` (exit 127) in a test or in the agent's shell
 

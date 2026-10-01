@@ -1,17 +1,18 @@
 #!/usr/bin/env node
 /**
- * bin 入口：全机唯一 Global dashboard server 的启动装配（B4 版本抢占 + B5 token 握手）。
+ * bin 入口：全机唯一 Global dashboard server 的启动装配（B4 版本抢占 + 会话登录）。
  *
- * 启动序（对位老仓 dashboard-server.py main，但补上版本抢占与 token）：
+ * 启动序（对位老仓 dashboard-server.py main，但补上版本抢占与会话登录）：
  *   1. 从 kernel 单一模型解析宿主 home 与 Tenon data/state/config 路径。
  *   2. 探测既有 :port 的 /api/health（含 version）→ decidePreemption：
  *        bind → 直接监听；reuse → 让位退出 0；preempt → SIGTERM 旧实例后监听。
  *   3. listen 固定端口（TENON_DASHBOARD_PORT ?? 18765，绑 127.0.0.1）。
- *   4. 写 0600 token 握手文件（B5）+ pidfile（pid/port/version，供后来者抢占判定）。
+ *   4. 删除旧版本遗留的 token 握手文件（不再写任何凭证文件）+ pidfile（pid/port/version，供后来者抢占判定）；
+ *      启动者的终端（stdout 是 TTY，或显式 TENON_DASHBOARD_PRINT_LINK=1）会收到一条一次性登录链接。
  *   5. SIGTERM/SIGINT 优雅停：关 server + 清 pidfile。
  */
 import { execFile } from 'node:child_process'
-import { mkdirSync, unlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createTraceStore } from '@tenon/tap'
@@ -19,7 +20,6 @@ import { createOrchestrationLedger, fingerprintWorkspace, machineStateScopeId, s
 import { createDashboardServer } from './server.js'
 import { resolveServerPaths } from './paths.js'
 import { decidePreemption, preemptOldServer, probeHealth } from './preempt.js'
-import { generateToken, writeTokenHandshake } from './token.js'
 import { resolvePayloadReleaseId, resolveReleaseVersion } from './version.js'
 import { resolveDashboardPort } from './port.js'
 import { parseDashboardServerArgs } from './server-args.js'
@@ -82,7 +82,7 @@ async function main(): Promise<void> {
   const transactionId = managedTransactionId()
   const stateScopeId = machineStateScopeId(paths.stateRoot)
 
-  // Product state must exist before token/pid publication. Failure is fatal: a server without
+  // Product state must exist before pid publication. Failure is fatal: a server without
   // durable ownership metadata must never bind the singleton port.
   mkdirSync(paths.stateRoot, { recursive: true, mode: 0o700 })
 
@@ -96,6 +96,7 @@ async function main(): Promise<void> {
   const decision = decidePreemption(existing, version, releaseId, stateScopeId, transactionId)
   if (decision === 'reuse') {
     process.stdout.write(`[dashboard-server] 复用既有 Global server :${port}（版本 ${existing?.version} ≥ ${version}）\n`)
+    process.stdout.write('[dashboard-server] 页面需要登录：运行 tenon dashboard --open，浏览器会自动打开并登录。\n')
     return
   }
   if (decision === 'preempt') {
@@ -115,14 +116,12 @@ async function main(): Promise<void> {
     }
   }
 
-  const token = generateToken()
   const srv = createDashboardServer({
     version,
     releaseId,
     transactionId,
     paths,
     hostHome: paths.homeDir,
-    token,
     manifestPath: manifestPath(),
     gitHeadSha,
     workspaceFingerprint: (cwd) => fingerprintWorkspace(cwd),
@@ -144,10 +143,8 @@ async function main(): Promise<void> {
     return
   }
 
-  // B5：写 0600 token 握手文件（同源前端 / 本机可信工具读取）
-  try {
-    await writeTokenHandshake(paths.tokenPath, token, { pid: process.pid, port, version, created: Date.now() })
-  } catch { /* best-effort */ }
+  // 旧版本把写 token 放在 0600 文件里；现在没有任何凭证落盘，遗留文件按迁移规则直接删除。
+  try { rmSync(paths.tokenPath, { force: true }) } catch { /* best-effort */ }
 
   // pidfile（供后来者版本抢占读旧 pid）
   try {
@@ -164,6 +161,11 @@ async function main(): Promise<void> {
     `[dashboard-server] Global server http://${host}:${port}  version=${version}` +
     `${releaseId === undefined ? '' : ` release=${releaseId}`}\n`,
   )
+  // 一次性登录链接只交给启动这个进程的人：交互终端，或自动化显式声明自己会读日志。后台托管进程的
+  // stdout 被丢弃，用户走 `tenon dashboard --open`（server 自己开浏览器，链接不经任何响应返回）。
+  if (process.stdout.isTTY === true || process.env.TENON_DASHBOARD_PRINT_LINK === '1') {
+    process.stdout.write(`[dashboard-server] 登录链接（一次性，2 分钟内有效）：${srv.issueLoginUrl()}\n`)
+  }
 
   const shutdown = (): void => {
     void srv.close().finally(() => {

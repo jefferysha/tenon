@@ -7,7 +7,7 @@ import type { TenonUserResolution } from '@tenon/kernel'
 import { afterEach, describe, expect, it } from 'vitest'
 import { resolveServerPaths } from './paths.js'
 import { readProjectClients, writeProjectClients } from './projectClients.js'
-import { createDashboardServer } from './server.js'
+import { createTestDashboardServer } from './test-server.js'
 import { reqGet, reqPost } from './test-support.js'
 import type { DashboardServer } from './types.js'
 import { captureWorkflowRootAnchor, closeWorkflowRootAnchor } from './workflowRootAnchor.js'
@@ -32,7 +32,7 @@ async function temp(prefix: string): Promise<string> {
 async function start(roots: readonly string[], resolveUser: (root: string) => TenonUserResolution = () => TEST_USER) {
   const home = await temp('tenon-clients-home-')
   const paths = resolveServerPaths({ home, env: {} })
-  const srv = createDashboardServer({
+  const srv = createTestDashboardServer({
     version: '9.9.9', hostHome: home, paths, token: TOKEN, registry: () => [...roots], pollIntervalMs: 1000, cadence: false, resolveUser,
     manifestPath: fileURLToPath(new URL('../../../templates/manifest.yaml', import.meta.url)),
   })

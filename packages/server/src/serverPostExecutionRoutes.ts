@@ -284,7 +284,7 @@ export async function handlePostExecutionRoutes(
       }
     }
 
-    const decisionHandled = await handlePostDecisionRoutes(req, res, path, { sendJson, readJsonBody, isRegisteredRoot, store, recordStore: deps.recordStore, clock, history, resolveUser: deps.resolveUser })
+    const decisionHandled = await handlePostDecisionRoutes(req, res, path, { sendJson, readJsonBody, isRegisteredRoot, store, recordStore: deps.recordStore, clock, history, resolveUser: deps.resolveUser, presence: deps.presence })
     if (decisionHandled) return
 
     const mTr = /^\/api\/change\/([^/]+)\/transition$/.exec(path)

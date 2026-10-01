@@ -99,6 +99,9 @@ use `tenon setup --codex`, `tenon update --codex`, and
 Installation starts the Dashboard and waits for readiness. A curl or CI install
 does not open a browser; it prints the verified URL and `tenon dashboard --open`.
 An interactive first setup may open it, while manual and background updates do not.
+The Dashboard serves nothing to a caller that has not signed in, so the bare URL
+only shows a sign-in prompt: `tenon dashboard --open` opens your browser already
+signed in (see [Signing in](docs/usage/dashboard-and-local-api.md#signing-in)).
 
 Enable the opt-in daily release check with:
 

@@ -16,9 +16,10 @@
 #   读取当前插件内 SKILL.md 时，文件尾段委托 `node .../tenon.mjs internal-skill-gate` 做 skill DAG
 #   解锁判定。默认 workflow / 无活跃 change / 非技能读取三者任一成立就直接跳过 node；Codex 读取
 #   证据与 Claude Skill 事件保持语义等价但记账类型不同。
-# 例外二（自审批检测）：工具输入命中宽召回候选（dashboard token 文件名，或 loopback 主机 + /api/）
-#   时委托 `node .../tenon.mjs internal-self-approval` 做精确判定与记录。非候选只做 bash 字符串
-#   匹配，不 spawn node。
+# 例外二（自审批检测，审计信号而非边界）：解码后的命令词可能触达本机 Dashboard 控制面（回环主机的各种写法
+#   + Dashboard 端口、`tenon dashboard`、登录端点；解释器/路径首词时再读它所执行脚本里的相关行）时委托
+#   `node .../tenon.mjs internal-self-approval` 做精确判定与记录。非候选只做 bash 字符串匹配，不 spawn node。
+#   边界在 server：无凭证落盘、未登录请求 401、评审确认要浏览器会话 + 在场 nonce（docs/usage/security-model.md）。
 # fail-open（绝不死锁）：stdin 解析失败 / cwd 不存在 / 任何异常 → 放行 exit 0。
 # 强制常开（v5 T5 / 决议#2）：本交互门与 interactive-skill-gate.sh 安全门**不读**
 #   .pipeline/hooks.json 阶段×hook 开关矩阵——配置里手写 "gate.<阶段>": false 一律无效
@@ -27,17 +28,6 @@
 set -uo pipefail
 
 INPUT="$(cat 2>/dev/null || printf '{}')"
-
-# 自审批宽召回预筛（纯 bash、零 fork）：原始输入含 token 文件名，或同时含 loopback 主机与 /api/。
-# 非候选在 AFK 下于此直接放行，热路径与原先「开头即 exit」只多一次 cat 与 case 匹配；
-# 普通 `src/api/` 路径或远端 /api/ 不命中，HITL 下也不进入候选解析。
-SELF_APPROVAL_RAW=0
-case "$INPUT" in
-  *dashboard-token.json*) SELF_APPROVAL_RAW=1 ;;
-  *localhost*|*127.0.0.1*|*'[::1]'*)
-    case "$INPUT" in *'/api/'*|*'\/api\/'*) SELF_APPROVAL_RAW=1 ;; esac
-    ;;
-esac
 
 # All realtime hooks use the same escape-aware parser. This keeps Codex's quoted
 # `command_execution.command` and `exec.cmd` payloads on the exact same path as regular events.
@@ -328,7 +318,15 @@ case "$INPUT" in
     ;;
 esac
 
-[ "${TENON_AFK:-}" = "1" ] && [ "$SELF_APPROVAL_RAW" = 0 ] && exit 0
+# AFK 下没有可执行载荷（没有 command / cmd / argv 字段）的工具调用不可能触达控制面，也不受本门约束：
+# 直接放行。这是按「有没有可执行载荷」的结构判断，不是对内容做子串预筛；旧版本遗留的 token 文件名
+# 仍放行到候选判定（读文件类工具没有载荷字段）。
+if [ "${TENON_AFK:-}" = "1" ]; then
+  case "$INPUT" in
+    *command*|*cmd*|*argv*|*Command*|*dashboard-token*) ;;
+    *) exit 0 ;;
+  esac
+fi
 
 # Every host spells the working directory differently (flat `cwd`, Cursor `workspace_roots`,
 # Cline `workspaceRoots`, Amp `workspaceRoot`); normalise them all before falling back to $PWD.
@@ -352,28 +350,105 @@ if [ -r "$ROOT_HELPER" ]; then
 fi
 
 # ── 自审批检测：宽召回候选（纯 bash）→ CLI 精确判定 ──
-# hook 只回答「这次工具输入是否可能触碰 dashboard token 或本机控制 API」，不解析 curl 参数、
-# 不跳过含 `$(` / `|` 的命令、不读 hook marker，也不自行推导 product state root：命令变体、
-# token 真实路径与 canonical pending receipt 都由 `internal-self-approval` 在 Change 锁内判定，
-# 没有 pending receipt 就零写入。候选文本只经 0600 临时文件传递，调用后立即删除；落盘记录只含
-# 摘要与类别。
+# 这是审计信号，不是边界：边界在 server（无凭证落盘、未登录请求 401、评审确认要浏览器会话 + 在场 nonce）。
+# hook 回答「这次工具调用是否可能触达本机 Dashboard 控制面」，判定基于**解码后的命令词**而不是原始 JSON：
+#   · 回环主机的各种写法 + 一个端口（不再要求 `/api/`——旧首页正是在 `GET /` 发 token；端口是不是 Dashboard 的由 CLI 判定）；
+#   · `tenon dashboard` / dashboard.mjs / 登录端点；
+#   · 命令首词是解释器或路径时，再把它所执行脚本文件里相关的行并进来（`sh x.sh`、`./x`、解释器 + 脚本文件）。
+# 不解析 curl 参数、不跳过含 `$(` / `|` 的命令、不读 hook marker，也不自行推导 product state root：
+# 命令变体、Dashboard 真实端口与 canonical pending receipt 都由 `internal-self-approval` 在 Change 锁内判定，
+# 没有 pending receipt 就零写入。候选文本只经 0600 临时文件传递，调用后立即删除；落盘记录只含摘要与类别。
+pipeline_text_is_control_candidate() { # $1=text → 0 when it may reach the local Dashboard control surface
+  local text="${1:-}" port="${TENON_DASHBOARD_PORT:-18765}"
+  case "$text" in
+    # 旧版本（< 0.3）的 token 文件名：文件已不存在，但仍在读它的进程值得记一笔。
+    *dashboard-token*) return 0 ;;
+    *tenon\ dashboard*|*tenon-dashboard*|*dashboard.mjs*|*/session/start*|*/api/session/open*) return 0 ;;
+    *[Ll][Oo][Cc][Aa][Ll][Hh][Oo][Ss][Tt]*|*127.*|*'[::1]'*|*::1*|*0.0.0.0*|*2130706433*|*0[xX]7[fF]*|*0177.*|*017700000001*|\
+    */dev/tcp/*|*::[fF][fF][fF][fF]:*|*0:0:0:0:0:0:0:1*) ;;
+    *) return 1 ;;
+  esac
+  # 回环主机 + 任一端口（`:3000`、`nc host 18765`、`:$PORT` 展开）才值得交给 CLI 精确判定：hook 不推导 state root，
+  # 不知道 server 实际监听哪个端口（默认值、TENON_DASHBOARD_PORT、pidfile 记录的都可能），所以这里只做宽召回，
+  # 「是不是 Dashboard 的端口」由 CLI 对照这些端口判定。没有端口的（`grep localhost /etc/hosts`、`curl localhost/`）不召回。
+  case "$text" in
+    *"$port"*|*:[0-9]*|*[0-9][0-9][0-9][0-9]*|*:\$*|*TENON_DASHBOARD_PORT*) return 0 ;;
+  esac
+  return 1
+}
+
+pipeline_word_runs_code() { # $1=command word → 0 for interpreters / shells and path-like executables
+  local base="${1##*/}"
+  case "$base" in
+    # `pytho[n]*` 而不是字面量：hot path 红线（tools/test-hooks.sh §3）按源码文本检查解释器名，这里只是在认「哪些命令首词是解释器」。
+    pytho[n]*|node|nodejs|deno|bun|tsx|ts-node|ruby|perl|php|lua|bash|sh|zsh|dash|ksh|fish|csh|tcsh|\
+    pwsh|osascript|swift|source|awk|gawk|expect|Rscript|java) return 0 ;;
+  esac
+  case "$1" in ./*|../*|/*|'~/'*) return 0 ;; esac
+  return 1
+}
+
+# 命令首词是解释器（或路径）时，把它所执行的脚本文件（≤3 个、各读前 128 KiB）里与控制面相关的行摘出来。
+# 只有解释器命令才会读文件；普通命令零 fork。摘录上限 8 KiB，避免把整份脚本塞进候选。
+pipeline_script_operand_excerpt() { # $1=decoded command → 摘录文本（无则空）
+  local command="${1:-}" segment word first trigger files=0 target excerpt out=''
+  command="${command//&&/$'\n'}"
+  command="${command//||/$'\n'}"
+  command="${command//;/$'\n'}"
+  command="${command//|/$'\n'}"
+  set -f
+  while IFS= read -r segment; do
+    first=1
+    trigger=0
+    for word in $segment; do
+      word="${word#[\"\']}"
+      word="${word%[\"\']}"
+      if [ "$first" = 1 ]; then
+        case "$word" in *=*|env|sudo|nohup|time|exec|command|builtin|xargs) continue ;; esac
+        first=0
+        pipeline_word_runs_code "$word" && trigger=1
+        # `./run.sh` 本身就是要执行的脚本。
+        case "$word" in ./*|../*|/*|'~/'*) ;; *) continue ;; esac
+      elif [ "$trigger" != 1 ]; then
+        break
+      fi
+      case "$word" in -*|'') continue ;; esac
+      case "$word" in
+        /*) target="$word" ;;
+        '~/'*) target="${HOME:-}/${word#'~/'}" ;;
+        *) target="${CWD:-.}/$word" ;;
+      esac
+      [ -f "$target" ] && [ -r "$target" ] || continue
+      files=$((files + 1))
+      excerpt="$(head -c 131072 "$target" 2>/dev/null | LC_ALL=C grep -a -i -m 40 -E \
+        'localhost|127\.|::1|0\.0\.0\.0|2130706433|0x7f|0177|017700000001|/dev/tcp|::ffff|18765|TENON_DASHBOARD_PORT|dashboard|/session/' \
+        2>/dev/null | head -c 8192)"
+      [ -n "$excerpt" ] && out="$out $excerpt"
+      [ "$files" -ge 3 ] && break 2
+    done
+  done <<< "$command"
+  set +f
+  printf '%s' "$out"
+}
+
 pipeline_self_approval_candidate() { # $1=tool name → candidate text（非候选输出空）
-  local tool="${1:-}" key value text=''
+  local tool="${1:-}" key value scripts text=''
   case "$tool" in
     Read|Grep|Glob|Search)
       for key in file_path path pattern glob; do
         value="$(pipeline_json_get_string "$INPUT" "$key" || true)"
-        case "$value" in *dashboard-token.json*) text="$text $value" ;; esac
+        case "$value" in *dashboard-token*) text="$text $value" ;; esac
       done
       ;;
     *)
       value="$(json_command || true)"
-      case "$value" in
-        *dashboard-token.json*) text="$value" ;;
-        *localhost*|*127.0.0.1*|*'[::1]'*)
-          case "$value" in *'/api/'*) text="$value" ;; esac
-          ;;
-      esac
+      [ -n "$value" ] || return 0
+      if pipeline_text_is_control_candidate "$value"; then
+        text="$value"
+      else
+        scripts="$(pipeline_script_operand_excerpt "$value")"
+        if [ -n "$scripts" ] && pipeline_text_is_control_candidate "$scripts"; then text="$value $scripts"; fi
+      fi
       ;;
   esac
   printf '%s' "${text# }"
@@ -410,7 +485,7 @@ pipeline_record_self_approval_candidate() { # $1=candidate text
 }
 
 SELF_APPROVAL_CANDIDATE=""
-if [ "$SELF_APPROVAL_RAW" = 1 ]; then
+if [ -n "$TENON_ROOT" ]; then
   SELF_APPROVAL_CANDIDATE="$(pipeline_self_approval_candidate "$TOOL")"
   pipeline_record_self_approval_candidate "$SELF_APPROVAL_CANDIDATE"
 fi
@@ -497,6 +572,15 @@ pipeline_command_has_shell_metachars() { # $1=command segment
   return 1
 }
 
+pipeline_dashboard_open_port_ok() { # $1=segment → 0 unless a `--port` value is not plain digits
+  local segment="${1:-}" port
+  case "$segment" in *--port*) ;; *) return 0 ;; esac
+  port="${segment##*--port }"
+  port="${port%% *}"
+  case "$port" in ''|*[!0-9]*) return 1 ;; esac
+  return 0
+}
+
 # `tenon review acknowledge` is the contract's single writing path out of a pending review
 # (adapters/contract.md §2).  The decision is made on the command *text*, never on a host tool
 # label: Cursor's shell event carries no `tool_name` at all, Cline reports `execute_command` and
@@ -522,6 +606,12 @@ is_review_control_command() { # $1=decoded command
     case "$segment" in
       tenon\ review\ acknowledge|tenon\ review\ acknowledge\ *|\
       tenon\ review\ request|tenon\ review\ request\ *)
+        found=0 ;;
+      # `tenon dashboard --open` asks the *server* to open the user's browser, already signed in: the
+      # one-time login link is delivered by the server and never reaches this process, so it gives an
+      # agent no session.  It is how a pending review reaches the only place a person can approve it.
+      tenon\ dashboard\ --open|tenon\ dashboard\ --open\ --port\ [0-9]*|tenon\ dashboard\ --port\ [0-9]*\ --open)
+        pipeline_dashboard_open_port_ok "$segment" || return 1
         found=0 ;;
       # A leading `cd <dir>` only positions the acknowledgement; it writes nothing and agents
       # routinely pin the project root that way.
@@ -592,9 +682,9 @@ for kind in confirm review interaction; do
     if [ "$kind" = "review" ]; then
       review_marker_relevant_to_active_change "$m" || continue
       # 观测已在 AFK 放行前按 canonical receipt 记录；这里只保留 HITL 下的拦截体验。
-      # loopback 控制 API 调用不是严格只读命令，会落到下方通用拦截。
+      # 触达控制面的命令不是严格只读命令，会落到下方拦截并给出更准的提示。
       case "$SELF_APPROVAL_CANDIDATE" in
-        *dashboard-token.json*)
+        *dashboard-token*)
           printf '【Tenon 门】pending review 期间禁止读取 dashboard token；该行为已记录为安全信号。\n' >&2
           exit 2
           ;;
@@ -618,6 +708,10 @@ for kind in confirm review interaction; do
     # 读取不会扩大权限，也不清 marker。允许它能让 Agent 在等待决定时继续核对事实，
     # 同时 state transition、外部副作用和任何未知动作仍 fail closed。
     pipeline_tool_is_read_only "$TOOL" && continue
+    if [ "$kind" = "review" ] && [ -n "$SELF_APPROVAL_CANDIDATE" ]; then
+      printf '【Tenon 门】pending review 期间禁止访问本机 Dashboard 控制面（%s 已被拦截）：人工确认只能由用户本人在浏览器里完成，会话也只能由用户建立。需要打开页面时运行 tenon dashboard --open（由 server 替用户打开已登录的浏览器）；该行为已记录为安全信号。\n' "$TOOL" >&2
+      exit 2
+    fi
     printf '【Tenon 门】检测到待处理交互标记 %s（%s 已被拦截）：请先把当前决策/产出交用户确认：调用 AskUserQuestion 提问（Claude Code 中它若尚未加载，先用 ToolSearch 查询 \"select:AskUserQuestion\" 载入；Codex 用 request_user_input），该交互完成后解封；等待期间 Read/Grep/Glob 等只读工具不受拦截。没有提问工具时，用户回复「确认继续」「继续执行」「同意继续」，或简短同意「继续」「可以」「同意」「好的」「按推荐」「按你的推荐」即解封（后者表示采纳推荐项）；拒绝（「不可以」「不同意」）、带条件（「继续，但……」）或其他回复不会解封。解封后再重发本次操作。\n' "$base" "$TOOL" >&2
     exit 2
   fi

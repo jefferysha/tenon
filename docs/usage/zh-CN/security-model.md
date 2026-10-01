@@ -19,9 +19,35 @@ canonical state 只由 Tenon CLI 写。路径必须落在项目允许范围，�
 
 不得把 API key、OAuth token、prompt、headers、Tap trace、CA 私钥或真实用户数据写入 README、Issue、Pages artifact 或验证截图。诊断输出先脱敏。
 
+## 本机边界防的是谁
+
+| 对手 | 能做什么 | 什么拦住它 |
+| --- | --- | --- |
+| 浏览器里的任意网页 | 跨站请求、DNS 重绑定、读跨源响应 | 每个请求都校验 Host，Fetch-Metadata / `Origin` 检查，`SameSite=Strict` 会话 cookie，写 token，不发 CORS 头 |
+| 本机其他 OS 用户 | 连回环端口、读世界可读文件 | 没有会话一律 `401`；磁盘上不存任何凭证；状态目录只属于你 |
+| **以你身份运行的 coding agent**（有 shell、能读遍 Tenon state 文件、能连回环端口） | `curl /` 抓 token、读写 API、读 token 文件、在脚本里发请求 | 无会话时 `GET /` 与所有读接口都是 `401`；磁盘、环境变量、进程参数和任何响应里都没有可换会话的东西；确认评审还要只有已登录页面才能申请的「人在场」nonce |
+| 同一用户且能控制你的浏览器、抢读进程参数，或自己再起一个 server | 拿到会话 | **不防。** 这和直接运行 `tenon review acknowledge`、直接改文件是同一级能力；起作用的是宿主 hook 的 fail-closed 门和 AFK 策略，不是 server |
+
+最后一行是有意写明的：回环边界不是沙箱，挡不住已经以你身份运行的代码。0.3 改变的是 Dashboard 不再把钥匙交给任何开口要的人。此前 `GET /` 会把写 token 发给任何调用方，hook 只能靠模式匹配命令去发现滥用；现在边界在 server，hook 只是审计信号。
+
 ## Dashboard
 
 不要把 Dashboard 绑定到 `0.0.0.0` 或通过公共反向代理暴露。它包含项目 root、Change、session 和 mutation 能力。
+
+- server 只绑定 `127.0.0.1`，每个请求（读与 SSE 也一样）都校验 Host。
+- 只有 `GET /api/health` 与静态 `/assets/*` 公开。其余请求必须带有效会话 cookie，没有就是 `401`——包括 `GET /`，它只返回不含 token 的登录提示页。
+- 会话来自**一次性登录链接**（256 bit、只能用一次、2 分钟有效），只存在 server 内存里，只有两条交付途径：server 自己打开你的浏览器（`tenon dashboard --open`，调用方只知道「有没有打开」），或打印到启动 server 的那个终端（交互终端，或启动者设了 `TENON_DASHBOARD_PRINT_LINK=1`）。页面用链接换一个按端口区分的 `HttpOnly; SameSite=Strict` cookie；server 只存它的哈希，空闲 12 小时、最长 7 天、最多 64 个会话。
+- 什么都不落盘。旧版本留下的 `dashboard-token.json` 在 server 启动时删除。
+- 写请求另外需要随机写 token（`Authorization: Bearer` / `X-Pipeline-Token`），它只嵌在服务给已登录会话的页面里，并要求 JSON content type；`Origin` 不是 Dashboard 自己的写请求、或被浏览器标为跨站的请求会被拒绝。
+- **批准评审需要人在场。** 页面要求第二次明确点击；这一下才去申请一次性 nonce（30 秒），它绑定会话、change、评审 ref 与期望 revision，批准请求必须带上。没有会话、或有会话却没有针对这一次评审的新鲜 nonce 的进程，无法经 HTTP 批准。终端里的 `tenon review acknowledge` 不变，仍由宿主的交互门控制。
+- 页面以 `no-store`、`frame-ancestors 'none'`、`Referrer-Policy: no-referrer` 提供。
+- 请求体有上限；返回 UI 的 secrets 已掩码；复用 server 时校验 release 与状态域身份。
+
+需要留意的残余风险：浏览器 cookie 不按端口隔离，任何能让你的浏览器访问 `127.0.0.1` 另一个端口的程序，都可能看到随请求发出的 cookie 头；登录链接还会在 opener 进程的参数里停留几毫秒。两者都需要以你身份运行的代码，也就是模型不防的那一行。
+
+## Hook 与评审门
+
+pending review 期间，PreToolUse 门只放行严格只读命令集（以及 `tenon review request|acknowledge` 与 `tenon dashboard --open`——后者不会给 agent 任何会话），其余一律拦截，包括以任何写法触达回环控制面的命令。可能触达 Dashboard 的命令还会作为安全信号记到 pending receipt 上。这个检测读的是解码后的命令词和命令所执行的脚本，而不是原始请求；它是尽力而为的（计算出来的地址、编码过的载荷会漏过）。hook 没触发时——宿主没装 hook、或 AFK 下——起作用的是上面 server 侧的规则。
 
 ## 自动化
 

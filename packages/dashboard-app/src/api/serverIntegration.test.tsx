@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createDashboardServer, resolveServerPaths } from '@tenon/server'
-import { readGovernedDocumentsForCurrentVisit, recordWorkflowPhaseSkill } from '../../../server/src/test-support.js'
+import { installSessionFetch, readGovernedDocumentsForCurrentVisit, recordWorkflowPhaseSkill } from '../../../server/src/test-support.js'
 import {
   agentDigest,
   appendAgentRunRow,
@@ -214,7 +214,9 @@ async function startRealServer(): Promise<Started> {
     resolveUser: () => ({ id: 'tester@tenon.test', name: 'Tester', slug: 'tester-at-tenon.test', source: 'env', trust: 'declared' }),
   })
   const { port } = await srv.listen(0, '127.0.0.1')
-  return { port, root, token: srv.token, store, close: () => srv.close() }
+  // The Dashboard serves nothing without a session: sign in the way a browser does, once for this file.
+  const restoreFetch = await installSessionFetch(srv, port)
+  return { port, root, token: srv.token, store, close: async () => { restoreFetch(); await srv.close() } }
 }
 
 const started = await startRealServer()

@@ -504,6 +504,130 @@ test('verified Dashboard ownership is registered before a later HTML identity fa
   }
 })
 
+/**
+ * A launcher + Dashboard pair that behaves like the real ones: `runtime`/`doctor` report a healthy install,
+ * `dashboard --open` hands a one-time login link to the fake desktop opener (a file), and the server
+ * answers anonymous callers with 401 unless `leaky` is set.
+ */
+async function signInFixture({ leaky = false, replayable = false } = {}) {
+  const root = await mkdtemp(join(tmpdir(), 'tenon-dashboard-signin-'))
+  const launcher = join(root, '.local', 'bin', 'tenon')
+  const runtimeHome = join(root, 'runtime')
+  const openedFile = join(root, 'opened-url.txt')
+  const releaseId = `sha256-${'a'.repeat(64)}`
+  const health = {
+    ok: true, version: '1.0.3', releaseId, stateScopeId: `sha256-v1-${'b'.repeat(64)}`,
+    transactionId: 'transaction-signin', pid: process.pid,
+  }
+  const page = '<!doctype html><title>Tenon Dashboard</title><script type="module" src="/assets/app.js"></script>'
+  let used = false
+  let port = 0
+  const server = createHttpServer((request, response) => {
+    const url = new URL(request.url ?? '/', 'http://127.0.0.1')
+    const signedIn = (request.headers.cookie ?? '').includes('tenon_session=ok')
+    const send = (status, type, body, headers = {}) => {
+      response.writeHead(status, { 'content-type': type, ...headers })
+      response.end(body)
+    }
+    if (url.pathname === '/api/health') return send(200, 'application/json', JSON.stringify(health))
+    if (url.pathname === '/assets/app.js') return send(200, 'text/javascript', 'tenon-dashboard-theme __TENON_DASHBOARD_TOKEN__')
+    if (url.pathname === '/session/start') {
+      if (used && !replayable) return send(403, 'text/html', 'used')
+      used = true
+      return send(303, 'text/plain', '', { location: '/', 'set-cookie': 'tenon_session=ok; HttpOnly; SameSite=Strict; Path=/' })
+    }
+    if (url.pathname === '/') {
+      if (signedIn) return send(200, 'text/html', page)
+      return leaky ? send(200, 'text/html', `${page}<script>window.__TENON_DASHBOARD_TOKEN__="x"</script>`) : send(401, 'text/html', '<title>Tenon Dashboard</title>sign in')
+    }
+    if (url.pathname === '/api/snapshot') return send(signedIn ? 200 : (leaky ? 200 : 401), 'application/json', '{}')
+    return send(404, 'text/plain', '')
+  })
+  await new Promise((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', resolve)
+  })
+  port = server.address().port
+  await mkdir(dirname(launcher), { recursive: true })
+  await writeFile(launcher, [
+    '#!/bin/sh',
+    'case "$1" in',
+    `  runtime) printf '%s\\n' '${JSON.stringify({
+      activeValid: true,
+      active: {
+        version: 2, releaseId, payloadDigest: 'd'.repeat(64), source: { host: 'codex', pluginVersion: '1.0.3' },
+        stableTarget: { version: '1.0.3', tag: 'v1.0.3', commit: 'c'.repeat(40) },
+      },
+      selection: { activeRelease: releaseId },
+    })}' ;;`,
+    `  dashboard) printf '%s\\n' "http://127.0.0.1:${port}/session/start?code=one-time-code" >> "$TENON_ACCEPTANCE_OPENED_URL" ;;`,
+    `  *) printf '%s\\n' '{"summary":{"red":0}}' ;;`,
+    'esac',
+    '',
+  ].join('\n'), 'utf8')
+  await chmod(launcher, 0o755)
+  const env = { ...process.env, HOME: root, TENON_RUNTIME_HOME: runtimeHome, TENON_ACCEPTANCE_OPENED_URL: openedFile }
+  return {
+    root, port, env, openedFile,
+    close: async () => {
+      await new Promise((resolve) => server.close(resolve))
+      await rm(root, { recursive: true, force: true })
+    },
+  }
+}
+
+test('Dashboard acceptance signs in the supported way: anonymous 401, one-time link, cookie, then the SPA', async () => {
+  const fixture = await signInFixture()
+  try {
+    let registered = null
+    const result = await assertInstalledRuntime(fixture.env, fixture.root, fixture.port, (health) => { registered = health })
+    assert.equal(result.health.pid, process.pid)
+    assert.notEqual(registered, null)
+    assert.match(await readFile(fixture.openedFile, 'utf8'), /\/session\/start\?code=one-time-code/u)
+  } finally {
+    await fixture.close()
+  }
+})
+
+test('Dashboard acceptance fails when an anonymous caller is given the page, the write token or data', async () => {
+  const fixture = await signInFixture({ leaky: true })
+  try {
+    await assert.rejects(
+      assertInstalledRuntime(fixture.env, fixture.root, fixture.port, () => {}),
+      /served its page or write token to an unauthenticated caller/u,
+    )
+  } finally {
+    await fixture.close()
+  }
+})
+
+test('Dashboard acceptance fails when a login link can be used twice', async () => {
+  const fixture = await signInFixture({ replayable: true })
+  try {
+    await assert.rejects(
+      assertInstalledRuntime(fixture.env, fixture.root, fixture.port, () => {}),
+      /can be used twice/u,
+    )
+  } finally {
+    await fixture.close()
+  }
+})
+
+test('Dashboard acceptance fails when `tenon dashboard --open` hands the browser nothing', async () => {
+  const fixture = await signInFixture()
+  try {
+    const launcher = join(fixture.root, '.local', 'bin', 'tenon')
+    const original = await readFile(launcher, 'utf8')
+    await writeFile(launcher, original.replace(/  dashboard\) .*;;\n/u, '  dashboard) : ;;\n'), 'utf8')
+    await assert.rejects(
+      assertInstalledRuntime(fixture.env, fixture.root, fixture.port, () => {}),
+      /did not hand a one-time login link to the browser opener/u,
+    )
+  } finally {
+    await fixture.close()
+  }
+})
+
 test('failure cleanup discovers and stops an isolated Dashboard before ownership registration', async () => {
   const root = await mkdtemp(join(tmpdir(), 'tenon-dashboard-late-cleanup-'))
   const runtimeHome = join(root, 'runtime')

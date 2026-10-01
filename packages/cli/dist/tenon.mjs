@@ -20241,78 +20241,78 @@ function parseBuildRevisionToken(value) {
     value
   };
 }
-function blockerFor(reason3, request, token) {
-  return makeBuildRevisionBlocker(reason3, request.stateHash, token === void 0 ? void 0 : `sha256:${token.revisionHash}`);
+function blockerFor(reason3, request2, token) {
+  return makeBuildRevisionBlocker(reason3, request2.stateHash, token === void 0 ? void 0 : `sha256:${token.revisionHash}`);
 }
-async function assessBuildRevisionTrust(request) {
-  const candidate2 = request.buildSha;
+async function assessBuildRevisionTrust(request2) {
+  const candidate2 = request2.buildSha;
   if (candidate2 === void 0 || candidate2 === "") {
-    return { trusted: false, blocker: blockerFor("missing", request) };
+    return { trusted: false, blocker: blockerFor("missing", request2) };
   }
   if (candidate2 === null || candidate2 === "null") {
-    return { trusted: false, blocker: blockerFor("null", request) };
+    return { trusted: false, blocker: blockerFor("null", request2) };
   }
   if (Array.isArray(candidate2)) {
-    return { trusted: false, blocker: blockerFor("ambiguous", request) };
+    return { trusted: false, blocker: blockerFor("ambiguous", request2) };
   }
   if (typeof candidate2 !== "string") {
-    return { trusted: false, blocker: blockerFor("malformed", request) };
+    return { trusted: false, blocker: blockerFor("malformed", request2) };
   }
   const token = parseBuildRevisionToken(candidate2);
   if (token === void 0)
-    return { trusted: false, blocker: blockerFor("malformed", request) };
-  const expectedKind = request.isolation === "in-place" ? "workspace" : "git";
-  if (request.isolation !== "in-place" && request.isolation !== "branch" && request.isolation !== "worktree") {
-    return { trusted: false, blocker: blockerFor("isolation-mismatch", request, token) };
+    return { trusted: false, blocker: blockerFor("malformed", request2) };
+  const expectedKind = request2.isolation === "in-place" ? "workspace" : "git";
+  if (request2.isolation !== "in-place" && request2.isolation !== "branch" && request2.isolation !== "worktree") {
+    return { trusted: false, blocker: blockerFor("isolation-mismatch", request2, token) };
   }
   if (token.kind !== expectedKind) {
-    return { trusted: false, blocker: blockerFor("isolation-mismatch", request, token) };
+    return { trusted: false, blocker: blockerFor("isolation-mismatch", request2, token) };
   }
   let observation;
   try {
-    observation = await request.observe();
+    observation = await request2.observe();
   } catch {
-    return { trusted: false, blocker: blockerFor("evaluation-error", request, token) };
+    return { trusted: false, blocker: blockerFor("evaluation-error", request2, token) };
   }
   if (!observation || typeof observation !== "object" || observation.kind !== "git" && observation.kind !== "workspace" || typeof observation.revision !== "string" || observation.kind !== token.kind || typeof observation.identity !== "object" || observation.identity === null || typeof observation.identity.repository !== "string" || typeof observation.identity.worktree !== "string" || observation.revision.trim() === "" || observation.identity.repository.trim() === "" || observation.identity.worktree.trim() === "") {
-    return { trusted: false, blocker: blockerFor("capability-unavailable", request, token) };
+    return { trusted: false, blocker: blockerFor("capability-unavailable", request2, token) };
   }
   let fresh;
   try {
     fresh = createBuildRevisionToken(observation.kind, observation.revision, observation.identity);
   } catch {
-    return { trusted: false, blocker: blockerFor("evaluation-error", request, token) };
+    return { trusted: false, blocker: blockerFor("evaluation-error", request2, token) };
   }
   if (fresh.repositoryHash !== token.repositoryHash) {
-    return { trusted: false, blocker: blockerFor("project-mismatch", request, token) };
+    return { trusted: false, blocker: blockerFor("project-mismatch", request2, token) };
   }
   if (fresh.worktreeHash !== token.worktreeHash) {
-    return { trusted: false, blocker: blockerFor("worktree-mismatch", request, token) };
+    return { trusted: false, blocker: blockerFor("worktree-mismatch", request2, token) };
   }
   if (fresh.revisionHash !== token.revisionHash) {
-    return { trusted: false, blocker: blockerFor("revision-stale", request, token) };
+    return { trusted: false, blocker: blockerFor("revision-stale", request2, token) };
   }
-  if (!request.provenance) {
-    return { trusted: false, blocker: blockerFor("provenance-missing", request, token) };
+  if (!request2.provenance) {
+    return { trusted: false, blocker: blockerFor("provenance-missing", request2, token) };
   }
   let provenance;
   try {
-    provenance = await request.provenance();
+    provenance = await request2.provenance();
   } catch {
-    return { trusted: false, blocker: blockerFor("provenance-mismatch", request, token) };
+    return { trusted: false, blocker: blockerFor("provenance-mismatch", request2, token) };
   }
   if (provenance === void 0) {
-    return { trusted: false, blocker: blockerFor("provenance-missing", request, token) };
+    return { trusted: false, blocker: blockerFor("provenance-missing", request2, token) };
   }
   if (typeof provenance !== "object" || typeof provenance.currentStep !== "string" || provenance.stateBuildSha !== void 0 && typeof provenance.stateBuildSha !== "string" || provenance.stateHash !== void 0 && typeof provenance.stateHash !== "string" || typeof provenance.recordTo !== "string" || !Array.isArray(provenance.buildShaEffects) || provenance.buildShaEffects.some((effect) => typeof effect !== "string")) {
-    return { trusted: false, blocker: blockerFor("provenance-mismatch", request, token) };
+    return { trusted: false, blocker: blockerFor("provenance-mismatch", request2, token) };
   }
-  if (request.stateHash !== void 0 && provenance.stateHash !== request.stateHash) {
-    return { trusted: false, blocker: blockerFor("state-stale", request, token) };
+  if (request2.stateHash !== void 0 && provenance.stateHash !== request2.stateHash) {
+    return { trusted: false, blocker: blockerFor("state-stale", request2, token) };
   }
   const matchingEffects = provenance.buildShaEffects.filter((effect) => effect === token.value);
-  if (provenance.currentStep !== (request.expectedStep ?? provenance.currentStep) || provenance.stateBuildSha !== token.value || provenance.recordTo !== provenance.currentStep || provenance.buildShaEffects.length !== 1 || matchingEffects.length !== 1) {
-    return { trusted: false, blocker: blockerFor("provenance-mismatch", request, token) };
+  if (provenance.currentStep !== (request2.expectedStep ?? provenance.currentStep) || provenance.stateBuildSha !== token.value || provenance.recordTo !== provenance.currentStep || provenance.buildShaEffects.length !== 1 || matchingEffects.length !== 1) {
+    return { trusted: false, blocker: blockerFor("provenance-mismatch", request2, token) };
   }
   return { trusted: true, token };
 }
@@ -39261,7 +39261,7 @@ function decodeBoardSnapshotV2(input2) {
       return decoded.value;
     }).filter((value2) => value2 !== void 0);
   };
-  const request = nested3("request", decodeDevelopmentRequestV2);
+  const request2 = nested3("request", decodeDevelopmentRequestV2);
   const context = nested3("context", decodeRepositoryContextV2);
   const assessment = nested3("assessment", decodeCapabilityAssessmentV2);
   const pipeline = nested3("pipeline", decodeWorkflowPipelineV2);
@@ -39288,7 +39288,7 @@ function decodeBoardSnapshotV2(input2) {
     ...event_head_digest === void 0 ? {} : { event_head_digest },
     ...command_head_id === void 0 ? {} : { command_head_id },
     status,
-    ...request === void 0 ? {} : { request },
+    ...request2 === void 0 ? {} : { request: request2 },
     ...context === void 0 ? {} : { context },
     ...assessment === void 0 ? {} : { assessment },
     ...pipeline === void 0 ? {} : { pipeline },
@@ -39392,9 +39392,9 @@ function decodeBoardCommandV2(input2) {
   switch (type) {
     case "accept-request": {
       rejectExtra(["request"]);
-      const request = nested2(raw.request, decodeDevelopmentRequestV2, "$.request", errors);
-      if (request)
-        value = { ...base, type, request };
+      const request2 = nested2(raw.request, decodeDevelopmentRequestV2, "$.request", errors);
+      if (request2)
+        value = { ...base, type, request: request2 };
       break;
     }
     case "record-context": {
@@ -40916,12 +40916,23 @@ var SELF_APPROVAL_SIGNAL_TYPE = "pending-decision-self-approval-suspected";
 var SELF_APPROVAL_OVERFLOW_TYPE = "pending-decision-security-overflow";
 var SELF_APPROVAL_SCHEMA_VERSION = "pending-decision-security/v1";
 var SELF_APPROVAL_SIGNAL_MAX_BYTES = 1024 * 1024;
+var DEFAULT_SELF_APPROVAL_DASHBOARD_PORT = 18765;
 var NAME_RE = /^[A-Za-z0-9_-]+$/u;
 var KEY_RE6 = /^sha256:[0-9a-f]{64}$/u;
 var HASH_RE2 = /^hmac-sha256:[0-9a-f]{64}$/u;
 var CHANNELS = /* @__PURE__ */ new Set(["terminal", "dashboard", "automation", "delegated", "unknown"]);
 var KINDS2 = /* @__PURE__ */ new Set(["token-file-read", "local-control-api-call"]);
-var LOOPBACK_API_RE = /(?:^|[^A-Za-z0-9.-])(?:localhost|127\.0\.0\.1|\[::1\])(?::[^\s/]{0,64})?\/api\//u;
+var LOOPBACK_HOST = String.raw`(?:localhost\.?|127(?:\.[0-9A-Fa-fxX]+){1,3}|0[xX]7[fF][0-9A-Fa-f.xX]*|0177(?:\.[0-7]+){0,3}` + String.raw`|017700000001|2130706433|0\.0\.0\.0|(?:0{0,4}:){2,6}0{0,4}1|::1` + String.raw`|::[fF]{4}:(?:127(?:\.[0-9]+){3}|7[fF][0-9A-Fa-f]{2}:[0-9A-Fa-f]{1,4}))`;
+var HOST_START = String.raw`(?<![A-Za-z0-9.-])`;
+var HOST_END = String.raw`(?![A-Za-z0-9-]|\.[A-Za-z0-9])`;
+var LOOPBACK_AUTHORITY_RE = new RegExp(String.raw`${HOST_START}\[?${LOOPBACK_HOST}\]?${HOST_END}(?::([^\s/'"\\]{0,64}))?`, "giu");
+var DEV_TCP_RE = new RegExp(String.raw`/dev/tcp/\[?${LOOPBACK_HOST}\]?/([^\s'"\\]{1,64})`, "giu");
+var SESSION_SURFACE_RE = /\/api\/session\/open|\/session\/start|dashboard\.mjs|(?<![A-Za-z0-9_-])tenon-dashboard(?![A-Za-z0-9_-])/u;
+var TENON_DASHBOARD_RE = /(?<![A-Za-z0-9_-])tenon\s+dashboard(?![A-Za-z0-9_-])([^\n;&|]*)/gu;
+var SANCTIONED_OPEN_RE = /^\s+(?:--open(?:\s+--port\s+[0-9]+)?|--port\s+[0-9]+\s+--open)\s*$/u;
+var HEALTH_PATH_RE = /^\/api\/health(?:$|[?\s'"#)])/u;
+var DYNAMIC_PORT_RE = /[${}%`()*]/u;
+var EXPANDED_PORT_RE = /:\$[{A-Za-z_(]/u;
 var PATH_NAME_CHAR_RE = /[A-Za-z0-9._-]/u;
 function bounded(value, field4, max = 512) {
   if (value === "" || value.length > max || /[\r\n]/u.test(value))
@@ -40942,12 +40953,49 @@ function mentionsTokenFile(candidate2, location) {
   const segment = new RegExp(`(?:^|[^A-Za-z0-9._-])${escapeRegExp(location.tokenFileName)}(?![A-Za-z0-9._-])`, "u");
   return segment.test(candidate2);
 }
+function digitsOf(port) {
+  const digits = /^[0-9]+/u.exec(port)?.[0];
+  return digits === void 0 ? void 0 : Number.parseInt(digits, 10);
+}
+function targetsDashboardPort(port, dashboardPorts2, candidate2) {
+  if (port !== void 0 && port !== "") {
+    const literal3 = digitsOf(port);
+    return literal3 === void 0 ? DYNAMIC_PORT_RE.test(port) : dashboardPorts2.includes(literal3);
+  }
+  return EXPANDED_PORT_RE.test(candidate2) || dashboardPorts2.some((candidatePort) => new RegExp(`(?<![0-9])${candidatePort}(?![0-9])`, "u").test(candidate2));
+}
+function reachesLoopbackDashboard(candidate2, dashboardPorts2) {
+  for (const match of candidate2.matchAll(LOOPBACK_AUTHORITY_RE)) {
+    if (!targetsDashboardPort(match[1], dashboardPorts2, candidate2))
+      continue;
+    const after = candidate2.slice(match.index + match[0].length);
+    if (HEALTH_PATH_RE.test(after))
+      continue;
+    return true;
+  }
+  for (const match of candidate2.matchAll(DEV_TCP_RE)) {
+    if (targetsDashboardPort(match[1], dashboardPorts2, candidate2))
+      return true;
+  }
+  return false;
+}
+function launchesDashboard(candidate2) {
+  if (SESSION_SURFACE_RE.test(candidate2))
+    return true;
+  for (const match of candidate2.matchAll(TENON_DASHBOARD_RE)) {
+    if (!SANCTIONED_OPEN_RE.test(match[1] ?? ""))
+      return true;
+  }
+  return false;
+}
 function classifySelfApprovalCandidate(candidate2, location) {
   const kinds2 = [];
   if (mentionsTokenFile(candidate2, location))
     kinds2.push("token-file-read");
-  if (LOOPBACK_API_RE.test(candidate2))
+  const dashboardPorts2 = location.dashboardPorts ?? [DEFAULT_SELF_APPROVAL_DASHBOARD_PORT];
+  if (reachesLoopbackDashboard(candidate2, dashboardPorts2) || launchesDashboard(candidate2)) {
     kinds2.push("local-control-api-call");
+  }
   return kinds2;
 }
 function createSelfApprovalSignal(input2) {
@@ -43914,20 +43962,20 @@ var outputSchema = JSON.stringify({
   required: ["schemaVersion", "decisions"],
   additionalProperties: false
 });
-function promptFor(request) {
+function promptFor(request2) {
   const providerInput = {
     schemaVersion: 1,
-    observations: request.observations.map((observation) => ({
+    observations: request2.observations.map((observation) => ({
       observationId: observation.observationId,
       observedAt: observation.observedAt,
       title: observation.title,
       body: observation.body
     })),
-    routes: request.routes.map((route) => ({
+    routes: request2.routes.map((route) => ({
       routeId: route.routeId,
       description: route.description
     })),
-    maxHighCandidates: request.maxHighCandidates
+    maxHighCandidates: request2.maxHighCandidates
   };
   return [
     "Classify every observation as high, watch, or noise.",
@@ -43977,7 +44025,7 @@ function createCodexTriageProvider(options = {}) {
   }
   return {
     kind: PRODUCTION_TRIAGE_PROVIDER_KIND,
-    async classify(request, signal) {
+    async classify(request2, signal) {
       if (signal.aborted)
         throw abortReason(signal);
       const invocationId = newInvocationId();
@@ -44017,7 +44065,7 @@ function createCodexTriageProvider(options = {}) {
           "-"
         ], {
           cwd: tempDirectory,
-          input: promptFor(request),
+          input: promptFor(request2),
           signal: processController.signal
         });
         const result2 = await awaitExecWithAbort(execution, processController.signal);
@@ -44320,10 +44368,10 @@ function createGitCommitsConnector(options) {
   };
   return {
     kind: "git-commits",
-    async observe(request) {
-      const sourceId = request.action.sourceId;
-      const limit = request.limit;
-      if (request.action.schemaVersion !== 1 || request.action.kind !== "git-commits") {
+    async observe(request2) {
+      const sourceId = request2.action.sourceId;
+      const limit = request2.limit;
+      if (request2.action.schemaVersion !== 1 || request2.action.kind !== "git-commits") {
         throw new TypeError("git-commits connector received an incompatible action");
       }
       assertPositiveLimit(limit, "limit");
@@ -44336,12 +44384,12 @@ function createGitCommitsConnector(options) {
         "--verify",
         "--end-of-options",
         `${source.ref}^{commit}`
-      ], request.signal);
+      ], request2.signal);
       const tipSha = canonicalShaFrom(resolved.stdout, `git rev-parse ${source.ref}`);
-      const previousCursor = cursorFrom(request.checkpoint, sourceId, tipSha);
+      const previousCursor = cursorFrom(request2.checkpoint, sourceId, tipSha);
       const assertCanonicalCommit = async (sha) => {
         const args = ["rev-parse", "--verify", "--end-of-options", `${sha}^{commit}`];
-        const resolution = await executeGit(source, args, request.signal);
+        const resolution = await executeGit(source, args, request2.signal);
         if (resolution.exitCode !== 0) {
           throw new CursorStaleError(sourceId, previousCursor?.lastCommitSha ?? sha, tipSha, resolution.stderr || `checkpoint object cannot be resolved (exit ${resolution.exitCode})`);
         }
@@ -44352,7 +44400,7 @@ function createGitCommitsConnector(options) {
       };
       const assertAncestor = async (ancestorSha, descendantSha) => {
         const args = ["merge-base", "--is-ancestor", ancestorSha, descendantSha];
-        const result2 = await executeGit(source, args, request.signal);
+        const result2 = await executeGit(source, args, request2.signal);
         if (result2.exitCode === 1) {
           throw new CursorStaleError(sourceId, previousCursor?.lastCommitSha ?? ancestorSha, tipSha, `checkpoint snapshot ${ancestorSha} is not an ancestor of ${descendantSha} (the ref may have been force-pushed)`);
         }
@@ -44399,7 +44447,7 @@ function createGitCommitsConnector(options) {
         ...revisionArgs,
         "--",
         ...source.pathspec
-      ], request.signal);
+      ], request2.signal);
       const allShas = listed2.stdout.split("\n").filter((sha) => sha !== "").map((sha) => canonicalShaFrom(`${sha}
 `, "git rev-list"));
       if (consumed > allShas.length) {
@@ -44412,7 +44460,7 @@ function createGitCommitsConnector(options) {
       const pageShas = allShas.slice(consumed, consumed + pageLimit);
       const observations = [];
       for (const sha of pageShas) {
-        observations.push(await readObservation(sourceId, source, sha, request.signal));
+        observations.push(await readObservation(sourceId, source, sha, request2.signal));
       }
       const nextConsumed = consumed + pageShas.length;
       const snapshotHasMore = nextConsumed < allShas.length;
@@ -44783,7 +44831,7 @@ function createWorkflowRunMaterializer(deps) {
           actionKind: observation.actionKind,
           observationId: observation.observationId
         };
-        const request = {
+        const request2 = {
           schemaVersion: 1,
           kind: "create-workflow-run",
           idempotencyKey: idempotencyKeyFor(source, creationKey),
@@ -44795,20 +44843,20 @@ function createWorkflowRunMaterializer(deps) {
           workflowId,
           initialStep
         };
-        const existing = requestsByKey.get(request.idempotencyKey);
-        if (existing !== void 0 && !sameCreateRequest(existing, request)) {
-          issues.push(`triageResult.decisions[${index}]: idempotency key '${request.idempotencyKey}' has conflicting requests`);
+        const existing = requestsByKey.get(request2.idempotencyKey);
+        if (existing !== void 0 && !sameCreateRequest(existing, request2)) {
+          issues.push(`triageResult.decisions[${index}]: idempotency key '${request2.idempotencyKey}' has conflicting requests`);
           continue;
         }
         const existingForObservation = requestByObservationId.get(observation.observationId);
         if (existingForObservation === void 0) {
-          requestByObservationId.set(observation.observationId, request);
-        } else if (!sameCreateRequest(existingForObservation, request)) {
+          requestByObservationId.set(observation.observationId, request2);
+        } else if (!sameCreateRequest(existingForObservation, request2)) {
           issues.push(`triageResult.decisions[${index}]: conflicting create actions for observation '${observation.observationId}'`);
           continue;
         }
         if (existing === void 0) {
-          requestsByKey.set(request.idempotencyKey, request);
+          requestsByKey.set(request2.idempotencyKey, request2);
         }
       }
       for (const observation of page.observations) {
@@ -44819,9 +44867,9 @@ function createWorkflowRunMaterializer(deps) {
       if (issues.length > 0)
         throw new WorkflowRunMaterializationError(issues);
       const materializations = [];
-      for (const request of requestsByKey.values()) {
-        const outcome = await deps.repository.createIfAbsent(request);
-        materializations.push({ request, outcome });
+      for (const request2 of requestsByKey.values()) {
+        const outcome = await deps.repository.createIfAbsent(request2);
+        materializations.push({ request: request2, outcome });
       }
       return materializations;
     }
@@ -44968,20 +45016,20 @@ function snapshotRequest(input2) {
     ]);
   }
 }
-function runIdFor(request) {
+function runIdFor(request2) {
   const canonical2 = JSON.stringify([
-    request.schemaVersion,
-    request.kind,
-    request.idempotencyKey,
-    request.source.sourceId,
-    request.source.actionKind,
-    request.source.observationId,
-    request.actionIdentity,
-    request.candidateId,
-    request.changeName,
-    request.routeId,
-    request.workflowId,
-    request.initialStep
+    request2.schemaVersion,
+    request2.kind,
+    request2.idempotencyKey,
+    request2.source.sourceId,
+    request2.source.actionKind,
+    request2.source.observationId,
+    request2.actionIdentity,
+    request2.candidateId,
+    request2.changeName,
+    request2.routeId,
+    request2.workflowId,
+    request2.initialStep
   ]);
   return `triage-run-v1-${createHash35("sha256").update(canonical2, "utf8").digest("hex")}`;
 }
@@ -44993,21 +45041,21 @@ function errnoCode6(error2) {
 function stateString(value) {
   return typeof value === "string" ? value : void 0;
 }
-function assertExistingIdentity(changeDir7, expectedRunId, request, observed) {
-  if (observed.runId === expectedRunId && observed.workflowId === request.workflowId && observed.initialStep === request.initialStep)
+function assertExistingIdentity(changeDir7, expectedRunId, request2, observed) {
+  if (observed.runId === expectedRunId && observed.workflowId === request2.workflowId && observed.initialStep === request2.initialStep)
     return;
   throw new WorkflowRunCreateConflictError({
     changeDir: changeDir7,
     expectedRunId,
     observedRunId: observed.runId,
-    expectedWorkflowId: request.workflowId,
+    expectedWorkflowId: request2.workflowId,
     observedWorkflowId: observed.workflowId,
-    expectedInitialStep: request.initialStep,
+    expectedInitialStep: request2.initialStep,
     observedInitialStep: observed.initialStep
   });
 }
-function assertEstablishedRun(changeDir7, expectedRunId, request, run4) {
-  assertExistingIdentity(changeDir7, expectedRunId, request, {
+function assertEstablishedRun(changeDir7, expectedRunId, request2, run4) {
+  assertExistingIdentity(changeDir7, expectedRunId, request2, {
     runId: run4.id,
     workflowId: run4.workflowId,
     initialStep: run4.currentStep
@@ -45042,15 +45090,15 @@ function runFromValidatedState(state) {
 function createWorkflowRunCreateIfAbsentRepository(deps) {
   return {
     async createIfAbsent(input2) {
-      const request = snapshotRequest(input2);
-      const expectedRunId = runIdFor(request);
-      const changeDir7 = join67(resolve21(deps.repoRoot), "openspec", "changes", request.changeName);
+      const request2 = snapshotRequest(input2);
+      const expectedRunId = runIdFor(request2);
+      const changeDir7 = join67(resolve21(deps.repoRoot), "openspec", "changes", request2.changeName);
       const readExisting = async () => {
         try {
           await deps.store.read(changeDir7);
           return await deps.store.withLock(changeDir7, async () => {
             const state = await deps.store.read(changeDir7);
-            assertExistingIdentity(changeDir7, expectedRunId, request, {
+            assertExistingIdentity(changeDir7, expectedRunId, request2, {
               runId: state.runMetadata?.runId,
               workflowId: stateString(state.fields.workflow),
               initialStep: stateString(state.fields.phase)
@@ -45066,9 +45114,9 @@ function createWorkflowRunCreateIfAbsentRepository(deps) {
       const existing = await readExisting();
       if (existing !== void 0)
         return { status: "existing", run: existing };
-      const trusted = await deps.resolveInit(request);
-      const plan = await deps.resolveWorkflowPlan(request);
-      if (plan.id !== request.workflowId || !plan.workflow.steps.some((step) => step.id === request.initialStep)) {
+      const trusted = await deps.resolveInit(request2);
+      const plan = await deps.resolveWorkflowPlan(request2);
+      if (plan.id !== request2.workflowId || !plan.workflow.steps.some((step) => step.id === request2.initialStep)) {
         throw new WorkflowRunCreateRequestError([
           "request workflow/initialStep does not match the host-resolved workflow plan"
         ]);
@@ -45077,7 +45125,7 @@ function createWorkflowRunCreateIfAbsentRepository(deps) {
       const freezeAgent = await prepareAgentFreeze(plan.workflow, deps.loadAgentLibrary ?? (async () => ({ entries: [], sync: { id: "agents", state: "unchanged" } })));
       const init = {
         repoRoot: deps.repoRoot,
-        name: request.changeName,
+        name: request2.changeName,
         track: trusted.track,
         reviewSeed: trusted.reviewSeed,
         preset: trusted.preset,
@@ -45085,8 +45133,8 @@ function createWorkflowRunCreateIfAbsentRepository(deps) {
         clock: trusted.clock,
         runId: expectedRunId,
         initialWorkflow: {
-          workflow: request.workflowId,
-          phase: request.initialStep,
+          workflow: request2.workflowId,
+          phase: request2.initialStep,
           ...planBinding,
           workflowPlanSnapshot: workflowPlanSnapshot(plan),
           openspecContract: plan.capabilities.documents.profile === "legacy-full",
@@ -45101,7 +45149,7 @@ function createWorkflowRunCreateIfAbsentRepository(deps) {
           throw error2;
       }
       if (created !== void 0) {
-        assertEstablishedRun(created.changeDir, expectedRunId, request, created.run);
+        assertEstablishedRun(created.changeDir, expectedRunId, request2, created.run);
         if (freezeAgent !== void 0) {
           await ensureAgentFreeze({
             changeDir: created.changeDir,
@@ -45612,11 +45660,11 @@ async function runLocked(run4, key) {
     if (page.hasMore && sameCheckpoint(state.checkpoint.checkpoint, page.nextCheckpoint)) {
       throw orchestrationFailure("checkpoint-not-progressing", "source connector reported hasMore without advancing its checkpoint", state, { failedPageCheckpoint: page.nextCheckpoint, retryable: false });
     }
-    const request = providerRequestFor(page, run4.routes, run4.maxHighCandidates);
+    const request2 = providerRequestFor(page, run4.routes, run4.maxHighCandidates);
     assertNotAborted(run4.signal, state, page.nextCheckpoint);
     let rawInvocation;
     try {
-      rawInvocation = await run4.classify(request, run4.signal);
+      rawInvocation = await run4.classify(request2, run4.signal);
     } catch (error2) {
       if (run4.signal.aborted)
         assertNotAborted(run4.signal, state, page.nextCheckpoint);
@@ -56346,10 +56394,10 @@ async function stepTestBlockers(deps, name2, dir, state, plan, options = {}) {
 // packages/cli/src/commands/buildRevisionAssessor.ts
 function resolveBuildRevisionAssessor(deps, changeName, changeDir7) {
   if (deps.assessBuildRevision !== void 0) return deps.assessBuildRevision;
-  return async (request) => {
+  return async (request2) => {
     const identity2 = deps.buildRevisionIdentity === void 0 ? await probeBuildRevisionIdentity(deps.cwd) : await deps.buildRevisionIdentity();
     const observe = async () => {
-      const kind = request.isolation === "in-place" ? "workspace" : "git";
+      const kind = request2.isolation === "in-place" ? "workspace" : "git";
       const revision = kind === "workspace" ? await deps.workspaceFingerprint?.(changeName) ?? "" : await deps.gitHeadSha?.() ?? "";
       if (!identity2) throw new Error("build revision identity unavailable");
       return { kind, revision, identity: identity2 };
@@ -56367,7 +56415,7 @@ function resolveBuildRevisionAssessor(deps, changeName, changeDir7) {
         buildShaEffects: record9.effects.filter((effect) => effect.field === "build_sha").map((effect) => typeof effect.to === "string" ? effect.to : "")
       };
     };
-    return assessBuildRevisionTrust({ ...request, observe, provenance });
+    return assessBuildRevisionTrust({ ...request2, observe, provenance });
   };
 }
 
@@ -57434,7 +57482,7 @@ function probeHealthyDashboard(port, expectedReleaseId, expectedStateScopeId, op
       if (wallClockTimer !== void 0) clearTimeout(wallClockTimer);
       resolveProbe(healthy);
     };
-    const request = httpGet(
+    const request2 = httpGet(
       { host: "127.0.0.1", port, path: "/api/health", timeout: socketTimeoutMs },
       (response) => {
         let text11 = "";
@@ -57475,14 +57523,14 @@ function probeHealthyDashboard(port, expectedReleaseId, expectedStateScopeId, op
       }
     );
     wallClockTimer = setTimeout(() => {
-      request.destroy();
+      request2.destroy();
       finish(null);
     }, wallClockTimeoutMs);
-    request.once("timeout", () => {
-      request.destroy();
+    request2.once("timeout", () => {
+      request2.destroy();
       finish(null);
     });
-    request.once("error", () => finish(null));
+    request2.once("error", () => finish(null));
   });
 }
 function sleep3(ms) {
@@ -57776,6 +57824,91 @@ function freezeTrustedExecutable(requestedPath, platform2 = process.platform) {
   };
 }
 
+// packages/cli/src/commands/dashboard-open.ts
+import { request } from "node:http";
+var REQUEST_TIMEOUT_MS = 5e3;
+var MAX_RESPONSE_BYTES = 4 * 1024;
+function requestDashboardBrowserOpen(url) {
+  let port;
+  try {
+    port = Number(new URL(url).port);
+  } catch {
+    return Promise.resolve(false);
+  }
+  if (!Number.isInteger(port) || port <= 0) return Promise.resolve(false);
+  return new Promise((resolveOpened) => {
+    let settled = false;
+    const finish = (opened) => {
+      if (settled) return;
+      settled = true;
+      resolveOpened(opened);
+    };
+    const body = "{}";
+    const req = request({
+      host: "127.0.0.1",
+      port,
+      path: "/api/session/open",
+      method: "POST",
+      timeout: REQUEST_TIMEOUT_MS,
+      headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) }
+    }, (res) => {
+      let text11 = "";
+      res.setEncoding("utf8");
+      res.on("data", (chunk) => {
+        text11 += chunk;
+        if (text11.length > MAX_RESPONSE_BYTES) {
+          res.destroy();
+          finish(false);
+        }
+      });
+      res.once("error", () => finish(false));
+      res.once("end", () => {
+        if (res.statusCode !== 200) return finish(false);
+        try {
+          const parsed2 = JSON.parse(text11);
+          finish(typeof parsed2 === "object" && parsed2 !== null && Reflect.get(parsed2, "opened") === true);
+        } catch {
+          finish(false);
+        }
+      });
+    });
+    req.once("timeout", () => {
+      req.destroy();
+      finish(false);
+    });
+    req.once("error", () => finish(false));
+    req.end(body);
+  });
+}
+var OPEN_FAILED_GUIDANCE = "[dashboard] \u65E0\u6CD5\u81EA\u52A8\u6253\u5F00\u6D4F\u89C8\u5668\u3002\u6709\u684C\u9762\u73AF\u5883\u65F6\u91CD\u8BD5 tenon dashboard --open\uFF1B\u65E0\u684C\u9762\u73AF\u5883\u65F6\u5728\u7EC8\u7AEF\u524D\u53F0\u8FD0\u884C tenon dashboard --port <\u7A7A\u95F2\u7AEF\u53E3>\uFF08\u4F8B\u5982 19765\uFF09\uFF0C\u7EC8\u7AEF\u4F1A\u6253\u5370\u4E00\u6B21\u6027\u767B\u5F55\u94FE\u63A5\uFF0C\u5728\u80FD\u8BBF\u95EE\u8BE5\u7AEF\u53E3\u7684\u6D4F\u89C8\u5668\u91CC\u6253\u5F00\u5373\u53EF\u3002";
+async function attachToRunningDashboard(deps, port, open15, runtime) {
+  let running;
+  try {
+    running = await runtime.probeHealthyServer(port, void 0, runtime.resolveStateScopeId(), "*");
+  } catch {
+    return null;
+  }
+  if (running === null) return null;
+  const url = `http://127.0.0.1:${port}/`;
+  deps.io.out(`[dashboard] \u5DF2\u5728\u8FD0\u884C\uFF1A${url}\uFF08pid ${running.pid}\uFF09`);
+  if (!open15) {
+    deps.io.out("[dashboard] \u9875\u9762\u9700\u8981\u767B\u5F55\uFF1A\u8FD0\u884C tenon dashboard --open\uFF0C\u6D4F\u89C8\u5668\u4F1A\u81EA\u52A8\u6253\u5F00\u5E76\u767B\u5F55\u3002");
+    return 0;
+  }
+  let opened = false;
+  try {
+    opened = await runtime.openBrowser(url);
+  } catch {
+    opened = false;
+  }
+  if (opened) {
+    deps.io.out("[dashboard] \u5DF2\u8BF7\u6C42\u670D\u52A1\u66FF\u4F60\u6253\u5F00\u6D4F\u89C8\u5668\uFF08\u4E00\u6B21\u6027\u767B\u5F55\u94FE\u63A5\u53EA\u4EA4\u7ED9\u6D4F\u89C8\u5668\uFF09\u3002");
+    return 0;
+  }
+  deps.io.err(OPEN_FAILED_GUIDANCE);
+  return 1;
+}
+
 // packages/cli/src/commands/dashboard-session.ts
 function releasedDashboardSession(deps, ownership, stopOwned) {
   let stopped = false;
@@ -57823,23 +57956,6 @@ function launch(serverBundle, env, nodeExecutable = process.execPath) {
 var REAL_DASHBOARD_COMMAND_ENV = {
   resolveTrustedNode: () => freezeTrustedExecutable(process.execPath)
 };
-function openBrowser(url) {
-  const command2 = process.platform === "darwin" ? { file: "open", args: [url] } : process.platform === "win32" ? { file: "cmd.exe", args: ["/c", "start", "", url] } : { file: "xdg-open", args: [url] };
-  return new Promise((resolveOpened) => {
-    let settled = false;
-    const finish = (opened) => {
-      if (settled) return;
-      settled = true;
-      resolveOpened(opened);
-    };
-    const child = spawn5(command2.file, command2.args, { detached: true, stdio: "ignore" });
-    child.once("error", () => finish(false));
-    child.once("spawn", () => {
-      child.unref();
-      finish(true);
-    });
-  });
-}
 function resolveDashboardRoot() {
   const declared = process.env.PLUGIN_ROOT ?? process.env.CLAUDE_PLUGIN_ROOT;
   if (declared !== void 0 && declared.trim() !== "") return declared;
@@ -57861,7 +57977,8 @@ var REAL_DASHBOARD_RUNTIME = {
     ...transactionId === "*" ? { observeAnyTransaction: true } : { expectedTransactionId: transactionId }
   }),
   stopOwnedDashboard,
-  openBrowser
+  // The server opens the browser itself with a one-time login URL nobody else sees.
+  openBrowser: requestDashboardBrowserOpen
 };
 function packagedAssets(runtime, root) {
   const serverBundle = join97(root, "packages", "server", "dist", "dashboard.mjs");
@@ -57953,7 +58070,7 @@ async function startManagedDashboard(deps, payloadRoot, opts, runtime, expectedR
     browserOpened = false;
   }
   if (!browserOpened) {
-    deps.io.err(`[dashboard] \u65E0\u6CD5\u81EA\u52A8\u6253\u5F00\u6D4F\u89C8\u5668\uFF1B\u8BF7\u5728\u6D4F\u89C8\u5668\u8BBF\u95EE ${url}`);
+    deps.io.err(OPEN_FAILED_GUIDANCE);
   }
   return {
     state: "ready",
@@ -57994,6 +58111,10 @@ async function cmdDashboard(deps, opts, runtime = REAL_DASHBOARD_RUNTIME, comman
   if (opts.dryRun) {
     deps.io.out("[dashboard] --dry-run\uFF1A\u672A\u542F\u52A8 server\u3002");
     return 0;
+  }
+  if (opts.background === true || opts.open === true) {
+    const attached = await attachToRunningDashboard(deps, port, opts.open === true, runtime);
+    if (attached !== null) return attached;
   }
   const trustedNode = commandEnv.resolveTrustedNode();
   if (trustedNode === void 0) {
@@ -76621,9 +76742,9 @@ function createProductionTriageRuntime(options) {
     repoRoot: options.repoRoot,
     store: options.store,
     runRepository: options.runRepository,
-    resolveWorkflowPlan: (request) => loadEffectiveWorkflowPlan(
+    resolveWorkflowPlan: (request2) => loadEffectiveWorkflowPlan(
       options.repoRoot,
-      request.workflowId
+      request2.workflowId
     ),
     resolveInit: () => ({
       track: "backend",
@@ -76644,19 +76765,19 @@ function createProductionTriageRuntime(options) {
   const providerFactory = options.providerFactory ?? ((model) => createCodexFirstTriageProvider({ model }));
   const processSignals = options.processSignals ?? REAL_PROCESS_SIGNALS;
   return {
-    async run(request) {
-      const action = request.source === "git-commits" ? { schemaVersion: 1, kind: "git-commits", sourceId: GIT_SOURCE_ID } : { schemaVersion: 1, kind: "loop-run-terminals", sourceId: LOOP_SOURCE_ID };
-      const connector = request.source === "git-commits" ? gitConnector : loopConnector;
+    async run(request2) {
+      const action = request2.source === "git-commits" ? { schemaVersion: 1, kind: "git-commits", sourceId: GIT_SOURCE_ID } : { schemaVersion: 1, kind: "loop-run-terminals", sourceId: LOOP_SOURCE_ID };
+      const connector = request2.source === "git-commits" ? gitConnector : loopConnector;
       return withTerminationSignal(options.signal, processSignals, (signal) => runTriage({
         action,
         connector,
-        provider: providerFactory(request.model),
+        provider: providerFactory(request2.model),
         materializer,
         checkpointStore,
         routes: DEFAULT_ROUTES,
-        pageSize: request.pageSize,
-        maxPages: request.maxPages,
-        maxHighCandidates: request.maxHighCandidates,
+        pageSize: request2.pageSize,
+        maxPages: request2.maxPages,
+        maxHighCandidates: request2.maxHighCandidates,
         signal
       }));
     }
@@ -76676,7 +76797,7 @@ function integerOption(value, fallback2, flag2, minimum) {
   }
   return parsed2;
 }
-function jsonResult(request, result2) {
+function jsonResult(request2, result2) {
   const runs = result2.materializations.map(({ request: create, outcome }) => ({
     status: outcome.status,
     changeName: create.changeName,
@@ -76687,9 +76808,9 @@ function jsonResult(request, result2) {
   return {
     schemaVersion: 1,
     command: "triage",
-    source: request.source,
-    provider: request.provider,
-    model: request.model,
+    source: request2.source,
+    provider: request2.provider,
+    model: request2.model,
     pagesProcessed: result2.pagesProcessed,
     observationsProcessed: result2.observationsProcessed,
     workflowRuns: {
@@ -76730,9 +76851,9 @@ async function cmdTriage(deps, source, options, runtime) {
     deps.io.err("ERROR: triage production runtime \u672A\u88C5\u914D");
     return 1;
   }
-  let request;
+  let request2;
   try {
-    request = {
+    request2 = {
       source,
       provider,
       model,
@@ -76752,7 +76873,7 @@ async function cmdTriage(deps, source, options, runtime) {
   }
   let result2;
   try {
-    result2 = await runtime.run(request);
+    result2 = await runtime.run(request2);
   } catch (error2) {
     if (error2 instanceof TriageCommandInterruptedError) {
       deps.io.err(`ERROR: ${error2.message}`);
@@ -76770,13 +76891,13 @@ async function cmdTriage(deps, source, options, runtime) {
     return 1;
   }
   if (options.json) {
-    deps.io.out(JSON.stringify(jsonResult(request, result2)));
+    deps.io.out(JSON.stringify(jsonResult(request2, result2)));
   } else {
     const created = result2.materializations.filter(
       (materialization) => materialization.outcome.status === "created"
     ).length;
     const existing = result2.materializations.length - created;
-    deps.io.out(`TRIAGE source=${request.source} provider=${request.provider} model=${request.model}`);
+    deps.io.out(`TRIAGE source=${request2.source} provider=${request2.provider} model=${request2.model}`);
     deps.io.out(
       `pages=${result2.pagesProcessed} observations=${result2.observationsProcessed} workflow_runs=${result2.materializations.length} created=${created} existing=${existing}`
     );
@@ -78022,7 +78143,7 @@ import { join as join145 } from "node:path";
 
 // packages/cli/src/commands/release-dashboard-coordinator.ts
 import { join as join138 } from "node:path";
-async function coordinateReleaseDashboard(deps, transaction, initialJournal, activation, openBrowser2, dashboardPort, starter, trustedNodePath, verifyTrustedNode) {
+async function coordinateReleaseDashboard(deps, transaction, initialJournal, activation, openBrowser, dashboardPort, starter, trustedNodePath, verifyTrustedNode) {
   let journal = initialJournal;
   if (journal.dashboardPort !== void 0 && journal.dashboardPort !== dashboardPort) {
     return {
@@ -78258,7 +78379,7 @@ async function coordinateReleaseDashboard(deps, transaction, initialJournal, act
         deps,
         join138(activation.releaseRoot, "payload"),
         {
-          openBrowser: openBrowser2,
+          openBrowser,
           port: dashboardPort,
           transactionId: journal.transactionId,
           expectedServerVersion: activation.release.source.pluginVersion,
@@ -78608,8 +78729,8 @@ var LEGACY_PHASES = /* @__PURE__ */ new Set([
   "dashboard-ready",
   "evidence-committed"
 ]);
-function isExactLegacyV101NativeJournal(request, journal) {
-  if (request.requiresStableTarget !== true || request.operation !== "setup" || request.source !== "codex" && request.source !== "claude" || journal.operation !== "setup" && journal.operation !== "update" || journal.source !== request.source || journal.stableTarget !== void 0 || journal.dashboardPort !== void 0 || journal.candidateOpenBrowser !== void 0 || journal.dashboardBeforeAbsent !== void 0 || journal.dashboardBeforeRetiring !== void 0 || journal.compensationReason !== void 0 || journal.dashboardRestored !== void 0 || !LEGACY_PHASES.has(journal.phase) || journal.dashboardBefore !== void 0 && journal.dashboardBefore.serverVersion !== "" || journal.dashboard !== void 0 && journal.dashboard.serverVersion !== "") return false;
+function isExactLegacyV101NativeJournal(request2, journal) {
+  if (request2.requiresStableTarget !== true || request2.operation !== "setup" || request2.source !== "codex" && request2.source !== "claude" || journal.operation !== "setup" && journal.operation !== "update" || journal.source !== request2.source || journal.stableTarget !== void 0 || journal.dashboardPort !== void 0 || journal.candidateOpenBrowser !== void 0 || journal.dashboardBeforeAbsent !== void 0 || journal.dashboardBeforeRetiring !== void 0 || journal.compensationReason !== void 0 || journal.dashboardRestored !== void 0 || !LEGACY_PHASES.has(journal.phase) || journal.dashboardBefore !== void 0 && journal.dashboardBefore.serverVersion !== "" || journal.dashboard !== void 0 && journal.dashboard.serverVersion !== "") return false;
   if (journal.phase === "preparing-host") {
     return journal.candidateRoot === void 0 && journal.activationCheckpoint === void 0 && journal.activation === void 0 && journal.dashboardBefore === void 0 && journal.dashboard === void 0;
   }
@@ -78619,7 +78740,7 @@ function isExactLegacyV101NativeJournal(request, journal) {
   if (journal.phase === "activating-runtime") {
     return journal.activationCheckpoint !== void 0 && journal.activation === void 0 && journal.dashboardBefore === void 0 && journal.dashboard === void 0;
   }
-  const exactActivation = journal.activationCheckpoint !== void 0 && journal.activation?.release.version === 1 && journal.activation.release.source.host === journal.source && (journal.activation.release.source.pluginVersion === "1.0.1" || journal.operation === "update" && request.expectedPluginVersion !== void 0 && journal.activation.release.source.pluginVersion === request.expectedPluginVersion);
+  const exactActivation = journal.activationCheckpoint !== void 0 && journal.activation?.release.version === 1 && journal.activation.release.source.host === journal.source && (journal.activation.release.source.pluginVersion === "1.0.1" || journal.operation === "update" && request2.expectedPluginVersion !== void 0 && journal.activation.release.source.pluginVersion === request2.expectedPluginVersion);
   if (!exactActivation) return false;
   if (journal.phase === "runtime-activated") {
     return journal.dashboardBefore === void 0 && journal.dashboard === void 0;
@@ -78627,12 +78748,12 @@ function isExactLegacyV101NativeJournal(request, journal) {
   if (journal.phase === "starting-dashboard") return journal.dashboard === void 0;
   return journal.dashboard !== void 0 && journal.dashboard.owner === "transaction" && journal.dashboard.transactionId === journal.transactionId && journal.dashboard.releaseId === journal.activation.release.releaseId && journal.dashboard.serverVersion === "";
 }
-async function proveLegacyActivation(request, transaction, journal) {
+async function proveLegacyActivation(request2, transaction, journal) {
   if (journal.phase === "activating-runtime") {
     if (journal.activationCheckpoint === void 0) {
       throw new ManagedRuntimeIndeterminateError("legacy activating-runtime WAL \u7F3A\u5C11 activation checkpoint");
     }
-    const recovered = await transaction.recoverActivation(journal.activationCheckpoint, request.source);
+    const recovered = await transaction.recoverActivation(journal.activationCheckpoint, request2.source);
     return recovered.state === "activated" ? recovered.activation : void 0;
   }
   if (!LEGACY_ADVANCED_PHASES.has(journal.phase)) return void 0;
@@ -78661,8 +78782,8 @@ async function proveLegacyDashboardBoundary(deps, journal, activation, starter) 
     );
   }
 }
-async function retireLegacyNativeSetupJournal(deps, request, transaction, journal, dashboardStarter) {
-  if (!isExactLegacyV101NativeJournal(request, journal)) return null;
+async function retireLegacyNativeSetupJournal(deps, request2, transaction, journal, dashboardStarter) {
+  if (!isExactLegacyV101NativeJournal(request2, journal)) return null;
   if (journal.phase === "stopping-candidate" || journal.phase === "reverting-activation" || journal.phase === "restoring-previous" || journal.phase === "previous-restored") {
     throw new ManagedRuntimeIndeterminateError(
       `\u7F3A stable target \u7684 ${journal.phase} WAL \u4E0D\u662F v1.0.1 schema\uFF1B\u62D2\u7EDD\u731C\u6D4B\u6062\u590D`
@@ -78670,23 +78791,23 @@ async function retireLegacyNativeSetupJournal(deps, request, transaction, journa
   }
   let activation;
   try {
-    if (request.resolveStableTargetBeforeRecovery === void 0) {
+    if (request2.resolveStableTargetBeforeRecovery === void 0) {
       throw new ManagedRuntimeIndeterminateError("legacy setup WAL \u7F3A\u5C11 successor stable target resolver");
     }
-    const stableTarget = await request.resolveStableTargetBeforeRecovery();
-    await request.proveFrozenTarget?.(stableTarget);
-    activation = await proveLegacyActivation(request, transaction, journal);
+    const stableTarget = await request2.resolveStableTargetBeforeRecovery();
+    await request2.proveFrozenTarget?.(stableTarget);
+    activation = await proveLegacyActivation(request2, transaction, journal);
     await proveLegacyDashboardBoundary(deps, journal, activation, dashboardStarter);
     const updatedAt = deps.clock();
     const successor = {
       version: 1,
       transactionId: journal.transactionId,
-      operation: request.operation,
-      source: request.source,
+      operation: request2.operation,
+      source: request2.source,
       phase: "preparing-host",
       startedAt: updatedAt,
       updatedAt,
-      dashboardPort: request.dashboardPort ?? journal.dashboardPort ?? journal.dashboard?.port ?? journal.dashboardBefore?.port ?? DEFAULT_DASHBOARD_PORT,
+      dashboardPort: request2.dashboardPort ?? journal.dashboardPort ?? journal.dashboard?.port ?? journal.dashboardBefore?.port ?? DEFAULT_DASHBOARD_PORT,
       stableTarget
     };
     await transaction.journal.write(successor);
@@ -78702,7 +78823,7 @@ async function retireLegacyNativeSetupJournal(deps, request, transaction, journa
 }
 
 // packages/cli/src/commands/managed-release-journal-coordinator.ts
-async function resolveManagedReleaseJournal(deps, request, transaction) {
+async function resolveManagedReleaseJournal(deps, request2, transaction) {
   let pending;
   try {
     pending = await transaction.journal.read();
@@ -78714,16 +78835,16 @@ async function resolveManagedReleaseJournal(deps, request, transaction) {
   }
   if (pending === null) {
     let stableTarget;
-    if (request.requiresStableTarget === true) {
-      if (request.resolveStableTargetBeforeRecovery === void 0) {
+    if (request2.requiresStableTarget === true) {
+      if (request2.resolveStableTargetBeforeRecovery === void 0) {
         throw new Error("native managed release \u7F3A\u5C11 mutation \u524D stable target resolver");
       }
-      stableTarget = await request.resolveStableTargetBeforeRecovery();
-      await request.proveFrozenTarget?.(stableTarget);
+      stableTarget = await request2.resolveStableTargetBeforeRecovery();
+      await request2.proveFrozenTarget?.(stableTarget);
     }
     const created = {
-      ...transaction.journal.create(request.operation, request.source, deps.clock()),
-      dashboardPort: request.dashboardPort ?? DEFAULT_DASHBOARD_PORT,
+      ...transaction.journal.create(request2.operation, request2.source, deps.clock()),
+      dashboardPort: request2.dashboardPort ?? DEFAULT_DASHBOARD_PORT,
       ...stableTarget === void 0 ? {} : { stableTarget }
     };
     try {
@@ -78737,17 +78858,17 @@ async function resolveManagedReleaseJournal(deps, request, transaction) {
     }
   }
   try {
-    const potentialLegacyNative = request.operation === "setup" && (request.source === "codex" || request.source === "claude") && request.requiresStableTarget === true && (pending.operation === "setup" || pending.operation === "update") && pending.source === request.source && pending.stableTarget === void 0;
-    const exactLegacyNative = potentialLegacyNative && isExactLegacyV101NativeJournal(request, pending);
+    const potentialLegacyNative = request2.operation === "setup" && (request2.source === "codex" || request2.source === "claude") && request2.requiresStableTarget === true && (pending.operation === "setup" || pending.operation === "update") && pending.source === request2.source && pending.stableTarget === void 0;
+    const exactLegacyNative = potentialLegacyNative && isExactLegacyV101NativeJournal(request2, pending);
     if (potentialLegacyNative && !exactLegacyNative) {
       throw new ManagedRuntimeIndeterminateError(
         `\u672A\u5B8C\u6210\u4E8B\u52A1 ${pending.transactionId} \u7F3A\u5C11 stable target\uFF0C\u4F46\u4E0D\u6EE1\u8DB3\u7CBE\u786E v1.0.1 WAL envelope\uFF1B\u62D2\u7EDD\u91CD\u89E3\u91CA\u6216\u6539\u5199\u7B2C\u4E09\u6001 journal`
       );
     }
     const legacyUpdateBridge = exactLegacyNative && pending.operation === "update";
-    if ((pending.operation !== request.operation || pending.source !== request.source) && !legacyUpdateBridge) {
+    if ((pending.operation !== request2.operation || pending.source !== request2.source) && !legacyUpdateBridge) {
       throw new ManagedRuntimeIndeterminateError(
-        `\u5B58\u5728\u672A\u5B8C\u6210\u7684 ${pending.operation}/${pending.source} \u4E8B\u52A1 ${pending.transactionId}\uFF0C\u62D2\u7EDD\u542F\u52A8 ${request.operation}/${request.source}`
+        `\u5B58\u5728\u672A\u5B8C\u6210\u7684 ${pending.operation}/${pending.source} \u4E8B\u52A1 ${pending.transactionId}\uFF0C\u62D2\u7EDD\u542F\u52A8 ${request2.operation}/${request2.source}`
       );
     }
     if (pending.dashboardPort !== void 0) return pending;
@@ -78762,7 +78883,7 @@ async function resolveManagedReleaseJournal(deps, request, transaction) {
     }
     const migrated = {
       ...pending,
-      dashboardPort: inferredPort ?? request.dashboardPort ?? DEFAULT_DASHBOARD_PORT,
+      dashboardPort: inferredPort ?? request2.dashboardPort ?? DEFAULT_DASHBOARD_PORT,
       updatedAt: deps.clock()
     };
     await transaction.journal.write(migrated);
@@ -78776,23 +78897,23 @@ async function resolveManagedReleaseJournal(deps, request, transaction) {
 }
 
 // packages/cli/src/commands/release-candidate-coordinator.ts
-async function prepareManagedReleaseCandidate(deps, request, transaction, dashboardStarter) {
-  let journal = await resolveManagedReleaseJournal(deps, request, transaction);
+async function prepareManagedReleaseCandidate(deps, request2, transaction, dashboardStarter) {
+  let journal = await resolveManagedReleaseJournal(deps, request2, transaction);
   journal = await retireLegacyNativeSetupJournal(
     deps,
-    request,
+    request2,
     transaction,
     journal,
     dashboardStarter
   ) ?? journal;
-  if (request.requiresStableTarget === true && journal.stableTarget === void 0 && (journal.phase !== "preparing-host" || (journal.hostSteps?.length ?? 0) > 0)) {
+  if (request2.requiresStableTarget === true && journal.stableTarget === void 0 && (journal.phase !== "preparing-host" || (journal.hostSteps?.length ?? 0) > 0)) {
     throw new ManagedRuntimeIndeterminateError(
       `update journal \u5DF2\u8FDB\u5165 ${journal.phase}\uFF0C\u4F46\u7F3A\u5C11 mutation \u524D\u51BB\u7ED3\u7684 stable target`
     );
   }
-  if (journal.stableTarget !== void 0 && request.proveFrozenTarget !== void 0) {
+  if (journal.stableTarget !== void 0 && request2.proveFrozenTarget !== void 0) {
     try {
-      await request.proveFrozenTarget(journal.stableTarget);
+      await request2.proveFrozenTarget(journal.stableTarget);
     } catch (error2) {
       throw new ManagedRuntimeIndeterminateError(
         `journal stable target \u5DF2\u6F02\u79FB\u6216\u65E0\u6CD5\u91CD\u65B0\u8BC1\u660E\uFF1A${error2 instanceof Error ? error2.message : String(error2)}`
@@ -78818,13 +78939,13 @@ async function prepareManagedReleaseCandidate(deps, request, transaction, dashbo
     return {
       outcome: await resumeManagedReleaseCompensation(
         deps,
-        request.source,
+        request2.source,
         transaction,
         journal,
         dashboardStarter,
         void 0,
-        request.runtime.trustedNodePath,
-        request.runtime.verifyTrustedNode
+        request2.runtime.trustedNodePath,
+        request2.runtime.verifyTrustedNode
       )
     };
   }
@@ -78863,7 +78984,7 @@ async function prepareManagedReleaseCandidate(deps, request, transaction, dashbo
         await transaction.journal.write(journal);
         return stableTarget;
       };
-      const prepared = await request.prepareCandidate({
+      const prepared = await request2.prepareCandidate({
         transactionId: journal.transactionId,
         resolveStableTarget,
         runStep
@@ -78957,10 +79078,10 @@ async function prepareManagedReleaseCandidate(deps, request, transaction, dashbo
 }
 
 // packages/cli/src/commands/release-activation-validation.ts
-async function revalidateResolvedCandidate(request, journal, candidate2) {
-  if (request.revalidateCandidate === void 0) return;
+async function revalidateResolvedCandidate(request2, journal, candidate2) {
+  if (request2.revalidateCandidate === void 0) return;
   try {
-    await request.revalidateCandidate(candidate2, {
+    await request2.revalidateCandidate(candidate2, {
       transactionId: journal.transactionId,
       ...journal.stableTarget === void 0 ? {} : { stableTarget: journal.stableTarget }
     });
@@ -78970,15 +79091,15 @@ async function revalidateResolvedCandidate(request, journal, candidate2) {
     );
   }
 }
-function assertManagedActivationIdentity(activation, request, journal) {
+function assertManagedActivationIdentity(activation, request2, journal) {
   if (activation.selection.activeRelease !== activation.release.releaseId) {
     throw new ManagedRuntimeIndeterminateError(
       `activation selection ${activation.selection.activeRelease ?? "missing"} \u4E0D\u7B49\u4E8E release ${activation.release.releaseId}`
     );
   }
-  if (activation.release.source.host !== request.source) {
+  if (activation.release.source.host !== request2.source) {
     throw new ManagedRuntimeIndeterminateError(
-      `activation source ${activation.release.source.host} \u4E0D\u7B49\u4E8E transaction source ${request.source}`
+      `activation source ${activation.release.source.host} \u4E0D\u7B49\u4E8E transaction source ${request2.source}`
     );
   }
   const frozenTarget = journal.stableTarget;
@@ -78988,7 +79109,7 @@ function assertManagedActivationIdentity(activation, request, journal) {
       `activation ${activation.release.releaseId} \u7684 stable target ${releaseTarget?.tag ?? "missing"} @ ${releaseTarget?.commit ?? "missing"} \u4E0D\u7B49\u4E8E journal \u51BB\u7ED3\u76EE\u6807 ${frozenTarget.tag} @ ${frozenTarget.commit}`
     );
   }
-  const expectedVersion = request.expectedPluginVersion ?? journal.stableTarget?.version;
+  const expectedVersion = request2.expectedPluginVersion ?? journal.stableTarget?.version;
   if (expectedVersion !== void 0 && activation.release.source.pluginVersion !== expectedVersion) {
     throw new ManagedRuntimeIndeterminateError(
       `activation ${activation.release.releaseId} \u58F0\u660E\u7248\u672C ${activation.release.source.pluginVersion}\uFF0C\u4E0D\u7B49\u4E8E\u51BB\u7ED3\u76EE\u6807 ${expectedVersion}`
@@ -78997,13 +79118,13 @@ function assertManagedActivationIdentity(activation, request, journal) {
 }
 
 // packages/cli/src/commands/release-coordinator.ts
-async function publishManagedRelease(deps, request, installer, dashboardStarter) {
+async function publishManagedRelease(deps, request2, installer, dashboardStarter) {
   try {
     return await installer.withManagedTransaction(
-      request.runtime,
+      request2.runtime,
       (transaction) => publishWithinManagedTransaction(
         deps,
-        request,
+        request2,
         transaction,
         dashboardStarter
       )
@@ -79017,10 +79138,10 @@ async function publishManagedRelease(deps, request, installer, dashboardStarter)
     };
   }
 }
-async function publishWithinManagedTransaction(deps, request, transaction, dashboardStarter) {
+async function publishWithinManagedTransaction(deps, request2, transaction, dashboardStarter) {
   const prepared = await prepareManagedReleaseCandidate(
     deps,
-    request,
+    request2,
     transaction,
     dashboardStarter
   );
@@ -79028,7 +79149,7 @@ async function publishWithinManagedTransaction(deps, request, transaction, dashb
   let { journal } = prepared;
   const { candidate: candidate2 } = prepared;
   if (journal.phase === "candidate-resolved") {
-    await revalidateResolvedCandidate(request, journal, candidate2);
+    await revalidateResolvedCandidate(request2, journal, candidate2);
   }
   if (journal.phase === "candidate-resolved" && dashboardStarter !== void 0 && journal.dashboardBefore === void 0) {
     try {
@@ -79072,7 +79193,7 @@ async function publishWithinManagedTransaction(deps, request, transaction, dashb
         "runtime selection/launcher \u5DF2\u63D0\u4EA4\uFF0C\u4F46 terminal audit \u5C1A\u672A\u6301\u4E45\u5316\uFF1B\u4FDD\u7559 activating-runtime WAL \u4F9B\u540C\u4E00\u547D\u4EE4\u6062\u590D"
       );
     }
-    assertManagedActivationIdentity(activation, request, journal);
+    assertManagedActivationIdentity(activation, request2, journal);
     journal = {
       ...journal,
       phase: "runtime-activated",
@@ -79095,7 +79216,7 @@ async function publishWithinManagedTransaction(deps, request, transaction, dashb
         `journal \u4E2D\u7684 activation ${activation.release.releaseId} \u4E0E\u5F53\u524D selection/launcher \u4E0D\u4E00\u81F4`
       );
     }
-    assertManagedActivationIdentity(activation, request, journal);
+    assertManagedActivationIdentity(activation, request2, journal);
   } else {
     let recovered = {
       state: "not-started"
@@ -79105,7 +79226,7 @@ async function publishWithinManagedTransaction(deps, request, transaction, dashb
         throw new ManagedRuntimeIndeterminateError("write-ahead journal \u7F3A\u5C11 activation checkpoint");
       }
       try {
-        recovered = await transaction.recoverActivation(journal.activationCheckpoint, request.source);
+        recovered = await transaction.recoverActivation(journal.activationCheckpoint, request2.source);
       } catch (error2) {
         throw error2 instanceof ManagedRuntimeIndeterminateError ? error2 : new ManagedRuntimeIndeterminateError(`\u65E0\u6CD5\u4ECE activation checkpoint \u6062\u590D\uFF1A${String(error2)}`);
       }
@@ -79130,12 +79251,12 @@ async function publishWithinManagedTransaction(deps, request, transaction, dashb
     if (recovered.state === "activated") {
       activation = recovered.activation;
     } else {
-      await revalidateResolvedCandidate(request, journal, candidate2);
+      await revalidateResolvedCandidate(request2, journal, candidate2);
       try {
         activation = await transaction.activate(
           candidate2.candidateRoot,
-          request.source,
-          request.expectedPluginVersion ?? journal.stableTarget?.version,
+          request2.source,
+          request2.expectedPluginVersion ?? journal.stableTarget?.version,
           journal.stableTarget
         );
       } catch (error2) {
@@ -79175,7 +79296,7 @@ async function publishWithinManagedTransaction(deps, request, transaction, dashb
         "runtime selection/launcher \u5DF2\u63D0\u4EA4\uFF0C\u4F46 terminal audit \u5C1A\u672A\u6301\u4E45\u5316\uFF1B\u4FDD\u7559 activating-runtime WAL \u4F9B\u540C\u4E00\u547D\u4EE4\u6062\u590D"
       );
     }
-    assertManagedActivationIdentity(activation, request, journal);
+    assertManagedActivationIdentity(activation, request2, journal);
     try {
       journal = {
         ...journal,
@@ -79197,11 +79318,11 @@ async function publishWithinManagedTransaction(deps, request, transaction, dashb
     transaction,
     journal,
     activation,
-    candidate2.openBrowser ?? request.openBrowser,
+    candidate2.openBrowser ?? request2.openBrowser,
     journal.dashboardPort ?? DEFAULT_DASHBOARD_PORT,
     dashboardStarter,
-    request.runtime.trustedNodePath,
-    request.runtime.verifyTrustedNode
+    request2.runtime.trustedNodePath,
+    request2.runtime.verifyTrustedNode
   );
   if (!dashboard.ok) return dashboard;
   journal = dashboard.journal;
@@ -79228,7 +79349,7 @@ async function publishWithinManagedTransaction(deps, request, transaction, dashb
       }
     }
     try {
-      await request.commitReadyEvidence?.(activation, candidate2, journal.transactionId, {
+      await request2.commitReadyEvidence?.(activation, candidate2, journal.transactionId, {
         ...journal.stableTarget === void 0 ? {} : { stableTarget: journal.stableTarget }
       });
     } catch (error2) {
@@ -79284,13 +79405,13 @@ async function publishWithinManagedTransaction(deps, request, transaction, dashb
   }
   return resumeManagedReleaseCompensation(
     deps,
-    request.source,
+    request2.source,
     transaction,
     journal,
     dashboardStarter,
     candidateDashboard,
-    request.runtime.trustedNodePath,
-    request.runtime.verifyTrustedNode
+    request2.runtime.trustedNodePath,
+    request2.runtime.verifyTrustedNode
   );
 }
 
@@ -82365,6 +82486,18 @@ async function readPayloadObject(payloadPath) {
     await handle.close();
   }
 }
+async function dashboardPorts(deps, pidfilePath) {
+  const ports = /* @__PURE__ */ new Set([DEFAULT_SELF_APPROVAL_DASHBOARD_PORT]);
+  const declared = parseDashboardPort(deps.env?.("TENON_DASHBOARD_PORT"));
+  if (declared !== null) ports.add(declared);
+  try {
+    const recorded = JSON.parse(await readFile83(pidfilePath, "utf8"));
+    const port = typeof recorded === "object" && recorded !== null ? Reflect.get(recorded, "port") : void 0;
+    if (typeof port === "number" && Number.isSafeInteger(port) && port >= 1 && port <= 65535) ports.add(port);
+  } catch {
+  }
+  return [...ports];
+}
 function optionalString(payload, key) {
   const value = payload[key];
   if (value === void 0 || value === "") return void 0;
@@ -82440,7 +82573,8 @@ async function cmdInternalSelfApproval(deps, payloadPath, changeName, pathInput)
     const paths = resolveProductPaths(pathInput);
     const kinds2 = classifySelfApprovalCandidate(payload.candidate, {
       tokenPath: paths.dashboardTokenPath,
-      tokenFileName: basename14(paths.dashboardTokenPath)
+      tokenFileName: basename14(paths.dashboardTokenPath),
+      dashboardPorts: await dashboardPorts(deps, paths.dashboardPidfilePath)
     });
     if (kinds2.length === 0) return 0;
     let key;
@@ -83652,11 +83786,11 @@ async function recordTestAudit(deps, changeDir7, action, pairs) {
 }
 
 // packages/cli/src/commands/review-waivers.ts
-async function freezePendingWaivers(dir, change, request) {
+async function freezePendingWaivers(dir, change, request2) {
   const plan = await readTestPlanState(dir, change);
   const pending = plan.state === "ok" ? pendingWaivers(plan.plan) : [];
   if (pending.length === 0) await clearReviewWaiverSelection(dir);
-  else await writeReviewWaiverSelection(dir, { ...request, waivers: pending });
+  else await writeReviewWaiverSelection(dir, { ...request2, waivers: pending });
   return pending;
 }
 function waiverLines(waivers) {
@@ -85110,19 +85244,19 @@ function shellFor(command2) {
   }
   return { file: "/bin/sh", args: ["-c", command2] };
 }
-function runTestProcess(request) {
+function runTestProcess(request2) {
   const startedAtMs = Date.now();
   const startedAt = new Date(startedAtMs).toISOString();
   const hash = createHash57("sha256");
-  const stream = createWriteStream(request.logPath, { flags: "w", mode: 384 });
-  const omittedTail = new ByteTail(request.tailBytes);
+  const stream = createWriteStream(request2.logPath, { flags: "w", mode: 384 });
+  const omittedTail = new ByteTail(request2.tailBytes);
   const finalTail = new ByteTail(OUTCOME_TAIL_BYTES);
   let bytesTotal = 0;
   let bytesKept = 0;
   const write = (chunk) => {
     bytesTotal += chunk.length;
     finalTail.push(chunk);
-    const room = request.maxLogBytes - bytesKept;
+    const room = request2.maxLogBytes - bytesKept;
     if (room > 0) {
       const head = chunk.length <= room ? chunk : chunk.subarray(0, room);
       stream.write(head);
@@ -85135,7 +85269,7 @@ function runTestProcess(request) {
   };
   return new Promise((resolve65) => {
     const detached = process.platform !== "win32";
-    const shell = shellFor(request.command);
+    const shell = shellFor(request2.command);
     let settled = false;
     let timedOut = false;
     let interrupted = false;
@@ -85146,7 +85280,7 @@ function runTestProcess(request) {
       settled = true;
       if (forceKill !== void 0) clearTimeout(forceKill);
       if (deadline !== void 0) clearTimeout(deadline);
-      request.signal?.removeEventListener("abort", onAbort);
+      request2.signal?.removeEventListener("abort", onAbort);
       const truncated = bytesTotal > bytesKept;
       if (truncated) {
         const omitted = Buffer.from(`
@@ -85176,8 +85310,8 @@ function runTestProcess(request) {
       });
     };
     const child = spawn8(shell.file, [...shell.args], {
-      cwd: request.cwd,
-      env: request.env,
+      cwd: request2.cwd,
+      env: request2.env,
       detached,
       shell: false,
       stdio: ["ignore", "pipe", "pipe"]
@@ -85194,19 +85328,19 @@ function runTestProcess(request) {
     };
     const stop2 = () => {
       killGroup("SIGTERM");
-      forceKill = setTimeout(() => killGroup("SIGKILL"), request.graceMs);
+      forceKill = setTimeout(() => killGroup("SIGKILL"), request2.graceMs);
       forceKill.unref?.();
     };
     function onAbort() {
       interrupted = true;
       stop2();
     }
-    if (request.signal?.aborted === true) onAbort();
-    else request.signal?.addEventListener("abort", onAbort, { once: true });
+    if (request2.signal?.aborted === true) onAbort();
+    else request2.signal?.addEventListener("abort", onAbort, { once: true });
     deadline = setTimeout(() => {
       timedOut = true;
       stop2();
-    }, request.timeoutMs);
+    }, request2.timeoutMs);
     deadline.unref?.();
     child.stdout?.on("data", (chunk) => write(chunk));
     child.stderr?.on("data", (chunk) => write(chunk));
@@ -87363,18 +87497,18 @@ function byFiles(suite2, files, scope) {
     selection: files
   };
 }
-function planCommand(suite2, request, changedFiles) {
-  if (request.scope === "full") return full(suite2);
-  if (request.scope === "grep") {
+function planCommand(suite2, request2, changedFiles) {
+  if (request2.scope === "full") return full(suite2);
+  if (request2.scope === "grep") {
     const template = suite2.select?.grep;
-    if (template === void 0 || request.pattern === void 0) return full(suite2, `\u5957\u4EF6 ${suite2.id} \u6CA1\u6709 select.grep \u6A21\u677F\uFF0C\u6309\u5168\u91CF\u8FD0\u884C`);
+    if (template === void 0 || request2.pattern === void 0) return full(suite2, `\u5957\u4EF6 ${suite2.id} \u6CA1\u6709 select.grep \u6A21\u677F\uFF0C\u6309\u5168\u91CF\u8FD0\u884C`);
     return {
-      command: withNativeRetries(suite2, template.replace("{pattern}", shellQuote(request.pattern))),
+      command: withNativeRetries(suite2, template.replace("{pattern}", shellQuote(request2.pattern))),
       scope: "grep",
-      selection: [request.pattern]
+      selection: [request2.pattern]
     };
   }
-  if (request.scope === "files") return byFiles(suite2, request.files ?? [], "files");
+  if (request2.scope === "files") return byFiles(suite2, request2.files ?? [], "files");
   if (changedFiles === void 0) return full(suite2, "\u8BFB\u4E0D\u5230\u6539\u52A8\u6587\u4EF6\u5217\u8868\uFF0Cchanged \u8303\u56F4\u6309\u5168\u91CF\u8FD0\u884C");
   const owned = changedFiles.filter((path15) => matchesAnyGlob(path15, suiteFileGlobs(suite2)));
   const sourceTouched = changedFiles.some((path15) => !matchesAnyGlob(path15, suiteFileGlobs(suite2)) && matchesAnyGlob(path15, suiteCoverGlobs(suite2)));

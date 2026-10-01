@@ -30,6 +30,11 @@ import {
   recordCanonicalDocumentSkillInvocation,
   recordNativeDocumentSkillConfirmation,
 } from '../../kernel/dist/skill-invocation/producer-internal.js'
+import { withSession } from './test-session.js'
+
+export {
+  ANONYMOUS, establishTestSession, exchangeLoginUrl, installSessionFetch, testSessionCookie, withSession,
+} from './test-session.js'
 
 /** Fixtures record the built-in default document table (identical in every default branch). */
 const DEFAULT_DOCUMENT_POLICY = (() => {
@@ -370,7 +375,7 @@ export function reqGet(
   headers?: Record<string, string>,
 ): Promise<HttpResult> {
   return new Promise((resolve, reject) => {
-    const r = httpGet({ host, port, path, headers }, (res) => {
+    const r = httpGet({ host, port, path, headers: withSession(port, headers) }, (res) => {
       let body = ''
       res.setEncoding('utf8')
       res.on('data', (c) => (body += c))
@@ -391,7 +396,7 @@ export function reqPost(
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'Content-Length': String(Buffer.byteLength(body)),
-    ...(opts?.headers ?? {}),
+    ...(withSession(port, opts?.headers) ?? {}),
   }
   return new Promise((resolve, reject) => {
     const r = httpRequest({ host, port, path, method: 'POST', headers }, (res) => {
@@ -417,7 +422,7 @@ export function reqPatch(
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'Content-Length': String(Buffer.byteLength(body)),
-    ...(opts?.headers ?? {}),
+    ...(withSession(port, opts?.headers) ?? {}),
   }
   return new Promise((resolve, reject) => {
     const r = httpRequest({ host, port, path, method: 'PATCH', headers }, (res) => {
@@ -439,7 +444,7 @@ export function reqDelete(
 ): Promise<HttpResult> {
   const host = opts?.host ?? '127.0.0.1'
   return new Promise((resolve, reject) => {
-    const r = httpRequest({ host, port, path, method: 'DELETE', headers: opts?.headers }, (res) => {
+    const r = httpRequest({ host, port, path, method: 'DELETE', headers: withSession(port, opts?.headers) }, (res) => {
       let b = ''
       res.setEncoding('utf8')
       res.on('data', (c) => (b += c))
@@ -461,7 +466,7 @@ export function openSSE(port: number, path: string, host = '127.0.0.1'): Promise
   return new Promise((resolve, reject) => {
     const events: Array<{ event: string; data: string }> = []
     let buf = ''
-    const r = httpGet({ host, port, path, headers: { Accept: 'text/event-stream' } }, (res) => {
+    const r = httpGet({ host, port, path, headers: withSession(port, { Accept: 'text/event-stream' }) }, (res) => {
       res.setEncoding('utf8')
       res.on('data', (chunk: string) => {
         buf += chunk

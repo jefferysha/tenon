@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { rm } from 'node:fs/promises'
-import { createDashboardServer } from './server.js'
+import { createTestDashboardServer } from './test-server.js'
 import { resolveServerPaths } from './paths.js'
 import { makeProject, makeTempHome, reqGet, reqPost, testFlow } from './test-support.js'
 import type { DashboardServer } from './types.js'
@@ -33,7 +33,7 @@ describe('catalog + adapter install real HTTP workflow', () => {
       stdout: args[0] === 'host-target-plan' ? JSON.stringify(hostCatalog) : '',
       stderr: '',
     }))
-    const server = createDashboardServer({
+    const server = createTestDashboardServer({
       paths: resolveServerPaths({ home, env: {} }), hostHome: home, registry: () => [root],
       flow: testFlow(), runPipelineCli: runner, pollIntervalMs: 10,
     })
@@ -65,7 +65,7 @@ describe('catalog + adapter install real HTTP workflow', () => {
       stderr: '',
     }))
     let now = '2026-09-02T00:00:00.000Z'
-    const server = createDashboardServer({
+    const server = createTestDashboardServer({
       paths: resolveServerPaths({ home, env: {} }), hostHome: home, registry: () => [root],
       flow: testFlow(), runPipelineCli: runner, clock: () => now,
     })
