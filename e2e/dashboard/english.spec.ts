@@ -55,6 +55,111 @@ test.describe('英文界面 · 内置工作流数据', () => {
   })
 })
 
+/** 页签条与其中一个页签的几何（视口坐标）、渐隐状态和 CSS 里实际生效的渐隐宽度。 */
+interface TabStripState {
+  stripLeft: number
+  stripRight: number
+  tabLeft: number
+  tabRight: number
+  textFits: boolean
+  overflowing: boolean
+  fadeStart: boolean
+  fadeEnd: boolean
+  /** scroll-padding-inline-start：与渐隐同宽，页签滚进来后不会停在渐隐下面。 */
+  padding: number
+  fadeStartWidth: number
+  fadeEndWidth: number
+  masked: boolean
+}
+
+async function tabStripState(page: Page, track: string): Promise<TabStripState> {
+  return page.getByTestId('wb-tracks').evaluate((strip, id) => {
+    const tab = strip.querySelector(`[data-testid="wb-track-${id}"]`)
+    if (tab === null) throw new Error(`没有页签 ${id}`)
+    const stripBox = strip.getBoundingClientRect()
+    const tabBox = tab.getBoundingClientRect()
+    const style = getComputedStyle(strip)
+    const mask = style.maskImage || style.getPropertyValue('-webkit-mask-image')
+    return {
+      stripLeft: stripBox.left,
+      stripRight: stripBox.right,
+      tabLeft: tabBox.left,
+      tabRight: tabBox.right,
+      textFits: tab.scrollWidth <= tab.clientWidth + 1,
+      overflowing: strip.scrollWidth > strip.clientWidth + 1,
+      fadeStart: strip.hasAttribute('data-fade-start'),
+      fadeEnd: strip.hasAttribute('data-fade-end'),
+      padding: Number.parseFloat(style.scrollPaddingInlineStart),
+      fadeStartWidth: Number.parseFloat(style.getPropertyValue('--fade-start')),
+      fadeEndWidth: Number.parseFloat(style.getPropertyValue('--fade-end')),
+      masked: mask.includes('linear-gradient'),
+    }
+  }, track)
+}
+
+/** 这个页签完整落在页签条的可见范围里，并且不在渐隐下面（渐隐那一侧要留出 scroll-padding）；条外的「+」不被条挡住。 */
+async function expectTabRevealed(page: Page, track: string): Promise<TabStripState> {
+  await expect(async () => {
+    const state = await tabStripState(page, track)
+    const left = state.stripLeft + (state.fadeStart ? state.padding : 0)
+    const right = state.stripRight - (state.fadeEnd ? state.padding : 0)
+    expect(state.tabLeft, `${track} 的左边缘在可见范围内`).toBeGreaterThanOrEqual(left - 0.5)
+    expect(state.tabRight, `${track} 的右边缘在可见范围内`).toBeLessThanOrEqual(right + 0.5)
+    expect(state.textFits, `${track} 的名称没有被截断`).toBe(true)
+  }).toPass({ timeout: 5_000 })
+  const state = await tabStripState(page, track)
+  const plus = await page.getByTestId('wb-track-new').boundingBox()
+  if (plus === null) throw new Error('新建轨道的 + 不可见')
+  expect(state.stripRight, '页签条不压住 +').toBeLessThanOrEqual(plus.x + 0.5)
+  return state
+}
+
+test.describe('英文界面 · 轨道页签条', () => {
+  test('300px 的左栏放不下五个英文页签：选中的页签完整可见，被藏起来的那一侧渐隐，「+」始终在条外', async ({ page }) => {
+    for (const track of ['chat', 'pm', 'frontend', 'backend', 'free']) {
+      await openView(page, 'workflow', { wf: 'default', track, step: 'verify' })
+      await expect(page.getByTestId(`wb-track-${track}`)).toHaveAttribute('aria-selected', 'true')
+      const state = await expectTabRevealed(page, track)
+      expect(state.overflowing, '前提：英文五个页签确实放不下').toBe(true)
+    }
+    // 第一个：左边没有隐藏内容、右边有；最后一个反过来。渐隐真的画出来了：mask 生效，
+    // 宽度变量跟着状态走（有 140ms 过渡，所以轮询），没有隐藏内容的那一侧宽度为 0。
+    await openView(page, 'workflow', { wf: 'default', track: 'chat', step: 'verify' })
+    await expect(async () => {
+      const chat = await tabStripState(page, 'chat')
+      expect([chat.fadeStart, chat.fadeEnd]).toEqual([false, true])
+      expect(chat.masked).toBe(true)
+      expect(chat.padding).toBe(24)
+      expect([chat.fadeStartWidth, chat.fadeEndWidth]).toEqual([0, 24])
+    }).toPass({ timeout: 5_000 })
+    await openView(page, 'workflow', { wf: 'default', track: 'free', step: 'verify' })
+    await expect(async () => {
+      const free = await tabStripState(page, 'free')
+      expect([free.fadeStart, free.fadeEnd]).toEqual([true, false])
+      expect([free.fadeStartWidth, free.fadeEndWidth]).toEqual([24, 0])
+    }).toPass({ timeout: 5_000 })
+  })
+
+  // 焦点用 focus() 逐个移过去：macOS 的 WebKit 默认 Tab 不停在按钮上，按键本身是浏览器的事；这里验的是焦点落到哪个页签、哪个页签就被滚进来。
+  test('焦点逐个越过页签：每个获得焦点的页签都完整可见；滚动后渐隐的两侧跟着变', async ({ page }) => {
+    await openView(page, 'workflow', { wf: 'default', track: 'chat', step: 'verify' })
+    await page.getByTestId('wb-track-chat').focus()
+    await expectTabRevealed(page, 'chat')
+    for (const track of ['pm', 'frontend', 'backend', 'free']) {
+      await page.getByTestId(`wb-track-${track}`).focus()
+      await expect(page.getByTestId(`wb-track-${track}`)).toBeFocused()
+      await expectTabRevealed(page, track)
+    }
+    await expect(async () => expect((await tabStripState(page, 'free')).fadeEnd, '焦点到了最后一个：右边没有隐藏内容').toBe(false)).toPass({ timeout: 5_000 })
+    for (const track of ['backend', 'frontend', 'pm', 'chat']) {
+      await page.getByTestId(`wb-track-${track}`).focus()
+      await expect(page.getByTestId(`wb-track-${track}`)).toBeFocused()
+      await expectTabRevealed(page, track)
+    }
+    await expect(async () => expect((await tabStripState(page, 'chat')).fadeStart, '焦点回到第一个：左边没有隐藏内容').toBe(false)).toPass({ timeout: 5_000 })
+  })
+})
+
 test.describe('英文界面 · 测试页签', () => {
   test.beforeEach(async ({ page, server }) => {
     await openView(page, 'workspace', { root: server.project, change: 'add-login', step: 'verify' })

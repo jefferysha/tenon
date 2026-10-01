@@ -144,6 +144,16 @@ test.describe('工作流页', () => {
     expect(perFrame('script')).toBeLessThan(2)
   })
 
+  test('中文轨道页签放得下：页签条不滚动，两侧都没有渐隐', async ({ page }) => {
+    await openView(page, 'workflow', { wf: 'default', track: 'backend', step: 'verify' })
+    const strip = page.getByTestId('wb-tracks')
+    await expect(strip).toBeVisible()
+    await expect(page.getByTestId('wb-track-backend')).toHaveAttribute('aria-selected', 'true')
+    expect(await strip.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
+    await expect(strip).not.toHaveAttribute('data-fade-start', /.*/)
+    await expect(strip).not.toHaveAttribute('data-fade-end', /.*/)
+  })
+
   test('门禁只有 评审 / 自动 两个选项；切换后未保存，放弃即恢复', async ({ page }) => {
     await openView(page, 'workflow', { wf: 'default', step: 'build' })
     const gate = page.getByTestId('wb-lane-gate-build')

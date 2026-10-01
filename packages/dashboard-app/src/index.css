@@ -489,6 +489,26 @@
   }
 }
 
+/*
+ * 横向滚动条两端的渐隐：只在那一侧还有被藏起来的内容时才渐隐（调用方按滚动位置设 data-fade-start / data-fade-end），
+ * 内容滚到头那一侧就恢复实边。用 mask 而不是盖一层底色渐变，所以不依赖容器背景。
+ * scroll-padding 与渐隐同宽：scrollIntoView / 键盘焦点把项滚进来时，不会停在渐隐下面。
+ * 两个长度注册成 <length>，渐隐出现 / 消失才能过渡；不支持 @property 的浏览器直接切换，效果一样。
+ */
+@property --fade-start { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --fade-end { syntax: '<length>'; inherits: false; initial-value: 0px; }
+
+.scroll-fade-x {
+  --fade-w: 24px;
+  scroll-padding-inline: var(--fade-w);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent 100%);
+  transition: --fade-start var(--dur-fast) var(--ease-out), --fade-end var(--dur-fast) var(--ease-out);
+}
+
+.scroll-fade-x[data-fade-start='true'] { --fade-start: var(--fade-w); }
+.scroll-fade-x[data-fade-end='true'] { --fade-end: var(--fade-w); }
+
 /* 技能画布新节点入场：缩放 + 淡入；reduced-motion 由调用方 motion-reduce:animate-none 关掉。 */
 @keyframes flow-in {
   from { opacity: 0; transform: scale(.9); }
