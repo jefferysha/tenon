@@ -30,6 +30,8 @@
 - [en] Troubleshooting: /tenon/en/troubleshooting.html
 - [zh-CN] 安全模型: /tenon/security-model.html
 - [en] Security model: /tenon/en/security-model.html
+- [zh-CN] CI 校验: /tenon/ci-verification.html
+- [en] CI verification: /tenon/en/ci-verification.html
 - [zh-CN] 发布说明: /tenon/release-notes.html
 - [en] Release notes: /tenon/en/release-notes.html
 - [zh-CN] 高级工具: /tenon/advanced-tools.html

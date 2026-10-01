@@ -415,6 +415,40 @@ writes only the changed main spec bytes back under a compare-and-swap and record
 pass, `1` usage or state, `2` validation or rehearsal failed, `3` no `openspec`
 on PATH, `4` a main spec changed during the rehearsal.
 
+## CI verification and evidence export
+
+```text
+tenon verify --ci (--change <name> | --all-open | --since <ref>) [--step <id>]
+                  [--format text|json|sarif|markdown] [--out <file>] [--also <format>=<file>]…
+                  [--candidate error|warn|off] [--require-anchor]
+tenon evidence export <change> --format agent-trace|otel|git-notes|trailer
+                  [--out <file>] [--commit <rev>] [--user <slug>] [--apply] [--anchor]
+                  [--contributor human|ai|mixed|unknown] [--model <provider/model>]
+```
+
+`tenon verify --ci` runs where there is no local HMAC key: it re-derives, from committed files only,
+the record chain of every user directory, record consistency, the plan, records and catalog
+agreement, the case-level verdicts under the policy of the Change's current step (or of `--step`),
+the candidate tree against the checkout, the review approval lines for changed protected test
+configuration, and the anchors in `refs/notes/tenon`. Exactly one selector is required: `--change`
+(active or archived), `--all-open`, or `--since <ref>` (the Changes touched since the merge-base with
+`<ref>`). Without `--ci` the command exits `1`. It takes no lock and writes only the files named by
+`--out` and `--also`. Exit codes: `0` no error finding, `2` at least one error finding, `1` usage or
+environment error. The report always states what CI cannot prove without the local key. Formats:
+`text`, `json` (`tenon-verify-ci/v1`), `sarif` (2.1.0 for GitHub code scanning) and `markdown` (job
+summary); with `--out`, stdout still prints the text summary. `--candidate warn|off` relaxes the
+workspace fingerprint comparison, `--require-anchor` demands an anchor note equal to the chain head.
+Details, findings and the GitHub Action are in [CI verification](ci-verification.md).
+
+`tenon evidence export` turns a Change's evidence into other tools' formats. `agent-trace` is an
+Agent Trace v0.1 record (the contributor is `unknown` unless asserted with `--contributor`/`--model`),
+`otel` is OTLP/JSON spans following the OpenTelemetry GenAI conventions (no network export),
+`git-notes` is the JSON note on `--commit` (default `HEAD`) in `refs/notes/tenon`, and `trailer` is the
+`Tenon-Change:` and `Tenon-Evidence:` lines. Everything prints by default; `--apply` writes the note
+(`git-notes`) or amends `HEAD` with the trailers (`trailer`) and is rejected for the other formats.
+`--anchor` (git-notes only) records the chain head as an anchor that `verify --ci` checks. A broken
+or empty record chain exits `2`; usage errors exit `1`.
+
 ## Documents, artifacts, and review
 
 ```text

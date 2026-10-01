@@ -1,0 +1,40 @@
+# Example: make every pull request prove its Tenon test evidence.
+#
+# Replace vX.Y.Z / X.Y.Z with a Tenon release that contains .github/actions/tenon-verify (a full
+# commit SHA works too). The action runs the single-file Tenon CLI shipped inside that release.
+# See docs/usage/ci-verification.md for what the check can and cannot prove.
+name: Tenon verify
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  security-events: write   # upload SARIF to code scanning
+
+jobs:
+  tenon-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0     # the commit each Change started from must be reachable
+      - uses: jefferysha/tenon/.github/actions/tenon-verify@vX.Y.Z
+        with:
+          expected-version: 'X.Y.Z'
+          # since: origin/main        # default on pull requests: origin/<base ref>
+          # candidate: warn           # downgrade a tree mismatch to a warning
+          # require-anchor: 'true'    # demand a refs/notes/tenon anchor equal to the chain head
+          # upload-sarif: 'false'     # fork pull requests have a read-only token
+
+  # Optional second job: re-run the suites on the runner. A pass proves the suites pass on a machine
+  # you control; the records it writes belong to the CI user and do not vouch for the committed ones.
+  # TENON_TEST_TRUST=1 states that this repository's catalog commands may run here, and Tenon needs
+  # a declared identity. Install Tenon on the runner first (see docs/usage/installation.md).
+  # rerun:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0
+  #     - run: TENON_TEST_TRUST=1 TENON_USER=ci@example.com tenon test run <change> --stage

@@ -1,0 +1,106 @@
+name: Tenon verify
+description: >-
+  Re-verify the Tenon test evidence committed in a pull request without the author's local keys:
+  record chain, plan and catalog consistency, case-level verdicts, candidate tree, protected-file
+  approvals and anchors. Uploads SARIF to code scanning and writes a job summary.
+author: Tenon
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  since:
+    description: >-
+      Verify the tasks touched since the merge-base with this ref. Default on pull_request events is
+      origin/<base ref>; otherwise every open task is verified.
+    default: ''
+  change:
+    description: Verify only this task.
+    default: ''
+  all-open:
+    description: Verify every open task under openspec/changes/.
+    default: 'false'
+  step:
+    description: Judge against this workflow step's test policy instead of the task's current step.
+    default: ''
+  candidate:
+    description: >-
+      error | warn | off. What to do when the workspace fingerprint bound into the test records
+      differs from the checked-out tree.
+    default: error
+  require-anchor:
+    description: Require an anchor note on refs/notes/tenon and a chain head equal to it.
+    default: 'false'
+  fetch-notes:
+    description: Fetch refs/notes/tenon from origin before verifying (best effort).
+    default: 'true'
+  upload-sarif:
+    description: Upload the SARIF report to GitHub code scanning (needs security-events write permission).
+    default: 'true'
+  sarif-category:
+    description: Code scanning category for the SARIF upload.
+    default: tenon-verify
+  node-version:
+    description: Node.js version used to run the CLI (Tenon requires 22 or newer).
+    default: '22'
+  expected-version:
+    description: Fail unless the pinned Tenon release has exactly this version (for example 0.3.0).
+    default: ''
+  cli:
+    description: Path to a Tenon CLI entry to use instead of the bundle shipped with this action.
+    default: ''
+
+outputs:
+  exit-code:
+    description: Exit code of tenon verify --ci (0 passed, 2 findings, 1 usage or environment error).
+    value: ${{ steps.verify.outputs.exit-code }}
+  sarif-path:
+    description: Path of the SARIF report.
+    value: ${{ steps.verify.outputs.sarif-path }}
+  summary-path:
+    description: Path of the Markdown summary.
+    value: ${{ steps.verify.outputs.summary-path }}
+  report-path:
+    description: Path of the JSON report (tenon-verify-ci/v1).
+    value: ${{ steps.verify.outputs.report-path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Verify committed evidence
+      id: verify
+      shell: bash
+      env:
+        TENON_ACTION_PATH: ${{ github.action_path }}
+        TENON_VERIFY_CLI: ${{ inputs.cli }}
+        TENON_VERIFY_EXPECTED_VERSION: ${{ inputs.expected-version }}
+        TENON_VERIFY_SINCE: ${{ inputs.since }}
+        TENON_VERIFY_CHANGE: ${{ inputs.change }}
+        TENON_VERIFY_ALL_OPEN: ${{ inputs.all-open }}
+        TENON_VERIFY_STEP: ${{ inputs.step }}
+        TENON_VERIFY_CANDIDATE: ${{ inputs.candidate }}
+        TENON_VERIFY_REQUIRE_ANCHOR: ${{ inputs.require-anchor }}
+        TENON_VERIFY_FETCH_NOTES: ${{ inputs.fetch-notes }}
+      run: bash "$TENON_ACTION_PATH/run.sh"
+
+    - name: Upload SARIF to code scanning
+      if: ${{ always() && inputs.upload-sarif == 'true' && steps.verify.outputs.sarif-path != '' }}
+      continue-on-error: true
+      uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4
+      with:
+        sarif_file: ${{ steps.verify.outputs.sarif-path }}
+        category: ${{ inputs.sarif-category }}
+
+    - name: Fail when verification failed
+      if: ${{ always() && steps.verify.outputs.exit-code != '0' }}
+      shell: bash
+      env:
+        EXIT_CODE: ${{ steps.verify.outputs.exit-code }}
+      run: |
+        echo "::error::tenon verify --ci exited with ${EXIT_CODE:-unknown}; see the job summary and the Tenon code scanning alerts"
+        exit 1

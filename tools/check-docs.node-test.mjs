@@ -21,6 +21,7 @@ const usageFiles = [
   'updates-recovery-and-uninstall.md',
   'troubleshooting.md',
   'security-model.md',
+  'ci-verification.md',
   'release-notes.md',
   'contributor-development.md',
   'cli-reference.md',

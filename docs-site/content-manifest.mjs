@@ -13,6 +13,7 @@ export const contentEntries = [
   ['updates-recovery-and-uninstall', '更新、恢复与卸载', 'Updates, recovery, and uninstall', '运维与安全', 'how-to'],
   ['troubleshooting', '故障排查', 'Troubleshooting', '运维与安全', 'how-to'],
   ['security-model', '安全模型', 'Security model', '运维与安全', 'concept'],
+  ['ci-verification', 'CI 校验', 'CI verification', '运维与安全', 'how-to'],
   ['release-notes', '发布说明', 'Release notes', '发布说明', 'reference'],
   ['advanced-tools', '高级工具', 'Advanced tools', '参考', 'reference'],
   ['contributor-development', '贡献者开发指南', 'Contributor development', '贡献', 'how-to'],
