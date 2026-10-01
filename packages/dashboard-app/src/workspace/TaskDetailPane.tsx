@@ -187,6 +187,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
             : (
               <OrchestrationFlow
                 mode="overview"
+                workflow={ready.workflow}
                 stages={ready.stages}
                 returns={ready.returns}
                 flows={ready.flows}
@@ -202,7 +203,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
           <>
             {stageFlow.length > 0 && (
               <section className="mb-8" data-testid="stage-skills">
-                <OrchestrationFlow key={`${identity} ${selectedStep}`} mode="stage" stages={stageFlow} withStatus holding={selectedStep === heldStage ? heldStage : null} onOpenEntry={openEntry} openable={openable} ariaLabel={t('workflow.skills_title')} />
+                <OrchestrationFlow key={`${identity} ${selectedStep}`} mode="stage" workflow={ready?.workflow} stages={stageFlow} withStatus holding={selectedStep === heldStage ? heldStage : null} onOpenEntry={openEntry} openable={openable} ariaLabel={t('workflow.skills_title')} />
               </section>
             )}
             {progress !== null && (

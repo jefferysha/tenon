@@ -1,4 +1,5 @@
 import type { WbIoSlot } from '../api/governanceTypes'
+import { builtinStepLabel } from '../i18n/builtinLabels'
 import { changeWorkflowName } from '../model/progressModel'
 import { snapshotRulesKey, type WorkflowRules } from '../model/workflowModel'
 import { isProjectNavigable } from '../state/projectSelectionModel'
@@ -56,7 +57,7 @@ export function isUnset(value: string): boolean {
   return value === '' || value === 'null'
 }
 
-/** 阶段名只显示一个：冻结计划里的 label（服务端已投影进 labelByStep），没有就是 id；不做前端翻译。 */
+/** 阶段名只显示一个：冻结计划里的 label（服务端已投影进 labelByStep），没有就是 id；内置工作流没被改过的出厂名已在 rowOf 里按界面语言换好。 */
 export function stageLabel(step: string, rules: WorkflowRules | undefined, _t?: Tr): string {
   return rules?.labelByStep?.[step] || step
 }
@@ -171,14 +172,31 @@ export function rowKey(root: string, name: string): string {
   return `${name}@${root}`
 }
 
+/**
+ * 阶段名的显示：内置工作流里没被改过的出厂名按界面语言显示（i18n builtin.*），自建 / 改过的名字原样。
+ * labelByStep 只用于显示，换了不影响任何判定；没有一个名字需要换时返回原对象。
+ */
+function localizedRules(rules: WorkflowRules, workflow: string, t: Tr): WorkflowRules {
+  const labels = rules.labelByStep
+  if (labels === undefined) return rules
+  let changed = false
+  const shown: Record<string, string> = {}
+  for (const [step, label] of Object.entries(labels)) {
+    shown[step] = builtinStepLabel(t, workflow, step, label)
+    if (shown[step] !== label) changed = true
+  }
+  return changed ? { ...rules, labelByStep: shown } : rules
+}
+
 function rowOf(root: string, change: ChangeSnapshot, rulesByKey: ReadonlyMap<string, WorkflowRules>, t: Tr): TaskRow {
-  const rules = rulesByKey.get(snapshotRulesKey(root, change.workflowPlanFingerprint)) ?? change.workflowRules
+  const workflow = changeWorkflowName(change)
+  const rules = localizedRules(rulesByKey.get(snapshotRulesKey(root, change.workflowPlanFingerprint)) ?? change.workflowRules, workflow, t)
   return {
     key: rowKey(root, change.name),
     root,
     change,
     rules,
-    workflow: changeWorkflowName(change),
+    workflow,
     archived: change.archived === 'true',
     owner: change.owner,
     stages: stagesOf(change, rules, t),

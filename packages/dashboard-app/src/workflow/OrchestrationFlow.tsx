@@ -6,6 +6,8 @@ import { Maximize2, Minimize2 } from 'lucide-react'
 import type { OrchestrationFlow as OutputFlow, OrchestrationKind, OrchestrationReturn } from '@tenon/kernel/workflow/orchestration'
 import type { FlowEntry, FlowStage } from '../api/workflowOrchestrationClient'
 import { useT } from '../i18n'
+import { useBuiltinLabels } from '../i18n/builtinLabels'
+import { localizeStages } from './orchestrationLabels'
 import { prefersReducedMotion, signalModeOf, useOnScreen, useReducedMotion, useSignal } from './flowSignal'
 import { KIND_ORDER, layoutOrchestration, returnHeadroom, type FlowMode, type LaidEdge, type OrchestrationLayout } from './orchestrationLayout'
 import { FIT_PADDING, FOCUS_MS, OVERVIEW_ZOOM, STAGE_PAD, overviewMinZoom, overviewViewport, stageFocusViewport, stageViewport, zoomLevelOf } from './orchestrationViewport'
@@ -23,6 +25,8 @@ const FOCUS_EASE = gsap.parseEase('power2.inOut')
 
 export interface OrchestrationFlowProps {
   stages: readonly FlowStage[]
+  /** 阶段属于哪个工作流：内置工作流里没被改过的出厂阶段名 / 测试项名按界面语言显示。 */
+  workflow?: string | null
   returns?: readonly OrchestrationReturn[]
   flows?: readonly OutputFlow[]
   mode: FlowMode
@@ -102,8 +106,10 @@ function edgesOf(layout: OrchestrationLayout, returns: readonly OrchestrationRet
 }
 
 function OrchestrationFlowInner(props: OrchestrationFlowProps): JSX.Element {
-  const { stages, returns = [], flows = [], mode, current = null, withStatus = false, holding = null, laneActions, onOpenEntry, openable, onOpenStage, ariaLabel, className } = props
+  const { returns = [], flows = [], mode, current = null, withStatus = false, holding = null, laneActions, onOpenEntry, openable, onOpenStage, ariaLabel, className } = props
   const { t } = useT()
+  const builtin = useBuiltinLabels()
+  const stages = useMemo(() => localizeStages(props.stages, props.workflow, builtin), [props.stages, props.workflow, builtin])
   const ariaLabelConfig = useFlowAriaLabels()
   const flow = useReactFlow()
   const flowRef = useRef(flow)

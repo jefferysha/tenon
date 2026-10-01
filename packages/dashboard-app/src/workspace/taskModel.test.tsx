@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ChangeSnapshot, Snapshot } from '../types'
-import { zh } from '../i18n/translations'
+import { translations, zh } from '../i18n/translations'
 import { archivedRowsOf, DEFAULT_TASK_FILTER, facetTotal, filterRows, forwardExitOf, linearSteps, needsYouCount, rowsOf, stagesOf, statusCounts, statusOf, summaryOf, summaryShort, summaryText, taskFacets, uncommittedDeletionsOf, type TaskRow } from './taskModel'
 
 function t(key: string, vars: Record<string, string | number> = {}): string {
@@ -255,5 +255,48 @@ describe('已完结 wording', () => {
     })
     expect(rows[0]?.summary).toEqual({ kind: 'completed' })
     expect(summaryText(rows[0] as TaskRow, t)).toBe('已完结')
+  })
+})
+
+describe('rowsOf · 内置工作流的出厂阶段名按界面语言显示', () => {
+  function tFor(lang: 'zh' | 'en') {
+    return (key: string, vars: Record<string, string | number> = {}): string => {
+      let node: unknown = translations[lang]
+      for (const part of key.split('.')) node = typeof node === 'object' && node !== null ? (node as Record<string, unknown>)[part] : undefined
+      const text = typeof node === 'string' ? node : key
+      return text.replace(/\{(\w+)\}/g, (_, name: string) => String(vars[name] ?? `{${name}}`))
+    }
+  }
+
+  // 出厂 default 的中文阶段名；verify 被用户改成「验收」。
+  const labelByStep = { open: '立项', explore: '调研', spec: '规格', build: '实现', verify: '验收', ship: '交付', archive: '完结' }
+  const rules = { ...change().workflowRules, transitions: { open: [{ event: 'open-complete', to: 'explore' }] }, labelByStep }
+  const blocked = { readinessByTransition: { open: { 'open-complete': { ready: false, blockers: [SKILL_BLOCKER, TASKS_BLOCKER] } } } }
+  function snapshotOf(workflow: string): Snapshot {
+    return {
+      snapshot_protocol: 'tenon-snapshot/v2', version: '1', generated_at: 'now', project_count: 1, change_count: 1,
+      projects: [{ root: '/repo', ok: true, changes: [change({ phase: 'open', workflowRules: rules, workflowExecution: blocked, fields: { workflow } })] }],
+    } as unknown as Snapshot
+  }
+
+  it('英文：任务卡状态、阶段轨的名字显示英文，改过的名字原样', () => {
+    const [row] = rowsOf({ snapshot: snapshotOf('default'), currentRoot: '/repo', rulesByKey: new Map(), t: tFor('en') })
+    expect(row?.stages.map((stage) => stage.label)).toEqual(['Open', 'Explore', 'Spec', 'Build', '验收', 'Ship', 'Done'])
+    expect(row === undefined ? '' : summaryText(row, tFor('en'))).toBe('Open · 2 blocked')
+  })
+
+  it('中文：与出厂名相同，一个字不变', () => {
+    const [row] = rowsOf({ snapshot: snapshotOf('default'), currentRoot: '/repo', rulesByKey: new Map(), t: tFor('zh') })
+    expect(row?.stages.map((stage) => stage.label)).toEqual(['立项', '调研', '规格', '实现', '验收', '交付', '完结'])
+    expect(row === undefined ? '' : summaryText(row, tFor('zh'))).toBe('立项 · 阻塞 2')
+  })
+
+  it('只认工作流 id：自建工作流用同样的中文名，英文界面也原样；结果里的 rules 只改显示名', () => {
+    const [row] = rowsOf({ snapshot: snapshotOf('mine'), currentRoot: '/repo', rulesByKey: new Map(), t: tFor('en') })
+    expect(row?.stages.map((stage) => stage.label)).toEqual(['立项', '调研', '规格', '实现', '验收', '交付', '完结'])
+    const [builtin] = rowsOf({ snapshot: snapshotOf('default'), currentRoot: '/repo', rulesByKey: new Map(), t: tFor('en') })
+    expect(builtin?.rules?.steps).toEqual(rules.steps)
+    expect(builtin?.rules?.transitions).toEqual(rules.transitions)
+    expect(rules.labelByStep.open).toBe('立项')
   })
 })

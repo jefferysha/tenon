@@ -202,6 +202,7 @@ export function StageEditorPane({ editor, step, orchestration: provided }: Stage
 
           <StageFlowSection
             stage={stageOf(step.id)}
+            workflow={editor.wfName}
             editable={editable}
             onEditSkills={openComposer}
             onEditAgents={setAgentRole}

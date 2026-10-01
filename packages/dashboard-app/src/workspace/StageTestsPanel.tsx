@@ -1,6 +1,7 @@
 import { FlaskConical } from 'lucide-react'
 import { kindForDirection } from '@tenon/kernel/test-system/vocabulary'
 import { useT } from '../i18n'
+import { useBuiltinLabels } from '../i18n/builtinLabels'
 import { KindLabel } from '../tests/KindLabel'
 import { StatusPill, type PillTone } from '../shell/ThreeColumns'
 import { testStatusWord, type TestRow } from './stageTests'
@@ -47,9 +48,12 @@ export function StageTestsPanel({
   onOpen: (id: string) => void
 }): JSX.Element {
   const { t } = useT()
+  const builtin = useBuiltinLabels()
 
   function row(item: TestRow): JSX.Element {
     const active = activeId === item.id
+    // 出厂测试方向没被改过的名字按界面语言显示（i18n builtin.direction.*），其余原样。
+    const name = builtin.direction(item.direction, item.name)
     const run = lastRun(item)
     return (
       <div
@@ -66,11 +70,11 @@ export function StageTestsPanel({
             type="button"
             className="min-w-0 truncate rounded-xs text-left font-semibold text-text outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
             aria-pressed={active}
-            title={item.name}
+            title={name}
             data-testid={`stage-test-open-${item.id}`}
             onClick={(event) => { event.stopPropagation(); onOpen(item.id) }}
           >
-            {item.name}
+            {name}
           </button>
           {item.required && (
             <span

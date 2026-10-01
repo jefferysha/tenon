@@ -493,3 +493,25 @@ describe('TaskTestsTab · 阻塞与追溯', () => {
       .toEqual(['c-fail', 'e-fail', 'd-uncovered', 'b-mapped', 'a-pass'])
   })
 })
+
+describe('TaskTestsTab · 内置测试方向的名字按界面语言显示', () => {
+  const inline = (suite: string, kind: string, label: string) => verdict({ suite: `step:${suite}`, origin: 'step', kind, reason: 'inline', label, state: 'passed' })
+  const reportWith = (): PolicyReport => ({
+    ...verifyReport(),
+    blockers: [],
+    suites: [inline('code-size', 'code-size', '代码规模'), inline('diff-risk', 'diff-risk', '风险（自改）')],
+  })
+
+  it('英文：出厂名（代码规模）显示 Code size，改过的名字原样；中文界面不变', () => {
+    window.localStorage.setItem('tenon-dashboard-lang', 'en')
+    mount(reportWith(), { plan: { state: 'ok', suites: [], waivers: [], files: 0, cases: 0 } })
+    expect(screen.getByTestId('tests-suite-step:code-size').textContent).toBe('Code size')
+    expect(screen.getByTestId('tests-suite-step:diff-risk').textContent).toBe('风险（自改）')
+    // 标识（title）不翻译。
+    expect(screen.getByTestId('tests-suite-step:code-size')).toHaveAttribute('title', 'step:code-size')
+    reset()
+    window.localStorage.setItem('tenon-dashboard-lang', 'zh')
+    mount(reportWith(), { plan: { state: 'ok', suites: [], waivers: [], files: 0, cases: 0 } })
+    expect(screen.getByTestId('tests-suite-step:code-size').textContent).toBe('代码规模')
+  })
+})
