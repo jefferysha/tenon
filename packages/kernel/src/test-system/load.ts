@@ -15,6 +15,8 @@ import {
   baselineKey, type CatalogInput, type ChangedFilesReport, type ChangedFilesSource, type InlineSuiteStatus, type PlanInput,
   type TestPolicyEvaluationInput, type TestPolicyReport,
 } from './evaluate-types.js'
+import { integrityPathFilter, integritySuiteOf, type IntegrityDiffSource } from './integrity-diff.js'
+import type { IntegrityDiff } from './integrity.js'
 import { parseKnownFailures, type KnownFailure } from './known-failures.js'
 import { extractScenarios, extractTaskItems, type OpenSpecScenario, type TaskItem } from './openspec-trace.js'
 import { baselineV2Path, testSystemPaths } from './paths.js'
@@ -128,10 +130,32 @@ export interface StepTestPolicyLoadInput {
   readonly protectedChanges?: () => Promise<readonly ProtectedChange[]>
   /** 本步是评审门：受保护改动的人工确认在这里给。 */
   readonly reviewGated?: boolean
+  /** 自任务起点以来相关文件的改动行（测试完整性）；宿主不提供就不检查，抛错按读不出处理。 */
+  readonly integrityDiff?: IntegrityDiffSource
   readonly now: number
   readonly exitEvent?: string
   /** 长驻进程（Dashboard 快照）传入：记录文件指纹没变就不重读、不重算摘要；缺省 = 每次从磁盘完整校验。 */
   readonly recordChainCache?: RecordChainCache
+}
+
+/** 完整性只在会运行测试的步骤（或明确声明了 block 的步骤）上判；读 diff 要起一次版本库命令，不给无关步骤白付。 */
+async function loadIntegrity(
+  input: StepTestPolicyLoadInput,
+  catalog: CatalogInput,
+): Promise<TestPolicyEvaluationInput['integrity']> {
+  const policy = input.policy
+  const wanted = policy.integrity === 'block' || policy.run.length > 0 || policy.run_if_registered.length > 0
+  if (!wanted || input.integrityDiff === undefined) return undefined
+  const known = catalog.state === 'ok' ? catalog.catalog : undefined
+  const suiteOf = integritySuiteOf(known)
+  let diff: IntegrityDiff | undefined
+  let error: string | undefined
+  try {
+    diff = await input.integrityDiff(integrityPathFilter(known))
+  } catch (cause) {
+    error = cause instanceof Error ? cause.message.slice(0, 200) : '读取失败'
+  }
+  return { diff, ...(error === undefined ? {} : { error }), suiteOf }
 }
 
 export async function evaluateStepTestPolicy(input: StepTestPolicyLoadInput): Promise<TestPolicyReport> {
@@ -170,6 +194,7 @@ export async function evaluateStepTestPolicy(input: StepTestPolicyLoadInput): Pr
       protectedChangesError = error instanceof Error ? error.message.slice(0, 200) : '读取失败'
     }
   }
+  const integrity = await loadIntegrity(input, catalog)
   return evaluateTestPolicy({
     change: input.changeName,
     stepId: input.stepId,
@@ -195,5 +220,6 @@ export async function evaluateStepTestPolicy(input: StepTestPolicyLoadInput): Pr
       seal: sealed.seal,
       sealState: sealed.state,
     },
+    ...(integrity === undefined ? {} : { integrity }),
   })
 }

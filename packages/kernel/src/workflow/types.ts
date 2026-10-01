@@ -215,6 +215,11 @@ export interface StepTestPolicyDef {
   readonly files?: 'registered' | 'any'
   /** required = 每个 OpenSpec 场景至少映射一个用例或已批准豁免；passing = 且映射用例本轮通过。 */
   readonly scenarios?: 'off' | 'required' | 'passing'
+  /**
+   * 测试完整性（用例数下降、删除 / 跳过 / 弱化的测试、快照改写、基线与已知失败改动、覆盖率门槛降低）：
+   * notice（缺省）= 只提示；block = 出现信号即阻塞。缺省与显式写 notice 等价，编译时都不进 IR。
+   */
+  readonly integrity?: 'notice' | 'block'
   readonly coverage?: {
     readonly lines?: number
     readonly branches?: number

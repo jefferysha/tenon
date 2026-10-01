@@ -9,8 +9,10 @@
  * 抛错，kernel 据此阻塞（files-diff-unavailable），绝不降级成「没有改动」。
  */
 import {
-  changeStartOfFields, changedFilesResultForState, evaluateTestEvidence, isTenonUser, protectedChangesSinceChangeStart, userSlug,
-  type ChangedFilesReport, type ChangedFilesSource, type ProtectedChange, type TestEvidenceContext, type TestEvidenceReader,
+  changeStartOfFields, changedFilesResultForState, createChangedFilesSession, evaluateTestEvidence, integrityDiffInSession, isTenonUser,
+  protectedChangesSinceChangeStart, userSlug,
+  type ChangedFilesReport, type ChangedFilesSource, type IntegrityDiffSource, type ProtectedChange, type TestEvidenceContext,
+  type TestEvidenceReader,
 } from '@tenon/kernel'
 import type { CliDeps } from './deps.js'
 import { resolveChangeDir } from './paths.js'
@@ -46,6 +48,15 @@ export function protectedChangesFor(deps: CliDeps, changeName: string): () => Pr
   }
 }
 
+/** 自任务起点以来相关测试文件的改动行（测试完整性）；CliDeps.integrityDiff 只供测试装配覆写。 */
+export function integrityDiffFor(deps: CliDeps, changeName: string): IntegrityDiffSource {
+  return async (accept) => {
+    if (deps.integrityDiff !== undefined) return deps.integrityDiff(changeName, accept)
+    const state = await deps.store.read(resolveChangeDir(deps.cwd, changeName))
+    return integrityDiffInSession(createChangedFilesSession(deps.cwd), changeStartOfFields(state.fields))(accept)
+  }
+}
+
 export function testEvidenceContextFor(deps: CliDeps, changeName: string): TestEvidenceContext | undefined {
   const user = deps.user()
   if (!isTenonUser(user)) return undefined
@@ -57,5 +68,6 @@ export function testEvidenceContextFor(deps: CliDeps, changeName: string): TestE
     now: () => Date.parse(deps.clock()),
     changedFiles: changedFilesReportFor(deps, changeName),
     protectedChanges: protectedChangesFor(deps, changeName),
+    integrityDiff: integrityDiffFor(deps, changeName),
   }
 }

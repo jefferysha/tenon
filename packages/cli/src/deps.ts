@@ -396,6 +396,11 @@ export interface CliDeps {
    */
   protectedChanges?: (changeName: string) => Promise<readonly import('@tenon/kernel').ProtectedChange[]>
   /**
+   * 自任务起点以来相关测试文件（测试、快照、基线、已知失败清单、覆盖率配置）的改动行，供测试完整性判定。
+   * Omit it in production: kernel 从 state 与 git 推出；测试装配覆写它来隔离 git。
+   */
+  integrityDiff?: (changeName: string, accept: import('@tenon/kernel').IntegrityPathFilter) => Promise<import('@tenon/kernel').IntegrityDiff>
+  /**
    * 自任务起点以来改动的仓库相对文件（全量登记强制与 changed 范围用）。Omit it in production: kernel
    * 从 state 的 base_branch / created_at 与 git 推出；测试装配覆写它来隔离 git。
    */

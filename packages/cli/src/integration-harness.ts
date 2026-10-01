@@ -283,7 +283,7 @@ export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.
     workspaceFingerprint: () => candidateFingerprint(cwd),
     // 临时项目不是 git 仓：登记检查的 diff 来源定桩为「没有改动」。专测全量登记强制的用例在项目里 git init，
     // 并用 TENON_TEST_REAL_DIFF=1 走真实的 git 提供者。
-    ...(env.TENON_TEST_REAL_DIFF === '1' ? {} : { changedFiles: async () => [], protectedChanges: async () => [] }),
+    ...(env.TENON_TEST_REAL_DIFF === '1' ? {} : { changedFiles: async () => [], protectedChanges: async () => [], integrityDiff: async () => ({ files: [] }) }),
     buildRevisionIdentity: async () => TEST_BUILD_REVISION_IDENTITY,
     captureBuildRevision: async (isolation) => createBuildRevisionToken(
       isolation === 'in-place' ? 'workspace' : 'git',

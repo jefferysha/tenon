@@ -19,11 +19,15 @@ import { evaluateTrace } from './evaluate-trace.js'
 import type {
   NotApplicableStatus, SuiteVerdict, TestPolicyEvaluationInput, TestPolicyReport, TraceRow,
 } from './evaluate-types.js'
+import {
+  evaluateIntegrity, integrityRunSamples, integritySummary, unavailableIntegrity, type TestIntegrityReport,
+} from './integrity.js'
 import { planCatalogProblems, type TestPlan } from './plan.js'
 import { testPlanApprovalFreeDigest } from './plan-waivers.js'
 import { planKindsSatisfy, policyRequiredKinds, policyRunReason, testPolicyDigest } from './policy.js'
 import { protectedFileBlockers } from './protected-files.js'
 import { testFileRegistration, type UnregisteredTestFile } from './test-files.js'
+import type { TestRunRecordV2 } from './record-v2-types.js'
 import type { TestKind } from './vocabulary.js'
 
 interface Collector {
@@ -307,6 +311,44 @@ function checkProtected(input: TestPolicyEvaluationInput, reviewFix: string, out
   out.blockers.push(...protectedFileBlockers({ change: input.change, changes: evidence.changes, seal: evidence.seal, reviewFix }))
 }
 
+/**
+ * 测试完整性（integrity.ts）：信号一律进报告；`notice` 只给一条汇总提示，`block` 让汇总成为阻塞。
+ * 读不出 diff：`block` 失败关闭，`notice` 只提示未检查。运行记录类信号用本 workflow run 里的有效记录。
+ */
+function checkIntegrity(
+  input: TestPolicyEvaluationInput,
+  records: readonly TestRunRecordV2[],
+  out: Collector,
+): TestIntegrityReport | undefined {
+  const evidence = input.integrity
+  if (evidence === undefined) return undefined
+  const mode = input.policy.integrity === 'block' ? 'block' : 'notice'
+  const runs = integrityRunSamples(records)
+  const fix = `tenon test integrity ${input.change}`
+  if (evidence.diff === undefined) {
+    const reason = evidence.error ?? '宿主没有提供改动行'
+    const message = `无法读取本任务的改动行（${reason}），不能确认测试没有被削弱`
+    if (mode === 'block') out.blockers.push(testBlocker('files-diff-unavailable', message, { fix }))
+    else out.notices.push(testNotice('files-unchecked', `${message}；测试完整性只检查了运行记录`))
+    const report = unavailableIntegrity(mode, reason, runs)
+    if (report.signals.length > 0) pushIntegritySignals(report, fix, mode, out)
+    return report
+  }
+  const report = evaluateIntegrity({ diff: evidence.diff, runs, suiteOf: evidence.suiteOf }, mode)
+  if (report.truncated !== undefined) {
+    out.notices.push(testNotice('files-truncated', `相关测试文件有 ${report.truncated.found} 个，完整性只检查了前 ${report.truncated.limit} 个`))
+  }
+  pushIntegritySignals(report, fix, mode, out)
+  return report
+}
+
+function pushIntegritySignals(report: TestIntegrityReport, fix: string, mode: 'notice' | 'block', out: Collector): void {
+  if (report.signals.length === 0) return
+  const summary = `测试完整性${mode === 'block' ? '未通过' : '提示'}：${integritySummary(report.signals)}`
+  if (mode === 'block') out.blockers.push(testBlocker('test-integrity', summary, { fix }))
+  else out.notices.push(testNotice('test-integrity', summary, { fix }))
+}
+
 export function evaluateTestPolicy(input: TestPolicyEvaluationInput): TestPolicyReport {
   const out: Collector = { blockers: [], notices: [] }
   const reviewFix = `tenon review request ${input.change}${input.exitEvent === undefined ? '' : ` --event ${input.exitEvent}`}`
@@ -339,6 +381,7 @@ export function evaluateTestPolicy(input: TestPolicyEvaluationInput): TestPolicy
   const evaluated = evaluateRunSet(input, entries, latest, freshness, plan, chainBroken, out)
   const inline = evaluateInline(input, latest, freshness, out)
   checkAggregates(input, plan, evaluated.fresh, out)
+  const integrity = checkIntegrity(input, records, out)
   let trace: readonly TraceRow[] = []
   if (plan !== undefined) {
     const fresh = [...latest.values()].filter((ref) => staleBindings(ref, freshness).length === 0)
@@ -359,6 +402,7 @@ export function evaluateTestPolicy(input: TestPolicyEvaluationInput): TestPolicy
     files,
     chain: input.chain.state,
     notApplicable: notApplicableStatuses(input),
+    ...(integrity === undefined ? {} : { integrity }),
   }
 }
 

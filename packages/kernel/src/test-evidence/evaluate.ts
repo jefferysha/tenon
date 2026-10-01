@@ -19,6 +19,7 @@ import { renderPolicyBlockers } from '../test-system/evaluate-v2.js'
 import type { ChangedFilesSource, TestPolicyReport } from '../test-system/evaluate-types.js'
 import { evaluateStepTestPolicy } from '../test-system/load.js'
 import type { RecordChainCache } from '../test-system/record-chain.js'
+import type { IntegrityDiffSource } from '../test-system/integrity-diff.js'
 import type { ProtectedChange } from '../test-system/protected-files.js'
 import { inlineSuiteFromTest } from '../test-system/policy.js'
 import { declaresRecordV2, decodeTestRunRecordV2 } from '../test-system/record-v2-codec.js'
@@ -46,6 +47,8 @@ export interface TestEvidenceContext {
   readonly changedFiles?: () => Promise<ChangedFilesSource>
   /** diff（相对 change 起点）里的受保护测试配置改动（含删除）；评审门步骤的人工确认判定用，宿主不提供就不检查。 */
   readonly protectedChanges?: () => Promise<readonly ProtectedChange[]>
+  /** 自任务起点以来相关文件的改动行（测试完整性）；宿主不提供就不检查完整性。 */
+  readonly integrityDiff?: IntegrityDiffSource
   /** 记录链校验缓存（只有长驻进程的读取路径传；转换门禁不传，每次完整校验）。 */
   readonly recordChainCache?: RecordChainCache
 }
@@ -296,6 +299,7 @@ export async function evaluateTestEvidence(input: {
       ...(input.context.changedFiles === undefined ? {} : { changedFiles: input.context.changedFiles }),
       ...(input.context.recordChainCache === undefined ? {} : { recordChainCache: input.context.recordChainCache }),
       ...(input.context.protectedChanges === undefined ? {} : { protectedChanges: input.context.protectedChanges }),
+      ...(input.context.integrityDiff === undefined ? {} : { integrityDiff: input.context.integrityDiff }),
       reviewGated: input.plan.workflow.steps.find((step) => step.id === input.stepId)?.gate === 'review',
       now,
       ...(event === undefined ? {} : { exitEvent: event }),

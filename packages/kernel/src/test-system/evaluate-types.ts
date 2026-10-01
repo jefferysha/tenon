@@ -6,6 +6,7 @@ import type { TestBaselineV2 } from './baseline-v2.js'
 import type { BenchmarkMetricVerdict } from './benchmark.js'
 import type { TestBlocker, TestNotice } from './blockers.js'
 import type { TestCatalog } from './catalog-types.js'
+import type { IntegrityDiff, TestIntegrityReport } from './integrity.js'
 import type { KnownFailure } from './known-failures.js'
 import type { ProtectedChange } from './protected-files.js'
 import type { SealState, TestSeal } from './seal.js'
@@ -64,6 +65,17 @@ export interface ProtectedEvidenceInput {
   readonly sealState: SealState
 }
 
+/**
+ * 测试完整性的输入：自任务起点以来相关文件的改动行（读不出时带原因）。
+ * 不提供（纯函数单测、没有这项能力的宿主）就整体跳过完整性检查，运行记录类信号也不给。
+ */
+export interface IntegrityEvidenceInput {
+  readonly diff: IntegrityDiff | undefined
+  readonly error?: string
+  /** 认领文件的目录套件。 */
+  readonly suiteOf: (path: string) => string | undefined
+}
+
 export interface TestPolicyEvaluationInput {
   readonly change: string
   readonly stepId: string
@@ -91,6 +103,7 @@ export interface TestPolicyEvaluationInput {
   /** 离开本步的前进事件；豁免批准的修复命令用。 */
   readonly exitEvent?: string
   readonly protected?: ProtectedEvidenceInput
+  readonly integrity?: IntegrityEvidenceInput
 }
 
 export type SuiteState = 'passed' | 'failed' | 'stale' | 'missing' | 'running'
@@ -164,6 +177,8 @@ export interface TestPolicyReport {
   readonly chain: ChainReport['state']
   /** 目录里声明了、本项目不适用的种类（目录缺失或无效时为空）。 */
   readonly notApplicable: readonly NotApplicableStatus[]
+  /** 测试完整性报告；宿主没有提供 diff 能力（输入缺席）时不存在。 */
+  readonly integrity?: TestIntegrityReport
 }
 
 export function baselineKey(suite: string, profile: string): string {

@@ -4,6 +4,7 @@ import type { CliDeps } from './deps.js'
 import { cmdTestBaseline } from './commands/test-baseline.js'
 import { cmdTestBaselineSuite } from './commands/test-baseline-suite.js'
 import { cmdTestCodeSize } from './commands/test-code-size.js'
+import { cmdTestIntegrity } from './commands/test-integrity.js'
 import { cmdTestPlan } from './commands/test-plan.js'
 import { cmdTestRegister, cmdTestUnregister, cmdTestWaive } from './commands/test-register.js'
 import { cmdTestReport } from './commands/test-report.js'
@@ -27,9 +28,9 @@ interface RunCliOptions {
 export function registerTestCommands(program: Command, deps: CliDeps): void {
   const test = program
     .command('test')
-    .description('测试体系：discover / catalog / plan / register / sync / trust / run / status / baseline / known / report / code-size')
+    .description('测试体系：discover / catalog / plan / register / sync / trust / run / status / baseline / known / integrity / report / code-size')
     .action(() => {
-      deps.io.err('用法：tenon test discover|catalog|plan|register|unregister|waive|sync|trust|run|status|baseline|known|report|code-size ...')
+      deps.io.err('用法：tenon test discover|catalog|plan|register|unregister|waive|sync|trust|run|status|integrity|baseline|known|report|code-size ...')
       bail(1)
     })
   registerTestProjectCommands(test, deps)
@@ -119,6 +120,13 @@ export function registerTestCommands(program: Command, deps: CliDeps): void {
     .option('--json', 'JSON 输出')
     .action(async (change: string, opts: { step?: string; json?: boolean }) =>
       bail(await cmdTestStatus(deps, change, { ...(opts.step === undefined ? {} : { step: opts.step }), json: opts.json === true })))
+  test
+    .command('integrity <change>')
+    .description('测试完整性：相对任务起点，用例数、跳过、断言、快照、基线、已知失败、覆盖率门槛有没有变弱（策略 integrity: block 时有信号 exit 2）')
+    .option('--step <id>', '指定步骤（取它的 integrity 策略）；缺省取当前阶段')
+    .option('--json', 'JSON 输出')
+    .action(async (change: string, opts: { step?: string; json?: boolean }) =>
+      bail(await cmdTestIntegrity(deps, change, { ...(opts.step === undefined ? {} : { step: opts.step }), json: opts.json === true })))
   test
     .command('baseline <change> [test-id]')
     .description('用一次通过运行的指标作基线：--suite 是目录套件（按机器画像，进 git），<test-id> 是旧的步骤测试（按用户）')

@@ -104,6 +104,41 @@ describe('test_policy 解析与写回', () => {
   })
 })
 
+describe('test_policy.integrity', () => {
+  it('块形态与单行形态都能解析，写回再解析深等', () => {
+    const block = parseWorkflow(workflow(['    test_policy:', '      run: [unit]', '      integrity: block']))
+    expect(block.steps[0]?.test_policy).toEqual({ run: ['unit'], integrity: 'block' })
+    expect(parseWorkflow(serializeWorkflow(block))).toEqual(block)
+    expect(serializeWorkflow(block)).toContain('      integrity: block')
+    expect(parseWorkflow(workflow(['    test_policy: { integrity: notice }'])).steps[0]?.test_policy).toEqual({ integrity: 'notice' })
+  })
+
+  it('缺省与 notice 等价：编译后的 IR 与策略摘要逐字相同，不改指纹；block 才进 IR', () => {
+    const plain = compileWorkflow(parseWorkflow(workflow(['    test_policy:', '      run: [unit]'])))
+    const notice = compileWorkflow(parseWorkflow(workflow(['    test_policy:', '      run: [unit]', '      integrity: notice'])))
+    const block = compileWorkflow(parseWorkflow(workflow(['    test_policy:', '      run: [unit]', '      integrity: block'])))
+    expect(notice.steps[0]?.test_policy).toEqual(plain.steps[0]?.test_policy)
+    expect(Object.hasOwn(plain.steps[0]?.test_policy ?? {}, 'integrity')).toBe(false)
+    expect(block.steps[0]?.test_policy).toMatchObject({ integrity: 'block' })
+    const policyOf = (ir: typeof plain) => {
+      const policy = ir.steps[0]?.test_policy
+      if (policy === undefined) throw new Error('policy')
+      return policy
+    }
+    expect(testPolicyDigest(policyOf(notice))).toBe(testPolicyDigest(policyOf(plain)))
+    expect(testPolicyDigest(policyOf(block))).not.toBe(testPolicyDigest(policyOf(plain)))
+    const fingerprint = (lines: readonly string[]): string =>
+      compileEffectiveWorkflowPlan('policy-demo', parseWorkflow(workflow(lines))).workflowFingerprint
+    expect(fingerprint(['    test_policy:', '      run: [unit]', '      integrity: notice'])).toBe(fingerprint(['    test_policy:', '      run: [unit]']))
+    expect(fingerprint(['    test_policy:', '      run: [unit]', '      integrity: block'])).not.toBe(fingerprint(['    test_policy:', '      run: [unit]']))
+  })
+
+  it('值不在 notice | block → 编译失败；标量写成列表 → 解析失败', () => {
+    expect(() => compileStepTestPolicy({ integrity: 'off' }, 'p')).toThrow(/integrity: 只支持 notice \| block/)
+    expect(() => parseWorkflow(workflow(['    test_policy:', '      integrity: [block]']))).toThrow(/必须是单个值/)
+  })
+})
+
 describe('test_policy 编译', () => {
   it('补齐默认值', () => {
     expect(compileStepTestPolicy({}, 'p')).toEqual({

@@ -9,14 +9,14 @@ export const TEST_BLOCKER_CODES = [
   'report-unreadable', 'exit-report-mismatch', 'registered-test-not-executed', 'coverage-below',
   'benchmark-regression', 'baseline-missing', 'flaky-over-limit', 'browser-project-missing', 'scenario-uncovered',
   'scenario-failing', 'service-not-ready', 'record-chain-broken', 'waiver-unapproved',
-  'protected-file-unapproved', 'protected-file-tampered', 'record-unsealed', 'report-untrusted',
+  'protected-file-unapproved', 'protected-file-tampered', 'record-unsealed', 'report-untrusted', 'test-integrity',
 ] as const
 export type TestBlockerCode = (typeof TEST_BLOCKER_CODES)[number]
 
-/** 不属于阻塞集的提示：已知失败已修好 / 已过期、基准噪声大、映射指向不存在的场景、未能检查 diff、未跟踪文件超过上限被截断。 */
+/** 不属于阻塞集的提示：已知失败已修好 / 已过期、基准噪声大、映射指向不存在的场景、未能检查 diff、未跟踪文件超过上限被截断、测试完整性信号。 */
 export const TEST_NOTICE_CODES = [
   'known-failure-fixed', 'known-failure-expired', 'known-failure-too-long', 'benchmark-noisy', 'trace-mapping-stale',
-  'files-unchecked', 'files-truncated',
+  'files-unchecked', 'files-truncated', 'test-integrity',
 ] as const
 export type TestNoticeCode = (typeof TEST_NOTICE_CODES)[number]
 
@@ -55,6 +55,7 @@ export const TEST_BLOCKER_LABELS: Readonly<Record<TestBlockerCode, ShortLabel>> 
   'protected-file-tampered': { zh: '台账外改动', en: 'Changed outside Tenon' },
   'record-unsealed': { zh: '记录来源不明', en: 'Records unsealed' },
   'report-untrusted': { zh: '报告不可信', en: 'Report untrusted' },
+  'test-integrity': { zh: '完整性未通过', en: 'Integrity failed' },
 }
 
 export const TEST_NOTICE_LABELS: Readonly<Record<TestNoticeCode, ShortLabel>> = {
@@ -65,6 +66,7 @@ export const TEST_NOTICE_LABELS: Readonly<Record<TestNoticeCode, ShortLabel>> = 
   'trace-mapping-stale': { zh: '映射失效', en: 'Stale mapping' },
   'files-unchecked': { zh: '未检查文件', en: 'Files unchecked' },
   'files-truncated': { zh: '文件检查被截断', en: 'File check truncated' },
+  'test-integrity': { zh: '完整性提示', en: 'Integrity notice' },
 }
 
 export interface TestBlocker {

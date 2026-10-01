@@ -8,7 +8,7 @@ import {
 import type { StepTestPolicyIR } from './ir.js'
 
 const POLICY_KEYS: ReadonlySet<string> = new Set([
-  'plan', 'kinds', 'run', 'run_if_registered', 'scope', 'files', 'scenarios', 'coverage', 'flaky', 'benchmark', 'browsers',
+  'plan', 'kinds', 'run', 'run_if_registered', 'scope', 'files', 'scenarios', 'integrity', 'coverage', 'flaky', 'benchmark', 'browsers',
 ])
 
 function compileError(path: string, message: string): never {
@@ -112,6 +112,7 @@ export function compileStepTestPolicy(raw: unknown, path: string): StepTestPolic
   if (plan === 'optional' && (required.length > 0 || run.length > 0 || scenarios !== 'off')) {
     compileError(`${path}.plan`, 'kinds / run / scenarios 都依赖测试计划，不能与 plan: optional 同用')
   }
+  const integrity = choice(record.integrity, `${path}.integrity`, ['notice', 'block'] as const, 'notice')
   const coverageIr = coverage(record.coverage, `${path}.coverage`)
   const flakyIr = flaky(record.flaky, `${path}.flaky`)
   return {
@@ -122,6 +123,7 @@ export function compileStepTestPolicy(raw: unknown, path: string): StepTestPolic
     scope: choice(record.scope, `${path}.scope`, ['changed', 'full'] as const, 'full'),
     files: choice(record.files, `${path}.files`, ['registered', 'any'] as const, 'any'),
     scenarios,
+    ...(integrity === 'block' ? { integrity } : {}),
     ...(coverageIr === undefined ? {} : { coverage: coverageIr }),
     ...(flakyIr === undefined ? {} : { flaky: flakyIr }),
     benchmark: benchmark(record.benchmark, `${path}.benchmark`),

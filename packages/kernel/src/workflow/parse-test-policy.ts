@@ -7,7 +7,7 @@ import type { WorkflowParseCursor as Cursor } from './parse-document-contract.js
 import { indentOf, parseInlineList, parseInlineMap } from './parse-primitives.js'
 import type { StepTestPolicyDef } from './types.js'
 
-const SCALAR_KEYS = ['plan', 'scope', 'files', 'scenarios'] as const
+const SCALAR_KEYS = ['plan', 'scope', 'files', 'scenarios', 'integrity'] as const
 const LIST_KEYS = ['kinds', 'run', 'run_if_registered', 'browsers'] as const
 const MAP_KEYS = ['coverage', 'flaky', 'benchmark'] as const
 const NUMBER_RE = /^-?\d+(?:\.\d+)?$/

@@ -14,7 +14,7 @@
 import { lstat } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
-  changeStartOfFields, createChangedFilesSession, createRecordChainCache, creatorOf, isTenonUser, ownerOf,
+  changeStartOfFields, createChangedFilesSession, createRecordChainCache, creatorOf, integrityDiffInSession, isTenonUser, ownerOf,
   projectPipelineTodo, protectedChangesInSession, stateStorageSourcePathSync, UnsupportedRunStateVersionError,
   type ChangedFilesSession, type EffectiveWorkflowPlan, type PipelineState, type TenonUser, type TrackDefinition,
 } from '@tenon/kernel'
@@ -133,6 +133,7 @@ export function createProjectScanContext(
     candidate,
     changedFiles: (state) => changedFiles.changedFiles(changeStartOfFields(state.fields)),
     protectedChanges: (state) => protectedChangesInSession(readRoot, changedFiles, changeStartOfFields(state.fields)),
+    integrityDiff: (state, accept) => integrityDiffInSession(changedFiles, changeStartOfFields(state.fields))(accept),
     recordChainCache: recordChains,
   })
   const trackDefinition = (trackId: string, workflowName: string): TrackDefinition | undefined => {
@@ -306,6 +307,7 @@ export async function scanChange(
         ...(ctx.candidate === undefined ? {} : { candidate: ctx.candidate }),
         changedFiles: () => ctx.changedFiles.changedFiles(changeStartOfFields(state.fields)),
         protectedChanges: () => protectedChangesInSession(readRoot, ctx.changedFiles, changeStartOfFields(state.fields)),
+        integrityDiff: integrityDiffInSession(ctx.changedFiles, changeStartOfFields(state.fields)),
         recordChainCache: recordChains,
       }),
       readTasksProjection(changeDir, {}, anchor),
