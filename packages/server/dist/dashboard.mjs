@@ -21738,6 +21738,49 @@ function canonicalJson(value) {
   return JSON.stringify(value) ?? "null";
 }
 
+// packages/kernel/dist/test-system/paths.js
+import { join as join37 } from "node:path";
+var TEST_SYSTEM_DIR = "tests";
+var TEST_CATALOG_FILE = "catalog.yaml";
+var KNOWN_FAILURES_FILE = "known-failures.yaml";
+var BASELINES_DIR = "baselines";
+var TEST_PLAN_LEDGER_FILE = ".pipeline-test-plan.json";
+var MACHINE_PROFILE_ID_RE = /^[a-z0-9][a-z0-9-]{0,95}$/;
+function testSystemPaths(repoRoot) {
+  const root = join37(repoRoot, TENON_PROJECT_DIR, TEST_SYSTEM_DIR);
+  return {
+    root,
+    catalog: join37(root, TEST_CATALOG_FILE),
+    knownFailures: join37(root, KNOWN_FAILURES_FILE),
+    baselinesDir: join37(root, BASELINES_DIR)
+  };
+}
+var TEST_CATALOG_REPO_PATH = `${TENON_PROJECT_DIR}/${TEST_SYSTEM_DIR}/${TEST_CATALOG_FILE}`;
+var KNOWN_FAILURES_REPO_PATH = `${TENON_PROJECT_DIR}/${TEST_SYSTEM_DIR}/${KNOWN_FAILURES_FILE}`;
+var BASELINES_REPO_PATH = `${TENON_PROJECT_DIR}/${TEST_SYSTEM_DIR}/${BASELINES_DIR}`;
+function baselineV2Path(repoRoot, suite2, profile) {
+  if (!SUITE_ID_RE.test(suite2))
+    throw new Error(`\u57FA\u7EBF\u5957\u4EF6 id \u975E\u6CD5: ${suite2}`);
+  if (!MACHINE_PROFILE_ID_RE.test(profile))
+    throw new Error(`\u673A\u5668\u753B\u50CF id \u975E\u6CD5: ${profile}`);
+  return join37(testSystemPaths(repoRoot).baselinesDir, suite2, `${profile}.json`);
+}
+function testPlanPath(changeDir2) {
+  return join37(changeDir2, "test-plan.yaml");
+}
+function testPlanLedgerPath(changeDir2) {
+  return join37(changeDir2, TEST_PLAN_LEDGER_FILE);
+}
+function testRunRecordsDir(repoRoot, slug, change) {
+  return join37(userProjectPaths(repoRoot, slug).testsDir, change);
+}
+
+// packages/kernel/dist/test-system/machine-profile.js
+var MACHINE_PROFILE_MODES = ["fine", "coarse"];
+function isMachineProfileMode(value) {
+  return typeof value === "string" && MACHINE_PROFILE_MODES.includes(value);
+}
+
 // packages/kernel/dist/test-system/yaml-emit.js
 var PLAIN_FIRST = /^[A-Za-z0-9_/.\u0080-￿]/u;
 var RESERVED_PLAIN = /^(?:~|null|Null|NULL|true|True|TRUE|false|False|FALSE|yes|no|on|off|Yes|No|On|Off|YES|NO|ON|OFF)$/;
@@ -22176,11 +22219,12 @@ function parseTestCatalog(text11) {
   const map = asMap(root, sink, "\u76EE\u5F55");
   if (map === void 0)
     return { ok: false, issues: sink.issues };
-  checkKeys(map, ["schema", "profiles_env", "suites", "services", "not_applicable"], sink, "\u76EE\u5F55");
+  checkKeys(map, ["schema", "profile", "profiles_env", "suites", "services", "not_applicable"], sink, "\u76EE\u5F55");
   const schema = str(field(map, "schema"), sink, "schema", map.line);
   if (schema !== void 0 && schema !== TEST_CATALOG_SCHEMA) {
     sink.add(field(map, "schema")?.line ?? map.line, `schema \u5FC5\u987B\u662F ${TEST_CATALOG_SCHEMA}\uFF08\u5B9E\u9645 '${schema}'\uFF09`);
   }
+  const profileMode = oneOf(field(map, "profile"), sink, "profile", isMachineProfileMode, MACHINE_PROFILE_MODES);
   const profilesEnv = strList(field(map, "profiles_env"), sink, "profiles_env", { pattern: ENV_NAME_RE2, hint: "\u73AF\u5883\u53D8\u91CF\u540D" });
   const suites = [];
   const suiteLines = /* @__PURE__ */ new Map();
@@ -22221,6 +22265,7 @@ function parseTestCatalog(text11) {
     ok: true,
     catalog: {
       schema: TEST_CATALOG_SCHEMA,
+      ...profileMode === "coarse" ? { profile: profileMode } : {},
       profiles_env: profilesEnv,
       suites,
       services,
@@ -22242,7 +22287,7 @@ function catalogSuitesDigest(catalog2, suiteIds) {
   const suites = ids2.map((id2) => catalogSuite(catalog2, id2) ?? { id: id2, missing: true });
   const serviceIds = new Set(ids2.flatMap((id2) => catalogSuite(catalog2, id2)?.services ?? []));
   const services = catalog2.services.filter((service2) => serviceIds.has(service2.id));
-  return digestOf({ profiles_env: catalog2.profiles_env, suites, services });
+  return digestOf({ ...catalog2.profile === "coarse" ? { profile: "coarse" } : {}, profiles_env: catalog2.profiles_env, suites, services });
 }
 function suiteFileGlobs(suite2) {
   return suite2.files.map((glob) => repoGlob(suite2.cwd, glob));
@@ -22295,6 +22340,7 @@ function serviceValue(service2) {
 function serializeTestCatalog(catalog2) {
   return emitYaml({
     schema: catalog2.schema,
+    profile: catalog2.profile === "coarse" ? "coarse" : void 0,
     profiles_env: catalog2.profiles_env.length === 0 ? void 0 : catalog2.profiles_env,
     suites: catalog2.suites.map(suiteValue),
     services: catalog2.services.length === 0 ? void 0 : catalog2.services.map(serviceValue),
@@ -23107,12 +23153,12 @@ function planKindsSatisfy(policy2, suiteKinds, required3) {
 // packages/kernel/dist/test-system/protected-files.js
 import { createHash as createHash17 } from "node:crypto";
 import { lstat as lstat27, readFile as readFile29 } from "node:fs/promises";
-import { join as join39 } from "node:path";
+import { join as join40 } from "node:path";
 
 // packages/kernel/dist/workspace/changed-files.js
 import { execFile } from "node:child_process";
 import { lstat as lstat25, readFile as readFile27 } from "node:fs/promises";
-import { join as join37 } from "node:path";
+import { join as join38 } from "node:path";
 import { promisify } from "node:util";
 var run = promisify(execFile);
 var CHANGED_FILES_GIT_TIMEOUT_MS = 2e4;
@@ -23325,7 +23371,7 @@ function createChangedFilesSession(repoRoot, options3 = {}) {
         throw new ChangedFilesUnavailableError("git diff \u5931\u8D25");
       const out = new Map(parseAddedLines(diff));
       for (const path14 of (await untrackedFiles()).files) {
-        const lines2 = await lineCount(join37(repoRoot, path14));
+        const lines2 = await lineCount(join38(repoRoot, path14));
         if (lines2 > 0)
           out.set(path14, new Set(Array.from({ length: lines2 }, (_, index) => index + 1)));
       }
@@ -23388,14 +23434,14 @@ async function changedFilesResultForState(repoRoot, state) {
 // packages/kernel/dist/test-system/seal.js
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { lstat as lstat26, readFile as readFile28, writeFile as writeFile15 } from "node:fs/promises";
-import { join as join38 } from "node:path";
+import { join as join39 } from "node:path";
 var TEST_SEAL_SCHEMA = "tenon-test-seal/v1";
 var TEST_SEAL_FILE = "test-seal.json";
 var MAX_SEAL_BYTES = 4 * 1024 * 1024;
 var MAX_KEY_BYTES = 4096;
 var EMPTY_TEST_SEAL = { heads: {}, writes: {}, approvals: [], trusted: [] };
 function testSealPath(repoRoot, slug) {
-  return join38(userProjectPaths(repoRoot, slug).localDir, TEST_SEAL_FILE);
+  return join39(userProjectPaths(repoRoot, slug).localDir, TEST_SEAL_FILE);
 }
 function isRecord5(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -23546,7 +23592,7 @@ async function digestOfFile(path14) {
   }
 }
 function protectedFileDigest(repoRoot, path14) {
-  return digestOfFile(join39(repoRoot, ...path14.split("/")));
+  return digestOfFile(join40(repoRoot, ...path14.split("/")));
 }
 async function readProtectedChanges(repoRoot, changes) {
   const out = [];
@@ -23554,7 +23600,7 @@ async function readProtectedChanges(repoRoot, changes) {
     const kind = protectedKindOf(change.path);
     if (kind === void 0)
       continue;
-    const digest18 = await digestOfFile(join39(repoRoot, ...change.path.split("/")));
+    const digest18 = await digestOfFile(join40(repoRoot, ...change.path.split("/")));
     if (digest18 === DELETED_DIGEST && change.status === "added")
       continue;
     out.push({ path: change.path, kind, status: digest18 === DELETED_DIGEST ? "deleted" : change.status, digest: digest18 });
@@ -23971,43 +24017,6 @@ function testAuditRaw(action, pairs) {
 }
 function testAuditEntry(action, pairs, meta2) {
   return { ts: meta2.ts, kind: "tool", raw: testAuditRaw(action, pairs), actor: meta2.actor };
-}
-
-// packages/kernel/dist/test-system/paths.js
-import { join as join40 } from "node:path";
-var TEST_SYSTEM_DIR = "tests";
-var TEST_CATALOG_FILE = "catalog.yaml";
-var KNOWN_FAILURES_FILE = "known-failures.yaml";
-var BASELINES_DIR = "baselines";
-var TEST_PLAN_LEDGER_FILE = ".pipeline-test-plan.json";
-var MACHINE_PROFILE_ID_RE = /^[a-z0-9][a-z0-9-]{0,95}$/;
-function testSystemPaths(repoRoot) {
-  const root = join40(repoRoot, TENON_PROJECT_DIR, TEST_SYSTEM_DIR);
-  return {
-    root,
-    catalog: join40(root, TEST_CATALOG_FILE),
-    knownFailures: join40(root, KNOWN_FAILURES_FILE),
-    baselinesDir: join40(root, BASELINES_DIR)
-  };
-}
-var TEST_CATALOG_REPO_PATH = `${TENON_PROJECT_DIR}/${TEST_SYSTEM_DIR}/${TEST_CATALOG_FILE}`;
-var KNOWN_FAILURES_REPO_PATH = `${TENON_PROJECT_DIR}/${TEST_SYSTEM_DIR}/${KNOWN_FAILURES_FILE}`;
-var BASELINES_REPO_PATH = `${TENON_PROJECT_DIR}/${TEST_SYSTEM_DIR}/${BASELINES_DIR}`;
-function baselineV2Path(repoRoot, suite2, profile) {
-  if (!SUITE_ID_RE.test(suite2))
-    throw new Error(`\u57FA\u7EBF\u5957\u4EF6 id \u975E\u6CD5: ${suite2}`);
-  if (!MACHINE_PROFILE_ID_RE.test(profile))
-    throw new Error(`\u673A\u5668\u753B\u50CF id \u975E\u6CD5: ${profile}`);
-  return join40(testSystemPaths(repoRoot).baselinesDir, suite2, `${profile}.json`);
-}
-function testPlanPath(changeDir2) {
-  return join40(changeDir2, "test-plan.yaml");
-}
-function testPlanLedgerPath(changeDir2) {
-  return join40(changeDir2, TEST_PLAN_LEDGER_FILE);
-}
-function testRunRecordsDir(repoRoot, slug, change) {
-  return join40(userProjectPaths(repoRoot, slug).testsDir, change);
 }
 
 // packages/kernel/dist/test-system/baseline-v2.js
