@@ -23,6 +23,27 @@ git --version
 
 不要把仓库内 `node_modules/.bin` 当成用户安装结果。setup 的目标是安装稳定 launcher 和受管 release，让多个项目共享同一份已验证 runtime。
 
+## 支持的平台
+
+Tenon 的 hooks 与安装脚本是 bash，测试服务的启停走 `/bin/sh`。支持 macOS、Linux 与 WSL；原生 Windows 不受支持。
+
+| 平台 | 支持情况 | 依据 |
+| --- | --- | --- |
+| macOS | 支持 | 维护者的验收在 Apple Silicon 上完成；CI 没有 macOS 作业。 |
+| Linux | 支持 | Ubuntu x64 上有完整 CI：构建、全部测试套件、Dashboard e2e（Chromium 与 WebKit）、干净安装。其他架构未测试。 |
+| Windows + WSL 2 | 支持，按 Linux 对待 | 安装与运行都在 WSL 终端里进行，项目放在 WSL 的文件系统里。CI 跑在 Ubuntu 上，不在 WSL 里。 |
+| 原生 Windows（PowerShell、cmd、Git Bash） | 不支持 | `tenon doctor` 的 `env:platform` 为红灯并指向本节。CI 在 Windows 上只跑两个原生可执行文件信任测试文件，不构成支持声明。 |
+| 其他 Unix（如 FreeBSD） | 未验证 | `tenon doctor` 的 `env:platform` 为黄灯。 |
+
+`tenon doctor` 以 `env:platform` 报告识别到的平台：macOS、Linux、WSL 为绿灯，原生 Windows 为红灯
+（解决办法是 WSL 2：在管理员 PowerShell 中运行 `wsl --install`，之后在 WSL 终端里按本页操作），其余为黄灯。
+
+| Node.js | Tenon | CI 中 |
+| --- | --- | --- |
+| 22、24 | 支持 | 22 跑完整验证；22 与 24 都跑测试体系、reporter、解析器套件和 Dashboard e2e。 |
+| 20 | 不支持（`tenon doctor` 的 `env:node` 为红灯） | 同样的 reporter、解析器与 Dashboard e2e 作业也在 20 上跑，因为 `tenon test run` 提供给你项目测试的 `node:test` reporter，必须在仍跑 Node 20 的项目里继续可用。 |
+| 低于 20 | 不支持 | 不跑。 |
+
 ## 步骤
 
 ### 1. 一步安装并选择宿主
@@ -139,7 +160,7 @@ payload、状态与配置使用操作系统标准应用目录：
 
 - macOS：`~/Library/Application Support/tenon/`；
 - Linux：带 `tenon` 命名空间的 XDG data/state/config；
-- Windows：Local AppData 保存 data/state，Roaming AppData 保存 config。
+- Windows：Local AppData 保存 data/state，Roaming AppData 保存 config（代码里按此解析路径；原生 Windows 仍不是受支持的平台，见“支持的平台”）。
 
 Tenon 不把自有状态写进 `~/.claude` 或 `~/.codex`。项目注册表和凭证位于 Tenon config root，
 runtime selection、audit、Dashboard token 与 pidfile 位于 state root。隔离测试或运维需要改根目录时，
@@ -168,6 +189,7 @@ tenon list --json
 - setup 报已有不同宿主配置：使用明确的 `--codex` 或 `--claude`，不要手工混合目录；
 - runtime 校验失败：先运行 `tenon runtime status`，再按受控流程 repair/rollback；
 - Docker 不可用：只影响声明需要 AFK/sandcastle 的路径，不应阻断普通交互式 Change。
+- `tenon doctor` 的 `env:platform` 是红灯：你在原生 Windows 上，Tenon 不支持。安装 WSL 2（管理员 PowerShell 运行 `wsl --install`），再在 WSL 终端里安装并运行 Tenon。
 - 从旧产品身份升级：旧仓库只发布迁移桥；它先安装并复验 Tenon，再等待新会话证明，最后才删除旧登记和仍与所有权摘要一致的旧 launcher。
 
 ## 下一步

@@ -14,6 +14,7 @@ import type { DoctorProbes } from '../deps.js'
 import { probeAfkReadiness } from '../afkReadiness.js'
 import { probeCodexAuth } from '../codexAuth.js'
 import { detectHostEnvironment } from '../hostKind.js'
+import { detectPlatform, readProcVersion } from './doctor-platform.js'
 import { createDoctorProductIdentityProbe } from './doctor-product-identity.js'
 import { parseHostPluginInventory } from './plugin-host.js'
 import { resolveCommandOnPath } from './commandExists.js'
@@ -204,6 +205,7 @@ export function makeDoctorProbes(
         launcher: resolveCommandOnPath('tenon', { pathValue: dirname(launcher), requireAbsolutePathEntries: true }) ?? null,
       }
     },
+    platform: () => detectPlatform({ platform: process.platform, env: process.env, procVersion: readProcVersion }),
     statuslineConfigured: () => {
       try {
         return readFileSync(join(homedir(), '.claude', 'settings.json'), 'utf8').includes('statusline.sh')

@@ -97,3 +97,14 @@ describe('doctor tenonOnPath probe（真机验收 F17）', () => {
     }
   })
 })
+
+describe('doctor platform probe（P0-6）', () => {
+  test('真探针装配了 platform：读本进程的 process.platform，非 Linux 上 wsl 恒为 false', () => {
+    const probes = makeDoctorProbes(probeScope, '/trusted/root')
+    expect(probes.platform).toBeDefined()
+    const facts = probes.platform?.()
+    expect(facts?.os).toBe(process.platform)
+    expect(typeof facts?.wsl).toBe('boolean')
+    if (process.platform !== 'linux') expect(facts?.wsl).toBe(false)
+  })
+})

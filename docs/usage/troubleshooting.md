@@ -166,6 +166,13 @@ already puts the running `tenon` first on `PATH` for the test process, so a requ
 still need it. Add the launcher directory (normally `~/.local/bin`) to `PATH`, or run
 `tenon setup --claude` / `tenon setup --codex` to install the launcher.
 
+### `env:platform` is red in `tenon doctor`
+
+You are on native Windows, which Tenon does not support (the hooks and installer are bash and test
+services are stopped through `/bin/sh`). Install WSL 2 (`wsl --install` in an administrator PowerShell),
+then install and run Tenon from the WSL terminal with projects in the WSL file system. The full
+platform and Node.js matrix is in [Installation](installation.md#supported-platforms).
+
 ### AFK is queued but not running
 
 Check Docker, image, credentials, loop admission, budget, concurrency, and

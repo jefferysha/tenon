@@ -27,6 +27,7 @@ import {
 } from './doctor-skills.js'
 import { checkCodexProjectSkills } from './doctor-codex-skills.js'
 import { checkCodexAuth, checkStatusline, checkTenonOnPath } from './doctor-host.js'
+import { checkPlatform } from './doctor-platform.js'
 import { checkProductIdentity } from './doctor-product-identity.js'
 import { checkUpstreamSkills, renderUpstreamSkillTable, upstreamSkillViewOf } from './doctor-upstream-skills.js'
 
@@ -267,6 +268,7 @@ export async function cmdDoctor(
 
   const runners: ReadonlyArray<[string, () => DoctorCheck | Promise<DoctorCheck>]> = [
     ['env:node', () => checkNode(p)],
+    ['env:platform', () => checkPlatform(p)],
     ['env:git', () => checkGit(p)],
     ['env:path-tenon', () => checkTenonOnPath(p)],
     ['asset:manifest', () => checkManifest(p)],
