@@ -4,6 +4,241 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
+## v0.3.0 · 2026-10-02
+
+v0.3 makes Tenon usable on an ordinary project and harder to fool. A small change now goes through a four-step
+`standard` lane, and the default test flow is zero-waiver: only `unit` is mandatory. The test evidence a task commits
+can be re-checked in CI from the repository alone (`tenon verify --ci` and a GitHub Action), is guarded by a local trust
+root and an integrity report, and a reviewer can be required to run on the other vendor's CLI. The Dashboard needs a
+sign-in, draws the workflow on a banded canvas with the Signal flow animation, loads a 30-project snapshot in under
+1 MB, labels blockers in English without parsing Chinese text, and has an axe accessibility check in CI. `tenon
+support bundle` and `tenon logs` cover diagnostics. The release includes the v0.2.1 launcher fix. Read "Behaviour
+changes and upgrade impact" before you upgrade a project.
+
+### Standard lane
+
+- `standard` is a built-in workflow and track: `open → build → verify → done`, with no Explore stage and no OpenSpec
+  documents. Build runs the unit tests and the risk probe; Verify has one review gate and the reviewer `code-review`.
+- Implementation-shaped requests (fix, add, refactor, in English and Chinese) route to `standard`; heavy signals
+  (architecture, schema, auth, dependency upgrade, release) stay on `default`. A prompt that looks like code work but
+  matches no Track gets a one-line "not governed" notice. See
+  [the standard lane](routing-and-workflows.md#the-standard-lane).
+- `tenon test diff-risk [<change>] [--json]` is the risk probe Build requires: more than 8 source files, a contract, auth,
+  dependency or migration path, a deleted test or a changed test configuration fails it (limits: `pass.metrics` in the
+  YAML). A failed probe leaves `step.next` one `scope-expanded` transition whose `escalate` payload says to open a
+  `default` task.
+- `tenon step run <change> [--json]` does the deterministic part of `step.next` in one call (scaffold and record
+  documents, read them, seed the test plan) and stops at the first action that needs the host or the author.
+- `tenon document record <change> --all` records every document of the step whose file is already written; unfinished
+  ones are listed and skipped.
+- New official reviewer `code-review`: it reads the diff against the goal and acceptance check the host appends to its
+  prompt, with no spec documents. There are ten official agents now.
+- Reviewers can declare `attach_on` (`auth`, `dependency`, `contract`, `migration`) and join a step only when the task
+  touches such a path. The official `security` reviewer (1.1.0) declares `[auth, dependency, contract]`.
+- Verify runs the project's Playwright suite once: the default workflow's inline `playwright` step test is gone and the
+  `e2e` reviewer (1.1.0) no longer reruns it.
+- An integration test drives a three-file bug fix through the lane and asserts at most 25 `tenon` calls and 2 user replies.
+
+### CI verification and evidence export
+
+- `tenon verify --ci (--change <name> | --all-open | --since <ref>)` re-checks committed evidence without your local key:
+  the record chain, plan, records and catalog agreement, case-level verdicts, the candidate tree, approval lines for changed
+  test configuration, anchors and test integrity. Exit `0` passes, `2` has an error finding, `1` is a usage error.
+- Formats are `text`, `json`, `sarif` (2.1.0) and `markdown` (job summary), written with `--format`, `--out` and `--also`.
+  Every report lists what CI cannot prove without the local key. The report text is Chinese in this release.
+- The composite GitHub Action `.github/actions/tenon-verify` runs it on pull requests with the CLI bundle of the pinned
+  release, appends the job summary and uploads SARIF to code scanning. See [CI verification](ci-verification.md).
+- `tenon evidence export <change> --format agent-trace|otel|git-notes|trailer` writes an Agent Trace v0.1 record, OTLP/JSON
+  GenAI spans (nothing is sent), a git note in `refs/notes/tenon`, or `Tenon-Change:` / `Tenon-Evidence:` trailers. It
+  prints by default; `--apply` writes the note or amends `HEAD`.
+- `--anchor` (git-notes) copies the record chain head into the note; `verify --ci` reports `anchor-mismatch` or
+  `anchor-behind`, and `--require-anchor` makes a missing or lagging anchor an error.
+
+### Test integrity and the trust root of test evidence
+
+- `test_policy.integrity: notice | block` (default `notice`) and `tenon test integrity <change>` report ten signals that
+  evidence got weaker since the task started (fewer cases, more skips, deleted tests, removed assertions, rewritten
+  snapshots, changed baselines, lower coverage thresholds). `notice` shows a note in `status` and the Dashboard; `block`
+  blocks the step.
+- A report must be newer than the run start and is copied with its digest into the run's artifact directory, or the run
+  fails with `report-untrusted`. The workspace fingerprint ignores only output paths the catalog or workflow declares.
+- A local seal (`<user-dir>/local/test-seal.json`, HMAC key beside it, git-ignored) holds the head of each record chain,
+  your approvals and trust decisions. A chain whose head is not sealed is `record-unsealed`; the next run starts a new one.
+- Changes to `.tenon/tests/catalog.yaml`, `baselines/**`, `known-failures.yaml` and `.pipeline/workflows/*.yaml` in a
+  task's diff block every `gate: review` step until you confirm them; `tenon review request` lists them and `--delegated`
+  is refused. A known failure names one case and expires within 30 days.
+- `tenon test trust [<change>] [--yes] [--status] [--json]`: `tenon test run` refuses catalog and inline-test commands you
+  have not trusted on this machine. CI declares `TENON_TEST_TRUST=1`.
+- The write gate recognises 13 shell write shapes into evidence files (`python -c`, `curl -o`, `tar -x`, `git apply`,
+  `xargs sh -c`, `tee`, redirects and more) and refuses an agent call that contains `tenon test trust`. The match is static
+  and best effort; the seal catches the rest.
+- A reviewer with a verdict on unchanged code is not rerun into a pass: `tenon agent prompt` refuses (exit `2`) unless you
+  pass `--rerun-reason <text>`, and the most severe verdict on that candidate counts. The Dashboard shows `reruns`.
+
+### Cross-vendor review
+
+- A workflow step can require a reviewer on `host: codex | claude | any` (Claude writes, Codex reviews); an agent file may
+  suggest one with `host:` (`tenon agent new --host`). The step's declaration binds, the agent's only routes.
+- From another host or a plain terminal, `tenon agent prompt` writes the prompt to
+  `openspec/changes/<change>/.pipeline-agent-reports/<run-id>.prompt.md` and prints the `codex exec …` or `claude -p …`
+  command and the `tenon agent record` line. Tenon never starts the other CLI: you, or the agent in the current host, run it.
+- `tenon agent record <change> <run-id> --host <host>` stores the host (`detected` or `declared`). The verdict is bound to
+  the reviewed code's content hash and to the host: a record from the wrong or an unknown host is refused (exit `2`).
+- The workflow page edits a reviewer's `host`; the agent run drawer shows the recorded host and the bound candidate.
+
+### Test flow
+
+- The default policy is zero-waiver: only `unit` is mandatory. `typecheck`, `integration`, `regression`, `e2e`,
+  `playwright`, `a11y`, `visual`, `benchmark` and `smoke` run when the project has them; coverage thresholds apply only to
+  a suite whose catalog entry declares `coverage`; a `unit` suite run in full satisfies `regression`.
+- `tenon test catalog not-applicable <kind> --reason <text> | --rm` declares a kind that does not apply to the project; it
+  takes effect after one human `review acknowledge` (not `--delegated`).
+- `tenon init` runs `tenon test discover --write` when the project has no catalog, and
+  `tenon test register <change> --auto` claims unclaimed test files, seeds the plan and registers them. JavaScript unit
+  globs now cover `src/`, `test/`, `tests/`, `__tests__/` and root `*.test.*`.
+
+### Dashboard
+
+- Sign-in: without a session, `GET /` and every `/api/*` request answer `401`, except `/api/health` and `/assets/*`.
+  `tenon dashboard --open` mints a one-time link (2 minutes) and opens your browser signed in; no token is written to
+  disk. See [Signing in](dashboard-and-local-api.md#signing-in).
+- Approving a review needs a person present: a second click requests a single-use nonce (30 seconds) bound to your
+  session, the change and the review revision. `tenon review acknowledge` in a terminal is unchanged.
+- Signal replaces the per-edge pulse: one constant-speed conveyor with a four-layer streak runs from the current node and
+  stops at a review gate. `prefers-reduced-motion` shows a static highlight; the animation pauses off screen and in a
+  hidden tab.
+- The overview has borderless columns fitted to the width, one spine per column, a bracket per parallel wave, semantic
+  zoom and click-to-focus column headers; nodes are 40 px with state glyphs, and the stage rail is 3 px.
+- Pages: the workspace Next step merges blockers of one kind into 40 px rows; the Tests tab has four tabular figures, an
+  Integrity section and "N optional"; the Skills page reads references from the orchestration; counts roll vertically.
+- Scale: each project has its own snapshot cache. The Dashboard reads `GET /api/snapshot?view=list` and
+  `/api/stream?view=list` (a full frame, then `snapshot-delta`) and a task's evidence from `GET /api/change/:name/snapshot`.
+  At 30 projects × 30 tasks the list body is about 0.6 MB where the single snapshot was 11 MB, and a write plus rebuild
+  stays under 1.5 s at p95.
+- English: step-exit blockers carry `code`, `subject`, `state` and `count` and are labelled from those, not parsed from the
+  Chinese sentence (kept as a tooltip). `<html lang>` follows the chosen language before first paint.
+- `e2e/dashboard/a11y.spec.ts` runs axe-core over the main pages in light and dark and fails on any `serious` or
+  `critical` violation.
+
+### Support, logs and language
+
+- `tenon support bundle [--out <path>] [--json]` writes a local `.tar.gz` (mode `0600`, at most 5 MiB): versions, `doctor`,
+  `runtime status`, a configuration summary, the recent Dashboard log. Tokens, cookies, login codes, emails, home paths and
+  user names are removed first; the command lists what it holds. Nothing is uploaded.
+- The Dashboard server writes `<state>/logs/dashboard.log` (three rotated files of 1 MiB, credentials redacted); read it
+  with `tenon logs [--follow] [--lines <n>]`.
+- `TENON_LANG=en|zh` (then `LC_ALL`, `LC_MESSAGES`, `LANG`) picks the CLI language for help and the common errors; JSON
+  fields and exit codes do not change. An illegal `tenon transition` event now lists the legal events for the step.
+
+### CI and platform
+
+- CI blocks on `verify` (Node 22, Chromium), a `node-matrix` job (Node 20, 22 and 24: the test-system, reporter and parser
+  suites, the `tools/` `node:test` scripts, the Dashboard Chromium e2e) and a separate WebKit job. `npm test` runs with
+  `TENON_E2E=1`.
+- A catalog can set `profile: coarse`: the machine profile is OS, architecture, core count and Node major version plus
+  `profiles_env` (for example `linux-x64-4c-node22-1a2b3c4d`), so hosted runners of one size share a benchmark baseline.
+- `tenon doctor` reports `env:platform` (green on macOS, Linux and WSL, red on native Windows with a pointer to WSL 2, yellow
+  elsewhere); see the [support matrix](installation.md#supported-platforms). Node 20 is not supported for running Tenon.
+- `tenon test run` puts the running `tenon` first on `PATH` for test processes, so `tenon test code-size --json` no
+  longer exits 127.
+
+### Fixed
+
+- The 2000-line `code-size` limit of v0.2.0 never reached the frozen plan, so a 2036-line candidate passed. New tasks now
+  fail the test when `lines_added` exceeds 2000.
+- `tenon test catalog add --report-format exit-code` works, and a service readiness failure says why.
+- Dashboard agent detail and delete see references from project-level workflows; a referenced agent cannot be deleted.
+- A pending interaction or confirm marker no longer blocks the tools of a running subagent.
+- Delivery commits no longer carry `.pipeline-owned.json`, `test-results/`, `playwright-report/` or a root `coverage/`;
+  deleting or archiving a task removes its generated host agent files; a finished design-system task commits `DESIGN.md`.
+- Agent files name skills with the `tenon:` prefix (a bare `deep-research` was refused); `tenon agent validate` rejects
+  the skeleton placeholders. A case without a file shows "No file reported", not `(unknown)`.
+- `tenon update` tells a project with a stale Tenon block in `AGENTS.md` to run `tenon sync --migrate`.
+
+### Behaviour changes and upgrade impact
+
+- **Review confirmation is owner-only.** A non-owner running `tenon review acknowledge` is refused. Use `--as reviewer` (the
+  history records `as=reviewer owner=<id>`) or `tenon owner take <change>`. The Dashboard's Approve is unchanged.
+- **Run records are capped at 20 per user and change** (inline step tests: per test); older ones are deleted after each
+  `tenon test run`. Commit records as before and do not rely on an old run id.
+- **The Dashboard requires sign-in.** Anonymous requests get `401`, except health and assets, and a server restart signs you
+  out. Run `tenon dashboard --open`; read with the CLI instead of `curl`; with no browser, run `tenon dashboard --port <port>`
+  in a terminal to get the link.
+- **A catalog with `profile:` is rejected by older Tenon**, and so is one with `not_applicable:`. Add them after everyone
+  who reads the repository has updated; a catalog without them is read as before.
+- **The default test flow is zero-waiver.** A task started before the update keeps its frozen plan. To require another
+  kind, declare it in your workflow's `test_policy`. If discover cannot identify your `npm test`, register a `unit` suite
+  (`tenon test catalog add`) or declare `unit` not applicable, or Spec stops with `test-kind-missing`.
+- **The `code-size` limit is enforced** for new tasks (see Fixed): split the task or raise `pass.metrics` in the workflow.
+- **`scope-expanded` is an abandon edge** in `simple` and `standard`: it needs no test, reviewer, document or skill evidence
+  and leaves the workspace uncommitted for the new `default` task. Nothing to do.
+- **Routing sends small implementation prompts to `standard`**, not the seven-phase `default`. To stay on `default`, name the
+  Track in the prompt (for example "use the backend track").
+- **The `security` reviewer attaches only when the diff touches auth, dependency or contract paths.** To keep it on every
+  task, `tenon agent copy security <name>`, delete the `attach_on` line and use the copy in your workflow.
+- **The first `tenon test run` on a machine needs your trust.** It stops with exit `1` and lists the commands; run
+  `tenon test trust` in your own terminal (an agent cannot). A changed command asks again.
+- **What counts as a pass needs your confirmation.** Catalog, baseline, known-failure or project-workflow changes block the
+  review gate until you approve them (`tenon review acknowledge` or the Dashboard). Known-failure entries must name one
+  case, and an expiry beyond 30 days is not honored. A reviewer is not rerun on unchanged code without `--rerun-reason`.
+- **Records written before the update count as not run** (`record-unsealed`). For a task in flight, run
+  `tenon test run <change> --stage` once.
+- **Undeclared output directories count toward the candidate.** Declare report, coverage and artifact paths in the catalog,
+  or a run that writes `coverage/` makes its own record stale.
+- **The CLI language follows the locale.** With no locale signal, or `C` / `POSIX`, output stays Chinese; a system locale such
+  as `LANG=en_US.UTF-8` now gives English help and messages. `TENON_LANG=zh` pins Chinese. Scripts should read `--json`.
+
+### What you need to do
+
+Run `tenon update --codex` (or `--claude`), open a new host session, then:
+
+- Sign in to the Dashboard with `tenon dashboard --open`.
+- In each project run `tenon test trust` once in your own terminal; for a task started earlier run
+  `tenon test run <change> --stage` again.
+- Codex projects: run `tenon sync --migrate` if `tenon update` says the block in `AGENTS.md` is stale.
+- Optional: add the `tenon-verify` Action to your pull requests ([CI verification](ci-verification.md)) and set
+  `TENON_TEST_TRUST=1` in CI jobs that run `tenon test run`.
+
+If every command already fails with `Node identity changed`, run the versioned installer once for each host you use:
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.3.0/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.3.0/install.sh | /bin/bash -s -- --codex
+```
+
+A fresh install of v0.3.0 needs only the first two steps.
+
+### Compatibility
+
+- N-1 is v0.2.1. The N-1 gate reads and writes this release's canonical task state with the published v0.2.1 in both
+  directions; the differences are the ones below.
+- Run records: the v2 schema is closed and gains no field, only the suite reason `report-untrusted`, which v0.2.1 cannot decode.
+  v0.2.1 reads a chain written here until it is pruned (more than 20 runs of one task); then it reports the chain as tampered
+  and counts the task's records as not run until its next run starts a new chain.
+- Test plans keep their format. A catalog without `profile:` and `not_applicable:` keeps its digest, and fine-profile
+  baseline file names stay valid; `profile: coarse` has its own profile id, so its baseline is a new file.
+- v0.2.1 rejects a workflow with `test_policy.integrity` or a reviewer `host:` and an agent file with `attach_on:` or
+  `host:`, does not know the `standard` workflow, and reports a corrupt agent ledger for a task whose rows carry `host`,
+  `host_source` or `rerun_reason` (`tenon agent record` writes `host` when it detects one).
+- The Dashboard's full snapshot keeps its shape; `?view=list` and `GET /api/change/:name/snapshot` are additions, and every
+  route except health and assets needs a session.
+
+### Verify
+
+```bash
+tenon runtime status
+tenon doctor
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:18765/api/snapshot
+tenon support bundle --out /tmp/tenon-support.tar.gz
+tenon verify --ci --all-open
+```
+
+The runtime reports 0.3.0 for both hosts and doctor has no red check: `env:platform` is green on macOS, Linux and WSL, and
+`env:path-tenon` is yellow while the launcher directory is not on `PATH`. With the Dashboard running, the `curl` prints
+`401`, because the request carries no session; `tenon dashboard --open` opens the page signed in. The support bundle
+lists the files it holds and the number of redactions, and has mode `0600`. In a project with governed tasks,
+`verify --ci` exits `0`, or `2` with a finding for the record, approval or candidate that does not match.
+
 ## v0.2.1 · 2026-10-01
 
 A hotfix for v0.2.0. After a restart of macOS every `tenon` command and every hook failed with
