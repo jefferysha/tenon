@@ -62,6 +62,7 @@ import { registerSupportCommands, type SupportRuntimes } from './program-support
 import { registerStepCommands } from './program-step.js'
 import { registerOrchestrationCommands } from './program-orchestration.js'
 import { registerUserCommands } from './program-users.js'
+import { registerVerifyCommands } from './program-verify.js'
 export { CliExit } from './program-exit.js'
 
 export interface ProgramRuntimes extends SupportRuntimes {
@@ -163,6 +164,7 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
   registerReviewCommands(program, deps)
   registerTestCommands(program, deps)
   registerStepCommands(program, deps)
+  registerVerifyCommands(program, deps)
   registerAgentCommands(program, deps)
 
   program

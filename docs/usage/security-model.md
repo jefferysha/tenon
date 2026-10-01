@@ -172,6 +172,13 @@ Residual risk: a process with your privileges can read the seal key and forge a 
 seal, build a path the hook cannot parse, or edit `.pipeline/workflows/*.yaml` through the
 Dashboard; the human confirmation in review is the backstop for the last two.
 
+CI has no seal key. `tenon verify --ci` re-derives the chain, the plan, the verdicts, the candidate
+tree and the protected-file approval lines from committed files, which catches every edit that does
+not also recompute and keep consistent the whole record set. It cannot prove the records came from
+a trusted `tenon test run`, that an approval line was given by a human, or that the suites ran;
+anchoring the chain head in `refs/notes/tenon` adds a second place a forger must write. See
+[CI verification](ci-verification.md).
+
 ## Credentials and AFK
 
 AFK runner credentials are read through controlled environment/config sources

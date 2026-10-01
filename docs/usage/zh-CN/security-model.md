@@ -80,6 +80,10 @@ pending review 期间，PreToolUse 门只放行严格只读命令集（以及 `t
 残余风险：拥有你权限的进程可以读封存密钥、伪造一致的封存，可以构造 hook 解析不了的路径，也可以经 Dashboard 编辑
 `.pipeline/workflows/*.yaml`；后两者靠评审里的人工确认兜底。
 
+CI 里没有封存密钥。`tenon verify --ci` 只用已提交的文件重新推导记录链、计划、判定、候选树和受保护文件的批准行，能挡住所有
+没有同时把整套记录重算并保持自洽的改动；它证明不了记录出自受信任的 `tenon test run`、批准行出自真人、套件真的跑过；
+把链头锚定到 `refs/notes/tenon` 会多出一个伪造者必须同时写的地方。见[CI 校验](./ci-verification.md)。
+
 ## 自动化
 
 持续授权不包含发布、付费、外部通信或生产数据操作。AFK/loop 必须有预算、停止条件、隔离和可审计 policy snapshot。

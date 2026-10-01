@@ -132,6 +132,12 @@ export interface StepTestPolicyLoadInput {
   readonly exitEvent?: string
   /** 长驻进程（Dashboard 快照）传入：记录文件指纹没变就不重读、不重算摘要；缺省 = 每次从磁盘完整校验。 */
   readonly recordChainCache?: RecordChainCache
+  /**
+   * 本机封存（HMAC 链头、人工批准）是否参与判定。缺省 `local`；`none` 只给 CI 的 `tenon verify --ci` 用：
+   * CI 没有用户本机的封存，跳过依赖它的两类判定（记录来源 `record-unsealed`、受保护文件 `protected-file-*`），
+   * 这两类由调用方用仓库里已提交的内容另行校验。
+   */
+  readonly seal?: 'local' | 'none'
 }
 
 export async function evaluateStepTestPolicy(input: StepTestPolicyLoadInput): Promise<TestPolicyReport> {
@@ -159,11 +165,11 @@ export async function evaluateStepTestPolicy(input: StepTestPolicyLoadInput): Pr
       changedFilesError = error instanceof Error ? error.message.slice(0, 200) : '读取失败'
     }
   }
-  const sealed = await readTestSeal(input.repoRoot, input.slug)
+  const sealed = input.seal === 'none' ? undefined : await readTestSeal(input.repoRoot, input.slug)
   const reviewGated = input.reviewGated === true
   let protectedChanges: readonly ProtectedChange[] | undefined
   let protectedChangesError: string | undefined
-  if (reviewGated && input.protectedChanges !== undefined) {
+  if (sealed !== undefined && reviewGated && input.protectedChanges !== undefined) {
     try {
       protectedChanges = await input.protectedChanges()
     } catch (error) {
@@ -188,12 +194,14 @@ export async function evaluateStepTestPolicy(input: StepTestPolicyLoadInput): Pr
     bindings: { candidate, workflowFingerprint: input.workflowFingerprint, workflowRunId: input.workflowRunId },
     today: new Date(input.now).toISOString().slice(0, 10),
     ...(input.exitEvent === undefined ? {} : { exitEvent: input.exitEvent }),
-    protected: {
-      reviewGated,
-      changes: protectedChanges,
-      ...(protectedChangesError === undefined ? {} : { changesError: protectedChangesError }),
-      seal: sealed.seal,
-      sealState: sealed.state,
-    },
+    ...(sealed === undefined ? {} : {
+      protected: {
+        reviewGated,
+        changes: protectedChanges,
+        ...(protectedChangesError === undefined ? {} : { changesError: protectedChangesError }),
+        seal: sealed.seal,
+        sealState: sealed.state,
+      },
+    }),
   })
 }

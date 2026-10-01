@@ -48,6 +48,8 @@ export interface TestEvidenceContext {
   readonly protectedChanges?: () => Promise<readonly ProtectedChange[]>
   /** 记录链校验缓存（只有长驻进程的读取路径传；转换门禁不传，每次完整校验）。 */
   readonly recordChainCache?: RecordChainCache
+  /** 本机封存是否参与判定；缺省 `local`。`none` 只给 CI 的 `tenon verify --ci`（没有本机封存可读）。 */
+  readonly seal?: 'local' | 'none'
 }
 
 export interface TestEvidenceItem {
@@ -304,6 +306,7 @@ export async function evaluateTestEvidence(input: {
       ...(input.context.changedFiles === undefined ? {} : { changedFiles: input.context.changedFiles }),
       ...(input.context.recordChainCache === undefined ? {} : { recordChainCache: input.context.recordChainCache }),
       ...(input.context.protectedChanges === undefined ? {} : { protectedChanges: input.context.protectedChanges }),
+      ...(input.context.seal === undefined ? {} : { seal: input.context.seal }),
       reviewGated: input.plan.workflow.steps.find((step) => step.id === input.stepId)?.gate === 'review',
       now,
       ...(event === undefined ? {} : { exitEvent: event }),

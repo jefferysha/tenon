@@ -49,6 +49,9 @@ export { pruneUnusedHostAgentFiles } from './infrastructure/host-agent-prune.js'
 export * from './test-evidence/index.js'
 // 测试体系 v2：项目测试目录、任务测试计划、步骤测试策略、运行记录 v2 哈希链与策略判定。
 export * from './test-system/index.js'
+// CI 校验（tenon verify --ci）与证据导出（Agent Trace / OTel / git notes / 尾注）：对已提交内容的纯函数。
+export * from './ci-verify/index.js'
+export * from './evidence-export/index.js'
 export { canonicalMachineStateRoot, machineStateScopeId } from './machine-state-scope.js'
 export { sha256Hex } from './sha256.js'
 export {

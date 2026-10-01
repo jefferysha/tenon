@@ -10,6 +10,7 @@ Tenon 是面向 Codex、Claude Code 等 Agent 宿主的本地优先交付工作�
 - 需要团队定制：读[自定义 Workflow 与 Track](./custom-workflows-and-tracks.md)。
 - 需要理解证据门：读[文档、Skill 与证据链](./documents-skills-and-evidence.md)。
 - 需要自己的执行者或评审者：读[智能体](./agents.md)。
+- 想让 Pull Request 自己证明测试证据：读[CI 校验](./ci-verification.md)。
 
 ## 四种常用结果
 

@@ -14,7 +14,7 @@
  */
 import {
   clearReviewWaiverSelection, describeProtectedChange, fileAtChangeStart, changeStartOfFields, pendingReviewWaivers,
-  protectedChangeLine, protectedOrigin, readTestSeal, userSlug, writeReviewWaiverSelection,
+  protectedApprovalDigests, protectedChangeLine, protectedOrigin, readTestSeal, userSlug, writeReviewWaiverSelection,
   type FrozenProtectedChange, type PendingWaiver, type PipelineState, type WaiverApprovalOutcome, type WaiverSkipReason,
 } from '@tenon/kernel'
 import { readFile } from 'node:fs/promises'
@@ -158,6 +158,10 @@ export async function auditWaiverApproval(
     })
   }
   if (outcome.protectedApproved.length > 0) {
-    await recordTestAudit(deps, dir, 'protected-approve', { files: outcome.protectedApproved.join(','), by: approver })
+    await recordTestAudit(deps, dir, 'protected-approve', {
+      files: outcome.protectedApproved.join(','),
+      digests: await protectedApprovalDigests(deps.cwd, outcome.protectedApproved),
+      by: approver,
+    })
   }
 }

@@ -1,0 +1,87 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/jefferysha/tenon/schemas/otlp-trace-export.json",
+  "title": "OTLP/JSON trace export (the subset `tenon evidence export --format otel` emits)",
+  "description": "Shape of the OpenTelemetry protocol ExportTraceServiceRequest JSON mapping: ids are lowercase hex, times are unix-nano decimal strings, enums are integers.",
+  "type": "object",
+  "required": ["resourceSpans"],
+  "additionalProperties": false,
+  "properties": {
+    "resourceSpans": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/resourceSpans" }
+    }
+  },
+  "definitions": {
+    "anyValue": {
+      "oneOf": [
+        { "type": "object", "required": ["stringValue"], "additionalProperties": false, "properties": { "stringValue": { "type": "string" } } },
+        { "type": "object", "required": ["intValue"], "additionalProperties": false, "properties": { "intValue": { "type": "string", "pattern": "^-?[0-9]+$" } } },
+        { "type": "object", "required": ["doubleValue"], "additionalProperties": false, "properties": { "doubleValue": { "type": "number" } } },
+        { "type": "object", "required": ["boolValue"], "additionalProperties": false, "properties": { "boolValue": { "type": "boolean" } } }
+      ]
+    },
+    "keyValue": {
+      "type": "object",
+      "required": ["key", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "key": { "type": "string", "minLength": 1 },
+        "value": { "$ref": "#/definitions/anyValue" }
+      }
+    },
+    "resourceSpans": {
+      "type": "object",
+      "required": ["resource", "scopeSpans"],
+      "additionalProperties": false,
+      "properties": {
+        "resource": {
+          "type": "object",
+          "required": ["attributes"],
+          "additionalProperties": false,
+          "properties": { "attributes": { "type": "array", "items": { "$ref": "#/definitions/keyValue" } } }
+        },
+        "scopeSpans": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["scope", "spans"],
+            "additionalProperties": false,
+            "properties": {
+              "scope": {
+                "type": "object",
+                "required": ["name"],
+                "additionalProperties": false,
+                "properties": { "name": { "type": "string", "minLength": 1 }, "version": { "type": "string" } }
+              },
+              "spans": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/span" } }
+            }
+          }
+        }
+      }
+    },
+    "span": {
+      "type": "object",
+      "required": ["traceId", "spanId", "name", "kind", "startTimeUnixNano", "endTimeUnixNano", "attributes", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "traceId": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+        "spanId": { "type": "string", "pattern": "^[0-9a-f]{16}$" },
+        "parentSpanId": { "type": "string", "pattern": "^[0-9a-f]{16}$" },
+        "name": { "type": "string", "minLength": 1 },
+        "kind": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "startTimeUnixNano": { "type": "string", "pattern": "^[0-9]+$" },
+        "endTimeUnixNano": { "type": "string", "pattern": "^[0-9]+$" },
+        "attributes": { "type": "array", "items": { "$ref": "#/definitions/keyValue" } },
+        "status": {
+          "type": "object",
+          "required": ["code"],
+          "additionalProperties": false,
+          "properties": { "code": { "type": "integer", "minimum": 0, "maximum": 2 }, "message": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

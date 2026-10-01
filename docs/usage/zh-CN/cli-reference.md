@@ -385,6 +385,31 @@ crypto、secret 名与 `.env*`；包清单与锁文件；迁移目录）、`dele
 即过期。命令可读到 `TENON_CHANGE_NAME`、`TENON_TEST_ID`、`TENON_TEST_RUN_ID`、`TENON_TEST_ARTIFACTS` 与 `TENON_BASE_BRANCH`；
 套件运行拿到 `TENON_TEST_SUITE`（套件 id）代替 `TENON_TEST_ID`；套件命令或 `select` 模板引用了 `TENON_NODE_TEST_REPORTER` 时还会拿到它。内联测试的退出码：`0` 通过、`2` 失败（记录已落盘）、`1` 用法或环境错误（不落记录）。
 
+## CI 校验与证据导出
+
+```text
+tenon verify --ci (--change <name> | --all-open | --since <ref>) [--step <id>]
+                  [--format text|json|sarif|markdown] [--out <file>] [--also <format>=<file>]…
+                  [--candidate error|warn|off] [--require-anchor]
+tenon evidence export <change> --format agent-trace|otel|git-notes|trailer
+                  [--out <file>] [--commit <rev>] [--user <slug>] [--apply] [--anchor]
+                  [--contributor human|ai|mixed|unknown] [--model <provider/model>]
+```
+
+`tenon verify --ci` 在没有本机 HMAC 密钥的环境里运行：只用已提交的文件，重新推导每个用户目录的记录链、记录自洽、计划 / 记录 / 目录一致性、
+Change 当前步骤（或 `--step`）策略下的用例级判定、记录绑定的候选代码与本次检出的树、受保护测试配置改动的评审批准行，以及
+`refs/notes/tenon` 上的锚点。必须恰好选一个范围：`--change`（活跃或已归档）、`--all-open`、`--since <ref>`（与 `<ref>` 的 merge-base 以来
+改到的 Change）。不带 `--ci` 时退出码 `1`。命令不加锁，只写 `--out` 与 `--also` 指定的文件。退出码：`0` 没有 error 级发现，
+`2` 至少一个 error 级发现，`1` 用法或环境错误。报告恒带「没有本机密钥，CI 证明不了什么」。格式：`text`、`json`（`tenon-verify-ci/v1`）、
+`sarif`（2.1.0，给 GitHub code scanning）、`markdown`（作业摘要）；用了 `--out` 时 stdout 仍打印 text 摘要。`--candidate warn|off` 放宽
+工作区指纹的比对，`--require-anchor` 要求有锚点 note 且等于链头。细节、发现码和 GitHub Action 见[CI 校验](./ci-verification.md)。
+
+`tenon evidence export` 把 Change 的证据导出成别的工具的格式。`agent-trace` 是 Agent Trace v0.1 记录（贡献者缺省 `unknown`，要用
+`--contributor` / `--model` 显式断言），`otel` 是遵循 OpenTelemetry GenAI 约定的 OTLP/JSON span（不联网导出），`git-notes` 是挂在
+`--commit`（缺省 `HEAD`）上、位于 `refs/notes/tenon` 的 JSON note，`trailer` 是 `Tenon-Change:` 与 `Tenon-Evidence:` 两行。默认只打印；
+`--apply` 写 note（`git-notes`）或把尾注 amend 进 `HEAD`（`trailer`），其他格式带它会被拒绝。`--anchor`（仅 git-notes）把链头记为 `verify --ci`
+会核对的锚点。记录链断了或为空时退出码 `2`，用法错误退出码 `1`。
+
 ## 支持、日志与语言
 
 ```bash

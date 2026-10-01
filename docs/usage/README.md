@@ -22,6 +22,7 @@ matches the operation you need.
 - [Updates, recovery, and uninstall](updates-recovery-and-uninstall.md)
 - [Troubleshooting](troubleshooting.md)
 - [Security model](security-model.md)
+- [CI verification and evidence export](ci-verification.md)
 - [CLI reference](cli-reference.md)
 
 ## Contribute

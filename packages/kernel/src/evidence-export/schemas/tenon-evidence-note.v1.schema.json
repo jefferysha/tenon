@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/jefferysha/tenon/schemas/tenon-evidence-note.v1.json",
+  "title": "tenon-evidence-note/v1 (git note body under refs/notes/tenon)",
+  "type": "object",
+  "required": ["schema", "changes"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "tenon-evidence-note/v1" },
+    "changes": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "required": ["change", "user", "chain", "plan_digest", "last_result", "tenon", "created_at"],
+        "additionalProperties": false,
+        "properties": {
+          "change": { "type": "string", "minLength": 1 },
+          "user": { "type": "string", "minLength": 1 },
+          "chain": {
+            "type": "object",
+            "required": ["head", "records", "last_run", "last_finished_at"],
+            "additionalProperties": false,
+            "properties": {
+              "head": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+              "records": { "type": "integer", "minimum": 0 },
+              "last_run": { "type": "string", "minLength": 1 },
+              "last_finished_at": { "type": "string", "minLength": 1 }
+            }
+          },
+          "plan_digest": { "oneOf": [{ "type": "null" }, { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }] },
+          "last_result": { "enum": ["pass", "fail"] },
+          "anchor": {
+            "type": "object",
+            "required": ["kind", "head"],
+            "additionalProperties": false,
+            "properties": {
+              "kind": { "const": "chain-head" },
+              "head": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+            }
+          },
+          "tenon": { "type": "string", "minLength": 1 },
+          "created_at": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

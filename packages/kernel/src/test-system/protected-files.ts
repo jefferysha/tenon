@@ -58,6 +58,20 @@ export function protectedFileDigest(repoRoot: string, path: string): Promise<str
   return digestOfFile(join(repoRoot, ...path.split('/')))
 }
 
+/**
+ * `test:protected-approve` 审计行里的 `digests=` 值：逗号分隔的 `<路径>@<批准时内容摘要>`。
+ * 批准本身绑定在本机封存里；审计行是提交进仓库的副本，CI 的 `tenon verify --ci` 据此核对「批准之后文件没再变」。
+ * 在批准提交之后读当前内容（批准写入与审计行之间文件不会被命令改动）；读不出的路径不列。
+ */
+export async function protectedApprovalDigests(repoRoot: string, paths: readonly string[]): Promise<string | undefined> {
+  const entries: string[] = []
+  for (const path of paths) {
+    const digest = await protectedFileDigest(repoRoot, path)
+    if (digest !== 'unreadable') entries.push(`${path}@${digest}`)
+  }
+  return entries.length === 0 ? undefined : entries.join(',')
+}
+
 export async function readProtectedChanges(repoRoot: string, changes: readonly PathChange[]): Promise<readonly ProtectedChange[]> {
   const out: ProtectedChange[] = []
   for (const change of changes) {
