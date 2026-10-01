@@ -1,14 +1,14 @@
 import { useMemo } from 'react'
 import type { PolicyReport, TestPlanBrief } from '../api/testSystemTypes'
 import { TestsTabIntegrity } from './TestsTabIntegrity'
-import { TestsTabBlockers, TestsTabFiles, TestsTabTrace } from './TestsTabLists'
+import { TestsTabBlockers, TestsTabFiles, TestsTabNotices, TestsTabTrace } from './TestsTabLists'
 import { TestsTabMatrix } from './TestsTabMatrix'
 import { TestsTabStats } from './TestsTabStats'
-import { buildMatrix, extraItems, fileRows, summarize, type MatrixSuite } from './testsTabModel'
+import { buildMatrix, extraBlockers, fileRows, reportNotices, summarize, type MatrixSuite } from './testsTabModel'
 import type { TestRow } from './stageTests'
 
 /**
- * 工作台任务「测试」页签：汇总数字 → 未登记文件（置顶于表格之上）→ 策略矩阵 → 完整性 → 阻塞 → 场景/任务追溯。
+ * 工作台任务「测试」页签：汇总数字 → 未登记文件（置顶于表格之上）→ 策略矩阵 → 完整性 → 阻塞（只有真阻塞）→ 提示 → 场景/任务追溯。
  * 只展示服务端的判定（与转换拦截同一份），不登记也不执行。套件名可点则打开运行详情。
  */
 export function TaskTestsTab({ report, plan, legacyRows, activeSuite, onOpenSuite, stageLabelOf, recordedBy }: {
@@ -25,7 +25,8 @@ export function TaskTestsTab({ report, plan, legacyRows, activeSuite, onOpenSuit
 }): JSX.Element {
   const summary = useMemo(() => summarize(report), [report])
   const rows = useMemo(() => buildMatrix(report, plan), [report, plan])
-  const extra = useMemo(() => extraItems(report, rows), [report, rows])
+  const blockers = useMemo(() => extraBlockers(report, rows), [report, rows])
+  const notices = useMemo(() => reportNotices(report), [report])
   const files = useMemo(() => fileRows(report), [report])
   const openable = (suite: MatrixSuite): boolean => {
     const verdict = suite.verdict
@@ -39,7 +40,8 @@ export function TaskTestsTab({ report, plan, legacyRows, activeSuite, onOpenSuit
       <TestsTabFiles rows={files} />
       <TestsTabMatrix rows={rows} openable={openable} activeSuite={activeSuite} onOpen={onOpenSuite} />
       <TestsTabIntegrity integrity={report.integrity} />
-      <TestsTabBlockers items={extra} />
+      <TestsTabBlockers items={blockers} />
+      <TestsTabNotices items={notices} />
       <TestsTabTrace report={report} stageLabelOf={stageLabelOf} />
     </div>
   )

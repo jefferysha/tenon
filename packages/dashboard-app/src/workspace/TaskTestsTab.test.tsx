@@ -330,16 +330,53 @@ describe('TaskTestsTab · 策略矩阵', () => {
 })
 
 describe('TaskTestsTab · 阻塞与追溯', () => {
-  it('阻塞表只列矩阵和文件表没用上的阻塞，提示是中性的；对象与命令各一格', () => {
+  it('阻塞表只列矩阵和文件表没用上的真阻塞；提示另成一段，中性、分开计数；对象与命令各一格', () => {
     mount()
-    const rows = within(screen.getByTestId('tests-blockers')).getAllByTestId('tests-blocker')
-    expect(rows.map((row) => [row.getAttribute('data-type'), within(row).getByTestId('tests-blocker-code').textContent])).toEqual([
-      ['blocker', '不稳定超限'], ['notice', '已修好'],
-    ])
-    expect(within(rows[1] as HTMLElement).getByTestId('tests-blocker-code').className).not.toContain('text-red-d')
+    const blockers = screen.getByTestId('tests-blockers')
+    const rows = within(blockers).getAllByTestId('tests-blocker')
+    expect(rows.map((row) => within(row).getByTestId('tests-blocker-code').textContent)).toEqual(['不稳定超限'])
     expect(within(rows[0] as HTMLElement).getByTestId('tests-blocker-code').className).toContain('text-red-d')
-    expect(within(rows[1] as HTMLElement).getAllByRole('cell')[1]?.textContent).toBe('src/a.test.ts › 旧用例')
-    expect(within(rows[1] as HTMLElement).getByTestId('tests-blocker-fix-1-text').textContent).toContain('tenon test known rm')
+    expect(blockers.querySelector('h3')?.nextElementSibling?.textContent).toBe('1')
+
+    const notices = screen.getByTestId('tests-notices')
+    const noticeRows = within(notices).getAllByTestId('tests-notice')
+    expect(noticeRows.map((row) => within(row).getByTestId('tests-notice-code').textContent)).toEqual(['已修好'])
+    expect(within(noticeRows[0] as HTMLElement).getByTestId('tests-notice-code').className).not.toContain('text-red-d')
+    expect(within(noticeRows[0] as HTMLElement).getAllByRole('cell')[1]?.textContent).toBe('src/a.test.ts › 旧用例')
+    expect(within(noticeRows[0] as HTMLElement).getByTestId('tests-notice-fix-0-text').textContent).toContain('tenon test known rm')
+    expect(notices.querySelector('h3')?.nextElementSibling?.textContent).toBe('1')
+    expect(within(blockers).queryByText('已修好')).toBeNull()
+  })
+
+  it('完整性提示（策略缺省 notice）只在完整性段：不在阻塞表、不算进阻塞数，也没有第二处重复', () => {
+    const base = verifyReport()
+    const integrity = { code: 'test-integrity' as const, message: '测试完整性提示：覆盖率门槛降低 1', fix: 'tenon test integrity add-login' }
+    const report: PolicyReport = {
+      ...base,
+      blockers: base.blockers.filter((item) => item.code !== 'flaky-over-limit'),
+      notices: [integrity],
+      integrity: { mode: 'notice', state: 'ok', signals: [{ code: 'coverage-threshold-lowered', subject: '.nycrc.json', detail: 'lines 80 → 60' }] },
+    }
+    mount(report)
+    expect(screen.getByTestId('tests-integrity')).toBeVisible()
+    expect(screen.queryByTestId('tests-blockers')).toBeNull()
+    expect(screen.queryByTestId('tests-notices')).toBeNull()
+    expect(screen.queryByText('完整性提示')).toBeNull()
+    expect(screen.queryByText('tenon test integrity add-login')).toBeNull()
+  })
+
+  it('完整性 block：汇总是真阻塞，进阻塞表并计入阻塞数', () => {
+    const base = verifyReport()
+    const blocker = { code: 'test-integrity' as const, blocking: true, message: '测试完整性未通过：覆盖率门槛降低 1', fix: 'tenon test integrity add-login' }
+    mount({
+      ...base,
+      blockers: [blocker],
+      notices: [],
+      integrity: { mode: 'block', state: 'ok', signals: [{ code: 'coverage-threshold-lowered', subject: '.nycrc.json', detail: 'lines 80 → 60' }] },
+    })
+    const blockers = screen.getByTestId('tests-blockers')
+    expect(within(blockers).getAllByTestId('tests-blocker-code').map((cell) => cell.textContent)).toEqual(['完整性未通过'])
+    expect(blockers.querySelector('h3')?.nextElementSibling?.textContent).toBe('1')
   })
 
   it('追溯表：场景/任务 · 用例（最多两个，其余 +N）· 结果', () => {

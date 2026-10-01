@@ -48,4 +48,25 @@ describe('policyDto / policyReportDto —— 测试完整性', () => {
     expect(policyReportDto(report({ mode: 'notice', state: 'ok', signals: [] }), undefined).integrity)
       .toEqual({ mode: 'notice', state: 'ok', signals: [] })
   })
+
+  it('notice 模式的完整性提示只在 notices 里，blockers 里没有它；非阻塞的阻塞带着 blocking:false 原样给出', () => {
+    const dto = policyReportDto({
+      ...report({ mode: 'notice', state: 'ok', signals: [{ code: 'coverage-threshold-lowered', subject: '.nycrc.json', detail: 'lines 80 → 60' }] }),
+      blockers: [{ code: 'baseline-missing', blocking: false, message: 'm', subject: 'api-bench' }],
+      notices: [{ code: 'test-integrity', message: '测试完整性提示：覆盖率门槛降低 1', fix: 'tenon test integrity add-login' }],
+    }, undefined)
+    expect(dto.notices.map((item) => item.code)).toEqual(['test-integrity'])
+    expect(dto.blockers.map((item) => [item.code, item.blocking])).toEqual([['baseline-missing', false]])
+    expect(dto.notices[0]).not.toHaveProperty('blocking')
+  })
+
+  it('block 模式的完整性是真阻塞：在 blockers 里（blocking:true），notices 里没有', () => {
+    const dto = policyReportDto({
+      ...report({ mode: 'block', state: 'ok', signals: [{ code: 'coverage-threshold-lowered', subject: '.nycrc.json', detail: 'lines 80 → 60' }] }),
+      pass: false,
+      blockers: [{ code: 'test-integrity', blocking: true, message: '测试完整性未通过：覆盖率门槛降低 1', fix: 'tenon test integrity add-login' }],
+    }, undefined)
+    expect(dto.blockers.map((item) => [item.code, item.blocking])).toEqual([['test-integrity', true]])
+    expect(dto.notices).toEqual([])
+  })
 })

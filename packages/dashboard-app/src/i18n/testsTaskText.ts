@@ -7,6 +7,7 @@ export const zh: Dict = {
     matrix: '策略',
     trace: '场景/任务',
     blockers: '阻塞',
+    notices: '提示',
     integrity: '完整性',
   },
   integrity: {
@@ -65,6 +66,7 @@ export const en: Dict = {
     matrix: 'Policy',
     trace: 'Scenario/Task',
     blockers: 'Blockers',
+    notices: 'Notices',
     integrity: 'Integrity',
   },
   integrity: {

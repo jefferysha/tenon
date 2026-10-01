@@ -130,19 +130,21 @@ export function buildMatrix(report: PolicyReport, plan: TestPlanBrief | undefine
   })
 }
 
-export interface ExtraItem {
-  readonly type: 'blocker' | 'notice'
-  readonly item: TestBlocker | TestNotice
+/** 矩阵行没用上、文件表也不管的真阻塞（`blocking: true`）。提示不是阻塞，不在这里（见 {@link reportNotices}）。 */
+export function extraBlockers(report: PolicyReport, rows: readonly MatrixRow[]): TestBlocker[] {
+  const shown = new Set(rows.flatMap((row) => (row.blocker === null ? [] : [row.blocker])))
+  return blockingOnly(report).filter((item) => !shown.has(item) && !FILE_CODES.has(item.code))
 }
 
-/** 矩阵行没用上、文件表也不管的阻塞，加上全部提示。 */
-export function extraItems(report: PolicyReport, rows: readonly MatrixRow[]): ExtraItem[] {
-  const shown = new Set(rows.flatMap((row) => (row.blocker === null ? [] : [row.blocker])))
-  const blockers = blockingOnly(report)
-    .filter((item) => !shown.has(item) && !FILE_CODES.has(item.code))
-    .map((item): ExtraItem => ({ type: 'blocker', item }))
-  const notices = report.notices.map((item): ExtraItem => ({ type: 'notice', item }))
-  return [...blockers, ...notices]
+/** 完整性段自己列出的提示码：信号逐条在「完整性」表里，这里不再重复一行。 */
+const INTEGRITY_NOTICE_CODES: ReadonlySet<string> = new Set(['test-integrity'])
+
+/**
+ * 提示（已修好的已知失败、基准波动、映射失效、未检查文件…）：中性信息，不是阻塞，不进阻塞表也不计入阻塞数。
+ * 完整性的汇总提示由「完整性」段按信号逐条展示，不在这里重复。
+ */
+export function reportNotices(report: PolicyReport): TestNotice[] {
+  return report.notices.filter((item) => !INTEGRITY_NOTICE_CODES.has(item.code))
 }
 
 export interface FileRow {

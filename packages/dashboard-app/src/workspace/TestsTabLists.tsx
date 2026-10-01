@@ -8,8 +8,8 @@ import { TestSection } from '../tests/TestSection'
 import { blockerLabel, kindLabel, noticeLabel } from '../tests/testLabels'
 import { dataMessage } from '../tests/testText'
 import { COUNT_BADGE, TABLE_HEAD, TABLE_ROW, gridRow } from '../tests/testStyles'
-import type { PolicyReport, TraceRow } from '../api/testSystemTypes'
-import { traceLabel, traceNeedsMapping, traceRows, type ExtraItem, type FileRow } from './testsTabModel'
+import type { PolicyReport, TestBlocker, TestNotice, TraceRow } from '../api/testSystemTypes'
+import { traceLabel, traceNeedsMapping, traceRows, type FileRow } from './testsTabModel'
 
 const FILE_COLUMNS = 'grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_7rem_minmax(0,2fr)]'
 
@@ -45,8 +45,8 @@ export function TestsTabFiles({ rows }: { rows: readonly FileRow[] }): JSX.Eleme
 
 const BLOCKER_COLUMNS = 'grid-cols-[9rem_minmax(0,1.4fr)_minmax(0,2.4fr)]'
 
-/** 阻塞：没被矩阵行、文件表用上的阻塞与全部提示；提示是中性的，阻塞用危险色。 */
-export function TestsTabBlockers({ items }: { items: readonly ExtraItem[] }): JSX.Element | null {
+/** 阻塞：没被矩阵行、文件表用上的真阻塞（`blocking: true`）。提示不进这张表，也不计入这里的数。 */
+export function TestsTabBlockers({ items }: { items: readonly TestBlocker[] }): JSX.Element | null {
   const { t, lang } = useT()
   if (items.length === 0) return null
   return (
@@ -57,14 +57,40 @@ export function TestsTabBlockers({ items }: { items: readonly ExtraItem[] }): JS
           <span role="columnheader">{t('tests.task.blockers.subject')}</span>
           <span role="columnheader">{t('tests.task.blockers.fix')}</span>
         </div>
-        {items.map(({ type, item }, index) => (
-          <div key={`${item.code}-${item.subject ?? ''}-${index}`} className={`${gridRow(BLOCKER_COLUMNS)} ${TABLE_ROW}`} role="row" data-testid="tests-blocker" data-type={type}>
-            <span className={type === 'blocker' ? 'truncate font-semibold text-red-d' : 'truncate text-text-2'} role="cell" title={dataMessage(item)} data-testid="tests-blocker-code">
-              {type === 'blocker' ? blockerLabel(item.code, lang) : noticeLabel(item.code, lang)}
+        {items.map((item, index) => (
+          <div key={`${item.code}-${item.subject ?? ''}-${index}`} className={`${gridRow(BLOCKER_COLUMNS)} ${TABLE_ROW}`} role="row" data-testid="tests-blocker">
+            <span className="truncate font-semibold text-red-d" role="cell" title={dataMessage(item)} data-testid="tests-blocker-code">
+              {blockerLabel(item.code, lang)}
             </span>
             <span className="truncate font-mono text-text-2" role="cell" title={item.subject}>{item.subject === undefined ? '—' : kindLabel(item.subject, t)}</span>
             <span className="min-w-0" role="cell">
               {item.fix === undefined ? <span className="text-text-3">—</span> : <FixCommand command={item.fix} testId={`tests-blocker-fix-${index}`} />}
+            </span>
+          </div>
+        ))}
+      </div>
+    </TestSection>
+  )
+}
+
+/** 提示：中性信息（已修好的已知失败、基准波动、映射失效…），与阻塞分开成段、分开计数。 */
+export function TestsTabNotices({ items }: { items: readonly TestNotice[] }): JSX.Element | null {
+  const { t, lang } = useT()
+  if (items.length === 0) return null
+  return (
+    <TestSection title={t('tests.task.section.notices')} count={items.length} testId="tests-notices">
+      <div role="table" aria-label={t('tests.task.section.notices')}>
+        <div className={`${gridRow(BLOCKER_COLUMNS)} ${TABLE_HEAD}`} role="row">
+          <span role="columnheader">{t('tests.task.blockers.notice')}</span>
+          <span role="columnheader">{t('tests.task.blockers.subject')}</span>
+          <span role="columnheader">{t('tests.task.blockers.fix')}</span>
+        </div>
+        {items.map((item, index) => (
+          <div key={`${item.code}-${item.subject ?? ''}-${index}`} className={`${gridRow(BLOCKER_COLUMNS)} ${TABLE_ROW}`} role="row" data-testid="tests-notice">
+            <span className="truncate text-text-2" role="cell" title={dataMessage(item)} data-testid="tests-notice-code">{noticeLabel(item.code, lang)}</span>
+            <span className="truncate font-mono text-text-2" role="cell" title={item.subject}>{item.subject === undefined ? '—' : kindLabel(item.subject, t)}</span>
+            <span className="min-w-0" role="cell">
+              {item.fix === undefined ? <span className="text-text-3">—</span> : <FixCommand command={item.fix} testId={`tests-notice-fix-${index}`} />}
             </span>
           </div>
         ))}
