@@ -3,7 +3,7 @@ import { BaseEdge, Handle, MarkerType, Position, getSmoothStepPath, type Edge, t
 import { Box, FileCheck, X } from 'lucide-react'
 import type { WbSkillEntry } from '../api/governanceTypes'
 import { useT } from '../i18n'
-import { COMET_LAYERS, type SignalMode } from './flowSignal'
+import { STREAK_LAYERS, type SignalMode } from './flowSignal'
 import { MiddleText, StateGlyph } from './flowGlyphs'
 import { SkillSourceIcon } from './SkillSourceIcon'
 import { cn } from '@/lib/utils'
@@ -79,8 +79,8 @@ export function SignalEdge({ id, source, target, sourceX, sourceY, targetX, targ
       <BaseEdge id={id} path={path} markerEnd={markerEnd} style={EDGE_STYLES[state]} />
       {data?.signal === true && (
         <g className="pointer-events-none" visibility="hidden" data-signal-edge={id} data-signal-source={source} data-signal-target={target} data-signal-state={state} data-signal-lead={data.lead} data-signal-after={data.after === undefined || data.after.length === 0 ? undefined : data.after.join(' ')} data-signal-static={data.stub === true ? '' : undefined} data-signal-length={data.stub === true ? Math.hypot(targetX - sourceX, targetY - sourceY) : undefined} data-testid={`flow-signal-${id}`}>
-          {data.stub !== true && COMET_LAYERS.map((layer) => (
-            <path key={layer.id} d={path} fill="none" stroke={layer.tone === 'halo' ? 'var(--flow-halo)' : 'var(--flow-comet)'} strokeOpacity={layer.opacity} strokeWidth={layer.width} strokeLinecap={layer.cap} data-signal-layer={layer.id} />
+          {data.stub !== true && STREAK_LAYERS.map((layer) => (
+            <path key={layer.id} d={path} fill="none" stroke={layer.tone === 'halo' ? 'var(--flow-halo)' : 'var(--flow-streak)'} strokeOpacity={layer.opacity} strokeWidth={layer.width} strokeLinecap={layer.cap} data-signal-layer={layer.id} />
           ))}
         </g>
       )}

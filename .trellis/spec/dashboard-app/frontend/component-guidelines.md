@@ -218,13 +218,13 @@ those, never class names.
   only applies to edges created by `onConnect`): a smooth-step `BaseEdge` (radius 8, `--flow-line` 1.25px; done =
   `--flow-done` solid, 55% opacity; the segment into a running node = `--flow-done`) plus, while the canvas is
   flowing, four clone paths of the same `d` (`data-signal-layer` halo 72 / trail 48 / trail 26 / core 10) inside a
-  `g[data-signal-edge]` that stays `visibility:hidden` until a comet touches it. `workflow/flowSignal.ts` is the
+  `g[data-signal-edge]` that stays `visibility:hidden` until a streak touches it. `workflow/flowSignal.ts` is the
   only clock: pure `planSignal(edges, nodes)` gives every edge a start distance `a` (a = arrival(source) + transit,
   fork branches share `a`, a join waits for its slowest input, `after` makes an edge wait for other nodes) so speed
   is constant everywhere; `createSignalRuntime` measures path lengths once and, per `gsap.ticker` frame, writes the
   four `stroke-dashoffset` values of the hot edges only (`mod(a + L - phase, spacing)`). Modes: `ambient` (idle,
   140px/s, spacing clamp(route/3, 320, 720), ×0.7), `running` (300px/s, spacing 360, edges with
-  `data-signal-state=done` are skipped), `still` (reduced motion / blocked: no ticker; with `hold` one comet is
+  `data-signal-state=done` are skipped), `still` (reduced motion / blocked: no ticker; with `hold` one streak is
   parked on the wire into the gate node and the wire ends in an amber tick), `off` (offscreen). The ticker is
   detached while `document.hidden`. Arrival feedback is analytic, not tweened: nodes carry pre-rendered
   `data-signal-flash` (border + 4px halo), `-port`, `-icon` and `-ring` layers whose opacity (and, for the ring,
@@ -232,11 +232,11 @@ those, never class names.
   (`OrchestrationFlow mode="overview"`) does not use fork/join rails: each column has one vertical spine 8px left of
   the node ports (2×2 `spine` junctions at node centre height, header `spine` handle on top), an 8px `stub` edge into
   every node (registered in the signal plan for arrival feedback, rendered as a `data-signal-static` group without
-  comet layers), and a 2px `bracket` node on the spine side of every parallel wave; the only arrowhead of a column is
-  header → spine. The comet travels along the spine only. Default zoom is `max(fit-to-width, 0.85)` with the first
+  streak layers), and a 2px `bracket` node on the spine side of every parallel wave; the only arrowhead of a column is
+  header → spine. The streak travels along the spine only. Default zoom is `max(fit-to-width, 0.85)` with the first
   column 24px from the left and the content top-aligned 24px from the top; names show from zoom 0.5, glyph-only
   below, status words from 1.25. No travelling dot unless
-  profiling shows the dash writes cost more than 2ms per frame (then each comet becomes one MotionPath circle).
+  profiling shows the dash writes cost more than 2ms per frame (then each streak becomes one MotionPath circle).
   Virtual nodes (ports, labels, junctions, ghost) are not in the nodes
   state, so their `dimensions` changes are captured into `virtualMeasured` and written back as `measured` — otherwise
   React Flow treats them as unmeasured, hides the edges attached to them and re-reports sizes every frame.

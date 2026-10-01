@@ -1,7 +1,7 @@
 import { useEffect, useState, type RefObject } from 'react'
 import gsap from 'gsap'
 import {
-  ARRIVE, ARRIVE_TOTAL, COMET_LAYERS, arrivalGlow, headOnEdge, iconGlow, mod, parkedAt, planSignal, portGlow, ringFrame, signalParams,
+  ARRIVE, ARRIVE_TOTAL, STREAK_LAYERS, arrivalGlow, headOnEdge, iconGlow, mod, parkedAt, planSignal, portGlow, ringFrame, signalParams,
   type SignalMode,
 } from './signalPlan'
 
@@ -78,12 +78,12 @@ export function createSignalRuntime(root: Element, mode: Exclude<SignalMode, 'of
       // 短线：只登记长度（条目的到达反馈按它算），不带彗星层。
       length = Number(group.dataset.signalLength)
     } else {
-      for (const layer of COMET_LAYERS) {
+      for (const layer of STREAK_LAYERS) {
         const path = group.querySelector<SVGPathElement>(LAYER_SELECTOR(layer.id))
         if (path !== null) layers.push(path)
       }
       const base = layers[0]
-      if (base === undefined || layers.length !== COMET_LAYERS.length) continue
+      if (base === undefined || layers.length !== STREAK_LAYERS.length) continue
       const d = base.getAttribute('d') ?? ''
       length = lengths.get(d)
       if (length === undefined) {
@@ -109,7 +109,7 @@ export function createSignalRuntime(root: Element, mode: Exclude<SignalMode, 'of
 
   const hide = (edge: EdgeRecord): void => { if (edge.hot) { edge.group.setAttribute('visibility', 'hidden'); edge.hot = false } }
   const show = (edge: EdgeRecord): void => { if (!edge.hot) { edge.group.setAttribute('visibility', 'visible'); edge.hot = true } }
-  COMET_LAYERS.forEach((layer, index) => {
+  STREAK_LAYERS.forEach((layer, index) => {
     for (const record of records) {
       const path = record.layers[index]
       if (path === undefined) continue
@@ -162,7 +162,7 @@ export function createSignalRuntime(root: Element, mode: Exclude<SignalMode, 'of
       if (head === null) { hide(edge); continue }
       show(edge)
       const layers = edge.layers
-      for (let index = 0; index < layers.length; index += 1) layers[index]?.setAttribute('stroke-dashoffset', String(mod(edge.a + (COMET_LAYERS[index]?.length ?? 0) - phase, spacing)))
+      for (let index = 0; index < layers.length; index += 1) layers[index]?.setAttribute('stroke-dashoffset', String(mod(edge.a + (STREAK_LAYERS[index]?.length ?? 0) - phase, spacing)))
     }
     for (const node of nodes) {
       if (travelled < node.arrival) { if (node.active) resetNode(node); continue }

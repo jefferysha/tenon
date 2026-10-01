@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { FlowStage } from '../api/workflowOrchestrationClient'
-import { COMET_LAYERS, createSignalRuntime, type SignalMode } from './flowSignal'
+import { STREAK_LAYERS, createSignalRuntime, type SignalMode } from './flowSignal'
 import { layoutOrchestration } from './orchestrationLayout'
 
 /**
@@ -31,7 +31,7 @@ function frontendStages(): FlowStage[] {
   }))
 }
 
-function build(): { root: HTMLElement; nodes: number; edges: number; comets: number } {
+function build(): { root: HTMLElement; nodes: number; edges: number; streaks: number } {
   const layout = layoutOrchestration(frontendStages(), 'overview')
   const root = document.createElement('div')
   const svg = document.createElementNS(SVG, 'svg')
@@ -61,7 +61,7 @@ function build(): { root: HTMLElement; nodes: number; edges: number; comets: num
       group.setAttribute('data-signal-static', '')
       group.setAttribute('data-signal-length', String(length))
     } else {
-      for (const layer of COMET_LAYERS) {
+      for (const layer of STREAK_LAYERS) {
         const path = document.createElementNS(SVG, 'path')
         path.setAttribute('d', `M${from.x} ${from.y} L${to.x} ${to.y} #${edge.id}`)
         path.setAttribute('data-length', String(length))
@@ -83,7 +83,7 @@ function build(): { root: HTMLElement; nodes: number; edges: number; comets: num
     }
     root.append(node)
   }
-  return { root, nodes: layout.entries.length, edges: layout.edges.length, comets: layout.edges.filter((edge) => edge.stub !== true).length }
+  return { root, nodes: layout.entries.length, edges: layout.edges.length, streaks: layout.edges.filter((edge) => edge.stub !== true).length }
 }
 
 function percentile(sorted: readonly number[], fraction: number): number {
@@ -96,12 +96,12 @@ describe('Signal 性能 · 8 列 ~50 节点的前端总览', () => {
   for (const mode of ['ambient', 'running'] as Array<Exclude<SignalMode, 'off' | 'still'>>) {
     it(`${mode}：每帧 step 的脚本耗时 < 2ms（均值与 p95 都算）`, () => {
       Object.defineProperty(SVGElement.prototype, 'getTotalLength', { configurable: true, value(this: SVGElement) { return Number(this.getAttribute('data-length') ?? 0) } })
-      const { root, nodes, edges, comets } = build()
+      const { root, nodes, edges, streaks } = build()
       expect(nodes).toBeGreaterThanOrEqual(48)
       expect(nodes).toBeLessThanOrEqual(56)
       const runtime = createSignalRuntime(root, mode)!
       expect(runtime.total).toBe(edges)
-      expect(runtime.edgeCount).toBe(comets)
+      expect(runtime.edgeCount).toBe(streaks)
       // 预热 JIT，再量 10 秒的帧（600 帧 × 1/60s）。
       for (let frame = 0; frame < 120; frame += 1) runtime.step(1 / 60)
       const samples: number[] = []
@@ -114,11 +114,11 @@ describe('Signal 性能 · 8 列 ~50 节点的前端总览', () => {
       }
       const sorted = [...samples].sort((a, b) => a - b)
       const mean = samples.reduce((sum, value) => sum + value, 0) / samples.length
-      console.info(`[signal-perf] ${mode}: ${nodes} 节点 / ${edges} 条边（${comets} 条带彗星），均值 ${mean.toFixed(3)}ms，p95 ${percentile(sorted, 0.95).toFixed(3)}ms，最大 ${sorted[sorted.length - 1]!.toFixed(3)}ms，同时最多 ${hottest} 条热边`)
+      console.info(`[signal-perf] ${mode}: ${nodes} 节点 / ${edges} 条边（${streaks} 条带彗星），均值 ${mean.toFixed(3)}ms，p95 ${percentile(sorted, 0.95).toFixed(3)}ms，最大 ${sorted[sorted.length - 1]!.toFixed(3)}ms，同时最多 ${hottest} 条热边`)
       expect(mean).toBeLessThan(2)
       expect(percentile(sorted, 0.95)).toBeLessThan(2)
       // 只写热边：同一帧里总有冷边不被碰（每条热边 4 次 dashoffset 写入）。
-      expect(hottest).toBeLessThan(comets)
+      expect(hottest).toBeLessThan(streaks)
       runtime.dispose()
     })
   }

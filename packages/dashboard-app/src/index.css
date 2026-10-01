@@ -37,7 +37,7 @@
   color-scheme: light;
   /* 画布连线 / 彗星 / 节点边框（Signal 规格）：线 ≥ 3:1（card / 列带 / bg），节点轮廓可以更安静；done = 强调色；
    * 阶段条「已完成」是暖灰（与强调色亮度差 ≥ 3:1）；列带是 4% 文字色叠在卡片上的实色（彗星从它下面穿过时被挡住）。 */
-  --flow-line: #8f8e85; --flow-done: var(--accent); --flow-comet: var(--accent); --flow-halo: var(--accent);
+  --flow-line: #8f8e85; --flow-done: var(--accent); --flow-streak: var(--accent); --flow-halo: var(--accent);
   --flow-node-border: #c9c8bf; --flow-band: color-mix(in srgb, var(--text) 4%, var(--card));
   --flow-step-done: #b9b8af; --flow-hold: var(--amber-d);
   --bg: #f6f6f3; --card: #ffffff; --fill: #f0efea; --fill-2: #e7e6e0;
@@ -88,7 +88,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --flow-line: #6a706a; --flow-done: var(--accent); --flow-comet: var(--accent-d); --flow-halo: var(--accent);
+    --flow-line: #6a706a; --flow-done: var(--accent); --flow-streak: var(--accent-d); --flow-halo: var(--accent);
     --flow-node-border: #4a4f4a; --flow-band: color-mix(in srgb, var(--text) 4%, var(--card));
     --flow-step-done: #56564f; --flow-hold: var(--amber-d);
     --bg: #131513; --card: #1a1c1a; --fill: #232623; --fill-2: #2b2e2b;
@@ -123,7 +123,7 @@
 }
 :root[data-theme="light"] {
   color-scheme: light;
-  --flow-line: #8f8e85; --flow-done: var(--accent); --flow-comet: var(--accent); --flow-halo: var(--accent);
+  --flow-line: #8f8e85; --flow-done: var(--accent); --flow-streak: var(--accent); --flow-halo: var(--accent);
   --flow-node-border: #c9c8bf; --flow-band: color-mix(in srgb, var(--text) 4%, var(--card));
   --flow-step-done: #b9b8af; --flow-hold: var(--amber-d);
   --bg: #f6f6f3; --card: #ffffff; --fill: #f0efea; --fill-2: #e7e6e0;
@@ -162,7 +162,7 @@
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --flow-line: #6a706a; --flow-done: var(--accent); --flow-comet: var(--accent-d); --flow-halo: var(--accent);
+  --flow-line: #6a706a; --flow-done: var(--accent); --flow-streak: var(--accent-d); --flow-halo: var(--accent);
   --flow-node-border: #4a4f4a; --flow-band: color-mix(in srgb, var(--text) 4%, var(--card));
   --flow-step-done: #56564f; --flow-hold: var(--amber-d);
   --bg: #131513; --card: #1a1c1a; --fill: #232623; --fill-2: #2b2e2b;

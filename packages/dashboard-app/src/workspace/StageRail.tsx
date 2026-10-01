@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import gsap from 'gsap'
 import { useT } from '../i18n'
-import { COMET_LAYERS, COMET_REACH, RUNNING, prefersReducedMotion } from '../workflow/flowSignal'
+import { STREAK_LAYERS, STREAK_REACH, RUNNING, prefersReducedMotion } from '../workflow/flowSignal'
 import type { StageState } from './taskModel'
 import { cn } from '@/lib/utils'
 
@@ -21,20 +21,20 @@ const LABEL_CLS: Record<StageState['status'], string> = {
  * 任务在跑时，当前段上匀速滑过一颗与画布同款的 Signal 彗星（四层：光晕 72 / 拖尾 48、26 / 核 10，头部对齐右缘）：
  * 只动一个容器的 transform，按运行流的速度与间距循环；减少动态效果时不挂。
  */
-function SegmentComet(): JSX.Element {
+function SegmentStreak(): JSX.Element {
   const ref = useRef<HTMLSpanElement>(null)
   useEffect(() => {
     const element = ref.current
     const bar = element?.parentElement
     if (element === null || bar === null || bar === undefined || prefersReducedMotion()) return
-    const travel = bar.clientWidth + COMET_REACH
-    const tween = gsap.fromTo(element, { x: -COMET_REACH }, { x: bar.clientWidth, duration: travel / RUNNING.speed, ease: 'none', repeat: -1, repeatDelay: Math.max(0, RUNNING.spacing - travel) / RUNNING.speed })
+    const travel = bar.clientWidth + STREAK_REACH
+    const tween = gsap.fromTo(element, { x: -STREAK_REACH }, { x: bar.clientWidth, duration: travel / RUNNING.speed, ease: 'none', repeat: -1, repeatDelay: Math.max(0, RUNNING.spacing - travel) / RUNNING.speed })
     return () => { tween.kill(); gsap.set(element, { clearProps: 'transform' }) }
   }, [])
   return (
-    <span ref={ref} className="pointer-events-none absolute inset-y-0 left-0" style={{ width: COMET_REACH }} aria-hidden="true" data-testid="stage-rail-comet">
-      {COMET_LAYERS.map((layer) => (
-        <span key={layer.id} className="absolute inset-y-0 right-0 bg-(--flow-comet)" style={{ width: layer.length, opacity: layer.opacity }} />
+    <span ref={ref} className="pointer-events-none absolute inset-y-0 left-0" style={{ width: STREAK_REACH }} aria-hidden="true" data-testid="stage-rail-streak">
+      {STREAK_LAYERS.map((layer) => (
+        <span key={layer.id} className="absolute inset-y-0 right-0 bg-(--flow-streak)" style={{ width: layer.length, opacity: layer.opacity }} />
       ))}
     </span>
   )
@@ -68,7 +68,7 @@ export function StageRail({ stages, selected, onSelect, running = false }: { sta
             aria-hidden="true"
             data-testid={`stage-rail-bar-${stage.id}`}
           >
-            {running && stage.status === 'current' && <SegmentComet />}
+            {running && stage.status === 'current' && <SegmentStreak />}
           </span>
           <span className="min-w-0 pr-2">
             <span className={cn('inline-block max-w-full truncate border-b-2 pb-1 align-top text-body group-hover:text-text', LABEL_CLS[stage.status], selected === stage.id ? 'border-(--ink)' : 'border-transparent')}>{stage.label}</span>

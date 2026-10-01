@@ -314,12 +314,12 @@ describe('TaskDetailPane · 编排画布与运行状态', () => {
     stubOrchestration()
     const view = renderPane({ row: snapshotRow(change()) })
     await screen.findByTestId('orchestration-stage')
-    expect(within(screen.getByTestId('stage-rail-bar-build')).getByTestId('stage-rail-comet')).toBeInTheDocument()
-    expect(screen.queryAllByTestId('stage-rail-comet')).toHaveLength(1)
+    expect(within(screen.getByTestId('stage-rail-bar-build')).getByTestId('stage-rail-streak')).toBeInTheDocument()
+    expect(screen.queryAllByTestId('stage-rail-streak')).toHaveLength(1)
     view.unmount()
     renderPane({ row: { ...snapshotRow(change({ reviewHandshake: { status: 'pending', event: 'build-complete', requestedAt: 'a' } })), summary: { kind: 'review' } } })
     await screen.findByTestId('orchestration-stage')
-    expect(screen.queryByTestId('stage-rail-comet')).toBeNull()
+    expect(screen.queryByTestId('stage-rail-streak')).toBeNull()
   })
 
   it('读不到编排时写出错误（role=alert），其余照常', async () => {

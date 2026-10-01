@@ -133,8 +133,8 @@ describe('theme semantic foreground contrast', () => {
       expect(contrast(hexToken(source, 'flow-step-done'), hexToken(source, 'accent'))).toBeGreaterThanOrEqual(3)
     })
 
-    it('the comet core is readable on the card (dark uses the brighter accent-d)', () => {
-      expect(contrast(hexToken(source, 'flow-comet'), hexToken(source, 'card'))).toBeGreaterThanOrEqual(4.5)
+    it('the streak core is readable on the card (dark uses the brighter accent-d)', () => {
+      expect(contrast(hexToken(source, 'flow-streak'), hexToken(source, 'card'))).toBeGreaterThanOrEqual(4.5)
     })
 
     it('the hold tick (amber) is readable on the card', () => {

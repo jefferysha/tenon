@@ -3,7 +3,7 @@ import { act, cleanup, render } from '@testing-library/react'
 import gsap from 'gsap'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-  AMBIENT, ARRIVE, COMET_LAYERS, COMET_REACH, RUNNING, arrivalGlow, createSignalRuntime, headOnEdge, iconGlow, offsetsFor, parkedAt, planSignal,
+  AMBIENT, ARRIVE, STREAK_LAYERS, STREAK_REACH, RUNNING, arrivalGlow, createSignalRuntime, headOnEdge, iconGlow, offsetsFor, parkedAt, planSignal,
   portGlow, ringFrame, signalModeOf, signalParams, useSignal, type SignalEdgeInput, type SignalMode, type SignalNodeInput,
 } from './flowSignal'
 
@@ -93,10 +93,10 @@ describe('planSignal · 到达距离', () => {
 
 describe('彗星几何', () => {
   it('四层的 dash 长度是 72 / 48 / 26 / 10，光晕最长', () => {
-    expect(COMET_LAYERS.map((layer) => layer.length)).toEqual([72, 48, 26, 10])
-    expect(COMET_REACH).toBe(72)
-    expect(COMET_LAYERS.map((layer) => layer.width)).toEqual([4, 1.5, 2, 2.5])
-    expect(COMET_LAYERS.map((layer) => layer.opacity)).toEqual([0.14, 0.3, 0.55, 1])
+    expect(STREAK_LAYERS.map((layer) => layer.length)).toEqual([72, 48, 26, 10])
+    expect(STREAK_REACH).toBe(72)
+    expect(STREAK_LAYERS.map((layer) => layer.width)).toEqual([4, 1.5, 2, 2.5])
+    expect(STREAK_LAYERS.map((layer) => layer.opacity)).toEqual([0.14, 0.3, 0.55, 1])
   })
 
   it('offsetsFor：把 dash 的亮段对到 [head − L, head]——边上的点亮，当且仅当它的路线坐标落在彗星窗口里', () => {
@@ -106,7 +106,7 @@ describe('彗星几何', () => {
     const head = 540
     const offsets = offsetsFor(a, length, head, spacing)
     expect(offsets).not.toBeNull()
-    COMET_LAYERS.forEach((layer, index) => {
+    STREAK_LAYERS.forEach((layer, index) => {
       for (let s = 0; s <= length; s += 3) {
         const lit = (((s + offsets![index]!) % spacing) + spacing) % spacing < layer.length
         const inside = a + s >= head - layer.length && a + s <= head
@@ -118,8 +118,8 @@ describe('彗星几何', () => {
   it('offsetsFor：头部还没到边起点，或光晕整个越过边终点 = 冷边', () => {
     expect(offsetsFor(100, 50, 99, 360)).toBeNull()
     expect(offsetsFor(100, 50, 100, 360)).not.toBeNull()
-    expect(offsetsFor(100, 50, 150 + COMET_REACH, 360)).not.toBeNull()
-    expect(offsetsFor(100, 50, 150 + COMET_REACH + 1, 360)).toBeNull()
+    expect(offsetsFor(100, 50, 150 + STREAK_REACH, 360)).not.toBeNull()
+    expect(offsetsFor(100, 50, 150 + STREAK_REACH + 1, 360)).toBeNull()
   })
 
   it('headOnEdge：传送带每隔一个间距一颗彗星；只返回还碰着这条边的那一颗（头部到过起点、光晕未越过终点）', () => {
@@ -130,8 +130,8 @@ describe('彗星几何', () => {
     expect(headOnEdge(300, 40, 20, spacing)).toBe(340)
     expect(headOnEdge(400, 40, 20, spacing)).toBeNull()
     // 头部已越过边终点，但光晕的尾巴还在边上。
-    expect(headOnEdge(100, 40, 140 + COMET_REACH, spacing)).toBe(140 + COMET_REACH)
-    expect(headOnEdge(100, 40, 141 + COMET_REACH, spacing)).toBeNull()
+    expect(headOnEdge(100, 40, 140 + STREAK_REACH, spacing)).toBe(140 + STREAK_REACH)
+    expect(headOnEdge(100, 40, 141 + STREAK_REACH, spacing)).toBeNull()
   })
 
   it('速度与间距：空闲 140px/s、间距 clamp(路线 / 3, 320, 720)、×0.7；运行 300px/s、间距 360、×1', () => {
@@ -215,7 +215,7 @@ function Canvas({ mode, edges, nodes, hold = null, expected = edges.length }: { 
       <svg>
         {edges.map((item) => (
           <g key={item.id} data-signal-edge={item.id} data-signal-source={item.source} data-signal-target={item.target} data-signal-state={item.state ?? 'todo'} data-signal-lead={item.lead} data-signal-static={item.stub === true ? '' : undefined} data-signal-length={item.stub === true ? item.length : undefined} visibility="hidden">
-            {item.stub !== true && COMET_LAYERS.map((layer) => <path key={layer.id} d={`M0 0 L${item.length} 0 #${item.id}`} data-length={item.length} data-signal-layer={layer.id} />)}
+            {item.stub !== true && STREAK_LAYERS.map((layer) => <path key={layer.id} d={`M0 0 L${item.length} 0 #${item.id}`} data-length={item.length} data-signal-layer={layer.id} />)}
           </g>
         ))}
       </svg>

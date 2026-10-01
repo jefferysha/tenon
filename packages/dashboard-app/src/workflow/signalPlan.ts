@@ -5,24 +5,24 @@
 
 export type SignalMode = 'off' | 'ambient' | 'running' | 'still'
 
-export interface CometLayer {
+export interface StreakLayer {
   readonly id: 'halo' | 'trail-long' | 'trail-short' | 'core'
   /** dash 长度（px）：头部对齐，越长拖尾越远。 */
   readonly length: number
   readonly width: number
   readonly opacity: number
-  readonly tone: 'halo' | 'comet'
+  readonly tone: 'halo' | 'streak'
   readonly cap: 'butt' | 'round'
 }
 
-export const COMET_LAYERS: readonly CometLayer[] = [
+export const STREAK_LAYERS: readonly StreakLayer[] = [
   { id: 'halo', length: 72, width: 4, opacity: 0.14, tone: 'halo', cap: 'butt' },
-  { id: 'trail-long', length: 48, width: 1.5, opacity: 0.3, tone: 'comet', cap: 'butt' },
-  { id: 'trail-short', length: 26, width: 2, opacity: 0.55, tone: 'comet', cap: 'butt' },
-  { id: 'core', length: 10, width: 2.5, opacity: 1, tone: 'comet', cap: 'round' },
+  { id: 'trail-long', length: 48, width: 1.5, opacity: 0.3, tone: 'streak', cap: 'butt' },
+  { id: 'trail-short', length: 26, width: 2, opacity: 0.55, tone: 'streak', cap: 'butt' },
+  { id: 'core', length: 10, width: 2.5, opacity: 1, tone: 'streak', cap: 'round' },
 ]
 /** 彗星最长的一层（光晕）：热边判定用它。 */
-export const COMET_REACH = 72
+export const STREAK_REACH = 72
 
 /** 空闲：慢速环境流，间距随路线长度取 clamp(routeLen / 3, 320, 720)，整体 ×0.7。运行：从未完成的边向终点，快而密。 */
 export const AMBIENT = { speed: 140, opacity: 0.7, minSpacing: 320, maxSpacing: 720 } as const
@@ -114,14 +114,14 @@ export function planSignal(edges: readonly SignalEdgeInput[], nodes: readonly Si
 
 /** 彗星头部在一条边上的层偏移（每层一个）；头部还没到边起点、或整个光晕已经越过边终点 = null（这条边是冷的）。 */
 export function offsetsFor(a: number, length: number, head: number, spacing: number): number[] | null {
-  if (head < a || head - COMET_REACH > a + length) return null
-  return COMET_LAYERS.map((layer) => mod(a + layer.length - head, spacing))
+  if (head < a || head - STREAK_REACH > a + length) return null
+  return STREAK_LAYERS.map((layer) => mod(a + layer.length - head, spacing))
 }
 
 /** 传送带在 phase（= 已走距离 mod 间距）时，落在边 [a, a+length] 上的那颗彗星的头部；没有 = null。 */
 export function headOnEdge(a: number, length: number, phase: number, spacing: number): number | null {
   const head = phase + Math.max(0, Math.ceil((a - phase) / spacing)) * spacing
-  return head - COMET_REACH > a + length ? null : head
+  return head - STREAK_REACH > a + length ? null : head
 }
 
 /**
