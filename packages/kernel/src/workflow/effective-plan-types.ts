@@ -4,6 +4,7 @@ import type { DocumentGovernancePolicy } from './document-contract.js'
 import type { WorkflowIR } from './ir.js'
 import type {
   AgentSeverity,
+  ReviewerHost,
   WorkflowDecompositionPolicyV1,
   WorkflowInteractionPolicyV1,
 } from './types.js'
@@ -18,6 +19,8 @@ export interface StepAgentsCapability {
     readonly blockAt: AgentSeverity
     readonly dependsOn: readonly string[]
     readonly readsTests: readonly string[]
+    /** 工作流声明的执行宿主；没写 = 不要求。 */
+    readonly host?: ReviewerHost
   }[]
 }
 

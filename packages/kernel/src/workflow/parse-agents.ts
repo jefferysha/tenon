@@ -4,11 +4,11 @@
  */
 import type { WorkflowParseCursor as Cursor } from './parse-document-contract.js'
 import { indentOf, parseInlineList, parseInlineMap } from './parse-primitives.js'
-import type { AgentSeverity, StepAgentsDef, StepExecutorRef, StepReviewerRef } from './types.js'
+import { REVIEWER_HOSTS, type AgentSeverity, type ReviewerHost, type StepAgentsDef, type StepExecutorRef, type StepReviewerRef } from './types.js'
 
 const SEVERITIES: readonly string[] = ['critical', 'high', 'medium', 'low']
 const EXECUTOR_KEYS: readonly string[] = ['agent', 'depends_on']
-const REVIEWER_KEYS: readonly string[] = ['agent', 'required', 'block_at', 'depends_on', 'reads_tests']
+const REVIEWER_KEYS: readonly string[] = ['agent', 'required', 'block_at', 'depends_on', 'reads_tests', 'host']
 
 function fail(message: string): never {
   throw new Error(`workflow 解析错误：${message}`)
@@ -17,6 +17,11 @@ function fail(message: string): never {
 function severity(raw: string, where: string): AgentSeverity {
   if (!SEVERITIES.includes(raw)) fail(`${where}.block_at: 必须是 ${SEVERITIES.join(' | ')}`)
   return raw as AgentSeverity
+}
+
+function reviewerHost(raw: string, where: string): ReviewerHost {
+  if (!(REVIEWER_HOSTS as readonly string[]).includes(raw)) fail(`${where}.host: 必须是 ${REVIEWER_HOSTS.join(' | ')}`)
+  return raw as ReviewerHost
 }
 
 function boolean(raw: string, where: string): boolean {
@@ -49,6 +54,7 @@ function reviewerFrom(fields: Record<string, string | string[]>, where: string):
     block_at: typeof fields.block_at === 'string' ? severity(fields.block_at, where) : 'high',
     ...(dependsOn === undefined ? {} : { depends_on: dependsOn }),
     ...(readsTests === undefined ? {} : { reads_tests: readsTests }),
+    ...(typeof fields.host === 'string' ? { host: reviewerHost(fields.host, where) } : {}),
   }
 }
 

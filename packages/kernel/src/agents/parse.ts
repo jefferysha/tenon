@@ -5,11 +5,11 @@
 import { sha256Hex } from '../sha256.js'
 import {
   AGENT_DESCRIPTION_MAX, AGENT_FILE_MAX_BYTES, AGENT_MODEL_RE, AGENT_NAME_RE, AGENT_ROLES, AGENT_SKILL_RE,
-  AGENT_TOOL_RE, AGENT_VERSION_RE, AgentFileError, KNOWN_AGENT_HOSTS, inferAgentRole,
-  type AgentDefinition, type AgentRole,
+  AGENT_TOOL_RE, AGENT_VERSION_RE, AgentFileError, KNOWN_AGENT_HOSTS, REVIEWER_HOSTS, inferAgentRole,
+  type AgentDefinition, type AgentRole, type ReviewerHost,
 } from './types.js'
 
-const KEYS: readonly string[] = ['name', 'description', 'role', 'version', 'skills', 'tools', 'model', 'hosts']
+const KEYS: readonly string[] = ['name', 'description', 'role', 'version', 'skills', 'tools', 'model', 'hosts', 'host']
 
 const isRole = (value: string): value is AgentRole => (AGENT_ROLES as readonly string[]).includes(value)
 
@@ -69,6 +69,10 @@ export function parseAgentFile(text: string, expectedName: string): AgentDefinit
   for (const host of hosts ?? []) {
     if (!KNOWN_AGENT_HOSTS.includes(host)) fail(`hosts 的 '${host}' 不是已知宿主`, 'hosts')
   }
+  const rawHost = fields.get('host')
+  if (rawHost !== undefined && !(REVIEWER_HOSTS as readonly string[]).includes(rawHost)) {
+    fail(`host 必须是 ${REVIEWER_HOSTS.join(' | ')}`, 'host')
+  }
   const body = lines.slice(close + 1).join('\n')
   if (body.trim() === '') fail('正文不得为空')
   return {
@@ -79,6 +83,7 @@ export function parseAgentFile(text: string, expectedName: string): AgentDefinit
     skills, tools,
     ...(model === undefined ? {} : { model }),
     ...(hosts === undefined ? {} : { hosts }),
+    ...(rawHost === undefined ? {} : { host: rawHost as ReviewerHost }),
     body,
   }
 }

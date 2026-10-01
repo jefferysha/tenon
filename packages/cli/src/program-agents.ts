@@ -33,6 +33,7 @@ function registerLibraryCommands(agent: Command, deps: CliDeps): void {
     .option('--tools <names>', '工具，逗号分隔（缺省按身份给）')
     .option('--model <model>', '模型（宿主不认识的型号在生成宿主文件时省略）')
     .option('--hosts <ids>', '适用宿主，逗号分隔（缺省 = 全部）')
+    .option('--host <host>', '评审者建议在哪个宿主上跑：codex | claude | any（跨厂商评审；工作流步骤可再指定）')
     .option('--scope <scope>', 'user（缺省，用户级）| project（<项目>/.tenon/agents，随仓库共享）')
     .option('--from <agent>', '以现有 agent（通常是官方）为底：字段作默认值、正文沿用')
     .action(async (name: string | undefined, opts: AgentNewOpts) => bail(await cmdAgentNew(deps, name, opts)))
@@ -81,9 +82,9 @@ export function registerAgentCommands(program: Command, deps: CliDeps): void {
   agent
     .command('prompt <change> <agent>')
     .description('开始（或续跑）一个 agent 并打印交接内容；为宿主生成 tenon-<name> 子代理文件；未轮到 / 宿主不支持 exit 2')
-    .option('--host <id>', '宿主 id（claude / codex 时生成专属子代理文件）；agent 声明了 hosts 时据此校验')
+    .option('--host <id>', '宿主 id（claude / codex 时生成专属子代理文件）；agent 声明了 hosts 时据此校验；评审者要求在另一个宿主上跑时，据此给出确切的运行命令')
     .option('--rerun-reason <text>', '评审者在同一份代码（同一候选）上已有结论时再跑一次必须写明原因；原因随运行留痕，没有原因的重跑取最严结论')
-    .option('--json', 'JSON 输出（run_id / subagent_type / native / model / tools / skills / report_path / prompt）')
+    .option('--json', 'JSON 输出（run_id / subagent_type / native / model / tools / skills / host / report_path / prompt）')
     .action(async (change: string, agentName: string, opts: { host?: string; json?: boolean; rerunReason?: string }) =>
       bail(await cmdAgentPrompt(deps, change, agentName, {
         ...(opts.host === undefined ? {} : { host: opts.host }),
@@ -92,11 +93,13 @@ export function registerAgentCommands(program: Command, deps: CliDeps): void {
       })))
   agent
     .command('record <change> <run-id>')
-    .description('读报告末尾的 tenon-result 块登记结论；报告无效 exit 1，候选已变 exit 2')
+    .description('读报告末尾的 tenon-result 块登记结论，并记下登记时的宿主；报告无效 exit 1，候选已变或宿主不符 exit 2')
     .option('--subagent <type>', '实际用的子代理类型（专属子代理不可用、退回通用子代理时写明）')
+    .option('--host <id>', '这次运行实际所在的宿主（claude / codex …）；缺省取进程环境判出的宿主。跨厂商评审在另一个宿主上跑完、由原宿主登记时用它声明')
     .option('--json', 'JSON 输出（记录全文）')
-    .action(async (change: string, runId: string, opts: { json?: boolean; subagent?: string }) =>
+    .action(async (change: string, runId: string, opts: { json?: boolean; subagent?: string; host?: string }) =>
       bail(await cmdAgentRecord(deps, change, runId, opts.json === true, {
         ...(opts.subagent === undefined ? {} : { subagent: opts.subagent }),
+        ...(opts.host === undefined ? {} : { host: opts.host }),
       })))
 }

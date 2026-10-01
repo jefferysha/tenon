@@ -77,6 +77,23 @@ describe('readAgentRuns', () => {
     await expect(readAgentRuns(changeDir)).rejects.toMatchObject({ code: 'runs-corrupt' })
   })
 
+  it('host / host_source 可选：旧行没有；新行记登记时的宿主与来源；来源缺宿主、值非法 → 损坏', async () => {
+    await appendAgentRunRow(changeDir, row({ run_id: 'old' }))
+    await appendAgentRunRow(changeDir, row({ run_id: 'det', host: 'codex', host_source: 'detected' }))
+    await appendAgentRunRow(changeDir, row({ run_id: 'dec', host: 'codex', host_source: 'declared' }))
+    await appendAgentRunRow(changeDir, row({ run_id: 'bare', host: 'claude' }))
+    const runs = await readAgentRuns(changeDir)
+    expect(runs[0]).not.toHaveProperty('host')
+    expect(runs[1]).toMatchObject({ host: 'codex', host_source: 'detected' })
+    expect(runs[2]).toMatchObject({ host: 'codex', host_source: 'declared' })
+    expect(runs[3]).toMatchObject({ host: 'claude' })
+    expect(runs[3]).not.toHaveProperty('host_source')
+    for (const bad of [{ host: '' }, { host: 'Codex' }, { host: 7 }, { host: 'codex', host_source: 'guessed' }, { host_source: 'detected' }]) {
+      await writeFile(runsPath(), `${JSON.stringify({ ...row(), ...bad })}\n`)
+      await expect(readAgentRuns(changeDir), JSON.stringify(bad)).rejects.toMatchObject({ code: 'runs-corrupt' })
+    }
+  })
+
   it('subagent 形状非法 → 损坏', async () => {
     await writeFile(runsPath(), `${JSON.stringify({ ...row(), subagent: { host: 'claude', type: '', native: true } })}\n`)
     await expect(readAgentRuns(changeDir)).rejects.toThrowError(AgentRunError)

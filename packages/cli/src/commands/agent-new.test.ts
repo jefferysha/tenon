@@ -69,6 +69,17 @@ describe('cmdAgentNew 交互补全', () => {
     expect(deps.errLines.join('\n')).toContain('不是已知宿主')
   })
 
+  test('--host 给评审者写下建议的执行宿主（codex | claude | any）；--from 沿用底稿的建议；写错值 exit 1', async () => {
+    expect(await cmdAgentNew(deps, 'api-review', { role: 'reviewer', description: 'API 评审', host: 'codex' }, scripted([], false))).toBe(0)
+    const text = readFileSync(join(sandbox, 'config', 'agents', 'custom', 'api-review.md'), 'utf8')
+    expect(text).toContain('\nhost: codex\n')
+    expect(parseAgentFile(text, 'api-review')).toMatchObject({ role: 'reviewer', host: 'codex' })
+    expect(await cmdAgentNew(deps, 'from-official', { role: 'reviewer', description: 'd', from: 'security', host: 'claude' }, scripted([], false))).toBe(0)
+    expect(parseAgentFile(readFileSync(join(sandbox, 'config', 'agents', 'custom', 'from-official.md'), 'utf8'), 'from-official').host).toBe('claude')
+    expect(await cmdAgentNew(deps, 'x', { role: 'reviewer', description: 'd', host: 'gemini' }, scripted([], false))).toBe(1)
+    expect(deps.errLines.join('\n')).toContain('--host 只支持 codex | claude | any')
+  })
+
   test('没装配 agent 库 exit 1', async () => {
     delete deps.agentPaths
     expect(await cmdAgentNew(deps, 'x', { role: 'reviewer', description: 'd' }, scripted([], false))).toBe(1)

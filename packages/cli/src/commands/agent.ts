@@ -1,175 +1,39 @@
 /**
- * `tenon agent next | prompt | record` —— 步骤 agent 的排定、交接与登记。
+ * `tenon agent prompt | record`（`next` 在 agent-next.ts）—— 步骤 agent 的交接与登记。
  *
  * Tenon 只负责排顺序、渲染提示词、记录结论与校验候选版本；模型一律由宿主跑（父设计 §6）。
  * 没有 start / abandon：`prompt` 既开始也续跑，`next` 看状态。`prompt` 为当前宿主生成任务冻结 agent 的
  * 专属子代理文件（agent-host.ts），返回 `subagent_type`；库的增删改查在 agent-library.ts。
  *
- * exit 0 = 正常，1 = 用法 / IO / 记录损坏，2 = 被拦下（未轮到、宿主不支持、候选已变）。
+ * 跨厂商评审：评审者在工作流步骤里声明 `host: codex|claude`（agent 定义可建议一个）时，`prompt` 指明该在哪个宿主上跑；
+ * 当前宿主不是它，就把提示词写进文件并给出另一家 CLI 的确切命令（agent-route.ts）——Tenon 不替用户起那个 CLI。
+ * `record` 记下登记时的宿主（进程环境判出，或 `--host` 声明）；步骤硬性要求的宿主不符，登记被拒（exit 2），
+ * 判定层（kernel evaluateStepAgents）对已有记录同样按登记的宿主校验。候选绑定沿用：评审期间候选变了，登记被拒。
+ *
+ * exit 0 = 正常，1 = 用法 / IO / 记录损坏，2 = 被拦下（未轮到、宿主不支持、候选已变、宿主不符）。
  */
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, stat } from 'node:fs/promises'
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
-  AGENT_REPORTS_DIR,
-  appendAgentRunRow, currentDocumentStepVisitId, evaluateStepAgents, latestTestRun,
-  nextAgentWave, parseAgentReport, projectStepAgents, readAgentRuns, readFrozenAgents, renderAgentBlocker,
-  severityRank, sha256Hex,
+  AGENT_REPORTS_DIR, KNOWN_AGENT_HOSTS,
+  appendAgentRunRow, hostAgentName, hostRunValid, latestTestRun, nextAgentWave, parseAgentReport, renderAgentBlocker,
+  reviewerHostRequirement, severityRank, sha256Hex,
 } from '@tenon/kernel'
-import { hostAgentName } from '@tenon/kernel'
 import type {
-  AgentSeverity, AgentRunRow, AgentRunSubagent, AgentView, EffectiveWorkflowPlan, FrozenAgent, HostAgentFileOutcome,
-  StepAgentsCapability, TestPolicyReport, TestRunRecordV1,
+  AgentRunRow, AgentRunSubagent, AgentSeverity, HostAgentFileOutcome, TestRunRecordV1,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
-import { str } from '../render.js'
 import { ensureChangeHostAgents, fallbackOutcome, hostAgentHostOf } from './agent-host.js'
+import { resolveAgentCommand, roleOf, type AgentContext } from './agent-context.js'
 import { renderAgentPrompt } from './agent-prompt.js'
-import { parseRerunReason, priorRunsOnCandidate, rerunNote, rerunRefusal } from './agent-rerun.js'
 import { renderTestPolicySummary } from './agent-prompt-tests.js'
-import { testsReadyFor } from './agent-tests-ready.js'
-import { currentCandidate } from './candidate.js'
-import { resolveChangeCommand, type TestCommandContext } from './test-context.js'
+import { parseRerunReason, priorRunsOnCandidate, rerunRefusal } from './agent-rerun.js'
+import { codexCommand, claudeCommand, hostSourceOf, planRoute, recordCommand, routeLines } from './agent-route.js'
+
+export { cmdAgentNext } from './agent-next.js'
 
 const REPORT_MAX_BYTES = 256 * 1024
-const ROLE_WORD = { executor: '执行者', reviewer: '评审者' } as const
-const STATE_WORD = { idle: '未运行', running: '进行中', done: '已完成', stale: '过期' } as const
-const RESULT_WORD = { pass: '通过', fail: '不通过', done: '完成', failed: '失败' } as const
-
-interface AgentContext extends TestCommandContext {
-  readonly step: StepAgentsCapability
-  readonly stepVisit: string
-  readonly candidate: string
-  readonly runs: readonly AgentRunRow[]
-  readonly frozen: ReadonlyMap<string, FrozenAgent>
-  readonly testsReady: { readonly ready: boolean; readonly pending: readonly string[] }
-  /** 本步声明了 test_policy 时的策略判定（评审者提示词的 v2 测试摘要读它）。 */
-  readonly testPolicy: TestPolicyReport | undefined
-}
-
-function stepAgentsOf(plan: EffectiveWorkflowPlan, stepId: string): StepAgentsCapability {
-  return plan.capabilities.agents.steps.find((step) => step.stepId === stepId)
-    ?? { stepId, executors: [], reviewers: [] }
-}
-
-async function resolveAgentCommand(
-  deps: CliDeps,
-  name: string,
-  options: {
-    readonly requireOwner: boolean
-    /** 读完冻结内容、算候选之前的一步（生成宿主 agent 文件放在这里，候选不会因它而变）。 */
-    readonly prepare?: (frozen: ReadonlyMap<string, FrozenAgent>) => Promise<void>
-  },
-): Promise<AgentContext | number> {
-  const base = await resolveChangeCommand(deps, name, options)
-  if (typeof base === 'number') return base
-  const stepId = str(base.state.fields.phase)
-  const step = stepAgentsOf(base.plan, stepId)
-  const runId = base.state.runMetadata?.runId
-  if (runId === undefined || runId === '') {
-    deps.io.err(`ERROR: Change '${name}' 缺少 run 身份，无法记录 agent 运行`)
-    return 1
-  }
-  try {
-    const frozen = step.executors.length === 0 && step.reviewers.length === 0
-      ? new Map<string, FrozenAgent>()
-      : await readFrozenAgents({ changeDir: base.dir, runId, workflowFingerprint: base.plan.workflowFingerprint })
-    await options.prepare?.(frozen)
-    const tests = await testsReadyFor(deps, base, stepId)
-    return {
-      ...base,
-      step,
-      stepVisit: await currentDocumentStepVisitId(base.dir),
-      candidate: await currentCandidate(deps, name, base.state, base.plan, stepId),
-      runs: await readAgentRuns(base.dir),
-      frozen,
-      testsReady: tests.ready,
-      testPolicy: tests.policy,
-    }
-  } catch (e) {
-    deps.io.err(`ERROR: ${errMsg(e)}`)
-    return 1
-  }
-}
-
-const viewJson = (view: AgentView, waiting: readonly { agent: string; for: readonly string[] }[]) => ({
-  agent: view.agent,
-  role: view.role,
-  required: view.required,
-  block_at: view.blockAt ?? null,
-  depends_on: view.dependsOn,
-  reads_tests: view.readsTests,
-  state: view.state,
-  result: view.result,
-  findings: view.findings,
-  blocking: view.blocking,
-  run_id: view.runId,
-  reruns: view.reruns, flipped: view.flipped, rerun_reason: view.rerunReason,
-  waiting_for: waiting.find((item) => item.agent === view.agent)?.for ?? [],
-})
-
-export async function cmdAgentNext(deps: CliDeps, name: string, json: boolean): Promise<number> {
-  const context = await resolveAgentCommand(deps, name, { requireOwner: false })
-  if (typeof context === 'number') return context
-  const views = projectStepAgents(context)
-  const { wave, waiting } = nextAgentWave(context)
-  const verdict = evaluateStepAgents(context)
-  if (json) {
-    deps.io.out(JSON.stringify({
-      change: name,
-      step: context.step.stepId,
-      step_visit: context.stepVisit,
-      candidate: context.candidate,
-      agents: views.map((view) => viewJson(view, waiting)),
-      wave,
-      pass: verdict.pass,
-      // 与人读输出的「全部完成」同一判定：没有进行中的、没有在等的、离开判定通过。
-      complete: wave.length === 0 && waiting.length === 0 && verdict.pass
-        && views.every((view) => view.state !== 'running'),
-      blockers: verdict.blockers,
-    }))
-    return 0
-  }
-  for (const view of views) {
-    const result = view.result === null ? '' : ` ${RESULT_WORD[view.result]}`
-    const findings = view.findings === 0 ? '' : ` 问题 ${view.findings}`
-    deps.io.out(`${view.agent} ${ROLE_WORD[view.role]} ${STATE_WORD[view.state]}${result}${findings}${rerunNote(view)}`)
-  }
-  for (const line of waveSummary(name, views, wave, waiting, verdict)) deps.io.out(line)
-  return 0
-}
-
-/**
- * 「下一波」为空不等于做完了：执行者 prompt 之后还没 record、评审者在等必需测试或别的 agent、
- * 必需评审者打回——这三种情况波次都是空的，从前一律印「全部完成」，运行器照信就走了。
- * 只有没有进行中的、没有在等的、且离开判定通过时才说全部完成；否则逐条说还差什么。
- */
-function waveSummary(
-  change: string,
-  views: readonly AgentView[],
-  wave: readonly string[],
-  waiting: readonly { readonly agent: string; readonly for: readonly string[] }[],
-  verdict: ReturnType<typeof evaluateStepAgents>,
-): readonly string[] {
-  if (wave.length > 0) return [`下一波：${wave.join(', ')}`]
-  const lines: string[] = []
-  for (const view of views) {
-    if (view.state !== 'running') continue
-    lines.push(`进行中：${view.agent}；完成后 tenon agent record ${change} ${view.runId ?? '<run>'}`)
-  }
-  for (const item of waiting) lines.push(`等待：${item.agent} ← ${item.for.join(', ')}`)
-  if (lines.length === 0 && verdict.pass) return ['全部完成']
-  if (lines.length === 0) {
-    for (const blocker of verdict.blockers) lines.push(`未完成：${renderAgentBlocker(blocker, change)}`)
-  }
-  return lines
-}
-
-function roleOf(step: StepAgentsCapability, agent: string): 'executor' | 'reviewer' | undefined {
-  if (step.executors.some((ref) => ref.agent === agent)) return 'executor'
-  if (step.reviewers.some((ref) => ref.agent === agent)) return 'reviewer'
-  return undefined
-}
 
 /**
  * 评审者声明了 `reads_tests` 时，附上目录套件最新运行的摘要（失败用例、flaky、覆盖率对照门槛、基准变化）。
@@ -233,12 +97,16 @@ export async function cmdAgentPrompt(
     deps.io.err(`ERROR: agent '${agent}' 还需等待：${waiting.for.join(', ')}`)
     return 2
   }
+  // 执行宿主要求：步骤声明的（硬）优先，agent 定义的建议只用于路由。
+  const stepHost = role === 'reviewer' ? context.step.reviewers.find((ref) => ref.agent === agent)?.host : undefined
+  const requirement = reviewerHostRequirement(stepHost, role === 'reviewer' ? frozen.definition.host : undefined)
   const existing = context.runs.find((row) =>
     row.agent === agent && row.step_visit === context.stepVisit
     && row.status === 'running' && row.candidate === context.candidate)
   // 评审者防刷（F8）：同一份代码上已经有结论，再开一次必须写明原因；没有原因的重跑在判定里取最严结论。
+  // 登记的宿主不符的评审是无效裁决，不算「已有结论」。
   const priorOnCandidate = role === 'reviewer' && existing === undefined
-    ? priorRunsOnCandidate(context.runs, agent, context.stepVisit, context.candidate)
+    ? priorRunsOnCandidate(context.runs, agent, context.stepVisit, context.candidate, stepHost)
     : []
   if (priorOnCandidate.length > 0 && rerunReason === undefined) {
     deps.io.err(rerunRefusal(name, agent, priorOnCandidate))
@@ -246,9 +114,12 @@ export async function cmdAgentPrompt(
   }
   const runId = existing?.run_id ?? randomUUID()
   const reportPath = join('openspec', 'changes', name, AGENT_REPORTS_DIR, `${runId}.md`)
+  const promptFile = join('openspec', 'changes', name, AGENT_REPORTS_DIR, `${runId}.prompt.md`)
+  const route = planRoute({ requirement, current: options.host ?? host, change: name, runId, promptFile })
   // 专属子代理 `tenon-<name>` 只在宿主文件确实生成（或已是同一份）时下发；否则退回通用子代理并记下。
+  // 要去另一个宿主跑时，本宿主的子代理不参与，不记。
   const hostFile = host === undefined ? undefined : hostFiles.get(agent) ?? fallbackOutcome(host)
-  const subagent: AgentRunSubagent | undefined = host === undefined || hostFile === undefined
+  const subagent: AgentRunSubagent | undefined = host === undefined || hostFile === undefined || route.runOn !== null
     ? undefined
     : { host, type: hostFile.subagentType, native: hostFile.native }
   if (existing === undefined) {
@@ -294,23 +165,47 @@ export async function cmdAgentPrompt(
     ...(stepPrompt === undefined ? {} : { stepPrompt }),
     tests: await testsFor(deps, context, agent),
     testSummary: testSummaryFor(context, agent),
+    ...(requirement.host === 'any' ? {} : { recordHost: requirement.host }),
   })
+  if (route.runOn !== null) {
+    try {
+      await writeFile(join(deps.cwd, promptFile), prompt, 'utf8')
+    } catch (e) {
+      deps.io.err(`ERROR: ${errMsg(e)}`)
+      return 1
+    }
+  }
   const used = existing?.subagent ?? subagent
-  deps.io.out(options.json === true
-    ? JSON.stringify({
-        run_id: runId,
-        agent,
-        role,
-        subagent_type: used?.type ?? null,
-        native: used?.native ?? false,
-        model: frozen.definition.model ?? null,
-        tools: frozen.definition.tools,
-        skills: frozen.definition.skills,
-        hosts: frozen.definition.hosts ?? null,
-        report_path: reportPath,
-        prompt,
-      })
-    : prompt)
+  if (options.json === true) {
+    deps.io.out(JSON.stringify({
+      run_id: runId,
+      agent,
+      role,
+      subagent_type: used?.type ?? null,
+      native: used?.native ?? false,
+      model: frozen.definition.model ?? null,
+      tools: frozen.definition.tools,
+      skills: frozen.definition.skills,
+      hosts: frozen.definition.hosts ?? null,
+      host: {
+        required: route.required,
+        source: route.source,
+        enforced: route.enforced,
+        current: route.current,
+        run_on: route.runOn === null ? null : {
+          host: route.runOn.host, command: route.runOn.command, prompt_file: route.runOn.promptFile, record: route.runOn.record,
+        },
+      },
+      report_path: reportPath,
+      prompt,
+    }))
+    return 0
+  }
+  if (route.runOn !== null) {
+    for (const line of routeLines(agent, route)) deps.io.out(line)
+    return 0
+  }
+  deps.io.out(prompt)
   return 0
 }
 
@@ -329,10 +224,14 @@ export async function cmdAgentRecord(
   name: string,
   runId: string,
   json: boolean,
-  options: { readonly subagent?: string } = {},
+  options: { readonly subagent?: string; readonly host?: string } = {},
 ): Promise<number> {
   if (options.subagent !== undefined && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(options.subagent)) {
     deps.io.err(`ERROR: --subagent '${options.subagent}' 非法`)
+    return 1
+  }
+  if (options.host !== undefined && !KNOWN_AGENT_HOSTS.includes(options.host)) {
+    deps.io.err(`ERROR: --host '${options.host}' 不是已知宿主（${KNOWN_AGENT_HOSTS.join(' | ')}）`)
     return 1
   }
   const context = await resolveAgentCommand(deps, name, { requireOwner: true })
@@ -366,6 +265,18 @@ export async function cmdAgentRecord(
     deps.io.err(`ERROR: 评审期间候选已变化；重跑：tenon agent prompt ${name} ${row.agent}`)
     return 2
   }
+  // 登记的宿主：进程环境判出的，或登记者用 --host 声明的（评审在另一个宿主里跑完、由原宿主登记时用它）。
+  const detected = hostAgentHostOf(deps)
+  const host = options.host ?? detected
+  const stepHost = row.role === 'reviewer' ? context.step.reviewers.find((ref) => ref.agent === row.agent)?.host : undefined
+  if (!hostRunValid(stepHost, host)) {
+    const required = stepHost === 'claude' || stepHost === 'codex' ? stepHost : 'codex'
+    const promptFile = join('openspec', 'changes', name, AGENT_REPORTS_DIR, `${row.run_id}.prompt.md`)
+    deps.io.err(`ERROR: 评审者 '${row.agent}' 须在 ${required} 上运行，这次登记的宿主是 ${host ?? '未知（终端里请用 --host 声明）'}，结论无效、未登记；`
+      + `在 ${required} 上运行：${required === 'codex' ? codexCommand(promptFile) : claudeCommand(promptFile)}；`
+      + `评审写完报告后：${recordCommand(name, row.run_id, required)}`)
+    return 2
+  }
   // 评审结论由 Tenon 从 findings 与 block_at 算出，评审者自己不报；执行者自报 done | failed。
   const blockAt: AgentSeverity = context.step.reviewers.find((ref) => ref.agent === row.agent)?.blockAt ?? 'high'
   const blocking = row.role === 'reviewer'
@@ -375,6 +286,7 @@ export async function cmdAgentRecord(
   const finished: AgentRunRow = {
     ...row,
     ...(subagent === undefined ? {} : { subagent }),
+    ...(host === undefined ? {} : { host, host_source: hostSourceOf(options.host, detected) }),
     status: 'finished',
     result: row.role === 'reviewer' ? (blocking > 0 ? 'fail' : 'pass') : parsed.result ?? 'failed',
     findings: parsed.findings,
@@ -391,6 +303,7 @@ export async function cmdAgentRecord(
     ? JSON.stringify({ ...finished, blocking })
     : `[AGENT] ${name} ${row.agent} ${row.role} result=${finished.result}`
       + ` findings=${parsed.findings.length} blocking=${blocking}`
+      + (host === undefined ? '' : ` host=${host}${finished.host_source === 'declared' ? ' (声明)' : ''}`)
       + (subagent === undefined ? '' : ` subagent=${subagent.type}${subagent.native ? '' : ' (通用)'}`))
   return 0
 }

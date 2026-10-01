@@ -1,13 +1,13 @@
 /**
- * `tenon agent new [<name>] --role --description --skills --tools --model --hosts [--scope] [--from]`
+ * `tenon agent new [<name>] --role --description --skills --tools --model --hosts --host [--scope] [--from]`
  *
  * 在终端生成一个 agent 文件并登记进库。全参数时非交互可用；终端交互时缺的项逐个问（给出默认值）。
  * `--from <agent>` 以现有 agent（通常是官方）为底：字段作默认值、正文整段沿用；否则按身份生成
  * 固定结构的正文骨架（职责 / 只做与不做 / 方法 / 自检 / 报告），起草细节交给 agent-author 技能。
  */
 import {
-  AGENT_NAME_RE, AGENT_ROLES, KNOWN_AGENT_HOSTS, effectiveAgent,
-  type AgentDefinition, type AgentRole,
+  AGENT_NAME_RE, AGENT_ROLES, KNOWN_AGENT_HOSTS, REVIEWER_HOSTS, effectiveAgent,
+  type AgentDefinition, type AgentRole, type ReviewerHost,
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 import { REAL_INIT_WIZARD_ENV, type InitWizardEnv } from './init.js'
@@ -22,6 +22,8 @@ export interface AgentNewOpts {
   readonly tools?: string
   readonly model?: string
   readonly hosts?: string
+  /** 评审者建议在哪个宿主上跑：codex | claude | any。 */
+  readonly host?: string
   readonly scope?: string
   readonly from?: string
 }
@@ -92,6 +94,7 @@ export function renderAgentFile(definition: Omit<AgentDefinition, 'roleInferred'
     `tools: [${definition.tools.join(', ')}]`,
     ...(definition.model === undefined ? [] : [`model: ${definition.model}`]),
     ...(definition.hosts === undefined ? [] : [`hosts: [${definition.hosts.join(', ')}]`]),
+    ...(definition.host === undefined ? [] : [`host: ${definition.host}`]),
     '---',
     '',
     definition.body.replace(/^\n+/u, ''),
@@ -178,6 +181,11 @@ export async function cmdAgentNew(
       return 1
     }
   }
+  if (opts.host !== undefined && !(REVIEWER_HOSTS as readonly string[]).includes(opts.host)) {
+    deps.io.err(`ERROR: --host 只支持 ${REVIEWER_HOSTS.join(' | ')}`)
+    return 1
+  }
+  const suggested = (opts.host ?? base?.host) as ReviewerHost | undefined
   const definition: Omit<AgentDefinition, 'roleInferred'> = {
     name: answers.name,
     description: answers.description,
@@ -187,6 +195,7 @@ export async function cmdAgentNew(
     tools: list(answers.tools) ?? base?.tools ?? defaultTools(role, skills),
     ...(answers.model === '' ? {} : { model: answers.model }),
     ...(hosts === undefined ? (base?.hosts === undefined ? {} : { hosts: base.hosts }) : { hosts }),
+    ...(suggested === undefined ? {} : { host: suggested }),
     body: base?.body ?? agentBodySkeleton(answers.name, role, answers.description),
   }
   const content = renderAgentFile(definition)
