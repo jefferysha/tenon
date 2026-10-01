@@ -66,6 +66,7 @@
     "pretest": "npm run build:packages"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@fission-ai/openspec": "1.6.0",
     "@types/node": "^22.10.0",
     "ajv": "^8.20.0",
