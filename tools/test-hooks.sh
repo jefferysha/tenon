@@ -2536,6 +2536,19 @@ gate_cmd() { # $1=shell command (raw, may be multi-line) → gate exit code for 
 refuse_cmd() { gate_cmd "$2"; assert_exit "gate shell: $1 → exit 2" 2 "$?"; }
 allow_cmd()  { gate_cmd "$2"; assert_exit "gate shell: $1 → 放行" 0 "$?"; }
 
+# gate.sh 把 locale 固定成 C 以省掉 bash 3.2 的多字节遍历：非 ASCII 的内容、路径与命令照常判定（偏移与长度都按字节、自洽）。
+CJK_BODY="$(printf '说明文字%.0s' $(seq 1 400))"
+gate_tool Write file_path "$proj/文档/说明.md" ",\"content\":\"$CJK_BODY\""
+assert_exit "gate: C locale 下 Write 非 ASCII 路径的普通文档 → 放行" 0 "$?"
+gate_tool Write file_path "$proj/文档/.tenon/tests/known-failures.yaml" ",\"content\":\"$CJK_BODY\""
+assert_exit "gate: C locale 下 Write 非 ASCII 目录里的已知失败清单 → exit 2" 2 "$?"
+printf '{"tool_name":"Write","cwd":"%s","tool_input":{"content":"%s","file_path":"%s/.tenon/tests/known-failures.yaml"}}' "$proj" "$CJK_BODY" "$proj" | bash "$GATE" >/dev/null 2>&1
+assert_exit "gate: C locale 下 file_path 排在长非 ASCII 内容之后也取得到 → exit 2" 2 "$?"
+gate_cmd "echo 说明 > docs/说明.md"
+assert_exit "gate: C locale 下非 ASCII 命令写普通文档 → 放行" 0 "$?"
+gate_cmd "echo 说明 > .tenon/tests/known-failures.yaml"
+assert_exit "gate: C locale 下非 ASCII 命令写已知失败清单 → exit 2" 2 "$?"
+
 PLAN_PATH="$proj/openspec/changes/demo/test-plan.yaml"
 gate_tool Write file_path "$PLAN_PATH" ',"content":"schema: x"'
 assert_exit "gate: Write 任务测试计划 → exit 2" 2 "$?"

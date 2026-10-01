@@ -27,11 +27,19 @@
 #   接线见 router.sh / breadcrumb.sh / skill-tracker.sh / session-start.sh 的 hook_disabled。
 set -uo pipefail
 
+# 热路径的固定成本：
+#   · 固定 C locale：bash 3.2 在 UTF-8 locale 下每次 ${var:offset:length} / ${#var} 都按多字节字符遍历，几十 KB 的 Write /
+#     apply_patch 载荷上单次取键要几毫秒；hook 只比较 ASCII 的键与路径，偏移与长度在同一个 locale 里自洽，按字节算即可。
+#   · 本脚本所在目录用参数展开算，不再每次 fork 一个 dirname。
+LC_ALL=C
+GATE_DIR="${BASH_SOURCE[0]:-$0}"
+case "$GATE_DIR" in */*) GATE_DIR="${GATE_DIR%/*}" ;; *) GATE_DIR=. ;; esac
+
 INPUT="$(cat 2>/dev/null || printf '{}')"
 
 # All realtime hooks use the same escape-aware parser. This keeps Codex's quoted
 # `command_execution.command` and `exec.cmd` payloads on the exact same path as regular events.
-JSON_INPUT_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/json-input.sh"
+JSON_INPUT_HELPER="$GATE_DIR/json-input.sh"
 [ -r "$JSON_INPUT_HELPER" ] || exit 0
 # shellcheck source=json-input.sh
 . "$JSON_INPUT_HELPER"
@@ -169,7 +177,7 @@ TOOL="$(json_get tool_name || true)"
 
 # Marker 与 active Change 都只能落在当前 Git/显式项目根。marker 可能在 OpenSpec Change
 # 创建前就存在，因此这里用 bootstrap 根；该模式只返回 Git 根或 cwd 自身，绝不扫描普通父目录。
-ROOT_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/project-root.sh"
+ROOT_HELPER="$GATE_DIR/project-root.sh"
 TENON_ROOT=""
 if [ -r "$ROOT_HELPER" ]; then
   # shellcheck source=project-root.sh
@@ -262,6 +270,8 @@ pipeline_script_operand_excerpt() { # $1=decoded command → 摘录文本（无�
 pipeline_self_approval_candidate() { # $1=tool name → candidate text（非候选输出空）
   local tool="${1:-}" key value scripts text=''
   case "$tool" in
+    # 文件编辑类工具没有可执行载荷：不去解码它的（可能几十 KB 的）内容里找 command 键。
+    Write|Edit|MultiEdit|NotebookEdit) return 0 ;;
     Read|Grep|Glob|Search)
       for key in file_path path pattern glob; do
         value="$(pipeline_json_get_string "$INPUT" "$key" || true)"
@@ -327,7 +337,7 @@ fi
 # yget：读 canonical hookState；current 从未出现时才兼容 YAML 顶层 key——逐字复用
 # hooks/router.sh / hooks/skill-tracker.sh 同名函数，本文件之前不需要读状态字段，
 # Task 9（非 default workflow 的 skill DAG 判定）新增才要用。
-STATE_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/canonical-state.sh"
+STATE_HELPER="$GATE_DIR/canonical-state.sh"
 if [ -r "$STATE_HELPER" ]; then
   . "$STATE_HELPER"
 else
@@ -362,7 +372,10 @@ resolve_marker() {
   printf '%s' "$TENON_ROOT/$base"
 }
 
-HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
+case "$GATE_DIR" in
+  /*) HOOK_DIR="$GATE_DIR" ;;
+  *) HOOK_DIR="$(cd "$GATE_DIR" 2>/dev/null && pwd || true)" ;;
+esac
 REVIEW_HELPER="$HOOK_DIR/review-ack.sh"
 if [ -r "$REVIEW_HELPER" ]; then
   # shellcheck source=review-ack.sh
@@ -562,7 +575,7 @@ pipeline_enforce_skill_gate() {
   # 错绑到旧 Change。没有已选择 target 时不猜测，入口 skill 会在选定/创建后先 activate。
   sg_proot="$TENON_ROOT"
   [ -n "$sg_proot" ] || return 0
-  active_helper="$(dirname "${BASH_SOURCE[0]:-$0}")/active-change.sh"
+  active_helper="$GATE_DIR/active-change.sh"
   if [ -r "$active_helper" ]; then
     # shellcheck source=active-change.sh
     . "$active_helper"
@@ -607,7 +620,7 @@ pipeline_enforce_motion_gate() {
   local mg_proot mg_change_dir mg_plugin_root mg_bundle mg_change_name mg_rc active_helper
   mg_proot="$TENON_ROOT"
   [ -n "$mg_proot" ] || return 0
-  active_helper="$(dirname "${BASH_SOURCE[0]:-$0}")/active-change.sh"
+  active_helper="$GATE_DIR/active-change.sh"
   if [ -r "$active_helper" ]; then
     # shellcheck source=active-change.sh
     . "$active_helper"
@@ -661,7 +674,7 @@ case "$TOOL" in
   *)
     # Only a command naming a SKILL.md can be a skill read; skip decoding every other (possibly huge) one.
     if pipeline_json_is_command_tool "$TOOL" && case "$INPUT" in *SKILL.md*) true ;; *) false ;; esac; then
-      EVIDENCE_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/skill-evidence.sh"
+      EVIDENCE_HELPER="$GATE_DIR/skill-evidence.sh"
       if [ -r "$EVIDENCE_HELPER" ]; then
         # shellcheck source=skill-evidence.sh
         . "$EVIDENCE_HELPER"
