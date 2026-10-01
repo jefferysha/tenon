@@ -21091,6 +21091,86 @@ import { readFile as readFile34, readdir as readdir12 } from "node:fs/promises";
 import { join as join43 } from "node:path";
 
 // packages/kernel/dist/test-system/blockers.js
+var TEST_BLOCKER_CODES = [
+  "test-catalog-missing",
+  "test-plan-missing",
+  "test-plan-tampered",
+  "test-kind-missing",
+  "test-file-unregistered",
+  "test-file-orphan",
+  "files-diff-unavailable",
+  "test-not-run",
+  "test-failed",
+  "test-stale",
+  "no-tests-ran",
+  "report-missing",
+  "report-unreadable",
+  "exit-report-mismatch",
+  "registered-test-not-executed",
+  "coverage-below",
+  "benchmark-regression",
+  "baseline-missing",
+  "flaky-over-limit",
+  "browser-project-missing",
+  "scenario-uncovered",
+  "scenario-failing",
+  "service-not-ready",
+  "record-chain-broken",
+  "waiver-unapproved",
+  "protected-file-unapproved",
+  "protected-file-tampered",
+  "record-unsealed",
+  "report-untrusted"
+];
+var TEST_NOTICE_CODES = [
+  "known-failure-fixed",
+  "known-failure-expired",
+  "known-failure-too-long",
+  "benchmark-noisy",
+  "trace-mapping-stale",
+  "files-unchecked",
+  "files-truncated"
+];
+var TEST_BLOCKER_LABELS = {
+  "test-catalog-missing": { zh: "\u76EE\u5F55\u7F3A\u5931", en: "No test catalog" },
+  "test-plan-missing": { zh: "\u672A\u767B\u8BB0\u8BA1\u5212", en: "No test plan" },
+  "test-plan-tampered": { zh: "\u8BA1\u5212\u88AB\u6539\u52A8", en: "Plan tampered" },
+  "test-kind-missing": { zh: "\u7F3A\u6D4B\u8BD5\u79CD\u7C7B", en: "Kind missing" },
+  "test-file-unregistered": { zh: "\u6587\u4EF6\u672A\u767B\u8BB0", en: "Unregistered file" },
+  "test-file-orphan": { zh: "\u6587\u4EF6\u65E0\u5957\u4EF6", en: "Orphan test file" },
+  "files-diff-unavailable": { zh: "\u8BFB\u4E0D\u5230\u6539\u52A8", en: "Diff unavailable" },
+  "test-not-run": { zh: "\u672A\u8FD0\u884C", en: "Not run" },
+  "test-failed": { zh: "\u5931\u8D25", en: "Failed" },
+  "test-stale": { zh: "\u8FC7\u671F", en: "Stale" },
+  "no-tests-ran": { zh: "\u6CA1\u6709\u7528\u4F8B", en: "No tests ran" },
+  "report-missing": { zh: "\u7F3A\u62A5\u544A", en: "No report" },
+  "report-unreadable": { zh: "\u62A5\u544A\u65E0\u6CD5\u89E3\u6790", en: "Unreadable report" },
+  "exit-report-mismatch": { zh: "\u9000\u51FA\u7801\u4E0E\u62A5\u544A\u4E0D\u7B26", en: "Exit/report mismatch" },
+  "registered-test-not-executed": { zh: "\u767B\u8BB0\u7528\u4F8B\u672A\u6267\u884C", en: "Registered test not run" },
+  "coverage-below": { zh: "\u8986\u76D6\u7387\u4E0D\u8DB3", en: "Coverage below" },
+  "benchmark-regression": { zh: "\u57FA\u51C6\u9000\u5316", en: "Benchmark regression" },
+  "baseline-missing": { zh: "\u7F3A\u57FA\u7EBF", en: "No baseline" },
+  "flaky-over-limit": { zh: "\u4E0D\u7A33\u5B9A\u8D85\u9650", en: "Too flaky" },
+  "browser-project-missing": { zh: "\u7F3A\u6D4F\u89C8\u5668", en: "Browser missing" },
+  "scenario-uncovered": { zh: "\u573A\u666F/\u4EFB\u52A1\u672A\u8986\u76D6", en: "Scenario/task uncovered" },
+  "scenario-failing": { zh: "\u573A\u666F/\u4EFB\u52A1\u672A\u901A\u8FC7", en: "Scenario/task failing" },
+  "service-not-ready": { zh: "\u670D\u52A1\u672A\u5C31\u7EEA", en: "Service not ready" },
+  "record-chain-broken": { zh: "\u8BB0\u5F55\u88AB\u6539\u52A8", en: "Records tampered" },
+  "waiver-unapproved": { zh: "\u8C41\u514D\u672A\u6279\u51C6", en: "Waiver unapproved" },
+  "protected-file-unapproved": { zh: "\u914D\u7F6E\u6539\u52A8\u5F85\u786E\u8BA4", en: "Config change unapproved" },
+  "protected-file-tampered": { zh: "\u53F0\u8D26\u5916\u6539\u52A8", en: "Changed outside Tenon" },
+  "record-unsealed": { zh: "\u8BB0\u5F55\u6765\u6E90\u4E0D\u660E", en: "Records unsealed" },
+  "report-untrusted": { zh: "\u62A5\u544A\u4E0D\u53EF\u4FE1", en: "Report untrusted" }
+};
+var TEST_NOTICE_LABELS = {
+  "known-failure-fixed": { zh: "\u5DF2\u4FEE\u597D", en: "Fixed" },
+  "known-failure-expired": { zh: "\u5DF2\u77E5\u5931\u8D25\u8FC7\u671F", en: "Known failure expired" },
+  "known-failure-too-long": { zh: "\u5DF2\u77E5\u5931\u8D25\u671F\u9650\u8FC7\u957F", en: "Known failure too long" },
+  "benchmark-noisy": { zh: "\u57FA\u51C6\u6CE2\u52A8\u5927", en: "Noisy benchmark" },
+  "trace-mapping-stale": { zh: "\u6620\u5C04\u5931\u6548", en: "Stale mapping" },
+  "files-unchecked": { zh: "\u672A\u68C0\u67E5\u6587\u4EF6", en: "Files unchecked" },
+  "files-truncated": { zh: "\u6587\u4EF6\u68C0\u67E5\u88AB\u622A\u65AD", en: "File check truncated" }
+};
 function testBlocker(code, message, options3 = {}) {
   return {
     code,
@@ -23594,6 +23674,15 @@ async function digestOfFile(path14) {
 function protectedFileDigest(repoRoot, path14) {
   return digestOfFile(join40(repoRoot, ...path14.split("/")));
 }
+async function protectedApprovalDigests(repoRoot, paths) {
+  const entries2 = [];
+  for (const path14 of paths) {
+    const digest18 = await protectedFileDigest(repoRoot, path14);
+    if (digest18 !== "unreadable")
+      entries2.push(`${path14}@${digest18}`);
+  }
+  return entries2.length === 0 ? void 0 : entries2.join(",");
+}
 async function readProtectedChanges(repoRoot, changes) {
   const out = [];
   for (const change of changes) {
@@ -25017,11 +25106,11 @@ async function evaluateStepTestPolicy(input2) {
       changedFilesError = error2 instanceof Error ? error2.message.slice(0, 200) : "\u8BFB\u53D6\u5931\u8D25";
     }
   }
-  const sealed = await readTestSeal(input2.repoRoot, input2.slug);
+  const sealed = input2.seal === "none" ? void 0 : await readTestSeal(input2.repoRoot, input2.slug);
   const reviewGated = input2.reviewGated === true;
   let protectedChanges;
   let protectedChangesError;
-  if (reviewGated && input2.protectedChanges !== void 0) {
+  if (sealed !== void 0 && reviewGated && input2.protectedChanges !== void 0) {
     try {
       protectedChanges = await input2.protectedChanges();
     } catch (error2) {
@@ -25046,12 +25135,14 @@ async function evaluateStepTestPolicy(input2) {
     bindings: { candidate: candidate2, workflowFingerprint: input2.workflowFingerprint, workflowRunId: input2.workflowRunId },
     today: new Date(input2.now).toISOString().slice(0, 10),
     ...input2.exitEvent === void 0 ? {} : { exitEvent: input2.exitEvent },
-    protected: {
-      reviewGated,
-      changes: protectedChanges,
-      ...protectedChangesError === void 0 ? {} : { changesError: protectedChangesError },
-      seal: sealed.seal,
-      sealState: sealed.state
+    ...sealed === void 0 ? {} : {
+      protected: {
+        reviewGated,
+        changes: protectedChanges,
+        ...protectedChangesError === void 0 ? {} : { changesError: protectedChangesError },
+        seal: sealed.seal,
+        sealState: sealed.state
+      }
     }
   });
 }
@@ -25227,6 +25318,7 @@ async function evaluateTestEvidence(input2) {
       ...input2.context.changedFiles === void 0 ? {} : { changedFiles: input2.context.changedFiles },
       ...input2.context.recordChainCache === void 0 ? {} : { recordChainCache: input2.context.recordChainCache },
       ...input2.context.protectedChanges === void 0 ? {} : { protectedChanges: input2.context.protectedChanges },
+      ...input2.context.seal === void 0 ? {} : { seal: input2.context.seal },
       reviewGated: input2.plan.workflow.steps.find((step) => step.id === input2.stepId)?.gate === "review",
       now,
       ...event === void 0 ? {} : { exitEvent: event }
@@ -25593,6 +25685,144 @@ async function declaredTestOutputs(repoRoot) {
 async function candidateFingerprint(repoRoot) {
   return fingerprintWorkspace(repoRoot, { declaredOutputs: await declaredTestOutputs(repoRoot) });
 }
+
+// packages/kernel/dist/ci-verify/rules.js
+var CI_ONLY = [
+  {
+    id: "record-misplaced",
+    name: "RecordMisplaced",
+    level: "error",
+    short: "A test run record lives under the wrong change or user directory",
+    help: "A record names a different change than the directory it sits in, or an actor whose slug is not the user directory. Records are copied between tasks or users only by hand; rerun the suite with `tenon test run`."
+  },
+  {
+    id: "record-inconsistent",
+    name: "RecordInconsistent",
+    level: "error",
+    short: "A test run record contradicts itself",
+    help: "The record result, the suite totals or the retained cases disagree with each other. `tenon test run` never writes such a record; it was edited."
+  },
+  {
+    id: "plan-file-missing",
+    name: "PlanFileMissing",
+    level: "error",
+    short: "A test file registered in the test plan is not in the pull request tree",
+    help: "The plan registers a test file that no longer exists. Either restore the file or remove it from the plan with `tenon test unregister`."
+  },
+  {
+    id: "candidate-mismatch",
+    name: "CandidateMismatch",
+    level: "error",
+    short: "The recorded runs were produced on a different tree than the pull request head",
+    help: "The workspace fingerprint bound into the test run records differs from the fingerprint of the checked-out tree. The code changed after the tests ran, or the checkout differs from the tested workspace (ignored build output, file modes, line endings). Rerun `tenon test run <change> --stage` on the final tree."
+  },
+  {
+    id: "protected-unapproved",
+    name: "ProtectedFileUnapproved",
+    level: "error",
+    short: "A protected test configuration file changed without a recorded human approval",
+    help: "The test catalog, baselines, known-failures list or project workflows changed in this task, but the task history has no `test:protected-approve` line for the file. A human approves it at the review gate (`tenon review request` then `acknowledge`)."
+  },
+  {
+    id: "protected-changed-after-approval",
+    name: "ProtectedFileChangedAfterApproval",
+    level: "error",
+    short: "A protected test configuration file differs from the content that was approved",
+    help: "The approval line records a content digest and the file no longer matches it. Request a new review."
+  },
+  {
+    id: "protected-approval-unbound",
+    name: "ProtectedApprovalUnbound",
+    level: "warning",
+    short: "The approval line for a protected file names no content digest",
+    help: "Approval lines written by older Tenon versions only name the path, so CI cannot tell whether the file changed afterwards."
+  },
+  {
+    id: "protected-diff-unavailable",
+    name: "ProtectedDiffUnavailable",
+    level: "error",
+    short: "The task diff could not be read, so protected-file approvals cannot be checked",
+    help: "Fetch the full history (`fetch-depth: 0` in actions/checkout) so the commit the task started from is reachable."
+  },
+  {
+    id: "anchor-mismatch",
+    name: "AnchorMismatch",
+    level: "error",
+    short: "The record chain does not contain the head digest anchored in git notes",
+    help: "The anchored chain head is not part of the committed chain: the chain was rewritten after it was anchored."
+  },
+  {
+    id: "anchor-behind",
+    name: "AnchorBehind",
+    level: "warning",
+    short: "Records were appended after the last anchor",
+    help: "The chain contains the anchored head, followed by newer records. Anchor again (`tenon evidence export <change> --format git-notes --anchor --apply`) or run with --require-anchor to make this an error."
+  },
+  {
+    id: "anchor-unverifiable",
+    name: "AnchorUnverifiable",
+    level: "warning",
+    short: "The anchored head is not in the chain, but older records were pruned",
+    help: "Retention pruning removes the oldest records, so an old anchor can fall outside the retained chain."
+  },
+  {
+    id: "anchor-missing",
+    name: "AnchorMissing",
+    level: "error",
+    short: "No anchor note exists for this change",
+    help: "Required by --require-anchor. Fetch the notes ref (`git fetch origin refs/notes/tenon:refs/notes/tenon`) and anchor the delivery commit."
+  },
+  {
+    id: "owner-chain-missing",
+    name: "OwnerChainMissing",
+    level: "warning",
+    short: "The task owner has no test run records; another user's chain was used",
+    help: "Verdicts were computed from the only chain that exists. Run the suites as the owner or take the task over."
+  },
+  {
+    id: "change-unreadable",
+    name: "ChangeUnreadable",
+    level: "error",
+    short: "The task state or its frozen workflow could not be read",
+    help: "The task state files are corrupt or the frozen workflow plan cannot be resolved from the committed files."
+  },
+  {
+    id: "step-unresolved",
+    name: "StepUnresolved",
+    level: "error",
+    short: "The requested workflow step does not exist in the task workflow",
+    help: "Pass a step id that exists in the frozen workflow of the task."
+  },
+  {
+    id: "candidate-unchecked",
+    name: "CandidateUnchecked",
+    level: "note",
+    short: "The workspace fingerprint was not compared (--candidate off)",
+    help: "Recorded runs were not checked against the tree of this checkout."
+  },
+  {
+    id: "no-test-policy",
+    name: "NoTestPolicy",
+    level: "note",
+    short: "The evaluated step declares no test policy",
+    help: "There is nothing to verify at this step; this is not evidence that tests passed."
+  }
+];
+function policyRule(id2, short2, level) {
+  return {
+    id: id2,
+    name: id2.split("-").map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(""),
+    short: short2,
+    level,
+    help: "Reported by the Tenon test policy of the evaluated workflow step; the message names the exact object and the command that fixes it."
+  };
+}
+var POLICY_RULES = [
+  ...TEST_BLOCKER_CODES.map((code) => policyRule(code, TEST_BLOCKER_LABELS[code].en, "error")),
+  ...TEST_NOTICE_CODES.map((code) => policyRule(code, TEST_NOTICE_LABELS[code].en, "note"))
+];
+var CI_RULES = [...CI_ONLY, ...POLICY_RULES];
+var BY_ID = new Map(CI_RULES.map((rule) => [rule.id, rule]));
 
 // packages/kernel/dist/machine-state-scope.js
 import { createHash as createHash18 } from "node:crypto";
@@ -54690,6 +54920,7 @@ async function acknowledgeFromDashboard(input2) {
   if (result2.ok && waivers.protectedApproved.length > 0) {
     await deps.history.append(dir, testAuditEntry("protected-approve", {
       files: waivers.protectedApproved.join(","),
+      digests: await protectedApprovalDigests(root, waivers.protectedApproved),
       by: input2.actor.id
     }, { ts: deps.clock(), actor: input2.actor })).catch(() => void 0);
   }

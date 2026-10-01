@@ -1791,18 +1791,18 @@ Expecting one of '${allowedValues.join("', '")}'`);
        *
        * @private
        */
-      _prepareUserArgs(argv, parseOptions) {
+      _prepareUserArgs(argv, parseOptions2) {
         if (argv !== void 0 && !Array.isArray(argv)) {
           throw new Error("first parameter to parse must be array or undefined");
         }
-        parseOptions = parseOptions || {};
-        if (argv === void 0 && parseOptions.from === void 0) {
+        parseOptions2 = parseOptions2 || {};
+        if (argv === void 0 && parseOptions2.from === void 0) {
           if (process2.versions?.electron) {
-            parseOptions.from = "electron";
+            parseOptions2.from = "electron";
           }
           const execArgv = process2.execArgv ?? [];
           if (execArgv.includes("-e") || execArgv.includes("--eval") || execArgv.includes("-p") || execArgv.includes("--print")) {
-            parseOptions.from = "eval";
+            parseOptions2.from = "eval";
           }
         }
         if (argv === void 0) {
@@ -1810,7 +1810,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
         }
         this.rawArgs = argv.slice();
         let userArgs;
-        switch (parseOptions.from) {
+        switch (parseOptions2.from) {
           case void 0:
           case "node":
             this._scriptPath = argv[1];
@@ -1832,7 +1832,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
             break;
           default:
             throw new Error(
-              `unexpected parse option { from: '${parseOptions.from}' }`
+              `unexpected parse option { from: '${parseOptions2.from}' }`
             );
         }
         if (!this._name && this._scriptPath)
@@ -1862,8 +1862,8 @@ Expecting one of '${allowedValues.join("', '")}'`);
        * @param {string} [parseOptions.from] - where the args are from: 'node', 'user', 'electron'
        * @return {Command} `this` command for chaining
        */
-      parse(argv, parseOptions) {
-        const userArgs = this._prepareUserArgs(argv, parseOptions);
+      parse(argv, parseOptions2) {
+        const userArgs = this._prepareUserArgs(argv, parseOptions2);
         this._parseCommand([], userArgs);
         return this;
       }
@@ -1887,8 +1887,8 @@ Expecting one of '${allowedValues.join("', '")}'`);
        * @param {string} parseOptions.from - where the args are from: 'node', 'user', 'electron'
        * @return {Promise}
        */
-      async parseAsync(argv, parseOptions) {
-        const userArgs = this._prepareUserArgs(argv, parseOptions);
+      async parseAsync(argv, parseOptions2) {
+        const userArgs = this._prepareUserArgs(argv, parseOptions2);
         await this._parseCommand([], userArgs);
         return this;
       }
@@ -2938,7 +2938,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
        * @param {(string | Function)} text - string to add, or a function returning a string
        * @return {Command} `this` command for chaining
        */
-      addHelpText(position, text12) {
+      addHelpText(position, text13) {
         const allowedValues = ["beforeAll", "before", "after", "afterAll"];
         if (!allowedValues.includes(position)) {
           throw new Error(`Unexpected value for position to addHelpText.
@@ -2947,10 +2947,10 @@ Expecting one of '${allowedValues.join("', '")}'`);
         const helpEvent = `${position}Help`;
         this.on(helpEvent, (context) => {
           let helpStr;
-          if (typeof text12 === "function") {
-            helpStr = text12({ error: context.error, command: context.command });
+          if (typeof text13 === "function") {
+            helpStr = text13({ error: context.error, command: context.command });
           } else {
-            helpStr = text12;
+            helpStr = text13;
           }
           if (helpStr) {
             context.write(`${helpStr}
@@ -3030,11 +3030,11 @@ var require_commander = __commonJS({
 });
 
 // packages/cli/src/main.ts
-import { execFile as execFile16, spawn as spawn10 } from "node:child_process";
+import { execFile as execFile17, spawn as spawn11 } from "node:child_process";
 import { existsSync as existsSync14, readFileSync as readFileSync44 } from "node:fs";
-import { readFile as readFile100, stat as stat19, writeFile as writeFile37 } from "node:fs/promises";
+import { readFile as readFile102, stat as stat19, writeFile as writeFile39 } from "node:fs/promises";
 import { homedir as homedir23 } from "node:os";
-import { dirname as dirname49, join as join181 } from "node:path";
+import { dirname as dirname51, join as join184 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // node_modules/commander/esm.mjs
@@ -4427,7 +4427,7 @@ function io(value, path15) {
     throw new DecodeFailure("limit-exceeded", `${path15}.fields`);
   }
   const names = /* @__PURE__ */ new Set();
-  const fields = item2.fields.map((field4, index) => {
+  const fields2 = item2.fields.map((field4, index) => {
     const fieldPath = `${path15}.fields[${index}]`;
     const entry2 = record2(field4, fieldPath);
     closed2(entry2, ["name", "classification", "digest", "validator"], fieldPath);
@@ -4442,7 +4442,7 @@ function io(value, path15) {
       validator: validator(entry2.validator, `${fieldPath}.validator`)
     };
   });
-  return { schema_id: id(item2.schema_id, `${path15}.schema_id`), fields };
+  return { schema_id: id(item2.schema_id, `${path15}.schema_id`), fields: fields2 };
 }
 function adapter(value, path15) {
   const item2 = record2(value, path15);
@@ -4645,8 +4645,8 @@ var SkillInvocationEvidenceConflictError = class extends Error {
 function same(a, b) {
   return JSON.stringify(a) === JSON.stringify(b);
 }
-function publicFields(fields) {
-  return fields.map((field4) => ({
+function publicFields(fields2) {
+  return fields2.map((field4) => ({
     name: field4.name,
     classification: field4.classification,
     validator: { ...field4.validator }
@@ -5240,8 +5240,8 @@ function fieldValueEqual(a, b) {
 }
 function diffFieldsToEffects(before, after) {
   const effects = [];
-  const fields = /* @__PURE__ */ new Set([...Object.keys(before), ...Object.keys(after)]);
-  for (const field4 of fields) {
+  const fields2 = /* @__PURE__ */ new Set([...Object.keys(before), ...Object.keys(after)]);
+  for (const field4 of fields2) {
     const from = before[field4] ?? "";
     const to = after[field4] ?? "";
     if (!fieldValueEqual(from, to)) {
@@ -5311,8 +5311,8 @@ function parseWorkflowGovernanceBinding(raw) {
     "document_governance_fingerprint",
     "workflow_plan_fingerprint"
   ]);
-  const digest18 = (candidate2) => typeof candidate2 === "string" && /^[0-9a-f]{64}$/.test(candidate2);
-  if (Object.keys(record9).some((key) => !allowed.has(key)) || record9.version !== 1 || typeof record9.run_id !== "string" || record9.run_id === "" || record9.document_profile !== void 0 && record9.document_profile !== "legacy-full" && record9.document_profile !== "document-v1" || record9.document_governance_fingerprint !== void 0 && !digest18(record9.document_governance_fingerprint) || record9.workflow_plan_fingerprint !== void 0 && !digest18(record9.workflow_plan_fingerprint) || record9.document_governance_fingerprint !== void 0 && record9.document_profile === void 0) {
+  const digest19 = (candidate2) => typeof candidate2 === "string" && /^[0-9a-f]{64}$/.test(candidate2);
+  if (Object.keys(record9).some((key) => !allowed.has(key)) || record9.version !== 1 || typeof record9.run_id !== "string" || record9.run_id === "" || record9.document_profile !== void 0 && record9.document_profile !== "legacy-full" && record9.document_profile !== "document-v1" || record9.document_governance_fingerprint !== void 0 && !digest19(record9.document_governance_fingerprint) || record9.workflow_plan_fingerprint !== void 0 && !digest19(record9.workflow_plan_fingerprint) || record9.document_governance_fingerprint !== void 0 && record9.document_profile === void 0) {
     throw new Error("workflow governance binding \u5F62\u72B6\u975E\u6CD5");
   }
   return {
@@ -5469,9 +5469,9 @@ function splitPreVerifyReviewAnchor(state) {
 }
 function withoutCompanionFields(state, revision, revisionId) {
   const logical = splitPreVerifyReviewAnchor(state).state;
-  const fields = structuredClone(state.fields);
-  delete fields[PRE_VERIFY_REVIEW_FIELD];
-  delete fields[REVIEW_ACKNOWLEDGED_VIA_FIELD];
+  const fields2 = structuredClone(state.fields);
+  delete fields2[PRE_VERIFY_REVIEW_FIELD];
+  delete fields2[REVIEW_ACKNOWLEDGED_VIA_FIELD];
   const anchor = {
     schemaVersion: 1,
     revision,
@@ -5480,7 +5480,7 @@ function withoutCompanionFields(state, revision, revisionId) {
   };
   const encodedAnchor = Buffer.from(JSON.stringify(anchor), "utf8").toString("base64url");
   return {
-    fields,
+    fields: fields2,
     ...logical.runMetadata === void 0 ? {} : { runMetadata: logical.runMetadata },
     opaqueTail: `${PRE_VERIFY_REVIEW_ANCHOR_PREFIX}${encodedAnchor}
 ${logical.opaqueTail}`
@@ -5489,8 +5489,8 @@ ${logical.opaqueTail}`
 function rollbackCompatibleState(revision) {
   return withoutCompanionFields(revision.state, revision.revision, revision.revisionId);
 }
-function stringField(fields, field4) {
-  const value = fields[field4];
+function stringField(fields2, field4) {
+  const value = fields2[field4];
   return Array.isArray(value) ? value.join(",") : value;
 }
 function hookStateFor(state) {
@@ -5560,21 +5560,21 @@ function canonicalState(value, opts = {}) {
   if (!rawFields || rawKeys.some((key) => !FIELD_SET.has(key)) || missing3.some((field4) => !allowedLegacyDefaults.has(field4))) {
     throw new RunStateCorruptError("canonical state.fields \u4E0D\u662F FIELD_ORDER \u95ED\u96C6");
   }
-  const fields = {};
+  const fields2 = {};
   for (const field4 of FIELD_ORDER) {
     if (legacyReviewGateDefaults.has(field4)) {
-      fields[field4] = REVIEW_GATE_FIELD_DEFAULTS[field4];
+      fields2[field4] = REVIEW_GATE_FIELD_DEFAULTS[field4];
       continue;
     }
     if (companionDefaults.has(field4)) {
-      fields[field4] = field4 === PRE_VERIFY_REVIEW_FIELD ? PRE_VERIFY_REVIEW_DEFAULT : REVIEW_ACKNOWLEDGED_VIA_DEFAULT;
+      fields2[field4] = field4 === PRE_VERIFY_REVIEW_FIELD ? PRE_VERIFY_REVIEW_DEFAULT : REVIEW_ACKNOWLEDGED_VIA_DEFAULT;
       continue;
     }
     const fieldValue = rawFields[field4];
     if (typeof fieldValue === "string") {
-      fields[field4] = fieldValue;
+      fields2[field4] = fieldValue;
     } else if (LIST_FIELD_SET.has(field4) && Array.isArray(fieldValue) && fieldValue.every((item2) => typeof item2 === "string")) {
-      fields[field4] = [...fieldValue];
+      fields2[field4] = [...fieldValue];
     } else {
       throw new RunStateCorruptError(`canonical state.fields.${field4} \u7C7B\u578B\u975E\u6CD5`);
     }
@@ -5582,7 +5582,7 @@ function canonicalState(value, opts = {}) {
   if (typeof raw.opaqueTail !== "string")
     throw new RunStateCorruptError("canonical opaqueTail \u975E string");
   return {
-    fields,
+    fields: fields2,
     ...raw.runMetadata === void 0 ? {} : { runMetadata: canonicalRunMetadata(raw.runMetadata) },
     opaqueTail: raw.opaqueTail
   };
@@ -5784,8 +5784,8 @@ function isTransitionRecord(value) {
     if (value[key] !== void 0 && typeof value[key] !== "string")
       return false;
   }
-  const fields = new Set(FIELD_ORDER);
-  return value.effects.every((effect) => isRecord2(effect) && Object.keys(effect).every((key) => EFFECT_KEYS.has(key)) && effect.kind === "state-field-change" && typeof effect.field === "string" && fields.has(effect.field) && isStringValue(effect.from) && isStringValue(effect.to));
+  const fields2 = new Set(FIELD_ORDER);
+  return value.effects.every((effect) => isRecord2(effect) && Object.keys(effect).every((key) => EFFECT_KEYS.has(key)) && effect.kind === "state-field-change" && typeof effect.field === "string" && fields2.has(effect.field) && isStringValue(effect.from) && isStringValue(effect.to));
 }
 function parseTransitionRecord(value, source = "TransitionRecord") {
   if (!isTransitionRecord(value))
@@ -5968,9 +5968,9 @@ async function hydratePreVerifyReview(changeDir7, revision) {
   return attach(revision, parseRecord(await readFile3(target, "utf8"), target));
 }
 function hydratePreVerifyReviewFromSync(readText4, revision, sourceRoot = "canonical state") {
-  const relative40 = preVerifyReviewRelativePath(revision.revision, revision.revisionId);
-  const raw = readText4(relative40);
-  return attach(revision, raw === void 0 ? void 0 : parseRecord(raw, join4(sourceRoot, relative40)));
+  const relative42 = preVerifyReviewRelativePath(revision.revision, revision.revisionId);
+  const raw = readText4(relative42);
+  return attach(revision, raw === void 0 ? void 0 : parseRecord(raw, join4(sourceRoot, relative42)));
 }
 
 // packages/kernel/dist/state/review-acknowledged-via-store.js
@@ -6059,9 +6059,9 @@ async function hydrateReviewAcknowledgedVia(changeDir7, revision) {
   return attach2(revision, parseRecord2(await readFile4(target, "utf8"), target));
 }
 function hydrateReviewAcknowledgedViaFromSync(readText4, revision, sourceRoot = "canonical state") {
-  const relative40 = reviewAcknowledgedViaRelativePath(revision.revision, revision.revisionId);
-  const raw = readText4(relative40);
-  return attach2(revision, raw === void 0 ? void 0 : parseRecord2(raw, join5(sourceRoot, relative40)));
+  const relative42 = reviewAcknowledgedViaRelativePath(revision.revision, revision.revisionId);
+  const raw = readText4(relative42);
+  return attach2(revision, raw === void 0 ? void 0 : parseRecord2(raw, join5(sourceRoot, relative42)));
 }
 
 // packages/kernel/dist/state/revision-companions.js
@@ -7450,8 +7450,8 @@ function artifactSubjectId(namespace, logicalKey) {
   assertArtifactNamespace(namespace);
   if (logicalKey.length === 0 || logicalKey.length > 1024)
     throw new Error("artifact subject logical key must be non-empty");
-  const digest18 = createHash7("sha256").update(`${namespace}\0${logicalKey}`, "utf8").digest("hex").slice(0, 32);
-  return `subject:${namespace}:${digest18}`;
+  const digest19 = createHash7("sha256").update(`${namespace}\0${logicalKey}`, "utf8").digest("hex").slice(0, 32);
+  return `subject:${namespace}:${digest19}`;
 }
 function newArtifactSubjectId(namespace) {
   assertArtifactNamespace(namespace);
@@ -7480,8 +7480,8 @@ function string2(value) {
 function validDigest(value) {
   return /^[a-f0-9]{64}$/.test(value);
 }
-function documentSubjectRef(kind, path15, digest18, previous) {
-  const contentDigest = `sha256:${digest18}`;
+function documentSubjectRef(kind, path15, digest19, previous) {
+  const contentDigest = `sha256:${digest19}`;
   const sameVersion = previous?.content_digest === contentDigest;
   return {
     subject_id: previous?.subject_id ?? artifactSubjectId("document", kind),
@@ -7501,20 +7501,20 @@ function parseReceipt(value, recordIndex, receiptIndex) {
   if (!item2)
     throw new DocumentLedgerError(`document ledger records[${recordIndex}].reads[${receiptIndex}] \u5FC5\u987B\u662F\u5BF9\u8C61`);
   const phase = string2(item2.phase);
-  const digest18 = string2(item2.sha256);
+  const digest19 = string2(item2.sha256);
   const readAt = string2(item2.readAt);
   const visitId = item2.visitId === void 0 ? void 0 : string2(item2.visitId);
   if (!phase || !/^[A-Za-z0-9_-]+$/.test(phase)) {
     throw new DocumentLedgerError(`document ledger records[${recordIndex}].reads[${receiptIndex}].phase \u975E\u6CD5`);
   }
-  if (!digest18 || !validDigest(digest18)) {
+  if (!digest19 || !validDigest(digest19)) {
     throw new DocumentLedgerError(`document ledger records[${recordIndex}].reads[${receiptIndex}].sha256 \u975E\u6CD5`);
   }
   if (!readAt)
     throw new DocumentLedgerError(`document ledger records[${recordIndex}].reads[${receiptIndex}].readAt \u5FC5\u987B\u662F\u975E\u7A7A\u5B57\u7B26\u4E32`);
   if (item2.visitId !== void 0 && !visitId)
     throw new DocumentLedgerError(`document ledger records[${recordIndex}].reads[${receiptIndex}].visitId \u975E\u6CD5`);
-  return { phase, sha256: digest18, readAt, ...visitId === void 0 ? {} : { visitId } };
+  return { phase, sha256: digest19, readAt, ...visitId === void 0 ? {} : { visitId } };
 }
 function receiptKey(receipt) {
   return JSON.stringify([receipt.phase, receipt.visitId ?? "legacy"]);
@@ -7525,7 +7525,7 @@ function parseRecord3(value, index) {
     throw new DocumentLedgerError(`document ledger records[${index}] \u5FC5\u987B\u662F\u5BF9\u8C61`);
   const kind = string2(item2.kind);
   const path15 = string2(item2.path);
-  const digest18 = string2(item2.sha256);
+  const digest19 = string2(item2.sha256);
   const producer = string2(item2.producer);
   const recordedAt = string2(item2.recordedAt);
   if (!kind || !isDocumentKind(kind))
@@ -7533,7 +7533,7 @@ function parseRecord3(value, index) {
   if (!path15 || !isSafeProjectRelativePath(path15)) {
     throw new DocumentLedgerError(`document ledger records[${index}].path \u5FC5\u987B\u662F\u5B89\u5168\u7684\u9879\u76EE\u76F8\u5BF9\u8DEF\u5F84`);
   }
-  if (!digest18 || !validDigest(digest18))
+  if (!digest19 || !validDigest(digest19))
     throw new DocumentLedgerError(`document ledger records[${index}].sha256 \u975E\u6CD5`);
   if (!producer || !/^[A-Za-z0-9_-]+(?::[A-Za-z0-9_-]+)*$/.test(producer)) {
     throw new DocumentLedgerError(`document ledger records[${index}].producer \u975E\u6CD5`);
@@ -7561,7 +7561,7 @@ function parseRecord3(value, index) {
   return {
     kind,
     path: path15,
-    sha256: digest18,
+    sha256: digest19,
     producer,
     recordedAt,
     ...producerInvocation === void 0 ? {} : { producerInvocation },
@@ -7844,8 +7844,8 @@ async function processStartIdentity(pid) {
       const close = raw.lastIndexOf(")");
       if (close < 0)
         return null;
-      const fields = raw.slice(close + 2).trim().split(/\s+/u);
-      const start2 = fields[19];
+      const fields2 = raw.slice(close + 2).trim().split(/\s+/u);
+      const start2 = fields2[19];
       return start2 !== void 0 && /^[0-9]+$/u.test(start2) ? `linux:${start2}` : null;
     }
     const ps = process.platform === "darwin" ? "/bin/ps" : "/usr/bin/ps";
@@ -7859,9 +7859,9 @@ async function processStartIdentity(pid) {
     return null;
   }
 }
-function parseOwnerRecord(text12) {
+function parseOwnerRecord(text13) {
   try {
-    const value = ownRecord3(JSON.parse(text12));
+    const value = ownRecord3(JSON.parse(text13));
     if (value === null)
       return null;
     const keys = Object.keys(value).sort().join(",");
@@ -7886,8 +7886,8 @@ function parseOwnerRecord(text12) {
     return null;
   }
 }
-function parseLegacyOwner(text12) {
-  const owner = text12.trim();
+function parseLegacyOwner(text13) {
+  const owner = text13.trim();
   const pidText = owner.split(".", 1)[0] ?? "";
   if (!/^[1-9][0-9]*$/.test(pidText))
     return null;
@@ -8041,7 +8041,7 @@ async function release(lockDir, held) {
 async function withLock(changeDir7, fn) {
   const lockDir = lockDirFor(changeDir7);
   const prev = queues.get(lockDir) ?? Promise.resolve();
-  const run5 = prev.then(async () => {
+  const run6 = prev.then(async () => {
     const held = await acquire(lockDir);
     try {
       return await fn();
@@ -8049,13 +8049,13 @@ async function withLock(changeDir7, fn) {
       await release(lockDir, held);
     }
   });
-  const settled = run5.then(() => void 0, () => void 0);
+  const settled = run6.then(() => void 0, () => void 0);
   queues.set(lockDir, settled);
   void settled.then(() => {
     if (queues.get(lockDir) === settled)
       queues.delete(lockDir);
   });
-  return run5;
+  return run6;
 }
 
 // packages/kernel/dist/state/task-plan-store.js
@@ -8117,11 +8117,11 @@ function parseTasks(markdown, currentStage, stages, trustedCanonicalProjection =
     if (!task || target === void 0)
       continue;
     const rawText = (task[2] ?? "").trim();
-    const text12 = trustedCanonicalProjection ? rawText.replace(/\s+<!-- work-item:[^>\s]+ -->\s*$/u, "").trim() : rawText;
-    if (text12 === "")
+    const text13 = trustedCanonicalProjection ? rawText.replace(/\s+<!-- work-item:[^>\s]+ -->\s*$/u, "").trim() : rawText;
+    if (text13 === "")
       continue;
     const items = byStage.get(target) ?? [];
-    items.push({ text: text12, completed: (task[1] ?? "").toLowerCase() === "x" });
+    items.push({ text: text13, completed: (task[1] ?? "").toLowerCase() === "x" });
     byStage.set(target, items);
   }
   return { byStage, structured };
@@ -9639,9 +9639,9 @@ var TRACK_ID_RE = /^[a-z][a-z0-9_-]{0,31}$/;
 
 // packages/kernel/dist/loops/registry.js
 var KEY_RE = /^([A-Za-z_][\w.-]*):(?:\s+(.*)|\s*)$/;
-function tokenize(text12) {
+function tokenize(text13) {
   const tokens = [];
-  for (const rawLine of text12.split("\n")) {
+  for (const rawLine of text13.split("\n")) {
     const line = rawLine.replace(/\r$/, "");
     if (line.trim() === "")
       continue;
@@ -9747,9 +9747,9 @@ function parseValue(tokens, i, indent) {
     return parseMapping(tokens, i, indent);
   return { value: parseScalar(required(t.raw)), next: i + 1 };
 }
-function parseLoopsYaml(text12) {
+function parseLoopsYaml(text13) {
   try {
-    const tokens = tokenize(text12);
+    const tokens = tokenize(text13);
     if (tokens.length === 0)
       return { data: null, error: "\u7A7A\u6587\u6863\uFF08\u65E0\u5185\u5BB9\uFF09" };
     const first = required(tokens[0]);
@@ -10002,10 +10002,10 @@ function isValidatedLoopRegistry(value, errors) {
   return errors.length === 0;
 }
 function loadRegistry(repoRoot, io2 = nodeLoopIo) {
-  const text12 = io2.readText(join15(repoRoot, ...LOOPS_REL_PATH));
-  if (text12 === null)
+  const text13 = io2.readText(join15(repoRoot, ...LOOPS_REL_PATH));
+  if (text13 === null)
     return { data: null, errors: [] };
-  const { data, error: error2 } = parseLoopsYaml(text12);
+  const { data, error: error2 } = parseLoopsYaml(text13);
   if (error2 !== null)
     return { data: null, errors: [`loops.yaml: ${error2}`] };
   if (data === null || typeof data !== "object" || Array.isArray(data)) {
@@ -10122,13 +10122,13 @@ function checkSha2562(value, key, path15, errors, optional = false) {
       errors.push(`${path15}.${key}: \u7F3A\u5931\uFF08\u5FC5\u586B sha256\uFF09`);
     return;
   }
-  const digest18 = value[key];
-  if (typeof digest18 !== "string") {
-    errors.push(`${path15}.${key}: \u5E94\u4E3A string\uFF0C\u5B9E\u5F97 ${typeName2(digest18)}`);
+  const digest19 = value[key];
+  if (typeof digest19 !== "string") {
+    errors.push(`${path15}.${key}: \u5E94\u4E3A string\uFF0C\u5B9E\u5F97 ${typeName2(digest19)}`);
     return;
   }
-  if (!SHA256_HEX_RE.test(digest18)) {
-    errors.push(`${path15}.${key}: \u5E94\u4E3A 64 \u4F4D\u5C0F\u5199\u5341\u516D\u8FDB\u5236 sha256\uFF0C\u5B9E\u5F97 ${JSON.stringify(digest18)}`);
+  if (!SHA256_HEX_RE.test(digest19)) {
+    errors.push(`${path15}.${key}: \u5E94\u4E3A 64 \u4F4D\u5C0F\u5199\u5341\u516D\u8FDB\u5236 sha256\uFF0C\u5B9E\u5F97 ${JSON.stringify(digest19)}`);
   }
 }
 function checkPattern(value, key, pattern, path15, errors) {
@@ -10590,17 +10590,17 @@ function parseTimestamp(raw, now) {
 function sameUTCDate(a, b) {
   return a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth() && a.getUTCDate() === b.getUTCDate();
 }
-function parseProgress(text12, loopIds, now) {
+function parseProgress(text13, loopIds, now) {
   const result2 = /* @__PURE__ */ new Map();
   for (const id2 of loopIds)
     result2.set(id2, emptyParsed());
-  if (text12 === null)
+  if (text13 === null)
     return result2;
   const known = new Set(loopIds);
   const rowsByLoop = /* @__PURE__ */ new Map();
   for (const id2 of loopIds)
     rowsByLoop.set(id2, []);
-  for (const rawLine of text12.split("\n")) {
+  for (const rawLine of text13.split("\n")) {
     const line = rawLine.trim();
     if (!line.startsWith("|"))
       continue;
@@ -10738,12 +10738,12 @@ function countInFlight(fs, repoRoot, changePrefix) {
     return { count: 0, notes };
   let count3 = 0;
   for (const name2 of fs.listChanges(repoRoot, changePrefix)) {
-    const fields = fs.readChangeFields(repoRoot, name2);
-    if (fields === null) {
+    const fields2 = fs.readChangeFields(repoRoot, name2);
+    if (fields2 === null) {
       notes.push(`${name2}: \u7F3A/\u574F .pipeline.yaml\uFF0C\u8BA1\u5165 in_flight=0`);
       continue;
     }
-    const automation = fields.automation;
+    const automation = fields2.automation;
     if (automation === void 0) {
       notes.push(`${name2}: automation \u5B57\u6BB5\u7F3A\u5931\uFF0C\u8BA1\u5165 in_flight=0`);
       continue;
@@ -10848,12 +10848,12 @@ function parseTimestamp2(raw, now) {
 function sameUTCDate2(a, b) {
   return a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth() && a.getUTCDate() === b.getUTCDate();
 }
-function sumRunLogTokens(text12, loopId, now) {
-  if (text12 === null)
+function sumRunLogTokens(text13, loopId, now) {
+  if (text13 === null)
     return { spentToday: 0, runsToday: 0 };
   let spentToday = 0;
   let runsToday = 0;
-  for (const rawLine of text12.split("\n")) {
+  for (const rawLine of text13.split("\n")) {
     const line = rawLine.trim();
     if (!line.startsWith("|"))
       continue;
@@ -11390,9 +11390,9 @@ function createLoopLedgerStore() {
     });
   }
   async function read3(repoRoot) {
-    let text12;
+    let text13;
     try {
-      text12 = await readFile8(ledgerFilePath(repoRoot), "utf8");
+      text13 = await readFile8(ledgerFilePath(repoRoot), "utf8");
     } catch (e) {
       if (e.code === "ENOENT")
         return { records: [], rejected: [] };
@@ -11400,7 +11400,7 @@ function createLoopLedgerStore() {
     }
     const records = [];
     const rejected = [];
-    const lines2 = text12.split("\n");
+    const lines2 = text13.split("\n");
     for (let i = 0; i < lines2.length; i++) {
       const raw = required(lines2[i]);
       if (raw.trim() === "") {
@@ -11691,14 +11691,14 @@ var LEGACY_IMPORT_PROTECTED_FIELDS = [
   ...REVIEW_GATE_FIELDS
 ];
 function mergeLegacyImportFields(legacy, current) {
-  const fields = structuredClone(legacy);
+  const fields2 = structuredClone(legacy);
   const ignoredProtectedFields = [];
   for (const field4 of LEGACY_IMPORT_PROTECTED_FIELDS) {
     if (JSON.stringify(legacy[field4]) !== JSON.stringify(current[field4]))
       ignoredProtectedFields.push(field4);
-    fields[field4] = structuredClone(current[field4]);
+    fields2[field4] = structuredClone(current[field4]);
   }
-  return { fields, ignoredProtectedFields };
+  return { fields: fields2, ignoredProtectedFields };
 }
 
 // packages/kernel/dist/state/parse.js
@@ -11717,11 +11717,11 @@ function unquoteScalar(s) {
   return s;
 }
 function emptyFields() {
-  const fields = {};
+  const fields2 = {};
   for (const f of FIELD_ORDER) {
-    fields[f] = f === "workflow" ? "default" : f === PRE_VERIFY_REVIEW_FIELD ? PRE_VERIFY_REVIEW_DEFAULT : REVIEW_GATE_FIELD_SET.has(f) ? REVIEW_GATE_FIELD_DEFAULTS[f] : "";
+    fields2[f] = f === "workflow" ? "default" : f === PRE_VERIFY_REVIEW_FIELD ? PRE_VERIFY_REVIEW_DEFAULT : REVIEW_GATE_FIELD_SET.has(f) ? REVIEW_GATE_FIELD_DEFAULTS[f] : "";
   }
-  return fields;
+  return fields2;
 }
 function quoteGate(field4, value) {
   if (value.includes("\n") || value.includes("\r")) {
@@ -11740,7 +11740,7 @@ function quoteGate(field4, value) {
 }
 function parsePipeline(content) {
   const lines2 = content.split("\n");
-  const fields = emptyFields();
+  const fields2 = emptyFields();
   let i = 0;
   while (i < lines2.length) {
     const line = lines2[i] ?? "";
@@ -11760,14 +11760,14 @@ function parsePipeline(content) {
           items.push(unquoteScalar((lines2[i] ?? "").slice(LIST_ITEM_PREFIX.length).trim()));
           i++;
         }
-        fields[field4] = items;
+        fields2[field4] = items;
       } else if (rest === "[]") {
-        fields[field4] = [];
+        fields2[field4] = [];
       } else {
-        fields[field4] = unquoteScalar(rest);
+        fields2[field4] = unquoteScalar(rest);
       }
     } else {
-      fields[field4] = unquoteScalar(rest);
+      fields2[field4] = unquoteScalar(rest);
     }
   }
   const { metadata, consumedLines } = parseRunMetadataLines(lines2.slice(i));
@@ -11775,7 +11775,7 @@ function parsePipeline(content) {
   const projection = parseProjectionMetadataLines(lines2.slice(i));
   i += projection.consumedLines;
   return {
-    fields,
+    fields: fields2,
     ...metadata === void 0 ? {} : { runMetadata: metadata },
     ...projection.metadata === void 0 ? {} : { projectionMetadata: projection.metadata },
     opaqueTail: lines2.slice(i).join("\n")
@@ -12667,11 +12667,11 @@ function repoRelative(value, path15, id2) {
   return value;
 }
 function testOutputPath(value, path15, id2) {
-  const relative40 = repoRelative(value, path15, id2);
-  if (!relative40.split("/").some((segment) => TEST_OUTPUT_DIR_SEGMENTS.includes(segment))) {
-    compileError4(path15, `\u6D4B\u8BD5 '${id2}' \u7684\u8F93\u51FA '${relative40}' \u5FC5\u987B\u4F4D\u4E8E ${TEST_OUTPUT_DIR_SEGMENTS.join("/\u3001")}/ \u76EE\u5F55\u4E0B`);
+  const relative42 = repoRelative(value, path15, id2);
+  if (!relative42.split("/").some((segment) => TEST_OUTPUT_DIR_SEGMENTS.includes(segment))) {
+    compileError4(path15, `\u6D4B\u8BD5 '${id2}' \u7684\u8F93\u51FA '${relative42}' \u5FC5\u987B\u4F4D\u4E8E ${TEST_OUTPUT_DIR_SEGMENTS.join("/\u3001")}/ \u76EE\u5F55\u4E0B`);
   }
-  return relative40;
+  return relative42;
 }
 function compileInput(raw, path15, id2) {
   const record9 = asRecord4(raw, path15);
@@ -13096,13 +13096,13 @@ function compileStepTestPolicy(raw, path15) {
   rejectExtraKeys5(record9, POLICY_KEYS, path15);
   const plan = choice(record9.plan, `${path15}.plan`, ["required", "optional"], "required");
   const required3 = kinds(record9.kinds, `${path15}.kinds`);
-  const run5 = kinds(record9.run, `${path15}.run`);
+  const run6 = kinds(record9.run, `${path15}.run`);
   const optional = kinds(record9.run_if_registered, `${path15}.run_if_registered`);
-  const overlap = optional.find((kind) => run5.includes(kind));
+  const overlap = optional.find((kind) => run6.includes(kind));
   if (overlap !== void 0)
     compileError5(`${path15}.run_if_registered`, `\u79CD\u7C7B '${overlap}' \u5DF2\u5728 run \u4E2D\u5FC5\u8DD1\uFF0C\u4E0D\u80FD\u540C\u65F6\u662F\u300C\u6709\u5219\u8DD1\u300D`);
   const scenarios = choice(record9.scenarios, `${path15}.scenarios`, ["off", "required", "passing"], "off");
-  if (plan === "optional" && (required3.length > 0 || run5.length > 0 || scenarios !== "off")) {
+  if (plan === "optional" && (required3.length > 0 || run6.length > 0 || scenarios !== "off")) {
     compileError5(`${path15}.plan`, "kinds / run / scenarios \u90FD\u4F9D\u8D56\u6D4B\u8BD5\u8BA1\u5212\uFF0C\u4E0D\u80FD\u4E0E plan: optional \u540C\u7528");
   }
   const coverageIr = coverage(record9.coverage, `${path15}.coverage`);
@@ -13110,7 +13110,7 @@ function compileStepTestPolicy(raw, path15) {
   return {
     plan,
     kinds: required3,
-    run: run5,
+    run: run6,
     run_if_registered: optional,
     scope: choice(record9.scope, `${path15}.scope`, ["changed", "full"], "full"),
     files: choice(record9.files, `${path15}.files`, ["registered", "any"], "any"),
@@ -13799,20 +13799,20 @@ function parseWhenBlock(cur, whenIndent) {
 
 // packages/kernel/dist/workflow/parse-document-contract.js
 var SLOT_ROLES = ["produce", "update", "require"];
-function buildSlot(kind, fields) {
-  for (const key of Object.keys(fields)) {
+function buildSlot(kind, fields2) {
+  for (const key of Object.keys(fields2)) {
     if (key !== "kind" && key !== "owner_step" && key !== "role" && key !== "producers") {
       throw new Error(`workflow \u89E3\u6790\u9519\u8BEF\uFF1Adocument slot '${kind}' \u51FA\u73B0\u672A\u77E5\u5B57\u6BB5 '${key}'`);
     }
   }
-  const ownerStep = fields.owner_step;
+  const ownerStep = fields2.owner_step;
   if (typeof ownerStep !== "string" || ownerStep === "")
     throw new Error(`workflow \u89E3\u6790\u9519\u8BEF\uFF1Adocument slot '${kind}' \u7F3A owner_step`);
-  const role = fields.role ?? "produce";
+  const role = fields2.role ?? "produce";
   if (typeof role !== "string" || !SLOT_ROLES.includes(role)) {
     throw new Error(`workflow \u89E3\u6790\u9519\u8BEF\uFF1Adocument slot '${kind}' \u7684 role \u53EA\u652F\u6301 produce | update | require`);
   }
-  const producers = fields.producers;
+  const producers = fields2.producers;
   if (producers !== void 0 && !Array.isArray(producers)) {
     throw new Error(`workflow \u89E3\u6790\u9519\u8BEF\uFF1Adocument slot '${kind}' \u7684 producers \u5FC5\u987B\u662F [a, b] \u5217\u8868`);
   }
@@ -13838,11 +13838,11 @@ function parseSlots(cursor, baseIndent) {
       break;
     const flowMatch = /^\s*-\s+(\{.*\})\s*$/.exec(line);
     if (flowMatch) {
-      const fields2 = parseInlineMap(flowMatch[1] ?? "");
-      const kind2 = fields2.kind;
+      const fields3 = parseInlineMap(flowMatch[1] ?? "");
+      const kind2 = fields3.kind;
       if (typeof kind2 !== "string")
         throw new Error(`workflow \u89E3\u6790\u9519\u8BEF\uFF1Adocument slot \u7F3A kind\uFF1A'${line.trim()}'`);
-      slots.push(buildSlot(kind2, fields2));
+      slots.push(buildSlot(kind2, fields3));
       cursor.i++;
       continue;
     }
@@ -13852,7 +13852,7 @@ function parseSlots(cursor, baseIndent) {
     const kind = kindMatch[1] ?? "";
     const itemIndent = indentOf(line);
     cursor.i++;
-    const fields = {};
+    const fields2 = {};
     while (cursor.i < cursor.lines.length) {
       const child = cursor.lines[cursor.i] ?? "";
       if (child.trim() === "") {
@@ -13865,13 +13865,13 @@ function parseSlots(cursor, baseIndent) {
       if (!fieldMatch)
         throw new Error(`workflow \u89E3\u6790\u9519\u8BEF\uFF1Adocument slot '${kind}' \u51FA\u73B0\u672A\u77E5\u5B57\u6BB5\u884C '${child.trim()}'`);
       const key = fieldMatch[1] ?? "";
-      if (Object.hasOwn(fields, key))
+      if (Object.hasOwn(fields2, key))
         throw new Error(`workflow \u89E3\u6790\u9519\u8BEF\uFF1Adocument slot '${kind}' \u91CD\u590D\u58F0\u660E ${key}`);
       const value = fieldMatch[2] ?? "";
-      fields[key] = key === "producers" ? parseInlineList(value) : value;
+      fields2[key] = key === "producers" ? parseInlineList(value) : value;
       cursor.i++;
     }
-    slots.push(buildSlot(kind, fields));
+    slots.push(buildSlot(kind, fields2));
   }
   return slots;
 }
@@ -13889,16 +13889,16 @@ function parseReads(cursor, baseIndent) {
     let step;
     let kinds2;
     if (flowMatch) {
-      const fields = parseInlineMap(flowMatch[1] ?? "");
-      const unknown = Object.keys(fields).find((key) => key !== "step" && key !== "kinds");
+      const fields2 = parseInlineMap(flowMatch[1] ?? "");
+      const unknown = Object.keys(fields2).find((key) => key !== "step" && key !== "kinds");
       if (unknown !== void 0)
         throw new Error(`workflow \u89E3\u6790\u9519\u8BEF\uFF1Adocument read \u51FA\u73B0\u672A\u77E5\u5B57\u6BB5 '${unknown}'`);
-      if (typeof fields.step !== "string")
+      if (typeof fields2.step !== "string")
         throw new Error(`workflow \u89E3\u6790\u9519\u8BEF\uFF1Adocument read \u7F3A step\uFF1A'${line.trim()}'`);
-      step = fields.step;
-      if (!Array.isArray(fields.kinds))
+      step = fields2.step;
+      if (!Array.isArray(fields2.kinds))
         throw new Error(`workflow \u89E3\u6790\u9519\u8BEF\uFF1Adocument read '${step}' \u7F3A kinds`);
-      kinds2 = fields.kinds;
+      kinds2 = fields2.kinds;
       cursor.i++;
     } else {
       const stepMatch = /^\s*-\s+step:\s*(\S+)\s*$/.exec(line);
@@ -14120,29 +14120,29 @@ function list(value) {
     return void 0;
   return Array.isArray(value) ? [...value] : parseInlineList(`${value}`);
 }
-function executorFrom(fields, where) {
-  for (const key of Object.keys(fields))
+function executorFrom(fields2, where) {
+  for (const key of Object.keys(fields2))
     if (!EXECUTOR_KEYS2.includes(key))
       fail(`${where} \u51FA\u73B0\u672A\u77E5\u5B57\u6BB5 '${key}'`);
-  const agent = fields.agent;
+  const agent = fields2.agent;
   if (typeof agent !== "string" || agent === "")
     fail(`${where} \u7F3A agent`);
-  const dependsOn = list(fields.depends_on);
+  const dependsOn = list(fields2.depends_on);
   return { agent, ...dependsOn === void 0 ? {} : { depends_on: dependsOn } };
 }
-function reviewerFrom(fields, where) {
-  for (const key of Object.keys(fields))
+function reviewerFrom(fields2, where) {
+  for (const key of Object.keys(fields2))
     if (!REVIEWER_KEYS2.includes(key))
       fail(`${where} \u51FA\u73B0\u672A\u77E5\u5B57\u6BB5 '${key}'`);
-  const agent = fields.agent;
+  const agent = fields2.agent;
   if (typeof agent !== "string" || agent === "")
     fail(`${where} \u7F3A agent`);
-  const dependsOn = list(fields.depends_on);
-  const readsTests = list(fields.reads_tests);
+  const dependsOn = list(fields2.depends_on);
+  const readsTests = list(fields2.reads_tests);
   return {
     agent,
-    required: typeof fields.required === "string" ? boolean2(fields.required, where) : true,
-    block_at: typeof fields.block_at === "string" ? severity(fields.block_at, where) : "high",
+    required: typeof fields2.required === "string" ? boolean2(fields2.required, where) : true,
+    block_at: typeof fields2.block_at === "string" ? severity(fields2.block_at, where) : "high",
     ...dependsOn === void 0 ? {} : { depends_on: dependsOn },
     ...readsTests === void 0 ? {} : { reads_tests: readsTests }
   };
@@ -14168,7 +14168,7 @@ function parseRefs(cur, baseIndent, role, build2) {
       break;
     const itemIndent = indentOf(line);
     cur.i++;
-    const fields = { agent: lead[1] ?? "" };
+    const fields2 = { agent: lead[1] ?? "" };
     while (cur.i < cur.lines.length) {
       const next = cur.lines[cur.i] ?? "";
       if (next.trim() === "") {
@@ -14181,12 +14181,12 @@ function parseRefs(cur, baseIndent, role, build2) {
       if (!field4)
         fail(`${role}[${items.length}] \u51FA\u73B0\u672A\u77E5\u5B57\u6BB5\u884C '${next.trim()}'`);
       const key = field4?.[1] ?? "";
-      if (Object.hasOwn(fields, key))
+      if (Object.hasOwn(fields2, key))
         fail(`${role}[${items.length}] \u91CD\u590D\u58F0\u660E ${key}`);
-      fields[key] = field4?.[2] ?? "";
+      fields2[key] = field4?.[2] ?? "";
       cur.i++;
     }
-    items.push(build2(fields, `${role}[${items.length}]`));
+    items.push(build2(fields2, `${role}[${items.length}]`));
   }
   return items;
 }
@@ -14434,7 +14434,7 @@ function parseTestBody(id2, cur, itemIndent) {
       fail2(`\u6D4B\u8BD5 '${id2}' \u91CD\u590D\u58F0\u660E ${key}`);
     seen.add(key);
   };
-  const fields = {};
+  const fields2 = {};
   while (cur.i < cur.lines.length) {
     const line = cur.lines[cur.i] ?? "";
     if (line.trim() === "") {
@@ -14447,7 +14447,7 @@ function parseTestBody(id2, cur, itemIndent) {
     if (scalar26) {
       const key = scalar26[1] ?? "";
       once(key);
-      fields[key] = parseScalar2(scalar26[2] ?? "");
+      fields2[key] = parseScalar2(scalar26[2] ?? "");
       cur.i++;
       continue;
     }
@@ -14455,14 +14455,14 @@ function parseTestBody(id2, cur, itemIndent) {
     if (numeric) {
       const key = numeric[1] ?? "";
       once(key);
-      fields[key] = integer2(numeric[2] ?? "", `\u6D4B\u8BD5 '${id2}' \u7684 ${key}`);
+      fields2[key] = integer2(numeric[2] ?? "", `\u6D4B\u8BD5 '${id2}' \u7684 ${key}`);
       cur.i++;
       continue;
     }
     const flag2 = /^\s*required:\s*(\S+)\s*$/.exec(line);
     if (flag2) {
       once("required");
-      fields.required = boolean3(flag2[1] ?? "", `\u6D4B\u8BD5 '${id2}' \u7684 required`);
+      fields2.required = boolean3(flag2[1] ?? "", `\u6D4B\u8BD5 '${id2}' \u7684 required`);
       cur.i++;
       continue;
     }
@@ -14470,12 +14470,12 @@ function parseTestBody(id2, cur, itemIndent) {
       once("pass");
       const pi = indentOf(line);
       cur.i++;
-      fields.pass = parsePass(cur, pi, id2);
+      fields2.pass = parsePass(cur, pi, id2);
       continue;
     }
     if (/^\s*inputs:\s*\[\]\s*$/.test(line)) {
       once("inputs");
-      fields.inputs = [];
+      fields2.inputs = [];
       cur.i++;
       continue;
     }
@@ -14483,12 +14483,12 @@ function parseTestBody(id2, cur, itemIndent) {
       once("inputs");
       const blockIndent = indentOf(line);
       cur.i++;
-      fields.inputs = parseItems(cur, blockIndent, "kind", parseInput);
+      fields2.inputs = parseItems(cur, blockIndent, "kind", parseInput);
       continue;
     }
     if (/^\s*outputs:\s*\[\]\s*$/.test(line)) {
       once("outputs");
-      fields.outputs = [];
+      fields2.outputs = [];
       cur.i++;
       continue;
     }
@@ -14496,16 +14496,16 @@ function parseTestBody(id2, cur, itemIndent) {
       once("outputs");
       const blockIndent = indentOf(line);
       cur.i++;
-      fields.outputs = parseItems(cur, blockIndent, "path", parseOutput);
+      fields2.outputs = parseItems(cur, blockIndent, "path", parseOutput);
       continue;
     }
     fail2(`\u6D4B\u8BD5 '${id2}' \u51FA\u73B0\u672A\u77E5\u5B57\u6BB5\u884C '${line.trim()}'`);
   }
-  if (fields.direction === void 0)
+  if (fields2.direction === void 0)
     fail2(`\u6D4B\u8BD5 '${id2}' \u7F3A direction`);
-  if (fields.command === void 0)
+  if (fields2.command === void 0)
     fail2(`\u6D4B\u8BD5 '${id2}' \u7F3A command`);
-  return { id: id2, ...fields };
+  return { id: id2, ...fields2 };
 }
 function parseStepTests(cur, baseIndent) {
   return parseItems(cur, baseIndent, "id", parseTestBody);
@@ -16159,7 +16159,7 @@ function effectiveWorkflowPlanFromSnapshot(snapshot2, track) {
     throw new DocumentGovernanceBindingError("workflow plan snapshot \u5F62\u72B6\u975E\u6CD5");
   }
   if (snapshot2.version === 1 || snapshot2.version === 2) {
-    return restoreLegacyWorkflowPlan(snapshot2, track, documentGovernanceFingerprint, (workflow2, policy2, fingerprint, frozenTrack) => planFromIr(snapshot2.workflowId, snapshot2.executionModel, workflow2, frozenTrack, policy2, fingerprint), (message2) => {
+    return restoreLegacyWorkflowPlan(snapshot2, track, documentGovernanceFingerprint, (workflow2, policy2, fingerprint2, frozenTrack) => planFromIr(snapshot2.workflowId, snapshot2.executionModel, workflow2, frozenTrack, policy2, fingerprint2), (message2) => {
       throw new DocumentGovernanceBindingError(message2);
     });
   }
@@ -16332,56 +16332,56 @@ function initialRunMetadata(opts) {
   };
 }
 function initialFields(opts, timestamp2, baseBranch, createdBy) {
-  const fields = emptyFields();
-  fields.track = opts.track;
-  fields.preset = opts.preset;
-  fields.created_by = createdBy;
-  fields.assignee = createdBy;
-  fields.phase = opts.initialWorkflow?.phase ?? "open";
-  fields.phase_status = "pending";
-  fields.design_doc = "null";
-  fields.plan = "null";
-  fields.verification_report = "null";
-  fields.build_mode = "null";
-  fields.isolation = "null";
-  fields.build_sha = "null";
-  fields.agent_review_result = opts.reviewSeed;
-  fields.codex_review_result = opts.reviewSeed;
-  fields.verify_result = "pending";
-  fields.branch_status = "pending";
-  fields.pre_verify_review_result = "pending";
-  fields.direct_override = "false";
-  fields.prd_path = "null";
-  fields.pr_url = "null";
-  fields.automation = "off";
-  fields.automation_queued_at = "";
-  fields.automation_sandbox = "";
-  fields.automation_worktree = "";
-  fields.automation_attempts = "0";
-  fields.automation_last_error = "";
-  fields.automation_preserved_path = "";
-  fields.branch = "null";
-  fields.base_branch = baseBranch;
-  fields.scope = "null";
-  fields.related_files = "null";
-  fields.spec_scope = "null";
-  fields.depends_on = "null";
-  fields.created_at = timestamp2;
-  fields.updated_at = timestamp2;
-  fields.verified_at = "null";
-  fields.archived_at = "null";
-  fields.archived = "false";
+  const fields2 = emptyFields();
+  fields2.track = opts.track;
+  fields2.preset = opts.preset;
+  fields2.created_by = createdBy;
+  fields2.assignee = createdBy;
+  fields2.phase = opts.initialWorkflow?.phase ?? "open";
+  fields2.phase_status = "pending";
+  fields2.design_doc = "null";
+  fields2.plan = "null";
+  fields2.verification_report = "null";
+  fields2.build_mode = "null";
+  fields2.isolation = "null";
+  fields2.build_sha = "null";
+  fields2.agent_review_result = opts.reviewSeed;
+  fields2.codex_review_result = opts.reviewSeed;
+  fields2.verify_result = "pending";
+  fields2.branch_status = "pending";
+  fields2.pre_verify_review_result = "pending";
+  fields2.direct_override = "false";
+  fields2.prd_path = "null";
+  fields2.pr_url = "null";
+  fields2.automation = "off";
+  fields2.automation_queued_at = "";
+  fields2.automation_sandbox = "";
+  fields2.automation_worktree = "";
+  fields2.automation_attempts = "0";
+  fields2.automation_last_error = "";
+  fields2.automation_preserved_path = "";
+  fields2.branch = "null";
+  fields2.base_branch = baseBranch;
+  fields2.scope = "null";
+  fields2.related_files = "null";
+  fields2.spec_scope = "null";
+  fields2.depends_on = "null";
+  fields2.created_at = timestamp2;
+  fields2.updated_at = timestamp2;
+  fields2.verified_at = "null";
+  fields2.archived_at = "null";
+  fields2.archived = "false";
   if (opts.initialWorkflow)
-    fields.workflow = opts.initialWorkflow.workflow;
-  fields.automation_current_phase = "";
-  fields.automation_cause = "";
-  fields.review_gate_phase = "";
-  fields.review_gate_status = "";
-  fields.review_gate_event = "";
-  fields.review_requested_at = "";
-  fields.review_acknowledged_at = "";
-  fields.review_acknowledged_via = "unknown";
-  return fields;
+    fields2.workflow = opts.initialWorkflow.workflow;
+  fields2.automation_current_phase = "";
+  fields2.automation_cause = "";
+  fields2.review_gate_phase = "";
+  fields2.review_gate_status = "";
+  fields2.review_gate_event = "";
+  fields2.review_requested_at = "";
+  fields2.review_acknowledged_at = "";
+  fields2.review_acknowledged_via = "unknown";
+  return fields2;
 }
 
 // packages/kernel/dist/state/document-locale.js
@@ -16539,10 +16539,10 @@ function parseWorkflowPlanSnapshot(raw) {
     interaction: plan.interaction,
     workflowFingerprint: plan.workflowFingerprint
   };
-  const digest18 = sha256Hex(JSON.stringify(snapshot2));
-  if (!verifiedPlans.has(digest18)) {
+  const digest19 = sha256Hex(JSON.stringify(snapshot2));
+  if (!verifiedPlans.has(digest19)) {
     effectiveWorkflowPlanFromSnapshot(snapshot2);
-    verifiedPlans.add(digest18);
+    verifiedPlans.add(digest19);
     if (verifiedPlans.size > VERIFIED_PLANS_LIMIT) {
       const oldest = verifiedPlans.values().next().value;
       if (oldest !== void 0)
@@ -17955,17 +17955,17 @@ function eachMatches(values, re, field4) {
       fail5(`${field4} \u7684 '${value}' \u975E\u6CD5`, field4);
   return values;
 }
-function parseAgentFile(text12, expectedName) {
-  if (new TextEncoder().encode(text12).length > AGENT_FILE_MAX_BYTES) {
+function parseAgentFile(text13, expectedName) {
+  if (new TextEncoder().encode(text13).length > AGENT_FILE_MAX_BYTES) {
     fail5(`agent \u6587\u4EF6\u8D85\u8FC7 ${AGENT_FILE_MAX_BYTES} \u5B57\u8282`);
   }
-  const lines2 = text12.split("\n");
+  const lines2 = text13.split("\n");
   if ((lines2[0] ?? "") !== "---")
     fail5("\u9996\u884C\u5FC5\u987B\u662F ---");
   const close = lines2.indexOf("---", 1);
   if (close < 0)
     fail5("frontmatter \u7F3A\u5C11\u7ED3\u675F\u7684 ---");
-  const fields = /* @__PURE__ */ new Map();
+  const fields2 = /* @__PURE__ */ new Map();
   for (let index = 1; index < close; index++) {
     const line = lines2[index] ?? "";
     if (line.trim() === "")
@@ -17976,31 +17976,31 @@ function parseAgentFile(text12, expectedName) {
     const key = match[1] ?? "";
     if (!KEYS.includes(key))
       fail5(`frontmatter \u51FA\u73B0\u672A\u77E5\u5B57\u6BB5 '${key}'\uFF08\u95ED\u96C6\uFF1A${KEYS.join("/")}\uFF09`, key);
-    if (fields.has(key))
+    if (fields2.has(key))
       fail5(`frontmatter \u91CD\u590D\u58F0\u660E '${key}'`, key);
-    fields.set(key, match[2] ?? "");
+    fields2.set(key, match[2] ?? "");
   }
-  const name2 = fields.get("name") ?? "";
+  const name2 = fields2.get("name") ?? "";
   if (!AGENT_NAME_RE.test(name2))
     fail5("name \u975E\u6CD5\uFF08\u4EC5\u5141\u8BB8\u5C0F\u5199\u5B57\u6BCD\u3001\u6570\u5B57\u4E0E -\uFF09", "name");
   if (name2 !== expectedName)
     fail5(`frontmatter name \u4E0E\u6587\u4EF6\u540D\u4E0D\u4E00\u81F4\uFF08'${name2}' \u2260 '${expectedName}'\uFF09`, "name");
-  const description = fields.get("description") ?? "";
+  const description = fields2.get("description") ?? "";
   if (description === "" || description.length > AGENT_DESCRIPTION_MAX) {
     fail5(`description \u5FC5\u987B\u662F 1\u2013${AGENT_DESCRIPTION_MAX} \u5B57\u7684\u4E00\u884C`, "description");
   }
-  const skills = eachMatches(inlineList2(fields.get("skills") ?? "[]", "skills"), AGENT_SKILL_RE, "skills");
-  const tools = eachMatches(inlineList2(fields.get("tools") ?? "[]", "tools"), AGENT_TOOL_RE, "tools");
-  const rawRole = fields.get("role");
+  const skills = eachMatches(inlineList2(fields2.get("skills") ?? "[]", "skills"), AGENT_SKILL_RE, "skills");
+  const tools = eachMatches(inlineList2(fields2.get("tools") ?? "[]", "tools"), AGENT_TOOL_RE, "tools");
+  const rawRole = fields2.get("role");
   if (rawRole !== void 0 && !isRole(rawRole))
     fail5(`role \u5FC5\u987B\u662F ${AGENT_ROLES.join(" | ")}`, "role");
-  const version = fields.get("version");
+  const version = fields2.get("version");
   if (version !== void 0 && !AGENT_VERSION_RE.test(version))
     fail5(`version '${version}' \u4E0D\u662F semver`, "version");
-  const model = fields.get("model");
+  const model = fields2.get("model");
   if (model !== void 0 && !AGENT_MODEL_RE.test(model))
     fail5(`model '${model}' \u975E\u6CD5`, "model");
-  const rawHosts = fields.get("hosts");
+  const rawHosts = fields2.get("hosts");
   const hosts = rawHosts === void 0 ? void 0 : inlineList2(rawHosts, "hosts");
   for (const host of hosts ?? []) {
     if (!KNOWN_AGENT_HOSTS.includes(host))
@@ -18022,8 +18022,8 @@ function parseAgentFile(text12, expectedName) {
     body
   };
 }
-function agentDigest(text12) {
-  return `sha256:${sha256Hex(text12)}`;
+function agentDigest(text13) {
+  return `sha256:${sha256Hex(text13)}`;
 }
 
 // packages/kernel/dist/state/agent-freeze.js
@@ -18052,10 +18052,10 @@ function agentsReferenced(workflow) {
 var frozenRoot = (changeDir7) => join21(changeDir7, FROZEN_DIR);
 var lockPath = (changeDir7) => join21(frozenRoot(changeDir7), FROZEN_LOCK_FILE);
 var agentPath = (changeDir7, name2) => join21(frozenRoot(changeDir7), FROZEN_AGENTS_DIR, `${name2}.md`);
-function decodeLock(text12) {
+function decodeLock(text13) {
   let value;
   try {
-    value = JSON.parse(text12);
+    value = JSON.parse(text13);
   } catch {
     throw new AgentFreezeError("freeze-corrupt", "agent \u51BB\u7ED3\u9501\u4E0D\u662F\u5408\u6CD5 JSON");
   }
@@ -18251,10 +18251,10 @@ function decodeRow(value) {
     return void 0;
   const findings = [];
   for (const item2 of record9.findings) {
-    const finding2 = decodeFinding(item2);
-    if (finding2 === void 0)
+    const finding3 = decodeFinding(item2);
+    if (finding3 === void 0)
       return void 0;
-    findings.push(finding2);
+    findings.push(finding3);
   }
   const actor3 = decodeRecordActor(record9.actor);
   if (actor3 === null || actor3 === void 0)
@@ -18319,8 +18319,8 @@ async function appendAgentRunRow(changeDir7, row2) {
 `, "utf8");
 }
 var RESULT_BLOCK_RE = /^[\s\S]*```tenon-result\s*\n([\s\S]*?)\n?```\s*$/;
-function parseAgentReport(text12, role) {
-  const match = RESULT_BLOCK_RE.exec(text12.trimEnd());
+function parseAgentReport(text13, role) {
+  const match = RESULT_BLOCK_RE.exec(text13.trimEnd());
   if (!match)
     throw new AgentRunError("report-invalid", "\u62A5\u544A\u672B\u5C3E\u7F3A\u5C11 tenon-result \u4EE3\u7801\u5757");
   let value;
@@ -18345,10 +18345,10 @@ function parseAgentReport(text12, role) {
   }
   const findings = [];
   for (const item2 of rawFindings) {
-    const finding2 = decodeFinding(item2);
-    if (finding2 === void 0)
+    const finding3 = decodeFinding(item2);
+    if (finding3 === void 0)
       throw new AgentRunError("report-invalid", "findings \u6761\u76EE\u5F62\u72B6\u975E\u6CD5");
-    findings.push(finding2);
+    findings.push(finding3);
   }
   if (role === "reviewer")
     return { findings };
@@ -18934,9 +18934,9 @@ var PATTERNS = DOCUMENT_LOCALES.flatMap((locale) => localePatterns(locale));
 function findDocumentPlaceholders(content) {
   const found = [];
   const lines2 = content.split("\n");
-  for (const [index, text12] of lines2.entries()) {
-    if (PATTERNS.some((pattern) => pattern.test(text12)))
-      found.push({ line: index + 1, text: text12.trim() });
+  for (const [index, text13] of lines2.entries()) {
+    if (PATTERNS.some((pattern) => pattern.test(text13)))
+      found.push({ line: index + 1, text: text13.trim() });
   }
   return found;
 }
@@ -18972,16 +18972,16 @@ function string3(value) {
   return typeof value === "string" ? value : void 0;
 }
 async function hasSkillEvidence(changeDir7, producer, phase, allowEarlierPhaseEvidence) {
-  let text12;
+  let text13;
   try {
-    text12 = await readFile16(join23(changeDir7, HISTORY_FILE), "utf8");
+    text13 = await readFile16(join23(changeDir7, HISTORY_FILE), "utf8");
   } catch (error2) {
     if (typeof error2 === "object" && error2 !== null && Reflect.get(error2, "code") === "ENOENT")
       return false;
     throw error2;
   }
   const entries2 = [];
-  for (const line of text12.split("\n")) {
+  for (const line of text13.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed)
       continue;
@@ -19188,8 +19188,8 @@ function item(kind, status, requiredRead, records, phase, currentVisitId, reason
     }))
   };
 }
-function receiptMatchesVisit(receipt, phase, digest18, visitId) {
-  return receipt.phase === phase && receipt.sha256 === digest18 && receipt.visitId === visitId;
+function receiptMatchesVisit(receipt, phase, digest19, visitId) {
+  return receipt.phase === phase && receipt.sha256 === digest19 && receipt.visitId === visitId;
 }
 async function evaluateDocumentEvidence(repoRoot, changeDir7, phase, scope, policy2) {
   let ledger;
@@ -19373,16 +19373,16 @@ async function readSpecApplyReceiptStatus(repoRoot, changeDir7) {
   for (const row2 of asArray6(receipt.deltas)) {
     const entry2 = asRecord7(row2);
     const path15 = asText(entry2?.path);
-    const digest18 = asText(entry2?.sha256);
-    if (path15 !== void 0 && digest18 !== void 0)
-      recorded.set(path15, digest18);
+    const digest19 = asText(entry2?.sha256);
+    if (path15 !== void 0 && digest19 !== void 0)
+      recorded.set(path15, digest19);
   }
   if (recorded.size !== deltas.length) {
     return { rehearsed: false, applied: false, mode, reason: "spec-apply-receipt-stale" };
   }
   for (const delta of deltas) {
-    const text12 = await readText(resolve6(repoRoot, delta));
-    if (text12 === null || recorded.get(delta) !== sha256Hex(text12)) {
+    const text13 = await readText(resolve6(repoRoot, delta));
+    if (text13 === null || recorded.get(delta) !== sha256Hex(text13)) {
       return { rehearsed: false, applied: false, mode, reason: "spec-apply-receipt-stale" };
     }
   }
@@ -19400,8 +19400,8 @@ async function readSpecApplyReceiptStatus(repoRoot, changeDir7) {
     if (path15 === void 0 || after === void 0) {
       return { rehearsed: true, applied: false, mode, reason: "spec-apply-target-invalid" };
     }
-    const text12 = await readText(resolve6(repoRoot, path15));
-    if (text12 === null || sha256Hex(text12) !== after) {
+    const text13 = await readText(resolve6(repoRoot, path15));
+    if (text13 === null || sha256Hex(text13) !== after) {
       return { rehearsed: true, applied: false, mode, reason: "main-spec-not-applied" };
     }
   }
@@ -19564,17 +19564,17 @@ function parseReviewMarker(content) {
   const lines2 = content.split("\n");
   if (lines2[0] !== REVIEW_MARKER_PROTOCOL)
     return null;
-  const fields = /* @__PURE__ */ new Map();
+  const fields2 = /* @__PURE__ */ new Map();
   for (const line of lines2.slice(1)) {
     const index = line.indexOf("=");
     if (index <= 0)
       break;
-    fields.set(line.slice(0, index), line.slice(index + 1));
+    fields2.set(line.slice(0, index), line.slice(index + 1));
   }
-  const phase = fields.get("phase") ?? "";
-  const changeName = fields.get("change") ?? "";
-  const event = fields.get("event") ?? "";
-  const requestedAt = fields.get("requested_at") ?? "";
+  const phase = fields2.get("phase") ?? "";
+  const changeName = fields2.get("change") ?? "";
+  const event = fields2.get("event") ?? "";
+  const requestedAt = fields2.get("requested_at") ?? "";
   if (phase === "" || changeName === "" || requestedAt === "")
     return null;
   return { phase, changeName, event, requestedAt };
@@ -19695,11 +19695,11 @@ function scalar3(state, field4) {
   return Array.isArray(value) ? value.join(",") : value;
 }
 function reviewGateDecisionStateDigest(state) {
-  const fields = { ...state.fields };
+  const fields2 = { ...state.fields };
   for (const field4 of REVIEW_GATE_FIELDS)
-    fields[field4] = "";
+    fields2[field4] = "";
   const canonical2 = {
-    fields,
+    fields: fields2,
     ...state.runMetadata === void 0 ? {} : { runMetadata: state.runMetadata },
     opaqueTail: state.opaqueTail
   };
@@ -19776,8 +19776,8 @@ var nodeReviewDecisionLedgerFs = {
       throw error2;
     }
   },
-  appendText: async (path15, text12) => {
-    await appendFile4(path15, text12, { encoding: "utf8", flag: "a", mode: 384 });
+  appendText: async (path15, text13) => {
+    await appendFile4(path15, text13, { encoding: "utf8", flag: "a", mode: 384 });
   }
 };
 
@@ -20100,10 +20100,10 @@ function evaluateGuard(state, ctx) {
       case "statefile": {
         if (changeDir7 === void 0)
           break;
-        const exists2 = ctx?.stateExists !== void 0 ? ctx.stateExists(changeDir7) : ctx?.fileNonempty?.(`${changeDir7}/.pipeline.yaml`);
-        if (exists2 === void 0)
+        const exists3 = ctx?.stateExists !== void 0 ? ctx.stateExists(changeDir7) : ctx?.fileNonempty?.(`${changeDir7}/.pipeline.yaml`);
+        if (exists3 === void 0)
           break;
-        if (!exists2) {
+        if (!exists3) {
           failures.push(`${phase} \u51FA\u53E3\uFF1A\u8981\u6C42 canonical \u72B6\u6001\u6587\u4EF6\u5B58\u5728\uFF08\u517C\u5BB9 legacy .pipeline.yaml\uFF09`);
         }
         break;
@@ -20375,8 +20375,8 @@ async function assessBuildRevisionTrust(request2) {
 }
 
 // packages/kernel/dist/workflow/guard-handlers.js
-function scalarValue(fields, k) {
-  const v = fields[k];
+function scalarValue(fields2, k) {
+  const v = fields2[k];
   if (Array.isArray(v)) {
     throw new Error(`guard \u8BFB\u5230\u5217\u8868\u5B57\u6BB5 '${k}' \u7684\u6570\u7EC4\u503C\uFF1Ascalar guard \u4E0D\u5B9A\u4E49\u5217\u8868\u8BED\u4E49\uFF0CcompileWorkflow \u7F16\u8BD1\u671F\u62D2\u7EDD\u5217\u8868\u5B57\u6BB5\u2014\u2014\u8FD0\u884C\u671F\u51FA\u73B0 = \u7ED5\u8FC7\u7F16\u8BD1\u5668`);
   }
@@ -20652,10 +20652,10 @@ function fstr(v) {
 function fieldStr(state, k) {
   return fstr(state.fields[k]);
 }
-function normalizeDefaultGuardFields(fields) {
+function normalizeDefaultGuardFields(fields2) {
   const out = {};
-  for (const k of Object.keys(fields)) {
-    out[k] = fstr(fields[k]);
+  for (const k of Object.keys(fields2)) {
+    out[k] = fstr(fields2[k]);
   }
   return out;
 }
@@ -20997,10 +20997,10 @@ function nonEmpty(value, label2) {
   return value;
 }
 function digest7(value, label2) {
-  const text12 = nonEmpty(value, label2);
-  if (!/^[0-9a-f]{64}$/.test(text12))
+  const text13 = nonEmpty(value, label2);
+  if (!/^[0-9a-f]{64}$/.test(text13))
     throw new Error(`${label2} must be a sha256 digest`);
-  return text12;
+  return text13;
 }
 function normalizedGrants(value, label2) {
   if (!Array.isArray(value) || value.some((item2) => typeof item2 !== "string" || !ACTIONS.has(item2)) || new Set(value).size !== value.length) {
@@ -21012,21 +21012,21 @@ function normalizedGrants(value, label2) {
 function fingerprintFor(core) {
   return createHash17("sha256").update(JSON.stringify(core)).digest("hex");
 }
-function freezeSnapshot(core, fingerprint) {
+function freezeSnapshot(core, fingerprint2) {
   const layers = core.layers.map((layer) => Object.freeze({
     ...layer,
     grants: Object.freeze([...layer.grants]),
     provenance: Object.freeze({ ...layer.provenance })
   }));
-  return Object.freeze({ ...core, layers: Object.freeze(layers), authorization_fingerprint: fingerprint });
+  return Object.freeze({ ...core, layers: Object.freeze(layers), authorization_fingerprint: fingerprint2 });
 }
 function validateCrossBindings(snapshot2) {
   const byLayer = new Map(snapshot2.layers.map((layer) => [layer.layer, layer]));
   const project = byLayer.get("project")?.provenance;
   const workflow = byLayer.get("workflow")?.provenance;
-  const run5 = byLayer.get("run")?.provenance;
+  const run6 = byLayer.get("run")?.provenance;
   const skill = byLayer.get("skill")?.provenance;
-  if (project?.identity !== snapshot2.track_id || project.revision !== snapshot2.track_registry_revision || workflow?.identity !== snapshot2.workflow_id || workflow.revision !== snapshot2.workflow_fingerprint || run5?.identity !== snapshot2.workflow_run_id || run5.revision !== snapshot2.iteration_id || skill?.identity !== snapshot2.skill_bundle_id) {
+  if (project?.identity !== snapshot2.track_id || project.revision !== snapshot2.track_registry_revision || workflow?.identity !== snapshot2.workflow_id || workflow.revision !== snapshot2.workflow_fingerprint || run6?.identity !== snapshot2.workflow_run_id || run6.revision !== snapshot2.iteration_id || skill?.identity !== snapshot2.skill_bundle_id) {
     throw new Error("Workflow action authority provenance identity does not match snapshot binding");
   }
   if (snapshot2.iteration_id !== `iteration-${snapshot2.attempt_id}`) {
@@ -21200,21 +21200,21 @@ async function ensureWorkflowActionAuthorityRecord(changeDir7, snapshot2) {
 // packages/kernel/dist/state/workflow-run-repository.js
 var DEFAULT_PLAN2 = compileEffectiveWorkflowPlan("default");
 var DEFAULT_PLAN_BINDING2 = effectiveWorkflowPlanBinding(DEFAULT_PLAN2);
-function deriveRun(fields, metadata, workflowActionAuthority) {
+function deriveRun(fields2, metadata, workflowActionAuthority) {
   const str3 = (v) => Array.isArray(v) ? v.join(",") : v ?? "";
   return {
     id: metadata.runId,
-    workflowId: resolveWorkflowName({ fields, opaqueTail: "" }),
-    currentStep: str3(fields.phase),
-    lifecycle: str3(fields.archived) === "true" ? "archived" : "active",
+    workflowId: resolveWorkflowName({ fields: fields2, opaqueTail: "" }),
+    currentStep: str3(fields2.phase),
+    lifecycle: str3(fields2.archived) === "true" ? "archived" : "active",
     transitionSequence: metadata.transitionSequence,
     transitionHead: metadata.transitionHead,
     documentProfile: metadata.documentProfile,
     documentGovernanceFingerprint: metadata.documentGovernanceFingerprint,
     workflowPlanFingerprint: metadata.workflowPlanFingerprint,
     workflowPlanSnapshot: metadata.workflowPlanSnapshot,
-    createdAt: str3(fields.created_at),
-    updatedAt: str3(fields.updated_at),
+    createdAt: str3(fields2.created_at),
+    updatedAt: str3(fields2.updated_at),
     automationPolicy: metadata.automationPolicy,
     policyId: metadata.automationPolicy?.policy_id,
     policyVersion: metadata.automationPolicy?.policy_version,
@@ -21380,10 +21380,10 @@ var FsWorkflowRunRepository = class {
       const beforeFields = structuredClone(state.fields);
       const metadata = state.runMetadata ? structuredClone(state.runMetadata) : { runId: newId(), transitionSequence: 0, transitionHead: void 0 };
       const authority = await authorityForCurrentIteration(changeDir7, metadata);
-      const run5 = deriveRun(state.fields, metadata, authority);
+      const run6 = deriveRun(state.fields, metadata, authority);
       let committed = false;
       const tx = {
-        run: run5,
+        run: run6,
         state: {
           ...state,
           fields: structuredClone(state.fields),
@@ -21407,7 +21407,7 @@ var FsWorkflowRunRepository = class {
             iterationId: metadata.iterationId,
             sequence,
             previousRecordId: metadata.transitionHead,
-            workflowId: run5.workflowId,
+            workflowId: run6.workflowId,
             event: draft.event,
             from: draft.from,
             to: draft.to,
@@ -21686,11 +21686,11 @@ function parseFieldSubjectLedger(raw) {
   if (item2.records.length > MAX_FIELD_SUBJECT_RECORDS)
     throw new Error(`field subject records \u8D85\u8FC7 ${MAX_FIELD_SUBJECT_RECORDS} \u6761\u4E0A\u9650`);
   const records = item2.records.map(parseRecord4);
-  const fields = /* @__PURE__ */ new Set();
+  const fields2 = /* @__PURE__ */ new Set();
   for (const record9 of records) {
-    if (fields.has(record9.field))
+    if (fields2.has(record9.field))
       throw new Error(`field subject ledger \u6709\u91CD\u590D field: ${record9.field}`);
-    fields.add(record9.field);
+    fields2.add(record9.field);
   }
   const migrationReceipts = item2.migrationReceipts === void 0 ? void 0 : Array.isArray(item2.migrationReceipts) ? item2.migrationReceipts.map(parseReceipt2) : (() => {
     throw new Error("field subject migrationReceipts \u5FC5\u987B\u662F\u6570\u7EC4");
@@ -21998,12 +21998,12 @@ async function resolveSpecsDir(cwd) {
   const primaryExists = await isDirAbs(path7.join(cwd, SPECS_DIR));
   if (!primaryExists && await isDirAbs(path7.join(cwd, DOT_SPECS_DIR)))
     dir = DOT_SPECS_DIR;
-  const exists2 = await isDirAbs(path7.join(cwd, dir));
-  return { dir, exists: exists2 };
+  const exists3 = await isDirAbs(path7.join(cwd, dir));
+  return { dir, exists: exists3 };
 }
 async function listSpecEntries(cwd) {
-  const { dir, exists: exists2 } = await resolveSpecsDir(cwd);
-  if (!exists2)
+  const { dir, exists: exists3 } = await resolveSpecsDir(cwd);
+  if (!exists3)
     return { dir, exists: false, entries: [] };
   const abs2 = path7.join(cwd, dir);
   let names = [];
@@ -22062,16 +22062,16 @@ async function injectJsonl(cwd, name2, agent) {
   if (!await isFileAbs(abs2)) {
     return { kind: "missing", jsonlPath: rel, chunks: [], warnings: [], sawReal: false };
   }
-  let text12;
+  let text13;
   try {
-    text12 = await readFile23(abs2, "utf8");
+    text13 = await readFile23(abs2, "utf8");
   } catch {
     return { kind: "missing", jsonlPath: rel, chunks: [], warnings: [], sawReal: false };
   }
   const chunks = [];
   const warnings = [];
   let sawReal = false;
-  for (const line of text12.split("\n")) {
+  for (const line of text13.split("\n")) {
     if (line === "")
       continue;
     const entry2 = parseJsonlLine(line);
@@ -22278,8 +22278,8 @@ function markerOf(line, index) {
     return null;
   return { index, tag: match[1] ?? "", kind: match[2] === "START" ? "START" : "END" };
 }
-function withSingleTrailingNewline(text12) {
-  const trimmed = text12.replace(/\s+$/u, "");
+function withSingleTrailingNewline(text13) {
+  const trimmed = text13.replace(/\s+$/u, "");
   return trimmed === "" ? "" : `${trimmed}
 `;
 }
@@ -22381,10 +22381,10 @@ function normalizeOwnedKey(rel) {
     return void 0;
   return out.join("/");
 }
-function parseOwnedManifest(text12) {
+function parseOwnedManifest(text13) {
   let parsed2;
   try {
-    parsed2 = JSON.parse(text12);
+    parsed2 = JSON.parse(text13);
   } catch {
     return {};
   }
@@ -22765,15 +22765,15 @@ function readOwnedManifestText(fs, cwd) {
   return fs.readText(ownedManifestPath(cwd));
 }
 async function loadOwnedManifest(fs, cwd) {
-  const text12 = await readOwnedManifestText(fs, cwd);
-  return text12 === void 0 ? {} : parseOwnedManifest(text12);
+  const text13 = await readOwnedManifestText(fs, cwd);
+  return text13 === void 0 ? {} : parseOwnedManifest(text13);
 }
 function saveOwnedManifest(fs, cwd, map) {
   return fs.writeText(ownedManifestPath(cwd), serializeOwnedManifest(map));
 }
 async function readVersionFile(fs, cwd) {
-  const text12 = await fs.readText(join29(cwd, VERSION_FILE));
-  return text12 === void 0 ? UNKNOWN_VERSION : text12.trim() || UNKNOWN_VERSION;
+  const text13 = await fs.readText(join29(cwd, VERSION_FILE));
+  return text13 === void 0 ? UNKNOWN_VERSION : text13.trim() || UNKNOWN_VERSION;
 }
 function createOwnedFs() {
   return {
@@ -23547,8 +23547,8 @@ function parseBreadcrumbBlock(lines2, start, path15) {
   }
   return { map, next: i };
 }
-function scanSections(text12, path15) {
-  const lines2 = text12.split("\n");
+function scanSections(text13, path15) {
+  const lines2 = text13.split("\n");
   const out = {};
   let i = 0;
   while (i < lines2.length) {
@@ -23692,8 +23692,8 @@ function deriveSkillActionAuthority(raw) {
   return { version: "v1", grants };
 }
 function loadManifest(path15) {
-  const text12 = readFileSync7(path15, "utf8");
-  const raw = scanSections(text12, path15);
+  const text13 = readFileSync7(path15, "utf8");
+  const raw = scanSections(text13, path15);
   if (!raw.phases || raw.phases.length === 0)
     throw new ManifestError(`${path15} \u7F3A phases \u5C0F\u8282`);
   if (!raw.transitions)
@@ -23774,11 +23774,11 @@ function createFlowEngine(manifest) {
       phaseStatus = "done";
     else if ((phaseIndex.get(to) ?? -1) < (phaseIndex.get(from) ?? -1))
       phaseStatus = "in_progress";
-    const fields = { ...state.fields };
-    fields.phase = to;
-    fields.phase_status = phaseStatus;
-    fields.updated_at = (clock ?? defaultClock)();
-    return { from, to, state: { fields, opaqueTail: state.opaqueTail } };
+    const fields2 = { ...state.fields };
+    fields2.phase = to;
+    fields2.phase_status = phaseStatus;
+    fields2.updated_at = (clock ?? defaultClock)();
+    return { from, to, state: { fields: fields2, opaqueTail: state.opaqueTail } };
   }
   function guardCheck(state, ctx) {
     return evaluateGuard(state, ctx);
@@ -24006,11 +24006,11 @@ async function writeActiveChange(repoRoot, slug2, change) {
 }
 
 // packages/kernel/dist/users/owner.js
-function ownerOf(fields) {
-  return parseUserRef(fields.assignee);
+function ownerOf(fields2) {
+  return parseUserRef(fields2.assignee);
 }
-function ownerDecision(fields, actor3) {
-  const owner = ownerOf(fields);
+function ownerDecision(fields2, actor3) {
+  const owner = ownerOf(fields2);
   return owner !== null && owner.slug === userSlug(actor3.id) ? { allowed: true } : { allowed: false, owner };
 }
 function ownerRequiredMessage(change, owner) {
@@ -24027,8 +24027,8 @@ var OwnerRequiredError = class extends Error {
     this.name = "OwnerRequiredError";
   }
 };
-function assertOwner(change, fields, actor3) {
-  const decision = ownerDecision(fields, actor3);
+function assertOwner(change, fields2, actor3) {
+  const decision = ownerDecision(fields2, actor3);
   if (!decision.allowed)
     throw new OwnerRequiredError(change, decision.owner);
 }
@@ -24206,12 +24206,12 @@ function readFrontmatter(lines2, errors) {
   const variables = [];
   let inVariables = false;
   for (let index = 1; index < close; index += 1) {
-    const text12 = lines2[index] ?? "";
+    const text13 = lines2[index] ?? "";
     const line = index + 1;
-    if (text12.trim() === "")
+    if (text13.trim() === "")
       continue;
-    const item2 = /^ {2}- key: (.*)$/.exec(text12);
-    const itemDefault = /^ {4}default: (.*)$/.exec(text12);
+    const item2 = /^ {2}- key: (.*)$/.exec(text13);
+    const itemDefault = /^ {4}default: (.*)$/.exec(text13);
     if (inVariables && item2) {
       const key2 = scalar5(item2[1] ?? "") ?? "";
       if (!VARIABLE_KEY.test(key2))
@@ -24230,9 +24230,9 @@ function readFrontmatter(lines2, errors) {
         last.default = value;
       continue;
     }
-    const pair = /^([a-z_]+):(?: (.*))?$/.exec(text12);
+    const pair = /^([a-z_]+):(?: (.*))?$/.exec(text13);
     if (!pair) {
-      errors.push({ code: "frontmatter", line, detail: `\u65E0\u6CD5\u89E3\u6790\u7684\u884C\uFF1A${text12}` });
+      errors.push({ code: "frontmatter", line, detail: `\u65E0\u6CD5\u89E3\u6790\u7684\u884C\uFF1A${text13}` });
       continue;
     }
     const key = pair[1] ?? "";
@@ -24251,12 +24251,12 @@ function readFrontmatter(lines2, errors) {
   }
   return { values, variables, bodyStart: close + 1 };
 }
-function parseInstructionBlock(text12, expected) {
+function parseInstructionBlock(text13, expected) {
   const errors = [];
-  if (new TextEncoder().encode(text12).length > INSTRUCTION_BLOCK_MAX_BYTES) {
+  if (new TextEncoder().encode(text13).length > INSTRUCTION_BLOCK_MAX_BYTES) {
     return { ok: false, errors: [{ code: "too-large", detail: `\u8D85\u8FC7 ${INSTRUCTION_BLOCK_MAX_BYTES} \u5B57\u8282` }] };
   }
-  const lines2 = text12.replace(/\r\n/g, "\n").split("\n");
+  const lines2 = text13.replace(/\r\n/g, "\n").split("\n");
   const front = readFrontmatter(lines2, errors);
   if (!front)
     return { ok: false, errors };
@@ -24348,7 +24348,7 @@ function parseInstructionBlock(text12, expected) {
 }
 function checkBody(lines2, start, category, known, errors) {
   const level = categoryHeadingLevel(category);
-  const first = lines2.findIndex((text12, index) => index >= start && text12.trim() !== "");
+  const first = lines2.findIndex((text13, index) => index >= start && text13.trim() !== "");
   if (first < 0) {
     errors.push({ code: "heading", detail: "\u6B63\u6587\u4E3A\u7A7A" });
     return "";
@@ -24358,17 +24358,17 @@ function checkBody(lines2, start, category, known, errors) {
   }
   let fenced = false;
   for (let index = first; index < lines2.length; index += 1) {
-    const text12 = lines2[index] ?? "";
+    const text13 = lines2[index] ?? "";
     const line = index + 1;
-    if (FENCE.test(text12))
+    if (FENCE.test(text13))
       fenced = !fenced;
-    else if (!fenced && text12.startsWith("# "))
+    else if (!fenced && text13.startsWith("# "))
       errors.push({ code: "heading", line, detail: "\u5757\u5185\u4E0D\u5141\u8BB8\u4E00\u7EA7\u6807\u9898" });
-    if (MANAGED_MARKER_LINE.test(text12))
+    if (MANAGED_MARKER_LINE.test(text13))
       errors.push({ code: "managed-marker", line, detail: "\u6B63\u6587\u4E0D\u80FD\u5305\u542B Tenon \u53D7\u7BA1\u5757\u6807\u8BB0\u884C" });
-    for (const placeholder of placeholdersIn(text12)) {
+    for (const placeholder of placeholdersIn(text13)) {
       if (placeholder.name === null || !known.has(placeholder.name)) {
-        errors.push({ code: "unknown-placeholder", line, detail: `\u65E0\u6CD5\u89E3\u6790\u7684\u5360\u4F4D\u7B26\uFF1A${text12.slice(placeholder.index, placeholder.index + placeholder.length)}` });
+        errors.push({ code: "unknown-placeholder", line, detail: `\u65E0\u6CD5\u89E3\u6790\u7684\u5360\u4F4D\u7B26\uFF1A${text13.slice(placeholder.index, placeholder.index + placeholder.length)}` });
       }
     }
   }
@@ -24446,8 +24446,8 @@ function inlineList3(raw, line, key) {
     return token;
   });
 }
-function scan(text12) {
-  return text12.split("\n").map((raw, index) => ({
+function scan(text13) {
+  return text13.split("\n").map((raw, index) => ({
     n: index + 1,
     indent: raw.length - raw.trimStart().length,
     text: raw.trimEnd()
@@ -24460,7 +24460,7 @@ function keyValue(line) {
   return { key: match[1] ?? "", raw: (match[2] ?? "").trim() };
 }
 function nested(lines2, start, allowed, owner) {
-  const fields = /* @__PURE__ */ new Map();
+  const fields2 = /* @__PURE__ */ new Map();
   let index = start;
   while (index < lines2.length && (lines2[index]?.indent ?? 0) > 0) {
     const line = lines2[index];
@@ -24469,16 +24469,16 @@ function nested(lines2, start, allowed, owner) {
     const { key, raw } = keyValue(line);
     if (!allowed.includes(key))
       throw new ResourceParseError(line.n, `${owner} \u51FA\u73B0\u672A\u77E5\u5B57\u6BB5 '${key}'`);
-    if (fields.has(key))
+    if (fields2.has(key))
       throw new ResourceParseError(line.n, `${owner} \u91CD\u590D\u58F0\u660E ${key}`);
     if (raw === "")
       throw new ResourceParseError(line.n, `${owner}.${key} \u7F3A\u503C`);
-    fields.set(key, { raw, n: line.n });
+    fields2.set(key, { raw, n: line.n });
     index++;
   }
-  if (fields.size === 0)
+  if (fields2.size === 0)
     throw new ResourceParseError(lines2[start - 1]?.n ?? 1, `${owner} \u7F3A\u5B50\u952E`);
-  return { fields, next: index };
+  return { fields: fields2, next: index };
 }
 function blockList(lines2, start, owner) {
   const items = [];
@@ -24499,20 +24499,20 @@ function commercial(raw, line) {
   }
   return raw;
 }
-function links(fields) {
+function links(fields2) {
   const result2 = {};
   for (const key of RESOURCE_LINK_KEYS) {
-    const field4 = fields.get(key);
+    const field4 = fields2.get(key);
     if (field4)
       result2[key] = scalar6(field4.raw, field4.n);
   }
   return result2;
 }
-function parseResourceEntry(text12) {
-  if (new TextEncoder().encode(text12).length > RESOURCE_ENTRY_MAX_BYTES) {
+function parseResourceEntry(text13) {
+  if (new TextEncoder().encode(text13).length > RESOURCE_ENTRY_MAX_BYTES) {
     throw new ResourceParseError(1, `\u6761\u76EE\u8D85\u8FC7 ${RESOURCE_ENTRY_MAX_BYTES} \u5B57\u8282`);
   }
-  const lines2 = scan(text12);
+  const lines2 = scan(text13);
   const values = /* @__PURE__ */ new Map();
   let licenseFields;
   let linkFields;
@@ -24672,8 +24672,8 @@ function licenseModes(entry2) {
     modes.push("attribution");
   return modes;
 }
-function matchesText(entry2, text12) {
-  const needle = text12.trim().toLowerCase();
+function matchesText(entry2, text13) {
+  const needle = text13.trim().toLowerCase();
   if (needle === "")
     return true;
   return `${entry2.id} ${entry2.name} ${entry2.use ?? ""}`.toLowerCase().includes(needle);
@@ -24842,13 +24842,13 @@ var DESIGN_MODEL_CONTRAST_PATHS = [
   "tokens.colors.dark.background",
   "tokens.colors.dark.text1"
 ];
-function frontMatter(text12) {
-  const lines2 = text12.split("\n");
+function frontMatter(text13) {
+  const lines2 = text13.split("\n");
   if (lines2[0]?.trim() !== "---")
-    return { keys: /* @__PURE__ */ new Map(), body: text12 };
+    return { keys: /* @__PURE__ */ new Map(), body: text13 };
   const end = lines2.findIndex((line, index) => index > 0 && line.trim() === "---");
   if (end < 0)
-    return { keys: /* @__PURE__ */ new Map(), body: text12 };
+    return { keys: /* @__PURE__ */ new Map(), body: text13 };
   const keys = /* @__PURE__ */ new Map();
   for (const line of lines2.slice(1, end)) {
     const match = /^([a-z_]+):\s*(.*)$/u.exec(line.trim());
@@ -24931,22 +24931,22 @@ var PLACEHOLDERS = [
   String.fromCharCode(70, 73, 88, 77, 69),
   "lorem ipsum"
 ];
-function textProblems(text12) {
+function textProblems(text13) {
   const problems = [];
-  const lower = text12.toLowerCase();
+  const lower = text13.toLowerCase();
   for (const marker of PLACEHOLDERS) {
     if (lower.includes(marker.toLowerCase()))
       problems.push(`DESIGN.md \u542B\u5360\u4F4D\u5185\u5BB9 ${marker}`);
   }
-  if (text12.includes("\u2014"))
+  if (text13.includes("\u2014"))
     problems.push("DESIGN.md \u542B em-dash\uFF08hue \u786C\u6027\u89C4\u5219\uFF09");
   return problems;
 }
 function checkDesignSystem(reader, iconIds2) {
-  const text12 = reader.read(DESIGN_MD_PATH);
-  if (text12 === null)
+  const text13 = reader.read(DESIGN_MD_PATH);
+  if (text13 === null)
     return { status: "missing", problems: [`\u7F3A\u5C11 ${DESIGN_MD_PATH}`] };
-  const { keys, body } = frontMatter(text12);
+  const { keys, body } = frontMatter(text13);
   if (keys.get("schema") !== DESIGN_SCHEMA) {
     return { status: "seed", problems: [`DESIGN.md \u7F3A\u5C11 schema: ${DESIGN_SCHEMA}`] };
   }
@@ -24956,7 +24956,7 @@ function checkDesignSystem(reader, iconIds2) {
     ...iconIds2.has(icons) ? [] : [`icons \u5FC5\u987B\u662F\u8D44\u6E90\u76EE\u5F55\u4E2D\u7684\u56FE\u6807\uFF1A${icons}`],
     ...sectionProblems(body),
     ...previewProblems(reader, body),
-    ...textProblems(text12)
+    ...textProblems(text13)
   ];
   return problems.length === 0 ? { status: "ready", problems: [] } : { status: "incomplete", problems };
 }
@@ -24985,8 +24985,8 @@ function renderDesignProposal(change, base) {
     ""
   ].join("\n");
 }
-function designProposalBase(text12) {
-  const lines2 = text12.split("\n");
+function designProposalBase(text13) {
+  const lines2 = text13.split("\n");
   if (lines2[0]?.trim() !== "---")
     return null;
   const end = lines2.findIndex((line, index) => index > 0 && line.trim() === "---");
@@ -25108,38 +25108,38 @@ function parseTestDirection(content) {
 var BUILTIN_LIBRARY_MARKER = ".library.json";
 var MAX_FILES = 512;
 var MAX_FILE_BYTES = 64 * 1024;
-function validateInstructionTemplate(relativePath, text12) {
+function validateInstructionTemplate(relativePath, text13) {
   const segments = relativePath.split("/");
   const category = segments[0] ?? "";
   if (segments.length !== 2 || !isInstructionCategory(category))
     return ["\u8DEF\u5F84\u5FC5\u987B\u662F <category>/<id>.md"];
-  const parsed2 = parseInstructionBlock(text12, { category, id: (segments[1] ?? "").replace(/\.md$/u, "") });
+  const parsed2 = parseInstructionBlock(text13, { category, id: (segments[1] ?? "").replace(/\.md$/u, "") });
   return parsed2.ok ? [] : parsed2.errors.map((error2) => `${error2.line === void 0 ? "" : `${error2.line}: `}${error2.detail}`);
 }
-function validateResourceEntryFile(relativePath, text12) {
+function validateResourceEntryFile(relativePath, text13) {
   if (relativePath.includes("/"))
     return ["\u6761\u76EE\u5FC5\u987B\u76F4\u63A5\u653E\u5728 builtin/ \u4E0B"];
   try {
-    return validateResourceEntry(parseResourceEntry(text12), relativePath);
+    return validateResourceEntry(parseResourceEntry(text13), relativePath);
   } catch (error2) {
     return [error2 instanceof Error ? error2.message : String(error2)];
   }
 }
-function validateAgentFile(relativePath, text12) {
+function validateAgentFile(relativePath, text13) {
   if (relativePath.includes("/"))
     return ["agent \u5FC5\u987B\u76F4\u63A5\u653E\u5728 templates/agents/ \u4E0B"];
   try {
-    parseAgentFile(text12, relativePath.replace(/\.md$/u, ""));
+    parseAgentFile(text13, relativePath.replace(/\.md$/u, ""));
     return [];
   } catch (error2) {
     return [error2 instanceof Error ? error2.message : String(error2)];
   }
 }
-function validateTestDirection(relativePath, text12) {
+function validateTestDirection(relativePath, text13) {
   if (relativePath.includes("/"))
     return ["\u8DEF\u5F84\u5FC5\u987B\u662F <id>.yaml"];
   try {
-    const direction = parseTestDirection(text12);
+    const direction = parseTestDirection(text13);
     return direction.id === relativePath.replace(/\.yaml$/u, "") ? [] : ["id \u5FC5\u987B\u7B49\u4E8E\u6587\u4EF6\u540D\u4E3B\u5E72"];
   } catch (error2) {
     return [error2 instanceof Error ? error2.message : String(error2)];
@@ -25185,12 +25185,12 @@ var SyncFailure = class extends Error {
 };
 async function readSourceTree(library, root) {
   const files = [];
-  const walk2 = async (relative40) => {
-    const entries2 = await readdir7(relative40 === "" ? root : join32(root, relative40), { withFileTypes: true });
+  const walk2 = async (relative42) => {
+    const entries2 = await readdir7(relative42 === "" ? root : join32(root, relative42), { withFileTypes: true });
     for (const entry2 of entries2.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)) {
       if (entry2.name.startsWith("."))
         continue;
-      const path15 = relative40 === "" ? entry2.name : `${relative40}/${entry2.name}`;
+      const path15 = relative42 === "" ? entry2.name : `${relative42}/${entry2.name}`;
       const item2 = await lstat21(join32(root, path15));
       if (item2.isSymbolicLink())
         throw new SyncFailure(`${path15}: \u4E0D\u5141\u8BB8\u7B26\u53F7\u94FE\u63A5`);
@@ -25224,10 +25224,10 @@ function builtinSourceDigest(files) {
 `).sort().join("");
   return `sha256:${sha256Hex(lines2)}`;
 }
-function parseBuiltinLibraryMarker(text12) {
+function parseBuiltinLibraryMarker(text13) {
   let value;
   try {
-    value = JSON.parse(text12);
+    value = JSON.parse(text13);
   } catch {
     return null;
   }
@@ -25262,7 +25262,7 @@ async function exists(path15) {
     return false;
   }
 }
-async function replaceTarget(library, parent, targetDir, files, digest18) {
+async function replaceTarget(library, parent, targetDir, files, digest19) {
   const base = basename4(targetDir);
   const staging = join32(parent, `${base}.staging-${process.pid}-${randomUUID9()}`);
   const old = join32(parent, `${base}.old-${randomUUID9()}`);
@@ -25273,7 +25273,7 @@ async function replaceTarget(library, parent, targetDir, files, digest18) {
       await mkdir15(dirname5(destination), { recursive: true });
       await writeFile10(destination, file.bytes, { flag: "wx", mode: 420 });
     }
-    const marker = { version: 1, library: library.id, source_digest: digest18, synced_at: (/* @__PURE__ */ new Date()).toISOString() };
+    const marker = { version: 1, library: library.id, source_digest: digest19, synced_at: (/* @__PURE__ */ new Date()).toISOString() };
     await writeFile10(join32(staging, BUILTIN_LIBRARY_MARKER), `${JSON.stringify(marker)}
 `, { flag: "wx", mode: 420 });
     if (!await exists(targetDir)) {
@@ -25299,16 +25299,16 @@ async function syncBuiltinLibrary(library, payloadRoot, configRoot) {
     const problems = files.flatMap((file) => library.validate(file.path, file.bytes.toString("utf8")).map((detail) => `${file.path}: ${detail}`));
     if (problems.length > 0)
       return { id: library.id, state: "failed", detail: problems.join("; ") };
-    const digest18 = builtinSourceDigest(files);
+    const digest19 = builtinSourceDigest(files);
     const targetDir = join32(configRoot, ...library.target.split("/"));
     const parent = dirname5(targetDir);
     await mkdir15(parent, { recursive: true });
     return await withLock(parent, async () => {
       await removeStale(parent, basename4(targetDir));
       const marker = await readMarker(targetDir);
-      if (marker?.library === library.id && marker.source_digest === digest18)
+      if (marker?.library === library.id && marker.source_digest === digest19)
         return { id: library.id, state: "unchanged" };
-      await replaceTarget(library, parent, targetDir, files, digest18);
+      await replaceTarget(library, parent, targetDir, files, digest19);
       return { id: library.id, state: "updated" };
     });
   } catch (error2) {
@@ -25332,17 +25332,17 @@ async function listYaml(dir) {
     return [];
   }
 }
-function read(text12, file, source) {
+function read(text13, file, source) {
   let entry2;
   try {
-    entry2 = parseResourceEntry(text12);
+    entry2 = parseResourceEntry(text13);
   } catch (error2) {
     return { file, source, errors: [error2 instanceof Error ? error2.message : String(error2)] };
   }
   const errors = validateResourceEntry(entry2, file);
   if (errors.length > 0)
     return { file, source, errors };
-  return { entry: entry2, source, revision: `sha256:${sha256Hex(text12)}` };
+  return { entry: entry2, source, revision: `sha256:${sha256Hex(text13)}` };
 }
 var isStored = (value) => "entry" in value;
 async function ensureBuiltinResources(options) {
@@ -25357,14 +25357,14 @@ async function loadResourceCatalog(options) {
   for (const source of ["builtin", "custom"]) {
     const dir = sourceDir(storeRoot, source);
     for (const file of await listYaml(dir)) {
-      let text12;
+      let text13;
       try {
-        text12 = await readFile27(join33(dir, file), "utf8");
+        text13 = await readFile27(join33(dir, file), "utf8");
       } catch (error2) {
         errors.push({ file, source, errors: [error2 instanceof Error ? error2.message : String(error2)] });
         continue;
       }
-      const result2 = read(text12, file, source);
+      const result2 = read(text13, file, source);
       if (!isStored(result2)) {
         errors.push(result2);
         continue;
@@ -25440,11 +25440,11 @@ async function ensureBuiltinAgents(options) {
   return syncBuiltinLibrary(builtinLibrary("agents"), options.payloadRoot, options.configRoot);
 }
 function entryFor(name2, source, path15, content) {
-  const digest18 = agentDigest(content);
+  const digest19 = agentDigest(content);
   try {
-    return { name: name2, source, digest: digest18, content, path: path15, definition: parseAgentFile(content, name2) };
+    return { name: name2, source, digest: digest19, content, path: path15, definition: parseAgentFile(content, name2) };
   } catch (error2) {
-    return { name: name2, source, digest: digest18, content, path: path15, error: error2 instanceof Error ? error2.message : String(error2) };
+    return { name: name2, source, digest: digest19, content, path: path15, error: error2 instanceof Error ? error2.message : String(error2) };
   }
 }
 async function readLayer(dir, source) {
@@ -25517,12 +25517,12 @@ async function refuseSymlink(path15) {
       throw error2;
   }
 }
-async function writeAtomic(path15, text12) {
+async function writeAtomic(path15, text13) {
   await mkdir17(dirname6(path15), { recursive: true });
   await refuseSymlink(dirname6(path15));
   await refuseSymlink(path15);
   const tmp = `${path15}.tmp.${process.pid}`;
-  await writeFile12(tmp, text12, "utf8");
+  await writeFile12(tmp, text13, "utf8");
   await rename8(tmp, path15);
 }
 async function builtinExists(scope, name2) {
@@ -25563,7 +25563,7 @@ async function writeAgent(scope, name2, content, options = {}) {
     return { name: name2, source: scope.source, digest: agentDigest(content), content, path: path15, definition };
   });
 }
-async function deleteAgent(scope, name2, digest18) {
+async function deleteAgent(scope, name2, digest19) {
   if (!AGENT_NAME_RE.test(name2))
     throw new AgentStoreError("agent-missing", `agent \u5E93\u4E2D\u4E0D\u5B58\u5728 '${name2}'`);
   await mkdir17(scope.lockDir, { recursive: true });
@@ -25574,7 +25574,7 @@ async function deleteAgent(scope, name2, digest18) {
     const now = await currentDigest(path15);
     if (now === null)
       throw new AgentStoreError("agent-missing", `agent \u5E93\u4E2D\u4E0D\u5B58\u5728 '${name2}'`);
-    if (digest18 !== void 0 && now !== digest18)
+    if (digest19 !== void 0 && now !== digest19)
       throw new AgentStoreError("agent-stale", "agent \u5DF2\u88AB\u4FEE\u6539\uFF0C\u8BF7\u5237\u65B0");
     await rm9(path15);
   });
@@ -25729,8 +25729,8 @@ async function saveManifest(repoRoot, map) {
 async function withManifest(repoRoot, fn) {
   await mkdir18(lockDirOf(repoRoot), { recursive: true });
   return withLock(lockDirOf(repoRoot), async () => {
-    const text12 = await readText2(manifestPath(repoRoot));
-    const before = text12 === void 0 ? {} : parseOwnedManifest(text12);
+    const text13 = await readText2(manifestPath(repoRoot));
+    const before = text13 === void 0 ? {} : parseOwnedManifest(text13);
     const { next, result: result2 } = await fn({ ...before });
     if (serializeOwnedManifest(next) !== serializeOwnedManifest(before))
       await saveManifest(repoRoot, next);
@@ -25777,8 +25777,8 @@ async function ensureHostAgentFiles(input2) {
   });
 }
 async function ownedHostAgentNames(repoRoot) {
-  const text12 = await readText2(manifestPath(repoRoot));
-  const manifest = text12 === void 0 ? {} : parseOwnedManifest(text12);
+  const text13 = await readText2(manifestPath(repoRoot));
+  const manifest = text13 === void 0 ? {} : parseOwnedManifest(text13);
   const names = /* @__PURE__ */ new Set();
   for (const key of Object.keys(manifest)) {
     const parsed2 = parseHostAgentPath(key);
@@ -26402,9 +26402,9 @@ function flattenMetrics(value, prefix = "") {
   }
   return out;
 }
-function parseObject(text12) {
+function parseObject(text13) {
   try {
-    const value = JSON.parse(text12);
+    const value = JSON.parse(text13);
     if (typeof value !== "object" || value === null || Array.isArray(value))
       return void 0;
     return value;
@@ -26412,8 +26412,8 @@ function parseObject(text12) {
     return void 0;
   }
 }
-function lastJsonObjectLine(text12) {
-  const lines2 = text12.split("\n");
+function lastJsonObjectLine(text13) {
+  const lines2 = text13.split("\n");
   for (let index = lines2.length - 1; index >= 0; index--) {
     const line = (lines2[index] ?? "").trim();
     if (!line.startsWith("{"))
@@ -26457,7 +26457,7 @@ function evaluateMetricCriteria(input2) {
   }
   const byName = new Map(input2.criteria.map((criterion) => [criterion.name, criterion]));
   const records = [];
-  const emit4 = (name2, value) => {
+  const emit5 = (name2, value) => {
     const criterion = byName.get(name2);
     const better = criterion?.better ?? "lower";
     const base = baselineUsable && criterion?.max_regression_pct !== void 0 ? input2.baseline?.metrics[name2] ?? null : null;
@@ -26502,10 +26502,10 @@ function evaluateMetricCriteria(input2) {
     });
   };
   for (const name2 of Object.keys(values))
-    emit4(name2, values[name2] ?? null);
+    emit5(name2, values[name2] ?? null);
   for (const criterion of input2.criteria) {
     if (!Object.hasOwn(values, criterion.name))
-      emit4(criterion.name, null);
+      emit5(criterion.name, null);
   }
   return { metrics: records, reasons };
 }
@@ -26515,6 +26515,86 @@ import { readFile as readFile39, readdir as readdir14 } from "node:fs/promises";
 import { join as join47 } from "node:path";
 
 // packages/kernel/dist/test-system/blockers.js
+var TEST_BLOCKER_CODES = [
+  "test-catalog-missing",
+  "test-plan-missing",
+  "test-plan-tampered",
+  "test-kind-missing",
+  "test-file-unregistered",
+  "test-file-orphan",
+  "files-diff-unavailable",
+  "test-not-run",
+  "test-failed",
+  "test-stale",
+  "no-tests-ran",
+  "report-missing",
+  "report-unreadable",
+  "exit-report-mismatch",
+  "registered-test-not-executed",
+  "coverage-below",
+  "benchmark-regression",
+  "baseline-missing",
+  "flaky-over-limit",
+  "browser-project-missing",
+  "scenario-uncovered",
+  "scenario-failing",
+  "service-not-ready",
+  "record-chain-broken",
+  "waiver-unapproved",
+  "protected-file-unapproved",
+  "protected-file-tampered",
+  "record-unsealed",
+  "report-untrusted"
+];
+var TEST_NOTICE_CODES = [
+  "known-failure-fixed",
+  "known-failure-expired",
+  "known-failure-too-long",
+  "benchmark-noisy",
+  "trace-mapping-stale",
+  "files-unchecked",
+  "files-truncated"
+];
+var TEST_BLOCKER_LABELS = {
+  "test-catalog-missing": { zh: "\u76EE\u5F55\u7F3A\u5931", en: "No test catalog" },
+  "test-plan-missing": { zh: "\u672A\u767B\u8BB0\u8BA1\u5212", en: "No test plan" },
+  "test-plan-tampered": { zh: "\u8BA1\u5212\u88AB\u6539\u52A8", en: "Plan tampered" },
+  "test-kind-missing": { zh: "\u7F3A\u6D4B\u8BD5\u79CD\u7C7B", en: "Kind missing" },
+  "test-file-unregistered": { zh: "\u6587\u4EF6\u672A\u767B\u8BB0", en: "Unregistered file" },
+  "test-file-orphan": { zh: "\u6587\u4EF6\u65E0\u5957\u4EF6", en: "Orphan test file" },
+  "files-diff-unavailable": { zh: "\u8BFB\u4E0D\u5230\u6539\u52A8", en: "Diff unavailable" },
+  "test-not-run": { zh: "\u672A\u8FD0\u884C", en: "Not run" },
+  "test-failed": { zh: "\u5931\u8D25", en: "Failed" },
+  "test-stale": { zh: "\u8FC7\u671F", en: "Stale" },
+  "no-tests-ran": { zh: "\u6CA1\u6709\u7528\u4F8B", en: "No tests ran" },
+  "report-missing": { zh: "\u7F3A\u62A5\u544A", en: "No report" },
+  "report-unreadable": { zh: "\u62A5\u544A\u65E0\u6CD5\u89E3\u6790", en: "Unreadable report" },
+  "exit-report-mismatch": { zh: "\u9000\u51FA\u7801\u4E0E\u62A5\u544A\u4E0D\u7B26", en: "Exit/report mismatch" },
+  "registered-test-not-executed": { zh: "\u767B\u8BB0\u7528\u4F8B\u672A\u6267\u884C", en: "Registered test not run" },
+  "coverage-below": { zh: "\u8986\u76D6\u7387\u4E0D\u8DB3", en: "Coverage below" },
+  "benchmark-regression": { zh: "\u57FA\u51C6\u9000\u5316", en: "Benchmark regression" },
+  "baseline-missing": { zh: "\u7F3A\u57FA\u7EBF", en: "No baseline" },
+  "flaky-over-limit": { zh: "\u4E0D\u7A33\u5B9A\u8D85\u9650", en: "Too flaky" },
+  "browser-project-missing": { zh: "\u7F3A\u6D4F\u89C8\u5668", en: "Browser missing" },
+  "scenario-uncovered": { zh: "\u573A\u666F/\u4EFB\u52A1\u672A\u8986\u76D6", en: "Scenario/task uncovered" },
+  "scenario-failing": { zh: "\u573A\u666F/\u4EFB\u52A1\u672A\u901A\u8FC7", en: "Scenario/task failing" },
+  "service-not-ready": { zh: "\u670D\u52A1\u672A\u5C31\u7EEA", en: "Service not ready" },
+  "record-chain-broken": { zh: "\u8BB0\u5F55\u88AB\u6539\u52A8", en: "Records tampered" },
+  "waiver-unapproved": { zh: "\u8C41\u514D\u672A\u6279\u51C6", en: "Waiver unapproved" },
+  "protected-file-unapproved": { zh: "\u914D\u7F6E\u6539\u52A8\u5F85\u786E\u8BA4", en: "Config change unapproved" },
+  "protected-file-tampered": { zh: "\u53F0\u8D26\u5916\u6539\u52A8", en: "Changed outside Tenon" },
+  "record-unsealed": { zh: "\u8BB0\u5F55\u6765\u6E90\u4E0D\u660E", en: "Records unsealed" },
+  "report-untrusted": { zh: "\u62A5\u544A\u4E0D\u53EF\u4FE1", en: "Report untrusted" }
+};
+var TEST_NOTICE_LABELS = {
+  "known-failure-fixed": { zh: "\u5DF2\u4FEE\u597D", en: "Fixed" },
+  "known-failure-expired": { zh: "\u5DF2\u77E5\u5931\u8D25\u8FC7\u671F", en: "Known failure expired" },
+  "known-failure-too-long": { zh: "\u5DF2\u77E5\u5931\u8D25\u671F\u9650\u8FC7\u957F", en: "Known failure too long" },
+  "benchmark-noisy": { zh: "\u57FA\u51C6\u6CE2\u52A8\u5927", en: "Noisy benchmark" },
+  "trace-mapping-stale": { zh: "\u6620\u5C04\u5931\u6548", en: "Stale mapping" },
+  "files-unchecked": { zh: "\u672A\u68C0\u67E5\u6587\u4EF6", en: "Files unchecked" },
+  "files-truncated": { zh: "\u6587\u4EF6\u68C0\u67E5\u88AB\u622A\u65AD", en: "File check truncated" }
+};
 function testBlocker(code, message2, options = {}) {
   return {
     code,
@@ -27372,9 +27452,9 @@ var KEY_RE3 = /^([A-Za-z0-9_][A-Za-z0-9_.-]*):(?:[ ]+(.*))?$/;
 var FLOW_KEY_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/;
 var INT_RE = /^[-+]?\d+$/;
 var FLOAT_RE = /^[-+]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][-+]?\d+)?$/;
-function tokenize2(text12) {
+function tokenize2(text13) {
   const tokens = [];
-  const lines2 = text12.split("\n");
+  const lines2 = text13.split("\n");
   let sawContent = false;
   for (let index = 0; index < lines2.length; index++) {
     const line = (lines2[index] ?? "").replace(/\r$/, "");
@@ -27419,12 +27499,12 @@ function restIsComment(rest, line) {
     return;
   throw new YamlSubsetError(line, `\u503C\u540E\u9762\u6709\u591A\u4F59\u5185\u5BB9 '${rest.trim()}'`);
 }
-function readQuoted(text12, start, line) {
-  const quote = text12[start];
+function readQuoted(text13, start, line) {
+  const quote = text13[start];
   if (quote === '"') {
     let index2 = start + 1;
-    while (index2 < text12.length) {
-      const char = text12[index2];
+    while (index2 < text13.length) {
+      const char = text13[index2];
       if (char === "\\") {
         index2 += 2;
         continue;
@@ -27433,11 +27513,11 @@ function readQuoted(text12, start, line) {
         break;
       index2++;
     }
-    if (index2 >= text12.length)
+    if (index2 >= text13.length)
       throw new YamlSubsetError(line, "\u53CC\u5F15\u53F7\u6807\u91CF\u672A\u95ED\u5408\uFF08\u4E0D\u652F\u6301\u8DE8\u884C\uFF09");
     let value2;
     try {
-      value2 = JSON.parse(text12.slice(start, index2 + 1));
+      value2 = JSON.parse(text13.slice(start, index2 + 1));
     } catch {
       throw new YamlSubsetError(line, "\u53CC\u5F15\u53F7\u6807\u91CF\u542B\u975E\u6CD5\u8F6C\u4E49");
     }
@@ -27447,10 +27527,10 @@ function readQuoted(text12, start, line) {
   }
   let index = start + 1;
   let value = "";
-  while (index < text12.length) {
-    const char = text12[index];
+  while (index < text13.length) {
+    const char = text13[index];
     if (char === "'") {
-      if (text12[index + 1] === "'") {
+      if (text13[index + 1] === "'") {
         value += "'";
         index += 2;
         continue;
@@ -27466,8 +27546,8 @@ var FlowReader = class {
   text;
   line;
   index = 0;
-  constructor(text12, line) {
-    this.text = text12;
+  constructor(text13, line) {
+    this.text = text13;
     this.line = line;
   }
   skipSpace() {
@@ -27569,25 +27649,25 @@ var FlowReader = class {
   }
 };
 function parseInline(raw, line) {
-  const text12 = raw.trimStart();
-  const first = text12[0];
+  const text13 = raw.trimStart();
+  const first = text13[0];
   if (first === "[" || first === "{") {
-    const reader = new FlowReader(text12, line);
+    const reader = new FlowReader(text13, line);
     const node = reader.value(first === "[" ? "seq" : "map");
-    restIsComment(text12.slice(reader.index), line);
+    restIsComment(text13.slice(reader.index), line);
     return node;
   }
   if (first === '"' || first === "'") {
-    const quoted2 = readQuoted(text12, 0, line);
-    restIsComment(text12.slice(quoted2.end), line);
+    const quoted2 = readQuoted(text13, 0, line);
+    restIsComment(text13.slice(quoted2.end), line);
     return { kind: "scalar", line, value: quoted2.value, quoted: true };
   }
   if (first === "|" || first === ">")
     throw new YamlSubsetError(line, "\u4E0D\u652F\u6301\u591A\u884C\u5757\u6807\u91CF\uFF1B\u547D\u4EE4\u4E0E\u8DEF\u5F84\u8BF7\u5199\u6210\u5355\u884C");
   if (first === "&" || first === "*" || first === "!")
     throw new YamlSubsetError(line, "\u4E0D\u652F\u6301\u951A\u70B9\u3001\u522B\u540D\u4E0E\u6807\u7B7E");
-  const comment = /\s#/.exec(text12);
-  const plain = (comment === null ? text12 : text12.slice(0, comment.index)).trim();
+  const comment = /\s#/.exec(text13);
+  const plain = (comment === null ? text13 : text13.slice(0, comment.index)).trim();
   if (plain.includes(": ") || plain.endsWith(":"))
     throw new YamlSubsetError(line, `\u503C '${plain}' \u542B ': '\uFF0C\u8BF7\u52A0\u5F15\u53F7`);
   return { kind: "scalar", line, value: resolvePlain(plain), quoted: false };
@@ -27699,16 +27779,16 @@ var BlockParser = class {
     return { kind: "seq", line, items };
   }
 };
-function parseYamlSubset(text12) {
-  return new BlockParser(tokenize2(text12)).document();
+function parseYamlSubset(text13) {
+  return new BlockParser(tokenize2(text13)).document();
 }
 
 // packages/kernel/dist/test-system/catalog.js
 var TEST_CATALOG_FILE_LABEL = "catalog.yaml";
-function parseTestCatalog(text12) {
+function parseTestCatalog(text13) {
   let root;
   try {
-    root = parseYamlSubset(text12);
+    root = parseYamlSubset(text13);
   } catch (error2) {
     if (error2 instanceof YamlSubsetError)
       return { ok: false, issues: [{ line: error2.line, message: error2.message.replace(/^第 \d+ 行：/, "") }] };
@@ -28081,10 +28161,10 @@ function decodeEntry(node, sink) {
     return sink.add(map.line, `\u5DF2\u77E5\u5931\u8D25 test '${test}' \u53EA\u6307\u5411\u6587\u4EF6\uFF1B\u5FC5\u987B\u6307\u5411\u5177\u4F53\u7528\u4F8B\uFF08<\u6587\u4EF6> \u203A <\u7528\u4F8B\u540D>\uFF09`);
   return { suite: suite2, test, reason: reason3, ...link6 === void 0 ? {} : { link: link6 }, expires, added_by: addedBy };
 }
-function parseKnownFailures(text12) {
+function parseKnownFailures(text13) {
   let root;
   try {
-    root = parseYamlSubset(text12);
+    root = parseYamlSubset(text13);
   } catch (error2) {
     if (error2 instanceof YamlSubsetError)
       return { ok: false, issues: [{ line: error2.line, message: error2.message.replace(/^第 \d+ 行：/, "") }] };
@@ -28168,8 +28248,8 @@ function order(left, right) {
 function latestSuiteRuns(records) {
   const out = /* @__PURE__ */ new Map();
   for (const record9 of [...records].sort(order)) {
-    for (const run5 of record9.suites)
-      out.set(run5.suite, { record: record9, run: run5 });
+    for (const run6 of record9.suites)
+      out.set(run6.suite, { record: record9, run: run6 });
   }
   return out;
 }
@@ -28181,7 +28261,7 @@ function staleBindings(ref, context) {
   if (bindings2.workflow_fingerprint !== context.workflowFingerprint)
     out.push("workflow");
   if (ref.run.origin === "catalog") {
-    const catalogSuites = ref.record.suites.filter((run5) => run5.origin === "catalog").map((run5) => run5.suite);
+    const catalogSuites = ref.record.suites.filter((run6) => run6.origin === "catalog").map((run6) => run6.suite);
     if (context.catalog === void 0 || bindings2.catalog_digest !== catalogSuitesDigest(context.catalog, catalogSuites))
       out.push("catalog");
     const planFresh = bindings2.plan_digest === (context.planDigest ?? null) || context.planDigestApprovalFree !== void 0 && bindings2.plan_digest === context.planDigestApprovalFree;
@@ -28225,14 +28305,14 @@ var ADVISORY_REASONS = /* @__PURE__ */ new Set([
   "artifact-truncated"
 ]);
 var NODE_TEST_FILE_HINT = `\uFF08\u82E5\u62A5\u544A\u91CC\u7684\u7528\u4F8B\u6CA1\u6709\u6587\u4EF6\u5F52\u5C5E\u2014\u2014Node 22 \u53CA\u4EE5\u524D\u5185\u7F6E\u7684 junit reporter \u4E0D\u5199 file \u5C5E\u6027\u2014\u2014\u547D\u4EE4\u91CC\u6539\u7528 --test-reporter="\${${NODE_TEST_REPORTER_ENV}:-junit}"\uFF0C\u7531 tenon test run \u63D0\u4F9B\u5E26 file \u7684 reporter\uFF09`;
-function reportCopyProblem(run5) {
-  if (run5.report.path === null || run5.report.digest === null)
+function reportCopyProblem(run6) {
+  if (run6.report.path === null || run6.report.digest === null)
     return void 0;
-  const expected = `artifacts/${run5.suite}/${repoGlob(run5.cwd, run5.report.path)}`;
-  const copy = run5.artifacts.find((entry2) => entry2.path === expected);
+  const expected = `artifacts/${run6.suite}/${repoGlob(run6.cwd, run6.report.path)}`;
+  const copy = run6.artifacts.find((entry2) => entry2.path === expected);
   if (copy === void 0)
-    return `\u8FD0\u884C\u7684\u4EA7\u7269\u76EE\u5F55\u91CC\u6CA1\u6709\u62A5\u544A ${run5.report.path} \u7684\u526F\u672C`;
-  return copy.digest === run5.report.digest ? void 0 : `\u62A5\u544A ${run5.report.path} \u5728\u88AB\u8BFB\u53D6\u4E4B\u540E\u53C8\u88AB\u6539\u5199\uFF08\u526F\u672C\u6458\u8981\u4E0E\u8BB0\u5F55\u4E0D\u7B26\uFF09`;
+    return `\u8FD0\u884C\u7684\u4EA7\u7269\u76EE\u5F55\u91CC\u6CA1\u6709\u62A5\u544A ${run6.report.path} \u7684\u526F\u672C`;
+  return copy.digest === run6.report.digest ? void 0 : `\u62A5\u544A ${run6.report.path} \u5728\u88AB\u8BFB\u53D6\u4E4B\u540E\u53C8\u88AB\u6539\u5199\uFF08\u526F\u672C\u6458\u8981\u4E0E\u8BB0\u5F55\u4E0D\u7B26\uFF09`;
 }
 function rerun(change, suite2) {
   return `tenon test run ${change} --suite ${shellQuote(suite2)}`;
@@ -28255,15 +28335,15 @@ function registeredRefs(plan, suite2, files) {
   }
   return [...refs].sort();
 }
-function coverageProblems(policy2, run5) {
+function coverageProblems(policy2, run6) {
   const thresholds = policy2.coverage;
   if (thresholds === void 0)
     return [];
-  if (run5.coverage === null)
+  if (run6.coverage === null)
     return ["\u6CA1\u6709\u4EA7\u51FA\u8986\u76D6\u7387\u6570\u636E"];
   const problems = [];
   for (const [metric4, threshold] of Object.entries(thresholds)) {
-    const actual = run5.coverage[metric4];
+    const actual = run6.coverage[metric4];
     if (actual === void 0)
       problems.push(`${metric4} \u672A\u62A5\u544A\uFF08\u95E8\u69DB ${threshold}%\uFF09`);
     else if (actual < threshold)
@@ -28272,35 +28352,35 @@ function coverageProblems(policy2, run5) {
   return problems;
 }
 function evaluateSuiteResult(suite2, ref, context) {
-  const { run: run5, record: record9 } = ref;
+  const { run: run6, record: record9 } = ref;
   const blockers = [];
   const notices = [];
   const name2 = suite2.label === void 0 ? suite2.id : `${suite2.label}\uFF08${suite2.id}\uFF09`;
   const fix = rerun(context.change, suite2.id);
   const direct = /* @__PURE__ */ new Set();
   const processReasons2 = [];
-  for (const reason3 of run5.reasons) {
+  for (const reason3 of run6.reasons) {
     if (isDirectReason(reason3.code))
       direct.add(reason3.code);
     else if (!RECOMPUTED_REASONS.has(reason3.code) && !ADVISORY_REASONS.has(reason3.code)) {
       processReasons2.push(reason3.detail === void 0 ? reason3.code : `${reason3.code}\uFF08${reason3.detail}\uFF09`);
     }
   }
-  const copyProblem = direct.has("report-missing") || direct.has("report-unreadable") ? void 0 : reportCopyProblem(run5);
+  const copyProblem = direct.has("report-missing") || direct.has("report-unreadable") ? void 0 : reportCopyProblem(run6);
   if (copyProblem !== void 0)
     direct.add("report-untrusted");
-  const caseFormat = isCaseReportFormat(run5.report.format);
-  if (caseFormat && !direct.has("report-missing") && !direct.has("report-unreadable") && !direct.has("report-untrusted") && (run5.totals.cases === 0 || run5.totals.skip === run5.totals.cases))
+  const caseFormat = isCaseReportFormat(run6.report.format);
+  if (caseFormat && !direct.has("report-missing") && !direct.has("report-unreadable") && !direct.has("report-untrusted") && (run6.totals.cases === 0 || run6.totals.skip === run6.totals.cases))
     direct.add("no-tests-ran");
   for (const code of direct) {
-    const detail = run5.reasons.find((reason3) => reason3.code === code)?.detail ?? (code === "report-untrusted" ? copyProblem : void 0);
+    const detail = run6.reasons.find((reason3) => reason3.code === code)?.detail ?? (code === "report-untrusted" ? copyProblem : void 0);
     const base = code === "no-tests-ran" ? `\u5957\u4EF6 ${name2} \u6CA1\u6709\u6267\u884C\u4EFB\u4F55\u7528\u4F8B\uFF080 \u7528\u4F8B\u6216\u5168\u90E8\u8DF3\u8FC7\uFF09` : code === "report-missing" ? `\u5957\u4EF6 ${name2} \u6CA1\u6709\u4EA7\u51FA\u62A5\u544A` : code === "report-unreadable" ? `\u5957\u4EF6 ${name2} \u7684\u62A5\u544A\u65E0\u6CD5\u89E3\u6790` : code === "report-untrusted" ? `\u5957\u4EF6 ${name2} \u7684\u62A5\u544A\u4E0D\u53EF\u4FE1` : code === "exit-report-mismatch" ? `\u5957\u4EF6 ${name2} \u7684\u9000\u51FA\u7801\u4E0E\u62A5\u544A\u7ED3\u8BBA\u4E0D\u4E00\u81F4` : `\u5957\u4EF6 ${name2} \u4F9D\u8D56\u7684\u670D\u52A1\u672A\u5C31\u7EEA`;
     blockers.push(testBlocker(code, detail === void 0 ? base : `${base}\uFF1A${detail}`, { fix, subject: suite2.id }));
   }
   const failing = [];
   const flaky2 = [];
   let listedFailures = 0;
-  for (const item2 of run5.cases) {
+  for (const item2 of run6.cases) {
     const refText = formatCaseRef(item2);
     if (item2.status === "flaky")
       flaky2.push(refText);
@@ -28330,7 +28410,7 @@ function evaluateSuiteResult(suite2, ref, context) {
       }));
     }
   }
-  const unlisted = run5.totals.fail + run5.totals.known_fail - listedFailures;
+  const unlisted = run6.totals.fail + run6.totals.known_fail - listedFailures;
   if (unlisted > 0)
     failing.push(`\u53E6\u6709 ${unlisted} \u4E2A\u672A\u5217\u51FA\u7684\u5931\u8D25\u7528\u4F8B`);
   if (failing.length > 0 || processReasons2.length > 0) {
@@ -28341,12 +28421,12 @@ function evaluateSuiteResult(suite2, ref, context) {
     blockers.push(testBlocker("test-failed", `\u5957\u4EF6 ${name2} \u5931\u8D25\uFF1A${parts.join("\uFF1B")}`, { fix, subject: suite2.id }));
   }
   const files = planFilesOfSuite(context.plan, suite2);
-  const executed = run5.cases.filter((item2) => item2.status !== "skip");
+  const executed = run6.cases.filter((item2) => item2.status !== "skip");
   const refs = registeredRefs(context.plan, suite2, files).flatMap((test) => {
     const ref2 = parseCaseRef(test);
     return ref2 === void 0 ? [] : [{ test, ref: ref2 }];
   });
-  const refRan = (ref2) => casesMatchingRef(ref2, run5.cases).some((item2) => item2.status !== "skip");
+  const refRan = (ref2) => casesMatchingRef(ref2, run6.cases).some((item2) => item2.status !== "skip");
   const missingRefs = refs.filter(({ ref: ref2 }) => !refRan(ref2)).map(({ test }) => test);
   const fileRan = (path15) => executed.some((item2) => fileRefMatches(path15, item2.file) || fileRefMatches(item2.file, path15)) || refs.some(({ ref: ref2 }) => fileRefMatches(ref2.file, path15) && refRan(ref2));
   const missingFiles = files.filter((path15) => !fileRan(path15));
@@ -28356,13 +28436,13 @@ function evaluateSuiteResult(suite2, ref, context) {
     blockers.push(testBlocker("registered-test-not-executed", `\u5957\u4EF6 ${name2} \u7684\u62A5\u544A\u91CC\u6CA1\u6709\u5DF2\u767B\u8BB0\u7684\u6D4B\u8BD5\uFF1A${list5.slice(0, 5).join("\uFF1B")}${list5.length > 5 ? " \u2026" : ""}${hint}`, { fix, subject: suite2.id }));
   }
   if (suite2.coverage !== void 0 || suite2.kind === "coverage") {
-    const problems = coverageProblems(context.policy, run5);
+    const problems = coverageProblems(context.policy, run6);
     if (problems.length > 0)
       blockers.push(testBlocker("coverage-below", `\u5957\u4EF6 ${name2} \u8986\u76D6\u7387\u4E0D\u8DB3\uFF1A${problems.join("\uFF1B")}`, { fix, subject: suite2.id }));
   }
   const benchmark2 = [];
   for (const spec of suite2.benchmark?.metrics ?? []) {
-    const result2 = run5.metrics.find((metric4) => metric4.name === spec.name);
+    const result2 = run6.metrics.find((metric4) => metric4.name === spec.name);
     const summary = result2 === void 0 ? void 0 : { median: result2.median, p95: result2.p95, mad: result2.mad, samples: result2.samples.length };
     const baseline = context.baselines.get(baselineKey(suite2.id, record9.machine_profile));
     const verdict = evaluateBenchmarkMetric(spec, summary, baseline?.metrics[spec.name]?.median);
@@ -28381,7 +28461,7 @@ function evaluateSuiteResult(suite2, ref, context) {
   }
   if (suite2.runner === "playwright") {
     const required3 = [.../* @__PURE__ */ new Set([...suite2.browsers, ...suite2.kind === "playwright" ? context.policy.browsers : []])];
-    const missing3 = required3.filter((project) => !run5.projects.includes(project));
+    const missing3 = required3.filter((project) => !run6.projects.includes(project));
     if (missing3.length > 0) {
       blockers.push(testBlocker("browser-project-missing", `\u5957\u4EF6 ${name2} \u7684\u62A5\u544A\u7F3A\u5C11\u6D4F\u89C8\u5668 project\uFF1A${missing3.join("\u3001")}`, { fix, subject: suite2.id }));
     }
@@ -28565,10 +28645,10 @@ function decodeWaiver(node, sink) {
 function decodeList(node, sink, what, decode3) {
   return (asSeq(node, sink, what) ?? []).map((item2) => decode3(item2, sink)).filter((item2) => item2 !== void 0);
 }
-function parseTestPlan(text12, expectedChange) {
+function parseTestPlan(text13, expectedChange) {
   let root;
   try {
-    root = parseYamlSubset(text12);
+    root = parseYamlSubset(text13);
   } catch (error2) {
     if (error2 instanceof YamlSubsetError)
       return { ok: false, issues: [{ line: error2.line, message: error2.message.replace(/^第 \d+ 行：/, "") }] };
@@ -28797,7 +28877,7 @@ function createChangedFilesSession(repoRoot, options = {}) {
       return { ok: false, stdout: typeof failure3.stdout === "string" ? failure3.stdout : "", timedOut };
     }
   }
-  function git3(args) {
+  function git4(args) {
     const key = args.join("\0");
     const known = commands.get(key);
     if (known !== void 0)
@@ -28807,7 +28887,7 @@ function createChangedFilesSession(repoRoot, options = {}) {
     return pending;
   }
   async function gitText(args) {
-    const outcome = await git3(args);
+    const outcome = await git4(args);
     if (outcome.ok)
       return outcome.stdout;
     if (outcome.timedOut)
@@ -28817,7 +28897,7 @@ function createChangedFilesSession(repoRoot, options = {}) {
   let repo;
   function repository() {
     repo ??= (async () => {
-      const outcome = await git3(["rev-parse", "--is-inside-work-tree", "--verify", "-q", "HEAD"]);
+      const outcome = await git4(["rev-parse", "--is-inside-work-tree", "--verify", "-q", "HEAD"]);
       if (!outcome.ok && outcome.timedOut)
         throw new ChangedFilesUnavailableError(timeoutReason("rev-parse"));
       const [inside3, head] = outcome.stdout.split("\n").map((line) => line.trim());
@@ -28988,9 +29068,9 @@ function parseAddedLines(diff) {
         current = void 0;
         continue;
       }
-      const relative40 = path15.startsWith("b/") ? path15.slice(2) : path15;
-      current = out.get(relative40) ?? /* @__PURE__ */ new Set();
-      out.set(relative40, current);
+      const relative42 = path15.startsWith("b/") ? path15.slice(2) : path15;
+      current = out.get(relative42) ?? /* @__PURE__ */ new Set();
+      out.set(relative42, current);
       continue;
     }
     const hunk = HUNK.exec(line);
@@ -29008,10 +29088,10 @@ async function lineCount(path15) {
     const entry2 = await lstat25(path15);
     if (!entry2.isFile() || entry2.size > MAX_UNTRACKED_BYTES)
       return 0;
-    const text12 = await readFile32(path15, "utf8");
-    if (text12 === "")
+    const text13 = await readFile32(path15, "utf8");
+    if (text13 === "")
       return 0;
-    return text12.endsWith("\n") ? text12.split("\n").length - 1 : text12.split("\n").length;
+    return text13.endsWith("\n") ? text13.split("\n").length - 1 : text13.split("\n").length;
   } catch {
     return 0;
   }
@@ -29019,8 +29099,8 @@ async function lineCount(path15) {
 function scalar8(value) {
   return value === void 0 ? "" : typeof value === "string" ? value : value.join(",");
 }
-function changeStartOfFields(fields) {
-  return { baseBranch: scalar8(fields.base_branch), createdAt: scalar8(fields.created_at) };
+function changeStartOfFields(fields2) {
+  return { baseBranch: scalar8(fields2.base_branch), createdAt: scalar8(fields2.created_at) };
 }
 async function changedFilesResultForState(repoRoot, state) {
   return createChangedFilesSession(repoRoot).changedFiles(changeStartOfFields(state.fields));
@@ -29053,10 +29133,10 @@ function decodeSeal(value) {
   if (!isRecord6(value.heads) || !isRecord6(value.writes) || !Array.isArray(value.approvals) || !Array.isArray(value.trusted))
     return void 0;
   const heads = {};
-  for (const [change, digest18] of Object.entries(value.heads)) {
-    if (text5(digest18) === void 0)
+  for (const [change, digest19] of Object.entries(value.heads)) {
+    if (text5(digest19) === void 0)
       return void 0;
-    heads[change] = digest18;
+    heads[change] = digest19;
   }
   const writes = {};
   for (const [path15, entry2] of Object.entries(value.writes)) {
@@ -29068,19 +29148,19 @@ function decodeSeal(value) {
   for (const entry2 of value.approvals) {
     if (!isRecord6(entry2))
       return void 0;
-    const { change, path: path15, digest: digest18, by, at } = entry2;
-    if (text5(change) === void 0 || text5(path15) === void 0 || text5(digest18) === void 0 || text5(by) === void 0 || text5(at) === void 0)
+    const { change, path: path15, digest: digest19, by, at } = entry2;
+    if (text5(change) === void 0 || text5(path15) === void 0 || text5(digest19) === void 0 || text5(by) === void 0 || text5(at) === void 0)
       return void 0;
-    approvals.push({ change, path: path15, digest: digest18, by, at });
+    approvals.push({ change, path: path15, digest: digest19, by, at });
   }
   const trusted = [];
   for (const entry2 of value.trusted) {
     if (!isRecord6(entry2))
       return void 0;
-    const { digest: digest18, by, at } = entry2;
-    if (text5(digest18) === void 0 || text5(by) === void 0 || text5(at) === void 0)
+    const { digest: digest19, by, at } = entry2;
+    if (text5(digest19) === void 0 || text5(by) === void 0 || text5(at) === void 0)
       return void 0;
-    trusted.push({ digest: digest18, by, at });
+    trusted.push({ digest: digest19, by, at });
   }
   return { heads, writes, approvals, trusted };
 }
@@ -29165,11 +29245,11 @@ async function sealSharedWrite(repoRoot, slug2, writes, at) {
     writes: { ...seal.writes, ...Object.fromEntries(writes.map((entry2) => [entry2.path, { digest: entry2.digest, at }])) }
   }));
 }
-function isApproved(seal, change, path15, digest18) {
-  return seal.approvals.some((entry2) => entry2.change === change && entry2.path === path15 && entry2.digest === digest18);
+function isApproved(seal, change, path15, digest19) {
+  return seal.approvals.some((entry2) => entry2.change === change && entry2.path === path15 && entry2.digest === digest19);
 }
-function isTrusted(seal, digest18) {
-  return seal.trusted.some((entry2) => entry2.digest === digest18);
+function isTrusted(seal, digest19) {
+  return seal.trusted.some((entry2) => entry2.digest === digest19);
 }
 
 // packages/kernel/dist/test-system/protected-files.js
@@ -29204,21 +29284,33 @@ async function digestOfFile(path15) {
 function protectedFileDigest(repoRoot, path15) {
   return digestOfFile(join43(repoRoot, ...path15.split("/")));
 }
+async function protectedApprovalDigests(repoRoot, paths) {
+  const entries2 = [];
+  for (const path15 of paths) {
+    const digest19 = await protectedFileDigest(repoRoot, path15);
+    if (digest19 !== "unreadable")
+      entries2.push(`${path15}@${digest19}`);
+  }
+  return entries2.length === 0 ? void 0 : entries2.join(",");
+}
 async function readProtectedChanges(repoRoot, changes) {
   const out = [];
   for (const change of changes) {
     const kind = protectedKindOf(change.path);
     if (kind === void 0)
       continue;
-    const digest18 = await digestOfFile(join43(repoRoot, ...change.path.split("/")));
-    if (digest18 === DELETED_DIGEST && change.status === "added")
+    const digest19 = await digestOfFile(join43(repoRoot, ...change.path.split("/")));
+    if (digest19 === DELETED_DIGEST && change.status === "added")
       continue;
-    out.push({ path: change.path, kind, status: digest18 === DELETED_DIGEST ? "deleted" : change.status, digest: digest18 });
+    out.push({ path: change.path, kind, status: digest19 === DELETED_DIGEST ? "deleted" : change.status, digest: digest19 });
   }
   return out;
 }
 async function protectedChangesSinceChangeStart(repoRoot, start) {
   return readProtectedChanges(repoRoot, await pathChangesSinceChangeStart(repoRoot, start, PROTECTED_PATHSPECS));
+}
+async function protectedChangesInSession(repoRoot, session, start) {
+  return readProtectedChanges(repoRoot, await session.pathChanges(start, PROTECTED_PATHSPECS));
 }
 function isSealedSharedFile(kind) {
   return kind === "baseline" || kind === "known-failures";
@@ -29432,15 +29524,15 @@ function evaluateRunSet(input2, entries2, latest, freshness, plan, chainBroken, 
         out.blockers.push(testBlocker("test-not-run", `\u5957\u4EF6 ${name2}\uFF08${suite2.kind}\uFF09\u672C\u9636\u6BB5\u8FD8\u6CA1\u6709\u5728\u5F53\u524D\u4EE3\u7801\u4E0A\u8FD0\u884C`, { fix, subject: suite2.id }));
       continue;
     }
-    const run5 = { run_id: ref.record.run_id, finished_at: ref.record.finished_at };
+    const run6 = { run_id: ref.record.run_id, finished_at: ref.record.finished_at };
     const stale = staleBindings(ref, freshness);
     if (stale.length > 0) {
-      verdicts.push({ ...base, ...run5, state: "stale", staleBecause: stale });
+      verdicts.push({ ...base, ...run6, state: "stale", staleBecause: stale });
       out.blockers.push(testBlocker("test-stale", `\u5957\u4EF6 ${name2} \u7684\u8FD0\u884C\u5DF2\u8FC7\u671F\uFF1A${stale.map((item2) => STALE_WORDS[item2]).join("\u3001")}`, { fix, subject: suite2.id }));
       continue;
     }
     if (input2.policy.scope === "full" && ref.run.scope !== "full") {
-      verdicts.push({ ...base, ...run5, state: "missing", detail: `\u53EA\u8DD1\u4E86 ${ref.run.scope} \u8303\u56F4` });
+      verdicts.push({ ...base, ...run6, state: "missing", detail: `\u53EA\u8DD1\u4E86 ${ref.run.scope} \u8303\u56F4` });
       out.blockers.push(testBlocker("test-not-run", `\u5957\u4EF6 ${name2} \u672C\u9636\u6BB5\u8981\u6C42\u5168\u91CF\u8FD0\u884C\uFF0C\u6700\u8FD1\u4E00\u6B21\u53EA\u8DD1\u4E86 ${ref.run.scope} \u8303\u56F4`, { fix, subject: suite2.id }));
       continue;
     }
@@ -29457,7 +29549,7 @@ function evaluateRunSet(input2, entries2, latest, freshness, plan, chainBroken, 
     out.notices.push(...result2.notices);
     verdicts.push({
       ...base,
-      ...run5,
+      ...run6,
       state: result2.blockers.some((item2) => item2.blocking) ? "failed" : "passed",
       totals: ref.run.totals,
       failing: result2.failing,
@@ -29904,13 +29996,13 @@ async function readOptional(path15) {
   }
 }
 async function readTestPlanState(changeDir7, changeName) {
-  const [text12, ledgerText] = await Promise.all([
+  const [text13, ledgerText] = await Promise.all([
     readOptional(testPlanPath(changeDir7)),
     readOptional(testPlanLedgerPath(changeDir7))
   ]);
-  if (text12 === void 0 && ledgerText === void 0)
+  if (text13 === void 0 && ledgerText === void 0)
     return { state: "missing" };
-  if (text12 === void 0)
+  if (text13 === void 0)
     return { state: "tampered", reason: "\u8BA1\u5212\u6587\u4EF6\u88AB\u5220\u9664\uFF0C\u53F0\u8D26\u4ECD\u5728" };
   if (ledgerText === void 0)
     return { state: "tampered", reason: "\u8BA1\u5212\u6587\u4EF6\u4E0D\u662F\u7531 tenon test \u5199\u5165\uFF08\u6CA1\u6709\u6458\u8981\u53F0\u8D26\uFF09" };
@@ -29923,15 +30015,15 @@ async function readTestPlanState(changeDir7, changeName) {
   const ledger = decodeTestPlanLedger(parsed2);
   if (ledger === void 0)
     return { state: "tampered", reason: "\u8BA1\u5212\u6458\u8981\u53F0\u8D26\u635F\u574F" };
-  const digest18 = testPlanBytesDigest(text12);
-  if (digest18 !== ledger.digest)
+  const digest19 = testPlanBytesDigest(text13);
+  if (digest19 !== ledger.digest)
     return { state: "tampered", reason: "\u8BA1\u5212\u6587\u4EF6\u5185\u5BB9\u4E0E\u767B\u8BB0\u6458\u8981\u4E0D\u7B26\uFF08\u88AB\u624B\u5DE5\u6539\u52A8\uFF09" };
-  const result2 = parseTestPlan(text12, changeName);
+  const result2 = parseTestPlan(text13, changeName);
   if (!result2.ok) {
     const first = result2.issues[0];
     return { state: "tampered", reason: `\u8BA1\u5212\u6587\u4EF6\u65E0\u6CD5\u89E3\u6790${first === void 0 ? "" : `\uFF1A\u7B2C ${first.line} \u884C ${first.message}`}` };
   }
-  return { state: "ok", plan: result2.plan, digest: digest18, ledger };
+  return { state: "ok", plan: result2.plan, digest: digest19, ledger };
 }
 async function writeAndAudit(changeDir7, plan, meta2) {
   const written = await writeTestPlanUnderLock(changeDir7, plan, meta2);
@@ -29950,13 +30042,13 @@ async function ledgerDigest(changeDir7) {
 }
 async function writeTestPlanUnderLock(changeDir7, plan, meta2) {
   const bytes = serializeTestPlan(plan);
-  const digest18 = testPlanBytesDigest(bytes);
-  const changed = await ledgerDigest(changeDir7) !== digest18;
-  const ledger = { version: 1, digest: digest18, recorded_at: meta2.recordedAt, actor: meta2.actor };
+  const digest19 = testPlanBytesDigest(bytes);
+  const changed = await ledgerDigest(changeDir7) !== digest19;
+  const ledger = { version: 1, digest: digest19, recorded_at: meta2.recordedAt, actor: meta2.actor };
   await atomicReplaceFile(testPlanPath(changeDir7), bytes);
   await atomicReplaceFile(testPlanLedgerPath(changeDir7), `${JSON.stringify(ledger, null, 2)}
 `);
-  return { digest: digest18, changed };
+  return { digest: digest19, changed };
 }
 async function updateTestPlan(changeDir7, changeName, meta2, mutate) {
   return withLock(changeDir7, async () => {
@@ -30257,12 +30349,12 @@ function bindings(value) {
   const candidate2 = nullableText(item2.candidate);
   if (candidate2 !== null && !isWorkspaceBaseline(candidate2))
     bad3();
-  const fingerprint = text7(item2.workflow_fingerprint);
-  if (!FINGERPRINT_RE.test(fingerprint))
+  const fingerprint2 = text7(item2.workflow_fingerprint);
+  if (!FINGERPRINT_RE.test(fingerprint2))
     bad3();
   return {
     candidate: candidate2,
-    workflow_fingerprint: fingerprint,
+    workflow_fingerprint: fingerprint2,
     catalog_digest: nullableDigest(item2.catalog_digest),
     plan_digest: nullableDigest(item2.plan_digest),
     policy_digest: nullableDigest(item2.policy_digest)
@@ -30444,14 +30536,14 @@ async function readRecordFile(path15) {
   }
 }
 async function readChainBase(dir) {
-  let text12;
+  let text13;
   try {
-    text12 = await readFile37(join45(dir, CHAIN_BASE_FILE), "utf8");
+    text13 = await readFile37(join45(dir, CHAIN_BASE_FILE), "utf8");
   } catch (error2) {
     return error2.code === "ENOENT" ? void 0 : "problem";
   }
   try {
-    const value = JSON.parse(text12);
+    const value = JSON.parse(text13);
     if (typeof value !== "object" || value === null || Array.isArray(value))
       return "problem";
     const record9 = Object.fromEntries(Object.entries(value));
@@ -30646,27 +30738,27 @@ async function readBounded(path15) {
 }
 async function loadCatalogInput(repoRoot) {
   const path15 = testSystemPaths(repoRoot).catalog;
-  let text12;
+  let text13;
   try {
     const entry2 = await lstat30(path15);
     if (!entry2.isFile())
       return { state: "invalid", issues: ["catalog.yaml \u4E0D\u662F\u666E\u901A\u6587\u4EF6"] };
     if (entry2.size > MAX_TEXT_BYTES)
       return { state: "invalid", issues: ["catalog.yaml \u8D85\u8FC7 1 MiB"] };
-    text12 = await readFile38(path15, "utf8");
+    text13 = await readFile38(path15, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT")
       return { state: "missing" };
     return { state: "invalid", issues: [`catalog.yaml \u65E0\u6CD5\u8BFB\u53D6\uFF1A${error2.message}`] };
   }
-  const result2 = parseTestCatalog(text12);
+  const result2 = parseTestCatalog(text13);
   return result2.ok ? { state: "ok", catalog: result2.catalog } : { state: "invalid", issues: formatCatalogIssues(result2.issues) };
 }
 async function loadKnownFailures(repoRoot) {
-  const text12 = await readBounded(testSystemPaths(repoRoot).knownFailures);
-  if (text12 === void 0)
+  const text13 = await readBounded(testSystemPaths(repoRoot).knownFailures);
+  if (text13 === void 0)
     return [];
-  const result2 = parseKnownFailures(text12);
+  const result2 = parseKnownFailures(text13);
   return result2.ok ? result2.entries : [];
 }
 async function loadDeltaScenarios(changeDir7) {
@@ -30678,15 +30770,15 @@ async function loadDeltaScenarios(changeDir7) {
   }
   const out = [];
   for (const capability of names) {
-    const text12 = await readBounded(join46(changeDir7, "specs", capability, "spec.md"));
-    if (text12 !== void 0)
-      out.push(...extractScenarios(capability, text12));
+    const text13 = await readBounded(join46(changeDir7, "specs", capability, "spec.md"));
+    if (text13 !== void 0)
+      out.push(...extractScenarios(capability, text13));
   }
   return out;
 }
 async function loadTaskItems(changeDir7, stages) {
-  const text12 = await readBounded(join46(changeDir7, "tasks.md"));
-  return text12 === void 0 ? [] : extractTaskItems(text12, stages);
+  const text13 = await readBounded(join46(changeDir7, "tasks.md"));
+  return text13 === void 0 ? [] : extractTaskItems(text13, stages);
 }
 async function loadBaselines(repoRoot, catalog3, chain) {
   const out = /* @__PURE__ */ new Map();
@@ -30694,14 +30786,14 @@ async function loadBaselines(repoRoot, catalog3, chain) {
     return out;
   const benchmarkSuites = new Set(catalog3.catalog.suites.filter((suite2) => suite2.benchmark !== void 0).map((suite2) => suite2.id));
   for (const record9 of chain.active) {
-    for (const run5 of record9.suites) {
-      if (!benchmarkSuites.has(run5.suite))
+    for (const run6 of record9.suites) {
+      if (!benchmarkSuites.has(run6.suite))
         continue;
-      const key = baselineKey(run5.suite, record9.machine_profile);
+      const key = baselineKey(run6.suite, record9.machine_profile);
       if (out.has(key))
         continue;
-      const result2 = await readTestBaselineV2(baselineV2Path(repoRoot, run5.suite, record9.machine_profile));
-      if (result2.state === "ok" && result2.baseline.suite === run5.suite && result2.baseline.profile === record9.machine_profile) {
+      const result2 = await readTestBaselineV2(baselineV2Path(repoRoot, run6.suite, record9.machine_profile));
+      if (result2.state === "ok" && result2.baseline.suite === run6.suite && result2.baseline.profile === record9.machine_profile) {
         out.set(key, result2.baseline);
       }
     }
@@ -30720,24 +30812,24 @@ async function evaluateStepTestPolicy(input2) {
   const planInput = plan.state === "ok" ? { state: "ok", plan: plan.plan, digest: plan.digest } : plan;
   const hasRecords = chain.state === "intact" && chain.active.length > 0;
   const candidate2 = hasRecords ? await input2.candidate() : void 0;
-  let changedFiles;
+  let changedFiles2;
   let changedFilesTruncated;
   let changedFilesError;
   if (input2.policy.files === "registered" && input2.changedFiles !== void 0) {
     try {
       const source = await input2.changedFiles();
       const report2 = Array.isArray(source) ? { files: source } : source;
-      changedFiles = report2.files;
+      changedFiles2 = report2.files;
       changedFilesTruncated = report2.untrackedTruncated;
     } catch (error2) {
       changedFilesError = error2 instanceof Error ? error2.message.slice(0, 200) : "\u8BFB\u53D6\u5931\u8D25";
     }
   }
-  const sealed = await readTestSeal(input2.repoRoot, input2.slug);
+  const sealed = input2.seal === "none" ? void 0 : await readTestSeal(input2.repoRoot, input2.slug);
   const reviewGated = input2.reviewGated === true;
   let protectedChanges;
   let protectedChangesError;
-  if (reviewGated && input2.protectedChanges !== void 0) {
+  if (sealed !== void 0 && reviewGated && input2.protectedChanges !== void 0) {
     try {
       protectedChanges = await input2.protectedChanges();
     } catch (error2) {
@@ -30754,7 +30846,7 @@ async function evaluateStepTestPolicy(input2) {
     chain,
     knownFailures,
     baselines: await loadBaselines(input2.repoRoot, catalog3, chain),
-    changedFiles,
+    changedFiles: changedFiles2,
     ...changedFilesError === void 0 ? {} : { changedFilesError },
     ...changedFilesTruncated === void 0 ? {} : { changedFilesTruncated },
     scenarios,
@@ -30762,12 +30854,14 @@ async function evaluateStepTestPolicy(input2) {
     bindings: { candidate: candidate2, workflowFingerprint: input2.workflowFingerprint, workflowRunId: input2.workflowRunId },
     today: new Date(input2.now).toISOString().slice(0, 10),
     ...input2.exitEvent === void 0 ? {} : { exitEvent: input2.exitEvent },
-    protected: {
-      reviewGated,
-      changes: protectedChanges,
-      ...protectedChangesError === void 0 ? {} : { changesError: protectedChangesError },
-      seal: sealed.seal,
-      sealState: sealed.state
+    ...sealed === void 0 ? {} : {
+      protected: {
+        reviewGated,
+        changes: protectedChanges,
+        ...protectedChangesError === void 0 ? {} : { changesError: protectedChangesError },
+        seal: sealed.seal,
+        sealState: sealed.state
+      }
     }
   });
 }
@@ -30927,6 +31021,7 @@ async function evaluateTestEvidence(input2) {
       ...input2.context.changedFiles === void 0 ? {} : { changedFiles: input2.context.changedFiles },
       ...input2.context.recordChainCache === void 0 ? {} : { recordChainCache: input2.context.recordChainCache },
       ...input2.context.protectedChanges === void 0 ? {} : { protectedChanges: input2.context.protectedChanges },
+      ...input2.context.seal === void 0 ? {} : { seal: input2.context.seal },
       reviewGated: input2.plan.workflow.steps.find((step) => step.id === input2.stepId)?.gate === "review",
       now,
       ...event === void 0 ? {} : { exitEvent: event }
@@ -30969,23 +31064,23 @@ function duration(item2) {
   return ms === void 0 ? "\u2014" : `${(ms / 1e3).toFixed(1)}s`;
 }
 function recordPath2(item2, changeName) {
-  const run5 = item2.run;
-  if (run5 === void 0)
+  const run6 = item2.run;
+  if (run6 === void 0)
     return "\u2014";
-  return `\`.tenon/users/${userSlug(run5.actor.id)}/tests/${changeName}/${run5.run_id}.json\``;
+  return `\`.tenon/users/${userSlug(run6.actor.id)}/tests/${changeName}/${run6.run_id}.json\``;
 }
 function row(item2, locale) {
-  const run5 = item2.run;
+  const run6 = item2.run;
   const cells = [
     item2.stepLabel === "" ? item2.stepId : item2.stepLabel,
     `${item2.test.label ?? item2.test.id} \`${item2.test.id}\``,
     item2.test.direction,
     STATUS_WORDS[locale][item2.status],
-    run5?.exit_code === void 0 || run5.exit_code === null ? run5?.signal ?? "\u2014" : String(run5.exit_code),
+    run6?.exit_code === void 0 || run6.exit_code === null ? run6?.signal ?? "\u2014" : String(run6.exit_code),
     duration(item2),
-    run5?.actor.name ?? "\u2014",
-    run5?.finished_at ?? "\u2014",
-    shortCandidate(run5?.candidate ?? null)
+    run6?.actor.name ?? "\u2014",
+    run6?.finished_at ?? "\u2014",
+    shortCandidate(run6?.candidate ?? null)
   ];
   return `| ${cells.join(" | ")} |`;
 }
@@ -31012,9 +31107,9 @@ function renderTestsRegion(input2) {
       body.push(`- \`${item2.test.id}\`\uFF1A\`${item2.test.command}\`\uFF08cwd \`${item2.test.cwd}\`\uFF09`);
     }
   }
-  const text12 = body.join("\n");
-  return `${TESTS_REGION_START} digest=sha256:${sha256Hex(text12)} -->
-${text12}
+  const text13 = body.join("\n");
+  return `${TESTS_REGION_START} digest=sha256:${sha256Hex(text13)} -->
+${text13}
 ${TESTS_REGION_END}`;
 }
 function replaceTestsRegion(markdown, region, locale) {
@@ -31059,15 +31154,15 @@ function emptyCatalog() {
   return { schema: TEST_CATALOG_SCHEMA, profiles_env: [], suites: [], services: [] };
 }
 async function readCatalogFile(repoRoot) {
-  let text12;
+  let text13;
   try {
-    text12 = await readFile40(testSystemPaths(repoRoot).catalog, "utf8");
+    text13 = await readFile40(testSystemPaths(repoRoot).catalog, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT")
       return { state: "missing" };
     throw error2;
   }
-  const parsed2 = parseTestCatalog(text12);
+  const parsed2 = parseTestCatalog(text13);
   return parsed2.ok ? { state: "ok", catalog: parsed2.catalog } : { state: "invalid", issues: formatCatalogIssues(parsed2.issues) };
 }
 async function updateCatalog(repoRoot, mutate) {
@@ -31083,11 +31178,11 @@ async function updateCatalog(repoRoot, mutate) {
       return { ok: false, message: result2 };
     if (result2.catalog === base)
       return { ok: true, value: result2.value };
-    const text12 = serializeTestCatalog(result2.catalog);
-    const check = parseTestCatalog(text12);
+    const text13 = serializeTestCatalog(result2.catalog);
+    const check = parseTestCatalog(text13);
     if (!check.ok)
       return { ok: false, message: `\u6539\u52A8\u540E\u7684\u76EE\u5F55\u4E0D\u5408\u6CD5\uFF1A${formatCatalogIssues(check.issues).slice(0, 3).join("\uFF1B")}` };
-    await atomicReplaceFile(paths.catalog, text12);
+    await atomicReplaceFile(paths.catalog, text13);
     return { ok: true, value: result2.value };
   });
 }
@@ -31113,15 +31208,15 @@ function decodeProtected(value) {
     if (Object.keys(item2).sort().join(",") !== "digest,kind,origin,path,status")
       return void 0;
     const path15 = text8(item2.path);
-    const digest18 = text8(item2.digest);
+    const digest19 = text8(item2.digest);
     const kind = path15 === void 0 ? void 0 : protectedKindOf(path15);
-    if (path15 === void 0 || digest18 === void 0 || kind === void 0 || kind !== item2.kind)
+    if (path15 === void 0 || digest19 === void 0 || kind === void 0 || kind !== item2.kind)
       return void 0;
     if (typeof item2.status !== "string" || !STATUSES3.has(item2.status))
       return void 0;
     if (item2.origin !== "pending" && item2.origin !== "outside-command")
       return void 0;
-    out.push({ path: path15, kind, status: item2.status, digest: digest18, origin: item2.origin });
+    out.push({ path: path15, kind, status: item2.status, digest: digest19, origin: item2.origin });
   }
   return out;
 }
@@ -31215,10 +31310,10 @@ async function sealProtectedApprovals(input2) {
     return [];
   const entries2 = [];
   for (const item2 of input2.matched) {
-    const digest18 = item2.kind === "catalog" ? await protectedFileDigest(input2.repoRoot, item2.path) : item2.digest;
-    if (digest18 === "unreadable")
+    const digest19 = item2.kind === "catalog" ? await protectedFileDigest(input2.repoRoot, item2.path) : item2.digest;
+    if (digest19 === "unreadable")
       continue;
-    entries2.push({ path: item2.path, digest: digest18 });
+    entries2.push({ path: item2.path, digest: digest19 });
   }
   if (entries2.length === 0)
     return [];
@@ -31252,7 +31347,7 @@ async function approveFrozenWaivers(input2) {
   const catalogPart = selection.waivers.filter((item2) => isNotApplicableKey(item2.key));
   const approved = [];
   const skipped = [];
-  let digest18 = null;
+  let digest19 = null;
   let note2 = null;
   if (planPart.length > 0) {
     const plan = await readTestPlanState(input2.dir, input2.change);
@@ -31264,7 +31359,7 @@ async function approveFrozenWaivers(input2) {
       if (result2.approved.length > 0) {
         const written = await writeTestPlanUnderLock(input2.dir, result2.plan, { actor: input2.actor, recordedAt: input2.recordedAt });
         approved.push(...result2.approved);
-        digest18 = written.digest;
+        digest19 = written.digest;
       }
     }
   }
@@ -31290,37 +31385,37 @@ async function approveFrozenWaivers(input2) {
     recordedAt: input2.recordedAt,
     matched: checked.matched
   });
-  return { approved, skipped, digest: digest18, note: note2, protectedApproved, protectedSkipped: checked.skipped };
+  return { approved, skipped, digest: digest19, note: note2, protectedApproved, protectedSkipped: checked.skipped };
 }
 
 // packages/kernel/dist/test-system/report-block.js
 var TEST_REPORT_BEGIN = "<!-- tenon:test-report:begin -->";
 var TEST_REPORT_END = "<!-- tenon:test-report:end -->";
-function blockRange(text12) {
-  const start = text12.indexOf(TEST_REPORT_BEGIN);
+function blockRange(text13) {
+  const start = text13.indexOf(TEST_REPORT_BEGIN);
   if (start < 0)
     return void 0;
-  const end = text12.indexOf(TEST_REPORT_END, start + TEST_REPORT_BEGIN.length);
+  const end = text13.indexOf(TEST_REPORT_END, start + TEST_REPORT_BEGIN.length);
   return end < 0 ? void 0 : { start, end };
 }
-function testReportBlock(text12) {
-  const range = blockRange(text12);
-  return range === void 0 ? void 0 : text12.slice(range.start + TEST_REPORT_BEGIN.length, range.end);
+function testReportBlock(text13) {
+  const range = blockRange(text13);
+  return range === void 0 ? void 0 : text13.slice(range.start + TEST_REPORT_BEGIN.length, range.end);
 }
-function replaceTestReportBlock(text12, body) {
+function replaceTestReportBlock(text13, body) {
   const block = `${TEST_REPORT_BEGIN}
 ${body.trim()}
 ${TEST_REPORT_END}`;
-  const range = blockRange(text12);
+  const range = blockRange(text13);
   if (range !== void 0)
-    return `${text12.slice(0, range.start)}${block}${text12.slice(range.end + TEST_REPORT_END.length)}`;
-  return `${text12.trimEnd()}
+    return `${text13.slice(0, range.start)}${block}${text13.slice(range.end + TEST_REPORT_END.length)}`;
+  return `${text13.trimEnd()}
 
 ${block}
 `;
 }
-function reportCarriesRuns(text12, runIds) {
-  const block = testReportBlock(text12);
+function reportCarriesRuns(text13, runIds) {
+  const block = testReportBlock(text13);
   return block !== void 0 && runIds.every((id2) => block.includes(id2));
 }
 
@@ -31367,10 +31462,10 @@ function describeCatalog(before, after) {
       lines2.push(`\u5220\u9664\u670D\u52A1 ${id2}`);
   return capped(lines2.length === 0 ? ["\u5957\u4EF6\u4E0E\u670D\u52A1\u6CA1\u6709\u53D8\u5316\uFF08\u5176\u5B83\u5B57\u6BB5\u6709\u6539\u52A8\uFF09"] : lines2);
 }
-function knownEntries(text12) {
-  if (text12 === void 0)
+function knownEntries(text13) {
+  if (text13 === void 0)
     return [];
-  const parsed2 = parseKnownFailures(text12);
+  const parsed2 = parseKnownFailures(text13);
   return parsed2.ok ? parsed2.entries : void 0;
 }
 function describeKnownFailures(before, after) {
@@ -31435,10 +31530,10 @@ function catalogDeclaredOutputs(catalog3) {
   }
   return [...out].sort();
 }
-function inlineOutputsOfSnapshot(text12) {
+function inlineOutputsOfSnapshot(text13) {
   let value;
   try {
-    value = JSON.parse(text12);
+    value = JSON.parse(text13);
   } catch {
     return [];
   }
@@ -31507,6 +31602,862 @@ async function candidateFingerprint(repoRoot) {
   return fingerprintWorkspace(repoRoot, { declaredOutputs: await declaredTestOutputs(repoRoot) });
 }
 
+// packages/kernel/dist/ci-verify/anchor.js
+function finding(input2, code, severity2, message2, subject2) {
+  return {
+    code,
+    severity: severity2,
+    change: input2.change,
+    message: message2,
+    source: "ci",
+    ...subject2 === void 0 ? {} : { subject: subject2 },
+    // 重新锚定只修「落后 / 缺失」；链被重写时再锚定一次等于给伪造的链盖章，所以不给修复命令。
+    ...code === "anchor-behind" || code === "anchor-missing" ? { fix: `tenon evidence export ${input2.change} --format git-notes --anchor --apply` } : {}
+  };
+}
+function evaluateAnchor(input2) {
+  const anchored = input2.anchors.find((item2) => item2.entry.anchor !== void 0 && item2.entry.user === input2.user);
+  const anchorHead = anchored?.entry.anchor?.head;
+  if (anchored === void 0 || anchorHead === void 0) {
+    return {
+      state: "none",
+      findings: input2.requireAnchor ? [finding(input2, "anchor-missing", "error", `\u4EFB\u52A1 ${input2.change} \u7684\u4EA4\u4ED8\u63D0\u4EA4\u4E0A\u6CA1\u6709 refs/notes/tenon \u951A\u70B9\uFF08--require-anchor\uFF09`)] : []
+    };
+  }
+  const chain = input2.chain;
+  if (chain === void 0 || chain.state === "empty") {
+    return {
+      state: "mismatch",
+      findings: [finding(input2, "anchor-mismatch", "error", `\u63D0\u4EA4 ${anchored.commit.slice(0, 12)} \u951A\u5B9A\u4E86\u94FE\u5934 ${anchorHead}\uFF0C\u4F46\u5DF2\u63D0\u4EA4\u7684\u8BB0\u5F55\u94FE\u662F\u7A7A\u7684`, anchorHead)]
+    };
+  }
+  if (chain.state === "broken")
+    return { state: "mismatch", findings: [] };
+  const digests = chain.active.map((record9) => record9.digest);
+  const index = digests.indexOf(anchorHead);
+  if (index === -1 && input2.baseDigest === anchorHead) {
+    return outcomeFor(input2, anchored.commit, anchorHead, digests.length);
+  }
+  if (index === -1) {
+    const pruned = input2.baseDigest !== void 0;
+    return {
+      state: pruned ? "unverifiable" : "mismatch",
+      findings: [pruned ? finding(input2, "anchor-unverifiable", "warning", `\u63D0\u4EA4 ${anchored.commit.slice(0, 12)} \u951A\u5B9A\u7684\u94FE\u5934 ${anchorHead} \u4E0D\u5728\u4FDD\u7559\u7684\u8BB0\u5F55\u91CC\uFF08\u8F83\u8001\u7684\u8BB0\u5F55\u5DF2\u6309\u4FDD\u7559\u4E0A\u9650\u6E05\u7406\uFF09`, anchorHead) : finding(input2, "anchor-mismatch", "error", `\u63D0\u4EA4 ${anchored.commit.slice(0, 12)} \u951A\u5B9A\u7684\u94FE\u5934 ${anchorHead} \u4E0D\u5728\u5DF2\u63D0\u4EA4\u7684\u8BB0\u5F55\u94FE\u91CC\uFF1A\u94FE\u5728\u951A\u5B9A\u4E4B\u540E\u88AB\u91CD\u5199`, anchorHead)]
+    };
+  }
+  return outcomeFor(input2, anchored.commit, anchorHead, digests.length - 1 - index);
+}
+function outcomeFor(input2, commit, head, behind) {
+  if (behind === 0)
+    return { state: "verified", findings: [] };
+  return {
+    state: "behind",
+    findings: [finding(input2, "anchor-behind", input2.requireAnchor ? "error" : "warning", `\u63D0\u4EA4 ${commit.slice(0, 12)} \u951A\u5B9A\u4E86\u94FE\u5934 ${head}\uFF0C\u4E4B\u540E\u53C8\u8FFD\u52A0\u4E86 ${behind} \u6761\u8BB0\u5F55\uFF1B\u8FD9\u4E9B\u8BB0\u5F55\u6CA1\u6709\u88AB\u951A\u5B9A`, head)]
+  };
+}
+
+// packages/kernel/dist/ci-verify/approvals.js
+var APPROVE_PREFIX = "test:protected-approve";
+function fields(raw) {
+  const out = /* @__PURE__ */ new Map();
+  for (const token of raw.slice(APPROVE_PREFIX.length).split(/\s+/u)) {
+    const eq = token.indexOf("=");
+    if (eq > 0)
+      out.set(token.slice(0, eq), token.slice(eq + 1));
+  }
+  return out;
+}
+function parseProtectedApprovals(historyText) {
+  const out = [];
+  for (const line of historyText.split("\n")) {
+    if (line.trim() === "")
+      continue;
+    let row2;
+    try {
+      row2 = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (typeof row2 !== "object" || row2 === null || Array.isArray(row2))
+      continue;
+    const raw = Reflect.get(row2, "raw");
+    if (typeof raw !== "string" || !(raw === APPROVE_PREFIX || raw.startsWith(`${APPROVE_PREFIX} `)))
+      continue;
+    const kv = fields(raw);
+    const files = (kv.get("files") ?? "").split(",").filter((path15) => path15 !== "");
+    const digests = /* @__PURE__ */ new Map();
+    for (const entry2 of (kv.get("digests") ?? "").split(",")) {
+      const at = entry2.lastIndexOf("@");
+      if (at > 0)
+        digests.set(entry2.slice(0, at), entry2.slice(at + 1));
+    }
+    const ts = Reflect.get(row2, "ts");
+    for (const path15 of files) {
+      out.push({ path: path15, digest: digests.get(path15) ?? null, by: kv.get("by") ?? null, ts: typeof ts === "string" ? ts : null });
+    }
+  }
+  return out;
+}
+function protectedApprovalFindings(input2) {
+  const out = [];
+  const reviewFix = `tenon review request ${input2.change}`;
+  for (const item2 of input2.changes) {
+    const approval = [...input2.approvals].reverse().find((entry2) => entry2.path === item2.path);
+    const base = { change: input2.change, path: item2.path, subject: item2.path, source: "ci" };
+    if (approval === void 0) {
+      out.push({
+        ...base,
+        code: "protected-unapproved",
+        severity: "error",
+        fix: reviewFix,
+        message: `${protectedChangeLine(item2)} \u5728\u672C\u4EFB\u52A1\u91CC\u6539\u52A8\u8FC7\uFF0C\u4EFB\u52A1\u5386\u53F2\u91CC\u6CA1\u6709\u5BF9\u5E94\u7684\u8BC4\u5BA1\u6279\u51C6\u884C`
+      });
+    } else if (approval.digest === null) {
+      out.push({
+        ...base,
+        code: "protected-approval-unbound",
+        severity: "warning",
+        message: `${item2.path} \u7684\u6279\u51C6\u884C\u6CA1\u6709\u8BB0\u5F55\u5185\u5BB9\u6458\u8981\uFF08\u65E7\u7248\u672C\u5199\u7684\uFF09\uFF0C\u65E0\u6CD5\u786E\u8BA4\u6279\u51C6\u4E4B\u540E\u6587\u4EF6\u6CA1\u6709\u518D\u53D8`
+      });
+    } else if (approval.digest !== item2.digest) {
+      out.push({
+        ...base,
+        code: "protected-changed-after-approval",
+        severity: "error",
+        fix: reviewFix,
+        message: `${item2.path} \u7684\u5F53\u524D\u5185\u5BB9\uFF08${item2.digest}\uFF09\u4E0E\u6279\u51C6\u8FC7\u7684\u5185\u5BB9\uFF08${approval.digest}\uFF09\u4E0D\u540C`
+      });
+    }
+  }
+  return out;
+}
+
+// packages/kernel/dist/ci-verify/record-checks.js
+var STATUS_TOTAL = {
+  pass: "pass",
+  fail: "fail",
+  skip: "skip",
+  flaky: "flaky",
+  "known-fail": "known_fail"
+};
+function suiteProblems(file, suite2) {
+  const out = [];
+  const { totals: totals2 } = suite2;
+  const kept = /* @__PURE__ */ new Map();
+  for (const item2 of suite2.cases)
+    kept.set(item2.status, (kept.get(item2.status) ?? 0) + 1);
+  for (const [status, count3] of kept) {
+    const total = totals2[STATUS_TOTAL[status]];
+    if (count3 > total) {
+      out.push({ code: "record-inconsistent", file, message: `\u5957\u4EF6 ${suite2.suite} \u7559\u5B58\u4E86 ${count3} \u4E2A ${status} \u7528\u4F8B\uFF0C\u8D85\u8FC7\u7EDF\u8BA1\u7684 ${total} \u4E2A` });
+    }
+  }
+  return out;
+}
+function recordInvariantProblems(input2) {
+  const out = [];
+  for (const { file, record: record9 } of input2.records) {
+    if (record9.change !== input2.change) {
+      out.push({ code: "record-misplaced", file, message: `\u8BB0\u5F55\u5C5E\u4E8E\u4EFB\u52A1 ${record9.change}\uFF0C\u5374\u653E\u5728\u4EFB\u52A1 ${input2.change} \u7684\u76EE\u5F55\u91CC` });
+    }
+    if (userSlug(record9.actor.id) !== input2.slug) {
+      out.push({ code: "record-misplaced", file, message: `\u8BB0\u5F55\u7684\u6267\u884C\u4EBA ${record9.actor.id} \u4E0E\u6240\u5728\u7684\u7528\u6237\u76EE\u5F55 ${input2.slug} \u4E0D\u7B26` });
+    }
+    const expected = record9.suites.every((suite2) => suite2.result === "pass") ? "pass" : "fail";
+    if (record9.result !== expected) {
+      out.push({ code: "record-inconsistent", file, message: `\u8BB0\u5F55\u7ED3\u8BBA ${record9.result} \u4E0E\u5404\u5957\u4EF6\u7ED3\u8BBA\uFF08\u5E94\u4E3A ${expected}\uFF09\u77DB\u76FE` });
+    }
+    for (const suite2 of record9.suites)
+      out.push(...suiteProblems(file, suite2));
+  }
+  return out;
+}
+
+// packages/kernel/dist/ci-verify/types.js
+var CI_REPORT_SCHEMA = "tenon-verify-ci/v1";
+function allFindings(report2) {
+  return [...report2.findings, ...report2.changes.flatMap((change) => change.findings)];
+}
+function summarizeFindings(findings, changes) {
+  const count3 = (severity2) => findings.filter((item2) => item2.severity === severity2).length;
+  const errors = count3("error");
+  return { changes, errors, warnings: count3("warning"), notes: count3("note"), pass: errors === 0 };
+}
+
+// packages/kernel/dist/ci-verify/report.js
+var CI_EXIT_PASS = 0;
+var CI_EXIT_FAIL = 2;
+var CI_UNVERIFIABLE = [
+  "\u8BB0\u5F55\u7531\u53D7\u4FE1\u4EFB\u7684 `tenon test run` \u5199\u51FA\uFF1A\u5C01\u5B58\u94FE\u5934\u53EA\u5728\u5F00\u53D1\u8005\u672C\u673A\uFF0CCI \u6CA1\u6709 HMAC \u5BC6\u94A5\uFF1B\u4E00\u6761\u91CD\u7B97\u8FC7\u5168\u90E8\u6458\u8981\u3001\u4E0E\u8BA1\u5212\u548C\u4EE3\u7801\u81EA\u6D3D\u7684\u4F2A\u9020\u94FE\uFF0CCI \u770B\u4E0D\u51FA\u6765\uFF08\u6709\u951A\u70B9\u65F6\u9664\u5916\uFF09",
+  "\u8BC4\u5BA1\u6279\u51C6\u7531\u4EBA\u7ED9\u51FA\uFF1A\u6279\u51C6\u5B58\u5728\u672C\u673A\u5C01\u5B58\u91CC\uFF0C\u4EFB\u52A1\u5386\u53F2\u91CC\u7684\u6279\u51C6\u884C\u662F\u660E\u6587\uFF0C\u53EF\u4EE5\u624B\u5199",
+  "\u5957\u4EF6\u771F\u7684\u6267\u884C\u8FC7\u3001\u62A5\u544A\u6CA1\u6709\u88AB\u4F2A\u9020\uFF1A\u62A5\u544A\u4E0E\u4EA7\u7269\u7559\u5728\u672C\u673A\uFF0CCI \u53EA\u6709\u8BB0\u5F55\u91CC\u7684\u6458\u8981\uFF1B\u8981\u5728 CI \u91CC\u8BC1\u660E\uFF0C\u53E6\u8D77\u4F5C\u4E1A\u7528 TENON_TEST_TRUST=1 tenon test run \u91CD\u8DD1\u5957\u4EF6",
+  "\u7528\u6237\u8EAB\u4EFD\u5C5E\u5B9E\uFF1A\u8EAB\u4EFD\u662F\u58F0\u660E\u7684\uFF0C\u4E0D\u662F\u8BA4\u8BC1\u7684"
+];
+function ciTrust(options, anchored) {
+  return {
+    verified: [
+      "\u8BB0\u5F55\u94FE\u5B8C\u6574\u6027\uFF1A\u94FE\u9996\u3001\u5206\u53C9\u3001\u6210\u73AF\u3001\u6E38\u79BB\u8BB0\u5F55\u3001\u6587\u4EF6\u540D\u3001\u5185\u5BB9\u6458\u8981\uFF08\u6BCF\u4E2A\u7528\u6237\u76EE\u5F55\u5404\u6821\u4E00\u6B21\uFF09",
+      "\u8BB0\u5F55\u81EA\u6D3D\uFF1A\u6240\u5728\u4EFB\u52A1\u4E0E\u7528\u6237\u76EE\u5F55\u3001\u6267\u884C\u4EBA\u3001\u7ED3\u8BBA\u3001\u7528\u4F8B\u7EDF\u8BA1\u4E92\u76F8\u4E00\u81F4",
+      "\u8BA1\u5212 \u2194 \u8BB0\u5F55 \u2194 \u76EE\u5F55\uFF1A\u8BA1\u5212\u6458\u8981\u53F0\u8D26\u3001\u76EE\u5F55\u53EF\u89E3\u6790\u3001\u8BB0\u5F55\u7ED1\u5B9A\u7684\u76EE\u5F55 / \u8BA1\u5212 / \u7B56\u7565 / \u5DE5\u4F5C\u6D41\u6458\u8981\u4ECD\u7136\u65B0\u9C9C\uFF1B\u8BA1\u5212\u767B\u8BB0\u7684\u6D4B\u8BD5\u6587\u4EF6\u4ECD\u5728",
+      "\u5F53\u524D\u6B65\u9AA4\u7B56\u7565\u4E0B\u7684\u7528\u4F8B\u7EA7\u5224\u5B9A\uFF1A\u5957\u4EF6\u5DF2\u8FD0\u884C\u4E14\u901A\u8FC7\u3001\u5DF2\u767B\u8BB0\u7528\u4F8B\u51FA\u73B0\u5728\u62A5\u544A\u91CC\u3001\u8986\u76D6\u7387 / \u57FA\u51C6 / flaky / \u573A\u666F\u8FFD\u6EAF",
+      options.candidate === "off" ? "\u5019\u9009\u4EE3\u7801\uFF1A\u672A\u6BD4\u5BF9\uFF08--candidate off\uFF09" : `\u5019\u9009\u4EE3\u7801\uFF1A\u8BB0\u5F55\u7ED1\u5B9A\u7684\u5DE5\u4F5C\u533A\u6307\u7EB9\u7B49\u4E8E\u672C\u6B21\u68C0\u51FA\u7684\u6811${options.candidate === "warn" ? "\uFF08\u4E0D\u4E00\u81F4\u53EA\u7ED9\u8B66\u544A\uFF09" : ""}`,
+      "\u53D7\u4FDD\u62A4\u6D4B\u8BD5\u914D\u7F6E\uFF08\u76EE\u5F55\u3001\u57FA\u7EBF\u3001\u5DF2\u77E5\u5931\u8D25\u3001\u5DE5\u4F5C\u6D41\uFF09\u7684\u6539\u52A8\u5728\u4EFB\u52A1\u5386\u53F2\u91CC\u6709\u8BC4\u5BA1\u6279\u51C6\u884C\uFF0C\u884C\u91CC\u7684\u6458\u8981\u7B49\u4E8E\u5F53\u524D\u5185\u5BB9",
+      anchored ? "\u951A\u70B9\uFF1Arefs/notes/tenon \u4E0A\u951A\u5B9A\u7684\u94FE\u5934\u5728\u5DF2\u63D0\u4EA4\u7684\u8BB0\u5F55\u94FE\u91CC" : "\u951A\u70B9\uFF1A\u6CA1\u6709\u627E\u5230\u951A\u70B9 note\uFF0C\u672A\u6838\u5BF9"
+    ],
+    unverifiable: CI_UNVERIFIABLE
+  };
+}
+function buildCiReport(input2) {
+  const partial = { changes: input2.changes, findings: input2.findings };
+  return {
+    schema: CI_REPORT_SCHEMA,
+    tenon: input2.tenon,
+    generated_at: input2.generatedAt,
+    head: input2.head,
+    selector: input2.selector,
+    options: input2.options,
+    changes: input2.changes,
+    findings: input2.findings,
+    summary: summarizeFindings(allFindings(partial), input2.changes.length),
+    trust: ciTrust(input2.options, input2.changes.some((change) => change.anchor !== "none"))
+  };
+}
+function ciExitCode(report2) {
+  return report2.summary.pass ? CI_EXIT_PASS : CI_EXIT_FAIL;
+}
+
+// packages/kernel/dist/ci-verify/render.js
+var WORD = { error: "\u5931\u8D25", warning: "\u8B66\u544A", note: "\u63D0\u793A" };
+var MARK = { error: "FAIL", warning: "WARN", note: "NOTE" };
+function selectorText(report2) {
+  const selector = report2.selector;
+  return selector.kind === "change" ? `--change ${selector.change}` : selector.kind === "since" ? `--since ${selector.ref}` : "--all-open";
+}
+function headline(report2) {
+  const { summary } = report2;
+  const verdict = summary.pass ? "\u901A\u8FC7" : "\u672A\u901A\u8FC7";
+  return `Tenon CI \u6821\u9A8C ${verdict}\uFF1A${summary.changes} \u4E2A\u4EFB\u52A1\uFF0C${summary.errors} \u4E2A\u5931\u8D25\uFF0C${summary.warnings} \u4E2A\u8B66\u544A\uFF08${selectorText(report2)}\uFF09`;
+}
+function findingLine(item2) {
+  const where = item2.path === void 0 ? "" : ` [${item2.path}]`;
+  const fix = item2.fix === void 0 ? "" : `\uFF1B\u6267\u884C ${item2.fix}`;
+  return `${item2.message}${where}${fix}`;
+}
+function chainText(change) {
+  if (change.chains.length === 0)
+    return "\u65E0\u8BB0\u5F55\u94FE";
+  return change.chains.map((chain) => `${chain.user}:${chain.state === "intact" ? `${chain.records} \u6761` : chain.state === "empty" ? "\u7A7A" : "\u5DF2\u65AD"}${chain.user === change.evaluatedUser ? "*" : ""}`).join(" ");
+}
+function changeHeader(change) {
+  const policy2 = change.policy === "none" ? "\u8BE5\u6B65\u9AA4\u6CA1\u6709\u6D4B\u8BD5\u7B56\u7565" : change.policy === "pass" ? "\u7B56\u7565\u901A\u8FC7" : "\u7B56\u7565\u672A\u901A\u8FC7";
+  return `${change.change}  \u6B65\u9AA4 ${change.step ?? "\u2014"}  ${policy2}  \u8BB0\u5F55\u94FE ${chainText(change)}  \u951A\u70B9 ${change.anchor}`;
+}
+function renderCiText(report2) {
+  const lines2 = [`[VERIFY-CI] ${headline(report2)}`];
+  const scoped = (change) => change.findings;
+  for (const change of report2.changes) {
+    lines2.push("", `\u4EFB\u52A1 ${changeHeader(change)}`);
+    if (scoped(change).length === 0)
+      lines2.push("  \uFF08\u6CA1\u6709\u53D1\u73B0\uFF09");
+    for (const item2 of scoped(change))
+      lines2.push(`  [${MARK[item2.severity]}] ${item2.code}: ${findingLine(item2)}`);
+  }
+  for (const item2 of report2.findings)
+    lines2.push(`[${MARK[item2.severity]}] ${item2.code}: ${findingLine(item2)}`);
+  if (report2.changes.length === 0 && report2.findings.length === 0)
+    lines2.push("", "\u8303\u56F4\u5185\u6CA1\u6709\u53D7 Tenon \u6CBB\u7406\u7684\u4EFB\u52A1\uFF0C\u6CA1\u6709\u53EF\u6821\u9A8C\u7684\u5185\u5BB9\u3002");
+  lines2.push("", "\u672C\u6B21\u6821\u9A8C\u4E86\uFF1A", ...report2.trust.verified.map((item2) => `  + ${item2}`));
+  lines2.push("", "CI \u91CC\u65E0\u6CD5\u8BC1\u660E\uFF08\u6CA1\u6709\u7528\u6237\u672C\u673A\u7684 HMAC \u5BC6\u94A5\uFF09\uFF1A", ...report2.trust.unverifiable.map((item2) => `  - ${item2}`));
+  lines2.push("", `\u62A5\u544A\u683C\u5F0F ${CI_REPORT_SCHEMA}\uFF1BTenon ${report2.tenon}\uFF1B\u63D0\u4EA4 ${report2.head ?? "\u672A\u77E5"}`);
+  return `${lines2.join("\n")}
+`;
+}
+function escapeCell(value) {
+  return value.replaceAll("|", "\\|").replaceAll("\n", " ");
+}
+function renderCiMarkdown(report2) {
+  const out = [`## ${report2.summary.pass ? "PASS" : "FAIL"} \u2014 ${headline(report2)}`, ""];
+  if (report2.changes.length === 0 && report2.findings.length === 0) {
+    out.push("\u8303\u56F4\u5185\u6CA1\u6709\u53D7 Tenon \u6CBB\u7406\u7684\u4EFB\u52A1\uFF0C\u6CA1\u6709\u53EF\u6821\u9A8C\u7684\u5185\u5BB9\u3002", "");
+  }
+  if (report2.changes.length > 0) {
+    out.push("| \u4EFB\u52A1 | \u6B65\u9AA4 | \u7B56\u7565 | \u8BB0\u5F55\u94FE | \u951A\u70B9 | \u5931\u8D25 | \u8B66\u544A |", "| --- | --- | --- | --- | --- | --- | --- |");
+    for (const change of report2.changes) {
+      const count3 = (severity2) => change.findings.filter((item2) => item2.severity === severity2).length;
+      out.push(`| \`${change.change}\` | ${change.step ?? "\u2014"} | ${change.policy} | ${escapeCell(chainText(change))} | ${change.anchor} | ${count3("error")} | ${count3("warning")} |`);
+    }
+    out.push("");
+  }
+  const findings = [...report2.findings, ...report2.changes.flatMap((change) => change.findings)];
+  if (findings.length > 0) {
+    out.push("### \u53D1\u73B0", "", "| \u7EA7\u522B | \u7801 | \u4EFB\u52A1 | \u8BF4\u660E |", "| --- | --- | --- | --- |");
+    for (const item2 of findings) {
+      out.push(`| ${WORD[item2.severity]} | \`${item2.code}\` | ${item2.change === null ? "\u2014" : `\`${item2.change}\``} | ${escapeCell(findingLine(item2))} |`);
+    }
+    out.push("");
+  }
+  out.push("### \u672C\u6B21\u6821\u9A8C\u4E86", "", ...report2.trust.verified.map((item2) => `- ${item2}`), "");
+  out.push("### CI \u91CC\u65E0\u6CD5\u8BC1\u660E", "", "\u6CA1\u6709\u7528\u6237\u672C\u673A\u7684 HMAC \u5BC6\u94A5\uFF0C\u4EE5\u4E0B\u51E0\u4EF6\u4E8B CI \u8BC1\u660E\u4E0D\u4E86\uFF1A", "", ...report2.trust.unverifiable.map((item2) => `- ${item2}`), "");
+  return `${out.join("\n")}
+`;
+}
+
+// packages/kernel/dist/ci-verify/rules.js
+var CI_ONLY = [
+  {
+    id: "record-misplaced",
+    name: "RecordMisplaced",
+    level: "error",
+    short: "A test run record lives under the wrong change or user directory",
+    help: "A record names a different change than the directory it sits in, or an actor whose slug is not the user directory. Records are copied between tasks or users only by hand; rerun the suite with `tenon test run`."
+  },
+  {
+    id: "record-inconsistent",
+    name: "RecordInconsistent",
+    level: "error",
+    short: "A test run record contradicts itself",
+    help: "The record result, the suite totals or the retained cases disagree with each other. `tenon test run` never writes such a record; it was edited."
+  },
+  {
+    id: "plan-file-missing",
+    name: "PlanFileMissing",
+    level: "error",
+    short: "A test file registered in the test plan is not in the pull request tree",
+    help: "The plan registers a test file that no longer exists. Either restore the file or remove it from the plan with `tenon test unregister`."
+  },
+  {
+    id: "candidate-mismatch",
+    name: "CandidateMismatch",
+    level: "error",
+    short: "The recorded runs were produced on a different tree than the pull request head",
+    help: "The workspace fingerprint bound into the test run records differs from the fingerprint of the checked-out tree. The code changed after the tests ran, or the checkout differs from the tested workspace (ignored build output, file modes, line endings). Rerun `tenon test run <change> --stage` on the final tree."
+  },
+  {
+    id: "protected-unapproved",
+    name: "ProtectedFileUnapproved",
+    level: "error",
+    short: "A protected test configuration file changed without a recorded human approval",
+    help: "The test catalog, baselines, known-failures list or project workflows changed in this task, but the task history has no `test:protected-approve` line for the file. A human approves it at the review gate (`tenon review request` then `acknowledge`)."
+  },
+  {
+    id: "protected-changed-after-approval",
+    name: "ProtectedFileChangedAfterApproval",
+    level: "error",
+    short: "A protected test configuration file differs from the content that was approved",
+    help: "The approval line records a content digest and the file no longer matches it. Request a new review."
+  },
+  {
+    id: "protected-approval-unbound",
+    name: "ProtectedApprovalUnbound",
+    level: "warning",
+    short: "The approval line for a protected file names no content digest",
+    help: "Approval lines written by older Tenon versions only name the path, so CI cannot tell whether the file changed afterwards."
+  },
+  {
+    id: "protected-diff-unavailable",
+    name: "ProtectedDiffUnavailable",
+    level: "error",
+    short: "The task diff could not be read, so protected-file approvals cannot be checked",
+    help: "Fetch the full history (`fetch-depth: 0` in actions/checkout) so the commit the task started from is reachable."
+  },
+  {
+    id: "anchor-mismatch",
+    name: "AnchorMismatch",
+    level: "error",
+    short: "The record chain does not contain the head digest anchored in git notes",
+    help: "The anchored chain head is not part of the committed chain: the chain was rewritten after it was anchored."
+  },
+  {
+    id: "anchor-behind",
+    name: "AnchorBehind",
+    level: "warning",
+    short: "Records were appended after the last anchor",
+    help: "The chain contains the anchored head, followed by newer records. Anchor again (`tenon evidence export <change> --format git-notes --anchor --apply`) or run with --require-anchor to make this an error."
+  },
+  {
+    id: "anchor-unverifiable",
+    name: "AnchorUnverifiable",
+    level: "warning",
+    short: "The anchored head is not in the chain, but older records were pruned",
+    help: "Retention pruning removes the oldest records, so an old anchor can fall outside the retained chain."
+  },
+  {
+    id: "anchor-missing",
+    name: "AnchorMissing",
+    level: "error",
+    short: "No anchor note exists for this change",
+    help: "Required by --require-anchor. Fetch the notes ref (`git fetch origin refs/notes/tenon:refs/notes/tenon`) and anchor the delivery commit."
+  },
+  {
+    id: "owner-chain-missing",
+    name: "OwnerChainMissing",
+    level: "warning",
+    short: "The task owner has no test run records; another user's chain was used",
+    help: "Verdicts were computed from the only chain that exists. Run the suites as the owner or take the task over."
+  },
+  {
+    id: "change-unreadable",
+    name: "ChangeUnreadable",
+    level: "error",
+    short: "The task state or its frozen workflow could not be read",
+    help: "The task state files are corrupt or the frozen workflow plan cannot be resolved from the committed files."
+  },
+  {
+    id: "step-unresolved",
+    name: "StepUnresolved",
+    level: "error",
+    short: "The requested workflow step does not exist in the task workflow",
+    help: "Pass a step id that exists in the frozen workflow of the task."
+  },
+  {
+    id: "candidate-unchecked",
+    name: "CandidateUnchecked",
+    level: "note",
+    short: "The workspace fingerprint was not compared (--candidate off)",
+    help: "Recorded runs were not checked against the tree of this checkout."
+  },
+  {
+    id: "no-test-policy",
+    name: "NoTestPolicy",
+    level: "note",
+    short: "The evaluated step declares no test policy",
+    help: "There is nothing to verify at this step; this is not evidence that tests passed."
+  }
+];
+function policyRule(id2, short, level) {
+  return {
+    id: id2,
+    name: id2.split("-").map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(""),
+    short,
+    level,
+    help: "Reported by the Tenon test policy of the evaluated workflow step; the message names the exact object and the command that fixes it."
+  };
+}
+var POLICY_RULES = [
+  ...TEST_BLOCKER_CODES.map((code) => policyRule(code, TEST_BLOCKER_LABELS[code].en, "error")),
+  ...TEST_NOTICE_CODES.map((code) => policyRule(code, TEST_NOTICE_LABELS[code].en, "note"))
+];
+var CI_RULES = [...CI_ONLY, ...POLICY_RULES];
+var BY_ID = new Map(CI_RULES.map((rule) => [rule.id, rule]));
+function ciRule(code) {
+  return BY_ID.get(code);
+}
+
+// packages/kernel/dist/ci-verify/sarif.js
+var SARIF_VERSION = "2.1.0";
+var SARIF_SCHEMA_URI = "https://json.schemastore.org/sarif-2.1.0.json";
+var INFORMATION_URI = "https://github.com/jefferysha/tenon";
+var HELP_URI = "https://github.com/jefferysha/tenon/blob/main/docs/usage/ci-verification.md";
+var RULE_PREFIX = "tenon/";
+function fallbackRule(code, level) {
+  return { id: code, name: code, short: code, help: "Reported by tenon verify --ci.", level };
+}
+function sarifRule(rule) {
+  return {
+    id: `${RULE_PREFIX}${rule.id}`,
+    name: rule.name,
+    shortDescription: { text: rule.short },
+    fullDescription: { text: rule.help },
+    help: { text: rule.help },
+    helpUri: HELP_URI,
+    defaultConfiguration: { level: rule.level },
+    properties: { tags: ["tenon", "test-evidence"] }
+  };
+}
+function uriOf(path15) {
+  return path15.replaceAll("\\", "/").replace(/^(\.\/|\/)+/u, "").split("/").filter((part) => part !== "..").join("/");
+}
+function locationPath(finding3, dirOf) {
+  if (finding3.path !== void 0)
+    return uriOf(finding3.path);
+  const dir = finding3.change === null ? void 0 : dirOf.get(finding3.change);
+  return dir === void 0 ? "openspec/changes" : `${uriOf(dir)}/.pipeline.yaml`;
+}
+function fingerprint(finding3) {
+  return sha256Hex([finding3.code, finding3.change ?? "", finding3.subject ?? ""].join("\0")).slice(0, 32);
+}
+function toSarif(report2) {
+  const findings = allFindings(report2);
+  const dirOf = new Map(report2.changes.map((change) => [change.change, change.dir]));
+  const used = /* @__PURE__ */ new Map();
+  for (const finding3 of findings) {
+    if (!used.has(finding3.code))
+      used.set(finding3.code, ciRule(finding3.code) ?? fallbackRule(finding3.code, finding3.severity));
+  }
+  const rules = [...used.values()].sort((left, right) => left.id.localeCompare(right.id));
+  const indexOf = new Map(rules.map((rule, index) => [`${RULE_PREFIX}${rule.id}`, index]));
+  const results = findings.map((finding3) => ({
+    ruleId: `${RULE_PREFIX}${finding3.code}`,
+    ruleIndex: indexOf.get(`${RULE_PREFIX}${finding3.code}`) ?? 0,
+    level: finding3.severity,
+    message: { text: finding3.fix === void 0 ? finding3.message : `${finding3.message}\uFF1B\u6267\u884C ${finding3.fix}` },
+    locations: [{
+      physicalLocation: {
+        artifactLocation: { uri: locationPath(finding3, dirOf), uriBaseId: "%SRCROOT%" },
+        region: { startLine: 1 }
+      }
+    }],
+    partialFingerprints: { "tenon/v1": fingerprint(finding3) },
+    properties: {
+      source: finding3.source,
+      ...finding3.change === null ? {} : { change: finding3.change },
+      ...finding3.subject === void 0 ? {} : { subject: finding3.subject }
+    }
+  }));
+  return {
+    $schema: SARIF_SCHEMA_URI,
+    version: SARIF_VERSION,
+    runs: [{
+      tool: {
+        driver: {
+          name: "Tenon",
+          version: report2.tenon,
+          informationUri: INFORMATION_URI,
+          .../^\d+\.\d+\.\d+/u.test(report2.tenon) ? { semanticVersion: report2.tenon } : {},
+          rules: rules.map(sarifRule)
+        }
+      },
+      results,
+      invocations: [{ executionSuccessful: true }],
+      properties: {
+        tenon: { schema: report2.schema, head: report2.head, selector: report2.selector, summary: report2.summary, trust: report2.trust }
+      }
+    }]
+  };
+}
+
+// packages/kernel/dist/evidence-export/ids.js
+function deterministicUuid(seed) {
+  const hex2 = sha256Hex(seed).slice(0, 32).split("");
+  hex2[12] = "5";
+  hex2[16] = ["8", "9", "a", "b"][Number.parseInt(hex2[16] ?? "0", 16) % 4] ?? "8";
+  const joined = hex2.join("");
+  return `${joined.slice(0, 8)}-${joined.slice(8, 12)}-${joined.slice(12, 16)}-${joined.slice(16, 20)}-${joined.slice(20, 32)}`;
+}
+function linesToRanges(lines2) {
+  const sorted2 = [...new Set(lines2)].filter((line) => Number.isInteger(line) && line >= 1).sort((left, right) => left - right);
+  const out = [];
+  for (const line of sorted2) {
+    const last = out.at(-1);
+    if (last !== void 0 && line === last.end_line + 1)
+      out[out.length - 1] = { start_line: last.start_line, end_line: line };
+    else
+      out.push({ start_line: line, end_line: line });
+  }
+  return out;
+}
+
+// packages/kernel/dist/evidence-export/agent-trace.js
+var AGENT_TRACE_VERSION = "0.1";
+var AGENT_TRACE_MAX_FILES = 2e3;
+var AGENT_TRACE_MAX_RANGES = 500;
+var CONTRIBUTOR_TYPES = ["human", "ai", "mixed", "unknown"];
+function isContributorType(value) {
+  return CONTRIBUTOR_TYPES.includes(value);
+}
+function evidenceUrl(bundle) {
+  return `tenon:evidence/${bundle.change}?head=${bundle.chain.head}`;
+}
+function buildAgentTrace(bundle, options) {
+  const contributor = {
+    type: options.contributor,
+    ...options.model === void 0 || options.model === "" ? {} : { model_id: options.model.slice(0, 250) }
+  };
+  const related = [{ type: "tenon-evidence", url: evidenceUrl(bundle) }];
+  const files = bundle.files.filter((file) => file.ranges.length > 0).slice(0, AGENT_TRACE_MAX_FILES).map((file) => ({
+    path: file.path,
+    conversations: [{ contributor, ranges: file.ranges.slice(0, AGENT_TRACE_MAX_RANGES), related }]
+  }));
+  const last = bundle.records.at(-1);
+  return {
+    version: AGENT_TRACE_VERSION,
+    id: deterministicUuid(`agent-trace\0${bundle.change}\0${bundle.chain.head}\0${bundle.commit}`),
+    timestamp: bundle.exported_at,
+    vcs: { type: "git", revision: bundle.commit },
+    tool: { name: "tenon", version: bundle.tenon },
+    files,
+    metadata: {
+      "dev.tenon": {
+        change: bundle.change,
+        workflow: bundle.workflow,
+        track: bundle.track,
+        evidence: {
+          chain_head: bundle.chain.head,
+          records: bundle.chain.records,
+          user: bundle.chain.user,
+          plan_digest: bundle.plan_digest,
+          last_result: bundle.last_result,
+          last_run: last?.run_id ?? null
+        },
+        agents: bundle.agents.map((agent) => ({
+          agent: agent.agent,
+          role: agent.role,
+          step: agent.step,
+          result: agent.result,
+          host: agent.host
+        })),
+        truncated: bundle.files_truncated || bundle.files.length > AGENT_TRACE_MAX_FILES || bundle.files.some((file) => file.ranges.length > AGENT_TRACE_MAX_RANGES)
+      }
+    }
+  };
+}
+
+// packages/kernel/dist/evidence-export/note.js
+var EVIDENCE_NOTE_SCHEMA = "tenon-evidence-note/v1";
+var EVIDENCE_NOTES_REF = "refs/notes/tenon";
+var DIGEST_RE5 = /^sha256:[a-f0-9]{64}$/u;
+var MAX_ENTRIES = 256;
+var MAX_TEXT3 = 512;
+function isRecord7(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function text9(value) {
+  return typeof value === "string" && value !== "" && value.length <= MAX_TEXT3 ? value : void 0;
+}
+function digest11(value) {
+  return typeof value === "string" && DIGEST_RE5.test(value) ? value : void 0;
+}
+function decodeEntry2(value) {
+  if (!isRecord7(value) || !isRecord7(value.chain))
+    return void 0;
+  const change = text9(value.change);
+  const user = text9(value.user);
+  const head = digest11(value.chain.head);
+  const lastRun = text9(value.chain.last_run);
+  const lastFinished = text9(value.chain.last_finished_at);
+  const records = value.chain.records;
+  const tenon = text9(value.tenon);
+  const createdAt = text9(value.created_at);
+  if (change === void 0 || user === void 0 || head === void 0 || lastRun === void 0 || lastFinished === void 0)
+    return void 0;
+  if (typeof records !== "number" || !Number.isInteger(records) || records < 0 || tenon === void 0 || createdAt === void 0)
+    return void 0;
+  const plan = value.plan_digest === null ? null : digest11(value.plan_digest);
+  if (plan === void 0 || value.last_result !== "pass" && value.last_result !== "fail")
+    return void 0;
+  let anchor;
+  if (value.anchor !== void 0) {
+    const anchored = isRecord7(value.anchor) && value.anchor.kind === "chain-head" ? digest11(value.anchor.head) : void 0;
+    if (anchored === void 0)
+      return void 0;
+    anchor = { kind: "chain-head", head: anchored };
+  }
+  return {
+    change,
+    user,
+    chain: { head, records, last_run: lastRun, last_finished_at: lastFinished },
+    plan_digest: plan,
+    last_result: value.last_result,
+    ...anchor === void 0 ? {} : { anchor },
+    tenon,
+    created_at: createdAt
+  };
+}
+function decodeEvidenceNote(source) {
+  let value;
+  try {
+    value = JSON.parse(source);
+  } catch {
+    return void 0;
+  }
+  if (!isRecord7(value) || value.schema !== EVIDENCE_NOTE_SCHEMA || !Array.isArray(value.changes) || value.changes.length > MAX_ENTRIES)
+    return void 0;
+  const changes = [];
+  for (const raw of value.changes) {
+    const entry2 = decodeEntry2(raw);
+    if (entry2 === void 0)
+      return void 0;
+    changes.push(entry2);
+  }
+  return { schema: EVIDENCE_NOTE_SCHEMA, changes };
+}
+function mergeEvidenceNote(existing, entry2) {
+  const kept = (existing?.changes ?? []).filter((item2) => !(item2.change === entry2.change && item2.user === entry2.user));
+  const changes = [...kept, entry2].sort((left, right) => left.change === right.change ? left.user.localeCompare(right.user) : left.change.localeCompare(right.change));
+  return { schema: EVIDENCE_NOTE_SCHEMA, changes };
+}
+function serializeEvidenceNote(note2) {
+  return `${JSON.stringify(note2, null, 2)}
+`;
+}
+
+// packages/kernel/dist/evidence-export/otel.js
+var OTEL_SCOPE_NAME = "tenon.evidence";
+var SPAN_KIND_INTERNAL = 1;
+var STATUS_OK = 1;
+var STATUS_ERROR = 2;
+function attribute(key, value) {
+  if (typeof value === "string")
+    return { key, value: { stringValue: value } };
+  if (typeof value === "boolean")
+    return { key, value: { boolValue: value } };
+  return { key, value: Number.isInteger(value) ? { intValue: String(value) } : { doubleValue: value } };
+}
+function attributes(entries2) {
+  return Object.entries(entries2).flatMap(([key, value]) => value === void 0 ? [] : [attribute(key, value)]);
+}
+function nanos(iso, fallback2) {
+  const ms = Date.parse(iso);
+  return Number.isFinite(ms) ? BigInt(ms) * 1000000n : fallback2;
+}
+var PROVIDER_OF_HOST = { claude: "anthropic", "claude-code": "anthropic", codex: "openai" };
+function agentSpan(run6, base, fallback2) {
+  const start = nanos(run6.started_at, fallback2);
+  const end = run6.finished_at === null ? start : nanos(run6.finished_at, start);
+  const failed = run6.result === "fail" || run6.result === "failed";
+  const provider = run6.host === null ? void 0 : PROVIDER_OF_HOST[run6.host];
+  return {
+    ...base,
+    name: `invoke_agent ${run6.agent}`,
+    kind: SPAN_KIND_INTERNAL,
+    startTimeUnixNano: start.toString(),
+    endTimeUnixNano: (end < start ? start : end).toString(),
+    attributes: attributes({
+      "gen_ai.operation.name": "invoke_agent",
+      "gen_ai.agent.name": run6.agent,
+      "gen_ai.provider.name": provider,
+      "tenon.agent.role": run6.role,
+      "tenon.agent.result": run6.result ?? "running",
+      "tenon.agent.findings": run6.findings,
+      "tenon.agent.run_id": run6.run_id,
+      "tenon.step.id": run6.step,
+      "error.type": failed ? "agent_failed" : void 0
+    }),
+    status: failed ? { code: STATUS_ERROR, message: `agent ${run6.agent} ${run6.result ?? ""}`.trim() } : { code: STATUS_OK }
+  };
+}
+function suiteSpans(record9, ids2, parent, traceId, fallback2) {
+  const start = nanos(record9.started_at, fallback2);
+  const end = nanos(record9.finished_at, start);
+  return record9.suites.map((suite2) => {
+    const failed = suite2.result === "fail";
+    return {
+      traceId,
+      spanId: ids2(`test\0${record9.run_id}\0${suite2.suite}`),
+      parentSpanId: parent,
+      name: `execute_tool tenon.test.${suite2.suite}`,
+      kind: SPAN_KIND_INTERNAL,
+      startTimeUnixNano: start.toString(),
+      endTimeUnixNano: (end < start ? start : end).toString(),
+      attributes: attributes({
+        "gen_ai.operation.name": "execute_tool",
+        "gen_ai.tool.name": `tenon.test.${suite2.suite}`,
+        "gen_ai.tool.type": "function",
+        "gen_ai.tool.call.id": `${record9.run_id}/${suite2.suite}`,
+        "tenon.test.run_id": record9.run_id,
+        "tenon.test.kind": suite2.kind,
+        "tenon.test.scope": suite2.scope,
+        "tenon.test.result": suite2.result,
+        "tenon.test.cases": suite2.totals.cases,
+        "tenon.test.pass": suite2.totals.pass,
+        "tenon.test.fail": suite2.totals.fail,
+        "tenon.test.skip": suite2.totals.skip,
+        "tenon.test.flaky": suite2.totals.flaky,
+        "tenon.test.duration_ms": suite2.duration_ms,
+        "tenon.test.coverage_lines": suite2.coverage_lines ?? void 0,
+        "tenon.step.id": record9.step,
+        "error.type": failed ? "test_failed" : void 0
+      }),
+      status: failed ? { code: STATUS_ERROR, message: `suite ${suite2.suite} failed` } : { code: STATUS_OK }
+    };
+  });
+}
+function buildOtelTrace(bundle) {
+  const traceId = sha256Hex(`tenon-trace\0${bundle.change}\0${bundle.chain.head}`).slice(0, 32);
+  const spanId = (key) => sha256Hex(`${traceId}\0${key}`).slice(0, 16);
+  const times = [
+    bundle.created_at,
+    ...bundle.steps.flatMap((step) => [step.entered_at, step.left_at]),
+    ...bundle.records.flatMap((record9) => [record9.started_at, record9.finished_at]),
+    ...bundle.agents.flatMap((run6) => [run6.started_at, run6.finished_at])
+  ].flatMap((value) => {
+    const parsed2 = value === null ? Number.NaN : Date.parse(value);
+    return Number.isFinite(parsed2) ? [BigInt(parsed2) * 1000000n] : [];
+  });
+  const zero = nanos(bundle.exported_at, 0n);
+  const rootStart = times.length === 0 ? zero : times.reduce((min, value) => value < min ? value : min);
+  const rootEnd = times.length === 0 ? zero : times.reduce((max, value) => value > max ? value : max);
+  const rootId = spanId("workflow");
+  const spans = [{
+    traceId,
+    spanId: rootId,
+    name: `invoke_workflow ${bundle.workflow}`,
+    kind: SPAN_KIND_INTERNAL,
+    startTimeUnixNano: rootStart.toString(),
+    endTimeUnixNano: rootEnd.toString(),
+    attributes: attributes({
+      "gen_ai.operation.name": "invoke_workflow",
+      "gen_ai.workflow.name": bundle.workflow,
+      "tenon.change": bundle.change,
+      "tenon.track": bundle.track,
+      "tenon.phase": bundle.phase,
+      "tenon.evidence.chain_head": bundle.chain.head,
+      "tenon.evidence.records": bundle.chain.records,
+      "tenon.evidence.last_result": bundle.last_result,
+      "vcs.ref.head.revision": bundle.commit
+    }),
+    status: bundle.last_result === "fail" ? { code: STATUS_ERROR, message: "latest test run failed" } : { code: STATUS_OK }
+  }];
+  const stepSpanIds = /* @__PURE__ */ new Map();
+  for (const [index, step] of bundle.steps.entries()) {
+    const id2 = spanId(`step\0${index}\0${step.step}`);
+    stepSpanIds.set(step.step, id2);
+    const start = nanos(step.entered_at, rootStart);
+    const end = step.left_at === null ? rootEnd : nanos(step.left_at, rootEnd);
+    spans.push({
+      traceId,
+      spanId: id2,
+      parentSpanId: rootId,
+      name: `tenon.step ${step.step}`,
+      kind: SPAN_KIND_INTERNAL,
+      startTimeUnixNano: start.toString(),
+      endTimeUnixNano: (end < start ? start : end).toString(),
+      attributes: attributes({ "tenon.step.id": step.step }),
+      status: { code: STATUS_OK }
+    });
+  }
+  const parentOf = (step) => stepSpanIds.get(step) ?? rootId;
+  for (const run6 of bundle.agents) {
+    spans.push(agentSpan(run6, { traceId, spanId: spanId(`agent\0${run6.run_id}`), parentSpanId: parentOf(run6.step) }, rootStart));
+  }
+  for (const record9 of bundle.records)
+    spans.push(...suiteSpans(record9, spanId, parentOf(record9.step), traceId, rootStart));
+  return {
+    resourceSpans: [{
+      resource: { attributes: attributes({ "service.name": "tenon", "service.version": bundle.tenon }) },
+      scopeSpans: [{ scope: { name: OTEL_SCOPE_NAME, version: bundle.tenon }, spans }]
+    }]
+  };
+}
+
+// packages/kernel/dist/evidence-export/trailer.js
+var TRAILER_CHANGE = "Tenon-Change";
+var TRAILER_EVIDENCE = "Tenon-Evidence";
+function trailerLines(bundle) {
+  return [`${TRAILER_CHANGE}: ${bundle.change}`, `${TRAILER_EVIDENCE}: ${bundle.chain.head}`];
+}
+function trailerArguments(bundle) {
+  return trailerLines(bundle).flatMap((line) => ["--trailer", line]);
+}
+function evidenceNoteEntry(bundle, options) {
+  const last = bundle.records.at(-1);
+  return {
+    change: bundle.change,
+    user: bundle.chain.user,
+    chain: {
+      head: bundle.chain.head,
+      records: bundle.chain.records,
+      last_run: last?.run_id ?? "none",
+      last_finished_at: last?.finished_at ?? bundle.exported_at
+    },
+    plan_digest: bundle.plan_digest,
+    last_result: bundle.last_result,
+    ...options.anchor ? { anchor: { kind: "chain-head", head: bundle.chain.head } } : {},
+    tenon: bundle.tenon,
+    created_at: bundle.exported_at
+  };
+}
+
 // packages/kernel/dist/machine-state-scope.js
 import { createHash as createHash22 } from "node:crypto";
 import { resolve as resolve10 } from "node:path";
@@ -31515,8 +32466,8 @@ function canonicalMachineStateRoot(stateRoot) {
   return resolve10(stateRoot);
 }
 function machineStateScopeId(stateRoot) {
-  const digest18 = createHash22("sha256").update(STATE_SCOPE_NAMESPACE).update(canonicalMachineStateRoot(stateRoot)).digest("hex");
-  return `sha256-v1-${digest18}`;
+  const digest19 = createHash22("sha256").update(STATE_SCOPE_NAMESPACE).update(canonicalMachineStateRoot(stateRoot)).digest("hex");
+  return `sha256-v1-${digest19}`;
 }
 
 // packages/kernel/dist/workspace/build-revision-identity.js
@@ -31556,10 +32507,10 @@ async function probeBuildRevisionIdentity(root) {
       return void 0;
     const common2 = await physicalDirectory(commonRaw);
     const top = await physicalDirectory(topRaw);
-    const git3 = await physicalDirectory(gitRaw);
-    if (!common2 || !top || !git3)
+    const git4 = await physicalDirectory(gitRaw);
+    if (!common2 || !top || !git4)
       return void 0;
-    return { repository: common2, worktree: `${top}\0${git3}` };
+    return { repository: common2, worktree: `${top}\0${git4}` };
   } catch {
     return void 0;
   }
@@ -31573,7 +32524,7 @@ var TERMINAL_SESSION_PROTOCOL = "pipeline-terminal-session-v1";
 var TERMINAL_ACTIVITY_TTL_MS = 12e4;
 var CHANGE_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 var SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
-function isRecord7(value) {
+function isRecord8(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function asNonEmptyString(value) {
@@ -31586,7 +32537,7 @@ function isTerminalActivityChangeName(value) {
   return CHANGE_NAME.test(value);
 }
 function parseTerminalActivityRecord(value) {
-  if (!isRecord7(value) || value.protocol !== TERMINAL_ACTIVITY_PROTOCOL)
+  if (!isRecord8(value) || value.protocol !== TERMINAL_ACTIVITY_PROTOCOL)
     return null;
   const change = asNonEmptyString(value.change);
   const sessionId = asNonEmptyString(value.session_id);
@@ -31707,10 +32658,10 @@ function entryOf(value) {
     return null;
   return { archivedAt: record9.archived_at, phase: record9.phase, actor: actor3 };
 }
-function archiveOf(text12) {
+function archiveOf(text13) {
   let value;
   try {
-    value = JSON.parse(text12);
+    value = JSON.parse(text13);
   } catch {
     return null;
   }
@@ -31751,16 +32702,16 @@ function serializeTaskArchive(archive) {
 }
 async function readTaskArchiveOf(repoRoot, slug2) {
   const path15 = userProjectPaths(repoRoot, slug2).archived;
-  let text12;
+  let text13;
   try {
     const item2 = await lstat34(path15);
     if (!item2.isFile() || item2.size > MAX_ARCHIVE_BYTES)
       return { kind: "corrupt", path: path15 };
-    text12 = await readFile42(path15, "utf8");
+    text13 = await readFile42(path15, "utf8");
   } catch {
     return { kind: "ok", archive: EMPTY_TASK_ARCHIVE };
   }
-  const archive = archiveOf(text12);
+  const archive = archiveOf(text13);
   return archive === null ? { kind: "corrupt", path: path15 } : { kind: "ok", archive: await pruneMissing(repoRoot, archive) };
 }
 async function readTaskArchive(repoRoot, user) {
@@ -31772,16 +32723,16 @@ async function withTaskArchiveLock(repoRoot, slug2, fn) {
 }
 async function writeTaskArchiveOf(repoRoot, slug2, archive) {
   const path15 = userProjectPaths(repoRoot, slug2).archived;
-  const text12 = serializeTaskArchive(archive);
+  const text13 = serializeTaskArchive(archive);
   let current = null;
   try {
     current = await readFile42(path15, "utf8");
   } catch {
     current = null;
   }
-  if (current === text12)
+  if (current === text13)
     return false;
-  await writeUserLocalFile(path15, text12);
+  await writeUserLocalFile(path15, text13);
   return true;
 }
 async function updateTaskArchiveOf(repoRoot, slug2, edit) {
@@ -31851,14 +32802,14 @@ async function hasRepository(repoRoot) {
     return false;
   }
 }
-async function probeUncommittedTaskDeletions(repoRoot, git3 = gitStatusRunner) {
+async function probeUncommittedTaskDeletions(repoRoot, git4 = gitStatusRunner) {
   if (isProcessLocalFdPath(repoRoot)) {
     return { kind: "unavailable", reason: `\u8FDB\u7A0B\u79C1\u6709 fd \u8DEF\u5F84\u65E0\u6CD5\u4EA4\u7ED9\u5B50\u8FDB\u7A0B\u89E3\u6790\uFF1A${repoRoot}` };
   }
   if (!await hasRepository(repoRoot)) {
     return { kind: "absent", reason: `\u4E0D\u662F git \u4ED3\u5E93\u6839\uFF1A${repoRoot}` };
   }
-  const result2 = await git3(repoRoot, [
+  const result2 = await git4(repoRoot, [
     "status",
     "--porcelain=v1",
     "-z",
@@ -31870,10 +32821,10 @@ async function probeUncommittedTaskDeletions(repoRoot, git3 = gitStatusRunner) {
     const detail = (result2.stderr ?? "").trim();
     return { kind: "unavailable", reason: `git status \u9000\u51FA\u7801 ${result2.code}${detail === "" ? "" : `\uFF1A${detail}`}` };
   }
-  const fields = result2.stdout.split("\0");
+  const fields2 = result2.stdout.split("\0");
   const names = /* @__PURE__ */ new Set();
-  for (let index = 0; index < fields.length; index += 1) {
-    const field4 = fields[index] ?? "";
+  for (let index = 0; index < fields2.length; index += 1) {
+    const field4 = fields2[index] ?? "";
     if (field4.length < 4)
       continue;
     const [x, y] = [field4[0] ?? "", field4[1] ?? ""];
@@ -31892,8 +32843,8 @@ async function probeUncommittedTaskDeletions(repoRoot, git3 = gitStatusRunner) {
   }
   return { kind: "ok", count: count3 };
 }
-async function countUncommittedTaskDeletions(repoRoot, git3 = gitStatusRunner) {
-  const probe = await probeUncommittedTaskDeletions(repoRoot, git3);
+async function countUncommittedTaskDeletions(repoRoot, git4 = gitStatusRunner) {
+  const probe = await probeUncommittedTaskDeletions(repoRoot, git4);
   return probe.kind === "ok" ? probe.count : null;
 }
 
@@ -31966,9 +32917,9 @@ async function checkoutSlugs(repoRoot) {
   }
   return slugs;
 }
-function bindsChange(text12, change) {
+function bindsChange(text13, change) {
   try {
-    const value = JSON.parse(text12);
+    const value = JSON.parse(text13);
     if (typeof value !== "object" || value === null || Array.isArray(value))
       return false;
     const record9 = value;
@@ -31989,8 +32940,8 @@ async function removeSessionBindings(repoRoot, change) {
   for (const entry2 of entries2) {
     if (!entry2.isFile() || !entry2.name.endsWith(".json"))
       continue;
-    const text12 = await readPointer(join53(dir, entry2.name));
-    if (text12 === null || !bindsChange(text12, change))
+    const text13 = await readPointer(join53(dir, entry2.name));
+    if (text13 === null || !bindsChange(text13, change))
       continue;
     const rel = await removeInside(repoRoot, join53(dir, entry2.name));
     if (rel !== null)
@@ -32421,9 +33372,9 @@ var TrackConfigParseError = class extends Error {
 
 // packages/kernel/dist/tracks/parse.js
 var KEY_RE5 = /^([A-Za-z_][\w.-]*):(?:\s+([\s\S]*)|\s*)$/;
-function tokenize3(text12) {
+function tokenize3(text13) {
   const tokens = [];
-  const lines2 = text12.split("\n");
+  const lines2 = text13.split("\n");
   for (let n = 0; n < lines2.length; n++) {
     const lineNo = n + 1;
     const line = lines2[n].replace(/\r$/, "");
@@ -32557,8 +33508,8 @@ function parseNode(tokens, i, indent) {
     return parseMapping2(tokens, i, indent);
   return { node: parseScalarText(t.raw, t.line), next: i + 1 };
 }
-function parseDocumentRoot(text12) {
-  const tokens = tokenize3(text12);
+function parseDocumentRoot(text13) {
+  const tokens = tokenize3(text13);
   if (tokens.length === 0)
     throw new TrackConfigParseError(null, "\u7A7A\u6587\u6863\uFF08\u7F3A\u5C11\u5FC5\u586B\u9876\u5C42\u952E version\uFF09");
   const first = tokens[0];
@@ -32749,8 +33700,8 @@ function walkTrackEntry(n, at) {
     out.policyProfile = walkPolicy(p.node, at);
   return out;
 }
-function parseTrackRegistry(text12) {
-  const root = parseDocumentRoot(text12);
+function parseTrackRegistry(text13) {
+  const root = parseDocumentRoot(text13);
   checkKeys2(root, ["version", "builtins", "tracks"], "\u9876\u5C42");
   const versionEntry = getEntry(root, "version");
   if (!versionEntry)
@@ -33037,11 +33988,11 @@ function emitString(s) {
 function emitInteger(n) {
   if (!Number.isInteger(n))
     throw new Error(`serializeTrackRegistry: \u671F\u671B\u6574\u6570\uFF0C\u5F97\u5230 ${n}`);
-  const text12 = String(n);
-  if (!/^-?\d+$/.test(text12) || Number(text12) !== n) {
-    throw new Error(`serializeTrackRegistry: \u6574\u6570 ${n} \u7684\u5199\u51FA\u6587\u672C ${JSON.stringify(text12)} \u4E0D\u662F parse \u53EF\u8BFB\u56DE\u7684\u7EAF\u5341\u8FDB\u5236\uFF0C\u62D2\u5199`);
+  const text13 = String(n);
+  if (!/^-?\d+$/.test(text13) || Number(text13) !== n) {
+    throw new Error(`serializeTrackRegistry: \u6574\u6570 ${n} \u7684\u5199\u51FA\u6587\u672C ${JSON.stringify(text13)} \u4E0D\u662F parse \u53EF\u8BFB\u56DE\u7684\u7EAF\u5341\u8FDB\u5236\uFF0C\u62D2\u5199`);
   }
-  return text12;
+  return text13;
 }
 function emitMapKey(key) {
   if (!/^[A-Za-z_][\w.-]*$/.test(key)) {
@@ -33234,11 +34185,11 @@ function composeRegistry(config, source) {
   }
   return { ordered, byId: byId2, revision: registryRevision(config), source };
 }
-function synthesize(text12, context) {
-  if (text12 === null) {
+function synthesize(text13, context) {
+  if (text13 === null) {
     return { config: EMPTY_PROJECT_CONFIG, registry: composeRegistry(EMPTY_PROJECT_CONFIG, "builtin-only") };
   }
-  const config = parseTrackRegistry(text12);
+  const config = parseTrackRegistry(text13);
   const errors = validateTrackRegistry(config, context);
   if (errors.length > 0) {
     throw new Error(`.pipeline/tracks.yaml \u6821\u9A8C\u5931\u8D25\uFF08${errors.length} \u6761\uFF09\uFF1A
@@ -33247,14 +34198,14 @@ function synthesize(text12, context) {
   return { config, registry: composeRegistry(config, "project-file") };
 }
 function loadTrackRegistry(repoRoot, context) {
-  let text12 = null;
+  let text13 = null;
   try {
-    text12 = readFileSync11(trackRegistryPath(repoRoot), "utf8");
+    text13 = readFileSync11(trackRegistryPath(repoRoot), "utf8");
   } catch (e) {
     if (e.code !== "ENOENT")
       throw e;
   }
-  return synthesize(text12, context).registry;
+  return synthesize(text13, context).registry;
 }
 function requireTrack(registry, id2) {
   const def = registry.byId.get(id2);
@@ -33271,14 +34222,14 @@ function assertWorkflowAllowed(track, workflowId) {
   throw new Error(`track '${track.id}' \u4E0D\u5141\u8BB8\u7ED1\u5B9A workflow '${workflowId}'\uFF08\u5141\u8BB8\uFF1A${track.workflow.allowed.join(", ")}\uFF09`);
 }
 async function freshReadUnderLock(file, context) {
-  let text12 = null;
+  let text13 = null;
   try {
-    text12 = await readFile45(file, "utf8");
+    text13 = await readFile45(file, "utf8");
   } catch (e) {
     if (e.code !== "ENOENT")
       throw e;
   }
-  return synthesize(text12, context);
+  return synthesize(text13, context);
 }
 async function withTrackRegistryLock(repoRoot, context, callback) {
   const file = trackRegistryPath(repoRoot);
@@ -33633,16 +34584,16 @@ function isBootstrapTurn(cleaned, originalLength) {
     return true;
   return false;
 }
-function stripInjectionTags(text12) {
-  let out = text12;
+function stripInjectionTags(text13) {
+  let out = text13;
   for (const re of TAG_RES)
     out = out.replace(re, "");
   out = out.replace(AGENTS_RE, "");
   out = out.replace(COLLAPSE_RE, "\n\n");
   return out.trim();
 }
-function hostSummaryTurn(text12) {
-  const turn = { role: "user", text: text12 };
+function hostSummaryTurn(text13) {
+  const turn = { role: "user", text: text13 };
   Object.defineProperty(turn, HOST_SUMMARY_TURN, { value: true });
   return turn;
 }
@@ -33774,8 +34725,8 @@ function searchInDialogue(turns, kw, maxExcerpts = 3, chunkChars = 400, options 
 function compareRankedChunks(a, b) {
   return b.coverage - a.coverage || b.rarity - a.rarity || a.start - b.start;
 }
-function selectExcerptCandidates(text12, hay, tokens, tokenFreq, chunkChars, limit) {
-  const locateChunk = createChunkLocator(text12, chunkChars);
+function selectExcerptCandidates(text13, hay, tokens, tokenFreq, chunkChars, limit) {
+  const locateChunk = createChunkLocator(text13, chunkChars);
   const cursors = Array.from(tokenFreq.keys(), (tok) => ({ tok, idx: hay.indexOf(tok) }));
   const selected = [];
   let lastStart = null;
@@ -33811,11 +34762,11 @@ function selectExcerptCandidates(text12, hay, tokens, tokenFreq, chunkChars, lim
   }
   return selected;
 }
-function createChunkLocator(text12, maxChars) {
+function createChunkLocator(text13, maxChars) {
   const paragraphBreaks = [];
   let from = 0;
   for (; ; ) {
-    const idx = text12.indexOf("\n\n", from);
+    const idx = text13.indexOf("\n\n", from);
     if (idx === -1)
       break;
     paragraphBreaks.push(idx);
@@ -33837,11 +34788,11 @@ function createChunkLocator(text12, maxChars) {
     const nextIdx = lowerBound(hitIdx);
     const previousIdx = lowerBound(hitIdx - 1) - 1;
     let start = previousIdx >= 0 ? (paragraphBreaks[previousIdx] ?? -2) + 2 : 0;
-    let end = nextIdx < paragraphBreaks.length ? paragraphBreaks[nextIdx] ?? text12.length : text12.length;
+    let end = nextIdx < paragraphBreaks.length ? paragraphBreaks[nextIdx] ?? text13.length : text13.length;
     let truncated = false;
     if (end - start > maxChars) {
       start = Math.max(0, hitIdx - Math.floor(maxChars / 2));
-      end = Math.min(text12.length, hitIdx + Math.ceil(maxChars / 2));
+      end = Math.min(text13.length, hitIdx + Math.ceil(maxChars / 2));
       truncated = true;
     }
     return { start, end, truncated };
@@ -34698,11 +35649,11 @@ var OPEN_BRACE = 123;
 function isJsonlLine(line) {
   return line.length > 0 && line.charCodeAt(0) === OPEN_BRACE;
 }
-function parseJsonlLines(text12) {
+function parseJsonlLines(text13) {
   const out = [];
-  if (!text12)
+  if (!text13)
     return out;
-  for (const line of text12.split("\n")) {
+  for (const line of text13.split("\n")) {
     if (!isJsonlLine(line))
       continue;
     try {
@@ -34712,10 +35663,10 @@ function parseJsonlLines(text12) {
   }
   return out;
 }
-function readJsonlFirst(text12) {
-  if (!text12)
+function readJsonlFirst(text13) {
+  if (!text13)
     return void 0;
-  for (const line of text12.split("\n")) {
+  for (const line of text13.split("\n")) {
     if (!isJsonlLine(line))
       continue;
     try {
@@ -34725,11 +35676,11 @@ function readJsonlFirst(text12) {
   }
   return void 0;
 }
-function findInJsonl(text12, predicate, maxLines = 200) {
-  if (!text12)
+function findInJsonl(text13, predicate, maxLines = 200) {
+  if (!text13)
     return void 0;
   let count3 = 0;
-  for (const line of text12.split("\n")) {
+  for (const line of text13.split("\n")) {
     if (!isJsonlLine(line))
       continue;
     let obj;
@@ -34985,11 +35936,11 @@ function claudeListSessions(fs, f) {
     const title = idx?.title ?? null;
     if (!cwd || !created) {
       const metadata = readMemSessionMetadataChecked(fs, filePath);
-      const text12 = metadata.text;
-      const evt = findInJsonl(text12, (o) => typeof o?.cwd === "string", 100);
+      const text13 = metadata.text;
+      const evt = findInJsonl(text13, (o) => typeof o?.cwd === "string", 100);
       cwd = cwd || (evt?.cwd ?? null);
       if (!created) {
-        const first = readJsonlFirst(text12);
+        const first = readJsonlFirst(text13);
         created = (evt?.timestamp ?? null) || (first?.timestamp ?? null);
       }
       if (f.cwd && !cwd && metadata.truncated)
@@ -35042,9 +35993,9 @@ ${summary}`)] : [];
     const content = msg.content;
     if (t === "user" && msg.role === "user") {
       if (typeof content === "string") {
-        const text12 = stripInjectionTags(content);
-        if (text12 && !isBootstrapTurn(text12, content.length))
-          turns.push({ role: "user", text: text12 });
+        const text13 = stripInjectionTags(content);
+        if (text13 && !isBootstrapTurn(text13, content.length))
+          turns.push({ role: "user", text: text13 });
       }
     } else if (t === "assistant" && msg.role === "assistant" && Array.isArray(content)) {
       const parts = [];
@@ -35085,9 +36036,9 @@ ${summary}`)] : [];
     const content = msg.content;
     if (t === "user" && msg.role === "user") {
       if (typeof content === "string") {
-        const text12 = stripInjectionTags(content);
-        if (text12 && !isBootstrapTurn(text12, content.length))
-          state.turns.push({ role: "user", text: text12 });
+        const text13 = stripInjectionTags(content);
+        if (text13 && !isBootstrapTurn(text13, content.length))
+          state.turns.push({ role: "user", text: text13 });
       }
       continue;
     }
@@ -35246,9 +36197,9 @@ function compactedReplacementTurns(replacementHistory) {
     const turn = buildTurnFromMessage(role, item2?.content);
     if (!turn)
       continue;
-    const text12 = `[compact]
+    const text13 = `[compact]
 ${turn.text}`;
-    turns.push(index === summaryIndex ? hostSummaryTurn(text12) : { role: turn.role, text: text12 });
+    turns.push(index === summaryIndex ? hostSummaryTurn(text13) : { role: turn.role, text: text13 });
   }
   return turns;
 }
@@ -35531,11 +36482,11 @@ function turnFromEntry(entry2) {
 function syntheticTurn(prefix, raw) {
   if (typeof raw !== "string")
     return null;
-  const text12 = stripInjectionTags(raw);
-  if (!text12)
+  const text13 = stripInjectionTags(raw);
+  if (!text13)
     return null;
   return hostSummaryTurn(`${prefix}
-${text12}`);
+${text13}`);
 }
 function buildTurn(role, content) {
   const parts = [];
@@ -35923,8 +36874,8 @@ function selectContextTurns(turns, grep, nTurns, around, maxChars) {
   let totalHitTurns = 0;
   if (grep) {
     const tokens = grep.toLowerCase().split(/\s+/).filter(Boolean);
-    const matchCount = (text12) => {
-      const hay = text12.toLowerCase();
+    const matchCount = (text13) => {
+      const hay = text13.toLowerCase();
       if (!tokens.every((tok) => hay.includes(tok)))
         return 0;
       let n = 0;
@@ -35970,15 +36921,15 @@ function selectContextTurns(turns, grep, nTurns, around, maxChars) {
     const t = turns[i];
     if (t == null)
       continue;
-    let text12 = t.text;
+    let text13 = t.text;
     const cap = Math.floor(maxChars / 2);
-    if (text12.length > cap)
-      text12 = text12.slice(0, cap) + `
+    if (text13.length > cap)
+      text13 = text13.slice(0, cap) + `
 \u2026[+${t.text.length - cap} chars]`;
-    if (used + text12.length > maxChars && out.length > 0)
+    if (used + text13.length > maxChars && out.length > 0)
       break;
-    out.push({ idx: i, role: t.role, text: text12, isHit: hitSet.has(i) });
-    used += text12.length;
+    out.push({ idx: i, role: t.role, text: text13, isHit: hitSet.has(i) });
+    used += text13.length;
   }
   return { turns: out, totalHitTurns, budgetUsed: used };
 }
@@ -36102,11 +37053,11 @@ function extractDocLoopIds(docText) {
   }
   return out;
 }
-function parseRunLog(text12, now) {
+function parseRunLog(text13, now) {
   const map = /* @__PURE__ */ new Map();
-  if (text12 === null)
+  if (text13 === null)
     return map;
-  for (const rawLine of text12.split("\n")) {
+  for (const rawLine of text13.split("\n")) {
     const line = rawLine.trim();
     if (!line.startsWith("|"))
       continue;
@@ -36368,11 +37319,11 @@ function nextDown(level) {
 }
 var HIST_TS_RE = /^(?:\d{4}-)?\d{2}-\d{2}T\d{2}:\d{2}$/;
 var HIST_RESULT_RE = /result=(ok|fail|dry|skip)/;
-function parseRunHistory(text12, loopId) {
-  if (text12 === null)
+function parseRunHistory(text13, loopId) {
+  if (text13 === null)
     return { runs: 0, failStreak: 0, lastResult: null };
   const results = [];
-  for (const rawLine of text12.split("\n")) {
+  for (const rawLine of text13.split("\n")) {
     const line = rawLine.trim();
     if (!line.startsWith("|"))
       continue;
@@ -36488,8 +37439,8 @@ function planLevelChange(current, target, verdict) {
   }
   return { ...base, to, kind: "promote", allowed: true, reason: `\u9010\u7EA7\u6BD5\u4E1A ${current} \u2192 ${to}`, blockers: [] };
 }
-function setAutonomyLevelInYaml(text12, loopId, level) {
-  const lines2 = text12.split("\n");
+function setAutonomyLevelInYaml(text13, loopId, level) {
+  const lines2 = text13.split("\n");
   const block = locateLoop(lines2, loopId);
   if (block === null)
     return { text: null, error: `loop '${loopId}' \u672A\u5728 loops.yaml \u627E\u5230\uFF08\u65E0\u6CD5\u6539\u6863\uFF09` };
@@ -36728,12 +37679,12 @@ function checkedValue(field4, value) {
     throw new PatchError(`\u5B57\u6BB5 '${field4}' \u987B\u4E3A\u5B57\u7B26\u4E32`);
   return value;
 }
-function updateLoopInYaml(text12, loopId, patch) {
+function updateLoopInYaml(text13, loopId, patch) {
   try {
-    const fields = Object.keys(patch);
-    if (fields.length === 0)
+    const fields2 = Object.keys(patch);
+    if (fields2.length === 0)
       throw new PatchError("patch \u4E3A\u7A7A\uFF08\u65E0\u5B57\u6BB5\u53EF\u6539\uFF09");
-    for (const field4 of fields) {
+    for (const field4 of fields2) {
       if (field4 === "autonomy_level") {
         throw new PatchError("autonomy_level \u4E0D\u7ECF\u672C\u624B\u672F\uFF08\u5347\u964D\u6863\u8D70\u6BD5\u4E1A\u5236\u88C1\u51B3\uFF1AapplyLevelChange / POST /api/loops/level\uFF09");
       }
@@ -36741,8 +37692,8 @@ function updateLoopInYaml(text12, loopId, patch) {
         throw new PatchError(`\u5B57\u6BB5 '${field4}' \u4E0D\u53EF patch\uFF08\u53EF\u6539\uFF1A${ALL_PATCHABLE.join(" / ")}\uFF09`);
       }
     }
-    const lines2 = text12.split("\n");
-    for (const field4 of fields) {
+    const lines2 = text13.split("\n");
+    for (const field4 of fields2) {
       const block = locateLoop(lines2, loopId);
       if (block === null)
         throw new PatchError(`loop '${loopId}' \u672A\u5728 loops.yaml \u627E\u5230\uFF08\u672C\u624B\u672F\u4E0D\u65B0\u5EFA loop\uFF09`);
@@ -36809,8 +37760,8 @@ function renderLoopEntryLines(entry2) {
   seq2("kill_criteria", entry2.kill_criteria);
   return lines2;
 }
-function selfCheckYamlText(text12) {
-  const { data, error: error2 } = parseLoopsYaml(text12);
+function selfCheckYamlText(text13) {
+  const { data, error: error2 } = parseLoopsYaml(text13);
   if (error2 !== null)
     return `\u4EA7\u51FA\u6587\u672C\u672A\u8FC7\u7A84\u89E3\u6790\u5668\uFF1A${error2}`;
   const errors = validateSchema(data, LOOPS_SCHEMA);
@@ -36820,12 +37771,12 @@ function selfCheckYamlText(text12) {
 }
 function createLoopsYamlText(entry2) {
   try {
-    const text12 = `${["version: 1", "loops:", ...renderLoopEntryLines(entry2)].join("\n")}
+    const text13 = `${["version: 1", "loops:", ...renderLoopEntryLines(entry2)].join("\n")}
 `;
-    const bad4 = selfCheckYamlText(text12);
+    const bad4 = selfCheckYamlText(text13);
     if (bad4 !== null)
       throw new PatchError(bad4);
-    return { text: text12, error: null };
+    return { text: text13, error: null };
   } catch (e) {
     if (e instanceof PatchError)
       return { text: null, error: e.message };
@@ -36839,18 +37790,18 @@ function appendLoopToYamlText(before, entry2) {
       throw new PatchError(`\u65E2\u6709 loops.yaml \u672A\u8FC7\u7A84\u89E3\u6790\u5668\uFF0C\u62D2\u7EDD\u8FFD\u52A0\uFF1A${error2}`);
     const loops = data !== null && typeof data === "object" && !Array.isArray(data) ? data.loops : void 0;
     if (Array.isArray(loops)) {
-      const exists2 = loops.some((item2) => item2 !== null && typeof item2 === "object" && !Array.isArray(item2) && item2.id === entry2.id);
-      if (exists2)
+      const exists3 = loops.some((item2) => item2 !== null && typeof item2 === "object" && !Array.isArray(item2) && item2.id === entry2.id);
+      if (exists3)
         throw new PatchError(`loop '${entry2.id}' \u5DF2\u5B58\u5728\u4E8E loops.yaml\uFF08\u8FFD\u52A0\u4E0D\u8986\u76D6\uFF1B\u6539\u5B57\u6BB5\u8D70 updateLoopInYaml\uFF09`);
     }
     const base = before.endsWith("\n") ? before : `${before}
 `;
-    const text12 = `${base}${renderLoopEntryLines(entry2).join("\n")}
+    const text13 = `${base}${renderLoopEntryLines(entry2).join("\n")}
 `;
-    const bad4 = selfCheckYamlText(text12);
+    const bad4 = selfCheckYamlText(text13);
     if (bad4 !== null)
       throw new PatchError(bad4);
-    return { text: text12, error: null };
+    return { text: text13, error: null };
   } catch (e) {
     if (e instanceof PatchError)
       return { text: null, error: e.message };
@@ -36905,18 +37856,18 @@ async function withRegistryGovernanceLock(repoRoot, fn) {
   return withLock(base, fn);
 }
 async function readRegistrySnapshot(repoRoot) {
-  let text12;
+  let text13;
   try {
-    text12 = await readFile46(loopsYamlPath(repoRoot), "utf8");
+    text13 = await readFile46(loopsYamlPath(repoRoot), "utf8");
   } catch (e) {
     if (e.code === "ENOENT") {
       return { text: "", epoch: ABSENT_REGISTRY_EPOCH, registry: null, errors: [] };
     }
     throw new RegistryReadError(`loops.yaml \u8BFB\u5931\u8D25\uFF08${e.code ?? "IO"}\uFF09\uFF1A${e instanceof Error ? e.message : String(e)}`);
   }
-  const epoch = createHash24("sha256").update(text12, "utf8").digest("hex");
-  const { data, errors } = loadRegistry(repoRoot, { readText: () => text12 });
-  return { text: text12, epoch, registry: data, errors };
+  const epoch = createHash24("sha256").update(text13, "utf8").digest("hex");
+  const { data, errors } = loadRegistry(repoRoot, { readText: () => text13 });
+  return { text: text13, epoch, registry: data, errors };
 }
 function assertActiveAtEpoch(snapshot2, loopId) {
   const loop = snapshot2.registry?.loops.find((l) => l.id === loopId);
@@ -36928,14 +37879,14 @@ function assertActiveAtEpoch(snapshot2, loopId) {
   }
   return loop;
 }
-async function writeRegistryTextAtomic(repoRoot, text12) {
+async function writeRegistryTextAtomic(repoRoot, text13) {
   const dir = join60(repoRoot, ".pipeline");
   await mkdir29(dir, { recursive: true });
   const finalPath = loopsYamlPath(repoRoot);
   const tmp = join60(dir, `.loops.yaml.tmp.${process.pid}.${randomBytes2(6).toString("hex")}`);
   const fh = await open5(tmp, "w");
   try {
-    await fh.writeFile(text12, "utf8");
+    await fh.writeFile(text13, "utf8");
     await fh.sync();
   } finally {
     await fh.close();
@@ -36957,10 +37908,10 @@ async function writeRegistryWithGovernance(repoRoot, expectedEpoch, produce) {
     if (current.epoch !== expectedEpoch) {
       return { ok: false, error: `CAS \u5931\u8D25\uFF1Aloops.yaml \u5728\u6B64\u671F\u95F4\u88AB\u5E76\u53D1\u4FEE\u6539\uFF08epoch ${expectedEpoch.slice(0, 12)} \u2192 ${current.epoch.slice(0, 12)}\uFF09` };
     }
-    const { text: text12, error: error2 } = await produce(current.text, current);
-    if (error2 !== null || text12 === null)
+    const { text: text13, error: error2 } = await produce(current.text, current);
+    if (error2 !== null || text13 === null)
       return { ok: false, error: error2 ?? "\u751F\u6210\u5199\u56DE\u6587\u672C\u5931\u8D25" };
-    await writeRegistryTextAtomic(repoRoot, text12);
+    await writeRegistryTextAtomic(repoRoot, text13);
     return { ok: true };
   });
 }
@@ -37302,11 +38253,11 @@ var ReconciliationPlanCodecError = class extends Error {
     this.errors = [...errors];
   }
 };
-function isRecord8(value) {
+function isRecord9(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function exactObject(value, path15, keys, errors) {
-  if (!isRecord8(value)) {
+  if (!isRecord9(value)) {
     errors.push(`${path15}: expected object`);
     return null;
   }
@@ -37347,7 +38298,7 @@ function strictArray(value, path15, errors) {
   return value;
 }
 function validateEpoch(value, path15, errors) {
-  if (!isRecord8(value)) {
+  if (!isRecord9(value)) {
     errors.push(`${path15}: expected ResourceEpoch object`);
     return;
   }
@@ -37365,7 +38316,7 @@ function validateEpoch(value, path15, errors) {
   errors.push(`${path15}.kind: expected "absent" or "sha256"`);
 }
 function validateScope(value, path15, errors) {
-  if (!isRecord8(value)) {
+  if (!isRecord9(value)) {
     errors.push(`${path15}: expected ReconciliationScope object`);
     return;
   }
@@ -37414,7 +38365,7 @@ function validateDriftItem(value, path15, errors) {
   stringValue(item2.suggestion, `${path15}.suggestion`, errors);
 }
 function validateOperation(value, path15, errors) {
-  if (!isRecord8(value)) {
+  if (!isRecord9(value)) {
     errors.push(`${path15}: expected operation object`);
     return;
   }
@@ -37474,14 +38425,14 @@ function validateDriftReport(value, path15, errors) {
     for (let i = 0; i < items.length; i++)
       validateDriftItem(items[i], `${path15}.items[${i}]`, errors);
     if (typeof report2.clean === "boolean") {
-      const computedClean = items.every((item2) => isRecord8(item2) && item2.severity !== "warn");
+      const computedClean = items.every((item2) => isRecord9(item2) && item2.severity !== "warn");
       if (computedClean !== report2.clean)
         errors.push(`${path15}.clean: does not match item severities`);
     }
   }
 }
 function epochEquals(left, right) {
-  if (!isRecord8(left) || !isRecord8(right) || left.kind !== right.kind)
+  if (!isRecord9(left) || !isRecord9(right) || left.kind !== right.kind)
     return false;
   return left.kind === "absent" || left.kind === "sha256" && left.value === right.value;
 }
@@ -37530,10 +38481,10 @@ function validateReconciliationPlan(value) {
   if (preconditions !== null) {
     validateEpoch(preconditions.registry_epoch, "$.preconditions.registry_epoch", errors);
     validateEpoch(preconditions.loop_doc_epoch, "$.preconditions.loop_doc_epoch", errors);
-    if (observed !== null && isRecord8(observed.registry) && !epochEquals(preconditions.registry_epoch, observed.registry.epoch)) {
+    if (observed !== null && isRecord9(observed.registry) && !epochEquals(preconditions.registry_epoch, observed.registry.epoch)) {
       errors.push("$.preconditions.registry_epoch: does not match observed registry epoch");
     }
-    if (observed !== null && isRecord8(observed.loop_doc) && !epochEquals(preconditions.loop_doc_epoch, observed.loop_doc.epoch)) {
+    if (observed !== null && isRecord9(observed.loop_doc) && !epochEquals(preconditions.loop_doc_epoch, observed.loop_doc.epoch)) {
       errors.push("$.preconditions.loop_doc_epoch: does not match observed LOOP.md epoch");
     }
   }
@@ -37544,7 +38495,7 @@ function validateReconciliationPlan(value) {
     for (let i = 0; i < operations.length; i++) {
       const operation = operations[i];
       validateOperation(operation, `$.operations[${i}]`, errors);
-      if (isRecord8(operation) && typeof operation.kind === "string" && typeof operation.loop_id === "string") {
+      if (isRecord9(operation) && typeof operation.kind === "string" && typeof operation.loop_id === "string") {
         const key = `${operation.kind}:${operation.loop_id}`;
         if (seen.has(key))
           errors.push(`$.operations[${i}]: duplicate operation`);
@@ -37554,7 +38505,7 @@ function validateReconciliationPlan(value) {
           errors.push(`$.operations[${i}]: contradictory operations for ${operation.loop_id}`);
         }
         operationByLoop.set(operation.loop_id, operation.kind);
-        if (isRecord8(plan.scope) && plan.scope.kind === "loop" && operation.loop_id !== plan.scope.loop_id) {
+        if (isRecord9(plan.scope) && plan.scope.kind === "loop" && operation.loop_id !== plan.scope.loop_id) {
           errors.push(`$.operations[${i}].loop_id: outside plan scope`);
         }
       }
@@ -37579,15 +38530,15 @@ function isValidatedReconciliationPlan(value, errors) {
   return errors.length === 0;
 }
 function decodeReconciliationPlan(input2) {
-  let text12;
+  let text13;
   try {
-    text12 = typeof input2 === "string" ? input2 : new TextDecoder("utf-8", { fatal: true }).decode(input2);
+    text13 = typeof input2 === "string" ? input2 : new TextDecoder("utf-8", { fatal: true }).decode(input2);
   } catch {
     return { ok: false, errors: ["$: plan bytes are not valid UTF-8"] };
   }
   let parsed2;
   try {
-    parsed2 = JSON.parse(text12);
+    parsed2 = JSON.parse(text13);
   } catch (error2) {
     return { ok: false, errors: [`$: invalid JSON: ${error2 instanceof Error ? error2.message : String(error2)}`] };
   }
@@ -37969,13 +38920,13 @@ function bytesEqual2(left, right) {
 function parseRegistryBytes(repoRoot, bytes) {
   if (bytes === null)
     return [];
-  let text12;
+  let text13;
   try {
-    text12 = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    text13 = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {
     throw new ReconciliationSourceError("registry", "bytes are not valid UTF-8");
   }
-  const loaded = loadRegistry(repoRoot, { readText: () => text12 });
+  const loaded = loadRegistry(repoRoot, { readText: () => text13 });
   if (loaded.data === null || loaded.errors.length > 0) {
     throw new ReconciliationSourceError("registry", loaded.errors.length > 0 ? loaded.errors.join("; ") : "registry is absent after decoding present bytes");
   }
@@ -38186,9 +39137,9 @@ function dedup(items) {
   }
   return out;
 }
-function compressDocument(text12, opts = {}) {
+function compressDocument(text13, opts = {}) {
   const maxDepth = opts.maxHeadingDepth ?? 6;
-  const rawLines = text12.split("\n");
+  const rawLines = text13.split("\n");
   const fm = parseFrontMatter(rawLines);
   let title = null;
   const headings = [];
@@ -38241,7 +39192,7 @@ function compressDocument(text12, opts = {}) {
     keyFields: fm.keyFields,
     stats: emptyStats()
   };
-  doc.stats = statsFor(text12, rawLines.length, renderHandoffSummary(doc, void 0, opts.documentLocale ?? "zh-CN"), doc);
+  doc.stats = statsFor(text13, rawLines.length, renderHandoffSummary(doc, void 0, opts.documentLocale ?? "zh-CN"), doc);
   return doc;
 }
 function emptyStats() {
@@ -38271,7 +39222,7 @@ function statsFor(originalText, originalLines, rendered, doc) {
   };
 }
 function renderHandoffSummary(doc, label2, locale = "zh-CN") {
-  const text12 = locale === "zh-CN" ? {
+  const text13 = locale === "zh-CN" ? {
     handoff: "\u4EA4\u63A5\u6458\u8981",
     summary: "\u6458\u8981",
     structure: "\u7ED3\u6784",
@@ -38289,29 +39240,29 @@ function renderHandoffSummary(doc, label2, locale = "zh-CN") {
     fields: "Key Fields"
   };
   const out = [];
-  out.push(`# ${text12.handoff}: ${label2 ?? doc.title ?? text12.summary}`);
+  out.push(`# ${text13.handoff}: ${label2 ?? doc.title ?? text13.summary}`);
   if (doc.headings.length > 0) {
-    out.push("", `## ${text12.structure}`);
+    out.push("", `## ${text13.structure}`);
     for (const h of doc.headings)
       out.push(`- ${h}`);
   }
   if (doc.decisions.length > 0) {
-    out.push("", `## ${text12.decisions} (${doc.decisions.length})`);
+    out.push("", `## ${text13.decisions} (${doc.decisions.length})`);
     for (const d of doc.decisions)
       out.push(`- ${d}`);
   }
   if (doc.constraints.length > 0) {
-    out.push("", `## ${text12.constraints} (${doc.constraints.length})`);
+    out.push("", `## ${text13.constraints} (${doc.constraints.length})`);
     for (const c of doc.constraints)
       out.push(`- ${c}`);
   }
   if (doc.openTodos.length > 0) {
-    out.push("", `## ${text12.todos} (${doc.openTodos.length})`);
+    out.push("", `## ${text13.todos} (${doc.openTodos.length})`);
     for (const t of doc.openTodos)
       out.push(`- [ ] ${t}`);
   }
   if (doc.keyFields.length > 0) {
-    out.push("", `## ${text12.fields}`);
+    out.push("", `## ${text13.fields}`);
     for (const k of doc.keyFields)
       out.push(`- ${k.key}: ${k.value}`);
   }
@@ -38339,19 +39290,19 @@ function detectAttemptStagnation(records, options = {}) {
   if (records.length === 0)
     return { stagnant: false, repeatedAttempts: [] };
   const newest = required(records[records.length - 1]);
-  const fingerprint = failureFingerprint(newest);
-  if (fingerprint === null)
+  const fingerprint2 = failureFingerprint(newest);
+  if (fingerprint2 === null)
     return { stagnant: false, repeatedAttempts: [] };
   const repeated = [];
   for (let i = records.length - 1; i >= 0; i -= 1) {
     const record9 = required(records[i]);
-    if (failureFingerprint(record9) !== fingerprint)
+    if (failureFingerprint(record9) !== fingerprint2)
       break;
     repeated.unshift(record9.attempt_id);
   }
   return {
     stagnant: repeated.length >= threshold,
-    fingerprint,
+    fingerprint: fingerprint2,
     repeatedAttempts: repeated
   };
 }
@@ -38651,7 +39602,7 @@ async function compileLedgerContextBundleWithPorts(input2) {
         if (!validRelativePath2(record9.path)) {
           throw invalidRequest(`Context Bundle ledger path \u975E\u6CD5: ${record9.path}`);
         }
-        let text12;
+        let text13;
         let sourceBytes;
         const remainingTotalBytes = limits ? Math.max(0, limits.maxTotalSourceBytes - totalSourceBytes) : void 0;
         const sourceReadLimit = limits && remainingTotalBytes !== void 0 ? {
@@ -38662,7 +39613,7 @@ async function compileLedgerContextBundleWithPorts(input2) {
         } : void 0;
         try {
           const source = await input2.sourceReader.read(record9.path, sourceReadLimit);
-          text12 = source.text;
+          text13 = source.text;
           sourceBytes = source.sourceBytes;
         } catch (error2) {
           if (error2 instanceof LedgerContextBundleError) {
@@ -38688,7 +39639,7 @@ async function compileLedgerContextBundleWithPorts(input2) {
             repairAction: `\u6062\u590D root \u5185\u7A33\u5B9A\u7684\u975E symlink \u666E\u901A\u6587\u4EF6 ${record9.path}\uFF0C\u5E76\u91CD\u65B0 record/read`
           });
         }
-        if (text12 === void 0) {
+        if (text13 === void 0) {
           throw new LedgerContextBundleError("CONTEXT_BUNDLE_DOCUMENT_MISSING", `Context Bundle missing document '${kind}': ${record9.path}; restore or re-record it`, {
             kind,
             path: record9.path,
@@ -38702,7 +39653,7 @@ async function compileLedgerContextBundleWithPorts(input2) {
         if (limits && totalSourceBytes > limits.maxTotalSourceBytes) {
           throw resourceLimitError("totalSourceBytes", limits.maxTotalSourceBytes, totalSourceBytes, { kind, path: record9.path });
         }
-        const actual = input2.primitives.sha256(text12);
+        const actual = input2.primitives.sha256(text13);
         if (record9.sha256 !== void 0 && actual !== record9.sha256) {
           throw new LedgerContextBundleError("CONTEXT_BUNDLE_DOCUMENT_STALE", `Context Bundle stale document '${kind}': ${record9.path}; run tenon document record ${input2.change} ${kind} ${record9.path} --producer <skill>, then tenon document read ${input2.change} all`, {
             kind,
@@ -38714,7 +39665,7 @@ async function compileLedgerContextBundleWithPorts(input2) {
         const mode = duplicatePath ? "reference" : materializationMode(kind);
         if (!duplicatePath)
           materializedPaths.add(record9.path);
-        const content = mode === "reference" ? void 0 : mode === "full" ? text12 : renderHandoffSummary(compressDocument(text12), `${input2.change}/${kind}`);
+        const content = mode === "reference" ? void 0 : mode === "full" ? text13 : renderHandoffSummary(compressDocument(text13), `${input2.change}/${kind}`);
         const digestValue = `sha256:${record9.sha256 ?? actual}`;
         bundleInputs.push({
           kind,
@@ -38853,12 +39804,12 @@ function buildHandoff(input2, fs) {
     if (r === null || seen.has(r.abs))
       continue;
     seen.add(r.abs);
-    const text12 = fs.readText(r.abs);
-    if (text12 === void 0 || text12.trim() === "")
+    const text13 = fs.readText(r.abs);
+    if (text13 === void 0 || text13.trim() === "")
       continue;
-    const doc = compressDocument(text12, { documentLocale });
+    const doc = compressDocument(text13, { documentLocale });
     const summary = renderHandoffSummary(doc, `${input2.name}/${spec.label}`, documentLocale);
-    doc.stats = statsFor(text12, doc.stats.originalLines, summary, doc);
+    doc.stats = statsFor(text13, doc.stats.originalLines, summary, doc);
     docs.push({ label: spec.label, path: r.display, doc, summary });
   }
   if (docs.length === 0) {
@@ -38912,8 +39863,8 @@ function sameLedgerContextBundleSourceAnchor(left, right) {
 var nodeLedgerContextBundlePrimitives = {
   isAbsoluteRoot: isAbsolute13,
   ledgerPath: (change) => posix3.join("openspec", "changes", change, ".pipeline-documents.json"),
-  sha256: (text12) => createHash28("sha256").update(text12, "utf8").digest("hex"),
-  utf8ByteLength: (text12) => Buffer.byteLength(text12, "utf8")
+  sha256: (text13) => createHash28("sha256").update(text13, "utf8").digest("hex"),
+  utf8ByteLength: (text13) => Buffer.byteLength(text13, "utf8")
 };
 async function compileLedgerContextBundle(input2) {
   const fs = input2.fs ?? nodeHandoffFs();
@@ -38944,8 +39895,8 @@ async function compileLedgerContextBundle(input2) {
             repairAction: "\u51CF\u5C11\u5DF2\u767B\u8BB0\u8F93\u5165\u6216\u62C6\u5206\u8FC7\u5927\u7684\u6CBB\u7406\u6587\u6863\u540E\u91CD\u8BD5"
           });
         }
-        const text12 = fs.readText(absolute);
-        if (text12 === void 0)
+        const text13 = fs.readText(absolute);
+        if (text13 === void 0)
           throw new Error(`source is missing: ${path15}`);
         if (guarded2 && before !== void 0) {
           const after = await anchorLedgerContextBundleSource(input2.root, absolute, path15);
@@ -38953,7 +39904,7 @@ async function compileLedgerContextBundle(input2) {
             throw new Error(`source anchor changed: ${path15}`);
           }
         }
-        return { text: text12, sourceBytes: Buffer.byteLength(text12, "utf8") };
+        return { text: text13, sourceBytes: Buffer.byteLength(text13, "utf8") };
       }
     },
     primitives: nodeLedgerContextBundlePrimitives
@@ -39669,7 +40620,7 @@ function closed4(raw, allowed, path15, errors) {
     if (!set2.has(key))
       errors.push({ code: "unknown-field", path: `${path15}.${key}` });
 }
-function text9(value, path15, errors, pattern, max = 8192) {
+function text10(value, path15, errors, pattern, max = 8192) {
   if (typeof value !== "string" || value.length === 0 || value.trim() !== value || value.length > max || pattern !== void 0 && !pattern.test(value)) {
     errors.push({ code: "field-invalid", path: path15 });
     return void 0;
@@ -39677,7 +40628,7 @@ function text9(value, path15, errors, pattern, max = 8192) {
   return value;
 }
 function optionalText2(value, path15, errors, pattern) {
-  return value === void 0 ? void 0 : text9(value, path15, errors, pattern);
+  return value === void 0 ? void 0 : text10(value, path15, errors, pattern);
 }
 function bool2(value, path15, errors) {
   if (typeof value !== "boolean") {
@@ -39701,10 +40652,10 @@ function array2(value, path15, errors) {
   return value;
 }
 function strings(value, path15, errors) {
-  return array2(value, path15, errors).map((entry2, index) => text9(entry2, `${path15}[${index}]`, errors) ?? "");
+  return array2(value, path15, errors).map((entry2, index) => text10(entry2, `${path15}[${index}]`, errors) ?? "");
 }
-function digest11(value, path15, errors) {
-  return text9(value, path15, errors, DIGEST2);
+function digest12(value, path15, errors) {
+  return text10(value, path15, errors, DIGEST2);
 }
 function actor2(value, path15, errors) {
   const raw = object7(value, path15, errors);
@@ -39714,18 +40665,18 @@ function actor2(value, path15, errors) {
   const kind = raw.kind === "user" || raw.kind === "system" || raw.kind === "worker" || raw.kind === "policy" ? raw.kind : void 0;
   if (kind === void 0)
     errors.push({ code: "field-invalid", path: `${path15}.kind` });
-  const id2 = text9(raw.id, `${path15}.id`, errors, ID2);
+  const id2 = text10(raw.id, `${path15}.id`, errors, ID2);
   return kind === void 0 || id2 === void 0 ? void 0 : { kind, id: id2 };
 }
 function meta(raw, path15, errors) {
-  const record_id = text9(raw.record_id, `${path15}.record_id`, errors, ID2);
-  const project_id = text9(raw.project_id, `${path15}.project_id`, errors, ID2);
-  const change_id = text9(raw.change_id, `${path15}.change_id`, errors, ID2);
+  const record_id = text10(raw.record_id, `${path15}.record_id`, errors, ID2);
+  const project_id = text10(raw.project_id, `${path15}.project_id`, errors, ID2);
+  const change_id = text10(raw.change_id, `${path15}.change_id`, errors, ID2);
   const revision = integer3(raw.revision, `${path15}.revision`, errors);
-  const correlation_id = text9(raw.correlation_id, `${path15}.correlation_id`, errors, ID2);
+  const correlation_id = text10(raw.correlation_id, `${path15}.correlation_id`, errors, ID2);
   const causation_id = optionalText2(raw.causation_id, `${path15}.causation_id`, errors, ID2);
   const actorValue = actor2(raw.actor, `${path15}.actor`, errors);
-  const created_at = text9(raw.created_at, `${path15}.created_at`, errors, UTC);
+  const created_at = text10(raw.created_at, `${path15}.created_at`, errors, UTC);
   if (record_id === void 0 || project_id === void 0 || change_id === void 0 || revision === void 0 || correlation_id === void 0 || actorValue === void 0 || created_at === void 0)
     return void 0;
   return { schema_version: String(raw.schema_version), record_id, project_id, change_id, revision, correlation_id, ...causation_id === void 0 ? {} : { causation_id }, actor: actorValue, created_at };
@@ -39765,8 +40716,8 @@ function decodeDevelopmentRequestV2(input2) {
   if (raw === void 0)
     return { ok: false, errors };
   const m = meta(raw, "$", errors);
-  const request_id = text9(raw.request_id, "$.request_id", errors, ID2);
-  const intent = text9(raw.intent, "$.intent", errors);
+  const request_id = text10(raw.request_id, "$.request_id", errors, ID2);
+  const intent = text10(raw.intent, "$.intent", errors);
   const interaction_policy = raw.interaction_policy === "interactive" || raw.interaction_policy === "recommended-defaults" || raw.interaction_policy === "afk" ? raw.interaction_policy : void 0;
   if (interaction_policy === void 0)
     errors.push({ code: "field-invalid", path: "$.interaction_policy" });
@@ -39783,7 +40734,7 @@ function decodeDevelopmentRequestV2(input2) {
     if (!x)
       return void 0;
     closed4(x, ["id", "version", "mode", "depends_on"], `$.user_skills[${i}]`, errors);
-    const id2 = text9(x.id, `$.user_skills[${i}].id`, errors, ID2);
+    const id2 = text10(x.id, `$.user_skills[${i}].id`, errors, ID2);
     const version = optionalText2(x.version, `$.user_skills[${i}].version`, errors, ID2);
     const mode = x.mode === "serial" || x.mode === "parallel" ? x.mode : void 0;
     if (!mode)
@@ -39795,7 +40746,7 @@ function decodeDevelopmentRequestV2(input2) {
     if (!x)
       return void 0;
     closed4(x, ["id", "version", "required"], `$.user_mcps[${i}]`, errors);
-    const id2 = text9(x.id, `$.user_mcps[${i}].id`, errors, ID2);
+    const id2 = text10(x.id, `$.user_mcps[${i}].id`, errors, ID2);
     const version = optionalText2(x.version, `$.user_mcps[${i}].version`, errors, ID2);
     const required3 = bool2(x.required, `$.user_mcps[${i}].required`, errors);
     return id2 && required3 !== void 0 ? { id: id2, ...version ? { version } : {}, required: required3 } : void 0;
@@ -39833,27 +40784,27 @@ function decodeRepositoryContextV2(input2) {
   if (!raw)
     return { ok: false, errors };
   const m = meta(raw, "$", errors);
-  const request_id = text9(raw.request_id, "$.request_id", errors, ID2);
+  const request_id = text10(raw.request_id, "$.request_id", errors, ID2);
   const repo = object7(raw.repository, "$.repository", errors);
   if (repo)
     closed4(repo, ["ref", "branch", "base_branch", "head_sha", "dirty"], "$.repository", errors);
-  const ref = repo && text9(repo.ref, "$.repository.ref", errors);
-  const branch = repo && text9(repo.branch, "$.repository.branch", errors);
-  const base_branch = repo && text9(repo.base_branch, "$.repository.base_branch", errors);
-  const head_sha = repo && text9(repo.head_sha, "$.repository.head_sha", errors);
+  const ref = repo && text10(repo.ref, "$.repository.ref", errors);
+  const branch = repo && text10(repo.branch, "$.repository.branch", errors);
+  const base_branch = repo && text10(repo.base_branch, "$.repository.base_branch", errors);
+  const head_sha = repo && text10(repo.head_sha, "$.repository.head_sha", errors);
   const dirty = repo && bool2(repo.dirty, "$.repository.dirty", errors);
-  const workspace_fingerprint = digest11(raw.workspace_fingerprint, "$.workspace_fingerprint", errors);
-  const policy_digest = digest11(raw.policy_digest, "$.policy_digest", errors);
-  const skill_catalog_digest = digest11(raw.skill_catalog_digest, "$.skill_catalog_digest", errors);
-  const mcp_catalog_digest = digest11(raw.mcp_catalog_digest, "$.mcp_catalog_digest", errors);
+  const workspace_fingerprint = digest12(raw.workspace_fingerprint, "$.workspace_fingerprint", errors);
+  const policy_digest = digest12(raw.policy_digest, "$.policy_digest", errors);
+  const skill_catalog_digest = digest12(raw.skill_catalog_digest, "$.skill_catalog_digest", errors);
+  const mcp_catalog_digest = digest12(raw.mcp_catalog_digest, "$.mcp_catalog_digest", errors);
   const facts = array2(raw.observed_facts, "$.observed_facts", errors).map((entry2, i) => {
     const x = object7(entry2, `$.observed_facts[${i}]`, errors);
     if (!x)
       return void 0;
     closed4(x, ["key", "value_ref", "digest"], `$.observed_facts[${i}]`, errors);
-    const key = text9(x.key, `$.observed_facts[${i}].key`, errors);
-    const value_ref = text9(x.value_ref, `$.observed_facts[${i}].value_ref`, errors);
-    const d = digest11(x.digest, `$.observed_facts[${i}].digest`, errors);
+    const key = text10(x.key, `$.observed_facts[${i}].key`, errors);
+    const value_ref = text10(x.value_ref, `$.observed_facts[${i}].value_ref`, errors);
+    const d = digest12(x.digest, `$.observed_facts[${i}].digest`, errors);
     return key && value_ref && d ? { key, value_ref, digest: d } : void 0;
   }).filter((x) => x !== void 0);
   if (!m || !request_id || !repo || !ref || !branch || !base_branch || !head_sha || dirty === void 0 || !workspace_fingerprint || !policy_digest || !skill_catalog_digest || !mcp_catalog_digest)
@@ -39865,9 +40816,9 @@ function decodeAssessment(input2, errors) {
   if (!raw)
     return void 0;
   const m = meta(raw, "$", errors);
-  const assessment_id = text9(raw.assessment_id, "$.assessment_id", errors, ID2);
-  const request_id = text9(raw.request_id, "$.request_id", errors, ID2);
-  const context_record_id = text9(raw.context_record_id, "$.context_record_id", errors, ID2);
+  const assessment_id = text10(raw.assessment_id, "$.assessment_id", errors, ID2);
+  const request_id = text10(raw.request_id, "$.request_id", errors, ID2);
+  const context_record_id = text10(raw.context_record_id, "$.context_record_id", errors, ID2);
   const normalization = ["complete", "needs-input", "rejected"].includes(String(raw.normalization)) ? raw.normalization : void 0;
   if (!normalization)
     errors.push({ code: "field-invalid", path: "$.normalization" });
@@ -39876,8 +40827,8 @@ function decodeAssessment(input2, errors) {
     if (!x)
       return void 0;
     closed4(x, ["id", "capability", "necessity", "acceptance_refs", "evidence_refs", "constraints", "risk"], `$.requirements[${i}]`, errors);
-    const id2 = text9(x.id, `$.requirements[${i}].id`, errors, ID2);
-    const capability = text9(x.capability, `$.requirements[${i}].capability`, errors);
+    const id2 = text10(x.id, `$.requirements[${i}].id`, errors, ID2);
+    const capability = text10(x.capability, `$.requirements[${i}].capability`, errors);
     const necessity = ["required", "recommended", "optional"].includes(String(x.necessity)) ? x.necessity : void 0;
     const risk = ["low", "medium", "high"].includes(String(x.risk)) ? x.risk : void 0;
     if (!necessity)
@@ -39891,13 +40842,13 @@ function decodeAssessment(input2, errors) {
     if (!x)
       return void 0;
     closed4(x, ["id", "prompt", "blocking"], `$.questions[${i}]`, errors);
-    const id2 = text9(x.id, `$.questions[${i}].id`, errors, ID2);
-    const prompt = text9(x.prompt, `$.questions[${i}].prompt`, errors);
+    const id2 = text10(x.id, `$.questions[${i}].id`, errors, ID2);
+    const prompt = text10(x.prompt, `$.questions[${i}].prompt`, errors);
     const blocking = bool2(x.blocking, `$.questions[${i}].blocking`, errors);
     return id2 && prompt && blocking !== void 0 ? { id: id2, prompt, blocking } : void 0;
   }).filter((x) => x !== void 0);
   const risks = strings(raw.risks, "$.risks", errors);
-  const proposal_evidence_ref = text9(raw.proposal_evidence_ref, "$.proposal_evidence_ref", errors);
+  const proposal_evidence_ref = text10(raw.proposal_evidence_ref, "$.proposal_evidence_ref", errors);
   if (!m || !assessment_id || !request_id || !context_record_id || !normalization || !proposal_evidence_ref)
     return void 0;
   return { ...m, schema_version: V2_SCHEMAS.assessment, assessment_id, request_id, context_record_id, normalization, requirements, questions, risks, proposal_evidence_ref };
@@ -39912,9 +40863,9 @@ function decodePipelineSkill(input2, path15, errors) {
   if (!raw)
     return void 0;
   closed4(raw, ["binding_id", "skill_id", "skill_version", "order", "role", "source", "mode", "depends_on", "mcp_ids", "input_schema_id", "output_schema_id", "validator_ids", "resource_claims"], path15, errors);
-  const binding_id = text9(raw.binding_id, `${path15}.binding_id`, errors, ID2);
-  const skill_id = text9(raw.skill_id, `${path15}.skill_id`, errors, ID2);
-  const skill_version = text9(raw.skill_version, `${path15}.skill_version`, errors, ID2);
+  const binding_id = text10(raw.binding_id, `${path15}.binding_id`, errors, ID2);
+  const skill_id = text10(raw.skill_id, `${path15}.skill_id`, errors, ID2);
+  const skill_version = text10(raw.skill_version, `${path15}.skill_version`, errors, ID2);
   const order4 = integer3(raw.order, `${path15}.order`, errors);
   const role = ["workflow", "track-mandatory", "track-recommended", "user", "automatic", "review"].includes(String(raw.role)) ? raw.role : void 0;
   const source = ["builtin", "project", "user", "automatic"].includes(String(raw.source)) ? raw.source : void 0;
@@ -39933,7 +40884,7 @@ function decodePipelineSkill(input2, path15, errors) {
       return void 0;
     closed4(claim2, ["kind", "key", "access"], `${path15}.resource_claims[${index}]`, errors);
     const kind = ["path", "logical", "external"].includes(String(claim2.kind)) ? claim2.kind : void 0;
-    const key = text9(claim2.key, `${path15}.resource_claims[${index}].key`, errors, RESOURCE_KEY);
+    const key = text10(claim2.key, `${path15}.resource_claims[${index}].key`, errors, RESOURCE_KEY);
     if (key?.includes("..") || key?.startsWith("/"))
       errors.push({ code: "field-invalid", path: `${path15}.resource_claims[${index}].key` });
     const access3 = claim2.access === "read" || claim2.access === "write" ? claim2.access : void 0;
@@ -39954,18 +40905,18 @@ function decodeSkillInputManifestV2(input2, path15, errors) {
   closed4(raw, ["schema_version", "manifest_id", "run_id", "work_item_id", "input_refs", "artifact_digests", "bundle_digest", "byte_length", "delivery", "rejection_reason", "created_at"], path15, errors);
   if (raw.schema_version !== V2_SCHEMAS.inputManifest)
     errors.push({ code: "field-invalid", path: `${path15}.schema_version` });
-  const manifest_id = text9(raw.manifest_id, `${path15}.manifest_id`, errors, ID2);
-  const run_id = text9(raw.run_id, `${path15}.run_id`, errors, ID2);
-  const work_item_id = text9(raw.work_item_id, `${path15}.work_item_id`, errors, ID2);
+  const manifest_id = text10(raw.manifest_id, `${path15}.manifest_id`, errors, ID2);
+  const run_id = text10(raw.run_id, `${path15}.run_id`, errors, ID2);
+  const work_item_id = text10(raw.work_item_id, `${path15}.work_item_id`, errors, ID2);
   const input_refs = strings(raw.input_refs, `${path15}.input_refs`, errors);
-  const artifact_digests = array2(raw.artifact_digests, `${path15}.artifact_digests`, errors).map((value, index) => digest11(value, `${path15}.artifact_digests[${index}]`, errors)).filter((value) => value !== void 0);
-  const bundle_digest = digest11(raw.bundle_digest, `${path15}.bundle_digest`, errors);
+  const artifact_digests = array2(raw.artifact_digests, `${path15}.artifact_digests`, errors).map((value, index) => digest12(value, `${path15}.artifact_digests[${index}]`, errors)).filter((value) => value !== void 0);
+  const bundle_digest = digest12(raw.bundle_digest, `${path15}.bundle_digest`, errors);
   const byte_length = integer3(raw.byte_length, `${path15}.byte_length`, errors);
   const delivery = ["not-required", "injected", "rejected"].includes(String(raw.delivery)) ? raw.delivery : void 0;
   if (!delivery)
     errors.push({ code: "field-invalid", path: `${path15}.delivery` });
   const rejection_reason = optionalText2(raw.rejection_reason, `${path15}.rejection_reason`, errors, ID2);
-  const created_at = text9(raw.created_at, `${path15}.created_at`, errors, UTC);
+  const created_at = text10(raw.created_at, `${path15}.created_at`, errors, UTC);
   if (delivery === "rejected" && rejection_reason === void 0)
     errors.push({ code: "field-invalid", path: `${path15}.rejection_reason` });
   if (delivery === "not-required" && (input_refs.length !== 0 || artifact_digests.length !== 0 || byte_length !== 0))
@@ -39981,8 +40932,8 @@ function decodePipelineStage(input2, path15, errors) {
   if (!raw)
     return void 0;
   closed4(raw, ["stage_id", "name", "ordinal", "execution_mode", "depends_on", "work_item_ids", "gate", "skills", "input_refs", "output_refs", "input_subject_refs", "output_subject_refs"], path15, errors);
-  const stage_id = text9(raw.stage_id, `${path15}.stage_id`, errors, ID2);
-  const name2 = text9(raw.name, `${path15}.name`, errors);
+  const stage_id = text10(raw.stage_id, `${path15}.stage_id`, errors, ID2);
+  const name2 = text10(raw.name, `${path15}.name`, errors);
   const ordinal = integer3(raw.ordinal, `${path15}.ordinal`, errors);
   const execution_mode = raw.execution_mode === "serial" || raw.execution_mode === "parallel" ? raw.execution_mode : void 0;
   const gate = ["none", "input", "review", "verification", "release"].includes(String(raw.gate)) ? raw.gate : void 0;
@@ -39999,18 +40950,18 @@ function decodePipelineStage(input2, path15, errors) {
 }
 function decodeWorkflowPipelineV2(input2) {
   return genericMetaRecord(input2, V2_SCHEMAS.pipeline, ["pipeline_id", "pipeline_version", "workflow_id", "workflow_version", "workflow_source", "workflow_fingerprint", "track_id", "track_revision", "track_source", "pipeline_source", "graph_id", "assessment_id", "status", "stage_order", "stages", "customizations", "pipeline_digest"], (raw, errors, m) => {
-    const pipeline_id = text9(raw.pipeline_id, "$.pipeline_id", errors, ID2);
-    const pipeline_version = text9(raw.pipeline_version, "$.pipeline_version", errors, ID2);
-    const workflow_id = text9(raw.workflow_id, "$.workflow_id", errors, ID2);
-    const workflow_version = text9(raw.workflow_version, "$.workflow_version", errors, ID2);
+    const pipeline_id = text10(raw.pipeline_id, "$.pipeline_id", errors, ID2);
+    const pipeline_version = text10(raw.pipeline_version, "$.pipeline_version", errors, ID2);
+    const workflow_id = text10(raw.workflow_id, "$.workflow_id", errors, ID2);
+    const workflow_version = text10(raw.workflow_version, "$.workflow_version", errors, ID2);
     const workflow_source = ["builtin", "project", "user", "automatic"].includes(String(raw.workflow_source)) ? raw.workflow_source : void 0;
-    const workflow_fingerprint = text9(raw.workflow_fingerprint, "$.workflow_fingerprint", errors, ID2);
-    const track_id = text9(raw.track_id, "$.track_id", errors, ID2);
-    const track_revision = text9(raw.track_revision, "$.track_revision", errors, ID2);
+    const workflow_fingerprint = text10(raw.workflow_fingerprint, "$.workflow_fingerprint", errors, ID2);
+    const track_id = text10(raw.track_id, "$.track_id", errors, ID2);
+    const track_revision = text10(raw.track_revision, "$.track_revision", errors, ID2);
     const track_source = ["builtin", "project", "user", "automatic"].includes(String(raw.track_source)) ? raw.track_source : void 0;
     const pipeline_source = ["builtin", "project", "user", "automatic"].includes(String(raw.pipeline_source)) ? raw.pipeline_source : void 0;
-    const graph_id = text9(raw.graph_id, "$.graph_id", errors, ID2);
-    const assessment_id = text9(raw.assessment_id, "$.assessment_id", errors, ID2);
+    const graph_id = text10(raw.graph_id, "$.graph_id", errors, ID2);
+    const assessment_id = text10(raw.assessment_id, "$.assessment_id", errors, ID2);
     const status = ["draft", "validated", "frozen", "superseded"].includes(String(raw.status)) ? raw.status : void 0;
     if (!workflow_source)
       errors.push({ code: "field-invalid", path: "$.workflow_source" });
@@ -40027,7 +40978,7 @@ function decodeWorkflowPipelineV2(input2) {
     const custom_workflow = customizations ? bool2(customizations.custom_workflow, "$.customizations.custom_workflow", errors) : void 0;
     const custom_track = customizations ? bool2(customizations.custom_track, "$.customizations.custom_track", errors) : void 0;
     const custom_pipeline = customizations ? bool2(customizations.custom_pipeline, "$.customizations.custom_pipeline", errors) : void 0;
-    const pipeline_digest = digest11(raw.pipeline_digest, "$.pipeline_digest", errors);
+    const pipeline_digest = digest12(raw.pipeline_digest, "$.pipeline_digest", errors);
     if (!pipeline_id || !pipeline_version || !workflow_id || !workflow_version || !workflow_source || !workflow_fingerprint || !track_id || !track_revision || !track_source || !pipeline_source || !graph_id || !assessment_id || !status || !customizations || custom_workflow === void 0 || custom_track === void 0 || custom_pipeline === void 0 || !pipeline_digest)
       return void 0;
     return { ...m, schema_version: V2_SCHEMAS.pipeline, pipeline_id, pipeline_version, workflow_id, workflow_version, workflow_source, workflow_fingerprint, track_id, track_revision, track_source, pipeline_source, graph_id, assessment_id, status, stage_order: strings(raw.stage_order, "$.stage_order", errors), stages, customizations: { custom_workflow, custom_track, custom_pipeline, user_skill_ids: strings(customizations.user_skill_ids, "$.customizations.user_skill_ids", errors), user_mcp_ids: strings(customizations.user_mcp_ids, "$.customizations.user_mcp_ids", errors) }, pipeline_digest };
@@ -40044,11 +40995,11 @@ function genericMetaRecord(input2, schema, allowed, parseFields) {
 }
 function decodeWorkGraphV2(input2) {
   return genericMetaRecord(input2, V2_SCHEMAS.graph, ["graph_id", "graph_revision", "assessment_id", "task_plan_revision_id", "task_plan_digest", "pipeline_id", "dependency_edges", "execution_groups", "acceptance_coverage", "status"], (r, e, m) => {
-    const graph_id = text9(r.graph_id, "$.graph_id", e, ID2);
+    const graph_id = text10(r.graph_id, "$.graph_id", e, ID2);
     const graph_revision = integer3(r.graph_revision, "$.graph_revision", e);
-    const assessment_id = text9(r.assessment_id, "$.assessment_id", e, ID2);
-    const task_plan_revision_id = text9(r.task_plan_revision_id, "$.task_plan_revision_id", e, ID2);
-    const task_plan_digest = digest11(r.task_plan_digest, "$.task_plan_digest", e);
+    const assessment_id = text10(r.assessment_id, "$.assessment_id", e, ID2);
+    const task_plan_revision_id = text10(r.task_plan_revision_id, "$.task_plan_revision_id", e, ID2);
+    const task_plan_digest = digest12(r.task_plan_digest, "$.task_plan_digest", e);
     const pipeline_id = optionalText2(r.pipeline_id, "$.pipeline_id", e, ID2);
     const status = ["draft", "validated", "frozen", "superseded"].includes(String(r.status)) ? r.status : void 0;
     if (!status)
@@ -40058,8 +41009,8 @@ function decodeWorkGraphV2(input2) {
       if (!v)
         return void 0;
       closed4(v, ["from", "to", "reason"], `$.dependency_edges[${i}]`, e);
-      const from = text9(v.from, `$.dependency_edges[${i}].from`, e, ID2);
-      const to = text9(v.to, `$.dependency_edges[${i}].to`, e, ID2);
+      const from = text10(v.from, `$.dependency_edges[${i}].from`, e, ID2);
+      const to = text10(v.to, `$.dependency_edges[${i}].to`, e, ID2);
       const reason3 = ["data", "resource", "ordering", "gate"].includes(String(v.reason)) ? v.reason : void 0;
       if (!reason3)
         e.push({ code: "field-invalid", path: `$.dependency_edges[${i}].reason` });
@@ -40070,7 +41021,7 @@ function decodeWorkGraphV2(input2) {
       if (!v)
         return void 0;
       closed4(v, ["id", "mode", "work_item_ids"], `$.execution_groups[${i}]`, e);
-      const id2 = text9(v.id, `$.execution_groups[${i}].id`, e, ID2);
+      const id2 = text10(v.id, `$.execution_groups[${i}].id`, e, ID2);
       const mode = v.mode === "serial" || v.mode === "parallel" ? v.mode : void 0;
       if (!mode)
         e.push({ code: "field-invalid", path: `$.execution_groups[${i}].mode` });
@@ -40081,7 +41032,7 @@ function decodeWorkGraphV2(input2) {
       if (!v)
         return void 0;
       closed4(v, ["acceptance_id", "work_item_ids"], `$.acceptance_coverage[${i}]`, e);
-      const acceptance_id = text9(v.acceptance_id, `$.acceptance_coverage[${i}].acceptance_id`, e, ID2);
+      const acceptance_id = text10(v.acceptance_id, `$.acceptance_coverage[${i}].acceptance_id`, e, ID2);
       return acceptance_id ? { acceptance_id, work_item_ids: strings(v.work_item_ids, `$.acceptance_coverage[${i}].work_item_ids`, e) } : void 0;
     }).filter((x) => x !== void 0);
     if (!graph_id || graph_revision === void 0 || !assessment_id || !task_plan_revision_id || !task_plan_digest || !status)
@@ -40091,10 +41042,10 @@ function decodeWorkGraphV2(input2) {
 }
 function decodeCapabilityResolutionV2(input2) {
   return genericMetaRecord(input2, V2_SCHEMAS.resolution, ["resolution_id", "assessment_id", "graph_id", "policy_digest", "status", "bindings", "candidates", "blockers", "binding_digest"], (r, e, m) => {
-    const resolution_id = text9(r.resolution_id, "$.resolution_id", e, ID2);
-    const assessment_id = text9(r.assessment_id, "$.assessment_id", e, ID2);
-    const graph_id = text9(r.graph_id, "$.graph_id", e, ID2);
-    const policy_digest = digest11(r.policy_digest, "$.policy_digest", e);
+    const resolution_id = text10(r.resolution_id, "$.resolution_id", e, ID2);
+    const assessment_id = text10(r.assessment_id, "$.assessment_id", e, ID2);
+    const graph_id = text10(r.graph_id, "$.graph_id", e, ID2);
+    const policy_digest = digest12(r.policy_digest, "$.policy_digest", e);
     const status = ["resolved", "needs-input", "blocked"].includes(String(r.status)) ? r.status : void 0;
     if (!status)
       e.push({ code: "field-invalid", path: "$.status" });
@@ -40103,9 +41054,9 @@ function decodeCapabilityResolutionV2(input2) {
       if (!v)
         return void 0;
       closed4(v, ["work_item_id", "skill_id", "skill_version", "mcp_ids", "mode", "source", "depends_on"], `$.bindings[${i}]`, e);
-      const work_item_id = text9(v.work_item_id, `$.bindings[${i}].work_item_id`, e, ID2);
-      const skill_id = text9(v.skill_id, `$.bindings[${i}].skill_id`, e, ID2);
-      const skill_version = text9(v.skill_version, `$.bindings[${i}].skill_version`, e, ID2);
+      const work_item_id = text10(v.work_item_id, `$.bindings[${i}].work_item_id`, e, ID2);
+      const skill_id = text10(v.skill_id, `$.bindings[${i}].skill_id`, e, ID2);
+      const skill_version = text10(v.skill_version, `$.bindings[${i}].skill_version`, e, ID2);
       const mode = v.mode === "serial" || v.mode === "parallel" ? v.mode : void 0;
       const source = ["user", "automatic", "hybrid"].includes(String(v.source)) ? v.source : void 0;
       if (!mode)
@@ -40119,17 +41070,17 @@ function decodeCapabilityResolutionV2(input2) {
       if (!v)
         return void 0;
       closed4(v, ["capability", "candidate_id", "kind", "selected", "rejected_reasons", "rationale"], `$.candidates[${i}]`, e);
-      const capability = text9(v.capability, `$.candidates[${i}].capability`, e);
-      const candidate_id = text9(v.candidate_id, `$.candidates[${i}].candidate_id`, e, ID2);
+      const capability = text10(v.capability, `$.candidates[${i}].capability`, e);
+      const candidate_id = text10(v.candidate_id, `$.candidates[${i}].candidate_id`, e, ID2);
       const kind = v.kind === "skill" || v.kind === "mcp" ? v.kind : void 0;
       const selected = bool2(v.selected, `$.candidates[${i}].selected`, e);
-      const rationale = text9(v.rationale, `$.candidates[${i}].rationale`, e);
+      const rationale = text10(v.rationale, `$.candidates[${i}].rationale`, e);
       if (!kind)
         e.push({ code: "field-invalid", path: `$.candidates[${i}].kind` });
       return capability && candidate_id && kind && selected !== void 0 && rationale ? { capability, candidate_id, kind, selected, rejected_reasons: strings(v.rejected_reasons, `$.candidates[${i}].rejected_reasons`, e), rationale } : void 0;
     }).filter((x) => x !== void 0);
     const blockers = strings(r.blockers, "$.blockers", e);
-    const binding_digest = digest11(r.binding_digest, "$.binding_digest", e);
+    const binding_digest = digest12(r.binding_digest, "$.binding_digest", e);
     if (!resolution_id || !assessment_id || !graph_id || !policy_digest || !status || !binding_digest)
       return void 0;
     return { ...m, schema_version: V2_SCHEMAS.resolution, resolution_id, assessment_id, graph_id, policy_digest, status, bindings: bindings2, candidates: candidates2, blockers, binding_digest };
@@ -40137,8 +41088,8 @@ function decodeCapabilityResolutionV2(input2) {
 }
 function decodeWorkItemV2(input2) {
   return genericMetaRecord(input2, V2_SCHEMAS.workItem, ["work_item_id", "title", "status", "group_id", "depends_on", "required_artifact_refs", "validation_refs", "selected_skill_id", "selected_skill_version", "mode", "attempt_count", "active_run_id", "blockers"], (r, e, m) => {
-    const work_item_id = text9(r.work_item_id, "$.work_item_id", e, ID2);
-    const title = text9(r.title, "$.title", e);
+    const work_item_id = text10(r.work_item_id, "$.work_item_id", e, ID2);
+    const title = text10(r.title, "$.title", e);
     const status = ["pending", "ready", "queued", "claimed", "running", "waiting-input", "reviewing", "verifying", "completed", "blocked", "failed", "interrupted", "cancelled"].includes(String(r.status)) ? r.status : void 0;
     if (!status)
       e.push({ code: "field-invalid", path: "$.status" });
@@ -40153,12 +41104,12 @@ function decodeWorkItemV2(input2) {
 }
 function decodeSkillRunV2(input2) {
   return genericMetaRecord(input2, V2_SCHEMAS.run, ["run_id", "attempt_id", "attempt", "work_item_id", "skill_id", "skill_version", "mcp_ids", "status", "lease", "input_refs", "input_manifest", "result_id", "prior_attempt_id", "failure", "started_at", "finished_at"], (r, e, m) => {
-    const run_id = text9(r.run_id, "$.run_id", e, ID2);
-    const attempt_id = text9(r.attempt_id, "$.attempt_id", e, ID2);
+    const run_id = text10(r.run_id, "$.run_id", e, ID2);
+    const attempt_id = text10(r.attempt_id, "$.attempt_id", e, ID2);
     const attempt2 = integer3(r.attempt, "$.attempt", e);
-    const work_item_id = text9(r.work_item_id, "$.work_item_id", e, ID2);
-    const skill_id = text9(r.skill_id, "$.skill_id", e, ID2);
-    const skill_version = text9(r.skill_version, "$.skill_version", e, ID2);
+    const work_item_id = text10(r.work_item_id, "$.work_item_id", e, ID2);
+    const skill_id = text10(r.skill_id, "$.skill_id", e, ID2);
+    const skill_version = text10(r.skill_version, "$.skill_version", e, ID2);
     const status = ["queued", "claimed", "running", "waiting-input", "completed", "failed", "interrupted", "cancelled"].includes(String(r.status)) ? r.status : void 0;
     if (!status)
       e.push({ code: "field-invalid", path: "$.status" });
@@ -40173,7 +41124,7 @@ function decodeSkillRunV2(input2) {
       const rawFailure = object7(r.failure, "$.failure", e);
       if (rawFailure) {
         closed4(rawFailure, ["code", "retryable", "detail_ref"], "$.failure", e);
-        const code = text9(rawFailure.code, "$.failure.code", e, ID2);
+        const code = text10(rawFailure.code, "$.failure.code", e, ID2);
         const retryable = bool2(rawFailure.retryable, "$.failure.retryable", e);
         const detail_ref = optionalText2(rawFailure.detail_ref, "$.failure.detail_ref", e, ID2);
         if (code && retryable !== void 0)
@@ -40187,8 +41138,8 @@ function decodeSkillRunV2(input2) {
 }
 function decodeSkillResultV2(input2) {
   return genericMetaRecord(input2, V2_SCHEMAS.result, ["result_id", "run_id", "status", "contract_status", "output_schema_id", "summary", "raw_output", "artifacts", "validation_refs", "diagnostics", "output_digest", "output_bytes"], (r, e, m) => {
-    const result_id = text9(r.result_id, "$.result_id", e, ID2);
-    const run_id = text9(r.run_id, "$.run_id", e, ID2);
+    const result_id = text10(r.result_id, "$.result_id", e, ID2);
+    const run_id = text10(r.run_id, "$.run_id", e, ID2);
     const status = ["completed", "failed", "blocked", "incomplete", "corrupt"].includes(String(r.status)) ? r.status : void 0;
     const contract_status = ["validated", "unknown", "invalid"].includes(String(r.contract_status)) ? r.contract_status : void 0;
     if (!status)
@@ -40197,16 +41148,16 @@ function decodeSkillResultV2(input2) {
       e.push({ code: "field-invalid", path: "$.contract_status" });
     const output_schema_id = optionalText2(r.output_schema_id, "$.output_schema_id", e, SCHEMA_ID);
     const summary = optionalText2(r.summary, "$.summary", e);
-    const output_digest = r.output_digest === void 0 ? void 0 : digest11(r.output_digest, "$.output_digest", e);
+    const output_digest = r.output_digest === void 0 ? void 0 : digest12(r.output_digest, "$.output_digest", e);
     const output_bytes = r.output_bytes === void 0 ? void 0 : integer3(r.output_bytes, "$.output_bytes", e);
     let raw_output;
     if (r.raw_output !== void 0) {
       const v = object7(r.raw_output, "$.raw_output", e);
       if (v) {
         closed4(v, ["ref", "digest", "media_type", "byte_length"], "$.raw_output", e);
-        const ref = text9(v.ref, "$.raw_output.ref", e);
-        const d = digest11(v.digest, "$.raw_output.digest", e);
-        const media_type = text9(v.media_type, "$.raw_output.media_type", e);
+        const ref = text10(v.ref, "$.raw_output.ref", e);
+        const d = digest12(v.digest, "$.raw_output.digest", e);
+        const media_type = text10(v.media_type, "$.raw_output.media_type", e);
         const byte_length = integer3(v.byte_length, "$.raw_output.byte_length", e);
         if (ref && d && media_type && byte_length !== void 0)
           raw_output = { ref, digest: d, media_type, byte_length };
@@ -40217,10 +41168,10 @@ function decodeSkillResultV2(input2) {
       if (!v)
         return void 0;
       closed4(v, ["id", "kind", "ref", "digest", "media_type", "byte_length"], `$.artifacts[${i}]`, e);
-      const id2 = text9(v.id, `$.artifacts[${i}].id`, e, ID2);
+      const id2 = text10(v.id, `$.artifacts[${i}].id`, e, ID2);
       const kind = ["file", "diff", "document", "json", "text", "url", "report", "value", "unknown"].includes(String(v.kind)) ? v.kind : void 0;
-      const ref = text9(v.ref, `$.artifacts[${i}].ref`, e);
-      const d = digest11(v.digest, `$.artifacts[${i}].digest`, e);
+      const ref = text10(v.ref, `$.artifacts[${i}].ref`, e);
+      const d = digest12(v.digest, `$.artifacts[${i}].digest`, e);
       const media_type = optionalText2(v.media_type, `$.artifacts[${i}].media_type`, e);
       const byte_length = v.byte_length === void 0 ? void 0 : integer3(v.byte_length, `$.artifacts[${i}].byte_length`, e);
       if (!kind)
@@ -40234,23 +41185,23 @@ function decodeSkillResultV2(input2) {
 }
 function decodeValidationReportV2(input2) {
   return genericMetaRecord(input2, V2_SCHEMAS.validation, ["report_id", "work_item_id", "result_id", "validator_id", "validator_version", "status", "target_digests", "evidence_refs", "checks"], (r, e, m) => {
-    const report_id = text9(r.report_id, "$.report_id", e, ID2);
-    const work_item_id = text9(r.work_item_id, "$.work_item_id", e, ID2);
-    const result_id = text9(r.result_id, "$.result_id", e, ID2);
-    const validator_id = text9(r.validator_id, "$.validator_id", e, ID2);
-    const validator_version = text9(r.validator_version, "$.validator_version", e, ID2);
+    const report_id = text10(r.report_id, "$.report_id", e, ID2);
+    const work_item_id = text10(r.work_item_id, "$.work_item_id", e, ID2);
+    const result_id = text10(r.result_id, "$.result_id", e, ID2);
+    const validator_id = text10(r.validator_id, "$.validator_id", e, ID2);
+    const validator_version = text10(r.validator_version, "$.validator_version", e, ID2);
     const status = ["pass", "fail", "unknown", "incomplete"].includes(String(r.status)) ? r.status : void 0;
     if (!status)
       e.push({ code: "field-invalid", path: "$.status" });
     if (!report_id || !work_item_id || !result_id || !validator_id || !validator_version || !status)
       return void 0;
-    const target_digests = array2(r.target_digests, "$.target_digests", e).map((x, i) => digest11(x, `$.target_digests[${i}]`, e) ?? "sha256:" + "0".repeat(64));
+    const target_digests = array2(r.target_digests, "$.target_digests", e).map((x, i) => digest12(x, `$.target_digests[${i}]`, e) ?? "sha256:" + "0".repeat(64));
     const checks = array2(r.checks, "$.checks", e).map((x, i) => {
       const v = object7(x, `$.checks[${i}]`, e);
       if (!v)
         return void 0;
       closed4(v, ["id", "status", "message"], `$.checks[${i}]`, e);
-      const id2 = text9(v.id, `$.checks[${i}].id`, e, ID2);
+      const id2 = text10(v.id, `$.checks[${i}].id`, e, ID2);
       const s = ["pass", "fail", "unknown"].includes(String(v.status)) ? v.status : void 0;
       if (!s)
         e.push({ code: "field-invalid", path: `$.checks[${i}].status` });
@@ -40261,7 +41212,7 @@ function decodeValidationReportV2(input2) {
 }
 function decodeGateEvaluationV2(input2) {
   return genericMetaRecord(input2, V2_SCHEMAS.gate, ["gate_id", "kind", "status", "required_evidence_refs", "decision_revision", "rationale", "waiver_receipt_ref"], (r, e, m) => {
-    const gate_id = text9(r.gate_id, "$.gate_id", e, ID2);
+    const gate_id = text10(r.gate_id, "$.gate_id", e, ID2);
     const kind = ["input", "review", "verification", "release"].includes(String(r.kind)) ? r.kind : void 0;
     const status = ["pending", "passed", "rejected", "waived"].includes(String(r.status)) ? r.status : void 0;
     const decision_revision = integer3(r.decision_revision, "$.decision_revision", e);
@@ -40280,11 +41231,11 @@ function decodeRunLeaseV2(input2) {
   if (!raw)
     return { ok: false, errors: [{ code: "object-invalid", path: "$" }] };
   closed4(raw, ["lease_id", "owner_id", "acquired_at", "heartbeat_at", "expires_at", "generation", "status"], "$", errors);
-  const lease_id = text9(raw.lease_id, "$.lease_id", errors, ID2);
-  const owner_id = text9(raw.owner_id, "$.owner_id", errors, ID2);
-  const acquired_at = text9(raw.acquired_at, "$.acquired_at", errors, UTC);
-  const heartbeat_at = text9(raw.heartbeat_at, "$.heartbeat_at", errors, UTC);
-  const expires_at = text9(raw.expires_at, "$.expires_at", errors, UTC);
+  const lease_id = text10(raw.lease_id, "$.lease_id", errors, ID2);
+  const owner_id = text10(raw.owner_id, "$.owner_id", errors, ID2);
+  const acquired_at = text10(raw.acquired_at, "$.acquired_at", errors, UTC);
+  const heartbeat_at = text10(raw.heartbeat_at, "$.heartbeat_at", errors, UTC);
+  const expires_at = text10(raw.expires_at, "$.expires_at", errors, UTC);
   const generation = integer3(raw.generation, "$.generation", errors);
   const status = ["active", "renewed", "expired", "released", "revoked"].includes(String(raw.status)) ? raw.status : void 0;
   if (!status)
@@ -40302,21 +41253,21 @@ function decodeEffects(input2, path15, errors) {
     const type = raw.type;
     if (type === "persist-record") {
       closed4(raw, ["type", "record_schema", "record_id"], itemPath, errors);
-      const schemaValue = text9(raw.record_schema, `${itemPath}.record_schema`, errors, ID2);
+      const schemaValue = text10(raw.record_schema, `${itemPath}.record_schema`, errors, ID2);
       const record_schema = schemaValue !== void 0 && Object.values(V2_SCHEMAS).includes(schemaValue) ? schemaValue : void 0;
       if (schemaValue !== void 0 && record_schema === void 0)
         errors.push({ code: "field-invalid", path: `${itemPath}.record_schema` });
-      const record_id = text9(raw.record_id, `${itemPath}.record_id`, errors, ID2);
+      const record_id = text10(raw.record_id, `${itemPath}.record_id`, errors, ID2);
       if (record_schema && record_id)
         return { type, record_schema, record_id };
     } else if (type === "request-executor-cancel") {
       closed4(raw, ["type", "run_id"], itemPath, errors);
-      const run_id = text9(raw.run_id, `${itemPath}.run_id`, errors, ID2);
+      const run_id = text10(raw.run_id, `${itemPath}.run_id`, errors, ID2);
       if (run_id)
         return { type, run_id };
     } else if (type === "wake-scheduler") {
       closed4(raw, ["type", "reason"], itemPath, errors);
-      const reason3 = text9(raw.reason, `${itemPath}.reason`, errors, ID2);
+      const reason3 = text10(raw.reason, `${itemPath}.reason`, errors, ID2);
       if (reason3)
         return { type, reason: reason3 };
     } else {
@@ -40330,17 +41281,17 @@ function decodeBoardEventV2(input2) {
   const raw = prepare(input2, V2_SCHEMAS.event, ["schema_version", "event_id", "event_type", "command_id", "idempotency_key", "project_id", "change_id", "correlation_id", "causation_id", "actor", "revision", "issued_at", "before_digest", "after_digest", "payload", "effects"], errors);
   if (!raw)
     return { ok: false, errors };
-  const event_id = text9(raw.event_id, "$.event_id", errors, ID2);
-  const command_id = text9(raw.command_id, "$.command_id", errors, ID2);
-  const idempotency_key = text9(raw.idempotency_key, "$.idempotency_key", errors, ID2);
-  const project_id = text9(raw.project_id, "$.project_id", errors, ID2);
-  const change_id = text9(raw.change_id, "$.change_id", errors, ID2);
-  const correlation_id = text9(raw.correlation_id, "$.correlation_id", errors, ID2);
-  const event_type = text9(raw.event_type, "$.event_type", errors, ID2);
+  const event_id = text10(raw.event_id, "$.event_id", errors, ID2);
+  const command_id = text10(raw.command_id, "$.command_id", errors, ID2);
+  const idempotency_key = text10(raw.idempotency_key, "$.idempotency_key", errors, ID2);
+  const project_id = text10(raw.project_id, "$.project_id", errors, ID2);
+  const change_id = text10(raw.change_id, "$.change_id", errors, ID2);
+  const correlation_id = text10(raw.correlation_id, "$.correlation_id", errors, ID2);
+  const event_type = text10(raw.event_type, "$.event_type", errors, ID2);
   const revision = integer3(raw.revision, "$.revision", errors);
-  const issued_at = text9(raw.issued_at, "$.issued_at", errors, UTC);
-  const before_digest = digest11(raw.before_digest, "$.before_digest", errors);
-  const after_digest = digest11(raw.after_digest, "$.after_digest", errors);
+  const issued_at = text10(raw.issued_at, "$.issued_at", errors, UTC);
+  const before_digest = digest12(raw.before_digest, "$.before_digest", errors);
+  const after_digest = digest12(raw.after_digest, "$.after_digest", errors);
   const actorValue = actor2(raw.actor, "$.actor", errors);
   const payload = decodeBoardCommandV2(raw.payload);
   if (!payload.ok)
@@ -40365,19 +41316,19 @@ function decodeBoardSnapshotV2(input2) {
   closed4(raw, allowed, "$", errors);
   if (raw.schema_version !== V2_SCHEMAS.snapshot)
     errors.push({ code: "field-invalid", path: "$.schema_version" });
-  const record_id = text9(raw.record_id, "$.record_id", errors, ID2);
-  const project_id = text9(raw.project_id, "$.project_id", errors, ID2);
-  const change_id = text9(raw.change_id, "$.change_id", errors, ID2);
+  const record_id = text10(raw.record_id, "$.record_id", errors, ID2);
+  const project_id = text10(raw.project_id, "$.project_id", errors, ID2);
+  const change_id = text10(raw.change_id, "$.change_id", errors, ID2);
   const revision = integer3(raw.revision, "$.revision", errors);
-  const correlation_id = text9(raw.correlation_id, "$.correlation_id", errors, ID2);
+  const correlation_id = text10(raw.correlation_id, "$.correlation_id", errors, ID2);
   const actorValue = actor2(raw.actor, "$.actor", errors);
-  const created_at = text9(raw.created_at, "$.created_at", errors, UTC);
+  const created_at = text10(raw.created_at, "$.created_at", errors, UTC);
   const status = ["draft", "contextualizing", "assessing", "planning", "planned", "ready", "executing", "reviewing", "verifying", "completed", "waiting-input", "blocked", "paused", "failed", "cancelled"].includes(String(raw.status)) ? raw.status : void 0;
   if (!status)
     errors.push({ code: "field-invalid", path: "$.status" });
-  const updated_at = text9(raw.updated_at, "$.updated_at", errors, UTC);
+  const updated_at = text10(raw.updated_at, "$.updated_at", errors, UTC);
   const event_head_id = raw.event_head_id === void 0 ? void 0 : optionalText2(raw.event_head_id, "$.event_head_id", errors, ID2);
-  const event_head_digest = raw.event_head_digest === void 0 ? void 0 : digest11(raw.event_head_digest, "$.event_head_digest", errors);
+  const event_head_digest = raw.event_head_digest === void 0 ? void 0 : digest12(raw.event_head_digest, "$.event_head_digest", errors);
   const command_head_id = raw.command_head_id === void 0 ? void 0 : optionalText2(raw.command_head_id, "$.command_head_id", errors, ID2);
   const resume_status = raw.resume_status === void 0 ? void 0 : optionalText2(raw.resume_status, "$.resume_status", errors, ID2);
   const nested3 = (key, decoder3) => {
@@ -40485,13 +41436,13 @@ function decodeBoardCommandV2(input2) {
   ], errors);
   if (!raw)
     return { ok: false, errors };
-  const command_id = text9(raw.command_id, "$.command_id", errors, ID2);
-  const idempotency_key = text9(raw.idempotency_key, "$.idempotency_key", errors, ID2);
+  const command_id = text10(raw.command_id, "$.command_id", errors, ID2);
+  const idempotency_key = text10(raw.idempotency_key, "$.idempotency_key", errors, ID2);
   const expected_revision = integer3(raw.expected_revision, "$.expected_revision", errors);
   const actorValue = actor2(raw.actor, "$.actor", errors);
-  const issued_at = text9(raw.issued_at, "$.issued_at", errors, UTC);
-  const correlation_id = text9(raw.correlation_id, "$.correlation_id", errors, ID2);
-  const change_id = text9(raw.change_id, "$.change_id", errors, ID2);
+  const issued_at = text10(raw.issued_at, "$.issued_at", errors, UTC);
+  const correlation_id = text10(raw.correlation_id, "$.correlation_id", errors, ID2);
+  const change_id = text10(raw.change_id, "$.change_id", errors, ID2);
   const type = typeof raw.type === "string" ? raw.type : void 0;
   const allowedTypes = [
     "accept-request",
@@ -40521,7 +41472,7 @@ function decodeBoardCommandV2(input2) {
   if (!command_id || !idempotency_key || expected_revision === void 0 || !actorValue || !issued_at || !correlation_id || !change_id || type === void 0 || !allowedTypes.includes(type))
     return { ok: false, errors };
   const base = { schema_version: V2_SCHEMAS.command, command_id, idempotency_key, expected_revision, actor: actorValue, issued_at, correlation_id, ...causation_id === void 0 ? {} : { causation_id }, change_id };
-  const requireText = (key, pattern = ID2, max = 8192) => text9(raw[key], `$.${key}`, errors, pattern, max);
+  const requireText = (key, pattern = ID2, max = 8192) => text10(raw[key], `$.${key}`, errors, pattern, max);
   const rejectExtra = (allowed) => {
     const set2 = /* @__PURE__ */ new Set(["schema_version", "command_id", "idempotency_key", "expected_revision", "actor", "issued_at", "correlation_id", "causation_id", "change_id", "type", ...allowed]);
     for (const key of Object.keys(raw))
@@ -40587,10 +41538,10 @@ function decodeBoardCommandV2(input2) {
     }
     case "claim-run": {
       rejectExtra(["run", "lease"]);
-      const run5 = nested2(raw.run, decodeSkillRunV2, "$.run", errors);
+      const run6 = nested2(raw.run, decodeSkillRunV2, "$.run", errors);
       const lease = nested2(raw.lease, decodeRunLeaseV2, "$.lease", errors);
-      if (run5 && lease)
-        value = { ...base, type, run: run5, lease };
+      if (run6 && lease)
+        value = { ...base, type, run: run6, lease };
       break;
     }
     case "heartbeat-run": {
@@ -40599,8 +41550,8 @@ function decodeBoardCommandV2(input2) {
       const lease_id = requireText("lease_id");
       const owner_id = requireText("owner_id");
       const generation = integer3(raw.generation, "$.generation", errors);
-      const heartbeat_at = text9(raw.heartbeat_at, "$.heartbeat_at", errors, UTC);
-      const expires_at = text9(raw.expires_at, "$.expires_at", errors, UTC);
+      const heartbeat_at = text10(raw.heartbeat_at, "$.heartbeat_at", errors, UTC);
+      const expires_at = text10(raw.expires_at, "$.expires_at", errors, UTC);
       if (run_id && lease_id && owner_id && generation !== void 0 && heartbeat_at && expires_at)
         value = { ...base, type, run_id, lease_id, owner_id, generation, heartbeat_at, expires_at };
       break;
@@ -40641,7 +41592,7 @@ function decodeBoardCommandV2(input2) {
     case "cancel-change":
     case "replan-change": {
       rejectExtra(["reason"]);
-      const reason3 = text9(raw.reason, "$.reason", errors, void 0, 8192);
+      const reason3 = text10(raw.reason, "$.reason", errors, void 0, 8192);
       if (reason3)
         value = { ...base, type, reason: reason3 };
       break;
@@ -40659,7 +41610,7 @@ function decodeBoardCommandV2(input2) {
       rejectExtra(["work_item_id", "artifact_ref", "digest"]);
       const work_item_id = requireText("work_item_id");
       const artifact_ref = requireText("artifact_ref", /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,511}$/u, 512);
-      const digestValue = digest11(raw.digest, "$.digest", errors);
+      const digestValue = digest12(raw.digest, "$.digest", errors);
       if (work_item_id && artifact_ref && digestValue)
         value = { ...base, type, work_item_id, artifact_ref, digest: digestValue };
       break;
@@ -40767,32 +41718,32 @@ function evolveV2(aggregate, event) {
     }
     case "claim-run": {
       const item2 = find(next.work_items, "work_item_id", command2.run.work_item_id);
-      const run5 = { ...command2.run, status: "claimed", lease: command2.lease, revision: event.revision };
-      next = { ...next, runs: [...next.runs.filter((entry2) => entry2.run_id !== run5.run_id), run5], leases: [...next.leases.filter((entry2) => entry2.lease_id !== command2.lease.lease_id), command2.lease], work_items: item2 === void 0 ? next.work_items : replaceBy(next.work_items, "work_item_id", { ...item2, status: "claimed", active_run_id: run5.run_id, revision: event.revision }) };
+      const run6 = { ...command2.run, status: "claimed", lease: command2.lease, revision: event.revision };
+      next = { ...next, runs: [...next.runs.filter((entry2) => entry2.run_id !== run6.run_id), run6], leases: [...next.leases.filter((entry2) => entry2.lease_id !== command2.lease.lease_id), command2.lease], work_items: item2 === void 0 ? next.work_items : replaceBy(next.work_items, "work_item_id", { ...item2, status: "claimed", active_run_id: run6.run_id, revision: event.revision }) };
       break;
     }
     case "heartbeat-run": {
-      const run5 = find(next.runs, "run_id", command2.run_id);
-      if (run5?.lease !== void 0) {
-        const lease = { ...run5.lease, heartbeat_at: command2.heartbeat_at, expires_at: command2.expires_at, generation: command2.generation, status: "renewed" };
-        next = { ...next, runs: replaceBy(next.runs, "run_id", { ...run5, lease, revision: event.revision }), leases: replaceBy(next.leases, "lease_id", lease) };
+      const run6 = find(next.runs, "run_id", command2.run_id);
+      if (run6?.lease !== void 0) {
+        const lease = { ...run6.lease, heartbeat_at: command2.heartbeat_at, expires_at: command2.expires_at, generation: command2.generation, status: "renewed" };
+        next = { ...next, runs: replaceBy(next.runs, "run_id", { ...run6, lease, revision: event.revision }), leases: replaceBy(next.leases, "lease_id", lease) };
       }
       break;
     }
     case "begin-run": {
-      const run5 = find(next.runs, "run_id", command2.run_id);
-      const item2 = run5 === void 0 ? void 0 : find(next.work_items, "work_item_id", run5.work_item_id);
-      if (run5 !== void 0 && item2 !== void 0)
-        next = { ...next, runs: replaceBy(next.runs, "run_id", { ...run5, status: "running", started_at: event.issued_at, revision: event.revision }), work_items: replaceBy(next.work_items, "work_item_id", { ...item2, status: "running", revision: event.revision }) };
+      const run6 = find(next.runs, "run_id", command2.run_id);
+      const item2 = run6 === void 0 ? void 0 : find(next.work_items, "work_item_id", run6.work_item_id);
+      if (run6 !== void 0 && item2 !== void 0)
+        next = { ...next, runs: replaceBy(next.runs, "run_id", { ...run6, status: "running", started_at: event.issued_at, revision: event.revision }), work_items: replaceBy(next.work_items, "work_item_id", { ...item2, status: "running", revision: event.revision }) };
       break;
     }
     case "complete-run": {
-      const run5 = find(next.runs, "run_id", command2.run_id);
-      if (run5 !== void 0) {
+      const run6 = find(next.runs, "run_id", command2.run_id);
+      if (run6 !== void 0) {
         const runStatus = command2.result.status === "completed" && command2.result.contract_status === "validated" ? "completed" : "failed";
-        const releasedLease = run5.lease === void 0 ? void 0 : { ...run5.lease, status: "released" };
-        const updated = { ...run5, status: runStatus, result_id: command2.result.result_id, finished_at: event.issued_at, ...releasedLease === void 0 ? {} : { lease: releasedLease }, revision: event.revision };
-        const item2 = find(next.work_items, "work_item_id", run5.work_item_id);
+        const releasedLease = run6.lease === void 0 ? void 0 : { ...run6.lease, status: "released" };
+        const updated = { ...run6, status: runStatus, result_id: command2.result.result_id, finished_at: event.issued_at, ...releasedLease === void 0 ? {} : { lease: releasedLease }, revision: event.revision };
+        const item2 = find(next.work_items, "work_item_id", run6.work_item_id);
         next = { ...next, runs: replaceBy(next.runs, "run_id", updated), results: [...next.results.filter((entry2) => entry2.result_id !== command2.result.result_id), { ...command2.result, revision: event.revision }], leases: releasedLease === void 0 ? next.leases : replaceBy(next.leases, "lease_id", releasedLease), work_items: item2 === void 0 ? next.work_items : replaceBy(next.work_items, "work_item_id", { ...item2, status: itemStatusForRun(runStatus), active_run_id: void 0, revision: event.revision, blockers: runStatus === "completed" ? [] : ["run-result-invalid"] }), status: runStatus === "completed" ? "verifying" : "failed", next_actions: runStatus === "completed" ? ["record-validation"] : ["retry-work-item"] };
       }
       break;
@@ -40830,7 +41781,7 @@ function evolveV2(aggregate, event) {
       break;
     case "retry-work-item": {
       const item2 = find(next.work_items, "work_item_id", command2.work_item_id);
-      const previous = item2?.active_run_id === void 0 ? next.runs.filter((run5) => run5.work_item_id === command2.work_item_id).at(-1) : find(next.runs, "run_id", item2.active_run_id);
+      const previous = item2?.active_run_id === void 0 ? next.runs.filter((run6) => run6.work_item_id === command2.work_item_id).at(-1) : find(next.runs, "run_id", item2.active_run_id);
       if (item2 !== void 0) {
         const nextAttempt = (previous?.attempt ?? item2.attempt_count) + 1;
         const newRun = previous === void 0 ? void 0 : { ...previous, record_id: `run:${command2.run_id}`, run_id: command2.run_id, attempt_id: command2.attempt_id, attempt: nextAttempt, prior_attempt_id: previous.attempt_id, status: "queued", result_id: void 0, failure: void 0, lease: void 0, started_at: void 0, finished_at: void 0, input_manifest: void 0, revision: event.revision };
@@ -40839,7 +41790,7 @@ function evolveV2(aggregate, event) {
       break;
     }
     case "cancel-change":
-      next = { ...next, status: "cancelled", leases: next.leases.map((lease) => ({ ...lease, status: "revoked" })), runs: next.runs.map((run5) => run5.status === "claimed" || run5.status === "running" ? { ...run5, status: "cancelled", revision: event.revision } : run5), work_items: next.work_items.map((item2) => item2.status === "completed" ? item2 : { ...item2, status: "cancelled", revision: event.revision }), next_actions: [] };
+      next = { ...next, status: "cancelled", leases: next.leases.map((lease) => ({ ...lease, status: "revoked" })), runs: next.runs.map((run6) => run6.status === "claimed" || run6.status === "running" ? { ...run6, status: "cancelled", revision: event.revision } : run6), work_items: next.work_items.map((item2) => item2.status === "completed" ? item2 : { ...item2, status: "cancelled", revision: event.revision }), next_actions: [] };
       break;
     case "replan-change":
       next = { ...next, status: "planning", pipeline: next.pipeline === void 0 ? void 0 : { ...next.pipeline, status: "superseded", revision: event.revision }, graph: next.graph === void 0 ? void 0 : { ...next.graph, status: "superseded", revision: event.revision }, resolution: void 0, next_actions: ["freeze-pipeline"] };
@@ -40922,14 +41873,14 @@ function stateGuard(aggregate, command2) {
         return reject("policy-blocked", "work item is reserved for a different queued run", "lease-conflict");
       if (active !== void 0 && active.status !== "queued")
         return reject("policy-blocked", "work item already has an active run", "lease-conflict");
-      if (aggregate.runs.some((run5) => run5.work_item_id === item2.work_item_id && (run5.status === "claimed" || run5.status === "running")))
+      if (aggregate.runs.some((run6) => run6.work_item_id === item2.work_item_id && (run6.status === "claimed" || run6.status === "running")))
         return reject("policy-blocked", "work item already has an active run", "lease-conflict");
       break;
     }
     case "heartbeat-run": {
-      const run5 = find2(aggregate.runs, "run_id", command2.run_id);
-      const lease = run5?.lease;
-      if (run5 === void 0 || lease === void 0)
+      const run6 = find2(aggregate.runs, "run_id", command2.run_id);
+      const lease = run6?.lease;
+      if (run6 === void 0 || lease === void 0)
         return reject("not-found", "run or lease not found", "run-not-found");
       if (!leaseMatches(aggregate, command2.run_id, command2.lease_id, command2.owner_id, command2.generation))
         return reject("lease-mismatch", "heartbeat lease identity is stale", "lease-generation-mismatch", ["reclaim-run"]);
@@ -40938,22 +41889,22 @@ function stateGuard(aggregate, command2) {
       break;
     }
     case "begin-run": {
-      const run5 = find2(aggregate.runs, "run_id", command2.run_id);
-      if (run5 === void 0)
+      const run6 = find2(aggregate.runs, "run_id", command2.run_id);
+      if (run6 === void 0)
         return reject("not-found", "run not found", "run-not-found");
-      if (run5.status !== "claimed")
+      if (run6.status !== "claimed")
         return reject("invalid-transition", "only claimed runs can begin", "run-order");
       if (!leaseMatches(aggregate, command2.run_id, command2.lease_id, command2.owner_id, command2.generation))
         return reject("lease-mismatch", "begin lease identity is stale", "lease-generation-mismatch");
       break;
     }
     case "complete-run": {
-      const run5 = find2(aggregate.runs, "run_id", command2.run_id);
-      if (run5 === void 0)
+      const run6 = find2(aggregate.runs, "run_id", command2.run_id);
+      if (run6 === void 0)
         return reject("not-found", "run not found", "run-not-found");
-      if (run5.status !== "running")
+      if (run6.status !== "running")
         return reject("invalid-transition", "only running runs can complete", "run-order");
-      if (run5.lease === void 0 || !leaseMatches(aggregate, command2.run_id, run5.lease.lease_id, run5.lease.owner_id, run5.lease.generation))
+      if (run6.lease === void 0 || !leaseMatches(aggregate, command2.run_id, run6.lease.lease_id, run6.lease.owner_id, run6.lease.generation))
         return reject("lease-mismatch", "complete requires the active run lease", "lease-generation-mismatch");
       if (command2.result.run_id !== command2.run_id || command2.result.contract_status === "invalid")
         return reject("contract-invalid", "result does not match run or is invalid", "result-contract-invalid");
@@ -40962,8 +41913,8 @@ function stateGuard(aggregate, command2) {
     case "record-validation": {
       const result2 = find2(aggregate.results, "result_id", command2.report.result_id);
       const item2 = find2(aggregate.work_items, "work_item_id", command2.report.work_item_id);
-      const run5 = result2 === void 0 ? void 0 : find2(aggregate.runs, "run_id", result2.run_id);
-      if (result2 === void 0 || item2 === void 0 || run5 === void 0 || run5.status !== "completed")
+      const run6 = result2 === void 0 ? void 0 : find2(aggregate.runs, "run_id", result2.run_id);
+      if (result2 === void 0 || item2 === void 0 || run6 === void 0 || run6.status !== "completed")
         return reject("missing-evidence", "validation requires a completed matching run result", "validation-evidence-missing", ["complete-run"]);
       break;
     }
@@ -40985,7 +41936,7 @@ function stateGuard(aggregate, command2) {
       const item2 = find2(aggregate.work_items, "work_item_id", command2.work_item_id);
       if (item2 === void 0 || !["failed", "interrupted", "blocked"].includes(item2.status))
         return reject("invalid-transition", "only failed, interrupted, or blocked items can retry", "retry-state");
-      if (aggregate.runs.some((run5) => run5.run_id === command2.run_id || run5.attempt_id === command2.attempt_id))
+      if (aggregate.runs.some((run6) => run6.run_id === command2.run_id || run6.attempt_id === command2.attempt_id))
         return reject("idempotency-conflict", "retry must create a new run and attempt identity", "retry-lineage-conflict");
       break;
     }
@@ -41028,7 +41979,7 @@ function decideV2(aggregate, command2) {
   const guarded2 = stateGuard(aggregate, command2);
   if (guarded2 !== void 0)
     return guarded2;
-  const draft = { schema_version: "board-event/v2", event_id: `event:${command2.command_id}`, event_type: command2.type, command_id: command2.command_id, idempotency_key: command2.idempotency_key, project_id: aggregate.project_id, change_id: aggregate.change_id, correlation_id: aggregate.correlation_id, ...command2.causation_id === void 0 ? {} : { causation_id: command2.causation_id }, actor: command2.actor, revision: aggregate.revision + 1, issued_at: command2.issued_at, before_digest: digestAggregate(aggregate), after_digest: digestAggregate({ ...aggregate, revision: aggregate.revision + 1 }), payload: command2, effects: command2.type === "cancel-change" ? aggregate.runs.filter((run5) => run5.status === "claimed" || run5.status === "running").map((run5) => ({ type: "request-executor-cancel", run_id: run5.run_id })) : [{ type: "wake-scheduler", reason: command2.type }] };
+  const draft = { schema_version: "board-event/v2", event_id: `event:${command2.command_id}`, event_type: command2.type, command_id: command2.command_id, idempotency_key: command2.idempotency_key, project_id: aggregate.project_id, change_id: aggregate.change_id, correlation_id: aggregate.correlation_id, ...command2.causation_id === void 0 ? {} : { causation_id: command2.causation_id }, actor: command2.actor, revision: aggregate.revision + 1, issued_at: command2.issued_at, before_digest: digestAggregate(aggregate), after_digest: digestAggregate({ ...aggregate, revision: aggregate.revision + 1 }), payload: command2, effects: command2.type === "cancel-change" ? aggregate.runs.filter((run6) => run6.status === "claimed" || run6.status === "running").map((run6) => ({ type: "request-executor-cancel", run_id: run6.run_id })) : [{ type: "wake-scheduler", reason: command2.type }] };
   const after = evolveV2(aggregate, draft);
   return { ok: true, event: { ...draft, after_digest: digestAggregate(after) } };
 }
@@ -41083,11 +42034,11 @@ function eventPath(changeDir7, revision, eventId2) {
   safeId2(eventId2, "event id");
   return path9.join(dirFor(changeDir7, ORCHESTRATION_EVENTS_DIR), `${String(revision).padStart(12, "0")}-${eventId2}.json`);
 }
-function snapshotPath(changeDir7, revision, digest18) {
+function snapshotPath(changeDir7, revision, digest19) {
   if (!integer4(revision))
     throw new LedgerPathError("snapshot revision must be a non-negative integer");
-  safeId2(digest18, "snapshot digest");
-  return path9.join(dirFor(changeDir7, ORCHESTRATION_SNAPSHOTS_DIR), `${String(revision).padStart(12, "0")}-${digest18.slice(7, 23)}.json`);
+  safeId2(digest19, "snapshot digest");
+  return path9.join(dirFor(changeDir7, ORCHESTRATION_SNAPSHOTS_DIR), `${String(revision).padStart(12, "0")}-${digest19.slice(7, 23)}.json`);
 }
 function idempotencyPath(changeDir7, commandId) {
   safeId2(commandId, "command id");
@@ -41289,12 +42240,12 @@ async function readIdempotencyRecords(changeDir7) {
   return { records };
 }
 function leasesFor(snapshot2, now) {
-  return snapshot2.runs.flatMap((run5) => {
-    const lease = run5.lease;
+  return snapshot2.runs.flatMap((run6) => {
+    const lease = run6.lease;
     if (!lease)
       return [];
     const decision = ["active", "renewed"].includes(lease.status) ? lease.expires_at <= now ? "expired-awaiting-scheduler" : "active" : lease.status === "released" ? "released" : "revoked";
-    return [{ run_id: run5.run_id, lease_id: lease.lease_id, decision, observed_expires_at: lease.expires_at }];
+    return [{ run_id: run6.run_id, lease_id: lease.lease_id, decision, observed_expires_at: lease.expires_at }];
   });
 }
 function sameJson(a, b) {
@@ -41317,8 +42268,8 @@ var FsOrchestrationLedger = class {
         return existing;
       }
       const aggregate = createAggregateV2(seed.project_id, seed.change_id, seed.correlation_id, seed.updated_at);
-      const digest18 = checksum(aggregate);
-      await publishImmutable(dirFor(changeDir7, ORCHESTRATION_SNAPSHOTS_DIR), snapshotPath(changeDir7, 0, digest18), "snapshot", aggregate);
+      const digest19 = checksum(aggregate);
+      await publishImmutable(dirFor(changeDir7, ORCHESTRATION_SNAPSHOTS_DIR), snapshotPath(changeDir7, 0, digest19), "snapshot", aggregate);
       await atomicReplaceFile(currentPath(changeDir7), json(envelope("snapshot", aggregate)));
       return aggregate;
     });
@@ -42179,7 +43130,7 @@ function stripFlowComment(line) {
   const m = line.match(/^(.*?)\s#/);
   return (m ? required(m[1]) : line).trimEnd();
 }
-function splitTopLevel(s, sep30) {
+function splitTopLevel(s, sep32) {
   const out = [];
   let cur = "";
   let quote = "";
@@ -42191,7 +43142,7 @@ function splitTopLevel(s, sep30) {
     } else if (ch === '"' || ch === "'") {
       quote = ch;
       cur += ch;
-    } else if (ch === sep30) {
+    } else if (ch === sep32) {
       out.push(cur);
       cur = "";
     } else {
@@ -42209,7 +43160,7 @@ function unquoteFlowValue(value) {
   return s;
 }
 function parseFlowBody(body, onError) {
-  const fields = /* @__PURE__ */ new Map();
+  const fields2 = /* @__PURE__ */ new Map();
   for (const rawPair of splitTopLevel(body, ",")) {
     const pair = rawPair.trim();
     if (pair === "")
@@ -42219,11 +43170,11 @@ function parseFlowBody(body, onError) {
       throw onError(`\u5B57\u6BB5 '${pair}' \u7F3A 'key: value' \u5192\u53F7`);
     const key = pair.slice(0, colon).trim();
     const value = unquoteFlowValue(pair.slice(colon + 1));
-    if (fields.has(key))
+    if (fields2.has(key))
       throw onError(`\u5B57\u6BB5 '${key}' \u91CD\u590D`);
-    fields.set(key, value);
+    fields2.set(key, value);
   }
-  return fields;
+  return fields2;
 }
 
 // packages/kernel/dist/skills/source-registry.js
@@ -42337,8 +43288,8 @@ function parseEntry(line, lineNo) {
     entry2.note = note2;
   return entry2;
 }
-function parseSkillSources(text12) {
-  const lines2 = text12.split("\n");
+function parseSkillSources(text13) {
+  const lines2 = text13.split("\n");
   const out = [];
   const seen = /* @__PURE__ */ new Set();
   let inSkills = false;
@@ -42393,21 +43344,21 @@ function strictEntryLine(line, lineNo) {
     if (line.slice(close + 1).trim() !== "") {
       throw strictError("invalid-source-ref", `\u7B2C ${lineNo} \u884C closing brace \u540E\u542B\u5C3E\u968F token`);
     }
-    const fields = parseFlowFields(line.slice(brace + 1, close), entry2.token);
-    for (const key of fields.keys()) {
+    const fields2 = parseFlowFields(line.slice(brace + 1, close), entry2.token);
+    for (const key of fields2.keys()) {
       if (!STRICT_ENTRY_FIELDS.has(key)) {
         throw strictError("invalid-source-ref", `token '${entry2.token}' \u542B\u672A\u77E5 registry \u5B57\u6BB5 '${key}'`);
       }
     }
-    return { entry: entry2, fields };
+    return { entry: entry2, fields: fields2 };
   } catch (error2) {
     if (error2 instanceof SkillProvenanceRegistryError)
       throw error2;
     throw strictError("invalid-source-ref", error2 instanceof Error ? error2.message : String(error2));
   }
 }
-function strictField(fields, token, key, category = "invalid-source-ref") {
-  const value = fields.get(key);
+function strictField(fields2, token, key, category = "invalid-source-ref") {
+  const value = fields2.get(key);
   if (value === void 0 || value.trim() === "")
     throw strictError(category, `token '${token}' \u7F3A\u5C11 ${key}`);
   return value;
@@ -42423,8 +43374,8 @@ function strictPhysicalId(sourceRef) {
 function isSafeProvenanceId(id2) {
   return id2.length > 0 && id2 !== "." && id2 !== ".." && !id2.includes("/") && !id2.includes("\\") && !id2.includes("\0");
 }
-function parseSkillProvenanceRegistry(text12) {
-  const lines2 = text12.split("\n");
+function parseSkillProvenanceRegistry(text13) {
+  const lines2 = text13.split("\n");
   let version;
   let hashAlgorithm;
   let inSkills = false;
@@ -42470,19 +43421,19 @@ function parseSkillProvenanceRegistry(text12) {
       }
       throw strictError("invalid-source-ref", `\u7B2C ${i + 1} \u884C\u4F4D\u4E8E skills \u5757\u5916`);
     }
-    const { entry: entry2, fields } = strictEntryLine(line, i + 1);
+    const { entry: entry2, fields: fields2 } = strictEntryLine(line, i + 1);
     if (seenTokens.has(entry2.token)) {
       throw strictError("duplicate-distributed-source", `token '${entry2.token}' \u91CD\u590D\u58F0\u660E`);
     }
     seenTokens.add(entry2.token);
-    const sourceKind = strictField(fields, entry2.token, "source_kind", "unknown-source-kind");
+    const sourceKind = strictField(fields2, entry2.token, "source_kind", "unknown-source-kind");
     if (sourceKind !== "bundled") {
       throw strictError("unknown-source-kind", `token '${entry2.token}' source_kind '${sourceKind}' \u4E0D\u53D7\u652F\u6301`);
     }
     if (entry2.tool !== "bundled" || entry2.source !== "tenon") {
       throw strictError("unknown-source-kind", `token '${entry2.token}' \u5FC5\u987B\u4F7F\u7528 bundled/tenon source`);
     }
-    const sourceRef = strictField(fields, entry2.token, "source_ref");
+    const sourceRef = strictField(fields2, entry2.token, "source_ref");
     const physicalId3 = strictPhysicalId(sourceRef);
     if (physicalId3 === void 0) {
       throw strictError("invalid-source-ref", `token '${entry2.token}' source_ref '${sourceRef}' \u4E0D\u662F\u89C4\u8303\u7684 skills/<id> \u8DEF\u5F84`);
@@ -42491,11 +43442,11 @@ function parseSkillProvenanceRegistry(text12) {
       throw strictError("duplicate-distributed-source", `source_ref '${sourceRef}' \u91CD\u590D\u58F0\u660E`);
     }
     seenRefs.add(sourceRef);
-    const contentHash = strictField(fields, entry2.token, "content_hash", "content-hash-mismatch");
+    const contentHash = strictField(fields2, entry2.token, "content_hash", "content-hash-mismatch");
     if (!/^sha256:[0-9a-f]{64}$/.test(contentHash)) {
       throw strictError("content-hash-mismatch", `token '${entry2.token}' content_hash \u4E0D\u662F sha256:<64 lowercase hex>`);
     }
-    const coordinate = strictField(fields, entry2.token, "coordinate", "coordinate-mismatch");
+    const coordinate = strictField(fields2, entry2.token, "coordinate", "coordinate-mismatch");
     const expectedCoordinate = `tenon:${sourceRef}@${contentHash}`;
     if (coordinate !== expectedCoordinate) {
       throw strictError("coordinate-mismatch", `token '${entry2.token}' coordinate \u4E0E source_ref/content_hash \u4E0D\u4E00\u81F4`);
@@ -42525,19 +43476,19 @@ function parseSkillProvenanceRegistry(text12) {
 }
 
 // packages/kernel/dist/skills/invocability.js
-function parseSkillFrontmatter(text12) {
-  const lines2 = text12.split(/\r?\n/u);
+function parseSkillFrontmatter(text13) {
+  const lines2 = text13.split(/\r?\n/u);
   if (lines2[0]?.trim() !== "---")
     return null;
-  const fields = /* @__PURE__ */ new Map();
+  const fields2 = /* @__PURE__ */ new Map();
   for (const line of lines2.slice(1)) {
     if (line.trim() === "---")
-      return fields;
+      return fields2;
     const match = /^([A-Za-z0-9_-]+):\s*(.*?)\s*$/u.exec(line);
     const key = match?.[1];
-    if (key === void 0 || fields.has(key))
+    if (key === void 0 || fields2.has(key))
       continue;
-    fields.set(key, unquote(match?.[2] ?? ""));
+    fields2.set(key, unquote(match?.[2] ?? ""));
   }
   return null;
 }
@@ -42546,11 +43497,11 @@ function unquote(value) {
   return s.length >= 2 && (s[0] === '"' || s[0] === "'") && s.at(-1) === s[0] ? s.slice(1, -1) : s;
 }
 var SKILL_MODEL_INVOCATION_DISABLED_FIELD = "disable-model-invocation";
-function isSkillModelInvocable(fields) {
-  return fields?.get(SKILL_MODEL_INVOCATION_DISABLED_FIELD)?.trim().toLowerCase() !== "true";
+function isSkillModelInvocable(fields2) {
+  return fields2?.get(SKILL_MODEL_INVOCATION_DISABLED_FIELD)?.trim().toLowerCase() !== "true";
 }
-function skillTextModelInvocable(text12) {
-  return isSkillModelInvocable(parseSkillFrontmatter(text12));
+function skillTextModelInvocable(text13) {
+  return isSkillModelInvocable(parseSkillFrontmatter(text13));
 }
 
 // packages/kernel/dist/skills/upstream-sources.js
@@ -42614,16 +43565,16 @@ function isHost(value) {
 function isFailureReason(value) {
   return typeof value === "string" && FAILURE_REASONS.has(value);
 }
-function isRecord9(value) {
+function isRecord10(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function hasExactKeys(value, keys) {
   const actual = Object.keys(value);
   return actual.length === keys.length && keys.every((key) => Object.hasOwn(value, key));
 }
-function parseJson3(text12, fail17) {
+function parseJson3(text13, fail17) {
   try {
-    return JSON.parse(text12);
+    return JSON.parse(text13);
   } catch (error2) {
     throw fail17(`JSON \u65E0\u6548\uFF1A${error2 instanceof Error ? error2.message : String(error2)}`);
   }
@@ -42641,32 +43592,32 @@ function parseSourceLine(line, lineNo) {
   const id2 = match[1] ?? "";
   if (!ID3.test(id2))
     throw sourcesError(`\u7B2C ${lineNo} \u884C\u6280\u80FD id '${id2}' \u4E0D\u5408\u6CD5`);
-  const fields = parseFlowBody(match[2] ?? "", (message2) => sourcesError(`\u6280\u80FD '${id2}' ${message2}`));
-  for (const key of fields.keys()) {
+  const fields2 = parseFlowBody(match[2] ?? "", (message2) => sourcesError(`\u6280\u80FD '${id2}' ${message2}`));
+  for (const key of fields2.keys()) {
     if (!SOURCE_FIELDS.has(key))
       throw sourcesError(`\u6280\u80FD '${id2}' \u542B\u672A\u77E5\u5B57\u6BB5 '${key}'`);
   }
-  const repo = fields.get("repo");
+  const repo = fields2.get("repo");
   if (!isRepo(repo))
     throw sourcesError(`\u6280\u80FD '${id2}' repo '${repo ?? ""}' \u4E0D\u662F owner/name`);
-  const path15 = fields.get("path");
+  const path15 = fields2.get("path");
   if (!isSkillPath(path15))
     throw sourcesError(`\u6280\u80FD '${id2}' path '${path15 ?? ""}' \u4E0D\u662F\u4ED3\u5E93\u5185\u76F8\u5BF9\u8DEF\u5F84`);
-  const ref = fields.get("ref");
+  const ref = fields2.get("ref");
   if (ref !== "default-branch")
     throw sourcesError(`\u6280\u80FD '${id2}' ref '${ref ?? ""}' \u53EA\u80FD\u662F default-branch`);
-  const license = fields.get("license_expected");
+  const license = fields2.get("license_expected");
   if (!isLicense(license))
     throw sourcesError(`\u6280\u80FD '${id2}' license_expected '${license ?? ""}' \u53EA\u80FD\u662F MIT \u6216 Apache-2.0`);
   return { id: id2, repo, path: path15, ref, licenseExpected: license };
 }
-function parseUpstreamSkillSources(text12) {
+function parseUpstreamSkillSources(text13) {
   let version;
   let seenSkills = false;
   let inSkills = false;
   const skills = [];
   const seen = /* @__PURE__ */ new Set();
-  const lines2 = text12.split("\n");
+  const lines2 = text13.split("\n");
   for (let i = 0; i < lines2.length; i += 1) {
     const lineNo = i + 1;
     const line = stripFlowComment(lines2[i] ?? "");
@@ -42709,7 +43660,7 @@ function lockError(message2) {
 }
 function parseLockEntry(raw, index) {
   const at = `skills[${index}]`;
-  if (!isRecord9(raw) || !(hasExactKeys(raw, LOCK_ENTRY_KEYS_V1) || hasExactKeys(raw, LOCK_ENTRY_KEYS_V2))) {
+  if (!isRecord10(raw) || !(hasExactKeys(raw, LOCK_ENTRY_KEYS_V1) || hasExactKeys(raw, LOCK_ENTRY_KEYS_V2))) {
     throw lockError(`${at} \u5B57\u6BB5\u987B\u4E3A ${LOCK_ENTRY_KEYS_V1.join(" / ")}\uFF08\u53EF\u591A\u4E00\u4E2A model_invocable\uFF09`);
   }
   const { id: id2, repo, path: path15, commit, license } = raw;
@@ -42746,9 +43697,9 @@ function parseLockEntry(raw, index) {
     ...typeof raw.model_invocable === "boolean" ? { modelInvocable: raw.model_invocable } : {}
   };
 }
-function parseUpstreamSkillLock(text12, sources) {
-  const value = parseJson3(text12, lockError);
-  if (!isRecord9(value) || !hasExactKeys(value, LOCK_KEYS))
+function parseUpstreamSkillLock(text13, sources) {
+  const value = parseJson3(text13, lockError);
+  if (!isRecord10(value) || !hasExactKeys(value, LOCK_KEYS))
     throw lockError(`\u9876\u5C42\u5B57\u6BB5\u987B\u4E3A ${LOCK_KEYS.join(" / ")}`);
   if (typeof value.version !== "number" || !LOCK_VERSIONS.has(value.version)) {
     throw lockError(`version '${String(value.version)}' \u4E0D\u53D7\u652F\u6301\uFF08\u9700\u8981 1\uFF0C\u517C\u5BB9\u8BFB 2\uFF09`);
@@ -42795,7 +43746,7 @@ function reportError(message2) {
 }
 function parseRunResult(raw, index) {
   const at = `results[${index}]`;
-  if (!isRecord9(raw) || Object.keys(raw).some((key) => !RESULT_KEYS.has(key)))
+  if (!isRecord10(raw) || Object.keys(raw).some((key) => !RESULT_KEYS.has(key)))
     throw reportError(`${at} \u542B\u672A\u77E5\u5B57\u6BB5`);
   const { id: id2, outcome, reason: reason3, detail } = raw;
   if (typeof id2 !== "string" || !ID3.test(id2))
@@ -42814,9 +43765,9 @@ function parseRunResult(raw, index) {
     ...typeof detail === "string" ? { detail } : {}
   };
 }
-function parseUpstreamSkillRunReport(text12) {
-  const value = parseJson3(text12, reportError);
-  if (!isRecord9(value) || !hasExactKeys(value, REPORT_KEYS))
+function parseUpstreamSkillRunReport(text13) {
+  const value = parseJson3(text13, reportError);
+  if (!isRecord10(value) || !hasExactKeys(value, REPORT_KEYS))
     throw reportError(`\u9876\u5C42\u5B57\u6BB5\u987B\u4E3A ${REPORT_KEYS.join(" / ")}`);
   if (value.version !== 1)
     throw reportError(`version '${String(value.version)}' \u4E0D\u53D7\u652F\u6301\uFF08\u9700\u8981 1\uFF09`);
@@ -43020,10 +43971,10 @@ function latestRun(input2, agent) {
   return found;
 }
 function blockingFindings(row2, blockAt) {
-  return row2.findings.filter((finding2) => severityRank(finding2.severity) >= severityRank(blockAt));
+  return row2.findings.filter((finding3) => severityRank(finding3.severity) >= severityRank(blockAt));
 }
 function worstRank(row2) {
-  return row2.findings.reduce((worst, finding2) => Math.max(worst, severityRank(finding2.severity)), 0);
+  return row2.findings.reduce((worst, finding3) => Math.max(worst, severityRank(finding3.severity)), 0);
 }
 function judgedRun(input2, agent, role, blockAt) {
   const latest = latestRun(input2, agent);
@@ -43169,7 +44120,7 @@ function renderAgentBlocker(blocker2, change) {
     case "reviewer-stale":
       return `\u8BC4\u5BA1\u8005 '${blocker2.agent}' \u7684\u7ED3\u8BBA\u5DF2\u8FC7\u671F\uFF08\u5019\u9009\u5DF2\u53D8\u5316\uFF09\uFF1B\u91CD\u8DD1\uFF1Atenon agent prompt ${change} ${blocker2.agent}`;
     case "reviewer-failed": {
-      const shown = blocker2.blocking.slice(0, FINDING_PREVIEW).map((finding2) => `${finding2.location} ${finding2.message}`).join("\uFF1B");
+      const shown = blocker2.blocking.slice(0, FINDING_PREVIEW).map((finding3) => `${finding3.location} ${finding3.message}`).join("\uFF1B");
       const reruns = blocker2.reruns === void 0 ? "" : `\uFF1B\u540C\u4E00\u5019\u9009\u4E0A\u5DF2\u8DD1 ${blocker2.reruns + 1} \u6B21\uFF0C\u53D6\u6700\u4E25\u7684\u7ED3\u8BBA\u2014\u2014\u91CD\u8DD1\u6362\u4E0D\u6765\u901A\u8FC7\uFF0C\u6539\u4EE3\u7801\u6362\u5019\u9009\u540E\u518D\u91CD\u8DD1`;
       return `\u8BC4\u5BA1\u8005 '${blocker2.agent}' \u672A\u901A\u8FC7\uFF08${blocker2.blocking.length} \u4E2A\u95EE\u9898 \u2265 ${blocker2.blockAt}\uFF09\uFF1A${shown}${reruns}\uFF1B\u4FEE\u590D\u540E\u91CD\u8DD1\uFF1Atenon agent prompt ${change} ${blocker2.agent}`;
     }
@@ -43426,8 +44377,8 @@ function requireTrackForRoot(registry, trackId, repoRoot, workflowName) {
 }
 
 // packages/kernel/dist/workflow/phase-exit-context.js
-function byteLength(text12) {
-  return new TextEncoder().encode(text12).byteLength;
+function byteLength(text13) {
+  return new TextEncoder().encode(text13).byteLength;
 }
 async function phaseExitGuardContext(fileContext, dir) {
   if (fileContext === void 0)
@@ -44209,13 +45160,13 @@ import { readFile as readFile48, mkdir as mkdir31 } from "node:fs/promises";
 import { dirname as dirname13, join as join66 } from "node:path";
 var ARTIFACT_SUBJECT_REGISTRY_FILE = ".pipeline-artifact-subjects.json";
 var emptyRegistry = () => ({ version: 1, records: [] });
-function isRecord10(value) {
+function isRecord11(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function decodeRegistry(value) {
-  if (!isRecord10(value) || value.version !== 1 || !Array.isArray(value.records))
+  if (!isRecord11(value) || value.version !== 1 || !Array.isArray(value.records))
     throw new Error("invalid artifact subject registry");
-  const records = value.records.filter(isRecord10).map((record9) => {
+  const records = value.records.filter(isRecord11).map((record9) => {
     if (!isArtifactSubjectRef(record9.subjectRef) || typeof record9.logicalKey !== "string" || typeof record9.projection !== "string" || typeof record9.status !== "string" || typeof record9.receiptId !== "string" || typeof record9.recordedAt !== "string")
       throw new Error("invalid artifact subject registry record");
     if (!["document", "field", "runtime"].includes(record9.projection) || !["declared", "committed", "pending", "failed"].includes(record9.status))
@@ -44282,7 +45233,7 @@ function createDefaultArtifactCheckers() {
   ];
 }
 var emptyState = () => ({ version: 1, revision: 0, attempts: [], artifacts: [], events: [], reads: [], checks: [], subjectMappings: [], migrationReceipts: [] });
-var digest12 = (bytes) => createHash30("sha256").update(bytes).digest("hex");
+var digest13 = (bytes) => createHash30("sha256").update(bytes).digest("hex");
 var jsonBytes = (value) => new TextEncoder().encode(JSON.stringify(value));
 function bytesOf(value) {
   if (value instanceof Uint8Array)
@@ -44468,7 +45419,7 @@ async function openArtifactService(options) {
       return out;
     });
   }
-  async function emit4(s, type, key, payload = {}) {
+  async function emit5(s, type, key, payload = {}) {
     if (s.events.some((e) => e.idempotencyKey === key))
       return;
     s.revision += 1;
@@ -44477,7 +45428,7 @@ async function openArtifactService(options) {
   async function putBlob(bytes) {
     if (options.readOnly)
       throw new Error("artifact service is read-only");
-    const sha = digest12(bytes);
+    const sha = digest13(bytes);
     const path15 = join67(blobs, sha);
     try {
       await stat8(path15);
@@ -44531,10 +45482,10 @@ async function openArtifactService(options) {
         const producer2 = input2.producer ?? { workflowRunId: attempt2.workflowRunId, stageAttemptId: attempt2.stageAttemptId };
         const adopted = { ...existing, origin: "stage", producer: producer2, declarationStatus: "declared" };
         s.artifacts = s.artifacts.map((r) => r.artifactId === artifactId ? { ...r, versions: r.versions.map((v) => v.version === existing.version ? adopted : v) } : r);
-        await emit4(s, "artifact.observed", `observe:${input2.idempotencyKey ?? `${attempt2.stageAttemptId}:${artifactId}:${sha}`}`, { artifactId, version: existing.version, attemptId: attempt2.stageAttemptId, payload: { source: input2.observationSource ?? "reconcile", declarationStatus: "declared", ...input2.toolCallId ? { toolCallId: input2.toolCallId } : {} } });
+        await emit5(s, "artifact.observed", `observe:${input2.idempotencyKey ?? `${attempt2.stageAttemptId}:${artifactId}:${sha}`}`, { artifactId, version: existing.version, attemptId: attempt2.stageAttemptId, payload: { source: input2.observationSource ?? "reconcile", declarationStatus: "declared", ...input2.toolCallId ? { toolCallId: input2.toolCallId } : {} } });
         return adopted;
       }
-      await emit4(s, "artifact.observed", `observe:${input2.idempotencyKey ?? `${attempt2.stageAttemptId}:${artifactId}:${sha}`}`, { artifactId, version: existing.version, attemptId: attempt2.stageAttemptId, payload: { source: input2.observationSource ?? "reconcile", declarationStatus: input2.declarationStatus ?? (input2.observationSource === "reconcile" ? "reconciled" : "observed"), ...input2.toolCallId ? { toolCallId: input2.toolCallId } : {} } });
+      await emit5(s, "artifact.observed", `observe:${input2.idempotencyKey ?? `${attempt2.stageAttemptId}:${artifactId}:${sha}`}`, { artifactId, version: existing.version, attemptId: attempt2.stageAttemptId, payload: { source: input2.observationSource ?? "reconcile", declarationStatus: input2.declarationStatus ?? (input2.observationSource === "reconcile" ? "reconciled" : "observed"), ...input2.toolCallId ? { toolCallId: input2.toolCallId } : {} } });
       return existing;
     }
     const version = `v${(record9?.versions.length ?? 0) + 1}`;
@@ -44548,7 +45499,7 @@ async function openArtifactService(options) {
       s.artifacts = s.artifacts.map((r) => r.artifactId === artifactId ? { ...r, subject: r.subject ?? subject2, currentVersion: version, versions: [...r.versions, value] } : r);
     else
       s.artifacts.push({ artifactId, subject: subject2, currentVersion: version, versions: [value], displayName: sourcePath });
-    await emit4(s, "artifact.observed", `observe:${input2.idempotencyKey ?? `${attempt2.stageAttemptId}:${artifactId}:${sha}`}`, { artifactId, version, attemptId: attempt2.stageAttemptId, payload: { source: input2.observationSource ?? "reconcile", declarationStatus, ...diagnostics.length ? { diagnostics } : {}, ...input2.toolCallId ? { toolCallId: input2.toolCallId } : {} } });
+    await emit5(s, "artifact.observed", `observe:${input2.idempotencyKey ?? `${attempt2.stageAttemptId}:${artifactId}:${sha}`}`, { artifactId, version, attemptId: attempt2.stageAttemptId, payload: { source: input2.observationSource ?? "reconcile", declarationStatus, ...diagnostics.length ? { diagnostics } : {}, ...input2.toolCallId ? { toolCallId: input2.toolCallId } : {} } });
     return value;
   }
   function visibleToAttempt(s, attempt2, version) {
@@ -44615,7 +45566,7 @@ async function openArtifactService(options) {
       const draft = { workflowRunId: input2.workflowRunId, stageId: input2.stageId, stageAttemptId: input2.stageAttemptId, status: "running", dependencyStages: input2.dependencyStages ?? [], visibility: input2.visibility ?? "dependency-chain", startedAt: now() };
       const a = { ...draft, pinnedVersions: pinnedForAttempt(s, draft) };
       s.attempts.push(a);
-      await emit4(s, "attempt.started", `attempt:${a.stageAttemptId}`, { attemptId: a.stageAttemptId, payload: { pinnedVersions: a.pinnedVersions } });
+      await emit5(s, "attempt.started", `attempt:${a.stageAttemptId}`, { attemptId: a.stageAttemptId, payload: { pinnedVersions: a.pinnedVersions } });
       return clone(a);
     }),
     endAttempt: (id2, status) => mutate(async (s) => {
@@ -44626,7 +45577,7 @@ async function openArtifactService(options) {
         return clone(a);
       const ended = { ...a, status, endedAt: now() };
       s.attempts = s.attempts.map((x) => x.stageAttemptId === id2 ? ended : x);
-      await emit4(s, "attempt.ended", `attempt-end:${id2}:${status}`, { attemptId: id2, payload: { status } });
+      await emit5(s, "attempt.ended", `attempt-end:${id2}:${status}`, { attemptId: id2, payload: { status } });
       return clone(ended);
     }),
     observe: (id2, input2) => observeBatch(id2, [input2]).then((result2) => {
@@ -44671,7 +45622,7 @@ async function openArtifactService(options) {
         throw new Error("artifact was not observed by this attempt");
       const published = { ...v, disposition: input2.disposition ?? "deliverable", declarationStatus: "declared", ...v.publisher === void 0 ? { publisher: { workflowRunId: a.workflowRunId, stageAttemptId: id2 } } : {} };
       s.artifacts[index] = { ...record9, versions: record9.versions.map((x) => x.version === v.version ? published : x) };
-      await emit4(s, "artifact.published", `publish:${id2}:${record9.artifactId}:${v.version}`, { attemptId: id2, artifactId: record9.artifactId, version: v.version });
+      await emit5(s, "artifact.published", `publish:${id2}:${record9.artifactId}:${v.version}`, { attemptId: id2, artifactId: record9.artifactId, version: v.version });
       return clone(published);
     }),
     delete: (id2, artifactId, path15) => mutate(async (s) => {
@@ -44687,7 +45638,7 @@ async function openArtifactService(options) {
       const v = r.currentVersion ? r.versions.find((x) => x.version === r.currentVersion) : void 0;
       if (v && !v.deletedAt) {
         s.artifacts[index] = { ...r, versions: r.versions.map((x) => x.version === v.version ? { ...x, deletedAt: now() } : x) };
-        await emit4(s, "artifact.deleted", `delete:${id2}:${r.artifactId}:${v.version}`, { attemptId: id2, artifactId: r.artifactId, version: v.version, payload: { path: path15 } });
+        await emit5(s, "artifact.deleted", `delete:${id2}:${r.artifactId}:${v.version}`, { attemptId: id2, artifactId: r.artifactId, version: v.version, payload: { path: path15 } });
       }
     }),
     rename: (id2, artifactId, path15) => mutate(async (s) => {
@@ -44709,7 +45660,7 @@ async function openArtifactService(options) {
       const mapping = s.subjectMappings.find((candidate2) => candidate2.artifactId === r.artifactId);
       if (mapping && !mapping.paths.includes(safe))
         s.subjectMappings = s.subjectMappings.map((candidate2) => candidate2.subjectId === mapping.subjectId ? { ...candidate2, paths: [...candidate2.paths, safe], updatedAt: now() } : candidate2);
-      await emit4(s, "artifact.renamed", `rename:${id2}:${artifactId}:${v.version}:${safe}`, { attemptId: id2, artifactId: r.artifactId, version: v.version, payload: { path: safe, subjectId: r.subject?.subject_id } });
+      await emit5(s, "artifact.renamed", `rename:${id2}:${artifactId}:${v.version}:${safe}`, { attemptId: id2, artifactId: r.artifactId, version: v.version, payload: { path: safe, subjectId: r.subject?.subject_id } });
       return clone(renamed);
     }),
     catalog: async (id2, policy2 = {}) => {
@@ -44736,7 +45687,7 @@ async function openArtifactService(options) {
       const bounded2 = entries2.slice(cursor, cursor + pageSize);
       const truncated = cursor + bounded2.length < entries2.length;
       const nextCursor = truncated ? String(cursor + bounded2.length) : void 0;
-      const d = digest12(new TextEncoder().encode(JSON.stringify(bounded2.map((x) => [x.artifactId, x.version, x.contentDigest, x.disposition, x.quality, x.producer, x.publisher, x.consumed, x.pendingUpdate, x.affected, x.availableFromStage]))));
+      const d = digest13(new TextEncoder().encode(JSON.stringify(bounded2.map((x) => [x.artifactId, x.version, x.contentDigest, x.disposition, x.quality, x.producer, x.publisher, x.consumed, x.pendingUpdate, x.affected, x.availableFromStage]))));
       return { revision: s.revision, digest: d, stageAttemptId: id2, entries: bounded2, history: policy2.includeHistory ? bounded2 : void 0, totalEntries: entries2.length, truncated, ...nextCursor ? { nextCursor } : {} };
     },
     inspect: async (artifactId, version, options2 = {}) => {
@@ -44800,7 +45751,7 @@ async function openArtifactService(options) {
           if (!state.reads.some((r) => r.stageAttemptId === id2 && r.artifactId === artifactId && r.version === version && r.representation === representation)) {
             const receipt = { receiptId: `read:${id2}:${artifactId}:${version}:${representation}`, stageAttemptId: id2, artifactId, version, representation, readAt: now(), consumer: "execution", bytes: result2.bytes?.byteLength ?? 0 };
             state.reads.push(receipt);
-            await emit4(state, "artifact.consumed", receipt.receiptId, { attemptId: id2, artifactId, version, payload: { representation } });
+            await emit5(state, "artifact.consumed", receipt.receiptId, { attemptId: id2, artifactId, version, payload: { representation } });
           }
         });
       return result2;
@@ -44830,7 +45781,7 @@ async function openArtifactService(options) {
         if (record9)
           s.artifacts[index] = { ...record9, versions: record9.versions.map((v) => v.version === check.version ? { ...v, quality: check.status } : v) };
       }
-      await emit4(s, "artifact.checked", `check:${check.checkId}`, { artifactId: check.artifactId, version: check.version });
+      await emit5(s, "artifact.checked", `check:${check.checkId}`, { artifactId: check.artifactId, version: check.version });
     }),
     registerChecker: (checker) => {
       checkers.set(checker.id, checker);
@@ -45035,7 +45986,7 @@ function codexOnlyProcessEnv(...layers) {
   }
   return result2;
 }
-var nodeCodexTriageExec = (file, args, options) => new Promise((resolve65) => {
+var nodeCodexTriageExec = (file, args, options) => new Promise((resolve67) => {
   const detached = process.platform !== "win32";
   const child = spawn(file, args, {
     cwd: options.cwd,
@@ -45055,7 +46006,7 @@ var nodeCodexTriageExec = (file, args, options) => new Promise((resolve65) => {
     options.signal.removeEventListener("abort", onAbort);
     if (forceKillTimer !== void 0)
       clearTimeout(forceKillTimer);
-    resolve65(result2);
+    resolve67(result2);
   };
   const killProcessTree = (signal) => {
     if (detached && child.pid !== void 0) {
@@ -45157,7 +46108,7 @@ function abortReason(signal) {
 function awaitExecWithAbort(execution, signal) {
   if (signal.aborted)
     return Promise.reject(abortReason(signal));
-  return new Promise((resolve65, reject5) => {
+  return new Promise((resolve67, reject5) => {
     let settled = false;
     const finish2 = (complete) => {
       if (settled)
@@ -45168,7 +46119,7 @@ function awaitExecWithAbort(execution, signal) {
     };
     const onAbort = () => finish2(() => reject5(abortReason(signal)));
     signal.addEventListener("abort", onAbort, { once: true });
-    execution.then((result2) => finish2(() => resolve65(result2)), (error2) => finish2(() => reject5(error2)));
+    execution.then((result2) => finish2(() => resolve67(result2)), (error2) => finish2(() => reject5(error2)));
   });
 }
 function createCodexTriageProvider(options = {}) {
@@ -45293,7 +46244,7 @@ import { createHash as createHash33 } from "node:crypto";
 import { execFile as execFile4, spawn as spawn2 } from "node:child_process";
 import { createInterface } from "node:readline";
 var mergedEnv = (env) => env ? { ...process.env, ...env } : process.env;
-var spawnStreaming = (file, args, opts) => new Promise((resolve65) => {
+var spawnStreaming = (file, args, opts) => new Promise((resolve67) => {
   const maxTail = opts.maxTailChars ?? MAX_TAIL_CHARS;
   const proc = spawn2(file, args, {
     cwd: opts.cwd,
@@ -45326,19 +46277,19 @@ var spawnStreaming = (file, args, opts) => new Promise((resolve65) => {
   }
   proc.on("error", (err) => {
     stderrTail.push(String(err.message ?? err));
-    resolve65({ stdout: stdoutTail.toString(), stderr: stderrTail.toString(), exitCode: 127 });
+    resolve67({ stdout: stdoutTail.toString(), stderr: stderrTail.toString(), exitCode: 127 });
   });
   proc.on("close", (code) => {
-    resolve65({ stdout: stdoutTail.toString(), stderr: stderrTail.toString(), exitCode: code ?? 0 });
+    resolve67({ stdout: stdoutTail.toString(), stderr: stderrTail.toString(), exitCode: code ?? 0 });
   });
 });
 var nodeExec = (file, args, opts) => {
   if (opts?.onLine || opts?.input !== void 0)
     return spawnStreaming(file, args, opts);
-  return new Promise((resolve65) => {
+  return new Promise((resolve67) => {
     execFile4(file, args, { cwd: opts?.cwd, env: mergedEnv(opts?.env), maxBuffer: 64 * 1024 * 1024, encoding: "utf-8" }, (error2, stdout, stderr) => {
       const code = error2 && typeof error2.code === "number" ? error2.code : error2 ? 1 : 0;
-      resolve65({ stdout: String(stdout), stderr: String(stderr), exitCode: code });
+      resolve67({ stdout: String(stdout), stderr: String(stderr), exitCode: code });
     });
   });
 };
@@ -45489,11 +46440,11 @@ function createGitCommitsConnector(options) {
       "--end-of-options",
       sha
     ], signal);
-    const fields = withoutOneTrailingLf(metadata.stdout).split("\0");
-    if (fields.length !== 4) {
+    const fields2 = withoutOneTrailingLf(metadata.stdout).split("\0");
+    if (fields2.length !== 4) {
       throw new Error(`git show ${sha}: malformed metadata record`);
     }
-    const [reportedSha, parentText, gitOccurredAt, subject2] = fields;
+    const [reportedSha, parentText, gitOccurredAt, subject2] = fields2;
     if (reportedSha !== sha) {
       throw new Error(`git show ${sha}: returned mismatched canonical sha ${JSON.stringify(reportedSha)}`);
     }
@@ -45830,7 +46781,7 @@ function isRecursivelyFrozen(value, seen = /* @__PURE__ */ new WeakSet()) {
 function unexpectedOwnKeys(value, allowed) {
   return Reflect.ownKeys(value).filter((key) => typeof key !== "string" || !allowed.has(key)).map((key) => typeof key === "symbol" ? key.toString() : key);
 }
-function isRecord11(value) {
+function isRecord12(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 var SAFE_ID_RE7 = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
@@ -45853,7 +46804,7 @@ function requiredString(object9, key, path15, issues, kind = "text") {
 }
 function validateEnvelope(input2) {
   const issues = [];
-  if (!isRecord11(input2)) {
+  if (!isRecord12(input2)) {
     throw new WorkflowRunMaterializationError(["triageResult: expected an object"]);
   }
   const extras = unexpectedOwnKeys(input2, /* @__PURE__ */ new Set(["schemaVersion", "page", "decisions", "provider"]));
@@ -45866,7 +46817,7 @@ function validateEnvelope(input2) {
     issues.push(...pageValidation.errors.map((error2) => `triageResult.${error2}`));
   if (!Array.isArray(input2.decisions))
     issues.push("triageResult.decisions: expected an array");
-  if (!isRecord11(input2.provider)) {
+  if (!isRecord12(input2.provider)) {
     issues.push("triageResult.provider: expected an object");
   } else {
     const providerExtras = unexpectedOwnKeys(input2.provider, /* @__PURE__ */ new Set(["kind", "model", "invocationId"]));
@@ -45893,8 +46844,8 @@ function idempotencyKeyFor(source, actionIdentity) {
     source.observationId,
     actionIdentity
   ]);
-  const digest18 = createHash35("sha256").update(canonical2, "utf8").digest("hex");
-  return `triage-workflow-run:v1:${digest18}`;
+  const digest19 = createHash35("sha256").update(canonical2, "utf8").digest("hex");
+  return `triage-workflow-run:v1:${digest19}`;
 }
 function sameCreateRequest(left, right) {
   return left.schemaVersion === right.schemaVersion && left.kind === right.kind && left.idempotencyKey === right.idempotencyKey && left.source.sourceId === right.source.sourceId && left.source.actionKind === right.source.actionKind && left.source.observationId === right.source.observationId && left.actionIdentity === right.actionIdentity && left.candidateId === right.candidateId && left.changeName === right.changeName && left.routeId === right.routeId && left.workflowId === right.workflowId && left.initialStep === right.initialStep;
@@ -45915,7 +46866,7 @@ function createWorkflowRunMaterializer(deps) {
       const classificationByObservationId = /* @__PURE__ */ new Map();
       const issues = [];
       for (const [index, rawDecision] of decisions.entries()) {
-        if (!isRecord11(rawDecision)) {
+        if (!isRecord12(rawDecision)) {
           issues.push(`triageResult.decisions[${index}]: expected an object`);
           continue;
         }
@@ -45954,19 +46905,19 @@ function createWorkflowRunMaterializer(deps) {
         if (classification !== "high")
           continue;
         const routeId = requiredString(rawDecision, "routeId", path15, issues, "safe-id");
-        if (!isRecord11(rawDecision.candidate)) {
+        if (!isRecord12(rawDecision.candidate)) {
           issues.push(`${path15}.candidate: expected a host-owned object`);
           continue;
         }
         const candidate2 = rawDecision.candidate;
         const candidateExtras = unexpectedOwnKeys(candidate2, /* @__PURE__ */ new Set(["candidateId", "creationKey", "changeName", "route"]));
-        if (!isRecord11(candidate2.route)) {
+        if (!isRecord12(candidate2.route)) {
           issues.push(`${path15}.candidate.route: expected a host-owned object`);
           continue;
         }
         const route = candidate2.route;
         const routeExtras = unexpectedOwnKeys(route, /* @__PURE__ */ new Set(["routeId", "description", "resolved"]));
-        if (!isRecord11(route.resolved)) {
+        if (!isRecord12(route.resolved)) {
           issues.push(`${path15}.candidate.route.resolved: expected a host-owned object`);
           continue;
         }
@@ -46087,7 +47038,7 @@ var WorkflowRunCreateConflictError = class extends Error {
     this.observedInitialStep = details.observedInitialStep;
   }
 };
-function isRecord12(value) {
+function isRecord13(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function unexpectedKeys(value, allowed) {
@@ -46110,11 +47061,11 @@ function validateString(value, path15, issues, kind = "safe-id") {
 }
 function snapshotRequest(input2) {
   try {
-    if (!isRecord12(input2))
+    if (!isRecord13(input2))
       throw new WorkflowRunCreateRequestError(["request: expected an object"]);
     const topExtras = unexpectedKeys(input2, TOP_LEVEL_KEYS2);
     const sourceInput = input2.source;
-    const sourceIsRecord = isRecord12(sourceInput);
+    const sourceIsRecord = isRecord13(sourceInput);
     const sourceExtras = sourceIsRecord ? unexpectedKeys(sourceInput, SOURCE_KEYS) : [];
     const schemaVersion = input2.schemaVersion;
     const kind = input2.kind;
@@ -46217,11 +47168,11 @@ function assertExistingIdentity(changeDir7, expectedRunId, request2, observed) {
     observedInitialStep: observed.initialStep
   });
 }
-function assertEstablishedRun(changeDir7, expectedRunId, request2, run5) {
+function assertEstablishedRun(changeDir7, expectedRunId, request2, run6) {
   assertExistingIdentity(changeDir7, expectedRunId, request2, {
-    runId: run5.id,
-    workflowId: run5.workflowId,
-    initialStep: run5.currentStep
+    runId: run6.id,
+    workflowId: run6.workflowId,
+    initialStep: run6.currentStep
   });
 }
 function runFromValidatedState(state) {
@@ -46324,11 +47275,11 @@ function createWorkflowRunCreateIfAbsentRepository(deps) {
         }
         return { status: "created", run: created.run };
       }
-      const run5 = await readExisting();
-      if (run5 === void 0) {
+      const run6 = await readExisting();
+      if (run6 === void 0) {
         throw new Error(`WorkflowRun init reported EEXIST but no committed Change exists: ${changeDir7}`);
       }
-      return { status: "existing", run: run5 };
+      return { status: "existing", run: run6 };
     }
   };
 }
@@ -46429,10 +47380,10 @@ async function withAbortableWait(slot, signal, work) {
     void lock.then((value) => settle("resolve", value), (error2) => settle("reject", error2));
   });
 }
-function parseDurableRecord(text12, key) {
+function parseDurableRecord(text13, key) {
   let input2;
   try {
-    input2 = JSON.parse(text12);
+    input2 = JSON.parse(text13);
   } catch (error2) {
     throw new TriageCheckpointStoreError("corrupt", `triage checkpoint file is not valid JSON: ${safeErrorText3(error2)}`, { cause: error2 });
   }
@@ -46460,15 +47411,15 @@ function parseDurableRecord(text12, key) {
   });
 }
 async function readPath(file, key) {
-  let text12;
+  let text13;
   try {
-    text12 = await readFile52(file, "utf8");
+    text13 = await readFile52(file, "utf8");
   } catch (error2) {
     if (isEnoent(error2))
       return emptySnapshot(key);
     throw new TriageCheckpointStoreError("io", `triage checkpoint read failed: ${safeErrorText3(error2)}`, { cause: error2 });
   }
-  return parseDurableRecord(text12, key);
+  return parseDurableRecord(text13, key);
 }
 var encodeRecord = (key, revision, checkpoint) => `${JSON.stringify({
   schemaVersion: 1,
@@ -46617,7 +47568,7 @@ function assertNonNegativeSafeInteger(value, name2) {
   }
 }
 function deriveStableTriageCandidateIdentity(input2) {
-  const digest18 = createHash38("sha256").update(JSON.stringify([
+  const digest19 = createHash38("sha256").update(JSON.stringify([
     1,
     "triage-workflow-run",
     input2.observation.sourceId,
@@ -46625,9 +47576,9 @@ function deriveStableTriageCandidateIdentity(input2) {
     input2.observation.observationId
   ]), "utf8").digest("hex");
   return Object.freeze({
-    candidateId: `triage-candidate:${digest18}`,
-    creationKey: `triage-create:${digest18}`,
-    changeName: `triage_${digest18.slice(0, 32)}`
+    candidateId: `triage-candidate:${digest19}`,
+    creationKey: `triage-create:${digest19}`,
+    changeName: `triage_${digest19.slice(0, 32)}`
   });
 }
 function providerRequestFor(page, routes, maxHighCandidates) {
@@ -46729,10 +47680,10 @@ function assertNotAborted(signal, state, failedPageCheckpoint = null) {
 }
 
 // packages/automation/dist/triage/orchestrator-run.js
-async function commitCheckpoint(run5, key, state, target) {
+async function commitCheckpoint(run6, key, state, target) {
   let writeError;
   try {
-    const won = await run5.checkpointCompareAndSet(key, state.checkpoint.revision, target);
+    const won = await run6.checkpointCompareAndSet(key, state.checkpoint.revision, target);
     if (won) {
       return {
         kind: "committed",
@@ -46748,7 +47699,7 @@ async function commitCheckpoint(run5, key, state, target) {
   }
   let observed;
   try {
-    observed = await run5.checkpointRead(key);
+    observed = await run6.checkpointRead(key);
   } catch (readError) {
     throw orchestrationFailure("checkpoint-write-failed", `triage checkpoint commit/readback failed: ${safeErrorText4(writeError ?? readError)}`, state, {
       failedPageCheckpoint: target,
@@ -46774,10 +47725,10 @@ async function commitCheckpoint(run5, key, state, target) {
     durableCheckpoint: observed.checkpoint
   });
 }
-async function runLocked(run5, key) {
+async function runLocked(run6, key) {
   let checkpoint;
   try {
-    checkpoint = await run5.checkpointRead(key);
+    checkpoint = await run6.checkpointRead(key);
   } catch (error2) {
     const state2 = {
       pagesCommitted: 0,
@@ -46793,50 +47744,50 @@ async function runLocked(run5, key) {
     materializationsCompleted: [],
     checkpoint
   };
-  assertNotAborted(run5.signal, state);
+  assertNotAborted(run6.signal, state);
   let hasMore = false;
   let lastCommit = "committed";
-  while (state.pagesCommitted < run5.maxPages) {
-    assertNotAborted(run5.signal, state);
+  while (state.pagesCommitted < run6.maxPages) {
+    assertNotAborted(run6.signal, state);
     let rawPage;
     try {
-      rawPage = await run5.observe({
-        action: run5.action,
+      rawPage = await run6.observe({
+        action: run6.action,
         checkpoint: state.checkpoint.checkpoint,
-        limit: run5.pageSize,
-        signal: run5.signal
+        limit: run6.pageSize,
+        signal: run6.signal
       });
     } catch (error2) {
-      if (run5.signal.aborted)
-        assertNotAborted(run5.signal, state);
+      if (run6.signal.aborted)
+        assertNotAborted(run6.signal, state);
       throw orchestrationFailure("observe-failed", `triage source observe failed: ${safeErrorText4(error2)}`, state, { retryable: true }, [], error2);
     }
-    assertNotAborted(run5.signal, state);
+    assertNotAborted(run6.signal, state);
     const pageValidation = validateObservationPage(rawPage);
     if (!pageValidation.ok) {
       throw orchestrationFailure("page-invalid", "source connector returned an invalid observation page", state, { retryable: false }, pageValidation.errors);
     }
     const page = pageValidation.value;
-    if (!pageBoundToAction(page, run5.action)) {
+    if (!pageBoundToAction(page, run6.action)) {
       throw orchestrationFailure("page-binding-mismatch", "source connector returned a page for another source or action", state, { failedPageCheckpoint: page.nextCheckpoint, retryable: false });
     }
     if (page.hasMore && sameCheckpoint(state.checkpoint.checkpoint, page.nextCheckpoint)) {
       throw orchestrationFailure("checkpoint-not-progressing", "source connector reported hasMore without advancing its checkpoint", state, { failedPageCheckpoint: page.nextCheckpoint, retryable: false });
     }
-    const request2 = providerRequestFor(page, run5.routes, run5.maxHighCandidates);
-    assertNotAborted(run5.signal, state, page.nextCheckpoint);
+    const request2 = providerRequestFor(page, run6.routes, run6.maxHighCandidates);
+    assertNotAborted(run6.signal, state, page.nextCheckpoint);
     let rawInvocation;
     try {
-      rawInvocation = await run5.classify(request2, run5.signal);
+      rawInvocation = await run6.classify(request2, run6.signal);
     } catch (error2) {
-      if (run5.signal.aborted)
-        assertNotAborted(run5.signal, state, page.nextCheckpoint);
+      if (run6.signal.aborted)
+        assertNotAborted(run6.signal, state, page.nextCheckpoint);
       throw orchestrationFailure("provider-failed", `triage provider failed: ${safeErrorText4(error2)}`, state, { failedPageCheckpoint: page.nextCheckpoint, retryable: true }, [], error2);
     }
-    assertNotAborted(run5.signal, state, page.nextCheckpoint);
+    assertNotAborted(run6.signal, state, page.nextCheckpoint);
     let invocation;
     try {
-      invocation = snapshotInvocation(rawInvocation, run5.providerKind);
+      invocation = snapshotInvocation(rawInvocation, run6.providerKind);
     } catch (error2) {
       if (error2 instanceof TriageOrchestrationError) {
         throw orchestrationFailure(error2.reason, error2.message, state, { failedPageCheckpoint: page.nextCheckpoint, retryable: false }, error2.issues, error2);
@@ -46845,8 +47796,8 @@ async function runLocked(run5, key) {
     }
     const canonical2 = canonicalizeTriageResult(invocation.output, {
       page,
-      routes: run5.routes,
-      trustedHighCap: run5.maxHighCandidates,
+      routes: run6.routes,
+      trustedHighCap: run6.maxHighCandidates,
       provider: invocation.provenance,
       deriveCandidate: deriveStableTriageCandidateIdentity
     });
@@ -46855,30 +47806,30 @@ async function runLocked(run5, key) {
     }
     const units = materializationUnits(canonical2.value);
     for (const unit of units) {
-      assertNotAborted(run5.signal, state, page.nextCheckpoint);
+      assertNotAborted(run6.signal, state, page.nextCheckpoint);
       let created;
       try {
-        created = await run5.materialize(unit);
+        created = await run6.materialize(unit);
       } catch (error2) {
-        if (run5.signal.aborted)
-          assertNotAborted(run5.signal, state, page.nextCheckpoint);
+        if (run6.signal.aborted)
+          assertNotAborted(run6.signal, state, page.nextCheckpoint);
         throw orchestrationFailure("materialization-failed", `triage materialization failed: ${safeErrorText4(error2)}`, state, { failedPageCheckpoint: page.nextCheckpoint, retryable: true }, [], error2);
       }
       if (!Array.isArray(created)) {
         throw orchestrationFailure("materialization-failed", "triage materializer returned a non-array result", state, { failedPageCheckpoint: page.nextCheckpoint, retryable: false });
       }
       state.materializationsCompleted.push(...created);
-      assertNotAborted(run5.signal, state, page.nextCheckpoint);
+      assertNotAborted(run6.signal, state, page.nextCheckpoint);
     }
-    assertNotAborted(run5.signal, state, page.nextCheckpoint);
-    const committed = await commitCheckpoint(run5, key, state, page.nextCheckpoint);
+    assertNotAborted(run6.signal, state, page.nextCheckpoint);
+    const committed = await commitCheckpoint(run6, key, state, page.nextCheckpoint);
     state.checkpoint = committed.snapshot;
     state.pagesCommitted += 1;
     state.observationsCommitted += page.observations.length;
     lastCommit = committed.kind;
     hasMore = page.hasMore;
-    if (run5.signal.aborted) {
-      const reason3 = run5.signal.reason;
+    if (run6.signal.aborted) {
+      const reason3 = run6.signal.reason;
       throw new TriageOrchestrationError("aborted", `triage aborted after committed page: ${safeErrorText4(reason3)}`, [], progressFor(state, {
         checkpointCommit: committed.kind,
         retryable: true
@@ -46897,24 +47848,24 @@ async function runLocked(run5, key) {
     checkpoint: state.checkpoint.checkpoint,
     checkpointCommit: lastCommit,
     hasMore,
-    limitReached: hasMore && state.pagesCommitted === run5.maxPages
+    limitReached: hasMore && state.pagesCommitted === run6.maxPages
   });
 }
 async function runTriage(input2) {
-  const run5 = snapshotOptions(input2);
-  assertPositiveSafeInteger(run5.pageSize, "pageSize");
-  assertPositiveSafeInteger(run5.maxPages, "maxPages");
-  assertNonNegativeSafeInteger(run5.maxHighCandidates, "maxHighCandidates");
-  const actionValidation = validateObserveAction(run5.action);
+  const run6 = snapshotOptions(input2);
+  assertPositiveSafeInteger(run6.pageSize, "pageSize");
+  assertPositiveSafeInteger(run6.maxPages, "maxPages");
+  assertNonNegativeSafeInteger(run6.maxHighCandidates, "maxHighCandidates");
+  const actionValidation = validateObserveAction(run6.action);
   if (!actionValidation.ok) {
     throw new TriageOrchestrationError("invalid-options", "triage action failed validation", actionValidation.errors);
   }
-  const routeValidation = validateTriageRoutes(run5.routes);
+  const routeValidation = validateTriageRoutes(run6.routes);
   if (!routeValidation.ok) {
     throw new TriageOrchestrationError("invalid-options", "triage routes failed validation", routeValidation.errors);
   }
   const canonicalRun = Object.freeze({
-    ...run5,
+    ...run6,
     action: actionValidation.value,
     routes: routeValidation.value
   });
@@ -46981,9 +47932,9 @@ async function setAutomationOwned(store2, changeDir7, next) {
     return true;
   return store2.cas(changeDir7, "automation", "scheduled", next);
 }
-function setAutomationOwnedWithFields(store2, changeDir7, next, fields) {
+function setAutomationOwnedWithFields(store2, changeDir7, next, fields2) {
   return store2.casMany(changeDir7, "automation", DAEMON_OWNED, {
-    ...fields,
+    ...fields2,
     automation: next
   });
 }
@@ -47130,7 +48081,7 @@ var createSemaphore = (maxParallel) => {
       running++;
       return Promise.resolve();
     }
-    return new Promise((resolve65) => queue.push(resolve65));
+    return new Promise((resolve67) => queue.push(resolve67));
   };
   const release2 = () => {
     if (running <= 0)
@@ -47691,7 +48642,7 @@ function createSchedulerExecution(input2) {
   const { scheduler: deps, semaphore, inFlight, abortControllers, shutdownCompletions, activeSkillInvocations, validateExecutionWiring, outcomes, applyDenial, tryLedger, settleTerminal } = input2;
   const { state, runChange, config, admission } = deps;
   const observer = deps.observer;
-  const { applyFailure, emit: emit4, emitTerminal, handleActivationFailure, handlePreparationFailure, handlePreparationThrow, settlementFor, tryResetScheduledToQueued, writeBackSuccess } = outcomes;
+  const { applyFailure, emit: emit5, emitTerminal, handleActivationFailure, handlePreparationFailure, handlePreparationThrow, settlementFor, tryResetScheduledToQueued, writeBackSuccess } = outcomes;
   const handleOne = async (name2, report2, preparation, expectedLoopId, expectedAutonomyLevel, authorityClaim) => {
     await semaphore.acquire();
     let phase = "admission";
@@ -47814,7 +48765,7 @@ function createSchedulerExecution(input2) {
           skillBundleSnapshotSha256: preparedCtx.preparedKind === "loop-bundle" ? preparedCtx.skillBundle.snapshotSha256 : void 0
         }));
         report2.entries.push({ change: name2, loopId: preparedCtx.loop_id, disposition: "settled", result: "paused", reason: "kill-switch" });
-        emit4(name2, "paused");
+        emit5(name2, "paused");
         return { ok: true, change: name2 };
       }
       phase = "state-transition";
@@ -47856,13 +48807,13 @@ function createSchedulerExecution(input2) {
         report2.entries.push({ change: name2, loopId: preparedCtx.loop_id, disposition: "activation-failed", reason: "ownership-lost" });
         return { ok: false, change: name2, failure: failure3 };
       }
-      emit4(name2, "running");
+      emit5(name2, "running");
       inFlight.add(name2);
       const controller = new AbortController();
       abortControllers.set(name2, controller);
       let resolveShutdownCompletion;
-      const shutdownCompletion = new Promise((resolve65) => {
-        resolveShutdownCompletion = resolve65;
+      const shutdownCompletion = new Promise((resolve67) => {
+        resolveShutdownCompletion = resolve67;
       });
       shutdownCompletions.set(name2, { promise: shutdownCompletion, resolve: () => resolveShutdownCompletion?.() });
       let executedOutcome;
@@ -48000,7 +48951,7 @@ function createSchedulerExecution(input2) {
 function createSchedulerOutcomes(deps, tryLedger) {
   const { state, admission, config } = deps;
   const observer = deps.observer;
-  const emit4 = (name2, s, extra) => {
+  const emit5 = (name2, s, extra) => {
     if (!observer)
       return;
     try {
@@ -48008,9 +48959,9 @@ function createSchedulerOutcomes(deps, tryLedger) {
     } catch {
     }
   };
-  const commitOwnedTerminal = async (name2, target, fields) => {
+  const commitOwnedTerminal = async (name2, target, fields2) => {
     try {
-      if (await state.setAutomationOwnedWithFields(name2, target, fields)) {
+      if (await state.setAutomationOwnedWithFields(name2, target, fields2)) {
         return { status: "committed", terminal: target };
       }
       try {
@@ -48060,17 +49011,17 @@ function createSchedulerOutcomes(deps, tryLedger) {
   };
   const applyFailure = async (name2, err, c = classifyFailure(err)) => {
     const lastError = sanitize(c.message);
-    const fields = {
+    const fields2 = {
       automation_last_error: lastError,
       automation_cause: c.cause
     };
     if (c.preservedPath)
-      fields.automation_preserved_path = sanitizePath(c.preservedPath);
+      fields2.automation_preserved_path = sanitizePath(c.preservedPath);
     try {
       const result2 = await state.commitFailureOwned(name2, {
         classification: c.kind,
         maxRetries: config.maxRetries,
-        fields
+        fields: fields2
       });
       if (result2.status === "committed")
         return { status: "committed", terminal: result2.automation };
@@ -48083,7 +49034,7 @@ function createSchedulerOutcomes(deps, tryLedger) {
   const emitTerminal = (name2, settled) => {
     if (settled === "skipped")
       return;
-    emit4(name2, settled);
+    emit5(name2, settled);
   };
   const settlementFor = (ctx, settled, opts) => {
     const result2 = terminalToRunResult(settled);
@@ -48184,7 +49135,7 @@ function createSchedulerOutcomes(deps, tryLedger) {
       report2.pausePending.push(ctx.loop_id);
     report2.entries.push({ change: name2, loopId: ctx.loop_id, disposition: "settled", result: target, reason: prep.reason });
     if (policy2.result === "paused")
-      emit4(name2, "paused");
+      emit5(name2, "paused");
     return { ok: true, change: name2 };
   };
   const handlePreparationThrow = async (report2, name2, ctx, error2) => {
@@ -48229,7 +49180,7 @@ function createSchedulerOutcomes(deps, tryLedger) {
   return {
     applyFailure,
     commitOwnedTerminal,
-    emit: emit4,
+    emit: emit5,
     emitTerminal,
     handleActivationFailure,
     handlePreparationFailure,
@@ -48464,16 +49415,16 @@ function terminalToResult(automation) {
 }
 function attemptContextFor(records, loopId, change) {
   const runs = records.filter((record9) => record9.kind === "run" && record9.loop_id === loopId && record9.change === change);
-  const built = buildAttemptContext(runs.map((run5) => ({
-    attempt_id: run5.attempt_id,
-    loop_id: run5.loop_id,
-    change: run5.change,
-    result: run5.result,
-    recorded_at: run5.finished_at,
-    ...(run5.error?.message ?? (run5.reason === void 0 || run5.reason === "completed" ? void 0 : run5.reason)) === void 0 ? {} : { detail: run5.error?.message ?? run5.reason }
+  const built = buildAttemptContext(runs.map((run6) => ({
+    attempt_id: run6.attempt_id,
+    loop_id: run6.loop_id,
+    change: run6.change,
+    result: run6.result,
+    recorded_at: run6.finished_at,
+    ...(run6.error?.message ?? (run6.reason === void 0 || run6.reason === "completed" ? void 0 : run6.reason)) === void 0 ? {} : { detail: run6.error?.message ?? run6.reason }
   })), { tail: 3, maxChars: 6e3, stagnationThreshold: 3 });
   return {
-    source_run_record_ids: runs.map((run5) => run5.run_record_id),
+    source_run_record_ids: runs.map((run6) => run6.run_record_id),
     omitted_attempt_ids: [...built.omittedAttemptIds],
     rendered: built.rendered,
     stagnation: {
@@ -48493,13 +49444,13 @@ var CONTRACT_KEYS = Object.freeze([
   "grants"
 ]);
 var ACTIONS2 = new Set(WORKFLOW_ACTIONS);
-function isRecord13(value) {
+function isRecord14(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function parseSkillActionAuthorityContract(raw, expected) {
   if (raw === void 0 || raw === null)
     return { status: "missing", grants: [] };
-  if (!isRecord13(raw))
+  if (!isRecord14(raw))
     return { status: "malformed", grants: [] };
   const keys = Object.keys(raw).sort();
   if (keys.length !== CONTRACT_KEYS.length || !CONTRACT_KEYS.every((key) => keys.includes(key))) {
@@ -48958,14 +49909,14 @@ var WorkflowActionAuthorityResolutionError = class extends Error {
     this.authorityError = authorityError;
   }
 };
-function afkLayersAgainstBoundRun(run5, dynamic) {
+function afkLayersAgainstBoundRun(run6, dynamic) {
   const missing3 = unavailableLayer("missing");
   let interactionMode = "interactive";
   let workflow = missing3;
-  if (run5.workflowPlanSnapshot !== void 0) {
+  if (run6.workflowPlanSnapshot !== void 0) {
     try {
-      const frozenPlan = effectiveWorkflowPlanFromSnapshot(run5.workflowPlanSnapshot);
-      if (run5.workflowPlanFingerprint !== frozenPlan.workflowFingerprint || run5.workflowId !== frozenPlan.id) {
+      const frozenPlan = effectiveWorkflowPlanFromSnapshot(run6.workflowPlanSnapshot);
+      if (run6.workflowPlanFingerprint !== frozenPlan.workflowFingerprint || run6.workflowId !== frozenPlan.id) {
         workflow = { status: "fingerprint-mismatch", grants: [] };
       } else {
         interactionMode = frozenPlan.workflow.interaction.mode;
@@ -48986,8 +49937,8 @@ function afkLayersAgainstBoundRun(run5, dynamic) {
     }
   };
 }
-function evaluateAfkAgainstBoundRun(run5, dynamic) {
-  return evaluateAfkWorkflowAdmission(afkLayersAgainstBoundRun(run5, dynamic));
+function evaluateAfkAgainstBoundRun(run6, dynamic) {
+  return evaluateAfkWorkflowAdmission(afkLayersAgainstBoundRun(run6, dynamic));
 }
 var missingDynamicAuthority = () => {
   const missing3 = unavailableLayer("missing");
@@ -49054,29 +50005,29 @@ async function bindAfkWorkflowRun(input2) {
   const iterationId = input2.context.iteration_id;
   if (iterationId === void 0)
     throw new Error("loop admission produced no iteration identity");
-  const run5 = await input2.bindAutomationPolicy(input2.change, policy2, {
+  const run6 = await input2.bindAutomationPolicy(input2.change, policy2, {
     loopId: input2.context.loop_id,
     iterationId
   });
-  if (run5.automationPolicy?.policy_version !== policy2.policy_version) {
+  if (run6.automationPolicy?.policy_version !== policy2.policy_version) {
     throw new Error("WorkflowRun did not persist the admitted AutomationPolicy snapshot");
   }
-  if (run5.loopId !== input2.context.loop_id || run5.iterationId !== iterationId) {
+  if (run6.loopId !== input2.context.loop_id || run6.iterationId !== iterationId) {
     throw new Error("WorkflowRun did not persist the admitted loop/iteration identity");
   }
-  return run5;
+  return run6;
 }
 async function bindAndEvaluateAfkWorkflowRun(input2) {
-  const run5 = await bindAfkWorkflowRun(input2);
-  const boundContext = Object.freeze({ ...input2.context, workflow_run_id: run5.id });
+  const run6 = await bindAfkWorkflowRun(input2);
+  const boundContext = Object.freeze({ ...input2.context, workflow_run_id: run6.id });
   const authorityLock = input2.withWorkflowActionAuthorityLock;
   const authorityResolver = input2.workflowActionAuthority;
   const bindAuthority = input2.bindWorkflowActionAuthority;
   if (authorityLock === void 0 || authorityResolver === void 0 || bindAuthority === void 0) {
     return {
       context: boundContext,
-      run: run5,
-      authorization: evaluateAfkAgainstBoundRun(run5, missingDynamicAuthority())
+      run: run6,
+      authorization: evaluateAfkAgainstBoundRun(run6, missingDynamicAuthority())
     };
   }
   let evaluated;
@@ -49085,7 +50036,7 @@ async function bindAndEvaluateAfkWorkflowRun(input2) {
       const result2 = await evaluateBoundAfkWorkflowAdmission({
         change: input2.change,
         context: boundContext,
-        run: run5,
+        run: run6,
         registry,
         workflowActionAuthority: authorityResolver
       });
@@ -49103,7 +50054,7 @@ async function bindAndEvaluateAfkWorkflowRun(input2) {
     throw new WorkflowActionAuthorityResolutionError(error2);
   }
   const context = evaluated.binding === void 0 ? boundContext : Object.freeze({ ...boundContext, workflow_action_authority: evaluated.binding });
-  return { context, run: run5, authorization: evaluated.authorization };
+  return { context, run: run6, authorization: evaluated.authorization };
 }
 async function claimWithFreshAfkWorkflowAuthority(input2) {
   const expected = input2.context.workflow_action_authority;
@@ -49121,9 +50072,9 @@ async function claimWithFreshAfkWorkflowAuthority(input2) {
       closeRecord: input2.closeRecord
     });
   }
-  let run5;
+  let run6;
   try {
-    run5 = await bindAfkWorkflowRun({
+    run6 = await bindAfkWorkflowRun({
       change: input2.context.change,
       context: input2.context,
       bindAutomationPolicy
@@ -49144,7 +50095,7 @@ async function claimWithFreshAfkWorkflowAuthority(input2) {
       const evaluated = await evaluateBoundAfkWorkflowAdmission({
         change: input2.context.change,
         context: input2.context,
-        run: run5,
+        run: run6,
         registry,
         workflowActionAuthority: authorityResolver,
         expectedAuthority: expected
@@ -49177,7 +50128,7 @@ async function claimWithFreshAfkWorkflowAuthority(input2) {
     return closeWorkflowAuthorizationDenial({
       context: input2.context,
       authorization: fresh.authorization,
-      workflowRunId: run5.id,
+      workflowRunId: run6.id,
       clock: input2.clock,
       close: input2.close,
       closeRecord: input2.closeRecord
@@ -49379,7 +50330,7 @@ function createLoopAdmission(deps) {
         });
       }
       try {
-        const { context, run: run5, authorization } = await bindAndEvaluateAfkWorkflowRun({
+        const { context, run: run6, authorization } = await bindAndEvaluateAfkWorkflowRun({
           change,
           context: outcome.context,
           bindAutomationPolicy,
@@ -49392,7 +50343,7 @@ function createLoopAdmission(deps) {
         return closeWorkflowAuthorizationDenial({
           context,
           authorization,
-          workflowRunId: run5.id,
+          workflowRunId: run6.id,
           clock,
           close,
           closeRecord
@@ -49934,7 +50885,7 @@ async function materializeOneSkillWithStabilityCheck(skillId, sourceDir2, destDi
 function skillSnapshotCasRoot(projectRoot) {
   return join74(projectRoot, ".pipeline", "loops", "skill-snapshots");
 }
-async function listRegularFilesRecursiveOrThrow(dir, digest18) {
+async function listRegularFilesRecursiveOrThrow(dir, digest19) {
   const out = [];
   const walk2 = async (rel) => {
     const abs2 = join74(dir, rel);
@@ -49942,7 +50893,7 @@ async function listRegularFilesRecursiveOrThrow(dir, digest18) {
     try {
       dirents = await readdir20(abs2, { withFileTypes: true });
     } catch (e) {
-      throw new SkillSnapshotIoError(`CAS \u76EE\u5F55\u8BFB\u53D6\u5931\u8D25\uFF08digest ${digest18}\uFF09\uFF1A${e.message}`);
+      throw new SkillSnapshotIoError(`CAS \u76EE\u5F55\u8BFB\u53D6\u5931\u8D25\uFF08digest ${digest19}\uFF09\uFF1A${e.message}`);
     }
     for (const d of dirents) {
       const childRel = rel ? `${rel}/${d.name}` : d.name;
@@ -49951,14 +50902,14 @@ async function listRegularFilesRecursiveOrThrow(dir, digest18) {
       try {
         lst = await lstat42(childAbs);
       } catch (e) {
-        throw new SkillSnapshotIoError(`CAS \u76EE\u5F55\u6761\u76EE\u8BFB\u53D6\u5931\u8D25\uFF08digest ${digest18}\uFF0C\u8DEF\u5F84 ${childRel}\uFF09\uFF1A${e.message}`);
+        throw new SkillSnapshotIoError(`CAS \u76EE\u5F55\u6761\u76EE\u8BFB\u53D6\u5931\u8D25\uFF08digest ${digest19}\uFF0C\u8DEF\u5F84 ${childRel}\uFF09\uFF1A${e.message}`);
       }
       if (lst.isDirectory()) {
         await walk2(childRel);
       } else if (lst.isFile()) {
         out.push(childRel);
       } else {
-        throw new SkillSnapshotCorruptError(`CAS \u76EE\u5F55\uFF08digest ${digest18}\uFF09\u5185 '${childRel}' \u4E0D\u662F\u666E\u901A\u6587\u4EF6\u6216\u76EE\u5F55\uFF08\u53EF\u80FD\u662F symlink/\u8BBE\u5907\u6587\u4EF6/socket\uFF09\uFF0C\u62D2\u7EDD\u5F53\u5185\u5BB9\u6D88\u8D39`);
+        throw new SkillSnapshotCorruptError(`CAS \u76EE\u5F55\uFF08digest ${digest19}\uFF09\u5185 '${childRel}' \u4E0D\u662F\u666E\u901A\u6587\u4EF6\u6216\u76EE\u5F55\uFF08\u53EF\u80FD\u662F symlink/\u8BBE\u5907\u6587\u4EF6/socket\uFF09\uFF0C\u62D2\u7EDD\u5F53\u5185\u5BB9\u6D88\u8D39`);
       }
     }
   };
@@ -49966,67 +50917,67 @@ async function listRegularFilesRecursiveOrThrow(dir, digest18) {
   out.sort();
   return out;
 }
-async function verifyByteIdenticalOrThrow(freshDir, existingDir, digest18) {
+async function verifyByteIdenticalOrThrow(freshDir, existingDir, digest19) {
   const [freshFiles, existingFiles] = await Promise.all([
-    listRegularFilesRecursiveOrThrow(freshDir, digest18),
-    listRegularFilesRecursiveOrThrow(existingDir, digest18)
+    listRegularFilesRecursiveOrThrow(freshDir, digest19),
+    listRegularFilesRecursiveOrThrow(existingDir, digest19)
   ]);
   const sameSet = freshFiles.length === existingFiles.length && freshFiles.every((f, i) => f === existingFiles[i]);
   if (!sameSet) {
-    throw new SkillSnapshotCorruptError(`\u65E2\u6709 CAS \u76EE\u5F55\uFF08digest ${digest18}\uFF09\u6587\u4EF6\u96C6\u5408\u4E0E\u65B0\u5FEB\u7167\u4E0D\u4E00\u81F4\uFF0C\u62D2\u7EDD\u590D\u7528`);
+    throw new SkillSnapshotCorruptError(`\u65E2\u6709 CAS \u76EE\u5F55\uFF08digest ${digest19}\uFF09\u6587\u4EF6\u96C6\u5408\u4E0E\u65B0\u5FEB\u7167\u4E0D\u4E00\u81F4\uFF0C\u62D2\u7EDD\u590D\u7528`);
   }
   for (const rel of freshFiles) {
-    const fresh = await readRegularFileStrict(join74(freshDir, rel), (msg) => new SkillSnapshotIoError(`\u65B0\u5FEB\u7167\u6821\u9A8C\u8BFB\u53D6\u5931\u8D25\uFF08digest ${digest18}\uFF0C\u8DEF\u5F84 ${rel}\uFF09\uFF1A${msg}`), { noFollow: true });
-    const existing = await readRegularFileStrict(join74(existingDir, rel), (msg) => new SkillSnapshotCorruptError(`\u65E2\u6709 CAS \u76EE\u5F55\uFF08digest ${digest18}\uFF09\u5728 '${rel}' \u5904\u4E0D\u662F\u53EF\u4FE1\u7684\u666E\u901A\u6587\u4EF6\uFF1A${msg}`), { noFollow: true });
+    const fresh = await readRegularFileStrict(join74(freshDir, rel), (msg) => new SkillSnapshotIoError(`\u65B0\u5FEB\u7167\u6821\u9A8C\u8BFB\u53D6\u5931\u8D25\uFF08digest ${digest19}\uFF0C\u8DEF\u5F84 ${rel}\uFF09\uFF1A${msg}`), { noFollow: true });
+    const existing = await readRegularFileStrict(join74(existingDir, rel), (msg) => new SkillSnapshotCorruptError(`\u65E2\u6709 CAS \u76EE\u5F55\uFF08digest ${digest19}\uFF09\u5728 '${rel}' \u5904\u4E0D\u662F\u53EF\u4FE1\u7684\u666E\u901A\u6587\u4EF6\uFF1A${msg}`), { noFollow: true });
     if (!fresh.content.equals(existing.content)) {
-      throw new SkillSnapshotCorruptError(`\u65E2\u6709 CAS \u76EE\u5F55\uFF08digest ${digest18}\uFF09\u5728 '${rel}' \u5904\u5185\u5BB9\u4E0E\u65B0\u5FEB\u7167\u4E0D\u4E00\u81F4\uFF0C\u62D2\u7EDD\u590D\u7528`);
+      throw new SkillSnapshotCorruptError(`\u65E2\u6709 CAS \u76EE\u5F55\uFF08digest ${digest19}\uFF09\u5728 '${rel}' \u5904\u5185\u5BB9\u4E0E\u65B0\u5FEB\u7167\u4E0D\u4E00\u81F4\uFF0C\u62D2\u7EDD\u590D\u7528`);
     }
     const freshExec = (fresh.mode & EXEC_BITS) !== 0;
     const existingExec = (existing.mode & EXEC_BITS) !== 0;
     if (freshExec !== existingExec) {
-      throw new SkillSnapshotCorruptError(`\u65E2\u6709 CAS \u76EE\u5F55\uFF08digest ${digest18}\uFF09\u5728 '${rel}' \u5904\u53EF\u6267\u884C\u4F4D\u4E0E\u65B0\u5FEB\u7167\u4E0D\u4E00\u81F4\uFF0C\u62D2\u7EDD\u590D\u7528`);
+      throw new SkillSnapshotCorruptError(`\u65E2\u6709 CAS \u76EE\u5F55\uFF08digest ${digest19}\uFF09\u5728 '${rel}' \u5904\u53EF\u6267\u884C\u4F4D\u4E0E\u65B0\u5FEB\u7167\u4E0D\u4E00\u81F4\uFF0C\u62D2\u7EDD\u590D\u7528`);
     }
   }
 }
-async function assertCommittedSnapshotOrThrow(existingDir, digest18) {
-  const marker = await readRegularFileStrict(join74(existingDir, SKILL_SNAPSHOT_COMMIT_MARKER), (msg) => new SkillSnapshotCorruptError(`\u65E2\u6709 CAS \u76EE\u5F55\uFF08digest ${digest18}\uFF09\u7F3A\u5C11\u53EF\u4FE1 commit marker\uFF1A${msg}`), { noFollow: true });
-  if (!marker.content.equals(Buffer.from(`${digest18}
+async function assertCommittedSnapshotOrThrow(existingDir, digest19) {
+  const marker = await readRegularFileStrict(join74(existingDir, SKILL_SNAPSHOT_COMMIT_MARKER), (msg) => new SkillSnapshotCorruptError(`\u65E2\u6709 CAS \u76EE\u5F55\uFF08digest ${digest19}\uFF09\u7F3A\u5C11\u53EF\u4FE1 commit marker\uFF1A${msg}`), { noFollow: true });
+  if (!marker.content.equals(Buffer.from(`${digest19}
 `, "utf8"))) {
-    throw new SkillSnapshotCorruptError(`\u65E2\u6709 CAS \u76EE\u5F55\uFF08digest ${digest18}\uFF09commit marker \u5185\u5BB9\u4E0D\u5339\u914D\uFF0C\u62D2\u7EDD\u590D\u7528`);
+    throw new SkillSnapshotCorruptError(`\u65E2\u6709 CAS \u76EE\u5F55\uFF08digest ${digest19}\uFF09commit marker \u5185\u5BB9\u4E0D\u5339\u914D\uFF0C\u62D2\u7EDD\u590D\u7528`);
   }
 }
-async function publishSnapshotWithoutRename(stagingDir, finalDir, digest18) {
-  const files = await listRegularFilesRecursiveOrThrow(stagingDir, digest18);
+async function publishSnapshotWithoutRename(stagingDir, finalDir, digest19) {
+  const files = await listRegularFilesRecursiveOrThrow(stagingDir, digest19);
   if (!files.includes(SKILL_SNAPSHOT_COMMIT_MARKER)) {
-    throw new SkillSnapshotIoError(`\u65B0\u5FEB\u7167\u7F3A\u5C11 commit marker\uFF08digest ${digest18}\uFF09`);
+    throw new SkillSnapshotIoError(`\u65B0\u5FEB\u7167\u7F3A\u5C11 commit marker\uFF08digest ${digest19}\uFF09`);
   }
   for (const rel of files) {
     if (rel === SKILL_SNAPSHOT_COMMIT_MARKER)
       continue;
-    const source = await readRegularFileStrict(join74(stagingDir, rel), (msg) => new SkillSnapshotIoError(`\u65B0\u5FEB\u7167\u53D1\u5E03\u8BFB\u53D6\u5931\u8D25\uFF08digest ${digest18}\uFF0C\u8DEF\u5F84 ${rel}\uFF09\uFF1A${msg}`), { noFollow: true });
+    const source = await readRegularFileStrict(join74(stagingDir, rel), (msg) => new SkillSnapshotIoError(`\u65B0\u5FEB\u7167\u53D1\u5E03\u8BFB\u53D6\u5931\u8D25\uFF08digest ${digest19}\uFF0C\u8DEF\u5F84 ${rel}\uFF09\uFF1A${msg}`), { noFollow: true });
     const dest = join74(finalDir, rel);
     try {
       await mkdir35(dirname17(dest), { recursive: true });
       await writeFile21(dest, source.content, { flag: "wx", mode: (source.mode & EXEC_BITS) !== 0 ? 493 : 420 });
     } catch (e) {
-      throw new SkillSnapshotIoError(`\u65B0\u5FEB\u7167\u72EC\u5360\u53D1\u5E03\u5931\u8D25\uFF08digest ${digest18}\uFF0C\u8DEF\u5F84 ${rel}\uFF09\uFF1A${e.message}`);
+      throw new SkillSnapshotIoError(`\u65B0\u5FEB\u7167\u72EC\u5360\u53D1\u5E03\u5931\u8D25\uFF08digest ${digest19}\uFF0C\u8DEF\u5F84 ${rel}\uFF09\uFF1A${e.message}`);
     }
   }
   try {
-    await writeFile21(join74(finalDir, SKILL_SNAPSHOT_COMMIT_MARKER), `${digest18}
+    await writeFile21(join74(finalDir, SKILL_SNAPSHOT_COMMIT_MARKER), `${digest19}
 `, { flag: "wx", mode: 420 });
   } catch (e) {
-    throw new SkillSnapshotIoError(`\u65B0\u5FEB\u7167 commit marker \u5199\u5165\u5931\u8D25\uFF08digest ${digest18}\uFF09\uFF1A${e.message}`);
+    throw new SkillSnapshotIoError(`\u65B0\u5FEB\u7167 commit marker \u5199\u5165\u5931\u8D25\uFF08digest ${digest19}\uFF09\uFF1A${e.message}`);
   }
-  await verifyByteIdenticalOrThrow(stagingDir, finalDir, digest18);
+  await verifyByteIdenticalOrThrow(stagingDir, finalDir, digest19);
 }
-async function withDigestPublishLock(casRoot, digest18, publish) {
+async function withDigestPublishLock(casRoot, digest19, publish) {
   const lockRoot = join74(casRoot, ".publish-locks");
-  const lockDir = join74(lockRoot, `${digest18}.lock`);
+  const lockDir = join74(lockRoot, `${digest19}.lock`);
   try {
     await mkdir35(lockRoot, { recursive: true });
   } catch (e) {
-    throw new SkillSnapshotIoError(`CAS \u53D1\u5E03\u9501\u6839\u76EE\u5F55\u521B\u5EFA\u5931\u8D25\uFF08digest ${digest18}\uFF09\uFF1A${e.message}`);
+    throw new SkillSnapshotIoError(`CAS \u53D1\u5E03\u9501\u6839\u76EE\u5F55\u521B\u5EFA\u5931\u8D25\uFF08digest ${digest19}\uFF09\uFF1A${e.message}`);
   }
   const deadline = Date.now() + PUBLISH_LOCK_TIMEOUT_MS;
   while (true) {
@@ -50035,12 +50986,12 @@ async function withDigestPublishLock(casRoot, digest18, publish) {
       break;
     } catch (e) {
       if (e.code !== "EEXIST") {
-        throw new SkillSnapshotIoError(`CAS \u53D1\u5E03\u9501\u83B7\u53D6\u5931\u8D25\uFF08digest ${digest18}\uFF09\uFF1A${e.message}`);
+        throw new SkillSnapshotIoError(`CAS \u53D1\u5E03\u9501\u83B7\u53D6\u5931\u8D25\uFF08digest ${digest19}\uFF09\uFF1A${e.message}`);
       }
       if (Date.now() >= deadline) {
-        throw new SkillSnapshotIoError(`CAS \u53D1\u5E03\u9501\u7B49\u5F85\u8D85\u65F6\uFF08digest ${digest18}\uFF09\uFF0C\u62D2\u7EDD\u8BFB\u53D6\u53EF\u80FD\u672A\u63D0\u4EA4\u7684\u76EE\u6807\u76EE\u5F55`);
+        throw new SkillSnapshotIoError(`CAS \u53D1\u5E03\u9501\u7B49\u5F85\u8D85\u65F6\uFF08digest ${digest19}\uFF09\uFF0C\u62D2\u7EDD\u8BFB\u53D6\u53EF\u80FD\u672A\u63D0\u4EA4\u7684\u76EE\u6807\u76EE\u5F55`);
       }
-      await new Promise((resolve65) => setTimeout(resolve65, PUBLISH_LOCK_RETRY_MS));
+      await new Promise((resolve67) => setTimeout(resolve67, PUBLISH_LOCK_RETRY_MS));
     }
   }
   try {
@@ -50118,10 +51069,10 @@ async function materializeSkillSnapshot(inputs2, options) {
     const combined = manifests.flatMap((m) => m.files.map((f) => ({ relativePath: `${m.skillId}/${f.relativePath}`, sha256: f.sha256, executable: f.executable }))).sort(byRelativePath);
     const skillsSummary = manifests.map((m) => ({ skillId: m.skillId, treeSha256: m.treeSha256, fileCount: m.files.length })).sort((a, b) => a.skillId < b.skillId ? -1 : a.skillId > b.skillId ? 1 : 0);
     const provenance = snapshotProvenance(options.provenance);
-    const digest18 = computePublishDigest(combined, skillsSummary, provenance);
+    const digest19 = computePublishDigest(combined, skillsSummary, provenance);
     const manifestRecord = {
       schemaVersion: 1,
-      digest: digest18,
+      digest: digest19,
       skills: skillsSummary,
       files: combined,
       ...provenance !== void 0 ? { provenance } : {}
@@ -50129,13 +51080,13 @@ async function materializeSkillSnapshot(inputs2, options) {
     try {
       await writeFile21(join74(stagingDir, "manifest.json"), `${JSON.stringify(manifestRecord, null, 2)}
 `, "utf8");
-      await writeFile21(join74(stagingDir, SKILL_SNAPSHOT_COMMIT_MARKER), `${digest18}
+      await writeFile21(join74(stagingDir, SKILL_SNAPSHOT_COMMIT_MARKER), `${digest19}
 `, { flag: "wx", mode: 420 });
     } catch (e) {
       throw new SkillSnapshotIoError(`\u5FEB\u7167 manifest.json/commit marker \u5199\u5165\u5931\u8D25\uFF1A${e.message}`);
     }
-    const finalDir = join74(shaRoot, digest18);
-    return await withDigestPublishLock(casRoot, digest18, async () => {
+    const finalDir = join74(shaRoot, digest19);
+    return await withDigestPublishLock(casRoot, digest19, async () => {
       try {
         await mkdir35(finalDir);
       } catch (err) {
@@ -50145,19 +51096,19 @@ async function materializeSkillSnapshot(inputs2, options) {
           try {
             finalStat = await lstat42(finalDir);
           } catch (e) {
-            throw new SkillSnapshotCorruptError(`\u65E2\u6709 CAS \u76EE\u6807\u4E0D\u53EF\u6838\u9A8C\uFF08digest ${digest18}\uFF09\uFF1A${e.message}`);
+            throw new SkillSnapshotCorruptError(`\u65E2\u6709 CAS \u76EE\u6807\u4E0D\u53EF\u6838\u9A8C\uFF08digest ${digest19}\uFF09\uFF1A${e.message}`);
           }
           if (!finalStat.isDirectory() || finalStat.isSymbolicLink()) {
-            throw new SkillSnapshotCorruptError(`\u65E2\u6709 CAS \u76EE\u6807\u4E0D\u662F\u53EF\u4FE1\u666E\u901A\u76EE\u5F55\uFF08digest ${digest18}\uFF09\uFF0C\u62D2\u7EDD\u8986\u76D6`);
+            throw new SkillSnapshotCorruptError(`\u65E2\u6709 CAS \u76EE\u6807\u4E0D\u662F\u53EF\u4FE1\u666E\u901A\u76EE\u5F55\uFF08digest ${digest19}\uFF09\uFF0C\u62D2\u7EDD\u8986\u76D6`);
           }
-          await assertCommittedSnapshotOrThrow(finalDir, digest18);
-          await verifyByteIdenticalOrThrow(stagingDir, finalDir, digest18);
-          return { digest: digest18, casDir: finalDir, manifests, reused: true };
+          await assertCommittedSnapshotOrThrow(finalDir, digest19);
+          await verifyByteIdenticalOrThrow(stagingDir, finalDir, digest19);
+          return { digest: digest19, casDir: finalDir, manifests, reused: true };
         }
-        throw new SkillSnapshotIoError(`CAS \u76EE\u6807\u76EE\u5F55\u58F0\u660E\u5931\u8D25\uFF08digest ${digest18}\uFF09\uFF1A${err.message}`);
+        throw new SkillSnapshotIoError(`CAS \u76EE\u6807\u76EE\u5F55\u58F0\u660E\u5931\u8D25\uFF08digest ${digest19}\uFF09\uFF1A${err.message}`);
       }
-      await publishSnapshotWithoutRename(stagingDir, finalDir, digest18);
-      return { digest: digest18, casDir: finalDir, manifests, reused: false };
+      await publishSnapshotWithoutRename(stagingDir, finalDir, digest19);
+      return { digest: digest19, casDir: finalDir, manifests, reused: false };
     });
   } finally {
     await rm15(stagingDir, { recursive: true, force: true }).catch(() => {
@@ -50193,8 +51144,8 @@ async function selectFirstLocatable(locator, alternatives) {
   const notFoundDetails = [];
   for (const candidateId of alternatives) {
     try {
-      const located = await locator.locate(candidateId);
-      return { ok: true, concreteSkillId: located.skillId, contentDir: located.contentDir };
+      const located2 = await locator.locate(candidateId);
+      return { ok: true, concreteSkillId: located2.skillId, contentDir: located2.contentDir };
     } catch (e) {
       const tag2 = e?._tag;
       if (tag2 === "SkillContentNotFoundError") {
@@ -50213,8 +51164,8 @@ async function selectFirstLocatable(locator, alternatives) {
     detail: `\u5168\u90E8\u5019\u9009 alternatives\uFF08${alternatives.join("|")}\uFF09\u5747\u672A\u5B9A\u4F4D\u5230\u5185\u5BB9\uFF1A${notFoundDetails.join("; ")}`
   };
 }
-function skillSnapshotCasRelativePath(digest18) {
-  return `.pipeline/loops/skill-snapshots/sha256/${digest18}`;
+function skillSnapshotCasRelativePath(digest19) {
+  return `.pipeline/loops/skill-snapshots/sha256/${digest19}`;
 }
 function createExecutionPreparation(deps) {
   const { repoRoot, ledger, loadRegistry: loadRegistry2, clock, coordinates, resolver, locator } = deps;
@@ -50424,7 +51375,7 @@ var BarrierDriftError = class extends Error {
   }
 };
 var deriveBarrierSha = async (input2) => {
-  const { git: git3, branch, commits, sandboxReportedSha } = input2;
+  const { git: git4, branch, commits, sandboxReportedSha } = input2;
   if (commits.length === 0)
     return { buildSha: void 0 };
   const landed = commits[commits.length - 1]?.sha;
@@ -50432,7 +51383,7 @@ var deriveBarrierSha = async (input2) => {
     return { buildSha: void 0 };
   let branchHead;
   try {
-    branchHead = await git3.revParse(`refs/heads/${branch}`);
+    branchHead = await git4.revParse(`refs/heads/${branch}`);
   } catch (err) {
     throw new BarrierDriftError(`barrier: cannot resolve host branch ${branch} for build_sha: ${String(err)}`);
   }
@@ -50572,7 +51523,7 @@ var createAgentExitWatch = (write) => {
 
 // packages/automation/dist/runner/runner.js
 var EXECUTION_MODES = ["agent/codex", "agent/claude-code", "deterministic-test-fallback"];
-var isRecord14 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+var isRecord15 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 var tokenCount = (usage, key) => {
   const value = usage[key];
   if (!Number.isSafeInteger(value) || value < 0) {
@@ -50594,7 +51545,7 @@ var parseCodexJsonlUsage = (jsonl) => {
     } catch (error2) {
       throw new Error(`Codex JSONL line ${index + 1} is invalid: ${String(error2)}`);
     }
-    if (!isRecord14(event))
+    if (!isRecord15(event))
       throw new Error(`Codex JSONL line ${index + 1} is not an object`);
     if (event.type === "thread.started") {
       if (typeof event.thread_id !== "string" || event.thread_id.length === 0) {
@@ -50610,7 +51561,7 @@ var parseCodexJsonlUsage = (jsonl) => {
       continue;
     if (completed !== void 0)
       throw new Error("Codex JSONL contains multiple turn.completed usage events");
-    if (!isRecord14(event.usage))
+    if (!isRecord15(event.usage))
       throw new Error("Codex JSONL turn.completed is missing structured usage");
     const input2 = tokenCount(event.usage, "input_tokens");
     const cached_input = tokenCount(event.usage, "cached_input_tokens");
@@ -50662,7 +51613,7 @@ var parseSandboxReport = (stdout) => {
   let parsed2;
   try {
     const value = JSON.parse(unwrapFences(raw));
-    if (!isRecord14(value))
+    if (!isRecord15(value))
       throw new Error("report must be a JSON object");
     parsed2 = value;
   } catch (err) {
@@ -50680,7 +51631,7 @@ var parseSandboxReport = (stdout) => {
   if (Object.prototype.hasOwnProperty.call(parsed2, "provider_usage")) {
     const candidate2 = parsed2.provider_usage;
     try {
-      if (!isRecord14(candidate2) || candidate2.provider !== "openai-codex" || !isRecord14(candidate2.tokens)) {
+      if (!isRecord15(candidate2) || candidate2.provider !== "openai-codex" || !isRecord15(candidate2.tokens)) {
         throw new Error("provider_usage must be an openai-codex structured usage object");
       }
       const input2 = tokenCount(candidate2.tokens, "input");
@@ -50731,7 +51682,7 @@ var filterRunnerEnvironment = (runner, env) => {
   }
   return out;
 };
-var checksumGuard = (path15, digest18, attestationKey, label2) => `actual_sha="$(sha256sum ${path15} 2>/dev/null | awk '{print $1}')"; [ "$actual_sha" = "${digest18}" ] && grep -qx "${attestationKey}=${digest18}" ${IMAGE_ATTESTATION_PATH} 2>/dev/null || { echo "sandcastle \u955C\u50CF\u5185 ${label2} \u4E0E host \u671F\u671B\u6216\u955C\u50CF attestation \u4E0D\u4E00\u81F4\u2014\u2014\u8BF7\u91CD\u5EFA\u955C\u50CF\uFF1Atools/sandcastle/build.sh" >&2; exit ${AFK_RUN_DRIFT_EXIT_CODE}; }`;
+var checksumGuard = (path15, digest19, attestationKey, label2) => `actual_sha="$(sha256sum ${path15} 2>/dev/null | awk '{print $1}')"; [ "$actual_sha" = "${digest19}" ] && grep -qx "${attestationKey}=${digest19}" ${IMAGE_ATTESTATION_PATH} 2>/dev/null || { echo "sandcastle \u955C\u50CF\u5185 ${label2} \u4E0E host \u671F\u671B\u6216\u955C\u50CF attestation \u4E0D\u4E00\u81F4\u2014\u2014\u8BF7\u91CD\u5EFA\u955C\u50CF\uFF1Atools/sandcastle/build.sh" >&2; exit ${AFK_RUN_DRIFT_EXIT_CODE}; }`;
 var AFK_RUN_DRIFT_GUARD = checksumGuard(IMAGE_AFK_RUN_PATH, AFK_RUN_SCRIPT_SHA256, "pipeline_afk_run_sha256", "tenon-afk-run");
 var buildAfkRunCommand = (name2, runner, expectation = {}) => {
   const selected = assertLoopRunner(runner ?? "codex");
@@ -50906,17 +51857,17 @@ var mergeTreeSupported = async (exec, hostRepoDir) => {
 
 // packages/automation/dist/lifecycle/mergeback.js
 var GIT_ENV3 = { LC_ALL: "C" };
-var transactionCommitIsVisible = async (git3, baseRef, mergedCommit, markerRef) => {
-  const marker = await git3(["rev-parse", markerRef]);
+var transactionCommitIsVisible = async (git4, baseRef, mergedCommit, markerRef) => {
+  const marker = await git4(["rev-parse", markerRef]);
   if (marker.exitCode !== 0 || marker.stdout.trim() !== mergedCommit)
     return false;
-  const base = await git3(["rev-parse", baseRef]);
+  const base = await git4(["rev-parse", baseRef]);
   return base.exitCode === 0 && base.stdout.trim() === mergedCommit;
 };
 var TRANSACTION_MARKER_NAMESPACE = "refs/pipeline/mergeback-transactions/";
 var transactionMarkerRef = () => `${TRANSACTION_MARKER_NAMESPACE}${randomUUID12().replaceAll("-", "")}`;
-var cleanupStaleTransactionMarkers = async (git3, preserve) => {
-  const listed2 = await git3([
+var cleanupStaleTransactionMarkers = async (git4, preserve) => {
+  const listed2 = await git4([
     "for-each-ref",
     "--format=%(refname) %(objectname)",
     TRANSACTION_MARKER_NAMESPACE
@@ -50951,19 +51902,19 @@ var cleanupStaleTransactionMarkers = async (git3, preserve) => {
     "commit",
     ""
   ].join("\n");
-  const removed = await git3(["update-ref", "--stdin"], transaction);
+  const removed = await git4(["update-ref", "--stdin"], transaction);
   if (removed.exitCode !== 0) {
     throw preserve(`atomic cleanup of ${stale.length} stale merge transaction marker(s) failed (exit ${removed.exitCode}): ${(removed.stderr || removed.stdout).slice(0, 160)} \u2014 refusing to create another marker.`);
   }
 };
-var cleanupTransactionMarker = async (git3, markerRef, mergedCommit) => {
-  await git3(["update-ref", "-d", markerRef, mergedCommit]);
+var cleanupTransactionMarker = async (git4, markerRef, mergedCommit) => {
+  await git4(["update-ref", "-d", markerRef, mergedCommit]);
 };
 var mergeBackToBase = async (exec, input2) => {
   const { hostRepoDir, worktreePath, branch, base, expectedBaseSha, expectedBranchSha, onIntent, onLanded } = input2;
   const baseShort = base.replace(/^refs\/heads\//, "");
-  const git3 = (args, input3) => exec("git", args, { cwd: hostRepoDir, env: GIT_ENV3, input: input3 });
-  const headRef = await git3(["symbolic-ref", "HEAD"]);
+  const git4 = (args, input3) => exec("git", args, { cwd: hostRepoDir, env: GIT_ENV3, input: input3 });
+  const headRef = await git4(["symbolic-ref", "HEAD"]);
   const head = headRef.exitCode === 0 ? headRef.stdout.trim() : "";
   const headShort = head.replace(/^refs\/heads\//, "");
   if (headShort === "" || headShort !== baseShort) {
@@ -50972,14 +51923,14 @@ var mergeBackToBase = async (exec, input2) => {
   const lock = await acquireMergeLock(exec, hostRepoDir, worktreePath);
   const preserve = (message2, opts) => new SyncError(`${message2} The named branch '${branch}' and worktree are PRESERVED at ${worktreePath}.`, worktreePath, opts);
   try {
-    await cleanupStaleTransactionMarkers(git3, preserve);
-    const headRp = await git3(["rev-parse", "HEAD"]);
+    await cleanupStaleTransactionMarkers(git4, preserve);
+    const headRp = await git4(["rev-parse", "HEAD"]);
     if (headRp.exitCode !== 0) {
       throw preserve(`git rev-parse HEAD failed while merging '${branch}' into '${base}' (exit ${headRp.exitCode}): ${headRp.stderr.slice(0, 160)}.`);
     }
     const headSha = headRp.stdout.trim();
     const baseTip = expectedBaseSha !== void 0 && expectedBaseSha !== "" ? expectedBaseSha : headSha;
-    const branchRp = await git3(["rev-parse", `refs/heads/${branch}`]);
+    const branchRp = await git4(["rev-parse", `refs/heads/${branch}`]);
     if (branchRp.exitCode !== 0) {
       throw preserve(`git rev-parse refs/heads/${branch} failed while merging into '${base}' (exit ${branchRp.exitCode}): ${branchRp.stderr.slice(0, 160)}.`);
     }
@@ -50993,7 +51944,7 @@ var mergeBackToBase = async (exec, input2) => {
     const support = await mergeTreeSupported(exec, hostRepoDir);
     const mergeMsg = `Merge branch '${branch}' into '${baseShort}'`;
     if (support.ok) {
-      const mt = await git3(["merge-tree", "--write-tree", baseTip, branchTip]);
+      const mt = await git4(["merge-tree", "--write-tree", baseTip, branchTip]);
       if (mt.exitCode === 1) {
         throw preserve(`Merge of '${branch}' into base '${base}' failed (content conflict). To retry: cd ${worktreePath} && git merge ${base} (resolve conflicts manually, then commit).`);
       }
@@ -51004,7 +51955,7 @@ var mergeBackToBase = async (exec, input2) => {
       if (mergeTree === "") {
         throw preserve(`git merge-tree returned an empty tree merging '${branch}' into '${base}'.`);
       }
-      const commit = await git3(["commit-tree", mergeTree, "-p", baseTip, "-p", branchTip, "-m", mergeMsg]);
+      const commit = await git4(["commit-tree", mergeTree, "-p", baseTip, "-p", branchTip, "-m", mergeMsg]);
       const mergedCommit = commit.stdout.trim();
       if (commit.exitCode !== 0 || mergedCommit === "") {
         throw preserve(`git commit-tree failed merging '${branch}' into '${base}': ${commit.stderr.slice(0, 160)}.`);
@@ -51031,12 +51982,12 @@ var mergeBackToBase = async (exec, input2) => {
         "commit",
         ""
       ].join("\n");
-      const upd = await git3(["update-ref", "--stdin"], refTxn);
-      const committedDespiteError = upd.exitCode !== 0 && await transactionCommitIsVisible(git3, `refs/heads/${baseShort}`, mergedCommit, markerRef);
+      const upd = await git4(["update-ref", "--stdin"], refTxn);
+      const committedDespiteError = upd.exitCode !== 0 && await transactionCommitIsVisible(git4, `refs/heads/${baseShort}`, mergedCommit, markerRef);
       if (upd.exitCode !== 0 && !committedDespiteError) {
         throw preserve(`base '${base}' or verified branch '${branch}' changed since this run was frozen (atomic ref transaction failed: ${upd.stderr.slice(0, 160)}) \u2014 refusing to auto-merge onto un-verified refs. To recover: re-run against the current '${base}' in the host repo (${hostRepoDir}).`, { baseAdvanced: true });
       }
-      await cleanupTransactionMarker(git3, markerRef, mergedCommit);
+      await cleanupTransactionMarker(git4, markerRef, mergedCommit);
       let landedJournalError;
       const landedReceipt = {
         landed: true,
@@ -51050,7 +52001,7 @@ var mergeBackToBase = async (exec, input2) => {
       } catch (error2) {
         landedJournalError = safeMergeJournalMessage(error2);
       }
-      const sync = await git3(["read-tree", "-m", "-u", baseTip, mergedCommit]);
+      const sync = await git4(["read-tree", "-m", "-u", baseTip, mergedCommit]);
       if (sync.exitCode !== 0) {
         const hostSyncError = `git read-tree: ${(sync.stderr || sync.stdout).slice(0, 160)}`;
         try {
@@ -51084,36 +52035,36 @@ var mergeBackToBase = async (exec, input2) => {
       }
       return { landed: true, hostSynced: true, mergedCommit, baseBefore: baseTip, branchTip, landedJournalError };
     }
-    return await mergeBackFallback(git3, { branch, base, baseShort, headSha, branchTip, casExpectedOld: baseTip, mergeMsg, preserve, onIntent, onLanded });
+    return await mergeBackFallback(git4, { branch, base, baseShort, headSha, branchTip, casExpectedOld: baseTip, mergeMsg, preserve, onIntent, onLanded });
   } finally {
     await rmdir7(lock).catch(() => {
     });
   }
 };
-var mergeBackFallback = async (git3, ctx) => {
+var mergeBackFallback = async (git4, ctx) => {
   const { branch, base, baseShort, headSha, branchTip, casExpectedOld, mergeMsg, preserve, onIntent, onLanded } = ctx;
   const cleanup2 = async () => {
-    const cur = await git3(["rev-parse", `refs/heads/${baseShort}`]);
+    const cur = await git4(["rev-parse", `refs/heads/${baseShort}`]);
     const target = cur.exitCode === 0 ? cur.stdout.trim() : "";
     if (target === "")
       return " [cleanup: cannot read current base ref \u2014 host may be left mid-merge]";
-    const reset2 = await git3(["reset", "--hard", target]);
+    const reset2 = await git4(["reset", "--hard", target]);
     return reset2.exitCode === 0 ? "" : ` [cleanup: git reset --hard ${target.slice(0, 12)} failed (exit ${reset2.exitCode})]`;
   };
   const failCleanup = async (message2, opts) => {
     const note2 = await cleanup2();
     throw preserve(`${message2}${note2}`, opts);
   };
-  const merge = await git3([...NO_CONFIG_LOCK_FLAGS, "merge", "--no-ff", "--no-commit", `refs/heads/${branch}`]);
+  const merge = await git4([...NO_CONFIG_LOCK_FLAGS, "merge", "--no-ff", "--no-commit", `refs/heads/${branch}`]);
   if (parseMergeResult(merge).conflict) {
     await failCleanup(`Merge of '${branch}' into base '${base}' failed (conflict). To retry in the worktree: git merge ${base} (resolve conflicts manually, then commit).`);
   }
-  const treeRes = await git3(["write-tree"]);
+  const treeRes = await git4(["write-tree"]);
   const tree = treeRes.stdout.trim();
   if (treeRes.exitCode !== 0 || tree === "") {
     await failCleanup(`git write-tree failed merging '${branch}' into '${base}' (exit ${treeRes.exitCode}): ${treeRes.stderr.slice(0, 160)}.`);
   }
-  const commit = await git3(["commit-tree", tree, "-p", headSha, "-p", branchTip, "-m", mergeMsg]);
+  const commit = await git4(["commit-tree", tree, "-p", headSha, "-p", branchTip, "-m", mergeMsg]);
   const mergedCommit = commit.stdout.trim();
   if (commit.exitCode !== 0 || mergedCommit === "") {
     await failCleanup(`git commit-tree failed merging '${branch}' into '${base}': ${commit.stderr.slice(0, 160)}.`);
@@ -51139,19 +52090,19 @@ var mergeBackFallback = async (git3, ctx) => {
     "commit",
     ""
   ].join("\n");
-  const upd = await git3(["update-ref", "--stdin"], refTxn);
-  const committedDespiteError = upd.exitCode !== 0 && await transactionCommitIsVisible(git3, `refs/heads/${baseShort}`, mergedCommit, markerRef);
+  const upd = await git4(["update-ref", "--stdin"], refTxn);
+  const committedDespiteError = upd.exitCode !== 0 && await transactionCommitIsVisible(git4, `refs/heads/${baseShort}`, mergedCommit, markerRef);
   if (upd.exitCode !== 0 && !committedDespiteError) {
     await failCleanup(`base '${base}' or verified branch '${branch}' changed since this run was frozen, or this Git cannot provide the required atomic ref transaction (exit ${upd.exitCode}: ${upd.stderr.slice(0, 160)}) \u2014 refusing to auto-merge onto un-verified refs; single-ref fallback is forbidden.`, { baseAdvanced: true });
   }
-  await cleanupTransactionMarker(git3, markerRef, mergedCommit);
+  await cleanupTransactionMarker(git4, markerRef, mergedCommit);
   let landedJournalError;
   try {
     await onLanded?.({ landed: true, hostSynced: false, mergedCommit, baseBefore: casExpectedOld, branchTip });
   } catch (error2) {
     landedJournalError = safeMergeJournalMessage(error2);
   }
-  const reset = await git3(["reset", "--mixed", "HEAD"]);
+  const reset = await git4(["reset", "--mixed", "HEAD"]);
   if (reset.exitCode !== 0) {
     const hostSyncError = `git reset --mixed HEAD failed (exit ${reset.exitCode}): ${(reset.stderr || reset.stdout).slice(0, 160)}`;
     try {
@@ -51753,7 +52704,7 @@ function readAutomationJson(root, fs = { readFileSync: readFileSync16 }) {
 // packages/kernel/dist/skill-invocation/document-producer.js
 import { createHash as createHash42 } from "node:crypto";
 import { join as join78 } from "node:path";
-function digest13(...values) {
+function digest14(...values) {
   const hash = createHash42("sha256");
   for (const value of values)
     hash.update(value).update("\0");
@@ -51808,7 +52759,7 @@ async function recordCanonicalDocumentSkillInvocation(changeDir7, kind, recorded
     return { invocation_id: invocationId };
   }
   if (invocationEvents.some((event) => event.type === "invocation-completed")) {
-    invocationId = `invocation-${digest13("document-application", confirmation.invocation_id, record9.kind, record9.path, record9.sha256, record9.recordedAt)}`;
+    invocationId = `invocation-${digest14("document-application", confirmation.invocation_id, record9.kind, record9.path, record9.sha256, record9.recordedAt)}`;
     invocationEvents = allInvocationEvents.filter((event) => event.invocation_id === invocationId);
     const childIntent = invocationEvents.find((event) => event.type === "artifact-binding-intent" && intentMatchesRecord(event, record9));
     if (childIntent !== void 0 && invocationEvents.some((event) => event.type === "artifact-bound" && event.payload.binding_id === childIntent.payload.binding_id)) {
@@ -51831,12 +52782,12 @@ async function recordCanonicalDocumentSkillInvocation(changeDir7, kind, recorded
         input: { schema_id: "tenon-document-producer-input/v1", fields: [{
           name: "document_kind",
           classification: "configuration",
-          digest: `sha256:${digest13(record9.kind)}`,
+          digest: `sha256:${digest14(record9.kind)}`,
           validator: { id: "document-kind-contract", status: "pass" }
         }, {
           name: "document_path",
           classification: "project-data",
-          digest: `sha256:${digest13(record9.path)}`,
+          digest: `sha256:${digest14(record9.path)}`,
           validator: { id: "document-path-contract", status: "pass" }
         }] }
       }
@@ -51861,8 +52812,8 @@ async function recordCanonicalDocumentSkillInvocation(changeDir7, kind, recorded
     await appendEvent(changeDir7, completed, { verify_completed_adapter: async () => true });
     sequence += 1;
   }
-  const bindingId = `binding-${digest13(invocationId, record9.sha256)}`;
-  const artifactEventRef = digest13(record9.path, record9.sha256);
+  const bindingId = `binding-${digest14(invocationId, record9.sha256)}`;
+  const artifactEventRef = digest14(record9.path, record9.sha256);
   await appendEvent(changeDir7, {
     ...started,
     event_id: `${invocationId}-artifact-intent-${artifactEventRef}`,
@@ -52006,7 +52957,7 @@ var storeWriter = (store2, changeDir7) => ({
   commitFailureOwned: (name2, input2) => commitFailureOwned(store2, changeDir7(name2), input2),
   getAutomation: (name2) => getAutomation(store2, changeDir7(name2)),
   setAutomationOwned: (name2, next) => setAutomationOwned(store2, changeDir7(name2), next),
-  setAutomationOwnedWithFields: (name2, next, fields) => setAutomationOwnedWithFields(store2, changeDir7(name2), next, fields),
+  setAutomationOwnedWithFields: (name2, next, fields2) => setAutomationOwnedWithFields(store2, changeDir7(name2), next, fields2),
   markFailedSync: (name2, reason3) => {
     void store2.setMany(changeDir7(name2), { automation: "failed", automation_last_error: reason3, automation_cause: "" }).catch(() => {
     });
@@ -52291,12 +53242,12 @@ import { readFile as fsReadFile, stat as fsStat } from "node:fs/promises";
 import { resolve as resolve24 } from "node:path";
 var resolveGitMounts = async (gitPath, deps) => {
   const stat20 = deps?.stat ?? ((p) => fsStat(p));
-  const readFile101 = deps?.readFile ?? ((p) => fsReadFile(p, "utf-8"));
+  const readFile103 = deps?.readFile ?? ((p) => fsReadFile(p, "utf-8"));
   const s = await stat20(gitPath);
   if (s.isDirectory()) {
     return [{ hostPath: gitPath, sandboxPath: gitPath }];
   }
-  const content = (await readFile101(gitPath)).trim();
+  const content = (await readFile103(gitPath)).trim();
   const match = content.match(/^gitdir:\s*(.+)$/);
   if (!match) {
     return [{ hostPath: gitPath, sandboxPath: gitPath }];
@@ -52319,7 +53270,7 @@ var AgentIdleTimeoutError = class extends Error {
 };
 var detectsCompletion = (accumulated, signals) => signals.some((sig) => accumulated.includes(sig));
 var armDecision = (completionDetected, idleMs, graceMs) => completionDetected ? { ms: graceMs, onExpiry: "resolve" } : { ms: idleMs, onExpiry: "reject-idle" };
-var invokeWithRace = (runExec, opts) => new Promise((resolve65, reject5) => {
+var invokeWithRace = (runExec, opts) => new Promise((resolve67, reject5) => {
   const { idleMs, graceMs, completionSignals, signal } = opts;
   let settled = false;
   let accumulated = "";
@@ -52341,7 +53292,7 @@ var invokeWithRace = (runExec, opts) => new Promise((resolve65, reject5) => {
       return;
     settled = true;
     cleanup2();
-    resolve65(v);
+    resolve67(v);
   };
   const settleReject = (e) => {
     if (settled)
@@ -52392,7 +53343,7 @@ var SkillBundleSnapshotMismatchError = class extends Error {
   name = "SkillBundleSnapshotMismatchError";
   _tag = "SkillBundleSnapshotMismatchError";
 };
-var isRecord15 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+var isRecord16 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 var hasClosedKeys = (value, required3, optional = []) => {
   const allowed = /* @__PURE__ */ new Set([...required3, ...optional]);
   return required3.every((key) => Object.hasOwn(value, key)) && Object.keys(value).every((key) => allowed.has(key));
@@ -52402,14 +53353,14 @@ function isClosedSkillSnapshotManifest(manifest) {
     return false;
   if (manifest.schemaVersion !== 1 || typeof manifest.digest !== "string")
     return false;
-  if (!Array.isArray(manifest.skills) || !manifest.skills.every((skill) => isRecord15(skill) && hasClosedKeys(skill, ["skillId", "treeSha256", "fileCount"]) && typeof skill.skillId === "string" && typeof skill.treeSha256 === "string" && Number.isSafeInteger(skill.fileCount) && skill.fileCount >= 0))
+  if (!Array.isArray(manifest.skills) || !manifest.skills.every((skill) => isRecord16(skill) && hasClosedKeys(skill, ["skillId", "treeSha256", "fileCount"]) && typeof skill.skillId === "string" && typeof skill.treeSha256 === "string" && Number.isSafeInteger(skill.fileCount) && skill.fileCount >= 0))
     return false;
-  if (!Array.isArray(manifest.files) || !manifest.files.every((file) => isRecord15(file) && hasClosedKeys(file, ["relativePath", "sha256", "executable"]) && typeof file.relativePath === "string" && typeof file.sha256 === "string" && typeof file.executable === "boolean"))
+  if (!Array.isArray(manifest.files) || !manifest.files.every((file) => isRecord16(file) && hasClosedKeys(file, ["relativePath", "sha256", "executable"]) && typeof file.relativePath === "string" && typeof file.sha256 === "string" && typeof file.executable === "boolean"))
     return false;
   if (manifest.provenance === void 0)
     return true;
   const provenance = manifest.provenance;
-  if (!isRecord15(provenance) || !hasClosedKeys(provenance, ["loop_id", "policy_epoch", "skill_bundle_id", "attempt_id", "reservation_id", "workflow", "step", "track", "coordinate_digest", "resolution_source", "slots"], ["workflow_run_id"]))
+  if (!isRecord16(provenance) || !hasClosedKeys(provenance, ["loop_id", "policy_epoch", "skill_bundle_id", "attempt_id", "reservation_id", "workflow", "step", "track", "coordinate_digest", "resolution_source", "slots"], ["workflow_run_id"]))
     return false;
   for (const key of ["loop_id", "policy_epoch", "skill_bundle_id", "attempt_id", "reservation_id", "workflow", "step", "track", "coordinate_digest"]) {
     if (typeof provenance[key] !== "string")
@@ -52419,7 +53370,7 @@ function isClosedSkillSnapshotManifest(manifest) {
     return false;
   if (provenance.resolution_source !== "default" && provenance.resolution_source !== "custom")
     return false;
-  return Array.isArray(provenance.slots) && provenance.slots.every((slot) => isRecord15(slot) && hasClosedKeys(slot, ["alternatives", "concrete_skill_id", "tree_sha256"]) && Array.isArray(slot.alternatives) && slot.alternatives.every((alternative) => typeof alternative === "string") && typeof slot.concrete_skill_id === "string" && typeof slot.tree_sha256 === "string");
+  return Array.isArray(provenance.slots) && provenance.slots.every((slot) => isRecord16(slot) && hasClosedKeys(slot, ["alternatives", "concrete_skill_id", "tree_sha256"]) && Array.isArray(slot.alternatives) && slot.alternatives.every((alternative) => typeof alternative === "string") && typeof slot.concrete_skill_id === "string" && typeof slot.tree_sha256 === "string");
 }
 async function assertNoUndeclaredCasEntries(hostCasDir, descriptorFiles) {
   const expected = /* @__PURE__ */ new Set(["F:manifest.json", `F:${SKILL_SNAPSHOT_COMMIT_MARKER}`]);
@@ -52464,7 +53415,7 @@ async function assertNoUndeclaredCasEntries(hostCasDir, descriptorFiles) {
     throw new SkillBundleSnapshotMismatchError(`skill bundle CAS \u542B\u672A\u58F0\u660E\u6761\u76EE\u6216\u7F3A\u5931\u58F0\u660E\u6761\u76EE\uFF08${hostCasDir}\uFF1B\u672A\u58F0\u660E=${JSON.stringify(unexpected)}\uFF1B\u7F3A\u5931=${JSON.stringify(missing3)}\uFF09`);
   }
 }
-async function assertCommittedCasSnapshot(hostCasDir, digest18) {
+async function assertCommittedCasSnapshot(hostCasDir, digest19) {
   let rootBefore;
   try {
     rootBefore = await lstat43(hostCasDir);
@@ -52486,7 +53437,7 @@ async function assertCommittedCasSnapshot(hostCasDir, digest18) {
     if (!markerStat.isFile())
       throw new Error("commit marker \u4E0D\u662F\u666E\u901A\u6587\u4EF6");
     const marker = await markerHandle.readFile();
-    if (!marker.equals(Buffer.from(`${digest18}
+    if (!marker.equals(Buffer.from(`${digest19}
 `, "utf8")))
       throw new Error("commit marker \u5185\u5BB9\u4E0E digest \u4E0D\u4E00\u81F4");
     const rootAfter = await lstat43(hostCasDir);
@@ -52541,8 +53492,8 @@ async function verifySkillBundleSnapshot(hostCasDir, bundle) {
   const files = recomputedManifests.flatMap((m) => m.files.map((f) => ({ relativePath: `${m.skillId}/${f.relativePath}`, sha256: f.sha256, executable: f.executable }))).sort((a, b) => a.relativePath < b.relativePath ? -1 : a.relativePath > b.relativePath ? 1 : 0);
   const skills = recomputedManifests.map((m) => ({ skillId: m.skillId, treeSha256: m.treeSha256, fileCount: m.files.length })).sort((a, b) => a.skillId < b.skillId ? -1 : a.skillId > b.skillId ? 1 : 0);
   const provenance = manifest.provenance;
-  const digest18 = computePublishDigest(files, skills, provenance);
-  if (digest18 !== bundle.snapshotSha256 || JSON.stringify(manifest.files) !== JSON.stringify(files) || JSON.stringify(manifest.skills) !== JSON.stringify(skills)) {
+  const digest19 = computePublishDigest(files, skills, provenance);
+  if (digest19 !== bundle.snapshotSha256 || JSON.stringify(manifest.files) !== JSON.stringify(files) || JSON.stringify(manifest.skills) !== JSON.stringify(skills)) {
     throw new SkillBundleSnapshotMismatchError(`skill bundle manifest descriptor \u4E0E\u5B9E\u9645\u5185\u5BB9\u4E0D\u4E00\u81F4\uFF08${hostCasDir}\uFF09`);
   }
 }
@@ -53032,8 +53983,8 @@ function createRunnerSkillContentLocator(options) {
       const codexRoots = getCodexPlugins().get(plugin) ?? [];
       if (codexRoots.length > 0) {
         try {
-          const located2 = await createFsSkillContentLocator(codexRoots).locate(leaf);
-          return { skillId, contentDir: located2.contentDir };
+          const located3 = await createFsSkillContentLocator(codexRoots).locate(leaf);
+          return { skillId, contentDir: located3.contentDir };
         } catch (error2) {
           if (!isNotFound(error2))
             throw error2;
@@ -53046,8 +53997,8 @@ function createRunnerSkillContentLocator(options) {
       if (fallback2.length === 0) {
         throw new SkillContentNotFoundError(`skill '${skillId}' \u7684 Claude plugin namespace \u672A\u5B89\u88C5`);
       }
-      const located = await createFsSkillContentLocator(fallback2).locate(leaf);
-      return { skillId, contentDir: located.contentDir };
+      const located2 = await createFsSkillContentLocator(fallback2).locate(leaf);
+      return { skillId, contentDir: located2.contentDir };
     }
   };
 }
@@ -53175,13 +54126,13 @@ import { join as join85 } from "node:path";
 async function verdictFor(skillsRoot, skillId) {
   if (skillId.includes(":") || skillId.includes("/"))
     return "unknown";
-  let text12;
+  let text13;
   try {
-    text12 = await readFile54(join85(skillsRoot, skillId, "SKILL.md"), "utf8");
+    text13 = await readFile54(join85(skillsRoot, skillId, "SKILL.md"), "utf8");
   } catch {
     return "unknown";
   }
-  return isSkillModelInvocable(parseSkillFrontmatter(text12)) ? "invocable" : "not-invocable";
+  return isSkillModelInvocable(parseSkillFrontmatter(text13)) ? "invocable" : "not-invocable";
 }
 async function provenNotInvocable(skillsRoot, token) {
   const alternatives = skillTokenAlternatives(token);
@@ -53265,7 +54216,7 @@ function remediation(category) {
   }
 }
 var UPSTREAM_REMEDIATION = "\u8FD0\u884C tenon update --<host> \u6216 npm run skills:fetch \u91CD\u65B0\u83B7\u53D6\u4E0A\u6E38\u6280\u80FD";
-function finding(category, detail, values = {}, remediationText = remediation(category)) {
+function finding2(category, detail, values = {}, remediationText = remediation(category)) {
   return { category, detail, remediation: remediationText, ...values };
 }
 async function readOptionalText(path15) {
@@ -53284,13 +54235,13 @@ async function loadUpstreamLock(skillsRoot, registry, findings) {
     sourcesText = await readOptionalText(join86(skillsRoot, "sources.yaml"));
     lockText = await readOptionalText(join86(skillsRoot, "skills.lock.json"));
   } catch (error2) {
-    findings.push(finding("filesystem-safety-error", `\u8BFB\u53D6\u4E0A\u6E38\u6280\u80FD\u6E05\u5355\u5931\u8D25: ${String(error2)}`));
+    findings.push(finding2("filesystem-safety-error", `\u8BFB\u53D6\u4E0A\u6E38\u6280\u80FD\u6E05\u5355\u5931\u8D25: ${String(error2)}`));
     return void 0;
   }
   if (sourcesText === null) {
     if (lockText === null)
       return null;
-    findings.push(finding("invalid-skill-lock", "skills/skills.lock.json \u5B58\u5728\u4F46\u7F3A\u5C11 skills/sources.yaml"));
+    findings.push(finding2("invalid-skill-lock", "skills/skills.lock.json \u5B58\u5728\u4F46\u7F3A\u5C11 skills/sources.yaml"));
     return void 0;
   }
   try {
@@ -53298,13 +54249,13 @@ async function loadUpstreamLock(skillsRoot, registry, findings) {
     const bundled = new Set(registry.skills.flatMap((entry2) => [entry2.token, physicalId(entry2.sourceRef)]));
     const collision = sources.skills.find((source) => bundled.has(source.id));
     if (collision !== void 0) {
-      findings.push(finding("invalid-skill-sources", `skills/sources.yaml: \u6280\u80FD '${collision.id}' \u4E0E Tenon \u81EA\u5E26\u6280\u80FD\u540C\u540D`, { skill: collision.id }));
+      findings.push(finding2("invalid-skill-sources", `skills/sources.yaml: \u6280\u80FD '${collision.id}' \u4E0E Tenon \u81EA\u5E26\u6280\u80FD\u540C\u540D`, { skill: collision.id }));
       return void 0;
     }
     return lockText === null ? null : parseUpstreamSkillLock(lockText, sources);
   } catch (error2) {
     const category = error2 instanceof UpstreamSkillError ? error2.category : "invalid-skill-lock";
-    findings.push(finding(category, error2 instanceof Error ? error2.message : String(error2)));
+    findings.push(finding2(category, error2 instanceof Error ? error2.message : String(error2)));
     return void 0;
   }
 }
@@ -53348,17 +54299,17 @@ async function verifySkillProvenance(pluginRoot2, options = {}) {
   const findings = [];
   try {
     await lstat45(join86(root, "skills-lock.json"));
-    findings.push(finding("legacy-provenance-source", "\u68C0\u6D4B\u5230\u7981\u6B62\u91CD\u65B0\u5F15\u5165\u7684 legacy skills-lock.json", { actual: "skills-lock.json" }));
+    findings.push(finding2("legacy-provenance-source", "\u68C0\u6D4B\u5230\u7981\u6B62\u91CD\u65B0\u5F15\u5165\u7684 legacy skills-lock.json", { actual: "skills-lock.json" }));
   } catch (error2) {
     if (typeof error2 !== "object" || error2 === null || !("code" in error2) || String(error2.code) !== "ENOENT") {
-      findings.push(finding("filesystem-safety-error", `\u8BFB\u53D6 legacy provenance source \u5931\u8D25: ${String(error2)}`));
+      findings.push(finding2("filesystem-safety-error", `\u8BFB\u53D6 legacy provenance source \u5931\u8D25: ${String(error2)}`));
     }
   }
   let registryText;
   try {
     registryText = await readFile55(registryPath, "utf8");
   } catch (error2) {
-    findings.push(finding("registry-read-error", `\u8BFB\u53D6 canonical registry \u5931\u8D25: ${registryPath}\uFF08${String(error2)}\uFF09`));
+    findings.push(finding2("registry-read-error", `\u8BFB\u53D6 canonical registry \u5931\u8D25: ${registryPath}\uFF08${String(error2)}\uFF09`));
     return { ok: false, root, findings: sortFindings(findings) };
   }
   let registry;
@@ -53366,7 +54317,7 @@ async function verifySkillProvenance(pluginRoot2, options = {}) {
     registry = parseSkillProvenanceRegistry(registryText);
   } catch (error2) {
     const category = error2 instanceof SkillProvenanceRegistryError ? error2.category : "invalid-source-ref";
-    findings.push(finding(category, error2 instanceof Error ? error2.message : String(error2)));
+    findings.push(finding2(category, error2 instanceof Error ? error2.message : String(error2)));
     return { ok: false, root, findings: sortFindings(findings) };
   }
   const lock = await loadUpstreamLock(skillsRoot, registry, findings);
@@ -53383,7 +54334,7 @@ async function verifySkillProvenance(pluginRoot2, options = {}) {
     realSkillsRoot = await realpath10(skillsRoot);
     physical = await directDistributedSkills(skillsRoot);
   } catch (error2) {
-    findings.push(finding("filesystem-safety-error", `\u8BFB\u53D6 bundled Skill \u6839\u5931\u8D25: ${skillsRoot}\uFF08${String(error2)}\uFF09`));
+    findings.push(finding2("filesystem-safety-error", `\u8BFB\u53D6 bundled Skill \u6839\u5931\u8D25: ${skillsRoot}\uFF08${String(error2)}\uFF09`));
     return { ok: false, root, registry, findings: sortFindings(findings) };
   }
   const declared = new Map(registry.skills.map((entry2) => [physicalId(entry2.sourceRef), entry2]));
@@ -53394,23 +54345,23 @@ async function verifySkillProvenance(pluginRoot2, options = {}) {
       await assertPhysicalSkillRoot(skillsRoot, realSkillsRoot, id2);
       safePhysical.add(id2);
     } catch (error2) {
-      findings.push(finding("filesystem-safety-error", `Skill '${id2}' \u9876\u5C42\u5185\u5BB9\u6839\u65E0\u6CD5\u5B89\u5168\u8BFB\u53D6: ${error2 instanceof Error ? error2.message : String(error2)}`, { skill: id2, actual: `skills/${id2}` }));
+      findings.push(finding2("filesystem-safety-error", `Skill '${id2}' \u9876\u5C42\u5185\u5BB9\u6839\u65E0\u6CD5\u5B89\u5168\u8BFB\u53D6: ${error2 instanceof Error ? error2.message : String(error2)}`, { skill: id2, actual: `skills/${id2}` }));
     }
   }
   for (const entry2 of registry.skills) {
     const id2 = physicalId(entry2.sourceRef);
     if (!physicalSet.has(id2)) {
-      findings.push(finding("missing-distributed-skill", `registry \u58F0\u660E\u7684 bundled Skill '${id2}' \u4E0D\u5B58\u5728`, { skill: id2, sourceRef: entry2.sourceRef }));
+      findings.push(finding2("missing-distributed-skill", `registry \u58F0\u660E\u7684 bundled Skill '${id2}' \u4E0D\u5B58\u5728`, { skill: id2, sourceRef: entry2.sourceRef }));
     }
   }
   for (const id2 of physical) {
     if (!declared.has(id2) && !locked.has(id2)) {
-      findings.push(finding("unregistered-distributed-skill", `physical bundled Skill '${id2}' \u672A\u5728 canonical registry \u6216 skills.lock.json \u58F0\u660E`, { skill: id2, actual: `skills/${id2}` }));
+      findings.push(finding2("unregistered-distributed-skill", `physical bundled Skill '${id2}' \u672A\u5728 canonical registry \u6216 skills.lock.json \u58F0\u660E`, { skill: id2, actual: `skills/${id2}` }));
     }
   }
   for (const entry2 of locked.values()) {
     if (!physicalSet.has(entry2.id)) {
-      findings.push(finding("missing-distributed-skill", `skills.lock.json \u58F0\u660E\u7684\u4E0A\u6E38\u6280\u80FD '${entry2.id}' \u4E0D\u5B58\u5728`, { skill: entry2.id, sourceRef: `skills/${entry2.id}` }, UPSTREAM_REMEDIATION));
+      findings.push(finding2("missing-distributed-skill", `skills.lock.json \u58F0\u660E\u7684\u4E0A\u6E38\u6280\u80FD '${entry2.id}' \u4E0D\u5B58\u5728`, { skill: entry2.id, sourceRef: `skills/${entry2.id}` }, UPSTREAM_REMEDIATION));
       continue;
     }
     if (!safePhysical.has(entry2.id))
@@ -53418,10 +54369,10 @@ async function verifySkillProvenance(pluginRoot2, options = {}) {
     try {
       const actual = `sha256:${(await buildCanonicalManifest(entry2.id, join86(skillsRoot, entry2.id))).treeSha256}`;
       if (actual !== entry2.treeSha256) {
-        findings.push(finding("content-hash-mismatch", `\u4E0A\u6E38\u6280\u80FD '${entry2.id}' canonical tree digest \u4E0E skills.lock.json \u4E0D\u4E00\u81F4`, { skill: entry2.id, sourceRef: `skills/${entry2.id}`, expected: entry2.treeSha256, actual }, UPSTREAM_REMEDIATION));
+        findings.push(finding2("content-hash-mismatch", `\u4E0A\u6E38\u6280\u80FD '${entry2.id}' canonical tree digest \u4E0E skills.lock.json \u4E0D\u4E00\u81F4`, { skill: entry2.id, sourceRef: `skills/${entry2.id}`, expected: entry2.treeSha256, actual }, UPSTREAM_REMEDIATION));
       }
     } catch (error2) {
-      findings.push(finding("filesystem-safety-error", `\u4E0A\u6E38\u6280\u80FD '${entry2.id}' \u5185\u5BB9\u6811\u65E0\u6CD5\u5B89\u5168\u8BFB\u53D6: ${error2 instanceof Error ? error2.message : String(error2)}`, { skill: entry2.id, sourceRef: `skills/${entry2.id}` }));
+      findings.push(finding2("filesystem-safety-error", `\u4E0A\u6E38\u6280\u80FD '${entry2.id}' \u5185\u5BB9\u6811\u65E0\u6CD5\u5B89\u5168\u8BFB\u53D6: ${error2 instanceof Error ? error2.message : String(error2)}`, { skill: entry2.id, sourceRef: `skills/${entry2.id}` }));
     }
   }
   for (const entry2 of registry.skills) {
@@ -53432,14 +54383,14 @@ async function verifySkillProvenance(pluginRoot2, options = {}) {
       const manifest = await buildCanonicalManifest(id2, join86(skillsRoot, id2));
       const actual = `sha256:${manifest.treeSha256}`;
       if (actual !== entry2.contentHash) {
-        findings.push(finding("content-hash-mismatch", `Skill '${id2}' canonical tree digest \u4E0E registry \u4E0D\u4E00\u81F4`, { skill: id2, sourceRef: entry2.sourceRef, expected: entry2.contentHash, actual }));
+        findings.push(finding2("content-hash-mismatch", `Skill '${id2}' canonical tree digest \u4E0E registry \u4E0D\u4E00\u81F4`, { skill: id2, sourceRef: entry2.sourceRef, expected: entry2.contentHash, actual }));
       }
       const expectedCoordinate = `tenon:${entry2.sourceRef}@${entry2.contentHash}`;
       if (entry2.coordinate !== expectedCoordinate) {
-        findings.push(finding("coordinate-mismatch", `Skill '${id2}' coordinate \u4E0E registry identity/hash \u4E0D\u4E00\u81F4`, { skill: id2, sourceRef: entry2.sourceRef, expected: expectedCoordinate, actual: entry2.coordinate }));
+        findings.push(finding2("coordinate-mismatch", `Skill '${id2}' coordinate \u4E0E registry identity/hash \u4E0D\u4E00\u81F4`, { skill: id2, sourceRef: entry2.sourceRef, expected: expectedCoordinate, actual: entry2.coordinate }));
       }
     } catch (error2) {
-      findings.push(finding("filesystem-safety-error", `Skill '${id2}' \u5185\u5BB9\u6811\u65E0\u6CD5\u5B89\u5168\u8BFB\u53D6: ${error2 instanceof Error ? error2.message : String(error2)}`, { skill: id2, sourceRef: entry2.sourceRef }));
+      findings.push(finding2("filesystem-safety-error", `Skill '${id2}' \u5185\u5BB9\u6811\u65E0\u6CD5\u5B89\u5168\u8BFB\u53D6: ${error2 instanceof Error ? error2.message : String(error2)}`, { skill: id2, sourceRef: entry2.sourceRef }));
     }
   }
   const scan2 = await scanMandatorySkillInvocability(root, {
@@ -53447,10 +54398,10 @@ async function verifySkillProvenance(pluginRoot2, options = {}) {
     ...options.manifestPath === void 0 ? {} : { manifestPath: options.manifestPath }
   });
   if (scan2.kind === "unreadable-manifest") {
-    findings.push(finding("mandatory-skill-not-invocable", `\u65E0\u6CD5\u8BFB\u53D6 templates/manifest.yaml \u7684 mandatory_skills\uFF0C\u5F3A\u5236\u6280\u80FD\u53EF\u8C03\u7528\u6027\u65E0\u4ECE\u8BC1\u660E\uFF1A${scan2.detail}`, {}, "\u4FEE\u590D templates/manifest.yaml \u540E\u91CD\u65B0\u9A8C\u8BC1\uFF1B\u89E3\u6790\u4E0D\u4E86\u5C31\u4E0D\u80FD\u5F53\u4F5C\u6CA1\u6709\u5F3A\u5236\u6280\u80FD"));
+    findings.push(finding2("mandatory-skill-not-invocable", `\u65E0\u6CD5\u8BFB\u53D6 templates/manifest.yaml \u7684 mandatory_skills\uFF0C\u5F3A\u5236\u6280\u80FD\u53EF\u8C03\u7528\u6027\u65E0\u4ECE\u8BC1\u660E\uFF1A${scan2.detail}`, {}, "\u4FEE\u590D templates/manifest.yaml \u540E\u91CD\u65B0\u9A8C\u8BC1\uFF1B\u89E3\u6790\u4E0D\u4E86\u5C31\u4E0D\u80FD\u5F53\u4F5C\u6CA1\u6709\u5F3A\u5236\u6280\u80FD"));
   } else if (scan2.kind === "scanned") {
     for (const offender of scan2.offenders) {
-      findings.push(finding("mandatory-skill-not-invocable", `\u5F3A\u5236\u6280\u80FD '${offender.token}' \u7684\u5168\u90E8\u5907\u9009\u90FD\u5E26 disable-model-invocation: true\uFF0C\u5BBF\u4E3B\u4E0D\u4F1A\u4EE3\u6A21\u578B\u8C03\u7528\u5B83\uFF0C\u58F0\u660E\u5B83\u7684 ${offender.cells.join("\u3001")} \u4F1A\u5361\u6B7B\u5728 step-skills-incomplete`, { skill: offender.skillIds.join("|"), sourceRef: `skills/${offender.skillIds[0] ?? ""}` }));
+      findings.push(finding2("mandatory-skill-not-invocable", `\u5F3A\u5236\u6280\u80FD '${offender.token}' \u7684\u5168\u90E8\u5907\u9009\u90FD\u5E26 disable-model-invocation: true\uFF0C\u5BBF\u4E3B\u4E0D\u4F1A\u4EE3\u6A21\u578B\u8C03\u7528\u5B83\uFF0C\u58F0\u660E\u5B83\u7684 ${offender.cells.join("\u3001")} \u4F1A\u5361\u6B7B\u5728 step-skills-incomplete`, { skill: offender.skillIds.join("|"), sourceRef: `skills/${offender.skillIds[0] ?? ""}` }));
     }
   }
   const sorted2 = sortFindings(findings);
@@ -53474,8 +54425,8 @@ function upstreamSkillRunReportPath(stateRoot) {
 }
 function readUpstreamSkillRunReport(stateRoot) {
   try {
-    const text12 = readOptional2(upstreamSkillRunReportPath(stateRoot));
-    return text12 === null ? null : parseUpstreamSkillRunReport(text12);
+    const text13 = readOptional2(upstreamSkillRunReportPath(stateRoot));
+    return text13 === null ? null : parseUpstreamSkillRunReport(text13);
   } catch {
     return null;
   }
@@ -53976,11 +54927,11 @@ function stable3(value) {
   const record9 = value;
   return `{${Object.keys(record9).sort().map((key) => `${JSON.stringify(key)}:${stable3(record9[key])}`).join(",")}}`;
 }
-function digest15(value) {
+function digest16(value) {
   return `sha256:${createHash43("sha256").update(stable3(value), "utf8").digest("hex")}`;
 }
 function resultIdentity(runId) {
-  return `result:${digest15(runId).slice(7, 39)}`;
+  return `result:${digest16(runId).slice(7, 39)}`;
 }
 function requirePositiveInt(value, fallback2, label2) {
   const result2 = value ?? fallback2;
@@ -54059,10 +55010,10 @@ function normalizeArtifact(value, index) {
   const ref = typeof raw.ref === "string" && SAFE_REF.test(raw.ref) && !raw.ref.includes("..") ? raw.ref : void 0;
   if (ref === void 0)
     return void 0;
-  const id2 = typeof raw.id === "string" && idValid(raw.id) ? raw.id : `artifact:${digest15(ref).slice(7, 39)}`;
+  const id2 = typeof raw.id === "string" && idValid(raw.id) ? raw.id : `artifact:${digest16(ref).slice(7, 39)}`;
   const kinds2 = ["file", "diff", "document", "json", "text", "url", "report", "value", "unknown"];
   const kind = typeof raw.kind === "string" && kinds2.includes(raw.kind) ? raw.kind : "unknown";
-  const artifactDigest = typeof raw.digest === "string" && /^sha256:[a-f0-9]{64}$/u.test(raw.digest) ? raw.digest : digest15(ref);
+  const artifactDigest = typeof raw.digest === "string" && /^sha256:[a-f0-9]{64}$/u.test(raw.digest) ? raw.digest : digest16(ref);
   const media_type = typeof raw.media_type === "string" && raw.media_type.length <= 160 ? raw.media_type : void 0;
   const byte_length = typeof raw.byte_length === "number" && Number.isSafeInteger(raw.byte_length) && raw.byte_length >= 0 ? raw.byte_length : void 0;
   return { id: `${id2}:${index}`.slice(0, 160), kind, ref, digest: artifactDigest, ...media_type === void 0 ? {} : { media_type }, ...byte_length === void 0 ? {} : { byte_length } };
@@ -54099,7 +55050,7 @@ function normalizeObservation(raw, policy2) {
   const rawOutputRef = isEnvelope && typeof candidate2.raw_output_ref === "string" && SAFE_REF.test(candidate2.raw_output_ref) && !candidate2.raw_output_ref.includes("..") ? candidate2.raw_output_ref : void 0;
   const summary = isEnvelope && typeof candidate2.summary === "string" ? redact(candidate2.summary, 512) : void 0;
   const outputJson = stable3(output2);
-  return { ok: true, observation: { output: output2, consumed: Object.freeze(consumed), ...rawOutputRef === void 0 ? {} : { raw_output_ref: rawOutputRef }, artifacts: Object.freeze(normalizedArtifacts), ...summary === void 0 ? {} : { summary }, diagnostics: Object.freeze(diagnostics), output_digest: digest15(output2), output_bytes: new TextEncoder().encode(outputJson).byteLength } };
+  return { ok: true, observation: { output: output2, consumed: Object.freeze(consumed), ...rawOutputRef === void 0 ? {} : { raw_output_ref: rawOutputRef }, artifacts: Object.freeze(normalizedArtifacts), ...summary === void 0 ? {} : { summary }, diagnostics: Object.freeze(diagnostics), output_digest: digest16(output2), output_bytes: new TextEncoder().encode(outputJson).byteLength } };
 }
 function normalizeReport(raw, input2, now) {
   let snap;
@@ -54147,11 +55098,11 @@ function normalizeReport(raw, input2, now) {
   const validatorVersion = typeof value.validator_version === "string" && idValid(value.validator_version) ? value.validator_version : "unknown";
   return { ok: true, report: { schema_version: "validation-report/v2", record_id: `validation:${input2.result_id}`, project_id: "runtime", change_id: "runtime", revision: 0, correlation_id: "runtime", actor: { kind: "system", id: validatorId }, created_at: now, report_id: `report:${input2.result_id}`, work_item_id: input2.work_item_id, result_id: input2.result_id, validator_id: validatorId, validator_version: validatorVersion, status, target_digests: targetDigests, evidence_refs: evidenceRefs, checks } };
 }
-function resultFor3(run5, observation, report2, now, issue2, outputSchemaId) {
+function resultFor3(run6, observation, report2, now, issue2, outputSchemaId) {
   const diagnostics = [...observation?.diagnostics ?? [], ...issue2 === void 0 ? [] : [issue2]].map((entry2) => redact(entry2)).slice(0, 64);
   const isValidated = report2 !== void 0 && (report2.status === "pass" || report2.status === "fail");
-  const resultId = resultIdentity(run5.run_id);
-  return { schema_version: "skill-result/v2", record_id: resultId, project_id: run5.project_id, change_id: run5.change_id, revision: run5.revision, correlation_id: run5.correlation_id, actor: run5.actor, created_at: now, result_id: resultId, run_id: run5.run_id, status: issue2 === void 0 && isValidated ? "completed" : issue2 === void 0 ? "incomplete" : "failed", contract_status: isValidated ? "validated" : "unknown", ...outputSchemaId === void 0 ? {} : { output_schema_id: outputSchemaId }, ...observation?.raw_output_ref === void 0 ? {} : { raw_output: { ref: observation.raw_output_ref, digest: observation.output_digest, media_type: "application/json", byte_length: observation.output_bytes } }, ...observation === void 0 ? {} : { output_digest: observation.output_digest, output_bytes: observation.output_bytes }, ...observation?.summary === void 0 ? {} : { summary: observation.summary }, artifacts: observation?.artifacts ?? [], validation_refs: report2 === void 0 ? [] : [report2.report_id], diagnostics };
+  const resultId = resultIdentity(run6.run_id);
+  return { schema_version: "skill-result/v2", record_id: resultId, project_id: run6.project_id, change_id: run6.change_id, revision: run6.revision, correlation_id: run6.correlation_id, actor: run6.actor, created_at: now, result_id: resultId, run_id: run6.run_id, status: issue2 === void 0 && isValidated ? "completed" : issue2 === void 0 ? "incomplete" : "failed", contract_status: isValidated ? "validated" : "unknown", ...outputSchemaId === void 0 ? {} : { output_schema_id: outputSchemaId }, ...observation?.raw_output_ref === void 0 ? {} : { raw_output: { ref: observation.raw_output_ref, digest: observation.output_digest, media_type: "application/json", byte_length: observation.output_bytes } }, ...observation === void 0 ? {} : { output_digest: observation.output_digest, output_bytes: observation.output_bytes }, ...observation?.summary === void 0 ? {} : { summary: observation.summary }, artifacts: observation?.artifacts ?? [], validation_refs: report2 === void 0 ? [] : [report2.report_id], diagnostics };
 }
 
 // packages/automation/dist/orchestration/input-materialization-v2.js
@@ -54233,15 +55184,15 @@ function pipelineDependencyItemIds(snapshot2, item2) {
 function dependencyResults(snapshot2, item2) {
   return pipelineDependencyItemIds(snapshot2, item2).flatMap((dependency) => {
     const dependencyItem = snapshot2.work_items.find((candidate2) => candidate2.work_item_id === dependency);
-    const run5 = dependencyItem?.active_run_id === void 0 ? snapshot2.runs.filter((candidate2) => candidate2.work_item_id === dependency && candidate2.status === "completed").at(-1) : snapshot2.runs.find((candidate2) => candidate2.run_id === dependencyItem.active_run_id);
-    return run5?.result_id === void 0 ? [] : snapshot2.results.filter((result2) => result2.result_id === run5.result_id);
+    const run6 = dependencyItem?.active_run_id === void 0 ? snapshot2.runs.filter((candidate2) => candidate2.work_item_id === dependency && candidate2.status === "completed").at(-1) : snapshot2.runs.find((candidate2) => candidate2.run_id === dependencyItem.active_run_id);
+    return run6?.result_id === void 0 ? [] : snapshot2.results.filter((result2) => result2.result_id === run6.result_id);
   });
 }
 function inputRefs(snapshot2, item2) {
   const refs = [];
   for (const result2 of dependencyResults(snapshot2, item2)) {
     const projection = resultProjection(result2);
-    refs.push({ ref: `skill-result:${result2.result_id}`, expected_digest: digest15(projection), kind: "result", source_result_id: result2.result_id, content: projection });
+    refs.push({ ref: `skill-result:${result2.result_id}`, expected_digest: digest16(projection), kind: "result", source_result_id: result2.result_id, content: projection });
     if (result2.raw_output !== void 0)
       refs.push({ ref: result2.raw_output.ref, expected_digest: result2.raw_output.digest, kind: "json", source_result_id: result2.result_id });
     for (const artifact2 of result2.artifacts)
@@ -54250,10 +55201,10 @@ function inputRefs(snapshot2, item2) {
   return Object.freeze(refs.filter((entry2, index, all) => all.findIndex((candidate2) => candidate2.ref === entry2.ref) === index));
 }
 function emptyInputBundleV2(runId, workItemId) {
-  return Object.freeze({ schema_version: "skill-input-bundle/v2", bundle_id: `bundle:${runId}`, run_id: runId, work_item_id: workItemId, items: [], bundle_digest: digest15([]), byte_length: 0 });
+  return Object.freeze({ schema_version: "skill-input-bundle/v2", bundle_id: `bundle:${runId}`, run_id: runId, work_item_id: workItemId, items: [], bundle_digest: digest16([]), byte_length: 0 });
 }
 function rejectedInputManifest(runId, workItemId, refs, reason3, now) {
-  return Object.freeze({ schema_version: "skill-input-manifest/v2", manifest_id: `input:${runId}`, run_id: runId, work_item_id: workItemId, input_refs: Object.freeze([...refs]), artifact_digests: [], bundle_digest: digest15(refs), byte_length: 0, delivery: "rejected", rejection_reason: reason3.slice(0, 160), created_at: now });
+  return Object.freeze({ schema_version: "skill-input-manifest/v2", manifest_id: `input:${runId}`, run_id: runId, work_item_id: workItemId, input_refs: Object.freeze([...refs]), artifact_digests: [], bundle_digest: digest16(refs), byte_length: 0, delivery: "rejected", rejection_reason: reason3.slice(0, 160), created_at: now });
 }
 function createFilesystemArtifactResolverV2(changeDir7) {
   const root = path11.resolve(changeDir7);
@@ -54306,7 +55257,7 @@ async function materializeRunInputsV2(input2) {
   for (const entry2 of refs) {
     if (entry2.content !== void 0) {
       const snap2 = snapshotJsonBoundary(entry2.content, { maxBytes, maxDepth: 40, maxNodes: 8192 });
-      const actual2 = digest15(snap2.value);
+      const actual2 = digest16(snap2.value);
       if (!digestMatches2(snap2.value, entry2.expected_digest, actual2))
         throw new InputMaterializationErrorV2("artifact-digest-mismatch", `input digest mismatch for ${entry2.ref}`);
       total += snap2.bytes;
@@ -54324,7 +55275,7 @@ async function materializeRunInputsV2(input2) {
       throw new InputMaterializationErrorV2("artifact-unavailable", `input ${entry2.ref} could not be resolved`);
     }
     const snap = snapshotJsonBoundary(raw, { maxBytes, maxDepth: 40, maxNodes: 8192 });
-    const actual = digest15(snap.value);
+    const actual = digest16(snap.value);
     if (!digestMatches2(snap.value, entry2.expected_digest, actual))
       throw new InputMaterializationErrorV2("artifact-digest-mismatch", `input digest mismatch for ${entry2.ref}`);
     total += snap.bytes;
@@ -54332,7 +55283,7 @@ async function materializeRunInputsV2(input2) {
       throw new InputMaterializationErrorV2("bundle-too-large", `input bundle exceeds ${maxBytes} bytes`);
     items.push({ ref: entry2.ref, digest: entry2.expected_digest, kind: entry2.kind, byte_length: snap.bytes, content: snap.value, ...entry2.source_result_id === void 0 ? {} : { source_result_id: entry2.source_result_id } });
   }
-  const bundleDigest = digest15(items.map((entry2) => ({ ref: entry2.ref, digest: entry2.digest, kind: entry2.kind, byte_length: entry2.byte_length, content_digest: digest15(entry2.content) })));
+  const bundleDigest = digest16(items.map((entry2) => ({ ref: entry2.ref, digest: entry2.digest, kind: entry2.kind, byte_length: entry2.byte_length, content_digest: digest16(entry2.content) })));
   const bundle = Object.freeze({ schema_version: "skill-input-bundle/v2", bundle_id: `bundle:${input2.run_id}`, run_id: input2.run_id, work_item_id: input2.item.work_item_id, items: Object.freeze(items), bundle_digest: bundleDigest, byte_length: total });
   const manifest = Object.freeze({ schema_version: "skill-input-manifest/v2", manifest_id: `input:${input2.run_id}`, run_id: input2.run_id, work_item_id: input2.item.work_item_id, input_refs: Object.freeze(refs.map((entry2) => entry2.ref)), artifact_digests: Object.freeze(refs.map((entry2) => entry2.expected_digest)), bundle_digest: bundle.bundle_digest, byte_length: bundle.byte_length, delivery: "injected", created_at: input2.now });
   return { bundle, manifest };
@@ -54346,8 +55297,8 @@ function resultInputRefs(snapshot2, item2) {
   const refs = [];
   for (const dependency of item2.depends_on) {
     const depItem = snapshot2.work_items.find((candidate2) => candidate2.work_item_id === dependency);
-    const run5 = depItem?.active_run_id === void 0 ? snapshot2.runs.filter((candidate2) => candidate2.work_item_id === dependency && candidate2.status === "completed").at(-1) : snapshot2.runs.find((candidate2) => candidate2.run_id === depItem.active_run_id);
-    const result2 = run5?.result_id === void 0 ? void 0 : snapshot2.results.find((candidate2) => candidate2.result_id === run5.result_id);
+    const run6 = depItem?.active_run_id === void 0 ? snapshot2.runs.filter((candidate2) => candidate2.work_item_id === dependency && candidate2.status === "completed").at(-1) : snapshot2.runs.find((candidate2) => candidate2.run_id === depItem.active_run_id);
+    const result2 = run6?.result_id === void 0 ? void 0 : snapshot2.results.find((candidate2) => candidate2.result_id === run6.result_id);
     if (result2 !== void 0) {
       refs.push(`skill-result:${result2.result_id}`);
       if (result2.raw_output !== void 0)
@@ -54552,16 +55503,16 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
   async reconcileNow() {
     const next = await this.snapshot();
     const changes = [];
-    for (const [relative40, digest18] of next) {
-      const previous = this.baseline.get(relative40);
+    for (const [relative42, digest19] of next) {
+      const previous = this.baseline.get(relative42);
       if (previous === void 0)
-        changes.push({ path: relative40, kind: "created", digest: digest18 });
-      else if (previous !== digest18)
-        changes.push({ path: relative40, kind: "changed", digest: digest18 });
+        changes.push({ path: relative42, kind: "created", digest: digest19 });
+      else if (previous !== digest19)
+        changes.push({ path: relative42, kind: "changed", digest: digest19 });
     }
-    for (const relative40 of this.baseline.keys())
-      if (!next.has(relative40))
-        changes.push({ path: relative40, kind: "deleted" });
+    for (const relative42 of this.baseline.keys())
+      if (!next.has(relative42))
+        changes.push({ path: relative42, kind: "deleted" });
     const observed = changes.filter((change) => change.kind !== "deleted");
     const inputs2 = await Promise.all(observed.map(async (change) => ({
       source: { path: change.path },
@@ -54570,7 +55521,7 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
       origin: "unknown",
       observationSource: "reconcile"
     })));
-    const inputDigests = inputs2.map((input2) => digest16(input2.data));
+    const inputDigests = inputs2.map((input2) => digest17(input2.data));
     const versions = this.service.observeBatch !== void 0 ? await this.service.observeBatch(this.stageAttemptId, inputs2) : await Promise.all(inputs2.map((input2) => this.service.observe(this.stageAttemptId, input2)));
     for (let index = 0; index < observed.length; index += 1) {
       const change = observed[index];
@@ -54593,17 +55544,17 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
     return Object.freeze(changes);
   }
   async publish(relativePath, disposition = "candidate") {
-    const relative40 = this.safeRelative(relativePath);
-    const absolute = this.resolve(relative40);
+    const relative42 = this.safeRelative(relativePath);
+    const absolute = this.resolve(relative42);
     const bytes = await readFile57(absolute);
-    const currentDigest2 = digest16(bytes);
-    const prior = this.observedVersionsByPath.get(relative40);
+    const currentDigest2 = digest17(bytes);
+    const prior = this.observedVersionsByPath.get(relative42);
     const needsManagedObservation = prior === void 0 || prior.contentDigest !== currentDigest2 || prior.origin !== "stage" || prior.producer?.stageAttemptId !== this.stageAttemptId;
     if (needsManagedObservation) {
       const observed2 = await this.service.observe(this.stageAttemptId, {
-        source: { path: relative40 },
+        source: { path: relative42 },
         data: bytes,
-        mediaType: mediaTypeFor(relative40),
+        mediaType: mediaTypeFor(relative42),
         origin: "stage",
         producer: {
           workflowRunId: this.workflowRunId,
@@ -54613,26 +55564,26 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
         },
         observationSource: "explicit-publish"
       });
-      this.observedDigestsByPath.set(relative40, currentDigest2);
+      this.observedDigestsByPath.set(relative42, currentDigest2);
       if (observed2 !== null && typeof observed2 === "object" && "artifactId" in observed2) {
-        this.artifactIdsByPath.set(relative40, String(observed2.artifactId));
-        this.observedVersionsByPath.set(relative40, observed2);
+        this.artifactIdsByPath.set(relative42, String(observed2.artifactId));
+        this.observedVersionsByPath.set(relative42, observed2);
       }
     }
-    const observed = this.observedVersionsByPath.get(relative40);
-    return this.service.publish(this.stageAttemptId, { path: relative40, ...observed ? { artifactId: observed.artifactId, version: observed.version } : {}, disposition });
+    const observed = this.observedVersionsByPath.get(relative42);
+    return this.service.publish(this.stageAttemptId, { path: relative42, ...observed ? { artifactId: observed.artifactId, version: observed.version } : {}, disposition });
   }
   /** Submit an executor-declared output through the host-owned boundary. */
   async submit(relativePath, disposition = "deliverable", logicalKey) {
-    const relative40 = this.safeRelative(relativePath);
+    const relative42 = this.safeRelative(relativePath);
     if (this.service.submitArtifactOutput === void 0)
-      return this.publish(relative40, disposition);
-    const bytes = await readFile57(this.resolve(relative40));
+      return this.publish(relative42, disposition);
+    const bytes = await readFile57(this.resolve(relative42));
     const version = await this.service.submitArtifactOutput(this.stageAttemptId, {
       data: bytes,
-      path: relative40,
-      mediaType: mediaTypeFor(relative40),
-      kind: mediaTypeFor(relative40).includes("json") ? "json" : mediaTypeFor(relative40).startsWith("text/") ? "text" : "file",
+      path: relative42,
+      mediaType: mediaTypeFor(relative42),
+      kind: mediaTypeFor(relative42).includes("json") ? "json" : mediaTypeFor(relative42).startsWith("text/") ? "text" : "file",
       origin: "stage",
       producer: { workflowRunId: this.workflowRunId, stageAttemptId: this.stageAttemptId, ...this.skillId ? { skillId: this.skillId } : {}, ...this.actorId ? { actorId: this.actorId } : {} },
       logicalKey,
@@ -54641,19 +55592,19 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
       disposition,
       observationSource: "explicit-publish"
     });
-    this.observedVersionsByPath.set(relative40, version);
-    this.observedDigestsByPath.set(relative40, digest16(bytes));
-    this.artifactIdsByPath.set(relative40, version.artifactId);
+    this.observedVersionsByPath.set(relative42, version);
+    this.observedDigestsByPath.set(relative42, digest17(bytes));
+    this.artifactIdsByPath.set(relative42, version.artifactId);
     return version;
   }
   async observePath(relativePath, options = {}) {
-    const relative40 = this.safeRelative(relativePath);
-    const bytes = await readFile57(this.resolve(relative40));
-    const value = await this.service.observe(this.stageAttemptId, { source: { path: relative40 }, data: bytes, mediaType: mediaTypeFor(relative40), origin: "stage", producer: { workflowRunId: this.workflowRunId, stageAttemptId: this.stageAttemptId, ...this.skillId ? { skillId: this.skillId } : {}, ...this.actorId ? { actorId: this.actorId } : {} }, observationSource: options.source ?? "managed-tool", ...options.toolCallId ? { toolCallId: options.toolCallId } : {} });
+    const relative42 = this.safeRelative(relativePath);
+    const bytes = await readFile57(this.resolve(relative42));
+    const value = await this.service.observe(this.stageAttemptId, { source: { path: relative42 }, data: bytes, mediaType: mediaTypeFor(relative42), origin: "stage", producer: { workflowRunId: this.workflowRunId, stageAttemptId: this.stageAttemptId, ...this.skillId ? { skillId: this.skillId } : {}, ...this.actorId ? { actorId: this.actorId } : {} }, observationSource: options.source ?? "managed-tool", ...options.toolCallId ? { toolCallId: options.toolCallId } : {} });
     const version = value;
-    this.observedDigestsByPath.set(relative40, digest16(bytes));
-    this.observedVersionsByPath.set(relative40, version);
-    this.artifactIdsByPath.set(relative40, version.artifactId);
+    this.observedDigestsByPath.set(relative42, digest17(bytes));
+    this.observedVersionsByPath.set(relative42, version);
+    this.artifactIdsByPath.set(relative42, version.artifactId);
     return version;
   }
   async catalog(policy2 = {}) {
@@ -54693,22 +55644,22 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
     }
     await this.service.endAttempt(this.stageAttemptId, status);
   }
-  resolve(relative40) {
-    const absolute = path12.resolve(this.rootDir, relative40);
+  resolve(relative42) {
+    const absolute = path12.resolve(this.rootDir, relative42);
     if (absolute !== this.rootDir && !absolute.startsWith(`${this.rootDir}${path12.sep}`))
-      throw new Error(`artifact path escapes root: ${relative40}`);
+      throw new Error(`artifact path escapes root: ${relative42}`);
     return absolute;
   }
-  safeRelative(relative40) {
-    const normalized2 = path12.relative(this.rootDir, this.resolve(relative40));
+  safeRelative(relative42) {
+    const normalized2 = path12.relative(this.rootDir, this.resolve(relative42));
     if (!normalized2 || normalized2.startsWith(".."))
-      throw new Error(`invalid artifact path: ${relative40}`);
+      throw new Error(`invalid artifact path: ${relative42}`);
     if (this.isIgnored(normalized2))
-      throw new Error(`ignored artifact path: ${relative40}`);
+      throw new Error(`ignored artifact path: ${relative42}`);
     return normalized2;
   }
-  isIgnored(relative40) {
-    const segments = relative40.split(path12.sep);
+  isIgnored(relative42) {
+    const segments = relative42.split(path12.sep);
     return segments.some((segment) => this.ignoredDirectories.has(segment)) || this.ignoredFiles.has(segments[segments.length - 1] ?? "");
   }
   async snapshot() {
@@ -54747,7 +55698,7 @@ function mediaTypeFor(file) {
     return "text/html";
   return "application/octet-stream";
 }
-function digest16(bytes) {
+function digest17(bytes) {
   return createHash45("sha256").update(bytes).digest("hex");
 }
 
@@ -54798,8 +55749,8 @@ async function consumeArtifactsV2(service2, runtime, stageAttemptId, declaration
 import { randomUUID as randomUUID13 } from "node:crypto";
 import { mkdir as mkdir39, rename as rename14, writeFile as writeFile23 } from "node:fs/promises";
 import path13 from "node:path";
-async function persistRuntimeOutputV2(changeDir7, run5, observation) {
-  const resultId = resultIdentity(run5.run_id);
+async function persistRuntimeOutputV2(changeDir7, run6, observation) {
+  const resultId = resultIdentity(run6.run_id);
   const directory = path13.join(path13.resolve(changeDir7), ".tenon-artifacts", resultId);
   await mkdir39(directory, { recursive: true });
   const output2 = stable3(observation.output);
@@ -54869,7 +55820,7 @@ var ExecutionRuntimeV2 = class {
         return this.result(await this.evaluateCompletionGate(snapshot2), recovery);
       const prepared = await this.claimAndBegin(snapshot2, wave);
       snapshot2 = prepared.snapshot;
-      const settled = await Promise.allSettled(prepared.runs.map((run5) => this.executeOne(run5)));
+      const settled = await Promise.allSettled(prepared.runs.map((run6) => this.executeOne(run6)));
       if (Boolean(this.options.signal?.aborted) || this.stopping) {
         snapshot2 = await this.cancelIfNeeded(snapshot2, this.stopping ? "runtime-shutdown" : "execution-aborted");
         return this.result(snapshot2, recovery);
@@ -54956,14 +55907,14 @@ var ExecutionRuntimeV2 = class {
     let next = recovery.snapshot ?? snapshot2;
     const expired = recovery.report.lease_decisions.filter((entry2) => entry2.decision === "expired-awaiting-scheduler").map((entry2) => entry2.run_id);
     for (const runId of expired) {
-      const run5 = next.runs.find((candidate2) => candidate2.run_id === runId);
-      if (run5 === void 0 || run5.status !== "claimed" && run5.status !== "running" || run5.lease === void 0)
+      const run6 = next.runs.find((candidate2) => candidate2.run_id === runId);
+      if (run6 === void 0 || run6.status !== "claimed" && run6.status !== "running" || run6.lease === void 0)
         continue;
-      const result2 = resultFor3(run5, void 0, void 0, now, "lease-expired-recovery");
-      next = await this.append(next, "complete-run", { run_id: run5.run_id, result: result2 }, `recover:${run5.run_id}`);
-      const item2 = next.work_items.find((candidate2) => candidate2.work_item_id === run5.work_item_id);
+      const result2 = resultFor3(run6, void 0, void 0, now, "lease-expired-recovery");
+      next = await this.append(next, "complete-run", { run_id: run6.run_id, result: result2 }, `recover:${run6.run_id}`);
+      const item2 = next.work_items.find((candidate2) => candidate2.work_item_id === run6.work_item_id);
       if (item2?.status === "failed" && this.policy.auto_retry && item2.attempt_count + 1 < this.policy.max_attempts) {
-        next = await this.append(next, "retry-work-item", { work_item_id: item2.work_item_id, attempt_id: this.id("attempt"), run_id: this.id("run") }, `recover-retry:${run5.run_id}`);
+        next = await this.append(next, "retry-work-item", { work_item_id: item2.work_item_id, attempt_id: this.id("attempt"), run_id: this.id("run") }, `recover-retry:${run6.run_id}`);
       }
     }
     return { snapshot: next, report: recovery.report, recovered: recovery.snapshot !== void 0, expired_runs: expired };
@@ -55006,41 +55957,41 @@ var ExecutionRuntimeV2 = class {
         status: "queued",
         input_refs: resultInputRefs(next, item2)
       };
-      let run5 = runBase;
+      let run6 = runBase;
       let preparedBundle;
       try {
-        const prepared = await materializeRunInputsV2({ snapshot: next, item: item2, run_id: run5.run_id, signal: this.options.signal ?? new AbortController().signal, resolver: this.artifactResolver, max_bytes: Math.min(this.policy.max_output_bytes * 4, 4 * 1024 * 1024), now: utc(this.clock) });
+        const prepared = await materializeRunInputsV2({ snapshot: next, item: item2, run_id: run6.run_id, signal: this.options.signal ?? new AbortController().signal, resolver: this.artifactResolver, max_bytes: Math.min(this.policy.max_output_bytes * 4, 4 * 1024 * 1024), now: utc(this.clock) });
         preparedBundle = prepared.bundle;
-        run5 = { ...run5, input_refs: prepared.manifest.input_refs, input_manifest: prepared.manifest };
+        run6 = { ...run6, input_refs: prepared.manifest.input_refs, input_manifest: prepared.manifest };
       } catch (error2) {
         const reason3 = error2 instanceof InputMaterializationErrorV2 ? error2.code : "artifact-unavailable";
         this.diagnostics.push(`input-materialization:${reason3}`);
-        run5 = { ...run5, input_manifest: rejectedInputManifest(run5.run_id, run5.work_item_id, run5.input_refs, reason3, utc(this.clock)) };
+        run6 = { ...run6, input_manifest: rejectedInputManifest(run6.run_id, run6.work_item_id, run6.input_refs, reason3, utc(this.clock)) };
       }
       const lease = { lease_id: this.id("lease"), owner_id: this.options.worker_id, acquired_at: utc(this.clock), heartbeat_at: utc(this.clock), expires_at: addMilliseconds(utc(this.clock), this.policy.lease_duration_ms), generation: 1, status: "active" };
-      next = await this.append(next, "claim-run", { run: run5, lease }, `claim:${item2.work_item_id}:${run5.attempt}`);
-      const claimed = next.runs.find((candidate2) => candidate2.run_id === run5.run_id);
+      next = await this.append(next, "claim-run", { run: run6, lease }, `claim:${item2.work_item_id}:${run6.attempt}`);
+      const claimed = next.runs.find((candidate2) => candidate2.run_id === run6.run_id);
       if (claimed === void 0 || claimed.lease === void 0)
-        throw new ExecutionRuntimeErrorV2("command-rejected", `claim did not persist run ${run5.run_id}`);
-      next = await this.append(next, "begin-run", { run_id: run5.run_id, lease_id: claimed.lease.lease_id, owner_id: claimed.lease.owner_id, generation: claimed.lease.generation }, `begin:${run5.run_id}`);
-      const begun = next.runs.find((candidate2) => candidate2.run_id === run5.run_id);
+        throw new ExecutionRuntimeErrorV2("command-rejected", `claim did not persist run ${run6.run_id}`);
+      next = await this.append(next, "begin-run", { run_id: run6.run_id, lease_id: claimed.lease.lease_id, owner_id: claimed.lease.owner_id, generation: claimed.lease.generation }, `begin:${run6.run_id}`);
+      const begun = next.runs.find((candidate2) => candidate2.run_id === run6.run_id);
       if (begun === void 0)
-        throw new ExecutionRuntimeErrorV2("command-rejected", `begin did not persist run ${run5.run_id}`);
+        throw new ExecutionRuntimeErrorV2("command-rejected", `begin did not persist run ${run6.run_id}`);
       this.attempts += 1;
       if (preparedBundle !== void 0)
-        this.inputBundles.set(run5.run_id, preparedBundle);
+        this.inputBundles.set(run6.run_id, preparedBundle);
       runs.push({ run: begun, item: item2 });
     }
     return { snapshot: next, runs };
   }
   async executeOne(prepared) {
-    const { run: run5, item: item2 } = prepared;
+    const { run: run6, item: item2 } = prepared;
     const runSnapshot = await this.snapshot();
     const binding = bindingFor2(runSnapshot, item2);
     if (binding === void 0)
       throw new ExecutionRuntimeErrorV2("runtime-invalid", `binding missing for ${item2.work_item_id}`);
     const controller = new AbortController();
-    this.controllers.set(run5.run_id, controller);
+    this.controllers.set(run6.run_id, controller);
     const external = this.options.signal;
     const abortExternal = () => controller.abort();
     if (external?.aborted === true)
@@ -55054,11 +56005,11 @@ var ExecutionRuntimeV2 = class {
       heartbeatBusy = true;
       try {
         const latest = await this.snapshot();
-        const current = latest.runs.find((candidate2) => candidate2.run_id === run5.run_id);
+        const current = latest.runs.find((candidate2) => candidate2.run_id === run6.run_id);
         if (current?.lease === void 0 || current.status !== "running" && current.status !== "claimed" || current.lease.owner_id !== this.options.worker_id)
           return;
         const now = utc(this.clock);
-        await this.append(latest, "heartbeat-run", { run_id: run5.run_id, lease_id: current.lease.lease_id, owner_id: current.lease.owner_id, generation: current.lease.generation + 1, heartbeat_at: now, expires_at: addMilliseconds(now, this.policy.lease_duration_ms) }, `heartbeat:${run5.run_id}:${current.lease.generation + 1}`);
+        await this.append(latest, "heartbeat-run", { run_id: run6.run_id, lease_id: current.lease.lease_id, owner_id: current.lease.owner_id, generation: current.lease.generation + 1, heartbeat_at: now, expires_at: addMilliseconds(now, this.policy.lease_duration_ms) }, `heartbeat:${run6.run_id}:${current.lease.generation + 1}`);
       } catch (error2) {
         this.diagnostics.push(`heartbeat-failed:${error2 instanceof Error ? redact(error2.message) : "unknown"}`);
       } finally {
@@ -55072,7 +56023,7 @@ var ExecutionRuntimeV2 = class {
     let report2;
     let issue2;
     let retryable = false;
-    const inputBundle = this.inputBundles.get(run5.run_id) ?? emptyInputBundleV2(run5.run_id, item2.work_item_id);
+    const inputBundle = this.inputBundles.get(run6.run_id) ?? emptyInputBundleV2(run6.run_id, item2.work_item_id);
     let artifactRuntime;
     let artifactCatalog;
     const artifactService = await this.artifactService();
@@ -55081,11 +56032,11 @@ var ExecutionRuntimeV2 = class {
         artifactRuntime = await StageArtifactRuntime.open({
           service: artifactService,
           rootDir: this.options.change_dir,
-          workflowRunId: run5.run_id,
+          workflowRunId: run6.run_id,
           // Artifact lineage uses the stable pipeline stage namespace. The
           // work_item_id remains the ledger identity passed to the executor.
           stageId: pipelineStageIdFor(runSnapshot, item2),
-          stageAttemptId: run5.attempt_id,
+          stageAttemptId: run6.attempt_id,
           dependencyStages: pipelineDependencyStageIds(runSnapshot, item2),
           skillId: binding.skill_id,
           actorId: this.options.actor_id ?? this.options.worker_id
@@ -55102,12 +56053,12 @@ var ExecutionRuntimeV2 = class {
     }
     try {
       let raw;
-      if (run5.input_manifest?.delivery === "rejected") {
+      if (run6.input_manifest?.delivery === "rejected") {
         issue2 = "input-materialization-failed";
         retryable = true;
       } else {
         try {
-          raw = await this.options.executor.execute({ run_id: run5.run_id, work_item_id: item2.work_item_id, skill_id: binding.skill_id, skill_version: binding.skill_version, mcp_ids: binding.mcp_ids, input_refs: run5.input_refs, input_bundle: inputBundle, signal: controller.signal, ...artifactRuntime === void 0 ? {} : { artifact_runtime: artifactRuntime }, ...artifactCatalog === void 0 ? {} : { artifact_catalog: artifactCatalog } });
+          raw = await this.options.executor.execute({ run_id: run6.run_id, work_item_id: item2.work_item_id, skill_id: binding.skill_id, skill_version: binding.skill_version, mcp_ids: binding.mcp_ids, input_refs: run6.input_refs, input_bundle: inputBundle, signal: controller.signal, ...artifactRuntime === void 0 ? {} : { artifact_runtime: artifactRuntime }, ...artifactCatalog === void 0 ? {} : { artifact_catalog: artifactCatalog } });
         } catch (error2) {
           issue2 = controller.signal.aborted && this.options.signal?.aborted !== true ? "executor-aborted" : "executor-failed";
           retryable = issue2 === "executor-failed";
@@ -55123,17 +56074,17 @@ var ExecutionRuntimeV2 = class {
           try {
             let preparedObservation = normalized2.observation;
             if (artifactRuntime !== void 0 && artifactService !== void 0 && normalized2.observation.consumed !== void 0 && normalized2.observation.consumed.length > 0) {
-              const consumeDiagnostics = await consumeArtifactsV2(artifactService, artifactRuntime, run5.attempt_id, normalized2.observation.consumed);
+              const consumeDiagnostics = await consumeArtifactsV2(artifactService, artifactRuntime, run6.attempt_id, normalized2.observation.consumed);
               if (consumeDiagnostics.length > 0)
                 preparedObservation = { ...preparedObservation, diagnostics: Object.freeze([...preparedObservation.diagnostics, ...consumeDiagnostics].slice(0, 64)) };
             }
-            const outputRef = await persistRuntimeOutputV2(this.options.change_dir, run5, preparedObservation);
+            const outputRef = await persistRuntimeOutputV2(this.options.change_dir, run6, preparedObservation);
             observation = {
               ...preparedObservation,
               raw_output_ref: outputRef.ref,
               artifacts: Object.freeze([
                 ...preparedObservation.artifacts,
-                { id: `output:${run5.run_id}`, kind: "json", ref: outputRef.ref, digest: outputRef.digest, media_type: "application/json", byte_length: outputRef.byte_length }
+                { id: `output:${run6.run_id}`, kind: "json", ref: outputRef.ref, digest: outputRef.digest, media_type: "application/json", byte_length: outputRef.byte_length }
               ])
             };
           } catch (error2) {
@@ -55146,12 +56097,12 @@ var ExecutionRuntimeV2 = class {
             try {
               if (observation === void 0)
                 throw new Error("observation unavailable after output persistence");
-              const rawReport = await this.options.validator.validate({ run_id: run5.run_id, result_id: resultIdentity(run5.run_id), work_item_id: item2.work_item_id, skill_id: binding.skill_id, skill_version: binding.skill_version, observation, input_bundle: inputBundle });
-              const normalizedReport = normalizeReport(rawReport, { result_id: resultIdentity(run5.run_id), work_item_id: item2.work_item_id }, utc(this.clock));
+              const rawReport = await this.options.validator.validate({ run_id: run6.run_id, result_id: resultIdentity(run6.run_id), work_item_id: item2.work_item_id, skill_id: binding.skill_id, skill_version: binding.skill_version, observation, input_bundle: inputBundle });
+              const normalizedReport = normalizeReport(rawReport, { result_id: resultIdentity(run6.run_id), work_item_id: item2.work_item_id }, utc(this.clock));
               if (!normalizedReport.ok)
                 issue2 = normalizedReport.code;
               else
-                report2 = { ...normalizedReport.report, project_id: run5.project_id, change_id: run5.change_id, correlation_id: run5.correlation_id, actor: { kind: "system", id: "validator" } };
+                report2 = { ...normalizedReport.report, project_id: run6.project_id, change_id: run6.change_id, correlation_id: run6.correlation_id, actor: { kind: "system", id: "validator" } };
             } catch (error2) {
               issue2 = "validator-failed";
               if (error2 instanceof Error)
@@ -55164,7 +56115,7 @@ var ExecutionRuntimeV2 = class {
       if (heartbeatTimer !== void 0)
         clearInterval(heartbeatTimer);
       external?.removeEventListener("abort", abortExternal);
-      this.controllers.delete(run5.run_id);
+      this.controllers.delete(run6.run_id);
     }
     if (artifactRuntime !== void 0) {
       try {
@@ -55175,9 +56126,9 @@ var ExecutionRuntimeV2 = class {
     }
     if (issue2 === "executor-failed" || issue2 === "observation-invalid" || issue2?.startsWith("json-") === true)
       retryable = true;
-    const result2 = resultFor3(run5, observation, report2, utc(this.clock), issue2, pipelineSkillFor(await this.snapshot(), item2)?.output_schema_id);
+    const result2 = resultFor3(run6, observation, report2, utc(this.clock), issue2, pipelineSkillFor(await this.snapshot(), item2)?.output_schema_id);
     const blocking = result2.contract_status !== "validated" || report2?.status !== "pass" || report2.checks.some((check) => check.status !== "pass") || issue2 !== void 0;
-    return { run: run5, item: item2, result: result2, ...report2 === void 0 ? {} : { report: report2 }, retryable, blocking };
+    return { run: run6, item: item2, result: result2, ...report2 === void 0 ? {} : { report: report2 }, retryable, blocking };
   }
   async settle(snapshot2, outcome) {
     const current = snapshot2.runs.find((candidate2) => candidate2.run_id === outcome.run.run_id);
@@ -55271,8 +56222,8 @@ var MAX_EVENT_SAMPLE_CHARS = 180;
 function asRecord9(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
 }
-function unwrap(text12) {
-  const tagged = /<output>\s*([\s\S]*?)\s*<\/output>/u.exec(text12)?.[1] ?? text12;
+function unwrap(text13) {
+  const tagged = /<output>\s*([\s\S]*?)\s*<\/output>/u.exec(text13)?.[1] ?? text13;
   const fenced = tagged.trim().match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/u);
   return (fenced?.[1] ?? tagged).trim();
 }
@@ -55361,13 +56312,13 @@ function normalizeScopedPath(candidate2, changeDir7) {
     return void 0;
   const root = path14.resolve(changeDir7);
   const absolute = path14.resolve(root, normalizedCandidate);
-  const relative40 = path14.relative(root, absolute);
-  if (!relative40 || relative40 === ".." || relative40.startsWith(`..${path14.sep}`) || path14.isAbsolute(relative40))
+  const relative42 = path14.relative(root, absolute);
+  if (!relative42 || relative42 === ".." || relative42.startsWith(`..${path14.sep}`) || path14.isAbsolute(relative42))
     return void 0;
-  const segments = relative40.split(path14.sep);
+  const segments = relative42.split(path14.sep);
   if (segments.some((segment) => segment === ".git" || segment === ".pipeline-artifacts" || segment === ".tenon-artifacts" || segment === ".orchestration-v2"))
     return void 0;
-  return relative40;
+  return relative42;
 }
 function decodeCodexToolCompletion(event, changeDir7) {
   const kind = toolCompletionKind(event);
@@ -55739,10 +56690,10 @@ function protectedChangesFor(deps, changeName) {
 function testEvidenceContextFor(deps, changeName) {
   const user = deps.user();
   if (!isTenonUser(user)) return void 0;
-  const fingerprint = deps.workspaceFingerprint;
+  const fingerprint2 = deps.workspaceFingerprint;
   return {
     user: { id: user.id, name: user.name, slug: userSlug(user.id) },
-    ...fingerprint === void 0 ? {} : { currentCandidate: () => fingerprint(changeName) },
+    ...fingerprint2 === void 0 ? {} : { currentCandidate: () => fingerprint2(changeName) },
     // 已知失败的到期判定与 `known add` 的 30 天上限读同一个时钟（生产里就是真实时间）。
     now: () => Date.parse(deps.clock()),
     changedFiles: changedFilesReportFor(deps, changeName),
@@ -55893,7 +56844,7 @@ var PAYLOAD_ENTRIES = [
 ];
 var RELEASE_ID = /^sha256-[a-f0-9]{64}$/;
 var STABLE_VERSION = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
-function isRecord16(value) {
+function isRecord17(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function nonEmptyString2(value) {
@@ -55907,7 +56858,7 @@ function isExistingReleaseCollision(error2) {
   return code === "EEXIST" || code === "ENOTEMPTY";
 }
 function sourceFromUnknown(value) {
-  if (!isRecord16(value) || Object.keys(value).sort().join(",") !== "host,pluginVersion") return null;
+  if (!isRecord17(value) || Object.keys(value).sort().join(",") !== "host,pluginVersion") return null;
   const host = value.host;
   const pluginVersion = nonEmptyString2(value.pluginVersion);
   if (host !== "codex" && host !== "claude" && host !== "adapter" && host !== "manual" || pluginVersion === null) {
@@ -55916,7 +56867,7 @@ function sourceFromUnknown(value) {
   return { host, pluginVersion };
 }
 function stableTargetFromUnknown(value) {
-  if (!isRecord16(value) || Object.keys(value).sort().join(",") !== "commit,tag,version") return null;
+  if (!isRecord17(value) || Object.keys(value).sort().join(",") !== "commit,tag,version") return null;
   const version = value.version;
   const tag2 = value.tag;
   const commit = value.commit;
@@ -55949,7 +56900,7 @@ function parseManifest(raw) {
   } catch {
     return null;
   }
-  if (!isRecord16(value) || !validReleaseId(value.releaseId)) return null;
+  if (!isRecord17(value) || !validReleaseId(value.releaseId)) return null;
   const payloadDigest = nonEmptyString2(value.payloadDigest);
   const createdAt = nonEmptyString2(value.createdAt);
   const source = sourceFromUnknown(value.source);
@@ -55979,7 +56930,7 @@ function parseSelection(raw) {
   } catch {
     return null;
   }
-  if (!isRecord16(value)) return null;
+  if (!isRecord17(value)) return null;
   const revision = value.revision;
   if (value.version !== 1 || typeof revision !== "number" || !Number.isSafeInteger(revision) || revision < 0) return null;
   const activeRelease = value.activeRelease;
@@ -55995,7 +56946,7 @@ function parseAudit(raw) {
   } catch {
     return null;
   }
-  if (!isRecord16(value) || value.version !== 1) return null;
+  if (!isRecord17(value) || value.version !== 1) return null;
   const at = nonEmptyString2(value.at);
   const detail = nonEmptyString2(value.detail);
   const kind = value.kind;
@@ -56461,7 +57412,7 @@ import { readFile as readFile61 } from "node:fs/promises";
 import { isAbsolute as isAbsolute20, relative as relative16, resolve as resolve28, sep as sep15 } from "node:path";
 
 // packages/cli/src/codexTranscriptCompletion.ts
-function isRecord17(value) {
+function isRecord18(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function asString(value) {
@@ -56469,35 +57420,35 @@ function asString(value) {
 }
 function explicitExitCodes(value) {
   if (Array.isArray(value)) return value.flatMap((item2) => explicitExitCodes(item2));
-  if (!isRecord17(value)) return [];
+  if (!isRecord18(value)) return [];
   const nested3 = Object.entries(value).filter(([key]) => key !== "exit_code").flatMap(([, item2]) => explicitExitCodes(item2));
   return typeof value.exit_code === "number" ? [value.exit_code, ...nested3] : nested3;
 }
 function outputStrings(value) {
   if (typeof value === "string") return [value];
   if (Array.isArray(value)) return value.flatMap((item2) => outputStrings(item2));
-  if (!isRecord17(value)) return [];
+  if (!isRecord18(value)) return [];
   return Object.values(value).flatMap((item2) => outputStrings(item2));
 }
 function hostEnvelopeStrings(value) {
   const marker = "\nOutput:\n";
-  return outputStrings(value).map((text12) => {
-    const boundary = text12.indexOf(marker);
-    return boundary === -1 ? text12 : text12.slice(0, boundary);
+  return outputStrings(value).map((text13) => {
+    const boundary = text13.indexOf(marker);
+    return boundary === -1 ? text13 : text13.slice(0, boundary);
   });
 }
 function scriptStates(value) {
   return hostEnvelopeStrings(value).flatMap(
-    (text12) => [...text12.matchAll(/(?:^|\n)Script (completed|failed)(?=\n|$)/g)].map((match) => match[1] ?? "")
+    (text13) => [...text13.matchAll(/(?:^|\n)Script (completed|failed)(?=\n|$)/g)].map((match) => match[1] ?? "")
   );
 }
 function customHostHeaderState(item2) {
-  const text12 = typeof item2 === "string" ? item2 : isRecord17(item2) && item2.type === "input_text" ? asString(item2.text) : void 0;
-  if (text12 === void 0) return void 0;
+  const text13 = typeof item2 === "string" ? item2 : isRecord18(item2) && item2.type === "input_text" ? asString(item2.text) : void 0;
+  if (text13 === void 0) return void 0;
   const marker = "\nOutput:\n";
-  const boundary = text12.indexOf(marker);
-  if (boundary === -1 || boundary !== text12.length - marker.length) return void 0;
-  const header = text12.slice(0, boundary);
+  const boundary = text13.indexOf(marker);
+  if (boundary === -1 || boundary !== text13.length - marker.length) return void 0;
+  const header = text13.slice(0, boundary);
   const firstState = /^Script (completed|failed)(?:\n|$)/.exec(header)?.[1];
   const states = [...header.matchAll(
     /(?:^|\n)Script (completed|failed)(?=\n|$)/g
@@ -56508,7 +57459,7 @@ function customHostHeaderState(item2) {
 function successfulFunctionOutput(value) {
   if (scriptStates(value).includes("failed")) return false;
   const textExitCodes = hostEnvelopeStrings(value).flatMap(
-    (text12) => [...text12.matchAll(
+    (text13) => [...text13.matchAll(
       /(?:Process exited with code|exit_code["']?\s*:)\s*(\d+)\b/g
     )].map((match) => Number(match[1]))
   );
@@ -56518,30 +57469,30 @@ function successfulFunctionOutput(value) {
   return exitCodes.length > 0;
 }
 function topLevelExitCode(value) {
-  if (!isRecord17(value)) return void 0;
+  if (!isRecord18(value)) return void 0;
   return typeof value.exit_code === "number" && Number.isInteger(value.exit_code) ? value.exit_code : void 0;
 }
 function completeResultEnvelopeExitCode(value) {
-  if (!isRecord17(value) || typeof value.chunk_id !== "string" || value.chunk_id.length === 0 || typeof value.output !== "string" || typeof value.wall_time_seconds !== "number" || !Number.isFinite(value.wall_time_seconds) || value.wall_time_seconds < 0 || typeof value.original_token_count !== "number" || !Number.isInteger(value.original_token_count) || value.original_token_count < 0) return void 0;
+  if (!isRecord18(value) || typeof value.chunk_id !== "string" || value.chunk_id.length === 0 || typeof value.output !== "string" || typeof value.wall_time_seconds !== "number" || !Number.isFinite(value.wall_time_seconds) || value.wall_time_seconds < 0 || typeof value.original_token_count !== "number" || !Number.isInteger(value.original_token_count) || value.original_token_count < 0) return void 0;
   return topLevelExitCode(value);
 }
-function topLevelObjectKeys(text12) {
+function topLevelObjectKeys(text13) {
   const keys = [];
   let depth = 0;
   let expectKey = false;
-  for (let index = 0; index < text12.length; index += 1) {
-    const character = text12[index];
+  for (let index = 0; index < text13.length; index += 1) {
+    const character = text13[index];
     if (character === '"') {
       const start = index;
-      for (index += 1; index < text12.length; index += 1) {
-        if (text12[index] === "\\") {
+      for (index += 1; index < text13.length; index += 1) {
+        if (text13[index] === "\\") {
           index += 1;
           continue;
         }
-        if (text12[index] === '"') break;
+        if (text13[index] === '"') break;
       }
       if (depth === 1 && expectKey) {
-        keys.push(JSON.parse(text12.slice(start, index + 1)));
+        keys.push(JSON.parse(text13.slice(start, index + 1)));
         expectKey = false;
       }
       continue;
@@ -56557,10 +57508,10 @@ function topLevelObjectKeys(text12) {
   }
   return keys;
 }
-function parsedCompleteResultEnvelope(text12) {
+function parsedCompleteResultEnvelope(text13) {
   try {
-    const value = JSON.parse(text12);
-    const keys = topLevelObjectKeys(text12);
+    const value = JSON.parse(text13);
+    const keys = topLevelObjectKeys(text13);
     const requiredKeys = [
       "chunk_id",
       "wall_time_seconds",
@@ -56572,7 +57523,7 @@ function parsedCompleteResultEnvelope(text12) {
       return void 0;
     }
     const exitCode = completeResultEnvelopeExitCode(value);
-    if (exitCode === void 0 || !isRecord17(value) || typeof value.output !== "string") return void 0;
+    if (exitCode === void 0 || !isRecord18(value) || typeof value.output !== "string") return void 0;
     return { exitCode, output: value.output };
   } catch {
     return void 0;
@@ -56582,12 +57533,12 @@ function parsedCustomCompletion(value) {
   if (!Array.isArray(value) || value.length < 2) return void 0;
   if (customHostHeaderState(value[0]) !== "completed") return void 0;
   const typedResultIndexes = value.flatMap(
-    (item2, index) => isRecord17(item2) && item2.type === "execution_result" ? [index] : []
+    (item2, index) => isRecord18(item2) && item2.type === "execution_result" ? [index] : []
   );
   if (typedResultIndexes.length > 0) {
     const resultIndex = typedResultIndexes[0];
     if (typedResultIndexes.length !== 1 || resultIndex !== value.length - 1 || value.slice(1, resultIndex).some(
-      (item2) => !isRecord17(item2) || item2.type !== "input_text" || typeof item2.text !== "string"
+      (item2) => !isRecord18(item2) || item2.type !== "input_text" || typeof item2.text !== "string"
     )) return void 0;
     const exitCode = topLevelExitCode(value[resultIndex]);
     if (exitCode === void 0) return void 0;
@@ -56598,9 +57549,9 @@ function parsedCustomCompletion(value) {
   }
   if (value.length !== 2) return void 0;
   const payload = value[1];
-  const text12 = typeof payload === "string" ? payload : isRecord17(payload) && payload.type === "input_text" ? asString(payload.text) : void 0;
-  if (text12 === void 0) return void 0;
-  const envelope2 = parsedCompleteResultEnvelope(text12);
+  const text13 = typeof payload === "string" ? payload : isRecord18(payload) && payload.type === "input_text" ? asString(payload.text) : void 0;
+  if (text13 === void 0) return void 0;
+  const envelope2 = parsedCompleteResultEnvelope(text13);
   return envelope2 === void 0 ? void 0 : { exitCode: envelope2.exitCode, stdout: envelope2.output };
 }
 function successfulFunctionStdout(value) {
@@ -56615,7 +57566,7 @@ function successfulCustomStdout(value) {
 }
 
 // packages/cli/src/codexTrustedSkillRead.ts
-function isRecord18(value) {
+function isRecord19(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function asString2(value) {
@@ -56627,7 +57578,7 @@ function functionExecInvocation(payload) {
   if (!argumentsText) return void 0;
   try {
     const args = JSON.parse(argumentsText);
-    if (!isRecord18(args) || !isCompleteOutputSafeExecArguments(args)) return void 0;
+    if (!isRecord19(args) || !isCompleteOutputSafeExecArguments(args)) return void 0;
     if (args.cmd !== void 0 && args.command !== void 0) return void 0;
     const command2 = asString2(args.cmd) ?? asString2(args.command);
     if (args.workdir !== void 0 && typeof args.workdir !== "string") return void 0;
@@ -56823,7 +57774,7 @@ async function hostTranscriptUnchanged(handle, candidate2) {
 
 // packages/cli/src/codexTranscriptEvidence.ts
 var MAX_RECEIPT_TRANSCRIPT_BYTES = 512 * 1024 * 1024;
-function isRecord19(value) {
+function isRecord20(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function asString3(value) {
@@ -56850,7 +57801,7 @@ function responseItemAtOrAfter(event, notBefore) {
 }
 function receiptTurnId(payload) {
   const metadata = payload.internal_chat_message_metadata_passthrough;
-  if (!isRecord19(metadata)) return void 0;
+  if (!isRecord20(metadata)) return void 0;
   return asString3(metadata.turn_id);
 }
 async function settleBoundedStream(stream) {
@@ -56894,10 +57845,10 @@ async function transcriptConfirmsReceipt(receipt, trustRoots, repoRoot, homeDir 
       } catch {
         return false;
       }
-      if (!isRecord19(event)) continue;
+      if (!isRecord20(event)) continue;
       if (event.type === "session_meta") {
         const session = event.payload;
-        if (isRecord19(session)) {
+        if (isRecord20(session)) {
           const sessionId = asString3(session.session_id) ?? asString3(session.id);
           matchesSession = sessionId === receipt.sessionId;
           const cwd = asString3(session.cwd);
@@ -56908,7 +57859,7 @@ async function transcriptConfirmsReceipt(receipt, trustRoots, repoRoot, homeDir 
       }
       if (!matchesSession || event.type !== "response_item") continue;
       const payload = event.payload;
-      if (!isRecord19(payload) || receiptTurnId(payload) !== receipt.turnId) continue;
+      if (!isRecord20(payload) || receiptTurnId(payload) !== receipt.turnId) continue;
       const payloadCallId = asString3(payload.call_id);
       if (payloadCallId === receipt.toolUseId && (payload.type === "function_call" || payload.type === "custom_tool_call")) {
         if (targetInvocationSeen) return false;
@@ -56963,9 +57914,9 @@ async function matchingSuccessfulOutput(lines2, receipt, outputAbi, readPaths) {
     } catch {
       return false;
     }
-    if (!isRecord19(event) || event.type !== "response_item") continue;
+    if (!isRecord20(event) || event.type !== "response_item") continue;
     const payload = event.payload;
-    if (!isRecord19(payload) || receiptTurnId(payload) !== receipt.turnId || asString3(payload.call_id) !== receipt.toolUseId) continue;
+    if (!isRecord20(payload) || receiptTurnId(payload) !== receipt.turnId || asString3(payload.call_id) !== receipt.toolUseId) continue;
     if (payload.type === "custom_tool_call" || payload.type === "function_call") return false;
     if (payload.type !== "custom_tool_call_output" && payload.type !== "function_call_output") continue;
     if (matchingOutput !== void 0) return false;
@@ -57035,10 +57986,10 @@ async function discoverCompletedCodexSkillReads(repoRoot, candidateSkillIds, tru
           confirmedInLatestTurn.clear();
           break;
         }
-        if (!isRecord19(event)) continue;
+        if (!isRecord20(event)) continue;
         if (event.type === "session_meta") {
           const payload2 = event.payload;
-          if (isRecord19(payload2)) {
+          if (isRecord20(payload2)) {
             const cwd = asString3(payload2.cwd);
             sessionRoot = cwd;
             if (cwd) {
@@ -57053,7 +58004,7 @@ async function discoverCompletedCodexSkillReads(repoRoot, candidateSkillIds, tru
         }
         if (event.type === "turn_context") {
           const payload2 = event.payload;
-          const turnId = isRecord19(payload2) ? asString3(payload2.turn_id) : void 0;
+          const turnId = isRecord20(payload2) ? asString3(payload2.turn_id) : void 0;
           if (turnId === latestTurnId) continue;
           latestTurnId = turnId;
           readsByCall.clear();
@@ -57064,7 +58015,7 @@ async function discoverCompletedCodexSkillReads(repoRoot, candidateSkillIds, tru
         }
         if (!matchesHostSession || latestTurnId === void 0 || event.type !== "response_item") continue;
         const payload = event.payload;
-        if (!isRecord19(payload)) continue;
+        if (!isRecord20(payload)) continue;
         const eventTurnId = receiptTurnId(payload);
         if (eventTurnId !== void 0 && eventTurnId !== latestTurnId) continue;
         if (payload.type === "function_call" || payload.type === "custom_tool_call") {
@@ -57171,7 +58122,7 @@ async function discoverCompletedCodexSkillReads(repoRoot, candidateSkillIds, tru
 // packages/cli/src/codexSkillVisit.ts
 import { lstat as lstat49, readdir as readdir24, readFile as readFile62 } from "node:fs/promises";
 import { join as join94, resolve as resolve30 } from "node:path";
-function isRecord20(value) {
+function isRecord21(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function asString4(value) {
@@ -57207,7 +58158,7 @@ function currentVisitEvidence(history, evidenceScope) {
   if (evidenceScope) {
     for (let index = entries2.length - 1; index >= 0; index -= 1) {
       const entry2 = entries2[index];
-      if (isRecord20(entry2) && entry2.kind === "transition" && entry2.to === evidenceScope) {
+      if (isRecord21(entry2) && entry2.kind === "transition" && entry2.to === evidenceScope) {
         start = index + 1;
         startedAt = validTimestamp2(entry2.ts);
         valid = startedAt !== void 0;
@@ -57215,12 +58166,12 @@ function currentVisitEvidence(history, evidenceScope) {
       }
     }
     const hasAnyTransition = entries2.some(
-      (entry2) => isRecord20(entry2) && entry2.kind === "transition"
+      (entry2) => isRecord21(entry2) && entry2.kind === "transition"
     );
     if (!valid && !hasAnyTransition) {
       for (let index = entries2.length - 1; index >= 0; index -= 1) {
         const entry2 = entries2[index];
-        if (isRecord20(entry2) && entry2.kind === "init") {
+        if (isRecord21(entry2) && entry2.kind === "init") {
           start = index + 1;
           startedAt = validTimestamp2(entry2.ts);
           valid = startedAt !== void 0;
@@ -57231,7 +58182,7 @@ function currentVisitEvidence(history, evidenceScope) {
   }
   const ids2 = /* @__PURE__ */ new Set();
   for (const entry2 of entries2.slice(start)) {
-    if (!isRecord20(entry2) || entry2.kind !== "tool") continue;
+    if (!isRecord21(entry2) || entry2.kind !== "tool") continue;
     const raw = asString4(entry2.raw);
     const match = raw ? /^(?:Skill|CodexSkillRead): (.+)$/.exec(raw) : null;
     if (match?.[1]) ids2.add(match[1]);
@@ -57260,7 +58211,7 @@ async function latestBoundHostSessionId(repoRoot, changeName) {
     if (!await regularFile(path15)) continue;
     try {
       const value = JSON.parse(await readFile62(path15, "utf8"));
-      if (!isRecord20(value) || value.protocol !== TERMINAL_SESSION_PROTOCOL || asString4(value.change) !== changeName) continue;
+      if (!isRecord21(value) || value.protocol !== TERMINAL_SESSION_PROTOCOL || asString4(value.change) !== changeName) continue;
       const sessionId = asString4(value.session_id);
       const boundAt = asString4(value.bound_at);
       if (!sessionId || !boundAt || !isSafeOpaqueId(sessionId) || Number.isNaN(Date.parse(boundAt))) continue;
@@ -57297,7 +58248,7 @@ function isTrustedTranscriptPath2(transcriptPath, homeDir, configured) {
   return isInside4(codexSessionsRoot3(homeDir, configured), resolve31(transcriptPath));
 }
 function parseReceipt3(value) {
-  if (!isRecord20(value) || value.version !== RECEIPT_VERSION) return void 0;
+  if (!isRecord21(value) || value.version !== RECEIPT_VERSION) return void 0;
   const receivedAt = asString4(value.receivedAt);
   const changeName = asString4(value.changeName);
   const skillId = asString4(value.skillId);
@@ -57343,14 +58294,14 @@ async function appendReceipt(repoRoot, receipt) {
 async function loadReceipts(repoRoot) {
   const path15 = join95(resolve31(repoRoot), CODEX_SKILL_RECEIPTS_FILE);
   if (!await regularFile(path15)) return [];
-  let text12;
+  let text13;
   try {
-    text12 = await readFile63(path15, "utf8");
+    text13 = await readFile63(path15, "utf8");
   } catch {
     return [];
   }
   const receipts = [];
-  for (const line of text12.split(/\r?\n/)) {
+  for (const line of text13.split(/\r?\n/)) {
     if (line.trim() === "") continue;
     try {
       const receipt = parseReceipt3(JSON.parse(line));
@@ -57730,8 +58681,8 @@ async function checkGraphWorkflow(deps, name2, dir, state, plan, event, releaseP
     fileExists: deps.guardCtx?.(name2)?.fileExists,
     gitHeadSha: deps.gitHeadSha,
     workspaceFingerprint: deps.workspaceFingerprint ? (() => {
-      const fingerprint = deps.workspaceFingerprint;
-      return fingerprint ? fingerprint(name2) : Promise.reject(new Error("workspace fingerprint capability unavailable"));
+      const fingerprint2 = deps.workspaceFingerprint;
+      return fingerprint2 ? fingerprint2(name2) : Promise.reject(new Error("workspace fingerprint capability unavailable"));
     }) : void 0,
     specMigrationStatus: () => evaluateSpecMigrationEvidence(deps.cwd, dir, name2),
     assessBuildRevision: resolveBuildRevisionAssessor(deps, name2, dir)
@@ -57812,14 +58763,14 @@ function defaultRegistryPath() {
   return join96(dirname19(fileURLToPath(import.meta.url)), "..", "..", "..", "templates", "skill-sources.yaml");
 }
 function loadCanonicalSkillSources(path15) {
-  let text12;
+  let text13;
   try {
-    text12 = readFileSync19(path15 ?? defaultRegistryPath(), "utf8");
+    text13 = readFileSync19(path15 ?? defaultRegistryPath(), "utf8");
   } catch (e) {
     return { ok: false, error: `\u8BFB\u53D6 canonical registry \u5931\u8D25: ${e instanceof Error ? e.message : String(e)}` };
   }
   try {
-    const registry = parseSkillProvenanceRegistry(text12);
+    const registry = parseSkillProvenanceRegistry(text13);
     return { ok: true, sources: [...registry.skills] };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
@@ -58228,12 +59179,12 @@ async function probeCodexAuth(exec = REAL_CODEX_AUTH_EXEC) {
   }
 }
 function createCodexAuthExec(options = {}) {
-  return () => new Promise((resolve65) => {
+  return () => new Promise((resolve67) => {
     const platform2 = options.platform ?? process.platform;
     const env = options.env ?? process.env;
     const plan = options.plan ?? codexStatusSpawnPlan(platform2, env);
     if ("unavailableReason" in plan) {
-      resolve65({ kind: "unavailable", reason: plan.unavailableReason });
+      resolve67({ kind: "unavailable", reason: plan.unavailableReason });
       return;
     }
     const spawnProcess = options.spawnProcess ?? spawn3;
@@ -58266,7 +59217,7 @@ function createCodexAuthExec(options = {}) {
         terminationKiller = void 0;
         directKill(killer);
       }
-      resolve65(result2);
+      resolve67(result2);
     };
     const terminateCurrentProcessTree = () => {
       const target = child;
@@ -58703,7 +59654,7 @@ function probeHealthyDashboard(port, expectedReleaseId, expectedStateScopeId, op
     const request2 = httpGet(
       { host: "127.0.0.1", port, path: "/api/health", timeout: socketTimeoutMs },
       (response) => {
-        let text12 = "";
+        let text13 = "";
         let receivedBytes = 0;
         const failResponse = () => {
           response.destroy();
@@ -58716,7 +59667,7 @@ function probeHealthyDashboard(port, expectedReleaseId, expectedStateScopeId, op
             failResponse();
             return;
           }
-          text12 += chunk;
+          text13 += chunk;
         });
         response.once("aborted", () => finish2(null));
         response.once("error", () => finish2(null));
@@ -58727,7 +59678,7 @@ function probeHealthyDashboard(port, expectedReleaseId, expectedStateScopeId, op
           }
           try {
             finish2(healthyDashboardIdentity(
-              JSON.parse(text12),
+              JSON.parse(text13),
               port,
               expectedReleaseId,
               expectedStateScopeId,
@@ -58768,30 +59719,30 @@ async function waitForHealthyServer(port, expectedReleaseId, expectedStateScopeI
   return null;
 }
 function listenerPids(port) {
-  return new Promise((resolve65) => {
+  return new Promise((resolve67) => {
     execFile5("lsof", ["-nP", "-t", `-iTCP:${port}`, "-sTCP:LISTEN"], { encoding: "utf8" }, (error2, stdout) => {
       if (error2 === null) {
-        resolve65([...new Set(String(stdout ?? "").split(/\r?\n/).map((line) => Number.parseInt(line.trim(), 10)).filter((pid) => Number.isSafeInteger(pid) && pid > 0))]);
+        resolve67([...new Set(String(stdout ?? "").split(/\r?\n/).map((line) => Number.parseInt(line.trim(), 10)).filter((pid) => Number.isSafeInteger(pid) && pid > 0))]);
         return;
       }
-      resolve65(error2.code === 1 ? [] : null);
+      resolve67(error2.code === 1 ? [] : null);
     });
   });
 }
 function dashboardPortOpen(port) {
-  return new Promise((resolve65) => {
+  return new Promise((resolve67) => {
     const socket = createConnection({ host: "127.0.0.1", port });
     socket.setTimeout(250);
     socket.once("connect", () => {
       socket.destroy();
-      resolve65(true);
+      resolve67(true);
     });
     socket.once("timeout", () => {
       socket.destroy();
-      resolve65(true);
+      resolve67(true);
     });
     socket.once("error", (error2) => {
-      resolve65(error2.code !== "ECONNREFUSED");
+      resolve67(error2.code !== "ECONNREFUSED");
     });
   });
 }
@@ -59070,11 +60021,11 @@ function requestDashboardBrowserOpen(url) {
       timeout: REQUEST_TIMEOUT_MS,
       headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) }
     }, (res) => {
-      let text12 = "";
+      let text13 = "";
       res.setEncoding("utf8");
       res.on("data", (chunk) => {
-        text12 += chunk;
-        if (text12.length > MAX_RESPONSE_BYTES) {
+        text13 += chunk;
+        if (text13.length > MAX_RESPONSE_BYTES) {
           res.destroy();
           finish2(false);
         }
@@ -59083,7 +60034,7 @@ function requestDashboardBrowserOpen(url) {
       res.once("end", () => {
         if (res.statusCode !== 200) return finish2(false);
         try {
-          const parsed2 = JSON.parse(text12);
+          const parsed2 = JSON.parse(text13);
           finish2(typeof parsed2 === "object" && parsed2 !== null && Reflect.get(parsed2, "opened") === true);
         } catch {
           finish2(false);
@@ -59439,9 +60390,9 @@ function runRemoteGit2(env, args) {
     attempts: STABLE_RELEASE_REMOTE_ATTEMPTS
   });
 }
-function remoteFailure(label2, run5) {
-  const detail = run5.result.stderr.trim() || `exit ${run5.result.code}`;
-  return new Error(`${label2} failed${run5.attempts > 1 ? ` after ${run5.attempts} attempts` : ""}: ${detail}`);
+function remoteFailure(label2, run6) {
+  const detail = run6.result.stderr.trim() || `exit ${run6.result.code}`;
+  return new Error(`${label2} failed${run6.attempts > 1 ? ` after ${run6.attempts} attempts` : ""}: ${detail}`);
 }
 function tagCommit(env, tag2) {
   const directRef = `refs/tags/${tag2}`;
@@ -60374,7 +61325,7 @@ function hookCommands(value, output2) {
     for (const item2 of value) hookCommands(item2, output2);
     return;
   }
-  if (!isRecord16(value)) return;
+  if (!isRecord17(value)) return;
   const command2 = value.command;
   if (typeof command2 === "string") output2.push(command2);
   for (const item2 of Object.values(value)) hookCommands(item2, output2);
@@ -60788,8 +61739,8 @@ var RuntimeReleaseStore = class {
     if (manifest === null || manifest.releaseId !== releaseId) return null;
     const payloadRoot = join105(root, "payload");
     try {
-      const digest18 = manifest.version === 1 ? await hashLegacyReleasePayload(payloadRoot) : await hashReleasePayload(payloadRoot);
-      if (digest18 !== manifest.payloadDigest) return null;
+      const digest19 = manifest.version === 1 ? await hashLegacyReleasePayload(payloadRoot) : await hashReleasePayload(payloadRoot);
+      if (digest19 !== manifest.payloadDigest) return null;
       await verifyReleasePayload(payloadRoot, this.runner, this.bashPath, this.nodePath);
       return manifest;
     } catch {
@@ -60844,7 +61795,7 @@ import { lstat as lstat52, mkdir as mkdir44, readFile as readFile67, unlink as u
 import { dirname as dirname25, isAbsolute as isAbsolute26, join as join106, normalize as normalize3 } from "node:path";
 
 // packages/cli/src/runtime/managed-host-step-codec.ts
-function isRecord21(value) {
+function isRecord22(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function exactKeys2(value, allowed) {
@@ -60857,7 +61808,7 @@ function decodeManagedHostSteps(value) {
   const ids2 = /* @__PURE__ */ new Set();
   const steps = [];
   for (const item2 of value) {
-    if (!isRecord21(item2) || !exactKeys2(item2, [
+    if (!isRecord22(item2) || !exactKeys2(item2, [
       "id",
       "state",
       "before",
@@ -60884,7 +61835,7 @@ function decodeManagedHostSteps(value) {
 
 // packages/cli/src/runtime/managed-release-journal.ts
 var JOURNAL_FILE = "release-transaction.json";
-function isRecord22(value) {
+function isRecord23(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function exactKeys3(value, required3, optional = []) {
@@ -60895,7 +61846,7 @@ function isSource(value) {
   return value === "codex" || value === "claude" || value === "adapter" || value === "manual";
 }
 function decodeSelection2(value) {
-  if (!isRecord22(value) || !exactKeys3(value, [
+  if (!isRecord23(value) || !exactKeys3(value, [
     "version",
     "revision",
     "activeRelease",
@@ -60912,13 +61863,13 @@ function decodeSelection2(value) {
   };
 }
 function decodeRelease(value) {
-  if (!isRecord22(value)) return null;
+  if (!isRecord23(value)) return null;
   return parseManifest(JSON.stringify(value));
 }
 function decodeLauncherFile(value) {
-  if (!isRecord22(value) || !exactKeys3(value, ["path", "state"]) || typeof value.path !== "string" || !isAbsolute26(value.path) || normalize3(value.path) !== value.path) return null;
+  if (!isRecord23(value) || !exactKeys3(value, ["path", "state"]) || typeof value.path !== "string" || !isAbsolute26(value.path) || normalize3(value.path) !== value.path) return null;
   const state = value.state;
-  if (!isRecord22(state) || typeof state.kind !== "string") return null;
+  if (!isRecord23(state) || typeof state.kind !== "string") return null;
   if (state.kind === "missing" && exactKeys3(state, ["kind"])) {
     return { path: value.path, state: { kind: "missing" } };
   }
@@ -60935,13 +61886,13 @@ function decodeLauncherFile(value) {
   return null;
 }
 function decodeLauncherSnapshot(value) {
-  if (!isRecord22(value) || !exactKeys3(value, ["tenon", "hook"])) return null;
+  if (!isRecord23(value) || !exactKeys3(value, ["tenon", "hook"])) return null;
   const tenon = decodeLauncherFile(value.tenon);
   const hook = decodeLauncherFile(value.hook);
   return tenon === null || hook === null ? null : { tenon, hook };
 }
 function decodeActivation(value) {
-  if (!isRecord22(value) || !exactKeys3(
+  if (!isRecord23(value) || !exactKeys3(
     value,
     ["selection", "release", "releaseRoot"],
     ["launcherSnapshot", "launcherCommitted"]
@@ -60961,7 +61912,7 @@ function decodeActivation(value) {
   };
 }
 function decodeActivationCheckpoint(value) {
-  if (!isRecord22(value) || !exactKeys3(value, ["selection", "launchers"])) return null;
+  if (!isRecord23(value) || !exactKeys3(value, ["selection", "launchers"])) return null;
   const selection = decodeSelection2(value.selection);
   const launchers = decodeLauncherSnapshot(value.launchers);
   return selection === null || launchers === null ? null : { selection, launchers };
@@ -60971,13 +61922,13 @@ function isOperation(value) {
 }
 function decodeStableTarget(value) {
   if (value === void 0) return void 0;
-  if (!isRecord22(value) || !exactKeys3(value, ["version", "tag", "commit"]) || typeof value.version !== "string" || !/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(value.version) || value.tag !== `v${value.version}` || typeof value.commit !== "string" || !/^[a-f0-9]{40}$/.test(value.commit)) return null;
+  if (!isRecord23(value) || !exactKeys3(value, ["version", "tag", "commit"]) || typeof value.version !== "string" || !/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(value.version) || value.tag !== `v${value.version}` || typeof value.commit !== "string" || !/^[a-f0-9]{40}$/.test(value.commit)) return null;
   return { version: value.version, tag: value.tag, commit: value.commit };
 }
 function decodeDashboardIdentity(value) {
   if (value === void 0) return void 0;
-  const serverVersion = isRecord22(value) && value.serverVersion === void 0 ? "" : isRecord22(value) ? value.serverVersion : void 0;
-  if (!isRecord22(value) || !exactKeys3(value, ["version", "port", "pid", "releaseId", "stateScopeId"], ["serverVersion", "transactionId"]) || value.version !== 1 || typeof serverVersion !== "string" || serverVersion === "" && Object.hasOwn(value, "serverVersion") || serverVersion !== "" && !/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(serverVersion) || !Number.isSafeInteger(value.port) || value.port < 1 || value.port > 65535 || !Number.isSafeInteger(value.pid) || value.pid < 1 || !validReleaseId(value.releaseId) || typeof value.stateScopeId !== "string" || !/^sha256-v1-[a-f0-9]{64}$/.test(value.stateScopeId) || value.transactionId !== void 0 && (typeof value.transactionId !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(value.transactionId))) return null;
+  const serverVersion = isRecord23(value) && value.serverVersion === void 0 ? "" : isRecord23(value) ? value.serverVersion : void 0;
+  if (!isRecord23(value) || !exactKeys3(value, ["version", "port", "pid", "releaseId", "stateScopeId"], ["serverVersion", "transactionId"]) || value.version !== 1 || typeof serverVersion !== "string" || serverVersion === "" && Object.hasOwn(value, "serverVersion") || serverVersion !== "" && !/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(serverVersion) || !Number.isSafeInteger(value.port) || value.port < 1 || value.port > 65535 || !Number.isSafeInteger(value.pid) || value.pid < 1 || !validReleaseId(value.releaseId) || typeof value.stateScopeId !== "string" || !/^sha256-v1-[a-f0-9]{64}$/.test(value.stateScopeId) || value.transactionId !== void 0 && (typeof value.transactionId !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(value.transactionId))) return null;
   return {
     version: 1,
     serverVersion,
@@ -60990,7 +61941,7 @@ function decodeDashboardIdentity(value) {
 }
 function decodeDashboard(value) {
   if (value === void 0) return void 0;
-  if (!isRecord22(value) || value.owner !== "transaction" && value.owner !== "preexisting") return null;
+  if (!isRecord23(value) || value.owner !== "transaction" && value.owner !== "preexisting") return null;
   const identity2 = decodeDashboardIdentity({
     version: value.version,
     port: value.port,
@@ -61014,7 +61965,7 @@ function decodeJournal(raw, paths) {
   } catch {
     return null;
   }
-  if (!isRecord22(value) || !exactKeys3(
+  if (!isRecord23(value) || !exactKeys3(
     value,
     ["version", "transactionId", "operation", "source", "phase", "startedAt", "updatedAt"],
     [
@@ -61579,7 +62530,7 @@ var REAL_RUNTIME_INSTALLER = {
 };
 
 // packages/cli/src/commands/managed-host-desired-identity.ts
-function isRecord23(value) {
+function isRecord24(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function hasExactKeys2(value, keys) {
@@ -61590,7 +62541,7 @@ function isGitOid(value) {
   return typeof value === "string" && GIT_OID2.test(value);
 }
 function decodeMarketplaceIdentity(value) {
-  if (!isRecord23(value) || !hasExactKeys2(value, ["clean", "head", "ref", "root", "source", "sourceType"])) {
+  if (!isRecord24(value) || !hasExactKeys2(value, ["clean", "head", "ref", "root", "source", "sourceType"])) {
     return null;
   }
   if (typeof value.root !== "string" || typeof value.source !== "string" || typeof value.sourceType !== "string" || value.head !== null && !isGitOid(value.head) || value.ref !== null && typeof value.ref !== "string" || typeof value.clean !== "boolean") {
@@ -61605,14 +62556,14 @@ function decodeMarketplaceIdentity(value) {
     clean: value.clean
   };
 }
-function decodeDesiredIdentity(text12) {
+function decodeDesiredIdentity(text13) {
   let value;
   try {
-    value = JSON.parse(text12);
+    value = JSON.parse(text13);
   } catch {
     return null;
   }
-  if (!isRecord23(value) || value.version !== 1 || typeof value.kind !== "string") return null;
+  if (!isRecord24(value) || value.version !== 1 || typeof value.kind !== "string") return null;
   if (value.kind === "plugin-absent" || value.kind === "marketplace-absent") {
     return hasExactKeys2(value, ["kind", "targetCommit", "targetVersion", "version"]) && typeof value.targetVersion === "string" && value.targetVersion !== "" && isGitOid(value.targetCommit) ? {
       version: 1,
@@ -61706,12 +62657,12 @@ function explicitCodexMarketplaceRef(item2, sourceRecord) {
   }
   return value;
 }
-function parseCodexMarketplaceConfigRef(text12) {
+function parseCodexMarketplaceConfigRef(text13) {
   let inTenonSection = false;
   let sectionCount = 0;
   let ref = null;
   let refSeen = false;
-  for (const line of text12.split(/\r?\n/u)) {
+  for (const line of text13.split(/\r?\n/u)) {
     const section2 = /^\s*\[([^\]]+)\]\s*(?:#.*)?$/u.exec(line);
     if (section2 !== null) {
       inTenonSection = section2[1]?.trim() === "marketplaces.tenon";
@@ -61757,9 +62708,9 @@ function codexConfiguredMarketplaceRef(env, item2, sourceRecord, root) {
   }
   return metadata.ref_name;
 }
-function parseManagedHostJson(text12, label2) {
+function parseManagedHostJson(text13, label2) {
   try {
-    return JSON.parse(text12);
+    return JSON.parse(text13);
   } catch {
     throw new ManagedRuntimeIndeterminateError(`${label2} \u4E0D\u662F\u5408\u6CD5 JSON`);
   }
@@ -62109,19 +63060,19 @@ function freezeTrustedLifecycleCommands(env) {
   const gitBinding = env.resolveTrustedCommandBinding?.("git");
   const nodeBinding = env.resolveTrustedCommandBinding?.("node");
   const bash = bashBinding?.executable;
-  const git3 = gitBinding?.executable;
+  const git4 = gitBinding?.executable;
   const node = nodeBinding?.executable;
   return {
     enforced: true,
     ...bash === void 0 ? {} : { bash },
-    ...git3 === void 0 ? {} : { git: git3 },
+    ...git4 === void 0 ? {} : { git: git4 },
     ...node === void 0 ? {} : { node },
     ...bashBinding === void 0 ? {} : { bashBinding },
     ...gitBinding === void 0 ? {} : { gitBinding },
     ...nodeBinding === void 0 ? {} : { nodeBinding },
     missing: [
       ...bash === void 0 ? ["bash"] : [],
-      ...git3 === void 0 ? ["git"] : [],
+      ...git4 === void 0 ? ["git"] : [],
       ...node === void 0 ? ["node"] : []
     ]
   };
@@ -62638,9 +63589,9 @@ async function cmdDoctor(deps, opts) {
     ["identity:release", () => checkProductIdentity(p, { verifyRemote: opts.verifyRelease === true })]
   ];
   const checks = [];
-  for (const [id2, run5] of runners) {
+  for (const [id2, run6] of runners) {
     try {
-      checks.push(await run5());
+      checks.push(await run6());
     } catch (e) {
       checks.push(red(id2, `\u68C0\u67E5\u81EA\u8EAB\u5F02\u5E38: ${errMsg(e)}`, "\u6392\u9664\u63A2\u9488\u73AF\u5883\u95EE\u9898\u540E\u91CD\u8DD1 tenon doctor"));
     }
@@ -62730,13 +63681,13 @@ async function refuseArchived(deps, name2) {
 async function refuseUnfinishedRelocation(deps, name2) {
   const relocated = relocatedChangeDir(deps.cwd, name2);
   if (relocated === null) return false;
-  let fields;
+  let fields2;
   try {
-    fields = (await deps.store.read(relocated)).fields;
+    fields2 = (await deps.store.read(relocated)).fields;
   } catch {
     return false;
   }
-  const archived = fields.archived;
+  const archived = fields2.archived;
   if ((Array.isArray(archived) ? archived.join(",") : archived ?? "") === "true") return false;
   const dated = relative21(deps.cwd, relocated);
   deps.io.err(
@@ -62750,8 +63701,8 @@ async function refuseUnfinishedRelocation(deps, name2) {
 function changeFinishedMessage(change) {
   return `\u4EFB\u52A1 '${change}' \u5DF2\u5B8C\u7ED3\uFF08archived=true\uFF0C\u72B6\u6001\u673A\u5DF2\u8D70\u5B8C\uFF09\uFF1B\u5B8C\u7ED3\u7684\u4EFB\u52A1\u4E0D\u518D\u63A5\u53D7\u72B6\u6001\u5199\u5165\uFF0C\u8981\u7EE7\u7EED\u505A\u5C31\u65B0\u5EFA\u4EFB\u52A1`;
 }
-function refuseFinished(deps, change, fields) {
-  const archived = fields.archived;
+function refuseFinished(deps, change, fields2) {
+  const archived = fields2.archived;
   if ((Array.isArray(archived) ? archived.join(",") : archived ?? "") !== "true") return false;
   deps.io.err(`ERROR: ${changeFinishedMessage(change)}`);
   return true;
@@ -64017,11 +64968,11 @@ async function cmdInbox(deps, opts) {
       deps.io.err(`WARN: \u8DF3\u8FC7\u574F change ${name2}: ${errMsg(e)}`);
       continue;
     }
-    const fields = state.fields;
-    if (str2(fields.archived) === "true") continue;
-    const phase = str2(fields.phase);
+    const fields2 = state.fields;
+    if (str2(fields2.archived) === "true") continue;
+    const phase = str2(fields2.phase);
     if (!reviewGatePendingFor(state, phase)) continue;
-    const requested = Date.parse(str2(fields.review_requested_at));
+    const requested = Date.parse(str2(fields2.review_requested_at));
     const waitingS = Number.isNaN(requested) ? 0 : Math.max(0, Math.floor((now - requested) / 1e3));
     items.push({ name: name2, phase, waiting_on: "review-request", waiting_s: waitingS, hint: REVIEW_HINT });
   }
@@ -64164,8 +65115,8 @@ async function cmdTransition(deps, name2, event) {
     fileExists: guardContext?.fileExists,
     gitHeadSha: deps.gitHeadSha,
     workspaceFingerprint: deps.workspaceFingerprint ? (() => {
-      const fingerprint = deps.workspaceFingerprint;
-      return fingerprint ? fingerprint(name2) : Promise.reject(new Error("workspace fingerprint capability unavailable"));
+      const fingerprint2 = deps.workspaceFingerprint;
+      return fingerprint2 ? fingerprint2(name2) : Promise.reject(new Error("workspace fingerprint capability unavailable"));
     }) : void 0,
     captureBuildRevision: deps.captureBuildRevision,
     assessBuildRevision: resolveBuildRevisionAssessor(deps, name2, dir),
@@ -64876,15 +65827,15 @@ function assertSafeSkillRoot(root, skillId) {
 function loadSkillAliases(pluginRoot2) {
   if (pluginRoot2 === void 0) return /* @__PURE__ */ new Map();
   const path15 = join113(pluginRoot2, "templates", "skill-sources.yaml");
-  let text12;
+  let text13;
   try {
-    text12 = readFileSync23(path15, "utf8");
+    text13 = readFileSync23(path15, "utf8");
   } catch (error2) {
     if (errnoCode8(error2) === "ENOENT") return /* @__PURE__ */ new Map();
     throw new SkillProvenanceLocatorError("registry-read-error", `\u8BFB\u53D6 skill source registry \u5931\u8D25: ${path15}\uFF08${String(error2)}\uFF09`);
   }
   const aliases = /* @__PURE__ */ new Map();
-  for (const row2 of parseSkillSources(text12)) {
+  for (const row2 of parseSkillSources(text13)) {
     const physical = row2.contentSkill ?? (row2.tool === "skills-cli" || row2.tool === "claude-plugin" ? row2.skill : void 0);
     if (!row2.token.includes(":") && physical !== void 0 && physical !== row2.token) aliases.set(row2.token, physical);
   }
@@ -64910,9 +65861,9 @@ function readUpstreamLockEntries(bundledRoot) {
 }
 async function verifiedContentDir(base, bundledRoot, physical, expectedHash) {
   const physicalRealPath = assertSafeSkillRoot(bundledRoot, physical);
-  let located;
+  let located2;
   try {
-    located = await base.locate(physical);
+    located2 = await base.locate(physical);
   } catch (error2) {
     if (error2 instanceof SkillContentNotFoundError) {
       throw new SkillProvenanceLocatorError("missing-distributed-skill", error2.message);
@@ -64922,7 +65873,7 @@ async function verifiedContentDir(base, bundledRoot, physical, expectedHash) {
     }
     throw error2;
   }
-  if (located.contentDir !== physicalRealPath) {
+  if (located2.contentDir !== physicalRealPath) {
     throw new SkillProvenanceLocatorError(
       "filesystem-safety-error",
       `bundled Skill '${physical}' \u5B9A\u4F4D\u7ED3\u679C\u672A\u7ED1\u5B9A\u5230\u53D7\u4FE1 realpath`
@@ -64930,7 +65881,7 @@ async function verifiedContentDir(base, bundledRoot, physical, expectedHash) {
   }
   let manifest;
   try {
-    manifest = await buildCanonicalManifest(physical, located.contentDir);
+    manifest = await buildCanonicalManifest(physical, located2.contentDir);
   } catch (error2) {
     throw new SkillProvenanceLocatorError(
       "filesystem-safety-error",
@@ -64944,7 +65895,7 @@ async function verifiedContentDir(base, bundledRoot, physical, expectedHash) {
       `bundled Skill '${physical}' hash drift: expected ${expectedHash}, actual ${actual}`
     );
   }
-  return located.contentDir;
+  return located2.contentDir;
 }
 function createProvenanceAwareBundledLocator(pluginRoot2) {
   const bundledRoot = join113(pluginRoot2, "skills");
@@ -64983,14 +65934,14 @@ function createProvenanceAwareBundledLocator(pluginRoot2) {
           return { skillId, contentDir: await verifiedContentDir(base, bundledRoot, locked.id, locked.treeSha256) };
         }
         const directPath = join113(bundledRoot, skillId);
-        let exists2 = false;
+        let exists3 = false;
         try {
-          exists2 = candidateExists(directPath);
+          exists3 = candidateExists(directPath);
         } catch (error2) {
           throw error2;
         }
-        if (exists2) assertSafeSkillRoot(bundledRoot, skillId);
-        if (!exists2) throw new SkillContentNotFoundError(`bundled Skill '${skillId}' \u672A\u767B\u8BB0\u4E14\u4E0D\u5B58\u5728`);
+        if (exists3) assertSafeSkillRoot(bundledRoot, skillId);
+        if (!exists3) throw new SkillContentNotFoundError(`bundled Skill '${skillId}' \u672A\u767B\u8BB0\u4E14\u4E0D\u5B58\u5728`);
         throw new SkillProvenanceLocatorError(
           "unregistered-distributed-skill",
           `bundled Skill '${skillId}' \u5B58\u5728\u4F46\u672A\u5728 canonical registry \u58F0\u660E`
@@ -65374,8 +66325,8 @@ function withLogicalSkillAliases(locator, aliases) {
   return {
     async locate(skillId) {
       const physicalId3 = aliases.get(skillId) ?? skillId;
-      const located = await locator.locate(physicalId3);
-      return physicalId3 === skillId ? located : { skillId, contentDir: located.contentDir };
+      const located2 = await locator.locate(physicalId3);
+      return physicalId3 === skillId ? located2 : { skillId, contentDir: located2.contentDir };
     }
   };
 }
@@ -65480,8 +66431,8 @@ function createProductionSkillContentLocator(opts) {
       const codexRoots = getCodexPluginRoots().get(pluginName);
       if (codexRoots !== void 0 && codexRoots.length > 0) {
         try {
-          const located2 = await createFsSkillContentLocator(codexRoots).locate(leaf);
-          return { skillId, contentDir: located2.contentDir };
+          const located3 = await createFsSkillContentLocator(codexRoots).locate(leaf);
+          return { skillId, contentDir: located3.contentDir };
         } catch (e) {
           if (!(e instanceof SkillContentNotFoundError)) throw e;
         }
@@ -65492,8 +66443,8 @@ function createProductionSkillContentLocator(opts) {
           `skill '${skillId}' \u7684\u63D2\u4EF6\u547D\u540D\u7A7A\u95F4 '${pluginName}' \u5728 Codex cache \u4E0E installed_plugins.json \u4E2D\u5747\u65E0\u53EF\u7528\u5019\u9009`
         );
       }
-      const located = await createFsSkillContentLocator(fallbackRoots).locate(leaf);
-      return { skillId, contentDir: located.contentDir };
+      const located2 = await createFsSkillContentLocator(fallbackRoots).locate(leaf);
+      return { skillId, contentDir: located2.contentDir };
     }
   };
   return withLogicalSkillAliases(locator, aliases);
@@ -65616,7 +66567,7 @@ async function enforceProductionLoopWiring(deps, loopIds, home = homedir9()) {
 }
 
 // packages/cli/src/commands/afk-workflow-authority.ts
-async function resolveAfkWorkflowActionAuthority(deps, change, context, run5, registry) {
+async function resolveAfkWorkflowActionAuthority(deps, change, context, run6, registry) {
   const state = await deps.store.read(changeDir(deps.cwd, change));
   let project;
   let projectAuthority;
@@ -65634,12 +66585,12 @@ async function resolveAfkWorkflowActionAuthority(deps, change, context, run5, re
     project = { status: "malformed", grants: [] };
   }
   let skill = { status: "missing", grants: [] };
-  if (context.skill_bundle_id !== null && context.skill_bundle_id !== void 0 && run5.workflowPlanFingerprint !== void 0 && deps.resolveSkillActionAuthority !== void 0) {
+  if (context.skill_bundle_id !== null && context.skill_bundle_id !== void 0 && run6.workflowPlanFingerprint !== void 0 && deps.resolveSkillActionAuthority !== void 0) {
     const query = {
       change,
       skillBundleId: context.skill_bundle_id,
-      workflowRunId: run5.id,
-      workflowFingerprint: run5.workflowPlanFingerprint
+      workflowRunId: run6.id,
+      workflowFingerprint: run6.workflowPlanFingerprint
     };
     const rawSkill = await deps.resolveSkillActionAuthority(query);
     try {
@@ -65649,7 +66600,7 @@ async function resolveAfkWorkflowActionAuthority(deps, change, context, run5, re
     }
   }
   const metadata = state.runMetadata;
-  const exactRun = metadata !== void 0 && metadata.runId === run5.id && run5.workflowId !== void 0 && resolveWorkflowName(state) === run5.workflowId && run5.workflowPlanFingerprint !== void 0 && metadata.workflowPlanFingerprint === run5.workflowPlanFingerprint && run5.loopId === context.loop_id && metadata.loopId === run5.loopId && run5.iterationId === context.iteration_id && metadata.iterationId === run5.iterationId;
+  const exactRun = metadata !== void 0 && metadata.runId === run6.id && run6.workflowId !== void 0 && resolveWorkflowName(state) === run6.workflowId && run6.workflowPlanFingerprint !== void 0 && metadata.workflowPlanFingerprint === run6.workflowPlanFingerprint && run6.loopId === context.loop_id && metadata.loopId === run6.loopId && run6.iterationId === context.iteration_id && metadata.iterationId === run6.iterationId;
   const runLayer = metadata === void 0 ? { status: "missing", grants: [] } : !exactRun ? { status: "fingerprint-mismatch", grants: [] } : { status: "valid", grants: str2(state.fields.automation) === "queued" && str2(state.fields.archived) !== "true" ? ["enter-afk"] : [] };
   return {
     platform: { status: "valid", grants: ["enter-afk"] },
@@ -65757,7 +66708,7 @@ async function runAfkRound(deps, options, runtime = {}) {
     bindAutomationPolicy: (change, policy2, binding) => deps.runRepo.bindAutomationPolicy(changeDir(deps.cwd, change), policy2, binding),
     bindWorkflowActionAuthority: (change, snapshot2) => deps.runRepo.bindWorkflowActionAuthority(changeDir(deps.cwd, change), snapshot2),
     withWorkflowActionAuthorityLock: (use) => deps.withRegistryLock(({ registry }) => use(registry)),
-    workflowActionAuthority: ({ change, context, run: run5, registry }) => resolveAfkWorkflowActionAuthority(deps, change, context, run5, registry)
+    workflowActionAuthority: ({ change, context, run: run6, registry }) => resolveAfkWorkflowActionAuthority(deps, change, context, run6, registry)
   });
   const preparation = createExecutionPreparation({
     repoRoot: deps.cwd,
@@ -66038,8 +66989,8 @@ async function cmdAfk(deps, sub, name2, opts) {
       }
       for (const n of name2 ? [name2] : names) {
         try {
-          const fields = (await deps.store.read(changeDir(deps.cwd, n))).fields;
-          const a = str2(fields.automation) || "off";
+          const fields2 = (await deps.store.read(changeDir(deps.cwd, n))).fields;
+          const a = str2(fields2.automation) || "off";
           const lane = lanes[a];
           if (lane) lane.push(n);
         } catch {
@@ -66201,11 +67152,11 @@ function validateEventBase(partial) {
     throw new Error("meta \u5FC5\u987B\u662F plain object\uFF08dict\uFF09");
   }
 }
-function parseEventsText(text12) {
+function parseEventsText(text13) {
   const out = [];
-  if (!text12)
+  if (!text13)
     return out;
-  for (const line of text12.split("\n")) {
+  for (const line of text13.split("\n")) {
     const s = line.trim();
     if (!s)
       continue;
@@ -66221,10 +67172,10 @@ function parseEventsText(text12) {
   }
   return out;
 }
-function findIdempotentEvent(text12, key, kind) {
-  if (!text12)
+function findIdempotentEvent(text13, key, kind) {
+  if (!text13)
     return void 0;
-  for (const line of text12.split("\n")) {
+  for (const line of text13.split("\n")) {
     const s = line.trim();
     if (!s)
       continue;
@@ -66246,8 +67197,8 @@ function findIdempotentEvent(text12, key, kind) {
 
 // packages/channel/dist/seq.js
 var SIDECAR_RE = /^[0-9]+$/;
-function parseSidecar(text12) {
-  const t = text12.replace(/\n$/, "");
+function parseSidecar(text13) {
+  const t = text13.replace(/\n$/, "");
   if (!SIDECAR_RE.test(t))
     return void 0;
   const n = Number(t);
@@ -66274,10 +67225,10 @@ function lastSeqInLines(lines2) {
   }
   return void 0;
 }
-function readLastJsonlSeqFromText(text12) {
-  if (text12.length === 0)
+function readLastJsonlSeqFromText(text13) {
+  if (text13.length === 0)
     return 0;
-  const lines2 = text12.split("\n");
+  const lines2 = text13.split("\n");
   const found = lastSeqInLines(lines2);
   if (found !== void 0)
     return found;
@@ -67332,14 +68283,14 @@ function readNewEvents(fs, path15, state) {
   if (chunk === void 0)
     return [];
   state.byteOffset = size;
-  const text12 = state.carry + chunk;
-  const lines2 = text12.split("\n");
+  const text13 = state.carry + chunk;
+  const lines2 = text13.split("\n");
   state.carry = lines2.pop() ?? "";
   return parseEventsText(lines2.join("\n"));
 }
 function defaultSleep(ms) {
-  return new Promise((resolve65) => {
-    const t = setTimeout(resolve65, ms);
+  return new Promise((resolve67) => {
+    const t = setTimeout(resolve67, ms);
     if (typeof t.unref === "function")
       t.unref();
   });
@@ -67559,7 +68510,7 @@ var ShutdownController = class {
   awaitKilled() {
     if (this.killedDone || !this.killedStarted)
       return Promise.resolve();
-    return new Promise((resolve65) => this.killedWaiters.push(resolve65));
+    return new Promise((resolve67) => this.killedWaiters.push(resolve67));
   }
   startKillLadder() {
     const child = this.deps.child();
@@ -67706,11 +68657,11 @@ var EchoAdapter = class {
   isReady() {
     return true;
   }
-  encodeUserMessage(text12) {
-    return text12 + "\n";
+  encodeUserMessage(text13) {
+    return text13 + "\n";
   }
-  encodeInterruptMessage(text12) {
-    return text12 + "\n";
+  encodeInterruptMessage(text13) {
+    return text13 + "\n";
   }
   parseLine(line) {
     return { events: [{ kind: "done", payload: { text: line.trim() } }], side: null };
@@ -67795,12 +68746,12 @@ async function startSupervisor(channelName, workerName, config, deps) {
   log3(`[supervisor] starting ${adapter2.provider} ${args.join(" ")}
 `);
   const child = proc.spawn(adapter2.provider, args, { cwd: config.cwd, env: childEnv });
-  const settled = new Promise((resolve65) => {
-    child.onSpawn(() => resolve65(true));
+  const settled = new Promise((resolve67) => {
+    child.onSpawn(() => resolve67(true));
     child.onError((err) => {
       log3(`[supervisor] worker error: ${err.message}
 `);
-      resolve65(false);
+      resolve67(false);
     });
   });
   child.onStderr((chunk) => log3(chunk));
@@ -67962,9 +68913,9 @@ async function runInboxWatcher(a) {
       return;
     const kind = ev.kind;
     const isInterrupt = kind === "interrupt_requested";
-    const text12 = String(ev.text ?? "").trim();
+    const text13 = String(ev.text ?? "").trim();
     const interruptText = String(ev.message ?? "").trim();
-    if (!text12 && (!isInterrupt || !interruptText))
+    if (!text13 && (!isInterrupt || !interruptText))
       continue;
     const seq2 = typeof ev.seq === "number" ? ev.seq : cursor;
     if (!adapter2.isReady(ctx)) {
@@ -68003,7 +68954,7 @@ async function runInboxWatcher(a) {
     const turn = turnTracker.begin(seq2);
     try {
       append2({ kind: "turn_started", by: worker, worker, inputSeq: seq2, turnId: turn.turnId });
-      const encoded = isInterrupt ? adapter2.encodeInterruptMessage(interruptText, ctx) : adapter2.encodeUserMessage(text12, ctx);
+      const encoded = isInterrupt ? adapter2.encodeInterruptMessage(interruptText, ctx) : adapter2.encodeUserMessage(text13, ctx);
       child.write(encoded);
       cursor = seq2;
       writeInboxCursor(fs, env, channel, worker, cursor, scope);
@@ -68213,12 +69164,12 @@ function cmdSend(deps, host, p) {
   if (!name2) die("[channel send] \u7F3A channel \u540D");
   const by = strFlag(p.flags, "as");
   if (!by) die("[channel send] \u9700 --as <by>");
-  const text12 = p.positional[1] ?? "";
-  if (!text12) die("[channel send] \u7A7A\u6587\u672C\uFF08\u9700 arg / --to \u5B9A\u5411\u6587\u672C\uFF09");
+  const text13 = p.positional[1] ?? "";
+  if (!text13) die("[channel send] \u7A7A\u6587\u672C\uFF08\u9700 arg / --to \u5B9A\u5411\u6587\u672C\uFF09");
   const scope = scopeOf(p.flags);
   const targets2 = csv(strFlag(p.flags, "to"));
   const mode = strFlag(p.flags, "delivery-mode") ?? "appendOnly";
-  const partial = { kind: "message", by, origin: "cli", text: text12 };
+  const partial = { kind: "message", by, origin: "cli", text: text13 };
   if (targets2.length === 1) partial.to = targets2[0];
   else if (targets2.length > 1) partial.to = targets2;
   const msg = host.store.append(name2, partial, scope);
@@ -68316,13 +69267,13 @@ function cmdInterrupt(deps, host, p) {
   if (!by) die("[channel interrupt] \u9700 --as <by>");
   const to = strFlag(p.flags, "to");
   if (!to) die("[channel interrupt] \u9700 --to <worker>");
-  const text12 = p.positional[1] ?? "";
-  if (!text12) die("[channel interrupt] \u7A7A\u6587\u672C\uFF08\u9700 arg\uFF09");
+  const text13 = p.positional[1] ?? "";
+  if (!text13) die("[channel interrupt] \u7A7A\u6587\u672C\uFF08\u9700 arg\uFF09");
   emit(
     deps,
     host.store.append(
       name2,
-      { kind: "interrupt_requested", by, origin: "cli", worker: to, message: text12, reason: "user" },
+      { kind: "interrupt_requested", by, origin: "cli", worker: to, message: text13, reason: "user" },
       scopeOf(p.flags)
     )
   );
@@ -68860,7 +69811,7 @@ import { readdir as readdir27 } from "node:fs/promises";
 import { join as join120 } from "node:path";
 
 // packages/cli/src/test-system/parsers/json.ts
-function isRecord24(value) {
+function isRecord25(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function asArray7(value) {
@@ -68872,9 +69823,9 @@ function asString5(value) {
 function asNumber(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : void 0;
 }
-function parseJson4(text12) {
+function parseJson4(text13) {
   try {
-    return { ok: true, value: JSON.parse(text12) };
+    return { ok: true, value: JSON.parse(text13) };
   } catch (error2) {
     return { ok: false, reason: `\u4E0D\u662F\u5408\u6CD5\u7684 JSON\uFF1A${error2 instanceof Error ? error2.message.slice(0, 120) : "\u89E3\u6790\u5931\u8D25"}` };
   }
@@ -68894,7 +69845,7 @@ function samplesOf(value) {
   return numbers.length === 0 || numbers.length !== value.length ? void 0 : numbers.slice(0, MAX_SAMPLES);
 }
 function nativeMetrics(root) {
-  if (!isRecord24(root.metrics)) return { ok: false, reason: "\u7F3A\u5C11 metrics \u5BF9\u8C61" };
+  if (!isRecord25(root.metrics)) return { ok: false, reason: "\u7F3A\u5C11 metrics \u5BF9\u8C61" };
   const out = {};
   for (const [name2, value] of Object.entries(root.metrics)) {
     const samples = samplesOf(value);
@@ -68904,7 +69855,7 @@ function nativeMetrics(root) {
   return Object.keys(out).length === 0 ? { ok: false, reason: "metrics \u91CC\u6CA1\u6709\u6307\u6807" } : { ok: true, metrics: out };
 }
 function hyperfineMetrics(results) {
-  const rows = results.filter(isRecord24);
+  const rows = results.filter(isRecord25);
   const out = {};
   for (const row2 of rows) {
     const times = samplesOf(row2.times) ?? samplesOf(row2.mean);
@@ -68916,9 +69867,9 @@ function hyperfineMetrics(results) {
 }
 function vitestBenchMetrics(files) {
   const out = {};
-  for (const file of files.filter(isRecord24)) {
-    for (const group of asArray7(file.groups).filter(isRecord24)) {
-      for (const bench of asArray7(group.benchmarks).filter(isRecord24)) {
+  for (const file of files.filter(isRecord25)) {
+    for (const group of asArray7(file.groups).filter(isRecord25)) {
+      for (const bench of asArray7(group.benchmarks).filter(isRecord25)) {
         const name2 = metricName(asString5(bench.name) ?? asString5(bench.id) ?? "bench");
         const mean = asNumber(bench.mean);
         const p99 = asNumber(bench.p99);
@@ -68932,11 +69883,11 @@ function vitestBenchMetrics(files) {
   return Object.keys(out).length === 0 ? { ok: false, reason: "vitest bench \u7ED3\u679C\u91CC\u6CA1\u6709 mean / p99 / hz" } : { ok: true, metrics: out };
 }
 function k6Metrics(root) {
-  if (!isRecord24(root.metrics)) return { ok: false, reason: "\u7F3A\u5C11 metrics\uFF1A\u4E0D\u662F k6 summary" };
+  if (!isRecord25(root.metrics)) return { ok: false, reason: "\u7F3A\u5C11 metrics\uFF1A\u4E0D\u662F k6 summary" };
   const out = {};
   for (const [metric4, body] of Object.entries(root.metrics)) {
-    if (!isRecord24(body)) continue;
-    const values = isRecord24(body.values) ? body.values : body;
+    if (!isRecord25(body)) continue;
+    const values = isRecord25(body.values) ? body.values : body;
     for (const [key, value] of Object.entries(values)) {
       const number2 = asNumber(value);
       if (number2 !== void 0 && Object.keys(out).length < MAX_METRICS2) out[`${metricName(metric4)}.${metricName(key)}`] = [number2];
@@ -68946,25 +69897,25 @@ function k6Metrics(root) {
 }
 function lighthouseMetrics(root) {
   const out = {};
-  if (isRecord24(root.audits)) {
+  if (isRecord25(root.audits)) {
     for (const [id2, audit] of Object.entries(root.audits)) {
-      const value = isRecord24(audit) ? asNumber(audit.numericValue) : void 0;
+      const value = isRecord25(audit) ? asNumber(audit.numericValue) : void 0;
       if (value !== void 0 && Object.keys(out).length < MAX_METRICS2) out[metricName(id2)] = [value];
     }
   }
-  if (isRecord24(root.categories)) {
+  if (isRecord25(root.categories)) {
     for (const [id2, category] of Object.entries(root.categories)) {
-      const score = isRecord24(category) ? asNumber(category.score) : void 0;
+      const score = isRecord25(category) ? asNumber(category.score) : void 0;
       if (score !== void 0) out[`${metricName(id2)}_score`] = [Number((score * 100).toFixed(4))];
     }
   }
   return Object.keys(out).length === 0 ? { ok: false, reason: "lighthouse \u62A5\u544A\u91CC\u6CA1\u6709 audits / categories \u6570\u503C" } : { ok: true, metrics: out };
 }
-function parseBenchmarkReport(format, text12) {
-  const parsed2 = parseJson4(text12);
+function parseBenchmarkReport(format, text13) {
+  const parsed2 = parseJson4(text13);
   if (!parsed2.ok) return parsed2;
   const root = parsed2.value;
-  if (!isRecord24(root)) return { ok: false, reason: "\u62A5\u544A\u9876\u5C42\u5FC5\u987B\u662F\u5BF9\u8C61" };
+  if (!isRecord25(root)) return { ok: false, reason: "\u62A5\u544A\u9876\u5C42\u5FC5\u987B\u662F\u5BF9\u8C61" };
   if (format === "k6-summary") return k6Metrics(root);
   if (format === "lighthouse-json") return lighthouseMetrics(root);
   if (Array.isArray(root.results)) return hyperfineMetrics(root.results);
@@ -68975,11 +69926,11 @@ function parseBenchmarkReport(format, text12) {
 // packages/cli/src/test-system/discover-support.ts
 import { lstat as lstat55, readFile as readFile74 } from "node:fs/promises";
 import { basename as basename11 } from "node:path";
-var MAX_TEXT3 = 256 * 1024;
+var MAX_TEXT4 = 256 * 1024;
 async function readSmallText(path15) {
   try {
     const entry2 = await lstat55(path15);
-    if (!entry2.isFile() || entry2.size > MAX_TEXT3) return void 0;
+    if (!entry2.isFile() || entry2.size > MAX_TEXT4) return void 0;
     return await readFile74(path15, "utf8");
   } catch {
     return void 0;
@@ -69041,9 +69992,9 @@ async function benchFiles(abs2, rel, depth, out) {
 async function benchNames(dir, files) {
   const names = [];
   for (const file of files) {
-    const text12 = await readSmallText(join120(dir.abs, file));
-    if (text12 === void 0) continue;
-    for (const match of text12.matchAll(BENCH_CALL)) {
+    const text13 = await readSmallText(join120(dir.abs, file));
+    if (text13 === void 0) continue;
+    for (const match of text13.matchAll(BENCH_CALL)) {
       const name2 = match[2] ?? "";
       if (name2 !== "" && !name2.includes("${")) names.push(name2);
     }
@@ -69170,20 +70121,20 @@ function inferRunner(command2) {
 // packages/cli/src/test-system/discover-js.ts
 var TEST_EXT = "{test,spec}.{ts,tsx,js,jsx,mts,cts,mjs,cjs}";
 function stringMap(value) {
-  if (!isRecord24(value)) return {};
+  if (!isRecord25(value)) return {};
   return Object.fromEntries(Object.entries(value).filter((entry2) => typeof entry2[1] === "string"));
 }
 async function readManifest(dir) {
   if (!dir.names.has("package.json")) return void 0;
-  const text12 = await readSmallText(join121(dir.abs, "package.json"));
-  if (text12 === void 0) return void 0;
+  const text13 = await readSmallText(join121(dir.abs, "package.json"));
+  if (text13 === void 0) return void 0;
   let parsed2;
   try {
-    parsed2 = JSON.parse(text12);
+    parsed2 = JSON.parse(text13);
   } catch {
     return void 0;
   }
-  if (!isRecord24(parsed2)) return void 0;
+  if (!isRecord25(parsed2)) return void 0;
   return {
     scripts: stringMap(parsed2.scripts),
     deps: /* @__PURE__ */ new Set([...Object.keys(stringMap(parsed2.dependencies)), ...Object.keys(stringMap(parsed2.devDependencies))]),
@@ -69510,9 +70461,9 @@ async function readText3(path15) {
   }
 }
 async function readKnownFailuresFile(repoRoot) {
-  const text12 = await readText3(testSystemPaths(repoRoot).knownFailures);
-  if (text12 === void 0) return { state: "ok", entries: [] };
-  const parsed2 = parseKnownFailures(text12);
+  const text13 = await readText3(testSystemPaths(repoRoot).knownFailures);
+  if (text13 === void 0) return { state: "ok", entries: [] };
+  const parsed2 = parseKnownFailures(text13);
   return parsed2.ok ? { state: "ok", entries: parsed2.entries } : { state: "invalid", issues: parsed2.issues.map((issue2) => `known-failures.yaml:${issue2.line}: ${issue2.message}`) };
 }
 async function updateKnownFailures(repoRoot, mutate) {
@@ -69744,7 +70695,7 @@ async function cmdInit(deps, name2, opts, env = REAL_INIT_WIZARD_ENV) {
         ...plan.capabilities.documents.policy?.id === "document-v1" ? { documentContract: true } : {}
       };
       try {
-        const { changeDir: created, run: run5 } = await deps.runRepo.initChange({
+        const { changeDir: created, run: run6 } = await deps.runRepo.initChange({
           repoRoot: deps.cwd,
           name: name2,
           track: track.id,
@@ -69758,12 +70709,12 @@ async function cmdInit(deps, name2, opts, env = REAL_INIT_WIZARD_ENV) {
         if (freezeAgent !== void 0) {
           await (deps.agentFreeze ?? ensureAgentFreeze)({
             changeDir: created,
-            runId: run5.id,
+            runId: run6.id,
             workflowFingerprint: plan.workflowFingerprint,
             workflow: plan.workflow,
             resolve: freezeAgent
           });
-          await generateHostAgents(deps, created, run5.id, plan.workflowFingerprint);
+          await generateHostAgents(deps, created, run6.id, plan.workflowFingerprint);
         }
         await recordHistory(deps, created, {
           ts: deps.clock(),
@@ -70309,9 +71260,9 @@ function decode2(bytes, label2) {
   }
 }
 function loadSnapshotRegistry(repoRoot, snapshot2) {
-  const text12 = decode2(snapshot2.registry_bytes, ".pipeline/loops.yaml");
-  if (text12 === null) throw new Error(`loops.yaml \u672A\u627E\u5230\u4E8E ${repoRoot}/.pipeline/loops.yaml`);
-  const loaded = loadRegistry(repoRoot, { readText: () => text12 });
+  const text13 = decode2(snapshot2.registry_bytes, ".pipeline/loops.yaml");
+  if (text13 === null) throw new Error(`loops.yaml \u672A\u627E\u5230\u4E8E ${repoRoot}/.pipeline/loops.yaml`);
+  const loaded = loadRegistry(repoRoot, { readText: () => text13 });
   if (loaded.data === null || loaded.errors.length > 0) {
     throw new Error(loaded.errors.join("; ") || "loops.yaml \u65E0\u6CD5\u89E3\u6790");
   }
@@ -71191,8 +72142,8 @@ async function cmdInit2(deps, args, env = REAL_INIT_ENV, starterWiringDeps = def
 }
 
 // packages/cli/src/commands/loops.ts
-function scalarStateFields(fields) {
-  return Object.fromEntries(Object.entries(fields).map(([field4, value]) => [
+function scalarStateFields(fields2) {
+  return Object.fromEntries(Object.entries(fields2).map(([field4, value]) => [
     field4,
     typeof value === "string" ? value : value.join(",")
   ]));
@@ -72073,10 +73024,10 @@ async function publishSpecScaffoldTransaction(options) {
   let recoveryRequired = false;
   let retainBackup = false;
   try {
-    const exists2 = await existingOrdinaryDirectory2(specDirectory);
+    const exists3 = await existingOrdinaryDirectory2(specDirectory);
     let initialDigest;
     let initialIdentity;
-    if (exists2) {
+    if (exists3) {
       initialIdentity = await ordinaryDirectoryIdentity(specDirectory);
       initialDigest = await ordinaryTreeDigest(specDirectory);
       await copyOrdinaryTree(specDirectory, stage);
@@ -72114,7 +73065,7 @@ async function publishSpecScaffoldTransaction(options) {
       throw new Error("spec scaffold \u63D0\u4EA4\u524D\u68C0\u6D4B\u5230\u76EE\u6807\u7236\u76EE\u5F55\u8EAB\u4EFD\u6F02\u79FB");
     }
     try {
-      if (exists2) {
+      if (exists3) {
         await rename18(specDirectory, backup);
         movedOriginal = true;
         receipt = { ...receipt, state: "original-moved" };
@@ -72354,12 +73305,12 @@ async function cmdResolveWorkflow(deps, args, fs) {
   let available = [];
   const sourceIdx = typeof flags["source-index"] === "string" ? flags["source-index"] : void 0;
   if (sourceIdx) {
-    const text12 = await fs.readText(abs2(sourceIdx));
-    if (text12 === void 0) {
+    const text13 = await fs.readText(abs2(sourceIdx));
+    if (text13 === void 0) {
       deps.io.err(`ERROR: source index \u4E0D\u5B58\u5728: ${sourceIdx}`);
       return 1;
     }
-    available = parseWorkflowIds(text12);
+    available = parseWorkflowIds(text13);
   }
   let res = resolveWorkflow(requested, available);
   if (!res.ok) {
@@ -72391,8 +73342,8 @@ async function cmdResolveWorkflow(deps, args, fs) {
   if ("apply-hash" in flags) {
     try {
       const manifestAbs = abs2(OWNED_MANIFEST);
-      const text12 = await fs.readText(manifestAbs);
-      const map = text12 === void 0 ? {} : parseOwnedManifest(text12);
+      const text13 = await fs.readText(manifestAbs);
+      const map = text13 === void 0 ? {} : parseOwnedManifest(text13);
       const workflowContent = res.isNative ? await fs.readText(abs2(WORKFLOW_MD_REL)) : void 0;
       const next = applyWorkflowHashContract(map, WORKFLOW_MD_REL, res.isNative, workflowContent);
       await fs.writeText(manifestAbs, serializeOwnedManifest(next));
@@ -72562,20 +73513,20 @@ async function readRegularFile(path15) {
 function parseContinuousAuthority(raw) {
   const lines2 = raw.endsWith("\n") ? raw.slice(0, -1).split("\n") : raw.split("\n");
   if (lines2.length !== 6 || lines2[0] !== INTERACTION_AUTHORITY_PROTOCOL) return null;
-  const fields = /* @__PURE__ */ new Map();
+  const fields2 = /* @__PURE__ */ new Map();
   for (const line of lines2.slice(1)) {
     const separator = line.indexOf("=");
     if (separator <= 0) return null;
     const key = line.slice(0, separator);
     const value = line.slice(separator + 1);
-    if (!["change", "host_session", "scope", "review", "issued_at"].includes(key) || fields.has(key)) return null;
-    fields.set(key, value);
+    if (!["change", "host_session", "scope", "review", "issued_at"].includes(key) || fields2.has(key)) return null;
+    fields2.set(key, value);
   }
-  const changeName = fields.get("change") ?? "";
-  const hostSessionId = fields.get("host_session") ?? "";
-  const scope = fields.get("scope") ?? "";
-  const review = fields.get("review") ?? "";
-  const issuedAt = fields.get("issued_at") ?? "";
+  const changeName = fields2.get("change") ?? "";
+  const hostSessionId = fields2.get("host_session") ?? "";
+  const scope = fields2.get("scope") ?? "";
+  const review = fields2.get("review") ?? "";
+  const issuedAt = fields2.get("issued_at") ?? "";
   if (!isValidChangeName2(changeName) || !isValidHostSessionId(hostSessionId) || scope !== "interactive-skills") return null;
   if (review !== "required" && review !== "delegated") return null;
   if (!/^[0-9TZ:.-]+$/.test(issuedAt)) return null;
@@ -72698,14 +73649,14 @@ async function writeAuthorityProjection(cwd, slug2, name2, sessionId, actor3) {
 }
 var REAL_FS2 = {
   loadPackages: async (cwd) => {
-    let text12;
+    let text13;
     try {
-      text12 = await readFile80(join127(cwd, PROJECT_CONFIG_FILE), "utf8");
+      text13 = await readFile80(join127(cwd, PROJECT_CONFIG_FILE), "utf8");
     } catch {
       return null;
     }
     try {
-      return parseProjectPackages(text12);
+      return parseProjectPackages(text13);
     } catch {
       return null;
     }
@@ -72928,8 +73879,8 @@ function quoted(outcome, label2) {
     }
   }
   if (lines2.length > 0) return [head, ...lines2];
-  const text12 = `${outcome.stdout}${outcome.stderr}`.trim();
-  return [head, ...text12 === "" ? [] : text12.split("\n")];
+  const text13 = `${outcome.stdout}${outcome.stderr}`.trim();
+  return [head, ...text13 === "" ? [] : text13.split("\n")];
 }
 function capabilityOf(path15) {
   return /^openspec\/specs\/([^/]+)\/spec\.md$/u.exec(path15)?.[1];
@@ -72952,8 +73903,8 @@ async function snapshot(root) {
   for (const entry2 of entries2) {
     if (!entry2.isDirectory()) continue;
     const path15 = `openspec/specs/${entry2.name}/spec.md`;
-    const text12 = await readMaybe(root, path15);
-    if (text12 !== null) found.set(path15, text12);
+    const text13 = await readMaybe(root, path15);
+    if (text13 !== null) found.set(path15, text13);
   }
   return found;
 }
@@ -73030,15 +73981,15 @@ function sectionBody(markdown, heading) {
   return body;
 }
 function meaningful(line) {
-  const text12 = line.trim();
-  return text12 !== "" && !PLACEHOLDER2.test(text12) && !/^#+\s/u.test(text12);
+  const text13 = line.trim();
+  return text13 !== "" && !PLACEHOLDER2.test(text13) && !/^#+\s/u.test(text13);
 }
 function capabilityLine(proposal, capability) {
   const escaped3 = capability.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const item2 = new RegExp(`^\\s*[-*+]\\s+\`?${escaped3}\`?\\s*[:\uFF1A-]\\s*(.+)$`, "u");
   for (const line of sectionBody(proposal, /^#{2,4}\s+New Capabilities\s*$/iu)) {
-    const text12 = item2.exec(line)?.[1]?.trim();
-    if (text12 !== void 0 && text12 !== "" && !PLACEHOLDER2.test(text12)) return text12;
+    const text13 = item2.exec(line)?.[1]?.trim();
+    if (text13 !== void 0 && text13 !== "" && !PLACEHOLDER2.test(text13)) return text13;
   }
   return void 0;
 }
@@ -73051,8 +74002,8 @@ function whyParagraph(proposal) {
       break;
     }
   }
-  const text12 = paragraph.join(" ").trim();
-  return text12 === "" ? void 0 : text12;
+  const text13 = paragraph.join(" ").trim();
+  return text13 === "" ? void 0 : text13;
 }
 function proposalPurpose(proposal, capability) {
   if (proposal === null) return void 0;
@@ -73083,9 +74034,9 @@ async function alreadyApplied(repoRoot, dir, deltas) {
     const target = asRecord10(row2);
     const path15 = asText2(target?.path);
     if (path15 === void 0) return null;
-    const text12 = await readMaybe(repoRoot, path15);
-    if (text12 === null || sha256Hex(text12) !== asText2(target?.after_sha256)) return null;
-    targets2.push({ path: path15, before: text12, after: text12, change: "no-op" });
+    const text13 = await readMaybe(repoRoot, path15);
+    if (text13 === null || sha256Hex(text13) !== asText2(target?.after_sha256)) return null;
+    targets2.push({ path: path15, before: text13, after: text13, change: "no-op" });
   }
   return targets2;
 }
@@ -73725,11 +74676,11 @@ import { join as join131, sep as sep25 } from "node:path";
 import { randomUUID as randomUUID19 } from "node:crypto";
 
 // packages/tap/dist/trace-codecs.js
-function isRecord25(value) {
+function isRecord26(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function decodeSessionRow(value) {
-  if (!isRecord25(value))
+  if (!isRecord26(value))
     return null;
   const id2 = typeof value.id === "string" ? value.id : null;
   const startedAt = typeof value.started_at === "string" ? value.started_at : null;
@@ -73738,7 +74689,7 @@ function decodeSessionRow(value) {
   const client = typeof value.client === "string" ? value.client : null;
   const proxyMode = typeof value.proxy_mode === "string" ? value.proxy_mode : null;
   const status = typeof value.status === "string" ? value.status : null;
-  if (id2 === null || startedAt === null || updatedAt === null || dateKey === null || client === null || proxyMode === null || status === null || typeof value.record_count !== "number" || !Number.isSafeInteger(value.record_count) || value.record_count < 0 || value.summary !== null && !isRecord25(value.summary)) {
+  if (id2 === null || startedAt === null || updatedAt === null || dateKey === null || client === null || proxyMode === null || status === null || typeof value.record_count !== "number" || !Number.isSafeInteger(value.record_count) || value.record_count < 0 || value.summary !== null && !isRecord26(value.summary)) {
     return null;
   }
   return {
@@ -73754,7 +74705,7 @@ function decodeSessionRow(value) {
   };
 }
 function decodeTraceRecord(value) {
-  return isRecord25(value) ? value : null;
+  return isRecord26(value) ? value : null;
 }
 
 // packages/tap/dist/trace-store.js
@@ -74262,13 +75213,13 @@ function serve(opts) {
       }
     }
   });
-  return new Promise((resolve65, reject5) => {
+  return new Promise((resolve67, reject5) => {
     server.once("error", reject5);
     server.listen(opts.port ?? 0, host, () => {
       server.removeAllListeners("error");
       const boundPort = server.address().port;
       const unregister = registerIntercept({ kind: "reverse", port: boundPort, client, target: opts.target });
-      resolve65({
+      resolve67({
         port: boundPort,
         host,
         target: opts.target,
@@ -74493,15 +75444,15 @@ function assembleBedrockConverseBody(events) {
       const delta = typeof data.delta === "object" && data.delta !== null && !Array.isArray(data.delta) ? data.delta : {};
       if (!blockKind.has(idx))
         blockOrder.push(idx);
-      const text12 = delta.text;
+      const text13 = delta.text;
       const toolDelta = delta.toolUse;
       const reasoningDelta = delta.reasoningContent;
-      if (typeof text12 === "string") {
+      if (typeof text13 === "string") {
         if (blockKind.get(idx) !== "tool_use") {
           if (!blockKind.has(idx))
             blockKind.set(idx, "text");
           const parts = blockTextParts.get(idx) ?? [];
-          parts.push(text12);
+          parts.push(text13);
           blockTextParts.set(idx, parts);
         }
       } else if (typeof toolDelta === "object" && toolDelta !== null && !Array.isArray(toolDelta)) {
@@ -74668,9 +75619,9 @@ function mergeJsonLists(existing, incoming) {
   return merged;
 }
 function parseMessage(msg) {
-  const text12 = Buffer.isBuffer(msg) ? msg.toString("utf8") : String(msg);
+  const text13 = Buffer.isBuffer(msg) ? msg.toString("utf8") : String(msg);
   try {
-    return JSON.parse(text12);
+    return JSON.parse(text13);
   } catch {
     return void 0;
   }
@@ -75334,13 +76285,13 @@ function serveForward(opts = {}) {
     upstream.on("close", cleanup2);
     clientSocket.on("close", cleanup2);
   });
-  return new Promise((resolve65, reject5) => {
+  return new Promise((resolve67, reject5) => {
     server.once("error", reject5);
     server.listen(opts.port ?? 0, host, () => {
       server.removeAllListeners("error");
       const boundPort = server.address().port;
       const unregister = registerIntercept({ kind: "forward", port: boundPort, client, tls: !!ca });
-      resolve65({
+      resolve67({
         port: boundPort,
         host,
         client,
@@ -76267,25 +77218,25 @@ async function cmdTap(deps, sub, args) {
         }
         const merged = {};
         for (const c of result2.clients) Object.assign(merged, c.env);
-        const code = await new Promise((resolve65) => {
+        const code = await new Promise((resolve67) => {
           const child = spawn7(executable, command2.slice(1), {
             stdio: "inherit",
             env: { ...process.env, ...merged }
           });
-          child.on("exit", (exitCode, signal) => resolve65(exitCode ?? (signal ? 1 : 0)));
-          child.on("error", () => resolve65(1));
+          child.on("exit", (exitCode, signal) => resolve67(exitCode ?? (signal ? 1 : 0)));
+          child.on("error", () => resolve67(1));
         });
         await result2.daemon.stop();
         return code;
       }
-      const termination = new Promise((resolve65, reject5) => {
+      const termination = new Promise((resolve67, reject5) => {
         const cleanup2 = () => {
           process.off("SIGINT", stop2);
           process.off("SIGTERM", stop2);
         };
         const stop2 = () => {
           cleanup2();
-          void result2.daemon.stop().then(resolve65, reject5);
+          void result2.daemon.stop().then(resolve67, reject5);
         };
         process.once("SIGINT", stop2);
         process.once("SIGTERM", stop2);
@@ -76954,11 +77905,11 @@ function stepFields(state, step, artifacts = /* @__PURE__ */ new Set(), nativeGu
     if (item2.required !== void 0 && !requiredOf.has(item2.field)) requiredOf.set(item2.field, item2.required);
   }
   const seen = /* @__PURE__ */ new Set();
-  const fields = [];
+  const fields2 = [];
   const push = (field4, kind) => {
     if (seen.has(field4)) return;
     seen.add(field4);
-    fields.push(fieldView(
+    fields2.push(fieldView(
       state,
       field4,
       OUTCOME_FIELDS.has(field4) ? "outcome" : kind,
@@ -76972,16 +77923,16 @@ function stepFields(state, step, artifacts = /* @__PURE__ */ new Set(), nativeGu
     if (typeof field4 === "string") push(field4, "guard");
   }
   for (const item2 of nativeGuardFields) push(item2.field, "guard");
-  return fields;
+  return fields2;
 }
 
 // packages/cli/src/test-runner/npmScript.ts
 import { readFile as readFile82 } from "node:fs/promises";
 import { join as join135, normalize as normalize5 } from "node:path";
 function npmScriptOf(command2) {
-  const text12 = command2.trim();
-  if (/[;&|<>`$()]/u.test(text12)) return void 0;
-  const tokens = text12.split(/\s+/u);
+  const text13 = command2.trim();
+  if (/[;&|<>`$()]/u.test(text13)) return void 0;
+  const tokens = text13.split(/\s+/u);
   if (tokens[0] !== "npm") return void 0;
   const verb = tokens[1];
   if (verb === "test" || verb === "t" || verb === "tst") return "test";
@@ -76991,7 +77942,7 @@ function npmScriptOf(command2) {
   }
   return void 0;
 }
-function isRecord26(value) {
+function isRecord27(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 async function unconfiguredNpmScript(repoRoot, test) {
@@ -77002,7 +77953,7 @@ async function unconfiguredNpmScript(repoRoot, test) {
   try {
     raw = await readFile82(join135(repoRoot, packageJson), "utf8");
   } catch (error2) {
-    const code = isRecord26(error2) ? error2.code : void 0;
+    const code = isRecord27(error2) ? error2.code : void 0;
     return code === "ENOENT" ? { script, packageJson, missingPackageJson: true } : void 0;
   }
   let parsed2;
@@ -77011,9 +77962,9 @@ async function unconfiguredNpmScript(repoRoot, test) {
   } catch {
     return void 0;
   }
-  if (!isRecord26(parsed2)) return void 0;
+  if (!isRecord27(parsed2)) return void 0;
   const scripts = parsed2.scripts;
-  if (isRecord26(scripts) && typeof scripts[script] === "string") return void 0;
+  if (isRecord27(scripts) && typeof scripts[script] === "string") return void 0;
   return { script, packageJson, missingPackageJson: false };
 }
 function unconfiguredMessage(testId, command2, gap) {
@@ -77122,14 +78073,14 @@ function firstDeliveryMessage(change) {
   return `feat(${change}): deliver`;
 }
 function git(cwd, args) {
-  return new Promise((resolve65) => {
+  return new Promise((resolve67) => {
     execFile9("git", [...args], { cwd, timeout: 5e3, maxBuffer: 4 * 1024 * 1024 }, (error2, stdout) => {
       if (error2 === null) {
-        resolve65({ code: 0, stdout: String(stdout) });
+        resolve67({ code: 0, stdout: String(stdout) });
         return;
       }
       const code = error2.code;
-      resolve65({ code: typeof code === "number" ? code : null, stdout: String(stdout) });
+      resolve67({ code: typeof code === "number" ? code : null, stdout: String(stdout) });
     });
   });
 }
@@ -77182,36 +78133,36 @@ function stop(code, message2) {
 }
 
 // packages/cli/src/commands/statusStepFinish.ts
-function deliveryCommit(change, git3, scope = "deliverables") {
-  if (git3 === null || !(scope === "step" ? git3.stepDirty : git3.deliverablesDirty)) return null;
-  const message2 = git3.delivered ? `chore(${change}): update deliverables` : firstDeliveryMessage(change);
-  return { paths: WORKSPACE_COMMIT_PATHS, untrack: git3.untrack, message: message2 };
+function deliveryCommit(change, git4, scope = "deliverables") {
+  if (git4 === null || !(scope === "step" ? git4.stepDirty : git4.deliverablesDirty)) return null;
+  const message2 = git4.delivered ? `chore(${change}): update deliverables` : firstDeliveryMessage(change);
+  return { paths: WORKSPACE_COMMIT_PATHS, untrack: git4.untrack, message: message2 };
 }
 function finishedStop(change) {
   return stop("finished", `\u4EFB\u52A1 '${change}' \u5DF2\u5B8C\u7ED3\uFF0C\u6CA1\u6709\u8981\u505A\u7684\u4E8B\u4E86`);
 }
 function finishActions(change, governedOpenspec, finish2) {
-  const git3 = finish2.git;
+  const git4 = finish2.git;
   if (!governedOpenspec) {
-    if (!finish2.verified || git3 === null || !git3.workspaceDirty && git3.untrack.length === 0) {
+    if (!finish2.verified || git4 === null || !git4.workspaceDirty && git4.untrack.length === 0) {
       return finishedStop(change);
     }
     return [{
       action: "finish-change",
       change,
       command: null,
-      commit: { paths: WORKSPACE_COMMIT_PATHS, untrack: git3.untrack, message: `chore(tenon): finish ${change}` }
+      commit: { paths: WORKSPACE_COMMIT_PATHS, untrack: git4.untrack, message: `chore(tenon): finish ${change}` }
     }];
   }
   const command2 = `openspec archive ${change} --skip-specs --yes --json`;
-  const commit = git3 === null ? null : {
+  const commit = git4 === null ? null : {
     paths: [
-      ...git3.changeDirTracked ? [`openspec/changes/${change}`] : [],
+      ...git4.changeDirTracked ? [`openspec/changes/${change}`] : [],
       "openspec/changes/archive",
-      ...finish2.designSystem === true ? git3.designSystem : [],
-      ...git3.housekeeping
+      ...finish2.designSystem === true ? git4.designSystem : [],
+      ...git4.housekeeping
     ],
-    untrack: git3.untrack,
+    untrack: git4.untrack,
     message: `chore(openspec): archive ${change}`
   };
   return [{ action: "finish-change", change, command: command2, commit }];
@@ -77232,7 +78183,7 @@ function classifyTestPolicy(report2) {
   const seed = [];
   const map = [];
   const files = [];
-  const run5 = [];
+  const run6 = [];
   const failed = [];
   const waivers = [];
   for (const blocker2 of report2?.blockers ?? []) {
@@ -77250,12 +78201,12 @@ function classifyTestPolicy(report2) {
     } else if (FILE_CODES.has(blocker2.code)) {
       files.push(toItem(blocker2));
     } else if (RUN_CODES.has(blocker2.code)) {
-      run5.push(toItem(blocker2));
+      run6.push(toItem(blocker2));
     } else {
       failed.push(toItem(blocker2));
     }
   }
-  return { discover, seed, map, files, run: run5, failed, waivers };
+  return { discover, seed, map, files, run: run6, failed, waivers };
 }
 function freshRunIds(report2) {
   const ids2 = (report2?.suites ?? []).filter((suite2) => suite2.origin === "catalog" && (suite2.state === "passed" || suite2.state === "failed")).flatMap((suite2) => suite2.run_id === void 0 ? [] : [suite2.run_id]);
@@ -77314,9 +78265,9 @@ function testReportCommand(change, path15) {
 function withReviewBar(actions, bar) {
   return bar.length === 0 ? actions : actions.map((action) => ({ ...action, review_bar: bar }));
 }
-function writeFieldActions(fields, producers) {
+function writeFieldActions(fields2, producers) {
   const actions = [];
-  for (const field4 of fields) {
+  for (const field4 of fields2) {
     if (field4.writer === "transition") continue;
     actions.push(field4.writer === "artifact-register" ? { action: "register-field", field: field4.field, producers } : {
       action: "set-field",
@@ -77525,8 +78476,8 @@ async function pendingReport(deps, change, report2, documents) {
   if (runs.length === 0) return null;
   const doc = documents.records.find((candidate2) => candidate2.kind === REPORT_DOCUMENT_KIND);
   if (doc === void 0 || doc.path === null) return null;
-  const text12 = await readReport(deps, doc.path);
-  if (text12 === void 0 || reportCarriesRuns(text12, runs)) return null;
+  const text13 = await readReport(deps, doc.path);
+  if (text13 === void 0 || reportCarriesRuns(text13, runs)) return null;
   return { path: doc.path, command: testReportCommand(change, doc.path) };
 }
 async function requestListIsStale(repoRoot, dir, change, requestedAt) {
@@ -77580,10 +78531,10 @@ function nativeGuardFieldsOf(plan, state, exits) {
   for (const item2 of phaseExitGuardFields(state)) push(item2);
   return out;
 }
-async function withPrUrlRecommendation(deps, fields) {
-  const index = fields.findIndex((field4) => field4.field === "pr_url" && field4.status === "missing");
-  if (index < 0 || !await repositoryHasNoRemote(deps)) return fields;
-  return fields.map((field4, at) => at === index ? { ...field4, recommended: PR_URL_NO_REMOTE } : field4);
+async function withPrUrlRecommendation(deps, fields2) {
+  const index = fields2.findIndex((field4) => field4.field === "pr_url" && field4.status === "missing");
+  if (index < 0 || !await repositoryHasNoRemote(deps)) return fields2;
+  return fields2.map((field4, at) => at === index ? { ...field4, recommended: PR_URL_NO_REMOTE } : field4);
 }
 async function finishFacts(deps, name2, state) {
   const verified = str2(state.fields.verify_result) === "pass";
@@ -77592,12 +78543,12 @@ async function finishFacts(deps, name2, state) {
   return { git: await (deps.gitFinishProbe?.(name2) ?? Promise.resolve(null)), verified, designSystem };
 }
 var DELIVERY_FIELDS = /* @__PURE__ */ new Set(["pr_url", "prd_path"]);
-async function deliveryFacts(deps, name2, state, fields) {
+async function deliveryFacts(deps, name2, state, fields2) {
   const none = { delivery: null, settle: null };
   if (str2(state.fields.archived) === "true") return none;
-  if (!fields.some((field4) => DELIVERY_FIELDS.has(field4.field) && field4.writer === "set")) return none;
-  const git3 = await (deps.gitFinishProbe?.(name2) ?? Promise.resolve(null));
-  return { delivery: deliveryCommit(name2, git3), settle: deliveryCommit(name2, git3, "step") };
+  if (!fields2.some((field4) => DELIVERY_FIELDS.has(field4.field) && field4.writer === "set")) return none;
+  const git4 = await (deps.gitFinishProbe?.(name2) ?? Promise.resolve(null));
+  return { delivery: deliveryCommit(name2, git4), settle: deliveryCommit(name2, git4, "step") };
 }
 var PLAN_DOCUMENT_KINDS = /* @__PURE__ */ new Set(["plan", "superpower-plan"]);
 function downstreamSteps(plan, stepId) {
@@ -77663,7 +78614,7 @@ async function buildStatusStep(deps, name2, state, plan) {
   const policy2 = plan.capabilities.documents.policy;
   const documents = stepDocuments(name2, policy2, stepId, report2.documents?.items ?? []);
   const artifacts = artifactFieldsOf(deps, state, step);
-  const fields = await withPrUrlRecommendation(
+  const fields2 = await withPrUrlRecommendation(
     deps,
     stepFields(state, step, artifacts, nativeGuardFieldsOf(plan, state, report2.exits))
   );
@@ -77701,7 +78652,7 @@ async function buildStatusStep(deps, name2, state, plan) {
     reviewers: agents.reviewers,
     tests,
     documents,
-    fields,
+    fields: fields2,
     review,
     exits: report2.exits
   };
@@ -77725,7 +78676,7 @@ async function buildStatusStep(deps, name2, state, plan) {
       reviewers: agents.reviewers,
       tests,
       documents,
-      fields,
+      fields: fields2,
       review,
       gate: step.gate ?? null,
       mode: block.mode,
@@ -77748,7 +78699,7 @@ async function buildStatusStep(deps, name2, state, plan) {
         report2.exits,
         documents.records.some((doc) => PLAN_DOCUMENT_KINDS.has(doc.kind))
       ),
-      ...await deliveryFacts(deps, name2, state, fields),
+      ...await deliveryFacts(deps, name2, state, fields2),
       reviewBar: await downstreamReviewBar(
         dir,
         state,
@@ -78227,20 +79178,20 @@ async function cmdInternalConstraintGate(deps, operation, nulPathsFile) {
 
 // packages/cli/src/commands/internalCodexJsonl.ts
 import { readFileSync as readFileSync33 } from "node:fs";
-var visitStrings = (value, emit4) => {
+var visitStrings = (value, emit5) => {
   if (typeof value === "string") {
-    emit4(value);
+    emit5(value);
     return;
   }
   if (Array.isArray(value)) {
-    for (const item2 of value) visitStrings(item2, emit4);
+    for (const item2 of value) visitStrings(item2, emit5);
     return;
   }
   if (typeof value === "object" && value !== null) {
-    for (const item2 of Object.values(value)) visitStrings(item2, emit4);
+    for (const item2 of Object.values(value)) visitStrings(item2, emit5);
   }
 };
-var isRecord27 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+var isRecord28 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 var diagnosticMessage = (value) => value.replace(/\s+/g, " ").trim().slice(0, 400);
 async function cmdInternalCodexJsonl(deps, mode, jsonlPath) {
   if (mode !== "usage" && mode !== "transitions" && mode !== "last-message") {
@@ -78265,12 +79216,12 @@ async function cmdInternalCodexJsonl(deps, mode, jsonlPath) {
         throw new Error(`Codex JSONL line ${index + 1} is invalid: ${String(error2)}`);
       }
       if (mode === "transitions") {
-        visitStrings(event, (text12) => {
-          for (const embeddedLine of text12.split(/\r?\n/)) {
+        visitStrings(event, (text13) => {
+          for (const embeddedLine of text13.split(/\r?\n/)) {
             if (embeddedLine.startsWith("[TRANSITION] ")) deps.io.out(embeddedLine);
           }
         });
-      } else if (isRecord27(event) && event.type === "item.completed" && isRecord27(event.item) && event.item.type === "agent_message" && typeof event.item.text === "string") {
+      } else if (isRecord28(event) && event.type === "item.completed" && isRecord28(event.item) && event.item.type === "agent_message" && typeof event.item.text === "string") {
         const message2 = diagnosticMessage(event.item.text);
         if (message2.length > 0) lastAgentMessage = message2;
       }
@@ -78298,25 +79249,25 @@ function within(root, path15) {
 function quoteValue(value) {
   return /[\s,{}:#"']/.test(value) ? JSON.stringify(value) : value;
 }
-function renderEntry(entry2, digest18) {
+function renderEntry(entry2, digest19) {
   const physical = entry2.contentSkill ?? entry2.token;
-  const fields = [
+  const fields2 = [
     `tool: ${entry2.tool}`,
     `source: ${quoteValue(entry2.source)}`
   ];
-  if (entry2.skill !== void 0) fields.push(`skill: ${quoteValue(entry2.skill)}`);
-  if (entry2.contentSkill !== void 0) fields.push(`content_skill: ${quoteValue(entry2.contentSkill)}`);
-  fields.push(`tier: ${entry2.tier}`, `official: ${entry2.official ? "true" : "false"}`);
-  if (entry2.engine !== void 0) fields.push(`engine: ${quoteValue(entry2.engine)}`);
-  if (entry2.bin !== void 0) fields.push(`bin: ${quoteValue(entry2.bin)}`);
-  if (entry2.unavailable !== void 0) fields.push(`unavailable: ${entry2.unavailable ? "true" : "false"}`);
-  if (entry2.alt !== void 0) fields.push(`alt: ${quoteValue(entry2.alt)}`);
-  if (entry2.note !== void 0) fields.push(`note: ${quoteValue(entry2.note)}`);
+  if (entry2.skill !== void 0) fields2.push(`skill: ${quoteValue(entry2.skill)}`);
+  if (entry2.contentSkill !== void 0) fields2.push(`content_skill: ${quoteValue(entry2.contentSkill)}`);
+  fields2.push(`tier: ${entry2.tier}`, `official: ${entry2.official ? "true" : "false"}`);
+  if (entry2.engine !== void 0) fields2.push(`engine: ${quoteValue(entry2.engine)}`);
+  if (entry2.bin !== void 0) fields2.push(`bin: ${quoteValue(entry2.bin)}`);
+  if (entry2.unavailable !== void 0) fields2.push(`unavailable: ${entry2.unavailable ? "true" : "false"}`);
+  if (entry2.alt !== void 0) fields2.push(`alt: ${quoteValue(entry2.alt)}`);
+  if (entry2.note !== void 0) fields2.push(`note: ${quoteValue(entry2.note)}`);
   const sourceRef = `skills/${physical}`;
-  const contentHash = `sha256:${digest18}`;
-  fields.push("source_kind: bundled", `source_ref: ${sourceRef}`, `content_hash: ${contentHash}`);
-  fields.push(`coordinate: tenon:${sourceRef}@${contentHash}`);
-  return `  ${entry2.token}: { ${fields.join(", ")} }`;
+  const contentHash = `sha256:${digest19}`;
+  fields2.push("source_kind: bundled", `source_ref: ${sourceRef}`, `content_hash: ${contentHash}`);
+  fields2.push(`coordinate: tenon:${sourceRef}@${contentHash}`);
+  return `  ${entry2.token}: { ${fields2.join(", ")} }`;
 }
 function renderRegistry(entries2) {
   const lines2 = [
@@ -78326,7 +79277,7 @@ function renderRegistry(entries2) {
     "hash_algorithm: tree-sha256-v1",
     "",
     "skills:",
-    ...entries2.map(({ entry: entry2, digest: digest18 }) => renderEntry(entry2, digest18)),
+    ...entries2.map(({ entry: entry2, digest: digest19 }) => renderEntry(entry2, digest19)),
     ""
   ];
   return lines2.join("\n");
@@ -78391,15 +79342,15 @@ function validateLegacySyncEntry(line, lineNo) {
     }
   }
 }
-function parseSyncSources(text12) {
-  if (/^\s*version:\s*3\s*$/m.test(text12) || /^\s*hash_algorithm\s*:/m.test(text12)) {
-    return [...parseSkillProvenanceRegistry(text12).skills];
+function parseSyncSources(text13) {
+  if (/^\s*version:\s*3\s*$/m.test(text13) || /^\s*hash_algorithm\s*:/m.test(text13)) {
+    return [...parseSkillProvenanceRegistry(text13).skills];
   }
   let inSkills = false;
   let version;
   let seenVersion = false;
   let seenSkills = false;
-  for (const [index, raw] of text12.split("\n").entries()) {
+  for (const [index, raw] of text13.split("\n").entries()) {
     const line = raw.replace(/\s+#.*$/, "").trimEnd();
     const trimmed = line.trim();
     if (trimmed === "" || trimmed.startsWith("#")) continue;
@@ -78429,7 +79380,7 @@ function parseSyncSources(text12) {
   if (version === void 0) throw new Error("strict sync input \u7F3A\u5C11\u660E\u786E\u7684 version: 1/2");
   if (version !== 1 && version !== 2) throw new Error(`strict sync input \u4E0D\u652F\u6301 legacy version: ${version}`);
   if (!seenSkills) throw new Error("strict sync input \u7F3A\u5C11 skills: \u6761\u76EE\u5757");
-  return parseSkillSources(text12);
+  return parseSkillSources(text13);
 }
 async function capturePath(path15, label2) {
   const stat20 = await lstat64(path15);
@@ -78769,8 +79720,8 @@ function jsonResult(request2, result2) {
     observationsProcessed: result2.observationsProcessed,
     workflowRuns: {
       total: runs.length,
-      created: runs.filter((run5) => run5.status === "created").length,
-      existing: runs.filter((run5) => run5.status === "existing").length,
+      created: runs.filter((run6) => run6.status === "created").length,
+      existing: runs.filter((run6) => run6.status === "existing").length,
       runs
     },
     checkpoint: {
@@ -78899,6 +79850,7 @@ var CHANGE_COMMANDS = /* @__PURE__ */ new Set([
   "agent prompt",
   "agent record",
   "workflow plan",
+  "evidence export",
   "document status",
   "document read",
   "document record",
@@ -79021,14 +79973,14 @@ var LOCAL_TIMEOUT_MS = 6e4;
 function upstreamRepoUrl(repo) {
   return `https://github.com/${repo}.git`;
 }
-function failure2(label2, run5) {
-  const detail = run5.result.stderr.trim().split(/\r?\n/u).at(-1) || `exit ${run5.result.code}`;
-  return `git ${label2} ${run5.attempts > 1 ? `failed after ${run5.attempts} attempts` : "failed"}: ${detail}`;
+function failure2(label2, run6) {
+  const detail = run6.result.stderr.trim().split(/\r?\n/u).at(-1) || `exit ${run6.result.code}`;
+  return `git ${label2} ${run6.attempts > 1 ? `failed after ${run6.attempts} attempts` : "failed"}: ${detail}`;
 }
 function resolveDefaultBranchHead(env, repo) {
-  const run5 = runRemoteGit(env, ["ls-remote", "--symref", upstreamRepoUrl(repo), "HEAD"]);
-  if (run5.result.code !== 0) return { ok: false, detail: failure2("ls-remote", run5) };
-  for (const line of run5.result.stdout.split(/\r?\n/u)) {
+  const run6 = runRemoteGit(env, ["ls-remote", "--symref", upstreamRepoUrl(repo), "HEAD"]);
+  if (run6.result.code !== 0) return { ok: false, detail: failure2("ls-remote", run6) };
+  for (const line of run6.result.stdout.split(/\r?\n/u)) {
     const [oid, ref] = line.trim().split(/\s+/u);
     if (ref === "HEAD" && oid !== void 0 && COMMIT2.test(oid)) return { ok: true, commit: oid };
   }
@@ -79090,9 +80042,9 @@ function isFile(path15) {
 function hasSkillLicenseFile(dir) {
   return LICENSE_FILE_NAMES.some((name2) => isFile(join142(dir, name2)));
 }
-function classify(text12) {
-  if (text12.includes("Permission is hereby granted, free of charge")) return "MIT";
-  if (text12.includes("Apache License") && text12.includes("Version 2.0")) return "Apache-2.0";
+function classify(text13) {
+  if (text13.includes("Permission is hereby granted, free of charge")) return "MIT";
+  if (text13.includes("Apache License") && text13.includes("Version 2.0")) return "Apache-2.0";
   return "unrecognized";
 }
 function exactLicense(value) {
@@ -79159,35 +80111,35 @@ function bundledSkillIds(pluginRoot2) {
 }
 function readPreviousLock(input2) {
   if (input2.previousRoot === null) return null;
-  const text12 = readOptional3(join143(input2.previousRoot, "skills", "skills.lock.json"));
-  if (text12 === null) return null;
+  const text13 = readOptional3(join143(input2.previousRoot, "skills", "skills.lock.json"));
+  if (text13 === null) return null;
   try {
-    return parseUpstreamSkillLock(text12);
+    return parseUpstreamSkillLock(text13);
   } catch {
     input2.log("[skills] \u65E7\u9501\u6587\u4EF6\u65E0\u6548\uFF0C\u5168\u90E8\u91CD\u65B0\u83B7\u53D6");
     return null;
   }
 }
-function previousFor(run5, source) {
-  const entry2 = run5.previous.get(source.id);
+function previousFor(run6, source) {
+  const entry2 = run6.previous.get(source.id);
   return entry2?.repo === source.repo && entry2.path === source.path ? entry2 : void 0;
 }
-async function keepVerified(run5, entry2) {
-  if (await treeHash(entry2.id, join143(run5.skillsRoot, entry2.id)) === entry2.treeSha256) return true;
-  const previousRoot = run5.input.previousRoot;
-  if (previousRoot === null || previousRoot === run5.input.pluginRoot) return false;
+async function keepVerified(run6, entry2) {
+  if (await treeHash(entry2.id, join143(run6.skillsRoot, entry2.id)) === entry2.treeSha256) return true;
+  const previousRoot = run6.input.previousRoot;
+  if (previousRoot === null || previousRoot === run6.input.pluginRoot) return false;
   const previousDir = join143(previousRoot, "skills", entry2.id);
   if (await treeHash(entry2.id, previousDir) !== entry2.treeSha256) return false;
-  copyTree(previousDir, join143(run5.staging, entry2.id));
-  run5.staged.add(entry2.id);
+  copyTree(previousDir, join143(run6.staging, entry2.id));
+  run6.staged.add(entry2.id);
   return true;
 }
-function unchanged(run5, entry2) {
-  run5.entries.set(entry2.id, entry2);
-  run5.results.set(entry2.id, { id: entry2.id, outcome: "unchanged" });
+function unchanged(run6, entry2) {
+  run6.entries.set(entry2.id, entry2);
+  run6.results.set(entry2.id, { id: entry2.id, outcome: "unchanged" });
 }
-function validate(run5, source, checkout) {
-  const modes = treeEntryModes(run5.input.env, checkout.dir, source.path);
+function validate(run6, source, checkout) {
+  const modes = treeEntryModes(run6.input.env, checkout.dir, source.path);
   if (modes === null) return { reason: "invalid-content", detail: "git ls-tree failed" };
   const tree = source.path === "." ? modes.filter((entry2) => !entry2.path.startsWith(".github/")) : modes;
   if (tree.length === 0) return { reason: "removed", detail: `${source.path} missing at ${checkout.commit.slice(0, 7)}` };
@@ -79199,7 +80151,7 @@ function validate(run5, source, checkout) {
   if (name2 !== source.id) return { reason: "renamed", detail: `upstream name ${name2}` };
   const measured = measureTree(skillDir, source.path === "." ? ROOT_EXCLUDES : NESTED_EXCLUDES);
   if ("error" in measured) return { reason: "invalid-content", detail: measured.error };
-  if (measured.bytes > run5.limits.skillBytes || run5.totalBytes + measured.bytes > run5.limits.totalBytes) {
+  if (measured.bytes > run6.limits.skillBytes || run6.totalBytes + measured.bytes > run6.limits.totalBytes) {
     return { reason: "too-large", detail: `${measured.bytes} bytes` };
   }
   const license = detectUpstreamLicense(checkout.dir, source.path);
@@ -79207,90 +80159,90 @@ function validate(run5, source, checkout) {
   if (license.license !== source.licenseExpected) {
     return { reason: "license-mismatch", detail: `expected ${source.licenseExpected}, found ${license.license}` };
   }
-  run5.totalBytes += measured.bytes;
+  run6.totalBytes += measured.bytes;
   return license;
 }
-async function installFromCheckout(run5, source, checkout) {
-  const verdict = validate(run5, source, checkout);
+async function installFromCheckout(run6, source, checkout) {
+  const verdict = validate(run6, source, checkout);
   if ("reason" in verdict) {
-    run5.failures.set(source.id, verdict);
+    run6.failures.set(source.id, verdict);
     return;
   }
   const skillDir = source.path === "." ? checkout.dir : join143(checkout.dir, source.path);
-  const staged = join143(run5.staging, source.id);
+  const staged = join143(run6.staging, source.id);
   copyTree(skillDir, staged, source.path === "." ? ROOT_EXCLUDES : NESTED_EXCLUDES);
   if (verdict.source === "repo-file" && verdict.file !== void 0 && !hasSkillLicenseFile(staged)) {
     copyFileSync2(verdict.file, join143(staged, basename14(verdict.file)));
   }
   const hash = await treeHash(source.id, staged);
   if (hash === null) {
-    run5.failures.set(source.id, { reason: "invalid-content", detail: "staged content is not hashable" });
+    run6.failures.set(source.id, { reason: "invalid-content", detail: "staged content is not hashable" });
     return;
   }
-  const previous = previousFor(run5, source);
+  const previous = previousFor(run6, source);
   if (previous?.treeSha256 === hash) {
-    if (await treeHash(source.id, join143(run5.skillsRoot, source.id)) === hash) rmSync5(staged, { recursive: true, force: true });
-    else run5.staged.add(source.id);
-    unchanged(run5, previous);
+    if (await treeHash(source.id, join143(run6.skillsRoot, source.id)) === hash) rmSync5(staged, { recursive: true, force: true });
+    else run6.staged.add(source.id);
+    unchanged(run6, previous);
     return;
   }
-  run5.staged.add(source.id);
-  run5.entries.set(source.id, {
+  run6.staged.add(source.id);
+  run6.entries.set(source.id, {
     id: source.id,
     repo: source.repo,
     path: source.path,
     commit: checkout.commit,
     treeSha256: hash,
     license: verdict.license,
-    fetchedAt: run5.at,
+    fetchedAt: run6.at,
     previousCommit: previous?.commit ?? null
   });
-  run5.results.set(source.id, { id: source.id, outcome: "updated" });
-  run5.input.log(`[skills] \u66F4\u65B0 ${source.id} ${checkout.commit.slice(0, 7)}`);
+  run6.results.set(source.id, { id: source.id, outcome: "updated" });
+  run6.input.log(`[skills] \u66F4\u65B0 ${source.id} ${checkout.commit.slice(0, 7)}`);
 }
-async function installRepository(run5, repo, sources, workDir, started) {
+async function installRepository(run6, repo, sources, workDir, started) {
   const failAll = (items, detail) => {
-    for (const source of items) run5.failures.set(source.id, { reason: "unreachable", detail });
+    for (const source of items) run6.failures.set(source.id, { reason: "unreachable", detail });
   };
-  if (Date.now() - started >= run5.limits.deadlineMs) return failAll(sources, "deadline");
-  run5.input.log(`[skills] \u83B7\u53D6 ${repo} \u2026`);
-  const head = resolveDefaultBranchHead(run5.input.env, repo);
+  if (Date.now() - started >= run6.limits.deadlineMs) return failAll(sources, "deadline");
+  run6.input.log(`[skills] \u83B7\u53D6 ${repo} \u2026`);
+  const head = resolveDefaultBranchHead(run6.input.env, repo);
   if (!head.ok) return failAll(sources, head.detail);
   const pending = [];
   for (const source of sources) {
-    const previous = previousFor(run5, source);
-    if (previous?.commit === head.commit && await keepVerified(run5, previous)) unchanged(run5, previous);
+    const previous = previousFor(run6, source);
+    if (previous?.commit === head.commit && await keepVerified(run6, previous)) unchanged(run6, previous);
     else pending.push(source);
   }
   if (pending.length === 0) return;
-  const checkout = checkoutUpstreamPaths(run5.input.env, repo, pending.map((source) => source.path), workDir);
+  const checkout = checkoutUpstreamPaths(run6.input.env, repo, pending.map((source) => source.path), workDir);
   if (!checkout.ok) return failAll(pending, checkout.detail);
-  for (const source of pending) await installFromCheckout(run5, source, checkout.checkout);
+  for (const source of pending) await installFromCheckout(run6, source, checkout.checkout);
 }
-async function settleFailures(run5, sources) {
+async function settleFailures(run6, sources) {
   for (const source of sources) {
-    const failure3 = run5.failures.get(source.id);
+    const failure3 = run6.failures.get(source.id);
     if (failure3 === void 0) continue;
     const id2 = source.id;
-    const previous = previousFor(run5, source);
-    const kept = previous !== void 0 && await keepVerified(run5, previous);
-    run5.results.set(id2, { id: id2, outcome: kept ? "kept" : "missing", ...failure3 });
-    if (kept) run5.entries.set(id2, previous);
-    run5.input.log(`[skills] \u5931\u8D25 ${id2} ${failure3.reason}\uFF08${kept ? `\u4FDD\u7559 ${previous.commit.slice(0, 7)}` : "\u672A\u5B89\u88C5"}\uFF09`);
+    const previous = previousFor(run6, source);
+    const kept = previous !== void 0 && await keepVerified(run6, previous);
+    run6.results.set(id2, { id: id2, outcome: kept ? "kept" : "missing", ...failure3 });
+    if (kept) run6.entries.set(id2, previous);
+    run6.input.log(`[skills] \u5931\u8D25 ${id2} ${failure3.reason}\uFF08${kept ? `\u4FDD\u7559 ${previous.commit.slice(0, 7)}` : "\u672A\u5B89\u88C5"}\uFF09`);
   }
 }
-function applyStaged(run5, bundled, managed) {
-  mkdirSync7(run5.skillsRoot, { recursive: true });
-  for (const id2 of run5.staged) {
-    const target = join143(run5.skillsRoot, id2);
-    if (existsSync13(target) || isLink(target)) renameSync5(target, join143(run5.staging, `.old-${id2}`));
-    renameSync5(join143(run5.staging, id2), target);
+function applyStaged(run6, bundled, managed) {
+  mkdirSync7(run6.skillsRoot, { recursive: true });
+  for (const id2 of run6.staged) {
+    const target = join143(run6.skillsRoot, id2);
+    if (existsSync13(target) || isLink(target)) renameSync5(target, join143(run6.staging, `.old-${id2}`));
+    renameSync5(join143(run6.staging, id2), target);
   }
-  for (const item2 of readdirSync13(run5.skillsRoot, { withFileTypes: true })) {
+  for (const item2 of readdirSync13(run6.skillsRoot, { withFileTypes: true })) {
     if (!item2.isDirectory() && !item2.isSymbolicLink()) continue;
-    if (bundled.has(item2.name) || run5.entries.has(item2.name)) continue;
-    if (run5.input.host === "dev" && !managed.has(item2.name)) continue;
-    rmSync5(join143(run5.skillsRoot, item2.name), { recursive: true, force: true });
+    if (bundled.has(item2.name) || run6.entries.has(item2.name)) continue;
+    if (run6.input.host === "dev" && !managed.has(item2.name)) continue;
+    rmSync5(join143(run6.skillsRoot, item2.name), { recursive: true, force: true });
   }
 }
 function isLink(path15) {
@@ -79300,16 +80252,16 @@ function isLink(path15) {
     return false;
   }
 }
-function writeLock(run5, previousLock, runId) {
-  const skills = [...run5.entries.values()];
-  const lockPath3 = join143(run5.skillsRoot, "skills.lock.json");
+function writeLock(run6, previousLock, runId) {
+  const skills = [...run6.entries.values()];
+  const lockPath3 = join143(run6.skillsRoot, "skills.lock.json");
   const existing = readOptional3(lockPath3);
   if (skills.length === 0 && previousLock === null && existing === null) return false;
   const sameAsPrevious = previousLock !== null && serializeUpstreamSkillLock({ ...previousLock, skills }) === serializeUpstreamSkillLock(previousLock);
-  const text12 = serializeUpstreamSkillLock({ version: 1, updatedAt: sameAsPrevious ? previousLock.updatedAt : run5.at, skills });
-  if (existing === text12) return false;
+  const text13 = serializeUpstreamSkillLock({ version: 1, updatedAt: sameAsPrevious ? previousLock.updatedAt : run6.at, skills });
+  if (existing === text13) return false;
   const tmp = `${lockPath3}.tmp-${runId}`;
-  writeFileSync5(tmp, text12, { encoding: "utf8", mode: 420 });
+  writeFileSync5(tmp, text13, { encoding: "utf8", mode: 420 });
   renameSync5(tmp, lockPath3);
   return true;
 }
@@ -79331,7 +80283,7 @@ async function installUpstreamSkills(input2) {
   const staging = join143(input2.pluginRoot, `${STAGING_PREFIX}${runId}`);
   const clones = join143(input2.workRoot, `upstream-${runId}`);
   mkdirSync7(staging, { recursive: true });
-  const run5 = {
+  const run6 = {
     input: input2,
     at,
     limits: { ...DEFAULT_LIMITS, ...input2.limits },
@@ -79350,12 +80302,12 @@ async function installUpstreamSkills(input2) {
     mkdirSync7(clones, { recursive: true });
     const started = Date.now();
     let index = 0;
-    for (const [repo, items] of byRepo) await installRepository(run5, repo, items, join143(clones, String(index++)), started);
-    await settleFailures(run5, sources.skills);
-    const managed = /* @__PURE__ */ new Set([...sources.skills.map((source) => source.id), ...run5.previous.keys()]);
-    applyStaged(run5, bundled, managed);
-    const lockWritten = writeLock(run5, previousLock, runId);
-    const results = sources.skills.flatMap((source) => run5.results.get(source.id) ?? []);
+    for (const [repo, items] of byRepo) await installRepository(run6, repo, items, join143(clones, String(index++)), started);
+    await settleFailures(run6, sources.skills);
+    const managed = /* @__PURE__ */ new Set([...sources.skills.map((source) => source.id), ...run6.previous.keys()]);
+    applyStaged(run6, bundled, managed);
+    const lockWritten = writeLock(run6, previousLock, runId);
+    const results = sources.skills.flatMap((source) => run6.results.get(source.id) ?? []);
     return { report: { version: 1, at, host: input2.host, results }, lockWritten };
   } finally {
     rmSync5(staging, { recursive: true, force: true });
@@ -79481,16 +80433,16 @@ var REAL_SETUP_ENV = {
       return [];
     }
   },
-  writeText: (path15, text12) => {
-    writeFileSync6(path15, text12, "utf8");
+  writeText: (path15, text13) => {
+    writeFileSync6(path15, text13, "utf8");
   },
-  writeTextAtomic: (path15, text12) => {
+  writeTextAtomic: (path15, text13) => {
     const lockPath3 = `${path15}.lock`;
     const tempPath = `${path15}.tmp-${process.pid}-${randomUUID23()}`;
     let lockFd;
     try {
       lockFd = openSync7(lockPath3, "wx", 384);
-      writeFileSync6(tempPath, text12, { encoding: "utf8", mode: 384, flag: "wx" });
+      writeFileSync6(tempPath, text13, { encoding: "utf8", mode: 384, flag: "wx" });
       renameSync6(tempPath, path15);
     } finally {
       try {
@@ -81464,16 +82416,16 @@ function nonNegativeInteger(value) {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 async function readMigrationReceipt(path15) {
-  let text12;
+  let text13;
   try {
-    text12 = await readFile86(path15, "utf8");
+    text13 = await readFile86(path15, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT") return null;
     throw error2;
   }
   let value;
   try {
-    value = JSON.parse(text12);
+    value = JSON.parse(text13);
   } catch {
     throw new Error(`host project registry migration receipt \u975E\u6CD5\uFF1A${path15}`);
   }
@@ -81496,16 +82448,16 @@ async function readMigrationReceipt(path15) {
   };
 }
 async function readPendingMigration(path15) {
-  let text12;
+  let text13;
   try {
-    text12 = await readFile86(path15, "utf8");
+    text13 = await readFile86(path15, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT") return null;
     throw error2;
   }
   let value;
   try {
-    value = JSON.parse(text12);
+    value = JSON.parse(text13);
   } catch {
     throw new Error(`host project registry migration pending snapshot \u975E\u6CD5\uFF1A${path15}`);
   }
@@ -81556,15 +82508,15 @@ async function migrateLegacyProjectRegistry(input2) {
       const discovered = /* @__PURE__ */ new Set();
       let rejected = 0;
       for (const path15 of resolveHostProjectRegistryCandidates(input2)) {
-        const text12 = input2.readText(path15);
-        if (text12 === void 0) continue;
-        if (Buffer.byteLength(text12) > MAX_LEGACY_REGISTRY_BYTES) {
+        const text13 = input2.readText(path15);
+        if (text13 === void 0) continue;
+        if (Buffer.byteLength(text13) > MAX_LEGACY_REGISTRY_BYTES) {
           rejected += 1;
           continue;
         }
         let value;
         try {
-          value = JSON.parse(text12);
+          value = JSON.parse(text13);
         } catch {
           rejected += 1;
           continue;
@@ -81729,18 +82681,18 @@ function readHostPluginConvergenceReceipt(env, host) {
 }
 function parseSessionProof(raw) {
   if (raw === void 0) return null;
-  const fields = /* @__PURE__ */ new Map();
+  const fields2 = /* @__PURE__ */ new Map();
   for (const line of raw.split("\n")) {
     if (line === "") continue;
     const separator = line.indexOf("=");
-    if (separator <= 0 || fields.has(line.slice(0, separator))) return null;
-    fields.set(line.slice(0, separator), line.slice(separator + 1));
+    if (separator <= 0 || fields2.has(line.slice(0, separator))) return null;
+    fields2.set(line.slice(0, separator), line.slice(separator + 1));
   }
-  const host = fields.get("host");
-  const releaseId = fields.get("release_id");
-  const releaseRoot = fields.get("release_root");
-  const loadedAtEpoch = Number(fields.get("loaded_at_epoch"));
-  if (fields.get("version") !== "2" || host !== "codex" && host !== "claude" || !isReleaseId(releaseId) || typeof releaseRoot !== "string" || releaseRoot === "" || !Number.isSafeInteger(loadedAtEpoch) || loadedAtEpoch < 0) return null;
+  const host = fields2.get("host");
+  const releaseId = fields2.get("release_id");
+  const releaseRoot = fields2.get("release_root");
+  const loadedAtEpoch = Number(fields2.get("loaded_at_epoch"));
+  if (fields2.get("version") !== "2" || host !== "codex" && host !== "claude" || !isReleaseId(releaseId) || typeof releaseRoot !== "string" || releaseRoot === "" || !Number.isSafeInteger(loadedAtEpoch) || loadedAtEpoch < 0) return null;
   return { host, releaseId, releaseRoot, loadedAtEpoch };
 }
 function writeHostPluginConvergenceReceipt(deps, env, receipt) {
@@ -82647,11 +83599,11 @@ import { join as join154 } from "node:path";
 import { execFile as execFile10 } from "node:child_process";
 import { accessSync as accessSync5, constants as fsConstants5, statSync as statSync12 } from "node:fs";
 import { join as join153 } from "node:path";
-var nodeExecDocker = (args) => new Promise((resolve65) => {
+var nodeExecDocker = (args) => new Promise((resolve67) => {
   execFile10("docker", [...args], (err, stdout, stderr) => {
     const code = err?.code;
     const exitCode = err === null ? 0 : typeof code === "number" ? code : 1;
-    resolve65({ stdout: String(stdout ?? ""), stderr: String(stderr ?? ""), exitCode });
+    resolve67({ stdout: String(stdout ?? ""), stderr: String(stderr ?? ""), exitCode });
   });
 });
 async function execDocker(args, opts) {
@@ -82659,8 +83611,8 @@ async function execDocker(args, opts) {
   const timeoutMs = opts?.timeoutMs ?? 5e3;
   let timer;
   try {
-    const timeout = new Promise((resolve65) => {
-      timer = setTimeout(() => resolve65(null), timeoutMs);
+    const timeout = new Promise((resolve67) => {
+      timer = setTimeout(() => resolve67(null), timeoutMs);
     });
     return await Promise.race([exec(args).catch(() => null), timeout]);
   } finally {
@@ -82923,8 +83875,8 @@ function shellQuote4(value) {
 }
 function hasCodexManagedBlock(env, root) {
   try {
-    const text12 = env.readText(join156(root, "AGENTS.md"));
-    return text12 !== void 0 && refreshManagedBlock(text12, CODEX_AGENTS_BLOCK).status !== "absent";
+    const text13 = env.readText(join156(root, "AGENTS.md"));
+    return text13 !== void 0 && refreshManagedBlock(text13, CODEX_AGENTS_BLOCK).status !== "absent";
   } catch {
     return false;
   }
@@ -83537,10 +84489,10 @@ async function cmdDesignValidate(deps, opts) {
 }
 async function cmdDesignPropose(deps, change) {
   try {
-    const relative40 = designProposalPath(change);
-    const path15 = join158(deps.cwd, relative40);
+    const relative42 = designProposalPath(change);
+    const path15 = join158(deps.cwd, relative42);
     if (await read2(path15) !== null) {
-      deps.io.err(`ERROR: \u63D0\u6848\u5DF2\u5B58\u5728\uFF1A${relative40}`);
+      deps.io.err(`ERROR: \u63D0\u6848\u5DF2\u5B58\u5728\uFF1A${relative42}`);
       return 1;
     }
     const check = await runCheck(deps);
@@ -83551,7 +84503,7 @@ async function cmdDesignPropose(deps, change) {
     const base = designBaseDigest(await read2(join158(deps.cwd, DESIGN_MD)), await read2(join158(deps.cwd, MODEL)));
     await mkdir56(dirname40(path15), { recursive: true });
     await writeFile31(path15, renderDesignProposal(change, base), { encoding: "utf8", flag: "wx" });
-    deps.io.out(relative40);
+    deps.io.out(relative42);
     return 0;
   } catch (error2) {
     deps.io.err(`ERROR: ${errMsg(error2)}`);
@@ -84038,9 +84990,9 @@ function scalar23(value) {
 }
 function stepDetailLines(step) {
   const lines2 = [];
-  const fields = (refs) => refs.map((ref) => `${ref.field}(${ref.type})`).join(", ");
-  if (step.inputs.length > 0) lines2.push(`inputs: ${fields(step.inputs)}`);
-  if (step.outputs.length > 0) lines2.push(`outputs: ${fields(step.outputs)}`);
+  const fields2 = (refs) => refs.map((ref) => `${ref.field}(${ref.type})`).join(", ");
+  if (step.inputs.length > 0) lines2.push(`inputs: ${fields2(step.inputs)}`);
+  if (step.outputs.length > 0) lines2.push(`outputs: ${fields2(step.outputs)}`);
   const tests = step.tests ?? [];
   if (tests.length > 0) {
     lines2.push(`tests: ${tests.map((test) => test.required === false ? `${test.id}(\u53EF\u9009)` : test.id).join(", ")}`);
@@ -84138,30 +85090,30 @@ import { createHash as createHash55, createHmac as createHmac2 } from "node:cryp
 import { closeSync as closeSync8, constants as constants12, fstatSync as fstatSync3, openSync as openSync8, readFileSync as readFileSync39 } from "node:fs";
 var MAX_PAYLOAD_BYTES = 128 * 1024;
 var MAX_TEXT_BYTES2 = 8 * 1024;
-var isRecord28 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
-function text11(value, field4) {
+var isRecord29 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+function text12(value, field4) {
   if (typeof value !== "string" || value.trim() === "" || Buffer.byteLength(value) > MAX_TEXT_BYTES2) {
     throw new Error(`${field4} must be a bounded non-empty string`);
   }
   return value;
 }
-function digest17(value) {
+function digest18(value) {
   return createHash55("sha256").update(value).digest("hex");
 }
 function stableId(prefix, value) {
-  return `${prefix}-${digest17(value).slice(0, 32)}`;
+  return `${prefix}-${digest18(value).slice(0, 32)}`;
 }
 function questionKey(candidate2, header, prompt) {
   const explicit = typeof candidate2.id === "string" && candidate2.id !== "" ? candidate2.id : header;
   const normalized2 = explicit.trim().toLowerCase().replace(/[^a-z0-9._-]+/gu, "-").replace(/^-+|-+$/gu, "");
-  return normalized2 !== "" && normalized2.length <= 160 ? `host.${normalized2}` : `host.${digest17(`${header}\0${prompt}`).slice(0, 32)}`;
+  return normalized2 !== "" && normalized2.length <= 160 ? `host.${normalized2}` : `host.${digest18(`${header}\0${prompt}`).slice(0, 32)}`;
 }
 function answers(value) {
-  if (!isRecord28(value)) throw new Error("tool_response.answers must be an object");
+  if (!isRecord29(value)) throw new Error("tool_response.answers must be an object");
   const result2 = {};
   for (const [key, answer] of Object.entries(value)) {
     if (typeof answer !== "string" || answer.trim() === "") throw new Error(`question '${key}' requires a non-empty answer`);
-    result2[key] = text11(answer, `answer.${key}`);
+    result2[key] = text12(answer, `answer.${key}`);
   }
   return result2;
 }
@@ -84173,7 +85125,7 @@ function decodeHostInteractionPostToolUse(raw, recordedAt) {
   } catch (error2) {
     throw new Error(`host interaction payload is invalid JSON: ${String(error2)}`);
   }
-  if (!isRecord28(decoded) || decoded.tool_name !== "AskUserQuestion" && decoded.tool_name !== "request_user_input" || !isRecord28(decoded.tool_input) || !Array.isArray(decoded.tool_input.questions) || decoded.tool_input.questions.length === 0 || decoded.tool_input.questions.length > 3 || !isRecord28(decoded.tool_response)) {
+  if (!isRecord29(decoded) || decoded.tool_name !== "AskUserQuestion" && decoded.tool_name !== "request_user_input" || !isRecord29(decoded.tool_input) || !Array.isArray(decoded.tool_input.questions) || decoded.tool_input.questions.length === 0 || decoded.tool_input.questions.length > 3 || !isRecord29(decoded.tool_response)) {
     throw new Error("host interaction payload does not contain a supported structured response");
   }
   const answerByHeader = answers(decoded.tool_response.answers);
@@ -84182,14 +85134,14 @@ function decodeHostInteractionPostToolUse(raw, recordedAt) {
   const sessionId = decoded.session_id;
   const hostIdentity = createHash55("sha256").update(`${sessionId}\0${String(decoded.turn_id)}\0${String(decoded.tool_use_id)}`).digest();
   const questions = decoded.tool_input.questions.map((candidate2, index) => {
-    if (!isRecord28(candidate2)) throw new Error(`question ${index + 1} must be an object`);
-    const header = text11(candidate2.header, `question ${index + 1}.header`);
-    const prompt = text11(candidate2.question, `question ${index + 1}.question`);
+    if (!isRecord29(candidate2)) throw new Error(`question ${index + 1} must be an object`);
+    const header = text12(candidate2.header, `question ${index + 1}.header`);
+    const prompt = text12(candidate2.question, `question ${index + 1}.question`);
     const rawOptions = candidate2.options === void 0 ? [] : candidate2.options;
     if (!Array.isArray(rawOptions) || rawOptions.length > 64) throw new Error(`question ${index + 1}.options is invalid`);
     const optionLabels = rawOptions.map((option, optionIndex) => {
-      if (!isRecord28(option)) throw new Error(`question ${index + 1}.option ${optionIndex + 1} must be an object`);
-      return text11(option.label, `question ${index + 1}.option ${optionIndex + 1}.label`);
+      if (!isRecord29(option)) throw new Error(`question ${index + 1}.option ${optionIndex + 1} must be an object`);
+      return text12(option.label, `question ${index + 1}.option ${optionIndex + 1}.label`);
     });
     const optionIds = optionLabels.map((label2) => stableId("option", label2));
     if (new Set(optionIds).size !== optionIds.length) throw new Error(`question ${index + 1} has duplicate options`);
@@ -84367,9 +85319,9 @@ import { constants as constants14 } from "node:fs";
 import { open as open13 } from "node:fs/promises";
 import { join as join160 } from "node:path";
 var OVERFLOW_TAIL_BYTES = 4096;
-function lineRecords(text12) {
+function lineRecords(text13) {
   const records = [];
-  for (const line of text12.split("\n")) {
+  for (const line of text13.split("\n")) {
     if (line.trim() === "") continue;
     try {
       const value = JSON.parse(line);
@@ -85009,21 +85961,21 @@ async function cmdAgentRecord(deps, name2, runId, json2, options = {}) {
     return 1;
   }
   const reportPath = join161(deps.cwd, row2.report_path);
-  let text12;
+  let text13;
   try {
     const info = await stat16(reportPath);
     if (info.size > REPORT_MAX_BYTES) {
       deps.io.err(`ERROR: \u62A5\u544A\u65E0\u6548\uFF1A\u8D85\u8FC7 ${REPORT_MAX_BYTES} \u5B57\u8282`);
       return 1;
     }
-    text12 = await readFile90(reportPath, "utf8");
+    text13 = await readFile90(reportPath, "utf8");
   } catch {
     deps.io.err(`ERROR: \u62A5\u544A\u65E0\u6548\uFF1A${row2.report_path} \u8BFB\u4E0D\u5230`);
     return 1;
   }
   let parsed2;
   try {
-    parsed2 = parseAgentReport(text12, row2.role);
+    parsed2 = parseAgentReport(text13, row2.role);
   } catch (e) {
     deps.io.err(`ERROR: \u62A5\u544A\u65E0\u6548\uFF1A${errMsg(e)}`);
     return 1;
@@ -85033,7 +85985,7 @@ async function cmdAgentRecord(deps, name2, runId, json2, options = {}) {
     return 2;
   }
   const blockAt = context.step.reviewers.find((ref) => ref.agent === row2.agent)?.blockAt ?? "high";
-  const blocking = row2.role === "reviewer" ? parsed2.findings.filter((finding2) => severityRank(finding2.severity) >= severityRank(blockAt)).length : 0;
+  const blocking = row2.role === "reviewer" ? parsed2.findings.filter((finding3) => severityRank(finding3.severity) >= severityRank(blockAt)).length : 0;
   const subagent = usedSubagent(deps, row2, options.subagent);
   const finished3 = {
     ...row2,
@@ -85041,7 +85993,7 @@ async function cmdAgentRecord(deps, name2, runId, json2, options = {}) {
     status: "finished",
     result: row2.role === "reviewer" ? blocking > 0 ? "fail" : "pass" : parsed2.result ?? "failed",
     findings: parsed2.findings,
-    report_digest: `sha256:${sha256Hex(text12)}`,
+    report_digest: `sha256:${sha256Hex(text13)}`,
     finished_at: deps.clock()
   };
   try {
@@ -85209,16 +86161,16 @@ async function readAgentText(path15) {
   if (info.size > AGENT_FILE_MAX_BYTES) throw new Error(`agent \u6587\u4EF6\u8D85\u8FC7 ${AGENT_FILE_MAX_BYTES} \u5B57\u8282`);
   return readFile91(path15, "utf8");
 }
-function frontmatterName(text12) {
-  const lines2 = text12.split("\n");
+function frontmatterName(text13) {
+  const lines2 = text13.split("\n");
   const close = lines2.indexOf("---", 1);
   const head = close < 0 ? [] : lines2.slice(1, close);
   return /^name:\s*(\S+)\s*$/u.exec(head.find((line) => line.startsWith("name:")) ?? "")?.[1] ?? "";
 }
-function parseText(deps, text12) {
-  const name2 = frontmatterName(text12);
+function parseText(deps, text13) {
+  const name2 = frontmatterName(text13);
   try {
-    return { name: name2, definition: parseAgentFile(text12, name2) };
+    return { name: name2, definition: parseAgentFile(text13, name2) };
   } catch (e) {
     deps.io.out(`[FAIL] ${errMsg(e)}`);
     return void 0;
@@ -85226,11 +86178,11 @@ function parseText(deps, text12) {
 }
 var looksLikePath = (arg) => arg.includes("/") || arg.endsWith(".md");
 async function cmdAgentValidate(deps, target) {
-  let text12;
+  let text13;
   let subject2 = target;
   if (looksLikePath(target)) {
     try {
-      text12 = await readAgentText(target);
+      text13 = await readAgentText(target);
     } catch (e) {
       deps.io.err(`ERROR: ${errMsg(e)}`);
       return 1;
@@ -85243,10 +86195,10 @@ async function cmdAgentValidate(deps, target) {
       deps.io.err(`ERROR: agent \u5E93\u4E2D\u4E0D\u5B58\u5728 '${target}'`);
       return 1;
     }
-    text12 = entry2.content;
+    text13 = entry2.content;
     subject2 = `${target}\uFF08${SOURCE_WORD[entry2.source]}\uFF09`;
   }
-  const parsed2 = parseText(deps, text12);
+  const parsed2 = parseText(deps, text13);
   if (parsed2 === void 0) {
     deps.io.out(`FAIL ${subject2}`);
     return 1;
@@ -85275,20 +86227,20 @@ async function cmdAgentAdd(deps, file, opts) {
     deps.io.err(`ERROR: ${scope}`);
     return 1;
   }
-  let text12;
+  let text13;
   try {
-    text12 = await readAgentText(file);
+    text13 = await readAgentText(file);
   } catch (e) {
     deps.io.err(`ERROR: ${errMsg(e)}`);
     return 1;
   }
-  const parsed2 = parseText(deps, text12);
+  const parsed2 = parseText(deps, text13);
   if (parsed2 === void 0 || !report(deps, parsed2.name, checkDefinition(parsed2.definition, deps.knownSkillIds?.()))) {
     deps.io.err("ERROR: \u6821\u9A8C\u672A\u901A\u8FC7\uFF0C\u672A\u767B\u8BB0");
     return 1;
   }
   if (deps.agentLibrary !== void 0) await loadLibrary(deps);
-  const entry2 = await registerAgent(deps, scope, parsed2.name, text12, opts.replace === true);
+  const entry2 = await registerAgent(deps, scope, parsed2.name, text13, opts.replace === true);
   if (typeof entry2 === "number") return entry2;
   deps.io.out(`[AGENT] \u5DF2\u767B\u8BB0 ${entry2.name}\uFF08${SOURCE_WORD[entry2.source]}\uFF09${entry2.path ?? ""}`);
   return 0;
@@ -85868,7 +86820,11 @@ async function auditWaiverApproval(deps, dir, outcome, approver) {
     });
   }
   if (outcome.protectedApproved.length > 0) {
-    await recordTestAudit(deps, dir, "protected-approve", { files: outcome.protectedApproved.join(","), by: approver });
+    await recordTestAudit(deps, dir, "protected-approve", {
+      files: outcome.protectedApproved.join(","),
+      digests: await protectedApprovalDigests(deps.cwd, outcome.protectedApproved),
+      by: approver
+    });
   }
 }
 
@@ -86274,12 +87230,12 @@ async function cmdTestBaselineSuite(deps, change, opts) {
   }
   const record9 = chain.state === "intact" ? chain.active.find((entry2) => entry2.run_id === opts.run) : void 0;
   if (record9 === void 0) return fail9(deps, `\u5F53\u524D\u7528\u6237\u7684\u8BB0\u5F55\u94FE\u4E0A\u627E\u4E0D\u5230\u8FD0\u884C '${opts.run}'`);
-  const run5 = record9.suites.find((entry2) => entry2.suite === opts.suite);
-  if (run5 === void 0) return fail9(deps, `\u8FD0\u884C ${opts.run} \u91CC\u6CA1\u6709\u5957\u4EF6 '${opts.suite}'`);
-  if (run5.result !== "pass") return fail9(deps, `\u8FD0\u884C ${opts.run} \u91CC\u5957\u4EF6 ${opts.suite} \u6CA1\u6709\u901A\u8FC7\uFF0C\u4E0D\u80FD\u4F5C\u4E3A\u57FA\u7EBF`);
-  if (run5.metrics.length === 0) return fail9(deps, `\u8FD0\u884C ${opts.run} \u91CC\u5957\u4EF6 ${opts.suite} \u6CA1\u6709\u57FA\u51C6\u6307\u6807\uFF0C\u4E0D\u80FD\u4F5C\u4E3A\u57FA\u7EBF`);
+  const run6 = record9.suites.find((entry2) => entry2.suite === opts.suite);
+  if (run6 === void 0) return fail9(deps, `\u8FD0\u884C ${opts.run} \u91CC\u6CA1\u6709\u5957\u4EF6 '${opts.suite}'`);
+  if (run6.result !== "pass") return fail9(deps, `\u8FD0\u884C ${opts.run} \u91CC\u5957\u4EF6 ${opts.suite} \u6CA1\u6709\u901A\u8FC7\uFF0C\u4E0D\u80FD\u4F5C\u4E3A\u57FA\u7EBF`);
+  if (run6.metrics.length === 0) return fail9(deps, `\u8FD0\u884C ${opts.run} \u91CC\u5957\u4EF6 ${opts.suite} \u6CA1\u6709\u57FA\u51C6\u6307\u6807\uFF0C\u4E0D\u80FD\u4F5C\u4E3A\u57FA\u7EBF`);
   const metrics = {};
-  for (const metric4 of run5.metrics) {
+  for (const metric4 of run6.metrics) {
     metrics[metric4.name] = {
       median: metric4.median,
       p95: metric4.p95,
@@ -86348,9 +87304,9 @@ async function countLines(path15) {
   try {
     const entry2 = await lstat68(path15);
     if (!entry2.isFile() || entry2.size > MAX_UNTRACKED_BYTES2) return 0;
-    const text12 = await readFile93(path15, "utf8");
-    if (text12 === "") return 0;
-    return text12.endsWith("\n") ? text12.split("\n").length - 1 : text12.split("\n").length;
+    const text13 = await readFile93(path15, "utf8");
+    if (text13 === "") return 0;
+    return text13.endsWith("\n") ? text13.split("\n").length - 1 : text13.split("\n").length;
   } catch {
     return 0;
   }
@@ -87329,8 +88285,8 @@ async function collectTestInputs(repoRoot, changeDir7, test, envKeyPath) {
       keyLoaded = true;
     }
     const value = process.env[input2.name];
-    const digest18 = key === void 0 || value === void 0 ? null : `sha256:${createHash57("sha256").update(key).update(`${input2.name}\0${value}`).digest("hex")}`;
-    records.push({ kind: "env", name: input2.name, present: value !== void 0, digest: digest18 });
+    const digest19 = key === void 0 || value === void 0 ? null : `sha256:${createHash57("sha256").update(key).update(`${input2.name}\0${value}`).digest("hex")}`;
+    records.push({ kind: "env", name: input2.name, present: value !== void 0, digest: digest19 });
   }
   return records;
 }
@@ -87500,7 +88456,7 @@ function runTestProcess(request2) {
     }
     omittedTail.push(chunk);
   };
-  return new Promise((resolve65) => {
+  return new Promise((resolve67) => {
     const detached = process.platform !== "win32";
     const shell = shellFor(request2.command);
     let settled = false;
@@ -87528,7 +88484,7 @@ function runTestProcess(request2) {
       }
       stream.end(() => {
         const finishedAtMs = Date.now();
-        resolve65({
+        resolve67({
           exitCode,
           signal,
           timedOut,
@@ -87763,11 +88719,11 @@ function hostOf(env) {
   return detectHostEnvironment(env);
 }
 async function candidateOf(deps, name2) {
-  const fingerprint = deps.workspaceFingerprint;
-  if (fingerprint === void 0) return null;
+  const fingerprint2 = deps.workspaceFingerprint;
+  if (fingerprint2 === void 0) return null;
   for (let attempt2 = 0; attempt2 < 2; attempt2++) {
     try {
-      return await fingerprint(name2);
+      return await fingerprint2(name2);
     } catch {
     }
   }
@@ -87786,13 +88742,13 @@ async function resolvedCwd(repoRoot, cwd) {
 async function cmdTestRun(deps, change, testId, opts = {}) {
   const context = await resolveTestCommand(deps, change, { requireOwner: true });
   if (typeof context === "number") return context;
-  const located = locateTest(context.plan, testId);
-  if (located === void 0) {
+  const located2 = locateTest(context.plan, testId);
+  if (located2 === void 0) {
     const ids2 = declaredTestIds(context.plan);
     deps.io.err(`ERROR: \u672A\u58F0\u660E\u7684\u6D4B\u8BD5 '${testId}'\uFF1B\u53EF\u9009\uFF1A${ids2.length === 0 ? "(\u65E0)" : ids2.join(", ")}`);
     return 1;
   }
-  const { step, test } = located;
+  const { step, test } = located2;
   const gap = await unconfiguredNpmScript(deps.cwd, test);
   if (gap !== void 0) {
     deps.io.err(`ERROR: ${unconfiguredMessage(test.id, test.command, gap)}`);
@@ -88088,16 +89044,16 @@ function machineOf(catalog3, env) {
   const values = Object.fromEntries(catalog3.profiles_env.map((name2) => [name2, env[name2]]));
   return machineProfile(readMachineProfileInput(process.version, values), catalog3.profile ?? "fine");
 }
-function withReason(run5, reason3, fails) {
-  if (run5.reasons.some((existing) => existing.code === reason3.code)) return run5;
-  return { ...run5, reasons: [...run5.reasons, reason3], result: fails ? "fail" : run5.result };
+function withReason(run6, reason3, fails) {
+  if (run6.reasons.some((existing) => existing.code === reason3.code)) return run6;
+  return { ...run6, reasons: [...run6.reasons, reason3], result: fails ? "fail" : run6.result };
 }
 function applyRunLevelReasons(runs, input2) {
   const limit = input2.policy.flaky;
-  const flakyTotal = runs.reduce((sum, run5) => sum + run5.totals.flaky, 0);
+  const flakyTotal = runs.reduce((sum, run6) => sum + run6.totals.flaky, 0);
   const registered = (input2.plan?.files ?? []).map((file) => file.path);
-  return runs.map((run5) => {
-    let next = run5;
+  return runs.map((run6) => {
+    let next = run6;
     if (input2.candidateAfter === null) next = withReason(next, { code: "candidate-unavailable" }, true);
     else if (input2.candidateBefore !== null && input2.candidateBefore !== input2.candidateAfter) next = withReason(next, { code: "workspace-changed" }, false);
     if (limit !== void 0 && next.totals.flaky > 0) {
@@ -88121,7 +89077,7 @@ function draftOf(input2) {
     bindings: {
       candidate: input2.candidate,
       workflow_fingerprint: input2.workflowFingerprint,
-      catalog_digest: input2.suites.length === 0 ? null : catalogSuitesDigest(input2.catalog, input2.suites.map((run5) => run5.suite)),
+      catalog_digest: input2.suites.length === 0 ? null : catalogSuitesDigest(input2.catalog, input2.suites.map((run6) => run6.suite)),
       plan_digest: input2.planDigest,
       policy_digest: input2.policy === void 0 ? null : testPolicyDigest(input2.policy)
     },
@@ -88129,7 +89085,7 @@ function draftOf(input2) {
     machine_label: input2.profile.label,
     services: input2.services,
     suites: input2.suites,
-    result: input2.suites.every((run5) => run5.result === "pass") ? "pass" : "fail",
+    result: input2.suites.every((run6) => run6.result === "pass") ? "pass" : "fail",
     actor: input2.actor,
     host: input2.host,
     git_head: input2.gitHead,
@@ -88479,11 +89435,11 @@ function dedupe(reasons) {
   const seen = /* @__PURE__ */ new Set();
   return reasons.filter((reason3) => seen.has(reason3.code) ? false : (seen.add(reason3.code), true));
 }
-async function judgeSuite(suite2, run5, context) {
+async function judgeSuite(suite2, run6, context) {
   const baselines = /* @__PURE__ */ new Map();
   const baseline = suite2.benchmark === void 0 ? void 0 : await context.baseline(suite2.id);
   if (baseline !== void 0) baselines.set(baselineKey(suite2.id, context.evalRecord.machine_profile), baseline);
-  const evaluation = evaluateSuiteResult(suite2, { record: context.evalRecord, run: run5 }, {
+  const evaluation = evaluateSuiteResult(suite2, { record: context.evalRecord, run: run6 }, {
     change: context.change,
     policy: context.policy,
     plan: context.plan,
@@ -88497,8 +89453,8 @@ async function judgeSuite(suite2, run5, context) {
   });
   return {
     run: {
-      ...run5,
-      reasons: dedupe([...run5.reasons, ...extra]),
+      ...run6,
+      reasons: dedupe([...run6.reasons, ...extra]),
       result: evaluation.blockers.some((blocker2) => blocker2.blocking) ? "fail" : "pass"
     },
     notices: evaluation.notices
@@ -88534,8 +89490,8 @@ function clip2(value, max = MAX_FIELD) {
   return value.length <= max ? value : `${value.slice(0, max - 1)}\u2026`;
 }
 function cleanName(value, fallback2) {
-  const text12 = stripAnsi(value).replace(/\s+/g, " ").trim();
-  return text12 === "" ? fallback2 : clip2(text12, MAX_NAME2);
+  const text13 = stripAnsi(value).replace(/\s+/g, " ").trim();
+  return text13 === "" ? fallback2 : clip2(text13, MAX_NAME2);
 }
 function toPosix(path15) {
   return path15.split(sep29).join("/").replace(/\\/g, "/");
@@ -88548,23 +89504,23 @@ function repoPath2(ctx, value, base) {
   if (rel === "" || rel.startsWith("..") || isAbsolute46(rel)) return toPosix(isAbsolute46(cleaned) ? cleaned : posix9.normalize(toPosix(cleaned)));
   return toPosix(rel);
 }
-function failureFromText(raw, headline) {
-  const text12 = stripAnsi(raw).trim();
-  const lines2 = text12.split("\n");
+function failureFromText(raw, headline2) {
+  const text13 = stripAnsi(raw).trim();
+  const lines2 = text13.split("\n");
   const firstBlock = [];
   for (const line of lines2) {
     if (/^\s+at\s/.test(line)) break;
     firstBlock.push(line);
   }
-  const message2 = cleanFailureMessage(headline !== void 0 && headline.trim() !== "" ? headline : firstBlock.join("\n"));
+  const message2 = cleanFailureMessage(headline2 !== void 0 && headline2.trim() !== "" ? headline2 : firstBlock.join("\n"));
   return {
     message: message2,
-    ...text12 !== "" && text12 !== message2 ? { stack: clip2(text12) } : {}
+    ...text13 !== "" && text13 !== message2 ? { stack: clip2(text13) } : {}
   };
 }
 function cleanFailureMessage(value) {
-  const text12 = stripAnsi(value).trim();
-  return text12 === "" ? "(\u65E0\u5931\u8D25\u4FE1\u606F)" : clip2(text12, 8e3);
+  const text13 = stripAnsi(value).trim();
+  return text13 === "" ? "(\u65E0\u5931\u8D25\u4FE1\u606F)" : clip2(text13, 8e3);
 }
 
 // packages/cli/src/test-system/parsers/xml.ts
@@ -88623,8 +89579,8 @@ function readAttributes(cursor) {
     cursor.index = end + 1;
   }
 }
-function parseXml(text12) {
-  const cursor = { text: text12.charCodeAt(0) === 65279 ? text12.slice(1) : text12, index: 0 };
+function parseXml(text13) {
+  const cursor = { text: text13.charCodeAt(0) === 65279 ? text13.slice(1) : text13, index: 0 };
   const stack = [];
   let root;
   let nodes = 0;
@@ -88735,7 +89691,7 @@ function withChanged(base, hits, ctx) {
   return base;
 }
 function summaryPct(value) {
-  if (!isRecord24(value)) return void 0;
+  if (!isRecord25(value)) return void 0;
   const total = asNumber(value.total);
   const covered = asNumber(value.covered);
   if (total !== void 0 && covered !== void 0 && total > 0) return pct2(covered, total);
@@ -88744,13 +89700,13 @@ function summaryPct(value) {
 }
 function istanbulLineHits(detailText, ctx) {
   const parsed2 = parseJson4(detailText);
-  if (!parsed2.ok || !isRecord24(parsed2.value)) return void 0;
+  if (!parsed2.ok || !isRecord25(parsed2.value)) return void 0;
   const out = /* @__PURE__ */ new Map();
   for (const [key, entry2] of Object.entries(parsed2.value)) {
-    if (!isRecord24(entry2) || !isRecord24(entry2.statementMap) || !isRecord24(entry2.s)) continue;
+    if (!isRecord25(entry2) || !isRecord25(entry2.statementMap) || !isRecord25(entry2.s)) continue;
     const lines2 = /* @__PURE__ */ new Map();
     for (const [id2, location] of Object.entries(entry2.statementMap)) {
-      const start = isRecord24(location) && isRecord24(location.start) ? asNumber(location.start.line) : void 0;
+      const start = isRecord25(location) && isRecord25(location.start) ? asNumber(location.start.line) : void 0;
       const hits = asNumber(entry2.s[id2]) ?? 0;
       if (start !== void 0) lines2.set(start, Math.max(lines2.get(start) ?? 0, hits));
     }
@@ -88758,10 +89714,10 @@ function istanbulLineHits(detailText, ctx) {
   }
   return out;
 }
-function parseIstanbulSummary(text12, ctx) {
-  const parsed2 = parseJson4(text12);
+function parseIstanbulSummary(text13, ctx) {
+  const parsed2 = parseJson4(text13);
   if (!parsed2.ok) return parsed2;
-  if (!isRecord24(parsed2.value) || !isRecord24(parsed2.value.total)) return { ok: false, reason: "\u7F3A\u5C11 total\uFF1A\u4E0D\u662F istanbul coverage-summary.json" };
+  if (!isRecord25(parsed2.value) || !isRecord25(parsed2.value.total)) return { ok: false, reason: "\u7F3A\u5C11 total\uFF1A\u4E0D\u662F istanbul coverage-summary.json" };
   const total = parsed2.value.total;
   const coverage3 = {};
   for (const metric4 of ["lines", "branches", "functions", "statements"]) {
@@ -88771,12 +89727,12 @@ function parseIstanbulSummary(text12, ctx) {
   const hits = ctx.detailText === void 0 ? void 0 : istanbulLineHits(ctx.detailText, ctx);
   return { ok: true, coverage: withChanged(coverage3, hits, ctx) };
 }
-function parseLcov(text12, ctx) {
+function parseLcov(text13, ctx) {
   const totals2 = { lf: 0, lh: 0, fnf: 0, fnh: 0, brf: 0, brh: 0 };
   const hits = /* @__PURE__ */ new Map();
   let current;
   let records = 0;
-  for (const raw of text12.split("\n")) {
+  for (const raw of text13.split("\n")) {
     const line = raw.trim();
     if (line.startsWith("SF:")) {
       current = /* @__PURE__ */ new Map();
@@ -88808,10 +89764,10 @@ function rate(value) {
   const parsed2 = Number(value);
   return value !== void 0 && Number.isFinite(parsed2) && parsed2 >= 0 && parsed2 <= 1 ? Number((parsed2 * 100).toFixed(2)) : void 0;
 }
-function parseCobertura(text12, ctx) {
+function parseCobertura(text13, ctx) {
   let root;
   try {
-    root = parseXml(text12);
+    root = parseXml(text13);
   } catch (error2) {
     return { ok: false, reason: `\u4E0D\u662F\u5408\u6CD5\u7684 Cobertura XML\uFF1A${error2 instanceof XmlError ? error2.message : "\u89E3\u6790\u5931\u8D25"}` };
   }
@@ -88848,20 +89804,20 @@ function parseCobertura(text12, ctx) {
   if (lines2 === void 0 && branches === void 0) return { ok: false, reason: "Cobertura \u62A5\u544A\u6CA1\u6709 line-rate / branch-rate\uFF0C\u4E5F\u6CA1\u6709 line \u8BB0\u5F55" };
   return { ok: true, coverage: withChanged(coverage3, hits, ctx) };
 }
-function parseCoverageReport(format, text12, ctx) {
-  if (format === "istanbul-summary") return parseIstanbulSummary(text12, ctx);
-  if (format === "lcov") return parseLcov(text12, ctx);
-  return parseCobertura(text12, ctx);
+function parseCoverageReport(format, text13, ctx) {
+  if (format === "istanbul-summary") return parseIstanbulSummary(text13, ctx);
+  if (format === "lcov") return parseLcov(text13, ctx);
+  return parseCobertura(text13, ctx);
 }
 
 // packages/cli/src/test-system/parsers/gojson.ts
 var FILE_HINT = /(\S+_test\.go):(\d+)/;
 var MAX_OUTPUT_LINES = 400;
-function parseGoJson(text12, _ctx) {
+function parseGoJson(text13, _ctx) {
   const entries2 = /* @__PURE__ */ new Map();
   const packages = /* @__PURE__ */ new Map();
   let events = 0;
-  for (const line of text12.split("\n")) {
+  for (const line of text13.split("\n")) {
     const trimmed = line.trim();
     if (trimmed === "") continue;
     let event;
@@ -88870,7 +89826,7 @@ function parseGoJson(text12, _ctx) {
     } catch {
       continue;
     }
-    if (!isRecord24(event) || typeof event.Action !== "string") continue;
+    if (!isRecord25(event) || typeof event.Action !== "string") continue;
     events++;
     const pkg = asString5(event.Package) ?? "";
     const test = asString5(event.Test);
@@ -88940,33 +89896,33 @@ function statusOf2(raw, invocations) {
 }
 function show(value) {
   if (value === void 0) return void 0;
-  const text12 = typeof value === "string" ? value : JSON.stringify(value);
-  return text12 === void 0 ? void 0 : clip2(text12, 4e3);
+  const text13 = typeof value === "string" ? value : JSON.stringify(value);
+  return text13 === void 0 ? void 0 : clip2(text13, 4e3);
 }
 function failureOf(assertion, messages) {
   const base = failureFromText(clip2(messages.join("\n\n")));
-  const detail = asArray7(assertion.failureDetails).find(isRecord24);
-  const matcher = detail !== void 0 && isRecord24(detail.matcherResult) ? detail.matcherResult : void 0;
+  const detail = asArray7(assertion.failureDetails).find(isRecord25);
+  const matcher = detail !== void 0 && isRecord25(detail.matcherResult) ? detail.matcherResult : void 0;
   const expected = matcher === void 0 ? void 0 : show(matcher.expected);
   const actual = matcher === void 0 ? void 0 : show(matcher.actual);
   return { ...base, ...expected === void 0 ? {} : { expected }, ...actual === void 0 ? {} : { actual } };
 }
-function parseJestJson(text12, ctx) {
-  const parsed2 = parseJson4(text12);
+function parseJestJson(text13, ctx) {
+  const parsed2 = parseJson4(text13);
   if (!parsed2.ok) return parsed2;
   const root = parsed2.value;
-  if (!isRecord24(root) || !Array.isArray(root.testResults)) return { ok: false, reason: "\u7F3A\u5C11 testResults\uFF1A\u4E0D\u662F Jest / Vitest JSON \u62A5\u544A" };
+  if (!isRecord25(root) || !Array.isArray(root.testResults)) return { ok: false, reason: "\u7F3A\u5C11 testResults\uFF1A\u4E0D\u662F Jest / Vitest JSON \u62A5\u544A" };
   const cases = [];
-  for (const fileResult of root.testResults.filter(isRecord24)) {
+  for (const fileResult of root.testResults.filter(isRecord25)) {
     const fileName = asString5(fileResult.name);
     const file = fileName === void 0 ? UNKNOWN_CASE_FILE : repoPath2(ctx, fileName);
     let failedInFile = false;
-    for (const assertion of asArray7(fileResult.assertionResults).filter(isRecord24)) {
+    for (const assertion of asArray7(fileResult.assertionResults).filter(isRecord25)) {
       const invocations = Math.max(1, asNumber(assertion.invocations) ?? 1);
       const status = statusOf2(asString5(assertion.status), invocations);
       if (status === "fail") failedInFile = true;
       const messages = asArray7(assertion.failureMessages).filter((item2) => typeof item2 === "string");
-      const location = isRecord24(assertion.location) ? asNumber(assertion.location.line) : void 0;
+      const location = isRecord25(assertion.location) ? asNumber(assertion.location.line) : void 0;
       cases.push({
         file,
         ...location === void 0 ? {} : { line: location },
@@ -89019,8 +89975,8 @@ function seconds(value) {
   return Number.isFinite(parsed2) && parsed2 >= 0 ? Math.round(parsed2 * 1e3) : 0;
 }
 function failureOf2(element) {
-  const headline = element.attrs.message ?? element.attrs.type;
-  return failureFromText(element.text, headline);
+  const headline2 = element.attrs.message ?? element.attrs.type;
+  return failureFromText(element.text, headline2);
 }
 function attachmentsOf(testcase) {
   const out = [];
@@ -89044,10 +90000,10 @@ function splitName(raw) {
       project = bracket[1] ?? null;
       return;
     }
-    const located = FILE_LINE.exec(part);
-    if (located !== null && index < parts.length - 1 && looksLikePath2(located[1] ?? "")) {
-      fileHint = located[1];
-      line = Number(located[2]);
+    const located2 = FILE_LINE.exec(part);
+    if (located2 !== null && index < parts.length - 1 && looksLikePath2(located2[1] ?? "")) {
+      fileHint = located2[1];
+      line = Number(located2[2]);
       return;
     }
     kept.push(part);
@@ -89093,21 +90049,21 @@ function isFileWrapper(name2, file) {
 function toCase(testcase, ancestors, ctx) {
   const rawName = testcase.attrs.name ?? "";
   const split = splitName(rawName);
-  const located = fileOf(testcase, ancestors, split);
-  if (isFileWrapper(split.name, located.file)) return void 0;
+  const located2 = fileOf(testcase, ancestors, split);
+  if (isFileWrapper(split.name, located2.file)) return void 0;
   const skipped = childrenNamed(testcase, "skipped").length > 0;
   const failed = [...childrenNamed(testcase, "failure"), ...childrenNamed(testcase, "error")];
   const reruns = testcase.children.filter((child) => /^(?:flaky|rerun)(?:Failure|Error)$/.test(child.name));
   const status = skipped ? "skip" : failed.length > 0 ? "fail" : reruns.length > 0 ? "flaky" : "pass";
   const failureSource = failed[0] ?? (status === "flaky" ? reruns[0] : void 0);
-  const groups2 = split.path.length > 0 ? split.path : groupsFromSuites(ancestors, located.file);
+  const groups2 = split.path.length > 0 ? split.path : groupsFromSuites(ancestors, located2.file);
   const lineText = testcase.attrs.line;
   const line = split.line ?? (lineText !== void 0 && /^\d+$/.test(lineText) ? Number(lineText) : void 0);
   return {
-    file: located.file === UNKNOWN_CASE_FILE ? UNKNOWN_CASE_FILE : repoPath2(ctx, located.file),
+    file: located2.file === UNKNOWN_CASE_FILE ? UNKNOWN_CASE_FILE : repoPath2(ctx, located2.file),
     ...line === void 0 ? {} : { line },
     name: cleanName(split.name, "(\u672A\u547D\u540D\u7528\u4F8B)"),
-    suite_path: [...located.klass, ...groups2].map((group) => cleanName(group, "(\u5206\u7EC4)")),
+    suite_path: [...located2.klass, ...groups2].map((group) => cleanName(group, "(\u5206\u7EC4)")),
     project: split.project,
     status,
     duration_ms: seconds(testcase.attrs.time),
@@ -89153,10 +90109,10 @@ function walk(root, ctx) {
   visit3(root, []);
   return cases;
 }
-function parseJunit(text12, ctx) {
+function parseJunit(text13, ctx) {
   let root;
   try {
-    root = parseXml(text12);
+    root = parseXml(text13);
   } catch (error2) {
     return { ok: false, reason: `\u4E0D\u662F\u5408\u6CD5\u7684 JUnit XML\uFF1A${error2 instanceof XmlError ? error2.message : "\u89E3\u6790\u5931\u8D25"}` };
   }
@@ -89173,9 +90129,9 @@ function parseJunit(text12, ctx) {
 import { posix as posix10 } from "node:path";
 function testDirsOf(config) {
   const dirs = /* @__PURE__ */ new Map();
-  const record9 = isRecord24(config) ? config : {};
+  const record9 = isRecord25(config) ? config : {};
   for (const project of asArray7(record9.projects)) {
-    if (!isRecord24(project)) continue;
+    if (!isRecord25(project)) continue;
     const name2 = asString5(project.name);
     const testDir = asString5(project.testDir);
     if (name2 !== void 0 && testDir !== void 0) dirs.set(name2, testDir);
@@ -89183,8 +90139,8 @@ function testDirsOf(config) {
   return { rootDir: asString5(record9.rootDir) ?? "", dirs };
 }
 function failureOf3(result2) {
-  const errors = asArray7(result2.errors).filter(isRecord24);
-  const error2 = isRecord24(result2.error) ? result2.error : errors[0];
+  const errors = asArray7(result2.errors).filter(isRecord25);
+  const error2 = isRecord25(result2.error) ? result2.error : errors[0];
   if (error2 === void 0) return void 0;
   const message2 = asString5(error2.message) ?? asString5(error2.stack) ?? "";
   const stack = asString5(error2.stack);
@@ -89198,7 +90154,7 @@ function attachmentsOf2(results) {
   const out = [];
   for (const result2 of results) {
     for (const item2 of asArray7(result2.attachments)) {
-      if (!isRecord24(item2)) continue;
+      if (!isRecord25(item2)) continue;
       const path15 = asString5(item2.path);
       if (path15 === void 0 || path15 === "" || seen.has(path15)) continue;
       seen.add(path15);
@@ -89225,7 +90181,7 @@ function statusOf3(test, results) {
   }
 }
 function caseFromTest(spec, test, groups2, file, walk2) {
-  const results = asArray7(test.results).filter(isRecord24);
+  const results = asArray7(test.results).filter(isRecord25);
   const project = asString5(test.projectName) ?? null;
   const status = statusOf3(test, results);
   const testDir = (project === null ? void 0 : walk2.testDirs.get(project)) ?? walk2.rootDir;
@@ -89248,25 +90204,25 @@ function caseFromTest(spec, test, groups2, file, walk2) {
   };
 }
 function visit2(suite2, groups2, file, walk2) {
-  for (const spec of asArray7(suite2.specs).filter(isRecord24)) {
-    for (const test of asArray7(spec.tests).filter(isRecord24)) walk2.cases.push(caseFromTest(spec, test, groups2, file, walk2));
+  for (const spec of asArray7(suite2.specs).filter(isRecord25)) {
+    for (const test of asArray7(spec.tests).filter(isRecord25)) walk2.cases.push(caseFromTest(spec, test, groups2, file, walk2));
   }
-  for (const child of asArray7(suite2.suites).filter(isRecord24)) {
+  for (const child of asArray7(suite2.suites).filter(isRecord25)) {
     visit2(child, [...groups2, asString5(child.title) ?? ""], file, walk2);
   }
 }
-function parsePlaywrightJson(text12, ctx) {
-  const parsed2 = parseJson4(text12);
+function parsePlaywrightJson(text13, ctx) {
+  const parsed2 = parseJson4(text13);
   if (!parsed2.ok) return parsed2;
   const root = parsed2.value;
-  if (!isRecord24(root) || !Array.isArray(root.suites)) return { ok: false, reason: "\u7F3A\u5C11 suites\uFF1A\u4E0D\u662F Playwright JSON \u62A5\u544A" };
+  if (!isRecord25(root) || !Array.isArray(root.suites)) return { ok: false, reason: "\u7F3A\u5C11 suites\uFF1A\u4E0D\u662F Playwright JSON \u62A5\u544A" };
   const { rootDir, dirs } = testDirsOf(root.config);
   const walk2 = { ctx, testDirs: dirs, rootDir, cases: [] };
-  for (const fileSuite of root.suites.filter(isRecord24)) {
+  for (const fileSuite of root.suites.filter(isRecord25)) {
     const file = asString5(fileSuite.file) ?? asString5(fileSuite.title) ?? "";
     visit2(fileSuite, [], file, walk2);
   }
-  for (const error2 of asArray7(root.errors).filter(isRecord24)) {
+  for (const error2 of asArray7(root.errors).filter(isRecord25)) {
     const message2 = asString5(error2.message) ?? "";
     if (/No tests found/i.test(message2)) continue;
     walk2.cases.push({
@@ -89325,8 +90281,8 @@ function readYaml(lines2, start, indent) {
   }
   return { diag, next: index };
 }
-function parseTree(text12) {
-  const lines2 = text12.split("\n").map((line) => line.replace(/\r$/, ""));
+function parseTree(text13) {
+  const lines2 = text13.split("\n").map((line) => line.replace(/\r$/, ""));
   const root = [];
   const frames = [];
   for (let index = 0; index < lines2.length; index++) {
@@ -89411,12 +90367,12 @@ function collect4(node, groups2, file, ctx, out) {
     attachments: []
   });
 }
-function parseTap(text12, ctx) {
-  if (!/^\s*TAP version \d+/m.test(text12) && !/^\s*(?:not ok|ok)\b/m.test(text12)) {
+function parseTap(text13, ctx) {
+  if (!/^\s*TAP version \d+/m.test(text13) && !/^\s*(?:not ok|ok)\b/m.test(text13)) {
     return { ok: false, reason: "\u6CA1\u6709 TAP \u5934\uFF0C\u4E5F\u6CA1\u6709 ok / not ok \u884C\uFF1A\u4E0D\u662F TAP \u62A5\u544A" };
   }
   const cases = [];
-  for (const node of parseTree(text12)) {
+  for (const node of parseTree(text13)) {
     const start = locate(node)?.file;
     collect4(node, [], start, ctx, cases);
   }
@@ -89424,19 +90380,19 @@ function parseTap(text12, ctx) {
 }
 
 // packages/cli/src/test-system/parsers/index.ts
-function parseCaseReport(format, text12, ctx) {
+function parseCaseReport(format, text13, ctx) {
   switch (format) {
     case "junit":
-      return parseJunit(text12, ctx);
+      return parseJunit(text13, ctx);
     case "playwright-json":
-      return parsePlaywrightJson(text12, ctx);
+      return parsePlaywrightJson(text13, ctx);
     case "vitest-json":
     case "jest-json":
-      return parseJestJson(text12, ctx);
+      return parseJestJson(text13, ctx);
     case "go-json":
-      return parseGoJson(text12, ctx);
+      return parseGoJson(text13, ctx);
     case "tap":
-      return parseTap(text12, ctx);
+      return parseTap(text13, ctx);
   }
 }
 
@@ -89477,14 +90433,14 @@ async function readCoverageFiles(suite2, cwd) {
   const detail = await readBounded2(resolve63(dirname47(resolve63(cwd, suite2.coverage.path)), "coverage-final.json"));
   return { summary, ...detail.state === "ok" ? { detail: detail.text } : {} };
 }
-function parseCases(suite2, text12, repoRoot, cwd) {
-  return parseCaseReport(suite2.report.format, text12, { repoRoot, cwd });
+function parseCases(suite2, text13, repoRoot, cwd) {
+  return parseCaseReport(suite2.report.format, text13, { repoRoot, cwd });
 }
-function parseBenchmark(suite2, text12) {
-  return parseBenchmarkReport(suite2.report.format, text12);
+function parseBenchmark(suite2, text13) {
+  return parseBenchmarkReport(suite2.report.format, text13);
 }
-function parseCoverage(suite2, text12, context) {
-  return suite2.coverage === void 0 ? { ok: false, reason: "\u5957\u4EF6\u6CA1\u6709\u58F0\u660E\u8986\u76D6\u7387" } : parseCoverageReport(suite2.coverage.format, text12, context);
+function parseCoverage(suite2, text13, context) {
+  return suite2.coverage === void 0 ? { ok: false, reason: "\u5957\u4EF6\u6CA1\u6709\u58F0\u660E\u8986\u76D6\u7387" } : parseCoverageReport(suite2.coverage.format, text13, context);
 }
 
 // packages/cli/src/test-system/benchmark-exec.ts
@@ -89524,7 +90480,7 @@ async function executeBenchmark(input2) {
   const reasons = [];
   const samples = /* @__PURE__ */ new Map();
   const wanted = new Set((spec?.metrics ?? []).map((metric4) => metric4.name));
-  let digest18 = null;
+  let digest19 = null;
   const sample = async (label2, keep) => {
     const since = Date.now();
     await prepareOutputs(suite2, input2.cwd);
@@ -89539,7 +90495,7 @@ async function executeBenchmark(input2) {
       reasons.push({ code: read3.state === "missing" ? "report-missing" : "report-unreadable", detail: `${label2}\uFF1A${read3.state === "missing" ? `\u6CA1\u6709\u751F\u6210 ${suite2.report.path ?? "\u62A5\u544A"}` : read3.reason}` });
       return false;
     }
-    digest18 = read3.digest;
+    digest19 = read3.digest;
     const stale = staleReportDetail(read3, since, suite2.report.path ?? "\u62A5\u544A");
     if (stale !== void 0) {
       reasons.push({ code: "report-untrusted", detail: `${label2}\uFF1A${stale}`.slice(0, 1900) });
@@ -89565,13 +90521,13 @@ async function executeBenchmark(input2) {
     noisyRerun = true;
     for (let index = 0; index < runs && healthy; index++) healthy = await sample(`\u566A\u58F0\u590D\u8DD1 ${index + 1}/${runs}`, true);
   }
-  return { outcomes, metrics: summarize(suite2, samples), reasons, digest: digest18, noisyRerun };
+  return { outcomes, metrics: summarize(suite2, samples), reasons, digest: digest19, noisyRerun };
 }
 
 // packages/cli/src/test-system/case-records.ts
-var MAX_TEXT4 = 4e3;
+var MAX_TEXT5 = 4e3;
 function clip3(value) {
-  return value.length <= MAX_TEXT4 ? value : `${value.slice(0, MAX_TEXT4 - 1)}\u2026`;
+  return value.length <= MAX_TEXT5 ? value : `${value.slice(0, MAX_TEXT5 - 1)}\u2026`;
 }
 function totalsOf(cases) {
   const count3 = (status) => cases.filter((item2) => item2.status === status).length;
@@ -89742,7 +90698,7 @@ function byFiles(suite2, files, scope) {
     selection: files
   };
 }
-function planCommand(suite2, request2, changedFiles) {
+function planCommand(suite2, request2, changedFiles2) {
   if (request2.scope === "full") return full(suite2);
   if (request2.scope === "grep") {
     const template = suite2.select?.grep;
@@ -89754,9 +90710,9 @@ function planCommand(suite2, request2, changedFiles) {
     };
   }
   if (request2.scope === "files") return byFiles(suite2, request2.files ?? [], "files");
-  if (changedFiles === void 0) return full(suite2, "\u8BFB\u4E0D\u5230\u6539\u52A8\u6587\u4EF6\u5217\u8868\uFF0Cchanged \u8303\u56F4\u6309\u5168\u91CF\u8FD0\u884C");
-  const owned = changedFiles.filter((path15) => matchesAnyGlob(path15, suiteFileGlobs(suite2)));
-  const sourceTouched = changedFiles.some((path15) => !matchesAnyGlob(path15, suiteFileGlobs(suite2)) && matchesAnyGlob(path15, suiteCoverGlobs(suite2)));
+  if (changedFiles2 === void 0) return full(suite2, "\u8BFB\u4E0D\u5230\u6539\u52A8\u6587\u4EF6\u5217\u8868\uFF0Cchanged \u8303\u56F4\u6309\u5168\u91CF\u8FD0\u884C");
+  const owned = changedFiles2.filter((path15) => matchesAnyGlob(path15, suiteFileGlobs(suite2)));
+  const sourceTouched = changedFiles2.some((path15) => !matchesAnyGlob(path15, suiteFileGlobs(suite2)) && matchesAnyGlob(path15, suiteCoverGlobs(suite2)));
   if (owned.length === 0 || sourceTouched) return full(suite2, sourceTouched ? "\u6539\u5230\u4E86\u6E90\u7801\uFF0C\u65E0\u6CD5\u63A8\u51FA\u53D7\u5F71\u54CD\u7684\u6D4B\u8BD5\uFF0C\u6309\u5168\u91CF\u8FD0\u884C" : "\u6CA1\u6709\u6539\u52A8\u5230\u672C\u5957\u4EF6\u7684\u6D4B\u8BD5\u6587\u4EF6\uFF0C\u6309\u5168\u91CF\u8FD0\u884C");
   return byFiles(suite2, owned, "changed");
 }
@@ -89821,7 +90777,7 @@ function nativelyRetried(item2, retries) {
 }
 async function retryFailures(suite2, context, cwd, invoker, first, notes) {
   let cases = first;
-  let digest18 = null;
+  let digest19 = null;
   const outcomes = [];
   for (let attempt2 = 1; attempt2 <= suite2.retries; attempt2++) {
     const failed = cases.filter((item2) => item2.status === "fail" && !nativelyRetried(item2, suite2.retries));
@@ -89838,9 +90794,9 @@ async function retryFailures(suite2, context, cwd, invoker, first, notes) {
       break;
     }
     cases = mergeRerun(cases, failed, again.cases);
-    digest18 = again.digest;
+    digest19 = again.digest;
   }
-  return { cases, outcomes, digest: digest18 };
+  return { cases, outcomes, digest: digest19 };
 }
 async function coverageOf(suite2, context, cwd, hasFailures, reasons) {
   const files = await readCoverageFiles(suite2, cwd);
@@ -89892,8 +90848,8 @@ function baseRun(suite2, planned2) {
 async function notExecuted(suite2, item2, context, reason3) {
   const invoker = createInvoker({ suite: suite2, cwd: context.repoRoot, env: context.env, runDir: context.runDir, signal: context.signal });
   const { log: log3 } = await invoker.finish();
-  const run5 = { ...baseRun(suite2, { command: suite2.command, scope: item2.scope, selection: [] }), result: "fail", reasons: [reason3], log: log3 };
-  return { run: run5, notices: [], notes: [], tail: "", sandboxDenied: false };
+  const run6 = { ...baseRun(suite2, { command: suite2.command, scope: item2.scope, selection: [] }), result: "fail", reasons: [reason3], log: log3 };
+  return { run: run6, notices: [], notes: [], tail: "", sandboxDenied: false };
 }
 async function usableCwd(repoRoot, cwd) {
   try {
@@ -89922,7 +90878,7 @@ async function executeSuite(context, item2, blocked) {
   const reasons = [];
   const started = Date.now();
   let outcomes = [];
-  let digest18 = null;
+  let digest19 = null;
   let parsedCases = [];
   let projects = [];
   let metrics = [];
@@ -89933,12 +90889,12 @@ async function executeSuite(context, item2, blocked) {
     outcomes = [...result2.outcomes];
     reasons.push(...result2.reasons);
     metrics = result2.metrics;
-    digest18 = result2.digest;
+    digest19 = result2.digest;
     if (result2.noisyRerun) notes.push(`\u5957\u4EF6 ${suite2.id} \u7684\u57FA\u51C6\u6837\u672C\u6CE2\u52A8\u5927\uFF0C\u5DF2\u81EA\u52A8\u591A\u91C7\u4E00\u8F6E`);
   } else if (isCaseReportFormat(suite2.report.format)) {
     const first = await runForCases(suite2, context, cwd, invoker, planned2.command, "\u6267\u884C");
     outcomes = [first.outcome];
-    digest18 = first.digest;
+    digest19 = first.digest;
     reasons.push(...processReasons(first.outcome, suite2.timeout_s));
     if (first.problem !== void 0) reasons.push(first.problem);
     if (first.cases !== void 0) {
@@ -89950,7 +90906,7 @@ async function executeSuite(context, item2, blocked) {
       }
       const retried = suite2.retries > 0 && rawFailed ? await retryFailures(suite2, context, cwd, invoker, first.cases, notes) : { cases: first.cases, outcomes: [], digest: null };
       parsedCases = retried.cases;
-      if (retried.digest !== null) digest18 = retried.digest;
+      if (retried.digest !== null) digest19 = retried.digest;
       outcomes = [first.outcome, ...retried.outcomes];
       projects = first.projects;
     }
@@ -89998,7 +90954,7 @@ async function executeSuite(context, item2, blocked) {
   const sandboxDenied = context.sandbox !== null && last !== void 0 && last.exitCode !== 0 && looksSandboxDenied(tail);
   if (sandboxDenied) reasons.push({ code: "sandbox-denied" });
   const totalMs = outcomes.reduce((sum, entry2) => sum + entry2.durationMs, 0) || Date.now() - started;
-  const run5 = {
+  const run6 = {
     ...baseRun(suite2, planned2),
     exit_code: last?.exitCode ?? null,
     signal: last?.signal ?? null,
@@ -90010,10 +90966,10 @@ async function executeSuite(context, item2, blocked) {
     coverage: coverage3,
     metrics,
     artifacts: [...artifacts.index],
-    report: { format: suite2.report.format, path: suite2.report.path ?? null, digest: digest18 },
+    report: { format: suite2.report.format, path: suite2.report.path ?? null, digest: digest19 },
     log: log3
   };
-  const judged = await judgeSuite(suite2, run5, context);
+  const judged = await judgeSuite(suite2, run6, context);
   return { run: judged.run, notices: judged.notices, notes, tail, sandboxDenied };
 }
 
@@ -90112,7 +91068,7 @@ async function executeRun(input2) {
     };
     const policy2 = step.test_policy ?? defaultPolicy();
     const plan = input2.planState.state === "ok" ? input2.planState.plan : void 0;
-    const changedFiles = await changedFilesFor(deps, change)().catch(() => void 0);
+    const changedFiles2 = await changedFilesFor(deps, change)().catch(() => void 0);
     const baselines = /* @__PURE__ */ new Map();
     let lines2;
     let linesRead = false;
@@ -90133,7 +91089,7 @@ async function executeRun(input2) {
       policy: policy2,
       knownFailures: input2.knownFailures,
       today: startedAt.slice(0, 10),
-      changedFiles,
+      changedFiles: changedFiles2,
       changedLines: async () => {
         if (!linesRead) {
           linesRead = true;
@@ -90239,40 +91195,40 @@ var MAX_FAILURES = 10;
 function seconds2(ms) {
   return `${(ms / 1e3).toFixed(1)}s`;
 }
-function firstLine(text12) {
-  return (text12.split("\n").find((line) => line.trim() !== "") ?? "").trim().slice(0, 200);
+function firstLine(text13) {
+  return (text13.split("\n").find((line) => line.trim() !== "") ?? "").trim().slice(0, 200);
 }
-function counts(run5) {
-  const { totals: totals2 } = run5;
+function counts(run6) {
+  const { totals: totals2 } = run6;
   const parts = [`${totals2.pass} \u901A\u8FC7`, `${totals2.fail} \u5931\u8D25`];
   if (totals2.flaky > 0) parts.push(`${totals2.flaky} flaky`);
   if (totals2.known_fail > 0) parts.push(`${totals2.known_fail} \u5DF2\u77E5\u5931\u8D25`);
   if (totals2.skip > 0) parts.push(`${totals2.skip} \u8DF3\u8FC7`);
   return parts.join(" / ");
 }
-function metricLine(run5) {
-  return run5.metrics.map((metric4) => `${metric4.name} \u4E2D\u4F4D\u6570 ${Number(metric4.median.toFixed(4))}${metric4.unit ?? ""}\uFF08${metric4.samples.length} \u4E2A\u6837\u672C\uFF09`).join("\uFF1B");
+function metricLine(run6) {
+  return run6.metrics.map((metric4) => `${metric4.name} \u4E2D\u4F4D\u6570 ${Number(metric4.median.toFixed(4))}${metric4.unit ?? ""}\uFF08${metric4.samples.length} \u4E2A\u6837\u672C\uFF09`).join("\uFF1B");
 }
 function caseLabel(item2) {
   return [isUnknownCaseFile(item2.file) ? "\u672A\u62A5\u544A\u6587\u4EF6" : item2.file, ...item2.suite_path, item2.name].join(" \u203A ");
 }
-function failedCases(run5) {
-  return run5.cases.filter((item2) => item2.status === "fail");
+function failedCases(run6) {
+  return run6.cases.filter((item2) => item2.status === "fail");
 }
-function suiteLines(run5) {
-  const mark = run5.result === "pass" ? "PASS" : "FAIL";
-  const lines2 = [`  [${mark}] ${run5.suite}  ${run5.kind}/${run5.runner}  scope=${run5.scope}  ${seconds2(run5.duration_ms)}  ${run5.report.format === "exit-code" ? `\u9000\u51FA\u7801 ${run5.exit_code ?? run5.signal ?? "?"}` : run5.metrics.length > 0 ? metricLine(run5) : counts(run5)}`];
-  if (run5.coverage !== null) {
-    lines2.push(`         \u8986\u76D6\u7387\uFF1A${Object.entries(run5.coverage).map(([key, value]) => `${key} ${value}%`).join("  ")}`);
+function suiteLines(run6) {
+  const mark = run6.result === "pass" ? "PASS" : "FAIL";
+  const lines2 = [`  [${mark}] ${run6.suite}  ${run6.kind}/${run6.runner}  scope=${run6.scope}  ${seconds2(run6.duration_ms)}  ${run6.report.format === "exit-code" ? `\u9000\u51FA\u7801 ${run6.exit_code ?? run6.signal ?? "?"}` : run6.metrics.length > 0 ? metricLine(run6) : counts(run6)}`];
+  if (run6.coverage !== null) {
+    lines2.push(`         \u8986\u76D6\u7387\uFF1A${Object.entries(run6.coverage).map(([key, value]) => `${key} ${value}%`).join("  ")}`);
   }
-  if (run5.projects.length > 0) lines2.push(`         \u6D4F\u89C8\u5668\uFF1A${run5.projects.join(", ")}`);
-  for (const reason3 of run5.reasons) lines2.push(`         \xB7 ${reason3.code}${reason3.detail === void 0 ? "" : `\uFF1A${firstLine(reason3.detail)}`}`);
-  const failed = failedCases(run5);
+  if (run6.projects.length > 0) lines2.push(`         \u6D4F\u89C8\u5668\uFF1A${run6.projects.join(", ")}`);
+  for (const reason3 of run6.reasons) lines2.push(`         \xB7 ${reason3.code}${reason3.detail === void 0 ? "" : `\uFF1A${firstLine(reason3.detail)}`}`);
+  const failed = failedCases(run6);
   for (const item2 of failed.slice(0, MAX_FAILURES)) {
     lines2.push(`         \u2717 ${caseLabel(item2)}${item2.project === null ? "" : ` [${item2.project}]`}${item2.failure === void 0 ? "" : ` \u2014 ${firstLine(item2.failure.message)}`}`);
   }
   if (failed.length > MAX_FAILURES) lines2.push(`         \u2026 \u53E6\u6709 ${failed.length - MAX_FAILURES} \u4E2A\u5931\u8D25\u7528\u4F8B\uFF08\u89C1\u8BB0\u5F55\uFF09`);
-  const flaky2 = run5.cases.filter((item2) => item2.status === "flaky");
+  const flaky2 = run6.cases.filter((item2) => item2.status === "flaky");
   for (const item2 of flaky2.slice(0, 5)) lines2.push(`         ~ flaky\uFF08${item2.attempts} \u6B21\u5C1D\u8BD5\uFF09${caseLabel(item2)}`);
   return lines2;
 }
@@ -90310,7 +91266,7 @@ function printResult(deps, change, result2, gate, recordPath3) {
   const { record: record9 } = result2.appended;
   deps.io.out(`[TEST] ${change} \u7ED3\u679C\uFF1A${record9.result === "pass" ? "\u901A\u8FC7" : "\u5931\u8D25"}\uFF08${(record9.duration_ms / 1e3).toFixed(1)}s\uFF0C\u673A\u5668\u753B\u50CF ${result2.profile.label}\uFF09`);
   for (const outcome of result2.outcomes) {
-    for (const line of suiteLines(record9.suites.find((run5) => run5.suite === outcome.run.suite) ?? outcome.run)) deps.io.out(line);
+    for (const line of suiteLines(record9.suites.find((run6) => run6.suite === outcome.run.suite) ?? outcome.run)) deps.io.out(line);
     for (const note2 of outcome.notes) deps.io.out(`         \u6CE8\uFF1A${note2}`);
   }
   for (const line of serviceLines(result2.services)) deps.io.out(line);
@@ -90586,21 +91542,21 @@ function integer5(value, name2) {
   const parsed2 = Number(value);
   return Number.isInteger(parsed2) && parsed2 >= 0 ? parsed2 : `${name2} \u5FC5\u987B\u662F\u975E\u8D1F\u6574\u6570\uFF08\u6536\u5230 '${value}'\uFF09`;
 }
-function parseMetric2(text12) {
-  const fields = /* @__PURE__ */ new Map();
-  for (const part of text12.split(",")) {
+function parseMetric2(text13) {
+  const fields2 = /* @__PURE__ */ new Map();
+  for (const part of text13.split(",")) {
     const at = part.indexOf("=");
-    if (at <= 0) return `--metric '${text12}' \u6BCF\u4E00\u6BB5\u90FD\u8981\u5199\u6210 key=value`;
-    fields.set(part.slice(0, at).trim(), part.slice(at + 1).trim());
+    if (at <= 0) return `--metric '${text13}' \u6BCF\u4E00\u6BB5\u90FD\u8981\u5199\u6210 key=value`;
+    fields2.set(part.slice(0, at).trim(), part.slice(at + 1).trim());
   }
   const allowed = /* @__PURE__ */ new Set(["name", "unit", "better", "max_regression_pct", "max", "min"]);
-  for (const key of fields.keys()) if (!allowed.has(key)) return `--metric \u4E0D\u8BA4\u8BC6\u7684\u952E '${key}'\uFF08\u53EF\u7528\uFF1A${[...allowed].join("/")}\uFF09`;
-  const name2 = fields.get("name");
-  if (name2 === void 0) return `--metric '${text12}' \u7F3A name=`;
-  const better = fields.get("better") ?? "lower";
+  for (const key of fields2.keys()) if (!allowed.has(key)) return `--metric \u4E0D\u8BA4\u8BC6\u7684\u952E '${key}'\uFF08\u53EF\u7528\uFF1A${[...allowed].join("/")}\uFF09`;
+  const name2 = fields2.get("name");
+  if (name2 === void 0) return `--metric '${text13}' \u7F3A name=`;
+  const better = fields2.get("better") ?? "lower";
   if (better !== "lower" && better !== "higher") return `--metric '${name2}' \u7684 better \u53EA\u80FD\u662F lower \u6216 higher`;
   const num2 = (key) => {
-    const raw = fields.get(key);
+    const raw = fields2.get(key);
     if (raw === void 0) return void 0;
     const parsed2 = Number(raw);
     return Number.isFinite(parsed2) ? parsed2 : `--metric '${name2}' \u7684 ${key} \u4E0D\u662F\u6570\u5B57`;
@@ -90609,7 +91565,7 @@ function parseMetric2(text12) {
   const max = num2("max");
   const min = num2("min");
   for (const value of [regression, max, min]) if (typeof value === "string") return value;
-  const unit = fields.get("unit");
+  const unit = fields2.get("unit");
   return {
     name: name2,
     better,
@@ -90661,8 +91617,8 @@ function buildSuite(id2, base, opts, direction) {
   if (formatProblem !== void 0) return `\u5957\u4EF6 '${id2}'\uFF1A${formatProblem}`;
   const reportPath = reportFormat === "exit-code" ? void 0 : opts.reportPath ?? (opts.reportFormat === void 0 ? seed.report?.path ?? preset2?.report.path : `test-results/${id2}.${reportExtension(reportFormat)}`);
   const metrics = [];
-  for (const text12 of opts.metric ?? []) {
-    const parsed2 = parseMetric2(text12);
+  for (const text13 of opts.metric ?? []) {
+    const parsed2 = parseMetric2(text13);
     if (typeof parsed2 === "string") return parsed2;
     metrics.push(parsed2);
   }
@@ -91272,7 +92228,7 @@ async function cmdOrchestrationRetry(deps, change, workItemId) {
   const ledger = createOrchestrationLedger();
   const snapshot2 = await ledger.readSnapshot(dir);
   const item2 = snapshot2?.work_items.find((entry2) => entry2.work_item_id === workItemId);
-  const previous = snapshot2?.runs.filter((run5) => run5.work_item_id === workItemId).at(-1);
+  const previous = snapshot2?.runs.filter((run6) => run6.work_item_id === workItemId).at(-1);
   if (!snapshot2 || !item2 || !previous) {
     deps.io.err(`ERROR: retry \u9700\u8981\u5B58\u5728\u7684\u5931\u8D25/\u4E2D\u65AD\u5DE5\u4F5C\u9879\u548C\u5386\u53F2 run: ${workItemId}`);
     return 1;
@@ -91318,7 +92274,7 @@ async function cmdOrchestrationWatch(deps, change, json2, follow, intervalMs = 1
   printSnapshot(deps, snapshot2, json2);
   if (!follow) return 0;
   while (!["completed", "cancelled", "failed"].includes(snapshot2.status)) {
-    await new Promise((resolve65) => setTimeout(resolve65, Math.max(100, Math.min(intervalMs, 3e4))));
+    await new Promise((resolve67) => setTimeout(resolve67, Math.max(100, Math.min(intervalMs, 3e4))));
     const ledger = createOrchestrationLedger();
     const current = await ledger.readSnapshot(dir);
     if (!current) return 1;
@@ -91463,6 +92419,923 @@ function registerUserCommands(program2, deps) {
   owner.command("set <change> <id>").description("\u79FB\u4EA4\u8D1F\u8D23\u4EBA\uFF08\u4EC5\u5F53\u524D\u8D1F\u8D23\u4EBA\u53EF\u6267\u884C\uFF09").option("--name <name>", "\u663E\u793A\u540D").action(async (change, id2, opts) => bail(await cmdOwnerSet(deps, change, id2, opts)));
 }
 
+// packages/cli/src/commands/evidence-export.ts
+import { mkdir as mkdir67, writeFile as writeFile37 } from "node:fs/promises";
+import { dirname as dirname48, resolve as resolve65 } from "node:path";
+
+// packages/cli/src/commands/evidence-git.ts
+import { spawn as spawn10 } from "node:child_process";
+
+// packages/cli/src/commands/verify-ci-git.ts
+import { execFile as execFile14 } from "node:child_process";
+import { promisify as promisify7 } from "node:util";
+var run5 = promisify7(execFile14);
+var GIT_TIMEOUT_MS2 = 3e4;
+var MAX_BUFFER3 = 64 * 1024 * 1024;
+var NOTE_SCAN_COMMITS = 1e3;
+var MAX_NOTES_READ = 200;
+async function git3(cwd, args) {
+  try {
+    const { stdout } = await run5("git", [...args], { cwd, timeout: GIT_TIMEOUT_MS2, maxBuffer: MAX_BUFFER3 });
+    return stdout;
+  } catch {
+    return void 0;
+  }
+}
+async function headCommit(cwd) {
+  const out = (await git3(cwd, ["rev-parse", "--verify", "-q", "HEAD"]))?.trim();
+  return out !== void 0 && /^[0-9a-f]{40}$/u.test(out) ? out : null;
+}
+async function isShallow(cwd) {
+  return (await git3(cwd, ["rev-parse", "--is-shallow-repository"]))?.trim() === "true";
+}
+async function resolves(cwd, ref) {
+  return await git3(cwd, ["rev-parse", "--verify", "-q", `${ref}^{commit}`]) !== void 0;
+}
+async function resolveBaseRef(cwd, base) {
+  if (base === "" || base === "null" || base.startsWith("-")) return base;
+  if (await resolves(cwd, base)) return base;
+  return await resolves(cwd, `origin/${base}`) ? `origin/${base}` : base;
+}
+async function mergeBaseWith(cwd, ref) {
+  if (ref === "" || ref.startsWith("-")) return void 0;
+  const resolved = await resolves(cwd, ref) ? ref : await resolves(cwd, `origin/${ref}`) ? `origin/${ref}` : void 0;
+  if (resolved === void 0) return void 0;
+  const base = (await git3(cwd, ["merge-base", resolved, "HEAD"]))?.trim();
+  return base === void 0 || base === "" ? void 0 : base;
+}
+async function rangeChangedPaths(cwd, base) {
+  const out = await git3(cwd, ["diff", "--name-only", "--no-renames", "-z", base, "HEAD"]);
+  return out === void 0 ? void 0 : out.split("\0").filter((path15) => path15 !== "");
+}
+async function readEvidenceNotes(cwd) {
+  const listing = await git3(cwd, ["notes", `--ref=${EVIDENCE_NOTES_REF}`, "list"]);
+  if (listing === void 0 || listing.trim() === "") return [];
+  const noteOf = /* @__PURE__ */ new Map();
+  for (const line of listing.split("\n")) {
+    const [blob, commit] = line.trim().split(/\s+/u);
+    if (blob !== void 0 && commit !== void 0 && /^[0-9a-f]{40}$/u.test(blob) && /^[0-9a-f]{40}$/u.test(commit)) noteOf.set(commit, blob);
+  }
+  const revisions = await git3(cwd, ["rev-list", `--max-count=${NOTE_SCAN_COMMITS}`, "HEAD"]);
+  if (revisions === void 0) return [];
+  const out = [];
+  let read3 = 0;
+  for (const commit of revisions.split("\n").map((line) => line.trim()).filter((line) => line !== "")) {
+    const blob = noteOf.get(commit);
+    if (blob === void 0) continue;
+    if (read3++ >= MAX_NOTES_READ) break;
+    const body = await git3(cwd, ["cat-file", "blob", blob]);
+    const note2 = body === void 0 ? void 0 : decodeEvidenceNote(body);
+    if (note2 === void 0) continue;
+    for (const entry2 of note2.changes) out.push({ commit, entry: entry2 });
+  }
+  return out;
+}
+async function candidateFilesTouchedSince(cwd, sinceIso, limit = 5) {
+  const out = await git3(cwd, ["log", `--since=${sinceIso}`, "--name-only", "--format=", "--no-renames", "HEAD"]);
+  if (out === void 0) return [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const line of out.split("\n")) {
+    const path15 = line.trim();
+    if (path15 !== "" && isWorkspaceCandidatePath(path15)) seen.add(path15);
+    if (seen.size >= limit) break;
+  }
+  return [...seen];
+}
+
+// packages/cli/src/commands/evidence-git.ts
+function gitWithInput(cwd, args, input2, env) {
+  return new Promise((resolve67) => {
+    const child = spawn10("git", [...args], { cwd, env: { ...process.env, ...env }, stdio: ["pipe", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString("utf8");
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString("utf8");
+    });
+    child.on("error", (error2) => resolve67({ code: 127, stdout, stderr: `${stderr}${error2.message}` }));
+    child.on("close", (code) => resolve67({ code: code ?? 1, stdout, stderr }));
+    child.stdin.on("error", () => void 0);
+    child.stdin.end(input2);
+  });
+}
+async function resolveCommit(cwd, rev) {
+  if (rev === "" || rev.startsWith("-")) return void 0;
+  const out = (await git3(cwd, ["rev-parse", "--verify", "-q", `${rev}^{commit}`]))?.trim();
+  return out !== void 0 && /^[0-9a-f]{40}$/u.test(out) ? out : void 0;
+}
+async function readCommitNote(cwd, commit) {
+  return git3(cwd, ["notes", `--ref=${EVIDENCE_NOTES_REF}`, "show", commit]);
+}
+async function writeCommitNote(cwd, commit, body, env) {
+  return gitWithInput(cwd, ["notes", `--ref=${EVIDENCE_NOTES_REF}`, "add", "-f", "-F", "-", commit], body, env);
+}
+async function hasGitIdentity(cwd) {
+  return await git3(cwd, ["var", "GIT_COMMITTER_IDENT"]) !== void 0;
+}
+async function hasStagedChanges(cwd) {
+  const result2 = await gitWithInput(cwd, ["diff", "--cached", "--quiet"], "");
+  return result2.code === 1;
+}
+async function amendHeadWithTrailers(cwd, trailerArgs, env) {
+  const message2 = await git3(cwd, ["log", "-1", "--format=%B", "HEAD"]);
+  if (message2 === void 0) return { ok: false, message: "\u8BFB\u4E0D\u51FA HEAD \u63D0\u4EA4\u7684\u6D88\u606F" };
+  const edited = await gitWithInput(cwd, ["interpret-trailers", "--if-exists", "replace", ...trailerArgs], message2.replace(/\n+$/u, "\n"));
+  if (edited.code !== 0) return { ok: false, message: `git interpret-trailers \u5931\u8D25\uFF1A${edited.stderr.trim()}` };
+  const amended = await gitWithInput(cwd, ["commit", "--amend", "--allow-empty", "--cleanup=verbatim", "-F", "-"], edited.stdout, env);
+  if (amended.code !== 0) return { ok: false, message: `git commit --amend \u5931\u8D25\uFF1A${(amended.stderr || amended.stdout).trim()}` };
+  const head = (await git3(cwd, ["rev-parse", "HEAD"]))?.trim();
+  return head === void 0 ? { ok: false, message: "amend \u4E4B\u540E\u8BFB\u4E0D\u51FA\u65B0\u7684 HEAD" } : { ok: true, commit: head };
+}
+
+// packages/cli/src/commands/evidence-gather.ts
+import { readFile as readFile99 } from "node:fs/promises";
+import { join as join178 } from "node:path";
+
+// packages/cli/src/commands/verify-ci-chains.ts
+import { readdir as readdir35 } from "node:fs/promises";
+import { join as join177, relative as relative40, sep as sep30 } from "node:path";
+var NO_USER_SLUG = "none-at-none";
+async function userSlugs2(cwd) {
+  try {
+    return (await readdir35(join177(cwd, TENON_PROJECT_DIR, "users"), { withFileTypes: true })).filter((entry2) => entry2.isDirectory()).map((entry2) => entry2.name).sort();
+  } catch {
+    return [];
+  }
+}
+async function readUserChains(cwd, change) {
+  const out = [];
+  for (const slug2 of await userSlugs2(cwd)) {
+    let dir;
+    try {
+      dir = testRunRecordsDir(cwd, slug2, change);
+    } catch {
+      continue;
+    }
+    const listing = await listRecordDirectory(dir);
+    if (listing.records.length === 0 && listing.problems.length === 0) continue;
+    out.push({ slug: slug2, relDir: relative40(cwd, dir).split(sep30).join("/"), listing, report: verifyRecordChain(listing) });
+  }
+  return out;
+}
+function chainSummary(chain) {
+  const { report: report2 } = chain;
+  return {
+    user: chain.slug,
+    state: report2.state,
+    head: report2.state === "intact" ? report2.head : null,
+    records: report2.state === "intact" ? report2.active.length : chain.listing.records.length
+  };
+}
+function pickEvaluatedChain(change, ownerSlug, chains) {
+  const owned = ownerSlug === null ? void 0 : chains.find((chain) => chain.slug === ownerSlug);
+  if (owned !== void 0) return { chain: owned };
+  const base = { code: "owner-chain-missing", severity: "warning", change, source: "ci" };
+  if (chains.length === 1 && chains[0] !== void 0) {
+    const only = chains[0];
+    return ownerSlug === null ? { chain: only } : { chain: only, finding: { ...base, message: `\u4EFB\u52A1\u8D1F\u8D23\u4EBA ${ownerSlug} \u6CA1\u6709\u6D4B\u8BD5\u8BB0\u5F55\uFF1B\u5224\u5B9A\u7528\u7684\u662F ${only.slug} \u7684\u8BB0\u5F55\u94FE` } };
+  }
+  if (chains.length > 1) {
+    return { chain: void 0, finding: { ...base, message: `\u4EFB\u52A1\u8D1F\u8D23\u4EBA${ownerSlug === null ? "\u672A\u77E5" : ` ${ownerSlug} \u6CA1\u6709\u6D4B\u8BD5\u8BB0\u5F55`}\uFF0C\u800C\u6709 ${chains.length} \u4E2A\u7528\u6237\u5404\u6709\u4E00\u6761\u8BB0\u5F55\u94FE\uFF0C\u65E0\u6CD5\u51B3\u5B9A\u7528\u54EA\u6761\u5224\u5B9A` } };
+  }
+  return { chain: void 0 };
+}
+function chainFindings(change, chain, evaluated) {
+  const out = [];
+  const { report: report2, listing } = chain;
+  if (report2.state === "broken" && !evaluated) {
+    const file = report2.files[0];
+    out.push({
+      code: "record-chain-broken",
+      severity: "error",
+      change,
+      source: "ci",
+      subject: chain.slug,
+      message: `\u7528\u6237 ${chain.slug} \u7684\u6D4B\u8BD5\u8BB0\u5F55\u88AB\u6539\u52A8\uFF08${report2.reason}\uFF1A${report2.files.slice(0, 3).join("\u3001")}\uFF09`,
+      ...file === void 0 ? {} : { path: `${chain.relDir}/${file}` }
+    });
+  }
+  const active = report2.state === "intact" ? new Set(report2.active.map((record9) => record9.digest)) : void 0;
+  const records = active === void 0 ? listing.records : listing.records.filter((entry2) => active.has(entry2.record.digest));
+  for (const problem of recordInvariantProblems({ change, slug: chain.slug, records })) {
+    out.push({
+      code: problem.code,
+      severity: "error",
+      change,
+      source: "ci",
+      subject: problem.file,
+      message: `${problem.file}\uFF1A${problem.message}`,
+      path: `${chain.relDir}/${problem.file}`
+    });
+  }
+  return out;
+}
+
+// packages/cli/src/commands/evidence-gather.ts
+var MAX_FILES4 = 2e3;
+function recordSummary(record9) {
+  return {
+    run_id: record9.run_id,
+    step: record9.step,
+    started_at: record9.started_at,
+    finished_at: record9.finished_at,
+    result: record9.result,
+    digest: record9.digest,
+    suites: record9.suites.map((suite2) => ({
+      suite: suite2.suite,
+      kind: suite2.kind,
+      scope: suite2.scope,
+      result: suite2.result,
+      duration_ms: suite2.duration_ms,
+      totals: suite2.totals,
+      coverage_lines: suite2.coverage?.lines ?? null
+    }))
+  };
+}
+function stepVisitsFromHistory(historyText, createdAt) {
+  const seen = /* @__PURE__ */ new Set();
+  const transitions = [];
+  for (const line of historyText.split("\n")) {
+    if (line.trim() === "") continue;
+    let row2;
+    try {
+      row2 = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (typeof row2 !== "object" || row2 === null) continue;
+    const kind = Reflect.get(row2, "kind");
+    const from = Reflect.get(row2, "from");
+    const to = Reflect.get(row2, "to");
+    const ts = Reflect.get(row2, "ts");
+    const id2 = Reflect.get(row2, "transitionRecordId");
+    if (kind !== "transition" || typeof from !== "string" || typeof to !== "string" || typeof ts !== "string") continue;
+    if (typeof id2 === "string") {
+      if (seen.has(id2)) continue;
+      seen.add(id2);
+    }
+    transitions.push({ from, to, ts });
+  }
+  const first = transitions[0];
+  if (first === void 0) return [];
+  const visits = [
+    { step: first.from, entered_at: createdAt ?? first.ts, left_at: null }
+  ];
+  for (const item2 of transitions) {
+    const open15 = visits.at(-1);
+    if (open15 !== void 0) open15.left_at = item2.ts;
+    visits.push({ step: item2.to, entered_at: item2.ts, left_at: null });
+  }
+  return visits;
+}
+function agentRuns(rows) {
+  return rows.map((row2) => ({
+    run_id: row2.run_id,
+    agent: row2.agent,
+    role: row2.role,
+    step: row2.step,
+    result: row2.result,
+    findings: row2.findings.length,
+    started_at: row2.started_at,
+    finished_at: row2.finished_at,
+    host: row2.subagent?.host ?? null
+  }));
+}
+async function changedFiles(deps, state) {
+  const session = createChangedFilesSession(deps.cwd);
+  const start = changeStartOfFields(state.fields);
+  const lines2 = await session.changedLines({ ...start, baseBranch: await resolveBaseRef(deps.cwd, start.baseBranch) });
+  const all = [...lines2].filter(([path15]) => isWorkspaceCandidatePath(path15)).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0);
+  return {
+    files: all.slice(0, MAX_FILES4).map(([path15, set2]) => ({ path: path15, ranges: linesToRanges(set2) })),
+    truncated: all.length > MAX_FILES4
+  };
+}
+async function gatherEvidence(deps, input2) {
+  let state;
+  try {
+    state = await deps.store.read(input2.dir);
+  } catch (error2) {
+    return { ok: false, code: 1, message: `\u4EFB\u52A1\u72B6\u6001\u8BFB\u4E0D\u51FA\uFF1A${errMsg(error2)}` };
+  }
+  const chains = await readUserChains(deps.cwd, input2.change);
+  const owner = ownerOf(state.fields);
+  const chain = input2.user === void 0 ? pickEvaluatedChain(input2.change, owner?.slug ?? null, chains).chain : chains.find((item2) => item2.slug === input2.user);
+  if (chain === void 0) {
+    return { ok: false, code: 2, message: `\u4EFB\u52A1 ${input2.change} \u6CA1\u6709\u53EF\u5BFC\u51FA\u7684\u6D4B\u8BD5\u8BB0\u5F55\u94FE${input2.user === void 0 ? "\uFF08\u8D1F\u8D23\u4EBA\u6CA1\u6709\u8BB0\u5F55\uFF1B\u7528 --user \u6307\u5B9A\u7528\u6237\u76EE\u5F55\uFF09" : `\uFF08\u7528\u6237 ${input2.user} \u6CA1\u6709\u8BB0\u5F55\uFF09`}` };
+  }
+  if (chain.report.state !== "intact") {
+    return { ok: false, code: 2, message: `\u7528\u6237 ${chain.slug} \u7684\u8BB0\u5F55\u94FE${chain.report.state === "broken" ? `\u5DF2\u65AD\uFF08${chain.report.reason}\uFF09` : "\u662F\u7A7A\u7684"}\uFF0C\u62D2\u7EDD\u5BFC\u51FA\uFF1A\u4E0D\u4E3A\u574F\u94FE\u80CC\u4E66` };
+  }
+  const history = await readFile99(join178(input2.dir, HISTORY_FILE), "utf8").catch(() => "");
+  const plan = await readTestPlanState(input2.dir, input2.change);
+  let changed = { files: [], truncated: false };
+  if (input2.withFiles) {
+    try {
+      changed = await changedFiles(deps, state);
+    } catch (error2) {
+      return { ok: false, code: 1, message: `\u8BFB\u4E0D\u51FA\u4EFB\u52A1\u8D77\u70B9\u4EE5\u6765\u7684\u6539\u52A8\u6587\u4EF6\uFF1A${errMsg(error2)}` };
+    }
+  }
+  const records = chain.report.active;
+  const last = records.at(-1);
+  const createdAt = str2(state.fields.created_at);
+  return {
+    ok: true,
+    bundle: {
+      tenon: deps.pluginVersion ?? "unknown",
+      change: input2.change,
+      workflow: str2(state.fields.workflow) || "default",
+      track: str2(state.fields.track),
+      phase: str2(state.fields.phase),
+      owner: owner?.slug ?? null,
+      created_at: createdAt === "" ? null : createdAt,
+      exported_at: deps.clock(),
+      commit: input2.commit,
+      chain: { user: chain.slug, head: chain.report.head, records: records.length },
+      last_result: last?.result ?? "fail",
+      plan_digest: plan.state === "ok" ? plan.digest : null,
+      records: records.map(recordSummary),
+      agents: agentRuns(await readAgentRuns(input2.dir).catch(() => [])),
+      steps: stepVisitsFromHistory(history, createdAt === "" ? null : createdAt),
+      files: changed.files,
+      files_truncated: changed.truncated
+    }
+  };
+}
+
+// packages/cli/src/commands/evidence-export.ts
+var EVIDENCE_FORMATS = ["agent-trace", "otel", "git-notes", "trailer"];
+function isEvidenceFormat(value) {
+  return EVIDENCE_FORMATS.includes(value);
+}
+function usageProblem(opts) {
+  if (opts.format === void 0 || !isEvidenceFormat(opts.format)) {
+    return `--format \u5FC5\u586B\uFF0C\u53D6 ${EVIDENCE_FORMATS.join(" | ")}\uFF08\u6536\u5230 '${opts.format ?? ""}'\uFF09`;
+  }
+  if (opts.apply === true && opts.format !== "git-notes" && opts.format !== "trailer") {
+    return `--apply \u53EA\u5BF9 git-notes\uFF08\u5199 note\uFF09\u548C trailer\uFF08amend HEAD\uFF09\u6709\u610F\u4E49\uFF0C${opts.format} \u53EA\u80FD\u6253\u5370\u6216 --out`;
+  }
+  if (opts.anchor === true && opts.format !== "git-notes") return "--anchor \u53EA\u7528\u4E8E --format git-notes";
+  if ((opts.contributor !== void 0 || opts.model !== void 0) && opts.format !== "agent-trace") {
+    return "--contributor / --model \u53EA\u7528\u4E8E --format agent-trace";
+  }
+  if (opts.contributor !== void 0 && !isContributorType(opts.contributor)) {
+    return `--contributor \u53EA\u652F\u6301 human | ai | mixed | unknown\uFF08\u6536\u5230 '${opts.contributor}'\uFF09`;
+  }
+  return void 0;
+}
+async function committerEnv(deps) {
+  if (await hasGitIdentity(deps.cwd)) return {};
+  const user = deps.user();
+  if (!isTenonUser(user)) return "git \u6CA1\u6709 committer \u8EAB\u4EFD\uFF0CTenon \u4E5F\u6CA1\u6709\u7528\u6237\u8EAB\u4EFD\uFF1B\u5148 git config user.email / user.name\uFF0C\u6216 tenon user set";
+  return { env: { GIT_COMMITTER_NAME: user.name, GIT_COMMITTER_EMAIL: user.id, GIT_AUTHOR_NAME: user.name, GIT_AUTHOR_EMAIL: user.id } };
+}
+async function emit4(deps, out, text13) {
+  if (out === void 0) {
+    deps.io.out(text13.replace(/\n$/u, ""));
+    return true;
+  }
+  try {
+    const target = resolve65(deps.cwd, out);
+    await mkdir67(dirname48(target), { recursive: true });
+    await writeFile37(target, text13, "utf8");
+    return true;
+  } catch (error2) {
+    deps.io.err(`ERROR: \u5199\u8F93\u51FA\u6587\u4EF6\u5931\u8D25\uFF1A${errMsg(error2)}`);
+    return false;
+  }
+}
+async function exportNote(deps, input2) {
+  const existingText = await readCommitNote(deps.cwd, input2.commit);
+  const existing = existingText === void 0 ? void 0 : decodeEvidenceNote(existingText);
+  if (existingText !== void 0 && existing === void 0) {
+    deps.io.err(`ERROR: \u63D0\u4EA4 ${input2.commit.slice(0, 12)} \u4E0A\u5DF2\u6709 ${EVIDENCE_NOTES_REF} \u7684 note\uFF0C\u4F46\u4E0D\u662F Tenon \u8BC1\u636E note\uFF0C\u4E0D\u8986\u76D6`);
+    return 1;
+  }
+  const body = serializeEvidenceNote(mergeEvidenceNote(existing, input2.entry));
+  if (input2.opts.apply !== true) {
+    if (!await emit4(deps, input2.opts.out, body)) return 1;
+    deps.io.err(`[EVIDENCE] \u672A\u5199\u5165\u3002\u52A0 --apply \u5199\u5165 ${EVIDENCE_NOTES_REF}\uFF08\u63D0\u4EA4 ${input2.commit.slice(0, 12)}\uFF09${input2.entry.anchor === void 0 ? "" : "\uFF0Cnote \u5E26\u94FE\u5934\u951A\u70B9"}`);
+    return 0;
+  }
+  const who = await committerEnv(deps);
+  if (typeof who === "string") {
+    deps.io.err(`ERROR: ${who}`);
+    return 1;
+  }
+  const written = await writeCommitNote(deps.cwd, input2.commit, body, who.env);
+  if (written.code !== 0) {
+    deps.io.err(`ERROR: git notes \u5199\u5165\u5931\u8D25\uFF1A${written.stderr.trim()}`);
+    return 1;
+  }
+  deps.io.out(`[EVIDENCE] \u5DF2\u5199\u5165 ${EVIDENCE_NOTES_REF}\uFF1A\u63D0\u4EA4 ${input2.commit.slice(0, 12)}\uFF0C\u4EFB\u52A1 ${input2.entry.change}\uFF0C\u94FE\u5934 ${input2.entry.chain.head}${input2.entry.anchor === void 0 ? "" : "\uFF08\u5DF2\u951A\u5B9A\uFF09"}`);
+  deps.io.out(`[EVIDENCE] \u8BA9 CI \u770B\u5230\u5B83\uFF1Agit push origin ${EVIDENCE_NOTES_REF}`);
+  return 0;
+}
+async function exportTrailer(deps, bundle, commit, head, opts) {
+  const text13 = `${trailerLines(bundle).join("\n")}
+`;
+  if (opts.apply !== true) {
+    if (!await emit4(deps, opts.out, text13)) return 1;
+    deps.io.err("[EVIDENCE] \u672A\u4FEE\u6539\u63D0\u4EA4\u3002\u52A0 --apply \u628A\u5B83\u4EEC amend \u8FDB HEAD\uFF08\u4F1A\u6362 HEAD \u7684 sha\uFF1B\u5DF2\u5199\u5728\u65E7 sha \u4E0A\u7684 note \u8981\u5728 amend \u4E4B\u540E\u518D\u5199\uFF09");
+    return 0;
+  }
+  if (head !== commit) {
+    deps.io.err("ERROR: --apply \u53EA\u6539 HEAD \u63D0\u4EA4\uFF1B--commit \u4E0D\u662F HEAD");
+    return 1;
+  }
+  if (await hasStagedChanges(deps.cwd)) {
+    deps.io.err("ERROR: \u6709\u5DF2\u6682\u5B58\u7684\u6539\u52A8\uFF0Camend \u4F1A\u628A\u5B83\u4EEC\u5E76\u8FDB HEAD\uFF1B\u5148\u63D0\u4EA4\u6216\u53D6\u6D88\u6682\u5B58");
+    return 1;
+  }
+  const who = await committerEnv(deps);
+  if (typeof who === "string") {
+    deps.io.err(`ERROR: ${who}`);
+    return 1;
+  }
+  const amended = await amendHeadWithTrailers(deps.cwd, trailerArguments(bundle), who.env);
+  if (!amended.ok) {
+    deps.io.err(`ERROR: ${amended.message}`);
+    return 1;
+  }
+  deps.io.out(`[EVIDENCE] \u5DF2\u628A\u5C3E\u6CE8 amend \u8FDB HEAD\uFF1A${commit.slice(0, 12)} \u2192 ${amended.commit.slice(0, 12)}`);
+  return 0;
+}
+async function cmdEvidenceExport(deps, change, opts) {
+  const problem = usageProblem(opts);
+  if (problem !== void 0) {
+    deps.io.err(`ERROR: ${problem}`);
+    return 1;
+  }
+  const format = opts.format;
+  if (!isValidChangeName(change)) {
+    deps.io.err(`ERROR: change-name \u975E\u6CD5: '${change}' (\u4EC5\u5141\u8BB8 a-z A-Z 0-9 - _)`);
+    return 1;
+  }
+  const dir = resolveChangeDir2(deps.cwd, change);
+  if (!stateStorageExistsSync(dir)) {
+    deps.io.err(`ERROR: change \u4E0D\u5B58\u5728: ${change}`);
+    return 1;
+  }
+  const commit = await resolveCommit(deps.cwd, opts.commit ?? "HEAD");
+  if (commit === void 0) {
+    deps.io.err(`ERROR: \u89E3\u6790\u4E0D\u51FA\u63D0\u4EA4 '${opts.commit ?? "HEAD"}'\uFF08\u4E0D\u662F git \u4ED3\u5E93\uFF0C\u6216\u8FD8\u6CA1\u6709\u63D0\u4EA4\uFF09`);
+    return 1;
+  }
+  const gathered = await gatherEvidence(deps, { change, dir, commit, user: opts.user, withFiles: format === "agent-trace" });
+  if (!gathered.ok) {
+    deps.io.err(`ERROR: ${gathered.message}`);
+    return gathered.code;
+  }
+  const { bundle } = gathered;
+  if (format === "agent-trace") {
+    const contributor = opts.contributor === void 0 || !isContributorType(opts.contributor) ? "unknown" : opts.contributor;
+    const record9 = buildAgentTrace(bundle, { contributor, ...opts.model === void 0 ? {} : { model: opts.model } });
+    return await emit4(deps, opts.out, `${JSON.stringify(record9, null, 2)}
+`) ? 0 : 1;
+  }
+  if (format === "otel") return await emit4(deps, opts.out, `${JSON.stringify(buildOtelTrace(bundle), null, 2)}
+`) ? 0 : 1;
+  if (format === "git-notes") {
+    return exportNote(deps, { commit, entry: evidenceNoteEntry(bundle, { anchor: opts.anchor === true }), opts });
+  }
+  const head = await resolveCommit(deps.cwd, "HEAD");
+  return exportTrailer(deps, bundle, commit, head, opts);
+}
+
+// packages/cli/src/commands/verify-ci.ts
+import { mkdir as mkdir68, writeFile as writeFile38 } from "node:fs/promises";
+import { dirname as dirname49, resolve as resolve66 } from "node:path";
+
+// packages/cli/src/commands/verify-ci-change.ts
+import { lstat as lstat77, readFile as readFile100 } from "node:fs/promises";
+import { join as join179 } from "node:path";
+
+// packages/cli/src/commands/verify-ci-policy.ts
+function declaresTests(step) {
+  return (step.tests?.length ?? 0) > 0 || step.test_policy !== void 0;
+}
+function resolveEvaluatedStep(plan, phase, override) {
+  const steps = plan.workflow.steps;
+  if (override !== void 0) {
+    return steps.some((step) => step.id === override) ? { step: override } : { error: `step '${override}' \u4E0D\u5728 workflow '${plan.id}' \u91CC` };
+  }
+  const index = steps.findIndex((step) => step.id === phase);
+  const from = index === -1 ? steps.length - 1 : index;
+  for (let i = from; i >= 0; i--) {
+    const step = steps[i];
+    if (step !== void 0 && declaresTests(step)) return { step: step.id };
+  }
+  return { step: null };
+}
+async function runPolicy(input2) {
+  const { deps } = input2;
+  const start = changeStartOfFields(input2.state.fields);
+  const report2 = await evaluateTestEvidence({
+    repoRoot: deps.cwd,
+    changeDir: input2.changeDir,
+    changeName: input2.change,
+    plan: input2.plan,
+    stepId: input2.stepId,
+    context: {
+      user: { id: input2.slug, name: input2.slug, slug: input2.slug },
+      seal: "none",
+      now: () => Date.parse(deps.clock()),
+      ...input2.candidate === void 0 ? {} : { currentCandidate: input2.candidate },
+      changedFiles: async () => {
+        if (input2.shallow) throw new ChangedFilesUnavailableError("\u6D45\u514B\u9686\u7F3A\u5C11\u4EFB\u52A1\u8D77\u70B9\u4E4B\u524D\u7684\u5386\u53F2\uFF08actions/checkout \u9700\u8981 fetch-depth: 0\uFF09");
+        return input2.session.changedFiles({ ...start, baseBranch: await resolveBaseRef(deps.cwd, start.baseBranch) });
+      }
+    }
+  });
+  return { report: report2 };
+}
+function pathFor(code, subject2, relDir, recordFile, brokenFile) {
+  if (code === "record-chain-broken") return brokenFile;
+  if (code === "test-plan-missing" || code === "test-plan-tampered" || code === "waiver-unapproved") return `${relDir}/test-plan.yaml`;
+  if (code === "test-catalog-missing" || code === "test-kind-missing") return ".tenon/tests/catalog.yaml";
+  if (code.startsWith("protected-file-") || code.startsWith("test-file-") || code.startsWith("known-failure-")) {
+    return code.startsWith("known-failure-") ? ".tenon/tests/known-failures.yaml" : subject2;
+  }
+  return recordFile;
+}
+async function policyFindings(input2) {
+  const { report: report2, change, relDir } = input2;
+  const out = [];
+  const policy2 = report2.policy;
+  const verdicts = new Map((policy2?.suites ?? []).map((suite2) => [suite2.suite, suite2]));
+  const recordFile = (suite2) => {
+    const runId = suite2 === void 0 ? void 0 : verdicts.get(suite2)?.run_id;
+    return runId === void 0 || input2.recordsRelDir === null ? void 0 : `${input2.recordsRelDir}/${runId}.json`;
+  };
+  const candidateStale = [];
+  for (const blocker2 of policy2?.blockers ?? []) {
+    const verdict = blocker2.subject === void 0 ? void 0 : verdicts.get(blocker2.subject);
+    if (blocker2.code === "test-stale" && verdict?.staleBecause?.length === 1 && verdict.staleBecause[0] === "candidate") {
+      candidateStale.push(verdict);
+      continue;
+    }
+    const path15 = pathFor(blocker2.code, blocker2.subject, relDir, recordFile(blocker2.subject), input2.brokenFile);
+    out.push({
+      code: blocker2.code,
+      severity: blocker2.blocking ? "error" : "warning",
+      change,
+      source: "policy",
+      message: blocker2.message,
+      ...blocker2.fix === void 0 ? {} : { fix: blocker2.fix },
+      ...blocker2.subject === void 0 ? {} : { subject: blocker2.subject },
+      ...path15 === void 0 ? {} : { path: path15 }
+    });
+  }
+  for (const notice of policy2?.notices ?? []) {
+    const path15 = pathFor(notice.code, notice.subject, relDir, recordFile(notice.subject), input2.brokenFile);
+    out.push({
+      code: notice.code,
+      severity: "note",
+      change,
+      source: "policy",
+      message: notice.message,
+      ...notice.fix === void 0 ? {} : { fix: notice.fix },
+      ...notice.subject === void 0 ? {} : { subject: notice.subject },
+      ...path15 === void 0 ? {} : { path: path15 }
+    });
+  }
+  if (candidateStale.length > 0) out.push(await candidateFinding(input2, candidateStale, recordFile(candidateStale[0]?.suite)));
+  if (policy2 === void 0) {
+    for (const item2 of report2.items) {
+      if (!item2.test.required || item2.status === "passed") continue;
+      out.push({
+        code: item2.status === "stale" ? "test-stale" : item2.status === "failed" ? "test-failed" : "test-not-run",
+        severity: "error",
+        change,
+        source: "policy",
+        subject: item2.test.id,
+        message: `\u6D4B\u8BD5 ${item2.test.label ?? item2.test.id}\uFF08${item2.test.id}\uFF09\u72B6\u6001 ${item2.status}`,
+        fix: `tenon test run ${change} ${item2.test.id}`
+      });
+    }
+  }
+  return out;
+}
+async function candidateFinding(input2, stale, path15) {
+  const earliest = stale.map((verdict) => verdict.finished_at).filter((value) => value !== void 0).sort()[0];
+  const touched = earliest === void 0 ? [] : await candidateFilesTouchedSince(input2.deps.cwd, earliest);
+  const hint = touched.length === 0 ? "" : `\uFF1B\u8BB0\u5F55\u5B8C\u6210\u4E4B\u540E\u63D0\u4EA4\u6539\u52A8\u8FC7\uFF1A${touched.join("\u3001")}`;
+  return {
+    code: "candidate-mismatch",
+    severity: input2.mode === "warn" ? "warning" : "error",
+    change: input2.change,
+    source: "policy",
+    subject: stale.map((verdict) => verdict.suite).join(","),
+    message: `\u5957\u4EF6 ${stale.map((verdict) => verdict.suite).join("\u3001")} \u7684\u6700\u8FD1\u4E00\u6B21\u8FD0\u884C\u7ED1\u5B9A\u7684\u4EE3\u7801\u4E0E\u672C\u6B21\u68C0\u51FA\u7684\u6811\u4E0D\u540C\uFF08\u4EE3\u7801\u5728\u6D4B\u8BD5\u4E4B\u540E\u53D8\u4E86\uFF0C\u6216\u68C0\u51FA\u7684\u6811\u4E0E\u6D4B\u8BD5\u65F6\u7684\u5DE5\u4F5C\u533A\u4E0D\u4E00\u81F4\uFF09${hint}`,
+    fix: `tenon test run ${input2.change} --stage`,
+    ...path15 === void 0 ? {} : { path: path15 }
+  };
+}
+
+// packages/cli/src/commands/verify-ci-change.ts
+function ciFinding(change, code, severity2, message2, extra = {}) {
+  return { code, severity: severity2, change, message: message2, source: "ci", ...extra };
+}
+function unreadable(selected, message2) {
+  return {
+    change: selected.name,
+    dir: selected.relDir,
+    phase: null,
+    step: null,
+    policy: "none",
+    evaluatedUser: null,
+    chains: [],
+    anchor: "none",
+    findings: [ciFinding(selected.name, "change-unreadable", "error", message2, { path: `${selected.relDir}/.pipeline.yaml` })]
+  };
+}
+async function exists2(path15) {
+  try {
+    await lstat77(path15);
+    return true;
+  } catch {
+    return false;
+  }
+}
+async function planFileFindings(ctx, selected) {
+  const plan = await readTestPlanState(selected.dir, selected.name);
+  if (plan.state !== "ok") return [];
+  const out = [];
+  for (const file of plan.plan.files) {
+    if (await exists2(join179(ctx.deps.cwd, ...file.path.split("/")))) continue;
+    out.push(ciFinding(
+      selected.name,
+      "plan-file-missing",
+      "error",
+      `\u6D4B\u8BD5\u8BA1\u5212\u767B\u8BB0\u7684\u6587\u4EF6 ${file.path} \u4E0D\u5728\u672C\u6B21\u68C0\u51FA\u7684\u6811\u91CC`,
+      { path: `${selected.relDir}/test-plan.yaml`, subject: file.path, fix: `tenon test unregister ${selected.name} --file ${file.path}` }
+    ));
+  }
+  return out;
+}
+async function protectedFindings(ctx, selected, state) {
+  const { deps } = ctx;
+  const unavailable = (why) => [ciFinding(
+    selected.name,
+    "protected-diff-unavailable",
+    "error",
+    `\u8BFB\u4E0D\u51FA\u672C\u4EFB\u52A1\u7684\u6539\u52A8\uFF0C\u65E0\u6CD5\u6838\u5BF9\u53D7\u4FDD\u62A4\u6D4B\u8BD5\u914D\u7F6E\u7684\u6279\u51C6\uFF1A${why}`,
+    { path: `${selected.relDir}/.pipeline-history.jsonl` }
+  )];
+  if (ctx.shallow) return unavailable("\u6D45\u514B\u9686\u7F3A\u5C11\u4EFB\u52A1\u8D77\u70B9\u4E4B\u524D\u7684\u5386\u53F2\uFF08actions/checkout \u9700\u8981 fetch-depth: 0\uFF09");
+  const start = changeStartOfFields(state.fields);
+  let changes;
+  try {
+    changes = await protectedChangesInSession(deps.cwd, ctx.session, { ...start, baseBranch: await resolveBaseRef(deps.cwd, start.baseBranch) });
+  } catch (error2) {
+    return unavailable(error2 instanceof ChangedFilesUnavailableError ? error2.message : errMsg(error2));
+  }
+  if (changes.length === 0) return [];
+  const history = await readFile100(join179(selected.dir, HISTORY_FILE), "utf8").catch(() => "");
+  return protectedApprovalFindings({ change: selected.name, changes, approvals: parseProtectedApprovals(history) });
+}
+async function verifyChange(ctx, selected) {
+  const { deps } = ctx;
+  let state;
+  let plan;
+  try {
+    state = await deps.store.read(selected.dir);
+    plan = effectiveWorkflowForState(deps, state);
+  } catch (error2) {
+    return unreadable(selected, `\u4EFB\u52A1\u72B6\u6001\u6216\u51BB\u7ED3\u7684\u5DE5\u4F5C\u6D41\u8BFB\u4E0D\u51FA\uFF1A${errMsg(error2)}`);
+  }
+  if (plan === null) return unreadable(selected, `\u4EFB\u52A1\u7ED1\u5B9A\u7684\u5DE5\u4F5C\u6D41 '${str2(state.fields.workflow)}' \u89E3\u6790\u4E0D\u51FA`);
+  const phase = str2(state.fields.phase);
+  const picked = resolveEvaluatedStep(plan, phase, ctx.stepOverride);
+  if ("error" in picked) {
+    return { ...unreadable(selected, picked.error), phase, findings: [ciFinding(selected.name, "step-unresolved", "error", picked.error)] };
+  }
+  const owner = ownerOf(state.fields);
+  const chains = await readUserChains(deps.cwd, selected.name);
+  const evaluated = pickEvaluatedChain(selected.name, owner?.slug ?? null, chains);
+  const findings = [];
+  if (evaluated.finding !== void 0) findings.push(evaluated.finding);
+  for (const chain2 of chains) findings.push(...chainFindings(selected.name, chain2, chain2 === evaluated.chain));
+  let policy2 = "none";
+  if (picked.step === null) {
+    findings.push(ciFinding(selected.name, "no-test-policy", "note", `\u5DE5\u4F5C\u6D41\u5728 ${phase || "\u5F53\u524D\u9636\u6BB5"} \u53CA\u4E4B\u524D\u6CA1\u6709\u58F0\u660E\u4EFB\u4F55\u6D4B\u8BD5\u7B56\u7565\uFF0C\u6CA1\u6709\u53EF\u6821\u9A8C\u7684\u7528\u4F8B\u7EA7\u5224\u5B9A`));
+  } else {
+    const { report: report2 } = await runPolicy({
+      deps,
+      changeDir: selected.dir,
+      change: selected.name,
+      plan,
+      stepId: picked.step,
+      state,
+      slug: evaluated.chain?.slug ?? NO_USER_SLUG,
+      candidate: ctx.candidate,
+      session: ctx.session,
+      shallow: ctx.shallow
+    });
+    const broken = evaluated.chain?.report;
+    findings.push(...await policyFindings({
+      deps,
+      report: report2,
+      change: selected.name,
+      relDir: selected.relDir,
+      recordsRelDir: evaluated.chain?.relDir ?? null,
+      brokenFile: broken?.state === "broken" && broken.files[0] !== void 0 ? `${evaluated.chain?.relDir ?? ""}/${broken.files[0]}` : void 0,
+      mode: ctx.options.candidate
+    }));
+    policy2 = findings.some((item2) => item2.severity === "error" && item2.source === "policy") ? "fail" : "pass";
+  }
+  if (ctx.options.candidate === "off") {
+    findings.push(ciFinding(selected.name, "candidate-unchecked", "note", "\u6CA1\u6709\u6BD4\u5BF9\u8BB0\u5F55\u7ED1\u5B9A\u7684\u5DE5\u4F5C\u533A\u6307\u7EB9\u4E0E\u672C\u6B21\u68C0\u51FA\u7684\u6811\uFF08--candidate off\uFF09"));
+  }
+  findings.push(...await planFileFindings(ctx, selected));
+  findings.push(...await protectedFindings(ctx, selected, state));
+  const chain = evaluated.chain;
+  const anchor = evaluateAnchor({
+    change: selected.name,
+    user: chain?.slug ?? null,
+    anchors: ctx.anchors.filter((item2) => item2.entry.change === selected.name),
+    chain: chain?.report,
+    baseDigest: chain?.listing.base?.base,
+    requireAnchor: ctx.options.requireAnchor
+  });
+  findings.push(...anchor.findings);
+  return {
+    change: selected.name,
+    dir: selected.relDir,
+    phase,
+    step: picked.step,
+    policy: policy2,
+    evaluatedUser: chain?.slug ?? null,
+    chains: chains.map(chainSummary),
+    anchor: anchor.state,
+    findings
+  };
+}
+
+// packages/cli/src/commands/verify-ci-select.ts
+import { readdirSync as readdirSync15 } from "node:fs";
+import { relative as relative41, sep as sep31 } from "node:path";
+function located(deps, name2) {
+  const dir = resolveChangeDir2(deps.cwd, name2);
+  if (!stateStorageExistsSync(dir)) return void 0;
+  return { name: name2, dir, relDir: relative41(deps.cwd, dir).split(sep31).join("/") };
+}
+function openNames(cwd) {
+  try {
+    return readdirSync15(changesRoot(cwd), { withFileTypes: true }).filter((entry2) => entry2.isDirectory() && entry2.name !== "archive" && isValidChangeName(entry2.name)).map((entry2) => entry2.name).sort();
+  } catch {
+    return [];
+  }
+}
+function changeNameOfPath(path15) {
+  const parts = path15.split("/");
+  if (parts[0] === "openspec" && parts[1] === "changes" && parts.length > 3) {
+    if (parts[2] === "archive") {
+      const name2 = changeNameOfArchivedDir(parts[3] ?? "");
+      return isValidChangeName(name2) ? name2 : void 0;
+    }
+    return isValidChangeName(parts[2] ?? "") ? parts[2] : void 0;
+  }
+  if (parts[0] === ".tenon" && parts[1] === "users" && parts[3] === "tests" && parts.length > 5) {
+    return isValidChangeName(parts[4] ?? "") ? parts[4] : void 0;
+  }
+  return void 0;
+}
+async function selectChanges(deps, selector, isFinished) {
+  if (selector.kind === "change") {
+    if (!isValidChangeName(selector.change)) return { ok: false, error: `change-name \u975E\u6CD5: '${selector.change}'` };
+    const found = located(deps, selector.change);
+    return found === void 0 ? { ok: false, error: `change \u4E0D\u5B58\u5728: ${selector.change}\uFF08\u65E2\u4E0D\u5728 openspec/changes/ \u4E5F\u4E0D\u5728 openspec/changes/archive/\uFF09` } : { ok: true, changes: [found] };
+  }
+  if (selector.kind === "all-open") {
+    const out2 = [];
+    for (const name2 of openNames(deps.cwd)) {
+      const found = located(deps, name2);
+      if (found !== void 0 && !await isFinished(found.dir)) out2.push(found);
+    }
+    return { ok: true, changes: out2 };
+  }
+  const base = await mergeBaseWith(deps.cwd, selector.ref);
+  if (base === void 0) {
+    return { ok: false, error: `--since ${selector.ref}\uFF1A\u89E3\u6790\u4E0D\u5230\u8FD9\u4E2A\u5F15\u7528\uFF0C\u6216\u5B83\u4E0E HEAD \u6CA1\u6709\u5171\u540C\u7956\u5148\uFF08\u6D45\u514B\u9686\u8BF7\u7528 fetch-depth: 0\uFF09` };
+  }
+  const paths = await rangeChangedPaths(deps.cwd, base);
+  if (paths === void 0) return { ok: false, error: `\u8BFB\u4E0D\u51FA ${base}..HEAD \u7684\u6539\u52A8\u6587\u4EF6` };
+  const names = [...new Set(paths.flatMap((path15) => changeNameOfPath(path15) ?? []))].sort();
+  const out = [];
+  for (const name2 of names) {
+    const found = located(deps, name2);
+    if (found !== void 0) out.push(found);
+  }
+  return { ok: true, changes: out };
+}
+
+// packages/cli/src/commands/verify-ci.ts
+var VERIFY_FORMATS = ["text", "json", "sarif", "markdown"];
+function isFormat(value) {
+  return VERIFY_FORMATS.includes(value);
+}
+function render2(report2, format) {
+  if (format === "json") return `${JSON.stringify(report2, null, 2)}
+`;
+  if (format === "sarif") return `${JSON.stringify(toSarif(report2), null, 2)}
+`;
+  return format === "markdown" ? renderCiMarkdown(report2) : renderCiText(report2);
+}
+function parseOptions(opts) {
+  if (opts.ci !== true) return "\u76EE\u524D\u53EA\u6709 CI \u6A21\u5F0F\uFF1A\u8BF7\u52A0 --ci\uFF08\u5728\u6CA1\u6709\u7528\u6237\u672C\u673A\u5C01\u5B58\u7684\u73AF\u5883\u91CC\u5BF9\u5DF2\u63D0\u4EA4\u5185\u5BB9\u72EC\u7ACB\u6821\u9A8C\uFF09";
+  const selectors = [opts.change !== void 0, opts.allOpen === true, opts.since !== void 0].filter(Boolean).length;
+  if (selectors !== 1) return "\u9700\u8981\u4E14\u53EA\u80FD\u9009\u4E00\u4E2A\u4EFB\u52A1\u8303\u56F4\uFF1A--change <name> | --all-open | --since <ref>";
+  const selector = opts.change !== void 0 ? { kind: "change", change: opts.change } : opts.since !== void 0 ? { kind: "since", ref: opts.since } : { kind: "all-open" };
+  const format = opts.format ?? "text";
+  if (!isFormat(format)) return `--format \u53EA\u652F\u6301 ${VERIFY_FORMATS.join(" | ")}\uFF08\u6536\u5230 '${format}'\uFF09`;
+  const candidate2 = opts.candidate ?? "error";
+  if (candidate2 !== "error" && candidate2 !== "warn" && candidate2 !== "off") return `--candidate \u53EA\u652F\u6301 error | warn | off\uFF08\u6536\u5230 '${candidate2}'\uFF09`;
+  const also = [];
+  for (const entry2 of opts.also ?? []) {
+    const eq = entry2.indexOf("=");
+    const kind = eq > 0 ? entry2.slice(0, eq) : "";
+    const file = eq > 0 ? entry2.slice(eq + 1) : "";
+    if (!isFormat(kind) || file === "") return `--also \u7684\u5F62\u5F0F\u662F <format>=<file>\uFF0Cformat \u4E3A ${VERIFY_FORMATS.join(" | ")}\uFF08\u6536\u5230 '${entry2}'\uFF09`;
+    also.push({ format: kind, file });
+  }
+  return { selector, options: { candidate: candidate2, requireAnchor: opts.requireAnchor === true }, format, also };
+}
+async function writeOutput(cwd, file, text13) {
+  const target = resolve66(cwd, file);
+  await mkdir68(dirname49(target), { recursive: true });
+  await writeFile38(target, text13, "utf8");
+}
+async function isFinishedChange(deps, dir) {
+  try {
+    return str2((await deps.store.read(dir)).fields.archived) === "true";
+  } catch {
+    return false;
+  }
+}
+async function cmdVerifyCi(deps, opts) {
+  const parsed2 = parseOptions(opts);
+  if (typeof parsed2 === "string") {
+    deps.io.err(`ERROR: ${parsed2}`);
+    return 1;
+  }
+  const selection = await selectChanges(deps, parsed2.selector, (dir) => isFinishedChange(deps, dir));
+  if (!selection.ok) {
+    deps.io.err(`ERROR: ${selection.error}`);
+    return 1;
+  }
+  let candidatePromise;
+  const candidate2 = parsed2.options.candidate === "off" ? void 0 : () => {
+    candidatePromise ??= candidateFingerprint(deps.cwd);
+    return candidatePromise;
+  };
+  const ctx = {
+    deps,
+    options: parsed2.options,
+    stepOverride: opts.step,
+    candidate: candidate2,
+    anchors: await readEvidenceNotes(deps.cwd),
+    session: createChangedFilesSession(deps.cwd),
+    shallow: await isShallow(deps.cwd)
+  };
+  const changes = [];
+  for (const selected of selection.changes) changes.push(await verifyChange(ctx, selected));
+  const global = [];
+  const report2 = buildCiReport({
+    tenon: deps.pluginVersion ?? "unknown",
+    generatedAt: deps.clock(),
+    head: await headCommit(deps.cwd),
+    selector: parsed2.selector,
+    options: parsed2.options,
+    changes,
+    findings: global
+  });
+  try {
+    if (opts.out !== void 0) await writeOutput(deps.cwd, opts.out, render2(report2, parsed2.format));
+    for (const extra of parsed2.also) await writeOutput(deps.cwd, extra.file, render2(report2, extra.format));
+  } catch (error2) {
+    deps.io.err(`ERROR: \u5199\u8F93\u51FA\u6587\u4EF6\u5931\u8D25\uFF1A${errMsg(error2)}`);
+    return 1;
+  }
+  const shown = opts.out === void 0 ? parsed2.format : "text";
+  deps.io.out(render2(report2, shown).replace(/\n$/u, ""));
+  return ciExitCode(report2);
+}
+
+// packages/cli/src/program-verify.ts
+function registerVerifyCommands(program2, deps) {
+  program2.command("verify").description("\u5728 CI \u91CC\u5BF9\u5DF2\u63D0\u4EA4\u7684\u5185\u5BB9\u72EC\u7ACB\u91CD\u7B97\uFF1A\u8BB0\u5F55\u94FE\u3001\u8BA1\u5212 \u2194 \u8BB0\u5F55 \u2194 \u76EE\u5F55\u3001\u7528\u4F8B\u7EA7\u5224\u5B9A\u3001\u5019\u9009\u4EE3\u7801\u3001\u53D7\u4FDD\u62A4\u6587\u4EF6\u6279\u51C6\u3001\u951A\u70B9\uFF08\u6709\u4E0D\u901A\u8FC7 exit 2\uFF09").option("--ci", "CI \u6A21\u5F0F\uFF08\u6CA1\u6709\u7528\u6237\u672C\u673A\u5C01\u5B58\uFF1B\u5FC5\u586B\uFF09").option("--change <name>", "\u53EA\u6821\u9A8C\u8FD9\u4E2A\u4EFB\u52A1\uFF08\u6D3B\u8DC3\u6216\u5DF2\u5F52\u6863\uFF09").option("--all-open", "\u6821\u9A8C openspec/changes/ \u4E0B\u5168\u90E8\u672A\u5B8C\u7ED3\u7684\u4EFB\u52A1").option("--since <ref>", "\u6821\u9A8C merge-base(<ref>, HEAD)..HEAD \u7684\u63D0\u4EA4\u6539\u5230\u7684\u4EFB\u52A1\uFF08PR \u7528 origin/<\u76EE\u6807\u5206\u652F>\uFF09").option("--step <id>", "\u6309\u8FD9\u4E2A\u5DE5\u4F5C\u6D41\u6B65\u9AA4\u7684\u6D4B\u8BD5\u7B56\u7565\u5224\u5B9A\uFF08\u7F3A\u7701\u53D6\u4EFB\u52A1\u5F53\u524D\u6B65\u9AA4\uFF09").option("--format <format>", "text | json | sarif | markdown\uFF08\u7F3A\u7701 text\uFF09").option("--out <file>", "\u628A\u6240\u9009\u683C\u5F0F\u5199\u8FDB\u6587\u4EF6\uFF1Bstdout \u6539\u6253\u5370 text \u6458\u8981").option("--also <format=file>", "\u540C\u4E00\u6B21\u8FD0\u884C\u518D\u5199\u4E00\u4EFD\uFF0C\u4F8B\u5982 sarif=tenon.sarif\uFF08\u53EF\u91CD\u590D\uFF09", collect3).option("--candidate <mode>", "error | warn | off\uFF1A\u8BB0\u5F55\u7ED1\u5B9A\u7684\u5DE5\u4F5C\u533A\u6307\u7EB9\u4E0E\u672C\u6B21\u68C0\u51FA\u7684\u6811\u4E0D\u4E00\u81F4\u65F6\u7684\u5904\u7406\uFF08\u7F3A\u7701 error\uFF09").option("--require-anchor", "\u8981\u6C42 refs/notes/tenon \u4E0A\u6709\u951A\u70B9\uFF0C\u4E14\u94FE\u5934\u7B49\u4E8E\u951A\u70B9\uFF08\u843D\u540E\u6216\u7F3A\u5931\u90FD\u7B97\u5931\u8D25\uFF09").action(async (opts) => bail(await cmdVerifyCi(deps, opts)));
+  const evidence = program2.command("evidence").description("\u8BC1\u636E\u5BFC\u51FA\uFF1Aexport <change> --format agent-trace|otel|git-notes|trailer").action(() => {
+    deps.io.err("\u7528\u6CD5\uFF1Atenon evidence export <change> --format agent-trace|otel|git-notes|trailer");
+    bail(1);
+  });
+  evidence.command("export <change>").description("\u628A\u4EFB\u52A1\u7684\u8BC1\u636E\u5BFC\u51FA\u6210 Agent Trace / OTel GenAI span\uFF08JSON\uFF0C\u4E0D\u8054\u7F51\uFF09/ git note / \u63D0\u4EA4\u5C3E\u6CE8\uFF1B\u9ED8\u8BA4\u53EA\u6253\u5370\uFF0C--apply \u624D\u5199\u4ED3\u5E93").option("--format <format>", "agent-trace | otel | git-notes | trailer").option("--out <file>", "\u628A\u8F93\u51FA\u5199\u8FDB\u6587\u4EF6").option("--commit <rev>", "note / Agent Trace \u9488\u5BF9\u7684\u63D0\u4EA4\uFF08\u7F3A\u7701 HEAD\uFF09").option("--user <slug>", "\u53D6\u8FD9\u4E2A\u7528\u6237\u76EE\u5F55\u7684\u8BB0\u5F55\u94FE\uFF08\u7F3A\u7701\u4EFB\u52A1\u8D1F\u8D23\u4EBA\uFF09").option("--apply", "git-notes\uFF1A\u5199 refs/notes/tenon\uFF1Btrailer\uFF1Aamend HEAD \u8FFD\u52A0\u5C3E\u6CE8\uFF08\u663E\u5F0F\u624D\u5199\uFF09").option("--anchor", "git-notes\uFF1A\u5728 note \u91CC\u951A\u5B9A\u5F53\u524D\u94FE\u5934\uFF0Cverify --ci \u636E\u6B64\u6838\u5BF9\uFF08opt-in\uFF09").option("--contributor <type>", "agent-trace\uFF1Ahuman | ai | mixed | unknown\uFF08\u7F3A\u7701 unknown\uFF0C\u4E0D\u66FF\u4EBA\u58F0\u660E\uFF09").option("--model <provider/model>", "agent-trace\uFF1A\u65AD\u8A00 contributor \u65F6\u7684\u6A21\u578B\uFF0C\u4F8B\u5982 anthropic/claude-opus-4-5").action(async (change, opts) => bail(await cmdEvidenceExport(deps, change, opts)));
+}
+
 // packages/cli/src/program.ts
 function buildProgram(deps, runtimes = {}) {
   const program2 = new Command(PRODUCT_IDENTITY.cli);
@@ -91493,6 +93366,7 @@ function buildProgram(deps, runtimes = {}) {
   program2.command("transition <name> <event>").description("\u72B6\u6001\u673A\u8F6C\u6362\uFF08stdout \u65E0\u8F93\u51FA\uFF0C[TRANSITION] \u8D70 stderr\uFF1B\u975E\u6CD5/\u672A\u77E5\u4E8B\u4EF6 exit 1\uFF09").action(async (name2, event) => bail(await cmdTransition(deps, name2, event)));
   registerReviewCommands(program2, deps);
   registerTestCommands(program2, deps);
+  registerVerifyCommands(program2, deps);
   registerAgentCommands(program2, deps);
   program2.command("check <name>").description("guard \u524D\u7F6E\u6821\u9A8C\uFF08\u4EBA\u8BFB\u62A5\u544A\uFF1B\u4E0D\u8FC7 exit 2\uFF09").action(async (name2) => bail(await cmdCheck(deps, name2)));
   program2.command("advance <name>").description("auto-transition \u4E2D\u95F4\u6863\uFF1Aguard \u5168\u7EFF\u81EA\u52A8\u63A8\u8FDB\uFF0C\u649E\u4E09\u95E8/\u7EC8\u6001/guard \u4E0D\u8FC7\u5373\u505C\uFF08HITL\uFF0CD12>Tenon runtime\uFF09").option("--max-steps <n>", "\u9632\u5931\u63A7\u4FDD\u9669\u4E1D\uFF08\u9ED8\u8BA4 12\uFF09", (v) => parseInt(v, 10)).option("--dry-run", "\u53EA\u62A5\u8BA1\u5212\u4E0D\u63A8\u8FDB").option("--through-gates", "\u653E\u884C\u590D\u6838\u76F8\u4F4D\uFF08confirm/interaction \u786C\u95E8\u4ECD\u4E0D\u8DE8\u8D8A\uFF09").action(async (name2, opts) => bail(await cmdAdvance(deps, name2, opts)));
@@ -91566,21 +93440,21 @@ function buildProgram(deps, runtimes = {}) {
 }
 
 // packages/cli/src/guardContext.ts
-import { readdir as readdir35 } from "node:fs/promises";
-import { join as join177 } from "node:path";
+import { readdir as readdir36 } from "node:fs/promises";
+import { join as join180 } from "node:path";
 async function listChanges(changesRoot2) {
   let entries2;
   try {
-    entries2 = await readdir35(changesRoot2, { withFileTypes: true });
+    entries2 = await readdir36(changesRoot2, { withFileTypes: true });
   } catch {
     return [];
   }
-  return entries2.filter((entry2) => entry2.isDirectory() && entry2.name !== "archive").filter((entry2) => stateStorageExistsSync(join177(changesRoot2, entry2.name))).map((entry2) => entry2.name).sort();
+  return entries2.filter((entry2) => entry2.isDirectory() && entry2.name !== "archive").filter((entry2) => stateStorageExistsSync(join180(changesRoot2, entry2.name))).map((entry2) => entry2.name).sort();
 }
 async function listChangeDirs(changesRoot2) {
   let entries2;
   try {
-    entries2 = await readdir35(changesRoot2, { withFileTypes: true });
+    entries2 = await readdir36(changesRoot2, { withFileTypes: true });
   } catch {
     return [];
   }
@@ -91619,14 +93493,14 @@ function createManifestSkillActionAuthorityResolver(manifest, isKnownProfile) {
 }
 
 // packages/cli/src/commands/doctor-probes.ts
-import { execFile as execFile14, execFileSync as execFileSync4 } from "node:child_process";
+import { execFile as execFile15, execFileSync as execFileSync4 } from "node:child_process";
 import { createHash as createHash62 } from "node:crypto";
-import { accessSync as accessSync7, constants as fsConstants7, readdirSync as readdirSync15, readFileSync as readFileSync42, statSync as statSync14 } from "node:fs";
+import { accessSync as accessSync7, constants as fsConstants7, readdirSync as readdirSync16, readFileSync as readFileSync42, statSync as statSync14 } from "node:fs";
 import { homedir as homedir22 } from "node:os";
-import { dirname as dirname48, join as join178 } from "node:path";
+import { dirname as dirname50, join as join181 } from "node:path";
 function safeReaddirDirs(dir) {
   try {
-    return readdirSync15(dir, { withFileTypes: true }).filter((e) => e.isDirectory() || e.isSymbolicLink()).map((e) => e.name);
+    return readdirSync16(dir, { withFileTypes: true }).filter((e) => e.isDirectory() || e.isSymbolicLink()).map((e) => e.name);
   } catch {
     return [];
   }
@@ -91634,7 +93508,7 @@ function safeReaddirDirs(dir) {
 function readDisabledPluginKeys() {
   const disabled = /* @__PURE__ */ new Set();
   try {
-    const raw = readFileSync42(join178(homedir22(), ".claude", "settings.json"), "utf8");
+    const raw = readFileSync42(join181(homedir22(), ".claude", "settings.json"), "utf8");
     const parsed2 = JSON.parse(raw);
     const ep = typeof parsed2 === "object" && parsed2 !== null && "enabledPlugins" in parsed2 ? parsed2.enabledPlugins : void 0;
     if (ep !== null && typeof ep === "object") {
@@ -91647,26 +93521,26 @@ function readDisabledPluginKeys() {
 function scanInstalledSkillNames() {
   const home = homedir22();
   const names = /* @__PURE__ */ new Set();
-  for (const n of safeReaddirDirs(join178(home, ".claude", "skills"))) names.add(n);
-  for (const n of safeReaddirDirs(join178(home, ".agents", "skills"))) names.add(n);
-  const cache3 = join178(home, ".claude", "plugins", "cache");
+  for (const n of safeReaddirDirs(join181(home, ".claude", "skills"))) names.add(n);
+  for (const n of safeReaddirDirs(join181(home, ".agents", "skills"))) names.add(n);
+  const cache3 = join181(home, ".claude", "plugins", "cache");
   const disabledPlugins = readDisabledPluginKeys();
   for (const marketplace of safeReaddirDirs(cache3)) {
-    const mktDir = join178(cache3, marketplace);
+    const mktDir = join181(cache3, marketplace);
     for (const plugin of safeReaddirDirs(mktDir)) {
       if (disabledPlugins.has(`${plugin}@${marketplace}`)) continue;
       names.add(plugin);
-      for (const skill of safeReaddirDirs(join178(mktDir, plugin, "skills"))) names.add(skill);
+      for (const skill of safeReaddirDirs(join181(mktDir, plugin, "skills"))) names.add(skill);
     }
   }
   return names;
 }
 function scanCodexProjectSkillNames(cwd, root) {
   const names = /* @__PURE__ */ new Set();
-  for (const skillsRoot of [join178(root, "skills"), join178(cwd, ".agents", "skills")]) {
+  for (const skillsRoot of [join181(root, "skills"), join181(cwd, ".agents", "skills")]) {
     for (const name2 of safeReaddirDirs(skillsRoot)) {
       try {
-        if (statSync14(join178(skillsRoot, name2, "SKILL.md")).isFile()) names.add(name2);
+        if (statSync14(join181(skillsRoot, name2, "SKILL.md")).isFile()) names.add(name2);
       } catch {
       }
     }
@@ -91677,7 +93551,7 @@ function scanSkillDigests(skillsRoot) {
   const digests = /* @__PURE__ */ new Map();
   for (const name2 of safeReaddirDirs(skillsRoot)) {
     try {
-      const skillPath = join178(skillsRoot, name2, "SKILL.md");
+      const skillPath = join181(skillsRoot, name2, "SKILL.md");
       if (!statSync14(skillPath).isFile()) continue;
       digests.set(name2, createHash62("sha256").update(readFileSync42(skillPath)).digest("hex"));
     } catch {
@@ -91710,7 +93584,7 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
     if (bash === void 0 || node === void 0) {
       return Promise.resolve({ code: 1, output: "\u53EF\u4FE1 Bash/Node \u4E0D\u53EF\u6267\u884C" });
     }
-    const args = [join178(root, "tools", "verify-skills.sh"), "--quiet", "--root", root, "--node", node.executable];
+    const args = [join181(root, "tools", "verify-skills.sh"), "--quiet", "--root", root, "--node", node.executable];
     try {
       if (!bash.verify() || !node.verify()) {
         return Promise.resolve({ code: 1, output: "\u53EF\u4FE1 Bash/Node \u8EAB\u4EFD\u5DF2\u6F02\u79FB" });
@@ -91719,15 +93593,15 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
       return Promise.resolve({ code: 1, output: "\u53EF\u4FE1 Bash/Node \u8EAB\u4EFD\u5DF2\u6F02\u79FB" });
     }
     if (runtime.run !== void 0) return runtime.run(bash.executable, args, { timeoutMs: 3e4 });
-    return new Promise((resolve65) => {
-      execFile14(
+    return new Promise((resolve67) => {
+      execFile15(
         bash.executable,
         args,
         { timeout: 3e4 },
         (err, stdout, stderr) => {
           const errCode = err?.code;
           const code = err ? typeof errCode === "number" ? errCode : 1 : 0;
-          resolve65({ code, output: `${stdout ?? ""}${stderr ?? ""}` });
+          resolve67({ code, output: `${stdout ?? ""}${stderr ?? ""}` });
         }
       );
     });
@@ -91735,16 +93609,16 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
   return {
     nodeVersion: () => process.version,
     gitAvailable: () => {
-      const git3 = trustedCommand("git");
-      if (git3 === void 0) return Promise.resolve(false);
-      return new Promise((resolve65) => {
-        execFile14(git3.executable, ["--version"], (err) => resolve65(!err));
+      const git4 = trustedCommand("git");
+      if (git4 === void 0) return Promise.resolve(false);
+      return new Promise((resolve67) => {
+        execFile15(git4.executable, ["--version"], (err) => resolve67(!err));
       });
     },
     pluginRoot: root,
     manifestError: () => {
       try {
-        loadManifest(join178(root, "templates", "manifest.yaml"));
+        loadManifest(join181(root, "templates", "manifest.yaml"));
         return null;
       } catch (e) {
         return e instanceof Error ? e.message : String(e);
@@ -91778,13 +93652,13 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
       const launcher = stableLauncherPaths(scope.homeDir).tenon;
       return {
         resolved: resolveCommandOnPath("tenon", { pathValue: scope.env.PATH ?? "", requireAbsolutePathEntries: true }) ?? null,
-        launcher: resolveCommandOnPath("tenon", { pathValue: dirname48(launcher), requireAbsolutePathEntries: true }) ?? null
+        launcher: resolveCommandOnPath("tenon", { pathValue: dirname50(launcher), requireAbsolutePathEntries: true }) ?? null
       };
     },
     platform: () => detectPlatform({ platform: process.platform, env: process.env, procVersion: readProcVersion }),
     statuslineConfigured: () => {
       try {
-        return readFileSync42(join178(homedir22(), ".claude", "settings.json"), "utf8").includes("statusline.sh");
+        return readFileSync42(join181(homedir22(), ".claude", "settings.json"), "utf8").includes("statusline.sh");
       } catch {
         return false;
       }
@@ -91828,14 +93702,14 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
       const native = active === "codex" || active === "claude";
       return {
         ...native ? { selectedRoot: root } : {},
-        projectRoot: join178(process.cwd(), ".agents", "skills"),
-        selected: native ? scanSkillDigests(join178(root, "skills")) : /* @__PURE__ */ new Map(),
-        project: scanSkillDigests(join178(process.cwd(), ".agents", "skills"))
+        projectRoot: join181(process.cwd(), ".agents", "skills"),
+        selected: native ? scanSkillDigests(join181(root, "skills")) : /* @__PURE__ */ new Map(),
+        project: scanSkillDigests(join181(process.cwd(), ".agents", "skills"))
       };
     },
     manifestSkills: () => {
       try {
-        const m = loadManifest(join178(root, "templates", "manifest.yaml"));
+        const m = loadManifest(join181(root, "templates", "manifest.yaml"));
         return { mandatory: m.mandatorySkills, recommended: m.recommendedSkills };
       } catch {
         return null;
@@ -91847,7 +93721,7 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
         image: readAutomationJson(process.cwd()).image ?? "sandcastle:local",
         secretsEnv: readSecrets(scope.paths.secretsPath).keys,
         hostEnv: scope.env,
-        defaultCodexHome: join178(scope.homeDir, ".codex")
+        defaultCodexHome: join181(scope.homeDir, ".codex")
       });
     },
     /**
@@ -91860,7 +93734,7 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
         return null;
       }
       try {
-        return skillTextModelInvocable(readFileSync42(join178(root, "skills", skillId, "SKILL.md"), "utf8"));
+        return skillTextModelInvocable(readFileSync42(join181(root, "skills", skillId, "SKILL.md"), "utf8"));
       } catch {
         return null;
       }
@@ -91892,33 +93766,33 @@ function exitQuietlyOnEpipe(streams, exit) {
 }
 
 // packages/cli/src/gitRemotes.ts
-import { execFile as execFile15 } from "node:child_process";
+import { execFile as execFile16 } from "node:child_process";
 function gitRemoteNames(cwd) {
-  return new Promise((resolve65) => {
-    execFile15("git", ["remote"], { cwd, timeout: 5e3 }, (error2, stdout) => {
+  return new Promise((resolve67) => {
+    execFile16("git", ["remote"], { cwd, timeout: 5e3 }, (error2, stdout) => {
       if (error2 !== null) {
         const code = error2.code;
-        resolve65(typeof code === "number" ? [] : null);
+        resolve67(typeof code === "number" ? [] : null);
         return;
       }
-      resolve65(String(stdout).split("\n").map((line) => line.trim()).filter((line) => line !== ""));
+      resolve67(String(stdout).split("\n").map((line) => line.trim()).filter((line) => line !== ""));
     });
   });
 }
 
 // packages/cli/src/pluginSkillIds.ts
 import { readFileSync as readFileSync43 } from "node:fs";
-import { join as join179 } from "node:path";
+import { join as join182 } from "node:path";
 function pluginSkillIds(pluginRoot2) {
   const ids2 = /* @__PURE__ */ new Set();
   try {
-    for (const source of parseUpstreamSkillSources(readFileSync43(join179(pluginRoot2, "skills", "sources.yaml"), "utf8")).skills) {
+    for (const source of parseUpstreamSkillSources(readFileSync43(join182(pluginRoot2, "skills", "sources.yaml"), "utf8")).skills) {
       ids2.add(source.id);
     }
   } catch {
   }
   try {
-    for (const source of parseSkillSources(readFileSync43(join179(pluginRoot2, "templates", "skill-sources.yaml"), "utf8"))) {
+    for (const source of parseSkillSources(readFileSync43(join182(pluginRoot2, "templates", "skill-sources.yaml"), "utf8"))) {
       ids2.add(source.token);
     }
   } catch {
@@ -91927,20 +93801,20 @@ function pluginSkillIds(pluginRoot2) {
 }
 
 // packages/cli/src/test-system/directions.ts
-import { readFile as readFile99, readdir as readdir36 } from "node:fs/promises";
-import { join as join180 } from "node:path";
+import { readFile as readFile101, readdir as readdir37 } from "node:fs/promises";
+import { join as join183 } from "node:path";
 async function loadTestDirections(roots) {
   const byId2 = /* @__PURE__ */ new Map();
   for (const root of roots) {
     let names;
     try {
-      names = (await readdir36(root)).filter((name2) => name2.endsWith(".yaml")).sort();
+      names = (await readdir37(root)).filter((name2) => name2.endsWith(".yaml")).sort();
     } catch {
       continue;
     }
     for (const name2 of names) {
       try {
-        const definition = parseTestDirection(await readFile99(join180(root, name2), "utf8"));
+        const definition = parseTestDirection(await readFile101(join183(root, name2), "utf8"));
         if (definition.id === name2.replace(/\.yaml$/u, "")) byId2.set(definition.id, definition);
       } catch {
         continue;
@@ -91955,9 +93829,9 @@ function isoNow() {
   return (/* @__PURE__ */ new Date()).toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 function gitHeadSha(cwd) {
-  return new Promise((resolve65) => {
-    execFile16("git", ["rev-parse", "HEAD"], { cwd }, (_err, stdout) => {
-      resolve65((stdout ?? "").trim());
+  return new Promise((resolve67) => {
+    execFile17("git", ["rev-parse", "HEAD"], { cwd }, (_err, stdout) => {
+      resolve67((stdout ?? "").trim());
     });
   });
 }
@@ -91965,19 +93839,19 @@ async function readGateMarkers(cwd) {
   const out = [];
   for (const kind of ["confirm", "review", "interaction"]) {
     try {
-      const p = join181(cwd, `.pipeline-pending-${kind}`);
+      const p = join184(cwd, `.pipeline-pending-${kind}`);
       const st = await stat19(p);
-      out.push({ kind, ageMs: Date.now() - st.mtimeMs, raw: await readFile100(p, "utf8") });
+      out.push({ kind, ageMs: Date.now() - st.mtimeMs, raw: await readFile102(p, "utf8") });
     } catch {
     }
   }
   return out;
 }
 function pluginRoot() {
-  return join181(dirname49(fileURLToPath3(import.meta.url)), "..", "..", "..");
+  return join184(dirname51(fileURLToPath3(import.meta.url)), "..", "..", "..");
 }
 function manifestPath2() {
-  return join181(pluginRoot(), "templates", "manifest.yaml");
+  return join184(pluginRoot(), "templates", "manifest.yaml");
 }
 function trackValidationContext(repoRoot, manifest) {
   const skillProfiles = /* @__PURE__ */ new Set();
@@ -92007,7 +93881,7 @@ function readPluginVersion() {
     [".claude-plugin", "plugin.json"]
   ]) {
     try {
-      const raw = readFileSync44(join181(pluginRoot(), ...rel), "utf8");
+      const raw = readFileSync44(join184(pluginRoot(), ...rel), "utf8");
       const parsed2 = JSON.parse(raw);
       const version = typeof parsed2 === "object" && parsed2 !== null && "version" in parsed2 ? parsed2.version : void 0;
       if (typeof version === "string" && version.trim() !== "") return version;
@@ -92117,9 +93991,9 @@ async function main() {
     hostKind: () => detectHostEnvironment(process.env).kind,
     knownSkillIds: () => pluginSkillIds(pluginRoot()),
     testDirections: () => loadTestDirections([
-      join181(pluginRoot(), "templates", "test-directions"),
-      join181(runtimePaths().configRoot, "test-directions", "builtin"),
-      join181(runtimePaths().configRoot, "test-directions", "custom")
+      join184(pluginRoot(), "templates", "test-directions"),
+      join184(runtimePaths().configRoot, "test-directions", "builtin"),
+      join184(runtimePaths().configRoot, "test-directions", "custom")
     ]),
     creationPrecondition: (input2) => designSystemPrecondition({
       ...input2,
@@ -92130,13 +94004,13 @@ async function main() {
     designValidator: {
       // 上游 hue 随插件安装；技能没装时返回空串，命令据此给出安装提示而不是去 spawn 不存在的脚本。
       path: () => {
-        const script = join181(pluginRoot(), "skills", "hue", "scripts", "validate.mjs");
+        const script = join184(pluginRoot(), "skills", "hue", "scripts", "validate.mjs");
         return existsSync14(script) ? script : "";
       },
-      run: (script, folder, cwd) => new Promise((resolve65) => {
-        const child = spawn10(process.execPath, [script, folder], { cwd, stdio: "inherit" });
-        child.on("error", () => resolve65(1));
-        child.on("close", (code) => resolve65(code ?? 1));
+      run: (script, folder, cwd) => new Promise((resolve67) => {
+        const child = spawn11(process.execPath, [script, folder], { cwd, stdio: "inherit" });
+        child.on("error", () => resolve67(1));
+        child.on("close", (code) => resolve67(code ?? 1));
       })
     },
     io: {
@@ -92151,7 +94025,7 @@ async function main() {
     guardCtx: makeGuardCtx(process.cwd()),
     doctor: makeDoctorProbes(runtimeScope2, pluginRoot()),
     readGateMarkers: () => readGateMarkers(process.cwd()),
-    writeBreadcrumb: (dir, content) => writeFile37(join181(dir, ".breadcrumb"), content, "utf8"),
+    writeBreadcrumb: (dir, content) => writeFile39(join184(dir, ".breadcrumb"), content, "utf8"),
     history: createHistoryWriter({ actor: currentActor }),
     // init 成功后 best-effort 登记项目根到 Tenon config root 的 projects.json
     registerProject: async (repoRoot) => {
@@ -92162,7 +94036,7 @@ async function main() {
     readSecretsEnv: async () => readSecrets(runtimePaths().secretsPath).keys,
     readHistoryRaw: async (dir) => {
       try {
-        return await readFile100(join181(dir, ".pipeline-history.jsonl"), "utf8");
+        return await readFile102(join184(dir, ".pipeline-history.jsonl"), "utf8");
       } catch {
         return "";
       }
@@ -92178,13 +94052,13 @@ async function main() {
       const revision = kind === "workspace" ? await candidateFingerprint(process.cwd()) : await gitHeadSha(process.cwd());
       return createBuildRevisionToken(kind, revision, identity2).value;
     },
-    writeReviewMarker: (content) => writeFile37(join181(process.cwd(), ".pipeline-pending-review"), content, "utf8"),
+    writeReviewMarker: (content) => writeFile39(join184(process.cwd(), ".pipeline-pending-review"), content, "utf8"),
     clearReviewMarker: (change, event) => clearReviewMarkerFor(process.cwd(), change, event),
     pluginVersion: readPluginVersion(),
     readInstalledPlugins: async () => {
-      for (const p of [join181(pluginRoot(), "..", "installed_plugins.json"), join181(process.env.HOME ?? "", ".claude", "installed_plugins.json")]) {
+      for (const p of [join184(pluginRoot(), "..", "installed_plugins.json"), join184(process.env.HOME ?? "", ".claude", "installed_plugins.json")]) {
         try {
-          return await readFile100(p, "utf8");
+          return await readFile102(p, "utf8");
         } catch {
         }
       }
