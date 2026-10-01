@@ -93,9 +93,8 @@ jobs:
 
       # Dashboard 浏览器 e2e（e2e/dashboard，目录套件 dashboard-e2e-chromium）：被测 dashboard 由 e2e/dashboard/support/serve.mjs
       # 用刚构建的 CLI 在隔离的 HOME / TENON_RUNTIME_HOME 里播种并起在随机端口，不碰 runner 上的任何真实状态。
-      # 这里只跑 Chromium：再装 WebKit 需要另拉一批系统依赖，而 Linux 上的 WebKit 是否与 macOS 一致本仓还没有证据；
-      # 一个不阻塞的 WebKit job 得重新 checkout + 构建一遍，收益不抵成本。两个浏览器项目在本机用
-      # npm run test:e2e（或目录套件 dashboard-e2e）一起跑，WebKit 的安装步骤见 docs/usage/contributor-development.md。
+      # 这个 job 只跑 Chromium 且固定在 Node 22：WebKit 是下面独立的 dashboard-e2e-webkit job（要另拉一批系统依赖，
+      # 也要重新构建一遍），Node 20 / 22 / 24 的矩阵是 node-matrix job。三者都是阻塞的，没有任何允许失败的步骤。
       - name: Dashboard browser e2e (Chromium)
         id: dashboard-e2e
         run: npm run test:e2e -- --project=chromium
@@ -184,7 +183,11 @@ jobs:
 
       # 普通 npm test 里的 real-Codex 文件仍允许 honest-skip；配置 secret 的 canonical verify
       # 已在 main push 上方以 TENON_REQUIRE_REAL_CODEX=1 定向执行 fail-closed 验收。
+      # TENON_E2E=1：真实 Playwright 集成测试（packages/cli/src/test-system-playwright.integration.test.ts）在没有浏览器时
+      # 默认整体跳过；CI 上上面已经装好 Chromium，这里要求它必须在、必须跑，缺浏览器就失败，不允许悄悄跳过。
       - name: vitest (kernel/cli/server/automation/tap)
+        env:
+          TENON_E2E: '1'
         run: npm test
 
       - name: dashboard-app tests
@@ -225,10 +228,13 @@ jobs:
 
       # 基准（catalog 里的 bench-status / bench-snapshot / bench-snapshot-large，阈值 max_regression_pct 15）：用一次性的 change 走 tenon test run，
       # 阈值、噪声重跑与「同机器画像才比」都是 Tenon 自己的判定。仓库里已提交本 runner 画像的基线时，退化超限会 exit 2 挡住；
-      # 还没有该画像的基线只提示 baseline-missing、不挡。
+      # 还没有该画像的基线只提示 baseline-missing、不挡——这一步会为每个缺基线的套件打一条 ::notice 注解，不让它只埋在日志里。
       # 建立 / 刷新 CI 画像基线：每次绿的运行都会把「这次运行作为基线」的文件写进 .tenon/tests/baselines/ 并上传成 artifact
       # bench-baseline-candidate；维护者从一次绿的 main 运行下载、原样提交那几个 <套件>/<画像>.json，之后同画像的运行就有基线可比。
-      # 画像 = OS + 架构 + CPU + 核数 + 内存档位 + Node 主版本 + CI 环境变量，文件名里带画像哈希，开发机的基线不会与它互比。
+      # 基线不由 CI 自己提交：.tenon/tests/baselines/ 是受保护的测试证据，由维护者审过候选再提交。
+      # 画像口径由目录顶层的 `profile: coarse` 选定 = OS + 架构 + 核数 + Node 主版本 + CI 环境变量（形如 linux-x64-4c-node22-<哈希>）：
+      # CPU 型号与内存档位不参与，所以同规格的托管运行器共用一份基线，不会因为落在另一代 CPU 上就永远对不上；
+      # 文件名里带画像哈希，开发机的基线不会与它互比。代价是 CPU 代差带进噪声，由基准自己的波动提示（benchmark-noisy）兜底。
       # bench-snapshot-large 是 30 项目 × 30 任务的夹具：写入一个任务后列表快照重建的 p95 必须 < 1.5 s（脚本自己判，超了退出码非零），
       # 首屏载荷必须 < 1 MB，与有没有基线无关；夹具由 900 次真实 `tenon init` 建成，这一步因此要多花一两分钟。
       - name: 基准 (benchmarks against the CI-profile baseline)
@@ -248,7 +254,14 @@ jobs:
           tenon test run ci-bench --suite bench-status --suite bench-snapshot --suite bench-snapshot-large --json > "$RUNNER_TEMP/bench-run.json" || bench_exit=$?
           if [ "$bench_exit" -eq 0 ]; then
             run_id="$(node -p "JSON.parse(require('node:fs').readFileSync(process.argv[1], 'utf8')).run_id" "$RUNNER_TEMP/bench-run.json")"
-            for suite in bench-status bench-snapshot bench-snapshot-large; do tenon test baseline ci-bench --suite "$suite" --run "$run_id"; done
+            profile="$(node -p "JSON.parse(require('node:fs').readFileSync(process.argv[1], 'utf8')).record.machine_profile" "$RUNNER_TEMP/bench-run.json")"
+            for suite in bench-status bench-snapshot bench-snapshot-large; do
+              # 必须在 tenon test baseline 写出候选之前判：此刻工作区里只有已提交的基线。
+              if [ ! -f ".tenon/tests/baselines/$suite/$profile.json" ]; then
+                echo "::notice title=Benchmark baseline missing::No baseline is committed for suite $suite on machine profile $profile, so its regression gate is not enforced on this runner. Download the bench-baseline-candidate artifact of a green main run and commit .tenon/tests/baselines/$suite/$profile.json unchanged."
+              fi
+              tenon test baseline ci-bench --suite "$suite" --run "$run_id"
+            done
           fi
           exit "$bench_exit"
 
@@ -262,3 +275,109 @@ jobs:
             test-results/bench-*.json
           if-no-files-found: ignore
           retention-days: 30
+
+  # Node 20 / 22 / 24 矩阵：上面的 verify 固定在 Node 22 跑全量，这里只跑「结果取决于 Node 版本」的部分——
+  #   · 测试体系 / reporter / 解析器的 vitest 套件（测试体系 v2 的 node:test 集成用例真的起 `node --test`，
+  #     随包的 JUnit reporter 要在 Node 20 / 22 / 24 上都给每个用例写 file；解析器吃的是各个 Node 的真实输出），
+  #   · tools 里的 node:test 脚本（基准度量、TAP 输出），
+  #   · Dashboard 浏览器 e2e（Chromium）：dashboard 与 CLI 在被测 Node 上起。
+  # 产品运行时要求 Node ≥ 22（doctor 的 env:node 在更低版本上是红灯）；Node 20 在这里的意义是被测项目自己的 node:test
+  # 可能跑在 Node 20 上，reporter 与解析器必须读得懂。fail-fast 关掉：一个版本红了，另两个的结论仍要看。
+  # 与 verify 一样没有任何允许失败的步骤：矩阵里任何一格红，整个 CI 就红，发布候选也就过不了。
+  node-matrix:
+    name: Node ${{ matrix.node }} · test system, reporter, parsers, dashboard e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22', '24']
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build complete plugin runtime (tsc + CLI/server bundles + dashboard SPA)
+        run: npm run build
+
+      - name: Install Playwright Chromium for browser runtime tests
+        run: npx playwright install --with-deps chromium
+
+      # TENON_E2E=1：Chromium 已装好，真实 Playwright 集成测试必须在、必须跑，不允许因缺浏览器悄悄跳过。
+      # 路径是 vitest 的子串过滤：packages/cli/src/test-system 同时匹配 test-system/ 目录与 test-system-*.integration.test.ts。
+      - name: Test system, reporter and parser suites (Node ${{ matrix.node }})
+        env:
+          TENON_E2E: '1'
+        run: npx vitest run packages/kernel/src/test-system packages/cli/src/test-system packages/cli/src/test-runner
+
+      - name: node:test tools (bench measure, TAP output)
+        run: node --test tools/bench/*.node-test.mjs tools/tap-out.node-test.mjs
+
+      - name: Dashboard browser e2e (Chromium, Node ${{ matrix.node }})
+        id: dashboard-e2e-node
+        run: npm run test:e2e -- --project=chromium
+
+      - name: Upload dashboard e2e report on failure
+        if: ${{ !cancelled() && steps.dashboard-e2e-node.outcome == 'failure' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dashboard-e2e-chromium-node${{ matrix.node }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # WebKit 的 Dashboard e2e 与 Playwright 工程集成测试：独立的 job，阻塞、没有任何允许失败的步骤。
+  # 单独成 job 是因为 WebKit 要另装一批系统依赖，且要重新构建一遍；塞进 verify 会让 verify 更长，也没有地方放一个
+  # "允许失败"的 WebKit 步骤——仓库的 release-workflow 门禁（npm run check:release-workflows）和 H14 的策略测试都禁止
+  # ci.yml 里出现 GitHub 的"步骤失败也算过"开关，因为它会把必需的检查变成可以静默失败。
+  # Linux 上的 WebKit 与 macOS 的行为一致性只能在 GitHub 的 runner 上验证：macOS 本机全绿，不代表这里。
+  # TENON_E2E=1 + TENON_E2E_WEBKIT=1：Playwright 工程集成测试把 webkit 项目加进目录套件的 browsers 并要求它在报告里出现。
+  dashboard-e2e-webkit:
+    name: Dashboard e2e (WebKit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build complete plugin runtime (tsc + CLI/server bundles + dashboard SPA)
+        run: npm run build
+
+      - name: Install Playwright Chromium and WebKit for browser runtime tests
+        run: npx playwright install --with-deps chromium webkit
+
+      - name: Dashboard browser e2e (WebKit)
+        id: dashboard-e2e-webkit
+        run: npm run test:e2e -- --project=webkit
+
+      - name: Playwright project integration (Chromium + WebKit)
+        env:
+          TENON_E2E: '1'
+          TENON_E2E_WEBKIT: '1'
+        run: npx vitest run packages/cli/src/test-system-playwright.integration.test.ts
+
+      - name: Upload dashboard e2e report on failure
+        if: ${{ !cancelled() && steps.dashboard-e2e-webkit.outcome == 'failure' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dashboard-e2e-webkit
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7

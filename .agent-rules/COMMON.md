@@ -33,7 +33,7 @@
 | `.github/` | CI workflow 与仓库 hook 配置 | CI 是 canonical verify；命令应复用根 scripts，新增外部 secret/权限/发布行为前确认 |
 | `tools/` | 构建、codegen、oracle、sandcastle、hook/adapter/skill/bundle 验收 | 不得成为生产领域逻辑唯一实现；脚本须 fail-closed、跨平台或明确运行平台 |
 | `e2e/` | Dashboard 浏览器 e2e（Playwright，chromium + webkit）及其种子项目 / 被测服务脚本（`e2e/dashboard/`） | 只经 `npm run test:e2e` 或目录套件 `dashboard-e2e` 运行，vitest 不收录；种子与被测服务全部在隔离 HOME / TENON_RUNTIME_HOME 里，不得触碰真实 Tenon 状态；报告只写 `test-results/`、`playwright-report/` |
-| `.tenon/tests/` | 本仓自己的测试目录 `catalog.yaml`（已跟踪、人可编辑）与基线 | 改套件后运行 `node packages/cli/dist/tenon.mjs test catalog validate`；基线只经 `tenon test baseline` 写，且只提交 CI 机器画像的基线 |
+| `.tenon/tests/` | 本仓自己的测试目录 `catalog.yaml`（已跟踪、人可编辑）与基线 | 改套件后运行 `node packages/cli/dist/tenon.mjs test catalog validate`；基线只经 `tenon test baseline` 写，且只提交 CI 机器画像的基线；目录顶层 `profile: coarse` 选粗口径画像（OS + 架构 + 核数 + Node 主版本），改它会让早先的运行记录过期 |
 | `docs/` | contract、测试现实、发布、计划、研究、UX 与迭代证据 | `docs/CONTRACT.md`、`TEST-REALITY.md`、`DIST-RELEASE.md` 属高优先维护文档；行为变化需同步 |
 | `README.md`、`GOAL.md`、`BACKLOG.md`、`LOOP.md` | 使用入口、终态/验收、队列与迭代协议 | 不得提前勾选、伪报收官或让命令/已知缺口与实现漂移 |
 | `design-demos/`、`design-qa.md` | dashboard 设计原型、规格、截图与 QA 证据 | 原型不是生产源码；吸收方案时在 dashboard 重实现并验证，`shots/` 只存无敏感信息的证据 |
@@ -97,7 +97,7 @@
 | 静态/生成物门禁 | `npm run check:comments`；`npm run check:default-workflow-freshness` |
 | 分发与兼容验收 | `bash tools/test-hooks.sh`；`bash tools/test-adapters.sh`；`bash tools/verify-skills.sh`；`bash tools/test-bundle.sh`；`npm run oracle` |
 | 浏览器/API smoke | `npm run build:web && npm run build:server` 后按 README 启动 `npx tenon-dashboard`，检查受影响真实流程 |
-| Dashboard 浏览器 e2e | `npm run build` 之后 `npm run test:e2e -- --project=chromium`（webkit 需 `npx playwright install webkit`）；CI 只跑并阻塞 Chromium，WebKit 在本机跑 |
+| Dashboard 浏览器 e2e | `npm run build` 之后 `npm run test:e2e -- --project=chromium`（webkit 需 `npx playwright install webkit`）；CI 三处阻塞地跑：verify（Node 22，Chromium）、node-matrix（Node 20/22/24，Chromium，另跑测试体系 / reporter / 解析器套件）、独立的 dashboard-e2e-webkit 作业；ci.yml 不允许任何 `continue-on-error`；`npm test` 在 CI 带 `TENON_E2E=1`（缺 Chromium 即失败） |
 | 基准 | `npm run bench:status`、`npm run bench:snapshot`、`npm run bench:snapshot:large`（30 项目 × 30 任务，写入后重建 p95 < 1.5 s）；判定与基线走 `tenon test run <change> --suite bench-status --suite bench-snapshot --suite bench-snapshot-large` |
 | Docker/真实 agent | `bash tools/sandcastle/build.sh local`；需要凭证时按 `BACKEND.md` 的 real-Codex 命令运行 |
 

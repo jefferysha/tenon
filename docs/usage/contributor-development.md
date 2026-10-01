@@ -96,10 +96,16 @@ throw-away projects in an isolated `HOME` and `TENON_RUNTIME_HOME` and starts th
 Dashboard on a random port, so it never touches your real Tenon state. The same suites are
 registered in `.tenon/tests/catalog.yaml` (`dashboard-e2e`, `bench-status`,
 `bench-snapshot`, `bench-snapshot-large`, and the rest of the repository's own suites); run them through
-`tenon test run <change> --suite <id>`. CI runs and blocks on Chromium only and uploads
-`playwright-report/` and `test-results/` when it fails; WebKit is not installed in CI (a
-non-blocking WebKit job would rebuild the whole tree, and Linux WebKit has no evidence yet),
-so run both projects locally before changing the pages they cover.
+`tenon test run <change> --suite <id>`. CI runs the e2e in three blocking places and uploads
+`playwright-report/` and `test-results/` when one fails: the `verify` job (Node 22, Chromium), the
+`node-matrix` job (Chromium on Node 20, 22 and 24, next to the test-system, reporter and parser
+suites and the `tools/` `node:test` scripts) and the separate `dashboard-e2e-webkit` job (the WebKit
+project, plus the Playwright project integration test with `TENON_E2E_WEBKIT=1`). No CI step has
+`continue-on-error`; `npm run check:release-workflows` fails if one appears. `npm test` in `verify`
+runs with `TENON_E2E=1`, which turns a missing Chromium into a failure instead of a silent skip of
+the real Playwright integration tests. Linux WebKit runs only on GitHub's runners, so a green local
+WebKit run (install with `npx playwright install webkit`) is not a substitute; run both projects
+locally anyway before changing the pages they cover.
 
 `tenon dashboard` only starts its server with a Node whose executable and parent directories
 are not group- or world-writable (sticky directories excepted) and are owned by root or the
@@ -113,12 +119,19 @@ libraries (for example Homebrew's `libnode`) cannot be copied; the helper then s
 error instead of falling back to the untrusted one.
 
 Benchmark regressions (`max_regression_pct: 15`) are judged against a baseline of the same
-machine profile. Baselines are not committed from a developer laptop: CI runs the two
-suites with `tenon test run`, and after a green run it writes the run as a baseline candidate
-to `.tenon/tests/baselines/<suite>/<profile>.json` and uploads it as the
-`bench-baseline-candidate` artifact. To establish or refresh the CI-profile baseline,
-download that artifact from a green `main` run and commit the files unchanged. Until the
-CI profile has a baseline the run only reports `baseline-missing`.
+machine profile. The repository catalog sets `profile: coarse`, so the profile is the OS,
+architecture, core count and Node major version (plus the `CI` variable), for example
+`linux-x64-4c-node22-<hash>`; CPU model and memory tier do not take part, so hosted runners of
+one size share one baseline even when they land on different CPU generations. Baselines are
+not committed from a developer laptop, and CI never commits one: it runs the benchmark suites
+with `tenon test run`, and after a green run it writes the run as a baseline candidate to
+`.tenon/tests/baselines/<suite>/<profile>.json` and uploads it as the
+`bench-baseline-candidate` artifact. To establish or refresh the CI-profile baseline, a
+maintainer downloads that artifact from a green `main` run and commits the files unchanged.
+Until a suite has a baseline for the CI profile, the run reports `baseline-missing` (it does not
+block) and the benchmark step raises a GitHub `::notice` annotation naming the suite and the
+file to commit, so the gap is visible on the run page. No baseline for the coarse CI profile is
+committed yet.
 
 The repository has no general lint or format npm script. Do not claim one ran.
 
