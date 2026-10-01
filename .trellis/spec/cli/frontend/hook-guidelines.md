@@ -160,8 +160,9 @@ independently trusted identity provider.
   When the first word of a segment is an interpreter or a path, the relevant lines
   of the script it runs (up to three files, 128 KiB each, 8 KiB of excerpt) are
   appended, so `sh poke.sh` and `./poke.sh` are caught. Read/Grep/Glob/Search
-  only match the legacy `dashboard-token` file name. Non-candidates never spawn
-  node. No curl argument parsing, no skipping of `$(` / `|` / wrappers, no
+  only match the legacy `dashboard-token` file name; the file-edit tools (Write /
+  Edit / MultiEdit / NotebookEdit) carry no executable payload and are never decoded
+  for a command. Non-candidates never spawn node. No curl argument parsing, no skipping of `$(` / `|` / wrappers, no
   runtime-root environment variable, no marker freshness condition.
   `tenon dashboard --open [--port N]` is allowed through a pending review: the
   server delivers the one-time login link to the browser and never returns it.
@@ -182,6 +183,24 @@ independently trusted identity provider.
   1 MiB cap with a single overflow marker. Never token text, Authorization
   values, raw command, tool ids or raw identity. The record is a detection
   signal and never proof of human identity.
+
+### `gate.sh` layout and hot-path cost
+
+- **Layout.** `hooks/gate.sh` holds the order of decisions (record-write refusal,
+  AFK exit, marker TTLs, self-approval candidate, skill / motion gates).
+  `hooks/lib/protected-writes.sh` holds the recognition of writes to what Tenon
+  owns (the 13 shell-write shapes, patch headers, variable expansion, the
+  trust-decision rule). It is sourced only when the raw input names a word it can
+  care about, and `tools/verify-skills.sh` requires it in every payload (a missing
+  file falls open, so a release without it must not ship).
+- **Cost.** `LC_ALL=C` is pinned at the top: under a UTF-8 locale bash 3.2 walks
+  multi-byte characters for every `${var:off:len}` / `${#var}`, which made each key
+  lookup in a 10 KB Write payload cost 6-8 ms. The script directory comes from
+  parameter expansion, not `dirname`. Measure with a loop over typical inputs
+  (Write, Edit, Bash with common commands, `apply_patch`) before and after any
+  change: at the time of writing the median is about 15 ms and p95 about 30 ms; a
+  command that names a loopback host with a port still waits for the CLI (about
+  175 ms) by design.
 
 ## Scenario: Interactive Skill confirmation in hosts without a question tool
 
