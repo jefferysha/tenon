@@ -286,7 +286,7 @@ if [ -f "$cx_prompt" ]; then
   p="$TMP/codex-prompt-unrouted"; mkdir -p "$p/openspec/changes"
   mkdir -p "$p/.pipeline/workflows"
   printf 'name: landing\nsteps:\n  - id: open\n    title: Start\n    transitions: []\n' > "$p/.pipeline/workflows/landing.yaml"
-  out="$(printf '{\"prompt\":\"请实现一个响应式 React 页面\",\"cwd\":\"%s\"}' "$p" | TENON_ROUTER_CACHE="$TMP/codex-prompt-unrouted.cache" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$cx_prompt" UserPromptSubmit 2>/dev/null)"
+  out="$(printf '{\"prompt\":\"设计一个响应式 React 页面\",\"cwd\":\"%s\"}' "$p" | TENON_ROUTER_CACHE="$TMP/codex-prompt-unrouted.cache" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$cx_prompt" UserPromptSubmit 2>/dev/null)"
   assert_contains "route/codex: 无当前任务时要求入口 tenon skill" "$out" "skill: tenon"
   assert_contains "route/codex: 无当前任务时派发 default workflow" "$out" "workflow: default"
   assert_contains "route/codex: 无当前任务时输出结构化 tenon dispatch" "$out" "tenon-dispatch"

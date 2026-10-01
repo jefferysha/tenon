@@ -1,6 +1,6 @@
 import { expect, openView, test } from './support/fixtures'
 
-const TEMPLATES = ['benchmark', 'code-size', 'design-system', 'e2e', 'integration', 'playwright', 'regression', 'typecheck', 'unit']
+const TEMPLATES = ['benchmark', 'code-size', 'design-system', 'diff-risk', 'e2e', 'integration', 'playwright', 'regression', 'typecheck', 'unit']
 
 test.describe('库 · 测试模板', () => {
   test.beforeEach(async ({ page }) => {

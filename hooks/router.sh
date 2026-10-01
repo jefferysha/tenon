@@ -969,7 +969,10 @@ if [ "$SELECTION_REQUIRED" = "1" ]; then
   done
   printf 'selection_required: true\nsuggested_track: %s\nsuggested_workflow: %s\n' "$TRACK" "$BEST_WORKFLOW"
 fi
-if [ "$DISPATCH_INTENT" = "resume" ] && [ -n "$CHANGE_NAME" ]; then
+if [ "$DISPATCH_INTENT" = "resume" ] && [ -n "$CHANGE_NAME" ] && [ "$CHANGE_WORKFLOW" = "standard" ]; then
+  # standard 不走 OpenSpec 文档链，没有 tasks.md；Todo 来自冻结计划的步骤标签。
+  printf 'change: %s\nphase: %s\ntodo_source: tenon-workflow-plan\n' "$CHANGE_NAME" "$EFF_PHASE"
+elif [ "$DISPATCH_INTENT" = "resume" ] && [ -n "$CHANGE_NAME" ]; then
   printf 'change: %s\nphase: %s\ntodo_source: openspec/changes/%s/tasks.md\n' "$CHANGE_NAME" "$EFF_PHASE" "$CHANGE_NAME"
 elif [ "$DISPATCH_INTENT" = "select" ]; then
   printf 'phase: select\ntodo_source: tenon-active-change-selection\n'

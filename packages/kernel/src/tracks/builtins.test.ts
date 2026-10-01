@@ -2,6 +2,7 @@
  * 内建 Track 默认值逐字段断言（codex 2026-07-17 裁决钉死的默认值表）。路由默认值只来自
  * BUILTIN_ROUTER_PATTERNS；模板不得再声明旧路由字段。
  */
+import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
@@ -65,8 +66,13 @@ describe('内建 Track 定义', () => {
     for (const domain of ['frontend', 'backend', 'pm']) expect(priority('standard')).toBeGreaterThan(priority(domain))
   })
 
-  // grep -E 的方言以 router.sh 的真实执行为准（tools/test-hooks.sh）；这里用 JS 做语义烟测：审计里漏判的请求必须命中，
-  // 重型请求必须被排除正则挡掉，讨论类前缀不在此判定。
+  // 路由正则是 grep -E 方言（含 POSIX 字符类，JS RegExp 读不了），所以这里直接用 router.sh 同一条命令（LC_ALL=C 的 grep -ciE）
+  // 做语义检查：审计里漏判的请求必须命中，重型请求必须被排除正则挡掉，英文动词带词边界。
+  const lines = (pattern: string, prompt: string): number => {
+    const result = spawnSync('grep', ['-ciE', '--', pattern], { input: prompt, encoding: 'utf8', env: { ...process.env, LC_ALL: 'C' } })
+    return result.status === 1 ? 0 : Number(result.stdout.trim())
+  }
+
   test.each([
     'add a subtract function to src/add.js',
     'refactor the add module',
@@ -74,9 +80,11 @@ describe('内建 Track 定义', () => {
     '重构 add 模块',
     '修复分页的 off-by-one，并补一个回归测试',
     'Fix the null check in parseConfig',
+    'Please fix the null check in parseConfig',
+    'can you fix this bug in the login page',
   ])('standard 正则命中实现类请求：%s', (prompt) => {
-    expect(new RegExp(BUILTIN_ROUTER_PATTERNS.standard, 'i').test(prompt)).toBe(true)
-    expect(new RegExp(BUILTIN_ROUTER_EXCLUDE_PATTERNS.standard, 'i').test(prompt)).toBe(false)
+    expect(lines(BUILTIN_ROUTER_PATTERNS.standard, prompt)).toBeGreaterThan(0)
+    expect(lines(BUILTIN_ROUTER_EXCLUDE_PATTERNS.standard, prompt)).toBe(0)
   })
 
   test.each([
@@ -86,11 +94,15 @@ describe('内建 Track 定义', () => {
     '重构整个项目的架构',
     'upgrade dependencies and cut a release',
   ])('standard 排除正则挡住重型请求：%s', (prompt) => {
-    expect(new RegExp(BUILTIN_ROUTER_EXCLUDE_PATTERNS.standard, 'i').test(prompt)).toBe(true)
+    expect(lines(BUILTIN_ROUTER_EXCLUDE_PATTERNS.standard, prompt)).toBeGreaterThan(0)
   })
 
-  test.each(['address the committee', 'the changelog is long', 'prefix match'])('standard 英文动词带词边界：%s 不命中', (prompt) => {
-    expect(new RegExp(BUILTIN_ROUTER_PATTERNS.standard, 'i').test(prompt)).toBe(false)
+  test.each([
+    'address the committee', 'the changelog is long', 'prefix match',
+    // 名词里的 add / 纯读取请求不是实现类动词。
+    'the add function returns the wrong value', 'show me the add module',
+  ])('standard 英文动词要在祈使位置并带词边界：%s 不命中', (prompt) => {
+    expect(lines(BUILTIN_ROUTER_PATTERNS.standard, prompt)).toBe(0)
   })
 
   test('chat：pending / automation 可 / coverage none / 不路由 / 不进矩阵、profile _all', () => {
