@@ -225,10 +225,10 @@ describe('layoutOrchestration · 纯布局', () => {
     expect(layout.height).toBe(Math.max(...heights))
   })
 
-  it('节点尺寸：总览视觉 168×32、列带内边距 12（列带宽 192），阶段画布 320×40', () => {
+  it('节点尺寸：总览视觉 208×32、列带内边距 12（列带宽 232），阶段画布 320×40', () => {
     const overview = layoutOrchestration(STAGES, 'overview')
-    expect(overview.entries.every((item) => item.width === 168 && item.height === 32)).toBe(true)
-    expect(new Set(overview.stages.map((item) => item.width))).toEqual(new Set([192]))
+    expect(overview.entries.every((item) => item.width === 208 && item.height === 32)).toBe(true)
+    expect(new Set(overview.stages.map((item) => item.width))).toEqual(new Set([232]))
     const band = overview.stages[1]!
     for (const item of overview.entries.filter((candidate) => candidate.stage === 'explore')) expect(item.x - band.x).toBe(12)
     const stage = layoutOrchestration([STAGES[2]!], 'stage')
@@ -331,7 +331,7 @@ describe('OrchestrationFlow · 总览', () => {
     expect(screen.getByTestId('orch-open-reviewer-architecture')).toHaveAttribute('title', 'architecture · 参考')
   })
 
-  it('节点：名称是 Inter 500 14px（不再 mono）、中间截断保尾 6 个字符；类别图标安静；默认状态不写字', () => {
+  it('节点：名称是 Inter 500 14px（不再 mono）、按段缩写（整名在 title）；类别图标安静；默认状态不写字', () => {
     renderFlow()
     const node = screen.getByTestId('orch-node-skill-openspec-propose')
     const middle = node.querySelector('span[title="openspec-propose"]')!
@@ -339,7 +339,10 @@ describe('OrchestrationFlow · 总览', () => {
     expect(middle.className).toContain('font-medium')
     expect(middle.className).toContain('text-caption')
     expect(middle.className).not.toContain('font-mono')
-    expect([...middle.children].map((part) => part.textContent)).toEqual(['openspec-p', 'ropose'])
+    // 名称是一个整块的文字（不再拆成「头 + 6 个字符的尾」）；量不出布局（jsdom）就显示整名，样式兜底在末尾截断。
+    expect(middle.children).toHaveLength(0)
+    expect(middle.textContent).toBe('openspec-propose')
+    expect(middle.className).toContain('truncate')
     // 定义画布没有运行状态：不画状态符号，也没有状态字。
     expect(node.querySelector('[data-testid="flow-glyph"]')).toBeNull()
     expect(within(node).queryByTestId('orch-status')).toBeNull()

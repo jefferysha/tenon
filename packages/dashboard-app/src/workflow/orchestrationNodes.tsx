@@ -6,7 +6,7 @@ import type { FlowEntry, FlowStage, RunStatus } from '../api/workflowOrchestrati
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useT } from '../i18n'
 import { kindLabel } from '../tests/testLabels'
-import { MiddleText, StateGlyph } from './flowGlyphs'
+import { FitName, StateGlyph } from './flowGlyphs'
 import { BAND_PAD, HEADER_H, PORT, SPINE_OFFSET, returnLift, type FlowMode } from './orchestrationLayout'
 import type { ZoomLevel } from './orchestrationViewport'
 import { ArrivalMarks, EDGE_STYLE, HIDDEN_HANDLE, PORT_DOTS, SignalEdge } from './skillFlowNodes'
@@ -123,7 +123,7 @@ function EntryNodeView({ id, data }: NodeProps<EntryNode>): JSX.Element {
         {status === undefined ? <SourceMark entry={entry} /> : <StateGlyph state={status} label={statusText ?? status} />}
         {level === 'glyph'
           ? <span className="min-w-0 flex-1" aria-label={name} />
-          : <MiddleText text={name} className={cn('font-sans text-caption font-medium', entry.required ? 'text-text' : 'text-text-3')} />}
+          : <FitName text={name} testId="orch-name" className={cn('font-sans text-caption font-medium', entry.required ? 'text-text' : 'text-text-3')} />}
         {statusText !== null && (
           <span className={cn('flex-none whitespace-nowrap text-micro', STATUS_TEXT[status ?? 'waiting'], !showWord && 'sr-only')} data-testid="orch-status" data-status={status}>{statusText}</span>
         )}

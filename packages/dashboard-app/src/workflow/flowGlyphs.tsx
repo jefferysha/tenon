@@ -1,26 +1,66 @@
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { CircleCheck, CircleX, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { fitName } from './fitName'
 
 /** 节点的运行状态；「等待」是默认状态：只画一个安静的小圆，不写字。 */
 export type GlyphState = 'waiting' | 'running' | 'done' | 'failed' | 'stale'
 
-/** 尾部固定显示的字符数：长名中间截断时，区分度都在尾巴上（openspec-propose / openspec-explore）。 */
-export const NAME_TAIL = 6
-
-/** 名称拆成「可截断的头」+「固定的尾」；短名不拆。 */
-export function splitName(name: string, tail: number = NAME_TAIL): { head: string; tail: string } {
-  const chars = [...name]
-  if (chars.length <= tail * 2) return { head: name, tail: '' }
-  return { head: chars.slice(0, chars.length - tail).join(''), tail: chars.slice(-tail).join('') }
+/**
+ * 量一批文本在 `host` 里的渲染宽度：把它们放进 host 的一个隐藏容器（继承 host 的字体、字号、字距，不可见、不占位），
+ * 一次布局读回各自的宽度，马上拆掉。只在名字放不下、或宽度变了的时候才量。
+ */
+function measureIn(host: HTMLElement, texts: readonly string[]): number[] {
+  const ruler = document.createElement('span')
+  ruler.className = 'pointer-events-none invisible absolute left-0 top-0 whitespace-nowrap'
+  ruler.setAttribute('aria-hidden', 'true')
+  ruler.setAttribute('data-fit-ruler', '')
+  const items = texts.map((text) => {
+    const item = document.createElement('span')
+    item.className = 'block w-max'
+    item.textContent = text
+    ruler.append(item)
+    return item
+  })
+  host.append(ruler)
+  const widths = items.map((item) => item.offsetWidth)
+  ruler.remove()
+  return widths
 }
 
-/** 中间截断保尾：头部在放不下时以省略号收尾，尾部 6 个字符始终可见；整名放得下就完整显示。 */
-export function MiddleText({ text, className, testId }: { text: string; className?: string; testId?: string }): JSX.Element {
-  const { head, tail } = splitName(text)
+/**
+ * 画布节点里的名称：整名放得下就完整显示；放不下按段缩（见 fitName：首段…末段，整段整段地留），
+ * 只有一段的名字在末尾截断；完整名字始终在 title。宽度变了（缩放层级、状态字出现）、字体加载完都会重新量。
+ * 度量用真实字体，没有布局的环境（jsdom）量不到宽度，就显示整名。
+ */
+export function FitName({ text, className, testId }: { text: string; className?: string; testId?: string }): JSX.Element {
+  const box = useRef<HTMLSpanElement>(null)
+  const [fitted, setFitted] = useState<{ readonly source: string; readonly shown: string }>({ source: text, shown: text })
+  const refit = useCallback((): void => {
+    const host = box.current
+    if (host === null) return
+    const shown = fitName(text, host.clientWidth, (texts) => measureIn(host, texts))
+    setFitted((current) => (current.source === text && current.shown === shown ? current : { source: text, shown }))
+  }, [text])
+  useLayoutEffect(refit, [refit])
+  useEffect(() => {
+    const host = box.current
+    if (host === null) return undefined
+    let width = host.clientWidth
+    const observer = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(() => { if (host.clientWidth !== width) { width = host.clientWidth; refit() } })
+    observer?.observe(host)
+    const fonts: FontFaceSet | undefined = typeof document === 'undefined' ? undefined : document.fonts
+    fonts?.addEventListener('loadingdone', refit)
+    return () => {
+      observer?.disconnect()
+      fonts?.removeEventListener('loadingdone', refit)
+    }
+  }, [refit])
   return (
-    <span className={cn('flex min-w-0 flex-1 whitespace-nowrap', className)} title={text} data-testid={testId}>
-      <span className="min-w-0 truncate">{head}</span>
-      {tail !== '' && <span className="flex-none">{tail}</span>}
+    <span ref={box} className={cn('min-w-0 flex-1 truncate whitespace-nowrap', className)} title={text} data-testid={testId}>
+      {fitted.source === text ? fitted.shown : text}
     </span>
   )
 }

@@ -84,6 +84,31 @@ test.describe('工作流页', () => {
     await expect.poll(() => new URL(page.url()).searchParams.get('step')).toBe('verify')
   })
 
+  test('总览节点名称按段缩写：放得下是整名，放不下是「首段…末段」（整段整段地留，不切词），完整名在 title，没有名称溢出', async ({ page }) => {
+    await openView(page, 'workflow', { wf: 'default', track: 'frontend', step: ':overview' })
+    await expect(page.getByTestId('orchestration-overview')).toBeVisible()
+    await expect(page.getByTestId('orch-open-skill-openspec-propose').first()).toBeVisible()
+    // 字体加载完会重新量；等名称稳定下来再读。
+    await page.waitForTimeout(800)
+    const names = await page.getByTestId('orch-name').evaluateAll((spans) => spans.map((span) => ({
+      title: span.getAttribute('title') ?? '', shown: span.textContent ?? '', over: span.scrollWidth > span.clientWidth,
+    })))
+    expect(names.length).toBeGreaterThan(10)
+    const shortened = names.filter((name) => name.shown !== name.title)
+    // 常见的长名在 208px 的节点里整段放得下：openspec-propose / web-design-guidelines 不再被缩。
+    expect(names.find((name) => name.title === 'openspec-propose')?.shown).toBe('openspec-propose')
+    // 最长的 finishing-a-development-branch 一定被缩，且缩出来的是整段：头尾都落在分隔符上。
+    expect(shortened.map((name) => name.title)).toContain('finishing-a-development-branch')
+    for (const name of names) {
+      expect(name.over, `${name.title} 溢出`).toBe(false)
+      if (name.shown === name.title) continue
+      const [head = '', tail = ''] = name.shown.split('…')
+      expect(name.title.startsWith(head) && name.title.endsWith(tail), `${name.shown} 不是 ${name.title} 的首尾`).toBe(true)
+      expect(/[-:]/.test(name.title[head.length] ?? ''), `${name.shown} 的头不是整段`).toBe(true)
+      expect(/[-:]/.test(name.title[name.title.length - tail.length - 1] ?? ''), `${name.shown} 的尾不是整段`).toBe(true)
+    }
+  })
+
   test('系统要求减少动态效果时 Signal 静止：没有彗星层，采样只有一种取值，仍有静态高亮', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await openView(page, 'workflow', { wf: 'default', step: ':overview' })

@@ -49,9 +49,13 @@ const END_GAP = 28
 /** 回流弧最高拱出阶段标题上方多少（长弧封顶，不让它把画布顶得太高）。 */
 const RETURN_LIFT_MAX = 90
 
-/** 总览节点视觉 32px、宽 168（点击热区由样式补到 40px）；阶段画布节点 40px、宽 320。 */
+/**
+ * 总览节点视觉 32px、宽 208（点击热区由样式补到 40px）；阶段画布节点 40px、宽 320。
+ * 208 是按 Inter 500 14px 量出来的：名称那一格 170px，「verification…completion」「subagent…development」
+ * （162px）这样的常见长名按段缩写后整段放得下；168 时连 `openspec-propose` 都放不下。
+ */
 export function entrySize(mode: FlowMode): { width: number; height: number } {
-  return mode === 'overview' ? { width: 168, height: 32 } : { width: 320, height: 40 }
+  return mode === 'overview' ? { width: 208, height: 32 } : { width: 320, height: 40 }
 }
 
 /** 回流弧的拱高：跨得越远拱得越高，封顶 RETURN_LIFT_MAX。 */

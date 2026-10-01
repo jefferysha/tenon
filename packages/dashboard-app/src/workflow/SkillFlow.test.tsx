@@ -186,12 +186,12 @@ describe('SkillFlow · 节点与点阵外观', () => {
     expect(node.querySelector('[data-signal-port]')).not.toBeNull()
   })
 
-  it('长名中间截断保尾：头部可截断，尾部 6 个字符固定', () => {
+  it('长名按段缩写（首段…末段，见 fitName.test）：整名在 title，样式兜底在末尾截断，不拆块', () => {
     render(<I18nProvider><SkillFlow skills={[{ id: 'test-driven-development' }]} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
-    const middle = screen.getByTestId('flow-name-test-driven-development').querySelector('[title="test-driven-development"]')!
-    expect([...middle.children].map((part) => part.textContent)).toEqual(['test-driven-devel', 'opment'])
-    expect(middle.children[0]).toHaveClass('truncate')
-    expect(middle.children[1]).toHaveClass('flex-none')
+    const name = screen.getByTestId('flow-name-test-driven-development').querySelector('[title="test-driven-development"]')!
+    expect(name.children).toHaveLength(0)
+    expect(name.textContent).toBe('test-driven-development')
+    expect(name).toHaveClass('truncate', 'whitespace-nowrap', 'min-w-0', 'flex-1')
   })
 
   it('点阵淡：颜色取 --border、间距 18', () => {
@@ -295,13 +295,19 @@ describe('SkillFlow · 画布尺寸与取景', () => {
   it('尺寸变化：ResizeObserver 节流后按 1:1 重新取景；减少动态效果时 duration 为 0', () => {
     vi.useFakeTimers()
     stubMatchMedia(true)
-    const callbacks: Array<() => void> = []
-    vi.stubGlobal('ResizeObserver', class { constructor(callback: () => void) { callbacks.push(callback) } observe(): void {} disconnect(): void {} })
+    // 节点名称（FitName）也各有一个观察者：只取观察画布容器的那个。
+    const observed: Array<{ readonly callback: () => void; readonly element: Element }> = []
+    vi.stubGlobal('ResizeObserver', class {
+      private readonly callback: () => void
+      constructor(callback: () => void) { this.callback = callback }
+      observe(element: Element): void { observed.push({ callback: this.callback, element }) }
+      disconnect(): void {}
+    })
     const setViewport = vi.spyOn(useReactFlow(), 'setViewport')
     render(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
     act(() => { vi.advanceTimersByTime(100) })
     setViewport.mockClear()
-    const resize = callbacks[callbacks.length - 1]!
+    const resize = observed.find((item) => item.element.getAttribute('data-testid') === 'skill-flow')!.callback
     act(() => { resize() })
     act(() => { vi.advanceTimersByTime(RESIZE_THROTTLE_MS) })
     expect(setViewport).not.toHaveBeenCalled()
