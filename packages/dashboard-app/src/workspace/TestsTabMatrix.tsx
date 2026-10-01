@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useT } from '../i18n'
+import { useBuiltinLabels } from '../i18n/builtinLabels'
 import { StatusPill } from '../shell/ThreeColumns'
 import { Hint } from '../workflow/Hint'
 import { FixCommand } from '../tests/FixCommand'
@@ -9,12 +10,17 @@ import { SuiteStateMark } from '../tests/TestState'
 import { TestSection } from '../tests/TestSection'
 import { blockerLabel } from '../tests/testLabels'
 import { dataMessage } from '../tests/testText'
-import { TABLE_HEAD, gridRow } from '../tests/testStyles'
+import { SUBGRID_ROW, TABLE_HEAD, contentTable } from '../tests/testStyles'
 import { LIST_SELECTED } from '../shared/uiRecipes'
 import { cn } from '@/lib/utils'
 import type { MatrixRow, MatrixSuite } from './testsTabModel'
 
-const COLUMNS = 'grid-cols-[minmax(0,1fr)_5rem_minmax(0,1.6fr)_6rem_minmax(0,2.4fr)]'
+/**
+ * 种类 · 要求 · 已登记 · 结果 · 缺项。种类（图标 + 内置种类名）、要求、结果（圆点 + 词）、缺项（短标签 + 展开箭头）
+ * 都是固定词，各按最长的格子定宽（中英文各取各的，不会被截成「Integr…」）；已登记是可变长内容，
+ * 是唯一吃剩余宽度的列，先让位、截断（完整内容在 title）。
+ */
+const COLUMNS = 'grid-cols-[auto_auto_minmax(0,1fr)_auto_auto]'
 /** 说明浮层不换行，原因再长也不撑出视口：超过这个长度截断（原文留在目录文件里）。 */
 const MAX_REASON_CHARS = 160
 
@@ -44,11 +50,14 @@ function SuiteCell({ row, openable, activeSuite, onOpen }: {
   onOpen: (suite: string) => void
 }): JSX.Element {
   const { t } = useT()
+  const builtin = useBuiltinLabels()
   const waiver = row.waiver
   const notApplicable = row.notApplicable
+  // 套件名：出厂测试项（id 与方向同名）没被改过的名字按界面语言显示，其余原样。
+  const suites = row.suites.map((suite) => ({ ...suite, name: builtin.direction(suite.suite.replace(/^step:/u, ''), suite.name) }))
   return (
     <span className="flex min-w-0 flex-nowrap items-center gap-3 overflow-hidden" role="cell" data-testid={`tests-registered-${row.kind}`}>
-      {row.suites.map((suite) => (openable(suite)
+      {suites.map((suite) => (openable(suite)
         ? (
           <button
             key={suite.suite}
@@ -70,7 +79,7 @@ function SuiteCell({ row, openable, activeSuite, onOpen }: {
           <StatusPill tone={waiver.approved ? 'done' : 'pending'}>{t(`tests.task.waiver.${waiver.approved ? 'approved' : 'pending'}`)}</StatusPill>
         </span>
       )}
-      {row.suites.length === 0 && waiver === null && notApplicable === null && <span className="text-text-3">—</span>}
+      {suites.length === 0 && waiver === null && notApplicable === null && <span className="text-text-3">—</span>}
     </span>
   )
 }
@@ -90,8 +99,8 @@ function MatrixRowView({ row, openable, activeSuite, onOpen }: {
   const fix = row.blocker?.fix
   const Chevron = open ? ChevronDown : ChevronRight
   return (
-    <div className="border-b border-border last:border-0" role="rowgroup" data-testid={`tests-group-${row.kind}`}>
-      <div className={`${gridRow(COLUMNS)} min-h-10 px-1 py-1 text-body`} role="row" data-testid={`tests-kind-${row.kind}`} data-met={row.met}>
+    <div className="col-span-full grid grid-cols-subgrid border-b border-border last:border-0" role="rowgroup" data-testid={`tests-group-${row.kind}`}>
+      <div className={`${SUBGRID_ROW} min-h-10 px-1 py-1 text-body`} role="row" data-testid={`tests-kind-${row.kind}`} data-met={row.met}>
         <span className="flex min-w-0 items-center text-text" role="cell">
           <KindLabel kind={row.kind} testId={`tests-kind-label-${row.kind}`} />
         </span>
@@ -130,7 +139,7 @@ function MatrixRowView({ row, openable, activeSuite, onOpen }: {
         </span>
       </div>
       {fix !== undefined && open && (
-        <div className="min-w-0 px-1 pb-2" role="row" data-testid={`tests-fix-row-${row.kind}`}>
+        <div className="col-span-full min-w-0 px-1 pb-2" role="row" data-testid={`tests-fix-row-${row.kind}`}>
           <span className="block min-w-0 rounded-sm bg-(--code-bg) pl-3" role="cell">
             <FixCommand command={fix} testId={`tests-fix-${row.kind}`} />
           </span>
@@ -151,8 +160,8 @@ export function TestsTabMatrix({ rows, openable, activeSuite, onOpen }: {
   if (rows.length === 0) return null
   return (
     <TestSection title={t('tests.task.section.matrix')} count={rows.length} testId="tests-matrix">
-      <div role="table" aria-label={t('tests.task.section.matrix')}>
-        <div className={`${gridRow(COLUMNS)} ${TABLE_HEAD}`} role="row" data-testid="tests-matrix-head">
+      <div role="table" className={contentTable(COLUMNS)} aria-label={t('tests.task.section.matrix')}>
+        <div className={`${SUBGRID_ROW} ${TABLE_HEAD}`} role="row" data-testid="tests-matrix-head">
           <span role="columnheader">{t('tests.word.kind')}</span>
           <span role="columnheader">{t('tests.task.matrix.requirement')}</span>
           <span role="columnheader">{t('tests.task.matrix.registered')}</span>

@@ -132,7 +132,7 @@ function sendJson(res: ServerResponse, code: number, obj: unknown): void {
 }
 
 // HTML never gets embedded (clickjacking on the review-confirm button) and never leaks its URL.
-function sendHtml(res: ServerResponse, code: number, html: string): void {
+function sendHtml(res: ServerResponse, code: number, html: string, headers: Readonly<Record<string, string>> = {}): void {
   const body = Buffer.from(html, 'utf8')
   res.writeHead(code, {
     'Content-Type': 'text/html; charset=utf-8',
@@ -142,6 +142,7 @@ function sendHtml(res: ServerResponse, code: number, html: string): void {
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'no-referrer',
     'X-Content-Type-Options': 'nosniff',
+    ...headers,
   })
   res.end(body)
 }

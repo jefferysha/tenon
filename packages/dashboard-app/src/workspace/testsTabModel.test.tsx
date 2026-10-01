@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildMatrix, extraItems, fileRows, summarize, tabCount, traceNeedsMapping } from './testsTabModel'
+import { buildMatrix, extraBlockers, fileRows, reportNotices, summarize, tabCount, traceNeedsMapping } from './testsTabModel'
 import { planBrief, totals, verdict, verifyReport } from '../api/testSystemFixtures'
 import type { PolicyReport, TestPlanBrief } from '../api/testSystemTypes'
 
@@ -162,21 +162,42 @@ describe('buildMatrix', () => {
   })
 })
 
-describe('extraItems / fileRows / traceNeedsMapping', () => {
-  it('阻塞表：没被矩阵行用上、也不属于文件表的阻塞，加上全部提示', () => {
+describe('extraBlockers / reportNotices / fileRows / traceNeedsMapping', () => {
+  it('阻塞表：只有没被矩阵行用上、也不属于文件表的真阻塞；提示一条都不混进来', () => {
     const current = verifyReport()
     const rows = buildMatrix(current, planBrief())
-    const extra = extraItems(current, rows)
+    const extra = extraBlockers(current, rows)
     expect(rows.find((row) => row.kind === 'benchmark')?.blocker?.code).toBe('benchmark-regression')
-    expect(extra.filter((entry) => entry.type === 'blocker').map((entry) => entry.item.code)).toEqual(['flaky-over-limit'])
-    expect(extra.some((entry) => entry.item.code === 'test-file-unregistered')).toBe(false)
-    expect(extra.some((entry) => entry.item.code === 'test-stale')).toBe(false)
-    expect(extra.find((entry) => entry.type === 'notice')?.item.code).toBe('known-failure-fixed')
+    expect(extra.map((item) => item.code)).toEqual(['flaky-over-limit'])
+    expect(extra.every((item) => item.blocking)).toBe(true)
+    expect(extra.some((item) => item.code === 'test-file-unregistered')).toBe(false)
+    expect(extra.some((item) => item.code === 'test-stale')).toBe(false)
+    expect(extra.some((item) => item.code === 'known-failure-fixed')).toBe(false)
   })
 
   it('非阻塞的阻塞（只提示）不进阻塞表', () => {
     const current = report({ blockers: [{ code: 'baseline-missing', blocking: false, message: 'm', subject: 'api-bench' }], notices: [] })
-    expect(extraItems(current, [])).toEqual([])
+    expect(extraBlockers(current, [])).toEqual([])
+  })
+
+  it('完整性提示（策略缺省 notice）不阻塞：阻塞表和阻塞数里都没有它，提示段也不重复列', () => {
+    const integrity = { code: 'test-integrity' as const, message: '测试完整性提示：覆盖率门槛降低 1', fix: 'tenon test integrity add-login' }
+    const current = report({ blockers: [], notices: [integrity] })
+    expect(extraBlockers(current, buildMatrix(current, planBrief()))).toEqual([])
+    expect(reportNotices(current)).toEqual([])
+  })
+
+  it('完整性 block 模式下它是真阻塞：照常进阻塞表', () => {
+    const blocker = { code: 'test-integrity' as const, blocking: true, message: '测试完整性未通过：覆盖率门槛降低 1', fix: 'tenon test integrity add-login' }
+    const current = report({ blockers: [blocker], notices: [] })
+    expect(extraBlockers(current, [])).toEqual([blocker])
+  })
+
+  it('提示段：其余提示照旧列出（已修好的已知失败等），完整性汇总提示除外', () => {
+    const current = verifyReport()
+    const integrity = { code: 'test-integrity' as const, message: 'm', fix: 'tenon test integrity add-login' }
+    const notices = reportNotices({ ...current, notices: [...current.notices, integrity] })
+    expect(notices.map((item) => item.code)).toEqual(['known-failure-fixed'])
   })
 
   it('未登记文件在前，孤儿在后；各带对应阻塞的修复命令', () => {

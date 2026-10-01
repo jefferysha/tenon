@@ -160,6 +160,16 @@ describe('快照里的策略判定', () => {
     expect(decodePolicyReports([mutate(verifyReport(), (d) => { (d.policy as Record<string, unknown>).integrity = 'off' })])).toBeNull()
   })
 
+  it('解码不把提示并进阻塞：完整性提示留在 notices，blockers 的 blocking 标志原样保留', () => {
+    const wire = mutate(verifyReport(), (d) => {
+      d.blockers = [{ code: 'baseline-missing', blocking: false, message: 'm', subject: 'api-bench' }]
+      d.notices = [{ code: 'test-integrity', message: '测试完整性提示：覆盖率门槛降低 1', fix: 'tenon test integrity add-login' }]
+    })
+    const decoded = decodePolicyReports([wire])?.[0]
+    expect(decoded?.notices.map((item) => item.code)).toEqual(['test-integrity'])
+    expect(decoded?.blockers.map((item) => [item.code, item.blocking])).toEqual([['baseline-missing', false]])
+  })
+
   it('没有策略（只有旧步骤测试）时 policy 为 null', () => {
     const decoded = decodePolicyReports([mutate(verifyReport(), (d) => { d.policy = null })])
     expect(decoded?.[0]?.policy).toBeNull()

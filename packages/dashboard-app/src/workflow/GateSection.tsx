@@ -49,7 +49,7 @@ export function GateSection({ editor, step, hasOutputs }: { editor: WorkflowEdit
         <div className="grid gap-2" data-testid="stage-back">
           {backTargets.length > 0 && (
             <div className="flex items-center gap-3">
-              <span className="w-14 flex-none whitespace-nowrap text-body text-text-2">{t('workflow.back_title')}</span>
+              <span className="flex-none whitespace-nowrap text-body text-text-2">{t('workflow.back_title')}</span>
               <Select value={backTarget ?? BACK_NONE} disabled={!editable} onValueChange={(value) => editor.setStageBack(step.id, value === BACK_NONE ? null : value)}>
                 <SelectTrigger className="max-w-[24rem]" aria-label={t('workflow.back_title')} data-testid={`wb-lane-back-${step.id}`}>
                   <SelectValue />

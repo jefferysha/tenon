@@ -1,5 +1,6 @@
 import { kindForDirection } from '@tenon/kernel/test-system/vocabulary'
 import { useT } from '../i18n'
+import { useBuiltinLabels } from '../i18n/builtinLabels'
 import type { TestTemplate } from '../api/testTemplatesClient'
 import { formatApiError } from '../api/transport'
 import { CommandLine } from '../shared/CommandLine'
@@ -105,6 +106,9 @@ function Definition({ template }: { template: TestTemplate }): JSX.Element {
 /** 库页的测试模板：中列列表（只显示名称，标识在悬停提示里）/ 右列结构化只读字段 + 可复制的 catalog add 命令。 */
 export function TestTemplatesPane({ slot, library }: { slot: 'list' | 'detail'; library: TestTemplateLibrary }): JSX.Element | null {
   const { t } = useT()
+  const builtin = useBuiltinLabels()
+  /** 内置方向没被改过的名字按界面语言显示；自定义模板的名字原样。 */
+  const nameOf = (template: TestTemplate): string => (template.source === 'custom' ? template.label : builtin.direction(template.id, template.label))
   if (slot === 'list') {
     if (library.loading) return <ListSkeleton testId="lib-tt-loading" />
     if (library.error !== null) {
@@ -127,7 +131,7 @@ export function TestTemplatesPane({ slot, library }: { slot: 'list' | 'detail'; 
               data-testid={`lib-tt-${template.id}`}
               onClick={() => library.select(template.id)}
             >
-              <span className={LIST_ROW_NAME}>{template.label}</span>
+              <span className={LIST_ROW_NAME}>{nameOf(template)}</span>
               {template.source === 'custom' ? <CustomMark quiet testId={`lib-tt-mark-${template.id}`} /> : <span />}
             </button>
           </li>
@@ -139,7 +143,7 @@ export function TestTemplatesPane({ slot, library }: { slot: 'list' | 'detail'; 
   if (selected === null) return null
   return (
     <div className="grid gap-5" data-testid="lib-tt-detail">
-      <DetailTitle testId="lib-tt" title={selected.label} hint={selected.id} custom={selected.source === 'custom'} actions={null} />
+      <DetailTitle testId="lib-tt" title={nameOf(selected)} hint={selected.id} custom={selected.source === 'custom'} actions={null} />
       <CommandLine command={addCommand(selected.id)} testId="lib-tt-add" truncate />
       <Definition template={selected} />
     </div>

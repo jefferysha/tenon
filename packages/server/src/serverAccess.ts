@@ -11,7 +11,10 @@
  * web page) never reaches a handler and never receives the write token embedded in `GET /`.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { SIGN_IN_CSP, signInPage, type SignInReason } from './serverSignIn.js'
 import type { PresenceBinding, SessionAuthority, SessionInfo } from './serverSession.js'
+
+export { signInPage } from './serverSignIn.js'
 
 /** Port the review-confirmation routes use to demand proof that a person is present. */
 export interface PresencePort {
@@ -24,7 +27,8 @@ export interface AccessControlDeps {
   readonly boundPort: () => number
   readonly isLocalHost: (host: string | undefined, port: number) => boolean
   readonly sendJson: (res: ServerResponse, code: number, body: unknown) => void
-  readonly sendHtml: (res: ServerResponse, code: number, html: string) => void
+  /** `headers` 覆盖默认响应头（登录页用它换成自己的严格 CSP）。 */
+  readonly sendHtml: (res: ServerResponse, code: number, html: string, headers?: Readonly<Record<string, string>>) => void
   /** Delivers a one-time login URL to the user's browser; the URL never leaves this process otherwise. */
   readonly openBrowser: (url: string) => Promise<boolean>
   readonly now?: () => number
@@ -67,30 +71,12 @@ function hasBrowserMetadata(req: IncomingMessage): boolean {
   return req.headers.origin !== undefined || Object.keys(req.headers).some((name) => name.startsWith('sec-fetch-'))
 }
 
-const PAGE_STYLE = 'body{font:15px/1.6 system-ui,sans-serif;max-width:34rem;margin:12vh auto;padding:0 1.25rem;'
-  + 'color:#1f2328;background:#fff}code{background:#0000000f;padding:.15em .4em;border-radius:4px}'
-  + 'a{color:#0a58ca}@media(prefers-color-scheme:dark){body{color:#e6e8eb;background:#12151a}'
-  + 'code{background:#ffffff1f}a{color:#79b8ff}}'
-
-/** Static sign-in prompt: no script, no token, safe to hand to any caller. */
-export function signInPage(reason: 'required' | 'invalid'): string {
-  const zh = reason === 'required'
-    ? '<h1>需要登录</h1><p>Dashboard 不向未登录的请求提供任何数据。请在终端运行：</p>'
-    : '<h1>登录链接无效或已过期</h1><p>一次性登录链接只能用一次，且 2 分钟内有效。请在终端重新运行：</p>'
-  const en = reason === 'required'
-    ? 'The Dashboard serves nothing to unauthenticated requests. Run <code>tenon dashboard --open</code> in a terminal;'
-    : 'A one-time sign-in link works once and expires after 2 minutes. Run <code>tenon dashboard --open</code> again;'
-  return `<!doctype html><html lang="zh"><head><meta charset="utf-8">`
-    + `<meta name="viewport" content="width=device-width,initial-scale=1"><title>Tenon Dashboard</title>`
-    + `<style>${PAGE_STYLE}</style></head><body data-testid="sign-in-required">${zh}`
-    + `<p><code>tenon dashboard --open</code></p>`
-    + `<p>浏览器会自动打开并登录。已经登录过？<a href="/">点此进入 Dashboard</a>。</p>`
-    + `<p lang="en">${en} your browser opens signed in. Already signed in? <a href="/">Continue</a>.</p>`
-    + `</body></html>`
-}
-
 export function createAccessControl(deps: AccessControlDeps): AccessControl {
   const { authority, sendJson, sendHtml } = deps
+  /** 登录页 / 链接无效页：语言按请求的 Accept-Language 选，所以响应随它变化（Vary）。 */
+  function sendSignIn(req: IncomingMessage, res: ServerResponse, code: number, reason: SignInReason): void {
+    sendHtml(res, code, signInPage(reason, headerValue(req, 'accept-language')), { 'Content-Security-Policy': SIGN_IN_CSP, Vary: 'Accept-Language' })
+  }
   const now = deps.now ?? Date.now
   const sessions = new WeakMap<IncomingMessage, SessionInfo>()
   const opens: number[] = []
@@ -117,13 +103,13 @@ export function createAccessControl(deps: AccessControlDeps): AccessControl {
     }
     const site = headerValue(req, 'sec-fetch-site')
     if (site !== undefined && site !== 'none' && site !== 'same-origin') {
-      sendHtml(res, 403, signInPage('invalid'))
+      sendSignIn(req, res, 403, 'invalid')
       return true
     }
     const code = new URL(req.url ?? '/', 'http://localhost').searchParams.get('code') ?? ''
     const secret = authority.exchange(code)
     if (secret === null) {
-      sendHtml(res, 403, signInPage('invalid'))
+      sendSignIn(req, res, 403, 'invalid')
       return true
     }
     res.writeHead(303, {
@@ -212,7 +198,7 @@ export function createAccessControl(deps: AccessControlDeps): AccessControl {
       if (!ROUTED_METHODS.has(method)) return false
       const session = authority.resolve(cookieValue(req.headers.cookie, sessionCookieName(port)))
       if (session === null) {
-        if (method === 'GET' && (path === '/' || path === '/index.html')) sendHtml(res, 401, signInPage('required'))
+        if (method === 'GET' && (path === '/' || path === '/index.html')) sendSignIn(req, res, 401, 'required')
         else sendJson(res, 401, { ok: false, code: 'session-required', error: '需要登录：请在终端运行 tenon dashboard --open' })
         return true
       }

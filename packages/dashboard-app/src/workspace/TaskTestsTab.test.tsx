@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { I18nProvider } from '../i18n'
 import { TaskTestsTab } from './TaskTestsTab'
-import { planBrief, verdict, verifyReport } from '../api/testSystemFixtures'
+import { planBrief, totals, verdict, verifyReport } from '../api/testSystemFixtures'
 import type { PolicyReport, TestPlanBrief } from '../api/testSystemTypes'
 import type { TestRow } from './stageTests'
 
@@ -330,16 +330,53 @@ describe('TaskTestsTab · 策略矩阵', () => {
 })
 
 describe('TaskTestsTab · 阻塞与追溯', () => {
-  it('阻塞表只列矩阵和文件表没用上的阻塞，提示是中性的；对象与命令各一格', () => {
+  it('阻塞表只列矩阵和文件表没用上的真阻塞；提示另成一段，中性、分开计数；对象与命令各一格', () => {
     mount()
-    const rows = within(screen.getByTestId('tests-blockers')).getAllByTestId('tests-blocker')
-    expect(rows.map((row) => [row.getAttribute('data-type'), within(row).getByTestId('tests-blocker-code').textContent])).toEqual([
-      ['blocker', '不稳定超限'], ['notice', '已修好'],
-    ])
-    expect(within(rows[1] as HTMLElement).getByTestId('tests-blocker-code').className).not.toContain('text-red-d')
+    const blockers = screen.getByTestId('tests-blockers')
+    const rows = within(blockers).getAllByTestId('tests-blocker')
+    expect(rows.map((row) => within(row).getByTestId('tests-blocker-code').textContent)).toEqual(['不稳定超限'])
     expect(within(rows[0] as HTMLElement).getByTestId('tests-blocker-code').className).toContain('text-red-d')
-    expect(within(rows[1] as HTMLElement).getAllByRole('cell')[1]?.textContent).toBe('src/a.test.ts › 旧用例')
-    expect(within(rows[1] as HTMLElement).getByTestId('tests-blocker-fix-1-text').textContent).toContain('tenon test known rm')
+    expect(blockers.querySelector('h3')?.nextElementSibling?.textContent).toBe('1')
+
+    const notices = screen.getByTestId('tests-notices')
+    const noticeRows = within(notices).getAllByTestId('tests-notice')
+    expect(noticeRows.map((row) => within(row).getByTestId('tests-notice-code').textContent)).toEqual(['已修好'])
+    expect(within(noticeRows[0] as HTMLElement).getByTestId('tests-notice-code').className).not.toContain('text-red-d')
+    expect(within(noticeRows[0] as HTMLElement).getAllByRole('cell')[1]?.textContent).toBe('src/a.test.ts › 旧用例')
+    expect(within(noticeRows[0] as HTMLElement).getByTestId('tests-notice-fix-0-text').textContent).toContain('tenon test known rm')
+    expect(notices.querySelector('h3')?.nextElementSibling?.textContent).toBe('1')
+    expect(within(blockers).queryByText('已修好')).toBeNull()
+  })
+
+  it('完整性提示（策略缺省 notice）只在完整性段：不在阻塞表、不算进阻塞数，也没有第二处重复', () => {
+    const base = verifyReport()
+    const integrity = { code: 'test-integrity' as const, message: '测试完整性提示：覆盖率门槛降低 1', fix: 'tenon test integrity add-login' }
+    const report: PolicyReport = {
+      ...base,
+      blockers: base.blockers.filter((item) => item.code !== 'flaky-over-limit'),
+      notices: [integrity],
+      integrity: { mode: 'notice', state: 'ok', signals: [{ code: 'coverage-threshold-lowered', subject: '.nycrc.json', detail: 'lines 80 → 60' }] },
+    }
+    mount(report)
+    expect(screen.getByTestId('tests-integrity')).toBeVisible()
+    expect(screen.queryByTestId('tests-blockers')).toBeNull()
+    expect(screen.queryByTestId('tests-notices')).toBeNull()
+    expect(screen.queryByText('完整性提示')).toBeNull()
+    expect(screen.queryByText('tenon test integrity add-login')).toBeNull()
+  })
+
+  it('完整性 block：汇总是真阻塞，进阻塞表并计入阻塞数', () => {
+    const base = verifyReport()
+    const blocker = { code: 'test-integrity' as const, blocking: true, message: '测试完整性未通过：覆盖率门槛降低 1', fix: 'tenon test integrity add-login' }
+    mount({
+      ...base,
+      blockers: [blocker],
+      notices: [],
+      integrity: { mode: 'block', state: 'ok', signals: [{ code: 'coverage-threshold-lowered', subject: '.nycrc.json', detail: 'lines 80 → 60' }] },
+    })
+    const blockers = screen.getByTestId('tests-blockers')
+    expect(within(blockers).getAllByTestId('tests-blocker-code').map((cell) => cell.textContent)).toEqual(['完整性未通过'])
+    expect(blockers.querySelector('h3')?.nextElementSibling?.textContent).toBe('1')
   })
 
   it('追溯表：场景/任务 · 用例（最多两个，其余 +N）· 结果', () => {
@@ -422,8 +459,25 @@ describe('TaskTestsTab · 阻塞与追溯', () => {
     mount()
     expect(screen.getByTestId('tests-blocker-label-playwright').textContent).toBe('Stale')
     expect(screen.getByTestId('tests-blocker-label-a11y').textContent).toBe('Kind missing')
-    expect(screen.getByTestId('tests-summary')).toHaveAttribute('aria-label', 'Suite 3 · Case 120 · Fail 0 · Flaky 2 · Coverage 91.2%')
-    expect(screen.getByTestId('tests-stat-fail').textContent).toBe('0Fail')
+    expect(screen.getByTestId('tests-summary')).toHaveAttribute('aria-label', 'Suites 3 · Cases 120 · Failed 0 · Flaky 2 · Coverage 91.2%')
+    expect(screen.getByTestId('tests-stat-fail').textContent).toBe('0Failed')
+  })
+
+  it('英文汇总的计数词按数量取单 / 复数：0 与多个是复数，1 是单数；Failed / Flaky 不变；中文不分', () => {
+    window.localStorage.setItem('tenon-dashboard-lang', 'en')
+    const one: PolicyReport = {
+      ...verifyReport(),
+      suites: [verdict({ suite: 'only', totals: totals({ cases: 1, pass: 1, flaky: 1 }) })],
+    }
+    mount(one)
+    expect(['suite', 'case', 'fail', 'flaky'].map((id) => screen.getByTestId(`tests-stat-${id}`).textContent)).toEqual(['1Suite', '1Case', '0Failed', '1Flaky'])
+    reset()
+    mount({ ...verifyReport(), suites: [] })
+    expect(['suite', 'case', 'fail', 'flaky'].map((id) => screen.getByTestId(`tests-stat-${id}`).textContent)).toEqual(['0Suites', '0Cases', '0Failed', '0Flaky'])
+    reset()
+    window.localStorage.setItem('tenon-dashboard-lang', 'zh')
+    mount(one)
+    expect(['suite', 'case', 'fail', 'flaky'].map((id) => screen.getByTestId(`tests-stat-${id}`).textContent)).toEqual(['1套件', '1用例', '0失败', '1不稳定'])
   })
 
   it('可选任务合并成一行「N 可选」：计数随数量，默认收起，可展开再收起；表头计数仍是全部条目', async () => {
@@ -454,5 +508,27 @@ describe('TaskTestsTab · 阻塞与追溯', () => {
     mount({ ...base, trace: [row('a-pass', 'passing'), row('b-mapped', 'mapped'), row('c-fail', 'failing'), row('d-uncovered', 'uncovered'), row('e-fail', 'failing')] })
     expect(within(screen.getByTestId('tests-trace')).getAllByTestId('tests-trace-title').map((cell) => cell.textContent))
       .toEqual(['c-fail', 'e-fail', 'd-uncovered', 'b-mapped', 'a-pass'])
+  })
+})
+
+describe('TaskTestsTab · 内置测试方向的名字按界面语言显示', () => {
+  const inline = (suite: string, kind: string, label: string) => verdict({ suite: `step:${suite}`, origin: 'step', kind, reason: 'inline', label, state: 'passed' })
+  const reportWith = (): PolicyReport => ({
+    ...verifyReport(),
+    blockers: [],
+    suites: [inline('code-size', 'code-size', '代码规模'), inline('diff-risk', 'diff-risk', '风险（自改）')],
+  })
+
+  it('英文：出厂名（代码规模）显示 Code size，改过的名字原样；中文界面不变', () => {
+    window.localStorage.setItem('tenon-dashboard-lang', 'en')
+    mount(reportWith(), { plan: { state: 'ok', suites: [], waivers: [], files: 0, cases: 0 } })
+    expect(screen.getByTestId('tests-suite-step:code-size').textContent).toBe('Code size')
+    expect(screen.getByTestId('tests-suite-step:diff-risk').textContent).toBe('风险（自改）')
+    // 标识（title）不翻译。
+    expect(screen.getByTestId('tests-suite-step:code-size')).toHaveAttribute('title', 'step:code-size')
+    reset()
+    window.localStorage.setItem('tenon-dashboard-lang', 'zh')
+    mount(reportWith(), { plan: { state: 'ok', suites: [], waivers: [], files: 0, cases: 0 } })
+    expect(screen.getByTestId('tests-suite-step:code-size').textContent).toBe('代码规模')
   })
 })

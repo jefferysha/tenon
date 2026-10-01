@@ -224,3 +224,27 @@ describe('库 · 测试模板 · 状态', () => {
     await waitFor(() => expect(calls.filter((url) => url === '/api/test-directions').length).toBe(before + 1))
   })
 })
+
+describe('库 · 测试模板 · 内置名字按界面语言显示', () => {
+  afterEach(() => window.localStorage.clear())
+
+  it('英文：出厂名没被改过的内置模板显示英文（列表与右列标题）；自定义模板与改过名的内置模板原样', async () => {
+    window.localStorage.setItem('tenon-dashboard-lang', 'en')
+    stub([UNIT, { ...BENCHMARK, label: '性能（自改）' }, CUSTOM, { id: 'regression', label: '回归', source: 'custom', yaml: '...', definition: { id: 'regression', label: '回归', command: 'npm test' } }])
+    await open()
+    await screen.findByTestId('lib-tt-unit')
+    expect(screen.getByTestId('lib-tt-unit').textContent).toBe('Unit')
+    expect(screen.getByTestId('lib-tt-benchmark').textContent).toBe('性能（自改）')
+    expect(screen.getByTestId('lib-tt-my tpl').textContent).toContain('我的')
+    // 自定义的同 id 模板是用户的东西，不翻译。
+    expect(screen.getByTestId('lib-tt-regression').textContent).toContain('回归')
+    await waitFor(() => expect(screen.getByTestId('lib-tt-title')).toHaveTextContent(/^Unit$/u))
+  })
+
+  it('中文：不变', async () => {
+    stub()
+    await open()
+    await screen.findByTestId('lib-tt-unit')
+    expect(screen.getByTestId('lib-tt-unit').textContent).toBe('单测')
+  })
+})

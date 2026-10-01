@@ -5,6 +5,7 @@ import type { WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
 import { formatApiError, getToken } from '../api/transport'
 import { fetchWorkflowYaml } from '../api/workflowYamlClient'
 import { useT } from '../i18n'
+import { useBuiltinLabels } from '../i18n/builtinLabels'
 import { invalidateWorkflowRules } from '../model/workflowModel'
 import { draftEffectiveIo, lintWorkflow } from '../workflow/lint'
 import { fetchAgents, type AgentSummary } from '../api/agentClient'
@@ -37,6 +38,7 @@ export type { CreateState, SaveStatus, WorkflowDeleteError, WorkflowEditor, Work
  */
 export function useWorkflowEditor({ root, onDirtyChange, initial, onDeleted }: WorkflowEditorInput): WorkflowEditor {
   const { t, lang } = useT()
+  const builtin = useBuiltinLabels()
   const [names, setNames] = useState<string[] | null>(null)
   const [defaultSource, setDefaultSource] = useState<WbWorkflowSource>('builtin')
   const [namesError, setNamesError] = useState<unknown | null>(null)
@@ -231,17 +233,20 @@ export function useWorkflowEditor({ root, onDirtyChange, initial, onDeleted }: W
       return lintWorkflow(view, draftEffectiveIo(view), agentNames).some((issue) => issue.severity === 'error')
     })
   }, [fullDef, agentNames])
-  // 名称只显示一个：YAML 有 label 用 label，没有就用 id；前端不做翻译。
+  // 名称只显示一个：YAML 有 label 用 label，没有就用 id。内置工作流里没被改过的出厂名按界面语言显示（i18n builtin.*），其余原样。
   const labelOf = useCallback((stepId: string): string => {
     const step = def?.steps.find((candidate) => candidate.id === stepId)
-    return step?.label || stepId
-  }, [def])
+    return builtin.step(wfName, stepId, step?.label || stepId)
+  }, [def, wfName, builtin])
 
   const mutate = useCallback((update: (previous: WbWorkflowDef) => WbWorkflowDef): void => {
     setBranchDef((previous) => previous === null ? previous : update(previous))
   }, [setBranchDef])
   const mutations = useStageMutations({ mutate, setFullDef: setDefState, def, stageId, setStageId, branch: effectiveBranch })
-  const branches = useMemo(() => branchesOf(fullDef), [fullDef])
+  const branches = useMemo(
+    () => branchesOf(fullDef).map((candidate) => (candidate.label === null ? candidate : { ...candidate, label: builtin.track(wfName, candidate.id, candidate.label) })),
+    [fullDef, wfName, builtin],
+  )
   const setBranch = useCallback((next: string): void => {
     setBranchState(next)
     setStageId(null)

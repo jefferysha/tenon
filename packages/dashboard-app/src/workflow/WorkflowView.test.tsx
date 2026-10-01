@@ -310,3 +310,69 @@ describe('WorkflowView · 总览', () => {
     expect(screen.getByTestId('orch-frame-b3')).toBeInTheDocument()
   })
 })
+
+describe('WorkflowView · 内置工作流的出厂名按界面语言显示', () => {
+  // 出厂 default：两条轨道里的阶段 id 相同；chat 轨道的 build 被用户改成「开发」，chat 轨道名被改成「聊天」。
+  const BUILTIN: WbWorkflowDef = {
+    name: 'default',
+    steps: [],
+    tracks: {
+      chat: { label: '聊天', steps: [stage('open', '立项', 'build'), stage('build', '开发', null)] },
+      backend: { label: '后端', steps: [stage('open', '立项', 'build'), stage('build', '实现', null)] },
+    },
+  }
+  // 自建工作流恰好用了出厂中文名：id 不是内置的，不翻译。
+  const MINE: WbWorkflowDef = { name: 'mine', steps: [], tracks: { backend: { label: '后端', steps: [stage('open', '立项', null)] } } }
+
+  function stubBuiltin(): void {
+    stubApi((url) => {
+      if (url === '/api/workflows/default?root=') return new Response(JSON.stringify({ ...BUILTIN, source: 'builtin' }), { status: 200 })
+      if (url === '/api/workflows/mine?root=') return new Response(JSON.stringify(MINE), { status: 200 })
+      if (url === '/api/workflows?root=') return new Response(JSON.stringify({ names: ['mine'], default: { source: 'builtin' } }), { status: 200 })
+      return undefined
+    })
+  }
+
+  afterEach(() => window.localStorage.clear())
+
+  it('英文：阶段名与轨道页签显示英文；改过的名字原样；阶段标题（编辑框）显示同一个名字，没改就不写回', async () => {
+    window.localStorage.setItem('tenon-dashboard-lang', 'en')
+    stubBuiltin()
+    window.history.replaceState(null, '', '/?view=workbench&wf=default&track=backend&step=build')
+    render(<I18nProvider><TooltipProvider><WorkflowView root="" /></TooltipProvider></I18nProvider>)
+    expect(await screen.findByTestId('wb-step-open')).toHaveTextContent('Open')
+    expect(screen.getByTestId('wb-step-build')).toHaveTextContent('Build')
+    expect(screen.getByTestId('wb-track-backend')).toHaveTextContent('Backend')
+    expect(screen.getByTestId('wb-track-chat')).toHaveTextContent('聊天')
+    // 阶段标题的编辑框显示同一个名字（仍是出厂名时显示英文）；没有编辑就没有未保存的改动。
+    expect(await screen.findByDisplayValue('Build')).toBeInTheDocument()
+    expect(screen.queryByTestId('wb-dirty')).toBeNull()
+    await userEvent.setup().click(screen.getByTestId('wb-track-chat'))
+    expect(await screen.findByTestId('wb-step-build')).toHaveTextContent('开发')
+    expect(screen.getByTestId('wb-step-open')).toHaveTextContent('Open')
+  })
+
+  it('中文：出厂名与存储值相同，什么都不变', async () => {
+    stubBuiltin()
+    window.history.replaceState(null, '', '/?view=workbench&wf=default&track=backend&step=build')
+    render(<I18nProvider><TooltipProvider><WorkflowView root="" /></TooltipProvider></I18nProvider>)
+    expect(await screen.findByTestId('wb-step-open')).toHaveTextContent('立项')
+    expect(screen.getByTestId('wb-step-build')).toHaveTextContent('实现')
+    expect(screen.getByTestId('wb-track-backend')).toHaveTextContent('后端')
+    expect(screen.getByTestId('wb-track-chat')).toHaveTextContent('聊天')
+  })
+
+  it('英文：总览画布的阶段列头同样显示英文；自建工作流用同样的中文名也不翻译', async () => {
+    window.localStorage.setItem('tenon-dashboard-lang', 'en')
+    stubBuiltin()
+    window.history.replaceState(null, '', '/?view=workbench&wf=default&track=backend&step=%3Aoverview')
+    const view = render(<I18nProvider><TooltipProvider><WorkflowView root="" /></TooltipProvider></I18nProvider>)
+    expect(await screen.findByTestId('orch-stage-open')).toHaveTextContent('Open')
+    expect(screen.getByTestId('orch-stage-build')).toHaveTextContent('Build')
+    view.unmount()
+    window.history.replaceState(null, '', '/?view=workbench&wf=mine&track=backend&step=%3Aoverview')
+    render(<I18nProvider><TooltipProvider><WorkflowView root="" /></TooltipProvider></I18nProvider>)
+    expect(await screen.findByTestId('orch-stage-open')).toHaveTextContent('立项')
+    expect(screen.getByTestId('wb-track-backend')).toHaveTextContent('后端')
+  })
+})

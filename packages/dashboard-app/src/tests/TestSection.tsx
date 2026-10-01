@@ -23,7 +23,7 @@ export function TestSection({ title, count, action, testId, children }: {
   )
 }
 
-/** 定义行：固定宽标签列 + 值列，值不换行（过长截断，全文放 title 由调用方给）。 */
+/** 定义行：固定宽标签列（默认 6.5rem，容器设 --def-label 可加宽）+ 值列，值不换行（过长截断，全文放 title 由调用方给）。 */
 export function DefRow({ label, testId, children, mono = true, danger = false }: {
   label: string
   testId: string
@@ -32,7 +32,7 @@ export function DefRow({ label, testId, children, mono = true, danger = false }:
   danger?: boolean
 }): JSX.Element {
   return (
-    <div className="grid min-h-9 grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-3 border-b border-border py-1 last:border-0" role="row" data-testid={testId}>
+    <div className="grid min-h-9 grid-cols-[var(--def-label,6.5rem)_minmax(0,1fr)] items-center gap-3 border-b border-border py-1 last:border-0" role="row" data-testid={testId}>
       <span className="whitespace-nowrap text-caption text-text-3" role="rowheader">{label}</span>
       <span className={cn('min-w-0 truncate whitespace-nowrap text-body', mono && 'font-mono', danger ? 'text-red-d' : 'text-text')} role="cell">{children}</span>
     </div>

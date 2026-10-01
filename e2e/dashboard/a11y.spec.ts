@@ -1,6 +1,6 @@
 /**
  * 无障碍：主要页面（工作台与它的测试页签 / 完整性段 / 智能体运行抽屉、工作流总览与阶段 / 测试策略 / 评审者编辑器、
- * 项目、库、技能、新建项目向导）在真实浏览器里跑 axe-core，
+ * 项目、库、技能、新建项目向导，以及服务端渲染的匿名登录页 / 登录链接无效页的中英文）在真实浏览器里跑 axe-core，
  * serious / critical 违规必须为零（moderate / minor 只在报告里列出，不挡）。亮色、暗色各跑一遍——
  * 两套主题的对比度 token 不同，只测一套等于没测另一套。
  */
@@ -71,8 +71,10 @@ const TARGETS: readonly Target[] = [
         await page.getByTestId('orch-open-reviewer-architecture').click()
         await expect(page.getByTestId('agent-run-binding')).toBeVisible({ timeout: 1_500 })
       }).toPass({ timeout: 20_000 })
-      // 还没有运行：登记的宿主是「—」，要求的宿主（codex）放在 title 里。
-      await expect(page.getByTestId('agent-run-host').locator('[title="codex"]')).toBeVisible()
+      // 还没有运行：登记的宿主是「—」，旁边是要求的宿主（codex + 小「要求」标记），再往下是可复制的启动命令。
+      await expect(page.getByTestId('agent-run-host-recorded')).toHaveText('—')
+      await expect(page.getByTestId('agent-run-host-required')).toHaveText('codex要求')
+      await expect(page.getByTestId('agent-run-command-text')).toContainText('tenon agent prompt add-login architecture')
     },
   },
   {
@@ -150,6 +152,27 @@ const TARGETS: readonly Target[] = [
       await expect(first).toBeVisible()
       await first.click()
       await expect(page.getByTestId('skill-detail')).toBeVisible()
+    },
+  },
+  // 匿名页（服务端渲染的登录页）：没有会话、语言按 Accept-Language 选；亮 / 暗由外层的 colorScheme 决定。
+  ...([['中文', 'zh-CN,zh;q=0.9', '需要登录'], ['English', 'en-US,en;q=0.9', 'Sign in required']] as const).map(([name, acceptLanguage, heading]): Target => ({
+    name: `登录页 · ${name}`,
+    open: async (page) => {
+      await page.context().clearCookies()
+      await page.route('**/', (route) => route.continue({ headers: { ...route.request().headers(), 'accept-language': acceptLanguage } }))
+      const response = await page.goto('/')
+      expect(response?.status()).toBe(401)
+      await expect(page.getByTestId('sign-in-heading')).toHaveText(heading)
+      await expect(page.getByTestId('sign-in-command')).toBeVisible()
+    },
+  })),
+  {
+    name: '登录链接无效页',
+    open: async (page) => {
+      await page.context().clearCookies()
+      const response = await page.goto('/session/start?code=not-a-real-code')
+      expect(response?.status()).toBe(403)
+      await expect(page.getByTestId('sign-in-command')).toBeVisible()
     },
   },
   {

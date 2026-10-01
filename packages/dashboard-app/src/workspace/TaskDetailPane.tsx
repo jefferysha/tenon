@@ -87,6 +87,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
   const orchestration = useChangeOrchestration(root, change.name, runSignature, fetchDefinition)
   const ready = orchestration.status === 'ready' ? orchestration.orchestration : null
   const labelOf = (id: string): string => stageLabel(id, row.rules)
+  const stepIds = row.stages.map((candidate) => candidate.id)
   const stepIo = ready !== null
     ? ready.io[selectedStep]
     : orchestration.status === 'disabled' ? fallbackStepIo(change, selectedStep) : undefined
@@ -187,6 +188,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
             : (
               <OrchestrationFlow
                 mode="overview"
+                workflow={ready.workflow}
                 stages={ready.stages}
                 returns={ready.returns}
                 flows={ready.flows}
@@ -202,7 +204,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
           <>
             {stageFlow.length > 0 && (
               <section className="mb-8" data-testid="stage-skills">
-                <OrchestrationFlow key={`${identity} ${selectedStep}`} mode="stage" stages={stageFlow} withStatus holding={selectedStep === heldStage ? heldStage : null} onOpenEntry={openEntry} openable={openable} ariaLabel={t('workflow.skills_title')} />
+                <OrchestrationFlow key={`${identity} ${selectedStep}`} mode="stage" workflow={ready?.workflow} stages={stageFlow} withStatus holding={selectedStep === heldStage ? heldStage : null} onOpenEntry={openEntry} openable={openable} ariaLabel={t('workflow.skills_title')} />
               </section>
             )}
             {progress !== null && (
@@ -265,6 +267,8 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
       <DocumentDrawer root={root} files={files} index={openIndex} onIndex={setOpenIndex} onClose={() => setOpenIndex(null)} />
       <AgentRunDrawer
         root={root}
+        change={change.name}
+        runnable={!archived && !row.archived && stepIds.indexOf(selectedStep) >= stepIds.indexOf(current)}
         agent={stepAgents.find((agent) => agent.agent === openAgent) ?? null}
         onClose={() => setOpenAgent(null)}
       />

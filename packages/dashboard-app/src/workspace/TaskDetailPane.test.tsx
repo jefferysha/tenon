@@ -394,7 +394,8 @@ describe('TaskDetailPane · 编排画布与运行状态', () => {
     await screen.findByTestId('orchestration-stage')
     await userEvent.click(screen.getByTestId('orch-open-reviewer-security'))
     const host = screen.getByTestId('agent-run-host')
-    expect(host).toHaveTextContent('宿主codex · 声明')
+    expect(host).toHaveTextContent('宿主codex要求 · 声明')
+    expect(screen.queryByTestId('agent-run-command-row'), '有效运行已在要求的宿主上：不再给命令').toBeNull()
     expect(screen.getByTestId('agent-run-host-declared')).toBeInTheDocument()
     expect(within(host).queryByTestId('agent-run-host-mismatch')).toBeNull()
     const candidate = screen.getByTestId('agent-run-candidate')
@@ -417,12 +418,50 @@ describe('TaskDetailPane · 编排画布与运行状态', () => {
     expect(screen.getByTestId('agent-run-candidate')).toBeInTheDocument()
   })
 
+  it('要求宿主的评审者：当前或之后的步骤给 `tenon agent prompt` 命令，已过去的步骤、已归档的任务不给', async () => {
+    const reviewerEntry = (id: string) => ({ kind: 'reviewer', id, label: id, wave: 0, dependsOn: [], required: true, source: 'declared', status: 'waiting' })
+    const stages = [
+      { id: 'spec', label: 'spec', gate: null, entries: [reviewerEntry('past-reviewer')] },
+      { id: 'build', label: 'build', gate: 'review', entries: [reviewerEntry('now-reviewer')] },
+      { id: 'verify', label: 'verify', gate: 'review', entries: [reviewerEntry('later-reviewer')] },
+    ]
+    const agent = (name: string) => ({
+      agent: name, role: 'reviewer' as const, required: true, blockAt: 'high' as const, dependsOn: [], readsTests: [],
+      state: 'idle' as const, result: null, findings: 0, blocking: 0, runId: null, reportPath: null, actor: null, finishedAt: null,
+      requiredHost: 'codex' as const, host: null, hostSource: null, wrongHost: false, candidate: null,
+    })
+    const agentRuns = [
+      { stepId: 'spec', agents: [agent('past-reviewer')] },
+      { stepId: 'build', agents: [agent('now-reviewer')] },
+      { stepId: 'verify', agents: [agent('later-reviewer')] },
+    ]
+    stubOrchestration(orchestrationBody('demo', { stages }))
+    renderPane({ row: snapshotRow(change({ agentRuns })) })
+    await screen.findByTestId('orchestration-stage')
+    // 当前步骤。
+    await userEvent.click(screen.getByTestId('orch-open-reviewer-now-reviewer'))
+    expect(screen.getByTestId('agent-run-command-text').textContent).toBe('cd /repo && tenon agent prompt demo now-reviewer')
+    await userEvent.keyboard('{Escape}')
+    // 之后的步骤：同样给（轮到它时运行）。
+    await userEvent.click(screen.getByTestId('stage-rail-verify'))
+    await userEvent.click(await screen.findByTestId('orch-open-reviewer-later-reviewer'))
+    expect(screen.getByTestId('agent-run-command-text').textContent).toBe('cd /repo && tenon agent prompt demo later-reviewer')
+    expect(screen.getByTestId('agent-run-host-required')).toHaveTextContent('codex要求')
+    await userEvent.keyboard('{Escape}')
+    // 已过去的步骤：只展示宿主要求，不给命令。
+    await userEvent.click(screen.getByTestId('stage-rail-spec'))
+    await userEvent.click(await screen.findByTestId('orch-open-reviewer-past-reviewer'))
+    expect(screen.getByTestId('agent-run-host-required')).toHaveTextContent('codex要求')
+    expect(screen.queryByTestId('agent-run-command-row')).toBeNull()
+  })
+
   it('要求了宿主但还没登记：宿主一格是破折号；没有宿主也没有候选的旧快照：整块不出现', async () => {
     stubOrchestration()
     const view = renderPane({ row: snapshotRow(change({ agentRuns: reviewer({ state: 'running', result: null, requiredHost: 'codex', host: null, candidate: null }) })) })
     await screen.findByTestId('orchestration-stage')
     await userEvent.click(screen.getByTestId('orch-open-reviewer-security'))
-    expect(screen.getByTestId('agent-run-host')).toHaveTextContent('宿主—')
+    expect(screen.getByTestId('agent-run-host')).toHaveTextContent('宿主— · codex要求')
+    expect(screen.getByTestId('agent-run-command-text').textContent).toBe('cd /repo && tenon agent prompt demo security')
     expect(screen.queryByTestId('agent-run-candidate')).toBeNull()
     view.unmount()
     stubOrchestration()

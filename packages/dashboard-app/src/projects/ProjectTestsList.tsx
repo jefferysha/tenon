@@ -9,10 +9,10 @@ import { TABLE_HEAD, TABLE_ROW, gridRow } from '../tests/testStyles'
 import type { Remote } from '../tests/useRemote'
 import { cn } from '@/lib/utils'
 
-/** 工具列固定宽：放得下 playwright / vitest-bench，不再被挤成 vit…。 */
-const COLUMNS = 'grid-cols-[minmax(0,1fr)_5.5rem_4.5rem_3.5rem]'
+/** 工具列固定宽：放得下 playwright / vitest-bench，不再被挤成 vit…；结果列放得下英文表头 Latest result。 */
+const COLUMNS = 'grid-cols-[minmax(0,1fr)_5.5rem_5.5rem_3.5rem]'
 /** 没有「不稳定」列时的三列。 */
-const COLUMNS_QUIET = 'grid-cols-[minmax(0,1fr)_5.5rem_4.5rem]'
+const COLUMNS_QUIET = 'grid-cols-[minmax(0,1fr)_5.5rem_5.5rem]'
 export const DISCOVER_COMMAND = 'tenon test discover --write'
 
 function DiscoverEmpty(): JSX.Element {

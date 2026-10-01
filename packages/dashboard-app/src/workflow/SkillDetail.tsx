@@ -114,7 +114,7 @@ export function SkillDetail({ name, layout = 'split' }: SkillDetailProps): JSX.E
             {parsed.meta.length > 0 && (
               <dl className="mb-5 grid gap-1.5 rounded-md border border-border bg-bg px-4 py-3 text-caption" data-testid="skill-detail-meta">
                 {parsed.meta.map(([key, value]) => (
-                  <div key={key} className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-3 max-[1400px]:grid-cols-1 max-[1400px]:gap-0.5">
+                  <div key={key} className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3 max-[1400px]:grid-cols-1 max-[1400px]:gap-0.5">
                     <dt className="font-mono text-text-3">{key}</dt>
                     <dd className="text-text-2 [overflow-wrap:anywhere]">{value}</dd>
                   </div>

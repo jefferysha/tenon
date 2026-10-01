@@ -1,3 +1,4 @@
+import * as builtin from './builtinWorkflowText'
 import { enTests, zhTests } from './testsTranslations'
 
 export type Lang = 'zh' | 'en'
@@ -11,6 +12,7 @@ export const zh: Dict = {
   // T18 孤儿键清理登记：app.subtitle 与 common.lang/theme_dark/theme_light/refresh/project/
   // phase/track/updated 全仓零消费（HEAD 存量孤儿），随本次修剪删除。
   app: { title: 'Pipeline 控制台' },
+  builtin: builtin.zh,
   tests: zhTests,
   navigation: {
     breadcrumbs_label: '当前位置',
@@ -527,6 +529,9 @@ export const zh: Dict = {
     agent_candidate: '候选',
     agent_declared: '声明',
     agent_host_mismatch: '宿主不符',
+    agent_host_required: '要求',
+    agent_host_required_hint: '步骤要求该评审者在 {host} 上运行；其他宿主上的结论无效',
+    agent_command: '命令',
     outputs: '输出',
     inputs: '输入',
     io_col_file: '文件',
@@ -2491,6 +2496,7 @@ export const zh: Dict = {
 
 export const en: Dict = {
   app: { title: 'Pipeline Console' },
+  builtin: builtin.en,
   tests: enTests,
   navigation: {
     breadcrumbs_label: 'Breadcrumbs',
@@ -2993,6 +2999,9 @@ export const en: Dict = {
     agent_candidate: 'Candidate',
     agent_declared: 'declared',
     agent_host_mismatch: 'Host mismatch',
+    agent_host_required: 'required',
+    agent_host_required_hint: 'The step requires this reviewer to run on {host}; a verdict from another host is void',
+    agent_command: 'Command',
     outputs: 'Outputs',
     inputs: 'Inputs',
     io_col_file: 'File',

@@ -30,6 +30,14 @@ export function takeoverPrompt(change: string, verb: string): string {
   return `/tenon ${verb} ${change}`
 }
 
+/**
+ * 开始一个步骤 agent（评审者要求了宿主时，它打印该宿主上要跑的那一行 `codex exec …` / `claude -p …`）。
+ * Dashboard 只给出命令，从不自己运行。
+ */
+export function agentPromptCommand(root: string, change: string, agent: string): string {
+  return inProject(root, `tenon agent prompt ${shellQuote(change)} ${shellQuote(agent)}`)
+}
+
 /** 评审门退回：为退回边请求评审，之后在工作台确认（通过）。 */
 export function reviewRequestCommand(root: string, change: string, event: string): string {
   return inProject(root, `tenon review request ${shellQuote(change)} --event ${shellQuote(event)}`)

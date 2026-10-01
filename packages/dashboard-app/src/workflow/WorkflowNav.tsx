@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { isBuiltinWorkflowName, isDefaultWorkflowName } from '@tenon/kernel/workflow/identifier'
 import {
   DndContext,
@@ -108,6 +108,11 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
   const [dragging, setDragging] = useState<string | null>(null)
   const [hovered, setHovered] = useState<string | null>(null)
   const listRef = useRef<HTMLOListElement>(null)
+  const tabsRef = useRef<HTMLDivElement>(null)
+  // 英文轨道名比中文长，页签条放不下时横向滚动：选中的页签（含 URL 深链进来的）要滚进可见范围，不留半截。
+  useEffect(() => {
+    tabsRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+  }, [branch, tracks.length])
   const captureFlip = useFlipLayout(listRef, [steps.map((step) => step.id).join('|')])
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor))
   const backEdges = steps.flatMap((step, index) => backEdgesFrom(edges, step.id).map((edge) => ({ ...edge, fromIndex: index, toIndex: steps.findIndex((candidate) => candidate.id === edge.to) })))
@@ -203,7 +208,7 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
       {tracks.length > 0 && (
         <div className="flex items-end gap-3.5 border-b border-border">
           {/* tablist 里只能有 tab：新建轨道的 + 在它旁边，不在它里面。 */}
-          <div className="flex min-w-0 items-end gap-3.5 overflow-x-auto" role="tablist" aria-label={t('workflow.tracks_title')} data-testid="wb-tracks">
+          <div ref={tabsRef} className="flex min-w-0 items-end gap-3.5 overflow-x-auto" role="tablist" aria-label={t('workflow.tracks_title')} data-testid="wb-tracks">
           {tracks.map((candidate) => {
             const active = candidate.id === branch
             return (
@@ -213,6 +218,7 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
                 role="tab"
                 aria-selected={active}
                 className={cn('-mb-px flex-none whitespace-nowrap border-b-2 pb-2 text-body outline-none transition-colors focus-visible:ring-2 focus-visible:ring-(--accent)', active ? 'border-(--accent) font-semibold text-text' : 'border-transparent text-text-2 hover:text-text')}
+                title={candidate.label ?? candidate.id}
                 data-testid={`wb-track-${candidate.id}`}
                 onClick={() => { if (!busy) props.onSwitchBranch(candidate.id) }}
               >

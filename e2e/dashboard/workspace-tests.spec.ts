@@ -69,6 +69,26 @@ test.describe('工作台任务 · 测试页签', () => {
     expect(nowrap).toBe('nowrap')
   })
 
+  test('完整性：明细完整可见（对象先让位）；提示模式的完整性信号不是阻塞，不在阻塞表里也不计入阻塞数', async ({ page }) => {
+    const integrity = page.getByTestId('tests-integrity')
+    const row = integrity.getByTestId('tests-integrity-row')
+    await expect(row).toHaveAttribute('data-code', 'coverage-threshold-lowered')
+    const detail = row.getByRole('cell').nth(2)
+    await expect(detail).toHaveText('lines 80 → 60')
+    const widths = await row.getByRole('cell').evaluateAll((cells) => cells.map((cell) => ({ text: cell.textContent, clip: cell.scrollWidth - cell.clientWidth, width: cell.clientWidth })))
+    expect(widths[2]?.clip, '明细没有被截断').toBeLessThanOrEqual(0)
+    // 对象是唯一吃剩余宽度的列（先让位）：完整路径在 title。
+    await expect(row.getByRole('cell').nth(1)).toHaveAttribute('title', '.nycrc.json')
+
+    // 种子里的真阻塞是两条（配置改动待确认、未运行）；完整性提示不算。
+    const blockers = page.getByTestId('tests-blockers')
+    await expect(blockers.getByTestId('tests-blocker')).toHaveCount(2)
+    await expect(blockers.locator('h3 + span')).toHaveText('2')
+    await expect(blockers).not.toContainText('tenon test integrity')
+    await expect(page.getByTestId('tests-notices')).toHaveCount(0)
+    await expect(page.getByTestId('task-tests')).not.toContainText('完整性提示')
+  })
+
   test('追溯表：任务 = 编号 · 阶段名 · 文字，场景 = 能力 · 场景；可选任务合并成「N 可选」一行；一行不折行', async ({ page }) => {
     const titles = page.getByTestId('tests-trace-title')
     // 骨架任务（可选）默认收起在「N 可选」一行里，点开才逐条列出。

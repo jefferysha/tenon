@@ -138,8 +138,8 @@ describe('项目页 · 套件表', () => {
     const head = await screen.findByTestId('proj-tests-head')
     expect(within(head).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['名称', '工具', '最近结果'])
     expect(screen.queryByTestId('proj-suite-flaky-web-unit')).toBeNull()
-    expect(/grid-cols-\[([^\]]+)\]/u.exec(head.className)?.[1]?.split('_')).toEqual(['minmax(0,1fr)', '5.5rem', '4.5rem'])
-    expect(screen.getByTestId('proj-suite-web-e2e').className).toContain('grid-cols-[minmax(0,1fr)_5.5rem_4.5rem]')
+    expect(/grid-cols-\[([^\]]+)\]/u.exec(head.className)?.[1]?.split('_')).toEqual(['minmax(0,1fr)', '5.5rem', '5.5rem'])
+    expect(screen.getByTestId('proj-suite-web-e2e').className).toContain('grid-cols-[minmax(0,1fr)_5.5rem_5.5rem]')
     view.unmount()
     vi.unstubAllGlobals()
     stub()
@@ -169,7 +169,7 @@ describe('项目页 · 套件表', () => {
     await openTests()
     const head = await screen.findByTestId('proj-tests-head')
     const columns = /grid-cols-\[([^\]]+)\]/u.exec(head.className)?.[1]?.split('_') ?? []
-    expect(columns).toEqual(['minmax(0,1fr)', '5.5rem', '4.5rem', '3.5rem'])
+    expect(columns).toEqual(['minmax(0,1fr)', '5.5rem', '5.5rem', '3.5rem'])
     expect(screen.getByTestId('proj-suite-web-e2e').className).toContain(head.className.match(/grid-cols-\[[^\]]+\]/u)?.[0] ?? 'missing')
   })
 

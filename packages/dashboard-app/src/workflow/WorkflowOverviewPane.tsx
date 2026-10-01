@@ -23,6 +23,7 @@ export function WorkflowOverviewPane({ editor, orchestration, onOpenStage }: {
         <h1 className="whitespace-nowrap text-page font-bold tracking-[-.01em] text-text">{t('workflow.overview')}</h1>
         <OrchestrationFlow
           mode="overview"
+          workflow={editor.wfName}
           stages={orchestration.stages}
           returns={orchestration.returns}
           flows={orchestration.flows}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useT } from '../i18n'
+import { useBuiltinLabels } from '../i18n/builtinLabels'
 import { Drawer } from '../shared/Drawer'
 import { BUTTON_GHOST } from '../shared/uiRecipes'
 import { StatusPill } from '../shell/ThreeColumns'
@@ -114,6 +115,7 @@ function DrawerBody({ root, change, current, record, run, verdict, policy, stage
 /** 套件运行详情抽屉：命令与退出码、失败用例、产物、覆盖率、基准、日志、历史。只读，不执行也不登记。 */
 export function SuiteRunDrawer({ root, change, target, verdict, policy, stageLabelOf, onClose }: SuiteRunDrawerProps): JSX.Element | null {
   const { t } = useT()
+  const builtin = useBuiltinLabels()
   const [selected, setSelected] = useState<SuiteRunTarget | null>(target)
   useEffect(() => { setSelected(target) }, [target?.user, target?.runId, target?.suite])
   const current = selected ?? target
@@ -123,7 +125,7 @@ export function SuiteRunDrawer({ root, change, target, verdict, policy, stageLab
     current !== null,
   )
   if (current === null) return null
-  const name = verdict?.label ?? current.suite
+  const name = builtin.direction(current.suite.replace(/^step:/u, ''), verdict?.label ?? current.suite)
   const record = state.status === 'ready' ? state.data : null
   const run = record?.suites.find((item) => item.suite === current.suite)
   return (

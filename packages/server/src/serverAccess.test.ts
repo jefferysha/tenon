@@ -3,6 +3,7 @@
  * same-user agent runs, a web page — gets no data and no write token; the only way in is a one-time
  * login link that goes to the user's browser.
  */
+import { createHash } from 'node:crypto'
 import { request as httpRequest } from 'node:http'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -12,6 +13,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { createDashboardServer } from './server.js'
 import { resolveServerPaths } from './paths.js'
 import { sessionCookieName } from './serverAccess.js'
+import { SIGN_IN_CSP, signInLanguage } from './serverSignIn.js'
 import { reqGet, reqPost, type HttpResult } from './test-support.js'
 import type { DashboardServer } from './types.js'
 
@@ -262,5 +264,141 @@ describe('a signed-in browser is still held to same-origin rules', () => {
     const started = await start()
     const cookie = await signIn(started)
     expect((await postJson(started.port, '/api/nope', { Cookie: cookie })).status).toBe(401)
+  })
+})
+
+describe('the sign-in page', () => {
+  const CJK = /[㐀-鿿]/u
+
+  function inline(html: string, tag: 'style' | 'script'): string {
+    const match = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'u').exec(html)
+    expect(match, `<${tag}>`).not.toBeNull()
+    return match?.[1] ?? ''
+  }
+
+  const sha = (text: string): string => `'sha256-${createHash('sha256').update(text, 'utf8').digest('base64')}'`
+
+  it.each([
+    [undefined, 'zh'],
+    ['', 'zh'],
+    ['zh-CN,zh;q=0.9,en;q=0.8', 'zh'],
+    ['zh', 'zh'],
+    ['en', 'en'],
+    ['en-US,en;q=0.9', 'en'],
+    ['en-US,en;q=0.9,zh;q=0.8', 'en'],
+    ['zh;q=0.5, en;q=0.9', 'en'],
+    ['en;q=0.8, zh;q=0.8', 'en'],
+    ['zh, en', 'zh'],
+    ['en, zh', 'en'],
+    ['en;q=0.4, zh-TW;q=0.6', 'zh'],
+    ['fr-FR,fr;q=0.9,de;q=0.5', 'zh'],
+    ['en;q=0, zh;q=0.1', 'zh'],
+    ['en;q=0', 'zh'],
+    ['*', 'zh'],
+    ['EN-gb', 'en'],
+  ] as const)('chooses the language from Accept-Language %j → %s', (header, expected) => {
+    expect(signInLanguage(header)).toBe(expected)
+  })
+
+  it('serves one language only: English when en is preferred over zh, otherwise Chinese; <html lang> follows', async () => {
+    const { port } = await start()
+    const english = await reqGet(port, '/', '127.0.0.1', { 'Accept-Language': 'en-US,en;q=0.9,zh;q=0.8' })
+    expect(english.status).toBe(401)
+    expect(english.body).toContain('<html lang="en">')
+    expect(english.body).toContain('Sign in required')
+    expect(english.body).not.toMatch(CJK)
+    expect(english.headers.vary).toContain('Accept-Language')
+
+    const chinese = await reqGet(port, '/', '127.0.0.1', { 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8' })
+    expect(chinese.body).toContain('<html lang="zh">')
+    expect(chinese.body).toContain('需要登录')
+    expect(chinese.body).not.toContain('Sign in required')
+    expect(chinese.body).not.toContain('Copy command')
+
+    // 没有 Accept-Language、或只有别的语言：中文。
+    expect((await reqGet(port, '/')).body).toContain('<html lang="zh">')
+    expect((await reqGet(port, '/', '127.0.0.1', { 'Accept-Language': 'fr' })).body).toContain('<html lang="zh">')
+  })
+
+  it('has a heading, the one command with a copy button, and a continue link — and no other sentences', async () => {
+    const { port } = await start()
+    const page = await reqGet(port, '/', '127.0.0.1', { 'Accept-Language': 'en' })
+    expect(page.body.match(/<h1\b/gu)).toHaveLength(1)
+    expect(page.body.match(/<code\b/gu)).toHaveLength(1)
+    expect(page.body).toContain('<code id="cmd" data-testid="sign-in-command">tenon dashboard --open</code>')
+    expect(page.body).toContain('data-testid="sign-in-copy"')
+    expect(page.body).toContain('<a href="/" title="Already signed in: open the Dashboard" data-testid="sign-in-continue">Continue</a>')
+    // 页面上没有 <p>：解释只在 title 里。
+    expect(page.body).not.toMatch(/<p[\s>]/u)
+    const visible = page.body.replace(/<head>[\s\S]*?<\/head>/u, '').replace(/<script>[\s\S]*?<\/script>/u, '').replace(/<[^>]*>/gu, ' ')
+    expect(visible.replace(/\s+/gu, ' ').trim()).toBe('t Sign in required tenon dashboard --open Continue')
+  })
+
+  it('keeps the CSP strict: default-src none, one hash each for the inline style and script, nothing else allowed', async () => {
+    const { port } = await start()
+    const page = await reqGet(port, '/', '127.0.0.1', { 'Accept-Language': 'en' })
+    const csp = String(page.headers['content-security-policy'])
+    expect(csp).toBe(SIGN_IN_CSP)
+    expect(csp).toContain("default-src 'none'")
+    expect(csp).toContain(`style-src ${sha(inline(page.body, 'style'))}`)
+    expect(csp).toContain(`script-src ${sha(inline(page.body, 'script'))}`)
+    expect(csp).toContain("frame-ancestors 'none'")
+    expect(csp).toContain("base-uri 'none'")
+    expect(csp).toContain("form-action 'none'")
+    expect(csp).not.toMatch(/unsafe-|nonce-|\*|https?:|data:/u)
+    expect(page.headers['x-frame-options']).toBe('DENY')
+    expect(page.headers['x-content-type-options']).toBe('nosniff')
+    expect(page.headers['cache-control']).toBe('no-store')
+    expect(page.headers['referrer-policy']).toBe('no-referrer')
+    // 内联脚本之外没有脚本、外链或事件属性，样式只在 <style> 里（style 属性会被这条 CSP 拒绝）。
+    expect(page.body.match(/<script\b/gu)).toHaveLength(1)
+    expect(page.body).not.toMatch(/<(?:link|img|iframe|form|object|embed)\b/u)
+    expect(page.body).not.toMatch(/\s(?:on[a-z]+|style|src)=/u)
+    expect(page.body).not.toMatch(/https?:\/\//u)
+  })
+
+  it('uses the Dashboard tokens in light and dark, the app font stack and the 13–34 type scale', async () => {
+    const { port } = await start()
+    const style = inline((await reqGet(port, '/', '127.0.0.1', { 'Accept-Language': 'en' })).body, 'style')
+    for (const token of ['--bg:#f6f6f3', '--accent:#236a50', '--code-bg:#f1f0eb', '--border:#dcdbd4', '--text:#1a1a17']) expect(style).toContain(token)
+    expect(style).toContain('@media(prefers-color-scheme:dark)')
+    for (const token of ['--bg:#131513', '--accent:#74c29e', '--code-bg:#202320', '--text:#ebebe6']) expect(style).toContain(token)
+    expect(style).toContain('"Inter Variable"')
+    expect(style).toContain('"PingFang SC"')
+    const sizes = [...style.matchAll(/font(?:-size)?:(?:\d+ )?(\d+)px/gu)].map((match) => Number(match[1]))
+    expect(sizes.length).toBeGreaterThan(0)
+    for (const size of sizes) expect([13, 14, 16, 17, 19, 24, 34]).toContain(size)
+  })
+
+  it('the invalid / expired link page shares the styling and the language choice', async () => {
+    const started = await start()
+    const url = started.server.issueLoginUrl()
+    expect((await visit(url)).status).toBe(303)
+    const english = await visit(url, { 'Accept-Language': 'en-GB,en;q=0.9' })
+    expect(english.status).toBe(403)
+    expect(english.body).toContain('<html lang="en">')
+    expect(english.body).toContain('Sign-in link invalid or expired')
+    expect(english.body).toContain('data-reason="invalid"')
+    expect(english.body).not.toMatch(CJK)
+    expect(String(english.headers['content-security-policy'])).toBe(SIGN_IN_CSP)
+    const chinese = await visit(url)
+    expect(chinese.body).toContain('<html lang="zh">')
+    expect(chinese.body).toContain('登录链接无效或已过期')
+    expect(chinese.body).toContain('tenon dashboard --open')
+    expect(inline(chinese.body, 'style')).toBe(inline(english.body, 'style'))
+    const required = await reqGet(started.port, '/')
+    expect(inline(required.body, 'style')).toBe(inline(english.body, 'style'))
+    expect(inline(required.body, 'script')).toBe(inline(english.body, 'script'))
+  })
+
+  it('stays free of app data: no token, no session, no snapshot, and the copy script only touches the command', async () => {
+    const { port } = await start()
+    const page = await reqGet(port, '/', '127.0.0.1', { 'Accept-Language': 'en' })
+    expect(page.body).not.toContain(TOKEN)
+    expect(page.body).not.toContain('__TENON_DASHBOARD_TOKEN__')
+    expect(page.body).not.toMatch(/tenon_session|session\/start|\/api\//u)
+    expect(page.headers['set-cookie']).toBeUndefined()
+    const script = inline(page.body, 'script')
+    expect(script).not.toMatch(/fetch\(|XMLHttpRequest|localStorage|document\.cookie|location\s*=|eval\(/u)
   })
 })

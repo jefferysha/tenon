@@ -7,6 +7,7 @@ export const zh: Dict = {
     matrix: '策略',
     trace: '场景/任务',
     blockers: '阻塞',
+    notices: '提示',
     integrity: '完整性',
   },
   integrity: {
@@ -57,6 +58,13 @@ export const zh: Dict = {
     orphan_hint: '没有任何目录套件认领这个文件',
   },
   summary: '概览',
+  // 汇总数字旁的计数词：词典不带复数，按数量取 one / other 两条（中文两条相同）。
+  stat: {
+    suite: { one: '套件', other: '套件' },
+    case: { one: '用例', other: '用例' },
+    fail: { one: '失败', other: '失败' },
+    flaky: { one: '不稳定', other: '不稳定' },
+  },
 }
 
 export const en: Dict = {
@@ -65,6 +73,7 @@ export const en: Dict = {
     matrix: 'Policy',
     trace: 'Scenario/Task',
     blockers: 'Blockers',
+    notices: 'Notices',
     integrity: 'Integrity',
   },
   integrity: {
@@ -115,4 +124,10 @@ export const en: Dict = {
     orphan_hint: 'No catalog suite claims this file',
   },
   summary: 'Summary',
+  stat: {
+    suite: { one: 'Suite', other: 'Suites' },
+    case: { one: 'Case', other: 'Cases' },
+    fail: { one: 'Failed', other: 'Failed' },
+    flaky: { one: 'Flaky', other: 'Flaky' },
+  },
 }

@@ -2,10 +2,15 @@ import { useT } from '../i18n'
 import { StatusPill } from '../shell/ThreeColumns'
 import { TestSection } from '../tests/TestSection'
 import { integrityLabel } from '../tests/testLabels'
-import { TABLE_HEAD, TABLE_ROW, gridRow } from '../tests/testStyles'
+import { SUBGRID_ROW, TABLE_HEAD, TABLE_ROW, contentTable } from '../tests/testStyles'
 import type { IntegrityReport } from '../api/testSystemTypes'
 
-const COLUMNS = 'grid-cols-[minmax(0,1.3fr)_minmax(0,2.4fr)_minmax(0,1fr)_minmax(0,1fr)_5rem]'
+/**
+ * 信号 · 对象 · 明细 · 套件 · 策略。信号名、明细（`lines 80 → 60`、`-3 +1`）、套件名、策略词是读这张表的目的，
+ * 各按最长的格子定宽（中英文各取各的，不会被截成「lines 80…」）；对象多是路径，是唯一吃剩余宽度的列，
+ * 先让位、截断，完整路径在 title。
+ */
+const COLUMNS = 'grid-cols-[auto_minmax(0,1fr)_auto_auto_auto]'
 
 /**
  * 测试完整性：相对任务起点，证据有没有变弱（用例数、跳过、断言、快照、基线、已知失败、覆盖率门槛）。
@@ -25,8 +30,8 @@ export function TestsTabIntegrity({ integrity }: { integrity: IntegrityReport | 
   )
   return (
     <TestSection title={t('tests.task.section.integrity')} count={signals.length} testId="tests-integrity">
-      <div role="table" aria-label={t('tests.task.section.integrity')}>
-        <div className={`${gridRow(COLUMNS)} ${TABLE_HEAD}`} role="row">
+      <div role="table" className={contentTable(COLUMNS)} aria-label={t('tests.task.section.integrity')}>
+        <div className={`${SUBGRID_ROW} ${TABLE_HEAD}`} role="row">
           <span role="columnheader">{t('tests.task.integrity.signal')}</span>
           <span role="columnheader">{t('tests.task.blockers.subject')}</span>
           <span role="columnheader">{t('tests.task.integrity.detail')}</span>
@@ -36,7 +41,7 @@ export function TestsTabIntegrity({ integrity }: { integrity: IntegrityReport | 
         {signals.map((signal, index) => (
           <div
             key={`${signal.code}-${signal.subject}-${index}`}
-            className={`${gridRow(COLUMNS)} ${TABLE_ROW}`}
+            className={`${SUBGRID_ROW} ${TABLE_ROW}`}
             role="row"
             data-testid="tests-integrity-row"
             data-code={signal.code}
@@ -51,7 +56,7 @@ export function TestsTabIntegrity({ integrity }: { integrity: IntegrityReport | 
           </div>
         ))}
         {unavailable && (
-          <div className={`${gridRow(COLUMNS)} ${TABLE_ROW}`} role="row" data-testid="tests-integrity-unavailable">
+          <div className={`${SUBGRID_ROW} ${TABLE_ROW}`} role="row" data-testid="tests-integrity-unavailable">
             <span className="truncate text-text-2" role="cell" title={integrity.reason}>{t('tests.task.integrity.unavailable')}</span>
             <span className="text-text-3" role="cell">—</span>
             <span className="text-text-3" role="cell">—</span>
@@ -60,7 +65,7 @@ export function TestsTabIntegrity({ integrity }: { integrity: IntegrityReport | 
           </div>
         )}
         {truncated !== undefined && (
-          <div className={`${gridRow(COLUMNS)} ${TABLE_ROW}`} role="row" data-testid="tests-integrity-truncated">
+          <div className={`${SUBGRID_ROW} ${TABLE_ROW}`} role="row" data-testid="tests-integrity-truncated">
             <span className="truncate text-text-2" role="cell">{t('tests.task.integrity.truncated')}</span>
             <span className="text-text-3" role="cell">—</span>
             <span className="truncate font-mono text-text-2" role="cell" title={`${truncated.limit}/${truncated.found}`}>{truncated.limit}/{truncated.found}</span>

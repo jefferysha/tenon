@@ -9,6 +9,8 @@ import { HEAD_ACTION, SectionHead } from './SectionHead'
 
 export interface StageFlowSectionProps {
   stage: OrchestrationStage | undefined
+  /** 阶段所属的工作流：画布上内置的出厂阶段名 / 测试项名按界面语言显示。 */
+  workflow: string | null
   editable: boolean
   onEditSkills: () => void
   onEditAgents: (role: 'executors' | 'reviewers') => void
@@ -23,7 +25,7 @@ const openable = (entry: FlowEntry): boolean => entry.kind !== 'test'
  * 段头的「编辑」改技能；执行者、评审者的动作在各自泳道旁。测试泳道只读地列出旧的步骤测试，
  * 测试策略（结构化表单）归门禁段。
  */
-export function StageFlowSection({ stage, editable, onEditSkills, onEditAgents, onOpenSkill }: StageFlowSectionProps): JSX.Element {
+export function StageFlowSection({ stage, workflow, editable, onEditSkills, onEditAgents, onOpenSkill }: StageFlowSectionProps): JSX.Element {
   const { t } = useT()
   const stages = useMemo(() => stage === undefined ? [] : [stage], [stage])
   const skills = stage?.entries.filter((entry) => entry.kind === 'skill').length ?? 0
@@ -50,7 +52,7 @@ export function StageFlowSection({ stage, editable, onEditSkills, onEditAgents, 
       />
       {empty && !editable
         ? <p className="text-body text-text-3" data-testid="stage-skills-empty">{t('workflow.no_skills')}</p>
-        : <OrchestrationFlow mode="stage" stages={stages} laneActions={laneActions} onOpenEntry={open} openable={openable} ariaLabel={t('workflow.skills_title')} />}
+        : <OrchestrationFlow mode="stage" workflow={workflow} stages={stages} laneActions={laneActions} onOpenEntry={open} openable={openable} ariaLabel={t('workflow.skills_title')} />}
     </section>
   )
 }

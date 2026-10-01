@@ -74,6 +74,19 @@ describe('TestsTabIntegrity · 工作台测试页签的完整性段', () => {
     expect(within(long).getByTestId('tests-integrity-signal')).toHaveAttribute('title', 'test-skipped')
   })
 
+  it('列宽：信号 / 明细 / 套件 / 策略按内容定宽，只有对象吃剩余宽度并先让位；表头与各行共用外壳的同一组列', () => {
+    mount({ mode: 'notice', state: 'ok', signals: SIGNALS })
+    const section = screen.getByTestId('tests-integrity')
+    const table = within(section).getByRole('table')
+    expect(/grid-cols-\[([^\]]+)\]/u.exec(table.className)?.[1]?.split('_')).toEqual(['auto', 'minmax(0,1fr)', 'auto', 'auto', 'auto'])
+    const rows = [within(section).getAllByRole('row')[0] as HTMLElement, ...within(section).getAllByTestId('tests-integrity-row')]
+    for (const row of rows) {
+      expect(row.className).toContain('grid-cols-subgrid')
+      expect(row.className).toContain('col-span-full')
+      expect(row.className).not.toMatch(/grid-cols-\[/u)
+    }
+  })
+
   it('读不出改动行：一行「未检查」，原因放 title，不写句子；运行记录类信号照常列出', () => {
     mount({ mode: 'block', state: 'unavailable', reason: '当前目录不是 git 仓库', signals: SIGNALS.slice(0, 1) })
     const row = screen.getByTestId('tests-integrity-unavailable')
