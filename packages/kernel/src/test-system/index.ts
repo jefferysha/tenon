@@ -121,8 +121,8 @@ export { evaluateTrace } from './evaluate-trace.js'
 export { evaluateTestPolicy, renderPolicyBlockers } from './evaluate-v2.js'
 export { baselineKey } from './evaluate-types.js'
 export type {
-  CatalogInput, ChangedFilesReport, ChangedFilesSource, CurrentBindings, InlineSuiteStatus, PlanInput, StaleBinding,
-  SuiteState, SuiteVerdict,
+  CatalogInput, ChangedFilesReport, ChangedFilesSource, CurrentBindings, InlineSuiteStatus, NotApplicableStatus, PlanInput,
+  StaleBinding, SuiteState, SuiteVerdict,
   TestPolicyEvaluationInput, TestPolicyReport, TraceRow, TraceTest, TraceTestStatus,
 } from './evaluate-types.js'
 export {

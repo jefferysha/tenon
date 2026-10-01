@@ -135,6 +135,24 @@ describe('测试体系契约往返（真 server → 严格解码器）', () => {
     expect(build?.suites.every((suite) => typeof suite.suite === 'string')).toBe(true)
   }, 30000)
 
+  it('目录里的 not_applicable：真 server 的快照策略判定带着种类、原因与是否已批准，严格解码器接受', async () => {
+    const h = await start()
+    const paths = testSystemPaths(h.root)
+    await mkdir(paths.root, { recursive: true })
+    await writeFile(paths.catalog, `${DESIGN_CATALOG}not_applicable:
+  - { kind: typecheck, reason: 纯 JavaScript 项目, approved_by: reviewer@tenon.test }
+  - { kind: visual, reason: 没有界面, approved_by: null }
+`, 'utf8')
+    const snapshot = decodeSnapshot(await getJson(h.base, '/api/snapshot'))
+    expect(snapshot).not.toBeNull()
+    const change = snapshot?.projects[0]?.changes.find((item) => item.name === CHANGE)
+    const build = change?.testPolicy?.find((report) => report.stepId === 'build')
+    expect(build?.notApplicable).toEqual([
+      { kind: 'typecheck', reason: '纯 JavaScript 项目', approved: true },
+      { kind: 'visual', reason: '没有界面', approved: false },
+    ])
+  }, 30000)
+
   it('没有目录的项目：目录 missing、计划 missing，快照里的判定带「目录缺失」阻塞与发现命令', async () => {
     const h = await start()
     const query = `root=${encodeURIComponent(h.root)}`

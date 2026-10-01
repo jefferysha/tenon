@@ -122,6 +122,16 @@ export interface TraceRow {
   readonly state: 'uncovered' | 'mapped' | 'passing' | 'failing' | 'waived'
 }
 
+/**
+ * 目录里的项目级「不适用」声明（catalog.yaml 的 `not_applicable`）：展示用，放行与否已经体现在 blockers 里——
+ * 已批准的不再产生缺种类阻塞，未批准的产生 `waiver-unapproved`。展示层据此区分「不适用」与「缺」，不必自己重新判定。
+ */
+export interface NotApplicableStatus {
+  readonly kind: TestKind
+  readonly reason: string
+  readonly approved: boolean
+}
+
 export interface TestPolicyReport {
   readonly stepId: string
   readonly pass: boolean
@@ -135,6 +145,8 @@ export interface TestPolicyReport {
     readonly orphans: readonly string[]
   }
   readonly chain: ChainReport['state']
+  /** 目录里声明了、本项目不适用的种类（目录缺失或无效时为空）。 */
+  readonly notApplicable: readonly NotApplicableStatus[]
 }
 
 export function baselineKey(suite: string, profile: string): string {

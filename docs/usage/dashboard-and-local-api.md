@@ -187,7 +187,10 @@ stage's `test_policy`, and the library lists read-only test templates.
   saved download keeps its name instead of arriving as `artifact.zip`.
 
 Each change in `GET /api/snapshot` also carries `testPolicy` (the verdict of every stage
-that declares a policy), `testPlan` and `testUser`. The Dashboard itself reads the lighter
+that declares a policy), `testPlan` and `testUser`. Every `testPolicy` entry lists the catalog's
+project-wide `not_applicable` declarations as `notApplicable: [{kind, reason, approved}]`
+(`approved: false` = still waiting for the review confirmation), so the Tests tab shows an
+approved kind as "not applicable" rather than missing. The Dashboard itself reads the lighter
 list tier described under "Local API" and fetches this per-change evidence from
 `GET /api/change/:name/snapshot` when a task is opened.
 

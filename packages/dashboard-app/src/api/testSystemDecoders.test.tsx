@@ -123,6 +123,19 @@ describe('快照里的策略判定', () => {
     expect(decodePolicyReports('x')).toBeNull()
   })
 
+  it('目录的不适用声明：往返相等；缺省 = 没有声明；每一项字段类型不合都拒绝', () => {
+    const declared = [{ kind: 'a11y', reason: '本项目没有界面', approved: true }, { kind: 'visual', reason: '同上', approved: false }]
+    const reports = [verifyReport({ notApplicable: declared })]
+    expect(decodePolicyReports(JSON.parse(JSON.stringify(reports)))).toEqual(reports)
+    expect(decodePolicyReports([mutate(verifyReport(), (d) => { delete d.notApplicable })])?.[0]?.notApplicable).toEqual([])
+    const one = (edit: (draft: Record<string, unknown>) => void): unknown => [mutate(verifyReport({ notApplicable: declared }), edit)]
+    const first = (d: Record<string, unknown>): Record<string, unknown> => (d.notApplicable as Array<Record<string, unknown>>)[0] ?? {}
+    expect(decodePolicyReports(one((d) => { first(d).approved = 'yes' }))).toBeNull()
+    expect(decodePolicyReports(one((d) => { delete first(d).reason }))).toBeNull()
+    expect(decodePolicyReports(one((d) => { first(d).kind = 1 }))).toBeNull()
+    expect(decodePolicyReports(one((d) => { d.notApplicable = 'a11y' }))).toBeNull()
+  })
+
   it('没有策略（只有旧步骤测试）时 policy 为 null', () => {
     const decoded = decodePolicyReports([mutate(verifyReport(), (d) => { d.policy = null })])
     expect(decoded?.[0]?.policy).toBeNull()

@@ -78,6 +78,40 @@ describe('buildMatrix', () => {
     expect(buildMatrix(blocked, pending)[0]).toMatchObject({ met: false, blocker: { code: 'waiver-unapproved' } })
   })
 
+  describe('目录声明的项目级不适用（服务端给出，不在这里重新判定）', () => {
+    const only = (notApplicable: PolicyReport['notApplicable'], blockers: PolicyReport['blockers'] = []): PolicyReport =>
+      report({ suites: [], blockers, notApplicable, policy: { ...verifyReport().policy!, kinds: ['a11y'], run: [] } })
+    const noPlan: TestPlanBrief = { state: 'ok', suites: [], waivers: [], files: 0, cases: 0 }
+
+    it('已批准：满足要求，不是缺，也不挂缺项阻塞；原因带在行上', () => {
+      const [row] = buildMatrix(only([{ kind: 'a11y', reason: '本项目没有界面', approved: true }]), noPlan)
+      expect(row).toMatchObject({ kind: 'a11y', met: true, blocker: null, notApplicable: { reason: '本项目没有界面', approved: true } })
+      expect(tabCount(only([{ kind: 'a11y', reason: '本项目没有界面', approved: true }]), noPlan)).toBe('1/1')
+    })
+
+    it('未批准：仍不满足，原因照带；阻塞是服务端的 waiver-unapproved', () => {
+      const blockers = [{ code: 'waiver-unapproved', blocking: true, message: 'm', fix: 'tenon review request add-login', subject: 'a11y' }]
+      const [row] = buildMatrix(only([{ kind: 'a11y', reason: '本项目没有界面', approved: false }], blockers), noPlan)
+      expect(row).toMatchObject({ met: false, notApplicable: { approved: false }, blocker: { code: 'waiver-unapproved' } })
+    })
+
+    it('只对声明的种类生效；该种类已登记套件时以套件为准，不显示不适用', () => {
+      const rows = buildMatrix(
+        report({ notApplicable: [{ kind: 'unit', reason: 'x', approved: true }, { kind: 'a11y', reason: '本项目没有界面', approved: true }] }),
+        planBrief(),
+      )
+      expect(rows.find((row) => row.kind === 'unit')).toMatchObject({ notApplicable: null, met: true })
+      expect(rows.find((row) => row.kind === 'a11y')).toMatchObject({ notApplicable: { approved: true }, met: true, blocker: null })
+      expect(rows.find((row) => row.kind === 'playwright')?.notApplicable).toBeNull()
+      expect(rows.find((row) => row.kind === 'benchmark')).toMatchObject({ notApplicable: null, met: false })
+    })
+
+    it('没有声明：与之前一样是缺项', () => {
+      const [row] = buildMatrix(only([], [{ code: 'test-kind-missing', blocking: true, message: 'm', subject: 'a11y' }]), noPlan)
+      expect(row).toMatchObject({ met: false, notApplicable: null, blocker: { code: 'test-kind-missing' } })
+    })
+  })
+
   it('没有计划：全部缺项，退到全局阻塞（计划缺失 / 被改动 / 目录缺失 / 记录被改动）', () => {
     for (const code of ['test-plan-missing', 'test-plan-tampered', 'test-catalog-missing', 'record-chain-broken']) {
       const rows = buildMatrix(report({ suites: [], blockers: [{ code, blocking: true, message: 'm', fix: 'tenon test x' }] }), { state: 'missing' })

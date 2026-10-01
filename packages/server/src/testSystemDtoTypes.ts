@@ -212,6 +212,13 @@ export interface TraceRowDto {
   readonly state: 'uncovered' | 'mapped' | 'passing' | 'failing' | 'waived'
 }
 
+/** 目录里声明的项目级「不适用」种类：approved = 已经评审批准（生效），否则待批准。 */
+export interface NotApplicableDto {
+  readonly kind: string
+  readonly reason: string
+  readonly approved: boolean
+}
+
 export interface PolicyReportDto {
   readonly stepId: string
   readonly pass: boolean
@@ -226,6 +233,7 @@ export interface PolicyReportDto {
     readonly unregistered: readonly { readonly path: string; readonly suites: readonly string[] }[]
     readonly orphans: readonly string[]
   }
+  readonly notApplicable: readonly NotApplicableDto[]
 }
 
 export interface ArtifactDto {

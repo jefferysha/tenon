@@ -113,6 +113,10 @@ suites:
     command: node --check ${TEST_FILE}
     report:
       format: exit-code
+not_applicable:
+  - kind: benchmark
+    reason: 演示项目没有性能基准
+    approved_by: seed@example.test
 `
 
 const SPEC = `## ADDED Requirements

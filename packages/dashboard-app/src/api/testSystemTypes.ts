@@ -220,6 +220,13 @@ export interface TraceRow {
   readonly state: 'uncovered' | 'mapped' | 'passing' | 'failing' | 'waived'
 }
 
+/** 目录里声明的项目级「不适用」种类：approved = 已经评审批准（生效），否则待批准。 */
+export interface NotApplicableKind {
+  readonly kind: string
+  readonly reason: string
+  readonly approved: boolean
+}
+
 /** 一个策略步骤的判定（快照 `testPolicy[]` 的一项）。 */
 export interface PolicyReport {
   readonly stepId: string
@@ -235,6 +242,8 @@ export interface PolicyReport {
     readonly unregistered: readonly { readonly path: string; readonly suites: readonly string[] }[]
     readonly orphans: readonly string[]
   }
+  /** 服务端从目录读出的项目级不适用声明；展示只据此区分「不适用」与「缺」，不自己重新判定。 */
+  readonly notApplicable: readonly NotApplicableKind[]
 }
 
 export interface RunArtifact {

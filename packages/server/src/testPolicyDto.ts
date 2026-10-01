@@ -122,6 +122,7 @@ export function policyReportDto(report: TestPolicyReport, policy: StepTestPolicy
       unregistered: report.files.unregistered.map((file) => ({ path: file.path, suites: file.suites })),
       orphans: report.files.orphans,
     },
+    notApplicable: report.notApplicable.map((entry) => ({ kind: entry.kind, reason: entry.reason, approved: entry.approved })),
   }
 }
 

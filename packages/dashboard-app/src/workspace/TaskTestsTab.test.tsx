@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -211,6 +211,53 @@ describe('TaskTestsTab · 策略矩阵', () => {
     reset()
     mount(verifyReport(), { plan: { ...planBrief(), state: 'ok', waivers: [{ kind: 'benchmark', approved: true }] } as TestPlanBrief })
     expect(screen.getByTestId('tests-waiver-benchmark').querySelector('[data-tone="done"]')).toBeTruthy()
+  })
+
+  describe('项目级不适用（目录声明）', () => {
+    const declared = (approved: boolean): PolicyReport => ({
+      ...verifyReport(),
+      notApplicable: [{ kind: 'a11y', reason: '本项目没有浏览器界面', approved }],
+      blockers: approved
+        ? verifyReport().blockers.filter((item) => item.subject !== 'a11y')
+        : verifyReport().blockers.map((item) => (item.subject === 'a11y'
+          ? { code: 'waiver-unapproved', blocking: true, message: 'm', fix: 'tenon review request add-login', subject: 'a11y' }
+          : item)),
+    })
+
+    it('已批准：显示「不适用」，不当作缺（满足、没有缺项标签）；原因在 Tooltip，键盘可达', async () => {
+      mount(declared(true))
+      expect(screen.getByTestId('tests-registered-a11y').textContent).toBe('不适用')
+      expect(screen.getByTestId('tests-kind-a11y')).toHaveAttribute('data-met', 'true')
+      expect(screen.queryByTestId('tests-blocker-label-a11y')).toBeNull()
+      expect(screen.queryByTestId('tests-fix-toggle-a11y')).toBeNull()
+      expect(screen.getByTestId('tests-na-a11y')).toHaveAttribute('data-approved', 'true')
+      expect(within(screen.getByTestId('tests-na-a11y')).queryByText('待批准')).toBeNull()
+      act(() => screen.getByTestId('tests-na-label-a11y').focus())
+      expect((await screen.findAllByText('本项目没有浏览器界面')).length).toBeGreaterThan(0)
+    })
+
+    it('未批准：「不适用」旁标待批准，仍是缺（豁免未批准 + 评审命令）', async () => {
+      mount(declared(false))
+      const mark = screen.getByTestId('tests-na-a11y')
+      expect(mark).toHaveAttribute('data-approved', 'false')
+      expect(mark.textContent).toBe('不适用待批准')
+      expect(mark.querySelector('[data-tone="pending"]')).toBeTruthy()
+      expect(screen.getByTestId('tests-kind-a11y')).toHaveAttribute('data-met', 'false')
+      expect(screen.getByTestId('tests-blocker-label-a11y').textContent).toBe('豁免未批准')
+      expect((await openFix('a11y')).textContent).toBe('tenon review request add-login')
+    })
+
+    it('页签计数把已批准的不适用算作满足；不适用与说明一行不折行', () => {
+      mount(declared(true))
+      expect(screen.getByTestId('tests-na-a11y').className).toContain('whitespace-nowrap')
+      expect(screen.getByTestId('tests-na-label-a11y').className).toContain('whitespace-nowrap')
+    })
+
+    it('没有声明：和以前一样是「缺测试种类」', () => {
+      mount()
+      expect(screen.queryByTestId('tests-na-a11y')).toBeNull()
+      expect(screen.getByTestId('tests-blocker-label-a11y').textContent).toBe('缺测试种类')
+    })
   })
 
   it('套件名可点：打开时回调套件 id；没有运行记录的套件只是文字', async () => {

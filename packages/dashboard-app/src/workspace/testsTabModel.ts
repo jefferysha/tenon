@@ -44,6 +44,11 @@ export interface MatrixRow {
   readonly requirement: Requirement
   readonly suites: readonly MatrixSuite[]
   readonly waiver: { readonly approved: boolean } | null
+  /**
+   * 目录声明本项目不适用这个种类（服务端给出；没有登记任何套件时才算）。已批准 = 满足要求，不是缺；
+   * 未批准 = 待批准，阻塞由服务端的 waiver-unapproved 解释。
+   */
+  readonly notApplicable: { readonly reason: string; readonly approved: boolean } | null
   readonly result: SuiteState | null
   readonly met: boolean
   /** 不满足时解释缺什么的那一条阻塞（含修复命令）；满足时 null。 */
@@ -108,15 +113,17 @@ export function buildMatrix(report: PolicyReport, plan: TestPlanBrief | undefine
     }
     const own = waivers.filter((waiver) => waiver.kind === kind)
     const waiver = own.length === 0 ? null : { approved: own.some((waiver) => waiver.approved) }
+    const declared = suites.length > 0 ? undefined : report.notApplicable.find((entry) => entry.kind === kind)
+    const notApplicable = declared === undefined ? null : { reason: declared.reason, approved: declared.approved }
     const verdicts = suites.flatMap((suite) => (suite.verdict === undefined ? [] : [suite.verdict.state]))
     const result = requirement === 'register' && verdicts.length === 0 ? null : worst(verdicts)
-    const registered = suites.length > 0 || waiver?.approved === true
+    const registered = suites.length > 0 || waiver?.approved === true || notApplicable?.approved === true
     const runs = requirement !== 'register' && suites.length > 0
     const met = registered && (!runs || result === 'passed')
     // 「有则跑」的种类没登记不算缺。
     const optionalAbsent = requirement === 'if-registered' && suites.length === 0 && waiver === null
     return {
-      kind, requirement, suites, waiver, result,
+      kind, requirement, suites, waiver, notApplicable, result,
       met: met || optionalAbsent,
       blocker: met || optionalAbsent ? null : explain(report, kind, suites),
     }

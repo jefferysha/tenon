@@ -28600,6 +28600,15 @@ function plannedKinds(plan, input2) {
   const catalog3 = input2.catalog.catalog;
   return plan.suites.flatMap((item2) => catalogSuite(catalog3, item2.suite)?.kind ?? []);
 }
+function notApplicableStatuses(input2) {
+  if (input2.catalog.state !== "ok")
+    return [];
+  return (input2.catalog.catalog.not_applicable ?? []).map((entry2) => ({
+    kind: entry2.kind,
+    reason: entry2.reason,
+    approved: entry2.approved_by !== null
+  }));
+}
 function kindWaiver(plan, kind) {
   const waiver = plan.waivers.find((item2) => item2.kind === kind);
   return waiver === void 0 ? void 0 : { approved: waiver.approved_by !== null };
@@ -28839,7 +28848,8 @@ function evaluateTestPolicy(input2) {
     suites: [...evaluated.verdicts, ...inline],
     trace,
     files,
-    chain: input2.chain.state
+    chain: input2.chain.state,
+    notApplicable: notApplicableStatuses(input2)
   };
 }
 function renderPolicyBlockers(report2) {

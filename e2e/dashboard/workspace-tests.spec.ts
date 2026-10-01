@@ -58,6 +58,17 @@ test.describe('工作台任务 · 测试页签', () => {
     await expect(page.getByTestId('tests-fix-e2e-copy')).toBeVisible()
   })
 
+  test('策略矩阵：目录里已批准的不适用种类显示「不适用」而不是缺，原因收在悬停说明里', async ({ page }) => {
+    await expect(page.getByTestId('tests-matrix')).toBeVisible()
+    await expect(page.getByTestId('tests-kind-benchmark')).toHaveAttribute('data-met', 'true')
+    await expect(page.getByTestId('tests-registered-benchmark')).toHaveText('不适用')
+    await expect(page.getByTestId('tests-blocker-label-benchmark')).toHaveCount(0)
+    await page.getByTestId('tests-na-label-benchmark').hover()
+    await expect(page.getByText('演示项目没有性能基准').first()).toBeVisible()
+    const nowrap = await page.getByTestId('tests-na-benchmark').evaluate((el) => getComputedStyle(el).whiteSpace)
+    expect(nowrap).toBe('nowrap')
+  })
+
   test('追溯表：任务 = 编号 · 阶段名 · 文字，场景 = 能力 · 场景；可选任务合并成「N 可选」一行；一行不折行', async ({ page }) => {
     const titles = page.getByTestId('tests-trace-title')
     // 骨架任务（可选）默认收起在「N 可选」一行里，点开才逐条列出。

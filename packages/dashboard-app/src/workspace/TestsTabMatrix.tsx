@@ -15,6 +15,27 @@ import { cn } from '@/lib/utils'
 import type { MatrixRow, MatrixSuite } from './testsTabModel'
 
 const COLUMNS = 'grid-cols-[minmax(0,1fr)_5rem_minmax(0,1.6fr)_6rem_minmax(0,2.4fr)]'
+/** 说明浮层不换行，原因再长也不撑出视口：超过这个长度截断（原文留在目录文件里）。 */
+const MAX_REASON_CHARS = 160
+
+function brief(reason: string): string {
+  return reason.length > MAX_REASON_CHARS ? `${reason.slice(0, MAX_REASON_CHARS - 1)}…` : reason
+}
+
+/** 目录声明的「本项目不适用」：原因收在 Tooltip 里；未批准的另标「待批准」。 */
+function NotApplicableMark({ kind, entry }: { kind: string; entry: { reason: string; approved: boolean } }): JSX.Element {
+  const { t } = useT()
+  return (
+    <span className="flex flex-none items-center gap-1.5 whitespace-nowrap text-text-2" data-testid={`tests-na-${kind}`} data-approved={entry.approved}>
+      <Hint label={brief(entry.reason)}>
+        <button type="button" className="whitespace-nowrap rounded-xs text-text-2 outline-none focus-visible:ring-2 focus-visible:ring-(--accent)" data-testid={`tests-na-label-${kind}`}>
+          {t('tests.word.not_applicable')}
+        </button>
+      </Hint>
+      {!entry.approved && <StatusPill tone="pending">{t('tests.task.waiver.pending')}</StatusPill>}
+    </span>
+  )
+}
 
 function SuiteCell({ row, openable, activeSuite, onOpen }: {
   row: MatrixRow
@@ -24,6 +45,7 @@ function SuiteCell({ row, openable, activeSuite, onOpen }: {
 }): JSX.Element {
   const { t } = useT()
   const waiver = row.waiver
+  const notApplicable = row.notApplicable
   return (
     <span className="flex min-w-0 flex-nowrap items-center gap-3 overflow-hidden" role="cell" data-testid={`tests-registered-${row.kind}`}>
       {row.suites.map((suite) => (openable(suite)
@@ -41,13 +63,14 @@ function SuiteCell({ row, openable, activeSuite, onOpen }: {
           </button>
         )
         : <span key={suite.suite} className="min-w-0 truncate text-text-2" title={suite.suite} data-testid={`tests-suite-${suite.suite}`}>{suite.name}</span>))}
+      {notApplicable !== null && <NotApplicableMark kind={row.kind} entry={notApplicable} />}
       {waiver !== null && (
         <span className="flex flex-none items-center gap-1.5 whitespace-nowrap text-text-2" data-testid={`tests-waiver-${row.kind}`}>
           {t('tests.word.waiver')}
           <StatusPill tone={waiver.approved ? 'done' : 'pending'}>{t(`tests.task.waiver.${waiver.approved ? 'approved' : 'pending'}`)}</StatusPill>
         </span>
       )}
-      {row.suites.length === 0 && waiver === null && <span className="text-text-3">—</span>}
+      {row.suites.length === 0 && waiver === null && notApplicable === null && <span className="text-text-3">—</span>}
     </span>
   )
 }

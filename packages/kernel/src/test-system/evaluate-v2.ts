@@ -17,7 +17,7 @@ import {
 } from './evaluate-suite.js'
 import { evaluateTrace } from './evaluate-trace.js'
 import type {
-  SuiteVerdict, TestPolicyEvaluationInput, TestPolicyReport, TraceRow,
+  NotApplicableStatus, SuiteVerdict, TestPolicyEvaluationInput, TestPolicyReport, TraceRow,
 } from './evaluate-types.js'
 import { planCatalogProblems, type TestPlan } from './plan.js'
 import { testPlanApprovalFreeDigest } from './plan-waivers.js'
@@ -65,6 +65,14 @@ function plannedKinds(plan: TestPlan, input: TestPolicyEvaluationInput): readonl
   if (input.catalog.state !== 'ok') return []
   const catalog = input.catalog.catalog
   return plan.suites.flatMap((item) => catalogSuite(catalog, item.suite)?.kind ?? [])
+}
+
+/** 目录里声明的不适用种类及其批准状态；目录不可用时没有声明可展示。 */
+function notApplicableStatuses(input: TestPolicyEvaluationInput): readonly NotApplicableStatus[] {
+  if (input.catalog.state !== 'ok') return []
+  return (input.catalog.catalog.not_applicable ?? []).map((entry) => ({
+    kind: entry.kind, reason: entry.reason, approved: entry.approved_by !== null,
+  }))
 }
 
 function kindWaiver(plan: TestPlan, kind: TestKind): { readonly approved: boolean } | undefined {
@@ -316,6 +324,7 @@ export function evaluateTestPolicy(input: TestPolicyEvaluationInput): TestPolicy
     trace,
     files,
     chain: input.chain.state,
+    notApplicable: notApplicableStatuses(input),
   }
 }
 

@@ -189,6 +189,15 @@ describe('evaluateTestPolicy —— 目录与计划', () => {
       })])
     })
 
+    it('报告带出目录里的声明（种类、原因、是否已批准），供展示区分「不适用」与「缺」；目录缺失或没声明时为空', () => {
+      const approved = evaluate({ policy: { kinds: ['integration'] }, runs: [UNIT_PASS], input: { catalog: catalogWith('reviewer@x') } })
+      expect(approved.notApplicable).toEqual([{ kind: 'integration', reason: '本项目没有集成面', approved: true }])
+      const pending = evaluate({ policy: { kinds: ['integration'] }, runs: [UNIT_PASS], input: { catalog: catalogWith('null') } })
+      expect(pending.notApplicable).toEqual([{ kind: 'integration', reason: '本项目没有集成面', approved: false }])
+      expect(evaluate({ policy: { kinds: ['unit'] }, runs: [UNIT_PASS] }).notApplicable).toEqual([])
+      expect(evaluate({ policy: { kinds: ['unit'] }, runs: [UNIT_PASS], input: { catalog: { state: 'missing' } } }).notApplicable).toEqual([])
+    })
+
     it('只对声明的种类生效；计划里登记了该种类的套件时套件照常参与判定', () => {
       const other = evaluate({ policy: { kinds: ['playwright', 'integration'] }, runs: [UNIT_PASS], input: { catalog: catalogWith('reviewer@x') } })
       expect(other.blockers.map((item) => [item.code, item.subject])).toEqual([['test-kind-missing', 'playwright']])

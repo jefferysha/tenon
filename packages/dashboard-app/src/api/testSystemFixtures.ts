@@ -153,6 +153,7 @@ export function verifyReport(over: Partial<PolicyReport> = {}): PolicyReport {
       { covers: 'task:2.3', kind: 'task', title: '密码为空时禁用提交', stage: 'build', required: true, state: 'passing', tests: [{ ref: 'Login.test.tsx › 密码为空时禁用提交', status: 'pass', suite: 'web-unit', runId: '20260929T100000Z-abc122' }] },
     ],
     files: { checked: true, unregistered: [{ path: 'e2e/new.spec.ts', suites: ['web-e2e'] }], orphans: ['scripts/tmp.test.mjs'] },
+    notApplicable: [],
     ...over,
   }
 }

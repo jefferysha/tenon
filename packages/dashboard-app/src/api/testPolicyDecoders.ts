@@ -1,6 +1,6 @@
 /** 步骤策略判定与计划概要的严格解码（快照 `testPolicy[]` / `testPlan`）。 */
 import type {
-  BenchmarkVerdict, PolicyReport, StaleBinding, SuiteVerdict, TestBlocker, TestCoverage, TestNotice, TestPlanBrief,
+  BenchmarkVerdict, NotApplicableKind, PolicyReport, StaleBinding, SuiteVerdict, TestBlocker, TestCoverage, TestNotice, TestPlanBrief,
   TestPolicyView, TestTotals, TraceCaseStatus, TraceRow,
 } from './testSystemTypes'
 import { arr, bad, bool, guard, int, maybe, nnum, num, oneOf, opt, rec, str, strs } from './strictReader'
@@ -122,6 +122,11 @@ function readTrace(value: unknown): TraceRow {
   }
 }
 
+function readNotApplicable(value: unknown): NotApplicableKind {
+  const item = rec(value)
+  return { kind: str(item.kind), reason: str(item.reason), approved: bool(item.approved) }
+}
+
 function readReport(value: unknown): PolicyReport {
   const item = rec(value)
   const files = rec(item.files)
@@ -142,6 +147,8 @@ function readReport(value: unknown): PolicyReport {
       }),
       orphans: strs(files.orphans),
     },
+    // 缺省 = 没有声明（兼容不带这个字段的旧服务端）；出现则每一项都必须合形。
+    notApplicable: opt(item.notApplicable, (raw) => arr(raw, readNotApplicable)) ?? [],
   }
 }
 
