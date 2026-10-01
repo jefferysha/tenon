@@ -64,6 +64,13 @@ design / delta spec / tasks，语言无关）。证据不齐时写 `pass` 被拒
 没有登记进计划时阻塞，`scenarios`（`required` / `passing`）要求每个 OpenSpec 场景都映射到测试用例，`coverage`、`flaky`、
 `browsers` 追加门槛。没有 `test_policy` 的步骤行为与之前完全一致，已开始的任务按冻结计划执行，步骤自己的 `tests` 与策略并存可用。
 
+`integrity: notice | block`（缺省 `notice`）决定测试完整性报告在这一步的去向。报告把任务和它的起点对比，指出全量运行的用例数下降与跳过数上升、
+被删或被跳过的测试、被删的断言、被改写的快照、被改的基线、新增的已知失败和降低的覆盖率门槛（十种信号见
+[CLI 参考](cli-reference.md)的「测试完整性」，命令是 `tenon test integrity <change>`）。默认工作流与标准车道什么都没声明，所以
+每个实现与验证步骤都是 `notice`：信号在 `status`、`test status` 和 Dashboard 测试页签里汇成一条 `test-integrity` 提示，从不阻塞。
+在某个步骤上写 `integrity: block`，就让这些信号成为该步骤的阻塞（读不出 diff 时也阻塞，`files-diff-unavailable`）；没有逐条豁免，
+有意删除就还原测试或改策略。`integrity: notice` 与不写这个键完全一样，不改变工作流指纹。Dashboard 工作流页在 `scenarios` 旁边编辑它。
+
 零豁免默认值：**只强制 `unit`**（规格步登记，实现步按 `changed` 运行，验证步按 `full` 运行）。其余种类项目里有才跑：
 `typecheck`、`integration`、`regression`、`e2e`、`playwright`、`a11y`、`visual`、`benchmark`、`smoke` 都是
 `run_if_registered`，种子（`tenon test plan <change> --seed`、`tenon test register <change> --auto`）会把目录里这些种类的

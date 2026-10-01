@@ -147,7 +147,7 @@ review（缺失、已被消费、binding 失效或 event 已不是 workflow 出�
 ```bash
 tenon agent next <change> [--json]
 tenon agent prompt <change> <agent> [--host <id>] [--rerun-reason <text>] [--json]
-tenon agent record <change> <run-id> [--subagent <type>] [--json]
+tenon agent record <change> <run-id> [--subagent <type>] [--host <id>] [--json]
 ```
 
 工作流在步骤里声明执行者与评审者；Tenon 只排顺序、渲染交接内容、记录结论与校验候选版本，
@@ -159,12 +159,34 @@ Tenon 从问题级别与 `block_at` 计算，评审者不自报结论。同一�
 `--rerun-reason <原因>` 写明为什么重跑——带原因的那次以它为准，原因留痕。`agent next`、`status --json`（`step.reviewers[]`）
 与 Dashboard 显示重跑次数（`reruns`）、结论是否翻转（`flipped`）和原因（`rerun_reason`）。
 
+**跨厂商评审。** 工作流步骤里的评审者可以声明 `host: codex | claude | any`（Claude 写、Codex 审），智能体定义也可以用自己的
+`host:` 一行建议一个（`tenon agent new --host`）。步骤的声明是硬要求，智能体的建议只用于路由，步骤写 `host: any` 盖过建议。
+执行 `tenon agent prompt` 的宿主不是要求的宿主（或检测不到宿主：纯终端）时，运行行照常创建，但提示词不再打印，而是写进
+`openspec/changes/<change>/.pipeline-agent-reports/<run-id>.prompt.md`，并给出确切的命令：
+
+```text
+[ROUTE] 评审者 'security' 须在 codex 上运行 …；当前宿主：claude
+提示词：openspec/changes/demo/.pipeline-agent-reports/<run-id>.prompt.md
+运行：codex exec --sandbox workspace-write - < <提示词文件>      # 要求 claude 时是：claude -p --allowedTools "…" < <提示词文件>
+登记：tenon agent record demo <run-id> --host codex
+```
+
+`--json` 时同样的信息在 `host` 里：`{ required, source: step|agent|none, enforced, current, run_on: { host, command, prompt_file, record } | null }`，
+完整的 `prompt` 仍然返回。Tenon 从不自己起另一家的 CLI：命令由你、或当前宿主里的 agent 去执行。`tenon agent record` 记下
+跑这次评审的宿主（`host`）以及怎么得知的（`host_source`：`detected` = 进程环境判出；`declared` = 用 `--host` 声明，
+即编排方的宿主通过另一家 CLI 跑完评审后由它登记）。裁决照旧绑定候选（被评审代码的内容哈希）：评审期间候选变了，登记被拒；
+之后改了代码，裁决过期。步骤要求了宿主时，登记的宿主不符或未知，登记被拒（exit `2`，什么都不写）；台账里已经有的不符记录
+（绕开命令写的，或早于这条要求）不算裁决：`agent next` / `status` 显示 `wrong_host`，状态是 `stale`，离开步骤被
+`reviewer-wrong-host` 拦下，这类运行也不算"已有结论"，所以在对的宿主上重跑不需要 `--rerun-reason`。宿主是登记者的声明
+（与台账其余部分同一信任模型），不是密码学证明。`agent next --json` 与 `status --json`（`step.reviewers[]`）带 `required_host`、
+`host`、`host_source`、`wrong_host`（`status` 还有 `route_host`），评审者应在别处运行时 `run-agent` 动作带 `host`。
+
 智能体库在终端登记（详见[智能体](./agents.md)）：
 
 ```bash
 tenon agent list [--role executor|reviewer] [--source official|custom|project] [--json]
 tenon agent show <name> [--json]
-tenon agent new [<name>] --role <role> --description <text> [--skills a,b] [--tools A,B] [--model <m>] [--hosts a,b] [--scope user|project] [--from <agent>]
+tenon agent new [<name>] --role <role> --description <text> [--skills a,b] [--tools A,B] [--model <m>] [--hosts a,b] [--host codex|claude|any] [--scope user|project] [--from <agent>]
 tenon agent add <file> [--scope user|project] [--replace]
 tenon agent validate <file|name>
 tenon agent copy <from> <to> [--scope user|project]
@@ -224,6 +246,7 @@ tenon test trust [<change>] [--yes] [--status] [--json]
 tenon test run <change> [--suite <id>]… [--kind <k>]… [--stage [<step>]] [--all] [--changed] [--json]
 tenon test run <change> <test-id> [--json]
 tenon test status <change> [--step <id>] [--json]
+tenon test integrity <change> [--step <id>] [--json]
 tenon test baseline <change> --suite <id> --run <run-id>
 tenon test baseline <change> <test-id> --run <run-id>
 tenon test known add --suite <id> --test "<文件> › <用例名>" --reason <原因> --expires <YYYY-MM-DD> [--link <url>]
@@ -343,6 +366,31 @@ OS、架构、核数、运行时主版本加 `profiles_env` 的取值（形如 `
   `tenon test trust [<change>]` 列出将执行的命令，交互终端里问 `[y/N]`（`--yes` 给你自己的脚本，`--status` 只看是否已信任、
   未信任 exit `2`，`--json`）。CI 由运行器显式设置 `TENON_TEST_TRUST=1`，之后每次运行都会打一行说明信任来自环境。Tenon 的 hook
   会拒绝 agent 的 shell 调用里出现 `tenon test trust` 或 `TENON_TEST_TRUST=` 赋值，所以这个决定只留给你。
+
+**测试完整性。** `tenon test integrity <change>` 只回答一个问题：证据比任务开始时变弱了吗？它把任务和它的起点（与改动文件列表
+同一个起点）对比，报十种信号，每条带对象和一行事实：
+
+| 信号 | 来源 | 触发 |
+| --- | --- | --- |
+| `case-count-drop` | 运行记录 | 某套件最新一次全量运行的用例数低于本任务里更早的全量运行 |
+| `skip-count-rise` | 运行记录 | 最新一次全量运行的跳过数高于第一次全量运行 |
+| `test-file-deleted` | diff | 删除了测试文件（删一个又在别处新增同名文件算搬家） |
+| `tests-removed` | diff | 改动的测试文件声明的用例变少（`it(`、`test(`、`def test_`、`func Test…`、`@Test`、`#[test]` …） |
+| `test-skipped` | diff | 新增了跳过标记（`.skip`、`xit`、`describe.skip`、`test.todo`、`@pytest.mark.skip` / `xfail`、`@unittest.skip`、`t.Skip`、`@Disabled` / `@Ignore`、`#[ignore]` …） |
+| `assertion-weakened` | diff | 用例还在，断言行（`expect(`、`assert`、`t.Errorf`、`assert_eq!` …）少了 |
+| `snapshot-rewritten` | diff | 快照文件（`__snapshots__/`、`*.snap`、`*-snapshots/`）被改、被删，或二进制快照变了；只新增快照不算改写 |
+| `baseline-changed` | diff | `.tenon/tests/baselines/` 下有改动 |
+| `known-failure-added` | diff | `known-failures.yaml` 多了一个用例 |
+| `coverage-threshold-lowered` | diff | 测试运行器配置、`pyproject.toml` / `setup.cfg` / `.coveragerc`、`package.json` 或 `.pipeline/workflows/*.yaml` 里的覆盖率门槛（`lines`、`branches`、`functions`、`statements`、`fail_under`、`threshold`、`target`）变小或被删 |
+
+全部是对 `git diff -U0` 与运行记录的文本启发式：信号表示"值得看一眼"，不是"被篡改"，改了用例名、换了断言库也可能出现。
+策略键 `test_policy.integrity` 决定信号的去向：`notice`（缺省，默认工作流与标准车道都用它）把信号汇成一条 `test-integrity`
+提示，出现在 `test status`、`status` 和 Dashboard 的测试页签里，从不阻塞；`block` 把同样的信号变成该步骤的一条 `test-integrity`
+阻塞，读不出 diff 时失败关闭（`files-diff-unavailable`）。`block` 没有逐条豁免：还原被削弱的测试，或改策略。写 `integrity: notice`
+与不写完全相同（它不进编译后的工作流，所以已有的指纹和运行记录不受影响）。只在会运行测试（`run` / `run_if_registered`）或声明了
+`integrity: block` 的步骤上判。`tenon test integrity` 在该步骤策略是 `block` 且有信号（或读不出 diff）时 exit `2`，否则 `0`；
+`--step` 取另一个步骤的策略；`--json` 输出 `{ change, step, pass, mode, state, signals[], truncated? }`。最多读 400 个相关文件，
+超出由 `files-truncated` 提示。
 
 `test status` 用与转换拦截完全相同的判定列出该步骤每项测试，所以这里通过就是转换会放行；声明了 `test_policy` 的步骤在 `--json`
 里还带 `policy` 对象（带修复命令的阻塞码、提示、套件、场景 / 任务追溯、文件登记与记录链状态）。有阻塞时 exit 2。候选代码、

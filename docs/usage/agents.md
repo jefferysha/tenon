@@ -34,6 +34,10 @@ model: sonnet
   `tenon agent validate` asks you to add the line.
 - `version` is optional semver. `hosts` (optional) limits the agent to some
   hosts; `model` is passed only to a host that knows it.
+- `host` (optional, `codex` | `claude` | `any`) is where a reviewer *should* run. It is a
+  suggestion that routes the reviewer to the other vendor; the workflow step is
+  what makes it binding (see [Cross-vendor review](#cross-vendor-review)). Do not
+  confuse it with `hosts`, which lists where the agent *can* run.
 - The report the agent writes ends with a `tenon-result` block. A reviewer lists
   findings and never states its own verdict — Tenon derives pass or fail from
   the severities and the step's `block_at`. An executor reports `done` or
@@ -146,6 +150,60 @@ the `code-size` reviewer with its `code-size` test to every Verify; chat and
 free also run `security` as an advisory Verify reviewer. See
 [Default workflow](default-workflow.md) and
 [Custom workflows](custom-workflows-and-tracks.md).
+
+## Cross-vendor review
+
+Claude can write and Codex can review (or the other way round). A reviewer in a step names the
+host it must run on:
+
+```yaml
+agents:
+  reviewers:
+    - agent: security
+      required: true
+      block_at: medium
+      host: codex        # codex | claude | any
+```
+
+| Where | Meaning |
+| --- | --- |
+| step `host: codex` or `claude` | binding: the verdict only counts when the host recorded with it is that host |
+| step `host: any` | no requirement; overrides the agent's suggestion |
+| no `host` on the step, `host:` in the agent file | a suggestion: `tenon agent prompt` still routes to that host, a verdict from another host still counts |
+| neither | no routing, no requirement |
+
+**Routing.** `tenon agent prompt <change> <agent>` knows the host that runs it (from the process
+environment, or `--host`). If that is not the required host it still opens the run, but writes the
+prompt to `openspec/changes/<change>/.pipeline-agent-reports/<run-id>.prompt.md` and prints the
+exact command for the other host instead of the prompt:
+
+```bash
+codex exec --sandbox workspace-write - < openspec/changes/demo/.pipeline-agent-reports/<run-id>.prompt.md
+# a Claude reviewer from Codex:
+claude -p --allowedTools "Read,Grep,Glob,Write,Bash(tenon agent record:*)" < openspec/changes/demo/.pipeline-agent-reports/<run-id>.prompt.md
+```
+
+Tenon does not start that CLI for you. Run the command (or have the agent in the current host
+run it); the prompt ends with `tenon agent record <change> <run-id> --host <host>`, so the
+review registers itself when it can. When the other CLI cannot write to Tenon state, record
+from the original host with `tenon agent record <change> <run-id> --host codex`: the host is
+then `declared` instead of `detected`.
+
+**Binding.** A cross-vendor verdict is bound twice. *To the code:* the run row carries the
+candidate (the content hash of the workspace the reviewer was started on); `record` refuses when
+the code changed during the review, and any later change makes the verdict stale and requires a
+new run. *To the host:* `record` stores `host` and `host_source`; when the step requires a host, a
+record from another (or an unknown) host is refused with `exit 2`, and a ledger row that
+disagrees anyway is not a verdict — the reviewer shows `stale`, the step exit reports
+`reviewer-wrong-host`, and rerunning on the right host needs no `--rerun-reason`. The host is the
+recorder's claim, in the same trust model as the rest of the ledger; `host_source` shows whether
+it was detected or declared so a human can tell.
+
+The status JSON (`step.reviewers[]`: `required_host`, `route_host`, `host`, `host_source`,
+`wrong_host`) and the `run-agent` action (`host`) carry the same facts for a runner, and the
+Dashboard's agent run drawer shows the recorded host and the bound candidate, with a red dot and
+"Host mismatch" when the recorded host breaks the requirement. The workflow page edits the
+reviewer's `host` next to `block_at`.
 
 ## Dashboard
 

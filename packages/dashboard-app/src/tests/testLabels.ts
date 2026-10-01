@@ -3,6 +3,7 @@
  * 不认识的码原样显示，不猜测。前端不另存一份文案。
  */
 import { TEST_BLOCKER_CODES, TEST_BLOCKER_LABELS, TEST_NOTICE_CODES, TEST_NOTICE_LABELS } from '@tenon/kernel/test-system/blockers'
+import { INTEGRITY_SIGNAL_CODES, INTEGRITY_SIGNAL_LABELS } from '@tenon/kernel/test-system/integrity-labels'
 import { RUN_SCOPES, TEST_KINDS } from '@tenon/kernel/test-system/vocabulary'
 import type { Lang } from '../i18n/translations'
 
@@ -16,6 +17,12 @@ export function blockerLabel(code: string, lang: Lang): string {
 export function noticeLabel(code: string, lang: Lang): string {
   const known = TEST_NOTICE_CODES.find((item) => item === code)
   return known === undefined ? code : TEST_NOTICE_LABELS[known][lang]
+}
+
+/** 测试完整性信号的短标签（kernel 与 `tenon test integrity` 同源）；不认识的码原样显示。 */
+export function integrityLabel(code: string, lang: Lang): string {
+  const known = INTEGRITY_SIGNAL_CODES.find((item) => item === code)
+  return known === undefined ? code : INTEGRITY_SIGNAL_LABELS[known][lang]
 }
 
 /** 失败 / 提示原因码的短标签：先按阻塞码，再按提示码；都不认识就原样（不猜）。完整说明由调用方放进 Tooltip。 */

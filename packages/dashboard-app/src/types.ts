@@ -117,6 +117,12 @@ export interface AgentRunView {
   readonly flipped?: boolean
   /** 判定所依据的重跑写明的原因。 */
   readonly rerunReason?: string | null
+  /** 跨厂商评审：要求的宿主 / 登记的宿主 / 来源（检测或声明）/ 宿主不符使结论无效（状态 stale）/ 绑定的候选（代码内容哈希）。 */
+  readonly requiredHost?: 'claude' | 'codex' | null
+  readonly host?: string | null
+  readonly hostSource?: 'detected' | 'declared' | null
+  readonly wrongHost?: boolean
+  readonly candidate?: string | null
 }
 
 export type AgentRunsSnapshot = ReadonlyArray<{

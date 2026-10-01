@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '../i18n'
@@ -120,6 +120,27 @@ describe('智能体库（只展示与编辑正文）', () => {
     await waitFor(() => expect(screen.getByTestId('lib-agent-source')).toHaveTextContent('项目'))
     expect(screen.getByTestId('lib-agent-project-team')).toHaveAttribute('aria-current', 'true')
     expect(screen.getByTestId('lib-agent-custom-team')).not.toHaveAttribute('aria-current')
+  })
+
+  it('评审者建议的执行宿主：详情字段表多一行「建议宿主」；没建议的显示破折号；值不在 codex | claude | any 时整份列表作废', async () => {
+    stubFetch([], { rows: [{ ...BUILTIN, host: 'codex' }] })
+    await openAgents()
+    await userEvent.click(screen.getByTestId('lib-agent-builtin-security'))
+    await waitFor(() => expect(screen.getByTestId('lib-agent-field-host')).toHaveTextContent('建议宿主codex'))
+    expect(screen.getByTestId('lib-agent-field-hosts')).toHaveTextContent('claude-code')
+    vi.restoreAllMocks()
+    stubFetch([], { rows: [BUILTIN] })
+    cleanup()
+    await openAgents()
+    await userEvent.click(screen.getByTestId('lib-agent-builtin-security'))
+    await waitFor(() => expect(screen.getByTestId('lib-agent-field-host')).toHaveTextContent('建议宿主—'))
+    vi.restoreAllMocks()
+    stubFetch([], { rows: [{ ...BUILTIN, host: 'gemini' }] })
+    cleanup()
+    window.__TENON_DASHBOARD_TOKEN__ = 'tok'
+    render(<I18nProvider><LibraryView root="" /></I18nProvider>)
+    await userEvent.click(screen.getByTestId('lib-section-agents'))
+    await waitFor(() => expect(screen.queryByTestId('lib-agent-builtin-security')).toBeNull())
   })
 
   it('官方详情：只读只有复制，字段表含身份与版本，正文渲染，引用与最近运行逐行列出', async () => {

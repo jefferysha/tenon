@@ -13,6 +13,7 @@ export const zh: Dict = {
     flaky: '不稳定上限',
     baseline: '要求基线',
     scenarios: '场景',
+    integrity: '完整性',
   },
   hint: {
     kinds: '计划里必须有这些种类的套件，或已批准的豁免',
@@ -22,7 +23,12 @@ export const zh: Dict = {
     flaky: '重试后才通过的用例超过这个数就拦下；留空不限制',
     baseline: '基准套件在本机器画像下没有基线时也拦下；关闭时只提示',
     scenarios: '不要求；要求每个场景至少映射一个用例或有已批准的豁免；要求映射的用例本轮通过',
+    integrity: '用例数下降、跳过、删除或弱化的测试、快照改写、基线与已知失败改动、覆盖率门槛降低：提示 = 只列出；阻塞 = 有信号就拦下出口',
     picker: '选择种类',
+  },
+  integrity: {
+    notice: '提示',
+    block: '阻塞',
   },
   scope: {
     full: '全量',
@@ -58,6 +64,7 @@ export const en: Dict = {
     flaky: 'Flaky limit',
     baseline: 'Require baseline',
     scenarios: 'Scenarios',
+    integrity: 'Integrity',
   },
   hint: {
     kinds: 'The plan needs suites of these kinds, or approved waivers',
@@ -67,7 +74,12 @@ export const en: Dict = {
     flaky: 'Blocks when more cases than this only passed after a retry; leave empty for no limit',
     baseline: 'Also blocks a benchmark suite that has no baseline for this machine profile; off only reports it',
     scenarios: 'Off; require every scenario to map to a case or have an approved waiver; require the mapped cases to pass this round',
+    integrity: 'Case-count drops, skips, deleted or weakened tests, snapshot rewrites, baseline and known-failure changes, lowered coverage thresholds. Notice only lists them; Block stops the step exit',
     picker: 'Choose kinds',
+  },
+  integrity: {
+    notice: 'Notice',
+    block: 'Block',
   },
   scope: {
     full: 'Full',

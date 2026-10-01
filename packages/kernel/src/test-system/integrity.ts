@@ -9,29 +9,13 @@
  * 全是启发式：信号说「值得看一眼」，不下结论。策略 `integrity: notice`（缺省）只提示，`block` 让信号挡住出口。
  * 读 diff 的 IO 在 integrity-diff.ts；本文件不碰文件系统与 git，输入由调用方给出。
  */
-import type { RunScope } from './vocabulary.js'
+import { INTEGRITY_SIGNAL_CODES, INTEGRITY_SIGNAL_LABELS, type IntegritySignalCode } from './integrity-labels.js'
 import {
   assertions, declaredTests, integrityPathKind, knownFailureRefOf, skipMarkers, thresholdDrops,
 } from './integrity-patterns.js'
+import type { RunScope } from './vocabulary.js'
 
-export const INTEGRITY_SIGNAL_CODES = [
-  'case-count-drop', 'skip-count-rise', 'test-file-deleted', 'tests-removed', 'test-skipped',
-  'assertion-weakened', 'snapshot-rewritten', 'baseline-changed', 'known-failure-added', 'coverage-threshold-lowered',
-] as const
-export type IntegritySignalCode = (typeof INTEGRITY_SIGNAL_CODES)[number]
-
-export const INTEGRITY_SIGNAL_LABELS: Readonly<Record<IntegritySignalCode, { readonly zh: string; readonly en: string }>> = {
-  'case-count-drop': { zh: '用例数下降', en: 'Case count dropped' },
-  'skip-count-rise': { zh: '跳过数上升', en: 'Skips rose' },
-  'test-file-deleted': { zh: '测试文件被删', en: 'Test file deleted' },
-  'tests-removed': { zh: '用例被删', en: 'Tests removed' },
-  'test-skipped': { zh: '用例被跳过', en: 'Tests skipped' },
-  'assertion-weakened': { zh: '断言变少', en: 'Assertions removed' },
-  'snapshot-rewritten': { zh: '快照被改写', en: 'Snapshot rewritten' },
-  'baseline-changed': { zh: '基线被改', en: 'Baseline changed' },
-  'known-failure-added': { zh: '新增已知失败', en: 'Known failure added' },
-  'coverage-threshold-lowered': { zh: '覆盖率门槛降低', en: 'Coverage threshold lowered' },
-}
+export { INTEGRITY_SIGNAL_CODES, INTEGRITY_SIGNAL_LABELS, type IntegritySignalCode }
 
 export type IntegrityMode = 'notice' | 'block'
 

@@ -74,7 +74,7 @@ export function routeLines(agent: string, route: HostRoute): readonly string[] {
     `[ROUTE] 评审者 '${agent}' 须在 ${target.host} 上运行（${SOURCE_WORD[route.source]}${route.enforced ? '，登记的宿主不符则结论无效' : ''}）；当前宿主：${route.current ?? '终端'}`,
     `提示词：${target.promptFile}`,
     `运行：${target.command}`,
-    `登记（评审写完报告后，在运行目录里）：${target.record}`,
+    `登记（评审写完报告后）：${target.record}`,
   ]
 }
 

@@ -149,6 +149,8 @@ export interface TestPolicyView {
   readonly scope: 'changed' | 'full'
   readonly files: 'registered' | 'any'
   readonly scenarios: 'off' | 'required' | 'passing'
+  /** 测试完整性策略：notice（缺省）只提示，block 让信号挡住出口。 */
+  readonly integrity: 'notice' | 'block'
   readonly coverage?: TestCoverage
   readonly flaky?: { readonly max: number; readonly failOnNew: boolean }
   readonly requireBaseline: boolean
@@ -227,6 +229,22 @@ export interface NotApplicableKind {
   readonly approved: boolean
 }
 
+export interface IntegritySignal {
+  readonly code: string
+  readonly subject: string
+  readonly detail: string
+  readonly suite?: string
+}
+
+/** 测试完整性报告：相对任务起点，证据有没有变弱。 */
+export interface IntegrityReport {
+  readonly mode: 'notice' | 'block'
+  readonly state: 'ok' | 'unavailable'
+  readonly reason?: string
+  readonly signals: readonly IntegritySignal[]
+  readonly truncated?: { readonly found: number; readonly limit: number }
+}
+
 /** 一个策略步骤的判定（快照 `testPolicy[]` 的一项）。 */
 export interface PolicyReport {
   readonly stepId: string
@@ -244,6 +262,8 @@ export interface PolicyReport {
   }
   /** 服务端从目录读出的项目级不适用声明；展示只据此区分「不适用」与「缺」，不自己重新判定。 */
   readonly notApplicable: readonly NotApplicableKind[]
+  /** 步骤会运行测试（或声明了 integrity: block）且服务端读到了改动行时才有。 */
+  readonly integrity?: IntegrityReport
 }
 
 export interface RunArtifact {

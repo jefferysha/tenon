@@ -302,6 +302,19 @@ describe('decodeWorkflowDefinition · 步骤 agents', () => {
     expect(decodeWorkflowDefinition({ name: 'bare', steps: [step] })?.steps[0]?.agents).toBeUndefined()
   })
 
+  it('评审者的执行宿主 host（codex | claude | any）原样解出并写回；写错值、放在执行者上整份作废', () => {
+    for (const host of ['codex', 'claude', 'any']) {
+      const reviewers = [{ agent: 'security', required: true, block_at: 'high', host }]
+      const decoded = withAgents({ reviewers })
+      expect(decoded?.steps[0]?.agents).toEqual({ executors: [], reviewers })
+      const written = JSON.parse(JSON.stringify(definitionForWrite(decoded as WbWorkflowDef))) as WbWorkflowDef
+      expect(written.steps[0]?.agents?.reviewers).toEqual(reviewers)
+    }
+    expect(withAgents({ reviewers: [{ agent: 'security', required: true, block_at: 'high', host: 'gemini' }] })).toBeNull()
+    expect(withAgents({ reviewers: [{ agent: 'security', required: true, block_at: 'high', host: 3 }] })).toBeNull()
+    expect(withAgents({ executors: [{ agent: 'builder', host: 'codex' }] })).toBeNull()
+  })
+
   it('未知字段、非法阻断级别、缺 required 都整份作废', () => {
     expect(withAgents({ executors: [{ agent: 'builder', lane: 'x' }], reviewers: [] })).toBeNull()
     expect(withAgents({ executors: [], reviewers: [{ agent: 'a', required: true, block_at: 'fatal' }] })).toBeNull()
@@ -333,6 +346,17 @@ describe('decodeWorkflowDefinition · 步骤 test_policy', () => {
     expect(decoded?.steps[0]?.test_policy).toEqual(FULL)
     const written = JSON.parse(JSON.stringify(definitionForWrite(decoded as WbWorkflowDef))) as WbWorkflowDef
     expect(written.steps[0]?.test_policy).toEqual(FULL)
+  })
+
+  it('integrity: block 与 notice 原样解出并写回；写错值整份作废', () => {
+    for (const integrity of ['block', 'notice']) {
+      const decoded = withPolicy({ run: ['unit'], integrity })
+      expect(decoded?.steps[0]?.test_policy).toEqual({ run: ['unit'], integrity })
+      const written = JSON.parse(JSON.stringify(definitionForWrite(decoded as WbWorkflowDef))) as WbWorkflowDef
+      expect(written.steps[0]?.test_policy).toEqual({ run: ['unit'], integrity })
+    }
+    expect(withPolicy({ integrity: 'off' })).toBeNull()
+    expect(withPolicy({ integrity: true })).toBeNull()
   })
 
   it('track 分支里的步骤同样保留策略；缺省不补键', () => {

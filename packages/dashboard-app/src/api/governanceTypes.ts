@@ -59,7 +59,11 @@ export interface WbReviewerRef {
   block_at: WbAgentSeverity
   depends_on?: string[]
   reads_tests?: string[]
+  /** 跨厂商评审：必须在哪个宿主上跑（codex | claude），any = 不限；缺省 = 不要求。 */
+  host?: WbReviewerHost
 }
+
+export type WbReviewerHost = 'codex' | 'claude' | 'any'
 
 /** 步骤 agent 块；两个列表都空时定义里没有这个键。 */
 export interface WbStepAgents {
@@ -173,6 +177,8 @@ export interface WbStepTestPolicy {
   scope?: 'changed' | 'full'
   files?: 'registered' | 'any'
   scenarios?: 'off' | 'required' | 'passing'
+  /** 测试完整性：缺省（= notice）只提示，block 让信号挡住出口。 */
+  integrity?: 'notice' | 'block'
   coverage?: Partial<Record<WbCoverageMetric, number>>
   flaky?: { max: number; fail_on_new?: boolean }
   benchmark?: { require_baseline: boolean }

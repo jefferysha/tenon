@@ -25,6 +25,12 @@ export function withScenarios(policy: WbStepTestPolicy, scenarios: NonNullable<W
   return { ...policy, scenarios }
 }
 
+/** 测试完整性策略：notice 是缺省，选它就删键（后端同样把它归一为缺省）；block 才写出。 */
+export function withIntegrity(policy: WbStepTestPolicy, mode: 'notice' | 'block'): WbStepTestPolicy {
+  const { integrity: _old, ...rest } = policy
+  return mode === 'block' ? { ...rest, integrity: 'block' } : rest
+}
+
 /** 单项覆盖率门槛；undefined 删掉这一项，全空时整个 coverage 键删掉（服务端要求至少一项）。 */
 export function withCoverage(policy: WbStepTestPolicy, metric: FormCoverageMetric, value: number | undefined): WbStepTestPolicy {
   const { coverage, ...rest } = policy

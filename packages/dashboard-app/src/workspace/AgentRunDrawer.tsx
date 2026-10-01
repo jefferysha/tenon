@@ -5,6 +5,7 @@ import { useT } from '../i18n'
 import { Drawer } from '../shared/Drawer'
 import { Markdown } from '../shared/Markdown'
 import { StatusPill, type PillTone } from '../shell/ThreeColumns'
+import { DefRow } from '../tests/TestSection'
 import type { AgentRunView } from '../types'
 
 type Report = { status: 'loading' } | { status: 'ready'; text: string } | { status: 'error'; detail: string }
@@ -23,7 +24,47 @@ const RESULT_KEY = {
   failed: 'workspace.agent_failed',
 } as const
 
-/** 右侧抽屉：一个 agent 这次运行的结论、操作人与时间，加它写的报告正文。 */
+/** 候选的短形式：保留前缀与首尾几位，完整值放 title。 */
+export function shortCandidate(candidate: string): string {
+  const split = candidate.lastIndexOf(':') + 1
+  const hash = candidate.slice(split)
+  return hash.length <= 14 ? candidate : `${candidate.slice(0, split)}${hash.slice(0, 8)}…${hash.slice(-4)}`
+}
+
+/**
+ * 这次评审绑定的东西：在哪个宿主上跑的、绑定的候选（被评审代码的内容哈希）。两行定义表，永不折行；
+ * 没有宿主要求也没有登记宿主、没有候选时整块不出现。宿主不符 = 红点 + 词，要求的宿主放 title。
+ */
+function RunBinding({ agent }: { agent: AgentRunView }): JSX.Element | null {
+  const { t } = useT()
+  const hasHost = agent.host != null || agent.requiredHost != null
+  const hasCandidate = agent.candidate != null
+  if (!hasHost && !hasCandidate) return null
+  return (
+    <div className="mb-3" role="table" aria-label={t('workspace.agent_candidate')} data-testid="agent-run-binding">
+      {hasHost && (
+        <DefRow label={t('workspace.agent_host')} testId="agent-run-host">
+          <span title={agent.requiredHost == null ? undefined : agent.requiredHost}>
+            {agent.host ?? '—'}
+            {agent.hostSource === 'declared' && <span className="text-text-3" data-testid="agent-run-host-declared">{` · ${t('workspace.agent_declared')}`}</span>}
+          </span>
+          {agent.wrongHost === true && (
+            <StatusPill tone="blocked" testId="agent-run-host-mismatch" title={agent.requiredHost ?? undefined} className="ml-3 font-sans">
+              {t('workspace.agent_host_mismatch')}
+            </StatusPill>
+          )}
+        </DefRow>
+      )}
+      {hasCandidate && (
+        <DefRow label={t('workspace.agent_candidate')} testId="agent-run-candidate">
+          <span title={agent.candidate ?? undefined}>{shortCandidate(agent.candidate ?? '')}</span>
+        </DefRow>
+      )}
+    </div>
+  )
+}
+
+/** 右侧抽屉：一个 agent 这次运行的结论、操作人与时间、绑定的宿主与候选，加它写的报告正文。 */
 export function AgentRunDrawer({
   root, agent, onClose,
 }: {
@@ -80,6 +121,7 @@ export function AgentRunDrawer({
       )}
       actions={<StatusPill tone={TONE[agent.state]} testId="agent-run-state">{verdict}</StatusPill>}
     >
+      <RunBinding agent={agent} />
       {path === null ? (
         <p className="text-body text-text-3" role="status" data-testid="agent-run-empty">{t('workspace.agent_idle')}</p>
       ) : state.status === 'loading' ? (

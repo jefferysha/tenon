@@ -7,13 +7,14 @@ import { Hint } from './Hint'
 import { Choice, FieldRow, KindPicker, NumberField } from './TestPolicyControls'
 import { TestPolicyLegacy } from './TestPolicyLegacy'
 import {
-  FORM_COVERAGE_METRICS, newPolicy, parseLimit, parsePercent, withCoverage, withFlakyMax, withKinds,
+  FORM_COVERAGE_METRICS, newPolicy, parseLimit, parsePercent, withCoverage, withFlakyMax, withIntegrity, withKinds,
   withRequireBaseline, withScenarios, withScope,
 } from './testPolicyEdits'
 
 const HEAD_ACTION = 'inline-flex items-center gap-1.5 whitespace-nowrap text-body text-text-2 outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent)'
 const SCOPES = ['full', 'changed'] as const
 const SCENARIOS = ['off', 'required', 'passing'] as const
+const INTEGRITY = ['notice', 'block'] as const
 
 /**
  * 工作流页门禁段里的测试策略：本阶段的测试策略（结构化表单）+ 旧步骤测试（只读行）。
@@ -116,6 +117,16 @@ export function TestPolicyForm({ stepId, policy, legacyTests, editable, onChange
               disabled={disabled}
               onChange={(next) => edit((current) => withScenarios(current, next))}
               testId="wb-policy-scenarios"
+            />
+          </FieldRow>
+          <FieldRow label={t('tests.policy.field.integrity')} hint={t('tests.policy.hint.integrity')} testId="wb-policy-integrity-row">
+            <Choice
+              label={t('tests.policy.field.integrity')}
+              options={INTEGRITY.map((id) => ({ id, label: t(`tests.policy.integrity.${id}`) }))}
+              value={policy.integrity ?? 'notice'}
+              disabled={disabled}
+              onChange={(next) => edit((current) => withIntegrity(current, next))}
+              testId="wb-policy-integrity"
             />
           </FieldRow>
         </div>

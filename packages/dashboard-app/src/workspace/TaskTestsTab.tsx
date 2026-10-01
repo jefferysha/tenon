@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import type { PolicyReport, TestPlanBrief } from '../api/testSystemTypes'
+import { TestsTabIntegrity } from './TestsTabIntegrity'
 import { TestsTabBlockers, TestsTabFiles, TestsTabTrace } from './TestsTabLists'
 import { TestsTabMatrix } from './TestsTabMatrix'
 import { TestsTabStats } from './TestsTabStats'
@@ -7,7 +8,7 @@ import { buildMatrix, extraItems, fileRows, summarize, type MatrixSuite } from '
 import type { TestRow } from './stageTests'
 
 /**
- * 工作台任务「测试」页签：汇总数字 → 未登记文件（置顶于表格之上）→ 策略矩阵 → 阻塞 → 场景/任务追溯。
+ * 工作台任务「测试」页签：汇总数字 → 未登记文件（置顶于表格之上）→ 策略矩阵 → 完整性 → 阻塞 → 场景/任务追溯。
  * 只展示服务端的判定（与转换拦截同一份），不登记也不执行。套件名可点则打开运行详情。
  */
 export function TaskTestsTab({ report, plan, legacyRows, activeSuite, onOpenSuite, stageLabelOf, recordedBy }: {
@@ -37,6 +38,7 @@ export function TaskTestsTab({ report, plan, legacyRows, activeSuite, onOpenSuit
       <TestsTabStats summary={summary} pass={report.pass} {...(recordedBy === undefined ? {} : { recordedBy })} />
       <TestsTabFiles rows={files} />
       <TestsTabMatrix rows={rows} openable={openable} activeSuite={activeSuite} onOpen={onOpenSuite} />
+      <TestsTabIntegrity integrity={report.integrity} />
       <TestsTabBlockers items={extra} />
       <TestsTabTrace report={report} stageLabelOf={stageLabelOf} />
     </div>

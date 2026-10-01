@@ -29,6 +29,8 @@ model: sonnet
 - `role` 是 `executor`（完成步骤的工作）或 `reviewer`（离开步骤前检查）。没有 `role` 的旧文件照常
   读取，按工具推断（带 `Write` / `Edit` 的算执行者），`tenon agent validate` 会提示补上这一行。
 - `version` 是可选的 semver；`hosts`（可选）限定适用的宿主；`model` 只交给认得它的宿主。
+- `host`（可选，`codex` | `claude` | `any`）是评审者*该在哪个宿主上跑*。它只是建议，用来把评审者路由到另一家厂商；
+  真正有约束力的是工作流步骤里的声明（见[跨厂商评审](#跨厂商评审)）。别和 `hosts`（智能体*能在哪些宿主上跑*）混淆。
 - 智能体写的报告以 `tenon-result` 代码块结尾。评审者只列问题、不自报结论——结论由 Tenon 按问题级别
   与步骤的 `block_at` 算出；执行者报 `done` 或 `failed`。
 
@@ -51,7 +53,7 @@ model: sonnet
 ```text
 tenon agent list [--role executor|reviewer] [--source official|custom|project] [--json]
 tenon agent show <name> [--json]
-tenon agent new [<name>] --role <role> --description <text> [--skills a,b] [--tools A,B] [--model <m>] [--hosts a,b] [--scope user|project] [--from <agent>]
+tenon agent new [<name>] --role <role> --description <text> [--skills a,b] [--tools A,B] [--model <m>] [--hosts a,b] [--host codex|claude|any] [--scope user|project] [--from <agent>]
 tenon agent add <file> [--scope user|project] [--replace]
 tenon agent validate <file|name>
 tenon agent copy <from> <to> [--scope user|project]
@@ -114,6 +116,47 @@ agents:
 每条轨道的调研挂 `researcher`、实现挂 `builder`（按独立任务各起一个子代理，合成一份报告）、验证挂
 `code-size` 评审者及其 `code-size` 测试；对话与自由轨道的验证再加参考评审者 `security`。见
 [默认工作流](default-workflow.md) 与 [自定义工作流](custom-workflows-and-tracks.md)。
+
+## 跨厂商评审
+
+Claude 写、Codex 审（反过来也行）。步骤里的评审者写明它必须在哪个宿主上跑：
+
+```yaml
+agents:
+  reviewers:
+    - agent: security
+      required: true
+      block_at: medium
+      host: codex        # codex | claude | any
+```
+
+| 写在哪 | 含义 |
+| --- | --- |
+| 步骤 `host: codex` 或 `claude` | 硬要求：只有随裁决登记的宿主就是它，裁决才算数 |
+| 步骤 `host: any` | 不要求；盖过智能体的建议 |
+| 步骤没写 `host`，智能体文件里有 `host:` | 建议：`tenon agent prompt` 仍然路由到那个宿主，别的宿主给出的裁决照样算数 |
+| 都没有 | 不路由、不要求 |
+
+**路由。** `tenon agent prompt <change> <agent>` 知道自己在哪个宿主里跑（进程环境，或 `--host`）。不是要求的宿主时，它照常开出这次运行，
+但把提示词写进 `openspec/changes/<change>/.pipeline-agent-reports/<run-id>.prompt.md`，并打印在另一个宿主上运行的确切命令，不再打印提示词：
+
+```bash
+codex exec --sandbox workspace-write - < openspec/changes/demo/.pipeline-agent-reports/<run-id>.prompt.md
+# 要求 Claude 审时（在 Codex 里）：
+claude -p --allowedTools "Read,Grep,Glob,Write,Bash(tenon agent record:*)" < openspec/changes/demo/.pipeline-agent-reports/<run-id>.prompt.md
+```
+
+Tenon 不会替你起那个 CLI：命令由你、或当前宿主里的 agent 去执行。提示词末尾是 `tenon agent record <change> <run-id> --host <host>`，
+所以评审能自己登记时就自己登记；另一个 CLI 写不了 Tenon 的状态时，在原宿主执行 `tenon agent record <change> <run-id> --host codex`，
+宿主来源就记为 `declared`（声明），而不是 `detected`（检测）。
+
+**绑定。** 跨厂商的裁决绑两次。*绑代码*：运行行带着候选（评审开始时工作区的内容哈希），评审期间代码变了 `record` 拒绝，之后任何改动都让裁决过期、
+必须重跑。*绑宿主*：`record` 存下 `host` 与 `host_source`；步骤要求了宿主时，来自别的（或未知的）宿主的登记被拒（exit `2`），台账里仍然对不上的行
+也不算裁决——评审者显示 `stale`，离开步骤报 `reviewer-wrong-host`，在对的宿主上重跑不需要 `--rerun-reason`。宿主是登记者的声明，与台账其余部分同一信任
+模型；`host_source` 让人看得出它是检测来的还是声明的。
+
+状态 JSON（`step.reviewers[]` 的 `required_host`、`route_host`、`host`、`host_source`、`wrong_host`）和 `run-agent` 动作（`host`）给运行器带同样的事实；
+Dashboard 的 agent 运行抽屉显示登记的宿主与绑定的候选，登记的宿主违反要求时是红点加「宿主不符」。工作流页在 `block_at` 旁边编辑评审者的 `host`。
 
 ## Dashboard
 

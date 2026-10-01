@@ -92,6 +92,20 @@ to a test case, and `coverage`, `flaky` and `browsers` add thresholds. A step
 without `test_policy` behaves exactly as before, a started change keeps the plan
 it froze, and a step's own `tests` keep working next to its policy.
 
+`integrity: notice | block` (default `notice`) says what the test-integrity report does at that
+step. The report compares the change with its start and flags case-count drops and rising skips
+across full runs, deleted or skipped tests, removed assertions, rewritten snapshots, changed
+baselines, added known failures and lowered coverage thresholds (the ten signals are listed in
+the [CLI reference](cli-reference.md), the command is `tenon test integrity
+<change>`). The default workflow and the standard lane declare nothing, so every Build and
+Verify step runs at `notice`: the signals show up as one `test-integrity` notice in `status`,
+`test status` and the Dashboard Tests tab and never block. Set `integrity: block` on a step to
+turn them into a blocker for that step (an unreadable diff then blocks too, with
+`files-diff-unavailable`); there is no per-signal waiver, so a deliberate deletion means
+restoring the test or editing the policy. `integrity: notice` is the same as omitting the key and
+does not change the workflow's fingerprint. The Dashboard workflow page edits it next to
+`scenarios`.
+
 Zero-waiver defaults: **only `unit` is mandatory** (registered at Spec, run at
 Build with scope `changed` and at Verify with scope `full`). Everything else runs
 only when the project has it: `typecheck`, `integration`, `regression`, `e2e`,

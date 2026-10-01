@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -157,6 +157,19 @@ describe('TestPolicyForm · 编辑', () => {
     expect(screen.getByTestId('wb-policy-scenarios-passing')).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByTestId('wb-policy-scenarios-passing')).toHaveAttribute('tabindex', '0')
     expect(screen.getByTestId('wb-policy-scenarios-off')).toHaveAttribute('tabindex', '-1')
+  })
+
+  it('完整性是单选：缺省提示；选阻塞写出 integrity: block；选回提示就去掉这个键；只读时禁用', async () => {
+    const spy = mount({ plan: 'required' })
+    expect(screen.getByTestId('wb-policy-integrity-notice')).toHaveAttribute('aria-checked', 'true')
+    await userEvent.click(screen.getByTestId('wb-policy-integrity-block'))
+    expect(last(spy)).toEqual({ plan: 'required', integrity: 'block' })
+    expect(screen.getByTestId('wb-policy-integrity-row').textContent).toContain('完整性')
+    cleanup()
+    const back = mount({ plan: 'required', integrity: 'block' })
+    expect(screen.getByTestId('wb-policy-integrity-block')).toHaveAttribute('aria-checked', 'true')
+    await userEvent.click(screen.getByTestId('wb-policy-integrity-notice'))
+    expect(last(back)).toEqual({ plan: 'required' })
   })
 
   it('覆盖率：输入合法值上报，保留 functions 等未管的键；清空一项只去掉那一项', async () => {

@@ -3,7 +3,7 @@ import { DEFAULT_WB_DECOMPOSITION_POLICY, DEFAULT_WB_INTERACTION_POLICY } from '
 import type {
   WbAgentSeverity, WbDecompositionMode, WbDecompositionPolicy, WbDecompositionStrategy,
   WbDecompositionTarget, WbExecutorRef, WbFieldRef, WbInteractionMode, WbInteractionPolicy,
-  WbReviewerRef, WbSkillEntry, WbSkillRef, WbStepAgents,
+  WbReviewerHost, WbReviewerRef, WbSkillEntry, WbSkillRef, WbStepAgents,
 } from './governanceTypes'
 
 export function record(value: unknown): Record<string, unknown> | null {
@@ -95,6 +95,7 @@ export function decodeSkill(value: unknown): WbSkillRef | null {
 }
 
 export const SEVERITIES = ['critical', 'high', 'medium', 'low'] as const
+export const REVIEWER_HOSTS = ['codex', 'claude', 'any'] as const
 
 export function decodeExecutor(value: unknown): WbExecutorRef | null {
   const item = record(value)
@@ -109,18 +110,20 @@ export function decodeReviewer(value: unknown): WbReviewerRef | null {
   const item = record(value)
   const blockAt = item === null ? null : item.block_at
   if (!item
-    || !allowedKeys(item, ['agent', 'required', 'block_at', 'depends_on', 'reads_tests'])
+    || !allowedKeys(item, ['agent', 'required', 'block_at', 'depends_on', 'reads_tests', 'host'])
     || typeof item.agent !== 'string'
     || typeof item.required !== 'boolean'
     || !isMember<WbAgentSeverity>(blockAt, SEVERITIES)
     || (item.depends_on !== undefined && !strings(item.depends_on))
-    || (item.reads_tests !== undefined && !strings(item.reads_tests))) return null
+    || (item.reads_tests !== undefined && !strings(item.reads_tests))
+    || (item.host !== undefined && !isMember<WbReviewerHost>(item.host, REVIEWER_HOSTS))) return null
   return {
     agent: item.agent,
     required: item.required,
     block_at: blockAt,
     ...(item.depends_on === undefined ? {} : { depends_on: item.depends_on }),
     ...(item.reads_tests === undefined ? {} : { reads_tests: item.reads_tests }),
+    ...(item.host === undefined ? {} : { host: item.host as WbReviewerHost }),
   }
 }
 

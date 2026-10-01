@@ -10,6 +10,7 @@
     "./test-system/test-support": "./dist/test-system/test-support.js",
     "./test-system/vocabulary": "./dist/test-system/vocabulary.js",
     "./test-system/blockers": "./dist/test-system/blockers.js",
+    "./test-system/integrity-labels": "./dist/test-system/integrity-labels.js",
     "./resources/query": "./dist/resources/query.js",
     "./resources/frontend-selection": "./dist/resources/frontend-selection.js",
     "./workflow/identifier": "./dist/workflow/identifier.js",

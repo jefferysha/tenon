@@ -124,7 +124,7 @@ export function verifyReport(over: Partial<PolicyReport> = {}): PolicyReport {
     chain: 'intact',
     policy: {
       plan: 'required', kinds: ['unit', 'playwright', 'a11y'], run: ['unit', 'playwright', 'benchmark'], runIfRegistered: [],
-      scope: 'full', files: 'registered', scenarios: 'passing', coverage: { lines: 80, changedLines: 90 },
+      scope: 'full', files: 'registered', scenarios: 'passing', integrity: 'notice', coverage: { lines: 80, changedLines: 90 },
       flaky: { max: 2, failOnNew: true }, requireBaseline: false, browsers: ['chromium'],
     },
     blockers: [
