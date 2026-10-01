@@ -108,6 +108,46 @@ describe('GET /api/workflows/:name/orchestration', () => {
   })
 })
 
+/** 技能页「引用」列的读法：不带 root（全局存储）读工作流列表，再逐个读定义与每条轨道的编排。 */
+describe('技能页的引用来源：不带 root 读内建工作流', () => {
+  const skillIds = (body: DefinitionOrchestrationResponse): string[] =>
+    body.stages.flatMap((stage) => stage.entries.filter((entry) => entry.kind === 'skill').map((entry) => entry.id))
+
+  it('列表不含 default 与 simple（调用方要自己加上），但两者的定义和每条轨道的编排都读得到，带出阶段技能', async () => {
+    const h = await start()
+    const index = await reqGet(h.port, '/api/workflows')
+    expect(index.status).toBe(200)
+    const listed = index.json<{ names: string[]; default: { source: string } }>()
+    expect(listed.names).not.toContain('default')
+    expect(listed.names).not.toContain('simple')
+    expect(listed.default).toEqual({ source: 'builtin' })
+
+    const definition = await reqGet(h.port, '/api/workflows/default')
+    expect(definition.status).toBe(200)
+    const tracks = Object.keys(definition.json<{ tracks?: Record<string, unknown> }>().tracks ?? {})
+    expect(tracks).toEqual(expect.arrayContaining(['frontend', 'backend']))
+    const used = new Set<string>()
+    for (const track of tracks) {
+      const branch = await reqGet(h.port, `/api/workflows/default/orchestration?root=&track=${encodeURIComponent(track)}`)
+      expect([track, branch.status]).toEqual([track, 200])
+      for (const id of skillIds(branch.json<DefinitionOrchestrationResponse>())) used.add(id)
+    }
+    // 内建 default 的前端分支：立项 openspec-propose、调研 brainstorming、规格 writing-plans。
+    const frontend = (await reqGet(h.port, '/api/workflows/default/orchestration?root=&track=frontend')).json<DefinitionOrchestrationResponse>()
+    expect(skillsOf(frontend, 'open')?.map(([id]) => id)).toContain('openspec-propose')
+    expect(skillsOf(frontend, 'explore')?.map(([id]) => id)).toContain('brainstorming')
+    expect(skillsOf(frontend, 'spec')?.map(([id]) => id)).toContain('writing-plans')
+    expect([...used]).toEqual(expect.arrayContaining(['openspec-propose', 'brainstorming', 'writing-plans', 'test-driven-development']))
+
+    const simple = await reqGet(h.port, '/api/workflows/simple')
+    expect(simple.status).toBe(200)
+    expect(simple.json<{ tracks?: unknown }>().tracks).toBeUndefined()
+    const simpleBranch = await reqGet(h.port, '/api/workflows/simple/orchestration?root=')
+    expect(simpleBranch.status).toBe(200)
+    expect(skillsOf(simpleBranch.json<DefinitionOrchestrationResponse>(), 'verify')).toEqual([['verification-before-completion', 0]])
+  })
+})
+
 describe('GET /api/change/:name/orchestration', () => {
   it('读任务冻结的计划：项目定义之后改了，任务的编排不变；当前阶段带运行状态', async () => {
     const h = await start()

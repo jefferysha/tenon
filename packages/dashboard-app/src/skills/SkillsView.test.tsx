@@ -1,8 +1,10 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { I18nProvider } from '../i18n'
 import { SkillsView } from './SkillsView'
+import { workflowsToScan } from './useSkillReferences'
 
 const C1 = '1'.repeat(40)
 const C2 = '2'.repeat(40)
@@ -32,7 +34,7 @@ const FIXTURE = {
 }
 
 function renderView(): void {
-  render(<I18nProvider><SkillsView /></I18nProvider>)
+  render(<I18nProvider><TooltipProvider delayDuration={0}><SkillsView /></TooltipProvider></I18nProvider>)
 }
 
 afterEach(() => {
@@ -329,45 +331,88 @@ describe('SkillsView', () => {
     expect(screen.getByTestId('skills-fix-hue-1-text')).toHaveTextContent('tenon update --claude')
   })
 
-  it('lists which workflows / tracks / stages use a skill, read from the orchestration: declared, OpenSpec-injected and manifest-overlay alike', async () => {
+  it('lists which workflows use a skill at which stage, read from the orchestration: declared, OpenSpec-injected and manifest-overlay alike; the same stage on several tracks is one place', async () => {
     const entry = (id: string, source: 'declared' | 'openspec' | 'manifest' = 'declared') =>
       ({ kind: 'skill', id, label: id, wave: 0, dependsOn: [], required: true, source })
     const stage = (id: string, label: string, entries: unknown[]) => ({ id, label, gate: null, entries })
-    const orchestration = (track: string, stages: unknown[]) => ({ workflow: 'default', track, stages, returns: [], flows: [], overlay: {} })
+    const orchestration = (workflow: string, track: string | null, stages: unknown[]) => ({ workflow, track, stages, returns: [], flows: [], overlay: {} })
     // 定义只用来知道有哪些轨道（id / label）；引用来自每条轨道的编排，而不是定义里的 step.skills。
-    const definition = { name: 'default', steps: [], tracks: { ui: { label: '界面', steps: [] }, backend: { steps: [] } } }
+    const definitions: Record<string, unknown> = {
+      default: { name: 'default', steps: [], tracks: { ui: { label: '界面', steps: [] }, backend: { steps: [] } } },
+      simple: { name: 'simple', steps: [] },
+      team: { name: 'team', steps: [] },
+    }
     const branches: Record<string, unknown> = {
-      ui: orchestration('ui', [
+      'default/ui': orchestration('default', 'ui', [
         stage('explore', '调研', [entry('superpowers:brainstorming')]),
         stage('design', '设计', [entry('hue'), entry('openspec-propose', 'openspec')]),
       ]),
-      backend: orchestration('backend', [
+      'default/backend': orchestration('default', 'backend', [
         stage('explore', '调研', [entry('brainstorming|opsx:explore', 'manifest')]),
         stage('build', '实现', [entry('hue')]),
       ]),
+      'simple/': orchestration('simple', null, [stage('verify', '验证', [entry('verification-before-completion')])]),
+      'team/': orchestration('team', null, [stage('plan', 'plan', [entry('brainstorming')])]),
     }
-    const withInjected = { ...FIXTURE, rows: [...FIXTURE.rows, { ...FIXTURE.rows[2], id: 'openspec-propose' }] }
+    const withMore = { ...FIXTURE, rows: [...FIXTURE.rows, { ...FIXTURE.rows[2], id: 'openspec-propose' }, { ...FIXTURE.rows[2], id: 'verification-before-completion' }] }
     const requested: string[] = []
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
       requested.push(url)
-      if (url.startsWith('/api/skills/sources')) return new Response(JSON.stringify(withInjected), { status: 200 })
-      if (url.startsWith('/api/workflows?')) return new Response(JSON.stringify({ names: ['default'] }), { status: 200 })
-      const branch = /^\/api\/workflows\/default\/orchestration\?.*track=([a-z]+)/u.exec(url)?.[1]
-      if (branch !== undefined && branches[branch] !== undefined) return new Response(JSON.stringify(branches[branch]), { status: 200 })
-      if (url.startsWith('/api/workflows/default')) return new Response(JSON.stringify(definition), { status: 200 })
+      if (url.startsWith('/api/skills/sources')) return new Response(JSON.stringify(withMore), { status: 200 })
+      // 与真实服务端一致：列表只有自定义与模板工作流，不含 default 与内建的 simple。
+      if (url.startsWith('/api/workflows?')) return new Response(JSON.stringify({ names: ['team'], default: { source: 'builtin' } }), { status: 200 })
+      const orchestrationOf = /^\/api\/workflows\/([^/?]+)\/orchestration\?(.*)$/u.exec(url)
+      if (orchestrationOf !== null) {
+        const track = new URLSearchParams(orchestrationOf[2]).get('track') ?? ''
+        const body = branches[`${orchestrationOf[1]}/${track}`]
+        return body === undefined ? new Response('{}', { status: 404 }) : new Response(JSON.stringify(body), { status: 200 })
+      }
+      const definition = /^\/api\/workflows\/([^/?]+)\?/u.exec(url)?.[1]
+      if (definition !== undefined && definitions[definition] !== undefined) return new Response(JSON.stringify(definitions[definition]), { status: 200 })
       return new Response('{}', { status: 404 })
     })
     renderView()
     await screen.findByTestId('skills-row-hue')
-    await waitFor(() => expect(screen.getByTestId('skills-used-brainstorming')).toHaveTextContent('default · 界面 · 调研+1'))
+    // default 不在工作流列表里，照样被计入；界面 / backend 两条轨道的「调研」合成一处，再加 team 的 plan。
+    await waitFor(() => expect(screen.getByTestId('skills-used-brainstorming')).toHaveTextContent('default · 调研+1'))
     // 有了引用数据，被隐藏的 引用 列出现。
     expect(screen.getAllByRole('columnheader').map((cell) => cell.textContent)).toContain('引用')
-    expect(screen.getByTestId('skills-used-brainstorming')).toHaveAttribute('title', 'default · 界面 · 调研\ndefault · backend · 调研')
-    expect(screen.getByTestId('skills-used-hue')).toHaveAttribute('title', 'default · 界面 · 设计\ndefault · backend · 实现')
-    expect(screen.getByTestId('skills-used-openspec-propose')).toHaveTextContent('default · 界面 · 设计')
+    expect(screen.getByTestId('skills-used-hue')).toHaveTextContent('default · 设计+1')
+    expect(screen.getByTestId('skills-used-openspec-propose')).toHaveTextContent('default · 设计')
+    expect(screen.getByTestId('skills-used-openspec-propose')).not.toHaveTextContent('+')
+    // 内建的 simple 也读：没有轨道的工作流只写「工作流 · 阶段」。
+    expect(screen.getByTestId('skills-used-verification-before-completion')).toHaveTextContent(/^simple · 验证$/u)
     expect(screen.getByTestId('skills-used-tenon')).toHaveTextContent('—')
-    expect(requested.some((url) => url.includes('/orchestration?') && url.includes('track=ui'))).toBe(true)
-    expect(requested.some((url) => url.includes('/orchestration?') && url.includes('track=backend'))).toBe(true)
+    expect(requested.some((url) => url.startsWith('/api/workflows/default?'))).toBe(true)
+    expect(requested.some((url) => url.startsWith('/api/workflows/simple?'))).toBe(true)
+    expect(requested.some((url) => url.includes('/default/orchestration?') && url.includes('track=ui'))).toBe(true)
+    expect(requested.some((url) => url.includes('/default/orchestration?') && url.includes('track=backend'))).toBe(true)
+    // 悬停 Tooltip 列出全部引用，一行一处：工作流 · 阶段 · 轨道。
+    await userEvent.hover(within(screen.getByTestId('skills-used-brainstorming')).getByText(/default · 调研/u))
+    const lines = (await screen.findAllByTestId('skills-used-list-brainstorming'))[0] as HTMLElement
+    expect([...lines.querySelectorAll('li')].map((line) => line.textContent)).toEqual(['default · 调研 · 界面 / backend', 'team · plan'])
+    for (const line of lines.querySelectorAll('li')) expect(line.className).toContain('whitespace-nowrap')
+  })
+
+  it('reads the built-in workflows the index does not list: default first, then the plugin-owned ones, then the custom names, each once', () => {
+    expect(workflowsToScan([])).toEqual(['default', 'simple'])
+    expect(workflowsToScan(['team', 'design-system', 'simple'])).toEqual(['default', 'simple', 'team', 'design-system'])
+  })
+
+  it('a branch that cannot be read only costs its own references', async () => {
+    const withBrainstorming = { name: 'default', steps: [], tracks: { ui: { label: '界面', steps: [] } } }
+    const ok = { workflow: 'default', track: 'ui', overlay: {}, returns: [], flows: [], stages: [{ id: 'explore', label: '调研', gate: null, entries: [{ kind: 'skill', id: 'brainstorming', label: 'brainstorming', wave: 0, dependsOn: [], required: true, source: 'declared' }] }] }
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.startsWith('/api/skills/sources')) return new Response(JSON.stringify(FIXTURE), { status: 200 })
+      if (url.startsWith('/api/workflows?')) return new Response(JSON.stringify({ names: ['team'], default: { source: 'builtin' } }), { status: 200 })
+      if (url.includes('/default/orchestration?')) return new Response(JSON.stringify(ok), { status: 200 })
+      if (url.startsWith('/api/workflows/default?')) return new Response(JSON.stringify(withBrainstorming), { status: 200 })
+      return new Response(JSON.stringify({ ok: false, error: 'boom' }), { status: 500 })
+    })
+    renderView()
+    await screen.findByTestId('skills-row-hue')
+    await waitFor(() => expect(screen.getByTestId('skills-used-brainstorming')).toHaveTextContent(/^default · 调研$/u))
   })
 })

@@ -3,8 +3,9 @@ import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { SkillSourceRow } from '../api/skillSourcesClient'
 import { useT } from '../i18n'
 import { CountRoll } from '../shared/CountRoll'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { SkillFailureRow } from './SkillFailureRow'
-import { referenceText, type SkillReference } from './useSkillReferences'
+import { referenceText, referenceTitle, type SkillReference } from './useSkillReferences'
 
 const CELL = 'truncate whitespace-nowrap px-3 py-2'
 /** 表头与分组小标题都是 36px 高（h-9）：小标题贴在表头下面（top-9），两层粘性互不遮挡。 */
@@ -73,14 +74,25 @@ function CommitCell({ row }: { readonly row: SkillSourceRow }): JSX.Element {
   )
 }
 
-/** 引用列：第一处引用 + 「+N」，全部引用在悬停提示里（一行一处）。 */
+/** 引用列：第一处引用（工作流 · 阶段）+ 「+N」；全部引用（带轨道）在悬停的 Tooltip 里，一行一处。 */
 function UsedCell({ id, references }: { readonly id: string; readonly references: readonly SkillReference[] }): JSX.Element {
   const first = references[0]
   if (first === undefined) return <td className={`${CELL} text-text-3`} data-testid={`skills-used-${id}`}>—</td>
   return (
-    <td className={`${CELL} text-text-2`} title={references.map(referenceText).join('\n')} data-testid={`skills-used-${id}`}>
-      {referenceText(first)}
-      {references.length > 1 && <span className="ml-1.5 tabular-nums text-text-3">+{references.length - 1}</span>}
+    <td className={`${CELL} text-text-2`} data-testid={`skills-used-${id}`}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span>
+            {referenceText(first)}
+            {references.length > 1 && <span className="ml-1.5 tabular-nums text-text-3" data-testid={`skills-used-more-${id}`}>+{references.length - 1}</span>}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-none">
+          <ul className="grid gap-0.5" data-testid={`skills-used-list-${id}`}>
+            {references.map((reference) => <li key={referenceTitle(reference)} className="whitespace-nowrap">{referenceTitle(reference)}</li>)}
+          </ul>
+        </TooltipContent>
+      </Tooltip>
     </td>
   )
 }
