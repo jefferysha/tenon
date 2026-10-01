@@ -31,7 +31,7 @@ export function NextStepPanel({ row, onToast }: NextStepPanelProps): JSX.Element
       : exit.ready
         ? plain(t('workspace.summary_ready', { to: stageLabel(exit.to, row.rules) }))
         : mergeBlockerRows(exit.lines, t)
-  const takeover = takeoverPrompt(change.name)
+  const takeover = takeoverPrompt(change.name, t('workspace.takeover_verb'))
   const copyTakeover = (): void => {
     void navigator.clipboard?.writeText(takeover).then(() => onToast?.(t('workspace.takeover_copied')), () => undefined)
   }

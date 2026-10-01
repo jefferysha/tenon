@@ -30,7 +30,21 @@ import { evaluateWorkflowIrStepGuards } from './stepGuard.js'
 
 export type StepBlockerSource = 'guard' | 'document' | 'skill' | 'test' | 'reviewer' | 'revision' | 'spec' | 'tasks'
 
-export interface StepBlocker {
+/**
+ * 阻断的结构化描述：`message` 是给人读的整句（中文、与 CLI 同一份），客户端不得再去解析它；
+ * 需要按类别展示时读这三个字段。只有该类阻断知道的字段才出现，其余缺席（客户端退回整句）。
+ *  - `subject`：被阻断的对象——文档 kind、技能 token、测试的显示名；
+ *  - `state`：对象的状态——文档 `missing | stale | unread`、技能 `not-run | unrecorded`、
+ *    测试 `running | missing | stale | failed`；
+ *  - `count`：计数——tasks.md 里仍未勾选的项数。
+ */
+export interface StepBlockerDetail {
+  readonly subject?: string
+  readonly state?: string
+  readonly count?: number
+}
+
+export interface StepBlocker extends StepBlockerDetail {
   readonly source: StepBlockerSource
   readonly code: string
   readonly message: string
@@ -84,8 +98,8 @@ export interface StepExitReportInput {
 
 const IMPLICIT_COMPLETION_EVENT = 'archived'
 
-function blocker(source: StepBlockerSource, code: string, message: string): StepBlocker {
-  return { source, code, message }
+function blocker(source: StepBlockerSource, code: string, message: string, detail?: StepBlockerDetail): StepBlocker {
+  return detail === undefined ? { source, code, message } : { source, code, message, ...detail }
 }
 
 /** 没有宿主回执时的技能判定：history 里的受理记录 + 本次访问已登记的文档。 */
@@ -184,8 +198,15 @@ export async function evaluateStepExitReport(input: StepExitReportInput): Promis
   })
   // 技能门对退回边同样生效（rejectOnStepGates 不分方向），所以它进 perExit 而非 shared。
   const judgement = await input.skills()
-  const skills = missingStepSkillMessages(judgement.slots)
-    .map((message) => blocker('skill', 'skill-incomplete', `尚未完成声明的 skill：${message}`))
+  // missingStepSkillMessages 按槽位顺序只返回未完成的槽位，所以与 pending 一一对应。
+  const pending = judgement.slots.filter((slot) => !slot.done)
+  const skills = missingStepSkillMessages(judgement.slots).map((message, index) => {
+    const slot = pending[index]
+    return blocker('skill', 'skill-incomplete', `尚未完成声明的 skill：${message}`, slot === undefined ? undefined : {
+      subject: slot.token,
+      state: slot.invoked && slot.pendingDocuments.length > 0 ? 'unrecorded' : 'not-run',
+    })
+  })
   const reviewers = (await input.agentBlockers()).map((item) =>
     blocker('reviewer', item.kind, renderAgentBlocker(item, input.changeName)))
   const migration = stepId === 'ship' && plan.capabilities.documents.governed
@@ -202,10 +223,10 @@ export async function evaluateStepExitReport(input: StepExitReportInput): Promis
     // tasks.md 的勾选是本步的工作项，不是一个可填的字段：单列成 `tasks` 来源，`next` 才能把它排在
     // 自由文本字段（pr_url 等）之前。
     ...phaseExit.failures.map((item) => item.includes('tasks.md')
-      ? { ...blocker('tasks', 'tasks-incomplete', item), items: openTasks }
+      ? { ...blocker('tasks', 'tasks-incomplete', item, openTasks.length > 0 ? { count: openTasks.length } : undefined), items: openTasks }
       : blocker('guard', 'phase-exit', item)),
-    ...(documents?.blockers ?? []).map((item) => blocker('document', 'document-evidence', item)),
-    ...testReport.blockers.map((item) => blocker('test', 'test-evidence', item)),
+    ...(documents?.blockers ?? []).map((item, index) => blocker('document', 'document-evidence', item, documents?.blockerDetails?.[index])),
+    ...testReport.blockers.map((item, index) => blocker('test', 'test-evidence', item, testReport.blockerDetails?.[index])),
     ...reviewers,
     ...(migration?.kind === 'invalid' ? [blocker('spec', 'migration', migration.reason)] : []),
   ]

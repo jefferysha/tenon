@@ -201,7 +201,7 @@ describe('项目页 · 套件详情', () => {
     expect(screen.getByTestId('proj-suite-command-text').className).toContain('truncate')
     expect(screen.getByTestId('proj-suite-command-text')).toHaveAttribute('title', expect.stringContaining('npx vitest run'))
     expect(screen.getByTestId('proj-suite-command-copy')).toBeVisible()
-    expect(screen.getByTestId('proj-suite-command').closest('[role="table"]')?.parentElement?.className).toContain('grid-cols-[minmax(0,1fr)]')
+    expect(screen.getByTestId('proj-suite-command').closest('.py-1')?.parentElement?.parentElement?.className).toContain('grid-cols-[minmax(0,1fr)]')
     await userEvent.click(screen.getByTestId('proj-suite-command-copy'))
     expect(write).toHaveBeenCalledWith(expect.stringContaining('npx vitest run'))
     expect(screen.getByTestId('proj-suite-cwd').textContent).toContain('packages/dashboard-app')

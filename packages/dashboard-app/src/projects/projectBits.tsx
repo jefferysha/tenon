@@ -39,7 +39,7 @@ export function Hinted({ hint, children, testId, label, asChild = false }: {
         {asChild && isValidElement(children) ? children : (
           <span
             tabIndex={0}
-            aria-label={label ?? hint}
+            {...(label === undefined ? {} : { role: 'img', 'aria-label': label })}
             className="inline-flex rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
             data-testid={testId}
           >

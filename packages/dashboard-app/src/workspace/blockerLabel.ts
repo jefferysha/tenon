@@ -2,55 +2,61 @@ import { formatReadinessBlocker } from '../model/progressModel'
 import type { TransitionReadinessBlockerSnapshot } from '../types'
 
 /**
- * 一条阻断的展示：`label` 是按阻断 code 生成的短标签（i18n key + 变量），认不出的 code 为 null，
- * 视图退回整条 `text`。`text` 是与 CLI 同一份的完整文案，放在行的 title 里。
+ * 一条阻断的展示：`label` 是按阻断 code 与服务端给的结构化字段（subject / state / count）生成的短标签
+ * （i18n key + 变量），认不出的 code 或字段缺席时为 null，视图退回整条 `text`。`text` 是与 CLI 同一份的
+ * 完整文案，只放在行的 title 里——这里绝不解析它（它是服务端的中文整句，不是协议）。
  */
 export interface BlockerLine {
   text: string
   label: { key: string; vars: Record<string, string | number> } | null
 }
 
-const TEST_STATE: Record<string, string> = { 运行中: 'running', 未运行: 'missing', 过期: 'stale', 失败: 'failed' }
+type StepExitBlocker = Extract<TransitionReadinessBlockerSnapshot, { kind: 'step-exit' }>
 
-function tasksLabel(message: string, items: readonly string[] | undefined): BlockerLine['label'] {
-  const count = items !== undefined && items.length > 0 ? items.length : Number(/(\d+)\s*项/u.exec(message)?.[1] ?? Number.NaN)
-  return Number.isFinite(count) ? { key: 'workspace.blocker_tasks', vars: { n: count } } : { key: 'workspace.blocker_tasks_any', vars: {} }
+const DOCUMENT_KEYS: Readonly<Record<string, string>> = {
+  missing: 'workspace.blocker_document_missing',
+  stale: 'workspace.blocker_document_stale',
+  unread: 'workspace.blocker_document_unread',
+}
+const SKILL_KEYS: Readonly<Record<string, string>> = {
+  'not-run': 'workspace.blocker_skill',
+  unrecorded: 'workspace.blocker_skill_unrecorded',
+}
+const TEST_STATES: ReadonlySet<string> = new Set(['running', 'missing', 'stale', 'failed'])
+
+function tasksLabel(blocker: StepExitBlocker): BlockerLine['label'] {
+  const count = blocker.count ?? (blocker.items !== undefined && blocker.items.length > 0 ? blocker.items.length : undefined)
+  return count === undefined
+    ? { key: 'workspace.blocker_tasks_any', vars: {} }
+    : { key: 'workspace.blocker_tasks', vars: { n: count } }
 }
 
-function documentLabel(message: string): BlockerLine['label'] {
-  const name = /'([^']+)'/u.exec(message)?.[1]
-  if (name === undefined) return null
-  return { key: message.startsWith('缺少') ? 'workspace.blocker_document_missing' : 'workspace.blocker_document_stale', vars: { name } }
+function namedLabel(keys: Readonly<Record<string, string>>, blocker: StepExitBlocker): BlockerLine['label'] {
+  const key = blocker.state === undefined ? undefined : keys[blocker.state]
+  return key === undefined || blocker.subject === undefined || blocker.subject === ''
+    ? null
+    : { key, vars: { name: blocker.subject } }
 }
 
-function skillLabel(message: string): BlockerLine['label'] {
-  const rest = message.slice(message.indexOf('：') + 1)
-  const name = rest.split('（')[0]?.trim() ?? ''
-  if (name === '') return null
-  return { key: rest.includes('已调用') ? 'workspace.blocker_skill_unrecorded' : 'workspace.blocker_skill', vars: { name } }
+function testLabel(blocker: StepExitBlocker): BlockerLine['label'] {
+  if (blocker.state === undefined || !TEST_STATES.has(blocker.state) || blocker.subject === undefined || blocker.subject === '') return null
+  return { key: `workspace.blocker_test_${blocker.state}`, vars: { name: blocker.subject } }
 }
 
-function testLabel(message: string): BlockerLine['label'] {
-  const match = /测试 (.+?)（[^）]+）(运行中|未运行|过期|失败)/u.exec(message)
-  const name = match?.[1]
-  const state = match?.[2] === undefined ? undefined : TEST_STATE[match[2]]
-  return name === undefined || state === undefined ? null : { key: `workspace.blocker_test_${state}`, vars: { name } }
-}
-
-function stepExitLabel(code: string, message: string, items: readonly string[] | undefined): BlockerLine['label'] {
-  switch (code) {
-    case 'tasks-incomplete': return tasksLabel(message, items)
-    case 'document-evidence': return documentLabel(message)
-    case 'skill-incomplete': return skillLabel(message)
-    case 'test-evidence': return testLabel(message)
+function stepExitLabel(blocker: StepExitBlocker): BlockerLine['label'] {
+  switch (blocker.code) {
+    case 'tasks-incomplete': return tasksLabel(blocker)
+    case 'document-evidence': return namedLabel(DOCUMENT_KEYS, blocker)
+    case 'skill-incomplete': return namedLabel(SKILL_KEYS, blocker)
+    case 'test-evidence': return testLabel(blocker)
     default: return null
   }
 }
 
-/** 一条阻断 → 展示行：agent 阻断每个 agent 一行，step-exit 按 code 给短标签，其余用完整文案。 */
+/** 一条阻断 → 展示行：agent 阻断每个 agent 一行，step-exit 按 code 与结构化字段给短标签，其余用完整文案。 */
 export function blockerLines(blocker: TransitionReadinessBlockerSnapshot): BlockerLine[] {
   if (blocker.kind === 'agents-incomplete') return blocker.agents.map((item) => ({ text: `${item.agent} · ${item.reason}`, label: null }))
-  if (blocker.kind === 'step-exit') return [{ text: blocker.message, label: stepExitLabel(blocker.code, blocker.message, blocker.items) }]
+  if (blocker.kind === 'step-exit') return [{ text: blocker.message, label: stepExitLabel(blocker) }]
   return [{ text: formatReadinessBlocker(blocker), label: null }]
 }
 

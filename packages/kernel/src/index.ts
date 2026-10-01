@@ -296,7 +296,7 @@ export type {
 } from './workflow/transition-readiness.js'
 export { evaluateStepExitReport, judgeStepSkillsFromHistory } from './workflow/step-exit-report.js'
 export type {
-  StepBlocker, StepBlockerSource, StepExit, StepExitReport, StepExitReportInput, StepSkillJudgement,
+  StepBlocker, StepBlockerDetail, StepBlockerSource, StepExit, StepExitReport, StepExitReportInput, StepSkillJudgement,
 } from './workflow/step-exit-report.js'
 export { phaseExitGuardContext, unfinishedTaskItems } from './workflow/phase-exit-context.js'
 export { makeGuardFileContext, readBoundedRegularFileSync } from './infrastructure/guard-file-context.js'

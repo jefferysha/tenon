@@ -63,7 +63,7 @@ export type { StepSkillSlotProgress } from './skill-document-binding.js'
 export { evaluateDocumentEvidence } from './document-evidence.js'
 export { decodeUtf8Text, readBoundedRegularFile, readBoundedFileHandle } from './document-path.js'
 export type {
-  DocumentEvidenceItem, DocumentEvidenceItemStatus, DocumentEvidenceReport, DocumentEvidenceScope, DocumentStaleReason,
+  DocumentBlockerDetail, DocumentEvidenceItem, DocumentEvidenceItemStatus, DocumentEvidenceReport, DocumentEvidenceScope, DocumentStaleReason,
 } from './document-evidence.js'
 export { evaluateSpecMigrationEvidence } from './spec-migration-evidence.js'
 export {

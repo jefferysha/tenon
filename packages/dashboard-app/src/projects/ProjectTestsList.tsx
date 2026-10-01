@@ -92,9 +92,9 @@ export function ProjectTestsList({ catalog, selectedId, onSelect, onRetry }: {
   const { t } = useT()
   if (catalog.status === 'loading') {
     return (
-      <ul className="grid gap-2" role="status" aria-label={t('common.loading')} data-testid="proj-tests-loading">
-        {[0, 1, 2].map((index) => <li key={index} className="h-11 animate-pulse rounded-md bg-fill motion-reduce:animate-none" />)}
-      </ul>
+      <div className="grid gap-2" role="status" aria-label={t('common.loading')} data-testid="proj-tests-loading">
+        {[0, 1, 2].map((index) => <div key={index} className="h-11 animate-pulse rounded-md bg-fill motion-reduce:animate-none" />)}
+      </div>
     )
   }
   if (catalog.status === 'error') {
@@ -108,11 +108,13 @@ export function ProjectTestsList({ catalog, selectedId, onSelect, onRetry }: {
   const view = catalog.data.catalog
   if (view.state === 'invalid') {
     return (
-      <ul className="grid gap-1" role="alert" data-testid="proj-tests-invalid">
-        {view.issues.map((issue, index) => (
-          <li key={`${index}-${issue}`} className="truncate whitespace-nowrap font-mono text-caption text-red-d" title={issue}>{issue}</li>
-        ))}
-      </ul>
+      <div role="alert" data-testid="proj-tests-invalid">
+        <ul className="grid gap-1">
+          {view.issues.map((issue, index) => (
+            <li key={`${index}-${issue}`} className="truncate whitespace-nowrap font-mono text-caption text-red-d" title={issue}>{issue}</li>
+          ))}
+        </ul>
+      </div>
     )
   }
   if (view.state === 'missing' || view.suites.length === 0) return <DiscoverEmpty />

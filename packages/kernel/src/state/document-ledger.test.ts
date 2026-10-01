@@ -410,6 +410,10 @@ describe('OpenSpec document ledger', () => {
     expect(stale.pass).toBe(false)
     expect(stale.items.find((item) => item.kind === 'proposal')?.status).toBe('stale')
     expect(stale.blockers.join('\n')).toContain("document 'proposal' 已缺失或内容变化")
+    // 结构化描述与 blockers 逐项对齐：客户端按它分类，不解析整句。
+    expect(stale.blockerDetails).toHaveLength(stale.blockers.length)
+    const staleIndex = stale.blockers.findIndex((blocker) => blocker.includes("document 'proposal' 已缺失或内容变化"))
+    expect(stale.blockerDetails?.[staleIndex]).toEqual({ subject: 'proposal', state: 'stale' })
   })
 
   test('verify-fail 可只校验新鲜 verification report，旧文档 stale 不会锁死回炉路径', async () => {

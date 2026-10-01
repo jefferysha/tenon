@@ -7,6 +7,7 @@ import {
   type TestRunDetail, type TestRunListEntry,
 } from '../api/testEvidenceClient'
 import { testStatusWord, type TestRow } from './stageTests'
+import { ScrollablePre } from '../shared/ScrollablePre'
 
 const LOG_TAIL = 262_144
 const IMAGE_RE = /\.(?:png|jpe?g|webp)$/iu
@@ -154,7 +155,7 @@ export function TestRunDrawer({
                 {t('workspace.test_open')}
               </button>
             )
-            : <pre className="max-h-64 overflow-auto rounded-md border border-border bg-card p-3 font-mono text-caption text-text-2" data-testid="test-run-log-text">{log}</pre>}
+            : <ScrollablePre label={t('workspace.test_log')} className="max-h-64 overflow-auto rounded-md border border-border bg-card p-3 font-mono text-caption text-text-2" testId="test-run-log-text">{log}</ScrollablePre>}
         </section>
         {files.some((file) => IMAGE_RE.test(file)) && (
           <section data-testid="test-run-screenshots">

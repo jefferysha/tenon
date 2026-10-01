@@ -14,13 +14,13 @@ export const LIST_ROW_NAME = 'min-w-0 truncate text-body font-medium text-text g
 
 /**
  * 自定义条目的唯一标记：一个不换行的小字「自定义」。内建条目不带标记（内建是常态）。
- * `quiet`（列表行里）：平时 text-4，行悬停 / 选中时 text-3，不抢名称。
+ * `quiet`（列表行里）：平时 text-3，行悬停 / 选中时 text-2，不抢名称（text-4 只给装饰，读得到的字至少 text-3）。
  */
 export function CustomMark({ testId, quiet = false }: { testId?: string; quiet?: boolean }): JSX.Element {
   const { t } = useT()
   return (
     <span
-      className={`flex-none whitespace-nowrap text-caption ${quiet ? 'text-text-4 group-hover:text-text-3 group-aria-[current=true]:text-text-3' : 'text-text-3'}`}
+      className={`flex-none whitespace-nowrap text-caption ${quiet ? 'text-text-3 group-hover:text-text-2 group-aria-[current=true]:text-text-2' : 'text-text-3'}`}
       data-testid={testId}
     >
       {t('library.custom')}
@@ -88,10 +88,10 @@ export function ReadOnlyNote({ testId }: { testId: string }): JSX.Element {
 export function ListSkeleton({ testId, rows = 5 }: { testId: string; rows?: number }): JSX.Element {
   const { t } = useT()
   return (
-    <ul className="grid gap-1" role="status" aria-label={t('common.loading')} data-testid={testId}>
+    <div className="grid gap-1" role="status" aria-label={t('common.loading')} data-testid={testId}>
       {Array.from({ length: rows }, (_, index) => (
-        <li key={index} className="h-14 animate-pulse rounded-md bg-fill motion-reduce:animate-none" />
+        <div key={index} className="h-14 animate-pulse rounded-md bg-fill motion-reduce:animate-none" />
       ))}
-    </ul>
+    </div>
   )
 }

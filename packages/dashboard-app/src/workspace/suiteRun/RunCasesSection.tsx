@@ -7,6 +7,7 @@ import { TestSection } from '../../tests/TestSection'
 import { dataMessage, firstLine } from '../../tests/testText'
 import type { RunArtifact, RunCase, SuiteRun } from '../../api/testSystemTypes'
 import { runHref, type RunContext } from './runContext'
+import { ScrollablePre } from '../../shared/ScrollablePre'
 
 const COLUMNS = 'grid-cols-[1.25rem_minmax(0,1.6fr)_minmax(0,1.2fr)_minmax(0,2fr)_6rem_5.5rem]'
 const ORDER: Readonly<Record<string, number>> = { fail: 0, 'known-fail': 1, flaky: 2 }
@@ -32,7 +33,7 @@ function CaseDetail({ item, ctx, present, onZoom }: {
       {failure?.stack !== undefined && (
         <div className="grid gap-1">
           <span className="whitespace-nowrap text-caption text-text-3">{t('tests.run.cases.stack')}</span>
-          <pre className="max-h-48 overflow-auto whitespace-pre rounded-sm border border-border bg-(--code-bg) p-2 font-mono text-caption text-text-2" data-testid="run-case-stack">{failure.stack}</pre>
+          <ScrollablePre label={t('tests.run.cases.stack')} className="max-h-48 overflow-auto whitespace-pre rounded-sm border border-border bg-(--code-bg) p-2 font-mono text-caption text-text-2" testId="run-case-stack">{failure.stack}</ScrollablePre>
         </div>
       )}
       {(failure?.expected !== undefined || failure?.actual !== undefined) && (
@@ -40,13 +41,13 @@ function CaseDetail({ item, ctx, present, onZoom }: {
           {failure?.expected !== undefined && (
             <div className="grid min-w-0 gap-1">
               <span className="whitespace-nowrap text-caption text-text-3">{t('tests.run.cases.expected')}</span>
-              <pre className="max-h-32 overflow-auto whitespace-pre rounded-sm border border-border bg-(--code-bg) p-2 font-mono text-caption text-text-2" data-testid="run-case-expected">{failure.expected}</pre>
+              <ScrollablePre label={t('tests.run.cases.expected')} className="max-h-32 overflow-auto whitespace-pre rounded-sm border border-border bg-(--code-bg) p-2 font-mono text-caption text-text-2" testId="run-case-expected">{failure.expected}</ScrollablePre>
             </div>
           )}
           {failure?.actual !== undefined && (
             <div className="grid min-w-0 gap-1">
               <span className="whitespace-nowrap text-caption text-text-3">{t('tests.run.cases.actual')}</span>
-              <pre className="max-h-32 overflow-auto whitespace-pre rounded-sm border border-border bg-(--code-bg) p-2 font-mono text-caption text-text-2" data-testid="run-case-actual">{failure.actual}</pre>
+              <ScrollablePre label={t('tests.run.cases.actual')} className="max-h-32 overflow-auto whitespace-pre rounded-sm border border-border bg-(--code-bg) p-2 font-mono text-caption text-text-2" testId="run-case-actual">{failure.actual}</ScrollablePre>
             </div>
           )}
         </div>

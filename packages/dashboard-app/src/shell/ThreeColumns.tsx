@@ -220,6 +220,7 @@ export function ListColumn({
   search,
   chips,
   chipsLabel,
+  panel,
   children,
   testId,
 }: {
@@ -233,6 +234,8 @@ export function ListColumn({
   chips?: ReactNode
   /** 给了就把芯片行作为一个 radiogroup（单组单选芯片时用）；多组芯片各自用 FilterChipGroup。 */
   chipsLabel?: string
+  /** 列头是一组页签（`tabs`）时，列表正文就是它们控制的 tabpanel：给 id 与当前页签的 id。 */
+  panel?: { id: string; labelledBy: string }
   children: ReactNode
   testId: string
 }): JSX.Element {
@@ -286,7 +289,9 @@ export function ListColumn({
           {chips}
         </div>
       )}
-      {children}
+      {panel === undefined ? children : (
+        <div role="tabpanel" id={panel.id} aria-labelledby={panel.labelledBy} className="flex min-h-0 flex-1 flex-col">{children}</div>
+      )}
     </section>
   )
 }

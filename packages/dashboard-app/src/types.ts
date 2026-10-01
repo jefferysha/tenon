@@ -292,6 +292,15 @@ export type TransitionReadinessBlockerSnapshot =
       code: string
       message: string
       items?: string[]
+      /**
+       * 服务端给出的结构化描述：展示按 `code` + 这三个字段分类，绝不解析 `message`（中文整句，只进 title）。
+       * `subject` 是被阻断的对象（文档 kind / 技能 token / 测试显示名），`state` 是它的状态
+       * （文档 missing|stale|unread · 技能 not-run|unrecorded · 测试 running|missing|stale|failed），
+       * `count` 是 tasks.md 未勾选的项数。缺席 = 服务端不知道，展示整句。
+       */
+      subject?: string
+      state?: string
+      count?: number
     }
 
 export type StepExitBlockerSource = 'guard' | 'document' | 'skill' | 'test' | 'reviewer' | 'revision' | 'spec' | 'tasks'

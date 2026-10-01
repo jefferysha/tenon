@@ -120,6 +120,7 @@ export function ProjectsView({
           <ListColumn
             testId="projects-list"
             title={t(segment === 'tests' ? 'tests.word.test' : 'projects.clients')}
+            panel={{ id: 'proj-segment-panel', labelledBy: `proj-segment-tab-${segment}` }}
             tabs={(
               <SegmentTabs
                 sheets={[{ id: 'clients', label: t('projects.clients') }, { id: 'tests', label: t('tests.word.test') }]}
@@ -138,11 +139,11 @@ export function ProjectsView({
             ) : editor.loadErrorKey !== null ? (
               <InlineError errorKey={editor.loadErrorKey} onRetry={editor.retry} testId="proj-load-error" />
             ) : editor.loading ? (
-              <ul className="grid gap-2" role="status" aria-label={t('common.loading')} data-testid="proj-loading">
+              <div className="grid gap-2" role="status" aria-label={t('common.loading')} data-testid="proj-loading">
                 {[0, 1, 2].map((index) => (
-                  <li key={index} className="h-11 animate-pulse rounded-md bg-fill motion-reduce:animate-none" />
+                  <div key={index} className="h-11 animate-pulse rounded-md bg-fill motion-reduce:animate-none" />
                 ))}
-              </ul>
+              </div>
             ) : (
               <>
                 {editor.clientsErrorKey !== null && <InlineError errorKey={editor.clientsErrorKey} testId="proj-clients-error" />}

@@ -40,9 +40,11 @@ export function NewWorkflowDialog({ create }: { create: CreateState }): JSX.Elem
       panelClassName="w-[min(760px,94vw)]"
       bodyClassName="h-[420px]"
       footer={create.errors.length > 0 && (
-        <ul className="grid gap-0.5" role="alert" data-testid="wb-workflow-create-errors">
-          {create.errors.map((error) => <li key={error} className="truncate whitespace-nowrap text-caption text-red-d" title={error}>{error}</li>)}
-        </ul>
+        <div role="alert" data-testid="wb-workflow-create-errors">
+          <ul className="grid gap-0.5">
+            {create.errors.map((error) => <li key={error} className="truncate whitespace-nowrap text-caption text-red-d" title={error}>{error}</li>)}
+          </ul>
+        </div>
       )}
     >
       <div className="grid h-full grid-cols-2 gap-5 max-[640px]:grid-cols-1">

@@ -18,12 +18,15 @@ export function SheetTabs<Id extends string>({
   onChange,
   ariaLabel,
   idPrefix,
+  controls,
 }: {
   sheets: readonly SheetDef<Id>[]
   active: Id
   onChange: (next: Id) => void
   ariaLabel: string
   idPrefix: string
+  /** 受控面板的 id；缺省 `${idPrefix}-panel`。页签引用的面板必须真的在 DOM 里。 */
+  controls?: string
 }): JSX.Element {
   function onKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number): void {
     const last = sheets.length - 1
@@ -56,7 +59,7 @@ export function SheetTabs<Id extends string>({
             role="tab"
             id={`${idPrefix}-tab-${sheet.id}`}
             aria-selected={selected}
-            aria-controls={`${idPrefix}-panel`}
+            aria-controls={controls ?? `${idPrefix}-panel`}
             tabIndex={selected ? 0 : -1}
             data-testid={`${idPrefix}-tab-${sheet.id}`}
             className="-mb-px flex-none whitespace-nowrap border-b-2 border-transparent pb-3 text-base font-medium text-text-2 outline-none transition-colors hover:text-text focus-visible:rounded-xs focus-visible:ring-2 focus-visible:ring-(--accent) aria-selected:border-(--accent) aria-selected:font-semibold aria-selected:text-(--accent) motion-reduce:transition-none"

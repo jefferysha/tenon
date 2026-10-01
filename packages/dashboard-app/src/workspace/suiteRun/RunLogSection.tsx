@@ -8,6 +8,7 @@ import { COUNT_BADGE } from '../../tests/testStyles'
 import { BUTTON_GHOST } from '../../shared/uiRecipes'
 import type { SuiteRun } from '../../api/testSystemTypes'
 import { runHref, type RunContext } from './runContext'
+import { ScrollablePre } from '../../shared/ScrollablePre'
 
 export const LOG_TAIL_BYTES = 262_144
 
@@ -50,7 +51,7 @@ export function RunLogSection({ run, ctx }: { run: SuiteRun; ctx: RunContext }):
     >
       {tail.status === 'error' && <p className="truncate whitespace-nowrap text-body text-red-d" role="alert" data-testid="run-log-error">{formatApiError(tail.error, t)}</p>}
       {tail.status === 'ready' && (
-        <pre className="max-h-64 overflow-auto whitespace-pre rounded-sm border border-border bg-(--code-bg) p-3 font-mono text-caption text-text-2" data-testid="run-log-text">{tail.text}</pre>
+        <ScrollablePre label={t('tests.run.section.log')} className="max-h-64 overflow-auto whitespace-pre rounded-sm border border-border bg-(--code-bg) p-3 font-mono text-caption text-text-2" testId="run-log-text">{tail.text}</ScrollablePre>
       )}
     </TestSection>
   )

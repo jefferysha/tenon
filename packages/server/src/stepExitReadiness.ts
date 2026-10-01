@@ -75,6 +75,9 @@ function toReadinessBlocker(blocker: StepBlocker): TransitionReadinessBlocker {
     code: blocker.code,
     message: blocker.message,
     ...(blocker.items === undefined || blocker.items.length === 0 ? {} : { items: blocker.items }),
+    ...(blocker.subject === undefined ? {} : { subject: blocker.subject }),
+    ...(blocker.state === undefined ? {} : { state: blocker.state }),
+    ...(blocker.count === undefined ? {} : { count: blocker.count }),
   }
 }
 
