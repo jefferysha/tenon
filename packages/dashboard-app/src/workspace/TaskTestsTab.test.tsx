@@ -203,11 +203,26 @@ describe('TaskTestsTab · 策略矩阵', () => {
     expect(write).toHaveBeenCalledWith('tenon test run add-login --suite web-e2e')
   })
 
+  /** 状态标记 = 一个 6px 圆点 + 一个词；没有底色、边框、圆角、内边距、阴影（用户否决过药丸）。 */
+  function expectDotAndWord(marker: Element | null, word: string): void {
+    expect(marker).toBeTruthy()
+    const mark = marker as HTMLElement
+    expect(mark.textContent).toBe(word)
+    expect(mark.children).toHaveLength(2)
+    expect(mark.children[0]?.tagName).toBe('I')
+    expect(mark.children[0]?.className).toContain('size-1.5')
+    expect(mark.children[0]?.className).toContain('rounded-full')
+    const SHAPE_PREFIXES = ['bg-', 'border', 'round', 'p-', 'px-', 'py-', 'pt-', 'pb-', 'pl-', 'pr-', 'shadow', 'ring', 'outline']
+    const shape = mark.className.split(/\s+/).filter((name) => !name.startsWith('[') && SHAPE_PREFIXES.some((prefix) => name.startsWith(prefix)))
+    expect(shape).toEqual([])
+  }
+
   it('豁免：待批准显示为待批准的点 + 词', () => {
     mount()
     const waiver = screen.getByTestId('tests-waiver-benchmark')
     expect(waiver.textContent).toBe('豁免待批准')
     expect(waiver.querySelector('[data-tone="pending"]')).toBeTruthy()
+    expectDotAndWord(waiver.querySelector('[data-tone="pending"]'), '待批准')
     reset()
     mount(verifyReport(), { plan: { ...planBrief(), state: 'ok', waivers: [{ kind: 'benchmark', approved: true }] } as TestPlanBrief })
     expect(screen.getByTestId('tests-waiver-benchmark').querySelector('[data-tone="done"]')).toBeTruthy()
@@ -242,6 +257,7 @@ describe('TaskTestsTab · 策略矩阵', () => {
       expect(mark).toHaveAttribute('data-approved', 'false')
       expect(mark.textContent).toBe('不适用待批准')
       expect(mark.querySelector('[data-tone="pending"]')).toBeTruthy()
+      expectDotAndWord(mark.querySelector('[data-tone="pending"]'), '待批准')
       expect(screen.getByTestId('tests-kind-a11y')).toHaveAttribute('data-met', 'false')
       expect(screen.getByTestId('tests-blocker-label-a11y').textContent).toBe('豁免未批准')
       expect((await openFix('a11y')).textContent).toBe('tenon review request add-login')
