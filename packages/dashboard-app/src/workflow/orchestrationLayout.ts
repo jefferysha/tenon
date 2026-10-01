@@ -3,11 +3,12 @@
  * 列内按执行位次自上而下，同一位次的并行条目在列内纵向堆叠（列宽恒为一个条目宽，验证这类并行很多的阶段也不会撑宽）。
  * 只算坐标与连线，不碰 React Flow。
  *
- * 连线：同身份的直接前置照画；位次之间 / 身份之间（执行者 → 技能 → 测试 → 评审者）上一组的末端接下一组的起点，
- * 一对一直连，一对多 / 多对一 / 多对多经列外左右两条轨道上的汇合点（见 orchestrationRouting），不穿过条目。
- * 总览里阶段标题连成一条主线（起点 → 阶段 1 → … → 终点），每列从标题往下走；阶段模式没有标题，起点在列顶、终点在列底。
+ * 连线（阶段画布）：同身份的直接前置照画；位次之间 / 身份之间（执行者 → 技能 → 测试 → 评审者）上一组的末端接下一组的起点，
+ * 一对一直连，一对多 / 多对一 / 多对多经列外左右两条轨道上的汇合点（见 orchestrationRouting），不穿过条目；起点在列顶、终点在列底。
+ * 连线（总览）：每列一根竖脊柱，过所有条目的左端口 x，向每个条目伸一根 8px 短线；并行的一波在脊柱侧画一根 2px 括号条，
+ * 各组顺着脊柱相连；阶段标题连成一条主线（起点 → 阶段 1 → … → 终点），每列的脊柱从标题往下走，入口一个箭头。
  * 信号沿这些边流动，先后由到达距离决定（见 flowSignal）：总览里主线的下一跳标着 after（上一列的末端），
- * 信号按真实执行顺序一列一列过——进一列、走完这一列、再去下一列。
+ * 信号按真实执行顺序一列一列过——进一列、走完这一列、再去下一列；总览里彗星只沿脊柱走，短线不带彗星。
  */
 import type { OrchestrationKind, OrchestrationReturn } from '@tenon/kernel/workflow/orchestration'
 import type { FlowEntry, FlowStage } from '../api/workflowOrchestrationClient'
@@ -20,21 +21,26 @@ export const KIND_ORDER: readonly OrchestrationKind[] = ['executor', 'skill', 't
 export const PORT = 12
 export const HEADER_H = 40
 /** 起点到第一列、最后一列到终点之间的主线长度。 */
-const PORT_GAP = 44
+const PORT_GAP = 32
 /** 列带与列带之间：主线在这里露出来。 */
-const COLUMN_GAP = 40
-/** 列带的左右内边距：汇合点轨道（离条目 RAIL）落在这里，离带边缘还有 4px。 */
-export const BAND_PAD = 16
+const COLUMN_GAP = 28
+/** 总览列带的左右内边距；脊柱在条目左侧 SPINE_OFFSET 处，离带边缘还有 4px。 */
+export const BAND_PAD = 12
+/** 脊柱到条目左缘的距离，也是短线的长度。 */
+export const SPINE_OFFSET = 8
 /** 列带底部留白。 */
-const BAND_FOOT = 16
+const BAND_FOOT = 12
 /** 阶段标题到第一组条目。 */
-const HEAD_GAP = 20
-/** 同身份相邻位次之间（汇合点落在这段空隙里）。 */
-const ROW_GAP = 24
+const HEAD_GAP: Record<FlowMode, number> = { overview: 12, stage: 20 }
+/** 同身份相邻位次之间：阶段里汇合点轨道落在这段空隙里；总览里只是行距。 */
+const ROW_GAP: Record<FlowMode, number> = { overview: 12, stage: 24 }
 /** 同一位次的并行条目之间。 */
 const SIB_GAP = 8
+/** 并行一波的括号条：宽 2px，比条目的上下沿各缩进 4px。 */
+const BRACKET_W = 2
+const BRACKET_INSET = 4
 /** 身份与身份之间：总览里紧凑，阶段里要给分组标题留出呼吸。 */
-const LANE_GAP: Record<FlowMode, number> = { overview: 24, stage: 32 }
+const LANE_GAP: Record<FlowMode, number> = { overview: 20, stage: 32 }
 /** 阶段画布：分组标题的高度，以及它与第一个条目之间的间隙。 */
 export const LANE_HEAD_H = 24
 const LANE_HEAD_GAP = 8
@@ -43,9 +49,9 @@ const END_GAP = 28
 /** 回流弧最高拱出阶段标题上方多少（长弧封顶，不让它把画布顶得太高）。 */
 const RETURN_LIFT_MAX = 90
 
-/** 总览节点视觉 32px（点击热区由样式补到 40px）；阶段画布节点 40px、宽 320。 */
+/** 总览节点视觉 32px、宽 168（点击热区由样式补到 40px）；阶段画布节点 40px、宽 320。 */
 export function entrySize(mode: FlowMode): { width: number; height: number } {
-  return mode === 'overview' ? { width: 184, height: 32 } : { width: 320, height: 40 }
+  return mode === 'overview' ? { width: 168, height: 32 } : { width: 320, height: 40 }
 }
 
 /** 回流弧的拱高：跨得越远拱得越高，封顶 RETURN_LIFT_MAX。 */
@@ -56,6 +62,8 @@ export function returnLift(distance: number): number {
 export interface LaidEntry { readonly id: string; readonly stage: string; readonly entry: FlowEntry; readonly x: number; readonly y: number; readonly width: number; readonly height: number }
 export interface LaidStage { readonly id: string; readonly index: number; readonly stage: FlowStage; readonly x: number; readonly y: number; readonly width: number; readonly height: number }
 export interface LaidLane { readonly id: string; readonly kind: OrchestrationKind; readonly count: number; readonly x: number; readonly y: number; readonly width: number; readonly height: number }
+/** 总览里并行一波的括号条：2px 宽，贴在脊柱位置，从这一波第一个条目铺到最后一个。 */
+export interface LaidBracket { readonly id: string; readonly x: number; readonly y: number; readonly width: number; readonly height: number }
 /** 可编辑的阶段画布里，空泳道留一个幽灵「＋」占位。 */
 export interface LaidGhost { readonly id: string; readonly kind: OrchestrationKind; readonly x: number; readonly y: number; readonly width: number; readonly height: number }
 
@@ -65,19 +73,20 @@ export interface OrchestrationLayout {
   readonly lanes: readonly LaidLane[]
   readonly ghosts: readonly LaidGhost[]
   readonly junctions: readonly LaidPoint[]
+  readonly brackets: readonly LaidBracket[]
   readonly ports: { readonly start: LaidPoint; readonly end: LaidPoint }
   readonly edges: readonly LaidEdge[]
   readonly width: number
   readonly height: number
 }
 
-/** 回流弧要在阶段框上方留多少空间（没有回流 = 0）。 */
+/** 回流弧要在阶段框上方留多少空间（没有回流 = 0）。三次贝塞尔的最高点是控制点高度的 75%，按实际峰值留，顶部留白才是整 24px。 */
 export function returnHeadroom(layout: OrchestrationLayout, returns: readonly OrchestrationReturn[]): number {
   const center = new Map(layout.stages.map((stage) => [stage.stage.id, stage.x + stage.width / 2]))
   return Math.max(0, ...returns.flatMap((item) => {
     const from = center.get(item.from)
     const to = center.get(item.to)
-    return from === undefined || to === undefined ? [] : [returnLift(from - to)]
+    return from === undefined || to === undefined ? [] : [returnLift(from - to) * 0.75]
   }))
 }
 
@@ -99,15 +108,15 @@ function groupsOf(stage: FlowStage, keepEmpty: ReadonlySet<OrchestrationKind>): 
   }).filter((group) => group.rows.length > 0 || keepEmpty.has(group.kind))
 }
 
-function groupHeight(group: Group, height: number, lanes: boolean): number {
-  const head = lanes ? LANE_HEAD_H + LANE_HEAD_GAP : 0
+function groupHeight(group: Group, height: number, mode: FlowMode): number {
+  const head = mode === 'stage' ? LANE_HEAD_H + LANE_HEAD_GAP : 0
   if (group.rows.length === 0) return head + height
   const cells = group.rows.reduce((sum, row) => sum + row.length * height + (row.length - 1) * SIB_GAP, 0)
-  return head + cells + (group.rows.length - 1) * ROW_GAP
+  return head + cells + (group.rows.length - 1) * ROW_GAP[mode]
 }
 
 function columnHeight(groups: readonly Group[], height: number, mode: FlowMode): number {
-  return groups.reduce((sum, group, index) => sum + (index > 0 ? LANE_GAP[mode] : 0) + groupHeight(group, height, mode === 'stage'), 0)
+  return groups.reduce((sum, group, index) => sum + (index > 0 ? LANE_GAP[mode] : 0) + groupHeight(group, height, mode), 0)
 }
 
 interface ColumnInput {
@@ -147,7 +156,7 @@ function layoutColumn(input: ColumnInput, mode: FlowMode): ColumnOutput {
     const laneY = y
     if (lanes) y += LANE_HEAD_H + LANE_HEAD_GAP
     const rows: LaidEntry[][] = group.rows.map((row, rowIndex) => {
-      if (rowIndex > 0) y += ROW_GAP
+      if (rowIndex > 0) y += ROW_GAP[mode]
       return row.map((entry, position) => {
         if (position > 0) y += SIB_GAP
         const placed: LaidEntry = { id: entryNodeId(input.stage.id, entry), stage: input.stage.id, entry, x: input.x, y, width: size.width, height: size.height }
@@ -209,6 +218,58 @@ function layoutColumn(input: ColumnInput, mode: FlowMode): ColumnOutput {
   return { ...out, tail }
 }
 
+interface SpineInput { readonly stage: FlowStage; readonly groups: readonly Group[]; readonly x: number; readonly y: number; readonly head: string }
+interface SpineOutput {
+  readonly entries: LaidEntry[]
+  readonly junctions: LaidPoint[]
+  readonly brackets: LaidBracket[]
+  readonly edges: LaidEdge[]
+  /** 这一列走完的末端（最后一行的条目 id）。 */
+  readonly tail: string[]
+}
+
+/**
+ * 总览的一列：一根竖脊柱（列头 → 各条目中心高度的汇合点 → …）过所有条目的左端口 x 的左侧 SPINE_OFFSET，
+ * 每个条目一根 8px 短线；并行的一波（同一行多个条目）在脊柱位置画一根 2px 括号条；各组顺着脊柱相连，不再有扇出 / 汇入的轨道。
+ * 列头到脊柱的入口是这一列唯一的箭头。
+ */
+function layoutSpineColumn(input: SpineInput): SpineOutput {
+  const size = entrySize('overview')
+  const nodeX = input.x + BAND_PAD
+  const spineX = nodeX - SPINE_OFFSET
+  const out: SpineOutput = { entries: [], junctions: [], brackets: [], edges: [], tail: [] }
+  let last = input.head
+  let y = input.y
+  input.groups.forEach((group, groupIndex) => {
+    if (groupIndex > 0) y += LANE_GAP.overview
+    group.rows.forEach((row, rowIndex) => {
+      if (rowIndex > 0) y += ROW_GAP.overview
+      const wave: LaidEntry[] = []
+      row.forEach((entry, position) => {
+        if (position > 0) y += SIB_GAP
+        const item: LaidEntry = { id: entryNodeId(input.stage.id, entry), stage: input.stage.id, entry, x: nodeX, y, width: size.width, height: size.height }
+        y += size.height
+        wave.push(item)
+        const junction = `sp:${input.stage.id}:${out.junctions.length}`
+        out.junctions.push({ id: junction, x: spineX - 1, y: item.y + item.height / 2 - 1, spine: true, owner: item.id })
+        const entering = last === input.head
+        out.edges.push({ id: `${last}->${junction}`, source: last, target: junction, sourceHandle: entering ? 'spine' : 'bottom', targetHandle: 'top', arrow: entering, ...(entering ? { lead: HEADER_H } : {}) })
+        out.edges.push({ id: `${junction}->${item.id}`, source: junction, target: item.id, sourceHandle: 'right', targetHandle: 'left', arrow: false, stub: true })
+        last = junction
+      })
+      out.entries.push(...wave)
+      const first = wave[0]
+      const final = wave[wave.length - 1]
+      if (wave.length > 1 && first !== undefined && final !== undefined) {
+        const top = first.y + BRACKET_INSET
+        out.brackets.push({ id: `br:${input.stage.id}:${out.brackets.length}`, x: spineX - BRACKET_W / 2, y: top, width: BRACKET_W, height: final.y + final.height - BRACKET_INSET - top })
+      }
+      out.tail.splice(0, out.tail.length, ...wave.map((item) => item.id))
+    })
+  })
+  return out
+}
+
 function directEdge(dep: Dependency): LaidEdge {
   return { id: `${dep.from.id}->${dep.to.id}`, source: dep.from.id, target: dep.to.id, sourceHandle: 'bottom', targetHandle: 'top', arrow: false }
 }
@@ -222,7 +283,7 @@ export function layoutOrchestration(
   const size = entrySize(mode)
   const keepEmpty = new Set(mode === 'stage' ? options.showEmpty ?? [] : [])
   const grouped = stages.map((stage) => ({ stage, groups: groupsOf(stage, keepEmpty) }))
-  const out = { stages: [] as LaidStage[], entries: [] as LaidEntry[], lanes: [] as LaidLane[], ghosts: [] as LaidGhost[], junctions: [] as LaidPoint[], edges: [] as LaidEdge[] }
+  const out = { stages: [] as LaidStage[], entries: [] as LaidEntry[], lanes: [] as LaidLane[], ghosts: [] as LaidGhost[], junctions: [] as LaidPoint[], brackets: [] as LaidBracket[], edges: [] as LaidEdge[] }
   const merge = (column: ColumnOutput): void => {
     out.entries.push(...column.entries)
     out.lanes.push(...column.lanes)
@@ -256,15 +317,16 @@ export function layoutOrchestration(
   let height = HEADER_H
   grouped.forEach((column, index) => {
     const head = stageNodeId(column.stage.id)
-    const bandHeight = HEADER_H + HEAD_GAP + columnHeight(column.groups, size.height, mode) + BAND_FOOT
+    const bandHeight = HEADER_H + HEAD_GAP.overview + columnHeight(column.groups, size.height, mode) + BAND_FOOT
     height = Math.max(height, bandHeight)
     out.stages.push({ id: head, index, stage: column.stage, x, y: 0, width: bandWidth, height: bandHeight })
     out.edges.push({ id: `${previous}->${head}`, source: previous, target: head, sourceHandle: previous === 'start' ? 'out' : 'right', targetHandle: 'left', arrow: false, after: previousTail })
-    const headAnchor: Anchor = { id: head, x, y: 0, width: bandWidth, height: HEADER_H, out: 'down', into: 'left' }
-    // 从标题往下走的那一跳，信号在标题里只走一个标题高度（主线那一跳才穿过整个标题的宽度）。
-    const laid = layoutColumn({ ...column, x: x + BAND_PAD, y: HEADER_H + HEAD_GAP, head: headAnchor }, mode)
-    merge({ ...laid, edges: laid.edges.map((item) => (item.source === head ? { ...item, lead: HEADER_H } : item)) })
-    previousTail = laid.tail.filter((anchor) => anchor.id !== head).map((anchor) => anchor.id)
+    const laid = layoutSpineColumn({ stage: column.stage, groups: column.groups, x, y: HEADER_H + HEAD_GAP.overview, head })
+    out.entries.push(...laid.entries)
+    out.junctions.push(...laid.junctions)
+    out.brackets.push(...laid.brackets)
+    out.edges.push(...laid.edges)
+    previousTail = laid.tail
     previous = head
     x += bandWidth + COLUMN_GAP
   })

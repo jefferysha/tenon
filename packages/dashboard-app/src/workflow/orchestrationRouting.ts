@@ -11,7 +11,15 @@ export const RAIL = 12
 const NEAR = 14
 const NEAR_BOTH = 10
 
-export interface LaidPoint { readonly id: string; readonly x: number; readonly y: number }
+export interface LaidPoint {
+  readonly id: string
+  readonly x: number
+  readonly y: number
+  /** 总览里列脊柱上的汇合点（2×2，条目中心的高度）。 */
+  readonly spine?: boolean
+  /** 脊柱汇合点属于哪个条目：线态与到达反馈按这个条目算。 */
+  readonly owner?: string
+}
 export interface LaidEdge {
   readonly id: string
   readonly source: string
@@ -23,6 +31,8 @@ export interface LaidEdge {
   readonly lead?: number
   /** 这条边要等这些节点走完才开始：总览里主线的下一跳等上一列走完，信号按真实执行顺序一列一列过。 */
   readonly after?: readonly string[]
+  /** 总览里脊柱通向条目的 8px 短线：不带彗星，条目的到达反馈按它的位置算。 */
+  readonly stub?: boolean
 }
 
 /** 连线的一端：节点的几何与它朝下出、朝上入的把手名。 */

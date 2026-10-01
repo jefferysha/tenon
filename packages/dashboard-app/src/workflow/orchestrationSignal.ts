@@ -7,7 +7,7 @@ import type { EdgeState } from './skillFlowNodes'
 
 /**
  * 每条边的线态。withStatus=false（工作流定义）一律 todo。
- * · 接入条目：条目已完成 = done，正在运行 = live，其余 todo；
+ * · 接入条目（或总览脊柱上属于该条目的汇合点）：条目已完成 = done，正在运行 = live，其余 todo；
  * · 接入阶段标题：任务已进入（或走过）该阶段 = done；
  * · 接入汇合点 / 终点：它的源已完成（汇合点 = 所有入边都完成；标题 = 该阶段已走过）。
  */
@@ -18,6 +18,9 @@ export function edgeStates(layout: OrchestrationLayout, options: { withStatus: b
     return states
   }
   const entryStatus = new Map(layout.entries.map((item) => [item.id, item.entry.status]))
+  // 总览列脊柱上的汇合点属于一个条目：通向它的线、它的短线，线态都按那个条目算。
+  const owner = new Map(layout.junctions.flatMap((point) => (point.owner === undefined ? [] : [[point.id, point.owner] as const])))
+  const entryOf = (id: string): string => owner.get(id) ?? id
   const stageIndex = new Map(layout.stages.map((stage) => [stage.id, stage.index]))
   const currentIndex = options.current === null ? -1 : layout.stages.findIndex((stage) => stage.stage.id === options.current)
   const incoming = new Map<string, LaidEdge[]>()
@@ -29,7 +32,7 @@ export function edgeStates(layout: OrchestrationLayout, options: { withStatus: b
   const memo = new Map<string, boolean>()
   /** 信号已经走过这个节点、可以从它出发了？标题 = 前面的阶段，或当前阶段里已经有条目动起来。 */
   const passed = (id: string): boolean => {
-    const status = entryStatus.get(id)
+    const status = entryStatus.get(entryOf(id))
     if (status !== undefined) return status === 'done'
     const index = stageIndex.get(id)
     if (index !== undefined) return index < currentIndex || (index === currentIndex && started(layout.stages[index]?.stage.id ?? null))
@@ -43,7 +46,7 @@ export function edgeStates(layout: OrchestrationLayout, options: { withStatus: b
     return done
   }
   for (const edge of layout.edges) {
-    const status = entryStatus.get(edge.target)
+    const status = entryStatus.get(entryOf(edge.target))
     const index = stageIndex.get(edge.target)
     if (status !== undefined) states.set(edge.id, status === 'done' ? 'done' : status === 'running' ? 'live' : 'todo')
     else if (index !== undefined) states.set(edge.id, index <= currentIndex ? 'done' : 'todo')

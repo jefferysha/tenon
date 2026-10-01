@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useT } from '../i18n'
 import { kindLabel } from '../tests/testLabels'
 import { MiddleText, StateGlyph } from './flowGlyphs'
-import { HEADER_H, PORT, returnLift, type FlowMode } from './orchestrationLayout'
+import { BAND_PAD, HEADER_H, PORT, SPINE_OFFSET, returnLift, type FlowMode } from './orchestrationLayout'
 import type { ZoomLevel } from './orchestrationViewport'
 import { ArrivalMarks, EDGE_STYLE, HIDDEN_HANDLE, PORT_DOTS, SignalEdge } from './skillFlowNodes'
 import { cn } from '@/lib/utils'
@@ -51,7 +51,10 @@ export type LaneNode = Node<{ kind: OrchestrationKind; count: number; width: num
 export type GhostNode = Node<{ kind: OrchestrationKind; width: number; height: number }, 'ghost'>
 export type PortNode = Node<{ label: string }, 'port'>
 export type JunctionNode = Node<Record<string, never>, 'junction'>
-export type CanvasNode = EntryNode | StageNode | LaneNode | GhostNode | PortNode | JunctionNode
+/** 总览列脊柱上的汇合点；括号条是并行一波在脊柱位置的 2px 竖条。 */
+export type SpineNode = Node<Record<string, never>, 'spine'>
+export type BracketNode = Node<{ height: number }, 'bracket'>
+export type CanvasNode = EntryNode | StageNode | LaneNode | GhostNode | PortNode | JunctionNode | SpineNode | BracketNode
 
 export const KIND_ICON: Record<OrchestrationKind, LucideIcon> = { executor: Bot, skill: Box, test: FlaskConical, reviewer: ScanSearch }
 export const KIND_TITLE: Record<OrchestrationKind, string> = {
@@ -110,7 +113,7 @@ function EntryNodeView({ id, data }: NodeProps<EntryNode>): JSX.Element {
       <Handle type="target" id="left" position={Position.Left} className={HIDDEN_HANDLE} isConnectable={false} />
       <button
         type="button"
-        className={cn('pointer-events-auto flex h-full w-full min-w-0 items-center gap-2 px-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-default', !stageMode && 'before:absolute before:inset-x-0 before:-inset-y-1 before:content-[""]')}
+        className={cn('pointer-events-auto flex h-full w-full min-w-0 items-center text-left outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-default', stageMode ? 'gap-2 px-2.5' : 'gap-1.5 px-2 before:absolute before:inset-x-0 before:-inset-y-1 before:content-[""]')}
         title={`${hint}${optional}`}
         aria-label={`${t(KIND_TITLE[entry.kind])} ${name}${optional}`}
         disabled={open === undefined}
@@ -124,7 +127,7 @@ function EntryNodeView({ id, data }: NodeProps<EntryNode>): JSX.Element {
         {statusText !== null && (
           <span className={cn('flex-none whitespace-nowrap text-micro', STATUS_TEXT[status ?? 'waiting'], !showWord && 'sr-only')} data-testid="orch-status" data-status={status}>{statusText}</span>
         )}
-        {status !== undefined && <SourceMark entry={entry} />}
+        {status !== undefined && (stageMode || level === 'meta') && <SourceMark entry={entry} />}
       </button>
       <Handle type="source" id="bottom" position={Position.Bottom} className={HIDDEN_HANDLE} isConnectable={false} />
       <Handle type="source" id="right" position={Position.Right} className={HIDDEN_HANDLE} isConnectable={false} />
@@ -200,7 +203,7 @@ function StageNodeView({ id, data }: NodeProps<StageNode>): JSX.Element {
     >
       <Handle type="target" id="left" position={Position.Left} className={HIDDEN_HANDLE} style={{ top: HEADER_H / 2 }} isConnectable={false} />
       <Handle type="source" id="right" position={Position.Right} className={HIDDEN_HANDLE} style={{ top: HEADER_H / 2 }} isConnectable={false} />
-      <Handle type="source" id="down" position={Position.Bottom} className={HIDDEN_HANDLE} style={{ top: HEADER_H, bottom: 'auto' }} isConnectable={false} />
+      <Handle type="source" id="spine" position={Position.Bottom} className={HIDDEN_HANDLE} style={{ left: BAND_PAD - SPINE_OFFSET, top: HEADER_H, bottom: 'auto' }} isConnectable={false} />
       <Handle type="source" id="arc-out" position={Position.Top} className={HIDDEN_HANDLE} isConnectable={false} />
       <Handle type="target" id="arc-in" position={Position.Top} className={HIDDEN_HANDLE} isConnectable={false} />
       <span className={cn('pointer-events-none absolute inset-x-0 top-0 rounded-md border opacity-0', stage.gate === 'review' ? 'border-(--flow-hold) shadow-[0_0_0_4px_color-mix(in_srgb,var(--flow-hold)_16%,transparent)]' : 'border-(--accent) shadow-[0_0_0_4px_color-mix(in_srgb,var(--accent)_16%,transparent)]')} style={{ height: HEADER_H }} aria-hidden="true" data-signal-flash="" />
@@ -282,6 +285,21 @@ const JunctionNodeView = memo(function JunctionNodeView({ id }: NodeProps<Juncti
   )
 })
 
+const SpineNodeView = memo(function SpineNodeView({ id }: NodeProps<SpineNode>): JSX.Element {
+  return (
+    <div className="relative" style={{ width: 2, height: 2 }} data-testid="orch-spine" data-flow-node={id} data-transit={0}>
+      <Handle type="target" id="top" position={Position.Top} className={HIDDEN_HANDLE} isConnectable={false} />
+      <Handle type="source" id="bottom" position={Position.Bottom} className={HIDDEN_HANDLE} isConnectable={false} />
+      <Handle type="source" id="right" position={Position.Right} className={HIDDEN_HANDLE} isConnectable={false} />
+    </div>
+  )
+})
+
+/** 节点包裹层按布局给的 2×height 定尺寸，条填满它。 */
+const BracketNodeView = memo(function BracketNodeView(_props: NodeProps<BracketNode>): JSX.Element {
+  return <div className="h-full w-0.5 rounded-full bg-(--flow-line)" data-testid="orch-bracket" />
+})
+
 /** 回流：从来源阶段标题顶端拱起、落回更早阶段标题顶端的虚线弧（线色同主线、1.25px、虚线 2 3、5px 箭头）；悬停说明从哪退回到哪。 */
 export type ReturnEdgeData = { label: string }
 function ReturnEdge({ id, sourceX, sourceY, targetX, targetY, markerEnd, data }: EdgeProps<Edge<ReturnEdgeData>>): JSX.Element {
@@ -303,5 +321,7 @@ export const CANVAS_NODE_TYPES = {
   ghost: memo(GhostNodeView),
   port: PortNodeView,
   junction: JunctionNodeView,
+  spine: SpineNodeView,
+  bracket: BracketNodeView,
 }
 export const CANVAS_EDGE_TYPES = { signal: SignalEdge, return: ReturnEdge }

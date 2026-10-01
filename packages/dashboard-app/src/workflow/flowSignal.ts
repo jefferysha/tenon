@@ -62,7 +62,8 @@ function resetNode(node: NodeRecord): void {
 }
 
 /**
- * 从画布 DOM 建一次运行时：边 = `g[data-signal-edge]`（data-signal-source / -target / -lead / -after / -state，内含四层 path），
+ * 从画布 DOM 建一次运行时：边 = `g[data-signal-edge]`（data-signal-source / -target / -lead / -after / -state，内含四层 path；
+ * 带 data-signal-static 的短线没有 path，长度在 data-signal-length），
  * 节点 = `[data-flow-node]`（data-transit；内含可选的 data-signal-flash / -port / -icon / -ring）。
  * state=done 的边不参与流动（已完成线是实线）。mode=still + hold：不动，一颗彗星停在 hold 节点的到达距离上。
  * 没有可量的边时返回 null。
@@ -72,17 +73,23 @@ export function createSignalRuntime(root: Element, mode: Exclude<SignalMode, 'of
   const records: Array<EdgeRecord & { id: string; source: string; target: string; eligible: boolean; lead: number | undefined; after: readonly string[] }> = []
   for (const group of root.querySelectorAll<SVGGElement>('g[data-signal-edge]')) {
     const layers: SVGPathElement[] = []
-    for (const layer of COMET_LAYERS) {
-      const path = group.querySelector<SVGPathElement>(LAYER_SELECTOR(layer.id))
-      if (path !== null) layers.push(path)
-    }
-    const base = layers[0]
-    if (base === undefined || layers.length !== COMET_LAYERS.length) continue
-    const d = base.getAttribute('d') ?? ''
-    let length = lengths.get(d)
-    if (length === undefined) {
-      length = typeof base.getTotalLength === 'function' ? base.getTotalLength() : 0
-      lengths.set(d, length)
+    let length: number | undefined
+    if (group.dataset.signalStatic !== undefined) {
+      // 短线：只登记长度（条目的到达反馈按它算），不带彗星层。
+      length = Number(group.dataset.signalLength)
+    } else {
+      for (const layer of COMET_LAYERS) {
+        const path = group.querySelector<SVGPathElement>(LAYER_SELECTOR(layer.id))
+        if (path !== null) layers.push(path)
+      }
+      const base = layers[0]
+      if (base === undefined || layers.length !== COMET_LAYERS.length) continue
+      const d = base.getAttribute('d') ?? ''
+      length = lengths.get(d)
+      if (length === undefined) {
+        length = typeof base.getTotalLength === 'function' ? base.getTotalLength() : 0
+        lengths.set(d, length)
+      }
     }
     if (!Number.isFinite(length) || length <= 0) continue
     const lead = group.dataset.signalLead === undefined ? undefined : Number(group.dataset.signalLead)
@@ -120,7 +127,7 @@ export function createSignalRuntime(root: Element, mode: Exclude<SignalMode, 'of
       records.forEach((record, index) => {
         const offsets = parked.get(record.id)
         const edge = edges[index]
-        if (offsets === undefined || edge === undefined) return
+        if (offsets === undefined || edge === undefined || edge.layers.length === 0) return
         writeOffsets(edge, offsets)
         show(edge)
       })
@@ -129,7 +136,7 @@ export function createSignalRuntime(root: Element, mode: Exclude<SignalMode, 'of
   }
 
   // 参与流动的边（未完成）；以及有入边被点亮的节点（到达反馈只给它们），和起点（每发射一颗彗星放一圈光环）。
-  const live = edges.filter((_edge, index) => records[index]?.eligible === true)
+  const live = edges.filter((edge, index) => edge.layers.length > 0 && records[index]?.eligible === true)
   const reached = new Set(records.filter((record) => record.eligible).map((record) => record.target))
   const hasIncoming = new Set(records.map((record) => record.target))
   const emitting = new Set(records.filter((record) => record.eligible && !hasIncoming.has(record.source)).map((record) => record.source))

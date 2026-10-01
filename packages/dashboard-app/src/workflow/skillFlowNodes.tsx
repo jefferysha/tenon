@@ -59,9 +59,9 @@ export type { SignalMode }
 /**
  * 边上带的画布状态：state = 线三态；signal = 渲染彗星层（画布在流动或停着一颗彗星时才有）；
  * lead = 信号从源节点到达到这条边开始之间在节点里走的距离；after = 这条边要等这些节点走完才开始；
- * hold = 评审门把这条线拦在尽头（琥珀短横）。
+ * stub = 总览里脊柱通向条目的短线：只登记长度（条目的到达反馈按它算），不带彗星层；hold = 评审门把这条线拦在尽头（琥珀短横）。
  */
-export type SignalEdgeData = { state?: EdgeState; signal?: boolean; lead?: number; after?: readonly string[]; hold?: boolean }
+export type SignalEdgeData = { state?: EdgeState; signal?: boolean; lead?: number; after?: readonly string[]; stub?: boolean; hold?: boolean }
 
 function holdTick(x: number, y: number, position: Position): string {
   return position === Position.Left || position === Position.Right ? `M${x} ${y - 3} L${x} ${y + 3}` : `M${x - 3} ${y} L${x + 3} ${y}`
@@ -78,8 +78,8 @@ export function SignalEdge({ id, source, target, sourceX, sourceY, targetX, targ
     <>
       <BaseEdge id={id} path={path} markerEnd={markerEnd} style={EDGE_STYLES[state]} />
       {data?.signal === true && (
-        <g className="pointer-events-none" visibility="hidden" data-signal-edge={id} data-signal-source={source} data-signal-target={target} data-signal-state={state} data-signal-lead={data.lead} data-signal-after={data.after === undefined || data.after.length === 0 ? undefined : data.after.join(' ')} data-testid={`flow-signal-${id}`}>
-          {COMET_LAYERS.map((layer) => (
+        <g className="pointer-events-none" visibility="hidden" data-signal-edge={id} data-signal-source={source} data-signal-target={target} data-signal-state={state} data-signal-lead={data.lead} data-signal-after={data.after === undefined || data.after.length === 0 ? undefined : data.after.join(' ')} data-signal-static={data.stub === true ? '' : undefined} data-signal-length={data.stub === true ? Math.hypot(targetX - sourceX, targetY - sourceY) : undefined} data-testid={`flow-signal-${id}`}>
+          {data.stub !== true && COMET_LAYERS.map((layer) => (
             <path key={layer.id} d={path} fill="none" stroke={layer.tone === 'halo' ? 'var(--flow-halo)' : 'var(--flow-comet)'} strokeOpacity={layer.opacity} strokeWidth={layer.width} strokeLinecap={layer.cap} data-signal-layer={layer.id} />
           ))}
         </g>

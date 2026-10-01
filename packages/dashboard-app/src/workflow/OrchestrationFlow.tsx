@@ -52,7 +52,9 @@ function nodesOf(layout: OrchestrationLayout, startLabel: string, endLabel: stri
     ...layout.ghosts.map((ghost): CanvasNode => ({ id: ghost.id, type: 'ghost', position: { x: ghost.x, y: ghost.y }, data: { kind: ghost.kind, width: ghost.width, height: ghost.height }, zIndex: 1, ...fixed, ...sized(ghost.width, ghost.height) })),
     { id: 'start', type: 'port', position: { x: layout.ports.start.x, y: layout.ports.start.y }, data: { label: startLabel }, zIndex: 1, ...fixed, ...sized(12, 12) },
     { id: 'end', type: 'port', position: { x: layout.ports.end.x, y: layout.ports.end.y }, data: { label: endLabel }, zIndex: 1, ...fixed, ...sized(12, 12) },
-    ...layout.junctions.map((point): CanvasNode => ({ id: point.id, type: 'junction', position: { x: point.x, y: point.y }, data: {}, zIndex: 1, ...fixed, ...sized(2, 2) })),
+    ...layout.junctions.map((point): CanvasNode => ({ id: point.id, type: point.spine === true ? 'spine' : 'junction', position: { x: point.x, y: point.y }, data: {}, zIndex: 1, ...fixed, ...sized(2, 2) })),
+    // 括号条在连线之下（z = 0）：脊柱上的彗星从它上面走，不被盖住。
+    ...layout.brackets.map((bracket): CanvasNode => ({ id: bracket.id, type: 'bracket', position: { x: bracket.x, y: bracket.y }, data: { height: bracket.height }, zIndex: 0, ...fixed, ...sized(bracket.width, bracket.height) })),
     ...layout.entries.map((entry): CanvasNode => ({ id: entry.id, type: 'entry', position: { x: entry.x, y: entry.y }, data: { stage: entry.stage, entry: entry.entry, width: entry.width, height: entry.height }, zIndex: 1, ...fixed, ...sized(entry.width, entry.height) })),
   ]
 }
@@ -76,7 +78,7 @@ function edgesOf(layout: OrchestrationLayout, returns: readonly OrchestrationRet
       sourceHandle: edge.sourceHandle,
       targetHandle: edge.targetHandle,
       type: 'signal',
-      data: { state, signal: drawing.signal, ...(edge.lead === undefined ? {} : { lead: edge.lead }), ...(edge.after === undefined ? {} : { after: edge.after }), ...(drawing.hold === edge.target ? { hold: true } : {}) },
+      data: { state, signal: drawing.signal, ...(edge.lead === undefined ? {} : { lead: edge.lead }), ...(edge.after === undefined ? {} : { after: edge.after }), ...(edge.stub === true ? { stub: true } : {}), ...(drawing.hold === edge.target ? { hold: true } : {}) },
       ...(edge.arrow ? { markerEnd: markerFor(state) } : {}),
       ...fixed,
     }
