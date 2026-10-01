@@ -22,12 +22,24 @@ export interface PendingWaiver {
   readonly reason: string
 }
 
+/** A protected test-configuration change (catalog, baseline, known failures, project workflow) frozen in the review request. */
+export interface PendingProtectedChange {
+  readonly path: string
+  readonly kind: 'catalog' | 'baseline' | 'known-failures' | 'workflow'
+  readonly status: 'added' | 'modified' | 'deleted'
+  readonly digest: string
+  /** `outside-command`: changed after the Tenon command that last wrote it. */
+  readonly origin: 'pending' | 'outside-command'
+}
+
 export interface PendingDecisionView {
   readonly schemaVersion: 'pending-decision-view/v1'
   readonly revision: number | null
   readonly items: readonly PendingDecision[]
   /** Waivers that approving the pending review approves (empty when none / no pending review). */
   readonly waivers: readonly PendingWaiver[]
+  /** Protected test-configuration changes that approving the pending review approves (empty when none). */
+  readonly protectedChanges: readonly PendingProtectedChange[]
 }
 
 export type WaiverSkipReason = 'missing' | 'reason-changed' | 'already-approved'
@@ -43,6 +55,8 @@ export interface ReviewAcknowledgeResponse {
     readonly approved: readonly string[]
     readonly skipped: readonly { readonly key: string; readonly why: WaiverSkipReason }[]
   }
+  /** What the approval did to the protected configuration changes frozen in the request. */
+  readonly protectedChanges: { readonly approved: readonly string[] }
 }
 
 function isString(value: unknown): value is string { return typeof value === 'string' }
@@ -93,13 +107,35 @@ function decodeWaivers(value: unknown): readonly PendingWaiver[] | null {
   return waivers.some((waiver) => waiver === null) ? null : waivers as PendingWaiver[]
 }
 
+const PROTECTED_KINDS: readonly string[] = ['catalog', 'baseline', 'known-failures', 'workflow']
+const PROTECTED_STATUSES: readonly string[] = ['added', 'modified', 'deleted']
+
+function decodeProtected(value: unknown): PendingProtectedChange | null {
+  if (!isRecord(value) || !isString(value.path) || value.path === '' || !isString(value.kind) || !PROTECTED_KINDS.includes(value.kind)) return null
+  if (!isString(value.status) || !PROTECTED_STATUSES.includes(value.status) || !isString(value.digest)) return null
+  if (value.origin !== 'pending' && value.origin !== 'outside-command') return null
+  return {
+    path: value.path, kind: value.kind as PendingProtectedChange['kind'], status: value.status as PendingProtectedChange['status'],
+    digest: value.digest, origin: value.origin,
+  }
+}
+
+/** A server without protected-change support omits the list; a present but malformed list rejects the response. */
+function decodeProtectedList(value: unknown): readonly PendingProtectedChange[] | null {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) return null
+  const items = value.map(decodeProtected)
+  return items.some((item) => item === null) ? null : items as PendingProtectedChange[]
+}
+
 function decodeView(value: unknown): PendingDecisionView | null {
   if (!isRecord(value) || value.schemaVersion !== 'pending-decision-view/v1' || !isNullableRevision(value.revision) || !Array.isArray(value.items)) return null
   const items = value.items.map(decodeItem)
   if (items.some((item) => item === null)) return null
   const waivers = decodeWaivers(value.waivers)
-  if (waivers === null) return null
-  return { schemaVersion: value.schemaVersion, revision: value.revision, items: items as PendingDecision[], waivers }
+  const protectedChanges = decodeProtectedList(value.protectedChanges)
+  if (waivers === null || protectedChanges === null) return null
+  return { schemaVersion: value.schemaVersion, revision: value.revision, items: items as PendingDecision[], waivers, protectedChanges }
 }
 
 function isSkipReason(value: unknown): value is WaiverSkipReason {
@@ -120,7 +156,13 @@ function decodeOutcome(value: unknown): ReviewAcknowledgeResponse['waivers'] | n
 function decodeAcknowledge(value: unknown): ReviewAcknowledgeResponse | null {
   if (!isRecord(value) || value.ok !== true || !isString(value.ref) || typeof value.changed !== 'boolean' || typeof value.idempotent !== 'boolean' || value.channel !== 'dashboard') return null
   const waivers = decodeOutcome(value.waivers)
-  return waivers === null ? null : { ok: true, ref: value.ref, changed: value.changed, idempotent: value.idempotent, channel: 'dashboard', waivers }
+  const approvedProtected = isRecord(value.protectedChanges) && Array.isArray(value.protectedChanges.approved) && value.protectedChanges.approved.every(isString)
+    ? value.protectedChanges.approved
+    : []
+  return waivers === null ? null : {
+    ok: true, ref: value.ref, changed: value.changed, idempotent: value.idempotent, channel: 'dashboard', waivers,
+    protectedChanges: { approved: approvedProtected },
+  }
 }
 
 export async function fetchPendingDecisions(root: string, change: string, signal?: AbortSignal): Promise<PendingDecisionView> {

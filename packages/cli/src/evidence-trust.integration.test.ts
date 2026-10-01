@@ -5,11 +5,11 @@
  * 按 mode.txt / bench.txt 的内容产出报告，所以不依赖任何测试框架。
  */
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { recordV2Digest, type TestRunRecordV2 } from '@tenon/kernel'
 import { afterEach, describe, expect, test } from 'vitest'
-import { freshHarness, type Harness } from './integration-harness.js'
+import { FIXED_CLOCK, freshHarness, type Harness } from './integration-harness.js'
 import { commitAll, git, writeFiles } from './integration-harness-tests.js'
 
 const USER = { TENON_USER: 'a@x.io', TENON_USER_NAME: 'A', TENON_TEST_REAL_DIFF: '1', TENON_TEST_TICKING_CLOCK: '1' }
@@ -17,6 +17,8 @@ const USER = { TENON_USER: 'a@x.io', TENON_USER_NAME: 'A', TENON_TEST_REAL_DIFF:
 const UNTRUSTED = { ...USER, TENON_TEST_TRUST: '' }
 const SLUG = 'a-at-x.io'
 const SESSION = 'session-trust'
+/** 滴答时钟从 FIXED_CLOCK 起每读一次走一秒；回执要晚于步骤访问的进入时间。 */
+const RECEIPT_AT = new Date(Date.parse(FIXED_CLOCK) + 3_600_000).toISOString()
 const KNOWN_PATH = '.tenon/tests/known-failures.yaml'
 
 const WORKFLOW = `name: trusted
@@ -126,6 +128,12 @@ describe('测试证据可信根', () => {
   const err = (): string => (h as Harness).err.join('\n')
   const cwd = (): string => (h as Harness).cwd
   const recordsDir = (): string => join(cwd(), '.tenon', 'users', SLUG, 'tests', 'demo')
+
+  /** 像宿主那样加载 tenon skill：历史里有 Skill 工具行，再留回执；之后 `step.next` 才会走到评审门。 */
+  async function loadTenonSkill(): Promise<void> {
+    await appendFile(join(cwd(), 'openspec/changes/demo/.pipeline-history.jsonl'), `${JSON.stringify({ ts: RECEIPT_AT, kind: 'tool', raw: 'Skill: tenon' })}\n`, 'utf8')
+    expect(await tenon(USER, 'internal-native-skill-receipt', 'demo', 'tenon', 'trust-session', 'tool-1', RECEIPT_AT), err()).toBe(0)
+  }
 
   async function status(step = 'build'): Promise<{ code: number; json: PolicyJson }> {
     const code = await tenon(USER, 'test', 'status', 'demo', '--step', step, '--json')
@@ -249,12 +257,14 @@ describe('测试证据可信根', () => {
     expect(codes(current.json)).toEqual(['protected-file-unapproved'])
     expect(current.json.policy?.blockers[0]).toMatchObject({ subject: KNOWN_PATH, fix: 'tenon review request demo --event build-done' })
 
+    expect(await tenon(USER, 'session', 'activate', 'demo', '--continuous', '--host-session', SESSION), err()).toBe(0)
+    await loadTenonSkill()
+
     // `tenon status` 的下一步：评审门上只剩待确认的配置改动时，下发 request-review（把它们连同摘要展示给用户），而不是回退或 fix。
     expect(await tenon(USER, 'status', 'demo', '--json'), err()).toBe(0)
     const next = (JSON.parse(out()) as { step: { next: Array<{ action: string; event?: string; waivers?: string[] }> } }).step.next
     expect(next).toEqual([expect.objectContaining({ action: 'request-review', event: 'build-done', waivers: [KNOWN_PATH] })])
 
-    expect(await tenon(USER, 'session', 'activate', 'demo', '--continuous', '--host-session', SESSION), err()).toBe(0)
     expect(await tenon(USER, 'review', 'request', 'demo', '--event', 'build-done'), err()).toBe(0)
     expect(out()).toContain('待确认的测试配置改动 1 项')
     expect(out()).toContain('新增已知失败 unit / src/a.test.js › bad（到期 2026-07-20；等上游修复）')

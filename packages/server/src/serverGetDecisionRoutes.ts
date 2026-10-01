@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { join } from 'node:path'
 import { stateStorageExistsSync, type TransitionRecordStore, type StateStore } from '@tenon/kernel'
-import { readPendingDecisionProjection, readPendingReviewWaivers } from './decisionProjection.js'
+import { readPendingDecisionProjection, readPendingReviewItems } from './decisionProjection.js'
 
 export interface DecisionRouteDeps {
   readonly sendJson: (res: ServerResponse, code: number, body: unknown) => void
@@ -16,7 +16,7 @@ function validName(name: string): boolean {
 
 /**
  * Read-only decision projection. It never starts a Skill, creates a prompt, or calls a model.
- * `waivers` lists the test-plan waivers that approving the pending review would approve.
+ * `waivers` lists the test-plan waivers, and `protectedChanges` the protected test-configuration changes, that approving the pending review would approve.
  */
 export async function handleGetDecisionRoute(
   req: IncomingMessage,
@@ -38,8 +38,8 @@ export async function handleGetDecisionRoute(
     const view = await readPendingDecisionProjection({
       change: name, dir, store: deps.store, recordStore: deps.recordStore,
     })
-    const waivers = await readPendingReviewWaivers({ dir, store: deps.store })
-    return deps.sendJson(res, 200, { ...view, waivers }), true
+    const { waivers, protectedChanges } = await readPendingReviewItems({ dir, store: deps.store })
+    return deps.sendJson(res, 200, { ...view, waivers, protectedChanges }), true
   } catch (error) {
     return deps.sendJson(res, 500, { ok: false, error: error instanceof Error ? error.message : String(error) }), true
   }

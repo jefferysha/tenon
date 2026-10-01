@@ -8,7 +8,11 @@ import {
   createHistoryWriter,
   createStateStore,
   emptyTestPlan,
+  isApproved,
+  protectedFileDigest,
   readTestPlanState,
+  readTestSeal,
+  writeReviewWaiverSelection,
   writeTestPlan,
   type TestPlan,
   createTransitionRecordStore,
@@ -60,7 +64,7 @@ async function pendingChange(): Promise<Harness> {
   return h
 }
 
-async function getView(root: string): Promise<{ status?: number; items: ViewItem[]; waivers: { key: string; reason: string }[] }> {
+async function getView(root: string): Promise<{ status?: number; items: ViewItem[]; waivers: { key: string; reason: string }[]; protectedChanges: unknown[] }> {
   const captured: Captured = {}
   await handleGetDecisionRoute(
     { url: `/api/change/demo/pending-decisions?root=${encodeURIComponent(root)}`, headers: {} } as never,
@@ -73,8 +77,8 @@ async function getView(root: string): Promise<{ status?: number; items: ViewItem
       workflowRootForRequest: (candidate) => ({ ok: true, anchor: { path: candidate } }),
     },
   )
-  const body = captured.body as { items?: ViewItem[]; waivers?: { key: string; reason: string }[] }
-  return { status: captured.status, items: body.items ?? [], waivers: body.waivers ?? [] }
+  const body = captured.body as { items?: ViewItem[]; waivers?: { key: string; reason: string }[]; protectedChanges?: unknown[] }
+  return { status: captured.status, items: body.items ?? [], waivers: body.waivers ?? [], protectedChanges: body.protectedChanges ?? [] }
 }
 
 async function post(root: string, body: Record<string, unknown>): Promise<Captured> {
@@ -426,6 +430,48 @@ async function waivedPendingChange(): Promise<Harness> {
   expect(await h.run(['review', 'request', 'demo', '--event', 'explore-complete']), h.err.join('\n')).toBe(0)
   return h
 }
+
+describe('decision server adapters · protected test-configuration changes', () => {
+  const KNOWN = '.tenon/tests/known-failures.yaml'
+  const SLUG = 'tester-at-tenon.test'
+
+  async function pendingWithProtected(): Promise<{ h: Harness; digest: string }> {
+    const h = await pendingChange()
+    await mkdir(join(h.cwd, '.tenon', 'tests'), { recursive: true })
+    await writeFile(join(h.cwd, KNOWN), 'schema: tenon-known-failures/v1\nentries: []\n', 'utf8')
+    const digest = await protectedFileDigest(h.cwd, KNOWN)
+    const fields = (await createStateStore().read(changeDir(h))).fields
+    const text = (value: unknown): string => (Array.isArray(value) ? value.join(',') : String(value ?? ''))
+    await writeReviewWaiverSelection(changeDir(h), {
+      phase: text(fields.review_gate_phase), event: 'explore-complete', requestedAt: text(fields.review_requested_at),
+      waivers: [], protected: [{ path: KNOWN, kind: 'known-failures', status: 'added', digest, origin: 'pending' }],
+    })
+    return { h, digest }
+  }
+
+  it('GET lists exactly the protected changes frozen in the request; approving seals those digests with one audit row', async () => {
+    const { h, digest } = await pendingWithProtected()
+    const view = await getView(h.cwd)
+    expect(view.protectedChanges).toEqual([{ path: KNOWN, kind: 'known-failures', status: 'added', digest, origin: 'pending' }])
+    const item = view.items.find((candidate) => candidate.type === 'review')!
+
+    const approved = await post(h.cwd, { ref: item.ref.id, expected_revision: item.revision, idempotency_key: 'protected-1' })
+    expect(approved).toMatchObject({ status: 200, body: { ok: true, protectedChanges: { approved: [KNOWN], skipped: [] } } })
+    expect(isApproved((await readTestSeal(h.cwd, SLUG)).seal, 'demo', KNOWN, digest)).toBe(true)
+    const history = await readFile(join(changeDir(h), '.pipeline-history.jsonl'), 'utf8')
+    expect(history.match(/test:protected-approve files=\.tenon\/tests\/known-failures\.yaml/gu)).toHaveLength(1)
+    expect((await getView(h.cwd)).protectedChanges).toEqual([])
+  })
+
+  it('a file edited after the request is not approved by it', async () => {
+    const { h, digest } = await pendingWithProtected()
+    await writeFile(join(h.cwd, KNOWN), 'schema: tenon-known-failures/v1\nentries:\n  - sneaky\n', 'utf8')
+    const item = (await getView(h.cwd)).items.find((candidate) => candidate.type === 'review')!
+    const result = await post(h.cwd, { ref: item.ref.id, expected_revision: item.revision, idempotency_key: 'protected-2' })
+    expect(result).toMatchObject({ status: 200, body: { ok: true, protectedChanges: { approved: [], skipped: [{ path: KNOWN, why: 'content-changed' }] } } })
+    expect(isApproved((await readTestSeal(h.cwd, SLUG)).seal, 'demo', KNOWN, digest)).toBe(false)
+  })
+})
 
 describe('decision server adapters · test-plan waivers', () => {
   it('GET lists exactly the waivers frozen in the request; approving approves those and only those, with one audit row', async () => {

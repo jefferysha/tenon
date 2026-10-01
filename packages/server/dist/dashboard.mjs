@@ -52521,12 +52521,12 @@ async function readPendingDecisionProjection(input2) {
     reviewDecisionStateDigest: reviewGateDecisionStateDigest(state)
   });
 }
-async function readPendingReviewWaivers(input2) {
+async function readPendingReviewItems(input2) {
   const current = await readCurrentRunRevision(input2.dir);
   const state = current?.state ?? await input2.store.read(input2.dir);
-  if (reviewGateStatus(state) !== REVIEW_GATE_PENDING) return [];
+  if (reviewGateStatus(state) !== REVIEW_GATE_PENDING) return { waivers: [], protectedChanges: [] };
   const { selection } = await boundReviewWaiverSelection(input2.dir, state);
-  return selection?.waivers ?? [];
+  return { waivers: selection?.waivers ?? [], protectedChanges: selection?.protected ?? [] };
 }
 
 // packages/server/src/serverGetDecisionRoutes.ts
@@ -52551,8 +52551,8 @@ async function handleGetDecisionRoute(req, res, path14, deps) {
       store: deps.store,
       recordStore: deps.recordStore
     });
-    const waivers = await readPendingReviewWaivers({ dir, store: deps.store });
-    return deps.sendJson(res, 200, { ...view, waivers }), true;
+    const { waivers, protectedChanges } = await readPendingReviewItems({ dir, store: deps.store });
+    return deps.sendJson(res, 200, { ...view, waivers, protectedChanges }), true;
   } catch (error2) {
     return deps.sendJson(res, 500, { ok: false, error: error2 instanceof Error ? error2.message : String(error2) }), true;
   }

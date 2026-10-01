@@ -9,7 +9,10 @@ import { reviewIdempotencyKey } from '../api/decisionClient'
 import { ReviewDecisionPanel } from './ReviewDecisionPanel'
 
 const pendingItem = (revision: number) => ({ ref: { id: 'decision:1', kind: 'review', change: 'demo', anchor: 'verify:verify-pass', revision }, type: 'review', status: 'pending', anchor: { phase: 'verify', event: 'verify-pass' }, revision, evidence: ['canonical-review-receipt'], source: 'terminal', channel: 'terminal', command: 'review-acknowledge' })
-const view = (revision: number, items: unknown[], waivers?: unknown[]) => new Response(JSON.stringify({ schemaVersion: 'pending-decision-view/v1', revision, items, ...(waivers === undefined ? {} : { waivers }) }), { status: 200 })
+const view = (revision: number, items: unknown[], waivers?: unknown[], protectedChanges?: unknown[]) => new Response(JSON.stringify({
+  schemaVersion: 'pending-decision-view/v1', revision, items,
+  ...(waivers === undefined ? {} : { waivers }), ...(protectedChanges === undefined ? {} : { protectedChanges }),
+}), { status: 200 })
 const failure = (status: number, code?: string) => new Response(JSON.stringify(code === undefined ? { ok: false, error: 'internal' } : { ok: false, error: 'rejected', code }), { status })
 
 const RULES = {
@@ -131,6 +134,43 @@ describe('ReviewDecisionPanel', () => {
     await userEvent.click(screen.getByTestId('review-console-approve'))
     await waitFor(() => expect(onToast).toHaveBeenCalledWith('已批准，并批准豁免 2 项，正在刷新状态'))
     expect(fetchMock.mock.calls.filter((call) => call[1]?.method === 'POST')).toHaveLength(1)
+  })
+
+  it('lists the protected test-configuration changes frozen in the request before the approval can be given, and counts them in the toast', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(view(3, [pendingItem(3)], [], [
+        { path: '.tenon/tests/known-failures.yaml', kind: 'known-failures', status: 'modified', digest: 'sha256:aaa', origin: 'pending' },
+        { path: '.tenon/tests/baselines/bench/darwin.json', kind: 'baseline', status: 'added', digest: 'sha256:bbb', origin: 'outside-command' },
+      ]))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true, ref: 'decision:1', changed: true, idempotent: false, channel: 'dashboard',
+        waivers: { approved: [], skipped: [] },
+        protectedChanges: { approved: ['.tenon/tests/known-failures.yaml', '.tenon/tests/baselines/bench/darwin.json'] },
+      }), { status: 200 }))
+      .mockResolvedValue(view(4, []))
+    const onToast = vi.fn()
+    renderPanel({ onToast })
+    const list = await screen.findByTestId('review-console-protected')
+    expect(list).toHaveTextContent('待确认配置改动 2')
+    expect(screen.getByTestId('review-console-protected-.tenon/tests/known-failures.yaml')).toHaveTextContent('.tenon/tests/known-failures.yaml修改')
+    expect(screen.getByTestId('review-console-protected-.tenon/tests/baselines/bench/darwin.json')).toHaveTextContent('新增 · 台账外改动')
+    // The digest is in a tooltip title, the explanation in a tooltip; no sentence on the page, nothing wraps.
+    expect(screen.getByTestId('review-console-protected-.tenon/tests/known-failures.yaml').querySelector('[title="sha256:aaa"]')).not.toBeNull()
+    expect(list.textContent).not.toContain('通过即确认')
+    screen.getByTestId('review-console-protected-hint').focus()
+    expect((await screen.findAllByText('通过即确认这些测试配置的当前内容；之后再改要重新确认')).length).toBeGreaterThan(0)
+    for (const row of list.querySelectorAll('li')) expect(row.className).toContain('whitespace-nowrap')
+
+    await userEvent.click(screen.getByTestId('review-console-approve'))
+    await waitFor(() => expect(onToast).toHaveBeenCalledWith('已批准，并批准豁免 2 项，正在刷新状态'))
+    expect(fetchMock.mock.calls.filter((call) => call[1]?.method === 'POST')).toHaveLength(1)
+  })
+
+  it('shows no protected-change block when the request froze none', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(view(3, [pendingItem(3)], [], []))
+    renderPanel()
+    await screen.findByTestId('review-console-approve')
+    expect(screen.queryByTestId('review-console-protected')).toBeNull()
   })
 
   it('shows no waiver block when the request froze none', async () => {
