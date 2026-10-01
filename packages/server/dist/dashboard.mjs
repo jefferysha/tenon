@@ -3,8 +3,8 @@ import { createRequire as __cr } from 'node:module'; const require = __cr(import
 
 // packages/server/src/main.ts
 import { execFile as execFile12 } from "node:child_process";
-import { mkdirSync as mkdirSync10, rmSync as rmSync2, unlinkSync as unlinkSync5, writeFileSync as writeFileSync9 } from "node:fs";
-import { dirname as dirname28, join as join125 } from "node:path";
+import { mkdirSync as mkdirSync11, rmSync as rmSync3, unlinkSync as unlinkSync5, writeFileSync as writeFileSync9 } from "node:fs";
+import { dirname as dirname29, join as join125 } from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 
 // packages/tap/dist/paths.js
@@ -11960,6 +11960,8 @@ function resolveProductPaths(input2 = {}) {
     secretsPath: paths.join(configRoot, "secrets.json"),
     dashboardTokenPath: paths.join(stateRoot, "dashboard-token.json"),
     dashboardPidfilePath: paths.join(stateRoot, "dashboard-server.json"),
+    logsRoot: paths.join(stateRoot, "logs"),
+    dashboardLogPath: paths.join(stateRoot, "logs", "dashboard.log"),
     userConfigPath: paths.join(configRoot, "user.json"),
     decisionObservationKeyPath: paths.join(stateRoot, "decision-observation-identity.key"),
     managedTransactionRoot: paths.join(stateRoot, "managed-release-transaction")
@@ -15506,6 +15508,11 @@ async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope, poli
   const gatingKinds = /* @__PURE__ */ new Set([...recordKinds, ...readRequirements, ...requiredKinds]);
   const kinds2 = /* @__PURE__ */ new Set([...gatingKinds, ...mutableKinds]);
   const blockers = [];
+  const blockerDetails = [];
+  const block = (message, detail) => {
+    blockers.push(message);
+    blockerDetails.push(detail);
+  };
   const items = [];
   let confirmations;
   let invocationEvents;
@@ -15513,7 +15520,7 @@ async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope, poli
     confirmations = await readDocumentSkillConfirmations(changeDir2);
     invocationEvents = await readSkillInvocationEventsForApplication(changeDir2);
   } catch (error2) {
-    blockers.push(`document producer invocation evidence \u4E0D\u53EF\u9A8C\u8BC1: ${error2 instanceof Error ? error2.message : String(error2)}`);
+    block(`document producer invocation evidence \u4E0D\u53EF\u9A8C\u8BC1: ${error2 instanceof Error ? error2.message : String(error2)}`);
     confirmations = [];
     invocationEvents = [];
   }
@@ -15522,12 +15529,12 @@ async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope, poli
     try {
       currentVisitId = await currentDocumentStepVisitId(changeDir2);
     } catch (error2) {
-      blockers.push(`current step visit \u4E0D\u53EF\u9A8C\u8BC1: ${error2 instanceof Error ? error2.message : String(error2)}`);
+      block(`current step visit \u4E0D\u53EF\u9A8C\u8BC1: ${error2 instanceof Error ? error2.message : String(error2)}`);
     }
   }
-  const gate = (kind, message) => {
+  const gate = (kind, message, state) => {
     if (gatingKinds.has(kind))
-      blockers.push(message);
+      block(message, { subject: kind, state });
   };
   for (const kind of kinds2) {
     const records = ledger.records.filter((record11) => record11.kind === kind);
@@ -15538,23 +15545,23 @@ async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope, poli
         if (await projectDocumentPresent(repoRoot, kind, projectPath)) {
           items.push({ kind, status: "recorded", requiredRead, paths: [projectPath], producers: [], timeline: [] });
         } else {
-          gate(kind, `\u7F3A\u5C11\u9879\u76EE\u6587\u6863 '${kind}'\uFF08${projectPath}\uFF09`);
+          gate(kind, `\u7F3A\u5C11\u9879\u76EE\u6587\u6863 '${kind}'\uFF08${projectPath}\uFF09`, "missing");
           items.push(item(kind, "missing", requiredRead, records, phase, currentVisitId));
         }
         continue;
       }
-      gate(kind, `\u7F3A\u5C11 document '${kind}'\uFF1B\u6267\u884C tenon document record <change> ${kind} <path> --producer <skill>`);
+      gate(kind, `\u7F3A\u5C11 document '${kind}'\uFF1B\u6267\u884C tenon document record <change> ${kind} <path> --producer <skill>`, "missing");
       items.push(item(kind, "missing", requiredRead, records, phase, currentVisitId));
       continue;
     }
     if (records.some((record11) => !isRecordedDocumentProducerAllowedThroughPolicyStep(policy2, kind, phase, record11.producer))) {
-      gate(kind, `document '${kind}' \u7684 producer \u4E0D\u7B26\u5408\u5F53\u524D document contract`);
+      gate(kind, `document '${kind}' \u7684 producer \u4E0D\u7B26\u5408\u5F53\u524D document contract`, "stale");
       items.push(item(kind, "stale", requiredRead, records, phase, currentVisitId, "producer"));
       continue;
     }
     const legacyDelta = kind === "delta-spec" ? records.filter((record11) => deltaSpecSlot(record11.path, changeDir2) === void 0) : [];
     if (legacyDelta.length > 0) {
-      gate(kind, `\u5B58\u5728\u65E7 delta-spec \u8BB0\u5F55\uFF0C\u5FC5\u987B\u7528 tenon document migrate-delta \u663E\u5F0F\u8FC1\u79FB: ${legacyDelta.map((record11) => record11.path).join(", ")}`);
+      gate(kind, `\u5B58\u5728\u65E7 delta-spec \u8BB0\u5F55\uFF0C\u5FC5\u987B\u7528 tenon document migrate-delta \u663E\u5F0F\u8FC1\u79FB: ${legacyDelta.map((record11) => record11.path).join(", ")}`, "stale");
       items.push(item(kind, "stale", requiredRead, records, phase, currentVisitId, "legacy-path"));
       continue;
     }
@@ -15563,7 +15570,7 @@ async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope, poli
       digests.push(await currentRecordDigest(repoRoot, record11));
     }
     if (records.some((record11, index) => digests[index] !== record11.sha256)) {
-      gate(kind, `document '${kind}' \u5DF2\u7F3A\u5931\u6216\u5185\u5BB9\u53D8\u5316\uFF1B\u91CD\u65B0\u6267\u884C tenon document record \u540E\u518D\u7EE7\u7EED`);
+      gate(kind, `document '${kind}' \u5DF2\u7F3A\u5931\u6216\u5185\u5BB9\u53D8\u5316\uFF1B\u91CD\u65B0\u6267\u884C tenon document record \u540E\u518D\u7EE7\u7EED`, "stale");
       items.push(item(kind, "stale", requiredRead, records, phase, currentVisitId, "changed"));
       continue;
     }
@@ -15579,20 +15586,20 @@ async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope, poli
       return !applicableConfirmations.some((confirmation) => hasExactDocumentApplication(invocationEvents, confirmation, record11));
     });
     if (incompleteProducer !== void 0) {
-      gate(kind, `document '${kind}' \u7684 producer invocation/artifact \u5C1A\u672A\u539F\u5B50\u5B8C\u6210: ${incompleteProducer.path}\uFF1B\u6267\u884C tenon document record <change> ${kind} ${incompleteProducer.path} --producer ${incompleteProducer.producer}`);
+      gate(kind, `document '${kind}' \u7684 producer invocation/artifact \u5C1A\u672A\u539F\u5B50\u5B8C\u6210: ${incompleteProducer.path}\uFF1B\u6267\u884C tenon document record <change> ${kind} ${incompleteProducer.path} --producer ${incompleteProducer.producer}`, "stale");
       items.push(item(kind, "stale", requiredRead, records, phase, currentVisitId, "invocation"));
       continue;
     }
     if (requiredRead && (currentVisitId === void 0 || records.some((record11) => !record11.reads.some((receipt) => receiptMatchesVisit(receipt, phase, record11.sha256, currentVisitId))))) {
       if (currentVisitId !== void 0) {
-        gate(kind, `document '${kind}' \u5C1A\u672A\u7531 ${phase} \u7684\u5F53\u524D step visit \u8BFB\u53D6\uFF1B\u6267\u884C tenon document read <change> ${kind}`);
+        gate(kind, `document '${kind}' \u5C1A\u672A\u7531 ${phase} \u7684\u5F53\u524D step visit \u8BFB\u53D6\uFF1B\u6267\u884C tenon document read <change> ${kind}`, "unread");
       }
       items.push(item(kind, "unread", requiredRead, records, phase, currentVisitId));
       continue;
     }
     items.push(item(kind, "recorded", requiredRead, records, phase, currentVisitId));
   }
-  return { phase, hasLedger: true, pass: blockers.length === 0, blockers, items };
+  return { phase, hasLedger: true, pass: blockers.length === 0, blockers, blockerDetails, items };
 }
 
 // packages/kernel/dist/state/spec-migration-evidence.js
@@ -25224,8 +25231,10 @@ async function evaluateTestEvidence(input2) {
     });
     return { stepId: input2.stepId, pass: report.pass, blockers: renderPolicyBlockers(report), items, policy: report };
   }
-  const blockers = items.filter((item2) => item2.test.required && item2.status !== "passed").map((item2) => blockerFor2(item2, input2.changeName));
-  return { stepId: input2.stepId, pass: blockers.length === 0, blockers, items };
+  const open9 = items.filter((item2) => item2.test.required && item2.status !== "passed");
+  const blockers = open9.map((item2) => blockerFor2(item2, input2.changeName));
+  const blockerDetails = open9.map((item2) => item2.status === "passed" ? void 0 : { subject: item2.test.label ?? item2.test.id, state: item2.status });
+  return { stepId: input2.stepId, pass: blockers.length === 0, blockers, blockerDetails, items };
 }
 function inlineDetail(item2) {
   if (item2.status === "stale")
@@ -25596,6 +25605,118 @@ function machineStateScopeId(stateRoot) {
   const digest18 = createHash18("sha256").update(STATE_SCOPE_NAMESPACE).update(canonicalMachineStateRoot(stateRoot)).digest("hex");
   return `sha256-v1-${digest18}`;
 }
+
+// packages/kernel/dist/diagnostics/redact.js
+var MAX_REDACTED_LINE_CHARS = 16384;
+var MARK = "[REDACTED";
+var HARMLESS_VALUE = /^(?:null|undefined|true|false|none|\[\]|\{\}|<[^>]*>)$/iu;
+var SECRET_WORD = String.raw`(?:token|secret|passw(?:or)?d|pwd|api[_-]?key|apikey|private[_-]?key|credential|cookie|session|authorization|signature|nonce)`;
+var KEY_VALUE = new RegExp(String.raw`\b([A-Za-z0-9_.-]*${SECRET_WORD}[A-Za-z0-9_.-]*)(["']?[ \t]*[:=][ \t]*)("[^"\r\n]*"|'[^'\r\n]*'|[^\s,;&"'{}\[\]()][^\s,;&"'}\])]*)`, "giu");
+var CLI_FLAG = new RegExp(String.raw`(--[A-Za-z0-9-]*${SECRET_WORD}[A-Za-z0-9-]*)(=|[ \t]+)("[^"\r\n]*"|'[^'\r\n]*'|[^\s"'-][^\s"']*)`, "giu");
+var QUERY_CODE = /([?&](?:code|login_code|otp|state|presence_nonce)=)([^&\s"'#]+)/giu;
+var COOKIE_HEADER = /^([ \t]*(?:set-)?cookie[ \t]*:)[^\r\n]*/gimu;
+var AUTH_HEADER = /^([ \t]*(?:proxy-)?authorization[ \t]*:)[^\r\n]*/gimu;
+var BEARER = /\b(Bearer|Basic)([ \t]+)[A-Za-z0-9._~+/=-]{8,}/gu;
+var JWT = /\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}/gu;
+var KNOWN_TOKEN = new RegExp([
+  String.raw`\bsk-[A-Za-z0-9_-]{16,}`,
+  String.raw`\bgh[pousr]_[A-Za-z0-9]{20,}`,
+  String.raw`\bgithub_pat_[A-Za-z0-9_]{20,}`,
+  String.raw`\bxox[abprs]-[A-Za-z0-9-]{10,}`,
+  String.raw`\bAKIA[0-9A-Z]{16}\b`,
+  String.raw`\bAIza[0-9A-Za-z_-]{30,}`,
+  String.raw`\bnpm_[A-Za-z0-9]{30,}`
+].join("|"), "gu");
+var URL_CREDENTIALS = /\b([a-z][a-z0-9+.-]*:\/\/)([^/\s:@]+):([^/\s@]+)@/giu;
+var PRIVATE_KEY = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----/gu;
+var PRIVATE_KEY_TRUNCATED = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*$/u;
+function emptyCounts() {
+  return { token: 0, cookie: 0, "credential-url": 0, "private-key": 0, email: 0, "home-path": 0, "user-name": 0 };
+}
+function alreadyMarked(value) {
+  return value.replace(/^["']/u, "").startsWith(MARK);
+}
+function unquoted(value) {
+  return value.replace(/^["']|["']$/gu, "");
+}
+function isHarmless(value) {
+  return HARMLESS_VALUE.test(unquoted(value));
+}
+function maskValue(value, label) {
+  const quote = value.startsWith('"') ? '"' : value.startsWith("'") ? "'" : "";
+  return `${quote}${MARK}:${label}]${quote}`;
+}
+function stripPrivateKeys(input2, counts) {
+  if (!input2.includes("PRIVATE KEY-----"))
+    return input2;
+  const mask = () => {
+    counts["private-key"] += 1;
+    return `${MARK}:private-key]`;
+  };
+  return input2.replace(PRIVATE_KEY, mask).replace(PRIVATE_KEY_TRUNCATED, mask);
+}
+function redactLineCredentials(input2, counts) {
+  let text11 = input2.replace(COOKIE_HEADER, (whole, head) => {
+    if (whole.slice(head.length).trim().startsWith(MARK))
+      return whole;
+    counts.cookie += 1;
+    return `${head} ${MARK}:cookie]`;
+  });
+  text11 = text11.replace(AUTH_HEADER, (whole, head) => {
+    if (whole.slice(head.length).trim().startsWith(MARK))
+      return whole;
+    counts.token += 1;
+    return `${head} ${MARK}:token]`;
+  });
+  text11 = text11.replace(URL_CREDENTIALS, (_whole, scheme) => {
+    counts["credential-url"] += 1;
+    return `${scheme}${MARK}:credentials]@`;
+  });
+  text11 = text11.replace(KEY_VALUE, (whole, key, sep20, value) => {
+    if (alreadyMarked(value) || isHarmless(value))
+      return whole;
+    const cookie = /cookie|session/iu.test(key);
+    counts[cookie ? "cookie" : "token"] += 1;
+    return `${key}${sep20}${maskValue(value, cookie ? "cookie" : "token")}`;
+  });
+  text11 = text11.replace(CLI_FLAG, (whole, flag2, sep20, value) => {
+    if (alreadyMarked(value) || isHarmless(value))
+      return whole;
+    counts.token += 1;
+    return `${flag2}${sep20}${maskValue(value, "token")}`;
+  });
+  text11 = text11.replace(QUERY_CODE, (whole, head, value) => {
+    if (alreadyMarked(value))
+      return whole;
+    counts.token += 1;
+    return `${head}${MARK}:token]`;
+  });
+  text11 = text11.replace(BEARER, (whole, scheme, gap) => {
+    if (whole.includes(MARK))
+      return whole;
+    counts.token += 1;
+    return `${scheme}${gap}${MARK}:token]`;
+  });
+  for (const pattern of [JWT, KNOWN_TOKEN]) {
+    text11 = text11.replace(pattern, () => {
+      counts.token += 1;
+      return `${MARK}:token]`;
+    });
+  }
+  return text11;
+}
+function clampLine(line) {
+  return line.length > MAX_REDACTED_LINE_CHARS ? `${line.slice(0, MAX_REDACTED_LINE_CHARS)}\u2026[line truncated]` : line;
+}
+function perLine(input2, apply2) {
+  return input2.split("\n").map((line) => apply2(clampLine(line))).join("\n");
+}
+function redactCredentials(input2) {
+  const counts = emptyCounts();
+  const text11 = perLine(stripPrivateKeys(input2, counts), (line) => redactLineCredentials(line, counts));
+  return { text: text11, counts };
+}
+var NO_REDACTIONS = Object.freeze(emptyCounts());
 
 // packages/kernel/dist/workspace/build-revision-identity.js
 import { execFile as execFile2 } from "node:child_process";
@@ -36118,8 +36239,8 @@ function unfinishedTaskItems(context, changeDirRel, stepId) {
 
 // packages/kernel/dist/workflow/step-exit-report.js
 var IMPLICIT_COMPLETION_EVENT2 = "archived";
-function blocker2(source2, code, message) {
-  return { source: source2, code, message };
+function blocker2(source2, code, message, detail) {
+  return detail === void 0 ? { source: source2, code, message } : { source: source2, code, message, ...detail };
 }
 async function judgeStepSkillsFromHistory(input2) {
   const visitRecords = input2.documentPolicy === void 0 ? [] : await documentRecordsInCurrentStepVisit(input2.changeDir);
@@ -36184,7 +36305,14 @@ async function evaluateStepExitReport(input2) {
     context: input2.testEvidence.context
   });
   const judgement = await input2.skills();
-  const skills = missingStepSkillMessages(judgement.slots).map((message) => blocker2("skill", "skill-incomplete", `\u5C1A\u672A\u5B8C\u6210\u58F0\u660E\u7684 skill\uFF1A${message}`));
+  const pending = judgement.slots.filter((slot) => !slot.done);
+  const skills = missingStepSkillMessages(judgement.slots).map((message, index) => {
+    const slot = pending[index];
+    return blocker2("skill", "skill-incomplete", `\u5C1A\u672A\u5B8C\u6210\u58F0\u660E\u7684 skill\uFF1A${message}`, slot === void 0 ? void 0 : {
+      subject: slot.token,
+      state: slot.invoked && slot.pendingDocuments.length > 0 ? "unrecorded" : "not-run"
+    });
+  });
   const reviewers = (await input2.agentBlockers()).map((item2) => blocker2("reviewer", item2.kind, renderAgentBlocker(item2, input2.changeName)));
   const migration = stepId === "ship" && plan.capabilities.documents.governed ? await evaluateSpecMigrationEvidence(input2.repoRoot, input2.changeDir, input2.changeName) : void 0;
   const phaseManifest = plan.capabilities.execution.model === "phase-manifest";
@@ -36194,9 +36322,9 @@ async function evaluateStepExitReport(input2) {
   const shared = [
     // tasks.md 的勾选是本步的工作项，不是一个可填的字段：单列成 `tasks` 来源，`next` 才能把它排在
     // 自由文本字段（pr_url 等）之前。
-    ...phaseExit.failures.map((item2) => item2.includes("tasks.md") ? { ...blocker2("tasks", "tasks-incomplete", item2), items: openTasks } : blocker2("guard", "phase-exit", item2)),
-    ...(documents?.blockers ?? []).map((item2) => blocker2("document", "document-evidence", item2)),
-    ...testReport.blockers.map((item2) => blocker2("test", "test-evidence", item2)),
+    ...phaseExit.failures.map((item2) => item2.includes("tasks.md") ? { ...blocker2("tasks", "tasks-incomplete", item2, openTasks.length > 0 ? { count: openTasks.length } : void 0), items: openTasks } : blocker2("guard", "phase-exit", item2)),
+    ...(documents?.blockers ?? []).map((item2, index) => blocker2("document", "document-evidence", item2, documents?.blockerDetails?.[index])),
+    ...testReport.blockers.map((item2, index) => blocker2("test", "test-evidence", item2, testReport.blockerDetails?.[index])),
     ...reviewers,
     ...migration?.kind === "invalid" ? [blocker2("spec", "migration", migration.reason)] : []
   ];
@@ -43355,7 +43483,10 @@ function toReadinessBlocker(blocker3) {
     source: blocker3.source,
     code: blocker3.code,
     message: blocker3.message,
-    ...blocker3.items === void 0 || blocker3.items.length === 0 ? {} : { items: blocker3.items }
+    ...blocker3.items === void 0 || blocker3.items.length === 0 ? {} : { items: blocker3.items },
+    ...blocker3.subject === void 0 ? {} : { subject: blocker3.subject },
+    ...blocker3.state === void 0 ? {} : { state: blocker3.state },
+    ...blocker3.count === void 0 ? {} : { count: blocker3.count }
   };
 }
 async function historyRaw(changeDir2) {
@@ -56938,6 +57069,8 @@ function createDispatcher(deps) {
     const handler = route === void 0 ? Promise.resolve(sendJson(res, 405, { ok: false, error: "method not allowed" })) : route(req, res, path14);
     if (method !== "GET") void handler.finally(() => dropWrittenProjects(snapshotCache2, req, path14, "after")).catch(() => void 0);
     handler.catch((e) => {
+      process.stderr.write(`[dashboard-server] 500 ${method} ${path14}: ${errMsg2(e)}
+`);
       try {
         sendJson(res, 500, { ok: false, error: errMsg2(e) });
       } catch {
@@ -57918,6 +58051,84 @@ function parseDashboardServerArgs(args) {
   };
 }
 
+// packages/server/src/serverLog.ts
+import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync10, renameSync as renameSync7, rmSync as rmSync2, statSync as statSync9 } from "node:fs";
+import { dirname as dirname28 } from "node:path";
+var LOG_MAX_BYTES = 1048576;
+var LOG_FILE_COUNT = 3;
+function siblingPath(path14, index) {
+  return index === 0 ? path14 : `${path14}.${index}`;
+}
+function createRotatingLog(options3) {
+  const maxBytes = options3.maxBytes ?? LOG_MAX_BYTES;
+  const files = Math.max(1, options3.files ?? LOG_FILE_COUNT);
+  const clock = options3.clock ?? (() => (/* @__PURE__ */ new Date()).toISOString());
+  const path14 = options3.path;
+  let size = -1;
+  let failed2 = false;
+  const fail13 = (error2) => {
+    if (failed2) return;
+    failed2 = true;
+    const detail = error2 instanceof Error ? error2.message : String(error2);
+    options3.onFailure?.(`[dashboard-server] \u65E5\u5FD7\u6587\u4EF6\u4E0D\u53EF\u5199\uFF0C\u4E4B\u540E\u53EA\u8F93\u51FA\u5230\u7EC8\u7AEF\uFF1A${detail}`);
+  };
+  const currentSize = () => {
+    try {
+      return statSync9(path14).size;
+    } catch {
+      return 0;
+    }
+  };
+  const rotate = () => {
+    rmSync2(siblingPath(path14, files - 1), { force: true });
+    for (let index = files - 2; index >= 0; index--) {
+      try {
+        renameSync7(siblingPath(path14, index), siblingPath(path14, index + 1));
+      } catch (error2) {
+        if (error2.code !== "ENOENT") throw error2;
+      }
+    }
+    size = 0;
+  };
+  return {
+    path: path14,
+    write(source2, text11) {
+      if (failed2) return;
+      try {
+        const stamp = clock();
+        const lines2 = text11.split(/\r?\n/u).filter((line) => line.trim() !== "");
+        if (lines2.length === 0) return;
+        const body2 = lines2.map((line) => `${stamp} ${source2.padEnd(5)} ${redactCredentials(line).text}
+`).join("");
+        if (size < 0) {
+          mkdirSync10(dirname28(path14), { recursive: true, mode: 448 });
+          size = currentSize();
+        }
+        if (size > 0 && size + Buffer.byteLength(body2) > maxBytes) rotate();
+        appendFileSync2(path14, body2, { encoding: "utf8", mode: 384 });
+        size += Buffer.byteLength(body2);
+      } catch (error2) {
+        fail13(error2);
+      }
+    }
+  };
+}
+function mirrorProcessOutput(log3, target = process) {
+  const originals = [];
+  for (const [stream, source2] of [[target.stdout, "out"], [target.stderr, "err"]]) {
+    const original = stream.write.bind(stream);
+    originals.push([stream, stream.write]);
+    stream.write = ((chunk, ...rest) => {
+      if (typeof chunk === "string") log3.write(source2, chunk);
+      else if (chunk instanceof Uint8Array) log3.write(source2, Buffer.from(chunk).toString("utf8"));
+      return original(chunk, ...rest);
+    });
+  }
+  return () => {
+    for (const [stream, write2] of originals) stream.write = write2;
+  };
+}
+
 // packages/server/src/main.ts
 function serverPort() {
   return resolveDashboardPort(process.env.TENON_DASHBOARD_PORT);
@@ -57935,7 +58146,7 @@ function managedTransactionId() {
   return value;
 }
 function pluginRoot() {
-  return join125(dirname28(fileURLToPath4(import.meta.url)), "..", "..", "..");
+  return join125(dirname29(fileURLToPath4(import.meta.url)), "..", "..", "..");
 }
 function manifestPath2() {
   return join125(pluginRoot(), "templates", "manifest.yaml");
@@ -57967,7 +58178,21 @@ async function main() {
   const releaseId = resolvePayloadReleaseId(root);
   const transactionId = managedTransactionId();
   const stateScopeId = machineStateScopeId(paths.stateRoot);
-  mkdirSync10(paths.stateRoot, { recursive: true, mode: 448 });
+  mkdirSync11(paths.stateRoot, { recursive: true, mode: 448 });
+  const log3 = createRotatingLog({
+    path: paths.dashboardLogPath,
+    onFailure: (message) => process.stderr.write(`${message}
+`)
+  });
+  mirrorProcessOutput(log3);
+  log3.write("event", `[dashboard-server] starting pid=${process.pid} port=${port} version=${version}${releaseId === void 0 ? "" : ` release=${releaseId}`}`);
+  for (const event of ["uncaughtException", "unhandledRejection"]) {
+    process.on(event, (reason3) => {
+      process.stderr.write(`[dashboard-server] ${event}: ${reason3 instanceof Error ? reason3.stack ?? reason3.message : String(reason3)}
+`);
+      process.exit(1);
+    });
+  }
   for (const result2 of await syncBuiltinLibraries(root, paths.configRoot)) {
     if (result2.state === "failed") process.stderr.write(`[dashboard-server] \u5185\u5EFA\u5E93 ${result2.id} \u540C\u6B65\u5931\u8D25\uFF1A${result2.detail}
 `);
@@ -58004,7 +58229,7 @@ async function main() {
     gitHeadSha,
     workspaceFingerprint: (cwd) => candidateFingerprint(cwd),
     // dashboard-app 构建产物（BACKLOG #26c）：存在则服务真 SPA，否则回退最小落地页
-    webRoot: join125(dirname28(fileURLToPath4(import.meta.url)), "..", "..", "dashboard-app", "dist"),
+    webRoot: join125(dirname29(fileURLToPath4(import.meta.url)), "..", "..", "dashboard-app", "dist"),
     // tap 流量查看器数据源：只读 sessions/records/timeline；完整 reader 才声明 traffic=true。
     // tap capture 默认 OFF，无捕获时返回空会话——数据端仍在线（#34e：只读本地、不外发）
     traceStore: createTraceStore(),
@@ -58021,7 +58246,7 @@ async function main() {
     return;
   }
   try {
-    rmSync2(paths.tokenPath, { force: true });
+    rmSync3(paths.tokenPath, { force: true });
   } catch {
   }
   try {
@@ -58043,6 +58268,7 @@ async function main() {
 `);
   }
   const shutdown = () => {
+    log3.write("event", `[dashboard-server] stopping pid=${process.pid}`);
     void srv.close().finally(() => {
       try {
         unlinkSync5(paths.pidfilePath);
