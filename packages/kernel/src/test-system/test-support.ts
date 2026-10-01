@@ -3,15 +3,17 @@
  * （纯数据），以及给「主题与测试无关」的流程用例一次性满足步骤测试策略的豁免播种（写盘）。
  */
 import { mkdir, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
-import type { RecordActor } from '../users/user.js'
+import { dirname, relative } from 'node:path'
+import { userSlug, type RecordActor } from '../users/user.js'
 import type { EffectiveWorkflowPlan } from '../workflow/effective-plan-types.js'
 import { loadDeltaScenarios, loadTaskItems } from './load.js'
 import { testSystemPaths } from './paths.js'
 import { readTestPlanState, writeTestPlan } from './plan-ledger.js'
 import { emptyTestPlan, type PlanWaiver } from './plan.js'
+import { protectedFileDigest } from './protected-files.js'
 import { policyRequiredKinds } from './policy.js'
 import { recordV2Digest } from './record-chain.js'
+import { updateTestSeal } from './seal.js'
 import { repoGlob } from './globs.js'
 import type {
   ArtifactIndexEntry, CaseResultV2, SuiteRunV2, TestRunRecordV2, TestRunRecordV2Draft,
@@ -22,7 +24,8 @@ export const EMPTY_TEST_CATALOG = 'schema: tenon-test-catalog/v1\nsuites: []\n'
 
 /**
  * 夹具：让一个步骤的 test_policy 在「主题与测试无关」的流程用例里直接满足——没有目录就写一份空目录，
- * 计划里为策略要求的每个种类（含覆盖率门槛对应的 coverage）和每个 delta spec 场景写入已批准豁免。
+ * 计划里为策略要求的每个种类（含覆盖率门槛对应的 coverage）和每个 delta spec 场景写入已批准豁免，
+ * 并像用户在评审里确认过一样，批准它写下的测试目录当前内容（否则目录作为任务改动会等着人确认）。
  * 专门测测试门禁的用例不要用它。步骤没有策略时什么都不做。
  */
 export async function seedApprovedTestPolicyWaivers(input: {
@@ -41,6 +44,17 @@ export async function seedApprovedTestPolicyWaivers(input: {
   await writeFile(catalogPath, EMPTY_TEST_CATALOG, { flag: 'wx' }).catch((error: NodeJS.ErrnoException) => {
     if (error.code !== 'EEXIST') throw error
   })
+  const catalogRel = relative(input.repoRoot, catalogPath)
+  const catalogDigest = await protectedFileDigest(input.repoRoot, catalogRel)
+  if (catalogDigest !== 'unreadable') {
+    await updateTestSeal(input.repoRoot, userSlug(input.actor.id), (seal) => ({
+      ...seal,
+      approvals: [
+        ...seal.approvals.filter((entry) => !(entry.change === input.changeName && entry.path === catalogRel && entry.digest === catalogDigest)),
+        { change: input.changeName, path: catalogRel, digest: catalogDigest, by: input.actor.id, at: input.recordedAt },
+      ],
+    }))
+  }
   const current = await readTestPlanState(input.changeDir, input.changeName)
   const plan = current.state === 'ok' ? current.plan : emptyTestPlan(input.changeName)
   const kinds: TestKind[] = [...policyRequiredKinds(policy), ...(policy.coverage === undefined ? [] : ['coverage' as const])]
