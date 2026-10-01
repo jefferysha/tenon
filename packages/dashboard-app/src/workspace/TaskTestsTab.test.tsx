@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { I18nProvider } from '../i18n'
 import { TaskTestsTab } from './TaskTestsTab'
-import { planBrief, verdict, verifyReport } from '../api/testSystemFixtures'
+import { planBrief, totals, verdict, verifyReport } from '../api/testSystemFixtures'
 import type { PolicyReport, TestPlanBrief } from '../api/testSystemTypes'
 import type { TestRow } from './stageTests'
 
@@ -459,8 +459,25 @@ describe('TaskTestsTab · 阻塞与追溯', () => {
     mount()
     expect(screen.getByTestId('tests-blocker-label-playwright').textContent).toBe('Stale')
     expect(screen.getByTestId('tests-blocker-label-a11y').textContent).toBe('Kind missing')
-    expect(screen.getByTestId('tests-summary')).toHaveAttribute('aria-label', 'Suite 3 · Case 120 · Fail 0 · Flaky 2 · Coverage 91.2%')
-    expect(screen.getByTestId('tests-stat-fail').textContent).toBe('0Fail')
+    expect(screen.getByTestId('tests-summary')).toHaveAttribute('aria-label', 'Suites 3 · Cases 120 · Failed 0 · Flaky 2 · Coverage 91.2%')
+    expect(screen.getByTestId('tests-stat-fail').textContent).toBe('0Failed')
+  })
+
+  it('英文汇总的计数词按数量取单 / 复数：0 与多个是复数，1 是单数；Failed / Flaky 不变；中文不分', () => {
+    window.localStorage.setItem('tenon-dashboard-lang', 'en')
+    const one: PolicyReport = {
+      ...verifyReport(),
+      suites: [verdict({ suite: 'only', totals: totals({ cases: 1, pass: 1, flaky: 1 }) })],
+    }
+    mount(one)
+    expect(['suite', 'case', 'fail', 'flaky'].map((id) => screen.getByTestId(`tests-stat-${id}`).textContent)).toEqual(['1Suite', '1Case', '0Failed', '1Flaky'])
+    reset()
+    mount({ ...verifyReport(), suites: [] })
+    expect(['suite', 'case', 'fail', 'flaky'].map((id) => screen.getByTestId(`tests-stat-${id}`).textContent)).toEqual(['0Suites', '0Cases', '0Failed', '0Flaky'])
+    reset()
+    window.localStorage.setItem('tenon-dashboard-lang', 'zh')
+    mount(one)
+    expect(['suite', 'case', 'fail', 'flaky'].map((id) => screen.getByTestId(`tests-stat-${id}`).textContent)).toEqual(['1套件', '1用例', '0失败', '1不稳定'])
   })
 
   it('可选任务合并成一行「N 可选」：计数随数量，默认收起，可展开再收起；表头计数仍是全部条目', async () => {

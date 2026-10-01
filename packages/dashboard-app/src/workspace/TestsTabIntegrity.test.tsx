@@ -74,16 +74,17 @@ describe('TestsTabIntegrity · 工作台测试页签的完整性段', () => {
     expect(within(long).getByTestId('tests-integrity-signal')).toHaveAttribute('title', 'test-skipped')
   })
 
-  it('列宽：明细有下限（够放 `lines 80 → 60`），对象可以缩到 0 先让位；表头与每一行共用同一组列宽', () => {
+  it('列宽：信号 / 明细 / 套件 / 策略按内容定宽，只有对象吃剩余宽度并先让位；表头与各行共用外壳的同一组列', () => {
     mount({ mode: 'notice', state: 'ok', signals: SIGNALS })
     const section = screen.getByTestId('tests-integrity')
-    const grids = [within(section).getAllByRole('row')[0] as HTMLElement, ...within(section).getAllByTestId('tests-integrity-row')]
-      .map((row) => /grid-cols-\[([^\]]+)\]/u.exec(row.className)?.[1])
-    expect(new Set(grids).size).toBe(1)
-    const tracks = (grids[0] ?? '').split('_')
-    expect(tracks).toHaveLength(5)
-    expect(tracks[1]).toMatch(/^minmax\(0,/u)
-    expect(tracks[2]).toMatch(/^minmax\(1[2-9]rem,/u)
+    const table = within(section).getByRole('table')
+    expect(/grid-cols-\[([^\]]+)\]/u.exec(table.className)?.[1]?.split('_')).toEqual(['auto', 'minmax(0,1fr)', 'auto', 'auto', 'auto'])
+    const rows = [within(section).getAllByRole('row')[0] as HTMLElement, ...within(section).getAllByTestId('tests-integrity-row')]
+    for (const row of rows) {
+      expect(row.className).toContain('grid-cols-subgrid')
+      expect(row.className).toContain('col-span-full')
+      expect(row.className).not.toMatch(/grid-cols-\[/u)
+    }
   })
 
   it('读不出改动行：一行「未检查」，原因放 title，不写句子；运行记录类信号照常列出', () => {

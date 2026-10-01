@@ -42,7 +42,7 @@ export function SuiteDetail({ root, suite, services, knownFailures, workflow }: 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-8">
         <div className="min-w-0">
           <div className="py-1"><CommandLine command={suite.command} testId="proj-suite-command" truncate /></div>
-          <div role="table" aria-label={suite.id}>
+          <div role="table" className="[--def-label:9rem]" aria-label={suite.id}>
           <DefRow label={t('tests.project.detail.cwd')} testId="proj-suite-cwd"><span title={suite.cwd}>{suite.cwd}</span></DefRow>
           <DefRow label={t('tests.project.detail.timeout')} testId="proj-suite-timeout" mono={false}>{suite.timeoutS}s</DefRow>
           <DefRow label={t('tests.project.detail.report')} testId="proj-suite-report">

@@ -77,7 +77,8 @@ test.describe('工作台任务 · 测试页签', () => {
     await expect(detail).toHaveText('lines 80 → 60')
     const widths = await row.getByRole('cell').evaluateAll((cells) => cells.map((cell) => ({ text: cell.textContent, clip: cell.scrollWidth - cell.clientWidth, width: cell.clientWidth })))
     expect(widths[2]?.clip, '明细没有被截断').toBeLessThanOrEqual(0)
-    expect(widths[1]?.width ?? 0, '对象列没有比明细更宽').toBeLessThanOrEqual(widths[2]?.width ?? 0)
+    // 对象是唯一吃剩余宽度的列（先让位）：完整路径在 title。
+    await expect(row.getByRole('cell').nth(1)).toHaveAttribute('title', '.nycrc.json')
 
     // 种子里的真阻塞是两条（配置改动待确认、未运行）；完整性提示不算。
     const blockers = page.getByTestId('tests-blockers')

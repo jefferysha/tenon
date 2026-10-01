@@ -20,7 +20,7 @@ export function FieldRow({ label, hint, testId, controlId, children }: {
   children: ReactNode
 }): JSX.Element {
   return (
-    <div className="grid min-h-12 grid-cols-[9rem_minmax(0,1fr)] items-center gap-3 border-b border-border py-1.5 last:border-0" role="group" aria-label={label} data-testid={testId}>
+    <div className="grid min-h-12 grid-cols-[11rem_minmax(0,1fr)] items-center gap-3 border-b border-border py-1.5 last:border-0" role="group" aria-label={label} data-testid={testId}>
       <span className="flex min-w-0 items-center gap-1.5 whitespace-nowrap text-body text-text-2">
         {controlId === undefined ? <span className="truncate">{label}</span> : <label className="truncate" htmlFor={controlId}>{label}</label>}
         <Hint label={hint}>

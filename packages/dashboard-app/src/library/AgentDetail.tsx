@@ -155,7 +155,7 @@ export function AgentDetail({
               <tbody>
                 {fields.map(([key, value]) => (
                   <tr key={key} className="border-b border-border" data-testid={`lib-agent-field-${key}`}>
-                    <th scope="row" className="w-24 py-2 text-left text-caption font-semibold whitespace-nowrap text-text-3">{t(`library.${key}`)}</th>
+                    <th scope="row" className="w-32 py-2 text-left text-caption font-semibold whitespace-nowrap text-text-3">{t(`library.${key}`)}</th>
                     <td className="truncate py-2 font-mono text-caption whitespace-nowrap text-text-2" title={value}>{value === '' ? '—' : value}</td>
                   </tr>
                 ))}

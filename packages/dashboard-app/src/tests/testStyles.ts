@@ -11,5 +11,17 @@ export function gridRow(columns: string): string {
   return `grid ${columns} items-center gap-3 whitespace-nowrap`
 }
 
+/**
+ * 内容定宽的表：外壳是一个网格，列写 `auto`（按最长的格子定宽，中英文各取各的）与一个 `minmax(0,1fr)`（吃剩余、先被截断）；
+ * 每行用 SUBGRID_ROW 套进同一组列，表头与各行因此对齐。固定词（信号名、明细、套件、短标签）不会被截成「Integr…」，
+ * 路径、命令这类可变长内容让位给剩余列并截断（完整内容放 title）。永不折行。
+ */
+export function contentTable(columns: string): string {
+  return `grid ${columns} gap-x-3`
+}
+
+/** contentTable 里的一行：跨满所有列，沿用外壳的列。 */
+export const SUBGRID_ROW = 'col-span-full grid grid-cols-subgrid items-center whitespace-nowrap'
+
 /** 危险色文字 + 红点用的类：越界的数值、失败的行。 */
 export const DANGER_TEXT = 'text-red-d'

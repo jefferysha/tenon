@@ -20,11 +20,13 @@ interface Stat {
  */
 export function TestsTabStats({ summary, pass, recordedBy }: { summary: TabSummary; pass: boolean; recordedBy?: string }): JSX.Element {
   const { t } = useT()
+  // 数字旁的计数词按数量取单 / 复数（Suite · Suites；中文两条相同）。
+  const count = (id: 'suite' | 'case' | 'fail' | 'flaky', value: number): string => t(`tests.task.stat.${id}.${value === 1 ? 'one' : 'other'}`)
   const stats: Stat[] = [
-    { id: 'suite', label: t('tests.word.suite'), value: summary.suites, zero: summary.suites === 0, danger: false },
-    { id: 'case', label: t('tests.word.case'), value: summary.cases, zero: summary.cases === 0, danger: false },
-    { id: 'fail', label: t('tests.case.fail'), value: summary.fail, zero: summary.fail === 0, danger: summary.fail > 0 },
-    { id: 'flaky', label: t('tests.word.flaky'), value: summary.flaky, zero: summary.flaky === 0, danger: false },
+    { id: 'suite', label: count('suite', summary.suites), value: summary.suites, zero: summary.suites === 0, danger: false },
+    { id: 'case', label: count('case', summary.cases), value: summary.cases, zero: summary.cases === 0, danger: false },
+    { id: 'fail', label: count('fail', summary.fail), value: summary.fail, zero: summary.fail === 0, danger: summary.fail > 0 },
+    { id: 'flaky', label: count('flaky', summary.flaky), value: summary.flaky, zero: summary.flaky === 0, danger: false },
     ...(summary.coverage === null
       ? []
       : [{ id: 'coverage' as const, label: t('tests.word.coverage'), value: formatPercent(summary.coverage), zero: summary.coverage === 0, danger: false }]),
