@@ -19,14 +19,12 @@ v0.2.0 的热修复版。macOS 重启之后，每条 `tenon` 命令和每个 hoo
 
 ### 修复
 
-- 稳定 launcher（`~/.local/bin/tenon` 与 `~/.local/bin/tenon-hook`）把 Node 可执行文件及其每一级父目录的设备号（`st_dev`）钉了进去。macOS 在每次重启后会给同一个卷分配新的设备号，所以这个钉住的值撑不过一次重启。launcher 不再保存设备号。它仍然拒绝 Node 路径上的任何符号链接，仍然钉住 Node 的 inode、权限位、属主和大小，以及每级父目录的 inode、权限位和属主，也仍然拿 Node 的 SHA-256 与 setup 时记录的摘要比对。Linux 的 launcher 同样修改。
-- launcher 的 Node 检查不通过时，现在可以在命令行里修复，不会再把你锁在外面。
-  - Node 的字节仍是钉住的那份，只是身份信息变了（例如同一个 Node 被重装）：`tenon setup`、`tenon update`、`tenon doctor` 和 `tenon runtime` 仍然能运行，因此 `tenon setup --claude`（或 `--codex`）可以重新钉住。其他命令只打印一行，写明这条修复命令。
-  - Node 被替换或删除（例如原地升级了 Node）：钉住的程序已经不在，所以没有任何命令能经 launcher 运行。它打印的那一行是一条完整命令，用你 `PATH` 上的 Node 运行 bootstrap：`env TENON_RUNTIME_ROOTS=… node …/bootstrap/active.mjs cli setup --claude`（Codex 用 `--codex`）。setup 随后钉住这个 Node。
-- hook 不再在每次工具调用前重复打印同一条错误。launcher 无法验证 Node 时，hook 打印一条消息，之后 30 分钟保持静默（标记文件 `launcher-node-identity.notice` 在 Tenon 状态目录里）。它从不阻断宿主：第一次以非阻断状态码退出，之后退出码为 0。
-- 载荷摘要缓存（状态目录里的 `payload-digest-cache.json`）也不再用设备号作键，所以重启后的第一次分发不会重新哈希整个载荷。
-- 新版本会自己修复 v0.2.0 格式的 launcher。v0.2.0 运行的 `tenon update` 会把旧格式再写一遍，所以更新后的第一条 Tenon 命令或第一次会话启动会检查这两个 launcher：如果它们仍钉着设备号、是 Tenon 自己写的普通文件（不是符号链接）、钉的正是当前运行的 Node 且记录的 SHA-256 一致、导出的 roots 也相同，就用 `tenon setup` 同一个写入器把两个文件重写。命令行在修复时打印一行说明；修复失败则打印一行，提示运行 `tenon setup --claude` / `--codex`；hook 全程静默，也不会等待它。任何一项不一致、有安装事务在进行、或 launcher 不是 Tenon 写的，都不会改动。
-- `tenon doctor` 新增检查 `runtime:launcher`：launcher 仍钉着设备号时为 WARN（并写明修复方法），否则 PASS。
+- 稳定 launcher（`~/.local/bin/tenon` 与 `tenon-hook`）把 Node 可执行文件及其每一级父目录的设备号（`st_dev`）钉了进去。macOS 在每次重启后会给同一个卷分配新的设备号，所以这个值撑不过一次重启。launcher 不再保存它。它仍然拒绝 Node 路径上的符号链接，仍然钉住二进制及其父目录的 inode、权限位、属主（二进制还有大小），也仍然拿 Node 的 SHA-256 与 setup 时记录的摘要比对。Linux 同样修改。
+- launcher 的 Node 检查不通过时不再把你锁在外面。Node 字节没变、只是身份信息变了：`tenon setup`、`update`、`doctor`、`runtime` 仍能运行，`tenon setup --claude`（或 `--codex`）即可重新钉住，其他命令只打印一行写明这条修复。Node 被替换或删除：那一行是一条完整命令，用你 `PATH` 上的 Node 运行 bootstrap：`env TENON_RUNTIME_ROOTS=… node …/bootstrap/active.mjs cli setup --claude`（Codex 用 `--codex`）。
+- hook 最多每 30 分钟打印一次这条消息，其余时候无输出地以 0 退出，从不阻断宿主。
+- 新版本会自己修复 v0.2.0 格式的 launcher。v0.2.0 运行的 `tenon update` 会把旧格式再写一遍，所以更新后的第一条 Tenon 命令或第一次会话启动，会用 `setup` 同一个写入器重写两个 launcher。前提是：它们是 Tenon 自己写的普通文件（不是符号链接）、导出相同的 roots，并且钉的是当前运行的 Node 及其记录的 SHA-256。命令行在修复时打印一行说明，修复失败则打印一行提示运行 `tenon setup --claude` / `--codex`；hook 全程静默，也不会等待它。其他情况一律不改动。
+- `tenon doctor` 新增检查 `runtime:launcher`：launcher 仍钉着设备号时为 WARN，否则 PASS。
+- 载荷摘要缓存也不再用设备号作键，所以重启后的第一次分发不会重新哈希整个载荷。
 
 ### 升级动作
 
@@ -41,8 +39,7 @@ v0.2.0 的热修复版。macOS 重启之后，每条 `tenon` 命令和每个 hoo
 
 ### 兼容性
 
-- 没有改变任何 CLI 命令、选项、项目文件或 Dashboard API。变化的只是 launcher 文本（不含设备号、失败提示更明确），项目和 runtime 状态不受影响。
-- v0.2.0 写下的 launcher 在更新后的第一条 Tenon 命令或第一次会话（或 `tenon setup`）重写它之前保持旧行为。之后的版本保留同样的修复。
+没有改变任何公开命令、选项、项目文件或 Dashboard API。新增的只有 `runtime:launcher` 检查和一个内部修复命令；launcher 文本变了（不含设备号、失败提示更明确）。项目和 runtime 状态不受影响。
 
 ### 验证
 
@@ -52,7 +49,7 @@ tenon doctor
 grep -c '%d' ~/.local/bin/tenon
 ```
 
-runtime 报告 active release，doctor 为绿，包括 `runtime:launcher`。`grep` 输出 `0`：launcher 不再保存设备号。下次重启后 `tenon runtime status` 仍然可用。
+runtime 报告 active release，doctor 为绿，包括 `runtime:launcher`。`grep` 输出 `0`。下次重启后 `tenon runtime status` 仍然可用。
 
 ## v0.2.0 · 2026-09-30
 

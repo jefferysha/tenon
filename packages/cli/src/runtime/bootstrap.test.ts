@@ -1032,8 +1032,13 @@ if (args[0] === 'internal-launcher-heal') {
       const result = await runBootstrap(fx.root, fx.bootstrap, ['hook', 'session-start'])
       expect(result).toMatchObject({ code: 0, stdout: 'TRUSTED_SESSION_START', stderr: '' })
 
+      // The writer replaces `tenon` first and `tenon-hook` second, and the repair runs detached, so wait
+      // until the whole pair is in place and the transition files are gone.
       const expected = fx.expected()
-      for (let waited = 0; (await readFile(fx.tenon, 'utf8').catch(() => '')) !== expected.tenon && waited < 30_000; waited += 100) {
+      const settled = async () => (await readFile(fx.tenon, 'utf8').catch(() => '')) === expected.tenon
+        && (await readFile(fx.hook, 'utf8').catch(() => '')) === expected.hook
+        && (await readdir(fx.bin)).length === 2
+      for (let waited = 0; !await settled() && waited < 30_000; waited += 100) {
         await new Promise((resolve) => setTimeout(resolve, 100))
       }
       await expectRepaired(fx)
