@@ -4,7 +4,7 @@ import { useT } from '../../i18n'
 import { fetchTestArtifactText } from '../../api/testEvidenceClient'
 import { formatApiError } from '../../api/transport'
 import { TestSection } from '../../tests/TestSection'
-import { COUNT_BADGE } from '../../tests/testStyles'
+import { StatusPill } from '../../shell/ThreeColumns'
 import { BUTTON_GHOST } from '../../shared/uiRecipes'
 import type { SuiteRun } from '../../api/testSystemTypes'
 import { runHref, type RunContext } from './runContext'
@@ -17,7 +17,7 @@ type Tail =
   | { readonly status: 'ready'; readonly text: string }
   | { readonly status: 'error'; readonly error: unknown }
 
-/** 日志：按需读取尾部（最后 256 KiB），完整日志走下载；日志超上限被截断时标一个词。 */
+/** 日志：按需读取尾部（最后 256 KiB），完整日志走下载；日志超上限被截断时标一个词（圆点 + 字，不是药丸）。 */
 export function RunLogSection({ run, ctx }: { run: SuiteRun; ctx: RunContext }): JSX.Element {
   const { t } = useT()
   const [tail, setTail] = useState<Tail>({ status: 'idle' })
@@ -36,7 +36,7 @@ export function RunLogSection({ run, ctx }: { run: SuiteRun; ctx: RunContext }):
       testId="run-log"
       action={(
         <>
-          {log.truncated && <span className={COUNT_BADGE} title={t('tests.run.log.truncated_hint')} data-testid="run-log-truncated">{t('tests.run.log.truncated')}</span>}
+          {log.truncated && <StatusPill tone="pending" title={t('tests.run.log.truncated_hint')} testId="run-log-truncated">{t('tests.run.log.truncated')}</StatusPill>}
           <button type="button" className={BUTTON_GHOST} disabled={!log.present || tail.status === 'loading'} data-testid="run-log-tail" onClick={load}>{t('tests.run.log.tail')}</button>
           {log.present
             ? (

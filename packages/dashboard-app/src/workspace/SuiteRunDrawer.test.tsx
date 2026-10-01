@@ -378,7 +378,13 @@ describe('SuiteRunDrawer · 日志', () => {
     expect(screen.getByTestId('run-log-tail')).toBeDisabled()
     expect(screen.queryByTestId('run-log-full')).toBeNull()
     expect(screen.getByTestId('run-log-absent').textContent).toBe('—')
-    expect(screen.getByTestId('run-log-truncated').textContent).toBe('截断')
+    // 截断标记是圆点 + 一个词（琥珀），没有底色、没有圆角药丸；说明在 title。
+    const truncated = screen.getByTestId('run-log-truncated')
+    expect(truncated.textContent).toBe('截断')
+    expect(truncated).toHaveAttribute('data-tone', 'pending')
+    expect(truncated.querySelector('i')?.className).toContain('rounded-full')
+    expect(truncated.className.split(/\s+/u).some((name) => ['bg-', 'px-', 'border', 'round'].some((prefix) => name.startsWith(prefix)))).toBe(false)
+    expect(truncated.getAttribute('title')).not.toBe('')
   })
 })
 
