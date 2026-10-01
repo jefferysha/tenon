@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-trace.dev/schemas/v1/trace-record.json",
+  "title": "Agent Trace Record",
+  "type": "object",
+  "required": ["version", "id", "timestamp", "files"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "Agent Trace specification version (e.g., '1.0')"
+    },
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for this trace record"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 timestamp when trace was recorded"
+    },
+    "vcs": {
+      "$ref": "#/$defs/vcs",
+      "description": "Version control system information for this trace"
+    },
+    "tool": {
+      "$ref": "#/$defs/tool",
+      "description": "The tool that generated this trace"
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/file"
+      },
+      "description": "Array of files with attributed ranges"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional metadata for implementation-specific or vendor-specific data"
+    }
+  },
+  "$defs": {
+    "vcs": {
+      "type": "object",
+      "required": ["type", "revision"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["git", "jj", "hg", "svn"],
+          "description": "Version control system type"
+        },
+        "revision": {
+          "type": "string",
+          "description": "Revision identifier (e.g., git commit SHA, jj change ID)"
+        }
+      }
+    },
+    "tool": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" }
+      }
+    },
+    "file": {
+      "type": "object",
+      "required": ["path", "conversations"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Relative file path from repository root"
+        },
+        "conversations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/conversation"
+          },
+          "description": "Array of conversations that contributed to this file"
+        }
+      }
+    },
+    "contributor": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["human", "ai", "mixed", "unknown"]
+        },
+        "model_id": {
+          "type": "string",
+          "maxLength": 250,
+          "description": "The model's unique identifier following models.dev convention (e.g., 'anthropic/claude-opus-4-5-20251101')"
+        }
+      }
+    },
+    "conversation": {
+      "type": "object",
+      "required": ["ranges"],
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL to look up the conversation that produced this code"
+        },
+        "contributor": {
+          "$ref": "#/$defs/contributor",
+          "description": "The contributor for ranges in this conversation (can be overridden per-range)"
+        },
+        "ranges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/range"
+          },
+          "description": "Array of line ranges produced by this conversation"
+        },
+        "related": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["type", "url"],
+            "properties": {
+              "type": { "type": "string" },
+              "url": { "type": "string", "format": "uri" }
+            }
+          },
+          "description": "Other related resources"
+        }
+      }
+    },
+    "range": {
+      "type": "object",
+      "required": ["start_line", "end_line"],
+      "properties": {
+        "start_line": { "type": "integer", "minimum": 1 },
+        "end_line": { "type": "integer", "minimum": 1 },
+        "content_hash": {
+          "type": "string",
+          "description": "Hash of attributed content for position-independent tracking"
+        },
+        "contributor": {
+          "$ref": "#/$defs/contributor",
+          "description": "Override contributor for this specific range (e.g., for agent handoffs)"
+        }
+      }
+    }
+  }
+}

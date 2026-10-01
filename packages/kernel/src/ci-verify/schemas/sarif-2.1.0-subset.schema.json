@@ -1,0 +1,120 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/jefferysha/tenon/schemas/sarif-2.1.0-subset.json",
+  "title": "SARIF 2.1.0 (the subset `tenon verify --ci --format sarif` emits, with the GitHub code scanning requirements)",
+  "description": "Object and property names follow the OASIS SARIF 2.1.0 schema; this file constrains the properties Tenon writes and requires what GitHub code scanning needs: ruleId, message.text, one physicalLocation with a relative uri and a region, and partialFingerprints.",
+  "type": "object",
+  "required": ["version", "runs"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "const": "2.1.0" },
+    "runs": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/run" } }
+  },
+  "definitions": {
+    "message": {
+      "type": "object",
+      "required": ["text"],
+      "additionalProperties": false,
+      "properties": { "text": { "type": "string", "minLength": 1 } }
+    },
+    "reportingDescriptor": {
+      "type": "object",
+      "required": ["id"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string" },
+        "shortDescription": { "type": "object", "required": ["text"], "additionalProperties": false, "properties": { "text": { "type": "string" } } },
+        "fullDescription": { "type": "object", "required": ["text"], "additionalProperties": false, "properties": { "text": { "type": "string" } } },
+        "help": { "type": "object", "required": ["text"], "additionalProperties": false, "properties": { "text": { "type": "string" }, "markdown": { "type": "string" } } },
+        "helpUri": { "type": "string", "pattern": "^https?://" },
+        "defaultConfiguration": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "level": { "enum": ["none", "note", "warning", "error"] } }
+        },
+        "properties": { "type": "object" }
+      }
+    },
+    "toolComponent": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string" },
+        "semanticVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+" },
+        "informationUri": { "type": "string", "pattern": "^https?://" },
+        "rules": { "type": "array", "items": { "$ref": "#/definitions/reportingDescriptor" } }
+      }
+    },
+    "location": {
+      "type": "object",
+      "required": ["physicalLocation"],
+      "additionalProperties": false,
+      "properties": {
+        "physicalLocation": {
+          "type": "object",
+          "required": ["artifactLocation", "region"],
+          "additionalProperties": false,
+          "properties": {
+            "artifactLocation": {
+              "type": "object",
+              "required": ["uri"],
+              "additionalProperties": false,
+              "properties": {
+                "uri": { "type": "string", "minLength": 1, "pattern": "^(?![a-zA-Z][a-zA-Z0-9+.-]*:)(?!/)(?!.*\\.\\.)" },
+                "uriBaseId": { "type": "string" }
+              }
+            },
+            "region": {
+              "type": "object",
+              "required": ["startLine"],
+              "additionalProperties": false,
+              "properties": { "startLine": { "type": "integer", "minimum": 1 } }
+            }
+          }
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "required": ["ruleId", "message", "locations", "partialFingerprints"],
+      "additionalProperties": false,
+      "properties": {
+        "ruleId": { "type": "string", "minLength": 1 },
+        "ruleIndex": { "type": "integer", "minimum": 0 },
+        "level": { "enum": ["none", "note", "warning", "error"] },
+        "message": { "$ref": "#/definitions/message" },
+        "locations": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/location" } },
+        "partialFingerprints": { "type": "object", "minProperties": 1, "additionalProperties": { "type": "string", "minLength": 1 } },
+        "properties": { "type": "object" }
+      }
+    },
+    "run": {
+      "type": "object",
+      "required": ["tool", "results"],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "type": "object",
+          "required": ["driver"],
+          "additionalProperties": false,
+          "properties": { "driver": { "$ref": "#/definitions/toolComponent" } }
+        },
+        "results": { "type": "array", "items": { "$ref": "#/definitions/result" } },
+        "invocations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["executionSuccessful"],
+            "additionalProperties": false,
+            "properties": { "executionSuccessful": { "type": "boolean" } }
+          }
+        },
+        "properties": { "type": "object" }
+      }
+    }
+  }
+}

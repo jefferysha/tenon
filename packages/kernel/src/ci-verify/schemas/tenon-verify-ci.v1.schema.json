@@ -1,0 +1,96 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/jefferysha/tenon/schemas/tenon-verify-ci.v1.json",
+  "title": "tenon-verify-ci/v1 (the JSON report of `tenon verify --ci --format json`)",
+  "type": "object",
+  "required": ["schema", "tenon", "generated_at", "head", "selector", "options", "changes", "findings", "summary", "trust"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "tenon-verify-ci/v1" },
+    "tenon": { "type": "string" },
+    "generated_at": { "type": "string" },
+    "head": { "oneOf": [{ "type": "null" }, { "type": "string", "pattern": "^[0-9a-f]{40}$" }] },
+    "selector": {
+      "oneOf": [
+        { "type": "object", "required": ["kind", "change"], "additionalProperties": false, "properties": { "kind": { "const": "change" }, "change": { "type": "string" } } },
+        { "type": "object", "required": ["kind"], "additionalProperties": false, "properties": { "kind": { "const": "all-open" } } },
+        { "type": "object", "required": ["kind", "ref"], "additionalProperties": false, "properties": { "kind": { "const": "since" }, "ref": { "type": "string" } } }
+      ]
+    },
+    "options": {
+      "type": "object",
+      "required": ["candidate", "requireAnchor"],
+      "additionalProperties": false,
+      "properties": { "candidate": { "enum": ["error", "warn", "off"] }, "requireAnchor": { "type": "boolean" } }
+    },
+    "changes": { "type": "array", "items": { "$ref": "#/definitions/change" } },
+    "findings": { "type": "array", "items": { "$ref": "#/definitions/finding" } },
+    "summary": {
+      "type": "object",
+      "required": ["changes", "errors", "warnings", "notes", "pass"],
+      "additionalProperties": false,
+      "properties": {
+        "changes": { "type": "integer", "minimum": 0 },
+        "errors": { "type": "integer", "minimum": 0 },
+        "warnings": { "type": "integer", "minimum": 0 },
+        "notes": { "type": "integer", "minimum": 0 },
+        "pass": { "type": "boolean" }
+      }
+    },
+    "trust": {
+      "type": "object",
+      "required": ["verified", "unverifiable"],
+      "additionalProperties": false,
+      "properties": {
+        "verified": { "type": "array", "items": { "type": "string" } },
+        "unverifiable": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+      }
+    }
+  },
+  "definitions": {
+    "finding": {
+      "type": "object",
+      "required": ["code", "severity", "change", "message", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string", "minLength": 1 },
+        "severity": { "enum": ["error", "warning", "note"] },
+        "change": { "oneOf": [{ "type": "null" }, { "type": "string" }] },
+        "message": { "type": "string", "minLength": 1 },
+        "path": { "type": "string" },
+        "fix": { "type": "string" },
+        "subject": { "type": "string" },
+        "source": { "enum": ["ci", "policy"] }
+      }
+    },
+    "change": {
+      "type": "object",
+      "required": ["change", "dir", "phase", "step", "policy", "evaluatedUser", "chains", "anchor", "findings"],
+      "additionalProperties": false,
+      "properties": {
+        "change": { "type": "string" },
+        "dir": { "type": "string" },
+        "phase": { "oneOf": [{ "type": "null" }, { "type": "string" }] },
+        "step": { "oneOf": [{ "type": "null" }, { "type": "string" }] },
+        "policy": { "enum": ["pass", "fail", "none"] },
+        "evaluatedUser": { "oneOf": [{ "type": "null" }, { "type": "string" }] },
+        "chains": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["user", "state", "head", "records"],
+            "additionalProperties": false,
+            "properties": {
+              "user": { "type": "string" },
+              "state": { "enum": ["empty", "intact", "broken"] },
+              "head": { "oneOf": [{ "type": "null" }, { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }] },
+              "records": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
+        "anchor": { "enum": ["none", "verified", "behind", "unverifiable", "mismatch"] },
+        "findings": { "type": "array", "items": { "$ref": "#/definitions/finding" } }
+      }
+    }
+  }
+}

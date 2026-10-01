@@ -14,6 +14,7 @@ import {
   createReviewDecisionLedger,
   executeReviewAcknowledge,
   nodeReviewDecisionLedgerFs,
+  protectedApprovalDigests,
   readCurrentRunRevision,
   resolveStep,
   resolveWorkflowName,
@@ -237,7 +238,9 @@ async function acknowledgeFromDashboard(input: {
   }
   if (result.ok && waivers.protectedApproved.length > 0) {
     await deps.history.append(dir, testAuditEntry('protected-approve', {
-      files: waivers.protectedApproved.join(','), by: input.actor.id,
+      files: waivers.protectedApproved.join(','),
+      digests: await protectedApprovalDigests(root, waivers.protectedApproved),
+      by: input.actor.id,
     }, { ts: deps.clock(), actor: input.actor })).catch(() => undefined)
   }
   return { result, waivers }

@@ -136,7 +136,7 @@ export {
 } from './load.js'
 export type { StepTestPolicyLoadInput } from './load.js'
 export {
-  DELETED_DIGEST, PROTECTED_PATHSPECS, isSealedSharedFile, protectedChangeLine, protectedChangesInSession,
+  DELETED_DIGEST, PROTECTED_PATHSPECS, isSealedSharedFile, protectedApprovalDigests, protectedChangeLine, protectedChangesInSession,
   protectedChangesSinceChangeStart,
   protectedFileBlockers, protectedFileDigest, protectedKindOf, protectedOrigin, readProtectedChanges,
 } from './protected-files.js'
