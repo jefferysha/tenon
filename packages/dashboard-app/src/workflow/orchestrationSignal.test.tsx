@@ -27,9 +27,13 @@ describe('edgeStates · 线三态', () => {
     // 当前阶段之后的主线还没走到。
     expect(states.get(`${stageNodeId('spec')}->${stageNodeId('build')}`)).toBe('todo')
     expect(states.get(`${stageNodeId('build')}->end`)).toBe('todo')
-    expect(states.get(`${stageNodeId('open')}->${skill('open', 'a')}`)).toBe('done')
-    expect(states.get(`${skill('spec', 'b')}->${skill('spec', 'c')}`)).toBe('live')
-    expect(states.get(`${stageNodeId('build')}->${skill('build', 'd')}`)).toBe('todo')
+    // 总览每列一根脊柱：通向脊柱汇合点的线、它的短线，线态都按它属于的条目算。
+    expect(states.get(`${stageNodeId('open')}->sp:open:0`)).toBe('done')
+    expect(states.get(`sp:open:0->${skill('open', 'a')}`)).toBe('done')
+    expect(states.get('sp:spec:0->sp:spec:1')).toBe('live')
+    expect(states.get(`sp:spec:1->${skill('spec', 'c')}`)).toBe('live')
+    expect(states.get(`sp:spec:0->${skill('spec', 'b')}`)).toBe('done')
+    expect(states.get(`${stageNodeId('build')}->sp:build:0`)).toBe('todo')
   })
 
   it('最后一个阶段全部完成 = 通向终点的主线也是 done', () => {

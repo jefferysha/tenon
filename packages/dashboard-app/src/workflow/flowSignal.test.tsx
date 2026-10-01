@@ -200,7 +200,7 @@ describe('signalModeOf', () => {
   })
 })
 
-interface Stub { id: string; source: string; target: string; length: number; state?: string; lead?: number }
+interface Stub { id: string; source: string; target: string; length: number; state?: string; lead?: number; stub?: boolean }
 
 function stubLengths(): void {
   Object.defineProperty(SVGElement.prototype, 'getTotalLength', { configurable: true, value(this: SVGElement) { return Number(this.getAttribute('data-length') ?? 0) } })
@@ -214,8 +214,8 @@ function Canvas({ mode, edges, nodes, hold = null, expected = edges.length }: { 
     <div ref={ref}>
       <svg>
         {edges.map((item) => (
-          <g key={item.id} data-signal-edge={item.id} data-signal-source={item.source} data-signal-target={item.target} data-signal-state={item.state ?? 'todo'} data-signal-lead={item.lead} visibility="hidden">
-            {COMET_LAYERS.map((layer) => <path key={layer.id} d={`M0 0 L${item.length} 0 #${item.id}`} data-length={item.length} data-signal-layer={layer.id} />)}
+          <g key={item.id} data-signal-edge={item.id} data-signal-source={item.source} data-signal-target={item.target} data-signal-state={item.state ?? 'todo'} data-signal-lead={item.lead} data-signal-static={item.stub === true ? '' : undefined} data-signal-length={item.stub === true ? item.length : undefined} visibility="hidden">
+            {item.stub !== true && COMET_LAYERS.map((layer) => <path key={layer.id} d={`M0 0 L${item.length} 0 #${item.id}`} data-length={item.length} data-signal-layer={layer.id} />)}
           </g>
         ))}
       </svg>
@@ -336,6 +336,33 @@ describe('createSignalRuntime · 只写热边', () => {
     expect(container.querySelector('g[data-signal-edge="b>end"]')!.getAttribute('visibility')).toBe('hidden')
     runtime.step(5)
     expect(container.querySelector('g[data-signal-edge="a>b"]')!.getAttribute('visibility')).toBe('visible')
+  })
+
+  it('短线（stub）只登记长度：算进规划与到达反馈，但没有彗星层、永远 hidden', () => {
+    stubLengths()
+    const withStub: Stub[] = [
+      { id: 'start>sp', source: 'start', target: 'sp', length: 60 },
+      { id: 'sp>sp2', source: 'sp', target: 'sp2', length: 80 },
+      { id: 'sp>a', source: 'sp', target: 'a', length: 8, stub: true },
+      { id: 'sp2>b', source: 'sp2', target: 'b', length: 8, stub: true },
+    ]
+    const nodes: SignalNodeInput[] = [node('start', 12), node('sp', 0), node('sp2', 0), node('a', 32), node('b', 32)]
+    const { container } = render(<Canvas mode="off" edges={withStub} nodes={nodes} />)
+    const runtime = createSignalRuntime(container, 'running')!
+    expect(runtime.total).toBe(4)
+    expect(runtime.edgeCount).toBe(2)
+    const flashOf = (id: string): HTMLElement => container.querySelector<HTMLElement>(`[data-flow-node="${id}"] [data-signal-flash]`)!
+    const glow = { a: 0, b: 0 }
+    for (let frame = 0; frame < 60 * 3; frame += 1) {
+      runtime.step(1 / 60)
+      glow.a = Math.max(glow.a, Number(flashOf('a').style.opacity || 0))
+      glow.b = Math.max(glow.b, Number(flashOf('b').style.opacity || 0))
+      for (const id of ['sp>a', 'sp2>b']) expect(container.querySelector(`g[data-signal-edge="${id}"]`)!.getAttribute('visibility')).toBe('hidden')
+    }
+    // 彗星只走脊柱，经过汇合点时条目收到反馈。
+    expect(glow.a).toBeGreaterThan(0.5)
+    expect(glow.b).toBeGreaterThan(0.5)
+    runtime.dispose()
   })
 
   it('没有可量的边（jsdom 没有 getTotalLength）返回 null', () => {

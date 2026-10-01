@@ -59,14 +59,27 @@ test.describe('工作流页', () => {
     expect(visible).toBeLessThan(total)
   })
 
-  test('总览：缩得很小（只剩符号）时点列头 = 缓动放大到那一阶段；放大后再点进入该阶段', async ({ page }) => {
+  test('总览默认缩放 0.85：每个节点都显示名称，起点贴左 24px、内容顶对齐留 24px，并行的一波画括号条；点列头进入该阶段', async ({ page }) => {
     await openView(page, 'workflow', { wf: 'default', step: ':overview' })
+    const canvas = page.getByTestId('orchestration-overview')
     const viewport = page.locator('.react-flow__viewport')
     const zoomOf = (): Promise<number> => viewport.evaluate((el) => new DOMMatrix(getComputedStyle(el).transform).a)
-    await expect.poll(zoomOf).toBeLessThan(0.7)
-    await page.getByTestId('orch-stage-verify').click()
-    await expect.poll(zoomOf, { timeout: 5_000 }).toBeCloseTo(1, 2)
-    expect(new URL(page.url()).searchParams.get('step')).toBe(':overview')
+    await expect.poll(zoomOf).toBeCloseTo(0.85, 2)
+    // 名称：中间截断保尾的名字也带着尾部；没有一个节点只剩符号。
+    const names = page.locator('[data-testid^="orch-open-"]')
+    expect(await names.count()).toBeGreaterThan(10)
+    const empty = await names.evaluateAll((buttons) => buttons.filter((button) => (button.textContent ?? '').trim() === '').length)
+    expect(empty).toBe(0)
+    await expect(page.getByTestId('orch-open-skill-openspec-propose').first()).toContainText('openspec-propose')
+    // 左上留白 24px（回流弧的上界算在内）。
+    const box = await canvas.boundingBox()
+    const start = await page.getByTestId('orch-start').boundingBox()
+    expect(Math.abs((start!.x - box!.x) - 24 - 1)).toBeLessThan(3)
+    const arcTop = await page.locator('[data-testid^="orch-return-"]').first().evaluate((el) => el.getBoundingClientRect().top)
+    expect(Math.abs((arcTop - box!.y) - 24)).toBeLessThan(6)
+    // 并行的一波在脊柱侧画括号条；没有扇出 / 汇入轨道。
+    expect(await page.getByTestId('orch-bracket').count()).toBeGreaterThan(0)
+    expect(await page.getByTestId('orch-junction').count()).toBe(0)
     await page.getByTestId('orch-stage-verify').click()
     await expect.poll(() => new URL(page.url()).searchParams.get('step')).toBe('verify')
   })

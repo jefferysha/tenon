@@ -85,14 +85,56 @@ describe('layoutOrchestration · 纯布局', () => {
     expect(layout.height).toBe(frame.height)
   })
 
-  it('主线：起点 → 各阶段列头 → 终点；一对一直连，一对多 / 多对一经列外轨道上的汇合点，不穿过条目', () => {
+  it('总览主线：起点 → 各阶段列头 → 终点；每列一根脊柱（列头 → 各条目中心的汇合点 → …），每个条目一根 8px 短线，没有扇出 / 汇入轨道', () => {
     const layout = layoutOrchestration(STAGES, 'overview')
     const ids = layout.edges.map((edge) => edge.id)
     expect(ids).toContain(`start->${stageNodeId('open')}`)
     expect(ids).toContain(`${stageNodeId('open')}->${stageNodeId('explore')}`)
     expect(ids).toContain(`${stageNodeId('verify')}->end`)
     const skill = (id: string) => entryNodeId('explore', { kind: 'skill', id })
-    // 调研：openspec-explore → (brainstorming ∥ grilling) → domain-modeling，经左轨扇出、右轨汇入。
+    // 调研：openspec-explore → (brainstorming ∥ grilling) → domain-modeling，四个条目顺着同一根脊柱。
+    expect(ids).toEqual(expect.arrayContaining([
+      `${stageNodeId('explore')}->sp:explore:0`, 'sp:explore:0->sp:explore:1', 'sp:explore:1->sp:explore:2', 'sp:explore:2->sp:explore:3',
+      `sp:explore:0->${skill('openspec-explore')}`, `sp:explore:1->${skill('brainstorming')}`, `sp:explore:2->${skill('grilling')}`, `sp:explore:3->${skill('domain-modeling')}`,
+    ]))
+    expect(ids.filter((id) => id.startsWith('j:'))).toEqual([])
+    expect(layout.edges.every((edge) => !edge.source.startsWith('e:') || edge.source === 'start')).toBe(true)
+    const edgeOf = (id: string) => layout.edges.find((edge) => edge.id === id)
+    // 脊柱出列头的 'spine' 把手；短线是不带彗星的 stub，从汇合点右侧进条目左侧。
+    expect(edgeOf(`${stageNodeId('explore')}->sp:explore:0`)).toMatchObject({ sourceHandle: 'spine', targetHandle: 'top', arrow: true })
+    expect(edgeOf(`sp:explore:1->${skill('brainstorming')}`)).toMatchObject({ sourceHandle: 'right', targetHandle: 'left', arrow: false, stub: true })
+    expect(edgeOf('sp:explore:1->sp:explore:2')).toMatchObject({ sourceHandle: 'bottom', targetHandle: 'top', arrow: false })
+    expect(edgeOf('sp:explore:1->sp:explore:2')?.stub).toBeUndefined()
+  })
+
+  it('脊柱几何：汇合点在条目左侧 8px、条目中心的高度；短线正好 8px；并行的一波画一根 2px 括号条，串行的不画', () => {
+    const layout = layoutOrchestration(STAGES, 'overview')
+    const explore = layout.entries.filter((item) => item.stage === 'explore')
+    const points = layout.junctions.filter((item) => item.id.startsWith('sp:explore:'))
+    expect(points).toHaveLength(explore.length)
+    explore.forEach((item, index) => {
+      const point = points[index]!
+      expect(point.spine).toBe(true)
+      expect(point.owner).toBe(item.id)
+      expect(point.x + 1).toBe(item.x - 8)
+      expect(point.y + 1).toBe(item.y + item.height / 2)
+    })
+    // 调研只有 brainstorming ∥ grilling 是并行的一波。
+    const brackets = layout.brackets.filter((item) => item.id.startsWith('br:explore:'))
+    expect(brackets).toHaveLength(1)
+    const pair = explore.filter((item) => ['brainstorming', 'grilling'].includes(item.entry.id))
+    expect(brackets[0]!.width).toBe(2)
+    expect(brackets[0]!.x + 1).toBe(pair[0]!.x - 8)
+    expect(brackets[0]!.y).toBeGreaterThan(pair[0]!.y)
+    expect(brackets[0]!.y + brackets[0]!.height).toBeLessThan(pair[1]!.y + pair[1]!.height)
+    // 立项只有一个条目：没有括号。
+    expect(layout.brackets.some((item) => item.id.startsWith('br:open:'))).toBe(false)
+  })
+
+  it('阶段画布仍用扇出 / 汇入轨道：汇合点在列外 12px，不落在任何条目里；一对一直连', () => {
+    const stage = layoutOrchestration([STAGES[1]!], 'stage')
+    const ids = stage.edges.map((edge) => edge.id)
+    const skill = (id: string) => entryNodeId('explore', { kind: 'skill', id })
     const fork = 'j:explore:skill:1:in'
     const join = 'j:explore:skill:2:out'
     expect(ids).toEqual(expect.arrayContaining([
@@ -100,54 +142,49 @@ describe('layoutOrchestration · 纯布局', () => {
       `${skill('brainstorming')}->${join}`, `${skill('grilling')}->${join}`, `${join}->${skill('domain-modeling')}`,
     ]))
     expect(ids).not.toContain(`${skill('openspec-explore')}->${skill('grilling')}`)
-    const edgeOf = (id: string) => layout.edges.find((edge) => edge.id === id)
+    const edgeOf = (id: string) => stage.edges.find((edge) => edge.id === id)
     expect(edgeOf(`${fork}->${skill('grilling')}`)).toMatchObject({ sourceHandle: 'bottom', targetHandle: 'left', arrow: true })
     expect(edgeOf(`${skill('grilling')}->${join}`)).toMatchObject({ sourceHandle: 'right', targetHandle: 'top', arrow: false })
-    // 汇合点都在列外：左轨在条目左缘之外，右轨在右缘之外。
-    const column = layout.entries.filter((item) => item.stage === 'explore')
+    const column = stage.entries
     const left = Math.min(...column.map((item) => item.x))
     const right = Math.max(...column.map((item) => item.x + item.width))
-    const point = (id: string) => layout.junctions.find((item) => item.id === id)!
-    expect(point(fork).x + 1).toBeLessThan(left)
-    expect(point(join).x + 1).toBeGreaterThan(right)
+    const point = (id: string) => stage.junctions.find((item) => item.id === id)!
+    expect(left - (point(fork).x + 1)).toBe(12)
+    expect(point(join).x + 1 - right).toBe(12)
+    for (const junction of stage.junctions) {
+      for (const box of stage.entries) {
+        const inside = junction.x >= box.x && junction.x <= box.x + box.width && junction.y >= box.y && junction.y <= box.y + box.height
+        expect(inside).toBe(false)
+      }
+    }
     // 两组各多于一个时：右轨汇入 → 横穿空隙 → 左轨扇出。
     const fan = layoutOrchestration([{ id: 's', label: 's', gate: null, entries: [entry('skill', 'a', 0), entry('skill', 'b', 0, [], {}), entry('reviewer', 'r1', 1), entry('reviewer', 'r2', 1)] }], 'stage')
     expect(fan.junctions.map((item) => item.id)).toEqual(['j:s:skill:0:in', 'j:s:reviewer:0:out', 'j:s:reviewer:0:in', 'j:end:out'])
     expect(fan.edges.find((edge) => edge.id === 'j:s:reviewer:0:out->j:s:reviewer:0:in')).toMatchObject({ arrow: false })
   })
 
-  it('扇出 / 汇入不交叉：汇合点不落在任何条目里，同一列的条目竖直方向不重叠', () => {
+  it('同一列的条目竖直方向不重叠（并行的 8px 间距、串行的 12px 行距）', () => {
     const layout = layoutOrchestration(STAGES, 'overview')
-    for (const junction of layout.junctions) {
-      for (const box of layout.entries) {
-        const inside = junction.x >= box.x && junction.x <= box.x + box.width && junction.y >= box.y && junction.y <= box.y + box.height
-        expect(inside).toBe(false)
-      }
-    }
     for (const stage of STAGES) {
       const boxes = layout.entries.filter((item) => item.stage === stage.id).sort((a, b) => a.y - b.y)
-      boxes.slice(1).forEach((item, index) => expect(item.y).toBeGreaterThanOrEqual(boxes[index]!.y + boxes[index]!.height))
+      boxes.slice(1).forEach((item, index) => expect(item.y).toBeGreaterThanOrEqual(boxes[index]!.y + boxes[index]!.height + 8))
     }
   })
 
-  it('箭头：串行的每一跳不画，只在汇入条目的那一跳（轨道汇合点 → 条目）与终点各画一个', () => {
+  it('箭头：总览每列入口一个（列头 → 脊柱）+ 终点一个，其余（主线、脊柱、短线）都没有；阶段画布只在汇入条目的那一跳与终点', () => {
     const layout = layoutOrchestration(STAGES, 'overview')
-    const arrows = layout.edges.filter((edge) => edge.arrow).map((edge) => edge.id)
-    expect(arrows).toContain(`${stageNodeId('verify')}->end`)
-    // 主线的每一跳（起点 → 标题 → 标题）没有箭头。
+    const arrows = layout.edges.filter((edge) => edge.arrow).map((edge) => edge.id).sort()
+    expect(arrows).toEqual([
+      `${stageNodeId('verify')}->end`, `${stageNodeId('explore')}->sp:explore:0`, `${stageNodeId('open')}->sp:open:0`, `${stageNodeId('verify')}->sp:verify:0`,
+    ].sort())
     expect(layout.edges.find((edge) => edge.id === `start->${stageNodeId('open')}`)?.arrow).toBe(false)
     expect(layout.edges.find((edge) => edge.id === `${stageNodeId('open')}->${stageNodeId('explore')}`)?.arrow).toBe(false)
-    // 一对一直连（调研的第一技能 → 头一个条目）没有箭头；汇入条目的边有。
-    const direct = layout.edges.filter((edge) => !edge.target.startsWith('j:') && !edge.source.startsWith('j:') && edge.target.startsWith('e:'))
-    expect(direct.length).toBeGreaterThan(0)
-    for (const edge of direct) expect(edge.arrow, edge.id).toBe(false)
-    for (const edge of layout.edges.filter((item) => item.source.startsWith('j:') && item.target.startsWith('e:'))) expect(edge.arrow, edge.id).toBe(true)
-    // 每张画布恰好一个终点提示：阶段模式同理。
     const stage = layoutOrchestration([STAGES[2]!], 'stage')
     expect(stage.edges.filter((edge) => edge.target === 'end').every((edge) => edge.arrow)).toBe(true)
+    for (const edge of stage.edges.filter((item) => item.source.startsWith('e:') && item.target.startsWith('e:'))) expect(edge.arrow, edge.id).toBe(false)
   })
 
-  it('信号沿这些边从起点一路到终点，按真实执行顺序一列一列过：标题到达距离递增，终点最大；列内条目在自己标题之后到达；主线下一跳等上一列走完', () => {
+  it('信号沿脊柱从起点一路到终点，按真实执行顺序一列一列过：标题到达距离递增，终点最大；列内条目在自己标题之后到达；主线下一跳等上一列走完', () => {
     const layout = layoutOrchestration(STAGES, 'overview')
     const center = (id: string) => {
       const box = [...layout.stages, ...layout.entries, ...layout.junctions.map((item) => ({ ...item, width: 2, height: 2 }))].find((item) => item.id === id)
@@ -162,6 +199,10 @@ describe('layoutOrchestration · 纯布局', () => {
     expect([...heads].sort((a, b) => a - b)).toEqual(heads)
     expect(plan.arrival.get('end')!).toBeGreaterThan(Math.max(...heads))
     for (const item of layout.entries) expect(plan.arrival.get(item.id)!, item.id).toBeGreaterThan(plan.arrival.get(stageNodeId(item.stage))!)
+    // 脊柱上越往下越晚：同一列里条目的到达距离随它在列里的位置递增。
+    const explore = layout.entries.filter((item) => item.stage === 'explore')
+    const arrivals = explore.map((item) => plan.arrival.get(item.id)!)
+    expect([...arrivals].sort((a, b) => a - b)).toEqual(arrivals)
     // 进一列、走完这一列、再去下一列：下一个标题晚于上一列的所有条目（它们走完之后才出主线）。
     const nextHeader = (stage: string, next: string): void => {
       for (const item of layout.entries.filter((candidate) => candidate.stage === stage)) expect(plan.arrival.get(stageNodeId(next))!, `${stage}→${next} 晚于 ${item.id}`).toBeGreaterThan(plan.arrival.get(item.id)!)
@@ -170,10 +211,8 @@ describe('layoutOrchestration · 纯布局', () => {
     nextHeader('explore', 'verify')
     expect(plan.arrival.get('end')!).toBeGreaterThan(Math.max(...layout.entries.filter((item) => item.stage === 'verify').map((item) => plan.arrival.get(item.id)!)))
     expect(layout.edges.find((edge) => edge.id === `${stageNodeId('explore')}->${stageNodeId('verify')}`)?.after?.length).toBeGreaterThan(0)
-    // 标题往下走的那一跳只算一个标题高度，主线那一跳才穿过整个标题的宽度。
-    const down = layout.edges.filter((edge) => edge.source === stageNodeId('explore') && edge.target.startsWith('e:'))
-    expect(down.length).toBeGreaterThan(0)
-    expect(down.every((edge) => edge.lead === 40)).toBe(true)
+    // 列头进脊柱的那一跳只算一个标题高度，主线那一跳才穿过整个标题的宽度。
+    expect(layout.edges.find((edge) => edge.id === `${stageNodeId('explore')}->sp:explore:0`)?.lead).toBe(40)
     expect(layout.edges.find((edge) => edge.id === `${stageNodeId('explore')}->${stageNodeId('verify')}`)?.lead).toBeUndefined()
   })
 
@@ -186,14 +225,14 @@ describe('layoutOrchestration · 纯布局', () => {
     expect(layout.height).toBe(Math.max(...heights))
   })
 
-  it('节点尺寸：总览视觉 184×32，阶段画布 320×40；汇合点轨道离条目 12px', () => {
+  it('节点尺寸：总览视觉 168×32、列带内边距 12（列带宽 192），阶段画布 320×40', () => {
     const overview = layoutOrchestration(STAGES, 'overview')
-    expect(overview.entries.every((item) => item.width === 184 && item.height === 32)).toBe(true)
+    expect(overview.entries.every((item) => item.width === 168 && item.height === 32)).toBe(true)
+    expect(new Set(overview.stages.map((item) => item.width))).toEqual(new Set([192]))
+    const band = overview.stages[1]!
+    for (const item of overview.entries.filter((candidate) => candidate.stage === 'explore')) expect(item.x - band.x).toBe(12)
     const stage = layoutOrchestration([STAGES[2]!], 'stage')
     expect(stage.entries.every((item) => item.width === 320 && item.height === 40)).toBe(true)
-    const fork = overview.junctions.find((item) => item.id === 'j:explore:skill:1:in')!
-    const entry = overview.entries.find((item) => item.id === entryNodeId('explore', { kind: 'skill', id: 'brainstorming' }))!
-    expect(entry.x - (fork.x + 1)).toBe(12)
   })
 
   it('阶段模式：分组标题在节点上方、左对齐；起点在列顶、终点在列底；可编辑时有动作的空泳道留一个「＋」占位', () => {
@@ -330,9 +369,9 @@ describe('OrchestrationFlow · 总览', () => {
   describe('语义缩放与点列头放大', () => {
     afterEach(() => { setTestZoom(1); viewportCalls.length = 0 })
 
-    it('< 0.7 只显示符号（名称不渲染）；1 显示名称；≥ 1.25 再显示元信息（运行中 / 失败 / 过期的状态字）', () => {
+    it('< 0.5 才只显示符号（名称不渲染）；0.5 起显示名称；≥ 1.25 再显示元信息（运行中 / 失败 / 过期的状态字）', () => {
       const withStatus: FlowStage[] = [{ id: 'build', label: '实现', gate: null, entries: [{ ...entry('skill', 'alpha', 0), status: 'running' }, { ...entry('test', 'unit', 1), status: 'failed' }] }]
-      setTestZoom(0.6)
+      setTestZoom(0.45)
       const view = renderFlow({ stages: withStatus, returns: [], flows: [], withStatus: true, current: 'build' })
       expect(document.querySelector('span[title="alpha"]')).toBeNull()
       expect(screen.getAllByTestId('flow-glyph').length).toBe(2)
@@ -341,15 +380,18 @@ describe('OrchestrationFlow · 总览', () => {
       const name = renderFlow({ stages: withStatus, returns: [], flows: [], withStatus: true, current: 'build' })
       expect(document.querySelector('span[title="alpha"]')).not.toBeNull()
       expect(screen.getAllByTestId('orch-status')[0]!.className).toContain('sr-only')
+      // 带状态的总览，名称档只画「状态符号 + 名称」，给名称让出宽度；类别图标等到元信息档。
+      expect(screen.queryAllByTestId('orch-source-declared')).toHaveLength(0)
       name.unmount()
       setTestZoom(1.25)
       renderFlow({ stages: withStatus, returns: [], flows: [], withStatus: true, current: 'build' })
       expect(screen.getAllByTestId('orch-status')[0]!.className).not.toContain('sr-only')
+      expect(screen.getAllByTestId('orch-source-declared')).toHaveLength(2)
     })
 
-    it('缩得很小（只剩符号）时点列头 = 320ms 缓动放大到那一阶段，不进入；之后能读清了再点才进入', async () => {
+    it('缩得很小（< 0.5，只剩符号）时点列头 = 320ms 缓动放大到那一阶段，不进入；之后能读清了再点才进入', async () => {
       const onOpenStage = vi.fn()
-      setTestZoom(0.6)
+      setTestZoom(0.45)
       renderFlow({ onOpenStage })
       await userEvent.click(screen.getByTestId('orch-stage-verify'))
       expect(onOpenStage).not.toHaveBeenCalled()
@@ -358,10 +400,16 @@ describe('OrchestrationFlow · 总览', () => {
       expect(zoomed.viewport.zoom).toBe(1)
       expect(zoomed.options?.duration).toBe(320)
       cleanup()
-      setTestZoom(1)
+      setTestZoom(0.85)
       renderFlow({ onOpenStage })
       await userEvent.click(screen.getByTestId('orch-stage-verify'))
       expect(onOpenStage).toHaveBeenCalledWith('verify')
+    })
+
+    it('默认视图（0.85）每个节点都显示名称', () => {
+      setTestZoom(0.85)
+      renderFlow()
+      for (const id of ['openspec-propose', 'brainstorming', 'playwright']) expect(document.querySelector(`span[title="${id}"]`), id).not.toBeNull()
     })
   })
 

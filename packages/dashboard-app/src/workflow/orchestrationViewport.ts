@@ -1,24 +1,25 @@
 /**
- * 编排画布的取景（纯函数）。总览默认按宽度适配（缩放不小于 0.6）：八列尽量一屏看全，字小时只画符号（语义缩放），
- * 点列头再缓动放大到那一阶段；阶段画布恒 1:1、左对齐。
+ * 编排画布的取景（纯函数）。总览默认缩放 = max(按宽度适配, 0.85)：名称永远读得清，放不下的列靠横向平移看；
+ * 起点和第一列贴左边 24px、内容顶对齐（顶部留 24px，回流弧算在内）。语义缩放：< 0.5 才只画符号，「适应」可以缩到那以下。
+ * 点列头在只剩符号时缓动放大到那一阶段；阶段画布恒 1:1、左对齐。
  */
 
 /** 用户可缩放的范围；最小 0.5，再小连符号都糊了。 */
 export const OVERVIEW_ZOOM = { min: 0.5, max: 1.5 } as const
-/** 进来时的缩放范围：按宽度装得下就用，但不小于 0.6、不大于 1。 */
-export const OVERVIEW_READABLE = { min: 0.6, max: 1 } as const
+/** 进来时的缩放范围：按宽度装得下就用，但不小于 0.85（名称读得清）、不大于 1。 */
+export const OVERVIEW_READABLE = { min: 0.85, max: 1 } as const
 /** 「适应」按钮的留白（占容器比例）。 */
 export const FIT_PADDING = 0.1
-/** 总览贴边的留白（px）。 */
-export const EDGE_PAD = 16
+/** 总览贴边的留白（px）：左边与顶部各 24。 */
+export const EDGE_PAD = 24
 /** 阶段画布的四周留白（px）：左对齐 24，上下各 24（含起点 / 终点标签）。 */
 export const STAGE_PAD = 24
 /** 点列头缓动放大到那一阶段：时长（ms）与缩放（名称可读的 1）。 */
 export const FOCUS_MS = 320
 export const FOCUS_ZOOM = 1
 
-/** 语义缩放：< 0.7 只画符号，1 附近画名称，≥ 1.25 再画元信息。 */
-export const ZOOM_GLYPH_BELOW = 0.7
+/** 语义缩放：< 0.5 只画符号，之上画名称，≥ 1.25 再画元信息。 */
+export const ZOOM_GLYPH_BELOW = 0.5
 export const ZOOM_META_FROM = 1.25
 export type ZoomLevel = 'glyph' | 'name' | 'meta'
 export function zoomLevelOf(zoom: number): ZoomLevel {
@@ -33,19 +34,11 @@ export interface Viewport { readonly x: number; readonly y: number; readonly zoo
 const MIN_FLOOR = 0.1
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value))
 
-/**
- * 进来时的视口：缩放按宽度取（0.6–1），左边贴 bounds 留 EDGE_PAD（整幅比容器宽就靠平移看其余）；
- * 竖向装得下就居中（bounds 含回流弧的上界，弧不会被裁），装不下就顶对齐。
- */
+/** 进来时的视口：缩放 = max(按宽度适配, 0.85)，不大于 1；左上角贴 bounds 留 EDGE_PAD，回流弧拱在 bounds 上界，顶对齐才不被裁。 */
 export function overviewViewport(bounds: Bounds, size: Size): Viewport {
   const byWidth = (size.width - 2 * EDGE_PAD) / Math.max(bounds.width, 1)
   const zoom = clamp(byWidth, OVERVIEW_READABLE.min, OVERVIEW_READABLE.max)
-  const height = bounds.height * zoom
-  return {
-    x: EDGE_PAD - bounds.x * zoom,
-    y: height + 2 * EDGE_PAD <= size.height ? (size.height - height) / 2 - bounds.y * zoom : EDGE_PAD - bounds.y * zoom,
-    zoom,
-  }
+  return { x: EDGE_PAD - bounds.x * zoom, y: EDGE_PAD - bounds.y * zoom, zoom }
 }
 
 /** 「适应」把全部装进容器所需的缩放（含 FIT_PADDING）；不超过 1。 */

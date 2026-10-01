@@ -3,27 +3,29 @@ import {
   EDGE_PAD, FOCUS_MS, FOCUS_ZOOM, OVERVIEW_READABLE, OVERVIEW_ZOOM, STAGE_PAD, overviewFitZoom, overviewMinZoom, overviewViewport, stageFocusViewport, stageViewport, zoomLevelOf,
 } from './orchestrationViewport'
 
-/** 八列的总览：宽 ~1900、高 ~830（含回流弧的上界）。 */
-const WIDE = { x: 0, y: -90, width: 1900, height: 830 }
+/** 八列的总览：宽 ~1600、高 ~700（含回流弧的上界）。 */
+const WIDE = { x: 0, y: -90, width: 1600, height: 700 }
 
-describe('overviewViewport · 总览默认按宽度适配', () => {
-  it('缩放 = 容器宽度 / 内容宽度，不小于 0.6、不大于 1', () => {
-    expect(OVERVIEW_READABLE).toEqual({ min: 0.6, max: 1 })
-    // 1060 宽装不下 1900：按宽度只需 0.54，取下限 0.6。
-    expect(overviewViewport(WIDE, { width: 1060, height: 712 }).zoom).toBe(0.6)
+describe('overviewViewport · 总览默认缩放 = max(按宽度适配, 0.85)', () => {
+  it('缩放 = 容器宽度 / 内容宽度，但名称读得清优先：不小于 0.85、不大于 1', () => {
+    expect(OVERVIEW_READABLE).toEqual({ min: 0.85, max: 1 })
+    // 1060 宽装不下 1600：按宽度只需 0.63，取下限 0.85，靠横向平移看其余的列。
+    expect(overviewViewport(WIDE, { width: 1060, height: 712 }).zoom).toBe(0.85)
     expect(overviewViewport(WIDE, { width: 3000, height: 712 }).zoom).toBe(1)
-    const mid = overviewViewport(WIDE, { width: 1400, height: 712 }).zoom
-    expect(mid).toBeCloseTo((1400 - 2 * EDGE_PAD) / 1900, 5)
-    expect(mid).toBeGreaterThan(0.6)
+    const mid = overviewViewport(WIDE, { width: 1600, height: 712 }).zoom
+    expect(mid).toBeCloseTo((1600 - 2 * EDGE_PAD) / 1600, 5)
+    expect(mid).toBeGreaterThan(0.85)
     expect(mid).toBeLessThan(1)
   })
 
-  it('第一列靠左；竖向装得下就居中（含回流弧的上界），装不下就顶对齐不裁弧', () => {
-    const tall = overviewViewport(WIDE, { width: 1060, height: 500 })
-    expect(tall.x).toBe(EDGE_PAD - WIDE.x * tall.zoom)
-    expect(tall.y).toBe(EDGE_PAD - WIDE.y * tall.zoom)
+  it('起点与第一列贴左 24px、内容顶对齐留 24px（回流弧的上界算在内）；竖向永不居中', () => {
+    expect(EDGE_PAD).toBe(24)
+    const view = overviewViewport(WIDE, { width: 1060, height: 712 })
+    expect(view.x).toBe(24)
+    expect(view.y).toBe(24 - WIDE.y * view.zoom)
+    // 容器再高也不居中：顶部留白恒为 24。
     const short = overviewViewport({ x: 0, y: -90, width: 1900, height: 300 }, { width: 1060, height: 800 })
-    expect(short.y + (-90) * short.zoom).toBeCloseTo((800 - 300 * short.zoom) / 2, 5)
+    expect(short.y + -90 * short.zoom).toBe(24)
   })
 })
 
@@ -48,10 +50,11 @@ describe('overviewMinZoom / overviewFitZoom', () => {
 })
 
 describe('语义缩放', () => {
-  it('< 0.7 只画符号，0.7–1.25 画名称，≥ 1.25 再画元信息', () => {
-    expect(zoomLevelOf(0.6)).toBe('glyph')
-    expect(zoomLevelOf(0.69)).toBe('glyph')
-    expect(zoomLevelOf(0.7)).toBe('name')
+  it('< 0.5 才只画符号，0.5–1.25 画名称，≥ 1.25 再画元信息', () => {
+    expect(zoomLevelOf(0.3)).toBe('glyph')
+    expect(zoomLevelOf(0.49)).toBe('glyph')
+    expect(zoomLevelOf(0.5)).toBe('name')
+    expect(zoomLevelOf(0.85)).toBe('name')
     expect(zoomLevelOf(1)).toBe('name')
     expect(zoomLevelOf(1.24)).toBe('name')
     expect(zoomLevelOf(1.25)).toBe('meta')

@@ -228,7 +228,14 @@ those, never class names.
   parked on the wire into the gate node and the wire ends in an amber tick), `off` (offscreen). The ticker is
   detached while `document.hidden`. Arrival feedback is analytic, not tweened: nodes carry pre-rendered
   `data-signal-flash` (border + 4px halo), `-port`, `-icon` and `-ring` layers whose opacity (and, for the ring,
-  transform) the tick writes. Arrowheads (5px) only at fan-in entries and the end dot. No travelling dot unless
+  transform) the tick writes. Arrowheads (5px) only at fan-in entries and the end dot. The orchestration overview
+  (`OrchestrationFlow mode="overview"`) does not use fork/join rails: each column has one vertical spine 8px left of
+  the node ports (2×2 `spine` junctions at node centre height, header `spine` handle on top), an 8px `stub` edge into
+  every node (registered in the signal plan for arrival feedback, rendered as a `data-signal-static` group without
+  comet layers), and a 2px `bracket` node on the spine side of every parallel wave; the only arrowhead of a column is
+  header → spine. The comet travels along the spine only. Default zoom is `max(fit-to-width, 0.85)` with the first
+  column 24px from the left and the content top-aligned 24px from the top; names show from zoom 0.5, glyph-only
+  below, status words from 1.25. No travelling dot unless
   profiling shows the dash writes cost more than 2ms per frame (then each comet becomes one MotionPath circle).
   Virtual nodes (ports, labels, junctions, ghost) are not in the nodes
   state, so their `dimensions` changes are captured into `virtualMeasured` and written back as `measured` — otherwise
