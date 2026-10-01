@@ -28,6 +28,7 @@ import {
 } from './field-values.js'
 import { refuseUnprovenVerdict } from './verdictFieldGate.js'
 import { refuseInvalidPrUrl } from './prUrlField.js'
+import { msg } from '../i18n/messages.js'
 
 /** history 记账 best-effort（CONTRACT §1：失败仅 WARN，绝不影响主写已成功的 exit） */
 export async function recordHistory(deps: CliDeps, dir: string, entry: HistoryEntry): Promise<void> {
@@ -41,7 +42,7 @@ export async function recordHistory(deps: CliDeps, dir: string, entry: HistoryEn
 
 function asField(deps: CliDeps, field: string): FieldName | undefined {
   if ((FIELD_ORDER as readonly string[]).includes(field)) return field as FieldName
-  deps.io.err(`ERROR: 未知字段: ${field}`)
+  deps.io.err(`ERROR: ${msg(deps, 'field.unknown', { field })}`)
   return undefined
 }
 
@@ -55,14 +56,14 @@ function asField(deps: CliDeps, field: string): FieldName | undefined {
 function rejectProtectedField(deps: CliDeps, field: FieldName): boolean {
   if (!TRANSITION_MANAGED_FIELDS.has(field)) return false
   if (REVIEW_GATE_FIELDS.has(field)) {
-    deps.io.err(`ERROR: 字段 '${field}' 由 tenon review request|acknowledge 管理，禁止通过 set/set-many/cas 写入`)
+    deps.io.err(`ERROR: ${msg(deps, 'field.managedByReview', { field })}`)
     return true
   }
   // 完结是一次转换，不是一个字段。`archived`/`archived_at` 由 archived 事件的 archive-run 副作用
   // 成对落下（archived=true + archived_at=<now>，phase_status=done 在 flow 层）；手写 archived
   // 只会留下 archived=true、archived_at=null、phase_status=pending 这种半盖章的终态。
   if (field === 'archived' || field === 'archived_at') {
-    deps.io.err(`ERROR: 字段 '${field}' 由 tenon transition <change> archived 管理，禁止通过 set/set-many/cas 写入；完结须经该转换才会同时落 archived_at 与 phase_status`)
+    deps.io.err(`ERROR: ${msg(deps, 'field.managedByArchive', { field })}`)
     return true
   }
   // build 修订是一次捕获，不是一个可以提前填好的值：`freeze-build-sha` 在离开 build 的那条转换上
@@ -70,13 +71,13 @@ function rejectProtectedField(deps: CliDeps, field: FieldName): boolean {
   // 出处复核（provenance 只认那次转换落下的 effect）。手填一个裸 SHA 既过不了 barrier 的出处检查，
   // 也会被那次转换原样覆盖——它唯一的作用是让运行器先写一遍、再白跑一趟 verify-fail。
   if (field === 'build_sha') {
-    deps.io.err('ERROR: 字段 \'build_sha\' 由 build 出口的 transition 冻结（freeze-build-sha 副作用），禁止通过 set/set-many/cas 写入；先把实现与测试做完，再执行该 transition 捕获当前修订')
+    deps.io.err(`ERROR: ${msg(deps, 'field.buildShaFrozen')}`)
     return true
   }
   // phase_status / verified_at / updated_at 由转换本身落值（flow engine 与 verify-pass 副作用）；
   // 手写 phase_status=done 会让 `list` 显示一个没走过任何出口的「已完成」相位。
   const owner = field === 'created_by' || field === 'assignee' ? 'tenon owner' : 'tenon transition'
-  deps.io.err(`ERROR: 字段 '${field}' 由 ${owner} 管理，禁止通过 set/set-many/cas 写入`)
+  deps.io.err(`ERROR: ${msg(deps, 'field.managedBy', { field, owner })}`)
   return true
 }
 
@@ -109,7 +110,7 @@ export async function cmdGet(deps: CliDeps, name: string, field: string): Promis
     return 0
   } catch (e) {
     const code = typeof e === 'object' && e !== null ? Reflect.get(e, 'code') : undefined
-    deps.io.err(code === 'ENOENT' ? `ERROR: change 不存在: ${name}` : `ERROR: ${errMsg(e)}`)
+    deps.io.err(code === 'ENOENT' ? `ERROR: ${msg(deps, 'change.notFound', { name })}` : `ERROR: ${errMsg(e)}`)
     return 1
   }
 }
@@ -161,7 +162,7 @@ export async function cmdSetMany(deps: CliDeps, name: string, pairs: string[]): 
   for (const pair of pairs) {
     const i = pair.indexOf('=')
     if (i <= 0) {
-      deps.io.err(`ERROR: kv 格式错误(缺 '=' 或键为空): ${pair}`)
+      deps.io.err(`ERROR: ${msg(deps, 'setMany.badPair', { pair })}`)
       return 1
     }
     const f = asField(deps, pair.slice(0, i))
@@ -169,7 +170,7 @@ export async function cmdSetMany(deps: CliDeps, name: string, pairs: string[]): 
     if (rejectProtectedField(deps, f)) return 1
     if (Object.hasOwn(kv, f)) {
       // 同字段重复 key：拒写（旧行为静默 last-wins，如 `phase=build phase=spec` 只留后者）
-      deps.io.err(`ERROR: set-many 重复字段 '${f}'（同键多次赋值，拒写以免静默 last-wins）`)
+      deps.io.err(`ERROR: ${msg(deps, 'setMany.duplicate', { field: f })}`)
       return 1
     }
     const v = coerceValue(f, pair.slice(i + 1))
@@ -179,7 +180,7 @@ export async function cmdSetMany(deps: CliDeps, name: string, pairs: string[]): 
     kv[f] = v
   }
   if (Object.keys(kv).length === 0) {
-    deps.io.err('ERROR: set-many 至少需要 1 个 key=value')
+    deps.io.err(`ERROR: ${msg(deps, 'setMany.empty')}`)
     return 1
   }
   const dir = resolveChangeDir(deps.cwd, name)

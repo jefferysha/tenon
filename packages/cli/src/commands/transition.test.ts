@@ -246,9 +246,38 @@ describe('transition —— [TRANSITION] 走 stderr / 非法 exit 1（oracle 实
     // Task 8：判定 default vs 自定义 workflow 必须先读一次 state（未知 event 才能被断定为「对
     // default workflow 非法」——对自定义 workflow 任意 event 名都可能合法），故 read 计数 0→1。
     // 真实可观测行为不变：exit 1 + 逐字同一句 "ERROR: 未知 event" + 绝不写盘（下面两条守住）。
-    expect(deps.store.read.calls).toHaveLength(1)
+    // 第二次 read 只服务报错：把当前 step 的合法 event 列给用户（读失败时静默跳过）。
+    expect(deps.store.read.calls).toHaveLength(2)
     expect(deps.store.write.calls).toHaveLength(0)
-    expect(deps.errLines).toContain('ERROR: 未知 event: warp-speed')
+    expect(deps.errLines[0]).toBe('ERROR: 未知 event: warp-speed')
+  })
+
+  test('未知 event 与跨相位 event 的报错列出当前 step 的合法 event（中英文）', async () => {
+    const zh = makeDeps({ state: mockState({ phase: 'build' }) })
+    expect(await cmdTransition(zh, 'demo', 'warp-speed')).toBe(1)
+    expect(zh.errLines).toEqual([
+      'ERROR: 未知 event: warp-speed',
+      "  当前 step 'build' 的合法 event：requirements-changed, build-complete",
+    ])
+    const en = { ...makeDeps({ state: mockState({ phase: 'build' }) }), locale: 'en' as const }
+    expect(await cmdTransition(en, 'demo', 'warp-speed')).toBe(1)
+    expect((en as unknown as { errLines: string[] }).errLines).toEqual([
+      'ERROR: unknown event: warp-speed',
+      "  Legal events at step 'build': requirements-changed, build-complete",
+    ])
+    // 事件存在但不属于当前相位：首行保持 illegal transition 的形状，合法 event 另起一行。
+    const mismatchZh = makeDeps({ state: mockState({ phase: 'open' }) })
+    expect(await cmdTransition(mismatchZh, 'demo', 'spec-complete')).toBe(1)
+    expect(mismatchZh.errLines).toEqual([
+      "ERROR: illegal transition: open -> build（event 'spec-complete' 只能从 step 'spec' 触发）",
+      "  当前 step 'open' 的合法 event：open-complete",
+    ])
+    const mismatchEn = { ...makeDeps({ state: mockState({ phase: 'open' }) }), locale: 'en' as const }
+    expect(await cmdTransition(mismatchEn, 'demo', 'spec-complete')).toBe(1)
+    expect((mismatchEn as unknown as { errLines: string[] }).errLines).toEqual([
+      "ERROR: illegal transition: open -> build (event 'spec-complete' can only fire from step 'spec')",
+      "  Legal events at step 'open': open-complete",
+    ])
   })
 
   test('状态文件缺失（read 抛错）：exit 1', async () => {

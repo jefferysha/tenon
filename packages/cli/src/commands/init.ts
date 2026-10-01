@@ -41,6 +41,7 @@ import { isValidChangeName } from '../paths.js'
 import { autoDiscoverCatalog } from '../test-system/auto-discover.js'
 import { requireActor } from '../userIdentity.js'
 import { ensureChangeHostAgents, hostAgentHostOf } from './agent-host.js'
+import { msg } from '../i18n/messages.js'
 
 /** 冻结 agent 后为当前宿主生成 `tenon-<name>` 子代理文件；终端里不生成，失败只 WARN。 */
 async function generateHostAgents(deps: CliDeps, changeDir: string, runId: string, workflowFingerprint: string): Promise<void> {
@@ -173,7 +174,7 @@ export async function cmdInit(
   deps: CliDeps, name: string, opts: InitCmdOpts, env: InitWizardEnv = REAL_INIT_WIZARD_ENV,
 ): Promise<number> {
   if (!isValidChangeName(name)) {
-    deps.io.err(`ERROR: change-name 非法: '${name}' (仅允许 a-z A-Z 0-9 - _)`)
+    deps.io.err(`ERROR: ${msg(deps, 'change.nameInvalid', { name })}`)
     return 1
   }
   const creator = requireActor(deps)
@@ -183,14 +184,14 @@ export async function cmdInit(
   // 向导用一份 registry 生成选项/校验（仅影响交互提示；权威校验在下方 registry 锁内 fresh-load）。
   // track 且 preset 都已给 → 本块整体不进；golden-oracle 双跑守的非交互主线（内建轨）观测行为不变。
   if (opts.preset !== undefined && opts.preset !== '' && !PRESETS.includes(opts.preset)) {
-    deps.io.err(`ERROR: 非法 preset '${opts.preset}'，允许: ${PRESETS.join(' | ')}`)
+    deps.io.err(`ERROR: ${msg(deps, 'init.presetInvalid', { preset: opts.preset, allowed: PRESETS.join(' | ') })}`)
     return 1
   }
   const presetRequired = !isCustomWorkflowFlag(opts.workflow)
   if (!opts.track || (!opts.preset && presetRequired)) {
     if (!env.isInteractive()) {
       const missing = [!opts.track ? '--track' : null, !opts.preset && presetRequired ? '--preset' : null].filter(Boolean).join(' ')
-      deps.io.err(`ERROR: 非交互模式缺少必填项 ${missing}（agent/CI 需显式提供；TTY 下省略会走交互向导）`)
+      deps.io.err(`ERROR: ${msg(deps, 'init.nonInteractiveMissing', { missing })}`)
       return 1
     }
     let wizRegistry: TrackRegistry
@@ -221,7 +222,7 @@ export async function cmdInit(
       if (opts.documentLocale !== undefined
         && opts.documentLocale !== 'zh-CN'
         && opts.documentLocale !== 'en') {
-        deps.io.err(`ERROR: document locale 非法: '${opts.documentLocale}'（允许: zh-CN | en）`)
+        deps.io.err(`ERROR: ${msg(deps, 'init.documentLocaleInvalid', { locale: opts.documentLocale })}`)
         return 1
       }
 
@@ -230,7 +231,7 @@ export async function cmdInit(
       // 非 default 则种到该 workflow 首个 step。只接 init 构造点、不改 resolveWorkflowName 读取语义。
       const workflowId = opts.workflow && opts.workflow !== '' ? opts.workflow : track.workflow.default
       if (!opts.preset && isDefaultWorkflowName(workflowId)) {
-        deps.io.err(`ERROR: preset 不能为空（default 工作流需要 --preset ${PRESETS.join('|')}）`)
+        deps.io.err(`ERROR: ${msg(deps, 'init.presetEmpty', { allowed: PRESETS.join('|') })}`)
         return 1
       }
       try {
@@ -258,7 +259,7 @@ export async function cmdInit(
       }
       const first = plan.workflow.steps[0]
       if (first === undefined) {
-        deps.io.err(`ERROR: workflow '${workflowId}' 未声明任何 step`)
+        deps.io.err(`ERROR: ${msg(deps, 'init.workflowNoSteps', { workflow: workflowId })}`)
         return 1
       }
       // 引用已删除技能的工作流不能开新任务：先改工作流，再立项。
@@ -286,7 +287,7 @@ export async function cmdInit(
           deps.agentLibrary ?? (async () => ({ entries: [], sync: { id: 'agents', state: 'unchanged' as const } })),
         )
       } catch (e) {
-        deps.io.err(`ERROR: 工作流引用了 agent 库中不存在的 agent：${errMsg(e)}`)
+        deps.io.err(`ERROR: ${msg(deps, 'init.agentMissing', { error: errMsg(e) })}`)
         return 1
       }
       const binding = effectiveWorkflowPlanBinding(plan)

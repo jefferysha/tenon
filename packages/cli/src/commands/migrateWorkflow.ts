@@ -36,10 +36,11 @@
  */
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName } from '../paths.js'
+import { msg } from '../i18n/messages.js'
 
 export async function cmdMigrateWorkflow(deps: CliDeps, name: string): Promise<number> {
   if (!isValidChangeName(name)) {
-    deps.io.err(`ERROR: change-name 非法: '${name}' (仅允许 a-z A-Z 0-9 - _)`)
+    deps.io.err(`ERROR: ${msg(deps, 'change.nameInvalid', { name })}`)
     return 1
   }
   const dir = changeDir(deps.cwd, name)

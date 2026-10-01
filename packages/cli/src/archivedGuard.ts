@@ -4,10 +4,11 @@
  * malformed store never hides a task and never blocks a command.
  */
 import { relative } from 'node:path'
-import { isArchivedForUser, isTenonUser, readTaskArchive, taskArchivedMessage } from '@tenon/kernel'
+import { isArchivedForUser, isTenonUser, readTaskArchive } from '@tenon/kernel'
 import type { PipelineState } from '@tenon/kernel'
 import type { CliDeps } from './deps.js'
 import { relocatedChangeDir } from './paths.js'
+import { msg } from './i18n/messages.js'
 
 export async function archivedChangesForUser(deps: Pick<CliDeps, 'cwd' | 'user'>): Promise<ReadonlySet<string>> {
   const user = deps.user()
@@ -24,11 +25,11 @@ export async function archivedChangesForUser(deps: Pick<CliDeps, 'cwd' | 'user'>
  * them the one way to keep changing a task the user had already put away.
  */
 export async function refuseArchived(
-  deps: Pick<CliDeps, 'cwd' | 'user' | 'io' | 'store'>,
+  deps: Pick<CliDeps, 'cwd' | 'user' | 'io' | 'store' | 'locale'>,
   name: string,
 ): Promise<boolean> {
   if (await isArchivedForUser(deps.cwd, deps.user(), name)) {
-    deps.io.err(`ERROR: ${taskArchivedMessage(name)}`)
+    deps.io.err(`ERROR: ${msg(deps, 'change.archived', { name })}`)
     return true
   }
   return refuseUnfinishedRelocation(deps, name)
@@ -45,7 +46,7 @@ export async function refuseArchived(
  * 发生了什么，也不说怎么办。现在把这三件事都说清楚：出了什么事、为什么、怎么恢复。
  */
 async function refuseUnfinishedRelocation(
-  deps: Pick<CliDeps, 'cwd' | 'io' | 'store'>,
+  deps: Pick<CliDeps, 'cwd' | 'io' | 'store' | 'locale'>,
   name: string,
 ): Promise<boolean> {
   const relocated = relocatedChangeDir(deps.cwd, name)
@@ -60,14 +61,8 @@ async function refuseUnfinishedRelocation(
   const archived = fields.archived
   if ((Array.isArray(archived) ? archived.join(',') : (archived ?? '')) === 'true') return false
   const dated = relative(deps.cwd, relocated)
-  deps.io.err(
-    `ERROR: change '${name}' 的目录已被 openspec archive 搬到 ${dated}，但它还没完结（archived=false）；`
-    + `归档必须排在 tenon transition ${name} archived 之后`,
-  )
-  deps.io.err(
-    `  恢复：mv ${dated} openspec/changes/${name} && tenon transition ${name} archived`
-    + ` && openspec archive ${name} --skip-specs --yes`,
-  )
+  deps.io.err(`ERROR: ${msg(deps, 'change.relocated', { name, dated })}`)
+  deps.io.err(msg(deps, 'change.relocatedRecover', { name, dated }))
   return true
 }
 

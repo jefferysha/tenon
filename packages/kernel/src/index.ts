@@ -56,6 +56,11 @@ export {
   serializeProductRootContract,
 } from './product-paths.js'
 export type { ProductPathInput, ProductPaths } from './product-paths.js'
+// 诊断脱敏：server 日志落盘前去凭证，`tenon support bundle` 出门前再去个人信息。
+export {
+  addRedactionCounts, MAX_REDACTED_LINE_CHARS, NO_REDACTIONS, redactCredentials, redactForSharing, totalRedactions,
+} from './diagnostics/redact.js'
+export type { RedactionCounts, RedactionKind, RedactionResult, SharingRedactionOptions } from './diagnostics/redact.js'
 // in-place 构建不以未变化的 Git HEAD 冒充验证靶；提供内容寻址的工作区基线给 CLI/server 注入。
 export {
   fingerprintWorkspace, isWorkspaceBaseline, isWorkspaceCandidatePath, TEST_OUTPUT_DIR_SEGMENTS, WORKSPACE_BASELINE_PREFIX,

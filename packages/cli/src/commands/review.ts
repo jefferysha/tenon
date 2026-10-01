@@ -40,6 +40,7 @@ import {
 import { cmdReviewAcknowledge } from './review-acknowledge.js'
 import { freezePendingWaivers, reviewItemLines, type PendingReviewItems } from './review-waivers.js'
 import { resolveReviewEvent as resolveReviewEventFromStep } from './review-event.js'
+import { msg } from '../i18n/messages.js'
 
 type ReviewStep = {
   readonly phase: string
@@ -161,7 +162,7 @@ export async function cmdReview(
     return 1
   }
   if (!name || !isValidChangeName(name)) {
-    deps.io.err(`ERROR: change-name 非法: '${name ?? ''}' (仅允许 a-z A-Z 0-9 - _)`)
+    deps.io.err(`ERROR: ${msg(deps, 'change.nameInvalid', { name: name ?? '' })}`)
     return 1
   }
   if (await refuseArchived(deps, name)) return 1

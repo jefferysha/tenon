@@ -54,7 +54,7 @@ import {
   compileWorkflow, createTransitionApplication,
   loadRegistry, loadWorkflow, nodeLoopIoStrict, requireTrackForRoot,
   readReviewGateBinding, renderAgentBlocker, retiredSkillsChangeMessage,
-  reviewGateBindingMatches, ownerRequiredMessage,
+  reviewGateBindingMatches, formatUserRef,
   TASK_PLAN_CURRENT_FILE, TASK_PLAN_LIMITS, TASK_PLAN_STATE_DIR,
   taskPlanTasksThroughPhaseForChange,
 } from '@tenon/kernel'
@@ -70,6 +70,8 @@ import { testEvidenceContextFor } from '../testEvidenceContext.js'
 import { resolveBuildRevisionAssessor } from './buildRevisionAssessor.js'
 import { phaseExitGuardContext } from './phaseExitGuard.js'
 import { pruneHostAgents } from './agent-host.js'
+import { msg } from '../i18n/messages.js'
+import { reportLegalEvents } from './transition-legal-events.js'
 
 async function runArchived(deps: CliDeps, dir: string): Promise<boolean> {
   try {
@@ -82,7 +84,7 @@ async function runArchived(deps: CliDeps, dir: string): Promise<boolean> {
 
 export async function cmdTransition(deps: CliDeps, name: string, event: string): Promise<number> {
   if (!isValidChangeName(name)) {
-    deps.io.err(`ERROR: change-name 非法: '${name}' (仅允许 a-z A-Z 0-9 - _)`)
+    deps.io.err(`ERROR: ${msg(deps, 'change.nameInvalid', { name })}`)
     return 1
   }
   if (await refuseArchived(deps, name)) return 1
@@ -253,16 +255,21 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
         return 0
       }
       case 'owner-required':
-        deps.io.err(`ERROR: ${ownerRequiredMessage(name, result.owner)}`)
+        deps.io.err(`ERROR: ${result.owner === null
+          ? msg(deps, 'owner.required.none', { name })
+          : msg(deps, 'owner.required.other', { name, owner: formatUserRef(result.owner) })}`)
         return 1
       case 'unknown-event':
-        deps.io.err(`ERROR: 未知 event: ${event}`)
+        deps.io.err(`ERROR: ${msg(deps, 'transition.unknownEvent', { event })}`)
+        await reportLegalEvents(deps, name)
         return 1
       case 'event-source-mismatch':
-        deps.io.err(`ERROR: illegal transition: ${result.current} -> ${result.to}`)
+        deps.io.err(`ERROR: ${msg(deps, 'transition.illegal', { from: result.current, to: result.to, event, expected: result.expected })}`)
+        await reportLegalEvents(deps, name, result.current)
         return 1
       case 'illegal-transition':
-        deps.io.err(`ERROR: illegal transition: ${result.from} -> ${result.to}`)
+        deps.io.err(`ERROR: ${msg(deps, 'transition.illegalFlow', { from: result.from, to: result.to })}`)
+        await reportLegalEvents(deps, name, result.from)
         return 1
       case 'precondition-violated':
         for (const line of result.lines) deps.io.err(line)
@@ -275,9 +282,7 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
         ].join('\n'))
         return 1
       case 'workflow-not-found':
-        deps.io.err(
-          `ERROR: workflow '${result.workflowName}' 未找到（期望 .pipeline/workflows/${result.workflowName}.yaml）`,
-        )
+        deps.io.err(`ERROR: ${msg(deps, 'workflow.notFound', { workflow: result.workflowName })}`)
         return 1
       case 'retired-skills':
         deps.io.err(`ERROR: ${retiredSkillsChangeMessage(name, result.skills)}`)
@@ -286,56 +291,48 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
         deps.io.err(`ERROR: ${result.reason}`)
         return 1
       case 'step-not-in-graph':
-        deps.io.err(`ERROR: step '${result.stepId}' 不在 workflow '${result.workflowName}' 里`)
+        deps.io.err(`ERROR: ${msg(deps, 'workflow.stepNotInGraph', { step: result.stepId, workflow: result.workflowName })}`)
         return 1
       case 'event-unsupported':
-        deps.io.err(
-          `ERROR: step '${result.stepId}' 不支持 event '${result.event}'；该 step 支持：${result.available.join(', ') || '(无)'}`,
-        )
+        deps.io.err(`ERROR: ${msg(deps, 'transition.eventUnsupported', {
+          step: result.stepId,
+          event: result.event,
+          available: result.available.join(', ') || msg(deps, 'transition.noLegalEvents'),
+        })}`)
         return 1
       case 'step-guard-failed':
-        deps.io.err(`ERROR: step '${result.stepId}' guard 未通过：`)
+        deps.io.err(`ERROR: ${msg(deps, 'transition.stepGuardFailed', { step: result.stepId })}`)
         for (const line of result.failures) deps.io.err(line)
         return 2
       case 'step-skills-incomplete':
-        deps.io.err(`ERROR: step '${result.stepId}' 尚未完成声明的 skill：`)
+        deps.io.err(`ERROR: ${msg(deps, 'transition.stepSkillsIncomplete', { step: result.stepId })}`)
         for (const skillId of result.missing) deps.io.err(`  - ${skillId}`)
         return 2
       case 'step-agents-incomplete':
-        deps.io.err(`ERROR: step '${result.stepId}' 的 agent 未通过：`)
+        deps.io.err(`ERROR: ${msg(deps, 'transition.stepAgentsIncomplete', { step: result.stepId })}`)
         for (const blocker of result.blockers) deps.io.err(`  - ${renderAgentBlocker(blocker, name)}`)
         return 2
       case 'document-evidence-failed':
-        deps.io.err(`ERROR: OpenSpec 文档证据未通过（phase=${result.phase}）：`)
+        deps.io.err(`ERROR: ${msg(deps, 'transition.documentEvidenceFailed', { phase: result.phase })}`)
         for (const blocker of result.blockers) deps.io.err(`  - ${blocker}`)
         return 1
       case 'test-evidence-failed':
-        deps.io.err(`ERROR: 测试证据未通过（step=${result.stepId}）：`)
+        deps.io.err(`ERROR: ${msg(deps, 'transition.testEvidenceFailed', { step: result.stepId })}`)
         for (const blocker of result.blockers) deps.io.err(`  - ${blocker}`)
         return 1
       case 'review-approval-required':
         if (result.pendingEvent === result.event) {
           // The request already exists; asking for another one would only restart the wait.
-          deps.io.err(
-            `ERROR: phase '${result.phase}' 的 event '${result.event}' 已请求评审，正在等待用户确认；` +
-            `不要重复 review request。展示产物，用户回复“确认继续”后运行 tenon review acknowledge ${name}，` +
-            '再重发本次 transition',
-          )
+          deps.io.err(`ERROR: ${msg(deps, 'transition.reviewRequested', { phase: result.phase, event: result.event, name })}`)
           return 2
         }
-        deps.io.err(
-          `ERROR: phase '${result.phase}' 的 event '${result.event}' 尚未取得人工确认；先运行 ` +
-          `tenon review request ${name} --event ${result.event}，` +
-          '展示产物并等待用户“确认继续”，再重发本次 transition',
-        )
+        deps.io.err(`ERROR: ${msg(deps, 'transition.reviewRequired', { phase: result.phase, event: result.event, name })}`)
         if (result.pendingEvent !== undefined) {
-          deps.io.err(
-            `  当前待确认的 review request 绑定的是 event '${result.pendingEvent}'，确认不能跨 event 使用`,
-          )
+          deps.io.err(msg(deps, 'transition.reviewPendingOther', { pending: result.pendingEvent }))
         }
         return 2
       case 'constraint-denied':
-        deps.io.err(`ERROR: automation constraint denied transition: ${result.reason}`)
+        deps.io.err(`ERROR: ${msg(deps, 'transition.constraintDenied', { reason: result.reason })}`)
         return 1
     }
   } catch (e) {

@@ -3,6 +3,7 @@ import type { EffectiveWorkflowPlan, PipelineState, StepIR } from '@tenon/kernel
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName } from '../paths.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
+import { msg } from '../i18n/messages.js'
 
 export interface WorkflowPlanOpts {
   json?: boolean
@@ -78,7 +79,7 @@ export async function cmdWorkflowPlan(
   opts: WorkflowPlanOpts,
 ): Promise<number> {
   if (!isValidChangeName(name)) {
-    deps.io.err(`ERROR: change-name 非法: '${name}' (仅允许 a-z A-Z 0-9 - _)`)
+    deps.io.err(`ERROR: ${msg(deps, 'change.nameInvalid', { name })}`)
     return 1
   }
   let state: PipelineState

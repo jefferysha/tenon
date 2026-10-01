@@ -10,6 +10,9 @@
  *   4. 删除旧版本遗留的 token 握手文件（不再写任何凭证文件）+ pidfile（pid/port/version，供后来者抢占判定）；
  *      启动者的终端（stdout 是 TTY，或显式 TENON_DASHBOARD_PRINT_LINK=1）会收到一条一次性登录链接。
  *   5. SIGTERM/SIGINT 优雅停：关 server + 清 pidfile。
+ *
+ * 日志：stdout/stderr 镜像进 `<state>/logs/dashboard.log`（按大小轮转，3 个文件，凭证落盘前脱敏），
+ * 受管后台进程的 stdio 被丢弃，这是排查「后台 server 为什么不对」的唯一现场。
  */
 import { execFile } from 'node:child_process'
 import { mkdirSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
@@ -23,6 +26,7 @@ import { decidePreemption, preemptOldServer, probeHealth } from './preempt.js'
 import { resolvePayloadReleaseId, resolveReleaseVersion } from './version.js'
 import { resolveDashboardPort } from './port.js'
 import { parseDashboardServerArgs } from './server-args.js'
+import { createRotatingLog, mirrorProcessOutput } from './serverLog.js'
 
 function serverPort(): number {
   return resolveDashboardPort(process.env.TENON_DASHBOARD_PORT)
@@ -85,6 +89,20 @@ async function main(): Promise<void> {
   // Product state must exist before pid publication. Failure is fatal: a server without
   // durable ownership metadata must never bind the singleton port.
   mkdirSync(paths.stateRoot, { recursive: true, mode: 0o700 })
+
+  // 日志先于一切会输出的步骤装好；日志目录不可写只会提示一次，不阻止启动。
+  const log = createRotatingLog({
+    path: paths.dashboardLogPath,
+    onFailure: (message) => process.stderr.write(`${message}\n`),
+  })
+  mirrorProcessOutput(log)
+  log.write('event', `[dashboard-server] starting pid=${process.pid} port=${port} version=${version}${releaseId === undefined ? '' : ` release=${releaseId}`}`)
+  for (const event of ['uncaughtException', 'unhandledRejection'] as const) {
+    process.on(event, (reason: unknown) => {
+      process.stderr.write(`[dashboard-server] ${event}: ${reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)}\n`)
+      process.exit(1)
+    })
+  }
 
   // 内建库（模板等）按摘要同步到全局 config：覆盖宿主插件市场绕过 `tenon update` 的更新。失败只记日志，不阻止启动。
   for (const result of await syncBuiltinLibraries(root, paths.configRoot)) {
@@ -168,6 +186,7 @@ async function main(): Promise<void> {
   }
 
   const shutdown = (): void => {
+    log.write('event', `[dashboard-server] stopping pid=${process.pid}`)
     void srv.close().finally(() => {
       try { unlinkSync(paths.pidfilePath) } catch { /* 已清 */ }
       process.exit(0)
