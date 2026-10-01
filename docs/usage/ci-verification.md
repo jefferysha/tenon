@@ -110,6 +110,17 @@ step that does (a finished Change is therefore judged at verify). Which chain is
 Change owner's. If the owner has no records and exactly one other user has, that chain is used with
 the warning `owner-chain-missing`. Other users' chains are only checked for integrity.
 
+Test integrity is judged with the same step policy as the local gate, for steps that run tests or set
+`integrity: block`. It reads the committed diff since the Change started for evidence that got weaker:
+a deleted test file, fewer declared cases, new skip markers, fewer assertions, rewritten snapshots
+(`tenon test integrity <change>` lists them all). With `integrity: block` in the step's `test_policy`,
+any signal is the error finding `test-integrity`, and so is a diff that cannot be read
+(`files-diff-unavailable`, for example on a shallow clone), so it fails closed. With the default
+`integrity: notice`, signals are note-level `test-integrity` findings that never change the exit
+code, and an unreadable diff is the note `files-unchecked`. The signals are text heuristics over diff
+lines: they point at what deserves a look; they do not prove that tests were weakened, or that they
+were not.
+
 ## Candidate mismatch
 
 A test record binds the content fingerprint of the whole workspace it ran on. The check compares it

@@ -16,7 +16,7 @@ import { errMsg } from '../deps.js'
 import { str } from '../render.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
 import { NO_USER_SLUG, chainFindings, chainSummary, pickEvaluatedChain, readUserChains } from './verify-ci-chains.js'
-import { resolveBaseRef } from './verify-ci-git.js'
+import { SHALLOW_REASON, resolveBaseRef } from './verify-ci-git.js'
 import { policyFindings, resolveEvaluatedStep, runPolicy } from './verify-ci-policy.js'
 import type { SelectedChange } from './verify-ci-select.js'
 
@@ -73,7 +73,7 @@ async function protectedFindings(
     selected.name, 'protected-diff-unavailable', 'error', `读不出本任务的改动，无法核对受保护测试配置的批准：${why}`,
     { path: `${selected.relDir}/.pipeline-history.jsonl` },
   )]
-  if (ctx.shallow) return unavailable('浅克隆缺少任务起点之前的历史（actions/checkout 需要 fetch-depth: 0）')
+  if (ctx.shallow) return unavailable(SHALLOW_REASON)
   const start = changeStartOfFields(state.fields)
   let changes
   try {

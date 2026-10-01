@@ -4,12 +4,12 @@
  * 候选代码指纹取自本次检出的树。
  */
 import {
-  ChangedFilesUnavailableError, changeStartOfFields, evaluateTestEvidence,
+  ChangedFilesUnavailableError, changeStartOfFields, evaluateTestEvidence, integrityDiffInSession,
   type CandidateMode, type ChangedFilesSession, type CiFinding, type EffectiveWorkflowPlan, type PipelineState,
   type SuiteVerdict, type TestEvidenceReport,
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
-import { candidateFilesTouchedSince, resolveBaseRef } from './verify-ci-git.js'
+import { SHALLOW_REASON, candidateFilesTouchedSince, resolveBaseRef } from './verify-ci-git.js'
 
 type Step = EffectiveWorkflowPlan['workflow']['steps'][number]
 
@@ -69,8 +69,14 @@ export async function runPolicy(input: {
       now: () => Date.parse(deps.clock()),
       ...(input.candidate === undefined ? {} : { currentCandidate: input.candidate }),
       changedFiles: async () => {
-        if (input.shallow) throw new ChangedFilesUnavailableError('浅克隆缺少任务起点之前的历史（actions/checkout 需要 fetch-depth: 0）')
+        if (input.shallow) throw new ChangedFilesUnavailableError(SHALLOW_REASON)
         return input.session.changedFiles({ ...start, baseBranch: await resolveBaseRef(deps.cwd, start.baseBranch) })
+      },
+      // 测试完整性：与转换门禁同一份判定（`integrity: block` 挡住，缺省 notice 只提示）；读不出起点以来的改动行时
+      // 由策略失败关闭（block → files-diff-unavailable）或提示未检查（notice → files-unchecked），不降级成「没有信号」。
+      integrityDiff: async (accept) => {
+        if (input.shallow) throw new ChangedFilesUnavailableError(SHALLOW_REASON)
+        return integrityDiffInSession(input.session, { ...start, baseBranch: await resolveBaseRef(deps.cwd, start.baseBranch) })(accept)
       },
     },
   })

@@ -29,6 +29,7 @@ export function ciTrust(options: CiVerifyOptions, anchored: boolean): CiTrust {
         ? '候选代码：未比对（--candidate off）'
         : `候选代码：记录绑定的工作区指纹等于本次检出的树${options.candidate === 'warn' ? '（不一致只给警告）' : ''}`,
       '受保护测试配置（目录、基线、已知失败、工作流）的改动在任务历史里有评审批准行，行里的摘要等于当前内容',
+      '测试完整性信号（测试文件被删、用例或断言变少、新增跳过等）：读 diff 文本的启发式，只说明值得看一眼，不是证明；策略 `integrity: block` 才让它失败，缺省只提示',
       anchored ? '锚点：refs/notes/tenon 上锚定的链头在已提交的记录链里' : '锚点：没有找到锚点 note，未核对',
     ],
     unverifiable: CI_UNVERIFIABLE,

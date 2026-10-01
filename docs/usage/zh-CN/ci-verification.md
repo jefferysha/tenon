@@ -101,6 +101,13 @@ Action 输入：
 判定哪条链：Change 负责人的链。负责人没有记录、恰好只有另一个用户有记录时，用那一条并给出警告 `owner-chain-missing`。
 其他用户的链只检查完整性。
 
+测试完整性按当前步骤的策略判定，口径与本机转换门禁相同（步骤要运行测试，或声明了 `integrity: block`）。它读 Change 起点以来已提交的 diff，
+找证据变弱的信号：测试文件被删、声明的用例变少、新增跳过标记、断言变少、快照被改写等（`tenon test integrity <change>` 全部列出）。
+步骤 `test_policy` 里写了 `integrity: block` 时，任何信号都是 error 级发现 `test-integrity`，读不出 diff 也是
+（`files-diff-unavailable`，例如浅克隆），所以失败关闭；缺省的 `integrity: notice` 下，信号是 note 级的 `test-integrity`，
+不改变退出码，读不出 diff 则是提示 `files-unchecked`。这些信号是对 diff 文本的启发式判断：它们指出值得看一眼的地方，
+既不证明测试被削弱，也不证明没有。
+
 ## 候选代码不一致
 
 测试记录绑定了它运行时整个工作区的内容指纹，检查把它与本次检出的树的指纹比较。不一致通常说明测试之后代码变了；提示里会列出记录完成之后

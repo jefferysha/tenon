@@ -31,7 +31,11 @@ suites:
 `
 }
 
-const WORKFLOW = `name: trusted
+/** 测试完整性策略：缺省不写（= notice），否则写进 build 步骤的 test_policy。 */
+export type IntegrityPolicy = 'unset' | 'notice' | 'block'
+
+function workflow(integrity: IntegrityPolicy): string {
+  return `name: trusted
 tracks:
   backend:
     steps:
@@ -45,7 +49,7 @@ tracks:
         test_policy:
           run: [unit]
           scope: full
-        transitions:
+${integrity === 'unset' ? '' : `          integrity: ${integrity}\n`}        transitions:
           - event: build-done
             to: verify
       - id: verify
@@ -56,6 +60,14 @@ tracks:
         outputs: []
         guards: []
         transitions: []
+`
+}
+
+/** 基线提交里的一个旧测试文件；`deleteLegacyTest` 时开发者在交付前删掉它（任务内没有登记它）。 */
+const LEGACY_TEST_PATH = 'src/legacy.test.js'
+const LEGACY_TEST = `import { test } from 'node:test'
+test('legacy one', () => {})
+test('legacy two', () => {})
 `
 
 const GEN_REPORT = `import { mkdirSync, writeFileSync } from 'node:fs'
@@ -115,7 +127,15 @@ function makeDev(h: Harness): Dev {
  * 任务在基线提交之后创建，所以「自任务起点以来的改动」干净可测。
  * `catalogEdit` 为真时，任务里改了测试目录（受保护文件），并经评审确认批准。
  */
-export async function devProject(options: { readonly catalogEdit?: 'none' | 'unapproved' | 'approved' } = {}): Promise<Dev> {
+export interface DevProjectOptions {
+  readonly catalogEdit?: 'none' | 'unapproved' | 'approved'
+  /** build 步骤测试策略的 `integrity`；缺省不写（= notice）。 */
+  readonly integrity?: IntegrityPolicy
+  /** 基线里有一个旧测试文件，开发者在交付前把它删了（测试完整性的 `test-file-deleted` 信号）。 */
+  readonly deleteLegacyTest?: boolean
+}
+
+export async function devProject(options: DevProjectOptions = {}): Promise<Dev> {
   const h = await freshHarness()
   const dev = makeDev(h)
   await writeFiles(h.cwd, {
@@ -123,14 +143,16 @@ export async function devProject(options: { readonly catalogEdit?: 'none' | 'una
     '.gitignore': 'test-results\nnode_modules\n.pipeline/cache\n.pipeline/.gitignore\n',
     'gen-report.mjs': GEN_REPORT,
     'src/a.test.js': 'export {}\n',
+    ...(options.deleteLegacyTest === true ? { [LEGACY_TEST_PATH]: LEGACY_TEST } : {}),
     [CATALOG_PATH]: catalog(),
-    '.pipeline/workflows/trusted.yaml': WORKFLOW,
+    '.pipeline/workflows/trusted.yaml': workflow(options.integrity ?? 'unset'),
   })
   git(h.cwd, ['init', '-q', '-b', 'main'])
   commitAll(h.cwd, 'base', '2026-01-01T00:00:00Z')
   git(h.cwd, ['checkout', '-q', '-b', 'pr'])
   await expectOk(dev.tenon(['init', 'demo', '--track', 'backend', '--workflow', 'trusted', '--preset', 'full']), dev, 'init')
   await writeFiles(h.cwd, { 'src/feature.js': 'export const feature = () => 1\n' })
+  if (options.deleteLegacyTest === true) await rm(join(h.cwd, LEGACY_TEST_PATH))
   if (options.catalogEdit === 'unapproved' || options.catalogEdit === 'approved') {
     await writeFile(join(h.cwd, CATALOG_PATH), catalog('单测（改过）'), 'utf8')
   }
