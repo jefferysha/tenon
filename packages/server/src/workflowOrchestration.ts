@@ -8,7 +8,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
-  HISTORY_FILE,
+  HISTORY_FILE, allPathChangesForState, touchedPathClasses,
   buildOrchestration, compileEffectiveWorkflowPlan, completedWorkflowSkillsSinceStepEntry,
   documentRecordsInCurrentStepVisit, judgeStepSkillsFromHistory, manifestSkillOverlay, orderSkillSlots,
   pendingSkillDocumentKinds, planEffectiveIo, skillSlotStatuses,
@@ -209,6 +209,7 @@ export async function changeOrchestration(input: {
       state,
       phase,
       ...(input.candidate === undefined ? {} : { candidate: input.candidate }),
+      touchedClasses: async () => touchedPathClasses(await allPathChangesForState(input.root, state)),
     }),
     projectTestEvidence({
       root: input.root,

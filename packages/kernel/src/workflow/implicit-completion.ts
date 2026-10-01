@@ -15,6 +15,17 @@ import type { StepIR, StepTransitionIR } from './ir.js'
 export const IMPLICIT_COMPLETION_EVENT = 'archived'
 
 /**
+ * 放弃边：任务超出了这条工作流的范围（simple 里由执行者判断，standard 里由改动风险探针触发），转入终态
+ * `escalated`，之后另起一个 default 任务。放弃一个任务不该先把它做完，所以走这条边不要求测试、评审者、
+ * 文档与技能证据（评审门步骤的人工确认照旧）。
+ */
+export const ABANDON_EVENT = 'scope-expanded'
+
+export function isAbandonEvent(event: string): boolean {
+  return event === ABANDON_EVENT
+}
+
+/**
  * 前进边 = 目标在步骤序里更靠后，或 `archived` 指向自己的完结自边（显式声明的与隐式派生的同判）。
  * 退回边（verify-fail、requirements-changed、自定义回边）不是：修问题的路必须一直开着。
  */

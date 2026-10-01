@@ -9,6 +9,8 @@ import type { StepAction } from './statusStepAction.js'
 import { documentWriteActions, inputDocumentPolicy, skillDocumentActions } from './statusStepDocumentActions.js'
 import { finishActions, type StepCommit, type StepFinishFacts } from './statusStepFinish.js'
 import type { StepAgentView, StepReviewBar } from './statusStepAgents.js'
+import { isAbandonEvent } from '@tenon/kernel'
+import { escalationActions, type StepEscalation } from './statusStepEscalation.js'
 import type { StepBlocker, StepExit } from './stepExitReport.js'
 import type { StepDocumentsView, StepFieldView, StepSkillView } from './statusStepParts.js'
 import {
@@ -73,6 +75,8 @@ export interface StepNextInput {
   readonly settle: StepCommit | null
   /** 下一步声明的评审者（statusStepAgents.downstreamReviewBar）；随实现、自审与结论动作下发。 */
   readonly reviewBar: readonly StepReviewBar[]
+  /** 改动风险探针不过（statusStepEscalation.ts）：只剩放弃边这一条路；缺席 = 没有升级信号。 */
+  readonly escalation?: StepEscalation | null
   /**
    * 本步声明了 test_policy 时，策略判定（kernel TestPolicyReport）归档出的测试体系动作；
    * 缺席 = 本步没有策略，行为与没有测试体系时逐字相同。
@@ -123,6 +127,10 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   // 之前——终态自边的步骤访问不会再前进，补技能证据只会原地打转，而动作自带整条命令。
   if (input.runArchived) return finishActions(input.change, input.governedOpenspec, input.finish)
   if (!input.loaded) return [{ action: 'load-tenon' }]
+  // 风险探针不过 = 任务超出了这条通道：不必做完本步，直接放弃（scope-expanded）。
+  if (input.escalation !== undefined && input.escalation !== null) {
+    return escalationActions(input.escalation, input.gate, input.review)
+  }
 
   // 只有 `unread` 是 `tenon document read` 能推进的状态。`stale` 的文档读不动——命令当场拒
   // 「document 'x' 已变更：…；先重新 record 后再 read」——而这条过滤从前把它也算进读清单，
@@ -335,7 +343,8 @@ function exitActions(input: {
   readonly tests: readonly StepTestView[]
   readonly reviewers: readonly StepAgentView[]
 }, flow: StepTestFlow | undefined): readonly StepAction[] {
-  const forward = input.exits.filter((exit) => exit.direction !== 'back')
+  // 放弃边永远就绪，却从来不是「走完这一步」的候选：留着它会把唯一的前进边挤成 choose-exit。
+  const forward = input.exits.filter((exit) => exit.direction !== 'back' && !isAbandonEvent(exit.event))
   const back = input.exits.filter((exit) => exit.direction === 'back')
   if (requiredEvidenceFailed(input) && back.length > 0) return gatedBackActions(input, back)
   const readyForward = forward.filter((exit) => exit.ready)

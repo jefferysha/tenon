@@ -58,7 +58,19 @@ WorkflowRun 初始化时冻结的完整计划，包括步骤、Skill、门禁、
 
 `tenon status <name> --json` 还带一个 `step` 块：单个 `tenon` skill 执行当前步骤所需的全部输入
 ——本步技能、执行者、评审者、测试、文档、字段、评审回执、带阻塞原因的出口，以及一份闭集的
-`next` 动作表，按序执行即可。
+`next` 动作表，按序执行即可。`run-tests` 与 `run-test` 在将要执行的命令还没有得到用户信任时带一个 `trust` 对象
+（先请用户在自己的终端运行 `trust.command`）。带 `escalate` 的 `transition` 表示任务已经超出了它的通道：
+standard 通道的风险探针没通过，`escalate.reasons` 点名被突破的阈值，`escalate.then` 说明转换之后另开一个 `default` 任务。
+
+```text
+tenon step run <change> [--json]
+```
+
+`step run` 一次做完 `step.next` 里确定性的那部分，并说明做了什么：`scaffold-document`（`document scaffold`）、
+`record-document`（`document record`，文件已存在且骨架占位符已替换才做）、`read-documents`（`document read <change> all`）
+和 `test-plan-seed`（`test plan <change> --seed`）。遇到需要宿主或作者的动作就停下（加载技能、派发 agent、写文档内容、
+跑测试、评审、转换），写明停在哪、为什么，并附上最新的 `step.next`，之后不必再 `status`。它幂等：无事可做就什么都不改、
+退出码 `0`；某条命令被拒绝退出码 `2`，已做完的部分保留。`--json` 输出 `{ change, step_id, did[], stopped, step }`。
 
 ```text
 tenon spec apply <change> [--dry-run] [--json]
@@ -94,6 +106,7 @@ tenon document init <change>
 tenon document scaffold <change> <kind>
 tenon document scaffold <change> delta-spec --capability <capability>
 tenon document record <change> <kind> <path> --producer <skill>
+tenon document record <change> --all [--producer <skill>]
 tenon document read <change> all
 tenon document status <change> --json
 ```
@@ -172,6 +185,12 @@ tenon agent rm <name> [--scope user|project]
 tenon agent export <name> --host claude|codex
 ```
 
+`document record --all` 一次登记当前步骤所有「文件已经写好」的文档，每份都走 `document record` 自己的全部校验（占位符、producer 的技能回执、
+负责人、归档闸）：本步产出但缺失或已过期的、本步可改而登记后又变了的输入，以及已调用技能还欠的文档。producer 取本步接受且本次访问已调用的那个
+（`--producer` 可覆盖）。已是最新的不动，没写或仍含 `[待填写…]` 占位符的列出并跳过，路径要作者定名的（没带 `--capability` 的 delta spec）也跳过；
+只有登记被拒才退出 `2`。评审者可在 agent 文件里声明 `attach_on`（`auth`、`dependency`、`contract`、`migration`）：只有任务的改动碰到这类路径，
+它才进入该步骤的评审者集合——`agent next`、`status --json` 与 Dashboard 不再列出没挂载的评审者，`agent prompt` 对它退出 `2`。
+
 退出码：`0` 正常；`1` 用法、IO 或记录损坏；`2` 被拦下（未轮到、宿主不支持、评审期间候选已变化）。
 
 ```yaml
@@ -231,6 +250,7 @@ tenon test known rm --suite <id> --test "<文件> › <用例名>"
 tenon test known list [--json]
 tenon test report <change> [--step <id>] [--write <path>] [--locale zh-CN|en]
 tenon test code-size [--base <ref>]
+tenon test diff-risk [<change>] [--json]
 ```
 
 测试分三层登记。项目**目录**（`.tenon/tests/catalog.yaml`，进 git，人可直接改）说明项目有哪些套件、怎么跑：
@@ -349,7 +369,13 @@ node:test 套件的命令是 `node --test --test-reporter="${TENON_NODE_TEST_REP
 与 `<!-- tenon:test-report:end -->` 之间）——追溯矩阵、套件与各套件最新运行的 `run_id`、覆盖率、基准对比、flaky 与已知失败、仍在挡出口的项。
 标记之外的字节一个都不动；`tenon status` 靠 v2 块里是否有最新的 run id 判断报告要不要重新生成。`test code-size` 是内建
 `code-size` 方向背后的确定性探针，输出一行 JSON 指标；只统计源代码：路径范围与工作区候选一致（不含 `openspec/`、`.tenon/`、
-`.pipeline/`、`docs/`、依赖与测试缓存），且不含 Markdown。
+`.pipeline/`、`docs/`、依赖与测试缓存），且不含 Markdown。`test diff-risk` 是内建 `diff-risk` 方向背后的探针，也是 `standard`
+通道的风险闸（见[路由与执行模式](routing-and-workflows.md#标准通道)）：只读仓库，从任务起点算起（已提交与未提交的改动都算），输出一行 JSON：
+`files_changed`（源码文件数，口径同 `code-size`）、`contract_files` / `auth_files` / `dependency_files` / `migration_files`
+（命中对应路径类的文件数：OpenAPI、proto、GraphQL、schema 与 `contract` 名；auth、login、session、jwt、password、permission、
+crypto、secret 名与 `.env*`；包清单与锁文件；迁移目录）、`deleted_tests`（被删的测试文件）、`protected_test_files`（测试目录、基线、
+已知失败清单、项目工作流的改动；`tenon init` 为没有目录的项目自动生成的那份目录不计）。阈值不在命令里：它们是工作流里 `diff-risk`
+步骤测试的 `pass.metrics`，调阈值就是改工作流 YAML。任务名取参数，缺省取 `TENON_CHANGE_NAME`。
 
 内联的步骤测试（`tenon test run <change> <test-id>`）保持 v1 行为：在独立进程组里执行声明的命令，把退出码、耗时、执行人、
 输入摘要与输出文件登记成记录，完整日志与输出副本留在该用户 gitignored 的本机目录；候选版本、测试声明摘要或工作流指纹任一变化

@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import {
   canonicalWorkflowSkillId, compileEffectiveWorkflowPlan, PRODUCT_IDENTITY, RETIRED_SKILL_IDS,
-  skillTokenAlternatives, type SkillTable,
+  skillTokenAlternatives, templateWorkflowDefinition, type SkillTable,
 } from '@tenon/kernel'
 import type { DoctorProbes } from '../deps.js'
 import { loadCanonicalSkillSources, type SkillSource } from '../skillSources.js'
@@ -201,7 +201,12 @@ export function checkMandatorySkillInvocability(p: DoctorProbes): DoctorCheck {
 /** 工作流数据声明的每个技能都要能在插件载荷里找到；技能清单不再硬编码在这里。 */
 export function declaredWorkflowSkillIds(): readonly string[] {
   const ids = new Set<string>([PRODUCT_IDENTITY.entrySkill])
-  for (const workflow of [compileEffectiveWorkflowPlan('default'), compileEffectiveWorkflowPlan('simple')]) {
+  const workflows = [
+    compileEffectiveWorkflowPlan('default'),
+    compileEffectiveWorkflowPlan('simple'),
+    compileEffectiveWorkflowPlan('standard', templateWorkflowDefinition('standard')),
+  ]
+  for (const workflow of workflows) {
     const definition = workflow.definition ?? workflow.workflow
     const branches = [definition.steps, ...Object.values(definition.tracks ?? {}).map((track) => track.steps)]
     for (const steps of branches) {

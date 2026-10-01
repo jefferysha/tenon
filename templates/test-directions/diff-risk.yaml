@@ -1,0 +1,20 @@
+id: diff-risk
+command: tenon test diff-risk --json
+label: 改动风险
+timeout_s: 60
+pass:
+  metrics:
+    - name: files_changed
+      max: 8
+    - name: contract_files
+      max: 0
+    - name: auth_files
+      max: 0
+    - name: dependency_files
+      max: 0
+    - name: migration_files
+      max: 0
+    - name: deleted_tests
+      max: 0
+    - name: protected_test_files
+      max: 0

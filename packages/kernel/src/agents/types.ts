@@ -3,6 +3,7 @@
  * 指令文件（AGENTS.md、CLAUDE.md）无关。文件声明自己的身份（`role`），工作流步骤按身份引用它。
  */
 import { INSTRUCTION_HOSTS } from '../instructions/hosts.js'
+import type { PathClass } from '../workspace/path-classes.js'
 
 /** 文件名与 frontmatter name 共用；步骤按本名称引用。 */
 export const AGENT_NAME_RE = /^[a-z0-9][a-z0-9-]{0,62}$/
@@ -47,6 +48,11 @@ export interface AgentDefinition {
   readonly model?: string
   /** 缺省 = 适用每个宿主。 */
   readonly hosts?: readonly string[]
+  /**
+   * 评审者的挂载范围：只有本任务的改动命中其中一类路径（鉴权 / 依赖 / 契约 / 迁移）时，它才进入当前步骤的
+   * 评审者集合。缺省 = 总是挂载。
+   */
+  readonly attachOn?: readonly PathClass[]
   readonly body: string
 }
 

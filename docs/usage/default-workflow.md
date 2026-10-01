@@ -69,6 +69,13 @@ test (`tenon test code-size --json`, passing while `lines_added` stays within
 free, Verify also runs `security` as an advisory reviewer whose findings never
 block. A step cannot be left until its executors finish `done`.
 
+Reviewers are scoped by risk. `security` declares `attach_on: [auth, dependency,
+contract]` ([Agents](agents.md)), so on the tracks where Verify requires it, it is attached only
+when the task's changes touch an authentication, dependency-manifest or interface-contract
+path; a task that touches none never waits for it or dispatches it. The same task can be
+done on the lighter [`standard` lane](routing-and-workflows.md#the-standard-lane) first and
+escalated to this workflow when its changes outgrow that lane.
+
 When a required step test's command is an npm script that the project does not
 define, the test is *unconfigured*, not failed: `tenon test run` refuses it
 without writing a record and explains how to configure it, and `step.next` raises

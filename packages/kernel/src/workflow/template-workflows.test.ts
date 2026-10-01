@@ -21,7 +21,7 @@ afterEach(async () => { await rm(root, { recursive: true, force: true }) })
 
 describe('模板工作流', () => {
   test('名字表与来源一一对应', () => {
-    expect([...TEMPLATE_WORKFLOW_NAMES]).toEqual(['default', 'design-system'])
+    expect([...TEMPLATE_WORKFLOW_NAMES]).toEqual(['default', 'design-system', 'standard'])
     expect(isTemplateWorkflowName('design-system')).toBe(true)
     expect(isTemplateWorkflowName('mine')).toBe(false)
     expect(templateWorkflowSource('mine')).toBeUndefined()

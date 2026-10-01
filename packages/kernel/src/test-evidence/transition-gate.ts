@@ -1,9 +1,10 @@
 /**
  * 转换上的测试证据闸：离开一个声明了测试的步骤时，必需测试必须已通过且绑定当前候选版本。
- * 回退边（verify-fail、requirements-changed 一类）永不要求测试；隐式完结边的目标不在步骤序里，
+ * 回退边（verify-fail、requirements-changed 一类）与放弃边（scope-expanded）永不要求测试；隐式完结边的目标不在步骤序里，
  * 所以仍然要求。与文档证据同一条评估链，编排层只有一个调用点。
  */
 import type { EffectiveWorkflowPlan } from '../workflow/effective-plan-types.js'
+import { isAbandonEvent } from '../workflow/implicit-completion.js'
 import { evaluateTestEvidence, type TestEvidenceContext, type TestEvidenceReport } from './evaluate.js'
 
 /**
@@ -32,10 +33,13 @@ export async function rejectOnTestEvidence(input: {
   readonly plan: EffectiveWorkflowPlan
   readonly from: string
   readonly to: string
+  /** 转换事件；放弃边（scope-expanded）同回退边一样不要求测试。缺席按普通前进边判定。 */
+  readonly event?: string
   readonly context: TestEvidenceContext | undefined
   readonly evaluate?: TestEvidenceReader
 }): Promise<TestEvidenceRejection | undefined> {
   if (isBackwardStepEdge(input.plan, input.from, input.to)) return undefined
+  if (input.event !== undefined && isAbandonEvent(input.event)) return undefined
   const report: TestEvidenceReport = await (input.evaluate ?? evaluateTestEvidence)({
     repoRoot: input.repoRoot,
     changeDir: input.changeDir,

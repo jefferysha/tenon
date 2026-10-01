@@ -22,7 +22,7 @@ export const MANIFEST_FILE = `${BUILTIN_DIR}/manifest.json`
 export const SOURCES_FILE = 'skills/sources.yaml'
 
 export const INVENTORY = [
-  'architecture', 'backend-quality', 'builder', 'code-size', 'e2e', 'frontend-quality',
+  'architecture', 'backend-quality', 'builder', 'code-review', 'code-size', 'e2e', 'frontend-quality',
   'researcher', 'security', 'spec-consistency',
 ]
 

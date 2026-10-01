@@ -22,10 +22,10 @@ function byId(id: string): TrackDefinition {
 }
 
 describe('内建 Track 定义', () => {
-  test('既有顺序不变并在末尾追加 free；simple 绑定轻量 workflow，其余保持 default', () => {
-    expect(BUILTIN_TRACK_DEFINITIONS.map((t) => t.id)).toEqual(['chat', 'simple', 'pm', 'frontend', 'backend', 'free'])
-    expect([...BUILTIN_TRACK_IDS]).toEqual(['chat', 'simple', 'pm', 'frontend', 'backend', 'free'])
-    for (const t of BUILTIN_TRACK_DEFINITIONS.filter((item) => item.id !== 'simple')) {
+  test('既有顺序不变并在末尾追加 free；simple 与 standard 各绑定自己的 workflow，其余保持 default', () => {
+    expect(BUILTIN_TRACK_DEFINITIONS.map((t) => t.id)).toEqual(['chat', 'simple', 'standard', 'pm', 'frontend', 'backend', 'free'])
+    expect([...BUILTIN_TRACK_IDS]).toEqual(['chat', 'simple', 'standard', 'pm', 'frontend', 'backend', 'free'])
+    for (const t of BUILTIN_TRACK_DEFINITIONS.filter((item) => item.id !== 'simple' && item.id !== 'standard')) {
       expect(t.builtin, t.id).toBe(true)
       expect(t.workflow, t.id).toEqual({ default: 'default', allowed: '*' })
     }
@@ -33,6 +33,64 @@ describe('内建 Track 定义', () => {
       builtin: true,
       workflow: { default: 'simple', allowed: ['simple'] },
     })
+    expect(byId('standard')).toMatchObject({
+      builtin: true,
+      workflow: { default: 'standard', allowed: ['standard'] },
+    })
+  })
+
+  test('standard：实现类请求的默认通道——优先级压过领域轨、低于 simple，不进矩阵、非 AFK', () => {
+    expect(byId('standard')).toEqual({
+      id: 'standard',
+      label: 'Standard',
+      builtin: true,
+      workflow: { default: 'standard', allowed: ['standard'] },
+      policyProfile: {
+        reviewSeed: 'pending',
+        automationEligible: false,
+        coverageProfile: 'none',
+        routing: {
+          enabled: true,
+          pattern: BUILTIN_ROUTER_PATTERNS.standard,
+          excludePattern: BUILTIN_ROUTER_EXCLUDE_PATTERNS.standard,
+          priority: 500,
+        },
+        skills: { matrix: false, profile: '_all' },
+      },
+    })
+    const priority = (id: string): number => byId(id).policyProfile.routing.enabled
+      ? (byId(id).policyProfile.routing as { priority: number }).priority
+      : 0
+    expect(priority('simple')).toBeGreaterThan(priority('standard'))
+    for (const domain of ['frontend', 'backend', 'pm']) expect(priority('standard')).toBeGreaterThan(priority(domain))
+  })
+
+  // grep -E 的方言以 router.sh 的真实执行为准（tools/test-hooks.sh）；这里用 JS 做语义烟测：审计里漏判的请求必须命中，
+  // 重型请求必须被排除正则挡掉，讨论类前缀不在此判定。
+  test.each([
+    'add a subtract function to src/add.js',
+    'refactor the add module',
+    '给 src/add.js 加一个减法函数',
+    '重构 add 模块',
+    '修复分页的 off-by-one，并补一个回归测试',
+    'Fix the null check in parseConfig',
+  ])('standard 正则命中实现类请求：%s', (prompt) => {
+    expect(new RegExp(BUILTIN_ROUTER_PATTERNS.standard, 'i').test(prompt)).toBe(true)
+    expect(new RegExp(BUILTIN_ROUTER_EXCLUDE_PATTERNS.standard, 'i').test(prompt)).toBe(false)
+  })
+
+  test.each([
+    '新增用户登录鉴权，改数据库 schema',
+    'migrate the database to postgres',
+    '做一个竞品调研并写 PRD',
+    '重构整个项目的架构',
+    'upgrade dependencies and cut a release',
+  ])('standard 排除正则挡住重型请求：%s', (prompt) => {
+    expect(new RegExp(BUILTIN_ROUTER_EXCLUDE_PATTERNS.standard, 'i').test(prompt)).toBe(true)
+  })
+
+  test.each(['address the committee', 'the changelog is long', 'prefix match'])('standard 英文动词带词边界：%s 不命中', (prompt) => {
+    expect(new RegExp(BUILTIN_ROUTER_PATTERNS.standard, 'i').test(prompt)).toBe(false)
   })
 
   test('chat：pending / automation 可 / coverage none / 不路由 / 不进矩阵、profile _all', () => {

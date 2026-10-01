@@ -29,6 +29,10 @@ model: sonnet
 - `role` 是 `executor`（完成步骤的工作）或 `reviewer`（离开步骤前检查）。没有 `role` 的旧文件照常
   读取，按工具推断（带 `Write` / `Edit` 的算执行者），`tenon agent validate` 会提示补上这一行。
 - `version` 是可选的 semver；`hosts`（可选）限定适用的宿主；`model` 只交给认得它的宿主。
+- `attach_on`（可选，评审者用）按风险挂载：`attach_on: [auth, dependency, contract]` 表示只有任务的改动碰到这些路径类
+  （`auth`、`dependency`、`contract`、`migration`，与 `standard` 通道风险探针同一套分类）之一，它才加入该步骤。没挂载的评审者不列出、
+  不等待、不要求；`agent prompt` 对它退出 `2`。读不出改动时一律挂载（失败关闭）。官方 `security` 声明 `[auth, dependency, contract]`。
+  不写这个字段就总是挂载；已冻结了旧副本的任务行为不变。
 - 智能体写的报告以 `tenon-result` 代码块结尾。评审者只列问题、不自报结论——结论由 Tenon 按问题级别
   与步骤的 `block_at` 算出；执行者报 `done` 或 `failed`。
 
@@ -43,8 +47,9 @@ model: sonnet
 同名时项目级优先于自定义（自定义那条列为被覆盖）。任何一层都不能用官方的名字：这样的文件列为冲突，
 不会生效。
 
-官方智能体：执行者 `builder`、`researcher`；评审者 `architecture`、`backend-quality`、`code-size`、
-`e2e`、`frontend-quality`、`security`、`spec-consistency`。
+官方智能体：执行者 `builder`、`researcher`；评审者 `architecture`、`backend-quality`、`code-review`、`code-size`、
+`e2e`、`frontend-quality`、`security`、`spec-consistency`。`code-review` 是 `standard` 通道的评审者：对照宿主写在提示末尾的目标与
+验收检查看 diff，不需要规格文档。
 
 ## 在终端生成与登记
 

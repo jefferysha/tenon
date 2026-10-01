@@ -14,9 +14,8 @@ import {
   AGENT_REPORTS_DIR,
   appendAgentRunRow, currentDocumentStepVisitId, evaluateStepAgents, latestTestRun,
   nextAgentWave, parseAgentReport, projectStepAgents, readAgentRuns, readFrozenAgents, renderAgentBlocker,
-  severityRank, sha256Hex,
+  severityRank, sha256Hex, hostAgentName,
 } from '@tenon/kernel'
-import { hostAgentName } from '@tenon/kernel'
 import type {
   AgentSeverity, AgentRunRow, AgentRunSubagent, AgentView, EffectiveWorkflowPlan, FrozenAgent, HostAgentFileOutcome,
   StepAgentsCapability, TestPolicyReport, TestRunRecordV1,
@@ -28,6 +27,7 @@ import { renderAgentPrompt } from './agent-prompt.js'
 import { parseRerunReason, priorRunsOnCandidate, rerunNote, rerunRefusal } from './agent-rerun.js'
 import { renderTestPolicySummary } from './agent-prompt-tests.js'
 import { testsReadyFor } from './agent-tests-ready.js'
+import { unattachedRefusal, unattachedReviewersFor } from '../diffRisk.js'
 import { currentCandidate } from './candidate.js'
 import { resolveChangeCommand, type TestCommandContext } from './test-context.js'
 
@@ -42,6 +42,7 @@ interface AgentContext extends TestCommandContext {
   readonly candidate: string
   readonly runs: readonly AgentRunRow[]
   readonly frozen: ReadonlyMap<string, FrozenAgent>
+  readonly unattached: readonly string[]
   readonly testsReady: { readonly ready: boolean; readonly pending: readonly string[] }
   /** 本步声明了 test_policy 时的策略判定（评审者提示词的 v2 测试摘要读它）。 */
   readonly testPolicy: TestPolicyReport | undefined
@@ -83,6 +84,7 @@ async function resolveAgentCommand(
       candidate: await currentCandidate(deps, name, base.state, base.plan, stepId),
       runs: await readAgentRuns(base.dir),
       frozen,
+      unattached: await unattachedReviewersFor(deps, name, step, frozen),
       testsReady: tests.ready,
       testPolicy: tests.policy,
     }
@@ -223,6 +225,7 @@ export async function cmdAgentPrompt(
     deps.io.err(`ERROR: agent '${agent}' 未随本任务冻结；重新创建任务或改工作流`)
     return 1
   }
+  if (context.unattached.includes(agent)) return unattachedRefusal(deps, agent, frozen)
   if (options.host !== undefined && frozen.definition.hosts !== undefined
     && !frozen.definition.hosts.includes(options.host)) {
     deps.io.err(`ERROR: agent '${agent}' 不支持宿主 '${options.host}'`)

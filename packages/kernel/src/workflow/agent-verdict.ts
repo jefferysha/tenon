@@ -69,6 +69,20 @@ export interface StepAgentsInput {
   readonly stepVisit: string
   readonly candidate: string
   readonly testsReady: { readonly ready: boolean; readonly pending: readonly string[] }
+  /**
+   * 本任务的改动没有命中其 `attach_on` 的评审者（agent-scope.ts 算出）：它们不进入本步骤的评审者集合——
+   * 不投影、不排波、不产生阻断。缺席 = 全部挂载。
+   */
+  readonly unattached?: readonly string[]
+}
+
+/** 实际挂载的评审者；指向没挂载者的 depends_on 一并去掉，否则它们会永远等一个不会来的结论。 */
+export function attachedReviewers(input: Pick<StepAgentsInput, 'step' | 'unattached'>): StepAgentsCapability['reviewers'] {
+  const skipped = input.unattached ?? []
+  if (skipped.length === 0) return input.step.reviewers
+  return input.step.reviewers
+    .filter((ref) => !skipped.includes(ref.agent))
+    .map((ref) => ({ ...ref, dependsOn: ref.dependsOn.filter((dep) => !skipped.includes(dep)) }))
 }
 
 /** 本次访问内该 agent 的最后一次运行。 */
@@ -163,7 +177,7 @@ function viewOf(
 export function projectStepAgents(input: StepAgentsInput): readonly AgentView[] {
   return [
     ...input.step.executors.map((ref) => viewOf(input, ref.agent, 'executor', true, ref.dependsOn, [])),
-    ...input.step.reviewers.map((ref) =>
+    ...attachedReviewers(input).map((ref) =>
       viewOf(input, ref.agent, 'reviewer', ref.required, ref.dependsOn, ref.readsTests, ref.blockAt)),
   ]
 }
@@ -184,7 +198,7 @@ export function evaluateStepAgents(
       blockers.push({ kind: 'executor-running', agent: ref.agent, runId: row?.run_id ?? null })
     } else if (row?.result !== 'done') blockers.push({ kind: 'executor-failed', agent: ref.agent })
   }
-  for (const ref of input.step.reviewers) {
+  for (const ref of attachedReviewers(input)) {
     if (!ref.required) continue
     const { row, reruns } = judgedRun(input, ref.agent, 'reviewer', ref.blockAt)
     const state = stateOf(row, 'reviewer', input.candidate)
@@ -244,7 +258,7 @@ export function nextAgentWave(input: StepAgentsInput): AgentWave {
   const unfinished = [...views.values()].filter((view) => !finished(view))
   // 执行者全部完成之前不排评审者：步骤内的顺序恒为「执行者波次 → 必需测试 → 评审者波次」。
   const role: AgentRole = pendingExecutors.length > 0 ? 'executor' : 'reviewer'
-  const waves = agentWaves(role === 'executor' ? input.step.executors : input.step.reviewers)
+  const waves = agentWaves(role === 'executor' ? input.step.executors : attachedReviewers(input))
   const runnable = unfinished.filter((view) =>
     view.role === role && view.state !== 'running' && waitingFor(view).length === 0)
   const lowest = runnable.length === 0 ? undefined : Math.min(...runnable.map((view) => waves.get(view.agent) ?? 0))

@@ -46,7 +46,7 @@ import type { DocumentEvidenceReport } from '../state/document-evidence.js'
 import { builtinTrack, isBuiltinTrackId } from '../tracks/builtins.js'
 import type { TransitionContext } from '../flow/index.js'
 import { applyStepTransition, planStepTransition, resolveStep } from './engine.js'
-import { implicitCompletionTransition } from './implicit-completion.js'
+import { implicitCompletionTransition, isAbandonEvent } from './implicit-completion.js'
 import { retiredSkillReferences } from './retired-skills.js'
 import { rejectOnStepGates } from './transition-step-gates.js'
 // default 轨规划器单独成模块（同 rejectOnStepGates 的拆法）：本文件只留编排与 custom 轨规划。
@@ -242,6 +242,7 @@ export function createTransitionApplication(deps: TransitionApplicationDeps): Tr
         }
         if (
           prepared.documentPolicy
+          && !isAbandonEvent(command.event)
           && shouldEnforceDocumentPolicyOnTransition(prepared.documentPolicy, prepared.from, prepared.to)
         ) {
           if (!isDocumentPolicyStep(prepared.documentPolicy, prepared.from)) {
@@ -276,7 +277,7 @@ export function createTransitionApplication(deps: TransitionApplicationDeps): Tr
         }
         const testRejection = await rejectOnTestEvidence({
           repoRoot: command.root, changeDir: command.changeDir, changeName: command.changeName,
-          plan: effectivePlan, from: prepared.from, to: prepared.to, context: deps.testEvidence,
+          plan: effectivePlan, from: prepared.from, to: prepared.to, event: command.event, context: deps.testEvidence,
           ...(deps.testEvidenceReader === undefined ? {} : { evaluate: deps.testEvidenceReader }),
         })
         if (testRejection !== undefined) return testRejection
