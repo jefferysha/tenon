@@ -32550,6 +32550,7 @@ function ciTrust(options, anchored) {
       "\u5F53\u524D\u6B65\u9AA4\u7B56\u7565\u4E0B\u7684\u7528\u4F8B\u7EA7\u5224\u5B9A\uFF1A\u5957\u4EF6\u5DF2\u8FD0\u884C\u4E14\u901A\u8FC7\u3001\u5DF2\u767B\u8BB0\u7528\u4F8B\u51FA\u73B0\u5728\u62A5\u544A\u91CC\u3001\u8986\u76D6\u7387 / \u57FA\u51C6 / flaky / \u573A\u666F\u8FFD\u6EAF",
       options.candidate === "off" ? "\u5019\u9009\u4EE3\u7801\uFF1A\u672A\u6BD4\u5BF9\uFF08--candidate off\uFF09" : `\u5019\u9009\u4EE3\u7801\uFF1A\u8BB0\u5F55\u7ED1\u5B9A\u7684\u5DE5\u4F5C\u533A\u6307\u7EB9\u7B49\u4E8E\u672C\u6B21\u68C0\u51FA\u7684\u6811${options.candidate === "warn" ? "\uFF08\u4E0D\u4E00\u81F4\u53EA\u7ED9\u8B66\u544A\uFF09" : ""}`,
       "\u53D7\u4FDD\u62A4\u6D4B\u8BD5\u914D\u7F6E\uFF08\u76EE\u5F55\u3001\u57FA\u7EBF\u3001\u5DF2\u77E5\u5931\u8D25\u3001\u5DE5\u4F5C\u6D41\uFF09\u7684\u6539\u52A8\u5728\u4EFB\u52A1\u5386\u53F2\u91CC\u6709\u8BC4\u5BA1\u6279\u51C6\u884C\uFF0C\u884C\u91CC\u7684\u6458\u8981\u7B49\u4E8E\u5F53\u524D\u5185\u5BB9",
+      "\u6D4B\u8BD5\u5B8C\u6574\u6027\u4FE1\u53F7\uFF08\u6D4B\u8BD5\u6587\u4EF6\u88AB\u5220\u3001\u7528\u4F8B\u6216\u65AD\u8A00\u53D8\u5C11\u3001\u65B0\u589E\u8DF3\u8FC7\u7B49\uFF09\uFF1A\u8BFB diff \u6587\u672C\u7684\u542F\u53D1\u5F0F\uFF0C\u53EA\u8BF4\u660E\u503C\u5F97\u770B\u4E00\u773C\uFF0C\u4E0D\u662F\u8BC1\u660E\uFF1B\u7B56\u7565 `integrity: block` \u624D\u8BA9\u5B83\u5931\u8D25\uFF0C\u7F3A\u7701\u53EA\u63D0\u793A",
       anchored ? "\u951A\u70B9\uFF1Arefs/notes/tenon \u4E0A\u951A\u5B9A\u7684\u94FE\u5934\u5728\u5DF2\u63D0\u4EA4\u7684\u8BB0\u5F55\u94FE\u91CC" : "\u951A\u70B9\uFF1A\u6CA1\u6709\u627E\u5230\u951A\u70B9 note\uFF0C\u672A\u6838\u5BF9"
     ],
     unverifiable: CI_UNVERIFIABLE
@@ -95762,6 +95763,7 @@ var GIT_TIMEOUT_MS2 = 3e4;
 var MAX_BUFFER3 = 64 * 1024 * 1024;
 var NOTE_SCAN_COMMITS = 1e3;
 var MAX_NOTES_READ = 200;
+var SHALLOW_REASON = "\u6D45\u514B\u9686\u7F3A\u5C11\u4EFB\u52A1\u8D77\u70B9\u4E4B\u524D\u7684\u5386\u53F2\uFF08actions/checkout \u9700\u8981 fetch-depth: 0\uFF09";
 async function git3(cwd, args) {
   try {
     const { stdout } = await run5("git", [...args], { cwd, timeout: GIT_TIMEOUT_MS2, maxBuffer: MAX_BUFFER3 });
@@ -96274,8 +96276,14 @@ async function runPolicy(input2) {
       now: () => Date.parse(deps.clock()),
       ...input2.candidate === void 0 ? {} : { currentCandidate: input2.candidate },
       changedFiles: async () => {
-        if (input2.shallow) throw new ChangedFilesUnavailableError("\u6D45\u514B\u9686\u7F3A\u5C11\u4EFB\u52A1\u8D77\u70B9\u4E4B\u524D\u7684\u5386\u53F2\uFF08actions/checkout \u9700\u8981 fetch-depth: 0\uFF09");
+        if (input2.shallow) throw new ChangedFilesUnavailableError(SHALLOW_REASON);
         return input2.session.changedFiles({ ...start, baseBranch: await resolveBaseRef(deps.cwd, start.baseBranch) });
+      },
+      // 测试完整性：与转换门禁同一份判定（`integrity: block` 挡住，缺省 notice 只提示）；读不出起点以来的改动行时
+      // 由策略失败关闭（block → files-diff-unavailable）或提示未检查（notice → files-unchecked），不降级成「没有信号」。
+      integrityDiff: async (accept) => {
+        if (input2.shallow) throw new ChangedFilesUnavailableError(SHALLOW_REASON);
+        return integrityDiffInSession(input2.session, { ...start, baseBranch: await resolveBaseRef(deps.cwd, start.baseBranch) })(accept);
       }
     }
   });
@@ -96414,7 +96422,7 @@ async function protectedFindings(ctx, selected, state) {
     `\u8BFB\u4E0D\u51FA\u672C\u4EFB\u52A1\u7684\u6539\u52A8\uFF0C\u65E0\u6CD5\u6838\u5BF9\u53D7\u4FDD\u62A4\u6D4B\u8BD5\u914D\u7F6E\u7684\u6279\u51C6\uFF1A${why}`,
     { path: `${selected.relDir}/.pipeline-history.jsonl` }
   )];
-  if (ctx.shallow) return unavailable("\u6D45\u514B\u9686\u7F3A\u5C11\u4EFB\u52A1\u8D77\u70B9\u4E4B\u524D\u7684\u5386\u53F2\uFF08actions/checkout \u9700\u8981 fetch-depth: 0\uFF09");
+  if (ctx.shallow) return unavailable(SHALLOW_REASON);
   const start = changeStartOfFields(state.fields);
   let changes;
   try {
