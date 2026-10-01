@@ -1,10 +1,14 @@
 import { createHash } from 'node:crypto'
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
+import { realpathSync } from 'node:fs'
 import { chmod, copyFile, mkdtemp, mkdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
+import { freezeTrustedExecutable } from '../commands/trusted-executable.js'
+import { expectedStableLaunchers, writeStableLaunchers } from './launchers.js'
+import { resolveRuntimePaths } from './paths.js'
 import { hashReleasePayload } from './release-payload.js'
 import { runtimeReleaseIdV2 } from './release-store-codecs.js'
 
@@ -51,12 +55,16 @@ async function payloadDigest(root: string): Promise<string> {
   return hash.digest('hex')
 }
 
-async function createRelease(runtimeHome: string, marker: string): Promise<string> {
+async function createRelease(
+  runtimeHome: string,
+  marker: string,
+  cliSource = `process.stdout.write(${JSON.stringify(marker)})\n`,
+): Promise<string> {
   const stagingPayload = join(runtimeHome, 'fixture', marker, 'payload')
   await mkdir(join(stagingPayload, 'packages', 'cli', 'dist'), { recursive: true })
   await mkdir(join(stagingPayload, 'runtime'), { recursive: true })
   await mkdir(join(stagingPayload, 'hooks'), { recursive: true })
-  await writeFile(join(stagingPayload, 'packages', 'cli', 'dist', 'tenon.mjs'), `process.stdout.write(${JSON.stringify(marker)})\n`, 'utf8')
+  await writeFile(join(stagingPayload, 'packages', 'cli', 'dist', 'tenon.mjs'), cliSource, 'utf8')
   await writeFile(join(stagingPayload, 'hooks', 'probe.sh'), '#!/bin/bash\nprintf TRUSTED_HOOK\n', 'utf8')
   await copyFile(bootstrapSource, join(stagingPayload, 'runtime', 'tenon-bootstrap.mjs'))
   await chmod(join(stagingPayload, 'runtime', 'tenon-bootstrap.mjs'), 0o755)
@@ -650,5 +658,112 @@ describe('stable runtime bootstrap', () => {
     expect((await runBootstrap(root, bootstrap, ['hook', 'gate'], mutation)).code).toBe(2)
     expect((await runBootstrap(root, bootstrap, ['hook', 'gate'], recovery)).code).toBe(0)
     expect((await runBootstrap(root, bootstrap, ['hook', 'gate'], attacker)).code).toBe(2)
+  })
+
+  it('treats a cache entry keyed by an older stat fingerprint as a miss and rewrites it', async () => {
+    const root = await freshRoot('digest-cache-stale-fingerprint')
+    const activeRelease = await createRelease(root, 'CACHED_ACTIVE_1')
+    const bootstrap = await installBootstrap(root)
+    const state = await selectActive(root, activeRelease)
+    const digest = activeRelease.slice('sha256-'.length)
+    // v0.2.0 keyed the fingerprint by the device number, which macOS reassigns on every reboot.
+    await writeFile(join(state, 'payload-digest-cache.json'), `${JSON.stringify({
+      version: 1,
+      releases: { [activeRelease]: { manifestVersion: 1, payloadDigest: digest, fingerprint: '0'.repeat(64) } },
+    })}\n`, 'utf8')
+
+    expect(await runBootstrap(root, bootstrap, ['cli', '--help'])).toMatchObject({ code: 0, stdout: 'CACHED_ACTIVE_1' })
+
+    const cache = JSON.parse(await readFile(join(state, 'payload-digest-cache.json'), 'utf8'))
+    expect(cache.releases[activeRelease].fingerprint).toMatch(/^[0-9a-f]{64}$/)
+    expect(cache.releases[activeRelease].fingerprint).not.toBe('0'.repeat(64))
+  })
+
+  const canonicalNode = (() => {
+    try {
+      return process.platform !== 'win32'
+        && realpathSync(process.execPath) === process.execPath
+        && freezeTrustedExecutable(process.execPath) !== undefined
+    } catch {
+      return false
+    }
+  })()
+
+  function guardBlock(launcher: string): string {
+    return launcher.slice(launcher.indexOf('tenon_node_state=changed'), launcher.indexOf('\nexec '))
+  }
+
+  it.skipIf(!canonicalNode)('writes rollback launchers whose Node guard is byte-identical to the installer generator', async () => {
+    const root = await freshRoot('rollback-guard-parity')
+    const activeRelease = await createRelease(root, 'active')
+    const previousRelease = await createRelease(root, 'previous')
+    const bootstrap = await installBootstrap(root)
+    const state = join(root, 'state')
+    await mkdir(state, { recursive: true })
+    await writeFile(join(state, 'selection.json'), `${JSON.stringify({
+      version: 1,
+      revision: 2,
+      activeRelease,
+      previousRelease,
+      updatedAt: '2026-07-24T00:00:00Z',
+    })}\n`, 'utf8')
+    expect((await runBootstrap(root, bootstrap, ['cli', 'runtime', 'repair', '--rollback'])).code).toBe(0)
+
+    const home = join(root, 'home')
+    const paths = resolveRuntimePaths({ env: { TENON_RUNTIME_HOME: root }, homeDir: home, platform: process.platform })
+    expect(paths.dataRoot).toBe(join(root, 'data'))
+    const trusted = freezeTrustedExecutable(process.execPath)
+    if (trusted === undefined) throw new Error('canonical test Node must be trustworthy')
+    const expected = expectedStableLaunchers(paths, home, process.execPath, trusted.proof)
+    for (const [name, file] of [['tenon', 'tenon'], ['hook', 'tenon-hook']] as const) {
+      const written = await readFile(join(home, '.local', 'bin', file), 'utf8')
+      const generated = expected[name].state.kind === 'file' ? expected[name].state.content : ''
+      expect(guardBlock(written)).not.toBe('')
+      expect(guardBlock(written)).toBe(guardBlock(generated))
+      expect(written).not.toContain('%d')
+    }
+  })
+
+  it.skipIf(process.platform === 'win32')('runs the repair command a replaced-Node launcher prints through the real bootstrap', async () => {
+    const root = await freshRoot('node-repair-through-bootstrap')
+    const activeRelease = await createRelease(
+      root,
+      'repair',
+      "process.stdout.write(`CLI:${process.argv.slice(2).join(' ')}`)\n",
+    )
+    await installBootstrap(root)
+    await selectActive(root, activeRelease)
+    const home = join(root, 'home')
+    await mkdir(home, { recursive: true })
+    const paths = resolveRuntimePaths({ env: { TENON_RUNTIME_HOME: root }, homeDir: home, platform: process.platform })
+    const pinned = join(root, 'pinned-node')
+    await writeFile(pinned, '#!/bin/sh\nexit 0\n', { mode: 0o755 })
+    const trusted = freezeTrustedExecutable(pinned)
+    if (trusted === undefined) throw new Error('test fixture Node must be trustworthy')
+    const launchers = await writeStableLaunchers(paths, home, {
+      nodeExecutable: trusted.executable,
+      nodeProof: trusted.proof,
+      verifyNode: trusted.assert,
+    })
+    // Node was upgraded in place: the launcher it pinned now refuses to start anything.
+    await writeFile(pinned, '#!/bin/sh\nexit 99\n')
+
+    const refused = spawnSync('/bin/sh', [launchers.tenon, 'setup', '--claude'], {
+      encoding: 'utf8',
+      env: { PATH: '/usr/bin:/bin' },
+    })
+    expect(refused.status).toBe(126)
+    const message = refused.stderr.trim()
+    expect(message.split('\n')).toHaveLength(1)
+    const start = message.indexOf('repair with: ') + 'repair with: '.length
+    const command = message.slice(start, message.indexOf('   (Codex'))
+
+    const repaired = spawnSync('/bin/sh', ['-c', command], {
+      encoding: 'utf8',
+      env: { PATH: `${dirname(process.execPath)}:/usr/bin:/bin`, HOME: home },
+    })
+    expect(repaired.stderr).toBe('')
+    expect(repaired.status).toBe(0)
+    expect(repaired.stdout).toBe('CLI:setup --claude')
   })
 })

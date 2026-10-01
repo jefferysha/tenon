@@ -12,6 +12,46 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 
 面向用户的解释、影响与操作步骤默认使用中文。
 
+## v0.2.1 · 2026-10-01
+
+v0.2.0 的热修复版。macOS 重启之后，每条 `tenon` 命令和每个 hook 都报
+`tenon runtime Node identity changed; rerun tenon setup --codex or tenon setup --claude`，而这条提示让你运行的命令又被同一道检查拒绝，安装无法自己修复。
+
+### 修复
+
+- 稳定 launcher（`~/.local/bin/tenon` 与 `~/.local/bin/tenon-hook`）把 Node 可执行文件及其每一级父目录的设备号（`st_dev`）钉了进去。macOS 在每次重启后会给同一个卷分配新的设备号，所以这个钉住的值撑不过一次重启。launcher 不再保存设备号。它仍然拒绝 Node 路径上的任何符号链接，仍然钉住 Node 的 inode、权限位、属主和大小，以及每级父目录的 inode、权限位和属主，也仍然拿 Node 的 SHA-256 与 setup 时记录的摘要比对。Linux 的 launcher 同样修改。
+- launcher 的 Node 检查不通过时，现在可以在命令行里修复，不会再把你锁在外面。
+  - Node 的字节仍是钉住的那份，只是身份信息变了（例如同一个 Node 被重装）：`tenon setup`、`tenon update`、`tenon doctor` 和 `tenon runtime` 仍然能运行，因此 `tenon setup --claude`（或 `--codex`）可以重新钉住。其他命令只打印一行，写明这条修复命令。
+  - Node 被替换或删除（例如原地升级了 Node）：钉住的程序已经不在，所以没有任何命令能经 launcher 运行。它打印的那一行是一条完整命令，用你 `PATH` 上的 Node 运行 bootstrap：`env TENON_RUNTIME_ROOTS=… node …/bootstrap/active.mjs cli setup --claude`（Codex 用 `--codex`）。setup 随后钉住这个 Node。
+- hook 不再在每次工具调用前重复打印同一条错误。launcher 无法验证 Node 时，hook 打印一条消息，之后 30 分钟保持静默（标记文件 `launcher-node-identity.notice` 在 Tenon 状态目录里）。它从不阻断宿主：第一次以非阻断状态码退出，之后退出码为 0。
+- 载荷摘要缓存（状态目录里的 `payload-digest-cache.json`）也不再用设备号作键，所以重启后的第一次分发不会重新哈希整个载荷。
+
+### 升级动作
+
+如果每条命令都已经报 `Node identity changed`，对使用的每个宿主各运行一次版本化安装命令。它不经过出问题的 launcher：
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.2.1/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.2.1/install.sh | /bin/bash -s -- --codex
+```
+
+如果 v0.2.0 对你还能用，先运行 `tenon update --codex`（或 `--claude`），再运行一次 `tenon setup --codex`（或 `--claude`）。正在运行的更新程序仍是 v0.2.0，它会把旧 launcher 原样写回；随后的 setup 运行的是 v0.2.1，才会写入修复后的 launcher。全新安装 v0.2.1 无需额外操作。
+
+### 兼容性
+
+- 没有改变任何 CLI 命令、选项、项目文件或 Dashboard API。变化的只是 launcher 文本（不含设备号、失败提示更明确），项目和 runtime 状态不受影响。
+- v0.2.0 写下的 launcher 在 setup 重写之前保持旧行为，见上文。
+
+### 验证
+
+```bash
+tenon runtime status
+tenon doctor
+grep -c '%d' ~/.local/bin/tenon
+```
+
+runtime 报告 active release，doctor 为绿。`grep` 输出 `0`：launcher 不再保存设备号。下次重启后 `tenon runtime status` 仍然可用。
+
 ## v0.2.0 · 2026-09-30
 
 能力补齐版。智能体改为在终端编写并注册，整条工作流可以在一张画布上看全，每个任务都要登记并运行自己的全部测试。默认工作流随之改变：

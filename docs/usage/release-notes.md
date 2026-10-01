@@ -4,6 +4,64 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
+## v0.2.1 · 2026-10-01
+
+A hotfix for v0.2.0. After a restart of macOS every `tenon` command and every hook failed with
+`tenon runtime Node identity changed; rerun tenon setup --codex or tenon setup --claude`, and the command that message
+named was refused by the same check, so the install could not repair itself.
+
+### Fixed
+
+- The stable launchers (`~/.local/bin/tenon` and `~/.local/bin/tenon-hook`) pinned the device number (`st_dev`) of the
+  Node binary and of each parent directory. macOS gives the same volume a new device number at every restart, so the pin
+  never survived one. Launchers no longer store a device number. They still refuse a symlink anywhere on the Node path,
+  still pin the inode, mode, owner and size of the Node binary and the inode, mode and owner of each parent directory,
+  and still compare the SHA-256 of the Node binary with the digest taken at setup. Linux launchers get the same change.
+- A launcher that fails its Node check can now be repaired from the command line instead of locking you out.
+  - The Node bytes are still the pinned bytes and only their identity moved (for example the same Node was reinstalled):
+    `tenon setup`, `tenon update`, `tenon doctor` and `tenon runtime` still run, so `tenon setup --claude` (or
+    `--codex`) re-pins. Any other command prints one line that names this repair.
+  - The Node was replaced or removed (for example an in-place Node upgrade): nothing runs through the launcher, because
+    the pinned program is gone. The one line it prints is a complete command that runs the bootstrap with the Node on
+    your `PATH`: `env TENON_RUNTIME_ROOTS=… node …/bootstrap/active.mjs cli setup --claude` (use `--codex` for Codex).
+    Setup then pins that Node.
+- Hooks no longer print the same error before every tool call. When the launcher cannot verify Node, a hook prints one
+  message and then stays silent for 30 minutes (the marker `launcher-node-identity.notice` lives in the Tenon state
+  directory). It never blocks the host; it exits with a non-blocking status the first time and 0 afterwards.
+- The payload digest cache (`payload-digest-cache.json` in the state directory) no longer keys on the device number
+  either, so the first dispatch after a restart does not re-hash the whole payload.
+
+### What you need to do
+
+If every command already fails with `Node identity changed`, run the versioned installer once for each host you use. It
+does not go through the broken launcher:
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.2.1/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.2.1/install.sh | /bin/bash -s -- --codex
+```
+
+If v0.2.0 still works for you, run `tenon update --codex` (or `--claude`) and then `tenon setup --codex` (or
+`--claude`) once more. The updater that runs is still v0.2.0 and rewrites the old launchers; the setup that follows
+runs v0.2.1 and writes the fixed ones. A fresh install of v0.2.1 needs nothing.
+
+### Compatibility
+
+- No CLI command, option, project file or Dashboard API changed. The launcher text changes (no device number, new
+  failure messages); projects and the runtime state are untouched.
+- A launcher written by v0.2.0 keeps the old behaviour until setup rewrites it, as described above.
+
+### Verify
+
+```bash
+tenon runtime status
+tenon doctor
+grep -c '%d' ~/.local/bin/tenon
+```
+
+The runtime reports the active release and doctor is green. The `grep` prints `0`: the launcher stores no device number.
+After the next restart `tenon runtime status` still works.
+
 ## v0.2.0 · 2026-09-30
 
 A capability release. Agents are now written and registered in the terminal, the whole workflow can be seen as one

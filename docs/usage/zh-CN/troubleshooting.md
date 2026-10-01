@@ -78,6 +78,16 @@ npm run docs:smoke
 
 如果 HTML 200 但哈希 JS 404，通常是 preview 进程仍缓存旧 dist 文件表。停止旧 preview，基于当前 dist 重启，再验证搜索、主题和移动导航。
 
+#### 命令或 hook 报 `tenon runtime Node identity changed`
+
+稳定 launcher 会钉住 setup 时选定的 Node：路径上没有符号链接，Node 的 inode、权限位、属主和大小，每级父目录的 inode、权限位和属主，以及 Node 字节的 SHA-256。v0.2.0 还钉了设备号，而 macOS 每次重启都会换设备号，于是重启后所有命令和 hook 都失败。v0.2.1 不再保存设备号。
+
+- 提示里写的是 `tenon setup --claude`（或 `--codex`）：Node 的字节没变，只是身份信息变了。`tenon setup`、`tenon update`、`tenon doctor` 和 `tenon runtime` 仍能经 launcher 运行，对你的宿主运行 setup 命令即可重新钉住。
+- 提示里打印的是以 `env TENON_RUNTIME_ROOTS=` 开头的命令：钉住的 Node 被替换或删除了，例如原地升级了 Node。原样运行这条命令，它用你 `PATH` 上的 Node 启动 bootstrap，setup 会钉住这个 Node。Codex 把 `--claude` 换成 `--codex`。
+- v0.2.0 的 launcher 已经拒绝一切命令时，对该宿主运行一次版本化的 `install.sh`，它不经过 launcher。
+
+hook 最多每 30 分钟打印一次这条消息，其余时候无输出地以 0 退出，从不阻断宿主。标记文件是 Tenon 状态目录里的 `launcher-node-identity.notice`。
+
 ### 3. 选择恢复路径
 
 - 实现缺陷：Verify 写失败报告，走 `verify-fail` 返回 Build；

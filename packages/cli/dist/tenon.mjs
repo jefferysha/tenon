@@ -58252,36 +58252,74 @@ import { homedir as homedir8 } from "node:os";
 import { dirname as dirname22, join as join99 } from "node:path";
 
 // packages/cli/src/runtime/stable-launcher-node-guard.ts
+var HOOK_NOTICE_QUIET_MINUTES = 30;
+var HOOK_NOTICE_MARKER = "launcher-node-identity.notice";
+var REPAIR_COMMANDS = "setup|update|doctor|runtime";
 function shellQuote2(value) {
   return `'${value.replace(/'/g, `'"'"'`)}'`;
 }
 function statValue(proof, platform2, includeSize) {
   const mode = platform2 === "darwin" ? proof.mode.toString(8) : proof.mode.toString(16);
-  return [proof.dev, proof.ino, mode, proof.uid, ...includeSize ? [proof.size] : []].join(":");
+  return [proof.ino, mode, proof.uid, ...includeSize ? [proof.size] : []].join(":");
 }
-function nodeIdentityGuard(proof) {
+function nodeIdentityGuard(proof, context) {
   if (proof === void 0) return "";
   if (proof.platform !== "darwin" && proof.platform !== "linux") {
     throw new Error(`stable launcher \u4E0D\u652F\u6301\u6301\u4E45\u5316 ${proof.platform} Node identity`);
   }
-  const statArgs = proof.platform === "darwin" ? "-f '%d:%i:%p:%u:%z'" : "-c '%d:%i:%f:%u:%s'";
-  const dirStatArgs = proof.platform === "darwin" ? "-f '%d:%i:%p:%u'" : "-c '%d:%i:%f:%u'";
-  const followArgs = proof.platform === "darwin" ? "-L -f '%d:%i'" : "-L -c '%d:%i'";
-  const hash = proof.platform === "darwin" ? `/usr/bin/shasum -a 256 ${shellQuote2(proof.executable.path)}` : `/usr/bin/sha256sum ${shellQuote2(proof.executable.path)}`;
-  const parentChecks = proof.parents.map((parent) => `
-[ ! -L ${shellQuote2(parent.path)} ] || tenon_node_identity_changed
-[ "$(/usr/bin/stat ${dirStatArgs} ${shellQuote2(parent.path)} 2>/dev/null)" = ${shellQuote2(statValue(parent, proof.platform, false))} ] || tenon_node_identity_changed`).join("");
-  return `
-tenon_node_identity_changed() {
-  printf 'tenon runtime Node identity changed; rerun tenon setup --codex or tenon setup --claude\\n' >&2
+  const exe = shellQuote2(proof.executable.path);
+  const statArgs = proof.platform === "darwin" ? "-f '%i:%p:%u:%z'" : "-c '%i:%f:%u:%s'";
+  const dirStatArgs = proof.platform === "darwin" ? "-f '%i:%p:%u'" : "-c '%i:%f:%u'";
+  const followArgs = proof.platform === "darwin" ? "-L -f '%i'" : "-L -c '%i'";
+  const hash = proof.platform === "darwin" ? `/usr/bin/shasum -a 256 ${exe}` : `/usr/bin/sha256sum ${exe}`;
+  const plainChecks = [proof.executable, ...proof.parents].map((entry2) => `[ ! -L ${shellQuote2(entry2.path)} ]`);
+  const pinChecks = [
+    `[ "$(/usr/bin/stat ${statArgs} ${exe} 2>/dev/null)" = ${shellQuote2(statValue(proof.executable, proof.platform, true))} ]`,
+    `[ "$(/usr/bin/stat ${followArgs} ${shellQuote2(proof.requestedPath)} 2>/dev/null)" = ${shellQuote2(String(proof.executable.ino))} ]`,
+    ...proof.parents.map((parent) => `[ "$(/usr/bin/stat ${dirStatArgs} ${shellQuote2(parent.path)} 2>/dev/null)" = ${shellQuote2(statValue(parent, proof.platform, false))} ]`)
+  ];
+  const moved = "tenon runtime Node identity changed (the pinned Node binary itself is unchanged); repair with: tenon setup --claude   (Codex: tenon setup --codex)";
+  const changed = `tenon runtime Node identity changed (the pinned Node binary was replaced or removed); trust the Node on your PATH and repair with: env ${context.rootAssignment} node ${shellQuote2(context.bootstrap)} cli setup --claude   (Codex: use --codex)`;
+  const marker = shellQuote2(`${context.stateRoot}/${HOOK_NOTICE_MARKER}`);
+  const outcome = context.mode === "cli" ? `case "$tenon_node_state" in
+  ok) ;;
+  moved)
+    # The bytes are the pinned bytes, so setup/update (which re-pin) and the diagnostics may run.
+    case "\${1:-}" in
+      ${REPAIR_COMMANDS}) ;;
+      *) printf '%s\\n' ${shellQuote2(moved)} >&2; exit 126 ;;
+    esac ;;
+  *) printf '%s\\n' ${shellQuote2(changed)} >&2; exit 126 ;;
+esac` : `# A hook must never block or spam the host: print one notice per quiet window, then fail open.
+tenon_node_notice() {
+  tenon_notice_marker=${marker}
+  if [ -f "$tenon_notice_marker" ] && [ ! -L "$tenon_notice_marker" ] \\
+    && [ -n "$(/usr/bin/find "$tenon_notice_marker" -mmin -${HOOK_NOTICE_QUIET_MINUTES} 2>/dev/null)" ]; then
+    exit 0
+  fi
+  /bin/mkdir -p ${shellQuote2(context.stateRoot)} 2>/dev/null || exit 0
+  /bin/rm -f "$tenon_notice_marker" 2>/dev/null || exit 0
+  ( set -C; : > "$tenon_notice_marker" ) 2>/dev/null || exit 0
+  printf '%s\\n' "$1" >&2
   exit 126
 }
-[ ! -L ${shellQuote2(proof.executable.path)} ] || tenon_node_identity_changed
-[ "$(/usr/bin/stat ${statArgs} ${shellQuote2(proof.executable.path)} 2>/dev/null)" = ${shellQuote2(statValue(proof.executable, proof.platform, true))} ] || tenon_node_identity_changed
-[ "$(/usr/bin/stat ${followArgs} ${shellQuote2(proof.requestedPath)} 2>/dev/null)" = ${shellQuote2(`${proof.executable.dev}:${proof.executable.ino}`)} ] || tenon_node_identity_changed${parentChecks}
-tenon_node_digest_output="$(${hash} 2>/dev/null)" || tenon_node_identity_changed
-tenon_node_digest="${"${tenon_node_digest_output%% *}"}"
-[ "$tenon_node_digest" = ${shellQuote2(proof.sha256)} ] || tenon_node_identity_changed
+case "$tenon_node_state" in
+  ok) ;;
+  moved) tenon_node_notice ${shellQuote2(moved)} ;;
+  *) tenon_node_notice ${shellQuote2(changed)} ;;
+esac`;
+  return `
+tenon_node_state=changed
+if ${plainChecks.join(" \\\n  && ")}; then
+  tenon_node_digest_output="$(${hash} 2>/dev/null)" || tenon_node_digest_output=''
+  if [ "\${tenon_node_digest_output%% *}" = ${shellQuote2(proof.sha256)} ]; then
+    tenon_node_state=moved
+    if ${pinChecks.join(" \\\n      && ")}; then
+      tenon_node_state=ok
+    fi
+  fi
+fi
+${outcome}
 `;
 }
 
@@ -58291,18 +58329,18 @@ function shellQuote3(value) {
 }
 function launcherText(paths, mode, nodeExecutable, nodeProof) {
   const bootstrap = join99(paths.bootstrapRoot, "active.mjs");
-  const rootContract = serializeProductRootContract(paths);
+  const rootAssignment = `TENON_RUNTIME_ROOTS=${shellQuote3(serializeProductRootContract(paths))}`;
   const missing3 = mode === "hook" ? "exit 0" : 'printf "tenon runtime bootstrap unavailable; run tenon setup --codex or tenon setup --claude\\n" >&2\n  exit 1';
   return `#!/bin/sh
 set -eu
-export TENON_RUNTIME_ROOTS=${shellQuote3(rootContract)}
+export ${rootAssignment}
 # N-1 bootstrap ABI: previous verified releases read these exact roots during rollback.
 export TENON_RUNTIME_DATA_ROOT=${shellQuote3(paths.dataRoot)}
 export TENON_RUNTIME_STATE_ROOT=${shellQuote3(paths.stateRoot)}
 export TENON_RUNTIME_CONFIG_ROOT=${shellQuote3(paths.configRoot)}
 export TENON_NODE_PATH=${shellQuote3(nodeExecutable)}
 [ -f ${shellQuote3(bootstrap)} ] || { ${missing3}; }
-${nodeIdentityGuard(nodeProof)}
+${nodeIdentityGuard(nodeProof, { mode, bootstrap, rootAssignment, stateRoot: paths.stateRoot })}
 exec ${shellQuote3(nodeExecutable)} ${shellQuote3(bootstrap)} ${mode} "$@"
 `;
 }

@@ -333,9 +333,11 @@ async function hashPayload(root, manifestVersion) {
 
 // Stat fingerprint of the same payload tree, without reading file bytes. ctime and inode are part of the
 // key, and ordinary writers cannot preserve them, so any content or mode change forces a full re-hash.
+// The device number is deliberately not part of it: the cache persists across reboots, and macOS assigns
+// a new st_dev per mount after every restart, which would force a needless full re-hash on first use.
 async function payloadStatFingerprint(root) {
   const hash = createHash('sha256')
-  hashFrame(hash, 'tenon-payload-stat-v1')
+  hashFrame(hash, 'tenon-payload-stat-v2')
   async function visit(dir, rel) {
     const entries = await readdir(dir, { withFileTypes: true })
     entries.sort(compareUtf8Names)
@@ -347,7 +349,7 @@ async function payloadStatFingerprint(root) {
         throw new Error(`payload contains unsupported entry: ${childRel}`)
       }
       for (const field of [
-        item.isDirectory() ? 'directory' : 'file', childRel, item.mode, item.size, item.mtimeNs, item.ctimeNs, item.ino, item.dev,
+        item.isDirectory() ? 'directory' : 'file', childRel, item.mode, item.size, item.mtimeNs, item.ctimeNs, item.ino,
       ]) hashFrame(hash, String(field))
       if (item.isDirectory()) await visit(child, childRel)
     }
@@ -630,9 +632,11 @@ function shellQuote(value) {
   return `'${value.replace(/'/g, `'"'"'`)}'`
 }
 
+// Only fields that survive a reboot are persisted: macOS assigns a new st_dev per mount after every
+// restart, so pinning it locked users out of tenon. Inode, mode, owner, size and the digest remain.
 function launcherStatValue(proof, includeSize) {
   const mode = process.platform === 'darwin' ? proof.mode.toString(8) : proof.mode.toString(16)
-  return [proof.dev, proof.ino, mode, proof.uid, ...(includeSize ? [proof.size] : [])].join(':')
+  return [proof.ino, mode, proof.uid, ...(includeSize ? [proof.size] : [])].join(':')
 }
 
 async function currentNodeProof() {
@@ -673,28 +677,73 @@ async function currentNodeProof() {
   }
 }
 
-function launcherNodeGuard(proof) {
+// Mirrors packages/cli/src/runtime/stable-launcher-node-guard.ts byte for byte; a bootstrap test pins parity.
+const HOOK_NOTICE_QUIET_MINUTES = 30
+const REPAIR_COMMANDS = 'setup|update|doctor|runtime'
+
+function launcherNodeGuard(proof, context) {
   if (proof === undefined) return ''
-  const statArgs = process.platform === 'darwin' ? "-f '%d:%i:%p:%u:%z'" : "-c '%d:%i:%f:%u:%s'"
-  const dirStatArgs = process.platform === 'darwin' ? "-f '%d:%i:%p:%u'" : "-c '%d:%i:%f:%u'"
-  const followArgs = process.platform === 'darwin' ? "-L -f '%d:%i'" : "-L -c '%d:%i'"
-  const hash = process.platform === 'darwin'
-    ? `/usr/bin/shasum -a 256 ${shellQuote(proof.executable.path)}`
-    : `/usr/bin/sha256sum ${shellQuote(proof.executable.path)}`
-  const parentChecks = proof.parents.map((parent) => `
-[ ! -L ${shellQuote(parent.path)} ] || tenon_node_identity_changed
-[ "$(/usr/bin/stat ${dirStatArgs} ${shellQuote(parent.path)} 2>/dev/null)" = ${shellQuote(launcherStatValue(parent, false))} ] || tenon_node_identity_changed`).join('')
-  return `
-tenon_node_identity_changed() {
-  printf 'tenon runtime Node identity changed; rerun tenon setup --codex or tenon setup --claude\\n' >&2
+  const darwin = process.platform === 'darwin'
+  const exe = shellQuote(proof.executable.path)
+  const statArgs = darwin ? "-f '%i:%p:%u:%z'" : "-c '%i:%f:%u:%s'"
+  const dirStatArgs = darwin ? "-f '%i:%p:%u'" : "-c '%i:%f:%u'"
+  const followArgs = darwin ? "-L -f '%i'" : "-L -c '%i'"
+  const hash = darwin ? `/usr/bin/shasum -a 256 ${exe}` : `/usr/bin/sha256sum ${exe}`
+  const plainChecks = [proof.executable, ...proof.parents].map((entry) => `[ ! -L ${shellQuote(entry.path)} ]`)
+  const pinChecks = [
+    `[ "$(/usr/bin/stat ${statArgs} ${exe} 2>/dev/null)" = ${shellQuote(launcherStatValue(proof.executable, true))} ]`,
+    `[ "$(/usr/bin/stat ${followArgs} ${shellQuote(proof.requestedPath)} 2>/dev/null)" = ${shellQuote(String(proof.executable.ino))} ]`,
+    ...proof.parents.map((parent) =>
+      `[ "$(/usr/bin/stat ${dirStatArgs} ${shellQuote(parent.path)} 2>/dev/null)" = ${shellQuote(launcherStatValue(parent, false))} ]`),
+  ]
+  const moved = 'tenon runtime Node identity changed (the pinned Node binary itself is unchanged); '
+    + 'repair with: tenon setup --claude   (Codex: tenon setup --codex)'
+  const changed = 'tenon runtime Node identity changed (the pinned Node binary was replaced or removed); '
+    + 'trust the Node on your PATH and repair with: '
+    + `env TENON_RUNTIME_ROOTS=${shellQuote(context.rootContract)} node ${shellQuote(context.bootstrap)} `
+    + 'cli setup --claude   (Codex: use --codex)'
+  const marker = shellQuote(`${context.stateRoot}/launcher-node-identity.notice`)
+  const outcome = context.mode === 'cli'
+    ? `case "$tenon_node_state" in
+  ok) ;;
+  moved)
+    # The bytes are the pinned bytes, so setup/update (which re-pin) and the diagnostics may run.
+    case "\${1:-}" in
+      ${REPAIR_COMMANDS}) ;;
+      *) printf '%s\\n' ${shellQuote(moved)} >&2; exit 126 ;;
+    esac ;;
+  *) printf '%s\\n' ${shellQuote(changed)} >&2; exit 126 ;;
+esac`
+    : `# A hook must never block or spam the host: print one notice per quiet window, then fail open.
+tenon_node_notice() {
+  tenon_notice_marker=${marker}
+  if [ -f "$tenon_notice_marker" ] && [ ! -L "$tenon_notice_marker" ] \\
+    && [ -n "$(/usr/bin/find "$tenon_notice_marker" -mmin -${HOOK_NOTICE_QUIET_MINUTES} 2>/dev/null)" ]; then
+    exit 0
+  fi
+  /bin/mkdir -p ${shellQuote(context.stateRoot)} 2>/dev/null || exit 0
+  /bin/rm -f "$tenon_notice_marker" 2>/dev/null || exit 0
+  ( set -C; : > "$tenon_notice_marker" ) 2>/dev/null || exit 0
+  printf '%s\\n' "$1" >&2
   exit 126
 }
-[ ! -L ${shellQuote(proof.executable.path)} ] || tenon_node_identity_changed
-[ "$(/usr/bin/stat ${statArgs} ${shellQuote(proof.executable.path)} 2>/dev/null)" = ${shellQuote(launcherStatValue(proof.executable, true))} ] || tenon_node_identity_changed
-[ "$(/usr/bin/stat ${followArgs} ${shellQuote(proof.requestedPath)} 2>/dev/null)" = ${shellQuote(`${proof.executable.dev}:${proof.executable.ino}`)} ] || tenon_node_identity_changed${parentChecks}
-tenon_node_digest_output="$(${hash} 2>/dev/null)" || tenon_node_identity_changed
-tenon_node_digest="${'${tenon_node_digest_output%% *}'}"
-[ "$tenon_node_digest" = ${shellQuote(proof.sha256)} ] || tenon_node_identity_changed
+case "$tenon_node_state" in
+  ok) ;;
+  moved) tenon_node_notice ${shellQuote(moved)} ;;
+  *) tenon_node_notice ${shellQuote(changed)} ;;
+esac`
+  return `
+tenon_node_state=changed
+if ${plainChecks.join(' \\\n  && ')}; then
+  tenon_node_digest_output="$(${hash} 2>/dev/null)" || tenon_node_digest_output=''
+  if [ "\${tenon_node_digest_output%% *}" = ${shellQuote(proof.sha256)} ]; then
+    tenon_node_state=moved
+    if ${pinChecks.join(' \\\n      && ')}; then
+      tenon_node_state=ok
+    fi
+  fi
+fi
+${outcome}
 `
 }
 
@@ -720,7 +769,7 @@ export TENON_RUNTIME_DATA_ROOT=${shellQuote(paths.dataRoot)}
 export TENON_RUNTIME_STATE_ROOT=${shellQuote(paths.stateRoot)}
 export TENON_RUNTIME_CONFIG_ROOT=${shellQuote(paths.configRoot)}
 [ -f ${shellQuote(bootstrap)} ] || { ${missing}; }
-${launcherNodeGuard(nodeProof)}
+${launcherNodeGuard(nodeProof, { mode, bootstrap, rootContract: productRootContract(paths), stateRoot: paths.stateRoot })}
 exec ${legacy ? 'node' : shellQuote(process.execPath)} ${shellQuote(bootstrap)} ${mode} "$@"
 `
 }
