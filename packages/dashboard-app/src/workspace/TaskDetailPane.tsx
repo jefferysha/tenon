@@ -265,6 +265,8 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
       <DocumentDrawer root={root} files={files} index={openIndex} onIndex={setOpenIndex} onClose={() => setOpenIndex(null)} />
       <AgentRunDrawer
         root={root}
+        change={change.name}
+        runnable={selectedStep === change.phase && !row.archived}
         agent={stepAgents.find((agent) => agent.agent === openAgent) ?? null}
         onClose={() => setOpenAgent(null)}
       />

@@ -73,8 +73,10 @@ const TARGETS: readonly Target[] = [
         await page.getByTestId('orch-open-reviewer-architecture').click()
         await expect(page.getByTestId('agent-run-binding')).toBeVisible({ timeout: 1_500 })
       }).toPass({ timeout: 20_000 })
-      // 还没有运行：登记的宿主是「—」，要求的宿主（codex）放在 title 里。
-      await expect(page.getByTestId('agent-run-host').locator('[title="codex"]')).toBeVisible()
+      // 还没有运行：登记的宿主是「—」，旁边是要求的宿主（codex + 小「要求」标记），再往下是可复制的启动命令。
+      await expect(page.getByTestId('agent-run-host-recorded')).toHaveText('—')
+      await expect(page.getByTestId('agent-run-host-required')).toHaveText('codex要求')
+      await expect(page.getByTestId('agent-run-command-text')).toContainText('tenon agent prompt add-login architecture')
     },
   },
   {
