@@ -30,7 +30,10 @@ function freePort(): Promise<number> {
   })
 }
 
-/** The real bundle in an isolated home; resolves once it says where it listens. */
+/**
+ * The real bundle in an isolated home; resolves once it says where it listens. With the link flag set it
+ * also waits for the whole login line: main.ts writes the banner and the link as two separate chunks.
+ */
 async function startBundle(extraEnv: NodeJS.ProcessEnv): Promise<{ port: number; stdout: () => string; stateRoot: string; child: ChildProcess }> {
   const home = await mkdtemp(join(tmpdir(), 'tenon-server-bundle-'))
   dirs.push(home)
@@ -50,8 +53,10 @@ async function startBundle(extraEnv: NodeJS.ProcessEnv): Promise<{ port: number;
   let out = ''
   child.stdout?.setEncoding('utf8')
   child.stdout?.on('data', (chunk: string) => { out += chunk })
+  const wantsLink = extraEnv.TENON_DASHBOARD_PRINT_LINK === '1'
+  const ready = (): boolean => out.includes('Global server http://') && (!wantsLink || /session\/start\?code=[A-Za-z0-9_-]+\n/u.test(out))
   const deadline = Date.now() + 30_000
-  while (!out.includes('Global server http://') && Date.now() < deadline) {
+  while (!ready() && Date.now() < deadline) {
     if (child.exitCode !== null) throw new Error(`dashboard bundle exited early (${child.exitCode}): ${out}`)
     await new Promise((resolve) => setTimeout(resolve, 50))
   }
@@ -108,6 +113,7 @@ describe('Dashboard server bundle process contract', () => {
     const logPath = join(started.stateRoot, 'logs', 'dashboard.log')
     expect(existsSync(logPath)).toBe(true)
     if (process.platform !== 'win32') expect(statSync(logPath).mode & 0o777).toBe(0o600)
+    // The mirror appends to the file synchronously before it forwards a chunk to stdout, so the link is already logged.
     const running = readFileSync(logPath, 'utf8')
     expect(running).toMatch(/ event \[dashboard-server\] starting pid=\d+ port=\d+ version=/u)
     expect(running).toContain('Global server http://127.0.0.1:')
