@@ -600,7 +600,10 @@ most 64 characters, and a manifest contains at most 256 fixtures.
    宿主给的候选或它的可移植孪生（`portableCandidate`）都算新鲜，所以 0.3.0 的记录在本机不因升级而过期；0.3.0 / 0.2.x 读 0.3.1 的记录在有
    宿主本地文件的工作区里读成「代码已变化」（过期，不是损坏）。记录 schema 没有改（绑定仍是一个 `workspace:sha256:` 值）。
    可移植指纹只排除 git 没有跟踪的宿主本地路径（`trackedHostLocalPaths`：对清单做 `git ls-files --cached`）；被跟踪（已提交或已暂存）的
-   路径是仓库的一部分，两个指纹都算，写入方与 CI 一致。不是 git 仓库什么都不跟踪；git 读不出来（缺失、索引损坏）就一律照算（两个指纹相等）。
+   路径是仓库的一部分，两个指纹都算，写入方与 CI 一致。不是 git 仓库什么都不跟踪；git 读不出来（缺失、索引损坏）就一律照算。
+   可移植指纹按 git 的权限位模型记录（`portableModeOf`）：普通文件只看属主的可执行位（644 / 755），目录与符号链接用常量 755，不读实际权限位；
+   完整指纹仍记原始权限位（逐字节等于 0.3.0）。原始位不跨机器稳定（符号链接在 macOS 是 0755、在 Linux 恒为 0777，目录与文件跟 umask），
+   所以只有可移植指纹能让 Linux runner 复现 Mac 上写下的记录。常量取自 umask 022 的检出，普通的树上两个指纹相等，只认完整指纹的 0.3.0 读 0.3.1 的记录仍是新鲜。
    · 评审者：`agent-runs` 行可带 `rerun_reason`；同候选上已有结论时 `tenon agent prompt` 需要 `--rerun-reason`，判定取同候选全部
    已结束运行里最严的一次（最后一次带原因时以它为准）；`AgentView` 多 `reruns / flipped / rerunReason`。
    · 跨厂商评审：工作流评审者可声明 `host: codex|claude|any`（IR 里只在声明时出现，不改旧工作流指纹），agent 定义可用 `host:` 建议一个

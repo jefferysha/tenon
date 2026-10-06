@@ -181,12 +181,22 @@ other source file, and moving a file under the list from untracked to tracked af
 the check, because the clone counts it.
 
 Records written by Tenon 0.3.1 and later bind the fingerprint without those files, so a clean clone
-reproduces it and editing them never makes a record stale. Records written by 0.3.0 and earlier
+reproduces it and editing them never makes a record stale. That fingerprint also records permission
+bits the way git does, so the same committed content gives the same value on every machine: a
+regular file is 644 or 755 by its owner executable bit, a directory carries no mode, and a symlink
+only its target. The raw bits it replaces are not stable: a symlink is 0755 on macOS and always 0777
+on Linux, and files and directories follow the umask (775/664 under umask 002), so a repository with
+a symlink, or checked out under a different umask, could never be reproduced by a runner on the
+other platform. For an ordinary tree (directories 755, files 644 or 755, no symlink on Linux) the
+value equals the full fingerprint of Tenon 0.3.0, which is unchanged. Records written by 0.3.0 and earlier
 bound the fingerprint with those files counted. On the author's machine such a record stays fresh
 (Tenon accepts either form), but a clean clone cannot reproduce it when the author's workspace had
 one of the files: run `tenon test run <change> --stage` once with a current Tenon and commit the new
-records. Going back to 0.3.0 or 0.2.x on a project that has such files makes the 0.3.1 records read
-as stale ("code changed"), never as damaged; run the suites again.
+records. Going back to 0.3.0 or 0.2.x on a project that has such files, a symlink on Linux, or modes other
+than 755/644 makes the 0.3.1 records read as stale ("code changed"), never as damaged; run the suites
+again. Records written by 0.3.0 on one platform cannot be reproduced on the other when the
+repository has a symlink or umask-dependent modes; run `tenon test run <change> --stage` once with a
+current Tenon.
 
 A mismatch that remains usually means the code changed after the tests ran. A record holds a
 single hash, so CI cannot see the author's workspace and cannot name the file that differs; the
@@ -195,8 +205,8 @@ the record stores, else from the finish time) and names the candidate files chan
 commit, which is the tree the tested workspace was most likely committed in. The delivery commit's
 own files are not blamed. When nothing changed after it, the message says so: the difference is in
 the tested workspace itself. It also names git-ignored or untracked candidate files this checkout
-holds, such as build output. Other causes it cannot see are file or directory permission bits (umask) and
-line-ending conversion. Run the action right after checkout, before any build step, and declare test
+holds, such as build output. Other causes it cannot see are the executable bit (git records only the
+owner's; the other permission bits are not in the fingerprint) and line-ending conversion. Run the action right after checkout, before any build step, and declare test
 output directories in the catalog. `--candidate warn` turns the finding into a warning;
 `--candidate off` skips the comparison and adds a note.
 
@@ -305,7 +315,7 @@ tenon verify --ci --since origin/main --also sarif=/tmp/tenon.sarif
 | Symptom | Cause and fix |
 | --- | --- |
 | `protected-diff-unavailable` | Shallow checkout. Use `fetch-depth: 0` |
-| `candidate-mismatch` right after a clean author run | The records were written by Tenon 0.3.0 or earlier in a workspace with `.claude/settings.local.json`, or ignored build output, permission bits or line endings differ; see Candidate mismatch |
+| `candidate-mismatch` right after a clean author run | The records were written by Tenon 0.3.0 or earlier in a workspace with `.claude/settings.local.json`, or ignored build output, the executable bit or line endings differ; see Candidate mismatch |
 | `finished-judged-at-head` note next to errors | A finished Change is judged against the checked-out tree; see Finished Changes are judged against the checked-out tree |
 | `record-chain-broken` | A record was edited, removed or added by hand. Re-run `tenon test run <change> --stage` locally and commit the new records |
 | `protected-unapproved` | A catalog, baseline, known-failures or workflow change has no review approval line. Get it approved with `tenon review request` and `tenon review acknowledge`, then commit the Change history |
