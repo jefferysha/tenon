@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
@@ -10,11 +11,15 @@ import {
   bundleInputs,
   check,
   collectAdvisories,
+  createWorkspaceResolver,
+  dashboardInputs,
   evaluate,
   packageNameFromPath,
   parseAuditOutput,
   prodPackageNames,
   render,
+  sourceBundleInputs,
+  trackedBundleInputs,
   validateAllowlist,
 } from './check-audit.mjs'
 
@@ -304,5 +309,140 @@ test('real esbuild metafile: the CLI bundle contains commander and neither shipp
   for (const packages of [cli, server]) {
     assert.equal(packages.has('braces'), false)
     assert.equal(packages.has('tinypool'), false)
+  }
+})
+
+// ---------------------------------------------------------------- 全新检出：工作区包没有 dist
+
+// 仿照 npm workspace 的布局：packages/kernel 只有 src（`tsc -b` 才会产出 dist），cli 以三种方式引用它——
+// 根导出、子路径导出，以及刻意不在 exports 里的"相对路径伸进 dist"。第三方包放在根 node_modules。
+const CLI_BUNDLE = { label: 'fixture cli', entry: 'packages/cli/src/main.ts', dist: 'packages/cli/dist/tenon.mjs' }
+
+const CLI_MAIN = [
+  "import { kernel } from '@tenon/kernel'",
+  "import { leaf } from '@tenon/kernel/sub'",
+  "import { secret } from '../../kernel/dist/private/internal.js'",
+  'console.log(kernel, leaf, secret)',
+  '',
+].join('\n')
+
+function workspaceFiles(overrides = {}) {
+  return {
+    'node_modules/thirdparty/package.json': '{"name":"thirdparty","version":"1.0.0","main":"index.js"}',
+    'node_modules/thirdparty/index.js': 'exports.third = 1\n',
+    'node_modules/stale-decoy/package.json': '{"name":"stale-decoy","version":"1.0.0","main":"index.js"}',
+    'node_modules/stale-decoy/index.js': 'exports.decoy = 1\n',
+    'packages/kernel/package.json': JSON.stringify({ name: '@tenon/kernel', exports: { '.': './dist/index.js', './sub': './dist/sub/leaf.js' } }),
+    'packages/kernel/src/index.ts': "import { third } from 'thirdparty'\nexport const kernel: number = third\n",
+    'packages/kernel/src/sub/leaf.ts': 'export const leaf = 1\n',
+    'packages/kernel/src/private/internal.ts': 'export const secret = 2\n',
+    'packages/cli/package.json': '{"name":"@tenon/cli"}',
+    'packages/cli/src/main.ts': CLI_MAIN,
+    ...overrides,
+  }
+}
+
+// canonical: 取 realpath 作根（macOS 的 tmpdir 经 /var → /private/var 符号链接；vite 的 HTML 入口要求 root 已是真实路径）。
+async function withWorkspace(files, body, { canonical = false } = {}) {
+  const created = await mkdtemp(join(tmpdir(), 'tenon-check-audit-ws-'))
+  const dir = canonical ? await realpath(created) : created
+  try {
+    for (const [path, content] of Object.entries(files)) {
+      await mkdir(dirname(join(dir, path)), { recursive: true })
+      await writeFile(join(dir, path), content)
+    }
+    await body(dir)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+}
+
+test('workspace resolver maps exports and dist-reaching relative imports to src, and leaves everything else alone', async () => {
+  await withWorkspace(workspaceFiles(), async (dir) => {
+    const resolveWorkspace = createWorkspaceResolver(dir)
+    const importerDir = join(dir, 'packages', 'cli', 'src')
+    assert.equal(resolveWorkspace('@tenon/kernel', importerDir), join(dir, 'packages', 'kernel', 'src', 'index.ts'))
+    assert.equal(resolveWorkspace('@tenon/kernel/sub', importerDir), join(dir, 'packages', 'kernel', 'src', 'sub', 'leaf.ts'))
+    assert.equal(resolveWorkspace('../../kernel/dist/private/internal.js', importerDir), join(dir, 'packages', 'kernel', 'src', 'private', 'internal.ts'))
+    for (const untouched of ['thirdparty', 'thirdparty/dist/x.js', '@tenon/not-a-workspace-package', '@other/kernel', './local.js', '../local.js']) {
+      assert.equal(resolveWorkspace(untouched, importerDir), null, untouched)
+    }
+    // 不在工作区包 dist 下的相对路径也不动
+    assert.equal(resolveWorkspace('../../../node_modules/thirdparty/dist/x.js', importerDir), null)
+  })
+})
+
+test('workspace resolver fails instead of guessing when a workspace import has no source', async () => {
+  await withWorkspace(workspaceFiles({
+    'packages/kernel/package.json': JSON.stringify({ name: '@tenon/kernel', exports: { '.': './dist/index.js', './cjs': './lib/x.cjs', './cond': { import: './dist/index.js' } } }),
+  }), async (dir) => {
+    const resolveWorkspace = createWorkspaceResolver(dir)
+    const importerDir = join(dir, 'packages', 'cli', 'src')
+    assert.throws(() => resolveWorkspace('@tenon/kernel/not-exported', importerDir), /"exports" has no string target for "\.\/not-exported"/)
+    assert.throws(() => resolveWorkspace('@tenon/kernel/cond', importerDir), /"exports" has no string target for "\.\/cond"/)
+    assert.throws(() => resolveWorkspace('@tenon/kernel/cjs', importerDir), /not a \.\/dist\/\*\.js build output/)
+    assert.throws(() => resolveWorkspace('../../kernel/dist/private/gone.js', importerDir), /private[\\/]gone\.ts does not exist/)
+    await rm(join(dir, 'packages', 'kernel', 'src', 'index.ts'))
+    assert.throws(() => resolveWorkspace('@tenon/kernel', importerDir), /index\.ts does not exist/)
+  })
+})
+
+test('bundle analysis works on a fresh checkout where no workspace dist exists, and never reads a stale dist', async () => {
+  await withWorkspace(workspaceFiles(), async (dir) => {
+    assert.equal(existsSync(join(dir, 'packages', 'kernel', 'dist')), false)
+    assert.deepEqual([...await sourceBundleInputs(dir, CLI_BUNDLE)], ['thirdparty'])
+  })
+  await withWorkspace(workspaceFiles({
+    'packages/kernel/dist/index.js': "import 'stale-decoy'\nexport const kernel = 0\n",
+    'packages/kernel/dist/sub/leaf.js': 'export const leaf = 0\n',
+    'packages/kernel/dist/private/internal.js': "import 'stale-decoy'\nexport const secret = 0\n",
+  }), async (dir) => {
+    assert.deepEqual([...await sourceBundleInputs(dir, CLI_BUNDLE)], ['thirdparty'])
+  })
+})
+
+test('bundle analysis still unions in the third-party modules of the tracked dist bundle', async () => {
+  await withWorkspace(workspaceFiles({
+    'packages/cli/dist/tenon.mjs': '// packages/cli/src/main.ts\n// node_modules/tracked-only/index.js\nexport {}\n',
+  }), async (dir) => {
+    assert.deepEqual([...trackedBundleInputs(dir, CLI_BUNDLE)], ['tracked-only'])
+    assert.deepEqual([...await bundleInputs(dir, CLI_BUNDLE)].sort(), ['thirdparty', 'tracked-only'])
+  })
+})
+
+test('bundle analysis fails closed instead of reporting an empty, clean set', async () => {
+  await withWorkspace(workspaceFiles(), async (dir) => {
+    await assert.rejects(sourceBundleInputs(dir, { ...CLI_BUNDLE, entry: 'packages/cli/src/missing.ts' }), /missing\.ts/)
+    await writeFile(join(dir, 'packages', 'cli', 'src', 'main.ts'), "import '@tenon/kernel/not-exported'\n")
+    await assert.rejects(sourceBundleInputs(dir, CLI_BUNDLE), /"exports" has no string target/)
+    await writeFile(join(dir, 'packages', 'cli', 'src', 'main.ts'), "import '../../kernel/dist/private/gone.js'\n")
+    await assert.rejects(sourceBundleInputs(dir, CLI_BUNDLE), /does not exist/)
+    await writeFile(join(dir, 'packages', 'cli', 'src', 'main.ts'), "import 'not-installed-anywhere'\n")
+    await assert.rejects(sourceBundleInputs(dir, CLI_BUNDLE), /not-installed-anywhere/)
+  })
+})
+
+test('dashboard analysis resolves workspace packages from source and fails closed when it cannot', async () => {
+  const dashboard = { label: 'fixture dashboard', root: 'packages/dash' }
+  const files = workspaceFiles({
+    'packages/dash/index.html': '<!doctype html><script type="module" src="/src/main.ts"></script>\n',
+    'packages/dash/src/main.ts': "import { leaf } from '@tenon/kernel/sub'\nimport { third } from 'thirdparty'\nconsole.log(leaf, third)\n",
+    // 陈旧 dist 不能被读到
+    'packages/kernel/dist/sub/leaf.js': "import 'stale-decoy'\nexport const leaf = 0\n",
+  })
+  await withWorkspace(files, async (dir) => {
+    assert.deepEqual([...await dashboardInputs(dir, dashboard)], ['thirdparty'])
+    await writeFile(join(dir, 'packages', 'dash', 'src', 'main.ts'), "import '@tenon/kernel/not-exported'\n")
+    await assert.rejects(dashboardInputs(dir, dashboard), /"exports" has no string target/)
+  }, { canonical: true })
+})
+
+test('the source analysis reproduces the third-party packages of the tracked shipped bundles', async () => {
+  // 已跟踪的 dist 由 `npm run bundle` / `build:server` 经 dist 解析构建，CI 另有新鲜度门保证它与源码一致；
+  // 所以分析按源码解析出的第三方包必须与它逐个相同，才说明"按源码解析"没有偏离真实打包。
+  for (const bundle of BUNDLES) {
+    const fromSource = [...await sourceBundleInputs(root, bundle)].sort()
+    const fromTracked = [...trackedBundleInputs(root, bundle)].sort()
+    assert.deepEqual(fromSource, fromTracked, bundle.label)
   }
 })

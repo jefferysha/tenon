@@ -102,7 +102,7 @@
 | 基准 | `npm run bench:status`、`npm run bench:snapshot`、`npm run bench:snapshot:large`（30 项目 × 30 任务，写入后重建 p95 < 1.5 s）；判定与基线走 `tenon test run <change> --suite bench-status --suite bench-snapshot --suite bench-snapshot-large` |
 | Docker/真实 agent | `bash tools/sandcastle/build.sh local`；需要凭证时按 `BACKEND.md` 的 real-Codex 命令运行 |
 
-依赖公告白名单：`check:dependencies` 用 `tools/check-audit.mjs` 取代裸 `npm audit`。high/critical 公告默认必须靠升级、`overrides` 或换依赖修掉；只有不做破坏性升级就无法修复、且验证为仅开发期的才可写入 `tools/audit-allowlist.json`，每条必须带 `id`（GHSA）、`package`、一句具体的 `reason`、距今不超过 30 天的 ISO `expires` 和 `scope: "dev-only"`。门禁会现场验证 dev-only：该包出现在 CLI/server 的 esbuild 模块输入、Dashboard 的 Vite 产物或 `npm ls --omit=dev` 中即失败，随产物发布的包不得放行；已过期条目和不再匹配任何公告的陈旧条目同样失败。到期须先核对上游是否已有修复版本，再删除或续期。
+依赖公告白名单：`check:dependencies` 用 `tools/check-audit.mjs` 取代裸 `npm audit`。high/critical 公告默认必须靠升级、`overrides` 或换依赖修掉；只有不做破坏性升级就无法修复、且验证为仅开发期的才可写入 `tools/audit-allowlist.json`，每条必须带 `id`（GHSA）、`package`、一句具体的 `reason`、距今不超过 30 天的 ISO `expires` 和 `scope: "dev-only"`。门禁会现场验证 dev-only：该包出现在 CLI/server 的 esbuild 模块输入、Dashboard 的 Vite 产物或 `npm ls --omit=dev` 中即失败，随产物发布的包不得放行；这些分析在全新 `npm ci` 检出（还没有任何工作区 dist）上就能运行——`@tenon/*` 导入和伸进兄弟包 `dist/` 的相对导入按包的 `exports` 改从 `src/` 解析，解析不出来即让门禁失败，不会当作“无第三方包”；已过期条目和不再匹配任何公告的陈旧条目同样失败。到期须先核对上游是否已有修复版本，再删除或续期。
 
 仓库当前没有独立 lint、format npm script，浏览器 e2e 只有上面 Dashboard 那一套（`npm run test:e2e`）；不得编造命令或声称已执行。格式与静态正确性依靠 TypeScript 构建、现有门禁和相邻代码风格；新增工具必须属于当前任务授权范围，并同步根 scripts、CI 和本节。
 

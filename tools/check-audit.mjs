@@ -8,12 +8,15 @@
 //   3. "dev-only" 不信自述，现场验证：白名单里的包出现在 CLI / server 的 esbuild 模块输入、
 //      Dashboard 的 Vite 产物模块、已跟踪的 dist 产物，或 `npm ls --omit=dev` 里，就失败。
 //      随产物发出去的包不允许靠白名单放行，只能升级、override 或换依赖。
+//      这些分析在全新 `npm ci` 的检出上就能跑：`@tenon/*` 工作区包没有 dist（`tsc -b` 才产出），
+//      分析时按它们的 package.json `exports` 改从 `src/` 解析，不要求先构建，也不读可能已陈旧的本机 dist。
+//      任何一处解析不出来都直接报错，绝不退化成"空集合 = 干净"。
 //   4. 不再匹配任何当前 high / critical 公告的条目（陈旧）同样失败，白名单不会烂在仓库里。
 // `npm run check:dependency-tree` 另管解析树完整性，本脚本不替代它。
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
@@ -340,7 +343,106 @@ function prodCollector(root) {
   return prodPackageNames(tree)
 }
 
-export async function bundleInputs(root, bundle) {
+// ---------------------------------------------------------------- 工作区包按源码解析
+
+const WORKSPACE_SCOPE = '@tenon/'
+const WORKSPACE_PACKAGES_DIR = 'packages'
+
+/**
+ * 工作区包的 dist 路径 → 对应源码：`<root>/packages/<pkg>/dist/a/b.js` → `<root>/packages/<pkg>/src/a/b.ts`。
+ * 各包 tsconfig 固定 rootDir src、outDir dist，所以这个映射与 `tsc -b` 的产出一一对应。
+ * roots 同时给出路径本身与它的 realpath（macOS 的 /var → /private/var、符号链接的工作目录），
+ * 免得 esbuild / vite 报来的路径与 root 写法不同而漏映射。不在某个工作区包的 dist 下返回 null；映射到的源码不存在则抛错。
+ */
+function distToSource(roots, absolutePath) {
+  for (const root of roots) {
+    const parts = relative(join(root, WORKSPACE_PACKAGES_DIR), absolutePath).split(/[\\/]/)
+    if (parts.length < 3 || parts[0] === '..' || parts[1] !== 'dist' || !parts.at(-1).endsWith('.js')) continue
+    const source = join(root, WORKSPACE_PACKAGES_DIR, parts[0], 'src', ...parts.slice(2, -1), `${parts.at(-1).slice(0, -3)}.ts`)
+    if (!existsSync(source)) {
+      throw new Error(`cannot resolve ${relative(root, absolutePath)} from source: ${relative(root, source)} does not exist`)
+    }
+    return source
+  }
+  return null
+}
+
+/**
+ * 在全新 `npm ci` 检出（没有 dist）上也能复刻真实打包的两条解析路径，都改从 `src/` 取：
+ *   1. `@tenon/<pkg>[/<sub>]`：真实打包经 node_modules 符号链接 → 包的 package.json `exports` → `./dist/*.js`；
+ *      这里沿用同一份 `exports`，再把 dist 换成 src。
+ *   2. 相对路径直接伸进兄弟包 dist（如 `../../kernel/dist/skill-invocation/producer-internal.js`，该文件刻意不在 exports 里）。
+ * 返回源码绝对路径；与工作区无关的导入返回 null（交回默认解析）；是工作区导入却解不出来就抛错，
+ * 让分析失败，而不是悄悄漏掉模块。
+ */
+export function createWorkspaceResolver(root) {
+  const roots = [...new Set([resolve(root), realpathSync(root)])]
+  let packages // 包名 → { dir, exports }；首次用到时才扫描
+  const loadPackages = () => {
+    const found = new Map()
+    const base = join(roots[0], WORKSPACE_PACKAGES_DIR)
+    if (!existsSync(base)) return found
+    for (const dirent of readdirSync(base, { withFileTypes: true })) {
+      const manifestPath = join(base, dirent.name, 'package.json')
+      if (!dirent.isDirectory() || !existsSync(manifestPath)) continue
+      const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+      if (typeof manifest.name === 'string') found.set(manifest.name, { dir: join(base, dirent.name), exports: manifest.exports })
+    }
+    return found
+  }
+  const resolvePackage = (specifier) => {
+    packages ??= loadPackages()
+    const [scope, name, ...rest] = specifier.split('/')
+    const workspace = packages.get(`${scope}/${name}`)
+    if (!workspace) return null
+    const key = rest.length === 0 ? '.' : `./${rest.join('/')}`
+    const target = workspace.exports !== null && typeof workspace.exports === 'object' ? workspace.exports[key] : undefined
+    if (typeof target !== 'string') {
+      throw new Error(`cannot resolve ${specifier} from source: its package.json "exports" has no string target for "${key}"`)
+    }
+    const source = distToSource(roots, join(workspace.dir, target))
+    if (!source) throw new Error(`cannot resolve ${specifier} from source: exports target "${target}" is not a ./dist/*.js build output`)
+    return source
+  }
+  return (specifier, importerDir) => {
+    if (specifier.startsWith(WORKSPACE_SCOPE)) return resolvePackage(specifier)
+    if (specifier.startsWith('.') && importerDir) return distToSource(roots, resolve(importerDir, specifier))
+    return null
+  }
+}
+
+function workspaceEsbuildPlugin(root) {
+  const resolveWorkspace = createWorkspaceResolver(root)
+  return {
+    name: 'tenon-workspace-source',
+    setup(build) {
+      // 只拦 `@tenon/*` 与路径里带 /dist/ 的导入；其余照常交给 esbuild。
+      build.onResolve({ filter: /^@tenon\/|\/dist\// }, (args) => {
+        try {
+          const path = resolveWorkspace(args.path, args.resolveDir)
+          return path ? { path } : undefined
+        } catch (error) {
+          return { errors: [{ text: error instanceof Error ? error.message : String(error) }] }
+        }
+      })
+    },
+  }
+}
+
+function workspaceVitePlugin(root) {
+  const resolveWorkspace = createWorkspaceResolver(root)
+  // 抛出的错误会让 vite build 失败；enforce:'pre' 保证它先于 vite 自带的 node_modules 解析。
+  return {
+    name: 'tenon-workspace-source',
+    enforce: 'pre',
+    resolveId: (source, importer) => resolveWorkspace(source, importer ? dirname(importer.split('?')[0]) : undefined),
+  }
+}
+
+// ---------------------------------------------------------------- 已发布包分析
+
+/** esbuild 以入口源码打包（`@tenon/*` 按源码解析）得到的第三方包集合。 */
+export async function sourceBundleInputs(root, bundle) {
   const { build } = await import('esbuild')
   const result = await build({
     absWorkingDir: root,
@@ -353,22 +455,32 @@ export async function bundleInputs(root, bundle) {
     metafile: true,
     logLevel: 'silent',
     outfile: join(tmpdir(), 'tenon-check-audit-unused.mjs'),
+    plugins: [workspaceEsbuildPlugin(root)],
   })
-  const packages = packageNames(Object.keys(result.metafile.inputs))
-  // 已跟踪的 dist 里每个第三方模块前都有 `// node_modules/...` 注释；并入它，陈旧或手改的产物也算数。
+  return packageNames(Object.keys(result.metafile.inputs))
+}
+
+/** 已跟踪的 dist 里每个第三方模块前都有 `// node_modules/...` 注释；文件不存在时返回空集合。 */
+export function trackedBundleInputs(root, bundle) {
   const distPath = join(root, bundle.dist)
-  if (existsSync(distPath)) {
-    const comments = readFileSync(distPath, 'utf8').matchAll(/^\/\/ (\S*node_modules\/\S+)$/gm)
-    for (const name of packageNames([...comments].map((match) => match[1]))) packages.add(name)
-  }
+  if (!existsSync(distPath)) return new Set()
+  const comments = readFileSync(distPath, 'utf8').matchAll(/^\/\/ (\S*node_modules\/\S+)$/gm)
+  return packageNames([...comments].map((match) => match[1]))
+}
+
+/** 源码分析并上已跟踪的 dist，陈旧或手改的产物也算数。 */
+export async function bundleInputs(root, bundle) {
+  const packages = await sourceBundleInputs(root, bundle)
+  for (const name of trackedBundleInputs(root, bundle)) packages.add(name)
   return packages
 }
 
-async function dashboardInputs(root) {
+export async function dashboardInputs(root, dashboard = DASHBOARD) {
   const { build } = await import('vite')
   const output = await build({
-    root: join(root, DASHBOARD.root),
+    root: join(root, dashboard.root),
     logLevel: 'silent',
+    plugins: [workspaceVitePlugin(root)],
     // write:false 不落盘；outDir 指向临时目录，保证不会碰已跟踪的 packages/dashboard-app/dist。
     build: { write: false, outDir: join(tmpdir(), 'tenon-check-audit-dashboard'), emptyOutDir: false },
   })
