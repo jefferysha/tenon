@@ -33100,7 +33100,7 @@ function buildAgentTrace(bundle, options) {
   return {
     version: AGENT_TRACE_VERSION,
     id: deterministicUuid(`agent-trace\0${bundle.change}\0${bundle.chain.head}\0${bundle.commit}`),
-    timestamp: bundle.exported_at,
+    timestamp: bundle.evidence_at,
     vcs: { type: "git", revision: bundle.commit },
     tool: { name: "tenon", version: bundle.tenon },
     files,
@@ -33302,7 +33302,7 @@ function buildOtelTrace(bundle) {
     const parsed2 = value === null ? Number.NaN : Date.parse(value);
     return Number.isFinite(parsed2) ? [BigInt(parsed2) * 1000000n] : [];
   });
-  const zero = nanos(bundle.exported_at, 0n);
+  const zero = nanos(bundle.evidence_at, 0n);
   const rootStart = times.length === 0 ? zero : times.reduce((min, value) => value < min ? value : min);
   const rootEnd = times.length === 0 ? zero : times.reduce((max, value) => value > max ? value : max);
   const rootId = spanId("workflow");
@@ -33376,13 +33376,13 @@ function evidenceNoteEntry(bundle, options) {
       head: bundle.chain.head,
       records: bundle.chain.records,
       last_run: last?.run_id ?? "none",
-      last_finished_at: last?.finished_at ?? bundle.exported_at
+      last_finished_at: last?.finished_at ?? bundle.evidence_at
     },
     plan_digest: bundle.plan_digest,
     last_result: bundle.last_result,
     ...options.anchor ? { anchor: { kind: "chain-head", head: bundle.chain.head } } : {},
     tenon: bundle.tenon,
-    created_at: bundle.exported_at
+    created_at: bundle.evidence_at
   };
 }
 
@@ -96554,6 +96554,11 @@ async function changedFiles(deps, state) {
     truncated: all.length > MAX_FILES4
   };
 }
+var EPOCH = "1970-01-01T00:00:00Z";
+function evidenceTimeOf(records, createdAt) {
+  const finished3 = records.map((record9) => record9.finished_at).filter((value) => Number.isFinite(Date.parse(value))).sort();
+  return finished3.at(-1) ?? (createdAt === "" ? EPOCH : createdAt);
+}
 async function gatherEvidence(deps, input2) {
   let state;
   try {
@@ -96593,7 +96598,7 @@ async function gatherEvidence(deps, input2) {
       phase: str2(state.fields.phase),
       owner: owner?.slug ?? null,
       created_at: createdAt === "" ? null : createdAt,
-      exported_at: deps.clock(),
+      evidence_at: evidenceTimeOf(records, createdAt),
       commit: input2.commit,
       chain: { user: chain.slug, head: chain.report.head, records: records.length },
       last_result: last?.result ?? "fail",

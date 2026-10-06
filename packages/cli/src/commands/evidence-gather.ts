@@ -90,6 +90,17 @@ async function changedFiles(deps: CliDeps, state: PipelineState): Promise<{ file
   }
 }
 
+const EPOCH = '1970-01-01T00:00:00Z'
+
+/**
+ * 导出的时间戳取自证据本身：最晚一条记录的完成时间，而不是导出时刻——同一份证据无论何时导出、导出几次，
+ * 输出逐字节相同。链里没有记录时（导出在此之前就拒绝了空链）才退回任务创建时间。
+ */
+export function evidenceTimeOf(records: readonly TestRunRecordV2[], createdAt: string): string {
+  const finished = records.map((record) => record.finished_at).filter((value) => Number.isFinite(Date.parse(value))).sort()
+  return finished.at(-1) ?? (createdAt === '' ? EPOCH : createdAt)
+}
+
 export async function gatherEvidence(deps: CliDeps, input: {
   readonly change: string
   readonly dir: string
@@ -139,7 +150,7 @@ export async function gatherEvidence(deps: CliDeps, input: {
       phase: str(state.fields.phase),
       owner: owner?.slug ?? null,
       created_at: createdAt === '' ? null : createdAt,
-      exported_at: deps.clock(),
+      evidence_at: evidenceTimeOf(records, createdAt),
       commit: input.commit,
       chain: { user: chain.slug, head: chain.report.head, records: records.length },
       last_result: last?.result ?? 'fail',

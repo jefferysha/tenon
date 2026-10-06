@@ -164,6 +164,29 @@ describe('tenon evidence export', () => {
     expect(git(project.dir, ['log', '-1', '--format=%B']).match(/Tenon-Evidence:/gu)).toHaveLength(1)
   }, 180_000)
 
+  test('同一份证据重复导出：四种格式逐字节相同，时间戳取证据里最晚一条记录的完成时间，不是导出时刻', async () => {
+    const project = await dev()
+    const finished = (await project.records()).map((record) => record.finished_at).sort().at(-1)
+    expect(finished).toBeDefined()
+    async function exported(...args: string[]): Promise<string> {
+      expect(await project.tenon(['evidence', 'export', 'demo', ...args]), project.err()).toBe(0)
+      return project.out()
+    }
+    // 夹具的时钟每读一次前进一秒：两次导出的「导出时刻」一定不同，输出却必须相同。
+    const trace = await exported('--format', 'agent-trace')
+    expect((JSON.parse(trace) as { timestamp: string }).timestamp).toBe(finished)
+    expect(await exported('--format', 'agent-trace')).toBe(trace)
+    expect(await exported('--format', 'agent-trace', '--contributor', 'ai', '--model', 'anthropic/claude-opus-4-5'))
+      .toBe(await exported('--format', 'agent-trace', '--contributor', 'ai', '--model', 'anthropic/claude-opus-4-5'))
+    const otel = await exported('--format', 'otel')
+    expect(await exported('--format', 'otel')).toBe(otel)
+    const notes = await exported('--format', 'git-notes', '--anchor')
+    expect((JSON.parse(notes) as { changes: Array<{ created_at: string }> }).changes[0]?.created_at).toBe(finished)
+    expect(await exported('--format', 'git-notes', '--anchor')).toBe(notes)
+    const trailer = await exported('--format', 'trailer')
+    expect(await exported('--format', 'trailer')).toBe(trailer)
+  }, 180_000)
+
   test('记录链断了拒绝导出；缺 --format、未知格式是用法错误', async () => {
     const project = await dev()
     expect(await project.tenon(['evidence', 'export', 'demo'])).toBe(1)

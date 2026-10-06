@@ -68,7 +68,7 @@ export function buildAgentTrace(bundle: EvidenceBundle, options: AgentTraceOptio
   return {
     version: AGENT_TRACE_VERSION,
     id: deterministicUuid(`agent-trace\0${bundle.change}\0${bundle.chain.head}\0${bundle.commit}`),
-    timestamp: bundle.exported_at,
+    timestamp: bundle.evidence_at,
     vcs: { type: 'git', revision: bundle.commit },
     tool: { name: 'tenon', version: bundle.tenon },
     files,

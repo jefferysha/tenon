@@ -158,7 +158,9 @@ tenon evidence export <change> --format git-notes [--anchor] [--apply]
 tenon evidence export <change> --format trailer [--apply]
 ```
 
-一律打印到 stdout（或 `--out <file>`）；只有 `--apply` 才写仓库。记录链必须完好（否则退出码 `2`）。同样的证据导出同样的输出。
+一律打印到 stdout（或 `--out <file>`）；只有 `--apply` 才写仓库。记录链必须完好（否则退出码 `2`）。同样的证据导出同样的输出：
+任何时候导出两次，打印的字节都一样。导出里的每个时间戳都来自证据本身——记录链里最晚一条记录的完成时间
+（Agent Trace 的 `timestamp`、git note 条目的 `created_at`、OTel 的兜底时间），不是运行导出的那台机器的时钟。
 
 - `agent-trace`：一条 [Agent Trace](https://agent-trace.dev) 记录（规范版本 `0.1`）。文件和新增行区间来自 Change 的 diff；
   贡献者缺省 `unknown`，除非你显式断言 `human`、`ai` 或 `mixed`——Tenon 不知道哪一行是谁写的。Tenon 自己的证据在

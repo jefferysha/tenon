@@ -185,7 +185,11 @@ tenon evidence export <change> --format trailer [--apply]
 ```
 
 Everything prints to stdout (or `--out <file>`); only `--apply` writes the repository. The record
-chain must be intact (exit `2` otherwise). All outputs are deterministic for the same evidence.
+chain must be intact (exit `2` otherwise). All outputs are deterministic for the same evidence: running
+an export twice, on any day, prints the same bytes. Every timestamp in an export comes from the
+evidence itself, the finish time of the latest record in the chain (the Agent Trace `timestamp`, the
+`created_at` of a git note entry, the OTel fallback time), never from the clock of the machine that
+runs the export.
 
 - `agent-trace`: an [Agent Trace](https://agent-trace.dev) record (specification version `0.1`).
   Files and added line ranges come from the Change diff; the contributor is `unknown` unless you

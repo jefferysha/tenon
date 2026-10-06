@@ -26,12 +26,12 @@ export function evidenceNoteEntry(bundle: EvidenceBundle, options: { readonly an
       head: bundle.chain.head,
       records: bundle.chain.records,
       last_run: last?.run_id ?? 'none',
-      last_finished_at: last?.finished_at ?? bundle.exported_at,
+      last_finished_at: last?.finished_at ?? bundle.evidence_at,
     },
     plan_digest: bundle.plan_digest,
     last_result: bundle.last_result,
     ...(options.anchor ? { anchor: { kind: 'chain-head' as const, head: bundle.chain.head } } : {}),
     tenon: bundle.tenon,
-    created_at: bundle.exported_at,
+    created_at: bundle.evidence_at,
   }
 }
