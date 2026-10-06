@@ -7,7 +7,7 @@
 import { existsSync } from 'node:fs'
 import { appendFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { recordV2Digest, type TestRunRecordV2 } from '@tenon/kernel'
+import { decodeTestRunRecordV2, recordV2Digest, type TestRunRecordV2 } from '@tenon/kernel'
 import { afterEach, describe, expect, test } from 'vitest'
 import { FIXED_CLOCK, freshHarness, type Harness } from './integration-harness.js'
 import { commitAll, git, writeFiles } from './integration-harness-tests.js'
@@ -202,7 +202,10 @@ describe('测试证据可信根', () => {
     expect(await tenon(USER, 'test', 'run', 'demo', '--suite', 'unit')).toBe(2)
     expect(out()).toContain('report-untrusted')
     expect(out()).toContain('早于本次运行开始')
-    expect((await lastRecord()).suites[0]?.reasons.map((reason) => reason.code)).toContain('report-untrusted')
+    // 磁盘上是上一个发行版读得了的写法（report-unreadable + detail 前缀）；读盘解码后还原成 report-untrusted，判定不变。
+    const stored = await lastRecord()
+    expect(stored.suites[0]?.reasons).toEqual([expect.objectContaining({ code: 'report-unreadable', detail: expect.stringMatching(/^\[report-untrusted\] /u) })])
+    expect(decodeTestRunRecordV2(stored)?.suites[0]?.reasons.map((reason) => reason.code)).toContain('report-untrusted')
     const current = await status()
     expect(current.code).toBe(2)
     expect(codes(current.json)).toContain('report-untrusted')
