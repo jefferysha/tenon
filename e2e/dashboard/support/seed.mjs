@@ -10,6 +10,7 @@
  *     Node 得到同样的用例文件归属；种子项目里不放任何 reporter 文件。
  *   · `seedSandbox`：只有 git 仓库和 AGENTS.md，项目页启停客户端会改它的文件，所以不与 demo 共用
  *     （改工作区文件会让 demo 的测试运行记录过期）。
+ *   · `seedReview`：挂着待批准评审的任务（评审批准用例会真的批准它们），同样单独成项目。
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -169,4 +170,52 @@ export function seedDemo(context) {
   tenon('test', 'waive', CHANGE, '--kind', 'integration', '--reason', 'No integration surface in the demo')
   // 失败的运行以退出码 2 结束并写下记录；这正是要展示的证据。
   runTenon(env, root, ['test', 'run', CHANGE, '--stage', 'verify'], { allow: [2] })
+}
+
+/**
+ * 评审批准的种子（review-approval.spec.ts）：一个只有「实现 → 验证」两步的项目级工作流，实现步挂评审门、没有任何守卫，
+ * 所以 `tenon review request` 一步就能挂起评审，不需要文档、测试或评审者证据；批准会真的改写任务状态，
+ * 所以单独成一个项目——不能碰 demo 的工作区（它的测试运行记录绑定了工作区指纹）。
+ * 每个浏览器项目（chromium / webkit 可能在同一次运行里先后跑）、每个用例各有自己的任务：批准过的评审不能再被批准一次。
+ * 任务名的规则与 support/server-state.ts 的 reviewChangeName 一致。
+ */
+export const REVIEW_BROWSERS = ['chromium', 'webkit']
+export const REVIEW_KINDS = ['single', 'approve', 'spent', 'stale']
+
+const REVIEW_WORKFLOW = `name: gated
+tracks:
+  backend:
+    steps:
+      - id: build
+        label: 实现
+        gate: review
+        skills: []
+        inputs: []
+        outputs: []
+        guards: []
+        transitions:
+          - event: build-done
+            to: verify
+      - id: verify
+        label: 验证
+        gate: null
+        skills: []
+        inputs: []
+        outputs: []
+        guards: []
+        transitions: []
+`
+
+export function seedReview(context) {
+  const { env, review: root } = context
+  writeProjectFile(root, 'AGENTS.md', '# Review\n\nSeed project for the review approval e2e.\n')
+  writeProjectFile(root, '.pipeline/workflows/gated.yaml', REVIEW_WORKFLOW)
+  commitBase(root, env)
+  for (const browser of REVIEW_BROWSERS) {
+    for (const kind of REVIEW_KINDS) {
+      const name = `rv-${kind}-${browser}`
+      runTenon(env, root, ['init', name, '--track', 'backend', '--workflow', 'gated', '--preset', 'full'])
+      runTenon(env, root, ['review', 'request', name, '--event', 'build-done'])
+    }
+  }
 }
