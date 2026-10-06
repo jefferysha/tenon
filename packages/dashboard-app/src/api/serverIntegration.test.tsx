@@ -15,6 +15,8 @@ import { createDashboardServer, resolveServerPaths } from '@tenon/server'
 import { installSessionFetch, readGovernedDocumentsForCurrentVisit, recordWorkflowPhaseSkill } from '../../../server/src/test-support.js'
 import {
   agentDigest,
+  AGENT_RUN_META_FILE,
+  AGENT_RUNS_FILE,
   appendAgentRunRow,
   builtinTrack,
   compileEffectiveWorkflowPlan,
@@ -35,6 +37,7 @@ import {
   recordNativeDocumentSkillConfirmation,
 } from '../../../kernel/dist/skill-invocation/producer-internal.js'
 import { selectInbox } from '../inbox/inbox'
+import { decodeAgentRuns } from './snapshotEvidenceDecoders'
 
 /** Fixtures record the built-in default document table (identical in every default branch). */
 function defaultDocumentPolicy() {
@@ -276,6 +279,42 @@ describe('真 server /api/snapshot → 前端 selectInbox', () => {
     const snap2 = (await (await fetch(url('/api/snapshot'))).json()) as Snapshot
     const inbox = selectInbox(snap2, started.root, RULES)
     expect(inbox.map((i) => i.change.name)).toContain('demo')
+  }, 20000)
+
+  it('agent 运行的宿主 / 宿主来源在旁注里：台账行不含，真 HTTP 详情快照仍带着它们（抽屉宿主行读的就是这两项）', async () => {
+    const demo = ((await (await fetch(url('/api/snapshot'))).json()) as Snapshot).projects[0]!.changes.find((c) => c.name === 'demo')!
+    const researcher = readFileSync(join(AGENTS_DIR, 'researcher.md'), 'utf8')
+    // 上一条已让 researcher 在 explore 步骤 done；再登记一次运行，由真写入器写台账行 + 旁注。
+    await appendAgentRunRow(demo.path, {
+      schema: 'agent-run/v1',
+      run_id: 'fixture-researcher-hosted',
+      agent: 'researcher',
+      agent_digest: agentDigest(researcher),
+      role: 'executor',
+      step: 'explore',
+      step_visit: await currentDocumentStepVisitId(demo.path),
+      candidate: 'fixture',
+      status: 'finished',
+      result: 'done',
+      findings: [],
+      report_path: '.pipeline-agent-reports/fixture-researcher-hosted.md',
+      report_digest: null,
+      actor: { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' },
+      started_at: clock(),
+      finished_at: clock(),
+      host: 'codex',
+      host_source: 'declared',
+    })
+    expect(await readFile(join(demo.path, AGENT_RUNS_FILE), 'utf8')).not.toMatch(/"host"|"host_source"/u)
+    expect(await readFile(join(demo.path, AGENT_RUN_META_FILE), 'utf8')).toContain('"host_source":"declared"')
+
+    const res = await fetch(url(`/api/change/demo/snapshot?root=${encodeURIComponent(started.root)}`))
+    expect(res.status).toBe(200)
+    const detail = (await res.json()) as { agentRuns?: unknown }
+    const explore = decodeAgentRuns(detail.agentRuns)?.find((step) => step.stepId === 'explore')
+    expect(explore?.agents.find((agent) => agent.agent === 'researcher')).toMatchObject({
+      state: 'done', result: 'done', runId: 'fixture-researcher-hosted', host: 'codex', hostSource: 'declared',
+    })
   }, 20000)
 
   it('POST 无 token → 401（B5 写端点鉴权，前端必须带同源注入 token）', async () => {
