@@ -97,10 +97,10 @@ export type {
   ChainReset, CoverageResult, RecordBindings, ServiceExit, ServiceRunV2, SuiteReason, SuiteReasonCode,
   SuiteReportRef, SuiteRunV2, TestRunRecordV2, TestRunRecordV2Draft,
 } from './record-v2-types.js'
-export { declaresRecordV2, decodeTestRunRecordV2 } from './record-v2-codec.js'
+export { declaresRecordV2, decodeTestRunRecordV2, encodeRecordV2Wire } from './record-v2-codec.js'
 export {
-  appendTestRunRecordV2, createRecordChainCache, listRecordDirectory, pruneRecordChain, readRecordChain, RECORD_RETENTION,
-  recordV2Digest, verifyRecordChain,
+  appendTestRunRecordV2, createRecordChainCache, listRecordDirectory, parseRecordRetention, pruneRecordChain, readRecordChain,
+  RECORD_RETENTION, RECORD_RETENTION_ENV, recordV2Digest, verifyRecordChain,
 } from './record-chain.js'
 export type {
   AppendResult, ChainBase, ChainReport, RecordChainCache, RecordDirectoryListing, RecordFileEntry,

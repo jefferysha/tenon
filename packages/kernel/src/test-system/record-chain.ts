@@ -16,6 +16,10 @@
  * 清理只删最老的前缀，并在同目录写一个链基点标记 `chain-base`：`base` 是被删的最后一条记录的摘要，保留下来的最老
  * 一条的 `prev_digest` 必须等于它，链才算从这里开始；`pruned` 列出本次要删的文件（先写标记、再删文件，中途崩溃时这些
  * 文件被当作不存在）。标记只放行「最老一端的前缀被清理」：中间缺记录、基点对不上、标记损坏，照旧是断链。
+ *
+ * 清理默认关闭，只在用户设了 `TENON_RECORD_RETENTION` 时才做（命令层读环境变量，见 parseRecordRetention）。原因是上一个发行版
+ * （v0.2.1）不认识链基点标记：它看到的是一条以非空 `prev_digest` 开头的链，判「找不到链首记录」。清理过的链因此只能由
+ * 当前版本继续读写；没有清理过的链两个版本互读无碍。读取侧（verifyRecordChain 对标记的支持）始终保留。
  */
 import { lstat, mkdir, readFile, readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -25,15 +29,16 @@ import { withLock } from '../state/lock.js'
 import { TEST_RUN_SCHEMA } from '../test-evidence/types.js'
 import { canonicalJson } from './canonical.js'
 import { testRecordChainLockDir, testRunRecordsDir } from './paths.js'
-import { declaresRecordV2, decodeTestRunRecordV2 } from './record-v2-codec.js'
+import { declaresRecordV2, decodeTestRunRecordV2, encodeRecordV2Wire } from './record-v2-codec.js'
 import type { TestRunRecordV2, TestRunRecordV2Draft } from './record-v2-types.js'
 import { readTestSeal, sealRecordHead } from './seal.js'
 
 const MAX_RECORD_BYTES = 16 * 1024 * 1024
 
+/** 摘要算在记录的磁盘形上（见 record-v2-codec.ts 的 encodeRecordV2Wire），上一个发行版读同一份文件算出的摘要与此相同。 */
 export function recordV2Digest(record: Omit<TestRunRecordV2, 'digest'> | TestRunRecordV2): string {
   const { digest: _digest, ...content } = record as TestRunRecordV2
-  return `sha256:${sha256Hex(canonicalJson(content))}`
+  return `sha256:${sha256Hex(canonicalJson(encodeRecordV2Wire(content)))}`
 }
 
 /**
@@ -64,8 +69,22 @@ export interface ChainBase {
   readonly pruned: readonly string[]
 }
 
-/** 每个用户每个任务保留的运行记录条数（v1 按测试项、v2 按链）；更老的在下一次运行后被清理。 */
+/** 内联步骤测试（v1）每个测试项保留的运行记录条数；更老的在下一次运行后被清理。v1 记录没有链，清理不影响上一个发行版读取。 */
 export const RECORD_RETENTION = 20
+
+/** 选择开启 v2 记录链清理的环境变量；取值是每条链保留的记录条数。 */
+export const RECORD_RETENTION_ENV = 'TENON_RECORD_RETENTION'
+
+/**
+ * `TENON_RECORD_RETENTION` 的取值：未设置或空串 = 不清理（`undefined`）；正整数 = 每条链保留的条数；其余取值非法（`'invalid'`），
+ * 调用方提示并按不清理处理——写错的取值不能变成一次意外的清理。
+ */
+export function parseRecordRetention(value: string | undefined): number | undefined | 'invalid' {
+  if (value === undefined || value.trim() === '') return undefined
+  const text = value.trim()
+  if (!/^[1-9][0-9]{0,5}$/.test(text)) return 'invalid'
+  return Number(text)
+}
 export const CHAIN_BASE_FILE = 'chain-base'
 const CHAIN_BASE_SCHEMA = 'tenon-record-chain-base/v1'
 const DIGEST_RE = /^sha256:[0-9a-f]{64}$/
@@ -350,11 +369,12 @@ export async function appendTestRunRecordV2(
             chain_reset: { superseded: [...listing.problems, ...listing.records.map((entry) => entry.file)].sort() },
           }
     const record: TestRunRecordV2 = { ...base, digest: recordV2Digest(base) }
-    if (decodeTestRunRecordV2(JSON.parse(JSON.stringify(record))) === undefined) {
+    const wire = encodeRecordV2Wire(record)
+    if (decodeTestRunRecordV2(JSON.parse(JSON.stringify(wire))) === undefined) {
       throw new Error('appendTestRunRecordV2: 记录形状非法，拒绝写入')
     }
     const path = join(dir, `${record.run_id}.json`)
-    await atomicLinkPublish(dir, '.test-run-v2', path, `${JSON.stringify(record, null, 2)}\n`)
+    await atomicLinkPublish(dir, '.test-run-v2', path, `${JSON.stringify(wire, null, 2)}\n`)
     await sealRecordHead(repoRoot, slug, draft.change, record.digest)
     return {
       record,
