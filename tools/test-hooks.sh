@@ -2930,6 +2930,101 @@ gate_tool Write file_path "$proj/$RECORD_USERS/hooks-at-tenon.test/local/active-
 assert_exit "封存: 同目录的别的本机文件不受影响 → 放行" 0 "$?"
 allow_cmd '封存: 读封存文件' "cat $SHAPE_SEAL"
 
+# ── 10d6. gate.sh：读测试记录的受支持办法是普通读取工具；经内联解释器 / xargs 的读一律按写入拒（v0.3.0 真机验收 F9 与复核）──
+# 读记录（cat / ls / jq / grep / head / tail / wc / find -name / stat / diff …）本来就放行，下面逐条钉住。管道里的内联解释器
+# 与 xargs 没法静态分清是读还是写（`require('f'+'s')['wr'+'iteFileSync']`、`import('child'+'_process')`、`Function('return process')()`、
+# 路径从 stdin 来……关键字黑名单挡不住字符串拼接），所以曾经试过的放宽（读记录后管道进内联解释器、xargs 接 jq）已撤回：
+# 这些写法、以及管道之后接着的任何链式写入，全部要拒。真实 gate.sh，每条一个断言。
+REC_DIR="$RECORD_USERS/hooks-at-tenon.test/tests/demo"
+REC_FILE="$REC_DIR/r.json"
+allow_cmd '记录读: cat' "cat $REC_FILE"
+allow_cmd '记录读: ls 记录目录' "ls $REC_DIR"
+allow_cmd '记录读: ls -la 用户的 tests 目录' "ls -la $RECORD_USERS/hooks-at-tenon.test/tests/"
+allow_cmd '记录读: jq 读文件' "jq . $REC_FILE"
+allow_cmd '记录读: jq 用 < 读' "jq -r '.status' < $REC_FILE"
+allow_cmd '记录读: jq 读通配的多份记录' "jq -r '.status' $RECORD_USERS/*/tests/demo/*.json"
+allow_cmd '记录读: grep -r' "grep -rn fail $RECORD_USERS/hooks-at-tenon.test/tests"
+allow_cmd '记录读: grep 通配' "grep -c pass $RECORD_USERS/*/tests/demo/*.json"
+allow_cmd '记录读: head / tail / wc' "head -n 5 $REC_FILE; tail -n 5 $REC_FILE; wc -l $REC_FILE"
+allow_cmd '记录读: find -name / -type（没有动作）' "find $RECORD_USERS/hooks-at-tenon.test/tests -name '*.json' -type f"
+allow_cmd '记录读: stat / sha256sum / diff' "stat $REC_FILE && sha256sum $REC_FILE && diff $REC_FILE /tmp/other.json"
+allow_cmd '记录读: cat 之后 jq / head' "cat $REC_FILE | jq . ; cat $REC_FILE | head -20"
+allow_cmd '记录读: 绝对路径' "cat $proj/$REC_FILE"
+allow_cmd '记录读: cd 进记录目录再 cat / ls' "cd $REC_DIR && cat r.json && ls"
+allow_cmd '记录读: 输出重定向到别处' "jq . $REC_FILE > /tmp/records.json"
+allow_cmd '记录读: 项目之外的临时副本也是读' "cat /tmp/scratch-copy/$REC_FILE"
+# 复核给出的 37 条探针 + 补充：必须拒（exit 2）。@R@ = 一份记录、@D@ = 受保护的隐藏目录名、@T@ = 用户的 tests 目录。
+RECORD_BYPASS_FILE="$TMP/record-bypass-cases.txt"
+cat > "$RECORD_BYPASS_FILE" <<'CASES'
+cat @R@ | node -e "const s=require('f'+'s');s['wr'+'iteFileSync'](process.env.HOME,'x');1"
+ls @R@ | node -e "let d='';process.stdin.on('data',x=>d+=x).on('end',()=>{require('fs')['wr'+'iteFileSync'](d.trim(),'x')});1"
+cat @R@ | node -e "1;process.binding('fs');1"
+cat @R@ | node -e "1;import('child'+'_process').then(m=>m['ex'+'ecSync']('rm -rf x'));1"
+cat @R@ | node -e "1;Function('return process')().mainModule.require('fs')['wri'+'teFileSync']('x','x');1"
+cat @R@ | python3 -c "import sys; __import__('o'+'s').remove('x'); print(1)"
+cat @R@ | python3 -c "import sys; getattr(__import__('pathlib').Path('x'),'wr'+'ite_text')('x'); print(1)"
+cat @R@ | python3 -c "import sys; __import__('pathlib').Path('x').unlink(); print(1)"
+cat @R@ | node -e "1;require('fs').createWriteStream"
+cat @R@ | node -e "1;require('fs')['ap'+'pendFileSync'];"
+cat @R@ | node -e "1;require('fs').symlinkSync"
+cat @R@ | node -e "1;require('fs').createReadStream"
+cat @R@ | node -e "const a=1;console.log(a)"
+cat @R@ | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).status))"
+cat @R@ | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])"
+node -e "console.log(require('fs').readFileSync('@R@','utf8'))"
+python3 -c "print(open('@R@').read())"
+cat @R@ | python3 -c "import sys; open('@R@','w').write('x'); print(1)"
+ls @R@ | xargs -I{} sh {}
+ls @R@ | xargs -I{} tee {}
+ls @R@ | xargs -0 rm
+ls @R@ | xargs -I{} mv {} /tmp/x
+ls @R@ | xargs -I{} jq . {}
+ls @R@ | xargs -I{} jq -n --rawfile a {} '1' > @R@
+ls @R@ | xargs -I{} jq . {} ; echo x > @R@
+ls @T@/demo | xargs -I{} rm @T@/demo/{}
+cat @R@ | node -e "1;1" ; echo x > ./@R@
+cat ./@R@ | node -e "1;1" ; echo x > .//@D@/users/u/../u/tests/demo/r.json
+cat @R@ | node -e "1;1" ; echo x > .TENON/users/u/tests/demo/r.json
+cat @R@ | node -e "1;1" ; echo x > .ten\on/users/u/tests/demo/r.json
+cat @R@ | node -e "1;1" ; ln -s @D@/users/u/tests lk; echo x > lk/demo/r.json
+cat @R@ | node -e "1;1" ; cd @D@/users/u/tests && echo x > demo/r.json
+cat @R@ | node -e "1;1" <<< x
+cat @R@ | node -e "1;1" && rm -r $(echo .te)non
+cat @R@ | node -e "1;1" ; rm -r .te*/users
+cat @R@ | node -e "1;1" ; rm -r .t?non/users
+cat @R@ | node -e "1;1" ; rm -r ./u*
+cat @R@ | node -e '1;1' ; X=.te; rm -r ${X}non
+cd @T@/demo; cat r.json | node -e '1;1' ; rm r.json
+cat @R@ | node -e '1;1' ; rm demo/r.json
+cat @R@ | node -e '1;1' ; sed -i s/a/b/ r.json
+cat @R@ | node -e '1;1' ; mv r.json y
+cat @R@ | node -e 'console.log(1);1' ; node $'x'
+cat @R@ | python3 -c "import sys; print(1)" && cp /tmp/y @R@
+cat @R@ | node -e "const a=1;console.log(a)" | tee @R@
+CASES
+record_bypass_n=0
+while IFS= read -r record_bypass_line; do
+  [ -n "$record_bypass_line" ] || continue
+  record_bypass_cmd="${record_bypass_line//@R@/$REC_FILE}"
+  record_bypass_cmd="${record_bypass_cmd//@T@/$RECORD_USERS/hooks-at-tenon.test/tests}"
+  record_bypass_cmd="${record_bypass_cmd//@D@/${RECORD_USERS%/users}}"
+  refuse_cmd "记录读写绕过: $record_bypass_line" "$record_bypass_cmd"
+  record_bypass_n=$((record_bypass_n + 1))
+done < "$RECORD_BYPASS_FILE"
+[ "$record_bypass_n" -ge 40 ] && ok "记录读写绕过: 共 $record_bypass_n 条探针都跑了" || bad "记录读写绕过: 至少 40 条探针都跑了" "只读到 $record_bypass_n 条"
+# 多行的内联代码：第二行写记录
+refuse_cmd '记录读写绕过: 多行内联 node，第二行点名记录路径写文件' $'cat '"$REC_FILE"$' | node -e "const a=1;\nrequire(\'fs\').writeFileSync(\''"$REC_FILE"$'\',\'x\')"'
+refuse_cmd '记录读写绕过: 多行内联 node，第二行拼出路径写文件' $'cat '"$REC_FILE"$' | node -e "const a=1;\nrequire(\'f\'+\'s\')[\'wr\'+\'iteFileSync\'](process.argv[1],\'x\')"'
+# 项目之外的临时副本：写入照拒（守卫按路径名认记录目录，不看它在不在项目里）。
+refuse_cmd '记录写（项目之外的副本）: 重定向' "echo x > /tmp/scratch-copy/$REC_FILE"
+refuse_cmd '记录写（项目之外的副本）: cp' "cp /tmp/a /tmp/scratch-copy/$REC_FILE"
+refuse_cmd '记录写（项目之外的副本）: rm' "rm /tmp/scratch-copy/$REC_FILE"
+refuse_cmd '记录写（项目之外的副本）: sed -i' "sed -i 's/a/b/' /tmp/scratch-copy/$REC_FILE"
+gate_tool Write file_path "/tmp/scratch-copy/$REC_FILE" ',"content":"{}"'
+assert_exit "记录写（项目之外的副本）: Write → exit 2" 2 "$?"
+gate_tool Edit file_path "/tmp/scratch-copy/$REC_FILE" ',"old_string":"a","new_string":"b"'
+assert_exit "记录写（项目之外的副本）: Edit → exit 2" 2 "$?"
+
 # 信任决定只能由用户给（R6）：命令位置的 tenon test trust / TENON_TEST_TRUST= 前缀一律拒；文档里出现这些字样不算
 refuse_cmd '信任: tenon test trust' 'tenon test trust'
 refuse_cmd '信任: tenon test trust 带任务与 --yes' 'tenon test trust demo --yes'

@@ -148,6 +148,10 @@ a hostile process that can read your files.
   tracked files, `xargs sh -c` and `find -exec`, `cp/mv/install/rsync/ln` variants, `tee`
   variants, redirect variants (including heredocs fed to an interpreter) and in-place
   editors. The match is static and best effort.
+  Reading is not a write: read records with a plain read utility (`cat`, `ls`, `jq`, `grep`,
+  `head`, `tail`, `wc`, `find -name`) or the editor's Read tool. A read that goes through
+  inline interpreter code (`node -e`, `python -c`) or `xargs`, or that is chained with any
+  write after it, is refused as well, because a static match cannot tell it from a write.
 - **What the hook cannot see, the gate detects.** Each change's record chain head is
   sealed by `tenon test run` in a per-user, HMAC-signed local file; records written around
   the command leave a chain whose head is not the sealed one (`record-unsealed`, no human
