@@ -75,10 +75,6 @@ json_command_short() { pipeline_json_get_command_bounded "$INPUT" 65536; }
 # 只能由用户在自己的终端里做（R6 的信任），agent 的 shell 调用一律拒。
 # 无法静态认出的（路径由字符串拼接出来、变量来自别处、脚本被间接构造）在转换时检出：记录链头对不上本机封存、共享受保护
 # 文件相对封存的写入记录被改动，见 kernel evaluate-v2。AFK 也照拒：它免除的是交互拦截，不是写入边界。
-# 读取不是写入：cat / ls / grep / head / find -name 与 JSON 过滤器等对记录路径的只读访问，以及读完管道进 xargs 只读命令或进内联
-# 解释器（内联代码被引号切开、受保护路径只出现在它之前，且代码里没有能写文件 / 起进程的字样，见 protected-writes.sh 的
-# pipeline_inline_tail_clean），一律放行；点名记录路径的内联代码、变量、之后又提到记录路径的写法拿不准，按写入拒。
-# 守卫按路径名认记录目录（任何绝对路径里的 .tenon/users/<u>/tests/ 都算），不看它在不在项目里：项目之外的临时副本照拒。
 # 原始输入不含任何相关字样就不解析；解析全走 json-input.sh 的线性 helper（bash 3.2 下大补丁也不超时）。
 # 实现在 hooks/lib/protected-writes.sh：只在原始输入里出现相关字样时才加载（见下面的预筛），其余调用不付这份解析成本。
 PIPELINE_PY='pyth''on' # 红线自证要求 gate.sh 里不出现某个脚本语言解释器名的字面量（test-hooks.sh section 3），所以拆开写。

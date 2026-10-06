@@ -76,13 +76,11 @@ pipeline_patch_targets() { # $1=patch text → 每个补丁头的目标路径一
 # 命令里的变量赋值（形态 7）：一行一条 NAME=值，按出现顺序累积；展开一次（值在赋值时已展开）。
 # 红线自证要求 gate.sh 里不出现某个脚本语言解释器名的字面量（test-hooks.sh section 3），所以拆开写。
 PIPELINE_PY='pyth''on'
-PIPELINE_JQ='j''q'
 PIPELINE_SHELL_VARS=''
 PIPELINE_SHELL_CWD='.'
 PIPELINE_REFUSE_KIND=record # 拒绝原因：record = 写受保护路径，trust = 替用户做信任决定
 PIPELINE_DANGLING=0         # 上一段以裸 `>` 结尾（目标在下一段的命令替换里）
 PIPELINE_CMD_MENTIONS=0     # 整条命令名了受保护路径（展开不了的变量目标据此按写入拒）
-PIPELINE_CMD_TEXT=''        # 整条命令的文本（去掉最外层 shell 包装）：被引号切开的内联代码要看它后面还有什么
 PIPELINE_EXPANDED=''
 PIPELINE_SEG_REST=''
 
@@ -260,9 +258,7 @@ pipeline_shape_bulk() { # 形态 9：xargs / parallel 的路径来自 stdin；fi
         break
       done
       case "$inner" in
-        # 只读：这些命令没有写文件的参数形态（JSON 过滤器没有写文件的功能；od / strings / nl / tac 只读 stdin 或文件）。
-        # 红线自证要求本文件里不出现这个 JSON 过滤器名的字面量（test-hooks.sh section 3），所以用 PIPELINE_JQ 拆开写。
-        ''|cat|grep|egrep|fgrep|rg|wc|head|tail|ls|diff|stat|file|sha256sum|shasum|md5sum|md5|realpath|echo|printf|basename|dirname|"$PIPELINE_JQ"|tac|nl|od|strings|sha1sum|sha512sum|cksum|readlink)
+        ''|cat|grep|egrep|fgrep|rg|wc|head|tail|ls|diff|stat|file|sha256sum|shasum|md5sum|md5|realpath|echo|printf|basename|dirname)
           # 只读命令也可能带着 `{}` 目标的重定向（`parallel 'echo x > {}'`）：段尾悬着一个没有目标的 `>` 就按写入拒。
           [ "${tokens[$((${#tokens[@]} - 1))]}" = '>' ] && return 0
           return 1
@@ -288,21 +284,6 @@ pipeline_shape_bulk() { # 形态 9：xargs / parallel 的路径来自 stdin；fi
   esac
   return 1
 }
-pipeline_inline_tail_clean() { # $raw（被引号切开的内联代码所在的段）之后的命令文本与已赋值的变量里，没有受保护字样、变量引用或命令替换，
-  # 且整段内联代码里没有写文件 / 起进程的 API 字样 → 0（读记录再交给解释器处理的管道）
-  local tail code dollar='$' tick='`'
-  pipeline_mentions_protected "$PIPELINE_SHELL_VARS" && return 1
-  case "$PIPELINE_CMD_TEXT" in *"$raw"*) tail="${PIPELINE_CMD_TEXT#*"$raw"}" ;; *) return 1 ;; esac
-  pipeline_mentions_protected "$tail" && return 1
-  case "$tail" in *"$dollar"*|*"$tick"*) return 1 ;; esac
-  # 代码的写法没法逐门语言去分析：出现任何能写文件、改文件、起进程的字样（含拼出路径再写的做法）都当拿不准，照旧拒。
-  code="$raw$tail"
-  case "$code" in
-    *write*|*append*|*open*|*unlink*|*rename*|*remove*|*rmdir*|*rmSync*|*'rm('*|*mkdir*|*copy*|*cpSync*|*'cp('*|*link*|*truncate*|*chmod*|*chown*|*utimes*|*put_contents*) return 1 ;;
-    *system*|*exec*|*spawn*|*popen*|*subprocess*|*child_process*|*shutil*|*eval*|*'os.'*|*'Deno.'*|*'Bun.'*|*'tee '*) return 1 ;;
-  esac
-  return 0
-}
 pipeline_shape_inline() { # 形态 1 / 2：解释器内联代码，命令段名了受保护路径（内联代码里的 `;` 会把代码切到后面的段里，所以引号没闭合时看整条命令）
   local i=0 n="${#args[@]}" token quotes dq='"' sq="'" qset
   qset="$dq$sq"
@@ -310,9 +291,6 @@ pipeline_shape_inline() { # 形态 1 / 2：解释器内联代码，命令段名�
     [ "$PIPELINE_CMD_MENTIONS" = 1 ] || return 1
     quotes="${raw//[!$qset]/}"
     [ $(( ${#quotes} % 2 )) = 1 ] || return 1
-    # 读记录再交给解释器处理（`cat 记录 | 解释器 -c '…;…'`）：受保护路径只出现在这一段之前，被切开的内联代码之后没有再提到它们，
-    # 也没有变量或命令替换可以指向它们——这段代码没有写它们的可能，放行；其余（含任何拿不准的）照旧按写入拒。
-    pipeline_inline_tail_clean && return 1
   fi
   case "$head" in
     "$PIPELINE_PY"|"$PIPELINE_PY"[0-9]*|node|nodejs|ruby|perl|php|lua|deno|bun|Rscript|osascript) ;;
@@ -635,7 +613,6 @@ pipeline_shell_writes_record() { # $1=decoded command, $2=cwd → 0 when it writ
   local command="${1:-}" skip_bodies rc
   pipeline_mentions_protected "$command" || case "$command" in *trust*|*TRUST*|*bash*|*sh\ *|*zsh*|*"$PIPELINE_PY"*|*node*|*ruby*|*perl*|*php*|*deno*|*bun*|*source*|*apply*|*patch*|./*|*\ ./*|*\;./*) ;; *) return 1 ;; esac
   command="$(pipeline_unwrap_shell_wrapper "$command")"
-  PIPELINE_CMD_TEXT="$command"
   PIPELINE_CMD_MENTIONS=0
   pipeline_mentions_protected "$command" && PIPELINE_CMD_MENTIONS=1
   for skip_bodies in 1 0; do
