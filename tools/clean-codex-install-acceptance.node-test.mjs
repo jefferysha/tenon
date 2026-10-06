@@ -86,6 +86,13 @@ function portAcceptsConnections(port) {
   })
 }
 
+// The fixture children of the runCommand timeout tests must start node, bind their listener and write the
+// identity file before runCommand's timer fires: that file is the only way the test can later prove the
+// whole owned tree was reaped. Node needs about 50 ms for that on an idle machine and well over 100 ms under
+// CPU contention, so a 100-300 ms timer raced the fixture's own start-up and left no identity file to read.
+// The timer is deliberately far above any plausible start-up; the timeout path itself is what is asserted.
+const FIXTURE_COMMAND_TIMEOUT_MS = 1_500
+
 async function assertProcessReapedWithClosedPort(pid, port, timeoutMs = 2_000) {
   const deadline = Date.now() + timeoutMs
   for (;;) {
@@ -265,10 +272,10 @@ test('command timeout waits for an ignored SIGTERM child to be killed before rej
       ], {
         cwd: root,
         env: process.env,
-        timeoutMs: 100,
+        timeoutMs: FIXTURE_COMMAND_TIMEOUT_MS,
         terminationGraceMs: 50,
       }),
-      /timed out after 100ms/,
+      new RegExp(`timed out after ${FIXTURE_COMMAND_TIMEOUT_MS}ms`),
     )
     const identity = JSON.parse(await readFile(identityFile, 'utf8'))
     await assertProcessReapedWithClosedPort(identity.pid, identity.port)
@@ -318,10 +325,10 @@ test('command timeout kills the complete owned process group, including an ignor
       runCommand(process.execPath, ['-e', parent, identityFile], {
         cwd: root,
         env: process.env,
-        timeoutMs: 300,
+        timeoutMs: FIXTURE_COMMAND_TIMEOUT_MS,
         terminationGraceMs: 50,
       }),
-      /timed out after 300ms/,
+      new RegExp(`timed out after ${FIXTURE_COMMAND_TIMEOUT_MS}ms`),
     )
     const descendantIdentity = JSON.parse(await readFile(identityFile, 'utf8'))
     await assertProcessReapedWithClosedPort(descendantIdentity.pid, descendantIdentity.port)
@@ -379,29 +386,36 @@ test('cleanup health proof does not mistake malformed JSON for a closed listener
   }
 })
 
-test('non-success health responses preserve HTTP status as the timeout cause', async () => {
-  const server = createHttpServer((_request, response) => {
-    response.writeHead(503, { 'content-type': 'text/plain' })
-    response.end('temporarily unavailable')
+test('non-success health responses preserve HTTP status as the timeout cause', async (t) => {
+  // waitForHealth keeps the cause of its LAST attempt, and that attempt only gets the time left before the
+  // overall deadline. Against a real socket the last attempt can therefore start with a 1-2 ms abort timer
+  // and lose to the connection, which surfaces "timed out after 2ms" instead of the HTTP status. Raising
+  // the timeouts does not remove that (the final attempt's budget is the remainder, not the request
+  // timeout), so the answer is served by a fetch that settles from microtasks: no abort timer, however
+  // short or late, can fire before it resolves, and the only thing left to assert is how a non-ok answer
+  // is recorded.
+  const port = 4_242
+  const requested = []
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    requested.push(String(url))
+    return new Response('temporarily unavailable', {
+      status: 503,
+      headers: { 'content-type': 'text/plain' },
+    })
   })
-  await new Promise((resolve, reject) => {
-    server.once('error', reject)
-    server.listen(0, '127.0.0.1', resolve)
-  })
-  const address = server.address()
-  assert.notEqual(address, null)
-  assert.equal(typeof address, 'object')
-  try {
-    await assert.rejects(
-      waitForHealth(address.port, true, {
-        overallTimeoutMs: 100,
-        requestTimeoutMs: 50,
-      }),
-      (error) => error.cause?.message.includes('HTTP 503'),
-    )
-  } finally {
-    await new Promise((resolve) => server.close(resolve))
-  }
+  await assert.rejects(
+    waitForHealth(port, true, {
+      overallTimeoutMs: 250,
+      requestTimeoutMs: 1_000,
+    }),
+    (error) => {
+      assert.match(error.message, new RegExp(`Dashboard did not become healthy on port ${port}`))
+      assert.equal(error.cause?.message, `Dashboard health on port ${port} returned HTTP 503`)
+      return true
+    },
+  )
+  assert.ok(requested.length >= 1)
+  assert.deepEqual([...new Set(requested)], [`http://127.0.0.1:${port}/api/health`])
 })
 
 test('public install URL accepts only a complete stable release tag', () => {
