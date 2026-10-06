@@ -121,6 +121,10 @@ n1_compat_gate() {
   local cur="$1" old="$2" work="$3" label="$4"
   local proj="$work/n1-compat-project" out code runs failed files status
 
+  # 当前版本写进记录的可移植指纹按 git 的权限位模型（目录 755、文件 644 / 755、符号链接 755），常见的 umask 022 下的树它与
+  # N-1 自己算的完整指纹逐位相同，所以 N-1 读当前版本的记录是新鲜的；这一节的断言以此为前提，不依赖运行者的 umask。
+  umask 022
+
   mkdir -p "$proj/src" "$proj/.pipeline/workflows" "$proj/test-results"
   printf '{ "name": "n1-compat", "version": "1.0.0", "type": "module", "scripts": { "test": "node --test" } }\n' > "$proj/package.json"
   printf 'export const add = (a, b) => a + b\n' > "$proj/src/add.js"
@@ -322,4 +326,28 @@ n1_compat_gate() {
   [ "$(n1_json_field "$out" 'v.policy.chain')" = intact ] && [ "$(n1_json_field "$out" 'v.pass')" = true ] \
     && ok "当前版本把 $label 在有宿主本地文件的工作区里写下的记录读作新鲜（完整指纹照样认），链完好" \
     || bad "当前版本读取 $label 在有宿主本地文件的工作区里写下的记录" "$(printf '%s' "$out" | head -c 700)"
+
+  # ── 符号链接与 umask 之外的权限位（放在最后：它让此前所有记录绑定的候选变了）──────────────────────
+  # 完整指纹记录原始权限位（符号链接在 macOS 是 0755、在 Linux 恒为 0777，目录与文件跟着 umask），评审结论与构建基线绑的是它：
+  # 当前版本算出的完整指纹必须逐位等于 N-1 在同一棵树上、同一台机器上自己算的值。可移植指纹（测试记录绑的）按 git 的权限位
+  # 模型记录，在这样的树上与完整指纹不同，N-1 读它判为已过期（要重跑）——可以，只是不能判成损坏。
+  ln -s src/add.js "$proj/link.js"
+  chmod 664 "$proj/src/add.js"
+  chmod 775 "$proj/src"
+  out="$(cd "$proj" && node "$cur" init compat-m --track backend --workflow compat --preset full 2>&1)"; code="$?"
+  [ "$code" -eq 0 ] || { bad "N-1 兼容：当前版本创建 compat-m" "exit=$code $out"; return; }
+  local cur_candidate old_candidate
+  cur_candidate="$(cd "$proj" && node "$cur" agent next compat-m --json 2>&1 | grep -Eo 'workspace:sha256:[0-9a-f]{64}' | head -1)"
+  old_candidate="$(cd "$proj" && node "$old" agent next compat-m --json 2>&1 | grep -Eo 'workspace:sha256:[0-9a-f]{64}' | head -1)"
+  if [ -n "$cur_candidate" ] && [ "$cur_candidate" = "$old_candidate" ]; then
+    ok "有符号链接和 664 / 775 权限位的树：当前版本的完整指纹与 $label 自己算的逐位相同"
+  else
+    bad "有符号链接和 664 / 775 权限位的树：当前版本的完整指纹与 $label 自己算的逐位相同" "当前=$cur_candidate $label=$old_candidate"
+  fi
+  ( cd "$proj" && node "$cur" test plan compat-m --seed && node "$cur" test register compat-m --suite smoke ) >/dev/null 2>&1
+  ( cd "$proj" && TENON_TEST_TRUST=1 node "$cur" test run compat-m --suite smoke ) >/dev/null 2>&1
+  out="$(cd "$proj" && node "$cur" test status compat-m 2>&1)"; code="$?"
+  n1_expect "当前版本在这棵树上写下的记录对自己是新鲜的" 0 "$code" "$out"
+  out="$(cd "$proj" && node "$old" test status compat-m 2>&1)"; code="$?"
+  n1_clean_only "$label 读取这棵树上写下的记录：不报损坏（至多判为已过期）" "$code" "$out"
 }

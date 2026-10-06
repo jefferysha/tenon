@@ -32,7 +32,7 @@ const CI_ONLY: readonly CiRule[] = [
   {
     id: 'candidate-mismatch', name: 'CandidateMismatch', level: 'error',
     short: 'The recorded runs were produced on a different tree than the pull request head',
-    help: 'The workspace fingerprint bound into the test run records differs from the fingerprint of the checked-out tree. The code changed after the tests ran, or the checkout differs from the tested workspace (ignored build output, file modes, line endings, or, for records written by Tenon 0.3.0 and earlier, host-local files such as `.claude/settings.local.json` that the fingerprint counted then). Rerun `tenon test run <change> --stage` on the final tree.',
+    help: 'The workspace fingerprint bound into the test run records differs from the fingerprint of the checked-out tree. The code changed after the tests ran, or the checkout differs from the tested workspace (ignored build output, executable bits, line endings, or, for records written by Tenon 0.3.0 and earlier, host-local files such as `.claude/settings.local.json` that the fingerprint counted then). Rerun `tenon test run <change> --stage` on the final tree.',
   },
   {
     id: 'protected-unapproved', name: 'ProtectedFileUnapproved', level: 'error',

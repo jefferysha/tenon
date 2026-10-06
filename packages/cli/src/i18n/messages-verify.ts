@@ -263,12 +263,12 @@ export const VERIFY_MESSAGES = {
     en: '; candidate files changed after commit {commit}, the first commit after the run (where the tested workspace was most likely committed): {files}',
   },
   'verify.candidateNothingLater': {
-    zh: '；记录之后的第一个提交 {commit} 之后没有再改过候选文件，差异不在后来的提交里，而在测试时的工作区本身：被 gitignore 或未跟踪的文件、文件权限位、行尾，或者 0.3.0 及更早版本绑进记录的宿主本地文件（.claude/settings.local.json、CLAUDE.local.md）；用当前版本在最终的树上重跑',
-    en: '; no candidate file changed after commit {commit}, the first commit after the run, so the difference is not a later commit but the tested workspace itself: git-ignored or untracked files, file modes, line endings, or host-local files (.claude/settings.local.json, CLAUDE.local.md) that Tenon 0.3.0 and earlier bound into the records; rerun with the current version on the final tree',
+    zh: '；记录之后的第一个提交 {commit} 之后没有再改过候选文件，差异不在后来的提交里，而在测试时的工作区本身：被 gitignore 或未跟踪的文件、可执行位、行尾，或者 0.3.0 及更早版本绑进记录的宿主本地文件（.claude/settings.local.json、CLAUDE.local.md）；用当前版本在最终的树上重跑',
+    en: '; no candidate file changed after commit {commit}, the first commit after the run, so the difference is not a later commit but the tested workspace itself: git-ignored or untracked files, executable bits, line endings, or host-local files (.claude/settings.local.json, CLAUDE.local.md) that Tenon 0.3.0 and earlier bound into the records; rerun with the current version on the final tree',
   },
   'verify.candidateWorkspaceCauses': {
-    zh: '；这个检出里找不到测试之后的提交，无法指出差在哪个文件。常见原因：测试之后改了代码，或测试时的工作区与干净检出不同（被 gitignore 或未跟踪的文件、文件权限位、行尾，或者 0.3.0 及更早版本绑进记录的宿主本地文件）',
-    en: '; the commit that followed the run cannot be found in this checkout, so the differing file cannot be named. Usual causes: the code changed after the tests ran, or the tested workspace differs from a clean checkout (git-ignored or untracked files, file modes, line endings, or host-local files that Tenon 0.3.0 and earlier bound into the records)',
+    zh: '；这个检出里找不到测试之后的提交，无法指出差在哪个文件。常见原因：测试之后改了代码，或测试时的工作区与干净检出不同（被 gitignore 或未跟踪的文件、可执行位、行尾，或者 0.3.0 及更早版本绑进记录的宿主本地文件）',
+    en: '; the commit that followed the run cannot be found in this checkout, so the differing file cannot be named. Usual causes: the code changed after the tests ran, or the tested workspace differs from a clean checkout (git-ignored or untracked files, executable bits, line endings, or host-local files that Tenon 0.3.0 and earlier bound into the records)',
   },
   'verify.candidateTrackedHostLocal': {
     zh: '；这个检出里 git 跟踪着宿主本地清单上的路径（它们是仓库的一部分，计入候选，改了就动候选）：{files}',

@@ -1,11 +1,11 @@
 import { execFileSync } from 'node:child_process'
-import { closeSync, constants, lstatSync, openSync } from 'node:fs'
+import { closeSync, constants, lstatSync, openSync, promises as fsPromises } from 'node:fs'
 import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
 import {
-  fingerprintWorkspace, fingerprintWorkspaceTwins, isHostLocalPath, isWorkspaceBaseline, isWorkspaceCandidatePath, TEST_OUTPUT_DIR_SEGMENTS,
+  fingerprintWorkspace, fingerprintWorkspaceTwins, isHostLocalPath, isWorkspaceBaseline, isWorkspaceCandidatePath, portableModeOf, TEST_OUTPUT_DIR_SEGMENTS,
   trackedHostLocalPaths,
   WORKSPACE_BASELINE_PREFIX,
 } from './fingerprint.js'
@@ -204,7 +204,7 @@ describe('fingerprintWorkspace', () => {
  */
 describe('host-local files', () => {
   /** 固定权限位的夹具树：所有目录 755、文件 644（可执行 755），指纹因此与 umask 无关。 */
-  async function fixture(options: { readonly hostLocal: boolean; readonly sharedSettings?: boolean }): Promise<string> {
+  async function fixture(options: { readonly hostLocal: boolean; readonly sharedSettings?: boolean; readonly symlink?: boolean }): Promise<string> {
     const root = await freshWorkspace()
     const dir = async (rel: string): Promise<void> => { await mkdir(join(root, rel), { recursive: true }); await chmod(join(root, rel), 0o755) }
     const file = async (rel: string, text: string, mode = 0o644): Promise<void> => { await writeFile(join(root, rel), text); await chmod(join(root, rel), mode) }
@@ -216,7 +216,7 @@ describe('host-local files', () => {
     await file('package.json', '{ "name": "g" }\n')
     await file('.claude/agents/tenon-x.md', 'agent\n')
     await file('test-results/unit.xml', '<x/>')
-    await symlink('src/a.js', join(root, 'link.js'))
+    if (options.symlink !== false) await symlink('src/a.js', join(root, 'link.js'))
     if (options.sharedSettings === true) await file('.claude/settings.json', '{ "shared": true }\n')
     if (options.hostLocal) {
       await file('.claude/settings.local.json', '{ "permissions": { "allow": ["Bash(ls)"] } }\n')
@@ -229,30 +229,50 @@ describe('host-local files', () => {
   }
   const DECLARED = { declaredOutputs: ['test-results/unit.xml'] }
 
-  // 这四个值是 0.3.0 的实现对同一棵树算出来的：升级后读 0.3.0 记录（它们绑的就是完整指纹）不能因此全部过期。
-  const V030 = {
-    'plain:without': 'workspace:sha256:7b858207f7bedfe5ed6a389f68e573e831c98f64e2afea81f78208779ae133c9',
-    'plain:with': 'workspace:sha256:81190397c3551da82ecc1d5799fbbbeb1f7a5d4fcf512e684c87509168eb839a',
-    'settings:without': 'workspace:sha256:7c79a73370d2335591207303db56ce098302008252d6ac9ddd915fa369ce5298',
-    'settings:with': 'workspace:sha256:626c83e0ccebddee4839787267da798fe3ff16abf30fd71044cfd7aa9b5cb58f',
-  } as const
+  /**
+   * 这些值是真正的 0.3.0 实现（v0.3.0 提交里的 fingerprint.ts 原样打包）在同一棵夹具树上算出来的，每个平台各一份。
+   * 完整指纹记录原始权限位，而符号链接的权限位在 macOS 是 0755、在 Linux 恒为 0777，所以两个平台的 0.3.0 值本来就不同；
+   * 夹具树里有一个符号链接，其余的权限位都用 chmod 钉死。0.3.0 写下的记录绑的就是完整指纹，升级后它们在本机不能因此全部过期，
+   * 所以完整指纹必须在每个平台上逐位等于 0.3.0 自己算的值。
+   */
+  const V030_BY_PLATFORM: Partial<Record<NodeJS.Platform, Readonly<Record<'plain:without' | 'plain:with' | 'settings:without' | 'settings:with', string>>>> = {
+    darwin: {
+      'plain:without': 'workspace:sha256:7b858207f7bedfe5ed6a389f68e573e831c98f64e2afea81f78208779ae133c9',
+      'plain:with': 'workspace:sha256:81190397c3551da82ecc1d5799fbbbeb1f7a5d4fcf512e684c87509168eb839a',
+      'settings:without': 'workspace:sha256:7c79a73370d2335591207303db56ce098302008252d6ac9ddd915fa369ce5298',
+      'settings:with': 'workspace:sha256:626c83e0ccebddee4839787267da798fe3ff16abf30fd71044cfd7aa9b5cb58f',
+    },
+    linux: {
+      'plain:without': 'workspace:sha256:180c3bd96463066f17f47b46f68c7f2d4970fea81995dc2ea355755c69a282bf',
+      'plain:with': 'workspace:sha256:fe982be20824a00bc9b000e4f4e57f0264756185d68accff41bf9e0199c2bd32',
+      'settings:without': 'workspace:sha256:83e34b80fabdb14e4c9554c9ca2c2398be675f27e1b4b6416f23f694683fd6ab',
+      'settings:with': 'workspace:sha256:77d61d19290121483b9eff243d50c63cb306845d2e1c6664b3bc637ac3504617',
+    },
+  }
+  const V030 = V030_BY_PLATFORM[process.platform]
 
-  test('完整指纹与 0.3.0 逐位相同（有无宿主本地文件、有无共享的 .claude/settings.json 都一样）', async () => {
+  test.skipIf(V030 === undefined)('完整指纹与 0.3.0 逐位相同（有无宿主本地文件、有无共享的 .claude/settings.json 都一样；按平台钉死）', async () => {
+    if (V030 === undefined) return
     expect(await fingerprintWorkspace(await fixture({ hostLocal: false }), DECLARED)).toBe(V030['plain:without'])
     expect(await fingerprintWorkspace(await fixture({ hostLocal: true }), DECLARED)).toBe(V030['plain:with'])
     expect(await fingerprintWorkspace(await fixture({ hostLocal: false, sharedSettings: true }), DECLARED)).toBe(V030['settings:without'])
     expect(await fingerprintWorkspace(await fixture({ hostLocal: true, sharedSettings: true }), DECLARED)).toBe(V030['settings:with'])
   })
 
-  test('可移植指纹等于「同一棵树去掉宿主本地文件」的完整指纹：作者的工作区与干净克隆算出同一个值', async () => {
+  test('可移植指纹：作者的工作区（有宿主本地文件）与干净克隆（没有）算出同一个值，在任何平台上', async () => {
     const author = await fingerprintWorkspaceTwins(await fixture({ hostLocal: true }), DECLARED)
-    expect(author.full).toBe(V030['plain:with'])
-    expect(author.portable).toBe(V030['plain:without'])
-    const authorShared = await fingerprintWorkspaceTwins(await fixture({ hostLocal: true, sharedSettings: true }), DECLARED)
-    expect(authorShared.portable).toBe(V030['settings:without'])
-    // 没有宿主本地文件：两个值相同。
     const clone = await fingerprintWorkspaceTwins(await fixture({ hostLocal: false }), DECLARED)
-    expect(clone).toEqual({ full: V030['plain:without'], portable: V030['plain:without'] })
+    expect(author.portable).toBe(clone.portable)
+    expect(author.full, '完整指纹把宿主本地文件算进去，所以作者与克隆的完整指纹不同').not.toBe(clone.full)
+    const authorShared = await fingerprintWorkspaceTwins(await fixture({ hostLocal: true, sharedSettings: true }), DECLARED)
+    const cloneShared = await fingerprintWorkspaceTwins(await fixture({ hostLocal: false, sharedSettings: true }), DECLARED)
+    expect(authorShared.portable).toBe(cloneShared.portable)
+    expect(authorShared.portable, '共享的 .claude/settings.json 是候选的一部分').not.toBe(author.portable)
+  })
+
+  test('没有符号链接、权限位是常见的 755/644 的普通树：可移植指纹等于完整指纹，所以只认完整指纹的 0.3.0 读 0.3.1 的记录照样新鲜（每个平台都一样）', async () => {
+    const twins = await fingerprintWorkspaceTwins(await fixture({ hostLocal: false, symlink: false }), DECLARED)
+    expect(twins.portable).toBe(twins.full)
   })
 
   test('改、加、删宿主本地文件不动可移植指纹，动完整指纹；清单之外的同类文件仍属于候选', async () => {
@@ -271,7 +291,8 @@ describe('host-local files', () => {
     await rm(join(root, 'CLAUDE.local.md'))
     await rm(join(root, '.claude', 'worktrees'), { recursive: true })
     const removed = await fingerprintWorkspaceTwins(root, DECLARED)
-    expect(removed).toEqual({ full: before.portable, portable: before.portable })
+    expect(removed.portable, '删光之后与有宿主本地文件时的可移植指纹相同').toBe(before.portable)
+    expect(removed.full, '完整指纹不再有宿主本地文件的内容').not.toBe(before.full)
 
     // 只排除清单里的路径：相似的名字、别处的同名文件、共享的配置都是实现的一部分。
     const lookalikes: readonly (readonly [string, string])[] = [
@@ -379,7 +400,7 @@ describe('host-local files tracked by git', () => {
 
     track(root, '.claude/settings.local.json', 'CLAUDE.local.md')
     const tracked = await fingerprintWorkspaceTwins(root)
-    expect(tracked.portable, '都被跟踪：与完整指纹相同').toBe(tracked.full)
+    expect(tracked.portable, '都被跟踪：它们都计入').not.toBe(untracked.portable)
     await writeFile(join(root, '.claude', 'settings.local.json'), '{ "permissions": {} }\n')
     expect((await fingerprintWorkspaceTwins(root)).portable).not.toBe(tracked.portable)
 
@@ -405,15 +426,139 @@ describe('host-local files tracked by git', () => {
     expect((await fingerprintWorkspaceTwins(root)).portable).not.toBe(mixed)
   })
 
-  test('git 读不出跟踪情况（索引损坏）：一律照算，可移植指纹等于完整指纹，绝不放宽', async () => {
+  test('git 读不出跟踪情况（索引损坏）：一律照算，绝不放宽', async () => {
     const root = await repo()
     await mkdir(join(root, '.claude'), { recursive: true })
-    await writeFile(join(root, '.claude', 'settings.local.json'), '{}\n')
+    const settings = join(root, '.claude', 'settings.local.json')
+    await writeFile(settings, '{}\n')
     const healthy = await fingerprintWorkspaceTwins(root)
-    expect(healthy.portable).not.toBe(healthy.full)
+    await writeFile(settings, '{ "edited": 1 }\n')
+    expect((await fingerprintWorkspaceTwins(root)).portable, '索引健康：没被跟踪的宿主本地文件不进可移植指纹').toBe(healthy.portable)
+
     await writeFile(join(root, '.git', 'index'), 'not an index')
     expect(await trackedHostLocalPaths(root)).toBeUndefined()
     const broken = await fingerprintWorkspaceTwins(root)
-    expect(broken.portable).toBe(broken.full)
+    expect(broken.portable, 'git 答不出来：宿主本地文件照算，值不再等于健康时的').not.toBe(healthy.portable)
+    await writeFile(settings, '{ "edited": 2 }\n')
+    expect((await fingerprintWorkspaceTwins(root)).portable, '照算：改它就动').not.toBe(broken.portable)
+  })
+})
+
+/**
+ * 可移植指纹按 git 的权限位模型记录，不按文件系统的：git 不存目录权限位、不存符号链接权限位，普通文件只存属主的可执行位
+ * （100644 / 100755）。其余的权限位是写出检出的那台机器决定的——符号链接在 macOS 是 0755、在 Linux 恒为 0777，
+ * 目录与文件跟着 umask（002 下是 0775 / 0664）——同样的提交内容在 Linux runner 上算不出 Mac 上算的值。
+ */
+describe('portable fingerprint follows git mode model', () => {
+  /** 三台机器的权限位：常见的 umask 022、umask 002（Ubuntu 默认用户）、严格的 077。 */
+  const MACHINES = {
+    umask022: { dir: 0o755, file: 0o644, exec: 0o755 },
+    umask002: { dir: 0o775, file: 0o664, exec: 0o775 },
+    umask077: { dir: 0o700, file: 0o600, exec: 0o700 },
+  } as const
+  type Machine = (typeof MACHINES)[keyof typeof MACHINES]
+
+  /** 同一份 git 内容：只有权限位按 `machine` 变；`run.sh` 是可执行文件，其余都不是。 */
+  async function checkout(machine: Machine, options: { readonly execOnA?: boolean; readonly symlink?: boolean } = {}): Promise<string> {
+    const root = await freshWorkspace()
+    const dir = async (rel: string): Promise<void> => { await mkdir(join(root, rel), { recursive: true }); await chmod(join(root, rel), machine.dir) }
+    const file = async (rel: string, text: string, exec = false): Promise<void> => {
+      await writeFile(join(root, rel), text)
+      await chmod(join(root, rel), exec ? machine.exec : machine.file)
+    }
+    await chmod(root, machine.dir)
+    await dir('src')
+    await dir('src/deep')
+    await dir('test')
+    await file('src/a.js', 'export const a = 1\n', options.execOnA === true)
+    await file('src/deep/b.js', 'export const b = 2\n')
+    await file('src/run.sh', '#!/bin/sh\necho hi\n', true)
+    await file('test/a.test.js', 'export {}\n')
+    if (options.symlink !== false) await symlink('src/a.js', join(root, 'link.js'))
+    return root
+  }
+
+  test('同一份 git 内容、三台机器的权限位（umask 022 / 002 / 077）：可移植指纹相同，完整指纹各不相同', async () => {
+    const twins = await Promise.all(Object.values(MACHINES).map(async (machine) => fingerprintWorkspaceTwins(await checkout(machine))))
+    expect(new Set(twins.map((item) => item.portable)).size, '可移植指纹不随目录与文件的 umask 变').toBe(1)
+    expect(new Set(twins.map((item) => item.full)).size, '完整指纹记录原始权限位，所以随它变').toBe(3)
+  })
+
+  test('可执行位是 git 的口径：属主的可执行位变了就动可移植指纹；读写位、组与其他人的可执行位不算', async () => {
+    for (const machine of Object.values(MACHINES)) {
+      const plain = (await fingerprintWorkspaceTwins(await checkout(machine))).portable
+      const executable = (await fingerprintWorkspaceTwins(await checkout(machine, { execOnA: true }))).portable
+      expect(executable, '把普通文件改成可执行：提交内容变了（100644 → 100755）').not.toBe(plain)
+    }
+    // 只有组与其他人可执行、属主不可执行：git 当它是 100644。
+    const root = await checkout(MACHINES.umask022)
+    const before = await fingerprintWorkspaceTwins(root)
+    await chmod(join(root, 'src', 'deep', 'b.js'), 0o611)
+    const groupExec = await fingerprintWorkspaceTwins(root)
+    expect(groupExec.portable).toBe(before.portable)
+    expect(groupExec.full, '完整指纹把它算成另一个权限位').not.toBe(before.full)
+    await chmod(join(root, 'src', 'deep', 'b.js'), 0o444)
+    expect((await fingerprintWorkspaceTwins(root)).portable, '只读不改变 git 的权限位').toBe(before.portable)
+    await chmod(join(root, 'src', 'deep', 'b.js'), 0o700)
+    expect((await fingerprintWorkspaceTwins(root)).portable, '属主可执行：100755').not.toBe(before.portable)
+  })
+
+  test('两个指纹共用一条哈希流直到第一条不同的记录：在遍历的中途才出现分歧（最后才排序到的文件权限位不同）也各自算对', async () => {
+    const root = await checkout(MACHINES.umask022, { symlink: false })
+    await writeFile(join(root, 'zz-last.js'), 'export const last = 1\n')
+    await chmod(join(root, 'zz-last.js'), 0o644)
+    const ordinary = await fingerprintWorkspaceTwins(root)
+    expect(ordinary.portable, '普通的树：整个遍历都共用一条流，两个指纹相等').toBe(ordinary.full)
+    await chmod(join(root, 'zz-last.js'), 0o664)
+    const late = await fingerprintWorkspaceTwins(root)
+    expect(late.portable, '权限位 664 在 git 里还是 100644').toBe(ordinary.portable)
+    expect(late.full, '完整指纹记录原始权限位').not.toBe(ordinary.full)
+    // 分歧之后的文件内容两条流都要吃到：最后一个文件的内容变了，两个指纹都动。
+    await writeFile(join(root, 'zz-last.js'), 'export const last = 2\n')
+    const edited = await fingerprintWorkspaceTwins(root)
+    expect(edited.portable).not.toBe(late.portable)
+    expect(edited.full).not.toBe(late.full)
+  })
+
+  test('目录没有权限位：只改目录权限位（含根目录）不动可移植指纹，动完整指纹', async () => {
+    const root = await checkout(MACHINES.umask022)
+    const before = await fingerprintWorkspaceTwins(root)
+    await chmod(join(root, 'src', 'deep'), 0o700)
+    await chmod(join(root, 'test'), 0o775)
+    await chmod(root, 0o700)
+    const after = await fingerprintWorkspaceTwins(root)
+    expect(after.portable).toBe(before.portable)
+    expect(after.full).not.toBe(before.full)
+    // 新增一个文件、改内容照样动：权限位之外的一切仍在记录里。
+    await writeFile(join(root, 'src', 'deep', 'b.js'), 'export const b = 3\n')
+    expect((await fingerprintWorkspaceTwins(root)).portable).not.toBe(after.portable)
+  })
+
+  test('符号链接：权限位不进可移植记录（只有目标）；目标变了才动', async () => {
+    // 记录里用的模式记号：符号链接与目录是常量，不随实际权限位变；普通文件只看属主的可执行位。
+    expect(portableModeOf('L', 0o755)).toBe(portableModeOf('L', 0o777))
+    expect(portableModeOf('L', 0o755)).toBe(portableModeOf('L', 0o700))
+    expect(portableModeOf('D', 0o755)).toBe(portableModeOf('D', 0o2775))
+    expect(portableModeOf('F', 0o644)).toBe('644')
+    expect(portableModeOf('F', 0o664)).toBe('644')
+    expect(portableModeOf('F', 0o600)).toBe('644')
+    expect(portableModeOf('F', 0o611)).toBe('644')
+    expect(portableModeOf('F', 0o755)).toBe('755')
+    expect(portableModeOf('F', 0o700)).toBe('755')
+    expect(portableModeOf('F', 0o4755)).toBe('755')
+
+    const root = await checkout(MACHINES.umask022)
+    const before = await fingerprintWorkspaceTwins(root)
+    // macOS 上真的把符号链接的权限位改掉（Linux 的 lchmod 是个会抛错的空壳，那里的差别由上面的记号表证明）。
+    if (process.platform === 'darwin' && typeof fsPromises.lchmod === 'function') {
+      await fsPromises.lchmod(join(root, 'link.js'), 0o700)
+      expect(lstatSync(join(root, 'link.js')).mode & 0o777, '符号链接的权限位确实变了').toBe(0o700)
+      const flipped = await fingerprintWorkspaceTwins(root)
+      expect(flipped.portable).toBe(before.portable)
+      expect(flipped.full).not.toBe(before.full)
+    }
+    await rm(join(root, 'link.js'))
+    await symlink('src/deep/b.js', join(root, 'link.js'))
+    expect((await fingerprintWorkspaceTwins(root)).portable, '目标变了').not.toBe(before.portable)
   })
 })

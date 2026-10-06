@@ -14,14 +14,24 @@
  * nothing can hide under a conventional-looking name.  Including declared outputs would make a
  * successful verifier invalidate the target it is trying to attest.  All remaining files,
  * directories, modes, and symlink targets are represented without following symlinks.
+ *
+ * Two values come out of one traversal (`fingerprintWorkspaceTwins`).  The full one records raw permission
+ * bits and counts host-local files; it is the 0.3.0 value, byte for byte, and what reviewer verdicts and
+ * build revisions bind.  The portable one is what test records bind: it leaves out untracked host-local
+ * files and records modes the way git does (`portableModeOf`), so a runner on another platform reproduces
+ * it from the same committed content.
  */
-import { execFile } from 'node:child_process'
-import { createHash } from 'node:crypto'
+import { createHash, type Hash } from 'node:crypto'
 import type { Stats } from 'node:fs'
 import { lstat, readdir, readFile, readlink } from 'node:fs/promises'
 import { join, sep } from 'node:path'
-import { promisify } from 'node:util'
+import {
+  HOST_LOCAL_DIRS, HOST_LOCAL_FILES, SKIP_NOTHING, hasHostLocalFiles, skipUntrackedHostLocal, trackedHostLocalPaths,
+  type HostLocalSkip,
+} from './host-local.js'
 import { isProcessLocalFdPath } from './process-local-fd-path.js'
+
+export { HOST_LOCAL_DIRS, HOST_LOCAL_FILES, hasHostLocalFiles, isHostLocalPath, trackedHostLocalPaths } from './host-local.js'
 
 export const WORKSPACE_BASELINE_PREFIX = 'workspace:sha256:'
 
@@ -119,87 +129,6 @@ const EXCLUDED_RELATIVE_ROOTS = ['.github/hooks', '.claude/agents'] as const
 const EXCLUDED_ROOT_FILES = new Set(['.pipeline-owned.json'])
 
 /**
- * Host-local files: per-machine configuration of the coding-agent hosts that is never committed (the hosts
- * create it git-ignored, or tell the user to ignore it).  They are not implementation, but they differ
- * between the author's workspace and any clone, so a fingerprint that counted them could never be
- * reproduced from the committed files.  The list is explicit on purpose; nothing else is excluded by name
- * pattern, and every entry is a path from the project root:
- *
- *   · `.claude/settings.local.json` — Claude Code's personal project settings (permission allow-lists, hook
- *     logging); Claude Code rewrites it whenever the user answers a permission prompt.
- *   · `CLAUDE.local.md` — Claude Code's personal, uncommitted project memory next to `CLAUDE.md`.
- *   · `.claude/worktrees/` — checkouts of this project that Claude Code creates for its sub-agents; every
- *     file in them is a copy of source that already counts at its real path.
- *
- * `.claude/settings.json`, `.claude/commands/`, `.claude/skills/`, `.mcp.json` and `CLAUDE.md` are shared,
- * committed configuration and stay part of the candidate.  Codex needs no entry: `.codex/` and `.agents/`
- * are excluded as a whole.
- *
- * The exclusion is only for files git does not track.  A host-local path that is tracked (committed or
- * staged) is part of the repository, so the portable fingerprint counts it: otherwise a pull request could
- * commit code under one of these paths, point a test at it, and change it later without moving the candidate.
- */
-export const HOST_LOCAL_FILES = ['.claude/settings.local.json', 'CLAUDE.local.md'] as const
-export const HOST_LOCAL_DIRS = ['.claude/worktrees'] as const
-
-/** Whether a path is on the host-local list (by name only; whether git tracks it is a separate question, see `trackedHostLocalPaths`). */
-export function isHostLocalPath(relativePath: string): boolean {
-  return (HOST_LOCAL_FILES as readonly string[]).includes(relativePath)
-    || HOST_LOCAL_DIRS.some((dir) => relativePath === dir || relativePath.startsWith(`${dir}/`))
-}
-
-/** True when the project has at least one host-local path, i.e. when the two fingerprints below can differ. */
-export async function hasHostLocalFiles(root: string): Promise<boolean> {
-  for (const path of [...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS]) {
-    try {
-      await lstat(join(root, ...path.split('/')))
-      return true
-    } catch {
-      // absent
-    }
-  }
-  return false
-}
-
-const runGit = promisify(execFile)
-const GIT_TIMEOUT_MS = 30_000
-const GIT_MAX_BUFFER = 64 * 1024 * 1024
-
-/**
- * The files under the host-local list that git tracks (committed or staged), as paths from the project root.
- * A directory that is not a git repository tracks nothing.  Any other failure (git missing, a corrupt index,
- * a timeout) is `undefined`: the caller must then count every host-local path, because "unknown" must never
- * widen what the fingerprint leaves out.
- */
-export async function trackedHostLocalPaths(root: string): Promise<ReadonlySet<string> | undefined> {
-  try {
-    const { stdout } = await runGit('git', ['ls-files', '-z', '--cached', '--', ...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS], {
-      cwd: root, timeout: GIT_TIMEOUT_MS, maxBuffer: GIT_MAX_BUFFER, env: { ...process.env, LC_ALL: 'C', LANG: 'C' },
-    })
-    return new Set(stdout.split('\0').filter((path) => path !== ''))
-  } catch (error) {
-    const stderr = typeof error === 'object' && error !== null ? Reflect.get(error, 'stderr') : undefined
-    return typeof stderr === 'string' && /not a git repository/iu.test(stderr) ? new Set() : undefined
-  }
-}
-
-/** Which paths a fingerprint leaves out in addition to the common exclusions. */
-type HostLocalSkip = (relativePath: string) => boolean
-
-/** The full fingerprint counts every host-local path. */
-const SKIP_NOTHING: HostLocalSkip = () => false
-
-/** The portable fingerprint leaves out the host-local paths git does not track (and the directories holding only those). */
-function skipUntrackedHostLocal(tracked: ReadonlySet<string>): HostLocalSkip {
-  const holdingTracked = new Set<string>()
-  for (const path of tracked) {
-    const parts = path.split('/')
-    for (let end = 1; end < parts.length; end++) holdingTracked.add(parts.slice(0, end).join('/'))
-  }
-  return (relativePath) => isHostLocalPath(relativePath) && !tracked.has(relativePath) && !holdingTracked.has(relativePath)
-}
-
-/**
  * A directory that only wraps excluded host configuration (`.claude/` holding just `agents/`) is not
  * implementation either: Tenon creates it when it first generates a host agent file, and that must not
  * move the candidate the earlier test records are bound to.  For the portable fingerprint the untracked
@@ -269,13 +198,8 @@ export function isWorkspaceCandidatePath(relativePath: string): boolean {
   return !isExcluded(relativePath, NO_EXCLUSIONS, METRIC_EXCLUDED_ANY_SEGMENT)
 }
 
-function writeRecord(hash: ReturnType<typeof createHash>, kind: 'D' | 'F' | 'L', relativePath: string, details = ''): void {
-  hash.update(kind)
-  hash.update('\0')
-  hash.update(relativePath)
-  hash.update('\0')
-  hash.update(details)
-  hash.update('\0')
+function recordText(kind: 'D' | 'F' | 'L', relativePath: string, details: string): string {
+  return `${kind}\0${relativePath}\0${details}\0`
 }
 
 /** True when everything below `relativePath` is excluded, so the directory itself carries no candidate content. */
@@ -290,10 +214,83 @@ async function holdsOnlyExcluded(root: string, relativePath: string, exclusions:
   return true
 }
 
-/** One fingerprint being computed.  Both are fed by the same traversal, so each file is read once. */
+/**
+ * The mode token the portable fingerprint records, following git's mode model instead of the file system's.
+ * Git stores no directory modes, no symlink modes and, for a regular file, only the owner's executable bit
+ * (100644 or 100755).  Every other permission bit comes from the machine that wrote the checkout and differs
+ * for the same committed content: a symlink is 0755 on macOS and always 0777 on Linux, and directories and
+ * files follow the umask (0775/0664 under umask 002).  Recording them would make a Linux runner unable to
+ * reproduce a fingerprint taken on a Mac.
+ *
+ * The constants that stand in for the modes git does not store are the values a umask-022 checkout produces
+ * on macOS, so for an ordinary tree the portable fingerprint equals the full one, and a reader that only
+ * knows the full fingerprint (0.3.0 and earlier) still finds the record fresh.
+ */
+export function portableModeOf(kind: 'D' | 'F' | 'L', mode: number): string {
+  if (kind === 'F') return (mode & 0o100) !== 0 ? '755' : '644'
+  return '755'
+}
+
+/** One of the two fingerprints being computed.  Both are fed by the same traversal, so each file is read once. */
 interface Sink {
-  readonly hash: ReturnType<typeof createHash>
+  readonly id: 'full' | 'portable'
   readonly skip: HostLocalSkip
+  /** Record git's mode model (`portableModeOf`) instead of the raw permission bits. */
+  readonly gitModes: boolean
+}
+
+/** The mode token one sink records for an entry. */
+function recordedMode(sink: Sink, kind: 'D' | 'F' | 'L', stat: { mode: number }): string {
+  return sink.gitModes ? portableModeOf(kind, stat.mode) : modeOf(stat)
+}
+
+/**
+ * The two SHA-256 streams.  They share one hash state for as long as every record is identical for both, which
+ * is the whole traversal of an ordinary tree, so hashing the contents is paid once.  The first record only one of
+ * them takes (or that they record differently) splits the state in two with `Hash.copy()`; after that each is
+ * fed on its own.  The bytes each stream sees are exactly what two separate traversals would have fed it.
+ */
+class FingerprintStreams {
+  private shared: Hash | undefined = createHash('sha256')
+  private split: { readonly full: Hash; readonly portable: Hash } | undefined
+
+  update(data: string | Buffer, target: 'both' | 'full' | 'portable'): void {
+    if (this.shared !== undefined && target === 'both') {
+      this.shared.update(data)
+      return
+    }
+    const { full, portable } = this.diverge()
+    if (target !== 'portable') full.update(data)
+    if (target !== 'full') portable.update(data)
+  }
+
+  private diverge(): { readonly full: Hash; readonly portable: Hash } {
+    if (this.split === undefined) {
+      const full = this.shared ?? createHash('sha256')
+      this.split = { full, portable: full.copy() }
+      this.shared = undefined
+    }
+    return this.split
+  }
+
+  digests(): WorkspaceFingerprints {
+    const hex = (hash: Hash): string => `${WORKSPACE_BASELINE_PREFIX}${hash.digest('hex')}`
+    if (this.split === undefined) {
+      const value = hex(this.shared ?? createHash('sha256'))
+      return { full: value, portable: value }
+    }
+    return { full: hex(this.split.full), portable: hex(this.split.portable) }
+  }
+}
+
+/** Feed an entry's record to every live sink; `text` is what that sink records for it. */
+function emit(streams: FingerprintStreams, live: readonly Sink[], text: (sink: Sink) => string): void {
+  const records = live.map((sink) => ({ id: sink.id, text: text(sink) }))
+  const [first, second] = records
+  if (first === undefined) return
+  if (second === undefined) streams.update(first.text, first.id)
+  else if (first.text === second.text) streams.update(first.text, 'both')
+  else for (const record of records) streams.update(record.text, record.id)
 }
 
 async function fingerprintEntry(
@@ -301,6 +298,7 @@ async function fingerprintEntry(
   relativePath: string,
   sinks: readonly Sink[],
   exclusions: Exclusions,
+  streams: FingerprintStreams,
 ): Promise<void> {
   const live = sinks.filter((sink) => !isExcludedFor(relativePath, exclusions, sink.skip))
   if (live.length === 0) return
@@ -318,18 +316,16 @@ async function fingerprintEntry(
       keep.push(sink)
     }
     if (keep.length === 0) return
-    for (const sink of keep) writeRecord(sink.hash, 'D', relativePath, modeOf(before))
-    for (const name of names) await fingerprintEntry(root, `${relativePath}/${name}`, keep, exclusions)
+    emit(streams, keep, (sink) => recordText('D', relativePath, recordedMode(sink, 'D', before)))
+    for (const name of names) await fingerprintEntry(root, `${relativePath}/${name}`, keep, exclusions, streams)
     return
   }
 
   if (before.isFile()) {
-    const details = `${modeOf(before)}:${before.size}`
     const content = await readFile(absolutePath)
-    for (const sink of live) {
-      writeRecord(sink.hash, 'F', relativePath, details)
-      sink.hash.update(content)
-    }
+    emit(streams, live, (sink) => recordText('F', relativePath, `${recordedMode(sink, 'F', before)}:${before.size}`))
+    // The content is the same bytes for every sink that holds the file.
+    streams.update(content, live.length === 2 ? 'both' : (live[0]?.id ?? 'both'))
     const after = await lstat(absolutePath)
     if (!after.isFile() || !sameFileIdentity(before, after)) {
       throw new Error(`workspace baseline capture raced with a file change: ${relativePath}`)
@@ -338,8 +334,8 @@ async function fingerprintEntry(
   }
 
   if (before.isSymbolicLink()) {
-    const details = `${modeOf(before)}:${await readlink(absolutePath)}`
-    for (const sink of live) writeRecord(sink.hash, 'L', relativePath, details)
+    const target = await readlink(absolutePath)
+    emit(streams, live, (sink) => recordText('L', relativePath, `${recordedMode(sink, 'L', before)}:${target}`))
     return
   }
 
@@ -362,36 +358,42 @@ async function statRoot(root: string): Promise<Stats> {
 }
 
 export interface WorkspaceFingerprints {
-  /** Counts the host-local files: the value Tenon 0.3.0 and earlier bound into every record and review. */
+  /**
+   * The value Tenon 0.3.0 and earlier bound into every record and review, byte for byte: host-local files
+   * counted, raw permission bits recorded.  It depends on the machine (symlink modes, umask).
+   */
   readonly full: string
-  /** Leaves the host-local files out: what a clean checkout of the committed files can reproduce. */
+  /**
+   * What a clean checkout of the committed files reproduces on any machine: the host-local paths git does not
+   * track are left out, and modes follow git's model (`portableModeOf`).  Test records bind this one.
+   */
   readonly portable: string
 }
 
 /**
- * Both fingerprints of a project root from one traversal.  When the project has no host-local path the two
- * values are equal and the traversal feeds a single hash.  Transient workflow material is excluded by
- * policy above and declared test outputs by `options.declaredOutputs`, so the same implementation tree
- * yields the same values before and after its verification evidence is written.  Production callers go
- * through `candidateFingerprint`, which derives the declarations from the project.
+ * Both fingerprints of a project root from one traversal, so each file is read once.  They are equal for an
+ * ordinary tree (no untracked host-local path, directories 755, files 644/755, no symlink on Linux).
+ * Transient workflow material is excluded by policy above and declared test outputs by
+ * `options.declaredOutputs`, so the same implementation tree yields the same values before and after its
+ * verification evidence is written.  Production callers go through `candidateFingerprint`, which derives
+ * the declarations from the project.
  */
 export async function fingerprintWorkspaceTwins(root: string, options?: FingerprintOptions): Promise<WorkspaceFingerprints> {
   const rootStat = await statRoot(root)
   if (!rootStat.isDirectory()) throw new Error(`workspace root is not a directory: ${root}`)
 
   const exclusions = exclusionsOf(options)
-  const full: Sink = { hash: createHash('sha256'), skip: SKIP_NOTHING }
-  // The portable fingerprint differs from the full one only when an untracked host-local path exists.  When git cannot
-  // say what it tracks, nothing is left out and the two values are equal.
+  const full: Sink = { id: 'full', skip: SKIP_NOTHING, gitModes: false }
+  // The portable fingerprint leaves out the host-local paths git does not track.  When git cannot say what it tracks
+  // (or there is no host-local path to ask about) nothing is left out.
   const tracked = await hasHostLocalFiles(root) ? await trackedHostLocalPaths(root) : undefined
-  const portable: Sink | undefined = tracked === undefined ? undefined : { hash: createHash('sha256'), skip: skipUntrackedHostLocal(tracked) }
-  const sinks = portable === undefined ? [full] : [full, portable]
-  for (const sink of sinks) writeRecord(sink.hash, 'D', '.', modeOf(rootStat))
+  const portable: Sink = { id: 'portable', skip: tracked === undefined ? SKIP_NOTHING : skipUntrackedHostLocal(tracked), gitModes: true }
+  const sinks = [full, portable]
+  const streams = new FingerprintStreams()
+  emit(streams, sinks, (sink) => recordText('D', '.', recordedMode(sink, 'D', rootStat)))
   const names = sortNames(await readdir(root))
-  for (const name of names) await fingerprintEntry(root, name, sinks, exclusions)
-  const digest = (sink: Sink): string => `${WORKSPACE_BASELINE_PREFIX}${sink.hash.digest('hex')}`
-  const fullValue = digest(full)
-  return { full: fullValue, portable: portable === undefined ? fullValue : digest(portable) }
+  for (const name of names) await fingerprintEntry(root, name, sinks, exclusions, streams)
+  return streams.digests()
 }
 
 /** The fingerprint that counts host-local files (`WorkspaceFingerprints.full`). */

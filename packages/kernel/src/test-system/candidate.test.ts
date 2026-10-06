@@ -109,18 +109,19 @@ describe('候选指纹（生产口径）', () => {
   it('完整指纹照算宿主本地文件，可移植孪生不算；孪生由同一次遍历得到并记在表里', async () => {
     const root = await project()
     const clean = await candidateFingerprint(root)
-    expect(knownPortableCandidate(clean), '没有宿主本地文件：两个指纹相同').toBe(clean)
+    const cleanPortable = knownPortableCandidate(clean)
+    expect(cleanPortable, '同一次遍历同时得到可移植孪生').toBeDefined()
 
     await put(root, '.claude/settings.local.json', '{ "permissions": { "allow": ["Bash(ls)"] } }\n')
     const full = await candidateFingerprint(root)
     expect(full).not.toBe(clean)
-    expect(knownPortableCandidate(full)).toBe(clean)
+    expect(knownPortableCandidate(full), '没有宿主本地文件的克隆算出同一个可移植值').toBe(cleanPortable)
 
     // Claude Code 改写这个文件：完整指纹变了，孪生不变。
     await put(root, '.claude/settings.local.json', '{ "permissions": { "allow": ["Bash(ls)", "Bash(npm test)"] } }\n')
     const edited = await candidateFingerprint(root)
     expect(edited).not.toBe(full)
-    expect(knownPortableCandidate(edited)).toBe(clean)
+    expect(knownPortableCandidate(edited)).toBe(cleanPortable)
   })
 
   it('表里没有的完整指纹：重新遍历一次；树已经变了（完整指纹对不上）就不冒充孪生', async () => {

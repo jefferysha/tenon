@@ -3,7 +3,7 @@
  * 权限允许列表）、`CLAUDE.local.md`，干净克隆里没有它们。测试记录绑定的候选指纹不能把这些文件算进去，否则每个用 Claude Code 的
  * 项目在 CI 上都会 `candidate-mismatch`；而 0.3.0 写下的、绑了完整指纹的记录在作者本机仍然要保持新鲜。
  */
-import { appendFile, writeFile } from 'node:fs/promises'
+import { appendFile, chmod, readdir, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { candidateFingerprint, fingerprintWorkspaceTwins, declaredTestOutputs, type CiVerifyReport } from '@tenon/kernel'
 import { afterEach, describe, expect, test } from 'vitest'
@@ -174,5 +174,41 @@ describe('tenon verify --ci：宿主本地文件', () => {
     const message = mismatch(result)
     expect(message).toContain('git 跟踪着宿主本地清单上的路径')
     expect(message).toContain(TRACKED_HOST_LOCAL_CODE)
+  }, 180_000)
+
+  /** 把检出里除 .git 之外的目录与文件的权限位改成另一台机器（另一个 umask）会写出的样子；可执行文件保持可执行。 */
+  async function checkOutUnderAnotherUmask(root: string, mode: { readonly dir: number; readonly file: number; readonly exec: number }): Promise<void> {
+    for (const entry of await readdir(root, { withFileTypes: true })) {
+      if (entry.name === '.git') continue
+      const path = join(root, entry.name)
+      if (entry.isDirectory()) {
+        await chmod(path, mode.dir)
+        await checkOutUnderAnotherUmask(path, mode)
+      } else if (entry.isFile()) {
+        await chmod(path, ((await stat(path)).mode & 0o100) !== 0 ? mode.exec : mode.file)
+      }
+    }
+  }
+
+  test('干净克隆在另一台机器上检出（目录 775、文件 664，另一个 umask）：记录照样复现；可执行位是提交内容，变了才对不上', async () => {
+    const dev = await author()
+    const ci = await clone(dev)
+    expect((await verifyIn(ci)).code).toBe(0)
+
+    // 同样的提交内容、另一个 umask（Ubuntu 默认用户是 002）：权限位不是 git 内容，不该让记录对不上。
+    await checkOutUnderAnotherUmask(ci.dir, { dir: 0o775, file: 0o664, exec: 0o775 })
+    await chmod(ci.dir, 0o775)
+    const otherUmask = await verifyIn(ci)
+    expect(otherUmask.code, otherUmask.out).toBe(0)
+    expect(codes(otherUmask)).toEqual([])
+    await checkOutUnderAnotherUmask(ci.dir, { dir: 0o700, file: 0o600, exec: 0o700 })
+    await chmod(ci.dir, 0o700)
+    expect((await verifyIn(ci)).code).toBe(0)
+
+    // 可执行位是 git 记录的内容（100644 → 100755）：变了就是改了候选。
+    await chmod(join(ci.dir, 'src/feature.js'), 0o700)
+    const executable = await verifyIn(ci)
+    expect(executable.code, executable.out).toBe(2)
+    expect(codes(executable)).toContain('candidate-mismatch')
   }, 180_000)
 })
