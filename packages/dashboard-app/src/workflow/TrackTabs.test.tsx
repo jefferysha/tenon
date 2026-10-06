@@ -168,6 +168,19 @@ describe('TrackTabs 页签', () => {
     expect(onSelect).not.toHaveBeenCalled()
   })
 
+  // 页签条是 overflow 容器：外圈（outset）的环会被它裁掉、只剩左右两道细边，所以环画在页签框里面。真实几何见 e2e english.spec 的焦点用例。
+  it('键盘焦点环：2px、强调色、画在页签框里面（ring-inset）；下划线仍是页签自己的下边框位置', () => {
+    renderTabs()
+    for (const tab of TABS) {
+      const tokens = screen.getByTestId(`wb-track-${tab.id}`).className.split(/\s+/u)
+      for (const token of ['focus-visible:ring-2', 'focus-visible:ring-inset', 'focus-visible:ring-(--accent)', 'border-b-2', 'outline-none']) expect(tokens).toContain(token)
+    }
+    // 选中的页签下划线用强调色，别的透明；下划线按字宽画（两侧的 6px 内边距不算）。
+    expect(screen.getByTestId('wb-track-backend').className.split(/\s+/u)).toContain('after:bg-(--accent)')
+    expect(screen.getByTestId('wb-track-pm').className.split(/\s+/u)).toContain('after:bg-transparent')
+    expect(screen.getByTestId('wb-track-backend').className.split(/\s+/u)).toContain('after:inset-x-1.5')
+  })
+
   it('tablist 里只有 tab', () => {
     renderTabs()
     const strip = screen.getByTestId('wb-tracks')

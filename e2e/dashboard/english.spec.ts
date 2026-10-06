@@ -114,6 +114,51 @@ async function expectTabRevealed(page: Page, track: string): Promise<TabStripSta
   return state
 }
 
+/**
+ * 键盘焦点环：至少 2px、强调色、画在页签框里面（inset），整圈都落在页签条的可见范围内。
+ * 页签条是 overflow 容器：外圈的环会被它裁掉，只剩页签左右两道细边；inset 环的外缘就是页签框，页签框在条里，环就整圈可见。
+ * 环底边在下划线之上（下划线是页签的 2px 下边框，条本身又裁掉最下面 1px），所以底边按「页签底 - 下边框」算。
+ */
+async function expectFocusRingInsideStrip(page: Page, track: string): Promise<void> {
+  const tab = page.getByTestId(`wb-track-${track}`)
+  await expect(tab).toBeFocused()
+  const ring = await tab.evaluate((element) => {
+    const strip = element.parentElement
+    if (strip === null) throw new Error('页签不在页签条里')
+    const style = getComputedStyle(element)
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--accent)'
+    document.body.append(probe)
+    const accent = getComputedStyle(probe).color
+    probe.remove()
+    // box-shadow 是逗号分隔的多层（偏移 / 外圈 / 内圈 / 环……）：取扩展半径非零的那一层。
+    const layers = style.boxShadow.split(/,(?![^(]*\))/u).map((layer) => layer.trim())
+    const layer = layers.map((text) => /^(rgba?\([^)]*\))\s+0px\s+0px\s+0px\s+([\d.]+)px(\s+inset)?$/u.exec(text)).find((match) => match !== null && Number(match[2]) > 0)
+    const tabBox = element.getBoundingClientRect()
+    const stripBox = strip.getBoundingClientRect()
+    return {
+      found: layer !== undefined && layer !== null,
+      color: layer?.[1] ?? '',
+      spread: Number(layer?.[2] ?? 0),
+      inset: layer?.[3] !== undefined,
+      accent,
+      focusVisible: element.matches(':focus-visible'),
+      left: tabBox.left - stripBox.left,
+      right: stripBox.right - tabBox.right,
+      top: tabBox.top - stripBox.top,
+      bottom: stripBox.bottom - (tabBox.bottom - Number.parseFloat(style.borderBottomWidth)),
+    }
+  })
+  expect(ring.focusVisible, `${track} 的焦点是键盘焦点`).toBe(true)
+  expect(ring.found, `${track} 画出了焦点环`).toBe(true)
+  expect(ring.spread, `${track} 的焦点环至少 2px`).toBeGreaterThanOrEqual(2)
+  expect(ring.color, `${track} 的焦点环是强调色`).toBe(ring.accent)
+  expect(ring.inset, `${track} 的焦点环画在页签框里面`).toBe(true)
+  for (const side of ['left', 'right', 'top', 'bottom'] as const) {
+    expect(ring[side], `${track} 焦点环的${side}边没有被页签条裁掉`).toBeGreaterThanOrEqual(-0.5)
+  }
+}
+
 test.describe('英文界面 · 轨道页签条', () => {
   test('300px 的左栏放不下五个英文页签：选中的页签完整可见，被藏起来的那一侧渐隐，「+」始终在条外', async ({ page }) => {
     for (const track of ['chat', 'pm', 'frontend', 'backend', 'free']) {
@@ -143,18 +188,23 @@ test.describe('英文界面 · 轨道页签条', () => {
   // 焦点用 focus() 逐个移过去：macOS 的 WebKit 默认 Tab 不停在按钮上，按键本身是浏览器的事；这里验的是焦点落到哪个页签、哪个页签就被滚进来。
   test('焦点逐个越过页签：每个获得焦点的页签都完整可见；滚动后渐隐的两侧跟着变', async ({ page }) => {
     await openView(page, 'workflow', { wf: 'default', track: 'chat', step: 'verify' })
+    // 先有一次键盘操作：之后脚本移动焦点都按键盘焦点算（:focus-visible），焦点环才会画出来。
+    await page.keyboard.press('Shift')
     await page.getByTestId('wb-track-chat').focus()
     await expectTabRevealed(page, 'chat')
+    await expectFocusRingInsideStrip(page, 'chat')
     for (const track of ['pm', 'frontend', 'backend', 'free']) {
       await page.getByTestId(`wb-track-${track}`).focus()
       await expect(page.getByTestId(`wb-track-${track}`)).toBeFocused()
       await expectTabRevealed(page, track)
+      await expectFocusRingInsideStrip(page, track)
     }
     await expect(async () => expect((await tabStripState(page, 'free')).fadeEnd, '焦点到了最后一个：右边没有隐藏内容').toBe(false)).toPass({ timeout: 5_000 })
     for (const track of ['backend', 'frontend', 'pm', 'chat']) {
       await page.getByTestId(`wb-track-${track}`).focus()
       await expect(page.getByTestId(`wb-track-${track}`)).toBeFocused()
       await expectTabRevealed(page, track)
+      await expectFocusRingInsideStrip(page, track)
     }
     await expect(async () => expect((await tabStripState(page, 'chat')).fadeStart, '焦点回到第一个：左边没有隐藏内容').toBe(false)).toPass({ timeout: 5_000 })
   })
