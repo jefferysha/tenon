@@ -104,12 +104,12 @@ The lane is chosen by what the change turned out to be, not by guessing from the
 
 When the probe fails, `tenon status --json` (and `tenon step run`) stops asking to finish the
 step and returns a single `transition` for `scope-expanded` with an `escalate` payload (the
-breached limits, and the instruction to open a `default` task and `tenon set <new> depends_on
-<old>`). A probe that has not run, or is stale, is an ordinary required test, so a direct
-`build-complete` is refused: the probe is a gate, not advice. `scope-expanded` itself is an
-abandon edge: leaving through it needs no unit run, reviewer, document or skill evidence, and
-the workspace is left uncommitted for the new `default` task to adopt. Do not split a change or
-hide files to get the probe to pass.
+breached limits, and the instruction to open a `default` task and
+`tenon set <new> depends_on <old>`). A probe that has not run, or is stale, is an ordinary
+required test, so a direct `build-complete` is refused: the probe is a gate, not advice.
+`scope-expanded` itself is an abandon edge: leaving through it needs no unit run, reviewer,
+document or skill evidence, and the workspace is left uncommitted for the new `default` task
+to adopt. Do not split a change or hide files to get the probe to pass.
 
 ### Routing into the lane
 
@@ -210,9 +210,9 @@ exclusion such as API, schema, dependency, security, or release.
 ### A request got no governance at all
 
 Check whether the router printed the one-line “not governed” notice: it appears when no Track
-matched but the prompt looks like code work. Start a task with `tenon init <name> --workflow
-standard --track standard`, or name a Track in the prompt. Discussion-shaped prompts
-(“why …”, “what is …”) are never routed and never nudged.
+matched but the prompt looks like code work. Start a task with
+`tenon init <name> --workflow standard --track standard`, or name a Track in the prompt.
+Discussion-shaped prompts (“why …”, “what is …”) are never routed and never nudged.
 
 ### Free still pauses at review
 

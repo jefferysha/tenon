@@ -103,9 +103,9 @@ it froze, and a step's own `tests` keep working next to its policy.
 step. The report compares the change with its start and flags case-count drops and rising skips
 across full runs, deleted or skipped tests, removed assertions, rewritten snapshots, changed
 baselines, added known failures and lowered coverage thresholds (the ten signals are listed in
-the [CLI reference](cli-reference.md), the command is `tenon test integrity
-<change>`). The default workflow and the standard lane declare nothing, so every Build and
-Verify step runs at `notice`: the signals show up as one `test-integrity` notice in `status`,
+the [CLI reference](cli-reference.md), the command is
+`tenon test integrity <change>`). The default workflow and the standard lane declare nothing, so
+every Build and Verify step runs at `notice`: the signals show up as one `test-integrity` notice in `status`,
 `test status` and the Dashboard Tests tab and never block. Set `integrity: block` on a step to
 turn them into a blocker for that step (an unreadable diff then blocks too, with
 `files-diff-unavailable`); there is no per-signal waiver, so a deliberate deletion means

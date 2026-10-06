@@ -2,8 +2,8 @@
 
 ## Goal
 
-Provide a navigable command-family map while keeping `tenon <command>
---help` as the exact flag authority.
+Provide a navigable command-family map while keeping
+`tenon <command> --help` as the exact flag authority.
 
 ## Prerequisites
 
@@ -180,10 +180,10 @@ resolved against the suite `cwd`) and the `outputs` of the inline tests in the f
 workflow of open changes: an undeclared `coverage/` or `test-results/` directory, at any
 depth, is part of the candidate. The per-change **plan**
 (`openspec/changes/<change>/test-plan.yaml`) lists the suites this change uses, the test
-files it added or changed, the scenario/task → case mapping (`spec:<capability>/<Scenario
-title>` or `task:<number>`) and waivers. Only the `tenon test` commands write it: every
-write records a digest in a change-local ledger, so a hand-edited plan becomes
-`test-plan-tampered`. The workflow **policy** (`steps[].test_policy`) says what a step
+files it added or changed, the scenario/task → case mapping
+(`spec:<capability>/<Scenario title>` or `task:<number>`) and waivers. Only the `tenon test`
+commands write it: every write records a digest in a change-local ledger, so a hand-edited
+plan becomes `test-plan-tampered`. The workflow **policy** (`steps[].test_policy`) says what a step
 needs: kinds to register, kinds to run, minimum scope, coverage thresholds, flaky limit,
 benchmark baseline requirement, browsers, scenario coverage and `files: registered`.
 Steps that still declare inline `tests[]` keep working: they run as before and are
@@ -224,8 +224,8 @@ implementation (`build`) section of `tasks.md` must be mapped (`scenarios: requi
 blocks on them); tasks in any other stage section are listed separately as optional (shown as
 "optional", not "uncovered", in the verification report) and never block. The scaffold prompt
 "break this stage into verifiable tasks" is not a task the author wrote: the seed, `test sync` and
-`test plan` no longer list it, and the traceability matrix shows it as optional. `test register
-<change> --auto` is the one-command form: it discovers a missing catalog, widens the
+`test plan` no longer list it, and the traceability matrix shows it as optional.
+`test register <change> --auto` is the one-command form: it discovers a missing catalog, widens the
 `files` globs of a suite so that test files no suite claims are claimed (a `test/**/*.test.js`
 glob for `test/x.test.js`; `e2e/` specs go to a Playwright suite, helpers and `*.bench.*`
 files are never claimed automatically), then seeds the plan and registers those files. It only
