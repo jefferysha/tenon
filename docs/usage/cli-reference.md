@@ -19,10 +19,14 @@ tenon setup --codex
 tenon update --codex
 tenon host-target-plan --json
 tenon host-target-plan --host codex --operation setup --json
+tenon --version
 tenon runtime status
 tenon runtime repair --rollback
 tenon dashboard --open
 ```
+
+`tenon --version` (`-V`) prints the version of the plugin payload the command runs from (the plugin manifest); for an
+installed runtime it is the number `tenon doctor` shows as `runtime=`. It needs no project and changes nothing.
 
 ```text
 tenon setup --<one-host> [--target <dir>] [--auto-update] [--dry-run] [-y]
