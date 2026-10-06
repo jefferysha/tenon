@@ -98,6 +98,28 @@ const TARGETS: readonly Target[] = [
     },
   },
   {
+    name: '工作流 · 技能编辑器（已放进画布的候选行）',
+    open: async (page) => {
+      await openView(page, 'workflow', { wf: 'default', step: 'build' })
+      await page.getByTestId('wb-skills-edit').click()
+      await expect(page.getByTestId('skill-composer')).toBeVisible()
+      await expect(page.getByTestId('skill-flow')).toBeVisible()
+      // 内置默认工作流的阶段没有显式技能：用「+」把第一个候选技能放进画布，点「完成」交回阶段（只在页面里，不点保存条所以不写盘），
+      // 再重新打开。这样「完成」是停用态（草稿与阶段一致），扫到的是「已有一个技能在画布上」的稳定界面。
+      await page.locator('[data-testid^="palette-add-"]').first().click()
+      await expect(page.locator('[data-testid^="flow-node-"]').first()).toBeVisible()
+      await page.getByTestId('skill-composer-save').click()
+      await expect(page.getByTestId('skill-composer')).toBeHidden()
+      await page.getByTestId('wb-skills-edit').click()
+      await expect(page.getByTestId('skill-composer')).toBeVisible()
+      await expect(page.locator('[data-testid^="flow-node-"]').first()).toBeVisible()
+      // 已放进画布的候选行压暗成停用态（点行与「+」原生 disabled）：这些行也在扫描范围内，所以先确认它们真的存在。
+      const placed = page.locator('[data-testid^="palette-"][data-placed="true"]')
+      await expect(placed.first()).toBeVisible()
+      await expect(placed.first().locator('[data-testid^="palette-open-"]')).toBeDisabled()
+    },
+  },
+  {
     name: '项目',
     open: async (page, server) => {
       await openView(page, 'projects', { root: server.sandbox })

@@ -34,6 +34,8 @@ const PaletteItem = memo(function PaletteItem({ entry, placed, active, onOpen, o
     onDragging(entry.name)
   }
   // 点行 = 在右栏预览 SKILL.md（不加入）；行尾「+」= 串行追加；拖拽 = 按落点加入。先看再决定。
+  // 已在画布上的行是停用态：整行压暗，点行与「+」都用原生 disabled、不可拖拽（读屏器读出「不可用」，axe 也按停用控件处理，
+  // 不再要求压暗后的名称满足对比度）。已放进画布的技能从画布节点上查看详情。
   return (
     <li
       className={paletteRowClass(active, placed)}
@@ -47,6 +49,7 @@ const PaletteItem = memo(function PaletteItem({ entry, placed, active, onOpen, o
         type="button"
         className="flex min-h-10 min-w-0 flex-1 items-center gap-2 px-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
         aria-pressed={active}
+        disabled={placed}
         data-testid={`palette-open-${entry.name}`}
         onClick={() => onOpen(entry.name)}
       >

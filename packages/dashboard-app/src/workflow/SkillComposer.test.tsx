@@ -143,6 +143,38 @@ describe('SkillComposer', () => {
     expect(done).toBeDisabled()
   })
 
+  // 已放进画布的行压暗成停用态：读屏器与 axe 都要读到「不可用」，所以点行与「+」是原生 disabled，不是只靠透明度。
+  it('已放进画布的候选行是停用态：点行与「+」原生 disabled、不可拖拽；没放进的行可点可拖；放进的技能从画布节点查看', async () => {
+    mockSkillApi()
+    const user = userEvent.setup()
+    render(
+      <I18nProvider>
+        <SkillComposer open stageLabel="调研" skills={[{ id: 'tenon-open' }]} registry={REGISTRY} onClose={() => undefined} onSave={() => undefined} />
+      </I18nProvider>,
+    )
+    const placed = screen.getByTestId('palette-tenon-open')
+    expect(placed).toHaveAttribute('data-placed', 'true')
+    expect(placed).toHaveAttribute('draggable', 'false')
+    expect(screen.getByTestId('palette-open-tenon-open')).toBeDisabled()
+    expect(screen.getByTestId('palette-add-tenon-open')).toBeDisabled()
+    const free = screen.getByTestId('palette-brainstorming')
+    expect(free).toHaveAttribute('data-placed', 'false')
+    expect(free).toHaveAttribute('draggable', 'true')
+    expect(screen.getByTestId('palette-open-brainstorming')).toBeEnabled()
+    expect(screen.getByTestId('palette-add-brainstorming')).toBeEnabled()
+
+    await user.click(screen.getByTestId('palette-add-brainstorming'))
+    expect(screen.getByTestId('palette-brainstorming')).toHaveAttribute('draggable', 'false')
+    expect(screen.getByTestId('palette-open-brainstorming')).toBeDisabled()
+    // 点停用行什么也不发生；放进去的技能从画布节点选中，右栏详情照常出现。
+    await user.click(screen.getByTestId('palette-open-brainstorming'))
+    expect(screen.getByTestId('palette-open-brainstorming')).toHaveAttribute('aria-pressed', 'false')
+    await user.click(screen.getByTestId('flow-open-brainstorming'))
+    expect(screen.getByTestId('palette-open-brainstorming')).toHaveAttribute('aria-pressed', 'true')
+    await waitFor(() => expect(screen.getByTestId('skill-detail-markdown')).toBeInTheDocument())
+    expect(within(screen.getByTestId('skill-composer-detail')).getByTitle('brainstorming')).toBeInTheDocument()
+  })
+
   it('三栏是同一个表面（栏间发丝线，栏内不再各自带框）；候选行常驻名称 + 来源，拖拽柄与「+」悬停 / 聚焦才显出，「+」仍可 Tab 到、40px', async () => {
     mockSkillApi()
     const user = userEvent.setup()
