@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import test from 'node:test'
 
-import { BUILTIN_DIR, MANIFEST_FILE, SOURCES_FILE, checkAgents, skillSourceIds } from './check-agents.mjs'
+import { BUILTIN_DIR, MANIFEST_FILE, SOURCES_FILE, checkAgents, frontmatterKeys, skillSourceIds } from './check-agents.mjs'
 
 const kernel = await import(pathToFileURL(join(import.meta.dirname, '..', 'packages/kernel/dist/index.js')).href)
 
@@ -113,4 +113,24 @@ test('仓库里的官方 agent 全部合法', () => {
   const { failures, definitions } = checkAgents({ kernel })
   assert.deepEqual(failures, [])
   assert.equal(definitions.length, 10)
+})
+
+test('官方 agent 的 frontmatter 只能用上一个发行版读得了的键（attach_on / host 会让冻结副本在 N-1 里不可读）', () => {
+  assert.deepEqual(frontmatterKeys('---\nname: a\nskills: [x]\n---\n\n正文: 不是键\n'), ['name', 'skills'])
+  for (const extra of ['attach_on: [auth]', 'host: codex']) {
+    const root = fixture({ 'one.md': agent('one', ['deep-research'], ['role: reviewer', 'version: 1.0.0', extra]) })
+    try {
+      withManifest(root, ['one'])
+      const { failures } = checkAgents({ root, kernel, inventory: ['one'] })
+      assert.equal(failures.length, 1, extra)
+      assert.match(failures[0], new RegExp(`${extra.split(':')[0]}.*不在上一个发行版的闭集`), extra)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  }
+})
+
+test('仓库里的官方 agent 全部通过兼容检查', () => {
+  const { failures } = checkAgents({ kernel })
+  assert.deepEqual(failures.filter((failure) => failure.includes('闭集')), [])
 })

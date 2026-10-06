@@ -10,7 +10,7 @@ import { readFile, stat } from 'node:fs/promises'
 import {
   AGENT_FILE_MAX_BYTES, AgentStoreError, CLAUDE_AGENT_TOOLS, HOST_AGENT_HOSTS, KNOWN_AGENT_HOSTS,
   agentScope, agentWorkflowReferences, deleteAgent, effectiveAgent, parseAgentFile, renameAgentContent,
-  renderHostAgent, writeAgent,
+  renderHostAgent, withAttachOnLine, writeAgent,
   type AgentDefinition, type AgentEntry, type AgentLibrary, type AgentRole, type AgentScope, type AgentSource,
   type HostAgentHost,
 } from '@tenon/kernel'
@@ -323,7 +323,10 @@ export async function cmdAgentCopy(
     return 1
   }
   try {
-    const entry = await writeAgent(scope, to, renameAgentContent(source.content, to), { create: true })
+    // 官方 agent 的挂载范围在代码里（kernel agents/official-scope.ts）而不在文件里；副本由用户接管，把有效范围写进它的 frontmatter。
+    const renamed = renameAgentContent(source.content, to)
+    const effectiveScope = source.source === 'builtin' ? source.definition.attachOn : undefined
+    const entry = await writeAgent(scope, to, effectiveScope === undefined ? renamed : withAttachOnLine(renamed, effectiveScope), { create: true })
     deps.io.out(`[AGENT] 已复制 ${from} → ${entry.name}（${SOURCE_WORD[entry.source]}）${entry.path ?? ''}`)
     return 0
   } catch (e) {

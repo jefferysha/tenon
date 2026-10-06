@@ -9,6 +9,7 @@
  */
 import { lstat, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import { withOfficialAttachOn } from '../agents/official-scope.js'
 import { agentDigest, parseAgentFile } from '../agents/parse.js'
 import { AGENT_FILE_MAX_BYTES, AGENT_NAME_RE, type AgentDefinition, type AgentSource } from '../agents/types.js'
 import { agentsReferenced } from '../state/agent-freeze.js'
@@ -104,7 +105,7 @@ export async function ensureBuiltinAgents(options: AgentStoreOptions): Promise<B
 function entryFor(name: string, source: AgentSource, path: string, content: string): AgentEntry {
   const digest = agentDigest(content)
   try {
-    return { name, source, digest, content, path, definition: parseAgentFile(content, name) }
+    return { name, source, digest, content, path, definition: withOfficialAttachOn(source, parseAgentFile(content, name)) }
   } catch (error) {
     return { name, source, digest, content, path, error: error instanceof Error ? error.message : String(error) }
   }

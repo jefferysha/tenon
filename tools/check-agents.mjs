@@ -7,6 +7,10 @@
  *   `role` 与 `version`（旧文件缺 role 的推断只给用户文件兜底）；
  * - 技能：声明的每个 skill id 必须在 `skills/sources.yaml` 里有一行——上游技能字节在干净检出里
  *   不存在（`skills/<id>/` 是 gitignore 的），所以对账的是 checked-in 的来源清单而不是盘上的字节；
+ * - 兼容：官方 agent 会被冻结进每个任务（`.pipeline-frozen/agents/`），上一个发行版的 agent 文件解析器是闭集，
+ *   frontmatter 多出一个它不认识的键（例如 `attach_on`、`host`）就整个冻结副本读不了、agent next / check 失败。所以官方 agent 的
+ *   frontmatter 只能用 N_MINUS_ONE_AGENT_KEYS；需要新键的行为（评审者挂载范围）写在代码里（kernel agents/official-scope.ts）。
+ *   换到下一个 N-1 时同步这张表。
  * - 发行记录：`templates/agents/manifest.json` 逐条记 name / version / role / digest，必须与文件一致。
  *   改了官方 agent 后运行 `node tools/check-agents.mjs --write` 重写它。
  *
@@ -20,6 +24,20 @@ const DEFAULT_ROOT = fileURLToPath(new URL('..', import.meta.url))
 export const BUILTIN_DIR = 'templates/agents'
 export const MANIFEST_FILE = `${BUILTIN_DIR}/manifest.json`
 export const SOURCES_FILE = 'skills/sources.yaml'
+
+/** 上一个发行版（v0.2.1）的 agent 文件 frontmatter 闭集；见文件头的「兼容」一条。 */
+export const N_MINUS_ONE_AGENT_KEYS = ['name', 'description', 'role', 'version', 'skills', 'tools', 'model', 'hosts']
+
+/** frontmatter 里的键（第一个 `---` 与下一个 `---` 之间每行的 `key:`）。 */
+export function frontmatterKeys(text) {
+  const lines = text.split('\n')
+  if (lines[0] !== '---') return []
+  const close = lines.indexOf('---', 1)
+  return lines.slice(1, close < 0 ? lines.length : close).flatMap((line) => {
+    const match = /^([a-z_]+):/.exec(line)
+    return match ? [match[1]] : []
+  })
+}
 
 export const INVENTORY = [
   'architecture', 'backend-quality', 'builder', 'code-review', 'code-size', 'e2e', 'frontend-quality',
@@ -72,6 +90,10 @@ export function checkAgents({ root = DEFAULT_ROOT, kernel, inventory = INVENTORY
       continue
     }
     definitions.push(definition)
+    const unknownKeys = frontmatterKeys(text).filter((key) => !N_MINUS_ONE_AGENT_KEYS.includes(key))
+    if (unknownKeys.length > 0) {
+      failures.push(`${rel}: frontmatter 键 ${unknownKeys.join('、')} 不在上一个发行版的闭集（${N_MINUS_ONE_AGENT_KEYS.join('/')}）里，它读不了冻结的副本`)
+    }
     if (definition.roleInferred === true) failures.push(`${rel}: 官方 agent 必须显式写 role`)
     if (definition.version === undefined) failures.push(`${rel}: 官方 agent 必须写 version`)
     entries.push({ name, version: definition.version ?? '', role: definition.role, digest: kernel.agentDigest(text) })

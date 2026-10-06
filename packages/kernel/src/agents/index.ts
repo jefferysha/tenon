@@ -4,6 +4,7 @@ export {
   AGENT_SOURCES, AGENT_TOOL_RE, AGENT_VERSION_RE, AgentFileError, KNOWN_AGENT_HOSTS, REVIEWER_HOSTS, inferAgentRole,
 } from './types.js'
 export { hostRunValid, reviewerHostRequirement } from './reviewer-host.js'
+export { officialAttachOn, withAttachOnLine, withOfficialAttachOn } from './official-scope.js'
 export type { ReviewerHostRequirement } from './reviewer-host.js'
 export {
   CLAUDE_AGENT_TOOLS, HOST_AGENT_FALLBACK, HOST_AGENT_HOSTS, HOST_AGENT_PREFIX, HOST_SKILL_NAMESPACE, claudeAgentModel, codexAgentModel,

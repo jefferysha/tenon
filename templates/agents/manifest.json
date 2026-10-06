@@ -53,7 +53,7 @@
       "name": "security",
       "version": "1.1.0",
       "role": "reviewer",
-      "digest": "sha256:17bb7362f8897090f57e17e111f1b0877e737546fa1e7c99117cbe53607d9440"
+      "digest": "sha256:7336ee4dc0838fbf28baec281ff21242854b8fe89682040391bcd1ffd4981e44"
     },
     {
       "name": "spec-consistency",
