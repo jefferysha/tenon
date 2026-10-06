@@ -58126,7 +58126,7 @@ main{width:100%;max-width:440px;display:grid;gap:24px;padding:32px;background:va
 .mark{display:grid;place-items:center;width:36px;height:36px;border-radius:8px;background:var(--ink);color:var(--ink-fg);font:600 19px/1 var(--font)}
 h1{margin:0;font-size:24px;line-height:34px;font-weight:600;letter-spacing:-.015em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cmd{display:flex;align-items:center;gap:4px;min-width:0;padding-left:12px;border-radius:8px;background:var(--code-bg);border:1px solid var(--code-border)}
-code{flex:1;min-width:0;padding:8px 0;font:400 16px/22px var(--mono);white-space:nowrap;overflow-x:auto;color:var(--text)}
+code{flex:1;min-width:0;padding:8px 0;font:400 16px/22px var(--mono);font-variant-ligatures:none;font-feature-settings:"liga" 0,"calt" 0;white-space:nowrap;overflow-x:auto;color:var(--text)}
 button{position:relative;flex:none;display:grid;place-items:center;width:32px;height:32px;margin:0;padding:0;border:0;border-radius:8px;background:transparent;color:var(--text-3);cursor:pointer}
 button::after{content:"";position:absolute;inset:-4px}
 button:hover{background:var(--fill);color:var(--text)}

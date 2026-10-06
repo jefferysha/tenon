@@ -24396,10 +24396,6 @@ function assertOwner(change, fields2, actor3) {
   if (!decision.allowed)
     throw new OwnerRequiredError(change, decision.owner);
 }
-function reviewerRequiredMessage(change, owner) {
-  const who = owner === null ? `\u4EFB\u52A1 ${change} \u6CA1\u6709\u8D1F\u8D23\u4EBA` : `\u4EFB\u52A1 ${change} \u7684\u8D1F\u8D23\u4EBA\u662F ${formatUserRef(owner)}`;
-  return `${who}\uFF0C\u8BC4\u5BA1\u786E\u8BA4\u9ED8\u8BA4\u53EA\u8BA4\u8D1F\u8D23\u4EBA\uFF1B\u4EE5\u8BC4\u5BA1\u4EBA\u8EAB\u4EFD\u786E\u8BA4\u8BF7\u52A0 --as reviewer\uFF0C\u8981\u63A5\u624B\u4EFB\u52A1\u8BF7\u5148 tenon owner take ${change}`;
-}
 
 // packages/kernel/dist/users/owner-transfer.js
 async function transferOwner(deps, input2) {
@@ -58054,6 +58050,82 @@ var INTEGRITY_MESSAGES = {
   }
 };
 
+// packages/cli/src/i18n/messages-review.ts
+var REVIEW_MESSAGES = {
+  "agent.route.header": {
+    zh: "[ROUTE] \u8BC4\u5BA1\u8005 '{agent}' \u987B\u5728 {host} \u4E0A\u8FD0\u884C\uFF08{why}\uFF09\uFF1B\u5F53\u524D\u5BBF\u4E3B\uFF1A{current}",
+    en: "[ROUTE] reviewer '{agent}' must run on {host} ({why}); current host: {current}"
+  },
+  "agent.route.source.step": {
+    zh: "\u5DE5\u4F5C\u6D41\u6B65\u9AA4\u8981\u6C42",
+    en: "required by the workflow step"
+  },
+  "agent.route.source.agent": {
+    zh: "agent \u5B9A\u4E49\u5EFA\u8BAE",
+    en: "suggested by the agent definition"
+  },
+  "agent.route.enforced": {
+    zh: "\uFF0C\u767B\u8BB0\u7684\u5BBF\u4E3B\u4E0D\u7B26\u5219\u7ED3\u8BBA\u65E0\u6548",
+    en: "; a result registered from a different host is invalid"
+  },
+  "agent.route.currentTerminal": {
+    zh: "\u7EC8\u7AEF",
+    en: "terminal"
+  },
+  "agent.route.prompt": {
+    zh: "\u63D0\u793A\u8BCD\uFF1A{file}",
+    en: "Prompt: {file}"
+  },
+  "agent.route.run": {
+    zh: "\u8FD0\u884C\uFF1A{command}",
+    en: "Run: {command}"
+  },
+  "agent.route.record": {
+    zh: "\u767B\u8BB0\uFF08\u8BC4\u5BA1\u5199\u5B8C\u62A5\u544A\u540E\uFF09\uFF1A{command}",
+    en: "Record (after the review has written its report): {command}"
+  },
+  "agent.hostUnsupported": {
+    zh: "agent '{agent}' \u4E0D\u652F\u6301\u5BBF\u4E3B '{host}'",
+    en: "agent '{agent}' does not support the host '{host}'"
+  },
+  "agent.record.hostFlagUnknown": {
+    zh: "--host '{host}' \u4E0D\u662F\u5DF2\u77E5\u5BBF\u4E3B\uFF08{known}\uFF09",
+    en: "--host '{host}' is not a known host ({known})"
+  },
+  "agent.record.hostUnknown": {
+    zh: "\u672A\u77E5\uFF08\u7EC8\u7AEF\u91CC\u8BF7\u7528 --host \u58F0\u660E\uFF09",
+    en: "unknown (declare it with --host from a terminal)"
+  },
+  "agent.record.wrongHost": {
+    zh: "\u8BC4\u5BA1\u8005 '{agent}' \u987B\u5728 {required} \u4E0A\u8FD0\u884C\uFF0C\u8FD9\u6B21\u767B\u8BB0\u7684\u5BBF\u4E3B\u662F {host}\uFF0C\u7ED3\u8BBA\u65E0\u6548\u3001\u672A\u767B\u8BB0\uFF1B\u5728 {required} \u4E0A\u8FD0\u884C\uFF1A{run}\uFF1B\u8BC4\u5BA1\u5199\u5B8C\u62A5\u544A\u540E\uFF1A{record}",
+    en: "reviewer '{agent}' must run on {required}; this record comes from {host}, so the result is invalid and was not recorded; run it on {required}: {run}; after the review has written its report: {record}"
+  },
+  "agent.record.declared": {
+    zh: "(\u58F0\u660E)",
+    en: "(declared)"
+  },
+  "agent.record.generic": {
+    zh: "(\u901A\u7528)",
+    en: "(generic)"
+  },
+  "review.ownerRequired.none": {
+    zh: "\u4EFB\u52A1 {name} \u6CA1\u6709\u8D1F\u8D23\u4EBA\uFF0C\u8BC4\u5BA1\u786E\u8BA4\u9ED8\u8BA4\u53EA\u8BA4\u8D1F\u8D23\u4EBA\uFF1B\u4EE5\u8BC4\u5BA1\u4EBA\u8EAB\u4EFD\u786E\u8BA4\u8BF7\u52A0 --as reviewer\uFF0C\u8981\u63A5\u624B\u4EFB\u52A1\u8BF7\u5148 tenon owner take {name}",
+    en: "task {name} has no owner, and a review confirmation is owner-only by default; to confirm as a reviewer add --as reviewer, to take the task over run tenon owner take {name} first"
+  },
+  "review.ownerRequired.other": {
+    zh: "\u4EFB\u52A1 {name} \u7684\u8D1F\u8D23\u4EBA\u662F {owner}\uFF0C\u8BC4\u5BA1\u786E\u8BA4\u9ED8\u8BA4\u53EA\u8BA4\u8D1F\u8D23\u4EBA\uFF1B\u4EE5\u8BC4\u5BA1\u4EBA\u8EAB\u4EFD\u786E\u8BA4\u8BF7\u52A0 --as reviewer\uFF0C\u8981\u63A5\u624B\u4EFB\u52A1\u8BF7\u5148 tenon owner take {name}",
+    en: "task {name} is owned by {owner}, and a review confirmation is owner-only by default; to confirm as a reviewer add --as reviewer, to take the task over run tenon owner take {name} first"
+  },
+  "review.asRoleInvalid": {
+    zh: "--as \u53EA\u652F\u6301 {role}\uFF08\u6536\u5230 '{got}'\uFF09",
+    en: "--as supports only {role} (got '{got}')"
+  },
+  "review.noDelegatedAuthority": {
+    zh: "\u5F53\u524D Change '{name}' \u6CA1\u6709\u6709\u6548\u7684\u7528\u6237\u59D4\u6258 review \u6388\u6743\uFF1B\u8BF7\u7B49\u5F85\u6B63\u5E38\u786E\u8BA4\uFF0C\u6216\u5148\u7531\u7528\u6237\u660E\u786E\u6388\u6743\u540E\u7EED\u81EA\u4E3B\u6267\u884C",
+    en: "the current change '{name}' has no valid user-delegated review authority; wait for a normal confirmation, or have the user explicitly authorise autonomous execution first"
+  }
+};
+
 // packages/cli/src/i18n/messages-standard.ts
 var STANDARD_MESSAGES = {
   "step.workflowUnavailable": {
@@ -58648,6 +58720,7 @@ var MESSAGES = {
   ...SUPPORT_MESSAGES,
   ...STANDARD_MESSAGES,
   ...INTEGRITY_MESSAGES,
+  ...REVIEW_MESSAGES,
   ...VERIFY_MESSAGES
 };
 var MESSAGE_CODES = Object.keys(MESSAGES);
@@ -88368,15 +88441,21 @@ function planRoute(input2) {
     }
   };
 }
-var SOURCE_WORD = { step: "\u5DE5\u4F5C\u6D41\u6B65\u9AA4\u8981\u6C42", agent: "agent \u5B9A\u4E49\u5EFA\u8BAE", none: "" };
-function routeLines(agent, route) {
+function routeLines(carrier, agent, route) {
   const target = route.runOn;
   if (target === null) return [];
+  const source = route.source === "step" ? msg(carrier, "agent.route.source.step") : route.source === "agent" ? msg(carrier, "agent.route.source.agent") : "";
+  const why = `${source}${route.enforced ? msg(carrier, "agent.route.enforced") : ""}`;
   return [
-    `[ROUTE] \u8BC4\u5BA1\u8005 '${agent}' \u987B\u5728 ${target.host} \u4E0A\u8FD0\u884C\uFF08${SOURCE_WORD[route.source]}${route.enforced ? "\uFF0C\u767B\u8BB0\u7684\u5BBF\u4E3B\u4E0D\u7B26\u5219\u7ED3\u8BBA\u65E0\u6548" : ""}\uFF09\uFF1B\u5F53\u524D\u5BBF\u4E3B\uFF1A${route.current ?? "\u7EC8\u7AEF"}`,
-    `\u63D0\u793A\u8BCD\uFF1A${target.promptFile}`,
-    `\u8FD0\u884C\uFF1A${target.command}`,
-    `\u767B\u8BB0\uFF08\u8BC4\u5BA1\u5199\u5B8C\u62A5\u544A\u540E\uFF09\uFF1A${target.record}`
+    msg(carrier, "agent.route.header", {
+      agent,
+      host: target.host,
+      why,
+      current: route.current ?? msg(carrier, "agent.route.currentTerminal")
+    }),
+    msg(carrier, "agent.route.prompt", { file: target.promptFile }),
+    msg(carrier, "agent.route.run", { command: target.command }),
+    msg(carrier, "agent.route.record", { command: target.record })
   ];
 }
 function hostNote(view2) {
@@ -88499,7 +88578,7 @@ async function cmdAgentPrompt(deps, name2, agent, options) {
   }
   if (context.unattached.includes(agent)) return unattachedRefusal(deps, agent, frozen);
   if (options.host !== void 0 && frozen.definition.hosts !== void 0 && !frozen.definition.hosts.includes(options.host)) {
-    deps.io.err(`ERROR: agent '${agent}' \u4E0D\u652F\u6301\u5BBF\u4E3B '${options.host}'`);
+    deps.io.err(`ERROR: ${msg(deps, "agent.hostUnsupported", { agent, host: options.host })}`);
     return 2;
   }
   const waiting = nextAgentWave(context).waiting.find((item2) => item2.agent === agent);
@@ -88604,7 +88683,7 @@ async function cmdAgentPrompt(deps, name2, agent, options) {
     return 0;
   }
   if (route.runOn !== null) {
-    for (const line of routeLines(agent, route)) deps.io.out(line);
+    for (const line of routeLines(deps, agent, route)) deps.io.out(line);
     return 0;
   }
   deps.io.out(prompt);
@@ -88621,7 +88700,7 @@ async function cmdAgentRecord(deps, name2, runId, json2, options = {}) {
     return 1;
   }
   if (options.host !== void 0 && !KNOWN_AGENT_HOSTS.includes(options.host)) {
-    deps.io.err(`ERROR: --host '${options.host}' \u4E0D\u662F\u5DF2\u77E5\u5BBF\u4E3B\uFF08${KNOWN_AGENT_HOSTS.join(" | ")}\uFF09`);
+    deps.io.err(`ERROR: ${msg(deps, "agent.record.hostFlagUnknown", { host: options.host, known: KNOWN_AGENT_HOSTS.join(" | ") })}`);
     return 1;
   }
   const context = await resolveAgentCommand(deps, name2, { requireOwner: true });
@@ -88661,7 +88740,13 @@ async function cmdAgentRecord(deps, name2, runId, json2, options = {}) {
   if (!hostRunValid(stepHost, host)) {
     const required3 = stepHost === "claude" || stepHost === "codex" ? stepHost : "codex";
     const promptFile = join164("openspec", "changes", name2, AGENT_REPORTS_DIR, `${row2.run_id}.prompt.md`);
-    deps.io.err(`ERROR: \u8BC4\u5BA1\u8005 '${row2.agent}' \u987B\u5728 ${required3} \u4E0A\u8FD0\u884C\uFF0C\u8FD9\u6B21\u767B\u8BB0\u7684\u5BBF\u4E3B\u662F ${host ?? "\u672A\u77E5\uFF08\u7EC8\u7AEF\u91CC\u8BF7\u7528 --host \u58F0\u660E\uFF09"}\uFF0C\u7ED3\u8BBA\u65E0\u6548\u3001\u672A\u767B\u8BB0\uFF1B\u5728 ${required3} \u4E0A\u8FD0\u884C\uFF1A${required3 === "codex" ? codexCommand(promptFile) : claudeCommand(promptFile)}\uFF1B\u8BC4\u5BA1\u5199\u5B8C\u62A5\u544A\u540E\uFF1A${recordCommand(name2, row2.run_id, required3)}`);
+    deps.io.err(`ERROR: ${msg(deps, "agent.record.wrongHost", {
+      agent: row2.agent,
+      required: required3,
+      host: host ?? msg(deps, "agent.record.hostUnknown"),
+      run: required3 === "codex" ? codexCommand(promptFile) : claudeCommand(promptFile),
+      record: recordCommand(name2, row2.run_id, required3)
+    })}`);
     return 2;
   }
   const blockAt = context.step.reviewers.find((ref) => ref.agent === row2.agent)?.blockAt ?? "high";
@@ -88683,14 +88768,14 @@ async function cmdAgentRecord(deps, name2, runId, json2, options = {}) {
     deps.io.err(`ERROR: ${errMsg(e)}`);
     return 1;
   }
-  deps.io.out(json2 ? JSON.stringify({ ...finished3, blocking }) : `[AGENT] ${name2} ${row2.agent} ${row2.role} result=${finished3.result} findings=${parsed2.findings.length} blocking=${blocking}` + (host === void 0 ? "" : ` host=${host}${finished3.host_source === "declared" ? " (\u58F0\u660E)" : ""}`) + (subagent === void 0 ? "" : ` subagent=${subagent.type}${subagent.native ? "" : " (\u901A\u7528)"}`));
+  deps.io.out(json2 ? JSON.stringify({ ...finished3, blocking }) : `[AGENT] ${name2} ${row2.agent} ${row2.role} result=${finished3.result} findings=${parsed2.findings.length} blocking=${blocking}` + (host === void 0 ? "" : ` host=${host}${finished3.host_source === "declared" ? ` ${msg(deps, "agent.record.declared")}` : ""}`) + (subagent === void 0 ? "" : ` subagent=${subagent.type}${subagent.native ? "" : ` ${msg(deps, "agent.record.generic")}`}`));
   return 0;
 }
 
 // packages/cli/src/commands/agent-library.ts
 import { readFile as readFile94, stat as stat17 } from "node:fs/promises";
 var ROLE_WORD2 = { executor: "\u6267\u884C\u8005", reviewer: "\u8BC4\u5BA1\u8005" };
-var SOURCE_WORD2 = { builtin: "\u5B98\u65B9", custom: "\u81EA\u5B9A\u4E49", project: "\u9879\u76EE" };
+var SOURCE_WORD = { builtin: "\u5B98\u65B9", custom: "\u81EA\u5B9A\u4E49", project: "\u9879\u76EE" };
 var SKELETON_DO_PLACEHOLDER = {
   executor: "<\u8FD9\u4E2A\u6267\u884C\u8005\u8D1F\u8D23\u7684\u90A3\u4E00\u4EF6\u4E8B>",
   reviewer: "<\u8FD9\u4E2A\u8BC4\u5BA1\u8005\u8D1F\u8D23\u7684\u90A3\u4E00\u4EF6\u4E8B>"
@@ -88776,7 +88861,7 @@ async function cmdAgentList(deps, opts) {
   for (const entry2 of rows) {
     const definition = entry2.definition;
     const roleWord = definition === void 0 ? "\u2014" : ROLE_WORD2[definition.role];
-    deps.io.out(`${entry2.name.padEnd(width)}  ${roleWord}  ${SOURCE_WORD2[entry2.source]}  ${definition?.version ?? "\u2014"}  ${definition?.description ?? ""}${note(entry2)}`);
+    deps.io.out(`${entry2.name.padEnd(width)}  ${roleWord}  ${SOURCE_WORD[entry2.source]}  ${definition?.version ?? "\u2014"}  ${definition?.description ?? ""}${note(entry2)}`);
   }
   return 0;
 }
@@ -88792,7 +88877,7 @@ async function cmdAgentShow(deps, name2, json2) {
     deps.io.out(JSON.stringify({ ...entryJson(entry2), content: entry2.content }));
     return 0;
   }
-  deps.io.out(`# ${SOURCE_WORD2[entry2.source]} \xB7 ${entry2.path ?? ""}`);
+  deps.io.out(`# ${SOURCE_WORD[entry2.source]} \xB7 ${entry2.path ?? ""}`);
   deps.io.out(entry2.content.replace(/\n$/u, ""));
   return 0;
 }
@@ -88878,7 +88963,7 @@ async function cmdAgentValidate(deps, target) {
       return 1;
     }
     text13 = entry2.content;
-    subject2 = `${target}\uFF08${SOURCE_WORD2[entry2.source]}\uFF09`;
+    subject2 = `${target}\uFF08${SOURCE_WORD[entry2.source]}\uFF09`;
   }
   const parsed2 = parseText(deps, text13);
   if (parsed2 === void 0) {
@@ -88924,7 +89009,7 @@ async function cmdAgentAdd(deps, file, opts) {
   if (deps.agentLibrary !== void 0) await loadLibrary(deps);
   const entry2 = await registerAgent(deps, scope, parsed2.name, text13, opts.replace === true);
   if (typeof entry2 === "number") return entry2;
-  deps.io.out(`[AGENT] \u5DF2\u767B\u8BB0 ${entry2.name}\uFF08${SOURCE_WORD2[entry2.source]}\uFF09${entry2.path ?? ""}`);
+  deps.io.out(`[AGENT] \u5DF2\u767B\u8BB0 ${entry2.name}\uFF08${SOURCE_WORD[entry2.source]}\uFF09${entry2.path ?? ""}`);
   return 0;
 }
 async function cmdAgentCopy(deps, from, to, opts) {
@@ -88944,7 +89029,7 @@ async function cmdAgentCopy(deps, from, to, opts) {
     const renamed = renameAgentContent(source.content, to);
     const effectiveScope = source.source === "builtin" ? source.definition.attachOn : void 0;
     const entry2 = await writeAgent(scope, to, effectiveScope === void 0 ? renamed : withAttachOnLine(renamed, effectiveScope), { create: true });
-    deps.io.out(`[AGENT] \u5DF2\u590D\u5236 ${from} \u2192 ${entry2.name}\uFF08${SOURCE_WORD2[entry2.source]}\uFF09${entry2.path ?? ""}`);
+    deps.io.out(`[AGENT] \u5DF2\u590D\u5236 ${from} \u2192 ${entry2.name}\uFF08${SOURCE_WORD[entry2.source]}\uFF09${entry2.path ?? ""}`);
     return 0;
   } catch (e) {
     return storeFailure(deps, e);
@@ -88985,7 +89070,7 @@ async function cmdAgentRm(deps, name2, opts) {
   }
   try {
     await deleteAgent(scope, name2);
-    deps.io.out(`[AGENT] \u5DF2\u5220\u9664 ${name2}\uFF08${SOURCE_WORD2[entry2.source]}\uFF09`);
+    deps.io.out(`[AGENT] \u5DF2\u5220\u9664 ${name2}\uFF08${SOURCE_WORD[entry2.source]}\uFF09`);
     return 0;
   } catch (e) {
     return storeFailure(deps, e);
@@ -89163,7 +89248,7 @@ async function cmdAgentNew(deps, nameArg, opts, env = REAL_INIT_WIZARD_ENV) {
   }
   const entry2 = await registerAgent(deps, scope, definition.name, content, false);
   if (typeof entry2 === "number") return entry2;
-  deps.io.out(`[AGENT] \u5DF2\u521B\u5EFA ${entry2.name}\uFF08${SOURCE_WORD2[entry2.source]} \xB7 ${ROLE_WORD2[role]}\uFF09${entry2.path ?? ""}`);
+  deps.io.out(`[AGENT] \u5DF2\u521B\u5EFA ${entry2.name}\uFF08${SOURCE_WORD[entry2.source]} \xB7 ${ROLE_WORD2[role]}\uFF09${entry2.path ?? ""}`);
   if (base === void 0) deps.io.out("\u6B63\u6587\u662F\u9AA8\u67B6\uFF1A\u8865\u5168\u540E\u8FD0\u884C tenon agent validate " + entry2.name);
   return 0;
 }
@@ -89537,9 +89622,12 @@ function reviewExits(deps, state, phase) {
   return stepExitTransitions(plan, phase, state).map((transition) => transition.event);
 }
 var REVIEWER_ROLE = "reviewer";
+function reviewerRequired(deps, name2, owner) {
+  return owner === null ? msg(deps, "review.ownerRequired.none", { name: name2 }) : msg(deps, "review.ownerRequired.other", { name: name2, owner: formatUserRef(owner) });
+}
 async function cmdReviewAcknowledge(deps, name2, dir, opts) {
   if (opts.as !== void 0 && opts.as !== REVIEWER_ROLE) {
-    deps.io.err(`ERROR: --as \u53EA\u652F\u6301 ${REVIEWER_ROLE}\uFF08\u6536\u5230 '${opts.as}'\uFF09`);
+    deps.io.err(`ERROR: ${msg(deps, "review.asRoleInvalid", { role: REVIEWER_ROLE, got: opts.as })}`);
     return 1;
   }
   const user = requireUser(deps);
@@ -89552,13 +89640,13 @@ async function cmdReviewAcknowledge(deps, name2, dir, opts) {
     deps.env?.("TENON_HOST_SESSION_ID") ?? deps.env?.("CODEX_THREAD_ID")
   ) : null;
   if (opts.delegated === true && delegatedAuthority === null) {
-    deps.io.err(`ERROR: \u5F53\u524D Change '${name2}' \u6CA1\u6709\u6709\u6548\u7684\u7528\u6237\u59D4\u6258 review \u6388\u6743\uFF1B\u8BF7\u7B49\u5F85\u6B63\u5E38\u786E\u8BA4\uFF0C\u6216\u5148\u7531\u7528\u6237\u660E\u786E\u6388\u6743\u540E\u7EED\u81EA\u4E3B\u6267\u884C`);
+    deps.io.err(`ERROR: ${msg(deps, "review.noDelegatedAuthority", { name: name2 })}`);
     return 1;
   }
   const { interaction, history } = deps;
   const owner = ownerDecision((await deps.store.read(dir)).fields, actor3);
   if (!owner.allowed && opts.as !== REVIEWER_ROLE) {
-    deps.io.err(`ERROR: ${reviewerRequiredMessage(name2, owner.owner)}`);
+    deps.io.err(`ERROR: ${reviewerRequired(deps, name2, owner.owner)}`);
     return 1;
   }
   const roleDetail = owner.allowed ? "" : `as=${REVIEWER_ROLE} owner=${owner.owner?.id ?? "none"}`;
@@ -89574,7 +89662,7 @@ async function cmdReviewAcknowledge(deps, name2, dir, opts) {
     readState: async () => {
       const state = await deps.store.read(dir);
       const decision = ownerDecision(state.fields, actor3);
-      if (!decision.allowed && opts.as !== REVIEWER_ROLE) throw new Error(reviewerRequiredMessage(name2, decision.owner));
+      if (!decision.allowed && opts.as !== REVIEWER_ROLE) throw new Error(reviewerRequired(deps, name2, decision.owner));
       return state;
     },
     readRevision: () => readCurrentRunRevision(dir),
@@ -94807,6 +94895,7 @@ var ADAPTER_DEPLOY = (name2) => `Deploy the ${name2} adapter`;
 var ADAPTER_REDEPLOY = (name2) => `Redeploy the ${name2} adapter from the package that was just updated`;
 var HELP_EN_CORE = {
   tenon: "Tenon state machine CLI (CONTRACT \xA73)",
+  "--version": "Print the Tenon version",
   init: "Initialize a change (stdout stays empty; path details go to stderr)",
   "init --track": "chat | simple | pm | frontend | backend | free | custom",
   "init --preset": "full | hotfix | tweak (required for the default workflow; may be omitted with an explicit --workflow)",
@@ -97197,7 +97286,7 @@ function registerVerifyCommands(program2, deps) {
 // packages/cli/src/program.ts
 function buildProgram(deps, runtimes = {}) {
   const program2 = new Command(PRODUCT_IDENTITY.cli);
-  program2.description(`${PRODUCT_IDENTITY.displayName} \u72B6\u6001\u673A CLI\uFF08CONTRACT \xA73\uFF09`).exitOverride().configureOutput({
+  program2.description(`${PRODUCT_IDENTITY.displayName} \u72B6\u6001\u673A CLI\uFF08CONTRACT \xA73\uFF09`).version(deps.pluginVersion ?? "unknown", "-V, --version", "\u663E\u793A Tenon \u7248\u672C\u53F7").exitOverride().configureOutput({
     writeOut: (s) => deps.io.out(stripNl(s)),
     writeErr: (s) => deps.io.err(stripNl(s))
   });
