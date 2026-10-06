@@ -9,7 +9,9 @@
 #      → transition open-complete → get phase = explore → history JSONL 有 init+transition
 #   5. 冻结 N-1 reader 保持旧写入协议；fixture 固定的真实上一正式版本（CLI 字节按 digest 钉死）双向验证：
 #      N-1 创建/写入的 Change 由当前 CLI 读取并继续 mutation；当前 CLI 写入的 Change 由 N-1 CLI 读取并继续
-#      mutation；skills/skills.lock.json 当前 writer → N-1 verifier、N-1 writer → 当前 verifier 都必须通过
+#      mutation；skills/skills.lock.json 当前 writer → N-1 verifier、N-1 writer → 当前 verifier 都必须通过；
+#      数据兼容门（tools/lib/n-minus-one-compat.sh）：当前版本隐式写下的记录链（超过 20 次运行）、带宿主的 agent 运行台账、
+#      测试计划与 discover --write 的目录、冻结的官方 agent、report-untrusted 记录，N-1 读得了，反方向 N-1 写的当前版本也读得了
 #      （fixture status=none 时只报告 [HONEST SKIP]）。
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -321,6 +323,13 @@ if [ -f "$BUNDLE" ]; then
         && ok "bundle: N-1 CLI 可在当前 runtime 写入的 Change 上继续 mutation" \
         || bad "bundle: N-1 CLI 可在当前 runtime 写入的 Change 上继续 mutation" \
           "exit=$n_minus_over_current_code scope='$current_after_n_minus' $n_minus_over_current"
+
+      # 5b+. 数据兼容门：当前版本隐式写下的数据（记录链、agent 运行台账、计划、discover 写的目录、冻结的官方 agent、
+      # 报告被回填时的记录原因）上一个正式版本读得了，反方向也一样。合同与判据见 tools/lib/n-minus-one-compat.sh。
+      # shellcheck source=tools/lib/n-minus-one-compat.sh
+      source "$ROOT/tools/lib/n-minus-one-compat.sh"
+      n1_compat_default_task "$BUNDLE" "$N_MINUS_CLI" "$TMP" t8-smoke "$n_minus_release"
+      n1_compat_gate "$BUNDLE" "$N_MINUS_CLI" "$TMP" "$n_minus_release"
 
       # 5c. skills/skills.lock.json 是跨年龄线格式：升级时当前 fetcher 写、候选根里的 verifier 读，
       # 回滚时反过来。两个方向都用真实 CLI（internal-skill-upstream fetch → internal-skill-provenance
