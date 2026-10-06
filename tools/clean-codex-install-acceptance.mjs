@@ -54,6 +54,10 @@ const REQUIRED_HOOK_EVENTS = new Set([
 ])
 const DEFAULT_TERMINATION_GRACE_MS = 5_000
 const DEFAULT_HTTP_TIMEOUT_MS = 2_000
+const HEALTH_POLL_INTERVAL_MS = 100
+// A health attempt that starts with less than this left before the overall deadline cannot finish a real
+// request; it would only produce a timeout that says nothing about the Dashboard.
+const HEALTH_MIN_ATTEMPT_MS = 50
 
 function signalOwnedProcessTree(child, signal) {
   if (process.platform !== 'win32' && Number.isInteger(child.pid)) {
@@ -290,6 +294,10 @@ async function reservePort() {
   })
 }
 
+// Marks the error fetchWithTimeout raises when its own timer aborted the request, so callers can tell a
+// request that ran out of time apart from the Dashboard actually answering badly.
+export class FetchTimeoutError extends Error {}
+
 export async function fetchWithTimeout(
   url,
   timeoutMs,
@@ -304,7 +312,7 @@ export async function fetchWithTimeout(
     return { response, body }
   } catch (error) {
     if (controller.signal.aborted) {
-      throw new Error(`${label} timed out after ${timeoutMs}ms`, { cause: error })
+      throw new FetchTimeoutError(`${label} timed out after ${timeoutMs}ms`, { cause: error })
     }
     throw error
   } finally {
@@ -321,48 +329,67 @@ function connectionWasRefused(error) {
   return false
 }
 
+// Polls /api/health until it answers. The error cause on failure is the most recent attempt that did NOT
+// time out, because the last attempt only gets the time left before the overall deadline and a short,
+// truncated attempt that timed out says nothing about why the Dashboard never became healthy (the real
+// cause is the HTTP status, malformed JSON or refused connection seen before it). A timeout is reported only
+// when no attempt produced any other cause. No new attempt starts with less than minAttemptMs left; a budget
+// shorter than that still gets its first attempt, with the whole budget.
 export async function waitForHealth(port, expectedPresent = true, options = {}) {
   const overallTimeoutMs = options.overallTimeoutMs ?? 15_000
   const requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_HTTP_TIMEOUT_MS
+  const pollIntervalMs = options.pollIntervalMs ?? HEALTH_POLL_INTERVAL_MS
+  const minAttemptMs = Math.min(options.minAttemptMs ?? HEALTH_MIN_ATTEMPT_MS, overallTimeoutMs)
   const deadline = Date.now() + overallTimeoutMs
   let lastError
-  while (Date.now() < deadline) {
+  let lastNonTimeoutError
+  const record = (error) => {
+    lastError = error
+    if (!(error instanceof FetchTimeoutError)) lastNonTimeoutError = error
+  }
+  for (let attempts = 0; ; attempts += 1) {
+    const remaining = deadline - Date.now()
+    if (attempts > 0 && (remaining <= 0 || remaining < minAttemptMs)) break
     try {
-      const remaining = Math.max(1, deadline - Date.now())
       const { response, body } = await fetchWithTimeout(
         `http://127.0.0.1:${port}/api/health`,
-        Math.min(requestTimeoutMs, remaining),
+        Math.min(requestTimeoutMs, Math.max(1, remaining)),
         `Dashboard health on port ${port}`,
       )
       if (response.ok) {
         let health
+        let parsed = false
         try {
           health = parseJson(body, `Dashboard health on port ${port}`)
+          parsed = true
         } catch (error) {
-          lastError = error
-          continue
+          record(error)
         }
-        if (expectedPresent) return health
+        if (parsed && expectedPresent) return health
       } else {
-        lastError = new Error(
-          `Dashboard health on port ${port} returned HTTP ${response.status}`,
-        )
+        record(new Error(`Dashboard health on port ${port} returned HTTP ${response.status}`))
       }
     } catch (error) {
-      lastError = error
+      record(error)
       if (!expectedPresent && connectionWasRefused(error)) return null
     }
-    await new Promise((resolveWait) => setTimeout(resolveWait, 100))
+    // Every outcome that is not a verdict waits one poll interval, malformed JSON included; the wait never
+    // outlasts the deadline.
+    const untilDeadline = deadline - Date.now()
+    if (untilDeadline > 0) {
+      await new Promise((resolveWait) => setTimeout(resolveWait, Math.min(pollIntervalMs, untilDeadline)))
+    }
   }
+  const cause = lastNonTimeoutError ?? lastError
   if (!expectedPresent) {
     throw new Error(
-      `Dashboard listener still owns or accepts port ${port} after cleanup: ${String(lastError ?? '')}`,
-      { cause: lastError },
+      `Dashboard listener still owns or accepts port ${port} after cleanup: ${String(cause ?? '')}`,
+      { cause },
     )
   }
   throw new Error(
-    `Dashboard did not become healthy on port ${port}: ${String(lastError ?? '')}`,
-    { cause: lastError },
+    `Dashboard did not become healthy on port ${port}: ${String(cause ?? '')}`,
+    { cause },
   )
 }
 

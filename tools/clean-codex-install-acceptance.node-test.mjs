@@ -20,6 +20,7 @@ import {
   FORCED_RELEASE_ENTRIES,
   LOCAL_RELEASE_ENTRIES,
   dashboardIdentityMatches,
+  FetchTimeoutError,
   fetchWithTimeout,
   hasExactLocalTenonMarketplace,
   isolatedAcceptanceStateScopeId,
@@ -386,23 +387,33 @@ test('cleanup health proof does not mistake malformed JSON for a closed listener
   }
 })
 
-test('non-success health responses preserve HTTP status as the timeout cause', async (t) => {
-  // waitForHealth keeps the cause of its LAST attempt, and that attempt only gets the time left before the
-  // overall deadline. Against a real socket the last attempt can therefore start with a 1-2 ms abort timer
-  // and lose to the connection, which surfaces "timed out after 2ms" instead of the HTTP status. Raising
-  // the timeouts does not remove that (the final attempt's budget is the remainder, not the request
-  // timeout), so the answer is served by a fetch that settles from microtasks: no abort timer, however
-  // short or late, can fire before it resolves, and the only thing left to assert is how a non-ok answer
-  // is recorded.
-  const port = 4_242
-  const requested = []
-  t.mock.method(globalThis, 'fetch', async (url) => {
-    requested.push(String(url))
-    return new Response('temporarily unavailable', {
-      status: 503,
-      headers: { 'content-type': 'text/plain' },
-    })
+// A fetch stand-in that never touches a socket: each scripted step answers from microtasks (an HTTP status,
+// a thrown error) or hangs until the request's own abort timer fires. Nothing here races a real connection,
+// so the outcomes waitForHealth sees are exactly the script, whatever the machine load.
+function scriptedHealthFetch(t, steps) {
+  const calls = []
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    const step = steps[Math.min(calls.length, steps.length - 1)]
+    calls.push({ url: String(url), at: Date.now(), step })
+    if (typeof step === 'number') {
+      return new Response('answer', { status: step, headers: { 'content-type': 'text/plain' } })
+    }
+    if (step === 'hang') {
+      return new Promise((_resolve, reject) => {
+        init.signal.addEventListener('abort', () => reject(init.signal.reason), { once: true })
+      })
+    }
+    throw step
   })
+  return calls
+}
+
+test('non-success health responses preserve HTTP status as the timeout cause', async (t) => {
+  // The answer is served by a fetch that settles from microtasks: no abort timer, however short or late,
+  // can fire before it resolves, so the only thing asserted is how a non-ok answer is recorded. The
+  // real-socket variant below runs the same scenario over a loopback listener.
+  const port = 4_242
+  const calls = scriptedHealthFetch(t, [503])
   await assert.rejects(
     waitForHealth(port, true, {
       overallTimeoutMs: 250,
@@ -414,8 +425,175 @@ test('non-success health responses preserve HTTP status as the timeout cause', a
       return true
     },
   )
-  assert.ok(requested.length >= 1)
-  assert.deepEqual([...new Set(requested)], [`http://127.0.0.1:${port}/api/health`])
+  assert.ok(calls.length >= 1)
+  assert.deepEqual([...new Set(calls.map((call) => call.url))], [`http://127.0.0.1:${port}/api/health`])
+})
+
+test('non-success health responses preserve HTTP status as the timeout cause over a real socket', async () => {
+  // The last attempt only gets the time left before the overall deadline, so it can lose to its own abort
+  // timer. That timeout must not replace the HTTP status the earlier attempts really saw.
+  const server = createHttpServer((_request, response) => {
+    response.writeHead(503, { 'content-type': 'text/plain' })
+    response.end('temporarily unavailable')
+  })
+  await new Promise((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', resolve)
+  })
+  const address = server.address()
+  assert.notEqual(address, null)
+  assert.equal(typeof address, 'object')
+  try {
+    await assert.rejects(
+      waitForHealth(address.port, true, {
+        overallTimeoutMs: 400,
+        requestTimeoutMs: 200,
+      }),
+      (error) => {
+        assert.match(error.message, new RegExp(`Dashboard did not become healthy on port ${address.port}`))
+        assert.equal(
+          error.cause?.message,
+          `Dashboard health on port ${address.port} returned HTTP 503`,
+        )
+        return true
+      },
+    )
+  } finally {
+    await new Promise((resolve) => server.close(resolve))
+  }
+})
+
+test('a late timeout does not replace the HTTP status the earlier attempts saw', async (t) => {
+  const port = 4_243
+  const calls = scriptedHealthFetch(t, [503, 503, 'hang'])
+  await assert.rejects(
+    waitForHealth(port, true, {
+      overallTimeoutMs: 400,
+      requestTimeoutMs: 40,
+      pollIntervalMs: 5,
+    }),
+    (error) => {
+      assert.equal(error.cause?.message, `Dashboard health on port ${port} returned HTTP 503`)
+      assert.match(error.message, /returned HTTP 503/)
+      return true
+    },
+  )
+  // At least one attempt really timed out after the 503s, or the test proves nothing.
+  assert.ok(calls.filter((call) => call.step === 'hang').length >= 1)
+})
+
+test('the most recent non-timeout cause wins over an older one and over later timeouts', async (t) => {
+  const refused = Object.assign(new TypeError('fetch failed'), {
+    cause: Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:4244'), { code: 'ECONNREFUSED' }),
+  })
+  const calls = scriptedHealthFetch(t, [503, refused, 'hang'])
+  await assert.rejects(
+    waitForHealth(4_244, true, {
+      overallTimeoutMs: 400,
+      requestTimeoutMs: 40,
+      pollIntervalMs: 5,
+    }),
+    (error) => {
+      assert.equal(error.cause, refused)
+      return true
+    },
+  )
+  assert.ok(calls.filter((call) => call.step === 'hang').length >= 1)
+})
+
+test('health that only ever times out still reports the timeout as the cause', async (t) => {
+  scriptedHealthFetch(t, ['hang'])
+  await assert.rejects(
+    waitForHealth(4_245, true, {
+      overallTimeoutMs: 300,
+      requestTimeoutMs: 60,
+      pollIntervalMs: 5,
+    }),
+    (error) => {
+      assert.ok(error.cause instanceof FetchTimeoutError)
+      assert.match(error.cause.message, /Dashboard health on port 4245 timed out after \d+ms/)
+      return true
+    },
+  )
+})
+
+test('a wait for the listener to disappear keeps the non-timeout cause over a late timeout', async (t) => {
+  const port = 4_246
+  const calls = scriptedHealthFetch(t, [503, 'hang'])
+  await assert.rejects(
+    waitForHealth(port, false, {
+      overallTimeoutMs: 300,
+      requestTimeoutMs: 40,
+      pollIntervalMs: 5,
+    }),
+    (error) => {
+      assert.match(error.message, new RegExp(`still owns or accepts port ${port}`))
+      assert.equal(error.cause?.message, `Dashboard health on port ${port} returned HTTP 503`)
+      return true
+    },
+  )
+  assert.ok(calls.filter((call) => call.step === 'hang').length >= 1)
+})
+
+test('health polling starts no attempt with less than the floor left before the overall deadline', async (t) => {
+  const overallTimeoutMs = 230
+  const calls = scriptedHealthFetch(t, [503])
+  const startedAt = Date.now()
+  await assert.rejects(
+    waitForHealth(4_247, true, { overallTimeoutMs, requestTimeoutMs: 1_000 }),
+    /returned HTTP 503/,
+  )
+  assert.ok(calls.length >= 1)
+  for (const call of calls) {
+    // Two ms of slack for the clock read inside waitForHealth landing after this one.
+    assert.ok(
+      call.at - startedAt <= overallTimeoutMs - 50 + 2,
+      `an attempt started ${call.at - startedAt}ms in, with under 50ms of ${overallTimeoutMs}ms left`,
+    )
+  }
+  // Attempts land at about 0, 100 and 200 ms; the one at 200 ms has only 30 ms left and must not start.
+  assert.ok(calls.length <= 2, `${calls.length} attempts started`)
+})
+
+test('a health budget shorter than the floor still gets its one attempt', async (t) => {
+  const calls = scriptedHealthFetch(t, [503])
+  await assert.rejects(
+    waitForHealth(4_248, true, { overallTimeoutMs: 20, requestTimeoutMs: 1_000 }),
+    (error) => /returned HTTP 503/.test(error.cause?.message ?? ''),
+  )
+  assert.equal(calls.length, 1)
+})
+
+test('a 200 with malformed JSON waits the normal poll interval instead of spinning', async () => {
+  let requests = 0
+  const server = createHttpServer((_request, response) => {
+    requests += 1
+    response.writeHead(200, { 'content-type': 'application/json' })
+    response.end('not-json')
+  })
+  await new Promise((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', resolve)
+  })
+  const address = server.address()
+  assert.notEqual(address, null)
+  assert.equal(typeof address, 'object')
+  const overallTimeoutMs = 450
+  try {
+    await assert.rejects(
+      waitForHealth(address.port, true, { overallTimeoutMs, requestTimeoutMs: 200 }),
+      (error) => {
+        assert.match(error.cause?.message ?? '', /did not return valid JSON/)
+        return true
+      },
+    )
+  } finally {
+    await new Promise((resolve) => server.close(resolve))
+  }
+  // One attempt per 100 ms poll interval, plus the first: a loop that skipped the interval answers
+  // thousands of times in the same window on loopback.
+  assert.ok(requests >= 1)
+  assert.ok(requests <= overallTimeoutMs / 100 + 1, `${requests} requests in ${overallTimeoutMs}ms`)
 })
 
 test('public install URL accepts only a complete stable release tag', () => {
