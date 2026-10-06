@@ -105,20 +105,34 @@ SARIF rule ids prefixed with `tenon/`.
 | Candidate tree | `candidate-mismatch` |
 | Protected file approvals | `protected-unapproved`, `protected-changed-after-approval`, `protected-approval-unbound` (warning), `protected-diff-unavailable` |
 | Anchors | `anchor-mismatch`, `anchor-behind` (warning), `anchor-unverifiable` (warning), `anchor-missing` (only with `--require-anchor`) |
-| Abandoned Change (not judged) | `change-abandoned` (note) |
+| Abandoned Change (test evidence not judged) | `change-abandoned` (note) |
 | Finished Change judged at the head | `finished-judged-at-head` (note) |
 
-Abandoned Changes are skipped. A Change that left its workflow through the abandon edge
-(`scope-expanded`, for example a `standard` task that escalated into the terminal step `escalated`) needs no
-test evidence, and it usually sits in the same pull request as the `default` Change that replaced it. CI does not
-judge it: the report carries the note `change-abandoned` for it and nothing else, so it never fails the check, whether
-you select it with `--change`, or `--since` picks it up. Only a Change that really went through the abandon
-edge counts. CI reads the head transition record from the Change's canonical run state and requires that it is the abandon
-event, that it entered the terminal step the state is in, and that the frozen workflow declares that edge. A state
-that merely says `phase: escalated`, with no abandon transition behind it, is judged like any other Change and fails.
-Skipping means skipping everything for that Change, including the protected-file approval check: the
-replacement Change is judged on its own, and CI does not look for approvals on a protected configuration
-file that only the abandoned Change touched. Carry such an edit in the replacement Change.
+Abandoned Changes are not judged for test evidence. A Change that left its workflow through the abandon
+edge (`scope-expanded`, for example a `standard` task that escalated into the terminal step `escalated`)
+needs no test evidence, and it usually sits in the same pull request as the `default` Change that replaced
+it. CI does not judge its test evidence: the report carries the note `change-abandoned` and no test-policy
+or candidate findings for it, whether you select it with `--change` or `--since` picks it up. Only a Change
+that really went through the abandon edge counts. CI reads the head transition record from the Change's
+canonical run state and requires that it is the abandon event, that it entered the terminal step the state
+is in, and that the frozen workflow declares that edge. A state that merely says `phase: escalated`, with
+no abandon transition behind it, is judged like any other Change and fails.
+
+Two things the abandon never skips or proves:
+
+- **Protected-file approval is always checked.** The abandon edge needs no review, so a pull request that
+  carries only an abandoned Change could otherwise lower a coverage threshold, edit a catalog command, add a
+  known failure or change a workflow `test_policy` with no approval anywhere. CI runs the same approval
+  check on the abandoned Change as on any other and reports `protected-unapproved` and its siblings at
+  normal severity; they fail the check. The check reads the approval lines in that Change's own history
+  against everything changed since it started, so a protected edit that only the replacement Change made
+  (and had approved) is reported on the abandoned one too. Make such an edit in a Change CI judges, or
+  have it approved on the abandoned Change.
+- **The abandon decision is not sealed.** It rests on the transition chain the author committed, which
+  CI checks for consistency (the revision digests of the canonical run state) but cannot prove was produced
+  by a real `tenon transition`: whoever can write the Change directory can write a consistent chain. This is
+  the same limit the table above states for test records, and it is why the approval check above is not
+  optional.
 
 Which step is judged: the Change's current step; if it declares no test policy, the closest earlier
 step that does (a finished Change is therefore judged at verify). Which chain is judged: the

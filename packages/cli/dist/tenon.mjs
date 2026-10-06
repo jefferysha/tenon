@@ -33051,8 +33051,8 @@ var CI_ONLY = [
     id: "change-abandoned",
     name: "ChangeAbandoned",
     level: "note",
-    short: "The task was abandoned through the scope-expanded edge, so its evidence is not judged",
-    help: "The task left its workflow through the abandon edge (`scope-expanded`) into a terminal step such as `escalated`; no test evidence is required for that edge. CI skips it and judges the task that replaced it. A task that only has the terminal step written into its state, without the abandon transition in its record chain, is judged as usual."
+    short: "The task was abandoned through the scope-expanded edge, so its test evidence is not judged",
+    help: "The task left its workflow through the abandon edge (`scope-expanded`) into a terminal step such as `escalated`; no test evidence is required for that edge. CI does not judge its test evidence and judges the task that replaced it. Protected-file approvals are still checked for it, at normal severity, because the abandon edge needs no review. The decision rests on the transition chain the task committed, which is self-consistent but not sealed. A task that only has the terminal step written into its state, without the abandon transition in its record chain, is judged as usual."
   },
   {
     id: "finished-judged-at-head",
@@ -58681,8 +58681,8 @@ var VERIFY_MESSAGES = {
     en: "The workflow declares no test policy at {phase} or before, so there is no case-level verdict to verify"
   },
   "verify.changeAbandoned": {
-    zh: "\u4EFB\u52A1 {change} \u5DF2\u88AB\u653E\u5F03\uFF1A\u5B83\u6CBF {event} \u8FB9\u4ECE {from} \u8F6C\u5165\u7EC8\u6001 {to}\uFF0C\u653E\u5F03\u4E0D\u9700\u8981\u6D4B\u8BD5\u8BC1\u636E\uFF0C\u6240\u4EE5\u4E0D\u5224\u5B9A\u5B83\u7684\u8BC1\u636E\uFF1B\u63A5\u624B\u5B83\u7684\u4EFB\u52A1\u5355\u72EC\u5224\u5B9A",
-    en: "Change {change} was abandoned: it left {from} through the {event} edge into the terminal step {to}. An abandon needs no test evidence, so its evidence is not judged; the change that replaced it is judged on its own"
+    zh: "\u4EFB\u52A1 {change} \u5DF2\u88AB\u653E\u5F03\uFF1A\u5B83\u6CBF {event} \u8FB9\u4ECE {from} \u8F6C\u5165\u7EC8\u6001 {to}\uFF0C\u653E\u5F03\u4E0D\u9700\u8981\u6D4B\u8BD5\u8BC1\u636E\uFF0C\u6240\u4EE5\u4E0D\u5224\u5B9A\u5B83\u7684\u6D4B\u8BD5\u8BC1\u636E\uFF08\u53D7\u4FDD\u62A4\u6587\u4EF6\u7684\u6279\u51C6\u7167\u67E5\uFF09\uFF1B\u63A5\u624B\u5B83\u7684\u4EFB\u52A1\u5355\u72EC\u5224\u5B9A\u3002\u8FD9\u4E2A\u5224\u65AD\u4F9D\u636E\u4EFB\u52A1\u63D0\u4EA4\u7684\u8F6C\u6362\u94FE\uFF0C\u94FE\u662F\u81EA\u6D3D\u7684\u4F46\u6CA1\u6709\u5C01\u5B58",
+    en: "Change {change} was abandoned: it left {from} through the {event} edge into the terminal step {to}. An abandon needs no test evidence, so its test evidence is not judged (protected-file approvals are still checked); the change that replaced it is judged on its own. This rests on the transition chain the task committed, which is self-consistent but not sealed"
   },
   "verify.finishedJudgedAtHead": {
     zh: "\u4EFB\u52A1 {change} \u5DF2\u7ECF\u5B8C\u7ED3\uFF0C\u4F46 CI \u5BF9\u5B83\u7684\u5224\u5B9A\u5BF9\u8C61\u662F\u672C\u6B21\u68C0\u51FA\u7684\u6811\uFF0C\u4E0D\u662F\u5B83\u5B8C\u7ED3\u65F6\u7684\u63D0\u4EA4\uFF1A\u5B8C\u7ED3\u4E4B\u540E\u7684\u63D0\u4EA4\uFF08\u6539\u8FC7\u7684\u4EE3\u7801\u3001\u540E\u6765\u7684\u4EFB\u52A1\u65B0\u589E\u7684\u6D4B\u8BD5\u6587\u4EF6\u3001\u6539\u8FC7\u7684\u6D4B\u8BD5\u76EE\u5F55\uFF09\u4E5F\u4F1A\u8BA9\u5B83\u7684\u8BC1\u636E\u51FA\u9519\u3002\u8981\u6309\u4EA4\u4ED8\u65F6\u7684\u6837\u5B50\u6821\u9A8C\u5B83\uFF0C\u68C0\u51FA\u5B83\u7684\u4EA4\u4ED8\u63D0\u4EA4\u518D\u8FD0\u884C\uFF1B\u6216\u8005\u53EA\u9009\u8FD9\u4E2A PR \u5E26\u6765\u7684\u4EFB\u52A1\uFF08--since <\u5408\u5E76\u57FA\u70B9>\uFF09",
@@ -96943,7 +96943,7 @@ async function abandonedChangeOf(selected, phase, plan) {
     return void 0;
   }
 }
-function abandonedReport(deps, selected, phase, abandoned) {
+function abandonedReport(deps, selected, phase, abandoned, protectedFindings2) {
   const finding3 = {
     code: "change-abandoned",
     severity: "note",
@@ -96961,7 +96961,7 @@ function abandonedReport(deps, selected, phase, abandoned) {
     evaluatedUser: null,
     chains: [],
     anchor: "none",
-    findings: [finding3]
+    findings: [finding3, ...protectedFindings2]
   };
 }
 
@@ -97194,7 +97194,7 @@ async function verifyChange(ctx, selected) {
   if (plan === null) return unreadable(selected, verifyMsg(deps, "verify.workflowUnresolved", { workflow: str2(state.fields.workflow) }));
   const phase = str2(state.fields.phase);
   const abandoned = await abandonedChangeOf(selected, phase, plan);
-  if (abandoned !== void 0) return abandonedReport(deps, selected, phase, abandoned);
+  if (abandoned !== void 0) return abandonedReport(deps, selected, phase, abandoned, await protectedFindings(ctx, selected, state));
   const picked = resolveEvaluatedStep(deps, plan, phase, ctx.stepOverride);
   if ("error" in picked) {
     return { ...unreadable(selected, picked.error), phase, findings: [ciFinding(selected.name, "step-unresolved", "error", picked.error)] };

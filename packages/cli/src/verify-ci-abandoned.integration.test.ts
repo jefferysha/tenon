@@ -7,7 +7,7 @@ import { readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { CiChangeReport, CiVerifyReport } from '@tenon/kernel'
 import { afterEach, describe, expect, test } from 'vitest'
-import { ciCheckout, devProject, type CiCheckout, type Dev } from './verify-ci-fixture.js'
+import { CATALOG_PATH, catalog, ciCheckout, devProject, type CiCheckout, type Dev } from './verify-ci-fixture.js'
 
 describe('tenon verify --ci：被放弃的任务', () => {
   const cleanups: Array<() => Promise<void>> = []
@@ -98,6 +98,29 @@ describe('tenon verify --ci：被放弃的任务', () => {
     const stale = await verify(second, '--change', 'sketch')
     expect(stale.code, stale.out).toBe(2)
     expect(stale.report.changes[0]?.findings.map((item) => item.code)).not.toContain('change-abandoned')
+  }, 180_000)
+
+  test('被放弃的任务动了受保护的测试目录、没有批准行：照样失败——放弃边不要求评审，批准检查不能被它绕过', async () => {
+    const dev = await devProject()
+    cleanups.push(dev.cleanup)
+    expect(await dev.tenon(['init', 'sketch', '--workflow', 'standard', '--track', 'standard']), `${dev.out()}\n${dev.err()}`).toBe(0)
+    // 任务起点之后改了受保护的测试目录（降低标准的一种典型改法），然后沿放弃边离开：没有评审、没有批准行。
+    await writeFile(join(dev.dir, CATALOG_PATH), catalog('单测（放弃的任务里改的）'), 'utf8')
+    expect(await dev.tenon(['transition', 'sketch', 'scope-expanded']), `${dev.out()}\n${dev.err()}`).toBe(0)
+    dev.commit('abandon sketch; its edit to the test catalog stays in the tree')
+    const ci = await ciCheckout(dev)
+    cleanups.push(ci.cleanup)
+
+    const result = await verify(ci, '--change', 'sketch')
+    expect(result.code, result.out).toBe(2)
+    const abandoned = change(result.report, 'sketch')
+    expect(abandoned).toMatchObject({ policy: 'none', step: 'escalated', chains: [] })
+    expect(abandoned.findings.map((item) => `${item.code}:${item.severity}`).sort()).toEqual(['change-abandoned:note', 'protected-unapproved:error'])
+    expect(abandoned.findings.find((item) => item.code === 'protected-unapproved')?.subject ?? '').toContain(CATALOG_PATH)
+    expect(result.report.summary).toMatchObject({ pass: false, errors: 1 })
+
+    // 选进 PR 里的任务时同样：被放弃的任务的受保护改动不会因为它「被放弃」而被放过。
+    expect((await verify(ci, '--since', 'main')).code).toBe(2)
   }, 180_000)
 
   test('放弃转换的记录被改成别的事件：不再认作放弃（状态与记录对不上，照常失败）', async () => {

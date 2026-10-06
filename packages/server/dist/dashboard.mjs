@@ -26728,8 +26728,8 @@ var CI_ONLY = [
     id: "change-abandoned",
     name: "ChangeAbandoned",
     level: "note",
-    short: "The task was abandoned through the scope-expanded edge, so its evidence is not judged",
-    help: "The task left its workflow through the abandon edge (`scope-expanded`) into a terminal step such as `escalated`; no test evidence is required for that edge. CI skips it and judges the task that replaced it. A task that only has the terminal step written into its state, without the abandon transition in its record chain, is judged as usual."
+    short: "The task was abandoned through the scope-expanded edge, so its test evidence is not judged",
+    help: "The task left its workflow through the abandon edge (`scope-expanded`) into a terminal step such as `escalated`; no test evidence is required for that edge. CI does not judge its test evidence and judges the task that replaced it. Protected-file approvals are still checked for it, at normal severity, because the abandon edge needs no review. The decision rests on the transition chain the task committed, which is self-consistent but not sealed. A task that only has the terminal step written into its state, without the abandon transition in its record chain, is judged as usual."
   },
   {
     id: "finished-judged-at-head",

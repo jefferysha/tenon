@@ -239,8 +239,8 @@ export const VERIFY_MESSAGES = {
     en: 'The workflow declares no test policy at {phase} or before, so there is no case-level verdict to verify',
   },
   'verify.changeAbandoned': {
-    zh: '任务 {change} 已被放弃：它沿 {event} 边从 {from} 转入终态 {to}，放弃不需要测试证据，所以不判定它的证据；接手它的任务单独判定',
-    en: 'Change {change} was abandoned: it left {from} through the {event} edge into the terminal step {to}. An abandon needs no test evidence, so its evidence is not judged; the change that replaced it is judged on its own',
+    zh: '任务 {change} 已被放弃：它沿 {event} 边从 {from} 转入终态 {to}，放弃不需要测试证据，所以不判定它的测试证据（受保护文件的批准照查）；接手它的任务单独判定。这个判断依据任务提交的转换链，链是自洽的但没有封存',
+    en: 'Change {change} was abandoned: it left {from} through the {event} edge into the terminal step {to}. An abandon needs no test evidence, so its test evidence is not judged (protected-file approvals are still checked); the change that replaced it is judged on its own. This rests on the transition chain the task committed, which is self-consistent but not sealed',
   },
   'verify.finishedJudgedAtHead': {
     zh: '任务 {change} 已经完结，但 CI 对它的判定对象是本次检出的树，不是它完结时的提交：完结之后的提交（改过的代码、后来的任务新增的测试文件、改过的测试目录）也会让它的证据出错。要按交付时的样子校验它，检出它的交付提交再运行；或者只选这个 PR 带来的任务（--since <合并基点>）',
