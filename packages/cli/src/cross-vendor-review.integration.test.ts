@@ -185,6 +185,39 @@ describe('跨厂商评审', () => {
     expect(text).not.toContain('<tenon-agent')
   })
 
+  test('TENON_LANG=en：路由说明、宿主拒绝、--host 声明的旁注都是英文；zh 不变', async () => {
+    await seed()
+    const EN = { TENON_LANG: 'en' }
+    expect(await h.run(['agent', 'prompt', 'demo', 'security'], { env: { ...CLAUDE, ...EN } }), h.err.join('\n')).toBe(0)
+    const lines = [...h.out]
+    expect(lines[0]).toBe("[ROUTE] reviewer 'security' must run on codex (required by the workflow step; a result registered from a different host is invalid); current host: claude")
+    expect(lines[1]).toMatch(/^Prompt: openspec\/changes\/demo\/\.pipeline-agent-reports\/\S+\.prompt\.md$/)
+    expect(lines[2]).toMatch(/^Run: codex exec --sandbox workspace-write - < /)
+    expect(lines[3]).toMatch(/^Record \(after the review has written its report\): tenon agent record demo \S+ --host codex$/)
+    expect(/[㐀-鿿]/u.test(lines.join('\n'))).toBe(false)
+
+    // 纯终端：当前宿主写 terminal
+    expect(await h.run(['agent', 'prompt', 'demo', 'security'], { env: EN })).toBe(0)
+    expect(h.out[0]).toContain('current host: terminal')
+
+    const started = await prompt('security', CLAUDE)
+    await report(started)
+    expect(await h.run(['agent', 'record', 'demo', started.run_id], { env: { ...CLAUDE, ...EN } })).toBe(2)
+    const refusal = h.err.join('\n')
+    expect(refusal).toContain("ERROR: reviewer 'security' must run on codex; this record comes from claude, so the result is invalid and was not recorded; run it on codex: codex exec")
+    expect(refusal).toContain(`after the review has written its report: tenon agent record demo ${started.run_id} --host codex`)
+    expect(/[㐀-鿿]/u.test(refusal)).toBe(false)
+
+    expect(await h.run(['agent', 'record', 'demo', started.run_id], { env: EN })).toBe(2)
+    expect(h.err.join('\n')).toContain('this record comes from unknown (declare it with --host from a terminal)')
+    expect(await h.run(['agent', 'record', 'demo', started.run_id, '--host', 'nope'], { env: EN })).toBe(1)
+    expect(h.err.join('\n')).toContain("ERROR: --host 'nope' is not a known host (")
+
+    expect(await h.run(['agent', 'record', 'demo', started.run_id, '--host', 'codex'], { env: { ...CLAUDE, ...EN } }), h.err.join('\n')).toBe(0)
+    expect(h.out.join('\n')).toContain('host=codex (declared)')
+    expect(h.out.join('\n')).not.toContain('声明')
+  })
+
   test('没有要求的评审者、以及已经在 codex 上：不路由，提示词正文照旧', async () => {
     await seed()
     const free = await prompt('spec-consistency', CLAUDE)

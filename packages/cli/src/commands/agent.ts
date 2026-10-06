@@ -31,6 +31,7 @@ import { renderTestPolicySummary } from './agent-prompt-tests.js'
 import { parseRerunReason, priorRunsOnCandidate, rerunRefusal } from './agent-rerun.js'
 import { codexCommand, claudeCommand, hostSourceOf, planRoute, recordCommand, routeLines } from './agent-route.js'
 import { unattachedRefusal } from '../diffRisk.js'
+import { msg } from '../i18n/messages.js'
 
 export { cmdAgentNext } from './agent-next.js'
 
@@ -91,7 +92,7 @@ export async function cmdAgentPrompt(
   if (context.unattached.includes(agent)) return unattachedRefusal(deps, agent, frozen)
   if (options.host !== undefined && frozen.definition.hosts !== undefined
     && !frozen.definition.hosts.includes(options.host)) {
-    deps.io.err(`ERROR: agent '${agent}' 不支持宿主 '${options.host}'`)
+    deps.io.err(`ERROR: ${msg(deps, 'agent.hostUnsupported', { agent, host: options.host })}`)
     return 2
   }
   const waiting = nextAgentWave(context).waiting.find((item) => item.agent === agent)
@@ -204,7 +205,7 @@ export async function cmdAgentPrompt(
     return 0
   }
   if (route.runOn !== null) {
-    for (const line of routeLines(agent, route)) deps.io.out(line)
+    for (const line of routeLines(deps, agent, route)) deps.io.out(line)
     return 0
   }
   deps.io.out(prompt)
@@ -233,7 +234,7 @@ export async function cmdAgentRecord(
     return 1
   }
   if (options.host !== undefined && !KNOWN_AGENT_HOSTS.includes(options.host)) {
-    deps.io.err(`ERROR: --host '${options.host}' 不是已知宿主（${KNOWN_AGENT_HOSTS.join(' | ')}）`)
+    deps.io.err(`ERROR: ${msg(deps, 'agent.record.hostFlagUnknown', { host: options.host, known: KNOWN_AGENT_HOSTS.join(' | ') })}`)
     return 1
   }
   const context = await resolveAgentCommand(deps, name, { requireOwner: true })
@@ -274,9 +275,13 @@ export async function cmdAgentRecord(
   if (!hostRunValid(stepHost, host)) {
     const required = stepHost === 'claude' || stepHost === 'codex' ? stepHost : 'codex'
     const promptFile = join('openspec', 'changes', name, AGENT_REPORTS_DIR, `${row.run_id}.prompt.md`)
-    deps.io.err(`ERROR: 评审者 '${row.agent}' 须在 ${required} 上运行，这次登记的宿主是 ${host ?? '未知（终端里请用 --host 声明）'}，结论无效、未登记；`
-      + `在 ${required} 上运行：${required === 'codex' ? codexCommand(promptFile) : claudeCommand(promptFile)}；`
-      + `评审写完报告后：${recordCommand(name, row.run_id, required)}`)
+    deps.io.err(`ERROR: ${msg(deps, 'agent.record.wrongHost', {
+      agent: row.agent,
+      required,
+      host: host ?? msg(deps, 'agent.record.hostUnknown'),
+      run: required === 'codex' ? codexCommand(promptFile) : claudeCommand(promptFile),
+      record: recordCommand(name, row.run_id, required),
+    })}`)
     return 2
   }
   // 评审结论由 Tenon 从 findings 与 block_at 算出，评审者自己不报；执行者自报 done | failed。
@@ -305,7 +310,7 @@ export async function cmdAgentRecord(
     ? JSON.stringify({ ...finished, blocking })
     : `[AGENT] ${name} ${row.agent} ${row.role} result=${finished.result}`
       + ` findings=${parsed.findings.length} blocking=${blocking}`
-      + (host === undefined ? '' : ` host=${host}${finished.host_source === 'declared' ? ' (声明)' : ''}`)
-      + (subagent === undefined ? '' : ` subagent=${subagent.type}${subagent.native ? '' : ' (通用)'}`))
+      + (host === undefined ? '' : ` host=${host}${finished.host_source === 'declared' ? ` ${msg(deps, 'agent.record.declared')}` : ''}`)
+      + (subagent === undefined ? '' : ` subagent=${subagent.type}${subagent.native ? '' : ` ${msg(deps, 'agent.record.generic')}`}`))
   return 0
 }

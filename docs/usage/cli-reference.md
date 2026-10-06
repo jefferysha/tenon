@@ -752,7 +752,7 @@ stable text). Every command and option description has an English text, usage er
 and the most common errors are catalogued in both languages (stable message codes,
 see `packages/cli/src/i18n/`), and JSON fields, `ERROR:`/`WARN:` prefixes and exit
 codes never depend on the language. `tenon verify --ci` (all four report formats and its usage errors) is fully
-catalogued; see [CI verification](ci-verification.md). Strings not yet in the catalog stay in Chinese.
+catalogued; see [CI verification](ci-verification.md). The cross-vendor review lines (`agent prompt` `[ROUTE]` routing, the `agent record` host refusal and its `declared` note) and the `review acknowledge` refusals are catalogued as well. Strings not yet in the catalog stay in Chinese.
 
 ## Advanced
 

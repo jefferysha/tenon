@@ -15,13 +15,14 @@ import {
   readCurrentRunRevision,
   resolveStep,
   reviewAcknowledgeExitCode,
-  reviewerRequiredMessage,
   stepExitTransitions,
   type PipelineState,
   type ReviewAcknowledgeDeferred,
+  type UserRef,
   type WaiverApprovalOutcome,
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
+import { msg } from '../i18n/messages.js'
 import { readDelegatedReviewAuthority } from '../continuousAuthority.js'
 import { requireUser } from '../userIdentity.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
@@ -48,6 +49,13 @@ function reviewExits(deps: CliDeps, state: PipelineState, phase: string): readon
 /** `--as` 目前只有一个角色：非负责人以评审人身份确认。 */
 const REVIEWER_ROLE = 'reviewer'
 
+/** 负责人规则的拒绝文案（目录里的两条，zh 与 kernel 的 reviewerRequiredMessage 逐字一致）。 */
+function reviewerRequired(deps: CliDeps, name: string, owner: UserRef | null): string {
+  return owner === null
+    ? msg(deps, 'review.ownerRequired.none', { name })
+    : msg(deps, 'review.ownerRequired.other', { name, owner: formatUserRef(owner) })
+}
+
 export async function cmdReviewAcknowledge(
   deps: CliDeps,
   name: string,
@@ -55,7 +63,7 @@ export async function cmdReviewAcknowledge(
   opts: { readonly event?: string; readonly delegated?: boolean; readonly as?: string },
 ): Promise<number> {
   if (opts.as !== undefined && opts.as !== REVIEWER_ROLE) {
-    deps.io.err(`ERROR: --as 只支持 ${REVIEWER_ROLE}（收到 '${opts.as}'）`)
+    deps.io.err(`ERROR: ${msg(deps, 'review.asRoleInvalid', { role: REVIEWER_ROLE, got: opts.as })}`)
     return 1
   }
   const user = requireUser(deps)
@@ -70,14 +78,14 @@ export async function cmdReviewAcknowledge(
       )
     : null
   if (opts.delegated === true && delegatedAuthority === null) {
-    deps.io.err(`ERROR: 当前 Change '${name}' 没有有效的用户委托 review 授权；请等待正常确认，或先由用户明确授权后续自主执行`)
+    deps.io.err(`ERROR: ${msg(deps, 'review.noDelegatedAuthority', { name })}`)
     return 1
   }
   const { interaction, history } = deps
   // 确认评审只认负责人（真机验收 F16）：非负责人显式 --as reviewer 才行，角色与负责人记进历史。
   const owner = ownerDecision((await deps.store.read(dir)).fields, actor)
   if (!owner.allowed && opts.as !== REVIEWER_ROLE) {
-    deps.io.err(`ERROR: ${reviewerRequiredMessage(name, owner.owner)}`)
+    deps.io.err(`ERROR: ${reviewerRequired(deps, name, owner.owner)}`)
     return 1
   }
   const roleDetail = owner.allowed ? '' : `as=${REVIEWER_ROLE} owner=${owner.owner?.id ?? 'none'}`
@@ -97,7 +105,7 @@ export async function cmdReviewAcknowledge(
       const state = await deps.store.read(dir)
       // 负责人在预检与加锁之间换了人：没有 --as reviewer 就不能沿用预检的结论。
       const decision = ownerDecision(state.fields, actor)
-      if (!decision.allowed && opts.as !== REVIEWER_ROLE) throw new Error(reviewerRequiredMessage(name, decision.owner))
+      if (!decision.allowed && opts.as !== REVIEWER_ROLE) throw new Error(reviewerRequired(deps, name, decision.owner))
       return state
     },
     readRevision: () => readCurrentRunRevision(dir),

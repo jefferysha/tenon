@@ -9,6 +9,7 @@
  */
 import { COMMON_MESSAGES } from './messages-common.js'
 import { INTEGRITY_MESSAGES } from './messages-integrity.js'
+import { REVIEW_MESSAGES } from './messages-review.js'
 import { STANDARD_MESSAGES } from './messages-standard.js'
 import { SUPPORT_MESSAGES } from './messages-support.js'
 import { TRANSITION_MESSAGES } from './messages-transition.js'
@@ -26,6 +27,7 @@ export const MESSAGES = {
   ...SUPPORT_MESSAGES,
   ...STANDARD_MESSAGES,
   ...INTEGRITY_MESSAGES,
+  ...REVIEW_MESSAGES,
   ...VERIFY_MESSAGES,
 } as const satisfies Readonly<Record<string, MessageEntry>>
 
