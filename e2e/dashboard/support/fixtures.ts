@@ -31,7 +31,8 @@ const SETTLE_TIMEOUT_MS = 15_000
  * 慢的浏览器（CI 里的 WebKit）上它们要拖得久得多，所以不能按固定时长等。
  * 连续多帧都安静才返回：动画常在提交之后的下一两帧才开始（ResizeObserver 量完高度才触发过渡），一帧安静不算数。
  * 无限循环的动画（旋转图标、Signal 彗星）永远不会结束，它们本身不计入，暂停的也不计。
- * 超时抛出仍在变化的东西，便于看是谁没停。
+ * 超时抛出仍在变化的东西，便于看是谁没停。帧不走（后台/隐藏页面被节流）时 requestAnimationFrame 里的超时判断
+ * 永远不会跑，所以另有一个同样时长的墙钟 setTimeout 兜底，抛同一种报错，不必等 Playwright 的整条用例超时。
  */
 export async function settled(page: Page): Promise<void> {
   await page.evaluate(({ quietFrames, timeoutMs }) => new Promise<void>((resolve, reject) => {
@@ -64,15 +65,28 @@ export async function settled(page: Page): Promise<void> {
     const started = performance.now()
     let quiet = 0
     let previous = ''
+    let finished = false
+    const timeoutError = (animating: Animation[], idle: string): Error =>
+      new Error(`page did not settle within ${timeoutMs}ms; still animating: ${animating.map(describe).join(', ') || idle}`)
+    const finish = (error?: Error): void => {
+      if (finished) return
+      finished = true
+      window.clearTimeout(wallClock)
+      if (error === undefined) resolve()
+      else reject(error)
+    }
+    // 墙钟兜底：超时判断写在 requestAnimationFrame 的回调里，帧不走（后台/隐藏的页面被节流，或字体一直没就绪导致
+    // 第一帧都没排上）它就永远不会触发，只能等 Playwright 的整条用例超时，那条报错说不出是谁卡住了。
+    const wallClock = window.setTimeout(() => finish(timeoutError(finiteRunning(), '(no animation frames ran: requestAnimationFrame stalled, the page may be throttled or hidden)')), timeoutMs)
     const tick = (): void => {
+      if (finished) return
       const animating = finiteRunning()
       const signature = opacitySignature()
       quiet = animating.length === 0 && signature === previous ? quiet + 1 : 0
       previous = signature
-      if (quiet >= quietFrames) resolve()
-      else if (performance.now() - started > timeoutMs) {
-        reject(new Error(`page did not settle within ${timeoutMs}ms; still animating: ${animating.map(describe).join(', ') || '(script-driven opacity change)'}`))
-      } else requestAnimationFrame(tick)
+      if (quiet >= quietFrames) finish()
+      else if (performance.now() - started > timeoutMs) finish(timeoutError(animating, '(script-driven opacity change)'))
+      else requestAnimationFrame(tick)
     }
     void document.fonts.ready.then(() => requestAnimationFrame(tick))
   }), { quietFrames: QUIET_FRAMES, timeoutMs: SETTLE_TIMEOUT_MS })
