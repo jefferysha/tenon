@@ -1,10 +1,21 @@
 import type { Page } from 'playwright/test'
 import { expect, openView, test } from './support/fixtures'
+import { percentile } from './support/stats'
 
 const STAGES = [['open', '立项'], ['explore', '调研'], ['spec', '规格'], ['build', '实现'], ['verify', '验证'], ['ship', '交付'], ['archive', '完结']] as const
 const SAMPLE_MS = 2_400
 const SAMPLE_EVERY_MS = 100
 const CORE = 'path[data-signal-layer="core"]'
+/**
+ * Signal 每帧耗时：空闲流动 WINDOWS 个窗口、每窗口约 WINDOW_MS，每个窗口量一次「每帧」的脚本 / 样式 / 布局 / 主线程任务（CDP 指标是累计值，窗口两端相减再除以帧数）。
+ * 预算看窗口的中位数（单个窗口被调度或 GC 抢占不算数），p95 只写进报告。
+ * 本机 Chromium 里脚本约 0.08ms/帧；预算沿用产品目标 2ms/帧（约 25 倍余量）。jsdom 单测（flowSignal.perf.test.tsx）只设确定性护栏和「最快一批」的宽松耗时线，真实帧耗时在这里量。
+ */
+const WINDOWS = 15
+const WINDOW_MS = 200
+const SCRIPT_BUDGET_MS = 2
+const METRICS = { script: 'ScriptDuration', style: 'RecalcStyleDuration', layout: 'LayoutDuration', task: 'TaskDuration' } as const
+type Metric = keyof typeof METRICS
 
 /** 每隔 SAMPLE_EVERY_MS 记一次所有彗星核的 stroke-dashoffset（取计算值，运行时写的是属性）。 */
 async function sampleDashOffsets(page: Page): Promise<string[]> {
@@ -120,28 +131,45 @@ test.describe('工作流页', () => {
     expect(new Set(await sampleDashOffsets(page)).size).toBe(1)
   })
 
-  test('Signal 每帧脚本耗时：总览空闲流动 3 秒，脚本时间 / 帧 < 2ms（CDP Performance.getMetrics）', async ({ page, browserName }, testInfo) => {
+  test('Signal 每帧耗时：总览空闲流动，15 个窗口的每帧脚本耗时中位数 < 2ms，p95 记入报告（CDP Performance.getMetrics）', async ({ page, browserName }, testInfo) => {
     test.skip(browserName !== 'chromium', 'CDP 只在 Chromium 上有')
     await openView(page, 'workflow', { wf: 'default', step: ':overview' })
     await expect.poll(() => page.locator(`${CORE}[stroke-dasharray]`).count(), { timeout: 15_000 }).toBeGreaterThan(0)
     const session = await page.context().newCDPSession(page)
     await session.send('Performance.enable')
-    const metric = async (name: string): Promise<number> => ((await session.send('Performance.getMetrics')).metrics.find((item) => item.name === name)?.value ?? 0)
-    await page.waitForTimeout(500)
-    const before = { script: await metric('ScriptDuration'), style: await metric('RecalcStyleDuration'), layout: await metric('LayoutDuration'), task: await metric('TaskDuration') }
-    const frames = await page.evaluate(() => new Promise<number>((resolve) => {
-      let count = 0
-      const started = performance.now()
-      const tick = (): void => { count += 1; if (performance.now() - started < 3_000) requestAnimationFrame(tick); else resolve(count) }
+    // 页面里数帧：窗口两端的帧数相减 = 窗口里画了多少帧。
+    await page.evaluate(() => {
+      const counter = { frames: 0 }
+      Object.assign(window, { __signalFrames: counter })
+      const tick = (): void => { counter.frames += 1; requestAnimationFrame(tick) }
       requestAnimationFrame(tick)
-    }))
-    const after = { script: await metric('ScriptDuration'), style: await metric('RecalcStyleDuration'), layout: await metric('LayoutDuration'), task: await metric('TaskDuration') }
-    const perFrame = (key: 'script' | 'style' | 'layout' | 'task'): number => ((after[key] - before[key]) * 1000) / frames
-    const report = `Signal 性能（3s，${frames} 帧）：脚本 ${perFrame('script').toFixed(3)}ms/帧，样式重算 ${perFrame('style').toFixed(3)}ms/帧，布局 ${perFrame('layout').toFixed(3)}ms/帧，主线程任务合计 ${perFrame('task').toFixed(3)}ms/帧`
+    })
+    const reading = async (): Promise<Record<Metric | 'frames', number>> => {
+      const frames = await page.evaluate((): number => Reflect.get(Reflect.get(window, '__signalFrames'), 'frames'))
+      const { metrics } = await session.send('Performance.getMetrics')
+      const value = (name: string): number => metrics.find((item) => item.name === name)?.value ?? 0
+      return { frames, script: value(METRICS.script), style: value(METRICS.style), layout: value(METRICS.layout), task: value(METRICS.task) }
+    }
+    await page.waitForTimeout(500)
+    const perFrame: Record<Metric, number[]> = { script: [], style: [], layout: [], task: [] }
+    let frames = 0
+    let previous = await reading()
+    for (let index = 0; index < WINDOWS; index += 1) {
+      await page.waitForTimeout(WINDOW_MS)
+      const current = await reading()
+      const drawn = current.frames - previous.frames
+      frames += drawn
+      if (drawn > 0) for (const key of Object.keys(perFrame) as Metric[]) perFrame[key].push(((current[key] - previous[key]) * 1000) / drawn)
+      previous = current
+    }
+    const median = (key: Metric): number => percentile(perFrame[key], 0.5)
+    const p95 = (key: Metric): number => percentile(perFrame[key], 0.95)
+    const report = `Signal 性能（${WINDOWS} 个窗口 × ${WINDOW_MS}ms，共 ${frames} 帧；每帧中位数 / p95）：脚本 ${median('script').toFixed(3)} / ${p95('script').toFixed(3)}ms，样式重算 ${median('style').toFixed(3)} / ${p95('style').toFixed(3)}ms，布局 ${median('layout').toFixed(3)} / ${p95('layout').toFixed(3)}ms，主线程任务合计 ${median('task').toFixed(3)} / ${p95('task').toFixed(3)}ms；脚本预算（中位数）${SCRIPT_BUDGET_MS}ms`
     testInfo.annotations.push({ type: 'signal-perf', description: report })
     console.info(report)
     expect(frames).toBeGreaterThan(60)
-    expect(perFrame('script')).toBeLessThan(2)
+    expect(perFrame.script.length, '窗口里都应画了帧').toBe(WINDOWS)
+    expect(median('script'), report).toBeLessThan(SCRIPT_BUDGET_MS)
   })
 
   test('中文轨道页签放得下：页签条不滚动，两侧都没有渐隐', async ({ page }) => {
