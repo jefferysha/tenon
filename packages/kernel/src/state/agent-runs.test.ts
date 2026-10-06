@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { AGENT_RUN_META_FILE } from './agent-run-meta.js'
 import {
   AGENT_RUNS_FILE, AgentRunError,
   appendAgentRunRow, parseAgentReport, readAgentRuns, severityRank, type AgentRunRow,
@@ -34,6 +35,13 @@ function row(overrides: Partial<AgentRunRow> = {}): AgentRunRow {
 
 let changeDir: string
 const runsPath = (): string => join(changeDir, AGENT_RUNS_FILE)
+const metaPath = (): string => join(changeDir, AGENT_RUN_META_FILE)
+
+/** 上一个发行版（v0.2.1）的台账读取器认得的键：必填加上唯一的可选键 subagent，多一个键就判整份台账损坏。 */
+const N_MINUS_ONE_ROW_KEYS = [
+  'actor', 'agent', 'agent_digest', 'candidate', 'findings', 'finished_at', 'report_digest', 'report_path', 'result', 'role',
+  'run_id', 'schema', 'started_at', 'status', 'step', 'step_visit', 'subagent',
+]
 
 beforeEach(async () => {
   changeDir = await mkdtemp(join(tmpdir(), 'tenon-agent-runs-'))
@@ -92,6 +100,76 @@ describe('readAgentRuns', () => {
       await writeFile(runsPath(), `${JSON.stringify({ ...row(), ...bad })}\n`)
       await expect(readAgentRuns(changeDir), JSON.stringify(bad)).rejects.toMatchObject({ code: 'runs-corrupt' })
     }
+  })
+
+  it('host / host_source / rerun_reason 写进旁注，台账行保持上一个发行版读得了的形状；读出来仍是合并后的整行', async () => {
+    const running = row({ run_id: 'r1', rerun_reason: '补充了设计稿后重跑', subagent: { host: 'claude', type: 'tenon-security', native: true } })
+    await appendAgentRunRow(changeDir, running)
+    const finished = row({ ...running, status: 'finished', result: 'pass', finished_at: '2026-09-20T01:05:00Z', host: 'codex', host_source: 'declared' })
+    await appendAgentRunRow(changeDir, finished)
+    await appendAgentRunRow(changeDir, row({ run_id: 'plain' }))
+    // 台账：每一行的键都在 N-1 的闭集里，没有 host / host_source / rerun_reason。
+    for (const line of (await readFile(runsPath(), 'utf8')).trim().split('\n')) {
+      const keys = Object.keys(JSON.parse(line) as Record<string, unknown>)
+      expect(keys.filter((key) => !N_MINUS_ONE_ROW_KEYS.includes(key)), line).toEqual([])
+    }
+    // 旁注：只为有这三项的运行写；没有就不创建文件内容里的无关行。
+    const meta = (await readFile(metaPath(), 'utf8')).trim().split('\n').map((line) => JSON.parse(line) as Record<string, unknown>)
+    expect(meta).toEqual([
+      { schema: 'agent-run-meta/v1', run_id: 'r1', rerun_reason: '补充了设计稿后重跑' },
+      { schema: 'agent-run-meta/v1', run_id: 'r1', rerun_reason: '补充了设计稿后重跑', host: 'codex', host_source: 'declared' },
+    ])
+    const runs = await readAgentRuns(changeDir)
+    expect(runs.map((item) => item.run_id)).toEqual(['r1', 'plain'])
+    expect(runs[0]).toEqual({ ...finished, rerun_reason: '补充了设计稿后重跑' })
+    expect(runs[1]).not.toHaveProperty('host')
+    expect(runs[1]).not.toHaveProperty('rerun_reason')
+  })
+
+  it('没有这三项的运行不产生旁注文件', async () => {
+    await appendAgentRunRow(changeDir, row({ run_id: 'a' }))
+    await expect(readFile(metaPath(), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('台账行自带这三项（本地 integ 构建写过的旧行）照样读得了，旁注只补行里缺的项', async () => {
+    await writeFile(runsPath(), `${JSON.stringify(row({ run_id: 'legacy', host: 'claude', host_source: 'detected', rerun_reason: '旧行里的原因' }))}\n`)
+    await writeFile(metaPath(), `${JSON.stringify({ schema: 'agent-run-meta/v1', run_id: 'legacy', host: 'codex', host_source: 'declared', rerun_reason: '旁注' })}\n`)
+    expect((await readAgentRuns(changeDir))[0]).toMatchObject({ host: 'claude', host_source: 'detected', rerun_reason: '旧行里的原因' })
+    await writeFile(runsPath(), `${JSON.stringify(row({ run_id: 'legacy', host: 'claude', host_source: 'detected' }))}\n`)
+    expect((await readAgentRuns(changeDir))[0]).toMatchObject({ host: 'claude', host_source: 'detected', rerun_reason: '旁注' })
+  })
+
+  it('旁注先于台账行写入：没有对应台账行的旁注（写到一半崩溃）不影响读取，也不会凭空出现运行', async () => {
+    await appendAgentRunRow(changeDir, row({ run_id: 'a' }))
+    await writeFile(metaPath(), `${JSON.stringify({ schema: 'agent-run-meta/v1', run_id: 'orphan', host: 'codex', host_source: 'declared' })}\n`)
+    const runs = await readAgentRuns(changeDir)
+    expect(runs.map((item) => item.run_id)).toEqual(['a'])
+  })
+
+  it('旁注里同一 run_id 的多行逐项叠加，后写的覆盖先写的', async () => {
+    await appendAgentRunRow(changeDir, row({ run_id: 'a' }))
+    await writeFile(metaPath(), [
+      { schema: 'agent-run-meta/v1', run_id: 'a', rerun_reason: '先' },
+      { schema: 'agent-run-meta/v1', run_id: 'a', host: 'claude', host_source: 'detected', rerun_reason: '后' },
+    ].map((item) => `${JSON.stringify(item)}\n`).join(''))
+    expect((await readAgentRuns(changeDir))[0]).toMatchObject({ host: 'claude', host_source: 'detected', rerun_reason: '后' })
+  })
+
+  it('旁注的畸形行 → runs-corrupt 并点名行号；末尾写到一半的行忽略；超大 → runs-limit', async () => {
+    await appendAgentRunRow(changeDir, row({ run_id: 'a' }))
+    const good = JSON.stringify({ schema: 'agent-run-meta/v1', run_id: 'a', host: 'codex', host_source: 'declared' })
+    for (const bad of [
+      '{not json}', JSON.stringify({ schema: 'agent-run-meta/v1' }), JSON.stringify({ schema: 'other', run_id: 'a' }),
+      JSON.stringify({ schema: 'agent-run-meta/v1', run_id: 'a', extra: 1 }), JSON.stringify({ schema: 'agent-run-meta/v1', run_id: 'a', host_source: 'declared' }),
+      JSON.stringify({ schema: 'agent-run-meta/v1', run_id: 'a', rerun_reason: ' ' }), JSON.stringify({ schema: 'agent-run-meta/v1', run_id: 'a', host: 'Codex' }),
+    ]) {
+      await writeFile(metaPath(), `${good}\n${bad}\n`)
+      await expect(readAgentRuns(changeDir), bad).rejects.toMatchObject({ code: 'runs-corrupt', message: expect.stringContaining('第 2 行') })
+    }
+    await writeFile(metaPath(), `${good}\n{"schema":"agent-run-meta/v1","run_`)
+    expect((await readAgentRuns(changeDir))[0]).toMatchObject({ host: 'codex' })
+    await writeFile(metaPath(), `${'x'.repeat(1024 * 1024 + 1)}\n`)
+    await expect(readAgentRuns(changeDir)).rejects.toMatchObject({ code: 'runs-limit' })
   })
 
   it('subagent 形状非法 → 损坏', async () => {

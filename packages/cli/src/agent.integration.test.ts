@@ -261,10 +261,12 @@ describe('真实 e2e —— 步骤 agent', () => {
     expect(view).toMatchObject({ result: 'pass', reruns: 1, flipped: true, rerun_reason: '补充了设计稿后重跑' })
     expect(await h.run(['agent', 'next', 'demo'], { env: USER_A })).toBe(0)
     expect(h.out.join('\n')).toContain('security 评审者 已完成 通过 重跑 1 次（结论翻转）：补充了设计稿后重跑')
-    // 台账留着每一次运行，原因在最后一行上。
-    const rows = (await h.readIn('demo', '.pipeline-agent-runs.jsonl')).trim().split('\n').map((line) => JSON.parse(line) as { agent: string; status: string; rerun_reason?: string })
+    // 台账留着每一次运行；原因记在旁注里（上一个发行版读不了台账行里的新键），读出来仍挂在这次运行上。
+    const rows = (await h.readIn('demo', '.pipeline-agent-runs.jsonl')).trim().split('\n').map((line) => JSON.parse(line) as { agent: string; status: string; run_id: string; rerun_reason?: string })
     expect(rows.filter((row) => row.agent === 'security' && row.status === 'finished')).toHaveLength(2)
-    expect(rows.filter((row) => row.agent === 'security').at(-1)?.rerun_reason).toBe('补充了设计稿后重跑')
+    expect(rows.some((row) => row.rerun_reason !== undefined)).toBe(false)
+    const meta = (await h.readIn('demo', '.pipeline-agent-run-meta.jsonl')).trim().split('\n').map((line) => JSON.parse(line) as { run_id: string; rerun_reason?: string })
+    expect(meta.filter((row) => row.rerun_reason === '补充了设计稿后重跑').map((row) => row.run_id)).toContain(rows.filter((row) => row.agent === 'security').at(-1)?.run_id)
 
     // 换候选（代码真的变了）之后，上一候选的结论过期，新候选上的第一次运行不需要原因。
     await writeFile(join(h.cwd, 'fix.ts'), 'export const fixed = true\n', 'utf8')

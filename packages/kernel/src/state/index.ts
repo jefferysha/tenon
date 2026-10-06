@@ -25,6 +25,7 @@ export {
   AGENT_RUN_SCHEMA, AGENT_SEVERITIES, AgentRunError,
   appendAgentRunRow, parseAgentReport, readAgentRuns, severityRank,
 } from './agent-runs.js'
+export { AGENT_RUN_META_FILE } from './agent-run-meta.js'
 export type {
   AgentFinding, AgentRunHostSource, AgentRunRole, AgentRunResult, AgentRunRow, AgentRunStatus, AgentRunSubagent, ParsedAgentReport,
 } from './agent-runs.js'

@@ -3,11 +3,21 @@
  *
  * 一次状态变化写一整行（不是补丁），所以「进行中」既是技能门解锁的依据，也不需要第二个文件。
  * 读取无需加锁；任何畸形行都判为损坏并点名行号——守卫据此失败关闭，不当作「没有评审」放行。
+ *
+ * 行是闭集：上一个发行版（v0.2.1）遇到不认识的键就判整份台账损坏。`host`、`host_source`、`rerun_reason` 是 v0.3 新增的，
+ * 因此不写进行里，而是按 run_id 记在旁注 `.pipeline-agent-run-meta.jsonl`（agent-run-meta.ts），读取时叠加回 `AgentRunRow`，
+ * 调用方看到的行形状不变。读取仍接受行里自带这三项的旧行（本地 integ 构建写过）。
  */
 import { appendFile, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { AgentSeverity } from '../workflow/types.js'
 import { decodeRecordActor, type RecordActor } from '../users/user.js'
+import {
+  AGENT_RERUN_REASON_MAX, AGENT_RUN_META_MAX_BYTES, AgentRunMetaError, appendAgentRunMeta, decodeAgentRunMeta, readAgentRunMeta,
+  splitAgentRunMeta, withAgentRunMeta, type AgentRunHostSource, type AgentRunMeta,
+} from './agent-run-meta.js'
+
+export { AGENT_RERUN_REASON_MAX, type AgentRunHostSource }
 
 export const AGENT_RUNS_FILE = '.pipeline-agent-runs.jsonl'
 export const AGENT_REPORTS_DIR = '.pipeline-agent-reports'
@@ -17,7 +27,6 @@ export const AGENT_RUN_SCHEMA = 'agent-run/v1'
 export const AGENT_FINDINGS_MAX = 200
 export const AGENT_FINDING_LOCATION_MAX = 200
 export const AGENT_FINDING_MESSAGE_MAX = 500
-export const AGENT_RERUN_REASON_MAX = 300
 
 export const AGENT_SEVERITIES: readonly AgentSeverity[] = ['critical', 'high', 'medium', 'low']
 const SEVERITY_RANK: Readonly<Record<AgentSeverity, number>> = { low: 1, medium: 2, high: 3, critical: 4 }
@@ -77,8 +86,6 @@ export interface AgentRunRow {
   readonly host_source?: AgentRunHostSource
 }
 
-export type AgentRunHostSource = 'detected' | 'declared'
-
 export type AgentRunErrorCode =
   | 'runs-corrupt' | 'runs-limit' | 'report-invalid' | 'run-not-running' | 'candidate-changed'
 
@@ -96,7 +103,6 @@ const ROW_KEYS = [
   'report_path', 'result', 'role', 'run_id', 'schema', 'started_at', 'status', 'step', 'step_visit',
 ].join(',')
 const OPTIONAL_ROW_KEYS = ['host', 'host_source', 'rerun_reason', 'subagent'] as const
-const RUN_HOST_RE = /^[a-z][a-z0-9-]{0,31}$/u
 const RESULTS: ReadonlySet<string> = new Set<AgentRunResult>(['pass', 'fail', 'done', 'failed'])
 const SUBAGENT_TEXT_MAX = 128
 
@@ -132,13 +138,8 @@ function decodeRow(value: unknown): AgentRunRow | undefined {
   if (record.schema !== AGENT_RUN_SCHEMA) return undefined
   const subagent = record.subagent === undefined ? undefined : decodeSubagent(record.subagent)
   if (record.subagent !== undefined && subagent === undefined) return undefined
-  const rerunReason = record.rerun_reason
-  if (rerunReason !== undefined && (typeof rerunReason !== 'string' || rerunReason.trim() === ''
-    || rerunReason.length > AGENT_RERUN_REASON_MAX || /[\r\n]/.test(rerunReason))) return undefined
-  const host = record.host
-  if (host !== undefined && (typeof host !== 'string' || !RUN_HOST_RE.test(host))) return undefined
-  const hostSource = record.host_source
-  if (hostSource !== undefined && ((hostSource !== 'detected' && hostSource !== 'declared') || host === undefined)) return undefined
+  const meta = decodeAgentRunMeta(record)
+  if (meta === undefined) return undefined
   const strings = ['run_id', 'agent', 'agent_digest', 'step', 'step_visit', 'candidate', 'report_path', 'started_at']
   for (const key of strings) if (typeof record[key] !== 'string' || record[key] === '') return undefined
   if (record.role !== 'executor' && record.role !== 'reviewer') return undefined
@@ -173,9 +174,7 @@ function decodeRow(value: unknown): AgentRunRow | undefined {
     started_at: record.started_at as string,
     finished_at: record.finished_at as string | null,
     ...(subagent === undefined ? {} : { subagent }),
-    ...(host === undefined ? {} : { host: host as string }),
-    ...(hostSource === undefined ? {} : { host_source: hostSource as AgentRunHostSource }),
-    ...(rerunReason === undefined ? {} : { rerun_reason: rerunReason as string }),
+    ...meta,
   }
 }
 
@@ -211,12 +210,29 @@ export async function readAgentRuns(changeDir: string): Promise<readonly AgentRu
   if (order.length > AGENT_RUNS_MAX_RUNS) {
     throw new AgentRunError('runs-limit', `agent 运行台账超过 ${AGENT_RUNS_MAX_RUNS} 次运行`)
   }
-  return order.map((runId) => latest.get(runId)).filter((row): row is AgentRunRow => row !== undefined)
+  let metas: ReadonlyMap<string, AgentRunMeta>
+  try {
+    metas = await readAgentRunMeta(changeDir)
+  } catch (error) {
+    if (!(error instanceof AgentRunMetaError)) throw error
+    if (error.kind === 'limit') throw new AgentRunError('runs-limit', `agent 运行旁注超过 ${AGENT_RUN_META_MAX_BYTES} 字节`)
+    throw new AgentRunError('runs-corrupt', `agent 运行旁注第 ${error.line} 行${error.kind === 'json' ? '不是合法 JSON' : '形状非法'}`)
+  }
+  return order.flatMap((runId) => {
+    const row = latest.get(runId)
+    return row === undefined ? [] : [withAgentRunMeta(row, metas.get(runId))]
+  })
 }
 
-/** 追加一整行；调用方负责在 Change 锁内调用（同 state/lock.ts 的写者约定）。 */
+/**
+ * 追加一整行；调用方负责在 Change 锁内调用（同 state/lock.ts 的写者约定）。
+ * `host` / `host_source` / `rerun_reason` 先写进旁注、再写台账行：中途崩溃只会留下一条没人引用的旁注，
+ * 不会出现「有台账行、缺旁注」的运行（那会让要求宿主的评审裁决无效）。
+ */
 export async function appendAgentRunRow(changeDir: string, row: AgentRunRow): Promise<void> {
-  await appendFile(join(changeDir, AGENT_RUNS_FILE), `${JSON.stringify(row)}\n`, 'utf8')
+  const { ledger, meta } = splitAgentRunMeta(row)
+  if (meta !== undefined) await appendAgentRunMeta(changeDir, row.run_id, meta)
+  await appendFile(join(changeDir, AGENT_RUNS_FILE), `${JSON.stringify(ledger)}\n`, 'utf8')
 }
 
 export interface ParsedAgentReport {
