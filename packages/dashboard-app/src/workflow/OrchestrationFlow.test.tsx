@@ -40,6 +40,44 @@ const STAGES: FlowStage[] = [
 const RETURNS = [{ from: 'verify', to: 'explore', event: 'verify-fail' }]
 const FLOWS = [{ slot: 'document' as const, id: 'proposal', from: 'open', producers: ['openspec-propose'], to: ['explore', 'verify'] }]
 
+/**
+ * 规模夹具：每阶段 `perStage` 个条目，身份按 30 一轮循环（3 执行者、17 技能、4 测试、6 评审者），每 3 个一个位次；
+ * 同身份相邻位次一对一相连，让依赖连线的那条路径也在量里。
+ */
+function bigStages(stageCount: number, perStage: number): FlowStage[] {
+  const kindAt = (index: number) => (index % 30 < 3 ? 'executor' : index % 30 < 20 ? 'skill' : index % 30 < 24 ? 'test' : 'reviewer')
+  return Array.from({ length: stageCount }, (_unused, stageIndex) => ({
+    id: `s${stageIndex}`,
+    label: `阶段 ${stageIndex}`,
+    gate: stageIndex % 2 === 0 ? 'review' : null,
+    entries: Array.from({ length: perStage }, (_entry, index) => entry(kindAt(index), `n${index}`, Math.floor(index / 3), index >= 3 && kindAt(index - 3) === kindAt(index) ? [`n${index - 3}`] : [])),
+  }))
+}
+
+/**
+ * 纯布局的单次耗时（毫秒）。每批连跑若干次、总工作量约 BATCH_NODES 个节点（一批两三毫秒，远在计时器分辨率之上），
+ * 预热两批后量 ROUNDS 批，取最快一批的均值：并行的测试进程、GC 与调度只会让某一批变慢，取最小值把它们滤掉。
+ */
+const BATCH_NODES = 12_000
+const ROUNDS = 9
+function layoutCostMs(stages: FlowStage[]): number {
+  const nodes = stages.reduce((sum, stage) => sum + stage.entries.length, 0)
+  const calls = Math.ceil(BATCH_NODES / nodes)
+  let placed = 0
+  const batch = (): number => {
+    const started = performance.now()
+    for (let call = 0; call < calls; call += 1) placed += layoutOrchestration(stages, 'overview').entries.length
+    return (performance.now() - started) / calls
+  }
+  batch()
+  batch()
+  let best = Number.POSITIVE_INFINITY
+  for (let round = 0; round < ROUNDS; round += 1) best = Math.min(best, batch())
+  // 用掉布局结果：不给引擎把整段调用当死代码去掉的机会。
+  expect(placed).toBe((ROUNDS + 2) * calls * nodes)
+  return best
+}
+
 function renderFlow(props: Partial<Parameters<typeof OrchestrationFlow>[0]> = {}) {
   return render(
     <I18nProvider>
@@ -257,27 +295,32 @@ describe('layoutOrchestration · 纯布局', () => {
     expect(layout.height).toBe(layout.ports.end.y + 12)
   })
 
-  it('性能：7 阶段 × 30 节点，布局 + 首次渲染在 300ms 内', () => {
-    const big: FlowStage[] = Array.from({ length: 7 }, (_, stageIndex) => ({
-      id: `s${stageIndex}`,
-      label: `阶段 ${stageIndex}`,
-      gate: stageIndex % 2 === 0 ? 'review' : null,
-      entries: Array.from({ length: 30 }, (_unused, index) => entry(index < 3 ? 'executor' : index < 20 ? 'skill' : index < 24 ? 'test' : 'reviewer', `n${index}`, Math.floor(index / 3))),
-    }))
-    const layoutStarted = performance.now()
-    layoutOrchestration(big, 'overview')
-    expect(performance.now() - layoutStarted).toBeLessThan(50)
-    // jsdom 与并行测试的调度噪声远大于浏览器里的差异：预热一次，取三次里最快的一次。
-    renderFlow({ stages: big, returns: [], flows: [] }).unmount()
-    const samples = [0, 1, 2].map(() => {
-      const started = performance.now()
-      const view = renderFlow({ stages: big, returns: [], flows: [] })
-      const elapsed = performance.now() - started
-      expect(screen.getByTestId('orchestration-overview')).toHaveAttribute('data-nodes', '210')
-      view.unmount()
-      return elapsed
-    })
-    expect(Math.min(...samples)).toBeLessThan(300)
+  // 规模护栏分两层：产出大小是确定性断言（不看时钟）；耗时只量纯布局，不含 jsdom 渲染。
+  // 渲染耗时的预算在真实 Chromium 里量（e2e/dashboard/canvas-render.spec.ts）：jsdom 里的渲染耗时在并行 / 慢 CI 上会飘出 6 倍，不是产品性能。
+  it('规模：7 阶段 × 30 节点——条目、汇合点、连线与输入同量级；输入 ×8 时连线也只 ×8（线性，不是 ×64）', () => {
+    const base = layoutOrchestration(bigStages(7, 30), 'overview')
+    expect(base.entries).toHaveLength(210)
+    expect(base.junctions.length).toBeLessThanOrEqual(base.entries.length)
+    expect(base.edges.length).toBeLessThanOrEqual(3 * base.entries.length)
+    const wide = layoutOrchestration(bigStages(7, 240), 'overview')
+    expect(wide.entries).toHaveLength(1680)
+    expect(wide.junctions.length).toBeLessThanOrEqual(8 * base.junctions.length)
+    // 每个节点摊到的连线数基本不变：连线若按条目两两生成，这里会涨到 8 倍。
+    expect(wide.edges.length / wide.entries.length).toBeLessThanOrEqual((base.edges.length / base.entries.length) * 1.25)
+  })
+
+  // 本机（Apple 芯片、Node 24）单次 210 节点布局约 0.03ms、1680 节点约 0.25ms，8 倍输入约 8 倍耗时。
+  // 绝对线 1ms 约是本机的 30 倍，给慢 CI 核与被抢占留足余量；增长倍数线 24 是在线性（约 8）与平方（约 64）之间留足余量的一刀。
+  it('性能（只量纯布局，不含渲染）：7 阶段 × 30 节点单次布局 < 1ms；输入 ×8 时耗时增长 < 24 倍', () => {
+    const base = layoutCostMs(bigStages(7, 30))
+    const wide = layoutCostMs(bigStages(7, 240))
+    expect(base, `7 × 30 单次布局 ${base.toFixed(3)}ms`).toBeLessThan(1)
+    expect(wide / base, `1680 节点 ${wide.toFixed(3)}ms / 210 节点 ${base.toFixed(3)}ms`).toBeLessThan(24)
+  })
+
+  it('7 阶段 × 30 节点能整幅渲染出来（只验节点数，不量时间）', () => {
+    renderFlow({ stages: bigStages(7, 30), returns: [], flows: [] })
+    expect(screen.getByTestId('orchestration-overview')).toHaveAttribute('data-nodes', '210')
   })
 })
 
