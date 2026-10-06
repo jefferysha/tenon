@@ -7,7 +7,7 @@ Only capabilities included in a public distribution belong here. Plans, internal
 ## v0.3.0 · 2026-10-06
 
 v0.3 makes Tenon usable on an ordinary project and harder to fool. A small change now goes through a four-step
-`standard` lane, and the default test flow is zero-waiver: only `unit` is mandatory. The test evidence a task commits
+`standard` lane, and the default test flow requires only `unit`. The test evidence a task commits
 can be re-checked in CI from the repository alone (`tenon verify --ci` and a GitHub Action), is guarded by a local trust
 root and an integrity report, and a reviewer can be required to run on the other vendor's CLI. The Dashboard needs a
 sign-in, draws the workflow on a banded canvas with the Signal flow animation, loads a 30-project snapshot in under
@@ -21,13 +21,13 @@ changes and upgrade impact" before you upgrade a project.
   documents. Build runs the unit tests and the risk probe; Verify has one review gate and the reviewers `code-review`
   and `security` (which attaches only on auth, dependency or contract paths).
 - Implementation-shaped requests (fix, add, refactor, in English and Chinese) route to `standard`; heavy signals
-  (architecture, schema, auth, dependency upgrade, release) stay on `default`. A prompt that looks like code work but
-  matches no Track gets a one-line "not governed" notice. See
+  (architecture, schema, auth, dependency upgrade, release) stay on `default`. See
   [the standard lane](routing-and-workflows.md#the-standard-lane).
-- `tenon test diff-risk [<change>] [--json]` is the risk probe Build requires: more than 8 source files, a contract, auth,
-  dependency or migration path, a deleted test or a changed test configuration fails it (limits: `pass.metrics` in the
-  YAML). A failed probe leaves `step.next` one `scope-expanded` transition whose `escalate` payload says to open a
-  `default` task.
+- A prompt that looks like code work but matches no Track gets a one-line "not governed" notice.
+- `tenon test diff-risk [<change>] [--json]` is the risk probe Build requires. It fails on more than 8 source files, a
+  contract, auth, dependency or migration path, a deleted test or a changed test configuration (limits: `pass.metrics`).
+- A failed probe leaves `step.next` one `scope-expanded` transition whose `escalate` payload says to open a `default`
+  task.
 - `tenon step run <change> [--json]` does the deterministic part of `step.next` in one call (scaffold and record
   documents, read them, seed the test plan) and stops at the first action that needs the host or the author.
 - `tenon document record <change> --all` records every document of the step whose file is already written; unfinished
@@ -66,9 +66,9 @@ changes and upgrade impact" before you upgrade a project.
 ### Test integrity and the trust root of test evidence
 
 - `test_policy.integrity: notice | block` (default `notice`) and `tenon test integrity <change>` report ten signals that
-  evidence got weaker since the task started (fewer cases, more skips, deleted tests, removed assertions, rewritten
-  snapshots, changed baselines, lower coverage thresholds). `notice` shows a note in `status` and the Dashboard; `block`
-  blocks the step.
+  evidence got weaker since the task started: fewer cases, more skips, deleted tests, removed assertions, rewritten
+  snapshots, changed baselines, lower coverage thresholds.
+- `notice` shows a note in `status` and the Dashboard; `block` blocks the step.
 - A report must be newer than the run start and is copied with its digest into the run's artifact directory, or the run
   fails with `report-untrusted`. The workspace fingerprint ignores only output paths the catalog or workflow declares.
 - A local seal (`<user-dir>/local/test-seal.json`, HMAC key beside it, git-ignored) holds the head of each record chain,
@@ -99,7 +99,7 @@ changes and upgrade impact" before you upgrade a project.
 
 ### Test flow
 
-- The default policy is zero-waiver: only `unit` is mandatory. `typecheck`, `integration`, `regression`, `e2e`,
+- The default policy requires only `unit`. `typecheck`, `integration`, `regression`, `e2e`,
   `playwright`, `a11y`, `visual`, `benchmark` and `smoke` run when the project has them; coverage thresholds apply only to
   a suite whose catalog entry declares `coverage`; a `unit` suite run in full satisfies `regression`.
 - `tenon test catalog not-applicable <kind> --reason <text> | --rm` declares a kind that does not apply to the project; it
@@ -112,9 +112,10 @@ changes and upgrade impact" before you upgrade a project.
 
 - Sign-in: without a session, `GET /` and every `/api/*` request answer `401`, except `/api/health` and `/assets/*`.
   `tenon dashboard --open` mints a one-time link (2 minutes) and opens your browser signed in; no token is written to
-  disk. See [Signing in](dashboard-and-local-api.md#signing-in). The page an anonymous request gets (and the one for an
-  invalid or expired link) is styled with the Dashboard's tokens in light and dark. It is in one language, English when
-  the browser's `Accept-Language` prefers it over Chinese and Chinese otherwise, and shows the command with a copy button.
+  disk. See [Signing in](dashboard-and-local-api.md#signing-in).
+- The sign-in page is styled with the Dashboard's tokens in light and dark. It is in one language (English when the
+  browser's `Accept-Language` prefers it over Chinese, otherwise Chinese) and shows the command with a copy button.
+- A used, invalid or expired link gets its own page in the same style, with the same command and a Continue link.
 - Approving a review needs a person present: a second click requests a single-use nonce (30 seconds) bound to your
   session, the change and the review revision. `tenon review acknowledge` in a terminal is unchanged.
 - Signal replaces the per-edge pulse: one constant-speed conveyor with a four-layer streak runs from the current node and
@@ -131,7 +132,7 @@ changes and upgrade impact" before you upgrade a project.
   selected and the keyboard-focused tab are scrolled clear of the fade.
 - Scale: each project has its own snapshot cache. The Dashboard reads `GET /api/snapshot?view=list` and
   `/api/stream?view=list` (a full frame, then `snapshot-delta`) and a task's evidence from `GET /api/change/:name/snapshot`.
-  At 30 projects × 30 tasks the list body is about 0.6 MB where the single snapshot was 11 MB, and a write plus rebuild
+- At 30 projects × 30 tasks the list body is about 0.6 MB where the single snapshot was 11 MB, and a write plus rebuild
   stays under 1.5 s at p95.
 - English: step-exit blockers carry `code`, `subject`, `state` and `count` and are labelled from those, not parsed from the
   Chinese sentence (kept as a tooltip). `<html lang>` follows the chosen language before first paint.
@@ -156,9 +157,11 @@ changes and upgrade impact" before you upgrade a project.
 
 ### CI and platform
 
-- CI blocks on `verify` (Node 22, Chromium), a `node-matrix` job (Node 20, 22 and 24: the test-system, reporter and parser
-  suites, the `tools/` `node:test` scripts, the Dashboard Chromium e2e) and a separate WebKit job. `npm test` runs with
+- CI blocks on `verify` (Node 22, Chromium), a `node-matrix` job and a separate WebKit job. `npm test` runs with
   `TENON_E2E=1`.
+- `node-matrix` runs the test-system, reporter and parser suites, the `tools/` `node:test` scripts and the Dashboard Chromium
+  e2e on Node 20, 22 and 24, not the whole suite. Tenon needs Node 22 or newer; Node 20 is there because a project under
+  test may still run its own `node:test` on it, and the reporter and the parsers must read that output.
 - A catalog can set `profile: coarse`: the machine profile is OS, architecture, core count and Node major version plus
   `profiles_env` (for example `linux-x64-4c-node22-1a2b3c4d`), so hosted runners of one size share a benchmark baseline.
 - `tenon doctor` reports `env:platform` (green on macOS, Linux and WSL, red on native Windows with a pointer to WSL 2, yellow
@@ -188,7 +191,7 @@ changes and upgrade impact" before you upgrade a project.
   in a terminal to get the link.
 - **A catalog with `profile:` is rejected by older Tenon**, and so is one with `not_applicable:`. Add them after everyone
   who reads the repository has updated; a catalog without them is read as before.
-- **The default test flow is zero-waiver.** A task started before the update keeps its frozen plan. To require another
+- **The default test flow requires only `unit`.** A task started before the update keeps its frozen plan. To require another
   kind, declare it in your workflow's `test_policy`. If discover cannot identify your `npm test`, register a `unit` suite
   (`tenon test catalog add`) or declare `unit` not applicable, or Spec stops with `test-kind-missing`.
 - **The `code-size` limit is enforced** for new tasks (see Fixed): split the task or raise `pass.metrics` in the workflow.
@@ -235,8 +238,9 @@ A fresh install of v0.3.0 needs only the first two steps.
 N-1 is v0.2.1. The N-1 gate (`tools/test-bundle.sh`) crosses it with this release in both directions on every run.
 
 - Whatever v0.3 writes during normal use stays readable by v0.2.1, so you can roll back with `tenon runtime repair --rollback`
-  or work next to a teammate who has not updated.
-- Test run records are never pruned by default. `TENON_RECORD_RETENTION=<n>` caps them, but v0.2.1 reports such chains as
+  or work next to a teammate who has not updated. Readable does not mean valid: a run recorded by one version can still
+  show as stale in the other (see the undeclared output bullet).
+- Test run records are not pruned unless you set `TENON_RECORD_RETENTION=<n>`. v0.2.1 reports such a capped chain as
   tampered, so set it only when everyone is on v0.3 or later.
 - Agent run host and rerun reason are stored in `.pipeline-agent-run-meta.jsonl`, beside the run ledger, and v0.2.1 ignores it.
 - Records written by v0.2.1 read as an intact chain in v0.3 but have no local seal (`record-unsealed`). Run

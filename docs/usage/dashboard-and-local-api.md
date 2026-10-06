@@ -290,7 +290,7 @@ points at by integer. The evidence of one change comes from
 holds for it, plus `rev` (and `archive` for a change the viewer archived). A list row's
 `rev` moves whenever any input of that change moves, so a reader re-reads the detail
 exactly when its `rev` changes. With 30 projects x 30 changes the list body is about
-0.65 MB (about 22 KB gzipped) where the full snapshot is 11 MB.
+0.6 MB (about 21 KB gzipped) where the full snapshot is 11 MB.
 
 The list stream sends one full `snapshot` event and afterwards a `snapshot-delta` event
 holding only the projects whose serialized bytes changed, plus `roots` (the registry

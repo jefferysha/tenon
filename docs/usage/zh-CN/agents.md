@@ -164,7 +164,10 @@ Tenon 不会替你起那个 CLI：命令由你、或当前宿主里的 agent 去
 不列出、不等待，也不会报 `reviewer-wrong-host`。上面的宿主规则只作用于已挂载的评审者。
 
 状态 JSON（`step.reviewers[]` 的 `required_host`、`route_host`、`host`、`host_source`、`wrong_host`）和 `run-agent` 动作（`host`）给运行器带同样的事实；
-Dashboard 的 agent 运行抽屉显示登记的宿主与绑定的候选，登记的宿主违反要求时是红点加「宿主不符」。工作流页在 `block_at` 旁边编辑评审者的 `host`。
+工作流页在 `block_at` 旁边编辑评审者的 `host`。
+
+Dashboard 的 agent 运行抽屉里，宿主一行并排显示登记的宿主和要求的宿主，要求的那个带一个小的「要求」标记（两者一致时合成一个）；登记的宿主违反要求时另有红点加「宿主不符」。抽屉还显示绑定的候选。
+评审者在要求的宿主上还没有有效运行、且该步骤是未归档任务当前或之后的步骤时，多出一行「命令」，给出可复制的 `tenon agent prompt <change> <agent>`。Dashboard 只展示它，从不运行。
 
 ## Dashboard
 

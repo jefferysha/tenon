@@ -216,10 +216,15 @@ checked: it is not listed, not waited for and never reports `reviewer-wrong-host
 rules above apply to the reviewers that are attached.
 
 The status JSON (`step.reviewers[]`: `required_host`, `route_host`, `host`, `host_source`,
-`wrong_host`) and the `run-agent` action (`host`) carry the same facts for a runner, and the
-Dashboard's agent run drawer shows the recorded host and the bound candidate, with a red dot and
-"Host mismatch" when the recorded host breaks the requirement. The workflow page edits the
-reviewer's `host` next to `block_at`.
+`wrong_host`) and the `run-agent` action (`host`) carry the same facts for a runner. The workflow
+page edits the reviewer's `host` next to `block_at`.
+
+The Dashboard's agent run drawer shows the host row as the recorded host and the required host side
+by side, the required one with a small "required" marker (the two merge into one when they match),
+and a red dot with "Host mismatch" when the recorded host breaks the requirement. It also shows the
+bound candidate. While the reviewer has no valid run on the required host, and the step is the task's
+current or a later one in an open task, a Command row gives a copyable
+`tenon agent prompt <change> <agent>`. The Dashboard only displays it and never runs it.
 
 ## Dashboard
 

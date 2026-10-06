@@ -14,13 +14,15 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 
 ## v0.3.0 · 2026-10-06
 
-v0.3 让 Tenon 在普通项目里能用，也更难被糊弄。小改动现在走四步的 `standard` 标准通道，默认测试流程零豁免：只有 `unit` 是必需的。任务提交的测试证据可以在 CI 里只凭仓库重新校验（`tenon verify --ci` 与一个 GitHub Action），由本机信任根和完整性报告守着，评审者还可以被要求在另一家厂商的 CLI 上运行。Dashboard 需要登录，工作流画在分色带的画布上并带 Signal 流动动画，30 个项目的快照小于 1 MB，英文界面的阻断标签不再解析中文文本，CI 里还有 axe 无障碍检查。`tenon support bundle` 与 `tenon logs` 负责诊断。本版本包含 v0.2.1 的 launcher 修复。升级项目前请先读「行为变化与升级影响」。
+v0.3 让 Tenon 在普通项目里能用，也更难被糊弄。小改动现在走四步的 `standard` 标准通道，默认测试流程只要求 `unit`。任务提交的测试证据可以在 CI 里只凭仓库重新校验（`tenon verify --ci` 与一个 GitHub Action），由本机信任根和完整性报告守着，评审者还可以被要求在另一家厂商的 CLI 上运行。Dashboard 需要登录，工作流画在分色带的画布上并带 Signal 流动动画，30 个项目的快照小于 1 MB，英文界面的阻断标签不再解析中文文本，CI 里还有 axe 无障碍检查。`tenon support bundle` 与 `tenon logs` 负责诊断。本版本包含 v0.2.1 的 launcher 修复。升级项目前请先读「行为变化与升级影响」。
 
 ### 标准通道
 
 - `standard` 是内建的工作流与轨道：`open → build → verify → done`，没有 Explore 阶段，也没有 OpenSpec 文档。Build 跑单测和改动风险探针，Verify 只有一道评审门，评审者是 `code-review` 和 `security`（后者只在碰到鉴权、依赖或契约路径时挂载）。
-- 实现类请求（修、加、重构，中英文都认）路由到 `standard`；带重型信号的请求（架构、schema、鉴权、依赖升级、发布）仍走 `default`。看上去在改代码、却没有任何轨道命中的提示，会收到一行「未被治理」的说明。见[标准通道](routing-and-workflows.md#标准通道)。
-- `tenon test diff-risk [<change>] [--json]` 是 Build 要求的改动风险探针：源码文件多于 8 个、动了契约、鉴权、依赖或迁移路径、删了测试、改了测试配置，任一项都不通过（阈值是工作流 YAML 里的 `pass.metrics`）。探针不过时，`step.next` 只剩一条带 `escalate` 载荷的 `scope-expanded` 转换，提示改开 `default` 任务。
+- 实现类请求（修、加、重构，中英文都认）路由到 `standard`；带重型信号的请求（架构、schema、鉴权、依赖升级、发布）仍走 `default`。见[标准通道](routing-and-workflows.md#标准通道)。
+- 看上去在改代码、却没有任何轨道命中的提示，会收到一行「未被治理」的说明。
+- `tenon test diff-risk [<change>] [--json]` 是 Build 要求的改动风险探针：源码文件多于 8 个、动了契约、鉴权、依赖或迁移路径、删了测试、改了测试配置，任一项都不通过（阈值是 `pass.metrics`）。
+- 探针不过时，`step.next` 只剩一条带 `escalate` 载荷的 `scope-expanded` 转换，提示改开 `default` 任务。
 - `tenon step run <change> [--json]` 一次做完 `step.next` 里确定性的部分（铺文档骨架、登记已写好的文档、读取回执、生成测试计划初稿），遇到需要宿主或作者的动作就停下。
 - `tenon document record <change> --all` 登记当前步骤所有文件已写好的文档；没写完的会列出并跳过。
 - 新增官方评审者 `code-review`：对照宿主附在提示末尾的目标与验收标准看 diff，不需要规格文档。官方智能体现在是十个。
@@ -40,7 +42,8 @@ v0.3 让 Tenon 在普通项目里能用，也更难被糊弄。小改动现在�
 
 ### 测试完整性与证据可信根
 
-- `test_policy.integrity: notice | block`（默认 `notice`）与 `tenon test integrity <change> [--step <id>] [--json]` 报告任务开始以来证据变弱的十种信号（用例变少、跳过变多、测试被删或被缩短、断言被删、快照被改写、基线被改、新增已知失败、覆盖率门槛调低）。`notice` 在 `status` 和 Dashboard 测试页签里给一条 `test-integrity` 提示；`block` 在该步骤把它变成阻断。
+- `test_policy.integrity: notice | block`（默认 `notice`）与 `tenon test integrity <change> [--step <id>] [--json]` 报告任务开始以来证据变弱的十种信号（用例变少、跳过变多、测试被删或被缩短、断言被删、快照被改写、基线被改、新增已知失败、覆盖率门槛调低）。
+- `notice` 在 `status` 和 Dashboard 测试页签里给一条 `test-integrity` 提示；`block` 在该步骤把它变成阻断。
 - 报告必须比本次运行开始得更晚，并连同摘要复制进该次运行的产物目录，否则这次运行以 `report-untrusted` 失败。工作区指纹只忽略目录或工作流里声明的输出路径。
 - 本机封存（`<用户目录>/local/test-seal.json`，旁边是 HMAC 密钥，gitignore）保存每条记录链的链头、你的批准和信任决定。链头没被封存的链是 `record-unsealed`，下一次运行另起新链。
 - 任务 diff 里出现 `.tenon/tests/catalog.yaml`、`baselines/**`、`known-failures.yaml`、`.pipeline/workflows/*.yaml` 的改动，会挡住每个 `gate: review` 步骤，直到你确认；`tenon review request` 逐项列出，`--delegated` 被拒绝。已知失败必须指向一个用例，期限不超过 30 天。
@@ -57,13 +60,15 @@ v0.3 让 Tenon 在普通项目里能用，也更难被糊弄。小改动现在�
 
 ### 测试流程
 
-- 默认策略零豁免：只有 `unit` 是必需的。`typecheck`、`integration`、`regression`、`e2e`、`playwright`、`a11y`、`visual`、`benchmark`、`smoke` 在项目里有时才运行；覆盖率门槛只作用于目录条目声明了 `coverage` 的套件；全量运行的 `unit` 套件满足 `regression`。
+- 默认策略只要求 `unit`。`typecheck`、`integration`、`regression`、`e2e`、`playwright`、`a11y`、`visual`、`benchmark`、`smoke` 在项目里有时才运行；覆盖率门槛只作用于目录条目声明了 `coverage` 的套件；全量运行的 `unit` 套件满足 `regression`。
 - `tenon test catalog not-applicable <kind> --reason <text> | --rm` 声明整个项目都不适用的种类；经过一次人工 `review acknowledge`（不能 `--delegated`）才生效。
 - 项目没有目录时 `tenon init` 会运行 `tenon test discover --write`，`tenon test register <change> --auto` 认领无主测试文件、生成计划初稿并登记。JavaScript 单测的 glob 现在覆盖 `src/`、`test/`、`tests/`、`__tests__/` 和根目录的 `*.test.*`。
 
 ### Dashboard
 
-- 登录：没有会话时，`GET /` 和所有 `/api/*` 请求都返回 `401`，只有 `/api/health` 与 `/assets/*` 例外。`tenon dashboard --open` 铸一条一次性登录链接（2 分钟、只能用一次），由 server 自己打开浏览器；页面用它换一个 `HttpOnly; SameSite=Strict` cookie，只在 server 内存里。不往磁盘写任何 token。见[登录](dashboard-and-local-api.md#登录)。匿名请求拿到的页面（链接无效或过期时的页面也一样）用 Dashboard 的设计 token 画成，浅色、暗色都有。它只用一种语言：浏览器的 `Accept-Language` 把英文排在中文之前时是英文，否则是中文，并带一个可复制的命令。
+- 登录：没有会话时，`GET /` 和所有 `/api/*` 请求都返回 `401`，只有 `/api/health` 与 `/assets/*` 例外。`tenon dashboard --open` 铸一条一次性登录链接（2 分钟、只能用一次）并由 server 自己打开浏览器，不往磁盘写任何 token。见[登录](dashboard-and-local-api.md#登录)。
+- 登录页用 Dashboard 的设计 token 画成，浅色、暗色都有。它只用一种语言：浏览器的 `Accept-Language` 把英文排在中文之前时是英文，否则是中文，并带一个可复制的命令。
+- 用过、无效或过期的链接有自己的页面，样式相同，同样给出这条命令和一个「继续」链接。
 - 批准评审需要有人在场：第二次点击才会申请一枚一次性 nonce（30 秒），它绑定你的会话、任务和评审修订号。终端里的 `tenon review acknowledge` 不变。
 - Signal 取代逐边脉冲：一条恒速传送带，四层彗星从当前节点出发，停在评审门前。`prefers-reduced-motion` 时只显示静态高亮；画布离屏或标签页隐藏时动画暂停。
 - 总览是无框的列，按宽度适配，每列一根脊线，每个并行波次一道括线，语义缩放，点列头聚焦到该阶段；节点高 40 px，带状态符号，阶段条 3 px。
@@ -71,7 +76,8 @@ v0.3 让 Tenon 在普通项目里能用，也更难被糊弄。小改动现在�
 - 测试页签把不阻塞的提示（已修好的已知失败、基准波动、未检查的文件）放进单独的「提示」区块，「阻塞」表和它的计数只含真正的阻塞。
 - 英文的计数词随数量变化：测试页签的汇总写 Suite 或 Suites、Case 或 Cases。
 - 轨道页签条在还有隐藏页签的一侧渐隐，英文长名字不会被从中间截断；选中的和键盘聚焦的页签会被滚到渐隐区之外。
-- 规模：每个项目一个快照缓存单元，写请求只清掉它点名的项目。Dashboard 读 `GET /api/snapshot?view=list` 与 `/api/stream?view=list`（先发完整帧，之后只发 `snapshot-delta`），任务的证据从 `GET /api/change/:name/snapshot` 读。30 个项目 × 30 个任务时列表体约 0.6 MB，原来的单份快照是 11 MB；写入后重建列表的 p95 保持在 1.5 s 以内（`bench-snapshot-large` 把关）。
+- 规模：每个项目一个快照缓存单元，写请求只清掉它点名的项目。Dashboard 读 `GET /api/snapshot?view=list` 与 `/api/stream?view=list`（先发完整帧，之后只发 `snapshot-delta`），任务的证据从 `GET /api/change/:name/snapshot` 读。
+- 30 个项目 × 30 个任务时列表体约 0.6 MB，原来的单份快照是 11 MB；写入后重建列表的 p95 保持在 1.5 s 以内（`bench-snapshot-large` 把关）。
 - 英文：step-exit 阻断带 `code`、`subject`、`state`、`count`，据此生成标签，不再解析中文整句（整句留作 tooltip）。`<html lang>` 在首帧前就跟随所选语言。
 - 英文界面里，内建工作流（`default`、`standard`、`design-system`）的阶段、轨道和测试种类名，在存下来的名字仍是出厂中文名时显示英文；你改过的、自建的名字原样显示，也不会写回。表格按内容定宽，所以「Integration」这类词不再被截断。
 - `e2e/dashboard/a11y.spec.ts` 在亮、暗两种主题下用 axe-core 扫主要页面，出现任何 `serious` 或 `critical` 违规即失败。
@@ -85,7 +91,8 @@ v0.3 让 Tenon 在普通项目里能用，也更难被糊弄。小改动现在�
 
 ### CI 与平台
 
-- CI 在三处阻塞：`verify`（Node 22，Chromium）、`node-matrix` 作业（Node 20、22、24：测试体系、reporter 与解析器套件、`tools/` 下的 `node:test` 脚本、Dashboard 的 Chromium e2e）和独立的 WebKit 作业。`npm test` 带 `TENON_E2E=1`。
+- CI 在三处阻塞：`verify`（Node 22，Chromium）、`node-matrix` 作业和独立的 WebKit 作业。`npm test` 带 `TENON_E2E=1`。
+- `node-matrix` 在 Node 20、22、24 上运行测试体系、reporter 与解析器套件、`tools/` 下的 `node:test` 脚本和 Dashboard 的 Chromium e2e，不是整套测试。Tenon 本身需要 Node 22 或更新；Node 20 在矩阵里，是因为被测项目可能仍在 Node 20 上跑自己的 `node:test`，reporter 与解析器必须读得懂它的输出。
 - 测试目录可以设置 `profile: coarse`：机器画像是 OS、架构、核数、Node 主版本加 `profiles_env`（例如 `linux-x64-4c-node22-1a2b3c4d`），同规格的托管运行器共用一份基准基线。
 - `tenon doctor` 报告 `env:platform`（macOS、Linux、WSL 为绿，原生 Windows 为红并指向 WSL 2，其他为黄），见[支持矩阵](installation.md#支持的平台)。Node 20 不支持运行 Tenon。
 - `tenon test run` 把正在运行的 `tenon` 放到测试进程 `PATH` 的最前，所以 `tenon test code-size --json` 不再以 127 退出。
@@ -105,7 +112,7 @@ v0.3 让 Tenon 在普通项目里能用，也更难被糊弄。小改动现在�
 - **确认评审只认负责人。** 非负责人运行 `tenon review acknowledge` 会被拒绝。用 `--as reviewer`（历史里记 `as=reviewer owner=<id>`）或 `tenon owner take <change>`。Dashboard 的「批准」不变。
 - **Dashboard 需要登录。** 匿名请求得到 `401`，只有 health 和静态资源例外，server 重启会让你退出登录。运行 `tenon dashboard --open`；原来用 `curl` 的地方改用 CLI 读取；没有浏览器时在终端运行 `tenon dashboard --port <端口>` 取登录链接。
 - **带 `profile:` 的目录会被旧版 Tenon 拒绝**，带 `not_applicable:` 的也一样。等所有读这个仓库的人都更新之后再加；不带它们的目录读法和以前一样。
-- **默认测试流程零豁免。** 更新前已开始的任务沿用冻结的计划。想要求别的种类，在你的工作流 `test_policy` 里声明。discover 认不出你的 `npm test` 时，登记一个 `unit` 套件（`tenon test catalog add`）或声明 `unit` 不适用，否则 Spec 会以 `test-kind-missing` 停住。
+- **默认测试流程只要求 `unit`。** 更新前已开始的任务沿用冻结的计划。想要求别的种类，在你的工作流 `test_policy` 里声明。discover 认不出你的 `npm test` 时，登记一个 `unit` 套件（`tenon test catalog add`）或声明 `unit` 不适用，否则 Spec 会以 `test-kind-missing` 停住。
 - **`code-size` 上限开始生效**，对新任务而言（见「修复」）：拆分任务，或调高工作流里的 `pass.metrics`。
 - **`scope-expanded` 是放弃边**，`simple` 与 `standard` 都是：从它离开不要求测试、评审者、文档或技能证据，工作区保持未提交，交给新的 `default` 任务。无需操作。
 - **路由把小的实现类提示送到 `standard`**，不再启动七阶段的 `default`。要留在 `default`，在提示里点名轨道（例如「用 backend 轨道」）。
@@ -138,8 +145,8 @@ v0.3 让 Tenon 在普通项目里能用，也更难被糊弄。小改动现在�
 
 N-1 是 v0.2.1。N-1 兼容门禁（`tools/test-bundle.sh`）每次运行都在两个方向上让它与本版本互相读写。
 
-- v0.3 在正常使用中写下的数据都能被 v0.2.1 读取，所以可以用 `tenon runtime repair --rollback` 回滚，也可以和还没更新的同事在同一个仓库里继续工作。
-- 测试运行记录默认不清理。`TENON_RECORD_RETENTION=<n>` 可以限制条数，但 v0.2.1 会把这样的链报告为被改动，所以只在所有人都已是 v0.3 或更新时才设它。
+- v0.3 在正常使用中写下的数据都能被 v0.2.1 读取，所以可以用 `tenon runtime repair --rollback` 回滚，也可以和还没更新的同事在同一个仓库里继续工作。能读不等于有效：一个版本写下的运行在另一个版本里仍可能显示为过期（见下面未声明输出那一条）。
+- 除非设了 `TENON_RECORD_RETENTION=<n>`，测试运行记录不会被清理。v0.2.1 会把这样被限制条数的链报告为被改动，所以只在所有人都已是 v0.3 或更新时才设它。
 - agent 运行的宿主与重跑原因记在运行台账旁边的 `.pipeline-agent-run-meta.jsonl` 里，v0.2.1 不读这个文件。
 - v0.2.1 写下的记录在 v0.3 里读作完好的链，但没有本机封存（`record-unsealed`）。更新之后运行一次 `tenon test run <change> --stage`。
 - v0.3 把没有声明过的 `coverage/`、`test-results/`、`playwright-report/` 算进工作区。一个版本写下的运行在另一个版本里可能显示为过期。重跑，或在目录里声明这些输出。
