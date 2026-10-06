@@ -11,6 +11,7 @@ import {
   compileEffectiveWorkflowPlan,
   createEffectiveSkillResolver,
   parseAgentFile,
+  withOfficialAttachOn,
   FIELD_ORDER,
   IllegalTransitionError,
   LIST_FIELDS,
@@ -559,7 +560,7 @@ export function builtinAgentLibrary(): AgentLibrary {
     entries: readdirSync(BUILTIN_AGENTS_DIR).filter((file) => file.endsWith('.md')).sort().map((file) => {
       const name = file.slice(0, -'.md'.length)
       const content = readFileSync(join(BUILTIN_AGENTS_DIR, file), 'utf8')
-      return { name, source: 'builtin' as const, digest: agentDigest(content), content, definition: parseAgentFile(content, name) }
+      return { name, source: 'builtin' as const, digest: agentDigest(content), content, definition: withOfficialAttachOn('builtin', parseAgentFile(content, name)) }
     }),
     sync: { id: 'agents', state: 'unchanged' },
   }

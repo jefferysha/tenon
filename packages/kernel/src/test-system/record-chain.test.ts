@@ -7,10 +7,20 @@ import {
   appendTestRunRecordV2, createRecordChainCache, listRecordDirectory, pruneRecordChain, readRecordChain, recordV2Digest,
   verifyRecordChain,
 } from './record-chain.js'
-import { declaresRecordV2, decodeTestRunRecordV2 } from './record-v2-codec.js'
+import { declaresRecordV2, decodeTestRunRecordV2, encodeRecordV2Wire } from './record-v2-codec.js'
 import type { TestRunRecordV2 } from './record-v2-types.js'
 import { readTestSeal } from './seal.js'
 import { fixtureCase, fixtureChain, fixtureRecordDraft, fixtureSuiteRun } from './test-support.js'
+import { SUITE_REASON_CODES } from './record-v2-types.js'
+
+/** 上一个发行版（v0.2.1）的 SUITE_REASON_CODES：它的闭集解码器只认这些原因码，多一个就判整条链被改动。 */
+const N_MINUS_ONE_REASON_CODES: readonly string[] = [
+  'test-failed', 'no-tests-ran', 'report-missing', 'report-unreadable', 'exit-report-mismatch',
+  'registered-test-not-executed', 'coverage-below', 'coverage-unreadable', 'benchmark-regression',
+  'baseline-missing', 'flaky-over-limit', 'browser-project-missing', 'service-not-ready',
+  'exit-code', 'command-not-found', 'not-executable', 'spawn-error', 'cwd-invalid', 'timeout', 'interrupted',
+  'sandbox-denied', 'candidate-unavailable', 'workspace-changed', 'log-truncated', 'artifact-truncated',
+]
 
 const SLUG = 'tester-at-tenon.test'
 
@@ -56,6 +66,55 @@ describe('记录 v2 解码（闭集）', () => {
     ['超长失败消息', { ...record, suites: [{ ...suite, cases: [fixtureCase({ file: 'a', name: 'b', status: 'fail', failure: { message: 'x'.repeat(70000) } })], totals: { ...suite.totals, pass: 0, fail: 1 } }] }],
   ])('%s → 损坏', (_name, value) => {
     expect(decodeTestRunRecordV2(value)).toBeUndefined()
+  })
+})
+
+describe('report-untrusted 的磁盘形：上一个发行版读得了', () => {
+  const untrusted = (detail?: string) => fixtureSuiteRun({
+    suite: 'unit', result: 'fail', reasons: [{ code: 'report-untrusted', ...(detail === undefined ? {} : { detail }) }],
+  })
+
+  it('写盘换成已有原因码 report-unreadable + detail 标记，读盘还原；摘要算在磁盘形上', async () => {
+    const repo = await mkdtemp(join(tmpdir(), 'tenon-untrusted-'))
+    try {
+      const appended = await appendTestRunRecordV2(repo, SLUG, fixtureRecordDraft({ suites: [untrusted('运行：报告早于本次运行（被回填的旧文件）')], result: 'fail' }))
+      // 内存里（也是 append 返回的）仍是 report-untrusted。
+      expect(appended.record.suites[0]?.reasons).toEqual([{ code: 'report-untrusted', detail: '运行：报告早于本次运行（被回填的旧文件）' }])
+      const onDisk = JSON.parse(await readFile(appended.path, 'utf8')) as TestRunRecordV2
+      expect(onDisk.suites[0]?.reasons).toEqual([{ code: 'report-unreadable', detail: '[report-untrusted] 运行：报告早于本次运行（被回填的旧文件）' }])
+      // 磁盘上每个原因码都在 N-1 的闭集里。
+      const codes = onDisk.suites.flatMap((run) => run.reasons.map((reason) => reason.code))
+      expect(codes.filter((code) => !N_MINUS_ONE_REASON_CODES.includes(code))).toEqual([])
+      // 摘要是磁盘形的摘要：N-1 对同一份文件算出同一个值（它没有换码这一步，直接对文件内容规范化再哈希）。
+      expect(onDisk.digest).toBe(appended.record.digest)
+      const { digest: _digest, ...content } = onDisk
+      expect(recordV2Digest(content)).toBe(onDisk.digest)
+      // 读回来：解码还原成 report-untrusted，整条链完好，摘要校验通过。
+      const listing = await listRecordDirectory(testRunRecordsDir(repo, SLUG, 'demo'))
+      expect(listing.records[0]?.record.suites[0]?.reasons).toEqual([{ code: 'report-untrusted', detail: '运行：报告早于本次运行（被回填的旧文件）' }])
+      expect(verifyRecordChain(listing).state).toBe('intact')
+      expect((await readRecordChain(repo, SLUG, 'demo')).state).toBe('intact')
+    } finally {
+      await rm(repo, { recursive: true, force: true })
+    }
+  })
+
+  it('没有 detail 也能往返；普通的 report-unreadable 不受影响；没有 report-untrusted 的记录原样返回同一个对象', () => {
+    const [record] = fixtureChain([fixtureRecordDraft({ suites: [untrusted()], result: 'fail' })])
+    if (record === undefined) throw new Error('fixture')
+    const wire = encodeRecordV2Wire(record)
+    expect(wire.suites[0]?.reasons).toEqual([{ code: 'report-unreadable', detail: '[report-untrusted]' }])
+    expect(decodeTestRunRecordV2(JSON.parse(JSON.stringify(wire)))?.suites[0]?.reasons).toEqual([{ code: 'report-untrusted' }])
+    const plain = fixtureChain([fixtureRecordDraft({
+      suites: [fixtureSuiteRun({ suite: 'unit', result: 'fail', reasons: [{ code: 'report-unreadable', detail: '运行：不是合法 JUnit' }] })], result: 'fail',
+    })])[0]
+    if (plain === undefined) throw new Error('fixture')
+    expect(encodeRecordV2Wire(plain)).toBe(plain)
+    expect(decodeTestRunRecordV2(JSON.parse(JSON.stringify(plain)))?.suites[0]?.reasons).toEqual([{ code: 'report-unreadable', detail: '运行：不是合法 JUnit' }])
+  })
+
+  it('当前版本的原因码比 N-1 多的只有 report-untrusted（再加新码就要想办法让 N-1 读得了）', () => {
+    expect(SUITE_REASON_CODES.filter((code) => !N_MINUS_ONE_REASON_CODES.includes(code))).toEqual(['report-untrusted'])
   })
 })
 

@@ -6,6 +6,7 @@
 import { userSlug } from '../users/user.js'
 import type { RecordFileEntry } from '../test-system/record-chain.js'
 import type { CaseStatus, SuiteRunV2 } from '../test-system/record-v2-types.js'
+import type { CiText } from './text.js'
 
 export interface RecordProblem {
   readonly code: 'record-misplaced' | 'record-inconsistent'
@@ -17,7 +18,7 @@ const STATUS_TOTAL: Readonly<Record<CaseStatus, keyof SuiteRunV2['totals']>> = {
   pass: 'pass', fail: 'fail', skip: 'skip', flaky: 'flaky', 'known-fail': 'known_fail',
 }
 
-function suiteProblems(file: string, suite: SuiteRunV2): readonly RecordProblem[] {
+function suiteProblems(file: string, suite: SuiteRunV2, text: CiText): readonly RecordProblem[] {
   const out: RecordProblem[] = []
   const { totals } = suite
   // 用例总数 = 各状态之和由记录解码器保证；留存的用例不能比统计的还多。
@@ -26,7 +27,7 @@ function suiteProblems(file: string, suite: SuiteRunV2): readonly RecordProblem[
   for (const [status, count] of kept) {
     const total = totals[STATUS_TOTAL[status]]
     if (count > total) {
-      out.push({ code: 'record-inconsistent', file, message: `套件 ${suite.suite} 留存了 ${count} 个 ${status} 用例，超过统计的 ${total} 个` })
+      out.push({ code: 'record-inconsistent', file, message: text('record.keptTooMany', { suite: suite.suite, count, status, total }) })
     }
   }
   return out
@@ -37,20 +38,23 @@ export function recordInvariantProblems(input: {
   /** 记录所在的用户目录名。 */
   readonly slug: string
   readonly records: readonly RecordFileEntry[]
+  /** 问题文案的文本源（语言由调用方定）。 */
+  readonly text: CiText
 }): readonly RecordProblem[] {
+  const { text } = input
   const out: RecordProblem[] = []
   for (const { file, record } of input.records) {
     if (record.change !== input.change) {
-      out.push({ code: 'record-misplaced', file, message: `记录属于任务 ${record.change}，却放在任务 ${input.change} 的目录里` })
+      out.push({ code: 'record-misplaced', file, message: text('record.wrongChange', { recordChange: record.change, change: input.change }) })
     }
     if (userSlug(record.actor.id) !== input.slug) {
-      out.push({ code: 'record-misplaced', file, message: `记录的执行人 ${record.actor.id} 与所在的用户目录 ${input.slug} 不符` })
+      out.push({ code: 'record-misplaced', file, message: text('record.wrongActor', { actor: record.actor.id, slug: input.slug }) })
     }
     const expected = record.suites.every((suite) => suite.result === 'pass') ? 'pass' : 'fail'
     if (record.result !== expected) {
-      out.push({ code: 'record-inconsistent', file, message: `记录结论 ${record.result} 与各套件结论（应为 ${expected}）矛盾` })
+      out.push({ code: 'record-inconsistent', file, message: text('record.resultMismatch', { result: record.result, expected }) })
     }
-    for (const suite of record.suites) out.push(...suiteProblems(file, suite))
+    for (const suite of record.suites) out.push(...suiteProblems(file, suite, text))
   }
   return out
 }

@@ -80,6 +80,33 @@ tenon runtime repair --rollback
 
 repair 处理 launcher、release 或激活指针，不等于重置项目状态。文档语言固定在独立、旧 runtime 不会重写的 Change sidecar 中，因此 rollback 不需要让旧 canonical codec 理解新 locale 字段。
 
+**与上一个发行版（v0.2.1）的兼容。** v0.3 在正常使用中写下的数据都能被 v0.2.1 读取，所以可以用
+`tenon runtime repair --rollback` 回滚，也可以和还没更新的同事在同一个仓库里继续工作：v0.2.1 不会把这些数据判为损坏、被改动或非法，
+v0.3 也读得了 v0.2.1 写下的数据。发布门（`tools/test-bundle.sh`）每次运行都在两个版本之间做双向交叉读取。
+
+- **测试运行记录默认不清理。** v0.3 保留一条记录链上的全部记录。想限制一个任务提交的记录条数，运行 `tenon test run` 时设
+  `TENON_RECORD_RETENTION=<n>`（例如 `20`）：每次运行之后，每个用户每个任务只保留最新的 `n` 条，并在记录旁留一个 `chain-base` 标记。
+  v0.3 读得了这样的链；v0.2.1 不认识这个标记，会把链判为被改动（`找不到链首记录`），直到重跑另起新链。只在仓库里所有跑测试的人都已是
+  v0.3 或更新时才设它。内联步骤测试的记录仍按测试项保留最新 20 条。
+- **agent 运行的宿主与重跑原因**记在 `.pipeline-agent-runs.jsonl` 旁边的 `.pipeline-agent-run-meta.jsonl` 里，v0.2.1 不读这个文件，
+  它的闭集台账读取器照常工作。
+- **v0.2.1 写下的记录**在 v0.3 里读作完好的链，但没有本机封存，所以 v0.3 把它们和别的机器写的记录一样当作「来源不明」
+  （`record-unsealed`）：运行一次 `tenon test run <change> --stage`，新的运行会另起新链。
+- **未声明的测试输出。** v0.3 把目录里没有任何套件声明过的 `coverage/`、`test-results/`、`playwright-report/` 算进工作区，
+  v0.2.1 忽略这些目录。有这样目录的工作区里，一个版本写下的运行在另一个版本里显示为过期（候选代码已变）；重跑套件，
+  或在目录里声明这些输出（`tenon test discover` 会声明常见的几种）。
+
+你主动选用的能力需要 v0.3；v0.2.1 会把文件判为非法或忽略该设置，这些是有意不让它读的：
+
+- `.tenon/tests/catalog.yaml` 里的 `profile: coarse` 或 `not_applicable:` 列表；
+- 写在工作流 `test_policy` 里的 `integrity: notice` 或 `integrity: block`；
+- 工作流评审者上的 `host: codex|claude`；
+- 自定义 agent 文件里的 `attach_on` 或 `host`（`tenon agent copy security <name>` 写出的副本也带 `attach_on`）；
+- `TENON_RECORD_RETENTION`（见上）。
+
+standard 通道（`track: standard`）是 v0.3 的通道，路由可能为小的实现请求选它。v0.2.1 对这类任务报 `未注册的 track 'standard'`
+（`list`、`status`、`get` 仍可用），所以回滚之前先完结或归档 standard 任务。
+
 ### 4. 恢复明确 Change
 
 ```bash

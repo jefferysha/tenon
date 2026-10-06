@@ -1,6 +1,11 @@
 /**
  * 运行记录 v2 的闭集解码：附加键、缺键、类型不符、超长文本一律判损坏（返回 undefined），
  * 门禁据此把整条链视为被改动。解码不校验摘要与链——那是 record-chain.ts 的职责。
+ *
+ * 磁盘形与内存形：上一个发行版（v0.2.1）的解码器同样是闭集，认不得 `report-untrusted` 这个套件原因码，
+ * 一条带它的记录会让它判整条链被改动。所以写盘时（`encodeRecordV2Wire`）把它记成已有的 `report-unreadable`、
+ * detail 前加 `[report-untrusted]` 标记，读盘时（`decode`）认出标记再还原成 `report-untrusted`。记录的摘要算在磁盘形上
+ * （record-chain.ts 的 `recordV2Digest`），所以两个版本对同一份文件算出同一个摘要；内存里的判定逻辑完全不变。
  */
 import { isWorkspaceBaseline } from '../workspace/fingerprint.js'
 import { decodeRecordActor } from '../users/user.js'
@@ -71,14 +76,33 @@ function nullableDigest(value: unknown): string | null {
   return value === null ? null : digest(value)
 }
 
+/** `report-untrusted` 在磁盘上的写法：已有原因码 `report-unreadable` + detail 前缀（见文件头）。 */
+const UNTRUSTED_WIRE_MARK = '[report-untrusted]'
+
 function reason(value: unknown): SuiteReason {
   const item = object(value, ['code'], ['detail'])
   const code = text(item.code)
   if (!REASONS.has(code)) bad()
-  return {
-    code: code as SuiteReason['code'],
-    ...(item.detail === undefined ? {} : { detail: text(item.detail, 2000) }),
+  const detail = item.detail === undefined ? undefined : text(item.detail, 2000)
+  if (code === 'report-unreadable' && detail !== undefined && (detail === UNTRUSTED_WIRE_MARK || detail.startsWith(`${UNTRUSTED_WIRE_MARK} `))) {
+    const rest = detail.slice(UNTRUSTED_WIRE_MARK.length + 1)
+    return { code: 'report-untrusted', ...(rest === '' ? {} : { detail: rest }) }
   }
+  return { code: code as SuiteReason['code'], ...(detail === undefined ? {} : { detail }) }
+}
+
+function wireReason(item: SuiteReason): SuiteReason {
+  if (item.code !== 'report-untrusted') return item
+  return { code: 'report-unreadable', detail: item.detail === undefined ? UNTRUSTED_WIRE_MARK : `${UNTRUSTED_WIRE_MARK} ${item.detail}` }
+}
+
+/**
+ * 记录的磁盘形：把上一个发行版读不了的内存形取值换成它读得了的写法（目前只有 `report-untrusted`）。
+ * 摘要与落盘都用这个形状；没有要换的取值时原样返回同一个对象。
+ */
+export function encodeRecordV2Wire<T extends { readonly suites: readonly SuiteRunV2[] }>(record: T): T {
+  if (!record.suites.some((run) => run.reasons.some((item) => item.code === 'report-untrusted'))) return record
+  return { ...record, suites: record.suites.map((run) => ({ ...run, reasons: run.reasons.map(wireReason) })) }
 }
 
 function caseResult(value: unknown): CaseResultV2 {

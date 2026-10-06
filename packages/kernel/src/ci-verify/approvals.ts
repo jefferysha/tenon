@@ -7,7 +7,7 @@
  * 「没走评审流程」的探测，不是批准真实性的证明——报告的信任边界里写明这一点。
  */
 import type { ProtectedChange } from '../test-system/protected-files.js'
-import { protectedChangeLine } from '../test-system/protected-files.js'
+import type { CiText } from './text.js'
 import type { CiFinding } from './types.js'
 
 export interface ProtectedApproval {
@@ -63,26 +63,33 @@ export function protectedApprovalFindings(input: {
   readonly change: string
   readonly changes: readonly ProtectedChange[]
   readonly approvals: readonly ProtectedApproval[]
+  /** 发现文案的文本源（语言由调用方定）。 */
+  readonly text: CiText
 }): readonly CiFinding[] {
   const out: CiFinding[] = []
   const reviewFix = `tenon review request ${input.change}`
+  const { text } = input
   for (const item of input.changes) {
     const approval = [...input.approvals].reverse().find((entry) => entry.path === item.path)
     const base = { change: input.change, path: item.path, subject: item.path, source: 'ci' as const }
     if (approval === undefined) {
       out.push({
         ...base, code: 'protected-unapproved', severity: 'error', fix: reviewFix,
-        message: `${protectedChangeLine(item)} 在本任务里改动过，任务历史里没有对应的评审批准行`,
+        message: text('protected.unapproved', {
+          line: text('protected.line', {
+            kind: text(`protected.kind.${item.kind}`), path: item.path, status: text(`protected.status.${item.status}`), digest: item.digest,
+          }),
+        }),
       })
     } else if (approval.digest === null) {
       out.push({
         ...base, code: 'protected-approval-unbound', severity: 'warning',
-        message: `${item.path} 的批准行没有记录内容摘要（旧版本写的），无法确认批准之后文件没有再变`,
+        message: text('protected.unbound', { path: item.path }),
       })
     } else if (approval.digest !== item.digest) {
       out.push({
         ...base, code: 'protected-changed-after-approval', severity: 'error', fix: reviewFix,
-        message: `${item.path} 的当前内容（${item.digest}）与批准过的内容（${approval.digest}）不同`,
+        message: text('protected.changed', { path: item.path, current: item.digest, approved: approval.digest }),
       })
     }
   }

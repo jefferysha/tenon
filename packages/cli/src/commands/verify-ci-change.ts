@@ -8,7 +8,7 @@ import { join } from 'node:path'
 import {
   ChangedFilesUnavailableError, HISTORY_FILE, changeStartOfFields, evaluateAnchor, ownerOf, parseProtectedApprovals,
   protectedApprovalFindings, protectedChangesInSession, readTestPlanState,
-  type AnchorEvidence, type CiChangeReport, type CiFinding, type CiVerifyOptions, type ChangedFilesSession,
+  type AnchorEvidence, type CiChangeReport, type CiFinding, type CiText, type CiVerifyOptions, type ChangedFilesSession,
   type EffectiveWorkflowPlan, type PipelineState,
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
@@ -16,13 +16,16 @@ import { errMsg } from '../deps.js'
 import { str } from '../render.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
 import { NO_USER_SLUG, chainFindings, chainSummary, pickEvaluatedChain, readUserChains } from './verify-ci-chains.js'
-import { SHALLOW_REASON, resolveBaseRef } from './verify-ci-git.js'
+import { resolveBaseRef } from './verify-ci-git.js'
 import { policyFindings, resolveEvaluatedStep, runPolicy } from './verify-ci-policy.js'
 import type { SelectedChange } from './verify-ci-select.js'
+import { shallowReason, verifyMsg } from './verify-ci-text.js'
 
 export interface VerifyContext {
   readonly deps: CliDeps
   readonly options: CiVerifyOptions
+  /** 报告固定文案与 kernel 发现文案的文本源（语言取命令依赖面的 locale）。 */
+  readonly text: CiText
   readonly stepOverride: string | undefined
   /** 本次检出的树的候选指纹（跨任务共用一次计算）；`--candidate off` 时 undefined。 */
   readonly candidate: (() => Promise<string>) | undefined
@@ -59,7 +62,7 @@ async function planFileFindings(ctx: VerifyContext, selected: SelectedChange): P
   for (const file of plan.plan.files) {
     if (await exists(join(ctx.deps.cwd, ...file.path.split('/')))) continue
     out.push(ciFinding(selected.name, 'plan-file-missing', 'error',
-      `测试计划登记的文件 ${file.path} 不在本次检出的树里`,
+      verifyMsg(ctx.deps, 'verify.planFileMissing', { file: file.path }),
       { path: `${selected.relDir}/test-plan.yaml`, subject: file.path, fix: `tenon test unregister ${selected.name} --file ${file.path}` }))
   }
   return out
@@ -70,10 +73,10 @@ async function protectedFindings(
 ): Promise<readonly CiFinding[]> {
   const { deps } = ctx
   const unavailable = (why: string): readonly CiFinding[] => [ciFinding(
-    selected.name, 'protected-diff-unavailable', 'error', `读不出本任务的改动，无法核对受保护测试配置的批准：${why}`,
+    selected.name, 'protected-diff-unavailable', 'error', verifyMsg(deps, 'verify.protectedDiffUnavailable', { why }),
     { path: `${selected.relDir}/.pipeline-history.jsonl` },
   )]
-  if (ctx.shallow) return unavailable(SHALLOW_REASON)
+  if (ctx.shallow) return unavailable(shallowReason(deps))
   const start = changeStartOfFields(state.fields)
   let changes
   try {
@@ -83,7 +86,7 @@ async function protectedFindings(
   }
   if (changes.length === 0) return []
   const history = await readFile(join(selected.dir, HISTORY_FILE), 'utf8').catch(() => '')
-  return protectedApprovalFindings({ change: selected.name, changes, approvals: parseProtectedApprovals(history) })
+  return protectedApprovalFindings({ change: selected.name, changes, approvals: parseProtectedApprovals(history), text: ctx.text })
 }
 
 export async function verifyChange(ctx: VerifyContext, selected: SelectedChange): Promise<CiChangeReport> {
@@ -94,24 +97,24 @@ export async function verifyChange(ctx: VerifyContext, selected: SelectedChange)
     state = await deps.store.read(selected.dir)
     plan = effectiveWorkflowForState(deps, state)
   } catch (error) {
-    return unreadable(selected, `任务状态或冻结的工作流读不出：${errMsg(error)}`)
+    return unreadable(selected, verifyMsg(deps, 'verify.changeUnreadable', { reason: errMsg(error) }))
   }
-  if (plan === null) return unreadable(selected, `任务绑定的工作流 '${str(state.fields.workflow)}' 解析不出`)
+  if (plan === null) return unreadable(selected, verifyMsg(deps, 'verify.workflowUnresolved', { workflow: str(state.fields.workflow) }))
   const phase = str(state.fields.phase)
-  const picked = resolveEvaluatedStep(plan, phase, ctx.stepOverride)
+  const picked = resolveEvaluatedStep(deps, plan, phase, ctx.stepOverride)
   if ('error' in picked) {
     return { ...unreadable(selected, picked.error), phase, findings: [ciFinding(selected.name, 'step-unresolved', 'error', picked.error)] }
   }
   const owner = ownerOf(state.fields)
   const chains = await readUserChains(deps.cwd, selected.name)
-  const evaluated = pickEvaluatedChain(selected.name, owner?.slug ?? null, chains)
+  const evaluated = pickEvaluatedChain(deps, selected.name, owner?.slug ?? null, chains)
   const findings: CiFinding[] = []
   if (evaluated.finding !== undefined) findings.push(evaluated.finding)
-  for (const chain of chains) findings.push(...chainFindings(selected.name, chain, chain === evaluated.chain))
+  for (const chain of chains) findings.push(...chainFindings(deps, selected.name, chain, chain === evaluated.chain))
 
   let policy: CiChangeReport['policy'] = 'none'
   if (picked.step === null) {
-    findings.push(ciFinding(selected.name, 'no-test-policy', 'note', `工作流在 ${phase || '当前阶段'} 及之前没有声明任何测试策略，没有可校验的用例级判定`))
+    findings.push(ciFinding(selected.name, 'no-test-policy', 'note', verifyMsg(deps, 'verify.noTestPolicy', { phase: phase || verifyMsg(deps, 'verify.currentPhase') })))
   } else {
     const { report } = await runPolicy({
       deps, changeDir: selected.dir, change: selected.name, plan, stepId: picked.step, state,
@@ -126,7 +129,7 @@ export async function verifyChange(ctx: VerifyContext, selected: SelectedChange)
     policy = findings.some((item) => item.severity === 'error' && (item.source === 'policy')) ? 'fail' : 'pass'
   }
   if (ctx.options.candidate === 'off') {
-    findings.push(ciFinding(selected.name, 'candidate-unchecked', 'note', '没有比对记录绑定的工作区指纹与本次检出的树（--candidate off）'))
+    findings.push(ciFinding(selected.name, 'candidate-unchecked', 'note', verifyMsg(deps, 'verify.candidateUnchecked')))
   }
   findings.push(...await planFileFindings(ctx, selected))
   findings.push(...await protectedFindings(ctx, selected, state))
@@ -138,6 +141,7 @@ export async function verifyChange(ctx: VerifyContext, selected: SelectedChange)
     chain: chain?.report,
     baseDigest: chain?.listing.base?.base,
     requireAnchor: ctx.options.requireAnchor,
+    text: ctx.text,
   })
   findings.push(...anchor.findings)
   return {

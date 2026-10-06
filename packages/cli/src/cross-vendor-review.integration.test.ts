@@ -7,6 +7,7 @@
 import { existsSync } from 'node:fs'
 import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { readAgentRuns } from '@tenon/kernel'
 import { afterEach, describe, expect, test } from 'vitest'
 import { freshHarness, rm, type Harness } from './integration-harness.js'
 
@@ -133,14 +134,14 @@ describe('跨厂商评审', () => {
     return JSON.parse(h.out.join('')) as NextJson
   }
 
+  /** 读出来的台账：台账行叠加旁注（host / host_source / rerun_reason 在旁注里，见 kernel state/agent-run-meta.ts）。 */
   async function ledger(): Promise<LedgerRow[]> {
-    const text = await h.readIn('demo', '.pipeline-agent-runs.jsonl')
-    const latest = new Map<string, LedgerRow>()
-    for (const line of text.split('\n').filter((item) => item !== '')) {
-      const row = JSON.parse(line) as LedgerRow
-      latest.set(row.run_id, row)
-    }
-    return [...latest.values()]
+    return [...await readAgentRuns(join(h.cwd, 'openspec', 'changes', 'demo'))] as unknown as LedgerRow[]
+  }
+
+  /** 台账文件里的原始行：不含上一个发行版读不了的键。 */
+  async function rawLedger(): Promise<Record<string, unknown>[]> {
+    return (await h.readIn('demo', '.pipeline-agent-runs.jsonl')).split('\n').filter((item) => item !== '').map((line) => JSON.parse(line) as Record<string, unknown>)
   }
 
   const view = async (agent: string): Promise<NextJson['agents'][number]> =>
@@ -216,6 +217,10 @@ describe('跨厂商评审', () => {
     expect(await h.run(['agent', 'record', 'demo', started.run_id, '--host', 'codex'], { env: CLAUDE }), h.err.join('\n')).toBe(0)
     expect(h.out.join('\n')).toContain('host=codex (声明)')
     expect((await ledger()).find((row) => row.run_id === started.run_id)).toMatchObject({ status: 'finished', host: 'codex', host_source: 'declared' })
+    // 宿主与来源在旁注里，台账行不含这两个键（上一个发行版的台账读取器是闭集）。
+    expect((await rawLedger()).some((row) => 'host' in row || 'host_source' in row)).toBe(false)
+    expect(JSON.parse((await h.readIn('demo', '.pipeline-agent-run-meta.jsonl')).trim().split('\n').at(-1) ?? '{}'))
+      .toMatchObject({ run_id: started.run_id, host: 'codex', host_source: 'declared' })
     expect(await view('security')).toMatchObject({ state: 'done', result: 'pass', required_host: 'codex', host: 'codex', host_source: 'declared', wrong_host: false })
   })
 

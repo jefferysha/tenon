@@ -317,8 +317,11 @@ diff 对账：未登记的测试文件、没有套件认领的文件、登记了
 未跟踪文件。读不到 diff 时门禁以 `files-diff-unavailable` 阻塞（失败关闭，不降级成提示）。
 
 `test run` 每次调用写一份 v2 记录（`.tenon/users/<slug>/tests/<change>/<run-id>.json`），按 `prev_digest` 串成链；
-手改记录就断链，该任务的全部 v2 记录视为未运行，直到重跑另起新链。记录按设计入库（它们是别人和 CI 读的证据），所以数量有上限：
-每次运行之后，每个用户每个任务只保留最新的 20 条（内联步骤测试按测试项算）。清理删掉最老的一段，并在记录旁留一个
+手改记录就断链，该任务的全部 v2 记录视为未运行，直到重跑另起新链。记录按设计入库（它们是别人和 CI 读的证据），所以数量可以设上限：
+设 `TENON_RECORD_RETENTION=<n>`，每次运行之后每个用户每个任务只保留最新的 `n` 条（内联步骤测试固定按测试项保留最新 20 条）。
+默认不清理，因为上一个发行版（v0.2.1）读不了清理过的链（见
+[更新、恢复与卸载](updates-recovery-and-uninstall.md) 里「与上一个发行版（v0.2.1）的兼容」）。
+设置之后，清理删掉最老的一段，并在记录旁留一个
 `chain-base` 标记，写明被删的最后一条的摘要，剩下的链仍可校验；中间缺记录、标记对不上或标记损坏，照旧是断链。测试进程的 `PATH`
 最前是正在运行的 `tenon`（启动器所在目录；直接 `node …/tenon.mjs` 跑时是一个转发脚本），所以没有启动器在 `PATH` 上的环境里
 `tenon test code-size --json` 也能跑；宿主自己的 Bash 解析不到 `tenon` 时 `tenon doctor` 的 `env:path-tenon` 会提示。交付提交从不包含
@@ -479,7 +482,7 @@ stdout/stderr 镜像到那里，凭证在落盘前已抹掉。`--lines` 缺省 1
 输出语言：`TENON_LANG=en|zh`，其次 `LC_ALL`、`LC_MESSAGES`、`LANG`。没有信号或为 `C`/`POSIX` 时保持历史的中文输出
 （hook 为输出稳定会钉 `LC_ALL=C`）。每条命令与选项的说明都有英文；用法错误和最常见的错误在两种语言里都有目录条目
 （稳定的消息码，见 `packages/cli/src/i18n/`）；JSON 字段、`ERROR:`/`WARN:` 前缀和退出码不随语言变化。
-还没进目录的文案仍是中文。`tenon transition` 遇到非法或未知 event 时，会在第二行用当前语言列出当前 step 的合法 event。
+`tenon verify --ci` 的四种报告格式与用法错误已全部进目录（见 [CI 验证](ci-verification.md)）。还没进目录的文案仍是中文。`tenon transition` 遇到非法或未知 event 时，会在第二行用当前语言列出当前 step 的合法 event。
 
 ## Session 与恢复
 

@@ -6,13 +6,14 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import {
   buildCiReport, candidateFingerprint, ciExitCode, createChangedFilesSession, renderCiMarkdown, renderCiText, toSarif,
-  type CandidateMode, type CiFinding, type CiSelector, type CiVerifyOptions, type CiVerifyReport,
+  type CandidateMode, type CiFinding, type CiSelector, type CiText, type CiVerifyOptions, type CiVerifyReport,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { str } from '../render.js'
 import { headCommit, isShallow, readEvidenceNotes } from './verify-ci-git.js'
 import { verifyChange, type VerifyContext } from './verify-ci-change.js'
 import { selectChanges } from './verify-ci-select.js'
+import { ciTextOf, verifyMsg } from './verify-ci-text.js'
 
 export const VERIFY_FORMATS = ['text', 'json', 'sarif', 'markdown'] as const
 export type VerifyFormat = (typeof VERIFY_FORMATS)[number]
@@ -34,10 +35,10 @@ function isFormat(value: string): value is VerifyFormat {
   return (VERIFY_FORMATS as readonly string[]).includes(value)
 }
 
-function render(report: CiVerifyReport, format: VerifyFormat): string {
+function render(report: CiVerifyReport, format: VerifyFormat, text: CiText): string {
   if (format === 'json') return `${JSON.stringify(report, null, 2)}\n`
-  if (format === 'sarif') return `${JSON.stringify(toSarif(report), null, 2)}\n`
-  return format === 'markdown' ? renderCiMarkdown(report) : renderCiText(report)
+  if (format === 'sarif') return `${JSON.stringify(toSarif(report, text), null, 2)}\n`
+  return format === 'markdown' ? renderCiMarkdown(report, text) : renderCiText(report, text)
 }
 
 interface Parsed {
@@ -47,22 +48,22 @@ interface Parsed {
   readonly also: readonly { readonly format: VerifyFormat; readonly file: string }[]
 }
 
-function parseOptions(opts: VerifyCiCmdOpts): Parsed | string {
-  if (opts.ci !== true) return '目前只有 CI 模式：请加 --ci（在没有用户本机封存的环境里对已提交内容独立校验）'
+function parseOptions(deps: CliDeps, opts: VerifyCiCmdOpts): Parsed | string {
+  if (opts.ci !== true) return verifyMsg(deps, 'verify.ciOnly')
   const selectors = [opts.change !== undefined, opts.allOpen === true, opts.since !== undefined].filter(Boolean).length
-  if (selectors !== 1) return '需要且只能选一个任务范围：--change <name> | --all-open | --since <ref>'
+  if (selectors !== 1) return verifyMsg(deps, 'verify.selectorExactlyOne')
   const selector: CiSelector = opts.change !== undefined ? { kind: 'change', change: opts.change }
     : opts.since !== undefined ? { kind: 'since', ref: opts.since } : { kind: 'all-open' }
   const format = opts.format ?? 'text'
-  if (!isFormat(format)) return `--format 只支持 ${VERIFY_FORMATS.join(' | ')}（收到 '${format}'）`
+  if (!isFormat(format)) return verifyMsg(deps, 'verify.formatInvalid', { formats: VERIFY_FORMATS.join(' | '), value: format })
   const candidate = opts.candidate ?? 'error'
-  if (candidate !== 'error' && candidate !== 'warn' && candidate !== 'off') return `--candidate 只支持 error | warn | off（收到 '${candidate}'）`
+  if (candidate !== 'error' && candidate !== 'warn' && candidate !== 'off') return verifyMsg(deps, 'verify.candidateInvalid', { value: candidate })
   const also: { format: VerifyFormat; file: string }[] = []
   for (const entry of opts.also ?? []) {
     const eq = entry.indexOf('=')
     const kind = eq > 0 ? entry.slice(0, eq) : ''
     const file = eq > 0 ? entry.slice(eq + 1) : ''
-    if (!isFormat(kind) || file === '') return `--also 的形式是 <format>=<file>，format 为 ${VERIFY_FORMATS.join(' | ')}（收到 '${entry}'）`
+    if (!isFormat(kind) || file === '') return verifyMsg(deps, 'verify.alsoInvalid', { formats: VERIFY_FORMATS.join(' | '), value: entry })
     also.push({ format: kind, file })
   }
   return { selector, options: { candidate: candidate as CandidateMode, requireAnchor: opts.requireAnchor === true }, format, also }
@@ -83,7 +84,7 @@ async function isFinishedChange(deps: CliDeps, dir: string): Promise<boolean> {
 }
 
 export async function cmdVerifyCi(deps: CliDeps, opts: VerifyCiCmdOpts): Promise<number> {
-  const parsed = parseOptions(opts)
+  const parsed = parseOptions(deps, opts)
   if (typeof parsed === 'string') {
     deps.io.err(`ERROR: ${parsed}`)
     return 1
@@ -98,8 +99,9 @@ export async function cmdVerifyCi(deps: CliDeps, opts: VerifyCiCmdOpts): Promise
     candidatePromise ??= candidateFingerprint(deps.cwd)
     return candidatePromise
   }
+  const text = ciTextOf(deps)
   const ctx: VerifyContext = {
-    deps, options: parsed.options, stepOverride: opts.step, candidate,
+    deps, text, options: parsed.options, stepOverride: opts.step, candidate,
     anchors: await readEvidenceNotes(deps.cwd), session: createChangedFilesSession(deps.cwd), shallow: await isShallow(deps.cwd),
   }
   const changes = []
@@ -107,17 +109,17 @@ export async function cmdVerifyCi(deps: CliDeps, opts: VerifyCiCmdOpts): Promise
   const global: CiFinding[] = []
   const report = buildCiReport({
     tenon: deps.pluginVersion ?? 'unknown', generatedAt: deps.clock(), head: await headCommit(deps.cwd),
-    selector: parsed.selector, options: parsed.options, changes, findings: global,
+    selector: parsed.selector, options: parsed.options, changes, findings: global, text,
   })
   try {
-    if (opts.out !== undefined) await writeOutput(deps.cwd, opts.out, render(report, parsed.format))
-    for (const extra of parsed.also) await writeOutput(deps.cwd, extra.file, render(report, extra.format))
+    if (opts.out !== undefined) await writeOutput(deps.cwd, opts.out, render(report, parsed.format, text))
+    for (const extra of parsed.also) await writeOutput(deps.cwd, extra.file, render(report, extra.format, text))
   } catch (error) {
-    deps.io.err(`ERROR: 写输出文件失败：${errMsg(error)}`)
+    deps.io.err(`ERROR: ${verifyMsg(deps, 'verify.writeFailed', { reason: errMsg(error) })}`)
     return 1
   }
   // 写了 --out 时 stdout 仍给人读的摘要（CI 日志里直接可见）；没写 --out 时 stdout 就是所选格式。
   const shown = opts.out === undefined ? parsed.format : 'text'
-  deps.io.out(render(report, shown).replace(/\n$/u, ''))
+  deps.io.out(render(report, shown, text).replace(/\n$/u, ''))
   return ciExitCode(report)
 }

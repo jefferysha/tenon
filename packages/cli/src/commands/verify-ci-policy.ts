@@ -4,12 +4,14 @@
  * 候选代码指纹取自本次检出的树。
  */
 import {
-  ChangedFilesUnavailableError, changeStartOfFields, evaluateTestEvidence, integrityDiffInSession,
+  ChangedFilesUnavailableError, TEST_BLOCKER_LABELS, TEST_NOTICE_LABELS, changeStartOfFields, evaluateTestEvidence, integrityDiffInSession,
   type CandidateMode, type ChangedFilesSession, type CiFinding, type EffectiveWorkflowPlan, type PipelineState,
   type SuiteVerdict, type TestEvidenceReport,
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
-import { SHALLOW_REASON, candidateFilesTouchedSince, resolveBaseRef } from './verify-ci-git.js'
+import { localeOf } from '../i18n/messages.js'
+import { candidateFilesTouchedSince, resolveBaseRef } from './verify-ci-git.js'
+import { shallowReason, verifyMsg } from './verify-ci-text.js'
 
 type Step = EffectiveWorkflowPlan['workflow']['steps'][number]
 
@@ -22,13 +24,14 @@ function declaresTests(step: Step): boolean {
  * （已完结的任务停在终态步骤，证据在 verify）。phase 不在步骤表里（状态异常）时取最后一个声明了的步骤。
  */
 export function resolveEvaluatedStep(
+  deps: CliDeps,
   plan: EffectiveWorkflowPlan,
   phase: string,
   override: string | undefined,
 ): { readonly step: string | null } | { readonly error: string } {
   const steps = plan.workflow.steps
   if (override !== undefined) {
-    return steps.some((step) => step.id === override) ? { step: override } : { error: `step '${override}' 不在 workflow '${plan.id}' 里` }
+    return steps.some((step) => step.id === override) ? { step: override } : { error: verifyMsg(deps, 'verify.stepNotInWorkflow', { step: override, workflow: plan.id }) }
   }
   const index = steps.findIndex((step) => step.id === phase)
   const from = index === -1 ? steps.length - 1 : index
@@ -69,13 +72,13 @@ export async function runPolicy(input: {
       now: () => Date.parse(deps.clock()),
       ...(input.candidate === undefined ? {} : { currentCandidate: input.candidate }),
       changedFiles: async () => {
-        if (input.shallow) throw new ChangedFilesUnavailableError(SHALLOW_REASON)
+        if (input.shallow) throw new ChangedFilesUnavailableError(shallowReason(deps))
         return input.session.changedFiles({ ...start, baseBranch: await resolveBaseRef(deps.cwd, start.baseBranch) })
       },
       // 测试完整性：与转换门禁同一份判定（`integrity: block` 挡住，缺省 notice 只提示）；读不出起点以来的改动行时
       // 由策略失败关闭（block → files-diff-unavailable）或提示未检查（notice → files-unchecked），不降级成「没有信号」。
       integrityDiff: async (accept) => {
-        if (input.shallow) throw new ChangedFilesUnavailableError(SHALLOW_REASON)
+        if (input.shallow) throw new ChangedFilesUnavailableError(shallowReason(deps))
         return integrityDiffInSession(input.session, { ...start, baseBranch: await resolveBaseRef(deps.cwd, start.baseBranch) })(accept)
       },
     },
@@ -92,6 +95,19 @@ function pathFor(code: string, subject: string | undefined, relDir: string, reco
     return code.startsWith('known-failure-') ? '.tenon/tests/known-failures.yaml' : subject
   }
   return recordFile
+}
+
+type PolicyKind = 'blocker' | 'notice'
+
+/**
+ * 策略判定给的阻塞 / 提示句子是中文（测试体系的判定在 kernel 里，句子里带着具体对象与原因）。中文输出原样用它；
+ * 英文输出用同一个码的英文短标签加上它指向的对象（套件 id、文件路径等），修复命令照原样列在 `fix` 里。
+ */
+function policyMessage(deps: CliDeps, kind: PolicyKind, code: string, message: string, subject: string | undefined): string {
+  if (localeOf(deps) === 'zh') return message
+  const labels: Readonly<Record<string, { readonly en: string } | undefined>> = kind === 'blocker' ? TEST_BLOCKER_LABELS : TEST_NOTICE_LABELS
+  const label = labels[code]?.en ?? code
+  return subject === undefined ? label : `${label}: ${subject}`
 }
 
 export async function policyFindings(input: {
@@ -121,7 +137,8 @@ export async function policyFindings(input: {
     }
     const path = pathFor(blocker.code, blocker.subject, relDir, recordFile(blocker.subject), input.brokenFile)
     out.push({
-      code: blocker.code, severity: blocker.blocking ? 'error' : 'warning', change, source: 'policy', message: blocker.message,
+      code: blocker.code, severity: blocker.blocking ? 'error' : 'warning', change, source: 'policy',
+      message: policyMessage(input.deps, 'blocker', blocker.code, blocker.message, blocker.subject),
       ...(blocker.fix === undefined ? {} : { fix: blocker.fix }),
       ...(blocker.subject === undefined ? {} : { subject: blocker.subject }),
       ...(path === undefined ? {} : { path }),
@@ -130,7 +147,8 @@ export async function policyFindings(input: {
   for (const notice of policy?.notices ?? []) {
     const path = pathFor(notice.code, notice.subject, relDir, recordFile(notice.subject), input.brokenFile)
     out.push({
-      code: notice.code, severity: 'note', change, source: 'policy', message: notice.message,
+      code: notice.code, severity: 'note', change, source: 'policy',
+      message: policyMessage(input.deps, 'notice', notice.code, notice.message, notice.subject),
       ...(notice.fix === undefined ? {} : { fix: notice.fix }),
       ...(notice.subject === undefined ? {} : { subject: notice.subject }),
       ...(path === undefined ? {} : { path }),
@@ -143,7 +161,7 @@ export async function policyFindings(input: {
       out.push({
         code: item.status === 'stale' ? 'test-stale' : item.status === 'failed' ? 'test-failed' : 'test-not-run',
         severity: 'error', change, source: 'policy', subject: item.test.id,
-        message: `测试 ${item.test.label ?? item.test.id}（${item.test.id}）状态 ${item.status}`,
+        message: verifyMsg(input.deps, 'verify.testStatus', { label: item.test.label ?? item.test.id, id: item.test.id, status: item.status }),
         fix: `tenon test run ${change} ${item.test.id}`,
       })
     }
@@ -158,11 +176,12 @@ async function candidateFinding(
 ): Promise<CiFinding> {
   const earliest = stale.map((verdict) => verdict.finished_at).filter((value): value is string => value !== undefined).sort()[0]
   const touched = earliest === undefined ? [] : await candidateFilesTouchedSince(input.deps.cwd, earliest)
-  const hint = touched.length === 0 ? '' : `；记录完成之后提交改动过：${touched.join('、')}`
+  const sep = verifyMsg(input.deps, 'verify.listSep')
+  const hint = touched.length === 0 ? '' : verifyMsg(input.deps, 'verify.candidateTouched', { files: touched.join(sep) })
   return {
     code: 'candidate-mismatch', severity: input.mode === 'warn' ? 'warning' : 'error', change: input.change, source: 'policy',
     subject: stale.map((verdict) => verdict.suite).join(','),
-    message: `套件 ${stale.map((verdict) => verdict.suite).join('、')} 的最近一次运行绑定的代码与本次检出的树不同（代码在测试之后变了，或检出的树与测试时的工作区不一致）${hint}`,
+    message: verifyMsg(input.deps, 'verify.candidateMismatch', { suites: stale.map((verdict) => verdict.suite).join(sep), hint }),
     fix: `tenon test run ${input.change} --stage`,
     ...(path === undefined ? {} : { path }),
   }

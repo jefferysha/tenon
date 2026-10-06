@@ -5,8 +5,8 @@
  */
 import { join } from 'node:path'
 import {
-  appendTestRunRecordV2, baselineV2Path, claimRunningMarker, ensureTestEvidenceDirs, listRecordDirectory, pruneRecordChain, pruneTestArtifacts, RECORD_RETENTION,
-  readTestBaselineV2, releaseRunningMarker, testRunArtifactsDir, testRunRecordsDir, testRunningMarkerPath,
+  appendTestRunRecordV2, baselineV2Path, claimRunningMarker, ensureTestEvidenceDirs, listRecordDirectory, parseRecordRetention, pruneRecordChain,
+  pruneTestArtifacts, RECORD_RETENTION_ENV, readTestBaselineV2, releaseRunningMarker, testRunArtifactsDir, testRunRecordsDir, testRunningMarkerPath,
   changedLinesSinceChangeStart, changeStartOfFields, testPlanApprovalFreeDigest,
   type AppendResult, type KnownFailure, type MachineProfile, type ServiceRunV2, type StepIR, type SuiteReason, type SuiteRunV2,
   type TestBaselineV2, type TestCatalog, type TestPlanState,
@@ -28,6 +28,16 @@ import { executeSuite } from './suite-exec.js'
 export const KEEP_RUNS = 10
 
 export class RunBusyError extends Error {}
+
+/** TENON_RECORD_RETENTION：未设置 = 不清理；写错的取值提示一次并按不清理处理。 */
+function recordRetentionOf(deps: CliDeps): number | undefined {
+  const parsed = parseRecordRetention(deps.env?.(RECORD_RETENTION_ENV))
+  if (parsed === 'invalid') {
+    deps.io.err(`WARN: ${RECORD_RETENTION_ENV}=${deps.env?.(RECORD_RETENTION_ENV)} 不是正整数，本次运行不清理旧记录`)
+    return undefined
+  }
+  return parsed
+}
 
 export interface RunInput {
   readonly deps: CliDeps
@@ -175,8 +185,10 @@ export async function executeRun(input: RunInput): Promise<RunResult> {
     const services = running.map((service) => serviceRecord(service, `services/${service.service.id}.log`))
     const draft = draftOf({ ...base, candidate: candidateAfter, services, suites: runs, finishedAt: deps.clock(), durationMs: Date.now() - startedMs })
     const appended = await appendTestRunRecordV2(deps.cwd, context.slug, draft)
-    // 记录入版本库，不设上限就随每次运行增长（真机验收 F14：一次交付提交带上 27 份）；只留最新的 RECORD_RETENTION 条。
-    await pruneRecordChain(deps.cwd, context.slug, change, RECORD_RETENTION)
+    // 记录入版本库，不设上限就随每次运行增长（真机验收 F14：一次交付提交带上 27 份）。清理后的链上一个发行版读不了
+    // （它不认识链基点标记），所以默认不清理，用户设了 TENON_RECORD_RETENTION 才只留最新的 N 条。
+    const keep = recordRetentionOf(deps)
+    if (keep !== undefined) await pruneRecordChain(deps.cwd, context.slug, change, keep)
     const listing = await listRecordDirectory(testRunRecordsDir(deps.cwd, context.slug, change))
     await pruneTestArtifacts(paths.artifactsDir, listing.records.map((entry) => entry.record.run_id).sort(), KEEP_RUNS)
     return { runId, runDir, appended, outcomes: ordered, services, profile }

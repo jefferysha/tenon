@@ -7,6 +7,7 @@
  */
 import { sha256Hex } from '../sha256.js'
 import { ciRule, type CiRule } from './rules.js'
+import type { CiText } from './text.js'
 import { allFindings, type CiFinding, type CiSeverity, type CiVerifyReport } from './types.js'
 
 export const SARIF_VERSION = '2.1.0'
@@ -92,7 +93,7 @@ function fingerprint(finding: CiFinding): string {
   return sha256Hex([finding.code, finding.change ?? '', finding.subject ?? ''].join('\0')).slice(0, 32)
 }
 
-export function toSarif(report: CiVerifyReport): SarifLog {
+export function toSarif(report: CiVerifyReport, text: CiText): SarifLog {
   const findings = allFindings(report)
   const dirOf = new Map(report.changes.map((change) => [change.change, change.dir]))
   const used = new Map<string, CiRule>()
@@ -105,7 +106,7 @@ export function toSarif(report: CiVerifyReport): SarifLog {
     ruleId: `${RULE_PREFIX}${finding.code}`,
     ruleIndex: indexOf.get(`${RULE_PREFIX}${finding.code}`) ?? 0,
     level: finding.severity,
-    message: { text: finding.fix === undefined ? finding.message : `${finding.message}；执行 ${finding.fix}` },
+    message: { text: finding.fix === undefined ? finding.message : `${finding.message}${text('fixSuffix', { fix: finding.fix })}` },
     locations: [{
       physicalLocation: {
         artifactLocation: { uri: locationPath(finding, dirOf), uriBaseId: '%SRCROOT%' },

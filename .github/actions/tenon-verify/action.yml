@@ -40,6 +40,11 @@ inputs:
   sarif-category:
     description: Code scanning category for the SARIF upload.
     default: tenon-verify
+  language:
+    description: >-
+      zh | en. Language of the report text (job summary, SARIF messages, log). Empty means the CLI
+      default: Chinese, unless the runner's locale says otherwise.
+    default: ''
   node-version:
     description: Node.js version used to run the CLI (Tenon requires 22 or newer).
     default: '22'
@@ -86,6 +91,7 @@ runs:
         TENON_VERIFY_CANDIDATE: ${{ inputs.candidate }}
         TENON_VERIFY_REQUIRE_ANCHOR: ${{ inputs.require-anchor }}
         TENON_VERIFY_FETCH_NOTES: ${{ inputs.fetch-notes }}
+        TENON_VERIFY_LANGUAGE: ${{ inputs.language }}
       run: bash "$TENON_ACTION_PATH/run.sh"
 
     - name: Upload SARIF to code scanning

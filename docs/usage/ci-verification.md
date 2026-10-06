@@ -82,6 +82,7 @@ Action inputs:
 | `fetch-notes` | `true` | Fetch `refs/notes/tenon` from `origin` (best effort) |
 | `upload-sarif` | `true` | Upload the SARIF report |
 | `sarif-category` | `tenon-verify` | Code scanning category |
+| `language` | | `zh` or `en`: language of the job summary, the SARIF messages and the log; empty keeps the CLI default (Chinese unless the runner's locale says otherwise) |
 | `node-version` | `22` | Node.js version |
 | `expected-version` | | Fail unless the pinned release has exactly this version |
 | `cli` | | Use another CLI entry instead of the bundle in the release |
@@ -145,6 +146,15 @@ selector, unknown Change, unwritable output). Formats: `text` (default, readable
 the trust split), `json` (`tenon-verify-ci/v1`), `sarif` (2.1.0, one location per result, stable
 `partialFingerprints`), `markdown` (job summary). With `--out`, stdout still prints the text
 summary.
+
+Language: every format (the text and Markdown reports, the SARIF messages, the JSON `message` and
+`trust` strings, the usage errors) follows the CLI language: `TENON_LANG=en|zh`, then `LC_ALL`,
+`LC_MESSAGES`, `LANG`; with no signal, or `C`/`POSIX`, the report is Chinese as before. In the
+GitHub Action set the `language` input (`zh` or `en`), which is passed to the CLI as `TENON_LANG`.
+Finding codes, levels, exit codes, JSON field names and the `[FAIL]`/`[WARN]`/`[NOTE]` markers
+never depend on the language. A test-policy finding is one sentence in the Chinese report; in
+English it is the short label of its code plus the object it points at (suite id, file path), with
+the same fix command.
 
 ## Anchor the evidence in git notes (optional)
 

@@ -75,6 +75,7 @@ Action 输入：
 | `fetch-notes` | `true` | 从 `origin` 取 `refs/notes/tenon`（尽力而为） |
 | `upload-sarif` | `true` | 上传 SARIF 报告 |
 | `sarif-category` | `tenon-verify` | code scanning 的类别 |
+| `language` | | `zh` 或 `en`：作业摘要、SARIF 消息与日志的语言；留空沿用 CLI 的缺省（中文，除非 runner 的 locale 另有指定） |
 | `node-version` | `22` | Node.js 版本 |
 | `expected-version` | | 固定的发布版本必须恰好是它，否则失败 |
 | `cli` | | 用别处的 CLI 入口代替发布里的 bundle |
@@ -126,6 +127,12 @@ tenon verify --ci --all-open --also sarif=tenon.sarif --also markdown=summary.md
 退出码：`0` 通过，`2` 至少一个 error 级发现，`1` 用法或环境错误（缺少选择器、Change 不存在、输出写不出）。格式：`text`（缺省，
 人读，末尾恒带信任对照）、`json`（`tenon-verify-ci/v1`）、`sarif`（2.1.0，每条结果一个位置，`partialFingerprints` 稳定）、
 `markdown`（作业摘要）。用了 `--out` 时 stdout 仍打印 text 摘要。
+
+语言：所有格式（text 与 Markdown 报告、SARIF 的消息、JSON 里的 `message` 与 `trust` 字符串、用法错误）都跟 CLI 的语言走：
+`TENON_LANG=en|zh`，其次 `LC_ALL`、`LC_MESSAGES`、`LANG`；没有信号或为 `C`/`POSIX` 时和以前一样是中文。GitHub Action 里设
+`language` 输入（`zh` 或 `en`），它会作为 `TENON_LANG` 交给 CLI。发现码、级别、退出码、JSON 字段名和 `[FAIL]`/`[WARN]`/`[NOTE]`
+标记不随语言变化。测试策略的发现在中文报告里是一句完整的话；英文里是该码的短标签加上它指向的对象（套件 id、文件路径），
+修复命令不变。
 
 ## 把证据锚定到 git notes（可选）
 

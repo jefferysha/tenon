@@ -7,6 +7,7 @@
  */
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { withOfficialAttachOn } from '../agents/official-scope.js'
 import { agentDigest, parseAgentFile } from '../agents/parse.js'
 import type { AgentDefinition, AgentSource } from '../agents/types.js'
 import type { WorkflowIR } from '../workflow/ir.js'
@@ -160,7 +161,7 @@ export async function readFrozenAgents(input: ReadFrozenAgentsInput): Promise<Re
       throw new AgentFreezeError('freeze-corrupt', `冻结的 agent '${entry.name}' 内容与摘要不一致`)
     }
     try {
-      frozen.set(entry.name, { ...entry, definition: parseAgentFile(content, entry.name) })
+      frozen.set(entry.name, { ...entry, definition: withOfficialAttachOn(entry.source, parseAgentFile(content, entry.name)) })
     } catch (error) {
       throw new AgentFreezeError('freeze-corrupt', `冻结的 agent '${entry.name}' 无法解析：${error instanceof Error ? error.message : String(error)}`)
     }
