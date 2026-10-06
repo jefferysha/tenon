@@ -10,6 +10,9 @@ async function next(page: Page): Promise<void> {
   await page.getByTestId('np-next').click()
 }
 
+/** 「创建」最多点这么多次：一次，加上点击被吞掉时的一次补点。 */
+const MAX_CREATE_CLICKS = 2
+
 const STEPS = ['location', 'templates', 'resources', 'clients', 'confirm'] as const
 const ROWS = ['directory', 'git', 'file:AGENTS.md', 'file:CLAUDE.md', 'clients', 'register'] as const
 
@@ -82,11 +85,30 @@ test.describe('新建项目向导', () => {
     // 预检的计划到了之后，步骤框才开始 200ms 的高度过渡（ResizeObserver 量完才触发），按钮跟着挪位：等落定再点。
     // 并且以「进度出现」为准：慢的 WebKit 上这一下点击曾整个落空（没有任何请求发出，仍停在确认步）——
     // 没出现进度就再点；出现了（创建已开始，按钮已不在）就不再点，所以不会重复创建。
+    // 再点一次要留下记录：重试掩盖的是点击被吞掉这个真实现象，不记下来就没人知道它还在发生。第三次点击也没用上
+    // 就是真的坏了（不是动画没落定），直接失败，而不是在 toPass 里无限补点。
     await settled(page)
+    const progress = page.getByTestId('np-progress')
+    let createClicks = 0
+    let thirdClickNeeded = false
     await expect(async () => {
-      if (!(await page.getByTestId('np-progress').isVisible())) await page.getByTestId('np-next').click({ timeout: 2_000 })
-      await expect(page.getByTestId('np-progress')).toBeVisible({ timeout: 2_000 })
+      if (await progress.isVisible()) return
+      if (createClicks >= MAX_CREATE_CLICKS) {
+        thirdClickNeeded = true
+        return
+      }
+      await page.getByTestId('np-next').click({ timeout: 2_000 })
+      createClicks += 1
+      if (createClicks > 1) {
+        test.info().annotations.push({
+          type: 'wizard-create-reclick',
+          description: `${test.info().project.name}: 「创建」第 ${createClicks} 次点击（前面的点击没有让进度出现）`,
+        })
+      }
+      await expect(progress).toBeVisible({ timeout: 2_000 })
     }).toPass({ timeout: 20_000 })
+    expect(thirdClickNeeded, `「创建」点了 ${createClicks} 次进度仍没出现：不再补第 ${MAX_CREATE_CLICKS + 1} 次点击`).toBe(false)
+    await expect(progress).toBeVisible()
 
     // 进度：每一步都到 done。
     for (const row of ROWS) await expect(page.getByTestId(`np-row-${row}`)).toHaveAttribute('data-state', 'done')
