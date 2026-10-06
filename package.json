@@ -44,6 +44,7 @@
     "docs:check": "npm run check -w @tenon/docs-site",
     "docs:build": "npm run build -w @tenon/docs-site",
     "docs:smoke": "npm run smoke -w @tenon/docs-site",
+    "docs:screenshots": "node tools/docs/capture-screenshots.mjs",
     "test": "vitest run",
     "test:web": "vitest run --config packages/dashboard-app/vitest.config.ts",
     "test:e2e": "playwright test -c e2e/dashboard/playwright.config.ts",

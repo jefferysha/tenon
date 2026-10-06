@@ -10,7 +10,7 @@ Tenon 是一个完整打包的插件，不是“CLI 加一份需要手工安装�
 
 它解决 agent 工作中常见的错位：对话说了一套，任务状态、Todo、文档和实际工具执行却是另一套。Tenon 让这些界面共享同一份 Effective Workflow Plan，并拒绝无效转换，而不是从对话文本猜测进度。
 
-<img src="docs-site/public/images/dashboard-overview.webp" alt="Tenon Dashboard 项目总览" width="1280" height="720">
+<img src="docs-site/public/images/dashboard-overview.webp" alt="Tenon Dashboard 项目总览" width="1280" height="800">
 
 <p align="center"><sub>一个本地控制面，统一查看项目、真实流程和需要人工处理的事项。</sub></p>
 
@@ -42,15 +42,15 @@ Simple 路由刻意保持严格。API 或公共契约、schema 和 migration、�
 
 | 流程进度 | 工作流 |
 | --- | --- |
-| <img src="docs-site/public/images/dashboard-progress.webp" alt="Tenon Dashboard 流程进度" width="1280" height="720" loading="lazy"> | <img src="docs-site/public/images/dashboard-workflow-editor.webp" alt="Tenon Dashboard 工作流设置" width="1280" height="720" loading="lazy"> |
-| Todo、阶段、门禁和执行来源保持同源。 | 工作流编辑器展示 Track、阶段和运行前事实。 |
+| <img src="docs-site/public/images/dashboard-progress.webp" alt="Tenon Dashboard 流程进度" width="1280" height="800" loading="lazy"> | <img src="docs-site/public/images/dashboard-workflow-editor.webp" alt="Tenon Dashboard 工作流编辑器" width="1280" height="800" loading="lazy"> |
+| Todo、阶段、门禁和执行来源保持同源。 | 工作流编辑器展示 Track、阶段、输入输出和技能编排。 |
 
-| 工作台设置 |
+| 工作流总览 |
 | --- |
-| <img src="docs-site/public/images/dashboard-workbench.webp" alt="Tenon Dashboard Workflow 工作台" width="1280" height="720" loading="lazy"> |
+| <img src="docs-site/public/images/dashboard-workbench.webp" alt="Tenon Dashboard 工作流总览" width="1280" height="800" loading="lazy"> |
 | 默认、自定义与自由模式共享同一套可检查编排。 |
 
-Dashboard 顶部只保留流程进度与工作流两个高频入口；主题和语言从设置菜单切换。宿主计划、AFK
+Dashboard 顶部保留工作台、工作流、项目、库、技能五个入口；主题和语言从设置菜单切换。宿主计划、AFK
 和机器诊断继续由 CLI 与本地 API 提供，只读预览不会执行命令。
 
 [查看 Dashboard 完整图文指南 →](docs/usage/zh-CN/dashboard-and-local-api.md)

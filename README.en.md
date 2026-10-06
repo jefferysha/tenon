@@ -18,7 +18,7 @@ thing while the task state, Todo list, documents, and actual tool execution say
 another. Tenon keeps those surfaces on one effective workflow plan and
 refuses invalid transitions instead of reconstructing progress from prose.
 
-<img src="docs-site/public/images/dashboard-overview.webp" alt="Tenon Dashboard project overview" width="1280" height="720">
+<img src="docs-site/public/images/dashboard-overview.webp" alt="Tenon Dashboard project overview" width="1280" height="800">
 
 <p align="center"><sub>One local control plane for projects, real workflows, and items that need attention.</sub></p>
 
@@ -53,16 +53,16 @@ be one line.
 
 | Workflow progress | Workflow |
 | --- | --- |
-| <img src="docs-site/public/images/dashboard-progress.webp" alt="Tenon Dashboard workflow progress" width="1280" height="720" loading="lazy"> | <img src="docs-site/public/images/dashboard-workflow-editor.webp" alt="Tenon Dashboard workflow settings" width="1280" height="720" loading="lazy"> |
-| Todo, phases, gates, and execution source stay aligned. | The workflow editor shows Tracks, phases, and pre-run facts. |
+| <img src="docs-site/public/images/dashboard-progress.webp" alt="Tenon Dashboard workflow progress" width="1280" height="800" loading="lazy"> | <img src="docs-site/public/images/dashboard-workflow-editor.webp" alt="Tenon Dashboard workflow editor" width="1280" height="800" loading="lazy"> |
+| Todo, phases, gates, and execution source stay aligned. | The workflow editor shows Tracks, phases, inputs and outputs, and skill orchestration. |
 
-| Workbench settings |
+| Workflow overview |
 | --- |
-| <img src="docs-site/public/images/dashboard-workbench.webp" alt="Tenon Dashboard workflow workbench" width="1280" height="720" loading="lazy"> |
+| <img src="docs-site/public/images/dashboard-workbench.webp" alt="Tenon Dashboard workflow overview" width="1280" height="800" loading="lazy"> |
 | Default, custom, and free modes share one inspectable orchestration model. |
 
-The primary shell keeps only Workflow progress and Workflow as high-frequency
-destinations. Theme and language live in the settings menu. Host Plan, AFK, and
+The primary shell keeps five destinations: Workspace, Workflow, Projects,
+Library, and Skills. Theme and language live in the settings menu. Host Plan, AFK, and
 machine diagnostics remain available through the CLI and local API; read-only
 previews never execute commands.
 

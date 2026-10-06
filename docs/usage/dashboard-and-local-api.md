@@ -11,7 +11,7 @@ use the local API within its security boundary.
 - a supported local browser
 - at least one project for project-scoped operational views
 
-<img src="../../docs-site/public/images/dashboard-overview.webp" alt="Tenon Dashboard project overview" width="1280" height="720">
+<img src="../../docs-site/public/images/dashboard-overview.webp" alt="Tenon Dashboard project overview" width="1280" height="800">
 
 The project view prioritizes work that actually needs help. Official screenshots
 use a sanitized showcase project and contain no user directory, credential, or
@@ -101,25 +101,26 @@ view, not an operational destination and not the installed default.
 Optional surfaces are advertised by snapshot capability flags. A disabled
 capability is not an empty success state.
 
-<img src="../../docs-site/public/images/dashboard-progress.webp" alt="Tenon Dashboard workflow progress" width="1280" height="720" loading="lazy">
+<img src="../../docs-site/public/images/dashboard-progress.webp" alt="Tenon Dashboard workflow progress" width="1280" height="800" loading="lazy">
 
 Progress follows the effective Workflow. Display state and execution provenance
 are separate, so a task can be running in a terminal without being presented as
 unattended automation.
 
-### Settings
+### Workflow editor
 
-<img src="../../docs-site/public/images/dashboard-workflow-editor.webp" alt="Tenon Dashboard settings" width="1280" height="720" loading="lazy">
+<img src="../../docs-site/public/images/dashboard-workflow-editor.webp" alt="Tenon Dashboard workflow editor" width="1280" height="800" loading="lazy">
 
-Settings exposes the current theme and language controls without changing the
-canonical Workflow state.
+The workflow editor lists a Workflow's Tracks and stages; each stage page shows
+its inputs, skills, outputs, gate, and test policy. The settings menu holds the
+theme and language controls and never changes the canonical Workflow state.
 
-### Workflow workbench
+### Workflow overview
 
-<img src="../../docs-site/public/images/dashboard-workbench.webp" alt="Tenon Dashboard workflow workbench" width="1280" height="720" loading="lazy">
+<img src="../../docs-site/public/images/dashboard-workbench.webp" alt="Tenon Dashboard workflow overview" width="1280" height="800" loading="lazy">
 
-The workbench places Tracks, the seven-phase DAG, the skills each step declares, hooks, and
-pre-run facts on one page. The read-only default baseline, custom Workflows,
+The overview canvas places Tracks, the seven-phase DAG, and the skills each step
+declares on one page. The read-only default baseline, custom Workflows,
 and each Workflow's free Track come from the same effective plan.
 
 ### Projects
