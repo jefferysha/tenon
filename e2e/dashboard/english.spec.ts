@@ -185,6 +185,43 @@ test.describe('英文界面 · 轨道页签条', () => {
     }).toPass({ timeout: 5_000 })
   })
 
+  // 真机验收：用 URL 直接打开 `track=backend`，English 下选中的 Backend 页签被渐隐截成 "Ba"——滚进可见范围只在换选时跑过。
+  test('直达 URL：选中的页签在挂载时就完整可见（中间的 backend、最后的 free）', async ({ page }) => {
+    for (const track of ['backend', 'free']) {
+      await page.goto(`/?${new URLSearchParams({ view: 'workflow', wf: 'default', track, step: 'verify' }).toString()}`)
+      await expect(page.getByTestId('primary-nav')).toBeVisible()
+      await expect(page.getByTestId(`wb-track-${track}`)).toHaveAttribute('aria-selected', 'true')
+      const state = await expectTabRevealed(page, track)
+      expect(state.overflowing, '前提：英文五个页签确实放不下').toBe(true)
+    }
+  })
+
+  // 名称在挂载之后才变宽（切到英文）、页签条在挂载之后才变窄（视口回到两栏）：选中的页签数量没变、也没换选，也要重新滚进来。
+  test('直达 URL 之后名称变宽、页签条变窄：选中的页签重新滚进可见范围', async ({ page }) => {
+    await openView(page, 'workflow', { wf: 'default', track: 'backend', step: 'verify' })
+    await expectTabRevealed(page, 'backend')
+    const setLanguage = async (lang: 'zh' | 'en'): Promise<void> => {
+      await page.getByTestId('nav-settings').click()
+      await expect(page.getByTestId('nav-settings-panel')).toBeVisible()
+      await page.getByTestId(`lang-option-${lang}`).click()
+      await page.keyboard.press('Escape')
+      await expect(page.getByTestId('nav-settings-panel')).toBeHidden()
+    }
+    await setLanguage('zh')
+    await expect(page.getByTestId('wb-track-backend')).toHaveText('后端')
+    expect((await tabStripState(page, 'backend')).overflowing, '前提：中文名放得下，条没有滚动').toBe(false)
+    await setLanguage('en')
+    await expect(page.getByTestId('wb-track-backend')).toHaveText('Backend')
+    await expectTabRevealed(page, 'backend')
+
+    // 单栏（≤900px）时条占满整行，放得下；回到两栏条又变回 300px 左栏里的宽度。
+    await page.setViewportSize({ width: 880, height: 900 })
+    await expect(async () => expect((await tabStripState(page, 'backend')).overflowing).toBe(false)).toPass({ timeout: 5_000 })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    const state = await expectTabRevealed(page, 'backend')
+    expect(state.overflowing, '前提：回到两栏后英文页签又放不下').toBe(true)
+  })
+
   // 焦点用 focus() 逐个移过去：macOS 的 WebKit 默认 Tab 不停在按钮上，按键本身是浏览器的事；这里验的是焦点落到哪个页签、哪个页签就被滚进来。
   test('焦点逐个越过页签：每个获得焦点的页签都完整可见；滚动后渐隐的两侧跟着变', async ({ page }) => {
     await openView(page, 'workflow', { wf: 'default', track: 'chat', step: 'verify' })

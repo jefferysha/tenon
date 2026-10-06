@@ -144,6 +144,77 @@ describe('TrackTabs 滚入可见范围', () => {
     expect(spy.mock.contexts.at(-1)).toBe(screen.getByTestId('wb-track-pm'))
   })
 
+  it('挂载时选中的页签就滚进可见范围（URL 直达的轨道），不等换选', () => {
+    const spy = stubScrollIntoView()
+    renderTabs({ selected: 'backend' })
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy.mock.contexts[0]).toBe(screen.getByTestId('wb-track-backend'))
+  })
+
+  it('轨道列表在挂载之后才载入：载入时选中的页签滚进可见范围', () => {
+    const spy = stubScrollIntoView()
+    const { rerender } = renderTabs({ tabs: [], selected: 'backend' })
+    expect(spy).not.toHaveBeenCalled()
+    rerender({ tabs: TABS })
+    expect(spy.mock.contexts.at(-1)).toBe(screen.getByTestId('wb-track-backend'))
+  })
+
+  it('页签数量没变、名称变了（切换语言让页签变宽）：选中的页签重新滚进可见范围', () => {
+    const spy = stubScrollIntoView()
+    const narrow = TABS.map((tab) => tab.label === null ? tab : { ...tab, label: tab.label.slice(0, 2) })
+    const { rerender } = renderTabs({ tabs: narrow, selected: 'backend' })
+    spy.mockClear()
+    rerender({ tabs: TABS, selected: 'backend' })
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy.mock.contexts[0]).toBe(screen.getByTestId('wb-track-backend'))
+    spy.mockClear()
+    rerender({ tabs: TABS.map((tab) => ({ ...tab })), selected: 'backend' })
+    expect(spy, '内容没变就不重复滚').not.toHaveBeenCalled()
+  })
+
+  describe('条或页签尺寸变化（条变窄、字体载入后页签变宽）', () => {
+    function stubResizeObserver(): { notify: () => void } {
+      const holder = { notify: (): void => undefined }
+      vi.stubGlobal('ResizeObserver', class {
+        constructor(callback: () => void) { holder.notify = callback }
+        observe(): void {}
+        disconnect(): void {}
+      })
+      return holder
+    }
+
+    it('用户没有动手滚过：选中的页签重新滚进可见范围', () => {
+      const resize = stubResizeObserver()
+      const spy = stubScrollIntoView()
+      renderTabs({ selected: 'backend' })
+      spy.mockClear()
+      act(() => resize.notify())
+      expect(spy).toHaveBeenCalledTimes(1)
+      expect(spy.mock.contexts[0]).toBe(screen.getByTestId('wb-track-backend'))
+    })
+
+    const GESTURES: ReadonlyArray<readonly [string, () => void]> = [
+      ['滚轮', () => { fireEvent.wheel(screen.getByTestId('wb-tracks')) }],
+      ['指针按下', () => { fireEvent.pointerDown(screen.getByTestId('wb-tracks')) }],
+      ['触摸', () => { fireEvent.touchStart(screen.getByTestId('wb-tracks')) }],
+      ['焦点移到某个页签', () => { act(() => screen.getByTestId('wb-track-chat').focus()) }],
+    ]
+
+    it.each(GESTURES)('用户动手之后（%s）：不再把选中的页签拉回来；换选后重新跟随', (_name, gesture) => {
+      const resize = stubResizeObserver()
+      const spy = stubScrollIntoView()
+      const { rerender } = renderTabs({ selected: 'backend' })
+      gesture()
+      spy.mockClear()
+      act(() => resize.notify())
+      expect(spy).not.toHaveBeenCalled()
+      rerender({ selected: 'free' })
+      spy.mockClear()
+      act(() => resize.notify())
+      expect(spy.mock.contexts.at(-1)).toBe(screen.getByTestId('wb-track-free'))
+    })
+  })
+
   it('没有 scrollIntoView 的环境里不抛错', () => {
     expect(() => renderTabs()).not.toThrow()
     expect(() => act(() => screen.getByTestId('wb-track-chat').focus())).not.toThrow()

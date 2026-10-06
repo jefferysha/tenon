@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { useOverflowEdges } from './overflowEdges'
 
@@ -26,11 +26,23 @@ function reveal(tab: Element | null | undefined): void {
  */
 export function TrackTabs({ tabs, selected, busy, label, onSelect }: TrackTabsProps): JSX.Element {
   const stripRef = useRef<HTMLDivElement>(null)
-  const { edges, measure } = useOverflowEdges(stripRef, tabs.map((tab) => `${tab.id}:${tab.label ?? ''}`).join('|'))
-  // 英文轨道名比中文长：选中的页签（含 URL 深链进来的）要滚进可见范围，不留半截。
-  useEffect(() => {
+  // 页签的 id 与名称：数量没变、名称变了（切换语言、内置名按语言取词）也会让页签变宽。
+  const signature = tabs.map((tab) => `${tab.id}:${tab.label ?? ''}`).join('|')
+  // 用户自己滚过、点过或把焦点移到某个页签之后，尺寸变化不再把选中的页签拉回来；换选或页签变了就重新跟随。
+  const manual = useRef(false)
+  const revealSelected = useCallback((): void => {
     reveal(stripRef.current?.querySelector('[aria-selected="true"]'))
-  }, [selected, tabs.length])
+  }, [])
+  const followSelected = useCallback((): void => {
+    if (!manual.current) revealSelected()
+  }, [revealSelected])
+  const { edges, measure } = useOverflowEdges(stripRef, signature, followSelected)
+  // 英文轨道名比中文长：选中的页签（含 URL 深链进来的）要滚进可见范围，不留半截。挂载、换选、页签列表载入或名称变化时都要滚；
+  // 挂载之后条变窄、字体载入让页签变宽，由上面的尺寸监听补滚。
+  useEffect(() => {
+    manual.current = false
+    revealSelected()
+  }, [selected, signature, revealSelected])
   return (
     <div
       ref={stripRef}
@@ -41,6 +53,9 @@ export function TrackTabs({ tabs, selected, busy, label, onSelect }: TrackTabsPr
       data-fade-start={edges.start || undefined}
       data-fade-end={edges.end || undefined}
       onScroll={measure}
+      onWheel={() => { manual.current = true }}
+      onPointerDown={() => { manual.current = true }}
+      onTouchStart={() => { manual.current = true }}
     >
       {tabs.map((tab) => {
         const active = tab.id === selected
@@ -53,7 +68,7 @@ export function TrackTabs({ tabs, selected, busy, label, onSelect }: TrackTabsPr
             className={cn("relative -mx-1.5 -mb-px flex-none whitespace-nowrap border-b-2 border-transparent px-1.5 pb-2 text-body outline-none transition-colors after:absolute after:inset-x-1.5 after:-bottom-0.5 after:h-0.5 after:transition-colors after:content-[''] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-(--accent)", active ? 'font-semibold text-text after:bg-(--accent)' : 'text-text-2 after:bg-transparent hover:text-text')}
             title={tab.label ?? tab.id}
             data-testid={`wb-track-${tab.id}`}
-            onFocus={(event) => reveal(event.currentTarget)}
+            onFocus={(event) => { manual.current = true; reveal(event.currentTarget) }}
             onClick={() => { if (!busy) onSelect(tab.id) }}
           >
             {tab.label ?? tab.id}
