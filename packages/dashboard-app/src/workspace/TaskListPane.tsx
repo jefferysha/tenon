@@ -45,7 +45,7 @@ export interface TaskListPaneProps {
 
 const TOGGLE_CLS = 'inline-flex min-h-10 flex-none items-center gap-1.5 whitespace-nowrap rounded-sm px-2.5 text-body text-text-2 outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) aria-pressed:bg-accent-t aria-pressed:font-semibold aria-pressed:text-(--accent)'
 const MENU_TRIGGER_CLS = 'relative grid size-10 flex-none place-items-center rounded-sm text-text-2 outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) data-[active=true]:text-(--accent) aria-expanded:bg-fill'
-const MENU_BADGE_CLS = 'absolute -top-0.5 -right-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-(--accent) px-1 text-micro font-semibold tabular-nums text-(--btn-fg)'
+const MENU_BADGE_CLS = 'absolute -top-0.5 -right-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-btn-bg px-1 text-micro font-semibold tabular-nums text-btn-fg'
 
 interface FilterMenuGroup {
   id: keyof Omit<TaskFilterState, 'status'>

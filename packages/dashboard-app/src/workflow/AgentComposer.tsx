@@ -89,7 +89,7 @@ export function AgentComposer({
           <button type="button" className="min-h-10 rounded-md px-3 text-base text-text-2 hover:bg-fill" data-testid="agent-composer-cancel" onClick={onClose}>
             {t('workflow.cancel')}
           </button>
-          <button type="button" className="min-h-10 rounded-md bg-(--accent) px-4 text-base font-semibold text-btn-fg hover:bg-accent-d disabled:cursor-not-allowed disabled:bg-fill-2 disabled:text-text-3" data-testid="agent-composer-save" disabled={!changed} onClick={save}>
+          <button type="button" className="min-h-10 rounded-md bg-btn-bg px-4 text-base font-semibold text-btn-fg enabled:hover:bg-btn-hover disabled:cursor-not-allowed disabled:bg-fill-2 disabled:text-text-3" data-testid="agent-composer-save" disabled={!changed} onClick={save}>
             {t('workflow.composer_done')}
           </button>
         </>

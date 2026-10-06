@@ -72,7 +72,7 @@ export function StepRow({ step, order, selected, issue, editable, deletable, lab
         type="button"
         className={cn(
           'relative z-10 grid size-7 place-items-center rounded-full border text-caption tabular-nums outline-none transition-colors focus-visible:ring-2 focus-visible:ring-(--accent)',
-          selected ? 'border-(--accent) bg-(--accent) text-btn-fg' : 'border-border-2 bg-card text-text-2',
+          selected ? 'border-btn-bg bg-btn-bg text-btn-fg' : 'border-border-2 bg-card text-text-2',
           editable ? 'cursor-grab touch-none active:cursor-grabbing' : 'cursor-default',
         )}
         aria-label={t('workflow.drag_stage', { name: labelOf(step.id) })}
@@ -110,7 +110,7 @@ export function OverviewRow({ selected, onSelect }: { selected: boolean; onSelec
   const { t } = useT()
   return (
     <div className="grid grid-cols-[28px_minmax(0,1fr)] items-center gap-3" style={{ height: STEP_HEIGHT }} data-testid="wb-overview-row">
-      <span className={cn('grid size-7 place-items-center rounded-full border text-caption tabular-nums', selected ? 'border-(--accent) bg-(--accent) text-btn-fg' : 'border-border-2 bg-card text-text-2')} aria-hidden="true">0</span>
+      <span className={cn('grid size-7 place-items-center rounded-full border text-caption tabular-nums', selected ? 'border-btn-bg bg-btn-bg text-btn-fg' : 'border-border-2 bg-card text-text-2')} aria-hidden="true">0</span>
       <button
         type="button"
         className={cn(

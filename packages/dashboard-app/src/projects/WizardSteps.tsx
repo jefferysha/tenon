@@ -41,7 +41,7 @@ export function WizardSteps({ current, onBack }: WizardStepsProps): JSX.Element 
               <span
                 className={cn(
                   'grid size-6 flex-none place-items-center rounded-full border text-micro font-semibold transition-colors duration-(--dur-base)',
-                  done && 'border-(--accent) bg-(--accent) text-btn-fg',
+                  done && 'border-btn-bg bg-btn-bg text-btn-fg',
                   active && 'border-(--accent) bg-accent-t text-(--accent)',
                   !done && !active && 'border-border-2 text-text-3',
                 )}

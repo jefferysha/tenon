@@ -119,6 +119,27 @@ const TARGETS: readonly Target[] = [
       await expect(placed.first().locator('[data-testid^="palette-open-"]')).toBeDisabled()
     },
   },
+  // 「完成」在草稿有改动时才可点：上面的目标扫的是它停用的样子（停用控件不要求对比度），实心强调色的可点样子要单独扫——暗色下它的前景曾只有 1.96:1。
+  {
+    name: '工作流 · 评审者编辑器（完成可点）',
+    open: async (page) => {
+      await openView(page, 'workflow', { wf: 'default', step: 'verify' })
+      await page.getByTestId('wb-reviewers-edit').click()
+      await expect(page.getByTestId('agent-composer')).toBeVisible()
+      await page.locator('[data-testid^="palette-agent-add-"]:enabled').first().click()
+      await expect(page.getByTestId('agent-composer-save')).toBeEnabled()
+    },
+  },
+  {
+    name: '工作流 · 技能编辑器（完成可点）',
+    open: async (page) => {
+      await openView(page, 'workflow', { wf: 'default', step: 'build' })
+      await page.getByTestId('wb-skills-edit').click()
+      await expect(page.getByTestId('skill-composer')).toBeVisible()
+      await page.locator('[data-testid^="palette-add-"]').first().click()
+      await expect(page.getByTestId('skill-composer-save')).toBeEnabled()
+    },
+  },
   {
     name: '项目',
     open: async (page, server) => {
