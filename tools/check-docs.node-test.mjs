@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { checkRepository, findWrappedAngleCodeSpans } from './check-docs.mjs'
+import { checkRepository, findPlainTextTagContinuations, findWrappedAngleCodeSpans } from './check-docs.mjs'
 
 const usageFiles = [
   'README.md',
@@ -517,6 +517,130 @@ test('accepts the same placeholder code spans once they sit on one line', async 
     root,
     'docs/usage/routing-and-workflows.md',
     `${routing}\nOpen a task and\n\`tenon set <new> depends_on <old>\`.\n`,
+  )
+  assert.deepEqual(checkRepository(root), [])
+})
+
+test('finds plain-text continuation lines that start with a tag-like token', () => {
+  const markdown = [
+    '# Title',
+    '',
+    'Open a task named after the change and keep going until',
+    '<change> is merged, then stop.',
+    '',
+    'Another sentence that wraps right before',
+    '</name> closes nothing.',
+    '',
+    '- a list item that wraps before',
+    '  <old attr="x"> and continues',
+    '',
+    '> a quote that wraps before',
+    '> <new>',
+  ].join('\n')
+  assert.deepEqual(findPlainTextTagContinuations(markdown), [
+    { line: 4, token: '<change', text: '<change> is merged, then stop.' },
+    { line: 7, token: '</name', text: '</name> closes nothing.' },
+    { line: 10, token: '<old', text: '<old attr="x"> and continues' },
+    { line: 13, token: '<new', text: '<new>' },
+  ])
+})
+
+test('leaves fenced code, code spans, intentional HTML blocks and balanced or harmless tags alone', () => {
+  const markdown = [
+    '```text',
+    'prose that wraps before',
+    '<change> inside a fence',
+    '```',
+    '',
+    '~~~',
+    'prose',
+    '<name>',
+    '~~~',
+    '',
+    'A wrapped span `tenon set <new> depends_on',
+    '<old>` is the wrapped-span check\'s job, not this one.',
+    '',
+    'Wrapped before a span that opens on the same line',
+    '`<change>` and `<name>` stay in code.',
+    '',
+    '<p align="center"><sub>an intentional HTML block',
+    '<b>keeps</b> its own lines',
+    '</sub></p>',
+    '',
+    '<img src="a.webp" alt="x" width="1280"',
+    '  height="720" />',
+    '',
+    '<!-- a comment',
+    '<note> hidden -->',
+    '',
+    'A void element wraps before',
+    '<br> and that is fine.',
+    '',
+    'Balanced inline HTML wraps before',
+    '<kbd>Ctrl</kbd> and goes on.',
+    '',
+    'An autolink wraps before',
+    '<https://example.test/a?b=c> and an address',
+    '<someone@example.test> are not tags.',
+    '',
+    'Not a tag name: wraps before',
+    '<foo_bar> and before',
+    '<5 files and before',
+    '<= a limit.',
+    '',
+    'Escaped, wraps before',
+    '\\<change> stays text.',
+    '',
+    '    <indented> code block line one',
+    '    <indented> code block line two',
+    '',
+    '- <img src="x.webp" />',
+    '  <sub>caption</sub>',
+  ].join('\n')
+  assert.deepEqual(findPlainTextTagContinuations(markdown), [])
+})
+
+test('only a continuation line counts, never the first line of a paragraph', () => {
+  assert.deepEqual(findPlainTextTagContinuations('<change> starts the paragraph and is not a continuation.\n'), [])
+  assert.deepEqual(findPlainTextTagContinuations('<change> starts a paragraph that goes on\nover a second line.\n'), [])
+  assert.deepEqual(findPlainTextTagContinuations('Heading follows\n\n## <change>\n\n| a | <b> |\n| - | - |\n'), [])
+})
+
+test('does not read a closing tag inside a code span as closing the placeholder', () => {
+  const markdown = [
+    'Wraps before',
+    '<change> and then `</change>` only in code.',
+  ].join('\n')
+  assert.deepEqual(findPlainTextTagContinuations(markdown), [
+    { line: 2, token: '<change', text: '<change> and then `</change>` only in code.' },
+  ])
+})
+
+test('reports a plain-text tag-like continuation line in any docs/usage page with file and line', async (t) => {
+  const root = await fixture()
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const routing = await readFile(join(root, 'docs/usage/routing-and-workflows.md'), 'utf8')
+  await write(
+    root,
+    'docs/usage/routing-and-workflows.md',
+    `${routing}\nStart a task with the name of the change you\n<new> wants to open.\n`,
+  )
+  await write(root, 'docs/usage/zh-CN/default-workflow.md', '# 默认流程\n\n运行测试之前先确认\n<change> 已经存在。\n')
+  await write(root, 'docs/usage/zh-CN/extra-page.md', '# Extra\n\n先写名字\n</name> 再写别的\n')
+  const failures = checkRepository(root).join('\n')
+  assert.match(failures, /docs\/usage\/routing-and-workflows\.md:\d+: plain-text line starts with the tag-like token "<new".*<new> wants to open\./)
+  assert.match(failures, /docs\/usage\/zh-CN\/default-workflow\.md:4: plain-text line starts with the tag-like token "<change"/)
+  assert.match(failures, /docs\/usage\/zh-CN\/extra-page\.md:4: plain-text line starts with the tag-like token "<\/name"/)
+})
+
+test('accepts the same placeholders once they sit in a code span or are escaped', async (t) => {
+  const root = await fixture()
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const routing = await readFile(join(root, 'docs/usage/routing-and-workflows.md'), 'utf8')
+  await write(
+    root,
+    'docs/usage/routing-and-workflows.md',
+    `${routing}\nStart a task with the name of the change you\n\`<new>\` wants to open, and\n\\<other> is escaped.\n`,
   )
   assert.deepEqual(checkRepository(root), [])
 })

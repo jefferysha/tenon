@@ -200,26 +200,121 @@ export function findWrappedAngleCodeSpans(markdown) {
     const text = paragraph.map((entry) => entry.text).join('\n')
     const lineAtOffset = (offset) =>
       paragraph[text.slice(0, offset).split('\n').length - 1].line
-    const runs = [...text.matchAll(/`+/gu)]
-    for (let index = 0; index < runs.length; index += 1) {
-      let start = runs[index].index
-      let length = runs[index][0].length
-      if (isBackslashEscaped(text, start)) {
-        if (length === 1) continue
-        start += 1
-        length -= 1
-      }
-      const closing = runs.findIndex((run, at) => at > index && run[0].length === length)
-      if (closing < 0) continue
-      const content = text.slice(start + length, runs[closing].index)
+    for (const span of codeSpans(text)) {
+      const content = text.slice(span.contentStart, span.contentEnd)
       if (content.includes('<') && content.includes('\n')) {
         found.push({
-          startLine: lineAtOffset(start),
-          endLine: lineAtOffset(runs[closing].index),
+          startLine: lineAtOffset(span.start),
+          endLine: lineAtOffset(span.contentEnd),
           code: content.replace(/\s*\n\s*/gu, ' '),
         })
       }
-      index = closing
+    }
+  }
+  return found
+}
+
+/**
+ * Inline code spans of one paragraph's text: a backtick run closes at the next run of the same length,
+ * a backslash-escaped single backtick opens nothing, and an unclosed run is plain text.
+ * `start`/`end` bound the whole span including its backticks; the content lies between
+ * `contentStart` and `contentEnd`.
+ */
+function codeSpans(text) {
+  const spans = []
+  const runs = [...text.matchAll(/`+/gu)]
+  for (let index = 0; index < runs.length; index += 1) {
+    let start = runs[index].index
+    let length = runs[index][0].length
+    if (isBackslashEscaped(text, start)) {
+      if (length === 1) continue
+      start += 1
+      length -= 1
+    }
+    const closing = runs.findIndex((run, at) => at > index && run[0].length === length)
+    if (closing < 0) continue
+    spans.push({
+      start,
+      contentStart: start + length,
+      contentEnd: runs[closing].index,
+      end: runs[closing].index + length,
+    })
+    index = closing
+  }
+  return spans
+}
+
+/** CommonMark HTML block start conditions 1-6: raw HTML the author wrote on purpose, ended by its own rule. */
+const HTML_BLOCK_START = new RegExp(
+  '^(?:<(?:script|pre|style|textarea)(?:\\s|>|$)'
+  + '|<!--|<\\?|<![A-Za-z]|<!\\[CDATA\\['
+  + '|</?(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog'
+  + '|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe'
+  + '|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table'
+  + '|tbody|td|tfoot|th|thead|title|tr|track|ul)(?:\\s|/?>|$))',
+  'iu',
+)
+/** HTML block start condition 7: one complete open or closing tag and nothing else on the line (e.g. `<img ... />`). */
+const HTML_LONE_TAG = new RegExp(
+  '^(?:<[A-Za-z][A-Za-z0-9-]*(?:\\s+[A-Za-z_:][A-Za-z0-9_.:-]*(?:\\s*=\\s*(?:[^\\s"\'=<>`]+|\'[^\']*\'|"[^"]*"))?)*\\s*/?>'
+  + '|</[A-Za-z][A-Za-z0-9-]*\\s*>)\\s*$',
+  'u',
+)
+/** Elements that never have a closing tag, so an unclosed `<br>` is not an "Element is missing end tag". */
+const VOID_ELEMENTS = new Set([
+  'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr',
+])
+const LEADING_LIST_MARKER = /^\s*(?:[-*+]|\d{1,9}[.)])\s+/u
+const LEADING_TAG_TOKEN = /^<(\/?)([A-Za-z][A-Za-z0-9-]*)(?=[\s/>]|$)/u
+
+/** True when the run starts with raw HTML or an indented code block, which the docs write on purpose. */
+function startsRawBlock(firstLine) {
+  const text = firstLine.replace(LEADING_LIST_MARKER, '')
+  if (text === firstLine && /^(?: {4}|\t)/u.test(firstLine)) return true
+  const trimmed = text.trimStart()
+  return HTML_BLOCK_START.test(trimmed) || HTML_LONE_TAG.test(trimmed)
+}
+
+/**
+ * Find plain-text continuation lines that start with a tag-like token such as `<change>` or `</name>`.
+ *
+ * markdown-it keeps such a token as raw inline HTML (`html: true`), and VitePress hands the page to the Vue
+ * template compiler, which fails with "Element is missing end tag" for a placeholder that never closes. It
+ * is the same failure as a wrapped code span, but from text outside any span, so a short line written as a
+ * wrap of ordinary prose is enough to break the whole docs build.
+ *
+ * Not reported: fenced code, lines inside inline code spans (a wrapped span is `findWrappedAngleCodeSpans`'s
+ * job), paragraphs that start a raw HTML block or an indented code block, void elements such as `<br>`, and
+ * tags the paragraph closes again afterwards (balanced inline HTML is fine). URI and email autolinks never match
+ * because a tag name cannot contain `:` or `@`. Only continuation lines are checked: the first line of a paragraph
+ * may open an HTML block, which is told apart by its start condition, not by guessing.
+ */
+export function findPlainTextTagContinuations(markdown) {
+  const found = []
+  for (const paragraph of paragraphLines(markdown)) {
+    if (paragraph.length < 2 || startsRawBlock(paragraph[0].text)) continue
+    const text = paragraph.map((entry) => entry.text).join('\n')
+    const spans = codeSpans(text)
+    // The same text with every code span blanked, so a closing tag inside a span does not count as closing.
+    let plain = text
+    for (const span of spans) plain = `${plain.slice(0, span.start)}${' '.repeat(span.end - span.start)}${plain.slice(span.end)}`
+    let lineStart = 0
+    for (const [index, entry] of paragraph.entries()) {
+      const offset = lineStart + entry.text.length - entry.text.trimStart().length
+      lineStart += entry.text.length + 1
+      if (index === 0) continue
+      if (spans.some((span) => offset >= span.start && offset < span.end)) continue
+      const rest = entry.text.trimStart()
+      const token = rest.match(LEADING_TAG_TOKEN)
+      if (token === null) continue
+      const [, closing, name] = token
+      const lowerName = name.toLowerCase()
+      if (VOID_ELEMENTS.has(lowerName)) continue
+      const balanced = closing === ''
+        ? new RegExp(`</${name}\\s*>`, 'iu').test(plain.slice(offset))
+        : new RegExp(`<${name}(?=[\\s/>])`, 'iu').test(plain.slice(0, offset))
+      if (balanced) continue
+      found.push({ line: entry.line, token: `<${closing}${name}`, text: rest.trimEnd() })
     }
   }
   return found
@@ -235,15 +330,23 @@ function markdownFilesUnder(directory) {
   return files.sort()
 }
 
-function checkWrappedAngleCodeSpans(root, failures) {
+/** Markdown that markdown-it turns into raw tags the Vue compiler behind VitePress then rejects. */
+function checkVitePressTagHazards(root, failures) {
   const usage = join(root, 'docs/usage')
   if (!existsSync(usage) || !lstatSync(usage).isDirectory()) return
   for (const path of markdownFilesUnder(usage)) {
     const document = slash(relative(root, path))
-    for (const span of findWrappedAngleCodeSpans(readFileSync(path, 'utf8'))) {
+    const markdown = readFileSync(path, 'utf8')
+    for (const span of findWrappedAngleCodeSpans(markdown)) {
       failures.push(
         `${document}:${span.startLine}-${span.endLine}: inline code span containing "<" is wrapped across a line break `
         + `(VitePress fails with "Element is missing end tag"); keep the whole span on one line: \`${span.code}\``,
+      )
+    }
+    for (const line of findPlainTextTagContinuations(markdown)) {
+      failures.push(
+        `${document}:${line.line}: plain-text line starts with the tag-like token "${line.token}" `
+        + `(VitePress fails with "Element is missing end tag"); put it in an inline code span on one line or escape the "<" as "\\<": ${line.text}`,
       )
     }
   }
@@ -693,7 +796,7 @@ export function checkRepository(rootInput) {
     }
   }
 
-  checkWrappedAngleCodeSpans(root, failures)
+  checkVitePressTagHazards(root, failures)
 
   const communityTargets = [
     'docs/usage/README.md',
