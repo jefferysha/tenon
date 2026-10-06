@@ -1,4 +1,5 @@
 import { test as base, expect, type Page } from 'playwright/test'
+import { settlePage } from './settle.mjs'
 import { readServerState, type ServerState } from './server-state'
 
 interface DashboardFixtures {
@@ -20,76 +21,13 @@ export const test = base.extend<DashboardFixtures>({
 
 export { expect }
 
-/** 连续这么多帧页面都没有变化，才算落定。 */
-const QUIET_FRAMES = 3
-const SETTLE_TIMEOUT_MS = 15_000
-
 /**
- * 等页面落定：没有还在跑的 CSS 动画 / 过渡 / Web Animations，没有脚本在改元素的不透明度（GSAP 的 autoAlpha
- * 淡入不经过 `document.getAnimations()`，要看计算样式），而且这样连续 QUIET_FRAMES 帧。
- * 对话框与抽屉的进场（淡入 + 位移）、页面切换淡入、向导步骤框 200ms 的高度过渡都是 CSS 动画或过渡；
- * 慢的浏览器（CI 里的 WebKit）上它们要拖得久得多，所以不能按固定时长等。
- * 连续多帧都安静才返回：动画常在提交之后的下一两帧才开始（ResizeObserver 量完高度才触发过渡），一帧安静不算数。
- * 无限循环的动画（旋转图标、Signal 彗星）永远不会结束，它们本身不计入，暂停的也不计。
- * 超时抛出仍在变化的东西，便于看是谁没停。帧不走（后台/隐藏页面被节流）时 requestAnimationFrame 里的超时判断
- * 永远不会跑，所以另有一个同样时长的墙钟 setTimeout 兜底，抛同一种报错，不必等 Playwright 的整条用例超时。
+ * 等页面落定：没有还在跑的 CSS 动画 / 过渡 / Web Animations，没有脚本在改元素的不透明度、可见性、transform、宽或高
+ * （GSAP 的淡入与位置补间不经过 `document.getAnimations()`，要看计算样式），而且这样连续几帧。
+ * 判据与墙钟兜底（帧不走的后台 / 隐藏页面也以它自己的报错收场）都在 support/settle.mjs，文档截图脚本共用同一份。
  */
 export async function settled(page: Page): Promise<void> {
-  await page.evaluate(({ quietFrames, timeoutMs }) => new Promise<void>((resolve, reject) => {
-    const finiteRunning = (): Animation[] => document.getAnimations().filter((animation) => {
-      if (animation.playState !== 'running') return false
-      const end = animation.effect?.getComputedTiming().endTime
-      return typeof end === 'number' && Number.isFinite(end)
-    })
-    const describe = (animation: Animation): string => {
-      const target = animation.effect instanceof KeyframeEffect ? animation.effect.target : null
-      const name = 'animationName' in animation ? String(animation.animationName) : 'transitionProperty' in animation ? String(animation.transitionProperty) : animation.id
-      const testId = target?.getAttribute('data-testid')
-      return `${target?.tagName.toLowerCase() ?? 'unknown'}${testId ? `[${testId}]` : ''} ${name}`
-    }
-    // 每个元素的不透明度与可见性；无限循环动画的目标不算（它们每帧都变）。
-    const opacitySignature = (): string => {
-      const looping = new Set<Element>()
-      for (const animation of document.getAnimations()) {
-        const target = animation.effect instanceof KeyframeEffect ? animation.effect.target : null
-        if (target !== null && animation.effect?.getComputedTiming().endTime === Infinity) looping.add(target)
-      }
-      let signature = ''
-      for (const element of document.body.querySelectorAll('*')) {
-        if (looping.has(element)) continue
-        const style = getComputedStyle(element)
-        signature += `${style.opacity}${style.visibility === 'hidden' ? 'h' : ''},`
-      }
-      return signature
-    }
-    const started = performance.now()
-    let quiet = 0
-    let previous = ''
-    let finished = false
-    const timeoutError = (animating: Animation[], idle: string): Error =>
-      new Error(`page did not settle within ${timeoutMs}ms; still animating: ${animating.map(describe).join(', ') || idle}`)
-    const finish = (error?: Error): void => {
-      if (finished) return
-      finished = true
-      window.clearTimeout(wallClock)
-      if (error === undefined) resolve()
-      else reject(error)
-    }
-    // 墙钟兜底：超时判断写在 requestAnimationFrame 的回调里，帧不走（后台/隐藏的页面被节流，或字体一直没就绪导致
-    // 第一帧都没排上）它就永远不会触发，只能等 Playwright 的整条用例超时，那条报错说不出是谁卡住了。
-    const wallClock = window.setTimeout(() => finish(timeoutError(finiteRunning(), '(no animation frames ran: requestAnimationFrame stalled, the page may be throttled or hidden)')), timeoutMs)
-    const tick = (): void => {
-      if (finished) return
-      const animating = finiteRunning()
-      const signature = opacitySignature()
-      quiet = animating.length === 0 && signature === previous ? quiet + 1 : 0
-      previous = signature
-      if (quiet >= quietFrames) finish()
-      else if (performance.now() - started > timeoutMs) finish(timeoutError(animating, '(script-driven opacity change)'))
-      else requestAnimationFrame(tick)
-    }
-    void document.fonts.ready.then(() => requestAnimationFrame(tick))
-  }), { quietFrames: QUIET_FRAMES, timeoutMs: SETTLE_TIMEOUT_MS })
+  await settlePage(page)
 }
 
 /** 直达某个视图（可带项目、任务等查询参数）；等顶部导航出现即页面已挂载。 */

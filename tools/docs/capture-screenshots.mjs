@@ -24,6 +24,8 @@ import { homedir, tmpdir, userInfo } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
+// 落定判据与 Dashboard e2e 的 settled() 是同一份实现（纯 ESM，不依赖 TypeScript）。
+import { settlePage } from '../../e2e/dashboard/support/settle.mjs'
 
 const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url))
 const SERVE = join(REPO_ROOT, 'e2e', 'dashboard', 'support', 'serve.mjs')
@@ -39,8 +41,6 @@ const SCALE = 2
 const OUTPUT = { width: 1280, height: 800 }
 const SERVER_READY_TIMEOUT_MS = 120_000
 const SERVER_STOP_TIMEOUT_MS = 30_000
-const SETTLE_TIMEOUT_MS = 15_000
-const QUIET_FRAMES = 3
 const CHANGE = 'add-login'
 
 /** 四张图各自的页面与「画好了」的判定。URL 参数与 e2e 的 openView 一致。 */
@@ -158,47 +158,6 @@ async function stopSeededServer(child) {
   clearTimeout(timer)
 }
 
-/**
- * 等页面落定：没有还在跑的有限 CSS 动画 / 过渡，没有脚本在改元素的不透明度，且连续 QUIET_FRAMES 帧都是这样。
- * 与 e2e/dashboard/support/fixtures.ts 的 settled() 同一判据（那份是 TypeScript，纯 Node 脚本不能直接导入）；
- * 无限循环的动画不计入。
- */
-async function settled(page) {
-  await page.evaluate(({ quietFrames, timeoutMs }) => new Promise((resolveSettled, reject) => {
-    const finiteRunning = () => document.getAnimations().filter((animation) => {
-      if (animation.playState !== 'running') return false
-      const end = animation.effect?.getComputedTiming().endTime
-      return typeof end === 'number' && Number.isFinite(end)
-    })
-    const opacitySignature = () => {
-      const looping = new Set()
-      for (const animation of document.getAnimations()) {
-        const target = animation.effect instanceof KeyframeEffect ? animation.effect.target : null
-        if (target !== null && animation.effect?.getComputedTiming().endTime === Infinity) looping.add(target)
-      }
-      let signature = ''
-      for (const element of document.body.querySelectorAll('*')) {
-        if (looping.has(element)) continue
-        const style = getComputedStyle(element)
-        signature += `${style.opacity}${style.visibility === 'hidden' ? 'h' : ''},`
-      }
-      return signature
-    }
-    const started = performance.now()
-    let quiet = 0
-    let previous = ''
-    const tick = () => {
-      const signature = opacitySignature()
-      quiet = finiteRunning().length === 0 && signature === previous ? quiet + 1 : 0
-      previous = signature
-      if (quiet >= quietFrames) resolveSettled()
-      else if (performance.now() - started > timeoutMs) reject(new Error(`页面在 ${timeoutMs}ms 内没有落定`))
-      else requestAnimationFrame(tick)
-    }
-    document.fonts.ready.then(() => requestAnimationFrame(tick))
-  }), { quietFrames: QUIET_FRAMES, timeoutMs: SETTLE_TIMEOUT_MS })
-}
-
 /** 页面源码里出现开发机的主目录、用户名、/var/folders 或 e2e 身份之外的邮箱就失败：截图里不得带个人信息。 */
 async function assertNoPersonalData(page, label) {
   const html = await page.evaluate(() => document.documentElement.outerHTML)
@@ -259,11 +218,11 @@ async function shoot({ page, helper, state, shot, options }) {
   await shot.ready(page)
   // 鼠标移出画面：点选之后停在卡片上会留下悬停样式。
   await page.mouse.move(0, 0)
-  await settled(page)
+  await settlePage(page)
   // 快照在加载后还会刷新一两次，刷新会重置详情的页签与选中项：落定后再确认一遍画面还是想拍的那一页。
   await page.waitForTimeout(600)
   await shot.ready(page)
-  await settled(page)
+  await settlePage(page)
   const theme = await page.evaluate(() => `${document.documentElement.dataset.theme}/${document.documentElement.lang}`)
   if (theme !== 'light/zh') throw new Error(`${shot.file}：主题 / 语言是 ${theme}，应为 light/zh`)
   await assertNoPersonalData(page, shot.file)
