@@ -129,6 +129,7 @@ export async function verifyChange(ctx: VerifyContext, selected: SelectedChange)
       deps, report, change: selected.name, relDir: selected.relDir, recordsRelDir: evaluated.chain?.relDir ?? null,
       brokenFile: broken?.state === 'broken' && broken.files[0] !== undefined ? `${evaluated.chain?.relDir ?? ''}/${broken.files[0]}` : undefined,
       mode: ctx.options.candidate,
+      records: broken?.state === 'intact' ? broken.active : [],
     }))
     policy = findings.some((item) => item.severity === 'error' && (item.source === 'policy')) ? 'fail' : 'pass'
   }

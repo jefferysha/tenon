@@ -9,7 +9,7 @@ import { randomBytes } from 'node:crypto'
 import { lstat, mkdir, realpath, rm } from 'node:fs/promises'
 import { join, relative, resolve, sep } from 'node:path'
 import {
-  claimRunningMarker, ensureTestEvidenceDirs, evaluateMetricCriteria, listTestRuns, publishTestRunRecord,
+  claimRunningMarker, ensureTestEvidenceDirs, evaluateMetricCriteria, knownPortableCandidate, listTestRuns, publishTestRunRecord,
   pruneTestArtifacts, readMetrics, readTestBaseline, RECORD_RETENTION, releaseRunningMarker,
   testBaselinePath, testDigest, testRunArtifactsDir, testRunRecordPath, testRunningMarkerPath,
   TEST_LOG_ARTIFACT, TEST_RUN_SCHEMA,
@@ -47,12 +47,18 @@ function hostOf(env: NodeJS.ProcessEnv): { readonly kind: TestHostKind; readonly
   return detectHostEnvironment(env)
 }
 
+/**
+ * 记录绑定的候选。生产里 `workspaceFingerprint` 就是 kernel 的 `candidateFingerprint`，它一次遍历同时得到完整与可移植两个指纹；
+ * 记录绑可移植的那个——宿主本地文件（`.claude/settings.local.json` 等）在干净克隆里不存在，绑完整指纹的记录在 CI 里永远对不上。
+ * 取不到可移植孪生（注入的桩、不是本进程算出来的值）就绑宿主给的值本身。
+ */
 export async function candidateOf(deps: CliDeps, name: string): Promise<string | null> {
   const fingerprint = deps.workspaceFingerprint
   if (fingerprint === undefined) return null
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      return await fingerprint(name)
+      const full = await fingerprint(name)
+      return knownPortableCandidate(full) ?? full
     } catch {
       // 指纹捕获与文件改动撞车可以重试一次；两次都失败记 candidate-unavailable。
     }

@@ -115,14 +115,55 @@ const EXCLUDED_BASENAMES = new Set([
 const EXCLUDED_RELATIVE_ROOTS = ['.github/hooks', '.claude/agents'] as const
 /** Root-level ownership manifest: Tenon rewrites it whenever it generates or prunes host agent files. */
 const EXCLUDED_ROOT_FILES = new Set(['.pipeline-owned.json'])
+
+/**
+ * Host-local files: per-machine configuration of the coding-agent hosts that is never committed (the hosts
+ * create it git-ignored, or tell the user to ignore it).  They are not implementation, but they differ
+ * between the author's workspace and any clone, so a fingerprint that counted them could never be
+ * reproduced from the committed files.  The list is explicit on purpose; nothing else is excluded by name
+ * pattern, and every entry is a path from the project root:
+ *
+ *   · `.claude/settings.local.json` — Claude Code's personal project settings (permission allow-lists, hook
+ *     logging); Claude Code rewrites it whenever the user answers a permission prompt.
+ *   · `CLAUDE.local.md` — Claude Code's personal, uncommitted project memory next to `CLAUDE.md`.
+ *   · `.claude/worktrees/` — checkouts of this project that Claude Code creates for its sub-agents; every
+ *     file in them is a copy of source that already counts at its real path.
+ *
+ * `.claude/settings.json`, `.claude/commands/`, `.claude/skills/`, `.mcp.json` and `CLAUDE.md` are shared,
+ * committed configuration and stay part of the candidate.  Codex needs no entry: `.codex/` and `.agents/`
+ * are excluded as a whole.
+ */
+export const HOST_LOCAL_FILES = ['.claude/settings.local.json', 'CLAUDE.local.md'] as const
+export const HOST_LOCAL_DIRS = ['.claude/worktrees'] as const
+
+function isHostLocal(relativePath: string): boolean {
+  return (HOST_LOCAL_FILES as readonly string[]).includes(relativePath)
+    || HOST_LOCAL_DIRS.some((dir) => relativePath === dir || relativePath.startsWith(`${dir}/`))
+}
+
+/** True when the project has at least one host-local path, i.e. when the two fingerprints below can differ. */
+export async function hasHostLocalFiles(root: string): Promise<boolean> {
+  for (const path of [...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS]) {
+    try {
+      await lstat(join(root, ...path.split('/')))
+      return true
+    } catch {
+      // absent
+    }
+  }
+  return false
+}
+
 /**
  * A directory that only wraps excluded host configuration (`.claude/` holding just `agents/`) is not
  * implementation either: Tenon creates it when it first generates a host agent file, and that must not
- * move the candidate the earlier test records are bound to.
+ * move the candidate the earlier test records are bound to.  For the portable fingerprint the host-local
+ * paths count as excluded host configuration too (`.claude/` holding `agents/` and `settings.local.json`).
  */
-function isExcludedHostConfigShell(relativePath: string, names: readonly string[], exclusions: Exclusions): boolean {
-  return EXCLUDED_RELATIVE_ROOTS.some((root) => root.startsWith(`${relativePath}/`))
-    && names.every((name) => isExcluded(`${relativePath}/${name}`, exclusions))
+function isExcludedHostConfigShell(relativePath: string, names: readonly string[], exclusions: Exclusions, portable: boolean): boolean {
+  const roots: readonly string[] = portable ? [...EXCLUDED_RELATIVE_ROOTS, ...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS] : EXCLUDED_RELATIVE_ROOTS
+  return roots.some((root) => root.startsWith(`${relativePath}/`))
+    && names.every((name) => isExcludedFor(`${relativePath}/${name}`, exclusions, portable))
 }
 const EXCLUDED_ROOT_ARTIFACTS = [
   /^dashboard-progress-custom-spec\.png$/,
@@ -166,14 +207,27 @@ function isExcluded(relativePath: string, exclusions: Exclusions, anySegment: Re
 const NO_EXCLUSIONS: Exclusions = { declared: [], ancestors: new Set() }
 
 /**
+ * `portable` additionally treats the host-local paths as excluded (see `HOST_LOCAL_FILES`).  The legacy
+ * fingerprint (`portable: false`) counts them; it is still what agent reviews and build revisions bind.
+ */
+function isExcludedFor(
+  relativePath: string,
+  exclusions: Exclusions,
+  portable: boolean,
+  anySegment: ReadonlySet<string> = EXCLUDED_ANY_SEGMENT,
+): boolean {
+  return isExcluded(relativePath, exclusions, anySegment) || (portable && isHostLocal(relativePath))
+}
+
+/**
  * Whether a repository-relative path (forward slashes) counts as source for code metrics.
  * `tenon test code-size` counts only these paths, so workflow control state (openspec/, .tenon/,
  * .pipeline/), documentation and caches (including the conventional test-output directories, declared
- * or not) never inflate the code metrics.  This is a metric scope, not evidence: the candidate
- * fingerprint uses the stricter `fingerprintWorkspace` rules.
+ * or not) never inflate the code metrics.  Host-local files are not source either.  This is a metric
+ * scope, not evidence: the candidate fingerprint uses the stricter `fingerprintWorkspace` rules.
  */
 export function isWorkspaceCandidatePath(relativePath: string): boolean {
-  return !isExcluded(relativePath, NO_EXCLUSIONS, METRIC_EXCLUDED_ANY_SEGMENT)
+  return !isExcludedFor(relativePath, NO_EXCLUSIONS, true, METRIC_EXCLUDED_ANY_SEGMENT)
 }
 
 function writeRecord(hash: ReturnType<typeof createHash>, kind: 'D' | 'F' | 'L', relativePath: string, details = ''): void {
@@ -186,41 +240,57 @@ function writeRecord(hash: ReturnType<typeof createHash>, kind: 'D' | 'F' | 'L',
 }
 
 /** True when everything below `relativePath` is excluded, so the directory itself carries no candidate content. */
-async function holdsOnlyExcluded(root: string, relativePath: string, exclusions: Exclusions): Promise<boolean> {
+async function holdsOnlyExcluded(root: string, relativePath: string, exclusions: Exclusions, portable: boolean): Promise<boolean> {
   for (const name of await readdir(join(root, ...relativePath.split('/')))) {
     const child = `${relativePath}/${name}`
-    if (isExcluded(child, exclusions)) continue
+    if (isExcludedFor(child, exclusions, portable)) continue
     if (!exclusions.ancestors.has(child)) return false
     if (!(await lstat(join(root, ...child.split('/')))).isDirectory()) return false
-    if (!(await holdsOnlyExcluded(root, child, exclusions))) return false
+    if (!(await holdsOnlyExcluded(root, child, exclusions, portable))) return false
   }
   return true
+}
+
+/** One fingerprint being computed.  Both are fed by the same traversal, so each file is read once. */
+interface Sink {
+  readonly hash: ReturnType<typeof createHash>
+  readonly portable: boolean
 }
 
 async function fingerprintEntry(
   root: string,
   relativePath: string,
-  hash: ReturnType<typeof createHash>,
+  sinks: readonly Sink[],
   exclusions: Exclusions,
 ): Promise<void> {
-  if (isExcluded(relativePath, exclusions)) return
+  const live = sinks.filter((sink) => !isExcludedFor(relativePath, exclusions, sink.portable))
+  if (live.length === 0) return
   const absolutePath = join(root, ...relativePath.split('/'))
   const before = await lstat(absolutePath)
 
   if (before.isDirectory()) {
     const names = sortNames(await readdir(absolutePath))
-    if (isExcludedHostConfigShell(relativePath, names, exclusions)) return
-    // A directory that only wraps declared outputs (`test-results/` holding just the report) appears when
-    // the first run writes them; it must not move the candidate the run is bound to.
-    if (exclusions.ancestors.has(relativePath) && await holdsOnlyExcluded(root, relativePath, exclusions)) return
-    writeRecord(hash, 'D', relativePath, modeOf(before))
-    for (const name of names) await fingerprintEntry(root, `${relativePath}/${name}`, hash, exclusions)
+    const keep: Sink[] = []
+    for (const sink of live) {
+      if (isExcludedHostConfigShell(relativePath, names, exclusions, sink.portable)) continue
+      // A directory that only wraps declared outputs (`test-results/` holding just the report) appears when
+      // the first run writes them; it must not move the candidate the run is bound to.
+      if (exclusions.ancestors.has(relativePath) && await holdsOnlyExcluded(root, relativePath, exclusions, sink.portable)) continue
+      keep.push(sink)
+    }
+    if (keep.length === 0) return
+    for (const sink of keep) writeRecord(sink.hash, 'D', relativePath, modeOf(before))
+    for (const name of names) await fingerprintEntry(root, `${relativePath}/${name}`, keep, exclusions)
     return
   }
 
   if (before.isFile()) {
-    writeRecord(hash, 'F', relativePath, `${modeOf(before)}:${before.size}`)
-    hash.update(await readFile(absolutePath))
+    const details = `${modeOf(before)}:${before.size}`
+    const content = await readFile(absolutePath)
+    for (const sink of live) {
+      writeRecord(sink.hash, 'F', relativePath, details)
+      sink.hash.update(content)
+    }
     const after = await lstat(absolutePath)
     if (!after.isFile() || !sameFileIdentity(before, after)) {
       throw new Error(`workspace baseline capture raced with a file change: ${relativePath}`)
@@ -229,7 +299,8 @@ async function fingerprintEntry(
   }
 
   if (before.isSymbolicLink()) {
-    writeRecord(hash, 'L', relativePath, `${modeOf(before)}:${await readlink(absolutePath)}`)
+    const details = `${modeOf(before)}:${await readlink(absolutePath)}`
+    for (const sink of live) writeRecord(sink.hash, 'L', relativePath, details)
     return
   }
 
@@ -251,22 +322,39 @@ async function statRoot(root: string): Promise<Stats> {
   return lstat(`${root}${sep}.`)
 }
 
+export interface WorkspaceFingerprints {
+  /** Counts the host-local files: the value Tenon 0.3.0 and earlier bound into every record and review. */
+  readonly full: string
+  /** Leaves the host-local files out: what a clean checkout of the committed files can reproduce. */
+  readonly portable: string
+}
+
 /**
- * Produce a content-addressed target for a project root.  Transient workflow material is excluded
- * by policy above and declared test outputs by `options.declaredOutputs`, so the same implementation
- * tree yields the same value before and after its verification evidence is written.  Production
- * callers go through `candidateFingerprint`, which derives the declarations from the project.
+ * Both fingerprints of a project root from one traversal.  When the project has no host-local path the two
+ * values are equal and the traversal feeds a single hash.  Transient workflow material is excluded by
+ * policy above and declared test outputs by `options.declaredOutputs`, so the same implementation tree
+ * yields the same values before and after its verification evidence is written.  Production callers go
+ * through `candidateFingerprint`, which derives the declarations from the project.
  */
-export async function fingerprintWorkspace(root: string, options?: FingerprintOptions): Promise<string> {
+export async function fingerprintWorkspaceTwins(root: string, options?: FingerprintOptions): Promise<WorkspaceFingerprints> {
   const rootStat = await statRoot(root)
   if (!rootStat.isDirectory()) throw new Error(`workspace root is not a directory: ${root}`)
 
   const exclusions = exclusionsOf(options)
-  const hash = createHash('sha256')
-  writeRecord(hash, 'D', '.', modeOf(rootStat))
+  const full: Sink = { hash: createHash('sha256'), portable: false }
+  const portable: Sink | undefined = await hasHostLocalFiles(root) ? { hash: createHash('sha256'), portable: true } : undefined
+  const sinks = portable === undefined ? [full] : [full, portable]
+  for (const sink of sinks) writeRecord(sink.hash, 'D', '.', modeOf(rootStat))
   const names = sortNames(await readdir(root))
-  for (const name of names) await fingerprintEntry(root, name, hash, exclusions)
-  return `${WORKSPACE_BASELINE_PREFIX}${hash.digest('hex')}`
+  for (const name of names) await fingerprintEntry(root, name, sinks, exclusions)
+  const digest = (sink: Sink): string => `${WORKSPACE_BASELINE_PREFIX}${sink.hash.digest('hex')}`
+  const fullValue = digest(full)
+  return { full: fullValue, portable: portable === undefined ? fullValue : digest(portable) }
+}
+
+/** The fingerprint that counts host-local files (`WorkspaceFingerprints.full`). */
+export async function fingerprintWorkspace(root: string, options?: FingerprintOptions): Promise<string> {
+  return (await fingerprintWorkspaceTwins(root, options)).full
 }
 
 export function isWorkspaceBaseline(value: string): boolean {

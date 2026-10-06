@@ -601,8 +601,8 @@ var require_help = __commonJS({
 |.{1,${columnWidth - 1}}([${breaks}]|$)|[^${breaks}]+?([${breaks}]|$)`,
           "g"
         );
-        const lines3 = columnText.match(regex) || [];
-        return leadingStr + lines3.map((line, i) => {
+        const lines4 = columnText.match(regex) || [];
+        return leadingStr + lines4.map((line, i) => {
           if (line === "\n") return "";
           return (i > 0 ? indentString : "") + line.trimEnd();
         }).join("\n");
@@ -3854,20 +3854,20 @@ function safeComment(value) {
 function renderTaskPlanTasksMd(revision, input2) {
   const completed = new Set(input2.completed_work_item_ids ?? []);
   const itemById = new Map(revision.work_items.map((item2) => [item2.id, item2]));
-  const lines3 = [
+  const lines4 = [
     "# Tasks",
     "",
     `<!-- tenon-task-plan revision=${safeComment(revision.revision_id)} digest=${safeComment(input2.digest)} -->`
   ];
   for (const group of revision.groups) {
-    lines3.push("", `## ${group.title} <!-- task-group:${safeComment(group.id)} -->`, "");
+    lines4.push("", `## ${group.title} <!-- task-group:${safeComment(group.id)} -->`, "");
     for (const id2 of group.work_item_ids) {
       const item2 = itemById.get(id2);
       if (item2 !== void 0)
-        lines3.push(`- [${completed.has(id2) ? "x" : " "}] ${item2.title} <!-- work-item:${safeComment(id2)} -->`);
+        lines4.push(`- [${completed.has(id2) ? "x" : " "}] ${item2.title} <!-- work-item:${safeComment(id2)} -->`);
     }
   }
-  return `${lines3.join("\n")}
+  return `${lines4.join("\n")}
 `;
 }
 
@@ -5109,20 +5109,20 @@ var NULL_LITERAL = "null";
 function serializeRunMetadataLines(metadata) {
   if (!metadata)
     return [];
-  const lines3 = [
+  const lines4 = [
     `${RUN_ID_KEY}: ${metadata.runId}`,
     `${SEQUENCE_KEY}: ${metadata.transitionSequence}`,
     `${HEAD_KEY}: ${metadata.transitionHead ?? NULL_LITERAL}`
   ];
   if (metadata.automationPolicy !== void 0) {
-    lines3.push(`${POLICY_KEY}: ${Buffer.from(JSON.stringify(metadata.automationPolicy)).toString("base64url")}`);
+    lines4.push(`${POLICY_KEY}: ${Buffer.from(JSON.stringify(metadata.automationPolicy)).toString("base64url")}`);
     if (metadata.loopId !== void 0 && metadata.iterationId !== void 0) {
-      lines3.push(`${LOOP_ID_KEY}: ${metadata.loopId}`);
-      lines3.push(`${ITERATION_ID_KEY}: ${metadata.iterationId}`);
+      lines4.push(`${LOOP_ID_KEY}: ${metadata.loopId}`);
+      lines4.push(`${ITERATION_ID_KEY}: ${metadata.iterationId}`);
     }
   }
   if (metadata.documentProfile !== void 0) {
-    lines3.push(`${DOCUMENT_PROFILE_KEY}: ${metadata.documentProfile}`);
+    lines4.push(`${DOCUMENT_PROFILE_KEY}: ${metadata.documentProfile}`);
   }
   if (metadata.documentGovernanceFingerprint !== void 0) {
     if (!/^[0-9a-f]{64}$/.test(metadata.documentGovernanceFingerprint)) {
@@ -5131,21 +5131,21 @@ function serializeRunMetadataLines(metadata) {
     if (metadata.documentProfile === void 0) {
       throw new Error("document governance fingerprint \u7F3A\u5C11 document profile");
     }
-    lines3.push(`${DOCUMENT_GOVERNANCE_FINGERPRINT_KEY}: ${metadata.documentGovernanceFingerprint}`);
+    lines4.push(`${DOCUMENT_GOVERNANCE_FINGERPRINT_KEY}: ${metadata.documentGovernanceFingerprint}`);
   }
   if (metadata.workflowPlanFingerprint !== void 0) {
     if (!/^[0-9a-f]{64}$/.test(metadata.workflowPlanFingerprint)) {
       throw new Error("workflow plan fingerprint \u5FC5\u987B\u662F 64 \u4F4D\u5C0F\u5199 SHA-256");
     }
-    lines3.push(`${WORKFLOW_PLAN_FINGERPRINT_KEY}: ${metadata.workflowPlanFingerprint}`);
+    lines4.push(`${WORKFLOW_PLAN_FINGERPRINT_KEY}: ${metadata.workflowPlanFingerprint}`);
   }
-  return lines3;
+  return lines4;
 }
-function parseRunMetadataLines(lines3) {
+function parseRunMetadataLines(lines4) {
   const NOT_FOUND = { metadata: void 0, consumedLines: 0 };
-  const l0 = lines3[0];
-  const l1 = lines3[1];
-  const l2 = lines3[2];
+  const l0 = lines4[0];
+  const l1 = lines4[1];
+  const l2 = lines4[2];
   if (l0 === void 0 || l1 === void 0 || l2 === void 0)
     return NOT_FOUND;
   const runId = matchLine(l0, RUN_ID_KEY);
@@ -5162,13 +5162,13 @@ function parseRunMetadataLines(lines3) {
     transitionHead: headRaw === NULL_LITERAL ? void 0 : headRaw
   };
   let consumedLines = 3;
-  const policyLine = lines3[consumedLines];
+  const policyLine = lines4[consumedLines];
   const policyRaw = policyLine === void 0 ? void 0 : matchLine(policyLine, POLICY_KEY);
   if (policyRaw !== void 0) {
     try {
       metadata.automationPolicy = validateAutomationPolicySnapshot(JSON.parse(Buffer.from(policyRaw, "base64url").toString("utf8")));
-      const loopId = lines3[4] === void 0 ? void 0 : matchLine(lines3[4], LOOP_ID_KEY);
-      const iterationId = lines3[5] === void 0 ? void 0 : matchLine(lines3[5], ITERATION_ID_KEY);
+      const loopId = lines4[4] === void 0 ? void 0 : matchLine(lines4[4], LOOP_ID_KEY);
+      const iterationId = lines4[5] === void 0 ? void 0 : matchLine(lines4[5], ITERATION_ID_KEY);
       if (loopId !== void 0 && iterationId !== void 0 && loopId === metadata.automationPolicy.loop_id && iterationId.length > 0) {
         metadata.loopId = loopId;
         metadata.iterationId = iterationId;
@@ -5179,13 +5179,13 @@ function parseRunMetadataLines(lines3) {
     } catch {
     }
   }
-  const profileLine = lines3[consumedLines];
+  const profileLine = lines4[consumedLines];
   const profileRaw = profileLine === void 0 ? void 0 : matchLine(profileLine, DOCUMENT_PROFILE_KEY);
   if (profileRaw === "legacy-full" || profileRaw === "document-v1") {
     metadata.documentProfile = profileRaw;
     consumedLines += 1;
   }
-  const fingerprintLine = lines3[consumedLines];
+  const fingerprintLine = lines4[consumedLines];
   const fingerprintRaw = fingerprintLine === void 0 ? void 0 : matchLine(fingerprintLine, DOCUMENT_GOVERNANCE_FINGERPRINT_KEY);
   if (fingerprintRaw !== void 0) {
     if (metadata.documentProfile === void 0 || !/^[0-9a-f]{64}$/.test(fingerprintRaw)) {
@@ -5194,7 +5194,7 @@ function parseRunMetadataLines(lines3) {
     metadata.documentGovernanceFingerprint = fingerprintRaw;
     consumedLines += 1;
   }
-  const workflowFingerprintLine = lines3[consumedLines];
+  const workflowFingerprintLine = lines4[consumedLines];
   const workflowFingerprintRaw = workflowFingerprintLine === void 0 ? void 0 : matchLine(workflowFingerprintLine, WORKFLOW_PLAN_FINGERPRINT_KEY);
   if (workflowFingerprintRaw !== void 0) {
     if (!/^[0-9a-f]{64}$/.test(workflowFingerprintRaw)) {
@@ -5214,10 +5214,10 @@ function serializeProjectionMetadataLines(metadata) {
     `${STATE_DIGEST_KEY}: ${metadata.stateDigest}`
   ];
 }
-function parseProjectionMetadataLines(lines3) {
-  const revisionRaw = lines3[0] === void 0 ? void 0 : matchLine(lines3[0], STATE_REVISION_KEY);
-  const revisionId = lines3[1] === void 0 ? void 0 : matchLine(lines3[1], STATE_REVISION_ID_KEY);
-  const stateDigest = lines3[2] === void 0 ? void 0 : matchLine(lines3[2], STATE_DIGEST_KEY);
+function parseProjectionMetadataLines(lines4) {
+  const revisionRaw = lines4[0] === void 0 ? void 0 : matchLine(lines4[0], STATE_REVISION_KEY);
+  const revisionId = lines4[1] === void 0 ? void 0 : matchLine(lines4[1], STATE_REVISION_ID_KEY);
+  const stateDigest = lines4[2] === void 0 ? void 0 : matchLine(lines4[2], STATE_DIGEST_KEY);
   const stateRevision = Number(revisionRaw);
   if (!Number.isSafeInteger(stateRevision) || stateRevision < 0 || revisionId === void 0 || !/^[A-Za-z0-9_-]+$/.test(revisionId) || stateDigest === void 0 || !/^[0-9a-f]{64}$/.test(stateDigest)) {
     return { metadata: void 0, consumedLines: 0 };
@@ -8375,13 +8375,13 @@ async function readLedgerEvents(changeDir7, options = {}) {
   }
   if (raw === void 0 || raw === "")
     return [];
-  const lines3 = raw.split("\n");
-  if (lines3.at(-1) !== "")
+  const lines4 = raw.split("\n");
+  if (lines4.at(-1) !== "")
     throw new SkillInvocationEvidenceCorruptError("SkillInvocation ledger has an incomplete final line");
-  lines3.pop();
-  if (lines3.length > SKILL_INVOCATION_LIMITS.maxEvents)
+  lines4.pop();
+  if (lines4.length > SKILL_INVOCATION_LIMITS.maxEvents)
     throw new SkillInvocationEvidenceCorruptError("SkillInvocation ledger exceeds event budget");
-  return lines3.map((line, index) => {
+  return lines4.map((line, index) => {
     const decoded = decodeSkillInvocationEventV1(line);
     if (!decoded.ok) {
       throw new SkillInvocationEvidenceCorruptError(`SkillInvocation ledger line ${index + 1} is invalid: ${decoded.code} ${decoded.path}`);
@@ -11401,11 +11401,11 @@ function createLoopLedgerStore() {
     }
     const records = [];
     const rejected = [];
-    const lines3 = text13.split("\n");
-    for (let i = 0; i < lines3.length; i++) {
-      const raw = required(lines3[i]);
+    const lines4 = text13.split("\n");
+    for (let i = 0; i < lines4.length; i++) {
+      const raw = required(lines4[i]);
       if (raw.trim() === "") {
-        if (raw === "" && i === lines3.length - 1)
+        if (raw === "" && i === lines4.length - 1)
           continue;
         rejected.push({
           line: i + 1,
@@ -11740,11 +11740,11 @@ function quoteGate(field4, value) {
   }
 }
 function parsePipeline(content) {
-  const lines3 = content.split("\n");
+  const lines4 = content.split("\n");
   const fields2 = emptyFields();
   let i = 0;
-  while (i < lines3.length) {
-    const line = lines3[i] ?? "";
+  while (i < lines4.length) {
+    const line = lines4[i] ?? "";
     const m = KEY_RE2.exec(line);
     if (!m)
       break;
@@ -11757,8 +11757,8 @@ function parsePipeline(content) {
     if (LIST_FIELD_SET2.has(field4)) {
       if (rest === "") {
         const items = [];
-        while (i < lines3.length && (lines3[i] ?? "").startsWith(LIST_ITEM_PREFIX)) {
-          items.push(unquoteScalar((lines3[i] ?? "").slice(LIST_ITEM_PREFIX.length).trim()));
+        while (i < lines4.length && (lines4[i] ?? "").startsWith(LIST_ITEM_PREFIX)) {
+          items.push(unquoteScalar((lines4[i] ?? "").slice(LIST_ITEM_PREFIX.length).trim()));
           i++;
         }
         fields2[field4] = items;
@@ -11771,15 +11771,15 @@ function parsePipeline(content) {
       fields2[field4] = unquoteScalar(rest);
     }
   }
-  const { metadata, consumedLines } = parseRunMetadataLines(lines3.slice(i));
+  const { metadata, consumedLines } = parseRunMetadataLines(lines4.slice(i));
   i += consumedLines;
-  const projection = parseProjectionMetadataLines(lines3.slice(i));
+  const projection = parseProjectionMetadataLines(lines4.slice(i));
   i += projection.consumedLines;
   return {
     fields: fields2,
     ...metadata === void 0 ? {} : { runMetadata: metadata },
     ...projection.metadata === void 0 ? {} : { projectionMetadata: projection.metadata },
-    opaqueTail: lines3.slice(i).join("\n")
+    opaqueTail: lines4.slice(i).join("\n")
   };
 }
 function serializePipeline(state, options = {}) {
@@ -12492,8 +12492,24 @@ var EXCLUDED_BASENAMES = /* @__PURE__ */ new Set([
 ]);
 var EXCLUDED_RELATIVE_ROOTS = [".github/hooks", ".claude/agents"];
 var EXCLUDED_ROOT_FILES = /* @__PURE__ */ new Set([".pipeline-owned.json"]);
-function isExcludedHostConfigShell(relativePath, names, exclusions) {
-  return EXCLUDED_RELATIVE_ROOTS.some((root) => root.startsWith(`${relativePath}/`)) && names.every((name2) => isExcluded(`${relativePath}/${name2}`, exclusions));
+var HOST_LOCAL_FILES = [".claude/settings.local.json", "CLAUDE.local.md"];
+var HOST_LOCAL_DIRS = [".claude/worktrees"];
+function isHostLocal(relativePath) {
+  return HOST_LOCAL_FILES.includes(relativePath) || HOST_LOCAL_DIRS.some((dir) => relativePath === dir || relativePath.startsWith(`${dir}/`));
+}
+async function hasHostLocalFiles(root) {
+  for (const path15 of [...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS]) {
+    try {
+      await lstat10(join17(root, ...path15.split("/")));
+      return true;
+    } catch {
+    }
+  }
+  return false;
+}
+function isExcludedHostConfigShell(relativePath, names, exclusions, portable) {
+  const roots = portable ? [...EXCLUDED_RELATIVE_ROOTS, ...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS] : EXCLUDED_RELATIVE_ROOTS;
+  return roots.some((root) => root.startsWith(`${relativePath}/`)) && names.every((name2) => isExcludedFor(`${relativePath}/${name2}`, exclusions, portable));
 }
 var EXCLUDED_ROOT_ARTIFACTS = [
   /^dashboard-progress-custom-spec\.png$/,
@@ -12517,8 +12533,11 @@ function isExcluded(relativePath, exclusions, anySegment = EXCLUDED_ANY_SEGMENT)
   return EXCLUDED_TOP_LEVEL.has(parts[0] ?? "") || parts.some((part) => anySegment.has(part)) || EXCLUDED_BASENAMES.has(parts.at(-1) ?? "") || EXCLUDED_RELATIVE_ROOTS.some((root) => relativePath === root || relativePath.startsWith(`${root}/`)) || !relativePath.includes("/") && EXCLUDED_ROOT_ARTIFACTS.some((pattern) => pattern.test(relativePath)) || EXCLUDED_ROOT_FILES.has(relativePath) || isDeclaredOutput(relativePath, exclusions);
 }
 var NO_EXCLUSIONS = { declared: [], ancestors: /* @__PURE__ */ new Set() };
+function isExcludedFor(relativePath, exclusions, portable, anySegment = EXCLUDED_ANY_SEGMENT) {
+  return isExcluded(relativePath, exclusions, anySegment) || portable && isHostLocal(relativePath);
+}
 function isWorkspaceCandidatePath(relativePath) {
-  return !isExcluded(relativePath, NO_EXCLUSIONS, METRIC_EXCLUDED_ANY_SEGMENT);
+  return !isExcludedFor(relativePath, NO_EXCLUSIONS, true, METRIC_EXCLUDED_ANY_SEGMENT);
 }
 function writeRecord(hash, kind, relativePath, details = "") {
   hash.update(kind);
@@ -12528,39 +12547,51 @@ function writeRecord(hash, kind, relativePath, details = "") {
   hash.update(details);
   hash.update("\0");
 }
-async function holdsOnlyExcluded(root, relativePath, exclusions) {
+async function holdsOnlyExcluded(root, relativePath, exclusions, portable) {
   for (const name2 of await readdir(join17(root, ...relativePath.split("/")))) {
     const child = `${relativePath}/${name2}`;
-    if (isExcluded(child, exclusions))
+    if (isExcludedFor(child, exclusions, portable))
       continue;
     if (!exclusions.ancestors.has(child))
       return false;
     if (!(await lstat10(join17(root, ...child.split("/")))).isDirectory())
       return false;
-    if (!await holdsOnlyExcluded(root, child, exclusions))
+    if (!await holdsOnlyExcluded(root, child, exclusions, portable))
       return false;
   }
   return true;
 }
-async function fingerprintEntry(root, relativePath, hash, exclusions) {
-  if (isExcluded(relativePath, exclusions))
+async function fingerprintEntry(root, relativePath, sinks, exclusions) {
+  const live = sinks.filter((sink) => !isExcludedFor(relativePath, exclusions, sink.portable));
+  if (live.length === 0)
     return;
   const absolutePath = join17(root, ...relativePath.split("/"));
   const before = await lstat10(absolutePath);
   if (before.isDirectory()) {
     const names = sortNames(await readdir(absolutePath));
-    if (isExcludedHostConfigShell(relativePath, names, exclusions))
+    const keep = [];
+    for (const sink of live) {
+      if (isExcludedHostConfigShell(relativePath, names, exclusions, sink.portable))
+        continue;
+      if (exclusions.ancestors.has(relativePath) && await holdsOnlyExcluded(root, relativePath, exclusions, sink.portable))
+        continue;
+      keep.push(sink);
+    }
+    if (keep.length === 0)
       return;
-    if (exclusions.ancestors.has(relativePath) && await holdsOnlyExcluded(root, relativePath, exclusions))
-      return;
-    writeRecord(hash, "D", relativePath, modeOf(before));
+    for (const sink of keep)
+      writeRecord(sink.hash, "D", relativePath, modeOf(before));
     for (const name2 of names)
-      await fingerprintEntry(root, `${relativePath}/${name2}`, hash, exclusions);
+      await fingerprintEntry(root, `${relativePath}/${name2}`, keep, exclusions);
     return;
   }
   if (before.isFile()) {
-    writeRecord(hash, "F", relativePath, `${modeOf(before)}:${before.size}`);
-    hash.update(await readFile9(absolutePath));
+    const details = `${modeOf(before)}:${before.size}`;
+    const content = await readFile9(absolutePath);
+    for (const sink of live) {
+      writeRecord(sink.hash, "F", relativePath, details);
+      sink.hash.update(content);
+    }
     const after = await lstat10(absolutePath);
     if (!after.isFile() || !sameFileIdentity(before, after)) {
       throw new Error(`workspace baseline capture raced with a file change: ${relativePath}`);
@@ -12568,7 +12599,9 @@ async function fingerprintEntry(root, relativePath, hash, exclusions) {
     return;
   }
   if (before.isSymbolicLink()) {
-    writeRecord(hash, "L", relativePath, `${modeOf(before)}:${await readlink(absolutePath)}`);
+    const details = `${modeOf(before)}:${await readlink(absolutePath)}`;
+    for (const sink of live)
+      writeRecord(sink.hash, "L", relativePath, details);
     return;
   }
   throw new Error(`workspace baseline does not support non-file entry: ${relativePath}`);
@@ -12579,17 +12612,22 @@ async function statRoot(root) {
     return direct;
   return lstat10(`${root}${sep4}.`);
 }
-async function fingerprintWorkspace(root, options) {
+async function fingerprintWorkspaceTwins(root, options) {
   const rootStat = await statRoot(root);
   if (!rootStat.isDirectory())
     throw new Error(`workspace root is not a directory: ${root}`);
   const exclusions = exclusionsOf(options);
-  const hash = createHash13("sha256");
-  writeRecord(hash, "D", ".", modeOf(rootStat));
+  const full2 = { hash: createHash13("sha256"), portable: false };
+  const portable = await hasHostLocalFiles(root) ? { hash: createHash13("sha256"), portable: true } : void 0;
+  const sinks = portable === void 0 ? [full2] : [full2, portable];
+  for (const sink of sinks)
+    writeRecord(sink.hash, "D", ".", modeOf(rootStat));
   const names = sortNames(await readdir(root));
   for (const name2 of names)
-    await fingerprintEntry(root, name2, hash, exclusions);
-  return `${WORKSPACE_BASELINE_PREFIX}${hash.digest("hex")}`;
+    await fingerprintEntry(root, name2, sinks, exclusions);
+  const digest19 = (sink) => `${WORKSPACE_BASELINE_PREFIX}${sink.hash.digest("hex")}`;
+  const fullValue = digest19(full2);
+  return { full: fullValue, portable: portable === void 0 ? fullValue : digest19(portable) };
 }
 function isWorkspaceBaseline(value) {
   return new RegExp(`^${WORKSPACE_BASELINE_PREFIX}[a-f0-9]{64}$`).test(value);
@@ -15064,8 +15102,8 @@ function parseStep(cur) {
   };
 }
 function parseWorkflow(content) {
-  const lines3 = content.split("\n");
-  const nameMatch = /^name:\s*(\S+)\s*$/.exec(lines3[0] ?? "");
+  const lines4 = content.split("\n");
+  const nameMatch = /^name:\s*(\S+)\s*$/.exec(lines4[0] ?? "");
   if (!nameMatch)
     throw new Error("workflow \u89E3\u6790\u9519\u8BEF\uFF1A\u7B2C\u4E00\u884C\u5FC5\u987B\u662F 'name: <name>'");
   let openspec;
@@ -15074,9 +15112,9 @@ function parseWorkflow(content) {
   let interaction;
   let steps;
   let tracks;
-  const cur = { lines: lines3, i: 1 };
-  while (cur.i < lines3.length) {
-    const line = lines3[cur.i] ?? "";
+  const cur = { lines: lines4, i: 1 };
+  while (cur.i < lines4.length) {
+    const line = lines4[cur.i] ?? "";
     if (line.trim() === "") {
       cur.i++;
       continue;
@@ -17832,15 +17870,15 @@ function splitLines(raw) {
     return [];
   if (!raw.endsWith("\n"))
     throw new InteractionProjectionError("event-schema-invalid", "interaction projection \u5C3E\u884C\u7F3A\u5C11\u6362\u884C");
-  const lines3 = raw.split("\n").slice(0, -1).map((line) => `${line}
+  const lines4 = raw.split("\n").slice(0, -1).map((line) => `${line}
 `);
-  if (lines3.some((line) => Buffer.byteLength(line, "utf8") > INTERACTION_MAX_LINE_BYTES)) {
+  if (lines4.some((line) => Buffer.byteLength(line, "utf8") > INTERACTION_MAX_LINE_BYTES)) {
     throw new InteractionProjectionError("projection-size-exceeded", "interaction projection \u5355\u884C\u8D85\u8FC7\u5927\u5C0F\u4E0A\u9650");
   }
-  if (lines3.length > INTERACTION_MAX_EVENTS) {
+  if (lines4.length > INTERACTION_MAX_EVENTS) {
     throw new InteractionProjectionError("projection-size-exceeded", "interaction projection event \u6570\u8D85\u8FC7\u4E0A\u9650");
   }
-  return lines3;
+  return lines4;
 }
 function interactionProjectionPath(changeDir7) {
   return join20(changeDir7, INTERACTION_PROJECTION_FILE);
@@ -17977,15 +18015,15 @@ function withOfficialAttachOn(source, definition) {
 }
 var isDelimiter = (line) => line === "---" || line === "---\r";
 function withAttachOnLine(content, attachOn) {
-  const lines3 = content.split("\n");
-  if (!isDelimiter(lines3[0]))
+  const lines4 = content.split("\n");
+  if (!isDelimiter(lines4[0]))
     return content;
-  const eol = lines3[0] === "---\r" ? "\r" : "";
-  const close = lines3.findIndex((line, index) => index > 0 && isDelimiter(line));
-  if (close < 0 || lines3.slice(1, close).some((line) => /^attach_on:/u.test(line)))
+  const eol = lines4[0] === "---\r" ? "\r" : "";
+  const close = lines4.findIndex((line, index) => index > 0 && isDelimiter(line));
+  if (close < 0 || lines4.slice(1, close).some((line) => /^attach_on:/u.test(line)))
     return content;
-  lines3.splice(close, 0, `attach_on: [${attachOn.join(", ")}]${eol}`);
-  return lines3.join("\n");
+  lines4.splice(close, 0, `attach_on: [${attachOn.join(", ")}]${eol}`);
+  return lines4.join("\n");
 }
 
 // packages/kernel/dist/workspace/path-classes.js
@@ -18185,15 +18223,15 @@ function parseAgentFile(text13, expectedName) {
   if (new TextEncoder().encode(text13).length > AGENT_FILE_MAX_BYTES) {
     fail5(`agent \u6587\u4EF6\u8D85\u8FC7 ${AGENT_FILE_MAX_BYTES} \u5B57\u8282`);
   }
-  const lines3 = text13.split("\n");
-  if ((lines3[0] ?? "") !== "---")
+  const lines4 = text13.split("\n");
+  if ((lines4[0] ?? "") !== "---")
     fail5("\u9996\u884C\u5FC5\u987B\u662F ---");
-  const close = lines3.indexOf("---", 1);
+  const close = lines4.indexOf("---", 1);
   if (close < 0)
     fail5("frontmatter \u7F3A\u5C11\u7ED3\u675F\u7684 ---");
   const fields2 = /* @__PURE__ */ new Map();
   for (let index = 1; index < close; index++) {
-    const line = lines3[index] ?? "";
+    const line = lines4[index] ?? "";
     if (line.trim() === "")
       continue;
     const match = /^([a-z_]+):\s*(.*?)\s*$/.exec(line);
@@ -18248,7 +18286,7 @@ function parseAgentFile(text13, expectedName) {
   if (rawHost !== void 0 && !REVIEWER_HOSTS.includes(rawHost)) {
     fail5(`host \u5FC5\u987B\u662F ${REVIEWER_HOSTS.join(" | ")}`, "host");
   }
-  const body = lines3.slice(close + 1).join("\n");
+  const body = lines4.slice(close + 1).join("\n");
   if (body.trim() === "")
     fail5("\u6B63\u6587\u4E0D\u5F97\u4E3A\u7A7A");
   return {
@@ -19292,8 +19330,8 @@ function localePatterns(locale) {
 var PATTERNS = DOCUMENT_LOCALES.flatMap((locale) => localePatterns(locale));
 function findDocumentPlaceholders(content) {
   const found = [];
-  const lines3 = content.split("\n");
-  for (const [index, text13] of lines3.entries()) {
+  const lines4 = content.split("\n");
+  for (const [index, text13] of lines4.entries()) {
     if (PATTERNS.some((pattern) => pattern.test(text13)))
       found.push({ line: index + 1, text: text13.trim() });
   }
@@ -19925,11 +19963,11 @@ function formatReviewMarker(receipt) {
   ].join("\n");
 }
 function parseReviewMarker(content) {
-  const lines3 = content.split("\n");
-  if (lines3[0] !== REVIEW_MARKER_PROTOCOL)
+  const lines4 = content.split("\n");
+  if (lines4[0] !== REVIEW_MARKER_PROTOCOL)
     return null;
   const fields2 = /* @__PURE__ */ new Map();
-  for (const line of lines3.slice(1)) {
+  for (const line of lines4.slice(1)) {
     const index = line.indexOf("=");
     if (index <= 0)
       break;
@@ -20234,16 +20272,16 @@ function coverageBlockLines(content) {
   }
   return out;
 }
-function coverageBlockStatus(lines3, layer) {
-  const row2 = lines3.find((l) => l.startsWith(`${layer}:`));
+function coverageBlockStatus(lines4, layer) {
+  const row2 = lines4.find((l) => l.startsWith(`${layer}:`));
   if (row2 === void 0)
     return "blank";
   const m = /^[ \t]*([a-zA-Z]+)/.exec(row2.slice(layer.length + 1));
   const st = m?.[1];
   return st === "filled" || st === "waived" ? st : "blank";
 }
-function coverageTouches(lines3) {
-  const row2 = lines3.find((l) => l.startsWith("touches:"));
+function coverageTouches(lines4) {
+  const row2 = lines4.find((l) => l.startsWith("touches:"));
   if (row2 === void 0)
     return [];
   return row2.slice("touches:".length).split(/[,\s]+/).filter((w) => w !== "");
@@ -20253,8 +20291,8 @@ function evaluateCoverage(input2, failures, warnings) {
   if (ctx.readFile === void 0 || ctx.coverageProfile === "none")
     return;
   const content = designDoc !== "" && designDoc !== "null" ? ctx.readFile(designDoc) : void 0;
-  const lines3 = coverageBlockLines(content);
-  const touches2 = coverageTouches(lines3);
+  const lines4 = coverageBlockLines(content);
+  const touches2 = coverageTouches(lines4);
   const applicability = COVERAGE_PROFILE_APPLICABILITY[ctx.coverageProfile];
   const blockedLines = [];
   let lockViolations = 0;
@@ -20262,7 +20300,7 @@ function evaluateCoverage(input2, failures, warnings) {
     const app = applicability?.[layer] ?? "na";
     if (app === "na")
       continue;
-    const status = coverageBlockStatus(lines3, layer);
+    const status = coverageBlockStatus(lines4, layer);
     const concern = COVERAGE_LOCK_CONCERN[layer];
     const locked = concern !== void 0 && touches2.includes(concern);
     if (locked) {
@@ -22499,10 +22537,10 @@ function relatedFilesFromField(value) {
 }
 var INDENT_OF = (line) => line.length - line.replace(/^ +/, "").length;
 function parseProjectPackages(yamlText) {
-  const lines3 = yamlText.split("\n");
+  const lines4 = yamlText.split("\n");
   let i = 0;
-  for (; i < lines3.length; i++) {
-    const line = lines3[i] ?? "";
+  for (; i < lines4.length; i++) {
+    const line = lines4[i] ?? "";
     if (INDENT_OF(line) !== 0)
       continue;
     const m = /^packages:\s*(.*)$/.exec(line);
@@ -22513,11 +22551,11 @@ function parseProjectPackages(yamlText) {
       return null;
     break;
   }
-  if (i >= lines3.length)
+  if (i >= lines4.length)
     return null;
   const block = [];
-  for (i++; i < lines3.length; i++) {
-    const line = lines3[i] ?? "";
+  for (i++; i < lines4.length; i++) {
+    const line = lines4[i] ?? "";
     if (line.trim() === "" || line.trim().startsWith("#"))
       continue;
     if (INDENT_OF(line) === 0)
@@ -22606,11 +22644,11 @@ function routeBucketsToObject(buckets) {
   return out;
 }
 function renderRouteContextText(name2, obj) {
-  const lines3 = [`[ROUTE-CONTEXT] ${name2} related_files \u6309 package \u5F52\u5C5E\uFF1A`];
+  const lines4 = [`[ROUTE-CONTEXT] ${name2} related_files \u6309 package \u5F52\u5C5E\uFF1A`];
   const keys = Object.keys(obj);
   if (keys.length === 0) {
-    lines3.push("  (no related files / \u672A\u914D\u7F6E package \u2014 \u5168\u672A\u5F52\u5C5E)");
-    return lines3;
+    lines4.push("  (no related files / \u672A\u914D\u7F6E package \u2014 \u5168\u672A\u5F52\u5C5E)");
+    return lines4;
   }
   keys.sort((a, b) => {
     const na = a === "null" ? 1 : 0;
@@ -22621,11 +22659,11 @@ function renderRouteContextText(name2, obj) {
   });
   for (const k of keys) {
     const label2 = k === "null" ? "(\u672A\u5F52\u5C5E)" : k;
-    lines3.push(`  [${label2}]`);
+    lines4.push(`  [${label2}]`);
     for (const p of obj[k] ?? [])
-      lines3.push(`    - ${p}`);
+      lines4.push(`    - ${p}`);
   }
-  return lines3;
+  return lines4;
 }
 
 // packages/kernel/dist/state/ownership-manifest.js
@@ -22704,12 +22742,12 @@ function refreshManagedBlock(content, block) {
     return { status: "absent" };
   if (existing.text === wanted)
     return { status: "current" };
-  const lines3 = content.split("\n");
+  const lines4 = content.split("\n");
   const bare = (line) => line.replace(/\r$/u, "");
-  const from = lines3.findIndex((line) => bare(line) === wantedLines[0]);
-  const to = lines3.findIndex((line, index) => index > from && bare(line) === wantedLines.at(-1));
-  const eol = lines3[from]?.endsWith("\r") === true ? "\r" : "";
-  const replaced = [...lines3.slice(0, from), ...wantedLines.map((line) => `${line}${eol}`), ...lines3.slice(to + 1)];
+  const from = lines4.findIndex((line) => bare(line) === wantedLines[0]);
+  const to = lines4.findIndex((line, index) => index > from && bare(line) === wantedLines.at(-1));
+  const eol = lines4[from]?.endsWith("\r") === true ? "\r" : "";
+  const replaced = [...lines4.slice(0, from), ...wantedLines.map((line) => `${line}${eol}`), ...lines4.slice(to + 1)];
   return { status: "stale", content: replaced.join("\n") };
 }
 
@@ -23709,12 +23747,12 @@ function parseScalarValue(rest, ctx) {
   const m = s.match(/^(.*?)\s#/);
   return (m ? m[1] : s).trimEnd();
 }
-function parseSkillActionAuthorityBlock(lines3, start, path15) {
+function parseSkillActionAuthorityBlock(lines4, start, path15) {
   let version;
   const grants = /* @__PURE__ */ new Map();
   let i = start;
-  while (i < lines3.length) {
-    const line = stripComment(lines3[i]);
+  while (i < lines4.length) {
+    const line = stripComment(lines4[i]);
     if (line.trim() === "") {
       i++;
       continue;
@@ -23819,16 +23857,16 @@ function topLevelKeyToken(raw) {
   const plain = line.match(/^([^:#]+?)\s*:/);
   return plain?.[1];
 }
-function hasDeprecatedRouterKeyAt(lines3, index) {
-  const direct = topLevelKeyToken(lines3[index]);
+function hasDeprecatedRouterKeyAt(lines4, index) {
+  const direct = topLevelKeyToken(lines4[index]);
   if (direct !== void 0 && decodeYamlKey(direct) === "router_patterns")
     return true;
-  const current = lines3[index];
+  const current = lines4[index];
   if (current.trim() !== "?")
     return false;
   const parentIndent = indentOf4(current);
-  for (let i = index + 1; i < lines3.length; i++) {
-    const candidate2 = lines3[i];
+  for (let i = index + 1; i < lines4.length; i++) {
+    const candidate2 = lines4[i];
     if (candidate2.trim() === "" || candidate2.trimStart().startsWith("#"))
       continue;
     if (indentOf4(candidate2) <= parentIndent)
@@ -23840,11 +23878,11 @@ function hasDeprecatedRouterKeyAt(lines3, index) {
 function throwDeprecatedRouterKey(path15, line) {
   throw new ManifestError(`${path15}:${line} router_patterns \u5DF2\u8FC1\u79FB\u5230 .pipeline/tracks.yaml \u7684 policy_profile.routing\uFF1B\u8BF7\u5220\u9664\u65E7\u5B57\u6BB5\u5E76\u5728 Track Registry \u4E2D\u58F0\u660E routing policy`);
 }
-function parseSkillBlock(lines3, start, path15, section2) {
+function parseSkillBlock(lines4, start, path15, section2) {
   const map = /* @__PURE__ */ new Map();
   let i = start;
-  while (i < lines3.length) {
-    const l = stripComment(lines3[i]);
+  while (i < lines4.length) {
+    const l = stripComment(lines4[i]);
     if (l.trim() === "") {
       i++;
       continue;
@@ -23853,18 +23891,18 @@ function parseSkillBlock(lines3, start, path15, section2) {
       break;
     const entry2 = l.match(/^\s+([A-Za-z_][A-Za-z0-9_.-]*):\s*(\[.*\])\s*$/);
     if (!entry2) {
-      throw new ManifestError(`${path15}:${i + 1} ${section2} \u6761\u76EE\u987B\u4E3A 'phase.track: [skill, ...]'\uFF0C\u5F97\u5230 '${lines3[i]}'`);
+      throw new ManifestError(`${path15}:${i + 1} ${section2} \u6761\u76EE\u987B\u4E3A 'phase.track: [skill, ...]'\uFF0C\u5F97\u5230 '${lines4[i]}'`);
     }
     map.set(entry2[1], parseFlowList(entry2[2], `${section2}.${entry2[1]}`));
     i++;
   }
   return { map, next: i };
 }
-function parseBreadcrumbBlock(lines3, start, path15) {
+function parseBreadcrumbBlock(lines4, start, path15) {
   const map = /* @__PURE__ */ new Map();
   let i = start;
-  while (i < lines3.length) {
-    const raw = lines3[i];
+  while (i < lines4.length) {
+    const raw = lines4[i];
     if (raw.trim() === "") {
       i++;
       continue;
@@ -23878,7 +23916,7 @@ function parseBreadcrumbBlock(lines3, start, path15) {
     }
     const entry2 = raw.match(/^(\s+)([A-Za-z_][A-Za-z0-9_-]*):\s*(.*)$/);
     if (!entry2) {
-      throw new ManifestError(`${path15}:${i + 1} breadcrumb \u6761\u76EE\u987B\u4E3A 'phase: |' \u6216 'phase: value'\uFF0C\u5F97\u5230 '${lines3[i]}'`);
+      throw new ManifestError(`${path15}:${i + 1} breadcrumb \u6761\u76EE\u987B\u4E3A 'phase: |' \u6216 'phase: value'\uFF0C\u5F97\u5230 '${lines4[i]}'`);
     }
     const keyIndent = entry2[1].length;
     const key = entry2[2];
@@ -23886,8 +23924,8 @@ function parseBreadcrumbBlock(lines3, start, path15) {
     i++;
     if (rest === "|" || rest === "|-" || rest === "|+") {
       const blk = [];
-      while (i < lines3.length) {
-        const bl = lines3[i];
+      while (i < lines4.length) {
+        const bl = lines4[i];
         if (bl.trim() === "") {
           blk.push("");
           i++;
@@ -23912,20 +23950,20 @@ function parseBreadcrumbBlock(lines3, start, path15) {
   return { map, next: i };
 }
 function scanSections(text13, path15) {
-  const lines3 = text13.split("\n");
+  const lines4 = text13.split("\n");
   const out = {};
   let i = 0;
-  while (i < lines3.length) {
-    if (hasDeprecatedRouterKeyAt(lines3, i))
+  while (i < lines4.length) {
+    if (hasDeprecatedRouterKeyAt(lines4, i))
       throwDeprecatedRouterKey(path15, i + 1);
-    const line = stripComment(lines3[i]);
+    const line = stripComment(lines4[i]);
     if (line.trim() === "") {
       i++;
       continue;
     }
     const top = line.match(/^([A-Za-z_][A-Za-z0-9_-]*):\s*(.*)$/);
     if (!top) {
-      throw new ManifestError(`${path15}:${i + 1} \u65E0\u6CD5\u89E3\u6790\u7684\u9876\u5C42\u884C '${lines3[i]}'\uFF08\u7A84\u89E3\u6790\u5B50\u96C6\u5916\uFF09\uFF1B\u82E5\u8BE5\u952E\u662F\u65E7 router_patterns \u7684 YAML \u7B49\u4EF7\u5199\u6CD5\uFF1A\u5B83\u5DF2\u8FC1\u79FB\u5230 .pipeline/tracks.yaml \u7684 policy_profile.routing`);
+      throw new ManifestError(`${path15}:${i + 1} \u65E0\u6CD5\u89E3\u6790\u7684\u9876\u5C42\u884C '${lines4[i]}'\uFF08\u7A84\u89E3\u6790\u5B50\u96C6\u5916\uFF09\uFF1B\u82E5\u8BE5\u952E\u662F\u65E7 router_patterns \u7684 YAML \u7B49\u4EF7\u5199\u6CD5\uFF1A\u5B83\u5DF2\u8FC1\u79FB\u5230 .pipeline/tracks.yaml \u7684 policy_profile.routing`);
     }
     const key = top[1];
     const rest = top[2].trim();
@@ -23936,8 +23974,8 @@ function scanSections(text13, path15) {
         i++;
       } else {
         i++;
-        while (i < lines3.length) {
-          const l = stripComment(lines3[i]);
+        while (i < lines4.length) {
+          const l = stripComment(lines4[i]);
           if (l.trim() === "") {
             i++;
             continue;
@@ -23958,8 +23996,8 @@ function scanSections(text13, path15) {
         throw new ManifestError(`${path15}:${i + 1} transitions \u5FC5\u987B\u662F\u5757\u5C0F\u8282`);
       const map = /* @__PURE__ */ new Map();
       i++;
-      while (i < lines3.length) {
-        const l = stripComment(lines3[i]);
+      while (i < lines4.length) {
+        const l = stripComment(lines4[i]);
         if (l.trim() === "") {
           i++;
           continue;
@@ -23968,7 +24006,7 @@ function scanSections(text13, path15) {
           break;
         const entry2 = l.match(/^\s+([A-Za-z_][A-Za-z0-9_-]*):\s*(\[.*\])\s*$/);
         if (!entry2) {
-          throw new ManifestError(`${path15}:${i + 1} transitions \u6761\u76EE\u987B\u4E3A 'from: [to, ...]'\uFF0C\u5F97\u5230 '${lines3[i]}'`);
+          throw new ManifestError(`${path15}:${i + 1} transitions \u6761\u76EE\u987B\u4E3A 'from: [to, ...]'\uFF0C\u5F97\u5230 '${lines4[i]}'`);
         }
         map.set(entry2[1], parseFlowList(entry2[2], `transitions.${entry2[1]}`));
         i++;
@@ -23977,7 +24015,7 @@ function scanSections(text13, path15) {
     } else if (key === "mandatory_skills" || key === "recommended_skills") {
       if (rest !== "")
         throw new ManifestError(`${path15}:${i + 1} ${key} \u5FC5\u987B\u662F\u5757\u5C0F\u8282`);
-      const r = parseSkillBlock(lines3, i + 1, path15, key);
+      const r = parseSkillBlock(lines4, i + 1, path15, key);
       if (key === "mandatory_skills")
         out.mandatory_skills = r.map;
       else
@@ -23988,19 +24026,19 @@ function scanSections(text13, path15) {
         throw new ManifestError(`${path15}:${i + 1} skill_action_authority \u5FC5\u987B\u662F\u5757\u5C0F\u8282`);
       if (out.skill_action_authority !== void 0)
         throw new ManifestError(`${path15}:${i + 1} skill_action_authority \u5C0F\u8282\u91CD\u590D`);
-      const r = parseSkillActionAuthorityBlock(lines3, i + 1, path15);
+      const r = parseSkillActionAuthorityBlock(lines4, i + 1, path15);
       out.skill_action_authority = r.value;
       i = r.next;
     } else if (key === "breadcrumb") {
       if (rest !== "")
         throw new ManifestError(`${path15}:${i + 1} breadcrumb \u5FC5\u987B\u662F\u5757\u5C0F\u8282`);
-      const r = parseBreadcrumbBlock(lines3, i + 1, path15);
+      const r = parseBreadcrumbBlock(lines4, i + 1, path15);
       out.breadcrumb = r.map;
       i = r.next;
     } else {
       i++;
-      while (i < lines3.length) {
-        const l = lines3[i];
+      while (i < lines4.length) {
+        const l = lines4[i];
         const stripped = stripComment(l);
         if (stripped.trim() !== "" && !/^\s/.test(stripped))
           break;
@@ -24556,12 +24594,12 @@ function flowList(raw) {
   const items = inner.split(",").map((item2) => item2.trim());
   return items.every((item2) => LIST_ITEM.test(item2)) ? items : null;
 }
-function readFrontmatter(lines3, errors) {
-  if (lines3[0] !== "---") {
+function readFrontmatter(lines4, errors) {
+  if (lines4[0] !== "---") {
     errors.push({ code: "frontmatter", line: 1, detail: "\u6587\u4EF6\u5FC5\u987B\u4EE5 --- \u5F00\u5934" });
     return null;
   }
-  const close = lines3.indexOf("---", 1);
+  const close = lines4.indexOf("---", 1);
   if (close < 0) {
     errors.push({ code: "frontmatter", line: 1, detail: "frontmatter \u7F3A\u5C11\u7ED3\u675F\u7684 ---" });
     return null;
@@ -24570,7 +24608,7 @@ function readFrontmatter(lines3, errors) {
   const variables = [];
   let inVariables = false;
   for (let index = 1; index < close; index += 1) {
-    const text13 = lines3[index] ?? "";
+    const text13 = lines4[index] ?? "";
     const line = index + 1;
     if (text13.trim() === "")
       continue;
@@ -24620,8 +24658,8 @@ function parseInstructionBlock(text13, expected) {
   if (new TextEncoder().encode(text13).length > INSTRUCTION_BLOCK_MAX_BYTES) {
     return { ok: false, errors: [{ code: "too-large", detail: `\u8D85\u8FC7 ${INSTRUCTION_BLOCK_MAX_BYTES} \u5B57\u8282` }] };
   }
-  const lines3 = text13.replace(/\r\n/g, "\n").split("\n");
-  const front = readFrontmatter(lines3, errors);
+  const lines4 = text13.replace(/\r\n/g, "\n").split("\n");
+  const front = readFrontmatter(lines4, errors);
   if (!front)
     return { ok: false, errors };
   const field4 = (key) => front.values.get(key);
@@ -24692,7 +24730,7 @@ function parseInstructionBlock(text13, expected) {
       errors.push({ code: "frontmatter", detail: `\u53D8\u91CF\u540D\u4E0E\u5185\u7F6E\u5360\u4F4D\u7B26\u51B2\u7A81\uFF1A${variable.key}` });
     }
   }
-  const body = checkBody(lines3, front.bodyStart, category, known, errors);
+  const body = checkBody(lines4, front.bodyStart, category, known, errors);
   if (errors.length > 0)
     return { ok: false, errors };
   return {
@@ -24710,19 +24748,19 @@ function parseInstructionBlock(text13, expected) {
     }
   };
 }
-function checkBody(lines3, start, category, known, errors) {
+function checkBody(lines4, start, category, known, errors) {
   const level = categoryHeadingLevel(category);
-  const first = lines3.findIndex((text13, index) => index >= start && text13.trim() !== "");
+  const first = lines4.findIndex((text13, index) => index >= start && text13.trim() !== "");
   if (first < 0) {
     errors.push({ code: "heading", detail: "\u6B63\u6587\u4E3A\u7A7A" });
     return "";
   }
-  if (!(lines3[first] ?? "").startsWith(`${"#".repeat(level)} `)) {
+  if (!(lines4[first] ?? "").startsWith(`${"#".repeat(level)} `)) {
     errors.push({ code: "heading", line: first + 1, detail: `\u6B63\u6587\u7B2C\u4E00\u884C\u5FC5\u987B\u662F ${"#".repeat(level)} \u6807\u9898` });
   }
   let fenced = false;
-  for (let index = first; index < lines3.length; index += 1) {
-    const text13 = lines3[index] ?? "";
+  for (let index = first; index < lines4.length; index += 1) {
+    const text13 = lines4[index] ?? "";
     const line = index + 1;
     if (FENCE.test(text13))
       fenced = !fenced;
@@ -24736,7 +24774,7 @@ function checkBody(lines3, start, category, known, errors) {
       }
     }
   }
-  return lines3.slice(first).join("\n").replace(/\s+$/u, "");
+  return lines4.slice(first).join("\n").replace(/\s+$/u, "");
 }
 
 // packages/kernel/dist/instructions/clients.js
@@ -24823,11 +24861,11 @@ function keyValue(line) {
     throw new ResourceParseError(line.n, `\u4E0D\u662F 'key: value' \u884C\uFF1A${line.text.trim()}`);
   return { key: match[1] ?? "", raw: (match[2] ?? "").trim() };
 }
-function nested(lines3, start, allowed, owner) {
+function nested(lines4, start, allowed, owner) {
   const fields2 = /* @__PURE__ */ new Map();
   let index = start;
-  while (index < lines3.length && (lines3[index]?.indent ?? 0) > 0) {
-    const line = lines3[index];
+  while (index < lines4.length && (lines4[index]?.indent ?? 0) > 0) {
+    const line = lines4[index];
     if (line.indent !== 2)
       throw new ResourceParseError(line.n, `${owner} \u7684\u5B50\u952E\u5FC5\u987B\u7F29\u8FDB 2 \u7A7A\u683C`);
     const { key, raw } = keyValue(line);
@@ -24841,14 +24879,14 @@ function nested(lines3, start, allowed, owner) {
     index++;
   }
   if (fields2.size === 0)
-    throw new ResourceParseError(lines3[start - 1]?.n ?? 1, `${owner} \u7F3A\u5B50\u952E`);
+    throw new ResourceParseError(lines4[start - 1]?.n ?? 1, `${owner} \u7F3A\u5B50\u952E`);
   return { fields: fields2, next: index };
 }
-function blockList(lines3, start, owner) {
+function blockList(lines4, start, owner) {
   const items = [];
   let index = start;
-  while (index < lines3.length && (lines3[index]?.indent ?? 0) > 0) {
-    const line = lines3[index];
+  while (index < lines4.length && (lines4[index]?.indent ?? 0) > 0) {
+    const line = lines4[index];
     if (line.indent !== 2 || !line.text.trim().startsWith("- ")) {
       throw new ResourceParseError(line.n, `${owner} \u7684\u5217\u8868\u9879\u5FC5\u987B\u662F\u7F29\u8FDB 2 \u7A7A\u683C\u7684 '- ' \u884C`);
     }
@@ -24876,14 +24914,14 @@ function parseResourceEntry(text13) {
   if (new TextEncoder().encode(text13).length > RESOURCE_ENTRY_MAX_BYTES) {
     throw new ResourceParseError(1, `\u6761\u76EE\u8D85\u8FC7 ${RESOURCE_ENTRY_MAX_BYTES} \u5B57\u8282`);
   }
-  const lines3 = scan(text13);
+  const lines4 = scan(text13);
   const values = /* @__PURE__ */ new Map();
   let licenseFields;
   let linkFields;
   let install;
   let index = 0;
-  while (index < lines3.length) {
-    const line = lines3[index];
+  while (index < lines4.length) {
+    const line = lines4[index];
     if (line.indent !== 0)
       throw new ResourceParseError(line.n, "\u9876\u5C42\u952E\u4E0D\u5F97\u7F29\u8FDB");
     const { key, raw } = keyValue(line);
@@ -24896,7 +24934,7 @@ function parseResourceEntry(text13) {
     if (key === "license" || key === "links") {
       if (raw !== "")
         throw new ResourceParseError(line.n, `${key} \u5FC5\u987B\u662F\u7F29\u8FDB\u5757`);
-      const block = nested(lines3, index, key === "license" ? LICENSE_KEYS : RESOURCE_LINK_KEYS, key);
+      const block = nested(lines4, index, key === "license" ? LICENSE_KEYS : RESOURCE_LINK_KEYS, key);
       if (key === "license")
         licenseFields = block.fields;
       else
@@ -24911,7 +24949,7 @@ function parseResourceEntry(text13) {
       }
       if (raw !== "")
         throw new ResourceParseError(line.n, "install \u5FC5\u987B\u662F - \u5757\u5217\u8868\u6216 []");
-      const block = blockList(lines3, index, "install");
+      const block = blockList(lines4, index, "install");
       install = block.items;
       index = block.next;
       continue;
@@ -25219,19 +25257,19 @@ var DESIGN_MODEL_CONTRAST_PATHS = [
   "tokens.colors.dark.text1"
 ];
 function frontMatter(text13) {
-  const lines3 = text13.split("\n");
-  if (lines3[0]?.trim() !== "---")
+  const lines4 = text13.split("\n");
+  if (lines4[0]?.trim() !== "---")
     return { keys: /* @__PURE__ */ new Map(), body: text13 };
-  const end = lines3.findIndex((line, index) => index > 0 && line.trim() === "---");
+  const end = lines4.findIndex((line, index) => index > 0 && line.trim() === "---");
   if (end < 0)
     return { keys: /* @__PURE__ */ new Map(), body: text13 };
   const keys = /* @__PURE__ */ new Map();
-  for (const line of lines3.slice(1, end)) {
+  for (const line of lines4.slice(1, end)) {
     const match = /^([a-z_]+):\s*(.*)$/u.exec(line.trim());
     if (match)
       keys.set(match[1] ?? "", (match[2] ?? "").trim().replace(/^["']|["']$/gu, ""));
   }
-  return { keys, body: lines3.slice(end + 1).join("\n") };
+  return { keys, body: lines4.slice(end + 1).join("\n") };
 }
 function sectionProblems(body) {
   const problems = [];
@@ -25362,13 +25400,13 @@ function renderDesignProposal(change, base) {
   ].join("\n");
 }
 function designProposalBase(text13) {
-  const lines3 = text13.split("\n");
-  if (lines3[0]?.trim() !== "---")
+  const lines4 = text13.split("\n");
+  if (lines4[0]?.trim() !== "---")
     return null;
-  const end = lines3.findIndex((line, index) => index > 0 && line.trim() === "---");
+  const end = lines4.findIndex((line, index) => index > 0 && line.trim() === "---");
   if (end < 0)
     return null;
-  const head = new Map(lines3.slice(1, end).map((line) => /^([a-z_]+):\s*(.*)$/u.exec(line.trim())).filter((match) => match !== null).map((match) => [match[1] ?? "", (match[2] ?? "").trim()]));
+  const head = new Map(lines4.slice(1, end).map((line) => /^([a-z_]+):\s*(.*)$/u.exec(line.trim())).filter((match) => match !== null).map((match) => [match[1] ?? "", (match[2] ?? "").trim()]));
   if (head.get("schema") !== DESIGN_PROPOSAL_SCHEMA)
     return null;
   const base = head.get("base") ?? "";
@@ -25452,14 +25490,14 @@ function fail6(message2) {
   throw new Error(`test direction \u89E3\u6790\u9519\u8BEF\uFF1A${message2}`);
 }
 function parseTestDirection(content) {
-  const lines3 = content.split("\n");
-  const idLines = lines3.filter((line) => /^id:/.test(line));
+  const lines4 = content.split("\n");
+  const idLines = lines4.filter((line) => /^id:/.test(line));
   if (idLines.length !== 1)
     fail6("\u5FC5\u987B\u6070\u597D\u6709\u4E00\u884C\u9876\u5C42 id");
   const id2 = /^id:\s*(\S+)\s*$/.exec(idLines[0] ?? "")?.[1] ?? "";
   if (!ID_RE.test(id2))
     fail6(`id '${id2}' \u542B\u975E\u6CD5\u5B57\u7B26\uFF08\u4EC5\u5141\u8BB8 a-zA-Z0-9_-\uFF0C\u226464\uFF09`);
-  const body = ["direction: placeholder", ...lines3.filter((line) => !/^id:/.test(line))];
+  const body = ["direction: placeholder", ...lines4.filter((line) => !/^id:/.test(line))];
   let parsed2;
   try {
     parsed2 = parseTestBody(id2, { lines: body, i: 0 }, -1);
@@ -25596,9 +25634,9 @@ async function readSourceTree(library, root) {
   return files;
 }
 function builtinSourceDigest(files) {
-  const lines3 = files.map((file) => `${file.path}\0${sha256Hex(file.bytes)}
+  const lines4 = files.map((file) => `${file.path}\0${sha256Hex(file.bytes)}
 `).sort().join("");
-  return `sha256:${sha256Hex(lines3)}`;
+  return `sha256:${sha256Hex(lines4)}`;
 }
 function parseBuiltinLibraryMarker(text13) {
   let value;
@@ -26789,9 +26827,9 @@ function parseObject(text13) {
   }
 }
 function lastJsonObjectLine(text13) {
-  const lines3 = text13.split("\n");
-  for (let index = lines3.length - 1; index >= 0; index--) {
-    const line = (lines3[index] ?? "").trim();
+  const lines4 = text13.split("\n");
+  for (let index = lines4.length - 1; index >= 0; index--) {
+    const line = (lines4[index] ?? "").trim();
     if (!line.startsWith("{"))
       continue;
     const parsed2 = parseObject(line);
@@ -26887,8 +26925,8 @@ function evaluateMetricCriteria(input2) {
 }
 
 // packages/kernel/dist/test-evidence/evaluate.js
-import { readFile as readFile41, readdir as readdir14 } from "node:fs/promises";
-import { join as join49 } from "node:path";
+import { readFile as readFile42, readdir as readdir15 } from "node:fs/promises";
+import { join as join50 } from "node:path";
 
 // packages/kernel/dist/test-system/blockers.js
 var TEST_BLOCKER_CODES = [
@@ -27778,26 +27816,26 @@ function entries(value) {
   return out;
 }
 function emitEntries(value, pad4) {
-  const lines3 = [];
+  const lines4 = [];
   for (const [key, item2] of entries(value)) {
     if (isSeq(item2)) {
       if (item2.length === 0)
-        lines3.push(`${pad4}${key}: []`);
+        lines4.push(`${pad4}${key}: []`);
       else
-        lines3.push(`${pad4}${key}:`, ...emitItems(item2, `${pad4}  `));
+        lines4.push(`${pad4}${key}:`, ...emitItems(item2, `${pad4}  `));
     } else if (isMap(item2)) {
       if (entries(item2).length === 0)
-        lines3.push(`${pad4}${key}: {}`);
+        lines4.push(`${pad4}${key}: {}`);
       else
-        lines3.push(`${pad4}${key}:`, ...emitEntries(item2, `${pad4}  `));
+        lines4.push(`${pad4}${key}:`, ...emitEntries(item2, `${pad4}  `));
     } else {
-      lines3.push(`${pad4}${key}: ${formatYamlScalar(item2)}`);
+      lines4.push(`${pad4}${key}: ${formatYamlScalar(item2)}`);
     }
   }
-  return lines3;
+  return lines4;
 }
 function emitItems(items, pad4) {
-  const lines3 = [];
+  const lines4 = [];
   for (const item2 of items) {
     if (isSeq(item2))
       throw new Error("yaml-emit: \u4E0D\u652F\u6301\u5E8F\u5217\u76F4\u63A5\u5D4C\u5957\u5E8F\u5217");
@@ -27805,14 +27843,14 @@ function emitItems(items, pad4) {
       const body = emitEntries(item2, `${pad4}  `);
       const first = body[0];
       if (first === void 0)
-        lines3.push(`${pad4}- {}`);
+        lines4.push(`${pad4}- {}`);
       else
-        lines3.push(`${pad4}- ${first.slice(pad4.length + 2)}`, ...body.slice(1));
+        lines4.push(`${pad4}- ${first.slice(pad4.length + 2)}`, ...body.slice(1));
       continue;
     }
-    lines3.push(`${pad4}- ${formatYamlScalar(item2)}`);
+    lines4.push(`${pad4}- ${formatYamlScalar(item2)}`);
   }
-  return lines3;
+  return lines4;
 }
 function emitYaml(value) {
   return `${emitEntries(value, "").join("\n")}
@@ -27834,10 +27872,10 @@ var INT_RE = /^[-+]?\d+$/;
 var FLOAT_RE = /^[-+]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][-+]?\d+)?$/;
 function tokenize2(text13) {
   const tokens = [];
-  const lines3 = text13.split("\n");
+  const lines4 = text13.split("\n");
   let sawContent = false;
-  for (let index = 0; index < lines3.length; index++) {
-    const line = (lines3[index] ?? "").replace(/\r$/, "");
+  for (let index = 0; index < lines4.length; index++) {
+    const line = (lines4[index] ?? "").replace(/\r$/, "");
     const lineNo = index + 1;
     if (line.trim() === "")
       continue;
@@ -28636,7 +28674,7 @@ function latestSuiteRuns(records) {
 function staleBindings(ref, context) {
   const bindings2 = ref.record.bindings;
   const out = [];
-  if (context.candidate !== void 0 && (context.candidate === null || bindings2.candidate !== context.candidate))
+  if (context.candidate !== void 0 && (context.candidate === null || bindings2.candidate !== context.candidate && bindings2.candidate !== context.candidateAlt))
     out.push("candidate");
   if (bindings2.workflow_fingerprint !== context.workflowFingerprint)
     out.push("workflow");
@@ -28999,16 +29037,16 @@ var ASSERT = [
   /\bAssert\.\w+\s*\(/,
   /\bassertThat\s*\(/
 ];
-function count2(lines3, patterns) {
+function count2(lines4, patterns) {
   let total = 0;
-  for (const line of lines3)
+  for (const line of lines4)
     if (patterns.some((pattern) => pattern.test(line)))
       total++;
   return total;
 }
-var declaredTests = (lines3) => count2(lines3, DECLARE);
-var skipMarkers = (lines3) => count2(lines3, SKIP);
-var assertions = (lines3) => count2(lines3, ASSERT);
+var declaredTests = (lines4) => count2(lines4, DECLARE);
+var skipMarkers = (lines4) => count2(lines4, SKIP);
+var assertions = (lines4) => count2(lines4, ASSERT);
 var SNAPSHOT_PATH = [
   /(?:^|\/)__snapshots__\//,
   /(?:^|\/)__image_snapshots__\//,
@@ -29034,9 +29072,9 @@ function integrityPathKind(path15, owned) {
   return COVERAGE_CONFIG_BASENAME.test(base) ? "coverage-config" : void 0;
 }
 var THRESHOLD = /\b(lines|branches|functions|statements|fail[_-]?under|threshold|target)\b\W{0,6}(\d+(?:\.\d+)?)/gi;
-function thresholdsOf(lines3) {
+function thresholdsOf(lines4) {
   const out = /* @__PURE__ */ new Map();
-  for (const line of lines3) {
+  for (const line of lines4) {
     for (const match of line.matchAll(THRESHOLD)) {
       const key = (match[1] ?? "").toLowerCase().replace(/[_-]/g, "");
       const value = Number(match[2]);
@@ -29580,7 +29618,7 @@ async function readFileDiffs(port, repoRoot, start, accept, limit) {
   ].sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
   const picked = candidates2.slice(0, limit);
   const tracked = picked.filter((entry2) => statuses.has(entry2.path)).map((entry2) => entry2.path);
-  const lines3 = /* @__PURE__ */ new Map();
+  const lines4 = /* @__PURE__ */ new Map();
   for (let from = 0; from < tracked.length; from += DIFF_CHUNK) {
     const text13 = await port.gitText([
       "-c",
@@ -29597,11 +29635,11 @@ async function readFileDiffs(port, repoRoot, start, accept, limit) {
     if (text13 === void 0)
       throw port.fail("git diff \u5931\u8D25");
     for (const [path15, diff] of parseFileLineDiffs(text13))
-      lines3.set(path15, diff);
+      lines4.set(path15, diff);
   }
   const files = [];
   for (const entry2 of picked) {
-    const diff = lines3.get(entry2.path);
+    const diff = lines4.get(entry2.path);
     files.push(statuses.has(entry2.path) ? { ...entry2, added: diff?.added ?? [], removed: diff?.removed ?? [] } : { ...entry2, added: await untrackedLines(join42(repoRoot, ...entry2.path.split("/"))), removed: [] });
   }
   return { files, ...candidates2.length > limit ? { truncated: { found: candidates2.length, limit } } : {} };
@@ -29823,9 +29861,9 @@ function createChangedFilesSession(repoRoot, options = {}) {
         throw new ChangedFilesUnavailableError("git diff \u5931\u8D25");
       const out = new Map(parseAddedLines(diff));
       for (const path15 of (await untrackedFiles()).files) {
-        const lines3 = await lineCount(join43(repoRoot, path15));
-        if (lines3 > 0)
-          out.set(path15, new Set(Array.from({ length: lines3 }, (_, index) => index + 1)));
+        const lines4 = await lineCount(join43(repoRoot, path15));
+        if (lines4 > 0)
+          out.set(path15, new Set(Array.from({ length: lines4 }, (_, index) => index + 1)));
       }
       return out;
     }
@@ -30475,6 +30513,7 @@ function evaluateTestPolicy(input2) {
   const latest = latestSuiteRuns(records);
   const freshness = {
     candidate: input2.bindings.candidate,
+    ...input2.bindings.candidateAlt === void 0 ? {} : { candidateAlt: input2.bindings.candidateAlt },
     workflowFingerprint: input2.bindings.workflowFingerprint,
     catalog: input2.catalog.state === "ok" ? input2.catalog.catalog : void 0,
     planDigest: input2.plan.state === "ok" ? input2.plan.digest : void 0,
@@ -30518,6 +30557,10 @@ function evaluateTestPolicy(input2) {
 function renderPolicyBlockers(report2) {
   return report2.blockers.filter((item2) => item2.blocking).map(renderTestBlocker);
 }
+
+// packages/kernel/dist/test-system/candidate.js
+import { lstat as lstat32, readFile as readFile41, readdir as readdir14 } from "node:fs/promises";
+import { join as join49, posix as posix2 } from "node:path";
 
 // packages/kernel/dist/test-system/load.js
 import { lstat as lstat31, readFile as readFile40, readdir as readdir13 } from "node:fs/promises";
@@ -30702,9 +30745,9 @@ function integrityDiffInSession(session, start) {
 
 // packages/kernel/dist/test-system/openspec-trace.js
 var TRACE_TASK_STAGE = "build";
-function stripFences(lines3) {
+function stripFences(lines4) {
   let fence;
-  return lines3.map((line) => {
+  return lines4.map((line) => {
     const marker = /^\s*(```|~~~)/.exec(line)?.[1];
     if (marker !== void 0) {
       if (fence === void 0)
@@ -30754,8 +30797,8 @@ function extractTaskItems(markdown, stages = DEFAULT_WORKFLOW_TODO_STAGES) {
   let inSection = 0;
   let stage = null;
   let structured = false;
-  const lines3 = markdown.split("\n");
-  stripFences(lines3).forEach((raw, index) => {
+  const lines4 = markdown.split("\n");
+  stripFences(lines4).forEach((raw, index) => {
     if (raw === void 0)
       return;
     const line = raw.replace(/\r$/, "");
@@ -31683,6 +31726,7 @@ async function evaluateStepTestPolicy(input2) {
   const planInput = plan.state === "ok" ? { state: "ok", plan: plan.plan, digest: plan.digest } : plan;
   const hasRecords = chain.state === "intact" && chain.active.length > 0;
   const candidate2 = hasRecords ? await input2.candidate() : void 0;
+  const candidateAlt = typeof candidate2 === "string" && input2.portableCandidate !== void 0 && chain.state === "intact" && chain.active.some((record9) => record9.bindings.candidate !== candidate2) ? await input2.portableCandidate(candidate2) : void 0;
   let changedFiles2;
   let changedFilesTruncated;
   let changedFilesError;
@@ -31723,7 +31767,12 @@ async function evaluateStepTestPolicy(input2) {
     ...changedFilesTruncated === void 0 ? {} : { changedFilesTruncated },
     scenarios,
     tasks,
-    bindings: { candidate: candidate2, workflowFingerprint: input2.workflowFingerprint, workflowRunId: input2.workflowRunId },
+    bindings: {
+      candidate: candidate2,
+      ...candidateAlt === void 0 ? {} : { candidateAlt },
+      workflowFingerprint: input2.workflowFingerprint,
+      workflowRunId: input2.workflowRunId
+    },
     today: new Date(input2.now).toISOString().slice(0, 10),
     ...input2.exitEvent === void 0 ? {} : { exitEvent: input2.exitEvent },
     ...sealed === void 0 ? {} : {
@@ -31737,6 +31786,138 @@ async function evaluateStepTestPolicy(input2) {
     },
     ...integrity === void 0 ? {} : { integrity }
   });
+}
+
+// packages/kernel/dist/test-system/candidate.js
+var MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024;
+var MAX_CHANGE_DIRS = 512;
+function repoPath(cwd, path15) {
+  const joined = posix2.normalize(posix2.join(cwd === "" ? "." : cwd, path15));
+  if (joined === "." || joined === ".." || joined.startsWith("../") || posix2.isAbsolute(joined))
+    return void 0;
+  return joined;
+}
+function catalogDeclaredOutputs(catalog3) {
+  const out = /* @__PURE__ */ new Set();
+  const add = (cwd, path15) => {
+    if (path15 === void 0)
+      return;
+    const resolved = repoPath(cwd, path15);
+    if (resolved !== void 0)
+      out.add(resolved);
+  };
+  for (const suite2 of catalog3.suites) {
+    add(suite2.cwd, suite2.report.path);
+    if (suite2.coverage !== void 0) {
+      add(suite2.cwd, suite2.coverage.path);
+      if (suite2.coverage.format === "istanbul-summary")
+        add(suite2.cwd, posix2.join(posix2.dirname(suite2.coverage.path), "coverage-final.json"));
+    }
+    for (const artifact2 of suite2.artifacts)
+      add(suite2.cwd, artifact2);
+  }
+  return [...out].sort();
+}
+function inlineOutputsOfSnapshot(text13) {
+  let value;
+  try {
+    value = JSON.parse(text13);
+  } catch {
+    return [];
+  }
+  const steps = value?.plan?.workflow?.steps;
+  if (!Array.isArray(steps))
+    return [];
+  const out = [];
+  for (const step of steps) {
+    if (!Array.isArray(step?.tests))
+      continue;
+    for (const test of step.tests) {
+      if (!Array.isArray(test?.outputs))
+        continue;
+      for (const output2 of test.outputs) {
+        if (typeof output2?.path === "string") {
+          const resolved = repoPath(".", output2.path);
+          if (resolved !== void 0)
+            out.push(resolved);
+        }
+      }
+    }
+  }
+  return out;
+}
+var snapshotCache = /* @__PURE__ */ new Map();
+async function inlineTestDeclaredOutputs(repoRoot) {
+  const changesDir = join49(repoRoot, "openspec", "changes");
+  let names;
+  try {
+    names = (await readdir14(changesDir, { withFileTypes: true })).filter((entry2) => entry2.isDirectory() && entry2.name !== "archive").map((entry2) => entry2.name).sort().slice(0, MAX_CHANGE_DIRS);
+  } catch {
+    return [];
+  }
+  const out = /* @__PURE__ */ new Set();
+  for (const name2 of names) {
+    const path15 = join49(changesDir, name2, WORKFLOW_PLAN_SNAPSHOT_FILE);
+    let info;
+    try {
+      info = await lstat32(path15);
+    } catch {
+      continue;
+    }
+    if (!info.isFile() || info.size > MAX_SNAPSHOT_BYTES)
+      continue;
+    const stamp2 = `${info.size}:${info.mtimeMs}`;
+    let cached = snapshotCache.get(path15);
+    if (cached?.stamp !== stamp2) {
+      try {
+        cached = { stamp: stamp2, outputs: inlineOutputsOfSnapshot(await readFile41(path15, "utf8")) };
+      } catch {
+        continue;
+      }
+      snapshotCache.set(path15, cached);
+    }
+    for (const output2 of cached.outputs)
+      out.add(output2);
+  }
+  return [...out].sort();
+}
+async function declaredTestOutputs(repoRoot) {
+  const catalog3 = await loadCatalogInput(repoRoot);
+  const fromCatalog = catalog3.state === "ok" ? catalogDeclaredOutputs(catalog3.catalog) : [];
+  return [.../* @__PURE__ */ new Set([...fromCatalog, ...await inlineTestDeclaredOutputs(repoRoot)])].sort();
+}
+var TWINS = /* @__PURE__ */ new Map();
+var MAX_TWINS = 256;
+function rememberTwins(twins) {
+  TWINS.delete(twins.full);
+  TWINS.set(twins.full, twins.portable);
+  if (TWINS.size > MAX_TWINS) {
+    const oldest = TWINS.keys().next();
+    if (oldest.done !== true)
+      TWINS.delete(oldest.value);
+  }
+}
+async function candidateTwins(repoRoot) {
+  const twins = await fingerprintWorkspaceTwins(repoRoot, { declaredOutputs: await declaredTestOutputs(repoRoot) });
+  rememberTwins(twins);
+  return twins;
+}
+async function candidateFingerprint(repoRoot) {
+  return (await candidateTwins(repoRoot)).full;
+}
+function knownPortableCandidate(fullCandidate) {
+  return TWINS.get(fullCandidate);
+}
+async function portableCandidate(repoRoot, fullCandidate) {
+  const known = TWINS.get(fullCandidate);
+  if (known !== void 0)
+    return known;
+  try {
+    const twins = await candidateTwins(repoRoot);
+    return twins.full === fullCandidate ? twins.portable : void 0;
+  } catch {
+    return void 0;
+  }
 }
 
 // packages/kernel/dist/test-evidence/evaluate.js
@@ -31770,7 +31951,7 @@ async function workflowRunId(changeDir7) {
 }
 async function runIdsIn(dir) {
   try {
-    return (await readdir14(dir)).filter((name2) => name2.endsWith(".json")).map((name2) => name2.slice(0, -5)).sort();
+    return (await readdir15(dir)).filter((name2) => name2.endsWith(".json")).map((name2) => name2.slice(0, -5)).sort();
   } catch {
     return [];
   }
@@ -31781,7 +31962,7 @@ async function listTestRuns(repoRoot, changeName, filter = {}) {
   for (const slug2 of slugs) {
     const paths = testEvidencePaths(repoRoot, slug2, changeName);
     for (const runId of await runIdsIn(paths.runsDir)) {
-      const record9 = await readTestRunRecord(join49(paths.runsDir, `${runId}.json`));
+      const record9 = await readTestRunRecord(join50(paths.runsDir, `${runId}.json`));
       if (record9 === void 0)
         continue;
       if (filter.testId !== void 0 && record9.test_id !== filter.testId)
@@ -31798,8 +31979,8 @@ async function listTestRuns(repoRoot, changeName, filter = {}) {
 }
 async function userSlugs(repoRoot) {
   try {
-    const usersDir = join49(repoRoot, TENON_PROJECT_DIR, "users");
-    return (await readdir14(usersDir, { withFileTypes: true })).filter((entry2) => entry2.isDirectory()).map((entry2) => entry2.name).sort();
+    const usersDir = join50(repoRoot, TENON_PROJECT_DIR, "users");
+    return (await readdir15(usersDir, { withFileTypes: true })).filter((entry2) => entry2.isDirectory()).map((entry2) => entry2.name).sort();
   } catch {
     return [];
   }
@@ -31854,6 +32035,15 @@ async function evaluateTestEvidence(input2) {
     }
     return candidate2;
   };
+  let portable;
+  const candidateStale = async (bound, current) => {
+    if (current === null)
+      return true;
+    if (bound === current)
+      return false;
+    portable ??= portableCandidate(input2.repoRoot, current);
+    return bound === null || bound !== await portable;
+  };
   const items = [];
   for (const test of tests) {
     const marker = await readRunningMarker(testRunningMarkerPath(input2.repoRoot, slug2, input2.changeName, test.id));
@@ -31870,7 +32060,7 @@ async function evaluateTestEvidence(input2) {
       continue;
     }
     const current = record9.workflow_fingerprint === input2.plan.workflowFingerprint && record9.test_digest === testDigest(test) ? await currentCandidate2() : void 0;
-    const staleBecause = record9.workflow_fingerprint !== input2.plan.workflowFingerprint ? "workflow" : record9.test_digest !== testDigest(test) ? "declaration" : current !== void 0 && (current === null || record9.candidate !== current) ? "candidate" : void 0;
+    const staleBecause = record9.workflow_fingerprint !== input2.plan.workflowFingerprint ? "workflow" : record9.test_digest !== testDigest(test) ? "declaration" : current !== void 0 && await candidateStale(record9.candidate, current) ? "candidate" : void 0;
     if (staleBecause !== void 0) {
       items.push({ test, status: "stale", run: record9, staleBecause });
       continue;
@@ -31891,6 +32081,7 @@ async function evaluateTestEvidence(input2) {
       workflowFingerprint: input2.plan.workflowFingerprint,
       workflowRunId: runId,
       candidate: currentCandidate2,
+      portableCandidate: (current) => portableCandidate(input2.repoRoot, current),
       ...input2.context.changedFiles === void 0 ? {} : { changedFiles: input2.context.changedFiles },
       ...input2.context.recordChainCache === void 0 ? {} : { recordChainCache: input2.context.recordChainCache },
       ...input2.context.protectedChanges === void 0 ? {} : { protectedChanges: input2.context.protectedChanges },
@@ -32035,14 +32226,14 @@ async function rejectOnTestEvidence(input2) {
 }
 
 // packages/kernel/dist/test-system/catalog-file.js
-import { mkdir as mkdir23, readFile as readFile42 } from "node:fs/promises";
+import { mkdir as mkdir23, readFile as readFile43 } from "node:fs/promises";
 function emptyCatalog() {
   return { schema: TEST_CATALOG_SCHEMA, profiles_env: [], suites: [], services: [] };
 }
 async function readCatalogFile(repoRoot) {
   let text13;
   try {
-    text13 = await readFile42(testSystemPaths(repoRoot).catalog, "utf8");
+    text13 = await readFile43(testSystemPaths(repoRoot).catalog, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT")
       return { state: "missing" };
@@ -32075,7 +32266,7 @@ async function updateCatalog(repoRoot, mutate) {
 
 // packages/kernel/dist/test-system/review-waivers.js
 import { rm as rm12 } from "node:fs/promises";
-import { join as join50 } from "node:path";
+import { join as join51 } from "node:path";
 var REVIEW_WAIVERS_FILE = ".pipeline-review-waivers.json";
 var MAX_REVIEW_WAIVERS_BYTES = 64 * 1024;
 var KEY_RE4 = /^(kind|covers|not-applicable):\S.*$/;
@@ -32136,13 +32327,13 @@ function decodeSelection(value) {
 }
 async function writeReviewWaiverSelection(changeDir7, selection) {
   const body = { version: 1, ...selection };
-  await atomicReplaceFile(join50(changeDir7, REVIEW_WAIVERS_FILE), `${JSON.stringify(body)}
+  await atomicReplaceFile(join51(changeDir7, REVIEW_WAIVERS_FILE), `${JSON.stringify(body)}
 `);
 }
 async function readReviewWaiverSelection(changeDir7) {
   let raw;
   try {
-    raw = await readOptionalBoundedRegularTextFile(join50(changeDir7, REVIEW_WAIVERS_FILE), MAX_REVIEW_WAIVERS_BYTES, "review waiver selection");
+    raw = await readOptionalBoundedRegularTextFile(join51(changeDir7, REVIEW_WAIVERS_FILE), MAX_REVIEW_WAIVERS_BYTES, "review waiver selection");
   } catch {
     return void 0;
   }
@@ -32155,7 +32346,7 @@ async function readReviewWaiverSelection(changeDir7) {
   }
 }
 async function clearReviewWaiverSelection(changeDir7) {
-  await rm12(join50(changeDir7, REVIEW_WAIVERS_FILE), { force: true });
+  await rm12(join51(changeDir7, REVIEW_WAIVERS_FILE), { force: true });
 }
 function scalar9(state, field4) {
   const value = state.fields[field4];
@@ -32312,8 +32503,8 @@ function clip(value) {
   const flat = value.replace(/\s+/g, " ").trim();
   return flat.length <= MAX_TEXT2 ? flat : `${flat.slice(0, MAX_TEXT2 - 1)}\u2026`;
 }
-function capped(lines3) {
-  return lines3.length <= MAX_LINES ? lines3 : [...lines3.slice(0, MAX_LINES), `\u2026 \u53E6\u6709 ${lines3.length - MAX_LINES} \u9879`];
+function capped(lines4) {
+  return lines4.length <= MAX_LINES ? lines4 : [...lines4.slice(0, MAX_LINES), `\u2026 \u53E6\u6709 ${lines4.length - MAX_LINES} \u9879`];
 }
 function describeCatalog(before, after) {
   if (after === void 0)
@@ -32324,29 +32515,29 @@ function describeCatalog(before, after) {
   const prev = before === void 0 ? void 0 : parseTestCatalog(before);
   const oldSuites = new Map(prev?.ok === true ? prev.catalog.suites.map((suite2) => [suite2.id, suite2]) : []);
   const oldServices = new Map(prev?.ok === true ? prev.catalog.services.map((service2) => [service2.id, service2]) : []);
-  const lines3 = [];
+  const lines4 = [];
   for (const suite2 of next.catalog.suites) {
     const old = oldSuites.get(suite2.id);
     if (old === void 0)
-      lines3.push(`\u65B0\u589E\u5957\u4EF6 ${suite2.id}\uFF1A${clip(suite2.command)}`);
+      lines4.push(`\u65B0\u589E\u5957\u4EF6 ${suite2.id}\uFF1A${clip(suite2.command)}`);
     else if (canonicalJson(old) !== canonicalJson(suite2)) {
-      lines3.push(old.command === suite2.command ? `\u6539\u52A8\u5957\u4EF6 ${suite2.id}\uFF08\u547D\u4EE4\u4E0D\u53D8\uFF09` : `\u6539\u52A8\u5957\u4EF6 ${suite2.id} \u7684\u547D\u4EE4\uFF1A${clip(old.command)} \u2192 ${clip(suite2.command)}`);
+      lines4.push(old.command === suite2.command ? `\u6539\u52A8\u5957\u4EF6 ${suite2.id}\uFF08\u547D\u4EE4\u4E0D\u53D8\uFF09` : `\u6539\u52A8\u5957\u4EF6 ${suite2.id} \u7684\u547D\u4EE4\uFF1A${clip(old.command)} \u2192 ${clip(suite2.command)}`);
     }
   }
   for (const id2 of oldSuites.keys())
     if (!next.catalog.suites.some((suite2) => suite2.id === id2))
-      lines3.push(`\u5220\u9664\u5957\u4EF6 ${id2}`);
+      lines4.push(`\u5220\u9664\u5957\u4EF6 ${id2}`);
   for (const service2 of next.catalog.services) {
     const old = oldServices.get(service2.id);
     if (old === void 0)
-      lines3.push(`\u65B0\u589E\u670D\u52A1 ${service2.id}\uFF1A${clip(service2.start)}`);
+      lines4.push(`\u65B0\u589E\u670D\u52A1 ${service2.id}\uFF1A${clip(service2.start)}`);
     else if (canonicalJson(old) !== canonicalJson(service2))
-      lines3.push(`\u6539\u52A8\u670D\u52A1 ${service2.id}\uFF1A${clip(old.start)} \u2192 ${clip(service2.start)}`);
+      lines4.push(`\u6539\u52A8\u670D\u52A1 ${service2.id}\uFF1A${clip(old.start)} \u2192 ${clip(service2.start)}`);
   }
   for (const id2 of oldServices.keys())
     if (!next.catalog.services.some((service2) => service2.id === id2))
-      lines3.push(`\u5220\u9664\u670D\u52A1 ${id2}`);
-  return capped(lines3.length === 0 ? ["\u5957\u4EF6\u4E0E\u670D\u52A1\u6CA1\u6709\u53D8\u5316\uFF08\u5176\u5B83\u5B57\u6BB5\u6709\u6539\u52A8\uFF09"] : lines3);
+      lines4.push(`\u5220\u9664\u670D\u52A1 ${id2}`);
+  return capped(lines4.length === 0 ? ["\u5957\u4EF6\u4E0E\u670D\u52A1\u6CA1\u6709\u53D8\u5316\uFF08\u5176\u5B83\u5B57\u6BB5\u6709\u6539\u52A8\uFF09"] : lines4);
 }
 function knownEntries(text13) {
   if (text13 === void 0)
@@ -32363,18 +32554,18 @@ function describeKnownFailures(before, after) {
   const prev = knownEntries(before) ?? [];
   const key = (entry2) => `${entry2.suite}\0${entry2.test}`;
   const old = new Map(prev.map((entry2) => [key(entry2), entry2]));
-  const lines3 = [];
+  const lines4 = [];
   for (const entry2 of next) {
     const was = old.get(key(entry2));
     if (was === void 0)
-      lines3.push(`\u65B0\u589E\u5DF2\u77E5\u5931\u8D25 ${entry2.suite} / ${entry2.test}\uFF08\u5230\u671F ${entry2.expires}\uFF1B${clip(entry2.reason)}\uFF09`);
+      lines4.push(`\u65B0\u589E\u5DF2\u77E5\u5931\u8D25 ${entry2.suite} / ${entry2.test}\uFF08\u5230\u671F ${entry2.expires}\uFF1B${clip(entry2.reason)}\uFF09`);
     else if (was.expires !== entry2.expires || was.reason !== entry2.reason)
-      lines3.push(`\u6539\u52A8\u5DF2\u77E5\u5931\u8D25 ${entry2.suite} / ${entry2.test}\uFF08\u5230\u671F ${was.expires} \u2192 ${entry2.expires}\uFF09`);
+      lines4.push(`\u6539\u52A8\u5DF2\u77E5\u5931\u8D25 ${entry2.suite} / ${entry2.test}\uFF08\u5230\u671F ${was.expires} \u2192 ${entry2.expires}\uFF09`);
   }
   for (const entry2 of prev)
     if (!next.some((item2) => key(item2) === key(entry2)))
-      lines3.push(`\u79FB\u51FA\u5DF2\u77E5\u5931\u8D25 ${entry2.suite} / ${entry2.test}`);
-  return capped(lines3.length === 0 ? ["\u6761\u76EE\u6CA1\u6709\u53D8\u5316"] : lines3);
+      lines4.push(`\u79FB\u51FA\u5DF2\u77E5\u5931\u8D25 ${entry2.suite} / ${entry2.test}`);
+  return capped(lines4.length === 0 ? ["\u6761\u76EE\u6CA1\u6709\u53D8\u5316"] : lines4);
 }
 function describeProtectedChange(kind, before, after) {
   if (kind === "catalog")
@@ -32399,110 +32590,6 @@ async function loadIntegrityReport(input2) {
   } catch (error2) {
     return unavailableIntegrity(input2.mode, error2 instanceof Error ? error2.message.slice(0, 200) : "\u8BFB\u53D6\u5931\u8D25", runs);
   }
-}
-
-// packages/kernel/dist/test-system/candidate.js
-import { lstat as lstat32, readFile as readFile43, readdir as readdir15 } from "node:fs/promises";
-import { join as join51, posix as posix2 } from "node:path";
-var MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024;
-var MAX_CHANGE_DIRS = 512;
-function repoPath(cwd, path15) {
-  const joined = posix2.normalize(posix2.join(cwd === "" ? "." : cwd, path15));
-  if (joined === "." || joined === ".." || joined.startsWith("../") || posix2.isAbsolute(joined))
-    return void 0;
-  return joined;
-}
-function catalogDeclaredOutputs(catalog3) {
-  const out = /* @__PURE__ */ new Set();
-  const add = (cwd, path15) => {
-    if (path15 === void 0)
-      return;
-    const resolved = repoPath(cwd, path15);
-    if (resolved !== void 0)
-      out.add(resolved);
-  };
-  for (const suite2 of catalog3.suites) {
-    add(suite2.cwd, suite2.report.path);
-    if (suite2.coverage !== void 0) {
-      add(suite2.cwd, suite2.coverage.path);
-      if (suite2.coverage.format === "istanbul-summary")
-        add(suite2.cwd, posix2.join(posix2.dirname(suite2.coverage.path), "coverage-final.json"));
-    }
-    for (const artifact2 of suite2.artifacts)
-      add(suite2.cwd, artifact2);
-  }
-  return [...out].sort();
-}
-function inlineOutputsOfSnapshot(text13) {
-  let value;
-  try {
-    value = JSON.parse(text13);
-  } catch {
-    return [];
-  }
-  const steps = value?.plan?.workflow?.steps;
-  if (!Array.isArray(steps))
-    return [];
-  const out = [];
-  for (const step of steps) {
-    if (!Array.isArray(step?.tests))
-      continue;
-    for (const test of step.tests) {
-      if (!Array.isArray(test?.outputs))
-        continue;
-      for (const output2 of test.outputs) {
-        if (typeof output2?.path === "string") {
-          const resolved = repoPath(".", output2.path);
-          if (resolved !== void 0)
-            out.push(resolved);
-        }
-      }
-    }
-  }
-  return out;
-}
-var snapshotCache = /* @__PURE__ */ new Map();
-async function inlineTestDeclaredOutputs(repoRoot) {
-  const changesDir = join51(repoRoot, "openspec", "changes");
-  let names;
-  try {
-    names = (await readdir15(changesDir, { withFileTypes: true })).filter((entry2) => entry2.isDirectory() && entry2.name !== "archive").map((entry2) => entry2.name).sort().slice(0, MAX_CHANGE_DIRS);
-  } catch {
-    return [];
-  }
-  const out = /* @__PURE__ */ new Set();
-  for (const name2 of names) {
-    const path15 = join51(changesDir, name2, WORKFLOW_PLAN_SNAPSHOT_FILE);
-    let info;
-    try {
-      info = await lstat32(path15);
-    } catch {
-      continue;
-    }
-    if (!info.isFile() || info.size > MAX_SNAPSHOT_BYTES)
-      continue;
-    const stamp2 = `${info.size}:${info.mtimeMs}`;
-    let cached = snapshotCache.get(path15);
-    if (cached?.stamp !== stamp2) {
-      try {
-        cached = { stamp: stamp2, outputs: inlineOutputsOfSnapshot(await readFile43(path15, "utf8")) };
-      } catch {
-        continue;
-      }
-      snapshotCache.set(path15, cached);
-    }
-    for (const output2 of cached.outputs)
-      out.add(output2);
-  }
-  return [...out].sort();
-}
-async function declaredTestOutputs(repoRoot) {
-  const catalog3 = await loadCatalogInput(repoRoot);
-  const fromCatalog = catalog3.state === "ok" ? catalogDeclaredOutputs(catalog3.catalog) : [];
-  return [.../* @__PURE__ */ new Set([...fromCatalog, ...await inlineTestDeclaredOutputs(repoRoot)])].sort();
-}
-async function candidateFingerprint(repoRoot) {
-  return fingerprintWorkspace(repoRoot, { declaredOutputs: await declaredTestOutputs(repoRoot) });
 }
 
 // packages/kernel/dist/ci-verify/abandoned.js
@@ -32795,23 +32882,23 @@ function changeLine(change, text13) {
   });
 }
 function renderCiText(report2, text13) {
-  const lines3 = [`[VERIFY-CI] ${headline(report2, text13)}`];
+  const lines4 = [`[VERIFY-CI] ${headline(report2, text13)}`];
   const scoped = (change) => change.findings;
   for (const change of report2.changes) {
-    lines3.push("", changeLine(change, text13));
+    lines4.push("", changeLine(change, text13));
     if (scoped(change).length === 0)
-      lines3.push(`  ${text13("noFindings")}`);
+      lines4.push(`  ${text13("noFindings")}`);
     for (const item2 of scoped(change))
-      lines3.push(`  [${MARK[item2.severity]}] ${item2.code}: ${findingLine(item2, text13)}`);
+      lines4.push(`  [${MARK[item2.severity]}] ${item2.code}: ${findingLine(item2, text13)}`);
   }
   for (const item2 of report2.findings)
-    lines3.push(`[${MARK[item2.severity]}] ${item2.code}: ${findingLine(item2, text13)}`);
+    lines4.push(`[${MARK[item2.severity]}] ${item2.code}: ${findingLine(item2, text13)}`);
   if (report2.changes.length === 0 && report2.findings.length === 0)
-    lines3.push("", text13("noChangesInScope"));
-  lines3.push("", text13("verifiedHeading"), ...report2.trust.verified.map((item2) => `  + ${item2}`));
-  lines3.push("", text13("unverifiableHeading"), ...report2.trust.unverifiable.map((item2) => `  - ${item2}`));
-  lines3.push("", text13("footer", { schema: CI_REPORT_SCHEMA, tenon: report2.tenon, head: report2.head ?? text13("unknown") }));
-  return `${lines3.join("\n")}
+    lines4.push("", text13("noChangesInScope"));
+  lines4.push("", text13("verifiedHeading"), ...report2.trust.verified.map((item2) => `  + ${item2}`));
+  lines4.push("", text13("unverifiableHeading"), ...report2.trust.unverifiable.map((item2) => `  - ${item2}`));
+  lines4.push("", text13("footer", { schema: CI_REPORT_SCHEMA, tenon: report2.tenon, head: report2.head ?? text13("unknown") }));
+  return `${lines4.join("\n")}
 `;
 }
 function escapeCell(value) {
@@ -32874,7 +32961,7 @@ var CI_ONLY = [
     name: "CandidateMismatch",
     level: "error",
     short: "The recorded runs were produced on a different tree than the pull request head",
-    help: "The workspace fingerprint bound into the test run records differs from the fingerprint of the checked-out tree. The code changed after the tests ran, or the checkout differs from the tested workspace (ignored build output, file modes, line endings). Rerun `tenon test run <change> --stage` on the final tree."
+    help: "The workspace fingerprint bound into the test run records differs from the fingerprint of the checked-out tree. The code changed after the tests ran, or the checkout differs from the tested workspace (ignored build output, file modes, line endings, or, for records written by Tenon 0.3.0 and earlier, host-local files such as `.claude/settings.local.json` that the fingerprint counted then). Rerun `tenon test run <change> --stage` on the final tree."
   },
   {
     id: "protected-unapproved",
@@ -33086,8 +33173,8 @@ function deterministicUuid(seed) {
   const joined = hex2.join("");
   return `${joined.slice(0, 8)}-${joined.slice(8, 12)}-${joined.slice(12, 16)}-${joined.slice(16, 20)}-${joined.slice(20, 32)}`;
 }
-function linesToRanges(lines3) {
-  const sorted2 = [...new Set(lines3)].filter((line) => Number.isInteger(line) && line >= 1).sort((left, right) => left - right);
+function linesToRanges(lines4) {
+  const sorted2 = [...new Set(lines4)].filter((line) => Number.isInteger(line) && line >= 1).sort((left, right) => left - right);
   const out = [];
   for (const line of sorted2) {
     const last = out.at(-1);
@@ -33665,10 +33752,10 @@ async function probeBuildRevisionIdentity(root) {
       "--show-toplevel",
       "--git-dir"
     ], { cwd: root, timeout: 1500, maxBuffer: 4096, windowsHide: true });
-    const lines3 = String(stdout).trim().split(/\r?\n/);
-    if (lines3.length !== 3 || lines3.some((line) => line === "" || !isAbsolute8(line)))
+    const lines4 = String(stdout).trim().split(/\r?\n/);
+    if (lines4.length !== 3 || lines4.some((line) => line === "" || !isAbsolute8(line)))
       return void 0;
-    const [commonRaw, topRaw, gitRaw] = lines3;
+    const [commonRaw, topRaw, gitRaw] = lines4;
     if (!commonRaw || !topRaw || !gitRaw)
       return void 0;
     const common2 = await physicalDirectory(commonRaw);
@@ -34561,10 +34648,10 @@ var TrackConfigParseError = class extends Error {
 var KEY_RE5 = /^([A-Za-z_][\w.-]*):(?:\s+([\s\S]*)|\s*)$/;
 function tokenize3(text13) {
   const tokens = [];
-  const lines3 = text13.split("\n");
-  for (let n = 0; n < lines3.length; n++) {
+  const lines4 = text13.split("\n");
+  for (let n = 0; n < lines4.length; n++) {
     const lineNo = n + 1;
-    const line = lines3[n].replace(/\r$/, "");
+    const line = lines4[n].replace(/\r$/, "");
     if (line.trim() === "")
       continue;
     if (/^ *\t/.test(line))
@@ -35187,34 +35274,34 @@ function emitMapKey(key) {
   }
   return key;
 }
-function pushAllowed(lines3, pad4, allowed) {
+function pushAllowed(lines4, pad4, allowed) {
   if (allowed === "*") {
-    lines3.push(`${pad4}allowed: '*'`);
+    lines4.push(`${pad4}allowed: '*'`);
     return;
   }
   if (allowed.length === 0) {
-    lines3.push(`${pad4}allowed: []`);
+    lines4.push(`${pad4}allowed: []`);
     return;
   }
   const items = allowed.map(emitString);
   if (items.every((it) => !/[,[\]]/.test(it))) {
-    lines3.push(`${pad4}allowed: [${items.join(", ")}]`);
+    lines4.push(`${pad4}allowed: [${items.join(", ")}]`);
     return;
   }
-  lines3.push(`${pad4}allowed:`);
+  lines4.push(`${pad4}allowed:`);
   for (const it of items)
-    lines3.push(`${pad4}  - ${it}`);
+    lines4.push(`${pad4}  - ${it}`);
 }
-function pushWorkflow(lines3, pad4, wf) {
+function pushWorkflow(lines4, pad4, wf) {
   if (wf.default === void 0 && wf.allowed === void 0)
     return;
-  lines3.push(`${pad4}workflow:`);
+  lines4.push(`${pad4}workflow:`);
   if (wf.default !== void 0)
-    lines3.push(`${pad4}  default: ${emitString(wf.default)}`);
+    lines4.push(`${pad4}  default: ${emitString(wf.default)}`);
   if (wf.allowed !== void 0)
-    pushAllowed(lines3, `${pad4}  `, wf.allowed);
+    pushAllowed(lines4, `${pad4}  `, wf.allowed);
 }
-function pushPolicy(lines3, pad4, p) {
+function pushPolicy(lines4, pad4, p) {
   const sub = [];
   const inner = `${pad4}  `;
   if (p.reviewSeed !== void 0)
@@ -35249,7 +35336,7 @@ function pushPolicy(lines3, pad4, p) {
   }
   if (sub.length === 0)
     return;
-  lines3.push(`${pad4}policy_profile:`, ...sub);
+  lines4.push(`${pad4}policy_profile:`, ...sub);
 }
 function orderedOverrideKeys(builtins) {
   const keys = Object.keys(builtins);
@@ -35258,7 +35345,7 @@ function orderedOverrideKeys(builtins) {
   return [...known, ...rest];
 }
 function serializeTrackRegistry(config) {
-  const lines3 = [`version: ${emitInteger(config.version)}`];
+  const lines4 = [`version: ${emitInteger(config.version)}`];
   const builtins = config.builtins;
   if (builtins !== void 0) {
     const emitted = [];
@@ -35276,11 +35363,11 @@ function serializeTrackRegistry(config) {
       emitted.push(`  ${emitMapKey(key)}:`, ...sub);
     }
     if (emitted.length > 0)
-      lines3.push("builtins:", ...emitted);
+      lines4.push("builtins:", ...emitted);
   }
   const tracks = config.tracks ?? [];
   if (tracks.length > 0) {
-    lines3.push("tracks:");
+    lines4.push("tracks:");
     for (const entry2 of tracks) {
       const sub = [];
       if (entry2.id !== void 0)
@@ -35292,13 +35379,13 @@ function serializeTrackRegistry(config) {
       if (entry2.policyProfile !== void 0)
         pushPolicy(sub, "    ", entry2.policyProfile);
       if (sub.length === 0) {
-        lines3.push("  -");
+        lines4.push("  -");
         continue;
       }
-      lines3.push(`  - ${required(sub[0]).slice(4)}`, ...sub.slice(1));
+      lines4.push(`  - ${required(sub[0]).slice(4)}`, ...sub.slice(1));
     }
   }
-  return `${lines3.join("\n")}
+  return `${lines4.join("\n")}
 `;
 }
 
@@ -35531,12 +35618,12 @@ function sourceCode(source) {
 }
 function encodeRouterDataCache(input2) {
   assertCacheMetadata(input2);
-  const lines3 = [
+  const lines4 = [
     "TENON_ROUTER_V5",
     `M|${hex(input2.projectRoot)}|${input2.manifestSha256}|${input2.registryRevision}|${input2.tracksPresent ? "1" : "0"}|${input2.contractRevision}`
   ];
   for (const track of input2.projection.tracks) {
-    lines3.push([
+    lines4.push([
       "R",
       String(track.order),
       String(track.priority),
@@ -35552,17 +35639,17 @@ function encodeRouterDataCache(input2) {
     ].join("|"));
   }
   for (const breadcrumb of input2.projection.breadcrumbs) {
-    lines3.push(`B|${hex(breadcrumb.phase)}|${hex(breadcrumb.prose)}`);
+    lines4.push(`B|${hex(breadcrumb.phase)}|${hex(breadcrumb.prose)}`);
   }
   for (const cell3 of input2.projection.skills) {
     const phase = hex(cell3.phase);
     const profile = hex(cell3.profile);
-    lines3.push(`C|${phase}|${profile}|M|${sourceCode(cell3.mandatorySource)}`);
-    lines3.push(`C|${phase}|${profile}|R|${sourceCode(cell3.recommendedSource)}`);
-    cell3.mandatory.forEach((skill, index) => lines3.push(`S|${phase}|${profile}|M|${index}|${hex(skill)}`));
-    cell3.recommended.forEach((skill, index) => lines3.push(`S|${phase}|${profile}|R|${index}|${hex(skill)}`));
+    lines4.push(`C|${phase}|${profile}|M|${sourceCode(cell3.mandatorySource)}`);
+    lines4.push(`C|${phase}|${profile}|R|${sourceCode(cell3.recommendedSource)}`);
+    cell3.mandatory.forEach((skill, index) => lines4.push(`S|${phase}|${profile}|M|${index}|${hex(skill)}`));
+    cell3.recommended.forEach((skill, index) => lines4.push(`S|${phase}|${profile}|R|${index}|${hex(skill)}`));
   }
-  return `${lines3.join("\n")}
+  return `${lines4.join("\n")}
 `;
 }
 
@@ -37164,9 +37251,9 @@ function summaryText(content) {
   }
   return "";
 }
-function claudeExtractFromLines(lines3) {
+function claudeExtractFromLines(lines4) {
   let turns = [];
-  for (const obj of lines3) {
+  for (const obj of lines4) {
     const t = obj?.type;
     const msg2 = obj?.message;
     if (t === "user" && obj?.isCompactSummary === true) {
@@ -38465,17 +38552,17 @@ function assertLoopRunner(value) {
 function indentOf5(line) {
   return line.length - line.replace(/^\s*/, "").length;
 }
-function locateLoop(lines3, loopId) {
+function locateLoop(lines4, loopId) {
   const idRe = /^(\s*)-(\s+)id:\s+(.+?)\s*(?:#.*)?$/;
-  for (let i = 0; i < lines3.length; i++) {
-    const m = required(lines3[i]).match(idRe);
+  for (let i = 0; i < lines4.length; i++) {
+    const m = required(lines4[i]).match(idRe);
     if (!m || required(m[3]).trim() !== loopId)
       continue;
     const dashIndent = required(m[1]).length;
     const fieldIndent = dashIndent + 1 + required(m[2]).length;
-    let end = lines3.length;
-    for (let j = i + 1; j < lines3.length; j++) {
-      const line = required(lines3[j]);
+    let end = lines4.length;
+    for (let j = i + 1; j < lines4.length; j++) {
+      const line = required(lines4[j]);
       if (line.trim() === "")
         continue;
       if (indentOf5(line) <= dashIndent) {
@@ -38487,9 +38574,9 @@ function locateLoop(lines3, loopId) {
   }
   return null;
 }
-function insertPointAtBlockEnd(lines3, start, end) {
+function insertPointAtBlockEnd(lines4, start, end) {
   for (let i = end - 1; i > start; i--) {
-    if (required(lines3[i]).trim() !== "")
+    if (required(lines4[i]).trim() !== "")
       return i + 1;
   }
   return end;
@@ -38627,20 +38714,20 @@ function planLevelChange(current, target, verdict) {
   return { ...base, to, kind: "promote", allowed: true, reason: `\u9010\u7EA7\u6BD5\u4E1A ${current} \u2192 ${to}`, blockers: [] };
 }
 function setAutonomyLevelInYaml(text13, loopId, level) {
-  const lines3 = text13.split("\n");
-  const block = locateLoop(lines3, loopId);
+  const lines4 = text13.split("\n");
+  const block = locateLoop(lines4, loopId);
   if (block === null)
     return { text: null, error: `loop '${loopId}' \u672A\u5728 loops.yaml \u627E\u5230\uFF08\u65E0\u6CD5\u6539\u6863\uFF09` };
   const levelRe = /^(\s*)autonomy_level:\s*.*$/;
   for (let i = block.start; i < block.end; i++) {
-    const m = required(lines3[i]).match(levelRe);
+    const m = required(lines4[i]).match(levelRe);
     if (m) {
-      lines3[i] = `${m[1]}autonomy_level: ${level}`;
-      return { text: lines3.join("\n"), error: null };
+      lines4[i] = `${m[1]}autonomy_level: ${level}`;
+      return { text: lines4.join("\n"), error: null };
     }
   }
-  lines3.splice(insertPointAtBlockEnd(lines3, block.start, block.end), 0, `${" ".repeat(block.dashIndent + 2)}autonomy_level: ${level}`);
-  return { text: lines3.join("\n"), error: null };
+  lines4.splice(insertPointAtBlockEnd(lines4, block.start, block.end), 0, `${" ".repeat(block.dashIndent + 2)}autonomy_level: ${level}`);
+  return { text: lines4.join("\n"), error: null };
 }
 function gatherInputs(loop, registry, runLog, doc, now) {
   const driftAll = detectDrift(registry, doc, runLog, now);
@@ -38780,30 +38867,30 @@ function formatScalar2(v, field4) {
   }
   return formatString(v, field4, false);
 }
-function findFieldLine(lines3, from, to, indent, field4) {
+function findFieldLine(lines4, from, to, indent, field4) {
   const re = new RegExp(`^\\s{${indent}}${field4}:(\\s|$)`);
   for (let i = from; i < to; i++) {
-    if (re.test(required(lines3[i])))
+    if (re.test(required(lines4[i])))
       return i;
   }
   return -1;
 }
-function patchTopScalar(lines3, block, field4, value) {
+function patchTopScalar(lines4, block, field4, value) {
   const rendered = `${" ".repeat(block.fieldIndent)}${field4}: ${formatScalar2(value, field4)}`;
-  const at = findFieldLine(lines3, block.start + 1, block.end, block.fieldIndent, field4);
+  const at = findFieldLine(lines4, block.start + 1, block.end, block.fieldIndent, field4);
   if (at !== -1) {
-    lines3[at] = rendered;
+    lines4[at] = rendered;
   } else {
-    lines3.splice(insertPointAtBlockEnd(lines3, block.start, block.end), 0, rendered);
+    lines4.splice(insertPointAtBlockEnd(lines4, block.start, block.end), 0, rendered);
   }
 }
-function patchBudgetScalar(lines3, block, field4, value) {
-  const budgetAt = findFieldLine(lines3, block.start + 1, block.end, block.fieldIndent, "budget");
+function patchBudgetScalar(lines4, block, field4, value) {
+  const budgetAt = findFieldLine(lines4, block.start + 1, block.end, block.fieldIndent, "budget");
   if (budgetAt === -1)
     throw new PatchError(`loop \u5757\u5185\u672A\u627E\u5230 budget: \u884C\uFF0C\u65E0\u6CD5 patch '${field4}'`);
   let subEnd = block.end;
   for (let i = budgetAt + 1; i < block.end; i++) {
-    const line = required(lines3[i]);
+    const line = required(lines4[i]);
     if (line.trim() === "")
       continue;
     if (indentOf5(line) <= block.fieldIndent) {
@@ -38813,30 +38900,30 @@ function patchBudgetScalar(lines3, block, field4, value) {
   }
   let childIndent = block.fieldIndent + 2;
   for (let i = budgetAt + 1; i < subEnd; i++) {
-    if (required(lines3[i]).trim() !== "") {
-      childIndent = indentOf5(required(lines3[i]));
+    if (required(lines4[i]).trim() !== "") {
+      childIndent = indentOf5(required(lines4[i]));
       break;
     }
   }
   const rendered = `${" ".repeat(childIndent)}${field4}: ${formatScalar2(value, field4)}`;
-  const at = findFieldLine(lines3, budgetAt + 1, subEnd, childIndent, field4);
+  const at = findFieldLine(lines4, budgetAt + 1, subEnd, childIndent, field4);
   if (at !== -1) {
-    lines3[at] = rendered;
+    lines4[at] = rendered;
   } else {
-    lines3.splice(insertPointAtBlockEnd(lines3, budgetAt, subEnd), 0, rendered);
+    lines4.splice(insertPointAtBlockEnd(lines4, budgetAt, subEnd), 0, rendered);
   }
 }
-function patchArray(lines3, block, field4, values) {
+function patchArray(lines4, block, field4, values) {
   const pad4 = " ".repeat(block.fieldIndent);
   const rendered = values.length === 0 ? [`${pad4}${field4}: []`] : [`${pad4}${field4}:`, ...values.map((v) => `${pad4}  - ${formatString(v, field4, true)}`)];
-  const at = findFieldLine(lines3, block.start + 1, block.end, block.fieldIndent, field4);
+  const at = findFieldLine(lines4, block.start + 1, block.end, block.fieldIndent, field4);
   if (at === -1) {
-    lines3.splice(insertPointAtBlockEnd(lines3, block.start, block.end), 0, ...rendered);
+    lines4.splice(insertPointAtBlockEnd(lines4, block.start, block.end), 0, ...rendered);
     return;
   }
   let extentEnd = block.end;
   for (let i = at + 1; i < block.end; i++) {
-    const line = required(lines3[i]);
+    const line = required(lines4[i]);
     if (line.trim() === "")
       continue;
     if (indentOf5(line) <= block.fieldIndent) {
@@ -38844,9 +38931,9 @@ function patchArray(lines3, block, field4, values) {
       break;
     }
   }
-  while (extentEnd > at + 1 && required(lines3[extentEnd - 1]).trim() === "")
+  while (extentEnd > at + 1 && required(lines4[extentEnd - 1]).trim() === "")
     extentEnd--;
-  lines3.splice(at, extentEnd - at, ...rendered);
+  lines4.splice(at, extentEnd - at, ...rendered);
 }
 function checkedValue(field4, value) {
   if (PATCHABLE_ARRAY_FIELDS.includes(field4)) {
@@ -38879,21 +38966,21 @@ function updateLoopInYaml(text13, loopId, patch) {
         throw new PatchError(`\u5B57\u6BB5 '${field4}' \u4E0D\u53EF patch\uFF08\u53EF\u6539\uFF1A${ALL_PATCHABLE.join(" / ")}\uFF09`);
       }
     }
-    const lines3 = text13.split("\n");
+    const lines4 = text13.split("\n");
     for (const field4 of fields2) {
-      const block = locateLoop(lines3, loopId);
+      const block = locateLoop(lines4, loopId);
       if (block === null)
         throw new PatchError(`loop '${loopId}' \u672A\u5728 loops.yaml \u627E\u5230\uFF08\u672C\u624B\u672F\u4E0D\u65B0\u5EFA loop\uFF09`);
       const value = checkedValue(field4, patch[field4]);
       if (PATCHABLE_ARRAY_FIELDS.includes(field4)) {
-        patchArray(lines3, block, field4, value);
+        patchArray(lines4, block, field4, value);
       } else if (PATCHABLE_BUDGET_FIELDS.includes(field4)) {
-        patchBudgetScalar(lines3, block, field4, value);
+        patchBudgetScalar(lines4, block, field4, value);
       } else {
-        patchTopScalar(lines3, block, field4, value);
+        patchTopScalar(lines4, block, field4, value);
       }
     }
-    return { text: lines3.join("\n"), error: null };
+    return { text: lines4.join("\n"), error: null };
   } catch (e) {
     if (e instanceof PatchError)
       return { text: null, error: e.message };
@@ -38901,18 +38988,18 @@ function updateLoopInYaml(text13, loopId, patch) {
   }
 }
 function renderLoopEntryLines(entry2) {
-  const lines3 = [`  - id: ${formatScalar2(entry2.id, "id")}`];
+  const lines4 = [`  - id: ${formatScalar2(entry2.id, "id")}`];
   const scalar26 = (field4, v) => {
-    lines3.push(`    ${field4}: ${formatScalar2(v, field4)}`);
+    lines4.push(`    ${field4}: ${formatScalar2(v, field4)}`);
   };
   const seq2 = (field4, values) => {
     if (values.length === 0) {
-      lines3.push(`    ${field4}: []`);
+      lines4.push(`    ${field4}: []`);
       return;
     }
-    lines3.push(`    ${field4}:`);
+    lines4.push(`    ${field4}:`);
     for (const v of values)
-      lines3.push(`      - ${formatString(v, field4, true)}`);
+      lines4.push(`      - ${formatString(v, field4, true)}`);
   };
   scalar26("name", entry2.name);
   scalar26("kind", entry2.kind);
@@ -38933,9 +39020,9 @@ function renderLoopEntryLines(entry2) {
     scalar26("workflow_id", entry2.workflow_id);
   if (entry2.skill_bundle_id !== void 0)
     scalar26("skill_bundle_id", entry2.skill_bundle_id);
-  lines3.push("    budget:");
+  lines4.push("    budget:");
   const budgetScalar = (field4, v) => {
-    lines3.push(`      ${field4}: ${formatScalar2(v, field4)}`);
+    lines4.push(`      ${field4}: ${formatScalar2(v, field4)}`);
   };
   budgetScalar("max_runs_per_day", entry2.budget.max_runs_per_day);
   budgetScalar("max_in_flight", entry2.budget.max_in_flight);
@@ -38945,7 +39032,7 @@ function renderLoopEntryLines(entry2) {
   if (entry2.budget.tokens_per_run !== void 0)
     budgetScalar("tokens_per_run", entry2.budget.tokens_per_run);
   seq2("kill_criteria", entry2.kill_criteria);
-  return lines3;
+  return lines4;
 }
 function selfCheckYamlText(text13) {
   const { data, error: error2 } = parseLoopsYaml(text13);
@@ -40285,12 +40372,12 @@ function stripLeadMarkers(line) {
   }
   return s;
 }
-function parseFrontMatter(lines3) {
-  if (lines3[0] !== "---")
+function parseFrontMatter(lines4) {
+  if (lines4[0] !== "---")
     return { keyFields: [], bodyStart: 0 };
   let close = -1;
-  for (let i = 1; i < lines3.length; i++) {
-    if (lines3[i] === "---") {
+  for (let i = 1; i < lines4.length; i++) {
+    if (lines4[i] === "---") {
       close = i;
       break;
     }
@@ -40299,7 +40386,7 @@ function parseFrontMatter(lines3) {
     return { keyFields: [], bodyStart: 0 };
   const keyFields = [];
   for (let i = 1; i < close; i++) {
-    const m = /^([A-Za-z_][\w -]*):\s*(.*)$/.exec(lines3[i] ?? "");
+    const m = /^([A-Za-z_][\w -]*):\s*(.*)$/.exec(lines4[i] ?? "");
     if (m)
       keyFields.push({ key: (m[1] ?? "").trim(), value: (m[2] ?? "").trim() });
   }
@@ -40506,10 +40593,10 @@ function recordLine(record9) {
   return `- ${record9.attempt_id} ${record9.recorded_at} ${record9.result}${normalized2 === "" ? "" : `: ${normalized2}`}`;
 }
 function render(loopId, change, records, omitted) {
-  const lines3 = [`# Attempts: ${loopId}/${change}`, ...records.map(recordLine)];
+  const lines4 = [`# Attempts: ${loopId}/${change}`, ...records.map(recordLine)];
   if (omitted.length > 0)
-    lines3.push(`- omitted: ${omitted.join(", ")}`);
-  return lines3.join("\n");
+    lines4.push(`- omitted: ${omitted.join(", ")}`);
+  return lines4.join("\n");
 }
 function signalChanged(previous, current) {
   return previous.result !== current.result || failureFingerprint(previous) !== failureFingerprint(current);
@@ -44476,12 +44563,12 @@ function parseEntry(line, lineNo) {
   return entry2;
 }
 function parseSkillSources(text13) {
-  const lines3 = text13.split("\n");
+  const lines4 = text13.split("\n");
   const out = [];
   const seen = /* @__PURE__ */ new Set();
   let inSkills = false;
-  for (let i = 0; i < lines3.length; i++) {
-    const line = stripFlowComment(required(lines3[i]));
+  for (let i = 0; i < lines4.length; i++) {
+    const line = stripFlowComment(required(lines4[i]));
     if (line.trim() === "")
       continue;
     const indented = /^\s/.test(line);
@@ -44562,7 +44649,7 @@ function isSafeProvenanceId(id2) {
   return id2.length > 0 && id2 !== "." && id2 !== ".." && !id2.includes("/") && !id2.includes("\\") && !id2.includes("\0");
 }
 function parseSkillProvenanceRegistry(text13) {
-  const lines3 = text13.split("\n");
+  const lines4 = text13.split("\n");
   let version;
   let hashAlgorithm;
   let inSkills = false;
@@ -44572,8 +44659,8 @@ function parseSkillProvenanceRegistry(text13) {
   const skills = [];
   const seenTokens = /* @__PURE__ */ new Set();
   const seenRefs = /* @__PURE__ */ new Set();
-  for (let i = 0; i < lines3.length; i += 1) {
-    const line = stripFlowComment(required(lines3[i]));
+  for (let i = 0; i < lines4.length; i += 1) {
+    const line = stripFlowComment(required(lines4[i]));
     if (line.trim() === "")
       continue;
     if (!inSkills) {
@@ -44664,11 +44751,11 @@ function parseSkillProvenanceRegistry(text13) {
 
 // packages/kernel/dist/skills/invocability.js
 function parseSkillFrontmatter(text13) {
-  const lines3 = text13.split(/\r?\n/u);
-  if (lines3[0]?.trim() !== "---")
+  const lines4 = text13.split(/\r?\n/u);
+  if (lines4[0]?.trim() !== "---")
     return null;
   const fields2 = /* @__PURE__ */ new Map();
-  for (const line of lines3.slice(1)) {
+  for (const line of lines4.slice(1)) {
     if (line.trim() === "---")
       return fields2;
     const match = /^([A-Za-z0-9_-]+):\s*(.*?)\s*$/u.exec(line);
@@ -44804,10 +44891,10 @@ function parseUpstreamSkillSources(text13) {
   let inSkills = false;
   const skills = [];
   const seen = /* @__PURE__ */ new Set();
-  const lines3 = text13.split("\n");
-  for (let i = 0; i < lines3.length; i += 1) {
+  const lines4 = text13.split("\n");
+  for (let i = 0; i < lines4.length; i += 1) {
     const lineNo = i + 1;
-    const line = stripFlowComment(lines3[i] ?? "");
+    const line = stripFlowComment(lines4[i] ?? "");
     if (line.trim() === "")
       continue;
     if (!/^\s/.test(line)) {
@@ -45053,27 +45140,27 @@ function skillIdFromHistory(raw) {
   return match?.[1] === void 0 ? null : canonicalWorkflowSkillId(match[1]);
 }
 function completedWorkflowSkillsSinceStepEntry(historyRaw, currentStepId) {
-  const lines3 = [];
+  const lines4 = [];
   for (const line of historyRaw.split("\n")) {
     if (line.trim() === "")
       continue;
     try {
       const decoded = decodeHistoryLine(JSON.parse(line));
       if (decoded)
-        lines3.push(decoded);
+        lines4.push(decoded);
     } catch {
     }
   }
   let enteredAt = -1;
-  for (let index = lines3.length - 1; index >= 0; index--) {
-    const line = lines3[index];
+  for (let index = lines4.length - 1; index >= 0; index--) {
+    const line = lines4[index];
     if (line?.kind === "transition" && line.to === currentStepId) {
       enteredAt = index;
       break;
     }
   }
   const completed = /* @__PURE__ */ new Set();
-  for (const line of lines3.slice(enteredAt + 1)) {
+  for (const line of lines4.slice(enteredAt + 1)) {
     if (line.kind !== "tool")
       continue;
     const skillId = skillIdFromHistory(line.raw ?? "");
@@ -52767,9 +52854,9 @@ var tokenCount = (usage, key) => {
 var parseCodexJsonlUsage = (jsonl) => {
   let requestId;
   let completed;
-  const lines3 = jsonl.split(/\r?\n/);
-  for (let index = 0; index < lines3.length; index += 1) {
-    const line = lines3[index]?.trim() ?? "";
+  const lines4 = jsonl.split(/\r?\n/);
+  for (let index = 0; index < lines4.length; index += 1) {
+    const line = lines4[index]?.trim() ?? "";
     if (line.length === 0)
       continue;
     let event;
@@ -53031,8 +53118,8 @@ var collectCommitsReal = async (exec, input2) => {
   const result2 = await exec("git", ["rev-list", `${input2.base}..refs/heads/${input2.branch}`, "--reverse"], { cwd: input2.hostRepoDir, env: GIT_ENV2 });
   if (result2.exitCode !== 0)
     return [];
-  const lines3 = result2.stdout.trim();
-  return lines3 === "" ? [] : lines3.split("\n").map((sha) => ({ sha: sha.trim() }));
+  const lines4 = result2.stdout.trim();
+  return lines4 === "" ? [] : lines4.split("\n").map((sha) => ({ sha: sha.trim() }));
 };
 var diffNamesReal = async (exec, input2) => {
   const result2 = await exec("git", [
@@ -53044,8 +53131,8 @@ var diffNamesReal = async (exec, input2) => {
   ], { cwd: input2.hostRepoDir, env: GIT_ENV2 });
   if (result2.exitCode !== 0)
     return [];
-  const lines3 = result2.stdout.trim();
-  return lines3 === "" ? [] : lines3.split("\n").map((file) => file.trim()).filter((file) => file !== "");
+  const lines4 = result2.stdout.trim();
+  return lines4 === "" ? [] : lines4.split("\n").map((file) => file.trim()).filter((file) => file !== "");
 };
 async function resolveLockDir(exec, hostRepoDir) {
   const result2 = await exec("git", ["rev-parse", "--git-common-dir"], { cwd: hostRepoDir, env: GIT_ENV2 });
@@ -58602,10 +58689,23 @@ var VERIFY_MESSAGES = {
     zh: "\u5957\u4EF6 {suites} \u7684\u6700\u8FD1\u4E00\u6B21\u8FD0\u884C\u7ED1\u5B9A\u7684\u4EE3\u7801\u4E0E\u672C\u6B21\u68C0\u51FA\u7684\u6811\u4E0D\u540C\uFF08\u4EE3\u7801\u5728\u6D4B\u8BD5\u4E4B\u540E\u53D8\u4E86\uFF0C\u6216\u68C0\u51FA\u7684\u6811\u4E0E\u6D4B\u8BD5\u65F6\u7684\u5DE5\u4F5C\u533A\u4E0D\u4E00\u81F4\uFF09{hint}",
     en: "The code bound to the latest run of suite {suites} differs from the checked-out tree (the code changed after the tests ran, or the checkout differs from the tested workspace){hint}"
   },
-  "verify.candidateTouched": {
-    zh: "\uFF1B\u8BB0\u5F55\u5B8C\u6210\u4E4B\u540E\u63D0\u4EA4\u6539\u52A8\u8FC7\uFF1A{files}",
-    en: "; changed in commits after the records were finished: {files}"
+  "verify.candidateChangedLater": {
+    zh: "\uFF1B\u8BB0\u5F55\u4E4B\u540E\u7684\u7B2C\u4E00\u4E2A\u63D0\u4EA4 {commit}\uFF08\u6D4B\u8BD5\u65F6\u7684\u5DE5\u4F5C\u533A\u901A\u5E38\u5C31\u63D0\u4EA4\u5728\u8FD9\u91CC\uFF09\u4E4B\u540E\u53C8\u6539\u8FC7\u5019\u9009\u6587\u4EF6\uFF1A{files}",
+    en: "; candidate files changed after commit {commit}, the first commit after the run (where the tested workspace was most likely committed): {files}"
   },
+  "verify.candidateNothingLater": {
+    zh: "\uFF1B\u8BB0\u5F55\u4E4B\u540E\u7684\u7B2C\u4E00\u4E2A\u63D0\u4EA4 {commit} \u4E4B\u540E\u6CA1\u6709\u518D\u6539\u8FC7\u5019\u9009\u6587\u4EF6\uFF0C\u5DEE\u5F02\u4E0D\u5728\u540E\u6765\u7684\u63D0\u4EA4\u91CC\uFF0C\u800C\u5728\u6D4B\u8BD5\u65F6\u7684\u5DE5\u4F5C\u533A\u672C\u8EAB\uFF1A\u88AB gitignore \u6216\u672A\u8DDF\u8E2A\u7684\u6587\u4EF6\u3001\u6587\u4EF6\u6743\u9650\u4F4D\u3001\u884C\u5C3E\uFF0C\u6216\u8005 0.3.0 \u53CA\u66F4\u65E9\u7248\u672C\u7ED1\u8FDB\u8BB0\u5F55\u7684\u5BBF\u4E3B\u672C\u5730\u6587\u4EF6\uFF08.claude/settings.local.json\u3001CLAUDE.local.md\uFF09\uFF1B\u7528\u5F53\u524D\u7248\u672C\u5728\u6700\u7EC8\u7684\u6811\u4E0A\u91CD\u8DD1",
+    en: "; no candidate file changed after commit {commit}, the first commit after the run, so the difference is not a later commit but the tested workspace itself: git-ignored or untracked files, file modes, line endings, or host-local files (.claude/settings.local.json, CLAUDE.local.md) that Tenon 0.3.0 and earlier bound into the records; rerun with the current version on the final tree"
+  },
+  "verify.candidateWorkspaceCauses": {
+    zh: "\uFF1B\u8FD9\u4E2A\u68C0\u51FA\u91CC\u627E\u4E0D\u5230\u6D4B\u8BD5\u4E4B\u540E\u7684\u63D0\u4EA4\uFF0C\u65E0\u6CD5\u6307\u51FA\u5DEE\u5728\u54EA\u4E2A\u6587\u4EF6\u3002\u5E38\u89C1\u539F\u56E0\uFF1A\u6D4B\u8BD5\u4E4B\u540E\u6539\u4E86\u4EE3\u7801\uFF0C\u6216\u6D4B\u8BD5\u65F6\u7684\u5DE5\u4F5C\u533A\u4E0E\u5E72\u51C0\u68C0\u51FA\u4E0D\u540C\uFF08\u88AB gitignore \u6216\u672A\u8DDF\u8E2A\u7684\u6587\u4EF6\u3001\u6587\u4EF6\u6743\u9650\u4F4D\u3001\u884C\u5C3E\uFF0C\u6216\u8005 0.3.0 \u53CA\u66F4\u65E9\u7248\u672C\u7ED1\u8FDB\u8BB0\u5F55\u7684\u5BBF\u4E3B\u672C\u5730\u6587\u4EF6\uFF09",
+    en: "; the commit that followed the run cannot be found in this checkout, so the differing file cannot be named. Usual causes: the code changed after the tests ran, or the tested workspace differs from a clean checkout (git-ignored or untracked files, file modes, line endings, or host-local files that Tenon 0.3.0 and earlier bound into the records)"
+  },
+  "verify.candidateExtraHere": {
+    zh: "\uFF1B\u672C\u6B21\u68C0\u51FA\u91CC\u5019\u9009\u8303\u56F4\u5185\u6709\u88AB gitignore \u6216\u672A\u8DDF\u8E2A\u7684\u6587\u4EF6\uFF1A{files}",
+    en: "; this checkout holds git-ignored or untracked files inside the candidate scope: {files}"
+  },
+  "verify.listMore": { zh: "\uFF08\u53E6\u6709 {count} \u4E2A\uFF09", en: " (+{count} more)" },
   // ── 命令的错误提示（前缀 ERROR: 由调用处加）──────────────────
   "verify.ciOnly": {
     zh: "\u76EE\u524D\u53EA\u6709 CI \u6A21\u5F0F\uFF1A\u8BF7\u52A0 --ci\uFF08\u5728\u6CA1\u6709\u7528\u6237\u672C\u673A\u5C01\u5B58\u7684\u73AF\u5883\u91CC\u5BF9\u5DF2\u63D0\u4EA4\u5185\u5BB9\u72EC\u7ACB\u6821\u9A8C\uFF09",
@@ -58838,13 +58938,13 @@ function renderCheckReport(deps, name2, phase, sections) {
     ["agent: ", sections.agents],
     ["migration: ", sections.migration === void 0 ? [] : [sections.migration]]
   ];
-  const total = groups2.reduce((sum, [, lines3]) => sum + lines3.length, 0);
+  const total = groups2.reduce((sum, [, lines4]) => sum + lines4.length, 0);
   if (total === 0) {
     deps.io.out(`  [PASS] ${msg(deps, "check.pass")}`);
     return 0;
   }
-  for (const [prefix, lines3] of groups2) {
-    for (const line of lines3) deps.io.out(`  [FAIL] ${prefix}${line}`);
+  for (const [prefix, lines4] of groups2) {
+    for (const line of lines4) deps.io.out(`  [FAIL] ${prefix}${line}`);
   }
   deps.io.out(`  [FAIL] ${msg(deps, "check.failTotal", { count: total })}`);
   return 2;
@@ -59051,9 +59151,9 @@ async function readAuditState(paths) {
     const raw = await readFile60(paths.auditPath, "utf8");
     if (raw === "") return { lastAudit: null, auditCorrupt: false };
     if (!raw.endsWith("\n")) return { lastAudit: null, auditCorrupt: true };
-    const lines3 = raw.slice(0, -1).split(/\r?\n/);
+    const lines4 = raw.slice(0, -1).split(/\r?\n/);
     let latest = null;
-    for (const line of lines3) {
+    for (const line of lines4) {
       if (line === "") return { lastAudit: null, auditCorrupt: true };
       const parsed2 = parseAudit(line);
       if (parsed2 === null) return { lastAudit: null, auditCorrupt: true };
@@ -59435,8 +59535,8 @@ async function isSameOrdinaryPhysicalDirectory(left, right) {
   return physicalLeft !== void 0 && physicalLeft === physicalRight;
 }
 function singleLine(value) {
-  const lines3 = value.trim().split(/\r?\n/);
-  return lines3.length === 1 && lines3[0] !== "" ? lines3[0] : void 0;
+  const lines4 = value.trim().split(/\r?\n/);
+  return lines4.length === 1 && lines4[0] !== "" ? lines4[0] : void 0;
 }
 async function gitCommonDirectory(projectRoot) {
   const dotGit = join93(resolve27(projectRoot), ".git");
@@ -59900,8 +60000,8 @@ async function transcriptConfirmsReceipt(receipt, trustRoots, repoRoot, homeDir 
       start: 0,
       end: transcript.size - 1
     });
-    const lines3 = createInterface2({ input: input2, crlfDelay: Infinity });
-    for await (const line of lines3) {
+    const lines4 = createInterface2({ input: input2, crlfDelay: Infinity });
+    for await (const line of lines4) {
       let event;
       try {
         event = JSON.parse(line);
@@ -59934,7 +60034,7 @@ async function transcriptConfirmsReceipt(receipt, trustRoots, repoRoot, homeDir 
         const callId = asString3(payload.call_id);
         const readPaths = commandTrustedSkillPaths(functionInvocation.command, receipt.skillPath);
         if (callId === receipt.toolUseId && (matchesProject || await explicitSiblingWorktreeTarget(sessionRoot, functionInvocation.workdir, repoRoot)) && readPaths !== void 0) {
-          confirmed = await matchingSuccessfulOutput(lines3, receipt, "function", readPaths);
+          confirmed = await matchingSuccessfulOutput(lines4, receipt, "function", readPaths);
           break;
         }
         continue;
@@ -59947,7 +60047,7 @@ async function transcriptConfirmsReceipt(receipt, trustRoots, repoRoot, homeDir 
         const invocation = command2 === void 0 ? void 0 : transcriptInputTrustedSkillInvocation(command2, receipt.skillPath);
         if (callId === receipt.toolUseId && name2 === "exec" && status === "completed" && invocation !== void 0 && (matchesProject || await explicitSiblingWorktreeTarget(sessionRoot, invocation.workdir, repoRoot))) {
           confirmed = await matchingSuccessfulOutput(
-            lines3,
+            lines4,
             receipt,
             "custom",
             commandTrustedSkillPaths(invocation.command, receipt.skillPath) ?? []
@@ -59966,11 +60066,11 @@ async function transcriptConfirmsReceipt(receipt, trustRoots, repoRoot, homeDir 
     await handle.close().catch(() => void 0);
   }
 }
-async function matchingSuccessfulOutput(lines3, receipt, outputAbi, readPaths) {
+async function matchingSuccessfulOutput(lines4, receipt, outputAbi, readPaths) {
   if (readPaths.length === 0) return false;
   const expectedOutputType = outputAbi === "custom" ? "custom_tool_call_output" : "function_call_output";
   let matchingOutput;
-  for await (const line of lines3) {
+  for await (const line of lines4) {
     let event;
     try {
       event = JSON.parse(line);
@@ -60038,8 +60138,8 @@ async function discoverCompletedCodexSkillReads(repoRoot, candidateSkillIds, tru
         start: 0,
         end: transcript.size - 1
       });
-      const lines3 = createInterface2({ input: stream, crlfDelay: Infinity });
-      for await (const line of lines3) {
+      const lines4 = createInterface2({ input: stream, crlfDelay: Infinity });
+      for await (const line of lines4) {
         let event;
         try {
           event = JSON.parse(line);
@@ -61472,11 +61572,11 @@ async function checkCodexAuth(p) {
   if (status.state === "authenticated") {
     return green("auth:codex", "Codex CLI \u5DF2\u767B\u5F55\uFF08ChatGPT \u65B9\u6848\u6216 API Key\uFF09");
   }
-  const lines3 = renderCodexAuthLines(status);
+  const lines4 = renderCodexAuthLines(status);
   return yellow(
     "auth:codex",
     status.state === "unauthenticated" ? "Codex CLI \u5C1A\u672A\u767B\u5F55\uFF1B\u63D2\u4EF6\u5DF2\u5B89\u88C5\uFF0C\u4F46\u8C03\u7528 Codex \u524D\u9700\u8981\u5B8C\u6210\u8BA4\u8BC1" : "\u6682\u65F6\u65E0\u6CD5\u786E\u8BA4 Codex CLI \u767B\u5F55\u72B6\u6001\uFF1B\u63D2\u4EF6\u4ECD\u53EF\u5B89\u88C5\u548C\u68C0\u67E5",
-    lines3.slice(1).map((line) => line.trim()).join("\uFF1B")
+    lines4.slice(1).map((line) => line.trim()).join("\uFF1B")
   );
 }
 function checkTenonOnPath(p) {
@@ -65000,10 +65100,10 @@ function payloadMismatchEntry(env, marketplaceRoot, pluginRoot2) {
 function dirtyMarketplaceDetail(env, root) {
   const status = env.runCommand("git", ["-C", root, "status", "--porcelain"]);
   if (status.code !== 0) return `\u514B\u9686 ${root} \u72B6\u6001\u4E0D\u53EF\u8BFB`;
-  const lines3 = status.stdout.split(/\r?\n/u).filter((line) => line !== "");
-  if (lines3.length === 0) return `\u514B\u9686 ${root} \u6709\u6539\u52A8\u6216\u672A\u8DDF\u8E2A\u6587\u4EF6`;
-  const shown2 = lines3.slice(0, 3).join("\uFF1B");
-  return lines3.length > 3 ? `\u514B\u9686 ${root}\uFF1A${shown2}\uFF1B\u5171 ${lines3.length} \u9879` : `\u514B\u9686 ${root}\uFF1A${shown2}`;
+  const lines4 = status.stdout.split(/\r?\n/u).filter((line) => line !== "");
+  if (lines4.length === 0) return `\u514B\u9686 ${root} \u6709\u6539\u52A8\u6216\u672A\u8DDF\u8E2A\u6587\u4EF6`;
+  const shown2 = lines4.slice(0, 3).join("\uFF1B");
+  return lines4.length > 3 ? `\u514B\u9686 ${root}\uFF1A${shown2}\uFF1B\u5171 ${lines4.length} \u9879` : `\u514B\u9686 ${root}\uFF1A${shown2}`;
 }
 function nativeHostStableTargetMismatch(env, host, target) {
   const current = decodeNativeHostObservation(observeNativeHost(env, host));
@@ -67053,10 +67153,10 @@ async function readRegularFile(path15) {
   }
 }
 function parseContinuousAuthority(raw) {
-  const lines3 = raw.endsWith("\n") ? raw.slice(0, -1).split("\n") : raw.split("\n");
-  if (lines3.length !== 6 || lines3[0] !== INTERACTION_AUTHORITY_PROTOCOL) return null;
+  const lines4 = raw.endsWith("\n") ? raw.slice(0, -1).split("\n") : raw.split("\n");
+  if (lines4.length !== 6 || lines4[0] !== INTERACTION_AUTHORITY_PROTOCOL) return null;
   const fields2 = /* @__PURE__ */ new Map();
-  for (const line of lines3.slice(1)) {
+  for (const line of lines4.slice(1)) {
     const separator = line.indexOf("=");
     if (separator <= 0) return null;
     const key = line.slice(0, separator);
@@ -67153,16 +67253,16 @@ function skillIdFromToolRaw(raw) {
 function canonicalTenonSkillId(skillId) {
   return skillId.startsWith("tenon:") ? skillId.slice("tenon:".length) : skillId;
 }
-function completedSkillsSinceStepEntry(lines3, currentStepId) {
+function completedSkillsSinceStepEntry(lines4, currentStepId) {
   let enteredAt = -1;
-  for (let i = lines3.length - 1; i >= 0; i--) {
-    if (lines3[i]?.kind === "transition" && lines3[i]?.to === currentStepId) {
+  for (let i = lines4.length - 1; i >= 0; i--) {
+    if (lines4[i]?.kind === "transition" && lines4[i]?.to === currentStepId) {
       enteredAt = i;
       break;
     }
   }
   const completed = /* @__PURE__ */ new Set();
-  for (const line of lines3.slice(enteredAt + 1)) {
+  for (const line of lines4.slice(enteredAt + 1)) {
     if (line.kind !== "tool") continue;
     const id2 = skillIdFromToolRaw(line.raw ?? "");
     if (id2) completed.add(canonicalTenonSkillId(id2));
@@ -67345,14 +67445,14 @@ function decodeJson(raw) {
 }
 function quoted(outcome, label2) {
   const head = `${label2} \u9000\u51FA\u7801 ${outcome.code}`;
-  const lines3 = [];
+  const lines4 = [];
   for (const rawItem of asArray7(decodeJson(outcome.stdout)?.items)) {
     const item2 = asRecord10(rawItem);
     if (item2 === null || item2.valid !== false) continue;
     for (const rawIssue of asArray7(item2.issues)) {
       const issue2 = asRecord10(rawIssue);
       if (issue2 === null) continue;
-      lines3.push([
+      lines4.push([
         asText2(item2.id) ?? "?",
         asText2(issue2.level) ?? "ERROR",
         asText2(issue2.path) ?? "",
@@ -67360,7 +67460,7 @@ function quoted(outcome, label2) {
       ].join(" ").trim());
     }
   }
-  if (lines3.length > 0) return [head, ...lines3];
+  if (lines4.length > 0) return [head, ...lines4];
   const text13 = `${outcome.stdout}${outcome.stderr}`.trim();
   return [head, ...text13 === "" ? [] : text13.split("\n")];
 }
@@ -67450,12 +67550,12 @@ async function rehearseSpecApply(repoRoot, change, hooks) {
 var UPSTREAM_TBD = /^TBD - created by archiving change .*$/mu;
 var PLACEHOLDER2 = /^>\s*\[(?:待填写|pending)[:\]]/u;
 function sectionBody(markdown, heading) {
-  const lines3 = markdown.split(/\r?\n/u);
-  const start = lines3.findIndex((line) => heading.test(line));
+  const lines4 = markdown.split(/\r?\n/u);
+  const start = lines4.findIndex((line) => heading.test(line));
   if (start < 0) return [];
-  const level = /^(#+)/u.exec(lines3[start] ?? "")?.[1]?.length ?? 2;
+  const level = /^(#+)/u.exec(lines4[start] ?? "")?.[1]?.length ?? 2;
   const body = [];
-  for (const line of lines3.slice(start + 1)) {
+  for (const line of lines4.slice(start + 1)) {
     const next = /^(#+)\s/u.exec(line);
     if (next !== null && (next[1]?.length ?? 0) <= level) break;
     body.push(line);
@@ -67531,8 +67631,8 @@ async function writeAppliedSpec(dir, change, targets2) {
     SPEC_APPLY_RECEIPT
   ];
   let filled = 0;
-  const lines3 = skeleton.split("\n").map((line) => line.startsWith("> [") ? bodies[filled++] ?? line : line);
-  await writeFile25(join116(dir, APPLIED_SPEC_FILE), lines3.join("\n"), "utf8");
+  const lines4 = skeleton.split("\n").map((line) => line.startsWith("> [") ? bodies[filled++] ?? line : line);
+  await writeFile25(join116(dir, APPLIED_SPEC_FILE), lines4.join("\n"), "utf8");
 }
 async function withRealPurpose(dir, change, targets2) {
   const proposal = await readMaybe(dir, "proposal.md");
@@ -70172,28 +70272,28 @@ async function freshHardGate(deps) {
   return void 0;
 }
 async function guardQuietly(deps, name2) {
-  const lines3 = [];
+  const lines4 = [];
   const isolated = {
     ...deps,
     io: {
-      out: (line) => lines3.push(line),
-      err: (line) => lines3.push(line)
+      out: (line) => lines4.push(line),
+      err: (line) => lines4.push(line)
     }
   };
   const code = await cmdCheck(isolated, name2);
-  return { code, lines: lines3 };
+  return { code, lines: lines4 };
 }
 async function transitionQuietly(deps, name2, event) {
-  const lines3 = [];
+  const lines4 = [];
   const isolated = {
     ...deps,
     io: {
-      out: (line) => lines3.push(line),
-      err: (line) => lines3.push(line)
+      out: (line) => lines4.push(line),
+      err: (line) => lines4.push(line)
     }
   };
   const code = await cmdTransition(isolated, name2, event);
-  return { code, lines: lines3 };
+  return { code, lines: lines4 };
 }
 async function approvedReviewReceipt(deps, name2, phase, event) {
   try {
@@ -72026,9 +72126,9 @@ function parseSidecar(text13) {
     return void 0;
   return n;
 }
-function lastSeqInLines(lines3) {
-  for (let i = lines3.length - 1; i >= 0; i -= 1) {
-    const s = (lines3[i] ?? "").trim();
+function lastSeqInLines(lines4) {
+  for (let i = lines4.length - 1; i >= 0; i -= 1) {
+    const s = (lines4[i] ?? "").trim();
     if (!s)
       continue;
     let obj;
@@ -72048,11 +72148,11 @@ function lastSeqInLines(lines3) {
 function readLastJsonlSeqFromText(text13) {
   if (text13.length === 0)
     return 0;
-  const lines3 = text13.split("\n");
-  const found = lastSeqInLines(lines3);
+  const lines4 = text13.split("\n");
+  const found = lastSeqInLines(lines4);
   if (found !== void 0)
     return found;
-  if (lines3.some((ln) => ln.trim().length > 0)) {
+  if (lines4.some((ln) => ln.trim().length > 0)) {
     throw new Error("\u65E0\u6CD5\u6062\u590D last seq\uFF08\u6709\u975E\u7A7A\u884C\u4F46\u65E0\u53EF\u89E3\u6790\u7684 seq\uFF09\u2014\u2014\u5B81\u5D29\u4E0D\u731C\uFF08\u731C\u4F1A\u5BFC\u81F4\u91CD\u590D seq\uFF09");
   }
   return 0;
@@ -72560,7 +72660,7 @@ function reduceThreads(events) {
 function formatThreadBoard(states) {
   if (states.length === 0)
     return "(no threads)";
-  const lines3 = [];
+  const lines4 = [];
   for (const s of states) {
     const title = s.title ?? "";
     let head = `[${s.status}] ${s.thread}`;
@@ -72575,9 +72675,9 @@ function formatThreadBoard(states) {
       meta2.push("assignees: " + s.assignees.join(","));
     if (meta2.length)
       head += "  (" + meta2.join("; ") + ")";
-    lines3.push(head);
+    lines4.push(head);
   }
-  return lines3.join("\n");
+  return lines4.join("\n");
 }
 
 // packages/channel/dist/turns.js
@@ -72903,9 +73003,9 @@ function makeLineBuffer(onLine) {
   let carry = "";
   return (chunk) => {
     carry += chunk;
-    const lines3 = carry.split("\n");
-    carry = lines3.pop() ?? "";
-    for (const line of lines3) {
+    const lines4 = carry.split("\n");
+    carry = lines4.pop() ?? "";
+    for (const line of lines4) {
       if (line.trim())
         onLine(line);
     }
@@ -73104,9 +73204,9 @@ function readNewEvents(fs, path15, state) {
     return [];
   state.byteOffset = size;
   const text13 = state.carry + chunk;
-  const lines3 = text13.split("\n");
-  state.carry = lines3.pop() ?? "";
-  return parseEventsText(lines3.join("\n"));
+  const lines4 = text13.split("\n");
+  state.carry = lines4.pop() ?? "";
+  return parseEventsText(lines4.join("\n"));
 }
 function defaultSleep(ms) {
   return new Promise((resolve70) => {
@@ -78375,17 +78475,17 @@ var FileTraceStore = class {
       closeSync5(fd);
     }
     const byteLimited = offset > 0;
-    const lines3 = buffer.subarray(0, bytesRead).toString("utf8").split("\n");
-    if (lines3.at(-1) === "")
-      lines3.pop();
+    const lines4 = buffer.subarray(0, bytesRead).toString("utf8").split("\n");
+    if (lines4.at(-1) === "")
+      lines4.pop();
     let skippedCount = 0;
-    if (byteLimited && lines3.length > 0) {
-      lines3.shift();
+    if (byteLimited && lines4.length > 0) {
+      lines4.shift();
       skippedCount += 1;
     }
     const recordsNewestFirst = [];
     let malformed = false;
-    const visibleLines = lines3.filter((line) => line.trim().length > 0);
+    const visibleLines = lines4.filter((line) => line.trim().length > 0);
     const visibleLineCount = skippedCount + visibleLines.length;
     let recordLimited = false;
     for (let index = visibleLines.length - 1; index >= 0; index -= 1) {
@@ -79335,15 +79435,15 @@ function attachWsRelay(server, opts) {
     upstreamSocket.once("connect", () => {
       if (settled)
         return;
-      const lines3 = [`${req.method ?? "GET"} ${req.url ?? "/"} HTTP/1.1`, `Host: ${target.hostname}`];
+      const lines4 = [`${req.method ?? "GET"} ${req.url ?? "/"} HTTP/1.1`, `Host: ${target.hostname}`];
       for (const [k, v] of Object.entries(req.headers)) {
         if (k.toLowerCase() === "host")
           continue;
         const vals = Array.isArray(v) ? v : v !== void 0 ? [String(v)] : [];
         for (const val of vals)
-          lines3.push(`${k}: ${val}`);
+          lines4.push(`${k}: ${val}`);
       }
-      upstreamSocket.write(Buffer.from(lines3.join("\r\n") + "\r\n\r\n", "latin1"));
+      upstreamSocket.write(Buffer.from(lines4.join("\r\n") + "\r\n\r\n", "latin1"));
       if (head && head.length)
         upstreamSocket.write(head);
     });
@@ -81556,8 +81656,8 @@ async function cmdInternalSkillGate(deps, name2, skillId) {
           history: deps.history,
           evidenceScope: currentStepId
         });
-        const lines4 = parseHistoryLines(await deps.readHistoryRaw?.(dir) ?? "");
-        const completed = completedSkillsSinceStepEntry(lines4, currentStepId);
+        const lines5 = parseHistoryLines(await deps.readHistoryRaw?.(dir) ?? "");
+        const completed = completedSkillsSinceStepEntry(lines5, currentStepId);
         if (slotIndex < 0) {
           const phaseRequiredSlots = capabilityStep.requiredSkillIds.map((id2) => ({
             token: id2,
@@ -81592,8 +81692,8 @@ async function cmdInternalSkillGate(deps, name2, skillId) {
         evidenceScope: currentStepId
       });
       const historyRaw = await deps.readHistoryRaw?.(dir) ?? "";
-      const lines3 = parseHistoryLines(historyRaw);
-      const completedSinceEntry = completedSkillsSinceStepEntry(lines3, currentStepId);
+      const lines4 = parseHistoryLines(historyRaw);
+      const completedSinceEntry = completedSkillsSinceStepEntry(lines4, currentStepId);
       const canonicalStepSkills = capabilityStep.declared.map((ref) => ({
         id: canonicalTenonSkillId(ref.id),
         ...ref.dependsOnDeclared ?? ref.dependsOn.length > 0 ? { depends_on: ref.dependsOn.map(canonicalTenonSkillId) } : {}
@@ -81751,7 +81851,7 @@ function renderEntry(entry2, digest19) {
   return `  ${entry2.token}: { ${fields2.join(", ")} }`;
 }
 function renderRegistry(entries2) {
-  const lines3 = [
+  const lines4 = [
     "# templates/skill-sources.yaml \u2014 canonical Skill provenance registry",
     "# Generated by tenon internal-skill-provenance sync; edit Skill bytes then rerun sync.",
     "version: 3",
@@ -81761,7 +81861,7 @@ function renderRegistry(entries2) {
     ...entries2.map(({ entry: entry2, digest: digest19 }) => renderEntry(entry2, digest19)),
     ""
   ];
-  return lines3.join("\n");
+  return lines4.join("\n");
 }
 var LEGACY_SYNC_ENTRY_FIELDS = /* @__PURE__ */ new Set([
   "tool",
@@ -82398,10 +82498,10 @@ function unquote2(token) {
 }
 function parseManagedLauncher(text13) {
   if (!text13.startsWith(HEAD)) return void 0;
-  const lines3 = text13.split("\n");
-  const roots = ROOTS_LINE.exec(lines3[2] ?? "");
-  const node = lines3.map((line) => NODE_LINE.exec(line)).find((match) => match !== null);
-  const exec = EXEC_LINE.exec(lines3.filter((line) => line !== "").at(-1) ?? "");
+  const lines4 = text13.split("\n");
+  const roots = ROOTS_LINE.exec(lines4[2] ?? "");
+  const node = lines4.map((line) => NODE_LINE.exec(line)).find((match) => match !== null);
+  const exec = EXEC_LINE.exec(lines4.filter((line) => line !== "").at(-1) ?? "");
   const rootsToken = roots?.[1];
   const nodeToken = node?.[1];
   const execNodeToken = exec?.[1];
@@ -82726,10 +82826,10 @@ function readmeLicense(checkoutDir) {
   for (const name2 of names) {
     const file = join145(checkoutDir, name2);
     if (!isFile(file)) continue;
-    const lines3 = readFileSync35(file, "utf8").split(/\r?\n/u);
-    const heading = lines3.findIndex((line) => LICENSE_HEADING.test(line.trim()));
+    const lines4 = readFileSync35(file, "utf8").split(/\r?\n/u);
+    const heading = lines4.findIndex((line) => LICENSE_HEADING.test(line.trim()));
     if (heading < 0) continue;
-    const value = lines3.slice(heading + 1).find((line) => line.trim() !== "")?.trim();
+    const value = lines4.slice(heading + 1).find((line) => line.trim() !== "")?.trim();
     const license = exactLicense(value);
     if (license !== void 0) return { license, source: "readme", file };
   }
@@ -83449,31 +83549,31 @@ function commandText(item2) {
 }
 function hostConvergenceInterruptionReport(input2) {
   const flag2 = hostFlag(input2.host);
-  const lines3 = [`ERROR: ${flag2} \u5BBF\u4E3B\u6536\u655B\u5728 ${input2.stepId} \u4E2D\u65AD\uFF1A${input2.reason}`];
+  const lines4 = [`ERROR: ${flag2} \u5BBF\u4E3B\u6536\u655B\u5728 ${input2.stepId} \u4E2D\u65AD\uFF1A${input2.reason}`];
   const pluginGone = input2.provenDestructiveStepIds.includes("plugin-remove");
   const marketplaceGone = input2.provenDestructiveStepIds.includes("marketplace-remove");
   if (!pluginGone && !marketplaceGone) {
-    lines3.push(`[setup] \u5F53\u524D\u5BBF\u4E3B\u72B6\u6001\uFF1A\u672C\u6B21\u672A\u8BC1\u660E\u4EFB\u4F55\u5220\u9664\u6B65\u9AA4\uFF0C${flag2} \u7684 tenon \u767B\u8BB0\u4FDD\u6301\u4E2D\u65AD\u524D\u7684\u72B6\u6001\u3002`);
+    lines4.push(`[setup] \u5F53\u524D\u5BBF\u4E3B\u72B6\u6001\uFF1A\u672C\u6B21\u672A\u8BC1\u660E\u4EFB\u4F55\u5220\u9664\u6B65\u9AA4\uFF0C${flag2} \u7684 tenon \u767B\u8BB0\u4FDD\u6301\u4E2D\u65AD\u524D\u7684\u72B6\u6001\u3002`);
   } else {
     const absent = [
       ...pluginGone ? ["tenon \u63D2\u4EF6"] : [],
       ...marketplaceGone ? ["tenon marketplace"] : []
     ].join("\u4E0E");
-    lines3.push(
+    lines4.push(
       `[setup] \u5F53\u524D\u5BBF\u4E3B\u72B6\u6001\uFF1A${flag2} \u4E2D\u7684 ${absent} \u5DF2\u88AB\u79FB\u9664\u4E14\u672A\u91CD\u65B0\u767B\u8BB0\uFF1B\u5728\u6062\u590D\u524D\u8BE5\u5BBF\u4E3B\u4E0D\u4F1A\u518D\u52A0\u8F7D Tenon\u3002`
     );
     if (input2.hadInstalledPlugin) {
-      lines3.push("[setup] \u8FD9\u6B21\u6536\u655B\u79FB\u9664\u7684\u662F\u5BBF\u4E3B\u539F\u6709\u7684 tenon \u767B\u8BB0\uFF0C\u5FC5\u987B\u5B8C\u6210\u4E0B\u9762\u4EFB\u4E00\u6062\u590D\u52A8\u4F5C\u3002");
+      lines4.push("[setup] \u8FD9\u6B21\u6536\u655B\u79FB\u9664\u7684\u662F\u5BBF\u4E3B\u539F\u6709\u7684 tenon \u767B\u8BB0\uFF0C\u5FC5\u987B\u5B8C\u6210\u4E0B\u9762\u4EFB\u4E00\u6062\u590D\u52A8\u4F5C\u3002");
     }
   }
-  lines3.push(
+  lines4.push(
     `[setup] \u6062\u590D\u65B9\u5F0F\u4E00\uFF08\u63A8\u8350\uFF09\uFF1A\u7F51\u7EDC\u6062\u590D\u540E\u91CD\u65B0\u8FD0\u884C \`${input2.resumeCommand}\`\uFF1B\u53D7\u7BA1 WAL \u4F1A\u4ECE\u4E2D\u65AD\u7684\u6B65\u9AA4\u7EE7\u7EED\uFF0C\u4E0D\u4F1A\u91CD\u590D\u5220\u9664\u3002`
   );
-  lines3.push(
+  lines4.push(
     `[setup] \u6062\u590D\u65B9\u5F0F\u4E8C\uFF08\u624B\u5DE5\uFF0C\u76F4\u63A5\u7528\u5BBF\u4E3B CLI \u91CD\u65B0\u7ED1\u5B9A ${input2.target.tag}\uFF09\uFF1A`
   );
-  for (const item2 of input2.restoreCommands) lines3.push(`[setup]   $ ${commandText(item2)}`);
-  return lines3;
+  for (const item2 of input2.restoreCommands) lines4.push(`[setup]   $ ${commandText(item2)}`);
+  return lines4;
 }
 
 // packages/cli/src/commands/host-target-plan.ts
@@ -87062,8 +87162,8 @@ async function cmdInternalMotionGate(deps, name2, stdin) {
     const state = await deps.store.read(dir);
     const step = String(state.fields.phase ?? "");
     if (step === "") return 0;
-    const lines3 = parseHistoryLines(await deps.readHistoryRaw?.(dir) ?? "");
-    const completed = completedSkillsSinceStepEntry(lines3, step);
+    const lines4 = parseHistoryLines(await deps.readHistoryRaw?.(dir) ?? "");
+    const completed = completedSkillsSinceStepEntry(lines4, step);
     const missing3 = required3.filter((skill) => !completed.has(canonicalTenonSkillId(skill)));
     if (missing3.length === 0) return 0;
     deps.io.err(`\u3010Tenon \u52A8\u753B\u95E8\u3011\u5199\u5165 GSAP \u4EE3\u7801\u524D\u5148\u52A0\u8F7D\u6280\u80FD\uFF1A${missing3.join(", ")}\uFF1B${HINT2}`);
@@ -87649,21 +87749,21 @@ function scalar23(value) {
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
 function stepDetailLines(step) {
-  const lines3 = [];
+  const lines4 = [];
   const fields2 = (refs) => refs.map((ref) => `${ref.field}(${ref.type})`).join(", ");
-  if (step.inputs.length > 0) lines3.push(`inputs: ${fields2(step.inputs)}`);
-  if (step.outputs.length > 0) lines3.push(`outputs: ${fields2(step.outputs)}`);
+  if (step.inputs.length > 0) lines4.push(`inputs: ${fields2(step.inputs)}`);
+  if (step.outputs.length > 0) lines4.push(`outputs: ${fields2(step.outputs)}`);
   const tests = step.tests ?? [];
   if (tests.length > 0) {
-    lines3.push(`tests: ${tests.map((test) => test.required === false ? `${test.id}(\u53EF\u9009)` : test.id).join(", ")}`);
+    lines4.push(`tests: ${tests.map((test) => test.required === false ? `${test.id}(\u53EF\u9009)` : test.id).join(", ")}`);
   }
   const executors = step.agents?.executors ?? [];
   const reviewers = step.agents?.reviewers ?? [];
-  if (executors.length > 0) lines3.push(`executors: ${executors.map((ref) => ref.agent).join(", ")}`);
+  if (executors.length > 0) lines4.push(`executors: ${executors.map((ref) => ref.agent).join(", ")}`);
   if (reviewers.length > 0) {
-    lines3.push(`reviewers: ${reviewers.map((ref) => `${ref.agent}(${ref.required ? "" : "\u53C2\u8003, "}block_at=${ref.block_at})`).join(", ")}`);
+    lines4.push(`reviewers: ${reviewers.map((ref) => `${ref.agent}(${ref.required ? "" : "\u53C2\u8003, "}block_at=${ref.block_at})`).join(", ")}`);
   }
-  return lines3.map((line) => `     ${line}`);
+  return lines4.map((line) => `     ${line}`);
 }
 function renderHuman(deps, name2, state, plan) {
   const source = state.runMetadata?.workflowPlanSnapshot === void 0 ? "current-definition" : "frozen-snapshot";
@@ -88326,7 +88426,7 @@ function benchmarkLine(metric4) {
 function renderTestPolicySummary(report2, thresholds = {}) {
   const suites = (report2?.suites ?? []).filter((suite2) => suite2.origin === "catalog");
   if (suites.length === 0) return [];
-  const lines3 = ["\u6D4B\u8BD5\u6458\u8981\uFF08\u76EE\u5F55\u5957\u4EF6\u7684\u6700\u65B0\u8FD0\u884C\uFF09\uFF1A"];
+  const lines4 = ["\u6D4B\u8BD5\u6458\u8981\uFF08\u76EE\u5F55\u5957\u4EF6\u7684\u6700\u65B0\u8FD0\u884C\uFF09\uFF1A"];
   for (const suite2 of suites) {
     const name2 = suite2.label === void 0 ? suite2.suite : `${suite2.label}\uFF08${suite2.suite}\uFF09`;
     const parts = [`${name2} ${suite2.kind} ${STATE_WORD[suite2.state]}`];
@@ -88343,14 +88443,14 @@ function renderTestPolicySummary(report2, thresholds = {}) {
     }
     const coverage3 = coverageLine(suite2, thresholds);
     if (coverage3 !== void 0) parts.push(coverage3);
-    lines3.push(`- ${parts.join("\uFF1B")}`);
-    if (suite2.failing !== void 0 && suite2.failing.length > 0) lines3.push(`  \u5931\u8D25\u7528\u4F8B\uFF1A${listed(suite2.failing)}`);
-    if (suite2.flaky !== void 0 && suite2.flaky.length > 0) lines3.push(`  flaky \u7528\u4F8B\uFF1A${listed(suite2.flaky)}`);
+    lines4.push(`- ${parts.join("\uFF1B")}`);
+    if (suite2.failing !== void 0 && suite2.failing.length > 0) lines4.push(`  \u5931\u8D25\u7528\u4F8B\uFF1A${listed(suite2.failing)}`);
+    if (suite2.flaky !== void 0 && suite2.flaky.length > 0) lines4.push(`  flaky \u7528\u4F8B\uFF1A${listed(suite2.flaky)}`);
     if (suite2.benchmark !== void 0 && suite2.benchmark.length > 0) {
-      lines3.push(`  \u57FA\u51C6\uFF1A${suite2.benchmark.map(benchmarkLine).join("\uFF1B")}`);
+      lines4.push(`  \u57FA\u51C6\uFF1A${suite2.benchmark.map(benchmarkLine).join("\uFF1B")}`);
     }
   }
-  return lines3;
+  return lines4;
 }
 
 // packages/cli/src/commands/agent-rerun.ts
@@ -88473,17 +88573,17 @@ async function cmdAgentNext(deps, name2, json2) {
 }
 function waveSummary(change, views, wave, waiting, verdict) {
   if (wave.length > 0) return [`\u4E0B\u4E00\u6CE2\uFF1A${wave.join(", ")}`];
-  const lines3 = [];
+  const lines4 = [];
   for (const view2 of views) {
     if (view2.state !== "running") continue;
-    lines3.push(`\u8FDB\u884C\u4E2D\uFF1A${view2.agent}\uFF1B\u5B8C\u6210\u540E tenon agent record ${change} ${view2.runId ?? "<run>"}`);
+    lines4.push(`\u8FDB\u884C\u4E2D\uFF1A${view2.agent}\uFF1B\u5B8C\u6210\u540E tenon agent record ${change} ${view2.runId ?? "<run>"}`);
   }
-  for (const item2 of waiting) lines3.push(`\u7B49\u5F85\uFF1A${item2.agent} \u2190 ${item2.for.join(", ")}`);
-  if (lines3.length === 0 && verdict.pass) return ["\u5168\u90E8\u5B8C\u6210"];
-  if (lines3.length === 0) {
-    for (const blocker2 of verdict.blockers) lines3.push(`\u672A\u5B8C\u6210\uFF1A${renderAgentBlocker(blocker2, change)}`);
+  for (const item2 of waiting) lines4.push(`\u7B49\u5F85\uFF1A${item2.agent} \u2190 ${item2.for.join(", ")}`);
+  if (lines4.length === 0 && verdict.pass) return ["\u5168\u90E8\u5B8C\u6210"];
+  if (lines4.length === 0) {
+    for (const blocker2 of verdict.blockers) lines4.push(`\u672A\u5B8C\u6210\uFF1A${renderAgentBlocker(blocker2, change)}`);
   }
-  return lines3;
+  return lines4;
 }
 
 // packages/cli/src/commands/agent.ts
@@ -88872,9 +88972,9 @@ async function readAgentText(path15) {
   return readFile94(path15, "utf8");
 }
 function frontmatterName(text13) {
-  const lines3 = text13.split("\n");
-  const close = lines3.indexOf("---", 1);
-  const head = close < 0 ? [] : lines3.slice(1, close);
+  const lines4 = text13.split("\n");
+  const close = lines4.indexOf("---", 1);
+  const head = close < 0 ? [] : lines4.slice(1, close);
   return /^name:\s*(\S+)\s*$/u.exec(head.find((line) => line.startsWith("name:")) ?? "")?.[1] ?? "";
 }
 function parseText(deps, text13) {
@@ -89478,18 +89578,18 @@ async function currentText(deps, path15) {
   }
 }
 async function reviewItemLines(deps, state, items) {
-  const lines3 = [];
+  const lines4 = [];
   if (items.waivers.length > 0) {
-    lines3.push(
+    lines4.push(
       `[REVIEW] \u5F85\u6279\u51C6\u7684\u8C41\u514D ${items.waivers.length} \u9879\uFF08\u7528\u6237\u7684\u786E\u8BA4\u540C\u65F6\u6279\u51C6\u8FD9\u4E9B\u8C41\u514D\uFF1B\`not-applicable:<\u79CD\u7C7B>\` \u662F catalog.yaml \u91CC\u9879\u76EE\u7EA7\u7684\u300C\u4E0D\u9002\u7528\u300D\u58F0\u660E\uFF0C\u6279\u51C6\u4E00\u6B21\u5BF9\u5168\u9879\u76EE\u751F\u6548\u3002\u8BF7\u8FDE\u540C\u7406\u7531\u4E00\u5E76\u5C55\u793A\u7ED9\u7528\u6237\uFF09\uFF1A`,
       ...items.waivers.map((waiver) => `  ${waiver.key} \u2014 ${waiver.reason}`)
     );
   }
   if (items.protected.length > 0) {
-    lines3.push(`[REVIEW] \u5F85\u786E\u8BA4\u7684\u6D4B\u8BD5\u914D\u7F6E\u6539\u52A8 ${items.protected.length} \u9879\uFF08\u7528\u6237\u7684\u786E\u8BA4\u540C\u65F6\u6279\u51C6\u8FD9\u4E9B\u5185\u5BB9\uFF1B\u8BF7\u8FDE\u540C\u4E0B\u5217\u6458\u8981\u4E00\u5E76\u5C55\u793A\u7ED9\u7528\u6237\uFF0C\u786E\u8BA4\u4E4B\u540E\u6587\u4EF6\u518D\u53D8\u5C31\u8981\u91CD\u65B0\u786E\u8BA4\uFF09\uFF1A`);
+    lines4.push(`[REVIEW] \u5F85\u786E\u8BA4\u7684\u6D4B\u8BD5\u914D\u7F6E\u6539\u52A8 ${items.protected.length} \u9879\uFF08\u7528\u6237\u7684\u786E\u8BA4\u540C\u65F6\u6279\u51C6\u8FD9\u4E9B\u5185\u5BB9\uFF1B\u8BF7\u8FDE\u540C\u4E0B\u5217\u6458\u8981\u4E00\u5E76\u5C55\u793A\u7ED9\u7528\u6237\uFF0C\u786E\u8BA4\u4E4B\u540E\u6587\u4EF6\u518D\u53D8\u5C31\u8981\u91CD\u65B0\u786E\u8BA4\uFF09\uFF1A`);
     const start = changeStartOfFields(state.fields);
     for (const item2 of items.protected) {
-      lines3.push(`  ${protectedChangeLine(item2)}${item2.origin === "outside-command" ? " [\u53F0\u8D26\u5916\u6539\u52A8\uFF1ATenon \u547D\u4EE4\u5199\u51FA\u4E4B\u540E\u53C8\u88AB\u6539\u8FC7]" : ""}`);
+      lines4.push(`  ${protectedChangeLine(item2)}${item2.origin === "outside-command" ? " [\u53F0\u8D26\u5916\u6539\u52A8\uFF1ATenon \u547D\u4EE4\u5199\u51FA\u4E4B\u540E\u53C8\u88AB\u6539\u8FC7]" : ""}`);
       let before;
       try {
         before = await fileAtChangeStart(deps.cwd, start, item2.path);
@@ -89497,13 +89597,13 @@ async function reviewItemLines(deps, state, items) {
         before = void 0;
       }
       const after = item2.status === "deleted" ? void 0 : await currentText(deps, item2.path);
-      for (const line of describeProtectedChange(item2.kind, before, after)) lines3.push(`    \xB7 ${line}`);
+      for (const line of describeProtectedChange(item2.kind, before, after)) lines4.push(`    \xB7 ${line}`);
     }
   }
   if (items.protectedError !== void 0) {
-    lines3.push(`[REVIEW] \u65E0\u6CD5\u8BFB\u53D6\u672C\u4EFB\u52A1\u5BF9\u6D4B\u8BD5\u914D\u7F6E\u7684\u6539\u52A8\uFF08${items.protectedError}\uFF09\uFF1B\u8F6C\u6362\u65F6\u95E8\u7981\u4F1A\u4EE5 files-diff-unavailable \u6321\u4F4F\uFF0C\u76F4\u5230\u80FD\u8BFB\u51FA\u4E3A\u6B62`);
+    lines4.push(`[REVIEW] \u65E0\u6CD5\u8BFB\u53D6\u672C\u4EFB\u52A1\u5BF9\u6D4B\u8BD5\u914D\u7F6E\u7684\u6539\u52A8\uFF08${items.protectedError}\uFF09\uFF1B\u8F6C\u6362\u65F6\u95E8\u7981\u4F1A\u4EE5 files-diff-unavailable \u6321\u4F4F\uFF0C\u76F4\u5230\u80FD\u8BFB\u51FA\u4E3A\u6B62`);
   }
-  return lines3;
+  return lines4;
 }
 var SKIP_WORDS = {
   missing: "\u5DF2\u4E0D\u5728\u8BA1\u5212\u91CC",
@@ -90053,10 +90153,10 @@ async function collectCodeSize(cwd, base) {
   }
   const untracked = (await git2(cwd, ["ls-files", "--others", "--exclude-standard", "-z"]) ?? "").split("\0").filter((path15) => path15 !== "" && isCodePath(path15)).slice(0, MAX_UNTRACKED_FILES);
   for (const path15 of untracked) {
-    const lines3 = await countLines(join168(cwd, path15));
+    const lines4 = await countLines(join168(cwd, path15));
     filesChanged += 1;
-    linesAdded += lines3;
-    largest = Math.max(largest, lines3);
+    linesAdded += lines4;
+    largest = Math.max(largest, lines4);
   }
   return {
     files_changed: filesChanged,
@@ -90982,7 +91082,7 @@ async function insideRepo(repoRoot, path15) {
   }
 }
 async function summarizeTree(absolute) {
-  const lines3 = [];
+  const lines4 = [];
   const entries2 = [];
   let files = 0;
   let bytes = 0;
@@ -91005,11 +91105,11 @@ async function summarizeTree(absolute) {
       bytes += entry2.size;
       const rel = relative32(absolute, path15).split(sep26).join("/");
       entries2.push({ path: rel, bytes: entry2.size });
-      lines3.push(`${rel}\0${entry2.size}\0${digestOf2(await readFile98(path15))}`);
+      lines4.push(`${rel}\0${entry2.size}\0${digestOf2(await readFile98(path15))}`);
     }
   };
   await walk2(absolute);
-  return { digest: capped2 ? null : digestOf2(lines3.sort().join("\n")), files, bytes, entries: entries2 };
+  return { digest: capped2 ? null : digestOf2(lines4.sort().join("\n")), files, bytes, entries: entries2 };
 }
 async function envKey(path15) {
   try {
@@ -91415,7 +91515,8 @@ async function candidateOf(deps, name2) {
   if (fingerprint2 === void 0) return null;
   for (let attempt2 = 0; attempt2 < 2; attempt2++) {
     try {
-      return await fingerprint2(name2);
+      const full2 = await fingerprint2(name2);
+      return knownPortableCandidate(full2) ?? full2;
     } catch {
     }
   }
@@ -92198,9 +92299,9 @@ function repoPath2(ctx, value, base) {
 }
 function failureFromText(raw, headline2) {
   const text13 = stripAnsi(raw).trim();
-  const lines3 = text13.split("\n");
+  const lines4 = text13.split("\n");
   const firstBlock = [];
-  for (const line of lines3) {
+  for (const line of lines4) {
     if (/^\s+at\s/.test(line)) break;
     firstBlock.push(line);
   }
@@ -92366,10 +92467,10 @@ function pct2(covered, total) {
 function changedLinesPct(hits, changed) {
   let executable = 0;
   let covered = 0;
-  for (const [file, lines3] of changed) {
+  for (const [file, lines4] of changed) {
     const known = hits.get(file);
     if (known === void 0) continue;
-    for (const line of lines3) {
+    for (const line of lines4) {
       const count4 = known.get(line);
       if (count4 === void 0) continue;
       executable++;
@@ -92396,13 +92497,13 @@ function istanbulLineHits(detailText, ctx) {
   const out = /* @__PURE__ */ new Map();
   for (const [key, entry2] of Object.entries(parsed2.value)) {
     if (!isRecord26(entry2) || !isRecord26(entry2.statementMap) || !isRecord26(entry2.s)) continue;
-    const lines3 = /* @__PURE__ */ new Map();
+    const lines4 = /* @__PURE__ */ new Map();
     for (const [id2, location] of Object.entries(entry2.statementMap)) {
       const start = isRecord26(location) && isRecord26(location.start) ? asNumber(location.start.line) : void 0;
       const hits = asNumber(entry2.s[id2]) ?? 0;
-      if (start !== void 0) lines3.set(start, Math.max(lines3.get(start) ?? 0, hits));
+      if (start !== void 0) lines4.set(start, Math.max(lines4.get(start) ?? 0, hits));
     }
-    out.set(repoPath2(ctx, asString5(entry2.path) ?? key), lines3);
+    out.set(repoPath2(ctx, asString5(entry2.path) ?? key), lines4);
   }
   return out;
 }
@@ -92444,10 +92545,10 @@ function parseLcov(text13, ctx) {
   }
   if (records === 0) return { ok: false, reason: "\u6CA1\u6709 SF \u8BB0\u5F55\uFF1A\u4E0D\u662F lcov \u62A5\u544A" };
   const coverage3 = {};
-  const lines3 = pct2(totals2.lh, totals2.lf);
+  const lines4 = pct2(totals2.lh, totals2.lf);
   const functions = pct2(totals2.fnh, totals2.fnf);
   const branches = pct2(totals2.brh, totals2.brf);
-  if (lines3 !== void 0) coverage3.lines = lines3;
+  if (lines4 !== void 0) coverage3.lines = lines4;
   if (functions !== void 0) coverage3.functions = functions;
   if (branches !== void 0) coverage3.branches = branches;
   return { ok: true, coverage: withChanged(coverage3, hits, ctx) };
@@ -92469,31 +92570,31 @@ function parseCobertura(text13, ctx) {
     const filename = element.attrs.filename;
     if (filename === void 0) continue;
     const path15 = repoPath2(ctx, filename);
-    const lines4 = hits.get(path15) ?? /* @__PURE__ */ new Map();
+    const lines5 = hits.get(path15) ?? /* @__PURE__ */ new Map();
     for (const container of childrenNamed(element, "lines")) {
       for (const line of childrenNamed(container, "line")) {
         const number2 = Number(line.attrs.number);
         const count4 = Number(line.attrs.hits);
-        if (Number.isInteger(number2) && Number.isFinite(count4)) lines4.set(number2, Math.max(lines4.get(number2) ?? 0, count4));
+        if (Number.isInteger(number2) && Number.isFinite(count4)) lines5.set(number2, Math.max(lines5.get(number2) ?? 0, count4));
       }
     }
-    hits.set(path15, lines4);
+    hits.set(path15, lines5);
   }
   const coverage3 = {};
   let executable = 0;
   let covered = 0;
-  for (const lines4 of hits.values()) {
-    for (const count4 of lines4.values()) {
+  for (const lines5 of hits.values()) {
+    for (const count4 of lines5.values()) {
       executable++;
       if (count4 > 0) covered++;
     }
   }
-  const lines3 = rate(root.attrs["line-rate"]) ?? pct2(covered, executable);
-  if (lines3 !== void 0) coverage3.lines = lines3;
+  const lines4 = rate(root.attrs["line-rate"]) ?? pct2(covered, executable);
+  if (lines4 !== void 0) coverage3.lines = lines4;
   const branches = rate(root.attrs["branch-rate"]);
   const branchesValid = Number(root.attrs["branches-valid"]);
   if (branches !== void 0 && !(Number.isFinite(branchesValid) && branchesValid === 0)) coverage3.branches = branches;
-  if (lines3 === void 0 && branches === void 0) return { ok: false, reason: "Cobertura \u62A5\u544A\u6CA1\u6709 line-rate / branch-rate\uFF0C\u4E5F\u6CA1\u6709 line \u8BB0\u5F55" };
+  if (lines4 === void 0 && branches === void 0) return { ok: false, reason: "Cobertura \u62A5\u544A\u6CA1\u6709 line-rate / branch-rate\uFF0C\u4E5F\u6CA1\u6709 line \u8BB0\u5F55" };
   return { ok: true, coverage: withChanged(coverage3, hits, ctx) };
 }
 function parseCoverageReport(format, text13, ctx) {
@@ -92938,11 +93039,11 @@ var RESULT = /^(\s*)(not ok|ok)\b(?:\s+\d+)?\s*(?:-\s*)?(.*)$/;
 var SUBTEST = /^(\s*)# Subtest:\s*(.*)$/;
 var DIRECTIVE = /\s+#\s*(skip|to-?do)\b.*$/i;
 var LOCATION = /^(.*?):(\d+)(?::\d+)?$/;
-function readYaml(lines3, start, indent) {
+function readYaml(lines4, start, indent) {
   const diag = {};
   let index = start;
-  while (index < lines3.length) {
-    const line = lines3[index] ?? "";
+  while (index < lines4.length) {
+    const line = lines4[index] ?? "";
     if (/^\s*\.\.\.\s*$/.test(line)) return { diag, next: index + 1 };
     const entry2 = /^(\s*)([A-Za-z_]+):\s?(.*)$/.exec(line);
     if (entry2 === null || (entry2[1] ?? "").length !== indent) {
@@ -92954,8 +93055,8 @@ function readYaml(lines3, start, indent) {
     if (/^[|>][+-]?$/.test(value)) {
       const block = [];
       index++;
-      while (index < lines3.length && (lines3[index] ?? "").startsWith(`${" ".repeat(indent + 2)}`) && !/^\s*\.\.\.\s*$/.test(lines3[index] ?? "")) {
-        block.push((lines3[index] ?? "").slice(indent + 2));
+      while (index < lines4.length && (lines4[index] ?? "").startsWith(`${" ".repeat(indent + 2)}`) && !/^\s*\.\.\.\s*$/.test(lines4[index] ?? "")) {
+        block.push((lines4[index] ?? "").slice(indent + 2));
         index++;
       }
       value = block.join("\n");
@@ -92974,11 +93075,11 @@ function readYaml(lines3, start, indent) {
   return { diag, next: index };
 }
 function parseTree(text13) {
-  const lines3 = text13.split("\n").map((line) => line.replace(/\r$/, ""));
+  const lines4 = text13.split("\n").map((line) => line.replace(/\r$/, ""));
   const root = [];
   const frames = [];
-  for (let index = 0; index < lines3.length; index++) {
-    const line = lines3[index] ?? "";
+  for (let index = 0; index < lines4.length; index++) {
+    const line = lines4[index] ?? "";
     const subtest = SUBTEST.exec(line);
     if (subtest !== null) {
       frames.push({ indent: (subtest[1] ?? "").length, name: subtest[2] ?? "", children: [] });
@@ -92999,8 +93100,8 @@ function parseTree(text13) {
     const failed = result2[2] === "not ok";
     const status = directive !== null ? "skip" : failed ? "fail" : "pass";
     let diag = {};
-    if (/^\s*---\s*$/.test(lines3[index + 1] ?? "")) {
-      const yaml = readYaml(lines3, index + 2, indent + 2);
+    if (/^\s*---\s*$/.test(lines4[index + 1] ?? "")) {
+      const yaml = readYaml(lines4, index + 2, indent + 2);
       diag = yaml.diag;
       index = yaml.next - 1;
     }
@@ -93770,7 +93871,7 @@ async function executeRun(input2) {
     const plan = input2.planState.state === "ok" ? input2.planState.plan : void 0;
     const changedFiles2 = await changedFilesFor(deps, change)().catch(() => void 0);
     const baselines = /* @__PURE__ */ new Map();
-    let lines3;
+    let lines4;
     let linesRead = false;
     const exec = {
       repoRoot: deps.cwd,
@@ -93793,9 +93894,9 @@ async function executeRun(input2) {
       changedLines: async () => {
         if (!linesRead) {
           linesRead = true;
-          lines3 = await changedLinesSinceChangeStart(deps.cwd, changeStartOfFields(context.state.fields)).catch(() => void 0);
+          lines4 = await changedLinesSinceChangeStart(deps.cwd, changeStartOfFields(context.state.fields)).catch(() => void 0);
         }
-        return lines3;
+        return lines4;
       },
       baseline: async (suiteId) => {
         if (!baselines.has(suiteId)) {
@@ -93918,20 +94019,20 @@ function failedCases(run6) {
 }
 function suiteLines(run6) {
   const mark = run6.result === "pass" ? "PASS" : "FAIL";
-  const lines3 = [`  [${mark}] ${run6.suite}  ${run6.kind}/${run6.runner}  scope=${run6.scope}  ${seconds2(run6.duration_ms)}  ${run6.report.format === "exit-code" ? `\u9000\u51FA\u7801 ${run6.exit_code ?? run6.signal ?? "?"}` : run6.metrics.length > 0 ? metricLine(run6) : counts(run6)}`];
+  const lines4 = [`  [${mark}] ${run6.suite}  ${run6.kind}/${run6.runner}  scope=${run6.scope}  ${seconds2(run6.duration_ms)}  ${run6.report.format === "exit-code" ? `\u9000\u51FA\u7801 ${run6.exit_code ?? run6.signal ?? "?"}` : run6.metrics.length > 0 ? metricLine(run6) : counts(run6)}`];
   if (run6.coverage !== null) {
-    lines3.push(`         \u8986\u76D6\u7387\uFF1A${Object.entries(run6.coverage).map(([key, value]) => `${key} ${value}%`).join("  ")}`);
+    lines4.push(`         \u8986\u76D6\u7387\uFF1A${Object.entries(run6.coverage).map(([key, value]) => `${key} ${value}%`).join("  ")}`);
   }
-  if (run6.projects.length > 0) lines3.push(`         \u6D4F\u89C8\u5668\uFF1A${run6.projects.join(", ")}`);
-  for (const reason3 of run6.reasons) lines3.push(`         \xB7 ${reason3.code}${reason3.detail === void 0 ? "" : `\uFF1A${firstLine(reason3.detail)}`}`);
+  if (run6.projects.length > 0) lines4.push(`         \u6D4F\u89C8\u5668\uFF1A${run6.projects.join(", ")}`);
+  for (const reason3 of run6.reasons) lines4.push(`         \xB7 ${reason3.code}${reason3.detail === void 0 ? "" : `\uFF1A${firstLine(reason3.detail)}`}`);
   const failed = failedCases(run6);
   for (const item2 of failed.slice(0, MAX_FAILURES)) {
-    lines3.push(`         \u2717 ${caseLabel(item2)}${item2.project === null ? "" : ` [${item2.project}]`}${item2.failure === void 0 ? "" : ` \u2014 ${firstLine(item2.failure.message)}`}`);
+    lines4.push(`         \u2717 ${caseLabel(item2)}${item2.project === null ? "" : ` [${item2.project}]`}${item2.failure === void 0 ? "" : ` \u2014 ${firstLine(item2.failure.message)}`}`);
   }
-  if (failed.length > MAX_FAILURES) lines3.push(`         \u2026 \u53E6\u6709 ${failed.length - MAX_FAILURES} \u4E2A\u5931\u8D25\u7528\u4F8B\uFF08\u89C1\u8BB0\u5F55\uFF09`);
+  if (failed.length > MAX_FAILURES) lines4.push(`         \u2026 \u53E6\u6709 ${failed.length - MAX_FAILURES} \u4E2A\u5931\u8D25\u7528\u4F8B\uFF08\u89C1\u8BB0\u5F55\uFF09`);
   const flaky2 = run6.cases.filter((item2) => item2.status === "flaky");
-  for (const item2 of flaky2.slice(0, 5)) lines3.push(`         ~ flaky\uFF08${item2.attempts} \u6B21\u5C1D\u8BD5\uFF09${caseLabel(item2)}`);
-  return lines3;
+  for (const item2 of flaky2.slice(0, 5)) lines4.push(`         ~ flaky\uFF08${item2.attempts} \u6B21\u5C1D\u8BD5\uFF09${caseLabel(item2)}`);
+  return lines4;
 }
 function serviceLines(services) {
   return services.map((service2) => `  \u670D\u52A1 ${service2.id}\uFF1A${service2.exit === "stopped" ? "\u5DF2\u56DE\u6536" : service2.exit}${service2.ready_ms === null ? "" : `\uFF0C\u5C31\u7EEA ${service2.ready_ms}ms`}${service2.leaked_pids.length > 0 ? `\uFF0C\u6B8B\u7559\u8FDB\u7A0B ${service2.leaked_pids.join(",")}` : ""}`);
@@ -95388,14 +95489,14 @@ async function cmdLogs(deps, opts, runtime) {
   }
   try {
     const text13 = [`${path15}.2`, `${path15}.1`, path15].map(tailText).join("");
-    const lines3 = text13.split("\n").filter((line) => line !== "");
-    if (lines3.length === 0 && opts.follow !== true) {
+    const lines4 = text13.split("\n").filter((line) => line !== "");
+    if (lines4.length === 0 && opts.follow !== true) {
       deps.io.err(msg(deps, "logs.none", { path: path15 }));
       return 0;
     }
-    for (const line of lines3.slice(-count4)) deps.io.out(shown(line));
+    for (const line of lines4.slice(-count4)) deps.io.out(shown(line));
     if (opts.follow !== true) return 0;
-    if (lines3.length === 0) deps.io.err(msg(deps, "logs.none", { path: path15 }));
+    if (lines4.length === 0) deps.io.err(msg(deps, "logs.none", { path: path15 }));
     deps.io.err(msg(deps, "logs.following", { path: path15 }));
     const tracker = runtime ?? productionLogsRuntime();
     try {
@@ -96325,16 +96426,49 @@ async function readEvidenceNotes(cwd) {
   }
   return out;
 }
-async function candidateFilesTouchedSince(cwd, sinceIso, limit = 5) {
-  const out = await git3(cwd, ["log", `--since=${sinceIso}`, "--name-only", "--format=", "--no-renames", "HEAD"]);
-  if (out === void 0) return [];
-  const seen = /* @__PURE__ */ new Set();
-  for (const line of out.split("\n")) {
-    const path15 = line.trim();
-    if (path15 !== "" && isWorkspaceCandidatePath(path15)) seen.add(path15);
-    if (seen.size >= limit) break;
+async function isAncestorOfHead(cwd, commit) {
+  return await git3(cwd, ["merge-base", "--is-ancestor", commit, "HEAD"]) !== void 0;
+}
+function lines3(out) {
+  return (out ?? "").split("\n").map((line) => line.trim()).filter((line) => line !== "");
+}
+async function commitAfterRecord(cwd, gitHead, finishedAt) {
+  if (gitHead !== null && /^[0-9a-f]{40}$/u.test(gitHead) && await resolves(cwd, gitHead) && await isAncestorOfHead(cwd, gitHead)) {
+    return lines3(await git3(cwd, ["rev-list", "--first-parent", `${gitHead}..HEAD`])).at(-1);
   }
-  return [...seen];
+  if (!Number.isFinite(Date.parse(finishedAt))) return void 0;
+  return lines3(await git3(cwd, ["rev-list", "--first-parent", "--reverse", `--since=${finishedAt}`, "HEAD"])).find((line) => /^[0-9a-f]{40}$/u.test(line));
+}
+function underAny(path15, roots) {
+  return roots.some((root) => path15 === root || path15.startsWith(`${root}/`) || path15.endsWith("/") && root.startsWith(path15));
+}
+async function candidateExtrasHere(cwd, declared) {
+  const out = await git3(cwd, ["status", "--porcelain=v1", "-z", "--ignored=traditional", "--untracked-files=normal"]);
+  if (out === void 0) return [];
+  const paths = [];
+  for (const entry2 of out.split("\0")) {
+    if (!/^(\?\?|!!) /u.test(entry2)) continue;
+    const path15 = entry2.slice(3);
+    if (path15 === "" || !isWorkspaceCandidatePath(path15.replace(/\/$/u, "")) || underAny(path15, declared)) continue;
+    paths.push(path15);
+  }
+  return paths.sort();
+}
+async function candidateClues(cwd, input2, limit = 5) {
+  const followedBy = await commitAfterRecord(cwd, input2.gitHead, input2.finishedAt);
+  let later = [];
+  if (followedBy !== void 0) {
+    const out = await git3(cwd, ["diff", "--name-only", "--no-renames", "-z", followedBy, "HEAD"]);
+    later = (out?.split("\0") ?? []).filter((path15) => path15 !== "" && isWorkspaceCandidatePath(path15)).sort();
+  }
+  const extras = await candidateExtrasHere(cwd, input2.declared);
+  return {
+    followedBy: followedBy?.slice(0, 7),
+    changedLater: later.slice(0, limit),
+    changedLaterMore: Math.max(0, later.length - limit),
+    extraHere: extras.slice(0, limit),
+    extraHereMore: Math.max(0, extras.length - limit)
+  };
 }
 
 // packages/cli/src/commands/evidence-git.ts
@@ -96575,8 +96709,8 @@ function agentRuns(rows) {
 async function changedFiles(deps, state) {
   const session = createChangedFilesSession(deps.cwd);
   const start = changeStartOfFields(state.fields);
-  const lines3 = await session.changedLines({ ...start, baseBranch: await resolveBaseRef(deps.cwd, start.baseBranch) });
-  const all = [...lines3].filter(([path15]) => isWorkspaceCandidatePath(path15)).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0);
+  const lines4 = await session.changedLines({ ...start, baseBranch: await resolveBaseRef(deps.cwd, start.baseBranch) });
+  const all = [...lines4].filter(([path15]) => isWorkspaceCandidatePath(path15)).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0);
   return {
     files: all.slice(0, MAX_FILES4).map(([path15, set2]) => ({ path: path15, ranges: linesToRanges(set2) })),
     truncated: all.length > MAX_FILES4
@@ -96921,7 +97055,7 @@ async function policyFindings(input2) {
       ...path15 === void 0 ? {} : { path: path15 }
     });
   }
-  if (candidateStale.length > 0) out.push(await candidateFinding(input2, candidateStale, recordFile(candidateStale[0]?.suite)));
+  if (candidateStale.length > 0) out.push(await candidateFinding({ ...input2, change }, candidateStale, recordFile(candidateStale[0]?.suite)));
   if (policy2 === void 0) {
     for (const item2 of report2.items) {
       if (!item2.test.required || item2.status === "passed") continue;
@@ -96939,17 +97073,32 @@ async function policyFindings(input2) {
   return out;
 }
 async function candidateFinding(input2, stale, path15) {
-  const earliest = stale.map((verdict) => verdict.finished_at).filter((value) => value !== void 0).sort()[0];
-  const touched = earliest === void 0 ? [] : await candidateFilesTouchedSince(input2.deps.cwd, earliest);
-  const sep32 = verifyMsg(input2.deps, "verify.listSep");
-  const hint = touched.length === 0 ? "" : verifyMsg(input2.deps, "verify.candidateTouched", { files: touched.join(sep32) });
+  const { deps } = input2;
+  const earliest = [...stale].filter((verdict) => verdict.finished_at !== void 0).sort((left, right) => (left.finished_at ?? "") < (right.finished_at ?? "") ? -1 : 1)[0];
+  const record9 = earliest?.run_id === void 0 ? void 0 : input2.records.find((item2) => item2.run_id === earliest.run_id);
+  const sep32 = verifyMsg(deps, "verify.listSep");
+  const list5 = (files, more) => `${files.join(sep32)}${more > 0 ? verifyMsg(deps, "verify.listMore", { count: more }) : ""}`;
+  const clues = earliest?.finished_at === void 0 ? void 0 : await candidateClues(deps.cwd, { gitHead: record9?.git_head ?? null, finishedAt: earliest.finished_at, declared: await declaredTestOutputs(deps.cwd) });
+  const parts = [];
+  if (clues?.followedBy !== void 0 && clues.changedLater.length > 0) {
+    parts.push(verifyMsg(deps, "verify.candidateChangedLater", { commit: clues.followedBy, files: list5(clues.changedLater, clues.changedLaterMore) }));
+  } else {
+    parts.push(verifyMsg(
+      deps,
+      clues?.followedBy === void 0 ? "verify.candidateWorkspaceCauses" : "verify.candidateNothingLater",
+      clues?.followedBy === void 0 ? {} : { commit: clues.followedBy }
+    ));
+  }
+  if (clues !== void 0 && clues.extraHere.length > 0) {
+    parts.push(verifyMsg(deps, "verify.candidateExtraHere", { files: list5(clues.extraHere, clues.extraHereMore) }));
+  }
   return {
     code: "candidate-mismatch",
     severity: input2.mode === "warn" ? "warning" : "error",
     change: input2.change,
     source: "policy",
     subject: stale.map((verdict) => verdict.suite).join(","),
-    message: verifyMsg(input2.deps, "verify.candidateMismatch", { suites: stale.map((verdict) => verdict.suite).join(sep32), hint }),
+    message: verifyMsg(deps, "verify.candidateMismatch", { suites: stale.map((verdict) => verdict.suite).join(sep32), hint: parts.join("") }),
     fix: `tenon test run ${input2.change} --stage`,
     ...path15 === void 0 ? {} : { path: path15 }
   };
@@ -97065,7 +97214,8 @@ async function verifyChange(ctx, selected) {
       relDir: selected.relDir,
       recordsRelDir: evaluated.chain?.relDir ?? null,
       brokenFile: broken?.state === "broken" && broken.files[0] !== void 0 ? `${evaluated.chain?.relDir ?? ""}/${broken.files[0]}` : void 0,
-      mode: ctx.options.candidate
+      mode: ctx.options.candidate,
+      records: broken?.state === "intact" ? broken.active : []
     }));
     policy2 = findings.some((item2) => item2.severity === "error" && item2.source === "policy") ? "fail" : "pass";
   }

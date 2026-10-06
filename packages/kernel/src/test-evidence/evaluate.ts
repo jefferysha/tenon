@@ -18,6 +18,7 @@ import { RUNNING_MARKER_GRACE_MS, type TestRunRecordV1 } from './types.js'
 import type { TestBlocker } from '../test-system/blockers.js'
 import { renderPolicyBlockers } from '../test-system/evaluate-v2.js'
 import type { ChangedFilesSource, TestPolicyReport } from '../test-system/evaluate-types.js'
+import { portableCandidate } from '../test-system/candidate.js'
 import { evaluateStepTestPolicy } from '../test-system/load.js'
 import type { RecordChainCache } from '../test-system/record-chain.js'
 import type { IntegrityDiffSource } from '../test-system/integrity-diff.js'
@@ -262,6 +263,15 @@ export async function evaluateTestEvidence(input: {
     }
     return candidate
   }
+  // 记录绑的是宿主给的候选（0.3.0 及更早的完整指纹），或它去掉宿主本地文件之后的可移植孪生（0.3.1 起）：两者都算绑定了当前代码。
+  // 当前候选在一次判定里不变，孪生只在有记录对不上它时才取，且只取一次。
+  let portable: Promise<string | undefined> | undefined
+  const candidateStale = async (bound: string | null, current: string | null): Promise<boolean> => {
+    if (current === null) return true
+    if (bound === current) return false
+    portable ??= portableCandidate(input.repoRoot, current)
+    return bound === null || bound !== await portable
+  }
   const items: TestEvidenceItem[] = []
   for (const test of tests) {
     const marker = await readRunningMarker(testRunningMarkerPath(input.repoRoot, slug, input.changeName, test.id))
@@ -287,7 +297,7 @@ export async function evaluateTestEvidence(input: {
       ? 'workflow' as const
       : record.test_digest !== testDigest(test)
         ? 'declaration' as const
-        : current !== undefined && (current === null || record.candidate !== current)
+        : current !== undefined && await candidateStale(record.candidate, current)
           ? 'candidate' as const
           : undefined
     if (staleBecause !== undefined) {
@@ -310,6 +320,7 @@ export async function evaluateTestEvidence(input: {
       workflowFingerprint: input.plan.workflowFingerprint,
       workflowRunId: runId,
       candidate: currentCandidate,
+      portableCandidate: (current) => portableCandidate(input.repoRoot, current),
       ...(input.context.changedFiles === undefined ? {} : { changedFiles: input.context.changedFiles }),
       ...(input.context.recordChainCache === undefined ? {} : { recordChainCache: input.context.recordChainCache }),
       ...(input.context.protectedChanges === undefined ? {} : { protectedChanges: input.context.protectedChanges }),

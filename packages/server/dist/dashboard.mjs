@@ -8941,8 +8941,24 @@ var EXCLUDED_BASENAMES = /* @__PURE__ */ new Set([
 ]);
 var EXCLUDED_RELATIVE_ROOTS = [".github/hooks", ".claude/agents"];
 var EXCLUDED_ROOT_FILES = /* @__PURE__ */ new Set([".pipeline-owned.json"]);
-function isExcludedHostConfigShell(relativePath, names, exclusions) {
-  return EXCLUDED_RELATIVE_ROOTS.some((root) => root.startsWith(`${relativePath}/`)) && names.every((name) => isExcluded(`${relativePath}/${name}`, exclusions));
+var HOST_LOCAL_FILES = [".claude/settings.local.json", "CLAUDE.local.md"];
+var HOST_LOCAL_DIRS = [".claude/worktrees"];
+function isHostLocal(relativePath) {
+  return HOST_LOCAL_FILES.includes(relativePath) || HOST_LOCAL_DIRS.some((dir) => relativePath === dir || relativePath.startsWith(`${dir}/`));
+}
+async function hasHostLocalFiles(root) {
+  for (const path14 of [...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS]) {
+    try {
+      await lstat10(join18(root, ...path14.split("/")));
+      return true;
+    } catch {
+    }
+  }
+  return false;
+}
+function isExcludedHostConfigShell(relativePath, names, exclusions, portable) {
+  const roots = portable ? [...EXCLUDED_RELATIVE_ROOTS, ...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS] : EXCLUDED_RELATIVE_ROOTS;
+  return roots.some((root) => root.startsWith(`${relativePath}/`)) && names.every((name) => isExcludedFor(`${relativePath}/${name}`, exclusions, portable));
 }
 var EXCLUDED_ROOT_ARTIFACTS = [
   /^dashboard-progress-custom-spec\.png$/,
@@ -8966,8 +8982,11 @@ function isExcluded(relativePath, exclusions, anySegment = EXCLUDED_ANY_SEGMENT)
   return EXCLUDED_TOP_LEVEL.has(parts[0] ?? "") || parts.some((part) => anySegment.has(part)) || EXCLUDED_BASENAMES.has(parts.at(-1) ?? "") || EXCLUDED_RELATIVE_ROOTS.some((root) => relativePath === root || relativePath.startsWith(`${root}/`)) || !relativePath.includes("/") && EXCLUDED_ROOT_ARTIFACTS.some((pattern) => pattern.test(relativePath)) || EXCLUDED_ROOT_FILES.has(relativePath) || isDeclaredOutput(relativePath, exclusions);
 }
 var NO_EXCLUSIONS = { declared: [], ancestors: /* @__PURE__ */ new Set() };
+function isExcludedFor(relativePath, exclusions, portable, anySegment = EXCLUDED_ANY_SEGMENT) {
+  return isExcluded(relativePath, exclusions, anySegment) || portable && isHostLocal(relativePath);
+}
 function isWorkspaceCandidatePath(relativePath) {
-  return !isExcluded(relativePath, NO_EXCLUSIONS, METRIC_EXCLUDED_ANY_SEGMENT);
+  return !isExcludedFor(relativePath, NO_EXCLUSIONS, true, METRIC_EXCLUDED_ANY_SEGMENT);
 }
 function writeRecord(hash, kind, relativePath, details = "") {
   hash.update(kind);
@@ -8977,39 +8996,51 @@ function writeRecord(hash, kind, relativePath, details = "") {
   hash.update(details);
   hash.update("\0");
 }
-async function holdsOnlyExcluded(root, relativePath, exclusions) {
+async function holdsOnlyExcluded(root, relativePath, exclusions, portable) {
   for (const name of await readdir(join18(root, ...relativePath.split("/")))) {
     const child = `${relativePath}/${name}`;
-    if (isExcluded(child, exclusions))
+    if (isExcludedFor(child, exclusions, portable))
       continue;
     if (!exclusions.ancestors.has(child))
       return false;
     if (!(await lstat10(join18(root, ...child.split("/")))).isDirectory())
       return false;
-    if (!await holdsOnlyExcluded(root, child, exclusions))
+    if (!await holdsOnlyExcluded(root, child, exclusions, portable))
       return false;
   }
   return true;
 }
-async function fingerprintEntry(root, relativePath, hash, exclusions) {
-  if (isExcluded(relativePath, exclusions))
+async function fingerprintEntry(root, relativePath, sinks, exclusions) {
+  const live = sinks.filter((sink) => !isExcludedFor(relativePath, exclusions, sink.portable));
+  if (live.length === 0)
     return;
   const absolutePath2 = join18(root, ...relativePath.split("/"));
   const before = await lstat10(absolutePath2);
   if (before.isDirectory()) {
     const names = sortNames(await readdir(absolutePath2));
-    if (isExcludedHostConfigShell(relativePath, names, exclusions))
+    const keep = [];
+    for (const sink of live) {
+      if (isExcludedHostConfigShell(relativePath, names, exclusions, sink.portable))
+        continue;
+      if (exclusions.ancestors.has(relativePath) && await holdsOnlyExcluded(root, relativePath, exclusions, sink.portable))
+        continue;
+      keep.push(sink);
+    }
+    if (keep.length === 0)
       return;
-    if (exclusions.ancestors.has(relativePath) && await holdsOnlyExcluded(root, relativePath, exclusions))
-      return;
-    writeRecord(hash, "D", relativePath, modeOf(before));
+    for (const sink of keep)
+      writeRecord(sink.hash, "D", relativePath, modeOf(before));
     for (const name of names)
-      await fingerprintEntry(root, `${relativePath}/${name}`, hash, exclusions);
+      await fingerprintEntry(root, `${relativePath}/${name}`, keep, exclusions);
     return;
   }
   if (before.isFile()) {
-    writeRecord(hash, "F", relativePath, `${modeOf(before)}:${before.size}`);
-    hash.update(await readFile9(absolutePath2));
+    const details = `${modeOf(before)}:${before.size}`;
+    const content = await readFile9(absolutePath2);
+    for (const sink of live) {
+      writeRecord(sink.hash, "F", relativePath, details);
+      sink.hash.update(content);
+    }
     const after = await lstat10(absolutePath2);
     if (!after.isFile() || !sameFileIdentity(before, after)) {
       throw new Error(`workspace baseline capture raced with a file change: ${relativePath}`);
@@ -9017,7 +9048,9 @@ async function fingerprintEntry(root, relativePath, hash, exclusions) {
     return;
   }
   if (before.isSymbolicLink()) {
-    writeRecord(hash, "L", relativePath, `${modeOf(before)}:${await readlink(absolutePath2)}`);
+    const details = `${modeOf(before)}:${await readlink(absolutePath2)}`;
+    for (const sink of live)
+      writeRecord(sink.hash, "L", relativePath, details);
     return;
   }
   throw new Error(`workspace baseline does not support non-file entry: ${relativePath}`);
@@ -9028,17 +9061,22 @@ async function statRoot(root) {
     return direct;
   return lstat10(`${root}${sep5}.`);
 }
-async function fingerprintWorkspace(root, options3) {
+async function fingerprintWorkspaceTwins(root, options3) {
   const rootStat = await statRoot(root);
   if (!rootStat.isDirectory())
     throw new Error(`workspace root is not a directory: ${root}`);
   const exclusions = exclusionsOf(options3);
-  const hash = createHash10("sha256");
-  writeRecord(hash, "D", ".", modeOf(rootStat));
+  const full = { hash: createHash10("sha256"), portable: false };
+  const portable = await hasHostLocalFiles(root) ? { hash: createHash10("sha256"), portable: true } : void 0;
+  const sinks = portable === void 0 ? [full] : [full, portable];
+  for (const sink of sinks)
+    writeRecord(sink.hash, "D", ".", modeOf(rootStat));
   const names = sortNames(await readdir(root));
   for (const name of names)
-    await fingerprintEntry(root, name, hash, exclusions);
-  return `${WORKSPACE_BASELINE_PREFIX}${hash.digest("hex")}`;
+    await fingerprintEntry(root, name, sinks, exclusions);
+  const digest18 = (sink) => `${WORKSPACE_BASELINE_PREFIX}${sink.hash.digest("hex")}`;
+  const fullValue = digest18(full);
+  return { full: fullValue, portable: portable === void 0 ? fullValue : digest18(portable) };
 }
 function isWorkspaceBaseline(value) {
   return new RegExp(`^${WORKSPACE_BASELINE_PREFIX}[a-f0-9]{64}$`).test(value);
@@ -21427,8 +21465,8 @@ function testRunArtifactsDir(repoRoot, slug, change, runId) {
 var MAX_METRICS_BYTES = 1024 * 1024;
 
 // packages/kernel/dist/test-evidence/evaluate.js
-import { readFile as readFile36, readdir as readdir12 } from "node:fs/promises";
-import { join as join45 } from "node:path";
+import { readFile as readFile37, readdir as readdir13 } from "node:fs/promises";
+import { join as join46 } from "node:path";
 
 // packages/kernel/dist/test-system/blockers.js
 var TEST_BLOCKER_CODES = [
@@ -23014,7 +23052,7 @@ function latestSuiteRuns(records) {
 function staleBindings(ref, context) {
   const bindings2 = ref.record.bindings;
   const out = [];
-  if (context.candidate !== void 0 && (context.candidate === null || bindings2.candidate !== context.candidate))
+  if (context.candidate !== void 0 && (context.candidate === null || bindings2.candidate !== context.candidate && bindings2.candidate !== context.candidateAlt))
     out.push("candidate");
   if (bindings2.workflow_fingerprint !== context.workflowFingerprint)
     out.push("workflow");
@@ -24829,6 +24867,7 @@ function evaluateTestPolicy(input2) {
   const latest = latestSuiteRuns(records);
   const freshness = {
     candidate: input2.bindings.candidate,
+    ...input2.bindings.candidateAlt === void 0 ? {} : { candidateAlt: input2.bindings.candidateAlt },
     workflowFingerprint: input2.bindings.workflowFingerprint,
     catalog: input2.catalog.state === "ok" ? input2.catalog.catalog : void 0,
     planDigest: input2.plan.state === "ok" ? input2.plan.digest : void 0,
@@ -24872,6 +24911,10 @@ function evaluateTestPolicy(input2) {
 function renderPolicyBlockers(report) {
   return report.blockers.filter((item2) => item2.blocking).map(renderTestBlocker);
 }
+
+// packages/kernel/dist/test-system/candidate.js
+import { lstat as lstat32, readFile as readFile36, readdir as readdir12 } from "node:fs/promises";
+import { join as join45, posix as posix2 } from "node:path";
 
 // packages/kernel/dist/test-system/load.js
 import { lstat as lstat31, readFile as readFile35, readdir as readdir11 } from "node:fs/promises";
@@ -25918,6 +25961,7 @@ async function evaluateStepTestPolicy(input2) {
   const planInput = plan.state === "ok" ? { state: "ok", plan: plan.plan, digest: plan.digest } : plan;
   const hasRecords = chain.state === "intact" && chain.active.length > 0;
   const candidate2 = hasRecords ? await input2.candidate() : void 0;
+  const candidateAlt = typeof candidate2 === "string" && input2.portableCandidate !== void 0 && chain.state === "intact" && chain.active.some((record11) => record11.bindings.candidate !== candidate2) ? await input2.portableCandidate(candidate2) : void 0;
   let changedFiles;
   let changedFilesTruncated;
   let changedFilesError;
@@ -25958,7 +26002,12 @@ async function evaluateStepTestPolicy(input2) {
     ...changedFilesTruncated === void 0 ? {} : { changedFilesTruncated },
     scenarios,
     tasks,
-    bindings: { candidate: candidate2, workflowFingerprint: input2.workflowFingerprint, workflowRunId: input2.workflowRunId },
+    bindings: {
+      candidate: candidate2,
+      ...candidateAlt === void 0 ? {} : { candidateAlt },
+      workflowFingerprint: input2.workflowFingerprint,
+      workflowRunId: input2.workflowRunId
+    },
     today: new Date(input2.now).toISOString().slice(0, 10),
     ...input2.exitEvent === void 0 ? {} : { exitEvent: input2.exitEvent },
     ...sealed === void 0 ? {} : {
@@ -25972,6 +26021,135 @@ async function evaluateStepTestPolicy(input2) {
     },
     ...integrity === void 0 ? {} : { integrity }
   });
+}
+
+// packages/kernel/dist/test-system/candidate.js
+var MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024;
+var MAX_CHANGE_DIRS = 512;
+function repoPath(cwd, path14) {
+  const joined = posix2.normalize(posix2.join(cwd === "" ? "." : cwd, path14));
+  if (joined === "." || joined === ".." || joined.startsWith("../") || posix2.isAbsolute(joined))
+    return void 0;
+  return joined;
+}
+function catalogDeclaredOutputs(catalog2) {
+  const out = /* @__PURE__ */ new Set();
+  const add = (cwd, path14) => {
+    if (path14 === void 0)
+      return;
+    const resolved = repoPath(cwd, path14);
+    if (resolved !== void 0)
+      out.add(resolved);
+  };
+  for (const suite2 of catalog2.suites) {
+    add(suite2.cwd, suite2.report.path);
+    if (suite2.coverage !== void 0) {
+      add(suite2.cwd, suite2.coverage.path);
+      if (suite2.coverage.format === "istanbul-summary")
+        add(suite2.cwd, posix2.join(posix2.dirname(suite2.coverage.path), "coverage-final.json"));
+    }
+    for (const artifact2 of suite2.artifacts)
+      add(suite2.cwd, artifact2);
+  }
+  return [...out].sort();
+}
+function inlineOutputsOfSnapshot(text11) {
+  let value;
+  try {
+    value = JSON.parse(text11);
+  } catch {
+    return [];
+  }
+  const steps = value?.plan?.workflow?.steps;
+  if (!Array.isArray(steps))
+    return [];
+  const out = [];
+  for (const step of steps) {
+    if (!Array.isArray(step?.tests))
+      continue;
+    for (const test of step.tests) {
+      if (!Array.isArray(test?.outputs))
+        continue;
+      for (const output2 of test.outputs) {
+        if (typeof output2?.path === "string") {
+          const resolved = repoPath(".", output2.path);
+          if (resolved !== void 0)
+            out.push(resolved);
+        }
+      }
+    }
+  }
+  return out;
+}
+var snapshotCache = /* @__PURE__ */ new Map();
+async function inlineTestDeclaredOutputs(repoRoot) {
+  const changesDir = join45(repoRoot, "openspec", "changes");
+  let names;
+  try {
+    names = (await readdir12(changesDir, { withFileTypes: true })).filter((entry2) => entry2.isDirectory() && entry2.name !== "archive").map((entry2) => entry2.name).sort().slice(0, MAX_CHANGE_DIRS);
+  } catch {
+    return [];
+  }
+  const out = /* @__PURE__ */ new Set();
+  for (const name of names) {
+    const path14 = join45(changesDir, name, WORKFLOW_PLAN_SNAPSHOT_FILE);
+    let info;
+    try {
+      info = await lstat32(path14);
+    } catch {
+      continue;
+    }
+    if (!info.isFile() || info.size > MAX_SNAPSHOT_BYTES)
+      continue;
+    const stamp = `${info.size}:${info.mtimeMs}`;
+    let cached = snapshotCache.get(path14);
+    if (cached?.stamp !== stamp) {
+      try {
+        cached = { stamp, outputs: inlineOutputsOfSnapshot(await readFile36(path14, "utf8")) };
+      } catch {
+        continue;
+      }
+      snapshotCache.set(path14, cached);
+    }
+    for (const output2 of cached.outputs)
+      out.add(output2);
+  }
+  return [...out].sort();
+}
+async function declaredTestOutputs(repoRoot) {
+  const catalog2 = await loadCatalogInput(repoRoot);
+  const fromCatalog = catalog2.state === "ok" ? catalogDeclaredOutputs(catalog2.catalog) : [];
+  return [.../* @__PURE__ */ new Set([...fromCatalog, ...await inlineTestDeclaredOutputs(repoRoot)])].sort();
+}
+var TWINS = /* @__PURE__ */ new Map();
+var MAX_TWINS = 256;
+function rememberTwins(twins) {
+  TWINS.delete(twins.full);
+  TWINS.set(twins.full, twins.portable);
+  if (TWINS.size > MAX_TWINS) {
+    const oldest = TWINS.keys().next();
+    if (oldest.done !== true)
+      TWINS.delete(oldest.value);
+  }
+}
+async function candidateTwins(repoRoot) {
+  const twins = await fingerprintWorkspaceTwins(repoRoot, { declaredOutputs: await declaredTestOutputs(repoRoot) });
+  rememberTwins(twins);
+  return twins;
+}
+async function candidateFingerprint(repoRoot) {
+  return (await candidateTwins(repoRoot)).full;
+}
+async function portableCandidate(repoRoot, fullCandidate) {
+  const known = TWINS.get(fullCandidate);
+  if (known !== void 0)
+    return known;
+  try {
+    const twins = await candidateTwins(repoRoot);
+    return twins.full === fullCandidate ? twins.portable : void 0;
+  } catch {
+    return void 0;
+  }
 }
 
 // packages/kernel/dist/test-evidence/evaluate.js
@@ -26005,7 +26183,7 @@ async function workflowRunId(changeDir2) {
 }
 async function runIdsIn(dir) {
   try {
-    return (await readdir12(dir)).filter((name) => name.endsWith(".json")).map((name) => name.slice(0, -5)).sort();
+    return (await readdir13(dir)).filter((name) => name.endsWith(".json")).map((name) => name.slice(0, -5)).sort();
   } catch {
     return [];
   }
@@ -26016,7 +26194,7 @@ async function listTestRuns(repoRoot, changeName, filter = {}) {
   for (const slug of slugs) {
     const paths = testEvidencePaths(repoRoot, slug, changeName);
     for (const runId of await runIdsIn(paths.runsDir)) {
-      const record11 = await readTestRunRecord(join45(paths.runsDir, `${runId}.json`));
+      const record11 = await readTestRunRecord(join46(paths.runsDir, `${runId}.json`));
       if (record11 === void 0)
         continue;
       if (filter.testId !== void 0 && record11.test_id !== filter.testId)
@@ -26033,8 +26211,8 @@ async function listTestRuns(repoRoot, changeName, filter = {}) {
 }
 async function userSlugs(repoRoot) {
   try {
-    const usersDir = join45(repoRoot, TENON_PROJECT_DIR, "users");
-    return (await readdir12(usersDir, { withFileTypes: true })).filter((entry2) => entry2.isDirectory()).map((entry2) => entry2.name).sort();
+    const usersDir = join46(repoRoot, TENON_PROJECT_DIR, "users");
+    return (await readdir13(usersDir, { withFileTypes: true })).filter((entry2) => entry2.isDirectory()).map((entry2) => entry2.name).sort();
   } catch {
     return [];
   }
@@ -26045,7 +26223,7 @@ async function latestTestRun(repoRoot, changeName, slug, testId, workflowRunIdVa
 }
 async function isRecordV2File(path14) {
   try {
-    const value = JSON.parse(await readFile36(path14, "utf8"));
+    const value = JSON.parse(await readFile37(path14, "utf8"));
     return declaresRecordV2(value) && decodeTestRunRecordV2(value) !== void 0;
   } catch {
     return false;
@@ -26055,7 +26233,7 @@ async function corruptTestRunFiles(repoRoot, changeName, slug) {
   const paths = testEvidencePaths(repoRoot, slug, changeName);
   const corrupt = [];
   for (const runId of await runIdsIn(paths.runsDir)) {
-    const path14 = join45(paths.runsDir, `${runId}.json`);
+    const path14 = join46(paths.runsDir, `${runId}.json`);
     if (await readTestRunRecord(path14) !== void 0 || await isRecordV2File(path14))
       continue;
     corrupt.push(`${runId}.json`);
@@ -26105,6 +26283,15 @@ async function evaluateTestEvidence(input2) {
     }
     return candidate2;
   };
+  let portable;
+  const candidateStale = async (bound, current) => {
+    if (current === null)
+      return true;
+    if (bound === current)
+      return false;
+    portable ??= portableCandidate(input2.repoRoot, current);
+    return bound === null || bound !== await portable;
+  };
   const items = [];
   for (const test of tests) {
     const marker = await readRunningMarker(testRunningMarkerPath(input2.repoRoot, slug, input2.changeName, test.id));
@@ -26121,7 +26308,7 @@ async function evaluateTestEvidence(input2) {
       continue;
     }
     const current = record11.workflow_fingerprint === input2.plan.workflowFingerprint && record11.test_digest === testDigest(test) ? await currentCandidate() : void 0;
-    const staleBecause = record11.workflow_fingerprint !== input2.plan.workflowFingerprint ? "workflow" : record11.test_digest !== testDigest(test) ? "declaration" : current !== void 0 && (current === null || record11.candidate !== current) ? "candidate" : void 0;
+    const staleBecause = record11.workflow_fingerprint !== input2.plan.workflowFingerprint ? "workflow" : record11.test_digest !== testDigest(test) ? "declaration" : current !== void 0 && await candidateStale(record11.candidate, current) ? "candidate" : void 0;
     if (staleBecause !== void 0) {
       items.push({ test, status: "stale", run: record11, staleBecause });
       continue;
@@ -26142,6 +26329,7 @@ async function evaluateTestEvidence(input2) {
       workflowFingerprint: input2.plan.workflowFingerprint,
       workflowRunId: runId,
       candidate: currentCandidate,
+      portableCandidate: (current) => portableCandidate(input2.repoRoot, current),
       ...input2.context.changedFiles === void 0 ? {} : { changedFiles: input2.context.changedFiles },
       ...input2.context.recordChainCache === void 0 ? {} : { recordChainCache: input2.context.recordChainCache },
       ...input2.context.protectedChanges === void 0 ? {} : { protectedChanges: input2.context.protectedChanges },
@@ -26198,14 +26386,14 @@ async function rejectOnTestEvidence(input2) {
 }
 
 // packages/kernel/dist/test-system/catalog-file.js
-import { mkdir as mkdir22, readFile as readFile37 } from "node:fs/promises";
+import { mkdir as mkdir22, readFile as readFile38 } from "node:fs/promises";
 function emptyCatalog() {
   return { schema: TEST_CATALOG_SCHEMA, profiles_env: [], suites: [], services: [] };
 }
 async function readCatalogFile(repoRoot) {
   let text11;
   try {
-    text11 = await readFile37(testSystemPaths(repoRoot).catalog, "utf8");
+    text11 = await readFile38(testSystemPaths(repoRoot).catalog, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT")
       return { state: "missing" };
@@ -26238,7 +26426,7 @@ async function updateCatalog(repoRoot, mutate) {
 
 // packages/kernel/dist/test-system/review-waivers.js
 import { rm as rm11 } from "node:fs/promises";
-import { join as join46 } from "node:path";
+import { join as join47 } from "node:path";
 var REVIEW_WAIVERS_FILE = ".pipeline-review-waivers.json";
 var MAX_REVIEW_WAIVERS_BYTES = 64 * 1024;
 var KEY_RE4 = /^(kind|covers|not-applicable):\S.*$/;
@@ -26300,7 +26488,7 @@ function decodeSelection(value) {
 async function readReviewWaiverSelection(changeDir2) {
   let raw;
   try {
-    raw = await readOptionalBoundedRegularTextFile(join46(changeDir2, REVIEW_WAIVERS_FILE), MAX_REVIEW_WAIVERS_BYTES, "review waiver selection");
+    raw = await readOptionalBoundedRegularTextFile(join47(changeDir2, REVIEW_WAIVERS_FILE), MAX_REVIEW_WAIVERS_BYTES, "review waiver selection");
   } catch {
     return void 0;
   }
@@ -26313,7 +26501,7 @@ async function readReviewWaiverSelection(changeDir2) {
   }
 }
 async function clearReviewWaiverSelection(changeDir2) {
-  await rm11(join46(changeDir2, REVIEW_WAIVERS_FILE), { force: true });
+  await rm11(join47(changeDir2, REVIEW_WAIVERS_FILE), { force: true });
 }
 function scalar8(state, field5) {
   const value = state.fields[field5];
@@ -26422,110 +26610,6 @@ async function approveFrozenWaivers(input2) {
   return { approved, skipped, digest: digest18, note, protectedApproved, protectedSkipped: checked.skipped };
 }
 
-// packages/kernel/dist/test-system/candidate.js
-import { lstat as lstat32, readFile as readFile38, readdir as readdir13 } from "node:fs/promises";
-import { join as join47, posix as posix2 } from "node:path";
-var MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024;
-var MAX_CHANGE_DIRS = 512;
-function repoPath(cwd, path14) {
-  const joined = posix2.normalize(posix2.join(cwd === "" ? "." : cwd, path14));
-  if (joined === "." || joined === ".." || joined.startsWith("../") || posix2.isAbsolute(joined))
-    return void 0;
-  return joined;
-}
-function catalogDeclaredOutputs(catalog2) {
-  const out = /* @__PURE__ */ new Set();
-  const add = (cwd, path14) => {
-    if (path14 === void 0)
-      return;
-    const resolved = repoPath(cwd, path14);
-    if (resolved !== void 0)
-      out.add(resolved);
-  };
-  for (const suite2 of catalog2.suites) {
-    add(suite2.cwd, suite2.report.path);
-    if (suite2.coverage !== void 0) {
-      add(suite2.cwd, suite2.coverage.path);
-      if (suite2.coverage.format === "istanbul-summary")
-        add(suite2.cwd, posix2.join(posix2.dirname(suite2.coverage.path), "coverage-final.json"));
-    }
-    for (const artifact2 of suite2.artifacts)
-      add(suite2.cwd, artifact2);
-  }
-  return [...out].sort();
-}
-function inlineOutputsOfSnapshot(text11) {
-  let value;
-  try {
-    value = JSON.parse(text11);
-  } catch {
-    return [];
-  }
-  const steps = value?.plan?.workflow?.steps;
-  if (!Array.isArray(steps))
-    return [];
-  const out = [];
-  for (const step of steps) {
-    if (!Array.isArray(step?.tests))
-      continue;
-    for (const test of step.tests) {
-      if (!Array.isArray(test?.outputs))
-        continue;
-      for (const output2 of test.outputs) {
-        if (typeof output2?.path === "string") {
-          const resolved = repoPath(".", output2.path);
-          if (resolved !== void 0)
-            out.push(resolved);
-        }
-      }
-    }
-  }
-  return out;
-}
-var snapshotCache = /* @__PURE__ */ new Map();
-async function inlineTestDeclaredOutputs(repoRoot) {
-  const changesDir = join47(repoRoot, "openspec", "changes");
-  let names;
-  try {
-    names = (await readdir13(changesDir, { withFileTypes: true })).filter((entry2) => entry2.isDirectory() && entry2.name !== "archive").map((entry2) => entry2.name).sort().slice(0, MAX_CHANGE_DIRS);
-  } catch {
-    return [];
-  }
-  const out = /* @__PURE__ */ new Set();
-  for (const name of names) {
-    const path14 = join47(changesDir, name, WORKFLOW_PLAN_SNAPSHOT_FILE);
-    let info;
-    try {
-      info = await lstat32(path14);
-    } catch {
-      continue;
-    }
-    if (!info.isFile() || info.size > MAX_SNAPSHOT_BYTES)
-      continue;
-    const stamp = `${info.size}:${info.mtimeMs}`;
-    let cached = snapshotCache.get(path14);
-    if (cached?.stamp !== stamp) {
-      try {
-        cached = { stamp, outputs: inlineOutputsOfSnapshot(await readFile38(path14, "utf8")) };
-      } catch {
-        continue;
-      }
-      snapshotCache.set(path14, cached);
-    }
-    for (const output2 of cached.outputs)
-      out.add(output2);
-  }
-  return [...out].sort();
-}
-async function declaredTestOutputs(repoRoot) {
-  const catalog2 = await loadCatalogInput(repoRoot);
-  const fromCatalog = catalog2.state === "ok" ? catalogDeclaredOutputs(catalog2.catalog) : [];
-  return [.../* @__PURE__ */ new Set([...fromCatalog, ...await inlineTestDeclaredOutputs(repoRoot)])].sort();
-}
-async function candidateFingerprint(repoRoot) {
-  return fingerprintWorkspace(repoRoot, { declaredOutputs: await declaredTestOutputs(repoRoot) });
-}
-
 // packages/kernel/dist/ci-verify/rules.js
 var CI_ONLY = [
   {
@@ -26554,7 +26638,7 @@ var CI_ONLY = [
     name: "CandidateMismatch",
     level: "error",
     short: "The recorded runs were produced on a different tree than the pull request head",
-    help: "The workspace fingerprint bound into the test run records differs from the fingerprint of the checked-out tree. The code changed after the tests ran, or the checkout differs from the tested workspace (ignored build output, file modes, line endings). Rerun `tenon test run <change> --stage` on the final tree."
+    help: "The workspace fingerprint bound into the test run records differs from the fingerprint of the checked-out tree. The code changed after the tests ran, or the checkout differs from the tested workspace (ignored build output, file modes, line endings, or, for records written by Tenon 0.3.0 and earlier, host-local files such as `.claude/settings.local.json` that the fingerprint counted then). Rerun `tenon test run <change> --stage` on the final tree."
   },
   {
     id: "protected-unapproved",

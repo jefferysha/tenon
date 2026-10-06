@@ -98,7 +98,6 @@ Action 输入：
 | 受保护文件的批准 | `protected-unapproved`、`protected-changed-after-approval`、`protected-approval-unbound`（警告）、`protected-diff-unavailable` |
 | 锚点 | `anchor-mismatch`、`anchor-behind`（警告）、`anchor-unverifiable`（警告）、`anchor-missing`（只在 `--require-anchor` 时） |
 | 被放弃的 Change（不判定） | `change-abandoned`（提示） |
-
 被放弃的 Change 会被跳过。沿放弃边（`scope-expanded`，例如升级进终态 `escalated` 的 `standard` 任务）离开工作流的 Change
 不需要任何测试证据，它通常和接手它的 `default` Change 在同一个 PR 里。CI 不判定它：报告里它只有一条提示 `change-abandoned`，
 不管是 `--change` 选它还是 `--since` 把它带进来，都不会让检查失败。只认真的走过放弃边的 Change：CI 读 Change canonical
@@ -119,10 +118,29 @@ Action 输入：
 
 ## 候选代码不一致
 
-测试记录绑定了它运行时整个工作区的内容指纹，检查把它与本次检出的树的指纹比较。不一致通常说明测试之后代码变了；提示里会列出记录完成之后
-提交改动过的文件。也可能来自作者的工作区与干净检出之间的差异：候选范围内被 gitignore 的构建产物、文件或目录的权限位（umask）、
-行尾转换。让 Action 紧跟 checkout 运行、先于任何构建步骤，并在目录里声明测试输出目录。`--candidate warn` 把这个发现降为警告，
-`--candidate off` 不比对并加一条提示。
+测试记录绑定了它运行时整个工作区的内容指纹，检查把它与本次检出的树的指纹比较。指纹不含 Tenon 自己的状态、依赖、目录里声明的测试输出，
+以及一份简短、明确列出的**宿主本地文件**：编码 agent 宿主的每机配置，从不提交，所以任何克隆里都没有它们。
+
+| 不进指纹的路径 | 是什么 |
+| --- | --- |
+| `.claude/settings.local.json` | Claude Code 的个人项目设置（权限允许列表、hook 日志）；你每回答一次权限提示 Claude Code 就改写它 |
+| `CLAUDE.local.md`（项目根） | Claude Code 的个人项目记忆 |
+| `.claude/worktrees/` | Claude Code 为子代理创建的项目检出 |
+
+除此之外不按名字模式排除任何东西。`.claude/settings.json`、`.claude/commands/`、`CLAUDE.md`、`.mcp.json`、子目录里的 `CLAUDE.local.md`
+以及一切只是长得像的文件都是共享的或清单之外的配置，照常属于候选；`.claude/agents/`、`.codex/`、`.agents/`、`.github/hooks/` 本来就不进指纹。
+清单在 `packages/kernel/src/workspace/fingerprint.ts`（`HOST_LOCAL_FILES`、`HOST_LOCAL_DIRS`）。
+
+Tenon 0.3.1 及之后写下的记录绑的是不含这些文件的指纹，所以干净克隆能复现，改这些文件也不会让记录过期。0.3.0 及更早版本写下的记录绑的是
+把它们算进去的指纹：在作者本机上这样的记录照样新鲜（Tenon 两种形式都认），但作者的工作区当时有其中某个文件时，干净克隆复现不了它——
+用当前的 Tenon 运行一次 `tenon test run <change> --stage`，把新记录提交。在有这类文件的项目里退回 0.3.0 或 0.2.x，会把 0.3.1 的记录读成
+过期（「代码已变化」），不会读成损坏；重新跑一遍套件即可。
+
+仍然不一致，通常说明测试之后代码变了。记录里只有一个哈希，CI 看不到作者的工作区，说不出「差在哪个文件」；提示里给的是它能确定的：
+先找到记录之后的第一个提交（用记录里存的 `git_head`，没有就用完成时间），再点名这个提交之后又改过的候选文件——测试时的工作区最可能就提交在
+那个提交里，所以交付提交自己的文件不会被怪罪；那之后什么都没改，提示就直说，差异在测试时的工作区本身。提示还会点名本次检出里被 gitignore
+或未跟踪的候选文件（例如构建产物）。它看不到的原因包括文件或目录的权限位（umask）与行尾转换。让 Action 紧跟 checkout 运行、先于任何构建步骤，
+并在目录里声明测试输出目录。`--candidate warn` 把这个发现降为警告，`--candidate off` 不比对并加一条提示。
 
 ## 在本机运行
 
@@ -198,8 +216,7 @@ tenon verify --ci --since origin/main --also sarif=/tmp/tenon.sarif
 | 现象 | 原因与处理 |
 | --- | --- |
 | `protected-diff-unavailable` | 浅克隆。用 `fetch-depth: 0` |
-| 作者本机干净运行之后立刻出现 `candidate-mismatch` | 被忽略的构建产物、权限位或行尾不同；见「候选代码不一致」 |
-| `record-chain-broken` | 有记录被手工改过、删掉或加进来。在本机重跑 `tenon test run <change> --stage` 并提交新记录 |
+| 作者本机干净运行之后立刻出现 `candidate-mismatch` | 记录是 Tenon 0.3.0 或更早版本在有 `.claude/settings.local.json` 的工作区里写的，或被忽略的构建产物、权限位、行尾不同；见「候选代码不一致」 || `record-chain-broken` | 有记录被手工改过、删掉或加进来。在本机重跑 `tenon test run <change> --stage` 并提交新记录 |
 | `protected-unapproved` | 目录、基线、已知失败或工作流的改动没有评审批准行。用 `tenon review request` 与 `tenon review acknowledge` 取得批准，再提交 Change 历史 |
 | `anchor-mismatch` | 链在锚定之后被重写。这正是锚点存在的理由；不要为了让它消失而重新锚定 |
 | 上传步骤因权限告警 | 令牌只读（fork 的 PR）。设 `upload-sarif: 'false'` |

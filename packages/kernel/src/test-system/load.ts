@@ -124,6 +124,10 @@ export interface StepTestPolicyLoadInput {
   readonly workflowRunId: string | undefined
   /** undefined = 宿主没有指纹能力；null = 能力在但取不到。 */
   readonly candidate: () => Promise<string | null | undefined>
+  /**
+   * 宿主给的候选（`candidate`）对应的可移植指纹（去掉宿主本地文件）；缺省 = 没有第二个口径。只在有记录绑的不是宿主候选时才调用。
+   */
+  readonly portableCandidate?: (candidate: string) => Promise<string | undefined>
   /** 纯列表，或带「未跟踪文件被截断」标记的结果；后者让测试策略给出显式提示。 */
   readonly changedFiles?: () => Promise<ChangedFilesSource>
   /** 本任务 diff 里的受保护配置改动（含删除）；宿主不提供就不检查，抛错则失败关闭。 */
@@ -176,6 +180,11 @@ export async function evaluateStepTestPolicy(input: StepTestPolicyLoadInput): Pr
   const planInput: PlanInput = plan.state === 'ok' ? { state: 'ok', plan: plan.plan, digest: plan.digest } : plan
   const hasRecords = chain.state === 'intact' && chain.active.length > 0
   const candidate = hasRecords ? await input.candidate() : undefined
+  // 0.3.1 起记录绑可移植指纹、0.3.0 及更早的绑完整指纹：有记录绑的不是宿主给的候选时，再取它的可移植孪生比一次。
+  const candidateAlt = typeof candidate === 'string' && input.portableCandidate !== undefined && chain.state === 'intact'
+    && chain.active.some((record) => record.bindings.candidate !== candidate)
+    ? await input.portableCandidate(candidate)
+    : undefined
   let changedFiles: readonly string[] | undefined
   let changedFilesTruncated: TestPolicyEvaluationInput['changedFilesTruncated']
   let changedFilesError: string | undefined
@@ -216,7 +225,12 @@ export async function evaluateStepTestPolicy(input: StepTestPolicyLoadInput): Pr
     ...(changedFilesTruncated === undefined ? {} : { changedFilesTruncated }),
     scenarios,
     tasks,
-    bindings: { candidate, workflowFingerprint: input.workflowFingerprint, workflowRunId: input.workflowRunId },
+    bindings: {
+      candidate,
+      ...(candidateAlt === undefined ? {} : { candidateAlt }),
+      workflowFingerprint: input.workflowFingerprint,
+      workflowRunId: input.workflowRunId,
+    },
     today: new Date(input.now).toISOString().slice(0, 10),
     ...(input.exitEvent === undefined ? {} : { exitEvent: input.exitEvent }),
     ...(sealed === undefined ? {} : {

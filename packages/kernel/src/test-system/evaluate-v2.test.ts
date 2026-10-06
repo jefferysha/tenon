@@ -310,6 +310,20 @@ describe('evaluateTestPolicy —— 运行记录', () => {
       expect(report.blockers[0]?.code).toBe('test-stale')
       expect(report.blockers[0]?.message).toMatch(pattern)
     }
+    // 记录绑的是当前候选的另一个口径（可移植孪生 / 完整指纹）：任一相等都算新鲜；两个都不等才过期。
+    const bound = `workspace:sha256:${'b'.repeat(64)}`
+    const boundRecords = (context: { policyDigest: string; planDigest: string }) => [{
+      ...recordFor([UNIT_PASS], context),
+      bindings: { ...recordFor([UNIT_PASS], context).bindings, candidate: bound },
+    }]
+    const bindingsWith = (candidate: string, candidateAlt?: string): TestPolicyEvaluationInput['bindings'] => ({
+      candidate, ...(candidateAlt === undefined ? {} : { candidateAlt }), workflowFingerprint: FIXTURE_FINGERPRINT, workflowRunId: 'run-1',
+    })
+    const other = `workspace:sha256:${'c'.repeat(64)}`
+    expect(codes(evaluate({ records: boundRecords, input: { bindings: bindingsWith(bound) } }))).toEqual([])
+    expect(codes(evaluate({ records: boundRecords, input: { bindings: bindingsWith(other, bound) } }))).toEqual([])
+    expect(codes(evaluate({ records: boundRecords, input: { bindings: bindingsWith(other) } }))).toEqual(['test-stale'])
+    expect(codes(evaluate({ records: boundRecords, input: { bindings: bindingsWith(other, `workspace:sha256:${'d'.repeat(64)}`) } }))).toEqual(['test-stale'])
     const planChanged = evaluate({
       runs: [UNIT_PASS],
       records: (context) => [recordFor([UNIT_PASS], { ...context, planDigest: `sha256:${'1'.repeat(64)}` })],

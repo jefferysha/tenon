@@ -254,10 +254,23 @@ export const VERIFY_MESSAGES = {
     zh: '套件 {suites} 的最近一次运行绑定的代码与本次检出的树不同（代码在测试之后变了，或检出的树与测试时的工作区不一致）{hint}',
     en: 'The code bound to the latest run of suite {suites} differs from the checked-out tree (the code changed after the tests ran, or the checkout differs from the tested workspace){hint}',
   },
-  'verify.candidateTouched': {
-    zh: '；记录完成之后提交改动过：{files}',
-    en: '; changed in commits after the records were finished: {files}',
+  'verify.candidateChangedLater': {
+    zh: '；记录之后的第一个提交 {commit}（测试时的工作区通常就提交在这里）之后又改过候选文件：{files}',
+    en: '; candidate files changed after commit {commit}, the first commit after the run (where the tested workspace was most likely committed): {files}',
   },
+  'verify.candidateNothingLater': {
+    zh: '；记录之后的第一个提交 {commit} 之后没有再改过候选文件，差异不在后来的提交里，而在测试时的工作区本身：被 gitignore 或未跟踪的文件、文件权限位、行尾，或者 0.3.0 及更早版本绑进记录的宿主本地文件（.claude/settings.local.json、CLAUDE.local.md）；用当前版本在最终的树上重跑',
+    en: '; no candidate file changed after commit {commit}, the first commit after the run, so the difference is not a later commit but the tested workspace itself: git-ignored or untracked files, file modes, line endings, or host-local files (.claude/settings.local.json, CLAUDE.local.md) that Tenon 0.3.0 and earlier bound into the records; rerun with the current version on the final tree',
+  },
+  'verify.candidateWorkspaceCauses': {
+    zh: '；这个检出里找不到测试之后的提交，无法指出差在哪个文件。常见原因：测试之后改了代码，或测试时的工作区与干净检出不同（被 gitignore 或未跟踪的文件、文件权限位、行尾，或者 0.3.0 及更早版本绑进记录的宿主本地文件）',
+    en: '; the commit that followed the run cannot be found in this checkout, so the differing file cannot be named. Usual causes: the code changed after the tests ran, or the tested workspace differs from a clean checkout (git-ignored or untracked files, file modes, line endings, or host-local files that Tenon 0.3.0 and earlier bound into the records)',
+  },
+  'verify.candidateExtraHere': {
+    zh: '；本次检出里候选范围内有被 gitignore 或未跟踪的文件：{files}',
+    en: '; this checkout holds git-ignored or untracked files inside the candidate scope: {files}',
+  },
+  'verify.listMore': { zh: '（另有 {count} 个）', en: ' (+{count} more)' },
   // ── 命令的错误提示（前缀 ERROR: 由调用处加）──────────────────
   'verify.ciOnly': {
     zh: '目前只有 CI 模式：请加 --ci（在没有用户本机封存的环境里对已提交内容独立校验）',

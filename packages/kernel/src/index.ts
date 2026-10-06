@@ -66,9 +66,10 @@ export {
 export type { RedactionCounts, RedactionKind, RedactionResult, SharingRedactionOptions } from './diagnostics/redact.js'
 // in-place 构建不以未变化的 Git HEAD 冒充验证靶；提供内容寻址的工作区基线给 CLI/server 注入。
 export {
-  fingerprintWorkspace, isWorkspaceBaseline, isWorkspaceCandidatePath, TEST_OUTPUT_DIR_SEGMENTS, WORKSPACE_BASELINE_PREFIX,
+  fingerprintWorkspace, fingerprintWorkspaceTwins, HOST_LOCAL_DIRS, HOST_LOCAL_FILES, hasHostLocalFiles, isWorkspaceBaseline,
+  isWorkspaceCandidatePath, TEST_OUTPUT_DIR_SEGMENTS, WORKSPACE_BASELINE_PREFIX,
 } from './workspace/fingerprint.js'
-export type { FingerprintOptions } from './workspace/fingerprint.js'
+export type { FingerprintOptions, WorkspaceFingerprints } from './workspace/fingerprint.js'
 // 路径类与改动风险指标：standard 通道的风险探针与评审者 attach_on 共用同一份分类。
 export { PATH_CLASSES, classifyPath, isPathClass, pathTokens } from './workspace/path-classes.js'
 export type { PathClass } from './workspace/path-classes.js'
