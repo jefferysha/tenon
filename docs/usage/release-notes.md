@@ -13,22 +13,24 @@ of the cross-vendor review, the English track tab and the sign-in command are fi
 ### Fixed
 
 - A clean clone no longer fails `tenon verify --ci` with `candidate-mismatch` because of host-local files that are never
-  committed: `.claude/settings.local.json`, `CLAUDE.local.md` in the project root and `.claude/worktrees/`. Test records
-  written by 0.3.1 bind a fingerprint that leaves them out, and only while git does not track them: a tracked file under
-  those paths still counts. Nothing else is left out by name. See
+  committed: `.claude/settings.local.json`, `CLAUDE.local.md` in the project root and `.claude/worktrees/`. See
   [Candidate mismatch](ci-verification.md#candidate-mismatch).
+- Test records written by 0.3.1 bind a fingerprint that leaves those files out, and only while git does not track them: a
+  tracked file under those paths still counts. Nothing else is left out by name.
 - Test records written on one platform now verify on another (macOS and Linux CI). The fingerprint a 0.3.1 record binds
   records permission bits the way git does: a regular file is 644 or 755 by its owner executable bit, a directory carries
-  no mode, a symlink only its target. Before, it recorded the raw bits, which differ for the same committed content: a
-  symlink is 0755 on macOS and always 0777 on Linux, and files and directories follow the umask. A repository with a
-  symlink, or written under a umask other than 022, could never be reproduced by a runner on the other platform.
+  no mode, a symlink only its target.
+- Before, the fingerprint recorded the raw bits, which differ for the same committed content: a symlink is 0755 on macOS
+  and always 0777 on Linux, and files and directories follow the umask. A repository with a symlink, or written under a
+  umask other than 022, could never be reproduced by a runner on the other platform.
 - The `candidate-mismatch` message names the paths it can establish: the candidate files changed after the first commit
   that followed the run, the git-ignored or untracked files this checkout holds in the candidate scope, and tracked
   host-local paths. The delivery commit's own files are no longer blamed.
 - A task abandoned through the `scope-expanded` edge (for example a `standard` task that escalated to `default`) is no
   longer judged on test evidence by `verify --ci`; the report carries the note `change-abandoned`. Protected-file
-  approvals are still checked on it at normal severity. Only a task whose committed transition chain shows the abandon
-  edge counts; a state that merely says `phase: escalated` is judged as before.
+  approvals are still checked on it at normal severity.
+- The abandon only counts when the task's committed transition chain shows the edge; a state that merely says
+  `phase: escalated` is judged as before.
 - `tenon evidence export` is deterministic: every timestamp comes from the evidence (the finish time of the latest record in
   the chain), not from the clock, so exporting twice prints the same bytes.
 - The cross-vendor review lines (`agent prompt` routing, the host refusals of `agent record`) and the `review acknowledge`
@@ -69,11 +71,14 @@ N-1 is v0.3.0. The N-1 gate (`tools/test-bundle.sh`) crosses it with this releas
 
 - No record schema changed. A v0.3.1 record binds one workspace fingerprint, as before. For an ordinary tree (no untracked
   host-local file, directories 755, files 644 or 755, no symlink on Linux) the portable and the full form are equal and
-  v0.3.0 reads the record as fresh. The full form, which v0.3.0 and earlier computed, is unchanged byte for byte on every
-  platform; the N-1 gate checks it against the real v0.3.0 CLI on a tree with a symlink and 664/775 modes.
+  v0.3.0 reads the record as fresh.
+- The full form, which v0.3.0 and earlier computed, is unchanged byte for byte on every platform; the N-1 gate checks it
+  against the real v0.3.0 CLI on a tree with a symlink and 664/775 modes.
 - With an untracked host-local file, a symlink on Linux, or modes other than 755/644 (for example under umask 002) in the
-  workspace that wrote it, v0.3.0 and v0.2.1 read a v0.3.1 record as stale ("code changed", exit `2`), never as damaged.
-  Run the suite again with the version you went back to.
+  workspace that wrote it, v0.3.0 reads a v0.3.1 record as stale ("code changed", exit `2`), never as damaged. That
+  follows from the full form it computes, which the N-1 gate checks (previous bullet).
+- v0.2.1 computes the same full fingerprint as v0.3.0, so it behaves the same; the gate does not run v0.2.1. Run the
+  suite again with the version you went back to.
 - v0.3.0 records stay valid: v0.3.1 accepts both fingerprint forms, so a record written by v0.3.0 is fresh on the machine
   that wrote it.
 - `verify --ci` has two new note-level finding codes, `change-abandoned` and `finished-judged-at-head`. No command, option,
