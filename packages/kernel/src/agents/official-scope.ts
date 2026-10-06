@@ -29,12 +29,19 @@ export function withOfficialAttachOn(source: AgentSource, definition: AgentDefin
   return scope === undefined ? definition : { ...definition, attachOn: scope }
 }
 
-/** 把 `attach_on:` 行写进 agent 文件的 frontmatter（结束的 `---` 之前）；已经有该行或没有 frontmatter 时原样返回。 */
+/** frontmatter 的分隔行：`---`，或 CRLF 文件里带行尾 `\r` 的 `---\r`（按 `\n` 切分后 `\r` 留在行尾）。 */
+const isDelimiter = (line: string | undefined): boolean => line === '---' || line === '---\r'
+
+/**
+ * 把 `attach_on:` 行写进 agent 文件的 frontmatter（结束的 `---` 之前）；已经有该行或没有 frontmatter 时原样返回。
+ * CRLF 文件（首行是 `---\r`）的分隔行照认，插入的行沿用文件自己的行尾，不把一个 CRLF 文件改成混合行尾。
+ */
 export function withAttachOnLine(content: string, attachOn: readonly PathClass[]): string {
   const lines = content.split('\n')
-  if (lines[0] !== '---') return content
-  const close = lines.indexOf('---', 1)
+  if (!isDelimiter(lines[0])) return content
+  const eol = lines[0] === '---\r' ? '\r' : ''
+  const close = lines.findIndex((line, index) => index > 0 && isDelimiter(line))
   if (close < 0 || lines.slice(1, close).some((line) => /^attach_on:/u.test(line))) return content
-  lines.splice(close, 0, `attach_on: [${attachOn.join(', ')}]`)
+  lines.splice(close, 0, `attach_on: [${attachOn.join(', ')}]${eol}`)
   return lines.join('\n')
 }

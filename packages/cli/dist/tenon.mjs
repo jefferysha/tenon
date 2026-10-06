@@ -17975,14 +17975,16 @@ function withOfficialAttachOn(source, definition) {
   const scope = officialAttachOn(definition.name);
   return scope === void 0 ? definition : { ...definition, attachOn: scope };
 }
+var isDelimiter = (line) => line === "---" || line === "---\r";
 function withAttachOnLine(content, attachOn) {
   const lines3 = content.split("\n");
-  if (lines3[0] !== "---")
+  if (!isDelimiter(lines3[0]))
     return content;
-  const close = lines3.indexOf("---", 1);
+  const eol = lines3[0] === "---\r" ? "\r" : "";
+  const close = lines3.findIndex((line, index) => index > 0 && isDelimiter(line));
   if (close < 0 || lines3.slice(1, close).some((line) => /^attach_on:/u.test(line)))
     return content;
-  lines3.splice(close, 0, `attach_on: [${attachOn.join(", ")}]`);
+  lines3.splice(close, 0, `attach_on: [${attachOn.join(", ")}]${eol}`);
   return lines3.join("\n");
 }
 

@@ -36,6 +36,19 @@ describe('官方评审者的默认挂载范围', () => {
     expect(withAttachOnLine(written, ['migration'])).toBe(written)
     expect(withAttachOnLine('没有 frontmatter\n', ['auth'])).toBe('没有 frontmatter\n')
   })
+
+  it('CRLF 文件（首行是 ---\\r）也写进范围：插入的行沿用 CRLF，已有该行时原样返回', () => {
+    const lf = '---\nname: sec\ndescription: d\nrole: reviewer\nskills: []\ntools: [Read]\n---\n\n正文\n'
+    const toCrlf = (text: string): string => text.replace(/\n/gu, '\r\n')
+    const crlf = toCrlf(lf)
+    const written = withAttachOnLine(crlf, ['auth', 'contract'])
+    expect(written).toBe(toCrlf(withAttachOnLine(lf, ['auth', 'contract'])))
+    expect(written).toContain('tools: [Read]\r\nattach_on: [auth, contract]\r\n---\r\n\r\n正文')
+    expect(written.replace(/\r\n/gu, '')).not.toMatch(/[\r\n]/u)
+    expect(withAttachOnLine(written, ['migration'])).toBe(written)
+    // 没有结束分隔行的 CRLF 文件不动
+    expect(withAttachOnLine('---\r\nname: sec\r\n', ['auth'])).toBe('---\r\nname: sec\r\n')
+  })
 })
 
 describe('随包的官方 agent 文件（上一个发行版读得了的形状）', () => {
