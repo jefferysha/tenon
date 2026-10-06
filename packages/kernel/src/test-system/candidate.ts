@@ -120,8 +120,9 @@ export async function declaredTestOutputs(repoRoot: string): Promise<readonly st
 }
 
 /**
- * 同一棵树的两个指纹（`WorkspaceFingerprints`）的对照表：完整指纹 → 可移植指纹。内容寻址，所以对照永远成立、不会过期
- * （完整指纹相同 = 树相同 = 可移植指纹相同）；只是缓存，缺了就按需重算。进程内、有界、先进先出。
+ * 同一棵树的两个指纹（`WorkspaceFingerprints`）的对照表：完整指纹 → 可移植指纹。完整指纹相同 = 内容相同；可移植指纹还取决于
+ * git 是否跟踪宿主本地路径（`git add` 不改内容、只改它），所以每次 `candidateFingerprint` 重算都会刷新对应的表项，
+ * 表项最长的陈旧窗口就是宿主缓存候选的时间（Dashboard 的 TTL）。只是缓存，缺了就按需重算。进程内、有界、先进先出。
  */
 const TWINS = new Map<string, string>()
 const MAX_TWINS = 256

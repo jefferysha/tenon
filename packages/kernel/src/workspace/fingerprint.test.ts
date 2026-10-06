@@ -1,10 +1,12 @@
+import { execFileSync } from 'node:child_process'
 import { closeSync, constants, lstatSync, openSync } from 'node:fs'
 import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
 import {
-  fingerprintWorkspace, fingerprintWorkspaceTwins, isWorkspaceBaseline, isWorkspaceCandidatePath, TEST_OUTPUT_DIR_SEGMENTS,
+  fingerprintWorkspace, fingerprintWorkspaceTwins, isHostLocalPath, isWorkspaceBaseline, isWorkspaceCandidatePath, TEST_OUTPUT_DIR_SEGMENTS,
+  trackedHostLocalPaths,
   WORKSPACE_BASELINE_PREFIX,
 } from './fingerprint.js'
 
@@ -312,12 +314,106 @@ describe('host-local files', () => {
     expect((await fingerprintWorkspaceTwins(root)).portable).not.toBe(bare.portable)
   })
 
-  test('候选范围（代码度量、线索文件）不含宿主本地文件，含共享的配置', () => {
-    expect(isWorkspaceCandidatePath('.claude/settings.local.json')).toBe(false)
-    expect(isWorkspaceCandidatePath('CLAUDE.local.md')).toBe(false)
-    expect(isWorkspaceCandidatePath('.claude/worktrees/agent-1/src/a.js')).toBe(false)
+  test('代码度量与线索文件的路径范围来自 git diff：被跟踪的宿主本地路径照常算，名单只用于判断指纹', () => {
+    expect(isWorkspaceCandidatePath('.claude/worktrees/x.js')).toBe(true)
     expect(isWorkspaceCandidatePath('.claude/settings.json')).toBe(true)
-    expect(isWorkspaceCandidatePath('CLAUDE.md')).toBe(true)
     expect(isWorkspaceCandidatePath('src/a.js')).toBe(true)
+    expect(isWorkspaceCandidatePath('docs/readme.md')).toBe(false)
+    expect(isHostLocalPath('.claude/settings.local.json')).toBe(true)
+    expect(isHostLocalPath('CLAUDE.local.md')).toBe(true)
+    expect(isHostLocalPath('.claude/worktrees/agent-1/src/a.js')).toBe(true)
+    expect(isHostLocalPath('.claude/worktrees')).toBe(true)
+    expect(isHostLocalPath('.claude/settings.json')).toBe(false)
+    expect(isHostLocalPath('packages/app/CLAUDE.local.md')).toBe(false)
+  })
+})
+
+/**
+ * 被 git 跟踪的宿主本地路径是仓库的一部分：可移植指纹照算。否则 PR 可以把代码提交进 `.claude/worktrees/`、让测试命令去用它，
+ * 之后再改它而候选不动。「跟踪」包括已提交与已暂存；不是 git 仓库就什么都不跟踪；git 读不出来（索引损坏等）就一律照算。
+ */
+describe('host-local files tracked by git', () => {
+  async function repo(): Promise<string> {
+    const root = await freshWorkspace()
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root })
+    await mkdir(join(root, 'src'), { recursive: true })
+    await writeFile(join(root, 'src', 'app.js'), 'export const a = 1\n')
+    return root
+  }
+  const track = (root: string, ...paths: string[]): void => {
+    execFileSync('git', ['add', '-f', '--', ...paths], { cwd: root })
+  }
+  const untrack = (root: string, ...paths: string[]): void => {
+    execFileSync('git', ['rm', '-q', '--cached', '-f', '-r', '--', ...paths], { cwd: root })
+  }
+
+  test('被跟踪的 .claude/worktrees 代码：改它就动可移植指纹，同目录里没被跟踪的文件仍然不动', async () => {
+    const root = await repo()
+    await mkdir(join(root, '.claude', 'worktrees'), { recursive: true })
+    await writeFile(join(root, '.claude', 'worktrees', 'x.js'), 'export const x = 1\n')
+    await writeFile(join(root, '.claude', 'worktrees', 'scratch.js'), 'export const s = 1\n')
+    const untracked = await fingerprintWorkspaceTwins(root)
+    expect(untracked.portable, '没有被跟踪的：整个目录不进可移植指纹').not.toBe(untracked.full)
+
+    track(root, '.claude/worktrees/x.js')
+    const tracked = await fingerprintWorkspaceTwins(root)
+    expect(tracked.portable).not.toBe(untracked.portable)
+    expect(tracked.full).toBe(untracked.full)
+
+    await writeFile(join(root, '.claude', 'worktrees', 'x.js'), 'export const x = 2\n')
+    const changed = await fingerprintWorkspaceTwins(root)
+    expect(changed.portable, '被跟踪的代码变了，可移植指纹必须变').not.toBe(tracked.portable)
+
+    await writeFile(join(root, '.claude', 'worktrees', 'scratch.js'), 'export const s = 2\n')
+    await writeFile(join(root, '.claude', 'worktrees', 'another.js'), 'export const n = 1\n')
+    expect((await fingerprintWorkspaceTwins(root)).portable, '没被跟踪的文件改了不动').toBe(changed.portable)
+  })
+
+  test('被跟踪的 settings.local.json 与 CLAUDE.local.md 也算；取消跟踪（git rm --cached）就回到不算', async () => {
+    const root = await repo()
+    await mkdir(join(root, '.claude'), { recursive: true })
+    await writeFile(join(root, '.claude', 'settings.local.json'), '{}\n')
+    await writeFile(join(root, 'CLAUDE.local.md'), 'private\n')
+    const untracked = await fingerprintWorkspaceTwins(root)
+    expect(untracked.portable).not.toBe(untracked.full)
+
+    track(root, '.claude/settings.local.json', 'CLAUDE.local.md')
+    const tracked = await fingerprintWorkspaceTwins(root)
+    expect(tracked.portable, '都被跟踪：与完整指纹相同').toBe(tracked.full)
+    await writeFile(join(root, '.claude', 'settings.local.json'), '{ "permissions": {} }\n')
+    expect((await fingerprintWorkspaceTwins(root)).portable).not.toBe(tracked.portable)
+
+    untrack(root, '.claude/settings.local.json', 'CLAUDE.local.md')
+    const again = await fingerprintWorkspaceTwins(root)
+    expect(again.portable).not.toBe(again.full)
+    await writeFile(join(root, '.claude', 'settings.local.json'), '{ "permissions": { "allow": [] } }\n')
+    expect((await fingerprintWorkspaceTwins(root)).portable).toBe(again.portable)
+  })
+
+  test('只跟踪其中一个文件：另一个仍不算；.claude/ 外壳因为装着被跟踪的文件而属于候选', async () => {
+    const root = await repo()
+    await mkdir(join(root, '.claude'), { recursive: true })
+    await writeFile(join(root, '.claude', 'settings.local.json'), '{}\n')
+    await writeFile(join(root, 'CLAUDE.local.md'), 'private\n')
+    const bare = (await fingerprintWorkspaceTwins(root)).portable
+    track(root, 'CLAUDE.local.md')
+    const mixed = (await fingerprintWorkspaceTwins(root)).portable
+    expect(mixed).not.toBe(bare)
+    await writeFile(join(root, '.claude', 'settings.local.json'), '{ "edited": true }\n')
+    expect((await fingerprintWorkspaceTwins(root)).portable).toBe(mixed)
+    await writeFile(join(root, 'CLAUDE.local.md'), 'edited\n')
+    expect((await fingerprintWorkspaceTwins(root)).portable).not.toBe(mixed)
+  })
+
+  test('git 读不出跟踪情况（索引损坏）：一律照算，可移植指纹等于完整指纹，绝不放宽', async () => {
+    const root = await repo()
+    await mkdir(join(root, '.claude'), { recursive: true })
+    await writeFile(join(root, '.claude', 'settings.local.json'), '{}\n')
+    const healthy = await fingerprintWorkspaceTwins(root)
+    expect(healthy.portable).not.toBe(healthy.full)
+    await writeFile(join(root, '.git', 'index'), 'not an index')
+    expect(await trackedHostLocalPaths(root)).toBeUndefined()
+    const broken = await fingerprintWorkspaceTwins(root)
+    expect(broken.portable).toBe(broken.full)
   })
 })

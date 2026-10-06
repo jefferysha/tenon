@@ -9,7 +9,7 @@ import { candidateFingerprint, fingerprintWorkspaceTwins, declaredTestOutputs, t
 import { afterEach, describe, expect, test } from 'vitest'
 import { writeFiles } from './integration-harness-tests.js'
 import {
-  HOST_LOCAL_SETTINGS_PATH, USER, ciCheckout, devProject, rewriteRecords, writeHostLocalFiles, type CiCheckout, type Dev,
+  HOST_LOCAL_SETTINGS_PATH, TRACKED_HOST_LOCAL_CODE, USER, ciCheckout, devProject, rewriteRecords, writeHostLocalFiles, type CiCheckout, type Dev,
 } from './verify-ci-fixture.js'
 
 interface Run {
@@ -138,5 +138,41 @@ describe('tenon verify --ci：宿主本地文件', () => {
     expect(message).not.toContain('src/feature.js')
     // 测试之后没有任何提交改过候选文件：差异在测试时的工作区本身，不在后来的提交里。
     expect(message).toContain('之后没有再改过候选文件')
+  }, 180_000)
+
+  test('被 git 跟踪的代码放在宿主本地清单的路径下（.claude/worktrees/x.js）、测试命令在用它：它是仓库的一部分，改了它记录必须过期', async () => {
+    const dev = await devProject({ trackedHostLocalCode: true, hostLocalFiles: true })
+    cleanups.push(dev.cleanup)
+    // 作者本机：记录新鲜；改了被跟踪的代码，记录过期。
+    expect((await verifyAtAuthor(dev)).code).toBe(0)
+    await writeFile(join(dev.dir, TRACKED_HOST_LOCAL_CODE), 'export const marker = 2\n', 'utf8')
+    const atAuthor = await verifyAtAuthor(dev)
+    expect(atAuthor.code, atAuthor.out).toBe(2)
+    expect(codes(atAuthor)).toContain('candidate-mismatch')
+    await writeFile(join(dev.dir, TRACKED_HOST_LOCAL_CODE), 'export const marker = 1\n', 'utf8')
+
+    // 干净克隆：被跟踪的文件在克隆里，作者绑定时也算了它，所以通过；之后改了它，CI 失败并点名。
+    const ci = await clone(dev)
+    const clean = await verifyIn(ci)
+    expect(clean.code, clean.out).toBe(0)
+    await writeFile(join(ci.dir, TRACKED_HOST_LOCAL_CODE), 'export const marker = 2\n', 'utf8')
+    ci.commit('change the code the test command imports from the host-local path')
+    const changed = await verifyIn(ci)
+    expect(changed.code, changed.out).toBe(2)
+    expect(codes(changed)).toContain('candidate-mismatch')
+    expect(mismatch(changed)).toContain(TRACKED_HOST_LOCAL_CODE)
+  }, 180_000)
+
+  test('测试时没被跟踪、之后才提交进仓库的宿主本地路径：克隆里它计入候选，记录对不上，CI 失败并点名', async () => {
+    const dev = await author()
+    await writeFiles(dev.dir, { [TRACKED_HOST_LOCAL_CODE]: 'export const marker = 1\n' })
+    dev.commit('commit code under the host-local list after the tests ran')
+    const ci = await clone(dev)
+    const result = await verifyIn(ci)
+    expect(result.code, result.out).toBe(2)
+    expect(codes(result)).toContain('candidate-mismatch')
+    const message = mismatch(result)
+    expect(message).toContain('git 跟踪着宿主本地清单上的路径')
+    expect(message).toContain(TRACKED_HOST_LOCAL_CODE)
   }, 180_000)
 })

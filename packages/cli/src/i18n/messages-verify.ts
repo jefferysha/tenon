@@ -270,6 +270,10 @@ export const VERIFY_MESSAGES = {
     zh: '；这个检出里找不到测试之后的提交，无法指出差在哪个文件。常见原因：测试之后改了代码，或测试时的工作区与干净检出不同（被 gitignore 或未跟踪的文件、文件权限位、行尾，或者 0.3.0 及更早版本绑进记录的宿主本地文件）',
     en: '; the commit that followed the run cannot be found in this checkout, so the differing file cannot be named. Usual causes: the code changed after the tests ran, or the tested workspace differs from a clean checkout (git-ignored or untracked files, file modes, line endings, or host-local files that Tenon 0.3.0 and earlier bound into the records)',
   },
+  'verify.candidateTrackedHostLocal': {
+    zh: '；这个检出里 git 跟踪着宿主本地清单上的路径（它们是仓库的一部分，计入候选，改了就动候选）：{files}',
+    en: '; git tracks paths on the host-local list in this checkout (they are part of the repository, so they count toward the candidate and editing them moves it): {files}',
+  },
   'verify.candidateExtraHere': {
     zh: '；本次检出里候选范围内有被 gitignore 或未跟踪的文件：{files}',
     en: '; this checkout holds git-ignored or untracked files inside the candidate scope: {files}',

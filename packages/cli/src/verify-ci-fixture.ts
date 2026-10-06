@@ -138,6 +138,11 @@ export interface DevProjectOptions {
    * 测试在它们存在时运行，所以绑定的候选指纹要么算进它们（0.3.0），要么不算（可移植版）。
    */
   readonly hostLocalFiles?: boolean
+  /**
+   * 基线提交里有一份被 git 跟踪的代码 `.claude/worktrees/x.js`（在宿主本地清单的路径下，但提交进了仓库），
+   * 测试命令（gen-report.mjs）会 import 它：它是被测代码的一部分，改了就必须让记录过期。
+   */
+  readonly trackedHostLocalCode?: boolean
   /** 交付前把任务走完：评审确认 → build-done → archived（任务落在终态 verify，已归档）。 */
   readonly finish?: boolean
 }
@@ -148,7 +153,8 @@ export async function devProject(options: DevProjectOptions = {}): Promise<Dev> 
   await writeFiles(h.cwd, {
     'package.json': '{ "name": "fixture", "private": true, "type": "module" }\n',
     '.gitignore': `test-results\nnode_modules\n.pipeline/cache\n.pipeline/.gitignore\n${options.hostLocalFiles === true ? '.claude/settings.local.json\nCLAUDE.local.md\n' : ''}`,
-    'gen-report.mjs': GEN_REPORT,
+    'gen-report.mjs': options.trackedHostLocalCode === true ? `import './${TRACKED_HOST_LOCAL_CODE}'\n${GEN_REPORT}` : GEN_REPORT,
+    ...(options.trackedHostLocalCode === true ? { [TRACKED_HOST_LOCAL_CODE]: 'export const marker = 1\n' } : {}),
     'src/a.test.js': 'export {}\n',
     ...(options.deleteLegacyTest === true ? { [LEGACY_TEST_PATH]: LEGACY_TEST } : {}),
     [CATALOG_PATH]: catalog(),
@@ -176,6 +182,9 @@ export async function devProject(options: DevProjectOptions = {}): Promise<Dev> 
   dev.commit('deliver demo')
   return dev
 }
+
+/** 宿主本地清单路径下、却被 git 跟踪的代码文件（见 DevProjectOptions.trackedHostLocalCode）。 */
+export const TRACKED_HOST_LOCAL_CODE = '.claude/worktrees/x.js'
 
 /** Claude Code 在项目里自己写的、被忽略的宿主本地文件（权限允许列表、个人记忆）。 */
 export const HOST_LOCAL_SETTINGS_PATH = '.claude/settings.local.json'

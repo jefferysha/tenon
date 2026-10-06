@@ -82,8 +82,23 @@ describe('candidateClues', () => {
     await put(dir, 'test-results/unit.xml', '<x/>')
     await put(dir, 'node_modules/pkg/index.js', 'dep\n')
     await put(dir, 'reports/declared.json', '{}\n')
+    // 宿主本地清单上没被跟踪的路径不进可移植指纹，不算多出来的文件。
+    await put(dir, '.claude/settings.local.json', '{}\n')
+    await put(dir, '.claude/worktrees/agent-1/src/copy.js', 'copy\n')
+    await put(dir, 'CLAUDE.local.md', 'private\n')
     const clues = await candidateClues(dir, { gitHead: c1, finishedAt: '2026-01-15T00:00:00Z', declared: ['reports/declared.json'] })
     expect(clues.extraHere).toEqual(['dist-ignored/', 'dist/', 'scratch.js'])
     expect(clues.extraHereMore).toBe(0)
+    expect(clues.trackedHostLocal).toEqual([])
+  })
+
+  test('宿主本地清单上被 git 跟踪的路径单独点名：它们计入候选', async () => {
+    const { dir, c1 } = await history()
+    await put(dir, '.claude/worktrees/x.js', 'export const x = 1\n')
+    await put(dir, '.claude/settings.local.json', '{}\n')
+    git(dir, ['add', '-f', '--', '.claude/worktrees/x.js'])
+    const clues = await candidateClues(dir, { gitHead: c1, finishedAt: '2026-01-15T00:00:00Z', declared: [] })
+    expect(clues.trackedHostLocal).toEqual(['.claude/worktrees/x.js'])
+    expect(clues.extraHere, '没被跟踪的 settings.local.json 不算多出来的文件').toEqual([])
   })
 })

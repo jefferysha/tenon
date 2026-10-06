@@ -3030,7 +3030,7 @@ var require_commander = __commonJS({
 });
 
 // packages/cli/src/main.ts
-import { execFile as execFile17, spawn as spawn11 } from "node:child_process";
+import { execFile as execFile18, spawn as spawn11 } from "node:child_process";
 import { existsSync as existsSync16, readFileSync as readFileSync45 } from "node:fs";
 import { readFile as readFile105, stat as stat19, writeFile as writeFile40 } from "node:fs/promises";
 import { homedir as homedir25 } from "node:os";
@@ -12425,9 +12425,11 @@ function compileStepAgents(raw, path15) {
 }
 
 // packages/kernel/dist/workspace/fingerprint.js
+import { execFile } from "node:child_process";
 import { createHash as createHash13 } from "node:crypto";
 import { lstat as lstat10, readdir, readFile as readFile9, readlink } from "node:fs/promises";
 import { join as join17, sep as sep4 } from "node:path";
+import { promisify } from "node:util";
 
 // packages/kernel/dist/workspace/process-local-fd-path.js
 var PROCESS_LOCAL_FD_PATH = /^\/(?:proc\/(?:self|[0-9]+)|dev)\/fd\/[0-9]+(?:\/|$)/u;
@@ -12494,7 +12496,7 @@ var EXCLUDED_RELATIVE_ROOTS = [".github/hooks", ".claude/agents"];
 var EXCLUDED_ROOT_FILES = /* @__PURE__ */ new Set([".pipeline-owned.json"]);
 var HOST_LOCAL_FILES = [".claude/settings.local.json", "CLAUDE.local.md"];
 var HOST_LOCAL_DIRS = [".claude/worktrees"];
-function isHostLocal(relativePath) {
+function isHostLocalPath(relativePath) {
   return HOST_LOCAL_FILES.includes(relativePath) || HOST_LOCAL_DIRS.some((dir) => relativePath === dir || relativePath.startsWith(`${dir}/`));
 }
 async function hasHostLocalFiles(root) {
@@ -12507,9 +12509,36 @@ async function hasHostLocalFiles(root) {
   }
   return false;
 }
-function isExcludedHostConfigShell(relativePath, names, exclusions, portable) {
-  const roots = portable ? [...EXCLUDED_RELATIVE_ROOTS, ...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS] : EXCLUDED_RELATIVE_ROOTS;
-  return roots.some((root) => root.startsWith(`${relativePath}/`)) && names.every((name2) => isExcludedFor(`${relativePath}/${name2}`, exclusions, portable));
+var runGit = promisify(execFile);
+var GIT_TIMEOUT_MS = 3e4;
+var GIT_MAX_BUFFER = 64 * 1024 * 1024;
+async function trackedHostLocalPaths(root) {
+  try {
+    const { stdout } = await runGit("git", ["ls-files", "-z", "--cached", "--", ...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS], {
+      cwd: root,
+      timeout: GIT_TIMEOUT_MS,
+      maxBuffer: GIT_MAX_BUFFER,
+      env: { ...process.env, LC_ALL: "C", LANG: "C" }
+    });
+    return new Set(stdout.split("\0").filter((path15) => path15 !== ""));
+  } catch (error2) {
+    const stderr = typeof error2 === "object" && error2 !== null ? Reflect.get(error2, "stderr") : void 0;
+    return typeof stderr === "string" && /not a git repository/iu.test(stderr) ? /* @__PURE__ */ new Set() : void 0;
+  }
+}
+var SKIP_NOTHING = () => false;
+function skipUntrackedHostLocal(tracked) {
+  const holdingTracked = /* @__PURE__ */ new Set();
+  for (const path15 of tracked) {
+    const parts = path15.split("/");
+    for (let end = 1; end < parts.length; end++)
+      holdingTracked.add(parts.slice(0, end).join("/"));
+  }
+  return (relativePath) => isHostLocalPath(relativePath) && !tracked.has(relativePath) && !holdingTracked.has(relativePath);
+}
+function isExcludedHostConfigShell(relativePath, names, exclusions, skip) {
+  const roots = [...EXCLUDED_RELATIVE_ROOTS, ...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS];
+  return roots.some((root) => root.startsWith(`${relativePath}/`)) && names.every((name2) => isExcludedFor(`${relativePath}/${name2}`, exclusions, skip));
 }
 var EXCLUDED_ROOT_ARTIFACTS = [
   /^dashboard-progress-custom-spec\.png$/,
@@ -12533,11 +12562,11 @@ function isExcluded(relativePath, exclusions, anySegment = EXCLUDED_ANY_SEGMENT)
   return EXCLUDED_TOP_LEVEL.has(parts[0] ?? "") || parts.some((part) => anySegment.has(part)) || EXCLUDED_BASENAMES.has(parts.at(-1) ?? "") || EXCLUDED_RELATIVE_ROOTS.some((root) => relativePath === root || relativePath.startsWith(`${root}/`)) || !relativePath.includes("/") && EXCLUDED_ROOT_ARTIFACTS.some((pattern) => pattern.test(relativePath)) || EXCLUDED_ROOT_FILES.has(relativePath) || isDeclaredOutput(relativePath, exclusions);
 }
 var NO_EXCLUSIONS = { declared: [], ancestors: /* @__PURE__ */ new Set() };
-function isExcludedFor(relativePath, exclusions, portable, anySegment = EXCLUDED_ANY_SEGMENT) {
-  return isExcluded(relativePath, exclusions, anySegment) || portable && isHostLocal(relativePath);
+function isExcludedFor(relativePath, exclusions, skip) {
+  return isExcluded(relativePath, exclusions) || skip(relativePath);
 }
 function isWorkspaceCandidatePath(relativePath) {
-  return !isExcludedFor(relativePath, NO_EXCLUSIONS, true, METRIC_EXCLUDED_ANY_SEGMENT);
+  return !isExcluded(relativePath, NO_EXCLUSIONS, METRIC_EXCLUDED_ANY_SEGMENT);
 }
 function writeRecord(hash, kind, relativePath, details = "") {
   hash.update(kind);
@@ -12547,22 +12576,22 @@ function writeRecord(hash, kind, relativePath, details = "") {
   hash.update(details);
   hash.update("\0");
 }
-async function holdsOnlyExcluded(root, relativePath, exclusions, portable) {
+async function holdsOnlyExcluded(root, relativePath, exclusions, skip) {
   for (const name2 of await readdir(join17(root, ...relativePath.split("/")))) {
     const child = `${relativePath}/${name2}`;
-    if (isExcludedFor(child, exclusions, portable))
+    if (isExcludedFor(child, exclusions, skip))
       continue;
     if (!exclusions.ancestors.has(child))
       return false;
     if (!(await lstat10(join17(root, ...child.split("/")))).isDirectory())
       return false;
-    if (!await holdsOnlyExcluded(root, child, exclusions, portable))
+    if (!await holdsOnlyExcluded(root, child, exclusions, skip))
       return false;
   }
   return true;
 }
 async function fingerprintEntry(root, relativePath, sinks, exclusions) {
-  const live = sinks.filter((sink) => !isExcludedFor(relativePath, exclusions, sink.portable));
+  const live = sinks.filter((sink) => !isExcludedFor(relativePath, exclusions, sink.skip));
   if (live.length === 0)
     return;
   const absolutePath = join17(root, ...relativePath.split("/"));
@@ -12571,9 +12600,9 @@ async function fingerprintEntry(root, relativePath, sinks, exclusions) {
     const names = sortNames(await readdir(absolutePath));
     const keep = [];
     for (const sink of live) {
-      if (isExcludedHostConfigShell(relativePath, names, exclusions, sink.portable))
+      if (isExcludedHostConfigShell(relativePath, names, exclusions, sink.skip))
         continue;
-      if (exclusions.ancestors.has(relativePath) && await holdsOnlyExcluded(root, relativePath, exclusions, sink.portable))
+      if (exclusions.ancestors.has(relativePath) && await holdsOnlyExcluded(root, relativePath, exclusions, sink.skip))
         continue;
       keep.push(sink);
     }
@@ -12617,8 +12646,9 @@ async function fingerprintWorkspaceTwins(root, options) {
   if (!rootStat.isDirectory())
     throw new Error(`workspace root is not a directory: ${root}`);
   const exclusions = exclusionsOf(options);
-  const full2 = { hash: createHash13("sha256"), portable: false };
-  const portable = await hasHostLocalFiles(root) ? { hash: createHash13("sha256"), portable: true } : void 0;
+  const full2 = { hash: createHash13("sha256"), skip: SKIP_NOTHING };
+  const tracked = await hasHostLocalFiles(root) ? await trackedHostLocalPaths(root) : void 0;
+  const portable = tracked === void 0 ? void 0 : { hash: createHash13("sha256"), skip: skipUntrackedHostLocal(tracked) };
   const sinks = portable === void 0 ? [full2] : [full2, portable];
   for (const sink of sinks)
     writeRecord(sink.hash, "D", ".", modeOf(rootStat));
@@ -29530,10 +29560,10 @@ import { lstat as lstat28, readFile as readFile36 } from "node:fs/promises";
 import { join as join45 } from "node:path";
 
 // packages/kernel/dist/workspace/changed-files.js
-import { execFile } from "node:child_process";
+import { execFile as execFile2 } from "node:child_process";
 import { lstat as lstat26, readFile as readFile34 } from "node:fs/promises";
 import { join as join43 } from "node:path";
-import { promisify } from "node:util";
+import { promisify as promisify2 } from "node:util";
 
 // packages/kernel/dist/workspace/file-diffs.js
 import { lstat as lstat25, readFile as readFile33 } from "node:fs/promises";
@@ -29646,7 +29676,7 @@ async function readFileDiffs(port, repoRoot, start, accept, limit) {
 }
 
 // packages/kernel/dist/workspace/changed-files.js
-var run = promisify(execFile);
+var run = promisify2(execFile2);
 var CHANGED_FILES_GIT_TIMEOUT_MS = 2e4;
 var MAX_BUFFER = 64 * 1024 * 1024;
 var MAX_UNTRACKED_BYTES2 = 1024 * 1024;
@@ -29672,7 +29702,7 @@ function nulList(stdout) {
 function createChangedFilesSession(repoRoot, options = {}) {
   const timeoutMs = options.timeoutMs ?? CHANGED_FILES_GIT_TIMEOUT_MS;
   const untrackedLimit = options.untrackedLimit ?? UNTRACKED_FILE_LIMIT;
-  const runGit = options.runGit;
+  const runGit2 = options.runGit;
   const commands = /* @__PURE__ */ new Map();
   let abandoned = false;
   const timeoutReason = (what) => `git ${what} \u8D85\u65F6\uFF08\u8D85\u8FC7 ${Math.max(1, Math.round(timeoutMs / 1e3))} \u79D2\uFF09`;
@@ -29681,7 +29711,7 @@ function createChangedFilesSession(repoRoot, options = {}) {
       return { ok: false, stdout: "", timedOut: true };
     try {
       const options2 = { cwd: repoRoot, timeout: timeoutMs, maxBuffer: MAX_BUFFER };
-      const { stdout } = await (runGit ?? ((argv, opts) => run("git", [...argv], opts)))(args, options2);
+      const { stdout } = await (runGit2 ?? ((argv, opts) => run("git", [...argv], opts)))(args, options2);
       return { ok: true, stdout };
     } catch (error2) {
       const failure3 = error2;
@@ -33731,11 +33761,11 @@ function touchedPathClasses(changes) {
 }
 
 // packages/kernel/dist/workspace/build-revision-identity.js
-import { execFile as execFile2 } from "node:child_process";
+import { execFile as execFile3 } from "node:child_process";
 import { lstat as lstat33, realpath as realpath6 } from "node:fs/promises";
 import { isAbsolute as isAbsolute8, resolve as resolve11 } from "node:path";
-import { promisify as promisify2 } from "node:util";
-var execFileAsync = promisify2(execFile2);
+import { promisify as promisify3 } from "node:util";
+var execFileAsync = promisify3(execFile3);
 async function physicalDirectory(pathname) {
   try {
     const info = await lstat33(pathname);
@@ -34021,11 +34051,11 @@ async function isArchivedForUser(repoRoot, user, change) {
 }
 
 // packages/kernel/dist/workspace/uncommitted-deletions.js
-import { execFile as execFile3 } from "node:child_process";
+import { execFile as execFile4 } from "node:child_process";
 import { lstat as lstat36 } from "node:fs/promises";
 import { join as join54 } from "node:path";
-import { promisify as promisify3 } from "node:util";
-var execFileAsync2 = promisify3(execFile3);
+import { promisify as promisify4 } from "node:util";
+var execFileAsync2 = promisify4(execFile4);
 var CHANGES_PREFIX = "openspec/changes/";
 var gitStatusRunner = async (repoRoot, args) => {
   try {
@@ -47568,7 +47598,7 @@ function createCodexTriageProvider(options = {}) {
 import { createHash as createHash33 } from "node:crypto";
 
 // packages/automation/dist/runner/exec.js
-import { execFile as execFile4, spawn as spawn2 } from "node:child_process";
+import { execFile as execFile5, spawn as spawn2 } from "node:child_process";
 import { createInterface } from "node:readline";
 var mergedEnv = (env) => env ? { ...process.env, ...env } : process.env;
 var spawnStreaming = (file, args, opts) => new Promise((resolve70) => {
@@ -47614,7 +47644,7 @@ var nodeExec = (file, args, opts) => {
   if (opts?.onLine || opts?.input !== void 0)
     return spawnStreaming(file, args, opts);
   return new Promise((resolve70) => {
-    execFile4(file, args, { cwd: opts?.cwd, env: mergedEnv(opts?.env), maxBuffer: 64 * 1024 * 1024, encoding: "utf-8" }, (error2, stdout, stderr) => {
+    execFile5(file, args, { cwd: opts?.cwd, env: mergedEnv(opts?.env), maxBuffer: 64 * 1024 * 1024, encoding: "utf-8" }, (error2, stdout, stderr) => {
       const code = error2 && typeof error2.code === "number" ? error2.code : error2 ? 1 : 0;
       resolve70({ stdout: String(stdout), stderr: String(stderr), exitCode: code });
     });
@@ -47752,7 +47782,7 @@ function createGitCommitsConnector(options) {
     signal.throwIfAborted();
     return result2;
   };
-  const runGit = async (source, args, signal) => {
+  const runGit2 = async (source, args, signal) => {
     const result2 = await executeGit(source, args, signal);
     if (result2.exitCode !== 0) {
       throw new GitCommandError(args, result2.exitCode, result2.stderr);
@@ -47760,7 +47790,7 @@ function createGitCommitsConnector(options) {
     return result2;
   };
   const readObservation = async (sourceId, source, sha, signal) => {
-    const metadata = await runGit(source, [
+    const metadata = await runGit2(source, [
       "show",
       "--no-patch",
       "--format=%H%x00%P%x00%cI%x00%s",
@@ -47781,7 +47811,7 @@ function createGitCommitsConnector(options) {
     }
     const occurredAt = occurredAtDate.toISOString();
     const parents = parentText === "" ? [] : parentText.split(" ");
-    const changed = await runGit(source, [
+    const changed = await runGit2(source, [
       "diff-tree",
       "--root",
       "-m",
@@ -47820,7 +47850,7 @@ function createGitCommitsConnector(options) {
       if (source === void 0) {
         throw new Error(`unknown git-commits sourceId '${sourceId}'`);
       }
-      const resolved = await runGit(source, [
+      const resolved = await runGit2(source, [
         "rev-parse",
         "--verify",
         "--end-of-options",
@@ -47878,7 +47908,7 @@ function createGitCommitsConnector(options) {
         }
       }
       const revisionArgs = baseSha === null ? [snapshotTipSha] : [`${baseSha}..${snapshotTipSha}`];
-      const listed2 = await runGit(source, [
+      const listed2 = await runGit2(source, [
         "rev-list",
         "--topo-order",
         "--reverse",
@@ -58712,6 +58742,10 @@ var VERIFY_MESSAGES = {
     zh: "\uFF1B\u8FD9\u4E2A\u68C0\u51FA\u91CC\u627E\u4E0D\u5230\u6D4B\u8BD5\u4E4B\u540E\u7684\u63D0\u4EA4\uFF0C\u65E0\u6CD5\u6307\u51FA\u5DEE\u5728\u54EA\u4E2A\u6587\u4EF6\u3002\u5E38\u89C1\u539F\u56E0\uFF1A\u6D4B\u8BD5\u4E4B\u540E\u6539\u4E86\u4EE3\u7801\uFF0C\u6216\u6D4B\u8BD5\u65F6\u7684\u5DE5\u4F5C\u533A\u4E0E\u5E72\u51C0\u68C0\u51FA\u4E0D\u540C\uFF08\u88AB gitignore \u6216\u672A\u8DDF\u8E2A\u7684\u6587\u4EF6\u3001\u6587\u4EF6\u6743\u9650\u4F4D\u3001\u884C\u5C3E\uFF0C\u6216\u8005 0.3.0 \u53CA\u66F4\u65E9\u7248\u672C\u7ED1\u8FDB\u8BB0\u5F55\u7684\u5BBF\u4E3B\u672C\u5730\u6587\u4EF6\uFF09",
     en: "; the commit that followed the run cannot be found in this checkout, so the differing file cannot be named. Usual causes: the code changed after the tests ran, or the tested workspace differs from a clean checkout (git-ignored or untracked files, file modes, line endings, or host-local files that Tenon 0.3.0 and earlier bound into the records)"
   },
+  "verify.candidateTrackedHostLocal": {
+    zh: "\uFF1B\u8FD9\u4E2A\u68C0\u51FA\u91CC git \u8DDF\u8E2A\u7740\u5BBF\u4E3B\u672C\u5730\u6E05\u5355\u4E0A\u7684\u8DEF\u5F84\uFF08\u5B83\u4EEC\u662F\u4ED3\u5E93\u7684\u4E00\u90E8\u5206\uFF0C\u8BA1\u5165\u5019\u9009\uFF0C\u6539\u4E86\u5C31\u52A8\u5019\u9009\uFF09\uFF1A{files}",
+    en: "; git tracks paths on the host-local list in this checkout (they are part of the repository, so they count toward the candidate and editing them moves it): {files}"
+  },
   "verify.candidateExtraHere": {
     zh: "\uFF1B\u672C\u6B21\u68C0\u51FA\u91CC\u5019\u9009\u8303\u56F4\u5185\u6709\u88AB gitignore \u6216\u672A\u8DDF\u8E2A\u7684\u6587\u4EF6\uFF1A{files}",
     en: "; this checkout holds git-ignored or untracked files inside the candidate scope: {files}"
@@ -61818,7 +61852,7 @@ function runRemoteGit(env, args, options = {}) {
 }
 
 // packages/cli/src/commands/dashboard-health.ts
-import { execFile as execFile5 } from "node:child_process";
+import { execFile as execFile6 } from "node:child_process";
 import { get as httpGet } from "node:http";
 import { createConnection } from "node:net";
 var DEFAULT_SOCKET_TIMEOUT_MS = 350;
@@ -61921,7 +61955,7 @@ async function waitForHealthyServer(port, expectedReleaseId, expectedStateScopeI
 }
 function listenerPids(port) {
   return new Promise((resolve70) => {
-    execFile5("lsof", ["-nP", "-t", `-iTCP:${port}`, "-sTCP:LISTEN"], { encoding: "utf8" }, (error2, stdout) => {
+    execFile6("lsof", ["-nP", "-t", `-iTCP:${port}`, "-sTCP:LISTEN"], { encoding: "utf8" }, (error2, stdout) => {
       if (error2 === null) {
         resolve70([...new Set(String(stdout ?? "").split(/\r?\n/).map((line) => Number.parseInt(line.trim(), 10)).filter((pid) => Number.isSafeInteger(pid) && pid > 0))]);
         return;
@@ -63343,7 +63377,7 @@ async function compensateActivation(input2) {
 
 // packages/cli/src/runtime/release-payload.ts
 import { createHash as createHash49 } from "node:crypto";
-import { execFile as execFile6 } from "node:child_process";
+import { execFile as execFile7 } from "node:child_process";
 import { chmod as chmod3, copyFile, lstat as lstat52, mkdir as mkdir42, mkdtemp as mkdtemp2, readFile as readFile67, readdir as readdir25, rm as rm18 } from "node:fs/promises";
 import { tmpdir as tmpdir3 } from "node:os";
 import { basename as basename11, dirname as dirname24, join as join106, relative as relative20, resolve as resolve33, sep as sep19 } from "node:path";
@@ -63517,7 +63551,7 @@ async function hashReleasePayload(root) {
 function defaultRuntimeCommandRunner(timeoutMs = 15e3) {
   return {
     run: (file, args, cwd) => new Promise((resolveResult) => {
-      execFile6(file, [...args], {
+      execFile7(file, [...args], {
         cwd,
         encoding: "utf8",
         maxBuffer: 2 * 1024 * 1024,
@@ -67425,14 +67459,14 @@ import { mkdir as mkdir46, writeFile as writeFile25 } from "node:fs/promises";
 import { dirname as dirname27, join as join116, resolve as resolve40 } from "node:path";
 
 // packages/cli/src/commands/specApplyRehearsal.ts
-import { execFile as execFile7 } from "node:child_process";
+import { execFile as execFile8 } from "node:child_process";
 import { cp as cp2, mkdtemp as mkdtemp3, readFile as readFile75, readdir as readdir27, rm as rm21 } from "node:fs/promises";
 import { tmpdir as tmpdir4 } from "node:os";
 import { join as join115 } from "node:path";
 var MAX_OUTPUT_BYTES = 256 * 1024;
 function runOpenspec(args, cwd) {
   return new Promise((done) => {
-    execFile7("openspec", [...args], { cwd, maxBuffer: MAX_OUTPUT_BYTES }, (error2, stdout, stderr) => {
+    execFile8("openspec", [...args], { cwd, maxBuffer: MAX_OUTPUT_BYTES }, (error2, stdout, stderr) => {
       const code = error2 === null ? 0 : typeof error2.code === "number" ? error2.code : 1;
       done({ code, stdout, stderr });
     });
@@ -67764,7 +67798,7 @@ async function cmdSpecApply(deps, change, opts, hooks) {
 }
 
 // packages/cli/src/gitWorkspace.ts
-import { execFile as execFile8 } from "node:child_process";
+import { execFile as execFile9 } from "node:child_process";
 import { existsSync as existsSync6 } from "node:fs";
 import { basename as basename12, join as join117 } from "node:path";
 var DESIGN_SYSTEM_PATHS = ["DESIGN.md", "design"];
@@ -67807,7 +67841,7 @@ function firstDeliveryMessage(change) {
 }
 function git(cwd, args) {
   return new Promise((resolve70) => {
-    execFile8("git", [...args], { cwd, timeout: 5e3, maxBuffer: 4 * 1024 * 1024 }, (error2, stdout) => {
+    execFile9("git", [...args], { cwd, timeout: 5e3, maxBuffer: 4 * 1024 * 1024 }, (error2, stdout) => {
       if (error2 === null) {
         resolve70({ code: 0, stdout: String(stdout) });
         return;
@@ -68967,7 +69001,7 @@ async function autoDiscoverCatalog(repoRoot) {
 }
 
 // packages/cli/src/localExcludes.ts
-import { execFile as execFile9 } from "node:child_process";
+import { execFile as execFile10 } from "node:child_process";
 import { appendFile as appendFile9, mkdir as mkdir48, readFile as readFile79 } from "node:fs/promises";
 import { dirname as dirname28, isAbsolute as isAbsolute29, resolve as resolve41 } from "node:path";
 var HEADER = "# Tenon: locally generated files (not committed)";
@@ -68975,7 +69009,7 @@ var HOST_AGENT_EXCLUDES = [".claude/agents/tenon-*.md", ".codex/agents/tenon-*.t
 var TEST_OUTPUT_EXCLUDES = ["test-results/", "playwright-report/"];
 function excludeFile(cwd) {
   return new Promise((done) => {
-    execFile9("git", ["rev-parse", "--git-path", "info/exclude"], { cwd, timeout: 5e3 }, (error2, stdout) => {
+    execFile10("git", ["rev-parse", "--git-path", "info/exclude"], { cwd, timeout: 5e3 }, (error2, stdout) => {
       const path15 = String(stdout).trim();
       done(error2 === null && path15 !== "" ? isAbsolute29(path15) ? path15 : resolve41(cwd, path15) : void 0);
     });
@@ -86364,11 +86398,11 @@ function cmdSetupHost(deps, host, opts, env = REAL_SETUP_ENV, installer = REAL_R
 import { join as join157 } from "node:path";
 
 // packages/cli/src/afkReadiness.ts
-import { execFile as execFile10 } from "node:child_process";
+import { execFile as execFile11 } from "node:child_process";
 import { accessSync as accessSync5, constants as fsConstants5, statSync as statSync12 } from "node:fs";
 import { join as join156 } from "node:path";
 var nodeExecDocker = (args) => new Promise((resolve70) => {
-  execFile10("docker", [...args], (err, stdout, stderr) => {
+  execFile11("docker", [...args], (err, stdout, stderr) => {
     const code = err?.code;
     const exitCode = err === null ? 0 : typeof code === "number" ? code : 1;
     resolve70({ stdout: String(stdout ?? ""), stderr: String(stderr ?? ""), exitCode });
@@ -90115,11 +90149,11 @@ async function cmdTestBaselineSuite(deps, change, opts) {
 }
 
 // packages/cli/src/commands/test-code-size.ts
-import { execFile as execFile11 } from "node:child_process";
+import { execFile as execFile12 } from "node:child_process";
 import { lstat as lstat70, readFile as readFile96 } from "node:fs/promises";
 import { join as join168 } from "node:path";
-import { promisify as promisify4 } from "node:util";
-var run2 = promisify4(execFile11);
+import { promisify as promisify5 } from "node:util";
+var run2 = promisify5(execFile12);
 var MAX_UNTRACKED_FILES = 5e3;
 var MAX_UNTRACKED_BYTES3 = 1024 * 1024;
 async function git2(cwd, args) {
@@ -90565,12 +90599,12 @@ function claimOrphans(catalog3, orphans) {
 }
 
 // packages/cli/src/test-system/repo-files.ts
-import { execFile as execFile12 } from "node:child_process";
+import { execFile as execFile13 } from "node:child_process";
 import { readdir as readdir33 } from "node:fs/promises";
 import { join as join169 } from "node:path";
-import { promisify as promisify5 } from "node:util";
-var run3 = promisify5(execFile12);
-var GIT_TIMEOUT_MS = 2e4;
+import { promisify as promisify6 } from "node:util";
+var run3 = promisify6(execFile13);
+var GIT_TIMEOUT_MS2 = 2e4;
 var MAX_BUFFER2 = 64 * 1024 * 1024;
 var MAX_FILES3 = 2e5;
 var MAX_DIRS2 = 2e4;
@@ -90600,7 +90634,7 @@ async function gitFiles(repoRoot) {
   try {
     const { stdout } = await run3("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], {
       cwd: repoRoot,
-      timeout: GIT_TIMEOUT_MS,
+      timeout: GIT_TIMEOUT_MS2,
       maxBuffer: MAX_BUFFER2
     });
     return stdout.split("\0").filter((entry2) => entry2 !== "").slice(0, MAX_FILES3);
@@ -91903,13 +91937,13 @@ function evaluationShell(draft) {
 }
 
 // packages/cli/src/test-system/services.ts
-import { spawn as spawn9, execFile as execFile13 } from "node:child_process";
+import { spawn as spawn9, execFile as execFile14 } from "node:child_process";
 import { closeSync as closeSync9, mkdirSync as mkdirSync9, openSync as openSync9, readFileSync as readFileSync40 } from "node:fs";
 import { connect } from "node:net";
 import { dirname as dirname45, resolve as resolve61 } from "node:path";
-import { promisify as promisify6 } from "node:util";
+import { promisify as promisify7 } from "node:util";
 import { setTimeout as sleep4 } from "node:timers/promises";
-var run4 = promisify6(execFile13);
+var run4 = promisify7(execFile14);
 var POLL_MS2 = 200;
 var STOP_GRACE_MS = 5e3;
 var LOG_TAIL_CHARS = 2e3;
@@ -96373,16 +96407,16 @@ import { dirname as dirname49, resolve as resolve68 } from "node:path";
 import { spawn as spawn10 } from "node:child_process";
 
 // packages/cli/src/commands/verify-ci-git.ts
-import { execFile as execFile14 } from "node:child_process";
-import { promisify as promisify7 } from "node:util";
-var run5 = promisify7(execFile14);
-var GIT_TIMEOUT_MS2 = 3e4;
+import { execFile as execFile15 } from "node:child_process";
+import { promisify as promisify8 } from "node:util";
+var run5 = promisify8(execFile15);
+var GIT_TIMEOUT_MS3 = 3e4;
 var MAX_BUFFER3 = 64 * 1024 * 1024;
 var NOTE_SCAN_COMMITS = 1e3;
 var MAX_NOTES_READ = 200;
 async function git3(cwd, args) {
   try {
-    const { stdout } = await run5("git", [...args], { cwd, timeout: GIT_TIMEOUT_MS2, maxBuffer: MAX_BUFFER3 });
+    const { stdout } = await run5("git", [...args], { cwd, timeout: GIT_TIMEOUT_MS3, maxBuffer: MAX_BUFFER3 });
     return stdout;
   } catch {
     return void 0;
@@ -96453,17 +96487,27 @@ async function commitAfterRecord(cwd, gitHead, finishedAt) {
 function underAny(path15, roots) {
   return roots.some((root) => path15 === root || path15.startsWith(`${root}/`) || path15.endsWith("/") && root.startsWith(path15));
 }
+async function untrackedAndIgnored(cwd, pathspec, untracked) {
+  const args = ["status", "--porcelain=v1", "-z", "--ignored=traditional", `--untracked-files=${untracked}`];
+  const out = await git3(cwd, pathspec.length === 0 ? args : [...args, "--", ...pathspec]);
+  return (out ?? "").split("\0").filter((entry2) => /^(\?\?|!!) /u.test(entry2)).map((entry2) => entry2.slice(3)).filter((path15) => path15 !== "");
+}
+function holdsHostLocalPath(dir) {
+  return [...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS].some((path15) => path15.startsWith(dir));
+}
 async function candidateExtrasHere(cwd, declared) {
-  const out = await git3(cwd, ["status", "--porcelain=v1", "-z", "--ignored=traditional", "--untracked-files=normal"]);
-  if (out === void 0) return [];
+  const entries2 = [];
+  for (const path15 of await untrackedAndIgnored(cwd, [], "normal")) {
+    if (path15.endsWith("/") && holdsHostLocalPath(path15)) entries2.push(...await untrackedAndIgnored(cwd, [path15], "all"));
+    else entries2.push(path15);
+  }
   const paths = [];
-  for (const entry2 of out.split("\0")) {
-    if (!/^(\?\?|!!) /u.test(entry2)) continue;
-    const path15 = entry2.slice(3);
-    if (path15 === "" || !isWorkspaceCandidatePath(path15.replace(/\/$/u, "")) || underAny(path15, declared)) continue;
+  for (const path15 of entries2) {
+    const bare = path15.replace(/\/$/u, "");
+    if (bare === "" || !isWorkspaceCandidatePath(bare) || isHostLocalPath(bare) || underAny(path15, declared)) continue;
     paths.push(path15);
   }
-  return paths.sort();
+  return [...new Set(paths)].sort();
 }
 async function candidateClues(cwd, input2, limit = 5) {
   const followedBy = await commitAfterRecord(cwd, input2.gitHead, input2.finishedAt);
@@ -96473,12 +96517,15 @@ async function candidateClues(cwd, input2, limit = 5) {
     later = (out?.split("\0") ?? []).filter((path15) => path15 !== "" && isWorkspaceCandidatePath(path15)).sort();
   }
   const extras = await candidateExtrasHere(cwd, input2.declared);
+  const tracked = [...await trackedHostLocalPaths(cwd) ?? []].sort();
   return {
     followedBy: followedBy?.slice(0, 7),
     changedLater: later.slice(0, limit),
     changedLaterMore: Math.max(0, later.length - limit),
     extraHere: extras.slice(0, limit),
-    extraHereMore: Math.max(0, extras.length - limit)
+    extraHereMore: Math.max(0, extras.length - limit),
+    trackedHostLocal: tracked.slice(0, limit),
+    trackedHostLocalMore: Math.max(0, tracked.length - limit)
   };
 }
 
@@ -97103,6 +97150,9 @@ async function candidateFinding(input2, stale, path15) {
   if (clues !== void 0 && clues.extraHere.length > 0) {
     parts.push(verifyMsg(deps, "verify.candidateExtraHere", { files: list5(clues.extraHere, clues.extraHereMore) }));
   }
+  if (clues !== void 0 && clues.trackedHostLocal.length > 0) {
+    parts.push(verifyMsg(deps, "verify.candidateTrackedHostLocal", { files: list5(clues.trackedHostLocal, clues.trackedHostLocalMore) }));
+  }
   return {
     code: "candidate-mismatch",
     severity: input2.mode === "warn" ? "warning" : "error",
@@ -97593,7 +97643,7 @@ function createManifestSkillActionAuthorityResolver(manifest, isKnownProfile) {
 }
 
 // packages/cli/src/commands/doctor-probes.ts
-import { execFile as execFile15, execFileSync as execFileSync4 } from "node:child_process";
+import { execFile as execFile16, execFileSync as execFileSync4 } from "node:child_process";
 import { createHash as createHash62 } from "node:crypto";
 import { accessSync as accessSync7, constants as fsConstants7, readdirSync as readdirSync17, readFileSync as readFileSync43, statSync as statSync16 } from "node:fs";
 import { homedir as homedir24 } from "node:os";
@@ -97694,7 +97744,7 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
     }
     if (runtime.run !== void 0) return runtime.run(bash.executable, args, { timeoutMs: 3e4 });
     return new Promise((resolve70) => {
-      execFile15(
+      execFile16(
         bash.executable,
         args,
         { timeout: 3e4 },
@@ -97712,7 +97762,7 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
       const git4 = trustedCommand("git");
       if (git4 === void 0) return Promise.resolve(false);
       return new Promise((resolve70) => {
-        execFile15(git4.executable, ["--version"], (err) => resolve70(!err));
+        execFile16(git4.executable, ["--version"], (err) => resolve70(!err));
       });
     },
     pluginRoot: root,
@@ -97867,10 +97917,10 @@ function exitQuietlyOnEpipe(streams, exit) {
 }
 
 // packages/cli/src/gitRemotes.ts
-import { execFile as execFile16 } from "node:child_process";
+import { execFile as execFile17 } from "node:child_process";
 function gitRemoteNames(cwd) {
   return new Promise((resolve70) => {
-    execFile16("git", ["remote"], { cwd, timeout: 5e3 }, (error2, stdout) => {
+    execFile17("git", ["remote"], { cwd, timeout: 5e3 }, (error2, stdout) => {
       if (error2 !== null) {
         const code = error2.code;
         resolve70(typeof code === "number" ? [] : null);
@@ -97931,7 +97981,7 @@ function isoNow() {
 }
 function gitHeadSha(cwd) {
   return new Promise((resolve70) => {
-    execFile17("git", ["rev-parse", "HEAD"], { cwd }, (_err, stdout) => {
+    execFile18("git", ["rev-parse", "HEAD"], { cwd }, (_err, stdout) => {
       resolve70((stdout ?? "").trim());
     });
   });

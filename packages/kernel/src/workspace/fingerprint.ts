@@ -15,10 +15,12 @@
  * successful verifier invalidate the target it is trying to attest.  All remaining files,
  * directories, modes, and symlink targets are represented without following symlinks.
  */
+import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import type { Stats } from 'node:fs'
 import { lstat, readdir, readFile, readlink } from 'node:fs/promises'
 import { join, sep } from 'node:path'
+import { promisify } from 'node:util'
 import { isProcessLocalFdPath } from './process-local-fd-path.js'
 
 export const WORKSPACE_BASELINE_PREFIX = 'workspace:sha256:'
@@ -132,11 +134,16 @@ const EXCLUDED_ROOT_FILES = new Set(['.pipeline-owned.json'])
  * `.claude/settings.json`, `.claude/commands/`, `.claude/skills/`, `.mcp.json` and `CLAUDE.md` are shared,
  * committed configuration and stay part of the candidate.  Codex needs no entry: `.codex/` and `.agents/`
  * are excluded as a whole.
+ *
+ * The exclusion is only for files git does not track.  A host-local path that is tracked (committed or
+ * staged) is part of the repository, so the portable fingerprint counts it: otherwise a pull request could
+ * commit code under one of these paths, point a test at it, and change it later without moving the candidate.
  */
 export const HOST_LOCAL_FILES = ['.claude/settings.local.json', 'CLAUDE.local.md'] as const
 export const HOST_LOCAL_DIRS = ['.claude/worktrees'] as const
 
-function isHostLocal(relativePath: string): boolean {
+/** Whether a path is on the host-local list (by name only; whether git tracks it is a separate question, see `trackedHostLocalPaths`). */
+export function isHostLocalPath(relativePath: string): boolean {
   return (HOST_LOCAL_FILES as readonly string[]).includes(relativePath)
     || HOST_LOCAL_DIRS.some((dir) => relativePath === dir || relativePath.startsWith(`${dir}/`))
 }
@@ -154,16 +161,55 @@ export async function hasHostLocalFiles(root: string): Promise<boolean> {
   return false
 }
 
+const runGit = promisify(execFile)
+const GIT_TIMEOUT_MS = 30_000
+const GIT_MAX_BUFFER = 64 * 1024 * 1024
+
+/**
+ * The files under the host-local list that git tracks (committed or staged), as paths from the project root.
+ * A directory that is not a git repository tracks nothing.  Any other failure (git missing, a corrupt index,
+ * a timeout) is `undefined`: the caller must then count every host-local path, because "unknown" must never
+ * widen what the fingerprint leaves out.
+ */
+export async function trackedHostLocalPaths(root: string): Promise<ReadonlySet<string> | undefined> {
+  try {
+    const { stdout } = await runGit('git', ['ls-files', '-z', '--cached', '--', ...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS], {
+      cwd: root, timeout: GIT_TIMEOUT_MS, maxBuffer: GIT_MAX_BUFFER, env: { ...process.env, LC_ALL: 'C', LANG: 'C' },
+    })
+    return new Set(stdout.split('\0').filter((path) => path !== ''))
+  } catch (error) {
+    const stderr = typeof error === 'object' && error !== null ? Reflect.get(error, 'stderr') : undefined
+    return typeof stderr === 'string' && /not a git repository/iu.test(stderr) ? new Set() : undefined
+  }
+}
+
+/** Which paths a fingerprint leaves out in addition to the common exclusions. */
+type HostLocalSkip = (relativePath: string) => boolean
+
+/** The full fingerprint counts every host-local path. */
+const SKIP_NOTHING: HostLocalSkip = () => false
+
+/** The portable fingerprint leaves out the host-local paths git does not track (and the directories holding only those). */
+function skipUntrackedHostLocal(tracked: ReadonlySet<string>): HostLocalSkip {
+  const holdingTracked = new Set<string>()
+  for (const path of tracked) {
+    const parts = path.split('/')
+    for (let end = 1; end < parts.length; end++) holdingTracked.add(parts.slice(0, end).join('/'))
+  }
+  return (relativePath) => isHostLocalPath(relativePath) && !tracked.has(relativePath) && !holdingTracked.has(relativePath)
+}
+
 /**
  * A directory that only wraps excluded host configuration (`.claude/` holding just `agents/`) is not
  * implementation either: Tenon creates it when it first generates a host agent file, and that must not
- * move the candidate the earlier test records are bound to.  For the portable fingerprint the host-local
- * paths count as excluded host configuration too (`.claude/` holding `agents/` and `settings.local.json`).
+ * move the candidate the earlier test records are bound to.  For the portable fingerprint the untracked
+ * host-local paths count as excluded host configuration too (`.claude/` holding `agents/` and
+ * `settings.local.json`).
  */
-function isExcludedHostConfigShell(relativePath: string, names: readonly string[], exclusions: Exclusions, portable: boolean): boolean {
-  const roots: readonly string[] = portable ? [...EXCLUDED_RELATIVE_ROOTS, ...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS] : EXCLUDED_RELATIVE_ROOTS
+function isExcludedHostConfigShell(relativePath: string, names: readonly string[], exclusions: Exclusions, skip: HostLocalSkip): boolean {
+  const roots: readonly string[] = [...EXCLUDED_RELATIVE_ROOTS, ...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS]
   return roots.some((root) => root.startsWith(`${relativePath}/`))
-    && names.every((name) => isExcludedFor(`${relativePath}/${name}`, exclusions, portable))
+    && names.every((name) => isExcludedFor(`${relativePath}/${name}`, exclusions, skip))
 }
 const EXCLUDED_ROOT_ARTIFACTS = [
   /^dashboard-progress-custom-spec\.png$/,
@@ -206,28 +252,21 @@ function isExcluded(relativePath: string, exclusions: Exclusions, anySegment: Re
 
 const NO_EXCLUSIONS: Exclusions = { declared: [], ancestors: new Set() }
 
-/**
- * `portable` additionally treats the host-local paths as excluded (see `HOST_LOCAL_FILES`).  The legacy
- * fingerprint (`portable: false`) counts them; it is still what agent reviews and build revisions bind.
- */
-function isExcludedFor(
-  relativePath: string,
-  exclusions: Exclusions,
-  portable: boolean,
-  anySegment: ReadonlySet<string> = EXCLUDED_ANY_SEGMENT,
-): boolean {
-  return isExcluded(relativePath, exclusions, anySegment) || (portable && isHostLocal(relativePath))
+/** The common exclusions plus whatever this fingerprint's `skip` leaves out (the full fingerprint skips nothing). */
+function isExcludedFor(relativePath: string, exclusions: Exclusions, skip: HostLocalSkip): boolean {
+  return isExcluded(relativePath, exclusions) || skip(relativePath)
 }
 
 /**
  * Whether a repository-relative path (forward slashes) counts as source for code metrics.
  * `tenon test code-size` counts only these paths, so workflow control state (openspec/, .tenon/,
  * .pipeline/), documentation and caches (including the conventional test-output directories, declared
- * or not) never inflate the code metrics.  Host-local files are not source either.  This is a metric
- * scope, not evidence: the candidate fingerprint uses the stricter `fingerprintWorkspace` rules.
+ * or not) never inflate the code metrics.  The paths come from git diffs, so a host-local path that shows
+ * up there is tracked and counts.  This is a metric scope, not evidence: the candidate fingerprint uses the
+ * stricter `fingerprintWorkspace` rules.
  */
 export function isWorkspaceCandidatePath(relativePath: string): boolean {
-  return !isExcludedFor(relativePath, NO_EXCLUSIONS, true, METRIC_EXCLUDED_ANY_SEGMENT)
+  return !isExcluded(relativePath, NO_EXCLUSIONS, METRIC_EXCLUDED_ANY_SEGMENT)
 }
 
 function writeRecord(hash: ReturnType<typeof createHash>, kind: 'D' | 'F' | 'L', relativePath: string, details = ''): void {
@@ -240,13 +279,13 @@ function writeRecord(hash: ReturnType<typeof createHash>, kind: 'D' | 'F' | 'L',
 }
 
 /** True when everything below `relativePath` is excluded, so the directory itself carries no candidate content. */
-async function holdsOnlyExcluded(root: string, relativePath: string, exclusions: Exclusions, portable: boolean): Promise<boolean> {
+async function holdsOnlyExcluded(root: string, relativePath: string, exclusions: Exclusions, skip: HostLocalSkip): Promise<boolean> {
   for (const name of await readdir(join(root, ...relativePath.split('/')))) {
     const child = `${relativePath}/${name}`
-    if (isExcludedFor(child, exclusions, portable)) continue
+    if (isExcludedFor(child, exclusions, skip)) continue
     if (!exclusions.ancestors.has(child)) return false
     if (!(await lstat(join(root, ...child.split('/')))).isDirectory()) return false
-    if (!(await holdsOnlyExcluded(root, child, exclusions, portable))) return false
+    if (!(await holdsOnlyExcluded(root, child, exclusions, skip))) return false
   }
   return true
 }
@@ -254,7 +293,7 @@ async function holdsOnlyExcluded(root: string, relativePath: string, exclusions:
 /** One fingerprint being computed.  Both are fed by the same traversal, so each file is read once. */
 interface Sink {
   readonly hash: ReturnType<typeof createHash>
-  readonly portable: boolean
+  readonly skip: HostLocalSkip
 }
 
 async function fingerprintEntry(
@@ -263,7 +302,7 @@ async function fingerprintEntry(
   sinks: readonly Sink[],
   exclusions: Exclusions,
 ): Promise<void> {
-  const live = sinks.filter((sink) => !isExcludedFor(relativePath, exclusions, sink.portable))
+  const live = sinks.filter((sink) => !isExcludedFor(relativePath, exclusions, sink.skip))
   if (live.length === 0) return
   const absolutePath = join(root, ...relativePath.split('/'))
   const before = await lstat(absolutePath)
@@ -272,10 +311,10 @@ async function fingerprintEntry(
     const names = sortNames(await readdir(absolutePath))
     const keep: Sink[] = []
     for (const sink of live) {
-      if (isExcludedHostConfigShell(relativePath, names, exclusions, sink.portable)) continue
+      if (isExcludedHostConfigShell(relativePath, names, exclusions, sink.skip)) continue
       // A directory that only wraps declared outputs (`test-results/` holding just the report) appears when
       // the first run writes them; it must not move the candidate the run is bound to.
-      if (exclusions.ancestors.has(relativePath) && await holdsOnlyExcluded(root, relativePath, exclusions, sink.portable)) continue
+      if (exclusions.ancestors.has(relativePath) && await holdsOnlyExcluded(root, relativePath, exclusions, sink.skip)) continue
       keep.push(sink)
     }
     if (keep.length === 0) return
@@ -341,8 +380,11 @@ export async function fingerprintWorkspaceTwins(root: string, options?: Fingerpr
   if (!rootStat.isDirectory()) throw new Error(`workspace root is not a directory: ${root}`)
 
   const exclusions = exclusionsOf(options)
-  const full: Sink = { hash: createHash('sha256'), portable: false }
-  const portable: Sink | undefined = await hasHostLocalFiles(root) ? { hash: createHash('sha256'), portable: true } : undefined
+  const full: Sink = { hash: createHash('sha256'), skip: SKIP_NOTHING }
+  // The portable fingerprint differs from the full one only when an untracked host-local path exists.  When git cannot
+  // say what it tracks, nothing is left out and the two values are equal.
+  const tracked = await hasHostLocalFiles(root) ? await trackedHostLocalPaths(root) : undefined
+  const portable: Sink | undefined = tracked === undefined ? undefined : { hash: createHash('sha256'), skip: skipUntrackedHostLocal(tracked) }
   const sinks = portable === undefined ? [full] : [full, portable]
   for (const sink of sinks) writeRecord(sink.hash, 'D', '.', modeOf(rootStat))
   const names = sortNames(await readdir(root))

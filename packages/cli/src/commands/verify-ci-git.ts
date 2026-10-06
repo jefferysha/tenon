@@ -5,7 +5,10 @@
  */
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { EVIDENCE_NOTES_REF, decodeEvidenceNote, isWorkspaceCandidatePath, type AnchorEvidence } from '@tenon/kernel'
+import {
+  EVIDENCE_NOTES_REF, HOST_LOCAL_DIRS, HOST_LOCAL_FILES, decodeEvidenceNote, isHostLocalPath, isWorkspaceCandidatePath,
+  trackedHostLocalPaths, type AnchorEvidence,
+} from '@tenon/kernel'
 
 const run = promisify(execFile)
 const GIT_TIMEOUT_MS = 30_000
@@ -95,6 +98,9 @@ export interface CandidateClues {
   /** 本次检出里候选范围内被 gitignore 或未跟踪的路径（例如构建产物），最多 `limit` 个。 */
   readonly extraHere: readonly string[]
   readonly extraHereMore: number
+  /** 本次检出里 git 跟踪着的宿主本地清单上的路径：它们计入候选（改了就动候选），和作者本机没提交时不一样。 */
+  readonly trackedHostLocal: readonly string[]
+  readonly trackedHostLocalMore: number
 }
 
 async function isAncestorOfHead(cwd: string, commit: string): Promise<boolean> {
@@ -122,18 +128,33 @@ function underAny(path: string, roots: readonly string[]): boolean {
   return roots.some((root) => path === root || path.startsWith(`${root}/`) || (path.endsWith('/') && root.startsWith(path)))
 }
 
+/** `git status` 里未跟踪（`??`）与被忽略（`!!`）的条目路径；折叠的目录是一个以 `/` 结尾的条目。读不出返回空。 */
+async function untrackedAndIgnored(cwd: string, pathspec: readonly string[], untracked: 'normal' | 'all'): Promise<readonly string[]> {
+  const args = ['status', '--porcelain=v1', '-z', '--ignored=traditional', `--untracked-files=${untracked}`]
+  const out = await git(cwd, pathspec.length === 0 ? args : [...args, '--', ...pathspec])
+  return (out ?? '').split('\0').filter((entry) => /^(\?\?|!!) /u.test(entry)).map((entry) => entry.slice(3)).filter((path) => path !== '')
+}
+
+/** 折叠的目录里装着宿主本地清单上的路径（`.claude/` 装着 settings.local.json）：要展开，不然清单路径会连同整个目录被算成「多出来的文件」。 */
+function holdsHostLocalPath(dir: string): boolean {
+  return [...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS].some((path) => path.startsWith(dir))
+}
+
 /** 本次检出里候选范围内被 gitignore 或未跟踪的路径（目录以 `/` 结尾）；读不出返回空。 */
 async function candidateExtrasHere(cwd: string, declared: readonly string[]): Promise<readonly string[]> {
-  const out = await git(cwd, ['status', '--porcelain=v1', '-z', '--ignored=traditional', '--untracked-files=normal'])
-  if (out === undefined) return []
+  const entries: string[] = []
+  for (const path of await untrackedAndIgnored(cwd, [], 'normal')) {
+    if (path.endsWith('/') && holdsHostLocalPath(path)) entries.push(...await untrackedAndIgnored(cwd, [path], 'all'))
+    else entries.push(path)
+  }
   const paths: string[] = []
-  for (const entry of out.split('\0')) {
-    if (!/^(\?\?|!!) /u.test(entry)) continue
-    const path = entry.slice(3)
-    if (path === '' || !isWorkspaceCandidatePath(path.replace(/\/$/u, '')) || underAny(path, declared)) continue
+  for (const path of entries) {
+    const bare = path.replace(/\/$/u, '')
+    // 宿主本地清单上没被跟踪的路径不进可移植指纹，所以不算「多出来的文件」。
+    if (bare === '' || !isWorkspaceCandidatePath(bare) || isHostLocalPath(bare) || underAny(path, declared)) continue
     paths.push(path)
   }
-  return paths.sort()
+  return [...new Set(paths)].sort()
 }
 
 /**
@@ -154,9 +175,11 @@ export async function candidateClues(cwd: string, input: {
     later = (out?.split('\0') ?? []).filter((path) => path !== '' && isWorkspaceCandidatePath(path)).sort()
   }
   const extras = await candidateExtrasHere(cwd, input.declared)
+  const tracked = [...(await trackedHostLocalPaths(cwd)) ?? []].sort()
   return {
     followedBy: followedBy?.slice(0, 7),
     changedLater: later.slice(0, limit), changedLaterMore: Math.max(0, later.length - limit),
     extraHere: extras.slice(0, limit), extraHereMore: Math.max(0, extras.length - limit),
+    trackedHostLocal: tracked.slice(0, limit), trackedHostLocalMore: Math.max(0, tracked.length - limit),
   }
 }

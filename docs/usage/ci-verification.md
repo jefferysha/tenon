@@ -170,6 +170,16 @@ shared or unlisted configuration and stay part of the candidate; `.claude/agents
 `.agents/` and `.github/hooks/` were already left out. The list lives in
 `packages/kernel/src/workspace/fingerprint.ts` (`HOST_LOCAL_FILES`, `HOST_LOCAL_DIRS`).
 
+**Only paths git does not track are left out.** A path on the list that git tracks (committed or staged) is
+part of the repository, so the fingerprint counts it, in the author's workspace and in CI alike. Without
+that rule a pull request could commit code under `.claude/worktrees/`, point a test command at it, and
+change it later without moving the candidate. The check is `git ls-files` on the list only; a directory
+that is not a git repository tracks nothing, and when git cannot answer (missing, corrupt index) nothing
+is left out. When a `candidate-mismatch` happens in a checkout that tracks such paths, the message lists
+them. This is a rule about the fingerprint, not a finding: a tracked path changes the candidate like any
+other source file, and moving a file under the list from untracked to tracked after the tests ran fails
+the check, because the clone counts it.
+
 Records written by Tenon 0.3.1 and later bind the fingerprint without those files, so a clean clone
 reproduces it and editing them never makes a record stale. Records written by 0.3.0 and earlier
 bound the fingerprint with those files counted. On the author's machine such a record stays fresh

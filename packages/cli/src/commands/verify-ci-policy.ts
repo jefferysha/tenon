@@ -196,6 +196,9 @@ async function candidateFinding(
   if (clues !== undefined && clues.extraHere.length > 0) {
     parts.push(verifyMsg(deps, 'verify.candidateExtraHere', { files: list(clues.extraHere, clues.extraHereMore) }))
   }
+  if (clues !== undefined && clues.trackedHostLocal.length > 0) {
+    parts.push(verifyMsg(deps, 'verify.candidateTrackedHostLocal', { files: list(clues.trackedHostLocal, clues.trackedHostLocalMore) }))
+  }
   return {
     code: 'candidate-mismatch', severity: input.mode === 'warn' ? 'warning' : 'error', change: input.change, source: 'policy',
     subject: stale.map((verdict) => verdict.suite).join(','),
