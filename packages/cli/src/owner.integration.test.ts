@@ -1,7 +1,7 @@
 import { readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createStateStore, createTransitionRecordStore } from '@tenon/kernel'
+import { createStateStore, createTransitionRecordStore, reviewerRequiredMessage } from '@tenon/kernel'
 import { freshHarness, type Harness } from './integration-harness.js'
 
 const A = { TENON_USER: 'a@x.io', TENON_USER_NAME: 'A' }
@@ -112,6 +112,25 @@ describe('owner rule across two declared users', () => {
 
     // The owner advances on the confirmation given by the reviewer.
     expect(await h.run(['transition', 'x', 'explore-complete'], { env: A }), h.err.join('\n')).toBe(0)
+  })
+
+  it('review acknowledge refusals follow TENON_LANG: en is English, zh stays byte-identical to the kernel text', async () => {
+    const h = await exploreReviewRequested()
+    const EN = { TENON_LANG: 'en' }
+
+    expect(await h.run(['review', 'acknowledge', 'x'], { env: { ...B, ...EN } })).toBe(1)
+    const refusal = h.err.join('\n')
+    expect(refusal).toContain('ERROR: task x is owned by A <a@x.io>, and a review confirmation is owner-only by default')
+    expect(refusal).toContain('add --as reviewer')
+    expect(refusal).toContain('tenon owner take x')
+    expect(/[㐀-鿿]/u.test(refusal)).toBe(false)
+
+    expect(await h.run(['review', 'acknowledge', 'x', '--as', 'owner'], { env: { ...B, ...EN } })).toBe(1)
+    expect(h.err.join('\n')).toBe("ERROR: --as supports only reviewer (got 'owner')")
+
+    expect(await h.run(['review', 'acknowledge', 'x'], { env: { ...B, TENON_LANG: 'zh' } })).toBe(1)
+    expect(h.err.join('\n')).toBe(`ERROR: ${reviewerRequiredMessage('x', { id: 'a@x.io', name: 'A' })}`)
+    expect(await h.read('x')).toMatch(/^review_gate_status: pending$/m)
   })
 
   it('review acknowledge by the owner needs no flag and records no role', async () => {

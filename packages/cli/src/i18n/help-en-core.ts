@@ -8,6 +8,7 @@ const ADAPTER_REDEPLOY = (name: string): string => `Redeploy the ${name} adapter
 
 export const HELP_EN_CORE: Readonly<Record<string, string>> = {
   tenon: 'Tenon state machine CLI (CONTRACT §3)',
+  '--version': 'Print the Tenon version',
   init: 'Initialize a change (stdout stays empty; path details go to stderr)',
   'init --track': 'chat | simple | pm | frontend | backend | free | custom',
   'init --preset': 'full | hotfix | tweak (required for the default workflow; may be omitted with an explicit --workflow)',

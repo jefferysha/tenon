@@ -29,6 +29,12 @@ Routing uses deterministic regular-expression signals, exclusions, scores, and
 priorities. It is not semantic AI intent classification. When a custom choice is
 ambiguous, the correct behavior is to ask/select explicitly, not guess.
 
+A prompt that starts with `/` is an explicit command, so the router leaves it alone and injects no
+dispatch. `/tenon <request>` therefore runs the `tenon` skill directly, and the skill chooses the lane
+the same way the router would: a workflow or Track the user names wins, an implementation request
+uses `standard`, only heavy or cross-domain work (architecture, auth, migrations, dependencies,
+contracts) uses `default`, and a project-defined Workflow is used only when the user names it.
+
 The packaged simple main path is exactly:
 
 ```text

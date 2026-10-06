@@ -66,6 +66,8 @@ pending review 期间，PreToolUse 门只放行严格只读命令集（以及 `t
   `tar -x` 与 `unzip -d`、`git checkout|restore … -- <路径>`、`git apply` 与 `patch`、变量路径、点名了受保护路径又不是干净跟踪文件的
   脚本文件、`xargs sh -c` 与 `find -exec`、`cp/mv/install/rsync/ln` 变体、`tee` 变体、重定向变体（含喂给解释器的 heredoc）和就地编辑器。
   匹配是静态、尽力而为的。
+  读取不是写入：读记录请用普通读取工具（`cat`、`ls`、`jq`、`grep`、`head`、`tail`、`wc`、`find -name`）或编辑器的 Read 工具。
+  经过解释器内联代码（`node -e`、`python -c`）或 `xargs` 的读取，以及后面链着任何写入的命令，同样会被拒：静态匹配分不清它们和写入。
 - **hook 看不见的，由门检出。** 每个任务记录链的链头由 `tenon test run` 封存进按用户、HMAC 签名的本机文件；绕开命令写进来的记录使链头
   对不上封存（`record-unsealed`，没有人工出口，下一次运行另起新链）。Tenon 写出之后又被改动的基线与已知失败清单判
   `protected-file-tampered`。

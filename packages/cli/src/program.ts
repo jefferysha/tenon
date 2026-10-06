@@ -75,6 +75,7 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
   const program = new Command(PRODUCT_IDENTITY.cli)
   program
     .description(`${PRODUCT_IDENTITY.displayName} 状态机 CLI（CONTRACT §3）`)
+    .version(deps.pluginVersion ?? 'unknown', '-V, --version', '显示 Tenon 版本号') // 插件清单的版本（sync / doctor 同源）；打印后 exit 0
     .exitOverride()
     .configureOutput({
       writeOut: (s) => deps.io.out(stripNl(s)),

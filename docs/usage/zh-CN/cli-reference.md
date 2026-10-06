@@ -10,11 +10,14 @@ tenon setup --claude
 tenon update --codex
 tenon host-target-plan --json
 tenon host-target-plan --host codex --operation setup --json
+tenon --version
 tenon doctor --json
 tenon runtime status
 tenon runtime repair --rollback
 tenon dashboard --open
 ```
+
+`tenon --version`（`-V`）打印这条命令所在插件载荷的版本号（插件清单里的版本）；已安装的运行时上它就是 `tenon doctor` 里 `runtime=` 的那个数字。不需要项目，也不改任何东西。
 
 `tenon dashboard --open` 负责登录：已在运行（或刚启动）的 server 自己用一次性登录链接打开你的浏览器，链接不会返回给这条命令，所以页面打开时已是登录状态。直接运行 `tenon dashboard` 会在前台启动 server，并把链接打印到交互终端；读取 server stdout 的启动者可用 `TENON_DASHBOARD_PRINT_LINK=1` 要求打印。详见[登录](dashboard-and-local-api.md#登录)。
 
@@ -482,7 +485,7 @@ stdout/stderr 镜像到那里，凭证在落盘前已抹掉。`--lines` 缺省 1
 输出语言：`TENON_LANG=en|zh`，其次 `LC_ALL`、`LC_MESSAGES`、`LANG`。没有信号或为 `C`/`POSIX` 时保持历史的中文输出
 （hook 为输出稳定会钉 `LC_ALL=C`）。每条命令与选项的说明都有英文；用法错误和最常见的错误在两种语言里都有目录条目
 （稳定的消息码，见 `packages/cli/src/i18n/`）；JSON 字段、`ERROR:`/`WARN:` 前缀和退出码不随语言变化。
-`tenon verify --ci` 的四种报告格式与用法错误已全部进目录（见 [CI 验证](ci-verification.md)）。还没进目录的文案仍是中文。`tenon transition` 遇到非法或未知 event 时，会在第二行用当前语言列出当前 step 的合法 event。
+`tenon verify --ci` 的四种报告格式与用法错误已全部进目录（见 [CI 验证](ci-verification.md)）。跨厂商评审的路由与拒绝（`agent prompt` 的 `[ROUTE]` 行、`agent record` 的宿主拒绝与「声明」旁注）和 `review acknowledge` 的拒绝也已进目录。还没进目录的文案仍是中文。`tenon transition` 遇到非法或未知 event 时，会在第二行用当前语言列出当前 step 的合法 event。
 
 ## Session 与恢复
 

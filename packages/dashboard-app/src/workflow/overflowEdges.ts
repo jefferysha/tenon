@@ -27,8 +27,13 @@ export function overflowEdges(metrics: ScrollMetrics): OverflowEdges {
 /**
  * 量一个横向滚动容器两端是否还有隐藏内容。挂载、滚动（调用方把 measure 接到 onScroll）、容器或其子项尺寸变化
  * （导航栏收窄、字体载入后标签变宽）和 watch 变化（换语言、增删项）时重新量；两侧状态没变就不触发重渲染。
+ * `onResize`（可选，调用方保证引用稳定）在每次尺寸变化量完之后调用，用来在内容变宽后把该看的那一项重新滚进来。
  */
-export function useOverflowEdges(ref: RefObject<HTMLElement>, watch: string): { edges: OverflowEdges; measure: () => void } {
+export function useOverflowEdges(
+  ref: RefObject<HTMLElement>,
+  watch: string,
+  onResize?: () => void,
+): { edges: OverflowEdges; measure: () => void } {
   const [edges, setEdges] = useState<OverflowEdges>({ start: false, end: false })
   const measure = useCallback((): void => {
     const element = ref.current
@@ -40,10 +45,13 @@ export function useOverflowEdges(ref: RefObject<HTMLElement>, watch: string): { 
     measure()
     const element = ref.current
     if (element === null || typeof ResizeObserver === 'undefined') return undefined
-    const observer = new ResizeObserver(measure)
+    const observer = new ResizeObserver(() => {
+      measure()
+      onResize?.()
+    })
     observer.observe(element)
     for (const child of Array.from(element.children)) observer.observe(child)
     return () => observer.disconnect()
-  }, [measure, ref, watch])
+  }, [measure, onResize, ref, watch])
   return { edges, measure }
 }

@@ -8,6 +8,7 @@ import {
   shellQuote,
   type AgentView, type AgentRunHostSource, type ReviewerHostRequirement,
 } from '@tenon/kernel'
+import { msg, type LocaleCarrier } from '../i18n/messages.js'
 
 export interface RunOn {
   readonly host: 'claude' | 'codex'
@@ -64,17 +65,21 @@ export function planRoute(input: {
   }
 }
 
-const SOURCE_WORD = { step: '工作流步骤要求', agent: 'agent 定义建议', none: '' } as const
-
 /** 路由说明（人读）：这个评审该在哪个宿主上跑、读哪个文件、怎么登记。 */
-export function routeLines(agent: string, route: HostRoute): readonly string[] {
+export function routeLines(carrier: LocaleCarrier, agent: string, route: HostRoute): readonly string[] {
   const target = route.runOn
   if (target === null) return []
+  const source = route.source === 'step'
+    ? msg(carrier, 'agent.route.source.step')
+    : route.source === 'agent' ? msg(carrier, 'agent.route.source.agent') : ''
+  const why = `${source}${route.enforced ? msg(carrier, 'agent.route.enforced') : ''}`
   return [
-    `[ROUTE] 评审者 '${agent}' 须在 ${target.host} 上运行（${SOURCE_WORD[route.source]}${route.enforced ? '，登记的宿主不符则结论无效' : ''}）；当前宿主：${route.current ?? '终端'}`,
-    `提示词：${target.promptFile}`,
-    `运行：${target.command}`,
-    `登记（评审写完报告后）：${target.record}`,
+    msg(carrier, 'agent.route.header', {
+      agent, host: target.host, why, current: route.current ?? msg(carrier, 'agent.route.currentTerminal'),
+    }),
+    msg(carrier, 'agent.route.prompt', { file: target.promptFile }),
+    msg(carrier, 'agent.route.run', { command: target.command }),
+    msg(carrier, 'agent.route.record', { command: target.record }),
   ]
 }
 
