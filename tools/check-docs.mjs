@@ -129,6 +129,126 @@ export function extractMarkdownTargets(markdown) {
   return links
 }
 
+/**
+ * Split Markdown outside fenced code blocks into runs of consecutive text lines. A run ends at a
+ * blank line or at any line that starts a new block (heading, list item, table row, blockquote,
+ * fence), because an inline code span can never cross a block boundary.
+ */
+function paragraphLines(markdown) {
+  const paragraphs = []
+  let current = []
+  let fence = null
+  let inQuote = false
+  const flush = () => {
+    if (current.length > 0) paragraphs.push(current)
+    current = []
+    inQuote = false
+  }
+  for (const [index, line] of markdown.split(/\r?\n/u).entries()) {
+    const fenceLine = line.match(/^\s*(`{3,}|~{3,})(.*)$/u)
+    if (fence !== null) {
+      if (
+        fenceLine !== null
+        && fenceLine[1][0] === fence.char
+        && fenceLine[1].length >= fence.length
+        && fenceLine[2].trim() === ''
+      ) fence = null
+      continue
+    }
+    if (fenceLine !== null && !(fenceLine[1][0] === '`' && fenceLine[2].includes('`'))) {
+      flush()
+      fence = { char: fenceLine[1][0], length: fenceLine[1].length }
+      continue
+    }
+    // Blank lines, headings and table rows are single-line blocks.
+    if (line.trim() === '' || /^\s*(?:#{1,6}(?:\s|$)|\|)/u.test(line)) {
+      flush()
+      continue
+    }
+    const quote = line.match(/^\s*(?:>\s?)+/u)
+    if (quote !== null) {
+      if (!inQuote) flush()
+      inQuote = true
+      current.push({ text: line.slice(quote[0].length), line: index + 1 })
+      continue
+    }
+    if (inQuote || /^\s*(?:[-*+]|\d{1,9}[.)])\s/u.test(line)) flush()
+    current.push({ text: line, line: index + 1 })
+  }
+  flush()
+  return paragraphs
+}
+
+function isBackslashEscaped(text, offset) {
+  let backslashes = 0
+  while (offset - backslashes > 0 && text[offset - backslashes - 1] === '\\') backslashes += 1
+  return backslashes % 2 === 1
+}
+
+/**
+ * Find inline code spans that contain `<` and are hard-wrapped across a line break.
+ *
+ * VitePress compiles every page through the Vue template compiler. When the wrapped continuation
+ * line starts with a placeholder such as `<change>`, markdown-it ends the paragraph there, the code
+ * span is never formed, and the Vue compiler fails with "Element is missing end tag". Spans that
+ * wrap elsewhere still render, but only by luck of where the line happened to break, so every span
+ * that contains `<` has to stay on one line. Fenced code blocks are ignored.
+ */
+export function findWrappedAngleCodeSpans(markdown) {
+  const found = []
+  for (const paragraph of paragraphLines(markdown)) {
+    const text = paragraph.map((entry) => entry.text).join('\n')
+    const lineAtOffset = (offset) =>
+      paragraph[text.slice(0, offset).split('\n').length - 1].line
+    const runs = [...text.matchAll(/`+/gu)]
+    for (let index = 0; index < runs.length; index += 1) {
+      let start = runs[index].index
+      let length = runs[index][0].length
+      if (isBackslashEscaped(text, start)) {
+        if (length === 1) continue
+        start += 1
+        length -= 1
+      }
+      const closing = runs.findIndex((run, at) => at > index && run[0].length === length)
+      if (closing < 0) continue
+      const content = text.slice(start + length, runs[closing].index)
+      if (content.includes('<') && content.includes('\n')) {
+        found.push({
+          startLine: lineAtOffset(start),
+          endLine: lineAtOffset(runs[closing].index),
+          code: content.replace(/\s*\n\s*/gu, ' '),
+        })
+      }
+      index = closing
+    }
+  }
+  return found
+}
+
+function markdownFilesUnder(directory) {
+  const files = []
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name)
+    if (entry.isDirectory()) files.push(...markdownFilesUnder(path))
+    else if (entry.isFile() && entry.name.endsWith('.md')) files.push(path)
+  }
+  return files.sort()
+}
+
+function checkWrappedAngleCodeSpans(root, failures) {
+  const usage = join(root, 'docs/usage')
+  if (!existsSync(usage) || !lstatSync(usage).isDirectory()) return
+  for (const path of markdownFilesUnder(usage)) {
+    const document = slash(relative(root, path))
+    for (const span of findWrappedAngleCodeSpans(readFileSync(path, 'utf8'))) {
+      failures.push(
+        `${document}:${span.startLine}-${span.endLine}: inline code span containing "<" is wrapped across a line break `
+        + `(VitePress fails with "Element is missing end tag"); keep the whole span on one line: \`${span.code}\``,
+      )
+    }
+  }
+}
+
 function workflowTrackSource(yaml, track = 'chat') {
   const tracks = yaml.match(/^tracks:\s*\n([\s\S]*)$/mu)
   if (tracks === null) return yaml
@@ -572,6 +692,8 @@ export function checkRepository(rootInput) {
       checkLink(root, document, link, failures)
     }
   }
+
+  checkWrappedAngleCodeSpans(root, failures)
 
   const communityTargets = [
     'docs/usage/README.md',

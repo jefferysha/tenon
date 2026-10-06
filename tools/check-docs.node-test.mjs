@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { checkRepository } from './check-docs.mjs'
+import { checkRepository, findWrappedAngleCodeSpans } from './check-docs.mjs'
 
 const usageFiles = [
   'README.md',
@@ -428,5 +428,95 @@ test('current install docs must not claim the retired 1.x releases were already 
 
   await write(root, 'docs/usage/zh-CN/installation.md', `${zh}\n\n已退役的 1.x Release 与标签仍在，计划在 v0.x 真实宿主验收后删除。\n`)
   await write(root, 'docs/usage/installation.md', `${en}\n\nThe retired 1.x releases and tags are still published and will be removed after the v0.x real-host acceptance.\n`)
+  assert.deepEqual(checkRepository(root), [])
+})
+
+test('finds inline code spans with a placeholder that are hard-wrapped across a line break', () => {
+  const markdown = [
+    '# Title',
+    '',
+    'Open a task and `tenon set <new> depends_on',
+    '<old>`, then continue.',
+    '',
+    'Start with `tenon init <name> --workflow',
+    'standard --track standard` here.',
+    '',
+    'A double-backtick span ``tenon test integrity',
+    '<change>`` also counts.',
+  ].join('\n')
+  assert.deepEqual(findWrappedAngleCodeSpans(markdown), [
+    { startLine: 3, endLine: 4, code: 'tenon set <new> depends_on <old>' },
+    { startLine: 6, endLine: 7, code: 'tenon init <name> --workflow standard --track standard' },
+    { startLine: 9, endLine: 10, code: 'tenon test integrity <change>' },
+  ])
+})
+
+test('leaves single-line spans, wrapped spans without a placeholder and fenced code alone', () => {
+  const markdown = [
+    'Run `tenon set <new> depends_on <old>` on one line.',
+    '',
+    'Keep `tenon <command>` and `tenon status',
+    '--json` apart: only the second is wrapped, and it has no placeholder.',
+    '',
+    '```bash',
+    'tenon set <new> depends_on',
+    '<old>`',
+    '```',
+    '',
+    '- item with an `unclosed span <a>',
+    '- another item with <b>` stray backtick',
+    '',
+    '> quote `tenon <x>` fine',
+    '',
+    'Escaped \\`not code <a>',
+    'still \\`not code <b>',
+    '',
+    '| col | `a <b>` |',
+    '| --- | --- |',
+  ].join('\n')
+  assert.deepEqual(findWrappedAngleCodeSpans(markdown), [])
+})
+
+test('does not pair a code span across a list item, a heading or a blank line', () => {
+  const markdown = [
+    '- first `open <a>',
+    '- second close <b>`',
+    '',
+    'tail `open <c>',
+    '',
+    'close <d>`',
+    '',
+    '## Heading `open <e>',
+    'close <f>`',
+  ].join('\n')
+  assert.deepEqual(findWrappedAngleCodeSpans(markdown), [])
+})
+
+test('reports a wrapped placeholder code span in any docs/usage page with file and line range', async (t) => {
+  const root = await fixture()
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const routing = await readFile(join(root, 'docs/usage/routing-and-workflows.md'), 'utf8')
+  await write(
+    root,
+    'docs/usage/routing-and-workflows.md',
+    `${routing}\nOpen a task and \`tenon set <new> depends_on\n<old>\`.\n`,
+  )
+  await write(root, 'docs/usage/zh-CN/default-workflow.md', '# 默认流程\n\n运行 `tenon test integrity\n<change>` 查看。\n')
+  await write(root, 'docs/usage/zh-CN/extra-page.md', '# Extra\n\n`tenon init <name>\n--workflow standard`\n')
+  const failures = checkRepository(root).join('\n')
+  assert.match(failures, /docs\/usage\/routing-and-workflows\.md:\d+-\d+: inline code span containing "<" is wrapped across a line break.*tenon set <new> depends_on <old>/)
+  assert.match(failures, /docs\/usage\/zh-CN\/default-workflow\.md:3-4: .*tenon test integrity <change>/)
+  assert.match(failures, /docs\/usage\/zh-CN\/extra-page\.md:3-4: .*tenon init <name> --workflow standard/)
+})
+
+test('accepts the same placeholder code spans once they sit on one line', async (t) => {
+  const root = await fixture()
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const routing = await readFile(join(root, 'docs/usage/routing-and-workflows.md'), 'utf8')
+  await write(
+    root,
+    'docs/usage/routing-and-workflows.md',
+    `${routing}\nOpen a task and\n\`tenon set <new> depends_on <old>\`.\n`,
+  )
   assert.deepEqual(checkRepository(root), [])
 })
