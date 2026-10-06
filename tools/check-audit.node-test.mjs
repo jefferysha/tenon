@@ -7,20 +7,29 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 import {
+  analyzeSourceBundle,
+  assertBundleModules,
   BUNDLES,
   bundleInputs,
   check,
   collectAdvisories,
   createWorkspaceResolver,
+  dashboardCrossCheckInputs,
   dashboardInputs,
+  DASHBOARD_SNAPSHOT_FILE,
+  diffPackageLists,
   evaluate,
+  missingBundleModules,
   packageNameFromPath,
   parseAuditOutput,
   prodPackageNames,
+  readDashboardSnapshot,
   render,
   sourceBundleInputs,
   trackedBundleInputs,
+  UPDATE_DASHBOARD_SNAPSHOT_COMMAND,
   validateAllowlist,
+  writeDashboardSnapshot,
 } from './check-audit.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
@@ -444,5 +453,118 @@ test('the source analysis reproduces the third-party packages of the tracked shi
     const fromSource = [...await sourceBundleInputs(root, bundle)].sort()
     const fromTracked = [...trackedBundleInputs(root, bundle)].sort()
     assert.deepEqual(fromSource, fromTracked, bundle.label)
+  }
+})
+
+// ---------------------------------------------------------------- 分析本身的交叉验证
+
+const SERVER_BUNDLE = BUNDLES.find((bundle) => bundle.label === 'server bundle')
+
+test('every shipped bundle declares its own entry among the first-party modules it must contain', () => {
+  for (const bundle of BUNDLES) {
+    assert.ok(Array.isArray(bundle.modules) && bundle.modules.length > 0, `${bundle.label} declares modules`)
+    assert.ok(bundle.modules.includes(bundle.entry), `${bundle.label} lists its entry module`)
+    assert.equal(new Set(bundle.modules).size, bundle.modules.length, `${bundle.label} has no duplicate modules`)
+  }
+})
+
+test('the real esbuild input list of each shipped bundle contains the first-party modules it declares', async () => {
+  for (const bundle of BUNDLES) {
+    const { modules } = await analyzeSourceBundle(root, bundle)
+    assert.deepEqual(missingBundleModules(bundle, modules), [], bundle.label)
+    // 模块是相对 root 的正斜杠路径：没有 "../" 开头，也没有 Windows 分隔符混进来。
+    for (const module of modules) assert.doesNotMatch(module, /^\.\.|\\/, module)
+  }
+  // server 产物现在没有第三方包，包集合为空并不说明分析坏了；模块清单才是"分析确实跑过"的证据。
+  const { modules } = await analyzeSourceBundle(root, SERVER_BUNDLE)
+  assert.ok(modules.length >= SERVER_BUNDLE.modules.length)
+})
+
+test('a bundle with no third-party canary still fails closed on an empty or partial module list', () => {
+  assert.equal(SERVER_BUNDLE.canary, null)
+  assert.throws(() => assertBundleModules(SERVER_BUNDLE, []), /analysis is broken: server bundle .*packages\/server\/src\/main\.ts/)
+  const partial = SERVER_BUNDLE.modules.slice(1)
+  assert.throws(
+    () => assertBundleModules(SERVER_BUNDLE, partial),
+    (error) => error.message.includes(SERVER_BUNDLE.modules[0]) && !error.message.includes(SERVER_BUNDLE.modules[1]),
+  )
+  assert.doesNotThrow(() => assertBundleModules(SERVER_BUNDLE, [...SERVER_BUNDLE.modules, 'packages/server/src/other.ts']))
+  // 没有声明 modules 的产物（夹具）不被要求。
+  assert.doesNotThrow(() => assertBundleModules({ label: 'fixture' }, []))
+})
+
+test('the module list of a source bundle is root-relative with forward slashes and covers first-party and third-party inputs', async () => {
+  await withWorkspace(workspaceFiles(), async (dir) => {
+    const { packages, modules } = await analyzeSourceBundle(dir, CLI_BUNDLE)
+    assert.deepEqual([...packages], ['thirdparty'])
+    assert.deepEqual([...modules].sort(), [
+      'node_modules/thirdparty/index.js',
+      'packages/cli/src/main.ts',
+      'packages/kernel/src/index.ts',
+      'packages/kernel/src/private/internal.ts',
+      'packages/kernel/src/sub/leaf.ts',
+    ])
+    assert.deepEqual(
+      missingBundleModules({ modules: ['packages/cli/src/main.ts', 'packages/cli/src/gone.ts'] }, modules),
+      ['packages/cli/src/gone.ts'],
+    )
+  })
+})
+
+test('package list diffs name what was added and what was removed', () => {
+  assert.deepEqual(diffPackageLists(['a', 'b', 'c'], ['b', 'c', 'd', 'e']), { added: ['d', 'e'], removed: ['a'] })
+  assert.deepEqual(diffPackageLists(['a'], ['a']), { added: [], removed: [] })
+})
+
+test('the committed Dashboard snapshot is sorted, unique and exactly what the update command writes', async () => {
+  const committed = await readFile(join(root, DASHBOARD_SNAPSHOT_FILE), 'utf8')
+  const packages = readDashboardSnapshot(root)
+  assert.ok(packages.length > 0)
+  assert.deepEqual(packages, [...new Set(packages)].sort())
+  const created = await mkdtemp(join(tmpdir(), 'tenon-check-audit-snapshot-'))
+  try {
+    await mkdir(join(created, 'tools'))
+    writeDashboardSnapshot(created, new Set(packages))
+    assert.equal(await readFile(join(created, DASHBOARD_SNAPSHOT_FILE), 'utf8'), committed)
+  } finally {
+    await rm(created, { recursive: true, force: true })
+  }
+})
+
+// 两次真实 Vite 构建各要几秒到十几秒；下面两条共用同一次 dashboardInputs 结果。
+let dashboardAnalysis
+const analysedDashboard = () => (dashboardAnalysis ??= dashboardInputs(root))
+
+test('the analysed Dashboard third-party packages equal the committed snapshot', async () => {
+  const analysed = await analysedDashboard()
+  const { added, removed } = diffPackageLists(readDashboardSnapshot(root), analysed)
+  assert.ok(
+    added.length === 0 && removed.length === 0,
+    `the Dashboard bundle's third-party packages changed (added: ${added.join(', ') || 'none'}; removed: ${removed.join(', ') || 'none'}). `
+      + `If that is intended, run \`${UPDATE_DASHBOARD_SNAPSHOT_COMMAND}\` and review the diff of ${DASHBOARD_SNAPSHOT_FILE}.`,
+  )
+})
+
+// 有 packages/dashboard-app/dist（入库的 Dashboard 产物）的检出里，再对一次独立的真实构建交叉验证；没有时只剩上面的快照。
+const dashboardDistExists = existsSync(join(root, 'packages', 'dashboard-app', 'dist', 'index.html'))
+
+test('the analysed Dashboard packages agree with an independent real Vite build', {
+  skip: dashboardDistExists ? false : 'packages/dashboard-app/dist is absent; the committed snapshot is the only cross-check here',
+}, async () => {
+  const analysed = await analysedDashboard()
+  const { shipped, loaded } = await dashboardCrossCheckInputs(root)
+  // 构建出的代码里确有的包，分析必须都看到（漏报会让 dev-only 白名单放行随产物发布的包）。
+  assert.deepEqual([...shipped].filter((name) => !analysed.has(name)).sort(), [], 'shipped by the build but missing from the analysis')
+  // 分析里的包必须真的进过这次构建的模块图；字体之类只作资源引入的包没有 JS 模块，不在模块图里，只放行这一类。
+  const assetOnlyPackages = ['@fontsource-variable/inter']
+  assert.deepEqual(
+    [...analysed].filter((name) => !loaded.has(name) && !assetOnlyPackages.includes(name)).sort(),
+    [],
+    'analysed but never loaded by the build',
+  )
+  // 交叉验证本身不能退化：读到的 sourcemap 与模块图都要覆盖已知依赖。
+  for (const name of ['react', 'react-dom', '@xyflow/react', 'gsap', 'lucide-react']) {
+    assert.ok(shipped.has(name), `${name} shipped`)
+    assert.ok(loaded.has(name), `${name} loaded`)
   }
 })

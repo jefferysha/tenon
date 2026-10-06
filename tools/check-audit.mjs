@@ -12,15 +12,21 @@
 //      分析时按它们的 package.json `exports` 改从 `src/` 解析，不要求先构建，也不读可能已陈旧的本机 dist。
 //      任何一处解析不出来都直接报错，绝不退化成"空集合 = 干净"。
 //   4. 不再匹配任何当前 high / critical 公告的条目（陈旧）同样失败，白名单不会烂在仓库里。
+//   5. 分析本身也被交叉验证：server / CLI 打包必须含已知的第一方入口模块（没有第三方包不等于没有模块）；
+//      Dashboard 的第三方包清单由 node-test 对照一次独立的真实 Vite 构建（sourcemap 与模块图两条通道）
+//      和入库快照 tools/audit-dashboard-packages.json。Dashboard 依赖有意变动后，用
+//      `node tools/check-audit.mjs --update-dashboard-snapshot` 刷新快照，diff 随 PR 一起评审。
 // `npm run check:dependency-tree` 另管解析树完整性，本脚本不替代它。
 import { spawnSync } from 'node:child_process'
-import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const ALLOWLIST_FILE = 'tools/audit-allowlist.json'
+export const DASHBOARD_SNAPSHOT_FILE = 'tools/audit-dashboard-packages.json'
+export const UPDATE_DASHBOARD_SNAPSHOT_COMMAND = 'node tools/check-audit.mjs --update-dashboard-snapshot'
 const BLOCKING = new Set(['high', 'critical'])
 const SEVERITY_ORDER = ['info', 'low', 'moderate', 'high', 'critical']
 export const MAX_ALLOWLIST_DAYS = 30
@@ -31,9 +37,30 @@ const ENTRY_KEYS = ['id', 'package', 'reason', 'expires', 'scope']
 
 // 与 package.json 的 `bundle` / `build:server` 脚本保持同一入口；node-test 会核对两边一致。
 // canary 是该产物里一定存在的第三方包，缺了说明分析本身失效（空集合不能当作"干净"）。
+// server 产物目前没有任何第三方包，没有 canary 可用；所以 modules 另列该产物 esbuild 输入里一定存在的第一方入口模块
+// （入口自身，加上入口直接导入的第一方包），模块清单空了或缺了就是分析失效，不能当作"没有第三方包 = 干净"。
 export const BUNDLES = [
-  { label: 'cli bundle', entry: 'packages/cli/src/main.ts', dist: 'packages/cli/dist/tenon.mjs', canary: 'commander' },
-  { label: 'server bundle', entry: 'packages/server/src/main.ts', dist: 'packages/server/dist/dashboard.mjs', canary: null },
+  {
+    label: 'cli bundle',
+    entry: 'packages/cli/src/main.ts',
+    dist: 'packages/cli/dist/tenon.mjs',
+    canary: 'commander',
+    modules: ['packages/cli/src/main.ts', 'packages/kernel/src/index.ts'],
+  },
+  {
+    label: 'server bundle',
+    entry: 'packages/server/src/main.ts',
+    dist: 'packages/server/dist/dashboard.mjs',
+    canary: null,
+    modules: [
+      'packages/server/src/main.ts',
+      'packages/server/src/server.ts',
+      'packages/server/src/paths.ts',
+      'packages/server/src/preempt.ts',
+      'packages/kernel/src/index.ts',
+      'packages/tap/src/index.ts',
+    ],
+  },
 ]
 export const DASHBOARD = { label: 'dashboard assets', root: 'packages/dashboard-app', canary: 'react' }
 
@@ -441,8 +468,11 @@ function workspaceVitePlugin(root) {
 
 // ---------------------------------------------------------------- 已发布包分析
 
-/** esbuild 以入口源码打包（`@tenon/*` 按源码解析）得到的第三方包集合。 */
-export async function sourceBundleInputs(root, bundle) {
+/**
+ * esbuild 以入口源码打包（`@tenon/*` 按源码解析）的结果：第三方包集合，加上 esbuild 的全部输入模块
+ * （相对 root、正斜杠，第一方与第三方都在内）。
+ */
+export async function analyzeSourceBundle(root, bundle) {
   const { build } = await import('esbuild')
   const result = await build({
     absWorkingDir: root,
@@ -457,7 +487,30 @@ export async function sourceBundleInputs(root, bundle) {
     outfile: join(tmpdir(), 'tenon-check-audit-unused.mjs'),
     plugins: [workspaceEsbuildPlugin(root)],
   })
-  return packageNames(Object.keys(result.metafile.inputs))
+  const inputs = Object.keys(result.metafile.inputs)
+  return { packages: packageNames(inputs), modules: rootRelativeModules(root, inputs) }
+}
+
+/**
+ * esbuild 的 metafile 路径相对它自己解析出的工作目录（符号链接会被解开）；工作区插件返回的源码路径却可能挂在
+ * 未解开的 root 下（macOS 的 /var → /private/var），两边对不上就会得到 "../../../var/..." 这种路径。
+ * 统一还原成绝对路径再相对 root（两种写法都试）取值，得到稳定的 root 相对正斜杠路径。
+ */
+function rootRelativeModules(root, inputs) {
+  const roots = [...new Set([resolve(root), realpathSync(root)])]
+  return inputs.map((input) => {
+    const absolute = resolve(realpathSync(root), input)
+    for (const candidate of roots) {
+      const path = relative(candidate, absolute)
+      if (path !== '' && !isAbsolute(path) && path.split(/[\\/]/)[0] !== '..') return path.replaceAll('\\', '/')
+    }
+    return input.replaceAll('\\', '/')
+  })
+}
+
+/** esbuild 以入口源码打包（`@tenon/*` 按源码解析）得到的第三方包集合。 */
+export async function sourceBundleInputs(root, bundle) {
+  return (await analyzeSourceBundle(root, bundle)).packages
 }
 
 /** 已跟踪的 dist 里每个第三方模块前都有 `// node_modules/...` 注释；文件不存在时返回空集合。 */
@@ -468,11 +521,32 @@ export function trackedBundleInputs(root, bundle) {
   return packageNames([...comments].map((match) => match[1]))
 }
 
-/** 源码分析并上已跟踪的 dist，陈旧或手改的产物也算数。 */
-export async function bundleInputs(root, bundle) {
-  const packages = await sourceBundleInputs(root, bundle)
+/** 源码分析并上已跟踪的 dist，陈旧或手改的产物也算数；同时返回源码分析看到的全部输入模块。 */
+export async function analyzeBundle(root, bundle) {
+  const { packages, modules } = await analyzeSourceBundle(root, bundle)
   for (const name of trackedBundleInputs(root, bundle)) packages.add(name)
-  return packages
+  return { packages, modules }
+}
+
+export async function bundleInputs(root, bundle) {
+  return (await analyzeBundle(root, bundle)).packages
+}
+
+/** bundle.modules 里没出现在 esbuild 输入模块清单中的那些；没有声明 modules 的产物不要求。 */
+export function missingBundleModules(bundle, modules) {
+  const present = new Set(modules)
+  return (bundle.modules ?? []).filter((expected) => !present.has(expected))
+}
+
+/** 模块清单缺了声明的第一方入口模块（包括整张清单为空）就抛错：分析已失效，不能把"没有第三方包"当作"干净"。 */
+export function assertBundleModules(bundle, modules) {
+  const missing = missingBundleModules(bundle, modules)
+  if (missing.length > 0) {
+    throw new Error(
+      `shipped-package analysis is broken: ${bundle.label} should contain first-party module(s) ${missing.join(', ')} `
+      + `but its esbuild input list (${modules.length} module(s)) does not`,
+    )
+  }
 }
 
 export async function dashboardInputs(root, dashboard = DASHBOARD) {
@@ -494,9 +568,73 @@ export async function dashboardInputs(root, dashboard = DASHBOARD) {
   return packageNames(ids)
 }
 
+/**
+ * 独立交叉验证用：对 Dashboard 再做一次真实 Vite 构建（同一份 vite.config.ts 与同一个按源码解析工作区包的插件），
+ * 但取模块清单的通道与 dashboardInputs 不同，所以 dashboardInputs 的收集逻辑出错时两边会对不上：
+ *   shipped：构建真正产出的 `.map` 里 `sources` 的第三方包，也就是确实有代码进了产物的包；
+ *   loaded：rollup 模块图（moduleParsed）里出现过的第三方包，也就是被加载过的包，含后来被 tree-shake 掉的。
+ * 关系应为 shipped ⊆ dashboardInputs ⊆ loaded ∪ 资源（字体等资源包没有 JS 模块）。
+ */
+export async function dashboardCrossCheckInputs(root, dashboard = DASHBOARD) {
+  const { build } = await import('vite')
+  const loaded = new Set()
+  const output = await build({
+    root: join(root, dashboard.root),
+    logLevel: 'silent',
+    plugins: [
+      workspaceVitePlugin(root),
+      { name: 'tenon-module-graph', moduleParsed: (info) => loaded.add(info.id) },
+    ],
+    build: {
+      write: false,
+      sourcemap: true,
+      outDir: join(tmpdir(), 'tenon-check-audit-dashboard-crosscheck'),
+      emptyOutDir: false,
+    },
+  })
+  const sources = []
+  for (const bundle of Array.isArray(output) ? output : [output]) {
+    for (const item of bundle.output) {
+      if (item.type !== 'asset' || !item.fileName.endsWith('.map')) continue
+      const text = typeof item.source === 'string' ? item.source : Buffer.from(item.source).toString('utf8')
+      sources.push(...JSON.parse(text).sources)
+    }
+  }
+  if (sources.length === 0 || loaded.size === 0) {
+    throw new Error('dashboard cross-check is broken: the build produced no sourcemap sources or no module graph')
+  }
+  return { shipped: packageNames(sources), loaded: packageNames(loaded) }
+}
+
+/** 两份包清单的差：expected 有而 actual 没有的 removed，actual 有而 expected 没有的 added。 */
+export function diffPackageLists(expected, actual) {
+  const expectedSet = new Set(expected)
+  const actualSet = new Set(actual)
+  return {
+    added: [...actualSet].filter((name) => !expectedSet.has(name)).sort(),
+    removed: [...expectedSet].filter((name) => !actualSet.has(name)).sort(),
+  }
+}
+
+export function readDashboardSnapshot(root = ROOT) {
+  const parsed = JSON.parse(readFileSync(join(root, DASHBOARD_SNAPSHOT_FILE), 'utf8'))
+  if (!Array.isArray(parsed) || parsed.some((name) => typeof name !== 'string')) {
+    throw new Error(`${DASHBOARD_SNAPSHOT_FILE} must be a JSON array of package names`)
+  }
+  return parsed
+}
+
+export function writeDashboardSnapshot(root, packages) {
+  writeFileSync(join(root, DASHBOARD_SNAPSHOT_FILE), `${JSON.stringify([...packages].sort(), null, 2)}\n`)
+}
+
 async function shippedCollector(root) {
   const bundles = []
-  for (const bundle of BUNDLES) bundles.push({ label: bundle.label, canary: bundle.canary, packages: await bundleInputs(root, bundle) })
+  for (const bundle of BUNDLES) {
+    const { packages, modules } = await analyzeBundle(root, bundle)
+    assertBundleModules(bundle, modules)
+    bundles.push({ label: bundle.label, canary: bundle.canary, packages })
+  }
   bundles.push({ label: DASHBOARD.label, canary: DASHBOARD.canary, packages: await dashboardInputs(root) })
   for (const bundle of bundles) {
     if (bundle.canary && !bundle.packages.has(bundle.canary)) {
@@ -527,10 +665,16 @@ export async function check({ root = ROOT, today = todayIso(), collectors = defa
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    const result = await check()
-    const lines = render(result)
-    ;(result.ok ? process.stdout : process.stderr).write(`${lines.join('\n')}\n`)
-    process.exitCode = result.ok ? 0 : 1
+    if (process.argv.includes('--update-dashboard-snapshot')) {
+      const packages = await dashboardInputs(ROOT)
+      writeDashboardSnapshot(ROOT, packages)
+      process.stdout.write(`Wrote ${packages.size} Dashboard third-party package(s) to ${DASHBOARD_SNAPSHOT_FILE}; review the diff before committing.\n`)
+    } else {
+      const result = await check()
+      const lines = render(result)
+      ;(result.ok ? process.stdout : process.stderr).write(`${lines.join('\n')}\n`)
+      process.exitCode = result.ok ? 0 : 1
+    }
   } catch (error) {
     process.stderr.write(`Dependency advisory gate could not run: ${error instanceof Error ? error.message : String(error)}\n`)
     process.exitCode = 1
