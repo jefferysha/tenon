@@ -62553,7 +62553,7 @@ var TENON_HOSTS = [
 var TENON_MARKETPLACE_SOURCE = "jefferysha/tenon";
 var TENON_MARKETPLACE_NAME = "tenon";
 var TENON_PLUGIN_NAME = "tenon";
-var TENON_RELEASE_VERSION = "0.2.1";
+var TENON_RELEASE_VERSION = "0.3.0";
 function parseHostPluginInventory(host, stdout) {
   let parsed2;
   try {

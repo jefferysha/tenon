@@ -4,7 +4,7 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
-## v0.3.0 · 2026-10-02
+## v0.3.0 · 2026-10-06
 
 v0.3 makes Tenon usable on an ordinary project and harder to fool. A small change now goes through a four-step
 `standard` lane, and the default test flow is zero-waiver: only `unit` is mandatory. The test evidence a task commits
@@ -18,7 +18,8 @@ changes and upgrade impact" before you upgrade a project.
 ### Standard lane
 
 - `standard` is a built-in workflow and track: `open → build → verify → done`, with no Explore stage and no OpenSpec
-  documents. Build runs the unit tests and the risk probe; Verify has one review gate and the reviewer `code-review`.
+  documents. Build runs the unit tests and the risk probe; Verify has one review gate and the reviewers `code-review`
+  and `security` (which attaches only on auth, dependency or contract paths).
 - Implementation-shaped requests (fix, add, refactor, in English and Chinese) route to `standard`; heavy signals
   (architecture, schema, auth, dependency upgrade, release) stay on `default`. A prompt that looks like code work but
   matches no Track gets a one-line "not governed" notice. See
@@ -34,7 +35,8 @@ changes and upgrade impact" before you upgrade a project.
 - New official reviewer `code-review`: it reads the diff against the goal and acceptance check the host appends to its
   prompt, with no spec documents. There are ten official agents now.
 - Reviewers can declare `attach_on` (`auth`, `dependency`, `contract`, `migration`) and join a step only when the task
-  touches such a path. The official `security` reviewer (1.1.0) declares `[auth, dependency, contract]`.
+  touches such a path. The official `security` reviewer (1.1.0) attaches only for `[auth, dependency, contract]`; that
+  default lives in the CLI, not in the agent file.
 - Verify runs the project's Playwright suite once: the default workflow's inline `playwright` step test is gone and the
   `e2e` reviewer (1.1.0) no longer reruns it.
 - An integration test drives a three-file bug fix through the lane and asserts at most 25 `tenon` calls and 2 user replies.
@@ -45,9 +47,16 @@ changes and upgrade impact" before you upgrade a project.
   the record chain, plan, records and catalog agreement, case-level verdicts, the candidate tree, approval lines for changed
   test configuration, anchors and test integrity. Exit `0` passes, `2` has an error finding, `1` is a usage error.
 - Formats are `text`, `json`, `sarif` (2.1.0) and `markdown` (job summary), written with `--format`, `--out` and `--also`.
-  Every report lists what CI cannot prove without the local key. The report text is Chinese in this release.
+  Every report lists what CI cannot prove without the local key.
+- Test integrity uses the step's `integrity` policy: `block` turns a signal into the error `test-integrity` (exit `2`;
+  on a shallow clone the diff cannot be read and it fails with `files-diff-unavailable`), and the default `notice` gives
+  a note that never fails the run.
+- The output follows the CLI language (`TENON_LANG=en|zh`, then `LC_ALL`, `LC_MESSAGES`, `LANG`; Chinese when none is
+  set): text, Markdown, SARIF messages, JSON `message` strings and usage errors. Finding codes, levels, exit codes and JSON
+  field names do not change.
 - The composite GitHub Action `.github/actions/tenon-verify` runs it on pull requests with the CLI bundle of the pinned
-  release, appends the job summary and uploads SARIF to code scanning. See [CI verification](ci-verification.md).
+  release, appends the job summary and uploads SARIF to code scanning. Its `language` input (`zh` or `en`) sets the report
+  language. See [CI verification](ci-verification.md).
 - `tenon evidence export <change> --format agent-trace|otel|git-notes|trailer` writes an Agent Trace v0.1 record, OTLP/JSON
   GenAI spans (nothing is sent), a git note in `refs/notes/tenon`, or `Tenon-Change:` / `Tenon-Evidence:` trailers. It
   prints by default; `--apply` writes the note or amends `HEAD`.
@@ -84,7 +93,9 @@ changes and upgrade impact" before you upgrade a project.
   command and the `tenon agent record` line. Tenon never starts the other CLI: you, or the agent in the current host, run it.
 - `tenon agent record <change> <run-id> --host <host>` stores the host (`detected` or `declared`). The verdict is bound to
   the reviewed code's content hash and to the host: a record from the wrong or an unknown host is refused (exit `2`).
-- The workflow page edits a reviewer's `host`; the agent run drawer shows the recorded host and the bound candidate.
+- The workflow page edits a reviewer's `host`. The agent run drawer shows the recorded host next to the required one, the
+  bound candidate and, until a valid run exists on the required host, a copyable `tenon agent prompt <change> <agent>`
+  command for the current and later steps of an open task. The Dashboard never runs it.
 
 ### Test flow
 
@@ -101,7 +112,9 @@ changes and upgrade impact" before you upgrade a project.
 
 - Sign-in: without a session, `GET /` and every `/api/*` request answer `401`, except `/api/health` and `/assets/*`.
   `tenon dashboard --open` mints a one-time link (2 minutes) and opens your browser signed in; no token is written to
-  disk. See [Signing in](dashboard-and-local-api.md#signing-in).
+  disk. See [Signing in](dashboard-and-local-api.md#signing-in). The page an anonymous request gets (and the one for an
+  invalid or expired link) is styled with the Dashboard's tokens in light and dark. It is in one language, English when
+  the browser's `Accept-Language` prefers it over Chinese and Chinese otherwise, and shows the command with a copy button.
 - Approving a review needs a person present: a second click requests a single-use nonce (30 seconds) bound to your
   session, the change and the review revision. `tenon review acknowledge` in a terminal is unchanged.
 - Signal replaces the per-edge pulse: one constant-speed conveyor with a four-layer streak runs from the current node and
@@ -111,14 +124,25 @@ changes and upgrade impact" before you upgrade a project.
   zoom and click-to-focus column headers; nodes are 40 px with state glyphs, and the stage rail is 3 px.
 - Pages: the workspace Next step merges blockers of one kind into 40 px rows; the Tests tab has four tabular figures, an
   Integrity section and "N optional"; the Skills page reads references from the orchestration; counts roll vertically.
+- The Tests tab keeps non-blocking notices (a fixed known failure, a noisy benchmark, an unchecked file) in a Notices
+  section of their own. The Blockers table and its count hold real blockers only.
+- English count labels agree with the number: the Tests tab summary reads Suite or Suites, Case or Cases.
+- The track tab strip fades on the side that still has hidden tabs, so a long English name is not cut mid-word; the
+  selected and the keyboard-focused tab are scrolled clear of the fade.
 - Scale: each project has its own snapshot cache. The Dashboard reads `GET /api/snapshot?view=list` and
   `/api/stream?view=list` (a full frame, then `snapshot-delta`) and a task's evidence from `GET /api/change/:name/snapshot`.
   At 30 projects × 30 tasks the list body is about 0.6 MB where the single snapshot was 11 MB, and a write plus rebuild
   stays under 1.5 s at p95.
 - English: step-exit blockers carry `code`, `subject`, `state` and `count` and are labelled from those, not parsed from the
   Chinese sentence (kept as a tooltip). `<html lang>` follows the chosen language before first paint.
+- In English, the stage, track and test-kind names of the built-in workflows (`default`, `standard`, `design-system`) are
+  shown in English while the stored label is still the shipped Chinese one; a name you edited or created is shown as
+  stored, and nothing is written back. Tables are sized by content, so words such as "Integration" are not truncated.
 - `e2e/dashboard/a11y.spec.ts` runs axe-core over the main pages in light and dark and fails on any `serious` or
   `critical` violation.
+- Accessibility fixes: the focus ring of a keyboard-focused track tab is no longer clipped by the tab strip; placed rows
+  in the skill composer are disabled, not only dimmed; the enabled Done button of the skill and agent composers (and the
+  other solid accent fills) had a contrast of 1.96:1 in dark mode and now uses the primary-button colours (4.84:1).
 
 ### Support, logs and language
 
@@ -159,8 +183,6 @@ changes and upgrade impact" before you upgrade a project.
 
 - **Review confirmation is owner-only.** A non-owner running `tenon review acknowledge` is refused. Use `--as reviewer` (the
   history records `as=reviewer owner=<id>`) or `tenon owner take <change>`. The Dashboard's Approve is unchanged.
-- **Run records are capped at 20 per user and change** (inline step tests: per test); older ones are deleted after each
-  `tenon test run`. Commit records as before and do not rely on an old run id.
 - **The Dashboard requires sign-in.** Anonymous requests get `401`, except health and assets, and a server restart signs you
   out. Run `tenon dashboard --open`; read with the CLI instead of `curl`; with no browser, run `tenon dashboard --port <port>`
   in a terminal to get the link.
@@ -210,16 +232,23 @@ A fresh install of v0.3.0 needs only the first two steps.
 
 ### Compatibility
 
-- N-1 is v0.2.1. The N-1 gate reads and writes this release's canonical task state with the published v0.2.1 in both
-  directions; the differences are the ones below.
-- Run records: the v2 schema is closed and gains no field, only the suite reason `report-untrusted`, which v0.2.1 cannot decode.
-  v0.2.1 reads a chain written here until it is pruned (more than 20 runs of one task); then it reports the chain as tampered
-  and counts the task's records as not run until its next run starts a new chain.
-- Test plans keep their format. A catalog without `profile:` and `not_applicable:` keeps its digest, and fine-profile
-  baseline file names stay valid; `profile: coarse` has its own profile id, so its baseline is a new file.
-- v0.2.1 rejects a workflow with `test_policy.integrity` or a reviewer `host:` and an agent file with `attach_on:` or
-  `host:`, does not know the `standard` workflow, and reports a corrupt agent ledger for a task whose rows carry `host`,
-  `host_source` or `rerun_reason` (`tenon agent record` writes `host` when it detects one).
+N-1 is v0.2.1. The N-1 gate (`tools/test-bundle.sh`) crosses it with this release in both directions on every run.
+
+- Whatever v0.3 writes during normal use stays readable by v0.2.1, so you can roll back with `tenon runtime repair --rollback`
+  or work next to a teammate who has not updated.
+- Test run records are never pruned by default. `TENON_RECORD_RETENTION=<n>` caps them, but v0.2.1 reports such chains as
+  tampered, so set it only when everyone is on v0.3 or later.
+- Agent run host and rerun reason are stored in `.pipeline-agent-run-meta.jsonl`, beside the run ledger, and v0.2.1 ignores it.
+- Records written by v0.2.1 read as an intact chain in v0.3 but have no local seal (`record-unsealed`). Run
+  `tenon test run <change> --stage` once after updating.
+- v0.3 counts undeclared `coverage/`, `test-results/` and `playwright-report/` as part of the workspace. A run recorded by
+  one version may show as stale in the other. Rerun, or declare the output in the catalog.
+- What needs v0.3 when you opt in (v0.2.1 reports the file as invalid or ignores the setting): `profile: coarse` or
+  `not_applicable:` in the catalog; `integrity: notice|block` in a workflow `test_policy`; `host:` on a workflow reviewer;
+  `attach_on` or `host` in a custom agent file (including `tenon agent copy security <name>`); and `TENON_RECORD_RETENTION`.
+- Standard-lane tasks (`track: standard`) are v0.3-only. v0.2.1 can list them and show their status, but `check`, `test`,
+  `agent` and `document` refuse them (`未注册的 track 'standard'`) and `status --json` has no step projection. Finish or
+  archive them before rolling back.
 - The Dashboard's full snapshot keeps its shape; `?view=list` and `GET /api/change/:name/snapshot` are additions, and every
   route except health and assets needs a session.
 
@@ -233,11 +262,12 @@ tenon support bundle --out /tmp/tenon-support.tar.gz
 tenon verify --ci --all-open
 ```
 
-The runtime reports 0.3.0 for both hosts and doctor has no red check: `env:platform` is green on macOS, Linux and WSL, and
-`env:path-tenon` is yellow while the launcher directory is not on `PATH`. With the Dashboard running, the `curl` prints
-`401`, because the request carries no session; `tenon dashboard --open` opens the page signed in. The support bundle
-lists the files it holds and the number of redactions, and has mode `0600`. In a project with governed tasks,
-`verify --ci` exits `0`, or `2` with a finding for the record, approval or candidate that does not match.
+`tenon runtime status` shows the active release with `valid=yes`. Doctor has no red check: `identity:release` lists 0.3.0 for
+the host plugin, the runtime and the Dashboard server, `env:platform` is green on macOS, Linux and WSL, and `env:path-tenon`
+is yellow while the launcher directory is not on `PATH`. With the Dashboard running, the `curl` prints `401`, because the
+request carries no session; `tenon dashboard --open` opens the page signed in. The support bundle lists the files it
+holds and the number of redactions, and has mode `0600`. `verify --ci` exits `0` when no task is in scope or every task
+passes, and `2` with a finding for the record, approval or candidate that does not match.
 
 ## v0.2.1 · 2026-10-01
 

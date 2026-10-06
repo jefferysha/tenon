@@ -12,27 +12,29 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 
 面向用户的解释、影响与操作步骤默认使用中文。
 
-## v0.3.0 · 2026-10-02
+## v0.3.0 · 2026-10-06
 
 v0.3 让 Tenon 在普通项目里能用，也更难被糊弄。小改动现在走四步的 `standard` 标准通道，默认测试流程零豁免：只有 `unit` 是必需的。任务提交的测试证据可以在 CI 里只凭仓库重新校验（`tenon verify --ci` 与一个 GitHub Action），由本机信任根和完整性报告守着，评审者还可以被要求在另一家厂商的 CLI 上运行。Dashboard 需要登录，工作流画在分色带的画布上并带 Signal 流动动画，30 个项目的快照小于 1 MB，英文界面的阻断标签不再解析中文文本，CI 里还有 axe 无障碍检查。`tenon support bundle` 与 `tenon logs` 负责诊断。本版本包含 v0.2.1 的 launcher 修复。升级项目前请先读「行为变化与升级影响」。
 
 ### 标准通道
 
-- `standard` 是内建的工作流与轨道：`open → build → verify → done`，没有 Explore 阶段，也没有 OpenSpec 文档。Build 跑单测和改动风险探针，Verify 只有一道评审门和评审者 `code-review`。
+- `standard` 是内建的工作流与轨道：`open → build → verify → done`，没有 Explore 阶段，也没有 OpenSpec 文档。Build 跑单测和改动风险探针，Verify 只有一道评审门，评审者是 `code-review` 和 `security`（后者只在碰到鉴权、依赖或契约路径时挂载）。
 - 实现类请求（修、加、重构，中英文都认）路由到 `standard`；带重型信号的请求（架构、schema、鉴权、依赖升级、发布）仍走 `default`。看上去在改代码、却没有任何轨道命中的提示，会收到一行「未被治理」的说明。见[标准通道](routing-and-workflows.md#标准通道)。
 - `tenon test diff-risk [<change>] [--json]` 是 Build 要求的改动风险探针：源码文件多于 8 个、动了契约、鉴权、依赖或迁移路径、删了测试、改了测试配置，任一项都不通过（阈值是工作流 YAML 里的 `pass.metrics`）。探针不过时，`step.next` 只剩一条带 `escalate` 载荷的 `scope-expanded` 转换，提示改开 `default` 任务。
 - `tenon step run <change> [--json]` 一次做完 `step.next` 里确定性的部分（铺文档骨架、登记已写好的文档、读取回执、生成测试计划初稿），遇到需要宿主或作者的动作就停下。
 - `tenon document record <change> --all` 登记当前步骤所有文件已写好的文档；没写完的会列出并跳过。
 - 新增官方评审者 `code-review`：对照宿主附在提示末尾的目标与验收标准看 diff，不需要规格文档。官方智能体现在是十个。
-- 评审者可以声明 `attach_on`（`auth`、`dependency`、`contract`、`migration`），任务碰到这些路径类才挂到步骤上。官方 `security`（1.1.0）声明 `[auth, dependency, contract]`。
+- 评审者可以声明 `attach_on`（`auth`、`dependency`、`contract`、`migration`），任务碰到这些路径类才挂到步骤上。官方 `security`（1.1.0）只在 `[auth, dependency, contract]` 时挂载，这个默认值写在 CLI 里，不在 agent 文件里。
 - Verify 只跑一遍项目的 Playwright 套件：默认工作流里内联的 `playwright` 步骤测试没有了，`e2e` 评审者（1.1.0）也不再重跑。
 - 一条集成测试把三个文件的缺陷修复从头走到尾，断言最多 25 次 `tenon` 调用、2 次用户回复。
 
 ### CI 校验与证据导出
 
 - `tenon verify --ci (--change <name> | --all-open | --since <ref>)` 不用你的本机密钥就能重新校验已提交的证据：记录链、计划与记录与目录一致、用例级判定、候选代码、变更过的测试配置的批准行、锚点和测试完整性。退出码 `0` 通过，`2` 有错误级发现，`1` 是用法错误。
-- 格式有 `text`、`json`、`sarif`（2.1.0）和 `markdown`（作业摘要），用 `--format`、`--out`、`--also` 输出。每份报告都列出没有本机密钥时 CI 证明不了什么。本版本的报告文字是中文。
-- 复合 GitHub Action `.github/actions/tenon-verify` 在 Pull Request 上运行它，用所固定发布里的 CLI bundle，追加作业摘要并把 SARIF 上传到 code scanning。见 [CI 校验](ci-verification.md)。
+- 格式有 `text`、`json`、`sarif`（2.1.0）和 `markdown`（作业摘要），用 `--format`、`--out`、`--also` 输出。每份报告都列出没有本机密钥时 CI 证明不了什么。
+- 测试完整性按步骤的 `integrity` 策略判定：`block` 把信号变成错误 `test-integrity`（退出码 `2`；浅克隆读不出改动行，则以 `files-diff-unavailable` 失败），缺省的 `notice` 只给一条永远不让运行失败的提示。
+- 输出语言跟随 CLI 语言（`TENON_LANG=en|zh`，其次 `LC_ALL`、`LC_MESSAGES`、`LANG`；都没设时是中文）：文本、Markdown、SARIF 消息、JSON 的 `message` 字符串和用法错误。发现码、级别、退出码和 JSON 字段名不变。
+- 复合 GitHub Action `.github/actions/tenon-verify` 在 Pull Request 上运行它，用所固定发布里的 CLI bundle，追加作业摘要并把 SARIF 上传到 code scanning。它的 `language` 输入（`zh` 或 `en`）决定报告语言。见 [CI 校验](ci-verification.md)。
 - `tenon evidence export <change> --format agent-trace|otel|git-notes|trailer` 输出 Agent Trace v0.1 记录、OTLP/JSON GenAI span（不会发往任何地方）、`refs/notes/tenon` 里的 git note，或 `Tenon-Change:` / `Tenon-Evidence:` 提交尾注。默认只打印，`--apply` 才写 note 或 amend `HEAD`。
 - `--anchor`（git-notes）把记录链头抄进 note；`verify --ci` 报告 `anchor-mismatch` 或 `anchor-behind`，`--require-anchor` 让缺失或落后的锚点变成错误。
 
@@ -51,7 +53,7 @@ v0.3 让 Tenon 在普通项目里能用，也更难被糊弄。小改动现在�
 - 工作流步骤可以要求评审者在 `host: codex | claude | any` 上运行（Claude 写、Codex 审）；智能体文件可以用 `host:` 建议一个（`tenon agent new --host`）。步骤的声明有约束力，智能体的只负责路由。
 - 在另一个宿主或纯终端里，`tenon agent prompt` 把提示写到 `openspec/changes/<change>/.pipeline-agent-reports/<run-id>.prompt.md`，打印 `codex exec …` 或 `claude -p …` 命令和 `tenon agent record` 那一行。Tenon 从不启动另一家的 CLI：由你，或当前宿主里的 agent 去运行。
 - `tenon agent record <change> <run-id> --host <host>` 记录宿主（`detected` 或 `declared`）。裁决绑定被评审代码的内容哈希和宿主：宿主不对或未知的登记被拒绝（退出 `2`）。
-- 工作流页可以编辑评审者的 `host`；智能体运行抽屉显示记录的宿主和绑定的候选。
+- 工作流页可以编辑评审者的 `host`。智能体运行抽屉并排显示记录的宿主和要求的宿主、绑定的候选；要求的宿主上还没有有效运行时，对任务当前及之后的步骤给出可复制的 `tenon agent prompt <change> <agent>` 命令。Dashboard 从不运行它。
 
 ### 测试流程
 
@@ -61,14 +63,19 @@ v0.3 让 Tenon 在普通项目里能用，也更难被糊弄。小改动现在�
 
 ### Dashboard
 
-- 登录：没有会话时，`GET /` 和所有 `/api/*` 请求都返回 `401`，只有 `/api/health` 与 `/assets/*` 例外。`tenon dashboard --open` 铸一条一次性登录链接（2 分钟、只能用一次），由 server 自己打开浏览器；页面用它换一个 `HttpOnly; SameSite=Strict` cookie，只在 server 内存里。不往磁盘写任何 token。见[登录](dashboard-and-local-api.md#登录)。
+- 登录：没有会话时，`GET /` 和所有 `/api/*` 请求都返回 `401`，只有 `/api/health` 与 `/assets/*` 例外。`tenon dashboard --open` 铸一条一次性登录链接（2 分钟、只能用一次），由 server 自己打开浏览器；页面用它换一个 `HttpOnly; SameSite=Strict` cookie，只在 server 内存里。不往磁盘写任何 token。见[登录](dashboard-and-local-api.md#登录)。匿名请求拿到的页面（链接无效或过期时的页面也一样）用 Dashboard 的设计 token 画成，浅色、暗色都有。它只用一种语言：浏览器的 `Accept-Language` 把英文排在中文之前时是英文，否则是中文，并带一个可复制的命令。
 - 批准评审需要有人在场：第二次点击才会申请一枚一次性 nonce（30 秒），它绑定你的会话、任务和评审修订号。终端里的 `tenon review acknowledge` 不变。
 - Signal 取代逐边脉冲：一条恒速传送带，四层彗星从当前节点出发，停在评审门前。`prefers-reduced-motion` 时只显示静态高亮；画布离屏或标签页隐藏时动画暂停。
 - 总览是无框的列，按宽度适配，每列一根脊线，每个并行波次一道括线，语义缩放，点列头聚焦到该阶段；节点高 40 px，带状态符号，阶段条 3 px。
 - 页面：工作台的「下一步」把同类阻断合并成 40 px 的行；测试页签有四个等宽数字、「完整性」区块和「N 可选」；技能页的引用来自编排接口；计数变化纵向滚动。
+- 测试页签把不阻塞的提示（已修好的已知失败、基准波动、未检查的文件）放进单独的「提示」区块，「阻塞」表和它的计数只含真正的阻塞。
+- 英文的计数词随数量变化：测试页签的汇总写 Suite 或 Suites、Case 或 Cases。
+- 轨道页签条在还有隐藏页签的一侧渐隐，英文长名字不会被从中间截断；选中的和键盘聚焦的页签会被滚到渐隐区之外。
 - 规模：每个项目一个快照缓存单元，写请求只清掉它点名的项目。Dashboard 读 `GET /api/snapshot?view=list` 与 `/api/stream?view=list`（先发完整帧，之后只发 `snapshot-delta`），任务的证据从 `GET /api/change/:name/snapshot` 读。30 个项目 × 30 个任务时列表体约 0.6 MB，原来的单份快照是 11 MB；写入后重建列表的 p95 保持在 1.5 s 以内（`bench-snapshot-large` 把关）。
 - 英文：step-exit 阻断带 `code`、`subject`、`state`、`count`，据此生成标签，不再解析中文整句（整句留作 tooltip）。`<html lang>` 在首帧前就跟随所选语言。
+- 英文界面里，内建工作流（`default`、`standard`、`design-system`）的阶段、轨道和测试种类名，在存下来的名字仍是出厂中文名时显示英文；你改过的、自建的名字原样显示，也不会写回。表格按内容定宽，所以「Integration」这类词不再被截断。
 - `e2e/dashboard/a11y.spec.ts` 在亮、暗两种主题下用 axe-core 扫主要页面，出现任何 `serious` 或 `critical` 违规即失败。
+- 无障碍修复：键盘聚焦的轨道页签的焦点环不再被页签条裁掉；技能编排器里已放置的行现在是禁用的，而不只是变淡；技能和智能体编排器里可用的「完成」按钮（以及其他实心强调色底）在暗色下对比度只有 1.96:1，现在改用主按钮配色（4.84:1）。
 
 ### 支持、日志与语言
 
@@ -96,7 +103,6 @@ v0.3 让 Tenon 在普通项目里能用，也更难被糊弄。小改动现在�
 ### 行为变化与升级影响
 
 - **确认评审只认负责人。** 非负责人运行 `tenon review acknowledge` 会被拒绝。用 `--as reviewer`（历史里记 `as=reviewer owner=<id>`）或 `tenon owner take <change>`。Dashboard 的「批准」不变。
-- **运行记录每个用户每个任务最多保留 20 条**（内联步骤测试：每个测试 20 条），每次 `tenon test run` 之后删除更早的。照常提交记录，不要依赖很久以前的 run id。
 - **Dashboard 需要登录。** 匿名请求得到 `401`，只有 health 和静态资源例外，server 重启会让你退出登录。运行 `tenon dashboard --open`；原来用 `curl` 的地方改用 CLI 读取；没有浏览器时在终端运行 `tenon dashboard --port <端口>` 取登录链接。
 - **带 `profile:` 的目录会被旧版 Tenon 拒绝**，带 `not_applicable:` 的也一样。等所有读这个仓库的人都更新之后再加；不带它们的目录读法和以前一样。
 - **默认测试流程零豁免。** 更新前已开始的任务沿用冻结的计划。想要求别的种类，在你的工作流 `test_policy` 里声明。discover 认不出你的 `npm test` 时，登记一个 `unit` 套件（`tenon test catalog add`）或声明 `unit` 不适用，否则 Spec 会以 `test-kind-missing` 停住。
@@ -130,10 +136,15 @@ v0.3 让 Tenon 在普通项目里能用，也更难被糊弄。小改动现在�
 
 ### 兼容性
 
-- N-1 是 v0.2.1。N-1 兼容门禁在两个方向上用已发布的 v0.2.1 读写本版本的 canonical 任务状态；差异就是下面这些。
-- 运行记录：v2 schema 是闭集，没有新增字段，只新增了套件原因 `report-untrusted`，v0.2.1 解码不了它。v0.2.1 能读本版本写的链，直到它被清理（同一任务超过 20 次运行）；之后它把链报告为被改动，该任务的记录都算未运行，直到它自己的下一次运行另起新链。
-- 测试计划格式不变。不带 `profile:` 和 `not_applicable:` 的目录摘要不变，fine 画像的基线文件名依然有效；`profile: coarse` 有自己的画像 id，所以它的基线是新文件。
-- v0.2.1 会拒绝带 `test_policy.integrity` 或评审者 `host:` 的工作流、带 `attach_on:` 或 `host:` 的智能体文件，不认识 `standard` 工作流，并且对运行行带 `host`、`host_source` 或 `rerun_reason` 的任务报告 agent 账本损坏（`tenon agent record` 检测到宿主时会写 `host`）。
+N-1 是 v0.2.1。N-1 兼容门禁（`tools/test-bundle.sh`）每次运行都在两个方向上让它与本版本互相读写。
+
+- v0.3 在正常使用中写下的数据都能被 v0.2.1 读取，所以可以用 `tenon runtime repair --rollback` 回滚，也可以和还没更新的同事在同一个仓库里继续工作。
+- 测试运行记录默认不清理。`TENON_RECORD_RETENTION=<n>` 可以限制条数，但 v0.2.1 会把这样的链报告为被改动，所以只在所有人都已是 v0.3 或更新时才设它。
+- agent 运行的宿主与重跑原因记在运行台账旁边的 `.pipeline-agent-run-meta.jsonl` 里，v0.2.1 不读这个文件。
+- v0.2.1 写下的记录在 v0.3 里读作完好的链，但没有本机封存（`record-unsealed`）。更新之后运行一次 `tenon test run <change> --stage`。
+- v0.3 把没有声明过的 `coverage/`、`test-results/`、`playwright-report/` 算进工作区。一个版本写下的运行在另一个版本里可能显示为过期。重跑，或在目录里声明这些输出。
+- 你主动选用时需要 v0.3 的能力（v0.2.1 会把文件判为非法或忽略该设置）：目录里的 `profile: coarse` 或 `not_applicable:`；工作流 `test_policy` 里的 `integrity: notice|block`；工作流评审者上的 `host:`；自定义 agent 文件里的 `attach_on` 或 `host`（`tenon agent copy security <名字>` 写出的副本也带它）；以及 `TENON_RECORD_RETENTION`。
+- standard 通道的任务（`track: standard`）只有 v0.3 能用。v0.2.1 能列出它们、显示状态，但 `check`、`test`、`agent`、`document` 会拒绝（`未注册的 track 'standard'`），`status --json` 也没有 step 投影。回滚之前先完结或归档它们。
 - Dashboard 的完整快照形状不变；`?view=list` 与 `GET /api/change/:name/snapshot` 是新增，除 health 和静态资源外所有路由都需要会话。
 
 ### 验证
@@ -146,7 +157,7 @@ tenon support bundle --out /tmp/tenon-support.tar.gz
 tenon verify --ci --all-open
 ```
 
-两个宿主的 runtime 都报告 0.3.0，doctor 没有红灯：`env:platform` 在 macOS、Linux、WSL 上为绿，launcher 目录不在 `PATH` 上时 `env:path-tenon` 为黄。Dashboard 在运行时，`curl` 打印 `401`，因为请求没有带会话；`tenon dashboard --open` 会打开已登录的页面。support bundle 列出包含的文件和脱敏次数，权限为 `0600`。在有受治理任务的项目里，`verify --ci` 退出 `0`；记录、批准或候选代码对不上时退出 `2` 并给出发现。
+`tenon runtime status` 显示当前 release 为 `valid=yes`。doctor 没有红灯：`identity:release` 列出宿主插件、runtime 和 Dashboard server 都是 0.3.0，`env:platform` 在 macOS、Linux、WSL 上为绿，launcher 目录不在 `PATH` 上时 `env:path-tenon` 为黄。Dashboard 在运行时，`curl` 打印 `401`，因为请求没有带会话；`tenon dashboard --open` 会打开已登录的页面。support bundle 列出包含的文件和脱敏次数，权限为 `0600`。没有任务在范围内或每个任务都通过时，`verify --ci` 退出 `0`；记录、批准或候选代码对不上时退出 `2` 并给出发现。
 
 ## v0.2.1 · 2026-10-01
 
