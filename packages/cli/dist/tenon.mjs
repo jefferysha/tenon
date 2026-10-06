@@ -12452,29 +12452,80 @@ async function hasHostLocalFiles(root) {
 var runGit = promisify(execFile);
 var GIT_TIMEOUT_MS = 3e4;
 var GIT_MAX_BUFFER = 64 * 1024 * 1024;
-async function trackedHostLocalPaths(root) {
+function isMissing(error2) {
+  return typeof error2 === "object" && error2 !== null && Reflect.get(error2, "code") === "ENOENT";
+}
+function foldAsciiCase(path15) {
+  return path15.replace(/[A-Z]/gu, (letter) => letter.toLowerCase());
+}
+function swapAsciiCase(name2) {
+  return name2.replace(/[A-Za-z]/gu, (letter) => letter === letter.toLowerCase() ? letter.toUpperCase() : letter.toLowerCase());
+}
+async function isCaseInsensitiveRoot(root) {
+  for (const name2 of new Set([...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS].map((path15) => path15.split("/")[0] ?? path15))) {
+    const swapped = swapAsciiCase(name2);
+    if (swapped === name2)
+      continue;
+    let original;
+    try {
+      original = await lstat10(join17(root, name2));
+    } catch {
+      continue;
+    }
+    try {
+      const other = await lstat10(join17(root, swapped));
+      return other.dev === original.dev && other.ino === original.ino;
+    } catch (error2) {
+      return !isMissing(error2);
+    }
+  }
+  return true;
+}
+var NO_REPOSITORY_MESSAGE = /^fatal: not a git repository \(or any of the parent directories\)/imu;
+async function hasGitEntry(root) {
   try {
-    const { stdout } = await runGit("git", ["ls-files", "-z", "--cached", "--", ...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS], {
+    await lstat10(join17(root, ".git"));
+    return true;
+  } catch (error2) {
+    return !isMissing(error2);
+  }
+}
+async function hostLocalTracking(root) {
+  const caseInsensitive = await isCaseInsensitiveRoot(root);
+  const args = [...caseInsensitive ? ["--icase-pathspecs"] : [], "ls-files", "-z", "--cached", "--", ...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS];
+  try {
+    const { stdout } = await runGit("git", args, {
       cwd: root,
       timeout: GIT_TIMEOUT_MS,
       maxBuffer: GIT_MAX_BUFFER,
       env: { ...process.env, LC_ALL: "C", LANG: "C" }
     });
-    return new Set(stdout.split("\0").filter((path15) => path15 !== ""));
+    return { tracked: new Set(stdout.split("\0").filter((path15) => path15 !== "")), caseInsensitive };
   } catch (error2) {
     const stderr = typeof error2 === "object" && error2 !== null ? Reflect.get(error2, "stderr") : void 0;
-    return typeof stderr === "string" && /not a git repository/iu.test(stderr) ? /* @__PURE__ */ new Set() : void 0;
+    const noRepository = typeof stderr === "string" && NO_REPOSITORY_MESSAGE.test(stderr) && !await hasGitEntry(root);
+    return noRepository ? { tracked: /* @__PURE__ */ new Set(), caseInsensitive } : void 0;
   }
 }
+async function trackedHostLocalPaths(root) {
+  return (await hostLocalTracking(root))?.tracked;
+}
 var SKIP_NOTHING = () => false;
-function skipUntrackedHostLocal(tracked) {
+function skipUntrackedHostLocal(tracked, caseInsensitive = false) {
+  const key = caseInsensitive ? foldAsciiCase : (path15) => path15;
+  const trackedKeys = new Set([...tracked].map(key));
   const holdingTracked = /* @__PURE__ */ new Set();
-  for (const path15 of tracked) {
+  for (const path15 of trackedKeys) {
     const parts = path15.split("/");
     for (let end = 1; end < parts.length; end++)
       holdingTracked.add(parts.slice(0, end).join("/"));
   }
-  return (relativePath) => isHostLocalPath(relativePath) && !tracked.has(relativePath) && !holdingTracked.has(relativePath);
+  return (relativePath) => {
+    if (!isHostLocalPath(relativePath))
+      return false;
+    const folded = key(relativePath);
+    return !trackedKeys.has(folded) && !holdingTracked.has(folded);
+  };
 }
 
 // packages/kernel/dist/workspace/process-local-fd-path.js
@@ -12693,8 +12744,12 @@ async function fingerprintWorkspaceTwins(root, options) {
     throw new Error(`workspace root is not a directory: ${root}`);
   const exclusions = exclusionsOf(options);
   const full2 = { id: "full", skip: SKIP_NOTHING, gitModes: false };
-  const tracked = await hasHostLocalFiles(root) ? await trackedHostLocalPaths(root) : void 0;
-  const portable = { id: "portable", skip: tracked === void 0 ? SKIP_NOTHING : skipUntrackedHostLocal(tracked), gitModes: true };
+  const tracking = await hasHostLocalFiles(root) ? await hostLocalTracking(root) : void 0;
+  const portable = {
+    id: "portable",
+    gitModes: true,
+    skip: tracking === void 0 ? SKIP_NOTHING : skipUntrackedHostLocal(tracking.tracked, tracking.caseInsensitive)
+  };
   const sinks = [full2, portable];
   const streams = new FingerprintStreams();
   emit(streams, sinks, (sink) => recordText("D", ".", recordedMode(sink, "D", rootStat)));
@@ -20061,7 +20116,7 @@ async function clearReviewMarkerFor(root, change, event) {
   try {
     content = await readFile20(marker, "utf8");
   } catch (error2) {
-    if (isMissing(error2))
+    if (isMissing2(error2))
       return;
     throw error2;
   }
@@ -20073,7 +20128,7 @@ async function clearReviewMarkerFor(root, change, event) {
   try {
     await unlink4(marker);
   } catch (error2) {
-    if (!isMissing(error2))
+    if (!isMissing2(error2))
       throw error2;
   }
 }
@@ -20083,7 +20138,7 @@ async function clearReviewMarkerOfChange(root, change) {
   try {
     content = await readFile20(marker, "utf8");
   } catch (error2) {
-    if (isMissing(error2))
+    if (isMissing2(error2))
       return false;
     throw error2;
   }
@@ -20094,12 +20149,12 @@ async function clearReviewMarkerOfChange(root, change) {
     await unlink4(marker);
     return true;
   } catch (error2) {
-    if (isMissing(error2))
+    if (isMissing2(error2))
       return false;
     throw error2;
   }
 }
-function isMissing(error2) {
+function isMissing2(error2) {
   return error2 !== null && typeof error2 === "object" && "code" in error2 && error2.code === "ENOENT";
 }
 
@@ -82605,7 +82660,7 @@ function commandPath(command2) {
   for (let cur = command2; cur !== null && cur.parent !== null; cur = cur.parent) names.unshift(cur.name());
   return names.join(" ");
 }
-function isMissing2(error2) {
+function isMissing3(error2) {
   return typeof error2 === "object" && error2 !== null && Reflect.get(error2, "code") === "ENOENT";
 }
 function entryExists(path15) {
@@ -82624,7 +82679,7 @@ function registerChangeExistenceGuard(program2, deps) {
     try {
       await readChangeForDisplay((dir) => deps.store.read(dir), deps.cwd, name2);
     } catch (error2) {
-      if (!isMissing2(error2) || entryExists(changeDir(deps.cwd, name2))) return;
+      if (!isMissing3(error2) || entryExists(changeDir(deps.cwd, name2))) return;
       deps.io.err(`ERROR: ${msg(deps, "change.notFound", { name: name2 })}`);
       throw new CliExit(1);
     }
@@ -88170,7 +88225,7 @@ import { constants as constants13 } from "node:fs";
 import { link as link5, lstat as lstat69, mkdir as mkdir58, open as open12, unlink as unlink10 } from "node:fs/promises";
 import { dirname as dirname41 } from "node:path";
 var KEY_BYTES = 32;
-function isMissing3(error2) {
+function isMissing4(error2) {
   return typeof error2 === "object" && error2 !== null && "code" in error2 && error2.code === "ENOENT";
 }
 function isExisting(error2) {
@@ -88227,7 +88282,7 @@ async function loadOrCreateObservationKey(path15) {
   try {
     return await readKey2(path15);
   } catch (error2) {
-    if (!isMissing3(error2)) throw error2;
+    if (!isMissing4(error2)) throw error2;
   }
   await createKey(path15);
   return readKey2(path15);

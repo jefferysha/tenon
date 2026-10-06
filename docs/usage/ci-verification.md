@@ -173,12 +173,18 @@ shared or unlisted configuration and stay part of the candidate; `.claude/agents
 **Only paths git does not track are left out.** A path on the list that git tracks (committed or staged) is
 part of the repository, so the fingerprint counts it, in the author's workspace and in CI alike. Without
 that rule a pull request could commit code under `.claude/worktrees/`, point a test command at it, and
-change it later without moving the candidate. The check is `git ls-files` on the list only; a directory
-that is not a git repository tracks nothing, and when git cannot answer (missing, corrupt index) nothing
-is left out. When a `candidate-mismatch` happens in a checkout that tracks such paths, the message lists
-them. This is a rule about the fingerprint, not a finding: a tracked path changes the candidate like any
-other source file, and moving a file under the list from untracked to tracked after the tests ran fails
-the check, because the clone counts it.
+change it later without moving the candidate. The check is `git ls-files` on the list only. A directory
+that is genuinely not a git repository tracks nothing: git finds no repository in it or in any parent
+directory, and the project root has no `.git` entry. When git cannot answer, nothing is left out; that
+covers git missing, a corrupt index, a `.git` gitfile whose `gitdir` target is gone, an empty, corrupt or
+unreadable `.git`, and a repository above the project that git does not enter because it lies on another
+file system. On a case-insensitive file system (found by probing the project root) a path matches git's
+answer whatever its case, because git reports the index's spelling and the disk may spell it differently:
+a tracked `.Claude/Settings.local.json` counts as the tracked `.claude/settings.local.json`. When a
+`candidate-mismatch` happens in a checkout that tracks such paths, the message lists them. This is a
+rule about the fingerprint, not a finding: a tracked path changes the candidate like any other source
+file, and moving a file under the list from untracked to tracked after the tests ran fails the check,
+because the clone counts it.
 
 Records written by Tenon 0.3.1 and later bind the fingerprint without those files, so a clean clone
 reproduces it and editing them never makes a record stale. That fingerprint also records permission
