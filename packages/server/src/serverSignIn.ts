@@ -4,7 +4,8 @@
  * 这是服务端渲染的静态页：不含任何应用数据、会话或写 token，只有页面自己需要的内联样式与一小段复制脚本。
  * 外观取 Dashboard 的 token（暖灰底、深绿 accent、Inter / 应用字体栈、13–34 字号刻度，浅色 / 暗色跟随系统）；
  * 一种语言——按 Accept-Language 选：en 优先于 zh 用英文，其余一律中文——并同步 `<html lang>`。
- * 页面只有标题、一条命令（带复制钮）和「继续」链接；解释放在 title。
+ * 页面只有标题、一条命令（带复制钮）和「继续」链接；解释放在 title。命令块关掉字体连字：等宽字体的上下文替代会把 `--open`
+ * 的两个短横画成一条长横，用户会以为是 en dash（文本本身是 ASCII，复制出来是对的）。
  *
  * CSP 保持严格：default-src 'none'，样式与脚本各一个 sha256（哈希由内联内容算出，改内容自动跟着变），
  * 不开 'unsafe-inline'、不用 nonce（页面是静态的）。
@@ -80,7 +81,7 @@ main{width:100%;max-width:440px;display:grid;gap:24px;padding:32px;background:va
 .mark{display:grid;place-items:center;width:36px;height:36px;border-radius:8px;background:var(--ink);color:var(--ink-fg);font:600 19px/1 var(--font)}
 h1{margin:0;font-size:24px;line-height:34px;font-weight:600;letter-spacing:-.015em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cmd{display:flex;align-items:center;gap:4px;min-width:0;padding-left:12px;border-radius:8px;background:var(--code-bg);border:1px solid var(--code-border)}
-code{flex:1;min-width:0;padding:8px 0;font:400 16px/22px var(--mono);white-space:nowrap;overflow-x:auto;color:var(--text)}
+code{flex:1;min-width:0;padding:8px 0;font:400 16px/22px var(--mono);font-variant-ligatures:none;font-feature-settings:"liga" 0,"calt" 0;white-space:nowrap;overflow-x:auto;color:var(--text)}
 button{position:relative;flex:none;display:grid;place-items:center;width:32px;height:32px;margin:0;padding:0;border:0;border-radius:8px;background:transparent;color:var(--text-3);cursor:pointer}
 button::after{content:"";position:absolute;inset:-4px}
 button:hover{background:var(--fill);color:var(--text)}

@@ -86,6 +86,8 @@ test.describe('登录', () => {
 
     await expect(page.getByTestId('offline-banner')).toContainText('登录已失效')
     await expect(page.getByTestId('offline-restart-text')).toHaveText('tenon dashboard --open')
+    // Dashboard 里命令块同样关掉连字。
+    expect(await page.getByTestId('offline-restart-text').evaluate((element) => getComputedStyle(element).fontVariantLigatures)).toBe('none')
   })
 })
 
@@ -131,7 +133,7 @@ for (const scheme of ['light', 'dark'] as const) {
             return {
               background: style('body').backgroundColor, card: style('main').backgroundColor, link: style('a').color,
               heading: style('h1').fontSize, command: style('code').fontSize, linkSize: style('a').fontSize, family: style('body').fontFamily,
-              mono: style('code').fontFamily, scrollW: document.documentElement.scrollWidth, clientW: document.documentElement.clientWidth,
+              mono: style('code').fontFamily, ligatures: style('code').fontVariantLigatures, scrollW: document.documentElement.scrollWidth, clientW: document.documentElement.clientWidth,
               button: { w: (document.getElementById('copy') as HTMLElement).offsetWidth, h: (document.getElementById('copy') as HTMLElement).offsetHeight },
             }
           })
@@ -141,6 +143,8 @@ for (const scheme of ['light', 'dark'] as const) {
           expect([look.heading, look.command, look.linkSize]).toEqual(['24px', '16px', '14px'])
           expect(look.family).toContain('Inter')
           expect(look.mono).toContain('monospace')
+          // 命令里的 `--open` 不能被等宽字体连成一条长横（看上去像 en dash）。
+          expect(look.ligatures).toBe('none')
           expect(look.scrollW).toBeLessThanOrEqual(look.clientW)
           expect(look.button).toEqual({ w: 32, h: 32 })
 

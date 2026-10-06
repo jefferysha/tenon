@@ -431,6 +431,17 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* 命令、路径、id 在等宽字体里一律不连字：上下文替代（calt）会把 `--open` 的两个短横画成一条长横，看上去像 en dash，
+   * 而复制出来的文本其实是 ASCII。`font-mono` 工具类、code / pre / kbd / samp 都在此列。 */
+  code,
+  pre,
+  kbd,
+  samp,
+  .font-mono {
+    font-variant-ligatures: none;
+    font-feature-settings: 'liga' 0, 'calt' 0;
+  }
+
   :focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
