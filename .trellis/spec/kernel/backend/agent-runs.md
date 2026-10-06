@@ -71,7 +71,11 @@ renderAgentBlocker(blocker, change): string
 - **Ledger**: `.pipeline-agent-runs.jsonl` is append-only; each state change writes a whole row, and the
   **last row per `run_id` wins**. `running` rows are what the skill gate reads, so no second file is needed.
   The relevant run for a verdict is the last one for that agent **within the current step visit**
-  (`step_visit`); rows from an earlier visit are history.
+  (`step_visit`); rows from an earlier visit are history. Ledger rows are a **closed set** for the previous
+  release (v0.2.1 rejects the whole ledger on an unknown key), so `host`, `host_source` and `rerun_reason`
+  are never written into a row: they go to the sidecar `.pipeline-agent-run-meta.jsonl` keyed by `run_id`
+  (`state/agent-run-meta.ts`, written before the row, folded back in by `readAgentRuns`). Rows that already
+  carry them are still read.
 - **Verdict** (`evaluateStepAgents`, declaration order): every executor must be `done` with result `done`;
   every **required** reviewer must be `done` and pass on the **current candidate**. Advisory reviewers never
   block. A reviewer's result is computed, never self-reported: findings at or above `block_at`

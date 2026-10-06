@@ -92,6 +92,43 @@ If no valid previous release exists, reinstall the selected host:
 tenon setup --codex
 ```
 
+### Compatibility with the previous release (v0.2.1)
+
+Whatever Tenon v0.3 writes during normal use stays readable by v0.2.1, so you can roll back with
+`tenon runtime repair --rollback`, or keep working next to a teammate who has not updated yet.
+v0.2.1 does not treat that data as corrupt, tampered or invalid, and v0.3 reads what v0.2.1 wrote.
+The release gate (`tools/test-bundle.sh`) crosses the two versions in both directions on every run.
+
+- **Test run records are never pruned by default.** v0.3 keeps every record of a run chain.
+  To cap how many records a task commits, set `TENON_RECORD_RETENTION=<n>` (for example `20`) when
+  running `tenon test run`: after each run only the newest `n` records per user and Change are kept and
+  a `chain-base` marker is left beside them. v0.3 reads such chains; v0.2.1 does not know the marker and
+  reports the chain as tampered (`找不到链首记录`) until a rerun starts a fresh chain. Set it only when
+  everyone who runs tests in the repository is on v0.3 or later. Records of inline step tests keep the
+  newest 20 per test as before.
+- **Agent run host and rerun reason** are stored in `.pipeline-agent-run-meta.jsonl` beside
+  `.pipeline-agent-runs.jsonl`, which v0.2.1 ignores, so its closed ledger reader keeps working.
+- **Records written by v0.2.1** read as an intact chain in v0.3 but have no local seal, so v0.3 treats them
+  like records from another machine (`record-unsealed`): run `tenon test run <change> --stage` once and
+  the new run starts a fresh chain.
+- **Undeclared test output.** v0.3 counts a `coverage/`, `test-results/` or `playwright-report/` directory that
+  no catalog suite declares as part of the workspace, v0.2.1 ignored such directories. In a workspace that
+  has one, a run recorded by one version shows as stale (candidate changed) in the other; run the suite
+  again, or declare the output in the catalog (`tenon test discover` declares the usual ones).
+
+What you opt into needs v0.3; v0.2.1 reports the file as invalid or ignores the setting, and these are not
+made readable on purpose:
+
+- `profile: coarse` or a `not_applicable:` list in `.tenon/tests/catalog.yaml`;
+- `integrity: notice` or `integrity: block` written in a workflow's `test_policy`;
+- `host: codex|claude` on a workflow reviewer;
+- `attach_on` or `host` in a custom agent file (also what `tenon agent copy security <name>` writes);
+- `TENON_RECORD_RETENTION` (above).
+
+The standard lane (`track: standard`) is a v0.3 lane the router may pick for small implementation requests.
+v0.2.1 reports `未注册的 track 'standard'` for those tasks (`list`, `status` and `get` still work), so finish
+or archive standard tasks before rolling back.
+
 ## Canonical project-state recovery
 
 Inspect before repair:

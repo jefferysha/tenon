@@ -241,9 +241,12 @@ unstaged and untracked files. When that diff cannot be read the gate blocks with
 `test run` writes one v2 record per invocation (`.tenon/users/<slug>/tests/<change>/<run-id>.json`)
 chained by `prev_digest`; editing a record breaks the chain and every v2 record of that
 change counts as not run until a new run starts a fresh chain. Records are tracked in the
-repository by design (they are the evidence other people and CI read), so their number is capped:
-after each run only the newest 20 per user and change are kept (inline step tests: per test).
-Pruning removes the oldest prefix and leaves a `chain-base` marker next to the records naming the
+repository by design (they are the evidence other people and CI read), so their number can be capped:
+set `TENON_RECORD_RETENTION=<n>` and after each run only the newest `n` per user and Change are kept
+(inline step tests always keep the newest 20 per test). By default nothing is pruned, because the previous
+release (v0.2.1) cannot read a pruned chain (see "Compatibility with the previous release" in
+[Updates, recovery and uninstall](updates-recovery-and-uninstall.md)).
+When it is set, pruning removes the oldest prefix and leaves a `chain-base` marker next to the records naming the
 last removed digest, so the remaining chain still verifies; a missing middle record, a marker that
 does not match, or a damaged marker is still a broken chain. Test processes run with the running
 `tenon` first on `PATH` (the launcher's directory, or a forwarding script for a direct
