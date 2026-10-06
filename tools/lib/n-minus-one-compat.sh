@@ -3,8 +3,13 @@
 #
 # 合同：当前版本在正常使用中「隐式写下」的数据（状态、记录链、台账、计划、discover 写的目录、history 与边车）
 # 必须能被上一个正式版本（fixture 固定的 N-1）读取，不被它判为损坏、被改动或非法；反方向，N-1 写下的数据当前版本也要读得了。
-# 用户主动选用的新能力（目录 `profile: coarse`、`integrity: block|notice`、评审者 `host:`、自定义 agent 的 `attach_on` / `host`、
-# 设置 `TENON_RECORD_RETENTION`）可以要求当前版本，文档里写明，不在这里测。
+# 期望值取决于 fixture 固定的那个 N-1 认得什么。现在的 N-1 是 v0.3.0：它认得 agent 运行台账旁注（host / host_source / rerun_reason）、
+# 记录链的 `chain-base` 标记与 `TENON_RECORD_RETENTION`、测试记录的本机封存，所以这些不再是「N-1 不懂、当前版本独有」的豁免项，
+# 而是双向都要读得了：旁注与链基点在下面两个方向都测。v0.3.0 不认得的只有 0.3.1 起记录绑的「可移植指纹」：
+# 它在没有宿主本地文件的工作区里与完整指纹逐位相同；工作区里有未跟踪的 `.claude/settings.local.json` 时两者不同，
+# v0.3.0 把当前版本写下的记录判为「已过期」（要重跑），绝不能判为损坏；反过来 v0.3.0 写下的记录（完整指纹）当前版本照样读作新鲜。
+# 目录 `profile: coarse`、`integrity: block|notice`、评审者 `host:`、自定义 agent 的 `attach_on` 也是 v0.3.0 起就有的用户选用能力，
+# 这里没有交叉测；换到下一个 N-1 时重新核对这一段与下面每一条期望。
 #
 # 判据只看退出码和 N-1 读取器的「损坏」措辞，不比对整句输出：
 #   测试记录被改动 / 找不到链首记录      v2 记录链被判断链
@@ -70,8 +75,8 @@ YAML
 }
 
 # n1_agent_run <cli> <project> <change> [record-args...] : 用 <cli> 在 <project> 里跑一次 builder 执行者
-# （prompt → 写报告 → record），打印 record 的输出。当前版本传 --host claude（声明宿主，台账旁注里会有 host / host_source）；
-# N-1 没有这个选项，不传。
+# （prompt → 写报告 → record），打印 record 的输出。record 的参数由调用方给：两个版本都认 `--host claude`（声明宿主），
+# 旁注 `.pipeline-agent-run-meta.jsonl` 里会有 host / host_source（v0.3 起；v0.2.1 没有这个选项，也读不到旁注）。
 n1_agent_run() {
   local cli="$1" proj="$2" change="$3" prompt run report
   shift 3
@@ -131,7 +136,7 @@ n1_compat_gate() {
   [ "$code" -eq 0 ] || { bad "N-1 兼容：当前版本写入回填报告套件" "exit=$code $out"; return; }
 
   # ── 当前版本写、N-1 读 ──────────────────────────────────────────────────────
-  # 1) 记录链：超过 20 次运行（原先的默认保留上限）后链仍是 N-1 认得的形状。
+  # 1) 记录链：超过 20 次运行（0.2.x 的默认保留上限）也不清理，链仍是 N-1 认得的形状。
   out="$(cd "$proj" && node "$cur" init compat-w --track backend --workflow compat --preset full 2>&1)"; code="$?"
   [ "$code" -eq 0 ] || { bad "N-1 兼容：当前版本创建 compat-w" "exit=$code $out"; return; }
   ( cd "$proj" && node "$cur" test plan compat-w --seed && node "$cur" test register compat-w --suite smoke ) >/dev/null 2>&1
@@ -148,12 +153,18 @@ n1_compat_gate() {
   out="$(cd "$proj" && node "$old" test status compat-w 2>&1)"; code="$?"
   n1_expect "$label 读取 22 份记录的链（test status）" 0 "$code" "$out"
 
-  # 2) agent 运行台账：当前版本登记时记下宿主（--host claude 声明）。
+  # 2) agent 运行台账：当前版本登记时记下宿主（--host claude 声明，写进旁注）。N-1 认得旁注，读出来的宿主必须是 claude。
   out="$(n1_agent_run "$cur" "$proj" compat-w --host claude)"
   printf '%s' "$out" | grep -q 'host=claude' \
     && ok "N-1 兼容：当前版本登记 agent 运行并记下宿主" || bad "N-1 兼容：当前版本登记 agent 运行并记下宿主" "$out"
+  grep -q '"host":"claude"' "$proj/openspec/changes/compat-w/.pipeline-agent-run-meta.jsonl" 2>/dev/null \
+    && ok "N-1 兼容：当前版本把宿主写进 agent 运行旁注" || bad "N-1 兼容：当前版本把宿主写进 agent 运行旁注" "旁注里没有 host=claude"
   out="$(cd "$proj" && node "$old" agent next compat-w 2>&1)"; code="$?"
   n1_expect "$label 读取带宿主的 agent 运行台账（agent next）" 0 "$code" "$out"
+  out="$(cd "$proj" && node "$old" agent next compat-w --json 2>&1)"; code="$?"
+  [ "$code" -eq 0 ] && [ "$(n1_json_field "$out" 'v.agents[0].host')" = claude ] \
+    && ok "$label 从旁注读出当前版本登记的宿主（agent next --json）" \
+    || bad "$label 从旁注读出当前版本登记的宿主（agent next --json）" "exit=$code $(printf '%s' "$out" | head -c 500)"
   out="$(cd "$proj" && node "$old" status compat-w --json 2>&1)"; code="$?"
   n1_expect "$label 读取 status --json（step 投影可用）" 0 "$code" "$out"
   out="$(cd "$proj" && node "$old" check compat-w 2>&1)"; code="$?"
@@ -189,7 +200,7 @@ n1_compat_gate() {
   n1_expect "$label 读出当前版本 discover --write 写的套件" 0 "$code" "$out"
 
   # 5) N-1 接着在当前版本写下的链上继续运行（回滚后继续工作）。
-  ( cd "$proj" && node "$old" test run compat-w --suite smoke ) >/dev/null 2>&1
+  ( cd "$proj" && TENON_TEST_TRUST=1 node "$old" test run compat-w --suite smoke ) >/dev/null 2>&1
   code="$?"
   [ "$code" -eq 0 ] && ok "$label 可在当前版本写下的记录链上继续运行" || bad "$label 可在当前版本写下的记录链上继续运行" "exit=$code"
   out="$(cd "$proj" && node "$old" test status compat-w 2>&1)"; code="$?"
@@ -201,21 +212,26 @@ n1_compat_gate() {
   ( cd "$proj" && node "$old" test plan compat-o --seed && node "$old" test register compat-o --suite smoke ) >/dev/null 2>&1
   runs=0; failed=0
   while [ "$runs" -lt 3 ]; do
-    ( cd "$proj" && node "$old" test run compat-o --suite smoke ) >/dev/null 2>&1 || failed=$((failed + 1))
+    ( cd "$proj" && TENON_TEST_TRUST=1 node "$old" test run compat-o --suite smoke ) >/dev/null 2>&1 || failed=$((failed + 1))
     runs=$((runs + 1))
   done
   [ "$failed" -eq 0 ] && ok "N-1 兼容：$label 连续运行 3 次套件" || bad "N-1 兼容：$label 连续运行 3 次套件" "$failed 次失败"
-  out="$(n1_agent_run "$old" "$proj" compat-o)"
-  printf '%s' "$out" | grep -q 'result=done' && ok "N-1 兼容：$label 登记 agent 运行" || bad "N-1 兼容：$label 登记 agent 运行" "$out"
-  # 链完好；N-1 的记录没有本机封存，当前版本把它们当「来源不明」（record-unsealed，与别的机器写的记录同样处理：重跑即可），
-  # 但不能判成断链 / 被改动。
+  out="$(n1_agent_run "$old" "$proj" compat-o --host claude)"
+  printf '%s' "$out" | grep -q 'result=done' && printf '%s' "$out" | grep -q 'host=claude' \
+    && ok "N-1 兼容：$label 登记 agent 运行并记下宿主" || bad "N-1 兼容：$label 登记 agent 运行并记下宿主" "$out"
+  # 链完好、读作通过：v0.3.0 自己封存它写的记录（本机封存文件），所以当前版本读它们不是「来源不明」（record-unsealed）；
+  # 它之前的 v0.2.1 当 N-1 时，写的记录没有封存，当前版本才把它们当作来源不明、要求重跑。无论如何都不能判成断链 / 被改动。
   out="$(cd "$proj" && node "$cur" test status compat-o --json 2>&1)"
   status="$(n1_json_field "$out" 'v.policy.chain')"
-  [ "$status" = intact ] \
-    && ok "当前版本读取 $label 写下的记录链：链完好（来源不明的记录按 record-unsealed 处理）" \
+  [ "$status" = intact ] && [ "$(n1_json_field "$out" 'v.pass')" = true ] \
+    && ok "当前版本读取 $label 写下的记录链：链完好、读作通过" \
     || bad "当前版本读取 $label 写下的记录链" "chain=$status $(printf '%s' "$out" | head -c 500)"
   out="$(cd "$proj" && node "$cur" agent next compat-o 2>&1)"; code="$?"
   n1_expect "当前版本读取 $label 写下的 agent 运行台账" 0 "$code" "$out"
+  out="$(cd "$proj" && node "$cur" agent next compat-o --json 2>&1)"; code="$?"
+  [ "$code" -eq 0 ] && [ "$(n1_json_field "$out" 'v.agents[0].host')" = claude ] \
+    && ok "当前版本从旁注读出 $label 登记的宿主（agent next --json）" \
+    || bad "当前版本从旁注读出 $label 登记的宿主（agent next --json）" "exit=$code $(printf '%s' "$out" | head -c 500)"
   out="$(cd "$proj" && node "$cur" status compat-o --json 2>&1)"; code="$?"
   n1_expect "当前版本读取 $label 创建的任务（status --json）" 0 "$code" "$out"
   out="$(cd "$proj" && node "$cur" test plan compat-o 2>&1)"; code="$?"
@@ -226,10 +242,57 @@ n1_compat_gate() {
   out="$(cd "$disc" && node "$cur" test catalog validate 2>&1)"; code="$?"
   n1_expect "当前版本校验 $label discover --write 写的目录" 0 "$code" "$out"
 
+  # ── 记录清理（用户主动设 TENON_RECORD_RETENTION，只留最新 N 份并写 chain-base 标记）────────────────────
+  # v0.3.0 认得这个环境变量和 chain-base 标记，所以两个方向都要读得了；默认（上面 22 次运行）不清理、不写标记。
+  # 放在宿主本地文件之前：之后 N-1 算的完整指纹变了，它读到的记录会是「已过期」而不是新鲜。
+  out="$(cd "$proj" && node "$cur" init compat-rc --track backend --workflow compat --preset full 2>&1)"; code="$?"
+  [ "$code" -eq 0 ] || { bad "N-1 兼容：当前版本创建 compat-rc" "exit=$code $out"; return; }
+  ( cd "$proj" && node "$cur" test plan compat-rc --seed && node "$cur" test register compat-rc --suite smoke ) >/dev/null 2>&1
+  runs=0
+  while [ "$runs" -lt 5 ]; do
+    ( cd "$proj" && TENON_RECORD_RETENTION=3 TENON_TEST_TRUST=1 node "$cur" test run compat-rc --suite smoke ) >/dev/null 2>&1
+    runs=$((runs + 1))
+  done
+  files="$(find "$proj/.tenon/users" -path '*/tests/compat-rc/*.json' 2>/dev/null | wc -l | tr -d ' ')"
+  [ "$files" -eq 3 ] && [ -n "$(find "$proj/.tenon/users" -path '*/tests/compat-rc/chain-base' 2>/dev/null)" ] \
+    && ok "N-1 兼容：当前版本在 TENON_RECORD_RETENTION=3 下 5 次运行只留 3 份记录并写下 chain-base 标记" \
+    || bad "N-1 兼容：当前版本按 TENON_RECORD_RETENTION 清理记录" "记录 $files 份（期望 3），或缺 chain-base 标记"
+  out="$(cd "$proj" && node "$old" test status compat-rc 2>&1)"; code="$?"
+  n1_expect "$label 读取被清理过的记录链（chain-base 标记）" 0 "$code" "$out"
+  ( cd "$proj" && TENON_TEST_TRUST=1 node "$old" test run compat-rc --suite smoke ) >/dev/null 2>&1
+  code="$?"
+  [ "$code" -eq 0 ] && ok "$label 可在当前版本清理过的记录链上继续运行" || bad "$label 可在当前版本清理过的记录链上继续运行" "exit=$code"
+  out="$(cd "$proj" && node "$cur" test status compat-rc --json 2>&1)"
+  [ "$(n1_json_field "$out" 'v.policy.chain')" = intact ] \
+    && ok "当前版本读取 $label 在清理过的链上续写之后的整条链：链完好" \
+    || bad "当前版本读取 $label 在清理过的链上续写之后的整条链" "$(printf '%s' "$out" | head -c 500)"
+  out="$(cd "$proj" && node "$old" init compat-ro --track backend --workflow compat --preset full 2>&1)"; code="$?"
+  [ "$code" -eq 0 ] || { bad "N-1 兼容：$label 创建 compat-ro" "exit=$code $out"; return; }
+  ( cd "$proj" && node "$old" test plan compat-ro --seed && node "$old" test register compat-ro --suite smoke ) >/dev/null 2>&1
+  runs=0
+  while [ "$runs" -lt 5 ]; do
+    ( cd "$proj" && TENON_RECORD_RETENTION=3 TENON_TEST_TRUST=1 node "$old" test run compat-ro --suite smoke ) >/dev/null 2>&1
+    runs=$((runs + 1))
+  done
+  files="$(find "$proj/.tenon/users" -path '*/tests/compat-ro/*.json' 2>/dev/null | wc -l | tr -d ' ')"
+  [ "$files" -eq 3 ] && [ -n "$(find "$proj/.tenon/users" -path '*/tests/compat-ro/chain-base' 2>/dev/null)" ] \
+    && ok "N-1 兼容：$label 在 TENON_RECORD_RETENTION=3 下 5 次运行只留 3 份记录并写下 chain-base 标记" \
+    || bad "N-1 兼容：$label 按 TENON_RECORD_RETENTION 清理记录" "记录 $files 份（期望 3），或缺 chain-base 标记"
+  out="$(cd "$proj" && node "$cur" test status compat-ro --json 2>&1)"
+  [ "$(n1_json_field "$out" 'v.policy.chain')" = intact ] && [ "$(n1_json_field "$out" 'v.pass')" = true ] \
+    && ok "当前版本读取 $label 清理过的记录链：链完好、读作通过" \
+    || bad "当前版本读取 $label 清理过的记录链" "$(printf '%s' "$out" | head -c 500)"
+  ( cd "$proj" && TENON_TEST_TRUST=1 node "$cur" test run compat-ro --suite smoke ) >/dev/null 2>&1
+  code="$?"
+  [ "$code" -eq 0 ] && ok "当前版本可在 $label 清理过的记录链上继续运行" || bad "当前版本可在 $label 清理过的记录链上继续运行" "exit=$code"
+  out="$(cd "$proj" && node "$old" test status compat-ro 2>&1)"; code="$?"
+  n1_expect "$label 读取当前版本在它清理过的链上续写之后的整条链" 0 "$code" "$out"
+
   # ── 宿主本地文件（放在最后：它让此前所有记录绑定的候选变了）─────────────────────────
-  # 工作区里有被忽略的 .claude/settings.local.json（Claude Code 自己写的权限允许列表）：当前版本写下的记录绑「不含宿主本地文件」的
-  # 可移植指纹，干净克隆才复现得出来。N-1 自己算的指纹含这个文件，所以它把这条记录判成「代码已变化」（过期，要重跑），
-  # 但不能判成损坏；当前版本自己读它是新鲜的，Claude Code 之后改写这个文件也不让它过期。
+  # 工作区里有未被 git 跟踪的 .claude/settings.local.json（Claude Code 自己写的权限允许列表）：当前版本写下的记录绑「不含宿主本地文件」的
+  # 可移植指纹，干净克隆才复现得出来。N-1 自己算的指纹含这个文件，所以它把这条记录判成「已过期：代码已变化」（退出码 2，要重跑），
+  # 绝不能判成损坏；当前版本自己读它是新鲜的，Claude Code 之后改写这个文件也不让它过期。
+  # 反方向：N-1 在同样的工作区里写下的记录绑完整指纹（含这个文件），当前版本照样读作新鲜、链完好——v0.3.0 的记录不因升级而过期。
   mkdir -p "$proj/.claude"
   printf '{ "permissions": { "allow": ["Bash(ls)"] } }\n' > "$proj/.claude/settings.local.json"
   out="$(cd "$proj" && node "$cur" init compat-h --track backend --workflow compat --preset full 2>&1)"; code="$?"
@@ -239,8 +302,24 @@ n1_compat_gate() {
   out="$(cd "$proj" && node "$cur" test status compat-h 2>&1)"; code="$?"
   n1_expect "当前版本在有宿主本地文件的工作区里写下的记录对自己是新鲜的" 0 "$code" "$out"
   out="$(cd "$proj" && node "$old" test status compat-h 2>&1)"; code="$?"
-  n1_clean_only "$label 读取有宿主本地文件的工作区里写下的记录：不报损坏（至多判为过期）" "$code" "$out"
+  if [ "$code" -eq 2 ] && printf '%s' "$out" | grep -q '已过期' && n1_clean "$out"; then
+    ok "$label 把有宿主本地文件的工作区里写下的记录判为已过期（退出码 2，要重跑），不报损坏"
+  else
+    bad "$label 把有宿主本地文件的工作区里写下的记录判为已过期，不报损坏" "exit=$code（期望 2 且有「已过期」）: $(printf '%s' "$out" | head -c 700)"
+  fi
   printf '{ "permissions": { "allow": ["Bash(ls)", "Bash(npm test)"] } }\n' > "$proj/.claude/settings.local.json"
   out="$(cd "$proj" && node "$cur" test status compat-h 2>&1)"; code="$?"
   n1_expect "改写 .claude/settings.local.json 之后当前版本的记录仍然新鲜" 0 "$code" "$out"
+
+  # N-1 在这个有宿主本地文件的工作区里写记录：它绑完整指纹，自己读是新鲜的，当前版本也读作新鲜、链完好。
+  out="$(cd "$proj" && node "$old" init compat-d --track backend --workflow compat --preset full 2>&1)"; code="$?"
+  [ "$code" -eq 0 ] || { bad "N-1 兼容：$label 创建 compat-d" "exit=$code $out"; return; }
+  ( cd "$proj" && node "$old" test plan compat-d --seed && node "$old" test register compat-d --suite smoke ) >/dev/null 2>&1
+  ( cd "$proj" && TENON_TEST_TRUST=1 node "$old" test run compat-d --suite smoke ) >/dev/null 2>&1
+  out="$(cd "$proj" && node "$old" test status compat-d 2>&1)"; code="$?"
+  n1_expect "$label 在有宿主本地文件的工作区里写下的记录对它自己是新鲜的" 0 "$code" "$out"
+  out="$(cd "$proj" && node "$cur" test status compat-d --json 2>&1)"
+  [ "$(n1_json_field "$out" 'v.policy.chain')" = intact ] && [ "$(n1_json_field "$out" 'v.pass')" = true ] \
+    && ok "当前版本把 $label 在有宿主本地文件的工作区里写下的记录读作新鲜（完整指纹照样认），链完好" \
+    || bad "当前版本读取 $label 在有宿主本地文件的工作区里写下的记录" "$(printf '%s' "$out" | head -c 700)"
 }

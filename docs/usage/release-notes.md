@@ -4,6 +4,85 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
+## v0.3.1 · 2026-10-07
+
+A fix release for v0.3.0, from its real-host acceptance. `tenon verify --ci` now reproduces your test records on a clean
+clone when your workspace held host-local files, and no longer fails a task that was abandoned on purpose. The CLI messages
+of the cross-vendor review, the English track tab and the sign-in command are fixed, and `tenon --version` exists.
+
+### Fixed
+
+- A clean clone no longer fails `tenon verify --ci` with `candidate-mismatch` because of host-local files that are never
+  committed: `.claude/settings.local.json`, `CLAUDE.local.md` in the project root and `.claude/worktrees/`. Test records
+  written by 0.3.1 bind a fingerprint that leaves them out, and only while git does not track them: a tracked file under
+  those paths still counts. Nothing else is left out by name. See
+  [Candidate mismatch](ci-verification.md#candidate-mismatch).
+- The `candidate-mismatch` message names the paths it can establish: the candidate files changed after the first commit
+  that followed the run, the git-ignored or untracked files this checkout holds in the candidate scope, and tracked
+  host-local paths. The delivery commit's own files are no longer blamed.
+- A task abandoned through the `scope-expanded` edge (for example a `standard` task that escalated to `default`) is no
+  longer judged on test evidence by `verify --ci`; the report carries the note `change-abandoned`. Protected-file
+  approvals are still checked on it at normal severity. Only a task whose committed transition chain shows the abandon
+  edge counts; a state that merely says `phase: escalated` is judged as before.
+- `tenon evidence export` is deterministic: every timestamp comes from the evidence (the finish time of the latest record in
+  the chain), not from the clock, so exporting twice prints the same bytes.
+- The cross-vendor review lines (`agent prompt` routing, the host refusals of `agent record`) and the `review acknowledge`
+  refusals follow `TENON_LANG`; they were always Chinese.
+- The selected track tab stays fully visible in the English Dashboard: a page opened with `track=backend` no longer cuts the
+  tab off in the fade, and it scrolls back into view when its name widens (a language switch) or the strip narrows. A tab you
+  scroll to, click or focus yourself is not pulled back by a resize.
+- The sign-in page and the Dashboard no longer draw `--open` as `––open`: commands, paths and ids in monospace turn font
+  ligatures off. The text was always ASCII.
+- `tenon --version` (and `-V`) prints the version of the plugin payload the command runs from.
+
+### Changed
+
+- The `tenon` skill picks the lane for a manual `/tenon <request>` (a prompt that starts with `/` skips the routing hook): the
+  workflow or Track you name, else `standard` for an implementation request, `default` only for heavy or cross-domain work
+  (architecture, auth, migrations, dependencies, contracts), and a project-defined workflow only when you name it.
+- When `step.next` offers a single `transition` and it is the `scope-expanded` escalation, the skill takes it directly, in
+  interactive mode too: it tells you in one line why it escalates and what comes next, then runs it.
+- `tenon verify --ci` adds the note `finished-judged-at-head` when a finished task fails because CI judges it against the
+  checked-out tree, not the commit it finished on. The verdict is the same as before.
+
+### Documentation
+
+- Reading test records is supported with plain read utilities (`cat`, `ls`, `jq`, `grep`, `head`, `tail`, `wc`,
+  `find -name`) or the editor's Read tool. A read through inline interpreter code (`node -e`, `python -c`) or `xargs`, or
+  chained with any write, is refused by the write gate, which did not change. See [Security model](security-model.md).
+
+### What you need to do
+
+Run `tenon update --codex` (or `--claude`) and open a new host session. Nothing else is required.
+
+If `verify --ci` already reports `candidate-mismatch` for records written by 0.3.0 or earlier in a workspace that had one
+of the host-local files, run `tenon test run <change> --stage` once with 0.3.1 and commit the new records.
+
+### Compatibility
+
+N-1 is v0.3.0. The N-1 gate (`tools/test-bundle.sh`) crosses it with this release in both directions on every run.
+
+- No record schema changed. A v0.3.1 record binds one workspace fingerprint, as before. Without an untracked host-local file
+  in the workspace the two forms are equal and v0.3.0 reads the record as fresh.
+- With an untracked host-local file in the workspace that wrote it, v0.3.0 and v0.2.1 read a v0.3.1 record as stale ("code
+  changed", exit `2`), never as damaged. Run the suite again with the version you went back to.
+- v0.3.0 records stay valid: v0.3.1 accepts both fingerprint forms, so a record written by v0.3.0 is fresh on the machine
+  that wrote it.
+- `verify --ci` has two new note-level finding codes, `change-abandoned` and `finished-judged-at-head`. No command, option,
+  project file or Dashboard API changed apart from `--version`.
+
+### Verify
+
+```bash
+tenon --version
+tenon doctor
+tenon runtime status
+```
+
+`tenon --version` prints `0.3.1`. In `tenon doctor`, `identity:release` lists 0.3.1 for the host plugin, the runtime and the
+Dashboard server. `tenon runtime status` shows the active release with `valid=yes`. In a clean clone of a project whose
+records 0.3.1 wrote, `tenon verify --ci --change <name>` no longer reports `candidate-mismatch` for the host-local files above.
+
 ## v0.3.0 · 2026-10-06
 
 v0.3 makes Tenon usable on an ordinary project and harder to fool. A small change now goes through a four-step

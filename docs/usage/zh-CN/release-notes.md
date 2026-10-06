@@ -12,6 +12,56 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 
 面向用户的解释、影响与操作步骤默认使用中文。
 
+## v0.3.1 · 2026-10-07
+
+v0.3.0 的修复版，来自它的真实宿主验收。作者的工作区里有宿主本地文件时，`tenon verify --ci` 现在能在干净克隆上复现你的测试记录，也不再判定被有意放弃的任务失败。跨厂商评审的 CLI 提示、英文轨道标签和登录命令修好了，新增 `tenon --version`。
+
+### 修复
+
+- 干净克隆不再因为从不提交的宿主本地文件让 `tenon verify --ci` 报 `candidate-mismatch`：`.claude/settings.local.json`、项目根目录的 `CLAUDE.local.md` 和 `.claude/worktrees/`。0.3.1 写下的测试记录绑的指纹不含这些文件，而且只在 git 没有跟踪它们时才不含：被跟踪的路径仍然计入。除此之外不按名称排除任何东西。见[候选代码不一致](ci-verification.md#候选代码不一致)。
+- `candidate-mismatch` 的提示会写出它能确定的路径：记录之后的第一个提交之后又改过的候选文件，本次检出里候选范围内被 gitignore 或未跟踪的文件，以及被跟踪的宿主本地路径。交付提交自己带的文件不再被怪到头上。
+- 沿 `scope-expanded` 放弃边离开的任务（例如升级到 `default` 的 `standard` 任务）不再被 `verify --ci` 判定测试证据，报告里留一条 `change-abandoned` 提示。受保护文件的批准照查，按正常级别报告。只有任务提交的转换链里真的有这条放弃边才算；状态里只写着 `phase: escalated` 的任务照旧判定。
+- `tenon evidence export` 是确定性的：每个时间戳都取自证据本身（记录链里最晚一条记录的完成时间），不取时钟，所以导出两次打印的字节相同。
+- 跨厂商评审的几行（`agent prompt` 的路由说明、`agent record` 对宿主的拒绝）和 `review acknowledge` 的拒绝信息跟随 `TENON_LANG`；之前它们一直是中文。
+- 英文 Dashboard 里选中的轨道标签保持完整可见：用 `track=backend` 直接打开页面不再把标签截在渐隐里，名称变宽（切换语言）或页签条变窄时它会重新滚进可见范围。你自己滚动、点击或聚焦过的标签，不会被尺寸变化拉回去。
+- 登录页和 Dashboard 里的 `--open` 不再被画成 `––open`：等宽字体里的命令、路径和 id 关掉了字体连字。文本本身一直是 ASCII。
+- `tenon --version`（及 `-V`）打印命令所在插件载荷的版本号。
+
+### 变化
+
+- 手动 `/tenon <请求>`（以 `/` 开头的提示词不经路由钩子）由 `tenon` 技能选通道：用户点名的工作流或轨道优先，实现类请求用 `standard`，只有重型或跨领域的工作（架构、鉴权、迁移、依赖、契约）用 `default`，项目自定义的工作流只在用户点名时用。
+- `step.next` 里只剩一条 `transition`、且它是 `scope-expanded` 升级时，技能直接执行，interactive 模式也一样：先用一句话告诉你为什么升级、接下来做什么，然后动手。
+- 已完结的任务因为 CI 对它的判定对象是本次检出的树、而不是它完结时的提交而失败时，`tenon verify --ci` 会多给一条 `finished-judged-at-head` 提示。判定结果与之前相同。
+
+### 文档
+
+- 读测试记录的受支持办法是普通读取工具（`cat`、`ls`、`jq`、`grep`、`head`、`tail`、`wc`、`find -name`）或编辑器的 Read 工具。经内联解释器代码（`node -e`、`python -c`）或 `xargs` 的读取，以及后面链着任何写入的读取，都会被写入门拒绝；这道门本身没有改。见[安全模型](security-model.md)。
+
+### 升级动作
+
+运行 `tenon update --codex`（或 `--claude`），新开宿主会话。无需其他操作。
+
+如果 `verify --ci` 对 0.3.0 或更早版本写下的记录已经报 `candidate-mismatch`，而写它们的工作区里有上述某个宿主本地文件，用 0.3.1 对该任务运行一次 `tenon test run <change> --stage`，再提交新记录。
+
+### 兼容性
+
+N-1 是 v0.3.0。N-1 兼容门禁（`tools/test-bundle.sh`）每次运行都在两个方向上让它与本版本互相读写。
+
+- 记录 schema 没有改：v0.3.1 的记录仍然只绑一个工作区指纹。工作区里没有未跟踪的宿主本地文件时，两种指纹相等，v0.3.0 把这条记录读作新鲜。
+- 写它的工作区里有未跟踪的宿主本地文件时，v0.3.0 和 v0.2.1 会把 v0.3.1 的记录读作过期（「代码已变化」，退出码 `2`），不会读作损坏。用你回退到的版本重跑套件即可。
+- v0.3.0 的记录继续有效：v0.3.1 认两种指纹，所以 v0.3.0 写下的记录在写它的那台机器上是新鲜的。
+- `verify --ci` 多了两个提示级的发现代码：`change-abandoned` 和 `finished-judged-at-head`。除 `--version` 外，没有改变任何命令、选项、项目文件或 Dashboard API。
+
+### 验证
+
+```bash
+tenon --version
+tenon doctor
+tenon runtime status
+```
+
+`tenon --version` 打印 `0.3.1`。`tenon doctor` 里 `identity:release` 列出宿主插件、runtime 和 Dashboard server 都是 0.3.1。`tenon runtime status` 显示当前 release 为 `valid=yes`。在一个由 0.3.1 写下记录的项目的干净克隆里，`tenon verify --ci --change <name>` 不再因为上述宿主本地文件报 `candidate-mismatch`。
+
 ## v0.3.0 · 2026-10-06
 
 v0.3 让 Tenon 在普通项目里能用，也更难被糊弄。小改动现在走四步的 `standard` 标准通道，默认测试流程只要求 `unit`。任务提交的测试证据可以在 CI 里只凭仓库重新校验（`tenon verify --ci` 与一个 GitHub Action），由本机信任根和完整性报告守着，评审者还可以被要求在另一家厂商的 CLI 上运行。Dashboard 需要登录，工作流画在分色带的画布上并带 Signal 流动动画，30 个项目的快照小于 1 MB，英文界面的阻断标签不再解析中文文本，CI 里还有 axe 无障碍检查。`tenon support bundle` 与 `tenon logs` 负责诊断。本版本包含 v0.2.1 的 launcher 修复。升级项目前请先读「行为变化与升级影响」。
