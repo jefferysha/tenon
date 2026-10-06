@@ -39,6 +39,8 @@ export interface InlineSuiteStatus {
 export interface CurrentBindings {
   /** undefined = 宿主没有工作区指纹能力（跳过候选比对）；null = 能力在但这次取不到（按未知判过期）。 */
   readonly candidate: string | null | undefined
+  /** `candidate` 的可移植孪生（见 FreshnessContext.candidateAlt）；只在有记录绑的不是 `candidate` 时才去取。 */
+  readonly candidateAlt?: string
   readonly workflowFingerprint: string
   /** 当前 workflow run；记录只在同一 run 内有效。取不到时一律视为未运行。 */
   readonly workflowRunId: string | undefined

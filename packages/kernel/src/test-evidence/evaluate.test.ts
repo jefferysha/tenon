@@ -10,6 +10,7 @@ import type { StepTestIR } from '../workflow/ir.js'
 import { evaluateTestEvidence, latestTestRun, testDigest, type TestEvidenceContext } from './evaluate.js'
 import { ensureTestEvidenceDirs, testRunRecordPath, testRunningMarkerPath } from './paths.js'
 import { publishTestRunRecord } from './record.js'
+import { candidateFingerprint, knownPortableCandidate } from '../test-system/candidate.js'
 import { TEST_RUN_SCHEMA, type TestRunRecordV1 } from './types.js'
 
 const CHANGE = 'catalog-flow'
@@ -170,6 +171,28 @@ describe('evaluateTestEvidence', () => {
     expect(failed.blockers[0]).toContain('失败：exit-code, sandbox-denied')
     expect(failed.blockers[0]).toContain('sandbox_permissions=require_escalated')
     expect(failed.blockerDetails).toEqual([{ subject: 'unit', state: 'failed' }])
+  })
+
+  test('宿主本地文件在场：记录绑可移植指纹（0.3.1 起）或完整指纹（0.3.0 及更早）都算绑定了当前代码，别的值才过期', async () => {
+    const { mkdir, writeFile: write } = await import('node:fs/promises')
+    await mkdir(join(repoRoot, 'src'), { recursive: true })
+    await write(join(repoRoot, 'src', 'app.js'), 'export const a = 1\n')
+    await mkdir(join(repoRoot, '.claude'), { recursive: true })
+    await write(join(repoRoot, '.claude', 'settings.local.json'), '{ "permissions": { "allow": ["Bash(ls)"] } }\n')
+    const full = await candidateFingerprint(repoRoot)
+    const portable = knownPortableCandidate(full)
+    expect(portable).toBeDefined()
+    expect(portable).not.toBe(full)
+    const hostContext: TestEvidenceContext = { ...context, currentCandidate: () => candidateFingerprint(repoRoot) }
+    const current = plan([{ id: 'unit' }])
+    const statusWith = async (candidate: string): Promise<string | undefined> => {
+      await publish(SLUG, record(current, 'unit', { candidate }))
+      const report = await evaluateTestEvidence({ repoRoot, changeDir, changeName: CHANGE, plan: current, stepId: 'build', context: hostContext })
+      return report.items[0]?.status === 'stale' ? report.items[0].staleBecause : report.items[0]?.status
+    }
+    expect(await statusWith(portable ?? '')).toBe('passed')
+    expect(await statusWith(full)).toBe('passed')
+    expect(await statusWith(`workspace:sha256:${'b'.repeat(64)}`)).toBe('candidate')
   })
 
   test('候选版本 / 声明摘要 / 工作流指纹任一不同都判过期', async () => {

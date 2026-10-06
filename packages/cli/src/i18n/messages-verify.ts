@@ -238,6 +238,14 @@ export const VERIFY_MESSAGES = {
     zh: '工作流在 {phase} 及之前没有声明任何测试策略，没有可校验的用例级判定',
     en: 'The workflow declares no test policy at {phase} or before, so there is no case-level verdict to verify',
   },
+  'verify.changeAbandoned': {
+    zh: '任务 {change} 已被放弃：它沿 {event} 边从 {from} 转入终态 {to}，放弃不需要测试证据，所以不判定它的测试证据（受保护文件的批准照查）；接手它的任务单独判定。这个判断依据任务提交的转换链，链是自洽的但没有封存',
+    en: 'Change {change} was abandoned: it left {from} through the {event} edge into the terminal step {to}. An abandon needs no test evidence, so its test evidence is not judged (protected-file approvals are still checked); the change that replaced it is judged on its own. This rests on the transition chain the task committed, which is self-consistent but not sealed',
+  },
+  'verify.finishedJudgedAtHead': {
+    zh: '任务 {change} 已经完结，但 CI 对它的判定对象是本次检出的树，不是它完结时的提交：完结之后的提交（改过的代码、后来的任务新增的测试文件、改过的测试目录）也会让它的证据出错。要按交付时的样子校验它，检出它的交付提交再运行；或者只选这个 PR 带来的任务（--since <合并基点>）',
+    en: 'Change {change} is finished, but CI judges it against the checked-out tree, not against the commit it finished on: commits made after it finished (changed code, test files added by later changes, edited test catalogs) also break its evidence. To verify it as it was delivered, run CI on its delivery commit, or select only the changes this pull request carries (--since <merge base>)',
+  },
   'verify.candidateUnchecked': {
     zh: '没有比对记录绑定的工作区指纹与本次检出的树（--candidate off）',
     en: 'The workspace fingerprint bound into the records was not compared with the checked-out tree (--candidate off)',
@@ -250,10 +258,27 @@ export const VERIFY_MESSAGES = {
     zh: '套件 {suites} 的最近一次运行绑定的代码与本次检出的树不同（代码在测试之后变了，或检出的树与测试时的工作区不一致）{hint}',
     en: 'The code bound to the latest run of suite {suites} differs from the checked-out tree (the code changed after the tests ran, or the checkout differs from the tested workspace){hint}',
   },
-  'verify.candidateTouched': {
-    zh: '；记录完成之后提交改动过：{files}',
-    en: '; changed in commits after the records were finished: {files}',
+  'verify.candidateChangedLater': {
+    zh: '；记录之后的第一个提交 {commit}（测试时的工作区通常就提交在这里）之后又改过候选文件：{files}',
+    en: '; candidate files changed after commit {commit}, the first commit after the run (where the tested workspace was most likely committed): {files}',
   },
+  'verify.candidateNothingLater': {
+    zh: '；记录之后的第一个提交 {commit} 之后没有再改过候选文件，差异不在后来的提交里，而在测试时的工作区本身：被 gitignore 或未跟踪的文件、文件权限位、行尾，或者 0.3.0 及更早版本绑进记录的宿主本地文件（.claude/settings.local.json、CLAUDE.local.md）；用当前版本在最终的树上重跑',
+    en: '; no candidate file changed after commit {commit}, the first commit after the run, so the difference is not a later commit but the tested workspace itself: git-ignored or untracked files, file modes, line endings, or host-local files (.claude/settings.local.json, CLAUDE.local.md) that Tenon 0.3.0 and earlier bound into the records; rerun with the current version on the final tree',
+  },
+  'verify.candidateWorkspaceCauses': {
+    zh: '；这个检出里找不到测试之后的提交，无法指出差在哪个文件。常见原因：测试之后改了代码，或测试时的工作区与干净检出不同（被 gitignore 或未跟踪的文件、文件权限位、行尾，或者 0.3.0 及更早版本绑进记录的宿主本地文件）',
+    en: '; the commit that followed the run cannot be found in this checkout, so the differing file cannot be named. Usual causes: the code changed after the tests ran, or the tested workspace differs from a clean checkout (git-ignored or untracked files, file modes, line endings, or host-local files that Tenon 0.3.0 and earlier bound into the records)',
+  },
+  'verify.candidateTrackedHostLocal': {
+    zh: '；这个检出里 git 跟踪着宿主本地清单上的路径（它们是仓库的一部分，计入候选，改了就动候选）：{files}',
+    en: '; git tracks paths on the host-local list in this checkout (they are part of the repository, so they count toward the candidate and editing them moves it): {files}',
+  },
+  'verify.candidateExtraHere': {
+    zh: '；本次检出里候选范围内有被 gitignore 或未跟踪的文件：{files}',
+    en: '; this checkout holds git-ignored or untracked files inside the candidate scope: {files}',
+  },
+  'verify.listMore': { zh: '（另有 {count} 个）', en: ' (+{count} more)' },
   // ── 命令的错误提示（前缀 ERROR: 由调用处加）──────────────────
   'verify.ciOnly': {
     zh: '目前只有 CI 模式：请加 --ci（在没有用户本机封存的环境里对已提交内容独立校验）',

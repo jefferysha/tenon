@@ -32,7 +32,7 @@ const CI_ONLY: readonly CiRule[] = [
   {
     id: 'candidate-mismatch', name: 'CandidateMismatch', level: 'error',
     short: 'The recorded runs were produced on a different tree than the pull request head',
-    help: 'The workspace fingerprint bound into the test run records differs from the fingerprint of the checked-out tree. The code changed after the tests ran, or the checkout differs from the tested workspace (ignored build output, file modes, line endings). Rerun `tenon test run <change> --stage` on the final tree.',
+    help: 'The workspace fingerprint bound into the test run records differs from the fingerprint of the checked-out tree. The code changed after the tests ran, or the checkout differs from the tested workspace (ignored build output, file modes, line endings, or, for records written by Tenon 0.3.0 and earlier, host-local files such as `.claude/settings.local.json` that the fingerprint counted then). Rerun `tenon test run <change> --stage` on the final tree.',
   },
   {
     id: 'protected-unapproved', name: 'ProtectedFileUnapproved', level: 'error',
@@ -93,6 +93,16 @@ const CI_ONLY: readonly CiRule[] = [
     id: 'candidate-unchecked', name: 'CandidateUnchecked', level: 'note',
     short: 'The workspace fingerprint was not compared (--candidate off)',
     help: 'Recorded runs were not checked against the tree of this checkout.',
+  },
+  {
+    id: 'change-abandoned', name: 'ChangeAbandoned', level: 'note',
+    short: 'The task was abandoned through the scope-expanded edge, so its test evidence is not judged',
+    help: 'The task left its workflow through the abandon edge (`scope-expanded`) into a terminal step such as `escalated`; no test evidence is required for that edge. CI does not judge its test evidence and judges the task that replaced it. Protected-file approvals are still checked for it, at normal severity, because the abandon edge needs no review. The decision rests on the transition chain the task committed, which is self-consistent but not sealed. A task that only has the terminal step written into its state, without the abandon transition in its record chain, is judged as usual.',
+  },
+  {
+    id: 'finished-judged-at-head', name: 'FinishedJudgedAtHead', level: 'note',
+    short: 'A finished task is judged against the checked-out tree, not against the commit it finished on',
+    help: 'CI certifies the tree it checked out. A finished task whose evidence no longer matches that tree (the code changed afterwards, a later task added test files or edited the catalog) fails there; judging it at its own delivery commit would let later, ungoverned changes pass unseen. Check out the delivery commit to verify the task as delivered, or select only the tasks the pull request carries.',
   },
   {
     id: 'no-test-policy', name: 'NoTestPolicy', level: 'note',

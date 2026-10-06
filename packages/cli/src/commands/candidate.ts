@@ -3,7 +3,8 @@ import type { CliDeps } from '../deps.js'
 
 /**
  * 候选版本 = 「这份代码」的稳定身份：评审结论与测试记录都绑定它，改了代码旧结论就过期。
- * 与测试记录同一口径：有工作区指纹能力时一律用内容寻址的工作区指纹——冻结的 build token 在 verify
+ * 有工作区指纹能力时一律用内容寻址的工作区指纹（完整版，宿主本地文件照算；测试记录从 0.3.1 起绑它的可移植孪生，
+ * 见 kernel 的 candidateFingerprint / portableCandidate）——冻结的 build token 在 verify
  * 期间不随代码变化，拿它当评审候选会让改码后的旧评审继续显示通过（测试却已过期）。只有没有指纹能力
  * 时才回落到 candidate 形态的 step input（build token）。Dashboard 的评审投影同样用工作区指纹。
  */

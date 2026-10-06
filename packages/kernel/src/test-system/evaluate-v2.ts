@@ -371,6 +371,7 @@ export function evaluateTestPolicy(input: TestPolicyEvaluationInput): TestPolicy
   const latest = latestSuiteRuns(records)
   const freshness: FreshnessContext = {
     candidate: input.bindings.candidate,
+    ...(input.bindings.candidateAlt === undefined ? {} : { candidateAlt: input.bindings.candidateAlt }),
     workflowFingerprint: input.bindings.workflowFingerprint,
     catalog: input.catalog.state === 'ok' ? input.catalog.catalog : undefined,
     planDigest: input.plan.state === 'ok' ? input.plan.digest : undefined,

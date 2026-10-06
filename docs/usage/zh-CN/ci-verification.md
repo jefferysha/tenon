@@ -97,6 +97,23 @@ Action 输入：
 | 候选树 | `candidate-mismatch` |
 | 受保护文件的批准 | `protected-unapproved`、`protected-changed-after-approval`、`protected-approval-unbound`（警告）、`protected-diff-unavailable` |
 | 锚点 | `anchor-mismatch`、`anchor-behind`（警告）、`anchor-unverifiable`（警告）、`anchor-missing`（只在 `--require-anchor` 时） |
+| 被放弃的 Change（不判定测试证据） | `change-abandoned`（提示） |
+| 对检出的树判定的已完结 Change | `finished-judged-at-head`（提示） |
+
+被放弃的 Change 不判定测试证据。沿放弃边（`scope-expanded`，例如升级进终态 `escalated` 的 `standard` 任务）离开工作流的 Change
+不需要任何测试证据，它通常和接手它的 `default` Change 在同一个 PR 里。CI 不判定它的测试证据：不管是 `--change` 选它还是 `--since`
+把它带进来，报告里它只有一条提示 `change-abandoned`，没有测试策略或候选方面的发现。只认真的走过放弃边的 Change：CI 读 Change canonical
+运行状态里的链头转换记录，要求它是放弃事件、转入的正是状态所在的终态、且冻结的工作流声明过这条边。状态里只写着
+`phase: escalated`、背后没有放弃转换的，照常判定、照常失败。
+
+放弃不会跳过、也证明不了两件事：
+
+- **受保护文件的批准照查。** 放弃边不要求评审，所以只带着一个被放弃 Change 的 PR，否则可以不经任何批准就降低覆盖率阈值、改目录里的命令、
+  新增已知失败或改工作流的 `test_policy`。CI 对被放弃的 Change 做和别的 Change 一样的批准检查，`protected-unapproved` 及同类发现照常定级，
+  会让检查失败。检查拿这个 Change 自己历史里的批准行，去对它起点以来的全部改动，所以只有接手的 Change 做过（并批准过）的受保护改动，
+  也会报在被放弃的 Change 上。这样的改动请放进 CI 会判定的 Change 里，或者在被放弃的 Change 上也批准一遍。
+- **放弃这个判断没有封存。** 它依据作者提交的转换链：CI 校验它自洽（canonical 运行状态的 revision 摘要），但证明不了它出自真的
+  `tenon transition`——能写 Change 目录的人就能写出一条自洽的链。这和上面表格对测试记录写明的限制相同，也是上面那条批准检查不可省的原因。
 
 判定哪个步骤：Change 的当前步骤；它没有声明测试策略时，取它之前最近一个声明了的步骤（所以已完结的 Change 落在 verify）。
 判定哪条链：Change 负责人的链。负责人没有记录、恰好只有另一个用户有记录时，用那一条并给出警告 `owner-chain-missing`。
@@ -111,10 +128,44 @@ Action 输入：
 
 ## 候选代码不一致
 
-测试记录绑定了它运行时整个工作区的内容指纹，检查把它与本次检出的树的指纹比较。不一致通常说明测试之后代码变了；提示里会列出记录完成之后
-提交改动过的文件。也可能来自作者的工作区与干净检出之间的差异：候选范围内被 gitignore 的构建产物、文件或目录的权限位（umask）、
-行尾转换。让 Action 紧跟 checkout 运行、先于任何构建步骤，并在目录里声明测试输出目录。`--candidate warn` 把这个发现降为警告，
-`--candidate off` 不比对并加一条提示。
+测试记录绑定了它运行时整个工作区的内容指纹，检查把它与本次检出的树的指纹比较。指纹不含 Tenon 自己的状态、依赖、目录里声明的测试输出，
+以及一份简短、明确列出的**宿主本地文件**：编码 agent 宿主的每机配置，从不提交，所以任何克隆里都没有它们。
+
+| 不进指纹的路径 | 是什么 |
+| --- | --- |
+| `.claude/settings.local.json` | Claude Code 的个人项目设置（权限允许列表、hook 日志）；你每回答一次权限提示 Claude Code 就改写它 |
+| `CLAUDE.local.md`（项目根） | Claude Code 的个人项目记忆 |
+| `.claude/worktrees/` | Claude Code 为子代理创建的项目检出 |
+
+除此之外不按名字模式排除任何东西。`.claude/settings.json`、`.claude/commands/`、`CLAUDE.md`、`.mcp.json`、子目录里的 `CLAUDE.local.md`
+以及一切只是长得像的文件都是共享的或清单之外的配置，照常属于候选；`.claude/agents/`、`.codex/`、`.agents/`、`.github/hooks/` 本来就不进指纹。
+清单在 `packages/kernel/src/workspace/fingerprint.ts`（`HOST_LOCAL_FILES`、`HOST_LOCAL_DIRS`）。
+
+**只有 git 没有跟踪的路径才被排除。** 清单上的路径只要被 git 跟踪（已提交或已暂存），就是仓库的一部分，指纹照算，作者本机和 CI 都一样。
+没有这条规则，PR 可以把代码提交进 `.claude/worktrees/`、让测试命令去用它，之后再改它而候选不动。检查就是只对清单做 `git ls-files`；
+不是 git 仓库的目录什么都不跟踪；git 答不出来（缺失、索引损坏）就什么都不排除。在跟踪着这类路径的检出里出现 `candidate-mismatch` 时，
+提示会把它们列出来。这是指纹的规则，不是单独的发现：被跟踪的路径和别的源文件一样改变候选；测试之后才把清单下的某个文件从未跟踪变成已跟踪，
+检查会失败，因为克隆里它计入候选。
+
+Tenon 0.3.1 及之后写下的记录绑的是不含这些文件的指纹，所以干净克隆能复现，改这些文件也不会让记录过期。0.3.0 及更早版本写下的记录绑的是
+把它们算进去的指纹：在作者本机上这样的记录照样新鲜（Tenon 两种形式都认），但作者的工作区当时有其中某个文件时，干净克隆复现不了它——
+用当前的 Tenon 运行一次 `tenon test run <change> --stage`，把新记录提交。在有这类文件的项目里退回 0.3.0 或 0.2.x，会把 0.3.1 的记录读成
+过期（「代码已变化」），不会读成损坏；重新跑一遍套件即可。
+
+仍然不一致，通常说明测试之后代码变了。记录里只有一个哈希，CI 看不到作者的工作区，说不出「差在哪个文件」；提示里给的是它能确定的：
+先找到记录之后的第一个提交（用记录里存的 `git_head`，没有就用完成时间），再点名这个提交之后又改过的候选文件——测试时的工作区最可能就提交在
+那个提交里，所以交付提交自己的文件不会被怪罪；那之后什么都没改，提示就直说，差异在测试时的工作区本身。提示还会点名本次检出里被 gitignore
+或未跟踪的候选文件（例如构建产物）。它看不到的原因包括文件或目录的权限位（umask）与行尾转换。让 Action 紧跟 checkout 运行、先于任何构建步骤，
+并在目录里声明测试输出目录。`--candidate warn` 把这个发现降为警告，`--candidate off` 不比对并加一条提示。
+
+### 已完结的 Change 对本次检出的树判定
+
+CI 证明的是它检出的那棵树，所以已完结（done 或已归档）的 Change 也是对这棵树判定，不是对它完结时的提交。之后的提交改了代码、
+新增了测试文件（`test-file-unregistered`）或改了测试目录，已完结的 Change 就会带着普通发现（`candidate-mismatch`、`test-stale` ……）失败，
+报告再加一条提示 `finished-judged-at-head` 说明原因。这是有意的：若按每个 Change 自己的交付提交判定，之后提交的、没有任何受治理 Change
+背书的改动就会悄悄过关。实际用法：PR 的末端必须由最后动过它的 Change 覆盖，所以一个 PR 带一个受治理的 Change（或一条最后一个 Change
+交付最终树的链）；用 `--since <合并基点>` 只选这个 PR 带来的 Change；要按交付时的样子校验较早的 Change，检出它的交付提交，在那里运行
+`tenon verify --ci --change <name>`。
 
 ## 在本机运行
 
@@ -158,7 +209,9 @@ tenon evidence export <change> --format git-notes [--anchor] [--apply]
 tenon evidence export <change> --format trailer [--apply]
 ```
 
-一律打印到 stdout（或 `--out <file>`）；只有 `--apply` 才写仓库。记录链必须完好（否则退出码 `2`）。同样的证据导出同样的输出。
+一律打印到 stdout（或 `--out <file>`）；只有 `--apply` 才写仓库。记录链必须完好（否则退出码 `2`）。同样的证据导出同样的输出：
+任何时候导出两次，打印的字节都一样。导出里的每个时间戳都来自证据本身——记录链里最晚一条记录的完成时间
+（Agent Trace 的 `timestamp`、git note 条目的 `created_at`、OTel 的兜底时间），不是运行导出的那台机器的时钟。
 
 - `agent-trace`：一条 [Agent Trace](https://agent-trace.dev) 记录（规范版本 `0.1`）。文件和新增行区间来自 Change 的 diff；
   贡献者缺省 `unknown`，除非你显式断言 `human`、`ai` 或 `mixed`——Tenon 不知道哪一行是谁写的。Tenon 自己的证据在
@@ -188,7 +241,8 @@ tenon verify --ci --since origin/main --also sarif=/tmp/tenon.sarif
 | 现象 | 原因与处理 |
 | --- | --- |
 | `protected-diff-unavailable` | 浅克隆。用 `fetch-depth: 0` |
-| 作者本机干净运行之后立刻出现 `candidate-mismatch` | 被忽略的构建产物、权限位或行尾不同；见「候选代码不一致」 |
+| 作者本机干净运行之后立刻出现 `candidate-mismatch` | 记录是 Tenon 0.3.0 或更早版本在有 `.claude/settings.local.json` 的工作区里写的，或被忽略的构建产物、权限位、行尾不同；见「候选代码不一致」 |
+| 报错旁边有提示 `finished-judged-at-head` | 已完结的 Change 对本次检出的树判定；见「已完结的 Change 对本次检出的树判定」 |
 | `record-chain-broken` | 有记录被手工改过、删掉或加进来。在本机重跑 `tenon test run <change> --stage` 并提交新记录 |
 | `protected-unapproved` | 目录、基线、已知失败或工作流的改动没有评审批准行。用 `tenon review request` 与 `tenon review acknowledge` 取得批准，再提交 Change 历史 |
 | `anchor-mismatch` | 链在锚定之后被重写。这正是锚点存在的理由；不要为了让它消失而重新锚定 |

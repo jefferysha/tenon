@@ -133,6 +133,18 @@ export interface DevProjectOptions {
   readonly integrity?: IntegrityPolicy
   /** 基线里有一个旧测试文件，开发者在交付前把它删了（测试完整性的 `test-file-deleted` 信号）。 */
   readonly deleteLegacyTest?: boolean
+  /**
+   * 作者的工作区里有宿主本地文件（`.claude/settings.local.json`、`CLAUDE.local.md`），都被 .gitignore 忽略、不进提交；
+   * 测试在它们存在时运行，所以绑定的候选指纹要么算进它们（0.3.0），要么不算（可移植版）。
+   */
+  readonly hostLocalFiles?: boolean
+  /**
+   * 基线提交里有一份被 git 跟踪的代码 `.claude/worktrees/x.js`（在宿主本地清单的路径下，但提交进了仓库），
+   * 测试命令（gen-report.mjs）会 import 它：它是被测代码的一部分，改了就必须让记录过期。
+   */
+  readonly trackedHostLocalCode?: boolean
+  /** 交付前把任务走完：评审确认 → build-done → archived（任务落在终态 verify，已归档）。 */
+  readonly finish?: boolean
 }
 
 export async function devProject(options: DevProjectOptions = {}): Promise<Dev> {
@@ -140,8 +152,9 @@ export async function devProject(options: DevProjectOptions = {}): Promise<Dev> 
   const dev = makeDev(h)
   await writeFiles(h.cwd, {
     'package.json': '{ "name": "fixture", "private": true, "type": "module" }\n',
-    '.gitignore': 'test-results\nnode_modules\n.pipeline/cache\n.pipeline/.gitignore\n',
-    'gen-report.mjs': GEN_REPORT,
+    '.gitignore': `test-results\nnode_modules\n.pipeline/cache\n.pipeline/.gitignore\n${options.hostLocalFiles === true ? '.claude/settings.local.json\nCLAUDE.local.md\n' : ''}`,
+    'gen-report.mjs': options.trackedHostLocalCode === true ? `import './${TRACKED_HOST_LOCAL_CODE}'\n${GEN_REPORT}` : GEN_REPORT,
+    ...(options.trackedHostLocalCode === true ? { [TRACKED_HOST_LOCAL_CODE]: 'export const marker = 1\n' } : {}),
     'src/a.test.js': 'export {}\n',
     ...(options.deleteLegacyTest === true ? { [LEGACY_TEST_PATH]: LEGACY_TEST } : {}),
     [CATALOG_PATH]: catalog(),
@@ -150,6 +163,7 @@ export async function devProject(options: DevProjectOptions = {}): Promise<Dev> 
   git(h.cwd, ['init', '-q', '-b', 'main'])
   commitAll(h.cwd, 'base', '2026-01-01T00:00:00Z')
   git(h.cwd, ['checkout', '-q', '-b', 'pr'])
+  if (options.hostLocalFiles === true) await writeHostLocalFiles(h.cwd)
   await expectOk(dev.tenon(['init', 'demo', '--track', 'backend', '--workflow', 'trusted', '--preset', 'full']), dev, 'init')
   await writeFiles(h.cwd, { 'src/feature.js': 'export const feature = () => 1\n' })
   if (options.deleteLegacyTest === true) await rm(join(h.cwd, LEGACY_TEST_PATH))
@@ -160,9 +174,24 @@ export async function devProject(options: DevProjectOptions = {}): Promise<Dev> 
   await expectOk(dev.tenon(['test', 'register', 'demo', '--file', 'src/a.test.js', '--suite', 'unit']), dev, 'register file')
   await expectOk(dev.tenon(['test', 'register', 'demo', '--case', 'task:1.1', '--test', 'src/a.test.js › bad']), dev, 'register case')
   await expectOk(dev.tenon(['test', 'run', 'demo', '--stage']), dev, 'test run')
-  if (options.catalogEdit === 'approved') await approveCatalog(dev)
+  if (options.catalogEdit === 'approved' || options.finish === true) await approveCatalog(dev)
+  if (options.finish === true) {
+    await expectOk(dev.tenon(['transition', 'demo', 'build-done']), dev, 'transition build-done')
+    await expectOk(dev.tenon(['transition', 'demo', 'archived']), dev, 'transition archived')
+  }
   dev.commit('deliver demo')
   return dev
+}
+
+/** 宿主本地清单路径下、却被 git 跟踪的代码文件（见 DevProjectOptions.trackedHostLocalCode）。 */
+export const TRACKED_HOST_LOCAL_CODE = '.claude/worktrees/x.js'
+
+/** Claude Code 在项目里自己写的、被忽略的宿主本地文件（权限允许列表、个人记忆）。 */
+export const HOST_LOCAL_SETTINGS_PATH = '.claude/settings.local.json'
+export const HOST_LOCAL_SETTINGS = '{ "permissions": { "allow": ["Bash(ls)"] } }\n'
+
+export async function writeHostLocalFiles(dir: string, settings = HOST_LOCAL_SETTINGS): Promise<void> {
+  await writeFiles(dir, { [HOST_LOCAL_SETTINGS_PATH]: settings, 'CLAUDE.local.md': 'private notes\n' })
 }
 
 async function expectOk(result: Promise<number>, dev: Dev, what: string): Promise<void> {

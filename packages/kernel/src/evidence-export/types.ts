@@ -62,8 +62,11 @@ export interface EvidenceBundle {
   readonly phase: string
   readonly owner: string | null
   readonly created_at: string | null
-  /** 导出时刻（由命令的时钟给出）。 */
-  readonly exported_at: string
+  /**
+   * 证据自己的时刻：记录链里最晚一条记录的完成时间（链没有记录时取任务创建时间）。不是导出时刻——
+   * 同一份证据导出多少次、什么时候导出，输出都逐字节相同。
+   */
+  readonly evidence_at: string
   /** 40 位 git 提交。 */
   readonly commit: string
   readonly chain: {

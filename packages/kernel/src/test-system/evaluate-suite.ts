@@ -37,6 +37,11 @@ export function latestSuiteRuns(records: readonly TestRunRecordV2[]): ReadonlyMa
 
 export interface FreshnessContext {
   readonly candidate: string | null | undefined
+  /**
+   * 同一棵树的另一个指纹（去掉宿主本地文件的可移植版）。记录绑的是它或 `candidate` 都算绑定了当前代码：
+   * 0.3.1 起写的记录绑可移植版，0.3.0 及更早的绑完整版。缺省 = 没有第二个口径。
+   */
+  readonly candidateAlt?: string
   readonly workflowFingerprint: string
   readonly catalog: TestCatalog | undefined
   readonly planDigest: string | undefined
@@ -51,7 +56,8 @@ export interface FreshnessContext {
 export function staleBindings(ref: SuiteRunRef, context: FreshnessContext): readonly StaleBinding[] {
   const bindings = ref.record.bindings
   const out: StaleBinding[] = []
-  if (context.candidate !== undefined && (context.candidate === null || bindings.candidate !== context.candidate)) out.push('candidate')
+  if (context.candidate !== undefined
+    && (context.candidate === null || (bindings.candidate !== context.candidate && bindings.candidate !== context.candidateAlt))) out.push('candidate')
   if (bindings.workflow_fingerprint !== context.workflowFingerprint) out.push('workflow')
   if (ref.run.origin === 'catalog') {
     const catalogSuites = ref.record.suites.filter((run) => run.origin === 'catalog').map((run) => run.suite)

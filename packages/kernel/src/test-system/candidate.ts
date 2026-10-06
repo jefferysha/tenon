@@ -8,11 +8,14 @@
  *
  * 目录读不出（不存在、无效）就没有目录声明：产出报告的目录会计入候选，宁可让记录多过期一次，
  * 也不因为一份读不了的目录而放宽指纹。CLI、server 与 build revision 捕获共用这一个函数，口径唯一。
+ *
+ * 同一次遍历还给出不含宿主本地文件（`.claude/settings.local.json` 等，见 fingerprint.ts）的可移植指纹：测试记录绑它，
+ * 干净克隆才复现得出来；评审结论与构建基线仍绑完整指纹（`candidateFingerprint`），它们的口径不变。
  */
 import { lstat, readFile, readdir } from 'node:fs/promises'
 import { join, posix } from 'node:path'
 import { WORKFLOW_PLAN_SNAPSHOT_FILE } from '../state/workflow-plan-snapshot.js'
-import { fingerprintWorkspace } from '../workspace/fingerprint.js'
+import { fingerprintWorkspaceTwins, type WorkspaceFingerprints } from '../workspace/fingerprint.js'
 import type { TestCatalog } from './catalog-types.js'
 import { loadCatalogInput } from './load.js'
 
@@ -116,7 +119,57 @@ export async function declaredTestOutputs(repoRoot: string): Promise<readonly st
   return [...new Set([...fromCatalog, ...await inlineTestDeclaredOutputs(repoRoot)])].sort()
 }
 
-/** 候选代码指纹（生产口径）：只忽略项目声明的测试产物路径。 */
+/**
+ * 同一棵树的两个指纹（`WorkspaceFingerprints`）的对照表：完整指纹 → 可移植指纹。完整指纹相同 = 内容相同；可移植指纹还取决于
+ * git 是否跟踪宿主本地路径（`git add` 不改内容、只改它），所以每次 `candidateFingerprint` 重算都会刷新对应的表项，
+ * 表项最长的陈旧窗口就是宿主缓存候选的时间（Dashboard 的 TTL）。只是缓存，缺了就按需重算。进程内、有界、先进先出。
+ */
+const TWINS = new Map<string, string>()
+const MAX_TWINS = 256
+
+function rememberTwins(twins: WorkspaceFingerprints): void {
+  TWINS.delete(twins.full)
+  TWINS.set(twins.full, twins.portable)
+  if (TWINS.size > MAX_TWINS) {
+    const oldest = TWINS.keys().next()
+    if (oldest.done !== true) TWINS.delete(oldest.value)
+  }
+}
+
+async function candidateTwins(repoRoot: string): Promise<WorkspaceFingerprints> {
+  const twins = await fingerprintWorkspaceTwins(repoRoot, { declaredOutputs: await declaredTestOutputs(repoRoot) })
+  rememberTwins(twins)
+  return twins
+}
+
+/**
+ * 候选代码指纹（生产口径，完整版）：只忽略项目声明的测试产物路径，宿主本地文件照算——评审结论、构建基线冻结的是它，
+ * 0.3.0 及更早版本写进测试记录的也是它。测试记录与 `tenon verify --ci` 改用可移植版（`portableCandidate`）。
+ */
 export async function candidateFingerprint(repoRoot: string): Promise<string> {
-  return fingerprintWorkspace(repoRoot, { declaredOutputs: await declaredTestOutputs(repoRoot) })
+  return (await candidateTwins(repoRoot)).full
+}
+
+/**
+ * 某个完整候选指纹在「去掉宿主本地文件」之后的可移植指纹：干净克隆能复现的那个值，测试记录从 0.3.1 起绑它。
+ * 只认本进程算出过的指纹（`candidateFingerprint` 一次遍历同时得到两个）；没有记录时返回 undefined——
+ * 调用方拿到的不是本进程算的值（测试里的桩），就只能用完整指纹本身比较。
+ */
+export function knownPortableCandidate(fullCandidate: string): string | undefined {
+  return TWINS.get(fullCandidate)
+}
+
+/**
+ * 同上，但对照表里没有时重新遍历 `repoRoot` 一次（例如表项被挤掉）；树自那之后变了（完整指纹对不上）就返回 undefined，
+ * 不会把另一棵树的指纹冒充成它的。
+ */
+export async function portableCandidate(repoRoot: string, fullCandidate: string): Promise<string | undefined> {
+  const known = TWINS.get(fullCandidate)
+  if (known !== undefined) return known
+  try {
+    const twins = await candidateTwins(repoRoot)
+    return twins.full === fullCandidate ? twins.portable : undefined
+  } catch {
+    return undefined
+  }
 }

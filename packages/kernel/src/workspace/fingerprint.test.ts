@@ -1,10 +1,13 @@
+import { execFileSync } from 'node:child_process'
 import { closeSync, constants, lstatSync, openSync } from 'node:fs'
 import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
 import {
-  fingerprintWorkspace, isWorkspaceBaseline, TEST_OUTPUT_DIR_SEGMENTS, WORKSPACE_BASELINE_PREFIX,
+  fingerprintWorkspace, fingerprintWorkspaceTwins, isHostLocalPath, isWorkspaceBaseline, isWorkspaceCandidatePath, TEST_OUTPUT_DIR_SEGMENTS,
+  trackedHostLocalPaths,
+  WORKSPACE_BASELINE_PREFIX,
 } from './fingerprint.js'
 
 const roots: string[] = []
@@ -192,5 +195,225 @@ describe('fingerprintWorkspace', () => {
     const link = join(await freshWorkspace(), 'root-link')
     await symlink(root, link)
     await expect(fingerprintWorkspace(link)).rejects.toThrow(/workspace root is not a directory/)
+  })
+})
+
+/**
+ * 宿主本地文件（`.claude/settings.local.json`、`CLAUDE.local.md`、`.claude/worktrees/`）：不提交、每台机器不同。
+ * 完整指纹（≤ 0.3.0 绑进每条记录的值）照旧把它们算进去；可移植指纹不算，所以干净检出也能复现。
+ */
+describe('host-local files', () => {
+  /** 固定权限位的夹具树：所有目录 755、文件 644（可执行 755），指纹因此与 umask 无关。 */
+  async function fixture(options: { readonly hostLocal: boolean; readonly sharedSettings?: boolean }): Promise<string> {
+    const root = await freshWorkspace()
+    const dir = async (rel: string): Promise<void> => { await mkdir(join(root, rel), { recursive: true }); await chmod(join(root, rel), 0o755) }
+    const file = async (rel: string, text: string, mode = 0o644): Promise<void> => { await writeFile(join(root, rel), text); await chmod(join(root, rel), mode) }
+    await chmod(root, 0o755)
+    for (const rel of ['src', 'test', '.claude', '.claude/agents', 'test-results']) await dir(rel)
+    await file('src/a.js', 'export const a = 1\n')
+    await file('src/run.sh', '#!/bin/sh\necho hi\n', 0o755)
+    await file('test/a.test.js', 'export {}\n')
+    await file('package.json', '{ "name": "g" }\n')
+    await file('.claude/agents/tenon-x.md', 'agent\n')
+    await file('test-results/unit.xml', '<x/>')
+    await symlink('src/a.js', join(root, 'link.js'))
+    if (options.sharedSettings === true) await file('.claude/settings.json', '{ "shared": true }\n')
+    if (options.hostLocal) {
+      await file('.claude/settings.local.json', '{ "permissions": { "allow": ["Bash(ls)"] } }\n')
+      await file('CLAUDE.local.md', 'private\n')
+      await dir('.claude/worktrees')
+      await dir('.claude/worktrees/x')
+      await file('.claude/worktrees/x/y.js', 'copy\n')
+    }
+    return root
+  }
+  const DECLARED = { declaredOutputs: ['test-results/unit.xml'] }
+
+  // 这四个值是 0.3.0 的实现对同一棵树算出来的：升级后读 0.3.0 记录（它们绑的就是完整指纹）不能因此全部过期。
+  const V030 = {
+    'plain:without': 'workspace:sha256:7b858207f7bedfe5ed6a389f68e573e831c98f64e2afea81f78208779ae133c9',
+    'plain:with': 'workspace:sha256:81190397c3551da82ecc1d5799fbbbeb1f7a5d4fcf512e684c87509168eb839a',
+    'settings:without': 'workspace:sha256:7c79a73370d2335591207303db56ce098302008252d6ac9ddd915fa369ce5298',
+    'settings:with': 'workspace:sha256:626c83e0ccebddee4839787267da798fe3ff16abf30fd71044cfd7aa9b5cb58f',
+  } as const
+
+  test('完整指纹与 0.3.0 逐位相同（有无宿主本地文件、有无共享的 .claude/settings.json 都一样）', async () => {
+    expect(await fingerprintWorkspace(await fixture({ hostLocal: false }), DECLARED)).toBe(V030['plain:without'])
+    expect(await fingerprintWorkspace(await fixture({ hostLocal: true }), DECLARED)).toBe(V030['plain:with'])
+    expect(await fingerprintWorkspace(await fixture({ hostLocal: false, sharedSettings: true }), DECLARED)).toBe(V030['settings:without'])
+    expect(await fingerprintWorkspace(await fixture({ hostLocal: true, sharedSettings: true }), DECLARED)).toBe(V030['settings:with'])
+  })
+
+  test('可移植指纹等于「同一棵树去掉宿主本地文件」的完整指纹：作者的工作区与干净克隆算出同一个值', async () => {
+    const author = await fingerprintWorkspaceTwins(await fixture({ hostLocal: true }), DECLARED)
+    expect(author.full).toBe(V030['plain:with'])
+    expect(author.portable).toBe(V030['plain:without'])
+    const authorShared = await fingerprintWorkspaceTwins(await fixture({ hostLocal: true, sharedSettings: true }), DECLARED)
+    expect(authorShared.portable).toBe(V030['settings:without'])
+    // 没有宿主本地文件：两个值相同。
+    const clone = await fingerprintWorkspaceTwins(await fixture({ hostLocal: false }), DECLARED)
+    expect(clone).toEqual({ full: V030['plain:without'], portable: V030['plain:without'] })
+  })
+
+  test('改、加、删宿主本地文件不动可移植指纹，动完整指纹；清单之外的同类文件仍属于候选', async () => {
+    const root = await fixture({ hostLocal: true })
+    const before = await fingerprintWorkspaceTwins(root, DECLARED)
+    await writeFile(join(root, '.claude', 'settings.local.json'), '{ "permissions": { "allow": ["Bash(rm:*)"] } }\n')
+    await writeFile(join(root, 'CLAUDE.local.md'), 'something else\n')
+    await writeFile(join(root, '.claude', 'worktrees', 'x', 'y.js'), 'edited copy\n')
+    await mkdir(join(root, '.claude', 'worktrees', 'z'), { recursive: true })
+    await writeFile(join(root, '.claude', 'worktrees', 'z', 'new.js'), 'another worktree\n')
+    const after = await fingerprintWorkspaceTwins(root, DECLARED)
+    expect(after.portable).toBe(before.portable)
+    expect(after.full).not.toBe(before.full)
+
+    await rm(join(root, '.claude', 'settings.local.json'))
+    await rm(join(root, 'CLAUDE.local.md'))
+    await rm(join(root, '.claude', 'worktrees'), { recursive: true })
+    const removed = await fingerprintWorkspaceTwins(root, DECLARED)
+    expect(removed).toEqual({ full: before.portable, portable: before.portable })
+
+    // 只排除清单里的路径：相似的名字、别处的同名文件、共享的配置都是实现的一部分。
+    const lookalikes: readonly (readonly [string, string])[] = [
+      ['.claude/settings.json', '{}\n'],
+      ['.claude/settings.local.json.bak', '{}\n'],
+      ['.claude/commands/review.md', '# review\n'],
+      ['packages/app/.claude/settings.local.json', '{}\n'],
+      ['packages/app/CLAUDE.local.md', 'nested\n'],
+      ['CLAUDE.md', '# shared memory\n'],
+      ['notes.local.md', 'local notes\n'],
+      ['.mcp.json', '{}\n'],
+    ]
+    for (const [path, text] of lookalikes) {
+      await mkdir(join(root, ...path.split('/').slice(0, -1)), { recursive: true })
+      const base = await fingerprintWorkspaceTwins(root, DECLARED)
+      await writeFile(join(root, ...path.split('/')), text)
+      const next = await fingerprintWorkspaceTwins(root, DECLARED)
+      expect(next.portable, path).not.toBe(base.portable)
+      expect(next.full, path).not.toBe(base.full)
+    }
+  })
+
+  test('只装着被排除内容的 .claude/ 外壳不动可移植指纹：宿主本地文件是第一个出现的 .claude/ 内容也一样', async () => {
+    const root = await freshWorkspace()
+    await mkdir(join(root, 'src'), { recursive: true })
+    await writeFile(join(root, 'src', 'app.js'), 'export const answer = 42\n')
+    const bare = await fingerprintWorkspaceTwins(root)
+    // Claude Code 第一次保存权限选择：新建 .claude/ 与 settings.local.json。
+    await mkdir(join(root, '.claude'), { recursive: true })
+    await writeFile(join(root, '.claude', 'settings.local.json'), '{}\n')
+    const saved = await fingerprintWorkspaceTwins(root)
+    expect(saved.portable).toBe(bare.portable)
+    expect(saved.full).not.toBe(bare.full)
+    // 再生成宿主 agent 文件：外壳里装的仍然全是被排除的内容。
+    await mkdir(join(root, '.claude', 'agents'), { recursive: true })
+    await writeFile(join(root, '.claude', 'agents', 'tenon-builder.md'), 'agent\n')
+    expect((await fingerprintWorkspaceTwins(root)).portable).toBe(bare.portable)
+    // 共享的 .claude/ 内容一出现，外壳就是实现的一部分。
+    await writeFile(join(root, '.claude', 'settings.json'), '{}\n')
+    expect((await fingerprintWorkspaceTwins(root)).portable).not.toBe(bare.portable)
+  })
+
+  test('代码度量与线索文件的路径范围来自 git diff：被跟踪的宿主本地路径照常算，名单只用于判断指纹', () => {
+    expect(isWorkspaceCandidatePath('.claude/worktrees/x.js')).toBe(true)
+    expect(isWorkspaceCandidatePath('.claude/settings.json')).toBe(true)
+    expect(isWorkspaceCandidatePath('src/a.js')).toBe(true)
+    expect(isWorkspaceCandidatePath('docs/readme.md')).toBe(false)
+    expect(isHostLocalPath('.claude/settings.local.json')).toBe(true)
+    expect(isHostLocalPath('CLAUDE.local.md')).toBe(true)
+    expect(isHostLocalPath('.claude/worktrees/agent-1/src/a.js')).toBe(true)
+    expect(isHostLocalPath('.claude/worktrees')).toBe(true)
+    expect(isHostLocalPath('.claude/settings.json')).toBe(false)
+    expect(isHostLocalPath('packages/app/CLAUDE.local.md')).toBe(false)
+  })
+})
+
+/**
+ * 被 git 跟踪的宿主本地路径是仓库的一部分：可移植指纹照算。否则 PR 可以把代码提交进 `.claude/worktrees/`、让测试命令去用它，
+ * 之后再改它而候选不动。「跟踪」包括已提交与已暂存；不是 git 仓库就什么都不跟踪；git 读不出来（索引损坏等）就一律照算。
+ */
+describe('host-local files tracked by git', () => {
+  async function repo(): Promise<string> {
+    const root = await freshWorkspace()
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root })
+    await mkdir(join(root, 'src'), { recursive: true })
+    await writeFile(join(root, 'src', 'app.js'), 'export const a = 1\n')
+    return root
+  }
+  const track = (root: string, ...paths: string[]): void => {
+    execFileSync('git', ['add', '-f', '--', ...paths], { cwd: root })
+  }
+  const untrack = (root: string, ...paths: string[]): void => {
+    execFileSync('git', ['rm', '-q', '--cached', '-f', '-r', '--', ...paths], { cwd: root })
+  }
+
+  test('被跟踪的 .claude/worktrees 代码：改它就动可移植指纹，同目录里没被跟踪的文件仍然不动', async () => {
+    const root = await repo()
+    await mkdir(join(root, '.claude', 'worktrees'), { recursive: true })
+    await writeFile(join(root, '.claude', 'worktrees', 'x.js'), 'export const x = 1\n')
+    await writeFile(join(root, '.claude', 'worktrees', 'scratch.js'), 'export const s = 1\n')
+    const untracked = await fingerprintWorkspaceTwins(root)
+    expect(untracked.portable, '没有被跟踪的：整个目录不进可移植指纹').not.toBe(untracked.full)
+
+    track(root, '.claude/worktrees/x.js')
+    const tracked = await fingerprintWorkspaceTwins(root)
+    expect(tracked.portable).not.toBe(untracked.portable)
+    expect(tracked.full).toBe(untracked.full)
+
+    await writeFile(join(root, '.claude', 'worktrees', 'x.js'), 'export const x = 2\n')
+    const changed = await fingerprintWorkspaceTwins(root)
+    expect(changed.portable, '被跟踪的代码变了，可移植指纹必须变').not.toBe(tracked.portable)
+
+    await writeFile(join(root, '.claude', 'worktrees', 'scratch.js'), 'export const s = 2\n')
+    await writeFile(join(root, '.claude', 'worktrees', 'another.js'), 'export const n = 1\n')
+    expect((await fingerprintWorkspaceTwins(root)).portable, '没被跟踪的文件改了不动').toBe(changed.portable)
+  })
+
+  test('被跟踪的 settings.local.json 与 CLAUDE.local.md 也算；取消跟踪（git rm --cached）就回到不算', async () => {
+    const root = await repo()
+    await mkdir(join(root, '.claude'), { recursive: true })
+    await writeFile(join(root, '.claude', 'settings.local.json'), '{}\n')
+    await writeFile(join(root, 'CLAUDE.local.md'), 'private\n')
+    const untracked = await fingerprintWorkspaceTwins(root)
+    expect(untracked.portable).not.toBe(untracked.full)
+
+    track(root, '.claude/settings.local.json', 'CLAUDE.local.md')
+    const tracked = await fingerprintWorkspaceTwins(root)
+    expect(tracked.portable, '都被跟踪：与完整指纹相同').toBe(tracked.full)
+    await writeFile(join(root, '.claude', 'settings.local.json'), '{ "permissions": {} }\n')
+    expect((await fingerprintWorkspaceTwins(root)).portable).not.toBe(tracked.portable)
+
+    untrack(root, '.claude/settings.local.json', 'CLAUDE.local.md')
+    const again = await fingerprintWorkspaceTwins(root)
+    expect(again.portable).not.toBe(again.full)
+    await writeFile(join(root, '.claude', 'settings.local.json'), '{ "permissions": { "allow": [] } }\n')
+    expect((await fingerprintWorkspaceTwins(root)).portable).toBe(again.portable)
+  })
+
+  test('只跟踪其中一个文件：另一个仍不算；.claude/ 外壳因为装着被跟踪的文件而属于候选', async () => {
+    const root = await repo()
+    await mkdir(join(root, '.claude'), { recursive: true })
+    await writeFile(join(root, '.claude', 'settings.local.json'), '{}\n')
+    await writeFile(join(root, 'CLAUDE.local.md'), 'private\n')
+    const bare = (await fingerprintWorkspaceTwins(root)).portable
+    track(root, 'CLAUDE.local.md')
+    const mixed = (await fingerprintWorkspaceTwins(root)).portable
+    expect(mixed).not.toBe(bare)
+    await writeFile(join(root, '.claude', 'settings.local.json'), '{ "edited": true }\n')
+    expect((await fingerprintWorkspaceTwins(root)).portable).toBe(mixed)
+    await writeFile(join(root, 'CLAUDE.local.md'), 'edited\n')
+    expect((await fingerprintWorkspaceTwins(root)).portable).not.toBe(mixed)
+  })
+
+  test('git 读不出跟踪情况（索引损坏）：一律照算，可移植指纹等于完整指纹，绝不放宽', async () => {
+    const root = await repo()
+    await mkdir(join(root, '.claude'), { recursive: true })
+    await writeFile(join(root, '.claude', 'settings.local.json'), '{}\n')
+    const healthy = await fingerprintWorkspaceTwins(root)
+    expect(healthy.portable).not.toBe(healthy.full)
+    await writeFile(join(root, '.git', 'index'), 'not an index')
+    expect(await trackedHostLocalPaths(root)).toBeUndefined()
+    const broken = await fingerprintWorkspaceTwins(root)
+    expect(broken.portable).toBe(broken.full)
   })
 })

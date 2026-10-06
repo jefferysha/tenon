@@ -4,13 +4,14 @@
  * 候选代码指纹取自本次检出的树。
  */
 import {
-  ChangedFilesUnavailableError, TEST_BLOCKER_LABELS, TEST_NOTICE_LABELS, changeStartOfFields, evaluateTestEvidence, integrityDiffInSession,
+  ChangedFilesUnavailableError, TEST_BLOCKER_LABELS, TEST_NOTICE_LABELS, changeStartOfFields, declaredTestOutputs, evaluateTestEvidence,
+  integrityDiffInSession,
   type CandidateMode, type ChangedFilesSession, type CiFinding, type EffectiveWorkflowPlan, type PipelineState,
-  type SuiteVerdict, type TestEvidenceReport,
+  type SuiteVerdict, type TestEvidenceReport, type TestRunRecordV2,
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 import { localeOf } from '../i18n/messages.js'
-import { candidateFilesTouchedSince, resolveBaseRef } from './verify-ci-git.js'
+import { candidateClues, resolveBaseRef } from './verify-ci-git.js'
 import { shallowReason, verifyMsg } from './verify-ci-text.js'
 
 type Step = EffectiveWorkflowPlan['workflow']['steps'][number]
@@ -119,6 +120,8 @@ export async function policyFindings(input: {
   /** 判定用的链断了时，第一个出问题的记录文件（仓库相对路径）。 */
   readonly brokenFile: string | undefined
   readonly mode: CandidateMode
+  /** 判定用的链上的记录：候选不一致的线索要读记录里的 `git_head`。 */
+  readonly records: readonly TestRunRecordV2[]
 }): Promise<readonly CiFinding[]> {
   const { report, change, relDir } = input
   const out: CiFinding[] = []
@@ -154,7 +157,7 @@ export async function policyFindings(input: {
       ...(path === undefined ? {} : { path }),
     })
   }
-  if (candidateStale.length > 0) out.push(await candidateFinding(input, candidateStale, recordFile(candidateStale[0]?.suite)))
+  if (candidateStale.length > 0) out.push(await candidateFinding({ ...input, change }, candidateStale, recordFile(candidateStale[0]?.suite)))
   if (policy === undefined) {
     for (const item of report.items) {
       if (!item.test.required || item.status === 'passed') continue
@@ -170,18 +173,36 @@ export async function policyFindings(input: {
 }
 
 async function candidateFinding(
-  input: { readonly deps: CliDeps; readonly change: string; readonly mode: CandidateMode },
+  input: { readonly deps: CliDeps; readonly change: string; readonly mode: CandidateMode; readonly records: readonly TestRunRecordV2[] },
   stale: readonly SuiteVerdict[],
   path: string | undefined,
 ): Promise<CiFinding> {
-  const earliest = stale.map((verdict) => verdict.finished_at).filter((value): value is string => value !== undefined).sort()[0]
-  const touched = earliest === undefined ? [] : await candidateFilesTouchedSince(input.deps.cwd, earliest)
-  const sep = verifyMsg(input.deps, 'verify.listSep')
-  const hint = touched.length === 0 ? '' : verifyMsg(input.deps, 'verify.candidateTouched', { files: touched.join(sep) })
+  const { deps } = input
+  const earliest = [...stale].filter((verdict) => verdict.finished_at !== undefined)
+    .sort((left, right) => (left.finished_at ?? '') < (right.finished_at ?? '') ? -1 : 1)[0]
+  const record = earliest?.run_id === undefined ? undefined : input.records.find((item) => item.run_id === earliest.run_id)
+  const sep = verifyMsg(deps, 'verify.listSep')
+  const list = (files: readonly string[], more: number): string => `${files.join(sep)}${more > 0 ? verifyMsg(deps, 'verify.listMore', { count: more }) : ''}`
+  const clues = earliest?.finished_at === undefined
+    ? undefined
+    : await candidateClues(deps.cwd, { gitHead: record?.git_head ?? null, finishedAt: earliest.finished_at, declared: await declaredTestOutputs(deps.cwd) })
+  const parts: string[] = []
+  if (clues?.followedBy !== undefined && clues.changedLater.length > 0) {
+    parts.push(verifyMsg(deps, 'verify.candidateChangedLater', { commit: clues.followedBy, files: list(clues.changedLater, clues.changedLaterMore) }))
+  } else {
+    parts.push(verifyMsg(deps, clues?.followedBy === undefined ? 'verify.candidateWorkspaceCauses' : 'verify.candidateNothingLater',
+      clues?.followedBy === undefined ? {} : { commit: clues.followedBy }))
+  }
+  if (clues !== undefined && clues.extraHere.length > 0) {
+    parts.push(verifyMsg(deps, 'verify.candidateExtraHere', { files: list(clues.extraHere, clues.extraHereMore) }))
+  }
+  if (clues !== undefined && clues.trackedHostLocal.length > 0) {
+    parts.push(verifyMsg(deps, 'verify.candidateTrackedHostLocal', { files: list(clues.trackedHostLocal, clues.trackedHostLocalMore) }))
+  }
   return {
     code: 'candidate-mismatch', severity: input.mode === 'warn' ? 'warning' : 'error', change: input.change, source: 'policy',
     subject: stale.map((verdict) => verdict.suite).join(','),
-    message: verifyMsg(input.deps, 'verify.candidateMismatch', { suites: stale.map((verdict) => verdict.suite).join(sep), hint }),
+    message: verifyMsg(deps, 'verify.candidateMismatch', { suites: stale.map((verdict) => verdict.suite).join(sep), hint: parts.join('') }),
     fix: `tenon test run ${input.change} --stage`,
     ...(path === undefined ? {} : { path }),
   }

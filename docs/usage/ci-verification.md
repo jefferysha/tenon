@@ -105,6 +105,34 @@ SARIF rule ids prefixed with `tenon/`.
 | Candidate tree | `candidate-mismatch` |
 | Protected file approvals | `protected-unapproved`, `protected-changed-after-approval`, `protected-approval-unbound` (warning), `protected-diff-unavailable` |
 | Anchors | `anchor-mismatch`, `anchor-behind` (warning), `anchor-unverifiable` (warning), `anchor-missing` (only with `--require-anchor`) |
+| Abandoned Change (test evidence not judged) | `change-abandoned` (note) |
+| Finished Change judged at the head | `finished-judged-at-head` (note) |
+
+Abandoned Changes are not judged for test evidence. A Change that left its workflow through the abandon
+edge (`scope-expanded`, for example a `standard` task that escalated into the terminal step `escalated`)
+needs no test evidence, and it usually sits in the same pull request as the `default` Change that replaced
+it. CI does not judge its test evidence: the report carries the note `change-abandoned` and no test-policy
+or candidate findings for it, whether you select it with `--change` or `--since` picks it up. Only a Change
+that really went through the abandon edge counts. CI reads the head transition record from the Change's
+canonical run state and requires that it is the abandon event, that it entered the terminal step the state
+is in, and that the frozen workflow declares that edge. A state that merely says `phase: escalated`, with
+no abandon transition behind it, is judged like any other Change and fails.
+
+Two things the abandon never skips or proves:
+
+- **Protected-file approval is always checked.** The abandon edge needs no review, so a pull request that
+  carries only an abandoned Change could otherwise lower a coverage threshold, edit a catalog command, add a
+  known failure or change a workflow `test_policy` with no approval anywhere. CI runs the same approval
+  check on the abandoned Change as on any other and reports `protected-unapproved` and its siblings at
+  normal severity; they fail the check. The check reads the approval lines in that Change's own history
+  against everything changed since it started, so a protected edit that only the replacement Change made
+  (and had approved) is reported on the abandoned one too. Make such an edit in a Change CI judges, or
+  have it approved on the abandoned Change.
+- **The abandon decision is not sealed.** It rests on the transition chain the author committed, which
+  CI checks for consistency (the revision digests of the canonical run state) but cannot prove was produced
+  by a real `tenon transition`: whoever can write the Change directory can write a consistent chain. This is
+  the same limit the table above states for test records, and it is why the approval check above is not
+  optional.
 
 Which step is judged: the Change's current step; if it declares no test policy, the closest earlier
 step that does (a finished Change is therefore judged at verify). Which chain is judged: the
@@ -125,13 +153,65 @@ were not.
 ## Candidate mismatch
 
 A test record binds the content fingerprint of the whole workspace it ran on. The check compares it
-with the fingerprint of the checked-out tree. A mismatch usually means the code changed after the
-tests ran; the message lists the files committed after the record finished. It can also come from
-differences between the author's workspace and a clean checkout: git-ignored build output inside
-the candidate scope, file or directory permission bits (umask), or line-ending conversion. Run the
-action right after checkout, before any build step, and declare test output directories in the
-catalog. `--candidate warn` turns the finding into a warning; `--candidate off` skips the
-comparison and adds a note.
+with the fingerprint of the checked-out tree. The fingerprint leaves out Tenon's own state,
+dependencies, the test outputs the catalog declares, and a short, explicit list of **host-local
+files**: per-machine configuration of the coding-agent hosts that is never committed, so no clone
+has it.
+
+| Left out of the fingerprint | What it is |
+| --- | --- |
+| `.claude/settings.local.json` | Claude Code's personal project settings (permission allow-lists, hook logging); Claude Code rewrites it each time you answer a permission prompt |
+| `CLAUDE.local.md` (project root) | Claude Code's personal project memory |
+| `.claude/worktrees/` | checkouts of the project that Claude Code creates for sub-agents |
+
+Nothing else is left out by name pattern. `.claude/settings.json`, `.claude/commands/`, `CLAUDE.md`,
+`.mcp.json`, a `CLAUDE.local.md` in a subdirectory and anything that merely looks similar are
+shared or unlisted configuration and stay part of the candidate; `.claude/agents/`, `.codex/`,
+`.agents/` and `.github/hooks/` were already left out. The list lives in
+`packages/kernel/src/workspace/fingerprint.ts` (`HOST_LOCAL_FILES`, `HOST_LOCAL_DIRS`).
+
+**Only paths git does not track are left out.** A path on the list that git tracks (committed or staged) is
+part of the repository, so the fingerprint counts it, in the author's workspace and in CI alike. Without
+that rule a pull request could commit code under `.claude/worktrees/`, point a test command at it, and
+change it later without moving the candidate. The check is `git ls-files` on the list only; a directory
+that is not a git repository tracks nothing, and when git cannot answer (missing, corrupt index) nothing
+is left out. When a `candidate-mismatch` happens in a checkout that tracks such paths, the message lists
+them. This is a rule about the fingerprint, not a finding: a tracked path changes the candidate like any
+other source file, and moving a file under the list from untracked to tracked after the tests ran fails
+the check, because the clone counts it.
+
+Records written by Tenon 0.3.1 and later bind the fingerprint without those files, so a clean clone
+reproduces it and editing them never makes a record stale. Records written by 0.3.0 and earlier
+bound the fingerprint with those files counted. On the author's machine such a record stays fresh
+(Tenon accepts either form), but a clean clone cannot reproduce it when the author's workspace had
+one of the files: run `tenon test run <change> --stage` once with a current Tenon and commit the new
+records. Going back to 0.3.0 or 0.2.x on a project that has such files makes the 0.3.1 records read
+as stale ("code changed"), never as damaged; run the suites again.
+
+A mismatch that remains usually means the code changed after the tests ran. A record holds a
+single hash, so CI cannot see the author's workspace and cannot name the file that differs; the
+message gives what it can establish. It finds the first commit after the run (from the `git_head`
+the record stores, else from the finish time) and names the candidate files changed after that
+commit, which is the tree the tested workspace was most likely committed in. The delivery commit's
+own files are not blamed. When nothing changed after it, the message says so: the difference is in
+the tested workspace itself. It also names git-ignored or untracked candidate files this checkout
+holds, such as build output. Other causes it cannot see are file or directory permission bits (umask) and
+line-ending conversion. Run the action right after checkout, before any build step, and declare test
+output directories in the catalog. `--candidate warn` turns the finding into a warning;
+`--candidate off` skips the comparison and adds a note.
+
+### Finished Changes are judged against the checked-out tree
+
+CI certifies the tree it checked out, so a finished (done or archived) Change is judged against that
+tree, not against the commit it finished on. When a later commit changed the code, added test files
+(`test-file-unregistered`) or edited the catalog, the finished Change fails with the ordinary findings
+(`candidate-mismatch`, `test-stale`, ...) and the report adds the note `finished-judged-at-head` to
+say why. This is deliberate. Judging each Change at its own delivery commit would let anything
+committed after it, with no governed Change behind it, pass unseen. In practice: the tip of a pull
+request must be covered by the Change that last touched it, so give a pull request one governed Change
+(or a chain whose last Change delivers the final tree), use `--since <merge base>` so only the Changes
+the pull request carries are selected, and to verify an older Change as it was delivered, check out its
+delivery commit and run `tenon verify --ci --change <name>` there.
 
 ## Run it locally
 
@@ -185,7 +265,11 @@ tenon evidence export <change> --format trailer [--apply]
 ```
 
 Everything prints to stdout (or `--out <file>`); only `--apply` writes the repository. The record
-chain must be intact (exit `2` otherwise). All outputs are deterministic for the same evidence.
+chain must be intact (exit `2` otherwise). All outputs are deterministic for the same evidence: running
+an export twice, on any day, prints the same bytes. Every timestamp in an export comes from the
+evidence itself, the finish time of the latest record in the chain (the Agent Trace `timestamp`, the
+`created_at` of a git note entry, the OTel fallback time), never from the clock of the machine that
+runs the export.
 
 - `agent-trace`: an [Agent Trace](https://agent-trace.dev) record (specification version `0.1`).
   Files and added line ranges come from the Change diff; the contributor is `unknown` unless you
@@ -221,7 +305,8 @@ tenon verify --ci --since origin/main --also sarif=/tmp/tenon.sarif
 | Symptom | Cause and fix |
 | --- | --- |
 | `protected-diff-unavailable` | Shallow checkout. Use `fetch-depth: 0` |
-| `candidate-mismatch` right after a clean author run | Ignored build output, permission bits or line endings differ; see Candidate mismatch |
+| `candidate-mismatch` right after a clean author run | The records were written by Tenon 0.3.0 or earlier in a workspace with `.claude/settings.local.json`, or ignored build output, permission bits or line endings differ; see Candidate mismatch |
+| `finished-judged-at-head` note next to errors | A finished Change is judged against the checked-out tree; see Finished Changes are judged against the checked-out tree |
 | `record-chain-broken` | A record was edited, removed or added by hand. Re-run `tenon test run <change> --stage` locally and commit the new records |
 | `protected-unapproved` | A catalog, baseline, known-failures or workflow change has no review approval line. Get it approved with `tenon review request` and `tenon review acknowledge`, then commit the Change history |
 | `anchor-mismatch` | The chain was rewritten after it was anchored. This is the case the anchor exists for; do not re-anchor to silence it |

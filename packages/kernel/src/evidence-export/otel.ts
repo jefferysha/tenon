@@ -141,7 +141,7 @@ export function buildOtelTrace(bundle: EvidenceBundle): OtlpExport {
     const parsed = value === null ? Number.NaN : Date.parse(value)
     return Number.isFinite(parsed) ? [BigInt(parsed) * 1_000_000n] : []
   })
-  const zero = nanos(bundle.exported_at, 0n)
+  const zero = nanos(bundle.evidence_at, 0n)
   const rootStart = times.length === 0 ? zero : times.reduce((min, value) => (value < min ? value : min))
   const rootEnd = times.length === 0 ? zero : times.reduce((max, value) => (value > max ? value : max))
   const rootId = spanId('workflow')

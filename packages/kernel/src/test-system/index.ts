@@ -159,4 +159,6 @@ export {
   INTEGRITY_FILE_LIMIT, integrityDiffInSession, integrityPathFilter, integritySuiteOf,
 } from './integrity-diff.js'
 export type { IntegrityDiffSource, IntegrityPathFilter } from './integrity-diff.js'
-export { candidateFingerprint, catalogDeclaredOutputs, declaredTestOutputs, inlineTestDeclaredOutputs } from './candidate.js'
+export {
+  candidateFingerprint, catalogDeclaredOutputs, declaredTestOutputs, inlineTestDeclaredOutputs, knownPortableCandidate, portableCandidate,
+} from './candidate.js'

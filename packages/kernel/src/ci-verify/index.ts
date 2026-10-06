@@ -1,3 +1,5 @@
+export { abandonedTerminal } from './abandoned.js'
+export type { AbandonedChange } from './abandoned.js'
 export { evaluateAnchor } from './anchor.js'
 export type { AnchorEvidence, AnchorInput, AnchorOutcome } from './anchor.js'
 export { parseProtectedApprovals, protectedApprovalFindings } from './approvals.js'

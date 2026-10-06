@@ -13,7 +13,7 @@ const TOTALS = { cases: 2, pass: 2, fail: 0, skip: 0, flaky: 0, known_fail: 0 }
 function bundle(overrides: Partial<EvidenceBundle> = {}): EvidenceBundle {
   return {
     tenon: '0.2.0', change: 'demo', workflow: 'default', track: 'backend', phase: 'verify', owner: 'a-at-x.io',
-    created_at: '2026-07-07T00:00:00Z', exported_at: '2026-08-01T00:00:00Z', commit: COMMIT,
+    created_at: '2026-07-07T00:00:00Z', evidence_at: '2026-07-07T00:11:00Z', commit: COMMIT,
     chain: { user: 'a-at-x.io', head: HEAD, records: 1 }, last_result: 'pass', plan_digest: `sha256:${'b'.repeat(64)}`,
     records: [{
       run_id: 'r1', step: 'build', started_at: '2026-07-07T00:10:00Z', finished_at: '2026-07-07T00:11:00Z', result: 'pass', digest: HEAD,
@@ -51,7 +51,7 @@ describe('ids', () => {
 describe('buildAgentTrace', () => {
   it('只收有新增行的文件；贡献者缺省 unknown；证据指针与 vcs 修订写进记录', () => {
     const record = buildAgentTrace(bundle(), { contributor: 'unknown' })
-    expect(record).toMatchObject({ version: '0.1', vcs: { type: 'git', revision: COMMIT }, tool: { name: 'tenon', version: '0.2.0' }, timestamp: '2026-08-01T00:00:00Z' })
+    expect(record).toMatchObject({ version: '0.1', vcs: { type: 'git', revision: COMMIT }, tool: { name: 'tenon', version: '0.2.0' }, timestamp: '2026-07-07T00:11:00Z' })
     expect(record.files).toHaveLength(1)
     expect(record.files[0]?.conversations[0]).toMatchObject({
       contributor: { type: 'unknown' }, ranges: [{ start_line: 1, end_line: 3 }],
@@ -122,10 +122,19 @@ describe('buildOtelTrace', () => {
     expect(buildOtelTrace(bundle({ last_result: 'fail' })).resourceSpans[0].scopeSpans[0].spans[0]?.status.code).toBe(2)
   })
 
-  it('没有任何时间戳时退回导出时刻，不产生 NaN', () => {
+  it('没有任何时间戳时退回证据时刻，不产生 NaN', () => {
     const bare = buildOtelTrace(bundle({ created_at: null, steps: [], records: [], agents: [] })).resourceSpans[0].scopeSpans[0].spans
     expect(bare).toHaveLength(1)
-    expect(bare[0]?.startTimeUnixNano).toBe(String(BigInt(Date.parse('2026-08-01T00:00:00Z')) * 1_000_000n))
+    expect(bare[0]?.startTimeUnixNano).toBe(String(BigInt(Date.parse('2026-07-07T00:11:00Z')) * 1_000_000n))
+  })
+
+  it('时间戳只由证据决定：Agent Trace、git notes 条目与 OTel 对同一份证据逐字节相同', () => {
+    const first = bundle()
+    const again = bundle({ steps: [...first.steps] })
+    expect(JSON.stringify(buildAgentTrace(first, { contributor: 'unknown' }))).toBe(JSON.stringify(buildAgentTrace(again, { contributor: 'unknown' })))
+    expect(JSON.stringify(evidenceNoteEntry(first, { anchor: true }))).toBe(JSON.stringify(evidenceNoteEntry(again, { anchor: true })))
+    expect(evidenceNoteEntry(first, { anchor: false }).created_at).toBe('2026-07-07T00:11:00Z')
+    expect(JSON.stringify(buildOtelTrace(first))).toBe(JSON.stringify(buildOtelTrace(again)))
   })
 })
 

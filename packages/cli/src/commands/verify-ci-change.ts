@@ -15,6 +15,7 @@ import type { CliDeps } from '../deps.js'
 import { errMsg } from '../deps.js'
 import { str } from '../render.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
+import { abandonedChangeOf, abandonedReport } from './verify-ci-abandoned.js'
 import { NO_USER_SLUG, chainFindings, chainSummary, pickEvaluatedChain, readUserChains } from './verify-ci-chains.js'
 import { resolveBaseRef } from './verify-ci-git.js'
 import { policyFindings, resolveEvaluatedStep, runPolicy } from './verify-ci-policy.js'
@@ -89,6 +90,12 @@ async function protectedFindings(
   return protectedApprovalFindings({ change: selected.name, changes, approvals: parseProtectedApprovals(history), text: ctx.text })
 }
 
+/** 已完结 = 已归档，或停在工作流里没有出边的终态步骤（交付走完）。 */
+function isFinished(state: PipelineState, plan: EffectiveWorkflowPlan, phase: string): boolean {
+  if (str(state.fields.archived) === 'true') return true
+  return plan.workflow.steps.find((step) => step.id === phase)?.transitions.length === 0
+}
+
 export async function verifyChange(ctx: VerifyContext, selected: SelectedChange): Promise<CiChangeReport> {
   const { deps } = ctx
   let state: PipelineState
@@ -101,6 +108,10 @@ export async function verifyChange(ctx: VerifyContext, selected: SelectedChange)
   }
   if (plan === null) return unreadable(selected, verifyMsg(deps, 'verify.workflowUnresolved', { workflow: str(state.fields.workflow) }))
   const phase = str(state.fields.phase)
+  // 被放弃的任务（真的沿放弃边走进终态）：放弃不要求测试证据，所以不判定它的测试证据、只留一条提示；接手它的任务单独判定。
+  // 受保护文件的批准照查、照常定级：放弃边不要求评审，一个只带着被放弃任务的 PR 否则可以不经任何批准改掉测试目录与工作流。
+  const abandoned = await abandonedChangeOf(selected, phase, plan)
+  if (abandoned !== undefined) return abandonedReport(deps, selected, phase, abandoned, await protectedFindings(ctx, selected, state))
   const picked = resolveEvaluatedStep(deps, plan, phase, ctx.stepOverride)
   if ('error' in picked) {
     return { ...unreadable(selected, picked.error), phase, findings: [ciFinding(selected.name, 'step-unresolved', 'error', picked.error)] }
@@ -125,6 +136,7 @@ export async function verifyChange(ctx: VerifyContext, selected: SelectedChange)
       deps, report, change: selected.name, relDir: selected.relDir, recordsRelDir: evaluated.chain?.relDir ?? null,
       brokenFile: broken?.state === 'broken' && broken.files[0] !== undefined ? `${evaluated.chain?.relDir ?? ''}/${broken.files[0]}` : undefined,
       mode: ctx.options.candidate,
+      records: broken?.state === 'intact' ? broken.active : [],
     }))
     policy = findings.some((item) => item.severity === 'error' && (item.source === 'policy')) ? 'fail' : 'pass'
   }
@@ -144,6 +156,11 @@ export async function verifyChange(ctx: VerifyContext, selected: SelectedChange)
     text: ctx.text,
   })
   findings.push(...anchor.findings)
+  // 已完结的任务照常对本次检出的树判定（不是对它完结时的提交）：之后的提交让它出错时，说明这一点，别让人以为是它自己的证据坏了。
+  if (isFinished(state, plan, phase) && findings.some((item) => item.severity === 'error')) {
+    findings.push(ciFinding(selected.name, 'finished-judged-at-head', 'note', verifyMsg(deps, 'verify.finishedJudgedAtHead', { change: selected.name }),
+      { path: `${selected.relDir}/.pipeline.yaml` }))
+  }
   return {
     change: selected.name, dir: selected.relDir, phase, step: picked.step, policy,
     evaluatedUser: chain?.slug ?? null, chains: chains.map(chainSummary), anchor: anchor.state, findings,

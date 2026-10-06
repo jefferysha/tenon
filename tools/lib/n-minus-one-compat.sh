@@ -225,4 +225,22 @@ n1_compat_gate() {
   ( cd "$disc" && node "$old" test discover --write ) >/dev/null 2>&1
   out="$(cd "$disc" && node "$cur" test catalog validate 2>&1)"; code="$?"
   n1_expect "当前版本校验 $label discover --write 写的目录" 0 "$code" "$out"
+
+  # ── 宿主本地文件（放在最后：它让此前所有记录绑定的候选变了）─────────────────────────
+  # 工作区里有被忽略的 .claude/settings.local.json（Claude Code 自己写的权限允许列表）：当前版本写下的记录绑「不含宿主本地文件」的
+  # 可移植指纹，干净克隆才复现得出来。N-1 自己算的指纹含这个文件，所以它把这条记录判成「代码已变化」（过期，要重跑），
+  # 但不能判成损坏；当前版本自己读它是新鲜的，Claude Code 之后改写这个文件也不让它过期。
+  mkdir -p "$proj/.claude"
+  printf '{ "permissions": { "allow": ["Bash(ls)"] } }\n' > "$proj/.claude/settings.local.json"
+  out="$(cd "$proj" && node "$cur" init compat-h --track backend --workflow compat --preset full 2>&1)"; code="$?"
+  [ "$code" -eq 0 ] || { bad "N-1 兼容：当前版本创建 compat-h" "exit=$code $out"; return; }
+  ( cd "$proj" && node "$cur" test plan compat-h --seed && node "$cur" test register compat-h --suite smoke ) >/dev/null 2>&1
+  ( cd "$proj" && TENON_TEST_TRUST=1 node "$cur" test run compat-h --suite smoke ) >/dev/null 2>&1
+  out="$(cd "$proj" && node "$cur" test status compat-h 2>&1)"; code="$?"
+  n1_expect "当前版本在有宿主本地文件的工作区里写下的记录对自己是新鲜的" 0 "$code" "$out"
+  out="$(cd "$proj" && node "$old" test status compat-h 2>&1)"; code="$?"
+  n1_clean_only "$label 读取有宿主本地文件的工作区里写下的记录：不报损坏（至多判为过期）" "$code" "$out"
+  printf '{ "permissions": { "allow": ["Bash(ls)", "Bash(npm test)"] } }\n' > "$proj/.claude/settings.local.json"
+  out="$(cd "$proj" && node "$cur" test status compat-h 2>&1)"; code="$?"
+  n1_expect "改写 .claude/settings.local.json 之后当前版本的记录仍然新鲜" 0 "$code" "$out"
 }

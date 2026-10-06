@@ -2,7 +2,8 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { candidateFingerprint, catalogDeclaredOutputs, declaredTestOutputs } from './candidate.js'
+import { candidateFingerprint, catalogDeclaredOutputs, declaredTestOutputs, knownPortableCandidate, portableCandidate } from './candidate.js'
+import { fingerprintWorkspace } from '../workspace/fingerprint.js'
 import { parseTestCatalog } from './catalog.js'
 
 const roots: string[] = []
@@ -103,5 +104,41 @@ describe('候选指纹（生产口径）', () => {
     expect(await candidateFingerprint(root)).toBe(first)
     await put(root, 'old-report/index.html', '<html/>')
     expect(await candidateFingerprint(root)).not.toBe(first)
+  })
+
+  it('完整指纹照算宿主本地文件，可移植孪生不算；孪生由同一次遍历得到并记在表里', async () => {
+    const root = await project()
+    const clean = await candidateFingerprint(root)
+    expect(knownPortableCandidate(clean), '没有宿主本地文件：两个指纹相同').toBe(clean)
+
+    await put(root, '.claude/settings.local.json', '{ "permissions": { "allow": ["Bash(ls)"] } }\n')
+    const full = await candidateFingerprint(root)
+    expect(full).not.toBe(clean)
+    expect(knownPortableCandidate(full)).toBe(clean)
+
+    // Claude Code 改写这个文件：完整指纹变了，孪生不变。
+    await put(root, '.claude/settings.local.json', '{ "permissions": { "allow": ["Bash(ls)", "Bash(npm test)"] } }\n')
+    const edited = await candidateFingerprint(root)
+    expect(edited).not.toBe(full)
+    expect(knownPortableCandidate(edited)).toBe(clean)
+  })
+
+  it('表里没有的完整指纹：重新遍历一次；树已经变了（完整指纹对不上）就不冒充孪生', async () => {
+    const root = await project()
+    await put(root, 'CLAUDE.local.md', 'private\n')
+    // 不经 candidateFingerprint 算出来的值不在表里（例如表项被挤掉）。
+    const unknown = await fingerprintWorkspace(root, { declaredOutputs: await declaredTestOutputs(root) })
+    expect(knownPortableCandidate(unknown)).toBeUndefined()
+    const twin = await portableCandidate(root, unknown)
+    expect(twin).toBeDefined()
+    expect(twin).not.toBe(unknown)
+    expect(knownPortableCandidate(unknown)).toBe(twin)
+
+    // 树自那之后变了：旧的完整指纹对不上现在的树，不能把现在的孪生冒充给它。
+    await put(root, 'src/app.ts', 'export const a = 2\n')
+    expect(await portableCandidate(root, unknown)).toBe(twin)
+    await rm(join(root, 'src/app.ts'))
+    expect(await portableCandidate(root, `workspace:sha256:${'0'.repeat(64)}`)).toBeUndefined()
+    expect(await portableCandidate(join(root, 'does-not-exist'), `workspace:sha256:${'1'.repeat(64)}`)).toBeUndefined()
   })
 })
