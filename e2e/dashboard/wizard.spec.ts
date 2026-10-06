@@ -1,7 +1,14 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { expect, openView, test } from './support/fixtures'
+import type { Page } from 'playwright/test'
+import { expect, openView, settled, test } from './support/fixtures'
+
+/** 点「下一步」前先等对话框落定（步骤框的高度过渡、步骤内容的淡入滑入），不在它还在挪的时候点。 */
+async function next(page: Page): Promise<void> {
+  await settled(page)
+  await page.getByTestId('np-next').click()
+}
 
 const STEPS = ['location', 'templates', 'resources', 'clients', 'confirm'] as const
 const ROWS = ['directory', 'git', 'file:AGENTS.md', 'file:CLAUDE.md', 'clients', 'register'] as const
@@ -44,25 +51,26 @@ test.describe('新建项目向导', () => {
     const project = join(parent, 'wizard-app')
     await expect(page.getByTestId('np-final-path')).toContainText(project)
     await expect(page.getByTestId('np-next')).toBeEnabled()
-    await page.getByTestId('np-next').click()
+    await next(page)
 
     // 模板：预览默认聚焦第一项，「添加」后进入所选。
     await expect(page.getByTestId('np-step-templates')).toHaveAttribute('aria-current', 'step')
+    await settled(page)
     await page.getByTestId('np-block-builtin-common-base').click()
     await page.getByTestId('np-template-toggle').click()
     await expect(page.getByTestId('np-block-builtin-common-base')).toHaveAccessibleName(/已加入/)
-    await page.getByTestId('np-next').click()
+    await next(page)
 
     // 资源可跳过。
     await expect(page.getByTestId('np-step-resources')).toHaveAttribute('aria-current', 'step')
     await expect(page.getByTestId('np-resources')).toBeVisible()
-    await page.getByTestId('np-next').click()
+    await next(page)
 
     // 客户端：隔离的 HOME 里没有检测到任何宿主，回退到默认的 Codex 与 Claude。
     await expect(page.getByTestId('np-step-clients')).toHaveAttribute('aria-current', 'step')
     await expect(page.getByTestId('np-client-codex')).toBeChecked()
     await expect(page.getByTestId('np-client-claude')).toBeChecked()
-    await page.getByTestId('np-next').click()
+    await next(page)
 
     // 确认：预检列出要做的事，「创建」才落盘。
     await expect(page.getByTestId('np-step-confirm')).toHaveAttribute('aria-current', 'step')
@@ -71,7 +79,14 @@ test.describe('新建项目向导', () => {
     await expect(page.getByTestId('np-plan-CLAUDE.md')).toBeVisible()
     await expect(page.getByTestId('np-action-register')).toBeVisible()
     expect(existsSync(project), '确认之前不该写盘').toBe(false)
-    await page.getByTestId('np-next').click()
+    // 预检的计划到了之后，步骤框才开始 200ms 的高度过渡（ResizeObserver 量完才触发），按钮跟着挪位：等落定再点。
+    // 并且以「进度出现」为准：慢的 WebKit 上这一下点击曾整个落空（没有任何请求发出，仍停在确认步）——
+    // 没出现进度就再点；出现了（创建已开始，按钮已不在）就不再点，所以不会重复创建。
+    await settled(page)
+    await expect(async () => {
+      if (!(await page.getByTestId('np-progress').isVisible())) await page.getByTestId('np-next').click({ timeout: 2_000 })
+      await expect(page.getByTestId('np-progress')).toBeVisible({ timeout: 2_000 })
+    }).toPass({ timeout: 20_000 })
 
     // 进度：每一步都到 done。
     for (const row of ROWS) await expect(page.getByTestId(`np-row-${row}`)).toHaveAttribute('data-state', 'done')

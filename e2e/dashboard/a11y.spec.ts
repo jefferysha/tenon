@@ -6,7 +6,7 @@
  */
 import AxeBuilder from '@axe-core/playwright'
 import type { Page } from 'playwright/test'
-import { expect, openView, test } from './support/fixtures'
+import { expect, openView, settled, test } from './support/fixtures'
 
 const BLOCKING = new Set(['serious', 'critical'])
 
@@ -230,8 +230,9 @@ const TARGETS: readonly Target[] = [
 ]
 
 async function violationsOf(page: Page): Promise<string[]> {
-  // 动画（页面切换淡入、彗星）会让对比度读数落在半透明态：等一帧稳定后再扫。
-  await page.waitForTimeout(600)
+  // 进场动画（抽屉 / 对话框的淡入与滑入、页面切换淡入）还在跑时，文字是半透明的，对比度读数会落在真实 token 之外
+  // （慢的 WebKit 上动画要久得多）：等所有有限动画跑完且连续几帧安静，再扫。所有目标都经过这里。
+  await settled(page)
   const results = await new AxeBuilder({ page }).analyze()
   return results.violations
     .filter((violation) => violation.impact !== null && violation.impact !== undefined && BLOCKING.has(violation.impact))
