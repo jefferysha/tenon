@@ -129,8 +129,11 @@ describe('task run journal', () => {
       operation_id: 'overflow-operation', operation: 'resume', expected_run_revision: 1,
       expected_state: 'blocked', recorded_at: '2026-08-04T00:00:01.000Z',
     })).rejects.toBeInstanceOf(TaskRunJournalCorruptError)
-    await expect(readFile(leaf)).resolves.toEqual(before)
-  }, 60_000)
+    // Buffer.equals is one memcmp; expect(...).toEqual on two 8 MiB Buffers compares element by element (~8 s).
+    const after = await readFile(leaf)
+    expect(after.byteLength).toBe(before.byteLength)
+    expect(after.equals(before)).toBe(true)
+  })
 
   it('appends attempt and operation facts without rewriting history', async () => {
     const change = await changeDir()
