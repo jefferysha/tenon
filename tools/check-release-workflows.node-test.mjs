@@ -754,7 +754,7 @@ test('CI and the read-only candidate share advisory and full dependency-tree gat
   assert.equal(scripts['check:dependency-tree'], 'npm ls --all')
   assert.equal(
     scripts['check:dependencies'],
-    'npm audit --audit-level=high && npm run check:dependency-tree',
+    'node --test tools/check-audit.node-test.mjs && node tools/check-audit.mjs && npm run check:dependency-tree',
   )
   for (const workflow of [ci, candidate]) {
     assert.match(workflow, /npm run check:dependencies/)

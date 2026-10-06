@@ -1,0 +1,9 @@
+[
+  {
+    "id": "GHSA-vfj7-8cjw-p6xm",
+    "package": "braces",
+    "reason": "Reached only through the openspec CLI used by check:openspec (@fission-ai/openspec -> fast-glob -> micromatch -> braces); the brace patterns are repository-controlled, and braces 3.0.3 is the latest release so no patched version exists.",
+    "expires": "2026-11-05",
+    "scope": "dev-only"
+  }
+]

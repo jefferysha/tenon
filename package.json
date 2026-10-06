@@ -24,7 +24,7 @@
     "check:comments": "bash tools/check-comment-honesty.sh",
     "check:architecture": "node --test tools/kernel-runtime-import-graph.node-test.mjs && node tools/check-architecture.mjs",
     "check:dependency-tree": "npm ls --all",
-    "check:dependencies": "npm audit --audit-level=high && npm run check:dependency-tree",
+    "check:dependencies": "node --test tools/check-audit.node-test.mjs && node tools/check-audit.mjs && npm run check:dependency-tree",
     "check:openspec": "node --test tools/check-openspec.node-test.mjs && node tools/check-openspec.mjs",
     "check:release-workflows": "node --test tools/check-release-workflows.node-test.mjs",
     "check:repository-hygiene": "node --test tools/check-repository-hygiene.node-test.mjs && node tools/check-repository-hygiene.mjs",
