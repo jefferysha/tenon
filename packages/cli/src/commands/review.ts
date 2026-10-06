@@ -93,9 +93,9 @@ async function checkVerifyFailReadiness(
   const report = scalar(state, 'verification_report')
   const fileExists = deps.guardCtx?.(name)?.fileExists
   if (report === '' || report === 'null') {
-    blockers.push(`verify-fail 决策要求 verification_report 非空（当前='${report || 'null'}'）`)
+    blockers.push(msg(deps, 'review.verifyFail.reportEmpty', { current: report || 'null' }))
   } else if (fileExists?.(report) === false) {
-    blockers.push(`verify-fail 决策要求 verification_report 文件存在（当前='${report}'）`)
+    blockers.push(msg(deps, 'review.verifyFail.reportMissing', { current: report }))
   }
 
   const plan = effectiveWorkflowForState(deps, state)
@@ -103,7 +103,7 @@ async function checkVerifyFailReadiness(
   if (documentPolicy) {
     const phase = scalar(state, 'phase')
     if (!isDocumentPolicyStep(documentPolicy, phase) || !isDocumentContractPhase(phase)) {
-      blockers.push(`受 OpenSpec 文档契约治理的 workflow 当前 phase 非法（当前='${phase || '空'}'）`)
+      blockers.push(msg(deps, 'review.verifyFail.phaseInvalid', { phase: phase || msg(deps, 'review.verifyFail.empty') }))
     } else {
       // A failure exit must remain possible precisely when implementation or upstream documents
       // drifted. Requiring the successful verify evidence set here deadlocks the only governed
@@ -121,11 +121,11 @@ async function checkVerifyFailReadiness(
 
   deps.io.out(`[CHECK] ${name} (phase=verify, event=verify-fail)`)
   if (blockers.length === 0) {
-    deps.io.out('  [PASS] verify-fail 回退证据已就绪')
+    deps.io.out(`  [PASS] ${msg(deps, 'review.verifyFail.ready')}`)
     return 0
   }
   for (const blocker of blockers) deps.io.out(`  [FAIL] ${blocker}`)
-  deps.io.out(`  [FAIL] 共 ${blockers.length} 项未通过`)
+  deps.io.out(`  [FAIL] ${msg(deps, 'check.failTotal', { count: blockers.length })}`)
   return 2
 }
 
@@ -158,7 +158,7 @@ export async function cmdReview(
   opts: ReviewOpts = {},
 ): Promise<number> {
   if (sub !== 'request' && sub !== 'acknowledge') {
-    deps.io.err('ERROR: 用法：tenon review request <change> [--event <event>] | acknowledge <change> [--delegated] [--as reviewer]')
+    deps.io.err(`ERROR: ${msg(deps, 'review.usage')}`)
     return 1
   }
   if (!name || !isValidChangeName(name)) {
@@ -173,11 +173,11 @@ export async function cmdReview(
   try {
     if (sub === 'request') {
       if (opts.delegated === true) {
-        deps.io.err('ERROR: --delegated 只可用于 review acknowledge；request 仍必须先完成真实 review 证据')
+        deps.io.err(`ERROR: ${msg(deps, 'review.request.delegatedOnAcknowledge')}`)
         return 1
       }
       if (opts.as !== undefined) {
-        deps.io.err('ERROR: --as 只可用于 review acknowledge；request 只有负责人能发起')
+        deps.io.err(`ERROR: ${msg(deps, 'review.request.asOnAcknowledge')}`)
         return 1
       }
       const actor = requireActor(deps)
@@ -242,10 +242,10 @@ export async function cmdReview(
                 clock: deps.clock(),
               })
             } catch (error) {
-              deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} interaction projection 写入失败（canonical review pending 已存在）: ${errMsg(error)}`)
+              deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} ${msg(deps, 'review.warn.projectionPendingFailed', { error: errMsg(error) })}`)
             }
           } else if (interaction !== undefined) {
-            deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} interaction projection 未写入（缺 canonical run/workflow/state anchor；canonical review pending 未改变）`)
+            deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} ${msg(deps, 'review.warn.projectionPendingSkipped')}`)
           }
           return
         }
@@ -270,10 +270,10 @@ export async function cmdReview(
               clock: requestedAt,
             })
           } catch (error) {
-            deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} interaction projection 写入失败（canonical review request 已提交）: ${errMsg(error)}`)
+            deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} ${msg(deps, 'review.warn.projectionRequestFailed', { error: errMsg(error) })}`)
           }
         } else if (interaction !== undefined) {
-          deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} interaction projection 未写入（缺 canonical run/workflow/state anchor；canonical review request 已提交）`)
+          deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} ${msg(deps, 'review.warn.projectionRequestSkipped')}`)
         }
         requested = {
           phase: step.phase,
@@ -298,7 +298,7 @@ export async function cmdReview(
       }
       deps.io.out(
         `[REVIEW] ${name} phase=${requested.phase} event=${requested.event} ` +
-        `${requested.alreadyPending ? '仍待确认' : '已请求人工确认'}`,
+        msg(deps, requested.alreadyPending ? 'review.requested.pending' : 'review.requested.new'),
       )
       for (const line of await reviewItemLines(deps, requested.state, requested.items)) deps.io.out(line)
       return markerOk ? 0 : 2

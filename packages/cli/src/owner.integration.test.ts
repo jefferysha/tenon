@@ -133,6 +133,37 @@ describe('owner rule across two declared users', () => {
     expect(await h.read('x')).toMatch(/^review_gate_status: pending$/m)
   })
 
+  it('review acknowledge by a reviewer prints who confirmed: zh stays byte-identical, en is English', async () => {
+    const line = (h: Harness): string | undefined => h.out.find((entry) => entry.startsWith('[REVIEW] x phase='))
+    const zh = await exploreReviewRequested()
+    expect(await zh.run(['review', 'acknowledge', 'x', '--as', 'reviewer'], { env: { ...B, TENON_LANG: 'zh' } }), zh.err.join('\n')).toBe(0)
+    expect(line(zh)).toBe('[REVIEW] x phase=explore event=explore-complete 已确认（评审人 B <b@x.io>，负责人 A <a@x.io>），可重发 transition')
+
+    const en = await exploreReviewRequested()
+    expect(await en.run(['review', 'acknowledge', 'x', '--as', 'reviewer'], { env: { ...B, TENON_LANG: 'en' } }), en.err.join('\n')).toBe(0)
+    expect(line(en)).toBe('[REVIEW] x phase=explore event=explore-complete confirmed (reviewer B <b@x.io>, owner A <a@x.io>); you can re-issue the transition')
+
+    const owner = await exploreReviewRequested()
+    expect(await owner.run(['review', 'acknowledge', 'x'], { env: { ...A, TENON_LANG: 'en' } }), owner.err.join('\n')).toBe(0)
+    expect(line(owner)).toBe('[REVIEW] x phase=explore event=explore-complete confirmed; you can re-issue the transition')
+  })
+
+  it('review request and acknowledge flags refused outside their command follow TENON_LANG', async () => {
+    const h = await exploreReviewRequested()
+    expect(await h.run(['review', 'request', 'x', '--delegated'], { env: { ...A, TENON_LANG: 'zh' } })).toBe(1)
+    expect(h.err.join('\n')).toBe('ERROR: --delegated 只可用于 review acknowledge；request 仍必须先完成真实 review 证据')
+    expect(await h.run(['review', 'request', 'x', '--delegated'], { env: { ...A, TENON_LANG: 'en' } })).toBe(1)
+    expect(h.err.join('\n')).toBe('ERROR: --delegated applies to review acknowledge only; request still needs the real review evidence first')
+    expect(await h.run(['review', 'request', 'x', '--as', 'reviewer'], { env: { ...A, TENON_LANG: 'zh' } })).toBe(1)
+    expect(h.err.join('\n')).toBe('ERROR: --as 只可用于 review acknowledge；request 只有负责人能发起')
+    expect(await h.run(['review', 'request', 'x', '--as', 'reviewer'], { env: { ...A, TENON_LANG: 'en' } })).toBe(1)
+    expect(h.err.join('\n')).toBe('ERROR: --as applies to review acknowledge only; only the owner can start a request')
+    expect(await h.run(['review', 'bogus', 'x'], { env: { ...A, TENON_LANG: 'zh' } })).toBe(1)
+    expect(h.err.join('\n')).toBe('ERROR: 用法：tenon review request <change> [--event <event>] | acknowledge <change> [--delegated] [--as reviewer]')
+    expect(await h.run(['review', 'bogus', 'x'], { env: { ...A, TENON_LANG: 'en' } })).toBe(1)
+    expect(h.err.join('\n')).toBe('ERROR: usage: tenon review request <change> [--event <event>] | acknowledge <change> [--delegated] [--as reviewer]')
+  })
+
   it('review acknowledge by the owner needs no flag and records no role', async () => {
     const h = await exploreReviewRequested()
     expect(await h.run(['review', 'acknowledge', 'x'], { env: A }), h.err.join('\n')).toBe(0)

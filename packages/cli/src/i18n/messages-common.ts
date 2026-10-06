@@ -67,6 +67,10 @@ export const COMMON_MESSAGES = {
     zh: 'set-many 至少需要 1 个 key=value',
     en: 'set-many needs at least one key=value',
   },
+  'list.separator': {
+    zh: '、',
+    en: ', ',
+  },
   'status.none': {
     zh: '无活跃 change',
     en: 'no active changes',

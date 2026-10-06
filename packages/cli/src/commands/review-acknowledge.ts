@@ -31,11 +31,14 @@ import {
   auditWaiverApproval, refuseDelegatedWhileWaiversPending, retireFrozenWaivers, skippedWaiverLines,
 } from './review-waivers.js'
 
-const DEFERRED_WARNINGS: Readonly<Record<ReviewAcknowledgeDeferred, string>> = {
-  'idempotency-ledger': 'WARN: decision idempotency ledger 写入失败（approval receipt 已提交；重试会按当前状态重新判定）',
-  'review-interaction': `WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} interaction projection 写入失败（canonical review acknowledgement 已提交）`,
-  'review-history': 'WARN: history 写入失败（canonical review acknowledgement 已提交）',
-  'review-marker-clear': 'WARN: review marker 清理失败（approval receipt 已提交，可重试 acknowledge）',
+/** 确认已提交、之后的写入失败：每种一行警告。 */
+function deferredWarning(deps: CliDeps, kind: ReviewAcknowledgeDeferred): string {
+  switch (kind) {
+    case 'idempotency-ledger': return `WARN: ${msg(deps, 'review.warn.idempotencyLedger')}`
+    case 'review-interaction': return `WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} ${msg(deps, 'review.warn.interaction')}`
+    case 'review-history': return `WARN: ${msg(deps, 'review.warn.history')}`
+    case 'review-marker-clear': return `WARN: ${msg(deps, 'review.warn.markerClear')}`
+  }
 }
 
 function reviewExits(deps: CliDeps, state: PipelineState, phase: string): readonly string[] | null {
@@ -135,15 +138,18 @@ export async function cmdReviewAcknowledge(
     },
     actor,
   })
-  for (const kind of result.deferred) deps.io.err(DEFERRED_WARNINGS[kind])
+  for (const kind of result.deferred) deps.io.err(deferredWarning(deps, kind))
   if (!result.ok) {
     deps.io.err(`ERROR: ${result.message}`)
     return reviewAcknowledgeExitCode(result)
   }
   deps.io.out(
     `[REVIEW] ${name} phase=${result.phase} event=${result.event} ` +
-    `${delegatedAuthority === null ? '已确认' : '已按用户委托的持续授权确认'}` +
-    `${owner.allowed ? '' : `（评审人 ${formatUserRef(user)}，负责人 ${owner.owner === null ? '无' : formatUserRef(owner.owner)}）`}，可重发 transition`,
+    `${msg(deps, delegatedAuthority === null ? 'review.acknowledged.owner' : 'review.acknowledged.delegated')}` +
+    `${owner.allowed ? '' : msg(deps, 'review.acknowledged.by', {
+      reviewer: formatUserRef(user),
+      owner: owner.owner === null ? msg(deps, 'review.acknowledged.noOwner') : formatUserRef(owner.owner),
+    })}${msg(deps, 'review.acknowledged.retransition')}`,
   )
   await reportWaivers(deps, dir, actor.id, waivers)
   return 0
@@ -159,10 +165,10 @@ async function reportWaivers(
   if (outcome === undefined) return
   await auditWaiverApproval(deps, dir, outcome, approver)
   if (outcome.approved.length > 0) {
-    deps.io.out(`[REVIEW] 已批准豁免 ${outcome.approved.length} 项：${outcome.approved.join('、')}`)
+    deps.io.out(`[REVIEW] ${msg(deps, 'review.waiversApproved', { count: outcome.approved.length, list: outcome.approved.join(msg(deps, 'list.separator')) })}`)
   }
   if (outcome.protectedApproved.length > 0) {
-    deps.io.out(`[REVIEW] 已批准测试配置改动 ${outcome.protectedApproved.length} 项：${outcome.protectedApproved.join('、')}`)
+    deps.io.out(`[REVIEW] ${msg(deps, 'review.protectedApproved', { count: outcome.protectedApproved.length, list: outcome.protectedApproved.join(msg(deps, 'list.separator')) })}`)
   }
   if (outcome.note !== null) deps.io.err(`WARN: ${outcome.note}`)
   for (const line of skippedWaiverLines(outcome)) deps.io.out(line)

@@ -320,6 +320,10 @@ describe('跨厂商评审', () => {
     expect(current.blockers).toContainEqual({ kind: 'reviewer-wrong-host', agent: 'security', required: 'codex', recorded: 'claude' })
     expect(await h.run(['agent', 'next', 'demo'], { env: CLAUDE })).toBe(0)
     expect(h.out.join('\n')).toContain('宿主不符：要求 codex，登记 claude，结论无效')
+    // 同一行在 en 下：角色、状态与宿主说明都是英文。
+    expect(await h.run(['agent', 'next', 'demo'], { env: { ...CLAUDE, TENON_LANG: 'en' } })).toBe(0)
+    expect(h.out).toContain('security reviewer stale host mismatch: requires codex, recorded claude, result invalid')
+    expect(/[㐀-鿿＀-￯　-〿]/u.test(h.out.join('\n'))).toBe(false)
     expect(await h.run(['transition', 'demo', 'verify-pass'], { env: CLAUDE })).not.toBe(0)
     expect(h.err.join('\n')).toContain("评审者 'security' 须在 codex 上运行，登记的宿主是 claude")
   })

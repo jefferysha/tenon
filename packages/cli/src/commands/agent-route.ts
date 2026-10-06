@@ -84,10 +84,14 @@ export function routeLines(carrier: LocaleCarrier, agent: string, route: HostRou
 }
 
 /** `agent next` 一行末尾的宿主说明：要求、登记的宿主，以及登记的宿主不符导致结论无效。 */
-export function hostNote(view: Pick<AgentView, 'requiredHost' | 'host' | 'wrongHost'>): string {
-  if (view.wrongHost) return ` 宿主不符：要求 ${view.requiredHost ?? '—'}，登记 ${view.host ?? '无'}，结论无效`
-  if (view.host !== null) return ` 宿主 ${view.host}`
-  return view.requiredHost === null ? '' : ` 要求宿主 ${view.requiredHost}`
+export function hostNote(carrier: LocaleCarrier, view: Pick<AgentView, 'requiredHost' | 'host' | 'wrongHost'>): string {
+  if (view.wrongHost) {
+    return msg(carrier, 'agent.next.host.mismatch', {
+      required: view.requiredHost ?? '—', host: view.host ?? msg(carrier, 'agent.next.host.none'),
+    })
+  }
+  if (view.host !== null) return msg(carrier, 'agent.next.host.recorded', { host: view.host })
+  return view.requiredHost === null ? '' : msg(carrier, 'agent.next.host.required', { host: view.requiredHost })
 }
 
 /** `record` 的宿主来源：显式声明且与进程环境判出的不同 = declared，否则 detected。 */

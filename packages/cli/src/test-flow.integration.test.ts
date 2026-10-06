@@ -217,6 +217,7 @@ describe('豁免的评审批准', () => {
     const requested = h.out.join('\n')
     expect(requested).toContain('待批准的豁免 1 项')
     expect(requested).toContain('kind:unit — 纯文档改动')
+    expect(h.out).toContain(`[REVIEW] ${CHANGE} phase=spec event=spec-done 已请求人工确认`)
     expect(existsSync(join(changeDir(), '.pipeline-review-waivers.json'))).toBe(true)
 
     // 请求之后才加进计划的豁免不在这次确认里。
@@ -224,6 +225,7 @@ describe('豁免的评审批准', () => {
     await writePlan({ waivers: [...plan.waivers, { kind: 'lint', reason: '请求之后才加的', approved_by: null }] })
 
     expect(await h.run(['review', 'acknowledge', CHANGE]), h.err.join('\n')).toBe(0)
+    expect(h.out).toContain(`[REVIEW] ${CHANGE} phase=spec event=spec-done 已确认，可重发 transition`)
     expect(h.out.join('\n')).toContain('已批准豁免 1 项：kind:unit')
     const approved = await readPlan()
     expect(approved.waivers).toEqual([
@@ -237,6 +239,18 @@ describe('豁免的评审批准', () => {
     expect(history.match(/"raw":"test:plan-write plan=sha256:[0-9a-f]{64}"/gu)).toHaveLength(2)
 
     expect(await h.run(['transition', CHANGE, 'spec-done']), h.err.join('\n')).toBe(0)
+  })
+
+  test('TENON_LANG=en：确认的成功行、批准豁免的收尾行与重复请求的「仍待确认」是英文（zh 见上一条）', async () => {
+    const EN = { TENON_LANG: 'en' }
+    await waivedSpec()
+    expect(await h.run(['review', 'request', CHANGE, '--event', 'spec-done'], { env: EN }), h.err.join('\n')).toBe(0)
+    expect(h.out).toContain(`[REVIEW] ${CHANGE} phase=spec event=spec-done human confirmation requested`)
+    expect(await h.run(['review', 'request', CHANGE, '--event', 'spec-done'], { env: EN }), h.err.join('\n')).toBe(0)
+    expect(h.out).toContain(`[REVIEW] ${CHANGE} phase=spec event=spec-done still waiting for confirmation`)
+    expect(await h.run(['review', 'acknowledge', CHANGE], { env: EN }), h.err.join('\n')).toBe(0)
+    expect(h.out).toContain(`[REVIEW] ${CHANGE} phase=spec event=spec-done confirmed; you can re-issue the transition`)
+    expect(h.out).toContain('[REVIEW] approved 1 waiver(s): kind:unit')
   })
 
   test('请求之后又加了豁免：next 先要求重新发起（幂等），重新发起后这次确认一并批准', async () => {
