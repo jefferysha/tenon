@@ -242,6 +242,10 @@ export const VERIFY_MESSAGES = {
     zh: '任务 {change} 已被放弃：它沿 {event} 边从 {from} 转入终态 {to}，放弃不需要测试证据，所以不判定它的证据；接手它的任务单独判定',
     en: 'Change {change} was abandoned: it left {from} through the {event} edge into the terminal step {to}. An abandon needs no test evidence, so its evidence is not judged; the change that replaced it is judged on its own',
   },
+  'verify.finishedJudgedAtHead': {
+    zh: '任务 {change} 已经完结，但 CI 对它的判定对象是本次检出的树，不是它完结时的提交：完结之后的提交（改过的代码、后来的任务新增的测试文件、改过的测试目录）也会让它的证据出错。要按交付时的样子校验它，检出它的交付提交再运行；或者只选这个 PR 带来的任务（--since <合并基点>）',
+    en: 'Change {change} is finished, but CI judges it against the checked-out tree, not against the commit it finished on: commits made after it finished (changed code, test files added by later changes, edited test catalogs) also break its evidence. To verify it as it was delivered, run CI on its delivery commit, or select only the changes this pull request carries (--since <merge base>)',
+  },
   'verify.candidateUnchecked': {
     zh: '没有比对记录绑定的工作区指纹与本次检出的树（--candidate off）',
     en: 'The workspace fingerprint bound into the records was not compared with the checked-out tree (--candidate off)',

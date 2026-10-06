@@ -33055,6 +33055,13 @@ var CI_ONLY = [
     help: "The task left its workflow through the abandon edge (`scope-expanded`) into a terminal step such as `escalated`; no test evidence is required for that edge. CI skips it and judges the task that replaced it. A task that only has the terminal step written into its state, without the abandon transition in its record chain, is judged as usual."
   },
   {
+    id: "finished-judged-at-head",
+    name: "FinishedJudgedAtHead",
+    level: "note",
+    short: "A finished task is judged against the checked-out tree, not against the commit it finished on",
+    help: "CI certifies the tree it checked out. A finished task whose evidence no longer matches that tree (the code changed afterwards, a later task added test files or edited the catalog) fails there; judging it at its own delivery commit would let later, ungoverned changes pass unseen. Check out the delivery commit to verify the task as delivered, or select only the tasks the pull request carries."
+  },
+  {
     id: "no-test-policy",
     name: "NoTestPolicy",
     level: "note",
@@ -58676,6 +58683,10 @@ var VERIFY_MESSAGES = {
   "verify.changeAbandoned": {
     zh: "\u4EFB\u52A1 {change} \u5DF2\u88AB\u653E\u5F03\uFF1A\u5B83\u6CBF {event} \u8FB9\u4ECE {from} \u8F6C\u5165\u7EC8\u6001 {to}\uFF0C\u653E\u5F03\u4E0D\u9700\u8981\u6D4B\u8BD5\u8BC1\u636E\uFF0C\u6240\u4EE5\u4E0D\u5224\u5B9A\u5B83\u7684\u8BC1\u636E\uFF1B\u63A5\u624B\u5B83\u7684\u4EFB\u52A1\u5355\u72EC\u5224\u5B9A",
     en: "Change {change} was abandoned: it left {from} through the {event} edge into the terminal step {to}. An abandon needs no test evidence, so its evidence is not judged; the change that replaced it is judged on its own"
+  },
+  "verify.finishedJudgedAtHead": {
+    zh: "\u4EFB\u52A1 {change} \u5DF2\u7ECF\u5B8C\u7ED3\uFF0C\u4F46 CI \u5BF9\u5B83\u7684\u5224\u5B9A\u5BF9\u8C61\u662F\u672C\u6B21\u68C0\u51FA\u7684\u6811\uFF0C\u4E0D\u662F\u5B83\u5B8C\u7ED3\u65F6\u7684\u63D0\u4EA4\uFF1A\u5B8C\u7ED3\u4E4B\u540E\u7684\u63D0\u4EA4\uFF08\u6539\u8FC7\u7684\u4EE3\u7801\u3001\u540E\u6765\u7684\u4EFB\u52A1\u65B0\u589E\u7684\u6D4B\u8BD5\u6587\u4EF6\u3001\u6539\u8FC7\u7684\u6D4B\u8BD5\u76EE\u5F55\uFF09\u4E5F\u4F1A\u8BA9\u5B83\u7684\u8BC1\u636E\u51FA\u9519\u3002\u8981\u6309\u4EA4\u4ED8\u65F6\u7684\u6837\u5B50\u6821\u9A8C\u5B83\uFF0C\u68C0\u51FA\u5B83\u7684\u4EA4\u4ED8\u63D0\u4EA4\u518D\u8FD0\u884C\uFF1B\u6216\u8005\u53EA\u9009\u8FD9\u4E2A PR \u5E26\u6765\u7684\u4EFB\u52A1\uFF08--since <\u5408\u5E76\u57FA\u70B9>\uFF09",
+    en: "Change {change} is finished, but CI judges it against the checked-out tree, not against the commit it finished on: commits made after it finished (changed code, test files added by later changes, edited test catalogs) also break its evidence. To verify it as it was delivered, run CI on its delivery commit, or select only the changes this pull request carries (--since <merge base>)"
   },
   "verify.candidateUnchecked": {
     zh: "\u6CA1\u6709\u6BD4\u5BF9\u8BB0\u5F55\u7ED1\u5B9A\u7684\u5DE5\u4F5C\u533A\u6307\u7EB9\u4E0E\u672C\u6B21\u68C0\u51FA\u7684\u6811\uFF08--candidate off\uFF09",
@@ -97166,6 +97177,10 @@ async function protectedFindings(ctx, selected, state) {
   const history = await readFile103(join183(selected.dir, HISTORY_FILE), "utf8").catch(() => "");
   return protectedApprovalFindings({ change: selected.name, changes, approvals: parseProtectedApprovals(history), text: ctx.text });
 }
+function isFinished(state, plan, phase) {
+  if (str2(state.fields.archived) === "true") return true;
+  return plan.workflow.steps.find((step) => step.id === phase)?.transitions.length === 0;
+}
 async function verifyChange(ctx, selected) {
   const { deps } = ctx;
   let state;
@@ -97235,6 +97250,15 @@ async function verifyChange(ctx, selected) {
     text: ctx.text
   });
   findings.push(...anchor.findings);
+  if (isFinished(state, plan, phase) && findings.some((item2) => item2.severity === "error")) {
+    findings.push(ciFinding(
+      selected.name,
+      "finished-judged-at-head",
+      "note",
+      verifyMsg(deps, "verify.finishedJudgedAtHead", { change: selected.name }),
+      { path: `${selected.relDir}/.pipeline.yaml` }
+    ));
+  }
   return {
     change: selected.name,
     dir: selected.relDir,
@@ -97277,7 +97301,7 @@ function changeNameOfPath(path15) {
   }
   return void 0;
 }
-async function selectChanges(deps, selector, isFinished) {
+async function selectChanges(deps, selector, isFinished2) {
   if (selector.kind === "change") {
     if (!isValidChangeName(selector.change)) return { ok: false, error: verifyMsg(deps, "verify.changeNameInvalid", { name: selector.change }) };
     const found = located(deps, selector.change);
@@ -97287,7 +97311,7 @@ async function selectChanges(deps, selector, isFinished) {
     const out2 = [];
     for (const name2 of openNames(deps.cwd)) {
       const found = located(deps, name2);
-      if (found !== void 0 && !await isFinished(found.dir)) out2.push(found);
+      if (found !== void 0 && !await isFinished2(found.dir)) out2.push(found);
     }
     return { ok: true, changes: out2 };
   }

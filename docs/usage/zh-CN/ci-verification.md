@@ -98,6 +98,8 @@ Action 输入：
 | 受保护文件的批准 | `protected-unapproved`、`protected-changed-after-approval`、`protected-approval-unbound`（警告）、`protected-diff-unavailable` |
 | 锚点 | `anchor-mismatch`、`anchor-behind`（警告）、`anchor-unverifiable`（警告）、`anchor-missing`（只在 `--require-anchor` 时） |
 | 被放弃的 Change（不判定） | `change-abandoned`（提示） |
+| 对检出的树判定的已完结 Change | `finished-judged-at-head`（提示） |
+
 被放弃的 Change 会被跳过。沿放弃边（`scope-expanded`，例如升级进终态 `escalated` 的 `standard` 任务）离开工作流的 Change
 不需要任何测试证据，它通常和接手它的 `default` Change 在同一个 PR 里。CI 不判定它：报告里它只有一条提示 `change-abandoned`，
 不管是 `--change` 选它还是 `--since` 把它带进来，都不会让检查失败。只认真的走过放弃边的 Change：CI 读 Change canonical
@@ -141,6 +143,15 @@ Tenon 0.3.1 及之后写下的记录绑的是不含这些文件的指纹，所�
 那个提交里，所以交付提交自己的文件不会被怪罪；那之后什么都没改，提示就直说，差异在测试时的工作区本身。提示还会点名本次检出里被 gitignore
 或未跟踪的候选文件（例如构建产物）。它看不到的原因包括文件或目录的权限位（umask）与行尾转换。让 Action 紧跟 checkout 运行、先于任何构建步骤，
 并在目录里声明测试输出目录。`--candidate warn` 把这个发现降为警告，`--candidate off` 不比对并加一条提示。
+
+### 已完结的 Change 对本次检出的树判定
+
+CI 证明的是它检出的那棵树，所以已完结（done 或已归档）的 Change 也是对这棵树判定，不是对它完结时的提交。之后的提交改了代码、
+新增了测试文件（`test-file-unregistered`）或改了测试目录，已完结的 Change 就会带着普通发现（`candidate-mismatch`、`test-stale` ……）失败，
+报告再加一条提示 `finished-judged-at-head` 说明原因。这是有意的：若按每个 Change 自己的交付提交判定，之后提交的、没有任何受治理 Change
+背书的改动就会悄悄过关。实际用法：PR 的末端必须由最后动过它的 Change 覆盖，所以一个 PR 带一个受治理的 Change（或一条最后一个 Change
+交付最终树的链）；用 `--since <合并基点>` 只选这个 PR 带来的 Change；要按交付时的样子校验较早的 Change，检出它的交付提交，在那里运行
+`tenon verify --ci --change <name>`。
 
 ## 在本机运行
 
@@ -216,7 +227,9 @@ tenon verify --ci --since origin/main --also sarif=/tmp/tenon.sarif
 | 现象 | 原因与处理 |
 | --- | --- |
 | `protected-diff-unavailable` | 浅克隆。用 `fetch-depth: 0` |
-| 作者本机干净运行之后立刻出现 `candidate-mismatch` | 记录是 Tenon 0.3.0 或更早版本在有 `.claude/settings.local.json` 的工作区里写的，或被忽略的构建产物、权限位、行尾不同；见「候选代码不一致」 || `record-chain-broken` | 有记录被手工改过、删掉或加进来。在本机重跑 `tenon test run <change> --stage` 并提交新记录 |
+| 作者本机干净运行之后立刻出现 `candidate-mismatch` | 记录是 Tenon 0.3.0 或更早版本在有 `.claude/settings.local.json` 的工作区里写的，或被忽略的构建产物、权限位、行尾不同；见「候选代码不一致」 |
+| 报错旁边有提示 `finished-judged-at-head` | 已完结的 Change 对本次检出的树判定；见「已完结的 Change 对本次检出的树判定」 |
+| `record-chain-broken` | 有记录被手工改过、删掉或加进来。在本机重跑 `tenon test run <change> --stage` 并提交新记录 |
 | `protected-unapproved` | 目录、基线、已知失败或工作流的改动没有评审批准行。用 `tenon review request` 与 `tenon review acknowledge` 取得批准，再提交 Change 历史 |
 | `anchor-mismatch` | 链在锚定之后被重写。这正是锚点存在的理由；不要为了让它消失而重新锚定 |
 | 上传步骤因权限告警 | 令牌只读（fork 的 PR）。设 `upload-sarif: 'false'` |

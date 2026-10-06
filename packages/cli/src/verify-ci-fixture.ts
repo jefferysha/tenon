@@ -138,6 +138,8 @@ export interface DevProjectOptions {
    * 测试在它们存在时运行，所以绑定的候选指纹要么算进它们（0.3.0），要么不算（可移植版）。
    */
   readonly hostLocalFiles?: boolean
+  /** 交付前把任务走完：评审确认 → build-done → archived（任务落在终态 verify，已归档）。 */
+  readonly finish?: boolean
 }
 
 export async function devProject(options: DevProjectOptions = {}): Promise<Dev> {
@@ -166,7 +168,11 @@ export async function devProject(options: DevProjectOptions = {}): Promise<Dev> 
   await expectOk(dev.tenon(['test', 'register', 'demo', '--file', 'src/a.test.js', '--suite', 'unit']), dev, 'register file')
   await expectOk(dev.tenon(['test', 'register', 'demo', '--case', 'task:1.1', '--test', 'src/a.test.js › bad']), dev, 'register case')
   await expectOk(dev.tenon(['test', 'run', 'demo', '--stage']), dev, 'test run')
-  if (options.catalogEdit === 'approved') await approveCatalog(dev)
+  if (options.catalogEdit === 'approved' || options.finish === true) await approveCatalog(dev)
+  if (options.finish === true) {
+    await expectOk(dev.tenon(['transition', 'demo', 'build-done']), dev, 'transition build-done')
+    await expectOk(dev.tenon(['transition', 'demo', 'archived']), dev, 'transition archived')
+  }
   dev.commit('deliver demo')
   return dev
 }

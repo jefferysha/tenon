@@ -100,6 +100,11 @@ const CI_ONLY: readonly CiRule[] = [
     help: 'The task left its workflow through the abandon edge (`scope-expanded`) into a terminal step such as `escalated`; no test evidence is required for that edge. CI skips it and judges the task that replaced it. A task that only has the terminal step written into its state, without the abandon transition in its record chain, is judged as usual.',
   },
   {
+    id: 'finished-judged-at-head', name: 'FinishedJudgedAtHead', level: 'note',
+    short: 'A finished task is judged against the checked-out tree, not against the commit it finished on',
+    help: 'CI certifies the tree it checked out. A finished task whose evidence no longer matches that tree (the code changed afterwards, a later task added test files or edited the catalog) fails there; judging it at its own delivery commit would let later, ungoverned changes pass unseen. Check out the delivery commit to verify the task as delivered, or select only the tasks the pull request carries.',
+  },
+  {
     id: 'no-test-policy', name: 'NoTestPolicy', level: 'note',
     short: 'The evaluated step declares no test policy',
     help: 'There is nothing to verify at this step; this is not evidence that tests passed.',

@@ -90,6 +90,12 @@ async function protectedFindings(
   return protectedApprovalFindings({ change: selected.name, changes, approvals: parseProtectedApprovals(history), text: ctx.text })
 }
 
+/** 已完结 = 已归档，或停在工作流里没有出边的终态步骤（交付走完）。 */
+function isFinished(state: PipelineState, plan: EffectiveWorkflowPlan, phase: string): boolean {
+  if (str(state.fields.archived) === 'true') return true
+  return plan.workflow.steps.find((step) => step.id === phase)?.transitions.length === 0
+}
+
 export async function verifyChange(ctx: VerifyContext, selected: SelectedChange): Promise<CiChangeReport> {
   const { deps } = ctx
   let state: PipelineState
@@ -149,6 +155,11 @@ export async function verifyChange(ctx: VerifyContext, selected: SelectedChange)
     text: ctx.text,
   })
   findings.push(...anchor.findings)
+  // 已完结的任务照常对本次检出的树判定（不是对它完结时的提交）：之后的提交让它出错时，说明这一点，别让人以为是它自己的证据坏了。
+  if (isFinished(state, plan, phase) && findings.some((item) => item.severity === 'error')) {
+    findings.push(ciFinding(selected.name, 'finished-judged-at-head', 'note', verifyMsg(deps, 'verify.finishedJudgedAtHead', { change: selected.name }),
+      { path: `${selected.relDir}/.pipeline.yaml` }))
+  }
   return {
     change: selected.name, dir: selected.relDir, phase, step: picked.step, policy,
     evaluatedUser: chain?.slug ?? null, chains: chains.map(chainSummary), anchor: anchor.state, findings,

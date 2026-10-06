@@ -106,6 +106,8 @@ SARIF rule ids prefixed with `tenon/`.
 | Protected file approvals | `protected-unapproved`, `protected-changed-after-approval`, `protected-approval-unbound` (warning), `protected-diff-unavailable` |
 | Anchors | `anchor-mismatch`, `anchor-behind` (warning), `anchor-unverifiable` (warning), `anchor-missing` (only with `--require-anchor`) |
 | Abandoned Change (not judged) | `change-abandoned` (note) |
+| Finished Change judged at the head | `finished-judged-at-head` (note) |
+
 Abandoned Changes are skipped. A Change that left its workflow through the abandon edge
 (`scope-expanded`, for example a `standard` task that escalated into the terminal step `escalated`) needs no
 test evidence, and it usually sits in the same pull request as the `default` Change that replaced it. CI does not
@@ -173,6 +175,19 @@ holds, such as build output. Other causes it cannot see are file or directory pe
 line-ending conversion. Run the action right after checkout, before any build step, and declare test
 output directories in the catalog. `--candidate warn` turns the finding into a warning;
 `--candidate off` skips the comparison and adds a note.
+
+### Finished Changes are judged against the checked-out tree
+
+CI certifies the tree it checked out, so a finished (done or archived) Change is judged against that
+tree, not against the commit it finished on. When a later commit changed the code, added test files
+(`test-file-unregistered`) or edited the catalog, the finished Change fails with the ordinary findings
+(`candidate-mismatch`, `test-stale`, ...) and the report adds the note `finished-judged-at-head` to
+say why. This is deliberate. Judging each Change at its own delivery commit would let anything
+committed after it, with no governed Change behind it, pass unseen. In practice: the tip of a pull
+request must be covered by the Change that last touched it, so give a pull request one governed Change
+(or a chain whose last Change delivers the final tree), use `--since <merge base>` so only the Changes
+the pull request carries are selected, and to verify an older Change as it was delivered, check out its
+delivery commit and run `tenon verify --ci --change <name>` there.
 
 ## Run it locally
 
@@ -266,7 +281,9 @@ tenon verify --ci --since origin/main --also sarif=/tmp/tenon.sarif
 | Symptom | Cause and fix |
 | --- | --- |
 | `protected-diff-unavailable` | Shallow checkout. Use `fetch-depth: 0` |
-| `candidate-mismatch` right after a clean author run | The records were written by Tenon 0.3.0 or earlier in a workspace with `.claude/settings.local.json`, or ignored build output, permission bits or line endings differ; see Candidate mismatch || `record-chain-broken` | A record was edited, removed or added by hand. Re-run `tenon test run <change> --stage` locally and commit the new records |
+| `candidate-mismatch` right after a clean author run | The records were written by Tenon 0.3.0 or earlier in a workspace with `.claude/settings.local.json`, or ignored build output, permission bits or line endings differ; see Candidate mismatch |
+| `finished-judged-at-head` note next to errors | A finished Change is judged against the checked-out tree; see Finished Changes are judged against the checked-out tree |
+| `record-chain-broken` | A record was edited, removed or added by hand. Re-run `tenon test run <change> --stage` locally and commit the new records |
 | `protected-unapproved` | A catalog, baseline, known-failures or workflow change has no review approval line. Get it approved with `tenon review request` and `tenon review acknowledge`, then commit the Change history |
 | `anchor-mismatch` | The chain was rewritten after it was anchored. This is the case the anchor exists for; do not re-anchor to silence it |
 | Upload step warns about permissions | The token is read-only (fork pull request). Set `upload-sarif: 'false'` |
