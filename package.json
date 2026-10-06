@@ -78,6 +78,7 @@
   },
   "overrides": {
     "browserslist": "4.28.7",
+    "tinypool": "2.1.2",
     "vitepress": {
       "vite": "6.4.3"
     }
