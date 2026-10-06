@@ -32505,6 +32505,23 @@ async function candidateFingerprint(repoRoot) {
   return fingerprintWorkspace(repoRoot, { declaredOutputs: await declaredTestOutputs(repoRoot) });
 }
 
+// packages/kernel/dist/ci-verify/abandoned.js
+function abandonedTerminal(input2) {
+  const { head } = input2;
+  if (head === void 0 || input2.canonicalPhase !== input2.phase)
+    return void 0;
+  if (!isAbandonEvent(head.event) || head.to !== input2.phase)
+    return void 0;
+  const steps = input2.plan.workflow.steps;
+  const terminal = steps.find((step) => step.id === input2.phase);
+  if (terminal === void 0 || terminal.transitions.length > 0)
+    return void 0;
+  const declared = steps.find((step) => step.id === head.from)?.transitions.some((transition) => transition.event === head.event && transition.to === input2.phase);
+  if (declared !== true)
+    return void 0;
+  return { from: head.from, to: head.to, event: head.event, at: head.observedAt };
+}
+
 // packages/kernel/dist/ci-verify/anchor.js
 function finding(input2, code, severity2, message2, subject2) {
   return {
@@ -32942,6 +32959,13 @@ var CI_ONLY = [
     level: "note",
     short: "The workspace fingerprint was not compared (--candidate off)",
     help: "Recorded runs were not checked against the tree of this checkout."
+  },
+  {
+    id: "change-abandoned",
+    name: "ChangeAbandoned",
+    level: "note",
+    short: "The task was abandoned through the scope-expanded edge, so its evidence is not judged",
+    help: "The task left its workflow through the abandon edge (`scope-expanded`) into a terminal step such as `escalated`; no test evidence is required for that edge. CI skips it and judges the task that replaced it. A task that only has the terminal step written into its state, without the abandon transition in its record chain, is judged as usual."
   },
   {
     id: "no-test-policy",
@@ -58561,6 +58585,10 @@ var VERIFY_MESSAGES = {
   "verify.noTestPolicy": {
     zh: "\u5DE5\u4F5C\u6D41\u5728 {phase} \u53CA\u4E4B\u524D\u6CA1\u6709\u58F0\u660E\u4EFB\u4F55\u6D4B\u8BD5\u7B56\u7565\uFF0C\u6CA1\u6709\u53EF\u6821\u9A8C\u7684\u7528\u4F8B\u7EA7\u5224\u5B9A",
     en: "The workflow declares no test policy at {phase} or before, so there is no case-level verdict to verify"
+  },
+  "verify.changeAbandoned": {
+    zh: "\u4EFB\u52A1 {change} \u5DF2\u88AB\u653E\u5F03\uFF1A\u5B83\u6CBF {event} \u8FB9\u4ECE {from} \u8F6C\u5165\u7EC8\u6001 {to}\uFF0C\u653E\u5F03\u4E0D\u9700\u8981\u6D4B\u8BD5\u8BC1\u636E\uFF0C\u6240\u4EE5\u4E0D\u5224\u5B9A\u5B83\u7684\u8BC1\u636E\uFF1B\u63A5\u624B\u5B83\u7684\u4EFB\u52A1\u5355\u72EC\u5224\u5B9A",
+    en: "Change {change} was abandoned: it left {from} through the {event} edge into the terminal step {to}. An abandon needs no test evidence, so its evidence is not judged; the change that replaced it is judged on its own"
   },
   "verify.candidateUnchecked": {
     zh: "\u6CA1\u6709\u6BD4\u5BF9\u8BB0\u5F55\u7ED1\u5B9A\u7684\u5DE5\u4F5C\u533A\u6307\u7EB9\u4E0E\u672C\u6B21\u68C0\u51FA\u7684\u6811\uFF08--candidate off\uFF09",
@@ -96760,6 +96788,38 @@ import { dirname as dirname50, resolve as resolve69 } from "node:path";
 import { lstat as lstat79, readFile as readFile103 } from "node:fs/promises";
 import { join as join183 } from "node:path";
 
+// packages/cli/src/commands/verify-ci-abandoned.ts
+async function abandonedChangeOf(selected, phase, plan) {
+  try {
+    const validated = await readValidatedTransitionHead(selected.dir);
+    if (validated === void 0) return void 0;
+    return abandonedTerminal({ phase, canonicalPhase: str2(validated.current.state.fields.phase), plan, head: validated.record });
+  } catch {
+    return void 0;
+  }
+}
+function abandonedReport(deps, selected, phase, abandoned) {
+  const finding3 = {
+    code: "change-abandoned",
+    severity: "note",
+    change: selected.name,
+    source: "ci",
+    message: verifyMsg(deps, "verify.changeAbandoned", { change: selected.name, event: abandoned.event, from: abandoned.from, to: abandoned.to }),
+    path: `${selected.relDir}/.pipeline.yaml`
+  };
+  return {
+    change: selected.name,
+    dir: selected.relDir,
+    phase,
+    step: abandoned.to,
+    policy: "none",
+    evaluatedUser: null,
+    chains: [],
+    anchor: "none",
+    findings: [finding3]
+  };
+}
+
 // packages/cli/src/commands/verify-ci-policy.ts
 function declaresTests(step) {
   return (step.tests?.length ?? 0) > 0 || step.test_policy !== void 0;
@@ -96969,6 +97029,8 @@ async function verifyChange(ctx, selected) {
   }
   if (plan === null) return unreadable(selected, verifyMsg(deps, "verify.workflowUnresolved", { workflow: str2(state.fields.workflow) }));
   const phase = str2(state.fields.phase);
+  const abandoned = await abandonedChangeOf(selected, phase, plan);
+  if (abandoned !== void 0) return abandonedReport(deps, selected, phase, abandoned);
   const picked = resolveEvaluatedStep(deps, plan, phase, ctx.stepOverride);
   if ("error" in picked) {
     return { ...unreadable(selected, picked.error), phase, findings: [ciFinding(selected.name, "step-unresolved", "error", picked.error)] };

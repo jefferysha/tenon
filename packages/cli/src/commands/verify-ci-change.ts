@@ -15,6 +15,7 @@ import type { CliDeps } from '../deps.js'
 import { errMsg } from '../deps.js'
 import { str } from '../render.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
+import { abandonedChangeOf, abandonedReport } from './verify-ci-abandoned.js'
 import { NO_USER_SLUG, chainFindings, chainSummary, pickEvaluatedChain, readUserChains } from './verify-ci-chains.js'
 import { resolveBaseRef } from './verify-ci-git.js'
 import { policyFindings, resolveEvaluatedStep, runPolicy } from './verify-ci-policy.js'
@@ -101,6 +102,9 @@ export async function verifyChange(ctx: VerifyContext, selected: SelectedChange)
   }
   if (plan === null) return unreadable(selected, verifyMsg(deps, 'verify.workflowUnresolved', { workflow: str(state.fields.workflow) }))
   const phase = str(state.fields.phase)
+  // 被放弃的任务（真的沿放弃边走进终态）：放弃不要求测试证据，不判定、只留一条提示；接手它的任务单独判定。
+  const abandoned = await abandonedChangeOf(selected, phase, plan)
+  if (abandoned !== undefined) return abandonedReport(deps, selected, phase, abandoned)
   const picked = resolveEvaluatedStep(deps, plan, phase, ctx.stepOverride)
   if ('error' in picked) {
     return { ...unreadable(selected, picked.error), phase, findings: [ciFinding(selected.name, 'step-unresolved', 'error', picked.error)] }

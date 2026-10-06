@@ -105,6 +105,19 @@ SARIF rule ids prefixed with `tenon/`.
 | Candidate tree | `candidate-mismatch` |
 | Protected file approvals | `protected-unapproved`, `protected-changed-after-approval`, `protected-approval-unbound` (warning), `protected-diff-unavailable` |
 | Anchors | `anchor-mismatch`, `anchor-behind` (warning), `anchor-unverifiable` (warning), `anchor-missing` (only with `--require-anchor`) |
+| Abandoned Change (not judged) | `change-abandoned` (note) |
+
+Abandoned Changes are skipped. A Change that left its workflow through the abandon edge
+(`scope-expanded`, for example a `standard` task that escalated into the terminal step `escalated`) needs no
+test evidence, and it usually sits in the same pull request as the `default` Change that replaced it. CI does not
+judge it: the report carries the note `change-abandoned` for it and nothing else, so it never fails the check, whether
+you select it with `--change`, or `--since` picks it up. Only a Change that really went through the abandon
+edge counts. CI reads the head transition record from the Change's canonical run state and requires that it is the abandon
+event, that it entered the terminal step the state is in, and that the frozen workflow declares that edge. A state
+that merely says `phase: escalated`, with no abandon transition behind it, is judged like any other Change and fails.
+Skipping means skipping everything for that Change, including the protected-file approval check: the
+replacement Change is judged on its own, and CI does not look for approvals on a protected configuration
+file that only the abandoned Change touched. Carry such an edit in the replacement Change.
 
 Which step is judged: the Change's current step; if it declares no test policy, the closest earlier
 step that does (a finished Change is therefore judged at verify). Which chain is judged: the

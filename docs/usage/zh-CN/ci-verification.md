@@ -97,6 +97,14 @@ Action 输入：
 | 候选树 | `candidate-mismatch` |
 | 受保护文件的批准 | `protected-unapproved`、`protected-changed-after-approval`、`protected-approval-unbound`（警告）、`protected-diff-unavailable` |
 | 锚点 | `anchor-mismatch`、`anchor-behind`（警告）、`anchor-unverifiable`（警告）、`anchor-missing`（只在 `--require-anchor` 时） |
+| 被放弃的 Change（不判定） | `change-abandoned`（提示） |
+
+被放弃的 Change 会被跳过。沿放弃边（`scope-expanded`，例如升级进终态 `escalated` 的 `standard` 任务）离开工作流的 Change
+不需要任何测试证据，它通常和接手它的 `default` Change 在同一个 PR 里。CI 不判定它：报告里它只有一条提示 `change-abandoned`，
+不管是 `--change` 选它还是 `--since` 把它带进来，都不会让检查失败。只认真的走过放弃边的 Change：CI 读 Change canonical
+运行状态里的链头转换记录，要求它是放弃事件、转入的正是状态所在的终态、且冻结的工作流声明过这条边。状态里只写着
+`phase: escalated`、背后没有放弃转换的，照常判定、照常失败。跳过就是对这个 Change 什么都不检查，包括受保护文件的批准：
+接手的 Change 单独判定，只有被放弃的 Change 动过的受保护配置文件，CI 不会去找它的批准行。这样的改动请放进接手的 Change 里。
 
 判定哪个步骤：Change 的当前步骤；它没有声明测试策略时，取它之前最近一个声明了的步骤（所以已完结的 Change 落在 verify）。
 判定哪条链：Change 负责人的链。负责人没有记录、恰好只有另一个用户有记录时，用那一条并给出警告 `owner-chain-missing`。

@@ -238,6 +238,10 @@ export const VERIFY_MESSAGES = {
     zh: '工作流在 {phase} 及之前没有声明任何测试策略，没有可校验的用例级判定',
     en: 'The workflow declares no test policy at {phase} or before, so there is no case-level verdict to verify',
   },
+  'verify.changeAbandoned': {
+    zh: '任务 {change} 已被放弃：它沿 {event} 边从 {from} 转入终态 {to}，放弃不需要测试证据，所以不判定它的证据；接手它的任务单独判定',
+    en: 'Change {change} was abandoned: it left {from} through the {event} edge into the terminal step {to}. An abandon needs no test evidence, so its evidence is not judged; the change that replaced it is judged on its own',
+  },
   'verify.candidateUnchecked': {
     zh: '没有比对记录绑定的工作区指纹与本次检出的树（--candidate off）',
     en: 'The workspace fingerprint bound into the records was not compared with the checked-out tree (--candidate off)',

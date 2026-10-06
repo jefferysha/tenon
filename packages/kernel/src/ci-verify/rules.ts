@@ -95,6 +95,11 @@ const CI_ONLY: readonly CiRule[] = [
     help: 'Recorded runs were not checked against the tree of this checkout.',
   },
   {
+    id: 'change-abandoned', name: 'ChangeAbandoned', level: 'note',
+    short: 'The task was abandoned through the scope-expanded edge, so its evidence is not judged',
+    help: 'The task left its workflow through the abandon edge (`scope-expanded`) into a terminal step such as `escalated`; no test evidence is required for that edge. CI skips it and judges the task that replaced it. A task that only has the terminal step written into its state, without the abandon transition in its record chain, is judged as usual.',
+  },
+  {
     id: 'no-test-policy', name: 'NoTestPolicy', level: 'note',
     short: 'The evaluated step declares no test policy',
     help: 'There is nothing to verify at this step; this is not evidence that tests passed.',
