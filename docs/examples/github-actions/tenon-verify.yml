@@ -26,6 +26,7 @@ jobs:
           # candidate: warn           # downgrade a tree mismatch to a warning
           # require-anchor: 'true'    # demand a refs/notes/tenon anchor equal to the chain head
           # upload-sarif: 'false'     # fork pull requests have a read-only token
+          # language: en              # report text in English (zh | en; default: the CLI default, Chinese)
 
   # Optional second job: re-run the suites on the runner. A pass proves the suites pass on a machine
   # you control; the records it writes belong to the CI user and do not vouch for the committed ones.

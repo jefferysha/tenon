@@ -748,7 +748,8 @@ signal, or `C`/`POSIX`, keeps the historical Chinese output (hooks pin `LC_ALL=C
 stable text). Every command and option description has an English text, usage errors
 and the most common errors are catalogued in both languages (stable message codes,
 see `packages/cli/src/i18n/`), and JSON fields, `ERROR:`/`WARN:` prefixes and exit
-codes never depend on the language. Strings not yet in the catalog stay in Chinese.
+codes never depend on the language. `tenon verify --ci` (all four report formats and its usage errors) is fully
+catalogued; see [CI verification](ci-verification.md). Strings not yet in the catalog stay in Chinese.
 
 ## Advanced
 

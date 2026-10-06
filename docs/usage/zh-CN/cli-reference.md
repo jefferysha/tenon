@@ -479,7 +479,7 @@ stdout/stderr 镜像到那里，凭证在落盘前已抹掉。`--lines` 缺省 1
 输出语言：`TENON_LANG=en|zh`，其次 `LC_ALL`、`LC_MESSAGES`、`LANG`。没有信号或为 `C`/`POSIX` 时保持历史的中文输出
 （hook 为输出稳定会钉 `LC_ALL=C`）。每条命令与选项的说明都有英文；用法错误和最常见的错误在两种语言里都有目录条目
 （稳定的消息码，见 `packages/cli/src/i18n/`）；JSON 字段、`ERROR:`/`WARN:` 前缀和退出码不随语言变化。
-还没进目录的文案仍是中文。`tenon transition` 遇到非法或未知 event 时，会在第二行用当前语言列出当前 step 的合法 event。
+`tenon verify --ci` 的四种报告格式与用法错误已全部进目录（见 [CI 验证](ci-verification.md)）。还没进目录的文案仍是中文。`tenon transition` 遇到非法或未知 event 时，会在第二行用当前语言列出当前 step 的合法 event。
 
 ## Session 与恢复
 

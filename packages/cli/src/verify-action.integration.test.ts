@@ -118,6 +118,27 @@ describe('tenon-verify action', () => {
     expect(noCli.stdout).toContain('Tenon CLI not found')
   }, 240_000)
 
+  test('language 输入：en 让摘要、SARIF 与日志都是英文，zh 与缺省是中文，非法值由脚本报告', async () => {
+    const checkout = await ci()
+    const cjk = /[㐀-鿿＀-￯　-〿]/u
+    const en = await runAction(checkout, cleanups, { TENON_VERIFY_LANGUAGE: 'en', TENON_LANG: '' })
+    expect(en.outputs.get('exit-code')).toBe('0')
+    expect(en.stdout).toContain('Tenon CI verification passed')
+    expect(cjk.test(en.summary), en.summary).toBe(false)
+    expect(en.summary).toContain('## PASS')
+    expect(en.summary).toContain('Not provable in CI')
+    expect(cjk.test(await readFile(en.outputs.get('sarif-path') ?? '', 'utf8'))).toBe(false)
+    expect(cjk.test(await readFile(en.outputs.get('report-path') ?? '', 'utf8'))).toBe(false)
+    const zh = await runAction(checkout, cleanups, { TENON_VERIFY_LANGUAGE: 'zh', LANG: 'en_US.UTF-8', TENON_LANG: '' })
+    expect(zh.stdout).toContain('Tenon CI 校验 通过')
+    // 缺省：没有输入时沿用 CLI 的缺省（没有语言信号 = 中文）；输入不是 zh / en 时脚本直接失败。
+    const fallback = await runAction(checkout, cleanups, { TENON_VERIFY_LANGUAGE: '', TENON_LANG: '', LC_ALL: 'C' })
+    expect(fallback.stdout).toContain('Tenon CI 校验 通过')
+    const invalid = await runAction(checkout, cleanups, { TENON_VERIFY_LANGUAGE: 'fr' })
+    expect(invalid.outputs.get('exit-code')).toBe('1')
+    expect(invalid.stdout).toContain("language must be zh or en (got 'fr')")
+  }, 240_000)
+
   test('action.yml：每个 uses 固定到提交 SHA；输入只经 env 进入脚本；最后一步按 exit-code 失败', async () => {
     const yaml = await readFile(join(ACTION_DIR, 'action.yml'), 'utf8')
     const uses = [...yaml.matchAll(/^\s*uses:\s*(\S+)\s*(?:#.*)?$/gmu)].map((match) => match[1] ?? '')
@@ -131,5 +152,9 @@ describe('tenon-verify action', () => {
     const script = await readFile(join(ACTION_DIR, 'run.sh'), 'utf8')
     expect(script).toContain('--require-anchor')
     expect(script).toContain('refs/notes/tenon')
+    // language 输入：声明在 action.yml，只经 env（TENON_VERIFY_LANGUAGE）进脚本，脚本再交给 CLI 的 TENON_LANG。
+    expect(yaml).toMatch(/^  language:\n    description:[\s\S]*?default: ''/mu)
+    expect(yaml).toContain('TENON_VERIFY_LANGUAGE: ${{ inputs.language }}')
+    expect(script).toContain('export TENON_LANG="$TENON_VERIFY_LANGUAGE"')
   })
 })

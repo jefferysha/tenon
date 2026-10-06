@@ -12,6 +12,7 @@
 #   TENON_VERIFY_CLI      explicit path to a Tenon CLI entry (overrides the bundled one)
 #   TENON_VERIFY_EXPECTED_VERSION   fail unless the CLI release matches
 #   TENON_VERIFY_SINCE / _CHANGE / _ALL_OPEN / _STEP / _CANDIDATE / _REQUIRE_ANCHOR / _FETCH_NOTES
+#   TENON_VERIFY_LANGUAGE zh | en: passed to the CLI as TENON_LANG; empty keeps the CLI default
 set -uo pipefail
 
 workspace="${GITHUB_WORKSPACE:-$PWD}"
@@ -39,6 +40,12 @@ if [ -n "${TENON_VERIFY_EXPECTED_VERSION:-}" ]; then
   [ "$actual" = "$TENON_VERIFY_EXPECTED_VERSION" ] \
     || fail "tenon-verify: expected Tenon ${TENON_VERIFY_EXPECTED_VERSION} but the pinned CLI is ${actual:-unknown}"
 fi
+
+case "${TENON_VERIFY_LANGUAGE:-}" in
+  "") ;;
+  zh|en) export TENON_LANG="$TENON_VERIFY_LANGUAGE" ;;
+  *) fail "tenon-verify: language must be zh or en (got '${TENON_VERIFY_LANGUAGE}')" ;;
+esac
 
 if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
   echo "::warning::shallow checkout: Tenon needs the commit each task started from (actions/checkout with fetch-depth: 0); protected-file approvals cannot be checked without it"
