@@ -56,6 +56,11 @@ text(result);
 2. dispatch `intent: new` → 起一个 kebab-case 名；`intent: select` 或 `selection_required: true`
    → 要用户给出**一对**确切的候选（名字 + 工作流），然后结束回合；`intent: resume` → 只接手
    点名的那个任务。没有 dispatch 的手动 `/tenon`：`tenon list --json`，多于一个就问。
+   以 `/` 开头的提示词是显式命令，路由钩子不处理，所以 `/tenon <请求>` 要新建任务时由你选通道，选法与钩子一致：
+   用户点名了工作流或轨道就照用；否则修缺陷、加函数、改一个模块这类实现类请求用
+   `--workflow standard --track standard`；只有大型或跨领域、需要需求与设计文档的工作（架构、鉴权、迁移、依赖、契约）
+   才用 `default`（轨道按内容选）；项目自定义的工作流只在用户点名时用，不要自己挑一个。拿不准就选 `standard`：
+   越界时它的 `scope-expanded` 会升级到 `default`。
    `track_basis: user-named` 表示 `track` 是用户在消息里点名的轨道，建任务时照用，不按内容另选；
    `score` 是按内容评分的推测，用户另有说法以用户为准。
 3. 新建：`tenon init <c> --workflow <w> --track <t> --preset full`（用户可以点别的 preset）；
@@ -111,7 +116,7 @@ repeat:
 | `await-review` | interactive：结束回合等人。continuous：`tenon review acknowledge <c> --delegated`（计划里有待批准的测试豁免时委托确认会被拒、评审仍待确认：如实告诉用户，等用户回复「确认继续」人工批准，不要自己批准也不要绕开）。afk：结束本轮。 |
 | `commit` | 交付物提交（交付步有未勾任务时它排在勾选之前：先提交，再勾「提交代码」这类任务）：`git add -A -- <commit.paths…>`；`commit.untrack` 非空时接着 `git rm --cached -q --ignore-unmatch -- <commit.untrack…>`；最后 `git commit -m "<commit.message>"`。paths / untrack 原样用、不增不减（`:(exclude)…` 是挡住仓库根门禁标记的 pathspec，照抄）。宿主不让写 `.git` 时如实告诉用户这一步留给他，不要说已提交。 |
 | `choose-exit` | 按下面的「出口」挑一条边。 |
-| `transition` | `tenon transition <c> <event>`。带 `escalate` 的 `transition`（`event: scope-expanded`）是风险升级：改动风险探针没通过，`escalate.reasons` 是被突破的阈值——照做这条转换（它不要求其余证据），然后按 `escalate.then` 新建 `default` 任务并 `tenon set <新任务> depends_on <本任务>`；不要为了让探针通过去拆改动或藏文件。 |
+| `transition` | `tenon transition <c> <event>`。带 `escalate` 的 `transition`（`event: scope-expanded`）是风险升级：改动风险探针没通过，`escalate.reasons` 是被突破的阈值——照做这条转换（它不要求其余证据），然后按 `escalate.then` 新建 `default` 任务并 `tenon set <新任务> depends_on <本任务>`；不要为了让探针通过去拆改动或藏文件。当 `next` 里只剩这一条 `transition` 时直接执行，不问用户，interactive 也一样（不等「继续」，不给「升级 / 调探针阈值 / 不走流程」这类选择题）：执行前用一句话告诉用户为什么升级（`escalate.reasons`）、接下来要做什么，然后动手。 |
 | `complete` | `tenon transition <c> <event>`——走完终态自边，状态机到此结束。归档由下一条 `finish-change` 单独下发，不要在这里抢跑 `openspec archive`。 |
 | `finish-change` | `command` 不是 `null` 时照原样跑（`openspec archive <c> --skip-specs --yes --json`），把 change 目录搬进 `openspec/changes/archive/`。`commit` 不是 `null` 时再提交：`git add -A -- <commit.paths…>`；`commit.untrack` 非空时接着 `git rm --cached -q --ignore-unmatch -- <commit.untrack…>`；最后 `git commit -m "<commit.message>"`。paths / untrack 原样用、不增不减（宿主不让写 `.git` 时如实告诉用户这一步留给他，不要说已提交）；`commit` 为 `null`（不是 git 仓）就不提交。 |
 
@@ -139,7 +144,7 @@ repeat:
 - 出口：`ready` 的前进边直接走；回退边只在它的含义成立时走（必需测试或评审者不通过 → 回到实现
   的那条边；已确认的需求变了 → 回到规格的那条边）；interactive 先问。走到终态的
   `scope-expanded` 表示目标超出了这个工作流：之后新建一个 `default` 任务，并
-  `tenon set <new> depends_on <old>`（standard 通道由改动风险探针触发，`next` 会直接给出它）。
+  `tenon set <new> depends_on <old>`（standard 通道由改动风险探针触发，`next` 会直接给出它；它是 `next` 里唯一的 `transition` 时不用问，见动作表的 `transition`）。
 
 ## 上游技能怎么用
 

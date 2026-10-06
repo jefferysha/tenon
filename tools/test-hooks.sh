@@ -2030,6 +2030,12 @@ assert_contains "SKILL.md: 达到 block_at 的问题在本步修完" "$SKILL_TEX
 assert_contains "SKILL.md: 回复使用用户所用的语言" "$SKILL_TEXT" "面向用户的回复（进度、暂停说明、最终总结）使用用户所用的语言"
 # agent 声明的 hosts 只有 prompt 带 --host 时才生效：run-agent 必须传本宿主 id。
 assert_contains "SKILL.md: run-agent 的 agent prompt 传 --host" "$SKILL_TEXT" "\`tenon agent prompt <c> <agent> --host <host> --json\`"
+# 真机验收（v0.3.0 F6/F7）：以 / 开头的提示词不经路由钩子，手动 /tenon 要自己选通道；升级边是唯一出口时直接走。
+assert_contains "SKILL.md: 手动 /tenon 新建任务由技能选通道，实现类请求走 standard" "$SKILL_TEXT" "\`/tenon <请求>\` 要新建任务时由你选通道"
+assert_contains "SKILL.md: 手动 /tenon 的实现类请求用 standard 工作流" "$SKILL_TEXT" "\`--workflow standard --track standard\`"
+assert_contains "SKILL.md: 项目自定义工作流只在用户点名时用" "$SKILL_TEXT" "项目自定义的工作流只在用户点名时用，不要自己挑一个"
+assert_contains "SKILL.md: 唯一的升级转换直接执行不问用户" "$SKILL_TEXT" "当 \`next\` 里只剩这一条 \`transition\` 时直接执行，不问用户，interactive 也一样"
+assert_contains "SKILL.md: 升级前给用户一句话说明" "$SKILL_TEXT" "执行前用一句话告诉用户为什么升级"
 for prompt in 好的 按你的推荐; do
   touch "$proj/.pipeline-pending-interaction"
   printf '%s' "{\"cwd\":\"$proj\",\"prompt\":\"$prompt\"}" \
