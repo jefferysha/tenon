@@ -5,6 +5,7 @@
  */
 import type { ChainReport } from '../test-system/record-chain.js'
 import type { EvidenceNoteEntry } from '../evidence-export/note.js'
+import type { CiText } from './text.js'
 import type { AnchorState, CiFinding } from './types.js'
 
 export interface AnchorEvidence {
@@ -23,6 +24,8 @@ export interface AnchorInput {
   /** chain-base 标记里的基点摘要（最老一端被清理过时存在）。 */
   readonly baseDigest: string | undefined
   readonly requireAnchor: boolean
+  /** 发现文案的文本源（语言由调用方定）。 */
+  readonly text: CiText
 }
 
 export interface AnchorOutcome {
@@ -49,7 +52,7 @@ export function evaluateAnchor(input: AnchorInput): AnchorOutcome {
     return {
       state: 'none',
       findings: input.requireAnchor
-        ? [finding(input, 'anchor-missing', 'error', `任务 ${input.change} 的交付提交上没有 refs/notes/tenon 锚点（--require-anchor）`)]
+        ? [finding(input, 'anchor-missing', 'error', input.text('anchor.missing', { change: input.change }))]
         : [],
     }
   }
@@ -57,7 +60,7 @@ export function evaluateAnchor(input: AnchorInput): AnchorOutcome {
   if (chain === undefined || chain.state === 'empty') {
     return {
       state: 'mismatch',
-      findings: [finding(input, 'anchor-mismatch', 'error', `提交 ${anchored.commit.slice(0, 12)} 锚定了链头 ${anchorHead}，但已提交的记录链是空的`, anchorHead)],
+      findings: [finding(input, 'anchor-mismatch', 'error', input.text('anchor.emptyChain', { commit: anchored.commit.slice(0, 12), head: anchorHead }), anchorHead)],
     }
   }
   // 链已经断了：`record-chain-broken` 是更根本的发现，这里不再重复。
@@ -72,8 +75,8 @@ export function evaluateAnchor(input: AnchorInput): AnchorOutcome {
     return {
       state: pruned ? 'unverifiable' : 'mismatch',
       findings: [pruned
-        ? finding(input, 'anchor-unverifiable', 'warning', `提交 ${anchored.commit.slice(0, 12)} 锚定的链头 ${anchorHead} 不在保留的记录里（较老的记录已按保留上限清理）`, anchorHead)
-        : finding(input, 'anchor-mismatch', 'error', `提交 ${anchored.commit.slice(0, 12)} 锚定的链头 ${anchorHead} 不在已提交的记录链里：链在锚定之后被重写`, anchorHead)],
+        ? finding(input, 'anchor-unverifiable', 'warning', input.text('anchor.unverifiable', { commit: anchored.commit.slice(0, 12), head: anchorHead }), anchorHead)
+        : finding(input, 'anchor-mismatch', 'error', input.text('anchor.rewritten', { commit: anchored.commit.slice(0, 12), head: anchorHead }), anchorHead)],
     }
   }
   return outcomeFor(input, anchored.commit, anchorHead, digests.length - 1 - index)
@@ -85,7 +88,7 @@ function outcomeFor(input: AnchorInput, commit: string, head: string, behind: nu
     state: 'behind',
     findings: [finding(
       input, 'anchor-behind', input.requireAnchor ? 'error' : 'warning',
-      `提交 ${commit.slice(0, 12)} 锚定了链头 ${head}，之后又追加了 ${behind} 条记录；这些记录没有被锚定`, head,
+      input.text('anchor.behind', { commit: commit.slice(0, 12), head, behind }), head,
     )],
   }
 }

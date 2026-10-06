@@ -3,6 +3,7 @@ import type { EvidenceNoteEntry } from '../evidence-export/note.js'
 import { fixtureChain, fixtureRecordDraft } from '../test-system/test-support.js'
 import { verifyRecordChain, type ChainReport } from '../test-system/record-chain.js'
 import { evaluateAnchor } from './anchor.js'
+import { ciKeyText } from './text.js'
 
 const COMMIT = 'a'.repeat(40)
 
@@ -19,7 +20,7 @@ function entry(head: string, user = 'u-at-x.io'): EvidenceNoteEntry {
 }
 
 const input = (chain: ChainReport | undefined, anchors: Parameters<typeof evaluateAnchor>[0]['anchors'], extra: Partial<Parameters<typeof evaluateAnchor>[0]> = {}) => ({
-  change: 'demo', user: 'u-at-x.io', anchors, chain, baseDigest: undefined, requireAnchor: false, ...extra,
+  change: 'demo', user: 'u-at-x.io', anchors, chain, baseDigest: undefined, requireAnchor: false, text: ciKeyText, ...extra,
 })
 
 describe('evaluateAnchor', () => {
@@ -40,7 +41,7 @@ describe('evaluateAnchor', () => {
     const anchors = [{ commit: COMMIT, entry: entry(digests[0] ?? '') }]
     const lenient = evaluateAnchor(input(chain, anchors))
     expect(lenient.state).toBe('behind')
-    expect(lenient.findings).toEqual([expect.objectContaining({ code: 'anchor-behind', severity: 'warning', message: expect.stringContaining('追加了 2 条') })])
+    expect(lenient.findings).toEqual([expect.objectContaining({ code: 'anchor-behind', severity: 'warning', message: expect.stringContaining('"behind":2') })])
     expect(evaluateAnchor(input(chain, anchors, { requireAnchor: true })).findings[0]?.severity).toBe('error')
   })
 

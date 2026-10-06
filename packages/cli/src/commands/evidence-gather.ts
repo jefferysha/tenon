@@ -108,7 +108,7 @@ export async function gatherEvidence(deps: CliDeps, input: {
   const chains = await readUserChains(deps.cwd, input.change)
   const owner = ownerOf(state.fields)
   const chain = input.user === undefined
-    ? pickEvaluatedChain(input.change, owner?.slug ?? null, chains).chain
+    ? pickEvaluatedChain(deps, input.change, owner?.slug ?? null, chains).chain
     : chains.find((item) => item.slug === input.user)
   if (chain === undefined) {
     return { ok: false, code: 2, message: `任务 ${input.change} 没有可导出的测试记录链${input.user === undefined ? '（负责人没有记录；用 --user 指定用户目录）' : `（用户 ${input.user} 没有记录）`}` }

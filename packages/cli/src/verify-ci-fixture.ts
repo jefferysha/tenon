@@ -92,8 +92,8 @@ export interface Dev {
 export interface CiCheckout {
   readonly h: Harness
   readonly dir: string
-  /** `tenon verify --ci …`，不带用户身份；返回 exit code 与解析好的 json（用 `--format json` 时）。 */
-  verify: (args: readonly string[]) => Promise<{ code: number; out: string; err: string }>
+  /** `tenon verify --ci …`，不带用户身份；`env` 覆盖本次命令的环境（例如 TENON_LANG）；返回 exit code 与输出。 */
+  verify: (args: readonly string[], env?: Readonly<Record<string, string | undefined>>) => Promise<{ code: number; out: string; err: string }>
   commit: (message: string) => void
   cleanup: () => Promise<void>
 }
@@ -187,8 +187,8 @@ export async function ciCheckout(dev: Dev, options: { readonly shallow?: boolean
   const h = makeHarness(dir)
   return {
     h, dir,
-    verify: async (args) => {
-      const code = await h.run(['verify', '--ci', ...args], { env: { TENON_USER: undefined, TENON_USER_NAME: undefined } })
+    verify: async (args, env = {}) => {
+      const code = await h.run(['verify', '--ci', ...args], { env: { TENON_USER: undefined, TENON_USER_NAME: undefined, ...env } })
       return { code, out: h.out.join('\n'), err: h.err.join('\n') }
     },
     commit: (message) => {

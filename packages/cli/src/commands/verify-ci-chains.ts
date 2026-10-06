@@ -8,6 +8,9 @@ import {
   TENON_PROJECT_DIR, listRecordDirectory, recordInvariantProblems, testRunRecordsDir, verifyRecordChain,
   type ChainReport, type CiChainSummary, type CiFinding, type RecordDirectoryListing,
 } from '@tenon/kernel'
+import type { CliDeps } from '../deps.js'
+import type { MessageCode } from '../i18n/messages.js'
+import { ciTextOf, verifyMsg } from './verify-ci-text.js'
 
 export interface UserChain {
   /** 用户目录名。 */
@@ -58,8 +61,24 @@ export function chainSummary(chain: UserChain): CiChainSummary {
   }
 }
 
+/** 记录链校验给出的断链原因是 kernel 里的中文句子；英文输出按已知的几种换成英文，其余原样。 */
+const CHAIN_REASONS: Readonly<Record<string, Extract<MessageCode, `verify.${string}`>>> = {
+  '找不到链首记录': 'verify.chainReason.noGenesis',
+  '有记录文件无法读取或格式非法': 'verify.chainReason.unreadable',
+  '记录内容与摘要不符（被改动）': 'verify.chainReason.digest',
+  '记录链出现分叉': 'verify.chainReason.fork',
+  '记录链成环': 'verify.chainReason.cycle',
+  '有记录不在当前链上（中间记录缺失或被替换）': 'verify.chainReason.stray',
+}
+
+function chainReasonText(deps: CliDeps, reason: string): string {
+  const code = CHAIN_REASONS[reason]
+  return code === undefined ? reason : verifyMsg(deps, code)
+}
+
 /** 判定用的用户目录：负责人的链；负责人没有链而恰好只有一条别人的链时用那一条（并给警告）；否则没有。 */
 export function pickEvaluatedChain(
+  deps: CliDeps,
   change: string,
   ownerSlug: string | null,
   chains: readonly UserChain[],
@@ -71,32 +90,42 @@ export function pickEvaluatedChain(
     const only = chains[0]
     return ownerSlug === null
       ? { chain: only }
-      : { chain: only, finding: { ...base, message: `任务负责人 ${ownerSlug} 没有测试记录；判定用的是 ${only.slug} 的记录链` } }
+      : { chain: only, finding: { ...base, message: verifyMsg(deps, 'verify.ownerChainMissingOne', { owner: ownerSlug, user: only.slug }) } }
   }
   if (chains.length > 1) {
-    return { chain: undefined, finding: { ...base, message: `任务负责人${ownerSlug === null ? '未知' : ` ${ownerSlug} 没有测试记录`}，而有 ${chains.length} 个用户各有一条记录链，无法决定用哪条判定` } }
+    return {
+      chain: undefined,
+      finding: {
+        ...base,
+        message: ownerSlug === null
+          ? verifyMsg(deps, 'verify.ownerUnknownChainMany', { count: chains.length })
+          : verifyMsg(deps, 'verify.ownerChainMissingMany', { owner: ownerSlug, count: chains.length }),
+      },
+    }
   }
   return { chain: undefined }
 }
 
 /** 链断了、记录自洽性：判定用的链的断链由策略判定自己报，这里不重复。 */
-export function chainFindings(change: string, chain: UserChain, evaluated: boolean): readonly CiFinding[] {
+export function chainFindings(deps: CliDeps, change: string, chain: UserChain, evaluated: boolean): readonly CiFinding[] {
   const out: CiFinding[] = []
   const { report, listing } = chain
   if (report.state === 'broken' && !evaluated) {
     const file = report.files[0]
     out.push({
       code: 'record-chain-broken', severity: 'error', change, source: 'ci', subject: chain.slug,
-      message: `用户 ${chain.slug} 的测试记录被改动（${report.reason}：${report.files.slice(0, 3).join('、')}）`,
+      message: verifyMsg(deps, 'verify.chainBroken', {
+        user: chain.slug, reason: chainReasonText(deps, report.reason), files: report.files.slice(0, 3).join(verifyMsg(deps, 'verify.listSep')),
+      }),
       ...(file === undefined ? {} : { path: `${chain.relDir}/${file}` }),
     })
   }
   const active = report.state === 'intact' ? new Set(report.active.map((record) => record.digest)) : undefined
   const records = active === undefined ? listing.records : listing.records.filter((entry) => active.has(entry.record.digest))
-  for (const problem of recordInvariantProblems({ change, slug: chain.slug, records })) {
+  for (const problem of recordInvariantProblems({ change, slug: chain.slug, records, text: ciTextOf(deps) })) {
     out.push({
       code: problem.code, severity: 'error', change, source: 'ci', subject: problem.file,
-      message: `${problem.file}：${problem.message}`, path: `${chain.relDir}/${problem.file}`,
+      message: verifyMsg(deps, 'verify.recordProblem', { file: problem.file, message: problem.message }), path: `${chain.relDir}/${problem.file}`,
     })
   }
   return out

@@ -14,9 +14,6 @@ const MAX_BUFFER = 64 * 1024 * 1024
 export const NOTE_SCAN_COMMITS = 1000
 const MAX_NOTES_READ = 200
 
-/** 浅克隆答不了「任务起点以来改了什么」：受保护文件的批准与测试完整性都按这条原因失败关闭 / 提示。 */
-export const SHALLOW_REASON = '浅克隆缺少任务起点之前的历史（actions/checkout 需要 fetch-depth: 0）'
-
 export async function git(cwd: string, args: readonly string[]): Promise<string | undefined> {
   try {
     const { stdout } = await run('git', [...args], { cwd, timeout: GIT_TIMEOUT_MS, maxBuffer: MAX_BUFFER })

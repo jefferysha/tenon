@@ -8,6 +8,7 @@ import { stateStorageExistsSync, type CiSelector } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 import { changeNameOfArchivedDir, changesRoot, isValidChangeName, resolveChangeDir } from '../paths.js'
 import { mergeBaseWith, rangeChangedPaths } from './verify-ci-git.js'
+import { verifyMsg } from './verify-ci-text.js'
 
 export interface SelectedChange {
   readonly name: string
@@ -61,10 +62,10 @@ export async function selectChanges(
   isFinished: (dir: string) => Promise<boolean>,
 ): Promise<Selection> {
   if (selector.kind === 'change') {
-    if (!isValidChangeName(selector.change)) return { ok: false, error: `change-name 非法: '${selector.change}'` }
+    if (!isValidChangeName(selector.change)) return { ok: false, error: verifyMsg(deps, 'verify.changeNameInvalid', { name: selector.change }) }
     const found = located(deps, selector.change)
     return found === undefined
-      ? { ok: false, error: `change 不存在: ${selector.change}（既不在 openspec/changes/ 也不在 openspec/changes/archive/）` }
+      ? { ok: false, error: verifyMsg(deps, 'verify.changeMissing', { name: selector.change }) }
       : { ok: true, changes: [found] }
   }
   if (selector.kind === 'all-open') {
@@ -77,10 +78,10 @@ export async function selectChanges(
   }
   const base = await mergeBaseWith(deps.cwd, selector.ref)
   if (base === undefined) {
-    return { ok: false, error: `--since ${selector.ref}：解析不到这个引用，或它与 HEAD 没有共同祖先（浅克隆请用 fetch-depth: 0）` }
+    return { ok: false, error: verifyMsg(deps, 'verify.sinceUnresolved', { ref: selector.ref }) }
   }
   const paths = await rangeChangedPaths(deps.cwd, base)
-  if (paths === undefined) return { ok: false, error: `读不出 ${base}..HEAD 的改动文件` }
+  if (paths === undefined) return { ok: false, error: verifyMsg(deps, 'verify.rangeUnreadable', { base }) }
   const names = [...new Set(paths.flatMap((path) => changeNameOfPath(path) ?? []))].sort()
   const out: SelectedChange[] = []
   for (const name of names) {
