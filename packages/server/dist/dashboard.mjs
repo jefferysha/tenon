@@ -24502,8 +24502,9 @@ function isApproved(seal, change, path14, digest18) {
 }
 
 // packages/kernel/dist/test-system/protected-files.js
+var PROTECTED_CATALOG_PATH = ".tenon/tests/catalog.yaml";
 var PROTECTED_PATHSPECS = [
-  ".tenon/tests/catalog.yaml",
+  PROTECTED_CATALOG_PATH,
   ".tenon/tests/baselines",
   ".tenon/tests/known-failures.yaml",
   ".pipeline/workflows"
@@ -24511,7 +24512,7 @@ var PROTECTED_PATHSPECS = [
 var MAX_PROTECTED_BYTES = 16 * 1024 * 1024;
 var WORKFLOW_FILE2 = /^\.pipeline\/workflows\/[^/]+\.ya?ml$/;
 function protectedKindOf(path14) {
-  if (path14 === ".tenon/tests/catalog.yaml")
+  if (path14 === PROTECTED_CATALOG_PATH)
     return "catalog";
   if (path14 === ".tenon/tests/known-failures.yaml")
     return "known-failures";
@@ -26632,6 +26633,14 @@ async function sealProtectedApprovals(input2) {
   }));
   return entries2.map((item2) => item2.path);
 }
+async function catalogUntouchedSinceChangeStart(input2) {
+  try {
+    const changes = input2.protectedChanges !== void 0 ? await input2.protectedChanges() : await protectedChangesSinceChangeStart(input2.repoRoot, changeStartOfFields(input2.state.fields));
+    return !changes.some((item2) => item2.path === PROTECTED_CATALOG_PATH);
+  } catch {
+    return false;
+  }
+}
 async function approveFrozenWaivers(input2) {
   const { selection, unbound } = await boundReviewWaiverSelection(input2.dir, input2.state);
   if (unbound)
@@ -26659,11 +26668,13 @@ async function approveFrozenWaivers(input2) {
       }
     }
   }
+  let ownCatalogWrite = false;
   if (catalogPart.length > 0) {
     const catalog2 = await readCatalogFile(input2.repoRoot).catch(() => void 0);
     if (catalog2?.state !== "ok") {
       note = `${note === null ? "" : `${note}\uFF1B`}\u6D4B\u8BD5\u76EE\u5F55\uFF08catalog.yaml\uFF09${catalog2?.state === "missing" ? "\u4E0D\u5B58\u5728" : "\u65E0\u6548\u6216\u8BFB\u4E0D\u4E86"}\uFF0C\u672A\u6279\u51C6\u300C\u4E0D\u9002\u7528\u300D\u58F0\u660E`;
     } else {
+      const sealsItself = !checked.matched.some((item2) => item2.kind === "catalog") && await catalogUntouchedSinceChangeStart(input2);
       const outcome = await updateCatalog(input2.repoRoot, (current) => {
         const result2 = approveNotApplicable(current, catalogPart, input2.actor.id);
         return { catalog: result2.catalog, value: result2 };
@@ -26672,14 +26683,22 @@ async function approveFrozenWaivers(input2) {
         throw new Error(outcome.message);
       approved.push(...outcome.value.approved);
       skipped.push(...outcome.value.skipped);
+      ownCatalogWrite = sealsItself && outcome.value.approved.length > 0;
     }
   }
+  const catalogWrite = {
+    path: PROTECTED_CATALOG_PATH,
+    kind: "catalog",
+    status: "modified",
+    digest: "sealed-after-write",
+    origin: "pending"
+  };
   const protectedApproved = await sealProtectedApprovals({
     repoRoot: input2.repoRoot,
     change: input2.change,
     actor: input2.actor,
     recordedAt: input2.recordedAt,
-    matched: checked.matched
+    matched: ownCatalogWrite ? [...checked.matched, catalogWrite] : checked.matched
   });
   return { approved, skipped, digest: digest18, note, protectedApproved, protectedSkipped: checked.skipped };
 }
