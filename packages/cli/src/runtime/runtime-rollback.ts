@@ -11,6 +11,7 @@ import {
 } from './launchers.js'
 import { transactionRuntimeStore as transactionStore } from './runtime-installer-store.js'
 import {
+  discardUnflippedRollbackJournal,
   readRollbackJournal,
   rollbackJournalPath,
   selectionMatchesRollbackTarget,
@@ -99,7 +100,7 @@ export async function rollbackWithinTransaction(context: RuntimeRollbackContext)
     } catch (error) {
       const after = await store.inspect().catch(() => null)
       if (after !== null && sameJson(after.selection, journal.beforeSelection)) {
-        await rm(rollbackJournalPath(paths), { force: true })
+        await discardUnflippedRollbackJournal(paths, journal)
       }
       throw error
     }
@@ -148,10 +149,15 @@ export async function rollbackWithinTransaction(context: RuntimeRollbackContext)
  * refused the installer's launcher after it had already flipped the selection, and every release that refuses on the
  * journal keeps `setup` and `update` out of the install. This release finishes it instead of refusing:
  *  - selection still equals the journal's `beforeSelection`: the flip never happened, so the rollback never took effect.
- *    The launchers only move after the flip, so removing the journal restores the exact pre-rollback state.
+ *    The launchers only move after the flip, so removing the journal restores the exact pre-rollback state; a private
+ *    launcher copy of that transaction goes with it, but only when it is the journal's recorded checkpoint.
  *  - selection equals the journal's target: the flip happened. Finish the rollback the way `tenon runtime repair --rollback`
  *    does (launcher pair, journal removal) and let the caller continue from the rolled-back release.
  *  - anything else: another writer moved the selection since the journal was written. That stays a refusal.
+ *
+ * The caller holds `<managedTransactionRoot>/.pipeline.lock` (withExclusiveRuntimeTransaction). That is the lock the bootstrap's
+ * rollback takes first, so a journal that is "durable, selection not flipped" here is an abandoned rollback and never one that
+ * is still running; a bootstrap test freezes a real rollback between its journal and its flip to pin exactly that.
  */
 export async function settlePendingRollback(
   context: RuntimeRollbackContext,
@@ -166,7 +172,7 @@ export async function settlePendingRollback(
   )
   const { selection } = await store.inspect()
   if (sameJson(selection, journal.beforeSelection)) {
-    await rm(rollbackJournalPath(context.paths))
+    await discardUnflippedRollbackJournal(context.paths, journal)
     return
   }
   if (!selectionMatchesRollbackTarget(selection, journal.target)) {
