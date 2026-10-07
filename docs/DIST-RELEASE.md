@@ -170,8 +170,9 @@ candidate 只把 78 当作已声明的跳过，`test-bundle.sh` 打印 `[HONEST 
 
 `release.yml` 以 `gh release create --latest` 创建 Release：`tenon update` 与公开安装验收都解析
 `releases/latest`，新发布的版本必须成为 Latest。release candidate 拒绝已退役的 1.0.0–1.1.5 版本号
-（`tag vX uses a retired 1.x version number`），退役号永不复用；安装与更新的版本顺序把退役版本线
-排在其他所有正式版本之下。
+（`tag vX uses a retired 1.x version number`），退役号永不复用：这 16 个版本的 Release 与标签已于
+2026-10-07 删除（维护者保留归档），之后防止复用的只剩这道校验，不再有标签占位；安装与更新的版本顺序把
+退役版本线排在其他所有正式版本之下。
 
 ## CI 新鲜度门（2026-07-17 补）
 

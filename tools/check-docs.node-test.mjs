@@ -415,19 +415,25 @@ test('identity and ownership commands must stay registered', async (t) => {
   assert.match(checkRepository(root).join('\n'), /program-users\.ts: missing documented `tenon owner take` command/)
 })
 
-test('current install docs must not claim the retired 1.x releases were already deleted', async (t) => {
+test('current install docs must not claim the retired 1.x releases and tags still exist', async (t) => {
   const root = await fixture()
   t.after(() => rm(root, { recursive: true, force: true }))
   const zh = await readFile(join(root, 'docs/usage/zh-CN/installation.md'), 'utf8')
-  await write(root, 'docs/usage/zh-CN/installation.md', `${zh}\n\n已退役的 1.x Release 与标签全部删除。\n`)
-  const en = await readFile(join(root, 'docs/usage/installation.md'), 'utf8')
-  await write(root, 'docs/usage/installation.md', `${en}\n\nThe retired 1.x releases were\nremoved.\n`)
-  const failures = checkRepository(root).join('\n')
-  assert.match(failures, /zh-CN\/installation\.md: claims the retired 1\.x releases\/tags were deleted/)
-  assert.match(failures, /docs\/usage\/installation\.md: claims the retired 1\.x releases\/tags were deleted/)
-
   await write(root, 'docs/usage/zh-CN/installation.md', `${zh}\n\n已退役的 1.x Release 与标签仍在，计划在 v0.x 真实宿主验收后删除。\n`)
-  await write(root, 'docs/usage/installation.md', `${en}\n\nThe retired 1.x releases and tags are still published and will be removed after the v0.x real-host acceptance.\n`)
+  const en = await readFile(join(root, 'docs/usage/installation.md'), 'utf8')
+  await write(root, 'docs/usage/installation.md', `${en}\n\nThe retired 1.x releases and tags are still\npublished and will be removed after the v0.x real-host acceptance.\n`)
+  const failures = checkRepository(root).join('\n')
+  assert.match(failures, /zh-CN\/installation\.md: claims the retired 1\.x releases\/tags still exist or are scheduled for deletion/)
+  assert.match(failures, /docs\/usage\/installation\.md: claims the retired 1\.x releases\/tags still exist or are scheduled for deletion/)
+
+  await write(root, 'docs/usage/zh-CN/installation.md', `${zh}\n\n已退役的 1.x Release 与标签将在验收之后删除。\n`)
+  await write(root, 'docs/usage/installation.md', `${en}\n\nThe retired 1.x releases remain\navailable.\n`)
+  const variants = checkRepository(root).join('\n')
+  assert.match(variants, /zh-CN\/installation\.md: claims the retired 1\.x releases\/tags still exist/)
+  assert.match(variants, /docs\/usage\/installation\.md: claims the retired 1\.x releases\/tags still exist/)
+
+  await write(root, 'docs/usage/zh-CN/installation.md', `${zh}\n\n已退役的 1.x Release 与标签已于 2026-10-07 删除（维护者保留归档）。\n`)
+  await write(root, 'docs/usage/installation.md', `${en}\n\nThe retired 1.x releases and tags were deleted on 2026-10-07; the maintainers keep an archive.\n`)
   assert.deepEqual(checkRepository(root), [])
 })
 

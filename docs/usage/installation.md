@@ -72,7 +72,7 @@ root from the host's own inventory, and invokes the same
 cache locations.
 
 Tenon's version numbering restarted at 0.1.0. The retired 1.x releases and tags
-are still published and will be removed after the v0.x real-host acceptance.
+were deleted on 2026-10-07; the maintainers keep an archive.
 On a machine that still runs a 1.x installation, run the versioned
 `v0.3.2/install.sh` command once per host. `tenon update` on 1.x reports a
 downgrade and changes nothing: that refusal ships inside the already published

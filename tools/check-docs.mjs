@@ -73,9 +73,9 @@ const USER_COMMAND_DOCUMENTS = [
 ]
 
 /**
- * The retired 1.x releases and tags stay published until the v0.x real-host acceptance removes them.
- * Current install/update pages must not claim they are already deleted. Historical release-note
- * entries are records of their own release and are not scanned.
+ * The retired 1.x releases and tags were deleted on 2026-10-07 (the maintainers keep an archive).
+ * Current install/update pages must not claim they still exist or are scheduled for deletion.
+ * Historical release-note entries are records of their own release and are not scanned.
  */
 const RETIRED_RELEASE_DOCUMENTS = [
   'README.md',
@@ -85,8 +85,8 @@ const RETIRED_RELEASE_DOCUMENTS = [
   'docs/usage/updates-recovery-and-uninstall.md',
   'docs/usage/zh-CN/updates-recovery-and-uninstall.md',
 ]
-const RETIRED_RELEASE_DELETED_CLAIM =
-  /1\.x[^。\n]{0,40}?(?:全部删除|已经删除|已删除)|1\.x releases?(?: and tags)? (?:were|are|have been) (?:removed|deleted)/iu
+const RETIRED_RELEASE_STILL_PUBLISHED_CLAIM =
+  /1\.x[^。\n]{0,40}?(?:仍在|仍然存在|仍保留|尚未删除|(?:计划|将)[^。\n]{0,30}?删除)|1\.x releases?(?: and tags)? (?:are|remain|stay) (?:still )?(?:published|available|present)|1\.x releases?(?: and tags)?[^.\n]{0,60}?will be (?:removed|deleted)/iu
 
 /**
  * Dashboard 的可持久化视图 id 由 shell/views.ts 的 VIEWS 导出，文档门禁只校验
@@ -587,9 +587,9 @@ function checkRetiredReleaseClaims(contents, failures) {
   for (const document of RETIRED_RELEASE_DOCUMENTS) {
     const text = contents.get(document)
     if (text === undefined) continue
-    if (RETIRED_RELEASE_DELETED_CLAIM.test(text.replace(/\s+/gu, ' '))) {
+    if (RETIRED_RELEASE_STILL_PUBLISHED_CLAIM.test(text.replace(/\s+/gu, ' '))) {
       failures.push(
-        `${document}: claims the retired 1.x releases/tags were deleted; they stay until the v0.x real-host acceptance`,
+        `${document}: claims the retired 1.x releases/tags still exist or are scheduled for deletion; they were deleted on 2026-10-07`,
       )
     }
   }
