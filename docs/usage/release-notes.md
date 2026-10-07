@@ -44,6 +44,13 @@ writes a benchmark command that runs on vitest 5.
   `bench`.
 - More `agent` and `review` output follows `TENON_LANG`: the `agent next` lines, the other `agent prompt` and `agent record`
   errors, and the `review request` and `review acknowledge` messages. Strings not yet in the catalog stay in Chinese.
+- The new-project wizard's confirm-step precheck has a 15 s timeout. A timeout or network error shows an error with Retry,
+  Back stays usable while the precheck runs, and a hung request can no longer lock the wizard.
+
+### Added
+
+- The `tenon-verify` action has an optional `sarif-checkout-path` input, for repositories whose commit lives in a sub-checkout,
+  and a `sarif-id` output (the ID of the code scanning upload). Leaving the input empty keeps the old behaviour.
 
 ### Behaviour changes
 
@@ -58,8 +65,9 @@ writes a benchmark command that runs on vitest 5.
 - Tenon's own tests run on vitest 4.1.11 (was 3.2.6); the `tinypool` override is gone.
 - CI now runs, as blocking steps of the `verify` job, an update and rollback acceptance (`npm run test:update-rollback`,
   including the recovery from a stuck rollback) and a real `npm install vitest@5` bench check.
-- The `tenon-verify` action has its own self-test workflow (`verify-action-selftest.yml`). It runs on pull requests that touch
-  the action or `verify --ci`, and on manual dispatch.
+- The `tenon-verify` action has its own self-test workflow (`verify-action-selftest.yml`). It runs the action on real runners
+  and verifies that the SARIF upload reached code scanning (skipped for fork pull requests, which have no write token). It runs
+  on pull requests that touch the action or `verify --ci`, and on manual dispatch.
 
 ### What you need to do
 
@@ -81,7 +89,8 @@ If an earlier rollback left you stuck (`tenon runtime repair --rollback`, `tenon
 
 N-1 is v0.3.1. The N-1 gate (`tools/test-bundle.sh`) crosses it with this release in both directions on every run.
 
-- No record, state or ledger schema changed, and no command, option or Dashboard API was added or changed. In an ordinary
+- No record, state or ledger schema changed, and no CLI command, CLI option or Dashboard API was added or changed; the only
+  new interface is the optional `tenon-verify` action input and output under Added. In an ordinary
   workspace both versions bind the same portable fingerprint, so each reads the other's test records as fresh, also beside
   an untracked `.claude/settings.local.json`. The gate checks that against the real v0.3.1 CLI.
 - The gate also crosses the agent run ledger, `TENON_RECORD_RETENTION` chains, `discover --write` catalogs and a tree with a

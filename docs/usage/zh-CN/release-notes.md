@@ -35,6 +35,11 @@ v0.3.1 的修复版，来自它的补充验收。`tenon runtime repair --rollbac
 - 基准解析器把 vitest 5 的 JSON 报告读成同样的 `<名字>.mean_ms`、`.p99_ms`、`.hz` 指标。
 - vitest 5 工程的 bench 文件还在从 `vitest` 导入已被删掉的模块级 `bench` 时，discover 只给提示、不写套件。
 - 更多 `agent` 和 `review` 的输出跟随 `TENON_LANG`：`agent next` 的各行、其他 `agent prompt` 与 `agent record` 的错误，以及 `review request`、`review acknowledge` 的信息。目录里还没有的字符串仍是中文。
+- 新建项目向导确认步的预检有了 15 秒的期限。超时或网络错误会显示错误并给「重试」，预检进行时「上一步」仍可用，卡住的请求不再锁死向导。
+
+### 新增
+
+- `tenon-verify` action 有了可选输入 `sarif-checkout-path`，给提交在子检出里的仓库用，另有输出 `sarif-id`（code scanning 上传的 ID）。输入留空时行为不变。
 
 ### 行为变化
 
@@ -45,7 +50,7 @@ v0.3.1 的修复版，来自它的补充验收。`tenon runtime repair --rollbac
 
 - Tenon 自己的测试跑在 vitest 4.1.11 上（之前是 3.2.6），`tinypool` 的 override 已去掉。
 - CI 现在在 `verify` 作业里以阻塞步骤运行更新与回滚验收（`npm run test:update-rollback`，含从卡死的回滚中恢复），以及真装 `npm install vitest@5` 的基准检查。
-- `tenon-verify` action 有了自己的自测工作流（`verify-action-selftest.yml`）：改动 action 或 `verify --ci` 代码的 PR 会触发它，也可以手动触发。
+- `tenon-verify` action 有了自己的自测工作流（`verify-action-selftest.yml`）：在真实运行器上运行 action，并验证 SARIF 上传确实到了 code scanning（fork 的 PR 没有写令牌，跳过这一步）。改动 action 或 `verify --ci` 代码的 PR 会触发它，也可以手动触发。
 
 ### 升级动作
 
@@ -65,7 +70,7 @@ v0.3.1 的修复版，来自它的补充验收。`tenon runtime repair --rollbac
 
 N-1 是 v0.3.1。N-1 兼容门禁（`tools/test-bundle.sh`）每次运行都在两个方向上让它与本版本互相读写。
 
-- 没有改任何记录、状态或台账的 schema，也没有新增或改动命令、选项和 Dashboard API。普通工作区里两个版本绑的是同一个可移植指纹，所以互相读对方写下的测试记录都是新鲜的，旁边有未跟踪的 `.claude/settings.local.json` 时也一样。门禁拿真正的 v0.3.1 CLI 核对过。
+- 没有改任何记录、状态或台账的 schema，也没有新增或改动 CLI 命令、CLI 选项和 Dashboard API；唯一新增的接口是上面「新增」里 `tenon-verify` action 的可选输入与输出。普通工作区里两个版本绑的是同一个可移植指纹，所以互相读对方写下的测试记录都是新鲜的，旁边有未跟踪的 `.claude/settings.local.json` 时也一样。门禁拿真正的 v0.3.1 CLI 核对过。
 - 门禁还交叉读写 agent 运行台账、`TENON_RECORD_RETENTION` 的记录链、`discover --write` 写的目录，以及带符号链接和 664/775 权限位的树。
 - 上面宿主本地文件的几种情况里，0.3.2 现在会计入 0.3.1 排除掉的文件，两个版本对那个工作区算出的指纹不同。门禁没有交叉测这些情况。
 
