@@ -7,6 +7,7 @@
  *  - 退出码、JSON 字段名、`ERROR:` / `WARN:` 前缀不翻译，由调用处保留；
  *  - 没有登记进目录的文案保持原样（中文），逐步迁移，覆盖面见 docs/usage/cli-reference。
  */
+import { AGENT_MESSAGES } from './messages-agent.js'
 import { COMMON_MESSAGES } from './messages-common.js'
 import { INTEGRITY_MESSAGES } from './messages-integrity.js'
 import { REVIEW_MESSAGES } from './messages-review.js'
@@ -28,6 +29,7 @@ export const MESSAGES = {
   ...STANDARD_MESSAGES,
   ...INTEGRITY_MESSAGES,
   ...REVIEW_MESSAGES,
+  ...AGENT_MESSAGES,
   ...VERIFY_MESSAGES,
 } as const satisfies Readonly<Record<string, MessageEntry>>
 

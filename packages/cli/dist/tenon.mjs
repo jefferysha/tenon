@@ -3032,7 +3032,7 @@ var require_commander = __commonJS({
 // packages/cli/src/main.ts
 import { execFile as execFile18, spawn as spawn11 } from "node:child_process";
 import { existsSync as existsSync16, readFileSync as readFileSync45 } from "node:fs";
-import { readFile as readFile105, stat as stat19, writeFile as writeFile40 } from "node:fs/promises";
+import { readFile as readFile105, stat as stat20, writeFile as writeFile40 } from "node:fs/promises";
 import { homedir as homedir25 } from "node:os";
 import { dirname as dirname52, join as join189 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
@@ -11853,7 +11853,7 @@ function legacyChannelProjectionContent(revision) {
 }
 
 // packages/kernel/dist/state/state-init.js
-import { readFile as readFile10, stat } from "node:fs/promises";
+import { readFile as readFile10, stat as stat2 } from "node:fs/promises";
 import path2 from "node:path";
 
 // packages/kernel/dist/workflow/builtin-workflows.js
@@ -12431,7 +12431,7 @@ import { join as join18, sep as sep4 } from "node:path";
 
 // packages/kernel/dist/workspace/host-local.js
 import { execFile } from "node:child_process";
-import { lstat as lstat10 } from "node:fs/promises";
+import { lstat as lstat10, stat } from "node:fs/promises";
 import { join as join17 } from "node:path";
 import { promisify } from "node:util";
 var HOST_LOCAL_FILES = [".claude/settings.local.json", "CLAUDE.local.md"];
@@ -12452,29 +12452,115 @@ async function hasHostLocalFiles(root) {
 var runGit = promisify(execFile);
 var GIT_TIMEOUT_MS = 3e4;
 var GIT_MAX_BUFFER = 64 * 1024 * 1024;
-async function trackedHostLocalPaths(root) {
+var GIT_REPOSITORY_ENV = /* @__PURE__ */ new Set([
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_INDEX_FILE",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_COMMON_DIR",
+  "GIT_CEILING_DIRECTORIES",
+  "GIT_DISCOVERY_ACROSS_FILESYSTEM"
+]);
+function gitEnvironment() {
+  const env = {};
+  for (const [name2, value] of Object.entries(process.env)) {
+    if (!GIT_REPOSITORY_ENV.has(name2.toUpperCase()))
+      env[name2] = value;
+  }
+  return { ...env, LC_ALL: "C", LANG: "C" };
+}
+function isMissing(error2) {
+  return typeof error2 === "object" && error2 !== null && Reflect.get(error2, "code") === "ENOENT";
+}
+function foldAsciiCase(path15) {
+  return path15.replace(/[A-Z]/gu, (letter) => letter.toLowerCase());
+}
+function swapAsciiCase(name2) {
+  return name2.replace(/[A-Za-z]/gu, (letter) => letter === letter.toLowerCase() ? letter.toUpperCase() : letter.toLowerCase());
+}
+async function isCaseInsensitiveRoot(root) {
+  for (const name2 of new Set([...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS].map((path15) => path15.split("/")[0] ?? path15))) {
+    const swapped = swapAsciiCase(name2);
+    if (swapped === name2)
+      continue;
+    let original;
+    try {
+      original = await lstat10(join17(root, name2));
+    } catch {
+      continue;
+    }
+    try {
+      const other = await lstat10(join17(root, swapped));
+      return other.dev === original.dev && other.ino === original.ino;
+    } catch (error2) {
+      return !isMissing(error2);
+    }
+  }
+  return true;
+}
+var NO_REPOSITORY_MESSAGE = /^fatal: not a git repository \(or any of the parent directories\)/imu;
+async function hasGitEntry(root) {
   try {
-    const { stdout } = await runGit("git", ["ls-files", "-z", "--cached", "--", ...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS], {
+    await lstat10(join17(root, ".git"));
+    return true;
+  } catch (error2) {
+    return !isMissing(error2);
+  }
+}
+async function hasGitDirectory(root) {
+  try {
+    return (await stat(join17(root, ".git"))).isDirectory();
+  } catch {
+    return false;
+  }
+}
+async function hostLocalTracking(root) {
+  const caseInsensitive = await isCaseInsensitiveRoot(root);
+  const gitDir = await hasGitDirectory(root) ? [`--git-dir=${join17(root, ".git")}`] : [];
+  const args = [
+    ...gitDir,
+    ...caseInsensitive ? ["--icase-pathspecs"] : [],
+    "ls-files",
+    "-z",
+    "--cached",
+    "--",
+    ...HOST_LOCAL_FILES,
+    ...HOST_LOCAL_DIRS
+  ];
+  try {
+    const { stdout } = await runGit("git", args, {
       cwd: root,
       timeout: GIT_TIMEOUT_MS,
       maxBuffer: GIT_MAX_BUFFER,
-      env: { ...process.env, LC_ALL: "C", LANG: "C" }
+      env: gitEnvironment()
     });
-    return new Set(stdout.split("\0").filter((path15) => path15 !== ""));
+    return { tracked: new Set(stdout.split("\0").filter((path15) => path15 !== "")), caseInsensitive };
   } catch (error2) {
     const stderr = typeof error2 === "object" && error2 !== null ? Reflect.get(error2, "stderr") : void 0;
-    return typeof stderr === "string" && /not a git repository/iu.test(stderr) ? /* @__PURE__ */ new Set() : void 0;
+    const noRepository = typeof stderr === "string" && NO_REPOSITORY_MESSAGE.test(stderr) && !await hasGitEntry(root);
+    return noRepository ? { tracked: /* @__PURE__ */ new Set(), caseInsensitive } : void 0;
   }
 }
+async function trackedHostLocalPaths(root) {
+  return (await hostLocalTracking(root))?.tracked;
+}
 var SKIP_NOTHING = () => false;
-function skipUntrackedHostLocal(tracked) {
+function skipUntrackedHostLocal(tracked, caseInsensitive = false) {
+  const key = caseInsensitive ? foldAsciiCase : (path15) => path15;
+  const trackedKeys = new Set([...tracked].map(key));
   const holdingTracked = /* @__PURE__ */ new Set();
-  for (const path15 of tracked) {
+  for (const path15 of trackedKeys) {
     const parts = path15.split("/");
     for (let end = 1; end < parts.length; end++)
       holdingTracked.add(parts.slice(0, end).join("/"));
   }
-  return (relativePath) => isHostLocalPath(relativePath) && !tracked.has(relativePath) && !holdingTracked.has(relativePath);
+  return (relativePath) => {
+    if (!isHostLocalPath(relativePath))
+      return false;
+    const folded = key(relativePath);
+    return !trackedKeys.has(folded) && !holdingTracked.has(folded);
+  };
 }
 
 // packages/kernel/dist/workspace/process-local-fd-path.js
@@ -12552,8 +12638,8 @@ var EXCLUDED_ROOT_ARTIFACTS = [
 function sortNames(names) {
   return names.sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
 }
-function modeOf(stat20) {
-  return (stat20.mode & 511).toString(8);
+function modeOf(stat21) {
+  return (stat21.mode & 511).toString(8);
 }
 function sameFileIdentity(before, after) {
   return before.size === after.size && before.mode === after.mode && before.mtimeMs === after.mtimeMs && before.ino === after.ino;
@@ -12594,8 +12680,8 @@ function portableModeOf(kind, mode) {
     return (mode & 64) !== 0 ? "755" : "644";
   return "755";
 }
-function recordedMode(sink, kind, stat20) {
-  return sink.gitModes ? portableModeOf(kind, stat20.mode) : modeOf(stat20);
+function recordedMode(sink, kind, stat21) {
+  return sink.gitModes ? portableModeOf(kind, stat21.mode) : modeOf(stat21);
 }
 var FingerprintStreams = class {
   shared = createHash13("sha256");
@@ -12693,8 +12779,12 @@ async function fingerprintWorkspaceTwins(root, options) {
     throw new Error(`workspace root is not a directory: ${root}`);
   const exclusions = exclusionsOf(options);
   const full2 = { id: "full", skip: SKIP_NOTHING, gitModes: false };
-  const tracked = await hasHostLocalFiles(root) ? await trackedHostLocalPaths(root) : void 0;
-  const portable = { id: "portable", skip: tracked === void 0 ? SKIP_NOTHING : skipUntrackedHostLocal(tracked), gitModes: true };
+  const tracking = await hasHostLocalFiles(root) ? await hostLocalTracking(root) : void 0;
+  const portable = {
+    id: "portable",
+    gitModes: true,
+    skip: tracking === void 0 ? SKIP_NOTHING : skipUntrackedHostLocal(tracking.tracked, tracking.caseInsensitive)
+  };
   const sinks = [full2, portable];
   const streams = new FingerprintStreams();
   emit(streams, sinks, (sink) => recordText("D", ".", recordedMode(sink, "D", rootStat)));
@@ -16413,7 +16503,7 @@ async function detectBaseBranch(repoRoot) {
   try {
     const gitPath = path2.join(repoRoot, ".git");
     let gitDir = gitPath;
-    const entry2 = await stat(gitPath);
+    const entry2 = await stat2(gitPath);
     if (!entry2.isDirectory()) {
       const pointer = await readFile10(gitPath, "utf8");
       const match = /^gitdir:\s*(.+)$/m.exec(pointer);
@@ -20061,7 +20151,7 @@ async function clearReviewMarkerFor(root, change, event) {
   try {
     content = await readFile20(marker, "utf8");
   } catch (error2) {
-    if (isMissing(error2))
+    if (isMissing2(error2))
       return;
     throw error2;
   }
@@ -20073,7 +20163,7 @@ async function clearReviewMarkerFor(root, change, event) {
   try {
     await unlink4(marker);
   } catch (error2) {
-    if (!isMissing(error2))
+    if (!isMissing2(error2))
       throw error2;
   }
 }
@@ -20083,7 +20173,7 @@ async function clearReviewMarkerOfChange(root, change) {
   try {
     content = await readFile20(marker, "utf8");
   } catch (error2) {
-    if (isMissing(error2))
+    if (isMissing2(error2))
       return false;
     throw error2;
   }
@@ -20094,12 +20184,12 @@ async function clearReviewMarkerOfChange(root, change) {
     await unlink4(marker);
     return true;
   } catch (error2) {
-    if (isMissing(error2))
+    if (isMissing2(error2))
       return false;
     throw error2;
   }
 }
-function isMissing(error2) {
+function isMissing2(error2) {
   return error2 !== null && typeof error2 === "object" && "code" in error2 && error2.code === "ENOENT";
 }
 
@@ -22076,7 +22166,7 @@ function stripLegacyHistory(tail) {
 }
 
 // packages/kernel/dist/state/field-subjects.js
-import { readFile as readFile23, stat as stat2 } from "node:fs/promises";
+import { readFile as readFile23, stat as stat3 } from "node:fs/promises";
 import { isAbsolute as isAbsolute6, join as join30, relative as relative6, resolve as resolve8, sep as sep7 } from "node:path";
 import { createHash as createHash19 } from "node:crypto";
 var FIELD_SUBJECTS_FILE = ".pipeline-field-subjects.json";
@@ -22206,7 +22296,7 @@ async function contentDigestFor(input2) {
     const path15 = safeSourcePath(input2.repoRoot, input2.sourcePath);
     if (path15 !== void 0) {
       try {
-        const info = await stat2(path15);
+        const info = await stat3(path15);
         if (info.isFile())
           return { valueDigest: digest8(await readFile23(path15)), pathStatus: "resolved" };
       } catch (error2) {
@@ -22237,7 +22327,7 @@ function makeSubjectRef(input2, valueDigest, previous) {
 }
 async function recordFieldSubject(input2) {
   try {
-    await stat2(input2.changeDir);
+    await stat3(input2.changeDir);
   } catch (error2) {
     if (error2.code === "ENOENT")
       return void 0;
@@ -22276,7 +22366,7 @@ async function recordFieldSubject(input2) {
 }
 
 // packages/kernel/dist/state/tasks.js
-import { readdir as readdir4, stat as stat3 } from "node:fs/promises";
+import { readdir as readdir4, stat as stat4 } from "node:fs/promises";
 import path6 from "node:path";
 var NULL_SENTINEL = "null";
 function normalizeDeps(value) {
@@ -22425,7 +22515,7 @@ async function resolveChangeDir(cwd, name2) {
   const root = changesRootOf(cwd);
   const exact = path6.join(root, name2);
   try {
-    if ((await stat3(exact)).isDirectory())
+    if ((await stat4(exact)).isDirectory())
       return exact;
   } catch {
   }
@@ -22449,7 +22539,7 @@ function stateRelatedFiles(state) {
 }
 
 // packages/kernel/dist/state/spec.js
-import { readdir as readdir5, readFile as readFile24, stat as stat4 } from "node:fs/promises";
+import { readdir as readdir5, readFile as readFile24, stat as stat5 } from "node:fs/promises";
 import path7 from "node:path";
 var SPECS_DIR = "openspec/specs";
 var DOT_SPECS_DIR = ".openspec/specs";
@@ -22457,14 +22547,14 @@ var JSONL_DIR_MAXFILES = 20;
 var VALID_AGENTS = /* @__PURE__ */ new Set(["implement", "check"]);
 async function isDirAbs(p) {
   try {
-    return (await stat4(p)).isDirectory();
+    return (await stat5(p)).isDirectory();
   } catch {
     return false;
   }
 }
 async function isFileAbs(p) {
   try {
-    return (await stat4(p)).isFile();
+    return (await stat5(p)).isFile();
   } catch {
     return false;
   }
@@ -23231,7 +23321,7 @@ function deriveChannelFromInstalled(installedJsonText, pluginKey = PLUGIN_KEY) {
 }
 
 // packages/kernel/dist/state/ownership-fs.js
-import { mkdir as mkdir12, readFile as readFile25, readdir as readdir6, rm as rm4, rmdir as rmdir3, stat as stat5, unlink as unlink5, writeFile as writeFile7 } from "node:fs/promises";
+import { mkdir as mkdir12, readFile as readFile25, readdir as readdir6, rm as rm4, rmdir as rmdir3, stat as stat6, unlink as unlink5, writeFile as writeFile7 } from "node:fs/promises";
 import { homedir as homedir2 } from "node:os";
 import { dirname as dirname3, join as join31 } from "node:path";
 function ownedManifestPath(cwd) {
@@ -23266,7 +23356,7 @@ function createOwnedFs() {
     },
     exists: async (abs2) => {
       try {
-        await stat5(abs2);
+        await stat6(abs2);
         return true;
       } catch {
         return false;
@@ -23274,7 +23364,7 @@ function createOwnedFs() {
     },
     isDir: async (abs2) => {
       try {
-        return (await stat5(abs2)).isDirectory();
+        return (await stat6(abs2)).isDirectory();
       } catch {
         return false;
       }
@@ -26865,7 +26955,7 @@ async function ensureTestEvidenceDirs(repoRoot, slug2, change, runId) {
 }
 
 // packages/kernel/dist/test-evidence/metrics.js
-import { readFile as readFile32, stat as stat6 } from "node:fs/promises";
+import { readFile as readFile32, stat as stat7 } from "node:fs/promises";
 var MAX_METRICS = 200;
 var MAX_METRICS_BYTES = 1024 * 1024;
 function flattenMetrics(value, prefix = "") {
@@ -26911,7 +27001,7 @@ function lastJsonObjectLine(text13) {
 async function readMetrics(input2) {
   if (input2.metricsPath !== void 0) {
     try {
-      const entry2 = await stat6(input2.metricsPath);
+      const entry2 = await stat7(input2.metricsPath);
       if (!entry2.isFile() || entry2.size > MAX_METRICS_BYTES)
         return void 0;
       const parsed3 = parseObject(await readFile32(input2.metricsPath, "utf8"));
@@ -30637,7 +30727,7 @@ import { lstat as lstat32, readFile as readFile40, readdir as readdir13 } from "
 import { join as join49 } from "node:path";
 
 // packages/kernel/dist/test-system/baseline-v2.js
-import { mkdir as mkdir21, readFile as readFile37, stat as stat7 } from "node:fs/promises";
+import { mkdir as mkdir21, readFile as readFile37, stat as stat8 } from "node:fs/promises";
 import { dirname as dirname8, join as join47 } from "node:path";
 
 // packages/kernel/dist/test-system/audit.js
@@ -30784,7 +30874,7 @@ async function writeTestBaselineV2(path15, baseline) {
   if (at < 0 || !CHANGE_NAME_RE2.test(baseline.source.change))
     return "skipped";
   const changeDir7 = join47(path15.slice(0, at), "openspec", "changes", baseline.source.change);
-  if (!await stat7(changeDir7).then((entry2) => entry2.isDirectory(), () => false))
+  if (!await stat8(changeDir7).then((entry2) => entry2.isDirectory(), () => false))
     return "skipped";
   return appendTestAudit(changeDir7, testAuditEntry("baseline-update", {
     suite: baseline.suite,
@@ -46549,7 +46639,7 @@ var DEFAULT_CONFIG = {
 
 // packages/automation/dist/artifacts/service.js
 import { createHash as createHash30 } from "node:crypto";
-import { cp, mkdir as mkdir32, readFile as readFile51, stat as stat8, writeFile as writeFile18 } from "node:fs/promises";
+import { cp, mkdir as mkdir32, readFile as readFile51, stat as stat9, writeFile as writeFile18 } from "node:fs/promises";
 import { dirname as dirname14, join as join70, relative as relative10, resolve as resolve18 } from "node:path";
 
 // packages/automation/dist/submission/registry.js
@@ -46693,7 +46783,7 @@ async function openArtifactService(options) {
         await withLock(store2, async () => {
           let targetExists = true;
           try {
-            await stat8(statePath);
+            await stat9(statePath);
           } catch (error2) {
             if (error2.code === "ENOENT")
               targetExists = false;
@@ -46702,7 +46792,7 @@ async function openArtifactService(options) {
           }
           let legacyExists = true;
           try {
-            await stat8(join70(legacyStore, "state.json"));
+            await stat9(join70(legacyStore, "state.json"));
           } catch (error2) {
             if (error2.code === "ENOENT")
               legacyExists = false;
@@ -46751,7 +46841,7 @@ async function openArtifactService(options) {
     await migration;
     try {
       const current = decodeState(JSON.parse(await readFile51(statePath, "utf8")));
-      await stat8(join70(legacyStore, "state.json"));
+      await stat9(join70(legacyStore, "state.json"));
       legacyScopeCopied = Array.isArray(current.migrationReceipts) && !current.migrationReceipts.some((receipt) => receipt.receipt_id === `migration:scope:runtime-artifacts:${options.scopeId}`);
     } catch {
     }
@@ -46828,7 +46918,7 @@ async function openArtifactService(options) {
     const sha = digest13(bytes);
     const path15 = join70(blobs, sha);
     try {
-      await stat8(path15);
+      await stat9(path15);
     } catch {
       await writeFile18(path15, bytes, { flag: "wx" }).catch((error2) => {
         if (error2.code !== "EEXIST")
@@ -47316,7 +47406,7 @@ var PRODUCTION_TRIAGE_PROVIDER_KIND = "codex";
 // packages/automation/dist/triage/codex-provider.js
 import { randomUUID as randomUUID10 } from "node:crypto";
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile as readFile53, rm as rm14, stat as stat9, writeFile as writeFile19 } from "node:fs/promises";
+import { mkdtemp, readFile as readFile53, rm as rm14, stat as stat10, writeFile as writeFile19 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join as join72 } from "node:path";
 
@@ -47585,7 +47675,7 @@ function createCodexTriageProvider(options = {}) {
         }
         let responseMetadata;
         try {
-          responseMetadata = await stat9(responsePath);
+          responseMetadata = await stat10(responsePath);
         } catch (error2) {
           if (error2.code === "ENOENT") {
             throw new CodexTriageProviderError("Codex triage process did not write a final response", "empty-output");
@@ -52017,7 +52107,7 @@ function createLoopAdmission(deps) {
 // packages/automation/dist/skills/snapshot-manifest.js
 import { createHash as createHash40 } from "node:crypto";
 import { constants as constants6 } from "node:fs";
-import { chmod, lstat as lstat43, mkdir as mkdir34, open as open7, readdir as readdir19, realpath as realpath8, stat as stat10, writeFile as writeFile20 } from "node:fs/promises";
+import { chmod, lstat as lstat43, mkdir as mkdir34, open as open7, readdir as readdir19, realpath as realpath8, stat as stat11, writeFile as writeFile20 } from "node:fs/promises";
 import { dirname as dirname16, join as join76, relative as relative13, sep as sep12 } from "node:path";
 
 // packages/automation/dist/skills/types.js
@@ -52145,7 +52235,7 @@ async function buildCanonicalManifest(skillId, sourceDir2, hooks = {}) {
   } catch (e) {
     throw new SkillContentInvalidError(`skill '${skillId}' \u5185\u5BB9\u6839\u4E0D\u53EF\u89E3\u6790\uFF1A${sourceDir2}\uFF08${e.message}\uFF09`);
   }
-  const rootStat = await stat10(realRoot).catch((e) => {
+  const rootStat = await stat11(realRoot).catch((e) => {
     throw new SkillContentInvalidError(`skill '${skillId}' \u5185\u5BB9\u6839\u4E0D\u53EF\u8BBF\u95EE\uFF1A${realRoot}\uFF08${e.message}\uFF09`);
   });
   if (!rootStat.isDirectory()) {
@@ -52189,7 +52279,7 @@ async function buildCanonicalManifest(skillId, sourceDir2, hooks = {}) {
         if (fromRoot === ".." || fromRoot.startsWith(`..${"/"}`)) {
           throw new SkillContentInvalidError(`skill '${skillId}' \u542B\u76EE\u5F55\u9003\u9038 symlink\uFF1A${relPath} \u2192 ${real2}`);
         }
-        const targetStat = await stat10(real2);
+        const targetStat = await stat11(real2);
         if (targetStat.isDirectory()) {
           if (visitedDirs.has(real2)) {
             throw new SkillContentInvalidError(`skill '${skillId}' \u542B symlink \u73AF\uFF1A${relPath} \u2192 ${real2}`);
@@ -52221,7 +52311,7 @@ async function buildCanonicalManifest(skillId, sourceDir2, hooks = {}) {
         if (fromRoot === ".." || fromRoot.startsWith(`..${"/"}`)) {
           throw new SkillContentInvalidError(`skill '${skillId}' \u6587\u4EF6\u5728\u8BFB\u53D6\u524D\u9003\u9038\uFF1A${relPath} \u2192 ${real2}`);
         }
-        const expected = await stat10(real2);
+        const expected = await stat11(real2);
         await readAndRecord(real2, relPath, { noFollow: true, expected: { dev: expected.dev, ino: expected.ino } });
         continue;
       }
@@ -53138,7 +53228,7 @@ var realWorktreePort = (exec) => ({
 });
 
 // packages/automation/dist/lifecycle/mergeback-git.js
-import { mkdir as mkdir37, rmdir as rmdir6, stat as stat11 } from "node:fs/promises";
+import { mkdir as mkdir37, rmdir as rmdir6, stat as stat12 } from "node:fs/promises";
 import { join as join79, resolve as resolve23 } from "node:path";
 
 // packages/automation/dist/lifecycle/mergeback-types.js
@@ -53225,7 +53315,7 @@ async function acquireMergeLock(exec, hostRepoDir, preservedPath) {
       return lockdir;
     } catch {
       try {
-        const state = await stat11(lockdir);
+        const state = await stat12(lockdir);
         if (Date.now() - state.mtimeMs > LOCK_STALE_MS) {
           await rmdir6(lockdir).catch(() => {
           });
@@ -54638,9 +54728,9 @@ var randomName = () => `${Date.now().toString(36)}-${Math.random().toString(16).
 import { readFile as fsReadFile, stat as fsStat } from "node:fs/promises";
 import { resolve as resolve24 } from "node:path";
 var resolveGitMounts = async (gitPath, deps) => {
-  const stat20 = deps?.stat ?? ((p) => fsStat(p));
+  const stat21 = deps?.stat ?? ((p) => fsStat(p));
   const readFile106 = deps?.readFile ?? ((p) => fsReadFile(p, "utf-8"));
-  const s = await stat20(gitPath);
+  const s = await stat21(gitPath);
   if (s.isDirectory()) {
     return [{ hostPath: gitPath, sandboxPath: gitPath }];
   }
@@ -55131,7 +55221,7 @@ var createDockerRunChange = (opts) => {
 };
 
 // packages/automation/dist/skills/content-locator.js
-import { lstat as lstat46, realpath as realpath9, stat as stat12 } from "node:fs/promises";
+import { lstat as lstat46, realpath as realpath9, stat as stat13 } from "node:fs/promises";
 import { join as join86 } from "node:path";
 var SkillContentNotFoundError = class extends Error {
   name = "SkillContentNotFoundError";
@@ -55169,7 +55259,7 @@ function createFsSkillContentLocator(roots) {
         }
         let st;
         try {
-          st = await stat12(candidate2);
+          st = await stat13(candidate2);
         } catch (err) {
           throw new SkillContentAccessError(`skill '${skillId}' \u5019\u9009\u8DEF\u5F84 '${candidate2}' \u5DF2\u5B58\u5728\u4F46\u65E0\u6CD5\u89E3\u5F15\u7528\uFF08${errnoCode7(err)}\uFF0C\u7591\u4F3C\u60AC\u7A7A/\u6210\u73AF symlink \u6216\u6743\u9650\u95EE\u9898\uFF09\uFF1A${errMessage(err)}`);
         }
@@ -56846,7 +56936,7 @@ function chooseWave(snapshot2, policy2) {
 
 // packages/automation/dist/artifact-runtime/stage-runtime.js
 import { createHash as createHash45 } from "node:crypto";
-import { readFile as readFile59, readdir as readdir23, stat as stat13 } from "node:fs/promises";
+import { readFile as readFile59, readdir as readdir23, stat as stat14 } from "node:fs/promises";
 import path12 from "node:path";
 var StageArtifactRuntime = class _StageArtifactRuntime {
   service;
@@ -57076,7 +57166,7 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
       }
     };
     try {
-      await stat13(this.rootDir);
+      await stat14(this.rootDir);
       await walk2(this.rootDir);
     } catch {
     }
@@ -58060,6 +58150,116 @@ async function currentCandidate(deps, change, state, plan, scope) {
   throw new Error(`step '${scope}' \u672A\u58F0\u660E candidate input\uFF0C\u4E14\u7F3A\u5C11 workspace fingerprint capability`);
 }
 
+// packages/cli/src/i18n/messages-agent.ts
+var AGENT_MESSAGES = {
+  "agent.notDeclared": {
+    zh: "agent '{agent}' \u672A\u5728\u6B65\u9AA4 '{step}' \u58F0\u660E",
+    en: "agent '{agent}' is not declared in step '{step}'"
+  },
+  "agent.notFrozen": {
+    zh: "agent '{agent}' \u672A\u968F\u672C\u4EFB\u52A1\u51BB\u7ED3\uFF1B\u91CD\u65B0\u521B\u5EFA\u4EFB\u52A1\u6216\u6539\u5DE5\u4F5C\u6D41",
+    en: "agent '{agent}' was not frozen with this task; recreate the task or change the workflow"
+  },
+  "agent.waiting": {
+    zh: "agent '{agent}' \u8FD8\u9700\u7B49\u5F85\uFF1A{needs}",
+    en: "agent '{agent}' still has to wait for: {needs}"
+  },
+  "agent.rerun.reasonInvalid": {
+    zh: "--rerun-reason \u9700\u8981\u4E00\u884C\u4E0D\u8D85\u8FC7 {max} \u5B57\u7684\u539F\u56E0",
+    en: "--rerun-reason needs a one-line reason of at most {max} characters"
+  },
+  "agent.rerun.refused": {
+    zh: "\u8BC4\u5BA1\u8005 '{agent}' \u5728\u5F53\u524D\u5019\u9009\u4E0A\u5DF2\u7ECF\u6709 {count} \u6B21\u7ED3\u8BBA\uFF08{results}\uFF09\uFF1A\u540C\u4E00\u4EFD\u4EE3\u7801\u4E0D\u80FD\u9760\u91CD\u8DD1\u6362\u7ED3\u8BBA\u3002\u6539\u4EE3\u7801\u6362\u5019\u9009\u540E\u518D\u91CD\u8DD1\uFF1B\u786E\u6709\u9700\u8981\uFF08\u4F8B\u5982\u4E0A\u6B21\u7684\u63D0\u793A\u7F3A\u4E0A\u4E0B\u6587\uFF09\u7528 tenon agent prompt {change} {agent} --rerun-reason <\u539F\u56E0> \u5199\u660E\u5E76\u7559\u75D5\uFF0C\u5224\u5B9A\u4F1A\u628A\u540C\u4E00\u5019\u9009\u4E0A\u7684\u6240\u6709\u8FD0\u884C\u4E00\u5E76\u770B\uFF08\u6CA1\u6709\u539F\u56E0\u7684\u91CD\u8DD1\u53D6\u6700\u4E25\u7ED3\u8BBA\uFF0C\u6709\u539F\u56E0\u7684\u4EE5\u6700\u540E\u4E00\u6B21\u4E3A\u51C6\uFF09",
+    en: "reviewer '{agent}' already has {count} verdict(s) on the current candidate ({results}): the same code cannot change its verdict by rerunning. Change the code to get a new candidate, then rerun; if you really need to (for example the last prompt lacked context), state why and leave a trace with tenon agent prompt {change} {agent} --rerun-reason <reason>. The verdict looks at every run on the same candidate together (a rerun without a reason takes the strictest verdict, a rerun with a reason takes the last one)"
+  },
+  "agent.record.subagentInvalid": {
+    zh: "--subagent '{subagent}' \u975E\u6CD5",
+    en: "--subagent '{subagent}' is not valid"
+  },
+  "agent.record.runNotRunning": {
+    zh: "run '{run}' \u4E0D\u662F\u672C\u6B21\u6B65\u9AA4\u8BBF\u95EE\u4E2D\u8FDB\u884C\u4E2D\u7684\u8FD0\u884C",
+    en: "run '{run}' is not a running run of this step visit"
+  },
+  "agent.record.reportTooLarge": {
+    zh: "\u62A5\u544A\u65E0\u6548\uFF1A\u8D85\u8FC7 {max} \u5B57\u8282",
+    en: "invalid report: larger than {max} bytes"
+  },
+  "agent.record.reportUnreadable": {
+    zh: "\u62A5\u544A\u65E0\u6548\uFF1A{path} \u8BFB\u4E0D\u5230",
+    en: "invalid report: cannot read {path}"
+  },
+  "agent.record.reportInvalid": {
+    zh: "\u62A5\u544A\u65E0\u6548\uFF1A{error}",
+    en: "invalid report: {error}"
+  },
+  "agent.record.candidateChanged": {
+    zh: "\u8BC4\u5BA1\u671F\u95F4\u5019\u9009\u5DF2\u53D8\u5316\uFF1B\u91CD\u8DD1\uFF1Atenon agent prompt {change} {agent}",
+    en: "the candidate changed during the review; run it again: tenon agent prompt {change} {agent}"
+  },
+  "agent.next.role.executor": { zh: "\u6267\u884C\u8005", en: "executor" },
+  "agent.next.role.reviewer": { zh: "\u8BC4\u5BA1\u8005", en: "reviewer" },
+  "agent.next.state.idle": { zh: "\u672A\u8FD0\u884C", en: "idle" },
+  "agent.next.state.running": { zh: "\u8FDB\u884C\u4E2D", en: "running" },
+  "agent.next.state.done": { zh: "\u5DF2\u5B8C\u6210", en: "done" },
+  "agent.next.state.stale": { zh: "\u8FC7\u671F", en: "stale" },
+  "agent.next.result.pass": { zh: "\u901A\u8FC7", en: "pass" },
+  "agent.next.result.fail": { zh: "\u4E0D\u901A\u8FC7", en: "fail" },
+  "agent.next.result.done": { zh: "\u5B8C\u6210", en: "done" },
+  "agent.next.result.failed": { zh: "\u5931\u8D25", en: "failed" },
+  "agent.next.findings": {
+    zh: "\u95EE\u9898 {count}",
+    en: "findings {count}"
+  },
+  "agent.next.rerun": {
+    zh: " \u91CD\u8DD1 {count} \u6B21{flipped}{reason}",
+    en: " reran {count} time(s){flipped}{reason}"
+  },
+  "agent.next.rerun.flipped": {
+    zh: "\uFF08\u7ED3\u8BBA\u7FFB\u8F6C\uFF09",
+    en: " (verdict flipped)"
+  },
+  "agent.next.rerun.reason": {
+    zh: "\uFF1A{reason}",
+    en: ": {reason}"
+  },
+  "agent.next.host.mismatch": {
+    zh: " \u5BBF\u4E3B\u4E0D\u7B26\uFF1A\u8981\u6C42 {required}\uFF0C\u767B\u8BB0 {host}\uFF0C\u7ED3\u8BBA\u65E0\u6548",
+    en: " host mismatch: requires {required}, recorded {host}, result invalid"
+  },
+  "agent.next.host.none": {
+    zh: "\u65E0",
+    en: "none"
+  },
+  "agent.next.host.recorded": {
+    zh: " \u5BBF\u4E3B {host}",
+    en: " host {host}"
+  },
+  "agent.next.host.required": {
+    zh: " \u8981\u6C42\u5BBF\u4E3B {host}",
+    en: " requires host {host}"
+  },
+  "agent.next.wave": {
+    zh: "\u4E0B\u4E00\u6CE2\uFF1A{agents}",
+    en: "Next wave: {agents}"
+  },
+  "agent.next.running": {
+    zh: "\u8FDB\u884C\u4E2D\uFF1A{agent}\uFF1B\u5B8C\u6210\u540E tenon agent record {change} {run}",
+    en: "Running: {agent}; when it finishes run tenon agent record {change} {run}"
+  },
+  "agent.next.waiting": {
+    zh: "\u7B49\u5F85\uFF1A{agent} \u2190 {needs}",
+    en: "Waiting: {agent} \u2190 {needs}"
+  },
+  "agent.next.allDone": {
+    zh: "\u5168\u90E8\u5B8C\u6210",
+    en: "All done"
+  },
+  "agent.next.unfinished": {
+    zh: "\u672A\u5B8C\u6210\uFF1A{blocker}",
+    en: "Not finished: {blocker}"
+  }
+};
+
 // packages/cli/src/i18n/messages-common.ts
 var COMMON_MESSAGES = {
   "change.notFound": {
@@ -58125,6 +58325,10 @@ var COMMON_MESSAGES = {
   "setMany.empty": {
     zh: "set-many \u81F3\u5C11\u9700\u8981 1 \u4E2A key=value",
     en: "set-many needs at least one key=value"
+  },
+  "list.separator": {
+    zh: "\u3001",
+    en: ", "
   },
   "status.none": {
     zh: "\u65E0\u6D3B\u8DC3 change",
@@ -58315,6 +58519,109 @@ var REVIEW_MESSAGES = {
   "review.noDelegatedAuthority": {
     zh: "\u5F53\u524D Change '{name}' \u6CA1\u6709\u6709\u6548\u7684\u7528\u6237\u59D4\u6258 review \u6388\u6743\uFF1B\u8BF7\u7B49\u5F85\u6B63\u5E38\u786E\u8BA4\uFF0C\u6216\u5148\u7531\u7528\u6237\u660E\u786E\u6388\u6743\u540E\u7EED\u81EA\u4E3B\u6267\u884C",
     en: "the current change '{name}' has no valid user-delegated review authority; wait for a normal confirmation, or have the user explicitly authorise autonomous execution first"
+  },
+  // `tenon review acknowledge` 的成功行与收尾。`[REVIEW]` 标记、change 名、phase 与 event 由调用处保留。
+  "review.acknowledged.owner": {
+    zh: "\u5DF2\u786E\u8BA4",
+    en: "confirmed"
+  },
+  "review.acknowledged.delegated": {
+    zh: "\u5DF2\u6309\u7528\u6237\u59D4\u6258\u7684\u6301\u7EED\u6388\u6743\u786E\u8BA4",
+    en: "confirmed under the continuous authority the user delegated"
+  },
+  "review.acknowledged.by": {
+    zh: "\uFF08\u8BC4\u5BA1\u4EBA {reviewer}\uFF0C\u8D1F\u8D23\u4EBA {owner}\uFF09",
+    en: " (reviewer {reviewer}, owner {owner})"
+  },
+  "review.acknowledged.noOwner": {
+    zh: "\u65E0",
+    en: "none"
+  },
+  "review.acknowledged.retransition": {
+    zh: "\uFF0C\u53EF\u91CD\u53D1 transition",
+    en: "; you can re-issue the transition"
+  },
+  "review.waiversApproved": {
+    zh: "\u5DF2\u6279\u51C6\u8C41\u514D {count} \u9879\uFF1A{list}",
+    en: "approved {count} waiver(s): {list}"
+  },
+  "review.protectedApproved": {
+    zh: "\u5DF2\u6279\u51C6\u6D4B\u8BD5\u914D\u7F6E\u6539\u52A8 {count} \u9879\uFF1A{list}",
+    en: "approved {count} test configuration change(s): {list}"
+  },
+  "review.warn.idempotencyLedger": {
+    zh: "decision idempotency ledger \u5199\u5165\u5931\u8D25\uFF08approval receipt \u5DF2\u63D0\u4EA4\uFF1B\u91CD\u8BD5\u4F1A\u6309\u5F53\u524D\u72B6\u6001\u91CD\u65B0\u5224\u5B9A\uFF09",
+    en: "could not write the decision idempotency ledger (the approval receipt is committed; a retry judges again against the current state)"
+  },
+  "review.warn.interaction": {
+    zh: "interaction projection \u5199\u5165\u5931\u8D25\uFF08canonical review acknowledgement \u5DF2\u63D0\u4EA4\uFF09",
+    en: "could not write the interaction projection (the canonical review acknowledgement is committed)"
+  },
+  "review.warn.history": {
+    zh: "history \u5199\u5165\u5931\u8D25\uFF08canonical review acknowledgement \u5DF2\u63D0\u4EA4\uFF09",
+    en: "could not write history (the canonical review acknowledgement is committed)"
+  },
+  "review.warn.markerClear": {
+    zh: "review marker \u6E05\u7406\u5931\u8D25\uFF08approval receipt \u5DF2\u63D0\u4EA4\uFF0C\u53EF\u91CD\u8BD5 acknowledge\uFF09",
+    en: "could not clear the review marker (the approval receipt is committed; you can retry acknowledge)"
+  },
+  // `tenon review request` 与 `review` 的用法错误。
+  "review.usage": {
+    zh: "\u7528\u6CD5\uFF1Atenon review request <change> [--event <event>] | acknowledge <change> [--delegated] [--as reviewer]",
+    en: "usage: tenon review request <change> [--event <event>] | acknowledge <change> [--delegated] [--as reviewer]"
+  },
+  "review.request.delegatedOnAcknowledge": {
+    zh: "--delegated \u53EA\u53EF\u7528\u4E8E review acknowledge\uFF1Brequest \u4ECD\u5FC5\u987B\u5148\u5B8C\u6210\u771F\u5B9E review \u8BC1\u636E",
+    en: "--delegated applies to review acknowledge only; request still needs the real review evidence first"
+  },
+  "review.request.asOnAcknowledge": {
+    zh: "--as \u53EA\u53EF\u7528\u4E8E review acknowledge\uFF1Brequest \u53EA\u6709\u8D1F\u8D23\u4EBA\u80FD\u53D1\u8D77",
+    en: "--as applies to review acknowledge only; only the owner can start a request"
+  },
+  "review.requested.new": {
+    zh: "\u5DF2\u8BF7\u6C42\u4EBA\u5DE5\u786E\u8BA4",
+    en: "human confirmation requested"
+  },
+  "review.requested.pending": {
+    zh: "\u4ECD\u5F85\u786E\u8BA4",
+    en: "still waiting for confirmation"
+  },
+  "review.warn.projectionPendingFailed": {
+    zh: "interaction projection \u5199\u5165\u5931\u8D25\uFF08canonical review pending \u5DF2\u5B58\u5728\uFF09: {error}",
+    en: "could not write the interaction projection (the canonical review pending already exists): {error}"
+  },
+  "review.warn.projectionPendingSkipped": {
+    zh: "interaction projection \u672A\u5199\u5165\uFF08\u7F3A canonical run/workflow/state anchor\uFF1Bcanonical review pending \u672A\u6539\u53D8\uFF09",
+    en: "interaction projection not written (the canonical run/workflow/state anchor is missing; the canonical review pending is unchanged)"
+  },
+  "review.warn.projectionRequestFailed": {
+    zh: "interaction projection \u5199\u5165\u5931\u8D25\uFF08canonical review request \u5DF2\u63D0\u4EA4\uFF09: {error}",
+    en: "could not write the interaction projection (the canonical review request is committed): {error}"
+  },
+  "review.warn.projectionRequestSkipped": {
+    zh: "interaction projection \u672A\u5199\u5165\uFF08\u7F3A canonical run/workflow/state anchor\uFF1Bcanonical review request \u5DF2\u63D0\u4EA4\uFF09",
+    en: "interaction projection not written (the canonical run/workflow/state anchor is missing; the canonical review request is committed)"
+  },
+  // `review request --event verify-fail` 的回退证据检查。
+  "review.verifyFail.empty": {
+    zh: "\u7A7A",
+    en: "empty"
+  },
+  "review.verifyFail.reportEmpty": {
+    zh: "verify-fail \u51B3\u7B56\u8981\u6C42 verification_report \u975E\u7A7A\uFF08\u5F53\u524D='{current}'\uFF09",
+    en: "the verify-fail decision requires a non-empty verification_report (current='{current}')"
+  },
+  "review.verifyFail.reportMissing": {
+    zh: "verify-fail \u51B3\u7B56\u8981\u6C42 verification_report \u6587\u4EF6\u5B58\u5728\uFF08\u5F53\u524D='{current}'\uFF09",
+    en: "the verify-fail decision requires the verification_report file to exist (current='{current}')"
+  },
+  "review.verifyFail.phaseInvalid": {
+    zh: "\u53D7 OpenSpec \u6587\u6863\u5951\u7EA6\u6CBB\u7406\u7684 workflow \u5F53\u524D phase \u975E\u6CD5\uFF08\u5F53\u524D='{phase}'\uFF09",
+    en: "the current phase of a workflow governed by the OpenSpec document contract is invalid (current='{phase}')"
+  },
+  "review.verifyFail.ready": {
+    zh: "verify-fail \u56DE\u9000\u8BC1\u636E\u5DF2\u5C31\u7EEA",
+    en: "the verify-fail rollback evidence is ready"
   }
 };
 
@@ -58938,6 +59245,7 @@ var MESSAGES = {
   ...STANDARD_MESSAGES,
   ...INTEGRITY_MESSAGES,
   ...REVIEW_MESSAGES,
+  ...AGENT_MESSAGES,
   ...VERIFY_MESSAGES
 };
 var MESSAGE_CODES = Object.keys(MESSAGES);
@@ -63426,7 +63734,7 @@ import {
   readdir as readdir26,
   rename as rename16,
   rm as rm19,
-  stat as stat14
+  stat as stat15
 } from "node:fs/promises";
 import { join as join108, resolve as resolve34 } from "node:path";
 
@@ -64144,7 +64452,7 @@ var RuntimeReleaseStore = class {
     const active = join108(this.paths.bootstrapRoot, "active.mjs");
     const previous = join108(this.paths.bootstrapRoot, "previous.mjs");
     try {
-      await stat14(active);
+      await stat15(active);
       await atomicWriteFile(previous, await readFile68(active, "utf8"));
       await chmod4(previous, 493);
     } catch (error2) {
@@ -64160,7 +64468,7 @@ var RuntimeReleaseStore = class {
     for (const entry2 of entries2) {
       if (!entry2.isDirectory() || !validReleaseId(entry2.name) || protectedIds.has(entry2.name)) continue;
       try {
-        candidates2.push({ id: entry2.name, modifiedAt: (await stat14(join108(this.paths.releasesRoot, entry2.name))).mtimeMs });
+        candidates2.push({ id: entry2.name, modifiedAt: (await stat15(join108(this.paths.releasesRoot, entry2.name))).mtimeMs });
       } catch {
       }
     }
@@ -76848,7 +77156,7 @@ async function cmdMem(deps, sub, args, fs = nodeMemFs()) {
 }
 
 // packages/cli/src/commands/scaffold.ts
-import { lstat as lstat64, mkdir as mkdir51, readFile as readFile85, rm as rm24, stat as stat15, unlink as unlink9, writeFile as writeFile28 } from "node:fs/promises";
+import { lstat as lstat64, mkdir as mkdir51, readFile as readFile85, rm as rm24, stat as stat16, unlink as unlink9, writeFile as writeFile28 } from "node:fs/promises";
 import { dirname as dirname31, isAbsolute as isAbsolute36, join as join134, relative as relative29, resolve as resolve48, sep as sep24 } from "node:path";
 
 // packages/cli/src/commands/specScaffoldTransaction.ts
@@ -77265,7 +77573,7 @@ async function publishSpecScaffoldTransaction(options) {
 var REAL_FS = {
   exists: async (abs2) => {
     try {
-      await stat15(abs2);
+      await stat16(abs2);
       return true;
     } catch {
       return false;
@@ -82126,10 +82434,10 @@ function parseSyncSources(text13) {
   return parseSkillSources(text13);
 }
 async function capturePath(path15, label2) {
-  const stat20 = await lstat66(path15);
-  if (stat20.isSymbolicLink()) throw new Error(`${label2} \u4E0D\u80FD\u662F symlink: ${path15}`);
+  const stat21 = await lstat66(path15);
+  if (stat21.isSymbolicLink()) throw new Error(`${label2} \u4E0D\u80FD\u662F symlink: ${path15}`);
   const resolved = await realpath16(path15);
-  return { path: path15, realPath: resolved, dev: stat20.dev, ino: stat20.ino };
+  return { path: path15, realPath: resolved, dev: stat21.dev, ino: stat21.ino };
 }
 async function captureRegistryPathSnapshot(root, registryPath) {
   const rootIdentity = await capturePath(root, "--root");
@@ -82605,7 +82913,7 @@ function commandPath(command2) {
   for (let cur = command2; cur !== null && cur.parent !== null; cur = cur.parent) names.unshift(cur.name());
   return names.join(" ");
 }
-function isMissing2(error2) {
+function isMissing3(error2) {
   return typeof error2 === "object" && error2 !== null && Reflect.get(error2, "code") === "ENOENT";
 }
 function entryExists(path15) {
@@ -82624,7 +82932,7 @@ function registerChangeExistenceGuard(program2, deps) {
     try {
       await readChangeForDisplay((dir) => deps.store.read(dir), deps.cwd, name2);
     } catch (error2) {
-      if (!isMissing2(error2) || entryExists(changeDir(deps.cwd, name2))) return;
+      if (!isMissing3(error2) || entryExists(changeDir(deps.cwd, name2))) return;
       deps.io.err(`ERROR: ${msg(deps, "change.notFound", { name: name2 })}`);
       throw new CliExit(1);
     }
@@ -88170,7 +88478,7 @@ import { constants as constants13 } from "node:fs";
 import { link as link5, lstat as lstat69, mkdir as mkdir58, open as open12, unlink as unlink10 } from "node:fs/promises";
 import { dirname as dirname41 } from "node:path";
 var KEY_BYTES = 32;
-function isMissing3(error2) {
+function isMissing4(error2) {
   return typeof error2 === "object" && error2 !== null && "code" in error2 && error2.code === "ENOENT";
 }
 function isExisting(error2) {
@@ -88179,11 +88487,11 @@ function isExisting(error2) {
 async function readKey2(path15) {
   const handle = await open12(path15, constants13.O_RDONLY | constants13.O_NOFOLLOW);
   try {
-    const stat20 = await handle.stat();
-    if (!stat20.isFile() || stat20.size !== KEY_BYTES) throw new Error("observation identity key must be a regular 32-byte file");
+    const stat21 = await handle.stat();
+    if (!stat21.isFile() || stat21.size !== KEY_BYTES) throw new Error("observation identity key must be a regular 32-byte file");
     if (process.platform !== "win32") {
-      if ((stat20.mode & 63) !== 0) throw new Error("observation identity key must be owner-only");
-      if (typeof process.getuid === "function" && stat20.uid !== process.getuid()) {
+      if ((stat21.mode & 63) !== 0) throw new Error("observation identity key must be owner-only");
+      if (typeof process.getuid === "function" && stat21.uid !== process.getuid()) {
         throw new Error("observation identity key must be owned by the current user");
       }
     }
@@ -88227,7 +88535,7 @@ async function loadOrCreateObservationKey(path15) {
   try {
     return await readKey2(path15);
   } catch (error2) {
-    if (!isMissing3(error2)) throw error2;
+    if (!isMissing4(error2)) throw error2;
   }
   await createKey(path15);
   return readKey2(path15);
@@ -88263,18 +88571,18 @@ async function appendObservationUnderLock(changeDirPath, signal, observedAt, max
     384
   );
   try {
-    const stat20 = await handle.stat();
-    if (!stat20.isFile()) throw new Error("self-approval signal file must be a regular file");
-    const readBytes = stat20.size > maxBytes ? Math.min(stat20.size, OVERFLOW_TAIL_BYTES) : stat20.size;
+    const stat21 = await handle.stat();
+    if (!stat21.isFile()) throw new Error("self-approval signal file must be a regular file");
+    const readBytes = stat21.size > maxBytes ? Math.min(stat21.size, OVERFLOW_TAIL_BYTES) : stat21.size;
     const buffer = Buffer.alloc(readBytes);
-    if (readBytes > 0) await handle.read(buffer, 0, readBytes, stat20.size - readBytes);
+    if (readBytes > 0) await handle.read(buffer, 0, readBytes, stat21.size - readBytes);
     const records = lineRecords(buffer.toString("utf8"));
     if (records.some((record9) => record9.signal_kind === SELF_APPROVAL_OVERFLOW_TYPE)) return "overflowed";
     const line = `${JSON.stringify(signal)}
 `;
-    if (stat20.size <= maxBytes) {
+    if (stat21.size <= maxBytes) {
       if (records.some((record9) => record9.observation_key === signal.observation_key)) return "duplicate";
-      if (stat20.size + Buffer.byteLength(line, "utf8") <= maxBytes) {
+      if (stat21.size + Buffer.byteLength(line, "utf8") <= maxBytes) {
         await handle.write(line, void 0, "utf8");
         return "appended";
       }
@@ -88453,7 +88761,7 @@ function registerSkillInvocationInternalCommands(program2, deps) {
 
 // packages/cli/src/commands/agent.ts
 import { randomUUID as randomUUID25 } from "node:crypto";
-import { mkdir as mkdir59, readFile as readFile93, stat as stat16, writeFile as writeFile32 } from "node:fs/promises";
+import { mkdir as mkdir59, readFile as readFile93, stat as stat17, writeFile as writeFile32 } from "node:fs/promises";
 import { join as join165 } from "node:path";
 
 // packages/cli/src/commands/agent-tests-ready.ts
@@ -88620,18 +88928,27 @@ function parseRerunReason(deps, raw) {
   if (raw === void 0) return void 0;
   const reason3 = raw.trim();
   if (reason3 !== "" && reason3.length <= AGENT_RERUN_REASON_MAX && !/[\r\n]/u.test(reason3)) return reason3;
-  deps.io.err(`ERROR: --rerun-reason \u9700\u8981\u4E00\u884C\u4E0D\u8D85\u8FC7 ${AGENT_RERUN_REASON_MAX} \u5B57\u7684\u539F\u56E0`);
+  deps.io.err(`ERROR: ${msg(deps, "agent.rerun.reasonInvalid", { max: AGENT_RERUN_REASON_MAX })}`);
   return null;
 }
-function rerunNote(view2) {
+function rerunNote(carrier, view2) {
   if (view2.reruns === 0) return "";
-  return ` \u91CD\u8DD1 ${view2.reruns} \u6B21${view2.flipped ? "\uFF08\u7ED3\u8BBA\u7FFB\u8F6C\uFF09" : ""}${view2.rerunReason === null ? "" : `\uFF1A${view2.rerunReason}`}`;
+  return msg(carrier, "agent.next.rerun", {
+    count: view2.reruns,
+    flipped: view2.flipped ? msg(carrier, "agent.next.rerun.flipped") : "",
+    reason: view2.rerunReason === null ? "" : msg(carrier, "agent.next.rerun.reason", { reason: view2.rerunReason })
+  });
 }
 function priorRunsOnCandidate(runs, agent, stepVisit, candidate2, host) {
   return runs.filter((row2) => row2.agent === agent && row2.step_visit === stepVisit && row2.status === "finished" && row2.candidate === candidate2 && hostRunValid(host, row2.host));
 }
-function rerunRefusal(change, agent, prior) {
-  return `ERROR: \u8BC4\u5BA1\u8005 '${agent}' \u5728\u5F53\u524D\u5019\u9009\u4E0A\u5DF2\u7ECF\u6709 ${prior.length} \u6B21\u7ED3\u8BBA\uFF08${prior.map((row2) => `${row2.result ?? "?"}`).join("\u3001")}\uFF09\uFF1A\u540C\u4E00\u4EFD\u4EE3\u7801\u4E0D\u80FD\u9760\u91CD\u8DD1\u6362\u7ED3\u8BBA\u3002\u6539\u4EE3\u7801\u6362\u5019\u9009\u540E\u518D\u91CD\u8DD1\uFF1B\u786E\u6709\u9700\u8981\uFF08\u4F8B\u5982\u4E0A\u6B21\u7684\u63D0\u793A\u7F3A\u4E0A\u4E0B\u6587\uFF09\u7528 tenon agent prompt ${change} ${agent} --rerun-reason <\u539F\u56E0> \u5199\u660E\u5E76\u7559\u75D5\uFF0C\u5224\u5B9A\u4F1A\u628A\u540C\u4E00\u5019\u9009\u4E0A\u7684\u6240\u6709\u8FD0\u884C\u4E00\u5E76\u770B\uFF08\u6CA1\u6709\u539F\u56E0\u7684\u91CD\u8DD1\u53D6\u6700\u4E25\u7ED3\u8BBA\uFF0C\u6709\u539F\u56E0\u7684\u4EE5\u6700\u540E\u4E00\u6B21\u4E3A\u51C6\uFF09`;
+function rerunRefusal(carrier, change, agent, prior) {
+  return `ERROR: ${msg(carrier, "agent.rerun.refused", {
+    agent,
+    count: prior.length,
+    results: prior.map((row2) => `${row2.result ?? "?"}`).join(msg(carrier, "list.separator")),
+    change
+  })}`;
 }
 
 // packages/cli/src/commands/agent-route.ts
@@ -88675,19 +88992,21 @@ function routeLines(carrier, agent, route) {
     msg(carrier, "agent.route.record", { command: target.record })
   ];
 }
-function hostNote(view2) {
-  if (view2.wrongHost) return ` \u5BBF\u4E3B\u4E0D\u7B26\uFF1A\u8981\u6C42 ${view2.requiredHost ?? "\u2014"}\uFF0C\u767B\u8BB0 ${view2.host ?? "\u65E0"}\uFF0C\u7ED3\u8BBA\u65E0\u6548`;
-  if (view2.host !== null) return ` \u5BBF\u4E3B ${view2.host}`;
-  return view2.requiredHost === null ? "" : ` \u8981\u6C42\u5BBF\u4E3B ${view2.requiredHost}`;
+function hostNote(carrier, view2) {
+  if (view2.wrongHost) {
+    return msg(carrier, "agent.next.host.mismatch", {
+      required: view2.requiredHost ?? "\u2014",
+      host: view2.host ?? msg(carrier, "agent.next.host.none")
+    });
+  }
+  if (view2.host !== null) return msg(carrier, "agent.next.host.recorded", { host: view2.host });
+  return view2.requiredHost === null ? "" : msg(carrier, "agent.next.host.required", { host: view2.requiredHost });
 }
 function hostSourceOf(claimed, detected) {
   return claimed === void 0 || claimed === detected ? "detected" : "declared";
 }
 
 // packages/cli/src/commands/agent-next.ts
-var ROLE_WORD = { executor: "\u6267\u884C\u8005", reviewer: "\u8BC4\u5BA1\u8005" };
-var STATE_WORD2 = { idle: "\u672A\u8FD0\u884C", running: "\u8FDB\u884C\u4E2D", done: "\u5DF2\u5B8C\u6210", stale: "\u8FC7\u671F" };
-var RESULT_WORD = { pass: "\u901A\u8FC7", fail: "\u4E0D\u901A\u8FC7", done: "\u5B8C\u6210", failed: "\u5931\u8D25" };
 var viewJson = (view2, waiting) => ({
   agent: view2.agent,
   role: view2.role,
@@ -88732,24 +89051,26 @@ async function cmdAgentNext(deps, name2, json2) {
     return 0;
   }
   for (const view2 of views) {
-    const result2 = view2.result === null ? "" : ` ${RESULT_WORD[view2.result]}`;
-    const findings = view2.findings === 0 ? "" : ` \u95EE\u9898 ${view2.findings}`;
-    deps.io.out(`${view2.agent} ${ROLE_WORD[view2.role]} ${STATE_WORD2[view2.state]}${result2}${findings}${rerunNote(view2)}${hostNote(view2)}`);
+    const role = msg(deps, `agent.next.role.${view2.role}`);
+    const state = msg(deps, `agent.next.state.${view2.state}`);
+    const result2 = view2.result === null ? "" : ` ${msg(deps, `agent.next.result.${view2.result}`)}`;
+    const findings = view2.findings === 0 ? "" : ` ${msg(deps, "agent.next.findings", { count: view2.findings })}`;
+    deps.io.out(`${view2.agent} ${role} ${state}${result2}${findings}${rerunNote(deps, view2)}${hostNote(deps, view2)}`);
   }
-  for (const line of waveSummary(name2, views, wave, waiting, verdict)) deps.io.out(line);
+  for (const line of waveSummary(deps, name2, views, wave, waiting, verdict)) deps.io.out(line);
   return 0;
 }
-function waveSummary(change, views, wave, waiting, verdict) {
-  if (wave.length > 0) return [`\u4E0B\u4E00\u6CE2\uFF1A${wave.join(", ")}`];
+function waveSummary(carrier, change, views, wave, waiting, verdict) {
+  if (wave.length > 0) return [msg(carrier, "agent.next.wave", { agents: wave.join(", ") })];
   const lines4 = [];
   for (const view2 of views) {
     if (view2.state !== "running") continue;
-    lines4.push(`\u8FDB\u884C\u4E2D\uFF1A${view2.agent}\uFF1B\u5B8C\u6210\u540E tenon agent record ${change} ${view2.runId ?? "<run>"}`);
+    lines4.push(msg(carrier, "agent.next.running", { agent: view2.agent, change, run: view2.runId ?? "<run>" }));
   }
-  for (const item2 of waiting) lines4.push(`\u7B49\u5F85\uFF1A${item2.agent} \u2190 ${item2.for.join(", ")}`);
-  if (lines4.length === 0 && verdict.pass) return ["\u5168\u90E8\u5B8C\u6210"];
+  for (const item2 of waiting) lines4.push(msg(carrier, "agent.next.waiting", { agent: item2.agent, needs: item2.for.join(", ") }));
+  if (lines4.length === 0 && verdict.pass) return [msg(carrier, "agent.next.allDone")];
   if (lines4.length === 0) {
-    for (const blocker2 of verdict.blockers) lines4.push(`\u672A\u5B8C\u6210\uFF1A${renderAgentBlocker(blocker2, change)}`);
+    for (const blocker2 of verdict.blockers) lines4.push(msg(carrier, "agent.next.unfinished", { blocker: renderAgentBlocker(blocker2, change) }));
   }
   return lines4;
 }
@@ -88785,12 +89106,12 @@ async function cmdAgentPrompt(deps, name2, agent, options) {
   if (typeof context === "number") return context;
   const role = roleOf2(context.step, agent);
   if (role === void 0) {
-    deps.io.err(`ERROR: agent '${agent}' \u672A\u5728\u6B65\u9AA4 '${context.step.stepId}' \u58F0\u660E`);
+    deps.io.err(`ERROR: ${msg(deps, "agent.notDeclared", { agent, step: context.step.stepId })}`);
     return 1;
   }
   const frozen = context.frozen.get(agent);
   if (frozen === void 0) {
-    deps.io.err(`ERROR: agent '${agent}' \u672A\u968F\u672C\u4EFB\u52A1\u51BB\u7ED3\uFF1B\u91CD\u65B0\u521B\u5EFA\u4EFB\u52A1\u6216\u6539\u5DE5\u4F5C\u6D41`);
+    deps.io.err(`ERROR: ${msg(deps, "agent.notFrozen", { agent })}`);
     return 1;
   }
   if (context.unattached.includes(agent)) return unattachedRefusal(deps, agent, frozen);
@@ -88800,7 +89121,7 @@ async function cmdAgentPrompt(deps, name2, agent, options) {
   }
   const waiting = nextAgentWave(context).waiting.find((item2) => item2.agent === agent);
   if (waiting !== void 0) {
-    deps.io.err(`ERROR: agent '${agent}' \u8FD8\u9700\u7B49\u5F85\uFF1A${waiting.for.join(", ")}`);
+    deps.io.err(`ERROR: ${msg(deps, "agent.waiting", { agent, needs: waiting.for.join(", ") })}`);
     return 2;
   }
   const stepHost = role === "reviewer" ? context.step.reviewers.find((ref) => ref.agent === agent)?.host : void 0;
@@ -88808,7 +89129,7 @@ async function cmdAgentPrompt(deps, name2, agent, options) {
   const existing = context.runs.find((row2) => row2.agent === agent && row2.step_visit === context.stepVisit && row2.status === "running" && row2.candidate === context.candidate);
   const priorOnCandidate = role === "reviewer" && existing === void 0 ? priorRunsOnCandidate(context.runs, agent, context.stepVisit, context.candidate, stepHost) : [];
   if (priorOnCandidate.length > 0 && rerunReason === void 0) {
-    deps.io.err(rerunRefusal(name2, agent, priorOnCandidate));
+    deps.io.err(rerunRefusal(deps, name2, agent, priorOnCandidate));
     return 2;
   }
   const runId = existing?.run_id ?? randomUUID25();
@@ -88913,7 +89234,7 @@ function usedSubagent(deps, row2, type) {
 }
 async function cmdAgentRecord(deps, name2, runId, json2, options = {}) {
   if (options.subagent !== void 0 && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(options.subagent)) {
-    deps.io.err(`ERROR: --subagent '${options.subagent}' \u975E\u6CD5`);
+    deps.io.err(`ERROR: ${msg(deps, "agent.record.subagentInvalid", { subagent: options.subagent })}`);
     return 1;
   }
   if (options.host !== void 0 && !KNOWN_AGENT_HOSTS.includes(options.host)) {
@@ -88924,31 +89245,31 @@ async function cmdAgentRecord(deps, name2, runId, json2, options = {}) {
   if (typeof context === "number") return context;
   const row2 = context.runs.find((entry2) => entry2.run_id === runId);
   if (row2 === void 0 || row2.status !== "running" || row2.step_visit !== context.stepVisit) {
-    deps.io.err(`ERROR: run '${runId}' \u4E0D\u662F\u672C\u6B21\u6B65\u9AA4\u8BBF\u95EE\u4E2D\u8FDB\u884C\u4E2D\u7684\u8FD0\u884C`);
+    deps.io.err(`ERROR: ${msg(deps, "agent.record.runNotRunning", { run: runId })}`);
     return 1;
   }
   const reportPath = join165(deps.cwd, row2.report_path);
   let text13;
   try {
-    const info = await stat16(reportPath);
+    const info = await stat17(reportPath);
     if (info.size > REPORT_MAX_BYTES) {
-      deps.io.err(`ERROR: \u62A5\u544A\u65E0\u6548\uFF1A\u8D85\u8FC7 ${REPORT_MAX_BYTES} \u5B57\u8282`);
+      deps.io.err(`ERROR: ${msg(deps, "agent.record.reportTooLarge", { max: REPORT_MAX_BYTES })}`);
       return 1;
     }
     text13 = await readFile93(reportPath, "utf8");
   } catch {
-    deps.io.err(`ERROR: \u62A5\u544A\u65E0\u6548\uFF1A${row2.report_path} \u8BFB\u4E0D\u5230`);
+    deps.io.err(`ERROR: ${msg(deps, "agent.record.reportUnreadable", { path: row2.report_path })}`);
     return 1;
   }
   let parsed2;
   try {
     parsed2 = parseAgentReport(text13, row2.role);
   } catch (e) {
-    deps.io.err(`ERROR: \u62A5\u544A\u65E0\u6548\uFF1A${errMsg(e)}`);
+    deps.io.err(`ERROR: ${msg(deps, "agent.record.reportInvalid", { error: errMsg(e) })}`);
     return 1;
   }
   if (row2.role === "reviewer" && row2.candidate !== context.candidate) {
-    deps.io.err(`ERROR: \u8BC4\u5BA1\u671F\u95F4\u5019\u9009\u5DF2\u53D8\u5316\uFF1B\u91CD\u8DD1\uFF1Atenon agent prompt ${name2} ${row2.agent}`);
+    deps.io.err(`ERROR: ${msg(deps, "agent.record.candidateChanged", { change: name2, agent: row2.agent })}`);
     return 2;
   }
   const detected = hostAgentHostOf(deps);
@@ -88990,8 +89311,8 @@ async function cmdAgentRecord(deps, name2, runId, json2, options = {}) {
 }
 
 // packages/cli/src/commands/agent-library.ts
-import { readFile as readFile94, stat as stat17 } from "node:fs/promises";
-var ROLE_WORD2 = { executor: "\u6267\u884C\u8005", reviewer: "\u8BC4\u5BA1\u8005" };
+import { readFile as readFile94, stat as stat18 } from "node:fs/promises";
+var ROLE_WORD = { executor: "\u6267\u884C\u8005", reviewer: "\u8BC4\u5BA1\u8005" };
 var SOURCE_WORD = { builtin: "\u5B98\u65B9", custom: "\u81EA\u5B9A\u4E49", project: "\u9879\u76EE" };
 var SKELETON_DO_PLACEHOLDER = {
   executor: "<\u8FD9\u4E2A\u6267\u884C\u8005\u8D1F\u8D23\u7684\u90A3\u4E00\u4EF6\u4E8B>",
@@ -89077,7 +89398,7 @@ async function cmdAgentList(deps, opts) {
   const width = Math.max(...rows.map((entry2) => entry2.name.length));
   for (const entry2 of rows) {
     const definition = entry2.definition;
-    const roleWord = definition === void 0 ? "\u2014" : ROLE_WORD2[definition.role];
+    const roleWord = definition === void 0 ? "\u2014" : ROLE_WORD[definition.role];
     deps.io.out(`${entry2.name.padEnd(width)}  ${roleWord}  ${SOURCE_WORD[entry2.source]}  ${definition?.version ?? "\u2014"}  ${definition?.description ?? ""}${note(entry2)}`);
   }
   return 0;
@@ -89099,7 +89420,7 @@ async function cmdAgentShow(deps, name2, json2) {
   return 0;
 }
 function checkDefinition(definition, knownSkills, options = {}) {
-  const checks = [{ level: "ok", message: `frontmatter \u4E0E\u6B63\u6587\uFF08${ROLE_WORD2[definition.role]}\uFF09` }];
+  const checks = [{ level: "ok", message: `frontmatter \u4E0E\u6B63\u6587\uFF08${ROLE_WORD[definition.role]}\uFF09` }];
   if (options.allowSkeleton !== true) {
     for (const placeholder of [SKELETON_DO_PLACEHOLDER[definition.role], ...SKELETON_PLACEHOLDERS]) {
       if (definition.body.includes(placeholder)) {
@@ -89140,7 +89461,7 @@ function report(deps, subject2, checks) {
   return !failed;
 }
 async function readAgentText(path15) {
-  const info = await stat17(path15);
+  const info = await stat18(path15);
   if (!info.isFile()) throw new Error(`${path15} \u4E0D\u662F\u6587\u4EF6`);
   if (info.size > AGENT_FILE_MAX_BYTES) throw new Error(`agent \u6587\u4EF6\u8D85\u8FC7 ${AGENT_FILE_MAX_BYTES} \u5B57\u8282`);
   return readFile94(path15, "utf8");
@@ -89276,7 +89597,7 @@ async function cmdAgentRm(deps, name2, opts) {
   if (references.length > 0) {
     deps.io.err(`ERROR: agent '${name2}' \u88AB\u5DE5\u4F5C\u6D41\u5F15\u7528\uFF0C\u5148\u4ECE\u8FD9\u4E9B\u6B65\u9AA4\u79FB\u9664\uFF1A`);
     for (const ref of references) {
-      deps.io.err(`  - ${[ref.workflow, ref.track, ref.label].filter((part) => part !== null && part !== "").join(" / ")} \xB7 ${ROLE_WORD2[ref.role]}`);
+      deps.io.err(`  - ${[ref.workflow, ref.track, ref.label].filter((part) => part !== null && part !== "").join(" / ")} \xB7 ${ROLE_WORD[ref.role]}`);
     }
     return 2;
   }
@@ -89325,7 +89646,7 @@ function defaultTools(role, skills) {
 function agentBodySkeleton(name2, role, description) {
   const readOnly2 = role === "reviewer" ? "\u53EA\u8BFB\uFF1A\u4E0D\u6539\u4EE3\u7801\u3001\u4E0D\u63D0\u4EA4\u3001\u4E0D\u6539 Tenon \u72B6\u6001\u3002" : "\u53EA\u6539\u672C\u6B21\u6D3E\u53D1\u7ED9\u4F60\u7684\u8303\u56F4\uFF1B\u4E0D\u63D0\u4EA4\u3001\u4E0D\u6539 Tenon \u72B6\u6001\u3002";
   return [
-    `# ${name2}\uFF08${ROLE_WORD2[role]}\uFF09`,
+    `# ${name2}\uFF08${ROLE_WORD[role]}\uFF09`,
     "",
     "## \u804C\u8D23",
     "",
@@ -89465,7 +89786,7 @@ async function cmdAgentNew(deps, nameArg, opts, env = REAL_INIT_WIZARD_ENV) {
   }
   const entry2 = await registerAgent(deps, scope, definition.name, content, false);
   if (typeof entry2 === "number") return entry2;
-  deps.io.out(`[AGENT] \u5DF2\u521B\u5EFA ${entry2.name}\uFF08${SOURCE_WORD[entry2.source]} \xB7 ${ROLE_WORD2[role]}\uFF09${entry2.path ?? ""}`);
+  deps.io.out(`[AGENT] \u5DF2\u521B\u5EFA ${entry2.name}\uFF08${SOURCE_WORD[entry2.source]} \xB7 ${ROLE_WORD[role]}\uFF09${entry2.path ?? ""}`);
   if (base === void 0) deps.io.out("\u6B63\u6587\u662F\u9AA8\u67B6\uFF1A\u8865\u5168\u540E\u8FD0\u884C tenon agent validate " + entry2.name);
   return 0;
 }
@@ -89825,12 +90146,18 @@ async function auditWaiverApproval(deps, dir, outcome, approver) {
 }
 
 // packages/cli/src/commands/review-acknowledge.ts
-var DEFERRED_WARNINGS = {
-  "idempotency-ledger": "WARN: decision idempotency ledger \u5199\u5165\u5931\u8D25\uFF08approval receipt \u5DF2\u63D0\u4EA4\uFF1B\u91CD\u8BD5\u4F1A\u6309\u5F53\u524D\u72B6\u6001\u91CD\u65B0\u5224\u5B9A\uFF09",
-  "review-interaction": `WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} interaction projection \u5199\u5165\u5931\u8D25\uFF08canonical review acknowledgement \u5DF2\u63D0\u4EA4\uFF09`,
-  "review-history": "WARN: history \u5199\u5165\u5931\u8D25\uFF08canonical review acknowledgement \u5DF2\u63D0\u4EA4\uFF09",
-  "review-marker-clear": "WARN: review marker \u6E05\u7406\u5931\u8D25\uFF08approval receipt \u5DF2\u63D0\u4EA4\uFF0C\u53EF\u91CD\u8BD5 acknowledge\uFF09"
-};
+function deferredWarning(deps, kind) {
+  switch (kind) {
+    case "idempotency-ledger":
+      return `WARN: ${msg(deps, "review.warn.idempotencyLedger")}`;
+    case "review-interaction":
+      return `WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} ${msg(deps, "review.warn.interaction")}`;
+    case "review-history":
+      return `WARN: ${msg(deps, "review.warn.history")}`;
+    case "review-marker-clear":
+      return `WARN: ${msg(deps, "review.warn.markerClear")}`;
+  }
+}
 function reviewExits(deps, state, phase) {
   const plan = effectiveWorkflowForState(deps, state);
   if (!plan) throw new Error(`workflow '${String(state.fields.workflow ?? "")}' \u672A\u627E\u5230\u6216\u4E0D\u53EF\u7F16\u8BD1`);
@@ -89905,13 +90232,16 @@ async function cmdReviewAcknowledge(deps, name2, dir, opts) {
     },
     actor: actor3
   });
-  for (const kind of result2.deferred) deps.io.err(DEFERRED_WARNINGS[kind]);
+  for (const kind of result2.deferred) deps.io.err(deferredWarning(deps, kind));
   if (!result2.ok) {
     deps.io.err(`ERROR: ${result2.message}`);
     return reviewAcknowledgeExitCode(result2);
   }
   deps.io.out(
-    `[REVIEW] ${name2} phase=${result2.phase} event=${result2.event} ${delegatedAuthority === null ? "\u5DF2\u786E\u8BA4" : "\u5DF2\u6309\u7528\u6237\u59D4\u6258\u7684\u6301\u7EED\u6388\u6743\u786E\u8BA4"}${owner.allowed ? "" : `\uFF08\u8BC4\u5BA1\u4EBA ${formatUserRef(user)}\uFF0C\u8D1F\u8D23\u4EBA ${owner.owner === null ? "\u65E0" : formatUserRef(owner.owner)}\uFF09`}\uFF0C\u53EF\u91CD\u53D1 transition`
+    `[REVIEW] ${name2} phase=${result2.phase} event=${result2.event} ${msg(deps, delegatedAuthority === null ? "review.acknowledged.owner" : "review.acknowledged.delegated")}${owner.allowed ? "" : msg(deps, "review.acknowledged.by", {
+      reviewer: formatUserRef(user),
+      owner: owner.owner === null ? msg(deps, "review.acknowledged.noOwner") : formatUserRef(owner.owner)
+    })}${msg(deps, "review.acknowledged.retransition")}`
   );
   await reportWaivers(deps, dir, actor3.id, waivers);
   return 0;
@@ -89920,10 +90250,10 @@ async function reportWaivers(deps, dir, approver, outcome) {
   if (outcome === void 0) return;
   await auditWaiverApproval(deps, dir, outcome, approver);
   if (outcome.approved.length > 0) {
-    deps.io.out(`[REVIEW] \u5DF2\u6279\u51C6\u8C41\u514D ${outcome.approved.length} \u9879\uFF1A${outcome.approved.join("\u3001")}`);
+    deps.io.out(`[REVIEW] ${msg(deps, "review.waiversApproved", { count: outcome.approved.length, list: outcome.approved.join(msg(deps, "list.separator")) })}`);
   }
   if (outcome.protectedApproved.length > 0) {
-    deps.io.out(`[REVIEW] \u5DF2\u6279\u51C6\u6D4B\u8BD5\u914D\u7F6E\u6539\u52A8 ${outcome.protectedApproved.length} \u9879\uFF1A${outcome.protectedApproved.join("\u3001")}`);
+    deps.io.out(`[REVIEW] ${msg(deps, "review.protectedApproved", { count: outcome.protectedApproved.length, list: outcome.protectedApproved.join(msg(deps, "list.separator")) })}`);
   }
   if (outcome.note !== null) deps.io.err(`WARN: ${outcome.note}`);
   for (const line of skippedWaiverLines(outcome)) deps.io.out(line);
@@ -89973,16 +90303,16 @@ async function checkVerifyFailReadiness(deps, name2, dir, state) {
   const report2 = scalar25(state, "verification_report");
   const fileExists2 = deps.guardCtx?.(name2)?.fileExists;
   if (report2 === "" || report2 === "null") {
-    blockers.push(`verify-fail \u51B3\u7B56\u8981\u6C42 verification_report \u975E\u7A7A\uFF08\u5F53\u524D='${report2 || "null"}'\uFF09`);
+    blockers.push(msg(deps, "review.verifyFail.reportEmpty", { current: report2 || "null" }));
   } else if (fileExists2?.(report2) === false) {
-    blockers.push(`verify-fail \u51B3\u7B56\u8981\u6C42 verification_report \u6587\u4EF6\u5B58\u5728\uFF08\u5F53\u524D='${report2}'\uFF09`);
+    blockers.push(msg(deps, "review.verifyFail.reportMissing", { current: report2 }));
   }
   const plan = effectiveWorkflowForState(deps, state);
   const documentPolicy = plan?.capabilities.documents.policy;
   if (documentPolicy) {
     const phase = scalar25(state, "phase");
     if (!isDocumentPolicyStep(documentPolicy, phase) || !isDocumentContractPhase(phase)) {
-      blockers.push(`\u53D7 OpenSpec \u6587\u6863\u5951\u7EA6\u6CBB\u7406\u7684 workflow \u5F53\u524D phase \u975E\u6CD5\uFF08\u5F53\u524D='${phase || "\u7A7A"}'\uFF09`);
+      blockers.push(msg(deps, "review.verifyFail.phaseInvalid", { phase: phase || msg(deps, "review.verifyFail.empty") }));
     } else {
       const evidence = deps.documentEvidence ? await deps.documentEvidence(deps.cwd, dir, phase) : await evaluateDocumentEvidence(deps.cwd, dir, phase, {
         recordKinds: ["verification-report"],
@@ -89993,11 +90323,11 @@ async function checkVerifyFailReadiness(deps, name2, dir, state) {
   }
   deps.io.out(`[CHECK] ${name2} (phase=verify, event=verify-fail)`);
   if (blockers.length === 0) {
-    deps.io.out("  [PASS] verify-fail \u56DE\u9000\u8BC1\u636E\u5DF2\u5C31\u7EEA");
+    deps.io.out(`  [PASS] ${msg(deps, "review.verifyFail.ready")}`);
     return 0;
   }
   for (const blocker2 of blockers) deps.io.out(`  [FAIL] ${blocker2}`);
-  deps.io.out(`  [FAIL] \u5171 ${blockers.length} \u9879\u672A\u901A\u8FC7`);
+  deps.io.out(`  [FAIL] ${msg(deps, "check.failTotal", { count: blockers.length })}`);
   return 2;
 }
 async function checkReviewRequestReadiness(deps, name2, dir, state, step, event) {
@@ -90012,7 +90342,7 @@ async function checkReviewRequestReadiness(deps, name2, dir, state, step, event)
 }
 async function cmdReview(deps, sub, name2, opts = {}) {
   if (sub !== "request" && sub !== "acknowledge") {
-    deps.io.err("ERROR: \u7528\u6CD5\uFF1Atenon review request <change> [--event <event>] | acknowledge <change> [--delegated] [--as reviewer]");
+    deps.io.err(`ERROR: ${msg(deps, "review.usage")}`);
     return 1;
   }
   if (!name2 || !isValidChangeName(name2)) {
@@ -90025,11 +90355,11 @@ async function cmdReview(deps, sub, name2, opts = {}) {
   try {
     if (sub === "request") {
       if (opts.delegated === true) {
-        deps.io.err("ERROR: --delegated \u53EA\u53EF\u7528\u4E8E review acknowledge\uFF1Brequest \u4ECD\u5FC5\u987B\u5148\u5B8C\u6210\u771F\u5B9E review \u8BC1\u636E");
+        deps.io.err(`ERROR: ${msg(deps, "review.request.delegatedOnAcknowledge")}`);
         return 1;
       }
       if (opts.as !== void 0) {
-        deps.io.err("ERROR: --as \u53EA\u53EF\u7528\u4E8E review acknowledge\uFF1Brequest \u53EA\u6709\u8D1F\u8D23\u4EBA\u80FD\u53D1\u8D77");
+        deps.io.err(`ERROR: ${msg(deps, "review.request.asOnAcknowledge")}`);
         return 1;
       }
       const actor3 = requireActor(deps);
@@ -90086,10 +90416,10 @@ async function cmdReview(deps, sub, name2, opts = {}) {
                 clock: deps.clock()
               });
             } catch (error2) {
-              deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} interaction projection \u5199\u5165\u5931\u8D25\uFF08canonical review pending \u5DF2\u5B58\u5728\uFF09: ${errMsg(error2)}`);
+              deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} ${msg(deps, "review.warn.projectionPendingFailed", { error: errMsg(error2) })}`);
             }
           } else if (interaction !== void 0) {
-            deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} interaction projection \u672A\u5199\u5165\uFF08\u7F3A canonical run/workflow/state anchor\uFF1Bcanonical review pending \u672A\u6539\u53D8\uFF09`);
+            deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} ${msg(deps, "review.warn.projectionPendingSkipped")}`);
           }
           return;
         }
@@ -90114,10 +90444,10 @@ async function cmdReview(deps, sub, name2, opts = {}) {
               clock: requestedAt
             });
           } catch (error2) {
-            deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} interaction projection \u5199\u5165\u5931\u8D25\uFF08canonical review request \u5DF2\u63D0\u4EA4\uFF09: ${errMsg(error2)}`);
+            deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} ${msg(deps, "review.warn.projectionRequestFailed", { error: errMsg(error2) })}`);
           }
         } else if (interaction !== void 0) {
-          deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} interaction projection \u672A\u5199\u5165\uFF08\u7F3A canonical run/workflow/state anchor\uFF1Bcanonical review request \u5DF2\u63D0\u4EA4\uFF09`);
+          deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} ${msg(deps, "review.warn.projectionRequestSkipped")}`);
         }
         requested = {
           phase: step.phase,
@@ -90141,7 +90471,7 @@ async function cmdReview(deps, sub, name2, opts = {}) {
         });
       }
       deps.io.out(
-        `[REVIEW] ${name2} phase=${requested.phase} event=${requested.event} ${requested.alreadyPending ? "\u4ECD\u5F85\u786E\u8BA4" : "\u5DF2\u8BF7\u6C42\u4EBA\u5DE5\u786E\u8BA4"}`
+        `[REVIEW] ${name2} phase=${requested.phase} event=${requested.event} ` + msg(deps, requested.alreadyPending ? "review.requested.pending" : "review.requested.new")
       );
       for (const line of await reviewItemLines(deps, requested.state, requested.items)) deps.io.out(line);
       return markerOk ? 0 : 2;
@@ -92251,7 +92581,7 @@ function serviceRecord(running, logIndexPath) {
 
 // packages/cli/src/test-system/suite-exec.ts
 import { realpathSync as realpathSync10 } from "node:fs";
-import { realpath as realpath20, stat as stat18 } from "node:fs/promises";
+import { realpath as realpath20, stat as stat19 } from "node:fs/promises";
 import { isAbsolute as isAbsolute47, relative as relative38, resolve as resolve65 } from "node:path";
 
 // packages/cli/src/test-system/artifacts.ts
@@ -93825,7 +94155,7 @@ async function usableCwd(repoRoot, cwd) {
   try {
     const target = await realpath20(cwd);
     const rel = relative38(await realpath20(repoRoot), target);
-    return (rel === "" || !rel.startsWith("..") && !isAbsolute47(rel)) && (await stat18(target)).isDirectory();
+    return (rel === "" || !rel.startsWith("..") && !isAbsolute47(rel)) && (await stat19(target)).isDirectory();
   } catch {
     return false;
   }
@@ -95940,8 +96270,8 @@ function hookInventory(pluginRoot2) {
   if (pluginRoot2 === void 0) return null;
   try {
     return readdirSync15(join181(pluginRoot2, "hooks"), { withFileTypes: true }).filter((entry2) => entry2.isFile()).map((entry2) => {
-      const stat20 = statSync15(join181(pluginRoot2, "hooks", entry2.name));
-      return { name: entry2.name, bytes: stat20.size, executable: (stat20.mode & 73) !== 0 };
+      const stat21 = statSync15(join181(pluginRoot2, "hooks", entry2.name));
+      return { name: entry2.name, bytes: stat21.size, executable: (stat21.mode & 73) !== 0 };
     }).sort((a, b) => a.name.localeCompare(b.name));
   } catch {
     return null;
@@ -98124,7 +98454,7 @@ async function readGateMarkers(cwd) {
   for (const kind of ["confirm", "review", "interaction"]) {
     try {
       const p = join189(cwd, `.pipeline-pending-${kind}`);
-      const st = await stat19(p);
+      const st = await stat20(p);
       out.push({ kind, ageMs: Date.now() - st.mtimeMs, raw: await readFile105(p, "utf8") });
     } catch {
     }

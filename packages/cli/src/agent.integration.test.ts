@@ -5,7 +5,7 @@
 import { appendFile, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { resolveProductPaths } from '@tenon/kernel'
+import { AGENT_RERUN_REASON_MAX, resolveProductPaths } from '@tenon/kernel'
 import { afterEach, describe, expect, test } from 'vitest'
 import { FIXED_CLOCK, freshHarness, rm, TEST_GIT_BUILD_TOKEN, type Harness } from './integration-harness.js'
 
@@ -571,5 +571,110 @@ tracks:
     const text = h.out.join('\n')
     expect(text).not.toContain('全部完成')
     expect(text).toContain('等待：security ← test:unit')
+  })
+
+  test('TENON_LANG：agent next 的人读行与 prompt / record 的拒绝在 en 下是英文，zh 与原来的中文逐字一致', async () => {
+    const EN = { ...USER_A, TENON_LANG: 'en' }
+    const ZH = { ...USER_A, TENON_LANG: 'zh' }
+    const cjk = /[㐀-鿿＀-￯　-〿]/u
+    const both = async (args: readonly string[]): Promise<{ code: number; zh: string; en: string }> => {
+      const code = await h.run([...args], { env: ZH })
+      const zh = [...h.out, ...h.err].join('\n')
+      expect(await h.run([...args], { env: EN })).toBe(code)
+      const en = [...h.out, ...h.err].join('\n')
+      expect(cjk.test(en), `en 输出里有中文：${en}`).toBe(false)
+      return { code, zh, en }
+    }
+    const started = async (agent: string): Promise<{ run_id: string; report_path: string }> => {
+      expect(await h.run(['agent', 'prompt', 'demo', agent, '--json'], { env: USER_A }), h.err.join('\n')).toBe(0)
+      return JSON.parse(h.out.join('')) as { run_id: string; report_path: string }
+    }
+    const report = (path: string, text: string): Promise<void> => writeFile(join(h.cwd, path), text, 'utf8')
+    const result = (findings: readonly object[]): string => `# r\n\n\`\`\`tenon-result\n${JSON.stringify({ findings })}\n\`\`\`\n`
+    await seed()
+
+    // build 步骤：人读的 next 行（角色、状态、下一波）。
+    let seen = await both(['agent', 'next', 'demo'])
+    expect(seen.zh).toBe('builder 执行者 未运行\nresearcher 执行者 未运行\n下一波：builder, researcher')
+    expect(seen.en).toBe('builder executor idle\nresearcher executor idle\nNext wave: builder, researcher')
+
+    // prompt 的拒绝：未声明的 agent、非法的 --rerun-reason。
+    seen = await both(['agent', 'prompt', 'demo', 'nosuch'])
+    expect(seen).toMatchObject({ code: 1, zh: "ERROR: agent 'nosuch' 未在步骤 'build' 声明", en: "ERROR: agent 'nosuch' is not declared in step 'build'" })
+    seen = await both(['agent', 'prompt', 'demo', 'builder', '--rerun-reason', '   '])
+    expect(seen).toMatchObject({
+      code: 1,
+      zh: `ERROR: --rerun-reason 需要一行不超过 ${AGENT_RERUN_REASON_MAX} 字的原因`,
+      en: `ERROR: --rerun-reason needs a one-line reason of at most ${AGENT_RERUN_REASON_MAX} characters`,
+    })
+
+    // record 的拒绝：没有这个运行、非法的 --subagent、报告读不到 / 太大 / 不是 tenon-result。
+    seen = await both(['agent', 'record', 'demo', 'nope'])
+    expect(seen).toMatchObject({ code: 1, zh: "ERROR: run 'nope' 不是本次步骤访问中进行中的运行", en: "ERROR: run 'nope' is not a running run of this step visit" })
+    seen = await both(['agent', 'record', 'demo', 'nope', '--subagent', '!!'])
+    expect(seen).toMatchObject({ code: 1, zh: "ERROR: --subagent '!!' 非法", en: "ERROR: --subagent '!!' is not valid" })
+    const builder = await started('builder')
+    seen = await both(['agent', 'record', 'demo', builder.run_id])
+    expect(seen).toMatchObject({
+      code: 1,
+      zh: `ERROR: 报告无效：${builder.report_path} 读不到`,
+      en: `ERROR: invalid report: cannot read ${builder.report_path}`,
+    })
+    await report(builder.report_path, 'x'.repeat(256 * 1024 + 1))
+    seen = await both(['agent', 'record', 'demo', builder.run_id])
+    expect(seen).toMatchObject({ code: 1, zh: 'ERROR: 报告无效：超过 262144 字节', en: 'ERROR: invalid report: larger than 262144 bytes' })
+    await report(builder.report_path, '没有 tenon-result 块\n')
+    expect(await h.run(['agent', 'record', 'demo', builder.run_id], { env: ZH })).toBe(1)
+    expect(h.err.join('\n')).toMatch(/^ERROR: 报告无效：/u)
+    expect(await h.run(['agent', 'record', 'demo', builder.run_id], { env: EN })).toBe(1)
+    expect(h.err.join('\n')).toMatch(/^ERROR: invalid report: /u)
+
+    // 两个执行者都做完：状态 / 结果词与「全部完成」。
+    await report(builder.report_path, `# r\n\n\`\`\`tenon-result\n${JSON.stringify({ result: 'done', findings: [] })}\n\`\`\`\n`)
+    expect(await h.run(['agent', 'record', 'demo', builder.run_id], { env: USER_A }), h.err.join('\n')).toBe(0)
+    expect(await runAgent('researcher', [], { result: 'done' })).toBe(0)
+    seen = await both(['agent', 'next', 'demo'])
+    expect(seen.zh).toBe('builder 执行者 已完成 完成\nresearcher 执行者 已完成 完成\n全部完成')
+    expect(seen.en).toBe('builder executor done done\nresearcher executor done done\nAll done')
+
+    // verify 步骤：架构评审在等两个必需评审者；prompt 拒绝它。
+    expect(await h.run(['transition', 'demo', 'build-done'], { env: USER_A }), h.err.join('\n')).toBe(0)
+    seen = await both(['agent', 'prompt', 'demo', 'architecture'])
+    expect(seen).toMatchObject({
+      code: 2,
+      zh: "ERROR: agent 'architecture' 还需等待：agent:security, agent:spec-consistency",
+      en: "ERROR: agent 'architecture' still has to wait for: agent:security, agent:spec-consistency",
+    })
+
+    // 同一份代码上已有结论：重跑被拒，zh 是原来那句整段，en 是整段英文；带原因重跑后 next 行写明次数与原因。
+    expect(await runAgent('security', [{ severity: 'high', location: 'a.ts:1', message: 'x' }])).toBe(0)
+    seen = await both(['agent', 'prompt', 'demo', 'security'])
+    expect(seen.code).toBe(2)
+    expect(seen.zh).toBe(
+      "ERROR: 评审者 'security' 在当前候选上已经有 1 次结论（fail）：同一份代码不能靠重跑换结论。"
+      + '改代码换候选后再重跑；确有需要（例如上次的提示缺上下文）用 tenon agent prompt demo security --rerun-reason <原因> 写明并留痕，'
+      + '判定会把同一候选上的所有运行一并看（没有原因的重跑取最严结论，有原因的以最后一次为准）',
+    )
+    expect(seen.en).toBe(
+      "ERROR: reviewer 'security' already has 1 verdict(s) on the current candidate (fail): the same code cannot change its verdict by rerunning. "
+      + 'Change the code to get a new candidate, then rerun; if you really need to (for example the last prompt lacked context), '
+      + 'state why and leave a trace with tenon agent prompt demo security --rerun-reason <reason>. '
+      + 'The verdict looks at every run on the same candidate together (a rerun without a reason takes the strictest verdict, a rerun with a reason takes the last one)',
+    )
+    expect(await runAgent('security', [], { rerunReason: 'retry' })).toBe(0)
+    seen = await both(['agent', 'next', 'demo'])
+    expect(seen.zh).toContain('security 评审者 已完成 通过 重跑 1 次（结论翻转）：retry\n')
+    expect(seen.en).toContain('security reviewer done pass reran 1 time(s) (verdict flipped): retry\n')
+
+    // 评审期间候选变了：登记被拒。
+    const review = await started('spec-consistency')
+    await report(review.report_path, result([]))
+    await writeFile(join(h.cwd, 'changed.txt'), 'changed during the review\n', 'utf8')
+    seen = await both(['agent', 'record', 'demo', review.run_id])
+    expect(seen).toMatchObject({
+      code: 2,
+      zh: 'ERROR: 评审期间候选已变化；重跑：tenon agent prompt demo spec-consistency',
+      en: 'ERROR: the candidate changed during the review; run it again: tenon agent prompt demo spec-consistency',
+    })
   })
 })

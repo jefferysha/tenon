@@ -81,12 +81,12 @@ export async function cmdAgentPrompt(
   if (typeof context === 'number') return context
   const role = roleOf(context.step, agent)
   if (role === undefined) {
-    deps.io.err(`ERROR: agent '${agent}' 未在步骤 '${context.step.stepId}' 声明`)
+    deps.io.err(`ERROR: ${msg(deps, 'agent.notDeclared', { agent, step: context.step.stepId })}`)
     return 1
   }
   const frozen = context.frozen.get(agent)
   if (frozen === undefined) {
-    deps.io.err(`ERROR: agent '${agent}' 未随本任务冻结；重新创建任务或改工作流`)
+    deps.io.err(`ERROR: ${msg(deps, 'agent.notFrozen', { agent })}`)
     return 1
   }
   if (context.unattached.includes(agent)) return unattachedRefusal(deps, agent, frozen)
@@ -97,7 +97,7 @@ export async function cmdAgentPrompt(
   }
   const waiting = nextAgentWave(context).waiting.find((item) => item.agent === agent)
   if (waiting !== undefined) {
-    deps.io.err(`ERROR: agent '${agent}' 还需等待：${waiting.for.join(', ')}`)
+    deps.io.err(`ERROR: ${msg(deps, 'agent.waiting', { agent, needs: waiting.for.join(', ') })}`)
     return 2
   }
   // 执行宿主要求：步骤声明的（硬）优先，agent 定义的建议只用于路由。
@@ -112,7 +112,7 @@ export async function cmdAgentPrompt(
     ? priorRunsOnCandidate(context.runs, agent, context.stepVisit, context.candidate, stepHost)
     : []
   if (priorOnCandidate.length > 0 && rerunReason === undefined) {
-    deps.io.err(rerunRefusal(name, agent, priorOnCandidate))
+    deps.io.err(rerunRefusal(deps, name, agent, priorOnCandidate))
     return 2
   }
   const runId = existing?.run_id ?? randomUUID()
@@ -230,7 +230,7 @@ export async function cmdAgentRecord(
   options: { readonly subagent?: string; readonly host?: string } = {},
 ): Promise<number> {
   if (options.subagent !== undefined && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(options.subagent)) {
-    deps.io.err(`ERROR: --subagent '${options.subagent}' 非法`)
+    deps.io.err(`ERROR: ${msg(deps, 'agent.record.subagentInvalid', { subagent: options.subagent })}`)
     return 1
   }
   if (options.host !== undefined && !KNOWN_AGENT_HOSTS.includes(options.host)) {
@@ -241,7 +241,7 @@ export async function cmdAgentRecord(
   if (typeof context === 'number') return context
   const row = context.runs.find((entry) => entry.run_id === runId)
   if (row === undefined || row.status !== 'running' || row.step_visit !== context.stepVisit) {
-    deps.io.err(`ERROR: run '${runId}' 不是本次步骤访问中进行中的运行`)
+    deps.io.err(`ERROR: ${msg(deps, 'agent.record.runNotRunning', { run: runId })}`)
     return 1
   }
   const reportPath = join(deps.cwd, row.report_path)
@@ -249,23 +249,23 @@ export async function cmdAgentRecord(
   try {
     const info = await stat(reportPath)
     if (info.size > REPORT_MAX_BYTES) {
-      deps.io.err(`ERROR: 报告无效：超过 ${REPORT_MAX_BYTES} 字节`)
+      deps.io.err(`ERROR: ${msg(deps, 'agent.record.reportTooLarge', { max: REPORT_MAX_BYTES })}`)
       return 1
     }
     text = await readFile(reportPath, 'utf8')
   } catch {
-    deps.io.err(`ERROR: 报告无效：${row.report_path} 读不到`)
+    deps.io.err(`ERROR: ${msg(deps, 'agent.record.reportUnreadable', { path: row.report_path })}`)
     return 1
   }
   let parsed
   try {
     parsed = parseAgentReport(text, row.role)
   } catch (e) {
-    deps.io.err(`ERROR: 报告无效：${errMsg(e)}`)
+    deps.io.err(`ERROR: ${msg(deps, 'agent.record.reportInvalid', { error: errMsg(e) })}`)
     return 1
   }
   if (row.role === 'reviewer' && row.candidate !== context.candidate) {
-    deps.io.err(`ERROR: 评审期间候选已变化；重跑：tenon agent prompt ${name} ${row.agent}`)
+    deps.io.err(`ERROR: ${msg(deps, 'agent.record.candidateChanged', { change: name, agent: row.agent })}`)
     return 2
   }
   // 登记的宿主：进程环境判出的，或登记者用 --host 声明的（评审在另一个宿主里跑完、由原宿主登记时用它）。

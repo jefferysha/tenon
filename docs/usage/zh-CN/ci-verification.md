@@ -142,8 +142,12 @@ Action 输入：
 清单在 `packages/kernel/src/workspace/fingerprint.ts`（`HOST_LOCAL_FILES`、`HOST_LOCAL_DIRS`）。
 
 **只有 git 没有跟踪的路径才被排除。** 清单上的路径只要被 git 跟踪（已提交或已暂存），就是仓库的一部分，指纹照算，作者本机和 CI 都一样。
-没有这条规则，PR 可以把代码提交进 `.claude/worktrees/`、让测试命令去用它，之后再改它而候选不动。检查就是只对清单做 `git ls-files`；
-不是 git 仓库的目录什么都不跟踪；git 答不出来（缺失、索引损坏）就什么都不排除。在跟踪着这类路径的检出里出现 `candidate-mismatch` 时，
+没有这条规则，PR 可以把代码提交进 `.claude/worktrees/`、让测试命令去用它，之后再改它而候选不动。检查就是只对清单做 `git ls-files`。
+真正不是 git 仓库的目录什么都不跟踪：git 在它和所有上级目录里都找不到仓库，且项目根目录没有 `.git` 条目。git 答不出来就什么都不排除：
+git 缺失、索引损坏、`.git` 是 gitfile 但 `gitdir` 指向的目录不在了、`.git` 为空 / 损坏 / 读不了（上级仓库不会顶替它来回答），以及上级有仓库但在另一个文件系统上、git 不进去，都算答不出来。
+检查也不理会 git hook 设下的、用来指定仓库的 `GIT_*` 环境变量（`GIT_DIR`、`GIT_INDEX_FILE` 等）。
+在不区分大小写的文件系统上（探测项目根目录得知），路径与 git 的回答按忽略大小写匹配：git 报的是索引里的拼写，磁盘上的拼写可能不同，
+所以被跟踪的 `.Claude/Settings.local.json` 算作被跟踪的 `.claude/settings.local.json`。在跟踪着这类路径的检出里出现 `candidate-mismatch` 时，
 提示会把它们列出来。这是指纹的规则，不是单独的发现：被跟踪的路径和别的源文件一样改变候选；测试之后才把清单下的某个文件从未跟踪变成已跟踪，
 检查会失败，因为克隆里它计入候选。
 

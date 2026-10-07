@@ -26,7 +26,7 @@ import type { Stats } from 'node:fs'
 import { lstat, readdir, readFile, readlink } from 'node:fs/promises'
 import { join, sep } from 'node:path'
 import {
-  HOST_LOCAL_DIRS, HOST_LOCAL_FILES, SKIP_NOTHING, hasHostLocalFiles, skipUntrackedHostLocal, trackedHostLocalPaths,
+  HOST_LOCAL_DIRS, HOST_LOCAL_FILES, SKIP_NOTHING, hasHostLocalFiles, hostLocalTracking, skipUntrackedHostLocal,
   type HostLocalSkip,
 } from './host-local.js'
 import { isProcessLocalFdPath } from './process-local-fd-path.js'
@@ -386,8 +386,11 @@ export async function fingerprintWorkspaceTwins(root: string, options?: Fingerpr
   const full: Sink = { id: 'full', skip: SKIP_NOTHING, gitModes: false }
   // The portable fingerprint leaves out the host-local paths git does not track.  When git cannot say what it tracks
   // (or there is no host-local path to ask about) nothing is left out.
-  const tracked = await hasHostLocalFiles(root) ? await trackedHostLocalPaths(root) : undefined
-  const portable: Sink = { id: 'portable', skip: tracked === undefined ? SKIP_NOTHING : skipUntrackedHostLocal(tracked), gitModes: true }
+  const tracking = await hasHostLocalFiles(root) ? await hostLocalTracking(root) : undefined
+  const portable: Sink = {
+    id: 'portable', gitModes: true,
+    skip: tracking === undefined ? SKIP_NOTHING : skipUntrackedHostLocal(tracking.tracked, tracking.caseInsensitive),
+  }
   const sinks = [full, portable]
   const streams = new FingerprintStreams()
   emit(streams, sinks, (sink) => recordText('D', '.', recordedMode(sink, 'D', rootStat)))

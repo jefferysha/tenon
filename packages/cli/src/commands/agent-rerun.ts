@@ -4,20 +4,25 @@
  */
 import { AGENT_RERUN_REASON_MAX, hostRunValid, type AgentRunRow, type AgentView, type ReviewerHost } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
+import { msg, type LocaleCarrier } from '../i18n/messages.js'
 
 /** `--rerun-reason` 的文字校验：一行、非空、不超长。返回 undefined = 没给；字符串 = 规整后的原因；null = 非法（已打印错误）。 */
-export function parseRerunReason(deps: Pick<CliDeps, 'io'>, raw: string | undefined): string | undefined | null {
+export function parseRerunReason(deps: Pick<CliDeps, 'io' | 'locale'>, raw: string | undefined): string | undefined | null {
   if (raw === undefined) return undefined
   const reason = raw.trim()
   if (reason !== '' && reason.length <= AGENT_RERUN_REASON_MAX && !/[\r\n]/u.test(reason)) return reason
-  deps.io.err(`ERROR: --rerun-reason 需要一行不超过 ${AGENT_RERUN_REASON_MAX} 字的原因`)
+  deps.io.err(`ERROR: ${msg(deps, 'agent.rerun.reasonInvalid', { max: AGENT_RERUN_REASON_MAX })}`)
   return null
 }
 
 /** `agent next` 一行末尾的重跑说明：次数、结论是否翻转、写明的原因。 */
-export function rerunNote(view: Pick<AgentView, 'reruns' | 'flipped' | 'rerunReason'>): string {
+export function rerunNote(carrier: LocaleCarrier, view: Pick<AgentView, 'reruns' | 'flipped' | 'rerunReason'>): string {
   if (view.reruns === 0) return ''
-  return ` 重跑 ${view.reruns} 次${view.flipped ? '（结论翻转）' : ''}${view.rerunReason === null ? '' : `：${view.rerunReason}`}`
+  return msg(carrier, 'agent.next.rerun', {
+    count: view.reruns,
+    flipped: view.flipped ? msg(carrier, 'agent.next.rerun.flipped') : '',
+    reason: view.rerunReason === null ? '' : msg(carrier, 'agent.next.rerun.reason', { reason: view.rerunReason }),
+  })
 }
 
 /**
@@ -35,8 +40,11 @@ export function priorRunsOnCandidate(
     && row.status === 'finished' && row.candidate === candidate && hostRunValid(host, row.host))
 }
 
-export function rerunRefusal(change: string, agent: string, prior: readonly AgentRunRow[]): string {
-  return `ERROR: 评审者 '${agent}' 在当前候选上已经有 ${prior.length} 次结论（${prior.map((row) => `${row.result ?? '?'}`).join('、')}）：同一份代码不能靠重跑换结论。`
-    + `改代码换候选后再重跑；确有需要（例如上次的提示缺上下文）用 tenon agent prompt ${change} ${agent} --rerun-reason <原因> 写明并留痕，`
-    + '判定会把同一候选上的所有运行一并看（没有原因的重跑取最严结论，有原因的以最后一次为准）'
+export function rerunRefusal(carrier: LocaleCarrier, change: string, agent: string, prior: readonly AgentRunRow[]): string {
+  return `ERROR: ${msg(carrier, 'agent.rerun.refused', {
+    agent,
+    count: prior.length,
+    results: prior.map((row) => `${row.result ?? '?'}`).join(msg(carrier, 'list.separator')),
+    change,
+  })}`
 }

@@ -8251,7 +8251,7 @@ function legacyChannelProjectionContent(revision) {
 }
 
 // packages/kernel/dist/state/state-init.js
-import { readFile as readFile10, stat } from "node:fs/promises";
+import { readFile as readFile10, stat as stat2 } from "node:fs/promises";
 import path2 from "node:path";
 
 // packages/kernel/dist/workflow/builtin-workflows.js
@@ -8880,7 +8880,7 @@ import { join as join19, sep as sep5 } from "node:path";
 
 // packages/kernel/dist/workspace/host-local.js
 import { execFile } from "node:child_process";
-import { lstat as lstat10 } from "node:fs/promises";
+import { lstat as lstat10, stat } from "node:fs/promises";
 import { join as join18 } from "node:path";
 import { promisify } from "node:util";
 var HOST_LOCAL_FILES = [".claude/settings.local.json", "CLAUDE.local.md"];
@@ -8901,29 +8901,112 @@ async function hasHostLocalFiles(root) {
 var runGit = promisify(execFile);
 var GIT_TIMEOUT_MS = 3e4;
 var GIT_MAX_BUFFER = 64 * 1024 * 1024;
-async function trackedHostLocalPaths(root) {
+var GIT_REPOSITORY_ENV = /* @__PURE__ */ new Set([
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_INDEX_FILE",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_COMMON_DIR",
+  "GIT_CEILING_DIRECTORIES",
+  "GIT_DISCOVERY_ACROSS_FILESYSTEM"
+]);
+function gitEnvironment() {
+  const env = {};
+  for (const [name, value] of Object.entries(process.env)) {
+    if (!GIT_REPOSITORY_ENV.has(name.toUpperCase()))
+      env[name] = value;
+  }
+  return { ...env, LC_ALL: "C", LANG: "C" };
+}
+function isMissing(error2) {
+  return typeof error2 === "object" && error2 !== null && Reflect.get(error2, "code") === "ENOENT";
+}
+function foldAsciiCase(path14) {
+  return path14.replace(/[A-Z]/gu, (letter) => letter.toLowerCase());
+}
+function swapAsciiCase(name) {
+  return name.replace(/[A-Za-z]/gu, (letter) => letter === letter.toLowerCase() ? letter.toUpperCase() : letter.toLowerCase());
+}
+async function isCaseInsensitiveRoot(root) {
+  for (const name of new Set([...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS].map((path14) => path14.split("/")[0] ?? path14))) {
+    const swapped = swapAsciiCase(name);
+    if (swapped === name)
+      continue;
+    let original;
+    try {
+      original = await lstat10(join18(root, name));
+    } catch {
+      continue;
+    }
+    try {
+      const other = await lstat10(join18(root, swapped));
+      return other.dev === original.dev && other.ino === original.ino;
+    } catch (error2) {
+      return !isMissing(error2);
+    }
+  }
+  return true;
+}
+var NO_REPOSITORY_MESSAGE = /^fatal: not a git repository \(or any of the parent directories\)/imu;
+async function hasGitEntry(root) {
   try {
-    const { stdout } = await runGit("git", ["ls-files", "-z", "--cached", "--", ...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS], {
+    await lstat10(join18(root, ".git"));
+    return true;
+  } catch (error2) {
+    return !isMissing(error2);
+  }
+}
+async function hasGitDirectory(root) {
+  try {
+    return (await stat(join18(root, ".git"))).isDirectory();
+  } catch {
+    return false;
+  }
+}
+async function hostLocalTracking(root) {
+  const caseInsensitive = await isCaseInsensitiveRoot(root);
+  const gitDir = await hasGitDirectory(root) ? [`--git-dir=${join18(root, ".git")}`] : [];
+  const args = [
+    ...gitDir,
+    ...caseInsensitive ? ["--icase-pathspecs"] : [],
+    "ls-files",
+    "-z",
+    "--cached",
+    "--",
+    ...HOST_LOCAL_FILES,
+    ...HOST_LOCAL_DIRS
+  ];
+  try {
+    const { stdout } = await runGit("git", args, {
       cwd: root,
       timeout: GIT_TIMEOUT_MS,
       maxBuffer: GIT_MAX_BUFFER,
-      env: { ...process.env, LC_ALL: "C", LANG: "C" }
+      env: gitEnvironment()
     });
-    return new Set(stdout.split("\0").filter((path14) => path14 !== ""));
+    return { tracked: new Set(stdout.split("\0").filter((path14) => path14 !== "")), caseInsensitive };
   } catch (error2) {
     const stderr = typeof error2 === "object" && error2 !== null ? Reflect.get(error2, "stderr") : void 0;
-    return typeof stderr === "string" && /not a git repository/iu.test(stderr) ? /* @__PURE__ */ new Set() : void 0;
+    const noRepository = typeof stderr === "string" && NO_REPOSITORY_MESSAGE.test(stderr) && !await hasGitEntry(root);
+    return noRepository ? { tracked: /* @__PURE__ */ new Set(), caseInsensitive } : void 0;
   }
 }
 var SKIP_NOTHING = () => false;
-function skipUntrackedHostLocal(tracked) {
+function skipUntrackedHostLocal(tracked, caseInsensitive = false) {
+  const key = caseInsensitive ? foldAsciiCase : (path14) => path14;
+  const trackedKeys = new Set([...tracked].map(key));
   const holdingTracked = /* @__PURE__ */ new Set();
-  for (const path14 of tracked) {
+  for (const path14 of trackedKeys) {
     const parts = path14.split("/");
     for (let end = 1; end < parts.length; end++)
       holdingTracked.add(parts.slice(0, end).join("/"));
   }
-  return (relativePath) => isHostLocalPath(relativePath) && !tracked.has(relativePath) && !holdingTracked.has(relativePath);
+  return (relativePath) => {
+    if (!isHostLocalPath(relativePath))
+      return false;
+    const folded = key(relativePath);
+    return !trackedKeys.has(folded) && !holdingTracked.has(folded);
+  };
 }
 
 // packages/kernel/dist/workspace/process-local-fd-path.js
@@ -9001,8 +9084,8 @@ var EXCLUDED_ROOT_ARTIFACTS = [
 function sortNames(names) {
   return names.sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
 }
-function modeOf(stat8) {
-  return (stat8.mode & 511).toString(8);
+function modeOf(stat9) {
+  return (stat9.mode & 511).toString(8);
 }
 function sameFileIdentity(before, after) {
   return before.size === after.size && before.mode === after.mode && before.mtimeMs === after.mtimeMs && before.ino === after.ino;
@@ -9043,8 +9126,8 @@ function portableModeOf(kind, mode) {
     return (mode & 64) !== 0 ? "755" : "644";
   return "755";
 }
-function recordedMode(sink, kind, stat8) {
-  return sink.gitModes ? portableModeOf(kind, stat8.mode) : modeOf(stat8);
+function recordedMode(sink, kind, stat9) {
+  return sink.gitModes ? portableModeOf(kind, stat9.mode) : modeOf(stat9);
 }
 var FingerprintStreams = class {
   shared = createHash10("sha256");
@@ -9142,8 +9225,12 @@ async function fingerprintWorkspaceTwins(root, options3) {
     throw new Error(`workspace root is not a directory: ${root}`);
   const exclusions = exclusionsOf(options3);
   const full = { id: "full", skip: SKIP_NOTHING, gitModes: false };
-  const tracked = await hasHostLocalFiles(root) ? await trackedHostLocalPaths(root) : void 0;
-  const portable = { id: "portable", skip: tracked === void 0 ? SKIP_NOTHING : skipUntrackedHostLocal(tracked), gitModes: true };
+  const tracking = await hasHostLocalFiles(root) ? await hostLocalTracking(root) : void 0;
+  const portable = {
+    id: "portable",
+    gitModes: true,
+    skip: tracking === void 0 ? SKIP_NOTHING : skipUntrackedHostLocal(tracking.tracked, tracking.caseInsensitive)
+  };
   const sinks = [full, portable];
   const streams = new FingerprintStreams();
   emit(streams, sinks, (sink) => recordText("D", ".", recordedMode(sink, "D", rootStat)));
@@ -12871,7 +12958,7 @@ async function detectBaseBranch(repoRoot) {
   try {
     const gitPath = path2.join(repoRoot, ".git");
     let gitDir = gitPath;
-    const entry2 = await stat(gitPath);
+    const entry2 = await stat2(gitPath);
     if (!entry2.isDirectory()) {
       const pointer = await readFile10(gitPath, "utf8");
       const match = /^gitdir:\s*(.+)$/m.exec(pointer);
@@ -16302,7 +16389,7 @@ async function clearReviewMarkerFor(root, change, event) {
   try {
     content = await readFile19(marker, "utf8");
   } catch (error2) {
-    if (isMissing(error2))
+    if (isMissing2(error2))
       return;
     throw error2;
   }
@@ -16314,7 +16401,7 @@ async function clearReviewMarkerFor(root, change, event) {
   try {
     await unlink4(marker);
   } catch (error2) {
-    if (!isMissing(error2))
+    if (!isMissing2(error2))
       throw error2;
   }
 }
@@ -16324,7 +16411,7 @@ async function clearReviewMarkerOfChange(root, change) {
   try {
     content = await readFile19(marker, "utf8");
   } catch (error2) {
-    if (isMissing(error2))
+    if (isMissing2(error2))
       return false;
     throw error2;
   }
@@ -16335,12 +16422,12 @@ async function clearReviewMarkerOfChange(root, change) {
     await unlink4(marker);
     return true;
   } catch (error2) {
-    if (isMissing(error2))
+    if (isMissing2(error2))
       return false;
     throw error2;
   }
 }
-function isMissing(error2) {
+function isMissing2(error2) {
   return error2 !== null && typeof error2 === "object" && "code" in error2 && error2.code === "ENOENT";
 }
 
@@ -18161,7 +18248,7 @@ async function deleteSecretKey(path14, key) {
 var MAX_FIELD_SUBJECTS_BYTES = 512 * 1024;
 
 // packages/kernel/dist/state/tasks.js
-import { readdir as readdir4, stat as stat2 } from "node:fs/promises";
+import { readdir as readdir4, stat as stat3 } from "node:fs/promises";
 import path6 from "node:path";
 var NULL_SENTINEL = "null";
 function normalizeDeps(value) {
@@ -24995,7 +25082,7 @@ import { lstat as lstat32, readFile as readFile35, readdir as readdir11 } from "
 import { join as join45 } from "node:path";
 
 // packages/kernel/dist/test-system/baseline-v2.js
-import { mkdir as mkdir20, readFile as readFile32, stat as stat3 } from "node:fs/promises";
+import { mkdir as mkdir20, readFile as readFile32, stat as stat4 } from "node:fs/promises";
 
 // packages/kernel/dist/test-system/audit.js
 function formatAuditDetail(pairs) {
@@ -38294,7 +38381,7 @@ var DEFAULT_CONFIG = {
 
 // packages/automation/dist/artifacts/service.js
 import { createHash as createHash24 } from "node:crypto";
-import { cp, mkdir as mkdir30, readFile as readFile46, stat as stat4, writeFile as writeFile17 } from "node:fs/promises";
+import { cp, mkdir as mkdir30, readFile as readFile46, stat as stat5, writeFile as writeFile17 } from "node:fs/promises";
 import { dirname as dirname14, join as join63, relative as relative8, resolve as resolve17 } from "node:path";
 
 // packages/automation/dist/submission/registry.js
@@ -38438,7 +38525,7 @@ async function openArtifactService(options3) {
         await withLock(store, async () => {
           let targetExists = true;
           try {
-            await stat4(statePath);
+            await stat5(statePath);
           } catch (error2) {
             if (error2.code === "ENOENT")
               targetExists = false;
@@ -38447,7 +38534,7 @@ async function openArtifactService(options3) {
           }
           let legacyExists = true;
           try {
-            await stat4(join63(legacyStore, "state.json"));
+            await stat5(join63(legacyStore, "state.json"));
           } catch (error2) {
             if (error2.code === "ENOENT")
               legacyExists = false;
@@ -38496,7 +38583,7 @@ async function openArtifactService(options3) {
     await migration;
     try {
       const current = decodeState(JSON.parse(await readFile46(statePath, "utf8")));
-      await stat4(join63(legacyStore, "state.json"));
+      await stat5(join63(legacyStore, "state.json"));
       legacyScopeCopied = Array.isArray(current.migrationReceipts) && !current.migrationReceipts.some((receipt) => receipt.receipt_id === `migration:scope:runtime-artifacts:${options3.scopeId}`);
     } catch {
     }
@@ -38573,7 +38660,7 @@ async function openArtifactService(options3) {
     const sha = digest9(bytes);
     const path14 = join63(blobs, sha);
     try {
-      await stat4(path14);
+      await stat5(path14);
     } catch {
       await writeFile17(path14, bytes, { flag: "wx" }).catch((error2) => {
         if (error2.code !== "EEXIST")
@@ -39141,7 +39228,7 @@ var ACTIONS2 = new Set(WORKFLOW_ACTIONS);
 // packages/automation/dist/skills/snapshot-manifest.js
 import { createHash as createHash26 } from "node:crypto";
 import { constants as constants5 } from "node:fs";
-import { chmod, lstat as lstat40, mkdir as mkdir31, open as open6, readdir as readdir16, realpath as realpath7, stat as stat5, writeFile as writeFile18 } from "node:fs/promises";
+import { chmod, lstat as lstat40, mkdir as mkdir31, open as open6, readdir as readdir16, realpath as realpath7, stat as stat6, writeFile as writeFile18 } from "node:fs/promises";
 import { dirname as dirname15, join as join64, relative as relative9, sep as sep10 } from "node:path";
 
 // packages/automation/dist/skills/types.js
@@ -39254,7 +39341,7 @@ async function buildCanonicalManifest(skillId, sourceDir2, hooks = {}) {
   } catch (e) {
     throw new SkillContentInvalidError(`skill '${skillId}' \u5185\u5BB9\u6839\u4E0D\u53EF\u89E3\u6790\uFF1A${sourceDir2}\uFF08${e.message}\uFF09`);
   }
-  const rootStat = await stat5(realRoot).catch((e) => {
+  const rootStat = await stat6(realRoot).catch((e) => {
     throw new SkillContentInvalidError(`skill '${skillId}' \u5185\u5BB9\u6839\u4E0D\u53EF\u8BBF\u95EE\uFF1A${realRoot}\uFF08${e.message}\uFF09`);
   });
   if (!rootStat.isDirectory()) {
@@ -39298,7 +39385,7 @@ async function buildCanonicalManifest(skillId, sourceDir2, hooks = {}) {
         if (fromRoot === ".." || fromRoot.startsWith(`..${"/"}`)) {
           throw new SkillContentInvalidError(`skill '${skillId}' \u542B\u76EE\u5F55\u9003\u9038 symlink\uFF1A${relPath} \u2192 ${real}`);
         }
-        const targetStat = await stat5(real);
+        const targetStat = await stat6(real);
         if (targetStat.isDirectory()) {
           if (visitedDirs.has(real)) {
             throw new SkillContentInvalidError(`skill '${skillId}' \u542B symlink \u73AF\uFF1A${relPath} \u2192 ${real}`);
@@ -39330,7 +39417,7 @@ async function buildCanonicalManifest(skillId, sourceDir2, hooks = {}) {
         if (fromRoot === ".." || fromRoot.startsWith(`..${"/"}`)) {
           throw new SkillContentInvalidError(`skill '${skillId}' \u6587\u4EF6\u5728\u8BFB\u53D6\u524D\u9003\u9038\uFF1A${relPath} \u2192 ${real}`);
         }
-        const expected = await stat5(real);
+        const expected = await stat6(real);
         await readAndRecord(real, relPath, { noFollow: true, expected: { dev: expected.dev, ino: expected.ino } });
         continue;
       }
@@ -39499,7 +39586,7 @@ var DEFAULT_IDLE_TIMEOUT_MS = 20 * 60 * 1e3;
 var DEFAULT_COMPLETION_TIMEOUT_MS = 60 * 1e3;
 
 // packages/automation/dist/skills/content-locator.js
-import { lstat as lstat41, realpath as realpath8, stat as stat6 } from "node:fs/promises";
+import { lstat as lstat41, realpath as realpath8, stat as stat7 } from "node:fs/promises";
 import { join as join67 } from "node:path";
 var SkillContentNotFoundError = class extends Error {
   name = "SkillContentNotFoundError";
@@ -39537,7 +39624,7 @@ function createFsSkillContentLocator(roots) {
         }
         let st;
         try {
-          st = await stat6(candidate2);
+          st = await stat7(candidate2);
         } catch (err) {
           throw new SkillContentAccessError(`skill '${skillId}' \u5019\u9009\u8DEF\u5F84 '${candidate2}' \u5DF2\u5B58\u5728\u4F46\u65E0\u6CD5\u89E3\u5F15\u7528\uFF08${errnoCode5(err)}\uFF0C\u7591\u4F3C\u60AC\u7A7A/\u6210\u73AF symlink \u6216\u6743\u9650\u95EE\u9898\uFF09\uFF1A${errMessage(err)}`);
         }
@@ -40273,17 +40360,17 @@ function parseEvents(raw) {
   }
   return parsed2;
 }
-function fileIdentity(stat8) {
-  return { dev: stat8.dev, ino: stat8.ino, size: stat8.size };
+function fileIdentity(stat9) {
+  return { dev: stat9.dev, ino: stat9.ino, size: stat9.size };
 }
 function sameFileIdentity2(left, right) {
   return left.dev === right.dev && left.ino === right.ino && left.size === right.size;
 }
-function assertRegularJournalFile(stat8) {
-  if (!stat8.isFile()) {
+function assertRegularJournalFile(stat9) {
+  if (!stat9.isFile()) {
     throw new TaskRunJournalCorruptError("Task run journal leaf is not a regular file");
   }
-  return fileIdentity(stat8);
+  return fileIdentity(stat9);
 }
 async function assertJournalPathIdentity(path14, expected) {
   let current;
@@ -41898,7 +41985,7 @@ function chooseWave(snapshot, policy2) {
 
 // packages/automation/dist/artifact-runtime/stage-runtime.js
 import { createHash as createHash31 } from "node:crypto";
-import { readFile as readFile49, readdir as readdir17, stat as stat7 } from "node:fs/promises";
+import { readFile as readFile49, readdir as readdir17, stat as stat8 } from "node:fs/promises";
 import path11 from "node:path";
 var StageArtifactRuntime = class _StageArtifactRuntime {
   service;
@@ -42128,7 +42215,7 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
       }
     };
     try {
-      await stat7(this.rootDir);
+      await stat8(this.rootDir);
       await walk(this.rootDir);
     } catch {
     }
@@ -43054,11 +43141,11 @@ function assertWorkflowRootAnchor(anchor) {
 }
 function captureWorkflowRootMutationVersion(anchor) {
   assertWorkflowRootAnchor(anchor);
-  const stat8 = lstatSync5(anchor.path, { bigint: true });
-  if (stat8.isSymbolicLink() || !stat8.isDirectory() || Number(stat8.dev) !== anchor.dev || Number(stat8.ino) !== anchor.ino) {
+  const stat9 = lstatSync5(anchor.path, { bigint: true });
+  if (stat9.isSymbolicLink() || !stat9.isDirectory() || Number(stat9.dev) !== anchor.dev || Number(stat9.ino) !== anchor.ino) {
     throw new Error(`registered root \u5728\u7248\u672C\u6355\u83B7\u671F\u95F4\u88AB\u66FF\u6362: ${anchor.path}`);
   }
-  return { mtimeNs: stat8.mtimeNs, ctimeNs: stat8.ctimeNs };
+  return { mtimeNs: stat9.mtimeNs, ctimeNs: stat9.ctimeNs };
 }
 function assertWorkflowRootMutationVersion(anchor, expected) {
   const current = captureWorkflowRootMutationVersion(anchor);
@@ -43833,7 +43920,7 @@ function decodeUtf8(bytes) {
 function isInvalidUtf8(error2) {
   return error2 instanceof TypeError && "code" in error2 && error2.code === "ERR_ENCODING_INVALID_ENCODED_DATA";
 }
-function isMissing2(error2) {
+function isMissing3(error2) {
   return typeof error2 === "object" && error2 !== null && Reflect.get(error2, "code") === "ENOENT";
 }
 function readBounded2(fd, maxBytes) {
@@ -43881,7 +43968,7 @@ function readTrustedFile(root, relativePath, maxBytes, readLimit, changeIdentity
           constants11.O_RDONLY | constants11.O_NOFOLLOW | constants11.O_NONBLOCK
         );
       } catch (error2) {
-        if (isMissing2(error2)) {
+        if (isMissing3(error2)) {
           throw new LedgerContextBundleError(
             "CONTEXT_BUNDLE_DOCUMENT_MISSING",
             `Context Bundle document is missing: ${relativePath}`,
@@ -44220,8 +44307,8 @@ async function viewerFingerprintParts(readRoot, viewer) {
   if (viewer !== void 0 && isTenonUser(viewer)) targets.push(userProjectPaths(readRoot, viewer.slug).archived);
   for (const target of targets) {
     try {
-      const stat8 = await lstat44(target, { bigint: true });
-      parts.push(`${target}:${stat8.size}:${stat8.mtimeNs}`);
+      const stat9 = await lstat44(target, { bigint: true });
+      parts.push(`${target}:${stat9.size}:${stat9.mtimeNs}`);
     } catch {
     }
   }
@@ -44236,8 +44323,8 @@ async function userSlugs2(readRoot) {
 }
 async function statPart(target) {
   try {
-    const stat8 = await lstat44(target, { bigint: true });
-    return `${target}:${stat8.size}:${stat8.mtimeNs}`;
+    const stat9 = await lstat44(target, { bigint: true });
+    return `${target}:${stat9.size}:${stat9.mtimeNs}`;
   } catch {
     return void 0;
   }
@@ -44368,17 +44455,17 @@ import {
 import { dirname as dirname18, isAbsolute as isAbsolute15, join as join76, relative as relative11, sep as sep14 } from "node:path";
 
 // packages/server/src/stableFileMetadata.ts
-function captureStableFileVersion(stat8) {
+function captureStableFileVersion(stat9) {
   return {
-    dev: stat8.dev,
-    ino: stat8.ino,
-    size: stat8.size,
-    mtimeNs: stat8.mtimeNs,
-    ctimeNs: stat8.ctimeNs
+    dev: stat9.dev,
+    ino: stat9.ino,
+    size: stat9.size,
+    mtimeNs: stat9.mtimeNs,
+    ctimeNs: stat9.ctimeNs
   };
 }
-function matchesStableFileVersion(stat8, expected) {
-  return stat8.isFile() && stat8.dev === expected.dev && stat8.ino === expected.ino && stat8.size === expected.size && stat8.mtimeNs === expected.mtimeNs && stat8.ctimeNs === expected.ctimeNs;
+function matchesStableFileVersion(stat9, expected) {
+  return stat9.isFile() && stat9.dev === expected.dev && stat9.ino === expected.ino && stat9.size === expected.size && stat9.mtimeNs === expected.mtimeNs && stat9.ctimeNs === expected.ctimeNs;
 }
 
 // packages/server/src/snapshotTasks.ts
@@ -44392,13 +44479,13 @@ async function hasCurrentCanonicalTaskPlanProjection(changeDir2, source2) {
   }
 }
 function captureDirectoryMutationVersion(path14) {
-  const stat8 = lstatSync8(path14, { bigint: true });
-  if (!stat8.isDirectory() || stat8.isSymbolicLink()) throw new Error("tasks ancestor is not a directory");
-  return { path: path14, dev: stat8.dev, ino: stat8.ino, mtimeNs: stat8.mtimeNs, ctimeNs: stat8.ctimeNs };
+  const stat9 = lstatSync8(path14, { bigint: true });
+  if (!stat9.isDirectory() || stat9.isSymbolicLink()) throw new Error("tasks ancestor is not a directory");
+  return { path: path14, dev: stat9.dev, ino: stat9.ino, mtimeNs: stat9.mtimeNs, ctimeNs: stat9.ctimeNs };
 }
 function matchesDirectoryMutationVersion(expected) {
-  const stat8 = lstatSync8(expected.path, { bigint: true });
-  return stat8.isDirectory() && !stat8.isSymbolicLink() && stat8.dev === expected.dev && stat8.ino === expected.ino && stat8.mtimeNs === expected.mtimeNs && stat8.ctimeNs === expected.ctimeNs;
+  const stat9 = lstatSync8(expected.path, { bigint: true });
+  return stat9.isDirectory() && !stat9.isSymbolicLink() && stat9.dev === expected.dev && stat9.ino === expected.ino && stat9.mtimeNs === expected.mtimeNs && stat9.ctimeNs === expected.ctimeNs;
 }
 function isInside(base, candidate2) {
   const fromBase = relative11(base, candidate2);
@@ -47341,8 +47428,8 @@ function readBoundedHooksConfig(root, pipeline) {
       file.operation,
       constants14.O_RDONLY | constants14.O_NONBLOCK | constants14.O_NOFOLLOW
     );
-    const stat8 = fstatSync10(fd);
-    if (!stat8.isFile() || stat8.size > HOOKS_CONFIG_MAX_BYTES) return null;
+    const stat9 = fstatSync10(fd);
+    if (!stat9.isFile() || stat9.size > HOOKS_CONFIG_MAX_BYTES) return null;
     const buffer = Buffer.alloc(HOOKS_CONFIG_MAX_BYTES + 1);
     const bytesRead = readSync6(fd, buffer, 0, buffer.byteLength, 0);
     if (bytesRead > HOOKS_CONFIG_MAX_BYTES) return null;

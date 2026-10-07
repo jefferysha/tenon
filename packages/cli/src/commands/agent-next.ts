@@ -8,12 +8,9 @@ import {
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 import { resolveAgentCommand } from './agent-context.js'
+import { msg, type LocaleCarrier } from '../i18n/messages.js'
 import { hostNote } from './agent-route.js'
 import { rerunNote } from './agent-rerun.js'
-
-const ROLE_WORD = { executor: '执行者', reviewer: '评审者' } as const
-const STATE_WORD = { idle: '未运行', running: '进行中', done: '已完成', stale: '过期' } as const
-const RESULT_WORD = { pass: '通过', fail: '不通过', done: '完成', failed: '失败' } as const
 
 const viewJson = (view: AgentView, waiting: readonly { agent: string; for: readonly string[] }[]) => ({
   agent: view.agent,
@@ -56,11 +53,13 @@ export async function cmdAgentNext(deps: CliDeps, name: string, json: boolean): 
     return 0
   }
   for (const view of views) {
-    const result = view.result === null ? '' : ` ${RESULT_WORD[view.result]}`
-    const findings = view.findings === 0 ? '' : ` 问题 ${view.findings}`
-    deps.io.out(`${view.agent} ${ROLE_WORD[view.role]} ${STATE_WORD[view.state]}${result}${findings}${rerunNote(view)}${hostNote(view)}`)
+    const role = msg(deps, `agent.next.role.${view.role}`)
+    const state = msg(deps, `agent.next.state.${view.state}`)
+    const result = view.result === null ? '' : ` ${msg(deps, `agent.next.result.${view.result}`)}`
+    const findings = view.findings === 0 ? '' : ` ${msg(deps, 'agent.next.findings', { count: view.findings })}`
+    deps.io.out(`${view.agent} ${role} ${state}${result}${findings}${rerunNote(deps, view)}${hostNote(deps, view)}`)
   }
-  for (const line of waveSummary(name, views, wave, waiting, verdict)) deps.io.out(line)
+  for (const line of waveSummary(deps, name, views, wave, waiting, verdict)) deps.io.out(line)
   return 0
 }
 
@@ -70,22 +69,23 @@ export async function cmdAgentNext(deps: CliDeps, name: string, json: boolean): 
  * 只有没有进行中的、没有在等的、且离开判定通过时才说全部完成；否则逐条说还差什么。
  */
 function waveSummary(
+  carrier: LocaleCarrier,
   change: string,
   views: readonly AgentView[],
   wave: readonly string[],
   waiting: readonly { readonly agent: string; readonly for: readonly string[] }[],
   verdict: ReturnType<typeof evaluateStepAgents>,
 ): readonly string[] {
-  if (wave.length > 0) return [`下一波：${wave.join(', ')}`]
+  if (wave.length > 0) return [msg(carrier, 'agent.next.wave', { agents: wave.join(', ') })]
   const lines: string[] = []
   for (const view of views) {
     if (view.state !== 'running') continue
-    lines.push(`进行中：${view.agent}；完成后 tenon agent record ${change} ${view.runId ?? '<run>'}`)
+    lines.push(msg(carrier, 'agent.next.running', { agent: view.agent, change, run: view.runId ?? '<run>' }))
   }
-  for (const item of waiting) lines.push(`等待：${item.agent} ← ${item.for.join(', ')}`)
-  if (lines.length === 0 && verdict.pass) return ['全部完成']
+  for (const item of waiting) lines.push(msg(carrier, 'agent.next.waiting', { agent: item.agent, needs: item.for.join(', ') }))
+  if (lines.length === 0 && verdict.pass) return [msg(carrier, 'agent.next.allDone')]
   if (lines.length === 0) {
-    for (const blocker of verdict.blockers) lines.push(`未完成：${renderAgentBlocker(blocker, change)}`)
+    for (const blocker of verdict.blockers) lines.push(msg(carrier, 'agent.next.unfinished', { blocker: renderAgentBlocker(blocker, change) }))
   }
   return lines
 }
