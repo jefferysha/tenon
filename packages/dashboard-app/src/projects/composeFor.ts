@@ -8,6 +8,7 @@ import { selectionKey, type TemplateSelection } from './TemplateStep'
 export async function composeFor(
   projectName: string, selected: readonly TemplateSelection[], values: Readonly<Record<string, string>>,
   catalogs: ReadonlyMap<string, Record<string, string[]>> = new Map(),
+  signal?: AbortSignal,
 ): Promise<{ markdown: string; directories: string[] }> {
   const composed = await composeInstructions(projectName, selected.map((item) => {
     const prefix = `${selectionKey(item)}::`
@@ -19,6 +20,6 @@ export async function composeFor(
         .map(([key, value]) => [key.slice(prefix.length), value])),
       ...(catalog === undefined ? {} : { catalog }),
     }
-  }))
+  }), signal)
   return { markdown: composed.markdown, directories: composed.directories.map((entry) => entry.path) }
 }

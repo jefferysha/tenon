@@ -2,6 +2,8 @@ import type { ProjectCreateInput, ProjectInstructionsInput } from '../api/instru
 import { PROJECT_INSTRUCTION_FILES, type ProjectInstructionFile } from '../api/instructionsDecoders'
 
 export const WIZARD_STEPS = ['location', 'templates', 'resources', 'clients', 'confirm'] as const
+/** 确认步预检（取模板块 + 拼合 + dry run）的整体期限：到点没回来就按超时报错、给「重试」，不再无限转圈。 */
+export const PRECHECK_TIMEOUT_MS = 15_000
 export type WizardStep = (typeof WIZARD_STEPS)[number]
 
 export type LocationMode = 'existing' | 'empty'
