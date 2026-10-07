@@ -756,21 +756,36 @@ function productRootContract(paths) {
   })
 }
 
+// Both generators must emit the same bytes for the same inputs: convergeRollbackLauncher compares the launcher on
+// disk with this text, and any line the installer writes that this one does not (it once missed TENON_NODE_PATH)
+// makes the installer's own launcher look third-party. packages/cli/src/runtime/launchers.ts is the other
+// generator; a bootstrap test pins whole-text parity for both modes and for the v1.0.1 form.
 function stableLauncherText(paths, mode, legacy = false, nodeProof) {
   const bootstrap = join(paths.bootstrapRoot, 'active.mjs')
   const missing = mode === 'hook'
     ? 'exit 0'
     : 'printf "tenon runtime bootstrap unavailable; run tenon setup --codex or tenon setup --claude\\n" >&2\n  exit 1'
-  return `${legacy ? '#!/usr/bin/env bash' : '#!/bin/sh'}
-set -eu
-export TENON_RUNTIME_ROOTS=${shellQuote(productRootContract(paths))}
+  const rootContract = productRootContract(paths)
+  const roots = `export TENON_RUNTIME_ROOTS=${shellQuote(rootContract)}
 # N-1 bootstrap ABI: previous verified releases read these exact roots during rollback.
 export TENON_RUNTIME_DATA_ROOT=${shellQuote(paths.dataRoot)}
 export TENON_RUNTIME_STATE_ROOT=${shellQuote(paths.stateRoot)}
 export TENON_RUNTIME_CONFIG_ROOT=${shellQuote(paths.configRoot)}
+`
+  // The public v1.0.1 launcher: compare-only. It resolves node through PATH and has no Node identity guard.
+  if (legacy) {
+    return `#!/usr/bin/env bash
+set -eu
+${roots}[ -f ${shellQuote(bootstrap)} ] || { ${missing}; }
+exec node ${shellQuote(bootstrap)} ${mode} "$@"
+`
+  }
+  return `#!/bin/sh
+set -eu
+${roots}export TENON_NODE_PATH=${shellQuote(process.execPath)}
 [ -f ${shellQuote(bootstrap)} ] || { ${missing}; }
-${launcherNodeGuard(nodeProof, { mode, bootstrap, rootContract: productRootContract(paths), stateRoot: paths.stateRoot })}
-exec ${legacy ? 'node' : shellQuote(process.execPath)} ${shellQuote(bootstrap)} ${mode} "$@"
+${launcherNodeGuard(nodeProof, { mode, bootstrap, rootContract, stateRoot: paths.stateRoot })}
+exec ${shellQuote(process.execPath)} ${shellQuote(bootstrap)} ${mode} "$@"
 `
 }
 
@@ -862,17 +877,17 @@ function selectionMatchesRollbackTarget(selection, target) {
     && selection.previousRelease === target.previousRelease
 }
 
-async function convergeRollbackLauncher(name, expected, legacy, checkpoint, transactionId) {
+// What the journal can account for, decided without touching anything: the launcher is already the target, or it is the
+// journal checkpoint (itself missing, the v1.0.1 form, or the target form) with no unexplained private copy. This runs
+// before the selection flips, so an unprovable launcher refuses the rollback instead of stranding it half done.
+async function proveRollbackLauncher(name, expected, legacy, checkpoint, transactionId) {
   if (expected.path !== checkpoint.path) throw new Error(`rollback launcher checkpoint path drifted: ${name}`)
   const privatePrevious = `${expected.path}.tenon-rollback-${transactionId}.previous`
-  let current = await captureLauncher(expected.path)
-  let previous = await captureLauncher(privatePrevious)
+  const current = await captureLauncher(expected.path)
+  const previous = await captureLauncher(privatePrevious)
   if (sameLauncherState(current.state, expected.state)) {
-    if (previous.state.kind !== 'missing') {
-      if (!sameLauncherState(previous.state, checkpoint.state)) {
-        throw new Error(`rollback launcher private checkpoint drifted: ${name}`)
-      }
-      await rm(privatePrevious)
+    if (previous.state.kind !== 'missing' && !sameLauncherState(previous.state, checkpoint.state)) {
+      throw new Error(`rollback launcher private checkpoint drifted: ${name}`)
     }
     return
   }
@@ -880,6 +895,32 @@ async function convergeRollbackLauncher(name, expected, legacy, checkpoint, tran
     || sameLauncherState(checkpoint.state, legacy.state)
     || sameLauncherState(checkpoint.state, expected.state)
   if (!checkpointAllowed) throw new Error(`rollback refuses a third-party launcher checkpoint: ${name}`)
+  const capturable = previous.state.kind === 'missing' && sameLauncherState(current.state, checkpoint.state)
+    && current.state.kind === 'file'
+  if (previous.state.kind !== 'missing' && !sameLauncherState(previous.state, checkpoint.state)) {
+    throw new Error(`rollback launcher private previous is not the journal checkpoint: ${name}`)
+  }
+  if (!capturable && current.state.kind !== 'missing') {
+    throw new Error(`rollback launcher changed after its checkpoint: ${name}`)
+  }
+}
+
+async function proveRollbackLaunchers(paths, journal) {
+  const expected = expectedStableLaunchers(paths, false, await currentNodeProof())
+  const legacy = expectedStableLaunchers(paths, true)
+  await proveRollbackLauncher('tenon', expected.tenon, legacy.tenon, journal.launchers.tenon, journal.transactionId)
+  await proveRollbackLauncher('hook', expected.hook, legacy.hook, journal.launchers.hook, journal.transactionId)
+}
+
+async function convergeRollbackLauncher(name, expected, legacy, checkpoint, transactionId) {
+  await proveRollbackLauncher(name, expected, legacy, checkpoint, transactionId)
+  const privatePrevious = `${expected.path}.tenon-rollback-${transactionId}.previous`
+  let current = await captureLauncher(expected.path)
+  let previous = await captureLauncher(privatePrevious)
+  if (sameLauncherState(current.state, expected.state)) {
+    if (previous.state.kind !== 'missing') await rm(privatePrevious)
+    return
+  }
   if (previous.state.kind === 'missing' && sameLauncherState(current.state, checkpoint.state)
     && current.state.kind === 'file') {
     await rename(expected.path, privatePrevious)
@@ -964,14 +1005,31 @@ async function rollback(paths) {
 
     let selection = await readSelection(paths)
     if (JSON.stringify(selection) === JSON.stringify(journal.beforeSelection)) {
-      const previous = await releasePayload(paths, journal.target.activeRelease)
-      if (previous === null) throw new Error('rollback target integrity check failed; reinstall the selected host package')
       const next = {
         version: 1,
         revision: journal.target.revision,
         activeRelease: journal.target.activeRelease,
         previousRelease: journal.target.previousRelease,
         updatedAt: now(),
+      }
+      try {
+        // Nothing has moved yet, so a refusal here leaves the install exactly as it was: the selection stays,
+        // the launchers stay, and no journal is left to wedge `tenon update` and `tenon setup` afterwards.
+        if (await releasePayload(paths, journal.target.activeRelease) === null) {
+          throw new Error('rollback target integrity check failed; reinstall the selected host package')
+        }
+        await proveRollbackLaunchers(paths, journal)
+      } catch (error) {
+        await rm(journalPath, { force: true })
+        await appendAudit(paths, {
+          version: 1,
+          at: now(),
+          kind: 'rollback-rejected',
+          releaseId: next.activeRelease,
+          previousRelease: next.previousRelease,
+          detail: error instanceof Error ? error.message : String(error),
+        }).catch(() => {})
+        throw error
       }
       let selectionCommitted = false
       try {

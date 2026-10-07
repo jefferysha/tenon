@@ -8,7 +8,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { serializeProductRootContract } from '@tenon/kernel'
 import { afterEach, describe, expect, it } from 'vitest'
 import { freezeTrustedExecutable } from '../commands/trusted-executable.js'
-import { expectedStableLaunchers, writeStableLaunchers } from './launchers.js'
+import {
+  captureStableLaunchers,
+  expectedLegacyStableLaunchersV101,
+  expectedStableLaunchers,
+  writeStableLaunchers,
+} from './launchers.js'
 import { resolveRuntimePaths } from './paths.js'
 import { hashReleasePayload } from './release-payload.js'
 import { runtimeReleaseIdV2 } from './release-store-codecs.js'
@@ -731,37 +736,210 @@ describe('stable runtime bootstrap', () => {
 
   // The launcher pair every real install leaves is the one the installer writes (it exports TENON_NODE_PATH). The other rollback
   // tests start from no launcher or from one the bootstrap wrote itself, so none of them cross the two generators.
-  // The bootstrap's own generator has no `export TENON_NODE_PATH=` line, so convergeRollbackLauncher reads the installer's launcher
-  // as a third-party checkpoint and refuses AFTER the selection flip, leaving the rollback journal behind (acceptance record
-  // 2026-10-v0.3, section R5). `fails` keeps the suite green while that holds and turns red once the generators agree:
-  // change it to a plain `it` together with the fix.
-  const installerLauncherRollback = canonicalNode ? it.fails : it.skip
-  installerLauncherRollback('rolls back over the launcher pair the installer wrote, instead of refusing it as third-party', async () => {
-    const root = await freshRoot('rollback-installer-launchers')
+  // When the bootstrap's own generator lacked the `export TENON_NODE_PATH=` line, convergeRollbackLauncher read the installer's
+  // launcher as a third-party checkpoint and refused AFTER the selection flip, leaving the rollback journal behind (acceptance
+  // record 2026-10-v0.3, F18). The generators are now identical and the proof runs before the flip.
+  interface RollbackFixture {
+    readonly root: string
+    readonly state: string
+    readonly home: string
+    readonly paths: RuntimePaths
+    readonly proof: TrustedExecutableProof
+    readonly activeRelease: string
+    readonly previousRelease: string
+    readonly bootstrap: string
+    readonly selectionPath: string
+    readonly journalPath: string
+  }
+
+  const selectionAtRevision2 = (activeRelease: string, previousRelease: string) => ({
+    version: 1,
+    revision: 2,
+    activeRelease,
+    previousRelease,
+    updatedAt: '2026-07-24T00:00:00Z',
+  })
+
+  async function rollbackFixture(label: string): Promise<RollbackFixture> {
+    const root = await freshRoot(label)
     const activeRelease = await createRelease(root, 'active')
     const previousRelease = await createRelease(root, 'previous')
     const bootstrap = await installBootstrap(root)
     const state = join(root, 'state')
     await mkdir(state, { recursive: true })
-    await writeFile(join(state, 'selection.json'), `${JSON.stringify({
-      version: 1,
-      revision: 2,
-      activeRelease,
-      previousRelease,
-      updatedAt: '2026-07-24T00:00:00Z',
-    })}\n`, 'utf8')
+    const selectionPath = join(state, 'selection.json')
+    await writeFile(selectionPath, `${JSON.stringify(selectionAtRevision2(activeRelease, previousRelease))}\n`, 'utf8')
     const home = join(root, 'home')
     const paths = resolveRuntimePaths({ env: { TENON_RUNTIME_HOME: root }, homeDir: home, platform: process.platform })
     const trusted = freezeTrustedExecutable(process.execPath)
     if (trusted === undefined) throw new Error('canonical test Node must be trustworthy')
-    await writeStableLaunchers(paths, home, { nodeExecutable: process.execPath, nodeProof: trusted.proof })
+    return {
+      root,
+      state,
+      home,
+      paths,
+      proof: trusted.proof,
+      activeRelease,
+      previousRelease,
+      bootstrap,
+      selectionPath,
+      journalPath: join(state, 'managed-release-transaction', 'runtime-rollback.json'),
+    }
+  }
 
-    const result = await runBootstrap(root, bootstrap, ['cli', 'runtime', 'repair', '--rollback'])
+  const launcherText = (snapshot: ReturnType<typeof expectedStableLaunchers>, name: 'tenon' | 'hook'): string => {
+    const state = snapshot[name].state
+    if (state.kind !== 'file') throw new Error('expected launcher state must be a file')
+    return state.content
+  }
+
+  const rollbackJson = (stdout: string) => JSON.parse(stdout) as { ok: boolean; selection: Record<string, unknown> }
+
+  it.skipIf(!canonicalNode)('rolls back over the launcher pair the installer wrote, instead of refusing it as third-party', async () => {
+    const fixture = await rollbackFixture('rollback-installer-launchers')
+    await writeStableLaunchers(fixture.paths, fixture.home, { nodeExecutable: process.execPath, nodeProof: fixture.proof })
+
+    const result = await runBootstrap(fixture.root, fixture.bootstrap, ['cli', 'runtime', 'repair', '--rollback'])
 
     expect(result.code, result.stderr).toBe(0)
-    expect(JSON.parse(await readFile(join(state, 'selection.json'), 'utf8'))).toMatchObject({ activeRelease: previousRelease, previousRelease: activeRelease })
-    await expect(readFile(join(state, 'managed-release-transaction', 'runtime-rollback.json'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(JSON.parse(await readFile(fixture.selectionPath, 'utf8'))).toMatchObject({
+      activeRelease: fixture.previousRelease,
+      previousRelease: fixture.activeRelease,
+    })
+    await expect(readFile(fixture.journalPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
   })
+
+  // Whole-text parity, not only the Node guard: the bootstrap rewrites the stable launchers during a rollback, and the next
+  // rollback compares what is on disk with what it would write. Every byte of both modes must match the installer's text.
+  it.skipIf(!canonicalNode)('writes rollback launchers byte-identical to the installer generator in both modes', async () => {
+    const fixture = await rollbackFixture('rollback-whole-launcher-parity')
+
+    expect((await runBootstrap(fixture.root, fixture.bootstrap, ['cli', 'runtime', 'repair', '--rollback'])).code).toBe(0)
+
+    const expected = expectedStableLaunchers(fixture.paths, fixture.home, process.execPath, fixture.proof)
+    expect(await readFile(join(fixture.home, '.local', 'bin', 'tenon'), 'utf8')).toBe(launcherText(expected, 'tenon'))
+    expect(await readFile(join(fixture.home, '.local', 'bin', 'tenon-hook'), 'utf8')).toBe(launcherText(expected, 'hook'))
+    expect(launcherText(expected, 'tenon')).toContain(`export TENON_NODE_PATH='${process.execPath}'`)
+  })
+
+  it.skipIf(!canonicalNode)('accepts the public v1.0.1 launcher pair as a checkpoint and converges it to the installer text', async () => {
+    const fixture = await rollbackFixture('rollback-from-v101-launchers')
+    const legacy = expectedLegacyStableLaunchersV101(fixture.paths, fixture.home)
+    await mkdir(join(fixture.home, '.local', 'bin'), { recursive: true })
+    for (const name of ['tenon', 'hook'] as const) {
+      const file = legacy[name]
+      if (file.state.kind !== 'file') throw new Error('legacy launcher must be a file')
+      await writeFile(file.path, file.state.content, { mode: 0o755 })
+      await chmod(file.path, 0o755)
+    }
+
+    const result = await runBootstrap(fixture.root, fixture.bootstrap, ['cli', 'runtime', 'repair', '--rollback'])
+
+    expect(result.code, result.stderr).toBe(0)
+    const expected = expectedStableLaunchers(fixture.paths, fixture.home, process.execPath, fixture.proof)
+    expect(await readFile(join(fixture.home, '.local', 'bin', 'tenon'), 'utf8')).toBe(launcherText(expected, 'tenon'))
+    expect(await readFile(join(fixture.home, '.local', 'bin', 'tenon-hook'), 'utf8')).toBe(launcherText(expected, 'hook'))
+  })
+
+  // A launcher the bootstrap cannot prove is refused before anything moves: same selection bytes, same launchers, no journal,
+  // no private copy. The refusal is audited, and the same command succeeds once the launcher is back in a provable state.
+  it.skipIf(!canonicalNode)('refuses a third-party launcher before the selection flips and leaves no journal', async () => {
+    for (const file of ['tenon', 'tenon-hook'] as const) await refusesThirdPartyLauncher(file)
+  })
+
+  async function refusesThirdPartyLauncher(file: 'tenon' | 'tenon-hook'): Promise<void> {
+    const fixture = await rollbackFixture(`rollback-third-party-${file}`)
+    const bin = join(fixture.home, '.local', 'bin')
+    await writeStableLaunchers(fixture.paths, fixture.home, { nodeExecutable: process.execPath, nodeProof: fixture.proof })
+    const other = file === 'tenon' ? 'tenon-hook' : 'tenon'
+    const thirdParty = '#!/bin/sh\n# a wrapper somebody else owns\nexec /usr/bin/true "$@"\n'
+    await writeFile(join(bin, file), thirdParty, { mode: 0o755 })
+    const otherBefore = await readFile(join(bin, other), 'utf8')
+    const selectionBefore = await readFile(fixture.selectionPath, 'utf8')
+
+    const refused = await runBootstrap(fixture.root, fixture.bootstrap, ['cli', 'runtime', 'repair', '--rollback'])
+
+    expect(refused.code).toBe(1)
+    expect(refused.stderr).toContain(`rollback refuses a third-party launcher checkpoint: ${file === 'tenon' ? 'tenon' : 'hook'}`)
+    expect(await readFile(fixture.selectionPath, 'utf8')).toBe(selectionBefore)
+    expect(await readFile(join(bin, file), 'utf8')).toBe(thirdParty)
+    expect(await readFile(join(bin, other), 'utf8')).toBe(otherBefore)
+    await expect(readFile(fixture.journalPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    expect((await readdir(bin)).filter((name) => name.includes('.tenon-'))).toEqual([])
+    const audit = (await readFile(join(fixture.state, 'audit.jsonl'), 'utf8')).trim().split('\n').map((line) => JSON.parse(line) as { kind: string })
+    expect(audit.at(-1)?.kind).toBe('rollback-rejected')
+    expect(audit.some((entry) => entry.kind === 'rolled-back')).toBe(false)
+
+    // Not wedged: restoring the installer launcher makes the identical command succeed.
+    await rm(join(bin, file))
+    await writeStableLaunchers(fixture.paths, fixture.home, { nodeExecutable: process.execPath, nodeProof: fixture.proof })
+    const retried = await runBootstrap(fixture.root, fixture.bootstrap, ['cli', 'runtime', 'repair', '--rollback'])
+    expect(retried.code, retried.stderr).toBe(0)
+    expect(rollbackJson(retried.stdout).selection).toMatchObject({ activeRelease: fixture.previousRelease, revision: 3 })
+  }
+
+  it.skipIf(!canonicalNode)('removes the journal when the rollback target fails its integrity check before the selection moves', async () => {
+    const fixture = await rollbackFixture('rollback-target-tamper-after-journal')
+    // The journal already exists (an earlier attempt wrote it), then the target is damaged before the selection flips.
+    const launchers = await captureStableLaunchers(fixture.paths, fixture.home)
+    await mkdir(join(fixture.state, 'managed-release-transaction'), { recursive: true })
+    await writeFile(fixture.journalPath, `${JSON.stringify({
+      version: 1,
+      transactionId: '22222222-2222-4222-8222-222222222222',
+      beforeSelection: selectionAtRevision2(fixture.activeRelease, fixture.previousRelease),
+      target: { revision: 3, activeRelease: fixture.previousRelease, previousRelease: fixture.activeRelease },
+      launchers,
+    }, null, 2)}\n`)
+    await writeFile(join(fixture.root, 'data', 'releases', fixture.previousRelease, 'payload', 'packages', 'cli', 'dist', 'tenon.mjs'), 'tampered\n', 'utf8')
+    const selectionBefore = await readFile(fixture.selectionPath, 'utf8')
+
+    const result = await runBootstrap(fixture.root, fixture.bootstrap, ['cli', 'runtime', 'repair', '--rollback'])
+
+    expect(result.code).toBe(1)
+    expect(result.stderr).toContain('integrity check failed')
+    expect(await readFile(fixture.selectionPath, 'utf8')).toBe(selectionBefore)
+    await expect(readFile(fixture.journalPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  // The state v0.2.1 to v0.3.1 leave behind (acceptance record 2026-10-v0.3, F18): the old bootstrap flipped the selection,
+  // audited both rollback events, then refused the installer's launcher, so the journal stayed and the launchers never moved.
+  // The fixed bootstrap finishes that rollback from the journal without a second swap.
+  it.skipIf(!canonicalNode)('finishes the journal a v0.2.1 to v0.3.1 bootstrap left behind, without a second swap', async () => {
+    const fixture = await rollbackFixture('rollback-wedged-by-old-bootstrap')
+    await writeStableLaunchers(fixture.paths, fixture.home, { nodeExecutable: process.execPath, nodeProof: fixture.proof })
+    const installerLaunchers = await captureStableLaunchers(fixture.paths, fixture.home)
+    const beforeSelection = selectionAtRevision2(fixture.activeRelease, fixture.previousRelease)
+    const flipped = {
+      version: 1,
+      revision: 3,
+      activeRelease: fixture.previousRelease,
+      previousRelease: fixture.activeRelease,
+      updatedAt: '2026-07-24T00:01:00Z',
+    }
+    await mkdir(join(fixture.state, 'managed-release-transaction'), { recursive: true })
+    await writeFile(fixture.journalPath, `${JSON.stringify({
+      version: 1,
+      transactionId: '33333333-3333-4333-8333-333333333333',
+      beforeSelection,
+      target: { revision: 3, activeRelease: fixture.previousRelease, previousRelease: fixture.activeRelease },
+      launchers: installerLaunchers,
+    }, null, 2)}\n`)
+    await writeFile(fixture.selectionPath, `${JSON.stringify(flipped)}\n`)
+    await writeFile(join(fixture.state, 'audit.jsonl'), [
+      { version: 1, at: '2026-07-24T00:00:30Z', kind: 'rollback-prepared', releaseId: fixture.previousRelease, previousRelease: fixture.activeRelease, detail: 'verified bootstrap rollback prepared; durable target journal already committed' },
+      { version: 1, at: '2026-07-24T00:01:00Z', kind: 'rolled-back', releaseId: fixture.previousRelease, previousRelease: fixture.activeRelease, detail: 'verified bootstrap rollback selection committed' },
+    ].map((entry) => JSON.stringify(entry)).join('\n') + '\n')
+
+    const resumed = await runBootstrap(fixture.root, fixture.bootstrap, ['cli', 'runtime', 'repair', '--rollback'])
+
+    expect(resumed.code, resumed.stderr).toBe(0)
+    expect(rollbackJson(resumed.stdout).selection).toEqual(flipped)
+    expect(JSON.parse(await readFile(fixture.selectionPath, 'utf8'))).toEqual(flipped)
+    await expect(readFile(fixture.journalPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    const expected = expectedStableLaunchers(fixture.paths, fixture.home, process.execPath, fixture.proof)
+    expect(await readFile(join(fixture.home, '.local', 'bin', 'tenon'), 'utf8')).toBe(launcherText(expected, 'tenon'))
+  })
+
 
   it.skipIf(process.platform === 'win32')('runs the repair command a replaced-Node launcher prints through the real bootstrap', async () => {
     const root = await freshRoot('node-repair-through-bootstrap')
