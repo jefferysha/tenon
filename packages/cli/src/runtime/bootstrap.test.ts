@@ -729,6 +729,40 @@ describe('stable runtime bootstrap', () => {
     }
   })
 
+  // The launcher pair every real install leaves is the one the installer writes (it exports TENON_NODE_PATH). The other rollback
+  // tests start from no launcher or from one the bootstrap wrote itself, so none of them cross the two generators.
+  // The bootstrap's own generator has no `export TENON_NODE_PATH=` line, so convergeRollbackLauncher reads the installer's launcher
+  // as a third-party checkpoint and refuses AFTER the selection flip, leaving the rollback journal behind (acceptance record
+  // 2026-10-v0.3, section R5). `fails` keeps the suite green while that holds and turns red once the generators agree:
+  // change it to a plain `it` together with the fix.
+  const installerLauncherRollback = canonicalNode ? it.fails : it.skip
+  installerLauncherRollback('rolls back over the launcher pair the installer wrote, instead of refusing it as third-party', async () => {
+    const root = await freshRoot('rollback-installer-launchers')
+    const activeRelease = await createRelease(root, 'active')
+    const previousRelease = await createRelease(root, 'previous')
+    const bootstrap = await installBootstrap(root)
+    const state = join(root, 'state')
+    await mkdir(state, { recursive: true })
+    await writeFile(join(state, 'selection.json'), `${JSON.stringify({
+      version: 1,
+      revision: 2,
+      activeRelease,
+      previousRelease,
+      updatedAt: '2026-07-24T00:00:00Z',
+    })}\n`, 'utf8')
+    const home = join(root, 'home')
+    const paths = resolveRuntimePaths({ env: { TENON_RUNTIME_HOME: root }, homeDir: home, platform: process.platform })
+    const trusted = freezeTrustedExecutable(process.execPath)
+    if (trusted === undefined) throw new Error('canonical test Node must be trustworthy')
+    await writeStableLaunchers(paths, home, { nodeExecutable: process.execPath, nodeProof: trusted.proof })
+
+    const result = await runBootstrap(root, bootstrap, ['cli', 'runtime', 'repair', '--rollback'])
+
+    expect(result.code, result.stderr).toBe(0)
+    expect(JSON.parse(await readFile(join(state, 'selection.json'), 'utf8'))).toMatchObject({ activeRelease: previousRelease, previousRelease: activeRelease })
+    await expect(readFile(join(state, 'managed-release-transaction', 'runtime-rollback.json'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
   it.skipIf(process.platform === 'win32')('runs the repair command a replaced-Node launcher prints through the real bootstrap', async () => {
     const root = await freshRoot('node-repair-through-bootstrap')
     const activeRelease = await createRelease(
