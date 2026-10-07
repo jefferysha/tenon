@@ -1,0 +1,160 @@
+name: Verify action self-test
+
+# 在真实的 GitHub 运行器上跑 `.github/actions/tenon-verify`：本机的集成测试（packages/cli/src/verify-action.integration.test.ts）
+# 只跑 run.sh，跑不到 composite action 本身（输入到环境变量的接线、actions/setup-node、SARIF 上传、最后按 exit-code 失败的一步）。
+#
+# 作业里先 `npm ci` + `npm run build` 得到这份检出的 CLI 构建产物，再用它在作业里建一个小的夹具仓库（tools/verify-action-selftest.mjs fixture：
+# 真实的 `tenon init`、登记、`tenon test run`，TENON_TEST_TRUST=1，运行记录提交进夹具），最后把工作区换成夹具、用 action 的 `cli` 输入
+# 指向刚构建的 bundle：
+#   · clean：夹具干净。用 `uses: ./.github/actions/tenon-verify` 跑，断言 exit-code 为 0、SARIF 里没有任何发现，并真的上传 SARIF
+#     （category tenon-verify-selftest，不和仓库自己的 tenon-verify 混在一起）。
+#   · tampered：夹具里有一条记录被改了内容、没重算摘要。断言 exit-code 为 2、SARIF 里有 error 级的 tenon/record-chain-broken。
+#     composite action 的最后一步会让作业失败，而本仓库的工作流不允许任何「步骤失败也算过」的开关（让「应当失败」的步骤变成绿的，
+#     就是让必须的检查可以悄悄失败），所以这条用 action 自己调用的那个 run.sh（同一份脚本、同一组环境变量名，
+#     本机测试核对环境变量名都出自 action.yml），它不让步骤失败，只把 exit-code 写进步骤输出，断言步骤再读它。
+#
+# 夹具在作业内建好之后换进工作区，所以夹具里带着 action 目录（提交进基线；候选指纹覆盖工作区所有文件，事后放进去的
+# 未跟踪文件会让记录过期）。fork 的 PR 拿不到写令牌，SARIF 上传会被 action 自己跳过（它内部的上传步骤允许失败），不影响结论。
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/actions/tenon-verify/**'
+      - 'packages/cli/src/commands/verify-ci*'
+      - 'packages/kernel/src/ci-verify/**'
+      - 'tools/verify-action-selftest.mjs'
+      - '.github/workflows/verify-action-selftest.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-action-selftest-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  clean:
+    name: clean fixture passes, SARIF uploaded
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # Protected-file approvals are checked against the commit each Change started from.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build complete plugin runtime (tsc + CLI/server bundles + dashboard SPA)
+        run: npm run build
+
+      - name: Stage the built CLI and the self-test tool outside the workspace
+        run: |
+          set -euo pipefail
+          stage="$RUNNER_TEMP/selftest"
+          mkdir -p "$stage"
+          cp packages/cli/dist/tenon.mjs "$stage/tenon.mjs"
+          cp tools/verify-action-selftest.mjs "$stage/verify-action-selftest.mjs"
+
+      - name: Build the clean fixture repository with the built CLI
+        run: >-
+          node tools/verify-action-selftest.mjs fixture
+          --cli "$RUNNER_TEMP/selftest/tenon.mjs"
+          --action .github/actions/tenon-verify
+          --out "$RUNNER_TEMP/selftest/fixture"
+
+      - name: Make the fixture the workspace
+        run: |
+          set -euo pipefail
+          find "$GITHUB_WORKSPACE" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+          cp -a "$RUNNER_TEMP/selftest/fixture/." "$GITHUB_WORKSPACE/"
+
+      - name: Run the tenon-verify action against the clean fixture
+        id: verify
+        uses: ./.github/actions/tenon-verify
+        with:
+          cli: ${{ runner.temp }}/selftest/tenon.mjs
+          change: demo
+          upload-sarif: 'true'
+          sarif-category: tenon-verify-selftest
+
+      - name: Assert exit-code 0 and a SARIF report without findings
+        env:
+          EXIT_CODE: ${{ steps.verify.outputs.exit-code }}
+          SARIF_PATH: ${{ steps.verify.outputs.sarif-path }}
+        run: >-
+          node "$RUNNER_TEMP/selftest/verify-action-selftest.mjs" assert
+          --scenario clean --exit-code "$EXIT_CODE" --sarif "$SARIF_PATH"
+
+  tampered:
+    name: tampered fixture fails
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build complete plugin runtime (tsc + CLI/server bundles + dashboard SPA)
+        run: npm run build
+
+      - name: Stage the built CLI and the self-test tool outside the workspace
+        run: |
+          set -euo pipefail
+          stage="$RUNNER_TEMP/selftest"
+          mkdir -p "$stage"
+          cp packages/cli/dist/tenon.mjs "$stage/tenon.mjs"
+          cp tools/verify-action-selftest.mjs "$stage/verify-action-selftest.mjs"
+
+      - name: Build the tampered fixture repository with the built CLI
+        run: >-
+          node tools/verify-action-selftest.mjs fixture --tamper
+          --cli "$RUNNER_TEMP/selftest/tenon.mjs"
+          --action .github/actions/tenon-verify
+          --out "$RUNNER_TEMP/selftest/fixture"
+
+      - name: Make the fixture the workspace
+        run: |
+          set -euo pipefail
+          find "$GITHUB_WORKSPACE" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+          cp -a "$RUNNER_TEMP/selftest/fixture/." "$GITHUB_WORKSPACE/"
+
+      # The script the composite action runs, with the environment the action gives it (same variable names as action.yml).
+      # It records the verifier's exit code in the step outputs instead of failing the step.
+      - name: Run the action's verify script against the tampered fixture
+        id: verify
+        shell: bash
+        env:
+          TENON_ACTION_PATH: ${{ github.workspace }}/.github/actions/tenon-verify
+          TENON_VERIFY_CLI: ${{ runner.temp }}/selftest/tenon.mjs
+          TENON_VERIFY_CHANGE: demo
+          TENON_VERIFY_CANDIDATE: error
+        run: bash "$TENON_ACTION_PATH/run.sh"
+
+      - name: Assert exit-code 2 and an error-level record-chain-broken in the SARIF report
+        env:
+          EXIT_CODE: ${{ steps.verify.outputs.exit-code }}
+          SARIF_PATH: ${{ steps.verify.outputs.sarif-path }}
+        run: >-
+          node "$RUNNER_TEMP/selftest/verify-action-selftest.mjs" assert
+          --scenario tampered --exit-code "$EXIT_CODE" --sarif "$SARIF_PATH"
