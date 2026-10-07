@@ -3,18 +3,21 @@
  * `.github/workflows/verify-action-selftest.yml` 的两个小工具，也被 packages/cli/src/verify-action-selftest.integration.test.ts
  * 在本机原样跑一遍，所以工作流里用到的每一步在 GitHub 上跑之前都已经在本机验证过：
  *
- *   fixture --cli <tenon.mjs> --action <dir> --out <dir> [--tamper]
- *       在 <dir> 里建一个小的 git 仓库：基线提交（测试目录、工作流、测试脚本、被测文件，以及 `tenon-verify` action 本身），
- *       分支 pr 上是交付提交（任务状态、实现、`tenon test run` 写出的真实运行记录）。`--tamper` 再加一个提交，改掉一条记录
- *       的内容而不重算摘要——记录链断，`tenon verify --ci` 必须失败。运行记录由真实的 CLI 用 TENON_TEST_TRUST=1 产出（CI 的
- *       用法：运行器显式信任这个检出里的目录命令）；HOME 与运行时根都换成临时目录，不碰运行器 / 开发机上的真实状态。
- *       action 目录被提交进基线：候选指纹覆盖工作区里的所有文件，之后放进来的未跟踪文件会让记录过期。
+ *   fixture --cli <tenon.mjs> --out <dir> [--exclude <dir>]... [--tamper]
+ *       在 <dir> 里建一个小的 git 仓库：基线提交（测试目录、工作流、测试脚本、被测文件），分支 pr 上是交付提交（任务状态、
+ *       实现、`tenon test run` 写出的真实运行记录）。`--tamper` 再加一个提交，改掉一条记录的内容而不重算摘要——记录链断，
+ *       `tenon verify --ci` 必须失败。运行记录由真实的 CLI 用 TENON_TEST_TRUST=1 产出（CI 的用法：运行器显式信任这个检出里的
+ *       目录命令）；HOME 与运行时根都换成临时目录，不碰运行器 / 开发机上的真实状态。
+ *       `--cli` 必须是 tenon 检出里的那份 bundle：CLI 从自己所在的位置（`packages/cli/dist/tenon.mjs` 往上三级）找
+ *       `templates/manifest.yaml`，单独拷到别处的 bundle 起不来。夹具可以直接建在工作区根上、tenon 检出放在其中的子目录里：
+ *       `--exclude <dir>` 把这个子目录写进夹具的 .gitignore，不进提交。候选指纹按文件系统遍历（不看 .gitignore），
+ *       所以那个检出里的文件在建夹具到校验之间不能变。
  *   assert --scenario clean|tampered --exit-code <code> [--sarif <file>]
  *       断言 action 的输出：clean 要 exit-code 0 且 SARIF 里没有任何结果；tampered 要 exit-code 2 且 SARIF 里有 error 级的
  *       tenon/record-chain-broken。不符就退出 1 并说明是哪一条。
  */
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -104,7 +107,15 @@ function tamperWithRecord(root) {
   throw new Error('没有找到可以篡改的运行记录')
 }
 
-export function buildFixture({ cli, action, out, tamper = false }) {
+/** `--exclude` 的值：夹具根下的相对目录名（可带子目录），不含 `..`、通配符与换行，所以只会写成 .gitignore 里的一行。 */
+const EXCLUDE_PATTERN = /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/u
+
+export function buildFixture({ cli, out, tamper = false, exclude = [] }) {
+  for (const name of exclude) {
+    if (!EXCLUDE_PATTERN.test(name) || name.split('/').some((part) => part === '.' || part === '..')) {
+      throw new Error(`--exclude 要夹具根下的相对目录名，收到 ${JSON.stringify(name)}`)
+    }
+  }
   const cliPath = resolve(cli)
   const outDir = resolve(out)
   const scratch = mkdtempSync(join(tmpdir(), 'tenon-selftest-state-'))
@@ -125,12 +136,11 @@ export function buildFixture({ cli, action, out, tamper = false }) {
     const tenon = (...args) => must(run(process.execPath, [cliPath, ...args], { cwd: outDir, env }), `tenon ${args.join(' ')}`)
 
     write(outDir, 'package.json', '{ "name": "tenon-verify-selftest", "private": true, "type": "module" }\n')
-    write(outDir, '.gitignore', 'test-results\nnode_modules\n.pipeline/cache\n.pipeline/.gitignore\n')
+    write(outDir, '.gitignore', `${['test-results', 'node_modules', '.pipeline/cache', '.pipeline/.gitignore', ...exclude.map((name) => `/${name}/`)].join('\n')}\n`)
     write(outDir, 'gen-report.mjs', GEN_REPORT)
     write(outDir, 'src/a.test.js', 'export {}\n')
     write(outDir, '.tenon/tests/catalog.yaml', CATALOG)
     write(outDir, '.pipeline/workflows/selftest.yaml', WORKFLOW)
-    cpSync(resolve(action), join(outDir, '.github', 'actions', 'tenon-verify'), { recursive: true })
     git('init', '-q', '-b', 'main')
     git('add', '-A')
     git('commit', '-q', '-m', 'base')
@@ -187,9 +197,10 @@ function option(args, name) {
 function main(argv) {
   const [command, ...args] = argv
   if (command === 'fixture') {
-    const [cli, action, out] = ['cli', 'action', 'out'].map((name) => option(args, name))
-    if (cli === undefined || action === undefined || out === undefined) throw new Error('用法：fixture --cli <tenon.mjs> --action <dir> --out <dir> [--tamper]')
-    process.stdout.write(`${JSON.stringify(buildFixture({ cli, action, out, tamper: args.includes('--tamper') }))}\n`)
+    const [cli, out] = ['cli', 'out'].map((name) => option(args, name))
+    if (cli === undefined || out === undefined) throw new Error('用法：fixture --cli <tenon.mjs> --out <dir> [--exclude <dir>]... [--tamper]')
+    const exclude = args.flatMap((arg, at) => (arg === '--exclude' && args[at + 1] !== undefined ? [args[at + 1]] : []))
+    process.stdout.write(`${JSON.stringify(buildFixture({ cli, out, tamper: args.includes('--tamper'), exclude }))}\n`)
     return 0
   }
   if (command === 'assert') {
@@ -210,7 +221,18 @@ function main(argv) {
   throw new Error('用法：verify-action-selftest.mjs fixture|assert …')
 }
 
-if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+/** 直接运行（而不是被 import）：入口路径取真实路径再比，经符号链接（macOS 的 /var → /private/var）调用也不会静默什么都不做就 exit 0。 */
+function isMain() {
+  const entry = process.argv[1]
+  if (entry === undefined) return false
+  try {
+    return realpathSync(resolve(entry)) === realpathSync(fileURLToPath(import.meta.url))
+  } catch {
+    return false
+  }
+}
+
+if (isMain()) {
   try {
     process.exitCode = main(process.argv.slice(2))
   } catch (error) {
