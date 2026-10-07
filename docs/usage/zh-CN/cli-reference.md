@@ -317,7 +317,11 @@ vitest 工程里的 `*.bench.*` 文件会识别成 `vitest-bench` 基准套件�
 不同，数值不保证可比，升级主版本后用 `tenon test baseline` 重建基线。
 读不出主版本时（vitest 没装、`package.json` 里的写法也定不下主版本，例如 `latest`、`workspace:*`、`catalog:`、`>=3`），discover
 不生成基准套件——同一条命令对一个主版本是对的，对另一个就直接 exit `1`：改为给出带两种命令的 `catalog add` 提示，装好依赖后重跑
-`tenon test discover`，或照提示手工登记。
+`tenon test discover`，或照提示手工登记。vitest 5 及以上，bench 文件里还从 `'vitest'` 导入模块级 `bench` 的
+（`import { bench } from 'vitest'`、`import { describe, bench } from 'vitest'`，多行导入与 CommonJS `require` 也算）必然报
+`bench is not a function`，所以 discover 同样不生成这个套件：改为给出一条提示，点名这些文件和 fixture 写法
+（`test('…', async ({ bench }) => { await bench('名字', fn).run() })`，选项放第二个参数 `bench(名字, 选项, fn)`）；迁移后重跑
+`tenon test discover`。
 `catalog add --from <方向>` 用测试方向起步（裸的工具调用会换成该 runner 的推荐调用）；`catalog validate` 逐条列出
 `catalog.yaml:<行>: …`（有问题 exit `2`）。`test plan --seed` 补上「拥有或覆盖了本任务改动文件」的套件、策略要求的每个种类
 的套件、改动的测试文件，并列出还没映射的场景与任务，附可直接执行的 `register --case` 命令；策略里 `run_if_registered` 的种类

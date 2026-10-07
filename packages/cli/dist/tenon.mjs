@@ -68688,6 +68688,7 @@ var REPORT_PATH = "test-results/bench.json";
 var COMMAND_OUTPUT_JSON = `npx vitest bench --run --outputJson=${REPORT_PATH}`;
 var COMMAND_JSON_REPORTER = `npx vitest bench --run --reporter=default --reporter=json --outputFile.json=${REPORT_PATH}`;
 var FIRST_JSON_REPORTER_MAJOR = 5;
+var LEGACY_BENCH_IMPORT = /^[ \t]*(?:import\s+(?!type\b)\{[^}]*\bbench\b[^}]*\}\s*from|(?:const|let|var)\s*\{[^}]*\bbench\b[^}]*\}\s*=\s*require\()\s*['"]vitest['"]/m;
 var BENCH_CALL = /\bbench\s*\(\s*(['"`])((?:\\.|(?!\1)[^\\\n])+)\1/g;
 async function benchFiles(abs2, rel, depth, out) {
   if (out.length >= MAX_FILES2) return;
@@ -68704,11 +68705,17 @@ async function benchFiles(abs2, rel, depth, out) {
     else if (entry2.isDirectory() && depth < MAX_DEPTH && !SKIP2.has(entry2.name) && !entry2.name.startsWith(".")) await benchFiles(join120(abs2, entry2.name), path15, depth + 1, out);
   }
 }
-async function benchNames(dir, files) {
-  const names = [];
+async function readBenchSources(dir, files) {
+  const sources = [];
   for (const file of files) {
     const text13 = await readSmallText(join120(dir.abs, file));
-    if (text13 === void 0) continue;
+    if (text13 !== void 0) sources.push({ file, text: text13 });
+  }
+  return sources;
+}
+function benchNames(sources) {
+  const names = [];
+  for (const { text: text13 } of sources) {
     for (const match of text13.matchAll(BENCH_CALL)) {
       const name2 = match[2] ?? "";
       if (name2 !== "" && !name2.includes("${")) names.push(name2);
@@ -68716,12 +68723,16 @@ async function benchNames(dir, files) {
   }
   return [...new Set(names)];
 }
+function usesModuleLevelBench(text13) {
+  return LEGACY_BENCH_IMPORT.test(text13);
+}
 async function discoverVitestBench(dir, notes) {
   const files = [];
   await benchFiles(dir.abs, "", 0, files);
   if (files.length === 0) return void 0;
   const where = dir.rel === "." ? "" : `${dir.rel}/`;
-  const names = await benchNames(dir, files);
+  const sources = await readBenchSources(dir, files);
+  const names = benchNames(sources);
   if (names.length === 0) {
     notes.push(`${where} \u4E0B\u6709 bench \u6587\u4EF6\uFF08${files.slice(0, 3).join("\u3001")}\uFF09\u4F46\u8BFB\u4E0D\u51FA bench('\u540D\u5B57') \u7684\u540D\u5B57\uFF1A\u7528 tenon test catalog add --kind benchmark --runner vitest-bench \u624B\u5DE5\u767B\u8BB0\u5E76\u58F0\u660E\u6307\u6807`);
     return void 0;
@@ -68731,6 +68742,11 @@ async function discoverVitestBench(dir, notes) {
     const cwdFlag = dir.rel === "." ? "" : ` --cwd ${dir.rel}`;
     const register = (command2) => `tenon test catalog add ${idPrefix(dir.rel)}bench --kind benchmark --runner vitest-bench --command "${command2}"${cwdFlag} --report-format benchmark-json --report-path ${REPORT_PATH} --artifact test-results --metric name=${metricName(names[0] ?? "bench")}.mean_ms,better=lower,max_regression_pct=10,unit=ms`;
     notes.push(`${where === "" ? "\u9879\u76EE\u6839" : where} \u4E0B\u6709 bench \u6587\u4EF6\u4F46\u8BFB\u4E0D\u51FA vitest \u4E3B\u7248\u672C\uFF08node_modules/vitest \u6CA1\u88C5\uFF0Cpackage.json \u4E5F\u6CA1\u6709\u80FD\u89E3\u6790\u51FA\u4E3B\u7248\u672C\u7684 vitest \u8303\u56F4\uFF09\uFF0C\u6CA1\u6709\u751F\u6210\u57FA\u51C6\u5957\u4EF6\uFF1Avitest 5 \u8D77 vitest bench \u5220\u6389\u4E86 --outputJson\uFF0C\u547D\u4EE4\u56E0\u7248\u672C\u800C\u5F02\uFF0C\u4E0D\u731C\u3002\u88C5\u597D\u4F9D\u8D56\u540E\u91CD\u8DD1 tenon test discover\uFF1B\u6216\u6309\u7248\u672C\u624B\u5DE5\u767B\u8BB0\u2014\u2014vitest \u22644\uFF1A${register(COMMAND_OUTPUT_JSON)}\uFF1Bvitest \u22655\uFF1A${register(COMMAND_JSON_REPORTER)}`);
+    return void 0;
+  }
+  const legacy = version.major >= FIRST_JSON_REPORTER_MAJOR ? sources.filter((source) => usesModuleLevelBench(source.text)).map((source) => source.file) : [];
+  if (legacy.length > 0) {
+    notes.push(`${where === "" ? "\u9879\u76EE\u6839" : where} \u4E0B\u7684 bench \u6587\u4EF6\u8FD8\u5728\u7528 vitest \u22644 \u7684\u6A21\u5757\u7EA7 bench()\uFF08\u4ECE 'vitest' \u5BFC\u5165 bench\uFF09\uFF1A${legacy.slice(0, 3).map((file) => `${where}${file}`).join("\u3001")}${legacy.length > 3 ? ` \u7B49 ${legacy.length} \u4E2A` : ""}\u3002vitest ${version.major} \u6CA1\u6709\u8FD9\u4E2A\u5BFC\u51FA\uFF0C\u8FD0\u884C\u4F1A\u62A5 "bench is not a function"\uFF0C\u6240\u4EE5\u6CA1\u6709\u751F\u6210\u57FA\u51C6\u5957\u4EF6\u3002\u6539\u6210\u6D4B\u8BD5\u91CC\u7684 fixture \u5199\u6CD5\u518D\u91CD\u8DD1 tenon test discover\uFF1Atest('\u2026', async ({ bench }) => { await bench('\u540D\u5B57', fn).run() })\uFF08\u9009\u9879\u653E\u7B2C\u4E8C\u4E2A\u53C2\u6570\uFF1Abench(\u540D\u5B57, \u9009\u9879, fn)\uFF09`);
     return void 0;
   }
   const metrics = [...new Set(names.map((name2) => `${metricName(name2)}.mean_ms`))].slice(0, MAX_METRICS3).map((name2) => ({ name: name2, unit: "ms", better: "lower", max_regression_pct: 10 }));

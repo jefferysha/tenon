@@ -235,7 +235,12 @@ determined (vitest neither installed nor declared with a range that fixes one, s
 `workspace:*`, `catalog:` or `>=3`), discover does not write a benchmark suite, because a command that
 is right for one major version exits `1` on the other: it prints a note with both `catalog add`
 commands instead, so install the dependencies and run `tenon test discover` again or register the
-suite by hand.
+suite by hand. On vitest 5 and later, a bench file that still imports the module-level `bench` from
+`'vitest'` (`import { bench } from 'vitest'`, `import { describe, bench } from 'vitest'`, also a
+multi-line import or a CommonJS `require`) is bound to fail with `bench is not a function`, so
+discover does not write the suite either: it prints a note naming those files and the fixture form
+(`test('…', async ({ bench }) => { await bench('name', fn).run() })`; options go second, as in
+`bench(name, options, fn)`). Migrate the files and run `tenon test discover` again.
 `catalog add --from <direction>` starts a suite from a test direction (bare tool
 invocations are replaced by the runner's recommended invocation); `catalog validate`
 lists every problem as `catalog.yaml:<line>: …` (exit `2`). `test plan --seed` adds the

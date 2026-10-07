@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { formatCatalogIssues, parseTestCatalog, serializeTestCatalog } from '@tenon/kernel'
 import { discoverTests } from './discover.js'
+import { usesModuleLevelBench } from './discover-bench.js'
 import { emptyCatalog } from './project-files.js'
 
 let repo = ''
@@ -169,6 +170,106 @@ describe('discoverTests', () => {
       expect(hoisted.command).toBe(JSON_REPORTER)
       expect(hoisted.suite).toMatchObject({ id: 'lib-bench', cwd: 'packages/lib' })
     })
+
+    describe('vitest ≥5 工程里还在用 vitest ≤4 的模块级 bench()：不生成必红的套件', () => {
+      const V5 = { 'package.json': JSON.stringify({ devDependencies: { vitest: '^5.0.3' } }), 'node_modules/vitest/package.json': JSON.stringify({ name: 'vitest', version: '5.0.3' }) }
+      const LEGACY_SINGLE = "import { bench } from 'vitest'\nbench('native sort', () => {})\n"
+      const LEGACY_MULTI = "import {\n  describe,\n  bench,\n} from \"vitest\"\ndescribe('sorting', () => {\n  bench('custom sort', () => {})\n})\n"
+
+      it('单行导入（import { bench } from \'vitest\'）：不建议套件，提示点名文件和 fixture 写法', async () => {
+        await put({ ...V5, 'bench/sort.bench.ts': LEGACY_SINGLE })
+        const { suite, notes } = await benchSuite()
+        expect(suite).toBeUndefined()
+        expect(notes).toContain('bench/sort.bench.ts')
+        expect(notes).toContain('vitest ≤4 的模块级 bench()')
+        expect(notes).toContain('bench is not a function')
+        expect(notes).toContain("test('…', async ({ bench }) => { await bench('名字', fn).run() })")
+        expect(notes).not.toContain('读不出 vitest 主版本')
+      })
+
+      it('多行导入（import {\\n describe,\\n bench,\\n} from "vitest"，双引号）同样识别', async () => {
+        await put({ ...V5, 'bench/sort.bench.ts': LEGACY_MULTI })
+        const { suite, notes } = await benchSuite()
+        expect(suite).toBeUndefined()
+        expect(notes).toContain('bench/sort.bench.ts')
+      })
+
+      it('两种写法并存：整套件不建议，提示只点名旧写法的那几个文件，新写法的不点名', async () => {
+        await put({
+          ...V5,
+          'bench/old-a.bench.ts': LEGACY_SINGLE,
+          'bench/old-b.bench.ts': LEGACY_MULTI,
+          'bench/new.bench.ts': "import { test } from 'vitest'\ntest('t', async ({ bench }) => { await bench('fresh', () => {}).run() })\n",
+        })
+        const { suite, notes } = await benchSuite()
+        expect(suite).toBeUndefined()
+        expect(notes).toContain('bench/old-a.bench.ts')
+        expect(notes).toContain('bench/old-b.bench.ts')
+        expect(notes).not.toContain('bench/new.bench.ts')
+      })
+
+      it('旧写法的文件超过 3 个：只列前 3 个并给总数', async () => {
+        await put({ ...V5, ...Object.fromEntries(['a', 'b', 'c', 'd', 'e'].map((name) => [`bench/${name}.bench.ts`, LEGACY_SINGLE])) })
+        const { notes } = await benchSuite()
+        expect(notes).toContain('bench/a.bench.ts、bench/b.bench.ts、bench/c.bench.ts 等 5 个')
+        expect(notes).not.toContain('bench/d.bench.ts')
+      })
+
+      it('新写法（fixture）：照常建议套件，没有旧写法提示', async () => {
+        await put({ ...V5, ...BENCH })
+        const { suite, notes } = await benchSuite()
+        expect(suite?.command).toBe(JSON_REPORTER)
+        expect(notes).not.toContain('bench is not a function')
+      })
+
+      it('同样的旧写法在 vitest 3 / 4 上是对的：照常建议 --outputJson 套件', async () => {
+        for (const major of ['3.2.7', '4.1.11']) {
+          await put({
+            'package.json': JSON.stringify({ devDependencies: { vitest: '*' } }),
+            'node_modules/vitest/package.json': JSON.stringify({ name: 'vitest', version: major }),
+            'bench/sort.bench.ts': LEGACY_SINGLE,
+          })
+          const { command, notes } = await benchSuite()
+          expect(command, major).toBe(OUTPUT_JSON)
+          expect(notes, major).not.toContain('bench is not a function')
+        }
+      })
+
+      it('点名文件带子包目录前缀', async () => {
+        await put({
+          'package.json': JSON.stringify({ workspaces: ['packages/*'], devDependencies: { vitest: '^5.0.0' } }),
+          'packages/lib/package.json': JSON.stringify({ name: 'lib' }),
+          'packages/lib/vitest.config.ts': 'export default {}',
+          'packages/lib/bench/a.bench.ts': LEGACY_SINGLE,
+        })
+        const { suite, notes } = await benchSuite()
+        expect(suite).toBeUndefined()
+        expect(notes).toContain('packages/lib/ 下的 bench 文件还在用 vitest ≤4 的模块级 bench()')
+        expect(notes).toContain('packages/lib/bench/a.bench.ts')
+      })
+    })
+  })
+
+  describe('usesModuleLevelBench：只认从 vitest 导入 bench', () => {
+    it.each([
+      ["import { bench } from 'vitest'", true],
+      ['import { bench } from "vitest"', true],
+      ["import { describe, bench } from 'vitest'", true],
+      ["import { bench, describe } from 'vitest';", true],
+      ["import {\n  describe,\n  bench,\n} from 'vitest'", true],
+      ["import { bench as b } from 'vitest'", true],
+      ["import { describe, bench, type BenchOptions } from 'vitest'", true],
+      ["  import { bench } from 'vitest'", true],
+      ["const { bench } = require('vitest')", true],
+      ["const { describe, bench } = require(\"vitest\")", true],
+      ["import { test } from 'vitest'\ntest('t', async ({ bench }) => { await bench('x', () => {}).run() })", false],
+      ["import type { bench } from 'vitest'", false],
+      ["// import { bench } from 'vitest'\nimport { test } from 'vitest'", false],
+      ["import { bench } from 'tinybench'", false],
+      ["import { benchmark } from 'vitest'", false],
+      ["import { describe } from 'vitest'\nconst bench = (name: string) => name", false],
+      ['', false],
+    ])('%j → %s', (text, legacy) => { expect(usesModuleLevelBench(text)).toBe(legacy) })
   })
 
   it('Playwright 自带 webServer：给提示，不重复启动', async () => {
