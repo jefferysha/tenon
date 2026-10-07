@@ -68504,37 +68504,55 @@ function hyperfineMetrics(results) {
   }
   return Object.keys(out).length === 0 ? { ok: false, reason: "hyperfine \u7ED3\u679C\u91CC\u6CA1\u6709 times / mean" } : { ok: true, metrics: out };
 }
-function putVitestBench(out, rawName, mean, p99, hz) {
+var MAX_DUPLICATES_SHOWN = 3;
+function putVitestBench(out, seen, rawName, where, mean, p99, hz) {
+  if (mean === void 0 && p99 === void 0 && hz === void 0) return;
   const name2 = metricName(rawName ?? "bench");
+  seen.set(name2, [...seen.get(name2) ?? [], where]);
   if (mean !== void 0) out[`${name2}.mean_ms`] = [mean];
   if (p99 !== void 0) out[`${name2}.p99_ms`] = [p99];
   if (hz !== void 0) out[`${name2}.hz`] = [hz];
 }
+function duplicateBenchReason(label2, seen) {
+  const duplicated = [...seen].filter(([, places]) => places.length > 1);
+  if (duplicated.length === 0) return void 0;
+  const shown2 = duplicated.slice(0, MAX_DUPLICATES_SHOWN).map(([name2, places]) => `'${name2}'\uFF08${places.length} \u5904\uFF1A${places.slice(0, MAX_DUPLICATES_SHOWN).join("\u3001")}\uFF09`);
+  const more = duplicated.length > MAX_DUPLICATES_SHOWN ? ` \u7B49 ${duplicated.length} \u4E2A` : "";
+  return `${label2} \u7ED3\u679C\u91CC\u6709\u91CD\u540D\u7684\u57FA\u51C6\uFF1A${shown2.join("\uFF1B")}${more}\u3002\u6307\u6807\u540D\u53D6\u81EA\u57FA\u51C6\u540D\uFF0C\u91CD\u540D\u4F1A\u4E92\u76F8\u8986\u76D6\u2014\u2014\u7ED9\u6BCF\u4E2A bench() \u8D77\u4E0D\u540C\u7684\u540D\u5B57`;
+}
 function vitestBenchMetrics(files) {
   const out = {};
+  const seen = /* @__PURE__ */ new Map();
   for (const file of files.filter(isRecord26)) {
     for (const group of asArray8(file.groups).filter(isRecord26)) {
+      const where = asString5(group.fullName) ?? asString5(file.filepath) ?? "?";
       for (const bench of asArray8(group.benchmarks).filter(isRecord26)) {
-        putVitestBench(out, asString5(bench.name) ?? asString5(bench.id), asNumber(bench.mean), asNumber(bench.p99), asNumber(bench.hz));
+        putVitestBench(out, seen, asString5(bench.name) ?? asString5(bench.id), where, asNumber(bench.mean), asNumber(bench.p99), asNumber(bench.hz));
       }
     }
   }
+  const duplicate = duplicateBenchReason("vitest bench", seen);
+  if (duplicate !== void 0) return { ok: false, reason: duplicate };
   return Object.keys(out).length === 0 ? { ok: false, reason: "vitest bench \u7ED3\u679C\u91CC\u6CA1\u6709 mean / p99 / hz" } : { ok: true, metrics: out };
 }
 function vitest5BenchMetrics(testResults) {
   const out = {};
+  const seen = /* @__PURE__ */ new Map();
   for (const file of testResults.filter(isRecord26)) {
     for (const assertion of asArray8(file.assertionResults).filter(isRecord26)) {
       for (const bench of asArray8(assertion.benchmarks).filter(isRecord26)) {
+        const where = `${(asString5(file.name) ?? "?").split(/[\\/]/u).at(-1)} > ${asString5(bench.name) ?? "?"}`;
         for (const task of asArray8(bench.tasks).filter(isRecord26)) {
           if (task.fromStore === true) continue;
           const latency = isRecord26(task.latency) ? task.latency : {};
           const throughput = isRecord26(task.throughput) ? task.throughput : {};
-          putVitestBench(out, asString5(task.name), asNumber(latency.mean), asNumber(latency.p99), asNumber(throughput.mean));
+          putVitestBench(out, seen, asString5(task.name), where, asNumber(latency.mean), asNumber(latency.p99), asNumber(throughput.mean));
         }
       }
     }
   }
+  const duplicate = duplicateBenchReason("vitest 5 bench", seen);
+  if (duplicate !== void 0) return { ok: false, reason: duplicate };
   return Object.keys(out).length === 0 ? { ok: false, reason: "vitest 5 bench \u7ED3\u679C\u91CC\u6CA1\u6709 latency.mean / latency.p99 / throughput.mean\uFF08json reporter \u7684\u7528\u4F8B\u4E0A\u6CA1\u6709 benchmarks\uFF1A\u662F\u7528 vitest bench \u8DD1\u7684\u5417\uFF09" } : { ok: true, metrics: out };
 }
 function k6Metrics(root) {

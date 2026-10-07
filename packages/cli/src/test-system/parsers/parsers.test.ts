@@ -413,6 +413,73 @@ describe('基准报告', () => {
     expect(parseBenchmarkReport('benchmark-json', task({})).ok).toBe(false)
     expect(parseBenchmarkReport('benchmark-json', JSON.stringify({ testResults: [] })).ok).toBe(false)
   })
+  describe('重名的基准不能悄悄互相覆盖：判解析失败并点名', () => {
+    const task = (name: string, mean = 1, extra: object = {}): object => ({ name, latency: { mean, p99: mean * 2 }, throughput: { mean: 1000 / mean }, ...extra })
+    const v5 = (...files: Array<{ file: string; benches: Array<{ name: string; tasks: object[] }> }>): string => JSON.stringify({
+      testResults: files.map(({ file, benches }) => ({ name: `/work/proj/${file}`, assertionResults: benches.map((bench) => ({ benchmarks: [bench] })) })),
+    })
+    const v4 = (...groups: Array<{ file: string; group: string; benchmarks: object[] }>): string => JSON.stringify({
+      files: groups.map(({ file, group, benchmarks }) => ({ filepath: `/work/proj/${file}`, groups: [{ fullName: `${file} > ${group}`, benchmarks }] })),
+    })
+
+    it('vitest 5：不同测试里的同名基准 → 失败，点名基准名与两处位置', () => {
+      const report = parseBenchmarkReport('benchmark-json', v5(
+        { file: 'a.bench.ts', benches: [{ name: 'parsing > fast', tasks: [task('parse', 1)] }] },
+        { file: 'sub/b.bench.ts', benches: [{ name: 'other > case', tasks: [task('parse', 2)] }] },
+      ))
+      expect(report.ok).toBe(false)
+      const reason = report.ok ? '' : report.reason
+      expect(reason).toContain("'parse'（2 处：a.bench.ts > parsing > fast、b.bench.ts > other > case）")
+      expect(reason).toContain('重名')
+    })
+
+    it('vitest 5：同一个测试里 run 了两次同名基准 → 同样失败', () => {
+      const report = parseBenchmarkReport('benchmark-json', v5({ file: 'a.bench.ts', benches: [{ name: 'g', tasks: [task('x')] }, { name: 'g', tasks: [task('x')] }] }))
+      expect(report.ok).toBe(false)
+      expect(!report.ok && report.reason).toContain("'x'（2 处")
+    })
+
+    it('vitest 5：名字只有标点不同（native sort / native_sort）清洗后撞名 → 失败，点名清洗后的指标名', () => {
+      const report = parseBenchmarkReport('benchmark-json', v5({ file: 'a.bench.ts', benches: [{ name: 'g', tasks: [task('native sort'), task('native_sort')] }] }))
+      expect(report.ok).toBe(false)
+      expect(!report.ok && report.reason).toContain("'native_sort'")
+    })
+
+    it('vitest 5：同名超过 3 组只列前 3 组并给总数', () => {
+      const names = ['a', 'b', 'c', 'd']
+      const report = parseBenchmarkReport('benchmark-json', v5({ file: 'a.bench.ts', benches: [{ name: 'g', tasks: [...names, ...names].map((name) => task(name)) }] }))
+      expect(report.ok).toBe(false)
+      expect(!report.ok && report.reason).toContain('等 4 个')
+      expect(!report.ok && report.reason).not.toContain("'d'")
+    })
+
+    it('vitest 5：不撞名的照常解析；bench.from() 存档（fromStore）与实测同名不算撞；没有任何统计的 task 不占名字', () => {
+      const report = parseBenchmarkReport('benchmark-json', v5({
+        file: 'a.bench.ts',
+        benches: [
+          { name: 'g', tasks: [task('same', 1, { fromStore: true }), task('same', 3), { name: 'empty' }, { name: 'empty' }] },
+          { name: 'h', tasks: [task('other', 5)] },
+        ],
+      }))
+      expect(report.ok && Object.keys(report.metrics)).toEqual(['same.mean_ms', 'same.p99_ms', 'same.hz', 'other.mean_ms', 'other.p99_ms', 'other.hz'])
+      expect(report.ok && report.metrics['same.mean_ms']).toEqual([3])
+    })
+
+    it('vitest ≤4：不同 describe 里的同名基准 → 失败，点名基准名与两个分组', () => {
+      const bench = (mean: number): object => ({ name: 'sort', mean, p99: mean * 2, hz: 1000 / mean })
+      const report = parseBenchmarkReport('benchmark-json', v4(
+        { file: 'a.bench.ts', group: 'ascending', benchmarks: [bench(1)] },
+        { file: 'a.bench.ts', group: 'descending', benchmarks: [bench(2)] },
+      ))
+      expect(report.ok).toBe(false)
+      expect(!report.ok && report.reason).toContain("'sort'（2 处：a.bench.ts > ascending、a.bench.ts > descending）")
+    })
+
+    it('vitest ≤4：名字唯一时行为不变（authored 夹具仍解析出全部六个指标）', () => {
+      const report = parseBenchmarkReport('benchmark-json', fixture('benchmark/vitest-bench.json'))
+      expect(report.ok && Object.keys(report.metrics).length).toBe(6)
+    })
+  })
   it('k6（authored）：括号去掉；两种导出形状（values 嵌套 / 平铺）等价', () => {
     const nested = parseBenchmarkReport('k6-summary', fixture('benchmark/k6-summary.json'))
     const flat = parseBenchmarkReport('k6-summary', fixture('benchmark/k6-summary-export.json'))
