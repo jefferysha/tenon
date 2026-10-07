@@ -47383,7 +47383,7 @@ function codexOnlyProcessEnv(...layers) {
   }
   return result2;
 }
-var nodeCodexTriageExec = (file, args, options) => new Promise((resolve70) => {
+var nodeCodexTriageExec = (file, args, options) => new Promise((resolve71) => {
   const detached = process.platform !== "win32";
   const child = spawn(file, args, {
     cwd: options.cwd,
@@ -47403,7 +47403,7 @@ var nodeCodexTriageExec = (file, args, options) => new Promise((resolve70) => {
     options.signal.removeEventListener("abort", onAbort);
     if (forceKillTimer !== void 0)
       clearTimeout(forceKillTimer);
-    resolve70(result2);
+    resolve71(result2);
   };
   const killProcessTree = (signal) => {
     if (detached && child.pid !== void 0) {
@@ -47505,7 +47505,7 @@ function abortReason(signal) {
 function awaitExecWithAbort(execution, signal) {
   if (signal.aborted)
     return Promise.reject(abortReason(signal));
-  return new Promise((resolve70, reject5) => {
+  return new Promise((resolve71, reject5) => {
     let settled = false;
     const finish2 = (complete) => {
       if (settled)
@@ -47516,7 +47516,7 @@ function awaitExecWithAbort(execution, signal) {
     };
     const onAbort = () => finish2(() => reject5(abortReason(signal)));
     signal.addEventListener("abort", onAbort, { once: true });
-    execution.then((result2) => finish2(() => resolve70(result2)), (error2) => finish2(() => reject5(error2)));
+    execution.then((result2) => finish2(() => resolve71(result2)), (error2) => finish2(() => reject5(error2)));
   });
 }
 function createCodexTriageProvider(options = {}) {
@@ -47641,7 +47641,7 @@ import { createHash as createHash33 } from "node:crypto";
 import { execFile as execFile5, spawn as spawn2 } from "node:child_process";
 import { createInterface } from "node:readline";
 var mergedEnv = (env) => env ? { ...process.env, ...env } : process.env;
-var spawnStreaming = (file, args, opts) => new Promise((resolve70) => {
+var spawnStreaming = (file, args, opts) => new Promise((resolve71) => {
   const maxTail = opts.maxTailChars ?? MAX_TAIL_CHARS;
   const proc = spawn2(file, args, {
     cwd: opts.cwd,
@@ -47674,19 +47674,19 @@ var spawnStreaming = (file, args, opts) => new Promise((resolve70) => {
   }
   proc.on("error", (err) => {
     stderrTail.push(String(err.message ?? err));
-    resolve70({ stdout: stdoutTail.toString(), stderr: stderrTail.toString(), exitCode: 127 });
+    resolve71({ stdout: stdoutTail.toString(), stderr: stderrTail.toString(), exitCode: 127 });
   });
   proc.on("close", (code) => {
-    resolve70({ stdout: stdoutTail.toString(), stderr: stderrTail.toString(), exitCode: code ?? 0 });
+    resolve71({ stdout: stdoutTail.toString(), stderr: stderrTail.toString(), exitCode: code ?? 0 });
   });
 });
 var nodeExec = (file, args, opts) => {
   if (opts?.onLine || opts?.input !== void 0)
     return spawnStreaming(file, args, opts);
-  return new Promise((resolve70) => {
+  return new Promise((resolve71) => {
     execFile5(file, args, { cwd: opts?.cwd, env: mergedEnv(opts?.env), maxBuffer: 64 * 1024 * 1024, encoding: "utf-8" }, (error2, stdout, stderr) => {
       const code = error2 && typeof error2.code === "number" ? error2.code : error2 ? 1 : 0;
-      resolve70({ stdout: String(stdout), stderr: String(stderr), exitCode: code });
+      resolve71({ stdout: String(stdout), stderr: String(stderr), exitCode: code });
     });
   });
 };
@@ -49478,7 +49478,7 @@ var createSemaphore = (maxParallel) => {
       running++;
       return Promise.resolve();
     }
-    return new Promise((resolve70) => queue.push(resolve70));
+    return new Promise((resolve71) => queue.push(resolve71));
   };
   const release3 = () => {
     if (running <= 0)
@@ -50209,8 +50209,8 @@ function createSchedulerExecution(input2) {
       const controller = new AbortController();
       abortControllers.set(name2, controller);
       let resolveShutdownCompletion;
-      const shutdownCompletion = new Promise((resolve70) => {
-        resolveShutdownCompletion = resolve70;
+      const shutdownCompletion = new Promise((resolve71) => {
+        resolveShutdownCompletion = resolve71;
       });
       shutdownCompletions.set(name2, { promise: shutdownCompletion, resolve: () => resolveShutdownCompletion?.() });
       let executedOutcome;
@@ -52388,7 +52388,7 @@ async function withDigestPublishLock(casRoot, digest19, publish) {
       if (Date.now() >= deadline) {
         throw new SkillSnapshotIoError(`CAS \u53D1\u5E03\u9501\u7B49\u5F85\u8D85\u65F6\uFF08digest ${digest19}\uFF09\uFF0C\u62D2\u7EDD\u8BFB\u53D6\u53EF\u80FD\u672A\u63D0\u4EA4\u7684\u76EE\u6807\u76EE\u5F55`);
       }
-      await new Promise((resolve70) => setTimeout(resolve70, PUBLISH_LOCK_RETRY_MS));
+      await new Promise((resolve71) => setTimeout(resolve71, PUBLISH_LOCK_RETRY_MS));
     }
   }
   try {
@@ -54667,7 +54667,7 @@ var AgentIdleTimeoutError = class extends Error {
 };
 var detectsCompletion = (accumulated, signals) => signals.some((sig) => accumulated.includes(sig));
 var armDecision = (completionDetected, idleMs, graceMs) => completionDetected ? { ms: graceMs, onExpiry: "resolve" } : { ms: idleMs, onExpiry: "reject-idle" };
-var invokeWithRace = (runExec, opts) => new Promise((resolve70, reject5) => {
+var invokeWithRace = (runExec, opts) => new Promise((resolve71, reject5) => {
   const { idleMs, graceMs, completionSignals, signal } = opts;
   let settled = false;
   let accumulated = "";
@@ -54689,7 +54689,7 @@ var invokeWithRace = (runExec, opts) => new Promise((resolve70, reject5) => {
       return;
     settled = true;
     cleanup2();
-    resolve70(v);
+    resolve71(v);
   };
   const settleReject = (e) => {
     if (settled)
@@ -61511,12 +61511,12 @@ async function probeCodexAuth(exec = REAL_CODEX_AUTH_EXEC) {
   }
 }
 function createCodexAuthExec(options = {}) {
-  return () => new Promise((resolve70) => {
+  return () => new Promise((resolve71) => {
     const platform3 = options.platform ?? process.platform;
     const env = options.env ?? process.env;
     const plan = options.plan ?? codexStatusSpawnPlan(platform3, env);
     if ("unavailableReason" in plan) {
-      resolve70({ kind: "unavailable", reason: plan.unavailableReason });
+      resolve71({ kind: "unavailable", reason: plan.unavailableReason });
       return;
     }
     const spawnProcess = options.spawnProcess ?? spawn3;
@@ -61549,7 +61549,7 @@ function createCodexAuthExec(options = {}) {
         terminationKiller = void 0;
         directKill(killer);
       }
-      resolve70(result2);
+      resolve71(result2);
     };
     const terminateCurrentProcessTree = () => {
       const target = child;
@@ -62071,30 +62071,30 @@ async function waitForHealthyServer(port, expectedReleaseId, expectedStateScopeI
   return null;
 }
 function listenerPids(port) {
-  return new Promise((resolve70) => {
+  return new Promise((resolve71) => {
     execFile6("lsof", ["-nP", "-t", `-iTCP:${port}`, "-sTCP:LISTEN"], { encoding: "utf8" }, (error2, stdout) => {
       if (error2 === null) {
-        resolve70([...new Set(String(stdout ?? "").split(/\r?\n/).map((line) => Number.parseInt(line.trim(), 10)).filter((pid) => Number.isSafeInteger(pid) && pid > 0))]);
+        resolve71([...new Set(String(stdout ?? "").split(/\r?\n/).map((line) => Number.parseInt(line.trim(), 10)).filter((pid) => Number.isSafeInteger(pid) && pid > 0))]);
         return;
       }
-      resolve70(error2.code === 1 ? [] : null);
+      resolve71(error2.code === 1 ? [] : null);
     });
   });
 }
 function dashboardPortOpen(port) {
-  return new Promise((resolve70) => {
+  return new Promise((resolve71) => {
     const socket = createConnection({ host: "127.0.0.1", port });
     socket.setTimeout(250);
     socket.once("connect", () => {
       socket.destroy();
-      resolve70(true);
+      resolve71(true);
     });
     socket.once("timeout", () => {
       socket.destroy();
-      resolve70(true);
+      resolve71(true);
     });
     socket.once("error", (error2) => {
-      resolve70(error2.code !== "ECONNREFUSED");
+      resolve71(error2.code !== "ECONNREFUSED");
     });
   });
 }
@@ -67233,7 +67233,7 @@ async function cmdDocumentStatus(deps, name2, json2) {
 
 // packages/cli/src/commands/document-batch.ts
 import { existsSync as existsSync7 } from "node:fs";
-import { resolve as resolve42 } from "node:path";
+import { resolve as resolve43 } from "node:path";
 
 // packages/cli/src/commands/statusStepDocumentActions.ts
 function documentWriteActions(documents) {
@@ -67957,14 +67957,14 @@ function firstDeliveryMessage(change) {
   return `feat(${change}): deliver`;
 }
 function git(cwd, args) {
-  return new Promise((resolve70) => {
+  return new Promise((resolve71) => {
     execFile9("git", [...args], { cwd, timeout: 5e3, maxBuffer: 4 * 1024 * 1024 }, (error2, stdout) => {
       if (error2 === null) {
-        resolve70({ code: 0, stdout: String(stdout) });
+        resolve71({ code: 0, stdout: String(stdout) });
         return;
       }
       const code = error2.code;
-      resolve70({ code: typeof code === "number" ? code : null, stdout: String(stdout) });
+      resolve71({ code: typeof code === "number" ? code : null, stdout: String(stdout) });
     });
   });
 }
@@ -68504,22 +68504,38 @@ function hyperfineMetrics(results) {
   }
   return Object.keys(out).length === 0 ? { ok: false, reason: "hyperfine \u7ED3\u679C\u91CC\u6CA1\u6709 times / mean" } : { ok: true, metrics: out };
 }
+function putVitestBench(out, rawName, mean, p99, hz) {
+  const name2 = metricName(rawName ?? "bench");
+  if (mean !== void 0) out[`${name2}.mean_ms`] = [mean];
+  if (p99 !== void 0) out[`${name2}.p99_ms`] = [p99];
+  if (hz !== void 0) out[`${name2}.hz`] = [hz];
+}
 function vitestBenchMetrics(files) {
   const out = {};
   for (const file of files.filter(isRecord26)) {
     for (const group of asArray8(file.groups).filter(isRecord26)) {
       for (const bench of asArray8(group.benchmarks).filter(isRecord26)) {
-        const name2 = metricName(asString5(bench.name) ?? asString5(bench.id) ?? "bench");
-        const mean = asNumber(bench.mean);
-        const p99 = asNumber(bench.p99);
-        const hz = asNumber(bench.hz);
-        if (mean !== void 0) out[`${name2}.mean_ms`] = [mean];
-        if (p99 !== void 0) out[`${name2}.p99_ms`] = [p99];
-        if (hz !== void 0) out[`${name2}.hz`] = [hz];
+        putVitestBench(out, asString5(bench.name) ?? asString5(bench.id), asNumber(bench.mean), asNumber(bench.p99), asNumber(bench.hz));
       }
     }
   }
   return Object.keys(out).length === 0 ? { ok: false, reason: "vitest bench \u7ED3\u679C\u91CC\u6CA1\u6709 mean / p99 / hz" } : { ok: true, metrics: out };
+}
+function vitest5BenchMetrics(testResults) {
+  const out = {};
+  for (const file of testResults.filter(isRecord26)) {
+    for (const assertion of asArray8(file.assertionResults).filter(isRecord26)) {
+      for (const bench of asArray8(assertion.benchmarks).filter(isRecord26)) {
+        for (const task of asArray8(bench.tasks).filter(isRecord26)) {
+          if (task.fromStore === true) continue;
+          const latency = isRecord26(task.latency) ? task.latency : {};
+          const throughput = isRecord26(task.throughput) ? task.throughput : {};
+          putVitestBench(out, asString5(task.name), asNumber(latency.mean), asNumber(latency.p99), asNumber(throughput.mean));
+        }
+      }
+    }
+  }
+  return Object.keys(out).length === 0 ? { ok: false, reason: "vitest 5 bench \u7ED3\u679C\u91CC\u6CA1\u6709 latency.mean / latency.p99 / throughput.mean\uFF08json reporter \u7684\u7528\u4F8B\u4E0A\u6CA1\u6709 benchmarks\uFF1A\u662F\u7528 vitest bench \u8DD1\u7684\u5417\uFF09" } : { ok: true, metrics: out };
 }
 function k6Metrics(root) {
   if (!isRecord26(root.metrics)) return { ok: false, reason: "\u7F3A\u5C11 metrics\uFF1A\u4E0D\u662F k6 summary" };
@@ -68559,6 +68575,7 @@ function parseBenchmarkReport(format, text13) {
   if (format === "lighthouse-json") return lighthouseMetrics(root);
   if (Array.isArray(root.results)) return hyperfineMetrics(root.results);
   if (Array.isArray(root.files)) return vitestBenchMetrics(root.files);
+  if (Array.isArray(root.testResults)) return vitest5BenchMetrics(root.testResults);
   return nativeMetrics(root);
 }
 
@@ -68606,12 +68623,71 @@ function makeSuite(input2) {
   };
 }
 
+// packages/cli/src/test-system/vitest-version.ts
+import { resolve as resolve41 } from "node:path";
+var DECLARED_FIELDS = ["devDependencies", "dependencies", "optionalDependencies", "peerDependencies"];
+var SIMPLE_RANGE = /^[\^~=]?\s*v?(\d+)(?:\.(?:\d+|[xX*])){0,2}(?:-[0-9A-Za-z.-]+)?$/u;
+var INSTALLED_VERSION = /^v?(\d+)\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]+)?$/u;
+var NPM_ALIAS = /^npm:vitest@/u;
+function majorOfInstalledVersion(version) {
+  const major = INSTALLED_VERSION.exec(version.trim())?.[1];
+  return major === void 0 ? void 0 : Number(major);
+}
+function majorOfDeclaredRange(range) {
+  const alternatives = range.trim().replace(NPM_ALIAS, "").split("||").map((part) => part.trim());
+  const majors = alternatives.map((part) => SIMPLE_RANGE.exec(part)?.[1]);
+  if (majors.some((major) => major === void 0)) return void 0;
+  const distinct = new Set(majors);
+  return distinct.size === 1 ? Number(majors[0]) : void 0;
+}
+function ancestorsToRoot(dir) {
+  const depth = dir.rel === "." ? 0 : dir.rel.split("/").length;
+  const levels = [];
+  for (let up = 0; up <= depth; up++) levels.push(resolve41(dir.abs, ...Array(up).fill("..")));
+  return levels;
+}
+async function readJsonRecord(path15) {
+  const text13 = await readSmallText(path15);
+  if (text13 === void 0) return void 0;
+  try {
+    const parsed2 = JSON.parse(text13);
+    return isRecord26(parsed2) ? parsed2 : void 0;
+  } catch {
+    return void 0;
+  }
+}
+async function detectVitestVersion(dir) {
+  const levels = ancestorsToRoot(dir);
+  for (const level of levels) {
+    const installed = await readJsonRecord(resolve41(level, "node_modules", "vitest", "package.json"));
+    if (installed === void 0 || installed.name !== "vitest" || typeof installed.version !== "string") continue;
+    const major = majorOfInstalledVersion(installed.version);
+    if (major !== void 0) return { major, source: "installed", raw: installed.version };
+  }
+  for (const level of levels) {
+    const manifest = await readJsonRecord(resolve41(level, "package.json"));
+    if (manifest === void 0) continue;
+    for (const field4 of DECLARED_FIELDS) {
+      const section2 = manifest[field4];
+      const range = isRecord26(section2) ? section2.vitest : void 0;
+      if (typeof range !== "string") continue;
+      const major = majorOfDeclaredRange(range);
+      return major === void 0 ? void 0 : { major, source: "declared", raw: range };
+    }
+  }
+  return void 0;
+}
+
 // packages/cli/src/test-system/discover-bench.ts
 var BENCH_FILE = /\.(?:bench|benchmark)\.[cm]?[jt]sx?$/;
 var SKIP2 = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build", "coverage", "test-results", "playwright-report", ".tenon", "openspec", ".pipeline", "target", "vendor", ".venv", "__pycache__"]);
 var MAX_DEPTH = 4;
 var MAX_FILES2 = 200;
 var MAX_METRICS3 = 24;
+var REPORT_PATH = "test-results/bench.json";
+var COMMAND_OUTPUT_JSON = `npx vitest bench --run --outputJson=${REPORT_PATH}`;
+var COMMAND_JSON_REPORTER = `npx vitest bench --run --reporter=default --reporter=json --outputFile.json=${REPORT_PATH}`;
+var FIRST_JSON_REPORTER_MAJOR = 5;
 var BENCH_CALL = /\bbench\s*\(\s*(['"`])((?:\\.|(?!\1)[^\\\n])+)\1/g;
 async function benchFiles(abs2, rel, depth, out) {
   if (out.length >= MAX_FILES2) return;
@@ -68650,6 +68726,13 @@ async function discoverVitestBench(dir, notes) {
     notes.push(`${where} \u4E0B\u6709 bench \u6587\u4EF6\uFF08${files.slice(0, 3).join("\u3001")}\uFF09\u4F46\u8BFB\u4E0D\u51FA bench('\u540D\u5B57') \u7684\u540D\u5B57\uFF1A\u7528 tenon test catalog add --kind benchmark --runner vitest-bench \u624B\u5DE5\u767B\u8BB0\u5E76\u58F0\u660E\u6307\u6807`);
     return void 0;
   }
+  const version = await detectVitestVersion(dir);
+  if (version === void 0) {
+    const cwdFlag = dir.rel === "." ? "" : ` --cwd ${dir.rel}`;
+    const register = (command2) => `tenon test catalog add ${idPrefix(dir.rel)}bench --kind benchmark --runner vitest-bench --command "${command2}"${cwdFlag} --report-format benchmark-json --report-path ${REPORT_PATH} --artifact test-results --metric name=${metricName(names[0] ?? "bench")}.mean_ms,better=lower,max_regression_pct=10,unit=ms`;
+    notes.push(`${where === "" ? "\u9879\u76EE\u6839" : where} \u4E0B\u6709 bench \u6587\u4EF6\u4F46\u8BFB\u4E0D\u51FA vitest \u4E3B\u7248\u672C\uFF08node_modules/vitest \u6CA1\u88C5\uFF0Cpackage.json \u4E5F\u6CA1\u6709\u80FD\u89E3\u6790\u51FA\u4E3B\u7248\u672C\u7684 vitest \u8303\u56F4\uFF09\uFF0C\u6CA1\u6709\u751F\u6210\u57FA\u51C6\u5957\u4EF6\uFF1Avitest 5 \u8D77 vitest bench \u5220\u6389\u4E86 --outputJson\uFF0C\u547D\u4EE4\u56E0\u7248\u672C\u800C\u5F02\uFF0C\u4E0D\u731C\u3002\u88C5\u597D\u4F9D\u8D56\u540E\u91CD\u8DD1 tenon test discover\uFF1B\u6216\u6309\u7248\u672C\u624B\u5DE5\u767B\u8BB0\u2014\u2014vitest \u22644\uFF1A${register(COMMAND_OUTPUT_JSON)}\uFF1Bvitest \u22655\uFF1A${register(COMMAND_JSON_REPORTER)}`);
+    return void 0;
+  }
   const metrics = [...new Set(names.map((name2) => `${metricName(name2)}.mean_ms`))].slice(0, MAX_METRICS3).map((name2) => ({ name: name2, unit: "ms", better: "lower", max_regression_pct: 10 }));
   return {
     source: `${where}${files[0] ?? "*.bench.*"}`,
@@ -68659,9 +68742,9 @@ async function discoverVitestBench(dir, notes) {
       kind: "benchmark",
       runner: "vitest-bench",
       cwd: dir.rel,
-      command: "npx vitest bench --run --outputJson=test-results/bench.json",
+      command: version.major >= FIRST_JSON_REPORTER_MAJOR ? COMMAND_JSON_REPORTER : COMMAND_OUTPUT_JSON,
       files: ["**/*.{bench,benchmark}.{ts,tsx,js,jsx,mts,cts,mjs,cjs}"],
-      report: { format: "benchmark-json", path: "test-results/bench.json" },
+      report: { format: "benchmark-json", path: REPORT_PATH },
       artifacts: ["test-results"],
       benchmark: { runs: 1, warmup: 0, metrics }
     })
@@ -69120,7 +69203,7 @@ async function autoDiscoverCatalog(repoRoot) {
 // packages/cli/src/localExcludes.ts
 import { execFile as execFile10 } from "node:child_process";
 import { appendFile as appendFile9, mkdir as mkdir48, readFile as readFile79 } from "node:fs/promises";
-import { dirname as dirname28, isAbsolute as isAbsolute29, resolve as resolve41 } from "node:path";
+import { dirname as dirname28, isAbsolute as isAbsolute29, resolve as resolve42 } from "node:path";
 var HEADER = "# Tenon: locally generated files (not committed)";
 var HOST_AGENT_EXCLUDES = [".claude/agents/tenon-*.md", ".codex/agents/tenon-*.toml"];
 var TEST_OUTPUT_EXCLUDES = ["test-results/", "playwright-report/"];
@@ -69128,7 +69211,7 @@ function excludeFile(cwd) {
   return new Promise((done) => {
     execFile10("git", ["rev-parse", "--git-path", "info/exclude"], { cwd, timeout: 5e3 }, (error2, stdout) => {
       const path15 = String(stdout).trim();
-      done(error2 === null && path15 !== "" ? isAbsolute29(path15) ? path15 : resolve41(cwd, path15) : void 0);
+      done(error2 === null && path15 !== "" ? isAbsolute29(path15) ? path15 : resolve42(cwd, path15) : void 0);
     });
   });
 }
@@ -69925,7 +70008,7 @@ async function recordOneDocument(deps, change, action, skills, producerOverride)
   const producer = producerOverride ?? pickProducer(producers, skills) ?? null;
   const skipped = (detail) => ({ kind, path: path15, producer, outcome: "skipped", detail });
   if (path15 === null) return skipped(msg(deps, "document.record.pathUndecided"));
-  if (!existsSync7(resolve42(deps.cwd, path15))) return skipped(msg(deps, "document.record.fileNotWritten", { change, kind }));
+  if (!existsSync7(resolve43(deps.cwd, path15))) return skipped(msg(deps, "document.record.fileNotWritten", { change, kind }));
   const refusal = await placeholderRefusal(deps.cwd, kind, path15);
   if (refusal !== null) {
     const [header2 = "", first = ""] = refusal.split("\n");
@@ -72324,7 +72407,7 @@ function nextSeq(lastSeq) {
 }
 
 // packages/channel/dist/paths.js
-import { isAbsolute as isAbsolute32, join as join130, resolve as resolve43 } from "node:path";
+import { isAbsolute as isAbsolute32, join as join130, resolve as resolve44 } from "node:path";
 var GLOBAL_BUCKET = "_global";
 function resolveRoot(defaultRoot, envRoot) {
   const env = (envRoot ?? "").trim();
@@ -72340,7 +72423,7 @@ function projectKey(env) {
   const override = (env.projectOverride ?? "").trim();
   if (override)
     return sanitizeBucket(override);
-  const base = isAbsolute32(env.cwd) ? env.cwd : resolve43(env.cwd);
+  const base = isAbsolute32(env.cwd) ? env.cwd : resolve44(env.cwd);
   return sanitizeBucket(base);
 }
 function bucketFor(env, scope) {
@@ -73371,8 +73454,8 @@ function readNewEvents(fs, path15, state) {
   return parseEventsText(lines4.join("\n"));
 }
 function defaultSleep(ms) {
-  return new Promise((resolve70) => {
-    const t = setTimeout(resolve70, ms);
+  return new Promise((resolve71) => {
+    const t = setTimeout(resolve71, ms);
     if (typeof t.unref === "function")
       t.unref();
   });
@@ -73592,7 +73675,7 @@ var ShutdownController = class {
   awaitKilled() {
     if (this.killedDone || !this.killedStarted)
       return Promise.resolve();
-    return new Promise((resolve70) => this.killedWaiters.push(resolve70));
+    return new Promise((resolve71) => this.killedWaiters.push(resolve71));
   }
   startKillLadder() {
     const child = this.deps.child();
@@ -73828,12 +73911,12 @@ async function startSupervisor(channelName, workerName, config, deps) {
   log3(`[supervisor] starting ${adapter2.provider} ${args.join(" ")}
 `);
   const child = proc.spawn(adapter2.provider, args, { cwd: config.cwd, env: childEnv });
-  const settled = new Promise((resolve70) => {
-    child.onSpawn(() => resolve70(true));
+  const settled = new Promise((resolve71) => {
+    child.onSpawn(() => resolve71(true));
     child.onError((err) => {
       log3(`[supervisor] worker error: ${err.message}
 `);
-      resolve70(false);
+      resolve71(false);
     });
   });
   child.onStderr((chunk) => log3(chunk));
@@ -76505,7 +76588,7 @@ async function cmdLoops(deps, sub, args, fs = REAL_LOOPS_FS, driftFs = REAL_DRIF
 }
 
 // packages/cli/src/commands/mem.ts
-import { resolve as resolve44 } from "node:path";
+import { resolve as resolve45 } from "node:path";
 
 // packages/cli/src/commands/mem-render.ts
 var memIsoDate = (ms) => new Date(ms).toISOString().slice(0, 10);
@@ -76587,7 +76670,7 @@ function buildFilter(deps, flags) {
     cwd = null;
   } else {
     const cwdFlag = typeof flags.cwd === "string" ? flags.cwd : deps.cwd;
-    cwd = resolve44(cwdFlag);
+    cwd = resolve45(cwdFlag);
   }
   const limit = parseOptionalNumberFlag(flags.limit, "--limit", 50);
   return { platform: platformRaw, since, until, cwd, limit };
@@ -76849,22 +76932,22 @@ async function cmdMem(deps, sub, args, fs = nodeMemFs()) {
 
 // packages/cli/src/commands/scaffold.ts
 import { lstat as lstat64, mkdir as mkdir51, readFile as readFile85, rm as rm24, stat as stat15, unlink as unlink9, writeFile as writeFile28 } from "node:fs/promises";
-import { dirname as dirname31, isAbsolute as isAbsolute36, join as join134, relative as relative29, resolve as resolve48, sep as sep24 } from "node:path";
+import { dirname as dirname31, isAbsolute as isAbsolute36, join as join134, relative as relative29, resolve as resolve49, sep as sep24 } from "node:path";
 
 // packages/cli/src/commands/specScaffoldTransaction.ts
 import { lstat as lstat63, mkdir as mkdir50, rename as rename18, rm as rm23, writeFile as writeFile27 } from "node:fs/promises";
 import { randomUUID as randomUUID18 } from "node:crypto";
-import { dirname as dirname30, isAbsolute as isAbsolute35, relative as relative28, resolve as resolve47, sep as sep23 } from "node:path";
+import { dirname as dirname30, isAbsolute as isAbsolute35, relative as relative28, resolve as resolve48, sep as sep23 } from "node:path";
 
 // packages/cli/src/commands/specScaffoldTree.ts
 import { createHash as createHash53 } from "node:crypto";
 import { copyFile as copyFile2, lstat as lstat61, mkdir as mkdir49, readFile as readFile83, readdir as readdir30 } from "node:fs/promises";
-import { relative as relative26, resolve as resolve45 } from "node:path";
+import { relative as relative26, resolve as resolve46 } from "node:path";
 async function copyOrdinaryTree(source, target) {
   await mkdir49(target);
   for (const entry2 of await readdir30(source, { withFileTypes: true })) {
-    const sourcePath = resolve45(source, entry2.name);
-    const targetPath = resolve45(target, entry2.name);
+    const sourcePath = resolve46(source, entry2.name);
+    const targetPath = resolve46(target, entry2.name);
     if (entry2.isSymbolicLink()) {
       throw new Error(`spec scaffold \u4E8B\u52A1\u62D2\u7EDD\u590D\u5236 symlink: ${sourcePath}`);
     }
@@ -76880,8 +76963,8 @@ async function copyOrdinaryTree(source, target) {
 async function syncUnmanagedOrdinaryTree(source, target, managedPaths) {
   const walk2 = async (sourceDirectory, targetDirectory) => {
     for (const entry2 of await readdir30(sourceDirectory, { withFileTypes: true })) {
-      const sourcePath = resolve45(sourceDirectory, entry2.name);
-      const targetPath = resolve45(targetDirectory, entry2.name);
+      const sourcePath = resolve46(sourceDirectory, entry2.name);
+      const targetPath = resolve46(targetDirectory, entry2.name);
       if (entry2.isSymbolicLink()) {
         throw new Error(`spec scaffold \u4E8B\u52A1\u62D2\u7EDD\u540C\u6B65 symlink: ${sourcePath}`);
       }
@@ -76904,7 +76987,7 @@ async function ordinaryTreeDigest(root) {
     const entries2 = (await readdir30(directory, { withFileTypes: true })).sort((left, right) => left.name.localeCompare(right.name));
     for (const entry2 of entries2) {
       const relativePath = prefix ? `${prefix}/${entry2.name}` : entry2.name;
-      const pathname = resolve45(directory, entry2.name);
+      const pathname = resolve46(directory, entry2.name);
       if (entry2.isSymbolicLink()) {
         throw new Error(`spec scaffold \u4E8B\u52A1\u62D2\u7EDD\u6458\u8981 symlink: ${pathname}`);
       }
@@ -76937,7 +77020,7 @@ function ordinaryPathKey(target) {
 
 // packages/cli/src/commands/specScaffoldRecovery.ts
 import { lstat as lstat62, readFile as readFile84, rename as rename17, rm as rm22 } from "node:fs/promises";
-import { basename as basename14, dirname as dirname29, isAbsolute as isAbsolute34, relative as relative27, resolve as resolve46, sep as sep22 } from "node:path";
+import { basename as basename14, dirname as dirname29, isAbsolute as isAbsolute34, relative as relative27, resolve as resolve47, sep as sep22 } from "node:path";
 function errorCode9(error2) {
   if (typeof error2 !== "object" || error2 === null || !("code" in error2)) return void 0;
   const code = Reflect.get(error2, "code");
@@ -77023,8 +77106,8 @@ function processIsAlive(pid) {
   }
 }
 function receiptPaths(specDirectory, receipt, anchor = dirname29(specDirectory)) {
-  const stage = resolve46(anchor, receipt.stageName);
-  const backup = resolve46(anchor, receipt.backupName);
+  const stage = resolve47(anchor, receipt.stageName);
+  const backup = resolve47(anchor, receipt.backupName);
   if (!contained2(anchor, stage) || !contained2(anchor, backup)) {
     throw new Error("spec scaffold \u4E8B\u52A1\u63CF\u8FF0\u8D8A\u8FC7\u4E8B\u52A1\u951A\u70B9");
   }
@@ -77092,7 +77175,7 @@ async function recoverStaleTransaction(specDirectory, lockFile, recoveryFile, an
   return "recovered";
 }
 async function acquireTransaction(specDirectory, receipt, anchor) {
-  const lockFile = resolve46(
+  const lockFile = resolve47(
     anchor,
     `.tenon-spec-transaction-${ordinaryPathKey(specDirectory)}.json`
   );
@@ -77135,8 +77218,8 @@ async function existingOrdinaryDirectory2(target) {
   }
 }
 async function publishSpecScaffoldTransaction(options) {
-  const repoRoot = resolve47(options.repoRoot);
-  const specDirectory = resolve47(options.specDirectory);
+  const repoRoot = resolve48(options.repoRoot);
+  const specDirectory = resolve48(options.specDirectory);
   if (!contained3(repoRoot, specDirectory)) {
     throw new Error(`spec scaffold \u4E8B\u52A1\u8DEF\u5F84\u8D8A\u8FC7\u9879\u76EE\u6839: ${options.specDirectory}`);
   }
@@ -77175,7 +77258,7 @@ async function publishSpecScaffoldTransaction(options) {
     await ensureTrustedProjectDirectory(stage, candidateSpecDirectory);
     const managedPaths = /* @__PURE__ */ new Set();
     for (const file of options.files) {
-      const target = resolve47(candidateSpecDirectory, file.relativePath);
+      const target = resolve48(candidateSpecDirectory, file.relativePath);
       if (!contained3(candidateSpecDirectory, target)) {
         throw new Error(`spec scaffold \u4E8B\u52A1\u6587\u4EF6\u8D8A\u8FC7\u6682\u5B58\u6839: ${file.relativePath}`);
       }
@@ -77291,11 +77374,11 @@ var REAL_FS = {
 var SPEC_STRATEGY_SIGNAL = "TENON_SPEC_STRATEGY";
 function safeSpecDir(cwd, specDir) {
   if (isAbsolute36(specDir)) return false;
-  const rel = relative29(resolve48(cwd), resolve48(cwd, specDir));
+  const rel = relative29(resolve49(cwd), resolve49(cwd, specDir));
   return rel !== ".." && !rel.startsWith(`..${sep24}`) && !isAbsolute36(rel);
 }
 async function assertExistingParentsSafe(cwd, target) {
-  const root = resolve48(cwd);
+  const root = resolve49(cwd);
   const parent = dirname31(target);
   const rel = relative29(root, parent);
   if (rel === ".." || rel.startsWith(`..${sep24}`) || isAbsolute36(rel)) {
@@ -77303,7 +77386,7 @@ async function assertExistingParentsSafe(cwd, target) {
   }
   let cursor = root;
   for (const segment of rel.split(sep24).filter(Boolean)) {
-    cursor = resolve48(cursor, segment);
+    cursor = resolve49(cursor, segment);
     try {
       const info = await lstat64(cursor);
       if (!info.isDirectory() || info.isSymbolicLink()) {
@@ -77361,7 +77444,7 @@ async function cmdScaffoldSpec(deps, args, fs) {
   }
   const rawStrategy = typeof flags["strategy"] === "string" && flags["strategy"] !== "" ? flags["strategy"] : fs.env(SPEC_STRATEGY_SIGNAL) || "";
   const files = buildSpecScaffold(type, specDir, locale);
-  const abs2 = (rel) => resolve48(deps.cwd, rel);
+  const abs2 = (rel) => resolve49(deps.cwd, rel);
   const existing = /* @__PURE__ */ new Set();
   for (const f of files) {
     if (fs === REAL_FS) {
@@ -77402,7 +77485,7 @@ async function cmdScaffoldSpec(deps, args, fs) {
   const plan = planDocScaffold(files, existing, strategy);
   try {
     if (fs === REAL_FS && strategy === "overwrite") {
-      const specRoot = resolve48(deps.cwd, specDir);
+      const specRoot = resolve49(deps.cwd, specDir);
       await publishSpecScaffoldTransaction({
         repoRoot: deps.cwd,
         specDirectory: specRoot,
@@ -78112,7 +78195,7 @@ import { spawn as spawn7 } from "node:child_process";
 // packages/tap/dist/paths.js
 import { homedir as homedir13, tmpdir as tmpdir5 } from "node:os";
 import { mkdirSync as mkdirSync2 } from "node:fs";
-import { join as join136, dirname as dirname32, resolve as resolve49 } from "node:path";
+import { join as join136, dirname as dirname32, resolve as resolve50 } from "node:path";
 function safeHome() {
   const h = homedir13();
   if (h && h.length > 0)
@@ -78127,26 +78210,26 @@ function safeHome() {
 }
 function resolveTapDir(opts = {}) {
   if (opts.dir)
-    return resolve49(opts.dir);
+    return resolve50(opts.dir);
   const env = opts.env ?? process.env;
   const explicit = (env.TENON_TAP_DIR ?? "").trim();
   if (explicit)
-    return resolve49(explicit);
+    return resolve50(explicit);
   const db = (env.TENON_TAP_DB ?? "").trim();
   if (db)
-    return resolve49(dirname32(resolve49(db)));
+    return resolve50(dirname32(resolve50(db)));
   const xdg = (env.XDG_DATA_HOME ?? "").trim();
   if (xdg)
-    return resolve49(join136(xdg, "tenon-tap"));
-  return resolve49(join136(safeHome(), ".local", "share", "tenon-tap"));
+    return resolve50(join136(xdg, "tenon-tap"));
+  return resolve50(join136(safeHome(), ".local", "share", "tenon-tap"));
 }
 function resolveStateDir(opts = {}) {
   if (opts.dir)
-    return resolve49(opts.dir);
+    return resolve50(opts.dir);
   const env = opts.env ?? process.env;
   const override = (env.TENON_TAP_STATE_DIR ?? "").trim();
   if (override)
-    return resolve49(override);
+    return resolve50(override);
   return resolveTapDir(opts);
 }
 
@@ -78951,13 +79034,13 @@ function serve(opts) {
       }
     }
   });
-  return new Promise((resolve70, reject5) => {
+  return new Promise((resolve71, reject5) => {
     server.once("error", reject5);
     server.listen(opts.port ?? 0, host, () => {
       server.removeAllListeners("error");
       const boundPort = server.address().port;
       const unregister = registerIntercept({ kind: "reverse", port: boundPort, client, target: opts.target });
-      resolve70({
+      resolve71({
         port: boundPort,
         host,
         target: opts.target,
@@ -80023,13 +80106,13 @@ function serveForward(opts = {}) {
     upstream.on("close", cleanup2);
     clientSocket.on("close", cleanup2);
   });
-  return new Promise((resolve70, reject5) => {
+  return new Promise((resolve71, reject5) => {
     server.once("error", reject5);
     server.listen(opts.port ?? 0, host, () => {
       server.removeAllListeners("error");
       const boundPort = server.address().port;
       const unregister = registerIntercept({ kind: "forward", port: boundPort, client, tls: !!ca });
-      resolve70({
+      resolve71({
         port: boundPort,
         host,
         client,
@@ -80956,25 +81039,25 @@ async function cmdTap(deps, sub, args) {
         }
         const merged = {};
         for (const c of result2.clients) Object.assign(merged, c.env);
-        const code = await new Promise((resolve70) => {
+        const code = await new Promise((resolve71) => {
           const child = spawn7(executable, command2.slice(1), {
             stdio: "inherit",
             env: { ...process.env, ...merged }
           });
-          child.on("exit", (exitCode, signal) => resolve70(exitCode ?? (signal ? 1 : 0)));
-          child.on("error", () => resolve70(1));
+          child.on("exit", (exitCode, signal) => resolve71(exitCode ?? (signal ? 1 : 0)));
+          child.on("error", () => resolve71(1));
         });
         await result2.daemon.stop();
         return code;
       }
-      const termination = new Promise((resolve70, reject5) => {
+      const termination = new Promise((resolve71, reject5) => {
         const cleanup2 = () => {
           process.off("SIGINT", stop2);
           process.off("SIGTERM", stop2);
         };
         const stop2 = () => {
           cleanup2();
-          void result2.daemon.stop().then(resolve70, reject5);
+          void result2.daemon.stop().then(resolve71, reject5);
         };
         process.once("SIGINT", stop2);
         process.once("SIGTERM", stop2);
@@ -81980,10 +82063,10 @@ async function cmdInternalCodexJsonl(deps, mode, jsonlPath) {
 // packages/cli/src/commands/internal-skill-provenance.ts
 import { randomUUID as randomUUID20 } from "node:crypto";
 import { chmod as chmod5, lstat as lstat66, mkdir as mkdir53, open as open11, readFile as readFile87, readdir as readdir31, realpath as realpath16, rename as rename20, rm as rm26 } from "node:fs/promises";
-import { dirname as dirname33, join as join142, relative as relative30, resolve as resolve50 } from "node:path";
+import { dirname as dirname33, join as join142, relative as relative30, resolve as resolve51 } from "node:path";
 function rootPath(value) {
   if (value === void 0 || value.trim() === "") throw new Error("--root <path> \u662F\u5FC5\u9700\u53C2\u6570");
-  return resolve50(value);
+  return resolve51(value);
 }
 function within(root, path15) {
   const rel = relative30(root, path15);
@@ -82817,7 +82900,7 @@ async function cmdInternalLauncherHeal(deps, env = REAL_LAUNCHER_HEAL_ENV) {
 
 // packages/cli/src/commands/internal-skill-upstream.ts
 import { homedir as homedir19 } from "node:os";
-import { resolve as resolve52 } from "node:path";
+import { resolve as resolve53 } from "node:path";
 
 // packages/cli/src/upstream-skills/install.ts
 import { randomUUID as randomUUID21 } from "node:crypto";
@@ -83254,7 +83337,7 @@ async function writeUpstreamSkillRunReport(stateRoot, report2) {
 }
 
 // packages/cli/src/commands/setupEnvironment.ts
-import { dirname as dirname35, join as join148, resolve as resolve51, win32 as win326 } from "node:path";
+import { dirname as dirname35, join as join148, resolve as resolve52, win32 as win326 } from "node:path";
 import { randomUUID as randomUUID23 } from "node:crypto";
 import { execFileSync as execFileSync3 } from "node:child_process";
 import {
@@ -83280,7 +83363,7 @@ var REAL_SETUP_ENV = {
     return r !== void 0 && r.trim() !== "" ? r : null;
   },
   selfPath: () => {
-    const candidate2 = resolve51(process.argv[1] ?? "");
+    const candidate2 = resolve52(process.argv[1] ?? "");
     try {
       return realpathSync9(candidate2);
     } catch {
@@ -83416,7 +83499,7 @@ var REAL_SETUP_ENV = {
 function resolvePipelineRoot(env) {
   const root = env.pluginRoot();
   if (root !== null) return root;
-  return resolve51(dirname35(env.selfPath()), "..", "..", "..");
+  return resolve52(dirname35(env.selfPath()), "..", "..", "..");
 }
 function printPlanSkeleton(deps, opts, host) {
   deps.io.out(`[setup] ${hostFlag(host)} \u5168\u529F\u80FD\u5C31\u7EEA\u5F15\u5BFC \u2014\u2014 \u8BA1\u5212\u9AA8\u67B6`);
@@ -83541,7 +83624,7 @@ async function cmdInternalSkillUpstream(deps, mode, options, runtime = productio
     deps.io.err("internal-skill-upstream: --root <path> \u662F\u5FC5\u9700\u53C2\u6570");
     return 2;
   }
-  const root = resolve52(options.root);
+  const root = resolve53(options.root);
   try {
     const { report: report2 } = await installUpstreamSkills({
       env: runtime.env,
@@ -85320,7 +85403,7 @@ async function publishSetupManagedRuntime(deps, env, installer, prepareCandidate
 // packages/cli/src/migration/legacy-project-registry.ts
 import { statSync as statSync11 } from "node:fs";
 import { mkdir as mkdir56, readFile as readFile89 } from "node:fs/promises";
-import { isAbsolute as isAbsolute38, join as join151, posix as posix8, resolve as resolve53, win32 as win327 } from "node:path";
+import { isAbsolute as isAbsolute38, join as join151, posix as posix8, resolve as resolve54, win32 as win327 } from "node:path";
 var MAX_LEGACY_REGISTRY_BYTES = 1048576;
 var MIGRATION_ID = "host-project-registry-v1";
 function resolveHostProjectRegistryCandidates(input2) {
@@ -85390,7 +85473,7 @@ async function readPendingMigration(path15) {
   return {
     version: 1,
     migration: MIGRATION_ID,
-    roots: record9.roots.map((root) => resolve53(root)),
+    roots: record9.roots.map((root) => resolve54(root)),
     rejected: record9.rejected
   };
 }
@@ -85456,7 +85539,7 @@ async function migrateLegacyProjectRegistry(input2) {
             rejected += 1;
             continue;
           }
-          discovered.add(resolve53(item2));
+          discovered.add(resolve54(item2));
         }
       }
       pending = {
@@ -86518,11 +86601,11 @@ import { join as join158 } from "node:path";
 import { execFile as execFile11 } from "node:child_process";
 import { accessSync as accessSync5, constants as fsConstants5, statSync as statSync12 } from "node:fs";
 import { join as join157 } from "node:path";
-var nodeExecDocker = (args) => new Promise((resolve70) => {
+var nodeExecDocker = (args) => new Promise((resolve71) => {
   execFile11("docker", [...args], (err, stdout, stderr) => {
     const code = err?.code;
     const exitCode = err === null ? 0 : typeof code === "number" ? code : 1;
-    resolve70({ stdout: String(stdout ?? ""), stderr: String(stderr ?? ""), exitCode });
+    resolve71({ stdout: String(stdout ?? ""), stderr: String(stderr ?? ""), exitCode });
   });
 });
 async function execDocker(args, opts) {
@@ -86530,8 +86613,8 @@ async function execDocker(args, opts) {
   const timeoutMs = opts?.timeoutMs ?? 5e3;
   let timer;
   try {
-    const timeout = new Promise((resolve70) => {
-      timer = setTimeout(() => resolve70(null), timeoutMs);
+    const timeout = new Promise((resolve71) => {
+      timer = setTimeout(() => resolve71(null), timeoutMs);
     });
     return await Promise.race([exec(args).catch(() => null), timeout]);
   } finally {
@@ -87600,7 +87683,7 @@ async function cmdMigrateWorkflow(deps, name2) {
 
 // packages/cli/src/commands/state-projection.ts
 import { lstat as lstat68, readFile as readFile91 } from "node:fs/promises";
-import { isAbsolute as isAbsolute41, join as join163, resolve as resolve56 } from "node:path";
+import { isAbsolute as isAbsolute41, join as join163, resolve as resolve57 } from "node:path";
 function message(error2) {
   return error2 instanceof Error ? error2.message : String(error2);
 }
@@ -87647,7 +87730,7 @@ async function cmdStateProjection(deps, sub, name2, opts = {}) {
           deps.io.out(opts.json ? JSON.stringify({ status: "already-pinned" }) : `${name2}: workflow snapshot already pinned`);
           return 0;
         }
-        const sourcePath = isAbsolute41(opts.workflowFile) ? opts.workflowFile : resolve56(deps.cwd, opts.workflowFile);
+        const sourcePath = isAbsolute41(opts.workflowFile) ? opts.workflowFile : resolve57(deps.cwd, opts.workflowFile);
         const info = await lstat68(sourcePath);
         if (!info.isFile() || info.isSymbolicLink()) {
           throw new Error(`workflow file \u5FC5\u987B\u662F\u975E symlink \u666E\u901A\u6587\u4EF6: ${sourcePath}`);
@@ -89501,7 +89584,7 @@ function registerAgentCommands(program2, deps) {
 
 // packages/cli/src/commands/interaction.ts
 import { lstat as lstat70 } from "node:fs/promises";
-import { isAbsolute as isAbsolute42, join as join166, relative as relative31, resolve as resolve57 } from "node:path";
+import { isAbsolute as isAbsolute42, join as join166, relative as relative31, resolve as resolve58 } from "node:path";
 var MAX_FIXTURE_BYTES = 1024 * 1024;
 var MAX_EVENT_FILE_BYTES = 1024 * 1024;
 var MAX_FIXTURES = 256;
@@ -89557,8 +89640,8 @@ function assertFixturePath(root, file) {
   if (isAbsolute42(file) || file.includes("\\") || !SAFE_RELATIVE.test(file)) {
     throw new Error("fixture file path invalid");
   }
-  const target = resolve57(root, file);
-  const rootRelative = relative31(resolve57(root), target);
+  const target = resolve58(root, file);
+  const rootRelative = relative31(resolve58(root), target);
   if (rootRelative.startsWith("..") || isAbsolute42(rootRelative)) throw new Error("fixture file path invalid");
   return target;
 }
@@ -91039,7 +91122,7 @@ async function cmdTestWaive(deps, change, opts) {
 
 // packages/cli/src/commands/test-report.ts
 import { lstat as lstat74, readFile as readFile97, writeFile as writeFile33 } from "node:fs/promises";
-import { isAbsolute as isAbsolute43, resolve as resolve58 } from "node:path";
+import { isAbsolute as isAbsolute43, resolve as resolve59 } from "node:path";
 
 // packages/cli/src/test-system/report-md.ts
 var WORDS = {
@@ -91156,7 +91239,7 @@ function renderV2Sections(report2, locale) {
 var MAX_REPORT_BYTES2 = 1024 * 1024;
 async function writableReport(repoRoot, path15) {
   if (path15 === "" || isAbsolute43(path15) || path15.includes("..")) return void 0;
-  const absolute = resolve58(repoRoot, path15);
+  const absolute = resolve59(repoRoot, path15);
   try {
     const entry2 = await lstat74(absolute);
     return entry2.isFile() && entry2.size <= MAX_REPORT_BYTES2 ? absolute : void 0;
@@ -91227,7 +91310,7 @@ async function cmdTestReport(deps, change, opts = {}) {
 // packages/cli/src/commands/test-run.ts
 import { randomBytes as randomBytes9 } from "node:crypto";
 import { lstat as lstat76, mkdir as mkdir63, realpath as realpath18, rm as rm28 } from "node:fs/promises";
-import { join as join175, relative as relative34, resolve as resolve60, sep as sep27 } from "node:path";
+import { join as join175, relative as relative34, resolve as resolve61, sep as sep27 } from "node:path";
 
 // packages/cli/src/hostKind.ts
 function detectHostEnvironment(env) {
@@ -91240,7 +91323,7 @@ function detectHostEnvironment(env) {
 // packages/cli/src/test-runner/collect.ts
 import { createHash as createHash57, randomBytes as randomBytes8 } from "node:crypto";
 import { copyFile as copyFile3, lstat as lstat75, mkdir as mkdir61, readFile as readFile98, readdir as readdir34, realpath as realpath17, writeFile as writeFile34 } from "node:fs/promises";
-import { dirname as dirname43, join as join173, relative as relative32, resolve as resolve59, sep as sep26 } from "node:path";
+import { dirname as dirname43, join as join173, relative as relative32, resolve as resolve60, sep as sep26 } from "node:path";
 var MAX_DIRECTORY_FILES = 5e3;
 var MAX_DOCUMENT_BYTES = 4 * 1024 * 1024;
 var MAX_ARTIFACT_FILE_BYTES = 64 * 1024 * 1024;
@@ -91327,7 +91410,7 @@ async function documentInput(repoRoot, changeDir7, ref) {
   return { kind: "document", ref, present: entries2.length > 0, entries: entries2 };
 }
 async function fileInput(repoRoot, path15) {
-  const absolute = resolve59(repoRoot, path15);
+  const absolute = resolve60(repoRoot, path15);
   const missing3 = { kind: "file", path: path15, present: false, digest: null, files: 0 };
   try {
     const entry2 = await lstat75(absolute);
@@ -91384,7 +91467,7 @@ async function collectTestOutputs(repoRoot, test, runDir) {
   const budget = { used: 0 };
   const records = [];
   for (const output2 of test.outputs) {
-    const absolute = resolve59(repoRoot, output2.path);
+    const absolute = resolve60(repoRoot, output2.path);
     const base = { path: output2.path, kind: output2.kind, required: output2.required };
     const absent = { ...base, present: false, digest: null, bytes: 0, files: 0, artifact: null };
     let entry2;
@@ -91536,7 +91619,7 @@ function runTestProcess(request2) {
     }
     omittedTail.push(chunk);
   };
-  return new Promise((resolve70) => {
+  return new Promise((resolve71) => {
     const detached = process.platform !== "win32";
     const shell = shellFor(request2.command);
     let settled = false;
@@ -91564,7 +91647,7 @@ function runTestProcess(request2) {
       }
       stream.end(() => {
         const finishedAtMs = Date.now();
-        resolve70({
+        resolve71({
           exitCode,
           signal,
           timedOut,
@@ -91701,7 +91784,7 @@ async function candidateOf(deps, name2) {
 }
 async function resolvedCwd(repoRoot, cwd) {
   try {
-    const target = await realpath18(resolve60(repoRoot, cwd));
+    const target = await realpath18(resolve61(repoRoot, cwd));
     const rel = relative34(await realpath18(repoRoot), target);
     if (rel !== "" && (rel.startsWith("..") || rel.startsWith(sep27))) return void 0;
     return (await lstat76(target)).isDirectory() ? target : void 0;
@@ -91792,7 +91875,7 @@ async function execute(deps, context, input2) {
   });
   const outputs2 = workDir === void 0 ? [] : await collectTestOutputs(deps.cwd, test, runDir);
   const values = test.pass.metrics.length === 0 && test.metrics_path === void 0 ? void 0 : await readMetrics({
-    ...test.metrics_path === void 0 ? {} : { metricsPath: resolve60(deps.cwd, test.metrics_path) },
+    ...test.metrics_path === void 0 ? {} : { metricsPath: resolve61(deps.cwd, test.metrics_path) },
     logText: outcome.tail
   });
   const baseline = await readTestBaseline(testBaselinePath(deps.cwd, context.slug, test.id));
@@ -92072,7 +92155,7 @@ function evaluationShell(draft) {
 import { spawn as spawn9, execFile as execFile14 } from "node:child_process";
 import { closeSync as closeSync9, mkdirSync as mkdirSync9, openSync as openSync9, readFileSync as readFileSync40 } from "node:fs";
 import { connect } from "node:net";
-import { dirname as dirname45, resolve as resolve61 } from "node:path";
+import { dirname as dirname45, resolve as resolve62 } from "node:path";
 import { promisify as promisify7 } from "node:util";
 import { setTimeout as sleep4 } from "node:timers/promises";
 var run4 = promisify7(execFile14);
@@ -92151,7 +92234,7 @@ function describeProbe(service2) {
 async function startService(service2, options) {
   mkdirSync9(dirname45(options.logPath), { recursive: true });
   const fd = openSync9(options.logPath, "w", 384);
-  const cwd = resolve61(options.repoRoot, service2.cwd);
+  const cwd = resolve62(options.repoRoot, service2.cwd);
   const preexisting = await alreadyServing(service2);
   const child = spawn9("/bin/sh", ["-c", service2.start], {
     cwd,
@@ -92252,13 +92335,13 @@ function serviceRecord(running, logIndexPath) {
 // packages/cli/src/test-system/suite-exec.ts
 import { realpathSync as realpathSync10 } from "node:fs";
 import { realpath as realpath20, stat as stat18 } from "node:fs/promises";
-import { isAbsolute as isAbsolute47, relative as relative38, resolve as resolve65 } from "node:path";
+import { isAbsolute as isAbsolute47, relative as relative38, resolve as resolve66 } from "node:path";
 
 // packages/cli/src/test-system/artifacts.ts
 import { createHash as createHash59 } from "node:crypto";
 import { copyFile as copyFile4, lstat as lstat77, mkdir as mkdir65, readdir as readdir35, realpath as realpath19 } from "node:fs/promises";
 import { createReadStream } from "node:fs";
-import { dirname as dirname46, extname, isAbsolute as isAbsolute45, join as join177, relative as relative35, resolve as resolve62, sep as sep28 } from "node:path";
+import { dirname as dirname46, extname, isAbsolute as isAbsolute45, join as join177, relative as relative35, resolve as resolve63, sep as sep28 } from "node:path";
 var MAX_ARTIFACT_FILE_BYTES2 = 64 * 1024 * 1024;
 var MAX_ARTIFACT_RUN_BYTES2 = 256 * 1024 * 1024;
 var MAX_ARTIFACT_FILES_PER_SUITE = 5e3;
@@ -92338,7 +92421,7 @@ async function collectArtifacts(input2) {
   const declaredFiles = [];
   let truncated = false;
   for (const declared of input2.artifactPaths) {
-    const target = resolve62(cwd, declared);
+    const target = resolve63(cwd, declared);
     let entry2;
     try {
       entry2 = await lstat77(target);
@@ -92350,12 +92433,12 @@ async function collectArtifacts(input2) {
     else if (entry2.isDirectory() && await walkFiles2(target, MAX_ARTIFACT_FILES_PER_SUITE, declaredFiles)) truncated = true;
   }
   const files = input2.modifiedSinceMs === void 0 ? declaredFiles : await writtenSince(declaredFiles, input2.modifiedSinceMs);
-  const extras = await Promise.all(input2.extraFiles.map((file) => realOrSame(resolve62(cwd, file))));
-  const priority = await Promise.all((input2.priorityFiles ?? []).map((file) => realOrSame(resolve62(cwd, file))));
+  const extras = await Promise.all(input2.extraFiles.map((file) => realOrSame(resolve63(cwd, file))));
+  const priority = await Promise.all((input2.priorityFiles ?? []).map((file) => realOrSame(resolve63(cwd, file))));
   const all = [.../* @__PURE__ */ new Set([...priority, ...files, ...extras])];
   const index = [];
   const mapped = /* @__PURE__ */ new Map();
-  const declaredDirs = input2.artifactPaths.map((declared) => resolve62(cwd, declared));
+  const declaredDirs = input2.artifactPaths.map((declared) => resolve63(cwd, declared));
   for (const source of all) {
     if (index.length >= MAX_ARTIFACT_FILES_PER_SUITE) {
       truncated = true;
@@ -92446,10 +92529,10 @@ function exitText(outcome) {
 // packages/cli/src/test-system/report-read.ts
 import { createHash as createHash60 } from "node:crypto";
 import { lstat as lstat78, mkdir as mkdir66, readFile as readFile99, rm as rm29 } from "node:fs/promises";
-import { dirname as dirname47, resolve as resolve64 } from "node:path";
+import { dirname as dirname47, resolve as resolve65 } from "node:path";
 
 // packages/cli/src/test-system/parsers/text.ts
-import { isAbsolute as isAbsolute46, posix as posix9, relative as relative36, resolve as resolve63, sep as sep29 } from "node:path";
+import { isAbsolute as isAbsolute46, posix as posix9, relative as relative36, resolve as resolve64, sep as sep29 } from "node:path";
 var ANSI = /\u001b\[[0-9;?]*[ -/]*[@-~]/g;
 var MAX_FIELD = 6e4;
 var MAX_NAME2 = 3e3;
@@ -92469,7 +92552,7 @@ function toPosix(path15) {
 function repoPath2(ctx, value, base) {
   if (value === "") return value;
   const cleaned = value.startsWith("file://") ? decodeURIComponent(value.slice("file://".length)) : value;
-  const absolute = isAbsolute46(cleaned) ? cleaned : resolve63(base ?? ctx.cwd, cleaned);
+  const absolute = isAbsolute46(cleaned) ? cleaned : resolve64(base ?? ctx.cwd, cleaned);
   const rel = relative36(ctx.repoRoot, absolute);
   if (rel === "" || rel.startsWith("..") || isAbsolute46(rel)) return toPosix(isAbsolute46(cleaned) ? cleaned : posix9.normalize(toPosix(cleaned)));
   return toPosix(rel);
@@ -93384,8 +93467,8 @@ async function readBounded2(path15) {
 async function prepareOutputs(suite2, cwd) {
   for (const path15 of [suite2.report.path, suite2.coverage?.path]) {
     if (path15 === void 0) continue;
-    await rm29(resolve64(cwd, path15), { force: true });
-    await mkdir66(dirname47(resolve64(cwd, path15)), { recursive: true });
+    await rm29(resolve65(cwd, path15), { force: true });
+    await mkdir66(dirname47(resolve65(cwd, path15)), { recursive: true });
   }
 }
 function staleReportDetail(read3, sinceMs, path15) {
@@ -93394,13 +93477,13 @@ function staleReportDetail(read3, sinceMs, path15) {
   return `\u62A5\u544A ${path15} \u7684\u4FEE\u6539\u65F6\u95F4 ${new Date(read3.mtimeMs).toISOString()} \u65E9\u4E8E\u672C\u6B21\u8FD0\u884C\u5F00\u59CB ${new Date(sinceMs).toISOString()}\uFF08\u88AB\u56DE\u586B\u7684\u65E7\u6587\u4EF6\uFF09`;
 }
 async function readReportFile(suite2, cwd) {
-  return suite2.report.path === void 0 ? { state: "missing" } : readBounded2(resolve64(cwd, suite2.report.path));
+  return suite2.report.path === void 0 ? { state: "missing" } : readBounded2(resolve65(cwd, suite2.report.path));
 }
 async function readCoverageFiles(suite2, cwd) {
   if (suite2.coverage === void 0) return { summary: { state: "missing" } };
-  const summary = await readBounded2(resolve64(cwd, suite2.coverage.path));
+  const summary = await readBounded2(resolve65(cwd, suite2.coverage.path));
   if (suite2.coverage.format !== "istanbul-summary") return { summary };
-  const detail = await readBounded2(resolve64(dirname47(resolve64(cwd, suite2.coverage.path)), "coverage-final.json"));
+  const detail = await readBounded2(resolve65(dirname47(resolve65(cwd, suite2.coverage.path)), "coverage-final.json"));
   return { summary, ...detail.state === "ok" ? { detail: detail.text } : {} };
 }
 function parseCases(suite2, text13, repoRoot, cwd) {
@@ -93833,7 +93916,7 @@ async function usableCwd(repoRoot, cwd) {
 async function executeSuite(context, item2, blocked) {
   const suite2 = item2.suite;
   if (blocked !== void 0) return notExecuted(suite2, item2, context, blocked);
-  const cwd = resolve65(context.repoRoot, suite2.cwd);
+  const cwd = resolve66(context.repoRoot, suite2.cwd);
   if (!await usableCwd(context.repoRoot, cwd)) return notExecuted(suite2, item2, context, { code: "cwd-invalid", detail: suite2.cwd.slice(0, 200) });
   const planned2 = planCommand(suite2, {
     scope: item2.scope,
@@ -93894,8 +93977,8 @@ async function executeSuite(context, item2, blocked) {
     coverage3 = await coverageOf(suite2, context, cwd, parsedCases.some((entry2) => entry2.status === "fail"), reasons);
   }
   const wanted = wantedFiles(context.plan, planFilesOfSuite(context.plan, suite2), context.knownFailures, suite2.id);
-  const attachments = parsedCases.flatMap((entry2) => isRetained(entry2, wanted) ? entry2.attachments.map((attachment) => resolve65(cwd, attachment.path)) : []);
-  const reportFiles = suite2.report.path === void 0 ? [] : [resolve65(cwd, suite2.report.path)];
+  const attachments = parsedCases.flatMap((entry2) => isRetained(entry2, wanted) ? entry2.attachments.map((attachment) => resolve66(cwd, attachment.path)) : []);
+  const reportFiles = suite2.report.path === void 0 ? [] : [resolve66(cwd, suite2.report.path)];
   const artifacts = await collectArtifacts({
     repoRoot: context.repoRoot,
     cwd,
@@ -93916,7 +93999,7 @@ async function executeSuite(context, item2, blocked) {
     knownFailures: context.knownFailures,
     today: context.today,
     indexed: (absolute) => artifacts.mapped.get(absolute),
-    resolveAttachment: (path15) => real(resolve65(cwd, path15))
+    resolveAttachment: (path15) => real(resolve66(cwd, path15))
   });
   const { log: log3, tail } = await invoker.finish();
   if (log3.truncated) reasons.push({ code: "log-truncated" });
@@ -95612,8 +95695,8 @@ function productionLogsRuntime() {
   const onInterrupt = () => controller.abort();
   process.once("SIGINT", onInterrupt);
   return {
-    sleep: (ms) => new Promise((resolve70) => {
-      setTimeout(resolve70, ms);
+    sleep: (ms) => new Promise((resolve71) => {
+      setTimeout(resolve71, ms);
     }),
     signal: controller.signal,
     dispose: () => {
@@ -95712,7 +95795,7 @@ async function follow(deps, path15, runtime) {
 // packages/cli/src/commands/support.ts
 import { mkdirSync as mkdirSync10, readFileSync as readFileSync41, readdirSync as readdirSync15, realpathSync as realpathSync11, renameSync as renameSync7, rmSync as rmSync6, statSync as statSync15, writeFileSync as writeFileSync7 } from "node:fs";
 import { arch as arch2, homedir as homedir23, platform as platform2, release as release2, userInfo } from "node:os";
-import { dirname as dirname48, join as join181, resolve as resolve66 } from "node:path";
+import { dirname as dirname48, join as join181, resolve as resolve67 } from "node:path";
 
 // packages/cli/src/support/tar.ts
 import { gzipSync } from "node:zlib";
@@ -96031,7 +96114,7 @@ async function cmdSupportBundle(deps, opts, runtime = productionSupportRuntime()
     return 1;
   }
   const createdAt = deps.clock();
-  const target = resolve66(deps.cwd, opts.out ?? join181(paths.homeDir, `tenon-support-${stamp(createdAt)}.tar.gz`));
+  const target = resolve67(deps.cwd, opts.out ?? join181(paths.homeDir, `tenon-support-${stamp(createdAt)}.tar.gz`));
   if (isDirectory(target)) {
     deps.io.err(`ERROR: ${msg(deps, "support.outInvalid")}`);
     return 1;
@@ -96083,7 +96166,7 @@ function registerSupportCommands(program2, deps, runtimes) {
 }
 
 // packages/cli/src/commands/step-run.ts
-import { resolve as resolve67 } from "node:path";
+import { resolve as resolve68 } from "node:path";
 import { existsSync as existsSync15 } from "node:fs";
 var MAX_ROUNDS = 8;
 var BATCHABLE = /* @__PURE__ */ new Set(["scaffold-document", "record-document", "read-documents", "test-plan-seed"]);
@@ -96114,13 +96197,13 @@ async function perform(deps, change, step, action) {
           stop: { kind: "author", action: action.action, reason: msg(deps, "step.stop.pathUndecided", { kind, change }) }
         };
       }
-      if (existsSync15(resolve67(deps.cwd, path15))) return {};
+      if (existsSync15(resolve68(deps.cwd, path15))) return {};
       return finish2(command2, await cmdDocumentScaffold(captured.deps, change, kind), captured.out.at(-1) ?? path15);
     }
     case "record-document": {
       const producers = Array.isArray(action.producers) ? action.producers.map(String) : [];
       const command2 = `tenon document record ${change} ${kind} ${path15 ?? "<path>"} --producer ${pickProducer(producers, step.skills) ?? "<skill>"}`;
-      if (path15 !== null && !existsSync15(resolve67(deps.cwd, path15))) {
+      if (path15 !== null && !existsSync15(resolve68(deps.cwd, path15))) {
         return {
           done: { action: action.action, command: command2, ok: false, detail: msg(deps, "step.detail.fileNotWritten") },
           stop: { kind: "author", action: action.action, reason: msg(deps, "step.stop.fileNotWritten", { path: path15, change }) }
@@ -96387,7 +96470,7 @@ async function cmdOrchestrationWatch(deps, change, json2, follow2, intervalMs = 
   printSnapshot(deps, snapshot2, json2);
   if (!follow2) return 0;
   while (!["completed", "cancelled", "failed"].includes(snapshot2.status)) {
-    await new Promise((resolve70) => setTimeout(resolve70, Math.max(100, Math.min(intervalMs, 3e4))));
+    await new Promise((resolve71) => setTimeout(resolve71, Math.max(100, Math.min(intervalMs, 3e4))));
     const ledger = createOrchestrationLedger();
     const current = await ledger.readSnapshot(dir);
     if (!current) return 1;
@@ -96534,7 +96617,7 @@ function registerUserCommands(program2, deps) {
 
 // packages/cli/src/commands/evidence-export.ts
 import { mkdir as mkdir68, writeFile as writeFile38 } from "node:fs/promises";
-import { dirname as dirname49, resolve as resolve68 } from "node:path";
+import { dirname as dirname49, resolve as resolve69 } from "node:path";
 
 // packages/cli/src/commands/evidence-git.ts
 import { spawn as spawn10 } from "node:child_process";
@@ -96664,7 +96747,7 @@ async function candidateClues(cwd, input2, limit = 5) {
 
 // packages/cli/src/commands/evidence-git.ts
 function gitWithInput(cwd, args, input2, env) {
-  return new Promise((resolve70) => {
+  return new Promise((resolve71) => {
     const child = spawn10("git", [...args], { cwd, env: { ...process.env, ...env }, stdio: ["pipe", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
@@ -96674,8 +96757,8 @@ function gitWithInput(cwd, args, input2, env) {
     child.stderr.on("data", (chunk) => {
       stderr += chunk.toString("utf8");
     });
-    child.on("error", (error2) => resolve70({ code: 127, stdout, stderr: `${stderr}${error2.message}` }));
-    child.on("close", (code) => resolve70({ code: code ?? 1, stdout, stderr }));
+    child.on("error", (error2) => resolve71({ code: 127, stdout, stderr: `${stderr}${error2.message}` }));
+    child.on("close", (code) => resolve71({ code: code ?? 1, stdout, stderr }));
     child.stdin.on("error", () => void 0);
     child.stdin.end(input2);
   });
@@ -96998,7 +97081,7 @@ async function emit5(deps, out, text13) {
     return true;
   }
   try {
-    const target = resolve68(deps.cwd, out);
+    const target = resolve69(deps.cwd, out);
     await mkdir68(dirname49(target), { recursive: true });
     await writeFile38(target, text13, "utf8");
     return true;
@@ -97107,7 +97190,7 @@ async function cmdEvidenceExport(deps, change, opts) {
 
 // packages/cli/src/commands/verify-ci.ts
 import { mkdir as mkdir69, writeFile as writeFile39 } from "node:fs/promises";
-import { dirname as dirname50, resolve as resolve69 } from "node:path";
+import { dirname as dirname50, resolve as resolve70 } from "node:path";
 
 // packages/cli/src/commands/verify-ci-change.ts
 import { lstat as lstat80, readFile as readFile103 } from "node:fs/promises";
@@ -97545,7 +97628,7 @@ function parseOptions(deps, opts) {
   return { selector, options: { candidate: candidate2, requireAnchor: opts.requireAnchor === true }, format, also };
 }
 async function writeOutput(cwd, file, text13) {
-  const target = resolve69(cwd, file);
+  const target = resolve70(cwd, file);
   await mkdir69(dirname50(target), { recursive: true });
   await writeFile39(target, text13, "utf8");
 }
@@ -97876,7 +97959,7 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
       return Promise.resolve({ code: 1, output: "\u53EF\u4FE1 Bash/Node \u8EAB\u4EFD\u5DF2\u6F02\u79FB" });
     }
     if (runtime.run !== void 0) return runtime.run(bash.executable, args, { timeoutMs: 3e4 });
-    return new Promise((resolve70) => {
+    return new Promise((resolve71) => {
       execFile16(
         bash.executable,
         args,
@@ -97884,7 +97967,7 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
         (err, stdout, stderr) => {
           const errCode = err?.code;
           const code = err ? typeof errCode === "number" ? errCode : 1 : 0;
-          resolve70({ code, output: `${stdout ?? ""}${stderr ?? ""}` });
+          resolve71({ code, output: `${stdout ?? ""}${stderr ?? ""}` });
         }
       );
     });
@@ -97894,8 +97977,8 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
     gitAvailable: () => {
       const git4 = trustedCommand("git");
       if (git4 === void 0) return Promise.resolve(false);
-      return new Promise((resolve70) => {
-        execFile16(git4.executable, ["--version"], (err) => resolve70(!err));
+      return new Promise((resolve71) => {
+        execFile16(git4.executable, ["--version"], (err) => resolve71(!err));
       });
     },
     pluginRoot: root,
@@ -98052,14 +98135,14 @@ function exitQuietlyOnEpipe(streams, exit) {
 // packages/cli/src/gitRemotes.ts
 import { execFile as execFile17 } from "node:child_process";
 function gitRemoteNames(cwd) {
-  return new Promise((resolve70) => {
+  return new Promise((resolve71) => {
     execFile17("git", ["remote"], { cwd, timeout: 5e3 }, (error2, stdout) => {
       if (error2 !== null) {
         const code = error2.code;
-        resolve70(typeof code === "number" ? [] : null);
+        resolve71(typeof code === "number" ? [] : null);
         return;
       }
-      resolve70(String(stdout).split("\n").map((line) => line.trim()).filter((line) => line !== ""));
+      resolve71(String(stdout).split("\n").map((line) => line.trim()).filter((line) => line !== ""));
     });
   });
 }
@@ -98113,9 +98196,9 @@ function isoNow() {
   return (/* @__PURE__ */ new Date()).toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 function gitHeadSha(cwd) {
-  return new Promise((resolve70) => {
+  return new Promise((resolve71) => {
     execFile18("git", ["rev-parse", "HEAD"], { cwd }, (_err, stdout) => {
-      resolve70((stdout ?? "").trim());
+      resolve71((stdout ?? "").trim());
     });
   });
 }
@@ -98291,10 +98374,10 @@ async function main() {
         const script = join189(pluginRoot(), "skills", "hue", "scripts", "validate.mjs");
         return existsSync16(script) ? script : "";
       },
-      run: (script, folder, cwd) => new Promise((resolve70) => {
+      run: (script, folder, cwd) => new Promise((resolve71) => {
         const child = spawn11(process.execPath, [script, folder], { cwd, stdio: "inherit" });
-        child.on("error", () => resolve70(1));
-        child.on("close", (code) => resolve70(code ?? 1));
+        child.on("error", () => resolve71(1));
+        child.on("close", (code) => resolve71(code ?? 1));
       })
     },
     io: {

@@ -8,7 +8,7 @@ import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
 import { freshHarness, type Harness } from './integration-harness.js'
-import { VITEST_FILES, commitAll, initGit, linkNodeModules, playwrightFiles, writeFiles } from './integration-harness-tests.js'
+import { VITEST5_BENCH_FILE, VITEST_FILES, commitAll, initGit, linkNodeModules, playwrightFiles, repoVitestMajor, writeFiles } from './integration-harness-tests.js'
 
 const USER = { TENON_USER: 'a@x.io', TENON_USER_NAME: 'A', TENON_TEST_REAL_DIFF: '1', TENON_TEST_TICKING_CLOCK: '1' }
 const SLUG = 'a-at-x.io'
@@ -30,6 +30,7 @@ tracks:
         transitions: []
 `
 
+/** vitest <=4 的 bench 写法（模块级 bench）；vitest 5 用 VITEST5_BENCH_FILE，按本仓装的主版本选。 */
 const BENCH_FILE = `import { bench, describe } from 'vitest'
 describe('sorting', () => {
   bench('native sort', () => { [3, 1, 2].sort() }, { time: 30, iterations: 5, warmupTime: 0, warmupIterations: 0 })
@@ -48,7 +49,7 @@ describe('测试体系 v2 · discover 生成的目录可直接运行', () => {
   test('A1：识别 vitest / Playwright / 基准，写进目录后单测与基准真跑通；首次基准提示建立基线', async () => {
     const harness = await freshHarness()
     h = harness
-    await writeFiles(harness.cwd, { ...VITEST_FILES, ...playwrightFiles({ port: 5199, projects: ['chromium'] }), 'bench/sort.bench.ts': BENCH_FILE })
+    await writeFiles(harness.cwd, { ...VITEST_FILES, ...playwrightFiles({ port: 5199, projects: ['chromium'] }), 'bench/sort.bench.ts': (await repoVitestMajor()) >= 5 ? VITEST5_BENCH_FILE : BENCH_FILE })
     await linkNodeModules(harness.cwd)
     initGit(harness.cwd)
     commitAll(harness.cwd, 'base', '2026-01-01T00:00:00Z')

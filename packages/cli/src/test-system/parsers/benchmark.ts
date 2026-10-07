@@ -2,7 +2,12 @@
  * 基准报告 → 指标样本。Tenon 自己的最小格式 `{"metrics":{"p95_ms":[12.1,11.8],"rps":950}}`（单值或多值）是标准形态，
  * 其余格式转换成同一形态：
  *   · hyperfine `--export-json`：`{"results":[{command,times:[秒…]}]}` → `time_ms`（一条命令）或 `<命令>.time_ms`（多条）
- *   · vitest bench `--outputJson`：`{"files":[{groups:[{benchmarks:[…]}]}]}` → `<基准名>.mean_ms` / `.p99_ms` / `.hz`
+ *   · vitest ≤4 bench `--outputJson`：`{"files":[{groups:[{benchmarks:[…]}]}]}` → `<基准名>.mean_ms` / `.p99_ms` / `.hz`
+ *   · vitest 5 bench `--reporter=json`：`{"testResults":[{assertionResults:[{benchmarks:[{tasks:[{name,latency,throughput}]}]}]}]}`
+ *     （vitest 5 删掉了 `--outputJson`，基准结果改挂在 json reporter 的用例上）→ 同样的 `<基准名>.mean_ms` / `.p99_ms` / `.hz`，
+ *     指标名与 vitest ≤4 一致，目录里声明的指标不用改（两个版本的统计引擎不同，数值不保证可比，升级主版本后重建基线）：
+ *     mean_ms / p99_ms 取 `latency.mean` / `latency.p99`（毫秒），hz 取 `throughput.mean`（次/秒，就是 vitest 表格里的 hz 列）；
+ *     `bench.from()` 读回的存档结果（`fromStore`）不是这次测的，跳过
  *   · k6 `--summary-export`：`{"metrics":{"http_req_duration":{"p(95)":…}}}` → `http_req_duration.p95`（括号去掉）
  *   · lighthouse：`audits[*].numericValue` → `<审计 id>`；`categories[*].score` → `<类别>_score`（百分制）
  * 指标名只留 `[A-Za-z0-9_.-]`，与目录的指标名规则一致。
@@ -50,22 +55,40 @@ function hyperfineMetrics(results: readonly unknown[]): BenchmarkReport {
   return Object.keys(out).length === 0 ? { ok: false, reason: 'hyperfine 结果里没有 times / mean' } : { ok: true, metrics: out }
 }
 
+function putVitestBench(out: Metrics, rawName: string | undefined, mean: number | undefined, p99: number | undefined, hz: number | undefined): void {
+  const name = metricName(rawName ?? 'bench')
+  if (mean !== undefined) out[`${name}.mean_ms`] = [mean]
+  if (p99 !== undefined) out[`${name}.p99_ms`] = [p99]
+  if (hz !== undefined) out[`${name}.hz`] = [hz]
+}
+
 function vitestBenchMetrics(files: readonly unknown[]): BenchmarkReport {
   const out: Metrics = {}
   for (const file of files.filter(isRecord)) {
     for (const group of asArray(file.groups).filter(isRecord)) {
       for (const bench of asArray(group.benchmarks).filter(isRecord)) {
-        const name = metricName(asString(bench.name) ?? asString(bench.id) ?? 'bench')
-        const mean = asNumber(bench.mean)
-        const p99 = asNumber(bench.p99)
-        const hz = asNumber(bench.hz)
-        if (mean !== undefined) out[`${name}.mean_ms`] = [mean]
-        if (p99 !== undefined) out[`${name}.p99_ms`] = [p99]
-        if (hz !== undefined) out[`${name}.hz`] = [hz]
+        putVitestBench(out, asString(bench.name) ?? asString(bench.id), asNumber(bench.mean), asNumber(bench.p99), asNumber(bench.hz))
       }
     }
   }
   return Object.keys(out).length === 0 ? { ok: false, reason: 'vitest bench 结果里没有 mean / p99 / hz' } : { ok: true, metrics: out }
+}
+
+function vitest5BenchMetrics(testResults: readonly unknown[]): BenchmarkReport {
+  const out: Metrics = {}
+  for (const file of testResults.filter(isRecord)) {
+    for (const assertion of asArray(file.assertionResults).filter(isRecord)) {
+      for (const bench of asArray(assertion.benchmarks).filter(isRecord)) {
+        for (const task of asArray(bench.tasks).filter(isRecord)) {
+          if (task.fromStore === true) continue
+          const latency = isRecord(task.latency) ? task.latency : {}
+          const throughput = isRecord(task.throughput) ? task.throughput : {}
+          putVitestBench(out, asString(task.name), asNumber(latency.mean), asNumber(latency.p99), asNumber(throughput.mean))
+        }
+      }
+    }
+  }
+  return Object.keys(out).length === 0 ? { ok: false, reason: 'vitest 5 bench 结果里没有 latency.mean / latency.p99 / throughput.mean（json reporter 的用例上没有 benchmarks：是用 vitest bench 跑的吗）' } : { ok: true, metrics: out }
 }
 
 function k6Metrics(root: JsonRecord): BenchmarkReport {
@@ -108,5 +131,6 @@ export function parseBenchmarkReport(format: BenchmarkReportFormat, text: string
   if (format === 'lighthouse-json') return lighthouseMetrics(root)
   if (Array.isArray(root.results)) return hyperfineMetrics(root.results)
   if (Array.isArray(root.files)) return vitestBenchMetrics(root.files)
+  if (Array.isArray(root.testResults)) return vitest5BenchMetrics(root.testResults)
   return nativeMetrics(root)
 }
