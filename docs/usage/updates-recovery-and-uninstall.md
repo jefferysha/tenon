@@ -14,7 +14,7 @@ Tenon-owned project files.
 ## Update
 
 If the installed launcher is a retired 1.x release, first run the immutable
-`v0.3.1/install.sh` one-liner once for that host. This is the explicit migration:
+`v0.3.2/install.sh` one-liner once for that host. This is the explicit migration:
 1.x ranks below every 0.x release, so `tenon update` on 1.x reports a downgrade
 and changes nothing. The command below is the single routine update path
 from v0.1.0 onward.
@@ -104,8 +104,8 @@ tenon setup --codex
 Whatever Tenon v0.3 writes during normal use stays readable by v0.2.1, so you can roll back with
 `tenon runtime repair --rollback`, or keep working next to a teammate who has not updated yet.
 v0.2.1 does not treat that data as corrupt, tampered or invalid, and v0.3 reads what v0.2.1 wrote.
-The release gate (`tools/test-bundle.sh`) crosses a release with its predecessor in both directions on every run: v0.3.1
-against v0.3.0, where v0.3.0 was crossed with v0.2.1.
+The release gate (`tools/test-bundle.sh`) crosses a release with its predecessor in both directions on every run: v0.3.2
+against v0.3.1, where v0.3.1 was crossed with v0.3.0.
 
 - **Test run records are never pruned by default.** v0.3 keeps every record of a run chain.
   To cap how many records a task commits, set `TENON_RECORD_RETENTION=<n>` (for example `20`) when

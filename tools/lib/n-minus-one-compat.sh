@@ -3,11 +3,11 @@
 #
 # 合同：当前版本在正常使用中「隐式写下」的数据（状态、记录链、台账、计划、discover 写的目录、history 与边车）
 # 必须能被上一个正式版本（fixture 固定的 N-1）读取，不被它判为损坏、被改动或非法；反方向，N-1 写下的数据当前版本也要读得了。
-# 期望值取决于 fixture 固定的那个 N-1 认得什么。现在的 N-1 是 v0.3.0：它认得 agent 运行台账旁注（host / host_source / rerun_reason）、
+# 期望值取决于 fixture 固定的那个 N-1 认得什么。现在的 N-1 是 v0.3.1：它认得 agent 运行台账旁注（host / host_source / rerun_reason）、
 # 记录链的 `chain-base` 标记与 `TENON_RECORD_RETENTION`、测试记录的本机封存，所以这些不再是「N-1 不懂、当前版本独有」的豁免项，
-# 而是双向都要读得了：旁注与链基点在下面两个方向都测。v0.3.0 不认得的只有 0.3.1 起记录绑的「可移植指纹」：
-# 它在没有宿主本地文件的工作区里与完整指纹逐位相同；工作区里有未跟踪的 `.claude/settings.local.json` 时两者不同，
-# v0.3.0 把当前版本写下的记录判为「已过期」（要重跑），绝不能判为损坏；反过来 v0.3.0 写下的记录（完整指纹）当前版本照样读作新鲜。
+# 而是双向都要读得了：旁注与链基点在下面两个方向都测。v0.3.1 也认得 0.3.1 起记录绑的「可移植指纹」（不含宿主本地文件），
+# 当前版本与它绑的是同一种指纹，所以工作区里有未跟踪的 `.claude/settings.local.json` 时，两个方向读对方的记录都是新鲜的；
+# 这与更早的 v0.3.0（只认完整指纹，把当前版本的记录判为「已过期」）不同，上一版这里断言的是「已过期、退出码 2」。无论哪个方向都不能判为损坏。
 # 目录 `profile: coarse`、`integrity: block|notice`、评审者 `host:`、自定义 agent 的 `attach_on` 也是 v0.3.0 起就有的用户选用能力，
 # 这里没有交叉测；换到下一个 N-1 时重新核对这一段与下面每一条期望。
 #
@@ -223,8 +223,8 @@ n1_compat_gate() {
   out="$(n1_agent_run "$old" "$proj" compat-o --host claude)"
   printf '%s' "$out" | grep -q 'result=done' && printf '%s' "$out" | grep -q 'host=claude' \
     && ok "N-1 兼容：$label 登记 agent 运行并记下宿主" || bad "N-1 兼容：$label 登记 agent 运行并记下宿主" "$out"
-  # 链完好、读作通过：v0.3.0 自己封存它写的记录（本机封存文件），所以当前版本读它们不是「来源不明」（record-unsealed）；
-  # 它之前的 v0.2.1 当 N-1 时，写的记录没有封存，当前版本才把它们当作来源不明、要求重跑。无论如何都不能判成断链 / 被改动。
+  # 链完好、读作通过：v0.3.0 起 N-1 自己封存它写的记录（本机封存文件），所以当前版本读它们不是「来源不明」（record-unsealed）；
+  # v0.2.1 当 N-1 时，写的记录没有封存，当前版本才把它们当作来源不明、要求重跑。无论如何都不能判成断链 / 被改动。
   out="$(cd "$proj" && node "$cur" test status compat-o --json 2>&1)"
   status="$(n1_json_field "$out" 'v.policy.chain')"
   [ "$status" = intact ] && [ "$(n1_json_field "$out" 'v.pass')" = true ] \
@@ -247,7 +247,7 @@ n1_compat_gate() {
   n1_expect "当前版本校验 $label discover --write 写的目录" 0 "$code" "$out"
 
   # ── 记录清理（用户主动设 TENON_RECORD_RETENTION，只留最新 N 份并写 chain-base 标记）────────────────────
-  # v0.3.0 认得这个环境变量和 chain-base 标记，所以两个方向都要读得了；默认（上面 22 次运行）不清理、不写标记。
+  # v0.3.0 起 N-1 认得这个环境变量和 chain-base 标记，所以两个方向都要读得了；默认（上面 22 次运行）不清理、不写标记。
   # 放在宿主本地文件之前：之后 N-1 算的完整指纹变了，它读到的记录会是「已过期」而不是新鲜。
   out="$(cd "$proj" && node "$cur" init compat-rc --track backend --workflow compat --preset full 2>&1)"; code="$?"
   [ "$code" -eq 0 ] || { bad "N-1 兼容：当前版本创建 compat-rc" "exit=$code $out"; return; }
@@ -294,9 +294,9 @@ n1_compat_gate() {
 
   # ── 宿主本地文件（放在最后：它让此前所有记录绑定的候选变了）─────────────────────────
   # 工作区里有未被 git 跟踪的 .claude/settings.local.json（Claude Code 自己写的权限允许列表）：当前版本写下的记录绑「不含宿主本地文件」的
-  # 可移植指纹，干净克隆才复现得出来。N-1 自己算的指纹含这个文件，所以它把这条记录判成「已过期：代码已变化」（退出码 2，要重跑），
-  # 绝不能判成损坏；当前版本自己读它是新鲜的，Claude Code 之后改写这个文件也不让它过期。
-  # 反方向：N-1 在同样的工作区里写下的记录绑完整指纹（含这个文件），当前版本照样读作新鲜、链完好——v0.3.0 的记录不因升级而过期。
+  # 可移植指纹，干净克隆才复现得出来。v0.3.1 绑的是同一种指纹（0.3.1 起），所以它读这条记录是新鲜的（退出码 0），Claude Code 之后改写
+  # 这个文件也不让它过期；当前版本自己读它同样新鲜。（v0.3.0 只认完整指纹，会把这条记录判成「已过期：代码已变化」、退出码 2；它不是现在的 N-1。）
+  # 反方向：N-1 在同样的工作区里写下的记录绑可移植指纹，当前版本照样读作新鲜、链完好——升级不让它们过期。
   mkdir -p "$proj/.claude"
   printf '{ "permissions": { "allow": ["Bash(ls)"] } }\n' > "$proj/.claude/settings.local.json"
   out="$(cd "$proj" && node "$cur" init compat-h --track backend --workflow compat --preset full 2>&1)"; code="$?"
@@ -306,16 +306,18 @@ n1_compat_gate() {
   out="$(cd "$proj" && node "$cur" test status compat-h 2>&1)"; code="$?"
   n1_expect "当前版本在有宿主本地文件的工作区里写下的记录对自己是新鲜的" 0 "$code" "$out"
   out="$(cd "$proj" && node "$old" test status compat-h 2>&1)"; code="$?"
-  if [ "$code" -eq 2 ] && printf '%s' "$out" | grep -q '已过期' && n1_clean "$out"; then
-    ok "$label 把有宿主本地文件的工作区里写下的记录判为已过期（退出码 2，要重跑），不报损坏"
+  if [ "$code" -eq 0 ] && ! printf '%s' "$out" | grep -q '已过期' && n1_clean "$out"; then
+    ok "$label 把有宿主本地文件的工作区里写下的记录读作新鲜（同为可移植指纹，退出码 0），不报过期也不报损坏"
   else
-    bad "$label 把有宿主本地文件的工作区里写下的记录判为已过期，不报损坏" "exit=$code（期望 2 且有「已过期」）: $(printf '%s' "$out" | head -c 700)"
+    bad "$label 把有宿主本地文件的工作区里写下的记录读作新鲜，不报过期也不报损坏" "exit=${code}（期望 0 且没有「已过期」）: $(printf '%s' "$out" | head -c 700)"
   fi
   printf '{ "permissions": { "allow": ["Bash(ls)", "Bash(npm test)"] } }\n' > "$proj/.claude/settings.local.json"
   out="$(cd "$proj" && node "$cur" test status compat-h 2>&1)"; code="$?"
   n1_expect "改写 .claude/settings.local.json 之后当前版本的记录仍然新鲜" 0 "$code" "$out"
+  out="$(cd "$proj" && node "$old" test status compat-h 2>&1)"; code="$?"
+  n1_expect "改写 .claude/settings.local.json 之后 $label 读当前版本的记录仍然新鲜" 0 "$code" "$out"
 
-  # N-1 在这个有宿主本地文件的工作区里写记录：它绑完整指纹，自己读是新鲜的，当前版本也读作新鲜、链完好。
+  # N-1 在这个有宿主本地文件的工作区里写记录：它绑可移植指纹，自己读是新鲜的，当前版本也读作新鲜、链完好。
   out="$(cd "$proj" && node "$old" init compat-d --track backend --workflow compat --preset full 2>&1)"; code="$?"
   [ "$code" -eq 0 ] || { bad "N-1 兼容：$label 创建 compat-d" "exit=$code $out"; return; }
   ( cd "$proj" && node "$old" test plan compat-d --seed && node "$old" test register compat-d --suite smoke ) >/dev/null 2>&1
@@ -324,7 +326,7 @@ n1_compat_gate() {
   n1_expect "$label 在有宿主本地文件的工作区里写下的记录对它自己是新鲜的" 0 "$code" "$out"
   out="$(cd "$proj" && node "$cur" test status compat-d --json 2>&1)"
   [ "$(n1_json_field "$out" 'v.policy.chain')" = intact ] && [ "$(n1_json_field "$out" 'v.pass')" = true ] \
-    && ok "当前版本把 $label 在有宿主本地文件的工作区里写下的记录读作新鲜（完整指纹照样认），链完好" \
+    && ok "当前版本把 $label 在有宿主本地文件的工作区里写下的记录读作新鲜（同为可移植指纹），链完好" \
     || bad "当前版本读取 $label 在有宿主本地文件的工作区里写下的记录" "$(printf '%s' "$out" | head -c 700)"
 
   # ── 符号链接与 umask 之外的权限位（放在最后：它让此前所有记录绑定的候选变了）──────────────────────

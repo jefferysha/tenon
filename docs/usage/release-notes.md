@@ -4,6 +4,92 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
+## v0.3.2 · 2026-10-07
+
+A fix release for v0.3.1, from its supplementary acceptance. `tenon runtime repair --rollback` no longer leaves an install
+stuck, a `not_applicable` entry committed before a task no longer blocks it after approval, and `tenon test discover`
+writes a benchmark command that runs on vitest 5.
+
+### Fixed
+
+- Runtime rollback wedge. On v0.2.1 through v0.3.1, `tenon runtime repair --rollback` after a `tenon update` failed with
+  "rollback refuses a third-party launcher checkpoint" and left the install stuck. Rollback, update and setup were then all
+  refused.
+- Rollback now proves the launcher pair before it moves the selection, so a refused rollback changes nothing. `tenon update`
+  and `tenon setup` settle a rollback that an older bootstrap left half done instead of refusing it.
+- To recover a stuck install, run the versioned `install.sh` of v0.3.2 once for the host. See
+  [Rollback, update and setup all refuse on a leftover rollback](troubleshooting.md#rollback-update-and-setup-all-refuse-on-a-leftover-rollback-v021-to-v031).
+- A `not_applicable` entry that the test catalog already held, unapproved, before the task started no longer blocks the task
+  after you approve it. The approval wrote the approver into `catalog.yaml`, and that rewrite counted as an unapproved
+  protected change (`protected-file-unapproved`); `review request` then refused a second request.
+- A task that is already stuck this way is not repaired by the update, and this release has no command that clears it.
+- After a rollback, `tenon doctor` shows `identity:release` as a warning, not a failure, and names both ways forward:
+  `tenon update` returns to the newer release, `tenon setup` rebinds the host plugin to the runtime you rolled back to. Only
+  while the rollback is the latest runtime event and the host plugin is the release rolled away from; else it stays a failure.
+- Leaving host-local files out of the test-record candidate now fails closed in more cases (the file is counted unless git
+  shows it is untracked):
+  - a broken `.git` (empty, corrupt, unreadable, or a gitfile whose target is gone);
+  - a case-insensitive file system, where a tracked `.Claude/Settings.local.json` now counts as `.claude/settings.local.json`;
+  - a repository above the project answering in place of the project's own `.git`;
+  - inherited `GIT_DIR`, `GIT_INDEX_FILE` and similar variables, which the check now ignores.
+- `tenon test discover` writes a benchmark suite that runs on vitest 5, and the benchmark parser reads the vitest 5 JSON
+  report into the same `<name>.mean_ms`, `.p99_ms` and `.hz` metrics. It prints a note and writes no suite when the vitest
+  major version is unknown, or when a vitest 5 project's bench files still import the removed module-level `bench`.
+- More `agent` and `review` output follows `TENON_LANG`: the `agent next` lines, the other `agent prompt` and `agent record`
+  errors, and the `review request` and `review acknowledge` messages. Strings not yet in the catalog stay in Chinese.
+
+### Behaviour changes
+
+- A vitest 4 or earlier project that gives two benchmarks one name (or names that differ only in punctuation) now fails the
+  bench report parse and names the duplicate. Before, the last result silently replaced the first.
+- `tenon test discover` writes no benchmark suite when it cannot determine the vitest major version: vitest is not installed
+  and `package.json` declares no range that fixes one (`latest`, `workspace:*`, `>=3`). It prints both `catalog add` commands.
+
+### Development
+
+- Tenon's own tests run on vitest 4.1.11 (was 3.2.6); the `tinypool` override is gone.
+- CI now runs, as blocking steps of the `verify` job, an update and rollback acceptance (`npm run test:update-rollback`,
+  including the recovery from a stuck rollback) and a real `npm install vitest@5` bench check.
+- The `tenon-verify` action has its own self-test workflow (`verify-action-selftest.yml`). It runs on pull requests that touch
+  the action or `verify --ci`, and on manual dispatch.
+
+### What you need to do
+
+Run `tenon update --codex` (or `--claude`) and open a new host session.
+
+If an earlier rollback left you stuck (`tenon runtime repair --rollback`, `tenon update` and `tenon setup` all refuse with
+"an unfinished runtime rollback exists"), `tenon update` cannot help. Run the versioned `install.sh` once for the host:
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.3.2/install.sh | /bin/bash -s -- --codex
+# or
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.3.2/install.sh | /bin/bash -s -- --claude
+```
+
+### Compatibility
+
+N-1 is v0.3.1. The N-1 gate (`tools/test-bundle.sh`) crosses it with this release in both directions on every run.
+
+- No record, state or ledger schema changed, and no command, option or Dashboard API was added or changed. In an ordinary
+  workspace both versions bind the same portable fingerprint, so each reads the other's test records as fresh, also beside
+  an untracked `.claude/settings.local.json`. The gate checks that against the real v0.3.1 CLI.
+- The gate also crosses the agent run ledger, `TENON_RECORD_RETENTION` chains, `discover --write` catalogs and a tree with a
+  symlink and 664/775 modes.
+- In the host-local cases above, where 0.3.2 now counts a file that 0.3.1 left out, the two compute different fingerprints
+  for that workspace. The gate does not cross those cases.
+
+### Verify
+
+```bash
+tenon --version
+tenon doctor
+tenon runtime status
+```
+
+`tenon --version` prints `0.3.2`. In `tenon doctor`, `identity:release` lists 0.3.2 for the host plugin, the runtime and the
+Dashboard server. `tenon runtime status` shows the active release with `valid=yes`. After a `tenon update`,
+`tenon runtime repair --rollback` exits 0 and `tenon runtime status` shows the release you rolled back to as active.
+
 ## v0.3.1 · 2026-10-07
 
 A fix release for v0.3.0, from its real-host acceptance. `tenon verify --ci` now reproduces your test records on a clean

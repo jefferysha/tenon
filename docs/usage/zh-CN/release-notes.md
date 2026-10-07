@@ -12,6 +12,67 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 
 面向用户的解释、影响与操作步骤默认使用中文。
 
+## v0.3.2 · 2026-10-07
+
+v0.3.1 的修复版，来自它的补充验收。`tenon runtime repair --rollback` 不再让安装卡死，任务开始之前就已提交的 `not_applicable` 条目在批准之后不再挡住任务，`tenon test discover` 写出的基准命令能在 vitest 5 上运行。
+
+### 修复
+
+- runtime 回滚卡死。v0.2.1 到 v0.3.1 里，`tenon update` 之后运行 `tenon runtime repair --rollback` 会失败，报 “rollback refuses a third-party launcher checkpoint”，并让安装卡住：之后回滚、更新、setup 都被拒绝。
+- 回滚现在先证明 launcher 一对，再翻转选择，所以被拒绝的回滚不会改动任何东西。`tenon update` 和 `tenon setup` 会收尾旧 bootstrap 留下的半截回滚，而不是拒绝。
+- 已经卡住的安装，为该宿主运行一次 v0.3.2 的版本化 `install.sh`。见[排障](troubleshooting.md)里「回滚、更新、setup 都因『未完成的回滚』被拒绝」一节。
+- 任务开始之前，测试目录里就已有、还没批准的 `not_applicable` 条目，在你批准之后不再挡住任务。以前批准会把批准人写回 `catalog.yaml`，这次改写被算成没批准的受保护文件改动（`protected-file-unapproved`），`review request` 又拒绝第二次请求。
+- 已经被这个问题卡住的任务不会被这次更新修好，这个版本也没有可以清掉它的命令。
+- 回滚之后，`tenon doctor` 把 `identity:release` 显示为警告而不是失败，并同时给出两条出路：`tenon update` 回到较新的 release，`tenon setup` 把宿主插件重新绑定到你回滚到的 runtime。只在回滚是最近一次 runtime 事件、且宿主插件正是被回滚掉的那份 release 时才是警告，其他不一致仍是失败。
+- 把宿主本地文件排除在测试记录的候选之外，现在在更多情况下失败关闭（除非 git 证明它没被跟踪，否则这个文件照算）：
+  - 损坏的 `.git`（空的、损坏的、读不了的，或者 gitfile 指向的目标已不在）；
+  - 大小写不敏感的文件系统：被跟踪的 `.Claude/Settings.local.json` 现在按被跟踪的 `.claude/settings.local.json` 算；
+  - 项目上层的仓库代替项目自己的 `.git` 作答；
+  - 继承来的 `GIT_DIR`、`GIT_INDEX_FILE` 等变量，现在检查时会忽略它们。
+- `tenon test discover` 写出能在 vitest 5 上运行的基准套件，基准解析器把 vitest 5 的 JSON 报告读成同样的 `<名字>.mean_ms`、`.p99_ms`、`.hz` 指标。读不出 vitest 主版本，或者 vitest 5 工程的 bench 文件还在从 `vitest` 导入已被删掉的模块级 `bench` 时，只给提示、不写套件。
+- 更多 `agent` 和 `review` 的输出跟随 `TENON_LANG`：`agent next` 的各行、其他 `agent prompt` 与 `agent record` 的错误，以及 `review request`、`review acknowledge` 的信息。目录里还没有的字符串仍是中文。
+
+### 行为变化
+
+- vitest 4 及更早的工程里，两个基准重名（或名字只有标点不同）现在让基准报告解析失败，并点出重名的那个。以前后一个结果会悄悄盖掉前一个。
+- 读不出 vitest 主版本时，`tenon test discover` 不再写基准套件：vitest 没装，`package.json` 也没有能定出主版本的范围（`latest`、`workspace:*`、`>=3`）。它改为打印两条 `catalog add` 命令。
+
+### 开发
+
+- Tenon 自己的测试跑在 vitest 4.1.11 上（之前是 3.2.6），`tinypool` 的 override 已去掉。
+- CI 现在在 `verify` 作业里以阻塞步骤运行更新与回滚验收（`npm run test:update-rollback`，含从卡死的回滚中恢复），以及真装 `npm install vitest@5` 的基准检查。
+- `tenon-verify` action 有了自己的自测工作流（`verify-action-selftest.yml`）：改动 action 或 `verify --ci` 代码的 PR 会触发它，也可以手动触发。
+
+### 升级动作
+
+运行 `tenon update --codex`（或 `--claude`），新开宿主会话。
+
+如果之前的回滚把你卡住了（`tenon runtime repair --rollback`、`tenon update`、`tenon setup` 都报「存在未完成的 runtime rollback」而拒绝），`tenon update` 帮不上忙。为该宿主运行一次版本化的 `install.sh`：
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.3.2/install.sh | /bin/bash -s -- --codex
+# 或
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.3.2/install.sh | /bin/bash -s -- --claude
+```
+
+### 兼容性
+
+N-1 是 v0.3.1。N-1 兼容门禁（`tools/test-bundle.sh`）每次运行都在两个方向上让它与本版本互相读写。
+
+- 没有改任何记录、状态或台账的 schema，也没有新增或改动命令、选项和 Dashboard API。普通工作区里两个版本绑的是同一个可移植指纹，所以互相读对方写下的测试记录都是新鲜的，旁边有未跟踪的 `.claude/settings.local.json` 时也一样。门禁拿真正的 v0.3.1 CLI 核对过。
+- 门禁还交叉读写 agent 运行台账、`TENON_RECORD_RETENTION` 的记录链、`discover --write` 写的目录，以及带符号链接和 664/775 权限位的树。
+- 上面宿主本地文件的几种情况里，0.3.2 现在会计入 0.3.1 排除掉的文件，两个版本对那个工作区算出的指纹不同。门禁没有交叉测这些情况。
+
+### 验证
+
+```bash
+tenon --version
+tenon doctor
+tenon runtime status
+```
+
+`tenon --version` 打印 `0.3.2`。`tenon doctor` 里 `identity:release` 列出宿主插件、runtime 和 Dashboard server 都是 0.3.2。`tenon runtime status` 显示当前 release 为 `valid=yes`。`tenon update` 之后运行 `tenon runtime repair --rollback` 退出码为 0，`tenon runtime status` 显示你回滚到的那份 release 为 active。
+
 ## v0.3.1 · 2026-10-07
 
 v0.3.0 的修复版，来自它的真实宿主验收。作者的工作区里有宿主本地文件时，`tenon verify --ci` 现在能在干净克隆上复现你的测试记录，也不再判定被有意放弃的任务失败。跨厂商评审的 CLI 提示、英文轨道标签和登录命令修好了，新增 `tenon --version`。
