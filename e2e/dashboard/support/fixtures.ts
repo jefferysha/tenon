@@ -30,6 +30,9 @@ export async function settled(page: Page): Promise<void> {
   await settlePage(page)
 }
 
+/** 在页面全程没有新动画的条件下做一件事（axe 扫描）：落定之后才开始的动画会让这一轮作废重来，见 support/settle.mjs。 */
+export { whileStill } from './settle.mjs'
+
 /** 直达某个视图（可带项目、任务等查询参数）；等顶部导航出现即页面已挂载。 */
 export async function openView(page: Page, view: string, params: Record<string, string> = {}): Promise<void> {
   const query = new URLSearchParams({ view, ...params })

@@ -103,3 +103,49 @@ function settleInPage({ quietFrames, timeoutMs }) {
 export async function settlePage(page, { quietFrames = SETTLE_QUIET_FRAMES, timeoutMs = SETTLE_TIMEOUT_MS } = {}) {
   await page.evaluate(settleInPage, { quietFrames, timeoutMs })
 }
+
+/**
+ * 「扫描期间有没有新动画开始」的观察，在页面里跑，所以同样必须自包含。mode 'arm'：装上 animationstart / transitionrun 的捕获监听
+ * 并清零计数；mode 'check'：摘掉监听。两者都返回 { started: 装上之后开始的动画数, running: 此刻还在跑的有限动画数 }。
+ * 事件在下一帧才派发，所以另看此刻还在跑的有限动画：扫描刚结束时才刚开始的动画靠它发现，扫描中途开始又结束的靠事件发现。
+ */
+function stillWatchInPage(mode) {
+  const key = '__tenonStillWatch'
+  const types = ['animationstart', 'transitionrun']
+  const running = () => document.getAnimations().filter((animation) => {
+    if (animation.playState !== 'running') return false
+    const end = animation.effect?.getComputedTiming().endTime
+    return typeof end === 'number' && Number.isFinite(end)
+  }).length
+  if (mode === 'arm') {
+    const state = { started: 0, onStart: () => { state.started += 1 } }
+    for (const type of types) document.addEventListener(type, state.onStart, true)
+    Object.defineProperty(window, key, { value: state, configurable: true })
+    return { started: 0, running: running() }
+  }
+  const state = window[key]
+  if (state === undefined) return { started: 0, running: running() }
+  for (const type of types) document.removeEventListener(type, state.onStart, true)
+  return { started: state.started, running: running() }
+}
+
+/**
+ * 在「页面全程没有新动画」的条件下做一件事（典型是 axe 扫描：它要几百毫秒，慢机器上更久）。
+ * 每一轮：先等落定，布好观察，跑 run，再看这期间有没有动画开始、有没有有限动画还在跑；有就整轮作废、重来。
+ * 落定只能看到「此刻」：晚到的快照把某个计数改了（`.count-roll` 淡入 160ms）、或晚到的内容把别的东西推动，都发生在落定之后、
+ * 扫描之中，扫描读到的是半透明的文字。作废重扫不改规则、也不排除任何元素。attempts 轮都被打断就抛错，不拿被污染的结果交差。
+ */
+export async function whileStill(page, run, { attempts = 8 } = {}) {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    await settlePage(page)
+    const before = await page.evaluate(stillWatchInPage, 'arm')
+    if (before.running === 0) {
+      const result = await run()
+      const after = await page.evaluate(stillWatchInPage, 'check')
+      if (after.started === 0 && after.running === 0) return result
+    } else {
+      await page.evaluate(stillWatchInPage, 'check')
+    }
+  }
+  throw new Error(`the page kept starting new animations: ${attempts} attempts were interrupted before one finished without animation`)
+}
