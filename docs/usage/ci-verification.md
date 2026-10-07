@@ -177,8 +177,9 @@ change it later without moving the candidate. The check is `git ls-files` on the
 that is genuinely not a git repository tracks nothing: git finds no repository in it or in any parent
 directory, and the project root has no `.git` entry. When git cannot answer, nothing is left out; that
 covers git missing, a corrupt index, a `.git` gitfile whose `gitdir` target is gone, an empty, corrupt or
-unreadable `.git`, and a repository above the project that git does not enter because it lies on another
-file system. On a case-insensitive file system (found by probing the project root) a path matches git's
+unreadable `.git` (a repository above the project does not answer in its place), and a repository above the
+project that git does not enter because it lies on another file system. The check also ignores the
+repository-selecting `GIT_*` variables a git hook sets (`GIT_DIR`, `GIT_INDEX_FILE` and the like). On a case-insensitive file system (found by probing the project root) a path matches git's
 answer whatever its case, because git reports the index's spelling and the disk may spell it differently:
 a tracked `.Claude/Settings.local.json` counts as the tracked `.claude/settings.local.json`. When a
 `candidate-mismatch` happens in a checkout that tracks such paths, the message lists them. This is a

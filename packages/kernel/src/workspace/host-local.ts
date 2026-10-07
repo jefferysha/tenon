@@ -3,7 +3,7 @@
  * them the portable workspace fingerprint (`fingerprint.ts`) leaves out.
  */
 import { execFile } from 'node:child_process'
-import { lstat } from 'node:fs/promises'
+import { lstat, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 
@@ -53,6 +53,26 @@ export async function hasHostLocalFiles(root: string): Promise<boolean> {
 const runGit = promisify(execFile)
 const GIT_TIMEOUT_MS = 30_000
 const GIT_MAX_BUFFER = 64 * 1024 * 1024
+
+/**
+ * Variables that point git at a repository (or change what it reads) instead of letting it discover the one
+ * that holds the project.  A git hook runs with several of them set (`GIT_DIR`, `GIT_INDEX_FILE`, ...), and
+ * Tenon can run inside one, so the answer would come from whatever repository the hook is working on.
+ */
+const GIT_REPOSITORY_ENV = new Set([
+  'GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+  'GIT_COMMON_DIR', 'GIT_CEILING_DIRECTORIES', 'GIT_DISCOVERY_ACROSS_FILESYSTEM',
+])
+
+/** The process environment without the repository-selecting git variables, and with the C locale git's messages are matched in. */
+function gitEnvironment(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {}
+  for (const [name, value] of Object.entries(process.env)) {
+    // Windows environment names are case-insensitive.
+    if (!GIT_REPOSITORY_ENV.has(name.toUpperCase())) env[name] = value
+  }
+  return { ...env, LC_ALL: 'C', LANG: 'C' }
+}
 
 function isMissing(error: unknown): boolean {
   return typeof error === 'object' && error !== null && Reflect.get(error, 'code') === 'ENOENT'
@@ -117,6 +137,15 @@ async function hasGitEntry(root: string): Promise<boolean> {
   }
 }
 
+/** Whether the project root's `.git` is a directory (a symbolic link to one counts); a gitfile or a missing entry is not. */
+async function hasGitDirectory(root: string): Promise<boolean> {
+  try {
+    return (await stat(join(root, '.git'))).isDirectory()
+  } catch {
+    return false
+  }
+}
+
 /** What git says about the host-local list: the tracked paths (spelled as in the index) and how to compare them with the disk's spelling. */
 export interface HostLocalTracking {
   readonly tracked: ReadonlySet<string>
@@ -134,13 +163,24 @@ export interface HostLocalTracking {
  * On a case-insensitive file system git lists the index's spelling (`.Claude/Settings.local.json`) while the disk
  * says `.claude/settings.local.json`, and a plain pathspec does not find the entry at all, so the list is asked
  * for with `--icase-pathspecs` there.
+ *
+ * When the root has a `.git` directory, git is told to use exactly that one (`--git-dir`).  Left to discover it,
+ * git skips a `.git` directory it finds invalid (corrupt, half-written, unreadable) and carries on upward, so
+ * inside a larger repository it would answer from the parent, which does not track what this project tracks, and
+ * the portable fingerprint would drop host-local files that are part of this repository.  With `--git-dir` an invalid
+ * `.git` is an error, i.e. "git cannot answer", in the same single spawn.  A `.git` gitfile needs no such help:
+ * git stops with an error when its `gitdir` target is not a repository.
  */
 export async function hostLocalTracking(root: string): Promise<HostLocalTracking | undefined> {
   const caseInsensitive = await isCaseInsensitiveRoot(root)
-  const args = [...caseInsensitive ? ['--icase-pathspecs'] : [], 'ls-files', '-z', '--cached', '--', ...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS]
+  const gitDir = await hasGitDirectory(root) ? [`--git-dir=${join(root, '.git')}`] : []
+  const args = [
+    ...gitDir, ...caseInsensitive ? ['--icase-pathspecs'] : [],
+    'ls-files', '-z', '--cached', '--', ...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS,
+  ]
   try {
     const { stdout } = await runGit('git', args, {
-      cwd: root, timeout: GIT_TIMEOUT_MS, maxBuffer: GIT_MAX_BUFFER, env: { ...process.env, LC_ALL: 'C', LANG: 'C' },
+      cwd: root, timeout: GIT_TIMEOUT_MS, maxBuffer: GIT_MAX_BUFFER, env: gitEnvironment(),
     })
     return { tracked: new Set(stdout.split('\0').filter((path) => path !== '')), caseInsensitive }
   } catch (error) {

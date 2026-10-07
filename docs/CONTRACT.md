@@ -601,7 +601,7 @@ most 64 characters, and a manifest contains at most 256 fixtures.
    宿主本地文件的工作区里读成「代码已变化」（过期，不是损坏）。记录 schema 没有改（绑定仍是一个 `workspace:sha256:` 值）。
    可移植指纹只排除 git 没有跟踪的宿主本地路径（`trackedHostLocalPaths`：对清单做 `git ls-files --cached`）；被跟踪（已提交或已暂存）的
    路径是仓库的一部分，两个指纹都算，写入方与 CI 一致。只有真正不是 git 仓库（git 在项目根和所有上级目录里都找不到仓库，且根目录没有 `.git` 条目）才什么都不跟踪；
-   git 读不出来（缺失、索引损坏、`.git` 是 gitfile 但 `gitdir` 不在、`.git` 为空 / 损坏 / 读不了、上级仓库隔着文件系统边界）就一律照算。
+   git 读不出来（缺失、索引损坏、`.git` 是 gitfile 但 `gitdir` 不在、`.git` 为空 / 损坏 / 读不了（git 只认项目根这个 `.git`，上级仓库不会顶替它回答）、上级仓库隔着文件系统边界）就一律照算；git 的环境变量里指定仓库的那几个（`GIT_DIR`、`GIT_WORK_TREE`、`GIT_INDEX_FILE` 等）不传给它。
    在不区分大小写的文件系统上（探测项目根得知）清单对 git 的回答按忽略大小写匹配：索引拼写 `.Claude/Settings.local.json` 对磁盘上的 `.claude/settings.local.json` 算被跟踪。
    可移植指纹按 git 的权限位模型记录（`portableModeOf`）：普通文件只看属主的可执行位（644 / 755），目录与符号链接用常量 755，不读实际权限位；
    完整指纹仍记原始权限位（逐字节等于 0.3.0）。原始位不跨机器稳定（符号链接在 macOS 是 0755、在 Linux 恒为 0777，目录与文件跟 umask），

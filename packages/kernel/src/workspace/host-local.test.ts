@@ -225,3 +225,93 @@ describe('大小写不敏感的文件系统：索引拼写与磁盘拼写只差�
     })
   })
 })
+
+describe('git 答的是不是这个项目自己的仓库', () => {
+  /** 上级目录是个 git 仓库（什么都没跟踪），项目是它下面的子目录，里面有一个没被跟踪的宿主本地文件。 */
+  async function nestedProject(): Promise<string> {
+    const parent = await freshRoot()
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: parent })
+    const child = join(parent, 'child')
+    await mkdir(join(child, '.claude'), { recursive: true })
+    await writeFile(settingsOf(child), '{}\n')
+    return child
+  }
+
+  test.each([
+    ['空的 .git 目录', async (child: string): Promise<void> => { await mkdir(join(child, '.git')) }],
+    ['HEAD 写坏的 .git 目录', async (child: string): Promise<void> => {
+      execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: child })
+      await writeFile(join(child, '.git', 'HEAD'), 'not a ref\n')
+    }],
+  ])('项目根的 %s 在上级仓库里：git 会跳过它、改答上级的，所以要求它只认这个 .git，答不出来就一律照算', async (_name, damage) => {
+    const child = await nestedProject()
+    await damage(child)
+    expect(gitSays(child), '自己发现仓库时 git 成功地答了上级的（这就是漏洞）').toBe('')
+
+    expect(await trackedHostLocalPaths(child)).toBeUndefined()
+    expect(await portableCounts(child), '上级不跟踪它：照旧不能因此把它排除').toBe(true)
+  })
+
+  test('项目根有完好的 .git、又嵌在上级仓库里：照常答自己的仓库，没跟踪的不算，跟踪了的算', async () => {
+    const child = await nestedProject()
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: child })
+    expect(await trackedHostLocalPaths(child)).toEqual(new Set())
+    expect(await portableCounts(child)).toBe(false)
+
+    execFileSync('git', ['add', '-f', '--', '.claude/settings.local.json'], { cwd: child })
+    expect(await trackedHostLocalPaths(child)).toEqual(new Set(['.claude/settings.local.json']))
+    expect(await portableCounts(child)).toBe(true)
+  })
+})
+
+describe('git hook 里设的环境变量不影响答案', () => {
+  /** 另一个仓库，它跟踪着 .claude/settings.local.json：被环境变量指过去，就会答出「被跟踪」。 */
+  async function otherRepoTrackingSettings(): Promise<string> {
+    const other = await freshRoot()
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: other })
+    await mkdir(join(other, '.claude'), { recursive: true })
+    await writeFile(settingsOf(other), '{}\n')
+    execFileSync('git', ['add', '-f', '--', '.claude/settings.local.json'], { cwd: other })
+    return other
+  }
+
+  async function withEnv<T>(vars: Readonly<Record<string, string>>, run: () => Promise<T>): Promise<T> {
+    const saved = Object.keys(vars).map((name) => [name, process.env[name]] as const)
+    Object.assign(process.env, vars)
+    try {
+      return await run()
+    } finally {
+      for (const [name, value] of saved) {
+        if (value === undefined) delete process.env[name]
+        else process.env[name] = value
+      }
+    }
+  }
+
+  test('GIT_DIR / GIT_WORK_TREE 指向另一个仓库：项目不是仓库，照样什么都不跟踪', async () => {
+    const other = await otherRepoTrackingSettings()
+    const root = await project()
+    expect(await withEnv({ GIT_DIR: join(other, '.git'), GIT_WORK_TREE: other }, () => trackedHostLocalPaths(root))).toEqual(new Set())
+    expect(await withEnv({ GIT_DIR: join(other, '.git') }, () => portableCounts(root)), '没被跟踪：不进可移植指纹').toBe(false)
+  })
+
+  test('GIT_INDEX_FILE 指向另一个仓库的索引：项目自己的仓库没跟踪它，就不跟踪', async () => {
+    const other = await otherRepoTrackingSettings()
+    const root = await project()
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root })
+    const env = { GIT_INDEX_FILE: join(other, '.git', 'index'), GIT_OBJECT_DIRECTORY: join(other, '.git', 'objects') }
+    expect(await withEnv(env, () => trackedHostLocalPaths(root))).toEqual(new Set())
+    expect(await trackedHostLocalPaths(root)).toEqual(new Set())
+  })
+
+  test('GIT_CEILING_DIRECTORIES / GIT_DISCOVERY_ACROSS_FILESYSTEM 不改变发现：嵌在上级仓库里的项目仍答上级的', async () => {
+    const parent = await freshRoot()
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: parent })
+    const child = join(parent, 'child')
+    await mkdir(join(child, '.claude'), { recursive: true })
+    await writeFile(settingsOf(child), '{}\n')
+    execFileSync('git', ['add', '-f', '--', 'child/.claude/settings.local.json'], { cwd: parent })
+    const env = { GIT_CEILING_DIRECTORIES: parent, GIT_DISCOVERY_ACROSS_FILESYSTEM: '0' }
+    expect(await withEnv(env, () => trackedHostLocalPaths(child))).toEqual(new Set(['.claude/settings.local.json']))
+  })
+})
