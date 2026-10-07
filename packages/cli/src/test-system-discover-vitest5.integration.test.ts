@@ -3,8 +3,9 @@
  * `--outputJson`，基准结果改挂在 json reporter 的用例上。临时项目里真装 vitest 5（`npm install`，要联网或有 npm 缓存），
  * discover --write 生成的基准命令真的能跑、json reporter 的报告被解析成指标——不是拿手写样例证明。
  *
- * 要联网装包，所以默认整体跳过；`TENON_VITEST5_BENCH=1` 才运行，并且这时 Node 不满足 vitest 5 的 engines
- * （^22.12 || ^24 || >=26）、装不上、装上的不是 5 都直接失败，不会悄悄跳过。
+ * 要联网装包，所以真装的那条默认跳过；`TENON_VITEST5_BENCH=1` 才运行，并且这时 Node 不满足 vitest 5 的 engines
+ * （^22.12 || ^24 || >=26）、装不上、装上的不是 5 都直接失败，不会悄悄跳过。安装只重试一次（间隔 5 s，仓库源偶发抖动不该让 CI 红），
+ * 两次都失败照样失败；重试辅助 `retryOnce` 自己不联网，它的用例始终运行。
  * 手动：TENON_VITEST5_BENCH=1 npx vitest run packages/cli/src/test-system-discover-vitest5.integration.test.ts
  */
 import { execFile } from 'node:child_process'
@@ -38,10 +39,33 @@ tracks:
         transitions: []
 `
 
+const INSTALL_RETRY_DELAY_MS = 5_000
+
+/**
+ * 失败后隔一会儿重试一次，只重试一次：仓库源偶发的网络抖动不该让 CI 红，但两次都失败就是真失败——抛出的错误带两次的原因。
+ * 只包住安装这一步；基准命令、解析等断言失败不重试。
+ */
+async function retryOnce<T>(attempt: () => Promise<T>, delayMs: number): Promise<T> {
+  try {
+    return await attempt()
+  } catch (first) {
+    await new Promise<void>((resolveDelay) => { setTimeout(resolveDelay, delayMs) })
+    try {
+      return await attempt()
+    } catch (second) {
+      const reason = (error: unknown): string => (error instanceof Error ? error.message : String(error)).slice(0, 400)
+      throw new Error(`两次尝试都失败：第一次：${reason(first)}；第二次：${reason(second)}`, { cause: second })
+    }
+  }
+}
+
 /** 在临时项目里真装 vitest 5；不继承 npm 自己的 npm_* 环境（从 `npm test` 里跑时它们会指向本仓）。 */
 async function installVitest5(cwd: string): Promise<void> {
   const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.toLowerCase().startsWith('npm_')))
-  await promisify(execFile)('npm', ['install', '--no-audit', '--no-fund', '--ignore-scripts', '--loglevel=error'], { cwd, env, timeout: 240_000 })
+  await retryOnce(
+    () => promisify(execFile)('npm', ['install', '--no-audit', '--no-fund', '--ignore-scripts', '--loglevel=error'], { cwd, env, timeout: 240_000 }),
+    INSTALL_RETRY_DELAY_MS,
+  )
 }
 
 describe.skipIf(!enabled)('测试体系 v2 · vitest 5 工程（TENON_VITEST5_BENCH=1，要联网装 vitest 5）', () => {
@@ -97,5 +121,45 @@ describe.skipIf(!enabled)('测试体系 v2 · vitest 5 工程（TENON_VITEST5_BE
     expect(ran?.command).toContain('--reporter=json')
     expect(ran?.metrics.map((metric) => metric.name)).toEqual(['native_sort.mean_ms', 'reverse_sort.mean_ms'])
     expect(ran?.metrics.every((metric) => metric.samples.length === 1 && (metric.samples[0] ?? 0) > 0)).toBe(true)
-  }, 420_000)
+    // 两次安装各最多 240 s、中间隔 5 s，再加上运行与解析，留足余量。
+  }, 600_000)
+})
+
+// 重试辅助本身不联网，始终运行（上面那组才受 TENON_VITEST5_BENCH 控制）。
+describe('retryOnce：安装失败只重试一次，两次都失败照样失败', () => {
+  test('第一次就成功：不重试，不等待', async () => {
+    const calls: string[] = []
+    const started = Date.now()
+    await expect(retryOnce(async () => { calls.push('ok'); return 'done' }, 60_000)).resolves.toBe('done')
+    expect(calls).toEqual(['ok'])
+    expect(Date.now() - started).toBeLessThan(5_000)
+  })
+
+  test('第一次失败、第二次成功：恰好重试一次并返回第二次的结果', async () => {
+    const calls: string[] = []
+    const result = await retryOnce(async () => { calls.push('try'); if (calls.length === 1) throw new Error('ECONNRESET'); return 'second' }, 1)
+    expect(result).toBe('second')
+    expect(calls).toHaveLength(2)
+  })
+
+  test('两次都失败：恰好尝试两次，抛出的错误带两次的原因，不吞掉', async () => {
+    const calls: string[] = []
+    const attempt = async (): Promise<string> => {
+      calls.push(`boom-${calls.length + 1}`)
+      throw new Error(calls.at(-1))
+    }
+    const error = await retryOnce(attempt, 1).then(() => undefined, (caught: unknown) => caught)
+    expect(calls).toEqual(['boom-1', 'boom-2'])
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).message).toContain('boom-1')
+    expect((error as Error).message).toContain('boom-2')
+    expect((error as Error).cause).toMatchObject({ message: 'boom-2' })
+  })
+
+  test('重试前等待给定的间隔', async () => {
+    let calls = 0
+    const started = Date.now()
+    await retryOnce(async () => { if (++calls === 1) throw new Error('flaky'); return 'ok' }, 80)
+    expect(Date.now() - started).toBeGreaterThanOrEqual(70)
+  })
 })
