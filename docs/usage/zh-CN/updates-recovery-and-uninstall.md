@@ -80,6 +80,11 @@ tenon runtime repair --rollback
 
 repair 处理 launcher、release 或激活指针，不等于重置项目状态。文档语言固定在独立、旧 runtime 不会重写的 Change sidecar 中，因此 rollback 不需要让旧 canonical codec 理解新 locale 字段。
 
+回滚会先证明稳定 launcher 一对，再移动选择，所以被拒绝的回滚什么都不改、也不留日志。回滚只换受管 runtime，宿主插件仍是较新的 release：
+回滚之后 `tenon doctor` 的 `identity:release` 是写明原因的警告而不是失败。`tenon update --codex`（或 `--claude`）回到较新的 release；
+`tenon setup --codex`（或 `--claude`）把宿主插件重新绑定到你回滚到的那份 release。如果在 v0.2.1 到 v0.3.1 上回滚本身失败、之后回滚、更新、setup
+都被拒绝，见 [排障](troubleshooting.md) 里「回滚、更新、setup 都因『未完成的回滚』被拒绝」一节。
+
 **与上一个发行版（v0.2.1）的兼容。** v0.3 在正常使用中写下的数据都能被 v0.2.1 读取，所以可以用
 `tenon runtime repair --rollback` 回滚，也可以和还没更新的同事在同一个仓库里继续工作：v0.2.1 不会把这些数据判为损坏、被改动或非法，
 v0.3 也读得了 v0.2.1 写下的数据。发布门（`tools/test-bundle.sh`）每次运行都在一个版本与它的前一个发行版之间做双向交叉读取：v0.3.1 对 v0.3.0，v0.3.0 当时对的是 v0.2.1。
