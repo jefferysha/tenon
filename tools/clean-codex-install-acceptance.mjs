@@ -275,7 +275,7 @@ export function hasExactLocalTenonMarketplace(inventory, repoRoot) {
   return true
 }
 
-async function reservePort() {
+export async function reservePort() {
   return await new Promise((resolvePort, reject) => {
     const server = createServer()
     server.once('error', reject)
@@ -550,7 +550,7 @@ async function inventory(env, cwd) {
   return parsed
 }
 
-async function installLocal(repoRoot, env, cwd, version) {
+export async function installLocal(repoRoot, env, cwd, version) {
   return runCommand('bash', [join(repoRoot, 'install.sh'), '--codex', '--ref', `v${version}`], {
     cwd,
     env,
@@ -586,7 +586,7 @@ export const LOCAL_RELEASE_ENTRIES = [
  */
 export const FORCED_RELEASE_ENTRIES = ['.agents/plugins/marketplace.json']
 
-async function createIsolatedReleaseRepository(repoRoot, fixture, env, version) {
+export async function createIsolatedReleaseRepository(repoRoot, fixture, env, version) {
   const releaseWork = join(fixture, 'release-work')
   const releaseBare = join(fixture, 'release.git')
   await mkdir(releaseWork)
@@ -721,7 +721,7 @@ async function readOpenedLink(openedFile) {
 }
 
 /** PATH shim that stands in for the desktop's `open` / `xdg-open`: records the URL it was given. */
-async function installFakeBrowserOpener(dir) {
+export async function installFakeBrowserOpener(dir) {
   await mkdir(dir, { recursive: true })
   for (const name of ['open', 'xdg-open']) {
     const script = join(dir, name)
@@ -825,7 +825,7 @@ export async function assertInstalledRuntime(
   return { runtime, activeRelease, doctor, health }
 }
 
-async function stopOwnedDashboard(port, expected) {
+export async function stopOwnedDashboard(port, expected) {
   if (!Number.isSafeInteger(expected?.pid) || expected.pid <= 0) {
     throw new Error('cleanup ownership has an unsafe PID; refusing to signal Dashboard process')
   }
