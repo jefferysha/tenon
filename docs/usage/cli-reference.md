@@ -217,6 +217,35 @@ suite's `cwd`).
 are `<bench name>.mean_ms` for every `bench('name', …)` it can read (a name it cannot read is
 never guessed); any other `bench` script is reported with the exact `catalog add` command to
 register it, because a benchmark must declare its metrics and thresholds.
+The bench command follows the project's vitest major version: the installed
+`node_modules/vitest/package.json` (the nearest `node_modules` from the project directory up to
+the repository root), and only when vitest is not installed the `vitest` range declared in
+`package.json`. vitest 3 and 4 get `npx vitest bench --run --outputJson=test-results/bench.json`;
+vitest 5 removed `--outputJson` (and the module-level `bench()` import: benchmarks are written as
+`test('…', async ({ bench }) => { await bench('name', fn).run() })`), so vitest 5 and later get
+`npx vitest bench --run --reporter=default --reporter=json --outputFile.json=test-results/bench.json`.
+Both write `test-results/bench.json` and the suite keeps the `benchmark-json` report format; the
+parser reads either shape into the same `<bench name>.mean_ms`, `.p99_ms` and `.hz` samples (vitest 5:
+`latency.mean`, `latency.p99` in ms and `throughput.mean` in operations per second, taken from the
+JSON reporter's `benchmarks[].tasks[]`; results replayed with `bench.from()` are not measured by the
+run and are skipped), so the metric names declared in the catalog carry over; the two vitest
+generations use different statistics engines and their numbers are not guaranteed to be comparable,
+so rebuild the baseline (`tenon test baseline`) after a major upgrade. The bench name is the metric
+name, so two benchmarks with the same name (or names that differ only in punctuation, which the metric
+name drops) make the report fail to parse with the duplicate named, instead of one silently
+overwriting the other; give every `bench()` its own name. When the major version cannot be
+determined (vitest neither installed nor declared with a range that fixes one, such as `latest`,
+`workspace:*`, `catalog:` or `>=3`; or the nearest `node_modules/vitest` has no readable `x.y.z`
+version in its `package.json`, a half-finished install, in which case discover neither looks at a
+farther install nor falls back to the declared range), discover does not write a benchmark suite, because a command that
+is right for one major version exits `1` on the other: it prints a note with both `catalog add`
+commands instead, so install the dependencies and run `tenon test discover` again or register the
+suite by hand. On vitest 5 and later, a bench file that still imports the module-level `bench` from
+`'vitest'` (`import { bench } from 'vitest'`, `import { describe, bench } from 'vitest'`, also a
+multi-line import or a CommonJS `require`) is bound to fail with `bench is not a function`, so
+discover does not write the suite either: it prints a note naming those files and the fixture form
+(`test('…', async ({ bench }) => { await bench('name', fn).run() })`; options go second, as in
+`bench(name, options, fn)`). Migrate the files and run `tenon test discover` again.
 `catalog add --from <direction>` starts a suite from a test direction (bare tool
 invocations are replaced by the runner's recommended invocation); `catalog validate`
 lists every problem as `catalog.yaml:<line>: …` (exit `2`). `test plan --seed` adds the
@@ -271,7 +300,8 @@ Declared services start once per invocation in their own process group, are prob
 a URL or port that already answers before start is refused, because the tests would
 hit an old server. `parallel: true` suites run concurrently, the others one by one.
 Reports are parsed per case: `junit`, `playwright-json`, `vitest-json`, `jest-json`,
-`go-json`, `tap`; benchmarks read `benchmark-json` (also hyperfine and vitest bench output),
+`go-json`, `tap`; benchmarks read `benchmark-json` (also hyperfine and vitest bench output: the
+`--outputJson` file of vitest 3 and 4 and the JSON reporter of vitest 5),
 `k6-summary` and `lighthouse-json`; coverage reads `istanbul-summary`, `lcov` and
 `cobertura`, and `changed_lines` is computed from the diff. A stale report from an earlier
 run is deleted before each execution. A run fails on: no report (`report-missing`),

@@ -306,6 +306,24 @@ JavaScript 单测套件在工具配置里没有 `include` 时，测试文件 glo
 `*.test.*` / `*.spec.*`（这几个目录一个都没有时，取套件 `cwd` 下任意位置的 `*.test.*` / `*.spec.*`）。
 vitest 工程里的 `*.bench.*` 文件会识别成 `vitest-bench` 基准套件，指标取自能读出的每个 `bench('名字', …)`（`<名字>.mean_ms`，读不出
 名字的不猜）；其它 `bench` 脚本只给出登记它的 `catalog add` 命令，因为基准必须声明指标与阈值。
+基准命令跟着工程的 vitest 主版本走：先看实际安装的 `node_modules/vitest/package.json`（从工程目录向上到仓库根，取最近的
+`node_modules`），没装才看 `package.json` 里声明的 `vitest` 范围。vitest 3 和 4 用
+`npx vitest bench --run --outputJson=test-results/bench.json`；vitest 5 删掉了 `--outputJson`（模块级的 `bench()` 导入也没了，
+基准要写成 `test('…', async ({ bench }) => { await bench('名字', fn).run() })`），所以 vitest 5 及以上用
+`npx vitest bench --run --reporter=default --reporter=json --outputFile.json=test-results/bench.json`。
+两者都写 `test-results/bench.json`，套件的报告格式仍是 `benchmark-json`；解析器把两种形状读成同样的
+`<基准名>.mean_ms`、`.p99_ms`、`.hz` 样本（vitest 5 取 json reporter 里 `benchmarks[].tasks[]` 的 `latency.mean`、`latency.p99`（毫秒）
+和 `throughput.mean`（每秒次数）；`bench.from()` 读回的存档结果不是这次测的，跳过），所以目录里声明的指标名不用改；两代 vitest 的统计引擎
+不同，数值不保证可比，升级主版本后用 `tenon test baseline` 重建基线。基准名就是指标名，所以两个基准重名（或只有标点不同，
+指标名会把标点去掉）时，报告会解析失败并点名重名的基准，而不是让后一个悄悄盖掉前一个；给每个 `bench()` 起不同的名字。
+读不出主版本时（vitest 没装、`package.json` 里的写法也定不下主版本，例如 `latest`、`workspace:*`、`catalog:`、`>=3`；或最近的 `node_modules/vitest` 的 `package.json` 读不出 `x.y.z` 版本，即安装到一半——这时既不去看更远的安装，
+也不退回声明的范围），discover
+不生成基准套件——同一条命令对一个主版本是对的，对另一个就直接 exit `1`：改为给出带两种命令的 `catalog add` 提示，装好依赖后重跑
+`tenon test discover`，或照提示手工登记。vitest 5 及以上，bench 文件里还从 `'vitest'` 导入模块级 `bench` 的
+（`import { bench } from 'vitest'`、`import { describe, bench } from 'vitest'`，多行导入与 CommonJS `require` 也算）必然报
+`bench is not a function`，所以 discover 同样不生成这个套件：改为给出一条提示，点名这些文件和 fixture 写法
+（`test('…', async ({ bench }) => { await bench('名字', fn).run() })`，选项放第二个参数 `bench(名字, 选项, fn)`）；迁移后重跑
+`tenon test discover`。
 `catalog add --from <方向>` 用测试方向起步（裸的工具调用会换成该 runner 的推荐调用）；`catalog validate` 逐条列出
 `catalog.yaml:<行>: …`（有问题 exit `2`）。`test plan --seed` 补上「拥有或覆盖了本任务改动文件」的套件、策略要求的每个种类
 的套件、改动的测试文件，并列出还没映射的场景与任务，附可直接执行的 `register --case` 命令；策略里 `run_if_registered` 的种类
@@ -336,7 +354,7 @@ diff 对账：未登记的测试文件、没有套件认领的文件、登记了
 `tenon test run <change> <test-id>`，摘要会列出还要跑的命令；策略没有要运行的套件时如实说明并 exit `0`。声明的服务每次调用只启动一次，独立进程组，按 URL / 端口 / 日志文本探测就绪，
 结束后整个进程组连孙进程一起回收；启动前 URL 或端口就已经在响应会被拒绝——测试会打到旧服务上。`parallel: true` 的套件并发，
 其余依次。报告按用例解析：`junit`、`playwright-json`、`vitest-json`、`jest-json`、`go-json`、`tap`；基准读 `benchmark-json`
-（也认 hyperfine 与 vitest bench 的输出）、`k6-summary`、`lighthouse-json`；覆盖率读 `istanbul-summary`、`lcov`、
+（也认 hyperfine 与 vitest bench 的输出：vitest 3 / 4 的 `--outputJson` 文件和 vitest 5 的 json reporter）、`k6-summary`、`lighthouse-json`；覆盖率读 `istanbul-summary`、`lcov`、
 `cobertura`，`changed_lines` 由 diff 算出。每次执行前先删掉上一次留下的报告。一次运行会因这些判失败：没有报告
 （`report-missing`）、报告无法解析（`report-unreadable`）、0 个用例或全部跳过（`no-tests-ran`）、退出码与报告不一致
 （`exit-report-mismatch`）、已登记的文件或映射的用例没有出现在报告里（`registered-test-not-executed`）、覆盖率低于策略

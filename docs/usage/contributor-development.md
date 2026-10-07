@@ -109,7 +109,14 @@ suites and the `tools/` `node:test` scripts) and the separate `dashboard-e2e-web
 project, plus the Playwright project integration test with `TENON_E2E_WEBKIT=1`). No CI step has
 `continue-on-error`; `npm run check:release-workflows` fails if one appears. `npm test` in `verify`
 runs with `TENON_E2E=1`, which turns a missing Chromium into a failure instead of a silent skip of
-the real Playwright integration tests. Linux WebKit runs only on GitHub's runners, so a green local
+the real Playwright integration tests. One more `verify` step runs
+`test-system-discover-vitest5.integration.test.ts` with `TENON_VITEST5_BENCH=1`: it installs vitest 5
+in a throw-away project with a real `npm install` (network needed; the install is retried once after
+a short wait, and two failures fail the step) and checks that the benchmark
+command `tenon test discover` writes runs and its report parses. Without the variable the test is
+skipped, so `npm test` stays offline; with it, a Node that vitest 5 cannot start on (it needs
+`^22.12 || ^24 || >=26`) fails the test instead of skipping, which is why the Node 20 `node-matrix`
+never sets it. Linux WebKit runs only on GitHub's runners, so a green local
 WebKit run (install with `npx playwright install webkit`) is not a substitute; run both projects
 locally anyway before changing the pages they cover.
 

@@ -4,9 +4,11 @@
  * 只给集成测试用；不进 dist（tsconfig 排除），也不属于任何生产路径。
  */
 import { execFileSync } from 'node:child_process'
-import { mkdir, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, symlink, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { REPO_ROOT } from './integration-harness.js'
+import { isRecord } from './test-system/parsers/json.js'
+import { majorOfInstalledVersion } from './test-system/vitest-version.js'
 
 export async function writeFiles(cwd: string, files: Readonly<Record<string, string>>): Promise<void> {
   for (const [path, text] of Object.entries(files)) {
@@ -44,6 +46,29 @@ export const VITEST_FILES: Readonly<Record<string, string>> = {
   'vitest.config.ts': "import { defineConfig } from 'vitest/config'\nexport default defineConfig({ test: { include: ['src/**/*.test.ts'] } })\n",
   'src/math.ts': 'export const add = (a: number, b: number): number => a + b\nexport const sub = (a: number, b: number): number => a - b\n',
   'src/math.test.ts': "import { describe, expect, test } from 'vitest'\nimport { add } from './math'\ndescribe('math', () => {\n  test('adds', () => { expect(add(1, 2)).toBe(3) })\n  test('adds negatives', () => { expect(add(-1, -2)).toBe(-3) })\n})\n",
+}
+
+/**
+ * vitest 5 的 bench 写法：`bench` 是测试里的 fixture，`bench(名字, 选项?, 函数).run(运行选项?)`（time / iterations 在运行选项里，压短耗时）。
+ * vitest ≤4 的 `import { bench } from 'vitest'` 在 5 上直接 "bench is not a function"，所以夹具按装的主版本选写法。
+ */
+export const VITEST5_BENCH_FILE = `import { describe, test } from 'vitest'
+const RUN = { time: 30, iterations: 5, warmupTime: 0, warmupIterations: 0 }
+describe('sorting', () => {
+  test('sorts', async ({ bench }) => {
+    await bench('native sort', () => { [3, 1, 2].sort() }).run(RUN)
+    await bench('reverse sort', () => { [3, 1, 2].sort().reverse() }).run(RUN)
+  })
+})
+`
+
+/** 本仓 node_modules 里装的 vitest 主版本（linkNodeModules 软链的就是它）。 */
+export async function repoVitestMajor(): Promise<number> {
+  const manifest: unknown = JSON.parse(await readFile(join(REPO_ROOT, 'node_modules', 'vitest', 'package.json'), 'utf8'))
+  const version = isRecord(manifest) ? manifest.version : undefined
+  const major = typeof version === 'string' ? majorOfInstalledVersion(version) : undefined
+  if (major === undefined) throw new Error('本仓 node_modules/vitest/package.json 里读不出 vitest 版本')
+  return major
 }
 
 export function playwrightFiles(options: { readonly port: number; readonly projects: readonly string[] }): Record<string, string> {
