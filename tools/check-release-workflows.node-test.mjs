@@ -304,6 +304,25 @@ test('canonical CI npm test sets TENON_E2E=1 after the Chromium install so the r
   assert.match(integration, /process\.env\.TENON_E2E === '1'/, 'TENON_E2E=1 is what turns a missing browser into a failure')
 })
 
+test('canonical CI runs the real vitest 5 bench discover test in verify (Node 22 only), after the install and build, and never in the Node 20 matrix', async () => {
+  const ci = await text('.github/workflows/ci.yml')
+  const verify = jobBlock(ci, 'verify')
+  const step = stepBlock(verify, 'vitest 5 bench discover (real npm install of vitest 5)')
+
+  assert.match(step, /env:\n\s+TENON_VITEST5_BENCH: '1'\n\s+run: npx vitest run packages\/cli\/src\/test-system-discover-vitest5\.integration\.test\.ts$/)
+  assert.match(verify, /node-version: '22'/, 'vitest 5 needs Node ^22.12 || ^24 || >=26; verify is the single Node 22 job')
+  assert.ok(verify.indexOf('npm ci') > 0 && verify.indexOf('npm ci') < verify.indexOf(step), 'dependencies are installed before the step')
+  assert.ok(verify.indexOf('run: npm run build') < verify.indexOf(step), 'the workspace is built before the step')
+  // Exactly one place sets the switch: the Node 20 matrix must never carry it, or the real install would run on a Node vitest 5 cannot start on.
+  const uncommented = ci.split('\n').filter((line) => !line.trim().startsWith('#')).join('\n')
+  assert.equal([...uncommented.matchAll(/TENON_VITEST5_BENCH/g)].length, 1, 'TENON_VITEST5_BENCH is set in exactly one step of ci.yml')
+  assert.doesNotMatch(jobBlock(ci, 'node-matrix'), /TENON_VITEST5_BENCH/)
+  const integration = await text('packages/cli/src/test-system-discover-vitest5.integration.test.ts')
+  assert.match(integration, /process\.env\.TENON_VITEST5_BENCH === '1'/, 'TENON_VITEST5_BENCH=1 is what turns the skip into a real run')
+  assert.match(integration, /nodeMajor >= 24 \|\| \(nodeMajor === 22 && nodeMinor >= 12\)/, 'an unsupported Node fails the run instead of skipping it')
+  assert.equal(spawnSync('git', ['ls-files', '--error-unmatch', '--', 'packages/cli/src/test-system-discover-vitest5.integration.test.ts'], { cwd: root }).status, 0, 'the test file is not tracked')
+})
+
 test('canonical CI runs the test-system, reporter and parser suites and the dashboard e2e on Node 20, 22 and 24 in a separate job', async () => {
   const ci = await text('.github/workflows/ci.yml')
   const matrix = jobBlock(ci, 'node-matrix')
