@@ -52,7 +52,9 @@ inputs:
     description: Fail unless the pinned Tenon release has exactly this version (for example 0.3.0).
     default: ''
   cli:
-    description: Path to a Tenon CLI entry to use instead of the bundle shipped with this action.
+    description: >-
+      Path to a Tenon CLI entry to use instead of the bundle shipped with this action. It must stay in a
+      Tenon checkout (packages/cli/dist/tenon.mjs): the CLI reads templates/ three levels above its own file.
     default: ''
 
 outputs:

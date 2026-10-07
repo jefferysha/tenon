@@ -78,7 +78,7 @@ Action 输入：
 | `language` | | `zh` 或 `en`：作业摘要、SARIF 消息与日志的语言；留空沿用 CLI 的缺省（中文，除非 runner 的 locale 另有指定） |
 | `node-version` | `22` | Node.js 版本 |
 | `expected-version` | | 固定的发布版本必须恰好是它，否则失败 |
-| `cli` | | 用别处的 CLI 入口代替发布里的 bundle |
+| `cli` | | 用别处的 CLI 入口代替发布里的 bundle。它仍须是某份 Tenon 检出里的 `packages/cli/dist/tenon.mjs`：CLI 从自己所在位置往上三级读 `templates/`，单独拷到别处的 bundle 起不来 |
 
 输出：`exit-code`、`sarif-path`、`summary-path`、`report-path`。Action 的最后一步在 `exit-code` 不为 `0` 时让作业失败，
 排在 SARIF 上传之后。
