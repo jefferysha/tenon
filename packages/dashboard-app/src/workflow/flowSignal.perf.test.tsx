@@ -16,8 +16,9 @@ vi.mock('./signalPlan', async (importOriginal) => {
  *
  * 护栏分两层，都不依赖 jsdom 的墙钟绝对值：
  *   1. 确定性断言（不看时钟）：每帧的 DOM 写入次数、写入对象、有没有布局读取、每条边每帧只算一次彗星位置，以及输入 ×8 时写入只线性增长。
- *   2. 耗时只量 step 本身：每批连跑 120 帧，取最快一批的每帧均值（并行的测试进程、GC 与调度只会让某一批变慢）；
- *      绝对线 2ms 约是本机的 20 倍以上，增长倍数线 16 比线性实测（约 5 到 7）高出一倍多、又在平方级退化之下。
+ *   2. 耗时只量 step 本身：小输入与 ×8 输入的批交替着跑，每批的总工作量相同（约 BATCH_NODE_FRAMES 个节点·帧，一批几毫秒），
+ *      取各自最快一批的每帧均值（并行的测试进程、GC 与调度只会让某一批变慢，交替让两边挨上同样的负载）；
+ *      绝对线 2ms 约是本机的 20 倍以上，增长倍数线 16 比线性实测（空载与满载都约 3 到 7）高出一倍多、又在平方级退化之下（临时注入的平方级循环实测约 27 到 35）。
  * 真实 Chromium 里每帧的脚本 / 样式 / 布局耗时（CDP Performance.getMetrics，中位数预算 + p95 报告）在 e2e/dashboard/workflow.spec.ts：
  * jsdom 里的单帧耗时在慢 CI 上会飘出数倍，p95 在那里没有意义。
  */
@@ -25,9 +26,14 @@ const SVG = 'http://www.w3.org/2000/svg'
 const EDGE_SELECTOR = 'g[data-signal-edge]'
 /** 输入放大的倍数（线性输入 ×8；平方级的退化会涨到 ×64）。 */
 const WIDE = 8
-/** 一批连跑的帧数、量几批；预热两批不计。 */
-const BATCH_FRAMES = 120
-const ROUNDS = 9
+/**
+ * 一批的总工作量（节点·帧：小输入约 2 到 5 毫秒、大输入约 1 到 2 毫秒，短到多半落在一个调度时间片里）、量几轮；每边预热两批不计。
+ * 批越短，满载的机器上越容易有一批没被抢占；轮数多一些，最快一批就更接近没有干扰的耗时。
+ */
+const BATCH_NODE_FRAMES = 2_400
+const ROUNDS = 30
+/** 这些用例在满载的机器上比空载慢好几倍，vitest 默认的 5 秒不够。 */
+const TEST_TIMEOUT_MS = 60_000
 /** 每帧 step 耗时的绝对线（毫秒）与输入 ×8 时的增长倍数线。 */
 const FRAME_BUDGET_MS = 2
 const GROWTH_CEILING = 16
@@ -173,21 +179,27 @@ function auditFrames(root: HTMLElement, runtime: SignalRuntime, frames: number):
   return { violations: violations.slice(0, 5), maxWrites, hottest }
 }
 
-/** 单次 step 的耗时（毫秒）：预热两批，量 ROUNDS 批，取最快一批的每帧均值。 */
-function frameCostMs(runtime: SignalRuntime): number {
-  const batch = (): number => {
+/**
+ * 小输入与大输入的单次 step 耗时（毫秒）。两边的批交替着跑，每批连跑 ceil(BATCH_NODE_FRAMES / 节点数) 帧，所以两边每批的时长相近、
+ * 挨上的调度噪声也相近；每边预热两批，量 ROUNDS 轮，各取最快一批的每帧均值。
+ */
+function frameCostsMs(base: { runtime: SignalRuntime; nodes: number }, wide: { runtime: SignalRuntime; nodes: number }): { base: number; wide: number } {
+  const batch = ({ runtime, nodes }: { runtime: SignalRuntime; nodes: number }): number => {
+    const frames = Math.ceil(BATCH_NODE_FRAMES / nodes)
     const started = performance.now()
-    for (let frame = 0; frame < BATCH_FRAMES; frame += 1) runtime.step(1 / 60)
-    return (performance.now() - started) / BATCH_FRAMES
+    for (let frame = 0; frame < frames; frame += 1) runtime.step(1 / 60)
+    return (performance.now() - started) / frames
   }
-  batch()
-  batch()
-  let best = Number.POSITIVE_INFINITY
-  for (let round = 0; round < ROUNDS; round += 1) best = Math.min(best, batch())
+  for (let warm = 0; warm < 2; warm += 1) { batch(base); batch(wide) }
+  const best = { base: Number.POSITIVE_INFINITY, wide: Number.POSITIVE_INFINITY }
+  for (let round = 0; round < ROUNDS; round += 1) {
+    best.base = Math.min(best.base, batch(base))
+    best.wide = Math.min(best.wide, batch(wide))
+  }
   return best
 }
 
-describe('Signal 性能 · 8 列 ~50 节点的前端总览', () => {
+describe('Signal 性能 · 8 列 ~50 节点的前端总览', { timeout: TEST_TIMEOUT_MS }, () => {
   let measured = 0
   beforeEach(() => {
     measured = 0
@@ -264,8 +276,7 @@ describe('Signal 性能 · 8 列 ~50 节点的前端总览', () => {
       it(`耗时（只量 step，不含渲染；最快一批）：每帧 < ${FRAME_BUDGET_MS}ms；输入 ×${WIDE} 时增长 < ${GROWTH_CEILING} 倍`, () => {
         const base = mount(mode)
         const wide = mount(mode, WIDE)
-        const baseCost = frameCostMs(base.runtime)
-        const wideCost = frameCostMs(wide.runtime)
+        const { base: baseCost, wide: wideCost } = frameCostsMs(base, wide)
         console.info(`[signal-perf] ${mode}: ${base.nodes} 节点 每帧 ${baseCost.toFixed(3)}ms，${wide.nodes} 节点 每帧 ${wideCost.toFixed(3)}ms（×${(wideCost / baseCost).toFixed(1)}）`)
         expect(baseCost, `${base.nodes} 节点每帧 ${baseCost.toFixed(3)}ms`).toBeLessThan(FRAME_BUDGET_MS)
         expect(wideCost / baseCost, `${wide.nodes} 节点 ${wideCost.toFixed(3)}ms / ${base.nodes} 节点 ${baseCost.toFixed(3)}ms`).toBeLessThan(GROWTH_CEILING)
