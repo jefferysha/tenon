@@ -42,7 +42,16 @@ test.describe('新建项目向导', () => {
     expect(await dialog.evaluate((el) => getComputedStyle(el).backdropFilter)).toBe('none')
     const type = page.getByTestId('np-existing-type')
     await expect(type).toHaveAccessibleName('输入路径')
-    await type.hover()
+    // 说明是 Radix Tooltip：指针要在钮上停满 400ms 才打开，其间钮一被挪走，待开的说明就取消。
+    // 上面的轮询在外框高度「降到 200 以下」的那一刻就通过，而 200ms 的高度过渡此时还没走完，对话框是居中的，
+    // 还会再挪；慢的 WebKit 上这一下常常发生在悬停之后——指针落空，说明永远不开（CI 里整整 10 秒的 getByRole('tooltip') 找不到）。
+    // 所以：先等落定，再悬停；悬停之后说明没出现就把指针移开重新悬停，直到出现。断言本身不变。
+    await settled(page)
+    await expect(async () => {
+      await page.mouse.move(0, 0)
+      await type.hover()
+      await expect(page.getByRole('tooltip')).toHaveText('输入路径', { timeout: 2_000 })
+    }).toPass({ timeout: 20_000 })
     await expect(page.getByRole('tooltip')).toHaveText('输入路径')
 
     // 位置：新建目录 = 选父目录（走打桩的选择器）+ 文件夹名。
@@ -77,7 +86,13 @@ test.describe('新建项目向导', () => {
 
     // 确认：预检列出要做的事，「创建」才落盘。
     await expect(page.getByTestId('np-step-confirm')).toHaveAttribute('aria-current', 'step')
-    await expect(page.getByTestId('np-confirm-root')).toContainText(project)
+    // 进入确认步才开始预检（服务端的 compose + dry run，两个真实请求），在这之前确认步只有一个转圈。等它回来——计划或错误——再断言内容：
+    // 慢机器上它比默认的 10 秒久（CI 的 WebKit 上 compose 这个请求一次整整 10 秒没有回应），所以单独给 30 秒；
+    // 回来的若是错误（预检失败），在这里说清楚，而不是让后面的断言报「element(s) not found」。
+    const confirmRoot = page.getByTestId('np-confirm-root')
+    await expect(confirmRoot.or(page.getByTestId('np-error'))).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByTestId('np-error'), '预检返回了错误').toHaveCount(0)
+    await expect(confirmRoot).toContainText(project)
     await expect(page.getByTestId('np-plan-AGENTS.md')).toBeVisible()
     await expect(page.getByTestId('np-plan-CLAUDE.md')).toBeVisible()
     await expect(page.getByTestId('np-action-register')).toBeVisible()
@@ -143,5 +158,75 @@ test.describe('新建项目向导', () => {
     await page.getByTestId('np-discard-confirm').click()
     await expect(page.getByTestId('np-dialog')).toBeHidden()
     expect(existsSync(join(parent, 'free-name')), '取消不该创建目录').toBe(false)
+  })
+
+  /**
+   * 确认步预检（compose + dry run）的软锁：请求没有回应时，以前转圈不止、「上一步」与「创建」都灰着，只能关掉重来。
+   * 第一次 compose 请求被路由接住后不处理（永远不回应），之后的放行；预检的期限是真实的 15 秒（没有只给测试用的开关）。
+   */
+  async function stallFirstCompose(page: Page): Promise<void> {
+    let seen = 0
+    await page.route('**/api/instruction-templates/compose', async (route) => {
+      seen += 1
+      if (seen > 1) await route.continue()
+    })
+  }
+
+  /** 新建目录 wizard-app，一路点「下一步」到确认步（不等预检回来）；返回项目路径。 */
+  async function toConfirmStep(page: Page, server: { sandbox: string }): Promise<string> {
+    await page.route('**/api/fs/choose-folder', (route) => route.fulfill({ json: { ok: true, path: parent } }))
+    await openView(page, 'projects', { root: server.sandbox })
+    await page.getByTestId('proj-new').click()
+    await expect(page.getByTestId('np-dialog')).toBeVisible()
+    await page.getByTestId('np-mode-empty').click()
+    await page.getByTestId('np-parent-choose').click()
+    await page.getByTestId('np-name').fill('wizard-app')
+    await expect(page.getByTestId('np-next')).toBeEnabled()
+    for (const step of ['templates', 'resources', 'clients', 'confirm'] as const) {
+      await next(page)
+      await expect(page.getByTestId(`np-step-${step}`)).toHaveAttribute('aria-current', 'step')
+    }
+    return join(parent, 'wizard-app')
+  }
+
+  test('预检请求不回应：15 秒后报「预检超时」并在旁边给「重试」，创建一直禁用，点重试后预检成功', async ({ page, server }) => {
+    test.setTimeout(120_000)
+    await stallFirstCompose(page)
+    const project = await toConfirmStep(page, server)
+    // 等的时候：转圈，「上一步」可点，「创建」灰着。
+    await expect(page.getByLabel('加载中…')).toBeVisible()
+    await expect(page.getByTestId('np-back')).toBeEnabled()
+    await expect(page.getByTestId('np-next')).toBeDisabled()
+    await expect(page.getByTestId('np-error')).toHaveCount(0)
+    // 到期：错误与「重试」一起出现（期限 15 秒，给足余量）。
+    const error = page.getByTestId('np-error')
+    await expect(error).toContainText('预检超时', { timeout: 40_000 })
+    await expect(error.getByTestId('np-precheck-retry')).toBeVisible()
+    await expect(page.getByLabel('加载中…')).toHaveCount(0)
+    await expect(page.getByTestId('np-next')).toBeDisabled()
+    await expect(page.getByTestId('np-back')).toBeEnabled()
+    expect(existsSync(project), '预检不写盘').toBe(false)
+    // 重试：第二次 compose 放行，预检成功，错误消失，「创建」可点。
+    await error.getByTestId('np-precheck-retry').click()
+    await expect(page.getByTestId('np-confirm-root')).toContainText(project, { timeout: 30_000 })
+    await expect(page.getByTestId('np-error')).toHaveCount(0)
+    await expect(page.getByTestId('np-next')).toBeEnabled()
+    expect(existsSync(project), '预检不写盘').toBe(false)
+  })
+
+  test('预检在途时「上一步」可用：点它回到客户端步、没有错误，再进确认重新预检成功', async ({ page, server }) => {
+    await stallFirstCompose(page)
+    const project = await toConfirmStep(page, server)
+    await expect(page.getByLabel('加载中…')).toBeVisible()
+    await expect(page.getByTestId('np-back')).toBeEnabled()
+    await page.getByTestId('np-back').click()
+    await expect(page.getByTestId('np-step-clients')).toHaveAttribute('aria-current', 'step')
+    await expect(page.getByTestId('np-error')).toHaveCount(0)
+    await expect(page.getByTestId('np-next')).toBeEnabled()
+    await next(page)
+    await expect(page.getByTestId('np-step-confirm')).toHaveAttribute('aria-current', 'step')
+    await expect(page.getByTestId('np-confirm-root')).toContainText(project, { timeout: 30_000 })
+    await expect(page.getByTestId('np-error')).toHaveCount(0)
+    await expect(page.getByTestId('np-next')).toBeEnabled()
   })
 })

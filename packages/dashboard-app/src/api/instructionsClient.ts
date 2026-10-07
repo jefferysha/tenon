@@ -95,11 +95,12 @@ export interface ComposeSelectionInput extends TemplateRef {
   catalog?: Record<string, string[]>
 }
 
-export function composeInstructions(projectName: string, selections: readonly ComposeSelectionInput[]): Promise<ComposeResult> {
+export function composeInstructions(projectName: string, selections: readonly ComposeSelectionInput[], signal?: AbortSignal): Promise<ComposeResult> {
   return send('/api/instruction-templates/compose', {
     method: 'POST',
     headers: jsonHeaders(),
     body: JSON.stringify({ project_name: projectName, selections }),
+    signal,
   }, decodeComposeResult, '模板拼合失败')
 }
 
@@ -145,8 +146,8 @@ export type ProjectCreateInput =
   | { mode: 'empty'; parent: string; name: string; directories: string[]; instructions: ProjectInstructionsInput | null; clients?: string[]; design_seed?: string }
   | { mode: 'existing'; path: string; instructions: ProjectInstructionsInput | null; clients?: string[]; git_init?: boolean; design_seed?: string }
 
-export function planProjectCreate(input: ProjectCreateInput): Promise<ProjectCreatePlan> {
-  return send('/api/projects/create', { method: 'POST', headers: jsonHeaders(), body: JSON.stringify({ ...input, dry_run: true }) }, decodeProjectCreatePlan, '新建项目预览失败')
+export function planProjectCreate(input: ProjectCreateInput, signal?: AbortSignal): Promise<ProjectCreatePlan> {
+  return send('/api/projects/create', { method: 'POST', headers: jsonHeaders(), body: JSON.stringify({ ...input, dry_run: true }), signal }, decodeProjectCreatePlan, '新建项目预览失败')
 }
 
 export function createProject(input: ProjectCreateInput): Promise<ProjectCreated> {

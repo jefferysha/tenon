@@ -112,3 +112,102 @@ test.describe('whileStill() 与扫描期间才开始的动画', () => {
     expect(String(error)).toMatch(/3 attempts were interrupted/)
   })
 })
+
+/**
+ * Signal 是有意的持续动画：flowSignal.ts 用 rAF 逐帧写热边的 visibility、到达光晕的不透明度、光环的 transform。
+ * 画布在屏幕上时几乎每一帧都有变化，慢的 WebKit 上连续三帧安静凑不齐，settled() 在 CI 里等满 15 秒超时。
+ * 判据按产品自己的 data-signal-* 标记把这一层排除；标记之外的一切仍然计入——所以这里同时断言不带标记的元素还拦得住。
+ */
+const SIGNAL_PAGE = `
+  <style>
+    .glow { position: absolute; inset: 0; opacity: 0; transition: opacity 60ms; }
+    .lookalike { position: absolute; left: 400px; top: 0; width: 40px; height: 40px; background: #888; }
+  </style>
+  <svg width="40" height="40"><g data-signal-edge="e" visibility="hidden"><path d="M0 0L40 40" /></g></svg>
+  <div data-flow-node="n" style="position: relative; width: 320px; height: 40px;">
+    <span data-signal-flash class="glow"></span>
+    <span data-signal-ring style="position: absolute; width: 12px; height: 12px;"></span>
+  </div>
+  <div data-testid="plain" style="position: absolute; left: 10px; top: 100px; width: 40px; height: 40px; background: #888;"></div>
+  <div data-testid="lookalike" class="lookalike"></div>`
+
+/** 起一个 Signal 式的循环：每帧切热边的 visibility、改光晕不透明度（带 CSS 过渡）与光环 transform，直到页面关掉。 */
+const startSignalLoop = (page: Page): Promise<void> => page.evaluate(() => {
+  const edge = document.querySelector('[data-signal-edge]')
+  const flash = document.querySelector<HTMLElement>('[data-signal-flash]')
+  const ring = document.querySelector<HTMLElement>('[data-signal-ring]')
+  let frame = 0
+  const tick = (): void => {
+    frame += 1
+    edge?.setAttribute('visibility', frame % 2 === 0 ? 'visible' : 'hidden')
+    if (flash !== null) flash.style.opacity = String(Math.random() * 0.5)
+    if (ring !== null) ring.style.transform = `scale(${1 + Math.random()})`
+    requestAnimationFrame(tick)
+  }
+  requestAnimationFrame(tick)
+})
+
+/** 每帧改写一个不带 Signal 标记的元素的不透明度（任何别的持续脚本动画都一样）。 */
+const startPlainLoop = (page: Page, testId: string): Promise<void> => page.evaluate((id) => {
+  const element = document.querySelector<HTMLElement>(`[data-testid="${id}"]`)
+  const tick = (): void => {
+    if (element !== null) element.style.opacity = String(0.2 + Math.random() * 0.6)
+    requestAnimationFrame(tick)
+  }
+  requestAnimationFrame(tick)
+}, testId)
+
+test.describe('Signal 层不拖住落定，别的元素照旧拖得住', () => {
+  test('Signal 逐帧在写：settled() 照样很快返回', async ({ page }) => {
+    await page.setContent(SIGNAL_PAGE)
+    await startSignalLoop(page)
+    const started = Date.now()
+    await settlePage(page, { timeoutMs: 5_000 })
+    expect(Date.now() - started).toBeLessThan(4_000)
+  })
+
+  test('Signal 逐帧在写的同时，别的元素上的 GSAP 补间仍然等它走完', async ({ page }) => {
+    await page.setContent(SIGNAL_PAGE)
+    await page.addScriptTag({ path: GSAP })
+    await startSignalLoop(page)
+    await page.evaluate(({ duration }) => {
+      Object.assign(window, { __tweenDone: false })
+      const gsap = Reflect.get(window, 'gsap')
+      gsap.to('[data-testid="plain"]', { x: 240, duration, ease: 'none', onComplete: () => { Object.assign(window, { __tweenDone: true }) } })
+    }, { duration: DURATION_S })
+    expect(await done(page), '补间开始时还没走完').toBe(false)
+    await settled(page)
+    expect(await done(page), 'Signal 在写时 settled() 在补间中途就返回了').toBe(true)
+  })
+
+  test('不带 Signal 标记的元素逐帧在变：照旧超时，并点名它（长得像也不行）', async ({ page }) => {
+    await page.setContent(SIGNAL_PAGE)
+    await startSignalLoop(page)
+    await startPlainLoop(page, 'lookalike')
+    const error = await settlePage(page, { timeoutMs: 600 }).then(() => null, (reason: unknown) => reason)
+    expect(String(error)).toMatch(/page did not settle within 600ms; still animating: \(script-driven style change: div\[lookalike\]/)
+  })
+
+  test('whileStill()：Signal 带着 CSS 过渡逐帧在写，也不打断扫描，只跑一轮', async ({ page }) => {
+    await page.setContent(SIGNAL_PAGE)
+    await startSignalLoop(page)
+    let rounds = 0
+    await whileStill(page, async () => {
+      rounds += 1
+      // 扫描要几百毫秒：期间 Signal 的光晕过渡不停地产生新的 transitionrun。
+      await page.evaluate(() => new Promise<void>((resolve) => { setTimeout(resolve, 400) }))
+    })
+    expect(rounds).toBe(1)
+  })
+
+  test('whileStill()：同一页上别的元素开始了动画，仍然作废重扫', async ({ page }) => {
+    await page.setContent(`${COUNT_ROLL}${SIGNAL_PAGE}`)
+    await startSignalLoop(page)
+    let rounds = 0
+    await whileStill(page, async () => {
+      rounds += 1
+      if (rounds === 1) await rollCount(page)
+    })
+    expect(rounds).toBe(2)
+  })
+})

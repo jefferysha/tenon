@@ -3,6 +3,7 @@ import { LoaderCircle } from 'lucide-react'
 import { useT } from '../i18n'
 import { fetchHostTargetDetection } from '../api/hostTargetPlanClient'
 import { instructionErrorKey } from '../api/instructionErrorKey'
+import { NETWORK_ERROR_CODE } from '../api/transport'
 import { InstructionApiError, fetchTemplate, fetchTemplates, planProjectCreate } from '../api/instructionsClient'
 import type { ProjectCreatePlan, TemplateDocument, TemplateSummary } from '../api/instructionsDecoders'
 import { Dialog } from '../shared/Dialog'
@@ -19,7 +20,7 @@ import { TemplateStep, selectionKey, type TemplateSelection } from './TemplateSt
 import { useDesignResources } from './useDesignResources'
 import { WizardSteps } from './WizardSteps'
 import {
-  FALLBACK_CLIENTS, FOLDER_NAME, WIZARD_STEPS, basename, filesForClients, instructionsInput, joinPath, projectInput, splitClients,
+  FALLBACK_CLIENTS, FOLDER_NAME, PRECHECK_TIMEOUT_MS, WIZARD_STEPS, basename, filesForClients, instructionsInput, joinPath, projectInput, splitClients,
   type FileMode, type LocationMode, type WizardStep,
 } from './newProjectModel'
 import { composeFor } from './composeFor'
@@ -37,13 +38,15 @@ export interface NewProjectDialogProps {
   onCreated: (root: string) => void
   /** 已登记的目录点「打开」：切到该项目；缺省同 onCreated。 */
   onOpen?: (root: string) => void
+  /** 确认步预检的期限（毫秒），缺省 PRECHECK_TIMEOUT_MS；单测用它把 15 秒缩短。 */
+  precheckTimeoutMs?: number
 }
 
 /**
  * 新建项目向导：位置 → 模板 → 资源 → 客户端 → 确认；「创建」后同一对话框切到逐步进度，成功即切到该项目。
  * 资源可跳过：组件库 / 图标写进前端模板的资源行，DESIGN.md 作为创建的 design 步骤取到项目根。
  */
-export function NewProjectDialog({ onClose, onCreated, onOpen = onCreated }: NewProjectDialogProps): JSX.Element {
+export function NewProjectDialog({ onClose, onCreated, onOpen = onCreated, precheckTimeoutMs = PRECHECK_TIMEOUT_MS }: NewProjectDialogProps): JSX.Element {
   const { t } = useT()
   const [view, setView] = useState<'wizard' | 'progress'>('wizard')
   const [step, setStep] = useState<WizardStep>('location')
@@ -67,6 +70,10 @@ export function NewProjectDialog({ onClose, onCreated, onOpen = onCreated }: New
   const [errorKey, setErrorKey] = useState<string | null>(null)
   const [errors, setErrors] = useState<readonly string[]>([])
   const [busy, setBusy] = useState(false)
+  /** 预检失败是超时 / 网络错误：错误旁给「重试」。 */
+  const [retryable, setRetryable] = useState(false)
+  /** 在飞的预检；「上一步」、离开确认步、被新的预检取代、卸载都经它中止请求。 */
+  const precheckRun = useRef<AbortController | null>(null)
   const [discarding, setDiscarding] = useState(false)
   const [picks, setPicks] = useState<ResourcePicks>({})
   const run = useProjectCreateRun()
@@ -112,6 +119,7 @@ export function NewProjectDialog({ onClose, onCreated, onOpen = onCreated }: New
   const clearError = (): void => {
     setErrorKey(null)
     setErrors([])
+    setRetryable(false)
   }
   /** 任何前面步骤的输入变化都作废预检。 */
   const invalidate = (): void => {
@@ -126,12 +134,12 @@ export function NewProjectDialog({ onClose, onCreated, onOpen = onCreated }: New
   }
 
   /** 所选资源按各模板块声明的资源分类分发（`{{catalog.*}}` 行）；块正文没拉到的现拉。 */
-  const catalogsFor = async (): Promise<Map<string, Record<string, string[]>>> => {
+  const catalogsFor = async (signal?: AbortSignal): Promise<Map<string, Record<string, string[]>>> => {
     const out = new Map<string, Record<string, string[]>>()
     if (Object.keys(chosen).length === 0) return out
     for (const selection of selected) {
       const key = selectionKey(selection)
-      const document = documents[key] ?? await fetchTemplate(selection)
+      const document = documents[key] ?? await fetchTemplate(selection, signal)
       const catalog = catalogFor(chosen, document.block?.catalog ?? [])
       if (catalog !== undefined) out.set(key, catalog)
     }
@@ -139,8 +147,8 @@ export function NewProjectDialog({ onClose, onCreated, onOpen = onCreated }: New
   }
 
   /** 按当前输入拼正文并组装请求；预检（forCreate=false）保留跳过的文件用于显示。 */
-  const buildInput = async (forCreate: boolean): Promise<ReturnType<typeof projectInput>> => {
-    const composed = await composeFor(mode === 'empty' ? name : basename(path), selected, values, await catalogsFor())
+  const buildInput = async (forCreate: boolean, signal?: AbortSignal): Promise<ReturnType<typeof projectInput>> => {
+    const composed = await composeFor(mode === 'empty' ? name : basename(path), selected, values, await catalogsFor(signal), signal)
     const instructions = files.targets.length === 0 ? null : instructionsInput(files, composed.markdown, fileModes, forCreate)
     // 一个客户端都没选时不写 clients.json（「只登记」不产生任何文件）。
     return projectInput(
@@ -148,21 +156,43 @@ export function NewProjectDialog({ onClose, onCreated, onOpen = onCreated }: New
     )
   }
 
-  /** 确认步的预检：进入确认、以及改动文件处理方式时自动执行。 */
+  /**
+   * 确认步的预检：进入确认、以及改动文件处理方式时自动执行。整个预检共用一个期限（precheckTimeoutMs）：
+   * 到点没回来就中止请求、按「预检超时」报错并给「重试」；「上一步」或离开确认步中止它，什么都不报。
+   */
   const precheck = async (): Promise<void> => {
+    precheckRun.current?.abort()
+    const controller = new AbortController()
+    precheckRun.current = controller
+    let timedOut = false
+    const timer = setTimeout(() => { timedOut = true; controller.abort() }, precheckTimeoutMs)
     setBusy(true)
     clearError()
     try {
-      setPlan(await planProjectCreate(await buildInput(false)))
+      setPlan(await planProjectCreate(await buildInput(false, controller.signal), controller.signal))
     } catch (error) {
-      capture(error)
+      // 被中止（上一步 / 离开确认步 / 被新的预检取代）不是失败；只有到期那次才算超时。
+      if (controller.signal.aborted && !timedOut) return
+      if (timedOut) {
+        setErrorKey('precheck_timeout')
+        setErrors([])
+      } else capture(error)
+      setRetryable(timedOut || instructionErrorKey(error) === NETWORK_ERROR_CODE)
       setPlan(null)
     } finally {
-      setBusy(false)
+      clearTimeout(timer)
+      // 已被新的预检取代的那次不动 busy：新的那次自己会收。
+      if (precheckRun.current === controller) {
+        precheckRun.current = null
+        setBusy(false)
+      }
     }
   }
   useEffect(() => {
-    if (view === 'wizard' && step === 'confirm') void precheck()
+    if (view !== 'wizard' || step !== 'confirm') return undefined
+    void precheck()
+    // 离开确认步 / 改了文件处理方式 / 卸载：在飞的预检作废。
+    return () => precheckRun.current?.abort()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 只在进入确认与处理方式变化时预检
   }, [view, step, fileModes])
 
@@ -218,7 +248,7 @@ export function NewProjectDialog({ onClose, onCreated, onOpen = onCreated }: New
     <>
       {at === 0
         ? <button type="button" className={BUTTON_GHOST} data-testid="np-cancel" onClick={requestClose}>{t('projects.cancel')}</button>
-        : <button type="button" className={BUTTON_GHOST} disabled={busy} data-testid="np-back" onClick={() => { clearError(); setStep(WIZARD_STEPS[at - 1] ?? 'location') }}>{t('projects.back')}</button>}
+        : <button type="button" className={BUTTON_GHOST} data-testid="np-back" onClick={() => { clearError(); setStep(WIZARD_STEPS[at - 1] ?? 'location') }}>{t('projects.back')}</button>}
       <button type="button" className={BUTTON_SOLID} disabled={nextDisabled} aria-busy={busy || undefined} data-testid="np-next" onClick={next}>
         {t(step === 'confirm' ? 'projects.create' : 'projects.next')}
       </button>
@@ -324,7 +354,10 @@ export function NewProjectDialog({ onClose, onCreated, onOpen = onCreated }: New
           </StepFrame>
           {view === 'wizard' && errorKey !== null && (
             <div className="grid gap-1 rounded-md border border-red-b bg-red-t px-4 py-3" role="alert" data-testid="np-error">
-              <span className="text-body font-semibold text-red-d">{t(`projects.errors.${errorKey}`)}</span>
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="min-w-0 flex-1 truncate whitespace-nowrap text-body font-semibold text-red-d">{t(`projects.errors.${errorKey}`)}</span>
+                {retryable && <button type="button" className={BUTTON_GHOST} data-testid="np-precheck-retry" onClick={() => void precheck()}>{t('projects.retry')}</button>}
+              </div>
               {errors.map((message) => <span key={message} className="font-mono text-caption text-red-d">{message}</span>)}
             </div>
           )}

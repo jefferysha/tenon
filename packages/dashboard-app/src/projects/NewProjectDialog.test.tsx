@@ -54,6 +54,8 @@ interface StubOptions {
   /** typescript-react 块声明的资源分类。 */
   catalog?: string[]
   onCreate?: (body: Body) => Reply | undefined
+  /** POST /api/instruction-templates/compose：按调用次序（从 1 起）自定义应答；返回 undefined 走默认应答。 */
+  compose?: (call: number, init?: RequestInit) => Reply | Promise<Reply> | undefined
 }
 
 const json = (body: unknown, status = 200): Reply => ({ ok: status < 400, status, json: async () => body })
@@ -100,6 +102,7 @@ function stubFetch(options: StubOptions = {}) {
   const picks = [...(options.picks ?? [])]
   const streams = [...(options.streams ?? [])]
   let resourceFailed = false
+  let composeCallCount = 0
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit): Promise<Reply> => {
     calls.push({ url, init })
     const method = init?.method ?? 'GET'
@@ -142,6 +145,9 @@ function stubFetch(options: StubOptions = {}) {
       return json({ ok: true, dir, parent: entry.parent, home: '/home/me', entries: entry.entries.map((name) => ({ name, path: `${dir}/${name}` })), truncated: false })
     }
     if (url === '/api/instruction-templates/compose') {
+      composeCallCount += 1
+      const custom = options.compose?.(composeCallCount, init)
+      if (custom !== undefined) return custom
       return json({ ok: true, markdown: '# shop\n\n## 前端\n', bytes: 20, directories: [{ path: 'frontend/', label: '前端工程根目录' }] })
     }
     if (url === '/api/projects/create') {
@@ -157,11 +163,11 @@ function stubFetch(options: StubOptions = {}) {
   return calls
 }
 
-function renderDialog() {
+function renderDialog(props: { precheckTimeoutMs?: number } = {}) {
   const onCreated = vi.fn()
   const onOpen = vi.fn()
   const onClose = vi.fn()
-  render(<I18nProvider><TooltipProvider><NewProjectDialog onClose={onClose} onCreated={onCreated} onOpen={onOpen} /></TooltipProvider></I18nProvider>)
+  render(<I18nProvider><TooltipProvider><NewProjectDialog onClose={onClose} onCreated={onCreated} onOpen={onOpen} {...props} /></TooltipProvider></I18nProvider>)
   return { onCreated, onOpen, onClose }
 }
 
@@ -718,5 +724,108 @@ describe('确认与创建进度', () => {
     expect(error).toHaveTextContent('未设置用户身份')
     expect(error).not.toHaveTextContent('server prose')
     expect(within(error).getByTestId('np-retry')).toBeInTheDocument()
+  })
+})
+
+/** 一个永远不回应的请求；只有它的 signal 被中止才以 AbortError 结束（真 fetch 的行为）。 */
+const stalled = (init?: RequestInit): Promise<Reply> => new Promise((_resolve, reject) => {
+  init?.signal?.addEventListener('abort', () => reject(new DOMException('The operation was aborted.', 'AbortError')))
+})
+
+const composeCallsOf = (calls: Call[]): Call[] => calls.filter((call) => call.url === '/api/instruction-templates/compose')
+
+/** 走到确认步（只点到「下一步」，不等确认内容：预检可能卡住）。 */
+async function enterConfirm(user: User): Promise<void> {
+  await user.click(await waitNext())
+  await screen.findByTestId('np-templates')
+  await user.click(await waitNext())
+  await screen.findByTestId('np-resources')
+  await user.click(await waitNext())
+  await screen.findByTestId('np-clients')
+  await user.click(await waitNext())
+  await waitFor(() => expect(screen.getByTestId('np-step-confirm')).toHaveAttribute('aria-current', 'step'))
+}
+
+describe('确认步预检：超时、重试与上一步', () => {
+  it('预检请求不回应：到期后报「预检超时」并在旁边给「重试」；请求已被中止；创建一直禁用；重试成功后进入确认内容', async () => {
+    const user = userEvent.setup()
+    const calls = stubFetch({ picks: [{ ok: true, path: '/code/legacy' }], git: 'existing', compose: (call, init) => (call === 1 ? stalled(init) : undefined) })
+    renderDialog({ precheckTimeoutMs: 400 })
+    await pickExisting(user)
+    await enterConfirm(user)
+    // 还在等：转圈，没有错误，创建禁用。
+    expect(screen.getByLabelText('加载中…')).toBeInTheDocument()
+    expect(screen.queryByTestId('np-error')).not.toBeInTheDocument()
+    expect(screen.getByTestId('np-next')).toBeDisabled()
+    const error = await screen.findByTestId('np-error')
+    expect(error).toHaveTextContent('预检超时')
+    const retry = within(error).getByTestId('np-precheck-retry')
+    expect(retry).toHaveTextContent('重试')
+    expect(composeCallsOf(calls)[0]?.init?.signal?.aborted, '到期后请求被中止').toBe(true)
+    expect(screen.queryByLabelText('加载中…')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('np-confirm')).not.toBeInTheDocument()
+    expect(screen.getByTestId('np-next'), '预检没成功之前不能创建').toBeDisabled()
+    expect(screen.getByTestId('np-back')).toBeEnabled()
+    await user.click(retry)
+    expect(await screen.findByTestId('np-confirm')).toBeInTheDocument()
+    expect(screen.queryByTestId('np-error')).not.toBeInTheDocument()
+    expect(composeCallsOf(calls)).toHaveLength(2)
+    await waitFor(() => expect(screen.getByTestId('np-next')).toBeEnabled())
+  })
+
+  it('网络错误同样给「重试」；服务端的业务错误不给（重试也没用，回去改输入）', async () => {
+    const user = userEvent.setup()
+    const calls = stubFetch({
+      picks: [{ ok: true, path: '/code/legacy' }],
+      git: 'existing',
+      compose: (call) => {
+        if (call === 1) return Promise.reject(new TypeError('Failed to fetch'))
+        if (call === 2) return json({ ok: false, code: 'invalid', error: 'server prose' }, 400)
+        return undefined
+      },
+    })
+    renderDialog()
+    await pickExisting(user)
+    await enterConfirm(user)
+    const network = await screen.findByTestId('np-error')
+    expect(network).toHaveTextContent('网络错误')
+    await user.click(within(network).getByTestId('np-precheck-retry'))
+    await waitFor(() => expect(screen.getByTestId('np-error')).toHaveTextContent('内容不合法'))
+    expect(screen.getByTestId('np-error')).not.toHaveTextContent('server prose')
+    expect(screen.queryByTestId('np-precheck-retry')).not.toBeInTheDocument()
+    expect(composeCallsOf(calls)).toHaveLength(2)
+  })
+
+  it('预检在途时「上一步」保持可用：点它中止在飞的请求、不报任何错误，回到上一步；再进确认重新预检', async () => {
+    const user = userEvent.setup()
+    const calls = stubFetch({ picks: [{ ok: true, path: '/code/legacy' }], git: 'existing', compose: (call, init) => (call === 1 ? stalled(init) : undefined) })
+    renderDialog()
+    await pickExisting(user)
+    await enterConfirm(user)
+    expect(screen.getByLabelText('加载中…')).toBeInTheDocument()
+    expect(screen.getByTestId('np-next')).toBeDisabled()
+    const back = screen.getByTestId('np-back')
+    expect(back).toBeEnabled()
+    await user.click(back)
+    expect(await screen.findByTestId('np-clients')).toBeInTheDocument()
+    expect(composeCallsOf(calls)[0]?.init?.signal?.aborted, '「上一步」中止了在飞的预检').toBe(true)
+    expect(screen.queryByTestId('np-error')).not.toBeInTheDocument()
+    // 忙态已收：下一步又能点；再进确认，新的预检成功。
+    await user.click(await waitNext())
+    expect(await screen.findByTestId('np-confirm')).toBeInTheDocument()
+    expect(composeCallsOf(calls)).toHaveLength(2)
+    expect(screen.queryByTestId('np-error')).not.toBeInTheDocument()
+  })
+
+  it('点「重试」只留一个预检：重试那次没被中止，第一次的失败也不会冒出来', async () => {
+    const user = userEvent.setup()
+    const calls = stubFetch({ picks: [{ ok: true, path: '/code/legacy' }], git: 'existing', compose: (call) => (call === 1 ? Promise.reject(new TypeError('Failed to fetch')) : undefined) })
+    renderDialog()
+    await pickExisting(user)
+    await enterConfirm(user)
+    await user.click(await screen.findByTestId('np-precheck-retry'))
+    expect(await screen.findByTestId('np-confirm')).toBeInTheDocument()
+    expect(screen.queryByTestId('np-error')).not.toBeInTheDocument()
+    expect(composeCallsOf(calls).map((call) => call.init?.signal?.aborted)).toEqual([false, false])
   })
 })
