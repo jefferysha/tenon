@@ -9,7 +9,11 @@
  * 对话框与抽屉的进场（淡入 + 位移）、页面切换淡入、向导步骤框 200ms 的高度过渡都是 CSS 动画或过渡；
  * 慢的浏览器（CI 里的 WebKit）上它们要拖得久得多，所以不能按固定时长等。
  * 连续多帧都安静才返回：动画常在提交之后的下一两帧才开始（ResizeObserver 量完高度才触发过渡），一帧安静不算数。
- * 无限循环的动画（旋转图标、Signal 彗星）永远不会结束，它们的目标元素不计入，暂停的也不计。
+ * 无限循环的 CSS 动画（旋转图标）永远不会结束，它们的目标元素不计入，暂停的也不计。
+ * Signal（画布上流动的彗星与节点到达反馈）也是有意的持续动画，但它是 flowSignal.ts 用 rAF 逐帧写属性与内联样式：
+ * 热边的 visibility 在冷热之间来回切、到达光晕的不透明度按指数衰减到 0、光环的 transform 逐帧放大，画布在屏幕上时几乎每一帧都有变化，
+ * 在慢的 WebKit 上连续三帧安静几乎凑不齐，settled() 就要等满 15 秒超时。所以带 Signal 标记（data-signal-*，见 SIGNAL_LAYER）的元素及其后代
+ * 既不计入外观签名，它们身上的 CSS 过渡也不算「还在跑」；标记之外的元素一律照旧计入。
  * 超时抛出仍在变化的东西，便于看是谁没停。帧不走（后台/隐藏页面被节流）时 requestAnimationFrame 里的超时判断
  * 永远不会跑，所以另有一个同样时长的墙钟 setTimeout 兜底，抛同一种报错，不必等 Playwright 的整条用例超时。
  */
@@ -19,14 +23,24 @@ export const SETTLE_QUIET_FRAMES = 3
 export const SETTLE_TIMEOUT_MS = 15_000
 
 /**
+ * Signal 运行时（packages/dashboard-app/src/workflow/flowSignal.ts）逐帧改写的元素，由产品自己挂的标记属性圈出：
+ * `g[data-signal-edge]`（边：visibility 冷热切换，内含的 path 写 stroke-dashoffset）、`data-signal-flash` / `-port` / `-icon` / `-ring`
+ * （节点的到达反馈层：不透明度、颜色、transform）。判据只认这些标记及其后代，不认类名、标签或位置，
+ * 所以画布之外的元素（包括挂在画布旁边的、真在做进场动画的）不受影响。
+ */
+export const SIGNAL_LAYER = '[data-signal-edge], [data-signal-flash], [data-signal-port], [data-signal-icon], [data-signal-ring]'
+
+/**
  * 在页面里跑的判据。它被序列化后送进浏览器，所以必须自包含：不引用模块里的任何东西，也不用 TypeScript 语法。
  */
-function settleInPage({ quietFrames, timeoutMs }) {
+function settleInPage({ quietFrames, timeoutMs, signal }) {
   return new Promise((resolve, reject) => {
+    const inSignal = (element) => element !== null && element.closest(signal) !== null
     const finiteRunning = () => document.getAnimations().filter((animation) => {
       if (animation.playState !== 'running') return false
       const end = animation.effect?.getComputedTiming().endTime
-      return typeof end === 'number' && Number.isFinite(end)
+      if (typeof end !== 'number' || !Number.isFinite(end)) return false
+      return !inSignal(animation.effect instanceof KeyframeEffect ? animation.effect.target : null)
     })
     const label = (element) => {
       const testId = element.getAttribute('data-testid')
@@ -37,7 +51,7 @@ function settleInPage({ quietFrames, timeoutMs }) {
       const name = 'animationName' in animation ? String(animation.animationName) : 'transitionProperty' in animation ? String(animation.transitionProperty) : animation.id
       return `${target === null ? 'unknown' : label(target)} ${name}`
     }
-    // 每个元素的外观：不透明度、可见性、transform、宽、高；无限循环动画的目标不算（它们每帧都变）。
+    // 每个元素的外观：不透明度、可见性、transform、宽、高；无限循环动画的目标与 Signal 层不算（它们每帧都变）。
     const snapshot = () => {
       const looping = new Set()
       for (const animation of document.getAnimations()) {
@@ -47,7 +61,7 @@ function settleInPage({ quietFrames, timeoutMs }) {
       const elements = []
       const looks = []
       for (const element of document.body.querySelectorAll('*')) {
-        if (looping.has(element)) continue
+        if (looping.has(element) || inSignal(element)) continue
         const style = getComputedStyle(element)
         elements.push(element)
         looks.push(`${style.opacity}|${style.visibility}|${style.transform}|${style.width}|${style.height}`)
@@ -101,7 +115,7 @@ function settleInPage({ quietFrames, timeoutMs }) {
 
 /** 等 page 落定；超时抛出仍在变化的东西。 */
 export async function settlePage(page, { quietFrames = SETTLE_QUIET_FRAMES, timeoutMs = SETTLE_TIMEOUT_MS } = {}) {
-  await page.evaluate(settleInPage, { quietFrames, timeoutMs })
+  await page.evaluate(settleInPage, { quietFrames, timeoutMs, signal: SIGNAL_LAYER })
 }
 
 /**
@@ -109,16 +123,19 @@ export async function settlePage(page, { quietFrames = SETTLE_QUIET_FRAMES, time
  * 并清零计数；mode 'check'：摘掉监听。两者都返回 { started: 装上之后开始的动画数, running: 此刻还在跑的有限动画数 }。
  * 事件在下一帧才派发，所以另看此刻还在跑的有限动画：扫描刚结束时才刚开始的动画靠它发现，扫描中途开始又结束的靠事件发现。
  */
-function stillWatchInPage(mode) {
+function stillWatchInPage({ mode, signal }) {
   const key = '__tenonStillWatch'
   const types = ['animationstart', 'transitionrun']
+  const inSignal = (element) => element instanceof Element && element.closest(signal) !== null
   const running = () => document.getAnimations().filter((animation) => {
     if (animation.playState !== 'running') return false
     const end = animation.effect?.getComputedTiming().endTime
-    return typeof end === 'number' && Number.isFinite(end)
+    if (typeof end !== 'number' || !Number.isFinite(end)) return false
+    return !inSignal(animation.effect instanceof KeyframeEffect ? animation.effect.target : null)
   }).length
   if (mode === 'arm') {
-    const state = { started: 0, onStart: () => { state.started += 1 } }
+    // Signal 层的元素在这里不算：它们每帧被改写，若带 CSS 过渡就会不停地产生 transitionrun。
+    const state = { started: 0, onStart: (event) => { if (!inSignal(event.target)) state.started += 1 } }
     for (const type of types) document.addEventListener(type, state.onStart, true)
     Object.defineProperty(window, key, { value: state, configurable: true })
     return { started: 0, running: running() }
@@ -138,13 +155,13 @@ function stillWatchInPage(mode) {
 export async function whileStill(page, run, { attempts = 8 } = {}) {
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     await settlePage(page)
-    const before = await page.evaluate(stillWatchInPage, 'arm')
+    const before = await page.evaluate(stillWatchInPage, { mode: 'arm', signal: SIGNAL_LAYER })
     if (before.running === 0) {
       const result = await run()
-      const after = await page.evaluate(stillWatchInPage, 'check')
+      const after = await page.evaluate(stillWatchInPage, { mode: 'check', signal: SIGNAL_LAYER })
       if (after.started === 0 && after.running === 0) return result
     } else {
-      await page.evaluate(stillWatchInPage, 'check')
+      await page.evaluate(stillWatchInPage, { mode: 'check', signal: SIGNAL_LAYER })
     }
   }
   throw new Error(`the page kept starting new animations: ${attempts} attempts were interrupted before one finished without animation`)

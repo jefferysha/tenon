@@ -5,6 +5,9 @@ export const SETTLE_QUIET_FRAMES: number
 /** 等落定的墙钟上限（毫秒）；帧不走时靠它收场。 */
 export const SETTLE_TIMEOUT_MS: number
 
+/** Signal 运行时逐帧改写的元素（产品自己的 data-signal-* 标记）：判据不把它们的变化算作「还没落定」。见 settle.mjs。 */
+export const SIGNAL_LAYER: string
+
 export interface SettleOptions {
   readonly quietFrames?: number
   readonly timeoutMs?: number

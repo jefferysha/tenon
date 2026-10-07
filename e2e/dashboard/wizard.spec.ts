@@ -42,7 +42,16 @@ test.describe('新建项目向导', () => {
     expect(await dialog.evaluate((el) => getComputedStyle(el).backdropFilter)).toBe('none')
     const type = page.getByTestId('np-existing-type')
     await expect(type).toHaveAccessibleName('输入路径')
-    await type.hover()
+    // 说明是 Radix Tooltip：指针要在钮上停满 400ms 才打开，其间钮一被挪走，待开的说明就取消。
+    // 上面的轮询在外框高度「降到 200 以下」的那一刻就通过，而 200ms 的高度过渡此时还没走完，对话框是居中的，
+    // 还会再挪；慢的 WebKit 上这一下常常发生在悬停之后——指针落空，说明永远不开（CI 里整整 10 秒的 getByRole('tooltip') 找不到）。
+    // 所以：先等落定，再悬停；悬停之后说明没出现就把指针移开重新悬停，直到出现。断言本身不变。
+    await settled(page)
+    await expect(async () => {
+      await page.mouse.move(0, 0)
+      await type.hover()
+      await expect(page.getByRole('tooltip')).toHaveText('输入路径', { timeout: 2_000 })
+    }).toPass({ timeout: 20_000 })
     await expect(page.getByRole('tooltip')).toHaveText('输入路径')
 
     // 位置：新建目录 = 选父目录（走打桩的选择器）+ 文件夹名。
@@ -77,7 +86,13 @@ test.describe('新建项目向导', () => {
 
     // 确认：预检列出要做的事，「创建」才落盘。
     await expect(page.getByTestId('np-step-confirm')).toHaveAttribute('aria-current', 'step')
-    await expect(page.getByTestId('np-confirm-root')).toContainText(project)
+    // 进入确认步才开始预检（服务端的 compose + dry run，两个真实请求），在这之前确认步只有一个转圈。等它回来——计划或错误——再断言内容：
+    // 慢机器上它比默认的 10 秒久（CI 的 WebKit 上 compose 这个请求一次整整 10 秒没有回应），所以单独给 30 秒；
+    // 回来的若是错误（预检失败），在这里说清楚，而不是让后面的断言报「element(s) not found」。
+    const confirmRoot = page.getByTestId('np-confirm-root')
+    await expect(confirmRoot.or(page.getByTestId('np-error'))).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByTestId('np-error'), '预检返回了错误').toHaveCount(0)
+    await expect(confirmRoot).toContainText(project)
     await expect(page.getByTestId('np-plan-AGENTS.md')).toBeVisible()
     await expect(page.getByTestId('np-plan-CLAUDE.md')).toBeVisible()
     await expect(page.getByTestId('np-action-register')).toBeVisible()
