@@ -267,32 +267,40 @@ const VOID_ELEMENTS = new Set([
 const LEADING_LIST_MARKER = /^\s*(?:[-*+]|\d{1,9}[.)])\s+/u
 const LEADING_TAG_TOKEN = /^<(\/?)([A-Za-z][A-Za-z0-9-]*)(?=[\s/>]|$)/u
 
-/** True when the run starts with raw HTML or an indented code block, which the docs write on purpose. */
-function startsRawBlock(firstLine) {
+/**
+ * How a paragraph's first line starts when it is not ordinary prose, a list marker in front ignored:
+ * `'raw'` for an indented code block or an HTML block start condition 1-6 (written on purpose), `'lone-tag'` for
+ * one complete tag alone on the line (start condition 7, e.g. `<img ... />`), `null` for everything else.
+ */
+function rawBlockKind(firstLine) {
   const text = firstLine.replace(LEADING_LIST_MARKER, '')
-  if (text === firstLine && /^(?: {4}|\t)/u.test(firstLine)) return true
+  if (text === firstLine && /^(?: {4}|\t)/u.test(firstLine)) return 'raw'
   const trimmed = text.trimStart()
-  return HTML_BLOCK_START.test(trimmed) || HTML_LONE_TAG.test(trimmed)
+  if (HTML_BLOCK_START.test(trimmed)) return 'raw'
+  return HTML_LONE_TAG.test(trimmed) ? 'lone-tag' : null
 }
 
 /**
- * Find plain-text continuation lines that start with a tag-like token such as `<change>` or `</name>`.
+ * Find plain-text lines that start with a tag-like token such as `<change>` or `</name>`: continuation lines of a
+ * paragraph and, since the first line of a paragraph breaks the build the same way, first lines too.
  *
  * markdown-it keeps such a token as raw inline HTML (`html: true`), and VitePress hands the page to the Vue
  * template compiler, which fails with "Element is missing end tag" for a placeholder that never closes. It
  * is the same failure as a wrapped code span, but from text outside any span, so a short line written as a
- * wrap of ordinary prose is enough to break the whole docs build.
+ * wrap of ordinary prose, or a paragraph that opens with a placeholder, is enough to break the whole docs build.
  *
  * Not reported: fenced code, lines inside inline code spans (a wrapped span is `findWrappedAngleCodeSpans`'s
- * job), paragraphs that start a raw HTML block or an indented code block, void elements such as `<br>`, and
- * tags the paragraph closes again afterwards (balanced inline HTML is fine). URI and email autolinks never match
- * because a tag name cannot contain `:` or `@`. Only continuation lines are checked: the first line of a paragraph
- * may open an HTML block, which is told apart by its start condition, not by guessing.
+ * job), paragraphs that start a raw HTML block (start conditions 1-6) or an indented code block, void elements
+ * such as `<br>`, and tags the paragraph closes again afterwards (balanced inline HTML is fine). A first line
+ * that is one complete tag alone is an intentional HTML block when it is self-closing (`<img ... />`) or a closing
+ * tag, and an open tag alone must be closed somewhere later on the page. URI and email autolinks never match
+ * because a tag name cannot contain `:` or `@`. A list marker in front of a first line is not part of its text.
  */
 export function findPlainTextTagContinuations(markdown) {
   const found = []
   for (const paragraph of paragraphLines(markdown)) {
-    if (paragraph.length < 2 || startsRawBlock(paragraph[0].text)) continue
+    const firstKind = rawBlockKind(paragraph[0].text)
+    if (firstKind === 'raw') continue
     const text = paragraph.map((entry) => entry.text).join('\n')
     const spans = codeSpans(text)
     // The same text with every code span blanked, so a closing tag inside a span does not count as closing.
@@ -300,20 +308,25 @@ export function findPlainTextTagContinuations(markdown) {
     for (const span of spans) plain = `${plain.slice(0, span.start)}${' '.repeat(span.end - span.start)}${plain.slice(span.end)}`
     let lineStart = 0
     for (const [index, entry] of paragraph.entries()) {
-      const offset = lineStart + entry.text.length - entry.text.trimStart().length
+      const marker = index === 0 ? entry.text.match(LEADING_LIST_MARKER) : null
+      const lead = marker === null ? entry.text.length - entry.text.trimStart().length : marker[0].length
+      const offset = lineStart + lead
       lineStart += entry.text.length + 1
-      if (index === 0) continue
       if (spans.some((span) => offset >= span.start && offset < span.end)) continue
-      const rest = entry.text.trimStart()
+      const rest = entry.text.slice(lead)
       const token = rest.match(LEADING_TAG_TOKEN)
       if (token === null) continue
       const [, closing, name] = token
-      const lowerName = name.toLowerCase()
-      if (VOID_ELEMENTS.has(lowerName)) continue
-      const balanced = closing === ''
-        ? new RegExp(`</${name}\\s*>`, 'iu').test(plain.slice(offset))
-        : new RegExp(`<${name}(?=[\\s/>])`, 'iu').test(plain.slice(0, offset))
-      if (balanced) continue
+      if (VOID_ELEMENTS.has(name.toLowerCase())) continue
+      if (index === 0 && firstKind === 'lone-tag') {
+        if (closing !== '' || /\/>\s*$/u.test(rest)) continue
+        if (new RegExp(`</${name}\\s*>`, 'iu').test(markdown)) continue
+      } else {
+        const balanced = closing === ''
+          ? new RegExp(`</${name}\\s*>`, 'iu').test(plain.slice(offset))
+          : new RegExp(`<${name}(?=[\\s/>])`, 'iu').test(plain.slice(0, offset))
+        if (balanced) continue
+      }
       found.push({ line: entry.line, token: `<${closing}${name}`, text: rest.trimEnd() })
     }
   }
@@ -330,11 +343,18 @@ function markdownFilesUnder(directory) {
   return files.sort()
 }
 
-/** Markdown that markdown-it turns into raw tags the Vue compiler behind VitePress then rejects. */
+/**
+ * Markdown that markdown-it turns into raw tags the Vue compiler behind VitePress then rejects. Every docs/usage
+ * page and every root document (the README files among them, which the site and GitHub both render) is checked.
+ */
 function checkVitePressTagHazards(root, failures) {
   const usage = join(root, 'docs/usage')
-  if (!existsSync(usage) || !lstatSync(usage).isDirectory()) return
-  for (const path of markdownFilesUnder(usage)) {
+  const paths = existsSync(usage) && lstatSync(usage).isDirectory() ? markdownFilesUnder(usage) : []
+  for (const name of ROOT_DOCUMENTS) {
+    const path = join(root, name)
+    if (existsSync(path) && lstatSync(path).isFile()) paths.push(path)
+  }
+  for (const path of paths) {
     const document = slash(relative(root, path))
     const markdown = readFileSync(path, 'utf8')
     for (const span of findWrappedAngleCodeSpans(markdown)) {

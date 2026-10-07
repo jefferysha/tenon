@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { expect, openView, test } from './support/fixtures'
+import { expect, openView, settled, test } from './support/fixtures'
 
 const CHANGE = 'add-login'
 const FAILING = 'login rejects a wrong password'
@@ -63,8 +63,19 @@ test.describe('工作台任务 · 测试页签', () => {
     await expect(page.getByTestId('tests-kind-benchmark')).toHaveAttribute('data-met', 'true')
     await expect(page.getByTestId('tests-registered-benchmark')).toHaveText('不适用')
     await expect(page.getByTestId('tests-blocker-label-benchmark')).toHaveCount(0)
-    await page.getByTestId('tests-na-label-benchmark').hover()
-    await expect(page.getByText('演示项目没有性能基准').first()).toBeVisible()
+    // 说明是 Radix Tooltip：指针要在按钮上停满 400ms 才打开，期间按钮一离开指针，待开的说明就取消。
+    // 失败的原因是按钮被推走：编排接口比测试页签晚到，到了才画出详情上方 760px 高的技能画布（stage-skills），
+    // 悬停时它还不在，Playwright 把页面滚到按钮、把指针停在那里之后它才出现，按钮被推下去 792px，指针落空、触发 pointerleave。
+    // 所以：先等上方的内容到齐并落定，再悬停；悬停之后若说明没出现（指针被别的晚到内容推离了按钮），把指针移开再悬停一次，直到出现为止。
+    await expect(page.getByTestId('stage-skills')).toBeVisible()
+    await settled(page)
+    const tooltip = page.getByText('演示项目没有性能基准').first()
+    await expect(async () => {
+      await page.mouse.move(0, 0)
+      await page.getByTestId('tests-na-label-benchmark').hover()
+      await expect(tooltip).toBeVisible({ timeout: 2_000 })
+    }).toPass({ timeout: 20_000 })
+    await expect(tooltip).toBeVisible()
     const nowrap = await page.getByTestId('tests-na-benchmark').evaluate((el) => getComputedStyle(el).whiteSpace)
     expect(nowrap).toBe('nowrap')
   })

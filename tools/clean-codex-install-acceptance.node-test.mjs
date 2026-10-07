@@ -408,6 +408,16 @@ function scriptedHealthFetch(t, steps) {
   return calls
 }
 
+// How many scripted attempts hung until their own abort timer fired: each of them ends as one FetchTimeoutError,
+// because the polling loop awaits every attempt before it decides whether to start another.
+function hangCount(calls) {
+  return calls.filter((call) => call.step === 'hang').length
+}
+
+function timedOutNote(count) {
+  return `(then ${count} ${count === 1 ? 'attempt' : 'attempts'} timed out)`
+}
+
 test('non-success health responses preserve HTTP status as the timeout cause', async (t) => {
   // The answer is served by a fetch that settles from microtasks: no abort timer, however short or late,
   // can fire before it resolves, so the only thing asserted is how a non-ok answer is recorded. The
@@ -422,10 +432,13 @@ test('non-success health responses preserve HTTP status as the timeout cause', a
     (error) => {
       assert.match(error.message, new RegExp(`Dashboard did not become healthy on port ${port}`))
       assert.equal(error.cause?.message, `Dashboard health on port ${port} returned HTTP 503`)
+      // No attempt timed out, so there is nothing to count after the status.
+      assert.doesNotMatch(error.message, /timed out/)
       return true
     },
   )
   assert.ok(calls.length >= 1)
+  assert.equal(hangCount(calls), 0)
   assert.deepEqual([...new Set(calls.map((call) => call.url))], [`http://127.0.0.1:${port}/api/health`])
 })
 
@@ -479,7 +492,70 @@ test('a late timeout does not replace the HTTP status the earlier attempts saw',
     },
   )
   // At least one attempt really timed out after the 503s, or the test proves nothing.
-  assert.ok(calls.filter((call) => call.step === 'hang').length >= 1)
+  assert.ok(hangCount(calls) >= 1)
+})
+
+test('the final message counts the attempts that timed out after the HTTP status', async (t) => {
+  const port = 4_250
+  const calls = scriptedHealthFetch(t, [503, 'hang'])
+  await assert.rejects(
+    waitForHealth(port, true, {
+      overallTimeoutMs: 400,
+      requestTimeoutMs: 40,
+      pollIntervalMs: 5,
+    }),
+    (error) => {
+      const timedOut = hangCount(calls)
+      // Several attempts timed out, so the plural form is the one under test.
+      assert.ok(timedOut >= 2, `${timedOut} attempts timed out`)
+      assert.equal(
+        error.message,
+        `Dashboard did not become healthy on port ${port}: Error: Dashboard health on port ${port} returned HTTP 503 ${timedOutNote(timedOut)}`,
+      )
+      // The count lives in the message; the cause is still the status the Dashboard really answered with.
+      assert.equal(error.cause?.message, `Dashboard health on port ${port} returned HTTP 503`)
+      return true
+    },
+  )
+})
+
+test('a single timed-out attempt after the HTTP status is counted in the singular', async (t) => {
+  const port = 4_251
+  const calls = scriptedHealthFetch(t, [503, 'hang'])
+  await assert.rejects(
+    // One attempt gets the whole remaining budget and ends at the deadline: no second attempt can start.
+    waitForHealth(port, true, {
+      overallTimeoutMs: 150,
+      requestTimeoutMs: 1_000,
+      pollIntervalMs: 5,
+    }),
+    (error) => {
+      assert.equal(hangCount(calls), 1)
+      assert.ok(error.message.endsWith(`returned HTTP 503 (then 1 attempt timed out)`), error.message)
+      return true
+    },
+  )
+})
+
+test('only the timeouts after the last non-timeout cause are counted', async (t) => {
+  const port = 4_252
+  // The first attempt times out before any status was seen; it must not count as "later".
+  const calls = scriptedHealthFetch(t, ['hang', 503, 'hang'])
+  await assert.rejects(
+    waitForHealth(port, true, {
+      overallTimeoutMs: 400,
+      requestTimeoutMs: 40,
+      pollIntervalMs: 5,
+    }),
+    (error) => {
+      const later = hangCount(calls) - 1
+      assert.ok(later >= 2, `${later} timeouts after the status`)
+      assert.ok(error.message.endsWith(`returned HTTP 503 ${timedOutNote(later)}`), error.message)
+      return true
+    },
+  )
+  assert.equal(calls[0]?.step, 'hang')
+  assert.equal(calls[1]?.step, 503)
 })
 
 test('the most recent non-timeout cause wins over an older one and over later timeouts', async (t) => {
@@ -495,10 +571,13 @@ test('the most recent non-timeout cause wins over an older one and over later ti
     }),
     (error) => {
       assert.equal(error.cause, refused)
+      // The count follows the refused connection, the cause that won; the earlier 503 is not mentioned.
+      assert.ok(error.message.endsWith(timedOutNote(hangCount(calls))), error.message)
+      assert.doesNotMatch(error.message, /HTTP 503/)
       return true
     },
   )
-  assert.ok(calls.filter((call) => call.step === 'hang').length >= 1)
+  assert.ok(hangCount(calls) >= 1)
 })
 
 test('health that only ever times out still reports the timeout as the cause', async (t) => {
@@ -512,6 +591,8 @@ test('health that only ever times out still reports the timeout as the cause', a
     (error) => {
       assert.ok(error.cause instanceof FetchTimeoutError)
       assert.match(error.cause.message, /Dashboard health on port 4245 timed out after \d+ms/)
+      // The timeout is itself the cause here, so there is no earlier cause for a "then ..." count to follow.
+      assert.doesNotMatch(error.message, /\(then /)
       return true
     },
   )
@@ -529,10 +610,11 @@ test('a wait for the listener to disappear keeps the non-timeout cause over a la
     (error) => {
       assert.match(error.message, new RegExp(`still owns or accepts port ${port}`))
       assert.equal(error.cause?.message, `Dashboard health on port ${port} returned HTTP 503`)
+      assert.ok(error.message.endsWith(`returned HTTP 503 ${timedOutNote(hangCount(calls))}`), error.message)
       return true
     },
   )
-  assert.ok(calls.filter((call) => call.step === 'hang').length >= 1)
+  assert.ok(hangCount(calls) >= 1)
 })
 
 test('health polling starts no attempt with less than the floor left before the overall deadline', async (t) => {

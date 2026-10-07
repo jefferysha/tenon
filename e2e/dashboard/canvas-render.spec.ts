@@ -1,5 +1,6 @@
 import type { Page } from 'playwright/test'
 import { expect, openView, settled, test } from './support/fixtures'
+import { percentile } from './support/stats'
 
 /**
  * 总览画布的渲染耗时，在真实 Chromium 里量（这类预算不放进 jsdom 单测：jsdom 的渲染耗时在并行与慢 CI 上会飘出数倍，不是产品性能）。
@@ -49,14 +50,6 @@ async function read(page: Page): Promise<{ commit: number; paint: number }> {
   const { started, committed, painted } = await page.evaluate((): CanvasRenderMark => Reflect.get(window, '__canvasRender'))
   if (started === null || committed === null || painted === null) throw new Error('渲染计时没有记全')
   return { commit: committed - started, paint: painted - started }
-}
-
-function percentile(values: readonly number[], fraction: number): number {
-  const sorted = [...values].sort((a, b) => a - b)
-  const rank = fraction * (sorted.length - 1)
-  const lower = Math.floor(rank)
-  const upper = Math.ceil(rank)
-  return (sorted[lower] ?? 0) + ((sorted[upper] ?? 0) - (sorted[lower] ?? 0)) * (rank - lower)
 }
 
 test.describe('总览画布渲染耗时', () => {

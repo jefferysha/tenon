@@ -319,11 +319,12 @@ npm run sync:skill-provenance
 bash tools/verify-skills.sh --quiet --root "$PWD"
 ```
 
-The hidden packaged command `tenon internal-skill-provenance verify|sync
---root <path> [--json]` is the implementation behind these checks. `verify`
-is read-only; `sync` computes all entries before atomically replacing the
-registry. Setup, doctor, release candidates, and bundled lookup fail closed on
-an invalid registry, missing/extra Skill, legacy lock, or content drift.
+The hidden packaged command
+`tenon internal-skill-provenance verify|sync --root <path> [--json]` is the
+implementation behind these checks. `verify` is read-only; `sync` computes all
+entries before atomically replacing the registry. Setup, doctor, release
+candidates, and bundled lookup fail closed on an invalid registry, missing/extra
+Skill, legacy lock, or content drift.
 
 修改契约、生成资产、adapters、hooks 或分发文件前，请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
 

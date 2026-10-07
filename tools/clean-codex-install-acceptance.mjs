@@ -333,8 +333,11 @@ function connectionWasRefused(error) {
 // time out, because the last attempt only gets the time left before the overall deadline and a short,
 // truncated attempt that timed out says nothing about why the Dashboard never became healthy (the real
 // cause is the HTTP status, malformed JSON or refused connection seen before it). A timeout is reported only
-// when no attempt produced any other cause. No new attempt starts with less than minAttemptMs left; a budget
-// shorter than that still gets its first attempt, with the whole budget.
+// when no attempt produced any other cause. When timeouts did follow that cause, the final message says how
+// many ("... returned HTTP 503 (then 3 attempts timed out)"), so a log reader can tell a Dashboard that kept
+// answering 503 from one that answered once and then stopped answering; the error's cause stays the original
+// error. No new attempt starts with less than minAttemptMs left; a budget shorter than that still gets its
+// first attempt, with the whole budget.
 export async function waitForHealth(port, expectedPresent = true, options = {}) {
   const overallTimeoutMs = options.overallTimeoutMs ?? 15_000
   const requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_HTTP_TIMEOUT_MS
@@ -343,9 +346,16 @@ export async function waitForHealth(port, expectedPresent = true, options = {}) 
   const deadline = Date.now() + overallTimeoutMs
   let lastError
   let lastNonTimeoutError
+  // Attempts that timed out after the attempt that produced lastNonTimeoutError.
+  let timeoutsSinceCause = 0
   const record = (error) => {
     lastError = error
-    if (!(error instanceof FetchTimeoutError)) lastNonTimeoutError = error
+    if (error instanceof FetchTimeoutError) {
+      timeoutsSinceCause += 1
+    } else {
+      lastNonTimeoutError = error
+      timeoutsSinceCause = 0
+    }
   }
   for (let attempts = 0; ; attempts += 1) {
     const remaining = deadline - Date.now()
@@ -381,14 +391,17 @@ export async function waitForHealth(port, expectedPresent = true, options = {}) 
     }
   }
   const cause = lastNonTimeoutError ?? lastError
+  const laterTimeouts = lastNonTimeoutError !== undefined && timeoutsSinceCause > 0
+    ? ` (then ${timeoutsSinceCause} ${timeoutsSinceCause === 1 ? 'attempt' : 'attempts'} timed out)`
+    : ''
   if (!expectedPresent) {
     throw new Error(
-      `Dashboard listener still owns or accepts port ${port} after cleanup: ${String(cause ?? '')}`,
+      `Dashboard listener still owns or accepts port ${port} after cleanup: ${String(cause ?? '')}${laterTimeouts}`,
       { cause },
     )
   }
   throw new Error(
-    `Dashboard did not become healthy on port ${port}: ${String(cause ?? '')}`,
+    `Dashboard did not become healthy on port ${port}: ${String(cause ?? '')}${laterTimeouts}`,
     { cause },
   )
 }

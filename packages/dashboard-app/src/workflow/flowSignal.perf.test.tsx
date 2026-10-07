@@ -1,21 +1,52 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FlowStage } from '../api/workflowOrchestrationClient'
-import { STREAK_LAYERS, createSignalRuntime, type SignalMode } from './flowSignal'
+import { STREAK_LAYERS, createSignalRuntime, type SignalMode, type SignalRuntime } from './flowSignal'
 import { layoutOrchestration } from './orchestrationLayout'
 
+/** 彗星头部位置每被算一次记一次：每帧的纯计算量是确定性的，不看时钟（计数器本身只是一次加法，不影响下面的耗时批）。 */
+const counted = vi.hoisted(() => ({ headOnEdge: 0 }))
+vi.mock('./signalPlan', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./signalPlan')>()
+  return { ...actual, headOnEdge: (...args: Parameters<typeof actual.headOnEdge>) => { counted.headOnEdge += 1; return actual.headOnEdge(...args) } }
+})
+
 /**
- * Signal 每帧脚本耗时（目标 < 2ms）：在 8 列、约 50 个节点的前端总览布局上，把真实的 layoutOrchestration 画成与画布同构的 DOM
- * （每条边 4 层 path，节点带到达反馈层），然后让运行时连跑 10 秒的帧，量每帧 step 的耗时。
- * 这里量的是脚本（jsdom 里的 setAttribute / style 写入）；样式重算与绘制在真浏览器里另量（e2e 用 CDP 的 ScriptDuration）。
+ * Signal 每帧脚本的规模护栏：在 8 列、约 50 个节点的前端总览布局上，把真实的 layoutOrchestration 画成与画布同构的 DOM
+ * （每条边 4 层 path，节点带到达反馈层），然后让运行时连跑 10 秒的帧。
+ *
+ * 护栏分两层，都不依赖 jsdom 的墙钟绝对值：
+ *   1. 确定性断言（不看时钟）：每帧的 DOM 写入次数、写入对象、有没有布局读取、每条边每帧只算一次彗星位置，以及输入 ×8 时写入只线性增长。
+ *   2. 耗时只量 step 本身：小输入与 ×8 输入的批交替着跑，每批的总工作量相同（约 BATCH_NODE_FRAMES 个节点·帧，一批几毫秒），
+ *      取各自最快一批的每帧均值（并行的测试进程、GC 与调度只会让某一批变慢，交替让两边挨上同样的负载）；
+ *      绝对线 2ms 约是本机的 20 倍以上，增长倍数线 16 比线性实测（空载与满载都约 3 到 7）高出一倍多、又在平方级退化之下（临时注入的平方级循环实测约 27 到 35）。
+ * 真实 Chromium 里每帧的脚本 / 样式 / 布局耗时（CDP Performance.getMetrics，中位数预算 + p95 报告）在 e2e/dashboard/workflow.spec.ts：
+ * jsdom 里的单帧耗时在慢 CI 上会飘出数倍，p95 在那里没有意义。
  */
 const SVG = 'http://www.w3.org/2000/svg'
+const EDGE_SELECTOR = 'g[data-signal-edge]'
+/** 输入放大的倍数（线性输入 ×8；平方级的退化会涨到 ×64）。 */
+const WIDE = 8
+/**
+ * 一批的总工作量（节点·帧：小输入约 2 到 5 毫秒、大输入约 1 到 2 毫秒，短到多半落在一个调度时间片里）、量几轮；每边预热两批不计。
+ * 批越短，满载的机器上越容易有一批没被抢占；轮数多一些，最快一批就更接近没有干扰的耗时。
+ */
+const BATCH_NODE_FRAMES = 2_400
+const ROUNDS = 30
+/** 这些用例在满载的机器上比空载慢好几倍，vitest 默认的 5 秒不够。 */
+const TEST_TIMEOUT_MS = 60_000
+/** 每帧 step 耗时的绝对线（毫秒）与输入 ×8 时的增长倍数线。 */
+const FRAME_BUDGET_MS = 2
+const GROWTH_CEILING = 16
 
 function entry(kind: 'executor' | 'skill' | 'test' | 'reviewer', id: string, wave: number, dependsOn: string[] = []) {
   return { kind, id, label: id, wave, dependsOn, required: true, source: 'declared' as const }
 }
 
-/** 八列：立项 1、调研 5、规格 2、设计 6、实现 7、验证 12、交付 9、完结 8 —— 合计 50 个条目，含并行与汇合。 */
-function frontendStages(): FlowStage[] {
+/**
+ * 八列：立项 1、调研 5、规格 2、设计 6、实现 7、验证 12、交付 9、完结 8 —— scale 为 1 时合计 50 个条目，含并行与汇合。
+ * scale 把每一列的链长与并行块的份数都放大同样的倍数。
+ */
+function frontendStages(scale = 1): FlowStage[] {
   const chain = (prefix: string, count: number): FlowStage['entries'] => Array.from({ length: count }, (_unused, index) => entry('skill', `${prefix}${index}`, index, index === 0 ? [] : [`${prefix}${index - 1}`]))
   const parallel = (prefix: string): FlowStage['entries'] => [
     entry('skill', `${prefix}a`, 0), entry('skill', `${prefix}b`, 1, [`${prefix}a`]), entry('skill', `${prefix}c`, 1, [`${prefix}a`]),
@@ -27,12 +58,14 @@ function frontendStages(): FlowStage[] {
     id: `s${index}`,
     label: `阶段 ${index}`,
     gate: index % 2 === 0 ? 'auto' : 'review',
-    entries: index === 5 ? [...chain('v', 4), ...parallel('w')] : chain(`n${index}_`, count),
+    entries: index === 5
+      ? [...chain('v', 4 * scale), ...Array.from({ length: scale }, (_unused, copy) => parallel(`w${copy}_`)).flat()]
+      : chain(`n${index}_`, count * scale),
   }))
 }
 
-function build(): { root: HTMLElement; nodes: number; edges: number; streaks: number } {
-  const layout = layoutOrchestration(frontendStages(), 'overview')
+function build(scale = 1): { root: HTMLElement; nodes: number; edges: number; streaks: number } {
+  const layout = layoutOrchestration(frontendStages(scale), 'overview')
   const root = document.createElement('div')
   const svg = document.createElementNS(SVG, 'svg')
   root.append(svg)
@@ -86,40 +119,170 @@ function build(): { root: HTMLElement; nodes: number; edges: number; streaks: nu
   return { root, nodes: layout.entries.length, edges: layout.edges.length, streaks: layout.edges.filter((edge) => edge.stub !== true).length }
 }
 
-function percentile(sorted: readonly number[], fraction: number): number {
-  return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * fraction))] ?? 0
+type Mode = Exclude<SignalMode, 'off' | 'still'>
+
+/** 建一张画布并起运行时（getTotalLength 由 beforeEach 装好）。 */
+function mount(mode: Mode, scale = 1): { runtime: SignalRuntime; root: HTMLElement; nodes: number; edges: number; streaks: number } {
+  const built = build(scale)
+  const runtime = createSignalRuntime(built.root, mode)
+  if (runtime === null) throw new Error('画布上没有可量的边')
+  expect(runtime.total).toBe(built.edges)
+  expect(runtime.edgeCount).toBe(built.streaks)
+  return { runtime, ...built }
 }
 
-describe('Signal 性能 · 8 列 ~50 节点的前端总览', () => {
-  afterEach(() => { Reflect.deleteProperty(SVGElement.prototype, 'getTotalLength') })
+interface FrameAudit {
+  /** 每帧里不符合「只写热边」的地方；空数组 = 全部合规。 */
+  readonly violations: string[]
+  /** 单帧里最多的 DOM 写入（属性 + 内联样式）与同时最多的热边。 */
+  readonly maxWrites: number
+  readonly hottest: number
+}
 
-  for (const mode of ['ambient', 'running'] as Array<Exclude<SignalMode, 'off' | 'still'>>) {
-    it(`${mode}：每帧 step 的脚本耗时 < 2ms（均值与 p95 都算）`, () => {
-      Object.defineProperty(SVGElement.prototype, 'getTotalLength', { configurable: true, value(this: SVGElement) { return Number(this.getAttribute('data-length') ?? 0) } })
-      const { root, nodes, edges, streaks } = build()
-      expect(nodes).toBeGreaterThanOrEqual(48)
-      expect(nodes).toBeLessThanOrEqual(56)
-      const runtime = createSignalRuntime(root, mode)!
-      expect(runtime.total).toBe(edges)
-      expect(runtime.edgeCount).toBe(streaks)
-      // 预热 JIT，再量 10 秒的帧（600 帧 × 1/60s）。
-      for (let frame = 0; frame < 120; frame += 1) runtime.step(1 / 60)
-      const samples: number[] = []
-      let hottest = 0
-      for (let frame = 0; frame < 600; frame += 1) {
-        const started = performance.now()
-        runtime.step(1 / 60)
-        samples.push(performance.now() - started)
-        hottest = Math.max(hottest, runtime.hotCount())
-      }
-      const sorted = [...samples].sort((a, b) => a - b)
-      const mean = samples.reduce((sum, value) => sum + value, 0) / samples.length
-      console.info(`[signal-perf] ${mode}: ${nodes} 节点 / ${edges} 条边（${streaks} 条带彗星），均值 ${mean.toFixed(3)}ms，p95 ${percentile(sorted, 0.95).toFixed(3)}ms，最大 ${sorted[sorted.length - 1]!.toFixed(3)}ms，同时最多 ${hottest} 条热边`)
-      expect(mean).toBeLessThan(2)
-      expect(percentile(sorted, 0.95)).toBeLessThan(2)
-      // 只写热边：同一帧里总有冷边不被碰（每条热边 4 次 dashoffset 写入）。
-      expect(hottest).toBeLessThan(streaks)
-      runtime.dispose()
+/**
+ * 连跑 frames 帧，每帧后用 MutationObserver 收这一帧的全部 DOM 写入，逐帧核对：
+ *   · 每条在这一帧后可见（热）的边恰好写 4 次 stroke-dashoffset（每层一次）——多了说明在写冷边或重复写；
+ *   · visibility 只在边冷热切换的那一帧写一次；
+ *   · 冷边（这一帧后不可见）上没有任何 dashoffset 写入。
+ * 节点的到达反馈走内联样式，只计入 maxWrites。
+ */
+function auditFrames(root: HTMLElement, runtime: SignalRuntime, frames: number): FrameAudit {
+  const groups = [...root.querySelectorAll<SVGGElement>(EDGE_SELECTOR)]
+  const visible = (): Set<Element> => new Set(groups.filter((group) => group.getAttribute('visibility') === 'visible'))
+  const observer = new MutationObserver(() => undefined)
+  observer.observe(root, { attributes: true, subtree: true })
+  const violations: string[] = []
+  let maxWrites = 0
+  let hottest = 0
+  let before = visible()
+  for (let frame = 0; frame < frames; frame += 1) {
+    runtime.step(1 / 60)
+    const records = observer.takeRecords()
+    const after = visible()
+    let offsets = 0
+    let visibility = 0
+    for (const record of records) {
+      if (record.attributeName === 'stroke-dashoffset') {
+        offsets += 1
+        const group = record.target instanceof Element ? record.target.closest(EDGE_SELECTOR) : null
+        if (group === null || !after.has(group)) violations.push(`第 ${frame} 帧：写了冷边的 dashoffset`)
+      } else if (record.attributeName === 'visibility') visibility += 1
+    }
+    const toggled = groups.filter((group) => before.has(group) !== after.has(group)).length
+    if (offsets !== STREAK_LAYERS.length * after.size) violations.push(`第 ${frame} 帧：${after.size} 条热边应写 ${STREAK_LAYERS.length * after.size} 次 dashoffset，实际 ${offsets}`)
+    if (visibility !== toggled) violations.push(`第 ${frame} 帧：${toggled} 条边冷热切换，visibility 写了 ${visibility} 次`)
+    maxWrites = Math.max(maxWrites, records.length)
+    hottest = Math.max(hottest, after.size)
+    before = after
+  }
+  observer.disconnect()
+  return { violations: violations.slice(0, 5), maxWrites, hottest }
+}
+
+/**
+ * 小输入与大输入的单次 step 耗时（毫秒）。两边的批交替着跑，每批连跑 ceil(BATCH_NODE_FRAMES / 节点数) 帧，所以两边每批的时长相近、
+ * 挨上的调度噪声也相近；每边预热两批，量 ROUNDS 轮，各取最快一批的每帧均值。
+ */
+function frameCostsMs(base: { runtime: SignalRuntime; nodes: number }, wide: { runtime: SignalRuntime; nodes: number }): { base: number; wide: number } {
+  const batch = ({ runtime, nodes }: { runtime: SignalRuntime; nodes: number }): number => {
+    const frames = Math.ceil(BATCH_NODE_FRAMES / nodes)
+    const started = performance.now()
+    for (let frame = 0; frame < frames; frame += 1) runtime.step(1 / 60)
+    return (performance.now() - started) / frames
+  }
+  for (let warm = 0; warm < 2; warm += 1) { batch(base); batch(wide) }
+  const best = { base: Number.POSITIVE_INFINITY, wide: Number.POSITIVE_INFINITY }
+  for (let round = 0; round < ROUNDS; round += 1) {
+    best.base = Math.min(best.base, batch(base))
+    best.wide = Math.min(best.wide, batch(wide))
+  }
+  return best
+}
+
+describe('Signal 性能 · 8 列 ~50 节点的前端总览', { timeout: TEST_TIMEOUT_MS }, () => {
+  let measured = 0
+  beforeEach(() => {
+    measured = 0
+    Object.defineProperty(SVGElement.prototype, 'getTotalLength', { configurable: true, value(this: SVGElement) { measured += 1; return Number(this.getAttribute('data-length') ?? 0) } })
+  })
+  afterEach(() => {
+    Reflect.deleteProperty(SVGElement.prototype, 'getTotalLength')
+    vi.restoreAllMocks()
+  })
+
+  for (const mode of ['ambient', 'running'] as Mode[]) {
+    describe(mode, () => {
+      it('确定性：10 秒的帧里，每帧只写热边（每条 4 次 dashoffset），冷边零写入，visibility 只在切换时写', () => {
+        const { runtime, root, nodes, streaks } = mount(mode)
+        expect(nodes).toBeGreaterThanOrEqual(48)
+        expect(nodes).toBeLessThanOrEqual(56)
+        // 预热 JIT / 让热边集稳定，再逐帧核对 10 秒（600 帧 × 1/60s）。
+        for (let frame = 0; frame < 120; frame += 1) runtime.step(1 / 60)
+        const audit = auditFrames(root, runtime, 600)
+        console.info(`[signal-perf] ${mode}: ${nodes} 节点 / ${streaks} 条带彗星的边，同时最多 ${audit.hottest} 条热边，单帧最多 ${audit.maxWrites} 次 DOM 写入`)
+        expect(audit.violations).toEqual([])
+        expect(audit.hottest).toBeGreaterThan(0)
+        // 只写热边：同一帧里总有冷边不被碰。
+        expect(audit.hottest).toBeLessThan(streaks)
+        runtime.dispose()
+      })
+
+      it('确定性：帧里不量路径长度、不读布局、不查 DOM（路径长度只在建时量一次）', () => {
+        const { runtime, edges } = mount(mode)
+        // 每组一次建时测量，彗星层共用同一个 d 的长度缓存；之后每帧一次都不该再有。
+        const builtWith = measured
+        expect(builtWith).toBeGreaterThan(0)
+        expect(builtWith).toBeLessThanOrEqual(edges)
+        const reads = {
+          getBoundingClientRect: vi.spyOn(Element.prototype, 'getBoundingClientRect'),
+          querySelector: vi.spyOn(Element.prototype, 'querySelector'),
+          querySelectorAll: vi.spyOn(Element.prototype, 'querySelectorAll'),
+          getComputedStyle: vi.spyOn(window, 'getComputedStyle'),
+        }
+        for (let frame = 0; frame < 600; frame += 1) runtime.step(1 / 60)
+        expect(measured).toBe(builtWith)
+        expect(Object.fromEntries(Object.entries(reads).map(([name, spy]) => [name, spy.mock.calls.length]))).toEqual({ getBoundingClientRect: 0, querySelector: 0, querySelectorAll: 0, getComputedStyle: 0 })
+        runtime.dispose()
+      })
+
+      it('确定性：每帧对每条参与流动的边只算一次彗星位置（计算量与边数同阶，不随输入平方增长）', () => {
+        for (const scale of [1, WIDE]) {
+          const { runtime } = mount(mode, scale)
+          for (let frame = 0; frame < 30; frame += 1) runtime.step(1 / 60)
+          const before = counted.headOnEdge
+          for (let frame = 0; frame < 100; frame += 1) runtime.step(1 / 60)
+          expect(counted.headOnEdge - before, `scale ×${scale}`).toBe(100 * runtime.edgeCount)
+          runtime.dispose()
+        }
+      })
+
+      it(`规模：输入 ×${WIDE} 时，单帧的 DOM 写入与热边最多线性增长（不是平方）`, () => {
+        const base = mount(mode)
+        const wide = mount(mode, WIDE)
+        expect(wide.streaks).toBeGreaterThan(base.streaks * (WIDE - 2))
+        for (const { runtime } of [base, wide]) for (let frame = 0; frame < 120; frame += 1) runtime.step(1 / 60)
+        const small = auditFrames(base.root, base.runtime, 300)
+        const large = auditFrames(wide.root, wide.runtime, 300)
+        expect(small.violations).toEqual([])
+        expect(large.violations).toEqual([])
+        // 带彗星的边多了几倍，同一帧的热边与写入至多再多这么多倍（再留 50% 余量）；平方级的退化会涨到 ×64。
+        const growth = wide.streaks / base.streaks
+        expect(large.hottest, `热边 ${small.hottest} → ${large.hottest}，边 ×${growth.toFixed(1)}`).toBeLessThanOrEqual(small.hottest * growth * 1.5)
+        expect(large.maxWrites, `单帧写入 ${small.maxWrites} → ${large.maxWrites}，边 ×${growth.toFixed(1)}`).toBeLessThanOrEqual(small.maxWrites * growth * 1.5)
+        base.runtime.dispose()
+        wide.runtime.dispose()
+      })
+
+      it(`耗时（只量 step，不含渲染；最快一批）：每帧 < ${FRAME_BUDGET_MS}ms；输入 ×${WIDE} 时增长 < ${GROWTH_CEILING} 倍`, () => {
+        const base = mount(mode)
+        const wide = mount(mode, WIDE)
+        const { base: baseCost, wide: wideCost } = frameCostsMs(base, wide)
+        console.info(`[signal-perf] ${mode}: ${base.nodes} 节点 每帧 ${baseCost.toFixed(3)}ms，${wide.nodes} 节点 每帧 ${wideCost.toFixed(3)}ms（×${(wideCost / baseCost).toFixed(1)}）`)
+        expect(baseCost, `${base.nodes} 节点每帧 ${baseCost.toFixed(3)}ms`).toBeLessThan(FRAME_BUDGET_MS)
+        expect(wideCost / baseCost, `${wide.nodes} 节点 ${wideCost.toFixed(3)}ms / ${base.nodes} 节点 ${baseCost.toFixed(3)}ms`).toBeLessThan(GROWTH_CEILING)
+        base.runtime.dispose()
+        wide.runtime.dispose()
+      })
     })
   }
 })

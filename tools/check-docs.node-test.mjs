@@ -600,10 +600,93 @@ test('leaves fenced code, code spans, intentional HTML blocks and balanced or ha
   assert.deepEqual(findPlainTextTagContinuations(markdown), [])
 })
 
-test('only a continuation line counts, never the first line of a paragraph', () => {
-  assert.deepEqual(findPlainTextTagContinuations('<change> starts the paragraph and is not a continuation.\n'), [])
-  assert.deepEqual(findPlainTextTagContinuations('<change> starts a paragraph that goes on\nover a second line.\n'), [])
-  assert.deepEqual(findPlainTextTagContinuations('Heading follows\n\n## <change>\n\n| a | <b> |\n| - | - |\n'), [])
+test('finds a paragraph whose first line starts with an unclosed tag-like token', () => {
+  const markdown = [
+    '# Title',
+    '',
+    '<change> starts the paragraph and is not closed.',
+    '',
+    '<name> starts a paragraph that goes on',
+    'over a second line.',
+    '',
+    '- <old> opens a list item',
+    '',
+    '1. <new attr="x"> opens a numbered item',
+    '',
+    '> <quoted> opens a quoted paragraph',
+    '',
+    '   </stray> a closing tag with no opener',
+    '',
+    '<alone>',
+  ].join('\n')
+  assert.deepEqual(findPlainTextTagContinuations(markdown), [
+    { line: 3, token: '<change', text: '<change> starts the paragraph and is not closed.' },
+    { line: 5, token: '<name', text: '<name> starts a paragraph that goes on' },
+    { line: 8, token: '<old', text: '<old> opens a list item' },
+    { line: 10, token: '<new', text: '<new attr="x"> opens a numbered item' },
+    { line: 12, token: '<quoted', text: '<quoted> opens a quoted paragraph' },
+    { line: 14, token: '</stray', text: '</stray> a closing tag with no opener' },
+    { line: 16, token: '<alone', text: '<alone>' },
+  ])
+})
+
+test('leaves first lines alone that are code, intentional HTML, balanced, void or not a tag', () => {
+  const markdown = [
+    '`<change>` opens with a code span and stays text.',
+    '',
+    '`tenon set <a>` and then <b> only after the span.',
+    '',
+    '\\<change> is escaped on the first line.',
+    '',
+    '<kbd>Ctrl</kbd> is balanced on the first line.',
+    '',
+    '<b>bold that closes later',
+    'on the next line</b> is balanced too.',
+    '',
+    '<br> is a void element.',
+    '',
+    '<img src="a.webp" alt="x" width="1280" />',
+    '',
+    '<img src="b.webp"',
+    '  alt="a tag split over lines" />',
+    '',
+    '- <img src="c.webp" />',
+    '',
+    '<div class="note">an HTML block on purpose',
+    '<change> inside it is the author\'s own',
+    '</div>',
+    '',
+    '<picture>',
+    '<source srcset="a.webp">',
+    '<img src="a.png" />',
+    '</picture>',
+    '',
+    '<https://example.test/a> is an autolink and <someone@example.test> an address.',
+    '',
+    '<5 files and <= a limit are not tags.',
+    '',
+    '## <change>',
+    '',
+    '| a | <b> |',
+    '| - | - |',
+    '',
+    '    <indented> is an indented code block',
+    '',
+    '```text',
+    '<change> in a fence',
+    '```',
+  ].join('\n')
+  assert.deepEqual(findPlainTextTagContinuations(markdown), [])
+})
+
+test('an open tag alone on the first line must be closed somewhere later on the page', () => {
+  assert.deepEqual(findPlainTextTagContinuations('<picture>\n<img src="a.png" />\n</picture>\n'), [])
+  assert.deepEqual(findPlainTextTagContinuations('<picture>\n\ntext\n\n</picture>\n'), [])
+  assert.deepEqual(findPlainTextTagContinuations('<picture>\n<img src="a.png" />\n'), [
+    { line: 1, token: '<picture', text: '<picture>' },
+  ])
+  // A closing tag alone is the end of an HTML block somebody opened on purpose.
+  assert.deepEqual(findPlainTextTagContinuations('</picture>\n'), [])
 })
 
 test('does not read a closing tag inside a code span as closing the placeholder', () => {
@@ -642,5 +725,57 @@ test('accepts the same placeholders once they sit in a code span or are escaped'
     'docs/usage/routing-and-workflows.md',
     `${routing}\nStart a task with the name of the change you\n\`<new>\` wants to open, and\n\\<other> is escaped.\n`,
   )
+  assert.deepEqual(checkRepository(root), [])
+})
+
+test('reports a paragraph that opens with a placeholder in any docs/usage page with file and line', async (t) => {
+  const root = await fixture()
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const routing = await readFile(join(root, 'docs/usage/routing-and-workflows.md'), 'utf8')
+  await write(
+    root,
+    'docs/usage/routing-and-workflows.md',
+    `${routing}\n<new> is the name of the change you want to open.\n`,
+  )
+  await write(root, 'docs/usage/zh-CN/default-workflow.md', '# 默认流程\n\n- <change> 必须已经存在。\n')
+  const failures = checkRepository(root).join('\n')
+  assert.match(failures, /docs\/usage\/routing-and-workflows\.md:\d+: plain-text line starts with the tag-like token "<new".*<new> is the name of the change/)
+  assert.match(failures, /docs\/usage\/zh-CN\/default-workflow\.md:3: plain-text line starts with the tag-like token "<change"/)
+})
+
+test('accepts the same first lines once the placeholder sits in a code span or is escaped', async (t) => {
+  const root = await fixture()
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const routing = await readFile(join(root, 'docs/usage/routing-and-workflows.md'), 'utf8')
+  await write(
+    root,
+    'docs/usage/routing-and-workflows.md',
+    `${routing}\n\`<new>\` is the name of the change you want to open.\n\n\\<other> is escaped.\n\n- \`<change>\` must exist.\n`,
+  )
+  assert.deepEqual(checkRepository(root), [])
+})
+
+test('checks the README files for wrapped code spans and tag-like lines too', async (t) => {
+  const root = await fixture()
+  t.after(() => rm(root, { recursive: true, force: true }))
+  for (const name of ['README.md', 'README.en.md']) {
+    const readme = await readFile(join(root, name), 'utf8')
+    await write(root, name, `${readme}\nThe hidden command \`tenon internal-skill-provenance verify|sync\n--root <path> [--json]\` is the implementation.\n\n<change> opens a paragraph.\n`)
+  }
+  const failures = checkRepository(root).join('\n')
+  for (const name of ['README.md', 'README.en.md']) {
+    const escaped = name.replace('.', '\\.')
+    assert.match(failures, new RegExp(`${escaped}:\\d+-\\d+: inline code span containing "<" is wrapped across a line break.*verify\\|sync --root <path> \\[--json\\]`))
+    assert.match(failures, new RegExp(`${escaped}:\\d+: plain-text line starts with the tag-like token "<change"`))
+  }
+})
+
+test('accepts the README placeholder code span once it sits on one line', async (t) => {
+  const root = await fixture()
+  t.after(() => rm(root, { recursive: true, force: true }))
+  for (const name of ['README.md', 'README.en.md']) {
+    const readme = await readFile(join(root, name), 'utf8')
+    await write(root, name, `${readme}\nThe hidden command\n\`tenon internal-skill-provenance verify|sync --root <path> [--json]\` is the implementation.\n`)
+  }
   assert.deepEqual(checkRepository(root), [])
 })
