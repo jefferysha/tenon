@@ -12,11 +12,49 @@ import { reqGet } from './test-support.js'
 
 const serverBundle = fileURLToPath(new URL('../dist/dashboard.mjs', import.meta.url))
 
+/** How long a SIGTERMed bundle gets to finish its graceful shutdown before it is SIGKILLed (CPU-starved CI runners are slow). */
+const TERM_GRACE_MS = 10_000
+/** How long a SIGKILLed bundle gets to be reaped before cleanup gives up waiting. */
+const KILL_WAIT_MS = 5_000
+
 const children: ChildProcess[] = []
 const dirs: string[] = []
+
+const hasExited = (child: ChildProcess): boolean => child.exitCode !== null || child.signalCode !== null
+
+/** Resolves true once the child has exited, false if it is still running after `timeoutMs`. */
+function waitForExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
+  if (hasExited(child)) return Promise.resolve(true)
+  return new Promise((resolve) => {
+    const onExit = (): void => {
+      clearTimeout(timer)
+      resolve(true)
+    }
+    const timer = setTimeout(() => {
+      child.off('exit', onExit)
+      resolve(false)
+    }, timeoutMs)
+    child.once('exit', onExit)
+  })
+}
+
+/**
+ * SIGTERM the bundle and wait until the process is really gone, with SIGKILL as the bounded fallback.
+ * The signal alone is not enough: on SIGTERM the bundle still logs "stopping" into state/logs/dashboard.log
+ * and closes down, so removing its home right after `kill()` races those writes (ENOTEMPTY on state/logs).
+ */
+async function terminate(child: ChildProcess): Promise<void> {
+  if (child.pid === undefined || hasExited(child)) return
+  child.kill('SIGTERM')
+  if (await waitForExit(child, TERM_GRACE_MS)) return
+  child.kill('SIGKILL')
+  await waitForExit(child, KILL_WAIT_MS)
+}
+
 afterEach(async () => {
-  for (const child of children.splice(0)) child.kill('SIGTERM')
-  await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
+  // Every child must be gone before its home is removed; one that will not die must not skip the removal.
+  await Promise.allSettled(children.splice(0).map(terminate))
+  await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 })))
 })
 
 function freePort(): Promise<number> {
@@ -120,9 +158,8 @@ describe('Dashboard server bundle process contract', () => {
     expect(running).toContain('/session/start?code=[REDACTED:token]')
     expect(running).not.toContain(code ?? 'unreachable')
 
-    const exited = new Promise<void>((resolve) => started.child.once('exit', () => resolve()))
-    started.child.kill('SIGTERM')
-    await exited
+    await terminate(started.child)
+    expect(hasExited(started.child)).toBe(true)
     const stopped = readFileSync(logPath, 'utf8')
     expect(stopped).toMatch(/\[dashboard-server\] stopping pid=\d+/u)
     expect(stopped).not.toContain(code ?? 'unreachable')
