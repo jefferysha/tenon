@@ -213,6 +213,75 @@ describe('doctor —— 统一健康面（BACKLOG #26b，GOAL B8 降级可见 / 
     expect(identity.detail).toContain('expected=1.0.2')
   })
 
+  describe('回滚之后 identity:release 不红（F20）', () => {
+    const runtimeReleaseId = `sha256-${'a'.repeat(64)}`
+    const newerReleaseId = `sha256-${'c'.repeat(64)}`
+    /** runtime 回滚到了 1.0.2；宿主插件与 Dashboard 仍是被回滚掉的 1.0.3。 */
+    const rolledBack = (override: Record<string, unknown> = {}) => async () => ({
+      state: 'native' as const,
+      expectedVersion: '1.0.2',
+      host: 'codex' as const,
+      hostPluginVersion: '1.0.3',
+      hostPluginRoot: '/native/tenon',
+      stableTargetTag: 'v1.0.2',
+      stableTargetCommit: 'a'.repeat(40),
+      hostTargetExact: false,
+      remoteTargetVerified: false,
+      hostPayloadDigest: 'd'.repeat(64),
+      runtimePluginVersion: '1.0.2',
+      runtimeReleaseId,
+      runtimePayloadDigest: 'b'.repeat(64),
+      payloadDigestExact: false,
+      dashboardServerVersion: '1.0.3',
+      dashboardReleaseId: newerReleaseId,
+      rolledBackFrom: { releaseId: newerReleaseId, pluginVersion: '1.0.3', payloadDigest: 'd'.repeat(64) },
+      ...override,
+    })
+
+    test('宿主仍是被回滚掉的那份：黄灯，说明这是回滚的预期状态，并同时给出回到较新版本与让宿主退回两条路', async () => {
+      const { code, payload } = await runJson(makeDeps({ doctor: { productIdentity: rolledBack() } }))
+      const identity = byId(payload, 'identity:release')
+      expect(identity.status).toBe('yellow')
+      expect(code, 'a yellow check does not fail doctor').toBe(0)
+      expect(identity.detail).toContain('已回滚到上一份 release')
+      expect(identity.detail).toContain('不是安装损坏')
+      expect(identity.hint).toContain('tenon update --codex')
+      expect(identity.hint).toContain('撤销这次回滚')
+      expect(identity.hint).toContain('tenon setup --codex')
+      expect(identity.hint).toContain('1.0.2')
+    })
+
+    test('Dashboard 没起或已经在当前 runtime 上也算回滚的预期状态', async () => {
+      for (const dashboard of [
+        { dashboardServerVersion: null, dashboardReleaseId: null },
+        { dashboardServerVersion: '1.0.2', dashboardReleaseId: runtimeReleaseId },
+      ]) {
+        const { payload } = await runJson(makeDeps({ doctor: { productIdentity: rolledBack(dashboard) } }))
+        expect(byId(payload, 'identity:release').status).toBe('yellow')
+      }
+    })
+
+    test('漂移不是回滚造成的就照旧红灯：宿主 payload 是第三份、runtime 不是这份 CLI 期望的版本、Dashboard 是别的 release', async () => {
+      for (const drift of [
+        { hostPayloadDigest: '9'.repeat(64) },
+        { runtimePluginVersion: '1.0.1' },
+        { dashboardReleaseId: `sha256-${'9'.repeat(64)}` },
+        { dashboardServerVersion: '0.9.0' },
+      ]) {
+        const { code, payload } = await runJson(makeDeps({ doctor: { productIdentity: rolledBack(drift) } }))
+        expect(byId(payload, 'identity:release').status, JSON.stringify(drift)).toBe('red')
+        expect(code).toBe(1)
+      }
+    })
+
+    test('回滚之后又有激活（没有 rolledBackFrom）：同样的漂移是红灯，建议仍是 tenon update', async () => {
+      const { payload } = await runJson(makeDeps({ doctor: { productIdentity: rolledBack({ rolledBackFrom: undefined }) } }))
+      const identity = byId(payload, 'identity:release')
+      expect(identity.status).toBe('red')
+      expect(identity.hint).toContain('tenon update --codex')
+    })
+  })
+
   test('版本字符串相等但 stable tag/commit 或 payload digest 漂移时 identity:release red', async () => {
     const releaseId = `sha256-${'a'.repeat(64)}`
     const deps = makeDeps({ doctor: {

@@ -64,6 +64,16 @@ export type DoctorProductIdentity =
       readonly payloadDigestExact: boolean
       readonly dashboardServerVersion: string | null
       readonly dashboardReleaseId: string | null
+      /**
+       * 最近一次 runtime 事件是回滚到当前 active release 时，被回滚掉的那份 release 的身份。回滚只换 runtime，
+       * 宿主插件与 Dashboard 仍是较新的那份，所以身份对不上是这个状态的预期结果；doctor 靠它把这种漂移与真漂移分开。
+       * 之后又有激活（update、setup）就没有这一项。
+       */
+      readonly rolledBackFrom?: {
+        readonly releaseId: string
+        readonly pluginVersion: string
+        readonly payloadDigest: string
+      }
     }
   | {
       readonly state: 'unavailable'
