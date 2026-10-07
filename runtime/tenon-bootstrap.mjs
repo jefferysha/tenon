@@ -974,6 +974,24 @@ async function recoverCommittedRollbackAudit(paths, selection) {
   })
 }
 
+// Test only: holds a rollback between its durable journal and the selection flip, while it owns both locks, so a test can
+// run another Tenon writer against exactly that window. Inert unless the variable names a marker path prefix.
+async function pauseRollbackForTest() {
+  const marker = process.env.TENON_TEST_ROLLBACK_PAUSE_AFTER_JOURNAL
+  if (typeof marker !== 'string' || marker === '') return
+  await writeFile(`${marker}.reached`, 'reached\n', 'utf8')
+  const deadline = Date.now() + 60_000
+  while (!await normalFile(`${marker}.continue`)) {
+    if (Date.now() >= deadline) throw new Error('rollback test pause timed out')
+    await delay(20)
+  }
+}
+
+// Lock identity. The outer lock is `<managedTransactionRoot>/.pipeline.lock`: the same directory the release CLI's
+// `withLock(paths.managedTransactionRoot)` takes in withExclusiveRuntimeTransaction (setup, update, and the settling of a
+// leftover rollback journal there) and in REAL_RUNTIME_INSTALLER.rollback. The inner lock is `<stateRoot>/.pipeline.lock`, the
+// one RuntimeReleaseStore takes around every selection write. Every writer of the selection or the journal takes the outer
+// lock first and the inner one second, so they exclude each other and cannot deadlock. A test pins the identity.
 async function rollback(paths) {
   return withStateLock({ stateRoot: paths.managedTransactionRoot }, () => withStateLock(paths, async () => {
     await mkdir(paths.managedTransactionRoot, { recursive: true })
@@ -1012,6 +1030,7 @@ async function rollback(paths) {
         previousRelease: journal.target.previousRelease,
         updatedAt: now(),
       }
+      await pauseRollbackForTest()
       try {
         // Nothing has moved yet, so a refusal here leaves the install exactly as it was: the selection stays,
         // the launchers stay, and no journal is left to wedge `tenon update` and `tenon setup` afterwards.

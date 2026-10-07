@@ -5,7 +5,7 @@ import { chmod, copyFile, lstat, mkdtemp, mkdir, readdir, readFile, rm, stat, sy
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { serializeProductRootContract } from '@tenon/kernel'
+import { LOCK_DIR_NAME, serializeProductRootContract } from '@tenon/kernel'
 import { afterEach, describe, expect, it } from 'vitest'
 import { freezeTrustedExecutable } from '../commands/trusted-executable.js'
 import {
@@ -14,6 +14,7 @@ import {
   expectedStableLaunchers,
   writeStableLaunchers,
 } from './launchers.js'
+import { REAL_RUNTIME_INSTALLER } from './installer.js'
 import { resolveRuntimePaths } from './paths.js'
 import { hashReleasePayload } from './release-payload.js'
 import { runtimeReleaseIdV2 } from './release-store-codecs.js'
@@ -940,6 +941,56 @@ describe('stable runtime bootstrap', () => {
     expect(await readFile(join(fixture.home, '.local', 'bin', 'tenon'), 'utf8')).toBe(launcherText(expected, 'tenon'))
   })
 
+  // Lock identity. The bootstrap's rollback and the release CLI's setup / update (which now settles a leftover journal)
+  // must exclude each other, or a setup that arrives between a rollback's journal and its flip would see "journal, selection
+  // still at its start", call the rollback abandoned and delete the journal under a rollback that then flips with none.
+  // The rollback holds `<managedTransactionRoot>/.pipeline.lock` (what withExclusiveRuntimeTransaction takes) and then
+  // `<stateRoot>/.pipeline.lock` (what the release store takes); the test freezes a real bootstrap process between its
+  // journal and its flip and runs a real setup transaction against it.
+  it.skipIf(!canonicalNode)('makes a setup that arrives between a rollback\'s journal and its flip wait, instead of discarding that journal', async () => {
+    const fixture = await rollbackFixture('rollback-concurrent-setup')
+    await writeStableLaunchers(fixture.paths, fixture.home, { nodeExecutable: process.execPath, nodeProof: fixture.proof })
+    const marker = join(fixture.root, 'rollback-pause')
+    const selectionBefore = await readFile(fixture.selectionPath, 'utf8')
+
+    const rollback = runBootstrap(fixture.root, fixture.bootstrap, ['cli', 'runtime', 'repair', '--rollback'], '', {
+      TENON_TEST_ROLLBACK_PAUSE_AFTER_JOURNAL: marker,
+    })
+    const deadline = Date.now() + 20_000
+    while (!existsSync(`${marker}.reached`)) {
+      if (Date.now() > deadline) throw new Error('the rollback never reached its pause')
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    }
+
+    // The window under test: the journal is durable, the selection has not moved, and the rollback owns both locks.
+    const journalText = await readFile(fixture.journalPath, 'utf8')
+    expect(await readFile(fixture.selectionPath, 'utf8')).toBe(selectionBefore)
+    expect(existsSync(join(fixture.paths.managedTransactionRoot, LOCK_DIR_NAME)), 'outer lock: the one setup and update take').toBe(true)
+    expect(existsSync(join(fixture.paths.stateRoot, LOCK_DIR_NAME)), 'inner lock: the one the release store takes').toBe(true)
+
+    const scope = { homeDir: fixture.home, env: { TENON_RUNTIME_HOME: fixture.root } }
+    let entered = false
+    let atEntry: { selection: string; journalExists: boolean } | undefined
+    const setup = REAL_RUNTIME_INSTALLER.withManagedTransaction(scope, async () => {
+      entered = true
+      atEntry = { selection: await readFile(fixture.selectionPath, 'utf8'), journalExists: existsSync(fixture.journalPath) }
+    })
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+    expect(entered, 'setup must wait for the rollback that owns the lock').toBe(false)
+    expect(await readFile(fixture.journalPath, 'utf8'), 'the rollback\'s journal is untouched').toBe(journalText)
+    expect(await readFile(fixture.selectionPath, 'utf8')).toBe(selectionBefore)
+
+    await writeFile(`${marker}.continue`, 'go\n', 'utf8')
+    const result = await rollback
+    expect(result.code, result.stderr).toBe(0)
+    await setup
+    expect(entered).toBe(true)
+    // Setup got in only after the rollback finished: flipped once, journal removed by the rollback itself.
+    expect(JSON.parse(atEntry?.selection ?? 'null')).toMatchObject({
+      revision: 3, activeRelease: fixture.previousRelease, previousRelease: fixture.activeRelease,
+    })
+    expect(atEntry?.journalExists).toBe(false)
+  })
 
   it.skipIf(process.platform === 'win32')('runs the repair command a replaced-Node launcher prints through the real bootstrap', async () => {
     const root = await freshRoot('node-repair-through-bootstrap')
