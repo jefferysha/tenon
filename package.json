@@ -33,6 +33,7 @@
     "check:npx-package": "node --test tools/build-npx-package.node-test.mjs tools/install-bootstrap.node-test.mjs tools/clean-codex-install-acceptance.node-test.mjs",
     "test:clean-install": "node tools/clean-codex-install-acceptance.mjs --mode local",
     "test:clean-install:public": "node tools/clean-codex-install-acceptance.mjs --mode public",
+    "test:update-rollback": "node tools/runtime-update-rollback-acceptance.mjs",
     "build:legacy-bridge": "node tools/build-legacy-bridge.mjs",
     "check:legacy-bridge": "node --test tools/build-legacy-bridge.node-test.mjs && bash -n migration/legacy-channel/bridge.sh",
     "check:docs": "node --test tools/check-docs.node-test.mjs && node tools/check-docs.mjs",

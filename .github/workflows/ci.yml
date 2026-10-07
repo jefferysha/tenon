@@ -30,7 +30,9 @@ jobs:
     # ubuntu-latest ships docker preinstalled — required for the automation/tap docker-backed
     # integration tests (they honest-skip without it; running here means they run for real).
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # 60 -> 90 for the update/rollback acceptance (two real installs of the wedge scenario plus the update walk, each with its
+    # own skill clones); the job stays blocking and a hang still fails it.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -126,6 +128,12 @@ jobs:
 
       - name: Real clean Codex install from current checkout
         run: npm run test:clean-install
+
+      # install -> update -> rollback -> update on the current checkout, then an install wedged by the released v0.3.1 rollback
+      # and the way out of it. Isolated HOME/CODEX_HOME/runtime like the clean install; only the latest-release lookup is
+      # stubbed. The wedge scenario rebuilds v0.3.1 from its git tag, which this job has (fetch-depth: 0 above).
+      - name: Real update, rollback and recovery from a wedged rollback
+        run: npm run test:update-rollback
 
       - name: 文档链接与产品声明门禁 (documentation drift)
         run: npm run check:docs

@@ -647,8 +647,16 @@ export async function createIsolatedReleaseRepository(repoRoot, fixture, env, ve
     timeoutMs: 10_000,
   })).stdout.trim()
   if (!isAbsolute(realCurl)) throw new Error('acceptance could not resolve the real curl executable')
-  const curlWrapper = join(fixtureBin, 'curl')
-  const tag = `v${version}`
+  await writeReleaseCurlStub(fixtureBin, realCurl, `v${version}`, targetCommit)
+}
+
+/**
+ * The `curl` wrapper the fixture puts first on PATH: the two GitHub API lookups `install.sh` makes for a release tag
+ * (the release and the tag ref) answer from the fixture's own commit, everything else goes to the real curl. A
+ * scenario that publishes another build under a tag rewrites it so the lookups follow the tag to its new commit.
+ */
+export async function writeReleaseCurlStub(binDir, realCurl, tag, commit) {
+  const curlWrapper = join(binDir, 'curl')
   const releaseUrl = `https://api.github.com/repos/jefferysha/tenon/releases/tags/${tag}`
   const refUrl = `https://api.github.com/repos/jefferysha/tenon/git/ref/tags/${tag}`
   const releaseJson = JSON.stringify({
@@ -660,7 +668,7 @@ export async function createIsolatedReleaseRepository(repoRoot, fixture, env, ve
   })
   const refJson = JSON.stringify({
     ref: `refs/tags/${tag}`,
-    object: { type: 'commit', sha: targetCommit },
+    object: { type: 'commit', sha: commit },
   })
   await writeFile(
     curlWrapper,
