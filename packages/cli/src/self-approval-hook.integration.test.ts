@@ -10,6 +10,19 @@ interface HookResult { code: number; stdout: string; stderr: string }
 const TOKEN_VALUE = 'secret-token-value-7f3a'
 const SIGNAL_FILE = '.pipeline-decision-security.jsonl'
 
+/** The random digests a record carries: request_anchor, observation_key and process_or_host_hash all embed 64 hex digits. */
+const RECORDED_DIGEST = /[0-9a-f]{64}/gu
+
+/**
+ * The forbidden fragments that appear in the recorded text, ignoring the digests. A digit run such as the port
+ * `18765` turns up inside a random digest by chance; what must never be recorded is the port, URL or command
+ * the observed process used, which sit in readable fields, not in a hash.
+ */
+function recordedFragments(raw: string, forbidden: readonly string[]): string[] {
+  const readable = raw.replace(RECORDED_DIGEST, '')
+  return forbidden.filter((fragment) => readable.includes(fragment))
+}
+
 /** Runs the real hook against the built CLI bundle; the runtime home isolates product state. */
 function runGate(payload: unknown, runtimeHome: string, afk: boolean): HookResult {
   const env: NodeJS.ProcessEnv = { ...process.env, CLAUDE_PLUGIN_ROOT: REPO_ROOT, TENON_RUNTIME_HOME: runtimeHome }
@@ -107,9 +120,7 @@ describe('pending review self-approval detector (hook → CLI)', () => {
       'local-control-api-call',
     ])
     const raw = await signalFile()
-    for (const forbidden of [TOKEN_VALUE, 'Authorization', 'Bearer', 'curl', tokenPath, 'toolu_']) {
-      expect(raw).not.toContain(forbidden)
-    }
+    expect(recordedFragments(raw, [TOKEN_VALUE, 'Authorization', 'Bearer', 'curl', tokenPath, 'toolu_'])).toEqual([])
   })
 
   // The previous raw-JSON filter ("token file name, or loopback host plus /api/") let all of these through
@@ -146,7 +157,7 @@ describe('pending review self-approval detector (hook → CLI)', () => {
     expect(signals).toHaveLength(shapes.length)
     expect(new Set(signals.map((signal) => signal.kind))).toEqual(new Set(['local-control-api-call']))
     const raw = await signalFile()
-    for (const forbidden of ['poke', '127.0.0.1', 'localhost', '18765', 'curl', 'toolu_']) expect(raw).not.toContain(forbidden)
+    expect(recordedFragments(raw, ['poke', '127.0.0.1', 'localhost', '18765', 'curl', 'toolu_'])).toEqual([])
   })
 
   test('commands that cannot reach the control surface are not recorded', async () => {
@@ -208,5 +219,31 @@ describe('pending review self-approval detector (hook → CLI)', () => {
     const result = runGate({ cwd: h.cwd, tool_name: 'Bash', command: 'curl https://example.test/api/change/demo/decisions' }, runtimeHome, true)
     expect(result.code).toBe(0)
     await expect(lstat(join(h.cwd, 'openspec', 'changes', 'demo', SIGNAL_FILE))).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+})
+
+describe('recordedFragments ignores digit runs inside the random digests', () => {
+  /** A request_anchor whose digest holds the Dashboard port by chance, as in a failed CI run (`…|0e299d7918765…`). */
+  const digestWithPort = `0e299d7918765${'a'.repeat(51)}`
+  const record = (extra: Record<string, string> = {}): string => JSON.stringify({
+    signal_kind: 'pending-decision-self-approval-suspected', kind: 'local-control-api-call', change: 'demo',
+    phase: 'explore', event: 'explore-complete', channel: 'terminal',
+    request_anchor: `2026-07-07T00:00:00Z|${digestWithPort}|explore-complete`,
+    observation_key: `sha256:${digestWithPort}`,
+    process_or_host_hash: `hmac-sha256:${digestWithPort}`,
+    ...extra,
+  })
+
+  test('a port that only occurs inside a digest is not reported, where the bare substring check was', () => {
+    const raw = record()
+    expect(digestWithPort).toHaveLength(64)
+    expect(raw.includes('18765')).toBe(true)
+    expect(recordedFragments(raw, ['18765', '127.0.0.1', 'localhost', 'curl'])).toEqual([])
+  })
+
+  test('the port, host or command in a readable field is still reported', () => {
+    for (const leak of ['curl http://127.0.0.1:18765/', 'localhost:18765', '[::1]:18765', 'nc localhost 18765', 'port 18765']) {
+      expect(recordedFragments(record({ event: leak }), ['18765', '127.0.0.1', 'localhost', 'curl']), leak).not.toEqual([])
+    }
   })
 })
