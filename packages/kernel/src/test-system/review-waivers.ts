@@ -19,12 +19,15 @@ import { readOptionalBoundedRegularTextFile } from '../state/document-path.js'
 import { reviewGateEvent } from '../state/review-gate.js'
 import type { PipelineState } from '../types.js'
 import { userSlug, type RecordActor } from '../users/user.js'
-import type { PathChangeStatus } from '../workspace/changed-files.js'
+import { changeStartOfFields, type PathChangeStatus } from '../workspace/changed-files.js'
 import { isNotApplicableKey, approveNotApplicable, pendingNotApplicable } from './catalog-na.js'
 import { readCatalogFile, updateCatalog } from './catalog-file.js'
 import { readTestPlanState, writeTestPlanUnderLock } from './plan-ledger.js'
 import { approveWaivers, pendingWaivers, type PendingWaiver, type WaiverSkipReason } from './plan-waivers.js'
-import { protectedFileDigest, protectedKindOf, type ProtectedKind, type ProtectedOrigin } from './protected-files.js'
+import {
+  PROTECTED_CATALOG_PATH, protectedChangesSinceChangeStart, protectedFileDigest, protectedKindOf,
+  type ProtectedChange, type ProtectedKind, type ProtectedOrigin,
+} from './protected-files.js'
 import { updateTestSeal } from './seal.js'
 
 export const REVIEW_WAIVERS_FILE = '.pipeline-review-waivers.json'
@@ -224,6 +227,29 @@ async function sealProtectedApprovals(input: {
 }
 
 /**
+ * 目录自任务起点以来没有任何改动（读不出 diff 时按「有改动」算，失败关闭）。
+ *
+ * 批准「不适用」声明会把批准人写回 catalog.yaml。声明如果早在任务起点之前就已提交（还没批准），评审请求时目录不在
+ * 任务的 diff 里，冻结清单里就没有它的摘要；而批准写完之后，目录相对起点多了批准人这一处改动，成了没有批准行的
+ * 受保护改动，任务从此卡在出口（F19）。只有批准之前目录与起点完全一致，这次改写才能确定「只是批准本身」；
+ * 目录在任务里另有改动而冻结清单没能带上它时，那些改动用户没看过，不能顺带批准。
+ */
+async function catalogUntouchedSinceChangeStart(input: {
+  readonly repoRoot: string
+  readonly state: PipelineState
+  readonly protectedChanges?: () => Promise<readonly ProtectedChange[]>
+}): Promise<boolean> {
+  try {
+    const changes = input.protectedChanges !== undefined
+      ? await input.protectedChanges()
+      : await protectedChangesSinceChangeStart(input.repoRoot, changeStartOfFields(input.state.fields))
+    return !changes.some((item) => item.path === PROTECTED_CATALOG_PATH)
+  } catch {
+    return false
+  }
+}
+
+/**
  * 评审请求要列给用户的待批准项：计划里未批准的豁免 + 目录里未批准的项目级「不适用」声明。
  * 计划缺失 / 不可信、目录缺失 / 无效时对应的一半为空（那些状态由测试门禁自己挡）。
  */
@@ -256,6 +282,8 @@ export async function approveFrozenWaivers(input: {
   readonly state: PipelineState
   readonly actor: RecordActor
   readonly recordedAt: string
+  /** 自任务起点以来的受保护改动；缺省读真实 git diff（CLI 传入它自己可被测试装配覆写的那一份）。 */
+  readonly protectedChanges?: () => Promise<readonly ProtectedChange[]>
 }): Promise<WaiverApprovalOutcome> {
   const { selection, unbound } = await boundReviewWaiverSelection(input.dir, input.state)
   if (unbound) return { ...NO_APPROVAL, note: '待批准清单不属于这一次 review request，未批准任何豁免或受保护改动' }
@@ -281,11 +309,17 @@ export async function approveFrozenWaivers(input: {
       }
     }
   }
+  // 批准写回 approved_by 的那次改写本身要被识别为「这次批准」：它的摘要和其余受保护改动一样封存、写进审计行；
+  // 其余手写的 approved_by（没有这条封存与审计行）仍然是没有批准的受保护改动。
+  let ownCatalogWrite = false
   if (catalogPart.length > 0) {
     const catalog = await readCatalogFile(input.repoRoot).catch(() => undefined)
     if (catalog?.state !== 'ok') {
       note = `${note === null ? '' : `${note}；`}测试目录（catalog.yaml）${catalog?.state === 'missing' ? '不存在' : '无效或读不了'}，未批准「不适用」声明`
     } else {
+      // 必须在写之前判定：写完之后目录相对起点永远有改动。冻结清单已带着目录摘要时，下面的封存已按批准后的内容处理。
+      const sealsItself = !checked.matched.some((item) => item.kind === 'catalog')
+        && await catalogUntouchedSinceChangeStart(input)
       const outcome = await updateCatalog(input.repoRoot, (current) => {
         const result = approveNotApplicable(current, catalogPart, input.actor.id)
         return { catalog: result.catalog, value: result }
@@ -293,10 +327,16 @@ export async function approveFrozenWaivers(input: {
       if (!outcome.ok) throw new Error(outcome.message)
       approved.push(...outcome.value.approved)
       skipped.push(...outcome.value.skipped)
+      ownCatalogWrite = sealsItself && outcome.value.approved.length > 0
     }
   }
+  // 目录项的摘要在 sealProtectedApprovals 里按写入之后的内容重算，这里的摘要字段只是占位。
+  const catalogWrite: FrozenProtectedChange = {
+    path: PROTECTED_CATALOG_PATH, kind: 'catalog', status: 'modified', digest: 'sealed-after-write', origin: 'pending',
+  }
   const protectedApproved = await sealProtectedApprovals({
-    repoRoot: input.repoRoot, change: input.change, actor: input.actor, recordedAt: input.recordedAt, matched: checked.matched,
+    repoRoot: input.repoRoot, change: input.change, actor: input.actor, recordedAt: input.recordedAt,
+    matched: ownCatalogWrite ? [...checked.matched, catalogWrite] : checked.matched,
   })
   return { approved, skipped, digest, note, protectedApproved, protectedSkipped: checked.skipped }
 }

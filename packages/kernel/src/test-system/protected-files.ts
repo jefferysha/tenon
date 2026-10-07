@@ -15,9 +15,12 @@ import { isApproved, type TestSeal } from './seal.js'
 
 export type ProtectedKind = 'catalog' | 'baseline' | 'known-failures' | 'workflow'
 
+/** 测试目录在仓库里的相对路径（受保护文件）；评审批准「不适用」声明时 Tenon 自己会改写它。 */
+export const PROTECTED_CATALOG_PATH = '.tenon/tests/catalog.yaml'
+
 /** 传给 git 的 pathspec（目录 / 文件）；精确分类见 protectedKindOf。 */
 export const PROTECTED_PATHSPECS: readonly string[] = [
-  '.tenon/tests/catalog.yaml',
+  PROTECTED_CATALOG_PATH,
   '.tenon/tests/baselines',
   '.tenon/tests/known-failures.yaml',
   '.pipeline/workflows',
@@ -27,7 +30,7 @@ const MAX_PROTECTED_BYTES = 16 * 1024 * 1024
 const WORKFLOW_FILE = /^\.pipeline\/workflows\/[^/]+\.ya?ml$/
 
 export function protectedKindOf(path: string): ProtectedKind | undefined {
-  if (path === '.tenon/tests/catalog.yaml') return 'catalog'
+  if (path === PROTECTED_CATALOG_PATH) return 'catalog'
   if (path === '.tenon/tests/known-failures.yaml') return 'known-failures'
   if (path.startsWith('.tenon/tests/baselines/')) return 'baseline'
   return WORKFLOW_FILE.test(path) ? 'workflow' : undefined

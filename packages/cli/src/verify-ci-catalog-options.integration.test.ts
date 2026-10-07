@@ -139,6 +139,20 @@ describe('tenon verify --ci 与目录 / 环境选项', () => {
       expect(await readFile(join(ci.dir, CATALOG_PATH), 'utf8')).toMatch(/approved_by: a@x\.io/u)
     }, 240_000)
 
+    test('声明早在任务起点之前就已提交、还没批准：任务里批准之后，目录的改写有批准行，出口放行，CI 通过（F19）', async () => {
+      // 任务里没有改过目录，评审请求冻结清单里没有目录的摘要；批准把批准人写回目录，这次改写以前没有批准行。
+      const project = await dev({
+        catalog: { notApplicable: [{ kind: 'typecheck', reason: '纯 JavaScript 项目，没有类型检查' }] },
+        policyRun: ['unit', 'typecheck'],
+        finish: true,
+      })
+      const ci = await checkout(project)
+      const result = await verify(ci)
+      expect(result.code, `${result.out}\n${result.err}`).toBe(0)
+      expect(errors(result)).toEqual([])
+      expect(await readFile(join(ci.dir, CATALOG_PATH), 'utf8')).toMatch(/approved_by: a@x\.io/u)
+    }, 240_000)
+
     test('声明了但没批准：策略仍要求这个种类（waiver-unapproved），目录的改动也没有批准行，CI 失败', async () => {
       const project = await dev({ ...declaredInTask, catalogEdit: 'unapproved' })
       const result = await verify(await checkout(project))
