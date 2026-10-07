@@ -7,6 +7,7 @@
  * kernel workspace/changed-files.ts。批准写在本机封存文件（seal.ts），不进 git。
  */
 import { createHash } from 'node:crypto'
+import { lstatSync, readFileSync } from 'node:fs'
 import { lstat, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pathChangesSinceChangeStart, type ChangeStartInput, type ChangedFilesSession, type PathChange, type PathChangeStatus } from '../workspace/changed-files.js'
@@ -15,9 +16,12 @@ import { isApproved, type TestSeal } from './seal.js'
 
 export type ProtectedKind = 'catalog' | 'baseline' | 'known-failures' | 'workflow'
 
+/** 测试目录在仓库里的相对路径（受保护文件）；评审批准「不适用」声明时 Tenon 自己会改写它。 */
+export const PROTECTED_CATALOG_PATH = '.tenon/tests/catalog.yaml'
+
 /** 传给 git 的 pathspec（目录 / 文件）；精确分类见 protectedKindOf。 */
 export const PROTECTED_PATHSPECS: readonly string[] = [
-  '.tenon/tests/catalog.yaml',
+  PROTECTED_CATALOG_PATH,
   '.tenon/tests/baselines',
   '.tenon/tests/known-failures.yaml',
   '.pipeline/workflows',
@@ -27,7 +31,7 @@ const MAX_PROTECTED_BYTES = 16 * 1024 * 1024
 const WORKFLOW_FILE = /^\.pipeline\/workflows\/[^/]+\.ya?ml$/
 
 export function protectedKindOf(path: string): ProtectedKind | undefined {
-  if (path === '.tenon/tests/catalog.yaml') return 'catalog'
+  if (path === PROTECTED_CATALOG_PATH) return 'catalog'
   if (path === '.tenon/tests/known-failures.yaml') return 'known-failures'
   if (path.startsWith('.tenon/tests/baselines/')) return 'baseline'
   return WORKFLOW_FILE.test(path) ? 'workflow' : undefined
@@ -53,9 +57,24 @@ async function digestOfFile(path: string): Promise<string> {
   }
 }
 
+/** 同一口径的同步版：写者在持锁的 mutate 里紧贴写盘再核对一次文件内容用（mutate 本身是同步的）。 */
+function digestOfFileSync(path: string): string {
+  try {
+    const entry = lstatSync(path)
+    if (!entry.isFile() || entry.size > MAX_PROTECTED_BYTES) return 'unreadable'
+    return `sha256:${createHash('sha256').update(readFileSync(path)).digest('hex')}`
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'ENOENT' ? DELETED_DIGEST : 'unreadable'
+  }
+}
+
 /** 文件当前内容的摘要（与 ProtectedChange.digest 同口径）；共享受保护文件写出后封存用。 */
 export function protectedFileDigest(repoRoot: string, path: string): Promise<string> {
   return digestOfFile(join(repoRoot, ...path.split('/')))
+}
+
+export function protectedFileDigestSync(repoRoot: string, path: string): string {
+  return digestOfFileSync(join(repoRoot, ...path.split('/')))
 }
 
 /**

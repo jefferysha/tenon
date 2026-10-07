@@ -17,9 +17,18 @@ const RECEIPT_AT = new Date(Date.parse(FIXED_CLOCK) + 3_600_000).toISOString()
 
 export const CATALOG_PATH = '.tenon/tests/catalog.yaml'
 
-export function catalog(label = '单测'): string {
+/** 目录里只有 v0.3 才认识的两个选项（v0.2.1 会判整份目录无效）。 */
+export interface CatalogOptions {
+  /** 目录顶层 `profile: coarse`：机器画像用粗口径。 */
+  readonly profile?: 'coarse'
+  /** 项目级「不适用」声明；写进目录时都还没批准（approved_by 为 null），批准要经评审确认。 */
+  readonly notApplicable?: ReadonlyArray<{ readonly kind: string; readonly reason: string }>
+}
+
+export function catalog(label = '单测', options: CatalogOptions = {}): string {
+  const declared = (options.notApplicable ?? []).map((item) => `  - { kind: ${item.kind}, reason: ${item.reason}, approved_by: null }\n`).join('')
   return `schema: tenon-test-catalog/v1
-suites:
+${options.profile === 'coarse' ? 'profile: coarse\n' : ''}suites:
   - id: unit
     label: ${label}
     kind: unit
@@ -28,13 +37,13 @@ suites:
     files: ["src/**/*.test.js"]
     report: { format: junit, path: test-results/unit.xml }
     artifacts: [test-results/unit.xml]
-`
+${declared === '' ? '' : `not_applicable:\n${declared}`}`
 }
 
 /** 测试完整性策略：缺省不写（= notice），否则写进 build 步骤的 test_policy。 */
 export type IntegrityPolicy = 'unset' | 'notice' | 'block'
 
-function workflow(integrity: IntegrityPolicy): string {
+function workflow(integrity: IntegrityPolicy, run: readonly string[]): string {
   return `name: trusted
 tracks:
   backend:
@@ -47,7 +56,7 @@ tracks:
         outputs: []
         guards: []
         test_policy:
-          run: [unit]
+          run: [${run.join(', ')}]
           scope: full
 ${integrity === 'unset' ? '' : `          integrity: ${integrity}\n`}        transitions:
           - event: build-done
@@ -64,8 +73,8 @@ ${integrity === 'unset' ? '' : `          integrity: ${integrity}\n`}        tra
 }
 
 /** 基线提交里的一个旧测试文件；`deleteLegacyTest` 时开发者在交付前删掉它（任务内没有登记它）。 */
-const LEGACY_TEST_PATH = 'src/legacy.test.js'
-const LEGACY_TEST = `import { test } from 'node:test'
+export const LEGACY_TEST_PATH = 'src/legacy.test.js'
+export const LEGACY_TEST = `import { test } from 'node:test'
 test('legacy one', () => {})
 test('legacy two', () => {})
 `
@@ -145,6 +154,12 @@ export interface DevProjectOptions {
   readonly trackedHostLocalCode?: boolean
   /** 交付前把任务走完：评审确认 → build-done → archived（任务落在终态 verify，已归档）。 */
   readonly finish?: boolean
+  /** 目录里的 v0.3 选项（`profile: coarse`、`not_applicable`），写在基线提交的目录里。 */
+  readonly catalog?: CatalogOptions
+  /** `catalogEdit` 时任务里把目录改成什么样；缺省沿用 `catalog`（只改了套件标签）。 */
+  readonly catalogInTask?: CatalogOptions
+  /** build 步骤测试策略要求的种类；缺省只要求 `unit`。 */
+  readonly policyRun?: readonly string[]
 }
 
 export async function devProject(options: DevProjectOptions = {}): Promise<Dev> {
@@ -157,8 +172,8 @@ export async function devProject(options: DevProjectOptions = {}): Promise<Dev> 
     ...(options.trackedHostLocalCode === true ? { [TRACKED_HOST_LOCAL_CODE]: 'export const marker = 1\n' } : {}),
     'src/a.test.js': 'export {}\n',
     ...(options.deleteLegacyTest === true ? { [LEGACY_TEST_PATH]: LEGACY_TEST } : {}),
-    [CATALOG_PATH]: catalog(),
-    '.pipeline/workflows/trusted.yaml': workflow(options.integrity ?? 'unset'),
+    [CATALOG_PATH]: catalog('单测', options.catalog),
+    '.pipeline/workflows/trusted.yaml': workflow(options.integrity ?? 'unset', options.policyRun ?? ['unit']),
   })
   git(h.cwd, ['init', '-q', '-b', 'main'])
   commitAll(h.cwd, 'base', '2026-01-01T00:00:00Z')
@@ -168,7 +183,7 @@ export async function devProject(options: DevProjectOptions = {}): Promise<Dev> 
   await writeFiles(h.cwd, { 'src/feature.js': 'export const feature = () => 1\n' })
   if (options.deleteLegacyTest === true) await rm(join(h.cwd, LEGACY_TEST_PATH))
   if (options.catalogEdit === 'unapproved' || options.catalogEdit === 'approved') {
-    await writeFile(join(h.cwd, CATALOG_PATH), catalog('单测（改过）'), 'utf8')
+    await writeFile(join(h.cwd, CATALOG_PATH), catalog('单测（改过）', options.catalogInTask ?? options.catalog), 'utf8')
   }
   await expectOk(dev.tenon(['test', 'register', 'demo', '--suite', 'unit']), dev, 'register suite')
   await expectOk(dev.tenon(['test', 'register', 'demo', '--file', 'src/a.test.js', '--suite', 'unit']), dev, 'register file')

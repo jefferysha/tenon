@@ -111,6 +111,24 @@ const REAL_PRODUCT_IDENTITY_RUNTIME: DoctorProductIdentityProbeRuntime = {
   probeDashboard: probeHealthyDashboard,
 }
 
+type NativeProductIdentity = Extract<DoctorProductIdentity, { readonly state: 'native' }>
+
+/**
+ * 回滚后的身份漂移只有一种预期形状：runtime 就是这份 CLI 期望的版本，宿主插件的 payload 恰好是被回滚掉的那份，
+ * Dashboard 没起或仍是被回滚掉的那份（回滚不重启它）。宿主是第三份版本、runtime 不是这份 CLI 期望的版本，
+ * 都不是回滚造成的，照旧红灯。
+ */
+function driftIsRollback(identity: NativeProductIdentity, from: NonNullable<NativeProductIdentity['rolledBackFrom']>): boolean {
+  return identity.runtimePluginVersion === identity.expectedVersion
+    && identity.hostPayloadDigest === from.payloadDigest
+    && (identity.dashboardReleaseId === null
+      || identity.dashboardReleaseId === identity.runtimeReleaseId
+      || identity.dashboardReleaseId === from.releaseId)
+    && (identity.dashboardServerVersion === null
+      || identity.dashboardServerVersion === identity.expectedVersion
+      || identity.dashboardServerVersion === from.pluginVersion)
+}
+
 export async function checkProductIdentity(
   p: DoctorProbes,
   options: { readonly verifyRemote?: boolean } = {},
@@ -141,6 +159,17 @@ export async function checkProductIdentity(
     `dashboard=${identity.dashboardServerVersion ?? 'missing'}`,
     `release=${identity.dashboardReleaseId ?? 'missing'}/${identity.runtimeReleaseId}`,
   ].join('; ')
+  if (!exact && identity.rolledBackFrom !== undefined && driftIsRollback(identity, identity.rolledBackFrom)) {
+    const from = identity.rolledBackFrom
+    return yellow(
+      'identity:release',
+      `runtime 已回滚到上一份 release，宿主插件仍是被回滚掉的 ${from.pluginVersion}；`
+        + `这是回滚后的预期状态，不是安装损坏（${detail}）`,
+      `想回到较新的 ${from.pluginVersion}：运行 tenon update --${identity.host}（这会撤销这次回滚）；`
+        + `想让宿主插件也退回当前 runtime 的 ${identity.expectedVersion}：运行 tenon setup --${identity.host}`
+        + '（按当前 runtime 的发布版本重新绑定宿主插件）。两者择一即可；不处理也可以继续使用回滚后的 runtime',
+    )
+  }
   return exact
     ? green(
         'identity:release',
@@ -309,6 +338,17 @@ export function createDoctorProductIdentityProbe(
         machineStateScopeId(scope.paths.stateRoot),
         { observeAnyTransaction: true },
       )
+      // 最近一次事件正是回滚到当前 active release：上一份就是被回滚掉的那份（回滚之后才有激活则不再成立）。
+      const previous = inspection.previousValid ? inspection.previous : null
+      const rolledBackFrom = previous !== null
+        && inspection.lastAudit?.kind === 'rolled-back'
+        && inspection.lastAudit.releaseId === active.releaseId
+        ? {
+            releaseId: previous.releaseId,
+            pluginVersion: previous.source.pluginVersion,
+            payloadDigest: previous.payloadDigest,
+          }
+        : undefined
       return {
         state: 'native',
         expectedVersion: TENON_RELEASE_VERSION,
@@ -326,6 +366,7 @@ export function createDoctorProductIdentityProbe(
         payloadDigestExact,
         dashboardServerVersion: dashboard?.serverVersion ?? null,
         dashboardReleaseId: dashboard?.releaseId ?? null,
+        ...(rolledBackFrom === undefined ? {} : { rolledBackFrom }),
       }
     } catch (error) {
       return { state: 'unavailable', ...classifyProbeFailure(error) }

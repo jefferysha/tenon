@@ -24059,6 +24059,7 @@ function planKindsSatisfy(policy2, suiteKinds, required3) {
 
 // packages/kernel/dist/test-system/protected-files.js
 import { createHash as createHash17 } from "node:crypto";
+import { lstatSync as lstatSync4, readFileSync as readFileSync12 } from "node:fs";
 import { lstat as lstat29, readFile as readFile31 } from "node:fs/promises";
 import { join as join43 } from "node:path";
 
@@ -24589,8 +24590,9 @@ function isApproved(seal, change, path14, digest18) {
 }
 
 // packages/kernel/dist/test-system/protected-files.js
+var PROTECTED_CATALOG_PATH = ".tenon/tests/catalog.yaml";
 var PROTECTED_PATHSPECS = [
-  ".tenon/tests/catalog.yaml",
+  PROTECTED_CATALOG_PATH,
   ".tenon/tests/baselines",
   ".tenon/tests/known-failures.yaml",
   ".pipeline/workflows"
@@ -24598,7 +24600,7 @@ var PROTECTED_PATHSPECS = [
 var MAX_PROTECTED_BYTES = 16 * 1024 * 1024;
 var WORKFLOW_FILE2 = /^\.pipeline\/workflows\/[^/]+\.ya?ml$/;
 function protectedKindOf(path14) {
-  if (path14 === ".tenon/tests/catalog.yaml")
+  if (path14 === PROTECTED_CATALOG_PATH)
     return "catalog";
   if (path14 === ".tenon/tests/known-failures.yaml")
     return "known-failures";
@@ -24617,8 +24619,21 @@ async function digestOfFile(path14) {
     return error2.code === "ENOENT" ? DELETED_DIGEST : "unreadable";
   }
 }
+function digestOfFileSync(path14) {
+  try {
+    const entry2 = lstatSync4(path14);
+    if (!entry2.isFile() || entry2.size > MAX_PROTECTED_BYTES)
+      return "unreadable";
+    return `sha256:${createHash17("sha256").update(readFileSync12(path14)).digest("hex")}`;
+  } catch (error2) {
+    return error2.code === "ENOENT" ? DELETED_DIGEST : "unreadable";
+  }
+}
 function protectedFileDigest(repoRoot, path14) {
   return digestOfFile(join43(repoRoot, ...path14.split("/")));
+}
+function protectedFileDigestSync(repoRoot, path14) {
+  return digestOfFileSync(join43(repoRoot, ...path14.split("/")));
 }
 async function protectedApprovalDigests(repoRoot, paths) {
   const entries2 = [];
@@ -26563,15 +26578,16 @@ async function readCatalogFile(repoRoot) {
   const parsed2 = parseTestCatalog(text11);
   return parsed2.ok ? { state: "ok", catalog: parsed2.catalog } : { state: "invalid", issues: formatCatalogIssues(parsed2.issues) };
 }
-async function updateCatalog(repoRoot, mutate) {
+async function updateCatalog(repoRoot, mutate, observe) {
   const paths = testSystemPaths(repoRoot);
   await mkdir22(paths.root, { recursive: true });
   return withLock(paths.root, async () => {
+    const seen = observe === void 0 ? void 0 : await observe();
     const current = await readCatalogFile(repoRoot);
     if (current.state === "invalid")
       return { ok: false, message: `catalog.yaml \u65E0\u6548\uFF0C\u5148\u4FEE\u597D\u518D\u6539\uFF1A${current.issues.slice(0, 3).join("\uFF1B")}` };
     const base = current.state === "ok" ? current.catalog : emptyCatalog();
-    const result2 = mutate(base);
+    const result2 = mutate(base, seen);
     if (typeof result2 === "string")
       return { ok: false, message: result2 };
     if (result2.catalog === base)
@@ -26719,6 +26735,18 @@ async function sealProtectedApprovals(input2) {
   }));
   return entries2.map((item2) => item2.path);
 }
+async function catalogUntouchedSinceChangeStart(input2) {
+  try {
+    const changes = input2.protectedChanges !== void 0 ? await input2.protectedChanges() : await protectedChangesSinceChangeStart(input2.repoRoot, changeStartOfFields(input2.state.fields));
+    return !changes.some((item2) => item2.path === PROTECTED_CATALOG_PATH);
+  } catch {
+    return false;
+  }
+}
+async function sightCatalog(input2) {
+  const digest18 = await protectedFileDigest(input2.repoRoot, PROTECTED_CATALOG_PATH);
+  return { digest: digest18, untouched: await catalogUntouchedSinceChangeStart(input2) };
+}
 async function approveFrozenWaivers(input2) {
   const { selection, unbound } = await boundReviewWaiverSelection(input2.dir, input2.state);
   if (unbound)
@@ -26746,27 +26774,40 @@ async function approveFrozenWaivers(input2) {
       }
     }
   }
+  let ownCatalogWrite = false;
   if (catalogPart.length > 0) {
     const catalog2 = await readCatalogFile(input2.repoRoot).catch(() => void 0);
     if (catalog2?.state !== "ok") {
       note = `${note === null ? "" : `${note}\uFF1B`}\u6D4B\u8BD5\u76EE\u5F55\uFF08catalog.yaml\uFF09${catalog2?.state === "missing" ? "\u4E0D\u5B58\u5728" : "\u65E0\u6548\u6216\u8BFB\u4E0D\u4E86"}\uFF0C\u672A\u6279\u51C6\u300C\u4E0D\u9002\u7528\u300D\u58F0\u660E`;
     } else {
-      const outcome = await updateCatalog(input2.repoRoot, (current) => {
+      const frozenCatalog = checked.matched.find((item2) => item2.kind === "catalog");
+      const outcome = await updateCatalog(input2.repoRoot, (current, sighted) => {
+        if (sighted?.untouched === true && protectedFileDigestSync(input2.repoRoot, PROTECTED_CATALOG_PATH) !== sighted.digest) {
+          return "catalog.yaml \u5728\u8BC4\u5BA1\u786E\u8BA4\u7684\u68C0\u67E5\u4E0E\u5199\u5165\u4E4B\u95F4\u88AB\u6539\u52A8\uFF1B\u672A\u6279\u51C6\u4EFB\u4F55\u300C\u4E0D\u9002\u7528\u300D\u58F0\u660E\uFF0C\u8BF7\u91CD\u65B0\u8FD0\u884C\u540C\u4E00\u6761\u786E\u8BA4";
+        }
         const result2 = approveNotApplicable(current, catalogPart, input2.actor.id);
-        return { catalog: result2.catalog, value: result2 };
-      });
+        return { catalog: result2.catalog, value: { result: result2, sealsItself: sighted?.untouched === true } };
+      }, () => frozenCatalog === void 0 ? sightCatalog(input2) : Promise.resolve(void 0));
       if (!outcome.ok)
         throw new Error(outcome.message);
-      approved.push(...outcome.value.approved);
-      skipped.push(...outcome.value.skipped);
+      approved.push(...outcome.value.result.approved);
+      skipped.push(...outcome.value.result.skipped);
+      ownCatalogWrite = outcome.value.sealsItself && outcome.value.result.approved.length > 0;
     }
   }
+  const catalogWrite = {
+    path: PROTECTED_CATALOG_PATH,
+    kind: "catalog",
+    status: "modified",
+    digest: "sealed-after-write",
+    origin: "pending"
+  };
   const protectedApproved = await sealProtectedApprovals({
     repoRoot: input2.repoRoot,
     change: input2.change,
     actor: input2.actor,
     recordedAt: input2.recordedAt,
-    matched: checked.matched
+    matched: ownCatalogWrite ? [...checked.matched, catalogWrite] : checked.matched
   });
   return { approved, skipped, digest: digest18, note, protectedApproved, protectedSkipped: checked.skipped };
 }
@@ -28694,7 +28735,7 @@ function serializeTrackRegistry(config) {
 
 // packages/kernel/dist/tracks/registry.js
 import { createHash as createHash19 } from "node:crypto";
-import { readFileSync as readFileSync12 } from "node:fs";
+import { readFileSync as readFileSync13 } from "node:fs";
 import { mkdir as mkdir25, readFile as readFile42 } from "node:fs/promises";
 import path7 from "node:path";
 var TENON_DIR = ".pipeline";
@@ -28787,7 +28828,7 @@ function synthesize(text11, context) {
 function loadTrackRegistry(repoRoot, context) {
   let text11 = null;
   try {
-    text11 = readFileSync12(trackRegistryPath(repoRoot), "utf8");
+    text11 = readFileSync13(trackRegistryPath(repoRoot), "utf8");
   } catch (e) {
     if (e.code !== "ENOENT")
       throw e;
@@ -29055,7 +29096,7 @@ function resolveTrackForBranch(registry, id2, workflow) {
 }
 
 // packages/kernel/dist/mem/fs.js
-import { closeSync as closeSync2, existsSync as existsSync5, fstatSync, openSync as openSync2, opendirSync, readFileSync as readFileSync13, readSync as readSync2, readdirSync as readdirSync3, realpathSync as realpathSync2, statSync as statSync2 } from "node:fs";
+import { closeSync as closeSync2, existsSync as existsSync5, fstatSync, openSync as openSync2, opendirSync, readFileSync as readFileSync14, readSync as readSync2, readdirSync as readdirSync3, realpathSync as realpathSync2, statSync as statSync2 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
 var MEM_SESSION_METADATA_BYTES = 8 * 1024;
 function readMemSessionMetadataChecked(fs, path14) {
@@ -29161,7 +29202,7 @@ function nodeMemFs(homeOverride) {
     readDirBounded: readDirectoryBounded,
     readText: (p) => {
       try {
-        return readFileSync13(p, "utf8");
+        return readFileSync14(p, "utf8");
       } catch {
         return void 0;
       }
@@ -32010,7 +32051,7 @@ async function applyLevelChange(repoRoot, loopId, target, opts, fs) {
 }
 
 // packages/kernel/dist/loops/drafts.js
-import { readFileSync as readFileSync14 } from "node:fs";
+import { readFileSync as readFileSync15 } from "node:fs";
 import { mkdir as mkdir26, rename as rename12, writeFile as writeFile16 } from "node:fs/promises";
 import { dirname as dirname11, join as join57 } from "node:path";
 var DRAFT_MARKS_FILE = "loops.drafts.json";
@@ -32019,7 +32060,7 @@ function draftMarksPath(repoRoot) {
 }
 function readDraftMarks(path14) {
   try {
-    const data = JSON.parse(readFileSync14(path14, "utf8"));
+    const data = JSON.parse(readFileSync15(path14, "utf8"));
     if (typeof data === "object" && data !== null && !Array.isArray(data) && data.version === 1 && Array.isArray(data.ids) && data.ids.every((x) => typeof x === "string")) {
       return [...data.ids];
     }
@@ -37754,7 +37795,7 @@ async function evaluateStepExitReport(input2) {
 }
 
 // packages/kernel/dist/infrastructure/guard-file-context.js
-import { closeSync as closeSync3, constants as constants4, fstatSync as fstatSync2, lstatSync as lstatSync4, openSync as openSync3, readSync as readSync3, readdirSync as readdirSync4, readFileSync as readFileSync15, realpathSync as realpathSync3, statSync as statSync4 } from "node:fs";
+import { closeSync as closeSync3, constants as constants4, fstatSync as fstatSync2, lstatSync as lstatSync5, openSync as openSync3, readSync as readSync3, readdirSync as readdirSync4, readFileSync as readFileSync16, realpathSync as realpathSync3, statSync as statSync4 } from "node:fs";
 import { dirname as dirname12, isAbsolute as isAbsolute11, join as join61, relative as relative7, sep as sep9 } from "node:path";
 function sameBoundedFile(left, right) {
   return left.dev === right.dev && left.ino === right.ino && left.size === right.size && left.mtimeNs === right.mtimeNs && left.ctimeNs === right.ctimeNs;
@@ -37763,7 +37804,7 @@ function boundedAncestors(root, path14) {
   const fromRoot = relative7(root, path14);
   if (fromRoot === "" || fromRoot === ".." || fromRoot.startsWith(`..${sep9}`) || isAbsolute11(fromRoot))
     return void 0;
-  const rootInfo = lstatSync4(root, { bigint: true });
+  const rootInfo = lstatSync5(root, { bigint: true });
   if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink())
     return void 0;
   const rootReal = realpathSync3(root);
@@ -37773,7 +37814,7 @@ function boundedAncestors(root, path14) {
   let candidate2 = root;
   for (const segment of segments2) {
     candidate2 = join61(candidate2, segment);
-    const info = lstatSync4(candidate2, { bigint: true });
+    const info = lstatSync5(candidate2, { bigint: true });
     if (!info.isDirectory() || info.isSymbolicLink())
       return void 0;
     ancestors.push({ path: candidate2, info, real: realpathSync3(candidate2) });
@@ -37786,7 +37827,7 @@ function boundedAncestors(root, path14) {
 }
 function sameBoundedAncestors(ancestors) {
   return ancestors.every((ancestor) => {
-    const current = lstatSync4(ancestor.path, { bigint: true });
+    const current = lstatSync5(ancestor.path, { bigint: true });
     return current.isDirectory() && !current.isSymbolicLink() && sameBoundedFile(ancestor.info, current) && realpathSync3(ancestor.path) === ancestor.real;
   });
 }
@@ -37799,7 +37840,7 @@ function readBoundedRegularFileSync(path14, maxBytes, root, hooks = {}) {
     const ancestors = boundedAncestors(root, path14);
     if (ancestors === void 0 || !sameBoundedAncestors(ancestors))
       return { kind: "invalid" };
-    const lexical = lstatSync4(path14, { bigint: true });
+    const lexical = lstatSync5(path14, { bigint: true });
     inspected = true;
     if (!lexical.isFile() || lexical.size > BigInt(maxBytes))
       return { kind: "invalid" };
@@ -37818,7 +37859,7 @@ function readBoundedRegularFileSync(path14, maxBytes, root, hooks = {}) {
     if (length > maxBytes || BigInt(length) !== opened.size)
       return { kind: "invalid" };
     const after = fstatSync2(fd, { bigint: true });
-    const current = lstatSync4(path14, { bigint: true });
+    const current = lstatSync5(path14, { bigint: true });
     if (!sameBoundedFile(opened, after) || !sameBoundedFile(opened, current) || !sameBoundedAncestors(ancestors))
       return { kind: "invalid" };
     return {
@@ -37873,7 +37914,7 @@ function makeGuardFileContext(cwd, options3) {
     },
     readFile: (path14) => {
       try {
-        return readFileSync15(abs2(path14), "utf8");
+        return readFileSync16(abs2(path14), "utf8");
       } catch {
         return void 0;
       }
@@ -39498,7 +39539,7 @@ var GIT_REVISION_VERIFIER_ISSUER_IDENTITY = Object.freeze({
 import { join as join66 } from "node:path";
 
 // packages/automation/dist/config/automationJson.js
-import { readFileSync as readFileSync16 } from "node:fs";
+import { readFileSync as readFileSync17 } from "node:fs";
 import { join as join65 } from "node:path";
 var AUTOMATION_JSON_LIMITS = {
   maxParallel: { min: 1, max: 8 },
@@ -39513,7 +39554,7 @@ var intIn = (v, min, max) => typeof v === "number" && Number.isInteger(v) && v >
 function isValidImageRef(v) {
   return v.length > 0 && v.length <= AUTOMATION_JSON_LIMITS.imageMaxLen && AUTOMATION_IMAGE_RE.test(v);
 }
-function readAutomationJson(root, fs = { readFileSync: readFileSync16 }) {
+function readAutomationJson(root, fs = { readFileSync: readFileSync17 }) {
   let parsed2;
   try {
     parsed2 = JSON.parse(fs.readFileSync(automationJsonPath(root), "utf8"));
@@ -39663,7 +39704,7 @@ function createFsSkillContentLocator(roots) {
 }
 
 // packages/automation/dist/skills/production-content-locator.js
-import { readdirSync as readdirSync5, readFileSync as readFileSync17 } from "node:fs";
+import { readdirSync as readdirSync5, readFileSync as readFileSync18 } from "node:fs";
 import { isAbsolute as isAbsolute12, join as join68 } from "node:path";
 var SkillRootRegistryError = class extends Error {
   name = "SkillRootRegistryError";
@@ -39719,7 +39760,7 @@ function codexPluginRoots(home, read2) {
 }
 function realInstalledJson(path14) {
   try {
-    return readFileSync17(path14, "utf8");
+    return readFileSync18(path14, "utf8");
   } catch (error2) {
     if (nodeCode(error2) === "ENOENT")
       return null;
@@ -40001,11 +40042,11 @@ async function nonInvocableSkillTokens(skillsRoot, tokens) {
 var CATEGORY_ORDER = new Map(SKILL_PROVENANCE_ERROR_CATEGORIES.map((category, index) => [category, index]));
 
 // packages/automation/dist/skills/upstream-skill-view.js
-import { readFileSync as readFileSync18 } from "node:fs";
+import { readFileSync as readFileSync19 } from "node:fs";
 import { join as join70 } from "node:path";
 function readOptional2(path14) {
   try {
-    return readFileSync18(path14, "utf8");
+    return readFileSync19(path14, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT")
       return null;
@@ -43037,7 +43078,7 @@ import {
   constants as constants10,
   fstatSync as fstatSync6,
   fsyncSync as fsyncSync2,
-  lstatSync as lstatSync7,
+  lstatSync as lstatSync8,
   openSync as openSync7,
   readSync as readSync4,
   readdirSync as readdirSync8,
@@ -43050,7 +43091,7 @@ import {
 import {
   constants as constants8,
   fstatSync as fstatSync4,
-  lstatSync as lstatSync6,
+  lstatSync as lstatSync7,
   mkdirSync as mkdirSync3,
   openSync as openSync5,
   realpathSync as realpathSync5,
@@ -43063,7 +43104,7 @@ import {
   closeSync as closeSync4,
   constants as constants7,
   fstatSync as fstatSync3,
-  lstatSync as lstatSync5,
+  lstatSync as lstatSync6,
   openSync as openSync4,
   realpathSync as realpathSync4
 } from "node:fs";
@@ -43082,7 +43123,7 @@ function safeClose(fd) {
 }
 function lstatIfExists(path14) {
   try {
-    return lstatSync5(path14);
+    return lstatSync6(path14);
   } catch (error2) {
     if (error2.code === "ENOENT") return void 0;
     throw error2;
@@ -43095,7 +43136,7 @@ function traversableDirectoryFdPath(fd, expected) {
 function traversableDirectoryFdPathFromCandidates(expected, candidates) {
   for (const candidate2 of candidates) {
     try {
-      const current = lstatSync5(`${candidate2}${sep11}.`);
+      const current = lstatSync6(`${candidate2}${sep11}.`);
       if (current.isDirectory() && sameIdentity(current, expected)) return candidate2;
     } catch {
     }
@@ -43104,7 +43145,7 @@ function traversableDirectoryFdPathFromCandidates(expected, candidates) {
 }
 function captureWorkflowRootAnchor(root) {
   const path14 = resolvePath2(root);
-  const lexical = lstatSync5(path14);
+  const lexical = lstatSync6(path14);
   if (lexical.isSymbolicLink() || !lexical.isDirectory()) {
     throw new Error(`registered root \u5FC5\u987B\u662F\u975E symlink \u7684\u771F\u5B9E\u76EE\u5F55: ${path14}`);
   }
@@ -43115,7 +43156,7 @@ function captureWorkflowRootAnchor(root) {
       throw new Error(`registered root \u5728\u6355\u83B7\u671F\u95F4\u88AB\u66FF\u6362: ${path14}`);
     }
     const realPath = realpathSync4(path14);
-    const fresh = lstatSync5(path14);
+    const fresh = lstatSync6(path14);
     if (fresh.isSymbolicLink() || !fresh.isDirectory() || !sameIdentity(fresh, opened)) {
       throw new Error(`registered root \u5728\u6355\u83B7\u671F\u95F4\u88AB\u66FF\u6362: ${path14}`);
     }
@@ -43127,7 +43168,7 @@ function captureWorkflowRootAnchor(root) {
   }
 }
 function assertWorkflowRootAnchor(anchor) {
-  const lexical = lstatSync5(anchor.path);
+  const lexical = lstatSync6(anchor.path);
   if (lexical.isSymbolicLink() || !lexical.isDirectory() || !sameIdentity(lexical, anchor)) {
     throw new Error(`registered root \u8BCD\u6CD5\u8DEF\u5F84\u5DF2\u4E0D\u518D\u6307\u5411\u6CE8\u518C\u65F6\u76EE\u5F55: ${anchor.path}`);
   }
@@ -43141,7 +43182,7 @@ function assertWorkflowRootAnchor(anchor) {
 }
 function captureWorkflowRootMutationVersion(anchor) {
   assertWorkflowRootAnchor(anchor);
-  const stat9 = lstatSync5(anchor.path, { bigint: true });
+  const stat9 = lstatSync6(anchor.path, { bigint: true });
   if (stat9.isSymbolicLink() || !stat9.isDirectory() || Number(stat9.dev) !== anchor.dev || Number(stat9.ino) !== anchor.ino) {
     throw new Error(`registered root \u5728\u7248\u672C\u6355\u83B7\u671F\u95F4\u88AB\u66FF\u6362: ${anchor.path}`);
   }
@@ -43192,11 +43233,11 @@ function assertDirectoryStillTrusted(directory, root) {
   if (!opened.isDirectory() || !sameIdentity(opened, directory)) {
     throw new Error(`workflow \u76EE\u5F55 fd \u8EAB\u4EFD\u5DF2\u53D8\u5316\uFF08TOCTOU\uFF09: ${directory.lexicalPath}`);
   }
-  const operationEntry = lstatSync6(directory.operationPath);
+  const operationEntry = lstatSync7(directory.operationPath);
   if (operationEntry.isSymbolicLink() || !operationEntry.isDirectory() || !sameIdentity(operationEntry, directory)) {
     throw new Error(`workflow \u76EE\u5F55\u64CD\u4F5C\u8DEF\u5F84\u5DF2\u88AB\u66FF\u6362\uFF08TOCTOU\uFF09: ${directory.lexicalPath}`);
   }
-  const lexicalEntry = lstatSync6(directory.lexicalPath);
+  const lexicalEntry = lstatSync7(directory.lexicalPath);
   if (lexicalEntry.isSymbolicLink() || !lexicalEntry.isDirectory() || !sameIdentity(lexicalEntry, directory)) {
     throw new Error(`workflow \u76EE\u5F55\u8BCD\u6CD5\u8DEF\u5F84\u5DF2\u88AB\u66FF\u6362\uFF08TOCTOU\uFF09: ${directory.lexicalPath}`);
   }
@@ -43272,7 +43313,7 @@ function assertOptionalRegularChild(directory, root, name, label) {
     throw new Error(`${label} \u5FC5\u987B\u662F\u975E symlink \u666E\u901A\u6587\u4EF6: ${paths.lexical}`);
   }
   if (paths.operation !== paths.lexical) {
-    const lexical = lstatSync6(paths.lexical);
+    const lexical = lstatSync7(paths.lexical);
     if (lexical.isSymbolicLink() || !lexical.isFile() || !sameIdentity(lexical, entry2)) {
       throw new Error(`${label} \u8BCD\u6CD5\u8DEF\u5F84\u8EAB\u4EFD\u4E0D\u4E00\u81F4: ${paths.lexical}`);
     }
@@ -43350,12 +43391,12 @@ function assertWorkflowName(name) {
   }
 }
 function assertEntryMatches(paths, expected, label) {
-  const operationEntry = lstatSync6(paths.operation);
+  const operationEntry = lstatSync7(paths.operation);
   if (operationEntry.isSymbolicLink() || !operationEntry.isFile() || !sameIdentity(operationEntry, expected)) {
     throw new Error(`${label} \u5DF2\u88AB\u66FF\u6362\uFF08TOCTOU\uFF09: ${paths.lexical}`);
   }
   if (paths.operation !== paths.lexical) {
-    const lexicalEntry = lstatSync6(paths.lexical);
+    const lexicalEntry = lstatSync7(paths.lexical);
     if (lexicalEntry.isSymbolicLink() || !lexicalEntry.isFile() || !sameIdentity(lexicalEntry, expected)) {
       throw new Error(`${label} \u8BCD\u6CD5\u8DEF\u5F84\u5DF2\u88AB\u66FF\u6362\uFF08TOCTOU\uFF09: ${paths.lexical}`);
     }
@@ -43386,7 +43427,7 @@ function errText3(error2) {
 }
 
 // packages/server/src/workflowReferenceScan.ts
-import { constants as constants9, fstatSync as fstatSync5, openSync as openSync6, readFileSync as readFileSync20, readdirSync as readdirSync7 } from "node:fs";
+import { constants as constants9, fstatSync as fstatSync5, openSync as openSync6, readFileSync as readFileSync21, readdirSync as readdirSync7 } from "node:fs";
 function decodeUtf8Strict(bytes, label) {
   try {
     return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
@@ -43411,7 +43452,7 @@ function readTrustedRegularFile(directory, root, name, label, missing4) {
     const identity = { dev: opened.dev, ino: opened.ino };
     assertEntryMatches(paths, identity, label);
     assertDirectoryStillTrusted(directory, root);
-    const bytes = readFileSync20(fd);
+    const bytes = readFileSync21(fd);
     assertEntryMatches(paths, identity, label);
     assertDirectoryStillTrusted(directory, root);
     return bytes;
@@ -43704,7 +43745,7 @@ function listWorkflowNames(root) {
     const names = readdirSync8(directories2.workflows.fdPath ?? directories2.workflows.lexicalPath).filter((file) => file.endsWith(".yaml"));
     for (const file of names) {
       const paths = childEntry(directories2.workflows, file);
-      const entry2 = lstatSync7(paths.operation);
+      const entry2 = lstatSync8(paths.operation);
       if (entry2.isSymbolicLink() || !entry2.isFile()) {
         throw new Error(`workflow \u5217\u8868\u76EE\u6807\u4E0D\u5B89\u5168\uFF08\u987B\u4E3A\u666E\u901A\u6587\u4EF6\uFF09: ${paths.lexical}`);
       }
@@ -43900,7 +43941,7 @@ function deleteWorkflowForApi(root, name, permit) {
 }
 
 // packages/server/src/snapshot.ts
-import { closeSync as closeSync6, constants as constants13, fstatSync as fstatSync9, lstatSync as lstatSync9, openSync as openSync10 } from "node:fs";
+import { closeSync as closeSync6, constants as constants13, fstatSync as fstatSync9, lstatSync as lstatSync10, openSync as openSync10 } from "node:fs";
 import { join as join83 } from "node:path";
 
 // packages/server/src/contextBundleTrustedReader.ts
@@ -44448,7 +44489,7 @@ import {
   closeSync as closeSync5,
   constants as constants12,
   fstatSync as fstatSync8,
-  lstatSync as lstatSync8,
+  lstatSync as lstatSync9,
   openSync as openSync9,
   realpathSync as realpathSync6
 } from "node:fs";
@@ -44479,12 +44520,12 @@ async function hasCurrentCanonicalTaskPlanProjection(changeDir2, source2) {
   }
 }
 function captureDirectoryMutationVersion(path14) {
-  const stat9 = lstatSync8(path14, { bigint: true });
+  const stat9 = lstatSync9(path14, { bigint: true });
   if (!stat9.isDirectory() || stat9.isSymbolicLink()) throw new Error("tasks ancestor is not a directory");
   return { path: path14, dev: stat9.dev, ino: stat9.ino, mtimeNs: stat9.mtimeNs, ctimeNs: stat9.ctimeNs };
 }
 function matchesDirectoryMutationVersion(expected) {
-  const stat9 = lstatSync8(expected.path, { bigint: true });
+  const stat9 = lstatSync9(expected.path, { bigint: true });
   return stat9.isDirectory() && !stat9.isSymbolicLink() && stat9.dev === expected.dev && stat9.ino === expected.ino && stat9.mtimeNs === expected.mtimeNs && stat9.ctimeNs === expected.ctimeNs;
 }
 function isInside(base, candidate2) {
@@ -44512,9 +44553,9 @@ async function readTasksProjection(changeDir2, hooks = {}, rootAnchor) {
   try {
     if (rootAnchor !== void 0) rootVersion2 = captureWorkflowRootMutationVersion(rootAnchor);
     assertTrustContext();
-    const openedDir = lstatSync8(changeDir2);
+    const openedDir = lstatSync9(changeDir2);
     if (!openedDir.isDirectory() || openedDir.isSymbolicLink()) return void 0;
-    const openedDirVersion = lstatSync8(changeDir2, { bigint: true });
+    const openedDirVersion = lstatSync9(changeDir2, { bigint: true });
     const realChangeDir = realpathSync6(changeDir2);
     const changesDir = dirname18(realChangeDir);
     const openspecDir = dirname18(changesDir);
@@ -44534,9 +44575,9 @@ async function readTasksProjection(changeDir2, hooks = {}, rootAnchor) {
     if (!opened.isFile() || opened.size > BigInt(MAX_TASKS_MARKDOWN_BYTES)) return void 0;
     const openedVersion = captureStableFileVersion(opened);
     const stable6 = () => {
-      const currentDir = lstatSync8(changeDir2);
-      const currentDirVersion = lstatSync8(changeDir2, { bigint: true });
-      const current = lstatSync8(lexicalTarget, { bigint: true });
+      const currentDir = lstatSync9(changeDir2);
+      const currentDirVersion = lstatSync9(changeDir2, { bigint: true });
+      const current = lstatSync9(lexicalTarget, { bigint: true });
       return currentDir.isDirectory() && !currentDir.isSymbolicLink() && currentDir.dev === openedDir.dev && currentDir.ino === openedDir.ino && currentDirVersion.mtimeNs === openedDirVersion.mtimeNs && currentDirVersion.ctimeNs === openedDirVersion.ctimeNs && ancestorVersions.every(matchesDirectoryMutationVersion) && realpathSync6(changeDir2) === realChangeDir && current.isFile() && !current.isSymbolicLink() && matchesStableFileVersion(current, openedVersion) && isInside(realChangeDir, realpathSync6(lexicalTarget));
     };
     const fdStable = () => matchesStableFileVersion(
@@ -46305,7 +46346,7 @@ async function readTerminalActivity(changeDir2, changeName, nowMs) {
     const opened = fstatSync9(fd);
     if (!opened.isFile() || opened.size > 4096) return void 0;
     const assertStable = () => {
-      const current = lstatSync9(target);
+      const current = lstatSync10(target);
       return current.isFile() && !current.isSymbolicLink() && current.dev === opened.dev && current.ino === opened.ino && current.size === opened.size;
     };
     if (!assertStable()) return void 0;
@@ -47023,7 +47064,7 @@ function createCadenceScheduler(options3) {
 }
 
 // packages/server/src/serverGetRoutes.ts
-import { lstatSync as lstatSync18 } from "node:fs";
+import { lstatSync as lstatSync19 } from "node:fs";
 import { dirname as dirname25, join as join116 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
@@ -47113,7 +47154,7 @@ async function buildAfkReadiness(opts) {
 }
 
 // packages/server/src/automationConfig.ts
-import { mkdirSync as mkdirSync4, readFileSync as readFileSync21, renameSync as renameSync4, writeFileSync as writeFileSync4 } from "node:fs";
+import { mkdirSync as mkdirSync4, readFileSync as readFileSync22, renameSync as renameSync4, writeFileSync as writeFileSync4 } from "node:fs";
 import { join as join86 } from "node:path";
 var AUTOMATION_DEFAULTS = {
   enabled: false,
@@ -47128,7 +47169,7 @@ function automationConfigPath(root) {
 var intIn2 = (v, min, max) => typeof v === "number" && Number.isInteger(v) && v >= min && v <= max;
 var validImage = (v) => v === "" || isValidImageRef(v);
 function readAutomationSettings(root) {
-  const config = readAutomationJson(root, { readFileSync: readFileSync21 });
+  const config = readAutomationJson(root, { readFileSync: readFileSync22 });
   return {
     enabled: config.enabled ?? AUTOMATION_DEFAULTS.enabled,
     max_parallel: config.maxParallel ?? AUTOMATION_DEFAULTS.max_parallel,
@@ -47185,7 +47226,7 @@ function writeAutomationSettings(root, settings) {
 }
 
 // packages/server/src/config.ts
-import { readFileSync as readFileSync22 } from "node:fs";
+import { readFileSync as readFileSync23 } from "node:fs";
 import { readFile as readFile53, rename as rename15, rm as rm13, writeFile as writeFile20 } from "node:fs/promises";
 import { dirname as dirname20 } from "node:path";
 var ConfigError = class extends Error {
@@ -47244,7 +47285,7 @@ function readConfigSnapshot(options3) {
   if (registry.ordered.length === 0) {
     throw new ConfigError("effective track registry \u4E3A\u7A7A\uFF0C\u62D2\u7EDD\u751F\u6210 config \u5FEB\u7167");
   }
-  const hasWritableSection = readFileSync22(options3.manifestPath, "utf8").split("\n").some((line) => SECTION_HEADER_RE.test(line));
+  const hasWritableSection = readFileSync23(options3.manifestPath, "utf8").split("\n").some((line) => SECTION_HEADER_RE.test(line));
   const writableProfiles = hasWritableSection ? EDITABLE_TRACKS.filter((profile) => {
     const track = registry.byId.get(profile);
     return track?.policyProfile.skills.matrix === true && track.policyProfile.skills.profile === profile;
@@ -47634,18 +47675,18 @@ async function writePromptRoutingBypass(root, value) {
 }
 
 // packages/server/src/loops.ts
-import { existsSync as existsSync7, readdirSync as readdirSync9, readFileSync as readFileSync23 } from "node:fs";
+import { existsSync as existsSync7, readdirSync as readdirSync9, readFileSync as readFileSync24 } from "node:fs";
 import { join as join88 } from "node:path";
 function readRunLogText(root) {
   try {
-    return readFileSync23(join88(root, ".superpowers", "loops", "progress.md"), "utf8");
+    return readFileSync24(join88(root, ".superpowers", "loops", "progress.md"), "utf8");
   } catch {
     return null;
   }
 }
 function readLoopDocText(root) {
   try {
-    return readFileSync23(join88(root, "LOOP.md"), "utf8");
+    return readFileSync24(join88(root, "LOOP.md"), "utf8");
   } catch {
     return null;
   }
@@ -47880,11 +47921,11 @@ async function removeSecret(path14, key) {
 import { join as join90 } from "node:path";
 
 // packages/server/src/skillsRegistry.ts
-import { accessSync as accessSync2, constants as constants15, existsSync as existsSync8, readdirSync as readdirSync10, readFileSync as readFileSync24, realpathSync as realpathSync7, statSync as statSync7 } from "node:fs";
+import { accessSync as accessSync2, constants as constants15, existsSync as existsSync8, readdirSync as readdirSync10, readFileSync as readFileSync25, realpathSync as realpathSync7, statSync as statSync7 } from "node:fs";
 import { delimiter, dirname as dirname21, join as join89, sep as sep16 } from "node:path";
 function skillDescriptionFrom(path14) {
   try {
-    const text11 = readFileSync24(path14, "utf8");
+    const text11 = readFileSync25(path14, "utf8");
     const frontmatter = /^---\s*\n([\s\S]*?)\n---/.exec(text11)?.[1];
     if (frontmatter) {
       const line = frontmatter.split("\n").find((candidate2) => /^description\s*:/.test(candidate2.trim()));
@@ -47900,7 +47941,7 @@ function skillDescriptionFrom(path14) {
 }
 function installedPluginRoots(claudeDir) {
   try {
-    const parsed2 = JSON.parse(readFileSync24(join89(claudeDir, "plugins", "installed_plugins.json"), "utf8"));
+    const parsed2 = JSON.parse(readFileSync25(join89(claudeDir, "plugins", "installed_plugins.json"), "utf8"));
     const plugins = typeof parsed2 === "object" && parsed2 !== null ? Reflect.get(parsed2, "plugins") : void 0;
     if (typeof plugins !== "object" || plugins === null || Array.isArray(plugins)) return [];
     return Object.values(plugins).flat().map((entry2) => typeof entry2 === "object" && entry2 !== null ? Reflect.get(entry2, "installPath") : void 0).filter((path14) => typeof path14 === "string" && path14.trim() !== "");
@@ -48020,7 +48061,7 @@ function readSkillFile(name, relPath, repoRoot, claudeDir) {
     const realRoot = realpathSync7(located.dir);
     const realFile = realpathSync7(absolute);
     if (!realFile.startsWith(realRoot + sep16) && realFile !== realRoot) return { kind: "invalid-path" };
-    const text11 = readFileSync24(realFile, "utf8");
+    const text11 = readFileSync25(realFile, "utf8");
     if (text11.includes("\0")) return { kind: "binary" };
     return { kind: "ok", path: relPath, text: text11 };
   } catch {
@@ -48069,11 +48110,11 @@ function detectInstalled(claudeDir) {
     for (const plugin of childDirsIn(join89(codexCache, marketplace))) codexPluginBases.add(plugin);
   }
   try {
-    const raw = readFileSync24(join89(claudeDir, "plugins", "installed_plugins.json"), "utf8");
+    const raw = readFileSync25(join89(claudeDir, "plugins", "installed_plugins.json"), "utf8");
     const parsed2 = JSON.parse(raw);
     let disabled = {};
     try {
-      const settings = JSON.parse(readFileSync24(join89(claudeDir, "settings.json"), "utf8"));
+      const settings = JSON.parse(readFileSync25(join89(claudeDir, "settings.json"), "utf8"));
       if (typeof settings === "object" && settings !== null) {
         const candidate2 = Reflect.get(settings, "enabledPlugins");
         if (typeof candidate2 === "object" && candidate2 !== null && !Array.isArray(candidate2)) {
@@ -48102,7 +48143,7 @@ function detectInstalled(claudeDir) {
 }
 function sourceRegistry(repoRoot) {
   try {
-    const rows = parseSkillSources(readFileSync24(join89(repoRoot, "templates", "skill-sources.yaml"), "utf8"));
+    const rows = parseSkillSources(readFileSync25(join89(repoRoot, "templates", "skill-sources.yaml"), "utf8"));
     return new Map(rows.map((row) => [row.token, row]));
   } catch {
     return /* @__PURE__ */ new Map();
@@ -48406,7 +48447,7 @@ async function readAfkRunLog(changeDir2) {
 }
 
 // packages/server/src/contextBundlePreviewSupport.ts
-import { lstatSync as lstatSync10, realpathSync as realpathSync8 } from "node:fs";
+import { lstatSync as lstatSync11, realpathSync as realpathSync8 } from "node:fs";
 import { isAbsolute as isAbsolute16, join as join92, relative as relative13, sep as sep17 } from "node:path";
 var SCHEMA_VERSION = "context-bundle-preview/v1";
 var SIDE_EFFECTS = "none";
@@ -48426,7 +48467,7 @@ function inside2(base, candidate2) {
   return fromBase !== "" && fromBase !== ".." && !fromBase.startsWith(`..${sep17}`) && !isAbsolute16(fromBase);
 }
 function captureDirectoryIdentity(path14) {
-  const info = lstatSync10(path14, { bigint: true });
+  const info = lstatSync11(path14, { bigint: true });
   if (info.isSymbolicLink() || !info.isDirectory()) {
     throw new ContextBundlePathError(403, `Context Bundle \u8DEF\u5F84\u4E0D\u5B89\u5168\uFF08\u987B\u4E3A\u771F\u5B9E\u76EE\u5F55\uFF09: ${path14}`);
   }
@@ -48490,7 +48531,7 @@ function assertPathIdentityChain(chain) {
   for (const expected of chain) {
     let actual;
     try {
-      actual = lstatSync10(expected.path, { bigint: true });
+      actual = lstatSync11(expected.path, { bigint: true });
     } catch {
       throw new ContextBundlePathError(403, `Context Bundle Change \u8DEF\u5F84\u5728\u8BFB\u53D6\u671F\u95F4\u6D88\u5931: ${expected.path}`);
     }
@@ -48509,7 +48550,7 @@ function assertChangeParentPathAnchor(anchor) {
   assertPathIdentityChain(anchor.chain);
   if (anchor.missingPath === void 0) return;
   try {
-    lstatSync10(anchor.missingPath);
+    lstatSync11(anchor.missingPath);
   } catch (error2) {
     if (missingCode(error2)) return;
     throw new ContextBundlePathError(
@@ -49744,7 +49785,7 @@ function handleGetTraceRoutes(req, res, path14, deps) {
 }
 
 // packages/server/src/hostTargetDetection.ts
-import { closeSync as closeSync7, constants as constants16, fstatSync as fstatSync11, lstatSync as lstatSync11, openSync as openSync12, readSync as readSync7, readdirSync as readdirSync11 } from "node:fs";
+import { closeSync as closeSync7, constants as constants16, fstatSync as fstatSync11, lstatSync as lstatSync12, openSync as openSync12, readSync as readSync7, readdirSync as readdirSync11 } from "node:fs";
 import { join as join97 } from "node:path";
 var MAX_HOST_INVENTORY_BYTES = 256 * 1024;
 function captureDirectoryChain(hostHome, segments2) {
@@ -49777,7 +49818,7 @@ function captureDirectoryChain(hostHome, segments2) {
 function directoryChainIsStable(identities) {
   return identities.every((identity) => {
     try {
-      const lexical = lstatSync11(identity.path);
+      const lexical = lstatSync12(identity.path);
       const anchored = fstatSync11(identity.descriptor);
       return lexical.isDirectory() && !lexical.isSymbolicLink() && lexical.dev === identity.dev && lexical.ino === identity.ino && anchored.isDirectory() && anchored.dev === identity.dev && anchored.ino === identity.ino;
     } catch {
@@ -49816,12 +49857,12 @@ function hasInstalledPlugin(hostHome, namespaceSegments, markerSegments, options
         let descriptor;
         try {
           if (!directoryChainIsStable(namespace) || !directoryChainIsStable(directories2)) return false;
-          const expected = lstatSync11(marker);
+          const expected = lstatSync12(marker);
           if (!expected.isFile() || expected.isSymbolicLink()) return false;
           const flags = constants16.O_RDONLY | constants16.O_NOFOLLOW | constants16.O_NONBLOCK;
           descriptor = options3.openPluginMarker?.(marker, flags) ?? openSync12(marker, flags);
           const anchored = fstatSync11(descriptor);
-          const current = lstatSync11(marker);
+          const current = lstatSync12(marker);
           return anchored.isFile() && anchored.dev === expected.dev && anchored.ino === expected.ino && current.isFile() && !current.isSymbolicLink() && current.dev === expected.dev && current.ino === expected.ino && directoryChainIsStable(namespace) && directoryChainIsStable(directories2);
         } catch {
           return false;
@@ -49852,7 +49893,7 @@ function readBoundedHostFile(hostHome, segments2) {
     if (!metadata.isFile() || metadata.size > MAX_HOST_INVENTORY_BYTES) return null;
     const fileIsStable = () => {
       try {
-        const current = lstatSync11(path14);
+        const current = lstatSync12(path14);
         return current.isFile() && !current.isSymbolicLink() && current.dev === metadata.dev && current.ino === metadata.ino && current.size === metadata.size && directoryChainIsStable(directories2);
       } catch {
         return false;
@@ -50810,21 +50851,21 @@ async function handleTestArtifactRoute(req, res, path14, deps) {
 }
 
 // packages/server/src/serverSupport.ts
-import { readFileSync as readFileSync25 } from "node:fs";
+import { readFileSync as readFileSync26 } from "node:fs";
 import { dirname as dirname22, join as join100 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 var REAL_GRADUATION_FS = {
   loadRegistry: (repoRoot) => loadRegistry(repoRoot),
   readRunLog: (repoRoot) => {
     try {
-      return readFileSync25(join100(repoRoot, ".superpowers", "loops", "progress.md"), "utf8");
+      return readFileSync26(join100(repoRoot, ".superpowers", "loops", "progress.md"), "utf8");
     } catch {
       return null;
     }
   },
   readLoopDoc: (repoRoot) => {
     try {
-      return readFileSync25(join100(repoRoot, "LOOP.md"), "utf8");
+      return readFileSync26(join100(repoRoot, "LOOP.md"), "utf8");
     } catch {
       return null;
     }
@@ -51033,9 +51074,9 @@ import {
   constants as constants19,
   fstatSync as fstatSync12,
   fsyncSync as fsyncSync4,
-  lstatSync as lstatSync12,
+  lstatSync as lstatSync13,
   openSync as openSync14,
-  readFileSync as readFileSync26,
+  readFileSync as readFileSync27,
   readdirSync as readdirSync12,
   renameSync as renameSync6,
   unlinkSync as unlinkSync4,
@@ -51057,7 +51098,7 @@ function readChild(root, directory, name, maxBytes) {
   try {
     const opened = fstatSync12(fd);
     if (!opened.isFile() || !sameIdentity(opened, before)) throw new Error(`\u6587\u4EF6\u5728\u8BFB\u53D6\u671F\u95F4\u88AB\u66FF\u6362: ${entry2.lexical}`);
-    const bytes = readFileSync26(fd);
+    const bytes = readFileSync27(fd);
     if (bytes.length > maxBytes) return { bytes: null, digest: ABSENT_DIGEST, error: "too-large" };
     assertTrusted(directory, root);
     return { bytes, digest: instructionDigest(bytes), identity: { dev: opened.dev, ino: opened.ino } };
@@ -51128,7 +51169,7 @@ function unlinkTrustedFile(root, dirs, name, digest18, maxBytes) {
     const target = childEntry(directory, name);
     assertTrusted(directory, root);
     assertEntryMatches(target, current.identity, "\u76EE\u6807\u6587\u4EF6");
-    const entry2 = lstatSync12(target.operation);
+    const entry2 = lstatSync13(target.operation);
     if (!sameIdentity(entry2, current.identity)) throw new Error(`\u6587\u4EF6\u5728\u5220\u9664\u524D\u88AB\u66FF\u6362: ${target.lexical}`);
     unlinkSync4(target.operation);
     return { ok: true };
@@ -51611,7 +51652,7 @@ import { execFile as execFile10 } from "node:child_process";
 import { isAbsolute as isAbsolute17, join as join107, resolve as resolvePath6 } from "node:path";
 
 // packages/server/src/projectCreateRun.ts
-import { lstatSync as lstatSync14, mkdirSync as mkdirSync8, rmSync } from "node:fs";
+import { lstatSync as lstatSync15, mkdirSync as mkdirSync8, rmSync } from "node:fs";
 import { join as join106 } from "node:path";
 
 // packages/server/src/projectInstructionText.ts
@@ -51654,7 +51695,7 @@ function previewProjectFiles(anchor, request) {
 }
 
 // packages/server/src/projects.ts
-import { lstatSync as lstatSync13, statSync as statSync8 } from "node:fs";
+import { lstatSync as lstatSync14, statSync as statSync8 } from "node:fs";
 import { resolve as resolvePath5 } from "node:path";
 async function addProjectToRegistry(registryPath, rawRoot) {
   if (typeof rawRoot !== "string" || !rawRoot) {
@@ -51692,7 +51733,7 @@ async function registerProjectAnchored(paths, anchors2, rawRoot) {
       pendingAnchor = captureWorkflowRootAnchor(rawRoot);
     } catch {
       try {
-        if (lstatSync13(resolvePath5(rawRoot)).isSymbolicLink()) {
+        if (lstatSync14(resolvePath5(rawRoot)).isSymbolicLink()) {
           return { ok: false, code: 400, error: `registered root \u4E0D\u5F97\u662F symlink\uFF1A${resolvePath5(rawRoot)}` };
         }
       } catch {
@@ -51788,7 +51829,7 @@ async function runStep(id2, report, work) {
 }
 function removeCreated(root, anchor) {
   try {
-    const current = lstatSync14(root);
+    const current = lstatSync15(root);
     if (current.isDirectory() && !current.isSymbolicLink() && sameIdentity(current, anchor)) rmSync(root, { recursive: true, force: true });
   } catch {
   }
@@ -52314,11 +52355,11 @@ function resolveInstructionMutation(req, method, path14, deps) {
 }
 
 // packages/server/src/fsRoutes.ts
-import { lstatSync as lstatSync16 } from "node:fs";
+import { lstatSync as lstatSync17 } from "node:fs";
 import { isAbsolute as isAbsolute19 } from "node:path";
 
 // packages/server/src/folderList.ts
-import { lstatSync as lstatSync15, readdirSync as readdirSync13 } from "node:fs";
+import { lstatSync as lstatSync16, readdirSync as readdirSync13 } from "node:fs";
 import { dirname as dirname24, isAbsolute as isAbsolute18, join as join109, resolve as resolvePath7 } from "node:path";
 var FOLDER_LIST_MAX = 2e3;
 var fail12 = (status2, code, error2) => ({ status: status2, body: { ok: false, code, error: error2 } });
@@ -52328,7 +52369,7 @@ function listFolders(rawDir, showHidden, home) {
   const dir = resolvePath7(requested);
   let entry2;
   try {
-    entry2 = lstatSync15(dir);
+    entry2 = lstatSync16(dir);
   } catch {
     return fail12(404, "path-missing", "\u8DEF\u5F84\u4E0D\u5B58\u5728");
   }
@@ -52373,7 +52414,7 @@ function decodeChooseRequest(value) {
 }
 function isDirectory(path14) {
   try {
-    const entry2 = lstatSync16(path14);
+    const entry2 = lstatSync17(path14);
     return entry2.isDirectory() && !entry2.isSymbolicLink();
   } catch {
     return false;
@@ -53208,7 +53249,7 @@ import {
   closeSync as closeSync9,
   constants as constants20,
   fstatSync as fstatSync13,
-  lstatSync as lstatSync17,
+  lstatSync as lstatSync18,
   openSync as openSync15,
   realpathSync as realpathSync9
 } from "node:fs";
@@ -53318,7 +53359,7 @@ async function readAnchoredTasksProjection(changeAnchor, readSource = readBounde
       let realPath;
       try {
         assertChangePathAnchor(changeAnchor);
-        current = lstatSync17(lexicalTarget, { bigint: true });
+        current = lstatSync18(lexicalTarget, { bigint: true });
         realPath = realpathSync9(lexicalTarget);
       } catch (error2) {
         if (error2 instanceof ContextBundlePathError) throw error2;
@@ -55206,7 +55247,7 @@ async function handleGet(req, res, path14, deps) {
       assertWorkflowRootAnchor(rootCheck2.anchor);
       let pipelineExists = true;
       try {
-        lstatSync18(join116(rootCheck2.anchor.path, ".pipeline"));
+        lstatSync19(join116(rootCheck2.anchor.path, ".pipeline"));
       } catch (error2) {
         if (error2.code === "ENOENT") pipelineExists = false;
         else throw error2;
@@ -55229,7 +55270,7 @@ async function handleGet(req, res, path14, deps) {
       assertWorkflowRootAnchor(rootCheck2.anchor);
       let pipelineExists = true;
       try {
-        lstatSync18(join116(rootCheck2.anchor.path, ".pipeline"));
+        lstatSync19(join116(rootCheck2.anchor.path, ".pipeline"));
       } catch (e) {
         if (e.code === "ENOENT") pipelineExists = false;
         else throw e;
@@ -56856,7 +56897,7 @@ async function handlePostGovernanceRoutes(req, res, path14, deps) {
 }
 
 // packages/server/src/serverPostOperationsRoutes.ts
-import { lstatSync as lstatSync19 } from "node:fs";
+import { lstatSync as lstatSync20 } from "node:fs";
 import { join as join120 } from "node:path";
 
 // packages/server/src/loopScopePreview.ts
@@ -56864,7 +56905,7 @@ import {
   constants as constants23,
   fstatSync as fstatSync16,
   openSync as openSync18,
-  readFileSync as readFileSync27
+  readFileSync as readFileSync28
 } from "node:fs";
 import { posix as posix6 } from "node:path";
 var REQUEST_KEYS = /* @__PURE__ */ new Set(["root", "loop_id", "paths"]);
@@ -56889,7 +56930,7 @@ function registryReadError(error2) {
   const detail = error2 instanceof Error ? error2.message : String(error2);
   return new RegistryReadError(`loops.yaml \u8BFB\u5931\u8D25\uFF08${code}\uFF09\uFF1A${detail}`);
 }
-function readTrustedLoopRegistry(anchor, readFile60 = (fd) => readFileSync27(fd, "utf8")) {
+function readTrustedLoopRegistry(anchor, readFile60 = (fd) => readFileSync28(fd, "utf8")) {
   return readWithLoopScopeRootTrust(
     () => assertWorkflowRootAnchor(anchor),
     () => {
@@ -57146,7 +57187,7 @@ async function handlePostOperationsRoutes(req, res, path14, deps) {
       assertWorkflowRootAnchor(rootCheck2.anchor);
       let pipelineExists = true;
       try {
-        lstatSync19(join120(rootCheck2.anchor.path, ".pipeline"));
+        lstatSync20(join120(rootCheck2.anchor.path, ".pipeline"));
       } catch (error2) {
         if (error2.code === "ENOENT") pipelineExists = false;
         else throw error2;
@@ -57681,7 +57722,7 @@ function createFreezeHandlers(deps) {
 }
 
 // packages/server/src/serverTransport.ts
-import { readFileSync as readFileSync28 } from "node:fs";
+import { readFileSync as readFileSync29 } from "node:fs";
 import { join as join122 } from "node:path";
 import { gzipSync as gzipSync2 } from "node:zlib";
 
@@ -58267,7 +58308,7 @@ data: ${shared.body}
   function serveIndexWithToken(res) {
     if (!webRoot) return false;
     try {
-      let html = readFileSync28(join122(webRoot, "index.html"), "utf8");
+      let html = readFileSync29(join122(webRoot, "index.html"), "utf8");
       const jsToken = JSON.stringify(token).replace(/</g, "\\u003c");
       const inject = `<script>window.__TENON_DASHBOARD_TOKEN__ = ${jsToken};</script>`;
       html = html.includes("</head>") ? html.replace("</head>", `${inject}</head>`) : `${inject}${html}`;
@@ -58284,7 +58325,7 @@ data: ${shared.body}
     const abs2 = join122(webRoot, rel);
     if (!abs2.startsWith(join122(webRoot, "assets"))) return false;
     try {
-      const source2 = readFileSync28(abs2);
+      const source2 = readFileSync29(abs2);
       const ext = abs2.slice(abs2.lastIndexOf("."));
       const compressible = GZIP_TYPES.has(ext) && source2.length >= GZIP_MIN_BYTES2;
       const gzip = compressible && acceptsGzip(req.headers["accept-encoding"]);
@@ -58861,7 +58902,7 @@ function createServerGovernance(options3) {
 
 // packages/server/src/folderChooser.ts
 import { execFile as execFile11 } from "node:child_process";
-import { lstatSync as lstatSync20 } from "node:fs";
+import { lstatSync as lstatSync21 } from "node:fs";
 import { isAbsolute as isAbsolute21, resolve as resolvePath13 } from "node:path";
 var PICKER_TIMEOUT_MS = 5 * 60 * 1e3;
 var MAC_SCRIPT_WITH_START = [
@@ -58912,7 +58953,7 @@ function normalizePickedPath(stdout) {
   const trimmed = raw.length > 1 ? raw.replace(/[\\/]+$/u, "") : raw;
   const path14 = resolvePath13(trimmed === "" || /^[A-Za-z]:$/u.test(trimmed) ? raw : trimmed);
   try {
-    const entry2 = lstatSync20(path14);
+    const entry2 = lstatSync21(path14);
     return entry2.isDirectory() && !entry2.isSymbolicLink() ? path14 : null;
   } catch {
     return null;
@@ -59044,7 +59085,7 @@ async function resolveSessionLink(root, name, deps) {
 }
 
 // packages/server/src/version.ts
-import { readFileSync as readFileSync29 } from "node:fs";
+import { readFileSync as readFileSync30 } from "node:fs";
 import { basename as basename10, dirname as dirname26, join as join126 } from "node:path";
 var SERVER_VERSION = "0.1.0";
 var RELEASE_ID = /^sha256-[a-f0-9]{64}$/;
@@ -59054,7 +59095,7 @@ function isPluginManifestVersion(value) {
 function resolveReleaseVersion(pluginRoot2) {
   for (const relative16 of [".codex-plugin/plugin.json", ".claude-plugin/plugin.json"]) {
     try {
-      const parsed2 = JSON.parse(readFileSync29(join126(pluginRoot2, relative16), "utf8"));
+      const parsed2 = JSON.parse(readFileSync30(join126(pluginRoot2, relative16), "utf8"));
       if (isPluginManifestVersion(parsed2) && typeof parsed2.version === "string" && /^\d+\.\d+\.\d+$/.test(parsed2.version)) {
         return parsed2.version;
       }
@@ -59429,7 +59470,7 @@ function resolveServerPaths(opts = {}) {
 // packages/server/src/preempt.ts
 import { execFile as execFile12 } from "node:child_process";
 import { get as httpGet } from "node:http";
-import { readFileSync as readFileSync30 } from "node:fs";
+import { readFileSync as readFileSync31 } from "node:fs";
 import { createConnection } from "node:net";
 function compareVersions(a, b) {
   const pa = a.split(".").map((x) => parseInt(x, 10));
@@ -59466,7 +59507,7 @@ function decodeHealthInfo(value) {
 }
 function readPidfile(pidfilePath) {
   try {
-    const raw = JSON.parse(readFileSync30(pidfilePath, "utf8"));
+    const raw = JSON.parse(readFileSync31(pidfilePath, "utf8"));
     if (raw && typeof raw === "object") {
       const o = raw;
       if (typeof o.pid === "number" && typeof o.port === "number" && typeof o.version === "string") {

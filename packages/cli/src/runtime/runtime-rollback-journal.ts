@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { link, lstat, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { RuntimeActivationCheckpoint } from './installer-contract.js'
 import { ManagedRuntimeIndeterminateError } from './installer-contract.js'
@@ -87,6 +87,49 @@ export async function readRollbackJournal(paths: RuntimePaths): Promise<RuntimeR
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
     throw error
   }
+}
+
+/**
+ * The private copy a bootstrap rollback moves a launcher to while it publishes the target launcher. The name is part of the
+ * bootstrap's format (`convergeRollbackLauncher` in runtime/tenon-bootstrap.mjs), keyed by the journal's transaction id.
+ */
+export function rollbackPrivateLauncherPath(launcherPath: string, transactionId: string): string {
+  return `${launcherPath}.tenon-rollback-${transactionId}.previous`
+}
+
+async function readRegularFile(path: string): Promise<{ readonly content: string; readonly mode: number } | null> {
+  try {
+    const item = await lstat(path)
+    if (!item.isFile() || item.isSymbolicLink()) return null
+    return { content: await readFile(path, 'utf8'), mode: item.mode & 0o777 }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+    throw error
+  }
+}
+
+/**
+ * Drop a rollback journal whose rollback never took effect (the selection is still its start), together with the private
+ * launcher copies its transaction may have left. A copy is touched only when it is byte-for-byte the journal's recorded
+ * checkpoint, so nothing that merely carries the transaction id is deleted. If the launcher itself is gone, the copy is the
+ * only remaining original: it goes back to the launcher path before it is dropped. The journal goes last, so an interrupted
+ * discard is repeated by the next one.
+ */
+export async function discardUnflippedRollbackJournal(paths: RuntimePaths, journal: RuntimeRollbackJournal): Promise<void> {
+  for (const name of ['tenon', 'hook'] as const) {
+    const checkpoint = journal.launchers[name]
+    if (checkpoint.state.kind !== 'file') continue
+    const privatePath = rollbackPrivateLauncherPath(checkpoint.path, journal.transactionId)
+    const copy = await readRegularFile(privatePath)
+    if (copy === null || copy.content !== checkpoint.state.content || copy.mode !== checkpoint.state.mode) continue
+    const launcherGone = await lstat(checkpoint.path).then(() => false, (error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') return true
+      throw error
+    })
+    if (launcherGone) await link(privatePath, checkpoint.path)
+    await rm(privatePath)
+  }
+  await rm(rollbackJournalPath(paths), { force: true })
 }
 
 export function selectionMatchesRollbackTarget(

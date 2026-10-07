@@ -223,6 +223,55 @@ tenon runtime repair --rollback
 
 If no verified previous release exists, rerun host-scoped setup.
 
+### Rollback, update and setup all refuse on a leftover rollback (v0.2.1 to v0.3.1)
+
+On v0.2.1 through v0.3.1, `tenon runtime repair --rollback` after a `tenon update` failed on a normal install with
+`rollback refuses a third-party launcher checkpoint: tenon`. The selection had already moved to the previous release by
+then (`tenon runtime status` shows it as active), but the rollback journal `runtime-rollback.json` was left behind, and
+from then on `tenon runtime repair --rollback`, `tenon update` and `tenon setup` all stopped with
+`存在未完成的 runtime rollback；请先重跑 tenon runtime repair --rollback` ("an unfinished runtime rollback exists; rerun
+`tenon runtime repair --rollback` first"), and rerunning it failed the same way.
+
+The cause was a drift between two generators of the same file: the installer writes `export TENON_NODE_PATH=…` into the
+stable launcher, the bootstrap's own launcher text lacked that line, and so the bootstrap read the installer's launcher as
+a third-party file, after it had flipped the selection. Nothing is damaged except the leftover journal.
+
+You cannot repair this with the Tenon you have: `tenon update` and `tenon setup` run the release you rolled back to, and
+`tenon runtime repair --rollback` runs the bootstrap that release installed, so both are the old code. Run the versioned
+`install.sh` of v0.3.2 once for the host. It does not go through the launcher, and the setup it runs finishes the leftover
+rollback before it installs v0.3.2:
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.3.2/install.sh | /bin/bash -s -- --codex
+# or
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.3.2/install.sh | /bin/bash -s -- --claude
+```
+
+Setup settles the journal by what the selection says. If the selection is the journal's target (the case above), it
+converges the launcher pair and removes the journal, and the runtime stays on the release you rolled back to until the
+install activates v0.3.2. If the selection is still the journal's start, the rollback never took effect and the journal
+is simply removed. If the selection is neither, something else moved it; setup refuses and `tenon runtime status` shows
+what. Afterwards `tenon runtime status` and `tenon doctor` show a valid active release, and the previous release is the
+one you had rolled back to.
+
+From v0.3.2 the bootstrap writes the same launcher bytes as the installer (a test pins the whole text in both modes) and
+proves the launcher pair before it moves the selection, so a refused rollback changes nothing and leaves no journal. If a
+rollback is interrupted after the selection moved, `tenon update` and `tenon setup` finish it instead of refusing, and so
+does the same `tenon runtime repair --rollback`.
+
+### `tenon doctor` shows `identity:release` as WARN right after a rollback
+
+A rollback swaps only the managed runtime. The host plugin and a running Dashboard still carry the newer release, so the
+release identity does not match. That is the state, not damage, and since v0.3.2 doctor reports it as a warning that says
+so. It is shown only while the rollback is the latest runtime event and the host plugin is exactly the release you rolled
+away from; any other mismatch stays red. Pick one:
+
+- go back to the newer release: `tenon update --codex` (or `--claude`). This undoes the rollback;
+- keep the older release and align the host plugin with it: `tenon setup --codex` (or `--claude`) rebinds the host plugin to
+  the release of the runtime you are running.
+
+You can also do neither and keep working on the rolled-back runtime.
+
 ### `tenon runtime Node identity changed`
 
 The stable launchers pin the Node binary chosen at setup: no symlinks on its path, its inode, mode, owner and size, the

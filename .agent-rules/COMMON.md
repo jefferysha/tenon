@@ -97,6 +97,7 @@
 | 静态/生成物门禁 | `npm run check:comments`；`npm run check:default-workflow-freshness` |
 | 依赖公告与解析树 | `npm run check:dependencies`（CI 与 release candidate 共用；规则见下方“依赖公告白名单”） |
 | 分发与兼容验收 | `bash tools/test-hooks.sh`；`bash tools/test-adapters.sh`；`bash tools/verify-skills.sh`；`bash tools/test-bundle.sh`；`npm run oracle` |
+| 更新 / 回滚验收 | `npm run test:update-rollback`（隔离 HOME 里 install → update → rollback → update；另从 v0.3.1 git tag 重建被回滚卡死的安装并走恢复路径，需要该 tag；需要网络与可信 Codex；CI verify 阻塞地跑，改 runtime 回滚 / launcher 生成器 / `install.sh` 时本地也要跑） |
 | 浏览器/API smoke | `npm run build:web && npm run build:server` 后按 README 启动 `npx tenon-dashboard`，检查受影响真实流程 |
 | Dashboard 浏览器 e2e | `npm run build` 之后 `npm run test:e2e -- --project=chromium`（webkit 需 `npx playwright install webkit`）；CI 三处阻塞地跑：verify（Node 22，Chromium）、node-matrix（Node 20/22/24，Chromium，另跑测试体系 / reporter / 解析器套件）、独立的 dashboard-e2e-webkit 作业；ci.yml 不允许任何 `continue-on-error`；`npm test` 在 CI 带 `TENON_E2E=1`（缺 Chromium 即失败）；含 `e2e/dashboard/a11y.spec.ts` 的 axe 无障碍检查（主要页面亮/暗主题，serious/critical 必须为零；扫描前和向导点击前经 `e2e/dashboard/support/fixtures.ts` 的 `settled()` 等动画落定，不用定时睡眠，慢的 WebKit 上进场动画会拖到定时之后；`settled()` 另有同样 15 s 的墙钟 `setTimeout` 兜底，帧不走的后台/隐藏页面也以它自己的报错收场；向导「创建」点击若要补点会在报告里留 `wizard-create-reclick` 注解，需要第三次点击则直接失败） |
 | 基准 | `npm run bench:status`、`npm run bench:snapshot`、`npm run bench:snapshot:large`（30 项目 × 30 任务，写入后重建 p95 < 1.5 s）；判定与基线走 `tenon test run <change> --suite bench-status --suite bench-snapshot --suite bench-snapshot-large` |

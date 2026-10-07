@@ -9,6 +9,10 @@ const target = { version: '1.0.2', tag: 'v1.0.2', commit: 'a'.repeat(40) }
 const source = { host: 'codex' as const, pluginVersion: target.version }
 const runtimePayloadDigest = 'b'.repeat(64)
 const releaseId = runtimeReleaseIdV2(runtimePayloadDigest, source, target)
+// The newer build a rollback moves away from: it stays as `previous` and the host plugin keeps carrying it.
+const newerTarget = { version: '1.0.3', tag: 'v1.0.3', commit: 'e'.repeat(40) }
+const newerPayloadDigest = 'f'.repeat(64)
+const newerReleaseId = runtimeReleaseIdV2(newerPayloadDigest, { host: 'codex' as const, pluginVersion: newerTarget.version }, newerTarget)
 const marketplaceRoot = process.platform === 'win32' ? 'C:\\marketplace' : '/marketplace'
 const trustedRoot = process.platform === 'win32' ? 'C:\\trusted' : '/trusted'
 
@@ -25,6 +29,8 @@ function probeFixture(options: {
   /** 本机没有可信 git。 */
   readonly missingTrustedGit?: boolean
   readonly driftGitAfterCandidate?: boolean
+  /** 当前 active 之前还有一份较新的 release（previous）；最近一次 runtime 事件是什么。 */
+  readonly lastRuntimeEvent?: 'rolled-back' | 'activated'
   readonly verificationCounts?: Record<'host' | 'bash' | 'git' | 'node', number>
   readonly runtimeCalls?: Array<{
     readonly args: readonly string[]
@@ -53,13 +59,21 @@ function probeFixture(options: {
       if (name === 'git' && !gitExact) throw new Error('git drift')
     },
   })
+  const previousManifest = {
+    version: 2 as const,
+    releaseId: newerReleaseId,
+    payloadDigest: newerPayloadDigest,
+    createdAt: '2026-08-09T00:00:00Z',
+    source: { host: 'codex' as const, pluginVersion: newerTarget.version },
+    stableTarget: newerTarget,
+  }
   const installer = {
     inspect: async () => ({
       selection: {
         version: 1 as const,
-        revision: 2,
+        revision: options.lastRuntimeEvent === undefined ? 2 : 3,
         activeRelease: releaseId,
-        previousRelease: null,
+        previousRelease: options.lastRuntimeEvent === undefined ? null : newerReleaseId,
         updatedAt: '2026-08-08T00:00:00Z',
       },
       active: {
@@ -70,10 +84,12 @@ function probeFixture(options: {
         source,
         stableTarget: target,
       },
-      previous: null,
+      previous: options.lastRuntimeEvent === undefined ? null : previousManifest,
       activeValid: true,
-      previousValid: false,
-      lastAudit: null,
+      previousValid: options.lastRuntimeEvent !== undefined,
+      lastAudit: options.lastRuntimeEvent === undefined
+        ? null
+        : { version: 1 as const, at: '2026-08-10T00:00:00Z', kind: options.lastRuntimeEvent, releaseId, detail: 'fixture' },
     }),
   } as RuntimeInstaller
   return createDoctorProductIdentityProbe(
@@ -198,6 +214,18 @@ describe('doctor native immutable product identity probe', () => {
       payloadDigestExact: true,
       dashboardReleaseId: releaseId,
     })
+  })
+
+  test('names the release a rollback moved away from, only while the rollback is the latest runtime event', async () => {
+    await expect(probeFixture({ lastRuntimeEvent: 'rolled-back', candidateDigest: newerPayloadDigest })()).resolves.toMatchObject({
+      state: 'native',
+      payloadDigestExact: false,
+      rolledBackFrom: { releaseId: newerReleaseId, pluginVersion: newerTarget.version, payloadDigest: newerPayloadDigest },
+    })
+    const afterUpdate = await probeFixture({ lastRuntimeEvent: 'activated', candidateDigest: newerPayloadDigest })()
+    expect(afterUpdate).toMatchObject({ state: 'native' })
+    expect(afterUpdate).not.toHaveProperty('rolledBackFrom')
+    expect(await probeFixture()()).not.toHaveProperty('rolledBackFrom')
   })
 
   test('reports equal version strings as drift when HEAD and payload differ from the frozen release', async () => {

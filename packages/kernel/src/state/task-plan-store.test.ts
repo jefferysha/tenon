@@ -108,36 +108,41 @@ function maximumPersistedRevision(): TaskPlanRevisionV1 {
   return revision
 }
 
+/**
+ * A revision whose encoded bytes (newline included) are exactly `desiredBytes`, built from requirement titles of
+ * FULL_TITLE bytes plus one shorter last title. The size is computed from the per-item overhead, so the fixture
+ * costs one encode instead of re-serialising the whole growing document for every requirement it adds: that
+ * quadratic loop made this helper the bulk of the byte-budget tests' runtime (about 3 s unloaded, over the 15 s
+ * timeout under CPU contention) while the code under test is only asked to read the files afterwards.
+ */
 function sizedOrphanRaw(index: number, desiredBytes: number): string {
-  const requirements: { id: string; title: string }[] = []
-  const fixture = (): TaskPlanRevisionV1 => plan({
+  const FULL_TITLE = 7_000
+  const fixture = (requirements: readonly { id: string; title: string }[]): TaskPlanRevisionV1 => plan({
     plan_id: `budget-plan-${index}`,
     revision_id: `budget-revision-${index}`,
-    requirements,
+    requirements: [...requirements],
     acceptance_criteria: [],
     groups: [],
     work_items: [],
   })
-  const render = (): string => `${JSON.stringify(fixture())}\n`
-  let raw = render()
-  while (Buffer.byteLength(raw) < desiredBytes) {
-    const remaining = desiredBytes - Buffer.byteLength(raw)
-    const last = requirements.at(-1)
-    if (last !== undefined && remaining <= TASK_PLAN_LIMITS.maxTextBytes - Buffer.byteLength(last.title)) {
-      last.title += 'x'.repeat(remaining)
-      raw = render()
-      continue
+  const requirements: { id: string; title: string }[] = []
+  let remaining = desiredBytes - Buffer.byteLength(revisionRaw(fixture([])))
+  for (;;) {
+    const id = `budget-req-${index}-${requirements.length}`
+    // One more array element: its object without a title, plus the comma that separates it from the previous element.
+    const overhead = Buffer.byteLength(JSON.stringify({ id, title: '' })) + (requirements.length === 0 ? 0 : 1)
+    const last = remaining - overhead
+    if (last < 0) throw new Error('Requested revision fixture is too small')
+    // The last title may be a little over FULL_TITLE (never over maxTextBytes) rather than a sliver that cannot hold an item.
+    if (last <= FULL_TITLE + 100) {
+      requirements.push({ id, title: 'x'.repeat(last) })
+      break
     }
-    requirements.push({ id: `budget-req-${index}-${requirements.length}`, title: '' })
-    raw = render()
-    const available = desiredBytes - Buffer.byteLength(raw)
-    if (available < 0) throw new Error('Requested revision fixture is too small')
-    requirements[requirements.length - 1]!.title = 'x'.repeat(Math.min(7_000, available))
-    raw = render()
+    requirements.push({ id, title: 'x'.repeat(FULL_TITLE) })
+    remaining -= overhead + FULL_TITLE
   }
-  if (Buffer.byteLength(raw) !== desiredBytes) throw new Error('Revision fixture size is not exact')
-  const encoded = revisionRaw(fixture())
-  if (Buffer.byteLength(encoded) !== desiredBytes) throw new Error('Encoded revision fixture size changed')
+  const encoded = revisionRaw(fixture(requirements))
+  if (Buffer.byteLength(encoded) !== desiredBytes) throw new Error('Encoded revision fixture size is not exact')
   return encoded
 }
 

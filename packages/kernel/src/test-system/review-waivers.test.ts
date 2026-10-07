@@ -197,6 +197,73 @@ describe('目录里项目级「不适用」声明的评审批准', () => {
   })
 })
 
+describe('声明早于任务起点就已提交：批准写回目录的那次改写（F19）', () => {
+  const CATALOG_PATH = '.tenon/tests/catalog.yaml'
+  const SLUG = 'tester-at-tenon.test'
+  const CATALOG = [
+    'schema: tenon-test-catalog/v1', 'suites: []', 'not_applicable:',
+    '  - { kind: typecheck, reason: 纯 JavaScript 项目, approved_by: null }', '',
+  ].join('\n')
+  const FROZEN = { ...SELECTION, waivers: [{ key: 'not-applicable:typecheck', reason: '纯 JavaScript 项目' }] }
+  const MODIFIED = { path: CATALOG_PATH, kind: 'catalog' as const, status: 'modified' as const, digest: 'sha256:other' }
+
+  async function writeCatalog(text = CATALOG): Promise<string> {
+    const path = testSystemPaths(dir).catalog
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, text, 'utf8')
+    return path
+  }
+
+  const approve = (protectedChanges: () => Promise<readonly (typeof MODIFIED)[]>) => approveFrozenWaivers({
+    repoRoot: dir, dir, change: 'demo', state: reviewState(), actor: ACTOR, recordedAt: STAMP, protectedChanges,
+  })
+
+  it('目录相对任务起点原样：批准写入之后的摘要被封存，目录算已批准', async () => {
+    await writeCatalog()
+    await writeReviewWaiverSelection(dir, FROZEN)
+    const outcome = await approve(async () => [])
+    expect(outcome).toMatchObject({ approved: ['not-applicable:typecheck'], protectedApproved: [CATALOG_PATH] })
+    const after = await protectedFileDigest(dir, CATALOG_PATH)
+    expect(isApproved((await readTestSeal(dir, SLUG)).seal, 'demo', CATALOG_PATH, after)).toBe(true)
+    expect(await readFile(testSystemPaths(dir).catalog, 'utf8')).toContain(`approved_by: ${ACTOR.id}`)
+  })
+
+  it('目录在任务里另有改动而冻结清单没带它：批准照写，但这次改写不被封存', async () => {
+    await writeCatalog()
+    await writeReviewWaiverSelection(dir, FROZEN)
+    const outcome = await approve(async () => [MODIFIED])
+    expect(outcome).toMatchObject({ approved: ['not-applicable:typecheck'], protectedApproved: [] })
+    expect((await readTestSeal(dir, SLUG)).seal.approvals).toEqual([])
+  })
+
+  it('检查与写入之间有人改了目录：拒绝，什么都不批准、不封存、不重写他的改动；重新确认之后正常', async () => {
+    const path = await writeCatalog()
+    await writeReviewWaiverSelection(dir, FROZEN)
+    const edited = CATALOG.replace('suites: []', 'suites: []\n# 检查期间有人手改了目录')
+    // 观察到目录原样、读完 diff 之后、写入之前，一次手改落了盘。
+    await expect(approve(async () => {
+      await writeFile(path, edited, 'utf8')
+      return []
+    })).rejects.toThrow('在评审确认的检查与写入之间被改动')
+    expect(await readFile(path, 'utf8')).toBe(edited)
+    expect((await readTestSeal(dir, SLUG)).seal.approvals).toEqual([])
+    // 同一条确认重试：这次 diff 里能看到那处改动（目录不再原样），声明照批，改写不被封存。
+    const retried = await approve(async () => [MODIFIED])
+    expect(retried).toMatchObject({ approved: ['not-applicable:typecheck'], protectedApproved: [] })
+    expect((await readTestSeal(dir, SLUG)).seal.approvals).toEqual([])
+  })
+
+  it('冻结清单已带着目录摘要时不再观察（摘要在请求时已冻结，封存走原来的路径）', async () => {
+    await writeCatalog()
+    const frozen: FrozenProtectedChange = { ...MODIFIED, digest: await protectedFileDigest(dir, CATALOG_PATH), origin: 'pending' }
+    await writeReviewWaiverSelection(dir, { ...FROZEN, protected: [frozen] })
+    let observed = false
+    const outcome = await approve(async () => { observed = true; return [] })
+    expect(observed).toBe(false)
+    expect(outcome).toMatchObject({ approved: ['not-applicable:typecheck'], protectedApproved: [CATALOG_PATH] })
+  })
+})
+
 describe('冻结清单里的受保护配置改动（R1 / R3）', () => {
   const KF_PATH = '.tenon/tests/known-failures.yaml'
   const CATALOG_PATH = '.tenon/tests/catalog.yaml'

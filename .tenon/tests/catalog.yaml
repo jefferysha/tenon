@@ -578,6 +578,16 @@ suites:
       format: exit-code
     tags:
       - slow
+  - id: update-rollback
+    label: 更新、回滚与回滚卡死恢复验收
+    kind: custom
+    runner: custom
+    command: npm run test:update-rollback
+    timeout_s: 3600
+    report:
+      format: exit-code
+    tags:
+      - slow
 services:
   - id: dashboard-e2e
     start: node e2e/dashboard/support/serve.mjs

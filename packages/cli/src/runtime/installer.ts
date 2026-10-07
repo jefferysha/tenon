@@ -1,7 +1,6 @@
-import { randomUUID } from 'node:crypto'
-import { mkdir, rm } from 'node:fs/promises'
+import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { atomicWriteFile, withLock } from '@tenon/kernel'
+import { withLock } from '@tenon/kernel'
 import {
   captureStableLaunchers,
   convergeStableLaunchers,
@@ -20,11 +19,8 @@ import type {
   TrustedExecutableProof,
 } from './types.js'
 import { createManagedReleaseJournal } from './managed-release-journal.js'
-import {
-  readRollbackJournal,
-  rollbackJournalPath,
-  selectionMatchesRollbackTarget,
-} from './runtime-rollback-journal.js'
+import { readRollbackJournal } from './runtime-rollback-journal.js'
+import { rollbackWithinTransaction, settlePendingRollback, type RuntimeRollbackContext } from './runtime-rollback.js'
 import {
   runtimePathsFor as pathsFor,
   runtimeStoreFor as storeFor,
@@ -307,87 +303,15 @@ async function recoverActivationWithinTransaction(
   )
 }
 
-async function rollbackWithinTransaction(
-  paths: RuntimePaths,
-  homeDir: string,
-  trustedBashPath: string | undefined,
-  verifyTrustedBash: (() => void) | undefined,
-  trustedNodePath: string | undefined,
-  trustedNodeProof: TrustedExecutableProof | undefined,
-  verifyTrustedNode: (() => void) | undefined,
-): Promise<RuntimeActivation> {
-  const store = transactionStore(paths, trustedBashPath, verifyTrustedBash, trustedNodePath, verifyTrustedNode)
-  let journal = await readRollbackJournal(paths)
-  if (journal === null) {
-    const before = await store.inspect()
-    if (!before.previousValid || before.previous === null || before.selection.previousRelease === null) {
-      throw new ManagedRuntimeIndeterminateError(
-        '没有可回滚的已验证 runtime release；请重新运行 tenon setup --<host>',
-      )
-    }
-    journal = {
-      version: 1,
-      transactionId: randomUUID(),
-      beforeSelection: before.selection,
-      target: {
-        revision: before.selection.revision + 1,
-        activeRelease: before.selection.previousRelease,
-        previousRelease: before.selection.activeRelease,
-      },
-      launchers: await captureStableLaunchers(paths, homeDir),
-    }
-    await atomicWriteFile(rollbackJournalPath(paths), `${JSON.stringify(journal, null, 2)}\n`)
-  }
-  const launcherSnapshot = journal.launchers
-  verifyTrustedNode?.()
-  const launcherCommitted = expectedStableLaunchers(paths, homeDir, trustedNodePath, trustedNodeProof)
-  let inspection = await store.inspect()
-  if (sameJson(inspection.selection, journal.beforeSelection)) {
-    const committed = await store.rollbackToPrevious()
-    if (!selectionMatchesRollbackTarget(committed.selection, journal.target)
-      || committed.release.releaseId !== journal.target.activeRelease) {
-      throw new ManagedRuntimeIndeterminateError('runtime rollback selection 未提交冻结目标')
-    }
-    inspection = await store.inspect()
-  }
-  if (inspection.auditPending === true) {
-    throw new ManagedRuntimeIndeterminateError(
-      'runtime rollback selection 已提交，但 terminal audit 尚未持久化；保留 rollback journal',
-    )
-  }
-  if (!selectionMatchesRollbackTarget(inspection.selection, journal.target)
-    || !inspection.activeValid || inspection.active?.releaseId !== journal.target.activeRelease) {
-    throw new ManagedRuntimeIndeterminateError(
-      'runtime rollback journal 与当前 selection 不一致；拒绝再次翻转或覆盖并发状态',
-    )
-  }
-  try {
-    await writeStableLaunchers(paths, homeDir, {
-      checkpoint: launcherSnapshot,
-      ...(trustedNodePath === undefined ? {} : { nodeExecutable: trustedNodePath }),
-      ...(trustedNodeProof === undefined ? {} : { nodeProof: trustedNodeProof }),
-      ...(verifyTrustedNode === undefined ? {} : { verifyNode: verifyTrustedNode }),
-    })
-    const exactLaunchers = await captureStableLaunchers(paths, homeDir)
-    if (!sameJson(exactLaunchers, launcherCommitted)) {
-      throw new ManagedRuntimeIndeterminateError('runtime rollback launcher pair 未收敛到冻结 Node 身份')
-    }
-    const persisted = await readRollbackJournal(paths)
-    if (persisted === null || persisted.transactionId !== journal.transactionId) {
-      throw new ManagedRuntimeIndeterminateError('runtime rollback journal owner 在提交前发生漂移')
-    }
-    await rm(rollbackJournalPath(paths))
-    return {
-      selection: inspection.selection,
-      release: inspection.active,
-      releaseRoot: join(paths.releasesRoot, inspection.active.releaseId),
-      launcherSnapshot,
-      launcherCommitted,
-    }
-  } catch (error) {
-    throw new ManagedRuntimeIndeterminateError(
-      `runtime rollback selection 已冻结；launcher 尚未收敛，请重跑同一 repair 命令：${String(error)}`,
-    )
+function rollbackContext(paths: RuntimePaths, scope: RuntimeInstallerScope): RuntimeRollbackContext {
+  return {
+    paths,
+    homeDir: scope.homeDir,
+    trustedBashPath: scope.trustedBashPath,
+    verifyTrustedBash: scope.verifyTrustedBash,
+    trustedNodePath: scope.trustedNodePath,
+    trustedNodeProof: scope.trustedNodeProof,
+    verifyTrustedNode: scope.verifyTrustedNode,
   }
 }
 
@@ -398,11 +322,10 @@ async function withExclusiveRuntimeTransaction<T>(
   const paths = pathsFor(scope)
   await mkdir(paths.managedTransactionRoot, { recursive: true })
   return withLock(paths.managedTransactionRoot, async () => {
-    if (await readRollbackJournal(paths) !== null) {
-      throw new ManagedRuntimeIndeterminateError(
-        '存在未完成的 runtime rollback；请先重跑 tenon runtime repair --rollback',
-      )
-    }
+    // A rollback journal still on disk is a rollback that began and never finished. Finish or discard it here; refusing
+    // would leave every install that an earlier release wedged with no way into setup or update.
+    const pendingRollback = await readRollbackJournal(paths)
+    if (pendingRollback !== null) await settlePendingRollback(rollbackContext(paths, scope), pendingRollback)
     return operation({
     checkpointActivation: () =>
       checkpointActivationWithinTransaction(
@@ -480,18 +403,7 @@ export const REAL_RUNTIME_INSTALLER: RuntimeInstaller = {
   async rollback(scope) {
     const paths = pathsFor(scope)
     await mkdir(paths.managedTransactionRoot, { recursive: true })
-    return withLock(
-      paths.managedTransactionRoot,
-      () => rollbackWithinTransaction(
-        paths,
-        scope.homeDir,
-        scope.trustedBashPath,
-        scope.verifyTrustedBash,
-        scope.trustedNodePath,
-        scope.trustedNodeProof,
-        scope.verifyTrustedNode,
-      ),
-    )
+    return withLock(paths.managedTransactionRoot, () => rollbackWithinTransaction(rollbackContext(paths, scope)))
   },
   recordUpdateFailure(scope, detail) {
     return storeFor(scope).recordUpdateFailure(detail)

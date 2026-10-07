@@ -36,18 +36,24 @@ export type UpdateOutcome<T> = { readonly ok: true; readonly value: T } | { read
 /**
  * 目录的读—改—写。目录不存在时从空目录起步；已存在但无效时拒绝（不覆盖人写坏的文件，先 validate 修好）。
  * mutate 返回新目录（原样返回入参表示没有改动，不落盘），或返回 string 拒绝；写出前再整份解析一遍，写坏的目录进不了盘。
+ *
+ * `observe` 在同一把锁内、读目录之前运行，它的结果作为 mutate 的第二个参数：写者要依据「写之前看到的目录状态」做判断
+ * （例如目录相对任务起点有没有改动）时，观察与写在同一个临界区里，两者之间不会插进另一个 Tenon 写者；人手直接改文件
+ * 不受这把锁约束，所以写者应在 mutate 里（同步、紧贴写盘）再核对一次文件摘要，不符就返回 string 拒绝。
  */
-export async function updateCatalog<T>(
+export async function updateCatalog<T, Seen = undefined>(
   repoRoot: string,
-  mutate: (current: TestCatalog) => { readonly catalog: TestCatalog; readonly value: T } | string,
+  mutate: (current: TestCatalog, seen: Seen) => { readonly catalog: TestCatalog; readonly value: T } | string,
+  observe?: () => Promise<Seen>,
 ): Promise<UpdateOutcome<T>> {
   const paths = testSystemPaths(repoRoot)
   await mkdir(paths.root, { recursive: true })
   return withLock(paths.root, async () => {
+    const seen = observe === undefined ? undefined as Seen : await observe()
     const current = await readCatalogFile(repoRoot)
     if (current.state === 'invalid') return { ok: false, message: `catalog.yaml 无效，先修好再改：${current.issues.slice(0, 3).join('；')}` }
     const base = current.state === 'ok' ? current.catalog : emptyCatalog()
-    const result = mutate(base)
+    const result = mutate(base, seen)
     if (typeof result === 'string') return { ok: false, message: result }
     // 原样返回入参 = 没有改动：不重写文件（重写会把人手写的注释和排版规范化掉）。
     if (result.catalog === base) return { ok: true, value: result.value }

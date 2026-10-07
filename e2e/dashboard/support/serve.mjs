@@ -3,7 +3,7 @@
  * Dashboard e2e 的被测服务：目录里的 `dashboard-e2e` 服务（也可由 Playwright 的 globalSetup 直接拉起）。
  *
  * 做三件事，全程与开发机隔离（隔离方式见 tools/lib/isolated-tenon.mjs）：
- *   1. 在系统临时目录建一个独立根：HOME、TENON_RUNTIME_HOME 与两个种子项目都在里面。
+ *   1. 在系统临时目录建一个独立根：HOME、TENON_RUNTIME_HOME 与三个种子项目（demo、sandbox、review）都在里面。
  *   2. 用已构建的 CLI（packages/cli/dist/tenon.mjs）播种项目，再用同一个 CLI 的 `dashboard --port <空闲端口>` 启动服务。
  *   3. 服务健康后照支持的方式登录：server 只把一次性登录链接打印给启动者（startDashboard 设了
  *      TENON_DASHBOARD_PRINT_LINK=1，读自己创建的日志）并换出会话 cookie。地址、路径和这个 cookie 写到
@@ -17,7 +17,7 @@ import { join } from 'node:path'
 import {
   REPO_ROOT, createScratch, installFakeBrowserOpener, isolatedEnv, removeScratch, startDashboard, stopGroup,
 } from '../../../tools/lib/isolated-tenon.mjs'
-import { seedDemo, seedSandbox } from './seed.mjs'
+import { seedDemo, seedReview, seedSandbox } from './seed.mjs'
 
 const STATE_DIR = join(REPO_ROOT, 'test-results', 'dashboard-e2e-server')
 const STATE_FILE = join(STATE_DIR, 'server.json')
@@ -29,8 +29,10 @@ async function main() {
   const { scratch, home, runtime, node } = createScratch('tenon-e2e')
   const project = join(scratch, 'demo')
   const sandbox = join(scratch, 'sandbox')
+  const review = join(scratch, 'review')
   mkdirSync(project)
   mkdirSync(sandbox)
+  mkdirSync(review)
   // server 的 `POST /api/session/open` 把登录链接交给桌面 opener；这里的 opener 只是把 URL 记进文件，绝不打开开发机的浏览器。
   const openedUrlFile = join(scratch, 'opened-url.txt')
   const env = installFakeBrowserOpener(join(scratch, 'fake-browser'), openedUrlFile, isolatedEnv({ home, runtime, node }))
@@ -51,9 +53,10 @@ async function main() {
   try {
     seedSandbox({ env, sandbox })
     seedDemo({ env, project })
+    seedReview({ env, review })
     server = await startDashboard({ env, cwd: scratch, logFile: LOG_FILE })
     writeFileSync(STATE_FILE, `${JSON.stringify({
-      url: server.url, port: server.port, pid: process.pid, serverPid: server.child.pid, scratch, home, runtime, project, sandbox,
+      url: server.url, port: server.port, pid: process.pid, serverPid: server.child.pid, scratch, home, runtime, project, sandbox, review,
       session: { name: server.session.name, value: server.session.value }, openedUrlFile,
     }, null, 2)}\n`)
     process.stdout.write(`dashboard-e2e ready ${server.url}\n`)

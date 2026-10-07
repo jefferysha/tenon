@@ -129,6 +129,42 @@ CLI 的帮助、用法错误和最常见的错误按 `TENON_LANG=en|zh`，其次
 没有语言信号、或 `LC_ALL=C`/`POSIX`（hook 为输出稳定会这样钉）时保持历史的中文输出。消息码和退出码与语言无关。
 `tenon transition` 遇到非法或未知 event 时，会用当前语言列出当前 step 的合法 event。
 
+#### 回滚、更新、setup 都因「未完成的回滚」被拒绝（v0.2.1 到 v0.3.1）
+
+v0.2.1 到 v0.3.1 里，`tenon update` 之后运行 `tenon runtime repair --rollback`，在正常安装上会失败，报
+`rollback refuses a third-party launcher checkpoint: tenon`。这时选择已经换到了上一份 release（`tenon runtime status` 里它是 active），
+但回滚日志 `runtime-rollback.json` 被留了下来；之后 `tenon runtime repair --rollback`、`tenon update`、`tenon setup` 都以
+`存在未完成的 runtime rollback；请先重跑 tenon runtime repair --rollback` 拒绝，重跑那条命令也一样失败。
+
+原因是同一份文件有两个生成器、内容漂移了：安装器会在稳定 launcher 里写 `export TENON_NODE_PATH=…`，bootstrap 自己生成的 launcher 文本没有这一行，
+于是 bootstrap 在已经翻转选择之后，把安装器写的 launcher 当成第三方文件拒绝。除了遗留的日志，没有任何东西损坏。
+
+你手头的 Tenon 修不了它：`tenon update` 与 `tenon setup` 跑的是你回滚到的那份 release，`tenon runtime repair --rollback` 跑的是那份 release
+装下的 bootstrap，两者都是旧代码。对该宿主运行一次 v0.3.2 的版本化 `install.sh`。它不经过 launcher，它运行的 setup 会先收尾遗留的回滚，再装 v0.3.2：
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.3.2/install.sh | /bin/bash -s -- --codex
+# 或
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.3.2/install.sh | /bin/bash -s -- --claude
+```
+
+setup 按选择的状态处理这份日志。选择就是日志的目标（上面的情形）：把 launcher 一对收敛好、删掉日志，runtime 停在你回滚到的那份 release，直到安装激活 v0.3.2。
+选择还是日志的起点：回滚根本没有生效，直接删掉日志。两者都不是：说明有别的东西改过选择，setup 拒绝，`tenon runtime status` 能看到现状。
+之后 `tenon runtime status` 与 `tenon doctor` 显示 active release 有效，上一份 release 就是你回滚到的那一份。
+
+从 v0.3.2 起，bootstrap 写出的 launcher 字节与安装器完全一致（有测试固定了两种模式下的整份文本），并且在移动选择之前先证明 launcher 一对，
+所以被拒绝的回滚什么都不改，也不留日志。回滚在选择移动之后被打断时，`tenon update` 与 `tenon setup` 会把它收尾而不是拒绝，同一条 `tenon runtime repair --rollback` 也一样。
+
+#### 回滚之后 `tenon doctor` 的 `identity:release` 是 WARN
+
+回滚只换受管 runtime。宿主插件和仍在运行的 Dashboard 还是较新的那份 release，所以发布身份对不上。这是状态而不是损坏，v0.3.2 起 doctor 把它报成写明原因的警告。
+只有回滚是最近一次 runtime 事件、且宿主插件恰好就是被回滚掉的那份时才这样报，其他任何不一致仍是红灯。二选一：
+
+- 回到较新的 release：`tenon update --codex`（或 `--claude`），这会撤销这次回滚；
+- 留在旧 release，让宿主插件跟上：`tenon setup --codex`（或 `--claude`）把宿主插件重新绑定到你正在运行的 runtime 的发布版本。
+
+两者都不做，继续用回滚后的 runtime 也可以。
+
 #### 命令或 hook 报 `tenon runtime Node identity changed`
 
 稳定 launcher 会钉住 setup 时选定的 Node：路径上没有符号链接，Node 的 inode、权限位、属主和大小，每级父目录的 inode、权限位和属主，以及 Node 字节的 SHA-256。v0.2.0 还钉了设备号，而 macOS 每次重启都会换设备号，于是重启后所有命令和 hook 都失败。v0.2.1 不再保存设备号。
