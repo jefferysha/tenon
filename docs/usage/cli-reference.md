@@ -230,9 +230,14 @@ parser reads either shape into the same `<bench name>.mean_ms`, `.p99_ms` and `.
 JSON reporter's `benchmarks[].tasks[]`; results replayed with `bench.from()` are not measured by the
 run and are skipped), so the metric names declared in the catalog carry over; the two vitest
 generations use different statistics engines and their numbers are not guaranteed to be comparable,
-so rebuild the baseline (`tenon test baseline`) after a major upgrade. When the major version cannot be
+so rebuild the baseline (`tenon test baseline`) after a major upgrade. The bench name is the metric
+name, so two benchmarks with the same name (or names that differ only in punctuation, which the metric
+name drops) make the report fail to parse with the duplicate named, instead of one silently
+overwriting the other; give every `bench()` its own name. When the major version cannot be
 determined (vitest neither installed nor declared with a range that fixes one, such as `latest`,
-`workspace:*`, `catalog:` or `>=3`), discover does not write a benchmark suite, because a command that
+`workspace:*`, `catalog:` or `>=3`; or the nearest `node_modules/vitest` has no readable `x.y.z`
+version in its `package.json`, a half-finished install, in which case discover neither looks at a
+farther install nor falls back to the declared range), discover does not write a benchmark suite, because a command that
 is right for one major version exits `1` on the other: it prints a note with both `catalog add`
 commands instead, so install the dependencies and run `tenon test discover` again or register the
 suite by hand. On vitest 5 and later, a bench file that still imports the module-level `bench` from

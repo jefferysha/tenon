@@ -4,8 +4,10 @@
  *
  * 取证顺序：先看实际装了什么（从工程目录向上到仓库根，逐层找 `node_modules/vitest/package.json`，与 Node 的解析顺序一致，
  * monorepo 里提升到根的依赖也能读到），再看 package.json 声明的范围（同样从近到远）。装的版本永远压过声明——
- * `^4.1` 声明下装了 5 也按 5 算。两处都读不出主版本时返回 undefined，调用方必须按「不确定」处理，不能默认某个版本。
+ * `^4.1` 声明下装了 5 也按 5 算。最近的 `node_modules/vitest` 在但它的 package.json 读不出 `x.y.z` 版本（半截安装、损坏）时同样返回
+ * undefined：既不越过它去采信更远处的一份，也不退回声明。两处都读不出主版本时返回 undefined，调用方必须按「不确定」处理，不能默认某个版本。
  */
+import { lstat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { isRecord } from './parsers/json.js'
 import { readSmallText, type ProjectDir } from './discover-support.js'
@@ -62,13 +64,34 @@ async function readJsonRecord(path: string): Promise<Readonly<Record<string, unk
   }
 }
 
+type InstalledVitest =
+  | { readonly state: 'absent' }
+  /** `node_modules/vitest` 在，但读不出一个 `x.y.z` 版本（package.json 缺失 / 读不了 / 不是合法 JSON / name 不是 vitest / 版本号坏了）。 */
+  | { readonly state: 'invalid' }
+  | { readonly state: 'ok'; readonly major: number; readonly raw: string }
+
+async function readInstalledVitest(level: string): Promise<InstalledVitest> {
+  const root = resolve(level, 'node_modules', 'vitest')
+  try {
+    await lstat(root)
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    return code === 'ENOENT' || code === 'ENOTDIR' ? { state: 'absent' } : { state: 'invalid' }
+  }
+  const manifest = await readJsonRecord(resolve(root, 'package.json'))
+  if (manifest === undefined || manifest.name !== 'vitest' || typeof manifest.version !== 'string') return { state: 'invalid' }
+  const major = majorOfInstalledVersion(manifest.version)
+  return major === undefined ? { state: 'invalid' } : { state: 'ok', major, raw: manifest.version }
+}
+
 export async function detectVitestVersion(dir: ProjectDir): Promise<VitestVersion | undefined> {
   const levels = ancestorsToRoot(dir)
   for (const level of levels) {
-    const installed = await readJsonRecord(resolve(level, 'node_modules', 'vitest', 'package.json'))
-    if (installed === undefined || installed.name !== 'vitest' || typeof installed.version !== 'string') continue
-    const major = majorOfInstalledVersion(installed.version)
-    if (major !== undefined) return { major, source: 'installed', raw: installed.version }
+    const installed = await readInstalledVitest(level)
+    if (installed.state === 'absent') continue
+    // 最近的一份 vitest 就是 Node 会解析到的那份：它坏了（半截安装、package.json 读不了）就是「不知道」，
+    // 不能越过它去采信更远处的一份，也不退回声明——那样选出的命令可能对应的是另一份根本不会被运行的 vitest。
+    return installed.state === 'ok' ? { major: installed.major, source: 'installed', raw: installed.raw } : undefined
   }
   for (const level of levels) {
     const manifest = await readJsonRecord(resolve(level, 'package.json'))

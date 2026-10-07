@@ -314,8 +314,10 @@ vitest 工程里的 `*.bench.*` 文件会识别成 `vitest-bench` 基准套件�
 两者都写 `test-results/bench.json`，套件的报告格式仍是 `benchmark-json`；解析器把两种形状读成同样的
 `<基准名>.mean_ms`、`.p99_ms`、`.hz` 样本（vitest 5 取 json reporter 里 `benchmarks[].tasks[]` 的 `latency.mean`、`latency.p99`（毫秒）
 和 `throughput.mean`（每秒次数）；`bench.from()` 读回的存档结果不是这次测的，跳过），所以目录里声明的指标名不用改；两代 vitest 的统计引擎
-不同，数值不保证可比，升级主版本后用 `tenon test baseline` 重建基线。
-读不出主版本时（vitest 没装、`package.json` 里的写法也定不下主版本，例如 `latest`、`workspace:*`、`catalog:`、`>=3`），discover
+不同，数值不保证可比，升级主版本后用 `tenon test baseline` 重建基线。基准名就是指标名，所以两个基准重名（或只有标点不同，
+指标名会把标点去掉）时，报告会解析失败并点名重名的基准，而不是让后一个悄悄盖掉前一个；给每个 `bench()` 起不同的名字。
+读不出主版本时（vitest 没装、`package.json` 里的写法也定不下主版本，例如 `latest`、`workspace:*`、`catalog:`、`>=3`；或最近的 `node_modules/vitest` 的 `package.json` 读不出 `x.y.z` 版本，即安装到一半——这时既不去看更远的安装，
+也不退回声明的范围），discover
 不生成基准套件——同一条命令对一个主版本是对的，对另一个就直接 exit `1`：改为给出带两种命令的 `catalog add` 提示，装好依赖后重跑
 `tenon test discover`，或照提示手工登记。vitest 5 及以上，bench 文件里还从 `'vitest'` 导入模块级 `bench` 的
 （`import { bench } from 'vitest'`、`import { describe, bench } from 'vitest'`，多行导入与 CommonJS `require` 也算）必然报

@@ -100,12 +100,50 @@ describe('detectVitestVersion', () => {
     }
   })
 
-  it('node_modules/vitest 不是 vitest（name 不对）/ 版本号坏了 / JSON 坏了 → 忽略它，退回声明', async () => {
-    const declared = { 'package.json': manifest('devDependencies', '^3.2.0') }
-    for (const text of [installed('5.0.3', 'not-vitest'), installed('latest'), '{ not json', '[]', JSON.stringify({ name: 'vitest' })]) {
-      await put({ ...declared, 'node_modules/vitest/package.json': text })
-      expect(await detectVitestVersion(projectDir('.')), text).toEqual({ major: 3, source: 'declared', raw: '^3.2.0' })
-    }
+  const BROKEN: ReadonlyArray<readonly [string, string]> = [
+    ['name 不是 vitest', installed('5.0.3', 'not-vitest')],
+    ['版本号不是 x.y.z', installed('latest')],
+    ['JSON 坏了', '{ not json'],
+    ['顶层不是对象', '[]'],
+    ['缺 version', JSON.stringify({ name: 'vitest' })],
+    ['空文件', ''],
+  ]
+
+  it.each(BROKEN)('最近的 node_modules/vitest 在、但 package.json %s → 未知，不退回声明', async (_why, text) => {
+    await put({ 'package.json': manifest('devDependencies', '^3.2.0'), 'node_modules/vitest/package.json': text })
+    expect(await detectVitestVersion(projectDir('.'))).toBeUndefined()
+  })
+
+  it.each(BROKEN)('子包最近的 node_modules/vitest 在、但 package.json %s → 未知，不越过它去采信仓库根里读得出的那份', async (_why, text) => {
+    await put({
+      'node_modules/vitest/package.json': installed('5.0.3'),
+      'packages/app/package.json': manifest('devDependencies', '^5.0.0'),
+      'packages/app/node_modules/vitest/package.json': text,
+    })
+    expect(await detectVitestVersion(projectDir('packages/app'))).toBeUndefined()
+    expect(await detectVitestVersion(projectDir('.'))).toMatchObject({ major: 5, source: 'installed' })
+  })
+
+  it('node_modules/vitest 是空目录（半截安装，没有 package.json）→ 未知，不越过它', async () => {
+    await put({ 'node_modules/vitest/package.json': installed('5.0.3'), 'packages/app/package.json': '{}' })
+    await mkdir(join(repo, 'packages', 'app', 'node_modules', 'vitest'), { recursive: true })
+    expect(await detectVitestVersion(projectDir('packages/app'))).toBeUndefined()
+  })
+
+  it('node_modules/vitest 是悬空软链（指向已被删掉的目标）→ 未知，不越过它', async () => {
+    await put({ 'node_modules/vitest/package.json': installed('5.0.3'), 'packages/app/package.json': '{}' })
+    await mkdir(join(repo, 'packages', 'app', 'node_modules'), { recursive: true })
+    await symlink(join(repo, 'gone'), join(repo, 'packages', 'app', 'node_modules', 'vitest'), 'dir')
+    expect(await detectVitestVersion(projectDir('packages/app'))).toBeUndefined()
+  })
+
+  it('这一层没有 node_modules/vitest（只有别的包）才继续往上找', async () => {
+    await put({
+      'node_modules/vitest/package.json': installed('4.1.11'),
+      'packages/app/package.json': '{}',
+      'packages/app/node_modules/other/package.json': installed('1.0.0', 'other'),
+    })
+    expect(await detectVitestVersion(projectDir('packages/app'))).toEqual({ major: 4, source: 'installed', raw: '4.1.11' })
   })
 
   it('node_modules 是软链（pnpm / 测试夹具共用 node_modules）也能读到', async () => {
