@@ -3031,7 +3031,7 @@ var require_commander = __commonJS({
 
 // packages/cli/src/main.ts
 import { execFile as execFile18, spawn as spawn11 } from "node:child_process";
-import { existsSync as existsSync16, readFileSync as readFileSync45 } from "node:fs";
+import { existsSync as existsSync16, readFileSync as readFileSync46 } from "node:fs";
 import { readFile as readFile105, stat as stat19, writeFile as writeFile40 } from "node:fs/promises";
 import { homedir as homedir25 } from "node:os";
 import { dirname as dirname52, join as join190 } from "node:path";
@@ -10612,11 +10612,11 @@ function parseProgress(text13, loopIds, now) {
     if (!known.has(loopCol))
       continue;
     const rowText = cols.join("|");
-    const rm31 = rowText.match(RESULT_RE);
+    const rm32 = rowText.match(RESULT_RE);
     const dm = rowText.match(DRY_COUNT_RE);
     required(rowsByLoop.get(loopCol)).push({
       ts: parseTimestamp(required(cols[0]), now),
-      result: rm31 ? rm31[1] : null,
+      result: rm32 ? rm32[1] : null,
       dryCount: dm ? Number(dm[1]) : null
     });
   }
@@ -28635,19 +28635,19 @@ function decodeEntry(node, sink) {
   const suite2 = str(field(map, "suite"), sink, "\u5DF2\u77E5\u5931\u8D25 suite", map.line, { pattern: SUITE_ID_RE });
   const test = str(field(map, "test"), sink, "\u5DF2\u77E5\u5931\u8D25 test", map.line);
   const reason3 = str(field(map, "reason"), sink, "\u5DF2\u77E5\u5931\u8D25 reason", map.line, { maxBytes: 1e3 });
-  const link6 = optionalStr(field(map, "link"), sink, "\u5DF2\u77E5\u5931\u8D25 link", { pattern: /^https?:\/\/\S+$/, hint: "http(s) \u94FE\u63A5" });
+  const link7 = optionalStr(field(map, "link"), sink, "\u5DF2\u77E5\u5931\u8D25 link", { pattern: /^https?:\/\/\S+$/, hint: "http(s) \u94FE\u63A5" });
   const expires = str(field(map, "expires"), sink, "\u5DF2\u77E5\u5931\u8D25 expires", map.line, { pattern: DATE_RE, hint: "YYYY-MM-DD" });
   const addedBy = str(field(map, "added_by"), sink, "\u5DF2\u77E5\u5931\u8D25 added_by", map.line, { maxBytes: 320 });
   if (suite2 === void 0 || test === void 0 || reason3 === void 0 || expires === void 0 || addedBy === void 0)
     return void 0;
-  if (field(map, "link") !== void 0 && link6 === void 0)
+  if (field(map, "link") !== void 0 && link7 === void 0)
     return void 0;
   const ref = parseCaseRef(test);
   if (ref === void 0)
     return sink.add(map.line, `\u5DF2\u77E5\u5931\u8D25 test '${test}' \u975E\u6CD5\uFF08<\u6587\u4EF6> \u203A <\u7528\u4F8B\u540D>\uFF09`);
   if (ref.title.length === 0)
     return sink.add(map.line, `\u5DF2\u77E5\u5931\u8D25 test '${test}' \u53EA\u6307\u5411\u6587\u4EF6\uFF1B\u5FC5\u987B\u6307\u5411\u5177\u4F53\u7528\u4F8B\uFF08<\u6587\u4EF6> \u203A <\u7528\u4F8B\u540D>\uFF09`);
-  return { suite: suite2, test, reason: reason3, ...link6 === void 0 ? {} : { link: link6 }, expires, added_by: addedBy };
+  return { suite: suite2, test, reason: reason3, ...link7 === void 0 ? {} : { link: link7 }, expires, added_by: addedBy };
 }
 function parseKnownFailures(text13) {
   let root;
@@ -29596,6 +29596,7 @@ function planKindsSatisfy(policy2, suiteKinds, required3) {
 
 // packages/kernel/dist/test-system/protected-files.js
 import { createHash as createHash21 } from "node:crypto";
+import { lstatSync as lstatSync3, readFileSync as readFileSync11 } from "node:fs";
 import { lstat as lstat29, readFile as readFile36 } from "node:fs/promises";
 import { join as join46 } from "node:path";
 
@@ -30173,8 +30174,21 @@ async function digestOfFile(path15) {
     return error2.code === "ENOENT" ? DELETED_DIGEST : "unreadable";
   }
 }
+function digestOfFileSync(path15) {
+  try {
+    const entry2 = lstatSync3(path15);
+    if (!entry2.isFile() || entry2.size > MAX_PROTECTED_BYTES)
+      return "unreadable";
+    return `sha256:${createHash21("sha256").update(readFileSync11(path15)).digest("hex")}`;
+  } catch (error2) {
+    return error2.code === "ENOENT" ? DELETED_DIGEST : "unreadable";
+  }
+}
 function protectedFileDigest(repoRoot, path15) {
   return digestOfFile(join46(repoRoot, ...path15.split("/")));
+}
+function protectedFileDigestSync(repoRoot, path15) {
+  return digestOfFileSync(join46(repoRoot, ...path15.split("/")));
 }
 async function protectedApprovalDigests(repoRoot, paths) {
   const entries2 = [];
@@ -32313,15 +32327,16 @@ async function readCatalogFile(repoRoot) {
   const parsed2 = parseTestCatalog(text13);
   return parsed2.ok ? { state: "ok", catalog: parsed2.catalog } : { state: "invalid", issues: formatCatalogIssues(parsed2.issues) };
 }
-async function updateCatalog(repoRoot, mutate) {
+async function updateCatalog(repoRoot, mutate, observe) {
   const paths = testSystemPaths(repoRoot);
   await mkdir23(paths.root, { recursive: true });
   return withLock(paths.root, async () => {
+    const seen = observe === void 0 ? void 0 : await observe();
     const current = await readCatalogFile(repoRoot);
     if (current.state === "invalid")
       return { ok: false, message: `catalog.yaml \u65E0\u6548\uFF0C\u5148\u4FEE\u597D\u518D\u6539\uFF1A${current.issues.slice(0, 3).join("\uFF1B")}` };
     const base = current.state === "ok" ? current.catalog : emptyCatalog();
-    const result2 = mutate(base);
+    const result2 = mutate(base, seen);
     if (typeof result2 === "string")
       return { ok: false, message: result2 };
     if (result2.catalog === base)
@@ -32482,6 +32497,10 @@ async function catalogUntouchedSinceChangeStart(input2) {
     return false;
   }
 }
+async function sightCatalog(input2) {
+  const digest19 = await protectedFileDigest(input2.repoRoot, PROTECTED_CATALOG_PATH);
+  return { digest: digest19, untouched: await catalogUntouchedSinceChangeStart(input2) };
+}
 async function pendingReviewWaivers(input2) {
   const [plan, catalog3] = await Promise.all([
     readTestPlanState(input2.dir, input2.change),
@@ -32525,16 +32544,19 @@ async function approveFrozenWaivers(input2) {
     if (catalog3?.state !== "ok") {
       note2 = `${note2 === null ? "" : `${note2}\uFF1B`}\u6D4B\u8BD5\u76EE\u5F55\uFF08catalog.yaml\uFF09${catalog3?.state === "missing" ? "\u4E0D\u5B58\u5728" : "\u65E0\u6548\u6216\u8BFB\u4E0D\u4E86"}\uFF0C\u672A\u6279\u51C6\u300C\u4E0D\u9002\u7528\u300D\u58F0\u660E`;
     } else {
-      const sealsItself = !checked.matched.some((item2) => item2.kind === "catalog") && await catalogUntouchedSinceChangeStart(input2);
-      const outcome = await updateCatalog(input2.repoRoot, (current) => {
+      const frozenCatalog = checked.matched.find((item2) => item2.kind === "catalog");
+      const outcome = await updateCatalog(input2.repoRoot, (current, sighted) => {
+        if (sighted?.untouched === true && protectedFileDigestSync(input2.repoRoot, PROTECTED_CATALOG_PATH) !== sighted.digest) {
+          return "catalog.yaml \u5728\u8BC4\u5BA1\u786E\u8BA4\u7684\u68C0\u67E5\u4E0E\u5199\u5165\u4E4B\u95F4\u88AB\u6539\u52A8\uFF1B\u672A\u6279\u51C6\u4EFB\u4F55\u300C\u4E0D\u9002\u7528\u300D\u58F0\u660E\uFF0C\u8BF7\u91CD\u65B0\u8FD0\u884C\u540C\u4E00\u6761\u786E\u8BA4";
+        }
         const result2 = approveNotApplicable(current, catalogPart, input2.actor.id);
-        return { catalog: result2.catalog, value: result2 };
-      });
+        return { catalog: result2.catalog, value: { result: result2, sealsItself: sighted?.untouched === true } };
+      }, () => frozenCatalog === void 0 ? sightCatalog(input2) : Promise.resolve(void 0));
       if (!outcome.ok)
         throw new Error(outcome.message);
-      approved.push(...outcome.value.approved);
-      skipped.push(...outcome.value.skipped);
-      ownCatalogWrite = sealsItself && outcome.value.approved.length > 0;
+      approved.push(...outcome.value.result.approved);
+      skipped.push(...outcome.value.result.skipped);
+      ownCatalogWrite = outcome.value.sealsItself && outcome.value.result.approved.length > 0;
     }
   }
   const catalogWrite = {
@@ -35487,7 +35509,7 @@ function serializeTrackRegistry(config) {
 
 // packages/kernel/dist/tracks/registry.js
 import { createHash as createHash23 } from "node:crypto";
-import { readFileSync as readFileSync11 } from "node:fs";
+import { readFileSync as readFileSync12 } from "node:fs";
 import { mkdir as mkdir27, readFile as readFile47 } from "node:fs/promises";
 import path8 from "node:path";
 var TENON_DIR = ".pipeline";
@@ -35570,7 +35592,7 @@ function synthesize(text13, context) {
 function loadTrackRegistry(repoRoot, context) {
   let text13 = null;
   try {
-    text13 = readFileSync11(trackRegistryPath(repoRoot), "utf8");
+    text13 = readFileSync12(trackRegistryPath(repoRoot), "utf8");
   } catch (e) {
     if (e.code !== "ENOENT")
       throw e;
@@ -35776,7 +35798,7 @@ function resolveTrackForBranch(registry, id2, workflow) {
 }
 
 // packages/kernel/dist/mem/fs.js
-import { closeSync, existsSync as existsSync4, fstatSync, openSync, opendirSync, readFileSync as readFileSync12, readSync, readdirSync as readdirSync2, realpathSync, statSync as statSync2 } from "node:fs";
+import { closeSync, existsSync as existsSync4, fstatSync, openSync, opendirSync, readFileSync as readFileSync13, readSync, readdirSync as readdirSync2, realpathSync, statSync as statSync2 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
 var MEM_SESSION_METADATA_BYTES = 8 * 1024;
 function readMemSessionMetadataChecked(fs, path15) {
@@ -35882,7 +35904,7 @@ function nodeMemFs(homeOverride) {
     readDirBounded: readDirectoryBounded,
     readText: (p) => {
       try {
-        return readFileSync12(p, "utf8");
+        return readFileSync13(p, "utf8");
       } catch {
         return void 0;
       }
@@ -38702,8 +38724,8 @@ function parseRunHistory(text13, loopId) {
       continue;
     if (!HIST_TS_RE.test(required(cols[0])))
       continue;
-    const rm31 = line.match(HIST_RESULT_RE);
-    results.push(rm31 ? rm31[1] : null);
+    const rm32 = line.match(HIST_RESULT_RE);
+    results.push(rm32 ? rm32[1] : null);
   }
   let failStreak = 0;
   for (let i = results.length - 1; i >= 0; i--) {
@@ -38887,7 +38909,7 @@ async function applyLevelChange(repoRoot, loopId, target, opts, fs) {
 }
 
 // packages/kernel/dist/loops/drafts.js
-import { readFileSync as readFileSync13 } from "node:fs";
+import { readFileSync as readFileSync14 } from "node:fs";
 import { mkdir as mkdir28, rename as rename11, writeFile as writeFile17 } from "node:fs/promises";
 import { dirname as dirname11, join as join62 } from "node:path";
 var DRAFT_MARKS_FILE = "loops.drafts.json";
@@ -38896,7 +38918,7 @@ function draftMarksPath(repoRoot) {
 }
 function readDraftMarks(path15) {
   try {
-    const data = JSON.parse(readFileSync13(path15, "utf8"));
+    const data = JSON.parse(readFileSync14(path15, "utf8"));
     if (typeof data === "object" && data !== null && !Array.isArray(data) && data.version === 1 && Array.isArray(data.ids) && data.ids.every((x) => typeof x === "string")) {
       return [...data.ids];
     }
@@ -41083,14 +41105,14 @@ import { createHash as createHash28 } from "node:crypto";
 import { isAbsolute as isAbsolute13, join as join66, posix as posix3 } from "node:path";
 
 // packages/kernel/dist/compress/handoff.js
-import { existsSync as existsSync5, readFileSync as readFileSync14 } from "node:fs";
+import { existsSync as existsSync5, readFileSync as readFileSync15 } from "node:fs";
 import { isAbsolute as isAbsolute11, join as join65 } from "node:path";
 function nodeHandoffFs() {
   return {
     exists: (p) => existsSync5(p),
     readText: (p) => {
       try {
-        return readFileSync14(p, "utf8");
+        return readFileSync15(p, "utf8");
       } catch {
         return void 0;
       }
@@ -45943,7 +45965,7 @@ async function evaluateStepExitReport(input2) {
 }
 
 // packages/kernel/dist/infrastructure/guard-file-context.js
-import { closeSync as closeSync2, constants as constants5, fstatSync as fstatSync2, lstatSync as lstatSync3, openSync as openSync2, readSync as readSync2, readdirSync as readdirSync3, readFileSync as readFileSync15, realpathSync as realpathSync2, statSync as statSync4 } from "node:fs";
+import { closeSync as closeSync2, constants as constants5, fstatSync as fstatSync2, lstatSync as lstatSync4, openSync as openSync2, readSync as readSync2, readdirSync as readdirSync3, readFileSync as readFileSync16, realpathSync as realpathSync2, statSync as statSync4 } from "node:fs";
 import { dirname as dirname12, isAbsolute as isAbsolute14, join as join68, relative as relative9, sep as sep10 } from "node:path";
 function sameBoundedFile(left, right) {
   return left.dev === right.dev && left.ino === right.ino && left.size === right.size && left.mtimeNs === right.mtimeNs && left.ctimeNs === right.ctimeNs;
@@ -45952,7 +45974,7 @@ function boundedAncestors(root, path15) {
   const fromRoot = relative9(root, path15);
   if (fromRoot === "" || fromRoot === ".." || fromRoot.startsWith(`..${sep10}`) || isAbsolute14(fromRoot))
     return void 0;
-  const rootInfo = lstatSync3(root, { bigint: true });
+  const rootInfo = lstatSync4(root, { bigint: true });
   if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink())
     return void 0;
   const rootReal = realpathSync2(root);
@@ -45962,7 +45984,7 @@ function boundedAncestors(root, path15) {
   let candidate2 = root;
   for (const segment of segments) {
     candidate2 = join68(candidate2, segment);
-    const info = lstatSync3(candidate2, { bigint: true });
+    const info = lstatSync4(candidate2, { bigint: true });
     if (!info.isDirectory() || info.isSymbolicLink())
       return void 0;
     ancestors.push({ path: candidate2, info, real: realpathSync2(candidate2) });
@@ -45975,7 +45997,7 @@ function boundedAncestors(root, path15) {
 }
 function sameBoundedAncestors(ancestors) {
   return ancestors.every((ancestor) => {
-    const current = lstatSync3(ancestor.path, { bigint: true });
+    const current = lstatSync4(ancestor.path, { bigint: true });
     return current.isDirectory() && !current.isSymbolicLink() && sameBoundedFile(ancestor.info, current) && realpathSync2(ancestor.path) === ancestor.real;
   });
 }
@@ -45988,7 +46010,7 @@ function readBoundedRegularFileSync(path15, maxBytes, root, hooks = {}) {
     const ancestors = boundedAncestors(root, path15);
     if (ancestors === void 0 || !sameBoundedAncestors(ancestors))
       return { kind: "invalid" };
-    const lexical = lstatSync3(path15, { bigint: true });
+    const lexical = lstatSync4(path15, { bigint: true });
     inspected = true;
     if (!lexical.isFile() || lexical.size > BigInt(maxBytes))
       return { kind: "invalid" };
@@ -46007,7 +46029,7 @@ function readBoundedRegularFileSync(path15, maxBytes, root, hooks = {}) {
     if (length > maxBytes || BigInt(length) !== opened.size)
       return { kind: "invalid" };
     const after = fstatSync2(fd, { bigint: true });
-    const current = lstatSync3(path15, { bigint: true });
+    const current = lstatSync4(path15, { bigint: true });
     if (!sameBoundedFile(opened, after) || !sameBoundedFile(opened, current) || !sameBoundedAncestors(ancestors))
       return { kind: "invalid" };
     return {
@@ -46062,7 +46084,7 @@ function makeGuardFileContext(cwd, options) {
     },
     readFile: (path15) => {
       try {
-        return readFileSync15(abs2(path15), "utf8");
+        return readFileSync16(abs2(path15), "utf8");
       } catch {
         return void 0;
       }
@@ -54074,7 +54096,7 @@ import { join as join83 } from "node:path";
 import { join as join82 } from "node:path";
 
 // packages/automation/dist/config/automationJson.js
-import { readFileSync as readFileSync16 } from "node:fs";
+import { readFileSync as readFileSync17 } from "node:fs";
 import { join as join80 } from "node:path";
 var AUTOMATION_JSON_LIMITS = {
   maxParallel: { min: 1, max: 8 },
@@ -54089,7 +54111,7 @@ var intIn = (v, min, max) => typeof v === "number" && Number.isInteger(v) && v >
 function isValidImageRef(v) {
   return v.length > 0 && v.length <= AUTOMATION_JSON_LIMITS.imageMaxLen && AUTOMATION_IMAGE_RE.test(v);
 }
-function readAutomationJson(root, fs = { readFileSync: readFileSync16 }) {
+function readAutomationJson(root, fs = { readFileSync: readFileSync17 }) {
   let parsed2;
   try {
     parsed2 = JSON.parse(fs.readFileSync(automationJsonPath(root), "utf8"));
@@ -55227,7 +55249,7 @@ function createFsSkillContentLocator(roots) {
 }
 
 // packages/automation/dist/skills/production-content-locator.js
-import { readdirSync as readdirSync4, readFileSync as readFileSync17 } from "node:fs";
+import { readdirSync as readdirSync4, readFileSync as readFileSync18 } from "node:fs";
 import { isAbsolute as isAbsolute16, join as join87 } from "node:path";
 var SkillRootRegistryError = class extends Error {
   name = "SkillRootRegistryError";
@@ -55283,7 +55305,7 @@ function codexPluginRoots(home, read3) {
 }
 function realInstalledJson(path15) {
   try {
-    return readFileSync17(path15, "utf8");
+    return readFileSync18(path15, "utf8");
   } catch (error2) {
     if (nodeCode(error2) === "ENOENT")
       return null;
@@ -55825,11 +55847,11 @@ async function verifySkillProvenance(pluginRoot2, options = {}) {
 }
 
 // packages/automation/dist/skills/upstream-skill-view.js
-import { readFileSync as readFileSync18 } from "node:fs";
+import { readFileSync as readFileSync19 } from "node:fs";
 import { join as join90 } from "node:path";
 function readOptional2(path15) {
   try {
-    return readFileSync18(path15, "utf8");
+    return readFileSync19(path15, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT")
       return null;
@@ -61102,7 +61124,7 @@ var red = (id2, detail, hint) => ({
 import { join as join101 } from "node:path";
 
 // packages/cli/src/skillSources.ts
-import { readFileSync as readFileSync19 } from "node:fs";
+import { readFileSync as readFileSync20 } from "node:fs";
 import { dirname as dirname19, join as join99 } from "node:path";
 import { fileURLToPath } from "node:url";
 function defaultRegistryPath() {
@@ -61111,7 +61133,7 @@ function defaultRegistryPath() {
 function loadCanonicalSkillSources(path15) {
   let text13;
   try {
-    text13 = readFileSync19(path15 ?? defaultRegistryPath(), "utf8");
+    text13 = readFileSync20(path15 ?? defaultRegistryPath(), "utf8");
   } catch (e) {
     return { ok: false, error: `\u8BFB\u53D6 canonical registry \u5931\u8D25: ${e instanceof Error ? e.message : String(e)}` };
   }
@@ -61928,7 +61950,7 @@ async function checkStableLauncher(p) {
 }
 
 // packages/cli/src/commands/doctor-platform.ts
-import { readFileSync as readFileSync20 } from "node:fs";
+import { readFileSync as readFileSync21 } from "node:fs";
 var INSTALLATION_DOC = "docs/usage/installation.md\uFF08Supported platforms / \u652F\u6301\u7684\u5E73\u53F0\uFF09";
 function detectPlatform(input2) {
   if (input2.platform !== "linux") return { os: input2.platform, wsl: false };
@@ -61938,7 +61960,7 @@ function detectPlatform(input2) {
 }
 function readProcVersion() {
   try {
-    return readFileSync20("/proc/version", "utf8");
+    return readFileSync21("/proc/version", "utf8");
   } catch {
     return void 0;
   }
@@ -61966,7 +61988,7 @@ function checkPlatform(p) {
 
 // packages/cli/src/commands/doctor-product-identity.ts
 import { execFileSync as execFileSync2 } from "node:child_process";
-import { readFileSync as readFileSync22 } from "node:fs";
+import { readFileSync as readFileSync23 } from "node:fs";
 import { win32 as win325 } from "node:path";
 
 // packages/cli/src/commands/remote-git.ts
@@ -62257,7 +62279,7 @@ function launchDetachedDashboardProcess(serverBundle, env, nodeExecutable = proc
 
 // packages/cli/src/commands/trusted-executable.ts
 import { createHash as createHash48 } from "node:crypto";
-import { accessSync as accessSync2, constants as fsConstants2, lstatSync as lstatSync4, readFileSync as readFileSync21, realpathSync as realpathSync3 } from "node:fs";
+import { accessSync as accessSync2, constants as fsConstants2, lstatSync as lstatSync5, readFileSync as readFileSync22, realpathSync as realpathSync3 } from "node:fs";
 import { dirname as dirname21, isAbsolute as isAbsolute24, parse as parse2 } from "node:path";
 function pathProof(value) {
   return {
@@ -62271,7 +62293,7 @@ function pathProof(value) {
 }
 function identity(path15) {
   try {
-    const info = lstatSync4(path15);
+    const info = lstatSync5(path15);
     if (!info.isFile() || info.isSymbolicLink()) return void 0;
     return {
       path: path15,
@@ -62297,7 +62319,7 @@ function parentChain(path15, executableOwner, platform3) {
   while (true) {
     let info;
     try {
-      info = lstatSync4(cursor);
+      info = lstatSync5(cursor);
     } catch {
       return void 0;
     }
@@ -62355,7 +62377,7 @@ function freezeTrustedExecutable(requestedPath, platform3 = process.platform) {
       requestedPath: executable,
       executable: pathProof(executableIdentity),
       parents: parents.map(pathProof),
-      sha256: createHash48("sha256").update(readFileSync21(executable)).digest("hex")
+      sha256: createHash48("sha256").update(readFileSync22(executable)).digest("hex")
     },
     verify,
     assert: () => {
@@ -64482,7 +64504,7 @@ function createManagedReleaseJournal(paths) {
 }
 
 // packages/cli/src/runtime/runtime-rollback-journal.ts
-import { readFile as readFile70 } from "node:fs/promises";
+import { link as link5, lstat as lstat55, readFile as readFile70, rm as rm20 } from "node:fs/promises";
 import { join as join110 } from "node:path";
 
 // packages/cli/src/runtime/installer-contract.ts
@@ -64544,13 +64566,42 @@ async function readRollbackJournal(paths) {
     throw error2;
   }
 }
+function rollbackPrivateLauncherPath(launcherPath, transactionId) {
+  return `${launcherPath}.tenon-rollback-${transactionId}.previous`;
+}
+async function readRegularFile(path15) {
+  try {
+    const item2 = await lstat55(path15);
+    if (!item2.isFile() || item2.isSymbolicLink()) return null;
+    return { content: await readFile70(path15, "utf8"), mode: item2.mode & 511 };
+  } catch (error2) {
+    if (error2.code === "ENOENT") return null;
+    throw error2;
+  }
+}
+async function discardUnflippedRollbackJournal(paths, journal) {
+  for (const name2 of ["tenon", "hook"]) {
+    const checkpoint = journal.launchers[name2];
+    if (checkpoint.state.kind !== "file") continue;
+    const privatePath = rollbackPrivateLauncherPath(checkpoint.path, journal.transactionId);
+    const copy = await readRegularFile(privatePath);
+    if (copy === null || copy.content !== checkpoint.state.content || copy.mode !== checkpoint.state.mode) continue;
+    const launcherGone = await lstat55(checkpoint.path).then(() => false, (error2) => {
+      if (error2.code === "ENOENT") return true;
+      throw error2;
+    });
+    if (launcherGone) await link5(privatePath, checkpoint.path);
+    await rm20(privatePath);
+  }
+  await rm20(rollbackJournalPath(paths), { force: true });
+}
 function selectionMatchesRollbackTarget(selection, target) {
   return selection.version === 1 && selection.revision === target.revision && selection.activeRelease === target.activeRelease && selection.previousRelease === target.previousRelease;
 }
 
 // packages/cli/src/runtime/runtime-rollback.ts
 import { randomUUID as randomUUID17 } from "node:crypto";
-import { rm as rm20 } from "node:fs/promises";
+import { rm as rm21 } from "node:fs/promises";
 import { join as join111 } from "node:path";
 
 // packages/cli/src/runtime/runtime-installer-store.ts
@@ -64639,7 +64690,7 @@ async function rollbackWithinTransaction(context) {
     } catch (error2) {
       const after = await store2.inspect().catch(() => null);
       if (after !== null && sameJson2(after.selection, journal.beforeSelection)) {
-        await rm20(rollbackJournalPath(paths), { force: true });
+        await discardUnflippedRollbackJournal(paths, journal);
       }
       throw error2;
     }
@@ -64665,7 +64716,7 @@ async function rollbackWithinTransaction(context) {
     if (persisted === null || persisted.transactionId !== journal.transactionId) {
       throw new ManagedRuntimeIndeterminateError("runtime rollback journal owner \u5728\u63D0\u4EA4\u524D\u53D1\u751F\u6F02\u79FB");
     }
-    await rm20(rollbackJournalPath(paths));
+    await rm21(rollbackJournalPath(paths));
     return {
       selection: inspection.selection,
       release: inspection.active,
@@ -64689,7 +64740,7 @@ async function settlePendingRollback(context, journal) {
   );
   const { selection } = await store2.inspect();
   if (sameJson2(selection, journal.beforeSelection)) {
-    await rm20(rollbackJournalPath(context.paths));
+    await discardUnflippedRollbackJournal(context.paths, journal);
     return;
   }
   if (!selectionMatchesRollbackTarget(selection, journal.target)) {
@@ -65650,7 +65701,7 @@ var REAL_PRODUCT_IDENTITY_RUNTIME = {
   },
   readText(path15) {
     try {
-      return readFileSync22(path15, "utf8");
+      return readFileSync23(path15, "utf8");
     } catch {
       return void 0;
     }
@@ -66907,7 +66958,7 @@ async function cmdArtifactRegister(deps, name2, field4, path15, producer) {
 }
 
 // packages/cli/src/commands/document.ts
-import { lstat as lstat56 } from "node:fs/promises";
+import { lstat as lstat57 } from "node:fs/promises";
 import { relative as relative24, resolve as resolve39 } from "node:path";
 
 // packages/cli/src/commands/documentPlaceholderGate.ts
@@ -66993,7 +67044,7 @@ async function resolveChangeDocumentLocale(changeDirPath, requestedLocale, pinLe
 }
 
 // packages/cli/src/commands/documentScaffoldSafety.ts
-import { lstat as lstat55, realpath as realpath14 } from "node:fs/promises";
+import { lstat as lstat56, realpath as realpath14 } from "node:fs/promises";
 import { dirname as dirname26, isAbsolute as isAbsolute28, relative as relative23, resolve as resolve38, sep as sep20 } from "node:path";
 function ordinaryDocumentFile(info) {
   return info.isFile() && !info.isSymbolicLink();
@@ -67016,14 +67067,14 @@ async function assertSafeChangeRoot(repoRoot, changeRoot) {
   if (lexical === ".." || lexical.startsWith(`..${sep20}`) || isAbsolute28(lexical)) {
     throw new Error(`Change \u6839\u8D8A\u8FC7\u9879\u76EE\u6839: ${changeRoot}`);
   }
-  const rootInfo = await lstat55(root);
+  const rootInfo = await lstat56(root);
   if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink()) {
     throw new Error(`\u9879\u76EE\u6839\u5FC5\u987B\u662F\u975E symlink \u76EE\u5F55: ${root}`);
   }
   let cursor = root;
   for (const segment of lexical.split(sep20).filter(Boolean)) {
     cursor = resolve38(cursor, segment);
-    const info = await lstat55(cursor);
+    const info = await lstat56(cursor);
     if (!info.isDirectory() || info.isSymbolicLink()) {
       throw new Error(`Change \u6839\u8DEF\u5F84\u5FC5\u987B\u662F\u975E symlink \u76EE\u5F55: ${cursor}`);
     }
@@ -67075,7 +67126,7 @@ async function cmdDocumentScaffold(deps, name2, kind, requestedLocale, requested
     const parent = await ensureSafeDocumentParent(deps.cwd, target);
     await assertSafeChangeRoot(deps.cwd, dir);
     try {
-      const info = await lstat56(target);
+      const info = await lstat57(target);
       if (!ordinaryDocumentFile(info)) throw new Error(`document scaffold \u76EE\u6807\u5FC5\u987B\u662F\u975E symlink \u666E\u901A\u6587\u4EF6: ${targetRelative}`);
       deps.io.out(targetRelative);
       return 0;
@@ -67096,7 +67147,7 @@ async function cmdDocumentScaffold(deps, name2, kind, requestedLocale, requested
       await atomicLinkPublish(parent, ".pipeline-document-scaffold.tmp", target, content);
     } catch (error2) {
       if (error2.code !== "EEXIST") throw error2;
-      const info = await lstat56(target);
+      const info = await lstat57(target);
       if (!ordinaryDocumentFile(info)) {
         throw new Error(`document scaffold \u76EE\u6807\u5FC5\u987B\u662F\u975E symlink \u666E\u901A\u6587\u4EF6: ${targetRelative}`);
       }
@@ -67387,7 +67438,7 @@ function inputDocumentPolicy(documents) {
 import { readFile as readFile80 } from "node:fs/promises";
 
 // packages/cli/src/continuousAuthority.ts
-import { lstat as lstat57, readFile as readFile73 } from "node:fs/promises";
+import { lstat as lstat58, readFile as readFile73 } from "node:fs/promises";
 var INTERACTION_AUTHORITY_PROTOCOL = "pipeline-interaction-authority-v2";
 function isValidChangeName2(value) {
   return /^[A-Za-z0-9_-]+$/.test(value);
@@ -67395,9 +67446,9 @@ function isValidChangeName2(value) {
 function isValidHostSessionId(value) {
   return /^[A-Za-z0-9_-]{1,128}$/.test(value);
 }
-async function readRegularFile(path15) {
+async function readRegularFile2(path15) {
   try {
-    const entry2 = await lstat57(path15);
+    const entry2 = await lstat58(path15);
     if (!entry2.isFile() || entry2.isSymbolicLink()) return null;
     return await readFile73(path15, "utf8");
   } catch {
@@ -67429,7 +67480,7 @@ function parseContinuousAuthority(raw) {
 async function readDelegatedReviewAuthority(cwd, slug2, name2, hostSessionId) {
   if (!isValidChangeName2(name2) || hostSessionId === void 0 || !isValidHostSessionId(hostSessionId)) return null;
   const [rawAuthority, activeChange] = await Promise.all([
-    readRegularFile(userProjectPaths(cwd, slug2).authority),
+    readRegularFile2(userProjectPaths(cwd, slug2).authority),
     readActiveChange(cwd, slug2)
   ]);
   if (rawAuthority === null || activeChange !== name2) return null;
@@ -67667,7 +67718,7 @@ import { dirname as dirname27, join as join118, resolve as resolve40 } from "nod
 
 // packages/cli/src/commands/specApplyRehearsal.ts
 import { execFile as execFile8 } from "node:child_process";
-import { cp as cp2, mkdtemp as mkdtemp3, readFile as readFile75, readdir as readdir27, rm as rm21 } from "node:fs/promises";
+import { cp as cp2, mkdtemp as mkdtemp3, readFile as readFile75, readdir as readdir27, rm as rm22 } from "node:fs/promises";
 import { tmpdir as tmpdir4 } from "node:os";
 import { join as join117 } from "node:path";
 var MAX_OUTPUT_BYTES = 256 * 1024;
@@ -67793,7 +67844,7 @@ async function rehearseSpecApply(repoRoot, change, hooks) {
   } catch (e) {
     errors.push(errMsg(e));
   } finally {
-    await rm21(rehearsal, { recursive: true, force: true });
+    await rm22(rehearsal, { recursive: true, force: true });
   }
   return { targets: targets2, errors };
 }
@@ -68456,14 +68507,14 @@ function exitActions(input2, flow) {
 }
 
 // packages/cli/src/commands/statusStepTestFlow.ts
-import { lstat as lstat58, readFile as readFile76 } from "node:fs/promises";
+import { lstat as lstat59, readFile as readFile76 } from "node:fs/promises";
 import { join as join120 } from "node:path";
 var REPORT_DOCUMENT_KIND = "verification-report";
 var MAX_REPORT_BYTES = 2 * 1024 * 1024;
 async function readReport(deps, path15) {
   try {
     const absolute = join120(deps.cwd, path15);
-    const entry2 = await lstat58(absolute);
+    const entry2 = await lstat59(absolute);
     if (!entry2.isFile() || entry2.size > MAX_REPORT_BYTES) return void 0;
     return await readFile76(absolute, "utf8");
   } catch {
@@ -68653,12 +68704,12 @@ function parseBenchmarkReport(format, text13) {
 }
 
 // packages/cli/src/test-system/discover-support.ts
-import { lstat as lstat59, readFile as readFile78 } from "node:fs/promises";
+import { lstat as lstat60, readFile as readFile78 } from "node:fs/promises";
 import { basename as basename13 } from "node:path";
 var MAX_TEXT4 = 256 * 1024;
 async function readSmallText(path15) {
   try {
-    const entry2 = await lstat59(path15);
+    const entry2 = await lstat60(path15);
     if (!entry2.isFile() || entry2.size > MAX_TEXT4) return void 0;
     return await readFile78(path15, "utf8");
   } catch {
@@ -70911,11 +70962,11 @@ import { homedir as homedir10 } from "node:os";
 import { join as join129 } from "node:path";
 
 // packages/cli/src/skillBundleAssembly.ts
-import { readdirSync as readdirSync6, readFileSync as readFileSync24, statSync as statSync6 } from "node:fs";
+import { readdirSync as readdirSync6, readFileSync as readFileSync25, statSync as statSync6 } from "node:fs";
 import { isAbsolute as isAbsolute31, join as join128 } from "node:path";
 
 // packages/cli/src/skill-provenance-locator.ts
-import { lstatSync as lstatSync5, readFileSync as readFileSync23, realpathSync as realpathSync5 } from "node:fs";
+import { lstatSync as lstatSync6, readFileSync as readFileSync24, realpathSync as realpathSync5 } from "node:fs";
 import { isAbsolute as isAbsolute30, join as join126, relative as relative25, sep as sep21 } from "node:path";
 var SkillProvenanceLocatorError = class extends Error {
   constructor(category, message2) {
@@ -70931,7 +70982,7 @@ function errnoCode8(error2) {
 }
 function candidateExists(path15) {
   try {
-    lstatSync5(path15);
+    lstatSync6(path15);
     return true;
   } catch (error2) {
     if (errnoCode8(error2) === "ENOENT") return false;
@@ -70945,7 +70996,7 @@ function pathWithin2(root, candidate2) {
 function assertSafeSkillsRoot(root) {
   let rootEntry;
   try {
-    rootEntry = lstatSync5(root);
+    rootEntry = lstatSync6(root);
   } catch (error2) {
     throw new SkillProvenanceLocatorError("filesystem-safety-error", `\u8BFB\u53D6 bundled skillsRoot \u5931\u8D25: ${root}\uFF08${String(error2)}\uFF09`);
   }
@@ -70966,7 +71017,7 @@ function assertSafeSkillRoot(root, skillId) {
   const rootReal = assertSafeSkillsRoot(root);
   let entry2;
   try {
-    entry2 = lstatSync5(path15);
+    entry2 = lstatSync6(path15);
   } catch (error2) {
     if (errnoCode8(error2) === "ENOENT") {
       throw new SkillProvenanceLocatorError(
@@ -71001,7 +71052,7 @@ function loadSkillAliases(pluginRoot2) {
   const path15 = join126(pluginRoot2, "templates", "skill-sources.yaml");
   let text13;
   try {
-    text13 = readFileSync23(path15, "utf8");
+    text13 = readFileSync24(path15, "utf8");
   } catch (error2) {
     if (errnoCode8(error2) === "ENOENT") return /* @__PURE__ */ new Map();
     throw new SkillProvenanceLocatorError("registry-read-error", `\u8BFB\u53D6 skill source registry \u5931\u8D25: ${path15}\uFF08${String(error2)}\uFF09`);
@@ -71019,13 +71070,13 @@ function physicalId2(sourceRef) {
 function readUpstreamLockEntries(bundledRoot) {
   let lockText;
   try {
-    lockText = readFileSync23(join126(bundledRoot, "skills.lock.json"), "utf8");
+    lockText = readFileSync24(join126(bundledRoot, "skills.lock.json"), "utf8");
   } catch (error2) {
     if (errnoCode8(error2) === "ENOENT") return /* @__PURE__ */ new Map();
     throw new SkillProvenanceLocatorError("invalid-skill-lock", `\u8BFB\u53D6 skills.lock.json \u5931\u8D25\uFF08${String(error2)}\uFF09`);
   }
   try {
-    const sources = parseUpstreamSkillSources(readFileSync23(join126(bundledRoot, "sources.yaml"), "utf8"));
+    const sources = parseUpstreamSkillSources(readFileSync24(join126(bundledRoot, "sources.yaml"), "utf8"));
     return new Map(parseUpstreamSkillLock(lockText, sources).skills.map((entry2) => [entry2.id, entry2]));
   } catch (error2) {
     throw new SkillProvenanceLocatorError("invalid-skill-lock", error2 instanceof Error ? error2.message : String(error2));
@@ -71077,7 +71128,7 @@ function createProvenanceAwareBundledLocator(pluginRoot2) {
   const load = () => {
     if (registry !== void 0) return registry;
     try {
-      const raw = readFileSync23(join126(pluginRoot2, "templates", "skill-sources.yaml"), "utf8");
+      const raw = readFileSync24(join126(pluginRoot2, "templates", "skill-sources.yaml"), "utf8");
       registry = parseSkillProvenanceRegistry(raw);
       return registry;
     } catch (error2) {
@@ -71301,7 +71352,7 @@ function nodeErrorCode2(error2) {
 function validateCodexRemotePluginMetadata(path15) {
   let raw;
   try {
-    raw = readFileSync24(path15, "utf8");
+    raw = readFileSync25(path15, "utf8");
   } catch (error2) {
     throw new SkillCacheAccessError(
       `\u8BFB\u53D6 Codex plugin cache \u5143\u6570\u636E\u5931\u8D25\uFF08${path15}\uFF0C${nodeErrorCode2(error2)}\uFF09\uFF1A${error2 instanceof Error ? error2.message : String(error2)}`
@@ -71411,7 +71462,7 @@ function productionSkillContentRoots(opts) {
 }
 function realReadInstalledPluginsJson(path15) {
   try {
-    return readFileSync24(path15, "utf8");
+    return readFileSync25(path15, "utf8");
   } catch (e) {
     if (e.code === "ENOENT") return null;
     throw new InstalledPluginRegistryError(`\u8BFB\u53D6 installed_plugins.json \u5931\u8D25\uFF08${path15}\uFF09\uFF1A${e instanceof Error ? e.message : String(e)}`);
@@ -71509,7 +71560,7 @@ function hasCanonicalBundledSurface(pluginRoot2) {
     if (nodeErrorCode2(error2) !== "ENOENT") return true;
   }
   try {
-    const raw = readFileSync24(join128(pluginRoot2, "templates", "skill-sources.yaml"), "utf8");
+    const raw = readFileSync25(join128(pluginRoot2, "templates", "skill-sources.yaml"), "utf8");
     if (/^\s*version:\s*3\s*$/m.test(raw) || /^\s*hash_algorithm\s*:/m.test(raw)) return true;
     const versions = [...raw.matchAll(/^\s*version\s*:\s*(\S+)\s*$/gm)].map((match) => match[1]);
     return !(versions.length === 1 && (versions[0] === "1" || versions[0] === "2"));
@@ -73010,14 +73061,14 @@ function formatBudgetOverflowError(projectKey3, live, limit) {
 }
 
 // packages/channel/dist/fs.js
-import { appendFileSync, closeSync as closeSync3, existsSync as existsSync8, mkdirSync, openSync as openSync3, readdirSync as readdirSync7, readFileSync as readFileSync25, renameSync, rmSync as rmSync2, statSync as statSync7, writeFileSync, writeSync } from "node:fs";
+import { appendFileSync, closeSync as closeSync3, existsSync as existsSync8, mkdirSync, openSync as openSync3, readdirSync as readdirSync7, readFileSync as readFileSync26, renameSync, rmSync as rmSync2, statSync as statSync7, writeFileSync, writeSync } from "node:fs";
 function nodeChannelFs() {
   return {
     pid: process.pid,
     exists: (p) => existsSync8(p),
     readText: (p) => {
       try {
-        return readFileSync25(p, "utf8");
+        return readFileSync26(p, "utf8");
       } catch {
         return void 0;
       }
@@ -74911,7 +74962,7 @@ async function cmdChannel(deps, sub, args, host = nodeChannelHost(deps.cwd)) {
 // packages/cli/src/commands/gen-router.ts
 import { spawnSync as spawnSync3 } from "node:child_process";
 import { createHash as createHash52 } from "node:crypto";
-import { existsSync as existsSync9, readFileSync as readFileSync26, realpathSync as realpathSync6 } from "node:fs";
+import { existsSync as existsSync9, readFileSync as readFileSync27, realpathSync as realpathSync6 } from "node:fs";
 import { join as join132 } from "node:path";
 function assertTargetGrepPatterns(projection) {
   for (const track of projection.tracks) {
@@ -74947,7 +74998,7 @@ async function cmdGenRouterSh(deps, manifestPath3, repoRoot) {
     if (canonicalRoot !== depsRoot) {
       throw new Error(`\u9879\u76EE\u6839\u4E0E CLI effective registry \u4E0A\u4E0B\u6587\u4E0D\u4E00\u81F4\uFF1A${canonicalRoot} != ${depsRoot}`);
     }
-    const manifestBytes = readFileSync26(manifestPath3);
+    const manifestBytes = readFileSync27(manifestPath3);
     const manifest = loadManifest(manifestPath3);
     const registry = deps.loadRegistry();
     const projection = buildRouterProjection(registry, manifest);
@@ -74969,7 +75020,7 @@ async function cmdGenRouterSh(deps, manifestPath3, repoRoot) {
 }
 
 // packages/cli/src/commands/loops.ts
-import { readFileSync as readFileSync27, readdirSync as readdirSync8 } from "node:fs";
+import { readFileSync as readFileSync28, readdirSync as readdirSync8 } from "node:fs";
 import { isAbsolute as isAbsolute33, join as join134 } from "node:path";
 
 // packages/cli/src/commands/loop-admission-view.ts
@@ -75379,7 +75430,7 @@ async function cmdLoopRun(deps, args, fs, projectLedger = ledgerProjections, wir
 
 // packages/cli/src/commands/loop-sync.ts
 import { constants as constants10 } from "node:fs";
-import { lstat as lstat60, open as open10 } from "node:fs/promises";
+import { lstat as lstat61, open as open10 } from "node:fs/promises";
 import { join as join133 } from "node:path";
 var decoder2 = new TextDecoder("utf-8", { fatal: true });
 var SHA256_RE5 = /^[a-f0-9]{64}$/;
@@ -75439,7 +75490,7 @@ async function readRunLog(repoRoot) {
   const path15 = join133(repoRoot, ".superpowers", "loops", "progress.md");
   let before;
   try {
-    before = await lstat60(path15);
+    before = await lstat61(path15);
   } catch (error2) {
     if (error2.code === "ENOENT") return null;
     const code = error2.code ?? "IO";
@@ -76378,7 +76429,7 @@ function readStateFields(changeDir7) {
     if (current !== void 0) {
       return scalarStateFields(current.state.fields);
     }
-    const legacy = readFileSync27(join134(changeDir7, ".pipeline.yaml"), "utf8");
+    const legacy = readFileSync28(join134(changeDir7, ".pipeline.yaml"), "utf8");
     return scalarStateFields(parsePipeline(legacy).fields);
   } catch {
     return null;
@@ -76398,7 +76449,7 @@ var REAL_LOOPS_FS = {
   loadRegistry: (repoRoot) => loadRegistry(repoRoot),
   readProgress: (repoRoot) => {
     try {
-      return readFileSync27(join134(repoRoot, ".superpowers", "loops", "progress.md"), "utf8");
+      return readFileSync28(join134(repoRoot, ".superpowers", "loops", "progress.md"), "utf8");
     } catch {
       return null;
     }
@@ -76418,7 +76469,7 @@ var REAL_DRIFT_FS = {
   readRunLog: (repoRoot) => REAL_LOOPS_FS.readProgress(repoRoot),
   readLoopDoc: (repoRoot) => {
     try {
-      return readFileSync27(join134(repoRoot, "LOOP.md"), "utf8");
+      return readFileSync28(join134(repoRoot, "LOOP.md"), "utf8");
     } catch {
       return null;
     }
@@ -76938,17 +76989,17 @@ async function cmdMem(deps, sub, args, fs = nodeMemFs()) {
 }
 
 // packages/cli/src/commands/scaffold.ts
-import { lstat as lstat64, mkdir as mkdir51, readFile as readFile85, rm as rm24, stat as stat15, unlink as unlink9, writeFile as writeFile28 } from "node:fs/promises";
+import { lstat as lstat65, mkdir as mkdir51, readFile as readFile85, rm as rm25, stat as stat15, unlink as unlink9, writeFile as writeFile28 } from "node:fs/promises";
 import { dirname as dirname31, isAbsolute as isAbsolute36, join as join135, relative as relative29, resolve as resolve48, sep as sep24 } from "node:path";
 
 // packages/cli/src/commands/specScaffoldTransaction.ts
-import { lstat as lstat63, mkdir as mkdir50, rename as rename18, rm as rm23, writeFile as writeFile27 } from "node:fs/promises";
+import { lstat as lstat64, mkdir as mkdir50, rename as rename18, rm as rm24, writeFile as writeFile27 } from "node:fs/promises";
 import { randomUUID as randomUUID18 } from "node:crypto";
 import { dirname as dirname30, isAbsolute as isAbsolute35, relative as relative28, resolve as resolve47, sep as sep23 } from "node:path";
 
 // packages/cli/src/commands/specScaffoldTree.ts
 import { createHash as createHash53 } from "node:crypto";
-import { copyFile as copyFile2, lstat as lstat61, mkdir as mkdir49, readFile as readFile83, readdir as readdir30 } from "node:fs/promises";
+import { copyFile as copyFile2, lstat as lstat62, mkdir as mkdir49, readFile as readFile83, readdir as readdir30 } from "node:fs/promises";
 import { relative as relative26, resolve as resolve45 } from "node:path";
 async function copyOrdinaryTree(source, target) {
   await mkdir49(target);
@@ -77015,7 +77066,7 @@ async function ordinaryTreeDigest(root) {
   return hash.digest("hex");
 }
 async function ordinaryDirectoryIdentity(target) {
-  const info = await lstat61(target);
+  const info = await lstat62(target);
   if (!info.isDirectory() || info.isSymbolicLink()) {
     throw new Error(`spec scaffold \u4E8B\u52A1\u76EE\u6807\u5FC5\u987B\u662F\u975E symlink \u76EE\u5F55: ${target}`);
   }
@@ -77026,7 +77077,7 @@ function ordinaryPathKey(target) {
 }
 
 // packages/cli/src/commands/specScaffoldRecovery.ts
-import { lstat as lstat62, readFile as readFile84, rename as rename17, rm as rm22 } from "node:fs/promises";
+import { lstat as lstat63, readFile as readFile84, rename as rename17, rm as rm23 } from "node:fs/promises";
 import { basename as basename14, dirname as dirname29, isAbsolute as isAbsolute34, relative as relative27, resolve as resolve46, sep as sep22 } from "node:path";
 function errorCode9(error2) {
   if (typeof error2 !== "object" || error2 === null || !("code" in error2)) return void 0;
@@ -77039,7 +77090,7 @@ function contained2(root, target) {
 }
 async function existingOrdinaryFile(target) {
   try {
-    const info = await lstat62(target);
+    const info = await lstat63(target);
     if (!info.isFile() || info.isSymbolicLink()) {
       throw new Error(`spec scaffold \u4E8B\u52A1\u63CF\u8FF0\u5FC5\u987B\u662F\u975E symlink \u666E\u901A\u6587\u4EF6: ${target}`);
     }
@@ -77051,7 +77102,7 @@ async function existingOrdinaryFile(target) {
 }
 async function existingOrdinaryDirectory(target) {
   try {
-    const info = await lstat62(target);
+    const info = await lstat63(target);
     if (!info.isDirectory() || info.isSymbolicLink()) {
       throw new Error(`spec scaffold \u4E8B\u52A1\u76EE\u6807\u5FC5\u987B\u662F\u975E symlink \u76EE\u5F55: ${target}`);
     }
@@ -77135,25 +77186,25 @@ async function recoverClaimedTransaction(specDirectory, recoveryFile, anchor) {
     );
   }
   if (targetExists) {
-    if (stageExists) await rm22(stage, { recursive: true, force: true });
-    if (backupExists) await rm22(backup, { recursive: true, force: true });
+    if (stageExists) await rm23(stage, { recursive: true, force: true });
+    if (backupExists) await rm23(backup, { recursive: true, force: true });
     return;
   }
   if (stageExists && backupExists) {
     await rename17(stage, specDirectory);
-    await rm22(backup, { recursive: true, force: true });
+    await rm23(backup, { recursive: true, force: true });
     return;
   }
   if (backupExists) {
     await rename17(backup, specDirectory);
-    if (stageExists) await rm22(stage, { recursive: true, force: true });
+    if (stageExists) await rm23(stage, { recursive: true, force: true });
     return;
   }
   if (stageExists && receipt.state !== "preparing") {
     await rename17(stage, specDirectory);
     return;
   }
-  if (stageExists) await rm22(stage, { recursive: true, force: true });
+  if (stageExists) await rm23(stage, { recursive: true, force: true });
 }
 async function recoverStaleTransaction(specDirectory, lockFile, recoveryFile, anchor) {
   if (await existingOrdinaryFile(recoveryFile)) {
@@ -77175,7 +77226,7 @@ async function recoverStaleTransaction(specDirectory, lockFile, recoveryFile, an
     await recoverClaimedTransaction(specDirectory, recoveryFile, anchor);
     recovered = true;
   } finally {
-    if (recovered) await rm22(recoveryFile, { force: true });
+    if (recovered) await rm23(recoveryFile, { force: true });
     else await rename17(recoveryFile, lockFile).catch(() => {
     });
   }
@@ -77214,7 +77265,7 @@ function contained3(root, target) {
 }
 async function existingOrdinaryDirectory2(target) {
   try {
-    const info = await lstat63(target);
+    const info = await lstat64(target);
     if (!info.isDirectory() || info.isSymbolicLink()) {
       throw new Error(`spec scaffold \u4E8B\u52A1\u76EE\u6807\u5FC5\u987B\u662F\u975E symlink \u76EE\u5F55: ${target}`);
     }
@@ -77271,7 +77322,7 @@ async function publishSpecScaffoldTransaction(options) {
       }
       await ensureTrustedProjectDirectory(candidateSpecDirectory, dirname30(target));
       try {
-        const info = await lstat63(target);
+        const info = await lstat64(target);
         if (!info.isFile() || info.isSymbolicLink()) {
           throw new Error(`spec scaffold overwrite \u76EE\u6807\u5FC5\u987B\u662F\u666E\u901A\u6587\u4EF6: ${file.relativePath}`);
         }
@@ -77340,13 +77391,13 @@ async function publishSpecScaffoldTransaction(options) {
       }
       throw error2;
     }
-    if (movedOriginal && !retainBackup) await rm23(backup, { recursive: true, force: true });
+    if (movedOriginal && !retainBackup) await rm24(backup, { recursive: true, force: true });
   } finally {
     if (!promoted && !recoveryRequired) {
-      await rm23(stage, { recursive: true, force: true }).catch(() => {
+      await rm24(stage, { recursive: true, force: true }).catch(() => {
       });
     }
-    if (!recoveryRequired) await rm23(lockFile, { force: true }).catch(() => {
+    if (!recoveryRequired) await rm24(lockFile, { force: true }).catch(() => {
     });
   }
 }
@@ -77373,7 +77424,7 @@ var REAL_FS = {
     await writeFile28(abs2, content, "utf8");
   },
   rmrf: async (abs2) => {
-    await rm24(abs2, { recursive: true, force: true }).catch(() => {
+    await rm25(abs2, { recursive: true, force: true }).catch(() => {
     });
   },
   env: (name2) => process.env[name2]
@@ -77395,7 +77446,7 @@ async function assertExistingParentsSafe(cwd, target) {
   for (const segment of rel.split(sep24).filter(Boolean)) {
     cursor = resolve48(cursor, segment);
     try {
-      const info = await lstat64(cursor);
+      const info = await lstat65(cursor);
       if (!info.isDirectory() || info.isSymbolicLink()) {
         throw new Error(`scaffold \u7236\u8DEF\u5F84\u5FC5\u987B\u662F\u975E symlink \u76EE\u5F55: ${cursor}`);
       }
@@ -77408,7 +77459,7 @@ async function assertExistingParentsSafe(cwd, target) {
 async function removeScaffoldFile(cwd, target) {
   await assertExistingParentsSafe(cwd, target);
   try {
-    const info = await lstat64(target);
+    const info = await lstat65(target);
     if (!ordinaryDocumentFile(info)) {
       throw new Error(`scaffold overwrite \u76EE\u6807\u5FC5\u987B\u662F\u975E symlink \u666E\u901A\u6587\u4EF6: ${target}`);
     }
@@ -77459,7 +77510,7 @@ async function cmdScaffoldSpec(deps, args, fs) {
         const target = abs2(f.rel);
         await assertExistingParentsSafe(deps.cwd, target);
         try {
-          const info = await lstat64(target);
+          const info = await lstat65(target);
           if (!ordinaryDocumentFile(info)) {
             throw new Error(`scaffold \u76EE\u6807\u5FC5\u987B\u662F\u975E symlink \u666E\u901A\u6587\u4EF6: ${target}`);
           }
@@ -77592,7 +77643,7 @@ async function cmdScaffold(deps, sub, args, fs = REAL_FS) {
 }
 
 // packages/cli/src/commands/session.ts
-import { appendFile as appendFile10, lstat as lstat65, mkdir as mkdir52, readFile as readFile86, rename as rename19, rm as rm25, writeFile as writeFile29 } from "node:fs/promises";
+import { appendFile as appendFile10, lstat as lstat66, mkdir as mkdir52, readFile as readFile86, rename as rename19, rm as rm26, writeFile as writeFile29 } from "node:fs/promises";
 import { join as join136 } from "node:path";
 
 // packages/cli/src/interaction-emitter.ts
@@ -77730,7 +77781,7 @@ function authorityTimestamp() {
 }
 async function assertRegularOrMissing(path15) {
   try {
-    const entry2 = await lstat65(path15);
+    const entry2 = await lstat66(path15);
     if (!entry2.isFile() || entry2.isSymbolicLink()) throw new Error("\u76EE\u6807\u4E0D\u662F\u666E\u901A\u6587\u4EF6");
   } catch (error2) {
     if (error2.code === "ENOENT") return;
@@ -77739,7 +77790,7 @@ async function assertRegularOrMissing(path15) {
 }
 async function ensurePlainDirectory2(path15) {
   try {
-    const entry2 = await lstat65(path15);
+    const entry2 = await lstat66(path15);
     if (!entry2.isDirectory() || entry2.isSymbolicLink()) throw new Error("\u76EE\u5F55\u4E0D\u662F\u666E\u901A\u76EE\u5F55");
     return;
   } catch (error2) {
@@ -77750,7 +77801,7 @@ async function ensurePlainDirectory2(path15) {
   } catch (error2) {
     if (error2.code !== "EEXIST") throw error2;
   }
-  const created = await lstat65(path15);
+  const created = await lstat66(path15);
   if (!created.isDirectory() || created.isSymbolicLink()) throw new Error("\u76EE\u5F55\u4E0D\u662F\u666E\u901A\u76EE\u5F55");
 }
 async function writeTerminalSessionBinding(cwd, name2, sessionId) {
@@ -77777,7 +77828,7 @@ async function writeTerminalSessionBinding(cwd, name2, sessionId) {
     await assertRegularOrMissing(target);
     await rename19(temp, target);
   } finally {
-    await rm25(temp, { force: true }).catch(() => {
+    await rm26(temp, { force: true }).catch(() => {
     });
   }
 }
@@ -77801,7 +77852,7 @@ async function writeAuthorityProjection(cwd, slug2, name2, sessionId, actor3) {
     await assertRegularOrMissing(target);
     await rename19(temp, target);
   } finally {
-    await rm25(temp, { force: true }).catch(() => {
+    await rm26(temp, { force: true }).catch(() => {
     });
   }
   const history = join136(cwd, "openspec", "changes", name2, ".pipeline-history.jsonl");
@@ -77835,7 +77886,7 @@ var REAL_FS2 = {
   bindPointer: async (cwd, slug2, name2) => {
     await writeActiveChange(cwd, slug2, name2);
     for (const retired of [".pipeline-active", ".pipeline-interaction-authority"]) {
-      if ((await lstat65(join136(cwd, retired)).catch(() => null))?.isFile() === true) await rm25(join136(cwd, retired), { force: true });
+      if ((await lstat66(join136(cwd, retired)).catch(() => null))?.isFile() === true) await rm26(join136(cwd, retired), { force: true });
     }
   },
   writeInteractionAuthority: writeAuthorityProjection,
@@ -78499,7 +78550,7 @@ function headerLookup(headers, name2) {
 }
 
 // packages/tap/dist/trace-store.js
-import { appendFileSync as appendFileSync2, closeSync as closeSync5, constants as constants11, existsSync as existsSync11, lstatSync as lstatSync6, mkdirSync as mkdirSync3, openSync as openSync5, readFileSync as readFileSync28, realpathSync as realpathSync7, readSync as readSync4, readdirSync as readdirSync9, renameSync as renameSync2, writeFileSync as writeFileSync2 } from "node:fs";
+import { appendFileSync as appendFileSync2, closeSync as closeSync5, constants as constants11, existsSync as existsSync11, lstatSync as lstatSync7, mkdirSync as mkdirSync3, openSync as openSync5, readFileSync as readFileSync29, realpathSync as realpathSync7, readSync as readSync4, readdirSync as readdirSync9, renameSync as renameSync2, writeFileSync as writeFileSync2 } from "node:fs";
 import { join as join138, sep as sep25 } from "node:path";
 import { randomUUID as randomUUID19 } from "node:crypto";
 
@@ -78571,7 +78622,7 @@ var FileTraceStore = class {
       return null;
     const root = realpathSync7(this.dir);
     const recordsRoot = realpathSync7(this.recordsDir);
-    const candidateStat = lstatSync6(candidate2);
+    const candidateStat = lstatSync7(candidate2);
     if (!recordsRoot.startsWith(`${root}${sep25}`) || candidateStat.isSymbolicLink() || !candidateStat.isFile()) {
       throw new Error("unsafe trace records path");
     }
@@ -78591,7 +78642,7 @@ var FileTraceStore = class {
     if (!existsSync11(f))
       return null;
     try {
-      return decodeSessionRow(JSON.parse(readFileSync28(f, "utf8")));
+      return decodeSessionRow(JSON.parse(readFileSync29(f, "utf8")));
     } catch {
       return null;
     }
@@ -78672,7 +78723,7 @@ var FileTraceStore = class {
     if (!existsSync11(f))
       return [];
     const records = [];
-    for (const line of readFileSync28(f, "utf8").split("\n")) {
+    for (const line of readFileSync29(f, "utf8").split("\n")) {
       if (line.trim().length === 0)
         continue;
       try {
@@ -78789,7 +78840,7 @@ var FileTraceStore = class {
       if (!name2.endsWith(".json"))
         continue;
       try {
-        const row2 = decodeSessionRow(JSON.parse(readFileSync28(join138(this.sessionsDir, name2), "utf8")));
+        const row2 = decodeSessionRow(JSON.parse(readFileSync29(join138(this.sessionsDir, name2), "utf8")));
         if (row2)
           out.push(row2);
       } catch {
@@ -78809,7 +78860,7 @@ function getTraceStore() {
 }
 
 // packages/tap/dist/security.js
-import { existsSync as existsSync12, mkdirSync as mkdirSync4, readFileSync as readFileSync29, renameSync as renameSync3, writeFileSync as writeFileSync3 } from "node:fs";
+import { existsSync as existsSync12, mkdirSync as mkdirSync4, readFileSync as readFileSync30, renameSync as renameSync3, writeFileSync as writeFileSync3 } from "node:fs";
 import { join as join139 } from "node:path";
 var FLAG_NAME = "capture.enabled";
 var TTL_MS = 1e3;
@@ -78826,7 +78877,7 @@ function isCaptureEnabled(opts = {}) {
   let val = false;
   try {
     if (existsSync12(p)) {
-      const raw = readFileSync29(p, "utf8").trim().toLowerCase();
+      const raw = readFileSync30(p, "utf8").trim().toLowerCase();
       val = raw === "1" || raw === "true" || raw === "on" || raw === "yes";
     }
   } catch {
@@ -80206,7 +80257,7 @@ import { X509Certificate as X509Certificate2, createPublicKey, createPrivateKey 
 
 // packages/tap/dist/certificate-store.js
 import { X509Certificate, createPrivateKey, randomBytes as randomBytes5 } from "node:crypto";
-import { chmodSync, closeSync as closeSync6, existsSync as existsSync13, mkdirSync as mkdirSync5, openSync as openSync6, readFileSync as readFileSync30, renameSync as renameSync4, rmSync as rmSync4, statSync as statSync9, writeFileSync as writeFileSync4 } from "node:fs";
+import { chmodSync, closeSync as closeSync6, existsSync as existsSync13, mkdirSync as mkdirSync5, openSync as openSync6, readFileSync as readFileSync31, renameSync as renameSync4, rmSync as rmSync4, statSync as statSync9, writeFileSync as writeFileSync4 } from "node:fs";
 import { homedir as homedir14 } from "node:os";
 import { join as join140 } from "node:path";
 function resolveCaDir(opts = {}) {
@@ -80224,8 +80275,8 @@ function tryLoadPair(caCertPath, caKeyPath) {
   if (!existsSync13(caCertPath) || !existsSync13(caKeyPath))
     return null;
   try {
-    const certPem = readFileSync30(caCertPath, "utf8");
-    const keyPem = readFileSync30(caKeyPath, "utf8");
+    const certPem = readFileSync31(caCertPath, "utf8");
+    const keyPem = readFileSync31(caKeyPath, "utf8");
     const cert = new X509Certificate(certPem);
     const key = createPrivateKey(keyPem);
     if (!cert.checkPrivateKey(key))
@@ -80646,7 +80697,7 @@ function loadPrivateKey(keyPem) {
 }
 
 // packages/tap/dist/clients.js
-import { readFileSync as readFileSync31 } from "node:fs";
+import { readFileSync as readFileSync32 } from "node:fs";
 import { homedir as homedir15 } from "node:os";
 import { join as join141 } from "node:path";
 function cfg(partial) {
@@ -80829,7 +80880,7 @@ var CLIENT_CONFIGS = {
 };
 function readJson2(path15) {
   try {
-    const data = JSON.parse(readFileSync31(path15, "utf8"));
+    const data = JSON.parse(readFileSync32(path15, "utf8"));
     return typeof data === "object" && data !== null && !Array.isArray(data) ? data : {};
   } catch {
     return {};
@@ -81975,7 +82026,7 @@ async function cmdInternalSkillGate(deps, name2, skillId) {
 }
 
 // packages/cli/src/commands/internalConstraintGate.ts
-import { readFileSync as readFileSync32 } from "node:fs";
+import { readFileSync as readFileSync33 } from "node:fs";
 async function cmdInternalConstraintGate(deps, operation, nulPathsFile) {
   if (operation !== "write" && operation !== "merge") {
     deps.io.err(`internal-constraint-gate: unsupported operation '${operation}'`);
@@ -81985,7 +82036,7 @@ async function cmdInternalConstraintGate(deps, operation, nulPathsFile) {
     const encoded = deps.env?.("TENON_AUTOMATION_POLICY_B64");
     if (!encoded) throw new Error("TENON_AUTOMATION_POLICY_B64 missing");
     const policy2 = validateAutomationPolicySnapshot(JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")));
-    const rawPaths = readFileSync32(nulPathsFile);
+    const rawPaths = readFileSync33(nulPathsFile);
     const decodedPaths = rawPaths.toString("utf8");
     if (!Buffer.from(decodedPaths, "utf8").equals(rawPaths)) throw new Error("paths file is not canonical UTF-8");
     const paths = decodedPaths.split("\0").filter((path15) => path15.length > 0);
@@ -82010,7 +82061,7 @@ async function cmdInternalConstraintGate(deps, operation, nulPathsFile) {
 }
 
 // packages/cli/src/commands/internalCodexJsonl.ts
-import { readFileSync as readFileSync33 } from "node:fs";
+import { readFileSync as readFileSync34 } from "node:fs";
 var visitStrings = (value, emit6) => {
   if (typeof value === "string") {
     emit6(value);
@@ -82032,7 +82083,7 @@ async function cmdInternalCodexJsonl(deps, mode, jsonlPath) {
     return 1;
   }
   try {
-    const jsonl = readFileSync33(jsonlPath, "utf8");
+    const jsonl = readFileSync34(jsonlPath, "utf8");
     if (mode === "usage") {
       const usage = parseCodexJsonlUsage(jsonl);
       if (usage !== void 0) deps.io.out(JSON.stringify(usage));
@@ -82069,7 +82120,7 @@ async function cmdInternalCodexJsonl(deps, mode, jsonlPath) {
 
 // packages/cli/src/commands/internal-skill-provenance.ts
 import { randomUUID as randomUUID20 } from "node:crypto";
-import { chmod as chmod5, lstat as lstat66, mkdir as mkdir53, open as open11, readFile as readFile87, readdir as readdir31, realpath as realpath16, rename as rename20, rm as rm26 } from "node:fs/promises";
+import { chmod as chmod5, lstat as lstat67, mkdir as mkdir53, open as open11, readFile as readFile87, readdir as readdir31, realpath as realpath16, rename as rename20, rm as rm27 } from "node:fs/promises";
 import { dirname as dirname33, join as join143, relative as relative30, resolve as resolve50 } from "node:path";
 function rootPath(value) {
   if (value === void 0 || value.trim() === "") throw new Error("--root <path> \u662F\u5FC5\u9700\u53C2\u6570");
@@ -82216,7 +82267,7 @@ function parseSyncSources(text13) {
   return parseSkillSources(text13);
 }
 async function capturePath(path15, label2) {
-  const stat20 = await lstat66(path15);
+  const stat20 = await lstat67(path15);
   if (stat20.isSymbolicLink()) throw new Error(`${label2} \u4E0D\u80FD\u662F symlink: ${path15}`);
   const resolved = await realpath16(path15);
   return { path: path15, realPath: resolved, dev: stat20.dev, ino: stat20.ino };
@@ -82229,14 +82280,14 @@ async function captureRegistryPathSnapshot(root, registryPath) {
   if (!within(canonicalRoot, parentIdentity.realPath)) {
     throw new Error(`canonical registry parent \u4E0D\u662F root \u5185\u7684\u666E\u901A\u76EE\u5F55: ${templatesPath}`);
   }
-  const parentStat = await lstat66(templatesPath);
+  const parentStat = await lstat67(templatesPath);
   if (!parentStat.isDirectory() || parentStat.isSymbolicLink()) {
     throw new Error(`canonical registry parent \u4E0D\u662F root \u5185\u7684\u666E\u901A\u76EE\u5F55: ${templatesPath}`);
   }
   let registryIdentity = null;
   try {
     registryIdentity = await capturePath(registryPath, "canonical registry");
-    const registryStat = await lstat66(registryPath);
+    const registryStat = await lstat67(registryPath);
     if (!registryStat.isFile() || registryStat.isSymbolicLink()) {
       throw new Error(`canonical registry \u4E0D\u662F root \u5185\u7684\u666E\u901A\u6587\u4EF6: ${registryPath}`);
     }
@@ -82261,7 +82312,7 @@ async function assertRegistrySnapshot(snapshot2, registryPath) {
   await assertPathIdentity(snapshot2.parent, "canonical registry parent");
   if (snapshot2.registry === null) {
     try {
-      await lstat66(registryPath);
+      await lstat67(registryPath);
     } catch (error2) {
       if (error2.code === "ENOENT") return;
       throw error2;
@@ -82353,7 +82404,7 @@ async function syncRegistry(root, hooks = {}) {
     }
   } catch (error2) {
     if (handle !== void 0) await handle.close().catch(() => void 0);
-    await rm26(tmp, { force: true }).catch(() => void 0);
+    await rm27(tmp, { force: true }).catch(() => void 0);
     throw error2;
   }
   return { registryPath, count: computed.length };
@@ -82666,7 +82717,7 @@ function collect3(value, previous = []) {
 }
 
 // packages/cli/src/program-change-guard.ts
-import { lstatSync as lstatSync7 } from "node:fs";
+import { lstatSync as lstatSync8 } from "node:fs";
 var CHANGE_COMMANDS = /* @__PURE__ */ new Set([
   "set",
   "set-many",
@@ -82700,7 +82751,7 @@ function isMissing2(error2) {
 }
 function entryExists(path15) {
   try {
-    lstatSync7(path15);
+    lstatSync8(path15);
     return true;
   } catch {
     return false;
@@ -82731,12 +82782,12 @@ function registerFieldCommands(program2, deps) {
 
 // packages/cli/src/commands/launcher-heal.ts
 import { realpathSync as realpathSync8 } from "node:fs";
-import { mkdir as mkdir54, readdir as readdir32, rm as rm27 } from "node:fs/promises";
+import { mkdir as mkdir54, readdir as readdir32, rm as rm28 } from "node:fs/promises";
 import { homedir as homedir17 } from "node:os";
 import { join as join145 } from "node:path";
 
 // packages/cli/src/runtime/stable-launcher-format.ts
-import { lstat as lstat67, readFile as readFile88 } from "node:fs/promises";
+import { lstat as lstat68, readFile as readFile88 } from "node:fs/promises";
 var HEAD = "#!/bin/sh\nset -eu\nexport TENON_RUNTIME_ROOTS=";
 var MAX_LAUNCHER_BYTES = 256 * 1024;
 var QUOTED = String.raw`'(?:[^']|'"'"')*'`;
@@ -82773,7 +82824,7 @@ function parseManagedLauncher(text13) {
 async function readLauncherFile(path15) {
   let item2;
   try {
-    item2 = await lstat67(path15);
+    item2 = await lstat68(path15);
   } catch (error2) {
     return error2.code === "ENOENT" ? { kind: "missing" } : { kind: "unmanaged" };
   }
@@ -82898,7 +82949,7 @@ async function cmdInternalLauncherHeal(deps, env = REAL_LAUNCHER_HEAL_ENV) {
     outcome = { outcome: "failed", detail: errMsg(error2) };
   }
   if (paths !== void 0 && (outcome.outcome === "repaired" || outcome.outcome === "current")) {
-    await rm27(join145(paths.stateRoot, LAUNCHER_HEAL_RETRY_MARKER), { force: true }).catch(() => {
+    await rm28(join145(paths.stateRoot, LAUNCHER_HEAL_RETRY_MARKER), { force: true }).catch(() => {
     });
   }
   deps.io.out(JSON.stringify(outcome));
@@ -82911,16 +82962,16 @@ import { resolve as resolve52 } from "node:path";
 
 // packages/cli/src/upstream-skills/install.ts
 import { randomUUID as randomUUID21 } from "node:crypto";
-import { copyFileSync as copyFileSync2, existsSync as existsSync14, lstatSync as lstatSync9, mkdirSync as mkdirSync7, readFileSync as readFileSync36, readdirSync as readdirSync13, renameSync as renameSync5, rmSync as rmSync5, writeFileSync as writeFileSync5 } from "node:fs";
+import { copyFileSync as copyFileSync2, existsSync as existsSync14, lstatSync as lstatSync10, mkdirSync as mkdirSync7, readFileSync as readFileSync37, readdirSync as readdirSync13, renameSync as renameSync5, rmSync as rmSync5, writeFileSync as writeFileSync5 } from "node:fs";
 import { basename as basename15, join as join148 } from "node:path";
 
 // packages/cli/src/upstream-skills/content.ts
-import { chmodSync as chmodSync2, copyFileSync, lstatSync as lstatSync8, mkdirSync as mkdirSync6, readFileSync as readFileSync34, readdirSync as readdirSync11 } from "node:fs";
+import { chmodSync as chmodSync2, copyFileSync, lstatSync as lstatSync9, mkdirSync as mkdirSync6, readFileSync as readFileSync35, readdirSync as readdirSync11 } from "node:fs";
 import { join as join146 } from "node:path";
 var NO_EXCLUDES = /* @__PURE__ */ new Set();
 function readSkillFrontmatter(path15) {
   try {
-    return parseSkillFrontmatter(readFileSync34(path15, "utf8"));
+    return parseSkillFrontmatter(readFileSync35(path15, "utf8"));
   } catch {
     return null;
   }
@@ -82932,7 +82983,7 @@ function measureTree(dir, excludeTopLevel) {
       if (excludes.has(name2)) continue;
       const path15 = join146(current, name2);
       const relPath = rel === "" ? name2 : `${rel}/${name2}`;
-      const item2 = lstatSync8(path15);
+      const item2 = lstatSync9(path15);
       if (item2.isDirectory()) {
         const error3 = visit4(path15, relPath, NO_EXCLUDES);
         if (error3 !== void 0) return error3;
@@ -82954,7 +83005,7 @@ function copyTree(source, target, excludeTopLevel = NO_EXCLUDES) {
     if (excludeTopLevel.has(name2)) continue;
     const from = join146(source, name2);
     const to = join146(target, name2);
-    const item2 = lstatSync8(from);
+    const item2 = lstatSync9(from);
     if (item2.isDirectory()) {
       copyTree(from, to);
     } else if (item2.isFile()) {
@@ -82967,7 +83018,7 @@ function copyTree(source, target, excludeTopLevel = NO_EXCLUDES) {
 }
 async function treeHash(id2, dir) {
   try {
-    if (!lstatSync8(dir).isDirectory()) return null;
+    if (!lstatSync9(dir).isDirectory()) return null;
     return `sha256:${(await buildCanonicalManifest(id2, dir)).treeSha256}`;
   } catch {
     return null;
@@ -83036,7 +83087,7 @@ function treeEntryModes(env, checkoutDir, path15) {
 }
 
 // packages/cli/src/upstream-skills/license.ts
-import { readFileSync as readFileSync35, readdirSync as readdirSync12, statSync as statSync10 } from "node:fs";
+import { readFileSync as readFileSync36, readdirSync as readdirSync12, statSync as statSync10 } from "node:fs";
 import { join as join147 } from "node:path";
 var LICENSE_FILE_NAMES = ["LICENSE", "LICENSE.md", "LICENSE.txt", "LICENCE", "COPYING"];
 var README = /^README(?:\.[A-Za-z0-9]+)?$/u;
@@ -83063,7 +83114,7 @@ function licenseFile(dir, source) {
   for (const name2 of LICENSE_FILE_NAMES) {
     const file = join147(dir, name2);
     if (!isFile(file)) continue;
-    const license = classify(readFileSync35(file, "utf8"));
+    const license = classify(readFileSync36(file, "utf8"));
     return license === "unrecognized" ? { license, file } : { license, source, file };
   }
   return void 0;
@@ -83078,7 +83129,7 @@ function readmeLicense(checkoutDir) {
   for (const name2 of names) {
     const file = join147(checkoutDir, name2);
     if (!isFile(file)) continue;
-    const lines4 = readFileSync35(file, "utf8").split(/\r?\n/u);
+    const lines4 = readFileSync36(file, "utf8").split(/\r?\n/u);
     const heading = lines4.findIndex((line) => LICENSE_HEADING.test(line.trim()));
     if (heading < 0) continue;
     const value = lines4.slice(heading + 1).find((line) => line.trim() !== "")?.trim();
@@ -83108,14 +83159,14 @@ var ROOT_EXCLUDES = /* @__PURE__ */ new Set([".git", ".github"]);
 var NESTED_EXCLUDES = /* @__PURE__ */ new Set([".git"]);
 function readOptional3(path15) {
   try {
-    return readFileSync36(path15, "utf8");
+    return readFileSync37(path15, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT") return null;
     throw error2;
   }
 }
 function bundledSkillIds(pluginRoot2) {
-  const registry = parseSkillProvenanceRegistry(readFileSync36(join148(pluginRoot2, "templates", "skill-sources.yaml"), "utf8"));
+  const registry = parseSkillProvenanceRegistry(readFileSync37(join148(pluginRoot2, "templates", "skill-sources.yaml"), "utf8"));
   return new Set(registry.skills.flatMap((entry2) => [entry2.token, entry2.contentSkill ?? entry2.token]));
 }
 function readPreviousLock(input2) {
@@ -83152,8 +83203,8 @@ function validate(run6, source, checkout) {
   if (modes === null) return { reason: "invalid-content", detail: "git ls-tree failed" };
   const tree = source.path === "." ? modes.filter((entry2) => !entry2.path.startsWith(".github/")) : modes;
   if (tree.length === 0) return { reason: "removed", detail: `${source.path} missing at ${checkout.commit.slice(0, 7)}` };
-  const link6 = tree.find((entry2) => entry2.mode === "120000" || entry2.mode === "160000");
-  if (link6 !== void 0) return { reason: "invalid-content", detail: `${link6.mode === "120000" ? "symlink" : "submodule"} ${link6.path}` };
+  const link7 = tree.find((entry2) => entry2.mode === "120000" || entry2.mode === "160000");
+  if (link7 !== void 0) return { reason: "invalid-content", detail: `${link7.mode === "120000" ? "symlink" : "submodule"} ${link7.path}` };
   const skillDir = source.path === "." ? checkout.dir : join148(checkout.dir, source.path);
   const name2 = readSkillFrontmatter(join148(skillDir, "SKILL.md"))?.get("name");
   if (name2 === void 0 || name2 === "") return { reason: "invalid-content", detail: "SKILL.md or its name is missing" };
@@ -83256,7 +83307,7 @@ function applyStaged(run6, bundled, managed) {
 }
 function isLink(path15) {
   try {
-    return lstatSync9(path15).isSymbolicLink();
+    return lstatSync10(path15).isSymbolicLink();
   } catch {
     return false;
   }
@@ -83349,10 +83400,10 @@ import { randomUUID as randomUUID23 } from "node:crypto";
 import { execFileSync as execFileSync3 } from "node:child_process";
 import {
   closeSync as closeSync7,
-  lstatSync as lstatSync10,
+  lstatSync as lstatSync11,
   mkdirSync as mkdirSync8,
   openSync as openSync7,
-  readFileSync as readFileSync37,
+  readFileSync as readFileSync38,
   readdirSync as readdirSync14,
   readSync as readSync5,
   realpathSync as realpathSync9,
@@ -83379,7 +83430,7 @@ var REAL_SETUP_ENV = {
   },
   pathExists: (path15) => {
     try {
-      lstatSync10(path15);
+      lstatSync11(path15);
       return true;
     } catch {
       return false;
@@ -83387,14 +83438,14 @@ var REAL_SETUP_ENV = {
   },
   readText: (path15) => {
     try {
-      return readFileSync37(path15, "utf8");
+      return readFileSync38(path15, "utf8");
     } catch {
       return void 0;
     }
   },
   readTextState: (path15) => {
     try {
-      return { state: "ok", text: readFileSync37(path15, "utf8") };
+      return { state: "ok", text: readFileSync38(path15, "utf8") };
     } catch (error2) {
       const code = error2.code;
       return code === "ENOENT" ? { state: "missing" } : { state: "error", detail: errMsg(error2) };
@@ -87381,7 +87432,7 @@ function registerInstallCommands(program2, deps, dashboardRuntime) {
 }
 
 // packages/cli/src/program-resources.ts
-import { readFileSync as readFileSync38 } from "node:fs";
+import { readFileSync as readFileSync39 } from "node:fs";
 
 // packages/cli/src/commands/internalMotionGate.ts
 var MARKERS = [
@@ -87650,7 +87701,7 @@ function registerDesignCommands(program2, deps) {
 }
 function stdinText() {
   try {
-    return readFileSync38(0, "utf8");
+    return readFileSync39(0, "utf8");
   } catch {
     return "";
   }
@@ -87689,7 +87740,7 @@ async function cmdMigrateWorkflow(deps, name2) {
 }
 
 // packages/cli/src/commands/state-projection.ts
-import { lstat as lstat68, readFile as readFile91 } from "node:fs/promises";
+import { lstat as lstat69, readFile as readFile91 } from "node:fs/promises";
 import { isAbsolute as isAbsolute41, join as join164, resolve as resolve56 } from "node:path";
 function message(error2) {
   return error2 instanceof Error ? error2.message : String(error2);
@@ -87738,7 +87789,7 @@ async function cmdStateProjection(deps, sub, name2, opts = {}) {
           return 0;
         }
         const sourcePath = isAbsolute41(opts.workflowFile) ? opts.workflowFile : resolve56(deps.cwd, opts.workflowFile);
-        const info = await lstat68(sourcePath);
+        const info = await lstat69(sourcePath);
         if (!info.isFile() || info.isSymbolicLink()) {
           throw new Error(`workflow file \u5FC5\u987B\u662F\u975E symlink \u666E\u901A\u6587\u4EF6: ${sourcePath}`);
         }
@@ -88099,7 +88150,7 @@ function registerWorkflowCommands(program2, deps) {
 
 // packages/cli/src/commands/hostInteraction.ts
 import { createHash as createHash55, createHmac as createHmac2 } from "node:crypto";
-import { closeSync as closeSync8, constants as constants12, fstatSync as fstatSync3, openSync as openSync8, readFileSync as readFileSync39 } from "node:fs";
+import { closeSync as closeSync8, constants as constants12, fstatSync as fstatSync3, openSync as openSync8, readFileSync as readFileSync40 } from "node:fs";
 var MAX_PAYLOAD_BYTES = 128 * 1024;
 var MAX_TEXT_BYTES2 = 8 * 1024;
 var isRecord29 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
@@ -88199,7 +88250,7 @@ async function cmdInternalHostInteraction(deps, changeName, payloadPath) {
       if (!before.isFile() || before.size > MAX_PAYLOAD_BYTES) {
         throw new Error("payload must be a bounded regular file");
       }
-      raw = readFileSync39(fd, "utf8");
+      raw = readFileSync40(fd, "utf8");
       const after = fstatSync3(fd);
       if (after.dev !== before.dev || after.ino !== before.ino || after.size !== before.size || after.mtimeMs !== before.mtimeMs || Buffer.byteLength(raw) !== before.size) {
         throw new Error("payload changed during verified read");
@@ -88257,7 +88308,7 @@ import { basename as basename16 } from "node:path";
 // packages/cli/src/commands/selfApprovalIdentity.ts
 import { createHmac as createHmac3, randomBytes as randomBytes7, randomUUID as randomUUID24 } from "node:crypto";
 import { constants as constants13 } from "node:fs";
-import { link as link5, lstat as lstat69, mkdir as mkdir58, open as open12, unlink as unlink10 } from "node:fs/promises";
+import { link as link6, lstat as lstat70, mkdir as mkdir58, open as open12, unlink as unlink10 } from "node:fs/promises";
 import { dirname as dirname41 } from "node:path";
 var KEY_BYTES = 32;
 function isMissing3(error2) {
@@ -88288,7 +88339,7 @@ async function readKey2(path15) {
 async function createKey(path15) {
   const dir = dirname41(path15);
   await mkdir58(dir, { recursive: true, mode: 448 });
-  const dirStat = await lstat69(dir);
+  const dirStat = await lstat70(dir);
   if (!dirStat.isDirectory()) throw new Error("observation identity key directory must be a real directory");
   const tmp = `${path15}.tmp-${randomUUID24()}`;
   try {
@@ -88304,7 +88355,7 @@ async function createKey(path15) {
       await handle.close();
     }
     try {
-      await link5(tmp, path15);
+      await link6(tmp, path15);
     } catch (error2) {
       if (!isExisting(error2)) throw error2;
     }
@@ -89590,7 +89641,7 @@ function registerAgentCommands(program2, deps) {
 }
 
 // packages/cli/src/commands/interaction.ts
-import { lstat as lstat70 } from "node:fs/promises";
+import { lstat as lstat71 } from "node:fs/promises";
 import { isAbsolute as isAbsolute42, join as join167, relative as relative31, resolve as resolve57 } from "node:path";
 var MAX_FIXTURE_BYTES = 1024 * 1024;
 var MAX_EVENT_FILE_BYTES = 1024 * 1024;
@@ -89626,7 +89677,7 @@ function exactDimension(value, expected, label2) {
 async function readRegularJson(path15, maxBytes, label2) {
   let entry2;
   try {
-    entry2 = await lstat70(path15);
+    entry2 = await lstat71(path15);
   } catch {
     throw new Error(`${label2} unavailable`);
   }
@@ -89731,7 +89782,7 @@ async function cmdInteraction(deps, sub, args, opts = {}) {
     if (fixtureDir === void 0) throw new Error("fixture directory unavailable");
     let directory;
     try {
-      directory = await lstat70(fixtureDir);
+      directory = await lstat71(fixtureDir);
     } catch {
       throw new Error("fixture directory unavailable");
     }
@@ -89743,7 +89794,7 @@ async function cmdInteraction(deps, sub, args, opts = {}) {
       const target = assertFixturePath(fixtureDir, entry2.file);
       let info;
       try {
-        info = await lstat70(target);
+        info = await lstat71(target);
       } catch {
         throw new Error("fixture unavailable");
       }
@@ -90380,7 +90431,7 @@ async function cmdTestBaselineSuite(deps, change, opts) {
 
 // packages/cli/src/commands/test-code-size.ts
 import { execFile as execFile12 } from "node:child_process";
-import { lstat as lstat71, readFile as readFile96 } from "node:fs/promises";
+import { lstat as lstat72, readFile as readFile96 } from "node:fs/promises";
 import { join as join170 } from "node:path";
 import { promisify as promisify5 } from "node:util";
 var run2 = promisify5(execFile12);
@@ -90395,7 +90446,7 @@ async function git2(cwd, args) {
 }
 async function countLines(path15) {
   try {
-    const entry2 = await lstat71(path15);
+    const entry2 = await lstat72(path15);
     if (!entry2.isFile() || entry2.size > MAX_UNTRACKED_BYTES3) return 0;
     const text13 = await readFile96(path15, "utf8");
     if (text13 === "") return 0;
@@ -90766,11 +90817,11 @@ async function cmdTestPlan(deps, change, opts = {}) {
 }
 
 // packages/cli/src/commands/test-register.ts
-import { lstat as lstat73 } from "node:fs/promises";
+import { lstat as lstat74 } from "node:fs/promises";
 import { join as join173 } from "node:path";
 
 // packages/cli/src/commands/test-register-auto.ts
-import { lstat as lstat72 } from "node:fs/promises";
+import { lstat as lstat73 } from "node:fs/promises";
 import { join as join172 } from "node:path";
 
 // packages/cli/src/test-system/claim-orphans.ts
@@ -90907,7 +90958,7 @@ function fail11(deps, message2) {
 }
 async function regularFile2(deps, path15) {
   try {
-    return (await lstat72(join172(deps.cwd, path15))).isFile();
+    return (await lstat73(join172(deps.cwd, path15))).isFile();
   } catch {
     return false;
   }
@@ -90988,7 +91039,7 @@ function editable(state, change) {
 }
 async function regularFile3(deps, path15) {
   try {
-    return (await lstat73(join173(deps.cwd, path15))).isFile();
+    return (await lstat74(join173(deps.cwd, path15))).isFile();
   } catch {
     return false;
   }
@@ -91136,7 +91187,7 @@ async function cmdTestWaive(deps, change, opts) {
 }
 
 // packages/cli/src/commands/test-report.ts
-import { lstat as lstat74, readFile as readFile97, writeFile as writeFile33 } from "node:fs/promises";
+import { lstat as lstat75, readFile as readFile97, writeFile as writeFile33 } from "node:fs/promises";
 import { isAbsolute as isAbsolute43, resolve as resolve58 } from "node:path";
 
 // packages/cli/src/test-system/report-md.ts
@@ -91256,7 +91307,7 @@ async function writableReport(repoRoot, path15) {
   if (path15 === "" || isAbsolute43(path15) || path15.includes("..")) return void 0;
   const absolute = resolve58(repoRoot, path15);
   try {
-    const entry2 = await lstat74(absolute);
+    const entry2 = await lstat75(absolute);
     return entry2.isFile() && entry2.size <= MAX_REPORT_BYTES2 ? absolute : void 0;
   } catch {
     return void 0;
@@ -91324,7 +91375,7 @@ async function cmdTestReport(deps, change, opts = {}) {
 
 // packages/cli/src/commands/test-run.ts
 import { randomBytes as randomBytes9 } from "node:crypto";
-import { lstat as lstat76, mkdir as mkdir63, realpath as realpath18, rm as rm28 } from "node:fs/promises";
+import { lstat as lstat77, mkdir as mkdir63, realpath as realpath18, rm as rm29 } from "node:fs/promises";
 import { join as join176, relative as relative34, resolve as resolve60, sep as sep27 } from "node:path";
 
 // packages/cli/src/hostKind.ts
@@ -91337,7 +91388,7 @@ function detectHostEnvironment(env) {
 
 // packages/cli/src/test-runner/collect.ts
 import { createHash as createHash57, randomBytes as randomBytes8 } from "node:crypto";
-import { copyFile as copyFile3, lstat as lstat75, mkdir as mkdir61, readFile as readFile98, readdir as readdir34, realpath as realpath17, writeFile as writeFile34 } from "node:fs/promises";
+import { copyFile as copyFile3, lstat as lstat76, mkdir as mkdir61, readFile as readFile98, readdir as readdir34, realpath as realpath17, writeFile as writeFile34 } from "node:fs/promises";
 import { dirname as dirname43, join as join174, relative as relative32, resolve as resolve59, sep as sep26 } from "node:path";
 var MAX_DIRECTORY_FILES = 5e3;
 var MAX_DOCUMENT_BYTES = 4 * 1024 * 1024;
@@ -91365,7 +91416,7 @@ async function summarizeTree(absolute) {
   const walk2 = async (dir) => {
     for (const name2 of (await readdir34(dir)).sort()) {
       const path15 = join174(dir, name2);
-      const entry2 = await lstat75(path15);
+      const entry2 = await lstat76(path15);
       if (entry2.isSymbolicLink()) continue;
       if (entry2.isDirectory()) {
         await walk2(path15);
@@ -91415,7 +91466,7 @@ async function documentInput(repoRoot, changeDir7, ref) {
   for (const record9 of records.filter((candidate2) => candidate2.kind === ref)) {
     const absolute = join174(repoRoot, record9.path);
     try {
-      const entry2 = await lstat75(absolute);
+      const entry2 = await lstat76(absolute);
       if (!entry2.isFile() || entry2.size > MAX_DOCUMENT_BYTES) continue;
       entries2.push({ path: record9.path, digest: digestOf2(await readFile98(absolute)) });
     } catch {
@@ -91428,7 +91479,7 @@ async function fileInput(repoRoot, path15) {
   const absolute = resolve59(repoRoot, path15);
   const missing3 = { kind: "file", path: path15, present: false, digest: null, files: 0 };
   try {
-    const entry2 = await lstat75(absolute);
+    const entry2 = await lstat76(absolute);
     if (entry2.isSymbolicLink() || !await insideRepo(repoRoot, absolute)) return missing3;
     if (entry2.isFile()) {
       return { kind: "file", path: path15, present: true, digest: digestOf2(await readFile98(absolute)), files: 1 };
@@ -91487,7 +91538,7 @@ async function collectTestOutputs(repoRoot, test, runDir) {
     const absent = { ...base, present: false, digest: null, bytes: 0, files: 0, artifact: null };
     let entry2;
     try {
-      entry2 = await lstat75(absolute);
+      entry2 = await lstat76(absolute);
     } catch {
       records.push(absent);
       continue;
@@ -91802,7 +91853,7 @@ async function resolvedCwd(repoRoot, cwd) {
     const target = await realpath18(resolve60(repoRoot, cwd));
     const rel = relative34(await realpath18(repoRoot), target);
     if (rel !== "" && (rel.startsWith("..") || rel.startsWith(sep27))) return void 0;
-    return (await lstat76(target)).isDirectory() ? target : void 0;
+    return (await lstat77(target)).isDirectory() ? target : void 0;
   } catch {
     return void 0;
   }
@@ -91963,7 +92014,7 @@ async function execute(deps, context, input2) {
   const runsOfTest = (await listTestRuns(deps.cwd, change, { slug: context.slug, testId: test.id })).map((entry2) => entry2.record.run_id);
   await pruneTestArtifacts(input2.paths.artifactsDir, runsOfTest, test.keep_runs);
   for (const runId2 of runsOfTest.slice(0, Math.max(0, runsOfTest.length - RECORD_RETENTION))) {
-    await rm28(testRunRecordPath(deps.cwd, context.slug, change, runId2), { force: true });
+    await rm29(testRunRecordPath(deps.cwd, context.slug, change, runId2), { force: true });
   }
   const relativeRecord = relative34(deps.cwd, recordPath3);
   const relativeLog = relative34(deps.cwd, logPath);
@@ -92168,7 +92219,7 @@ function evaluationShell(draft) {
 
 // packages/cli/src/test-system/services.ts
 import { spawn as spawn9, execFile as execFile14 } from "node:child_process";
-import { closeSync as closeSync9, mkdirSync as mkdirSync9, openSync as openSync9, readFileSync as readFileSync40 } from "node:fs";
+import { closeSync as closeSync9, mkdirSync as mkdirSync9, openSync as openSync9, readFileSync as readFileSync41 } from "node:fs";
 import { connect } from "node:net";
 import { dirname as dirname45, resolve as resolve61 } from "node:path";
 import { promisify as promisify7 } from "node:util";
@@ -92220,7 +92271,7 @@ function probePort(port) {
 }
 function logTail(path15) {
   try {
-    return readFileSync40(path15, "utf8").slice(-LOG_TAIL_CHARS).trim();
+    return readFileSync41(path15, "utf8").slice(-LOG_TAIL_CHARS).trim();
   } catch {
     return "";
   }
@@ -92230,7 +92281,7 @@ async function probeReady(service2, logPath) {
   if ("url" in ready) return probeUrl(ready.url);
   if ("port" in ready) return probePort(ready.port);
   try {
-    const found = readFileSync40(logPath, "utf8").includes(ready.log);
+    const found = readFileSync41(logPath, "utf8").includes(ready.log);
     return { ok: found, detail: found ? "\u65E5\u5FD7\u5DF2\u51FA\u73B0" : `\u670D\u52A1\u65E5\u5FD7\u91CC\u8FD8\u6CA1\u51FA\u73B0 "${ready.log}"` };
   } catch {
     return { ok: false, detail: "\u670D\u52A1\u65E5\u5FD7\u8BFB\u4E0D\u5230" };
@@ -92354,7 +92405,7 @@ import { isAbsolute as isAbsolute47, relative as relative38, resolve as resolve6
 
 // packages/cli/src/test-system/artifacts.ts
 import { createHash as createHash59 } from "node:crypto";
-import { copyFile as copyFile4, lstat as lstat77, mkdir as mkdir65, readdir as readdir35, realpath as realpath19 } from "node:fs/promises";
+import { copyFile as copyFile4, lstat as lstat78, mkdir as mkdir65, readdir as readdir35, realpath as realpath19 } from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import { dirname as dirname46, extname, isAbsolute as isAbsolute45, join as join178, relative as relative35, resolve as resolve62, sep as sep28 } from "node:path";
 var MAX_ARTIFACT_FILE_BYTES2 = 64 * 1024 * 1024;
@@ -92424,7 +92475,7 @@ async function writtenSince(files, sinceMs) {
   const kept = [];
   for (const file of files) {
     try {
-      if ((await lstat77(file)).mtimeMs >= sinceMs) kept.push(file);
+      if ((await lstat78(file)).mtimeMs >= sinceMs) kept.push(file);
     } catch {
     }
   }
@@ -92439,7 +92490,7 @@ async function collectArtifacts(input2) {
     const target = resolve62(cwd, declared);
     let entry2;
     try {
-      entry2 = await lstat77(target);
+      entry2 = await lstat78(target);
     } catch {
       continue;
     }
@@ -92461,7 +92512,7 @@ async function collectArtifacts(input2) {
     }
     let entry2;
     try {
-      entry2 = await lstat77(source);
+      entry2 = await lstat78(source);
     } catch {
       continue;
     }
@@ -92543,7 +92594,7 @@ function exitText(outcome) {
 
 // packages/cli/src/test-system/report-read.ts
 import { createHash as createHash60 } from "node:crypto";
-import { lstat as lstat78, mkdir as mkdir66, readFile as readFile99, rm as rm29 } from "node:fs/promises";
+import { lstat as lstat79, mkdir as mkdir66, readFile as readFile99, rm as rm30 } from "node:fs/promises";
 import { dirname as dirname47, resolve as resolve64 } from "node:path";
 
 // packages/cli/src/test-system/parsers/text.ts
@@ -93469,7 +93520,7 @@ var MAX_REPORT_BYTES3 = 64 * 1024 * 1024;
 async function readBounded2(path15) {
   let entry2;
   try {
-    entry2 = await lstat78(path15);
+    entry2 = await lstat79(path15);
   } catch (error2) {
     if (error2.code === "ENOENT") return { state: "missing" };
     return { state: "unreadable", reason: "\u65E0\u6CD5\u8BFB\u53D6\u62A5\u544A\u6587\u4EF6" };
@@ -93482,7 +93533,7 @@ async function readBounded2(path15) {
 async function prepareOutputs(suite2, cwd) {
   for (const path15 of [suite2.report.path, suite2.coverage?.path]) {
     if (path15 === void 0) continue;
-    await rm29(resolve64(cwd, path15), { force: true });
+    await rm30(resolve64(cwd, path15), { force: true });
     await mkdir66(dirname47(resolve64(cwd, path15)), { recursive: true });
   }
 }
@@ -93690,7 +93741,7 @@ function recordCases(parsed2, context) {
 
 // packages/cli/src/test-system/invoker.ts
 import { createHash as createHash61 } from "node:crypto";
-import { appendFile as appendFile12, mkdir as mkdir67, readFile as readFile100, rm as rm30, writeFile as writeFile37 } from "node:fs/promises";
+import { appendFile as appendFile12, mkdir as mkdir67, readFile as readFile100, rm as rm31, writeFile as writeFile37 } from "node:fs/promises";
 import { join as join179 } from "node:path";
 function createInvoker(input2) {
   const logsDir = join179(input2.runDir, "logs");
@@ -93723,7 +93774,7 @@ function createInvoker(input2) {
 === ${part.label}
 `);
         await appendFile12(target, await readFile100(part.path));
-        await rm30(part.path, { force: true });
+        await rm31(part.path, { force: true });
         bytesTotal += part.outcome.log.bytesTotal;
       }
       const bytes = await readFile100(target);
@@ -94539,14 +94590,14 @@ async function cmdTestStatus(deps, change, opts = {}) {
 }
 
 // packages/cli/src/commands/test-sync.ts
-import { lstat as lstat79 } from "node:fs/promises";
+import { lstat as lstat80 } from "node:fs/promises";
 import { join as join181 } from "node:path";
 var MAX_LISTED3 = 15;
 async function missingOnDisk(deps, plan) {
   const gone = [];
   for (const file of plan.files) {
     try {
-      if ((await lstat79(join181(deps.cwd, file.path))).isFile()) continue;
+      if ((await lstat80(join181(deps.cwd, file.path))).isFile()) continue;
     } catch {
     }
     gone.push(file.path);
@@ -95808,7 +95859,7 @@ async function follow(deps, path15, runtime) {
 }
 
 // packages/cli/src/commands/support.ts
-import { mkdirSync as mkdirSync10, readFileSync as readFileSync41, readdirSync as readdirSync15, realpathSync as realpathSync11, renameSync as renameSync7, rmSync as rmSync6, statSync as statSync15, writeFileSync as writeFileSync7 } from "node:fs";
+import { mkdirSync as mkdirSync10, readFileSync as readFileSync42, readdirSync as readdirSync15, realpathSync as realpathSync11, renameSync as renameSync7, rmSync as rmSync6, statSync as statSync15, writeFileSync as writeFileSync7 } from "node:fs";
 import { arch as arch2, homedir as homedir23, platform as platform2, release as release2, userInfo } from "node:os";
 import { dirname as dirname48, join as join182, resolve as resolve66 } from "node:path";
 
@@ -96001,7 +96052,7 @@ function jsonText(value) {
 }
 function readText4(path15) {
   try {
-    return readFileSync41(path15, "utf8");
+    return readFileSync42(path15, "utf8");
   } catch {
     return void 0;
   }
@@ -96308,7 +96359,7 @@ function registerStepCommands(program2, deps) {
 
 // packages/cli/src/commands/orchestration.ts
 import { randomUUID as randomUUID26 } from "node:crypto";
-import { readFileSync as readFileSync42 } from "node:fs";
+import { readFileSync as readFileSync43 } from "node:fs";
 import { readFile as readFile101 } from "node:fs/promises";
 function ledgerDir(deps, change) {
   if (!isValidChangeName(change)) {
@@ -96369,7 +96420,7 @@ async function cmdOrchestrationFreezePipeline(deps, change, pipelineJson, pipeli
   }
   let pipeline;
   try {
-    const source = pipelineFile === void 0 ? pipelineJson : pipelineFile === "-" ? readFileSync42(0, "utf8") : await readFile101(pipelineFile, "utf8");
+    const source = pipelineFile === void 0 ? pipelineJson : pipelineFile === "-" ? readFileSync43(0, "utf8") : await readFile101(pipelineFile, "utf8");
     const parsed2 = JSON.parse(source);
     const decoded = decodeWorkflowPipelineV2(parsed2);
     if (!decoded.ok) throw new Error(decoded.errors.map((entry2) => `${entry2.path}:${entry2.code}`).join(", "));
@@ -97208,7 +97259,7 @@ import { mkdir as mkdir69, writeFile as writeFile39 } from "node:fs/promises";
 import { dirname as dirname50, resolve as resolve69 } from "node:path";
 
 // packages/cli/src/commands/verify-ci-change.ts
-import { lstat as lstat80, readFile as readFile103 } from "node:fs/promises";
+import { lstat as lstat81, readFile as readFile103 } from "node:fs/promises";
 import { join as join185 } from "node:path";
 
 // packages/cli/src/commands/verify-ci-abandoned.ts
@@ -97415,7 +97466,7 @@ function unreadable(selected, message2) {
 }
 async function exists2(path15) {
   try {
-    await lstat80(path15);
+    await lstat81(path15);
     return true;
   } catch {
     return false;
@@ -97876,7 +97927,7 @@ function createManifestSkillActionAuthorityResolver(manifest, isKnownProfile) {
 // packages/cli/src/commands/doctor-probes.ts
 import { execFile as execFile16, execFileSync as execFileSync4 } from "node:child_process";
 import { createHash as createHash62 } from "node:crypto";
-import { accessSync as accessSync7, constants as fsConstants7, readdirSync as readdirSync17, readFileSync as readFileSync43, statSync as statSync16 } from "node:fs";
+import { accessSync as accessSync7, constants as fsConstants7, readdirSync as readdirSync17, readFileSync as readFileSync44, statSync as statSync16 } from "node:fs";
 import { homedir as homedir24 } from "node:os";
 import { dirname as dirname51, join as join187 } from "node:path";
 function safeReaddirDirs(dir) {
@@ -97889,7 +97940,7 @@ function safeReaddirDirs(dir) {
 function readDisabledPluginKeys() {
   const disabled = /* @__PURE__ */ new Set();
   try {
-    const raw = readFileSync43(join187(homedir24(), ".claude", "settings.json"), "utf8");
+    const raw = readFileSync44(join187(homedir24(), ".claude", "settings.json"), "utf8");
     const parsed2 = JSON.parse(raw);
     const ep = typeof parsed2 === "object" && parsed2 !== null && "enabledPlugins" in parsed2 ? parsed2.enabledPlugins : void 0;
     if (ep !== null && typeof ep === "object") {
@@ -97934,7 +97985,7 @@ function scanSkillDigests(skillsRoot) {
     try {
       const skillPath = join187(skillsRoot, name2, "SKILL.md");
       if (!statSync16(skillPath).isFile()) continue;
-      digests.set(name2, createHash62("sha256").update(readFileSync43(skillPath)).digest("hex"));
+      digests.set(name2, createHash62("sha256").update(readFileSync44(skillPath)).digest("hex"));
     } catch {
     }
   }
@@ -98039,7 +98090,7 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
     platform: () => detectPlatform({ platform: process.platform, env: process.env, procVersion: readProcVersion }),
     statuslineConfigured: () => {
       try {
-        return readFileSync43(join187(homedir24(), ".claude", "settings.json"), "utf8").includes("statusline.sh");
+        return readFileSync44(join187(homedir24(), ".claude", "settings.json"), "utf8").includes("statusline.sh");
       } catch {
         return false;
       }
@@ -98116,7 +98167,7 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
         return null;
       }
       try {
-        return skillTextModelInvocable(readFileSync43(join187(root, "skills", skillId, "SKILL.md"), "utf8"));
+        return skillTextModelInvocable(readFileSync44(join187(root, "skills", skillId, "SKILL.md"), "utf8"));
       } catch {
         return null;
       }
@@ -98163,18 +98214,18 @@ function gitRemoteNames(cwd) {
 }
 
 // packages/cli/src/pluginSkillIds.ts
-import { readFileSync as readFileSync44 } from "node:fs";
+import { readFileSync as readFileSync45 } from "node:fs";
 import { join as join188 } from "node:path";
 function pluginSkillIds(pluginRoot2) {
   const ids2 = /* @__PURE__ */ new Set();
   try {
-    for (const source of parseUpstreamSkillSources(readFileSync44(join188(pluginRoot2, "skills", "sources.yaml"), "utf8")).skills) {
+    for (const source of parseUpstreamSkillSources(readFileSync45(join188(pluginRoot2, "skills", "sources.yaml"), "utf8")).skills) {
       ids2.add(source.id);
     }
   } catch {
   }
   try {
-    for (const source of parseSkillSources(readFileSync44(join188(pluginRoot2, "templates", "skill-sources.yaml"), "utf8"))) {
+    for (const source of parseSkillSources(readFileSync45(join188(pluginRoot2, "templates", "skill-sources.yaml"), "utf8"))) {
       ids2.add(source.token);
     }
   } catch {
@@ -98263,7 +98314,7 @@ function readPluginVersion() {
     [".claude-plugin", "plugin.json"]
   ]) {
     try {
-      const raw = readFileSync45(join190(pluginRoot(), ...rel), "utf8");
+      const raw = readFileSync46(join190(pluginRoot(), ...rel), "utf8");
       const parsed2 = JSON.parse(raw);
       const version = typeof parsed2 === "object" && parsed2 !== null && "version" in parsed2 ? parsed2.version : void 0;
       if (typeof version === "string" && version.trim() !== "") return version;
