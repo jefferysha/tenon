@@ -18,24 +18,28 @@ v0.3.1 的修复版，来自它的补充验收。`tenon runtime repair --rollbac
 
 ### 修复
 
-- runtime 回滚卡死。v0.2.1 到 v0.3.1 里，`tenon update` 之后运行 `tenon runtime repair --rollback` 会失败，报 “rollback refuses a third-party launcher checkpoint”，并让安装卡住：之后回滚、更新、setup 都被拒绝。
+- runtime 回滚卡死。从 v0.1.0 到 v0.3.1 的每个版本里，`tenon update` 之后运行 `tenon runtime repair --rollback` 都会失败，报 “rollback refuses a third-party launcher checkpoint”，并让安装卡住：之后回滚、更新、setup 都被拒绝。
 - 回滚现在先证明 launcher 一对，再翻转选择，所以被拒绝的回滚不会改动任何东西。`tenon update` 和 `tenon setup` 会收尾旧 bootstrap 留下的半截回滚，而不是拒绝。
-- 已经卡住的安装，为该宿主运行一次 v0.3.2 的版本化 `install.sh`。见[排障](troubleshooting.md)里「回滚、更新、setup 都因『未完成的回滚』被拒绝」一节。
-- 任务开始之前，测试目录里就已有、还没批准的 `not_applicable` 条目，在你批准之后不再挡住任务。以前批准会把批准人写回 `catalog.yaml`，这次改写被算成没批准的受保护文件改动（`protected-file-unapproved`），`review request` 又拒绝第二次请求。
-- 已经被这个问题卡住的任务不会被这次更新修好，这个版本也没有可以清掉它的命令。
-- 回滚之后，`tenon doctor` 把 `identity:release` 显示为警告而不是失败，并同时给出两条出路：`tenon update` 回到较新的 release，`tenon setup` 把宿主插件重新绑定到你回滚到的 runtime。只在回滚是最近一次 runtime 事件、且宿主插件正是被回滚掉的那份 release 时才是警告，其他不一致仍是失败。
+- 已经卡住的安装，为该宿主运行一次 v0.3.2 的版本化 `install.sh`。见[回滚 更新 setup 都因未完成的回滚被拒绝](troubleshooting.md#回滚-更新-setup-都因未完成的回滚被拒绝)。
+- 任务开始之前，测试目录里就已有、还没批准的 `not_applicable` 条目，在你批准之后不再挡住任务（影响 v0.3.0 和 v0.3.1）。
+- 以前批准会把批准人写回 `catalog.yaml`，这次改写被算成没批准的受保护文件改动（`protected-file-unapproved`），`review request` 又拒绝第二次请求。
+- 已经卡住的任务不会被这次更新修好：用 `tenon task archive <name> --yes` 归档它，再新建一个任务，新任务里确认一次目录改写即可。见[批准不适用声明之后任务卡在 protected-file-unapproved](troubleshooting.md#批准不适用声明之后任务卡在-protected-file-unapproved)。
+- 回滚之后，`tenon doctor` 把 `identity:release` 显示为警告而不是失败，并给出两条出路：`tenon update` 回到较新的 release，`tenon setup` 把宿主插件绑到当前 runtime。
+- 只有回滚是最近一次 runtime 事件、且宿主插件正是被回滚掉的那份时才是警告，其他不一致仍是失败。
 - 把宿主本地文件排除在测试记录的候选之外，现在在更多情况下失败关闭（除非 git 证明它没被跟踪，否则这个文件照算）：
   - 损坏的 `.git`（空的、损坏的、读不了的，或者 gitfile 指向的目标已不在）；
   - 大小写不敏感的文件系统：被跟踪的 `.Claude/Settings.local.json` 现在按被跟踪的 `.claude/settings.local.json` 算；
   - 项目上层的仓库代替项目自己的 `.git` 作答；
   - 继承来的 `GIT_DIR`、`GIT_INDEX_FILE` 等变量，现在检查时会忽略它们。
-- `tenon test discover` 写出能在 vitest 5 上运行的基准套件，基准解析器把 vitest 5 的 JSON 报告读成同样的 `<名字>.mean_ms`、`.p99_ms`、`.hz` 指标。读不出 vitest 主版本，或者 vitest 5 工程的 bench 文件还在从 `vitest` 导入已被删掉的模块级 `bench` 时，只给提示、不写套件。
+- `tenon test discover` 写出能在 vitest 5 上运行的基准套件（用 `--reporter=json`，因为 vitest 5 删掉了 `--outputJson`）。
+- 基准解析器把 vitest 5 的 JSON 报告读成同样的 `<名字>.mean_ms`、`.p99_ms`、`.hz` 指标。
+- vitest 5 工程的 bench 文件还在从 `vitest` 导入已被删掉的模块级 `bench` 时，discover 只给提示、不写套件。
 - 更多 `agent` 和 `review` 的输出跟随 `TENON_LANG`：`agent next` 的各行、其他 `agent prompt` 与 `agent record` 的错误，以及 `review request`、`review acknowledge` 的信息。目录里还没有的字符串仍是中文。
 
 ### 行为变化
 
 - vitest 4 及更早的工程里，两个基准重名（或名字只有标点不同）现在让基准报告解析失败，并点出重名的那个。以前后一个结果会悄悄盖掉前一个。
-- 读不出 vitest 主版本时，`tenon test discover` 不再写基准套件：vitest 没装，`package.json` 也没有能定出主版本的范围（`latest`、`workspace:*`、`>=3`）。它改为打印两条 `catalog add` 命令。
+- 读不出 vitest 主版本时，`tenon test discover` 不再写基准套件，改为打印两条 `catalog add` 命令。读不出的情况有：vitest 没装且 `package.json` 里没有能定出主版本的范围（`latest`、`workspace:*`、`>=3`），或者已安装的 vitest 的 `package.json` 读不出来。
 
 ### 开发
 
@@ -46,6 +50,8 @@ v0.3.1 的修复版，来自它的补充验收。`tenon runtime repair --rollbac
 ### 升级动作
 
 运行 `tenon update --codex`（或 `--claude`），新开宿主会话。
+
+如果你没有运行过 `tenon runtime repair --rollback`，只需要 `tenon update`，之后的回滚在 v0.3.2 上可用。版本化的 `install.sh` 只用于已经卡住的安装。
 
 如果之前的回滚把你卡住了（`tenon runtime repair --rollback`、`tenon update`、`tenon setup` 都报「存在未完成的 runtime rollback」而拒绝），`tenon update` 帮不上忙。为该宿主运行一次版本化的 `install.sh`：
 

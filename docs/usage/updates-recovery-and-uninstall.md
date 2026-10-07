@@ -90,8 +90,9 @@ the selection, so a refused rollback changes nothing and leaves nothing behind.
 A rollback swaps only the managed runtime; the host plugin keeps the newer release. Right afterwards `tenon doctor` shows
 `identity:release` as a warning that says so, not as a failure. `tenon update --codex` (or `--claude`) goes back to the newer
 release; `tenon setup --codex` (or `--claude`) rebinds the host plugin to the release you rolled back to. If the rollback
-itself failed on v0.2.1 to v0.3.1 and rollback, update and setup now all refuse, see the section "Rollback, update and
-setup all refuse on a leftover rollback" in [Troubleshooting](troubleshooting.md).
+itself failed on v0.3.1 or an earlier release and rollback, update and setup now all refuse, see the section "Rollback,
+update and setup all refuse on a leftover rollback" in
+[Troubleshooting](troubleshooting.md#rollback-update-and-setup-all-refuse-on-a-leftover-rollback).
 
 If no valid previous release exists, reinstall the selected host:
 

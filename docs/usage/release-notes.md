@@ -12,29 +12,36 @@ writes a benchmark command that runs on vitest 5.
 
 ### Fixed
 
-- Runtime rollback wedge. On v0.2.1 through v0.3.1, `tenon runtime repair --rollback` after a `tenon update` failed with
-  "rollback refuses a third-party launcher checkpoint" and left the install stuck. Rollback, update and setup were then all
-  refused.
+- Runtime rollback wedge. On every release from v0.1.0 through v0.3.1, `tenon runtime repair --rollback` after a `tenon update`
+  failed with "rollback refuses a third-party launcher checkpoint" and left the install stuck. Rollback, update and setup
+  were then all refused.
 - Rollback now proves the launcher pair before it moves the selection, so a refused rollback changes nothing. `tenon update`
   and `tenon setup` settle a rollback that an older bootstrap left half done instead of refusing it.
-- To recover a stuck install, run the versioned `install.sh` of v0.3.2 once for the host. See
-  [Rollback, update and setup all refuse on a leftover rollback](troubleshooting.md#rollback-update-and-setup-all-refuse-on-a-leftover-rollback-v021-to-v031).
+- To recover an install that is already stuck, run the versioned `install.sh` of v0.3.2 once for the host. See
+  [Rollback, update and setup all refuse on a leftover rollback](troubleshooting.md#rollback-update-and-setup-all-refuse-on-a-leftover-rollback).
 - A `not_applicable` entry that the test catalog already held, unapproved, before the task started no longer blocks the task
-  after you approve it. The approval wrote the approver into `catalog.yaml`, and that rewrite counted as an unapproved
-  protected change (`protected-file-unapproved`); `review request` then refused a second request.
-- A task that is already stuck this way is not repaired by the update, and this release has no command that clears it.
-- After a rollback, `tenon doctor` shows `identity:release` as a warning, not a failure, and names both ways forward:
-  `tenon update` returns to the newer release, `tenon setup` rebinds the host plugin to the runtime you rolled back to. Only
-  while the rollback is the latest runtime event and the host plugin is the release rolled away from; else it stays a failure.
+  after you approve it (affected v0.3.0 and v0.3.1).
+- Before, the approval's rewrite of `catalog.yaml` counted as an unapproved protected change (`protected-file-unapproved`),
+  and `review request` refused a second request.
+- A task already stuck this way is not repaired by the update. Archive it with `tenon task archive <name> --yes` and start a
+  new task: it asks you to confirm the catalog rewrite once. See
+  [A task is stuck on protected-file-unapproved](troubleshooting.md#a-task-is-stuck-on-protected-file-unapproved-after-a-not-applicable-approval).
+- After a rollback, `tenon doctor` shows `identity:release` as a warning, not a failure.
+- The warning names both ways forward: `tenon update` returns to the newer release, `tenon setup` rebinds the host plugin to
+  the runtime you rolled back to.
+- The warning shows only while the rollback is the latest runtime event and the host plugin is the release you rolled back
+  from. Any other mismatch stays a failure.
 - Leaving host-local files out of the test-record candidate now fails closed in more cases (the file is counted unless git
   shows it is untracked):
   - a broken `.git` (empty, corrupt, unreadable, or a gitfile whose target is gone);
   - a case-insensitive file system, where a tracked `.Claude/Settings.local.json` now counts as `.claude/settings.local.json`;
   - a repository above the project answering in place of the project's own `.git`;
   - inherited `GIT_DIR`, `GIT_INDEX_FILE` and similar variables, which the check now ignores.
-- `tenon test discover` writes a benchmark suite that runs on vitest 5, and the benchmark parser reads the vitest 5 JSON
-  report into the same `<name>.mean_ms`, `.p99_ms` and `.hz` metrics. It prints a note and writes no suite when the vitest
-  major version is unknown, or when a vitest 5 project's bench files still import the removed module-level `bench`.
+- `tenon test discover` writes a benchmark suite that runs on vitest 5 (`--reporter=json`, since vitest 5 removed
+  `--outputJson`).
+- The benchmark parser reads the vitest 5 JSON report into the same `<name>.mean_ms`, `.p99_ms` and `.hz` metrics.
+- Discover writes no suite, and prints a note, when a vitest 5 project's bench files still import the removed module-level
+  `bench`.
 - More `agent` and `review` output follows `TENON_LANG`: the `agent next` lines, the other `agent prompt` and `agent record`
   errors, and the `review request` and `review acknowledge` messages. Strings not yet in the catalog stay in Chinese.
 
@@ -42,8 +49,9 @@ writes a benchmark command that runs on vitest 5.
 
 - A vitest 4 or earlier project that gives two benchmarks one name (or names that differ only in punctuation) now fails the
   bench report parse and names the duplicate. Before, the last result silently replaced the first.
-- `tenon test discover` writes no benchmark suite when it cannot determine the vitest major version: vitest is not installed
-  and `package.json` declares no range that fixes one (`latest`, `workspace:*`, `>=3`). It prints both `catalog add` commands.
+- `tenon test discover` writes no benchmark suite when it cannot determine the vitest major version, and prints both
+  `catalog add` commands instead. That is the case when vitest is not installed and `package.json` declares no range that
+  fixes one (`latest`, `workspace:*`, `>=3`), or when the installed vitest `package.json` cannot be read.
 
 ### Development
 
@@ -56,6 +64,9 @@ writes a benchmark command that runs on vitest 5.
 ### What you need to do
 
 Run `tenon update --codex` (or `--claude`) and open a new host session.
+
+If you have not run `tenon runtime repair --rollback`, that is all: `tenon update` is enough, and later rollbacks work on
+v0.3.2. The versioned `install.sh` is only for installs that are already stuck.
 
 If an earlier rollback left you stuck (`tenon runtime repair --rollback`, `tenon update` and `tenon setup` all refuse with
 "an unfinished runtime rollback exists"), `tenon update` cannot help. Run the versioned `install.sh` once for the host:

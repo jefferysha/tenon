@@ -223,9 +223,9 @@ tenon runtime repair --rollback
 
 If no verified previous release exists, rerun host-scoped setup.
 
-### Rollback, update and setup all refuse on a leftover rollback (v0.2.1 to v0.3.1)
+### Rollback, update and setup all refuse on a leftover rollback
 
-On v0.2.1 through v0.3.1, `tenon runtime repair --rollback` after a `tenon update` failed on a normal install with
+On every release from v0.1.0 through v0.3.1, `tenon runtime repair --rollback` after a `tenon update` failed on a normal install with
 `rollback refuses a third-party launcher checkpoint: tenon`. The selection had already moved to the previous release by
 then (`tenon runtime status` shows it as active), but the rollback journal `runtime-rollback.json` was left behind, and
 from then on `tenon runtime repair --rollback`, `tenon update` and `tenon setup` all stopped with
@@ -271,6 +271,32 @@ away from; any other mismatch stays red. Pick one:
   the release of the runtime you are running.
 
 You can also do neither and keep working on the rolled-back runtime.
+
+### A task is stuck on protected-file-unapproved after a not-applicable approval
+
+On v0.3.0 and v0.3.1, a `not_applicable` entry in `.tenon/tests/catalog.yaml` that was committed before the task started and
+not yet approved could wedge the task once you approved it in the review. The approval writes your name into the entry's
+`approved_by`. That rewrite of `catalog.yaml` was not recorded as approved, so `tenon test status` and `tenon transition`
+stopped with `protected-file-unapproved` for the catalog, and `tenon review request` refused a second request
+(`phase 'build' 的 event 'build-done' 已获确认；请直接执行该 transition，不能重复 request`: "the event is already confirmed;
+run the transition directly").
+
+v0.3.2 records the approval, so a new task does not get stuck. A task that is already stuck is not repaired by updating, and
+no command clears it. Putting `approved_by: null` back does not help: the entry is unapproved again and the request is still
+refused. What works is to archive the stuck task and start a new one in the same working tree:
+
+```bash
+tenon task archive <name> --yes
+tenon init <new-name> --track <track>
+```
+
+Run the new task as usual (`tenon test register`, `tenon test run <new-name> --stage`). The entry already carries its
+approver, so `tenon review request <new-name> --event <event>` lists only the pending change to the test configuration, which
+is the catalog rewrite, and not a waiver to approve. Confirm it once with `tenon review acknowledge <new-name>`; after that
+`tenon test status` has no blocker left and `tenon transition` goes through.
+
+The archived task is kept: `tenon task unarchive <name> --yes` brings it back. Archiving does not touch your code, but the
+new task starts at the first step of its workflow, and the documents the stuck task wrote stay with it.
 
 ### `tenon runtime Node identity changed`
 

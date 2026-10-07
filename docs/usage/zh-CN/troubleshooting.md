@@ -129,9 +129,9 @@ CLI 的帮助、用法错误和最常见的错误按 `TENON_LANG=en|zh`，其次
 没有语言信号、或 `LC_ALL=C`/`POSIX`（hook 为输出稳定会这样钉）时保持历史的中文输出。消息码和退出码与语言无关。
 `tenon transition` 遇到非法或未知 event 时，会用当前语言列出当前 step 的合法 event。
 
-#### 回滚、更新、setup 都因「未完成的回滚」被拒绝（v0.2.1 到 v0.3.1）
+#### 回滚 更新 setup 都因未完成的回滚被拒绝
 
-v0.2.1 到 v0.3.1 里，`tenon update` 之后运行 `tenon runtime repair --rollback`，在正常安装上会失败，报
+从 v0.1.0 到 v0.3.1 的每个版本里，`tenon update` 之后运行 `tenon runtime repair --rollback`，在正常安装上都会失败，报
 `rollback refuses a third-party launcher checkpoint: tenon`。这时选择已经换到了上一份 release（`tenon runtime status` 里它是 active），
 但回滚日志 `runtime-rollback.json` 被留了下来；之后 `tenon runtime repair --rollback`、`tenon update`、`tenon setup` 都以
 `存在未完成的 runtime rollback；请先重跑 tenon runtime repair --rollback` 拒绝，重跑那条命令也一样失败。
@@ -164,6 +164,27 @@ setup 按选择的状态处理这份日志。选择就是日志的目标（上�
 - 留在旧 release，让宿主插件跟上：`tenon setup --codex`（或 `--claude`）把宿主插件重新绑定到你正在运行的 runtime 的发布版本。
 
 两者都不做，继续用回滚后的 runtime 也可以。
+
+#### 批准不适用声明之后任务卡在 protected-file-unapproved
+
+v0.3.0 与 v0.3.1 里，`.tenon/tests/catalog.yaml` 的 `not_applicable` 条目如果在任务开始之前就已提交、且还没批准，你在评审里批准它之后任务可能被卡死。
+批准会把你的名字写进条目的 `approved_by`，这次对 `catalog.yaml` 的改写没有被记成已批准，于是 `tenon test status` 与 `tenon transition`
+以 `protected-file-unapproved`（目录文件）停下，`tenon review request` 又因为评审已确认拒绝第二次请求
+（`phase 'build' 的 event 'build-done' 已获确认；请直接执行该 transition，不能重复 request`）。
+
+v0.3.2 会记下这次批准，新任务不会再卡住。已经卡住的任务不会因为更新被修好，也没有命令能清掉这个状态。把 `approved_by` 改回 `null` 也没用：
+条目回到未批准，请求照样被拒。可行的做法是归档卡住的任务，在同一个工作区里新建一个任务：
+
+```bash
+tenon task archive <name> --yes
+tenon init <new-name> --track <track>
+```
+
+新任务照常运行（`tenon test register`、`tenon test run <new-name> --stage`）。条目里已经带着批准人，所以
+`tenon review request <new-name> --event <event>` 只列出待确认的测试配置改动（就是那次目录改写），而不是待批准的豁免。用
+`tenon review acknowledge <new-name>` 确认一次，之后 `tenon test status` 没有阻断项，`tenon transition` 可以通过。
+
+归档的任务还在：`tenon task unarchive <name> --yes` 可以取回。归档不动你的代码，但新任务从它工作流的第一步开始，卡住的任务写下的文档留在它自己那里。
 
 #### 命令或 hook 报 `tenon runtime Node identity changed`
 
