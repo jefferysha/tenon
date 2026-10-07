@@ -25,7 +25,7 @@ import { readCatalogFile, updateCatalog } from './catalog-file.js'
 import { readTestPlanState, writeTestPlanUnderLock } from './plan-ledger.js'
 import { approveWaivers, pendingWaivers, type PendingWaiver, type WaiverSkipReason } from './plan-waivers.js'
 import {
-  PROTECTED_CATALOG_PATH, protectedChangesSinceChangeStart, protectedFileDigest, protectedKindOf,
+  PROTECTED_CATALOG_PATH, protectedChangesSinceChangeStart, protectedFileDigest, protectedFileDigestSync, protectedKindOf,
   type ProtectedChange, type ProtectedKind, type ProtectedOrigin,
 } from './protected-files.js'
 import { updateTestSeal } from './seal.js'
@@ -249,6 +249,18 @@ async function catalogUntouchedSinceChangeStart(input: {
   }
 }
 
+/** 批准写目录之前观察到的目录状态：当时的内容摘要，以及它相对任务起点是否原样。 */
+interface CatalogSighting {
+  readonly digest: string
+  readonly untouched: boolean
+}
+
+/** 先取摘要、再查 diff：之后（持锁写之前）摘要对不上，就说明查的那份内容已经不是现在这份。 */
+async function sightCatalog(input: Parameters<typeof catalogUntouchedSinceChangeStart>[0]): Promise<CatalogSighting> {
+  const digest = await protectedFileDigest(input.repoRoot, PROTECTED_CATALOG_PATH)
+  return { digest, untouched: await catalogUntouchedSinceChangeStart(input) }
+}
+
 /**
  * 评审请求要列给用户的待批准项：计划里未批准的豁免 + 目录里未批准的项目级「不适用」声明。
  * 计划缺失 / 不可信、目录缺失 / 无效时对应的一半为空（那些状态由测试门禁自己挡）。
@@ -317,17 +329,26 @@ export async function approveFrozenWaivers(input: {
     if (catalog?.state !== 'ok') {
       note = `${note === null ? '' : `${note}；`}测试目录（catalog.yaml）${catalog?.state === 'missing' ? '不存在' : '无效或读不了'}，未批准「不适用」声明`
     } else {
-      // 必须在写之前判定：写完之后目录相对起点永远有改动。冻结清单已带着目录摘要时，下面的封存已按批准后的内容处理。
-      const sealsItself = !checked.matched.some((item) => item.kind === 'catalog')
-        && await catalogUntouchedSinceChangeStart(input)
-      const outcome = await updateCatalog(input.repoRoot, (current) => {
-        const result = approveNotApplicable(current, catalogPart, input.actor.id)
-        return { catalog: result.catalog, value: result }
-      })
+      // 冻结清单已带着目录摘要时，下面的封存已按批准后的内容处理；否则（声明早于任务起点就已提交）在写之前、持目录锁观察
+      // 一次：写完之后目录相对起点永远有改动，只能在这里判定「批准之前它是不是原样」。
+      const frozenCatalog = checked.matched.find((item) => item.kind === 'catalog')
+      const outcome = await updateCatalog(
+        input.repoRoot,
+        (current, sighted: CatalogSighting | undefined) => {
+          // 这次改写要被封存，依据的是刚才观察到的、相对任务起点原样的那份目录。紧贴写盘再核对一次：观察到写入之间
+          // 有人改了目录（人手直接改文件不受目录锁约束）就拒绝，不把没看过的改动一起封存。
+          if (sighted?.untouched === true && protectedFileDigestSync(input.repoRoot, PROTECTED_CATALOG_PATH) !== sighted.digest) {
+            return 'catalog.yaml 在评审确认的检查与写入之间被改动；未批准任何「不适用」声明，请重新运行同一条确认'
+          }
+          const result = approveNotApplicable(current, catalogPart, input.actor.id)
+          return { catalog: result.catalog, value: { result, sealsItself: sighted?.untouched === true } }
+        },
+        () => frozenCatalog === undefined ? sightCatalog(input) : Promise.resolve(undefined),
+      )
       if (!outcome.ok) throw new Error(outcome.message)
-      approved.push(...outcome.value.approved)
-      skipped.push(...outcome.value.skipped)
-      ownCatalogWrite = sealsItself && outcome.value.approved.length > 0
+      approved.push(...outcome.value.result.approved)
+      skipped.push(...outcome.value.result.skipped)
+      ownCatalogWrite = outcome.value.sealsItself && outcome.value.result.approved.length > 0
     }
   }
   // 目录项的摘要在 sealProtectedApprovals 里按写入之后的内容重算，这里的摘要字段只是占位。
