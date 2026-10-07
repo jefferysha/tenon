@@ -40,6 +40,11 @@ inputs:
   sarif-category:
     description: Code scanning category for the SARIF upload.
     default: tenon-verify
+  sarif-checkout-path:
+    description: >-
+      Git checkout the SARIF upload is attributed to: code scanning takes the commit from its HEAD. Empty means
+      the workspace. Only needed when the verified repository is not the checkout this workflow run is for.
+    default: ''
   language:
     description: >-
       zh | en. Language of the report text (job summary, SARIF messages, log). Empty means the CLI
@@ -52,7 +57,9 @@ inputs:
     description: Fail unless the pinned Tenon release has exactly this version (for example 0.3.0).
     default: ''
   cli:
-    description: Path to a Tenon CLI entry to use instead of the bundle shipped with this action.
+    description: >-
+      Path to a Tenon CLI entry to use instead of the bundle shipped with this action. It must stay in a
+      Tenon checkout (packages/cli/dist/tenon.mjs): the CLI reads templates/ three levels above its own file.
     default: ''
 
 outputs:
@@ -68,6 +75,9 @@ outputs:
   report-path:
     description: Path of the JSON report (tenon-verify-ci/v1).
     value: ${{ steps.verify.outputs.report-path }}
+  sarif-id:
+    description: ID of the code scanning SARIF upload (empty when nothing was uploaded or the upload failed before it was accepted).
+    value: ${{ steps.upload.outputs.sarif-id }}
 
 runs:
   using: composite
@@ -95,12 +105,15 @@ runs:
       run: bash "$TENON_ACTION_PATH/run.sh"
 
     - name: Upload SARIF to code scanning
+      id: upload
       if: ${{ always() && inputs.upload-sarif == 'true' && steps.verify.outputs.sarif-path != '' }}
       continue-on-error: true
       uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4
       with:
         sarif_file: ${{ steps.verify.outputs.sarif-path }}
         category: ${{ inputs.sarif-category }}
+        # upload-sarif requires a non-empty checkout_path; its own default is the workspace, which is what an empty input falls back to.
+        checkout_path: ${{ inputs.sarif-checkout-path || github.workspace }}
 
     - name: Fail when verification failed
       if: ${{ always() && steps.verify.outputs.exit-code != '0' }}

@@ -3,12 +3,35 @@
  * 把所有受版本管理的产物提交，再克隆成「CI」——没有 gitignore 的本机目录（HMAC 密钥与封存）、没有用户身份、
  * 只有已提交的内容。只给集成测试用；不进 dist（tsconfig 排除）。
  */
+import { cpSync, mkdirSync } from 'node:fs'
 import { appendFile, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { decodeTestRunRecordV2, recordV2Digest, type TestRunRecordV2 } from '@tenon/kernel'
-import { FIXED_CLOCK, freshHarness, makeHarness, type Harness } from './integration-harness.js'
+import { FIXED_CLOCK, REPO_ROOT, freshHarness, makeHarness, type Harness } from './integration-harness.js'
 import { commitAll, git, writeFiles } from './integration-harness-tests.js'
+
+/**
+ * tenon 检出里 `tenon verify --ci` 与 action 真正用到的那几处。CLI 从自己所在的位置（`packages/cli/dist/tenon.mjs` 往上三级）
+ * 找插件根：`templates/manifest.yaml` 与两份插件清单；action 目录与夹具工具各在自己的路径。GitHub 上这是整个仓库的检出
+ * （用户的 `_actions/<owner>/<repo>/<ref>/`，自测工作流的 `tenon-src`），这里只拷这几处：缺了哪一处，就和真实检出缺它一样起不来。
+ */
+export const TENON_CHECKOUT_PATHS = [
+  'packages/cli/dist/tenon.mjs',
+  'templates',
+  '.codex-plugin',
+  '.claude-plugin',
+  '.github/actions/tenon-verify',
+  'tools/verify-action-selftest.mjs',
+] as const
+
+/** 把当前工作树里的 `paths` 拷成 `dest` 下的一份 tenon 检出（真实拷贝，不是符号链接：bundle 的位置决定它找到的插件根）。 */
+export function stageTenonCheckout(dest: string, paths: readonly string[] = TENON_CHECKOUT_PATHS): void {
+  for (const path of paths) {
+    mkdirSync(dirname(join(dest, path)), { recursive: true })
+    cpSync(join(REPO_ROOT, path), join(dest, path), { recursive: true })
+  }
+}
 
 export const USER = { TENON_USER: 'a@x.io', TENON_USER_NAME: 'A', TENON_TEST_REAL_DIFF: '1', TENON_TEST_TICKING_CLOCK: '1' }
 export const SLUG = 'a-at-x.io'

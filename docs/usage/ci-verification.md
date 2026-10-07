@@ -82,12 +82,14 @@ Action inputs:
 | `fetch-notes` | `true` | Fetch `refs/notes/tenon` from `origin` (best effort) |
 | `upload-sarif` | `true` | Upload the SARIF report |
 | `sarif-category` | `tenon-verify` | Code scanning category |
+| `sarif-checkout-path` | | Git checkout the upload is attributed to (code scanning takes the commit from its HEAD); empty means the workspace, which is right unless the verified repository is not the checkout the workflow run is for |
 | `language` | | `zh` or `en`: language of the job summary, the SARIF messages and the log; empty keeps the CLI default (Chinese unless the runner's locale says otherwise) |
 | `node-version` | `22` | Node.js version |
 | `expected-version` | | Fail unless the pinned release has exactly this version |
-| `cli` | | Use another CLI entry instead of the bundle in the release |
+| `cli` | | Use another CLI entry instead of the bundle in the release. It must still be the `packages/cli/dist/tenon.mjs` of a Tenon checkout: the CLI reads `templates/` three levels above its own file, so a bundle copied elsewhere on its own does not start |
 
-Outputs: `exit-code`, `sarif-path`, `summary-path`, `report-path`. The last step of the action fails
+Outputs: `exit-code`, `sarif-path`, `summary-path`, `report-path`, `sarif-id` (the code scanning upload ID; empty when
+no upload was accepted). The last step of the action fails
 the job when `exit-code` is not `0`, after the SARIF upload had its chance to run.
 
 ## What it checks

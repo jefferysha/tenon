@@ -3,18 +3,27 @@ name: Verify action self-test
 # 在真实的 GitHub 运行器上跑 `.github/actions/tenon-verify`：本机的集成测试（packages/cli/src/verify-action.integration.test.ts）
 # 只跑 run.sh，跑不到 composite action 本身（输入到环境变量的接线、actions/setup-node、SARIF 上传、最后按 exit-code 失败的一步）。
 #
-# 作业里先 `npm ci` + `npm run build` 得到这份检出的 CLI 构建产物，再用它在作业里建一个小的夹具仓库（tools/verify-action-selftest.mjs fixture：
-# 真实的 `tenon init`、登记、`tenon test run`，TENON_TEST_TRUST=1，运行记录提交进夹具），最后把工作区换成夹具、用 action 的 `cli` 输入
-# 指向刚构建的 bundle：
-#   · clean：夹具干净。用 `uses: ./.github/actions/tenon-verify` 跑，断言 exit-code 为 0、SARIF 里没有任何发现，并真的上传 SARIF
+# 布局（本机集成测试 packages/cli/src/verify-action-selftest.integration.test.ts 在一份运行器形状的临时目录里把下面的 run 命令原样跑一遍）：
+#   $GITHUB_WORKSPACE            夹具仓库的根，也就是被校验的仓库（action 校验的永远是 GITHUB_WORKSPACE）
+#   $GITHUB_WORKSPACE/tenon-src  这份检出的 tenon：`actions/checkout` 的 path。npm ci、npm run build 都在这里，之后不再搬动、不再替换
+# CLI 从自己所在的位置找 templates/manifest.yaml 等插件根里的文件（packages/cli/dist/tenon.mjs 往上三级），所以 bundle 必须留在检出里；
+# 单独拷到别处会找不到（`/home/runner/templates/manifest.yaml` 不存在，第一次运行就是这么失败的）。
+# 用户的用法是同一个形状：action 来自 `_actions/<owner>/<repo>/<ref>/`，CLI 是那个检出里的 bundle，工作区是用户的项目。
+#
+# 夹具用 tenon-src 里刚构建的 CLI 在工作区根上建（tools/verify-action-selftest.mjs fixture：真实的 `tenon init`、登记、`tenon test run`，
+# TENON_TEST_TRUST=1，运行记录提交进夹具；tenon-src 写进夹具的 .gitignore，不进提交）。候选指纹按文件系统遍历、不看 .gitignore，
+# 所以 tenon-src 也计入候选：它在建夹具到校验之间不变（这两步之间没有任何步骤写它）。两个作业都不传 `cli` 输入：action 自己找到的
+# 就是 tenon-src 里的那份 bundle，和用户用的默认路径一致。
+#   · clean：夹具干净。用 `uses: ./tenon-src/.github/actions/tenon-verify` 跑，断言 exit-code 为 0、SARIF 里没有任何发现，并真的上传 SARIF
 #     （category tenon-verify-selftest，不和仓库自己的 tenon-verify 混在一起）。
 #   · tampered：夹具里有一条记录被改了内容、没重算摘要。断言 exit-code 为 2、SARIF 里有 error 级的 tenon/record-chain-broken。
 #     composite action 的最后一步会让作业失败，而本仓库的工作流不允许任何「步骤失败也算过」的开关（让「应当失败」的步骤变成绿的，
 #     就是让必须的检查可以悄悄失败），所以这条用 action 自己调用的那个 run.sh（同一份脚本、同一组环境变量名，
 #     本机测试核对环境变量名都出自 action.yml），它不让步骤失败，只把 exit-code 写进步骤输出，断言步骤再读它。
 #
-# 夹具在作业内建好之后换进工作区，所以夹具里带着 action 目录（提交进基线；候选指纹覆盖工作区所有文件，事后放进去的
-# 未跟踪文件会让记录过期）。fork 的 PR 拿不到写令牌，SARIF 上传会被 action 自己跳过（它内部的上传步骤允许失败），不影响结论。
+# SARIF 上传：action 内部的上传步骤允许失败（fork 的 PR 拿不到写令牌），所以失败的上传不会让 action 变红。code scanning 从上传所归属的检出的 HEAD 取
+# 提交，默认是工作区，也就是夹具，而夹具的提交 GitHub 没见过（`commit not found`）：clean 作业用 `sarif-checkout-path` 把上传归到 tenon-src，
+# 再用 `gh api` 把上传读回来（处理完成、分析带本次运行的提交和 tenon-verify-selftest 类别），读不到就失败，不会静默跳过。只有 fork 的 PR 跳过这一步。
 on:
   workflow_dispatch:
   pull_request:
@@ -44,6 +53,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          path: tenon-src
           # Protected-file approvals are checked against the commit each Change started from.
           fetch-depth: 0
 
@@ -51,50 +61,86 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+          cache-dependency-path: tenon-src/package-lock.json
 
       - name: Install dependencies
+        working-directory: tenon-src
         run: npm ci
 
       - name: Build complete plugin runtime (tsc + CLI/server bundles + dashboard SPA)
+        working-directory: tenon-src
         run: npm run build
-
-      - name: Stage the built CLI and the self-test tool outside the workspace
-        run: |
-          set -euo pipefail
-          stage="$RUNNER_TEMP/selftest"
-          mkdir -p "$stage"
-          cp packages/cli/dist/tenon.mjs "$stage/tenon.mjs"
-          cp tools/verify-action-selftest.mjs "$stage/verify-action-selftest.mjs"
 
       - name: Build the clean fixture repository with the built CLI
         run: >-
-          node tools/verify-action-selftest.mjs fixture
-          --cli "$RUNNER_TEMP/selftest/tenon.mjs"
-          --action .github/actions/tenon-verify
-          --out "$RUNNER_TEMP/selftest/fixture"
-
-      - name: Make the fixture the workspace
-        run: |
-          set -euo pipefail
-          find "$GITHUB_WORKSPACE" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-          cp -a "$RUNNER_TEMP/selftest/fixture/." "$GITHUB_WORKSPACE/"
+          node tenon-src/tools/verify-action-selftest.mjs fixture
+          --cli "$GITHUB_WORKSPACE/tenon-src/packages/cli/dist/tenon.mjs"
+          --exclude tenon-src
+          --out "$GITHUB_WORKSPACE"
 
       - name: Run the tenon-verify action against the clean fixture
         id: verify
-        uses: ./.github/actions/tenon-verify
+        uses: ./tenon-src/.github/actions/tenon-verify
         with:
-          cli: ${{ runner.temp }}/selftest/tenon.mjs
           change: demo
           upload-sarif: 'true'
           sarif-category: tenon-verify-selftest
+          # Code scanning takes the commit of an upload from the HEAD of the checkout it is attributed to. The fixture's
+          # HEAD is a commit GitHub has never seen ("commit not found"); tenon-src is the checkout this run is for.
+          sarif-checkout-path: ${{ github.workspace }}/tenon-src
 
       - name: Assert exit-code 0 and a SARIF report without findings
         env:
           EXIT_CODE: ${{ steps.verify.outputs.exit-code }}
           SARIF_PATH: ${{ steps.verify.outputs.sarif-path }}
         run: >-
-          node "$RUNNER_TEMP/selftest/verify-action-selftest.mjs" assert
+          node tenon-src/tools/verify-action-selftest.mjs assert
           --scenario clean --exit-code "$EXIT_CODE" --sarif "$SARIF_PATH"
+
+      # The action's upload step is allowed to fail (a pull request from a fork has no write token), which also hides a
+      # rejected upload. Read the upload back from code scanning: it must be processed, and its analysis must carry this
+      # run's commit and the selftest category. Fork pull requests are the only skip; a repository without code scanning
+      # fails here with the API's own message.
+      - name: Prove the SARIF reached code scanning
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SARIF_ID: ${{ steps.verify.outputs.sarif-id }}
+          SHA: ${{ github.sha }}
+          CATEGORY: tenon-verify-selftest
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1"; exit 1; }
+          if [ -z "$SARIF_ID" ]; then
+            fail "The action reported no code scanning upload (sarif-id is empty): its upload step failed or was skipped. The step log says why; a rejected commit shows as 'commit not found'."
+          fi
+          errors="$(mktemp)"
+          api_failed() {
+            echo "::error::The code scanning API call failed: gh api $1"
+            cat "$errors" >&2
+            echo "::error::Code scanning must be available for this repository and the token must be allowed to read it; this check never skips for that."
+            exit 1
+          }
+          status=pending
+          upload=''
+          sarif_api="repos/$REPO/code-scanning/sarifs/$SARIF_ID"
+          for _ in $(seq 1 24); do
+            upload="$(gh api "$sarif_api" 2>"$errors")" || api_failed "$sarif_api"
+            status="$(jq -r '.processing_status' <<<"$upload")"
+            [ "$status" = pending ] || break
+            sleep 5
+          done
+          [ "$status" = complete ] || fail "Code scanning processing of upload $SARIF_ID is '$status', not complete (errors: $(jq -c '.errors' <<<"$upload"))."
+          analyses_api="repos/$REPO/code-scanning/analyses?sarif_id=$SARIF_ID&per_page=100"
+          analyses="$(gh api "$analyses_api" 2>"$errors")" || api_failed "$analyses_api"
+          found="$(jq --arg id "$SARIF_ID" --arg category "$CATEGORY" --arg sha "$SHA" '[.[] | select(.sarif_id == $id and .category == $category and .commit_sha == $sha and (.error // "") == "")] | length' <<<"$analyses")"
+          if [ "$found" -lt 1 ]; then
+            echo "Analyses of upload $SARIF_ID:" >&2
+            jq -c '.[] | {id, sarif_id, category, commit_sha, ref, error}' <<<"$analyses" >&2
+            fail "No analysis of upload $SARIF_ID has category $CATEGORY, commit $SHA and no error."
+          fi
+          echo "Code scanning has the analysis of upload $SARIF_ID: category $CATEGORY, commit $SHA."
 
   tampered:
     name: tampered fixture fails
@@ -105,39 +151,29 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          path: tenon-src
           fetch-depth: 0
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
           cache: npm
+          cache-dependency-path: tenon-src/package-lock.json
 
       - name: Install dependencies
+        working-directory: tenon-src
         run: npm ci
 
       - name: Build complete plugin runtime (tsc + CLI/server bundles + dashboard SPA)
+        working-directory: tenon-src
         run: npm run build
-
-      - name: Stage the built CLI and the self-test tool outside the workspace
-        run: |
-          set -euo pipefail
-          stage="$RUNNER_TEMP/selftest"
-          mkdir -p "$stage"
-          cp packages/cli/dist/tenon.mjs "$stage/tenon.mjs"
-          cp tools/verify-action-selftest.mjs "$stage/verify-action-selftest.mjs"
 
       - name: Build the tampered fixture repository with the built CLI
         run: >-
-          node tools/verify-action-selftest.mjs fixture --tamper
-          --cli "$RUNNER_TEMP/selftest/tenon.mjs"
-          --action .github/actions/tenon-verify
-          --out "$RUNNER_TEMP/selftest/fixture"
-
-      - name: Make the fixture the workspace
-        run: |
-          set -euo pipefail
-          find "$GITHUB_WORKSPACE" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-          cp -a "$RUNNER_TEMP/selftest/fixture/." "$GITHUB_WORKSPACE/"
+          node tenon-src/tools/verify-action-selftest.mjs fixture --tamper
+          --cli "$GITHUB_WORKSPACE/tenon-src/packages/cli/dist/tenon.mjs"
+          --exclude tenon-src
+          --out "$GITHUB_WORKSPACE"
 
       # The script the composite action runs, with the environment the action gives it (same variable names as action.yml).
       # It records the verifier's exit code in the step outputs instead of failing the step.
@@ -145,8 +181,7 @@ jobs:
         id: verify
         shell: bash
         env:
-          TENON_ACTION_PATH: ${{ github.workspace }}/.github/actions/tenon-verify
-          TENON_VERIFY_CLI: ${{ runner.temp }}/selftest/tenon.mjs
+          TENON_ACTION_PATH: ${{ github.workspace }}/tenon-src/.github/actions/tenon-verify
           TENON_VERIFY_CHANGE: demo
           TENON_VERIFY_CANDIDATE: error
         run: bash "$TENON_ACTION_PATH/run.sh"
@@ -156,5 +191,5 @@ jobs:
           EXIT_CODE: ${{ steps.verify.outputs.exit-code }}
           SARIF_PATH: ${{ steps.verify.outputs.sarif-path }}
         run: >-
-          node "$RUNNER_TEMP/selftest/verify-action-selftest.mjs" assert
+          node tenon-src/tools/verify-action-selftest.mjs assert
           --scenario tampered --exit-code "$EXIT_CODE" --sarif "$SARIF_PATH"

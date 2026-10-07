@@ -10,7 +10,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
 import { REPO_ROOT } from './integration-harness.js'
 import { validateAgainst } from './schema-validation-fixture.js'
-import { ciCheckout, devProject, rewriteRecords, type CiCheckout } from './verify-ci-fixture.js'
+import { ciCheckout, devProject, rewriteRecords, stageTenonCheckout, type CiCheckout } from './verify-ci-fixture.js'
 
 const ACTION_DIR = join(REPO_ROOT, '.github', 'actions', 'tenon-verify')
 const CLI = join(REPO_ROOT, 'packages', 'cli', 'dist', 'main.js')
@@ -103,6 +103,42 @@ describe('tenon-verify action', () => {
     expect(validateAgainst('verifyReport', report).errors).toBe('')
   }, 180_000)
 
+  /**
+   * 用户的用法：`uses: <owner>/<repo>/.github/actions/tenon-verify@<ref>`，不传 `cli`。GitHub 把那个 ref 的整个仓库放在
+   * `<runner>/work/_actions/<owner>/<repo>/<ref>/`，工作区是用户自己的项目（另一个目录）。run.sh 在 action 目录往上三级找
+   * `packages/cli/dist/tenon.mjs`，CLI 再从自己所在的位置往上三级找 `templates/manifest.yaml`：两处都是那份 action 检出。
+   */
+  async function releaseCheckout(paths?: readonly string[]): Promise<{ actionPath: string; release: string }> {
+    const runner = await mkdtemp(join(tmpdir(), 'verify-action-runner-'))
+    cleanups.push(() => rm(runner, { recursive: true, force: true }))
+    const release = join(runner, 'home', 'runner', 'work', '_actions', 'jefferysha', 'tenon', 'v0.3.2')
+    stageTenonCheckout(release, paths)
+    return { actionPath: join(release, '.github', 'actions', 'tenon-verify'), release }
+  }
+
+  test('用户的用法：action 在 _actions/<owner>/<repo>/<ref>/，不传 cli，项目是工作区：用的是那份检出里的 bundle，插件根也在那里，exit-code 0', async () => {
+    const checkout = await ci()
+    const { actionPath, release } = await releaseCheckout()
+    const version = (JSON.parse(await readFile(join(release, '.codex-plugin', 'plugin.json'), 'utf8')) as { version: string }).version
+    const run = await runAction(checkout, cleanups, { TENON_ACTION_PATH: actionPath, TENON_VERIFY_CLI: '', TENON_VERIFY_EXPECTED_VERSION: version })
+    expect(run.outputs.get('exit-code'), run.stdout).toBe('0')
+    expect(run.outputs.get('sarif-path') ?? '').not.toBe('')
+    expect(run.summary).toContain('## PASS')
+    // 期望版本按那份检出里的插件清单读：不符就由脚本报告，说明它读的确实是那份检出。
+    const wrong = await runAction(checkout, cleanups, { TENON_ACTION_PATH: actionPath, TENON_VERIFY_CLI: '', TENON_VERIFY_EXPECTED_VERSION: '9.9.9' })
+    expect(wrong.outputs.get('exit-code')).toBe('1')
+    expect(wrong.stdout).toContain(`expected Tenon 9.9.9 but the pinned CLI is ${version}`)
+  }, 240_000)
+
+  test('用户的用法的反面：action 的检出里没有 templates（只有 bundle 与 action 目录），CLI 起不来，exit-code 1，不会当作通过', async () => {
+    const checkout = await ci()
+    const { actionPath } = await releaseCheckout(['packages/cli/dist/tenon.mjs', '.github/actions/tenon-verify'])
+    const run = await runAction(checkout, cleanups, { TENON_ACTION_PATH: actionPath, TENON_VERIFY_CLI: '' })
+    expect(run.outputs.get('exit-code'), run.stdout).toBe('1')
+    expect(run.outputs.has('sarif-path')).toBe(false)
+    expect(run.stdout).toContain('templates/manifest.yaml')
+  }, 240_000)
+
   test('选择器与输入：--change、浅克隆之外的 since、期望版本不符、缺 CLI 都由脚本报告', async () => {
     const checkout = await ci()
     const named = await runAction(checkout, cleanups, { TENON_VERIFY_CHANGE: 'demo' })
@@ -155,6 +191,12 @@ describe('tenon-verify action', () => {
     // language 输入：声明在 action.yml，只经 env（TENON_VERIFY_LANGUAGE）进脚本，脚本再交给 CLI 的 TENON_LANG。
     expect(yaml).toMatch(/^  language:\n    description:[\s\S]*?default: ''/mu)
     expect(yaml).toContain('TENON_VERIFY_LANGUAGE: ${{ inputs.language }}')
+    // sarif-checkout-path：空 = 工作区。upload-sarif 的 checkout_path 不接受空串，所以空输入要落回 github.workspace（它自己的缺省），
+    // 缺省用法下传给它的值不变；上传步骤有 id，它的 sarif-id 作为 action 的输出（空 = 没有被接受的上传）。
+    expect(yaml).toMatch(/^ {2}sarif-checkout-path:\n {4}description:[\s\S]*?default: ''/mu)
+    expect(yaml).toContain('checkout_path: ${{ inputs.sarif-checkout-path || github.workspace }}')
+    expect(yaml).toMatch(/- name: Upload SARIF to code scanning\n {6}id: upload\n/u)
+    expect(yaml).toMatch(/^ {2}sarif-id:\n {4}description:[^\n]*\n {4}value: \$\{\{ steps\.upload\.outputs\.sarif-id \}\}$/mu)
     expect(script).toContain('export TENON_LANG="$TENON_VERIFY_LANGUAGE"')
   })
 })
