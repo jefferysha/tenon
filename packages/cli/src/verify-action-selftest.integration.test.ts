@@ -6,7 +6,8 @@
  * 断言步骤对对的结论放行、对错的结论失败。另外静态检查工作流本身：动作固定到提交 SHA、没有 continue-on-error、权限最小、
  * 检出不被搬动、tampered 作业用的环境变量名都出自 action.yml。
  * 第一次在 GitHub 上跑就失败的布局（bundle 单独拷到检出之外）也有一例：CLI 找不到 `templates/manifest.yaml`。
- * 真正只有运行器才有的东西（composite action 的步骤编排、setup-node、SARIF 上传）由工作流在 GitHub 上验证，见文件头。
+ * SARIF 上传读回的那一步（`gh api` 读 code scanning）的判定在这里用假的 gh 逐个分支验证。
+ * 真正只有运行器才有的东西（composite action 的步骤编排、setup-node、上传本身与真的 code scanning API）由工作流在 GitHub 上验证，见文件头。
  */
 import { spawnSync } from 'node:child_process'
 import { copyFile, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
@@ -289,6 +290,133 @@ describe('verify-action-selftest：运行器形状里的夹具工具与断言', 
   })
 })
 
+const PROOF_STEP = 'Prove the SARIF reached code scanning'
+const SELFTEST_CATEGORY = 'tenon-verify-selftest'
+const RUN_SHA = 'a'.repeat(40)
+
+/** 假的 `gh`：按路径回放文件里的 JSON（一行一份，读到最后一份后重复它），或回放一次失败。只在本机证明读回步骤的判定，GitHub 上用的是真的 gh 与 API。 */
+const FAKE_GH = `#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "$FAKE_DIR/calls"
+[ "$1" = api ] || exit 2
+case "$2" in
+  repos/*/code-scanning/sarifs/*) name=sarifs ;;
+  repos/*/code-scanning/analyses*) name=analyses ;;
+  *) exit 2 ;;
+esac
+if [ -f "$FAKE_DIR/$name.fail" ]; then cat "$FAKE_DIR/$name.fail" >&2; exit 1; fi
+n=$(cat "$FAKE_DIR/$name.n" 2>/dev/null || echo 0)
+total=$(wc -l < "$FAKE_DIR/$name")
+at=$((n + 1))
+[ "$at" -le "$total" ] || at=$total
+sed -n "\${at}p" "$FAKE_DIR/$name"
+echo $((n + 1)) > "$FAKE_DIR/$name.n"
+`
+
+interface ProofCase {
+  readonly sarifId?: string
+  readonly sarifs?: readonly unknown[]
+  readonly analyses?: unknown
+  readonly sarifsFail?: string
+  readonly analysesFail?: string
+}
+
+const COMPLETE = { processing_status: 'complete', errors: [] }
+const analysis = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+  id: 7, sarif_id: 'abc', category: SELFTEST_CATEGORY, commit_sha: RUN_SHA, ref: 'refs/heads/main', error: '', ...over,
+})
+
+/** 工作流里的读回步骤，env 取自工作流（${{ }} 表达式换成本例的值），gh 与 sleep 是假的。 */
+async function proof(options: ProofCase): Promise<{ status: number | null; stdout: string; stderr: string; calls: string[] }> {
+  const dir = await mkdtemp(join(tmpdir(), 'verify-action-selftest-proof-'))
+  cleanups.push(dir)
+  const bin = join(dir, 'bin')
+  await mkdir(bin)
+  await writeFile(join(bin, 'gh'), FAKE_GH, { mode: 0o755 })
+  await writeFile(join(bin, 'sleep'), '#!/bin/sh\nexit 0\n', { mode: 0o755 })
+  await writeFile(join(dir, 'sarifs'), `${(options.sarifs ?? [COMPLETE]).map((item) => JSON.stringify(item)).join('\n')}\n`)
+  await writeFile(join(dir, 'analyses'), `${JSON.stringify(options.analyses ?? [analysis()])}\n`)
+  if (options.sarifsFail !== undefined) await writeFile(join(dir, 'sarifs.fail'), `${options.sarifsFail}\n`)
+  if (options.analysesFail !== undefined) await writeFile(join(dir, 'analyses.fail'), `${options.analysesFail}\n`)
+  const workflow = await readFile(WORKFLOW, 'utf8')
+  const step = stepText(jobText(workflow, 'clean'), PROOF_STEP)
+  const env = mappingOf(step, 'env', '/workspace')
+  expect(Object.keys(env).sort()).toEqual(['CATEGORY', 'GH_TOKEN', 'REPO', 'SARIF_ID', 'SHA'])
+  const result = spawnSync('bash', ['-c', runOf(step)], {
+    cwd: dir,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      PATH: `${bin}:${process.env.PATH ?? ''}`,
+      FAKE_DIR: dir,
+      GH_TOKEN: 'fake',
+      REPO: 'jefferysha/tenon',
+      SARIF_ID: options.sarifId ?? 'abc',
+      SHA: RUN_SHA,
+      CATEGORY: env.CATEGORY ?? '',
+    },
+  })
+  const calls = (await readFile(join(dir, 'calls'), 'utf8').catch(() => '')).split('\n').filter((line) => line !== '')
+  return { status: result.status, stdout: result.stdout, stderr: result.stderr, calls }
+}
+
+describe('verify-action-selftest.yml：把 SARIF 上传读回 code scanning', () => {
+  test('上传处理完成、分析带本次运行的提交与自测的 category：通过；先查上传的处理状态，再按这次上传的 id 查分析', async () => {
+    const run = await proof({})
+    expect(run.status, `${run.stdout}${run.stderr}`).toBe(0)
+    expect(run.stdout).toContain('Code scanning has the analysis of upload abc')
+    expect(run.calls).toEqual([
+      'api repos/jefferysha/tenon/code-scanning/sarifs/abc',
+      'api repos/jefferysha/tenon/code-scanning/analyses?sarif_id=abc&per_page=100',
+    ])
+  })
+
+  test('处理还在 pending：重试到完成再判；一直 pending 就失败，不会当作通过', async () => {
+    const eventually = await proof({ sarifs: [{ processing_status: 'pending' }, { processing_status: 'pending' }, COMPLETE] })
+    expect(eventually.status, `${eventually.stdout}${eventually.stderr}`).toBe(0)
+    expect(eventually.calls.filter((call) => call.includes('/sarifs/'))).toHaveLength(3)
+    const never = await proof({ sarifs: [{ processing_status: 'pending' }] })
+    expect(never.status).toBe(1)
+    expect(never.stdout).toContain("is 'pending', not complete")
+    expect(never.calls.filter((call) => call.includes('/sarifs/'))).toHaveLength(24)
+  })
+
+  test('action 没报告上传（sarif-id 为空：上传步骤失败或被跳过）：失败，指向上传步骤的日志，不调用 API', async () => {
+    const run = await proof({ sarifId: '' })
+    expect(run.status).toBe(1)
+    expect(run.stdout).toContain('::error::The action reported no code scanning upload (sarif-id is empty)')
+    expect(run.stdout).toContain('commit not found')
+    expect(run.calls).toEqual([])
+  })
+
+  test('code scanning 不可用或读不到（API 报错，例如 404 no analysis found）：失败并带出 API 自己的话，不会跳过', async () => {
+    const noSarif = await proof({ sarifsFail: 'gh: Code scanning is not enabled for this repository (HTTP 403)' })
+    expect(noSarif.status).toBe(1)
+    expect(noSarif.stderr).toContain('Code scanning is not enabled for this repository (HTTP 403)')
+    expect(noSarif.stdout).toContain('The code scanning API call failed: gh api repos/jefferysha/tenon/code-scanning/sarifs/abc')
+    expect(noSarif.stdout).toContain('this check never skips for that')
+    const noAnalysis = await proof({ analysesFail: 'gh: no analysis found (HTTP 404)' })
+    expect(noAnalysis.status).toBe(1)
+    expect(noAnalysis.stderr).toContain('no analysis found (HTTP 404)')
+    expect(noAnalysis.stdout).toContain('The code scanning API call failed')
+  })
+
+  test('处理失败，或分析的提交、category、上传 id 不对、带 error，或根本没有分析：失败，并列出读到的分析', async () => {
+    const failed = await proof({ sarifs: [{ processing_status: 'failed', errors: ['the commit was not found'] }] })
+    expect(failed.status).toBe(1)
+    expect(failed.stdout).toContain("is 'failed', not complete")
+    expect(failed.stdout).toContain('the commit was not found')
+    for (const wrong of [{ commit_sha: 'b'.repeat(40) }, { category: 'tenon-verify' }, { sarif_id: 'other' }, { error: 'could not parse' }]) {
+      const run = await proof({ analyses: [analysis(wrong)] })
+      expect(run.status, JSON.stringify(wrong)).toBe(1)
+      expect(run.stdout).toContain(`No analysis of upload abc has category ${SELFTEST_CATEGORY}, commit ${RUN_SHA} and no error`)
+      expect(run.stderr).toContain('"sarif_id"')
+    }
+    const none = await proof({ analyses: [] })
+    expect(none.status).toBe(1)
+    expect(none.stdout).toContain('No analysis of upload abc')
+  })
+})
+
 describe('verify-action-selftest.yml：静态约束', () => {
   test('每个远程 uses 固定到提交 SHA，只有 tenon 检出里的本地 action 例外；没有 continue-on-error（含注释之外的任何位置）', async () => {
     const workflow = await readFile(WORKFLOW, 'utf8')
@@ -347,6 +475,22 @@ describe('verify-action-selftest.yml：静态约束', () => {
     expect(clean).not.toMatch(/^\s+cli:/mu)
     expect(clean).toContain("upload-sarif: 'true'")
     expect(clean).toContain('sarif-category: tenon-verify-selftest')
+    // 上传归到 tenon-src：code scanning 从归属检出的 HEAD 取提交，夹具的提交 GitHub 没见过（commit not found）。
+    const actionStep = stepText(clean, 'Run the tenon-verify action against the clean fixture')
+    expect(mappingOf(actionStep, 'with', '/w')['sarif-checkout-path']).toBe('/w/tenon-src')
+    // 读回上传：在断言之后、只对 clean 作业、用 GH_TOKEN 读 code scanning，category 与上传用的是同一个。
+    const proofStep = stepText(clean, PROOF_STEP)
+    expect(clean.indexOf(PROOF_STEP)).toBeGreaterThan(clean.indexOf('Assert exit-code 0'))
+    expect(mappingOf(proofStep, 'env', '/w')).toEqual({
+      GH_TOKEN: '${{ github.token }}',
+      REPO: '${{ github.repository }}',
+      SARIF_ID: '${{ steps.verify.outputs.sarif-id }}',
+      SHA: '${{ github.sha }}',
+      CATEGORY: SELFTEST_CATEGORY,
+    })
+    // 只有 fork 的 PR（没有写令牌，上传本来就不会成功）跳过；没有 code scanning 的仓库不在豁免里。
+    expect(keyLines(proofStep, 'if')?.value).toBe("${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}")
+    expect(jobText(workflow, 'tampered')).not.toContain('gh api')
     expect(clean).toMatch(/assert\n? *--scenario clean --exit-code "\$EXIT_CODE"/u)
     expect(clean).not.toContain('--tamper')
     // action 的默认 category 是 tenon-verify（仓库自己的 PR 检查用）：自测的上传必须用另一个，否则会互相关闭对方的告警。

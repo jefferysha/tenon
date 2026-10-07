@@ -75,12 +75,13 @@ Action 输入：
 | `fetch-notes` | `true` | 从 `origin` 取 `refs/notes/tenon`（尽力而为） |
 | `upload-sarif` | `true` | 上传 SARIF 报告 |
 | `sarif-category` | `tenon-verify` | code scanning 的类别 |
+| `sarif-checkout-path` | | 上传归属的 git 检出（code scanning 从它的 HEAD 取提交）；留空取工作区，除非被校验的仓库不是这次工作流运行所对应的检出，否则就该留空 |
 | `language` | | `zh` 或 `en`：作业摘要、SARIF 消息与日志的语言；留空沿用 CLI 的缺省（中文，除非 runner 的 locale 另有指定） |
 | `node-version` | `22` | Node.js 版本 |
 | `expected-version` | | 固定的发布版本必须恰好是它，否则失败 |
 | `cli` | | 用别处的 CLI 入口代替发布里的 bundle。它仍须是某份 Tenon 检出里的 `packages/cli/dist/tenon.mjs`：CLI 从自己所在位置往上三级读 `templates/`，单独拷到别处的 bundle 起不来 |
 
-输出：`exit-code`、`sarif-path`、`summary-path`、`report-path`。Action 的最后一步在 `exit-code` 不为 `0` 时让作业失败，
+输出：`exit-code`、`sarif-path`、`summary-path`、`report-path`、`sarif-id`（code scanning 的上传 ID；没有被接受的上传时为空）。Action 的最后一步在 `exit-code` 不为 `0` 时让作业失败，
 排在 SARIF 上传之后。
 
 ## 它检查什么

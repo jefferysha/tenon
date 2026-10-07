@@ -191,6 +191,12 @@ describe('tenon-verify action', () => {
     // language 输入：声明在 action.yml，只经 env（TENON_VERIFY_LANGUAGE）进脚本，脚本再交给 CLI 的 TENON_LANG。
     expect(yaml).toMatch(/^  language:\n    description:[\s\S]*?default: ''/mu)
     expect(yaml).toContain('TENON_VERIFY_LANGUAGE: ${{ inputs.language }}')
+    // sarif-checkout-path：空 = 工作区。upload-sarif 的 checkout_path 不接受空串，所以空输入要落回 github.workspace（它自己的缺省），
+    // 缺省用法下传给它的值不变；上传步骤有 id，它的 sarif-id 作为 action 的输出（空 = 没有被接受的上传）。
+    expect(yaml).toMatch(/^ {2}sarif-checkout-path:\n {4}description:[\s\S]*?default: ''/mu)
+    expect(yaml).toContain('checkout_path: ${{ inputs.sarif-checkout-path || github.workspace }}')
+    expect(yaml).toMatch(/- name: Upload SARIF to code scanning\n {6}id: upload\n/u)
+    expect(yaml).toMatch(/^ {2}sarif-id:\n {4}description:[^\n]*\n {4}value: \$\{\{ steps\.upload\.outputs\.sarif-id \}\}$/mu)
     expect(script).toContain('export TENON_LANG="$TENON_VERIFY_LANGUAGE"')
   })
 })

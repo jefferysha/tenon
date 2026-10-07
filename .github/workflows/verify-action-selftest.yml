@@ -21,7 +21,9 @@ name: Verify action self-test
 #     就是让必须的检查可以悄悄失败），所以这条用 action 自己调用的那个 run.sh（同一份脚本、同一组环境变量名，
 #     本机测试核对环境变量名都出自 action.yml），它不让步骤失败，只把 exit-code 写进步骤输出，断言步骤再读它。
 #
-# fork 的 PR 拿不到写令牌，SARIF 上传会被 action 自己跳过（它内部的上传步骤允许失败），不影响结论。
+# SARIF 上传：action 内部的上传步骤允许失败（fork 的 PR 拿不到写令牌），所以失败的上传不会让 action 变红。code scanning 从上传所归属的检出的 HEAD 取
+# 提交，默认是工作区，也就是夹具，而夹具的提交 GitHub 没见过（`commit not found`）：clean 作业用 `sarif-checkout-path` 把上传归到 tenon-src，
+# 再用 `gh api` 把上传读回来（处理完成、分析带本次运行的提交和 tenon-verify-selftest 类别），读不到就失败，不会静默跳过。只有 fork 的 PR 跳过这一步。
 on:
   workflow_dispatch:
   pull_request:
@@ -83,6 +85,9 @@ jobs:
           change: demo
           upload-sarif: 'true'
           sarif-category: tenon-verify-selftest
+          # Code scanning takes the commit of an upload from the HEAD of the checkout it is attributed to. The fixture's
+          # HEAD is a commit GitHub has never seen ("commit not found"); tenon-src is the checkout this run is for.
+          sarif-checkout-path: ${{ github.workspace }}/tenon-src
 
       - name: Assert exit-code 0 and a SARIF report without findings
         env:
@@ -91,6 +96,51 @@ jobs:
         run: >-
           node tenon-src/tools/verify-action-selftest.mjs assert
           --scenario clean --exit-code "$EXIT_CODE" --sarif "$SARIF_PATH"
+
+      # The action's upload step is allowed to fail (a pull request from a fork has no write token), which also hides a
+      # rejected upload. Read the upload back from code scanning: it must be processed, and its analysis must carry this
+      # run's commit and the selftest category. Fork pull requests are the only skip; a repository without code scanning
+      # fails here with the API's own message.
+      - name: Prove the SARIF reached code scanning
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SARIF_ID: ${{ steps.verify.outputs.sarif-id }}
+          SHA: ${{ github.sha }}
+          CATEGORY: tenon-verify-selftest
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1"; exit 1; }
+          if [ -z "$SARIF_ID" ]; then
+            fail "The action reported no code scanning upload (sarif-id is empty): its upload step failed or was skipped. The step log says why; a rejected commit shows as 'commit not found'."
+          fi
+          errors="$(mktemp)"
+          api_failed() {
+            echo "::error::The code scanning API call failed: gh api $1"
+            cat "$errors" >&2
+            echo "::error::Code scanning must be available for this repository and the token must be allowed to read it; this check never skips for that."
+            exit 1
+          }
+          status=pending
+          upload=''
+          sarif_api="repos/$REPO/code-scanning/sarifs/$SARIF_ID"
+          for _ in $(seq 1 24); do
+            upload="$(gh api "$sarif_api" 2>"$errors")" || api_failed "$sarif_api"
+            status="$(jq -r '.processing_status' <<<"$upload")"
+            [ "$status" = pending ] || break
+            sleep 5
+          done
+          [ "$status" = complete ] || fail "Code scanning processing of upload $SARIF_ID is '$status', not complete (errors: $(jq -c '.errors' <<<"$upload"))."
+          analyses_api="repos/$REPO/code-scanning/analyses?sarif_id=$SARIF_ID&per_page=100"
+          analyses="$(gh api "$analyses_api" 2>"$errors")" || api_failed "$analyses_api"
+          found="$(jq --arg id "$SARIF_ID" --arg category "$CATEGORY" --arg sha "$SHA" '[.[] | select(.sarif_id == $id and .category == $category and .commit_sha == $sha and (.error // "") == "")] | length' <<<"$analyses")"
+          if [ "$found" -lt 1 ]; then
+            echo "Analyses of upload $SARIF_ID:" >&2
+            jq -c '.[] | {id, sarif_id, category, commit_sha, ref, error}' <<<"$analyses" >&2
+            fail "No analysis of upload $SARIF_ID has category $CATEGORY, commit $SHA and no error."
+          fi
+          echo "Code scanning has the analysis of upload $SARIF_ID: category $CATEGORY, commit $SHA."
 
   tampered:
     name: tampered fixture fails
