@@ -1,0 +1,1123 @@
+{
+  "schema": "tenon-test-run-v2",
+  "run_id": "20261010T054140Z-c63654",
+  "change": "fix-pr80-repository-hygiene",
+  "workflow_run_id": "3ad8603c-5b08-4d7b-9d2d-215246cde282",
+  "workflow": "standard",
+  "track": "standard",
+  "step": "verify",
+  "bindings": {
+    "candidate": "workspace:sha256:e26ae2c2f1dacd7bba94301c2577812dafc9e871631ff30a878f3bd6eae29ded",
+    "workflow_fingerprint": "6c66146c7475ec8d6b196cdf4c21a7f79246c5ac896e2d7dcf3174e8b9600f63",
+    "catalog_digest": "sha256:6c58227658e5c4025f42279806eb2f5156dff0b1b6959bd34eb178f970d446c2",
+    "plan_digest": "sha256:ab21e458270271c5a176544d561f36414dd158f43f55ca7b8acd88e3b3d6e2ba",
+    "policy_digest": "sha256:7e64cca5b3b16ead7b76509361e58e9ef082f4dee190bbdbb3edd49de7048578"
+  },
+  "machine_profile": "darwin-arm64-16c-node24-3f41814e",
+  "machine_label": "darwin-arm64-16c-node24",
+  "services": [
+    {
+      "id": "dashboard-e2e",
+      "ready_ms": 5429,
+      "exit": "stopped",
+      "log": "services/dashboard-e2e.log",
+      "leaked_pids": []
+    }
+  ],
+  "suites": [
+    {
+      "suite": "unit",
+      "origin": "catalog",
+      "kind": "unit",
+      "runner": "vitest",
+      "scope": "full",
+      "selection": [],
+      "command": "npm test -- --reporter=default --reporter=json --outputFile.json=test-results/vitest.json",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 657556,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 10615,
+        "pass": 10597,
+        "fail": 0,
+        "skip": 18,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/unit/test-results/vitest.json",
+          "bytes": 4345089,
+          "digest": "sha256:08e68366eaa987ed856d03c1e7866bafd213383eb560fe74a90077a6dc85d87a",
+          "media": "json"
+        }
+      ],
+      "report": {
+        "format": "vitest-json",
+        "path": "test-results/vitest.json",
+        "digest": "sha256:08e68366eaa987ed856d03c1e7866bafd213383eb560fe74a90077a6dc85d87a"
+      },
+      "log": {
+        "artifact": "logs/unit.log",
+        "bytes_total": 161939,
+        "bytes_kept": 161951,
+        "truncated": false,
+        "digest": "sha256:d7858589426c8a331bfce90851df8e7d50201acd7e19e15264a1bb015ce0128f"
+      }
+    },
+    {
+      "suite": "dashboard-app-unit",
+      "origin": "catalog",
+      "kind": "unit",
+      "runner": "vitest",
+      "scope": "full",
+      "selection": [],
+      "command": "npx vitest run --config packages/dashboard-app/vitest.config.ts --reporter=default --reporter=json --outputFile.json=test-results/vitest.json",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 12279,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 1874,
+        "pass": 1874,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/dashboard-app-unit/packages/dashboard-app/test-results/vitest.json",
+          "bytes": 708816,
+          "digest": "sha256:83b50a81126f3a6846e389f23b5981455d82ef50bf3865e5907d8d61ac94ea12",
+          "media": "json"
+        }
+      ],
+      "report": {
+        "format": "vitest-json",
+        "path": "packages/dashboard-app/test-results/vitest.json",
+        "digest": "sha256:83b50a81126f3a6846e389f23b5981455d82ef50bf3865e5907d8d61ac94ea12"
+      },
+      "log": {
+        "artifact": "logs/dashboard-app-unit.log",
+        "bytes_total": 178235,
+        "bytes_kept": 178247,
+        "truncated": false,
+        "digest": "sha256:08df04b2664f16ddfc7b50bee91d4970b2e8411313acb956374551a8767921b7"
+      }
+    },
+    {
+      "suite": "tools-node",
+      "origin": "catalog",
+      "kind": "unit",
+      "runner": "node-test",
+      "scope": "full",
+      "selection": [],
+      "command": "node --test --test-reporter=\"${TENON_NODE_TEST_REPORTER:-junit}\" --test-reporter-destination=test-results/tools-node.xml $(ls tools/*.node-test.mjs tools/bench/*.node-test.mjs | grep -v -e build-npx-package -e install-bootstrap -e clean-codex-install-acceptance -e spec-migration-cas -e reconcile-spec-application)",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 12647,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 213,
+        "pass": 213,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › rejects old QA images and accepts bounded official dashboard WebP assets",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "rejects old QA images and accepts bounded official dashboard WebP assets",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 18,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › rejects tracked paths that Windows cannot check out",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "rejects tracked paths that Windows cannot check out",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 7,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › resolves README and Pages-style image links and rejects dangling links",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "resolves README and Pages-style image links and rejects dangling links",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 9,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › rejects reference identities in tracked paths and ordinary managed text",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "rejects reference identities in tracked paths and ordinary managed text",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 8,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows the design resource collection in task plans and the shipped catalog only",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows the design resource collection in task plans and the shipped catalog only",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 19,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows the first-party workflow directory while retaining competitor checks",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows the first-party workflow directory while retaining competitor checks",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 19,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows fixed trace-timeline research and governance paths but rejects source and unrelated docs",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows fixed trace-timeline research and governance paths but rejects source and unrelated docs",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 59,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows review-handshake upstream identities only in its fixed research and design evidence",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows review-handshake upstream identities only in its fixed research and design evidence",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 13,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows orchestration graph upstream identities only in fixed research and governed Change evidence",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows orchestration graph upstream identities only in fixed research and governed Change evidence",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 102,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows canonical-version upstream identities only in its fixed research evidence",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows canonical-version upstream identities only in its fixed research evidence",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 17,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows fixed host-target-plan research and governance paths but rejects source and unrelated docs",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows fixed host-target-plan research and governance paths but rejects source and unrelated docs",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 80,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › reference identity matching is case-insensitive and diagnostics never echo the identity",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "reference identity matching is case-insensitive and diagnostics never echo the identity",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 5,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › rejects historical test-project identities from tracked paths",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "rejects historical test-project identities from tracked paths",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 4,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows fixed archived screenshot evidence while retaining image allowlist",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows fixed archived screenshot evidence while retaining image allowlist",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 11,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows product identity only in the exact archived hook-isolation records",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows product identity only in the exact archived hook-isolation records",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 32,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows product identity in the fixed runtime artifact audit record",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows product identity in the fixed runtime artifact audit record",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 32,
+          "attempts": 1,
+          "artifacts": []
+        }
+      ],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/tools-node/test-results/tools-node.xml",
+          "bytes": 49137,
+          "digest": "sha256:242ca1d81f5a2867a524a21a54872e738c8b92545091918ed2118c9ae098ca72",
+          "media": "text"
+        }
+      ],
+      "report": {
+        "format": "junit",
+        "path": "test-results/tools-node.xml",
+        "digest": "sha256:242ca1d81f5a2867a524a21a54872e738c8b92545091918ed2118c9ae098ca72"
+      },
+      "log": {
+        "artifact": "logs/tools-node.log",
+        "bytes_total": 0,
+        "bytes_kept": 12,
+        "truncated": false,
+        "digest": "sha256:c8473953ba5ed8acbf6f61af8aa3084c86eb102618eb6cc530a8ce726c6b5570"
+      }
+    },
+    {
+      "suite": "docs-site-unit",
+      "origin": "catalog",
+      "kind": "unit",
+      "runner": "node-test",
+      "scope": "full",
+      "selection": [],
+      "command": "node --test --test-reporter=\"${TENON_NODE_TEST_REPORTER:-junit}\" --test-reporter-destination=test-results/junit.xml scripts/*.node-test.mjs",
+      "cwd": "docs-site",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 138,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 2,
+        "pass": 2,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/docs-site-unit/docs-site/test-results/junit.xml",
+          "bytes": 542,
+          "digest": "sha256:b69ea14f7453bc146d5f4c5f92a712a643b273e1a9bb0c36e27d70ddf24ecf01",
+          "media": "text"
+        }
+      ],
+      "report": {
+        "format": "junit",
+        "path": "test-results/junit.xml",
+        "digest": "sha256:b69ea14f7453bc146d5f4c5f92a712a643b273e1a9bb0c36e27d70ddf24ecf01"
+      },
+      "log": {
+        "artifact": "logs/docs-site-unit.log",
+        "bytes_total": 0,
+        "bytes_kept": 12,
+        "truncated": false,
+        "digest": "sha256:c8473953ba5ed8acbf6f61af8aa3084c86eb102618eb6cc530a8ce726c6b5570"
+      }
+    },
+    {
+      "suite": "hooks",
+      "origin": "catalog",
+      "kind": "integration",
+      "runner": "custom",
+      "scope": "full",
+      "selection": [],
+      "command": "TENON_TAP_OUT=test-results/hooks.tap bash tools/test-hooks.sh",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 98685,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 2124,
+        "pass": 2124,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/hooks/test-results/hooks.tap",
+          "bytes": 253018,
+          "digest": "sha256:73539b9bc0be1d132481fce4253e1cfea2ede7e88328cf8be96cf7a73bb978fe",
+          "media": "text"
+        }
+      ],
+      "report": {
+        "format": "tap",
+        "path": "test-results/hooks.tap",
+        "digest": "sha256:73539b9bc0be1d132481fce4253e1cfea2ede7e88328cf8be96cf7a73bb978fe"
+      },
+      "log": {
+        "artifact": "logs/hooks.log",
+        "bytes_total": 151074,
+        "bytes_kept": 151086,
+        "truncated": false,
+        "digest": "sha256:b461439ae1040410cfc1e66f3366717ce9a8d54929971ea2dcdca10c8686b51f"
+      }
+    },
+    {
+      "suite": "adapters",
+      "origin": "catalog",
+      "kind": "integration",
+      "runner": "custom",
+      "scope": "full",
+      "selection": [],
+      "command": "TENON_TAP_OUT=test-results/adapters.tap bash tools/test-adapters.sh",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 16457,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 397,
+        "pass": 397,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/adapters/test-results/adapters.tap",
+          "bytes": 44677,
+          "digest": "sha256:eb84862520330d29f2419cf6d3547a4f73da71bf747b06eb36ad0c7494126a30",
+          "media": "text"
+        }
+      ],
+      "report": {
+        "format": "tap",
+        "path": "test-results/adapters.tap",
+        "digest": "sha256:eb84862520330d29f2419cf6d3547a4f73da71bf747b06eb36ad0c7494126a30"
+      },
+      "log": {
+        "artifact": "logs/adapters.log",
+        "bytes_total": 24437,
+        "bytes_kept": 24449,
+        "truncated": false,
+        "digest": "sha256:da2031b75ede7e6f030575e27d929a55e4aae279919c351e9372f253d191e054"
+      }
+    },
+    {
+      "suite": "migration-cas",
+      "origin": "catalog",
+      "kind": "integration",
+      "runner": "node-test",
+      "scope": "full",
+      "selection": [],
+      "command": "node --test --test-reporter=\"${TENON_NODE_TEST_REPORTER:-junit}\" --test-reporter-destination=test-results/migration-cas.xml tools/spec-migration-cas.node-test.mjs tools/reconcile-spec-application.node-test.mjs",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 3125,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 13,
+        "pass": 13,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/migration-cas/test-results/migration-cas.xml",
+          "bytes": 3222,
+          "digest": "sha256:2995632fa3d72ef79d63d4c19c26b67fc3ab2b2d93211da078cb7152ceaf53ae",
+          "media": "text"
+        }
+      ],
+      "report": {
+        "format": "junit",
+        "path": "test-results/migration-cas.xml",
+        "digest": "sha256:2995632fa3d72ef79d63d4c19c26b67fc3ab2b2d93211da078cb7152ceaf53ae"
+      },
+      "log": {
+        "artifact": "logs/migration-cas.log",
+        "bytes_total": 0,
+        "bytes_kept": 12,
+        "truncated": false,
+        "digest": "sha256:c8473953ba5ed8acbf6f61af8aa3084c86eb102618eb6cc530a8ce726c6b5570"
+      }
+    },
+    {
+      "suite": "oracle-unit",
+      "origin": "catalog",
+      "kind": "unit",
+      "runner": "vitest",
+      "scope": "full",
+      "selection": [],
+      "command": "npx vitest run --pool=threads --reporter=default --reporter=json --outputFile.json=test-results/vitest.json",
+      "cwd": "tools/oracle",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 73137,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 16,
+        "pass": 16,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/oracle-unit/tools/oracle/test-results/vitest.json",
+          "bytes": 6850,
+          "digest": "sha256:9999971cc1905133288c33d9e42fef27a17fdc41c528f9a9d6cb6896fc2e8185",
+          "media": "json"
+        }
+      ],
+      "report": {
+        "format": "vitest-json",
+        "path": "test-results/vitest.json",
+        "digest": "sha256:9999971cc1905133288c33d9e42fef27a17fdc41c528f9a9d6cb6896fc2e8185"
+      },
+      "log": {
+        "artifact": "logs/oracle-unit.log",
+        "bytes_total": 1343,
+        "bytes_kept": 1355,
+        "truncated": false,
+        "digest": "sha256:29af745b021c203b6e65e2ecd6c7a662317da00d98637f1c6198d5518ec252ec"
+      }
+    },
+    {
+      "suite": "oracle",
+      "origin": "catalog",
+      "kind": "regression",
+      "runner": "custom",
+      "scope": "full",
+      "selection": [],
+      "command": "TENON_TAP_OUT=test-results/oracle.tap npm run oracle",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 255942,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 105,
+        "pass": 105,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/oracle/test-results/oracle.tap",
+          "bytes": 10721,
+          "digest": "sha256:a469c0657cd15991b649b7d92281f3b92c06e12f3d78c76d4a48fd8fefa82ec8",
+          "media": "text"
+        }
+      ],
+      "report": {
+        "format": "tap",
+        "path": "test-results/oracle.tap",
+        "digest": "sha256:a469c0657cd15991b649b7d92281f3b92c06e12f3d78c76d4a48fd8fefa82ec8"
+      },
+      "log": {
+        "artifact": "logs/oracle.log",
+        "bytes_total": 16389,
+        "bytes_kept": 16401,
+        "truncated": false,
+        "digest": "sha256:5f310d1fcd0e739f553eb7c41abe8a632041ff3370ae796cbfa8ad8e5421b1d7"
+      }
+    },
+    {
+      "suite": "typecheck-packages",
+      "origin": "catalog",
+      "kind": "typecheck",
+      "runner": "tsc",
+      "scope": "full",
+      "selection": [],
+      "command": "npx tsc -b packages/kernel packages/channel packages/tap packages/automation packages/cli packages/server",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 268,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 0,
+        "pass": 0,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [],
+      "report": {
+        "format": "exit-code",
+        "path": null,
+        "digest": null
+      },
+      "log": {
+        "artifact": "logs/typecheck-packages.log",
+        "bytes_total": 0,
+        "bytes_kept": 12,
+        "truncated": false,
+        "digest": "sha256:c8473953ba5ed8acbf6f61af8aa3084c86eb102618eb6cc530a8ce726c6b5570"
+      }
+    },
+    {
+      "suite": "typecheck-web",
+      "origin": "catalog",
+      "kind": "typecheck",
+      "runner": "tsc",
+      "scope": "full",
+      "selection": [],
+      "command": "npm run typecheck:web",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 4650,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 0,
+        "pass": 0,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [],
+      "report": {
+        "format": "exit-code",
+        "path": null,
+        "digest": null
+      },
+      "log": {
+        "artifact": "logs/typecheck-web.log",
+        "bytes_total": 71,
+        "bytes_kept": 83,
+        "truncated": false,
+        "digest": "sha256:4802cd5398f149d445a3a63cd22a36c361f4ea442d3924caf75612d2af8808df"
+      }
+    },
+    {
+      "suite": "typecheck-e2e",
+      "origin": "catalog",
+      "kind": "typecheck",
+      "runner": "tsc",
+      "scope": "full",
+      "selection": [],
+      "command": "npx tsc -p e2e/dashboard",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 698,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 0,
+        "pass": 0,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [],
+      "report": {
+        "format": "exit-code",
+        "path": null,
+        "digest": null
+      },
+      "log": {
+        "artifact": "logs/typecheck-e2e.log",
+        "bytes_total": 0,
+        "bytes_kept": 12,
+        "truncated": false,
+        "digest": "sha256:c8473953ba5ed8acbf6f61af8aa3084c86eb102618eb6cc530a8ce726c6b5570"
+      }
+    },
+    {
+      "suite": "dashboard-e2e",
+      "origin": "catalog",
+      "kind": "playwright",
+      "runner": "playwright",
+      "scope": "full",
+      "selection": [],
+      "command": "npx playwright test --retries=1 -c e2e/dashboard/playwright.config.ts",
+      "cwd": ".",
+      "exit_code": 1,
+      "signal": null,
+      "duration_ms": 310443,
+      "result": "fail",
+      "reasons": [
+        {
+          "code": "test-failed",
+          "detail": "套件 Dashboard 浏览器 e2e（dashboard-e2e） 失败：1 个用例失败：e2e/dashboard/english.spec.ts › 英文界面 · 轨道页签条 › 直达 URL 之后名称变宽、页签条变窄：选中的页签重新滚进可见范围"
+        },
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 260,
+        "pass": 256,
+        "fail": 1,
+        "skip": 2,
+        "flaky": 1,
+        "known_fail": 0
+      },
+      "cases": [
+        {
+          "id": "e2e/dashboard/english.spec.ts › 英文界面 · 轨道页签条 › 直达 URL 之后名称变宽、页签条变窄：选中的页签重新滚进可见范围 [webkit]",
+          "file": "e2e/dashboard/english.spec.ts",
+          "line": 200,
+          "name": "直达 URL 之后名称变宽、页签条变窄：选中的页签重新滚进可见范围",
+          "suite_path": [
+            "英文界面 · 轨道页签条"
+          ],
+          "project": "webkit",
+          "status": "fail",
+          "duration_ms": 6796,
+          "attempts": 2,
+          "failure": {
+            "message": "Error: backend 的右边缘在可见范围内\n\nexpect(received).toBeLessThanOrEqual(expected)\n\nExpected: <= 223.5\nReceived:    297.078125\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate",
+            "stack": "Error: backend 的右边缘在可见范围内\n\nexpect(received).toBeLessThanOrEqual(expected)\n\nExpected: <= 223.5\nReceived:    297.078125\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate\n    at expectTabRevealed (/Users/a1234/Documents/code-manager/projects/tenon-local/e2e/dashboard/english.spec.ts:109:6)\n    at /Users/a1234/Documents/code-manager/projects/tenon-local/e2e/dashboard/english.spec.ts:221:25"
+          },
+          "artifacts": [
+            "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit/test-failed-1.png",
+            "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit/error-context.md",
+            "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit/trace.zip",
+            "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit-retry1/test-failed-1.png",
+            "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit-retry1/error-context.md",
+            "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit-retry1/trace.zip"
+          ]
+        },
+        {
+          "id": "e2e/dashboard/signin.spec.ts › 登录 › tenon dashboard --open 的真实路径：server 把一次性链接只交给浏览器，浏览器换到会话并落在 Dashboard；链接只能用一次 [chromium]",
+          "file": "e2e/dashboard/signin.spec.ts",
+          "line": 27,
+          "name": "tenon dashboard --open 的真实路径：server 把一次性链接只交给浏览器，浏览器换到会话并落在 Dashboard；链接只能用一次",
+          "suite_path": [
+            "登录"
+          ],
+          "project": "chromium",
+          "status": "flaky",
+          "duration_ms": 241,
+          "attempts": 2,
+          "failure": {
+            "message": "Error: ENOENT: no such file or directory, open '/private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-e2e-B5p70k/opened-url.txt'",
+            "stack": "Error: ENOENT: no such file or directory, open '/private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-e2e-B5p70k/opened-url.txt'\n    at /Users/a1234/Documents/code-manager/projects/tenon-local/e2e/dashboard/signin.spec.ts:40:20"
+          },
+          "artifacts": [
+            "artifacts/dashboard-e2e/test-results/dashboard-e2e/signin-登录-tenon-dashboard--35938-览器换到会话并落在-Dashboard；链接只能用一次-chromium/error-context.md",
+            "artifacts/dashboard-e2e/test-results/dashboard-e2e/signin-登录-tenon-dashboard--35938-览器换到会话并落在-Dashboard；链接只能用一次-chromium/trace.zip"
+          ]
+        }
+      ],
+      "projects": [
+        "chromium",
+        "webkit"
+      ],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/data/45c2026c6acc8fec3ff319202f2dc3a0c615c51f.zip",
+          "bytes": 2995867,
+          "digest": "sha256:12f7320e52a67ea9f0cf6c05f21bbddf706cfc099255a7af49530ec0dbf045cb",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/data/4c7ba3368af4f605800f43c23070d7ca259baf73.md",
+          "bytes": 36363,
+          "digest": "sha256:cc4ea3cd0e4c085489dbe4f4bcd69057dc185aaaaf5fc3dedfd0fb0b9b9cc1b9",
+          "media": "text"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/data/9ae3fc45df2d082914227b8721058a178c1f0b75.png",
+          "bytes": 356237,
+          "digest": "sha256:f7c4e25adb10265ff1227237a31dc76f01388ebf9426471efb9e7214d4b2c556",
+          "media": "image"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/data/d07fd466dcb48ae4efedb1518a5ea6a8e0ff879b.zip",
+          "bytes": 15346,
+          "digest": "sha256:b7a2732a6e2c0cd4ba4ff1de709d384b50ecf764936d2b67fa4b0af55fb7057f",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/data/d73e63ad019a81f35b6ad77eb9c6fed2ab0c94f4.zip",
+          "bytes": 2996262,
+          "digest": "sha256:fca7432eac602aa66c636e12549851ed3da630700a978d7bf863c37feaf0007b",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/data/eb576d14acd7a9b9786702ebb90bbd4fd25d8e76.md",
+          "bytes": 11053,
+          "digest": "sha256:c37212b2eccd7de9614f63b02cd2a081e04043c15ab4d3ba5583ead2890bb673",
+          "media": "text"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/index.html",
+          "bytes": 866794,
+          "digest": "sha256:064460d23656317ddd5768a76561eaac41510c8ea95fba3861009a9a91b087d5",
+          "media": "html",
+          "entry": true
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/assets/codeMirrorModule-LEHpjmcn.js",
+          "bytes": 313054,
+          "digest": "sha256:e3d682edfb4dd1fa17882466dd15058120278b27ff1101785a57b6df4db7ada5",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/assets/defaultSettingsView-BNmKHKpQ.js",
+          "bytes": 658064,
+          "digest": "sha256:f21839cd274944763d12ad24529345b9f8ebf339409f51f4dbe52f9d9baeb09c",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/assets/urlMatch-BYQrIQwR.js",
+          "bytes": 819,
+          "digest": "sha256:168c4dee4815ea8d3c131a504033cd23d4b15aefa0209dd10ad3f643e8f1d8a7",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/codeMirrorModule.DYBRYzYX.css",
+          "bytes": 6421,
+          "digest": "sha256:70bf421a13e87857ca684bfa2cc55f06d7c5a50f71253a3ff1d74769b14a957e",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/codicon.DCmgc-ay.ttf",
+          "bytes": 80340,
+          "digest": "sha256:0f1d5219934e96e83b8db162d60b4d8c09b5de1e7d38031cbafe4a3c0f2889c9",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/defaultSettingsView.CjdS-WJx.css",
+          "bytes": 112258,
+          "digest": "sha256:de9c068d0e8043820fe42f30558e972eb7e2a8a45a34f65c7c8f73fa2dbc9fd0",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/index.CzXZzn5A.css",
+          "bytes": 2111,
+          "digest": "sha256:4ec2a3d49db259ce9025cb4fa48d73b1afd58215e567eef3b4a4cbf76c1674d9",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/index.DMMX1gXU.js",
+          "bytes": 6547,
+          "digest": "sha256:f33ceae71f13fde446a244c113548fec5ef890bf7b93ded7b861bebcebaa3e23",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/index.html",
+          "bytes": 2363,
+          "digest": "sha256:5ced36d3feb5bbbc0e8350330be0a293a1b4784ddecb6e58e1851323a93640cc",
+          "media": "html"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/manifest.webmanifest",
+          "bytes": 429,
+          "digest": "sha256:d8540500603a32a39fe7e5a0375dc0f9ebafd11118e06a846db7efc608223ab9",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/playwright-logo.svg",
+          "bytes": 5033,
+          "digest": "sha256:6b0a4367bdeab10995bc239278f04c68c10e48adbec15e799e01909a0d66dcb9",
+          "media": "image"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/snapshot.html",
+          "bytes": 389,
+          "digest": "sha256:11c80efe4f4424fa59004bcc71fed77a420d2da5f199790e355c30a5b965d0cd",
+          "media": "html"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/snapshot.v8KI4P3m.js",
+          "bytes": 660,
+          "digest": "sha256:97a3cd6d67aaac66efc838d7d743ac51bbf7d272e1287981c11758fca21a0657",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/sw.bundle.js",
+          "bytes": 95855,
+          "digest": "sha256:5237c6c68ba1f3591caf8cf951be4873192342a72fbcc31e5a667f7a7904c624",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/uiMode.BZQ54Kgt.css",
+          "bytes": 60311,
+          "digest": "sha256:a548cd88f2041433da2d60fd3a33ef23af2fb8ddf2557b7bef79806364498e57",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/uiMode.Ut8wwJNp.js",
+          "bytes": 38514,
+          "digest": "sha256:0ab1e917250833c3f6b3ed3ae3f359158bf68cd2d9951163ee6edff9b8ed1e5b",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/uiMode.html",
+          "bytes": 727,
+          "digest": "sha256:95bf648d76d380b779770aae1c560b58ee456096b2b3b02922e629af29e3d492",
+          "media": "html"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/xtermModule.DYP7pi_n.css",
+          "bytes": 4150,
+          "digest": "sha256:7c5a01f382f76539fc9b4db6b18e18a7035741845fd14968c5cdc0a7e373d817",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/test-results/dashboard-e2e.json",
+          "bytes": 343583,
+          "digest": "sha256:ed1c6b2a88479279f6247933fbe7a43e14e6a8237f3ec6893108e9728c786584",
+          "media": "json"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/test-results/dashboard-e2e/.last-run.json",
+          "bytes": 96,
+          "digest": "sha256:a74a44ff3bea3200d1ccc4ecabe5b466cba65c0a64c97d69e92a04f78b3d7cea",
+          "media": "json"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit-retry1/error-context.md",
+          "bytes": 36363,
+          "digest": "sha256:cc4ea3cd0e4c085489dbe4f4bcd69057dc185aaaaf5fc3dedfd0fb0b9b9cc1b9",
+          "media": "text"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit-retry1/test-failed-1.png",
+          "bytes": 356237,
+          "digest": "sha256:f7c4e25adb10265ff1227237a31dc76f01388ebf9426471efb9e7214d4b2c556",
+          "media": "image"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit-retry1/trace.zip",
+          "bytes": 2995867,
+          "digest": "sha256:12f7320e52a67ea9f0cf6c05f21bbddf706cfc099255a7af49530ec0dbf045cb",
+          "media": "trace"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit/error-context.md",
+          "bytes": 36363,
+          "digest": "sha256:cc4ea3cd0e4c085489dbe4f4bcd69057dc185aaaaf5fc3dedfd0fb0b9b9cc1b9",
+          "media": "text"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit/test-failed-1.png",
+          "bytes": 356237,
+          "digest": "sha256:f7c4e25adb10265ff1227237a31dc76f01388ebf9426471efb9e7214d4b2c556",
+          "media": "image"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit/trace.zip",
+          "bytes": 2996262,
+          "digest": "sha256:fca7432eac602aa66c636e12549851ed3da630700a978d7bf863c37feaf0007b",
+          "media": "trace"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/test-results/dashboard-e2e/signin-登录-tenon-dashboard--35938-览器换到会话并落在-Dashboard；链接只能用一次-chromium/error-context.md",
+          "bytes": 11053,
+          "digest": "sha256:c37212b2eccd7de9614f63b02cd2a081e04043c15ab4d3ba5583ead2890bb673",
+          "media": "text"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/test-results/dashboard-e2e/signin-登录-tenon-dashboard--35938-览器换到会话并落在-Dashboard；链接只能用一次-chromium/trace.zip",
+          "bytes": 15346,
+          "digest": "sha256:b7a2732a6e2c0cd4ba4ff1de709d384b50ecf764936d2b67fa4b0af55fb7057f",
+          "media": "trace"
+        }
+      ],
+      "report": {
+        "format": "playwright-json",
+        "path": "test-results/dashboard-e2e.json",
+        "digest": "sha256:ed1c6b2a88479279f6247933fbe7a43e14e6a8237f3ec6893108e9728c786584"
+      },
+      "log": {
+        "artifact": "logs/dashboard-e2e.log",
+        "bytes_total": 56429,
+        "bytes_kept": 56441,
+        "truncated": false,
+        "digest": "sha256:1d078947aeda87f0ae314de4f9d4fa708ff3fadebbb0a2d637d3ac0dd708da0f"
+      }
+    }
+  ],
+  "result": "fail",
+  "actor": {
+    "id": "710227704@qq.com",
+    "name": "jefferySha",
+    "trust": "declared"
+  },
+  "host": {
+    "kind": "claude-code",
+    "sandbox": null
+  },
+  "git_head": "bfb4a3964b3646cb86735990eca0cadd91239be4",
+  "started_at": "2026-10-10T05:41:40Z",
+  "finished_at": "2026-10-10T06:05:53Z",
+  "duration_ms": 1453266,
+  "prev_digest": "sha256:b78a35da4c37e4161a42841112c1b9c9cf8366776f877fd58d8fe3f44f8cc3ea",
+  "digest": "sha256:52f32c5aa2770ab518a102ae9fd00056277c7aa89a37384e856f124e4ef3f635"
+}

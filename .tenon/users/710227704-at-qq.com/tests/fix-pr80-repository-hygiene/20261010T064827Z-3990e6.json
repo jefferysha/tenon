@@ -1,0 +1,279 @@
+{
+  "schema": "tenon-test-run-v2",
+  "run_id": "20261010T064827Z-3990e6",
+  "change": "fix-pr80-repository-hygiene",
+  "workflow_run_id": "3ad8603c-5b08-4d7b-9d2d-215246cde282",
+  "workflow": "standard",
+  "track": "standard",
+  "step": "verify",
+  "bindings": {
+    "candidate": "workspace:sha256:5e9bbeea627ca8cdcaba3db4befa18bbbdcbc0e7b8c6bf6f8369c16298461160",
+    "workflow_fingerprint": "6c66146c7475ec8d6b196cdf4c21a7f79246c5ac896e2d7dcf3174e8b9600f63",
+    "catalog_digest": "sha256:30d8e9f3180e6410a599dd89321a91732777c0d373df841337548b8c82851e70",
+    "plan_digest": "sha256:ab21e458270271c5a176544d561f36414dd158f43f55ca7b8acd88e3b3d6e2ba",
+    "policy_digest": "sha256:7e64cca5b3b16ead7b76509361e58e9ef082f4dee190bbdbb3edd49de7048578"
+  },
+  "machine_profile": "darwin-arm64-16c-node24-3f41814e",
+  "machine_label": "darwin-arm64-16c-node24",
+  "services": [
+    {
+      "id": "dashboard-e2e",
+      "ready_ms": 5427,
+      "exit": "stopped",
+      "log": "services/dashboard-e2e.log",
+      "leaked_pids": []
+    }
+  ],
+  "suites": [
+    {
+      "suite": "dashboard-e2e",
+      "origin": "catalog",
+      "kind": "playwright",
+      "runner": "playwright",
+      "scope": "full",
+      "selection": [],
+      "command": "npx playwright test --retries=1 -c e2e/dashboard/playwright.config.ts",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 309752,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 260,
+        "pass": 257,
+        "fail": 0,
+        "skip": 2,
+        "flaky": 1,
+        "known_fail": 0
+      },
+      "cases": [
+        {
+          "id": "e2e/dashboard/english.spec.ts › 英文界面 · 轨道页签条 › 直达 URL 之后名称变宽、页签条变窄：选中的页签重新滚进可见范围 [webkit]",
+          "file": "e2e/dashboard/english.spec.ts",
+          "line": 200,
+          "name": "直达 URL 之后名称变宽、页签条变窄：选中的页签重新滚进可见范围",
+          "suite_path": [
+            "英文界面 · 轨道页签条"
+          ],
+          "project": "webkit",
+          "status": "flaky",
+          "duration_ms": 1946,
+          "attempts": 2,
+          "failure": {
+            "message": "Error: backend 的右边缘在可见范围内\n\nexpect(received).toBeLessThanOrEqual(expected)\n\nExpected: <= 223.5\nReceived:    297.078125\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate",
+            "stack": "Error: backend 的右边缘在可见范围内\n\nexpect(received).toBeLessThanOrEqual(expected)\n\nExpected: <= 223.5\nReceived:    297.078125\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate\n    at expectTabRevealed (/Users/a1234/Documents/code-manager/projects/tenon-local/e2e/dashboard/english.spec.ts:109:6)\n    at /Users/a1234/Documents/code-manager/projects/tenon-local/e2e/dashboard/english.spec.ts:221:25"
+          },
+          "artifacts": [
+            "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit/test-failed-1.png",
+            "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit/error-context.md",
+            "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit/trace.zip"
+          ]
+        }
+      ],
+      "projects": [
+        "chromium",
+        "webkit"
+      ],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/data/4c7ba3368af4f605800f43c23070d7ca259baf73.md",
+          "bytes": 36363,
+          "digest": "sha256:cc4ea3cd0e4c085489dbe4f4bcd69057dc185aaaaf5fc3dedfd0fb0b9b9cc1b9",
+          "media": "text"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/data/9ae3fc45df2d082914227b8721058a178c1f0b75.png",
+          "bytes": 356237,
+          "digest": "sha256:f7c4e25adb10265ff1227237a31dc76f01388ebf9426471efb9e7214d4b2c556",
+          "media": "image"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/data/e25a989e1b79e5c42abd0c89a0a97f8f4a4b1fa0.zip",
+          "bytes": 3120755,
+          "digest": "sha256:91429483da80257767b8db4f4a84f01e7b41ccf2a518278e326d7d4a47eb121d",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/index.html",
+          "bytes": 858046,
+          "digest": "sha256:a1bc45696f93db6e5ced3303ff47d8b5e05252828f45256ce94040cf5d93b6df",
+          "media": "html",
+          "entry": true
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/assets/codeMirrorModule-LEHpjmcn.js",
+          "bytes": 313054,
+          "digest": "sha256:e3d682edfb4dd1fa17882466dd15058120278b27ff1101785a57b6df4db7ada5",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/assets/defaultSettingsView-BNmKHKpQ.js",
+          "bytes": 658064,
+          "digest": "sha256:f21839cd274944763d12ad24529345b9f8ebf339409f51f4dbe52f9d9baeb09c",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/assets/urlMatch-BYQrIQwR.js",
+          "bytes": 819,
+          "digest": "sha256:168c4dee4815ea8d3c131a504033cd23d4b15aefa0209dd10ad3f643e8f1d8a7",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/codeMirrorModule.DYBRYzYX.css",
+          "bytes": 6421,
+          "digest": "sha256:70bf421a13e87857ca684bfa2cc55f06d7c5a50f71253a3ff1d74769b14a957e",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/codicon.DCmgc-ay.ttf",
+          "bytes": 80340,
+          "digest": "sha256:0f1d5219934e96e83b8db162d60b4d8c09b5de1e7d38031cbafe4a3c0f2889c9",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/defaultSettingsView.CjdS-WJx.css",
+          "bytes": 112258,
+          "digest": "sha256:de9c068d0e8043820fe42f30558e972eb7e2a8a45a34f65c7c8f73fa2dbc9fd0",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/index.CzXZzn5A.css",
+          "bytes": 2111,
+          "digest": "sha256:4ec2a3d49db259ce9025cb4fa48d73b1afd58215e567eef3b4a4cbf76c1674d9",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/index.DMMX1gXU.js",
+          "bytes": 6547,
+          "digest": "sha256:f33ceae71f13fde446a244c113548fec5ef890bf7b93ded7b861bebcebaa3e23",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/index.html",
+          "bytes": 2363,
+          "digest": "sha256:5ced36d3feb5bbbc0e8350330be0a293a1b4784ddecb6e58e1851323a93640cc",
+          "media": "html"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/manifest.webmanifest",
+          "bytes": 429,
+          "digest": "sha256:d8540500603a32a39fe7e5a0375dc0f9ebafd11118e06a846db7efc608223ab9",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/playwright-logo.svg",
+          "bytes": 5033,
+          "digest": "sha256:6b0a4367bdeab10995bc239278f04c68c10e48adbec15e799e01909a0d66dcb9",
+          "media": "image"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/snapshot.html",
+          "bytes": 389,
+          "digest": "sha256:11c80efe4f4424fa59004bcc71fed77a420d2da5f199790e355c30a5b965d0cd",
+          "media": "html"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/snapshot.v8KI4P3m.js",
+          "bytes": 660,
+          "digest": "sha256:97a3cd6d67aaac66efc838d7d743ac51bbf7d272e1287981c11758fca21a0657",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/sw.bundle.js",
+          "bytes": 95855,
+          "digest": "sha256:5237c6c68ba1f3591caf8cf951be4873192342a72fbcc31e5a667f7a7904c624",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/uiMode.BZQ54Kgt.css",
+          "bytes": 60311,
+          "digest": "sha256:a548cd88f2041433da2d60fd3a33ef23af2fb8ddf2557b7bef79806364498e57",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/uiMode.Ut8wwJNp.js",
+          "bytes": 38514,
+          "digest": "sha256:0ab1e917250833c3f6b3ed3ae3f359158bf68cd2d9951163ee6edff9b8ed1e5b",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/uiMode.html",
+          "bytes": 727,
+          "digest": "sha256:95bf648d76d380b779770aae1c560b58ee456096b2b3b02922e629af29e3d492",
+          "media": "html"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/xtermModule.DYP7pi_n.css",
+          "bytes": 4150,
+          "digest": "sha256:7c5a01f382f76539fc9b4db6b18e18a7035741845fd14968c5cdc0a7e373d817",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/test-results/dashboard-e2e.json",
+          "bytes": 334834,
+          "digest": "sha256:e7022bea9efc1eda1d6b470a0497ceddd6b59cfb21e6a8c84ce5cbee0e922a34",
+          "media": "json"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/test-results/dashboard-e2e/.last-run.json",
+          "bytes": 45,
+          "digest": "sha256:91d1c43004802cd49950d78eb11c8fa7d05da8ffffe219a8b13b2f561bc00903",
+          "media": "json"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit/error-context.md",
+          "bytes": 36363,
+          "digest": "sha256:cc4ea3cd0e4c085489dbe4f4bcd69057dc185aaaaf5fc3dedfd0fb0b9b9cc1b9",
+          "media": "text"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit/test-failed-1.png",
+          "bytes": 356237,
+          "digest": "sha256:f7c4e25adb10265ff1227237a31dc76f01388ebf9426471efb9e7214d4b2c556",
+          "media": "image"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit/trace.zip",
+          "bytes": 3120755,
+          "digest": "sha256:91429483da80257767b8db4f4a84f01e7b41ccf2a518278e326d7d4a47eb121d",
+          "media": "trace"
+        }
+      ],
+      "report": {
+        "format": "playwright-json",
+        "path": "test-results/dashboard-e2e.json",
+        "digest": "sha256:e7022bea9efc1eda1d6b470a0497ceddd6b59cfb21e6a8c84ce5cbee0e922a34"
+      },
+      "log": {
+        "artifact": "logs/dashboard-e2e.log",
+        "bytes_total": 50968,
+        "bytes_kept": 50980,
+        "truncated": false,
+        "digest": "sha256:da7f55207490c65dec0fb90440bd6ce7906ce2e1379c82069941de8f01c07bd6"
+      }
+    }
+  ],
+  "result": "pass",
+  "actor": {
+    "id": "710227704@qq.com",
+    "name": "jefferySha",
+    "trust": "declared"
+  },
+  "host": {
+    "kind": "claude-code",
+    "sandbox": null
+  },
+  "git_head": "bfb4a3964b3646cb86735990eca0cadd91239be4",
+  "started_at": "2026-10-10T06:48:27Z",
+  "finished_at": "2026-10-10T06:53:44Z",
+  "duration_ms": 316957,
+  "prev_digest": "sha256:ea319e1bacbe4c3c773df0172ae42c5a218687d091fc251f0b851c21b8dc6448",
+  "digest": "sha256:0eb17284710ef0d9eae50fdce42afc1c6774293466a36f5dcc2aeb87c974efcb"
+}

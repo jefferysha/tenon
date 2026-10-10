@@ -367,6 +367,48 @@ test('allows fixed archived screenshot evidence while retaining image allowlist'
   }
 })
 
+test('allows product identity only in the exact archived hook-isolation records', async () => {
+  const root = await fixture()
+  const firstIdentity = String.fromCharCode(116, 114, 101, 108, 108, 105, 115)
+  const secondIdentity = String.fromCharCode(99, 111, 109, 101, 116)
+  const thirdIdentity = String.fromCharCode(
+    97, 119, 101, 115, 111, 109, 101, 45, 100, 101, 115, 105, 103, 110, 45, 109, 100,
+  )
+  const archive = 'openspec/changes/archive/2026-10-10-fix-hook-cross-session-isolation'
+  const allowed = [
+    'docs/superpowers/plans/fix-hook-cross-session-isolation.md',
+    'docs/superpowers/reports/fix-hook-cross-session-isolation-verify.md',
+    `${archive}/.pipeline-agent-reports/4c0719b0-3ce3-472d-9de6-57cbfb3f383d.md`,
+    `${archive}/.pipeline-agent-reports/63d5b7d4-2216-4179-abf4-ccffd2f3613e.md`,
+    `${archive}/.pipeline-agent-reports/8ce552e4-c99c-4060-9441-2fd32dd360e3-A2.md`,
+    `${archive}/.pipeline-agent-reports/924da543-4665-4441-b42e-a754d7bceded.md`,
+    `${archive}/.pipeline-agent-reports/ae77daa7-134f-4c72-8f58-a8ecb8e11f44.md`,
+    `${archive}/.pipeline-agent-runs.jsonl`,
+    `${archive}/proposal.md`,
+  ]
+  const rejected = [
+    'docs/superpowers/reports/other.md',
+    `${archive}/design.md`,
+    `${archive}/.pipeline-agent-reports/other.md`,
+  ]
+  for (const path of [...allowed, ...rejected]) {
+    await mkdir(join(root, path, '..'), { recursive: true })
+    await writeFile(join(root, path), `Local file source: ${firstIdentity}.\n`)
+  }
+  try {
+    assert.deepEqual(checkReferenceIdentities(root, allowed), [])
+    const rejectedFailures = checkReferenceIdentities(root, rejected)
+    assert.equal(rejectedFailures.length, rejected.length)
+    assert.ok(rejectedFailures.every((failure) => /受管理文本/.test(failure)))
+    for (const identity of [secondIdentity, thirdIdentity]) {
+      await writeFile(join(root, allowed[1]), `Mentions ${firstIdentity} and ${identity}.\n`)
+      assert.equal(checkReferenceIdentities(root, [allowed[1]]).length, 1)
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('allows product identity in the fixed runtime artifact audit record', async () => {
   const root = await fixture()
   const identity = String.fromCharCode(116, 114, 101, 108, 108, 105, 115)

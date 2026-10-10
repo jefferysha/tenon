@@ -1,0 +1,111 @@
+{
+  "schema": "tenon-test-run-v2",
+  "run_id": "20261010T040048Z-5177c9",
+  "change": "fix-pr80-repository-hygiene",
+  "workflow_run_id": "3ad8603c-5b08-4d7b-9d2d-215246cde282",
+  "workflow": "standard",
+  "track": "standard",
+  "step": "verify",
+  "bindings": {
+    "candidate": "workspace:sha256:8d9664dc908e49b4fb33e7e271f2bbc9774302cc3ae60a221420d2c544e4af02",
+    "workflow_fingerprint": "6c66146c7475ec8d6b196cdf4c21a7f79246c5ac896e2d7dcf3174e8b9600f63",
+    "catalog_digest": "sha256:c8d0ef945bc465a2514cf8a240a64a0af714f601f5a595825529744aa5eb2fe9",
+    "plan_digest": "sha256:e8bbe1baff9c1f1dc4277041e4add23a789bb1185bd178f0b84ff9347427d612",
+    "policy_digest": "sha256:7e64cca5b3b16ead7b76509361e58e9ef082f4dee190bbdbb3edd49de7048578"
+  },
+  "machine_profile": "darwin-arm64-16c-node24-3f41814e",
+  "machine_label": "darwin-arm64-16c-node24",
+  "services": [
+    {
+      "id": "dashboard-e2e",
+      "ready_ms": 5454,
+      "exit": "stopped",
+      "log": "services/dashboard-e2e.log",
+      "leaked_pids": []
+    }
+  ],
+  "suites": [
+    {
+      "suite": "dashboard-e2e-chromium",
+      "origin": "catalog",
+      "kind": "playwright",
+      "runner": "playwright",
+      "scope": "full",
+      "selection": [],
+      "command": "npx playwright test --retries=1 -c e2e/dashboard/playwright.config.ts --project=chromium",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 133327,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 130,
+        "pass": 130,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [
+        "chromium"
+      ],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/index.html",
+          "bytes": 704250,
+          "digest": "sha256:acf32b5bc0afb8edbf1f5600abd737bb25d9cdac6c3a36d904a9c3b5de09779b",
+          "media": "html",
+          "entry": true
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e.json",
+          "bytes": 170243,
+          "digest": "sha256:3df61fcce79dd8b054d235b92fa5161e3c416fd53ca3b9512510d18bcf4ac8db",
+          "media": "json"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/.last-run.json",
+          "bytes": 45,
+          "digest": "sha256:91d1c43004802cd49950d78eb11c8fa7d05da8ffffe219a8b13b2f561bc00903",
+          "media": "json"
+        }
+      ],
+      "report": {
+        "format": "playwright-json",
+        "path": "test-results/dashboard-e2e.json",
+        "digest": "sha256:3df61fcce79dd8b054d235b92fa5161e3c416fd53ca3b9512510d18bcf4ac8db"
+      },
+      "log": {
+        "artifact": "logs/dashboard-e2e-chromium.log",
+        "bytes_total": 24174,
+        "bytes_kept": 24186,
+        "truncated": false,
+        "digest": "sha256:419bc47de9880d54265ccc56487d93f353caa2576b065254db971011620abb34"
+      }
+    }
+  ],
+  "result": "pass",
+  "actor": {
+    "id": "710227704@qq.com",
+    "name": "jefferySha",
+    "trust": "declared"
+  },
+  "host": {
+    "kind": "claude-code",
+    "sandbox": null
+  },
+  "git_head": "bfb4a3964b3646cb86735990eca0cadd91239be4",
+  "started_at": "2026-10-10T04:00:48Z",
+  "finished_at": "2026-10-10T04:03:09Z",
+  "duration_ms": 140465,
+  "prev_digest": "sha256:4dd107b2bcd6d659e4784b59d1c3c9c26a1fb3ea3518baaee8d7ce8e28f4a634",
+  "digest": "sha256:7409854506aea4aa458f5578673ac360758dcfb0773c714abe3f161f172a68dc"
+}

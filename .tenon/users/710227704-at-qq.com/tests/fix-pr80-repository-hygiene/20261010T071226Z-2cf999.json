@@ -1,0 +1,757 @@
+{
+  "schema": "tenon-test-run-v2",
+  "run_id": "20261010T071226Z-2cf999",
+  "change": "fix-pr80-repository-hygiene",
+  "workflow_run_id": "3ad8603c-5b08-4d7b-9d2d-215246cde282",
+  "workflow": "standard",
+  "track": "standard",
+  "step": "verify",
+  "bindings": {
+    "candidate": "workspace:sha256:9d52cbc5bba52ea4f073910d92322d362276e1933c23c914fbfd067ddbcdba56",
+    "workflow_fingerprint": "6c66146c7475ec8d6b196cdf4c21a7f79246c5ac896e2d7dcf3174e8b9600f63",
+    "catalog_digest": "sha256:88a0085d4e4525484387016f441195be73628cb0ecf64b3b8c877db72108a483",
+    "plan_digest": "sha256:d830a434424da180a54dca24d8373e554be50236d5175f3175282aff0728e64a",
+    "policy_digest": "sha256:7e64cca5b3b16ead7b76509361e58e9ef082f4dee190bbdbb3edd49de7048578"
+  },
+  "machine_profile": "darwin-arm64-16c-node24-3f41814e",
+  "machine_label": "darwin-arm64-16c-node24",
+  "services": [],
+  "suites": [
+    {
+      "suite": "unit",
+      "origin": "catalog",
+      "kind": "unit",
+      "runner": "vitest",
+      "scope": "full",
+      "selection": [],
+      "command": "npm test -- --reporter=default --reporter=json --outputFile.json=test-results/vitest.json",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 646529,
+      "result": "pass",
+      "reasons": [],
+      "totals": {
+        "cases": 10615,
+        "pass": 10597,
+        "fail": 0,
+        "skip": 18,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/unit/test-results/vitest.json",
+          "bytes": 4345430,
+          "digest": "sha256:078c71c75ee4bf534b90d99ee67cf8d9ac99d6e06112e06f74e4035f0af9fe4e",
+          "media": "json"
+        }
+      ],
+      "report": {
+        "format": "vitest-json",
+        "path": "test-results/vitest.json",
+        "digest": "sha256:078c71c75ee4bf534b90d99ee67cf8d9ac99d6e06112e06f74e4035f0af9fe4e"
+      },
+      "log": {
+        "artifact": "logs/unit.log",
+        "bytes_total": 160603,
+        "bytes_kept": 160615,
+        "truncated": false,
+        "digest": "sha256:b2d4657ca7990351f58f7ec573a7bbf72020a5c97ed53374a803d4a8d18a92e6"
+      }
+    },
+    {
+      "suite": "dashboard-app-unit",
+      "origin": "catalog",
+      "kind": "unit",
+      "runner": "vitest",
+      "scope": "full",
+      "selection": [],
+      "command": "npx vitest run --config packages/dashboard-app/vitest.config.ts --reporter=default --reporter=json --outputFile.json=test-results/vitest.json",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 10967,
+      "result": "pass",
+      "reasons": [],
+      "totals": {
+        "cases": 1874,
+        "pass": 1874,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/dashboard-app-unit/packages/dashboard-app/test-results/vitest.json",
+          "bytes": 708984,
+          "digest": "sha256:9de80336b58a390d4f241db8ac45fb74e836e5cc6dee8b138b2cb299ebba0ad5",
+          "media": "json"
+        }
+      ],
+      "report": {
+        "format": "vitest-json",
+        "path": "packages/dashboard-app/test-results/vitest.json",
+        "digest": "sha256:9de80336b58a390d4f241db8ac45fb74e836e5cc6dee8b138b2cb299ebba0ad5"
+      },
+      "log": {
+        "artifact": "logs/dashboard-app-unit.log",
+        "bytes_total": 177759,
+        "bytes_kept": 177771,
+        "truncated": false,
+        "digest": "sha256:719b76458df27696cb4b054dd7eb2739513563297deffa6553230350540f116c"
+      }
+    },
+    {
+      "suite": "tools-node",
+      "origin": "catalog",
+      "kind": "unit",
+      "runner": "node-test",
+      "scope": "full",
+      "selection": [],
+      "command": "node --test --test-reporter=\"${TENON_NODE_TEST_REPORTER:-junit}\" --test-reporter-destination=test-results/tools-node.xml $(ls tools/*.node-test.mjs tools/bench/*.node-test.mjs | grep -v -e build-npx-package -e install-bootstrap -e clean-codex-install-acceptance -e spec-migration-cas -e reconcile-spec-application)",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 12636,
+      "result": "pass",
+      "reasons": [],
+      "totals": {
+        "cases": 213,
+        "pass": 213,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › rejects old QA images and accepts bounded official dashboard WebP assets",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "rejects old QA images and accepts bounded official dashboard WebP assets",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 13,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › rejects tracked paths that Windows cannot check out",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "rejects tracked paths that Windows cannot check out",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 6,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › resolves README and Pages-style image links and rejects dangling links",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "resolves README and Pages-style image links and rejects dangling links",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 9,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › rejects reference identities in tracked paths and ordinary managed text",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "rejects reference identities in tracked paths and ordinary managed text",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 15,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows the design resource collection in task plans and the shipped catalog only",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows the design resource collection in task plans and the shipped catalog only",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 22,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows the first-party workflow directory while retaining competitor checks",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows the first-party workflow directory while retaining competitor checks",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 20,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows fixed trace-timeline research and governance paths but rejects source and unrelated docs",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows fixed trace-timeline research and governance paths but rejects source and unrelated docs",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 43,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows review-handshake upstream identities only in its fixed research and design evidence",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows review-handshake upstream identities only in its fixed research and design evidence",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 24,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows orchestration graph upstream identities only in fixed research and governed Change evidence",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows orchestration graph upstream identities only in fixed research and governed Change evidence",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 14,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows canonical-version upstream identities only in its fixed research evidence",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows canonical-version upstream identities only in its fixed research evidence",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 41,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows fixed host-target-plan research and governance paths but rejects source and unrelated docs",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows fixed host-target-plan research and governance paths but rejects source and unrelated docs",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 76,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › reference identity matching is case-insensitive and diagnostics never echo the identity",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "reference identity matching is case-insensitive and diagnostics never echo the identity",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 17,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › rejects historical test-project identities from tracked paths",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "rejects historical test-project identities from tracked paths",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 38,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows fixed archived screenshot evidence while retaining image allowlist",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows fixed archived screenshot evidence while retaining image allowlist",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 16,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows product identity only in the exact archived hook-isolation records",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows product identity only in the exact archived hook-isolation records",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 43,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows product identity in the fixed runtime artifact audit record",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows product identity in the fixed runtime artifact audit record",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 7,
+          "attempts": 1,
+          "artifacts": []
+        }
+      ],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/tools-node/test-results/tools-node.xml",
+          "bytes": 49137,
+          "digest": "sha256:63c226dff67d430e54e3d01bc86b0bac9c514a395119e033a907fb67103bf2dc",
+          "media": "text"
+        }
+      ],
+      "report": {
+        "format": "junit",
+        "path": "test-results/tools-node.xml",
+        "digest": "sha256:63c226dff67d430e54e3d01bc86b0bac9c514a395119e033a907fb67103bf2dc"
+      },
+      "log": {
+        "artifact": "logs/tools-node.log",
+        "bytes_total": 0,
+        "bytes_kept": 12,
+        "truncated": false,
+        "digest": "sha256:c8473953ba5ed8acbf6f61af8aa3084c86eb102618eb6cc530a8ce726c6b5570"
+      }
+    },
+    {
+      "suite": "docs-site-unit",
+      "origin": "catalog",
+      "kind": "unit",
+      "runner": "node-test",
+      "scope": "full",
+      "selection": [],
+      "command": "node --test --test-reporter=\"${TENON_NODE_TEST_REPORTER:-junit}\" --test-reporter-destination=test-results/junit.xml scripts/*.node-test.mjs",
+      "cwd": "docs-site",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 131,
+      "result": "pass",
+      "reasons": [],
+      "totals": {
+        "cases": 2,
+        "pass": 2,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/docs-site-unit/docs-site/test-results/junit.xml",
+          "bytes": 542,
+          "digest": "sha256:c4ffb31743512b0af67fc8a5c4cf224e7af5bcd7bdd6ff0696585595977be86d",
+          "media": "text"
+        }
+      ],
+      "report": {
+        "format": "junit",
+        "path": "test-results/junit.xml",
+        "digest": "sha256:c4ffb31743512b0af67fc8a5c4cf224e7af5bcd7bdd6ff0696585595977be86d"
+      },
+      "log": {
+        "artifact": "logs/docs-site-unit.log",
+        "bytes_total": 0,
+        "bytes_kept": 12,
+        "truncated": false,
+        "digest": "sha256:c8473953ba5ed8acbf6f61af8aa3084c86eb102618eb6cc530a8ce726c6b5570"
+      }
+    },
+    {
+      "suite": "hooks",
+      "origin": "catalog",
+      "kind": "integration",
+      "runner": "custom",
+      "scope": "full",
+      "selection": [],
+      "command": "TENON_TAP_OUT=test-results/hooks.tap bash tools/test-hooks.sh",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 96220,
+      "result": "pass",
+      "reasons": [],
+      "totals": {
+        "cases": 2124,
+        "pass": 2124,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/hooks/test-results/hooks.tap",
+          "bytes": 253018,
+          "digest": "sha256:0384fa424c13e6801acec24f788ca4550617568c5b9b7a1717eec1d42289e5f8",
+          "media": "text"
+        }
+      ],
+      "report": {
+        "format": "tap",
+        "path": "test-results/hooks.tap",
+        "digest": "sha256:0384fa424c13e6801acec24f788ca4550617568c5b9b7a1717eec1d42289e5f8"
+      },
+      "log": {
+        "artifact": "logs/hooks.log",
+        "bytes_total": 151074,
+        "bytes_kept": 151086,
+        "truncated": false,
+        "digest": "sha256:aba132d4d99d02beb8b12c59f87a83e00de7b56bbd2515a2dde4134cece32668"
+      }
+    },
+    {
+      "suite": "adapters",
+      "origin": "catalog",
+      "kind": "integration",
+      "runner": "custom",
+      "scope": "full",
+      "selection": [],
+      "command": "TENON_TAP_OUT=test-results/adapters.tap bash tools/test-adapters.sh",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 15404,
+      "result": "pass",
+      "reasons": [],
+      "totals": {
+        "cases": 397,
+        "pass": 397,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/adapters/test-results/adapters.tap",
+          "bytes": 44677,
+          "digest": "sha256:eb84862520330d29f2419cf6d3547a4f73da71bf747b06eb36ad0c7494126a30",
+          "media": "text"
+        }
+      ],
+      "report": {
+        "format": "tap",
+        "path": "test-results/adapters.tap",
+        "digest": "sha256:eb84862520330d29f2419cf6d3547a4f73da71bf747b06eb36ad0c7494126a30"
+      },
+      "log": {
+        "artifact": "logs/adapters.log",
+        "bytes_total": 24437,
+        "bytes_kept": 24449,
+        "truncated": false,
+        "digest": "sha256:da2031b75ede7e6f030575e27d929a55e4aae279919c351e9372f253d191e054"
+      }
+    },
+    {
+      "suite": "migration-cas",
+      "origin": "catalog",
+      "kind": "integration",
+      "runner": "node-test",
+      "scope": "full",
+      "selection": [],
+      "command": "node --test --test-reporter=\"${TENON_NODE_TEST_REPORTER:-junit}\" --test-reporter-destination=test-results/migration-cas.xml tools/spec-migration-cas.node-test.mjs tools/reconcile-spec-application.node-test.mjs",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 3063,
+      "result": "pass",
+      "reasons": [],
+      "totals": {
+        "cases": 13,
+        "pass": 13,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/migration-cas/test-results/migration-cas.xml",
+          "bytes": 3222,
+          "digest": "sha256:053d29ce96d9ab818aec94a6687802b65821054a89d6033ca38360be44e1d089",
+          "media": "text"
+        }
+      ],
+      "report": {
+        "format": "junit",
+        "path": "test-results/migration-cas.xml",
+        "digest": "sha256:053d29ce96d9ab818aec94a6687802b65821054a89d6033ca38360be44e1d089"
+      },
+      "log": {
+        "artifact": "logs/migration-cas.log",
+        "bytes_total": 0,
+        "bytes_kept": 12,
+        "truncated": false,
+        "digest": "sha256:c8473953ba5ed8acbf6f61af8aa3084c86eb102618eb6cc530a8ce726c6b5570"
+      }
+    },
+    {
+      "suite": "oracle-unit",
+      "origin": "catalog",
+      "kind": "unit",
+      "runner": "vitest",
+      "scope": "full",
+      "selection": [],
+      "command": "npx vitest run --pool=threads --reporter=default --reporter=json --outputFile.json=test-results/vitest.json",
+      "cwd": "tools/oracle",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 69161,
+      "result": "pass",
+      "reasons": [],
+      "totals": {
+        "cases": 16,
+        "pass": 16,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/oracle-unit/tools/oracle/test-results/vitest.json",
+          "bytes": 6860,
+          "digest": "sha256:1d3fbf6f1ca6c8c5a383b520991ad421da1f02cfebdc69ca0119b65478332e0c",
+          "media": "json"
+        }
+      ],
+      "report": {
+        "format": "vitest-json",
+        "path": "test-results/vitest.json",
+        "digest": "sha256:1d3fbf6f1ca6c8c5a383b520991ad421da1f02cfebdc69ca0119b65478332e0c"
+      },
+      "log": {
+        "artifact": "logs/oracle-unit.log",
+        "bytes_total": 1343,
+        "bytes_kept": 1355,
+        "truncated": false,
+        "digest": "sha256:0bf3adbe454c94cb49633d0517b9dd3b341b5d782156f520bdbaa5a55e47a1f5"
+      }
+    },
+    {
+      "suite": "oracle",
+      "origin": "catalog",
+      "kind": "regression",
+      "runner": "custom",
+      "scope": "full",
+      "selection": [],
+      "command": "TENON_TAP_OUT=test-results/oracle.tap npm run oracle",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 239481,
+      "result": "pass",
+      "reasons": [],
+      "totals": {
+        "cases": 105,
+        "pass": 105,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/oracle/test-results/oracle.tap",
+          "bytes": 10721,
+          "digest": "sha256:a469c0657cd15991b649b7d92281f3b92c06e12f3d78c76d4a48fd8fefa82ec8",
+          "media": "text"
+        }
+      ],
+      "report": {
+        "format": "tap",
+        "path": "test-results/oracle.tap",
+        "digest": "sha256:a469c0657cd15991b649b7d92281f3b92c06e12f3d78c76d4a48fd8fefa82ec8"
+      },
+      "log": {
+        "artifact": "logs/oracle.log",
+        "bytes_total": 16389,
+        "bytes_kept": 16401,
+        "truncated": false,
+        "digest": "sha256:956c26edd38f807b8e1f266b4bca167015b9e4f3a9ca1a06b3bad9dfe5afab4b"
+      }
+    },
+    {
+      "suite": "typecheck-packages",
+      "origin": "catalog",
+      "kind": "typecheck",
+      "runner": "tsc",
+      "scope": "full",
+      "selection": [],
+      "command": "npx tsc -b packages/kernel packages/channel packages/tap packages/automation packages/cli packages/server",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 265,
+      "result": "pass",
+      "reasons": [],
+      "totals": {
+        "cases": 0,
+        "pass": 0,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [],
+      "report": {
+        "format": "exit-code",
+        "path": null,
+        "digest": null
+      },
+      "log": {
+        "artifact": "logs/typecheck-packages.log",
+        "bytes_total": 0,
+        "bytes_kept": 12,
+        "truncated": false,
+        "digest": "sha256:c8473953ba5ed8acbf6f61af8aa3084c86eb102618eb6cc530a8ce726c6b5570"
+      }
+    },
+    {
+      "suite": "typecheck-web",
+      "origin": "catalog",
+      "kind": "typecheck",
+      "runner": "tsc",
+      "scope": "full",
+      "selection": [],
+      "command": "npm run typecheck:web",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 4607,
+      "result": "pass",
+      "reasons": [],
+      "totals": {
+        "cases": 0,
+        "pass": 0,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [],
+      "report": {
+        "format": "exit-code",
+        "path": null,
+        "digest": null
+      },
+      "log": {
+        "artifact": "logs/typecheck-web.log",
+        "bytes_total": 71,
+        "bytes_kept": 83,
+        "truncated": false,
+        "digest": "sha256:4802cd5398f149d445a3a63cd22a36c361f4ea442d3924caf75612d2af8808df"
+      }
+    },
+    {
+      "suite": "typecheck-e2e",
+      "origin": "catalog",
+      "kind": "typecheck",
+      "runner": "tsc",
+      "scope": "full",
+      "selection": [],
+      "command": "npx tsc -p e2e/dashboard",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 698,
+      "result": "pass",
+      "reasons": [],
+      "totals": {
+        "cases": 0,
+        "pass": 0,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [],
+      "report": {
+        "format": "exit-code",
+        "path": null,
+        "digest": null
+      },
+      "log": {
+        "artifact": "logs/typecheck-e2e.log",
+        "bytes_total": 0,
+        "bytes_kept": 12,
+        "truncated": false,
+        "digest": "sha256:c8473953ba5ed8acbf6f61af8aa3084c86eb102618eb6cc530a8ce726c6b5570"
+      }
+    }
+  ],
+  "result": "pass",
+  "actor": {
+    "id": "710227704@qq.com",
+    "name": "jefferySha",
+    "trust": "declared"
+  },
+  "host": {
+    "kind": "claude-code",
+    "sandbox": null
+  },
+  "git_head": "bfb4a3964b3646cb86735990eca0cadd91239be4",
+  "started_at": "2026-10-10T07:12:26Z",
+  "finished_at": "2026-10-10T07:30:46Z",
+  "duration_ms": 1100735,
+  "prev_digest": "sha256:0eb17284710ef0d9eae50fdce42afc1c6774293466a36f5dcc2aeb87c974efcb",
+  "digest": "sha256:6c4ab6f32775d58b829edb818c20fb79f1b5dae4decb7fd12d6aa2f4a4960c16"
+}
