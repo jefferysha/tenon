@@ -9,7 +9,7 @@
  */
 import { execFile, spawn } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
-import { readFile, stat, writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -32,7 +32,8 @@ import {
   openArtifactSubmissionService,
 } from '@tenon/automation'
 import type { ExtendedManifestData, TrackRegistry, TrackValidationContext } from '@tenon/kernel'
-import type { CliDeps, GateMarkerInfo } from './deps.js'
+import type { CliDeps } from './deps.js'
+import { readGateMarkers } from './gateMarkers.js'
 import { splitPassthroughArgv } from './argv.js'
 import { buildProgram, CliExit } from './program.js'
 import { createProductionTriageRuntime } from './commands/triage.js'
@@ -63,21 +64,6 @@ function gitHeadSha(cwd: string): Promise<string> {
       resolve((stdout ?? '').trim())
     })
   })
-}
-
-/** 项目根三门 marker（缺失即不在收件箱；新鲜判定归 inbox 命令） */
-async function readGateMarkers(cwd: string): Promise<GateMarkerInfo[]> {
-  const out: GateMarkerInfo[] = []
-  for (const kind of ['confirm', 'review', 'interaction'] as const) {
-    try {
-      const p = join(cwd, `.pipeline-pending-${kind}`)
-      const st = await stat(p)
-      out.push({ kind, ageMs: Date.now() - st.mtimeMs, raw: await readFile(p, 'utf8') })
-    } catch {
-      // 缺失 = 无该门等待
-    }
-  }
-  return out
 }
 
 /**
@@ -160,9 +146,10 @@ async function main(): Promise<void> {
   // 命令走 loadRegistry；init/fields 组合校验走 withRegistryLock（registry 锁内 fresh-load）；
   // tracks CRUD 走 mutateRegistry（mutate-under-lock）。坏 tracks.yaml 只 fail-loud 到相关命令。
   const trackCtx = trackValidationContext(process.cwd(), manifest)
+  const recordStore = createTransitionRecordStore()
   const runRepo = createWorkflowRunRepository({
     store,
-    recordStore: createTransitionRecordStore(),
+    recordStore,
     clock: isoNow,
   })
   let resolvedUser: TenonUserResolution | undefined
@@ -224,6 +211,7 @@ async function main(): Promise<void> {
     store,
     interaction: createInteractionEventRecorder(),
     runRepo,
+    recordStore,
     loadRegistry: () => loadTrackRegistry(process.cwd(), trackCtx),
     withRegistryLock: (cb) => withTrackRegistryLock(process.cwd(), trackCtx, cb),
     mutateRegistry: (cb) => mutateTrackRegistry(process.cwd(), trackCtx, cb),

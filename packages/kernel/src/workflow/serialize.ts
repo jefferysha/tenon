@@ -142,6 +142,7 @@ function serializeStep(step: StepDef): string[] {
   const lines = [`  - id: ${step.id}`]
   if (step.label !== '') lines.push(`    label: ${step.label}`)
   lines.push(`    gate: ${step.gate ?? 'null'}`)
+  if (step.maxRounds !== undefined) lines.push(`    max_rounds: ${step.maxRounds}`)
   if (step.prompt !== undefined) {
     lines.push('    prompt: |-')
     lines.push(...step.prompt.split('\n').map((line) => `      ${line}`))

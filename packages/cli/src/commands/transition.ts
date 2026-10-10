@@ -53,7 +53,7 @@
 import {
   compileWorkflow, createTransitionApplication,
   loadRegistry, loadWorkflow, nodeLoopIoStrict, requireTrackForRoot,
-  readReviewGateBinding, renderAgentBlocker, retiredSkillsChangeMessage,
+  readReviewGateBinding, readStepRounds, renderAgentBlocker, retiredSkillsChangeMessage,
   reviewGateBindingMatches, formatUserRef,
   TASK_PLAN_CURRENT_FILE, TASK_PLAN_LIMITS, TASK_PLAN_STATE_DIR,
   taskPlanTasksThroughPhaseForChange,
@@ -161,6 +161,8 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
     documentEvidence: deps.documentEvidence,
     testEvidence: testEvidenceContextFor(deps, name),
     ...(deps.testEvidence === undefined ? {} : { testEvidenceReader: deps.testEvidence }),
+    // 验证轮次上限的强制层：用完后受约束步骤的回退边不再放行（与 `review request` 的拒绝同一份读取）。
+    roundsOf: ({ changeDir: targetDir, plan, state, stepId }) => readStepRounds(deps, targetDir, state, plan, stepId),
     resolveTrack: (trackId) => requireTrackForRoot(deps.loadRegistry(), trackId, deps.cwd),
     stepAgentBlockers: async ({ changeDir: targetDir, stepId, plan, state }) =>
       stepAgentBlockersFor({ deps, name, dir: targetDir, stepId, plan, state }),
@@ -333,6 +335,11 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
         return 2
       case 'constraint-denied':
         deps.io.err(`ERROR: ${msg(deps, 'transition.constraintDenied', { reason: result.reason })}`)
+        return 1
+      case 'rounds-exhausted':
+        deps.io.err(`ERROR: ${msg(deps, 'transition.roundsExhausted', {
+          step: result.stepId, current: result.current, max: result.max, source: result.source, event: result.event, name,
+        })}`)
         return 1
     }
   } catch (e) {

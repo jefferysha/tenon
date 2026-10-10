@@ -53,6 +53,19 @@ describe('计划编辑', () => {
     expect(both.waivers).toHaveLength(2)
   })
 
+  it('withWaiver：test 豁免自成一键，与同名的 kind / 别的 test 并存；同键同理由保留批准，换理由清零', () => {
+    const base = withWaiver(withWaiver(emptyTestPlan('demo'), { kind: 'unit', reason: 'k', approved_by: 'boss@x.io' }), { covers: 'task:1', reason: 'c', approved_by: null })
+    const added = withWaiver(base, { test: 'unit', reason: '步骤测试', approved_by: null })
+    expect(added.waivers).toHaveLength(3)
+    expect(added.waivers.filter((item) => item.kind !== undefined || item.covers !== undefined)).toEqual(base.waivers)
+    const approved = { ...added, waivers: added.waivers.map((item) => (item.test === 'unit' ? { ...item, approved_by: 'boss@x.io' } : item)) }
+    expect(withWaiver(approved, { test: 'unit', reason: '步骤测试', approved_by: null })).toBe(approved)
+    const changed = withWaiver(approved, { test: 'unit', reason: '换了理由', approved_by: null })
+    expect(changed.waivers.filter((item) => item.test === 'unit')).toEqual([{ test: 'unit', reason: '换了理由', approved_by: null }])
+    expect(changed.waivers).toHaveLength(3)
+    expect(withWaiver(added, { test: 'code-size', reason: 'x', approved_by: null }).waivers).toHaveLength(4)
+  })
+
   it('withoutTarget：按套件 / 文件 / 映射 / 单个用例 / 豁免移除，并如实计数', () => {
     let plan = withSuite(emptyTestPlan('demo'), { suite: 'web-unit', scope: 'full' })
     plan = withFiles(plan, [{ path: 'a.test.ts' }])
@@ -65,6 +78,13 @@ describe('计划编辑', () => {
     expect(partial).toMatchObject({ removed: 1, plan: { cases: [{ covers: 'task:1', tests: ['a.test.ts › y'] }] } })
     expect(withoutTarget(plan, { covers: 'task:1' }).plan.cases).toEqual([])
     expect(withoutTarget(plan, { waiverKind: 'a11y' }).plan.waivers).toEqual([])
+    // test 豁免按 test id 撤销，不碰同名的 kind 豁免。
+    const withTest = withWaiver(withWaiver(plan, { kind: 'unit', reason: 'k', approved_by: null }), { test: 'unit', reason: 't', approved_by: null })
+    expect(withoutTarget(withTest, { waiverTest: 'unit' })).toMatchObject({
+      removed: 1,
+      plan: { waivers: [{ kind: 'a11y', reason: 'r', approved_by: null }, { kind: 'unit', reason: 'k', approved_by: null }] },
+    })
+    expect(withoutTarget(withTest, { waiverTest: 'nope' }).removed).toBe(0)
   })
 })
 

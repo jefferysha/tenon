@@ -110,6 +110,7 @@ export function reviewReceiptStop(
   deps.io.out(
     `${prefix} ${target}: review 出口 event '${event}' 尚无人工确认回执；先完成 check 并运行 ` +
       `tenon review request ${name} --event ${event}，` +
-      `待用户确认后运行 tenon review acknowledge ${name}`,
+      `等用户确认（回复“确认继续”，或在 Dashboard 确认，或由用户本人在自己的终端运行 tenon review acknowledge ${name}；` +
+      'agent 不得代为执行）',
   )
 }

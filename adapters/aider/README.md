@@ -66,8 +66,9 @@ adapters/aider/install.sh --no-git-hooks        # 只装 .aider.conf.yml + 上�
 ## 人工确认（HITL · veto 降级路径）
 
 veto 降级为 commit-gate 不会改变 review 的授权语义：完成产物并选择 event 后运行
-`tenon review request <change> --event <event>`，人类明确确认后运行
-`tenon review acknowledge <change>`。不得手动删除 `.pipeline-pending-review`。
+`tenon review request <change> --event <event>`，然后等用户确认：用户在 Dashboard（`tenon dashboard --open`）
+确认，或由**用户本人在自己的终端**运行 `tenon review acknowledge <change>`；agent 不得代为执行该命令
+（持续授权下只可用 `--delegated`，它不批准待批准的测试豁免）。不得手动删除 `.pipeline-pending-review`。
 
 ## 已知局限（诚实登记）
 

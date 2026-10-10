@@ -185,12 +185,15 @@ describe('真实 e2e —— terminal-activity host hook', () => {
     await h.satisfyStepAgents('demo')
     expect(await h.run(['check', 'demo'])).toBe(0)
     const env = { TENON_ROUTER_CACHE: join(h.cwd, '.router-cache') }
-    const confirm = { prompt: '确认继续，按你的推荐实现响应式 React 页面', cwd: h.cwd, session_id: SESSION_ID }
+    const confirm = { prompt: '确认继续，按你的推荐', cwd: h.cwd, session_id: SESSION_ID }
 
-    // No review requested: an unbound conversation is not resumed through the repo pointer.
-    const before = runHook('router.sh', confirm, env)
+    // No review requested: an unbound conversation is not resumed through the repo pointer. A real new-task prompt
+    // (the approval phrase is only its prefix, not the whole reply) must still be routed as new work.
+    const newTask = { prompt: '确认继续，按你的推荐实现响应式 React 页面', cwd: h.cwd, session_id: SESSION_ID }
+    const before = runHook('router.sh', newTask, env)
     expect(before.code, before.stderr).toBe(0)
     expect(before.stdout).toContain('intent: new')
+    expect(before.stdout).not.toContain('intent: resume')
 
     expect(await h.run(['review', 'request', 'demo', '--event', 'explore-complete'])).toBe(0)
     const pending = runHook('router.sh', confirm, env)

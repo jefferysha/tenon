@@ -9,7 +9,7 @@
  * 覆盖（C10）：activate happy（真落盘）+ 两个用户互不覆盖 + 退役指针清理 + 身份缺失 + 缺 change（exit 1）
  *   + degraded（写失败不炸）；route-context 单仓（全未归属）+ monorepo（真 .pipeline-project.yaml 路由）+ 空集 + --json + 缺 change。
  */
-import { readFile, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, stat, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { freshHarness, realDeps, rm, type Harness } from './integration-harness.js'
@@ -136,6 +136,50 @@ describe('真实 e2e —— session activate（当前用户的 active-change 真
       change: string
     }
     expect(binding).toMatchObject({ protocol: 'pipeline-terminal-session-v1', session_id: sessionId, change: 'feat' })
+  })
+
+  test('activate --host-session 把同一 Change 的其他会话绑定移交给新会话，并在 stderr 说明从哪个会话移交', async () => {
+    const sessionsDir = join(h.cwd, '.pipeline', 'terminal-sessions')
+    expect((await session(h, 'activate', ['feat', '--host-session', 'session-x1'])).code).toBe(0)
+    // 移交前遗留：同一 Change 还有第二个会话的绑定。
+    await writeFile(
+      join(sessionsDir, 'session-x2.json'),
+      `${JSON.stringify({ protocol: 'pipeline-terminal-session-v1', session_id: 'session-x2', change: 'feat', bound_at: '2026-10-07T00:00:00Z' })}\n`,
+      'utf8',
+    )
+    const moved = await session(h, 'activate', ['feat', '--host-session', 'session-y'])
+    expect(moved.code).toBe(0)
+    const err = moved.err.join('\n')
+    expect(err).toContain('[activate] 已从会话 session-x1 移交 feat')
+    expect(err).toContain('[activate] 已从会话 session-x2 移交 feat')
+    expect(await exists(join(sessionsDir, 'session-x1.json'))).toBe(false)
+    expect(await exists(join(sessionsDir, 'session-x2.json'))).toBe(false)
+    expect(JSON.parse(await readFile(join(sessionsDir, 'session-y.json'), 'utf8'))).toMatchObject({ session_id: 'session-y', change: 'feat' })
+    // 同一会话再次激活自己的 Change：没有可移交的，不提示。
+    const again = await session(h, 'activate', ['feat', '--host-session', 'session-y'])
+    expect(again.code).toBe(0)
+    expect(again.err.join('\n')).not.toContain('移交')
+  })
+
+  test('移交只动同一 Change 的合法绑定：别的 Change、符号链接、超大、损坏与 id 不符的文件原样保留', async () => {
+    await init(h, 'other')
+    const sessionsDir = join(h.cwd, '.pipeline', 'terminal-sessions')
+    expect((await session(h, 'activate', ['other', '--host-session', 'session-z'])).code).toBe(0)
+    await mkdir(sessionsDir, { recursive: true })
+    const binding = (id: string, change: string, pad = ''): string => `${JSON.stringify({
+      protocol: 'pipeline-terminal-session-v1', session_id: id, change, bound_at: '2026-10-07T00:00:00Z', ...(pad === '' ? {} : { pad }),
+    })}\n`
+    await writeFile(join(h.cwd, 'outside-binding.json'), binding('session-link', 'feat'), 'utf8')
+    await symlink(join(h.cwd, 'outside-binding.json'), join(sessionsDir, 'session-link.json'))
+    await writeFile(join(sessionsDir, 'session-big.json'), binding('session-big', 'feat', 'x'.repeat(5000)), 'utf8')
+    await writeFile(join(sessionsDir, 'session-bad.json'), '{"change":"feat" not json', 'utf8')
+    await writeFile(join(sessionsDir, 'session-mismatch.json'), binding('another-id', 'feat'), 'utf8')
+    const moved = await session(h, 'activate', ['feat', '--host-session', 'session-y'])
+    expect(moved.code).toBe(0)
+    expect(moved.err.join('\n')).not.toContain('移交')
+    for (const kept of ['session-z', 'session-link', 'session-big', 'session-bad', 'session-mismatch']) {
+      expect(await exists(join(sessionsDir, `${kept}.json`)), kept).toBe(true)
+    }
   })
 })
 

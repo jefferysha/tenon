@@ -7,6 +7,7 @@
  * edge exits through `archived`, which closes the WorkflowRun. The bundled `archive` terminal is
  * the same rule. Compiled IR, plan fingerprints and frozen snapshots never contain this edge.
  */
+import { DEFAULT_EVENT_POLICY } from '../flow/default-event-policy.js'
 import type { PipelineState } from '../types.js'
 import { autoGateGuards } from './auto-gate.js'
 import type { EffectiveWorkflowPlan } from './effective-plan-types.js'
@@ -34,6 +35,25 @@ export function isForwardStepEdge(stepIds: readonly string[], from: string, to: 
   const fromIndex = stepIds.indexOf(from)
   const toIndex = stepIds.indexOf(to)
   return fromIndex >= 0 && toIndex > fromIndex
+}
+
+/**
+ * 前进边的统一判定（`isForwardExit` 与验证轮次上限共用，不另起第二套）：隐式完结自边永远是前进边；
+ * phase-manifest（default）按事件策略的 `enforceTaskExit`；其余按步骤序（`isForwardStepEdge`）。
+ */
+export function isForwardEdge(
+  executionModel: EffectiveWorkflowPlan['executionModel'],
+  stepIds: readonly string[],
+  from: string,
+  to: string,
+  event: string,
+): boolean {
+  if (event === IMPLICIT_COMPLETION_EVENT && from === to) return true
+  if (executionModel === 'phase-manifest') {
+    const policy = (DEFAULT_EVENT_POLICY as Record<string, { readonly enforceTaskExit: boolean } | undefined>)[event]
+    return policy?.enforceTaskExit === true
+  }
+  return isForwardStepEdge(stepIds, from, to, event)
 }
 
 export type ImplicitCompletionPlan = Pick<EffectiveWorkflowPlan, 'capabilities' | 'workflow'>

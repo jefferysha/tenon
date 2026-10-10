@@ -24,6 +24,11 @@
 #   ⑦ 反例哨兵：人为改坏的适配器（veto 放行 / track 不写 / inject 伪装）必被判别为红
 set -u
 
+# 经 `tenon test run` 启动时，启动器把本机真实的运行时根与已装 release 的插件根导出给了本脚本；它们分别优先于夹具的
+# TENON_RUNTIME_HOME 与用例显式设置的 CLAUDE_PLUGIN_ROOT，带着它们跑会读写真实状态、用到已装插件。需要的夹具各自显式设置。
+unset TENON_RUNTIME_ROOTS TENON_RUNTIME_DATA_ROOT TENON_RUNTIME_STATE_ROOT TENON_RUNTIME_CONFIG_ROOT
+unset PLUGIN_ROOT CLAUDE_PLUGIN_ROOT TENON_HOST_PLUGIN_ROOT TENON_CODEX_PLUGIN_ROOT
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Hooks resolve the declared identity (hooks/tenon-user.sh); fixtures select Changes for this user.
@@ -180,6 +185,11 @@ write_v2_review_marker() { # <project root> [change=demo-change] [phase=explore]
     > "$root/.pipeline-pending-review"
 }
 
+write_v2_interaction_marker() { # <project root>：归属全部会话的 v2 交互标记（change 与 session 都为空）
+  printf 'pipeline-interaction-v2\nchange=\nsession=\nskills=fixture-skill\nrequested_at=2026-10-07T00:00:00Z\n' \
+    > "$1/.pipeline-pending-interaction"
+}
+
 # Existing adapter fixtures intentionally use `touch` for marker setup.  Upgrade only fresh,
 # empty legacy review markers immediately before a veto assertion; stale legacy markers remain
 # harmless/allowed and therefore keep their TTL scenario meaning.  The JSON parser is the same
@@ -227,7 +237,7 @@ run_veto_scenario "V2-no-marker" "{\"cwd\":\"$p\",\"tool_name\":\"Bash\"}" ALLOW
 p="$(mk_proj veto-stale)"; touch "$p/.pipeline-pending-review"; touch_age "$p/.pipeline-pending-review" 4000
 run_veto_scenario "V3-stale" "{\"cwd\":\"$p\",\"tool_name\":\"Edit\"}" ALLOW
 # 场景 V4：marker 在项目根、cwd 是子目录 → 上溯拦 DENY
-p="$(mk_proj veto-nested)"; mkdir -p "$p/sub/deep"; touch "$p/.pipeline-pending-interaction"
+p="$(mk_proj veto-nested)"; mkdir -p "$p/sub/deep"; write_v2_interaction_marker "$p"
 run_veto_scenario "V4-nested-cwd" "{\"cwd\":\"$p/sub/deep\",\"tool_name\":\"Write\"}" DENY
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -614,7 +624,7 @@ p="$(mk_proj nv-none)"
 run_veto_new "V2-no-marker"    "{\"cwd\":\"$p\",\"tool_name\":\"Bash\"}"  ALLOW $NV
 p="$(mk_proj nv-stale)"; touch "$p/.pipeline-pending-review"; touch_age "$p/.pipeline-pending-review" 4000
 run_veto_new "V3-stale"        "{\"cwd\":\"$p\",\"tool_name\":\"Edit\"}"  ALLOW $NV
-p="$(mk_proj nv-nested)"; mkdir -p "$p/sub/deep"; touch "$p/.pipeline-pending-interaction"
+p="$(mk_proj nv-nested)"; mkdir -p "$p/sub/deep"; write_v2_interaction_marker "$p"
 run_veto_new "V4-nested-cwd"   "{\"cwd\":\"$p/sub/deep\",\"tool_name\":\"Write\"}" DENY $NV
 
 # ⑧.3 inject conformance — native（gemini/pi 包 baseline 上下文）/ degraded（copilot/devin 落 fallback 不伪装）
@@ -768,7 +778,7 @@ p="$(mk_proj s9-continue-none)"
 run_veto_new "continue-V2-no-marker" "{\"cwd\":\"$p\",\"tool_name\":\"Bash\"}" ALLOW continue
 p="$(mk_proj s9-continue-stale)"; touch "$p/.pipeline-pending-review"; touch_age "$p/.pipeline-pending-review" 4000
 run_veto_new "continue-V3-stale" "{\"cwd\":\"$p\",\"tool_name\":\"Edit\"}" ALLOW continue
-p="$(mk_proj s9-continue-nested)"; mkdir -p "$p/sub/deep"; touch "$p/.pipeline-pending-interaction"
+p="$(mk_proj s9-continue-nested)"; mkdir -p "$p/sub/deep"; write_v2_interaction_marker "$p"
 run_veto_new "continue-V4-nested-cwd" "{\"cwd\":\"$p/sub/deep\",\"tool_name\":\"Write\"}" DENY continue
 
 p="$(mk_change_proj s9-continue-inject)"
@@ -863,7 +873,7 @@ p="$(mk_proj s9-cline-none)"
 run_cline_veto_scenario "V2-no-marker" "$p" execute_command ALLOW
 p="$(mk_proj s9-cline-stale)"; touch "$p/.pipeline-pending-review"; touch_age "$p/.pipeline-pending-review" 4000
 run_cline_veto_scenario "V3-stale" "$p" read_file ALLOW
-p="$(mk_proj s9-cline-nested)"; mkdir -p "$p/sub/deep"; touch "$p/.pipeline-pending-interaction"
+p="$(mk_proj s9-cline-nested)"; mkdir -p "$p/sub/deep"; write_v2_interaction_marker "$p"
 run_cline_veto_scenario "V4-nested-cwd" "$p/sub/deep" write_to_file DENY
 
 p="$(mk_change_proj s9-cline-inject)"
@@ -917,7 +927,7 @@ if [ "$HAVE_NODE" = 1 ]; then
   run_amp_veto_scenario "V2-no-marker" "$p" Bash ALLOW
   p="$(mk_proj s9-amp-stale)"; touch "$p/.pipeline-pending-review"; touch_age "$p/.pipeline-pending-review" 4000
   run_amp_veto_scenario "V3-stale" "$p" Edit ALLOW
-  p="$(mk_proj s9-amp-nested)"; mkdir -p "$p/sub/deep"; touch "$p/.pipeline-pending-interaction"
+  p="$(mk_proj s9-amp-nested)"; mkdir -p "$p/sub/deep"; write_v2_interaction_marker "$p"
   run_amp_veto_scenario "V4-nested-cwd" "$p/sub/deep" Write DENY
 
   p="$(mk_change_proj s9-amp-inject)"

@@ -20,6 +20,22 @@ elif [ "$(uname -s 2>/dev/null || true)" = "Darwin" ]; then
 else
   CONFIG_BASE="${XDG_CONFIG_HOME:-$HOME/.config}/tenon"
 fi
+# 源码开发安装（tenon setup --from-source）写下 install-channel 标记：后台 update 会把它换回正式版，所以见标记就退出。
+# 标记里的 release_id 与当前 active release 对不上（回滚、重装之后）说明标记陈旧，照常更新。
+CHANNEL_FILE="$CONFIG_BASE/install-channel"
+if [ -f "$CHANNEL_FILE" ] && [ ! -L "$CHANNEL_FILE" ]; then
+  DEV_CHANNEL=""
+  DEV_RELEASE=""
+  while IFS='=' read -r key value || [ -n "$key" ]; do
+    case "$key" in
+      channel) DEV_CHANNEL="$value" ;;
+      release_id) DEV_RELEASE="$value" ;;
+    esac
+  done < "$CHANNEL_FILE"
+  if [ "$DEV_CHANNEL" = "dev" ] && { [ -z "${TENON_ACTIVE_RELEASE_ID:-}" ] || [ "${TENON_ACTIVE_RELEASE_ID}" = "$DEV_RELEASE" ]; }; then
+    exit 0
+  fi
+fi
 CONFIG="$CONFIG_BASE/auto-update.conf"
 [ -f "$CONFIG" ] && [ ! -L "$CONFIG" ] || exit 0
 

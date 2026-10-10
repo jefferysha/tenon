@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto'
 import { appendFile, readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { isAbsolute, join, normalize } from 'node:path'
 import type {
   RuntimeAuditEntry,
+  RuntimeDevSource,
   RuntimePaths,
   RuntimeReleaseManifest,
   RuntimeReleaseSource,
@@ -79,6 +80,27 @@ function stableTargetFromUnknown(value: unknown): RuntimeStableReleaseTarget | n
   return { version, tag, commit }
 }
 
+const DEV_OID = /^[a-f0-9]{40}$/
+
+function devSourceFromUnknown(value: unknown): RuntimeDevSource | null {
+  if (!isRecord(value)
+    || Object.keys(value).sort().join(',') !== 'commit,dirty,kind,repoRealpath,skillsIndexDigest,worktreeDigest') {
+    return null
+  }
+  const { kind, repoRealpath, commit, dirty, worktreeDigest, skillsIndexDigest } = value
+  if (kind !== 'dev'
+    || typeof repoRealpath !== 'string'
+    || !isAbsolute(repoRealpath)
+    || normalize(repoRealpath) !== repoRealpath
+    || /[\u0000-\u001f\u007f]/u.test(repoRealpath)
+    || typeof commit !== 'string' || !DEV_OID.test(commit)
+    || typeof dirty !== 'boolean'
+    || typeof worktreeDigest !== 'string' || !DEV_OID.test(worktreeDigest)
+    || typeof skillsIndexDigest !== 'string'
+    || (skillsIndexDigest !== 'absent' && !DEV_OID.test(skillsIndexDigest))) return null
+  return { kind: 'dev', repoRealpath, commit, dirty, worktreeDigest, skillsIndexDigest }
+}
+
 function identityFrame(hash: ReturnType<typeof createHash>, value: string): void {
   const bytes = Buffer.from(value, 'utf8')
   hash.update(`${bytes.byteLength}:`, 'utf8')
@@ -89,6 +111,7 @@ export function runtimeReleaseIdV2(
   payloadDigest: string,
   source: RuntimeReleaseSource,
   stableTarget?: RuntimeStableReleaseTarget,
+  devSource?: RuntimeDevSource,
 ): string {
   const hash = createHash('sha256')
   for (const field of [
@@ -101,6 +124,17 @@ export function runtimeReleaseIdV2(
     stableTarget?.tag ?? '',
     stableTarget?.commit ?? '',
   ]) identityFrame(hash, field)
+  // 只有开发安装才追加帧：没有 devSource 的 release id 必须与历史算法逐字节相同。
+  if (devSource !== undefined) {
+    for (const field of [
+      'dev-source',
+      devSource.repoRealpath,
+      devSource.commit,
+      String(devSource.dirty),
+      devSource.worktreeDigest,
+      devSource.skillsIndexDigest,
+    ]) identityFrame(hash, field)
+  }
   return `sha256-${hash.digest('hex')}`
 }
 
@@ -122,16 +156,22 @@ export function parseManifest(raw: string): RuntimeReleaseManifest | null {
     return { version: 1, releaseId: value.releaseId, payloadDigest, createdAt, source }
   }
   if (value.version !== 2) return null
-  const allowed = value.stableTarget === undefined
-    ? 'createdAt,payloadDigest,releaseId,source,version'
-    : 'createdAt,payloadDigest,releaseId,source,stableTarget,version'
-  if (Object.keys(value).sort().join(',') !== allowed) return null
+  const expectedKeys = ['createdAt', 'payloadDigest', 'releaseId', 'source', 'version']
+  if (value.stableTarget !== undefined) expectedKeys.push('stableTarget')
+  if (value.devSource !== undefined) expectedKeys.push('devSource')
+  if (Object.keys(value).sort().join(',') !== expectedKeys.sort().join(',')) return null
   const stableTarget = value.stableTarget === undefined
     ? undefined
     : stableTargetFromUnknown(value.stableTarget)
-  if (stableTarget === null
-    || (stableTarget !== undefined && stableTarget.version !== source.pluginVersion)
-    || value.releaseId !== runtimeReleaseIdV2(payloadDigest, source, stableTarget)) return null
+  const devSource = value.devSource === undefined
+    ? undefined
+    : devSourceFromUnknown(value.devSource)
+  if (stableTarget === null || devSource === null) return null
+  // 开发安装与正式标签互斥；开发安装只属于原生宿主。
+  if (stableTarget !== undefined && devSource !== undefined) return null
+  if (devSource !== undefined && source.host !== 'codex' && source.host !== 'claude') return null
+  if ((stableTarget !== undefined && stableTarget.version !== source.pluginVersion)
+    || value.releaseId !== runtimeReleaseIdV2(payloadDigest, source, stableTarget, devSource)) return null
   return {
     version: 2,
     releaseId: value.releaseId,
@@ -139,6 +179,7 @@ export function parseManifest(raw: string): RuntimeReleaseManifest | null {
     createdAt,
     source,
     ...(stableTarget === undefined ? {} : { stableTarget }),
+    ...(devSource === undefined ? {} : { devSource }),
   }
 }
 

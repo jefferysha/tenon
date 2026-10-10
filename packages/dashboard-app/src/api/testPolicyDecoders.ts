@@ -86,7 +86,7 @@ function readVerdict(value: unknown): SuiteVerdict {
     kind: str(item.kind),
     ...maybe('label', opt(item.label, str)),
     reason: oneOf(item.reason, ['run', 'if-registered', 'inline']),
-    state: oneOf(item.state, ['passed', 'failed', 'stale', 'missing', 'running']),
+    state: oneOf(item.state, ['passed', 'failed', 'stale', 'missing', 'running', 'waived', 'waiver-pending']),
     ...maybe('runId', opt(item.runId, str)),
     ...maybe('finishedAt', opt(item.finishedAt, str)),
     ...maybe('staleBecause', opt(item.staleBecause, (raw) => arr(raw, (entry) => oneOf(entry, STALE)))),
@@ -188,7 +188,10 @@ export function readPlanBrief(value: unknown): TestPlanBrief {
     }),
     waivers: arr(item.waivers, (raw) => {
       const waiver = rec(raw)
-      return { ...maybe('kind', opt(waiver.kind, str)), ...maybe('covers', opt(waiver.covers, str)), approved: bool(waiver.approved) }
+      return {
+        ...maybe('kind', opt(waiver.kind, str)), ...maybe('covers', opt(waiver.covers, str)), ...maybe('test', opt(waiver.test, str)),
+        approved: bool(waiver.approved),
+      }
     }),
     files: int(item.files),
     cases: int(item.cases),

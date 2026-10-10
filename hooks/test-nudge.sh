@@ -31,7 +31,9 @@ for helper in project-root.sh canonical-state.sh active-change.sh; do
 done
 PROOT="$(pipeline_project_root "$CWD" existing changes || true)"
 [ -n "$PROOT" ] || exit 0
-CHANGE_DIR="$(pipeline_active_change_dir "$PROOT" || true)"
+# 本会话任务（按宿主 session_id 解析）：并行会话各记各的 Change，证据不再串到共享指针指向的任务；
+# 没有本会话任务（例如恢复后换了 id 尚未重新 activate）时什么都不记。
+CHANGE_DIR="$(pipeline_session_change_dir "$PROOT" "$(pipeline_hook_session_id "$INPUT")" || true)"
 [ -n "$CHANGE_DIR" ] || exit 0
 
 PLAN="$CHANGE_DIR/.pipeline-workflow-plan.json"

@@ -188,9 +188,14 @@ Review exits are bound to an exact transition event:
 
 ```bash
 tenon review request <change-name> --event <event>
-tenon review acknowledge <change-name>
+# after the user has confirmed:
 tenon transition <change-name> <event>
 ```
+
+Confirmation comes only from the user: a reply with an approval phrase ("确认继续", "继续执行";
+the hook writes the receipt), a confirmation in the Dashboard (`tenon dashboard --open`), or the
+user running `tenon review acknowledge <change-name>` in their own terminal. The agent must not
+run it for them.
 
 Continuous delegation can be recorded, but it does not waive documents, Skills,
 guards, review evidence, security boundaries, publication authority, cost, or
@@ -293,6 +298,11 @@ bash tools/test-adapters.sh
 bash tools/verify-skills.sh
 bash tools/test-bundle.sh
 ```
+
+To make the skills, hooks and CLI on your machine come from the checkout instead of a release, run
+`tenon setup --claude --from-source .` (`--codex` for Codex, `--dry-run` to preview); rerun it after editing the
+checkout to sync, and `tenon update --claude --to-stable` to go back. See
+[Contributor development](docs/usage/contributor-development.md).
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) before changing contracts, generated
 assets, adapters, hooks, or distribution files.

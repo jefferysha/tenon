@@ -117,6 +117,7 @@ export function planDto(plan: TestPlan, kindOf: (suite: string) => string | null
     waivers: plan.waivers.map((waiver) => ({
       ...(waiver.kind === undefined ? {} : { kind: waiver.kind }),
       ...(waiver.covers === undefined ? {} : { covers: waiver.covers }),
+      ...(waiver.test === undefined ? {} : { test: waiver.test }),
       reason: waiver.reason,
       approvedBy: waiver.approved_by,
     })),
@@ -180,6 +181,7 @@ export function planBriefDto(plan: TestPlan, kindOf: (suite: string) => string |
     waivers: plan.waivers.map((waiver) => ({
       ...(waiver.kind === undefined ? {} : { kind: waiver.kind }),
       ...(waiver.covers === undefined ? {} : { covers: waiver.covers }),
+      ...(waiver.test === undefined ? {} : { test: waiver.test }),
       approved: waiver.approved_by !== null,
     })),
     files: plan.files.length,

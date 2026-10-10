@@ -8,6 +8,8 @@
 tenon setup --codex
 tenon setup --claude
 tenon update --codex
+tenon setup --claude --from-source <repo>
+tenon update --claude --to-stable
 tenon host-target-plan --json
 tenon host-target-plan --host codex --operation setup --json
 tenon --version
@@ -18,6 +20,10 @@ tenon dashboard --open
 ```
 
 `tenon --version`（`-V`）打印这条命令所在插件载荷的版本号（插件清单里的版本）；已安装的运行时上它就是 `tenon doctor` 里 `runtime=` 的那个数字。不需要项目，也不改任何东西。
+
+`tenon setup --claude|--codex --from-source <repo>` 是源码开发安装，用于在 Tenon 源码仓库里工作：它构建该仓库（`npm --prefix <repo> run build`，`--skip-build` 可跳过）、按 `skills/sources.yaml` 获取缺失的上游技能与本机 `skills/skills.lock.json` 索引（获取失败则整条命令在改动宿主之前中止）、把仓库目录登记成 `tenon` marketplace，并发布一份在 manifest 里记录 `devSource`（commit、`dirty`、安装内容摘要、技能索引摘要）而不是稳定标签的受管 runtime。它不冒充发布版本：插件版本仍是仓库 `plugin.json` 的版本，只有 `/api/health` 显示 `<version>+dev.<sha7>`。开发安装会关闭自动更新，`tenon update` 对它默认拒绝，`tenon update --claude|--codex --to-stable` 切回最新正式版。不带 `--from-source` 时 setup / update 与以前完全一致，只认稳定标签。`tenon doctor` 对开发安装给出 `identity:release` 警告，仓库与已装内容不一致时给出 `source:drift`。`--from-source` 只能与 `--claude` 或 `--codex` 之一同用，不能与 adapter 宿主或 `--auto-update` 同用。
+
+已知风险：`--from-source` 会运行所给检出的构建（`npm --prefix <repo> run build`），并按该检出的 `skills/sources.yaml` 拉取上游技能，然后把该检出的 hooks 与技能长期装进宿主，之后每个会话都会运行它们。目录算不算 Tenon 仓库只看检出自己的文件，agent 发起这条命令时也没有额外确认。它与 agent 能执行的任意命令同级，是开发者显式命令，只对你信任的检出使用。
 
 `tenon dashboard --open` 负责登录：已在运行（或刚启动）的 server 自己用一次性登录链接打开你的浏览器，链接不会返回给这条命令，所以页面打开时已是登录状态。直接运行 `tenon dashboard` 会在前台启动 server，并把链接打印到交互终端；读取 server stdout 的启动者可用 `TENON_DASHBOARD_PRINT_LINK=1` 要求打印。详见[登录](dashboard-and-local-api.md#登录)。
 
@@ -84,6 +90,41 @@ tenon spec apply <change> [--dry-run] [--json]
 `applied-spec.md`。`--dry-run` 除回执外不写任何文件。退出码：`0` 通过，`1` 用法或状态，
 `2` 校验或彩排失败，`3` PATH 上没有 openspec，`4` 主规格在彩排期间被改过。
 
+### 验证轮次上限
+
+设了评审门且至少有一条回退边的步骤（default 里是带 `verify-fail` 的验证）限制最多验证几轮。一轮 = 自上次重新计数以来进入这一步的一次，含当前这次：第一次进入是第 1 轮，每次 `verify-fail` 回到实现、再经 `build-complete` 进入验证，就多一轮。任务落到早于所有回退目标的步骤时重新从 1 计数（在 `default` 里就是经 `requirements-changed` 回到规格）。删标记、重跑命令、换 agent 都不会让计数清零。
+
+上限有三个来源，后者覆盖前者：内置默认 2（没有声明的受限步骤，例如自定义工作流的步骤，或这个键出现之前就已冻结的计划）、步骤的 `max_rounds` 键（default 工作流在每条轨道的验证步声明 2，见[默认工作流](./default-workflow.md#验证轮次上限)）、任务字段 `max_rounds`。
+
+```text
+tenon set <change> max_rounds <N>
+tenon get <change> max_rounds
+```
+
+`set` 只接受 1 到 20 的整数，其余取值以退出码 `1` 拒绝且不写任何东西；写入会记进 change 历史。字段从没设置过时 `get` 输出一个空行。这个值对本任务所有受限步骤生效。调高上限是用户的决定：agent 只在用户明确指示时才执行 `set max_rounds`。写入会改变任务状态，已发起或已批准的评审请求随之失效：重新读 `step.next`，再重新 `tenon review request`。设成不高于当前轮次的值，立即算用完；只有设成大于当前轮次的值，回退边才恢复。
+
+`tenon status <change> --json` 在 `step.rounds`（紧跟在 `exits` 之后）里给出计数：
+
+```json
+"rounds": { "current": 2, "max": 2, "source": "workflow" }
+```
+
+`source` 是 `workflow`（步骤的 `max_rounds`）、`default`（内置的 2）或 `task`（任务字段）。不受上限约束的步骤（实现步、没有回退边的评审门步骤）和已完结的任务，值是 `null`。
+
+`current` 达到 `max`、而必需测试或必需评审者仍不通过时，这一步不再自动回退：
+
+- `step.next` 不再给回退边的 `request-review`、`choose-exit` 或 `transition`。只有必需评审者不通过、或失败的必需测试都已登记豁免时，给前进边的 `request-review`，多带三个字段：`residual`（不通过的评审者，形如 `reviewer:<agent>`）、`rounds` 与 `alternatives`（另外的出路）。还有没登记豁免的失败必需测试时，给 `stop`，`code: rounds-exhausted`，`message` 点名失败的测试，并说明可以先登记步骤测试豁免。两种都列出另外三条出路：调高上限（用户的决定）、回到规格、终止任务。回到规格要分两步，因为受约束的步骤上没有直达的边（它声明的每条回退边本身就是它的回退目标，落到那里不会让计数清零，上限用完后这些边也同样被拒）：用户先调高上限，经回退边 `verify-fail` 回到实现，再在实现步上执行 `tenon transition <change> requirements-changed`；任务落到规格之后计数从第 1 轮重新开始，用户可以再把 `max_rounds` 调回去。自定义工作流里，文案按计划点出回退边和回退目标步骤上落到更早步骤的事件；没有比所有回退目标更早的步骤时，文案会说明回去也不会让计数清零。
+- `step.exits[]` 里回退边是 `ready: false`，带阻断 `{ "source": "guard", "code": "rounds-exhausted", "message": … }`；前进边与放弃边 `scope-expanded` 不变。
+- `tenon review request <change> --event <回退事件>` 与 `tenon transition <change> <回退事件>` 以退出码 `1` 拒绝，什么都不写，并写出已用轮次、上限和 `tenon set <change> max_rounds <N>`。Dashboard 的转换返回 HTTP `409`，`code: "rounds-exhausted"`（另带 `step`、`event`、`current`、`max`、`source`）。不受上限约束的步骤的回退边（例如实现步的 `requirements-changed`）始终可用。
+- 上限没用完时一切照旧：回退边照常给出，照常被拒。
+
+**接受剩余阻断。** 轮次用完的步骤上，`tenon review request <change> --event <前进事件>` 对在当前候选上不通过的必需评审者不再拒绝请求，而是放行。它把这些评审者逐个冻结进 `.pipeline-review-waivers.json`，成为待接受的剩余阻断（键 `reviewer:<agent>`，带评审者那次运行、代码候选和阻断级发现），并连同发现逐条打印；把这份输出和 `alternatives` 一起摆给用户。上限没用完时，必需评审者不通过仍会让请求被拒。
+
+- 只有人工确认才接受：用户回复放行语（「确认继续」「继续执行」），或用户本人在自己的终端运行 `tenon review acknowledge <change>`。接受与已批准的回执在同一把锁内写入，并为每个评审者往 change 历史追加一行 `review.residual-accepted`（评审者、运行、候选、发现数、确认人，以及 `summary=`：冻结时的发现摘要，最多 5 条，用 `|` 连接，条内的 `|` 换成全角 `｜`，每条已清洗）。之后 `tenon check` 对这个评审者只打印一行 `[WARN]` 而不再阻塞，`tenon transition <change> <前进事件>` 也不再因它被拒。
+- `review acknowledge --delegated` 与 AFK 从不接受：有待接受的剩余阻断时命令被拒，什么都不写，评审保持待确认。Dashboard 复核决策台也不展示它们，所以它的「通过」返回 HTTP `409`，`code: "residual-pending"`，要回终端确认。
+- 接受绑定评审者那次运行和当时的代码候选。代码变了，或该评审者有了新的运行（含带 `--rerun-reason` 的重跑），接受就失效：前进边重新被这个评审者挡住，需要再请求、再确认。已批准的回执覆盖不到现在的结论时，`step.next` 给 `fix`，阻断码 `residual-unaccepted`；先 `tenon review revoke <change> --reason <原因>`，再重新发起评审。
+- 剩余阻断只覆盖评审者。失败的必需测试仍由步骤测试豁免处理（`tenon test waive <change> --test <步骤测试 id> --reason <原因>`），同一次评审请求可以把它和剩余阻断一起列出。
+
 ## 身份与负责人
 
 ```text
@@ -137,6 +178,7 @@ tenon review request <change> --event <event>
 tenon review acknowledge <change>
 tenon review acknowledge <change> --delegated
 tenon review acknowledge <change> --as reviewer
+tenon review revoke <change> --reason <原因>
 ```
 
 delegated 需要 Change 绑定的持续授权，且不能跳过 check。
@@ -150,13 +192,16 @@ delegated 需要 Change 绑定的持续授权，且不能跳过 check。
 review（缺失、已被消费、binding 失效或 event 已不是 workflow 出口）；`3` revision 冲突（仅 Dashboard CAS
 路径）；`4` 幂等键冲突；`1` 非法命令（例如 `--event` 与待确认 receipt 不一致）或意外错误。失败时不写入任何内容。
 
+`review revoke <change> --reason <原因>` 撤回误给的批准：把当前步已批准、尚未被 transition 消费的回执撤回为同一 event 的待确认（沿用原 `requestedAt` 与绑定），重写评审标记让门重新拦住，并在 change 历史追加一行 `review.revoked`（操作者、原因、回执标识、event）。只有任务负责人能执行，`--reason` 必填（一行，不超过 200 字）。原因缺失、回执本就待确认、不存在或已被 transition 消费时拒绝且不写任何东西（退出码 `1`）。批准之后决策状态变过的话，下一次 `review acknowledge` 会因绑定失效被拒；对同一 event 重新 `review request` 即可刷新。
+
 `review request` 还会冻结并列出测试计划里尚未批准的豁免（`waivers[].approved_by` 为空）。人工的
 `review acknowledge` 在提交 approved receipt 的同一把锁内，只给这些豁免写上 `approved_by`，并在 change 历史里留一行
 `test:waiver-approve`；`--delegated` 从不批准豁免，计划里有待批准的豁免时它被整个拒绝（不写任何东西，评审仍待确认）；请求之后才加进计划的豁免
 也不在那次确认里（`step.next` 会先要求重新发起请求）。Dashboard 复核决策台的「通过」是同一种人工确认：
 列出并批准同一份冻结清单，留同一行 `test:waiver-approve`。计划写入与基线更新同样各留
 `test:plan-write` / `test:baseline-update` 一行。同一份冻结清单还带着任务里受保护的测试配置改动（目录、基线、已知失败清单、
-项目工作流，见「测试证据的可信根」），批准它们留一行 `test:protected-approve`。
+项目工作流，见「测试证据的可信根」），批准它们留一行 `test:protected-approve`。步骤的验证轮次用完后，同一份冻结清单还带着仍不通过的必需评审者，
+作为剩余阻断，见[验证轮次上限](#验证轮次上限)。
 
 自动评审与人工确认是两套不同边界：前者是步骤声明的 agent，后者是 `gate: review`，可以叠加。
 
@@ -263,8 +308,8 @@ tenon test register <change> --auto
 tenon test register <change> --suite <id> [--scope full|changed|files|grep] [--pattern <regex>] [--select-file <path>]…
 tenon test register <change> --file <path>… [--suite <id>] [--kind <kind>]
 tenon test register <change> --case <covers> --test "<文件> › <用例名>"…
-tenon test unregister <change> --suite <id> | --file <path> | --case <covers> [--test <ref>] | --waiver <种类|场景>
-tenon test waive <change> (--kind <k> | --covers <covers>) --reason <原因>
+tenon test unregister <change> --suite <id> | --file <path> | --case <covers> [--test <ref>] | --waiver <种类|场景|test:步骤测试 id>
+tenon test waive <change> (--kind <k> | --covers <covers> | --test <步骤测试 id>) --reason <原因>
 tenon test sync <change> [--json]
 tenon test trust [<change>] [--yes] [--status] [--json]
 tenon test run <change> [--suite <id>]… [--kind <k>]… [--stage [<step>]] [--all] [--changed] [--json]
@@ -298,6 +343,13 @@ tenon test diff-risk [<change>] [--json]
 在 `catalog.yaml` 写入 `not_applicable: [{kind, reason, approved_by}]`（`--rm` 撤销）。它要经一次人工确认才生效：
 `review request` 把它以 `not-applicable:<kind>` 和计划里待批准的豁免一起列出，`review acknowledge`（不含 `--delegated`）批准它并把
 批准人记进 `approved_by`；在此之前策略仍要求这个种类，报 `waiver-unapproved`。改理由会让批准清零。
+
+失败的必需步骤测试（例如 `code-size`）用户决定放行时，用
+`tenon test waive <change> --test <步骤测试 id> --reason <原因>` 登记步骤测试豁免。id 必须是本任务工作流某个步骤声明的测试，否则退出码 2 并列出可用的 id；该步骤要声明 `test_policy`
+才会判豁免。它与种类豁免是同一机制：写进计划、随 `review request` 以 `test:<id>` 连同理由列出，人工确认这道评审门时一并批准，
+批准前仍报 `waiver-unapproved`。登记之后 `step.next` 不再发 `run-test`，照常走评审者与 `request-review`；评审者提示里该测试
+的结果下面带一行 `豁免（已批准|待评审批准）：<理由>`。豁免只覆盖新鲜的失败记录：未运行、运行中、过期的测试照旧阻塞，
+代码变了就要重跑。`test unregister <change> --waiver test:<id>` 撤销。
 
 `test discover` 扫描包脚本与各工具配置（vitest、jest、mocha、node:test、Playwright、tsc、eslint、pytest、go），
 给出带推荐 reporter 参数的建议套件，让每个套件都产出可解析的报告；`--write` 追加目录里还没有的 id。

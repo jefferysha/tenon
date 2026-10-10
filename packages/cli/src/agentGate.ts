@@ -5,7 +5,8 @@
  * 「读不到记录」当成「没有评审要求」。一个 agent 都没声明的步骤永远不产生拦截。
  */
 import {
-  currentDocumentStepVisitId, evaluateStepAgents, readAgentRuns, readFrozenAgents,
+  acceptedForEvaluation, currentDocumentStepVisitId, evaluateStepAgents, readAgentRuns, readFrozenAgents,
+  readReviewWaiverSelection, testItemSettled,
 } from '@tenon/kernel'
 import type {
   AgentBlocker, EffectiveWorkflowPlan, PipelineState, StepAgentsCapability, StepAgentsInput,
@@ -37,7 +38,7 @@ async function testsReadyFor(
     context: testEvidenceContextFor(deps, name),
   })
   const pending = report.items
-    .filter((item) => item.test.required && item.status !== 'passed')
+    .filter((item) => item.test.required && !testItemSettled(item))
     .map((item) => item.test.id)
   return { ready: pending.length === 0, pending }
 }
@@ -65,6 +66,8 @@ export async function agentEvaluationInput(
       runId,
       workflowFingerprint: input.plan.workflowFingerprint,
     })
+    // 用户已接受的剩余阻断（评审冻结清单边车里的 accepted）：判定逐项核对评审者、运行 id 与候选，对得上的不通过不再阻断。
+    const accepted = acceptedForEvaluation((await readReviewWaiverSelection(input.dir))?.accepted)
     return {
       step,
       unattached: await unattachedReviewersFor(input.deps, input.name, step, frozen),
@@ -72,6 +75,7 @@ export async function agentEvaluationInput(
       stepVisit: await currentDocumentStepVisitId(input.dir),
       candidate: await currentCandidate(input.deps, input.name, input.state, input.plan, input.stepId),
       testsReady: await testsReadyFor(input.deps, input.name, input.dir, input.plan, input.stepId),
+      ...(accepted.length === 0 ? {} : { accepted }),
     }
   } catch (error) {
     return { invalid: errMsg(error) }

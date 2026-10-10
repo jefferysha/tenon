@@ -8,6 +8,7 @@ import type {
 import type {
   NativeRuntimeHost,
   RuntimeActivation,
+  RuntimeDevSource,
   RuntimeStableReleaseTarget,
 } from '../runtime/types.js'
 import { makeDeps } from '../test-support.js'
@@ -112,6 +113,7 @@ function serializedInstaller(
     host: NativeRuntimeHost | 'adapter',
     expectedPluginVersion?: string,
     stableTarget?: RuntimeStableReleaseTarget,
+    devSource?: RuntimeDevSource,
   ) => RuntimeActivation = activationFor,
   options: {
     readonly failJournalWritePhaseOnce?: ManagedReleaseJournalRecord['phase']
@@ -151,13 +153,14 @@ function serializedInstaller(
               hook: { path: '/home/test/.local/bin/tenon-hook', state: { kind: 'missing' } },
             },
           }),
-          activate: async (candidateRoot, host, expectedPluginVersion, stableTarget) => {
+          activate: async (candidateRoot, host, expectedPluginVersion, stableTarget, devSource) => {
             events.push(`activate:${candidateRoot}`)
             currentActivation = activate(
               candidateRoot,
               host,
               expectedPluginVersion,
               stableTarget,
+              devSource,
             )
             return currentActivation
           },
@@ -2408,5 +2411,118 @@ describe('managed release coordinator', () => {
     expect(recoveries).toBe(1)
     expect(events).not.toContain('activate:/candidate/one')
     expect(events).not.toContain('journal:cleared')
+  })
+})
+
+const DEV_SOURCE: RuntimeDevSource = {
+  kind: 'dev',
+  repoRealpath: '/work/tenon',
+  commit: 'a'.repeat(40),
+  dirty: true,
+  worktreeDigest: 'b'.repeat(40),
+  skillsIndexDigest: 'c'.repeat(40),
+}
+
+function devActivation(candidateRoot: string, devSource: RuntimeDevSource | undefined): RuntimeActivation {
+  const base = activationFor(candidateRoot, 'claude', '0.3.2')
+  return {
+    ...base,
+    release: {
+      version: 2,
+      releaseId: base.release.releaseId,
+      payloadDigest: base.release.payloadDigest,
+      createdAt: base.release.createdAt,
+      source: base.release.source,
+      ...(devSource === undefined ? {} : { devSource }),
+    },
+  }
+}
+
+function devRequest(candidateRoot: string) {
+  return {
+    operation: 'setup' as const,
+    source: 'claude' as const,
+    runtime: { homeDir: '/home/test', env: {} },
+    openBrowser: false,
+    expectedPluginVersion: '0.3.2',
+    devSource: DEV_SOURCE,
+    prepareCandidate: () => ({ candidateRoot }),
+  }
+}
+
+const devStarter: ReleasedDashboardStarter = {
+  inspect: async () => null,
+  adopt: async () => null,
+  start: async (_deps, _payloadRoot, opts) => {
+    const ready = readyDashboard(`sha256-${'a'.repeat(64)}`, opts.transactionId, opts.port)
+    // 就绪身份的 serverVersion 必须等于激活出的插件版本（开发安装用仓库 plugin.json 的 0.3.2）。
+    return { ...ready, session: { ...ready.session, ownership: { ...ready.session.ownership, serverVersion: '0.3.2' } } }
+  },
+}
+
+describe('managed release coordinator: development source install', () => {
+  test('forwards the frozen development source to activation and accepts the matching release', async () => {
+    let received: RuntimeDevSource | undefined
+    const outcome = await publishManagedRelease(
+      makeDeps(),
+      devRequest('/candidate/one'),
+      serializedInstaller([], (root, _host, _version, _stable, dev) => {
+        received = dev
+        return devActivation(root, dev)
+      }),
+      devStarter,
+    )
+    expect(outcome).toMatchObject({ ok: true, state: 'ready' })
+    expect(received).toEqual(DEV_SOURCE)
+  })
+
+  test('rejects an activation whose release does not carry the frozen development source', async () => {
+    const outcome = await publishManagedRelease(
+      makeDeps(),
+      devRequest('/candidate/one'),
+      serializedInstaller([], (root) => devActivation(root, undefined)),
+      devStarter,
+    )
+    expect(outcome).toMatchObject({
+      ok: false,
+      state: 'indeterminate',
+      detail: expect.stringContaining('devSource'),
+    })
+  })
+
+  test('rejects an activation that carries a different development source', async () => {
+    const outcome = await publishManagedRelease(
+      makeDeps(),
+      devRequest('/candidate/one'),
+      serializedInstaller([], (root) => devActivation(root, { ...DEV_SOURCE, worktreeDigest: 'f'.repeat(40) })),
+      devStarter,
+    )
+    expect(outcome).toMatchObject({ ok: false, state: 'indeterminate', detail: expect.stringContaining('devSource') })
+  })
+
+  test('refuses to adopt a pending stable transaction', async () => {
+    const outcome = await publishManagedRelease(
+      makeDeps(),
+      devRequest('/candidate/one'),
+      serializedInstaller([], (root, _host, _version, _stable, dev) => devActivation(root, dev), {
+        initialJournal: {
+          version: 1,
+          transactionId: 'pending-stable',
+          operation: 'setup',
+          source: 'claude',
+          phase: 'preparing-host',
+          startedAt: '2026-10-07T00:00:00Z',
+          updatedAt: '2026-10-07T00:00:00Z',
+          dashboardPort: 18_765,
+          stableTarget: FROZEN_STABLE_TARGET,
+        },
+      }),
+      devStarter,
+    )
+    expect(outcome).toMatchObject({
+      ok: false,
+      state: 'indeterminate',
+      detail: expect.stringContaining('未完成的正式'),
+    })
   })
 })

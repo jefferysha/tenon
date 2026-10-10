@@ -15,6 +15,7 @@ interface JournalRequest {
   readonly expectedPluginVersion?: string
   readonly dashboardPort?: number
   readonly requiresStableTarget?: boolean
+  readonly devSource?: object
   readonly resolveStableTargetBeforeRecovery?: () =>
     | import('../runtime/installer.js').ManagedStableReleaseTarget
     | Promise<import('../runtime/installer.js').ManagedStableReleaseTarget>
@@ -67,6 +68,13 @@ export async function resolveManagedReleaseJournal(
     }
   }
   try {
+    if (request.devSource !== undefined && pending.stableTarget !== undefined) {
+      throw new ManagedRuntimeIndeterminateError(
+        `存在未完成的正式 ${pending.operation} 事务 ${pending.transactionId}`
+        + `（已冻结稳定目标 ${pending.stableTarget.tag}）；先运行 `
+        + `tenon ${pending.operation === 'update' ? 'update' : 'setup'} --${request.source} 完成或恢复它，再做开发安装`,
+      )
+    }
     const potentialLegacyNative = request.operation === 'setup'
       && (request.source === 'codex' || request.source === 'claude')
       && request.requiresStableTarget === true

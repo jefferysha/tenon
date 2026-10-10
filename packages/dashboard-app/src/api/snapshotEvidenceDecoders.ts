@@ -155,6 +155,7 @@ export function decodeTests(value: unknown): TestStepSnapshot[] | undefined {
         || typeof item.direction !== 'string' || item.direction === ''
         || typeof item.required !== 'boolean'
         || typeof item.status !== 'string' || !TEST_STATUSES.includes(item.status)
+        || (item.waiver !== undefined && item.waiver !== 'waived' && item.waiver !== 'waiver-pending')
         || (item.label !== undefined && (typeof item.label !== 'string' || item.label === ''))) return undefined
       const run = item.run === undefined ? undefined : decodeTestRun(item.run)
       if (item.run !== undefined && run === undefined) return undefined
@@ -164,6 +165,7 @@ export function decodeTests(value: unknown): TestStepSnapshot[] | undefined {
         direction: item.direction,
         required: item.required,
         status: item.status as TestItemStatus,
+        ...(item.waiver === undefined ? {} : { waiver: item.waiver }),
         ...(run === undefined ? {} : { run }),
       })
     }

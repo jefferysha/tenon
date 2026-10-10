@@ -59,7 +59,10 @@ describe('真实 e2e —— review exit receipt（default workflow）', () => {
     expect(await h.run(['transition', 'demo', 'explore-complete'])).toBe(2)
     const pendingRefusal = h.err.join('\n')
     expect(pendingRefusal).toContain('已请求评审，正在等待用户确认')
-    expect(pendingRefusal).toContain('tenon review acknowledge demo')
+    // 确认是用户的动作：拒绝提示不指示 agent 自己运行 acknowledge，只说明用户有哪三条路。
+    expect(pendingRefusal).toContain('用户本人在自己的终端运行 tenon review acknowledge demo')
+    expect(pendingRefusal).toContain('Dashboard')
+    expect(pendingRefusal).toContain('不要自己运行 tenon review acknowledge')
     expect(pendingRefusal).not.toContain('先运行 tenon review request')
 
     expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(0)

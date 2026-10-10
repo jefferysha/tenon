@@ -551,6 +551,95 @@ describe('decision server adapters · test-plan waivers', () => {
   })
 })
 
+describe('decision server adapters · residual blockers (验证轮次用完后的剩余阻断)', () => {
+  const RESIDUAL = {
+    key: 'reviewer:security', runId: 'run-sec-1', candidate: `workspace:sha256:${'a'.repeat(64)}`, findings: 1, summary: ['high a.ts:1 注入'],
+  }
+
+  async function pendingWithResidual(): Promise<Harness> {
+    const h = await pendingChange()
+    const fields = (await createStateStore().read(changeDir(h))).fields
+    const text = (value: unknown): string => (Array.isArray(value) ? value.join(',') : String(value ?? ''))
+    await writeReviewWaiverSelection(changeDir(h), {
+      phase: text(fields.review_gate_phase), event: 'explore-complete', requestedAt: text(fields.review_requested_at),
+      waivers: [], residual: [RESIDUAL],
+    })
+    return h
+  }
+
+  it('the Dashboard does not list residual blockers, so a confirmation there refuses (409 residual-pending) and accepts nothing; the receipt stays pending', async () => {
+    const h = await pendingWithResidual()
+    const item = (await getView(h.cwd)).items.find((candidate) => candidate.type === 'review')!
+    const result = await post(h.cwd, { ref: item.ref.id, expected_revision: item.revision, idempotency_key: 'residual-1' })
+    expect(result).toMatchObject({ status: 409, body: { ok: false, code: 'residual-pending' } })
+    expect(String((result.body as { error: string }).error)).toContain('reviewer:security')
+    const sidecar = JSON.parse(await readFile(join(changeDir(h), '.pipeline-review-waivers.json'), 'utf8')) as { accepted?: unknown; residual?: unknown[] }
+    expect(sidecar.accepted).toBeUndefined()
+    expect(sidecar.residual).toHaveLength(1)
+    expect((await getView(h.cwd)).items.find((candidate) => candidate.type === 'review')?.status).toBe('pending')
+    // 终端的人工确认列出了待接受项，由它接受。
+    expect(await h.run(['review', 'acknowledge', 'demo']), h.err.join('\n')).toBe(0)
+    const accepted = JSON.parse(await readFile(join(changeDir(h), '.pipeline-review-waivers.json'), 'utf8')) as { accepted?: { key: string }[] }
+    expect(accepted.accepted?.map((entry) => entry.key)).toEqual(['reviewer:security'])
+  })
+
+  describe('a frozen list that exists but cannot be read fails closed (409 residual-pending), the receipt stays pending', () => {
+    const SIDECAR = '.pipeline-review-waivers.json'
+    const head = (h: Harness) => readFile(join(changeDir(h), SIDECAR), 'utf8').then((text) => JSON.parse(text) as Record<string, unknown>)
+
+    async function refused(h: Harness, key: string): Promise<string> {
+      const item = (await getView(h.cwd)).items.find((candidate) => candidate.type === 'review')!
+      const result = await post(h.cwd, { ref: item.ref.id, expected_revision: item.revision, idempotency_key: key })
+      expect(result).toMatchObject({ status: 409, body: { ok: false, code: 'residual-pending' } })
+      expect((await getView(h.cwd)).items.find((candidate) => candidate.type === 'review')?.status).toBe('pending')
+      return String((result.body as { error: string }).error)
+    }
+
+    it('not valid JSON: refused, nothing approved, the file is left untouched', async () => {
+      const h = await pendingWithResidual()
+      const path = join(changeDir(h), SIDECAR)
+      await writeFile(path, '{"version":1,"residual":[', 'utf8')
+      expect(await refused(h, 'unreadable-json')).toContain('无法读取')
+      expect(await readFile(path, 'utf8')).toBe('{"version":1,"residual":[')
+    })
+
+    it('fails the strict decode (an extra key, or a control character in a summary): refused', async () => {
+      const h = await pendingWithResidual()
+      const path = join(changeDir(h), SIDECAR)
+      const base = await head(h)
+      for (const [index, bad] of [{ ...RESIDUAL, extra: 1 }, { ...RESIDUAL, summary: ['high a.ts:1 \u001b[2K注入'] }].entries()) {
+        await writeFile(path, JSON.stringify({ ...base, residual: [bad] }), 'utf8')
+        expect(await refused(h, `unreadable-decode-${index}`)).toContain('无法读取')
+      }
+    })
+
+    it('exists but is not a regular file (a directory): refused', async () => {
+      const h = await pendingWithResidual()
+      const path = join(changeDir(h), SIDECAR)
+      await rm(path, { force: true })
+      await mkdir(path)
+      expect(await refused(h, 'unreadable-dir')).toContain('无法读取')
+    })
+
+    it('the file does not exist: nothing to accept, the confirmation goes through as before', async () => {
+      const h = await pendingWithResidual()
+      await rm(join(changeDir(h), SIDECAR), { force: true })
+      const item = (await getView(h.cwd)).items.find((candidate) => candidate.type === 'review')!
+      expect(await post(h.cwd, { ref: item.ref.id, expected_revision: item.revision, idempotency_key: 'absent' }))
+        .toMatchObject({ status: 200, body: { ok: true } })
+    })
+  })
+
+  it('a stale residual list from an older request does not block the Dashboard confirmation', async () => {
+    const h = await pendingWithResidual()
+    const sidecar = join(changeDir(h), '.pipeline-review-waivers.json')
+    await writeFile(sidecar, (await readFile(sidecar, 'utf8')).replace(/"requestedAt":"[^"]*"/, '"requestedAt":"2020-01-01T00:00:00.000Z"'), 'utf8')
+    const item = (await getView(h.cwd)).items.find((candidate) => candidate.type === 'review')!
+    expect(await post(h.cwd, { ref: item.ref.id, expected_revision: item.revision, idempotency_key: 'residual-stale' }))
+      .toMatchObject({ status: 200, body: { ok: true } })
+  })
+})
+
 describe('decision server adapters · one approval approves exactly the frozen set', () => {
   const KNOWN = '.tenon/tests/known-failures.yaml'
   const CATALOG = '.tenon/tests/catalog.yaml'

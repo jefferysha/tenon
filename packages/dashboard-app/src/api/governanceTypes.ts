@@ -190,6 +190,8 @@ export interface WbStepDef {
   label: string
   gate: 'review' | 'auto' | null
   prompt?: string
+  /** 验证轮次上限（1–20）；读写原样保留，没有编辑控件。 */
+  maxRounds?: number
   skills: WbSkillRef[]
   inputs: WbFieldRef[]
   outputs: WbFieldRef[]

@@ -14,6 +14,8 @@ import { INTERACTION_PROJECTION_WRITE_FAILED } from '../interaction/contract.js'
 import type { RecordActor, UserRef } from '../users/user.js'
 import type { TestEvidenceContext } from '../test-evidence/evaluate.js'
 import type { TestEvidenceReader } from '../test-evidence/transition-gate.js'
+import type { MaxRoundsSource } from './max-rounds.js'
+import type { StepRounds } from './step-rounds-read.js'
 
 export interface TransitionApplicationDeps {
   runRepository: WorkflowRunRepository
@@ -68,6 +70,16 @@ export interface TransitionApplicationDeps {
     readonly command: TransitionCommand
     readonly target: string
   }) => Promise<{ readonly active: boolean; readonly humanGateSatisfied: boolean }>
+  /**
+   * 受上限约束步骤的验证轮次（`readStepRounds` 的宿主装配）；用完后回退边的转换被拒（rounds-exhausted）。
+   * 缺省 undefined = 宿主未接线，不做轮次强制。在锁内调用，`state` 是锁内读到的那份。
+   */
+  roundsOf?: (input: {
+    readonly changeDir: string
+    readonly plan: EffectiveWorkflowPlan
+    readonly state: PipelineState
+    readonly stepId: string
+  }) => Promise<StepRounds | null>
 }
 
 export interface TransitionCommand {
@@ -171,6 +183,16 @@ export type TransitionApplicationResult =
       readonly pendingEvent?: string
     }
   | { readonly kind: 'constraint-denied'; readonly reason: Exclude<ConstraintDecision, { allowed: true }>['reason'] }
+  /** 验证轮次上限已用完：受约束步骤的回退边不再放行（前进边、放弃边与不受约束的步骤不受影响）。 */
+  | {
+      readonly kind: 'rounds-exhausted'
+      readonly workflowName: string
+      readonly stepId: string
+      readonly event: string
+      readonly current: number
+      readonly max: number
+      readonly source: MaxRoundsSource
+    }
 
 export interface TransitionApplication {
   execute(command: TransitionCommand): Promise<TransitionApplicationResult>

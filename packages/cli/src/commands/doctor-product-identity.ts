@@ -6,6 +6,7 @@ import type { DoctorCheck } from './doctor-check.js'
 import { green, red, yellow } from './doctor-check.js'
 import { TRANSIENT_REMOTE_FAILURE } from './remote-git.js'
 import type { DoctorProbes, DoctorProductIdentity } from '../deps.js'
+import { devVersionLabel } from '../runtime/dev-source-identity.js'
 import type { RuntimeInstaller } from '../runtime/installer.js'
 import type { RuntimeScopeSnapshot } from '../runtime/scope.js'
 import { resolveCommandOnPath } from './commandExists.js'
@@ -135,6 +136,15 @@ export async function checkProductIdentity(
 ): Promise<DoctorCheck> {
   const verifyRemote = options.verifyRemote === true
   const identity = await p.productIdentity({ verifyRemote })
+  if (identity.state === 'dev') {
+    return yellow(
+      'identity:release',
+      `开发安装 ${devVersionLabel(identity.runtimePluginVersion, identity.commit)}（${identity.repoRealpath}`
+        + `${identity.dirty ? '，安装时工作区有未提交改动' : ''}）；不是正式发布，没有稳定 tag 可核对`,
+      `源码改动后重新同步：tenon setup --${identity.host} --from-source ${identity.repoRealpath}；`
+        + `切回正式版：tenon update --${identity.host} --to-stable`,
+    )
+  }
   if (identity.state === 'unavailable') {
     // 链路不通不是「装坏了」。以前无论断网、缺 tag 还是真漂移都劝用户重跑 setup/update，
     // 断网时那条建议只会让人白跑一次安装；现在按 cause 各给各的修法。
@@ -257,6 +267,17 @@ export function createDoctorProductIdentityProbe(
       const host = active?.source.host
       if (active === null || (host !== 'codex' && host !== 'claude')) {
         return unavailableLocal('没有可验证的 native managed runtime')
+      }
+      if (active.version === 2 && active.devSource !== undefined) {
+        return {
+          state: 'dev',
+          host,
+          runtimePluginVersion: active.source.pluginVersion,
+          runtimeReleaseId: active.releaseId,
+          repoRealpath: active.devSource.repoRealpath,
+          commit: active.devSource.commit,
+          dirty: active.devSource.dirty,
+        }
       }
       if (active.version !== 2 || active.stableTarget === undefined) {
         return unavailableLocal('active runtime manifest 缺少持久化 stable tag/commit 证明')

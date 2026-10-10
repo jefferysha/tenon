@@ -11,8 +11,7 @@
  * 跨厂商评审：评审者声明了 `host: codex|claude` 时，登记的宿主不符的运行不算裁决（既不进「同一候选上的多次运行」，
  * 也不能放行）；候选绑定照常——候选变了更是过期。要求没满足时单独报 `reviewer-wrong-host`，不与过期混为一谈。
  */
-import { DEFAULT_EVENT_POLICY } from '../flow/default-event-policy.js'
-import { IMPLICIT_COMPLETION_EVENT, isForwardStepEdge } from './implicit-completion.js'
+import { isForwardEdge } from './implicit-completion.js'
 import { dependencyWaves } from './dag-waves.js'
 import { hostRunValid } from '../agents/reviewer-host.js'
 import { severityRank, type AgentFinding, type AgentRunHostSource, type AgentRunRow } from '../state/agent-runs.js'
@@ -80,8 +79,23 @@ export type AgentBlocker =
       readonly blocking: readonly AgentFinding[]
       /** 同一候选上另有几次运行（取最严的结论时提示，0 时缺省）。 */
       readonly reruns?: number
+      /** 判定所依据的那次运行与它绑定的候选：上限用完后接受剩余阻断，绑定的就是这两样。 */
+      readonly runId?: string
+      readonly candidate?: string
     }
   | { readonly kind: 'agent-records-invalid'; readonly reason: string }
+
+/** 用户已接受的剩余阻断（评审者 + 被接受的那次运行 + 当时的代码候选）。 */
+export interface AcceptedResidualRef {
+  readonly agent: string
+  readonly runId: string
+  readonly candidate: string
+}
+
+/** 判定里被「已接受」放行的不通过评审者（只作提示，不阻断）。 */
+export interface AcceptedResidualNote extends AcceptedResidualRef {
+  readonly findings: number
+}
 
 export interface StepAgentsInput {
   readonly step: StepAgentsCapability
@@ -94,6 +108,11 @@ export interface StepAgentsInput {
    * 不投影、不排波、不产生阻断。缺席 = 全部挂载。
    */
   readonly unattached?: readonly string[]
+  /**
+   * 剩余阻断的接受记录（review-residual 边车）。评审者在当前候选上不通过，且判定所依据的运行 id 与候选
+   * 都等于某条接受记录时，这次不通过不再阻断；缺席 = 没有接受。
+   */
+  readonly accepted?: readonly AcceptedResidualRef[]
 }
 
 /** 实际挂载的评审者；指向没挂载者的 depends_on 一并去掉，否则它们会永远等一个不会来的结论。 */
@@ -226,8 +245,9 @@ export function projectStepAgents(input: StepAgentsInput): readonly AgentView[] 
  */
 export function evaluateStepAgents(
   input: StepAgentsInput,
-): { readonly pass: boolean; readonly blockers: readonly AgentBlocker[] } {
+): { readonly pass: boolean; readonly blockers: readonly AgentBlocker[]; readonly accepted?: readonly AcceptedResidualNote[] } {
   const blockers: AgentBlocker[] = []
+  const accepted: AcceptedResidualNote[] = []
   for (const ref of input.step.executors) {
     const row = latestRun(input, ref.agent)
     const state = stateOf(row, 'executor', input.candidate)
@@ -251,11 +271,19 @@ export function evaluateStepAgents(
     }
     if (state === 'stale') { blockers.push({ kind: 'reviewer-stale', agent: ref.agent }); continue }
     const blocking = row === undefined ? [] : blockingFindings(row, ref.blockAt)
-    if (blocking.length > 0) {
-      blockers.push({ kind: 'reviewer-failed', agent: ref.agent, blockAt: ref.blockAt, blocking, ...(reruns > 0 ? { reruns } : {}) })
+    if (row !== undefined && blocking.length > 0) {
+      const note = { agent: ref.agent, runId: row.run_id, candidate: input.candidate }
+      if (input.accepted?.some((item) => item.agent === note.agent && item.runId === note.runId && item.candidate === note.candidate)) {
+        accepted.push({ ...note, findings: blocking.length })
+        continue
+      }
+      blockers.push({
+        kind: 'reviewer-failed', agent: ref.agent, blockAt: ref.blockAt, blocking,
+        ...(reruns > 0 ? { reruns } : {}), runId: row.run_id, candidate: input.candidate,
+      })
     }
   }
-  return { pass: blockers.length === 0, blockers }
+  return { pass: blockers.length === 0, blockers, ...(accepted.length === 0 ? {} : { accepted }) }
 }
 
 /**
@@ -325,12 +353,7 @@ export function isForwardExit(
   to: string,
   event: string,
 ): boolean {
-  if (event === IMPLICIT_COMPLETION_EVENT && from === to) return true
-  if (plan.executionModel === 'phase-manifest') {
-    const policy = (DEFAULT_EVENT_POLICY as Record<string, { readonly enforceTaskExit: boolean } | undefined>)[event]
-    return policy?.enforceTaskExit === true
-  }
-  return isForwardStepEdge(plan.workflow.steps.map((step) => step.id), from, to, event)
+  return isForwardEdge(plan.executionModel, plan.workflow.steps.map((step) => step.id), from, to, event)
 }
 
 const FINDING_PREVIEW = 5

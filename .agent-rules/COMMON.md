@@ -20,11 +20,11 @@
 | `packages/kernel/` | 状态机、workflow、track、loop、state、verification、codec 与持久化原语 | 领域层不得依赖协议/供应商；生成的 `default-workflow.generated.ts` 由模板生成，不得手改 |
 | `packages/channel/` | 历史迁移/experimental worker event bus 兼容面 | 非默认 agent runtime；不得在无明确目标时扩建或重新并入 kernel |
 | `packages/automation/` | AFK 队列、调度、admission、runner、lifecycle、triage、verifier 与技能快照 | 修改执行/合并/凭证通道时覆盖 Docker、Git、冲突保留和取消/恢复路径 |
-| `packages/cli/` | Commander CLI、命令、装配与单文件分发 | `src/` 是源码；tracked `dist/tenon.mjs` 必须由 `npm run bundle` 生成并通过 freshness/smoke，禁止手改 dist |
+| `packages/cli/` | Commander CLI、命令、装配与单文件分发 | `src/` 是源码；tracked `dist/tenon.mjs` 必须由 `npm run bundle` 生成并通过 freshness/smoke，禁止手改 dist；源码开发安装（commands/source-install.ts、runtime/dev-source-identity.ts）的摘要口径必须与 hooks/source-drift.sh 逐字一致，改任一侧先跑 packages/cli/src/runtime/source-drift-hook.test.ts |
 | `packages/server/` | 本机 dashboard HTTP/SSE server、鉴权与跨包应用编排 | 保持 loopback/Host/会话/token/root 安全模型（不落盘任何凭证，匿名请求 401）；构建产物在 `dist/`，不得手改 |
 | `packages/dashboard-app/` | React dashboard SPA | 前端详细边界见 `FRONTEND.md`；`dist/` 为 Vite 生成物，源码/样式/交互改动需真实浏览器验证 |
 | `packages/tap/` | 本地 LLM 流量代理、TLS/WS、trace store 与诊断 | 证书、header、prompt 和凭证按敏感数据处理；capture 默认与降级语义不得被弱化 |
-| `hooks/` | Session/Prompt/PreToolUse/PostToolUse 的 bash 薄 shim 与三门阻断 | 必须兼容 macOS/BSD 与 Linux/GNU 工具；复杂规则回收到 TypeScript，修改后跑 hook 与 workflow 集成测试 |
+| `hooks/` | Session/Prompt/PreToolUse/PostToolUse 的 bash 薄 shim 与三门阻断 | 必须兼容 macOS/BSD 与 Linux/GNU 工具；复杂规则回收到 TypeScript，修改后跑 hook 与 workflow 集成测试；source-drift.sh 是被 session-start.sh source 的纯 bash 助手，同样守零解释器红线 |
 | `templates/` | manifest、skill source 和默认 workflow 真相源 | 修改默认 workflow 后运行 codegen freshness；不得让模板与生成 artifact/技能引用漂移 |
 | `skills/`、`skills-lock.json` | 对外分发的 pipeline 技能与解析锁 | 修改引用、名称或来源时运行 `tools/verify-skills.sh` 和 bundle/安装相关测试 |
 | `adapters/` | Codex、Claude 及其他 coding agent 安装/能力适配 | 遵循 `adapters/contract.md` 与 registry；修改后跑 conformance/变异测试，不夸大宿主能力 |
@@ -39,6 +39,14 @@
 | `design-demos/`、`design-qa.md` | dashboard 设计原型、规格、截图与 QA 证据 | 原型不是生产源码；吸收方案时在 dashboard 重实现并验证，`shots/` 只存无敏感信息的证据 |
 | `.impeccable/`、`.superpowers/` | 设计评审、brainstorm/SDD 的本地或历史过程资产 | 不作为运行时真相源；本机 token/port/cache/diff 产物不得进入产品或秘密处理流程 |
 | `package.json`、`package-lock.json`、`tsconfig.base.json`、`vitest.config.ts` | workspace、依赖锁、构建/测试入口 | 使用 npm；依赖改动同步 lockfile，配置改动运行受影响的全量 build/test |
+
+## 在 Tenon 源码仓库里工作
+
+- 触发条件：当前目录在 Tenon 源码仓库内（根 `package.json` 的 `name=tenon`；`.claude-plugin/marketplace.json` 的 `name=tenon` 且 `plugins[0].source="./"`；存在 `skills/sources.yaml` 与 `runtime/tenon-bootstrap.mjs`）。
+- 必须：技能、hook、CLI 全部使用仓库源码版本，用源码开发安装让本机加载的都来自仓库工作区——`tenon setup --claude --from-source .`（Codex 用 `--codex`，先 `--dry-run`）；改了 `hooks/`、`skills/` 下自有技能、`templates/`、`adapters/` 或需要重新构建的 `packages/*` 之后重跑同一条命令；新会话开头出现「源码仓库与已装的开发安装不一致」提示时，先同步再继续。
+- 不得：在源码仓库里长期用已发布的正式版做开发；照已安装发布版的技能说明做与仓库约定冲突的事（冲突时以仓库源码与本规则为准）；把上游技能正文或 `skills/skills.lock.json` 提交进仓库；手改 `~/.claude/plugins`、`~/.codex/plugins` 缓存或 `install-channel` 标记。
+- 验证证据：`tenon doctor --json` 里 `identity:release` 为 yellow（开发安装）且 `source:drift` 为 green；`tenon runtime status --json` 的 `active.devSource.commit` 与 `git rev-parse HEAD` 对得上（工作区有未提交改动时以 `dirty` 与 `source:drift` 为准）。
+- 失败处理：拉取上游技能失败则整体中止、宿主未改，网络恢复后重跑；切回正式版用 `tenon update --claude --to-stable`（`tenon update` 对开发安装默认拒绝）。
 
 ## 指令优先级
 
@@ -98,6 +106,7 @@
 | 依赖公告与解析树 | `npm run check:dependencies`（CI 与 release candidate 共用；规则见下方“依赖公告白名单”） |
 | 分发与兼容验收 | `bash tools/test-hooks.sh`；`bash tools/test-adapters.sh`；`bash tools/verify-skills.sh`；`bash tools/test-bundle.sh`；`npm run oracle` |
 | 更新 / 回滚验收 | `npm run test:update-rollback`（隔离 HOME 里 install → update → rollback → update；另从 v0.3.1 git tag 重建被回滚卡死的安装并走恢复路径，需要该 tag；需要网络与可信 Codex；CI verify 阻塞地跑，改 runtime 回滚 / launcher 生成器 / `install.sh` 时本地也要跑） |
+| 源码开发安装验收 | `npm run test:source-install`（隔离 HOME 里真实 claude / codex，缺哪个跳过哪个，CI 或显式 `--host` 时缺失即失败；夹具是本 checkout 拷出的本地 git 仓库，不联网；改 `commands/source-install.ts`、`commands/dev-host.ts`、`hooks/source-drift.sh` 时本地跑） |
 | 浏览器/API smoke | `npm run build:web && npm run build:server` 后按 README 启动 `npx tenon-dashboard`，检查受影响真实流程 |
 | Dashboard 浏览器 e2e | `npm run build` 之后 `npm run test:e2e -- --project=chromium`（webkit 需 `npx playwright install webkit`）；CI 三处阻塞地跑：verify（Node 22，Chromium）、node-matrix（Node 20/22/24，Chromium，另跑测试体系 / reporter / 解析器套件）、独立的 dashboard-e2e-webkit 作业；ci.yml 不允许任何 `continue-on-error`；`npm test` 在 CI 带 `TENON_E2E=1`（缺 Chromium 即失败）；含 `e2e/dashboard/a11y.spec.ts` 的 axe 无障碍检查（主要页面亮/暗主题，serious/critical 必须为零；扫描前和向导点击前经 `e2e/dashboard/support/fixtures.ts` 的 `settled()` 等动画落定，不用定时睡眠，慢的 WebKit 上进场动画会拖到定时之后；`settled()` 另有同样 15 s 的墙钟 `setTimeout` 兜底，帧不走的后台/隐藏页面也以它自己的报错收场；向导「创建」点击若要补点会在报告里留 `wizard-create-reclick` 注解，需要第三次点击则直接失败） |
 | 基准 | `npm run bench:status`、`npm run bench:snapshot`、`npm run bench:snapshot:large`（30 项目 × 30 任务，写入后重建 p95 < 1.5 s）；判定与基线走 `tenon test run <change> --suite bench-status --suite bench-snapshot --suite bench-snapshot-large` |

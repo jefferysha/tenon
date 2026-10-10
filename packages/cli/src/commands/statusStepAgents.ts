@@ -3,7 +3,7 @@
  */
 import {
   agentWaves, attachedReviewers, currentDocumentStepVisitId, evaluateTestEvidence, nextAgentWave, projectStepAgents,
-  readAgentRuns, readFrozenAgents, reviewerHostRequirement,
+  readAgentRuns, readFrozenAgents, reviewerHostRequirement, testItemSettled,
   type EffectiveWorkflowPlan, type FrozenAgent, type PipelineState, type StepAgentsCapability,
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
@@ -88,7 +88,7 @@ export async function agentStepViews(
     context: testEvidenceContextFor(deps, name),
   })
   const pending = report.items
-    .filter((item) => item.test.required && item.status !== 'passed')
+    .filter((item) => item.test.required && !testItemSettled(item))
     .map((item) => item.test.id)
   const unattached = await unattachedReviewersFor(deps, name, step, frozen)
   const input = {

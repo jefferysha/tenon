@@ -70,8 +70,9 @@ hook 投影。普通提问（如
 “为什么需要确认？”）不会误放行。
 
 档 C 没有 hook，因而不能自动确认；它也**不允许**通过删除 `.pipeline-pending-*` marker 绕过
-review。必须保留用户已明确确认的对话事实，再执行 `tenon review acknowledge <change>` 与对应
-transition。自动化/CI 只有在显式
+review。确认只来自用户：在 Dashboard（`tenon dashboard --open`）确认，或由**用户本人在自己的终端**运行
+`tenon review acknowledge <change>`，agent 不得代为执行（持续授权下只可用 `--delegated`，它不批准
+待批准的测试豁免）；回执写入后再执行对应 transition。自动化/CI 只有在显式
 `TENON_AFK=1` 的受控 AFK 路径才会旁路交互门。
 
 ## 打包 skills 的项目级投递

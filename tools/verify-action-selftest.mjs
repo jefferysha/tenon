@@ -21,6 +21,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { withoutInheritedRuntimeRoots } from './lib/runtime-roots.mjs'
 
 export const CHANGE = 'demo'
 export const TAMPERED_RULE = 'tenon/record-chain-broken'
@@ -123,14 +124,15 @@ export function buildFixture({ cli, out, tamper = false, exclude = [] }) {
     mkdirSync(outDir, { recursive: true })
     const git = (...args) => must(run('git', [...GIT_IDENTITY, ...args], { cwd: outDir, env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' } }), `git ${args.join(' ')}`)
     // 真实 CLI 的环境：声明的作者、运行器对这个检出里目录命令的显式信任；HOME 与运行时根是临时的。
-    const env = {
+    // 宿主（开发机上经 `tenon test run` 跑本工具时）导出的运行时根优先于 TENON_RUNTIME_HOME，必须先去掉，否则夹具会写进真实状态。
+    const env = withoutInheritedRuntimeRoots({
       ...process.env,
       ...AUTHOR,
       TENON_TEST_TRUST: '1',
       HOME: join(scratch, 'home'),
       TENON_RUNTIME_HOME: join(scratch, 'runtime'),
       TENON_TEST_REAL_DIFF: '1',
-    }
+    })
     mkdirSync(env.HOME, { recursive: true })
     mkdirSync(env.TENON_RUNTIME_HOME, { recursive: true })
     const tenon = (...args) => must(run(process.execPath, [cliPath, ...args], { cwd: outDir, env }), `tenon ${args.join(' ')}`)

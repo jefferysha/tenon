@@ -184,7 +184,7 @@ describe('GET /api/tests/plan', () => {
       suites: [{ suite: 'web-unit', scope: 'changed' }],
       files: [{ path: 'src/a.test.ts', suite: 'web-unit', kind: 'unit' }],
       cases: [{ covers: 'task:1.1', tests: ['src/a.test.ts › works'] }],
-      waivers: [{ kind: 'benchmark', reason: '纯文案', approved_by: null }],
+      waivers: [{ kind: 'benchmark', reason: '纯文案', approved_by: null }, { test: 'code-size', reason: '迁移脚本', approved_by: null }],
     }, { actor: ACTOR, recordedAt: '2026-09-29T00:00:00Z' })
     const ok = await get<{ plan: { state: string; suites: unknown[]; files: unknown[]; cases: unknown[]; waivers: unknown[] } }>(h.port, h.root, '/api/tests/plan', `&change=${CHANGE}`)
     expect(ok.body.plan).toMatchObject({
@@ -192,7 +192,7 @@ describe('GET /api/tests/plan', () => {
       suites: [{ suite: 'web-unit', kind: 'unit', scope: 'changed' }],
       files: [{ path: 'src/a.test.ts', suite: 'web-unit', kind: 'unit' }],
       cases: [{ covers: 'task:1.1', tests: ['src/a.test.ts › works'] }],
-      waivers: [{ kind: 'benchmark', reason: '纯文案', approvedBy: null }],
+      waivers: [{ kind: 'benchmark', reason: '纯文案', approvedBy: null }, { test: 'code-size', reason: '迁移脚本', approvedBy: null }],
     })
 
     const planFile = join(changeDir, 'test-plan.yaml')

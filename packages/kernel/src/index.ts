@@ -165,9 +165,18 @@ export {
 export {
   agentWaves, attachedReviewers, evaluateStepAgents, isForwardExit, nextAgentWave, projectStepAgents, renderAgentBlocker,
 } from './workflow/agent-verdict.js'
+export {
+  currentRound, DEFAULT_MAX_ROUNDS, effectiveMaxRounds, isRoundsLimited, isValidMaxRounds, MAX_ROUNDS_MAX, MAX_ROUNDS_MIN,
+  parseMaxRoundsText, resolveMaxRounds, stepBackTargets,
+} from './workflow/step-rounds.js'
+export type {
+  MaxRoundsSource, PlanMaxRounds, PlanMaxRoundsSource, ResolvedMaxRounds, RoundsPlan, RoundTransition,
+} from './workflow/step-rounds.js'
+export { readStepRounds, roundsExhausted } from './workflow/step-rounds-read.js'
+export type { StepRounds, StepRoundsReadDeps } from './workflow/step-rounds-read.js'
 export { unattachedReviewers } from './workflow/agent-scope.js'
 export type {
-  AgentBlocker, AgentRole, AgentRunState, AgentView, AgentWave, StepAgentsInput,
+  AcceptedResidualNote, AcceptedResidualRef, AgentBlocker, AgentRole, AgentRunState, AgentView, AgentWave, StepAgentsInput,
 } from './workflow/agent-verdict.js'
 export { evaluateStepGuards, evaluateWorkflowIrStepGuards } from './workflow/stepGuard.js'
 export {

@@ -79,10 +79,11 @@ pipeline_review_receipt_open() { # $1=project root $2=change name $3=canonical p
   return 1
 }
 
-# The active pointer is an explicit per-session selection, never an mtime heuristic.  Resolve it
-# before treating a root-level marker as relevant; an old Change must not lock an unrelated chat.
-pipeline_review_active_change_name() { # $1=verified project root $2=hook directory
-  local root="$1" hook_dir="$2" state_helper active_helper dir
+# 共享指针（.tenon/users/<slug>/local/active-change）是「按用户」的恢复候选，不是「按会话」的选择：并行会话共用它，
+# 最后一个 activate 的会话改写它。root 级标记只对本会话自己的任务有意义，所以本会话任务要经宿主 session_id 对应
+# 的会话绑定解析（pipeline_session_change_dir）；不带 session id 的调用方（statusline、session-start）回退共享指针。
+pipeline_review_active_change_name() { # $1=verified project root $2=hook directory [$3=host session id]
+  local root="$1" hook_dir="$2" session_id="${3:-}" state_helper active_helper dir
   [ -n "$root" ] && [ -d "$root" ] || return 1
   state_helper="$hook_dir/canonical-state.sh"
   active_helper="$hook_dir/active-change.sh"
@@ -91,20 +92,22 @@ pipeline_review_active_change_name() { # $1=verified project root $2=hook direct
   . "$state_helper"
   # shellcheck source=active-change.sh
   . "$active_helper"
-  dir="$(pipeline_active_change_dir "$root" || true)"
+  dir="$(pipeline_session_change_dir "$root" "$session_id" || true)"
   [ -n "$dir" ] || return 1
   printf '%s' "${dir##*/}"
 }
 
-# Return success only when the v2 projection belongs to the explicitly selected live Change and
+# Return success only when the v2 projection belongs to the conversation's own live Change and
 # the stable CLI persisted the canonical approval receipt.  This function never deletes v2 marker
 # files itself; `tenon review acknowledge` owns both the receipt and its projection.
-pipeline_acknowledge_active_review() { # $1=root $2=hook directory [$3=delegated] [$4=host session id]
+# The host session id (4th argument, both modes) decides which Change is "this conversation's": a
+# confirmation typed in another conversation can never acknowledge this one's review, and vice versa.
+pipeline_acknowledge_active_review() { # $1=root $2=hook directory [$3=manual|delegated] [$4=host session id]
   local root="$1" hook_dir="$2" mode="${3:-manual}" host_session="${4:-}" marker expected active
   marker="$root/.pipeline-pending-review"
   expected="$(pipeline_review_marker_change "$marker" || true)"
   [ -n "$expected" ] || return 1
-  active="$(pipeline_review_active_change_name "$root" "$hook_dir" || true)"
+  active="$(pipeline_review_active_change_name "$root" "$hook_dir" "$host_session" || true)"
   [ -n "$active" ] && [ "$active" = "$expected" ] || return 1
   command -v tenon >/dev/null 2>&1 || return 1
   case "$mode" in

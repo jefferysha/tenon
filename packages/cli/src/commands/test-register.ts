@@ -4,8 +4,8 @@
  *   register --suite <id> [--scope full|changed|files|grep] [--pattern p] [--select-file path…]
  *   register --file <path>… [--suite <id>] [--kind <k>]         登记本任务新增 / 修改的测试文件
  *   register --case <covers> --test "<文件> › <用例名>"…         场景 / 任务 → 用例映射
- *   unregister --suite|--file|--case [--test]|--waiver <kind|covers>
- *   waive --kind <k> | --covers <covers>  --reason <原因>       豁免需要评审批准才生效
+ *   unregister --suite|--file|--case [--test]|--waiver <kind|covers|test:步骤测试 id>
+ *   waive --kind <k> | --covers <covers> | --test <步骤测试 id>  --reason <原因>   豁免需要评审批准才生效
  * 写入在 Change 锁内读—改—写；计划被手改（tampered）时拒绝，先用 tenon test plan --seed 重新登记。
  */
 import { lstat } from 'node:fs/promises'
@@ -13,12 +13,12 @@ import { join } from 'node:path'
 import {
   PLAN_SCOPES, TEST_KINDS, isPlanScope, isRepoRelativePath, isTestKind, normalizeRepoPath, parseCaseRef, parseCovers,
   suitesOwningFile, updateTestPlan, emptyTestPlan,
-  type PlanFile, type PlanSuite, type TestCatalog, type TestKind, type TestPlan, type TestPlanState,
+  type PlanFile, type PlanSuite, type PlanWaiver, type TestCatalog, type TestKind, type TestPlan, type TestPlanState,
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 import { loadPlanInputs } from '../test-system/plan-context.js'
 import { withCase, withFiles, withSuite, withWaiver, withoutTarget } from '../test-system/plan-edit.js'
-import { resolveTestCommand, type TestCommandContext } from './test-context.js'
+import { declaredTestIds, resolveTestCommand, type TestCommandContext } from './test-context.js'
 import { cmdTestRegisterAuto } from './test-register-auto.js'
 
 export interface RegisterOptions {
@@ -166,9 +166,11 @@ export interface UnregisterOptions {
   readonly file?: string
   readonly case?: string
   readonly test?: string
-  /** 撤销豁免：测试种类（按种类的豁免）或 spec:/task: 引用（按场景 / 任务的豁免）。 */
+  /** 撤销豁免：测试种类（按种类的豁免）、spec:/task: 引用（按场景 / 任务的豁免）或 test:<步骤测试 id>（失败的步骤测试的豁免）。 */
   readonly waiver?: string
 }
+
+const WAIVER_TEST_PREFIX = 'test:'
 
 export async function cmdTestUnregister(deps: CliDeps, change: string, opts: UnregisterOptions): Promise<number> {
   if (opts.suite === undefined && opts.file === undefined && opts.case === undefined && opts.waiver === undefined) {
@@ -177,8 +179,10 @@ export async function cmdTestUnregister(deps: CliDeps, change: string, opts: Unr
   if (opts.test !== undefined && opts.case === undefined) return fail(deps, '--test 要和 --case 一起用')
   const waiverKind = opts.waiver !== undefined && isTestKind(opts.waiver) ? opts.waiver : undefined
   const waiverCovers = opts.waiver !== undefined && waiverKind === undefined && parseCovers(opts.waiver) !== undefined ? opts.waiver : undefined
-  if (opts.waiver !== undefined && waiverKind === undefined && waiverCovers === undefined) {
-    return fail(deps, `--waiver '${opts.waiver}' 不是测试种类（${TEST_KINDS.join('/')}），也不是 spec:<capability>/<Scenario 标题> 或 task:<编号>`)
+  const waiverTestId = opts.waiver?.startsWith(WAIVER_TEST_PREFIX) === true ? opts.waiver.slice(WAIVER_TEST_PREFIX.length) : undefined
+  const waiverTest = waiverTestId !== undefined && waiverTestId !== '' && waiverKind === undefined && waiverCovers === undefined ? waiverTestId : undefined
+  if (opts.waiver !== undefined && waiverKind === undefined && waiverCovers === undefined && waiverTest === undefined) {
+    return fail(deps, `--waiver '${opts.waiver}' 不是测试种类（${TEST_KINDS.join('/')}），也不是 spec:<capability>/<Scenario 标题>、task:<编号> 或 test:<步骤测试 id>`)
   }
   const context = await resolveTestCommand(deps, change, { requireOwner: true })
   if (typeof context === 'number') return context
@@ -191,6 +195,7 @@ export async function cmdTestUnregister(deps: CliDeps, change: string, opts: Unr
       ...(opts.test === undefined ? {} : { test: opts.test }),
       ...(waiverKind === undefined ? {} : { waiverKind }),
       ...(waiverCovers === undefined ? {} : { waiverCovers }),
+      ...(waiverTest === undefined ? {} : { waiverTest }),
     })
     removed = result.removed
     return result.plan
@@ -202,20 +207,31 @@ export async function cmdTestUnregister(deps: CliDeps, change: string, opts: Unr
 }
 
 export async function cmdTestWaive(
-  deps: CliDeps, change: string, opts: { readonly kind?: string; readonly covers?: string; readonly reason?: string },
+  deps: CliDeps, change: string,
+  opts: { readonly kind?: string; readonly covers?: string; readonly test?: string; readonly reason?: string },
 ): Promise<number> {
-  if ((opts.kind === undefined) === (opts.covers === undefined)) return fail(deps, 'waive 需要恰好一个：--kind <k> 或 --covers <covers>')
+  if ([opts.kind, opts.covers, opts.test].filter((value) => value !== undefined).length !== 1) {
+    return fail(deps, 'waive 需要恰好一个：--kind <k>、--covers <covers> 或 --test <步骤测试 id>')
+  }
   const reason = (opts.reason ?? '').trim()
   if (reason === '' || Buffer.byteLength(reason) > 1000) return fail(deps, '--reason 必填，且不超过 1000 字节')
   if (opts.kind !== undefined && !isTestKind(opts.kind)) return fail(deps, `--kind '${opts.kind}' 不合法（可选：${TEST_KINDS.join('/')}）`)
   if (opts.covers !== undefined && parseCovers(opts.covers) === undefined) return fail(deps, `--covers '${opts.covers}' 非法（spec:<capability>/<Scenario 标题> 或 task:<编号>）`)
   const context = await resolveTestCommand(deps, change, { requireOwner: true })
   if (typeof context === 'number') return context
+  // 步骤测试豁免只认本任务冻结工作流里某个步骤声明的测试 id（编译时已校验过写法）；其余一律拒绝并列出可用的。
+  if (opts.test !== undefined && !declaredTestIds(context.plan).includes(opts.test)) {
+    const ids = declaredTestIds(context.plan)
+    deps.io.err(`ERROR: --test '${opts.test}' 不是本任务工作流里任何步骤声明的测试；可用：${ids.length === 0 ? '(无)' : ids.join(', ')}`)
+    return 2
+  }
   const kind = opts.kind !== undefined && isTestKind(opts.kind) ? opts.kind : undefined
-  const saved = await save(deps, context, change, 'waive', (plan) => withWaiver(plan, kind !== undefined
+  const waiver: PlanWaiver = kind !== undefined
     ? { kind, reason, approved_by: null }
-    : { covers: opts.covers ?? '', reason, approved_by: null }))
+    : opts.test !== undefined ? { test: opts.test, reason, approved_by: null } : { covers: opts.covers ?? '', reason, approved_by: null }
+  const saved = await save(deps, context, change, 'waive', (plan) => withWaiver(plan, waiver))
   if (!saved.ok) return fail(deps, saved.message)
-  deps.io.out(`[TEST] 已登记豁免 ${kind !== undefined ? `kind ${kind}` : opts.covers}（未批准：豁免要在评审确认里批准后才解除阻塞）`)
+  const target = kind !== undefined ? `kind ${kind}` : opts.test !== undefined ? `test ${opts.test}` : opts.covers
+  deps.io.out(`[TEST] 已登记豁免 ${target}（未批准：豁免要在评审确认里批准后才解除阻塞）`)
   return 0
 }

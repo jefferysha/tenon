@@ -25,8 +25,10 @@ function preVerifyConvergenceWorkflow() {
     ...legacy,
     steps: legacy.steps.map((step) => {
       // Historical bytes also predate step tests (2026-09 per-step test evidence), step test policies and step prompts
-      // (the frontend branch gained them with DESIGN.md).
-      const { tests: _tests, test_policy: _testPolicy, prompt: _prompt, agents: _agents, ...legacyStep } = step
+      // (the frontend branch gained them with DESIGN.md) and the verification-round limit (max_rounds).
+      const {
+        tests: _tests, test_policy: _testPolicy, prompt: _prompt, agents: _agents, maxRounds: _maxRounds, ...legacyStep
+      } = step
       return {
         ...legacyStep,
         // The last step was labelled 归档 before the 完结 wording.

@@ -1,0 +1,790 @@
+{
+  "version": 1,
+  "contract": "openspec-v1",
+  "createdAt": "2026-10-07T10:44:53Z",
+  "records": [
+    {
+      "kind": "adr",
+      "path": "docs/adr/fix-hook-cross-session-isolation.md",
+      "sha256": "98abeeb98ab08ffa2bda07f01bc661abef9f20f05f7dba153700aa381f878060",
+      "producer": "tenon",
+      "recordedAt": "2026-10-09T09:46:24Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-f0ed2fcad5b9deafac5b5ff07e356f58f30bc7b7d71f13e6974d13766777d674",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "399d0840-44ef-4e7a-8f16-fe2077ae8ee9",
+          "transitionSequence": 16
+        }
+      },
+      "reads": [
+        {
+          "phase": "spec",
+          "sha256": "98abeeb98ab08ffa2bda07f01bc661abef9f20f05f7dba153700aa381f878060",
+          "readAt": "2026-10-09T09:49:52Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",16]"
+        },
+        {
+          "phase": "build",
+          "sha256": "98abeeb98ab08ffa2bda07f01bc661abef9f20f05f7dba153700aa381f878060",
+          "readAt": "2026-10-09T12:37:36Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",17]"
+        },
+        {
+          "phase": "spec",
+          "sha256": "98abeeb98ab08ffa2bda07f01bc661abef9f20f05f7dba153700aa381f878060",
+          "readAt": "2026-10-09T14:24:59Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",18]"
+        },
+        {
+          "phase": "build",
+          "sha256": "98abeeb98ab08ffa2bda07f01bc661abef9f20f05f7dba153700aa381f878060",
+          "readAt": "2026-10-09T15:41:47Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",19]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "98abeeb98ab08ffa2bda07f01bc661abef9f20f05f7dba153700aa381f878060",
+          "readAt": "2026-10-09T15:56:09Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",20]"
+        },
+        {
+          "phase": "build",
+          "sha256": "98abeeb98ab08ffa2bda07f01bc661abef9f20f05f7dba153700aa381f878060",
+          "readAt": "2026-10-10T00:56:15Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",21]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "98abeeb98ab08ffa2bda07f01bc661abef9f20f05f7dba153700aa381f878060",
+          "readAt": "2026-10-10T01:09:49Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",22]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "98abeeb98ab08ffa2bda07f01bc661abef9f20f05f7dba153700aa381f878060",
+          "readAt": "2026-10-10T02:47:06Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",23]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "98abeeb98ab08ffa2bda07f01bc661abef9f20f05f7dba153700aa381f878060",
+          "readAt": "2026-10-10T02:52:37Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",24]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-fix-hook-cross-session-isolation-329d5fb59ad6:3b4bc457b115100ad76a946f9b82d4e0",
+        "namespace": "change-fix-hook-cross-session-isolation-329d5fb59ad6",
+        "version": "sha256:98abeeb98ab08ffa2bda07f01bc661abef9f20f05f7dba153700aa381f878060",
+        "projection": "document",
+        "content_digest": "sha256:98abeeb98ab08ffa2bda07f01bc661abef9f20f05f7dba153700aa381f878060",
+        "source": {
+          "path": "docs/adr/fix-hook-cross-session-isolation.md",
+          "document_kind": "adr"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "delta-spec",
+      "path": "openspec/changes/fix-hook-cross-session-isolation/specs/plugin-runtime/spec.md",
+      "sha256": "4fb188816043f3a9eddaadecdf0f08b03d6f78dd5e81c3e4a7f27d97c92cd4e7",
+      "producer": "openspec-propose",
+      "recordedAt": "2026-10-09T09:46:25Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-9f8727eab9b240d09d079a8b6332e4ff3d05c01a83e15f81fc3ac0e6eed68de0",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "399d0840-44ef-4e7a-8f16-fe2077ae8ee9",
+          "transitionSequence": 16
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "4fb188816043f3a9eddaadecdf0f08b03d6f78dd5e81c3e4a7f27d97c92cd4e7",
+          "readAt": "2026-10-08T10:39:02Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",11]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "4fb188816043f3a9eddaadecdf0f08b03d6f78dd5e81c3e4a7f27d97c92cd4e7",
+          "readAt": "2026-10-09T03:26:37Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",12]"
+        },
+        {
+          "phase": "build",
+          "sha256": "4fb188816043f3a9eddaadecdf0f08b03d6f78dd5e81c3e4a7f27d97c92cd4e7",
+          "readAt": "2026-10-09T07:25:28Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",13]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "4fb188816043f3a9eddaadecdf0f08b03d6f78dd5e81c3e4a7f27d97c92cd4e7",
+          "readAt": "2026-10-09T07:40:01Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",14]"
+        },
+        {
+          "phase": "build",
+          "sha256": "4fb188816043f3a9eddaadecdf0f08b03d6f78dd5e81c3e4a7f27d97c92cd4e7",
+          "readAt": "2026-10-09T08:47:25Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",15]"
+        },
+        {
+          "phase": "build",
+          "sha256": "4fb188816043f3a9eddaadecdf0f08b03d6f78dd5e81c3e4a7f27d97c92cd4e7",
+          "readAt": "2026-10-09T12:37:36Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",17]"
+        },
+        {
+          "phase": "build",
+          "sha256": "4fb188816043f3a9eddaadecdf0f08b03d6f78dd5e81c3e4a7f27d97c92cd4e7",
+          "readAt": "2026-10-09T15:41:47Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",19]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "4fb188816043f3a9eddaadecdf0f08b03d6f78dd5e81c3e4a7f27d97c92cd4e7",
+          "readAt": "2026-10-09T15:56:09Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",20]"
+        },
+        {
+          "phase": "build",
+          "sha256": "4fb188816043f3a9eddaadecdf0f08b03d6f78dd5e81c3e4a7f27d97c92cd4e7",
+          "readAt": "2026-10-10T00:56:15Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",21]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "4fb188816043f3a9eddaadecdf0f08b03d6f78dd5e81c3e4a7f27d97c92cd4e7",
+          "readAt": "2026-10-10T01:09:49Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",22]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "4fb188816043f3a9eddaadecdf0f08b03d6f78dd5e81c3e4a7f27d97c92cd4e7",
+          "readAt": "2026-10-10T02:47:06Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",23]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "4fb188816043f3a9eddaadecdf0f08b03d6f78dd5e81c3e4a7f27d97c92cd4e7",
+          "readAt": "2026-10-10T02:52:37Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",24]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-fix-hook-cross-session-isolation-329d5fb59ad6:a6f4c35d1862156965916e31ce66a54f",
+        "namespace": "change-fix-hook-cross-session-isolation-329d5fb59ad6",
+        "version": "sha256:4fb188816043f3a9eddaadecdf0f08b03d6f78dd5e81c3e4a7f27d97c92cd4e7",
+        "projection": "document",
+        "content_digest": "sha256:4fb188816043f3a9eddaadecdf0f08b03d6f78dd5e81c3e4a7f27d97c92cd4e7",
+        "source": {
+          "path": "openspec/changes/fix-hook-cross-session-isolation/specs/plugin-runtime/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "delta-spec",
+      "path": "openspec/changes/fix-hook-cross-session-isolation/specs/interaction-and-skill-provenance/spec.md",
+      "sha256": "35a7c7b1fcc7e7dc8379ab0a4d034c8965b16a2a086eb664976e9b828c19ecc5",
+      "producer": "openspec-propose",
+      "recordedAt": "2026-10-09T14:24:16Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-49aef5e39c47defd0db0c654776ceaffc44eab07f29f1ae48c5afa6785e9176d",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "399d0840-44ef-4e7a-8f16-fe2077ae8ee9",
+          "transitionSequence": 18
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "35a7c7b1fcc7e7dc8379ab0a4d034c8965b16a2a086eb664976e9b828c19ecc5",
+          "readAt": "2026-10-08T10:39:02Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",11]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "35a7c7b1fcc7e7dc8379ab0a4d034c8965b16a2a086eb664976e9b828c19ecc5",
+          "readAt": "2026-10-09T03:26:37Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",12]"
+        },
+        {
+          "phase": "build",
+          "sha256": "35a7c7b1fcc7e7dc8379ab0a4d034c8965b16a2a086eb664976e9b828c19ecc5",
+          "readAt": "2026-10-09T07:25:28Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",13]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "35a7c7b1fcc7e7dc8379ab0a4d034c8965b16a2a086eb664976e9b828c19ecc5",
+          "readAt": "2026-10-09T07:40:01Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",14]"
+        },
+        {
+          "phase": "build",
+          "sha256": "35a7c7b1fcc7e7dc8379ab0a4d034c8965b16a2a086eb664976e9b828c19ecc5",
+          "readAt": "2026-10-09T08:47:25Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",15]"
+        },
+        {
+          "phase": "build",
+          "sha256": "35a7c7b1fcc7e7dc8379ab0a4d034c8965b16a2a086eb664976e9b828c19ecc5",
+          "readAt": "2026-10-09T12:37:36Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",17]"
+        },
+        {
+          "phase": "build",
+          "sha256": "35a7c7b1fcc7e7dc8379ab0a4d034c8965b16a2a086eb664976e9b828c19ecc5",
+          "readAt": "2026-10-09T15:41:47Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",19]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "35a7c7b1fcc7e7dc8379ab0a4d034c8965b16a2a086eb664976e9b828c19ecc5",
+          "readAt": "2026-10-09T15:56:09Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",20]"
+        },
+        {
+          "phase": "build",
+          "sha256": "35a7c7b1fcc7e7dc8379ab0a4d034c8965b16a2a086eb664976e9b828c19ecc5",
+          "readAt": "2026-10-10T00:56:15Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",21]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "35a7c7b1fcc7e7dc8379ab0a4d034c8965b16a2a086eb664976e9b828c19ecc5",
+          "readAt": "2026-10-10T01:09:49Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",22]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "35a7c7b1fcc7e7dc8379ab0a4d034c8965b16a2a086eb664976e9b828c19ecc5",
+          "readAt": "2026-10-10T02:47:06Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",23]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "35a7c7b1fcc7e7dc8379ab0a4d034c8965b16a2a086eb664976e9b828c19ecc5",
+          "readAt": "2026-10-10T02:52:37Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",24]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-fix-hook-cross-session-isolation-329d5fb59ad6:a6f4c35d1862156965916e31ce66a54f",
+        "namespace": "change-fix-hook-cross-session-isolation-329d5fb59ad6",
+        "version": "sha256:35a7c7b1fcc7e7dc8379ab0a4d034c8965b16a2a086eb664976e9b828c19ecc5",
+        "projection": "document",
+        "content_digest": "sha256:35a7c7b1fcc7e7dc8379ab0a4d034c8965b16a2a086eb664976e9b828c19ecc5",
+        "source": {
+          "path": "openspec/changes/fix-hook-cross-session-isolation/specs/interaction-and-skill-provenance/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "superpower-plan",
+      "path": "docs/superpowers/plans/fix-hook-cross-session-isolation.md",
+      "sha256": "6d49c2099751ed2fd987697002b7c82452af07c2f4f1f853ebcb6a9a5d3ccfd4",
+      "producer": "writing-plans",
+      "recordedAt": "2026-10-09T14:24:53Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-205bf9244073631bc420df371b5733f7cd3b36ca6f35ada78b47baeff718ec9c",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "399d0840-44ef-4e7a-8f16-fe2077ae8ee9",
+          "transitionSequence": 18
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "6d49c2099751ed2fd987697002b7c82452af07c2f4f1f853ebcb6a9a5d3ccfd4",
+          "readAt": "2026-10-09T15:41:47Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",19]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "6d49c2099751ed2fd987697002b7c82452af07c2f4f1f853ebcb6a9a5d3ccfd4",
+          "readAt": "2026-10-09T15:56:09Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",20]"
+        },
+        {
+          "phase": "build",
+          "sha256": "6d49c2099751ed2fd987697002b7c82452af07c2f4f1f853ebcb6a9a5d3ccfd4",
+          "readAt": "2026-10-10T00:56:15Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",21]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "6d49c2099751ed2fd987697002b7c82452af07c2f4f1f853ebcb6a9a5d3ccfd4",
+          "readAt": "2026-10-10T01:09:49Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",22]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "6d49c2099751ed2fd987697002b7c82452af07c2f4f1f853ebcb6a9a5d3ccfd4",
+          "readAt": "2026-10-10T02:47:06Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",23]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "6d49c2099751ed2fd987697002b7c82452af07c2f4f1f853ebcb6a9a5d3ccfd4",
+          "readAt": "2026-10-10T02:52:37Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",24]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-fix-hook-cross-session-isolation-329d5fb59ad6:107d4a7df41eeb958f3422e8a10f4ec0",
+        "namespace": "change-fix-hook-cross-session-isolation-329d5fb59ad6",
+        "version": "sha256:6d49c2099751ed2fd987697002b7c82452af07c2f4f1f853ebcb6a9a5d3ccfd4",
+        "projection": "document",
+        "content_digest": "sha256:6d49c2099751ed2fd987697002b7c82452af07c2f4f1f853ebcb6a9a5d3ccfd4",
+        "source": {
+          "path": "docs/superpowers/plans/fix-hook-cross-session-isolation.md",
+          "document_kind": "superpower-plan"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "plan",
+      "path": "docs/superpowers/plans/fix-hook-cross-session-isolation.md",
+      "sha256": "6d49c2099751ed2fd987697002b7c82452af07c2f4f1f853ebcb6a9a5d3ccfd4",
+      "producer": "writing-plans",
+      "recordedAt": "2026-10-09T14:24:53Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-205bf9244073631bc420df371b5733f7cd3b36ca6f35ada78b47baeff718ec9c",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "399d0840-44ef-4e7a-8f16-fe2077ae8ee9",
+          "transitionSequence": 18
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "6d49c2099751ed2fd987697002b7c82452af07c2f4f1f853ebcb6a9a5d3ccfd4",
+          "readAt": "2026-10-09T15:41:47Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",19]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "6d49c2099751ed2fd987697002b7c82452af07c2f4f1f853ebcb6a9a5d3ccfd4",
+          "readAt": "2026-10-09T15:56:09Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",20]"
+        },
+        {
+          "phase": "build",
+          "sha256": "6d49c2099751ed2fd987697002b7c82452af07c2f4f1f853ebcb6a9a5d3ccfd4",
+          "readAt": "2026-10-10T00:56:15Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",21]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "6d49c2099751ed2fd987697002b7c82452af07c2f4f1f853ebcb6a9a5d3ccfd4",
+          "readAt": "2026-10-10T01:09:49Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",22]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "6d49c2099751ed2fd987697002b7c82452af07c2f4f1f853ebcb6a9a5d3ccfd4",
+          "readAt": "2026-10-10T02:47:06Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",23]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "6d49c2099751ed2fd987697002b7c82452af07c2f4f1f853ebcb6a9a5d3ccfd4",
+          "readAt": "2026-10-10T02:52:37Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",24]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-fix-hook-cross-session-isolation-329d5fb59ad6:107d4a7df41eeb958f3422e8a10f4ec0",
+        "namespace": "change-fix-hook-cross-session-isolation-329d5fb59ad6",
+        "version": "sha256:6d49c2099751ed2fd987697002b7c82452af07c2f4f1f853ebcb6a9a5d3ccfd4",
+        "projection": "document",
+        "content_digest": "sha256:6d49c2099751ed2fd987697002b7c82452af07c2f4f1f853ebcb6a9a5d3ccfd4",
+        "source": {
+          "path": "docs/superpowers/plans/fix-hook-cross-session-isolation.md",
+          "document_kind": "plan"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "proposal",
+      "path": "openspec/changes/fix-hook-cross-session-isolation/proposal.md",
+      "sha256": "1481e85a4e4480e92f6a565138195d1709eca449fbfd7a0a78bf183de26cd808",
+      "producer": "tenon",
+      "recordedAt": "2026-10-09T14:24:55Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-16d6bb0359cb8b8ce534bb0026fc8ad38994f2437592d74112edbbb56177bac8",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "399d0840-44ef-4e7a-8f16-fe2077ae8ee9",
+          "transitionSequence": 18
+        }
+      },
+      "reads": [
+        {
+          "phase": "spec",
+          "sha256": "1481e85a4e4480e92f6a565138195d1709eca449fbfd7a0a78bf183de26cd808",
+          "readAt": "2026-10-09T14:24:59Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",18]"
+        },
+        {
+          "phase": "build",
+          "sha256": "1481e85a4e4480e92f6a565138195d1709eca449fbfd7a0a78bf183de26cd808",
+          "readAt": "2026-10-09T15:41:47Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",19]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "1481e85a4e4480e92f6a565138195d1709eca449fbfd7a0a78bf183de26cd808",
+          "readAt": "2026-10-09T15:56:09Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",20]"
+        },
+        {
+          "phase": "build",
+          "sha256": "1481e85a4e4480e92f6a565138195d1709eca449fbfd7a0a78bf183de26cd808",
+          "readAt": "2026-10-10T00:56:15Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",21]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "1481e85a4e4480e92f6a565138195d1709eca449fbfd7a0a78bf183de26cd808",
+          "readAt": "2026-10-10T01:09:49Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",22]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "1481e85a4e4480e92f6a565138195d1709eca449fbfd7a0a78bf183de26cd808",
+          "readAt": "2026-10-10T02:47:06Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",23]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "1481e85a4e4480e92f6a565138195d1709eca449fbfd7a0a78bf183de26cd808",
+          "readAt": "2026-10-10T02:52:37Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",24]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-fix-hook-cross-session-isolation-329d5fb59ad6:7c7292605442c90b75388f5ff4c939fc",
+        "namespace": "change-fix-hook-cross-session-isolation-329d5fb59ad6",
+        "version": "sha256:1481e85a4e4480e92f6a565138195d1709eca449fbfd7a0a78bf183de26cd808",
+        "projection": "document",
+        "content_digest": "sha256:1481e85a4e4480e92f6a565138195d1709eca449fbfd7a0a78bf183de26cd808",
+        "source": {
+          "path": "openspec/changes/fix-hook-cross-session-isolation/proposal.md",
+          "document_kind": "proposal"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "openspec-design",
+      "path": "openspec/changes/fix-hook-cross-session-isolation/design.md",
+      "sha256": "c80ade9697bf8650e561413caf916152c652c21cf1be14e15a083c15fbad3c7b",
+      "producer": "tenon",
+      "recordedAt": "2026-10-09T14:24:56Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-16d6bb0359cb8b8ce534bb0026fc8ad38994f2437592d74112edbbb56177bac8",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "399d0840-44ef-4e7a-8f16-fe2077ae8ee9",
+          "transitionSequence": 18
+        }
+      },
+      "reads": [
+        {
+          "phase": "spec",
+          "sha256": "c80ade9697bf8650e561413caf916152c652c21cf1be14e15a083c15fbad3c7b",
+          "readAt": "2026-10-09T14:24:59Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",18]"
+        },
+        {
+          "phase": "build",
+          "sha256": "c80ade9697bf8650e561413caf916152c652c21cf1be14e15a083c15fbad3c7b",
+          "readAt": "2026-10-09T15:41:47Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",19]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "c80ade9697bf8650e561413caf916152c652c21cf1be14e15a083c15fbad3c7b",
+          "readAt": "2026-10-09T15:56:09Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",20]"
+        },
+        {
+          "phase": "build",
+          "sha256": "c80ade9697bf8650e561413caf916152c652c21cf1be14e15a083c15fbad3c7b",
+          "readAt": "2026-10-10T00:56:15Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",21]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "c80ade9697bf8650e561413caf916152c652c21cf1be14e15a083c15fbad3c7b",
+          "readAt": "2026-10-10T01:09:49Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",22]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "c80ade9697bf8650e561413caf916152c652c21cf1be14e15a083c15fbad3c7b",
+          "readAt": "2026-10-10T02:47:06Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",23]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "c80ade9697bf8650e561413caf916152c652c21cf1be14e15a083c15fbad3c7b",
+          "readAt": "2026-10-10T02:52:37Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",24]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-fix-hook-cross-session-isolation-329d5fb59ad6:d0c17fcef705432fcfe8f193db51270d",
+        "namespace": "change-fix-hook-cross-session-isolation-329d5fb59ad6",
+        "version": "sha256:c80ade9697bf8650e561413caf916152c652c21cf1be14e15a083c15fbad3c7b",
+        "projection": "document",
+        "content_digest": "sha256:c80ade9697bf8650e561413caf916152c652c21cf1be14e15a083c15fbad3c7b",
+        "source": {
+          "path": "openspec/changes/fix-hook-cross-session-isolation/design.md",
+          "document_kind": "openspec-design"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "superpower-design",
+      "path": "docs/superpowers/specs/fix-hook-cross-session-isolation-design.md",
+      "sha256": "d3cbf42f25fd3878f4aa4a5139e4a093a9c374d0a3119bbd92dbc516772a9e9c",
+      "producer": "tenon",
+      "recordedAt": "2026-10-09T14:24:56Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-16d6bb0359cb8b8ce534bb0026fc8ad38994f2437592d74112edbbb56177bac8",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "399d0840-44ef-4e7a-8f16-fe2077ae8ee9",
+          "transitionSequence": 18
+        }
+      },
+      "reads": [
+        {
+          "phase": "spec",
+          "sha256": "d3cbf42f25fd3878f4aa4a5139e4a093a9c374d0a3119bbd92dbc516772a9e9c",
+          "readAt": "2026-10-09T14:24:59Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",18]"
+        },
+        {
+          "phase": "build",
+          "sha256": "d3cbf42f25fd3878f4aa4a5139e4a093a9c374d0a3119bbd92dbc516772a9e9c",
+          "readAt": "2026-10-09T15:41:47Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",19]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "d3cbf42f25fd3878f4aa4a5139e4a093a9c374d0a3119bbd92dbc516772a9e9c",
+          "readAt": "2026-10-09T15:56:09Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",20]"
+        },
+        {
+          "phase": "build",
+          "sha256": "d3cbf42f25fd3878f4aa4a5139e4a093a9c374d0a3119bbd92dbc516772a9e9c",
+          "readAt": "2026-10-10T00:56:15Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",21]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "d3cbf42f25fd3878f4aa4a5139e4a093a9c374d0a3119bbd92dbc516772a9e9c",
+          "readAt": "2026-10-10T01:09:49Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",22]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "d3cbf42f25fd3878f4aa4a5139e4a093a9c374d0a3119bbd92dbc516772a9e9c",
+          "readAt": "2026-10-10T02:47:06Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",23]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "d3cbf42f25fd3878f4aa4a5139e4a093a9c374d0a3119bbd92dbc516772a9e9c",
+          "readAt": "2026-10-10T02:52:37Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",24]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-fix-hook-cross-session-isolation-329d5fb59ad6:61c61e3bb4b486e9b3a425d52b8e08f6",
+        "namespace": "change-fix-hook-cross-session-isolation-329d5fb59ad6",
+        "version": "sha256:d3cbf42f25fd3878f4aa4a5139e4a093a9c374d0a3119bbd92dbc516772a9e9c",
+        "projection": "document",
+        "content_digest": "sha256:d3cbf42f25fd3878f4aa4a5139e4a093a9c374d0a3119bbd92dbc516772a9e9c",
+        "source": {
+          "path": "docs/superpowers/specs/fix-hook-cross-session-isolation-design.md",
+          "document_kind": "superpower-design"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "verification-report",
+      "path": "docs/superpowers/reports/fix-hook-cross-session-isolation-verify.md",
+      "sha256": "25a9c5f2673e94c4dafdb758e7b3b4bb15e8222eec376716ccd6d178320ecefc",
+      "producer": "verification-before-completion",
+      "recordedAt": "2026-10-10T01:55:17Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-6adf494747736987b8b4b567da4c6463fcc7fecde2747d55d8b59710c608dd42",
+        "evidenceScope": "verify",
+        "stepVisit": {
+          "runId": "399d0840-44ef-4e7a-8f16-fe2077ae8ee9",
+          "transitionSequence": 22
+        }
+      },
+      "reads": [
+        {
+          "phase": "ship",
+          "sha256": "25a9c5f2673e94c4dafdb758e7b3b4bb15e8222eec376716ccd6d178320ecefc",
+          "readAt": "2026-10-10T02:47:06Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",23]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "25a9c5f2673e94c4dafdb758e7b3b4bb15e8222eec376716ccd6d178320ecefc",
+          "readAt": "2026-10-10T02:52:37Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",24]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-fix-hook-cross-session-isolation-329d5fb59ad6:6ad01dc5f2a046004ef934d61306ccb6",
+        "namespace": "change-fix-hook-cross-session-isolation-329d5fb59ad6",
+        "version": "sha256:25a9c5f2673e94c4dafdb758e7b3b4bb15e8222eec376716ccd6d178320ecefc",
+        "projection": "document",
+        "content_digest": "sha256:25a9c5f2673e94c4dafdb758e7b3b4bb15e8222eec376716ccd6d178320ecefc",
+        "source": {
+          "path": "docs/superpowers/reports/fix-hook-cross-session-isolation-verify.md",
+          "document_kind": "verification-report"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "applied-spec",
+      "path": "openspec/changes/fix-hook-cross-session-isolation/applied-spec.md",
+      "sha256": "688e5acc319ddf0595b6cfed92055337e28e9667c9ef99b2194abc0fec288e4d",
+      "producer": "tenon",
+      "recordedAt": "2026-10-10T02:47:04Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-291acba6c2837cf8125e6c4ededde7e5116eb494dcc933f2dffa2c5ba935cecd",
+        "evidenceScope": "ship",
+        "stepVisit": {
+          "runId": "399d0840-44ef-4e7a-8f16-fe2077ae8ee9",
+          "transitionSequence": 23
+        }
+      },
+      "reads": [
+        {
+          "phase": "archive",
+          "sha256": "688e5acc319ddf0595b6cfed92055337e28e9667c9ef99b2194abc0fec288e4d",
+          "readAt": "2026-10-10T02:52:37Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",24]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-fix-hook-cross-session-isolation-329d5fb59ad6:291bc7c4598505d1e2b6cc923fc421aa",
+        "namespace": "change-fix-hook-cross-session-isolation-329d5fb59ad6",
+        "version": "sha256:688e5acc319ddf0595b6cfed92055337e28e9667c9ef99b2194abc0fec288e4d",
+        "projection": "document",
+        "content_digest": "sha256:688e5acc319ddf0595b6cfed92055337e28e9667c9ef99b2194abc0fec288e4d",
+        "source": {
+          "path": "openspec/changes/fix-hook-cross-session-isolation/applied-spec.md",
+          "document_kind": "applied-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "tasks",
+      "path": "openspec/changes/fix-hook-cross-session-isolation/tasks.md",
+      "sha256": "b8ffa9887506636b6b5fcae7a6f9fcc8b4630a49a23c82c5fdede3b68e1f7e54",
+      "producer": "tenon",
+      "recordedAt": "2026-10-10T02:52:36Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-a674013da6194894613a402e448392359d4c3e958f8bcbeadcab3eab0d4ac8ea",
+        "evidenceScope": "archive",
+        "stepVisit": {
+          "runId": "399d0840-44ef-4e7a-8f16-fe2077ae8ee9",
+          "transitionSequence": 24
+        }
+      },
+      "reads": [
+        {
+          "phase": "archive",
+          "sha256": "b8ffa9887506636b6b5fcae7a6f9fcc8b4630a49a23c82c5fdede3b68e1f7e54",
+          "readAt": "2026-10-10T02:52:37Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",24]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-fix-hook-cross-session-isolation-329d5fb59ad6:d6e1bf48b5c7376bfbb3ca2b577ca2a1",
+        "namespace": "change-fix-hook-cross-session-isolation-329d5fb59ad6",
+        "version": "sha256:b8ffa9887506636b6b5fcae7a6f9fcc8b4630a49a23c82c5fdede3b68e1f7e54",
+        "projection": "document",
+        "content_digest": "sha256:b8ffa9887506636b6b5fcae7a6f9fcc8b4630a49a23c82c5fdede3b68e1f7e54",
+        "source": {
+          "path": "openspec/changes/fix-hook-cross-session-isolation/tasks.md",
+          "document_kind": "tasks"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    }
+  ]
+}

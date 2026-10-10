@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { decodeWorkflowDefinition } from './governanceSchema'
 import type { WbWorkflowDef } from './governanceTypes'
-import { definitionForWrite } from '../workbench/workbenchDefinition'
+import { cloneWorkflowDef, definitionForWrite } from '../workbench/workbenchDefinition'
 const step = {
   id: 'open',
   label: 'Open',
@@ -388,5 +388,39 @@ describe('decodeWorkflowDefinition · 步骤 test_policy', () => {
     expect(withPolicy({ browsers: [''] })).toBeNull()
     expect(withPolicy('unit')).toBeNull()
     expect(withPolicy(null)).toBeNull()
+  })
+})
+
+describe('decodeWorkflowDefinition · 步骤 maxRounds（验证轮次上限）', () => {
+  const withRounds = (maxRounds: unknown) => decodeWorkflowDefinition({
+    name: 'rounds', steps: [{ ...step, gate: 'review', maxRounds }],
+  })
+
+  it('1 到 20 的整数原样解出，写回前整形后逐字相同（读写不丢）', () => {
+    for (const maxRounds of [1, 2, 20]) {
+      const decoded = withRounds(maxRounds)
+      expect(decoded?.steps[0]?.maxRounds).toBe(maxRounds)
+      const written = JSON.parse(JSON.stringify(definitionForWrite(decoded as WbWorkflowDef))) as WbWorkflowDef
+      expect(written.steps[0]?.maxRounds).toBe(maxRounds)
+    }
+  })
+
+  it('track 分支里的步骤同样保留；没声明的步骤不补键', () => {
+    const decoded = decodeWorkflowDefinition({
+      name: 'branches', steps: [],
+      tracks: { backend: { steps: [{ ...step, gate: 'review', maxRounds: 3 }, step] } },
+    })
+    expect(decoded?.tracks?.backend?.steps[0]?.maxRounds).toBe(3)
+    expect(decoded?.tracks?.backend?.steps[1]).not.toHaveProperty('maxRounds')
+    expect(decodeWorkflowDefinition({ name: 'bare', steps: [step] })?.steps[0]).not.toHaveProperty('maxRounds')
+  })
+
+  it('复制、克隆工作流时保留上限', () => {
+    const decoded = withRounds(2) as WbWorkflowDef
+    expect(cloneWorkflowDef(decoded, 'copy').steps[0]?.maxRounds).toBe(2)
+  })
+
+  it('越界、小数、非数字整份作废（与服务端同一取值口径）', () => {
+    for (const bad of [0, 21, 1.5, '2', null, true]) expect(withRounds(bad), String(bad)).toBeNull()
   })
 })

@@ -153,7 +153,7 @@ export const decodePlanResponse = guard((value: unknown): TestPlanView => {
     waivers: arr(item.waivers, (raw) => {
       const waiver = rec(raw)
       return {
-        ...maybe('kind', opt(waiver.kind, str)), ...maybe('covers', opt(waiver.covers, str)),
+        ...maybe('kind', opt(waiver.kind, str)), ...maybe('covers', opt(waiver.covers, str)), ...maybe('test', opt(waiver.test, str)),
         reason: str(waiver.reason), approvedBy: nstr(waiver.approvedBy),
       }
     }),

@@ -106,6 +106,19 @@ export const REVIEW_MESSAGES = {
     zh: '已批准测试配置改动 {count} 项：{list}',
     en: 'approved {count} test configuration change(s): {list}',
   },
+  // 剩余阻断：验证轮次用完后，用户在评审确认里接受必需评审者仍不通过的结论。
+  'review.residualAccepted': {
+    zh: '已接受剩余阻断 {count} 项：{list}',
+    en: 'accepted {count} residual blocker(s): {list}',
+  },
+  'review.residualDelegatedRefused': {
+    zh: '有 {count} 项剩余阻断待人工接受（{list}）：委托确认不接受剩余阻断；请用户回复“确认继续”人工确认，或先修复让评审者通过',
+    en: 'there are {count} residual blocker(s) waiting for a human to accept them ({list}): a delegated confirmation does not accept residual blockers; the user confirms in person by replying "go ahead", or fix the code so the reviewer passes first',
+  },
+  'review.residualAfkRefused': {
+    zh: '有 {count} 项剩余阻断待人工接受（{list}）：AFK 模式不接受剩余阻断；请用户退出 AFK 后人工确认，或先修复让评审者通过',
+    en: 'there are {count} residual blocker(s) waiting for a human to accept them ({list}): AFK mode does not accept residual blockers; the user leaves AFK and confirms in person, or fix the code so the reviewer passes first',
+  },
   'review.warn.idempotencyLedger': {
     zh: 'decision idempotency ledger 写入失败（approval receipt 已提交；重试会按当前状态重新判定）',
     en: 'could not write the decision idempotency ledger (the approval receipt is committed; a retry judges again against the current state)',
@@ -124,8 +137,8 @@ export const REVIEW_MESSAGES = {
   },
   // `tenon review request` 与 `review` 的用法错误。
   'review.usage': {
-    zh: '用法：tenon review request <change> [--event <event>] | acknowledge <change> [--delegated] [--as reviewer]',
-    en: 'usage: tenon review request <change> [--event <event>] | acknowledge <change> [--delegated] [--as reviewer]',
+    zh: '用法：tenon review request <change> [--event <event>] | acknowledge <change> [--delegated] [--as reviewer] | revoke <change> --reason <原因>',
+    en: 'usage: tenon review request <change> [--event <event>] | acknowledge <change> [--delegated] [--as reviewer] | revoke <change> --reason <text>',
   },
   'review.request.delegatedOnAcknowledge': {
     zh: '--delegated 只可用于 review acknowledge；request 仍必须先完成真实 review 证据',
@@ -134,6 +147,30 @@ export const REVIEW_MESSAGES = {
   'review.request.asOnAcknowledge': {
     zh: '--as 只可用于 review acknowledge；request 只有负责人能发起',
     en: '--as applies to review acknowledge only; only the owner can start a request',
+  },
+  'review.reasonOnRevoke': {
+    zh: '--reason 只可用于 review revoke',
+    en: '--reason applies to review revoke only',
+  },
+  'review.revoke.onlyReason': {
+    zh: 'review revoke 只接受 --reason；--event、--delegated 与 --as 不适用',
+    en: 'review revoke takes --reason only; --event, --delegated and --as do not apply',
+  },
+  'review.revoke.reasonRequired': {
+    zh: 'review revoke 需要 --reason <原因>：一行说明为什么撤回，不超过 {max} 字且不含控制字符',
+    en: 'review revoke needs --reason <text>: one line saying why the approval is withdrawn, at most {max} characters and no control characters',
+  },
+  'review.revoke.none': {
+    zh: "phase '{phase}' 当前没有评审回执（未请求，或已被 transition 消费），没有可撤回的批准",
+    en: "phase '{phase}' has no review receipt (none requested, or already consumed by a transition); there is no approval to withdraw",
+  },
+  'review.revoke.pending': {
+    zh: "phase '{phase}' 的 event '{event}' 本就待确认，无需撤回",
+    en: "event '{event}' of phase '{phase}' is already waiting for confirmation; nothing to withdraw",
+  },
+  'review.revoke.done': {
+    zh: '已撤回已批准的回执，恢复为待确认；评审标记已重新写入（原因：{reason}）',
+    en: 'the approved receipt is withdrawn and waits for confirmation again; the review marker is rewritten (reason: {reason})',
   },
   'review.requested.new': {
     zh: '已请求人工确认',

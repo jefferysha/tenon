@@ -2,14 +2,17 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll } from 'vitest'
+import { INHERITED_RUNTIME_ROOT_VARS } from './lib/runtime-roots.mjs'
 
 // 每个测试文件都在自己的声明身份与产品 home 里跑，宿主进程里已有的同名变量一律不算数。
 // 在 Tenon 会话里执行 `npm test` 时，宿主会带着 TENON_USER / TENON_RUNTIME_HOME（tenon test run 还会注入
 // TENON_BASE_BRANCH / TENON_CHANGE_NAME）；只在这些变量缺席时才隔离，会让身份与 base 断言失败，
 // 还会把用例写进真实的运行时根。所以这里无条件保存、清掉、覆盖，文件结束后再还原。
+// 启动器导出的四个运行时根（TENON_RUNTIME_ROOTS 与 DATA / STATE / CONFIG 三个）优先于 TENON_RUNTIME_HOME，
+// 用例里 `{ ...process.env }` 起的子进程（CLI、hook、server）带着它们就会读写真实状态，所以一并清掉。
 const ISOLATED_ENV = [
   'TENON_RUNTIME_HOME',
-  'TENON_RUNTIME_ROOTS',
+  ...INHERITED_RUNTIME_ROOT_VARS,
   'TENON_USER',
   'TENON_USER_NAME',
   'TENON_BASE_BRANCH',

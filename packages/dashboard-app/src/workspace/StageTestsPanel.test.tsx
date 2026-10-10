@@ -75,6 +75,25 @@ describe('StageTestsPanel', () => {
     expect(screen.getByTestId('stage-test-unit').textContent ?? '').toContain('通过')
   })
 
+  it('失败后带豁免的行：状态词是「已豁免 / 豁免待批准」，不再显示失败；data-status 仍是原来的失败', () => {
+    const rows: TestRow[] = [
+      { id: 'size', name: 'size', direction: 'unit', required: true, status: 'failed', waiver: 'waived' },
+      { id: 'lint', name: 'lint', direction: 'unit', required: true, status: 'failed', waiver: 'waiver-pending' },
+      { id: 'bad', name: 'bad', direction: 'unit', required: true, status: 'failed' },
+    ]
+    render(<I18nProvider><TooltipProvider><StageTestsPanel rows={rows} activeId={null} onOpen={() => undefined} /></TooltipProvider></I18nProvider>)
+    const pill = (id: string) => screen.getByTestId(`stage-test-${id}`).querySelectorAll('[role="cell"]')[3]?.querySelector('[data-tone]')
+    expect(pill('size')).toHaveAttribute('data-tone', 'done')
+    expect(pill('size')?.textContent).toBe('已豁免')
+    expect(pill('lint')).toHaveAttribute('data-tone', 'pending')
+    expect(pill('lint')?.textContent).toBe('豁免待批准')
+    expect(pill('bad')).toHaveAttribute('data-tone', 'blocked')
+    expect(pill('bad')?.textContent).toBe('失败')
+    expect(screen.getByTestId('stage-test-size')).toHaveAttribute('data-status', 'failed')
+    expect(screen.getByTestId('stage-test-size')).toHaveAttribute('data-waiver', 'waived')
+    expect(screen.getByTestId('stage-test-bad')).not.toHaveAttribute('data-waiver')
+  })
+
   it('空行集显示占位', () => {
     render(<I18nProvider><TooltipProvider><StageTestsPanel rows={[]} activeId={null} onOpen={() => undefined} /></TooltipProvider></I18nProvider>)
     expect(screen.getByTestId('stage-tests').textContent).toContain('无')

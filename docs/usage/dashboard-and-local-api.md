@@ -229,6 +229,8 @@ it is the correct Dashboard. The other reads (`/api/snapshot`,
 `/api/host-targets`, `/api/host-target-plan?host=codex&operation=setup`, ...)
 answer `401` to `curl` by design; use the CLI equivalents above, or the signed-in
 browser.
+It also reports `channel`: `stable` for a release install, `dev` for a source development install, in which case
+`commit` is the 7-character commit and `displayVersion` is `<version>+dev.<sha7>`; `version` itself never changes.
 
 ### Server log
 
@@ -346,6 +348,17 @@ single-use nonce (`POST /api/change/<name>/decisions/presence`, bound to your
 session, the change, the review ref and revision, valid 30 seconds) that
 `POST /api/change/<name>/decisions` must present in `X-Tenon-Presence`.
 `tenon review acknowledge` in the terminal is unchanged.
+
+Two answers belong to the verification round limit (see the
+[CLI reference](cli-reference.md#verification-round-limit)). When the rounds of a
+limited step are used up, `POST /api/change/<name>/transition` for a return edge
+answers HTTP `409` with `code: "rounds-exhausted"`; the body carries `step`,
+`event`, `current`, `max`, `source` and `error`, and forward edges and the abandon
+edge are not affected. When the review request froze remaining reviewer blockers
+that still wait for acceptance, `POST /api/change/<name>/decisions` answers HTTP
+`409` with `code: "residual-pending"` and leaves the receipt pending: the Dashboard
+does not list those blockers, so the user confirms in the terminal, with the
+approval phrase ("确认继续", "继续执行") or `tenon review acknowledge`.
 
 Use the same-origin Dashboard for ordinary mutations. The API is a local
 integration surface, not a public hosted or multi-tenant API, and no independent

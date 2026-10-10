@@ -93,7 +93,7 @@ repeat:
 
 | `action` | 做什么 |
 | --- | --- |
-| `stop` | 报告 `message` 后结束。 |
+| `stop` | 报告 `message` 后结束。`code: rounds-exhausted`（验证轮次用完，必需测试仍失败）时，把失败的测试、剩余阻断与 `message` 里的出路摆给用户，结束回合等用户决定，不要自行选一条出路。 |
 | `load-tenon` | 重新加载本技能（Claude 用 Skill 工具；Codex 按上面的读取规则整读一次）。 |
 | `read-documents` | 逐个读完 `documents` 列出的文件，把内容读进上下文（不得丢弃输出：`cat … >/dev/null` 这类读取不算读过），再 `tenon document read <c> all`。这些是已登记的输入：只有 `editable` 里的 kind 本步可以改（改完照 `next` 重新登记），其余只读——需求语义变了走 `requirements-changed` 回到规格步，不要直接改已登记的规格文档；tasks.md 只勾当前步骤标题下的复选框。 |
 | `run-agent` | 逐项：`tenon agent prompt <c> <agent> --host <host> --json`（`<host>` 是本宿主 id：Claude Code 用 `claude`，Codex 用 `codex`；agent 声明了 `hosts` 且不含本宿主时 exit 2，照报错告诉用户，不换宿主硬跑）→ 用返回的 `subagent_type` 派发子代理跑返回的 `prompt`（Claude 用 Agent 工具；Codex 用子任务或 `codex exec`；没有子代理的宿主就在主线顺序跑）→ 把报告写到返回的 `report_path`（正文末尾一个 `tenon-result` 代码块）→ `tenon agent record <c> <run_id>`。`subagent_type` 是 `tenon-<agent>` 时，Claude Code 按该 agent 的 `tools` 白名单执行；Codex 没有按 agent 的工具白名单，只在工具里没有写或执行能力时设只读沙箱，其余限制就是 agent 正文里的指令；宿主说找不到这个子代理（会话中途才生成的），改用通用子代理跑同一份提示词，登记时加 `--subagent <实际用的类型>`。返回的 `host.run_on` 非空（`action` 里带 `host` 的评审者）时，这个评审者必须在另一个宿主上跑（跨厂商评审：Claude 写、Codex 审）：不要在本宿主里自己审；从仓库根目录执行 `run_on.command`（它读 `run_on.prompt_file`；这是另一家的 CLI，由你执行，Tenon 不会替你起），评审写完报告并登记后继续；对方登记不了 Tenon 状态时，在本宿主执行 `run_on.record`（带 `--host`）。在不符的宿主上登记会被拒（exit 2），台账里宿主不符的结论无效。`host.run_on` 为空照常派发。同一波并行。执行者的正文只做「一个 task」（如 `builder`）时，本步未勾的独立任务各起一个同类型子代理并行，提示词后面写明各自的任务；全部回来后主线合成一份报告写到 `report_path`，只 record 一次。带 `status: running` 与 `run_id` 的项是已经开始的那次运行：不要重新 prompt，等它跑完把报告写到给出的 `report_path`，再 `tenon agent record <c> <run_id>`。评审者在同一份代码（候选没变）上已经有结论时，不能靠重跑换结论：`prompt` 会 exit 2——改代码换候选后再跑；确有需要（例如上一轮提示缺上下文）加 `--rerun-reason <原因>`，原因与重跑次数会展示给用户，没写原因的同候选重跑按最严结论判定。子代理还在跑的时候，主线不要去加载会向用户提问的技能（`brainstorming`、`grilling`、`domain-modeling` 等）：它们落下的待处理交互会让主线停下等用户回复；等执行者返回、报告登记之后再加载。 |
@@ -112,8 +112,8 @@ repeat:
 | `run-tests` | 动作带 `trust` 时先请用户在自己的终端运行 `trust.command`（把 `trust.commands` 列给用户看），得到答复后再执行，不要先撞一次拒绝。执行 `command`（`tenon test run <c> --stage`）：一条命令跑完本阶段要求的全部套件。跑完用例失败、覆盖率不足之类不是「没跑」，`next` 会改发 `fix`（评审门上有回退边就走回退边）。命令以 exit 1 报「还没有得到你的信任」时，是目录或步骤测试里的命令尚未得到用户本人确认：把它列出的命令摆给用户，请用户在自己的终端运行 `tenon test trust`，然后再重跑。不要自己运行 `tenon test trust`，也不要设置 `TENON_TEST_TRUST`（hook 会拒绝）。 |
 | `test-report` | 执行 `command`：把追溯矩阵写进验证报告。报告是已登记文档，写完会变过期，照 `next` 重新登记。 |
 | `fix` | 逐条解决 `blockers[]`（改代码或文档），然后回到循环。`source: tasks` 的 blocker 带 `items`（截至本步仍未勾的任务原文）：把这些任务真的做完，再在 tasks.md 里勾上。`code: test-unconfigured`：项目没有这条必需测试要的 npm 脚本——在 package.json 加上运行本项目真正这类测试的脚本，不要复制别的测试命令凑数；在计划步提出时，把「写这类测试」列进本步的计划与 tasks，并把新增的测试脚本与测试同步写进 proposal（What Changes / Impact）与 design，删掉与之矛盾的表述（如「不改 package.json」）；在之后的步骤提出时只补 package.json 的脚本（及它要跑的测试代码），不要改已登记的规格文档（proposal / design / plan）。项目不用 npm 时停下告诉用户去改工作流的测试命令。 |
-| `request-review` | `tenon check <c>` → `tenon review request <c> --event <event>` → 把产出与结论摆给用户。动作带 `waivers` 时，里面是待用户批准的项：计划里的测试豁免（`kind:<种类>`）、目录里项目级的「不适用」声明（`not-applicable:<种类>`），以及本任务改动了的测试配置文件（目录、基线、已知失败清单、项目工作流的路径）。把 request 输出逐条列出的这些项连同理由、文件摘要一并摆给用户：用户的确认同时批准它们，确认之后配置文件再变要重新确认。委托确认（持续授权）不批准它们，只能等用户回复「确认继续」。 |
-| `await-review` | interactive：结束回合等人。continuous：`tenon review acknowledge <c> --delegated`（计划里有待批准的测试豁免时委托确认会被拒、评审仍待确认：如实告诉用户，等用户回复「确认继续」人工批准，不要自己批准也不要绕开）。afk：结束本轮。 |
+| `request-review` | `tenon check <c>` → `tenon review request <c> --event <event>` → 把产出与结论摆给用户。动作带 `waivers` 时，里面是待用户批准的项：计划里的测试豁免（`kind:<种类>`）、目录里项目级的「不适用」声明（`not-applicable:<种类>`），以及本任务改动了的测试配置文件（目录、基线、已知失败清单、项目工作流的路径）。把 request 输出逐条列出的这些项连同理由、文件摘要一并摆给用户：用户的确认同时批准它们，确认之后配置文件再变要重新确认。委托确认（持续授权）不批准它们，只能等用户回复「确认继续」。动作带 `residual`（验证轮次已用完，必需评审者在当前候选上仍不通过）时，还要把 `review request` 输出里逐条列出的剩余阻断（评审者、阻断级发现）连同 `alternatives`（另外的出路）摆给用户：只有用户回复放行语（「确认继续」等）的人工确认才接受这些剩余阻断；持续授权的委托确认会被拒、评审保持待确认，如实告诉用户，不要自己批准也不要绕开。 |
+| `await-review` | interactive：结束回合等人。continuous：`tenon review acknowledge <c> --delegated`（计划里有待批准的测试豁免或待接受的剩余阻断时委托确认会被拒、评审仍待确认：如实告诉用户，等用户回复「确认继续」人工批准，不要自己批准也不要绕开）。afk：结束本轮。 |
 | `commit` | 交付物提交（交付步有未勾任务时它排在勾选之前：先提交，再勾「提交代码」这类任务）：`git add -A -- <commit.paths…>`；`commit.untrack` 非空时接着 `git rm --cached -q --ignore-unmatch -- <commit.untrack…>`；最后 `git commit -m "<commit.message>"`。paths / untrack 原样用、不增不减（`:(exclude)…` 是挡住仓库根门禁标记的 pathspec，照抄）。宿主不让写 `.git` 时如实告诉用户这一步留给他，不要说已提交。 |
 | `choose-exit` | 按下面的「出口」挑一条边。 |
 | `transition` | `tenon transition <c> <event>`。带 `escalate` 的 `transition`（`event: scope-expanded`）是风险升级：改动风险探针没通过，`escalate.reasons` 是被突破的阈值——照做这条转换（它不要求其余证据），然后按 `escalate.then` 新建 `default` 任务并 `tenon set <新任务> depends_on <本任务>`；不要为了让探针通过去拆改动或藏文件。当 `next` 里只剩这一条 `transition` 时直接执行，不问用户，interactive 也一样（不等「继续」，不给「升级 / 调探针阈值 / 不走流程」这类选择题）：执行前用一句话告诉用户为什么升级（`escalate.reasons`）、接下来要做什么，然后动手。 |
@@ -145,6 +145,7 @@ repeat:
   的那条边；已确认的需求变了 → 回到规格的那条边）；interactive 先问。走到终态的
   `scope-expanded` 表示目标超出了这个工作流：之后新建一个 `default` 任务，并
   `tenon set <new> depends_on <old>`（standard 通道由改动风险探针触发，`next` 会直接给出它；它是 `next` 里唯一的 `transition` 时不用问，见动作表的 `transition`）。
+- 验证轮次上限 `max_rounds` 是用户的决定：不要自行执行 `tenon set <c> max_rounds <N>`，只在用户明确指示时执行；设置会改变任务状态，已发起或已批准的评审请求随之失效，执行后重读 `next` 并重新 `tenon review request`。上限用完时回退边会被拒，不要换事件、改状态或删 marker 绕过，照 `stop` / `request-review` 把出路摆给用户。
 
 ## 上游技能怎么用
 
@@ -165,3 +166,4 @@ repeat:
 | `lacks exact host confirmation` | 按上面的读取规则重新加载产出者技能，再登记一次 |
 | `stop` 且 `code: retired-skills` | 告诉用户新建任务；旧任务可以在工作台归档或删除 |
 | 评审待确认、回复不是放行语 | 继续等；hook 会打印解锁提示 |
+| 回退边被拒、报「验证轮次已用完」 | 不要换事件或调高上限绕过；把已用轮次、上限与出路摆给用户，等用户决定 |

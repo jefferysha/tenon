@@ -1,6 +1,7 @@
 import type { RuntimePathInput } from './paths.js'
 import type {
   RuntimeActivation,
+  RuntimeDevSource,
   RuntimeInspection,
   RuntimeLauncherSnapshot,
   RuntimeReleaseSource,
@@ -21,6 +22,7 @@ export interface ManagedRuntimeTransaction {
     host: RuntimeReleaseSource['host'],
     expectedPluginVersion?: string,
     stableTarget?: RuntimeStableReleaseTarget,
+    devSource?: RuntimeDevSource,
   ): Promise<RuntimeActivation>
   recoverActivation(
     checkpoint: RuntimeActivationCheckpoint,

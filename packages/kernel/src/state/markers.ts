@@ -13,8 +13,23 @@
  */
 import { readFile, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { GATE_MARKERS } from '../types.js'
 export const BREADCRUMB_FILE = '.breadcrumb'
 export const REVIEW_MARKER_FILE = '.pipeline-pending-review'
+
+/**
+ * 交互标记按会话分文件：宿主给了会话 id 时 hook 写 `.pipeline-pending-interaction.<session_id>`（hooks/pending-marker.sh），
+ * 没给时仍是 GATE_MARKERS 里的单文件；两者同属 interaction 门。会话 id 只含 [A-Za-z0-9_-]、1-128 位；hook 的原子写与认领临时文件
+ * （`….<id>.tmp.<pid>`、`.claim.<pid>`）带点号后缀，不是标记。
+ */
+export const INTERACTION_MARKER_SESSION_PREFIX = `${GATE_MARKERS[2]}.`
+
+/** 项目根文件名是按会话分文件的交互标记 → 它的会话 id；不是（含单文件、临时文件、非法 id）→ undefined。 */
+export function interactionSessionMarkerId(fileName: string): string | undefined {
+  if (!fileName.startsWith(INTERACTION_MARKER_SESSION_PREFIX)) return undefined
+  const id = fileName.slice(INTERACTION_MARKER_SESSION_PREFIX.length)
+  return /^[A-Za-z0-9_-]{1,128}$/.test(id) ? id : undefined
+}
 /** Versioned so a newly installed runtime can safely recognise and retire entry-time legacy markers. */
 export const REVIEW_MARKER_PROTOCOL = 'pipeline-review-v2'
 

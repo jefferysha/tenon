@@ -11,6 +11,10 @@
 #   E freeze 后再 commit → verify-pass 触发 barrier 拒绝：双行 stderr（剥 ANSI 逐字）+ 非零 exit +
 #     .pipeline.yaml 不变（run.sh 的 STDERR 面在此逐字比老/新）。
 #   F pass → ship → archive → archived：archived=true / archived_at / phase_status=done。
+# 生命周期顺序（两轮 verify）：第 1 轮 A → E → C（冻结 → 提交后 verify-pass 被 barrier 拒 → verify-fail 回退）；
+# 第 2 轮 D → B → F（再提交并重新冻结新 SHA → verify-pass → ship → archived）。
+# default 的 verify 最多 2 轮（`max_rounds: 2`），整个生命周期须在两轮内走完——第 2 轮用完后回退边
+# verify-fail 被拒；老脚本不认识 max_rounds，故不能在 fixture 里调高上限，只能把计划排进两轮。
 #
 # 用法: default-effects.sh <target-dir>
 # 计划行格式: <expected_new_exit>\t<cmd>\t<args...>（双跑模式忽略首列，逐面比老脚本）
@@ -59,18 +63,19 @@ printf '# verification report\n' > "$target/docs/verify.md"
 
 # 声明本 fixture 走 stderr 逐字口径（run.sh 据此在 transition 拒绝路径逐字比 stderr——barrier 双行）。
 : > "$target/.oracle-stderr-check"
-# 场景 E（第 23 步）的 barrier 仍须双侧同样拒绝、YAML 不变；新 CLI 的拒绝文案是 Build revision 的
+# 场景 E（第 15 步）的 barrier 仍须双侧同样拒绝、YAML 不变；新 CLI 的拒绝文案是 Build revision 的
 # 类型化 blocker（packages/kernel/src/workflow/build-revision.ts：verify-build-revision-untrusted
 # reason=revision-stale），不再回显裸 SHA。exit/stdout/YAML 照比，只把过期的人读文案列为已知差异。
-# 删掉两个手填评审字段的 set 步之后，后续步序整体前移两位：barrier 现在是第 21 步。
+# 步序（下方计划）：barrier 是第 15 步，第 2 轮的 verify-pass 是第 23 步，其后 ship-complete 第 25 步、
+# archived 第 26 步。下面两份 sidecar 按这组步序号登记，调整计划行时须同步改这里。
 {
-  printf '21\tbarrier 拒绝改为类型化 verify-build-revision-untrusted(revision-stale) blocker；旧 oracle 回显裸 SHA 文案\n'
-  printf '25\t老 oracle 要求已删除的手填评审字段；新 CLI 要求步骤声明的评审者跑过，两侧都不放行\n'
-  printf '27\t承上一步：两侧都停在 verify，只有拒绝文案不同（老按相位、新按边）\n'
-  printf '28\t承上一步：两侧都停在 verify，只有拒绝文案不同（老按相位、新按边）\n'
+  printf '15\tbarrier 拒绝改为类型化 verify-build-revision-untrusted(revision-stale) blocker；旧 oracle 回显裸 SHA 文案\n'
+  printf '23\t老 oracle 要求已删除的手填评审字段；新 CLI 要求步骤声明的评审者跑过，两侧都不放行\n'
+  printf '25\t承上一步：两侧都停在 verify，只有拒绝文案不同（老按相位、新按边）\n'
+  printf '26\t承上一步：两侧都停在 verify，只有拒绝文案不同（老按相位、新按边）\n'
 } > "$target/.oracle-stderr-divergences"
-# 两侧都拒绝第 25 步（老要已删除的字段、新要评审者），只有 exit 码不同。
-printf '25\t老 oracle 要求已删除的手填评审字段；新 CLI 要求步骤声明的评审者跑过，两侧都不放行\n' \
+# 两侧都拒绝第 23 步（老要已删除的字段、新要评审者），只有 exit 码不同。
+printf '23\t老 oracle 要求已删除的手填评审字段；新 CLI 要求步骤声明的评审者跑过，两侧都不放行\n' \
   > "$target/.oracle-exit-divergences"
 
 # P6 起 set/cas 对「当前有效 artifact 相位」的 artifact 字段拒写（改走 tenon artifact register）：
@@ -91,17 +96,15 @@ tr '|' '\t' > "$target/.oracle-plan" <<'PLAN'
 0|get|t6-de|build_sha
 0|seed|t6-de|verification_report|docs/verify.md
 0|set|t6-de|branch_status|handled
-0|transition|t6-de|verify-fail
-0|get|t6-de|build_sha
-0|get|t6-de|verify_result
 0|commit|1
-0|transition|t6-de|build-complete
-0|get|t6-de|build_sha
-0|commit|2
 1|transition|t6-de|verify-pass
 0|get|t6-de|phase
 0|transition|t6-de|verify-fail
+0|get|t6-de|build_sha
+0|get|t6-de|verify_result
+0|commit|2
 0|transition|t6-de|build-complete
+0|get|t6-de|build_sha
 0|transition|t6-de|verify-pass
 0|get|t6-de|verify_result
 0|transition|t6-de|ship-complete

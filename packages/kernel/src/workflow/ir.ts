@@ -213,6 +213,8 @@ export interface StepIR {
   readonly gate: GateKind
   /** 冻结后的 step agent 指令；缺席表示只使用生产 runner 的固定安全 prompt。 */
   readonly prompt?: string
+  /** 验证轮次上限；只在声明时出现，没声明的工作流指纹逐字不变（升级前的冻结计划照常读取）。 */
+  readonly maxRounds?: number
   readonly skills: readonly SkillRef[]
   readonly inputs: readonly FieldRef[]
   readonly outputs: readonly FieldRef[]

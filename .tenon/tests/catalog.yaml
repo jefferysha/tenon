@@ -588,6 +588,16 @@ suites:
       format: exit-code
     tags:
       - slow
+  - id: source-install
+    label: 源码开发安装与漂移检查验收
+    kind: custom
+    runner: custom
+    command: npm run test:source-install
+    timeout_s: 3600
+    report:
+      format: exit-code
+    tags:
+      - slow
 services:
   - id: dashboard-e2e
     start: node e2e/dashboard/support/serve.mjs

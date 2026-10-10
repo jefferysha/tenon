@@ -25,6 +25,12 @@ function short(digest: unknown): string {
   return typeof digest === 'string' && digest.startsWith('sha256:') ? `${digest.slice(7, 15)}…` : '—'
 }
 
+/** 失败后带豁免的以豁免状态为准（已批准 = 完成，等评审批准 = 等人）；其余按测试状态。 */
+function statusTone(row: TestRow): 'done' | 'pending' | 'blocked' | 'neutral' {
+  if (row.waiver !== undefined) return row.waiver === 'waived' ? 'done' : 'pending'
+  return row.status === 'passed' ? 'done' : row.status === 'failed' ? 'blocked' : 'neutral'
+}
+
 /** 一次运行的详情：输入、输出、日志、截图、trace 与历史。产物字节由 server 直供，不在前端拼路径。 */
 export function TestRunDrawer({
   root,
@@ -81,12 +87,12 @@ export function TestRunDrawer({
       open
       onClose={onClose}
       testId="test-run-drawer"
-      ariaLabel={`${row.name} ${testStatusWord(row.status, t)}`}
+      ariaLabel={`${row.name} ${testStatusWord(row.waiver ?? row.status, t)}`}
       title={(
         <span className="flex items-center gap-2">
           <span className="truncate">{row.name}</span>
-          <StatusPill tone={row.status === 'passed' ? 'done' : row.status === 'failed' ? 'blocked' : 'neutral'}>
-            {testStatusWord(row.status, t)}
+          <StatusPill tone={statusTone(row)}>
+            {testStatusWord(row.waiver ?? row.status, t)}
           </StatusPill>
         </span>
       )}

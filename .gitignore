@@ -47,6 +47,7 @@ coverage/
 e2e-runs/
 .agents/
 .codex/
+.claude/
 .impeccable/
 .github/hooks/
 

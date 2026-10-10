@@ -94,7 +94,19 @@ const DESIGN_RESOURCE_REFERENCE_PATHS = [
   /^templates\/resources\//,
 ]
 // 固定的调查记录允许保留产品名作为事实上下文；其余受管理文本仍禁止外部身份。
-const AUDIT_REFERENCE_DOCS = new Set(['docs/research/2026-09-12-runtime-artifact-code-findings.md'])
+// 已归档任务的固定记录（评审报告、台账、任务文档）同理：登记了摘要，不能改写。
+const AUDIT_REFERENCE_DOCS = new Set([
+  'docs/research/2026-09-12-runtime-artifact-code-findings.md',
+  'docs/superpowers/plans/fix-hook-cross-session-isolation.md',
+  'docs/superpowers/reports/fix-hook-cross-session-isolation-verify.md',
+  'openspec/changes/archive/2026-10-10-fix-hook-cross-session-isolation/.pipeline-agent-reports/4c0719b0-3ce3-472d-9de6-57cbfb3f383d.md',
+  'openspec/changes/archive/2026-10-10-fix-hook-cross-session-isolation/.pipeline-agent-reports/63d5b7d4-2216-4179-abf4-ccffd2f3613e.md',
+  'openspec/changes/archive/2026-10-10-fix-hook-cross-session-isolation/.pipeline-agent-reports/8ce552e4-c99c-4060-9441-2fd32dd360e3-A2.md',
+  'openspec/changes/archive/2026-10-10-fix-hook-cross-session-isolation/.pipeline-agent-reports/924da543-4665-4441-b42e-a754d7bceded.md',
+  'openspec/changes/archive/2026-10-10-fix-hook-cross-session-isolation/.pipeline-agent-reports/ae77daa7-134f-4c72-8f58-a8ecb8e11f44.md',
+  'openspec/changes/archive/2026-10-10-fix-hook-cross-session-isolation/.pipeline-agent-runs.jsonl',
+  'openspec/changes/archive/2026-10-10-fix-hook-cross-session-isolation/proposal.md',
+])
 const FIRST_PARTY_GOVERNANCE_FILES = new Set(['.gitattributes'])
 
 function posixPath(path) {

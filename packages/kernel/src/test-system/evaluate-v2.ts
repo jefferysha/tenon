@@ -15,6 +15,7 @@ import { formatCaseRef, fileRefMatches } from './covers.js'
 import {
   STALE_WORDS, evaluateSuiteResult, latestSuiteRuns, staleBindings, type FreshnessContext, type SuiteRunRef,
 } from './evaluate-suite.js'
+import { evaluateInline } from './evaluate-inline.js'
 import { evaluateTrace } from './evaluate-trace.js'
 import type {
   NotApplicableStatus, SuiteVerdict, TestPolicyEvaluationInput, TestPolicyReport, TraceRow,
@@ -225,37 +226,6 @@ function evaluateRunSet(
   return { verdicts, fresh }
 }
 
-function evaluateInline(
-  input: TestPolicyEvaluationInput,
-  latest: ReadonlyMap<string, SuiteRunRef>,
-  freshness: FreshnessContext,
-  out: Collector,
-): SuiteVerdict[] {
-  const verdicts: SuiteVerdict[] = []
-  for (const item of input.inline) {
-    const suite = item.suite
-    const base = { suite: suite.id, origin: 'step' as const, kind: suite.kind, ...(suite.label === undefined ? {} : { label: suite.label }), reason: 'inline' as const }
-    const name = suite.label === undefined ? suite.testId : `${suite.label}（${suite.testId}）`
-    const fix = `tenon test run ${input.change} ${suite.testId}`
-    const ref = latest.get(suite.id)
-    let state = item.status
-    let detail = item.detail
-    if (ref !== undefined && state !== 'running') {
-      const stale = staleBindings(ref, freshness)
-      state = stale.length > 0 ? 'stale' : ref.run.result === 'pass' ? 'passed' : 'failed'
-      detail = stale.length > 0 ? stale.map((binding) => STALE_WORDS[binding]).join('、') : ref.run.reasons.map((reason) => reason.code).join(', ')
-    }
-    verdicts.push({ ...base, state, ...(detail === undefined || detail === '' ? {} : { detail }) })
-    if (!suite.required || state === 'passed') continue
-    const suffix = detail === undefined || detail === '' ? '' : `：${detail}`
-    if (state === 'running') out.blockers.push(testBlocker('test-not-run', `测试 ${name} 运行中`, { subject: suite.id }))
-    else if (state === 'missing') out.blockers.push(testBlocker('test-not-run', `测试 ${name} 未运行`, { fix, subject: suite.id }))
-    else if (state === 'stale') out.blockers.push(testBlocker('test-stale', `测试 ${name} 过期${suffix}`, { fix, subject: suite.id }))
-    else out.blockers.push(testBlocker('test-failed', `测试 ${name} 失败${suffix}`, { fix, subject: suite.id }))
-  }
-  return verdicts
-}
-
 function checkAggregates(
   input: TestPolicyEvaluationInput,
   plan: TestPlan | undefined,
@@ -380,7 +350,7 @@ export function evaluateTestPolicy(input: TestPolicyEvaluationInput): TestPolicy
   }
   const entries = runSet(input, plan)
   const evaluated = evaluateRunSet(input, entries, latest, freshness, plan, chainBroken, out)
-  const inline = evaluateInline(input, latest, freshness, out)
+  const inline = evaluateInline(input, plan, latest, freshness, reviewFix, out)
   checkAggregates(input, plan, evaluated.fresh, out)
   const integrity = checkIntegrity(input, records, out)
   let trace: readonly TraceRow[] = []

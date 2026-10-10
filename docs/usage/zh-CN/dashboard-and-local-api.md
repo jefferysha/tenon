@@ -195,6 +195,8 @@ mutation 端点必须经过 CLI 相同的 schema、CAS、review 和 guard。前�
 
 在 Dashboard 里批准评审还要证明「人在场」：页面会让你二次确认，确认那一下才去请求一次性 nonce（`POST /api/change/<name>/decisions/presence`，绑定你的会话、change、评审 ref 与 revision，30 秒有效、只能用一次），`POST /api/change/<name>/decisions` 必须在 `X-Tenon-Presence` 头里带上它。终端里的 `tenon review acknowledge` 规则不变。
 
+另有两个应答属于验证轮次上限（见 [CLI 参考](./cli-reference.md#验证轮次上限)）。受约束步骤的轮次用完后，`POST /api/change/<name>/transition` 走回退边返回 HTTP `409`，`code: "rounds-exhausted"`，体里带 `step`、`event`、`current`、`max`、`source` 与 `error`；前进边和放弃边不受影响。评审请求冻结了待接受的剩余阻断时，`POST /api/change/<name>/decisions` 返回 HTTP `409`，`code: "residual-pending"`，回执保持待确认：Dashboard 不展示这些阻断，用户要回终端确认，回复放行语（“确认继续”“继续执行”）或运行 `tenon review acknowledge`。
+
 `GET /api/host-targets` 与
 `GET /api/host-target-plan?host=codex&operation=setup` 是严格只读端点，只接受
 Tenon 已注册宿主以及 `setup`/`update` 操作，返回
@@ -217,7 +219,7 @@ lsof -nP -iTCP:18765 -sTCP:LISTEN
 curl -fsS http://127.0.0.1:18765/api/health
 ```
 
-`/api/health` 是唯一不需要会话的 API 读：它带 release 与状态域身份，只监听 18765 的进程不等于就是正确的 Dashboard。其余读（`/api/snapshot` 等）对 `curl` 一律返回 `401`，这是有意的；请用对应的 CLI 命令，或已登录的浏览器。
+`/api/health` 是唯一不需要会话的 API 读：它带 release 与状态域身份，只监听 18765 的进程不等于就是正确的 Dashboard。其余读（`/api/snapshot` 等）对 `curl` 一律返回 `401`，这是有意的；请用对应的 CLI 命令，或已登录的浏览器。它还带 `channel`：正式安装为 `stable`，源码开发安装为 `dev`，此时 `commit` 是 7 位 commit，`displayVersion` 是 `<version>+dev.<sha7>`；`version` 字段本身不变。
 
 页面标题、项目 root 和 Change 必须与目标一致；端口可访问不等于页面就是当前插件。
 

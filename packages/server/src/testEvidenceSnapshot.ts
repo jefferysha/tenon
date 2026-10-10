@@ -76,6 +76,7 @@ export async function projectTestEvidence(input: {
       direction: item.test.direction,
       required: item.test.required,
       status: item.status,
+      ...(item.waiver === undefined ? {} : { waiver: item.waiver }),
       ...(item.run === undefined ? {} : {
         run: {
           runId: item.run.run_id,

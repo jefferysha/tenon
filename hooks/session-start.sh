@@ -204,6 +204,15 @@ if [ -f "$CWD/GOAL.md" ]; then
   append_file "$CWD/GOAL.md" 2
 fi
 
+# ── 源码仓库漂移提示：只在 Tenon 源码仓库里出现；比较在 source-drift.sh（纯 bash + git，fail-open）──
+SOURCE_DRIFT_HELPER="$HOOK_DIR/source-drift.sh"
+if [ -r "$SOURCE_DRIFT_HELPER" ]; then
+  # shellcheck source=source-drift.sh
+  . "$SOURCE_DRIFT_HELPER"
+  SS_DRIFT="$(pipeline_source_drift_message "$CWD" "${TENON_ACTIVE_RELEASE_ID:-}" 2>/dev/null || true)"
+  [ -z "$SS_DRIFT" ] || append_context $'\n'"$SS_DRIFT"$'\n'
+fi
+
 # ── 注入①：工作流宪法（templates/workflow.md，相对插件根；缺文件静默跳过）──
 WF="$PLUGIN_ROOT/templates/workflow.md"
 if [ -f "$WF" ]; then

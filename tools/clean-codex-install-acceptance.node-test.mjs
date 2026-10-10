@@ -6,6 +6,8 @@ import { createConnection, createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
+import { exportDecoyHostRoots } from './lib/decoy-host-roots.mjs'
+import { withoutInheritedRuntimeRoots } from './lib/isolated-tenon.mjs'
 import {
   assertCodexAuthGuidance,
   assertCodexDiscovery,
@@ -33,6 +35,25 @@ import {
   snapshotExternalTenonState,
   waitForHealth,
 } from './clean-codex-install-acceptance.mjs'
+
+/**
+ * The environment an acceptance fixture hands the launcher it drives: the host's, with HOME and TENON_RUNTIME_HOME of the
+ * fixture. The launcher exports the machine's real runtime roots to whatever `tenon test run` starts, and they win over
+ * TENON_RUNTIME_HOME, so they are dropped here (see tools/lib/isolated-tenon.mjs).
+ */
+function fixtureEnv(overrides) {
+  return withoutInheritedRuntimeRoots({ ...process.env, ...overrides })
+}
+
+/** First line of a stub launcher: records which runtime variables it was started with, so a test can see what reached it. */
+const RECORD_RUNTIME_ENV = 'env | grep -E "^TENON_RUNTIME_(ROOTS|DATA_ROOT|STATE_ROOT|CONFIG_ROOT|HOME)=" >> "${TENON_ACCEPTANCE_ENV_LOG:-/dev/null}"\n'
+
+/** Every recorded start saw the fixture's own runtime home and none of the host's roots. */
+async function assertLauncherSawOnlyFixtureRuntimeHome(envLog, runtimeHome) {
+  const seen = (await readFile(envLog, 'utf8')).split('\n').filter((line) => line !== '')
+  assert.ok(seen.length > 0, 'the launcher stub was started')
+  assert.deepEqual([...new Set(seen)], [`TENON_RUNTIME_HOME=${runtimeHome}`])
+}
 
 test('local release fixture mirrors a real tag for ignore rules', () => {
   // Omitting .gitignore made the fixture commit the upstream skills that a real tag never carries;
@@ -709,10 +730,14 @@ test('positive health timeout preserves the final connection error as cause', as
   )
 })
 
-test('verified Dashboard ownership is registered before a later HTML identity failure', async () => {
+test('verified Dashboard ownership is registered before a later HTML identity failure', async (t) => {
+  // The host exports its runtime roots (as the launcher does under `tenon test run`); the launcher must see only the fixture's.
+  const decoy = exportDecoyHostRoots('tenon-dashboard-registration-decoy')
+  t.after(() => decoy.restore())
   const root = await mkdtemp(join(tmpdir(), 'tenon-dashboard-registration-'))
   const launcher = join(root, '.local', 'bin', 'tenon')
   const runtimeHome = join(root, 'runtime')
+  const envLog = join(root, 'launcher-env.log')
   const releaseId = `sha256-${'d'.repeat(64)}`
   const health = {
     ok: true,
@@ -736,6 +761,7 @@ test('verified Dashboard ownership is registered before a later HTML identity fa
     await writeFile(
       launcher,
       '#!/bin/sh\n'
+        + RECORD_RUNTIME_ENV
         + 'if [ "$1" = "runtime" ]; then\n'
         + `  printf '%s\\n' '${JSON.stringify({
           activeValid: true,
@@ -764,7 +790,7 @@ test('verified Dashboard ownership is registered before a later HTML identity fa
     let registered = null
     await assert.rejects(
       assertInstalledRuntime(
-        { ...process.env, HOME: root, TENON_RUNTIME_HOME: runtimeHome },
+        fixtureEnv({ HOME: root, TENON_RUNTIME_HOME: runtimeHome, TENON_ACCEPTANCE_ENV_LOG: envLog }),
         root,
         address.port,
         (current) => { registered = current },
@@ -772,6 +798,8 @@ test('verified Dashboard ownership is registered before a later HTML identity fa
       /Dashboard HTML is not the Tenon product/,
     )
     assert.deepEqual(registered, health)
+    await assertLauncherSawOnlyFixtureRuntimeHome(envLog, runtimeHome)
+    assert.deepEqual(decoy.written(), [])
   } finally {
     await new Promise((resolve) => server.close(resolve))
     await rm(root, { recursive: true, force: true })
@@ -825,6 +853,7 @@ async function signInFixture({ leaky = false, replayable = false } = {}) {
   await mkdir(dirname(launcher), { recursive: true })
   await writeFile(launcher, [
     '#!/bin/sh',
+    RECORD_RUNTIME_ENV.trimEnd(),
     'case "$1" in',
     `  runtime) printf '%s\\n' '${JSON.stringify({
       activeValid: true,
@@ -840,9 +869,12 @@ async function signInFixture({ leaky = false, replayable = false } = {}) {
     '',
   ].join('\n'), 'utf8')
   await chmod(launcher, 0o755)
-  const env = { ...process.env, HOME: root, TENON_RUNTIME_HOME: runtimeHome, TENON_ACCEPTANCE_OPENED_URL: openedFile }
+  const envLog = join(root, 'launcher-env.log')
+  const env = fixtureEnv({
+    HOME: root, TENON_RUNTIME_HOME: runtimeHome, TENON_ACCEPTANCE_OPENED_URL: openedFile, TENON_ACCEPTANCE_ENV_LOG: envLog,
+  })
   return {
-    root, port, env, openedFile,
+    root, port, env, openedFile, envLog, runtimeHome,
     close: async () => {
       await new Promise((resolve) => server.close(resolve))
       await rm(root, { recursive: true, force: true })
@@ -850,7 +882,10 @@ async function signInFixture({ leaky = false, replayable = false } = {}) {
   }
 }
 
-test('Dashboard acceptance signs in the supported way: anonymous 401, one-time link, cookie, then the SPA', async () => {
+test('Dashboard acceptance signs in the supported way: anonymous 401, one-time link, cookie, then the SPA', async (t) => {
+  // The host exports its runtime roots (as the launcher does under `tenon test run`); the launcher must see only the fixture's.
+  const decoy = exportDecoyHostRoots('tenon-dashboard-signin-decoy')
+  t.after(() => decoy.restore())
   const fixture = await signInFixture()
   try {
     let registered = null
@@ -858,6 +893,8 @@ test('Dashboard acceptance signs in the supported way: anonymous 401, one-time l
     assert.equal(result.health.pid, process.pid)
     assert.notEqual(registered, null)
     assert.match(await readFile(fixture.openedFile, 'utf8'), /\/session\/start\?code=one-time-code/u)
+    await assertLauncherSawOnlyFixtureRuntimeHome(fixture.envLog, fixture.runtimeHome)
+    assert.deepEqual(decoy.written(), [])
   } finally {
     await fixture.close()
   }
@@ -902,7 +939,11 @@ test('Dashboard acceptance fails when `tenon dashboard --open` hands the browser
   }
 })
 
-test('failure cleanup discovers and stops an isolated Dashboard before ownership registration', async () => {
+test('failure cleanup discovers and stops an isolated Dashboard before ownership registration', async (t) => {
+  // The host exports its runtime roots (as the launcher does under `tenon test run`); the state scope of the isolated
+  // Dashboard must still come from the fixture's TENON_RUNTIME_HOME.
+  const decoy = exportDecoyHostRoots('tenon-dashboard-late-cleanup-decoy')
+  t.after(() => decoy.restore())
   const root = await mkdtemp(join(tmpdir(), 'tenon-dashboard-late-cleanup-'))
   const runtimeHome = join(root, 'runtime')
   const releaseId = `sha256-${'f'.repeat(64)}`
@@ -917,8 +958,10 @@ test('failure cleanup discovers and stops an isolated Dashboard before ownership
   assert.equal(typeof address, 'object')
   const port = address.port
   await new Promise((resolve) => probe.close(resolve))
-  const env = { ...process.env, TENON_RUNTIME_HOME: runtimeHome }
+  const env = fixtureEnv({ TENON_RUNTIME_HOME: runtimeHome })
   const stateScopeId = isolatedAcceptanceStateScopeId(env)
+  assert.equal(stateScopeId, isolatedAcceptanceStateScopeId({ TENON_RUNTIME_HOME: runtimeHome }), 'derived from the fixture, not from the host roots')
+  assert.notEqual(stateScopeId, isolatedAcceptanceStateScopeId(process.env), 'the control: the host roots would have given another scope')
   await mkdir(releaseRoot, { recursive: true })
   await writeFile(join(releaseRoot, 'release.json'), JSON.stringify({
     version: 1,

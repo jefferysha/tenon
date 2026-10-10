@@ -119,8 +119,9 @@ describe('evaluateStepAgents', () => {
     expect(evaluateStepAgents(input(step, [run({ agent: 'a', candidate: OTHER })])).blockers)
       .toEqual([{ kind: 'reviewer-stale', agent: 'a' }])
     const failing = [run({ agent: 'a', findings: [{ severity: 'high', location: 'a.ts:1', message: '坏' }] })]
+    // 不通过的阻断带着判定所依据的那次运行与候选：剩余阻断的接受绑定的就是这两样。
     expect(evaluateStepAgents(input(step, failing)).blockers).toEqual([{
-      kind: 'reviewer-failed', agent: 'a', blockAt: 'medium',
+      kind: 'reviewer-failed', agent: 'a', blockAt: 'medium', runId: 'r-a', candidate: CANDIDATE,
       blocking: [{ severity: 'high', location: 'a.ts:1', message: '坏' }],
     }])
     expect(evaluateStepAgents(input(step, [run({ agent: 'a' })]))).toEqual({ pass: true, blockers: [] })
@@ -344,5 +345,73 @@ describe('评审者同候选多次运行（F8：重跑刷结论）', () => {
     const views = projectStepAgents(data)
     expect(views.find((view) => view.agent === 'quality')).toMatchObject({ reruns: 0, result: 'pass' })
     expect(views.find((view) => view.agent === 'security')).toMatchObject({ reruns: 1, result: 'fail' })
+  })
+})
+
+describe('剩余阻断：已接受且运行、候选都对得上的不通过不再阻断', () => {
+  const FAIL = [{ severity: 'high' as const, location: 'a.ts:1', message: '越权' }]
+  const failedRun = run({ run_id: 'r1', result: 'fail', findings: FAIL })
+  const step = { reviewers: [reviewer('security', { blockAt: 'medium' })] }
+  const accepted = [{ agent: 'security', runId: 'r1', candidate: CANDIDATE }]
+  const withAccepted = (runs: readonly AgentRunRow[], list = accepted, candidate = CANDIDATE) =>
+    evaluateStepAgents({ ...input(step, runs), candidate, accepted: list })
+
+  it('没有接受记录时与以前一致：不通过就是阻断，结果里没有 accepted 键', () => {
+    const result = evaluateStepAgents(input(step, [failedRun]))
+    expect(result.pass).toBe(false)
+    expect(result).not.toHaveProperty('accepted')
+  })
+
+  it('运行 id 与候选都对得上：放行，并在 accepted 里留一条提示（评审者、运行、发现数）', () => {
+    const result = withAccepted([failedRun])
+    expect(result.pass).toBe(true)
+    expect(result.blockers).toEqual([])
+    expect(result.accepted).toEqual([{ agent: 'security', runId: 'r1', candidate: CANDIDATE, findings: 1 }])
+  })
+
+  it('候选变了（代码变了）：评审者在新候选上重跑仍不通过，原来的接受不再生效', () => {
+    const rerun = run({ run_id: 'r2', result: 'fail', findings: FAIL, candidate: OTHER })
+    const result = withAccepted([failedRun, rerun], accepted, OTHER)
+    expect(result.pass).toBe(false)
+    expect(result.blockers).toEqual([expect.objectContaining({ kind: 'reviewer-failed', runId: 'r2', candidate: OTHER })])
+    expect(result).not.toHaveProperty('accepted')
+  })
+
+  it('接受绑定的候选对不上当前候选：不放行（旧候选上的接受不能带到新候选）', () => {
+    const result = withAccepted([failedRun], [{ agent: 'security', runId: 'r1', candidate: OTHER }])
+    expect(result.pass).toBe(false)
+  })
+
+  it('同一候选上带 rerun_reason 重跑得到新运行：接受只对被接受的那次运行有效，新运行不通过要重新接受', () => {
+    const rerun = run({ run_id: 'r2', result: 'fail', findings: FAIL, rerun_reason: '补充上下文后重跑' })
+    const result = withAccepted([failedRun, rerun])
+    expect(result.pass).toBe(false)
+    expect(result.blockers).toEqual([expect.objectContaining({ kind: 'reviewer-failed', runId: 'r2' })])
+    // 重新接受新运行后放行。
+    expect(withAccepted([failedRun, rerun], [{ agent: 'security', runId: 'r2', candidate: CANDIDATE }]).pass).toBe(true)
+  })
+
+  it('接受绑定到评审者：别的评审者的接受不放行这一个', () => {
+    expect(withAccepted([failedRun], [{ agent: 'quality', runId: 'r1', candidate: CANDIDATE }]).pass).toBe(false)
+  })
+
+  it('接受只覆盖「不通过」：缺失、过期、进行中、宿主不符的评审者照旧阻断', () => {
+    expect(withAccepted([]).blockers).toEqual([{ kind: 'reviewer-missing', agent: 'security' }])
+    expect(withAccepted([run({ run_id: 'r1', candidate: OTHER })]).blockers).toEqual([{ kind: 'reviewer-stale', agent: 'security' }])
+    expect(withAccepted([run({ run_id: 'r1', status: 'running', result: null })]).blockers)
+      .toEqual([{ kind: 'reviewer-running', agent: 'security', runId: 'r1' }])
+  })
+
+  it('执行者不受接受影响；通过的评审者即使有接受记录也不出提示', () => {
+    const passing = run({ run_id: 'r1', result: 'pass', findings: [] })
+    const result = withAccepted([passing])
+    expect(result).toEqual({ pass: true, blockers: [] })
+  })
+
+  it('同一评审者同候选多次运行取最严：被接受的是判定所依据的那次，之后更轻的无原因重跑不改变它', () => {
+    const milder = run({ run_id: 'r2', result: 'pass', findings: [] })
+    const result = withAccepted([failedRun, milder])
+    expect(result.pass).toBe(true)
+    expect(result.accepted).toEqual([expect.objectContaining({ runId: 'r1' })])
   })
 })

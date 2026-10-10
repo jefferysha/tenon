@@ -30,7 +30,9 @@ installed runtime it is the number `tenon doctor` shows as `runtime=`. It needs 
 
 ```text
 tenon setup --<one-host> [--target <dir>] [--auto-update] [--dry-run] [-y]
+tenon setup --claude|--codex --from-source <repo> [--skip-build] [--dry-run]
 tenon update --<one-host> [--target <dir>] [--dry-run] [-y] [--auto]
+tenon update --claude|--codex --to-stable [--dry-run] [-y]
 tenon host-target-plan [--host <registered-host> --operation <setup|update>] --json
 tenon runtime status [--json]
 tenon runtime repair --rollback [--json]
@@ -38,6 +40,26 @@ tenon dashboard [--port <port>] [--background] [--open] [--dry-run]
 tenon doctor [--json]
 tenon uninstall [--dry-run] [-y]
 ```
+
+`tenon setup --claude|--codex --from-source <repo>` is the source development install, for working inside a Tenon
+checkout. It builds the checkout (`npm --prefix <repo> run build`, skipped by `--skip-build`), fetches any missing
+upstream skills and the local `skills/skills.lock.json` index from `skills/sources.yaml` (the whole command aborts
+before any host change if that fetch fails), registers the checkout directory as the `tenon` marketplace, and
+publishes a managed runtime whose manifest records `devSource` (commit, `dirty`, a content digest of the installed
+files, a digest of the skills index) instead of a stable tag. It never poses as a release: the plugin version stays
+the checkout's `plugin.json` version and only `/api/health` shows `<version>+dev.<sha7>`. A development install turns
+auto-update off, `tenon update` refuses it, and `tenon update --claude|--codex --to-stable` switches back to the
+latest stable release. Without `--from-source`, setup and update behave exactly as before and accept only stable
+tags. `tenon doctor` reports `identity:release` as a warning for a development install and `source:drift` when the
+checkout no longer matches what is installed. `--from-source` combines with exactly one of `--claude` / `--codex`,
+not with adapter hosts or `--auto-update`.
+
+Known risk: `--from-source` runs the build of the checkout you give it (`npm --prefix <repo> run build`) and fetches
+upstream skills from that checkout's `skills/sources.yaml`. It then installs that checkout's hooks and skills into the
+host for good, so they run in every later session. Whether a directory counts as a Tenon repository is decided only by
+that checkout's own files, and nothing asks for extra confirmation when an agent starts the command. It carries the
+same weight as any other command an agent can run: it is an explicit developer command, so use it only on a checkout
+you trust.
 
 `tenon dashboard --open` signs you in: the running (or freshly started) server opens your
 browser itself with a one-time login link that is never returned to the command, so the
@@ -118,6 +140,41 @@ derived handoff artifact, not a replacement canonical document; repair stale
 inputs with `tenon document record` under an allowed producer and then
 re-run the handoff.
 
+### Verification round limit
+
+A step that has a review gate and at least one return edge (in the default workflow, Verify with `verify-fail`) is limited in how many rounds it is verified. A round is one entry into the step since the count was last reset, the current one included: the first entry is round 1, and every `verify-fail` back to Build followed by `build-complete` enters Verify again. The count starts again from 1 when the task lands on a step earlier than every return target (in `default`, through `requirements-changed` back to Spec). Deleting a marker, rerunning a command or switching agent never resets it.
+
+The limit comes from three places, the later one winning: the built-in 2 (a limited step that declares nothing, such as a step of a custom workflow or of a plan frozen before the key existed), the step's `max_rounds` key (the default workflow declares 2 on the Verify step of every track, see [Default workflow](default-workflow.md#verification-round-limit)), and the task field `max_rounds`.
+
+```text
+tenon set <change> max_rounds <N>
+tenon get <change> max_rounds
+```
+
+`set` accepts an integer from 1 to 20; anything else exits `1` and writes nothing, and the write is recorded in the change history. `get` prints an empty line while the field was never set. The value applies to every limited step of that task. Raising the limit is the user's decision: an agent runs `set max_rounds` only when the user explicitly says so. Because the write changes the task state, a review request that is already open or approved becomes invalid: read `step.next` again and run `tenon review request` again. A value at or below the current round counts as used up at once; only a value above it brings the return edge back.
+
+`tenon status <change> --json` reports the count in `step.rounds`, right after `exits`:
+
+```json
+"rounds": { "current": 2, "max": 2, "source": "workflow" }
+```
+
+`source` is `workflow` (the step's `max_rounds`), `default` (the built-in 2) or `task` (the task field). The value is `null` on steps that are not limited (Build, a review gate without a return edge) and on a finished task.
+
+When `current` has reached `max` and a required test or a required reviewer still fails, the step stops going back by itself:
+
+- `step.next` no longer returns `request-review`, `choose-exit` or `transition` for the return edge. If only required reviewers fail, or every failing required test is waived, it returns `request-review` for the forward edge with three extra fields: `residual` (the failing reviewers, as `reviewer:<agent>`), `rounds` and `alternatives` (the other ways out). If a required test fails without a waiver, it returns `stop` with `code: rounds-exhausted`; its `message` names the failing tests and says a step-test waiver can be registered first. Both list the other three ways out: raise the limit (the user's decision), return to Spec, or end the task. Returning to Spec takes two steps because the limited step has no direct edge for it (every return edge it declares is itself a return target, so landing there does not reset the count, and once the rounds are used up those edges are refused too): after the user raises the limit, go back through the return edge `verify-fail` to Build, then run `tenon transition <change> requirements-changed` on Build; once the task is in Spec the count starts again from round 1 and the user can lower `max_rounds` again. On a custom workflow the text names the return edge and the event of the return target that lands on an earlier step from the plan; when no step is earlier than every return target it says that going back would not reset the count.
+- `step.exits[]` shows the return edge as `ready: false` with the blocker `{ "source": "guard", "code": "rounds-exhausted", "message": … }`. Forward edges and the abandon edge `scope-expanded` are unchanged.
+- `tenon review request <change> --event <return event>` and `tenon transition <change> <return event>` exit `1`, write nothing, and print the rounds used, the limit and `tenon set <change> max_rounds <N>`. The Dashboard transition answers HTTP `409` with `code: "rounds-exhausted"` (and `step`, `event`, `current`, `max`, `source`). Return edges of steps that are not limited, such as `requirements-changed` on Build, stay available.
+- Before the limit is used up nothing changes: the return edge is offered and refused exactly as before.
+
+**Accepting residual blockers.** On a step whose rounds are used up, `tenon review request <change> --event <forward event>` lets the required reviewers that fail on the current candidate through instead of refusing the request. It freezes each of them in `.pipeline-review-waivers.json` as a pending residual blocker (key `reviewer:<agent>`, the reviewer run, the code candidate and the blocking findings) and prints them one by one with their findings; show that output to the user together with `alternatives`. Before the limit is used up a failing required reviewer still refuses the request.
+
+- Only a human confirmation accepts them: the user's approval phrase ("确认继续", "继续执行"), or `tenon review acknowledge <change>` run by the user in their own terminal. It writes the acceptance under the same lock as the approved receipt and appends one `review.residual-accepted` row per reviewer to the change history (reviewer, run, candidate, findings, the confirming user, and `summary=`: the findings summary frozen with the request, at most 5 entries joined by `|`, with any `|` inside an entry replaced by a full-width `｜`, each entry sanitized). `tenon check` then prints a `[WARN]` line for the accepted reviewer instead of blocking, and `tenon transition <change> <forward event>` is no longer refused because of it.
+- `review acknowledge --delegated` and AFK mode never accept them: while a residual blocker is pending the command is refused, nothing is written and the review stays pending. The Dashboard review console does not list them either, so its Approve answers HTTP `409` with `code: "residual-pending"`; confirm in the terminal.
+- The acceptance is bound to the reviewer's run and to the code candidate it was given for. A code change, or a new run of that reviewer (a rerun with `--rerun-reason` included), ends it: the forward edge is blocked by that reviewer again and the request has to be made and confirmed again. When an approved receipt does not cover the current verdict, `step.next` returns `fix` with the blocker `residual-unaccepted`; run `tenon review revoke <change> --reason <reason>` and request the review again.
+- Residual blockers cover reviewers only. A failing required test is still handled by a step-test waiver (`tenon test waive <change> --test <step-test-id> --reason <text>`), which the same review request can list together with the residual blockers.
+
 ## Identity and ownership
 
 ```text
@@ -154,8 +211,8 @@ tenon test register <change> --auto
 tenon test register <change> --suite <id> [--scope full|changed|files|grep] [--pattern <regex>] [--select-file <path>]…
 tenon test register <change> --file <path>… [--suite <id>] [--kind <kind>]
 tenon test register <change> --case <covers> --test "<file › name>"…
-tenon test unregister <change> --suite <id> | --file <path> | --case <covers> [--test <ref>] | --waiver <kind|covers>
-tenon test waive <change> (--kind <k> | --covers <covers>) --reason <text>
+tenon test unregister <change> --suite <id> | --file <path> | --case <covers> [--test <ref>] | --waiver <kind|covers|test:step-test-id>
+tenon test waive <change> (--kind <k> | --covers <covers> | --test <step-test-id>) --reason <text>
 tenon test sync <change> [--json]
 tenon test trust [<change>] [--yes] [--status] [--json]
 tenon test run <change> [--suite <id>]… [--kind <k>]… [--stage [<step>]] [--all] [--changed] [--json]
@@ -203,6 +260,20 @@ takes effect only after one human confirmation: `review request` lists it as
 `--delegated`) approves it and records the approver in `approved_by`; until then the policy
 still requires the kind and reports `waiver-unapproved`. Changing the reason clears the
 approval.
+
+When a required step test (for example `code-size`) has failed and the user decides to let it
+through, register a step-test waiver with
+`tenon test waive <change> --test <step-test-id> --reason <text>`. The id must be a test declared by a step of the change's workflow, otherwise
+the command exits 2 and lists the available ids; the step must declare a `test_policy` for the
+waiver to be judged. It is the same mechanism as a kind waiver: it is written into the plan,
+listed with its reason as `test:<id>` by `review request`, and approved together by the human
+confirmation of that review gate; until then `waiver-unapproved` still blocks the exit. After
+registration `step.next` stops issuing `run-test` and goes on to the reviewers and
+`request-review` as usual; the reviewer prompt (rendered in Chinese) carries a
+`豁免（已批准|待评审批准）：<reason>` line (waiver, approved or awaiting review approval) under that
+test's result. A waiver only covers a fresh failed record: a test that was not run, is running
+or is stale keeps blocking, and a code change means running it again.
+`test unregister <change> --waiver test:<id>` withdraws it.
 
 `test discover` scans package scripts and tool configs (vitest, jest, mocha, node:test,
 Playwright, tsc, eslint, pytest, go) and prints suggested suites with reporter flags that
@@ -565,6 +636,7 @@ tenon document status <change> [--json]
 tenon artifact register <change> <field> <path> --producer <skill-id>
 tenon review request <change> --event <event>
 tenon review acknowledge <change> [--delegated] [--as reviewer]
+tenon review revoke <change> --reason <text>
 tenon agent next <change> [--json]
 tenon agent prompt <change> <agent> [--host <id>] [--rerun-reason <text>] [--json]
 tenon agent record <change> <run-id> [--subagent <type>] [--host <id>] [--json]
@@ -658,6 +730,8 @@ revision conflict (Dashboard CAS path only); `4` idempotency conflict; `1`
 invalid command (for example an `--event` that differs from the pending
 receipt) or unexpected error. A failed acknowledgement writes nothing.
 
+`review revoke <change> --reason <text>` withdraws an approval given by mistake. It turns the current step's approved, not yet consumed receipt back into a pending one for the same event (same `requestedAt` and binding), rewrites the review marker so the gate holds again, and appends a `review.revoked` row (actor, reason, receipt id, event) to the change history. Only the task owner may run it, and `--reason` is required (one line, at most 200 characters). It refuses and writes nothing when the reason is missing, when the receipt is already pending, when there is none, or when a transition already consumed it (exit `1`). If the decision state changed after the approval, the next `review acknowledge` fails on the stale binding; run `review request` for the same event to refresh it.
+
 `review request` also freezes and lists the test-plan waivers that are still
 unapproved (`waivers[].approved_by` empty). A human `review acknowledge` writes
 `approved_by` for exactly those waivers in the same lock as the approved
@@ -670,7 +744,9 @@ Approve is the same human confirmation: it lists and approves the same frozen li
 `test:baseline-update` lines the same way. The same frozen list carries the protected
 test-configuration changes of the change (catalog, baselines, known failures, project
 workflows) described under *Trust root of test evidence*; approving them leaves a
-`test:protected-approve` line.
+`test:protected-approve` line. Once a step's verification rounds are used up, the same
+frozen list also carries the required reviewers that still fail as residual blockers;
+see [Verification round limit](#verification-round-limit).
 
 Document structures and project-level spec scaffolds default to Chinese. English
 is explicit:

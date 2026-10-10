@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { InteractionEventRecordDraft } from '../interaction/ports.js'
 import {
+  REVIEW_GATE_PENDING,
   reviewGateApprovalPatch,
   reviewGateApprovedFor,
   reviewGateEvent,
@@ -189,7 +190,10 @@ export async function executeReviewAcknowledge(ports: ReviewAcknowledgePorts): P
       if (prior.kind === 'conflict') {
         return failure(anchor, 'idempotency-conflict', 'idempotency key is already bound to another decision')
       }
-      if (prior.kind === 'replay') {
+      // 账本里的已批准记录只在回执仍是已批准（或已被消费）时才代表「重复确认」。回执又变回 pending（`tenon review
+      // revoke` 沿用同一 requestedAt / 绑定 / 摘要，终端与 delegated 的 key 因此不变）时，旧记录不能替它回答：
+      // 走正常路径重新批准，并追加新的账本记录（同 key、同 payload，lookup 取第一条，两条等价）。
+      if (prior.kind === 'replay' && reviewGateStatus(state) !== REVIEW_GATE_PENDING) {
         const deferred: ReviewAcknowledgeDeferred[] = []
         if (event !== '') await attempt(deferred, 'review-marker-clear', () => ports.clearMarker(event))
         const replayRef = command.channel === 'dashboard' && command.ref !== ref.id

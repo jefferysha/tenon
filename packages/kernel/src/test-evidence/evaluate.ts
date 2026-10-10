@@ -20,10 +20,11 @@ import { renderPolicyBlockers } from '../test-system/evaluate-v2.js'
 import type { ChangedFilesSource, TestPolicyReport } from '../test-system/evaluate-types.js'
 import { portableCandidate } from '../test-system/candidate.js'
 import { evaluateStepTestPolicy } from '../test-system/load.js'
+import type { StepTestFailure, StepTestFailures } from '../test-system/plan-waivers.js'
 import type { RecordChainCache } from '../test-system/record-chain.js'
 import type { IntegrityDiffSource } from '../test-system/integrity-diff.js'
 import type { ProtectedChange } from '../test-system/protected-files.js'
-import { inlineSuiteFromTest } from '../test-system/policy.js'
+import { inlineSuiteFromTest, inlineSuiteId } from '../test-system/policy.js'
 import { declaresRecordV2, decodeTestRunRecordV2 } from '../test-system/record-v2-codec.js'
 
 export type TestItemStatus = 'passed' | 'failed' | 'stale' | 'missing' | 'running'
@@ -62,6 +63,28 @@ export interface TestEvidenceItem {
   readonly status: TestItemStatus
   readonly run?: TestRunRecordV1
   readonly staleBecause?: 'candidate' | 'declaration' | 'workflow'
+  /**
+   * 计划里 `test:<id>` 豁免对这条失败记录的判定（取自策略判定的 verdict，`status` 仍是原来的失败）：
+   * `waived` = 已经评审批准、放行；`waiver-pending` = 等评审确认时批准。只在必需测试的新鲜失败上出现。
+   */
+  readonly waiver?: 'waived' | 'waiver-pending'
+  /** 仅带 `waiver` 时：这条新鲜失败记录绑定的代码候选；豁免的批准绑定它（见 SuiteVerdict.failedCandidate）。 */
+  readonly failedCandidate?: string
+}
+
+/** 这一项不再要求重跑：已经通过，或失败但有豁免（待批准的由评审请求列给用户，已批准的放行）。 */
+export function testItemSettled(item: Pick<TestEvidenceItem, 'status' | 'waiver'>): boolean {
+  return item.status === 'passed' || item.waiver !== undefined
+}
+
+/**
+ * 当前步骤各测试新鲜失败的豁免事实（键为步骤测试 id）：评审请求据此把「批准绑定的代码已不是现在这份」的 `test:` 豁免
+ * 再次列给用户并带上候选（见 plan-waivers.ts 的 `pendingWaivers`）。没有豁免的测试不在其中。
+ */
+export function stepTestFailuresOf(items: readonly Pick<TestEvidenceItem, 'test' | 'waiver' | 'failedCandidate'>[]): StepTestFailures {
+  return new Map(items.flatMap((item): [string, StepTestFailure][] => item.waiver === undefined
+    ? []
+    : [[item.test.id, { state: item.waiver, ...(item.failedCandidate === undefined ? {} : { candidate: item.failedCandidate }) }]]))
 }
 
 /**
@@ -331,7 +354,14 @@ export async function evaluateTestEvidence(input: {
       ...(event === undefined ? {} : { exitEvent: event }),
     })
     const blockerDetails = report.blockers.filter((item) => item.blocking).map(policyBlockerDetail)
-    return { stepId: input.stepId, pass: report.pass, blockers: renderPolicyBlockers(report), blockerDetails, items, policy: report }
+    return {
+      stepId: input.stepId,
+      pass: report.pass,
+      blockers: renderPolicyBlockers(report),
+      blockerDetails,
+      items: items.map((item) => withWaiver(item, report)),
+      policy: report,
+    }
   }
   const open = items.filter((item) => item.test.required && item.status !== 'passed')
   const blockers = open.map((item) => blockerFor(item, input.changeName))
@@ -341,6 +371,13 @@ export async function evaluateTestEvidence(input: {
   return { stepId: input.stepId, pass: blockers.length === 0, blockers, blockerDetails, items }
 }
 
+/** 把策略判定里该测试的豁免状态（waived / waiver-pending）与失败记录的候选带到这一项上；没有豁免的原样返回。 */
+function withWaiver(item: TestEvidenceItem, report: TestPolicyReport): TestEvidenceItem {
+  const verdict = report.suites.find((suite) => suite.origin === 'step' && suite.suite === inlineSuiteId(item.test.id))
+  if (verdict?.state !== 'waived' && verdict?.state !== 'waiver-pending') return item
+  return { ...item, waiver: verdict.state, ...(verdict.failedCandidate === undefined ? {} : { failedCandidate: verdict.failedCandidate }) }
+}
+
 /** 与 `renderPolicyBlockers` 同一过滤与顺序：测试完整性与读不到改动带结构化状态，其余策略阻断没有。 */
 function policyBlockerDetail(blocker: TestBlocker): TestBlockerDetail | undefined {
   if (blocker.code === 'test-integrity') return { state: 'integrity' }
@@ -348,9 +385,15 @@ function policyBlockerDetail(blocker: TestBlocker): TestBlockerDetail | undefine
   return undefined
 }
 
-function inlineDetail(item: TestEvidenceItem): { readonly detail?: string } {
+/** 并入策略判定的内联状态附带的细节；失败时另带那条记录绑定的候选（豁免批准核对它）。 */
+function inlineDetail(item: TestEvidenceItem): { readonly detail?: string; readonly candidate?: string | null } {
   if (item.status === 'stale') return { detail: staleWord(item.staleBecause) }
-  if (item.status === 'failed') return { detail: (item.run?.reasons ?? []).map((reason) => reason.code).join(', ') }
+  if (item.status === 'failed') {
+    return {
+      detail: (item.run?.reasons ?? []).map((reason) => reason.code).join(', '),
+      ...(item.run === undefined ? {} : { candidate: item.run.candidate }),
+    }
+  }
   return {}
 }
 

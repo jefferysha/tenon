@@ -12,6 +12,7 @@ import {
 import { RuntimeReleaseStore } from './release-store.js'
 import type {
   RuntimeActivation,
+  RuntimeDevSource,
   RuntimePaths,
   RuntimeReleaseSource,
   RuntimeStableReleaseTarget,
@@ -46,6 +47,7 @@ async function activateWithinTransaction(
   host: RuntimeReleaseSource['host'],
   expectedPluginVersion?: string,
   stableTarget?: RuntimeStableReleaseTarget,
+  devSource?: RuntimeDevSource,
 ): Promise<RuntimeActivation> {
   const store = new RuntimeReleaseStore({
     paths,
@@ -57,7 +59,7 @@ async function activateWithinTransaction(
   const launcherSnapshot = await captureStableLaunchers(paths, homeDir)
   verifyTrustedNode?.()
   const launcherCommitted = expectedStableLaunchers(paths, homeDir, trustedNodePath, trustedNodeProof)
-  const activation = await store.stageAndActivate(candidateRoot, host, expectedPluginVersion, stableTarget)
+  const activation = await store.stageAndActivate(candidateRoot, host, expectedPluginVersion, stableTarget, devSource)
   try {
     await writeStableLaunchers(paths, homeDir, {
       checkpoint: launcherSnapshot,
@@ -337,7 +339,7 @@ async function withExclusiveRuntimeTransaction<T>(
         scope.trustedNodeProof,
         scope.verifyTrustedNode,
       ),
-    activate: (candidateRoot, host, expectedPluginVersion, stableTarget) =>
+    activate: (candidateRoot, host, expectedPluginVersion, stableTarget, devSource) =>
       activateWithinTransaction(
         paths,
         scope.homeDir,
@@ -350,6 +352,7 @@ async function withExclusiveRuntimeTransaction<T>(
         host,
         expectedPluginVersion,
         stableTarget,
+        devSource,
       ),
     recoverActivation: (checkpoint, host) =>
       recoverActivationWithinTransaction(

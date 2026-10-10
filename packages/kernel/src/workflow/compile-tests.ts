@@ -54,8 +54,13 @@ function rejectExtraKeys(record: Record<string, unknown>, allowed: ReadonlySet<s
   }
 }
 
+/** 步骤测试 id / direction 的合法写法：a-zA-Z0-9_-，1–64 字符（编译时校验与计划里的 `test:` 豁免共用这一处）。 */
+export function isStepTestId(value: unknown): value is string {
+  return typeof value === 'string' && IDENT_RE.test(value) && value.length <= 64
+}
+
 function identifier(value: unknown, path: string, what: string): string {
-  if (typeof value !== 'string' || !IDENT_RE.test(value) || value.length > 64) {
+  if (!isStepTestId(value)) {
     compileError(path, `测试 ${what} '${String(value)}' 含非法字符（仅允许 a-zA-Z0-9_-）`)
   }
   return value

@@ -6,7 +6,7 @@
  */
 import { readFile } from 'node:fs/promises'
 import {
-  defaultEventGuardFields, isForwardExit, isTenonUser, phaseExitGuardFields, readSpecApplyReceiptStatus, reviewGateEvent,
+  defaultEventGuardFields, isTenonUser, phaseExitGuardFields, readSpecApplyReceiptStatus, reviewGateEvent,
   reviewGateMatches, reviewGateStatus, userProjectPaths, userSlug,
   type EffectiveWorkflowPlan, type EventName, type PipelineState,
 } from '@tenon/kernel'
@@ -23,7 +23,7 @@ import {
 } from './statusStepParts.js'
 import { effectiveArtifactFields } from './effective-artifacts.js'
 import { effectiveArtifactProducers } from './artifact.js'
-import { retiredSkillReferences, retiredSkillsChangeMessage } from '@tenon/kernel'
+import { retiredSkillReferences, retiredSkillsChangeMessage, testItemSettled } from '@tenon/kernel'
 import { testEvidenceContextFor, testEvidenceReaderFor } from '../testEvidenceContext.js'
 import { currentCandidate } from './candidate.js'
 import { unconfiguredMessage, unconfiguredNpmScript } from '../test-runner/npmScript.js'
@@ -31,12 +31,15 @@ import { SPEC_APPLY_RECEIPT } from './specApply.js'
 import { PR_URL_NO_REMOTE, repositoryHasNoRemote } from './prUrlField.js'
 import {
   stepNextActions, stop,
-  type StepAction, type StepCommit, type StepFinishFacts, type StepMode, type StepNextInput, type StepTestConfigGap,
-  type StepTestView,
+  type StepAction, type StepCommit, type StepFinishFacts, type StepMode, type StepNextInput, type StepTestView,
 } from './statusStepNext.js'
+import { PLAN_DOCUMENT_KINDS, testConfigGaps } from './statusStepTestConfig.js'
 import { deliveryCommit, finishedStop } from './statusStepFinish.js'
 import { buildStepTestFlow } from './statusStepTestFlow.js'
 import { stepEscalation } from './statusStepEscalation.js'
+import { stepRounds, type StepRounds } from './statusStepRounds.js'
+import { blockExhaustedBackExits } from './statusStepRoundsActions.js'
+import { roundsRoute } from './statusStepRoundsRoute.js'
 import { trustAnnotated } from './statusStepTrust.js'
 
 export interface StepBlock {
@@ -65,6 +68,8 @@ export interface StepBlock {
   readonly fields: readonly StepFieldView[]
   readonly review: { readonly status: string; readonly event: string | null }
   readonly exits: readonly StepExit[]
+  /** 验证轮次：{ current, max, source }；不受上限约束的步骤（没有评审门或没有回退边）为 null。 */
+  readonly rounds: StepRounds | null
   readonly next: readonly StepAction[]
 }
 
@@ -169,69 +174,6 @@ async function deliveryFacts(
   return { delivery: deliveryCommit(name, git), settle: deliveryCommit(name, git, 'step') }
 }
 
-/** 计划步：本步产出计划文档（plan / superpower-plan）。它之后所有步骤的测试配置都在这里提出。 */
-const PLAN_DOCUMENT_KINDS: ReadonlySet<string> = new Set(['plan', 'superpower-plan'])
-
-/** 从 stepId 沿前进边能走到的所有步骤（不含它自己）。 */
-function downstreamSteps(plan: EffectiveWorkflowPlan, stepId: string): ReadonlySet<string> {
-  const reached = new Set<string>()
-  const queue = [stepId]
-  while (queue.length > 0) {
-    const from = queue.shift() ?? ''
-    const step = plan.workflow.steps.find((candidate) => candidate.id === from)
-    for (const transition of step?.transitions ?? []) {
-      const to = transition.to
-      if (to === stepId || reached.has(to) || !isForwardExit(plan, from, to, transition.event)) continue
-      reached.add(to)
-      queue.push(to)
-    }
-  }
-  return reached
-}
-
-/**
- * 本步与下一步（前进边指向的步骤）声明的必需测试里未配置的那些；计划步看之后所有步骤——测试配置
- * 要进计划，而不是到实现步才发现、再改写已登记的计划。本步已通过的不算；后续步骤的测试还没有自己
- * 的证据，只看命令配没配。
- */
-async function testConfigGaps(
-  deps: CliDeps,
-  plan: EffectiveWorkflowPlan,
-  stepId: string,
-  tests: readonly StepTestView[],
-  exits: readonly StepExit[],
-  planning: boolean,
-): Promise<readonly StepTestConfigGap[]> {
-  // 计划步：测试脚本与测试是这次改动的一部分，要写进本步能改的规格文档（proposal 的变更与影响、
-  // design），不能只进计划——真机第四轮：proposal 没列、design 还写着「不改 package.json」，verify 的
-  // 规格一致性评审据此判「多做」阻断，verify-fail 之后 build 改不了 proposal，只能回到 spec。
-  const scope = planning
-    ? '只需在 package.json 补上脚本；这类测试若还没有，把「写这类测试」列进本步的计划与 tasks，在实现步完成。'
-      + '新增的测试脚本（以及要写的测试）同步写进本步可改的规格文档：proposal 的 What Changes / Impact 与 design，'
-      + '并删掉与之相矛盾的表述（例如「不改 package.json」）——否则之后的规格一致性评审会把它当成规格之外的改动。'
-    : '只需补 package.json 的 scripts（以及这条脚本要跑的测试代码），不需要修改已登记的规格文档'
-      + '（proposal / design / plan 等）——改了它们就只能回到规格步重新评审。'
-  const gaps: StepTestConfigGap[] = tests
-    .filter((test) => test.required && test.status === 'unconfigured' && test.hint !== undefined)
-    .map((test) => ({ id: test.id, step: stepId, hint: `${test.hint ?? ''}${scope}` }))
-  const ahead = planning
-    ? downstreamSteps(plan, stepId)
-    : new Set(exits.filter((exit) => exit.direction === 'forward' && exit.to !== stepId).map((exit) => exit.to))
-  for (const step of plan.workflow.steps) {
-    if (!ahead.has(step.id)) continue
-    for (const test of step.tests ?? []) {
-      if (!test.required || gaps.some((gap) => gap.id === test.id)) continue
-      const gap = await unconfiguredNpmScript(deps.cwd, test)
-      if (gap !== undefined) {
-        const hint = `${unconfiguredMessage(test.id, test.command, gap)}`
-          + `（后续步骤 '${step.id}' 的必需测试，先在本步配置好）${scope}`
-        gaps.push({ id: test.id, step: step.id, hint })
-      }
-    }
-  }
-  return gaps
-}
-
 export async function buildStatusStep(
   deps: CliDeps,
   name: string,
@@ -253,13 +195,13 @@ export async function buildStatusStep(
   })
   const tests: readonly StepTestView[] = await Promise.all(testReport.items.map(async (item) => {
     // 还没通过、且命令要的 npm 脚本在项目里不存在：这是「未配置」，不是「未运行」——run-test 只会
-    // 被拒，next 在步骤入口就把它作为待配置项提出来。
-    const gap = item.status === 'passed' ? undefined : await unconfiguredNpmScript(deps.cwd, item.test)
+    // 被拒，next 在步骤入口就把它作为待配置项提出来。失败后带豁免的（waived / waiver-pending）已有处置，不查。
+    const gap = testItemSettled(item) ? undefined : await unconfiguredNpmScript(deps.cwd, item.test)
     return {
       id: item.test.id,
       direction: item.test.direction,
       required: item.test.required,
-      status: gap === undefined ? item.status : 'unconfigured',
+      status: item.waiver ?? (gap === undefined ? item.status : 'unconfigured'),
       run_id: item.run?.run_id ?? null,
       ...(gap === undefined ? {} : { hint: unconfiguredMessage(item.test.id, item.test.command, gap) }),
     }
@@ -277,9 +219,12 @@ export async function buildStatusStep(
   const specApply = await readSpecApplyReceiptStatus(deps.cwd, dir)
   const retired = retiredSkillReferences(plan)
   const testFlow = await buildStepTestFlow(
-    deps, name, dir, testReport.policy, documents,
+    deps, name, dir, testReport, documents,
     review.status === 'pending' ? str(state.fields.review_requested_at) : null,
   )
+  const rounds = await stepRounds(deps, dir, state, plan, stepId)
+  // 用完后回退边不再算就绪（命令会拒绝它）；`rounds` 与 `exits` 是同一个事实的两个面。
+  const exits = blockExhaustedBackExits(name, report.exits, rounds)
   const block: Omit<StepBlock, 'next'> = {
     schema: 'tenon-step-v1',
     change: name,
@@ -301,7 +246,8 @@ export async function buildStatusStep(
     documents,
     fields,
     review,
-    exits: report.exits,
+    exits,
+    rounds,
   }
   if (archived) return { ...block, next: stop('archived', `任务 '${name}' 已归档；先取消归档再继续`) }
   if (retired.length > 0) {
@@ -329,7 +275,7 @@ export async function buildStatusStep(
       mode: block.mode,
       runArchived: str(state.fields.archived) === 'true',
       governedOpenspec: plan.capabilities.documents.governed,
-      exits: report.exits,
+      exits,
       specRehearsalPending: !specApply.rehearsed,
       // 彩排与应用是两件事：`--dry-run` 也写同一份 result=pass 的回执，只认 result 就等于让一次
       // 彩排顶替一次应用，ship 于是去铺 applied-spec 骨架而不是真的把 delta 应用进主规格。
@@ -342,6 +288,8 @@ export async function buildStatusStep(
         documents.records.some((doc) => PLAN_DOCUMENT_KINDS.has(doc.kind))),
       ...await deliveryFacts(deps, name, state, fields),
       escalation: stepEscalation(testReport.items, report.exits),
+      rounds,
+      roundsRoute: rounds === null ? null : roundsRoute(plan, stepId),
       reviewBar: await downstreamReviewBar(dir, state, plan, stepId,
         report.exits.filter((exit) => exit.direction === 'forward').map((exit) => exit.to)),
       ...(testFlow === undefined ? {} : { testFlow }),
@@ -384,6 +332,7 @@ export async function finishedStatusStep(
     fields: [],
     review: { status: 'none', event: null },
     exits: [],
+    rounds: null,
     next: finishedStop(name),
   }
 }

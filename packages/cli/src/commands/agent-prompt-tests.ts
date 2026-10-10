@@ -13,6 +13,9 @@ const STATE_WORD: Readonly<Record<SuiteVerdict['state'], string>> = {
   stale: '过期',
   missing: '未运行',
   running: '运行中',
+  // 豁免只出现在旧步骤内联测试上；摘要只列目录套件，这两项不会用到，类型要求闭集。
+  waived: '已豁免',
+  'waiver-pending': '豁免待批准',
 }
 
 /** 单行里最多列出的用例数；其余折成「等 N 个」，提示词不随大型套件膨胀。 */

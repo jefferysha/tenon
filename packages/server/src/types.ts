@@ -258,6 +258,10 @@ export interface HealthInfo {
   pid?: number
   /** Managed release transaction owner; absent for an ordinary dashboard process. */
   transactionId?: string
+  /** 发布渠道：stable，或 tenon setup --from-source 的源码开发安装 dev（此时 commit 是 7 位 commit，displayVersion 为 `<version>+dev.<sha7>`，version 本身不变）。 */
+  channel?: 'stable' | 'dev'
+  commit?: string
+  displayVersion?: string
 }
 
 export type PreemptDecision = 'bind' | 'reuse' | 'preempt'
@@ -274,6 +278,7 @@ export interface DashboardServerOptions {
   version?: string
   /** Immutable managed-release identity used to refresh a same-semver dashboard safely. */
   releaseId?: string
+  channel?: import('./version.js').ReleaseChannel // 来自 payload 兄弟 release.json；缺省 = 正式版
   /** Managed release transaction owner; absent for ordinary dashboard starts. */
   transactionId?: string
   /**

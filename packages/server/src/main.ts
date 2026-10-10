@@ -23,7 +23,7 @@ import { candidateFingerprint, createOrchestrationLedger, machineStateScopeId, s
 import { createDashboardServer } from './server.js'
 import { resolveServerPaths } from './paths.js'
 import { decidePreemption, preemptOldServer, probeHealth } from './preempt.js'
-import { resolvePayloadReleaseId, resolveReleaseVersion } from './version.js'
+import { resolvePayloadReleaseId, resolveReleaseChannel, resolveReleaseVersion } from './version.js'
 import { resolveDashboardPort } from './port.js'
 import { parseDashboardServerArgs } from './server-args.js'
 import { createRotatingLog, mirrorProcessOutput } from './serverLog.js'
@@ -83,6 +83,7 @@ async function main(): Promise<void> {
   const root = pluginRoot()
   const version = resolveReleaseVersion(root)
   const releaseId = resolvePayloadReleaseId(root)
+  const channel = resolveReleaseChannel(root)
   const transactionId = managedTransactionId()
   const stateScopeId = machineStateScopeId(paths.stateRoot)
 
@@ -137,6 +138,7 @@ async function main(): Promise<void> {
   const srv = createDashboardServer({
     version,
     releaseId,
+    ...(channel === undefined ? {} : { channel }),
     transactionId,
     paths,
     hostHome: paths.homeDir,

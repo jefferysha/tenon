@@ -19,7 +19,7 @@
  * 工作流里给这一步声明测试或评审者。
  */
 import {
-  defaultEventGuardFields, INLINE_SUITE_PREFIX, isForwardExit, phaseExitGuardFields, renderTestBlocker,
+  defaultEventGuardFields, INLINE_SUITE_PREFIX, isForwardExit, phaseExitGuardFields, renderTestBlocker, testItemSettled,
   type EffectiveWorkflowPlan, type EventName, type FieldName, type PipelineState,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
@@ -74,7 +74,7 @@ async function missingEvidence(
     context: testEvidenceContextFor(deps, name),
   })
   for (const item of tests.items) {
-    if (!item.test.required || item.status === 'passed') continue
+    if (!item.test.required || testItemSettled(item)) continue
     missing.push(`必需测试 ${item.test.id} 未通过（${item.status}）；运行：tenon test run ${name} ${item.test.id}`)
   }
   // 步骤测试策略（目录套件 × 计划）：旧步骤测试已在上面逐项列过（内联套件 id 以 `step:` 开头，即 INLINE_SUITE_PREFIX），

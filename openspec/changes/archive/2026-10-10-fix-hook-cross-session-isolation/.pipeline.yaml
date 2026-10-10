@@ -1,0 +1,49 @@
+track: backend
+preset: full
+created_by: jefferySha <710227704@qq.com>
+assignee: jefferySha <710227704@qq.com>
+phase: archive
+phase_status: done
+design_doc: docs/superpowers/specs/fix-hook-cross-session-isolation-design.md
+plan: docs/superpowers/plans/fix-hook-cross-session-isolation.md
+verification_report: docs/superpowers/reports/fix-hook-cross-session-isolation-verify.md
+build_mode: subagent-driven-development
+isolation: worktree
+build_sha: build:v1:git:d4ae881b42e31daa026a9141eb47515f15fb3407c0d0e2d7b7b0002b6135d2ad:467996397e337a566945ca1fde5f827268a63c2735267155c7c68855a8263fc7:c16dc4a243c381c8b8f121230217375c0784bb2df74d860f200c6931f22ae8d0
+agent_review_result: pending
+codex_review_result: pending
+verify_result: pass
+branch_status: handled
+direct_override: false
+prd_path: null
+pr_url: https://github.com/jefferysha/tenon/pull/80
+automation: off
+automation_queued_at: ""
+automation_sandbox: ""
+automation_worktree: ""
+automation_attempts: 0
+automation_last_error: ""
+automation_preserved_path: ""
+branch: null
+base_branch: main
+scope: null
+related_files: null
+spec_scope: null
+depends_on: null
+created_at: 2026-10-07T10:44:53Z
+updated_at: 2026-10-10T02:52:44Z
+verified_at: 2026-10-10T02:16:11Z
+archived_at: 2026-10-10T02:52:44Z
+archived: true
+workflow: default
+automation_current_phase: ""
+automation_cause: ""
+max_rounds: 2
+pipeline_run_id: 399d0840-44ef-4e7a-8f16-fe2077ae8ee9
+pipeline_transition_sequence: 25
+pipeline_transition_head: 6361762e-0ddc-40df-b4c7-81a5dd75e3d5
+pipeline_state_revision: 64
+pipeline_state_revision_id: d774e236-bfe6-459e-93ef-2b20d8aa0482
+pipeline_state_digest: ff97b33c52d185667e7758a7c86761b499f95d1f7e2c0af0c5de2dfd3b9ad220
+# tenon-internal-pre-verify-review-v1: eyJzY2hlbWFWZXJzaW9uIjoxLCJyZXZpc2lvbiI6NjQsInJldmlzaW9uSWQiOiJkNzc0ZTIzNi1iZmU2LTQ1OWUtOTNlZi0yYjIwZDhhYTA0ODIiLCJwYXlsb2FkRGlnZXN0IjoiNDhhZjlhODI4ZDRjYmM0NTdhODU2YmM0OGQ3M2Q3OTdlMTRjOTc0ODcxMTUwMDM4ZGZjYTUxZjNmMWQ1YWY3YyJ9
+# tenon-internal-transition-head-v1: eyJzY2hlbWFWZXJzaW9uIjoxLCJydW5JZCI6IjM5OWQwODQwLTQ0ZWYtNGU3YS04ZjE2LWZlMjA3N2FlOGVlOSIsInNlcXVlbmNlIjoyNSwicmVjb3JkSWQiOiI2MzYxNzYyZS0wZGRjLTQwZGYtYjRjNy04MWE1ZGQ3NWUzZDUiLCJyZWNvcmREaWdlc3QiOiI2MTQwMDgxYmVjOTZhOWZhNDU4YmMyZmRiM2U1ZDZiM2RlZmI3NTk1MGYyYzE3YTkxYzNkMzY3NWFiMjc3NWZhIn0

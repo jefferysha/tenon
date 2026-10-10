@@ -83,8 +83,11 @@ alwaysApply: true
 离开 review phase（explore / spec / verify）须对确切 event 取得人类显式确认：
 
     tenon review request <change> --event <event>
-    # 人类确认后：
-    tenon review acknowledge <change>
+
+确认只来自用户：在 Dashboard 确认（`tenon dashboard --open`），或由用户本人在自己的终端运行
+`tenon review acknowledge <change>`（本适配器没有写回执的 UserPromptSubmit hook，回复放行语不会写回执）；
+agent 不得代为执行该命令。持续授权下 agent 只可用 `tenon review acknowledge <change> --delegated`，
+它不批准待批准的测试豁免。
 
 不得删除 `.pipeline-pending-review` 绕过 review-gate（会产生 solo 推进）。命令前缀为 /pipeline-。
 EOF

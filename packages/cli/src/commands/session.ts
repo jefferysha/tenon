@@ -23,7 +23,7 @@
  *   · 老仓 state-session.sh:238-253 三项 [PLACEHOLDER]（package-validation / Cursor ticket 写端 /
  *     init-context-deprecation）是老仓自己都未实现的空占位——本仓同样没有（见 kernel 顶注）。
  */
-import { appendFile, lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { appendFile, lstat, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   parseProjectPackages,
@@ -31,10 +31,6 @@ import {
   renderRouteContextText,
   routeBucketsToObject,
   routeContext,
-  ensureOpenspecGitignore,
-  ensurePipelineGitignore,
-  TERMINAL_SESSION_BINDINGS_DIR,
-  TERMINAL_SESSION_PROTOCOL,
   validateChangeName,
   isTerminalSessionId,
   readCurrentRunRevision,
@@ -49,6 +45,7 @@ import { changeDir } from '../paths.js'
 import { createInteractionCapture } from '../interaction-emitter.js'
 import { INTERACTION_AUTHORITY_PROTOCOL } from '../continuousAuthority.js'
 import { requireUser } from '../userIdentity.js'
+import { assertRegularOrMissing, isoSecondTimestamp, writeTerminalSessionBinding } from './session-binding.js'
 
 export { INTERACTION_AUTHORITY_PROTOCOL } from '../continuousAuthority.js'
 
@@ -75,80 +72,14 @@ export interface SessionFs {
   /** Optional for legacy injected test/degraded adapters; missing means --continuous is safely unavailable. */
   writeInteractionAuthority?: (cwd: string, slug: string, name: string, sessionId: string, actor: RecordActor) => Promise<void>
   /** Optional host-session identity for exact resume routing and terminal liveness. It never mutates workflow state. */
-  bindTerminalSession?: (cwd: string, name: string, sessionId: string) => Promise<void>
-}
-
-function authorityTimestamp(): string {
-  return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
-}
-
-async function assertRegularOrMissing(path: string): Promise<void> {
-  try {
-    const entry = await lstat(path)
-    if (!entry.isFile() || entry.isSymbolicLink()) throw new Error('目标不是普通文件')
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
-    throw error
-  }
-}
-
-/** Create only ordinary directories for the hook-facing, non-canonical session projection. */
-async function ensurePlainDirectory(path: string): Promise<void> {
-  try {
-    const entry = await lstat(path)
-    if (!entry.isDirectory() || entry.isSymbolicLink()) throw new Error('目录不是普通目录')
-    return
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-  }
-  try {
-    await mkdir(path, { recursive: false, mode: 0o700 })
-  } catch (error) {
-    // Another terminal in the same project may create this projection directory between lstat and
-    // mkdir.  Treat only that benign race as success; the lstat below still rejects links/files.
-    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
-  }
-  const created = await lstat(path)
-  if (!created.isDirectory() || created.isSymbolicLink()) throw new Error('目录不是普通目录')
-}
-
-/**
- * Bind a native host session to the exact Change selected by the pipeline root skill.  This is an
- * non-canonical session identity projection: it prevents a per-user `active-change` pointer
- * from routing or displaying an unrelated conversation as an old Change.
- */
-async function writeTerminalSessionBinding(cwd: string, name: string, sessionId: string): Promise<void> {
-  if (!isTerminalSessionId(sessionId)) throw new Error('host session id 格式非法')
-  const pipelineDir = join(cwd, '.pipeline')
-  const sessionsDir = join(cwd, TERMINAL_SESSION_BINDINGS_DIR)
-  await ensurePipelineGitignore(cwd)
-  // A binding is what lets the host hook write the Change's heartbeat sidecar; keep that file out of git.
-  await ensureOpenspecGitignore(cwd)
-  await ensurePlainDirectory(pipelineDir)
-  await ensurePlainDirectory(sessionsDir)
-  const target = join(sessionsDir, `${sessionId}.json`)
-  await assertRegularOrMissing(target)
-  const timestamp = authorityTimestamp()
-  const body = `${JSON.stringify({
-    protocol: TERMINAL_SESSION_PROTOCOL,
-    session_id: sessionId,
-    change: name,
-    bound_at: timestamp,
-  })}\n`
-  const temp = `${target}.tmp-${process.pid}-${Date.now()}`
-  try {
-    await writeFile(temp, body, { encoding: 'utf8', flag: 'wx', mode: 0o600 })
-    await assertRegularOrMissing(target)
-    await rename(temp, target)
-  } finally {
-    await rm(temp, { force: true }).catch(() => {})
-  }
+  /** Returns the ids of the other sessions whose binding to the same Change was handed over (deleted). */
+  bindTerminalSession?: (cwd: string, name: string, sessionId: string) => Promise<readonly string[]>
 }
 
 async function writeAuthorityProjection(cwd: string, slug: string, name: string, sessionId: string, actor: RecordActor): Promise<void> {
   if (!isTerminalSessionId(sessionId)) throw new Error('host session id 格式非法')
   const target = (await ensureUserLocalDir(cwd, slug)).authority
-  const timestamp = authorityTimestamp()
+  const timestamp = isoSecondTimestamp()
   const body = [
     INTERACTION_AUTHORITY_PROTOCOL,
     `change=${name}`,
@@ -307,8 +238,9 @@ async function cmdActivate(deps: CliDeps, args: string[], fs: SessionFs): Promis
       deps.io.err('[activate] 终端会话绑定未写入 → degraded（当前 fs adapter 不支持 --host-session；不影响 Change 绑定或流程状态）')
     } else {
       try {
-        await fs.bindTerminalSession(deps.cwd, name, options.hostSessionId)
+        const handedOver = await fs.bindTerminalSession(deps.cwd, name, options.hostSessionId)
         terminalSessionBound = true
+        for (const previous of handedOver) deps.io.err(`[activate] 已从会话 ${previous} 移交 ${name}`)
       } catch (e) {
         deps.io.err(`[activate] 终端会话绑定未写入 → degraded（dashboard 将把该会话显示为等待）：${errMsg(e)}`)
       }

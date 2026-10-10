@@ -4,7 +4,7 @@
  */
 import {
   catalogNotApplicable, planKindsSatisfy, policyRequiredKinds, suiteCoverGlobs, suiteFileGlobs, matchesAnyGlob,
-  suitesOwningFile, testFileRegistration,
+  suitesOwningFile, testFileRegistration, waiverKey,
   type CatalogSuite, type OpenSpecScenario, type PlanCase, type PlanFile, type PlanScope, type PlanSuite, type PlanWaiver,
   type StepTestPolicyIR, type TaskItem, type TestCatalog, type TestKind, type TestPlan,
 } from '@tenon/kernel'
@@ -24,9 +24,9 @@ export function withCase(plan: TestPlan, covers: string, tests: readonly string[
   return { ...plan, cases: [...plan.cases.filter((item) => item.covers !== covers), merged] }
 }
 
-/** 同键豁免：原因没变且已批准 → 原样保留；原因变了 → 批准清零（批准的是旧原因）。 */
+/** 同键豁免（kind / covers / test 各自一键，同名互不相干）：原因没变且已批准 → 原样保留；原因变了 → 批准清零（批准的是旧原因）。 */
 export function withWaiver(plan: TestPlan, waiver: PlanWaiver): TestPlan {
-  const sameKey = (item: PlanWaiver): boolean => (waiver.kind !== undefined ? item.kind === waiver.kind : item.covers === waiver.covers)
+  const sameKey = (item: PlanWaiver): boolean => waiverKey(item) === waiverKey(waiver)
   const existing = plan.waivers.find(sameKey)
   if (existing !== undefined && existing.reason === waiver.reason) return plan
   return { ...plan, waivers: [...plan.waivers.filter((item) => !sameKey(item)), waiver] }
@@ -39,6 +39,8 @@ export interface RemovalTarget {
   readonly test?: string
   readonly waiverKind?: TestKind
   readonly waiverCovers?: string
+  /** 步骤测试豁免（`test:<id>`）的测试 id。 */
+  readonly waiverTest?: string
 }
 
 export interface Removal {
@@ -65,7 +67,8 @@ export function withoutTarget(plan: TestPlan, target: RemovalTarget): Removal {
         }),
     waivers: plan.waivers.filter((item) => !(
       (target.waiverKind !== undefined && item.kind === target.waiverKind)
-      || (target.waiverCovers !== undefined && item.covers === target.waiverCovers))),
+      || (target.waiverCovers !== undefined && item.covers === target.waiverCovers)
+      || (target.waiverTest !== undefined && item.test === target.waiverTest))),
   }
   return { plan: next, removed: weight(plan) - weight(next) }
 }

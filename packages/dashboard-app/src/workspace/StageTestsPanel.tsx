@@ -5,16 +5,19 @@ import { useBuiltinLabels } from '../i18n/builtinLabels'
 import { KindLabel } from '../tests/KindLabel'
 import { StatusPill, type PillTone } from '../shell/ThreeColumns'
 import { testStatusWord, type TestRow } from './stageTests'
-import type { TestItemStatus } from '../types'
+import type { TestItemStatus, TestItemWaiver } from '../types'
 import { cn } from '@/lib/utils'
 import { LIST_SELECTED } from '../shared/uiRecipes'
 
-const STATUS_TONE: Record<TestItemStatus, PillTone> = {
+const STATUS_TONE: Record<TestItemStatus | TestItemWaiver, PillTone> = {
   passed: 'done',
   failed: 'blocked',
   stale: 'pending',
   missing: 'neutral',
   running: 'pending',
+  // 失败后带豁免：已批准放行 = 完成，等评审批准 = 等人。
+  waived: 'done',
+  'waiver-pending': 'pending',
 }
 
 const COLS = 'grid grid-cols-[minmax(0,1fr)_6rem_minmax(0,1fr)_6.5rem] items-center gap-4 whitespace-nowrap'
@@ -62,6 +65,7 @@ export function StageTestsPanel({
         role="row"
         data-testid={`stage-test-${item.id}`}
         data-status={item.status}
+        data-waiver={item.waiver}
         onClick={() => onOpen(item.id)}
       >
         <span className="flex min-w-0 items-center gap-2" role="cell">
@@ -92,7 +96,7 @@ export function StageTestsPanel({
           {run === '' ? '—' : run}
         </span>
         <span className="min-w-0" role="cell">
-          <StatusPill tone={STATUS_TONE[item.status]}>{testStatusWord(item.status, t)}</StatusPill>
+          <StatusPill tone={STATUS_TONE[item.waiver ?? item.status]}>{testStatusWord(item.waiver ?? item.status, t)}</StatusPill>
         </span>
       </div>
     )

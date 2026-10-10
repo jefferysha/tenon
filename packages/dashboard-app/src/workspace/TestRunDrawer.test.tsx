@@ -116,6 +116,19 @@ describe('TestRunDrawer', () => {
     expect((await screen.findByTestId('test-run-drawer')).querySelector('[data-tone]')).toHaveAttribute('data-tone', 'neutral')
   })
 
+  it('失败后带豁免：标题里是「已豁免 / 豁免待批准」，不再写失败', async () => {
+    stubFetch()
+    const { unmount } = render(<I18nProvider><TestRunDrawer root="/repo" change="demo" row={{ ...ROW, status: 'failed', waiver: 'waived' }} onClose={() => undefined} /></I18nProvider>)
+    const waived = (await screen.findByTestId('test-run-drawer')).querySelector('[data-tone]')
+    expect(waived).toHaveAttribute('data-tone', 'done')
+    expect(waived).toHaveTextContent('已豁免')
+    unmount()
+    render(<I18nProvider><TestRunDrawer root="/repo" change="demo" row={{ ...ROW, status: 'failed', waiver: 'waiver-pending' }} onClose={() => undefined} /></I18nProvider>)
+    const pending = (await screen.findByTestId('test-run-drawer')).querySelector('[data-tone]')
+    expect(pending).toHaveAttribute('data-tone', 'pending')
+    expect(pending).toHaveTextContent('豁免待批准')
+  })
+
   it('历史行是比例字的等宽数字（时间 · 执行人 · 结果 · 耗时不是 id / 路径 / 命令 / 哈希，不用等宽字体）', async () => {
     stubFetch()
     render(<I18nProvider><TestRunDrawer root="/repo" change="demo" row={ROW} onClose={() => undefined} /></I18nProvider>)

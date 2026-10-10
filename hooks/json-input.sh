@@ -237,6 +237,61 @@ pipeline_json_get_string_array() { # $1=input JSON, $2=key
   done
 }
 
+# Walk the string members of the JSON object stored under "$2" and hand each decoded value to the function
+# named by "$3".  Succeeds as soon as one call succeeds.  An absent key, a value that is not an object, a
+# member that is not a string, or malformed JSON fails the whole walk: callers use this to judge consent, and
+# an answer that cannot be read must never count as one.  One call per member with the decoded value, so a
+# newline inside an answer can never be split into a second answer.
+pipeline_json_object_any_value() { # $1=input JSON, $2=key, $3=predicate function name
+  local rest value predicate="${3:-}"
+  [ -n "$predicate" ] || return 1
+  _pipeline_json_seek_value "${1:-}" "${2:-}" || return 1
+  rest="$_PIPELINE_JSON_REST"
+  case "$rest" in
+    '{'*) rest="${rest#\{}" ;;
+    *) return 1 ;;
+  esac
+  while true; do
+    while true; do
+      case "$rest" in
+        [$' \t\r\n']*) rest="${rest#?}" ;;
+        ','*) rest="${rest#,}" ;;
+        *) break ;;
+      esac
+    done
+    case "$rest" in
+      '"'*) ;;
+      *) return 1 ;; # '}' = the object ended without a consenting value; anything else is malformed
+    esac
+    _pipeline_json_read_string "$rest" || return 1 # member name
+    rest="$_PIPELINE_JSON_REST"
+    while true; do
+      case "$rest" in
+        [$' \t\r\n']*) rest="${rest#?}" ;;
+        *) break ;;
+      esac
+    done
+    case "$rest" in
+      ':'*) rest="${rest#:}" ;;
+      *) return 1 ;;
+    esac
+    while true; do
+      case "$rest" in
+        [$' \t\r\n']*) rest="${rest#?}" ;;
+        *) break ;;
+      esac
+    done
+    case "$rest" in
+      '"'*) ;;
+      *) return 1 ;;
+    esac
+    _pipeline_json_read_string "$rest" || return 1
+    value="$_PIPELINE_JSON_VALUE"
+    rest="$_PIPELINE_JSON_REST"
+    if "$predicate" "$value"; then return 0; fi
+  done
+}
+
 # Codex command-like tools have used both `command` and `cmd` in their hook payloads.  Cursor's
 # shell events and Cline's tool parameters use `command` too, but some hosts spell it
 # `command_line` / `commandLine`, and shell-exec events may carry an argv **array** instead of one

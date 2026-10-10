@@ -204,6 +204,7 @@ async function publishWithinManagedTransaction(
           request.source,
           request.expectedPluginVersion ?? journal.stableTarget?.version,
           journal.stableTarget,
+          request.devSource,
         )
       } catch (error) {
         const indeterminate = error instanceof ManagedRuntimeIndeterminateError

@@ -23,6 +23,7 @@ import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { INHERITED_RUNTIME_ROOT_VARS, withoutInheritedRuntimeRoots } from './runtime-roots.mjs'
 
 export const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url))
 export const TENON_CLI = join(REPO_ROOT, 'packages', 'cli', 'dist', 'tenon.mjs')
@@ -120,19 +121,22 @@ export function createScratch(prefix, { nodeSource = process.execPath } = {}) {
 
 const NODE_ENV = 'TENON_ISOLATED_NODE'
 
+// 启动器导出的运行时根优先于 TENON_RUNTIME_HOME；构造隔离子进程环境的地方都经 withoutInheritedRuntimeRoots 去掉它们（定义见 ./runtime-roots.mjs）。
+export { INHERITED_RUNTIME_ROOT_VARS, withoutInheritedRuntimeRoots }
+
 /**
  * 子进程环境：继承宿主 PATH 等，但 HOME / 运行时根 / 身份换成隔离的，并去掉会让 CLI 找到真实插件或端口的变量。
  * 传入 `node`（createScratch 的返回值）时，把它记在 TENON_ISOLATED_NODE 里，runTenon / startDashboard 用它代替 process.execPath。
  */
 export function isolatedEnv({ home, runtime, node }) {
-  const env = {
+  const env = withoutInheritedRuntimeRoots({
     ...process.env,
     HOME: home,
     TENON_RUNTIME_HOME: runtime,
     TENON_USER,
     TENON_USER_NAME: 'E2E',
     CODEX_HOME: join(home, '.codex'),
-  }
+  })
   delete env.TENON_DASHBOARD_PORT
   delete env.CLAUDE_PLUGIN_ROOT
   delete env.PLUGIN_ROOT

@@ -9,6 +9,8 @@ const SUITE_TONE: Record<SuiteState, PillTone> = {
   stale: 'pending',
   missing: 'neutral',
   running: 'running',
+  waived: 'done',
+  'waiver-pending': 'pending',
 }
 
 const CASE_TONE: Record<TraceCaseStatus, PillTone> = {

@@ -1,5 +1,5 @@
 /**
- * `tenon review request|acknowledge` —— review 出口的显式两阶段协议。
+ * `tenon review request|acknowledge|revoke` ——review 出口的显式两阶段协议。
  *
  * request 只能在当前 workflow 声明为 review 的 step 调用：先将 pending receipt 原子写入
  * canonical state，再落 versioned hook marker。acknowledge 由 Codex UserPromptSubmit 或用户显式
@@ -38,7 +38,11 @@ import {
   writeReviewMarker,
 } from './review-binding.js'
 import { cmdReviewAcknowledge } from './review-acknowledge.js'
+import { cmdReviewRevoke } from './review-revoke.js'
 import { freezePendingWaivers, reviewItemLines, type PendingReviewItems } from './review-waivers.js'
+import {
+  backEdgeRefused, pendingResidual, releasesFailedReviewers, reviewRoundsInfo, roundsExhaustedMessage,
+} from './review-rounds.js'
 import { resolveReviewEvent as resolveReviewEventFromStep } from './review-event.js'
 import { msg } from '../i18n/messages.js'
 
@@ -55,6 +59,8 @@ export interface ReviewOpts {
   readonly delegated?: boolean
   /** acknowledge only: a non-owner confirms as `reviewer` (F16). */
   readonly as?: string
+  /** revoke only: why an approved receipt is withdrawn (required, one line). */
+  readonly reason?: string
 }
 
 function scalar(state: PipelineState, field: keyof PipelineState['fields']): string {
@@ -136,19 +142,21 @@ async function checkReviewRequestReadiness(
   state: PipelineState,
   step: ReviewStep,
   event: string,
+  releaseFailedReviewers: boolean,
 ): Promise<number> {
   if (step.executionModel === 'phase-manifest' && step.phase === 'verify' && event === 'verify-fail') {
     return checkVerifyFailReadiness(deps, name, dir, state)
   }
   // A successful outgoing edge must satisfy the same public exit check that transition will
   // re-evaluate under its own lock. This keeps an agent from freezing knowingly incomplete output.
-  // The one exception is a test-plan waiver awaiting approval: this very review approves it, so it
-  // must not block the request that asks for that approval (transition still requires it).
-  return cmdCheck(
-    deps,
-    name,
-    step.executionModel === 'step-graph' ? { event, releasePendingWaivers: true } : { releasePendingWaivers: true },
-  )
+  // The exceptions are what this very review asks the user to decide: a test-plan waiver awaiting
+  // approval, and — once the verification rounds are used up — a required reviewer that still fails
+  // (a residual blocker the user may accept). Transition still requires both to be approved.
+  return cmdCheck(deps, name, {
+    ...(step.executionModel === 'step-graph' ? { event } : {}),
+    releasePendingWaivers: true,
+    ...(releaseFailedReviewers ? { releaseFailedReviewers: true } : {}),
+  })
 }
 
 export async function cmdReview(
@@ -157,8 +165,12 @@ export async function cmdReview(
   name: string | undefined,
   opts: ReviewOpts = {},
 ): Promise<number> {
-  if (sub !== 'request' && sub !== 'acknowledge') {
+  if (sub !== 'request' && sub !== 'acknowledge' && sub !== 'revoke') {
     deps.io.err(`ERROR: ${msg(deps, 'review.usage')}`)
+    return 1
+  }
+  if (sub !== 'revoke' && opts.reason !== undefined) {
+    deps.io.err(`ERROR: ${msg(deps, 'review.reasonOnRevoke')}`)
     return 1
   }
   if (!name || !isValidChangeName(name)) {
@@ -171,6 +183,7 @@ export async function cmdReview(
     ? undefined
     : createInteractionCapture(deps.interaction, deps.clock)
   try {
+    if (sub === 'revoke') return await cmdReviewRevoke(deps, name, dir, opts)
     if (sub === 'request') {
       if (opts.delegated === true) {
         deps.io.err(`ERROR: ${msg(deps, 'review.request.delegatedOnAcknowledge')}`)
@@ -186,7 +199,15 @@ export async function cmdReview(
       assertOwner(name, preflight.fields, actor)
       const preflightStep = resolveReviewStep(deps, preflight)
       const event = resolveReviewEventFromStep(preflightStep, opts.event)
-      const check = await checkReviewRequestReadiness(deps, name, dir, preflight, preflightStep, event)
+      // 验证轮次上限用完后：回退边的评审请求被拒；前进边放行评审者的「不通过」（随请求交给用户接受）。
+      const preflightRounds = await reviewRoundsInfo(deps, dir, preflight, event)
+      if (backEdgeRefused(preflightRounds)) {
+        deps.io.err(`ERROR: ${roundsExhaustedMessage(deps, name, preflightRounds, event)}`)
+        return 1
+      }
+      const check = await checkReviewRequestReadiness(
+        deps, name, dir, preflight, preflightStep, event, releasesFailedReviewers(preflightRounds, event),
+      )
       if (check !== 0) return check
       let requested: {
         phase: string
@@ -206,6 +227,9 @@ export async function cmdReview(
         if (step.phase !== preflightStep.phase || lockedEvent !== event) {
           throw new Error('review request 期间当前 phase 或可选 event 已变化；请重新运行该命令')
         }
+        const lockedRounds = await reviewRoundsInfo(deps, dir, state, event)
+        if (backEdgeRefused(lockedRounds)) throw new Error(roundsExhaustedMessage(deps, name, lockedRounds, event))
+        const residual = await pendingResidual(deps, name, dir, state, lockedRounds, event)
         const existingStatus = reviewGateStatus(state)
         if (existingStatus !== null && !reviewGateMatches(state, step.phase)) {
           throw new Error(`检测到属于 phase '${scalar(state, 'review_gate_phase')}' 的残留 review receipt；请先诊断 state 后重试`)
@@ -225,7 +249,7 @@ export async function cmdReview(
             requestedAt: pendingAt,
             alreadyPending: true,
             replacedReceipt: false,
-            items: await freezePendingWaivers(deps, dir, name, actor.id, { phase: step.phase, event, requestedAt: pendingAt }),
+            items: await freezePendingWaivers(deps, dir, name, actor.id, { phase: step.phase, event, requestedAt: pendingAt }, residual),
             state,
           }
           if (interaction !== undefined && beforeRevision !== undefined) {
@@ -283,7 +307,7 @@ export async function cmdReview(
           // Replacing a different/legacy receipt can only revoke a prior decision; it always
           // creates a fresh pending request and therefore never grants the new event permission.
           replacedReceipt: existingStatus !== null,
-          items: await freezePendingWaivers(deps, dir, name, actor.id, { phase: step.phase, event, requestedAt }),
+          items: await freezePendingWaivers(deps, dir, name, actor.id, { phase: step.phase, event, requestedAt }, residual),
           state: requestedState,
         }
       })

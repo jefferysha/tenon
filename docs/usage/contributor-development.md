@@ -25,6 +25,27 @@ npm run build
 The root package is private. This source workflow is not a published global npm
 installation path.
 
+### Run your checkout as the installed plugin
+
+Inside this repository the skills, hooks and CLI your agent loads should be the checkout's, not a release's:
+
+```bash
+tenon setup --claude --from-source . --dry-run   # preview; use --codex for Codex
+tenon setup --claude --from-source .             # add --skip-build when packages/*/dist is already current
+tenon doctor                                     # identity:release warns (development install); source:drift is green when in sync
+```
+
+Edit the checkout, then run the same setup command to sync. A new session started in the checkout warns when the
+installed files no longer match it (SessionStart, pure bash, never blocks). Go back to the release with
+`tenon update --claude --to-stable`. Upstream skills and the local `skills/skills.lock.json` are not committed; a fresh
+checkout or worktree fetches them during its first source install.
+
+Known risk: `--from-source` runs the build of the checkout you give it (`npm --prefix <repo> run build`) and fetches
+upstream skills from that checkout's `skills/sources.yaml`, then installs that checkout's hooks and skills into the host
+for good, so they run in every later session. Whether a directory counts as a Tenon repository is decided only by that
+checkout's own files, and nothing asks for extra confirmation when an agent starts the command. It is an explicit
+developer command, as weighty as any other command an agent can run: use it only on a checkout you trust.
+
 ## Architecture
 
 | Path | Responsibility |
@@ -130,6 +151,13 @@ runs every `tenon` child with that copy; the scratch cleanup removes it. The cop
 its own (an official binary does). A Node that fails the check and also loads sibling shared
 libraries (for example Homebrew's `libnode`) cannot be copied; the helper then stops with an
 error instead of falling back to the untrusted one.
+
+The `tenon` launcher exports the machine's real runtime roots (`TENON_RUNTIME_ROOTS` and
+`TENON_RUNTIME_DATA_ROOT` / `_STATE_ROOT` / `_CONFIG_ROOT`), and they take precedence over
+`TENON_RUNTIME_HOME`. Every test or acceptance script that starts a `tenon` child in an isolated
+runtime must therefore drop them: use `isolatedEnv`, or pass the environment through
+`withoutInheritedRuntimeRoots` from `tools/lib/runtime-roots.mjs`. Otherwise a suite run through
+`tenon test run` reads and writes your real Tenon state.
 
 Benchmark regressions (`max_regression_pct: 15`) are judged against a baseline of the same
 machine profile. The repository catalog sets `profile: coarse`, so the profile is the OS,

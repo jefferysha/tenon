@@ -49,6 +49,7 @@ import { applyStepTransition, planStepTransition, resolveStep } from './engine.j
 import { implicitCompletionTransition, isAbandonEvent } from './implicit-completion.js'
 import { retiredSkillReferences } from './retired-skills.js'
 import { rejectOnStepGates } from './transition-step-gates.js'
+import { rejectOnRoundsExhausted } from './transition-rounds-gate.js'
 // default 轨规划器单独成模块（同 rejectOnStepGates 的拆法）：本文件只留编排与 custom 轨规划。
 import { planDefaultTransition } from './transition-plan-default.js'
 import { fieldStr } from './transition-field-scalar.js'
@@ -218,6 +219,12 @@ export function createTransitionApplication(deps: TransitionApplicationDeps): Tr
           prepared = await planCustomTransition(tx.state, effectivePlan, command, deps.clock)
         }
         if (isRejection(prepared)) return prepared
+        // 验证轮次上限用完后，受约束步骤的回退边不再放行（强制层；`next` 只是投影）。
+        const exhausted = await rejectOnRoundsExhausted({
+          deps, changeDir: command.changeDir, workflowName, plan: effectivePlan, state: tx.state,
+          from: prepared.from, to: prepared.to, event: command.event,
+        })
+        if (exhausted !== undefined) return exhausted
         const gated = await rejectOnStepGates({
           deps,
           changeDir: command.changeDir,

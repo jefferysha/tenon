@@ -143,9 +143,22 @@ export function testReportAction(flow: StepTestFlow): readonly StepAction[] {
     : [{ action: 'test-report', command: flow.report.command, path: flow.report.path }]
 }
 
+/**
+ * 旧的步骤测试（内联）还要跑：必需、没通过，且失败后没有豁免。`waived`（已批准）与 `waiver-pending`（等评审批准）
+ * 的失败已有处置，不发 `run-test`；它们也不是 `failed`，所以不会把评审门推去回退边。
+ */
+export function testNeedsRun(test: { readonly required: boolean; readonly status: string }): boolean {
+  return test.required && test.status !== 'passed' && test.status !== 'waived' && test.status !== 'waiver-pending'
+}
+
+/** 已运行却不满足策略、要靠改代码解决（而不是就地补一步）的失败项。 */
+export function rollbackFailedItems(flow: StepTestFlow | undefined): readonly TestFlowItem[] {
+  return flow === undefined ? [] : flow.failed.filter((item) => !IN_PLACE_CODES.has(item.code))
+}
+
 /** 失败要靠改代码解决（而不是就地补一步）：评审门上这是走回退边的理由。 */
 export function testsNeedRollback(flow: StepTestFlow | undefined): boolean {
-  return flow !== undefined && flow.failed.some((item) => !IN_PLACE_CODES.has(item.code))
+  return rollbackFailedItems(flow).length > 0
 }
 
 /** 已经运行却不满足策略的阻塞：交给 `fix`（带修复命令），不再往下发评审者。 */

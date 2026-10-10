@@ -122,7 +122,7 @@ describe('agent next / prompt / record 与 review request / acknowledge 的消�
     expect(zh('review.warn.interaction')).toBe('interaction projection 写入失败（canonical review acknowledgement 已提交）')
     expect(zh('review.warn.history')).toBe('history 写入失败（canonical review acknowledgement 已提交）')
     expect(zh('review.warn.markerClear')).toBe('review marker 清理失败（approval receipt 已提交，可重试 acknowledge）')
-    expect(zh('review.usage')).toBe('用法：tenon review request <change> [--event <event>] | acknowledge <change> [--delegated] [--as reviewer]')
+    expect(zh('review.usage')).toBe('用法：tenon review request <change> [--event <event>] | acknowledge <change> [--delegated] [--as reviewer] | revoke <change> --reason <原因>')
     expect(zh('review.request.delegatedOnAcknowledge')).toBe('--delegated 只可用于 review acknowledge；request 仍必须先完成真实 review 证据')
     expect(zh('review.request.asOnAcknowledge')).toBe('--as 只可用于 review acknowledge；request 只有负责人能发起')
     expect(zh('review.requested.new')).toBe('已请求人工确认')

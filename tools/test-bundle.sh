@@ -14,6 +14,9 @@
 #      测试计划与 discover --write 的目录、冻结的官方 agent、report-untrusted 记录，N-1 读得了，反方向 N-1 写的当前版本也读得了
 #      （fixture status=none 时只报告 [HONEST SKIP]）。
 set -uo pipefail
+# 经 `tenon test run` 启动时，启动器把本机真实的运行时根导出给了本脚本；它们优先于下面各处的 TENON_RUNTIME_HOME，
+# 带着它们跑 init 会把临时项目登记进真实的 projects.json。
+unset TENON_RUNTIME_ROOTS TENON_RUNTIME_DATA_ROOT TENON_RUNTIME_STATE_ROOT TENON_RUNTIME_CONFIG_ROOT
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUNDLE="$ROOT/packages/cli/dist/tenon.mjs"
 DASHBOARD_SERVER="$ROOT/packages/server/dist/dashboard.mjs"

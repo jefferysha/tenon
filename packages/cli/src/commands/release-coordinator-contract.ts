@@ -3,7 +3,7 @@ import type {
   ManagedStableReleaseTarget,
   RuntimeInstallerScope,
 } from '../runtime/installer.js'
-import type { NativeRuntimeHost, RuntimeActivation } from '../runtime/types.js'
+import type { NativeRuntimeHost, RuntimeActivation, RuntimeDevSource } from '../runtime/types.js'
 
 export type ManagedReleaseFailureState = 'unchanged' | 'restored' | 'indeterminate'
 
@@ -51,6 +51,11 @@ export interface ManagedReleaseRequest {
   readonly expectedPluginVersion?: string
   /** Native update recovery requires a persisted stable target in every post-prepare phase. */
   readonly requiresStableTarget?: boolean
+  /**
+   * tenon setup --from-source 在事务开始前冻结的源码身份；与 requiresStableTarget 互斥。
+   * activate 把它写进 release manifest，assertManagedActivationIdentity 在激活后逐字段比对。
+   */
+  readonly devSource?: RuntimeDevSource
   /** Resolve the successor release before retiring a legacy transaction that had no frozen target. */
   readonly resolveStableTargetBeforeRecovery?: () =>
     | ManagedStableReleaseTarget

@@ -76,12 +76,16 @@ export interface TestRunSummary {
   reasons: string[]
 }
 
+/** 失败后计划里有 `test:<id>` 豁免：已评审批准放行 / 等评审批准（含批准绑定的是另一份代码）。`status` 仍是原来的 `failed`。 */
+export type TestItemWaiver = 'waived' | 'waiver-pending'
+
 export interface TestItemSnapshot {
   id: string
   label?: string
   direction: string
   required: boolean
   status: TestItemStatus
+  waiver?: TestItemWaiver
   run?: TestRunSummary
 }
 

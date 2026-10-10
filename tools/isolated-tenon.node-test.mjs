@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import {
   chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync,
 } from 'node:fs'
@@ -8,9 +9,10 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { pathToFileURL } from 'node:url'
 import {
-  REPO_ROOT, createScratch, exchangeLoginLink, freePort, isTrustedExecutable, isolatedEnv, isolatedNode, prepareTrustedNode,
-  readLoginLink, removeScratch,
+  INHERITED_RUNTIME_ROOT_VARS, REPO_ROOT, createScratch, exchangeLoginLink, freePort, isTrustedExecutable, isolatedEnv, isolatedNode,
+  prepareTrustedNode, readLoginLink, removeScratch, withoutInheritedRuntimeRoots,
 } from './lib/isolated-tenon.mjs'
+import { exportDecoyHostRoots } from './lib/decoy-host-roots.mjs'
 
 test('isolatedEnv points HOME and the runtime home at the scratch root and drops host plugin variables', () => {
   const previous = { plugin: process.env.CLAUDE_PLUGIN_ROOT, port: process.env.TENON_DASHBOARD_PORT }
@@ -33,6 +35,69 @@ test('isolatedEnv points HOME and the runtime home at the scratch root and drops
     else process.env.TENON_DASHBOARD_PORT = previous.port
   }
   assert.equal(existsSync(scratch.scratch), false)
+})
+
+// `tenon test run` executes the suites under the launcher, which exports the machine's real runtime roots.  Those
+// take precedence over TENON_RUNTIME_HOME, so a child CLI that inherits them writes into the real Tenon state
+// (2026-10-08: the bench fixture registered its temporary projects in the user's real projects.json).
+test('isolatedEnv drops inherited runtime roots so TENON_RUNTIME_HOME decides every path', () => {
+  const names = ['TENON_RUNTIME_ROOTS', 'TENON_RUNTIME_DATA_ROOT', 'TENON_RUNTIME_STATE_ROOT', 'TENON_RUNTIME_CONFIG_ROOT']
+  const previous = Object.fromEntries(names.map((name) => [name, process.env[name]]))
+  process.env.TENON_RUNTIME_ROOTS = '{"version":1,"dataRoot":"/real","stateRoot":"/real/state","configRoot":"/real/config"}'
+  process.env.TENON_RUNTIME_DATA_ROOT = '/real'
+  process.env.TENON_RUNTIME_STATE_ROOT = '/real/state'
+  process.env.TENON_RUNTIME_CONFIG_ROOT = '/real/config'
+  const scratch = createScratch('tenon-isolated-roots-test')
+  try {
+    const env = isolatedEnv(scratch)
+    for (const name of names) assert.equal(env[name], undefined, `${name} must not leak into the isolated env`)
+    assert.equal(env.TENON_RUNTIME_HOME, join(scratch.scratch, 'runtime'))
+  } finally {
+    removeScratch(scratch.scratch)
+    for (const name of names) {
+      if (previous[name] === undefined) delete process.env[name]
+      else process.env[name] = previous[name]
+    }
+  }
+})
+
+test('withoutInheritedRuntimeRoots returns a copy without the four launcher roots and leaves the input alone', () => {
+  assert.deepEqual([...INHERITED_RUNTIME_ROOT_VARS].sort(), [
+    'TENON_RUNTIME_CONFIG_ROOT', 'TENON_RUNTIME_DATA_ROOT', 'TENON_RUNTIME_ROOTS', 'TENON_RUNTIME_STATE_ROOT',
+  ])
+  const input = {
+    PATH: '/usr/bin',
+    TENON_RUNTIME_HOME: '/scratch/runtime',
+    TENON_RUNTIME_ROOTS: '{"version":1}',
+    TENON_RUNTIME_DATA_ROOT: '/real',
+    TENON_RUNTIME_STATE_ROOT: '/real/state',
+    TENON_RUNTIME_CONFIG_ROOT: '/real/config',
+  }
+  const before = { ...input }
+  const clean = withoutInheritedRuntimeRoots(input)
+  assert.deepEqual(clean, { PATH: '/usr/bin', TENON_RUNTIME_HOME: '/scratch/runtime' })
+  assert.notEqual(clean, input)
+  assert.deepEqual(input, before, 'the caller\'s environment is not modified')
+  assert.deepEqual(withoutInheritedRuntimeRoots({}), {})
+})
+
+test('a child started with isolatedEnv does not see the roots the host launcher exported', () => {
+  const decoy = exportDecoyHostRoots('tenon-isolated-child-test')
+  const scratch = createScratch('tenon-isolated-child-test')
+  try {
+    const present = (env) => JSON.parse(spawnSync(process.execPath, [
+      '-e', 'process.stdout.write(JSON.stringify(JSON.parse(process.argv[1]).filter((name) => process.env[name] !== undefined).sort()))',
+      JSON.stringify(INHERITED_RUNTIME_ROOT_VARS),
+    ], { env, encoding: 'utf8' }).stdout)
+    assert.deepEqual(present(process.env), [...INHERITED_RUNTIME_ROOT_VARS].sort(), 'the control: a plain child inherits all four')
+    const env = isolatedEnv(scratch)
+    assert.deepEqual(present(env), [])
+    assert.equal(env.TENON_RUNTIME_HOME, scratch.runtime)
+    assert.deepEqual(decoy.written(), [])
+  } finally {
+    removeScratch(scratch.scratch)
+    decoy.restore()
+  }
 })
 
 test('freePort returns a usable loopback port', async () => {

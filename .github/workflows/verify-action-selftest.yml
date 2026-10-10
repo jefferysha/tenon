@@ -33,6 +33,7 @@ on:
       - 'packages/cli/src/commands/verify-ci*'
       - 'packages/kernel/src/ci-verify/**'
       - 'tools/verify-action-selftest.mjs'
+      - 'tools/lib/runtime-roots.mjs'
       - '.github/workflows/verify-action-selftest.yml'
 
 permissions:

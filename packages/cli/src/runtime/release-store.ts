@@ -13,6 +13,7 @@ import { atomicWriteFile, syncBuiltinLibraries, withLock } from '@tenon/kernel'
 import type {
   RuntimeActivation,
   RuntimeAuditEntry,
+  RuntimeDevSource,
   RuntimeInspection,
   RuntimePaths,
   RuntimeReleaseManifest,
@@ -109,12 +110,13 @@ export class RuntimeReleaseStore {
     host: RuntimeReleaseSource['host'],
     expectedPluginVersion?: string,
     stableTarget?: RuntimeStableReleaseTarget,
+    devSource?: RuntimeDevSource,
   ): Promise<RuntimeActivation> {
     const absoluteCandidate = resolve(candidateRoot)
     await this.prepareRoots()
     try {
       return await withLock(this.paths.stateRoot, async () =>
-        this.stageAndActivateUnderLock(absoluteCandidate, host, expectedPluginVersion, stableTarget))
+        this.stageAndActivateUnderLock(absoluteCandidate, host, expectedPluginVersion, stableTarget, devSource))
     } catch (error) {
       if (error instanceof RuntimeFailure) throw error
       throw new RuntimeFailure('candidate-invalid', `无法安装候选 runtime: ${String(error)}`)
@@ -232,6 +234,7 @@ export class RuntimeReleaseStore {
     host: RuntimeReleaseSource['host'],
     expectedPluginVersion?: string,
     stableTarget?: RuntimeStableReleaseTarget,
+    devSource?: RuntimeDevSource,
   ): Promise<RuntimeActivation> {
     const stageRoot = join(this.paths.stagingRoot, `release-${randomUUID()}`)
     const payloadRoot = join(stageRoot, 'payload')
@@ -267,7 +270,13 @@ export class RuntimeReleaseStore {
           `候选 plugin version ${pluginVersion} 与 stable target ${stableTarget.version} 不一致`,
         )
       }
-      releaseId = runtimeReleaseIdV2(payloadDigest, source, stableTarget)
+      if (devSource !== undefined && stableTarget !== undefined) {
+        throw new RuntimeFailure('candidate-invalid', '开发源码身份与稳定标签目标互斥')
+      }
+      if (devSource !== undefined && host !== 'codex' && host !== 'claude') {
+        throw new RuntimeFailure('candidate-invalid', '开发源码身份只允许原生宿主（codex / claude）')
+      }
+      releaseId = runtimeReleaseIdV2(payloadDigest, source, stableTarget, devSource)
       const manifest: RuntimeReleaseManifest = {
         version: 2,
         releaseId,
@@ -275,6 +284,7 @@ export class RuntimeReleaseStore {
         createdAt: this.now(),
         source,
         ...(stableTarget === undefined ? {} : { stableTarget }),
+        ...(devSource === undefined ? {} : { devSource }),
       }
       await atomicWriteFile(join(stageRoot, 'release.json'), stableJson(manifest))
 

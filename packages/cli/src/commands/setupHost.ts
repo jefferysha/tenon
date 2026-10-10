@@ -55,6 +55,13 @@ import {
   hostConvergenceHasNewerStableCandidate,
   recoverPendingHostConvergence,
 } from './host-convergence-recovery.js'
+import {
+  clearDevInstallMarker,
+  cmdSetupFromSource,
+  createSourceInstallPorts,
+  describeSourceInstallPlan,
+  validateFromSourceOptions,
+} from './source-install.js'
 export { verifyPackagedAssets } from './packaged-assets.js'
 
 function commandText(cmd: string, args: readonly string[]): string {
@@ -72,6 +79,11 @@ export function cmdSetupHost(
   openDashboard = true,
   candidateInspector: (root: string) => Promise<CandidatePayloadIdentity> = inspectCandidatePayload,
 ): number | Promise<number> {
+  const invalidSource = validateFromSourceOptions(host, opts)
+  if (invalidSource !== null) {
+    deps.io.err(`ERROR: ${invalidSource}`)
+    return 1
+  }
   if (opts.autoUpdate && !isNativePipelineHost(host)) {
     deps.io.err(`ERROR: ${hostFlag(host)} 是 adapter，自动更新由承载它的 Codex 或 Claude 插件负责；请改用 tenon setup --codex --auto-update 或 --claude --auto-update。`)
     return 1
@@ -79,6 +91,9 @@ export function cmdSetupHost(
 
   if (opts.dryRun) {
     if (isNativePipelineHost(host)) {
+      if (opts.fromSource !== undefined) {
+        return describeSourceInstallPlan(deps, host, opts.fromSource, opts.skipBuild === true)
+      }
       deps.io.out(`[setup] ${hostFlag(host)}:将安装本仓 marketplace 中的唯一 tenon 插件。`)
       const target: StableReleaseTarget = {
         version: TENON_RELEASE_VERSION,
@@ -133,6 +148,20 @@ export function cmdSetupHost(
           nodePath: trustedCommands.node,
           ...(trustedNode === undefined ? {} : { verifyNode: trustedNode.assert }),
         }))
+    if (opts.fromSource !== undefined) {
+      return cmdSetupFromSource(
+        {
+          deps,
+          host,
+          repoInput: opts.fromSource,
+          skipBuild: opts.skipBuild === true,
+          env: lifecycleEnv,
+          runtimeScope,
+          openBrowser: openDashboard,
+        },
+        createSourceInstallPorts({ deps, env: lifecycleEnv, installer, dashboardStarter }),
+      )
+    }
     return (async () => {
       const convergence = readHostPluginConvergenceReceipt(lifecycleEnv, host)
       if (convergence.state === 'invalid') {
@@ -247,6 +276,9 @@ export function cmdSetupHost(
         },
       )
       if (runtimeCode !== 0) return runtimeCode
+      // 正式安装成功：开发标记不再代表现状，清掉它，hook 与 auto-update.sh 回到正式版行为。
+      // 正式安装成功：开发标记不再代表现状，清掉它，hook 与 auto-update.sh 回到正式版行为。
+      clearDevInstallMarker(lifecycleEnv)
       const migrateProjectRegistry = lifecycleEnv.migrateProjectRegistry ?? migrateLegacyProjectRegistry
       const migrated = await migrateProjectRegistry({
         homeDir: lifecycleEnv.homeDir(),

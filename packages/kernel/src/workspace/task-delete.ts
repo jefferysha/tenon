@@ -6,7 +6,9 @@
  */
 import { lstat, mkdir, readdir, readFile, rename, rm } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve } from 'node:path'
-import { clearReviewMarkerOfChange, REVIEW_MARKER_FILE } from '../state/markers.js'
+import {
+  clearReviewMarkerOfChange, INTERACTION_MARKER_SESSION_PREFIX, interactionSessionMarkerId, REVIEW_MARKER_FILE,
+} from '../state/markers.js'
 import { GATE_MARKERS } from '../types.js'
 import { TENON_PROJECT_DIR, userProjectPaths } from '../users/user-paths.js'
 import { updateTaskArchiveOf, withoutTaskArchiveEntry } from './task-archive.js'
@@ -110,7 +112,13 @@ async function removeSessionBindings(repoRoot: string, change: string): Promise<
     const text = await readPointer(join(dir, entry.name))
     if (text === null || !bindsChange(text, change)) continue
     const rel = await removeInside(repoRoot, join(dir, entry.name))
-    if (rel !== null) removed.push(rel)
+    if (rel === null) continue
+    removed.push(rel)
+    // 该会话的交互标记（按会话分文件）随绑定一起走：它所属的任务已经不在了。
+    const markerName = `${INTERACTION_MARKER_SESSION_PREFIX}${entry.name.slice(0, -'.json'.length)}`
+    if (interactionSessionMarkerId(markerName) === undefined) continue
+    const sessionMarker = await removeInside(repoRoot, join(repoRoot, markerName))
+    if (sessionMarker !== null) removed.push(sessionMarker)
   }
   return removed
 }

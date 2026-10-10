@@ -22,4 +22,6 @@ export interface NativeUpdateInput {
   readonly trustedNodeProof?: TrustedExecutableProof
   readonly verifyTrustedNode: (() => void) | undefined
   readonly auto: boolean
+  /** 从开发安装经 --to-stable 切回：开发版本号可能高于最新正式版，跳过「拒绝降级」。 */
+  readonly fromDev?: boolean
 }

@@ -51,7 +51,9 @@ export type {
 } from './plan.js'
 export { decodeTestPlanLedger, readTestPlanState, updateTestPlan, writeTestPlan, writeTestPlanUnderLock } from './plan-ledger.js'
 export { approveWaivers, pendingWaivers, testPlanApprovalFreeDigest } from './plan-waivers.js'
-export type { PendingWaiver, WaiverApproval, WaiverSkipReason } from './plan-waivers.js'
+export type { PendingWaiver, StepTestFailure, StepTestFailures, WaiverApproval, WaiverSkipReason } from './plan-waivers.js'
+export { WAIVER_REASON_MAX, stepTestWaiver, waiverReasonText } from './step-test-waivers.js'
+export type { StepTestWaiverView } from './step-test-waivers.js'
 export {
   REVIEW_WAIVERS_FILE, approveFrozenWaivers, boundReviewWaiverSelection, clearReviewWaiverSelection,
   pendingReviewWaivers, readReviewWaiverSelection, writeReviewWaiverSelection,
@@ -59,6 +61,11 @@ export {
 export type {
   FrozenProtectedChange, ProtectedSkipReason, ReviewWaiverSelection, WaiverApprovalOutcome,
 } from './review-waivers.js'
+export {
+  MAX_ACCEPTED_RESIDUALS, RESIDUAL_KEY_PREFIX, RESIDUAL_SUMMARY_MAX, acceptedForEvaluation, residualAcceptedRaw,
+  residualAgent, residualFromBlockers, residualKey, residualLines,
+} from './review-residual.js'
+export type { AcceptedResidual, FrozenResidual, ResidualAcceptance } from './review-residual.js'
 export type { PlanUpdate, PlanWriteMeta, PlanWriteResult, TestPlanLedger, TestPlanState } from './plan-ledger.js'
 export { appendTestAudit, formatAuditDetail, testAuditEntry, testAuditRaw } from './audit.js'
 export {

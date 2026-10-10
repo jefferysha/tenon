@@ -123,6 +123,18 @@ describe('快照里的策略判定', () => {
     expect(decodePolicyReports('x')).toBeNull()
   })
 
+  it('步骤测试豁免：套件状态 waived / waiver-pending 与计划里的 test 豁免都能解码', () => {
+    for (const state of ['waived', 'waiver-pending']) {
+      const reports = [mutate(verifyReport(), (d) => { ((d.suites as Array<Record<string, unknown>>)[0] ?? {}).state = state })]
+      expect(decodePolicyReports(JSON.parse(JSON.stringify(reports)))?.[0]?.suites[0]?.state).toBe(state)
+    }
+    const brief = { state: 'ok', suites: [], waivers: [{ test: 'code-size', approved: false }], files: 0, cases: 0 }
+    expect(decodePlanBrief(brief)).toEqual(brief)
+    const plan = planView()
+    const withTest = { ...plan, waivers: [{ test: 'code-size', reason: '迁移脚本一次性生成', approvedBy: null }] }
+    expect(decodePlanResponse(JSON.parse(JSON.stringify({ plan: withTest })))).toEqual(withTest)
+  })
+
   it('目录的不适用声明：往返相等；缺省 = 没有声明；每一项字段类型不合都拒绝', () => {
     const declared = [{ kind: 'a11y', reason: '本项目没有界面', approved: true }, { kind: 'visual', reason: '同上', approved: false }]
     const reports = [verifyReport({ notApplicable: declared })]

@@ -28,6 +28,7 @@ import {
 import { checkCodexProjectSkills } from './doctor-codex-skills.js'
 import { checkCodexAuth, checkStatusline, checkTenonOnPath } from './doctor-host.js'
 import { checkStableLauncher } from './doctor-launcher.js'
+import { checkSourceDrift } from './doctor-source-drift.js'
 import { checkPlatform } from './doctor-platform.js'
 import { checkProductIdentity } from './doctor-product-identity.js'
 import { checkUpstreamSkills, renderUpstreamSkillTable, upstreamSkillViewOf } from './doctor-upstream-skills.js'
@@ -163,7 +164,7 @@ async function checkMarkers(deps: CliDeps): Promise<DoctorCheck> {
     return yellow(
       'project:markers',
       `陈旧门 marker（已过各自分级 TTL，不再拦截）: ${stale
-        .map((m) => `.pipeline-pending-${m.kind}（${Math.round(GATE_TTL_MS[m.kind] / 60_000)}min）`)
+        .map((m) => `${m.file ?? `.pipeline-pending-${m.kind}`}（${Math.round(GATE_TTL_MS[m.kind] / 60_000)}min）`)
         .join('、')}`,
       '重新发起对应 pipeline 操作即可自动清理陈旧投影；review 若仍待决，重新执行 tenon review request <change> --event <event>，不要手动删除 marker',
     )
@@ -352,6 +353,12 @@ export async function cmdDoctor(
     checks.push(await checkStableLauncher(p))
   } catch (e) {
     checks.push(red('runtime:launcher', `检查自身异常: ${errMsg(e)}`, '排除探针环境问题后重跑 tenon doctor'))
+  }
+
+  try {
+    checks.push(await checkSourceDrift(p))
+  } catch (e) {
+    checks.push(red('source:drift', `检查自身异常: ${errMsg(e)}`, '排除探针环境问题后重跑 tenon doctor'))
   }
 
   const summary = {

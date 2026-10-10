@@ -9,12 +9,15 @@ import type { StepAction } from './statusStepAction.js'
 import { documentWriteActions, inputDocumentPolicy, skillDocumentActions } from './statusStepDocumentActions.js'
 import { finishActions, type StepCommit, type StepFinishFacts } from './statusStepFinish.js'
 import type { StepAgentView, StepReviewBar } from './statusStepAgents.js'
-import { isAbandonEvent } from '@tenon/kernel'
 import { escalationActions, type StepEscalation } from './statusStepEscalation.js'
+import { exitActions, gatedBackActions, requiredEvidenceFailed } from './statusStepExits.js'
+import { roundsVerdict } from './statusStepRoundsActions.js'
+import type { StepRounds } from './statusStepRounds.js'
+import type { RoundsRoute } from './statusStepRoundsRoute.js'
 import type { StepBlocker, StepExit } from './stepExitReport.js'
 import type { StepDocumentsView, StepFieldView, StepSkillView } from './statusStepParts.js'
 import {
-  failedTestsAction, releaseWaiverBlockers, runTestsAction, testPlanningActions, testReportAction, testsNeedRollback,
+  failedTestsAction, releaseWaiverBlockers, runTestsAction, testNeedsRun, testPlanningActions, testReportAction, testsNeedRollback,
   type StepTestFlow,
 } from './statusStepTests.js'
 
@@ -22,7 +25,10 @@ export interface StepTestView {
   readonly id: string
   readonly direction: string
   readonly required: boolean
-  /** kernel 测试证据状态；命令要的 npm 脚本在项目里不存在时为 `unconfigured`（带 `hint`）。 */
+  /**
+   * kernel 测试证据状态；命令要的 npm 脚本在项目里不存在时为 `unconfigured`（带 `hint`）；失败后计划里有
+   * `test:<id>` 豁免时为 `waiver-pending`（等评审批准）或 `waived`（已批准），不再发 `run-test`。
+   */
   readonly status: string
   readonly run_id: string | null
   /** 仅 `unconfigured`：为什么未配置、怎么配置（与 `tenon test run` 的拒绝同一份文案）。 */
@@ -77,6 +83,13 @@ export interface StepNextInput {
   readonly reviewBar: readonly StepReviewBar[]
   /** 改动风险探针不过（statusStepEscalation.ts）：只剩放弃边这一条路；缺席 = 没有升级信号。 */
   readonly escalation?: StepEscalation | null
+  /**
+   * 验证轮次（受上限约束的步骤：评审门且有回退边）；缺席 / null = 不受约束。用完（current >= max）后 `next` 不再
+   * 给出回退边的评审请求，改发前进边的剩余阻断评审请求或 stop（statusStepRoundsActions.ts）。
+   */
+  readonly rounds?: StepRounds | null
+  /** 用完后「回到规格」的真实路径（statusStepRoundsRoute.ts，来自计划）；缺席 = 回退边取自 exits、回规格的事件不点名。 */
+  readonly roundsRoute?: RoundsRoute | null
   /**
    * 本步声明了 test_policy 时，策略判定（kernel TestPolicyReport）归档出的测试体系动作；
    * 缺席 = 本步没有策略，行为与没有测试体系时逐字相同。
@@ -235,7 +248,10 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
     const runs = runTestsAction(input.change, flow)
     if (runs.length > 0) return runs
   }
-  const tests = input.tests.filter((test) => test.required && test.status !== 'passed')
+  // 验证轮次用完后还有没登记豁免的失败必需测试：停下交给用户。同一份代码上重跑改变不了失败，所以排在 run-test 之前。
+  const exhausted = roundsVerdict(input, flow)
+  if (exhausted.kind === 'stop') return exhausted.actions
+  const tests = input.tests.filter(testNeedsRun)
   if (tests.length > 0) return tests.map((test) => ({ action: 'run-test', test: test.id }))
   if (flow !== undefined) {
     const report = testReportAction(flow)
@@ -254,7 +270,8 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   // 结果字段是「本步通过」的结论；必需测试或必需评审者已经不通过时，填它只会让运行器去写一条
   // 与证据相反的结论（真机：verify 里评审者打回后 next 仍给 set-field branch_status）。直接去出口：
   // 有回退边走回退边，没有就 fix。
-  if (!requiredEvidenceFailed(input)) {
+  // 用完且只剩评审者不通过时，前进边的评审请求（带待接受的剩余阻断）需要这些结论字段才就绪，照常先填。
+  if (!requiredEvidenceFailed(input) || exhausted.kind === 'residual') {
     const outcomes = writeFieldActions(
       input.fields.filter((field) => field.kind === 'outcome' && field.status === 'missing'),
       input.artifactProducers,
@@ -271,14 +288,6 @@ function taskBlockers(exits: readonly StepExit[]): readonly StepBlocker[] {
     .flatMap((exit) => exit.blockers)
     .filter((item, index, all) => item.source === 'tasks'
       && all.findIndex((other) => other.message === item.message) === index)
-}
-
-function requiredEvidenceFailed(input: {
-  readonly tests: readonly StepTestView[]
-  readonly reviewers: readonly StepAgentView[]
-}): boolean {
-  return input.tests.some((test) => test.required && test.status === 'failed')
-    || input.reviewers.some((view) => view.required && view.status === 'fail')
 }
 
 /**
@@ -310,86 +319,3 @@ function pendingAgents(views: readonly StepAgentView[], rerunFailed: boolean): r
   }))
 }
 
-/**
- * 回退边也要过本步的人工确认门。
- *
- * 真机实测：评审者打回后 `next` 直接给 `choose-exit: [verify-fail]`，照做却得到
- * 「phase 'verify' 的 event 'verify-fail' 尚未取得人工确认；先运行 tenon review request …
- * --event verify-fail」——`review request` 的事件绑定是逐边的（一次「回到实现」的决定不能顺便
- * 授权 verify-pass），所以回退边和前进边一样要走 request → await → transition 这条链。
- */
-function gatedBackActions(
-  input: { readonly gate: string | null; readonly review: { readonly status: string; readonly event: string | null } },
-  back: readonly StepExit[],
-): readonly StepAction[] {
-  const choose: StepAction = { action: 'choose-exit', exits: back.map((exit) => exit.event) }
-  if (input.gate !== 'review') return [choose]
-  const bound = back.find((exit) => exit.event === input.review.event)
-  if (bound !== undefined) {
-    if (input.review.status === 'pending') return [{ action: 'await-review', event: bound.event }]
-    if (input.review.status === 'approved') return [{ action: 'transition', event: bound.event }]
-  }
-  const only = back.length === 1 ? back[0] : undefined
-  return only === undefined ? [choose] : [{ action: 'request-review', event: only.event }]
-}
-
-function exitActions(input: {
-  readonly review: { readonly status: string; readonly event: string | null }
-  readonly gate: string | null
-  readonly exits: readonly StepExit[]
-  readonly tests: readonly StepTestView[]
-  readonly reviewers: readonly StepAgentView[]
-}, flow: StepTestFlow | undefined): readonly StepAction[] {
-  // 放弃边永远就绪，却从来不是「走完这一步」的候选：留着它会把唯一的前进边挤成 choose-exit。
-  const forward = input.exits.filter((exit) => exit.direction !== 'back' && !isAbandonEvent(exit.event))
-  const back = input.exits.filter((exit) => exit.direction === 'back')
-  if (requiredEvidenceFailed(input) && back.length > 0) return gatedBackActions(input, back)
-  const readyForward = forward.filter((exit) => exit.ready)
-  if (input.gate === 'review') {
-    if (input.review.status === 'pending') {
-      // 请求之后才加进计划的豁免不在冻结清单里，这次确认批准不了它们：先重新发起（幂等）再等人。
-      const pendingExit = input.exits.find((candidate) => candidate.event === input.review.event)
-      if (flow?.refreshRequest === true && input.review.event !== null && pendingExit?.direction !== 'back') {
-        return [{ action: 'request-review', event: input.review.event, waivers: flow.waivers.map((waiver) => waiver.subject) }]
-      }
-      return [{ action: 'await-review', event: input.review.event }]
-    }
-    if (input.review.status === 'approved' && input.review.event !== null) {
-      const exit = input.exits.find((candidate) => candidate.event === input.review.event)
-      // 确认之后才出现的豁免没有被这次确认批准：前进边的 transition 必被拒（回退边不看测试证据）。
-      const stranded = exit?.direction === 'back' ? [] : flow?.waivers ?? []
-      if (stranded.length > 0) {
-        return [{
-          action: 'fix',
-          blockers: stranded.map((waiver) => ({
-            source: 'test',
-            code: waiver.protected === true ? 'protected-file-unapproved' : 'waiver-unapproved',
-            message: waiver.protected === true
-              ? `${waiver.text}；评审确认时它的内容与现在不同，没能被批准：重新发起 review request 让用户确认现在的内容`
-              : `${waiver.text}；评审确认时它还不在计划里，没能被批准：撤掉这条豁免，或回退到上一步重新发起评审`,
-          })),
-        }]
-      }
-      return [{
-        action: exit?.direction === 'completion' ? 'complete' : 'transition',
-        event: input.review.event,
-      }]
-    }
-    if (readyForward.length === 1 && readyForward[0] !== undefined) {
-      // 计划里等待批准的豁免随请求一起下发：用户的确认同时批准它们，所以要连同理由展示给用户。
-      const waivers = flow?.waivers ?? []
-      return [{
-        action: 'request-review',
-        event: readyForward[0].event,
-        ...(waivers.length === 0 ? {} : { waivers: waivers.map((waiver) => waiver.subject) }),
-      }]
-    }
-  } else if (readyForward.length === 1 && readyForward[0] !== undefined) {
-    const exit = readyForward[0]
-    return [{ action: exit.direction === 'completion' ? 'complete' : 'transition', event: exit.event }]
-  }
-  if (readyForward.length > 1) {
-    return [{ action: 'choose-exit', exits: readyForward.map((exit) => exit.event) }]
-  }
-  return [{ action: 'fix', blockers: forward.flatMap((exit) => exit.blockers) }]
-}

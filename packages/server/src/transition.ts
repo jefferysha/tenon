@@ -41,7 +41,7 @@ import {
   resolveRequiredSkillSlots,
   stateStorageExistsSync,
   taskPlanTasksThroughPhaseForChange, assessBuildRevisionTrust, createBuildRevisionToken,
-  probeBuildRevisionIdentity, readCurrentRunRevision, readValidatedTransitionHead, safeRevisionHash,
+  probeBuildRevisionIdentity, readCurrentRunRevision, readStepRounds, readValidatedTransitionHead, safeRevisionHash,
   readReviewGateBinding, renderAgentBlocker, reviewGateBindingMatches,
   actorOf, isTenonUser, ownerRequiredMessage, USER_MISSING_HINT, userSlug,
 } from '@tenon/kernel'
@@ -69,6 +69,12 @@ export interface TransitionDeps {
    * 产生的撕裂。
    */
   runRepo: WorkflowRunRepository
+  /**
+   * 转换记录链读取面：验证轮次上限的强制层（用完后回退边被拒）按它数进入步骤的次数，与 CLI 同一份实现
+   * （kernel readStepRounds）。任务状态里有 canonical 链头时必须装配：缺席会让轮次读取抛错（失败关闭），
+   * 不再退回读 `.pipeline-history.jsonl`；没有链头的旧任务才读 JSONL 的转换行。
+   */
+  recordStore?: TransitionRecordStore
   flow: FlowEngine
   clock: () => string
   /** 相对项目根的文件存在谓词（事件前置校验用；缺省 = 降级跳过文件面，同 lite/GUARD-RULES §7.2）。 */
@@ -226,6 +232,18 @@ export async function performTransition(
     history: deps.history,
     breadcrumb: deps.breadcrumb,
     resolveTrack: deps.resolveTrack,
+    // 验证轮次上限的强制层：用完后受约束步骤的回退边不再放行（与 CLI 的 `tenon transition` 同一份判定）。
+    roundsOf: ({ changeDir: targetDir, plan, state, stepId }) => readStepRounds({
+      ...(deps.recordStore === undefined ? {} : { recordStore: deps.recordStore }),
+      readHistoryRaw: async (historyDir) => {
+        try {
+          return await readFile(join(historyDir, HISTORY_FILE), 'utf8')
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === 'ENOENT') return ''
+          throw error
+        }
+      },
+    }, targetDir, state, plan, stepId),
     reviewGateBinding: async ({ changeDir, state, phase, event }) => {
       try {
         const binding = await readReviewGateBinding(changeDir)

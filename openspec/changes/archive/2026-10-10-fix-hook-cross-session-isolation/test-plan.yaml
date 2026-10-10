@@ -1,0 +1,321 @@
+schema: tenon-test-plan/v1
+change: fix-hook-cross-session-isolation
+suites:
+  - suite: adapters
+    scope: full
+  - suite: bundle
+    scope: full
+  - suite: clean-install
+    scope: full
+  - suite: dashboard-app-unit
+    scope: full
+  - suite: docs-site-unit
+    scope: full
+  - suite: docs-smoke
+    scope: changed
+  - suite: hooks
+    scope: full
+  - suite: lint-docs
+    scope: full
+  - suite: lint-openspec
+    scope: full
+  - suite: migration-cas
+    scope: full
+  - suite: npx-package
+    scope: changed
+  - suite: oracle
+    scope: full
+  - suite: oracle-unit
+    scope: full
+  - suite: tools-node
+    scope: full
+  - suite: typecheck-e2e
+    scope: full
+  - suite: typecheck-packages
+    scope: full
+  - suite: typecheck-web
+    scope: full
+  - suite: unit
+    scope: full
+  - suite: update-rollback
+    scope: full
+files:
+  - path: packages/cli/src/advance.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/agent-prompt.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/dev-host.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/doctor-dev-source.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/doctor.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/fields.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/managed-host-state.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/release-coordinator.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/review-revoke.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/review.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/session-binding.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/session.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/setup-from-source.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/setup.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/setupEnvironment.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/source-install.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/statusStep.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/statusStepRounds.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/statusStepRoundsNext.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/statusStepRoundsRoute.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/statusStepTests.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/update-dev-guard.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/update.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/gateMarkers.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/gitWorkspace.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/i18n/agent-messages.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/next-action-runner.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/owner.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/review-residual.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/runtime/bootstrap.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/runtime/dev-install-marker.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/runtime/dev-source-identity.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/runtime/release-store-codecs.dev.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/runtime/release-store.dev.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/runtime/source-drift-hook.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/session.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/status-step-rounds-stable.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/status-step-rounds.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/terminal-activity-hook.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/test-system/plan-edit.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/test-waive-step.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/upstream-skills/ensure.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/dashboard-app/src/api/boundaryDecoders.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/api/governanceSchema.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/api/testSystemDecoders.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/workspace/StageTestsPanel.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/workspace/TestRunDrawer.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/workspace/stageTests.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/kernel/src/decision/review-application.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/skills/upstream-sources.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/state/markers.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/state/parse.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/state/review-gate-revoke.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/state/run-revision-store.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-evidence/evaluate-policy.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/evaluate-v2.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/plan-waivers.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/plan.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/review-residual.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/review-waivers.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/step-test-waivers.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/types.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/agent-verdict.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/compile-tests.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/effective-plan.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/policy-snapshot.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/step-max-rounds.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/step-rounds-read.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/step-rounds.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/transition-application.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/transition-rounds-gate.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workspace/fingerprint.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workspace/task-lifecycle.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/server.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/serverDecisionRoutes.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/serverGetTestSystemRoutes.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/serverWorkflowOrchestrationRoutes.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/snapshot.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/testEvidenceSnapshot.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/transition-rounds.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/version.test.ts
+    suite: unit
+    kind: unit
+  - path: tools/clean-codex-install-acceptance.node-test.mjs
+    suite: npx-package
+    kind: custom
+  - path: tools/install-bootstrap.node-test.mjs
+    suite: npx-package
+    kind: custom
+  - path: tools/isolated-tenon.node-test.mjs
+    suite: tools-node
+    kind: unit
+  - path: tools/shell-suites-runtime-roots.node-test.mjs
+    suite: tools-node
+    kind: unit
+  - path: tools/source-install-acceptance.node-test.mjs
+    suite: tools-node
+    kind: unit
+  - path: tools/test-adapters.sh
+    suite: adapters
+    kind: integration
+  - path: tools/test-bundle.sh
+    suite: bundle
+    kind: smoke
+  - path: tools/test-hooks.sh
+    suite: hooks
+    kind: integration
+  - path: tools/verify-action-selftest.node-test.mjs
+    suite: tools-node
+    kind: unit
+  - path: tools/vitest-isolation.node-test.mjs
+    suite: tools-node
+    kind: unit
+cases: []
+waivers:
+  - test: code-size
+    reason: 范围经用户两次确认扩大（hook 跨会话隔离、源码开发安装），验证中又加入步骤测试豁免；新增行里约 2100 行是重新生成的打包产物（CLI、server bundle 与 Dashboard SPA 资产），约 3300 行是测试，手写源码本身也超过 2000 行；拆分无效（重建打包产物的任务都接近上限，且探针会算上检出里全部未提交改动）。用户决定本任务豁免代码规模上限。
+    approved_by: 710227704@qq.com
+    approved_candidate: workspace:sha256:25b31f11656115fa3f6d72bb38ae9d8e00f77f07829fa9aa7a0b51c1a34e0d83

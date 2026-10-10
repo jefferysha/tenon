@@ -65,7 +65,10 @@ Every track also declares [agents](agents.md): Explore runs the `researcher`
 executor; Build runs the `builder` executor (one subagent per independent task,
 merged into one report) before its reviewers; Verify declares the `code-size`
 test (`tenon test code-size --json`, passing while `lines_added` stays within
-2000) and the required `code-size` reviewer that reads its result. On chat and
+2000) and the required `code-size` reviewer that reads its result. If the lines added really
+exceed the limit and the user decides to waive it, register
+`tenon test waive <change> --test code-size --reason …`; the review that confirms this gate
+approves it with the rest, and nothing is let through before that. On chat and
 free, Verify also runs `security` as an advisory reviewer whose findings never
 block. A step cannot be left until its executors finish `done`.
 
@@ -174,12 +177,9 @@ The `chat` track — the default when the Dashboard picks no track — declares 
 contract still governs the outputs, but a default resolution without a track needs no upstream skill
 bytes, so it also holds on a clean checkout.
 
-The Verify phase also opens exactly one automated Review attempt for the frozen
-`build_sha`. Its standards, spec, and E2E lanes share the same attempt ID and
-finite Workflow budget. E2E is a Review lane, not an independent Review count.
-No Review Skill, reviewer agent, or E2E runner may start before that attempt is
-active. Build TDD, unit tests, type checks, lint, and narrow integration tests
-remain Build feedback and do not consume the Review budget.
+Verify is limited in how many rounds it runs; see
+[Verification round limit](#verification-round-limit). Build TDD, unit tests, type checks,
+lint, and narrow integration tests remain Build feedback and never count as a round.
 
 Ship applies the verified delta spec with `tenon spec apply <change>`, which
 rehearses `openspec validate`/`archive` in a temporary copy of `openspec/`,
@@ -190,6 +190,29 @@ Ship also has a machine-enforced migration guard. When the Change contains
 `migration/spec-application.json`, the managed apply tool must produce a result bound to the
 Change, input receipt, delta, target path, and final digest. Both `tenon check` and
 `tenon transition ... ship-complete` revalidate that evidence and fail closed on drift.
+
+## Verification round limit
+
+Verify gets at most two rounds. The Verify step of every track declares `max_rounds: 2` in `templates/workflows/default.yaml`. A round is one entry into the step: the first entry is round 1, and every `verify-fail` back to Build followed by `build-complete` enters Verify again.
+
+When round 2 still ends with a required test or a required reviewer failing, Tenon stops going back by itself. `step.next` no longer offers the `verify-fail` edge: it either stops with `rounds-exhausted` or asks the user to accept the remaining blockers, and `tenon transition <change> verify-fail` is refused. The decision then belongs to the user:
+
+- accept the remaining reviewer blockers with the usual human confirmation (a failing required test needs a step-test waiver instead);
+- raise the limit with `tenon set <change> max_rounds <N>` and go back to Build;
+- go back to Spec through `requirements-changed`. Build declares that edge and Verify does not, so from Verify it takes two steps and the first needs the user's decision too: raise the limit with `tenon set <change> max_rounds <N>`, go back to Build through `verify-fail`, then run `tenon transition <change> requirements-changed` on Build. Once the task is in Spec the count starts again from round 1 and the user can lower `max_rounds` again;
+- end the task.
+
+The agent never raises the limit on its own and never works around it. The commands, `step.rounds` and the acceptance of remaining blockers are in the [CLI reference](cli-reference.md#verification-round-limit).
+
+The limit is the `max_rounds` key of a workflow step, written beside `gate`:
+
+```yaml
+- id: verify
+  gate: review
+  max_rounds: 2
+```
+
+The key is valid only on a step that has `gate: review` and at least one return edge, an edge back to an earlier step such as `verify-fail`. Declared anywhere else (Build has no review gate, so it is never limited and its `requirements-changed` is always available), it makes the workflow fail to parse, and the error names the step and the reason. The value is an integer from 1 to 20; `0`, `21`, `two` and `1.5` are rejected the same way. A limited step that does not declare the key, such as a step of a custom workflow or of a task frozen before the key existed, is limited to 2. The limit is frozen with the workflow plan, so editing the workflow file later does not change a task in flight; `tenon set <change> max_rounds <N>` overrides it for one task. The Dashboard workflow page keeps the key when it reads and writes a definition but has no control to edit it.
 
 ## Phase operation
 
@@ -223,10 +246,14 @@ Bind the request to the exact event:
 tenon review request <change-name> --event <event>
 ```
 
-After the user reviews and confirms:
+Wait for the user to confirm. The confirmation comes only from the user: a reply
+with an approval phrase ("确认继续", "继续执行"), which the hook turns into the
+receipt; a confirmation in the Dashboard (`tenon dashboard --open`); or, on a
+host without a UserPromptSubmit hook, the user running
+`tenon review acknowledge <change-name>` in their own terminal. The agent must
+not run that manual form; the host gate refuses it. Once the receipt exists:
 
 ```bash
-tenon review acknowledge <change-name>
 tenon transition <change-name> <event>
 ```
 
@@ -238,7 +265,7 @@ tenon review acknowledge <change-name> --delegated
 ```
 
 Delegation records the confirmation fact. It does not remove evidence, guards,
-or authority boundaries.
+or authority boundaries, and it does not approve pending test waivers.
 
 ### 5. Use return edges honestly
 
@@ -254,12 +281,13 @@ If verification fails:
 
 ```bash
 tenon review request <change-name> --event verify-fail
-tenon review acknowledge <change-name>
+# after the user confirms, in one of the three ways above:
 tenon transition <change-name> verify-fail
 ```
 
 Fix in Build, freeze a new baseline, and verify again. A `verify-pass` receipt
-cannot approve `verify-fail`, or vice versa.
+cannot approve `verify-fail`, or vice versa. Verify is limited to two rounds; once they
+are used up this edge is refused (see [Verification round limit](#verification-round-limit)).
 
 ## Expected result
 
@@ -297,6 +325,13 @@ documents from Build.
 
 Verify must inspect the frozen baseline. A correction belongs on the
 `verify-fail → build` return path.
+
+### The `verify-fail` edge is refused with the rounds used up
+
+`step.next` says `rounds-exhausted` or asks for the remaining blockers to be accepted. Do not
+look for another event and do not raise the limit yourself: show the user the failing tests,
+the remaining reviewer blockers and the ways out from the
+[Verification round limit](#verification-round-limit), and wait for the decision.
 
 ### Verify reports an untrusted build revision
 

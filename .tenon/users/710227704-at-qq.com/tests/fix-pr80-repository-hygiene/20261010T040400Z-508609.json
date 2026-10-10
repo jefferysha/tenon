@@ -1,0 +1,1433 @@
+{
+  "schema": "tenon-test-run-v2",
+  "run_id": "20261010T040400Z-508609",
+  "change": "fix-pr80-repository-hygiene",
+  "workflow_run_id": "3ad8603c-5b08-4d7b-9d2d-215246cde282",
+  "workflow": "standard",
+  "track": "standard",
+  "step": "verify",
+  "bindings": {
+    "candidate": "workspace:sha256:4d495f7716558d3557b713cc4c62ed82edb576b92e4835bc39eb2ecef949bcd9",
+    "workflow_fingerprint": "6c66146c7475ec8d6b196cdf4c21a7f79246c5ac896e2d7dcf3174e8b9600f63",
+    "catalog_digest": "sha256:5a26ec9c19418417b0691885c74de320d4bebb313868e78d4bcce78c95a42c04",
+    "plan_digest": "sha256:e8bbe1baff9c1f1dc4277041e4add23a789bb1185bd178f0b84ff9347427d612",
+    "policy_digest": "sha256:7e64cca5b3b16ead7b76509361e58e9ef082f4dee190bbdbb3edd49de7048578"
+  },
+  "machine_profile": "darwin-arm64-16c-node24-3f41814e",
+  "machine_label": "darwin-arm64-16c-node24",
+  "services": [
+    {
+      "id": "dashboard-e2e",
+      "ready_ms": 5449,
+      "exit": "stopped",
+      "log": "services/dashboard-e2e.log",
+      "leaked_pids": []
+    }
+  ],
+  "suites": [
+    {
+      "suite": "unit",
+      "origin": "catalog",
+      "kind": "unit",
+      "runner": "vitest",
+      "scope": "full",
+      "selection": [],
+      "command": "npm test -- --reporter=default --reporter=json --outputFile.json=test-results/vitest.json",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 642788,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 10615,
+        "pass": 10597,
+        "fail": 0,
+        "skip": 18,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/unit/test-results/vitest.json",
+          "bytes": 4345609,
+          "digest": "sha256:6eb5323217ffd2cd2d1f8ce8a307aada0a6976ebac163cb16fb551b39ffce8cb",
+          "media": "json"
+        }
+      ],
+      "report": {
+        "format": "vitest-json",
+        "path": "test-results/vitest.json",
+        "digest": "sha256:6eb5323217ffd2cd2d1f8ce8a307aada0a6976ebac163cb16fb551b39ffce8cb"
+      },
+      "log": {
+        "artifact": "logs/unit.log",
+        "bytes_total": 162614,
+        "bytes_kept": 162626,
+        "truncated": false,
+        "digest": "sha256:8313b55edb8a1a10eb4d0dc96c713675cfd1e274019c7d5578a75d6e8bfd3436"
+      }
+    },
+    {
+      "suite": "dashboard-app-unit",
+      "origin": "catalog",
+      "kind": "unit",
+      "runner": "vitest",
+      "scope": "full",
+      "selection": [],
+      "command": "npx vitest run --config packages/dashboard-app/vitest.config.ts --reporter=default --reporter=json --outputFile.json=test-results/vitest.json",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 11200,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 1874,
+        "pass": 1874,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/dashboard-app-unit/packages/dashboard-app/test-results/vitest.json",
+          "bytes": 708849,
+          "digest": "sha256:70a5ce97ab68d9765976a035ed2cb5961d7170313a5a14147bca343cb02d4bce",
+          "media": "json"
+        }
+      ],
+      "report": {
+        "format": "vitest-json",
+        "path": "packages/dashboard-app/test-results/vitest.json",
+        "digest": "sha256:70a5ce97ab68d9765976a035ed2cb5961d7170313a5a14147bca343cb02d4bce"
+      },
+      "log": {
+        "artifact": "logs/dashboard-app-unit.log",
+        "bytes_total": 177884,
+        "bytes_kept": 177896,
+        "truncated": false,
+        "digest": "sha256:bc2a2cb79d177b2b13d39c3746a3cb42b5ba84018940b622f37ff8b9ee5e10c1"
+      }
+    },
+    {
+      "suite": "tools-node",
+      "origin": "catalog",
+      "kind": "unit",
+      "runner": "node-test",
+      "scope": "full",
+      "selection": [],
+      "command": "node --test --test-reporter=\"${TENON_NODE_TEST_REPORTER:-junit}\" --test-reporter-destination=test-results/tools-node.xml $(ls tools/*.node-test.mjs tools/bench/*.node-test.mjs | grep -v -e build-npx-package -e install-bootstrap -e clean-codex-install-acceptance -e spec-migration-cas -e reconcile-spec-application)",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 12977,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 213,
+        "pass": 213,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › rejects old QA images and accepts bounded official dashboard WebP assets",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "rejects old QA images and accepts bounded official dashboard WebP assets",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 14,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › rejects tracked paths that Windows cannot check out",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "rejects tracked paths that Windows cannot check out",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 7,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › resolves README and Pages-style image links and rejects dangling links",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "resolves README and Pages-style image links and rejects dangling links",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 11,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › rejects reference identities in tracked paths and ordinary managed text",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "rejects reference identities in tracked paths and ordinary managed text",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 13,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows the design resource collection in task plans and the shipped catalog only",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows the design resource collection in task plans and the shipped catalog only",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 31,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows the first-party workflow directory while retaining competitor checks",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows the first-party workflow directory while retaining competitor checks",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 23,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows fixed trace-timeline research and governance paths but rejects source and unrelated docs",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows fixed trace-timeline research and governance paths but rejects source and unrelated docs",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 47,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows review-handshake upstream identities only in its fixed research and design evidence",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows review-handshake upstream identities only in its fixed research and design evidence",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 68,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows orchestration graph upstream identities only in fixed research and governed Change evidence",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows orchestration graph upstream identities only in fixed research and governed Change evidence",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 42,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows canonical-version upstream identities only in its fixed research evidence",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows canonical-version upstream identities only in its fixed research evidence",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 25,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows fixed host-target-plan research and governance paths but rejects source and unrelated docs",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows fixed host-target-plan research and governance paths but rejects source and unrelated docs",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 120,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › reference identity matching is case-insensitive and diagnostics never echo the identity",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "reference identity matching is case-insensitive and diagnostics never echo the identity",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 7,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › rejects historical test-project identities from tracked paths",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "rejects historical test-project identities from tracked paths",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 9,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows fixed archived screenshot evidence while retaining image allowlist",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows fixed archived screenshot evidence while retaining image allowlist",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 12,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows product identity only in the exact archived hook-isolation records",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows product identity only in the exact archived hook-isolation records",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 58,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "tools/check-repository-hygiene.node-test.mjs › allows product identity in the fixed runtime artifact audit record",
+          "file": "tools/check-repository-hygiene.node-test.mjs",
+          "name": "allows product identity in the fixed runtime artifact audit record",
+          "suite_path": [],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 22,
+          "attempts": 1,
+          "artifacts": []
+        }
+      ],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/tools-node/test-results/tools-node.xml",
+          "bytes": 49137,
+          "digest": "sha256:978c78abd37f8279491039cddd6c520b51247c51bf0501fed835d5fb7dcfb529",
+          "media": "text"
+        }
+      ],
+      "report": {
+        "format": "junit",
+        "path": "test-results/tools-node.xml",
+        "digest": "sha256:978c78abd37f8279491039cddd6c520b51247c51bf0501fed835d5fb7dcfb529"
+      },
+      "log": {
+        "artifact": "logs/tools-node.log",
+        "bytes_total": 0,
+        "bytes_kept": 12,
+        "truncated": false,
+        "digest": "sha256:c8473953ba5ed8acbf6f61af8aa3084c86eb102618eb6cc530a8ce726c6b5570"
+      }
+    },
+    {
+      "suite": "docs-site-unit",
+      "origin": "catalog",
+      "kind": "unit",
+      "runner": "node-test",
+      "scope": "full",
+      "selection": [],
+      "command": "node --test --test-reporter=\"${TENON_NODE_TEST_REPORTER:-junit}\" --test-reporter-destination=test-results/junit.xml scripts/*.node-test.mjs",
+      "cwd": "docs-site",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 136,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 2,
+        "pass": 2,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/docs-site-unit/docs-site/test-results/junit.xml",
+          "bytes": 542,
+          "digest": "sha256:1471256bf091c23487419ed4b144d0e78a28c9b64b8380a9320ca565c7c8ff1e",
+          "media": "text"
+        }
+      ],
+      "report": {
+        "format": "junit",
+        "path": "test-results/junit.xml",
+        "digest": "sha256:1471256bf091c23487419ed4b144d0e78a28c9b64b8380a9320ca565c7c8ff1e"
+      },
+      "log": {
+        "artifact": "logs/docs-site-unit.log",
+        "bytes_total": 0,
+        "bytes_kept": 12,
+        "truncated": false,
+        "digest": "sha256:c8473953ba5ed8acbf6f61af8aa3084c86eb102618eb6cc530a8ce726c6b5570"
+      }
+    },
+    {
+      "suite": "hooks",
+      "origin": "catalog",
+      "kind": "integration",
+      "runner": "custom",
+      "scope": "full",
+      "selection": [],
+      "command": "TENON_TAP_OUT=test-results/hooks.tap bash tools/test-hooks.sh",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 94422,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 2124,
+        "pass": 2124,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/hooks/test-results/hooks.tap",
+          "bytes": 253018,
+          "digest": "sha256:2f692fd687f96a84554879bd6a4a2132964fdf9f6ad63d19c146acfcae937f68",
+          "media": "text"
+        }
+      ],
+      "report": {
+        "format": "tap",
+        "path": "test-results/hooks.tap",
+        "digest": "sha256:2f692fd687f96a84554879bd6a4a2132964fdf9f6ad63d19c146acfcae937f68"
+      },
+      "log": {
+        "artifact": "logs/hooks.log",
+        "bytes_total": 151074,
+        "bytes_kept": 151086,
+        "truncated": false,
+        "digest": "sha256:4002a60d0bea9495d5de54d4bd000975d8432c25f9a62365180fec8a151dfd23"
+      }
+    },
+    {
+      "suite": "adapters",
+      "origin": "catalog",
+      "kind": "integration",
+      "runner": "custom",
+      "scope": "full",
+      "selection": [],
+      "command": "TENON_TAP_OUT=test-results/adapters.tap bash tools/test-adapters.sh",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 15857,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 397,
+        "pass": 397,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/adapters/test-results/adapters.tap",
+          "bytes": 44677,
+          "digest": "sha256:eb84862520330d29f2419cf6d3547a4f73da71bf747b06eb36ad0c7494126a30",
+          "media": "text"
+        }
+      ],
+      "report": {
+        "format": "tap",
+        "path": "test-results/adapters.tap",
+        "digest": "sha256:eb84862520330d29f2419cf6d3547a4f73da71bf747b06eb36ad0c7494126a30"
+      },
+      "log": {
+        "artifact": "logs/adapters.log",
+        "bytes_total": 24437,
+        "bytes_kept": 24449,
+        "truncated": false,
+        "digest": "sha256:da2031b75ede7e6f030575e27d929a55e4aae279919c351e9372f253d191e054"
+      }
+    },
+    {
+      "suite": "migration-cas",
+      "origin": "catalog",
+      "kind": "integration",
+      "runner": "node-test",
+      "scope": "full",
+      "selection": [],
+      "command": "node --test --test-reporter=\"${TENON_NODE_TEST_REPORTER:-junit}\" --test-reporter-destination=test-results/migration-cas.xml tools/spec-migration-cas.node-test.mjs tools/reconcile-spec-application.node-test.mjs",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 2561,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 13,
+        "pass": 13,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/migration-cas/test-results/migration-cas.xml",
+          "bytes": 3222,
+          "digest": "sha256:c7935b7e1ee41704f743e4cd3de49f3a8c95d067ec6d8486aee1d5e51389c607",
+          "media": "text"
+        }
+      ],
+      "report": {
+        "format": "junit",
+        "path": "test-results/migration-cas.xml",
+        "digest": "sha256:c7935b7e1ee41704f743e4cd3de49f3a8c95d067ec6d8486aee1d5e51389c607"
+      },
+      "log": {
+        "artifact": "logs/migration-cas.log",
+        "bytes_total": 0,
+        "bytes_kept": 12,
+        "truncated": false,
+        "digest": "sha256:c8473953ba5ed8acbf6f61af8aa3084c86eb102618eb6cc530a8ce726c6b5570"
+      }
+    },
+    {
+      "suite": "oracle-unit",
+      "origin": "catalog",
+      "kind": "unit",
+      "runner": "vitest",
+      "scope": "full",
+      "selection": [],
+      "command": "npx vitest run --pool=threads --reporter=default --reporter=json --outputFile.json=test-results/vitest.json",
+      "cwd": "tools/oracle",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 67195,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 16,
+        "pass": 16,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/oracle-unit/tools/oracle/test-results/vitest.json",
+          "bytes": 6851,
+          "digest": "sha256:bca4fe654550ea99789213474e5c116e8c8ecca63cf06b89b2d413f3ea6d8a3e",
+          "media": "json"
+        }
+      ],
+      "report": {
+        "format": "vitest-json",
+        "path": "test-results/vitest.json",
+        "digest": "sha256:bca4fe654550ea99789213474e5c116e8c8ecca63cf06b89b2d413f3ea6d8a3e"
+      },
+      "log": {
+        "artifact": "logs/oracle-unit.log",
+        "bytes_total": 1343,
+        "bytes_kept": 1355,
+        "truncated": false,
+        "digest": "sha256:8f5adc4f45e4fe3b7cc740336617c80dcbf03dc9dce155897e9a74d6d97aee57"
+      }
+    },
+    {
+      "suite": "oracle",
+      "origin": "catalog",
+      "kind": "regression",
+      "runner": "custom",
+      "scope": "full",
+      "selection": [],
+      "command": "TENON_TAP_OUT=test-results/oracle.tap npm run oracle",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 240119,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 105,
+        "pass": 105,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/oracle/test-results/oracle.tap",
+          "bytes": 10721,
+          "digest": "sha256:a469c0657cd15991b649b7d92281f3b92c06e12f3d78c76d4a48fd8fefa82ec8",
+          "media": "text"
+        }
+      ],
+      "report": {
+        "format": "tap",
+        "path": "test-results/oracle.tap",
+        "digest": "sha256:a469c0657cd15991b649b7d92281f3b92c06e12f3d78c76d4a48fd8fefa82ec8"
+      },
+      "log": {
+        "artifact": "logs/oracle.log",
+        "bytes_total": 16389,
+        "bytes_kept": 16401,
+        "truncated": false,
+        "digest": "sha256:2b153e34fab612f9709264c031908e08133ebaa33d2cbeaade781dc9ef6f1bf2"
+      }
+    },
+    {
+      "suite": "typecheck-packages",
+      "origin": "catalog",
+      "kind": "typecheck",
+      "runner": "tsc",
+      "scope": "full",
+      "selection": [],
+      "command": "npx tsc -b packages/kernel packages/channel packages/tap packages/automation packages/cli packages/server",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 261,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 0,
+        "pass": 0,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [],
+      "report": {
+        "format": "exit-code",
+        "path": null,
+        "digest": null
+      },
+      "log": {
+        "artifact": "logs/typecheck-packages.log",
+        "bytes_total": 0,
+        "bytes_kept": 12,
+        "truncated": false,
+        "digest": "sha256:c8473953ba5ed8acbf6f61af8aa3084c86eb102618eb6cc530a8ce726c6b5570"
+      }
+    },
+    {
+      "suite": "typecheck-web",
+      "origin": "catalog",
+      "kind": "typecheck",
+      "runner": "tsc",
+      "scope": "full",
+      "selection": [],
+      "command": "npm run typecheck:web",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 4608,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 0,
+        "pass": 0,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [],
+      "report": {
+        "format": "exit-code",
+        "path": null,
+        "digest": null
+      },
+      "log": {
+        "artifact": "logs/typecheck-web.log",
+        "bytes_total": 71,
+        "bytes_kept": 83,
+        "truncated": false,
+        "digest": "sha256:4802cd5398f149d445a3a63cd22a36c361f4ea442d3924caf75612d2af8808df"
+      }
+    },
+    {
+      "suite": "typecheck-e2e",
+      "origin": "catalog",
+      "kind": "typecheck",
+      "runner": "tsc",
+      "scope": "full",
+      "selection": [],
+      "command": "npx tsc -p e2e/dashboard",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 692,
+      "result": "pass",
+      "reasons": [
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 0,
+        "pass": 0,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [],
+      "report": {
+        "format": "exit-code",
+        "path": null,
+        "digest": null
+      },
+      "log": {
+        "artifact": "logs/typecheck-e2e.log",
+        "bytes_total": 0,
+        "bytes_kept": 12,
+        "truncated": false,
+        "digest": "sha256:c8473953ba5ed8acbf6f61af8aa3084c86eb102618eb6cc530a8ce726c6b5570"
+      }
+    },
+    {
+      "suite": "dashboard-e2e",
+      "origin": "catalog",
+      "kind": "playwright",
+      "runner": "playwright",
+      "scope": "full",
+      "selection": [],
+      "command": "npx playwright test --retries=1 -c e2e/dashboard/playwright.config.ts",
+      "cwd": ".",
+      "exit_code": 1,
+      "signal": null,
+      "duration_ms": 307374,
+      "result": "fail",
+      "reasons": [
+        {
+          "code": "test-failed",
+          "detail": "套件 Dashboard 浏览器 e2e（dashboard-e2e） 失败：1 个用例失败：e2e/dashboard/english.spec.ts › 英文界面 · 轨道页签条 › 直达 URL 之后名称变宽、页签条变窄：选中的页签重新滚进可见范围"
+        },
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 260,
+        "pass": 257,
+        "fail": 1,
+        "skip": 2,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [
+        {
+          "id": "e2e/dashboard/english.spec.ts › 英文界面 · 轨道页签条 › 直达 URL 之后名称变宽、页签条变窄：选中的页签重新滚进可见范围 [webkit]",
+          "file": "e2e/dashboard/english.spec.ts",
+          "line": 200,
+          "name": "直达 URL 之后名称变宽、页签条变窄：选中的页签重新滚进可见范围",
+          "suite_path": [
+            "英文界面 · 轨道页签条"
+          ],
+          "project": "webkit",
+          "status": "fail",
+          "duration_ms": 5876,
+          "attempts": 2,
+          "failure": {
+            "message": "Error: backend 的右边缘在可见范围内\n\nexpect(received).toBeLessThanOrEqual(expected)\n\nExpected: <= 223.5\nReceived:    297.078125\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate",
+            "stack": "Error: backend 的右边缘在可见范围内\n\nexpect(received).toBeLessThanOrEqual(expected)\n\nExpected: <= 223.5\nReceived:    297.078125\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate\n    at expectTabRevealed (/Users/a1234/Documents/code-manager/projects/tenon-local/e2e/dashboard/english.spec.ts:109:6)\n    at /Users/a1234/Documents/code-manager/projects/tenon-local/e2e/dashboard/english.spec.ts:221:25"
+          },
+          "artifacts": [
+            "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit/test-failed-1.png",
+            "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit/error-context.md",
+            "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit/trace.zip",
+            "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit-retry1/test-failed-1.png",
+            "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit-retry1/error-context.md",
+            "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit-retry1/trace.zip"
+          ]
+        }
+      ],
+      "projects": [
+        "chromium",
+        "webkit"
+      ],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/data/0bfac6ad88494474a583fab5962a6da44681a27e.zip",
+          "bytes": 2920546,
+          "digest": "sha256:c069e71cb063903efa8e9948b2811ccfe7cec099e4ec956cf4a2becd849ba9d3",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/data/104ce671f75867f6da4708fb5bc6bca3d40e800a.png",
+          "bytes": 356417,
+          "digest": "sha256:aa574ba6f67201697fdfd459b0158a1187ecfc6742341ce6e35a5ac02b7f0f25",
+          "media": "image"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/data/4c7ba3368af4f605800f43c23070d7ca259baf73.md",
+          "bytes": 36363,
+          "digest": "sha256:cc4ea3cd0e4c085489dbe4f4bcd69057dc185aaaaf5fc3dedfd0fb0b9b9cc1b9",
+          "media": "text"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/data/9ae3fc45df2d082914227b8721058a178c1f0b75.png",
+          "bytes": 356237,
+          "digest": "sha256:f7c4e25adb10265ff1227237a31dc76f01388ebf9426471efb9e7214d4b2c556",
+          "media": "image"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/data/a7c2c72077c5ea678ca603f229789e8a3eee74fa.zip",
+          "bytes": 2631718,
+          "digest": "sha256:de05085a26c68d13493eed4d410261d45810ef7ad12a8fb89d5190012878d1ae",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/index.html",
+          "bytes": 863254,
+          "digest": "sha256:cfcf4dff63fa69a0a127ed547c4264adb462937c7d45d96808e7926db8c0e351",
+          "media": "html",
+          "entry": true
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/assets/codeMirrorModule-LEHpjmcn.js",
+          "bytes": 313054,
+          "digest": "sha256:e3d682edfb4dd1fa17882466dd15058120278b27ff1101785a57b6df4db7ada5",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/assets/defaultSettingsView-BNmKHKpQ.js",
+          "bytes": 658064,
+          "digest": "sha256:f21839cd274944763d12ad24529345b9f8ebf339409f51f4dbe52f9d9baeb09c",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/assets/urlMatch-BYQrIQwR.js",
+          "bytes": 819,
+          "digest": "sha256:168c4dee4815ea8d3c131a504033cd23d4b15aefa0209dd10ad3f643e8f1d8a7",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/codeMirrorModule.DYBRYzYX.css",
+          "bytes": 6421,
+          "digest": "sha256:70bf421a13e87857ca684bfa2cc55f06d7c5a50f71253a3ff1d74769b14a957e",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/codicon.DCmgc-ay.ttf",
+          "bytes": 80340,
+          "digest": "sha256:0f1d5219934e96e83b8db162d60b4d8c09b5de1e7d38031cbafe4a3c0f2889c9",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/defaultSettingsView.CjdS-WJx.css",
+          "bytes": 112258,
+          "digest": "sha256:de9c068d0e8043820fe42f30558e972eb7e2a8a45a34f65c7c8f73fa2dbc9fd0",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/index.CzXZzn5A.css",
+          "bytes": 2111,
+          "digest": "sha256:4ec2a3d49db259ce9025cb4fa48d73b1afd58215e567eef3b4a4cbf76c1674d9",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/index.DMMX1gXU.js",
+          "bytes": 6547,
+          "digest": "sha256:f33ceae71f13fde446a244c113548fec5ef890bf7b93ded7b861bebcebaa3e23",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/index.html",
+          "bytes": 2363,
+          "digest": "sha256:5ced36d3feb5bbbc0e8350330be0a293a1b4784ddecb6e58e1851323a93640cc",
+          "media": "html"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/manifest.webmanifest",
+          "bytes": 429,
+          "digest": "sha256:d8540500603a32a39fe7e5a0375dc0f9ebafd11118e06a846db7efc608223ab9",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/playwright-logo.svg",
+          "bytes": 5033,
+          "digest": "sha256:6b0a4367bdeab10995bc239278f04c68c10e48adbec15e799e01909a0d66dcb9",
+          "media": "image"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/snapshot.html",
+          "bytes": 389,
+          "digest": "sha256:11c80efe4f4424fa59004bcc71fed77a420d2da5f199790e355c30a5b965d0cd",
+          "media": "html"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/snapshot.v8KI4P3m.js",
+          "bytes": 660,
+          "digest": "sha256:97a3cd6d67aaac66efc838d7d743ac51bbf7d272e1287981c11758fca21a0657",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/sw.bundle.js",
+          "bytes": 95855,
+          "digest": "sha256:5237c6c68ba1f3591caf8cf951be4873192342a72fbcc31e5a667f7a7904c624",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/uiMode.BZQ54Kgt.css",
+          "bytes": 60311,
+          "digest": "sha256:a548cd88f2041433da2d60fd3a33ef23af2fb8ddf2557b7bef79806364498e57",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/uiMode.Ut8wwJNp.js",
+          "bytes": 38514,
+          "digest": "sha256:0ab1e917250833c3f6b3ed3ae3f359158bf68cd2d9951163ee6edff9b8ed1e5b",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/uiMode.html",
+          "bytes": 727,
+          "digest": "sha256:95bf648d76d380b779770aae1c560b58ee456096b2b3b02922e629af29e3d492",
+          "media": "html"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/playwright-report/trace/xtermModule.DYP7pi_n.css",
+          "bytes": 4150,
+          "digest": "sha256:7c5a01f382f76539fc9b4db6b18e18a7035741845fd14968c5cdc0a7e373d817",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/test-results/dashboard-e2e.json",
+          "bytes": 339734,
+          "digest": "sha256:a3b1b8680536d7bca74053a925ad648b37b47d4330b5110de72934b136a4243c",
+          "media": "json"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/test-results/dashboard-e2e/.last-run.json",
+          "bytes": 96,
+          "digest": "sha256:a74a44ff3bea3200d1ccc4ecabe5b466cba65c0a64c97d69e92a04f78b3d7cea",
+          "media": "json"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit-retry1/error-context.md",
+          "bytes": 36363,
+          "digest": "sha256:cc4ea3cd0e4c085489dbe4f4bcd69057dc185aaaaf5fc3dedfd0fb0b9b9cc1b9",
+          "media": "text"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit-retry1/test-failed-1.png",
+          "bytes": 356417,
+          "digest": "sha256:aa574ba6f67201697fdfd459b0158a1187ecfc6742341ce6e35a5ac02b7f0f25",
+          "media": "image"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit-retry1/trace.zip",
+          "bytes": 2631718,
+          "digest": "sha256:de05085a26c68d13493eed4d410261d45810ef7ad12a8fb89d5190012878d1ae",
+          "media": "trace"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit/error-context.md",
+          "bytes": 36363,
+          "digest": "sha256:cc4ea3cd0e4c085489dbe4f4bcd69057dc185aaaaf5fc3dedfd0fb0b9b9cc1b9",
+          "media": "text"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit/test-failed-1.png",
+          "bytes": 356237,
+          "digest": "sha256:f7c4e25adb10265ff1227237a31dc76f01388ebf9426471efb9e7214d4b2c556",
+          "media": "image"
+        },
+        {
+          "path": "artifacts/dashboard-e2e/test-results/dashboard-e2e/english-英文界面-·-轨道页签条-直达-URL-之后名称变宽、页签条变窄：选中的页签重新滚进可见范围-webkit/trace.zip",
+          "bytes": 2920546,
+          "digest": "sha256:c069e71cb063903efa8e9948b2811ccfe7cec099e4ec956cf4a2becd849ba9d3",
+          "media": "trace"
+        }
+      ],
+      "report": {
+        "format": "playwright-json",
+        "path": "test-results/dashboard-e2e.json",
+        "digest": "sha256:a3b1b8680536d7bca74053a925ad648b37b47d4330b5110de72934b136a4243c"
+      },
+      "log": {
+        "artifact": "logs/dashboard-e2e.log",
+        "bytes_total": 54029,
+        "bytes_kept": 54041,
+        "truncated": false,
+        "digest": "sha256:9ff20aeba9f03f3af306ce9f6d6906930e3e5af640b767bbb0a2b8dbd0b24980"
+      }
+    },
+    {
+      "suite": "dashboard-e2e-chromium",
+      "origin": "catalog",
+      "kind": "playwright",
+      "runner": "playwright",
+      "scope": "full",
+      "selection": [],
+      "command": "npx playwright test --retries=1 -c e2e/dashboard/playwright.config.ts --project=chromium",
+      "cwd": ".",
+      "exit_code": 1,
+      "signal": null,
+      "duration_ms": 175064,
+      "result": "fail",
+      "reasons": [
+        {
+          "code": "test-failed",
+          "detail": "套件 Dashboard 浏览器 e2e · chromium（dashboard-e2e-chromium） 失败：2 个用例失败：e2e/dashboard/review-approval.spec.ts › 评审批准：人在场 › 两次点击批准：先要 nonce、再带着它提交，服务端的待决策视图清空，面板消失；e2e/dashboard/review-approval.spec.ts › 评审批准：人在场 › 过期 / 已用过的 nonce 批准不了：换成一个刚被用掉的 nonce，服务端 403 presence-required，评审仍挂着，页面提示重新确认"
+        },
+        {
+          "code": "workspace-changed"
+        }
+      ],
+      "totals": {
+        "cases": 130,
+        "pass": 128,
+        "fail": 2,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [
+        {
+          "id": "e2e/dashboard/review-approval.spec.ts › 评审批准：人在场 › 两次点击批准：先要 nonce、再带着它提交，服务端的待决策视图清空，面板消失 [chromium]",
+          "file": "e2e/dashboard/review-approval.spec.ts",
+          "line": 94,
+          "name": "两次点击批准：先要 nonce、再带着它提交，服务端的待决策视图清空，面板消失",
+          "suite_path": [
+            "评审批准：人在场"
+          ],
+          "project": "chromium",
+          "status": "fail",
+          "duration_ms": 10174,
+          "attempts": 2,
+          "failure": {
+            "message": "Error: expect(locator).toBeVisible() failed\n\nLocator: getByTestId('review-console')\nExpected: visible\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"toBeVisible\" with timeout 10000ms\n  - waiting for getByTestId('review-console')",
+            "stack": "Error: expect(locator).toBeVisible() failed\n\nLocator: getByTestId('review-console')\nExpected: visible\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"toBeVisible\" with timeout 10000ms\n  - waiting for getByTestId('review-console')\n\n    at openReview (/Users/a1234/Documents/code-manager/projects/tenon-local/e2e/dashboard/review-approval.spec.ts:43:52)\n    at /Users/a1234/Documents/code-manager/projects/tenon-local/e2e/dashboard/review-approval.spec.ts:96:20"
+          },
+          "artifacts": [
+            "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/review-approval-评审批准：人在场-两-1b677-nce、再带着它提交，服务端的待决策视图清空，面板消失-chromium/test-failed-1.png",
+            "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/review-approval-评审批准：人在场-两-1b677-nce、再带着它提交，服务端的待决策视图清空，面板消失-chromium/error-context.md",
+            "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/review-approval-评审批准：人在场-两-1b677-nce、再带着它提交，服务端的待决策视图清空，面板消失-chromium/trace.zip",
+            "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/review-approval-评审批准：人在场-两-1b677-nce、再带着它提交，服务端的待决策视图清空，面板消失-chromium-retry1/test-failed-1.png",
+            "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/review-approval-评审批准：人在场-两-1b677-nce、再带着它提交，服务端的待决策视图清空，面板消失-chromium-retry1/error-context.md",
+            "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/review-approval-评审批准：人在场-两-1b677-nce、再带着它提交，服务端的待决策视图清空，面板消失-chromium-retry1/trace.zip"
+          ]
+        },
+        {
+          "id": "e2e/dashboard/review-approval.spec.ts › 评审批准：人在场 › 过期 / 已用过的 nonce 批准不了：换成一个刚被用掉的 nonce，服务端 403 presence-required，评审仍挂着，页面提示重新确认 [chromium]",
+          "file": "e2e/dashboard/review-approval.spec.ts",
+          "line": 111,
+          "name": "过期 / 已用过的 nonce 批准不了：换成一个刚被用掉的 nonce，服务端 403 presence-required，评审仍挂着，页面提示重新确认",
+          "suite_path": [
+            "评审批准：人在场"
+          ],
+          "project": "chromium",
+          "status": "fail",
+          "duration_ms": 10171,
+          "attempts": 2,
+          "failure": {
+            "message": "Error: expect(locator).toBeVisible() failed\n\nLocator: getByTestId('review-console')\nExpected: visible\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"toBeVisible\" with timeout 10000ms\n  - waiting for getByTestId('review-console')",
+            "stack": "Error: expect(locator).toBeVisible() failed\n\nLocator: getByTestId('review-console')\nExpected: visible\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"toBeVisible\" with timeout 10000ms\n  - waiting for getByTestId('review-console')\n\n    at openReview (/Users/a1234/Documents/code-manager/projects/tenon-local/e2e/dashboard/review-approval.spec.ts:43:52)\n    at /Users/a1234/Documents/code-manager/projects/tenon-local/e2e/dashboard/review-approval.spec.ts:113:5"
+          },
+          "artifacts": [
+            "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/review-approval-评审批准：人在场-过-e2b86-nce-required，评审仍挂着，页面提示重新确认-chromium/test-failed-1.png",
+            "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/review-approval-评审批准：人在场-过-e2b86-nce-required，评审仍挂着，页面提示重新确认-chromium/error-context.md",
+            "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/review-approval-评审批准：人在场-过-e2b86-nce-required，评审仍挂着，页面提示重新确认-chromium/trace.zip",
+            "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/review-approval-评审批准：人在场-过-e2b86-nce-required，评审仍挂着，页面提示重新确认-chromium-retry1/test-failed-1.png",
+            "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/review-approval-评审批准：人在场-过-e2b86-nce-required，评审仍挂着，页面提示重新确认-chromium-retry1/error-context.md",
+            "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/review-approval-评审批准：人在场-过-e2b86-nce-required，评审仍挂着，页面提示重新确认-chromium-retry1/trace.zip"
+          ]
+        }
+      ],
+      "projects": [
+        "chromium"
+      ],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/data/16f2e9f541bdedea052a9f632a3815ac2db09bde.md",
+          "bytes": 14491,
+          "digest": "sha256:14539898007bbf89ace5f8f3af55ca227c8e660dc09e28237f35f313b9487599",
+          "media": "text"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/data/6b5d7a5c67f35b23742126bd91a4ad4c35a24134.png",
+          "bytes": 138693,
+          "digest": "sha256:b41b0492b36ec38920da14149994b3017fec98e0a020418e2d89d8b111492655",
+          "media": "image"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/data/6d2249d033e920f8ace42d3be58095103bb27ebe.zip",
+          "bytes": 394749,
+          "digest": "sha256:7fb6b288b3752ca6d87cf984bca6713cc34239cef67093054213f5bb614d8a49",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/data/77c8281c9dcb566a9123cfcc6316e3237bef7bf3.zip",
+          "bytes": 352545,
+          "digest": "sha256:a018cd252b15f6192bef486691a568d5fca24bb4d618e32c3710a7de77c4782b",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/data/9080607e2c3c17020612e96dbde082ca75ef1fc3.zip",
+          "bytes": 353554,
+          "digest": "sha256:b8ece88bde39ca44f975d2dac332b2f54c23ac350b4688a7a263676a26dff172",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/data/a55815367894cf084e8c32e7b8031647fefb9da0.png",
+          "bytes": 138990,
+          "digest": "sha256:7b7ac175f5a8ef74f4778b3608fbd2df0bfbfa3c7ba0b6c48f6079b387650705",
+          "media": "image"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/data/cbea3f5d8a5ece8b9d10ed554f7bf2c287be81d0.md",
+          "bytes": 14444,
+          "digest": "sha256:0e3d83650f2f4b6a9dab28f5dee9c1cb31b516fc94c2bd8c396788f08c1b689f",
+          "media": "text"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/data/eb8307feee25416c22380735614a8f0f0fd0882a.zip",
+          "bytes": 401867,
+          "digest": "sha256:049dac704a98bf43339b53b285de5a992f7e9804d89c86d4ad961986d01e2190",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/index.html",
+          "bytes": 708418,
+          "digest": "sha256:f67b8b77bb40ffc05d1a4ddb2627da3aa92674b5320a12d79f7ba9e9560a2683",
+          "media": "html",
+          "entry": true
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/trace/assets/codeMirrorModule-LEHpjmcn.js",
+          "bytes": 313054,
+          "digest": "sha256:e3d682edfb4dd1fa17882466dd15058120278b27ff1101785a57b6df4db7ada5",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/trace/assets/defaultSettingsView-BNmKHKpQ.js",
+          "bytes": 658064,
+          "digest": "sha256:f21839cd274944763d12ad24529345b9f8ebf339409f51f4dbe52f9d9baeb09c",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/trace/assets/urlMatch-BYQrIQwR.js",
+          "bytes": 819,
+          "digest": "sha256:168c4dee4815ea8d3c131a504033cd23d4b15aefa0209dd10ad3f643e8f1d8a7",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/trace/codeMirrorModule.DYBRYzYX.css",
+          "bytes": 6421,
+          "digest": "sha256:70bf421a13e87857ca684bfa2cc55f06d7c5a50f71253a3ff1d74769b14a957e",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/trace/codicon.DCmgc-ay.ttf",
+          "bytes": 80340,
+          "digest": "sha256:0f1d5219934e96e83b8db162d60b4d8c09b5de1e7d38031cbafe4a3c0f2889c9",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/trace/defaultSettingsView.CjdS-WJx.css",
+          "bytes": 112258,
+          "digest": "sha256:de9c068d0e8043820fe42f30558e972eb7e2a8a45a34f65c7c8f73fa2dbc9fd0",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/trace/index.CzXZzn5A.css",
+          "bytes": 2111,
+          "digest": "sha256:4ec2a3d49db259ce9025cb4fa48d73b1afd58215e567eef3b4a4cbf76c1674d9",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/trace/index.DMMX1gXU.js",
+          "bytes": 6547,
+          "digest": "sha256:f33ceae71f13fde446a244c113548fec5ef890bf7b93ded7b861bebcebaa3e23",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/trace/index.html",
+          "bytes": 2363,
+          "digest": "sha256:5ced36d3feb5bbbc0e8350330be0a293a1b4784ddecb6e58e1851323a93640cc",
+          "media": "html"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/trace/manifest.webmanifest",
+          "bytes": 429,
+          "digest": "sha256:d8540500603a32a39fe7e5a0375dc0f9ebafd11118e06a846db7efc608223ab9",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/trace/playwright-logo.svg",
+          "bytes": 5033,
+          "digest": "sha256:6b0a4367bdeab10995bc239278f04c68c10e48adbec15e799e01909a0d66dcb9",
+          "media": "image"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/trace/snapshot.html",
+          "bytes": 389,
+          "digest": "sha256:11c80efe4f4424fa59004bcc71fed77a420d2da5f199790e355c30a5b965d0cd",
+          "media": "html"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/trace/snapshot.v8KI4P3m.js",
+          "bytes": 660,
+          "digest": "sha256:97a3cd6d67aaac66efc838d7d743ac51bbf7d272e1287981c11758fca21a0657",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/trace/sw.bundle.js",
+          "bytes": 95855,
+          "digest": "sha256:5237c6c68ba1f3591caf8cf951be4873192342a72fbcc31e5a667f7a7904c624",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/trace/uiMode.BZQ54Kgt.css",
+          "bytes": 60311,
+          "digest": "sha256:a548cd88f2041433da2d60fd3a33ef23af2fb8ddf2557b7bef79806364498e57",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/trace/uiMode.Ut8wwJNp.js",
+          "bytes": 38514,
+          "digest": "sha256:0ab1e917250833c3f6b3ed3ae3f359158bf68cd2d9951163ee6edff9b8ed1e5b",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/trace/uiMode.html",
+          "bytes": 727,
+          "digest": "sha256:95bf648d76d380b779770aae1c560b58ee456096b2b3b02922e629af29e3d492",
+          "media": "html"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/playwright-report/trace/xtermModule.DYP7pi_n.css",
+          "bytes": 4150,
+          "digest": "sha256:7c5a01f382f76539fc9b4db6b18e18a7035741845fd14968c5cdc0a7e373d817",
+          "media": "other"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e.json",
+          "bytes": 190651,
+          "digest": "sha256:516dbba1a98bafb5cca9177cbd7debadac2a42e21b111d926cc9b880198cae4f",
+          "media": "json"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/.last-run.json",
+          "bytes": 145,
+          "digest": "sha256:96aaa9a67944caa12ff7a08831c477f535fa4007a29f26ff6f3d5e87a4727935",
+          "media": "json"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/review-approval-评审批准：人在场-两-1b677-nce、再带着它提交，服务端的待决策视图清空，面板消失-chromium-retry1/error-context.md",
+          "bytes": 14444,
+          "digest": "sha256:0e3d83650f2f4b6a9dab28f5dee9c1cb31b516fc94c2bd8c396788f08c1b689f",
+          "media": "text"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/review-approval-评审批准：人在场-两-1b677-nce、再带着它提交，服务端的待决策视图清空，面板消失-chromium-retry1/test-failed-1.png",
+          "bytes": 138990,
+          "digest": "sha256:7b7ac175f5a8ef74f4778b3608fbd2df0bfbfa3c7ba0b6c48f6079b387650705",
+          "media": "image"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/review-approval-评审批准：人在场-两-1b677-nce、再带着它提交，服务端的待决策视图清空，面板消失-chromium-retry1/trace.zip",
+          "bytes": 352545,
+          "digest": "sha256:a018cd252b15f6192bef486691a568d5fca24bb4d618e32c3710a7de77c4782b",
+          "media": "trace"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/review-approval-评审批准：人在场-两-1b677-nce、再带着它提交，服务端的待决策视图清空，面板消失-chromium/error-context.md",
+          "bytes": 14444,
+          "digest": "sha256:0e3d83650f2f4b6a9dab28f5dee9c1cb31b516fc94c2bd8c396788f08c1b689f",
+          "media": "text"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/review-approval-评审批准：人在场-两-1b677-nce、再带着它提交，服务端的待决策视图清空，面板消失-chromium/test-failed-1.png",
+          "bytes": 138990,
+          "digest": "sha256:7b7ac175f5a8ef74f4778b3608fbd2df0bfbfa3c7ba0b6c48f6079b387650705",
+          "media": "image"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/review-approval-评审批准：人在场-两-1b677-nce、再带着它提交，服务端的待决策视图清空，面板消失-chromium/trace.zip",
+          "bytes": 394749,
+          "digest": "sha256:7fb6b288b3752ca6d87cf984bca6713cc34239cef67093054213f5bb614d8a49",
+          "media": "trace"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/review-approval-评审批准：人在场-过-e2b86-nce-required，评审仍挂着，页面提示重新确认-chromium-retry1/error-context.md",
+          "bytes": 14491,
+          "digest": "sha256:14539898007bbf89ace5f8f3af55ca227c8e660dc09e28237f35f313b9487599",
+          "media": "text"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/review-approval-评审批准：人在场-过-e2b86-nce-required，评审仍挂着，页面提示重新确认-chromium-retry1/test-failed-1.png",
+          "bytes": 138693,
+          "digest": "sha256:b41b0492b36ec38920da14149994b3017fec98e0a020418e2d89d8b111492655",
+          "media": "image"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/review-approval-评审批准：人在场-过-e2b86-nce-required，评审仍挂着，页面提示重新确认-chromium-retry1/trace.zip",
+          "bytes": 401867,
+          "digest": "sha256:049dac704a98bf43339b53b285de5a992f7e9804d89c86d4ad961986d01e2190",
+          "media": "trace"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/review-approval-评审批准：人在场-过-e2b86-nce-required，评审仍挂着，页面提示重新确认-chromium/error-context.md",
+          "bytes": 14491,
+          "digest": "sha256:14539898007bbf89ace5f8f3af55ca227c8e660dc09e28237f35f313b9487599",
+          "media": "text"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/review-approval-评审批准：人在场-过-e2b86-nce-required，评审仍挂着，页面提示重新确认-chromium/test-failed-1.png",
+          "bytes": 138693,
+          "digest": "sha256:b41b0492b36ec38920da14149994b3017fec98e0a020418e2d89d8b111492655",
+          "media": "image"
+        },
+        {
+          "path": "artifacts/dashboard-e2e-chromium/test-results/dashboard-e2e/review-approval-评审批准：人在场-过-e2b86-nce-required，评审仍挂着，页面提示重新确认-chromium/trace.zip",
+          "bytes": 353554,
+          "digest": "sha256:b8ece88bde39ca44f975d2dac332b2f54c23ac350b4688a7a263676a26dff172",
+          "media": "trace"
+        }
+      ],
+      "report": {
+        "format": "playwright-json",
+        "path": "test-results/dashboard-e2e.json",
+        "digest": "sha256:516dbba1a98bafb5cca9177cbd7debadac2a42e21b111d926cc9b880198cae4f"
+      },
+      "log": {
+        "artifact": "logs/dashboard-e2e-chromium.log",
+        "bytes_total": 37041,
+        "bytes_kept": 37053,
+        "truncated": false,
+        "digest": "sha256:49bc64a3c8e536bc3d9e0202a92425dd89673cb1e4030c3486e944232c1d9133"
+      }
+    }
+  ],
+  "result": "fail",
+  "actor": {
+    "id": "710227704@qq.com",
+    "name": "jefferySha",
+    "trust": "declared"
+  },
+  "host": {
+    "kind": "claude-code",
+    "sandbox": null
+  },
+  "git_head": "bfb4a3964b3646cb86735990eca0cadd91239be4",
+  "started_at": "2026-10-10T04:04:00Z",
+  "finished_at": "2026-10-10T04:30:22Z",
+  "duration_ms": 1582602,
+  "prev_digest": "sha256:7409854506aea4aa458f5578673ac360758dcfb0773c714abe3f161f172a68dc",
+  "digest": "sha256:5fffc60c3acee13d9839bdf49b219ba59f9a9fba24d77ad9ab70b2bc7c292ec9"
+}

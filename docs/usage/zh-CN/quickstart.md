@@ -65,9 +65,11 @@ review phase 的正确顺序：
 ```bash
 tenon check <change>
 tenon review request <change> --event <event>
-tenon review acknowledge <change>
+# 用户确认之后：
 tenon transition <change> <event>
 ```
+
+确认只来自用户：回复放行语（hook 写回执）、在 Dashboard 确认，或由用户本人在自己的终端运行 `tenon review acknowledge <change>`；agent 不得代为执行。
 
 持续授权可以记录 delegated acknowledgement，但不会跳过文档、读取、guard 或验证。
 

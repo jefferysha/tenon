@@ -254,3 +254,51 @@ describe('评审门上的待批准豁免', () => {
     })).toEqual(['transition'])
   })
 })
+
+describe('失败的步骤测试带 test:<id> 豁免', () => {
+  const stepTest = (status: string) => ({ id: 'code-size', direction: 'code-size', required: true, status, run_id: null })
+  const waiver = blocker('waiver-unapproved', 'test:code-size', 'tenon review request demo --event verify-pass')
+  const blocked = exit('verify-pass', 'forward', [{ source: 'test', code: 'test-evidence', message: renderTestBlocker(waiver) }])
+  const back = exit('verify-fail', 'back')
+
+  test('失败且豁免待批准：不再 run-test，照常走评审者，再 request-review 并把 test:<id> 列给用户', () => {
+    const base = { tests: [stepTest('waiver-pending')], testFlow: flow([waiver]), gate: 'review', exits: [blocked, back] }
+    expect(names({ ...base, reviewers: [reviewer] })).toEqual(['run-agent'])
+    expect(next(base)).toEqual([{ action: 'request-review', event: 'verify-pass', waivers: ['test:code-size'] }])
+    expect(names({ ...base, review: { status: 'pending', event: 'verify-pass' } })).toEqual(['await-review'])
+  })
+
+  test('失败且豁免已批准、评审已确认：可以转换；还没确认时先 request-review', () => {
+    const approved = { tests: [stepTest('waived')], testFlow: flow([]), gate: 'review', exits: [exit('verify-pass', 'forward'), back] }
+    expect(next({ ...approved, review: { status: 'approved', event: 'verify-pass' } })).toEqual([{ action: 'transition', event: 'verify-pass' }])
+    expect(next(approved)).toEqual([{ action: 'request-review', event: 'verify-pass' }])
+  })
+
+  test('评审已确认，但已批准的豁免对现在这份失败没有效力（批准绑定的是另一份代码）：不发必被拒的 transition，fix 点名撤回命令；撤回后重新发起评审', () => {
+    const base = { tests: [stepTest('waiver-pending')], testFlow: flow([waiver]), gate: 'review', exits: [blocked, back] }
+    expect(next({ ...base, review: { status: 'approved', event: 'verify-pass' } })).toEqual([{
+      action: 'fix',
+      blockers: [expect.objectContaining({
+        source: 'test',
+        code: 'waiver-unapproved',
+        message: expect.stringContaining('先 tenon review revoke demo --reason <原因> 撤回已批准的回执，再重新发起 review request'),
+      })],
+    }])
+    // 撤回之后回到待确认；冻结清单里的候选对不上现在的失败（refreshRequest），先重新发起评审。
+    expect(next({
+      ...base, testFlow: flow([waiver], { refreshRequest: true }), review: { status: 'pending', event: 'verify-pass' },
+    })).toEqual([{ action: 'request-review', event: 'verify-pass', waivers: ['test:code-size'] }])
+  })
+
+  test('没有豁免的失败测试行为不变：仍是 run-test；未运行 / 过期的测试豁免不了', () => {
+    expect(names({ tests: [stepTest('failed')], testFlow: flow([]), gate: 'review', exits: [blocked, back] })).toEqual(['run-test'])
+    expect(names({ tests: [stepTest('missing')], testFlow: flow([]), gate: 'review', exits: [blocked, back] })).toEqual(['run-test'])
+    expect(names({ tests: [stepTest('stale')], testFlow: flow([]), gate: 'review', exits: [blocked, back] })).toEqual(['run-test'])
+  })
+
+  test('待批准的豁免不算「必需测试失败」：结果字段与前进边照常，不被推去回退边', () => {
+    const outcome = { field: 'branch_status', kind: 'outcome' as const, writer: 'set' as const, status: 'missing' as const, value: null, allowed: ['handled'], required: null, recommended: 'handled' }
+    expect(names({ tests: [stepTest('waiver-pending')], testFlow: flow([waiver]), gate: 'review', exits: [blocked, back], fields: [outcome] }))
+      .toEqual(['set-field'])
+  })
+})

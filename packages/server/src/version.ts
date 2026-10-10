@@ -45,3 +45,38 @@ export function resolvePayloadReleaseId(pluginRoot: string): string | undefined 
   const releaseId = basename(dirname(pluginRoot))
   return RELEASE_ID.test(releaseId) ? releaseId : undefined
 }
+
+const DEV_COMMIT = /^[0-9a-f]{40}$/
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+export interface ReleaseChannel {
+  readonly kind: 'dev'
+  readonly commit: string
+}
+
+/**
+ * 托管 payload 的兄弟文件 release.json 带 devSource 时，这是一份源码开发安装（tenon setup --from-source）。
+ * 读不到或不合规一律按正式版处理：channel 只是 health 上的标注，不参与版本抢占。
+ * 只取 commit：仓库绝对路径等本机信息不出 release.json。
+ */
+export function resolveReleaseChannel(pluginRoot: string): ReleaseChannel | undefined {
+  if (basename(pluginRoot) !== 'payload') return undefined
+  try {
+    const manifest: unknown = JSON.parse(readFileSync(join(dirname(pluginRoot), 'release.json'), 'utf8'))
+    if (!isRecord(manifest) || !isRecord(manifest.devSource)) return undefined
+    const { kind, commit } = manifest.devSource
+    return kind === 'dev' && typeof commit === 'string' && DEV_COMMIT.test(commit)
+      ? { kind: 'dev', commit }
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** 版本徽标：开发安装是 `<version>+dev.<sha7>`，正式版就是 version 本身。 */
+export function displayVersion(version: string, channel: ReleaseChannel | undefined): string {
+  return channel === undefined ? version : `${version}+dev.${channel.commit.slice(0, 7)}`
+}

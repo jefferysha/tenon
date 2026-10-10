@@ -54,7 +54,7 @@ install_rules() {
 
 > Pi 无原生 pre-tool 硬拦 hook——本规则文件是 veto 能力的降级 advisory 层（契约 §1）。
 > inject/track 由 .pi/settings.json#hooks 原生实现；enforcement（veto）为 advisory：
-> 写类工具遇新鲜门 marker 时**应自我暂停**；review 的确认由 `tenon review acknowledge` 写入 canonical receipt，
+> 写类工具遇新鲜门 marker 时**应自我暂停**；review 的确认由用户经 `tenon review acknowledge` 写入 canonical receipt，
 > 不能通过删除 marker 伪造放行。
 
 7-phase 流水线：open → explore → spec → build ⇄ verify → ship → archive。
@@ -63,8 +63,10 @@ install_rules() {
 离开 review phase（explore / spec / verify）须对确切 event 取得人类显式确认：
 
     tenon review request <change> --event <event>
-    # 人类确认后：
-    tenon review acknowledge <change>
+
+确认只来自用户：在 Dashboard 确认（`tenon dashboard --open`），或由用户本人在自己的终端运行
+`tenon review acknowledge <change>`（本适配器没有写回执的 UserPromptSubmit hook）；agent 不得代为执行该命令。
+持续授权下 agent 只可用 `tenon review acknowledge <change> --delegated`，它不批准待批准的测试豁免。
 
 不得删除 `.pipeline-pending-review` 绕过 review-gate（会产生 solo 推进）。
 EOF

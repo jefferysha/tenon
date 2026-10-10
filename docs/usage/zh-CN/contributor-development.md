@@ -27,6 +27,18 @@ npm run test:all
 
 不要用全局依赖掩盖 lockfile 缺失，也不要混用 pnpm、yarn 或 bun。
 
+在本仓库里工作时，让本机加载的技能、hooks 与 CLI 都来自仓库工作区，而不是已发布版本：
+
+```bash
+tenon setup --claude --from-source . --dry-run   # 先预览；Codex 用 --codex
+tenon setup --claude --from-source .             # packages/*/dist 已是最新时可加 --skip-build
+tenon doctor                                     # identity:release 为警告（开发安装），source:drift 同步时为绿
+```
+
+改完仓库后重跑同一条 setup 命令即可同步。在仓库里新开会话时，若已装内容与工作区不一致，会话开头会有提示（SessionStart，纯 bash，不阻断）。切回正式版：`tenon update --claude --to-stable`。上游技能与本机 `skills/skills.lock.json` 不进仓库；新 checkout 或新 worktree 在第一次源码安装时自动获取。
+
+已知风险：`--from-source` 会运行所给检出的构建（`npm --prefix <repo> run build`），并按该检出的 `skills/sources.yaml` 拉取上游技能，然后把该检出的 hooks 与技能长期装进宿主，之后每个会话都会运行它们。目录算不算 Tenon 仓库只看检出自己的文件，agent 发起这条命令时也没有额外确认。它与 agent 能执行的任意命令同级，是开发者显式命令，只对你信任的检出使用。
+
 ### 2. 遵守包边界
 
 - Kernel：纯领域规则、状态、Workflow、document contract 和持久化原语；

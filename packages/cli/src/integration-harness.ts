@@ -8,7 +8,7 @@
  * 注意：文件名 *-harness.ts 不带 .test.，不会被 vitest 当测试收集（无用例）。
  */
 import { execFileSync } from 'node:child_process'
-import { appendFile, mkdtemp, mkdir, readFile, rm as fsRm, stat, writeFile } from 'node:fs/promises'
+import { appendFile, mkdtemp, mkdir, readFile, rm as fsRm, writeFile } from 'node:fs/promises'
 import { existsSync, readdirSync, readFileSync, statSync, type PathLike, type RmOptions } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -52,6 +52,7 @@ import {
   type TrackValidationContext,
 } from '@tenon/kernel'
 import type { CliDeps, GuardFileContext } from './deps.js'
+import { readGateMarkers } from './gateMarkers.js'
 import { detectPlatform, readProcVersion } from './commands/doctor-platform.js'
 import {
   FIXED_CLOCK, readGovernedDocumentsForCurrentVisit, recordBoundDocumentsForCurrentVisit, seedAppliedSpec,
@@ -208,6 +209,7 @@ export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.
     automationRunner: false,
   })
   const store = createStateStore()
+  const recordStore = createTransitionRecordStore()
   const trackCtx = trackValidationContext(cwd, manifest)
   return {
     // H10 §1/§8任务7：与 main.ts 同款装配——复用 trackCtx.skillProfiles（T 线现有 profile 校验器，
@@ -220,7 +222,8 @@ export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.
     store,
     taskLifecycle: createTaskLifecycleApplication({ store, clock: () => FIXED_CLOCK, nowMs: () => Date.now() }),
     artifactSubmission: harnessArtifactSubmission(cwd, store),
-    runRepo: createWorkflowRunRepository({ store, recordStore: createTransitionRecordStore(), clock: () => FIXED_CLOCK }),
+    runRepo: createWorkflowRunRepository({ store, recordStore, clock: () => FIXED_CLOCK }),
+    recordStore,
     loadRegistry: () => loadTrackRegistry(cwd, trackCtx),
     withRegistryLock: (cb) => withTrackRegistryLock(cwd, trackCtx, cb),
     mutateRegistry: (cb) => mutateTrackRegistry(cwd, trackCtx, cb),
@@ -266,17 +269,7 @@ export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.
       } catch { return [] }
     },
     guardCtx,
-    readGateMarkers: async () => {
-      const res = []
-      for (const kind of ['confirm', 'review', 'interaction'] as const) {
-        try {
-          const p = join(cwd, `.pipeline-pending-${kind}`)
-          const st = await stat(p)
-          res.push({ kind, ageMs: Math.max(0, Date.now() - st.mtimeMs), raw: await readFile(p, 'utf8') })
-        } catch { /* 缺失 */ }
-      }
-      return res
-    },
+    readGateMarkers: () => readGateMarkers(cwd),
     readHistoryRaw: async (dir) => { try { return await readFile(join(dir, '.pipeline-history.jsonl'), 'utf8') } catch { return '' } },
     writeBreadcrumb: (dir, content) => writeFile(join(dir, '.breadcrumb'), content, 'utf8'),
     history: createHistoryWriter({ actor: () => { const user = resolveTenonUser(cwd, env); return isTenonUser(user) ? actorOf(user) : undefined } }),

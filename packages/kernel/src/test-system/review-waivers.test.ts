@@ -18,6 +18,9 @@ let dir: string
 beforeEach(async () => { dir = await mkdtemp(join(tmpdir(), 'tenon-review-waivers-')) })
 afterEach(async () => { await rm(dir, { recursive: true, force: true }) })
 
+const CAND = `workspace:sha256:${'a'.repeat(64)}`
+const CAND_B = `workspace:sha256:${'b'.repeat(64)}`
+
 const SELECTION = {
   phase: 'verify',
   event: 'verify-pass',
@@ -33,6 +36,41 @@ describe('评审请求冻结的豁免清单', () => {
     await clearReviewWaiverSelection(dir)
     expect(await readReviewWaiverSelection(dir)).toBeUndefined()
     await expect(clearReviewWaiverSelection(dir)).resolves.toBeUndefined()
+  })
+
+  it('步骤测试豁免的键 test:<id> 能被冻结清单读回', async () => {
+    const withTest = { ...SELECTION, waivers: [...SELECTION.waivers, { key: 'test:code-size', reason: '迁移脚本一次性生成' }] }
+    await writeReviewWaiverSelection(dir, withTest)
+    expect(await readReviewWaiverSelection(dir)).toEqual({ version: 1, ...withTest })
+  })
+
+  it('test:<id> 的清单项可以带冻结时失败记录的候选 candidate，写入后原样读回', async () => {
+    const withCandidate = { ...SELECTION, waivers: [...SELECTION.waivers, { key: 'test:code-size', reason: '迁移脚本一次性生成', candidate: CAND }] }
+    await writeReviewWaiverSelection(dir, withCandidate)
+    expect(await readReviewWaiverSelection(dir)).toEqual({ version: 1, ...withCandidate })
+  })
+
+  it('candidate 的解码是严格的：只能在 test: 键上、必须是工作区指纹、未知键一律拒绝——清单不能借它注入批准', async () => {
+    const head = '{"version":1,"phase":"verify","event":"e","requestedAt":"t","waivers":'
+    const bad = [
+      `[{"key":"kind:benchmark","reason":"x","candidate":"${CAND}"}]`,
+      `[{"key":"covers:spec:auth/登录成功","reason":"x","candidate":"${CAND}"}]`,
+      `[{"key":"not-applicable:typecheck","reason":"x","candidate":"${CAND}"}]`,
+      '[{"key":"test:size","reason":"x","candidate":"not-a-fingerprint"}]',
+      '[{"key":"test:size","reason":"x","candidate":""}]',
+      '[{"key":"test:size","reason":"x","candidate":null}]',
+      '[{"key":"test:size","reason":"x","candidate":7}]',
+      `[{"key":"test:size","reason":"x","candidate":"${CAND}","approved_by":"boss@x.io"}]`,
+      `[{"key":"test:size","reason":"x","candidate":"${CAND}","approved_candidate":"${CAND}"}]`,
+      `[{"key":"test:size","reason":"x","candidates":"${CAND}"}]`,
+      '[{"key":"test:size","candidate":"workspace:sha256:' + 'a'.repeat(64) + '"}]',
+    ]
+    for (const waivers of bad) {
+      await writeFile(join(dir, REVIEW_WAIVERS_FILE), `${head}${waivers}}`, 'utf8')
+      expect(await readReviewWaiverSelection(dir), waivers).toBeUndefined()
+    }
+    await writeFile(join(dir, REVIEW_WAIVERS_FILE), `${head}[{"key":"test:size","reason":"x","candidate":"${CAND}"}]}`, 'utf8')
+    expect(await readReviewWaiverSelection(dir)).toMatchObject({ waivers: [{ key: 'test:size', reason: 'x', candidate: CAND }] })
   })
 
   it('形状不对（多键、缺键、坏键名、非 JSON）一律当作没有清单', async () => {
@@ -99,6 +137,67 @@ describe('approveFrozenWaivers', () => {
       { kind: 'benchmark', reason: '纯文案改动', approved_by: ACTOR.id },
       { kind: 'unit', reason: '请求之后才加的', approved_by: null },
     ])
+  })
+
+  it('冻结清单里的步骤测试豁免 test:<id> 被批准，未冻结的另一条 test 豁免不被批准', async () => {
+    await writePlanWith([
+      { test: 'code-size', reason: '迁移脚本一次性生成', approved_by: null },
+      { test: 'lint', reason: '请求之后才加的', approved_by: null },
+    ])
+    await writeReviewWaiverSelection(dir, { ...SELECTION, waivers: [{ key: 'test:code-size', reason: '迁移脚本一次性生成' }] })
+    const outcome = await approveFrozenWaivers({ repoRoot: dir, dir, change: 'demo', state: reviewState(), actor: ACTOR, recordedAt: STAMP })
+    expect(outcome).toMatchObject({ approved: ['test:code-size'], skipped: [], note: null })
+    const plan = await readTestPlanState(dir, 'demo')
+    expect(plan.state === 'ok' && plan.plan.waivers).toEqual([
+      { test: 'code-size', reason: '迁移脚本一次性生成', approved_by: ACTOR.id },
+      { test: 'lint', reason: '请求之后才加的', approved_by: null },
+    ])
+  })
+
+  it('冻结清单里 test:<id> 带着候选：批准时 approved_by 与被批准的候选一起写进计划', async () => {
+    await writePlanWith([{ test: 'code-size', reason: '迁移脚本一次性生成', approved_by: null }])
+    await writeReviewWaiverSelection(dir, { ...SELECTION, waivers: [{ key: 'test:code-size', reason: '迁移脚本一次性生成', candidate: CAND }] })
+    const outcome = await approveFrozenWaivers({ repoRoot: dir, dir, change: 'demo', state: reviewState(), actor: ACTOR, recordedAt: STAMP })
+    expect(outcome).toMatchObject({ approved: ['test:code-size'], skipped: [], note: null })
+    const plan = await readTestPlanState(dir, 'demo')
+    expect(plan.state === 'ok' && plan.plan.waivers).toEqual([
+      { test: 'code-size', reason: '迁移脚本一次性生成', approved_by: ACTOR.id, approved_candidate: CAND },
+    ])
+  })
+
+  it('重新批准：计划里已有对另一份代码（或没有候选）的批准，清单带着新候选时重新批准并写入新候选；同一份候选则是已批准过', async () => {
+    await writePlanWith([{ test: 'code-size', reason: '迁移脚本一次性生成', approved_by: 'boss@x.io', approved_candidate: CAND }])
+    await writeReviewWaiverSelection(dir, { ...SELECTION, waivers: [{ key: 'test:code-size', reason: '迁移脚本一次性生成', candidate: CAND_B }] })
+    const outcome = await approveFrozenWaivers({ repoRoot: dir, dir, change: 'demo', state: reviewState(), actor: ACTOR, recordedAt: STAMP })
+    expect(outcome).toMatchObject({ approved: ['test:code-size'], skipped: [], note: null })
+    const plan = await readTestPlanState(dir, 'demo')
+    expect(plan.state === 'ok' && plan.plan.waivers).toEqual([
+      { test: 'code-size', reason: '迁移脚本一次性生成', approved_by: ACTOR.id, approved_candidate: CAND_B },
+    ])
+    // 重试同一条确认是幂等的：这一份候选已经批准过。
+    const again = await approveFrozenWaivers({ repoRoot: dir, dir, change: 'demo', state: reviewState(), actor: ACTOR, recordedAt: STAMP })
+    expect(again).toMatchObject({ approved: [], skipped: [{ key: 'test:code-size', why: 'already-approved' }], digest: null })
+  })
+
+  it('pendingReviewWaivers 带上失败事实：批准的候选已不是当前失败的候选、或旧批准没有候选，都再次列出，并带当前候选', async () => {
+    await writePlanWith([
+      { test: 'code-size', reason: '迁移脚本一次性生成', approved_by: 'boss@x.io', approved_candidate: CAND },
+      { test: 'lint', reason: '旧版本批准的', approved_by: 'boss@x.io' },
+      { test: 'unit', reason: '候选相同', approved_by: 'boss@x.io', approved_candidate: CAND },
+      { kind: 'benchmark', reason: '纯文案改动', approved_by: null },
+    ])
+    const failures = new Map([
+      ['code-size', { state: 'waiver-pending' as const, candidate: CAND_B }],
+      ['lint', { state: 'waiver-pending' as const, candidate: CAND_B }],
+      ['unit', { state: 'waived' as const, candidate: CAND }],
+    ])
+    expect(await pendingReviewWaivers({ repoRoot: dir, dir, change: 'demo', failures })).toEqual([
+      { key: 'kind:benchmark', reason: '纯文案改动' },
+      { key: 'test:code-size', reason: '迁移脚本一次性生成', candidate: CAND_B },
+      { key: 'test:lint', reason: '旧版本批准的', candidate: CAND_B },
+    ])
+    // 不传失败事实（只看计划）：已批准的 test 豁免不列，与以前一致。
+    expect((await pendingReviewWaivers({ repoRoot: dir, dir, change: 'demo' })).map((item) => item.key)).toEqual(['kind:benchmark'])
   })
 
   it('理由被改过 / 已批准过的不再批准，计划原样不动', async () => {
