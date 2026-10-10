@@ -126,7 +126,7 @@ export type TestPlanView =
       readonly suites: readonly { readonly suite: string; readonly kind: string | null; readonly scope: string; readonly pattern?: string }[]
       readonly files: readonly { readonly path: string; readonly suite?: string; readonly kind?: string }[]
       readonly cases: readonly { readonly covers: string; readonly tests: readonly string[] }[]
-      readonly waivers: readonly { readonly kind?: string; readonly covers?: string; readonly reason: string; readonly approvedBy: string | null }[]
+      readonly waivers: readonly { readonly kind?: string; readonly covers?: string; readonly test?: string; readonly reason: string; readonly approvedBy: string | null }[]
     }
 
 /** 快照里的计划概要（矩阵只需要登记了哪些套件与豁免）。 */
@@ -136,7 +136,7 @@ export type TestPlanBrief =
   | {
       readonly state: 'ok'
       readonly suites: readonly { readonly suite: string; readonly kind: string | null; readonly scope: string }[]
-      readonly waivers: readonly { readonly kind?: string; readonly covers?: string; readonly approved: boolean }[]
+      readonly waivers: readonly { readonly kind?: string; readonly covers?: string; readonly test?: string; readonly approved: boolean }[]
       readonly files: number
       readonly cases: number
     }
@@ -186,7 +186,8 @@ export interface BenchmarkVerdict {
   readonly details: readonly string[]
 }
 
-export type SuiteState = 'passed' | 'failed' | 'stale' | 'missing' | 'running'
+/** `waived` / `waiver-pending` 只出现在失败后带 `test:<id>` 豁免的步骤测试上：已批准放行 / 等评审批准。 */
+export type SuiteState = 'passed' | 'failed' | 'stale' | 'missing' | 'running' | 'waived' | 'waiver-pending'
 export type StaleBinding = 'candidate' | 'workflow' | 'catalog' | 'plan' | 'policy'
 
 export interface SuiteVerdict {

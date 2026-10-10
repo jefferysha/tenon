@@ -1,11 +1,13 @@
 import {
   assertWorkflowAllowed,
+  parseMaxRoundsText,
   requireTrackForRoot,
   type FieldName,
   type PipelineState,
   type TrackRegistry,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
+import { msg } from '../i18n/messages.js'
 
 const REVIEWISH = ['pending', 'pass', 'fail', 'handled', 'skipped'] as const
 const PRE_VERIFY_REVIEW = ['pending', 'pass'] as const
@@ -78,6 +80,12 @@ export function RECOMMENDED(field: string, state: PipelineState): string | undef
 export function enumValueAllowed(deps: CliDeps, field: FieldName, value: string | string[]): boolean {
   if (RETIRED_FIELDS.has(field)) {
     deps.io.err(`ERROR: 字段 '${field}' 已删除——评审改用步骤 agents.reviewers`)
+    return false
+  }
+  // 任务级验证轮次上限：只接受 1 到 20 的规范十进制整数；清空不是一种写法（要恢复工作流声明的上限，由用户决定）。
+  if (field === 'max_rounds') {
+    if (typeof value === 'string' && parseMaxRoundsText(value) !== undefined) return true
+    deps.io.err(`ERROR: ${msg(deps, 'field.maxRoundsInvalid', { value: Array.isArray(value) ? value.join(',') : value })}`)
     return false
   }
   if (Array.isArray(value)) return true

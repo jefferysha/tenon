@@ -30,6 +30,7 @@ import {
   type HostLocalSkip,
 } from './host-local.js'
 import { isProcessLocalFdPath } from './process-local-fd-path.js'
+import { INTERACTION_MARKER_SESSION_PREFIX } from '../state/markers.js'
 
 export { HOST_LOCAL_DIRS, HOST_LOCAL_FILES, hasHostLocalFiles, isHostLocalPath, trackedHostLocalPaths } from './host-local.js'
 
@@ -173,6 +174,8 @@ function isExcluded(relativePath: string, exclusions: Exclusions, anySegment: Re
   return EXCLUDED_TOP_LEVEL.has(parts[0] ?? '')
     || parts.some((part) => anySegment.has(part))
     || EXCLUDED_BASENAMES.has(parts.at(-1) ?? '')
+    // 按会话分文件的交互标记，连同 hook 的原子写 / 认领临时文件（同前缀），都是本机瞬态。
+    || (parts.at(-1) ?? '').startsWith(INTERACTION_MARKER_SESSION_PREFIX)
     || EXCLUDED_RELATIVE_ROOTS.some((root) => relativePath === root || relativePath.startsWith(`${root}/`))
     || (!relativePath.includes('/') && EXCLUDED_ROOT_ARTIFACTS.some((pattern) => pattern.test(relativePath)))
     || EXCLUDED_ROOT_FILES.has(relativePath)

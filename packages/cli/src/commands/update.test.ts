@@ -1,6 +1,8 @@
-import { describe, expect, test } from 'vitest'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { afterEach, describe, expect, test } from 'vitest'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { installChannelPath, writeInstallChannelMarker } from '../runtime/dev-install-marker.js'
 import { UpstreamSkillError } from '@tenon/kernel'
 import { makeDeps } from '../test-support.js'
 import { PAYLOAD_ENTRIES } from '../runtime/release-store-codecs.js'
@@ -779,6 +781,103 @@ describe('tenon update', () => {
     ])
     expect(runtime.calls.activations).toEqual([])
     expect(deps.errLines.join('\n')).toContain('拒绝从宿主 plugin 0.1.1 降级到 0.1.0')
+  })
+
+  describe('--to-stable from a development install', () => {
+    const DEV_RELEASE_ID = `sha256-${'d'.repeat(64)}`
+    const DEV_SOURCE = {
+      kind: 'dev' as const, repoRealpath: '/work/tenon', commit: 'abcdef0123456789abcdef0123456789abcdef01',
+      dirty: false, worktreeDigest: 'b'.repeat(40), skillsIndexDigest: 'c'.repeat(40),
+    }
+    const tempRoots: string[] = []
+    afterEach(() => {
+      for (const root of tempRoots.splice(0)) rmSync(root, { recursive: true, force: true })
+    })
+
+    /** 活动 release 是开发安装（版本号 2.0.0 高于目标 0.1.0）；标记写在隔离的 config 根里。 */
+    function devSetup(fail: boolean) {
+      const home = mkdtempSync(join(tmpdir(), 'tenon-update-dev-'))
+      tempRoots.push(home)
+      const runtimeEnv = { TENON_RUNTIME_HOME: join(home, 'runtime') }
+      const configRoot = resolveRuntimePaths({ homeDir: '/home/update-test', env: runtimeEnv }).configRoot
+      writeInstallChannelMarker(configRoot, {
+        host: 'codex', releaseId: DEV_RELEASE_ID, installedAt: '2026-10-07T12:00:00Z', devSource: DEV_SOURCE,
+      })
+      const { env, calls } = updateEnv((cmd, args) => {
+        if (cmd !== 'codex' || args.join(' ') !== 'plugin list --json') return { code: 0, stdout: '', stderr: '' }
+        const installed = calls.exec.some(([command, called]) => command === 'codex'
+          && called.join(' ') === 'plugin add tenon@tenon --json')
+        return { code: 0, stdout: codexInventory(installed ? RESET_TARGET.version : '2.0.0'), stderr: '' }
+      }, runtimeEnv, RESET_TARGET)
+      requireVersionedHostRebind(env, calls, 'codex', RESET_TARGET)
+      const runtime = fakeRuntimeInstaller(fail, null, DEV_RELEASE_ID, '2.0.0', undefined, true, 2)
+      const baseInspect = runtime.installer.inspect
+      runtime.installer.inspect = async (scope) => {
+        const inspection = await baseInspect(scope)
+        return inspection.active === null || inspection.active.version !== 2
+          ? inspection
+          : { ...inspection, active: { ...inspection.active, devSource: DEV_SOURCE } }
+      }
+      return { env, runtime, configRoot }
+    }
+
+    const run = (setup: ReturnType<typeof devSetup>, deps: ReturnType<typeof makeDeps>) => cmdUpdate(
+      deps,
+      { codex: true, toStable: true },
+      setup.env,
+      setup.runtime.installer,
+      fakeDashboardStarter([], null, '1.2.3', undefined, RESET_TARGET.version).starter,
+      { resolve: async () => RESET_TARGET },
+      async () => ({ pluginVersion: RESET_TARGET.version, payloadDigest: 'b'.repeat(64) }),
+    )
+
+    test('a dev version higher than the stable target is not rejected as a downgrade, and the marker is removed on success', async () => {
+      const deps = makeDeps()
+      const setup = devSetup(false)
+      expect(existsSync(installChannelPath(setup.configRoot))).toBe(true)
+      const result = await run(setup, deps)
+      expect(result, deps.errLines.join('\n')).toBe(0)
+      expect(deps.errLines.join('\n')).not.toContain('拒绝从')
+      expect(setup.runtime.calls.activations).toHaveLength(1)
+      expect(existsSync(installChannelPath(setup.configRoot))).toBe(false)
+    })
+
+    test('the marker stays when the switch back to stable fails', async () => {
+      const deps = makeDeps()
+      const setup = devSetup(true)
+      const result = await run(setup, deps)
+      expect(result).toBe(1)
+      expect(deps.errLines.join('\n')).not.toContain('拒绝从')
+      expect(existsSync(installChannelPath(setup.configRoot))).toBe(true)
+    })
+
+    test('without --to-stable the guard refuses and the marker stays', async () => {
+      const deps = makeDeps()
+      const setup = devSetup(false)
+      const result = await cmdUpdate(
+        deps, { codex: true }, setup.env, setup.runtime.installer, fakeDashboardStarter().starter,
+        { resolve: async () => RESET_TARGET },
+      )
+      expect(result).toBe(1)
+      expect(deps.errLines.join('\n')).toContain('源码开发安装')
+      expect(setup.runtime.calls.activations).toEqual([])
+      expect(existsSync(installChannelPath(setup.configRoot))).toBe(true)
+    })
+
+    test('an unreadable runtime with a dev marker is still refused (fail-closed), not routed to the stable path', async () => {
+      const deps = makeDeps()
+      const setup = devSetup(false)
+      setup.runtime.installer.inspect = async () => { throw new Error('runtime unreadable') }
+      const result = await cmdUpdate(
+        deps, { codex: true }, setup.env, setup.runtime.installer, fakeDashboardStarter().starter,
+        { resolve: async () => RESET_TARGET },
+      )
+      expect(result).toBe(1)
+      expect(deps.errLines.join('\n')).toContain('源码开发安装')
+      expect(deps.errLines.join('\n')).toContain('tenon update --codex --to-stable')
+      expect(setup.runtime.calls.activations).toEqual([])
+      expect(existsSync(installChannelPath(setup.configRoot))).toBe(true)
+    })
   })
 
   test('cleanup-pending for a retired 1.x runtime does not block the 0.x migration', async () => {

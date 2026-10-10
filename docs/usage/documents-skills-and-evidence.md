@@ -90,10 +90,12 @@ exact event receipt:
 
 ```bash
 tenon review request <change-name> --event <event>
-tenon review acknowledge <change-name>
 ```
 
-Deleting a pending marker does not create approval.
+The user confirms it: by replying with an approval phrase (the hook writes the
+receipt), in the Dashboard (`tenon dashboard --open`), or by running
+`tenon review acknowledge <change-name>` in their own terminal. The agent must
+not run that manual form. Deleting a pending marker does not create approval.
 
 ## Short/custom Workflow behavior
 

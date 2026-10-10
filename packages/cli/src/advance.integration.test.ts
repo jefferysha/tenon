@@ -8,9 +8,10 @@
  * 说明：advance 尚未接入 program（收编由主会话统一接线），故用 h.run 做 init/set/transition 铺场，
  * 再用 realDeps 直调 cmdAdvance —— 与 main.ts 同一条 fs 副作用装配路径，只把 io 收进数组。
  */
-import { appendFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, readFile, rm, utimes, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
+import { GATE_TTL_MS, INTERACTION_MARKER_SESSION_PREFIX } from '@tenon/kernel'
 import { freshHarness, realDeps, TEST_GIT_BUILD_TOKEN, type Harness } from './integration-harness.js'
 import { cmdAdvance, type AdvanceOpts } from './commands/advance.js'
 
@@ -180,6 +181,13 @@ describe('真实 e2e —— advance auto-transition 中间档（HITL 红线：�
     expect(first.code).toBe(0)
     expect(await phaseOf('demo')).toBe('verify')
     expect(first.out.some((l) => l.includes('确认回执'))).toBe(true)
+    // 停下提示不再指示 agent 自己运行 acknowledge：确认是用户的动作（回复放行语 / Dashboard / 用户本人的终端）。
+    const stopLine = first.out.find((l) => l.includes('确认回执')) ?? ''
+    expect(stopLine).toContain('tenon review request demo --event ')
+    expect(stopLine).toContain('用户本人在自己的终端运行 tenon review acknowledge demo')
+    expect(stopLine).toContain('Dashboard')
+    expect(stopLine).toContain('agent 不得代为执行')
+    expect(stopLine).not.toContain('待用户确认后运行')
 
     await recordMandatorySkills('demo')
     // 进了 verify 才轮到该步的评审者；真实宿主同样是先跑完评审再请求确认。
@@ -218,6 +226,26 @@ describe('真实 e2e —— advance auto-transition 中间档（HITL 红线：�
     // 硬门当前，绝不自动跨越——phase 停在 build，零推进
     expect(await phaseOf('demo')).toBe('build')
     expect(r.out.some((l) => l.includes('[STOP]') && l.includes('confirm'))).toBe(true)
+  })
+
+  test('HITL 红线：任一会话按会话分文件的交互标记（新鲜）也让 advance 停在硬门；陈旧的不拦', async () => {
+    await seedToBuild('demo')
+    await armBuildGuard('demo')
+    await armVerifyGuard('demo')
+    await armShipGuard('demo')
+    const marker = join(h.cwd, `${INTERACTION_MARKER_SESSION_PREFIX}session-a-0001`)
+    await writeFile(marker, 'pipeline-interaction-v2\nchange=other\nsession=session-a-0001\nskills=brainstorming\nrequested_at=x\n', 'utf8')
+
+    const stopped = await advance('demo', { throughGates: true })
+    expect(stopped.code).toBe(0)
+    expect(await phaseOf('demo')).toBe('build')
+    expect(stopped.out.some((l) => l.includes('[STOP]') && l.includes('interaction'))).toBe(true)
+
+    const old = new Date(Date.now() - (GATE_TTL_MS.interaction + 60_000))
+    await utimes(marker, old, old)
+    const resumed = await advance('demo', { throughGates: true })
+    expect(resumed.out.some((l) => l.includes('[STOP]') && l.includes('硬门'))).toBe(false)
+    expect(await phaseOf('demo')).not.toBe('build')
   })
 })
 

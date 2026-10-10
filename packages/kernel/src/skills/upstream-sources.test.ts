@@ -80,6 +80,12 @@ describe('parseUpstreamSkillSources', () => {
     ['duplicate id', `${hueLine}\n${hueLine}`],
     ['license_expected: GPL-3.0', hueLine.replace('MIT', 'GPL-3.0')],
     ['uppercase id', hueLine.replace('hue:', 'Hue:')],
+    // 技能 id 会被拼进 skills/<id>/SKILL.md：含路径分隔符或点段的 id 必须在解析处就被拒。
+    ['id ../x', hueLine.replace('hue:', '../x:')],
+    ['id a/b', hueLine.replace('hue:', 'a/b:')],
+    ['id ..', hueLine.replace('hue:', '..:')],
+    ['id .', hueLine.replace('hue:', '.:')],
+    ['id a\\b', hueLine.replace('hue:', 'a\\b:')],
     ['missing field', hueLine.replace(', ref: default-branch', '')],
   ])('rejects %s', (_label, line) => {
     expect(category(() => parseUpstreamSkillSources(`version: 1\nskills:\n${line}\n`))).toBe('invalid-skill-sources')

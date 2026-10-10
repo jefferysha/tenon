@@ -30,6 +30,8 @@ export const HELP_EN_CORE: Readonly<Record<string, string>> = {
   'setup --amp': ADAPTER_DEPLOY('Amp'),
   'setup --target': 'Project target directory for a non-native adapter (default: current directory)',
   'setup --auto-update': 'Enable the once-a-day automatic upgrade check for the selected native host',
+  'setup --from-source': 'Source development install: build and install from a Tenon source repository worktree (only with one of --claude or --codex; never posed as a release tag)',
+  'setup --skip-build': 'With --from-source, skip npm run build (only when packages/*/dist already matches the source)',
   'setup --dry-run': 'Only print the install plan for the selected host; write no files and run no adapter or marketplace operation',
   'setup --yes': 'Skip the y/N confirmation slot kept for compatible skills/setup',
 
@@ -50,6 +52,7 @@ export const HELP_EN_CORE: Readonly<Record<string, string>> = {
   'update --dry-run': 'Only print the upgrade plan; run no marketplace or adapter operation',
   'update --yes': 'Non-interactive confirmation for the automatic updater',
   'update --auto': 'Called by an automatic-update task the user explicitly enabled (does not change the opt-in state)',
+  'update --to-stable': 'Switch a development install (tenon setup --from-source) back to the latest stable release; a no-op for a stable install',
 
   'host-target-plan': 'Read-only: print the registered host catalog, or one setup/update JSON plan; performs no host write',
   'host-target-plan --host': 'Registered host id from TENON_HOSTS',
@@ -114,10 +117,11 @@ export const HELP_EN_CORE: Readonly<Record<string, string>> = {
 
   transition: 'State machine transition (stdout stays empty; [TRANSITION] goes to stderr; an illegal or unknown event exits 1)',
 
-  review: 'Review exit confirmation: request <change> --event <event> (ask for a review) / acknowledge <change> [--delegated] [--as reviewer] (write the exact receipt; only the owner may; a non-owner confirms as a reviewer with --as reviewer)',
+  review: 'Review exit confirmation: request <change> --event <event> (ask for a review) / acknowledge <change> [--delegated] [--as reviewer] (write the exact receipt; only the owner may; a non-owner confirms as a reviewer with --as reviewer) / revoke <change> --reason <text> (turn an approved, unconsumed receipt back into a pending one; only the owner may)',
   'review --event': 'The exact transition event bound at request time; required for a review step with several exits',
   'review --delegated': 'Only when the user explicitly delegated continuous execution of the current Change: write an audited review receipt under that delegation',
   'review --as': 'acknowledge only: a non-owner confirms as a reviewer (only reviewer is supported; the role and the owner are recorded in history)',
+  'review --reason': 'revoke only: why the approved receipt is withdrawn (required, one line, at most 200 characters)',
 
   interaction: 'Interaction scorecard: read bounded, non-symlink benchmark fixtures and print deterministic JSON',
   'interaction --json': 'JSON output (a scorecard must be named explicitly)',

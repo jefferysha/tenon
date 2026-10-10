@@ -2,7 +2,8 @@
 # gate.sh — PreToolUse 统一交互门（lite 版，语义对齐老内核 pipeline-gate.sh）。
 #
 # 机制：项目根存在新鲜（TTL 分级，CONTRACT §2 / types.ts GATE_TTL_MS）的
-#   .pipeline-pending-{confirm,review,interaction} 任一 marker → 对产出类工具 exit 2 + stderr 中文指引；
+#   .pipeline-pending-{confirm,review,interaction} 任一 marker → 对产出类工具 exit 2 + stderr 中文指引
+#   （interaction 按会话分文件 .pipeline-pending-interaction.<session_id>，只拦归属它的会话，见 pending-marker.sh）；
 #   原生人类提问工具 AskUserQuestion / request_user_input 及其加载器 ToolSearch 是例外：它们只负责把决策交给用户，
 #   不会绕过 marker 或写入产出；无 marker / 陈旧（顺手清掉）→ exit 0。
 # TTL 分级（BACKLOG #13，对齐老内核 pipeline-gate.sh，勿改回统一值）：
@@ -106,6 +107,78 @@ pipeline_unwrap_shell_wrapper() { # $1=raw command → inner command text (uncha
   done
   printf '%s' "$command"
 }
+
+# agent 不能自己手动确认评审：手动 `tenon review acknowledge`（不带 --delegated）经终端通道会批准冻结的豁免清单，而 hook
+# 无法证明「人在场」。手动确认只在用户回复放行语时由 hook 自己写入（review-ack.sh 直接调 CLI，不经 PreToolUse），或由用户在
+# Dashboard 确认；持续授权下用 --delegated，它不批准豁免。所以 agent 的 shell 调用里出现手动 acknowledge **任何时候**都拒——
+# 不论有没有评审标记（评审标记 30 分钟后过期，过期后门不再拦，这条不能跟着失效），AFK 也照拒。
+# 命令文本的还原与判定（还原顺序、标记字符、--delegated 口径、失败关闭的误拦范围、覆盖不到的写法）在 hooks/lib/ack-command.sh，
+# 只在下面的预筛命中时才加载；这里只留预筛、加载与拒绝。
+
+# 预筛与 hooks/lib/ack-command.sh 共用：acknowledge 的各个字母是否依次出现在文本里（花括号展开能拼出该词的必要条件）。
+pipeline_text_may_spell_acknowledge() { # $1=text → 0 = 其中依次出现 acknowledge 的各个字母
+  local rest="${1:-}" ch head
+  # 先用三个单字母的 case 快速排除：绝大多数词没有 k / w / g（单星号通配线性，不会像多星号那样回溯）。
+  case "$rest" in *k*) ;; *) return 1 ;; esac
+  case "$rest" in *w*) ;; *) return 1 ;; esac
+  case "$rest" in *g*) ;; *) return 1 ;; esac
+  # 在第一个出现的字母处切开，取后半段接着找。不用 ${rest#*字母}：bash 3.2 下它对「到下一个出现处的距离」是平方级
+  # （393 KB 里 k 在末尾时要 40 秒）；read 按分隔字符切一次是线性的。
+  for ch in a c k n o w l e d g e; do
+    case "$rest" in *"$ch"*) ;; *) return 1 ;; esac
+    IFS="$ch" read -r -d '' head rest <<< "$rest" || true
+  done
+  return 0
+}
+
+pipeline_refuse_manual_acknowledge() {
+  printf '【Tenon 门】禁止 agent 自己执行手动 tenon review acknowledge：手动确认会经终端通道批准冻结的豁免清单，而 hook 无法证明用户在场。手动确认只在用户回复放行语（「确认继续」「继续执行」等）时由 hook 写入，或由用户在 Dashboard 确认（需要打开页面时运行 tenon dashboard --open，由 server 替用户打开已登录的浏览器）；已有持续授权时用 tenon review acknowledge <change> --delegated，它不批准待批准的测试豁免。\n' >&2
+  exit 2
+}
+
+# 判定库缺失是安装缺陷：预筛已经命中（命令很可能含手动确认），核实不了就按失败关闭拒绝；预筛没命中的调用不会走到这里。
+pipeline_refuse_ack_lib_missing() { # $1=库路径
+  printf '【Tenon 门】hooks/lib/ack-command.sh 缺失（%s），无法核实这条命令是否在执行手动 tenon review acknowledge，按失败关闭拒绝。请重新安装或更新 Tenon 插件（tenon update），让 hooks/lib/ 随插件一起安装。\n' "${1:-}" >&2
+  exit 2
+}
+
+# 手动 acknowledge 的拒绝放在其它分支之前：后面的分支（受保护路径的写入判定、自审批候选提取）遇到超大命令会跑得很慢，
+# hook 超时被宿主当非阻断错误放行，这条拒绝不能排在它们后面被一起拖过限时。
+# 预筛只是性能捷径，不能比 pipeline_command_runs_manual_acknowledge（hooks/lib/ack-command.sh）本身更窄：
+#   · 只有带命令字段的输入（pipeline_json_get_command 读的那几个键）才可能有命令，其余调用（大 Write 载荷等）不付这份成本；
+#   · 命令里出现转义编码——原始 JSON 里 \x（$'\x61'）、\u / \U、反斜杠后跟八进制数字（$'\141'），或 \\\n（JSON 编码的反斜杠
+#     续行，去掉反斜杠后会剩一个 n）——acknowledge 的字母可能不在原文里，一律解码；
+#   · 否则看原文里 acknowledge 的各个字母是否依次出现（含它本身）：引号、反斜杠、$'…'、花括号展开把词拆开时，字母仍按序留在原文里，
+#     所以这是必要条件。pipeline_text_may_spell_acknowledge 用 read 在每个字母处切一次往后找，线性；多星号的 case 通配在 bash 3.2 下
+#     可能指数级、${rest#*字母} 对距离是平方级，都不用。
+# 判定读命令的上限是 ACK_COMMAND_MAX = 64 KiB（编码后的字符数）。上限之内按上面的静态判定；超过上限的命令不解码、不逐字处理，只做
+# 一次线性的字面检查：命令字段的原文含 acknowledge 就拦（不看 --delegated，这么大的命令不是正常的确认调用），不含就不判定。
+# 为什么是 64 KiB：命令的 JSON 解码（json-input.sh，已有的线性成本）在密集引号 / 转义 / 反斜杠时约每 KB 20 ms，hooks.json 给 gate 5 秒；
+# 本机 bash 3.2 实测，64 KiB 的最坏载荷整个 gate 约 1.6 秒，128 KiB 的最坏载荷（密集引号）约 3 秒，没有余量。
+ACK_COMMAND_MAX=65536
+ACK_CANDIDATE=0
+case "$INPUT" in
+  *'"command"'*|*'"cmd"'*|*'"argv"'*|*'"command_line"'*|*'"commandLine"'*)
+    case "$INPUT" in
+      *'\u'*|*'\U'*|*'\x'*|*'\'[0-7]*|*'\\\n'*) ACK_CANDIDATE=1 ;;
+      *) ! pipeline_text_may_spell_acknowledge "$INPUT" || ACK_CANDIDATE=1 ;;
+    esac
+    ;;
+esac
+if [ "$ACK_CANDIDATE" = 1 ]; then
+  if ACK_COMMAND="$(pipeline_json_get_command_bounded "$INPUT" "$ACK_COMMAND_MAX")"; then
+    if [ -n "$ACK_COMMAND" ]; then
+      # 与 json-input.sh 同目录的 lib/：只在这里（预筛命中且读到了命令）才加载这份还原与判定逻辑。
+      ACK_LIB="${JSON_INPUT_HELPER%/*}/lib/ack-command.sh"
+      [ -r "$ACK_LIB" ] || pipeline_refuse_ack_lib_missing "$ACK_LIB"
+      # shellcheck source=lib/ack-command.sh
+      . "$ACK_LIB"
+      if pipeline_command_runs_manual_acknowledge "$ACK_COMMAND"; then pipeline_refuse_manual_acknowledge; fi
+    fi
+  elif [ "${#INPUT}" -gt "$ACK_COMMAND_MAX" ]; then
+    case "$INPUT" in *acknowledge*) pipeline_refuse_manual_acknowledge ;; esac
+  fi
+fi
 
 case "$INPUT" in
   *.tenon*|*test-plan*|*known-failures*|*review-waivers*|*baselines*|*test-seal*|*env.key*|*trust*|*TRUST*|*bash*|*sh\ *|*zsh*|*"$PIPELINE_PY"*|*node*|*ruby*|*perl*|*php*|*deno*|*bun*|*source*|*apply*|*patch*|*'./'*)
@@ -382,11 +455,23 @@ if [ -r "$REVIEW_HELPER" ]; then
   . "$REVIEW_HELPER"
 fi
 
+# 会话 id 的校验与会话任务的解析都在 active-change.sh：在父 shell 里加载一次（不能在 $(…) 里调用，否则加载不留下）。
+# helper 缺失返回 1，调用方按本文件 fail-open 总纲放行。
+SESSION_HELPER_LOADED=0
+load_session_helper() {
+  [ "$SESSION_HELPER_LOADED" = 1 ] && return 0
+  [ -r "$HOOK_DIR/active-change.sh" ] || return 1
+  # shellcheck source=active-change.sh
+  . "$HOOK_DIR/active-change.sh"
+  SESSION_HELPER_LOADED=1
+}
+
 # A root-level marker used to be written merely by *entering* explore/spec/verify.  v2 marks an
 # explicit review request and embeds its exact Change.  Retire legacy projections on sight: their
 # old state has no canonical receipt, while transition now independently requires a new receipt to
-# leave a review phase.  A v2 marker only applies to the explicitly selected Change, so an old
-# review in another conversation cannot lock unrelated normal dialogue.
+# leave a review phase.  A v2 marker only applies to the conversation's own Change (resolved from the
+# host session_id, not the shared pointer), so a review in another conversation cannot lock unrelated
+# normal dialogue.
 review_marker_relevant_to_active_change() { # $1=marker → 0=blockable v2 marker
   local marker="$1" marked_change active_change
   [ -r "$REVIEW_HELPER" ] || return 1
@@ -399,8 +484,32 @@ review_marker_relevant_to_active_change() { # $1=marker → 0=blockable v2 marke
     rm -f "$marker" 2>/dev/null || true
     return 1
   fi
-  active_change="$(pipeline_review_active_change_name "$TENON_ROOT" "$HOOK_DIR" || true)"
+  # 本会话 id 与交互分支同一入口（pipeline_hook_session_id）：不合法的 id 按没给处理，不把原始值递给下游。
+  load_session_helper || return 1
+  active_change="$(pipeline_review_active_change_name "$TENON_ROOT" "$HOOK_DIR" "$(pipeline_hook_session_id "$INPUT")" || true)"
   [ -n "$active_change" ] && [ "$active_change" = "$marked_change" ]
+}
+
+# 交互标记按会话分文件（pending-marker.sh）：本会话该看的是自己的分文件与没有会话的单文件，别的会话的分文件不看。
+# 项目根上有任何 .pipeline-pending-interaction* 才加载 helper（热路径上多数调用没有）；helper 缺失按 fail-open 放行。
+# 设 INTERACTION_MARKERS = 本会话该看的交互标记文件，每行一个。
+interaction_marker_paths() {
+  local f any=''
+  INTERACTION_MARKERS=''
+  [ -n "$TENON_ROOT" ] || return 0
+  for f in "$TENON_ROOT"/.pipeline-pending-interaction*; do
+    if [ -e "$f" ] || [ -L "$f" ]; then any=1; break; fi
+  done
+  [ -n "$any" ] || return 0
+  [ -r "$HOOK_DIR/pending-marker.sh" ] && load_session_helper || return 0
+  # shellcheck source=pending-marker.sh
+  . "$HOOK_DIR/pending-marker.sh"
+  INTERACTION_MARKERS="$(pipeline_interaction_marker_candidates "$TENON_ROOT" "$(pipeline_hook_session_id "$INPUT")")"
+}
+
+# 交互标记 v2 只拦归属方：归属其它会话的标记不拦本会话；旧格式（含空文件）见到即删除、不拦截。
+interaction_marker_relevant_to_session() { # $1=marker → 0=本会话被它拦
+  pipeline_interaction_marker_owned "$1" "$TENON_ROOT" "$(pipeline_hook_session_id "$INPUT")"
 }
 
 # Shared metacharacter rejection.  Anything in this set can turn a read or a control command into
@@ -422,15 +531,23 @@ pipeline_dashboard_open_port_ok() { # $1=segment → 0 unless a `--port` value i
   return 0
 }
 
-# `tenon review acknowledge` is the contract's single writing path out of a pending review
-# (adapters/contract.md §2).  The decision is made on the command *text*, never on a host tool
+# While a review is pending an agent may still run `tenon review request` and the delegated
+# `tenon review acknowledge --delegated` (continuous authority; it approves no test waiver).  A manual
+# acknowledgement is the user's: the hook writes it on a spoken approval phrase, or the user confirms in the
+# Dashboard — the agent's own manual call is refused at the top of this file, marker or not.
+# The decision is made on the command *text*, never on a host tool
 # label: Cursor's shell event carries no `tool_name` at all, Cline reports `execute_command` and
 # Amp reports its own tool ids, so requiring a baseline label here deadlocked the only sanctioned
 # unlock path on those hosts and left users with exactly the moves the contract forbids (delete the
 # marker) or defeats the gate (TTL wait, TENON_AFK=1).
 # Matching is structural rather than a substring test, so this hole cannot be widened by chaining:
 # every segment must itself be an unlock call or a `cd` hop, and a segment carrying a
-# metacharacter (`acknowledge && rm -rf`, `acknowledge > file`) is refused outright.
+# metacharacter (`acknowledge --delegated && rm -rf`, `acknowledge --delegated > file`) is refused outright.
+# The `--delegated` wildcards below are plain text patterns and know nothing about quoting: `acknowledge c "x --delegated y"`
+# matches them although that `--delegated` is a quoted argument, not the switch.  They never get the last word on that:
+# the manual-acknowledge refusal at the top of this file (hooks/lib/ack-command.sh, which does read quotes) runs first on the
+# same command text, marker or not, so a command it calls manual never reaches this table.  Keep it that way: this table
+# is only the narrow allow list for what the top refusal already let through.
 is_review_control_command() { # $1=decoded command
   local command="${1:-}" segment found=1
   [ -n "$command" ] || return 1
@@ -445,7 +562,11 @@ is_review_control_command() { # $1=decoded command
     [ -n "$segment" ] || continue
     pipeline_command_has_shell_metachars "$segment" && return 1
     case "$segment" in
-      tenon\ review\ acknowledge|tenon\ review\ acknowledge\ *|\
+      # 注释符：`… acknowledge x # --delegated` 里的 --delegated 是注释，不是开关。
+      tenon\ review\ acknowledge*'#'*) return 1 ;;
+      # 手动 acknowledge 不在此列（见文件开头：agent 不能自己手动确认，已在更早处拒绝）；这里只认委托确认。
+      tenon\ review\ acknowledge\ --delegated|tenon\ review\ acknowledge\ --delegated\ *|\
+      tenon\ review\ acknowledge\ *\ --delegated|tenon\ review\ acknowledge\ *\ --delegated\ *|\
       tenon\ review\ request|tenon\ review\ request\ *)
         found=0 ;;
       # `tenon dashboard --open` asks the *server* to open the user's browser, already signed in: the
@@ -507,10 +628,9 @@ pipeline_tool_is_read_only() { # $1=tool name
   pipeline_command_is_strict_read_only "$command"
 }
 
-for kind in confirm review interaction; do
-  base=".pipeline-pending-$kind"
-  m="$(resolve_marker "$base" || true)"
-  [ -n "$m" ] || continue
+# 单个标记：它拦本次调用 → exit 2；不拦（陈旧、不归本会话、放行形态）→ return 0。
+gate_check_marker() { # $1=kind $2=marker path
+  local kind="$1" m="$2" ttl
   case "$kind" in confirm) ttl=300 ;; *) ttl=1800 ;; esac
   if fresh "$m" "$ttl"; then
     # 交互 / 确认 marker 约束的是「主线先问用户、再产出」。子代理（Claude Code 在子代理里触发的 hook 输入带
@@ -518,10 +638,13 @@ for kind in confirm review interaction; do
     # 报告都被拦，主线只能等用户回复后替它补写。所以这两类 marker 不拦子代理的调用，也不清 marker；
     # 复核 marker（transition 之前的人工确认）不在此列，子代理照样被拦。
     if [ "$kind" != "review" ] && [ -n "$(json_get agent_id || true)" ]; then
-      continue
+      return 0
+    fi
+    if [ "$kind" = "interaction" ]; then
+      interaction_marker_relevant_to_session "$m" || return 0
     fi
     if [ "$kind" = "review" ]; then
-      review_marker_relevant_to_active_change "$m" || continue
+      review_marker_relevant_to_active_change "$m" || return 0
       # 观测已在 AFK 放行前按 canonical receipt 记录；这里只保留 HITL 下的拦截体验。
       # 触达控制面的命令不是严格只读命令，会落到下方拦截并给出更准的提示。
       case "$SELF_APPROVAL_CANDIDATE" in
@@ -530,11 +653,11 @@ for kind in confirm review interaction; do
           exit 2
           ;;
       esac
-      # Acknowledgement is the only state-writing action that may pass a pending v2 gate.  The
-      # command itself validates exact Change/phase/pending state under the canonical lock, so
-      # allowing this narrow control surface cannot open unrelated writes.
+      # The delegated acknowledgement (and `review request`) are the only state-writing actions that may
+      # pass a pending v2 gate.  The command itself validates exact Change/phase/pending state under the
+      # canonical lock, so allowing this narrow control surface cannot open unrelated writes.
       if is_review_control_command "$(json_command_short || true)"; then
-        continue
+        return 0
       fi
     fi
     # 交互门的目的正是让 agent 向人提问。若把 AskUserQuestion / Codex 的
@@ -544,18 +667,32 @@ for kind in confirm review interaction; do
     # ToolSearch 只加载延迟工具的 schema：Claude Code 里 AskUserQuestion 是延迟加载工具，
     # 必须先经 ToolSearch 载入才能调用；拦住它同样会形成“必须先问、却不能发问”的死锁。
     case "$TOOL" in
-      AskUserQuestion|request_user_input|ToolSearch) continue ;;
+      AskUserQuestion|request_user_input|ToolSearch) return 0 ;;
     esac
     # 读取不会扩大权限，也不清 marker。允许它能让 Agent 在等待决定时继续核对事实，
     # 同时 state transition、外部副作用和任何未知动作仍 fail closed。
-    pipeline_tool_is_read_only "$TOOL" && continue
+    pipeline_tool_is_read_only "$TOOL" && return 0
     if [ "$kind" = "review" ] && [ -n "$SELF_APPROVAL_CANDIDATE" ]; then
       printf '【Tenon 门】pending review 期间禁止访问本机 Dashboard 控制面（%s 已被拦截）：人工确认只能由用户本人在浏览器里完成，会话也只能由用户建立。需要打开页面时运行 tenon dashboard --open（由 server 替用户打开已登录的浏览器）；该行为已记录为安全信号。\n' "$TOOL" >&2
       exit 2
     fi
-    printf '【Tenon 门】检测到待处理交互标记 %s（%s 已被拦截）：请先把当前决策/产出交用户确认：调用 AskUserQuestion 提问（Claude Code 中它若尚未加载，先用 ToolSearch 查询 \"select:AskUserQuestion\" 载入；Codex 用 request_user_input），该交互完成后解封；等待期间 Read/Grep/Glob 等只读工具不受拦截。没有提问工具时，用户回复「确认继续」「继续执行」「同意继续」，或简短同意「继续」「可以」「同意」「好的」「按推荐」「按你的推荐」即解封（后者表示采纳推荐项）；拒绝（「不可以」「不同意」）、带条件（「继续，但……」）或其他回复不会解封。解封后再重发本次操作。\n' "$base" "$TOOL" >&2
+    printf '【Tenon 门】检测到待处理交互标记 %s（%s 已被拦截）：请先把当前决策/产出交用户确认：调用 AskUserQuestion 提问（Claude Code 中它若尚未加载，先用 ToolSearch 查询 \"select:AskUserQuestion\" 载入；Codex 用 request_user_input），该交互完成后解封；等待期间 Read/Grep/Glob 等只读工具不受拦截。没有提问工具时，用户回复「确认继续」「继续执行」「同意继续」，或简短同意「继续」「可以」「同意」「好的」「按推荐」「按你的推荐」即解封（后者表示采纳推荐项）；拒绝（「不可以」「不同意」）、带条件（「继续，但……」）或其他回复不会解封；放行语须是整条回复，夹在更长的文字里不算。解封后再重发本次操作。\n' "${m##*/}" "$TOOL" >&2
     exit 2
   fi
+}
+
+for kind in confirm review interaction; do
+  if [ "$kind" = interaction ]; then
+    interaction_marker_paths
+    markers="$INTERACTION_MARKERS"
+  else
+    markers="$(resolve_marker ".pipeline-pending-$kind" || true)"
+  fi
+  [ -n "$markers" ] || continue
+  # 标记路径逐行读自 fd 3：函数里的命令不会吃掉这份输入。
+  while IFS= read -r marker <&3; do
+    [ -n "$marker" ] && gate_check_marker "$kind" "$marker"
+  done 3<<< "$markers"
 done
 
 # ── 非 default workflow 的 skill DAG 解锁判定（Task 9，GOAL 清单 E）：委托进 CLI 判定 ──
@@ -571,15 +708,14 @@ pipeline_enforce_skill_gate() {
   local sg_plugin_root sg_bundle sg_change_name sg_rc active_helper
   [ -n "$skill_id" ] || return 0
 
-  # 与其它 hook 共用已验证的项目根和显式选择，避免跨项目或按 mtime 把 Skill DAG
-  # 错绑到旧 Change。没有已选择 target 时不猜测，入口 skill 会在选定/创建后先 activate。
+  # 与其它 hook 共用已验证的项目根，并按宿主 session_id 解析本会话自己的任务，避免跨项目、按 mtime 或借用共享指针把 Skill DAG 错绑到别的会话的 Change。没有已选择 target 时不猜测，入口 skill 会在选定/创建后先 activate。
   sg_proot="$TENON_ROOT"
   [ -n "$sg_proot" ] || return 0
   active_helper="$GATE_DIR/active-change.sh"
   if [ -r "$active_helper" ]; then
     # shellcheck source=active-change.sh
     . "$active_helper"
-    sg_change_dir="$(pipeline_active_change_dir "$sg_proot" || true)"
+    sg_change_dir="$(pipeline_session_change_dir "$sg_proot" "$(pipeline_hook_session_id "$INPUT")" || true)"
   else
     sg_change_dir=""
   fi
@@ -624,7 +760,7 @@ pipeline_enforce_motion_gate() {
   if [ -r "$active_helper" ]; then
     # shellcheck source=active-change.sh
     . "$active_helper"
-    mg_change_dir="$(pipeline_active_change_dir "$mg_proot" || true)"
+    mg_change_dir="$(pipeline_session_change_dir "$mg_proot" "$(pipeline_hook_session_id "$INPUT")" || true)"
   else
     mg_change_dir=""
   fi

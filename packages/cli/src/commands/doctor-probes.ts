@@ -16,6 +16,7 @@ import { probeCodexAuth } from '../codexAuth.js'
 import { detectHostEnvironment } from '../hostKind.js'
 import { detectPlatform, readProcVersion } from './doctor-platform.js'
 import { createDoctorProductIdentityProbe } from './doctor-product-identity.js'
+import { collectSourceDriftFacts } from './doctor-source-drift.js'
 import { parseHostPluginInventory } from './plugin-host.js'
 import { resolveCommandOnPath } from './commandExists.js'
 import { REAL_RUNTIME_INSTALLER } from '../runtime/installer.js'
@@ -223,6 +224,13 @@ export function makeDoctorProbes(
     runVerifySkills,
     productIdentity: createDoctorProductIdentityProbe(runtimeScope, REAL_RUNTIME_INSTALLER),
     stableLauncherFormat: () => inspectStableLauncherFormat(runtimeScope().homeDir),
+    sourceDrift: () => collectSourceDriftFacts({
+      cwd: process.cwd(),
+      inspectActive: async () => {
+        const inspection = await REAL_RUNTIME_INSTALLER.inspect(runtimeInstallerScope())
+        return inspection.activeValid ? inspection.active : null
+      },
+    }),
     tapStatus: () => {
       const s = tapStatus()
       return { intercepting: s.intercepting, captureEnabled: s.captureEnabled, message: s.message }

@@ -8,7 +8,9 @@
 #   交互式 skill 的「该问哪些问题 / 有哪些分支」写在 skill 内容里，必须先让它正常加载模型才知道要问什么。
 #   故这里*不* block 加载，而是 skill 一加载完就双保险：
 #     ① 软提醒：把 L2.6 硬姿态当 additionalContext 注入（non-blocking）——每轮重提，治长会话漂移。
-#     ② 硬门：落 .pipeline-pending-interaction marker（gate.sh 在后续写类工具前物理挡住；
+#     ② 硬门：落 .pipeline-pending-interaction marker（v2 格式，pending-marker.sh：宿主给了会话 id 就写本会话自己的
+#        分文件 .pipeline-pending-interaction.<session_id>，没给就写单文件；带 change / session 归属，只拦归属方；
+#        gate.sh 在后续写类工具前物理挡住；
 #        AskUserQuestion / Codex request_user_input 是唯一允许通过的询问工具），由其回答后的
 #        confirm-clear 解封——形成「先问用户才放行」闭环。
 #
@@ -76,12 +78,11 @@ done <<< "$SKILLS"
 [ -n "$MATCHED" ] || exit 0
 MATCHED_DISPLAY="${MATCHED//$'\n'/、}"
 
-# === 硬门：落 .pipeline-pending-interaction（供 gate.sh 在写类工具前挡产出；人类提问工具精确放行）===
+# === 硬门：落 .pipeline-pending-interaction[.<session_id>]（供 gate.sh 在写类工具前挡产出；人类提问工具精确放行）===
 CWD="$(json_get cwd || true)"
 [ -z "$CWD" ] && CWD="$PWD"
-HOST_SESSION_ID="$(json_get session_id || true)"
-case "$HOST_SESSION_ID" in ''|*[!A-Za-z0-9_-]*) HOST_SESSION_ID='' ;; esac
-[ "${#HOST_SESSION_ID}" -le 128 ] || HOST_SESSION_ID=''
+# 会话 id 由 active-change.sh 的 pipeline_hook_session_id 统一校验，下面 source 之后再取。
+HOST_SESSION_ID=''
 # 必须与 gate.sh 选到同一项目根。旧代码把 marker 写进子目录，gate 却在项目根读，导致
 # 交互式 skill 的硬门悄然失效；共享 helper 同时避免跨普通父目录误写别的项目。
 ROOT="$CWD"
@@ -99,22 +100,27 @@ fi
 # state deliberately falls back to the normal hard gate.
 AUTONOMOUS=0
 ACTIVE_CHANGE=''
+ACTIVE_DIR=''
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 AUTHORITY_HELPER="$HOOK_DIR/interaction-authority.sh"
 STATE_HELPER="$HOOK_DIR/canonical-state.sh"
 ACTIVE_HELPER="$HOOK_DIR/active-change.sh"
-if [ -n "$ROOT" ] && [ -d "$ROOT" ] && [ -r "$AUTHORITY_HELPER" ] && [ -r "$STATE_HELPER" ] && [ -r "$ACTIVE_HELPER" ]; then
-  # shellcheck source=interaction-authority.sh
-  . "$AUTHORITY_HELPER"
+MARKER_HELPER="$HOOK_DIR/pending-marker.sh"
+if [ -n "$ROOT" ] && [ -d "$ROOT" ] && [ -r "$STATE_HELPER" ] && [ -r "$ACTIVE_HELPER" ]; then
   # shellcheck source=canonical-state.sh
   . "$STATE_HELPER"
   # shellcheck source=active-change.sh
   . "$ACTIVE_HELPER"
-  ACTIVE_DIR="$(pipeline_active_change_dir "$ROOT" || true)"
+  HOST_SESSION_ID="$(pipeline_hook_session_id "$INPUT")"
+  # 本会话任务（按宿主 session_id 解析）：持续授权与已确认记录都按它判定，不借用共享指针指向的别的会话的任务。
+  ACTIVE_DIR="$(pipeline_session_change_dir "$ROOT" "$HOST_SESSION_ID" || true)"
   ACTIVE_CHANGE="${ACTIVE_DIR##*/}"
-  if [ -n "$ACTIVE_DIR" ] \
-    && pipeline_interaction_authority_for_change "$ROOT" "$ACTIVE_CHANGE" "$HOST_SESSION_ID"; then
-    AUTONOMOUS=1
+  if [ -n "$ACTIVE_DIR" ] && [ -r "$AUTHORITY_HELPER" ]; then
+    # shellcheck source=interaction-authority.sh
+    . "$AUTHORITY_HELPER"
+    if pipeline_interaction_authority_for_change "$ROOT" "$ACTIVE_CHANGE" "$HOST_SESSION_ID"; then
+      AUTONOMOUS=1
+    fi
   fi
 fi
 
@@ -150,8 +156,10 @@ if [ "$AUTONOMOUS" -eq 0 ] && [ -n "${ACTIVE_DIR:-}" ] && [ -f "$ACTIVE_DIR/.pip
   fi
 fi
 
-if [ "$AUTONOMOUS" -eq 0 ]; then
-  [ -n "$ROOT" ] && [ -d "$ROOT" ] && printf '%s\n' "$MATCHED_DISPLAY" > "$ROOT/.pipeline-pending-interaction" 2>/dev/null || true
+if [ "$AUTONOMOUS" -eq 0 ] && [ -n "$ROOT" ] && [ -d "$ROOT" ] && [ -r "$MARKER_HELPER" ]; then
+  # shellcheck source=pending-marker.sh
+  . "$MARKER_HELPER"
+  pipeline_write_interaction_marker "$ROOT" "$ACTIVE_CHANGE" "$HOST_SESSION_ID" "$MATCHED_DISPLAY" || true
 fi
 
 # === 软提醒：注入 L2.6 交互硬姿态（additionalContext，non-blocking）===

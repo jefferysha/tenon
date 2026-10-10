@@ -41,7 +41,7 @@ import { changeDir, isValidChangeName, resolveChangeDir } from '../paths.js'
 import { display, str } from '../render.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
 import { finishedLabel } from './finishedLabel.js'
-import { stepAgentLines } from './check-agents.js'
+import { acceptedResidualLines, stepAgentLines } from './check-agents.js'
 import { renderCheckReport } from './check-report.js'
 import { phaseExitGuardContext } from './phaseExitGuard.js'
 import { stepSkillLines } from './check-skills.js'
@@ -67,6 +67,11 @@ export interface CheckOpts {
    * transition 与普通 check 仍把它们当阻塞）。
    */
   readonly releasePendingWaivers?: boolean
+  /**
+   * 评审者在当前候选上「不通过」不算阻塞（review request 专用，且只在验证轮次用完的前进边上）：它们随这次评审请求冻结成
+   * 待接受的剩余阻断，由用户在确认里接受。transition 与普通 check 仍把它们当阻塞。
+   */
+  readonly releaseFailedReviewers?: boolean
 }
 
 export async function cmdCheck(deps: CliDeps, name: string, opts: CheckOpts = {}): Promise<number> {
@@ -110,7 +115,7 @@ export async function cmdCheck(deps: CliDeps, name: string, opts: CheckOpts = {}
     return 1
   }
   if (plan.capabilities.execution.model === 'step-graph') {
-    return checkGraphWorkflow(deps, name, dir, state, plan, opts.event, opts.releasePendingWaivers === true)
+    return checkGraphWorkflow(deps, name, dir, state, plan, opts.event, opts)
   }
 
   // ── default workflow：coverage policy 必须来自当前项目 effective registry。registry 损坏或
@@ -152,14 +157,14 @@ export async function cmdCheck(deps: CliDeps, name: string, opts: CheckOpts = {}
   try {
     documents = await governedDocumentEvidence(deps, dir, state, plan.capabilities.documents.policy)
     tests = await stepTestBlockers(deps, name, dir, state, plan, { releasePendingWaivers: opts.releasePendingWaivers === true })
-    agents = await stepAgentLines(deps, name, dir, state, plan, opts.event)
+    agents = await stepAgentLines(deps, name, dir, state, plan, opts.event, { releaseFailedReviewers: opts.releaseFailedReviewers })
     skills = await stepSkillLines(deps, dir, state, plan)
   } catch (e) {
     deps.io.err(`ERROR: ${errMsg(e)}`)
     return 1
   }
   return renderCheckReport(deps, name, display(state.fields.phase), {
-    warnings: result.warnings ?? [],
+    warnings: [...(result.warnings ?? []), ...await acceptedResidualLines(deps, name, dir, state, plan, opts.event)],
     guards: result.pass ? [] : result.failures,
     revision: revisionFailures,
     documents: documents?.blockers ?? [],
@@ -205,8 +210,9 @@ async function checkGraphWorkflow(
   state: PipelineState,
   plan: EffectiveWorkflowPlan,
   event: string | undefined,
-  releasePendingWaivers: boolean,
+  opts: CheckOpts,
 ): Promise<number> {
+  const releasePendingWaivers = opts.releasePendingWaivers === true
   const currentStepId = str(state.fields.phase)
   const step = resolveStep(plan.workflow, currentStepId)
   if (!step) {
@@ -262,13 +268,14 @@ async function checkGraphWorkflow(
   try {
     documents = await governedDocumentEvidence(deps, dir, state, plan.capabilities.documents.policy)
     tests = await stepTestBlockers(deps, name, dir, state, plan, { releasePendingWaivers })
-    agents = await stepAgentLines(deps, name, dir, state, plan, event)
+    agents = await stepAgentLines(deps, name, dir, state, plan, event, { releaseFailedReviewers: opts.releaseFailedReviewers })
     skills = await stepSkillLines(deps, dir, state, plan)
   } catch (e) {
     deps.io.err(`ERROR: ${errMsg(e)}`)
     return 1
   }
   return renderCheckReport(deps, name, display(state.fields.phase), {
+    warnings: await acceptedResidualLines(deps, name, dir, state, plan, event),
     guards: result.pass ? [] : result.failures,
     documents: documents?.blockers ?? [],
     skills,

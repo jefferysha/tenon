@@ -1,8 +1,10 @@
+import { lstat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import {
   actorOf,
   approveFrozenWaivers,
+  boundReviewWaiverSelection,
   clearReviewMarkerFor,
   clearReviewWaiverSelection,
   createInteractionEventRecorder,
@@ -16,6 +18,8 @@ import {
   nodeReviewDecisionLedgerFs,
   protectedApprovalDigests,
   readCurrentRunRevision,
+  readReviewWaiverSelection,
+  REVIEW_WAIVERS_FILE,
   resolveStep,
   resolveWorkflowName,
   stateStorageExistsSync,
@@ -154,6 +158,21 @@ export async function handlePostDecisionRoutes(
     return true
   }
   const { root, dir, ref, expectedRevision, idempotencyKey, user } = target
+  // 剩余阻断（验证轮次用完后评审者仍不通过）要用户看过每一条才能接受：终端的评审请求逐条列出，Dashboard 不展示它们，
+  // 所以这里不确认也不顺带接受，让用户回到终端（或回复放行语由 hook 确认）。
+  const residual = await frozenResidualCheck(deps, dir)
+  if (residual === 'unreadable') {
+    // 失败关闭：冻结清单存在却读不出来，就无法确认有没有待接受的剩余阻断；与有待接受项同一个出口，回执保持待确认。
+    sendJson(res, 409, { ok: false, code: 'residual-pending', error: RESIDUAL_UNREADABLE })
+    return true
+  }
+  if (residual.length > 0) {
+    sendJson(res, 409, {
+      ok: false, code: 'residual-pending',
+      error: `有 ${residual.length} 项剩余阻断待接受（${residual.join('、')}）：Dashboard 不展示也不接受剩余阻断；请在终端查看 tenon review request 列出的发现，由用户回复“确认继续”（或在自己的终端运行 tenon review acknowledge）来确认`,
+    })
+    return true
+  }
   let acknowledged: Acknowledged
   try {
     acknowledged = await acknowledgeFromDashboard({ deps, root, dir, name, ref, expectedRevision, idempotencyKey, actor: actorOf(user) })
@@ -176,6 +195,36 @@ export async function handlePostDecisionRoutes(
 }
 
 const NO_WAIVERS: WaiverApprovalOutcome = { approved: [], skipped: [], digest: null, note: null, protectedApproved: [], protectedSkipped: [] }
+
+const RESIDUAL_UNREADABLE = '冻结的评审清单（.pipeline-review-waivers.json）存在，却无法读取或解码（或任务状态读不出来），无法确认是否有待接受的剩余阻断：Dashboard 不确认也不接受；请在终端重新运行 tenon review request 重新冻结，或由用户回复“确认继续”（或在自己的终端运行 tenon review acknowledge）来确认'
+
+/** 冻结清单文件是否存在；除「不存在」之外的任何读取错误都向上抛（调用方按读不出处理）。 */
+async function frozenListExists(dir: string): Promise<boolean> {
+  try {
+    await lstat(join(dir, REVIEW_WAIVERS_FILE))
+    return true
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
+    throw error
+  }
+}
+
+/**
+ * 这一次评审请求冻结的待接受的剩余阻断（键）；旧请求的残留清单不算，文件不存在 = 没有待接受项。
+ * 清单存在却读不出来（不是普通文件、读取出错、JSON 或严格解码失败）、或任务状态读不出来时返回 'unreadable'：
+ * 读取失败不能当作「没有待接受项」放行，调用方拒绝这次确认。
+ */
+async function frozenResidualCheck(deps: DecisionRouteDeps, dir: string): Promise<readonly string[] | 'unreadable'> {
+  try {
+    const { selection, unbound } = await boundReviewWaiverSelection(dir, await deps.store.read(dir))
+    if (selection !== undefined) return (selection.residual ?? []).map((item) => item.key)
+    if (unbound) return []
+    // 没有可用的清单：文件不存在、清单里没有任何待批准项，或文件存在却读不出来——只有最后一种要拒绝。
+    return (await frozenListExists(dir)) && (await readReviewWaiverSelection(dir)) === undefined ? 'unreadable' : []
+  } catch {
+    return 'unreadable'
+  }
+}
 
 interface Acknowledged {
   readonly result: ReviewAcknowledgeResult
@@ -219,7 +268,10 @@ async function acknowledgeFromDashboard(input: {
     writeState: async (state) => {
       // Waivers first, receipt second: a failed plan write leaves the receipt uncommitted and the
       // same approval can be retried (already approved waivers are recognised as such).
-      waivers = await approveFrozenWaivers({ repoRoot: root, dir, change: name, state, actor: input.actor, recordedAt: deps.clock() })
+      // 剩余阻断不在这里接受（上面的预检已拒绝；这里是并发窄窗口里的纵深防线）。
+      waivers = await approveFrozenWaivers({
+        repoRoot: root, dir, change: name, state, actor: input.actor, recordedAt: deps.clock(), acceptResidual: false,
+      })
       await deps.store.writeUnderLock(dir, state, { kind: 'set-many' })
       await clearReviewWaiverSelection(dir).catch(() => undefined)
     },

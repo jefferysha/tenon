@@ -8,7 +8,7 @@
  * capability, not a workflow-policy bypass.
  */
 import { chmod, lstat, mkdir, readFile, rename, rm, writeFile, appendFile, readdir, stat, utimes } from 'node:fs/promises'
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { dirname, isAbsolute, join, normalize, relative, resolve, sep } from 'node:path'
 import { homedir } from 'node:os'
 import { spawn, spawnSync } from 'node:child_process'
 import { createHash, randomBytes } from 'node:crypto'
@@ -198,13 +198,28 @@ function stableReleaseTarget(value) {
   return { version: value.version, tag: value.tag, commit: value.commit }
 }
 
+// 与 packages/cli/src/runtime/release-store-codecs.ts 的 devSourceFromUnknown 逐项一致（源码开发安装的 manifest 字段）。
+function devSourceOf(value) {
+  if (!isRecord(value) || !exactKeys(value, ['kind', 'repoRealpath', 'commit', 'dirty', 'worktreeDigest', 'skillsIndexDigest'])) return null
+  const { kind, repoRealpath, commit, dirty, worktreeDigest, skillsIndexDigest } = value
+  if (kind !== 'dev'
+    || typeof repoRealpath !== 'string' || !isAbsolute(repoRealpath) || normalize(repoRealpath) !== repoRealpath
+    || /[\u0000-\u001f\u007f]/u.test(repoRealpath)
+    || typeof commit !== 'string' || !GIT_COMMIT.test(commit)
+    || typeof dirty !== 'boolean'
+    || typeof worktreeDigest !== 'string' || !GIT_COMMIT.test(worktreeDigest)
+    || typeof skillsIndexDigest !== 'string'
+    || (skillsIndexDigest !== 'absent' && !GIT_COMMIT.test(skillsIndexDigest))) return null
+  return { kind: 'dev', repoRealpath, commit, dirty, worktreeDigest, skillsIndexDigest }
+}
+
 function hashFrame(hash, value) {
   const bytes = typeof value === 'string' ? Buffer.from(value, 'utf8') : value
   hash.update(`${bytes.byteLength}:`, 'utf8')
   hash.update(bytes)
 }
 
-function runtimeReleaseIdV2(payloadDigest, source, stableTarget) {
+function runtimeReleaseIdV2(payloadDigest, source, stableTarget, devSource) {
   const hash = createHash('sha256')
   for (const field of [
     'tenon-runtime-release-v2',
@@ -216,6 +231,17 @@ function runtimeReleaseIdV2(payloadDigest, source, stableTarget) {
     stableTarget?.tag ?? '',
     stableTarget?.commit ?? '',
   ]) hashFrame(hash, field)
+  // 只有开发安装才追加帧：没有 devSource 的 release id 与历史算法逐字节相同。
+  if (devSource !== undefined) {
+    for (const field of [
+      'dev-source',
+      devSource.repoRealpath,
+      devSource.commit,
+      String(devSource.dirty),
+      devSource.worktreeDigest,
+      devSource.skillsIndexDigest,
+    ]) hashFrame(hash, field)
+  }
   return `sha256-${hash.digest('hex')}`
 }
 
@@ -231,20 +257,25 @@ function releaseManifest(value, releaseId) {
     return { version: 1, releaseId, payloadDigest: value.payloadDigest, source }
   }
   if (value.version !== 2) return null
-  const expectedKeys = value.stableTarget === undefined
-    ? ['version', 'releaseId', 'payloadDigest', 'createdAt', 'source']
-    : ['version', 'releaseId', 'payloadDigest', 'createdAt', 'source', 'stableTarget']
+  const expectedKeys = ['version', 'releaseId', 'payloadDigest', 'createdAt', 'source']
+  if (value.stableTarget !== undefined) expectedKeys.push('stableTarget')
+  if (value.devSource !== undefined) expectedKeys.push('devSource')
   if (!exactKeys(value, expectedKeys)) return null
   const stableTarget = value.stableTarget === undefined ? undefined : stableReleaseTarget(value.stableTarget)
-  if (stableTarget === null
-    || (stableTarget !== undefined && stableTarget.version !== source.pluginVersion)
-    || releaseId !== runtimeReleaseIdV2(value.payloadDigest, source, stableTarget)) return null
+  const devSource = value.devSource === undefined ? undefined : devSourceOf(value.devSource)
+  if (stableTarget === null || devSource === null) return null
+  // 开发安装与正式标签互斥；开发安装只属于原生宿主。
+  if (stableTarget !== undefined && devSource !== undefined) return null
+  if (devSource !== undefined && source.host !== 'codex' && source.host !== 'claude') return null
+  if ((stableTarget !== undefined && stableTarget.version !== source.pluginVersion)
+    || releaseId !== runtimeReleaseIdV2(value.payloadDigest, source, stableTarget, devSource)) return null
   return {
     version: 2,
     releaseId,
     payloadDigest: value.payloadDigest,
     source,
     ...(stableTarget === undefined ? {} : { stableTarget }),
+    ...(devSource === undefined ? {} : { devSource }),
   }
 }
 
@@ -1161,6 +1192,7 @@ async function emitBootstrapStatus(paths, asJson) {
     payloadDigest: release.payloadDigest,
     source: release.source,
     ...(release.stableTarget === undefined ? {} : { stableTarget: release.stableTarget }),
+    ...(release.devSource === undefined ? {} : { devSource: release.devSource }),
   })
   const payload = {
     selection,

@@ -123,7 +123,7 @@ export type PlanDto =
       readonly suites: readonly { readonly suite: string; readonly kind: string | null; readonly scope: string; readonly pattern?: string }[]
       readonly files: readonly { readonly path: string; readonly suite?: string; readonly kind?: string }[]
       readonly cases: readonly { readonly covers: string; readonly tests: readonly string[] }[]
-      readonly waivers: readonly { readonly kind?: string; readonly covers?: string; readonly reason: string; readonly approvedBy: string | null }[]
+      readonly waivers: readonly { readonly kind?: string; readonly covers?: string; readonly test?: string; readonly reason: string; readonly approvedBy: string | null }[]
     }
 
 /** 快照里的计划概要：矩阵只需要知道登记了哪些套件（含种类）和豁免；文件与映射在 /api/tests/plan。 */
@@ -133,7 +133,7 @@ export type PlanBriefDto =
   | {
       readonly state: 'ok'
       readonly suites: readonly { readonly suite: string; readonly kind: string | null; readonly scope: string }[]
-      readonly waivers: readonly { readonly kind?: string; readonly covers?: string; readonly approved: boolean }[]
+      readonly waivers: readonly { readonly kind?: string; readonly covers?: string; readonly test?: string; readonly approved: boolean }[]
       readonly files: number
       readonly cases: number
     }
@@ -189,7 +189,7 @@ export interface SuiteVerdictDto {
   readonly kind: string
   readonly label?: string
   readonly reason: 'run' | 'if-registered' | 'inline'
-  readonly state: 'passed' | 'failed' | 'stale' | 'missing' | 'running'
+  readonly state: 'passed' | 'failed' | 'stale' | 'missing' | 'running' | 'waived' | 'waiver-pending'
   readonly runId?: string
   readonly finishedAt?: string
   readonly staleBecause?: readonly string[]

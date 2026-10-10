@@ -110,6 +110,10 @@ tenon update --codex
 tenon setup --codex --auto-update
 ```
 
+开发例外：在 Tenon 源码仓库里可以用 `tenon setup --claude|--codex --from-source <repo>` 把本机装成仓库工作区的构建（开发安装）。它走同一个 `release-coordinator` 事务，候选根是仓库工作区而不是宿主缓存，宿主命令仍只改宿主登记（宿主缓存仍由宿主 CLI 写）；release manifest 记录 `devSource`（commit、dirty、安装内容摘要、技能索引摘要）而不是 `stableTarget`，不冒充版本标签。发布流程、正式 `tenon setup` 与 `tenon update` 仍只认稳定标签；开发安装之上 `tenon update` 默认拒绝，`--to-stable` 切回。上游技能与本机索引不进仓库，开发安装在缺失时按 `skills/sources.yaml` 获取，获取失败整体中止、不改宿主。
+
+已知风险（已确认接受）：`--from-source` 会运行所给检出的构建（`npm --prefix <repo> run build`），并按该检出的 `skills/sources.yaml` 拉取上游技能，然后把该检出的 hooks 与技能长期装进宿主，之后每个会话都会运行它们。仓库判据只看检出自己的文件，agent 发起时也没有额外确认。它与 agent 能执行的任意命令同级，是开发者显式命令，不另加限制，只对你信任的检出使用。
+
 更新实现先让宿主刷新 marketplace/插件，再用宿主 `plugin list --json` 返回的安装根运行资产校验。
 宿主插件缓存与 Tenon managed runtime 是两个明确边界：Codex/Claude CLI 是宿主登记/cache 的唯一
 writer，Tenon 不读取、复制或恢复其私有缓存；只有候选校验通过，Tenon 才通过唯一

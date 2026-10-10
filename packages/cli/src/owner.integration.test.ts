@@ -159,9 +159,9 @@ describe('owner rule across two declared users', () => {
     expect(await h.run(['review', 'request', 'x', '--as', 'reviewer'], { env: { ...A, TENON_LANG: 'en' } })).toBe(1)
     expect(h.err.join('\n')).toBe('ERROR: --as applies to review acknowledge only; only the owner can start a request')
     expect(await h.run(['review', 'bogus', 'x'], { env: { ...A, TENON_LANG: 'zh' } })).toBe(1)
-    expect(h.err.join('\n')).toBe('ERROR: 用法：tenon review request <change> [--event <event>] | acknowledge <change> [--delegated] [--as reviewer]')
+    expect(h.err.join('\n')).toBe('ERROR: 用法：tenon review request <change> [--event <event>] | acknowledge <change> [--delegated] [--as reviewer] | revoke <change> --reason <原因>')
     expect(await h.run(['review', 'bogus', 'x'], { env: { ...A, TENON_LANG: 'en' } })).toBe(1)
-    expect(h.err.join('\n')).toBe('ERROR: usage: tenon review request <change> [--event <event>] | acknowledge <change> [--delegated] [--as reviewer]')
+    expect(h.err.join('\n')).toBe('ERROR: usage: tenon review request <change> [--event <event>] | acknowledge <change> [--delegated] [--as reviewer] | revoke <change> --reason <text>')
   })
 
   it('review acknowledge by the owner needs no flag and records no role', async () => {

@@ -263,6 +263,27 @@ describe('API bounded-context response decoders', () => {
     expect(decodeSnapshot(validSnapshot())?.projects[0]?.changes[0]?.tests).toBeUndefined()
   })
 
+  it('keeps the waiver state of a failed step test (waived / waiver-pending) and fails closed on an unknown or non-string one', () => {
+    const items = [
+      { id: 'size', direction: 'unit', required: true, status: 'failed', waiver: 'waived' },
+      { id: 'lint', direction: 'unit', required: true, status: 'failed', waiver: 'waiver-pending' },
+      { id: 'plain', direction: 'unit', required: true, status: 'failed' },
+    ]
+    const good = validSnapshot()
+    Object.assign(good.projects[0]!.changes[0]!, { tests: [{ stepId: 'open', items }] })
+    const decoded = decodeSnapshot(good)?.projects[0]?.changes[0]?.tests?.[0]?.items
+    expect(decoded).toEqual(items)
+    expect(decoded?.[2]).not.toHaveProperty('waiver')
+
+    for (const waiver of ['approved', 'passed', '', 3, null, true]) {
+      const bad = validSnapshot()
+      Object.assign(bad.projects[0]!.changes[0]!, {
+        tests: [{ stepId: 'open', items: [{ id: 'size', direction: 'unit', required: true, status: 'failed', waiver }] }],
+      })
+      expect(decodeSnapshot(bad), JSON.stringify(waiver)).toBeNull()
+    }
+  })
+
   it('keeps testPolicy, testPlan and testUser when well-formed and fails closed on any malformed part', () => {
     const wire = { testPolicy: JSON.parse(JSON.stringify([verifyReport()])) as unknown[], testPlan: planBrief(), testUser: 'a-at-x.io' }
     const good = validSnapshot()

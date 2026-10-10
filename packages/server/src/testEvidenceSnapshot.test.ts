@@ -6,7 +6,7 @@ import {
   appendTestRunRecordV2, catalogSuitesDigest, compileEffectiveWorkflowPlan, createStateStore,
   createTransitionRecordStore, createWorkflowRunRepository, emptyTestPlan, ensureTestEvidenceDirs, fingerprintWorkspace,
   parseTestCatalog, publishTestRunRecord, readTestPlanState, testDigest, testPolicyDigest, testRunRecordPath,
-  testSystemPaths, writeTestPlan, type EffectiveWorkflowPlan, type TenonUser, type TestRunRecordV1,
+  testSystemPaths, writeTestPlan, type EffectiveWorkflowPlan, type TenonUser, type TestPlan, type TestRunRecordV1,
 } from '@tenon/kernel'
 import { DESIGN_CATALOG, fixtureCase, fixtureRecordDraft, fixtureSuiteRun } from '@tenon/kernel/test-system/test-support'
 import { createCandidateCache } from './testCandidateCache.js'
@@ -130,6 +130,58 @@ describe('projectTestEvidence', () => {
       root, changeDir, changeName: CHANGE, plan: current, user: USER, candidate: async () => CANDIDATE,
     })
     expect(identified.diagnostics).toEqual(['20260915T101599Z-ffffff.json'])
+  })
+})
+
+function waivedPlan(): EffectiveWorkflowPlan {
+  return compileEffectiveWorkflowPlan('waived', {
+    name: 'waived',
+    steps: [
+      {
+        id: 'build', label: '实现', gate: null, skills: [], inputs: [], outputs: [],
+        tests: [{ id: 'bad', direction: 'unit', command: 'npm run bad' }],
+        test_policy: { plan: 'optional' },
+        guards: [], transitions: [{ event: 'done', to: 'verify' }],
+      },
+      { id: 'verify', label: '验证', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] },
+    ],
+  })
+}
+
+describe('projectTestEvidence · 失败后带豁免的步骤测试', () => {
+  const ACTOR = { id: 'a@x.io', name: 'A', trust: 'declared' } as const
+  const OTHER = `workspace:sha256:${'b'.repeat(64)}`
+  const REASON = '迁移脚本一次性生成'
+
+  async function projectedWith(waivers: TestPlan['waivers']) {
+    const { root, changeDir } = await freshRoot()
+    const current = waivedPlan()
+    const paths = await ensureTestEvidenceDirs(root, SLUG, CHANGE, '20260915T101520Z-ab12cd')
+    const failing = record(current, 'bad', { result: 'fail', exit_code: 2, reasons: [{ code: 'exit-code' }] })
+    await publishTestRunRecord(testRunRecordPath(root, SLUG, CHANGE, failing.run_id), paths.runsDir, failing)
+    await writeTestPlan(changeDir, { ...emptyTestPlan(CHANGE), waivers }, { actor: ACTOR, recordedAt: '2026-09-15T10:00:00Z' })
+    const projected = await projectTestEvidence({
+      root, changeDir, changeName: CHANGE, plan: current, user: USER, candidate: async () => CANDIDATE,
+    })
+    return projected.tests?.[0]?.items[0]
+  }
+
+  test('没有豁免：失败就是失败，快照项不带 waiver', async () => {
+    const item = await projectedWith([])
+    expect(item).toMatchObject({ id: 'bad', status: 'failed' })
+    expect(item).not.toHaveProperty('waiver')
+  })
+
+  test('批准绑定当前候选 → waived；未批准、批准的是别的候选、旧批准没有候选 → waiver-pending；status 仍是原来的失败', async () => {
+    expect(await projectedWith([{ test: 'bad', reason: REASON, approved_by: 'boss@x.io', approved_candidate: CANDIDATE }]))
+      .toMatchObject({ status: 'failed', waiver: 'waived' })
+    for (const waiver of [
+      { test: 'bad', reason: REASON, approved_by: null },
+      { test: 'bad', reason: REASON, approved_by: 'boss@x.io', approved_candidate: OTHER },
+      { test: 'bad', reason: REASON, approved_by: 'boss@x.io' },
+    ]) {
+      expect(await projectedWith([waiver]), JSON.stringify(waiver)).toMatchObject({ status: 'failed', waiver: 'waiver-pending' })
+    }
   })
 })
 

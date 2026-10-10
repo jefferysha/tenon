@@ -228,6 +228,16 @@ describe('withRunStatus', () => {
     })
     expect(stages[1]?.entries.map((entry) => entry.status)).toEqual(['done', 'running', 'waiting'])
   })
+  it('失败后带豁免的内联步骤测试与种类节点同口径：已批准 = 完成，等评审批准 = 等待，没有豁免的失败仍是失败', () => {
+    const itemStatuses = (item: { status: 'failed' | 'passed'; waiver?: 'waived' | 'waiver-pending' }) => withRunStatus(orchestration, {
+      phase: 'b', archived: false, skills: new Map(), agents: [],
+      tests: [{ stepId: 'b', items: [{ id: 'unit', direction: 'unit', required: true, ...item }] }],
+    })[1]?.entries.find((entry) => entry.id === 'unit')?.status
+    expect(itemStatuses({ status: 'failed' })).toBe('failed')
+    expect(itemStatuses({ status: 'failed', waiver: 'waived' })).toBe('done')
+    expect(itemStatuses({ status: 'failed', waiver: 'waiver-pending' })).toBe('waiting')
+    expect(itemStatuses({ status: 'passed' })).toBe('done')
+  })
   it('旧测试过期 = stale；策略要求运行的种类节点按该步策略判定里同种类套件的最差状态，没有套件 = 等待', () => {
     const policyEntry = (kind: 'unit' | 'typecheck' | 'lint') => ({
       kind: 'test' as const, id: `kind:${kind}`, label: kind, wave: 1, dependsOn: [], required: true, source: 'declared' as const, testKind: kind,
@@ -238,7 +248,7 @@ describe('withRunStatus', () => {
         ? { ...stage, entries: [...stage.entries, policyEntry('unit'), policyEntry('typecheck'), policyEntry('lint')] }
         : stage),
     }
-    const suite = (id: string, kind: string, state: 'passed' | 'failed' | 'stale' | 'missing' | 'running') =>
+    const suite = (id: string, kind: string, state: 'passed' | 'failed' | 'stale' | 'missing' | 'running' | 'waived' | 'waiver-pending') =>
       ({ suite: id, origin: 'catalog' as const, kind, reason: 'run' as const, state })
     const report = {
       stepId: 'b', pass: false, chain: 'intact' as const, policy: null, blockers: [], notices: [], trace: [],
@@ -255,5 +265,16 @@ describe('withRunStatus', () => {
     ])
     const none = withRunStatus(withPolicy, { phase: 'b', archived: false, skills: new Map(), agents: [], tests: [] })
     expect(none[1]?.entries.filter((entry) => entry.testKind !== undefined).map((entry) => entry.status)).toEqual(['waiting', 'waiting', 'waiting'])
+
+    // 失败后带豁免的步骤测试：已批准 = 完成，等评审批准 = 等待；同种类里有失败仍以失败为准。
+    const waivedReport = (...states: ('waived' | 'waiver-pending' | 'failed')[]) => ({
+      ...report, suites: states.map((state, index) => suite(`s${index}`, 'unit', state)),
+    })
+    const unitStatus = (...states: ('waived' | 'waiver-pending' | 'failed')[]) => withRunStatus(withPolicy, {
+      phase: 'b', archived: false, skills: new Map(), agents: [], tests: [], policies: [waivedReport(...states)],
+    })[1]?.entries.find((entry) => entry.id === 'kind:unit')?.status
+    expect(unitStatus('waived')).toBe('done')
+    expect(unitStatus('waiver-pending')).toBe('waiting')
+    expect(unitStatus('waived', 'failed')).toBe('failed')
   })
 })

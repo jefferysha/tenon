@@ -128,6 +128,19 @@ describe('executeReviewAcknowledge', () => {
     expect(f.getLedger().split('\n').filter(Boolean)).toHaveLength(1)
   })
 
+  it('does not replay a stored approval while the receipt is pending again: a revoked approval is approved again', async () => {
+    const approved = fixture()
+    expect(await executeReviewAcknowledge(approved.ports)).toMatchObject({ ok: true, code: 'approved' })
+    // `tenon review revoke` returns the receipt to pending with the same requestedAt, binding and state digest, so the
+    // terminal key is identical and the ledger still holds the old approval for it.
+    const revoked = fixture({ ledger: approved.getLedger() })
+    const result = await executeReviewAcknowledge(revoked.ports)
+    expect(result).toMatchObject({ ok: true, code: 'approved', changed: true, idempotent: false })
+    expect(revoked.writes).toEqual(['state', 'ledger', 'interaction', 'history', 'marker'])
+    expect(revoked.getState().fields).toMatchObject({ review_gate_status: 'approved' })
+    expect(revoked.getLedger().split('\n').filter(Boolean)).toHaveLength(2)
+  })
+
   it('treats an already approved receipt with a new key as idempotent-replay and still clears the marker', async () => {
     const state = pendingState({ review_gate_status: 'approved', review_acknowledged_at: NOW, review_acknowledged_via: 'terminal' })
     const f = fixture({ state, command: { channel: 'dashboard', ref: liveRef(state), expectedRevision: 4, idempotencyKey: 'late-tab' } })

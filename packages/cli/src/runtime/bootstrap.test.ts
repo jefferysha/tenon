@@ -99,7 +99,16 @@ async function createRelease(
   return releaseId
 }
 
-async function createV2Release(runtimeHome: string, marker: string): Promise<{
+const DEV_FIXTURE = {
+  kind: 'dev' as const,
+  repoRealpath: '/work/tenon',
+  commit: 'a'.repeat(40),
+  dirty: false,
+  worktreeDigest: 'b'.repeat(40),
+  skillsIndexDigest: 'absent',
+}
+
+async function createV2Release(runtimeHome: string, marker: string, devSource?: typeof DEV_FIXTURE): Promise<{
   releaseId: string
   manifestPath: string
 }> {
@@ -115,8 +124,8 @@ async function createV2Release(runtimeHome: string, marker: string): Promise<{
   await chmod(join(stagingPayload, 'runtime', 'tenon-bootstrap.mjs'), 0o755)
   const payloadDigest = await hashReleasePayload(stagingPayload)
   const source = { host: 'codex' as const, pluginVersion: '1.0.2' }
-  const stableTarget = { version: '1.0.2', tag: 'v1.0.2', commit: 'a'.repeat(40) }
-  const releaseId = runtimeReleaseIdV2(payloadDigest, source, stableTarget)
+  const stableTarget = devSource === undefined ? { version: '1.0.2', tag: 'v1.0.2', commit: 'a'.repeat(40) } : undefined
+  const releaseId = runtimeReleaseIdV2(payloadDigest, source, stableTarget, devSource)
   const releaseRoot = join(runtimeHome, 'data', 'releases', releaseId)
   await mkdir(join(releaseRoot, 'payload', 'packages', 'cli', 'dist'), { recursive: true })
   await mkdir(join(releaseRoot, 'payload', 'runtime'), { recursive: true })
@@ -136,7 +145,8 @@ async function createV2Release(runtimeHome: string, marker: string): Promise<{
     payloadDigest,
     createdAt: '2026-07-24T00:00:00Z',
     source,
-    stableTarget,
+    ...(stableTarget === undefined ? {} : { stableTarget }),
+    ...(devSource === undefined ? {} : { devSource }),
   })}\n`, 'utf8')
   return { releaseId, manifestPath }
 }
@@ -273,6 +283,30 @@ describe('stable runtime bootstrap', () => {
       previous: null,
       auditCorrupt: false,
     })
+  })
+
+  it('accepts a development release and projects its devSource, but binds devSource to the release id', async () => {
+    const root = await freshRoot('dev-public-status')
+    const release = await createV2Release(root, 'DEV_STATUS', DEV_FIXTURE)
+    const bootstrap = await installBootstrap(root)
+    const state = join(root, 'state')
+    await mkdir(state, { recursive: true })
+    await writeFile(join(state, 'selection.json'), `${JSON.stringify({
+      version: 1, revision: 1, activeRelease: release.releaseId, previousRelease: null, updatedAt: '2026-07-24T00:00:00Z',
+    })}\n`, 'utf8')
+
+    const status = await runBootstrap(root, bootstrap, ['cli', 'runtime', 'status', '--json'])
+    expect(JSON.parse(status.stdout)).toMatchObject({
+      activeValid: true,
+      active: { version: 2, releaseId: release.releaseId, devSource: DEV_FIXTURE },
+    })
+    expect(JSON.parse(status.stdout).active).not.toHaveProperty('stableTarget')
+
+    const manifest = JSON.parse(await readFile(release.manifestPath, 'utf8')) as { devSource: { commit: string } }
+    manifest.devSource.commit = 'c'.repeat(40)
+    await writeFile(release.manifestPath, `${JSON.stringify(manifest)}\n`, 'utf8')
+    const tampered = await runBootstrap(root, bootstrap, ['cli', 'runtime', 'status', '--json'])
+    expect(JSON.parse(tampered.stdout)).toMatchObject({ activeValid: false })
   })
 
   it('can roll back while the active payload is unavailable, after verifying the previous release digest', async () => {

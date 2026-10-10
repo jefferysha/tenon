@@ -444,6 +444,8 @@ export function mockDoctorProbes(overrides: Partial<DoctorProbes> = {}): DoctorP
     codexAuthStatus: async () => ({ state: 'authenticated' }),
     runVerifySkills: async () => ({ code: 0, output: '[verify-skills] OK' }),
     stableLauncherFormat: async () => 'current' as const,
+    // 缺省不在 Tenon 源码仓库：source:drift 为绿（不适用），全绿基线不受影响。
+    sourceDrift: async () => ({ state: 'not-source-repo' as const }),
     productIdentity: async () => {
       const releaseId = `sha256-${'a'.repeat(64)}`
       return {

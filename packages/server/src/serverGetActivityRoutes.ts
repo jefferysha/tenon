@@ -7,6 +7,7 @@ import { buildRunDetail } from './runDetail.js'
 import { sendSharedBody } from './snapshotShared.js'
 import { readChangeHistory } from './transition.js'
 import { handleGetUserRoute } from './serverUserRoutes.js'
+import { displayVersion } from './version.js'
 import type { GetRouteDeps } from './serverGetRoutes.js'
 
 export async function handleGetActivityRoutes(
@@ -23,12 +24,17 @@ export async function handleGetActivityRoutes(
   const boundPort = deps.boundPort()
     if (serveAsset(req, res, path)) return
     if (path === '/api/health') {
+      const channel = deps.options.channel
       return sendJson(res, 200, {
         ok: true,
         scope: 'global',
         version,
         ...(releaseId === undefined ? {} : { releaseId }),
         ...(transactionId === undefined ? {} : { transactionId }),
+        channel: channel === undefined ? 'stable' : 'dev',
+        ...(channel === undefined
+          ? {}
+          : { commit: channel.commit.slice(0, 7), displayVersion: displayVersion(version, channel) }),
         stateScopeId,
         pid: process.pid,
       })

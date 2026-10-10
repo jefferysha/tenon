@@ -286,6 +286,11 @@ export interface StepDef {
   readonly gate: GateKind
   /** 该 step 交给运行时 agent 的任务补充指令。项目 YAML 以 `prompt: |-` literal block 保真落盘。 */
   readonly prompt?: string
+  /**
+   * 本步最多验证几轮（YAML 键 `max_rounds`，1–20 的整数）：第 N 轮仍因必需测试或必需评审者不通过时不再自动回退。
+   * 只有设了评审门且至少有一条回退边的步骤可以声明；缺省 = 内置默认 2（随计划冻结）。
+   */
+  readonly maxRounds?: number
   readonly skills: readonly SkillRef[]
   readonly inputs: readonly FieldRef[]
   readonly outputs: readonly FieldRef[]

@@ -170,7 +170,10 @@ function marketplaceState(
       && item.marketplaceSource !== null
       ? item.marketplaceSource as Record<string, unknown>
       : null
-    const source = host === 'codex' ? sourceRecord?.source : item.repo
+    const source = host === 'codex'
+      ? sourceRecord?.source
+      // 目录 marketplace（tenon setup --from-source）没有 repo 字段，身份就是它登记的 path。
+      : item.repo ?? (item.source === 'directory' ? item.path : undefined)
     const sourceType = host === 'codex' ? sourceRecord?.sourceType : item.source
     if (typeof root !== 'string'
       || !isAbsolute(root)

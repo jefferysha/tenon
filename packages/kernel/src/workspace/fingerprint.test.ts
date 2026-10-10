@@ -93,7 +93,18 @@ describe('fingerprintWorkspace', () => {
     await writeFile(join(root, '.tenon', 'users', 'a-at-x.io', 'local', 'active-change'), 'catalog-flow\n')
     await writeFile(join(root, '.tenon', 'users', 'a-at-x.io', 'tests', 'catalog-flow', 'run-1.json'), '{}\n')
     await writeFile(join(root, '.pipeline-pending-review'), 'transient\n')
+    // 交互标记按会话分文件（`.pipeline-pending-interaction.<session_id>`），连同 hook 的原子写 / 认领临时文件，同样是本机瞬态。
+    await writeFile(join(root, '.pipeline-pending-interaction'), 'pipeline-interaction-v2\n')
+    await writeFile(join(root, '.pipeline-pending-interaction.session-a-0001'), 'pipeline-interaction-v2\n')
+    await writeFile(join(root, '.pipeline-pending-interaction.session-a-0001.tmp.4242'), 'pipeline-interaction-v2\n')
+    await writeFile(join(root, '.pipeline-pending-interaction.claim.4242'), 'pipeline-interaction-v2\n')
 
+    expect(await fingerprintWorkspace(root)).toBe(first)
+    // 只排除标记自己：名字相近的别的根文件仍是候选的一部分。
+    await writeFile(join(root, '.pipeline-pending-interaction-notes.md'), 'not a marker\n')
+    const withLookalike = await fingerprintWorkspace(root)
+    expect(withLookalike).not.toBe(first)
+    await rm(join(root, '.pipeline-pending-interaction-notes.md'))
     expect(await fingerprintWorkspace(root)).toBe(first)
 
     // 宿主 agent 文件与所有权清单：其它任务在途时 Tenon 会生成 / 回收它们。

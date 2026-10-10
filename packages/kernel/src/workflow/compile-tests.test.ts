@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { compileWorkflow } from './compile.js'
+import { isStepTestId } from './compile-tests.js'
 import type { StepTestDef, WorkflowDef } from './types.js'
 
 function withTests(tests: readonly Partial<StepTestDef>[]): WorkflowDef {
@@ -22,6 +23,15 @@ function rejects(tests: readonly Partial<StepTestDef>[], message: string): void 
 }
 
 const MINIMAL: Partial<StepTestDef> = { id: 'unit', direction: 'unit', command: 'npm test' }
+
+describe('isStepTestId', () => {
+  test('与编译时校验测试 id 同一口径：a-zA-Z0-9_- 且 1–64 字符', () => {
+    for (const ok of ['code-size', 'Unit_1', 'a', 'a'.repeat(64)]) expect(isStepTestId(ok), ok).toBe(true)
+    for (const bad of ['', 'a'.repeat(65), 'unit test', 'a/b', 'a.b', 'a:b', '测试', 'a\nb']) expect(isStepTestId(bad), bad).toBe(false)
+    expect(isStepTestId(undefined)).toBe(false)
+    expect(isStepTestId(1)).toBe(false)
+  })
+})
 
 describe('compileStepTests', () => {
   test('补齐默认值，键序固定 id/direction/command/cwd 开头', () => {

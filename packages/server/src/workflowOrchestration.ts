@@ -86,7 +86,11 @@ function agentStatus(view: AgentView | undefined): OrchestrationRunStatus {
   return view.result === 'fail' || view.result === 'failed' ? 'failed' : 'done'
 }
 
-function testStatus(status: TestStepSnapshot['items'][number]['status'] | undefined): OrchestrationRunStatus {
+/** 失败后带豁免的步骤测试与 `kindStatus` 同口径：已批准 = 完成，等评审批准 = 等待（等人）；其余按原状态。 */
+function testStatus(item: Pick<TestStepSnapshot['items'][number], 'status' | 'waiver'> | undefined): OrchestrationRunStatus {
+  const status = item?.status
+  if (item?.waiver === 'waived') return 'done'
+  if (item?.waiver === 'waiver-pending') return 'waiting'
   if (status === 'passed') return 'done'
   if (status === 'failed') return 'failed'
   if (status === 'running') return 'running'
@@ -95,14 +99,17 @@ function testStatus(status: TestStepSnapshot['items'][number]['status'] | undefi
 }
 
 type SuiteState = PolicyReportDto['suites'][number]['state']
-/** 同一种类可能有多个套件：取最差的（失败 > 过期 > 运行中 > 未运行 > 通过）；本阶段运行集里没有该种类 = 未运行。 */
-const WORST: Readonly<Record<SuiteState, number>> = { passed: 0, missing: 1, running: 2, stale: 3, failed: 4 }
+/**
+ * 同一种类可能有多个套件：取最差的（失败 > 过期 > 运行中 > 未运行 > 通过）；本阶段运行集里没有该种类 = 未运行。
+ * 失败后带豁免的步骤测试：已批准 = 通过，等评审批准 = 未运行（等人）。
+ */
+const WORST: Readonly<Record<SuiteState, number>> = { passed: 0, waived: 0, missing: 1, 'waiver-pending': 1, running: 2, stale: 3, failed: 4 }
 
 function kindStatus(report: PolicyReportDto | undefined, kind: string): OrchestrationRunStatus {
   const states = (report?.suites ?? []).filter((suite) => suite.kind === kind).map((suite) => suite.state)
   if (states.length === 0) return 'waiting'
   const worst = states.reduce((acc, state) => (WORST[state] > WORST[acc] ? state : acc))
-  return worst === 'passed' ? 'done' : worst === 'missing' ? 'waiting' : worst
+  return worst === 'passed' || worst === 'waived' ? 'done' : worst === 'missing' || worst === 'waiver-pending' ? 'waiting' : worst
 }
 
 /**
@@ -126,7 +133,7 @@ export function withRunStatus(
         if (future) return { ...entry, status: 'waiting' }
         if (entry.kind === 'skill') return { ...entry, status: past ? 'done' : facts.skills.get(entry.id) ?? 'waiting' }
         if (entry.kind === 'test') {
-          return { ...entry, status: entry.testKind === undefined ? testStatus(tests.find((item) => item.id === entry.id)?.status) : kindStatus(policy, entry.testKind) }
+          return { ...entry, status: entry.testKind === undefined ? testStatus(tests.find((item) => item.id === entry.id)) : kindStatus(policy, entry.testKind) }
         }
         return { ...entry, status: agentStatus(agents.find((view) => view.agent === entry.id)) }
       }),

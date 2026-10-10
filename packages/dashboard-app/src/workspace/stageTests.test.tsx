@@ -46,6 +46,25 @@ describe('stageTestRows', () => {
     expect(stageTestRows(change([{ stepId: 'verify', items: [] }]), 'build')).toEqual([])
   })
 
+  it('失败后带豁免的行带上 waiver（已批准 / 待批准），没有豁免的行没有这一项；状态词走各自的 i18n key', () => {
+    const rows = stageTestRows(change([{
+      stepId: 'build',
+      items: [
+        { id: 'size', direction: 'unit', required: true, status: 'failed', waiver: 'waived' },
+        { id: 'lint', direction: 'unit', required: true, status: 'failed', waiver: 'waiver-pending' },
+        { id: 'bad', direction: 'unit', required: true, status: 'failed' },
+      ],
+    }]), 'build')
+    expect(rows.map((row) => [row.id, row.status, row.waiver])).toEqual([
+      ['size', 'failed', 'waived'], ['lint', 'failed', 'waiver-pending'], ['bad', 'failed', undefined],
+    ])
+    expect(rows[2]).not.toHaveProperty('waiver')
+    expect(testStatusWord('waived', (key) => key)).toBe('workspace.test_status_waived')
+    expect(testStatusWord('waiver-pending', (key) => key)).toBe('workspace.test_status_waiver_pending')
+    // 带豁免的失败不算通过。
+    expect(stageTestCount(rows)).toBe('0/3')
+  })
+
   it('计数是 通过/总数；状态词走 i18n key', () => {
     const rows = stageTestRows(change([{
       stepId: 'build',

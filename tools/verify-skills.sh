@@ -210,6 +210,10 @@ if [ -f "$HOOKS_JSON" ]; then
   N_PATH=$((N_PATH + 1))
   [ -f "$ROOT/hooks/lib/protected-writes.sh" ] \
     || add_fail "缺失 hook 辅助脚本: hooks/lib/protected-writes.sh" "hooks/gate.sh" "把 hooks/lib/protected-writes.sh 纳入发布包"
+  # gate.sh 在预筛命中（命令里可能有手动 acknowledge）时才加载的命令文本还原与判定：缺了它，门对预筛命中的命令一律失败关闭拒绝。
+  N_PATH=$((N_PATH + 1))
+  [ -f "$ROOT/hooks/lib/ack-command.sh" ] \
+    || add_fail "缺失 hook 辅助脚本: hooks/lib/ack-command.sh" "hooks/gate.sh" "把 hooks/lib/ack-command.sh 纳入发布包"
   while IFS= read -r shell_file; do
     [ -n "$shell_file" ] || continue
     N_PATH=$((N_PATH + 1))

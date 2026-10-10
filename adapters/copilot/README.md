@@ -44,5 +44,7 @@ track:
 
 ## 人工确认（HITL）
 
-完成产物并选择 event 后运行 `tenon review request <change> --event <event>`；人类明确确认后运行
-`tenon review acknowledge <change>`。不得手动删除 `.pipeline-pending-review`，它只是投影而非授权。
+完成产物并选择 event 后运行 `tenon review request <change> --event <event>`；然后等用户确认：用户在
+Dashboard（`tenon dashboard --open`）确认，或由**用户本人在自己的终端**运行 `tenon review acknowledge <change>`
+（本适配器没有写回执的 UserPromptSubmit hook，回复放行语不会写回执）；agent 不得代为执行该命令，持续授权下只可用
+`--delegated`（它不批准待批准的测试豁免）。不得手动删除 `.pipeline-pending-review`，它只是投影而非授权。

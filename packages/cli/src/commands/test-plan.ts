@@ -23,7 +23,8 @@ function describePlan(deps: CliDeps, plan: TestPlan): void {
   for (const item of plan.cases) deps.io.out(`    ${item.covers}  ←  ${item.tests.join(' | ')}`)
   deps.io.out(`  豁免（${plan.waivers.length}）：${plan.waivers.length === 0 ? '无' : ''}`)
   for (const item of plan.waivers) {
-    deps.io.out(`    ${item.kind !== undefined ? `kind ${item.kind}` : item.covers}  ${item.approved_by === null ? '[未批准]' : `[已批准 ${item.approved_by}]`}  ${item.reason}`)
+    const target = item.kind !== undefined ? `kind ${item.kind}` : item.test !== undefined ? `test ${item.test}` : item.covers
+    deps.io.out(`    ${target}  ${item.approved_by === null ? '[未批准]' : `[已批准 ${item.approved_by}]`}  ${item.reason}`)
   }
 }
 

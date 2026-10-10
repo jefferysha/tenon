@@ -33,6 +33,18 @@ export interface RuntimeStableReleaseTarget {
   readonly commit: string
 }
 
+/** 源码开发安装的身份：安装时冻结并写进 release manifest；漂移比较与展示都以它为准。 */
+export interface RuntimeDevSource {
+  readonly kind: 'dev'
+  /** 仓库工作区根的 realpath；同时是托管 payload 的候选根。 */
+  readonly repoRealpath: string
+  readonly commit: string
+  /** 安装时 PAYLOAD_ENTRIES 范围内是否有未提交改动；只用于展示。 */
+  readonly dirty: boolean
+  readonly worktreeDigest: string
+  readonly skillsIndexDigest: string
+}
+
 export interface RuntimeReleaseManifestV1 {
   readonly version: 1
   readonly releaseId: string
@@ -49,6 +61,8 @@ export interface RuntimeReleaseManifestV2 {
   readonly source: RuntimeReleaseSource
   /** Immutable native provenance; absent only for low-level/manual/adapter activations. */
   readonly stableTarget?: RuntimeStableReleaseTarget
+  /** 源码开发安装的身份；与 stableTarget 互斥，只允许原生宿主。 */
+  readonly devSource?: RuntimeDevSource
 }
 
 export type RuntimeReleaseManifest = RuntimeReleaseManifestV1 | RuntimeReleaseManifestV2

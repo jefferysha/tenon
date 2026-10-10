@@ -18,6 +18,7 @@ import {
   parseProjectionMetadataLines, parseRunMetadataLines,
   serializeProjectionMetadataLines, serializeRunMetadataLines,
 } from './run-metadata.js'
+import { isOmitWhenEmpty } from './omit-when-empty-fields.js'
 
 const KNOWN_FIELDS: ReadonlySet<string> = new Set(FIELD_ORDER)
 const LIST_FIELD_SET: ReadonlySet<string> = new Set(LIST_FIELDS)
@@ -156,6 +157,7 @@ export function serializePipeline(
     if (omitted.has(field)) continue
     if (REVIEW_GATE_FIELD_SET.has(field) && !hasReviewGateReceipt) continue
     const value = state.fields[field] ?? ''
+    if (value === '' && isOmitWhenEmpty(field)) continue
     if (Array.isArray(value)) {
       for (const item of value) quoteGate(field, item)
       if (value.length === 0) {

@@ -611,7 +611,9 @@ var FIELD_ORDER = [
   // Build→Verify 全量收敛门：新实现 visit 必须重新完成完整 diff/契约/发行门禁审查，不能继承
   // 上一候选的 pass。继续严格末尾追加，使旧窄解析器把这一行及其后的提交元数据原样保留。
   PRE_VERIFY_REVIEW_FIELD,
-  "review_acknowledged_via"
+  "review_acknowledged_via",
+  // 任务级验证轮次上限覆盖（1–20）。严格末尾追加；值为空时不进 wire 与 YAML 投影（state/omit-when-empty-fields.ts）。
+  "max_rounds"
 ];
 var LIST_FIELDS = ["scope", "related_files", "spec_scope", "depends_on"];
 var PHASES = ["open", "explore", "spec", "build", "verify", "ship", "archive"];
@@ -3195,6 +3197,13 @@ function legacyReviewGateOmissions(rawFields, missing4) {
   return accepted ? new Set(missingReviewGateFields) : /* @__PURE__ */ new Set();
 }
 
+// packages/kernel/dist/state/omit-when-empty-fields.js
+var OMIT_WHEN_EMPTY_FIELDS = ["max_rounds"];
+var OMIT_WHEN_EMPTY = new Set(OMIT_WHEN_EMPTY_FIELDS);
+function isOmitWhenEmpty(field5) {
+  return OMIT_WHEN_EMPTY.has(field5);
+}
+
 // packages/kernel/dist/state/run-revision-codec.js
 var SAFE_ID_RE = /^[A-Za-z0-9_-]+$/;
 var FIELD_SET = new Set(FIELD_ORDER);
@@ -3255,6 +3264,9 @@ function withoutCompanionFields(state, revision, revisionId) {
   const fields = structuredClone(state.fields);
   delete fields[PRE_VERIFY_REVIEW_FIELD];
   delete fields[REVIEW_ACKNOWLEDGED_VIA_FIELD];
+  for (const field5 of OMIT_WHEN_EMPTY_FIELDS)
+    if (fields[field5] === "")
+      delete fields[field5];
   const anchor = {
     schemaVersion: 1,
     revision,
@@ -3339,7 +3351,11 @@ function canonicalState(value, opts = {}) {
   const missing4 = rawFields ? FIELD_ORDER.filter((field5) => !Object.prototype.hasOwnProperty.call(rawFields, field5)) : [];
   const legacyReviewGateDefaults = opts.allowLegacyFieldOmissions === true ? legacyReviewGateOmissions(rawFields, missing4) : /* @__PURE__ */ new Set();
   const companionDefaults = new Set(opts.allowLegacyFieldOmissions === true ? missing4.filter((field5) => field5 === PRE_VERIFY_REVIEW_FIELD || field5 === REVIEW_ACKNOWLEDGED_VIA_FIELD) : []);
-  const allowedLegacyDefaults = /* @__PURE__ */ new Set([...legacyReviewGateDefaults, ...companionDefaults]);
+  const allowedLegacyDefaults = /* @__PURE__ */ new Set([
+    ...legacyReviewGateDefaults,
+    ...companionDefaults,
+    ...missing4.filter(isOmitWhenEmpty)
+  ]);
   if (!rawFields || rawKeys.some((key) => !FIELD_SET.has(key)) || missing4.some((field5) => !allowedLegacyDefaults.has(field5))) {
     throw new RunStateCorruptError("canonical state.fields \u4E0D\u662F FIELD_ORDER \u95ED\u96C6");
   }
@@ -3353,7 +3369,7 @@ function canonicalState(value, opts = {}) {
       fields[field5] = field5 === PRE_VERIFY_REVIEW_FIELD ? PRE_VERIFY_REVIEW_DEFAULT : REVIEW_ACKNOWLEDGED_VIA_DEFAULT;
       continue;
     }
-    const fieldValue = rawFields[field5];
+    const fieldValue = rawFields[field5] ?? (isOmitWhenEmpty(field5) ? "" : void 0);
     if (typeof fieldValue === "string") {
       fields[field5] = fieldValue;
     } else if (LIST_FIELD_SET.has(field5) && Array.isArray(fieldValue) && fieldValue.every((item2) => typeof item2 === "string")) {
@@ -5428,9 +5444,9 @@ async function processStartIdentity(pid) {
     return null;
   }
 }
-function parseOwnerRecord(text11) {
+function parseOwnerRecord(text12) {
   try {
-    const value = ownRecord3(JSON.parse(text11));
+    const value = ownRecord3(JSON.parse(text12));
     if (value === null)
       return null;
     const keys2 = Object.keys(value).sort().join(",");
@@ -5455,8 +5471,8 @@ function parseOwnerRecord(text11) {
     return null;
   }
 }
-function parseLegacyOwner(text11) {
-  const owner = text11.trim();
+function parseLegacyOwner(text12) {
+  const owner = text12.trim();
   const pidText = owner.split(".", 1)[0] ?? "";
   if (!/^[1-9][0-9]*$/.test(pidText))
     return null;
@@ -5633,7 +5649,7 @@ import { lstat as lstat8, mkdir as mkdir6, opendir, realpath as realpath2 } from
 import { isAbsolute as isAbsolute2, join as join13, relative as relative2, sep as sep3 } from "node:path";
 
 // packages/kernel/dist/workflow/default-workflow.generated.js
-var DEFAULT_WORKFLOW_SOURCE = 'name: default\nopenspec: true\ntracks:\n  chat:\n    label: \u5BF9\u8BDD\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills: []\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills: []\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        agents:\n          executors:\n            - agent: researcher\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills: []\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        test_policy:\n          plan: required\n          kinds: [unit]\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills: []\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        agents:\n          executors:\n            - agent: builder\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        test_policy:\n          run: [unit]\n          run_if_registered: [typecheck]\n          scope: changed\n          files: registered\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills: []\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n            pass:\n              metrics:\n                - name: lines_added\n                  max: 2000\n        agents:\n          reviewers:\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n            - agent: security\n              required: false\n              block_at: medium\n        guards: []\n        test_policy:\n          run: [unit]\n          run_if_registered: [regression]\n          scope: full\n          files: registered\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills: []\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  pm:\n    label: \u4EA7\u54C1\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: brainstorming\n          - id: grilling\n          - id: domain-modeling\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        agents:\n          executors:\n            - agent: researcher\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: openspec-propose\n          - id: brainstorming\n          - id: writing-plans\n          - id: grilling\n          - id: domain-modeling\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts: []\n        guards:\n          - type: tasks-at-least\n            n: 3\n        test_policy:\n          plan: required\n          scenarios: required\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        prompt: |-\n          \u539F\u578B\u4E3A\u4EA4\u4ED8\u7EA7\u9AD8\u4FDD\u771F\uFF0C\u8986\u76D6\u5173\u952E\u5C4F\u4E0E\u7A7A\u3001\u52A0\u8F7D\u3001\u9519\u8BEF\u3001\u6210\u529F\u6001\uFF1B\u7528\u6237\u9009\u5B9A\u4E00\u4E2A\u65B9\u6848\u540E\u53EA\u7CBE\u4FEE\u8BE5\u65B9\u6848\u3002\n        skills:\n          - id: prototype\n          - id: frontend-design\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        agents:\n          executors:\n            - agent: builder\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: browser-qa\n          - id: web-design-guidelines\n          - id: design-taste-frontend\n          - id: verification-before-completion\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n            pass:\n              metrics:\n                - name: lines_added\n                  max: 2000\n        agents:\n          reviewers:\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n        guards: []\n        test_policy:\n          run_if_registered: [smoke]\n          scope: full\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills: []\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: prd_path\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: prd_path\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  frontend:\n    label: \u524D\u7AEF\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n        - { kind: design-md, owner_step: open, role: require }\n        - { kind: design-md, owner_step: build, role: require }\n        - { kind: design-md, owner_step: verify, role: require }\n        - { kind: design-md, owner_step: ship, role: update, producers: [hue] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: openspec-explore\n          - id: brainstorming\n          - id: grilling\n          - id: domain-modeling\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        agents:\n          executors:\n            - agent: researcher\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        prompt: |-\n          \u9700\u8981\u65B0\u589E\u6216\u8C03\u6574\u8BBE\u8BA1\u65F6\u8FD0\u884C tenon design propose "$TENON_CHANGE_NAME"\uFF0C\u5728 openspec/changes/<change>/design-system.md \u5199\u6E05\u4FEE\u6539\u3001\u7406\u7531\u3001\u5F71\u54CD\uFF0C\u968F\u89C4\u683C\u8BC4\u5BA1\u3002\n          \u9009\u7528\u7EC4\u4EF6\u5E93\u3001\u56FE\u6807\u3001\u52A8\u753B\u3001DESIGN.md \u7B49\u524D\u7AEF\u8D44\u6E90\u65F6\u5148\u67E5\u8D44\u6E90\u76EE\u5F55\uFF1Atenon resources list --framework <\u6846\u67B6> --category <\u7C7B\u522B>\uFF0C\u518D\u7528 tenon resources show <id> \u770B\u8BB8\u53EF\u4E0E\u5B89\u88C5\u547D\u4EE4\uFF1B\u53EA\u7528\u76EE\u5F55\u5185\u6761\u76EE\uFF0C\u4E0D\u53EF\u518D\u5206\u53D1\u7684\u6761\u76EE\u53EA\u6309\u5B89\u88C5\u547D\u4EE4\u5F15\u7528\u3002\n        skills:\n          - id: openspec-propose\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        test_policy:\n          plan: required\n          kinds: [unit]\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: test-driven-development\n          - id: frontend-design\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        agents:\n          executors:\n            - agent: builder\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        test_policy:\n          run: [unit]\n          run_if_registered: [typecheck]\n          scope: changed\n          files: registered\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: browser-qa\n          - id: web-design-guidelines\n          - id: design-taste-frontend\n          - id: verification-before-completion\n          - id: e2e-testing\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n            pass:\n              metrics:\n                - name: lines_added\n                  max: 2000\n        agents:\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n            - agent: frontend-quality\n              required: true\n              block_at: medium\n            - agent: security\n              required: true\n              block_at: medium\n            - agent: e2e\n              required: true\n              block_at: medium\n            - agent: architecture\n              required: false\n              block_at: high\n              depends_on: [spec-consistency, frontend-quality, security, e2e]\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n        guards: []\n        test_policy:\n          run: [unit]\n          run_if_registered: [regression, e2e, playwright, a11y, visual]\n          scope: full\n          files: registered\n          coverage: { lines: 80 }\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        prompt: |-\n          \u5B58\u5728 openspec/changes/<change>/design-system.md \u65F6\uFF1A\u52A0\u8F7D hue\uFF0C\u5148\u6539 design/design-model.yaml\uFF0C\u518D\u53EA\u91CD\u65B0\u751F\u6210 DESIGN.md \u53D7\u5F71\u54CD\u7AE0\u8282\u4E0E\u9884\u89C8\uFF0C\u8DD1 tenon design validate \u5230\u901A\u8FC7\uFF0C\u767B\u8BB0 tenon document record "$TENON_CHANGE_NAME" design-md DESIGN.md --producer hue\u3002\n        skills:\n          - id: finishing-a-development-branch\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        tests:\n          - id: design-system\n            direction: design-system\n            command: tenon design validate\n            label: \u8BBE\u8BA1\u4F53\u7CFB\n            timeout_s: 300\n            required: true\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  backend:\n    label: \u540E\u7AEF\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: openspec-explore\n          - id: brainstorming\n          - id: grilling\n          - id: domain-modeling\n          - id: codebase-design\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        agents:\n          executors:\n            - agent: researcher\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: openspec-propose\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        test_policy:\n          plan: required\n          kinds: [unit]\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: test-driven-development\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        agents:\n          executors:\n            - agent: builder\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        test_policy:\n          run: [unit]\n          run_if_registered: [typecheck]\n          scope: changed\n          files: registered\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: verification-before-completion\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n            pass:\n              metrics:\n                - name: lines_added\n                  max: 2000\n        agents:\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n            - agent: backend-quality\n              required: true\n              block_at: medium\n            - agent: security\n              required: true\n              block_at: medium\n            - agent: architecture\n              required: false\n              block_at: high\n              depends_on: [spec-consistency, backend-quality, security]\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n        guards: []\n        test_policy:\n          run: [unit]\n          run_if_registered: [integration, regression, benchmark]\n          scope: full\n          files: registered\n          coverage: { lines: 80 }\n          benchmark: { require_baseline: false }\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills:\n          - id: finishing-a-development-branch\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  free:\n    label: \u81EA\u7531\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: brainstorming\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        agents:\n          executors:\n            - agent: researcher\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: openspec-propose\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        test_policy:\n          plan: required\n          kinds: [unit]\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: test-driven-development\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        agents:\n          executors:\n            - agent: builder\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        test_policy:\n          run: [unit]\n          run_if_registered: [typecheck]\n          scope: changed\n          files: registered\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: verification-before-completion\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n            pass:\n              metrics:\n                - name: lines_added\n                  max: 2000\n        agents:\n          reviewers:\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n            - agent: security\n              required: false\n              block_at: medium\n        guards: []\n        test_policy:\n          run: [unit]\n          run_if_registered: [regression]\n          scope: full\n          files: registered\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills:\n          - id: finishing-a-development-branch\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n';
+var DEFAULT_WORKFLOW_SOURCE = 'name: default\nopenspec: true\ntracks:\n  chat:\n    label: \u5BF9\u8BDD\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills: []\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills: []\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        agents:\n          executors:\n            - agent: researcher\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills: []\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        test_policy:\n          plan: required\n          kinds: [unit]\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills: []\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        agents:\n          executors:\n            - agent: builder\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        test_policy:\n          run: [unit]\n          run_if_registered: [typecheck]\n          scope: changed\n          files: registered\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        max_rounds: 2\n        skills: []\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n            pass:\n              metrics:\n                - name: lines_added\n                  max: 2000\n        agents:\n          reviewers:\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n            - agent: security\n              required: false\n              block_at: medium\n        guards: []\n        test_policy:\n          run: [unit]\n          run_if_registered: [regression]\n          scope: full\n          files: registered\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills: []\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  pm:\n    label: \u4EA7\u54C1\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: brainstorming\n          - id: grilling\n          - id: domain-modeling\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        agents:\n          executors:\n            - agent: researcher\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: openspec-propose\n          - id: brainstorming\n          - id: writing-plans\n          - id: grilling\n          - id: domain-modeling\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts: []\n        guards:\n          - type: tasks-at-least\n            n: 3\n        test_policy:\n          plan: required\n          scenarios: required\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        prompt: |-\n          \u539F\u578B\u4E3A\u4EA4\u4ED8\u7EA7\u9AD8\u4FDD\u771F\uFF0C\u8986\u76D6\u5173\u952E\u5C4F\u4E0E\u7A7A\u3001\u52A0\u8F7D\u3001\u9519\u8BEF\u3001\u6210\u529F\u6001\uFF1B\u7528\u6237\u9009\u5B9A\u4E00\u4E2A\u65B9\u6848\u540E\u53EA\u7CBE\u4FEE\u8BE5\u65B9\u6848\u3002\n        skills:\n          - id: prototype\n          - id: frontend-design\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        agents:\n          executors:\n            - agent: builder\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        max_rounds: 2\n        skills:\n          - id: browser-qa\n          - id: web-design-guidelines\n          - id: design-taste-frontend\n          - id: verification-before-completion\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n            pass:\n              metrics:\n                - name: lines_added\n                  max: 2000\n        agents:\n          reviewers:\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n        guards: []\n        test_policy:\n          run_if_registered: [smoke]\n          scope: full\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills: []\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: prd_path\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: prd_path\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  frontend:\n    label: \u524D\u7AEF\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n        - { kind: design-md, owner_step: open, role: require }\n        - { kind: design-md, owner_step: build, role: require }\n        - { kind: design-md, owner_step: verify, role: require }\n        - { kind: design-md, owner_step: ship, role: update, producers: [hue] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: openspec-explore\n          - id: brainstorming\n          - id: grilling\n          - id: domain-modeling\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        agents:\n          executors:\n            - agent: researcher\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        prompt: |-\n          \u9700\u8981\u65B0\u589E\u6216\u8C03\u6574\u8BBE\u8BA1\u65F6\u8FD0\u884C tenon design propose "$TENON_CHANGE_NAME"\uFF0C\u5728 openspec/changes/<change>/design-system.md \u5199\u6E05\u4FEE\u6539\u3001\u7406\u7531\u3001\u5F71\u54CD\uFF0C\u968F\u89C4\u683C\u8BC4\u5BA1\u3002\n          \u9009\u7528\u7EC4\u4EF6\u5E93\u3001\u56FE\u6807\u3001\u52A8\u753B\u3001DESIGN.md \u7B49\u524D\u7AEF\u8D44\u6E90\u65F6\u5148\u67E5\u8D44\u6E90\u76EE\u5F55\uFF1Atenon resources list --framework <\u6846\u67B6> --category <\u7C7B\u522B>\uFF0C\u518D\u7528 tenon resources show <id> \u770B\u8BB8\u53EF\u4E0E\u5B89\u88C5\u547D\u4EE4\uFF1B\u53EA\u7528\u76EE\u5F55\u5185\u6761\u76EE\uFF0C\u4E0D\u53EF\u518D\u5206\u53D1\u7684\u6761\u76EE\u53EA\u6309\u5B89\u88C5\u547D\u4EE4\u5F15\u7528\u3002\n        skills:\n          - id: openspec-propose\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        test_policy:\n          plan: required\n          kinds: [unit]\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: test-driven-development\n          - id: frontend-design\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        agents:\n          executors:\n            - agent: builder\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        test_policy:\n          run: [unit]\n          run_if_registered: [typecheck]\n          scope: changed\n          files: registered\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        max_rounds: 2\n        skills:\n          - id: browser-qa\n          - id: web-design-guidelines\n          - id: design-taste-frontend\n          - id: verification-before-completion\n          - id: e2e-testing\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n            pass:\n              metrics:\n                - name: lines_added\n                  max: 2000\n        agents:\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n            - agent: frontend-quality\n              required: true\n              block_at: medium\n            - agent: security\n              required: true\n              block_at: medium\n            - agent: e2e\n              required: true\n              block_at: medium\n            - agent: architecture\n              required: false\n              block_at: high\n              depends_on: [spec-consistency, frontend-quality, security, e2e]\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n        guards: []\n        test_policy:\n          run: [unit]\n          run_if_registered: [regression, e2e, playwright, a11y, visual]\n          scope: full\n          files: registered\n          coverage: { lines: 80 }\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        prompt: |-\n          \u5B58\u5728 openspec/changes/<change>/design-system.md \u65F6\uFF1A\u52A0\u8F7D hue\uFF0C\u5148\u6539 design/design-model.yaml\uFF0C\u518D\u53EA\u91CD\u65B0\u751F\u6210 DESIGN.md \u53D7\u5F71\u54CD\u7AE0\u8282\u4E0E\u9884\u89C8\uFF0C\u8DD1 tenon design validate \u5230\u901A\u8FC7\uFF0C\u767B\u8BB0 tenon document record "$TENON_CHANGE_NAME" design-md DESIGN.md --producer hue\u3002\n        skills:\n          - id: finishing-a-development-branch\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        tests:\n          - id: design-system\n            direction: design-system\n            command: tenon design validate\n            label: \u8BBE\u8BA1\u4F53\u7CFB\n            timeout_s: 300\n            required: true\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  backend:\n    label: \u540E\u7AEF\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: openspec-explore\n          - id: brainstorming\n          - id: grilling\n          - id: domain-modeling\n          - id: codebase-design\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        agents:\n          executors:\n            - agent: researcher\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: openspec-propose\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        test_policy:\n          plan: required\n          kinds: [unit]\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: test-driven-development\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        agents:\n          executors:\n            - agent: builder\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        test_policy:\n          run: [unit]\n          run_if_registered: [typecheck]\n          scope: changed\n          files: registered\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        max_rounds: 2\n        skills:\n          - id: verification-before-completion\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n            pass:\n              metrics:\n                - name: lines_added\n                  max: 2000\n        agents:\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n            - agent: backend-quality\n              required: true\n              block_at: medium\n            - agent: security\n              required: true\n              block_at: medium\n            - agent: architecture\n              required: false\n              block_at: high\n              depends_on: [spec-consistency, backend-quality, security]\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n        guards: []\n        test_policy:\n          run: [unit]\n          run_if_registered: [integration, regression, benchmark]\n          scope: full\n          files: registered\n          coverage: { lines: 80 }\n          benchmark: { require_baseline: false }\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills:\n          - id: finishing-a-development-branch\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  free:\n    label: \u81EA\u7531\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: brainstorming\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        agents:\n          executors:\n            - agent: researcher\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: openspec-propose\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        test_policy:\n          plan: required\n          kinds: [unit]\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: test-driven-development\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        agents:\n          executors:\n            - agent: builder\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        test_policy:\n          run: [unit]\n          run_if_registered: [typecheck]\n          scope: changed\n          files: registered\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        max_rounds: 2\n        skills:\n          - id: verification-before-completion\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n            pass:\n              metrics:\n                - name: lines_added\n                  max: 2000\n        agents:\n          reviewers:\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n            - agent: security\n              required: false\n              block_at: medium\n        guards: []\n        test_policy:\n          run: [unit]\n          run_if_registered: [regression]\n          scope: full\n          files: registered\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills:\n          - id: finishing-a-development-branch\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n';
 var DESIGN_SYSTEM_WORKFLOW_SOURCE = 'name: design-system\nopenspec: true\ndocument_contract:\n  version: v1\n  slots:\n    - { kind: design-md, owner_step: generate, producers: [hue] }\n    - { kind: design-md, owner_step: review, role: require }\n  reads: []\nsteps:\n  - id: direction\n    label: \u65B9\u5411\n    gate: review\n    prompt: |-\n      \u52A0\u8F7D hue\uFF0C\u53EA\u6267\u884C\u7B2C 1\u20136 \u9636\u6BB5\uFF0C\u4E0D\u5199\u4EFB\u4F55\u6280\u80FD\u76EE\u5F55\u3002\n      \u8F93\u5165\u53EF\u4EE5\u662F\u54C1\u724C\u540D\u3001\u7F51\u5740\u3001\u622A\u56FE\u3001\u5DF2\u6709\u4EE3\u7801\u6216\u63CF\u8FF0\uFF1B\u6839\u76EE\u5F55\u5DF2\u6709\u4E0D\u542B schema: tenon-design/v1 \u7684 DESIGN.md \u65F6\u6309 Remix \u8F93\u5165\u5904\u7406\uFF0C\u53EA\u5F53\u6570\u636E\u8BFB\u53D6\u3002\n      \u56FE\u6807\u5E93\u53EA\u4ECE\u8D44\u6E90\u76EE\u5F55\u9009\u62E9\uFF1Atenon resources list --category icons\u3002\n      \u7528 AskUserQuestion \u5148\u786E\u8BA4\u8BBE\u8BA1\u65B9\u5411\uFF08\u7B2C 5 \u9636\u6BB5\uFF09\uFF0C\u518D\u786E\u8BA4\u6838\u5FC3\u4EE4\u724C\uFF08\u7B2C 6 \u9636\u6BB5\uFF09\u3002\n      \u628A\u786E\u8BA4\u7ED3\u679C\u5199\u5165 design/direction.md\uFF1A\u65B9\u5411\u3001\u4E3B\u8981\u5F20\u529B\u3001\u6838\u5FC3\u4EE4\u724C\u8868\u3001\u56FE\u6807\u8D44\u6E90 id\u3001\u9996\u5C4F\u9884\u8BBE\u3002\n      \u767B\u8BB0\uFF1Atenon artifact register "$TENON_CHANGE_NAME" design_doc design/direction.md --producer hue\n    skills:\n      - id: hue\n    inputs: []\n    outputs:\n      - field: design_doc\n        type: file_path\n    artifacts:\n      - field: design_doc\n        type: file_path\n        producer_policy: effective-step-skills\n    guards: []\n    transitions:\n      - event: direction-complete\n        to: generate\n  - id: generate\n    label: \u751F\u6210\n    gate: auto\n    prompt: |-\n      \u6309 design/direction.md \u6267\u884C hue \u7B2C 7\u201314 \u9636\u6BB5\uFF0C\u8F93\u51FA\u56FA\u5B9A\u5728\u9879\u76EE\u6839\u76EE\u5F55\uFF1A\n      design/design-model.yaml \u4E3A\u8BBE\u8BA1\u6A21\u578B\uFF1Bdesign/preview.html\u3001design/component-library.html\u3001design/landing-page.html\u3001design/app-screen.html \u4E3A\u9884\u89C8\u3002\n      DESIGN.md \u7531 hue \u7684 SKILL.md\u3001tokens.md\u3001components.md\u3001platform-mapping.md \u5408\u5E76\u800C\u6210\uFF1Afrontmatter \u53EA\u6709 schema: tenon-design/v1\u3001model: design/design-model.yaml\u3001icons: <\u56FE\u6807\u8D44\u6E90 id>\uFF1B\u7AE0\u8282\u4F9D\u6B21\u4E3A ## 1. Philosophy\u3001## 2. Craft Rules\u3001## 3. Anti-Patterns\u3001## 4. Tokens\u3001## 5. Iconography\u3001## 6. Hero Stage\u3001## 7. Components\u3001## 8. Voice\u3001## 9. Platform Mapping\u3001## 10. Previews\u3002\n      \u4E0D\u5199 SKILL.md\uFF0C\u4E0D\u5199 ~/.claude/skills \u6216 ~/.agents/skills\uFF0C\u8DF3\u8FC7\u7B2C 16 \u9636\u6BB5\u3002\n      \u8FD0\u884C tenon design validate \u76F4\u5230\u901A\u8FC7\uFF0C\u7136\u540E\u767B\u8BB0\uFF1Atenon document record "$TENON_CHANGE_NAME" design-md DESIGN.md --producer hue\n    skills:\n      - id: hue\n    inputs:\n      - field: design_doc\n        type: file_path\n    outputs: []\n    guards: []\n    transitions:\n      - event: generate-complete\n        to: review\n  - id: review\n    label: \u9884\u89C8\n    gate: review\n    prompt: |-\n      \u6253\u5F00 design/ \u4E0B\u56DB\u4E2A\u9884\u89C8\u9875\uFF0C\u6D45\u8272\u4E0E\u6DF1\u8272\u90FD\u68C0\u67E5\uFF1BCodex \u6CA1\u6709\u6D4F\u89C8\u5668\u65F6\u628A\u56DB\u4E2A\u7EDD\u5BF9\u8DEF\u5F84\u4EA4\u7ED9\u7528\u6237\u3002\n      \u9700\u8981\u8C03\u6574\u65F6\u53D1\u9001 review-changes \u56DE\u5230\u751F\u6210\uFF1A\u5148\u6539 design/design-model.yaml\uFF0C\u518D\u53EA\u91CD\u65B0\u751F\u6210\u53D7\u5F71\u54CD\u7684\u6587\u4EF6\u3002\n    skills: []\n    inputs: []\n    outputs: []\n    guards: []\n    transitions:\n      - event: review-changes\n        to: generate\n';
 var STANDARD_WORKFLOW_SOURCE = "name: standard\nsteps:\n  - id: open\n    label: \u7ACB\u9879\n    gate: null\n    prompt: |-\n      \u7528\u4E00\u53E5\u8BDD\u5411\u7528\u6237\u590D\u8FF0\u76EE\u6807\uFF0C\u5E76\u5199\u51FA\u53EF\u9A8C\u8BC1\u7684\u9A8C\u6536\u6807\u51C6\uFF08\u54EA\u4E2A\u5931\u8D25\u7684\u7528\u4F8B\u8BE5\u53D8\u6210\u901A\u8FC7\uFF09\u3002\u76EE\u6807\u5DF2\u7ECF\u6E05\u695A\u5C31\u4E0D\u63D0\u95EE\u3001\u4E0D\u5199\u6587\u6863\u3001\u4E0D\u52A0\u8F7D\u8BBF\u8C08\u7C7B\u6280\u80FD\uFF1B\u542B\u7CCA\u5230\u6CA1\u6CD5\u5F00\u5DE5\u624D\u95EE\u4E00\u4E2A\u95EE\u9898\u3002\n      \u4E00\u5F00\u59CB\u5C31\u80FD\u770B\u51FA\u8981\u52A8\u63A5\u53E3\u5951\u7EA6\u3001\u9274\u6743\u3001\u4F9D\u8D56\u3001\u6570\u636E\u8FC1\u79FB\u6216\u5341\u51E0\u4E2A\u6587\u4EF6\uFF0C\u4E0D\u8981\u5728\u8FD9\u91CC\u786C\u505A\uFF1A\u8D70 scope-expanded\uFF0C\u6539\u5F00 default \u4EFB\u52A1\u3002\n    skills: []\n    inputs: []\n    outputs: []\n    guards: []\n    transitions:\n      - event: open-complete\n        to: build\n      - event: scope-expanded\n        to: escalated\n        actions:\n          - type: archive-run\n  - id: build\n    label: \u5B9E\u73B0\n    gate: null\n    prompt: |-\n      \u5148\u5199\uFF08\u6216\u786E\u8BA4\u5DF2\u6709\uFF09\u80FD\u590D\u73B0\u95EE\u9898\u3001\u9A8C\u8BC1\u65B0\u884C\u4E3A\u7684\u6D4B\u8BD5\uFF0C\u518D\u6539\u4EE3\u7801\u5230\u6D4B\u8BD5\u901A\u8FC7\uFF1B\u53EA\u6539\u76EE\u6807\u9700\u8981\u7684\u6587\u4EF6\uFF0C\u4E0D\u987A\u624B\u91CD\u6784\u3002\n      \u6539\u5B8C\u7167 next \u8DD1\u672C\u9636\u6BB5\u6D4B\u8BD5\u548C\u6539\u52A8\u98CE\u9669\u63A2\u9488 diff-risk\u3002\u63A2\u9488\u4E0D\u8FC7\uFF08\u6539\u52A8\u6587\u4EF6\u592A\u591A\uFF0C\u6216\u78B0\u4E86\u5951\u7EA6\u3001\u9274\u6743\u3001\u4F9D\u8D56\u3001\u8FC1\u79FB\uFF0C\u6216\u5220\u4E86\u6D4B\u8BD5\u3001\u6539\u4E86\u53D7\u4FDD\u62A4\u7684\u6D4B\u8BD5\u914D\u7F6E\uFF09\u8BF4\u660E\u4EFB\u52A1\u8D85\u51FA\u6807\u51C6\u901A\u9053\uFF1A\u7167 next \u8D70 scope-expanded\uFF0C\u518D\u65B0\u5EFA default \u4EFB\u52A1\u5E76 tenon set <\u65B0\u4EFB\u52A1> depends_on <\u672C\u4EFB\u52A1>\uFF1B\u4E0D\u8981\u4E3A\u4E86\u8BA9\u63A2\u9488\u901A\u8FC7\u53BB\u62C6\u6539\u52A8\u3001\u85CF\u6587\u4EF6\u3002\n    skills:\n      - id: test-driven-development\n    inputs: []\n    outputs: []\n    tests:\n      - id: diff-risk\n        direction: diff-risk\n        command: tenon test diff-risk --json\n        label: \u6539\u52A8\u98CE\u9669\n        timeout_s: 60\n        required: true\n        pass:\n          metrics:\n            - name: files_changed\n              max: 8\n            - name: contract_files\n              max: 0\n            - name: auth_files\n              max: 0\n            - name: dependency_files\n              max: 0\n            - name: migration_files\n              max: 0\n            - name: deleted_tests\n              max: 0\n            - name: protected_test_files\n              max: 0\n    guards: []\n    test_policy:\n      plan: required\n      kinds: [unit]\n      run: [unit]\n      run_if_registered: [typecheck]\n      scope: changed\n      files: registered\n    transitions:\n      - event: build-complete\n        to: verify\n      - event: scope-expanded\n        to: escalated\n        actions:\n          - type: archive-run\n  - id: verify\n    label: \u9A8C\u8BC1\n    gate: review\n    prompt: |-\n      \u5148\u52A0\u8F7D\u9A8C\u8BC1\u6280\u80FD\uFF0C\u518D\u7167 next \u8DD1\u5168\u91CF\u6D4B\u8BD5\u548C\u8BC4\u5BA1\u8005\u3002\u6D3E\u53D1\u8BC4\u5BA1\u8005\u65F6\uFF0C\u5728\u63D0\u793A\u672B\u5C3E\u5199\u660E\u7528\u6237\u7684\u539F\u59CB\u76EE\u6807\u548C\u9A8C\u6536\u6807\u51C6\uFF0C\u8BC4\u5BA1\u8005\u6CA1\u6709\u89C4\u683C\u6587\u6863\u53EF\u8BFB\u3002\n      \u8BC4\u5BA1\u8005\u7ED9\u51FA medium \u53CA\u4EE5\u4E0A\u7684\u95EE\u9898\u5C31\u8D70 verify-fail \u56DE\u5230\u5B9E\u73B0\u4FEE\u6389\uFF1B\u4E0D\u8981\u9760\u91CD\u8DD1\u8BC4\u5BA1\u8005\u6362\u7ED3\u8BBA\u3002\n    skills:\n      - id: verification-before-completion\n    inputs: []\n    outputs: []\n    agents:\n      reviewers:\n        - agent: code-review\n          required: true\n          block_at: medium\n        - agent: security\n          required: true\n          block_at: medium\n    guards: []\n    test_policy:\n      run: [unit]\n      run_if_registered: [regression, typecheck, integration, e2e, playwright, a11y, visual]\n      scope: full\n      files: registered\n    transitions:\n      - event: verify-pass\n        to: done\n        actions:\n          - type: mark-verification-passed\n          - type: archive-run\n      - event: verify-fail\n        to: build\n        actions:\n          - type: mark-verification-failed\n      - event: scope-expanded\n        to: escalated\n        actions:\n          - type: archive-run\n  - id: done\n    label: \u5B8C\u7ED3\n    gate: null\n    skills: []\n    inputs: []\n    outputs: []\n    guards: []\n    transitions: []\n  - id: escalated\n    label: \u5DF2\u5347\u7EA7\n    gate: null\n    skills: []\n    inputs: []\n    outputs: []\n    guards: []\n    transitions: []\n";
 var DEFAULT_WORKFLOW_STEPS = [
@@ -5726,11 +5742,11 @@ function parseTasks(markdown, currentStage, stages, trustedCanonicalProjection =
     if (!task || target === void 0)
       continue;
     const rawText = (task[2] ?? "").trim();
-    const text11 = trustedCanonicalProjection ? rawText.replace(/\s+<!-- work-item:[^>\s]+ -->\s*$/u, "").trim() : rawText;
-    if (text11 === "")
+    const text12 = trustedCanonicalProjection ? rawText.replace(/\s+<!-- work-item:[^>\s]+ -->\s*$/u, "").trim() : rawText;
+    if (text12 === "")
       continue;
     const items = byStage.get(target) ?? [];
-    items.push({ text: text11, completed: (task[1] ?? "").toLowerCase() === "x" });
+    items.push({ text: text12, completed: (task[1] ?? "").toLowerCase() === "x" });
     byStage.set(target, items);
   }
   return { byStage, structured };
@@ -6684,9 +6700,9 @@ var TRACK_ID_RE = /^[a-z][a-z0-9_-]{0,31}$/;
 
 // packages/kernel/dist/loops/registry.js
 var KEY_RE = /^([A-Za-z_][\w.-]*):(?:\s+(.*)|\s*)$/;
-function tokenize(text11) {
+function tokenize(text12) {
   const tokens = [];
-  for (const rawLine of text11.split("\n")) {
+  for (const rawLine of text12.split("\n")) {
     const line = rawLine.replace(/\r$/, "");
     if (line.trim() === "")
       continue;
@@ -6792,9 +6808,9 @@ function parseValue(tokens, i, indent) {
     return parseMapping(tokens, i, indent);
   return { value: parseScalar(required(t.raw)), next: i + 1 };
 }
-function parseLoopsYaml(text11) {
+function parseLoopsYaml(text12) {
   try {
-    const tokens = tokenize(text11);
+    const tokens = tokenize(text12);
     if (tokens.length === 0)
       return { data: null, error: "\u7A7A\u6587\u6863\uFF08\u65E0\u5185\u5BB9\uFF09" };
     const first = required(tokens[0]);
@@ -7047,10 +7063,10 @@ function isValidatedLoopRegistry(value, errors) {
   return errors.length === 0;
 }
 function loadRegistry(repoRoot, io2 = nodeLoopIo) {
-  const text11 = io2.readText(join16(repoRoot, ...LOOPS_REL_PATH));
-  if (text11 === null)
+  const text12 = io2.readText(join16(repoRoot, ...LOOPS_REL_PATH));
+  if (text12 === null)
     return { data: null, errors: [] };
-  const { data, error: error2 } = parseLoopsYaml(text11);
+  const { data, error: error2 } = parseLoopsYaml(text12);
   if (error2 !== null)
     return { data: null, errors: [`loops.yaml: ${error2}`] };
   if (data === null || typeof data !== "object" || Array.isArray(data)) {
@@ -7641,12 +7657,12 @@ function parseTimestamp(raw, now) {
 function sameUTCDate(a, b) {
   return a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth() && a.getUTCDate() === b.getUTCDate();
 }
-function sumRunLogTokens(text11, loopId, now) {
-  if (text11 === null)
+function sumRunLogTokens(text12, loopId, now) {
+  if (text12 === null)
     return { spentToday: 0, runsToday: 0 };
   let spentToday = 0;
   let runsToday = 0;
-  for (const rawLine of text11.split("\n")) {
+  for (const rawLine of text12.split("\n")) {
     const line = rawLine.trim();
     if (!line.startsWith("|"))
       continue;
@@ -8014,9 +8030,9 @@ function createLoopLedgerStore() {
     });
   }
   async function read2(repoRoot) {
-    let text11;
+    let text12;
     try {
-      text11 = await readFile8(ledgerFilePath(repoRoot), "utf8");
+      text12 = await readFile8(ledgerFilePath(repoRoot), "utf8");
     } catch (e) {
       if (e.code === "ENOENT")
         return { records: [], rejected: [] };
@@ -8024,7 +8040,7 @@ function createLoopLedgerStore() {
     }
     const records = [];
     const rejected = [];
-    const lines2 = text11.split("\n");
+    const lines2 = text12.split("\n");
     for (let i = 0; i < lines2.length; i++) {
       const raw = required(lines2[i]);
       if (raw.trim() === "") {
@@ -8077,7 +8093,7 @@ function createLoopLedgerStore() {
 }
 
 // packages/kernel/dist/state/store.js
-import { readFile as readFile13 } from "node:fs/promises";
+import { readFile as readFile14 } from "node:fs/promises";
 import path4 from "node:path";
 
 // packages/kernel/dist/state/legacy-import.js
@@ -8195,6 +8211,8 @@ function serializePipeline(state, options3 = {}) {
     if (REVIEW_GATE_FIELD_SET.has(field5) && !hasReviewGateReceipt)
       continue;
     const value = state.fields[field5] ?? "";
+    if (value === "" && isOmitWhenEmpty(field5))
+      continue;
     if (Array.isArray(value)) {
       for (const item2 of value)
         quoteGate(field5, item2);
@@ -8251,7 +8269,7 @@ function legacyChannelProjectionContent(revision) {
 }
 
 // packages/kernel/dist/state/state-init.js
-import { readFile as readFile10, stat as stat2 } from "node:fs/promises";
+import { readFile as readFile11, stat as stat2 } from "node:fs/promises";
 import path2 from "node:path";
 
 // packages/kernel/dist/workflow/builtin-workflows.js
@@ -8613,6 +8631,875 @@ function withAutoGateGuards(steps, isForward) {
   });
 }
 
+// packages/kernel/dist/workflow/predicates.js
+function matchesTrackPredicate(predicate, track) {
+  const listed = predicate.values.includes(track);
+  return predicate.kind === "track-in" ? listed : !listed;
+}
+var NON_PM = { kind: "track-not-in", values: ["pm"] };
+var NON_PM_OR_FREE = { kind: "track-not-in", values: ["pm", "free"] };
+
+// packages/kernel/dist/flow/guard-coverage.js
+var COVERAGE_LAYERS = [
+  "L1_api",
+  "L2_data",
+  "L3_rules",
+  "L4_state",
+  "L5_errors",
+  "L6_security",
+  "L7_perf",
+  "L8_deps",
+  "L10_terms"
+];
+var COVERAGE_PROFILE_APPLICABILITY = {
+  backend: {
+    L1_api: "required",
+    L2_data: "required",
+    L3_rules: "required",
+    L4_state: "required",
+    L5_errors: "required",
+    L6_security: "required",
+    L8_deps: "required",
+    L7_perf: "optional",
+    L10_terms: "optional"
+  },
+  frontend: {
+    L4_state: "required",
+    L5_errors: "required",
+    L1_api: "optional",
+    L3_rules: "optional",
+    L6_security: "optional",
+    L7_perf: "optional",
+    L8_deps: "optional",
+    L10_terms: "optional"
+  },
+  pm: {
+    L3_rules: "required",
+    L2_data: "optional",
+    L4_state: "optional",
+    L10_terms: "optional"
+  }
+};
+var COVERAGE_LOCK_CONCERN = { L6_security: "auth" };
+function coverageBlockLines(content) {
+  if (content === void 0)
+    return [];
+  const out = [];
+  let inBlock = false;
+  for (const line of content.split("\n")) {
+    if (/^```coverage/.test(line)) {
+      inBlock = true;
+      continue;
+    }
+    if (/^```/.test(line)) {
+      inBlock = false;
+      continue;
+    }
+    if (inBlock)
+      out.push(line);
+  }
+  return out;
+}
+function coverageBlockStatus(lines2, layer) {
+  const row = lines2.find((l) => l.startsWith(`${layer}:`));
+  if (row === void 0)
+    return "blank";
+  const m = /^[ \t]*([a-zA-Z]+)/.exec(row.slice(layer.length + 1));
+  const st = m?.[1];
+  return st === "filled" || st === "waived" ? st : "blank";
+}
+function coverageTouches(lines2) {
+  const row = lines2.find((l) => l.startsWith("touches:"));
+  if (row === void 0)
+    return [];
+  return row.slice("touches:".length).split(/[,\s]+/).filter((w) => w !== "");
+}
+function evaluateCoverage(input2, failures, warnings) {
+  const { ctx, preset, designDoc } = input2;
+  if (ctx.readFile === void 0 || ctx.coverageProfile === "none")
+    return;
+  const content = designDoc !== "" && designDoc !== "null" ? ctx.readFile(designDoc) : void 0;
+  const lines2 = coverageBlockLines(content);
+  const touches = coverageTouches(lines2);
+  const applicability = COVERAGE_PROFILE_APPLICABILITY[ctx.coverageProfile];
+  const blockedLines = [];
+  let lockViolations = 0;
+  for (const layer of COVERAGE_LAYERS) {
+    const app = applicability?.[layer] ?? "na";
+    if (app === "na")
+      continue;
+    const status2 = coverageBlockStatus(lines2, layer);
+    const concern = COVERAGE_LOCK_CONCERN[layer];
+    const locked = concern !== void 0 && touches.includes(concern);
+    if (locked) {
+      if (status2 !== "filled") {
+        blockedLines.push(`${layer} ${app} ${status2} BLOCKED LOCKVIOLATION`);
+        lockViolations += 1;
+      }
+    } else if (app === "required" && status2 === "blank") {
+      blockedLines.push(`${layer} ${app} ${status2} BLOCKED`);
+    }
+  }
+  const waive = preset === "hotfix" || preset === "tweak";
+  const covBlock = waive ? lockViolations : blockedLines.length;
+  if (waive) {
+    const warnBlank = blockedLines.length - lockViolations;
+    if (warnBlank > 0) {
+      warnings.push(`${preset}\uFF1A${warnBlank} \u5C42\u8986\u76D6\u7559\u7A7A\uFF08\u5DF2\u8C41\u514D\uFF0C\u5EFA\u8BAE\u8865\uFF1B\u{1F512} \u9501\u4E0D\u8C41\u514D\uFF09`);
+    }
+  }
+  if (covBlock > 0) {
+    failures.push(`spec \u51FA\u53E3\uFF1A\u5168\u6808 Spec \u8986\u76D6\uFF08${covBlock} \u5C42\u963B\u585E\uFF09\uFF1B\u5728 design_doc \u7684 \`\`\`coverage \u5757\u4E3A\u6BCF\u4E2A\u963B\u585E\u5C42\u5199\u4E00\u884C \`<\u5C42>: filled -> <\u7AE0\u8282>\` \u6216 \`<\u5C42>: waived -> <\u7406\u7531>\`\uFF0C\u4F8B\uFF1A\`L1_api: filled -> \xA73 \u63A5\u53E3\u5951\u7EA6\`\uFF08touches \u542B auth \u65F6 L6_security \u4E0D\u53EF waived\uFF09`);
+    for (const l of blockedLines)
+      warnings.push(`\u8986\u76D6\u963B\u585E: ${l}`);
+  }
+}
+
+// packages/kernel/dist/flow/guard.js
+var PM_ONLY = { kind: "track-in", values: ["pm"] };
+var EXIT_RULES = {
+  // open 出口（manifest.yaml:146-151）
+  open: [
+    { kind: "statefile" },
+    { kind: "file-nonempty", path: "proposal.md" },
+    { kind: "file-exists", path: "tasks.md" },
+    { kind: "tasks-at-least", n: 1 },
+    { kind: "tasks-through-phase" },
+    { kind: "file-nonempty", path: "design.md" }
+  ],
+  // explore 出口（manifest.yaml:171-174）
+  explore: [
+    { kind: "statefile" },
+    { kind: "nonempty", field: "design_doc" },
+    { kind: "field-file-exists", field: "design_doc" },
+    { kind: "tasks-through-phase" }
+  ],
+  // spec 出口（manifest.yaml:188-192 + guard.sh:510-528 coverage 显式步）
+  spec: [
+    { kind: "statefile" },
+    { kind: "nonempty", field: "plan", when: NON_PM },
+    { kind: "field-file-exists", field: "plan", when: NON_PM },
+    { kind: "tasks-at-least", n: 3 },
+    { kind: "tasks-through-phase" },
+    { kind: "coverage" }
+  ],
+  // build 出口（guard.sh:154-162 前置闸 + manifest.yaml:218-222 + guard.sh:532-559 显式步）
+  build: [
+    { kind: "automation-queued" },
+    { kind: "statefile" },
+    { kind: "tasks-through-phase" },
+    { kind: "nonempty", field: "build_mode" },
+    { kind: "nonempty", field: "isolation" },
+    { kind: "full-direct-override" },
+    { kind: "eq", field: "pre_verify_review_result", value: "pass" },
+    { kind: "depends-archived" }
+  ],
+  // verify 出口（manifest.yaml:239-247；verify_result 仅 pm——fe/be 由 verify-pass 事件体落值）
+  verify: [
+    { kind: "statefile" },
+    { kind: "nonempty", field: "verification_report" },
+    { kind: "field-file-exists", field: "verification_report", desc: "verification_report \u6587\u4EF6\u5B58\u5728" },
+    { kind: "eq", field: "branch_status", value: "handled" },
+    { kind: "eq", field: "verify_result", value: "pass", when: PM_ONLY },
+    { kind: "tasks-through-phase" }
+  ],
+  // ship 出口（manifest.yaml:259-263）
+  ship: [
+    { kind: "statefile" },
+    { kind: "nonempty", field: "prd_path", when: PM_ONLY },
+    { kind: "field-file-exists", field: "prd_path", desc: "prd_path \u6587\u4EF6\u5B58\u5728", when: PM_ONLY },
+    { kind: "nonempty", field: "pr_url", when: NON_PM_OR_FREE },
+    { kind: "tasks-through-phase" }
+  ],
+  // archive 出口（manifest.yaml:272-274）
+  archive: [
+    { kind: "statefile" },
+    { kind: "eq", field: "verify_result", value: "pass" },
+    { kind: "tasks-through-phase" }
+  ]
+};
+function isEmpty(v) {
+  if (v === void 0)
+    return true;
+  if (Array.isArray(v))
+    return v.length === 0;
+  return v === "" || v === "null";
+}
+function scalar(v) {
+  return typeof v === "string" ? v : Array.isArray(v) ? v.join(",") : "";
+}
+function depsOf(v) {
+  const items = Array.isArray(v) ? v : (v ?? "").split(",");
+  return items.map((s) => s.trim()).filter((s) => s !== "" && s !== "null");
+}
+function taskCount(content) {
+  if (content === void 0)
+    return 0;
+  return content.split("\n").filter((l) => /^- \[[ x]\]/.test(l)).length;
+}
+function trackApplies(when, track) {
+  return when === void 0 || matchesTrackPredicate(when, track);
+}
+function trackSuffix(when, track) {
+  return when === void 0 ? "" : ` (${track} track)`;
+}
+function evaluateGuard(state, ctx) {
+  const phase = scalar(state.fields.phase);
+  const rules = EXIT_RULES[phase];
+  if (!rules) {
+    return { pass: false, failures: [`\u672A\u77E5 phase '${phase}'\uFF0C\u65E0\u6CD5\u8BC4\u4F30\u51FA\u53E3\u6761\u4EF6`] };
+  }
+  const track = scalar(state.fields.track);
+  const changeDir2 = ctx?.changeDirRel;
+  const failures = [];
+  const warnings = [];
+  for (const rule of rules) {
+    switch (rule.kind) {
+      case "nonempty": {
+        if (!trackApplies(rule.when, track))
+          break;
+        const value = state.fields[rule.field];
+        if (isEmpty(value)) {
+          failures.push(`${phase} \u51FA\u53E3\uFF1A\u8981\u6C42 ${rule.field} \u975E\u7A7A\uFF08\u5F53\u524D='${scalar(value)}'\uFF09`);
+        }
+        break;
+      }
+      case "eq": {
+        if (!trackApplies(rule.when, track))
+          break;
+        const value = state.fields[rule.field];
+        if (scalar(value) !== rule.value) {
+          failures.push(`${phase} \u51FA\u53E3\uFF1A\u8981\u6C42 ${rule.field}=${rule.value}\uFF08\u5F53\u524D='${scalar(value)}'\uFF09`);
+        }
+        break;
+      }
+      case "automation-queued": {
+        if (ctx?.automationRunner === true)
+          break;
+        if (scalar(state.fields.automation) === "queued") {
+          failures.push(`${phase} \u51FA\u53E3\uFF1Aautomation=queued \u5DF2\u5165\u961F\u8C03\u5EA6\u5668\uFF0C\u4E3B\u7EBF build \u8DEF\u5F84\u88AB\u62E6\uFF08\u60F3\u624B\u52A8\u8DD1\u5148 set automation off\uFF09`);
+        }
+        break;
+      }
+      case "full-direct-override": {
+        if (scalar(state.fields.preset) === "full" && scalar(state.fields.build_mode) === "direct") {
+          const ovr = scalar(state.fields.direct_override);
+          if (ovr !== "true") {
+            failures.push(`${phase} \u51FA\u53E3\uFF1Afull+direct \u8981\u6C42 direct_override=true\uFF08\u5F53\u524D='${ovr}'\uFF09`);
+          }
+        }
+        break;
+      }
+      case "statefile": {
+        if (changeDir2 === void 0)
+          break;
+        const exists2 = ctx?.stateExists !== void 0 ? ctx.stateExists(changeDir2) : ctx?.fileNonempty?.(`${changeDir2}/.pipeline.yaml`);
+        if (exists2 === void 0)
+          break;
+        if (!exists2) {
+          failures.push(`${phase} \u51FA\u53E3\uFF1A\u8981\u6C42 canonical \u72B6\u6001\u6587\u4EF6\u5B58\u5728\uFF08\u517C\u5BB9 legacy .pipeline.yaml\uFF09`);
+        }
+        break;
+      }
+      case "file-nonempty": {
+        if (!trackApplies(rule.when, track))
+          break;
+        if (ctx?.fileNonempty === void 0 || changeDir2 === void 0)
+          break;
+        if (!ctx.fileNonempty(`${changeDir2}/${rule.path}`)) {
+          failures.push(`${phase} \u51FA\u53E3\uFF1A\u8981\u6C42 ${rule.path} \u5B58\u5728\u4E14\u975E\u7A7A${trackSuffix(rule.when, track)}`);
+        }
+        break;
+      }
+      case "file-exists": {
+        if (ctx?.fileExists === void 0 || changeDir2 === void 0)
+          break;
+        if (!ctx.fileExists(`${changeDir2}/${rule.path}`)) {
+          failures.push(`${phase} \u51FA\u53E3\uFF1A\u8981\u6C42 ${rule.path} \u5B58\u5728`);
+        }
+        break;
+      }
+      case "tasks-at-least": {
+        if (ctx?.readFile === void 0 || changeDir2 === void 0)
+          break;
+        const count4 = taskCount(ctx.readFile(`${changeDir2}/tasks.md`));
+        if (count4 < rule.n) {
+          failures.push(`${phase} \u51FA\u53E3\uFF1A\u8981\u6C42 tasks.md \u81F3\u5C11 ${rule.n} \u4E2A\u4EFB\u52A1\uFF08\u5F53\u524D=${count4}\uFF09`);
+        }
+        break;
+      }
+      case "tasks-through-phase": {
+        if (ctx?.readFile === void 0 || changeDir2 === void 0)
+          break;
+        const content = ctx.readFile(`${changeDir2}/tasks.md`);
+        if (content === void 0) {
+          if (phase === "build") {
+            failures.push(`${phase} \u51FA\u53E3\uFF1A\u8981\u6C42\u622A\u81F3\u5F53\u524D\u9636\u6BB5\u7684 tasks.md \u5168\u90E8\u52FE\u9009\uFF08tasks.md \u7F3A\u5931\uFF09`);
+          }
+        } else {
+          const projectionStatus = ctx.canonicalTasksProjectionStatus?.({
+            changeDirRel: changeDir2,
+            tasksMarkdown: content
+          }) ?? "legacy";
+          if (projectionStatus === "invalid") {
+            failures.push(`${phase} \u51FA\u53E3\uFF1Acanonical TaskPlan tasks.md \u6295\u5F71\u8BA4\u8BC1\u5931\u8D25`);
+            break;
+          }
+          const status2 = incompletePipelineTasksForExit({
+            phase,
+            tasksMarkdown: content,
+            trustedCanonicalProjection: projectionStatus === "current"
+          });
+          if (status2.incomplete > 0) {
+            failures.push(`${phase} \u51FA\u53E3\uFF1A\u8981\u6C42\u622A\u81F3\u5F53\u524D\u9636\u6BB5\u7684 tasks.md \u5168\u90E8\u52FE\u9009\uFF08\u4ECD\u6709 ${status2.incomplete} \u9879\u672A\u52FE\uFF09`);
+          }
+        }
+        break;
+      }
+      case "field-file-exists": {
+        if (!trackApplies(rule.when, track))
+          break;
+        if (ctx?.fileExists === void 0)
+          break;
+        const v = scalar(state.fields[rule.field]);
+        if (v === "" || v === "null" || !ctx.fileExists(v)) {
+          const label = rule.desc ?? `${rule.field} \u6307\u5411\u7684\u6587\u4EF6\u5B58\u5728`;
+          failures.push(`${phase} \u51FA\u53E3\uFF1A\u8981\u6C42 ${label}${trackSuffix(rule.when, track)}\uFF08\u5F53\u524D='${v}'\uFF09`);
+        }
+        break;
+      }
+      case "coverage": {
+        if (ctx !== void 0) {
+          evaluateCoverage({
+            ctx,
+            preset: scalar(state.fields.preset),
+            designDoc: scalar(state.fields.design_doc)
+          }, failures, warnings);
+        }
+        break;
+      }
+      case "depends-archived": {
+        if (ctx?.dirExists === void 0 || ctx.changeArchived === void 0)
+          break;
+        for (const dep of depsOf(state.fields.depends_on)) {
+          if (ctx.dirExists(`openspec/changes/${dep}`)) {
+            if (ctx.activeChangeArchived?.(dep) !== true) {
+              failures.push(`${phase} \u51FA\u53E3\uFF1A\u4F9D\u8D56 change '${dep}' \u5FC5\u987B\u5148\u5F52\u6863\uFF08\u5F53\u524D\u6D3B\u8DC3\uFF09`);
+            }
+          } else if (!ctx.changeArchived(dep)) {
+            failures.push(`${phase} \u51FA\u53E3\uFF1A\u4F9D\u8D56 change '${dep}' \u4E0D\u5B58\u5728\uFF08\u65E2\u4E0D\u5728\u6D3B\u8DC3\u4E5F\u4E0D\u5728\u5F52\u6863\uFF09`);
+          }
+        }
+        break;
+      }
+    }
+  }
+  const result2 = { pass: failures.length === 0, failures };
+  if (warnings.length > 0)
+    result2.warnings = warnings;
+  return result2;
+}
+
+// packages/kernel/dist/workflow/build-revision.js
+var BUILD_REVISION_TOKEN_PREFIX = "build:v1:";
+var BUILD_REVISION_CODE = "verify-build-revision-untrusted";
+var BUILD_REVISION_REMEDIATION = "return-to-build-and-capture-current-revision";
+var BuildRevisionCaptureError = class extends Error {
+  blocker;
+  constructor(reason3, stateHash, revisionHash) {
+    super("build revision capture was not trusted");
+    this.name = "BuildRevisionCaptureError";
+    this.blocker = makeBuildRevisionBlocker(reason3, stateHash, revisionHash);
+  }
+};
+function makeBuildRevisionBlocker(reason3, stateHash, revisionHash) {
+  return {
+    kind: "verify-build-revision-untrusted",
+    code: BUILD_REVISION_CODE,
+    reason: reason3,
+    remediation: BUILD_REVISION_REMEDIATION,
+    ...stateHash === void 0 ? {} : { stateHash },
+    ...revisionHash === void 0 ? {} : { revisionHash }
+  };
+}
+function sha256(domain, value) {
+  return sha256Hex(`${domain}\0${value}`);
+}
+function safeRevisionHash(value) {
+  let encoded;
+  try {
+    encoded = JSON.stringify(value) ?? "";
+  } catch {
+    encoded = "";
+  }
+  return `sha256:${sha256("tenon/build-revision/state/v1", encoded)}`;
+}
+function hashBuildRevisionIdentity(identity) {
+  return {
+    repositoryHash: sha256("tenon/build-revision/repository/v1", identity.repository),
+    worktreeHash: sha256("tenon/build-revision/worktree/v1", identity.worktree)
+  };
+}
+function hashRevision(kind, revision) {
+  return sha256(`tenon/build-revision/revision/${kind}/v1`, revision);
+}
+var TOKEN_RE = /^build:v1:(git|workspace):([a-f0-9]{64}):([a-f0-9]{64}):([a-f0-9]{64})$/;
+var GIT_REVISION_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i;
+var WORKSPACE_REVISION_RE = /^workspace:sha256:[a-f0-9]{64}$/;
+function createBuildRevisionToken(kind, revision, identity) {
+  if (kind !== "git" && kind !== "workspace")
+    throw new BuildRevisionCaptureError("malformed");
+  if (typeof revision !== "string")
+    throw new BuildRevisionCaptureError("malformed");
+  const normalized2 = revision.trim().toLowerCase();
+  if (kind === "git" && !GIT_REVISION_RE.test(normalized2)) {
+    throw new BuildRevisionCaptureError("malformed");
+  }
+  if (kind === "workspace" && !WORKSPACE_REVISION_RE.test(normalized2)) {
+    throw new BuildRevisionCaptureError("malformed");
+  }
+  if (identity === null || typeof identity !== "object" || typeof identity.repository !== "string" || typeof identity.worktree !== "string" || identity.repository.trim() === "" || identity.worktree.trim() === "") {
+    throw new BuildRevisionCaptureError("capability-unavailable");
+  }
+  const { repositoryHash, worktreeHash } = hashBuildRevisionIdentity(identity);
+  const revisionHash = hashRevision(kind, normalized2);
+  return {
+    kind,
+    revisionHash,
+    repositoryHash,
+    worktreeHash,
+    value: `${BUILD_REVISION_TOKEN_PREFIX}${kind}:${revisionHash}:${repositoryHash}:${worktreeHash}`
+  };
+}
+function parseBuildRevisionToken(value) {
+  if (typeof value !== "string")
+    return void 0;
+  const match = TOKEN_RE.exec(value);
+  if (!match)
+    return void 0;
+  const kind = match[1];
+  const revisionHash = match[2];
+  const repositoryHash = match[3];
+  const worktreeHash = match[4];
+  if (!revisionHash || !repositoryHash || !worktreeHash)
+    return void 0;
+  return {
+    kind,
+    revisionHash,
+    repositoryHash,
+    worktreeHash,
+    value
+  };
+}
+function blockerFor(reason3, request, token) {
+  return makeBuildRevisionBlocker(reason3, request.stateHash, token === void 0 ? void 0 : `sha256:${token.revisionHash}`);
+}
+async function assessBuildRevisionTrust(request) {
+  const candidate2 = request.buildSha;
+  if (candidate2 === void 0 || candidate2 === "") {
+    return { trusted: false, blocker: blockerFor("missing", request) };
+  }
+  if (candidate2 === null || candidate2 === "null") {
+    return { trusted: false, blocker: blockerFor("null", request) };
+  }
+  if (Array.isArray(candidate2)) {
+    return { trusted: false, blocker: blockerFor("ambiguous", request) };
+  }
+  if (typeof candidate2 !== "string") {
+    return { trusted: false, blocker: blockerFor("malformed", request) };
+  }
+  const token = parseBuildRevisionToken(candidate2);
+  if (token === void 0)
+    return { trusted: false, blocker: blockerFor("malformed", request) };
+  const expectedKind = request.isolation === "in-place" ? "workspace" : "git";
+  if (request.isolation !== "in-place" && request.isolation !== "branch" && request.isolation !== "worktree") {
+    return { trusted: false, blocker: blockerFor("isolation-mismatch", request, token) };
+  }
+  if (token.kind !== expectedKind) {
+    return { trusted: false, blocker: blockerFor("isolation-mismatch", request, token) };
+  }
+  let observation;
+  try {
+    observation = await request.observe();
+  } catch {
+    return { trusted: false, blocker: blockerFor("evaluation-error", request, token) };
+  }
+  if (!observation || typeof observation !== "object" || observation.kind !== "git" && observation.kind !== "workspace" || typeof observation.revision !== "string" || observation.kind !== token.kind || typeof observation.identity !== "object" || observation.identity === null || typeof observation.identity.repository !== "string" || typeof observation.identity.worktree !== "string" || observation.revision.trim() === "" || observation.identity.repository.trim() === "" || observation.identity.worktree.trim() === "") {
+    return { trusted: false, blocker: blockerFor("capability-unavailable", request, token) };
+  }
+  let fresh;
+  try {
+    fresh = createBuildRevisionToken(observation.kind, observation.revision, observation.identity);
+  } catch {
+    return { trusted: false, blocker: blockerFor("evaluation-error", request, token) };
+  }
+  if (fresh.repositoryHash !== token.repositoryHash) {
+    return { trusted: false, blocker: blockerFor("project-mismatch", request, token) };
+  }
+  if (fresh.worktreeHash !== token.worktreeHash) {
+    return { trusted: false, blocker: blockerFor("worktree-mismatch", request, token) };
+  }
+  if (fresh.revisionHash !== token.revisionHash) {
+    return { trusted: false, blocker: blockerFor("revision-stale", request, token) };
+  }
+  if (!request.provenance) {
+    return { trusted: false, blocker: blockerFor("provenance-missing", request, token) };
+  }
+  let provenance;
+  try {
+    provenance = await request.provenance();
+  } catch {
+    return { trusted: false, blocker: blockerFor("provenance-mismatch", request, token) };
+  }
+  if (provenance === void 0) {
+    return { trusted: false, blocker: blockerFor("provenance-missing", request, token) };
+  }
+  if (typeof provenance !== "object" || typeof provenance.currentStep !== "string" || provenance.stateBuildSha !== void 0 && typeof provenance.stateBuildSha !== "string" || provenance.stateHash !== void 0 && typeof provenance.stateHash !== "string" || typeof provenance.recordTo !== "string" || !Array.isArray(provenance.buildShaEffects) || provenance.buildShaEffects.some((effect) => typeof effect !== "string")) {
+    return { trusted: false, blocker: blockerFor("provenance-mismatch", request, token) };
+  }
+  if (request.stateHash !== void 0 && provenance.stateHash !== request.stateHash) {
+    return { trusted: false, blocker: blockerFor("state-stale", request, token) };
+  }
+  const matchingEffects = provenance.buildShaEffects.filter((effect) => effect === token.value);
+  if (provenance.currentStep !== (request.expectedStep ?? provenance.currentStep) || provenance.stateBuildSha !== token.value || provenance.recordTo !== provenance.currentStep || provenance.buildShaEffects.length !== 1 || matchingEffects.length !== 1) {
+    return { trusted: false, blocker: blockerFor("provenance-mismatch", request, token) };
+  }
+  return { trusted: true, token };
+}
+
+// packages/kernel/dist/workflow/guard-handlers.js
+function scalarValue(fields, k) {
+  const v = fields[k];
+  if (Array.isArray(v)) {
+    throw new Error(`guard \u8BFB\u5230\u5217\u8868\u5B57\u6BB5 '${k}' \u7684\u6570\u7EC4\u503C\uFF1Ascalar guard \u4E0D\u5B9A\u4E49\u5217\u8868\u8BED\u4E49\uFF0CcompileWorkflow \u7F16\u8BD1\u671F\u62D2\u7EDD\u5217\u8868\u5B57\u6BB5\u2014\u2014\u8FD0\u884C\u671F\u51FA\u73B0 = \u7ED5\u8FC7\u7F16\u8BD1\u5668`);
+  }
+  return v ?? "";
+}
+function isUnset(v) {
+  return v === "" || v === "null";
+}
+var PASSED = { kind: "passed" };
+var GUARD_HANDLERS = Object.freeze({
+  /** stepGuard.ts L38-44 同语义：tasks.md 任务数 ≥ n。文件读取走 readText 能力注入
+   *  （stepGuard 直接 readFileSync，本层纯函数化）；readText 注入但文件缺失 → undefined →
+   *  taskCount=0（stepGuard L17-24 缺失=0 同口径），能力本身未注入才是 skipped。 */
+  "tasks-at-least": (config, input2) => {
+    if (!input2.readText)
+      return { kind: "skipped", capability: "readText" };
+    const count4 = taskCount(input2.readText("tasks.md"));
+    if (count4 < config.n) {
+      return { kind: "failed", guardType: "tasks-at-least", actual: String(count4), expected: [String(config.n)] };
+    }
+    return PASSED;
+  },
+  /** 纯定义层变体：compileWorkflow 按 step.outputs 展开成 field-nonempty 集合，经编译的 IR
+   *  里不存在它。handler 拿不到 step.outputs（GuardInput 刻意不带 step 形状），运行期收到它
+   *  = 调用方绕过了编译器，fail-loud。 */
+  "nonempty-output": () => {
+    throw new Error("guard 'nonempty-output' \u662F v1 \u5B9A\u4E49\u5C42\u53D8\u4F53\uFF0CcompileWorkflow \u6309 step.outputs \u5C55\u5F00\u4E3A field-nonempty\uFF1B\u8FD0\u884C\u671F\u6CE8\u518C\u8868\u4E0D\u5B9E\u73B0\u5B83");
+  },
+  /** 老仓 state-transition.sh 各事件的字段非空面：isUnset（''/'null'）→ failed。
+   *  纯字段谓词，无能力依赖，永不 skipped。 */
+  "field-nonempty": (config, input2) => {
+    const v = scalarValue(input2.fields, config.field);
+    if (isUnset(v)) {
+      return { kind: "failed", guardType: "field-nonempty", field: config.field, actual: v };
+    }
+    return PASSED;
+  },
+  /** 老仓 state-transition.sh 各事件的文件存在面：字段值即项目根相对路径。
+   *  字段未设 → failed（未设的路径必不存在；与 field-nonempty 前置搭配时被首错截断，
+   *  单独使用时行为自洽）；fileExists 未注入 → skipped（L92-93 降级视为存在）。 */
+  "file-exists": (config, input2) => {
+    const v = scalarValue(input2.fields, config.path.field);
+    if (isUnset(v)) {
+      return { kind: "failed", guardType: "file-exists", field: config.path.field, actual: v };
+    }
+    if (!input2.fileExists)
+      return { kind: "skipped", capability: "fileExists" };
+    if (!input2.fileExists(v)) {
+      return { kind: "failed", guardType: "file-exists", field: config.path.field, actual: v };
+    }
+    return PASSED;
+  },
+  /** 老仓 state-transition.sh verify-pass 的等值面（branch_status=handled、双 review=pass）。 */
+  "field-equals": (config, input2) => {
+    const v = scalarValue(input2.fields, config.field);
+    if (v !== config.value) {
+      return { kind: "failed", guardType: "field-equals", field: config.field, actual: v, expected: [config.value] };
+    }
+    return PASSED;
+  },
+  /** build-complete 的隔离枚举面（branch/worktree，或受限 agent 的显式 in-place），expected 带全量合法值。 */
+  "field-in": (config, input2) => {
+    const v = scalarValue(input2.fields, config.field);
+    if (!config.values.includes(v)) {
+      return { kind: "failed", guardType: "field-in", field: config.field, actual: v, expected: config.values };
+    }
+    return PASSED;
+  },
+  /** 老仓 state-transition.sh build-complete：preset=full ∧ build_mode=direct → direct_override 必须
+   *  字面 'true'（set 闸之外的纵深防线）。条件不齐（非 full / 非 direct）→ passed。 */
+  "full-direct-override": (_config, input2) => {
+    const override = scalarValue(input2.fields, "direct_override");
+    if (scalarValue(input2.fields, "preset") === "full" && scalarValue(input2.fields, "build_mode") === "direct" && override !== "true") {
+      return { kind: "failed", guardType: "full-direct-override", field: "direct_override", actual: override, expected: ["true"] };
+    }
+    return PASSED;
+  },
+  /** Verify-like success barrier：只消费由 Build capture 写入的 canonical `build:v1` token。
+   *  assessor 缺失、输入不可信、物理 identity/provenance/evaluation 任一失败都返回 typed
+   *  `verify-build-revision-untrusted` blocker；不得把旧裸 SHA、workspace baseline 或缺能力
+   *  降级成 skipped/pass。in-place 仍通过 workspace assessor 求值，不读取 Git HEAD。 */
+  "build-head-unchanged": async (config, input2) => {
+    const buildSha = config.field === "build_sha" && input2.rawBuildSha !== void 0 ? input2.rawBuildSha : input2.fields[config.field];
+    const stateHash = input2.stateHash ?? safeRevisionHash(input2.fields);
+    if (!input2.assessBuildRevision) {
+      return {
+        kind: "failed",
+        guardType: "build-head-unchanged",
+        field: config.field,
+        blocker: makeBuildRevisionBlocker("capability-unavailable", stateHash)
+      };
+    }
+    try {
+      const result2 = await input2.assessBuildRevision({
+        buildSha,
+        isolation: scalarValue(input2.fields, "isolation"),
+        expectedStep: input2.currentStep,
+        stateHash
+      });
+      if (result2.trusted)
+        return PASSED;
+      return {
+        kind: "failed",
+        guardType: "build-head-unchanged",
+        field: config.field,
+        blocker: result2.blocker
+      };
+    } catch {
+      return {
+        kind: "failed",
+        guardType: "build-head-unchanged",
+        field: config.field,
+        blocker: makeBuildRevisionBlocker("evaluation-error", stateHash)
+      };
+    }
+  },
+  /** Ship 迁移门禁是 fail-closed 能力：adapter 未绑定、证据损坏或目标摘要漂移都拒绝。 */
+  "spec-migration-applied": async (_config, input2) => {
+    if (!input2.specMigrationStatus) {
+      return {
+        kind: "failed",
+        guardType: "spec-migration-applied",
+        actual: "capability-unavailable",
+        expected: ["not-required", "applied"]
+      };
+    }
+    const status2 = await input2.specMigrationStatus();
+    if (status2.kind === "not-required" || status2.kind === "applied")
+      return PASSED;
+    return {
+      kind: "failed",
+      guardType: "spec-migration-applied",
+      actual: status2.reason,
+      expected: ["not-required", "applied"]
+    };
+  }
+});
+function evalOutputPresent(config, input2) {
+  const raw = input2.fields[config.field];
+  const v = Array.isArray(raw) ? "" : raw ?? "";
+  if (isUnset(v)) {
+    return { kind: "failed", guardType: "output-present", field: config.field, actual: v };
+  }
+  return PASSED;
+}
+function dispatchGuard(config, input2) {
+  if (config.type === "output-present")
+    return evalOutputPresent(config, input2);
+  const handler = GUARD_HANDLERS[config.type];
+  return handler(config, input2);
+}
+async function evaluateGuards(guards, input2, options3 = {}) {
+  const stopOnFirstFailure = options3.stopOnFirstFailure ?? true;
+  const evaluated = [];
+  for (const guard of guards) {
+    if (guard.when !== void 0 && !matchesTrackPredicate(guard.when, input2.track))
+      continue;
+    const decision = await dispatchGuard(guard, input2);
+    evaluated.push({ guard, decision });
+    if (decision.kind === "failed" && stopOnFirstFailure)
+      break;
+  }
+  return evaluated;
+}
+
+// packages/kernel/dist/flow/default-event-policy.js
+var DEFAULT_EVENT_POLICY = {
+  "open-complete": { guards: [], actions: [], enforceTaskExit: true },
+  "explore-complete": {
+    // 老仓 L120-126：design_doc 非空且文件存在。
+    guards: [{ type: "file-exists", path: { kind: "field", field: "design_doc" } }],
+    actions: [],
+    enforceTaskExit: true
+  },
+  "spec-complete": {
+    // 老仓 L127-138：仅非 PM 轨要求 legacy `plan` artifact；PM 的文档链由 OpenSpec ledger
+    // 单独强制，不能用一个新增 state 字段要求破坏原有 default transition 兼容性。
+    guards: [{ type: "file-exists", path: { kind: "field", field: "plan" }, when: NON_PM }],
+    actions: [{ type: "reset-pre-verify-review" }],
+    enforceTaskExit: true
+  },
+  "requirements-changed": {
+    guards: [],
+    actions: [{ type: "reset-pre-verify-review" }],
+    enforceTaskExit: false
+  },
+  "build-complete": {
+    // 首错优先：build_mode 必设 → isolation 必设 → isolation ∈ {branch,worktree,in-place}
+    // → full+direct 锁 direct_override → pre-Verify 全量收敛通过。in-place 明确表示受限 agent
+    // 仅能在当前工作目录写文件，不得把它伪装成已创建的 Git branch/worktree。
+    guards: [
+      { type: "field-nonempty", field: "build_mode" },
+      { type: "field-nonempty", field: "isolation" },
+      { type: "field-in", field: "isolation", values: ["branch", "worktree", "in-place"] },
+      { type: "full-direct-override" },
+      { type: "field-equals", field: "pre_verify_review_result", value: "pass" }
+    ],
+    // Build revision capture capability writes the canonical build:v1 token; capability failure is closed.
+    actions: [{ type: "freeze-build-sha" }],
+    enforceTaskExit: true
+  },
+  "verify-pass": {
+    // 首错优先：verification_report 非空且文件存在 → branch_status=handled → trustworthy
+    // build revision barrier。手填的双 review 字段已删除，这道检查由步骤评审者承担。
+    guards: [
+      { type: "file-exists", path: { kind: "field", field: "verification_report" } },
+      { type: "field-equals", field: "branch_status", value: "handled" },
+      { type: "build-head-unchanged", field: "build_sha" }
+    ],
+    // 老仓 L201-204：verify_result=pass + verified_at=now。
+    actions: [{ type: "mark-verification-passed" }],
+    enforceTaskExit: true
+  },
+  "verify-fail": {
+    guards: [],
+    // 老仓 L207-210：verify_result=fail + build_sha=null（barrier 复位；phase_status 在 flow）。
+    actions: [{ type: "mark-verification-failed" }, { type: "reset-pre-verify-review" }],
+    enforceTaskExit: false
+  },
+  "ship-complete": {
+    guards: [{ type: "spec-migration-applied" }],
+    actions: [],
+    enforceTaskExit: true
+  },
+  archived: {
+    guards: [],
+    // 老仓 L213-217：archived=true + archived_at=now（phase_status=done 在 flow）。
+    actions: [{ type: "archive-run" }],
+    enforceTaskExit: true
+  }
+};
+function fstr(v) {
+  return Array.isArray(v) ? v.join(",") : v ?? "";
+}
+function fieldStr(state, k) {
+  return fstr(state.fields[k]);
+}
+function normalizeDefaultGuardFields(fields) {
+  const out = {};
+  for (const k of Object.keys(fields)) {
+    out[k] = fstr(fields[k]);
+  }
+  return out;
+}
+function renderPreconditionViolation(event, failure13, track) {
+  const { guard, decision } = failure13;
+  if (decision.kind === "failed" && decision.blocker !== void 0) {
+    return [
+      `ERROR: ${event} revision trust blocked (code=${decision.blocker.code} reason=${decision.blocker.reason})`,
+      `  \u4FEE\u590D\uFF1A${decision.blocker.remediation}`
+    ];
+  }
+  const actual = (decision.kind === "failed" ? decision.actual : void 0) ?? "";
+  switch (event) {
+    case "explore-complete":
+      return [`ERROR: explore-complete \u8981\u6C42 design_doc \u5B57\u6BB5\u975E\u7A7A\u4E14\u6587\u4EF6\u5B58\u5728 (\u5F53\u524D=${actual})`];
+    case "spec-complete":
+      return [`ERROR: ${track} track spec-complete \u8981\u6C42 plan \u5B57\u6BB5\u975E\u7A7A\u4E14\u6587\u4EF6\u5B58\u5728 (\u5F53\u524D=${actual})`];
+    case "build-complete":
+      if (guard.type === "field-nonempty") {
+        return guard.field === "build_mode" ? ["ERROR: build_mode \u5FC5\u987B\u8BBE\u7F6E"] : ["ERROR: isolation \u5FC5\u987B\u8BBE\u7F6E"];
+      }
+      if (guard.type === "field-in")
+        return [`ERROR: \u975E\u6CD5\u503C '${actual}'\uFF0C\u5141\u8BB8: branch worktree in-place`];
+      if (guard.type === "full-direct-override") {
+        return ["ERROR: full workflow \u4F7F\u7528 build_mode=direct \u5FC5\u987B\u663E\u5F0F\u8BBE direct_override=true"];
+      }
+      if (guard.type === "field-equals" && guard.field === "pre_verify_review_result") {
+        return [`ERROR: build-complete \u8981\u6C42 pre_verify_review_result=pass (\u5F53\u524D=${actual})`];
+      }
+      break;
+    case "verify-pass":
+      if (guard.type === "file-exists") {
+        return [`ERROR: verify-pass \u8981\u6C42 verification_report \u5B57\u6BB5\u975E\u7A7A\u4E14\u6587\u4EF6\u5B58\u5728 (\u5F53\u524D=${actual})`];
+      }
+      if (guard.type === "field-equals") {
+        return [`ERROR: verify-pass \u8981\u6C42 branch_status=handled (\u5F53\u524D=${actual})`];
+      }
+      if (guard.type === "build-head-unchanged") {
+        const bsha = (decision.kind === "failed" ? decision.expected?.[0] : void 0) ?? "";
+        if (bsha.startsWith("workspace:sha256:")) {
+          return [
+            `ERROR: verify-pass \u8981\u6C42\u5F53\u524D\u5DE5\u4F5C\u533A\u5185\u5BB9\u7B49\u4E8E build \u51BB\u7ED3\u57FA\u7EBF\uFF08build_sha=${bsha} \u5F53\u524D=${actual}\uFF09`,
+            "  \u4FEE\u590D\uFF1A\u5DE5\u4F5C\u533A\u5728 build \u540E\u53D1\u751F\u53D8\u5316\uFF1B\u91CD\u8DD1 build-complete \u51BB\u7ED3\u65B0\u57FA\u7EBF\u540E\u518D\u9A8C\u8BC1"
+          ];
+        }
+        return [
+          `ERROR: verify-pass \u8981\u6C42 HEAD==build_sha\uFF08build \u540E\u4EA7\u7269\u88AB\u6539\u672A\u590D\u9A8C\uFF09build_sha=${bsha} HEAD=${actual}`,
+          "  \u4FEE\u590D\uFF1A\u8981\u4E48\u628A\u6539\u52A8\u5E76\u5165\u590D\u9A8C\uFF08\u91CD\u8DD1 build\u2192verify\uFF09\uFF0C\u8981\u4E48 verify-fail \u56DE\u9000\u540E\u91CD\u65B0 build-complete \u51BB\u7ED3\u65B0 SHA"
+        ];
+      }
+      break;
+    case "ship-complete":
+      if (guard.type === "spec-migration-applied") {
+        return [`ERROR: ship-complete \u8981\u6C42\u4E3B\u89C4\u683C\u8FC1\u79FB\u673A\u5668\u8BC1\u636E\u6709\u6548\uFF08\u5F53\u524D=${actual}\uFF09`];
+      }
+      break;
+    default:
+      break;
+  }
+  throw new Error(`renderPreconditionViolation: \u672A\u8986\u76D6\u7684 (event=${event}, guardType=${guard.type})`);
+}
+async function evaluateDefaultEventPreconditions(event, state, ctx, options3) {
+  const policy2 = DEFAULT_EVENT_POLICY[event];
+  if (policy2.guards.length === 0)
+    return null;
+  const track = fieldStr(state, "track");
+  const input2 = {
+    fields: normalizeDefaultGuardFields(state.fields),
+    stateHash: safeRevisionHash(state.fields),
+    rawBuildSha: state.fields.build_sha,
+    track,
+    fileExists: ctx?.fileExists,
+    gitHeadSha: ctx?.gitHeadSha,
+    workspaceFingerprint: ctx?.workspaceFingerprint,
+    specMigrationStatus: ctx?.specMigrationStatus,
+    assessBuildRevision: ctx?.assessBuildRevision,
+    currentStep: fieldStr(state, "phase")
+  };
+  const evaluations = await evaluateGuards(policy2.guards, input2, options3);
+  const failed2 = evaluations.find((e) => e.decision.kind === "failed");
+  if (!failed2)
+    return null;
+  const blockers = evaluations.flatMap((evaluation) => evaluation.decision.kind === "failed" && evaluation.decision.blocker !== void 0 ? [evaluation.decision.blocker] : []);
+  return {
+    lines: renderPreconditionViolation(event, failed2, track),
+    ...blockers.length === 0 ? {} : { blockers }
+  };
+}
+
 // packages/kernel/dist/workflow/implicit-completion.js
 var IMPLICIT_COMPLETION_EVENT = "archived";
 var ABANDON_EVENT = "scope-expanded";
@@ -8625,6 +9512,15 @@ function isForwardStepEdge(stepIds, from, to, event) {
   const fromIndex = stepIds.indexOf(from);
   const toIndex = stepIds.indexOf(to);
   return fromIndex >= 0 && toIndex > fromIndex;
+}
+function isForwardEdge(executionModel, stepIds, from, to, event) {
+  if (event === IMPLICIT_COMPLETION_EVENT && from === to)
+    return true;
+  if (executionModel === "phase-manifest") {
+    const policy2 = DEFAULT_EVENT_POLICY[event];
+    return policy2?.enforceTaskExit === true;
+  }
+  return isForwardStepEdge(stepIds, from, to, event);
 }
 function runArchived(state) {
   const value = state.fields.archived;
@@ -8685,6 +9581,61 @@ function stepExitTransitions(plan, stepId, state) {
     return [];
   const completion = implicitCompletionTransition(plan, stepId, state);
   return completion === void 0 ? step.transitions : [...step.transitions, completion];
+}
+
+// packages/kernel/dist/workflow/max-rounds.js
+var DEFAULT_MAX_ROUNDS = 2;
+var MAX_ROUNDS_MIN = 1;
+var MAX_ROUNDS_MAX = 20;
+function isValidMaxRounds(value) {
+  return typeof value === "number" && Number.isInteger(value) && value >= MAX_ROUNDS_MIN && value <= MAX_ROUNDS_MAX;
+}
+function parseMaxRoundsText(raw) {
+  return /^(?:[1-9]|1\d|20)$/.test(raw) ? Number(raw) : void 0;
+}
+function effectiveMaxRounds(step) {
+  return step.maxRounds === void 0 ? { max: DEFAULT_MAX_ROUNDS, source: "default" } : { max: step.maxRounds, source: "workflow" };
+}
+function resolveMaxRounds(planMax, taskField) {
+  const override = taskField === void 0 ? void 0 : parseMaxRoundsText(taskField);
+  return override === void 0 ? planMax : { max: override, source: "task" };
+}
+
+// packages/kernel/dist/workflow/step-rounds.js
+function stepBackTargets(plan, stepId) {
+  const step = plan.workflow.steps.find((candidate2) => candidate2.id === stepId);
+  if (step === void 0)
+    return [];
+  const ids2 = plan.workflow.steps.map((candidate2) => candidate2.id);
+  const targets = [];
+  for (const transition of step.transitions) {
+    if (isForwardEdge(plan.executionModel, ids2, stepId, transition.to, transition.event))
+      continue;
+    if (!targets.includes(transition.to))
+      targets.push(transition.to);
+  }
+  return targets;
+}
+function isRoundsLimited(plan, stepId) {
+  const step = plan.workflow.steps.find((candidate2) => candidate2.id === stepId);
+  return step?.gate === "review" && stepBackTargets(plan, stepId).length > 0;
+}
+function currentRound(input2) {
+  const targetIndexes = input2.backTargets.map((target) => input2.steps.indexOf(target)).filter((index) => index >= 0);
+  const resetBelow = targetIndexes.length === 0 ? -1 : Math.min(...targetIndexes);
+  let rounds = input2.steps[0] === input2.stepId ? 1 : 0;
+  for (const transition of input2.transitions) {
+    if (input2.runId !== null && transition.runId !== void 0 && transition.runId !== input2.runId)
+      continue;
+    const index = input2.steps.indexOf(transition.to);
+    if (index < 0)
+      continue;
+    if (transition.to === input2.stepId)
+      rounds += 1;
+    else if (index < resetBelow)
+      rounds = 0;
+  }
+  return rounds;
 }
 
 // packages/kernel/dist/workflow/compile-artifacts.js
@@ -8875,8 +9826,8 @@ function compileStepAgents(raw, path14) {
 
 // packages/kernel/dist/workspace/fingerprint.js
 import { createHash as createHash10 } from "node:crypto";
-import { lstat as lstat11, readdir, readFile as readFile9, readlink } from "node:fs/promises";
-import { join as join19, sep as sep5 } from "node:path";
+import { lstat as lstat11, readdir, readFile as readFile10, readlink } from "node:fs/promises";
+import { join as join20, sep as sep5 } from "node:path";
 
 // packages/kernel/dist/workspace/host-local.js
 import { execFile } from "node:child_process";
@@ -9015,6 +9966,93 @@ function isProcessLocalFdPath(path14) {
   return PROCESS_LOCAL_FD_PATH.test(path14);
 }
 
+// packages/kernel/dist/state/markers.js
+import { readFile as readFile9, unlink as unlink3, writeFile as writeFile3 } from "node:fs/promises";
+import { join as join19 } from "node:path";
+var BREADCRUMB_FILE = ".breadcrumb";
+var REVIEW_MARKER_FILE = ".pipeline-pending-review";
+var INTERACTION_MARKER_SESSION_PREFIX = `${GATE_MARKERS[2]}.`;
+function interactionSessionMarkerId(fileName) {
+  if (!fileName.startsWith(INTERACTION_MARKER_SESSION_PREFIX))
+    return void 0;
+  const id2 = fileName.slice(INTERACTION_MARKER_SESSION_PREFIX.length);
+  return /^[A-Za-z0-9_-]{1,128}$/.test(id2) ? id2 : void 0;
+}
+var REVIEW_MARKER_PROTOCOL = "pipeline-review-v2";
+function createBreadcrumbWriter() {
+  return {
+    async write(changeDir2, content) {
+      await writeFile3(join19(changeDir2, BREADCRUMB_FILE), content, "utf8");
+    }
+  };
+}
+function parseReviewMarker(content) {
+  const lines2 = content.split("\n");
+  if (lines2[0] !== REVIEW_MARKER_PROTOCOL)
+    return null;
+  const fields = /* @__PURE__ */ new Map();
+  for (const line of lines2.slice(1)) {
+    const index = line.indexOf("=");
+    if (index <= 0)
+      break;
+    fields.set(line.slice(0, index), line.slice(index + 1));
+  }
+  const phase = fields.get("phase") ?? "";
+  const changeName = fields.get("change") ?? "";
+  const event = fields.get("event") ?? "";
+  const requestedAt = fields.get("requested_at") ?? "";
+  if (phase === "" || changeName === "" || requestedAt === "")
+    return null;
+  return { phase, changeName, event, requestedAt };
+}
+async function clearReviewMarkerFor(root, change, event) {
+  const marker = join19(root, REVIEW_MARKER_FILE);
+  let content;
+  try {
+    content = await readFile9(marker, "utf8");
+  } catch (error2) {
+    if (isMissing2(error2))
+      return;
+    throw error2;
+  }
+  const receipt = parseReviewMarker(content);
+  if (receipt === null || receipt.changeName !== change)
+    return;
+  if (receipt.event !== "" && receipt.event !== event)
+    return;
+  try {
+    await unlink3(marker);
+  } catch (error2) {
+    if (!isMissing2(error2))
+      throw error2;
+  }
+}
+async function clearReviewMarkerOfChange(root, change) {
+  const marker = join19(root, REVIEW_MARKER_FILE);
+  let content;
+  try {
+    content = await readFile9(marker, "utf8");
+  } catch (error2) {
+    if (isMissing2(error2))
+      return false;
+    throw error2;
+  }
+  const receipt = parseReviewMarker(content);
+  if (receipt === null || receipt.changeName !== change)
+    return false;
+  try {
+    await unlink3(marker);
+    return true;
+  } catch (error2) {
+    if (isMissing2(error2))
+      return false;
+    throw error2;
+  }
+}
+function isMissing2(error2) {
+  return error2 !== null && typeof error2 === "object" && "code" in error2 && error2.code === "ENOENT";
+}
+
 // packages/kernel/dist/workspace/fingerprint.js
 var WORKSPACE_BASELINE_PREFIX = "workspace:sha256:";
 var EXCLUDED_TOP_LEVEL = /* @__PURE__ */ new Set([
@@ -9095,7 +10133,7 @@ function isDeclaredOutput(relativePath, exclusions) {
 }
 function isExcluded(relativePath, exclusions, anySegment = EXCLUDED_ANY_SEGMENT) {
   const parts = relativePath.split("/");
-  return EXCLUDED_TOP_LEVEL.has(parts[0] ?? "") || parts.some((part) => anySegment.has(part)) || EXCLUDED_BASENAMES.has(parts.at(-1) ?? "") || EXCLUDED_RELATIVE_ROOTS.some((root) => relativePath === root || relativePath.startsWith(`${root}/`)) || !relativePath.includes("/") && EXCLUDED_ROOT_ARTIFACTS.some((pattern) => pattern.test(relativePath)) || EXCLUDED_ROOT_FILES.has(relativePath) || isDeclaredOutput(relativePath, exclusions);
+  return EXCLUDED_TOP_LEVEL.has(parts[0] ?? "") || parts.some((part) => anySegment.has(part)) || EXCLUDED_BASENAMES.has(parts.at(-1) ?? "") || (parts.at(-1) ?? "").startsWith(INTERACTION_MARKER_SESSION_PREFIX) || EXCLUDED_RELATIVE_ROOTS.some((root) => relativePath === root || relativePath.startsWith(`${root}/`)) || !relativePath.includes("/") && EXCLUDED_ROOT_ARTIFACTS.some((pattern) => pattern.test(relativePath)) || EXCLUDED_ROOT_FILES.has(relativePath) || isDeclaredOutput(relativePath, exclusions);
 }
 var NO_EXCLUSIONS = { declared: [], ancestors: /* @__PURE__ */ new Set() };
 function isExcludedFor(relativePath, exclusions, skip) {
@@ -9108,13 +10146,13 @@ function recordText(kind, relativePath, details) {
   return `${kind}\0${relativePath}\0${details}\0`;
 }
 async function holdsOnlyExcluded(root, relativePath, exclusions, skip) {
-  for (const name of await readdir(join19(root, ...relativePath.split("/")))) {
+  for (const name of await readdir(join20(root, ...relativePath.split("/")))) {
     const child = `${relativePath}/${name}`;
     if (isExcludedFor(child, exclusions, skip))
       continue;
     if (!exclusions.ancestors.has(child))
       return false;
-    if (!(await lstat11(join19(root, ...child.split("/")))).isDirectory())
+    if (!(await lstat11(join20(root, ...child.split("/")))).isDirectory())
       return false;
     if (!await holdsOnlyExcluded(root, child, exclusions, skip))
       return false;
@@ -9160,8 +10198,8 @@ var FingerprintStreams = class {
     return { full: hex(this.split.full), portable: hex(this.split.portable) };
   }
 };
-function emit(streams, live, text11) {
-  const records = live.map((sink) => ({ id: sink.id, text: text11(sink) }));
+function emit(streams, live, text12) {
+  const records = live.map((sink) => ({ id: sink.id, text: text12(sink) }));
   const [first, second] = records;
   if (first === void 0)
     return;
@@ -9177,7 +10215,7 @@ async function fingerprintEntry(root, relativePath, sinks, exclusions, streams) 
   const live = sinks.filter((sink) => !isExcludedFor(relativePath, exclusions, sink.skip));
   if (live.length === 0)
     return;
-  const absolutePath2 = join19(root, ...relativePath.split("/"));
+  const absolutePath2 = join20(root, ...relativePath.split("/"));
   const before = await lstat11(absolutePath2);
   if (before.isDirectory()) {
     const names = sortNames(await readdir(absolutePath2));
@@ -9197,7 +10235,7 @@ async function fingerprintEntry(root, relativePath, sinks, exclusions, streams) 
     return;
   }
   if (before.isFile()) {
-    const content = await readFile9(absolutePath2);
+    const content = await readFile10(absolutePath2);
     emit(streams, live, (sink) => recordText("F", relativePath, `${recordedMode(sink, "F", before)}:${before.size}`));
     streams.update(content, live.length === 2 ? "both" : live[0]?.id ?? "both");
     const after = await lstat11(absolutePath2);
@@ -9303,8 +10341,11 @@ function rejectExtraKeys4(record11, allowed, path14) {
     }
   }
 }
+function isStepTestId(value) {
+  return typeof value === "string" && IDENT_RE.test(value) && value.length <= 64;
+}
 function identifier2(value, path14, what) {
-  if (typeof value !== "string" || !IDENT_RE.test(value) || value.length > 64) {
+  if (!isStepTestId(value)) {
     compileError4(path14, `\u6D4B\u8BD5 ${what} '${String(value)}' \u542B\u975E\u6CD5\u5B57\u7B26\uFF08\u4EC5\u5141\u8BB8 a-zA-Z0-9_-\uFF09`);
   }
   return value;
@@ -10074,6 +11115,7 @@ var STEP_KEYS = /* @__PURE__ */ new Set([
   "label",
   "gate",
   "prompt",
+  "maxRounds",
   "skills",
   "inputs",
   "outputs",
@@ -10190,6 +11232,10 @@ function compileStep(step, index, allowedPolicies, pathPrefix = "steps") {
       compileError6(`${path14}.prompt`, "\u542B\u672A\u914D\u5BF9 UTF-16 surrogate\uFF0CUTF-8 \u843D\u76D8\u65E0\u6CD5\u5F80\u8FD4");
     }
   }
+  const maxRounds = rec.maxRounds;
+  if (maxRounds !== void 0 && !isValidMaxRounds(maxRounds)) {
+    compileError6(`${path14}.maxRounds`, `step '${id2}' \u7684 max_rounds \u5FC5\u987B\u662F 1 \u5230 20 \u7684\u6574\u6570\uFF08\u5B9E\u9645 ${JSON.stringify(maxRounds)}\uFF09`);
+  }
   const skills = asArray5(rec.skills, `${path14}.skills`).map((s, j) => compileSkillRef(s, `${path14}.skills[${j}]`));
   const inputs = asArray5(rec.inputs, `${path14}.inputs`).map((r, j) => compileFieldRef(r, `${path14}.inputs[${j}]`));
   const outputs2 = asArray5(rec.outputs, `${path14}.outputs`).map((r, j) => compileFieldRef(r, `${path14}.outputs[${j}]`));
@@ -10211,6 +11257,7 @@ function compileStep(step, index, allowedPolicies, pathPrefix = "steps") {
     label: rec.label,
     gate: normalizeGate(gate),
     ...prompt === void 0 ? {} : { prompt },
+    ...maxRounds === void 0 ? {} : { maxRounds },
     skills,
     inputs,
     outputs: outputs2,
@@ -10270,7 +11317,16 @@ function deepFreeze4(value) {
   }
   return value;
 }
-function compileWith(def, allowedPolicies) {
+function assertMaxRoundsDeclarations(steps, pathPrefix, executionModel) {
+  const plan = { executionModel, workflow: { steps } };
+  steps.forEach((step, index) => {
+    if (step.maxRounds === void 0 || isRoundsLimited(plan, step.id))
+      return;
+    const reason3 = step.gate === "review" ? "\u5B83\u6CA1\u6709\u56DE\u9000\u8FB9\uFF08\u6307\u5411\u66F4\u65E9\u6B65\u9AA4\u7684\u8F6C\u6362\uFF09\uFF0C\u6CA1\u6709\u56DE\u9000\u53EF\u9650" : "\u5B83\u6CA1\u6709\u8BBE\u8BC4\u5BA1\u95E8\uFF08gate: review\uFF09\uFF0C\u9A8C\u8BC1\u8F6E\u6B21\u4E0A\u9650\u53EA\u5C5E\u4E8E\u8BC4\u5BA1\u95E8\u6B65\u9AA4";
+    compileError6(`${pathPrefix}[${index}].maxRounds`, `step '${step.id}' \u58F0\u660E\u4E86 max_rounds\uFF0C\u4F46${reason3}\uFF1B\u53EA\u6709\u8BBE\u4E86\u8BC4\u5BA1\u95E8\u4E14\u81F3\u5C11\u6709\u4E00\u6761\u56DE\u9000\u8FB9\u7684\u6B65\u9AA4\u53EF\u4EE5\u58F0\u660E`);
+  });
+}
+function compileWith(def, allowedPolicies, executionModel) {
   const rec = asRecord6(def, "workflow");
   if (Object.hasOwn(rec, "openspecContract"))
     compileError6("openspecContract", "\u5DF2\u79FB\u9664\u2014\u2014\u6539\u4E3A openspec: true");
@@ -10283,7 +11339,8 @@ function compileWith(def, allowedPolicies) {
   }
   const documentContract = compileDocumentContract(rec.documentContract, "documentContract");
   const steps = withAutoGateGuards(asArray5(rec.steps, "steps").map((s, i) => compileStep(s, i, allowedPolicies)), isForwardStepEdge);
-  const tracks = compileTracks(rec.tracks, allowedPolicies);
+  assertMaxRoundsDeclarations(steps, "steps", executionModel);
+  const tracks = compileTracks(rec.tracks, allowedPolicies, executionModel);
   return deepFreeze4({
     name,
     decomposition,
@@ -10296,7 +11353,7 @@ function compileWith(def, allowedPolicies) {
 }
 var TRACK_BRANCH_KEYS = /* @__PURE__ */ new Set(["label", "documentContract", "steps"]);
 var TRACK_ID_RE2 = /^[a-z][a-z0-9_-]{0,31}$/;
-function compileTracks(raw, allowedPolicies) {
+function compileTracks(raw, allowedPolicies, executionModel) {
   if (raw === void 0)
     return void 0;
   const rec = asRecord6(raw, "tracks");
@@ -10311,6 +11368,7 @@ function compileTracks(raw, allowedPolicies) {
     }
     const documentContract = compileDocumentContract(branch.documentContract, `tracks.${id2}.documentContract`);
     const steps = withAutoGateGuards(asArray5(branch.steps, `tracks.${id2}.steps`).map((s, i) => compileStep(s, i, allowedPolicies, `tracks.${id2}.steps`)), isForwardStepEdge);
+    assertMaxRoundsDeclarations(steps, `tracks.${id2}.steps`, executionModel);
     out[id2] = {
       ...branch.label === void 0 ? {} : { label: branch.label },
       ...documentContract === void 0 ? {} : { documentContract },
@@ -10320,7 +11378,7 @@ function compileTracks(raw, allowedPolicies) {
   return out;
 }
 function compileWorkflow(def) {
-  return compileWith(def, CUSTOM_PRODUCER_POLICIES);
+  return compileWith(def, CUSTOM_PRODUCER_POLICIES, "step-graph");
 }
 function decodeWorkflowDef(value, origin = "custom") {
   if (isDefaultWorkflowName(origin))
@@ -10330,7 +11388,7 @@ function decodeWorkflowDef(value, origin = "custom") {
   return value;
 }
 function compileDefaultWorkflow(def) {
-  return compileWith(def, DEFAULT_PRODUCER_POLICIES);
+  return compileWith(def, DEFAULT_PRODUCER_POLICIES, "phase-manifest");
 }
 
 // packages/kernel/dist/workflow/document-governance-fingerprint.js
@@ -11124,11 +12182,11 @@ function parseTestBody(id2, cur, itemIndent) {
     }
     if (indentOf(line) <= itemIndent)
       break;
-    const scalar15 = /^\s*(direction|command|cwd|label|metrics_path|scope):\s*(.+?)\s*$/.exec(line);
-    if (scalar15) {
-      const key = scalar15[1] ?? "";
+    const scalar16 = /^\s*(direction|command|cwd|label|metrics_path|scope):\s*(.+?)\s*$/.exec(line);
+    if (scalar16) {
+      const key = scalar16[1] ?? "";
       once(key);
-      fields[key] = parseScalar2(scalar15[2] ?? "");
+      fields[key] = parseScalar2(scalar16[2] ?? "");
       cur.i++;
       continue;
     }
@@ -11580,6 +12638,7 @@ function parseStep(cur) {
   let label = "";
   let gate = null;
   let prompt;
+  let maxRounds;
   let skills = [];
   let inputs = [];
   let outputs2 = [];
@@ -11617,6 +12676,17 @@ function parseStep(cur) {
       const keyIndent = indentOf(line);
       cur.i++;
       prompt = parsePromptBlock(cur, keyIndent);
+      continue;
+    }
+    const roundsLine = /^\s*max_rounds:\s*(.*?)\s*$/.exec(line);
+    if (roundsLine) {
+      if (maxRounds !== void 0)
+        throw new Error(`workflow \u89E3\u6790\u9519\u8BEF\uFF1Astep '${id2}' \u91CD\u590D\u58F0\u660E max_rounds`);
+      maxRounds = parseMaxRoundsText(roundsLine[1] ?? "");
+      if (maxRounds === void 0) {
+        throw new Error(`workflow \u89E3\u6790\u9519\u8BEF\uFF1Astep '${id2}' \u7684 max_rounds \u5FC5\u987B\u662F 1 \u5230 20 \u7684\u6574\u6570\uFF08\u5B9E\u9645 '${roundsLine[1] ?? ""}'\uFF09`);
+      }
+      cur.i++;
       continue;
     }
     if (/^\s*review_lanes:/.test(line))
@@ -11719,6 +12789,7 @@ function parseStep(cur) {
     guards,
     transitions,
     ...prompt !== void 0 ? { prompt } : {},
+    ...maxRounds !== void 0 ? { maxRounds } : {},
     ...artifacts !== void 0 ? { artifacts } : {},
     ...tests !== void 0 ? { tests } : {},
     ...testPolicy !== void 0 ? { test_policy: testPolicy } : {},
@@ -12960,14 +14031,14 @@ async function detectBaseBranch(repoRoot) {
     let gitDir = gitPath;
     const entry2 = await stat2(gitPath);
     if (!entry2.isDirectory()) {
-      const pointer = await readFile10(gitPath, "utf8");
+      const pointer = await readFile11(gitPath, "utf8");
       const match = /^gitdir:\s*(.+)$/m.exec(pointer);
       const target = match?.[1]?.trim();
       if (!target)
         return "main";
       gitDir = path2.resolve(repoRoot, target);
     }
-    const head = await readFile10(path2.join(gitDir, "HEAD"), "utf8");
+    const head = await readFile11(path2.join(gitDir, "HEAD"), "utf8");
     const branch = /^ref: refs\/heads\/(\S+)$/.exec(head.trim())?.[1];
     if (branch)
       return branch;
@@ -13069,8 +14140,8 @@ function initialFields(opts, timestamp2, baseBranch, createdBy) {
 }
 
 // packages/kernel/dist/state/document-locale.js
-import { lstat as lstat12, readFile as readFile11 } from "node:fs/promises";
-import { join as join20 } from "node:path";
+import { lstat as lstat12, readFile as readFile12 } from "node:fs/promises";
+import { join as join21 } from "node:path";
 var DOCUMENT_LOCALE_FILE = ".pipeline-document-locale.json";
 function errorCode2(error2) {
   if (typeof error2 !== "object" || error2 === null || !("code" in error2))
@@ -13095,13 +14166,13 @@ function parseDocumentLocalePin(raw) {
   return { version: 1, locale: record11.locale };
 }
 async function readDocumentLocalePin(changeDir2) {
-  const target = join20(changeDir2, DOCUMENT_LOCALE_FILE);
+  const target = join21(changeDir2, DOCUMENT_LOCALE_FILE);
   try {
     const info = await lstat12(target);
     if (!info.isFile() || info.isSymbolicLink()) {
       throw new Error(`document locale pin \u5FC5\u987B\u662F\u975E symlink \u666E\u901A\u6587\u4EF6: ${target}`);
     }
-    return parseDocumentLocalePin(await readFile11(target, "utf8"));
+    return parseDocumentLocalePin(await readFile12(target, "utf8"));
   } catch (error2) {
     if (errorCode2(error2) === "ENOENT")
       return void 0;
@@ -13117,7 +14188,7 @@ async function ensureDocumentLocalePin(changeDir2, locale) {
     return existing;
   }
   const pin = { version: 1, locale };
-  const target = join20(changeDir2, DOCUMENT_LOCALE_FILE);
+  const target = join21(changeDir2, DOCUMENT_LOCALE_FILE);
   try {
     await atomicLinkPublish(changeDir2, ".pipeline-document-locale.tmp", target, `${JSON.stringify(pin)}
 `);
@@ -13136,8 +14207,8 @@ async function ensureDocumentLocalePin(changeDir2, locale) {
 }
 
 // packages/kernel/dist/state/workflow-plan-snapshot.js
-import { lstat as lstat13, readFile as readFile12 } from "node:fs/promises";
-import { join as join21 } from "node:path";
+import { lstat as lstat13, readFile as readFile13 } from "node:fs/promises";
+import { join as join22 } from "node:path";
 var WORKFLOW_PLAN_SNAPSHOT_FILE = ".pipeline-workflow-plan.json";
 function errorCode3(error2) {
   if (typeof error2 !== "object" || error2 === null || !("code" in error2))
@@ -13240,13 +14311,13 @@ function workflowPlanSnapshotContent(runId, snapshot) {
 `;
 }
 async function readWorkflowPlanSnapshot(changeDir2) {
-  const target = join21(changeDir2, WORKFLOW_PLAN_SNAPSHOT_FILE);
+  const target = join22(changeDir2, WORKFLOW_PLAN_SNAPSHOT_FILE);
   try {
     const info = await lstat13(target);
     if (!info.isFile() || info.isSymbolicLink()) {
       throw new Error(`workflow plan snapshot \u5FC5\u987B\u662F\u975E symlink \u666E\u901A\u6587\u4EF6: ${target}`);
     }
-    return parseWorkflowPlanSnapshot(await readFile12(target, "utf8"));
+    return parseWorkflowPlanSnapshot(await readFile13(target, "utf8"));
   } catch (error2) {
     if (errorCode3(error2) === "ENOENT")
       return void 0;
@@ -13263,7 +14334,7 @@ async function ensureWorkflowPlanSnapshot(changeDir2, runId, snapshot) {
     }
     return;
   }
-  const target = join21(changeDir2, WORKFLOW_PLAN_SNAPSHOT_FILE);
+  const target = join22(changeDir2, WORKFLOW_PLAN_SNAPSHOT_FILE);
   try {
     await atomicLinkPublish(changeDir2, ".pipeline-workflow-plan.tmp", target, requested);
   } catch (error2) {
@@ -13290,7 +14361,7 @@ function attachWorkflowPlanSnapshot(metadata, envelope2) {
 
 // packages/kernel/dist/state/initial-change-publish.js
 import { randomUUID as randomUUID6 } from "node:crypto";
-import { link as link3, lstat as lstat15, mkdir as mkdir9, readdir as readdir2, rm as rm2, rmdir as rmdir2, unlink as unlink3, writeFile as writeFile3 } from "node:fs/promises";
+import { link as link3, lstat as lstat15, mkdir as mkdir9, readdir as readdir2, rm as rm2, rmdir as rmdir2, unlink as unlink4, writeFile as writeFile4 } from "node:fs/promises";
 import path3 from "node:path";
 
 // packages/kernel/dist/state/trusted-project-path.js
@@ -13396,7 +14467,7 @@ async function publishTreeNoReplace(sourceDir2, targetDir, published) {
     }
     await link3(source2, target);
     await rememberPublishedEntry(target, "file", published);
-    await unlink3(source2);
+    await unlink4(source2);
   }
 }
 async function rollbackPublishedEntries(published) {
@@ -13408,7 +14479,7 @@ async function rollbackPublishedEntries(published) {
       if (entry2.kind === "directory")
         await rmdir2(entry2.pathname);
       else
-        await unlink3(entry2.pathname);
+        await unlink4(entry2.pathname);
     } catch {
     }
   }
@@ -13482,7 +14553,7 @@ async function writeInitialChangeFiles(changeDir2, files) {
     }
     observed.add(target);
     await mkdir9(path3.dirname(target), { recursive: true });
-    await writeFile3(target, file.content, { encoding: "utf8", flag: "wx" });
+    await writeFile4(target, file.content, { encoding: "utf8", flag: "wx" });
   }
 }
 async function publishInitialChange(publication) {
@@ -13561,7 +14632,7 @@ function isPreciseLegacyFieldProjection(raw, parsed2, current) {
   const omitsReviewChannel = !seen.has("review_acknowledged_via");
   if (!omitsCompleteReviewGate && !omitsPreVerifyReview && !omitsReviewChannel)
     return false;
-  return FIELD_ORDER.every((field5) => seen.has(field5) || omitsCompleteReviewGate && REVIEW_GATE_FIELD_SET2.has(field5) || omitsPreVerifyReview && field5 === PRE_VERIFY_REVIEW_FIELD || omitsReviewChannel && field5 === "review_acknowledged_via");
+  return FIELD_ORDER.every((field5) => seen.has(field5) || isOmitWhenEmpty(field5) || omitsCompleteReviewGate && REVIEW_GATE_FIELD_SET2.has(field5) || omitsPreVerifyReview && field5 === PRE_VERIFY_REVIEW_FIELD || omitsReviewChannel && field5 === "review_acknowledged_via");
 }
 async function inspectProjectionAgainst(changeDir2, current) {
   if (current === void 0)
@@ -13569,7 +14640,7 @@ async function inspectProjectionAgainst(changeDir2, current) {
   const identity = { revision: current.revision, revisionId: current.revisionId };
   let raw;
   try {
-    raw = await readFile13(stateFilePath(changeDir2), "utf8");
+    raw = await readFile14(stateFilePath(changeDir2), "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT")
       return { status: "missing", ...identity };
@@ -13629,7 +14700,7 @@ var FsStateStore = class {
         ...metadata === void 0 ? {} : { runMetadata: metadata }
       };
     }
-    return parsePipeline(await readFile13(stateFilePath(changeDir2), "utf8"));
+    return parsePipeline(await readFile14(stateFilePath(changeDir2), "utf8"));
   }
   async write(changeDir2, state, mutation = { kind: "replace" }) {
     return withLock(changeDir2, () => this.writeUnderLock(changeDir2, state, mutation));
@@ -13645,7 +14716,7 @@ var FsStateStore = class {
     serializePipeline(nextState);
     let current = await readCurrentRunRevision(changeDir2);
     if (current === void 0) {
-      const legacy = parsePipeline(await readFile13(stateFilePath(changeDir2), "utf8"));
+      const legacy = parsePipeline(await readFile14(stateFilePath(changeDir2), "utf8"));
       current = await publishInitialRunRevision(changeDir2, legacy, defaultStateClock(), "migration");
     } else {
       const status2 = await inspectProjectionAgainst(changeDir2, current);
@@ -13736,7 +14807,7 @@ var FsStateStore = class {
       if (current === void 0) {
         throw new StateProjectionDriftError("import-legacy: canonical current \u4E0D\u5B58\u5728\uFF1B\u65E0\u9700\u89E3\u51B3\u53CC\u4E3B drift");
       }
-      const legacy = parsePipeline(await readFile13(stateFilePath(changeDir2), "utf8"));
+      const legacy = parsePipeline(await readFile14(stateFilePath(changeDir2), "utf8"));
       const merged = mergeLegacyImportFields(legacy.fields, current.state.fields);
       const imported = {
         fields: merged.fields,
@@ -13812,7 +14883,7 @@ function createStateStore(options3 = {}) {
 // packages/kernel/dist/state/interaction-event-store.js
 import { constants as constants3 } from "node:fs";
 import { lstat as lstat16, open as open4 } from "node:fs/promises";
-import { join as join22 } from "node:path";
+import { join as join23 } from "node:path";
 
 // packages/kernel/dist/interaction/contract.js
 var INTERACTION_PROJECTION_FILE = ".pipeline-interactions.jsonl";
@@ -14478,7 +15549,7 @@ function splitLines(raw) {
   return lines2;
 }
 function interactionProjectionPath(changeDir2) {
-  return join22(changeDir2, INTERACTION_PROJECTION_FILE);
+  return join23(changeDir2, INTERACTION_PROJECTION_FILE);
 }
 async function readInteractionProjection(changeDir2) {
   const path14 = interactionProjectionPath(changeDir2);
@@ -14594,8 +15665,8 @@ function createInteractionEventRecorder() {
 }
 
 // packages/kernel/dist/state/agent-freeze.js
-import { mkdir as mkdir10, readFile as readFile14, readdir as readdir3, rm as rm3, writeFile as writeFile4 } from "node:fs/promises";
-import { join as join23 } from "node:path";
+import { mkdir as mkdir10, readFile as readFile15, readdir as readdir3, rm as rm3, writeFile as writeFile5 } from "node:fs/promises";
+import { join as join24 } from "node:path";
 
 // packages/kernel/dist/agents/official-scope.js
 var OFFICIAL_ATTACH_ON = /* @__PURE__ */ new Map([
@@ -14804,11 +15875,11 @@ function eachMatches(values, re, field5) {
       fail5(`${field5} \u7684 '${value}' \u975E\u6CD5`, field5);
   return values;
 }
-function parseAgentFile(text11, expectedName) {
-  if (new TextEncoder().encode(text11).length > AGENT_FILE_MAX_BYTES) {
+function parseAgentFile(text12, expectedName) {
+  if (new TextEncoder().encode(text12).length > AGENT_FILE_MAX_BYTES) {
     fail5(`agent \u6587\u4EF6\u8D85\u8FC7 ${AGENT_FILE_MAX_BYTES} \u5B57\u8282`);
   }
-  const lines2 = text11.split("\n");
+  const lines2 = text12.split("\n");
   if ((lines2[0] ?? "") !== "---")
     fail5("\u9996\u884C\u5FC5\u987B\u662F ---");
   const close = lines2.indexOf("---", 1);
@@ -14889,8 +15960,8 @@ function parseAgentFile(text11, expectedName) {
     body: body2
   };
 }
-function agentDigest(text11) {
-  return `sha256:${sha256Hex(text11)}`;
+function agentDigest(text12) {
+  return `sha256:${sha256Hex(text12)}`;
 }
 
 // packages/kernel/dist/state/agent-freeze.js
@@ -14916,13 +15987,13 @@ function agentsReferenced(workflow) {
   }
   return [...names].sort();
 }
-var frozenRoot = (changeDir2) => join23(changeDir2, FROZEN_DIR);
-var lockPath = (changeDir2) => join23(frozenRoot(changeDir2), FROZEN_LOCK_FILE);
-var agentPath = (changeDir2, name) => join23(frozenRoot(changeDir2), FROZEN_AGENTS_DIR, `${name}.md`);
-function decodeLock(text11) {
+var frozenRoot = (changeDir2) => join24(changeDir2, FROZEN_DIR);
+var lockPath = (changeDir2) => join24(frozenRoot(changeDir2), FROZEN_LOCK_FILE);
+var agentPath = (changeDir2, name) => join24(frozenRoot(changeDir2), FROZEN_AGENTS_DIR, `${name}.md`);
+function decodeLock(text12) {
   let value;
   try {
-    value = JSON.parse(text11);
+    value = JSON.parse(text12);
   } catch {
     throw new AgentFreezeError("freeze-corrupt", "agent \u51BB\u7ED3\u9501\u4E0D\u662F\u5408\u6CD5 JSON");
   }
@@ -14947,7 +16018,7 @@ function decodeLock(text11) {
 }
 async function readAgentFreezeLock(changeDir2) {
   try {
-    return decodeLock(await readFile14(lockPath(changeDir2), "utf8"));
+    return decodeLock(await readFile15(lockPath(changeDir2), "utf8"));
   } catch (error2) {
     if (error2 instanceof AgentFreezeError)
       throw error2;
@@ -14964,10 +16035,10 @@ async function ensureAgentFreeze(input2) {
   const entries2 = [];
   const root = frozenRoot(input2.changeDir);
   await rm3(root, { recursive: true, force: true });
-  await mkdir10(join23(root, FROZEN_AGENTS_DIR), { recursive: true });
+  await mkdir10(join24(root, FROZEN_AGENTS_DIR), { recursive: true });
   for (const name of names) {
     const resolved = input2.resolve(name);
-    await writeFile4(agentPath(input2.changeDir, name), resolved.content, { encoding: "utf8", flag: "wx" });
+    await writeFile5(agentPath(input2.changeDir, name), resolved.content, { encoding: "utf8", flag: "wx" });
     entries2.push({ name, source: resolved.source, digest: agentDigest(resolved.content) });
   }
   const lock = {
@@ -14992,7 +16063,7 @@ async function readFrozenAgents(input2) {
   for (const entry2 of lock.agents) {
     let content;
     try {
-      content = await readFile14(agentPath(input2.changeDir, entry2.name), "utf8");
+      content = await readFile15(agentPath(input2.changeDir, entry2.name), "utf8");
     } catch {
       throw new AgentFreezeError("freeze-corrupt", `\u51BB\u7ED3\u7684 agent '${entry2.name}' \u6587\u4EF6\u7F3A\u5931`);
     }
@@ -15009,12 +16080,12 @@ async function readFrozenAgents(input2) {
 }
 
 // packages/kernel/dist/state/agent-runs.js
-import { appendFile as appendFile3, readFile as readFile16 } from "node:fs/promises";
-import { join as join25 } from "node:path";
+import { appendFile as appendFile3, readFile as readFile17 } from "node:fs/promises";
+import { join as join26 } from "node:path";
 
 // packages/kernel/dist/state/agent-run-meta.js
-import { appendFile as appendFile2, readFile as readFile15 } from "node:fs/promises";
-import { join as join24 } from "node:path";
+import { appendFile as appendFile2, readFile as readFile16 } from "node:fs/promises";
+import { join as join25 } from "node:path";
 var AGENT_RUN_META_FILE = ".pipeline-agent-run-meta.jsonl";
 var AGENT_RUN_META_SCHEMA = "agent-run-meta/v1";
 var AGENT_RUN_META_MAX_BYTES = 1024 * 1024;
@@ -15072,7 +16143,7 @@ function decodeMetaRow(value) {
 async function readAgentRunMeta(changeDir2) {
   let raw;
   try {
-    raw = await readFile15(join24(changeDir2, AGENT_RUN_META_FILE), "utf8");
+    raw = await readFile16(join25(changeDir2, AGENT_RUN_META_FILE), "utf8");
   } catch {
     return /* @__PURE__ */ new Map();
   }
@@ -15234,7 +16305,7 @@ function decodeRow(value) {
 async function readAgentRuns(changeDir2) {
   let raw;
   try {
-    raw = await readFile16(join25(changeDir2, AGENT_RUNS_FILE), "utf8");
+    raw = await readFile17(join26(changeDir2, AGENT_RUNS_FILE), "utf8");
   } catch {
     return [];
   }
@@ -15835,9 +16906,9 @@ var PATTERNS = DOCUMENT_LOCALES.flatMap((locale) => localePatterns(locale));
 function findDocumentPlaceholders(content) {
   const found = [];
   const lines2 = content.split("\n");
-  for (const [index, text11] of lines2.entries()) {
-    if (PATTERNS.some((pattern) => pattern.test(text11)))
-      found.push({ line: index + 1, text: text11.trim() });
+  for (const [index, text12] of lines2.entries()) {
+    if (PATTERNS.some((pattern) => pattern.test(text12)))
+      found.push({ line: index + 1, text: text12.trim() });
   }
   return found;
 }
@@ -16131,12 +17202,12 @@ async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope, poli
 
 // packages/kernel/dist/state/spec-migration-evidence.js
 import { createHash as createHash12 } from "node:crypto";
-import { lstat as lstat17, readFile as readFile18, realpath as realpath5 } from "node:fs/promises";
+import { lstat as lstat17, readFile as readFile19, realpath as realpath5 } from "node:fs/promises";
 import { isAbsolute as isAbsolute5, relative as relative5, resolve as resolve7, sep as sep7 } from "node:path";
 
 // packages/kernel/dist/state/spec-apply-receipt.js
-import { readFile as readFile17 } from "node:fs/promises";
-import { join as join26, resolve as resolve6 } from "node:path";
+import { readFile as readFile18 } from "node:fs/promises";
+import { join as join27, resolve as resolve6 } from "node:path";
 var SPEC_APPLY_RECEIPT_FILE = ".pipeline-spec-apply.json";
 var UNUSABLE = {
   rehearsed: false,
@@ -16146,7 +17217,7 @@ var UNUSABLE = {
 };
 async function readText(path14) {
   try {
-    return await readFile17(path14, "utf8");
+    return await readFile18(path14, "utf8");
   } catch {
     return null;
   }
@@ -16173,7 +17244,7 @@ async function readSpecApplyReceiptStatus(repoRoot, changeDir2) {
   }
   if (deltas.length === 0)
     return { ...UNUSABLE, reason: "delta-spec-unrecorded" };
-  const raw = await readText(join26(changeDir2, SPEC_APPLY_RECEIPT_FILE));
+  const raw = await readText(join27(changeDir2, SPEC_APPLY_RECEIPT_FILE));
   let receipt;
   if (raw !== null) {
     try {
@@ -16200,8 +17271,8 @@ async function readSpecApplyReceiptStatus(repoRoot, changeDir2) {
     return { rehearsed: false, applied: false, mode, reason: "spec-apply-receipt-stale" };
   }
   for (const delta of deltas) {
-    const text11 = await readText(resolve6(repoRoot, delta));
-    if (text11 === null || recorded.get(delta) !== sha256Hex(text11)) {
+    const text12 = await readText(resolve6(repoRoot, delta));
+    if (text12 === null || recorded.get(delta) !== sha256Hex(text12)) {
       return { rehearsed: false, applied: false, mode, reason: "spec-apply-receipt-stale" };
     }
   }
@@ -16219,8 +17290,8 @@ async function readSpecApplyReceiptStatus(repoRoot, changeDir2) {
     if (path14 === void 0 || after === void 0) {
       return { rehearsed: true, applied: false, mode, reason: "spec-apply-target-invalid" };
     }
-    const text11 = await readText(resolve6(repoRoot, path14));
-    if (text11 === null || sha256Hex(text11) !== after) {
+    const text12 = await readText(resolve6(repoRoot, path14));
+    if (text12 === null || sha256Hex(text12) !== after) {
       return { rehearsed: true, applied: false, mode, reason: "main-spec-not-applied" };
     }
   }
@@ -16270,7 +17341,7 @@ async function trustedOrdinaryFile(repoRoot, candidate2, optional = false) {
   const [rootReal, targetReal] = await Promise.all([realpath5(root), realpath5(target)]);
   if (escaped2(rootReal, targetReal))
     throw new Error("\u8FC1\u79FB\u8BC1\u636E\u771F\u5B9E\u8DEF\u5F84\u8D8A\u8FC7\u9879\u76EE\u6839");
-  return readFile18(target);
+  return readFile19(target);
 }
 function record4(value, label) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -16351,102 +17422,22 @@ async function changeSpecApplication(repoRoot, changeDir2) {
   return { kind: "invalid", reason: status2.reason ?? "spec-apply-missing" };
 }
 
-// packages/kernel/dist/state/markers.js
-import { readFile as readFile19, unlink as unlink4, writeFile as writeFile5 } from "node:fs/promises";
-import { join as join27 } from "node:path";
-var BREADCRUMB_FILE = ".breadcrumb";
-var REVIEW_MARKER_FILE = ".pipeline-pending-review";
-var REVIEW_MARKER_PROTOCOL = "pipeline-review-v2";
-function createBreadcrumbWriter() {
-  return {
-    async write(changeDir2, content) {
-      await writeFile5(join27(changeDir2, BREADCRUMB_FILE), content, "utf8");
-    }
-  };
-}
-function parseReviewMarker(content) {
-  const lines2 = content.split("\n");
-  if (lines2[0] !== REVIEW_MARKER_PROTOCOL)
-    return null;
-  const fields = /* @__PURE__ */ new Map();
-  for (const line of lines2.slice(1)) {
-    const index = line.indexOf("=");
-    if (index <= 0)
-      break;
-    fields.set(line.slice(0, index), line.slice(index + 1));
-  }
-  const phase = fields.get("phase") ?? "";
-  const changeName = fields.get("change") ?? "";
-  const event = fields.get("event") ?? "";
-  const requestedAt = fields.get("requested_at") ?? "";
-  if (phase === "" || changeName === "" || requestedAt === "")
-    return null;
-  return { phase, changeName, event, requestedAt };
-}
-async function clearReviewMarkerFor(root, change, event) {
-  const marker = join27(root, REVIEW_MARKER_FILE);
-  let content;
-  try {
-    content = await readFile19(marker, "utf8");
-  } catch (error2) {
-    if (isMissing2(error2))
-      return;
-    throw error2;
-  }
-  const receipt = parseReviewMarker(content);
-  if (receipt === null || receipt.changeName !== change)
-    return;
-  if (receipt.event !== "" && receipt.event !== event)
-    return;
-  try {
-    await unlink4(marker);
-  } catch (error2) {
-    if (!isMissing2(error2))
-      throw error2;
-  }
-}
-async function clearReviewMarkerOfChange(root, change) {
-  const marker = join27(root, REVIEW_MARKER_FILE);
-  let content;
-  try {
-    content = await readFile19(marker, "utf8");
-  } catch (error2) {
-    if (isMissing2(error2))
-      return false;
-    throw error2;
-  }
-  const receipt = parseReviewMarker(content);
-  if (receipt === null || receipt.changeName !== change)
-    return false;
-  try {
-    await unlink4(marker);
-    return true;
-  } catch (error2) {
-    if (isMissing2(error2))
-      return false;
-    throw error2;
-  }
-}
-function isMissing2(error2) {
-  return error2 !== null && typeof error2 === "object" && "code" in error2 && error2.code === "ENOENT";
-}
-
 // packages/kernel/dist/state/review-gate.js
 var REVIEW_GATE_PENDING = "pending";
 var REVIEW_GATE_APPROVED = "approved";
-function scalar(state, field5) {
+function scalar2(state, field5) {
   const value = state.fields[field5];
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
 function reviewGateStatus(state) {
-  const value = scalar(state, "review_gate_status");
+  const value = scalar2(state, "review_gate_status");
   return value === REVIEW_GATE_PENDING || value === REVIEW_GATE_APPROVED ? value : null;
 }
 function reviewGateEvent(state) {
-  return scalar(state, "review_gate_event");
+  return scalar2(state, "review_gate_event");
 }
 function reviewGateMatches(state, phase, event) {
-  return scalar(state, "review_gate_phase") === phase && (event === void 0 || reviewGateEvent(state) === event);
+  return scalar2(state, "review_gate_phase") === phase && (event === void 0 || reviewGateEvent(state) === event);
 }
 function reviewGateApprovedFor(state, phase, event) {
   return reviewGateMatches(state, phase, event) && reviewGateStatus(state) === REVIEW_GATE_APPROVED;
@@ -16484,7 +17475,7 @@ async function readReviewGateBindingSource(handle, maxBytes) {
   }
   return content;
 }
-function scalar2(state, field5) {
+function scalar3(state, field5) {
   const value = state.fields[field5];
   return Array.isArray(value) ? value.join(",") : value;
 }
@@ -16537,7 +17528,7 @@ async function readReviewGateBinding(changeDir2, readSource = readReviewGateBind
   return binding;
 }
 function reviewGateBindingMatches(binding, state, phase, event) {
-  if (binding === void 0 || binding.phase !== phase || binding.event !== event || binding.requestedAt !== scalar2(state, "review_requested_at") || binding.decisionStateDigest !== reviewGateDecisionStateDigest(state))
+  if (binding === void 0 || binding.phase !== phase || binding.event !== event || binding.requestedAt !== scalar3(state, "review_requested_at") || binding.decisionStateDigest !== reviewGateDecisionStateDigest(state))
     return false;
   const runId = state.runMetadata?.runId;
   return binding.runId === runId;
@@ -16555,8 +17546,8 @@ var nodeReviewDecisionLedgerFs = {
       throw error2;
     }
   },
-  appendText: async (path14, text11) => {
-    await appendFile4(path14, text11, { encoding: "utf8", flag: "a", mode: 384 });
+  appendText: async (path14, text12) => {
+    await appendFile4(path14, text12, { encoding: "utf8", flag: "a", mode: 384 });
   }
 };
 
@@ -16579,877 +17570,6 @@ import { randomUUID as randomUUID7 } from "node:crypto";
 // packages/kernel/dist/workflow/stepGuard.js
 import { readFileSync as readFileSync5 } from "node:fs";
 import path5 from "node:path";
-
-// packages/kernel/dist/workflow/predicates.js
-function matchesTrackPredicate(predicate, track) {
-  const listed = predicate.values.includes(track);
-  return predicate.kind === "track-in" ? listed : !listed;
-}
-var NON_PM = { kind: "track-not-in", values: ["pm"] };
-var NON_PM_OR_FREE = { kind: "track-not-in", values: ["pm", "free"] };
-
-// packages/kernel/dist/flow/guard-coverage.js
-var COVERAGE_LAYERS = [
-  "L1_api",
-  "L2_data",
-  "L3_rules",
-  "L4_state",
-  "L5_errors",
-  "L6_security",
-  "L7_perf",
-  "L8_deps",
-  "L10_terms"
-];
-var COVERAGE_PROFILE_APPLICABILITY = {
-  backend: {
-    L1_api: "required",
-    L2_data: "required",
-    L3_rules: "required",
-    L4_state: "required",
-    L5_errors: "required",
-    L6_security: "required",
-    L8_deps: "required",
-    L7_perf: "optional",
-    L10_terms: "optional"
-  },
-  frontend: {
-    L4_state: "required",
-    L5_errors: "required",
-    L1_api: "optional",
-    L3_rules: "optional",
-    L6_security: "optional",
-    L7_perf: "optional",
-    L8_deps: "optional",
-    L10_terms: "optional"
-  },
-  pm: {
-    L3_rules: "required",
-    L2_data: "optional",
-    L4_state: "optional",
-    L10_terms: "optional"
-  }
-};
-var COVERAGE_LOCK_CONCERN = { L6_security: "auth" };
-function coverageBlockLines(content) {
-  if (content === void 0)
-    return [];
-  const out = [];
-  let inBlock = false;
-  for (const line of content.split("\n")) {
-    if (/^```coverage/.test(line)) {
-      inBlock = true;
-      continue;
-    }
-    if (/^```/.test(line)) {
-      inBlock = false;
-      continue;
-    }
-    if (inBlock)
-      out.push(line);
-  }
-  return out;
-}
-function coverageBlockStatus(lines2, layer) {
-  const row = lines2.find((l) => l.startsWith(`${layer}:`));
-  if (row === void 0)
-    return "blank";
-  const m = /^[ \t]*([a-zA-Z]+)/.exec(row.slice(layer.length + 1));
-  const st = m?.[1];
-  return st === "filled" || st === "waived" ? st : "blank";
-}
-function coverageTouches(lines2) {
-  const row = lines2.find((l) => l.startsWith("touches:"));
-  if (row === void 0)
-    return [];
-  return row.slice("touches:".length).split(/[,\s]+/).filter((w) => w !== "");
-}
-function evaluateCoverage(input2, failures, warnings) {
-  const { ctx, preset, designDoc } = input2;
-  if (ctx.readFile === void 0 || ctx.coverageProfile === "none")
-    return;
-  const content = designDoc !== "" && designDoc !== "null" ? ctx.readFile(designDoc) : void 0;
-  const lines2 = coverageBlockLines(content);
-  const touches = coverageTouches(lines2);
-  const applicability = COVERAGE_PROFILE_APPLICABILITY[ctx.coverageProfile];
-  const blockedLines = [];
-  let lockViolations = 0;
-  for (const layer of COVERAGE_LAYERS) {
-    const app = applicability?.[layer] ?? "na";
-    if (app === "na")
-      continue;
-    const status2 = coverageBlockStatus(lines2, layer);
-    const concern = COVERAGE_LOCK_CONCERN[layer];
-    const locked = concern !== void 0 && touches.includes(concern);
-    if (locked) {
-      if (status2 !== "filled") {
-        blockedLines.push(`${layer} ${app} ${status2} BLOCKED LOCKVIOLATION`);
-        lockViolations += 1;
-      }
-    } else if (app === "required" && status2 === "blank") {
-      blockedLines.push(`${layer} ${app} ${status2} BLOCKED`);
-    }
-  }
-  const waive = preset === "hotfix" || preset === "tweak";
-  const covBlock = waive ? lockViolations : blockedLines.length;
-  if (waive) {
-    const warnBlank = blockedLines.length - lockViolations;
-    if (warnBlank > 0) {
-      warnings.push(`${preset}\uFF1A${warnBlank} \u5C42\u8986\u76D6\u7559\u7A7A\uFF08\u5DF2\u8C41\u514D\uFF0C\u5EFA\u8BAE\u8865\uFF1B\u{1F512} \u9501\u4E0D\u8C41\u514D\uFF09`);
-    }
-  }
-  if (covBlock > 0) {
-    failures.push(`spec \u51FA\u53E3\uFF1A\u5168\u6808 Spec \u8986\u76D6\uFF08${covBlock} \u5C42\u963B\u585E\uFF09\uFF1B\u5728 design_doc \u7684 \`\`\`coverage \u5757\u4E3A\u6BCF\u4E2A\u963B\u585E\u5C42\u5199\u4E00\u884C \`<\u5C42>: filled -> <\u7AE0\u8282>\` \u6216 \`<\u5C42>: waived -> <\u7406\u7531>\`\uFF0C\u4F8B\uFF1A\`L1_api: filled -> \xA73 \u63A5\u53E3\u5951\u7EA6\`\uFF08touches \u542B auth \u65F6 L6_security \u4E0D\u53EF waived\uFF09`);
-    for (const l of blockedLines)
-      warnings.push(`\u8986\u76D6\u963B\u585E: ${l}`);
-  }
-}
-
-// packages/kernel/dist/flow/guard.js
-var PM_ONLY = { kind: "track-in", values: ["pm"] };
-var EXIT_RULES = {
-  // open 出口（manifest.yaml:146-151）
-  open: [
-    { kind: "statefile" },
-    { kind: "file-nonempty", path: "proposal.md" },
-    { kind: "file-exists", path: "tasks.md" },
-    { kind: "tasks-at-least", n: 1 },
-    { kind: "tasks-through-phase" },
-    { kind: "file-nonempty", path: "design.md" }
-  ],
-  // explore 出口（manifest.yaml:171-174）
-  explore: [
-    { kind: "statefile" },
-    { kind: "nonempty", field: "design_doc" },
-    { kind: "field-file-exists", field: "design_doc" },
-    { kind: "tasks-through-phase" }
-  ],
-  // spec 出口（manifest.yaml:188-192 + guard.sh:510-528 coverage 显式步）
-  spec: [
-    { kind: "statefile" },
-    { kind: "nonempty", field: "plan", when: NON_PM },
-    { kind: "field-file-exists", field: "plan", when: NON_PM },
-    { kind: "tasks-at-least", n: 3 },
-    { kind: "tasks-through-phase" },
-    { kind: "coverage" }
-  ],
-  // build 出口（guard.sh:154-162 前置闸 + manifest.yaml:218-222 + guard.sh:532-559 显式步）
-  build: [
-    { kind: "automation-queued" },
-    { kind: "statefile" },
-    { kind: "tasks-through-phase" },
-    { kind: "nonempty", field: "build_mode" },
-    { kind: "nonempty", field: "isolation" },
-    { kind: "full-direct-override" },
-    { kind: "eq", field: "pre_verify_review_result", value: "pass" },
-    { kind: "depends-archived" }
-  ],
-  // verify 出口（manifest.yaml:239-247；verify_result 仅 pm——fe/be 由 verify-pass 事件体落值）
-  verify: [
-    { kind: "statefile" },
-    { kind: "nonempty", field: "verification_report" },
-    { kind: "field-file-exists", field: "verification_report", desc: "verification_report \u6587\u4EF6\u5B58\u5728" },
-    { kind: "eq", field: "branch_status", value: "handled" },
-    { kind: "eq", field: "verify_result", value: "pass", when: PM_ONLY },
-    { kind: "tasks-through-phase" }
-  ],
-  // ship 出口（manifest.yaml:259-263）
-  ship: [
-    { kind: "statefile" },
-    { kind: "nonempty", field: "prd_path", when: PM_ONLY },
-    { kind: "field-file-exists", field: "prd_path", desc: "prd_path \u6587\u4EF6\u5B58\u5728", when: PM_ONLY },
-    { kind: "nonempty", field: "pr_url", when: NON_PM_OR_FREE },
-    { kind: "tasks-through-phase" }
-  ],
-  // archive 出口（manifest.yaml:272-274）
-  archive: [
-    { kind: "statefile" },
-    { kind: "eq", field: "verify_result", value: "pass" },
-    { kind: "tasks-through-phase" }
-  ]
-};
-function isEmpty(v) {
-  if (v === void 0)
-    return true;
-  if (Array.isArray(v))
-    return v.length === 0;
-  return v === "" || v === "null";
-}
-function scalar3(v) {
-  return typeof v === "string" ? v : Array.isArray(v) ? v.join(",") : "";
-}
-function depsOf(v) {
-  const items = Array.isArray(v) ? v : (v ?? "").split(",");
-  return items.map((s) => s.trim()).filter((s) => s !== "" && s !== "null");
-}
-function taskCount(content) {
-  if (content === void 0)
-    return 0;
-  return content.split("\n").filter((l) => /^- \[[ x]\]/.test(l)).length;
-}
-function trackApplies(when, track) {
-  return when === void 0 || matchesTrackPredicate(when, track);
-}
-function trackSuffix(when, track) {
-  return when === void 0 ? "" : ` (${track} track)`;
-}
-function evaluateGuard(state, ctx) {
-  const phase = scalar3(state.fields.phase);
-  const rules = EXIT_RULES[phase];
-  if (!rules) {
-    return { pass: false, failures: [`\u672A\u77E5 phase '${phase}'\uFF0C\u65E0\u6CD5\u8BC4\u4F30\u51FA\u53E3\u6761\u4EF6`] };
-  }
-  const track = scalar3(state.fields.track);
-  const changeDir2 = ctx?.changeDirRel;
-  const failures = [];
-  const warnings = [];
-  for (const rule of rules) {
-    switch (rule.kind) {
-      case "nonempty": {
-        if (!trackApplies(rule.when, track))
-          break;
-        const value = state.fields[rule.field];
-        if (isEmpty(value)) {
-          failures.push(`${phase} \u51FA\u53E3\uFF1A\u8981\u6C42 ${rule.field} \u975E\u7A7A\uFF08\u5F53\u524D='${scalar3(value)}'\uFF09`);
-        }
-        break;
-      }
-      case "eq": {
-        if (!trackApplies(rule.when, track))
-          break;
-        const value = state.fields[rule.field];
-        if (scalar3(value) !== rule.value) {
-          failures.push(`${phase} \u51FA\u53E3\uFF1A\u8981\u6C42 ${rule.field}=${rule.value}\uFF08\u5F53\u524D='${scalar3(value)}'\uFF09`);
-        }
-        break;
-      }
-      case "automation-queued": {
-        if (ctx?.automationRunner === true)
-          break;
-        if (scalar3(state.fields.automation) === "queued") {
-          failures.push(`${phase} \u51FA\u53E3\uFF1Aautomation=queued \u5DF2\u5165\u961F\u8C03\u5EA6\u5668\uFF0C\u4E3B\u7EBF build \u8DEF\u5F84\u88AB\u62E6\uFF08\u60F3\u624B\u52A8\u8DD1\u5148 set automation off\uFF09`);
-        }
-        break;
-      }
-      case "full-direct-override": {
-        if (scalar3(state.fields.preset) === "full" && scalar3(state.fields.build_mode) === "direct") {
-          const ovr = scalar3(state.fields.direct_override);
-          if (ovr !== "true") {
-            failures.push(`${phase} \u51FA\u53E3\uFF1Afull+direct \u8981\u6C42 direct_override=true\uFF08\u5F53\u524D='${ovr}'\uFF09`);
-          }
-        }
-        break;
-      }
-      case "statefile": {
-        if (changeDir2 === void 0)
-          break;
-        const exists2 = ctx?.stateExists !== void 0 ? ctx.stateExists(changeDir2) : ctx?.fileNonempty?.(`${changeDir2}/.pipeline.yaml`);
-        if (exists2 === void 0)
-          break;
-        if (!exists2) {
-          failures.push(`${phase} \u51FA\u53E3\uFF1A\u8981\u6C42 canonical \u72B6\u6001\u6587\u4EF6\u5B58\u5728\uFF08\u517C\u5BB9 legacy .pipeline.yaml\uFF09`);
-        }
-        break;
-      }
-      case "file-nonempty": {
-        if (!trackApplies(rule.when, track))
-          break;
-        if (ctx?.fileNonempty === void 0 || changeDir2 === void 0)
-          break;
-        if (!ctx.fileNonempty(`${changeDir2}/${rule.path}`)) {
-          failures.push(`${phase} \u51FA\u53E3\uFF1A\u8981\u6C42 ${rule.path} \u5B58\u5728\u4E14\u975E\u7A7A${trackSuffix(rule.when, track)}`);
-        }
-        break;
-      }
-      case "file-exists": {
-        if (ctx?.fileExists === void 0 || changeDir2 === void 0)
-          break;
-        if (!ctx.fileExists(`${changeDir2}/${rule.path}`)) {
-          failures.push(`${phase} \u51FA\u53E3\uFF1A\u8981\u6C42 ${rule.path} \u5B58\u5728`);
-        }
-        break;
-      }
-      case "tasks-at-least": {
-        if (ctx?.readFile === void 0 || changeDir2 === void 0)
-          break;
-        const count4 = taskCount(ctx.readFile(`${changeDir2}/tasks.md`));
-        if (count4 < rule.n) {
-          failures.push(`${phase} \u51FA\u53E3\uFF1A\u8981\u6C42 tasks.md \u81F3\u5C11 ${rule.n} \u4E2A\u4EFB\u52A1\uFF08\u5F53\u524D=${count4}\uFF09`);
-        }
-        break;
-      }
-      case "tasks-through-phase": {
-        if (ctx?.readFile === void 0 || changeDir2 === void 0)
-          break;
-        const content = ctx.readFile(`${changeDir2}/tasks.md`);
-        if (content === void 0) {
-          if (phase === "build") {
-            failures.push(`${phase} \u51FA\u53E3\uFF1A\u8981\u6C42\u622A\u81F3\u5F53\u524D\u9636\u6BB5\u7684 tasks.md \u5168\u90E8\u52FE\u9009\uFF08tasks.md \u7F3A\u5931\uFF09`);
-          }
-        } else {
-          const projectionStatus = ctx.canonicalTasksProjectionStatus?.({
-            changeDirRel: changeDir2,
-            tasksMarkdown: content
-          }) ?? "legacy";
-          if (projectionStatus === "invalid") {
-            failures.push(`${phase} \u51FA\u53E3\uFF1Acanonical TaskPlan tasks.md \u6295\u5F71\u8BA4\u8BC1\u5931\u8D25`);
-            break;
-          }
-          const status2 = incompletePipelineTasksForExit({
-            phase,
-            tasksMarkdown: content,
-            trustedCanonicalProjection: projectionStatus === "current"
-          });
-          if (status2.incomplete > 0) {
-            failures.push(`${phase} \u51FA\u53E3\uFF1A\u8981\u6C42\u622A\u81F3\u5F53\u524D\u9636\u6BB5\u7684 tasks.md \u5168\u90E8\u52FE\u9009\uFF08\u4ECD\u6709 ${status2.incomplete} \u9879\u672A\u52FE\uFF09`);
-          }
-        }
-        break;
-      }
-      case "field-file-exists": {
-        if (!trackApplies(rule.when, track))
-          break;
-        if (ctx?.fileExists === void 0)
-          break;
-        const v = scalar3(state.fields[rule.field]);
-        if (v === "" || v === "null" || !ctx.fileExists(v)) {
-          const label = rule.desc ?? `${rule.field} \u6307\u5411\u7684\u6587\u4EF6\u5B58\u5728`;
-          failures.push(`${phase} \u51FA\u53E3\uFF1A\u8981\u6C42 ${label}${trackSuffix(rule.when, track)}\uFF08\u5F53\u524D='${v}'\uFF09`);
-        }
-        break;
-      }
-      case "coverage": {
-        if (ctx !== void 0) {
-          evaluateCoverage({
-            ctx,
-            preset: scalar3(state.fields.preset),
-            designDoc: scalar3(state.fields.design_doc)
-          }, failures, warnings);
-        }
-        break;
-      }
-      case "depends-archived": {
-        if (ctx?.dirExists === void 0 || ctx.changeArchived === void 0)
-          break;
-        for (const dep of depsOf(state.fields.depends_on)) {
-          if (ctx.dirExists(`openspec/changes/${dep}`)) {
-            if (ctx.activeChangeArchived?.(dep) !== true) {
-              failures.push(`${phase} \u51FA\u53E3\uFF1A\u4F9D\u8D56 change '${dep}' \u5FC5\u987B\u5148\u5F52\u6863\uFF08\u5F53\u524D\u6D3B\u8DC3\uFF09`);
-            }
-          } else if (!ctx.changeArchived(dep)) {
-            failures.push(`${phase} \u51FA\u53E3\uFF1A\u4F9D\u8D56 change '${dep}' \u4E0D\u5B58\u5728\uFF08\u65E2\u4E0D\u5728\u6D3B\u8DC3\u4E5F\u4E0D\u5728\u5F52\u6863\uFF09`);
-          }
-        }
-        break;
-      }
-    }
-  }
-  const result2 = { pass: failures.length === 0, failures };
-  if (warnings.length > 0)
-    result2.warnings = warnings;
-  return result2;
-}
-
-// packages/kernel/dist/workflow/build-revision.js
-var BUILD_REVISION_TOKEN_PREFIX = "build:v1:";
-var BUILD_REVISION_CODE = "verify-build-revision-untrusted";
-var BUILD_REVISION_REMEDIATION = "return-to-build-and-capture-current-revision";
-var BuildRevisionCaptureError = class extends Error {
-  blocker;
-  constructor(reason3, stateHash, revisionHash) {
-    super("build revision capture was not trusted");
-    this.name = "BuildRevisionCaptureError";
-    this.blocker = makeBuildRevisionBlocker(reason3, stateHash, revisionHash);
-  }
-};
-function makeBuildRevisionBlocker(reason3, stateHash, revisionHash) {
-  return {
-    kind: "verify-build-revision-untrusted",
-    code: BUILD_REVISION_CODE,
-    reason: reason3,
-    remediation: BUILD_REVISION_REMEDIATION,
-    ...stateHash === void 0 ? {} : { stateHash },
-    ...revisionHash === void 0 ? {} : { revisionHash }
-  };
-}
-function sha256(domain, value) {
-  return sha256Hex(`${domain}\0${value}`);
-}
-function safeRevisionHash(value) {
-  let encoded;
-  try {
-    encoded = JSON.stringify(value) ?? "";
-  } catch {
-    encoded = "";
-  }
-  return `sha256:${sha256("tenon/build-revision/state/v1", encoded)}`;
-}
-function hashBuildRevisionIdentity(identity) {
-  return {
-    repositoryHash: sha256("tenon/build-revision/repository/v1", identity.repository),
-    worktreeHash: sha256("tenon/build-revision/worktree/v1", identity.worktree)
-  };
-}
-function hashRevision(kind, revision) {
-  return sha256(`tenon/build-revision/revision/${kind}/v1`, revision);
-}
-var TOKEN_RE = /^build:v1:(git|workspace):([a-f0-9]{64}):([a-f0-9]{64}):([a-f0-9]{64})$/;
-var GIT_REVISION_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i;
-var WORKSPACE_REVISION_RE = /^workspace:sha256:[a-f0-9]{64}$/;
-function createBuildRevisionToken(kind, revision, identity) {
-  if (kind !== "git" && kind !== "workspace")
-    throw new BuildRevisionCaptureError("malformed");
-  if (typeof revision !== "string")
-    throw new BuildRevisionCaptureError("malformed");
-  const normalized2 = revision.trim().toLowerCase();
-  if (kind === "git" && !GIT_REVISION_RE.test(normalized2)) {
-    throw new BuildRevisionCaptureError("malformed");
-  }
-  if (kind === "workspace" && !WORKSPACE_REVISION_RE.test(normalized2)) {
-    throw new BuildRevisionCaptureError("malformed");
-  }
-  if (identity === null || typeof identity !== "object" || typeof identity.repository !== "string" || typeof identity.worktree !== "string" || identity.repository.trim() === "" || identity.worktree.trim() === "") {
-    throw new BuildRevisionCaptureError("capability-unavailable");
-  }
-  const { repositoryHash, worktreeHash } = hashBuildRevisionIdentity(identity);
-  const revisionHash = hashRevision(kind, normalized2);
-  return {
-    kind,
-    revisionHash,
-    repositoryHash,
-    worktreeHash,
-    value: `${BUILD_REVISION_TOKEN_PREFIX}${kind}:${revisionHash}:${repositoryHash}:${worktreeHash}`
-  };
-}
-function parseBuildRevisionToken(value) {
-  if (typeof value !== "string")
-    return void 0;
-  const match = TOKEN_RE.exec(value);
-  if (!match)
-    return void 0;
-  const kind = match[1];
-  const revisionHash = match[2];
-  const repositoryHash = match[3];
-  const worktreeHash = match[4];
-  if (!revisionHash || !repositoryHash || !worktreeHash)
-    return void 0;
-  return {
-    kind,
-    revisionHash,
-    repositoryHash,
-    worktreeHash,
-    value
-  };
-}
-function blockerFor(reason3, request, token) {
-  return makeBuildRevisionBlocker(reason3, request.stateHash, token === void 0 ? void 0 : `sha256:${token.revisionHash}`);
-}
-async function assessBuildRevisionTrust(request) {
-  const candidate2 = request.buildSha;
-  if (candidate2 === void 0 || candidate2 === "") {
-    return { trusted: false, blocker: blockerFor("missing", request) };
-  }
-  if (candidate2 === null || candidate2 === "null") {
-    return { trusted: false, blocker: blockerFor("null", request) };
-  }
-  if (Array.isArray(candidate2)) {
-    return { trusted: false, blocker: blockerFor("ambiguous", request) };
-  }
-  if (typeof candidate2 !== "string") {
-    return { trusted: false, blocker: blockerFor("malformed", request) };
-  }
-  const token = parseBuildRevisionToken(candidate2);
-  if (token === void 0)
-    return { trusted: false, blocker: blockerFor("malformed", request) };
-  const expectedKind = request.isolation === "in-place" ? "workspace" : "git";
-  if (request.isolation !== "in-place" && request.isolation !== "branch" && request.isolation !== "worktree") {
-    return { trusted: false, blocker: blockerFor("isolation-mismatch", request, token) };
-  }
-  if (token.kind !== expectedKind) {
-    return { trusted: false, blocker: blockerFor("isolation-mismatch", request, token) };
-  }
-  let observation;
-  try {
-    observation = await request.observe();
-  } catch {
-    return { trusted: false, blocker: blockerFor("evaluation-error", request, token) };
-  }
-  if (!observation || typeof observation !== "object" || observation.kind !== "git" && observation.kind !== "workspace" || typeof observation.revision !== "string" || observation.kind !== token.kind || typeof observation.identity !== "object" || observation.identity === null || typeof observation.identity.repository !== "string" || typeof observation.identity.worktree !== "string" || observation.revision.trim() === "" || observation.identity.repository.trim() === "" || observation.identity.worktree.trim() === "") {
-    return { trusted: false, blocker: blockerFor("capability-unavailable", request, token) };
-  }
-  let fresh;
-  try {
-    fresh = createBuildRevisionToken(observation.kind, observation.revision, observation.identity);
-  } catch {
-    return { trusted: false, blocker: blockerFor("evaluation-error", request, token) };
-  }
-  if (fresh.repositoryHash !== token.repositoryHash) {
-    return { trusted: false, blocker: blockerFor("project-mismatch", request, token) };
-  }
-  if (fresh.worktreeHash !== token.worktreeHash) {
-    return { trusted: false, blocker: blockerFor("worktree-mismatch", request, token) };
-  }
-  if (fresh.revisionHash !== token.revisionHash) {
-    return { trusted: false, blocker: blockerFor("revision-stale", request, token) };
-  }
-  if (!request.provenance) {
-    return { trusted: false, blocker: blockerFor("provenance-missing", request, token) };
-  }
-  let provenance;
-  try {
-    provenance = await request.provenance();
-  } catch {
-    return { trusted: false, blocker: blockerFor("provenance-mismatch", request, token) };
-  }
-  if (provenance === void 0) {
-    return { trusted: false, blocker: blockerFor("provenance-missing", request, token) };
-  }
-  if (typeof provenance !== "object" || typeof provenance.currentStep !== "string" || provenance.stateBuildSha !== void 0 && typeof provenance.stateBuildSha !== "string" || provenance.stateHash !== void 0 && typeof provenance.stateHash !== "string" || typeof provenance.recordTo !== "string" || !Array.isArray(provenance.buildShaEffects) || provenance.buildShaEffects.some((effect) => typeof effect !== "string")) {
-    return { trusted: false, blocker: blockerFor("provenance-mismatch", request, token) };
-  }
-  if (request.stateHash !== void 0 && provenance.stateHash !== request.stateHash) {
-    return { trusted: false, blocker: blockerFor("state-stale", request, token) };
-  }
-  const matchingEffects = provenance.buildShaEffects.filter((effect) => effect === token.value);
-  if (provenance.currentStep !== (request.expectedStep ?? provenance.currentStep) || provenance.stateBuildSha !== token.value || provenance.recordTo !== provenance.currentStep || provenance.buildShaEffects.length !== 1 || matchingEffects.length !== 1) {
-    return { trusted: false, blocker: blockerFor("provenance-mismatch", request, token) };
-  }
-  return { trusted: true, token };
-}
-
-// packages/kernel/dist/workflow/guard-handlers.js
-function scalarValue(fields, k) {
-  const v = fields[k];
-  if (Array.isArray(v)) {
-    throw new Error(`guard \u8BFB\u5230\u5217\u8868\u5B57\u6BB5 '${k}' \u7684\u6570\u7EC4\u503C\uFF1Ascalar guard \u4E0D\u5B9A\u4E49\u5217\u8868\u8BED\u4E49\uFF0CcompileWorkflow \u7F16\u8BD1\u671F\u62D2\u7EDD\u5217\u8868\u5B57\u6BB5\u2014\u2014\u8FD0\u884C\u671F\u51FA\u73B0 = \u7ED5\u8FC7\u7F16\u8BD1\u5668`);
-  }
-  return v ?? "";
-}
-function isUnset(v) {
-  return v === "" || v === "null";
-}
-var PASSED = { kind: "passed" };
-var GUARD_HANDLERS = Object.freeze({
-  /** stepGuard.ts L38-44 同语义：tasks.md 任务数 ≥ n。文件读取走 readText 能力注入
-   *  （stepGuard 直接 readFileSync，本层纯函数化）；readText 注入但文件缺失 → undefined →
-   *  taskCount=0（stepGuard L17-24 缺失=0 同口径），能力本身未注入才是 skipped。 */
-  "tasks-at-least": (config, input2) => {
-    if (!input2.readText)
-      return { kind: "skipped", capability: "readText" };
-    const count4 = taskCount(input2.readText("tasks.md"));
-    if (count4 < config.n) {
-      return { kind: "failed", guardType: "tasks-at-least", actual: String(count4), expected: [String(config.n)] };
-    }
-    return PASSED;
-  },
-  /** 纯定义层变体：compileWorkflow 按 step.outputs 展开成 field-nonempty 集合，经编译的 IR
-   *  里不存在它。handler 拿不到 step.outputs（GuardInput 刻意不带 step 形状），运行期收到它
-   *  = 调用方绕过了编译器，fail-loud。 */
-  "nonempty-output": () => {
-    throw new Error("guard 'nonempty-output' \u662F v1 \u5B9A\u4E49\u5C42\u53D8\u4F53\uFF0CcompileWorkflow \u6309 step.outputs \u5C55\u5F00\u4E3A field-nonempty\uFF1B\u8FD0\u884C\u671F\u6CE8\u518C\u8868\u4E0D\u5B9E\u73B0\u5B83");
-  },
-  /** 老仓 state-transition.sh 各事件的字段非空面：isUnset（''/'null'）→ failed。
-   *  纯字段谓词，无能力依赖，永不 skipped。 */
-  "field-nonempty": (config, input2) => {
-    const v = scalarValue(input2.fields, config.field);
-    if (isUnset(v)) {
-      return { kind: "failed", guardType: "field-nonempty", field: config.field, actual: v };
-    }
-    return PASSED;
-  },
-  /** 老仓 state-transition.sh 各事件的文件存在面：字段值即项目根相对路径。
-   *  字段未设 → failed（未设的路径必不存在；与 field-nonempty 前置搭配时被首错截断，
-   *  单独使用时行为自洽）；fileExists 未注入 → skipped（L92-93 降级视为存在）。 */
-  "file-exists": (config, input2) => {
-    const v = scalarValue(input2.fields, config.path.field);
-    if (isUnset(v)) {
-      return { kind: "failed", guardType: "file-exists", field: config.path.field, actual: v };
-    }
-    if (!input2.fileExists)
-      return { kind: "skipped", capability: "fileExists" };
-    if (!input2.fileExists(v)) {
-      return { kind: "failed", guardType: "file-exists", field: config.path.field, actual: v };
-    }
-    return PASSED;
-  },
-  /** 老仓 state-transition.sh verify-pass 的等值面（branch_status=handled、双 review=pass）。 */
-  "field-equals": (config, input2) => {
-    const v = scalarValue(input2.fields, config.field);
-    if (v !== config.value) {
-      return { kind: "failed", guardType: "field-equals", field: config.field, actual: v, expected: [config.value] };
-    }
-    return PASSED;
-  },
-  /** build-complete 的隔离枚举面（branch/worktree，或受限 agent 的显式 in-place），expected 带全量合法值。 */
-  "field-in": (config, input2) => {
-    const v = scalarValue(input2.fields, config.field);
-    if (!config.values.includes(v)) {
-      return { kind: "failed", guardType: "field-in", field: config.field, actual: v, expected: config.values };
-    }
-    return PASSED;
-  },
-  /** 老仓 state-transition.sh build-complete：preset=full ∧ build_mode=direct → direct_override 必须
-   *  字面 'true'（set 闸之外的纵深防线）。条件不齐（非 full / 非 direct）→ passed。 */
-  "full-direct-override": (_config, input2) => {
-    const override = scalarValue(input2.fields, "direct_override");
-    if (scalarValue(input2.fields, "preset") === "full" && scalarValue(input2.fields, "build_mode") === "direct" && override !== "true") {
-      return { kind: "failed", guardType: "full-direct-override", field: "direct_override", actual: override, expected: ["true"] };
-    }
-    return PASSED;
-  },
-  /** Verify-like success barrier：只消费由 Build capture 写入的 canonical `build:v1` token。
-   *  assessor 缺失、输入不可信、物理 identity/provenance/evaluation 任一失败都返回 typed
-   *  `verify-build-revision-untrusted` blocker；不得把旧裸 SHA、workspace baseline 或缺能力
-   *  降级成 skipped/pass。in-place 仍通过 workspace assessor 求值，不读取 Git HEAD。 */
-  "build-head-unchanged": async (config, input2) => {
-    const buildSha = config.field === "build_sha" && input2.rawBuildSha !== void 0 ? input2.rawBuildSha : input2.fields[config.field];
-    const stateHash = input2.stateHash ?? safeRevisionHash(input2.fields);
-    if (!input2.assessBuildRevision) {
-      return {
-        kind: "failed",
-        guardType: "build-head-unchanged",
-        field: config.field,
-        blocker: makeBuildRevisionBlocker("capability-unavailable", stateHash)
-      };
-    }
-    try {
-      const result2 = await input2.assessBuildRevision({
-        buildSha,
-        isolation: scalarValue(input2.fields, "isolation"),
-        expectedStep: input2.currentStep,
-        stateHash
-      });
-      if (result2.trusted)
-        return PASSED;
-      return {
-        kind: "failed",
-        guardType: "build-head-unchanged",
-        field: config.field,
-        blocker: result2.blocker
-      };
-    } catch {
-      return {
-        kind: "failed",
-        guardType: "build-head-unchanged",
-        field: config.field,
-        blocker: makeBuildRevisionBlocker("evaluation-error", stateHash)
-      };
-    }
-  },
-  /** Ship 迁移门禁是 fail-closed 能力：adapter 未绑定、证据损坏或目标摘要漂移都拒绝。 */
-  "spec-migration-applied": async (_config, input2) => {
-    if (!input2.specMigrationStatus) {
-      return {
-        kind: "failed",
-        guardType: "spec-migration-applied",
-        actual: "capability-unavailable",
-        expected: ["not-required", "applied"]
-      };
-    }
-    const status2 = await input2.specMigrationStatus();
-    if (status2.kind === "not-required" || status2.kind === "applied")
-      return PASSED;
-    return {
-      kind: "failed",
-      guardType: "spec-migration-applied",
-      actual: status2.reason,
-      expected: ["not-required", "applied"]
-    };
-  }
-});
-function evalOutputPresent(config, input2) {
-  const raw = input2.fields[config.field];
-  const v = Array.isArray(raw) ? "" : raw ?? "";
-  if (isUnset(v)) {
-    return { kind: "failed", guardType: "output-present", field: config.field, actual: v };
-  }
-  return PASSED;
-}
-function dispatchGuard(config, input2) {
-  if (config.type === "output-present")
-    return evalOutputPresent(config, input2);
-  const handler = GUARD_HANDLERS[config.type];
-  return handler(config, input2);
-}
-async function evaluateGuards(guards, input2, options3 = {}) {
-  const stopOnFirstFailure = options3.stopOnFirstFailure ?? true;
-  const evaluated = [];
-  for (const guard of guards) {
-    if (guard.when !== void 0 && !matchesTrackPredicate(guard.when, input2.track))
-      continue;
-    const decision = await dispatchGuard(guard, input2);
-    evaluated.push({ guard, decision });
-    if (decision.kind === "failed" && stopOnFirstFailure)
-      break;
-  }
-  return evaluated;
-}
-
-// packages/kernel/dist/flow/default-event-policy.js
-var DEFAULT_EVENT_POLICY = {
-  "open-complete": { guards: [], actions: [], enforceTaskExit: true },
-  "explore-complete": {
-    // 老仓 L120-126：design_doc 非空且文件存在。
-    guards: [{ type: "file-exists", path: { kind: "field", field: "design_doc" } }],
-    actions: [],
-    enforceTaskExit: true
-  },
-  "spec-complete": {
-    // 老仓 L127-138：仅非 PM 轨要求 legacy `plan` artifact；PM 的文档链由 OpenSpec ledger
-    // 单独强制，不能用一个新增 state 字段要求破坏原有 default transition 兼容性。
-    guards: [{ type: "file-exists", path: { kind: "field", field: "plan" }, when: NON_PM }],
-    actions: [{ type: "reset-pre-verify-review" }],
-    enforceTaskExit: true
-  },
-  "requirements-changed": {
-    guards: [],
-    actions: [{ type: "reset-pre-verify-review" }],
-    enforceTaskExit: false
-  },
-  "build-complete": {
-    // 首错优先：build_mode 必设 → isolation 必设 → isolation ∈ {branch,worktree,in-place}
-    // → full+direct 锁 direct_override → pre-Verify 全量收敛通过。in-place 明确表示受限 agent
-    // 仅能在当前工作目录写文件，不得把它伪装成已创建的 Git branch/worktree。
-    guards: [
-      { type: "field-nonempty", field: "build_mode" },
-      { type: "field-nonempty", field: "isolation" },
-      { type: "field-in", field: "isolation", values: ["branch", "worktree", "in-place"] },
-      { type: "full-direct-override" },
-      { type: "field-equals", field: "pre_verify_review_result", value: "pass" }
-    ],
-    // Build revision capture capability writes the canonical build:v1 token; capability failure is closed.
-    actions: [{ type: "freeze-build-sha" }],
-    enforceTaskExit: true
-  },
-  "verify-pass": {
-    // 首错优先：verification_report 非空且文件存在 → branch_status=handled → trustworthy
-    // build revision barrier。手填的双 review 字段已删除，这道检查由步骤评审者承担。
-    guards: [
-      { type: "file-exists", path: { kind: "field", field: "verification_report" } },
-      { type: "field-equals", field: "branch_status", value: "handled" },
-      { type: "build-head-unchanged", field: "build_sha" }
-    ],
-    // 老仓 L201-204：verify_result=pass + verified_at=now。
-    actions: [{ type: "mark-verification-passed" }],
-    enforceTaskExit: true
-  },
-  "verify-fail": {
-    guards: [],
-    // 老仓 L207-210：verify_result=fail + build_sha=null（barrier 复位；phase_status 在 flow）。
-    actions: [{ type: "mark-verification-failed" }, { type: "reset-pre-verify-review" }],
-    enforceTaskExit: false
-  },
-  "ship-complete": {
-    guards: [{ type: "spec-migration-applied" }],
-    actions: [],
-    enforceTaskExit: true
-  },
-  archived: {
-    guards: [],
-    // 老仓 L213-217：archived=true + archived_at=now（phase_status=done 在 flow）。
-    actions: [{ type: "archive-run" }],
-    enforceTaskExit: true
-  }
-};
-function fstr(v) {
-  return Array.isArray(v) ? v.join(",") : v ?? "";
-}
-function fieldStr(state, k) {
-  return fstr(state.fields[k]);
-}
-function normalizeDefaultGuardFields(fields) {
-  const out = {};
-  for (const k of Object.keys(fields)) {
-    out[k] = fstr(fields[k]);
-  }
-  return out;
-}
-function renderPreconditionViolation(event, failure13, track) {
-  const { guard, decision } = failure13;
-  if (decision.kind === "failed" && decision.blocker !== void 0) {
-    return [
-      `ERROR: ${event} revision trust blocked (code=${decision.blocker.code} reason=${decision.blocker.reason})`,
-      `  \u4FEE\u590D\uFF1A${decision.blocker.remediation}`
-    ];
-  }
-  const actual = (decision.kind === "failed" ? decision.actual : void 0) ?? "";
-  switch (event) {
-    case "explore-complete":
-      return [`ERROR: explore-complete \u8981\u6C42 design_doc \u5B57\u6BB5\u975E\u7A7A\u4E14\u6587\u4EF6\u5B58\u5728 (\u5F53\u524D=${actual})`];
-    case "spec-complete":
-      return [`ERROR: ${track} track spec-complete \u8981\u6C42 plan \u5B57\u6BB5\u975E\u7A7A\u4E14\u6587\u4EF6\u5B58\u5728 (\u5F53\u524D=${actual})`];
-    case "build-complete":
-      if (guard.type === "field-nonempty") {
-        return guard.field === "build_mode" ? ["ERROR: build_mode \u5FC5\u987B\u8BBE\u7F6E"] : ["ERROR: isolation \u5FC5\u987B\u8BBE\u7F6E"];
-      }
-      if (guard.type === "field-in")
-        return [`ERROR: \u975E\u6CD5\u503C '${actual}'\uFF0C\u5141\u8BB8: branch worktree in-place`];
-      if (guard.type === "full-direct-override") {
-        return ["ERROR: full workflow \u4F7F\u7528 build_mode=direct \u5FC5\u987B\u663E\u5F0F\u8BBE direct_override=true"];
-      }
-      if (guard.type === "field-equals" && guard.field === "pre_verify_review_result") {
-        return [`ERROR: build-complete \u8981\u6C42 pre_verify_review_result=pass (\u5F53\u524D=${actual})`];
-      }
-      break;
-    case "verify-pass":
-      if (guard.type === "file-exists") {
-        return [`ERROR: verify-pass \u8981\u6C42 verification_report \u5B57\u6BB5\u975E\u7A7A\u4E14\u6587\u4EF6\u5B58\u5728 (\u5F53\u524D=${actual})`];
-      }
-      if (guard.type === "field-equals") {
-        return [`ERROR: verify-pass \u8981\u6C42 branch_status=handled (\u5F53\u524D=${actual})`];
-      }
-      if (guard.type === "build-head-unchanged") {
-        const bsha = (decision.kind === "failed" ? decision.expected?.[0] : void 0) ?? "";
-        if (bsha.startsWith("workspace:sha256:")) {
-          return [
-            `ERROR: verify-pass \u8981\u6C42\u5F53\u524D\u5DE5\u4F5C\u533A\u5185\u5BB9\u7B49\u4E8E build \u51BB\u7ED3\u57FA\u7EBF\uFF08build_sha=${bsha} \u5F53\u524D=${actual}\uFF09`,
-            "  \u4FEE\u590D\uFF1A\u5DE5\u4F5C\u533A\u5728 build \u540E\u53D1\u751F\u53D8\u5316\uFF1B\u91CD\u8DD1 build-complete \u51BB\u7ED3\u65B0\u57FA\u7EBF\u540E\u518D\u9A8C\u8BC1"
-          ];
-        }
-        return [
-          `ERROR: verify-pass \u8981\u6C42 HEAD==build_sha\uFF08build \u540E\u4EA7\u7269\u88AB\u6539\u672A\u590D\u9A8C\uFF09build_sha=${bsha} HEAD=${actual}`,
-          "  \u4FEE\u590D\uFF1A\u8981\u4E48\u628A\u6539\u52A8\u5E76\u5165\u590D\u9A8C\uFF08\u91CD\u8DD1 build\u2192verify\uFF09\uFF0C\u8981\u4E48 verify-fail \u56DE\u9000\u540E\u91CD\u65B0 build-complete \u51BB\u7ED3\u65B0 SHA"
-        ];
-      }
-      break;
-    case "ship-complete":
-      if (guard.type === "spec-migration-applied") {
-        return [`ERROR: ship-complete \u8981\u6C42\u4E3B\u89C4\u683C\u8FC1\u79FB\u673A\u5668\u8BC1\u636E\u6709\u6548\uFF08\u5F53\u524D=${actual}\uFF09`];
-      }
-      break;
-    default:
-      break;
-  }
-  throw new Error(`renderPreconditionViolation: \u672A\u8986\u76D6\u7684 (event=${event}, guardType=${guard.type})`);
-}
-async function evaluateDefaultEventPreconditions(event, state, ctx, options3) {
-  const policy2 = DEFAULT_EVENT_POLICY[event];
-  if (policy2.guards.length === 0)
-    return null;
-  const track = fieldStr(state, "track");
-  const input2 = {
-    fields: normalizeDefaultGuardFields(state.fields),
-    stateHash: safeRevisionHash(state.fields),
-    rawBuildSha: state.fields.build_sha,
-    track,
-    fileExists: ctx?.fileExists,
-    gitHeadSha: ctx?.gitHeadSha,
-    workspaceFingerprint: ctx?.workspaceFingerprint,
-    specMigrationStatus: ctx?.specMigrationStatus,
-    assessBuildRevision: ctx?.assessBuildRevision,
-    currentStep: fieldStr(state, "phase")
-  };
-  const evaluations = await evaluateGuards(policy2.guards, input2, options3);
-  const failed2 = evaluations.find((e) => e.decision.kind === "failed");
-  if (!failed2)
-    return null;
-  const blockers = evaluations.flatMap((evaluation) => evaluation.decision.kind === "failed" && evaluation.decision.blocker !== void 0 ? [evaluation.decision.blocker] : []);
-  return {
-    lines: renderPreconditionViolation(event, failed2, track),
-    ...blockers.length === 0 ? {} : { blockers }
-  };
-}
-
-// packages/kernel/dist/workflow/stepGuard.js
 function fieldStr2(v) {
   return Array.isArray(v) ? v.join(",") : v ?? "";
 }
@@ -17709,10 +17829,10 @@ function nonEmpty(value, label) {
   return value;
 }
 function digest5(value, label) {
-  const text11 = nonEmpty(value, label);
-  if (!/^[0-9a-f]{64}$/.test(text11))
+  const text12 = nonEmpty(value, label);
+  if (!/^[0-9a-f]{64}$/.test(text12))
     throw new Error(`${label} must be a sha256 digest`);
-  return text11;
+  return text12;
 }
 function normalizedGrants(value, label) {
   if (!Array.isArray(value) || value.some((item2) => typeof item2 !== "string" || !ACTIONS.has(item2)) || new Set(value).size !== value.length) {
@@ -18359,8 +18479,8 @@ function markerOf(line, index) {
     return null;
   return { index, tag: match[1] ?? "", kind: match[2] === "START" ? "START" : "END" };
 }
-function withSingleTrailingNewline(text11) {
-  const trimmed = text11.replace(/\s+$/u, "");
+function withSingleTrailingNewline(text12) {
+  const trimmed = text12.replace(/\s+$/u, "");
   return trimmed === "" ? "" : `${trimmed}
 `;
 }
@@ -18405,8 +18525,8 @@ function parseManagedBlocks(content) {
   kept.push(...all.slice(cursor));
   return { ok: true, userText: withSingleTrailingNewline(kept.join("\n")), blocks };
 }
-function containsManagedMarker(text11) {
-  return lines(text11).some((line) => MANAGED_MARKER_LINE.test(line));
+function containsManagedMarker(text12) {
+  return lines(text12).some((line) => MANAGED_MARKER_LINE.test(line));
 }
 function mergeManagedBlocks(editorText, blocks) {
   const user = editorText.replace(/\r\n/g, "\n").replace(/\s+$/u, "");
@@ -18433,10 +18553,10 @@ function computeContentHash(content) {
   const normalized2 = content.replace(/\r\n/g, "\n");
   return createHash16("sha256").update(normalized2, "utf8").digest("hex");
 }
-function parseOwnedManifest(text11) {
+function parseOwnedManifest(text12) {
   let parsed2;
   try {
-    parsed2 = JSON.parse(text11);
+    parsed2 = JSON.parse(text12);
   } catch {
     return {};
   }
@@ -18759,8 +18879,8 @@ function parseBreadcrumbBlock(lines2, start, path14) {
   }
   return { map, next: i };
 }
-function scanSections(text11, path14) {
-  const lines2 = text11.split("\n");
+function scanSections(text12, path14) {
+  const lines2 = text12.split("\n");
   const out = {};
   let i = 0;
   while (i < lines2.length) {
@@ -18904,8 +19024,8 @@ function deriveSkillActionAuthority(raw) {
   return { version: "v1", grants };
 }
 function loadManifest(path14) {
-  const text11 = readFileSync8(path14, "utf8");
-  const raw = scanSections(text11, path14);
+  const text12 = readFileSync8(path14, "utf8");
+  const raw = scanSections(text12, path14);
   if (!raw.phases || raw.phases.length === 0)
     throw new ManifestError(`${path14} \u7F3A phases \u5C0F\u8282`);
   if (!raw.transitions)
@@ -19397,12 +19517,12 @@ function readFrontmatter(lines2, errors) {
   const variables = [];
   let inVariables = false;
   for (let index = 1; index < close; index += 1) {
-    const text11 = lines2[index] ?? "";
+    const text12 = lines2[index] ?? "";
     const line = index + 1;
-    if (text11.trim() === "")
+    if (text12.trim() === "")
       continue;
-    const item2 = /^ {2}- key: (.*)$/.exec(text11);
-    const itemDefault = /^ {4}default: (.*)$/.exec(text11);
+    const item2 = /^ {2}- key: (.*)$/.exec(text12);
+    const itemDefault = /^ {4}default: (.*)$/.exec(text12);
     if (inVariables && item2) {
       const key2 = scalar4(item2[1] ?? "") ?? "";
       if (!VARIABLE_KEY.test(key2))
@@ -19421,9 +19541,9 @@ function readFrontmatter(lines2, errors) {
         last.default = value;
       continue;
     }
-    const pair = /^([a-z_]+):(?: (.*))?$/.exec(text11);
+    const pair = /^([a-z_]+):(?: (.*))?$/.exec(text12);
     if (!pair) {
-      errors.push({ code: "frontmatter", line, detail: `\u65E0\u6CD5\u89E3\u6790\u7684\u884C\uFF1A${text11}` });
+      errors.push({ code: "frontmatter", line, detail: `\u65E0\u6CD5\u89E3\u6790\u7684\u884C\uFF1A${text12}` });
       continue;
     }
     const key = pair[1] ?? "";
@@ -19442,12 +19562,12 @@ function readFrontmatter(lines2, errors) {
   }
   return { values, variables, bodyStart: close + 1 };
 }
-function parseInstructionBlock(text11, expected) {
+function parseInstructionBlock(text12, expected) {
   const errors = [];
-  if (new TextEncoder().encode(text11).length > INSTRUCTION_BLOCK_MAX_BYTES) {
+  if (new TextEncoder().encode(text12).length > INSTRUCTION_BLOCK_MAX_BYTES) {
     return { ok: false, errors: [{ code: "too-large", detail: `\u8D85\u8FC7 ${INSTRUCTION_BLOCK_MAX_BYTES} \u5B57\u8282` }] };
   }
-  const lines2 = text11.replace(/\r\n/g, "\n").split("\n");
+  const lines2 = text12.replace(/\r\n/g, "\n").split("\n");
   const front = readFrontmatter(lines2, errors);
   if (!front)
     return { ok: false, errors };
@@ -19539,7 +19659,7 @@ function parseInstructionBlock(text11, expected) {
 }
 function checkBody(lines2, start, category, known, errors) {
   const level = categoryHeadingLevel(category);
-  const first = lines2.findIndex((text11, index) => index >= start && text11.trim() !== "");
+  const first = lines2.findIndex((text12, index) => index >= start && text12.trim() !== "");
   if (first < 0) {
     errors.push({ code: "heading", detail: "\u6B63\u6587\u4E3A\u7A7A" });
     return "";
@@ -19549,17 +19669,17 @@ function checkBody(lines2, start, category, known, errors) {
   }
   let fenced = false;
   for (let index = first; index < lines2.length; index += 1) {
-    const text11 = lines2[index] ?? "";
+    const text12 = lines2[index] ?? "";
     const line = index + 1;
-    if (FENCE.test(text11))
+    if (FENCE.test(text12))
       fenced = !fenced;
-    else if (!fenced && text11.startsWith("# "))
+    else if (!fenced && text12.startsWith("# "))
       errors.push({ code: "heading", line, detail: "\u5757\u5185\u4E0D\u5141\u8BB8\u4E00\u7EA7\u6807\u9898" });
-    if (MANAGED_MARKER_LINE.test(text11))
+    if (MANAGED_MARKER_LINE.test(text12))
       errors.push({ code: "managed-marker", line, detail: "\u6B63\u6587\u4E0D\u80FD\u5305\u542B Tenon \u53D7\u7BA1\u5757\u6807\u8BB0\u884C" });
-    for (const placeholder of placeholdersIn(text11)) {
+    for (const placeholder of placeholdersIn(text12)) {
       if (placeholder.name === null || !known.has(placeholder.name)) {
-        errors.push({ code: "unknown-placeholder", line, detail: `\u65E0\u6CD5\u89E3\u6790\u7684\u5360\u4F4D\u7B26\uFF1A${text11.slice(placeholder.index, placeholder.index + placeholder.length)}` });
+        errors.push({ code: "unknown-placeholder", line, detail: `\u65E0\u6CD5\u89E3\u6790\u7684\u5360\u4F4D\u7B26\uFF1A${text12.slice(placeholder.index, placeholder.index + placeholder.length)}` });
       }
     }
   }
@@ -19668,7 +19788,7 @@ function resolvePlaceholder(name, selection, values, context) {
   }
   return values.get(name) ?? "";
 }
-var unescape = (text11) => text11.replace(/\\\{\{/g, "{{");
+var unescape = (text12) => text12.replace(/\\\{\{/g, "{{");
 function renderBody(selection, values, context) {
   const out = [];
   for (const line of selection.block.body.split("\n")) {
@@ -19732,10 +19852,10 @@ function serializeProjectClients(enabled) {
   return `${JSON.stringify({ schema: PROJECT_CLIENTS_SCHEMA, enabled }, null, 2)}
 `;
 }
-function parseProjectClients(text11) {
+function parseProjectClients(text12) {
   let parsed2;
   try {
-    parsed2 = JSON.parse(text11);
+    parsed2 = JSON.parse(text12);
   } catch {
     return null;
   }
@@ -19821,8 +19941,8 @@ function inlineList3(raw, line, key) {
     return token;
   });
 }
-function scan(text11) {
-  return text11.split("\n").map((raw, index) => ({
+function scan(text12) {
+  return text12.split("\n").map((raw, index) => ({
     n: index + 1,
     indent: raw.length - raw.trimStart().length,
     text: raw.trimEnd()
@@ -19883,11 +20003,11 @@ function links(fields) {
   }
   return result2;
 }
-function parseResourceEntry(text11) {
-  if (new TextEncoder().encode(text11).length > RESOURCE_ENTRY_MAX_BYTES) {
+function parseResourceEntry(text12) {
+  if (new TextEncoder().encode(text12).length > RESOURCE_ENTRY_MAX_BYTES) {
     throw new ResourceParseError(1, `\u6761\u76EE\u8D85\u8FC7 ${RESOURCE_ENTRY_MAX_BYTES} \u5B57\u8282`);
   }
-  const lines2 = scan(text11);
+  const lines2 = scan(text12);
   const values = /* @__PURE__ */ new Map();
   let licenseFields;
   let linkFields;
@@ -20116,13 +20236,13 @@ var DESIGN_MODEL_CONTRAST_PATHS = [
   "tokens.colors.dark.background",
   "tokens.colors.dark.text1"
 ];
-function frontMatter(text11) {
-  const lines2 = text11.split("\n");
+function frontMatter(text12) {
+  const lines2 = text12.split("\n");
   if (lines2[0]?.trim() !== "---")
-    return { keys: /* @__PURE__ */ new Map(), body: text11 };
+    return { keys: /* @__PURE__ */ new Map(), body: text12 };
   const end = lines2.findIndex((line, index) => index > 0 && line.trim() === "---");
   if (end < 0)
-    return { keys: /* @__PURE__ */ new Map(), body: text11 };
+    return { keys: /* @__PURE__ */ new Map(), body: text12 };
   const keys2 = /* @__PURE__ */ new Map();
   for (const line of lines2.slice(1, end)) {
     const match = /^([a-z_]+):\s*(.*)$/u.exec(line.trim());
@@ -20205,22 +20325,22 @@ var PLACEHOLDERS = [
   String.fromCharCode(70, 73, 88, 77, 69),
   "lorem ipsum"
 ];
-function textProblems(text11) {
+function textProblems(text12) {
   const problems = [];
-  const lower = text11.toLowerCase();
+  const lower = text12.toLowerCase();
   for (const marker of PLACEHOLDERS) {
     if (lower.includes(marker.toLowerCase()))
       problems.push(`DESIGN.md \u542B\u5360\u4F4D\u5185\u5BB9 ${marker}`);
   }
-  if (text11.includes("\u2014"))
+  if (text12.includes("\u2014"))
     problems.push("DESIGN.md \u542B em-dash\uFF08hue \u786C\u6027\u89C4\u5219\uFF09");
   return problems;
 }
 function checkDesignSystem(reader, iconIds) {
-  const text11 = reader.read(DESIGN_MD_PATH);
-  if (text11 === null)
+  const text12 = reader.read(DESIGN_MD_PATH);
+  if (text12 === null)
     return { status: "missing", problems: [`\u7F3A\u5C11 ${DESIGN_MD_PATH}`] };
-  const { keys: keys2, body: body2 } = frontMatter(text11);
+  const { keys: keys2, body: body2 } = frontMatter(text12);
   if (keys2.get("schema") !== DESIGN_SCHEMA) {
     return { status: "seed", problems: [`DESIGN.md \u7F3A\u5C11 schema: ${DESIGN_SCHEMA}`] };
   }
@@ -20230,7 +20350,7 @@ function checkDesignSystem(reader, iconIds) {
     ...iconIds.has(icons) ? [] : [`icons \u5FC5\u987B\u662F\u8D44\u6E90\u76EE\u5F55\u4E2D\u7684\u56FE\u6807\uFF1A${icons}`],
     ...sectionProblems(body2),
     ...previewProblems(reader, body2),
-    ...textProblems(text11)
+    ...textProblems(text12)
   ];
   return problems.length === 0 ? { status: "ready", problems: [] } : { status: "incomplete", problems };
 }
@@ -20430,38 +20550,38 @@ function parseTestDirection(content) {
 var BUILTIN_LIBRARY_MARKER = ".library.json";
 var MAX_FILES = 512;
 var MAX_FILE_BYTES = 64 * 1024;
-function validateInstructionTemplate(relativePath, text11) {
+function validateInstructionTemplate(relativePath, text12) {
   const segments2 = relativePath.split("/");
   const category = segments2[0] ?? "";
   if (segments2.length !== 2 || !isInstructionCategory(category))
     return ["\u8DEF\u5F84\u5FC5\u987B\u662F <category>/<id>.md"];
-  const parsed2 = parseInstructionBlock(text11, { category, id: (segments2[1] ?? "").replace(/\.md$/u, "") });
+  const parsed2 = parseInstructionBlock(text12, { category, id: (segments2[1] ?? "").replace(/\.md$/u, "") });
   return parsed2.ok ? [] : parsed2.errors.map((error2) => `${error2.line === void 0 ? "" : `${error2.line}: `}${error2.detail}`);
 }
-function validateResourceEntryFile(relativePath, text11) {
+function validateResourceEntryFile(relativePath, text12) {
   if (relativePath.includes("/"))
     return ["\u6761\u76EE\u5FC5\u987B\u76F4\u63A5\u653E\u5728 builtin/ \u4E0B"];
   try {
-    return validateResourceEntry(parseResourceEntry(text11), relativePath);
+    return validateResourceEntry(parseResourceEntry(text12), relativePath);
   } catch (error2) {
     return [error2 instanceof Error ? error2.message : String(error2)];
   }
 }
-function validateAgentFile(relativePath, text11) {
+function validateAgentFile(relativePath, text12) {
   if (relativePath.includes("/"))
     return ["agent \u5FC5\u987B\u76F4\u63A5\u653E\u5728 templates/agents/ \u4E0B"];
   try {
-    parseAgentFile(text11, relativePath.replace(/\.md$/u, ""));
+    parseAgentFile(text12, relativePath.replace(/\.md$/u, ""));
     return [];
   } catch (error2) {
     return [error2 instanceof Error ? error2.message : String(error2)];
   }
 }
-function validateTestDirection(relativePath, text11) {
+function validateTestDirection(relativePath, text12) {
   if (relativePath.includes("/"))
     return ["\u8DEF\u5F84\u5FC5\u987B\u662F <id>.yaml"];
   try {
-    const direction = parseTestDirection(text11);
+    const direction = parseTestDirection(text12);
     return direction.id === relativePath.replace(/\.yaml$/u, "") ? [] : ["id \u5FC5\u987B\u7B49\u4E8E\u6587\u4EF6\u540D\u4E3B\u5E72"];
   } catch (error2) {
     return [error2 instanceof Error ? error2.message : String(error2)];
@@ -20546,10 +20666,10 @@ function builtinSourceDigest(files) {
 `).sort().join("");
   return `sha256:${sha256Hex(lines2)}`;
 }
-function parseBuiltinLibraryMarker(text11) {
+function parseBuiltinLibraryMarker(text12) {
   let value;
   try {
-    value = JSON.parse(text11);
+    value = JSON.parse(text12);
   } catch {
     return null;
   }
@@ -20664,17 +20784,17 @@ async function listYaml(dir) {
     return [];
   }
 }
-function read(text11, file, source2) {
+function read(text12, file, source2) {
   let entry2;
   try {
-    entry2 = parseResourceEntry(text11);
+    entry2 = parseResourceEntry(text12);
   } catch (error2) {
     return { file, source: source2, errors: [error2 instanceof Error ? error2.message : String(error2)] };
   }
   const errors = validateResourceEntry(entry2, file);
   if (errors.length > 0)
     return { file, source: source2, errors };
-  return { entry: entry2, source: source2, revision: `sha256:${sha256Hex(text11)}` };
+  return { entry: entry2, source: source2, revision: `sha256:${sha256Hex(text12)}` };
 }
 var isStored = (value) => "entry" in value;
 async function ensureBuiltinResources(options3) {
@@ -20689,14 +20809,14 @@ async function loadResourceCatalog(options3) {
   for (const source2 of ["builtin", "custom"]) {
     const dir = sourceDir(storeRoot2, source2);
     for (const file of await listYaml(dir)) {
-      let text11;
+      let text12;
       try {
-        text11 = await readFile24(join33(dir, file), "utf8");
+        text12 = await readFile24(join33(dir, file), "utf8");
       } catch (error2) {
         errors.push({ file, source: source2, errors: [error2 instanceof Error ? error2.message : String(error2)] });
         continue;
       }
-      const result2 = read(text11, file, source2);
+      const result2 = read(text12, file, source2);
       if (!isStored(result2)) {
         errors.push(result2);
         continue;
@@ -20716,15 +20836,15 @@ async function readResourceFile(storeRoot2, id2) {
   if (!RESOURCE_ID.test(id2))
     return null;
   for (const source2 of ["custom", "builtin"]) {
-    let text11;
+    let text12;
     try {
-      text11 = await readFile24(join33(sourceDir(storeRoot2, source2), `${id2}.yaml`), "utf8");
+      text12 = await readFile24(join33(sourceDir(storeRoot2, source2), `${id2}.yaml`), "utf8");
     } catch {
       continue;
     }
-    const result2 = read(text11, `${id2}.yaml`, source2);
+    const result2 = read(text12, `${id2}.yaml`, source2);
     if (isStored(result2))
-      return { stored: result2, yaml: text11 };
+      return { stored: result2, yaml: text12 };
     throw new ResourceStoreError("invalid", "\u6761\u76EE\u4E0D\u5408\u6CD5", result2.errors);
   }
   return null;
@@ -20736,10 +20856,10 @@ async function currentRevision(path14) {
     return null;
   }
 }
-async function writeAtomic(path14, text11) {
+async function writeAtomic(path14, text12) {
   await mkdir16(join33(path14, ".."), { recursive: true });
   const tmp = `${path14}.tmp.${process.pid}`;
-  await writeFile11(tmp, text11, "utf8");
+  await writeFile11(tmp, text12, "utf8");
   await rename8(tmp, path14);
 }
 async function builtinExists(storeRoot2, id2) {
@@ -20943,12 +21063,12 @@ async function refuseSymlink(path14) {
       throw error2;
   }
 }
-async function writeAtomic2(path14, text11) {
+async function writeAtomic2(path14, text12) {
   await mkdir17(dirname7(path14), { recursive: true });
   await refuseSymlink(dirname7(path14));
   await refuseSymlink(path14);
   const tmp = `${path14}.tmp.${process.pid}`;
-  await writeFile12(tmp, text11, "utf8");
+  await writeFile12(tmp, text12, "utf8");
   await rename9(tmp, path14);
 }
 async function builtinExists2(scope, name) {
@@ -21167,8 +21287,8 @@ async function saveManifest(repoRoot, map) {
 async function withManifest(repoRoot, fn) {
   await mkdir18(lockDirOf(repoRoot), { recursive: true });
   return withLock(lockDirOf(repoRoot), async () => {
-    const text11 = await readText2(manifestPath(repoRoot));
-    const before = text11 === void 0 ? {} : parseOwnedManifest(text11);
+    const text12 = await readText2(manifestPath(repoRoot));
+    const before = text12 === void 0 ? {} : parseOwnedManifest(text12);
     const { next, result: result2 } = await fn({ ...before });
     if (serializeOwnedManifest(next) !== serializeOwnedManifest(before))
       await saveManifest(repoRoot, next);
@@ -21176,8 +21296,8 @@ async function withManifest(repoRoot, fn) {
   });
 }
 async function ownedHostAgentNames(repoRoot) {
-  const text11 = await readText2(manifestPath(repoRoot));
-  const manifest = text11 === void 0 ? {} : parseOwnedManifest(text11);
+  const text12 = await readText2(manifestPath(repoRoot));
+  const manifest = text12 === void 0 ? {} : parseOwnedManifest(text12);
   const names = /* @__PURE__ */ new Set();
   for (const key of Object.keys(manifest)) {
     const parsed2 = parseHostAgentPath(key);
@@ -21670,7 +21790,8 @@ var TEST_NOTICE_CODES = [
   "trace-mapping-stale",
   "files-unchecked",
   "files-truncated",
-  "test-integrity"
+  "test-integrity",
+  "test-waived"
 ];
 var TEST_BLOCKER_LABELS = {
   "test-catalog-missing": { zh: "\u76EE\u5F55\u7F3A\u5931", en: "No test catalog" },
@@ -21712,7 +21833,8 @@ var TEST_NOTICE_LABELS = {
   "trace-mapping-stale": { zh: "\u6620\u5C04\u5931\u6548", en: "Stale mapping" },
   "files-unchecked": { zh: "\u672A\u68C0\u67E5\u6587\u4EF6", en: "Files unchecked" },
   "files-truncated": { zh: "\u6587\u4EF6\u68C0\u67E5\u88AB\u622A\u65AD", en: "File check truncated" },
-  "test-integrity": { zh: "\u5B8C\u6574\u6027\u63D0\u793A", en: "Integrity notice" }
+  "test-integrity": { zh: "\u5B8C\u6574\u6027\u63D0\u793A", en: "Integrity notice" },
+  "test-waived": { zh: "\u5931\u8D25\u5DF2\u8C41\u514D", en: "Failure waived" }
 };
 function testBlocker(code, message, options3 = {}) {
   return {
@@ -22496,9 +22618,9 @@ var KEY_RE3 = /^([A-Za-z0-9_][A-Za-z0-9_.-]*):(?:[ ]+(.*))?$/;
 var FLOW_KEY_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/;
 var INT_RE = /^[-+]?\d+$/;
 var FLOAT_RE = /^[-+]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][-+]?\d+)?$/;
-function tokenize2(text11) {
+function tokenize2(text12) {
   const tokens = [];
-  const lines2 = text11.split("\n");
+  const lines2 = text12.split("\n");
   let sawContent = false;
   for (let index = 0; index < lines2.length; index++) {
     const line = (lines2[index] ?? "").replace(/\r$/, "");
@@ -22543,12 +22665,12 @@ function restIsComment(rest, line) {
     return;
   throw new YamlSubsetError(line, `\u503C\u540E\u9762\u6709\u591A\u4F59\u5185\u5BB9 '${rest.trim()}'`);
 }
-function readQuoted(text11, start, line) {
-  const quote = text11[start];
+function readQuoted(text12, start, line) {
+  const quote = text12[start];
   if (quote === '"') {
     let index2 = start + 1;
-    while (index2 < text11.length) {
-      const char = text11[index2];
+    while (index2 < text12.length) {
+      const char = text12[index2];
       if (char === "\\") {
         index2 += 2;
         continue;
@@ -22557,11 +22679,11 @@ function readQuoted(text11, start, line) {
         break;
       index2++;
     }
-    if (index2 >= text11.length)
+    if (index2 >= text12.length)
       throw new YamlSubsetError(line, "\u53CC\u5F15\u53F7\u6807\u91CF\u672A\u95ED\u5408\uFF08\u4E0D\u652F\u6301\u8DE8\u884C\uFF09");
     let value2;
     try {
-      value2 = JSON.parse(text11.slice(start, index2 + 1));
+      value2 = JSON.parse(text12.slice(start, index2 + 1));
     } catch {
       throw new YamlSubsetError(line, "\u53CC\u5F15\u53F7\u6807\u91CF\u542B\u975E\u6CD5\u8F6C\u4E49");
     }
@@ -22571,10 +22693,10 @@ function readQuoted(text11, start, line) {
   }
   let index = start + 1;
   let value = "";
-  while (index < text11.length) {
-    const char = text11[index];
+  while (index < text12.length) {
+    const char = text12[index];
     if (char === "'") {
-      if (text11[index + 1] === "'") {
+      if (text12[index + 1] === "'") {
         value += "'";
         index += 2;
         continue;
@@ -22590,8 +22712,8 @@ var FlowReader = class {
   text;
   line;
   index = 0;
-  constructor(text11, line) {
-    this.text = text11;
+  constructor(text12, line) {
+    this.text = text12;
     this.line = line;
   }
   skipSpace() {
@@ -22693,25 +22815,25 @@ var FlowReader = class {
   }
 };
 function parseInline(raw, line) {
-  const text11 = raw.trimStart();
-  const first = text11[0];
+  const text12 = raw.trimStart();
+  const first = text12[0];
   if (first === "[" || first === "{") {
-    const reader = new FlowReader(text11, line);
+    const reader = new FlowReader(text12, line);
     const node = reader.value(first === "[" ? "seq" : "map");
-    restIsComment(text11.slice(reader.index), line);
+    restIsComment(text12.slice(reader.index), line);
     return node;
   }
   if (first === '"' || first === "'") {
-    const quoted = readQuoted(text11, 0, line);
-    restIsComment(text11.slice(quoted.end), line);
+    const quoted = readQuoted(text12, 0, line);
+    restIsComment(text12.slice(quoted.end), line);
     return { kind: "scalar", line, value: quoted.value, quoted: true };
   }
   if (first === "|" || first === ">")
     throw new YamlSubsetError(line, "\u4E0D\u652F\u6301\u591A\u884C\u5757\u6807\u91CF\uFF1B\u547D\u4EE4\u4E0E\u8DEF\u5F84\u8BF7\u5199\u6210\u5355\u884C");
   if (first === "&" || first === "*" || first === "!")
     throw new YamlSubsetError(line, "\u4E0D\u652F\u6301\u951A\u70B9\u3001\u522B\u540D\u4E0E\u6807\u7B7E");
-  const comment = /\s#/.exec(text11);
-  const plain = (comment === null ? text11 : text11.slice(0, comment.index)).trim();
+  const comment = /\s#/.exec(text12);
+  const plain = (comment === null ? text12 : text12.slice(0, comment.index)).trim();
   if (plain.includes(": ") || plain.endsWith(":"))
     throw new YamlSubsetError(line, `\u503C '${plain}' \u542B ': '\uFF0C\u8BF7\u52A0\u5F15\u53F7`);
   return { kind: "scalar", line, value: resolvePlain(plain), quoted: false };
@@ -22823,16 +22945,16 @@ var BlockParser = class {
     return { kind: "seq", line, items };
   }
 };
-function parseYamlSubset(text11) {
-  return new BlockParser(tokenize2(text11)).document();
+function parseYamlSubset(text12) {
+  return new BlockParser(tokenize2(text12)).document();
 }
 
 // packages/kernel/dist/test-system/catalog.js
 var TEST_CATALOG_FILE_LABEL = "catalog.yaml";
-function parseTestCatalog(text11) {
+function parseTestCatalog(text12) {
   let root;
   try {
-    root = parseYamlSubset(text11);
+    root = parseYamlSubset(text12);
   } catch (error2) {
     if (error2 instanceof YamlSubsetError)
       return { ok: false, issues: [{ line: error2.line, message: error2.message.replace(/^第 \d+ 行：/, "") }] };
@@ -23136,10 +23258,10 @@ function decodeEntry(node, sink) {
     return sink.add(map.line, `\u5DF2\u77E5\u5931\u8D25 test '${test}' \u53EA\u6307\u5411\u6587\u4EF6\uFF1B\u5FC5\u987B\u6307\u5411\u5177\u4F53\u7528\u4F8B\uFF08<\u6587\u4EF6> \u203A <\u7528\u4F8B\u540D>\uFF09`);
   return { suite: suite2, test, reason: reason3, ...link4 === void 0 ? {} : { link: link4 }, expires, added_by: addedBy };
 }
-function parseKnownFailures(text11) {
+function parseKnownFailures(text12) {
   let root;
   try {
-    root = parseYamlSubset(text11);
+    root = parseYamlSubset(text12);
   } catch (error2) {
     if (error2 instanceof YamlSubsetError)
       return { ok: false, issues: [{ line: error2.line, message: error2.message.replace(/^第 \d+ 行：/, "") }] };
@@ -23424,6 +23546,87 @@ function evaluateSuiteResult(suite2, ref, context) {
     }
   }
   return { blockers, notices, failing, flaky: flaky2, benchmark: benchmark2 };
+}
+
+// packages/kernel/dist/test-system/step-test-waivers.js
+var WAIVER_REASON_MAX = 200;
+function approvalIsCurrent(waiver, failedCandidate, current) {
+  const approved = waiver.approved_candidate;
+  if (waiver.approved_by === null || approved === void 0)
+    return false;
+  return approved === failedCandidate || approved === current.candidate || approved === current.candidateAlt;
+}
+function stepTestWaiver(plan, testId, failedCandidate, current) {
+  const waiver = plan?.waivers.find((item2) => item2.test === testId);
+  return waiver === void 0 ? void 0 : { approved: approvalIsCurrent(waiver, failedCandidate, current), reason: waiver.reason };
+}
+var UNSAFE_DISPLAY_RANGES = [
+  [0, 31],
+  [127, 159],
+  [8234, 8238],
+  [8294, 8297]
+];
+function isUnsafeDisplayChar(char) {
+  const code = char.codePointAt(0) ?? 0;
+  return UNSAFE_DISPLAY_RANGES.some(([from, to]) => code >= from && code <= to);
+}
+function hasUnsafeDisplayChars(text12) {
+  return [...text12].some(isUnsafeDisplayChar);
+}
+function waiverReasonText(reason3) {
+  const folded = reason3.replace(/\s+/gu, " ");
+  const stripped = [...folded].filter((char) => !isUnsafeDisplayChar(char)).join("").replace(/ {2,}/gu, " ");
+  const safe = stripped.trim().replace(/`/gu, "\uFF40").replace(/</gu, "\uFF1C").replace(/>/gu, "\uFF1E");
+  const chars = [...safe];
+  return chars.length > WAIVER_REASON_MAX ? `${chars.slice(0, WAIVER_REASON_MAX).join("")}\u2026` : safe;
+}
+
+// packages/kernel/dist/test-system/evaluate-inline.js
+function evaluateInline(input2, plan, latest, freshness, reviewFix, out) {
+  const verdicts = [];
+  for (const item2 of input2.inline) {
+    const suite2 = item2.suite;
+    const base = { suite: suite2.id, origin: "step", kind: suite2.kind, ...suite2.label === void 0 ? {} : { label: suite2.label }, reason: "inline" };
+    const name = suite2.label === void 0 ? suite2.testId : `${suite2.label}\uFF08${suite2.testId}\uFF09`;
+    const fix = `tenon test run ${input2.change} ${suite2.testId}`;
+    const ref = latest.get(suite2.id);
+    let state = item2.status;
+    let detail = item2.detail;
+    let failedCandidate = item2.candidate;
+    if (ref !== void 0 && state !== "running") {
+      const stale = staleBindings(ref, freshness);
+      state = stale.length > 0 ? "stale" : ref.run.result === "pass" ? "passed" : "failed";
+      detail = stale.length > 0 ? stale.map((binding) => STALE_WORDS[binding]).join("\u3001") : ref.run.reasons.map((reason3) => reason3.code).join(", ");
+      failedCandidate = ref.record.bindings.candidate;
+    }
+    const waiver = suite2.required && state === "failed" ? stepTestWaiver(plan, suite2.testId, failedCandidate, freshness) : void 0;
+    const verdictState = waiver === void 0 ? state : waiver.approved ? "waived" : "waiver-pending";
+    verdicts.push({
+      ...base,
+      state: verdictState,
+      ...detail === void 0 || detail === "" ? {} : { detail },
+      ...waiver !== void 0 && typeof failedCandidate === "string" ? { failedCandidate } : {}
+    });
+    if (!suite2.required || state === "passed")
+      continue;
+    const suffix = detail === void 0 || detail === "" ? "" : `\uFF1A${detail}`;
+    if (waiver !== void 0) {
+      const failed2 = `\u6D4B\u8BD5 ${name} \u5931\u8D25${detail === void 0 || detail === "" ? "" : `\uFF08${detail}\uFF09`}`;
+      const subject2 = `test:${suite2.testId}`;
+      if (waiver.approved) {
+        out.notices.push(testNotice("test-waived", `${failed2}\uFF0C\u5DF2\u6309\u8BC4\u5BA1\u6279\u51C6\u7684\u8C41\u514D\u653E\u884C\uFF08\u7406\u7531\u4E3A\u767B\u8BB0\u8005\u81EA\u8FF0\u3001\u672A\u7ECF\u6838\u5B9E\uFF09\uFF1A${waiverReasonText(waiver.reason)}`, { subject: subject2 }));
+      } else
+        out.blockers.push(testBlocker("waiver-unapproved", `${failed2}\uFF0C\u8C41\u514D\u5C1A\u672A\u7ECF\u8BC4\u5BA1\u6279\u51C6`, { fix: reviewFix, subject: subject2 }));
+    } else if (state === "running")
+      out.blockers.push(testBlocker("test-not-run", `\u6D4B\u8BD5 ${name} \u8FD0\u884C\u4E2D`, { subject: suite2.id }));
+    else if (state === "missing")
+      out.blockers.push(testBlocker("test-not-run", `\u6D4B\u8BD5 ${name} \u672A\u8FD0\u884C`, { fix, subject: suite2.id }));
+    else if (state === "stale")
+      out.blockers.push(testBlocker("test-stale", `\u6D4B\u8BD5 ${name} \u8FC7\u671F${suffix}`, { fix, subject: suite2.id }));
+    else
+      out.blockers.push(testBlocker("test-failed", `\u6D4B\u8BD5 ${name} \u5931\u8D25${suffix}`, { fix, subject: suite2.id }));
+  }
+  return verdicts;
 }
 
 // packages/kernel/dist/test-system/evaluate-trace.js
@@ -23797,6 +24000,7 @@ function integritySummary(signals, lang = "zh") {
 // packages/kernel/dist/test-system/plan.js
 var TEST_PLAN_SCHEMA = "tenon-test-plan/v1";
 var CHANGE_RE = /^[A-Za-z0-9_-]{1,128}$/;
+var MAX_CANDIDATE_BYTES = 200;
 function decodeSuite(node, sink) {
   const map = asMap(node, sink, "\u8BA1\u5212\u5957\u4EF6");
   if (map === void 0)
@@ -23862,9 +24066,10 @@ function decodeWaiver(node, sink) {
   const map = asMap(node, sink, "\u8C41\u514D");
   if (map === void 0)
     return void 0;
-  checkKeys(map, ["kind", "covers", "reason", "approved_by"], sink, "\u8C41\u514D");
+  checkKeys(map, ["kind", "covers", "test", "reason", "approved_by", "approved_candidate"], sink, "\u8C41\u514D");
   const kind = oneOf(field(map, "kind"), sink, "\u8C41\u514D kind", isTestKind, TEST_KINDS);
   const covers = optionalStr(field(map, "covers"), sink, "\u8C41\u514D covers");
+  const testId = optionalStr(field(map, "test"), sink, "\u8C41\u514D test");
   const reason3 = str(field(map, "reason"), sink, "\u8C41\u514D reason", map.line, { maxBytes: 1e3 });
   const approvedNode = field(map, "approved_by");
   const approvedValue = approvedNode?.kind === "scalar" ? approvedNode.value : void 0;
@@ -23872,21 +24077,36 @@ function decodeWaiver(node, sink) {
     return sink.add(approvedNode.line, "\u8C41\u514D approved_by \u5FC5\u987B\u662F null \u6216\u6279\u51C6\u4EBA");
   }
   const approved = typeof approvedValue === "string" ? approvedValue : null;
+  const candidateNode = field(map, "approved_candidate");
+  const candidate2 = optionalStr(candidateNode, sink, "\u8C41\u514D approved_candidate", { maxBytes: MAX_CANDIDATE_BYTES });
+  if (candidateNode !== void 0 && candidate2 === void 0)
+    return void 0;
   if (reason3 === void 0)
     return void 0;
-  if (kind === void 0 === (covers === void 0))
-    return sink.add(map.line, "\u8C41\u514D\u5FC5\u987B\u6070\u597D\u5199 kind \u6216 covers \u4E4B\u4E00");
+  if ([kind, covers, testId].filter((value) => value !== void 0).length !== 1) {
+    return sink.add(map.line, "\u8C41\u514D\u5FC5\u987B\u6070\u597D\u5199 kind\u3001covers \u6216 test \u4E4B\u4E00");
+  }
   if (covers !== void 0 && parseCovers(covers) === void 0)
     return sink.add(map.line, `\u8C41\u514D covers '${covers}' \u975E\u6CD5`);
-  return kind !== void 0 ? { kind, reason: reason3, approved_by: approved } : { covers: covers ?? "", reason: reason3, approved_by: approved };
+  if (testId !== void 0 && !isStepTestId(testId))
+    return sink.add(map.line, `\u8C41\u514D test '${testId}' \u975E\u6CD5\uFF08\u6B65\u9AA4\u6D4B\u8BD5 id \u4EC5\u5141\u8BB8 a-zA-Z0-9_-\uFF0C1\u201364 \u5B57\u7B26\uFF09`);
+  if (candidate2 !== void 0) {
+    if (testId === void 0 || approved === null)
+      return sink.add(candidateNode?.line ?? map.line, "\u8C41\u514D approved_candidate \u53EA\u80FD\u5199\u5728\u5DF2\u6279\u51C6\u7684 test \u8C41\u514D\u4E0A");
+    if (!isWorkspaceBaseline(candidate2))
+      return sink.add(candidateNode?.line ?? map.line, `\u8C41\u514D approved_candidate '${candidate2}' \u975E\u6CD5\uFF08\u5E94\u662F\u5DE5\u4F5C\u533A\u6307\u7EB9 workspace:sha256:<64 \u4F4D\u5341\u516D\u8FDB\u5236>\uFF09`);
+  }
+  if (kind !== void 0)
+    return { kind, reason: reason3, approved_by: approved };
+  return testId !== void 0 ? { test: testId, reason: reason3, approved_by: approved, ...candidate2 === void 0 ? {} : { approved_candidate: candidate2 } } : { covers: covers ?? "", reason: reason3, approved_by: approved };
 }
 function decodeList(node, sink, what, decode3) {
   return (asSeq(node, sink, what) ?? []).map((item2) => decode3(item2, sink)).filter((item2) => item2 !== void 0);
 }
-function parseTestPlan(text11, expectedChange) {
+function parseTestPlan(text12, expectedChange) {
   let root;
   try {
-    root = parseYamlSubset(text11);
+    root = parseYamlSubset(text12);
   } catch (error2) {
     if (error2 instanceof YamlSubsetError)
       return { ok: false, issues: [{ line: error2.line, message: error2.message.replace(/^第 \d+ 行：/, "") }] };
@@ -23930,7 +24150,9 @@ function parseTestPlan(text11, expectedChange) {
   return { ok: true, plan };
 }
 function waiverKey(waiver) {
-  return waiver.kind !== void 0 ? `kind:${waiver.kind}` : `covers:${waiver.covers}`;
+  if (waiver.kind !== void 0)
+    return `kind:${waiver.kind}`;
+  return waiver.test !== void 0 ? `test:${waiver.test}` : `covers:${waiver.covers}`;
 }
 function byKey(items, key) {
   const map = /* @__PURE__ */ new Map();
@@ -23959,8 +24181,10 @@ function serializeTestPlan(plan) {
     waivers: normal.waivers.map((item2) => ({
       kind: item2.kind,
       covers: item2.covers,
+      test: item2.test,
       reason: item2.reason,
-      approved_by: item2.approved_by
+      approved_by: item2.approved_by,
+      approved_candidate: item2.approved_candidate
     }))
   });
 }
@@ -23991,33 +24215,40 @@ function planCatalogProblems(plan, catalog2) {
 }
 
 // packages/kernel/dist/test-system/plan-waivers.js
+function approvedAs(waiver, approver, candidate2) {
+  return waiver.test !== void 0 && candidate2 !== void 0 ? { ...waiver, approved_by: approver, approved_candidate: candidate2 } : { ...waiver, approved_by: approver };
+}
 function approveWaivers(plan, selection, approver) {
   const approved = [];
   const skipped = [];
-  const chosen = new Map(selection.map((item2) => [item2.key, item2.reason]));
+  const chosen = new Map(selection.map((item2) => [item2.key, item2]));
   const waivers = plan.waivers.map((waiver) => {
     const key = waiverKey(waiver);
-    const reason3 = chosen.get(key);
-    if (reason3 === void 0)
+    const item2 = chosen.get(key);
+    if (item2 === void 0)
       return waiver;
     chosen.delete(key);
-    if (waiver.approved_by !== null) {
+    const reapproval = waiver.test !== void 0 && item2.candidate !== void 0 && waiver.approved_candidate !== item2.candidate;
+    if (waiver.approved_by !== null && !reapproval) {
       skipped.push({ key, why: "already-approved" });
       return waiver;
     }
-    if (waiver.reason !== reason3) {
+    if (waiver.reason !== item2.reason) {
       skipped.push({ key, why: "reason-changed" });
       return waiver;
     }
     approved.push(key);
-    return { ...waiver, approved_by: approver };
+    return approvedAs(waiver, approver, item2.candidate);
   });
   for (const key of chosen.keys())
     skipped.push({ key, why: "missing" });
   return { plan: approved.length === 0 ? plan : { ...plan, waivers }, approved, skipped };
 }
 function testPlanApprovalFreeDigest(plan) {
-  return testPlanDigest({ ...plan, waivers: plan.waivers.map((waiver) => ({ ...waiver, approved_by: null })) });
+  return testPlanDigest({
+    ...plan,
+    waivers: plan.waivers.map((waiver) => ({ ...waiver, approved_by: null, approved_candidate: void 0 }))
+  });
 }
 
 // packages/kernel/dist/test-system/policy.js
@@ -24073,10 +24304,10 @@ import { promisify as promisify2 } from "node:util";
 import { lstat as lstat26, readFile as readFile28 } from "node:fs/promises";
 import { join as join40 } from "node:path";
 function headerPath(raw) {
-  const text11 = raw.replace(/\t.*$/, "");
-  if (text11 === "/dev/null")
+  const text12 = raw.replace(/\t.*$/, "");
+  if (text12 === "/dev/null")
     return void 0;
-  return text11.startsWith("a/") || text11.startsWith("b/") ? text11.slice(2) : text11;
+  return text12.startsWith("a/") || text12.startsWith("b/") ? text12.slice(2) : text12;
 }
 function parseFileLineDiffs(diff) {
   const out = /* @__PURE__ */ new Map();
@@ -24126,10 +24357,10 @@ async function untrackedLines(path14) {
     const entry2 = await lstat26(path14);
     if (!entry2.isFile() || entry2.size > MAX_UNTRACKED_BYTES)
       return [];
-    const text11 = await readFile28(path14, "utf8");
-    if (text11 === "")
+    const text12 = await readFile28(path14, "utf8");
+    if (text12 === "")
       return [];
-    return (text11.endsWith("\n") ? text11.slice(0, -1) : text11).split("\n");
+    return (text12.endsWith("\n") ? text12.slice(0, -1) : text12).split("\n");
   } catch {
     return [];
   }
@@ -24154,7 +24385,7 @@ async function readFileDiffs(port, repoRoot, start, accept, limit) {
   const tracked = picked.filter((entry2) => statuses.has(entry2.path)).map((entry2) => entry2.path);
   const lines2 = /* @__PURE__ */ new Map();
   for (let from = 0; from < tracked.length; from += DIFF_CHUNK) {
-    const text11 = await port.gitText([
+    const text12 = await port.gitText([
       "-c",
       "core.quotePath=false",
       "diff",
@@ -24166,9 +24397,9 @@ async function readFileDiffs(port, repoRoot, start, accept, limit) {
       "--",
       ...tracked.slice(from, from + DIFF_CHUNK)
     ]);
-    if (text11 === void 0)
+    if (text12 === void 0)
       throw port.fail("git diff \u5931\u8D25");
-    for (const [path14, diff] of parseFileLineDiffs(text11))
+    for (const [path14, diff] of parseFileLineDiffs(text12))
       lines2.set(path14, diff);
   }
   const files = [];
@@ -24437,10 +24668,10 @@ async function lineCount(path14) {
     const entry2 = await lstat27(path14);
     if (!entry2.isFile() || entry2.size > MAX_UNTRACKED_BYTES2)
       return 0;
-    const text11 = await readFile29(path14, "utf8");
-    if (text11 === "")
+    const text12 = await readFile29(path14, "utf8");
+    if (text12 === "")
       return 0;
-    return text11.endsWith("\n") ? text11.split("\n").length - 1 : text11.split("\n").length;
+    return text12.endsWith("\n") ? text12.split("\n").length - 1 : text12.split("\n").length;
   } catch {
     return 0;
   }
@@ -24911,36 +25142,6 @@ function evaluateRunSet(input2, entries2, latest, freshness, plan, chainBroken, 
   }
   return { verdicts, fresh };
 }
-function evaluateInline(input2, latest, freshness, out) {
-  const verdicts = [];
-  for (const item2 of input2.inline) {
-    const suite2 = item2.suite;
-    const base = { suite: suite2.id, origin: "step", kind: suite2.kind, ...suite2.label === void 0 ? {} : { label: suite2.label }, reason: "inline" };
-    const name = suite2.label === void 0 ? suite2.testId : `${suite2.label}\uFF08${suite2.testId}\uFF09`;
-    const fix = `tenon test run ${input2.change} ${suite2.testId}`;
-    const ref = latest.get(suite2.id);
-    let state = item2.status;
-    let detail = item2.detail;
-    if (ref !== void 0 && state !== "running") {
-      const stale = staleBindings(ref, freshness);
-      state = stale.length > 0 ? "stale" : ref.run.result === "pass" ? "passed" : "failed";
-      detail = stale.length > 0 ? stale.map((binding) => STALE_WORDS[binding]).join("\u3001") : ref.run.reasons.map((reason3) => reason3.code).join(", ");
-    }
-    verdicts.push({ ...base, state, ...detail === void 0 || detail === "" ? {} : { detail } });
-    if (!suite2.required || state === "passed")
-      continue;
-    const suffix = detail === void 0 || detail === "" ? "" : `\uFF1A${detail}`;
-    if (state === "running")
-      out.blockers.push(testBlocker("test-not-run", `\u6D4B\u8BD5 ${name} \u8FD0\u884C\u4E2D`, { subject: suite2.id }));
-    else if (state === "missing")
-      out.blockers.push(testBlocker("test-not-run", `\u6D4B\u8BD5 ${name} \u672A\u8FD0\u884C`, { fix, subject: suite2.id }));
-    else if (state === "stale")
-      out.blockers.push(testBlocker("test-stale", `\u6D4B\u8BD5 ${name} \u8FC7\u671F${suffix}`, { fix, subject: suite2.id }));
-    else
-      out.blockers.push(testBlocker("test-failed", `\u6D4B\u8BD5 ${name} \u5931\u8D25${suffix}`, { fix, subject: suite2.id }));
-  }
-  return verdicts;
-}
 function checkAggregates(input2, plan, fresh, out) {
   const stageFix = `tenon test run ${input2.change} --stage`;
   const flaky2 = input2.policy.flaky;
@@ -25052,7 +25253,7 @@ function evaluateTestPolicy(input2) {
   };
   const entries2 = runSet(input2, plan);
   const evaluated = evaluateRunSet(input2, entries2, latest, freshness, plan, chainBroken, out);
-  const inline = evaluateInline(input2, latest, freshness, out);
+  const inline = evaluateInline(input2, plan, latest, freshness, reviewFix, out);
   checkAggregates(input2, plan, evaluated.fresh, out);
   const integrity = checkIntegrity(input2, records, out);
   let trace = [];
@@ -25363,13 +25564,13 @@ async function readOptional(path14) {
   }
 }
 async function readTestPlanState(changeDir2, changeName) {
-  const [text11, ledgerText] = await Promise.all([
+  const [text12, ledgerText] = await Promise.all([
     readOptional(testPlanPath(changeDir2)),
     readOptional(testPlanLedgerPath(changeDir2))
   ]);
-  if (text11 === void 0 && ledgerText === void 0)
+  if (text12 === void 0 && ledgerText === void 0)
     return { state: "missing" };
-  if (text11 === void 0)
+  if (text12 === void 0)
     return { state: "tampered", reason: "\u8BA1\u5212\u6587\u4EF6\u88AB\u5220\u9664\uFF0C\u53F0\u8D26\u4ECD\u5728" };
   if (ledgerText === void 0)
     return { state: "tampered", reason: "\u8BA1\u5212\u6587\u4EF6\u4E0D\u662F\u7531 tenon test \u5199\u5165\uFF08\u6CA1\u6709\u6458\u8981\u53F0\u8D26\uFF09" };
@@ -25382,10 +25583,10 @@ async function readTestPlanState(changeDir2, changeName) {
   const ledger = decodeTestPlanLedger(parsed2);
   if (ledger === void 0)
     return { state: "tampered", reason: "\u8BA1\u5212\u6458\u8981\u53F0\u8D26\u635F\u574F" };
-  const digest18 = testPlanBytesDigest(text11);
+  const digest18 = testPlanBytesDigest(text12);
   if (digest18 !== ledger.digest)
     return { state: "tampered", reason: "\u8BA1\u5212\u6587\u4EF6\u5185\u5BB9\u4E0E\u767B\u8BB0\u6458\u8981\u4E0D\u7B26\uFF08\u88AB\u624B\u5DE5\u6539\u52A8\uFF09" };
-  const result2 = parseTestPlan(text11, changeName);
+  const result2 = parseTestPlan(text12, changeName);
   if (!result2.ok) {
     const first = result2.issues[0];
     return { state: "tampered", reason: `\u8BA1\u5212\u6587\u4EF6\u65E0\u6CD5\u89E3\u6790${first === void 0 ? "" : `\uFF1A\u7B2C ${first.line} \u884C ${first.message}`}` };
@@ -25900,14 +26101,14 @@ async function readRecordFile(path14) {
   }
 }
 async function readChainBase(dir) {
-  let text11;
+  let text12;
   try {
-    text11 = await readFile34(join44(dir, CHAIN_BASE_FILE), "utf8");
+    text12 = await readFile34(join44(dir, CHAIN_BASE_FILE), "utf8");
   } catch (error2) {
     return error2.code === "ENOENT" ? void 0 : "problem";
   }
   try {
-    const value = JSON.parse(text11);
+    const value = JSON.parse(text12);
     if (typeof value !== "object" || value === null || Array.isArray(value))
       return "problem";
     const record11 = Object.fromEntries(Object.entries(value));
@@ -26047,27 +26248,27 @@ async function readBounded(path14) {
 }
 async function loadCatalogInput(repoRoot) {
   const path14 = testSystemPaths(repoRoot).catalog;
-  let text11;
+  let text12;
   try {
     const entry2 = await lstat32(path14);
     if (!entry2.isFile())
       return { state: "invalid", issues: ["catalog.yaml \u4E0D\u662F\u666E\u901A\u6587\u4EF6"] };
     if (entry2.size > MAX_TEXT_BYTES)
       return { state: "invalid", issues: ["catalog.yaml \u8D85\u8FC7 1 MiB"] };
-    text11 = await readFile35(path14, "utf8");
+    text12 = await readFile35(path14, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT")
       return { state: "missing" };
     return { state: "invalid", issues: [`catalog.yaml \u65E0\u6CD5\u8BFB\u53D6\uFF1A${error2.message}`] };
   }
-  const result2 = parseTestCatalog(text11);
+  const result2 = parseTestCatalog(text12);
   return result2.ok ? { state: "ok", catalog: result2.catalog } : { state: "invalid", issues: formatCatalogIssues(result2.issues) };
 }
 async function loadKnownFailures(repoRoot) {
-  const text11 = await readBounded(testSystemPaths(repoRoot).knownFailures);
-  if (text11 === void 0)
+  const text12 = await readBounded(testSystemPaths(repoRoot).knownFailures);
+  if (text12 === void 0)
     return [];
-  const result2 = parseKnownFailures(text11);
+  const result2 = parseKnownFailures(text12);
   return result2.ok ? result2.entries : [];
 }
 async function loadDeltaScenarios(changeDir2) {
@@ -26079,15 +26280,15 @@ async function loadDeltaScenarios(changeDir2) {
   }
   const out = [];
   for (const capability of names) {
-    const text11 = await readBounded(join45(changeDir2, "specs", capability, "spec.md"));
-    if (text11 !== void 0)
-      out.push(...extractScenarios(capability, text11));
+    const text12 = await readBounded(join45(changeDir2, "specs", capability, "spec.md"));
+    if (text12 !== void 0)
+      out.push(...extractScenarios(capability, text12));
   }
   return out;
 }
 async function loadTaskItems(changeDir2, stages) {
-  const text11 = await readBounded(join45(changeDir2, "tasks.md"));
-  return text11 === void 0 ? [] : extractTaskItems(text11, stages);
+  const text12 = await readBounded(join45(changeDir2, "tasks.md"));
+  return text12 === void 0 ? [] : extractTaskItems(text12, stages);
 }
 async function loadBaselines(repoRoot, catalog2, chain) {
   const out = /* @__PURE__ */ new Map();
@@ -26229,10 +26430,10 @@ function catalogDeclaredOutputs(catalog2) {
   }
   return [...out].sort();
 }
-function inlineOutputsOfSnapshot(text11) {
+function inlineOutputsOfSnapshot(text12) {
   let value;
   try {
-    value = JSON.parse(text11);
+    value = JSON.parse(text12);
   } catch {
     return [];
   }
@@ -26516,12 +26717,25 @@ async function evaluateTestEvidence(input2) {
       ...event === void 0 ? {} : { exitEvent: event }
     });
     const blockerDetails2 = report.blockers.filter((item2) => item2.blocking).map(policyBlockerDetail);
-    return { stepId: input2.stepId, pass: report.pass, blockers: renderPolicyBlockers(report), blockerDetails: blockerDetails2, items, policy: report };
+    return {
+      stepId: input2.stepId,
+      pass: report.pass,
+      blockers: renderPolicyBlockers(report),
+      blockerDetails: blockerDetails2,
+      items: items.map((item2) => withWaiver(item2, report)),
+      policy: report
+    };
   }
   const open9 = items.filter((item2) => item2.test.required && item2.status !== "passed");
   const blockers = open9.map((item2) => blockerFor2(item2, input2.changeName));
   const blockerDetails = open9.map((item2) => item2.status === "passed" ? void 0 : { subject: item2.test.label ?? item2.test.id, state: item2.status });
   return { stepId: input2.stepId, pass: blockers.length === 0, blockers, blockerDetails, items };
+}
+function withWaiver(item2, report) {
+  const verdict = report.suites.find((suite2) => suite2.origin === "step" && suite2.suite === inlineSuiteId(item2.test.id));
+  if (verdict?.state !== "waived" && verdict?.state !== "waiver-pending")
+    return item2;
+  return { ...item2, waiver: verdict.state, ...verdict.failedCandidate === void 0 ? {} : { failedCandidate: verdict.failedCandidate } };
 }
 function policyBlockerDetail(blocker3) {
   if (blocker3.code === "test-integrity")
@@ -26533,8 +26747,12 @@ function policyBlockerDetail(blocker3) {
 function inlineDetail(item2) {
   if (item2.status === "stale")
     return { detail: staleWord(item2.staleBecause) };
-  if (item2.status === "failed")
-    return { detail: (item2.run?.reasons ?? []).map((reason3) => reason3.code).join(", ") };
+  if (item2.status === "failed") {
+    return {
+      detail: (item2.run?.reasons ?? []).map((reason3) => reason3.code).join(", "),
+      ...item2.run === void 0 ? {} : { candidate: item2.run.candidate }
+    };
+  }
   return {};
 }
 
@@ -26567,15 +26785,15 @@ function emptyCatalog() {
   return { schema: TEST_CATALOG_SCHEMA, profiles_env: [], suites: [], services: [] };
 }
 async function readCatalogFile(repoRoot) {
-  let text11;
+  let text12;
   try {
-    text11 = await readFile38(testSystemPaths(repoRoot).catalog, "utf8");
+    text12 = await readFile38(testSystemPaths(repoRoot).catalog, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT")
       return { state: "missing" };
     throw error2;
   }
-  const parsed2 = parseTestCatalog(text11);
+  const parsed2 = parseTestCatalog(text12);
   return parsed2.ok ? { state: "ok", catalog: parsed2.catalog } : { state: "invalid", issues: formatCatalogIssues(parsed2.issues) };
 }
 async function updateCatalog(repoRoot, mutate, observe) {
@@ -26592,11 +26810,11 @@ async function updateCatalog(repoRoot, mutate, observe) {
       return { ok: false, message: result2 };
     if (result2.catalog === base)
       return { ok: true, value: result2.value };
-    const text11 = serializeTestCatalog(result2.catalog);
-    const check = parseTestCatalog(text11);
+    const text12 = serializeTestCatalog(result2.catalog);
+    const check = parseTestCatalog(text12);
     if (!check.ok)
       return { ok: false, message: `\u6539\u52A8\u540E\u7684\u76EE\u5F55\u4E0D\u5408\u6CD5\uFF1A${formatCatalogIssues(check.issues).slice(0, 3).join("\uFF1B")}` };
-    await atomicReplaceFile(paths.catalog, text11);
+    await atomicReplaceFile(paths.catalog, text12);
     return { ok: true, value: result2.value };
   });
 }
@@ -26604,10 +26822,113 @@ async function updateCatalog(repoRoot, mutate, observe) {
 // packages/kernel/dist/test-system/review-waivers.js
 import { rm as rm11 } from "node:fs/promises";
 import { join as join48 } from "node:path";
+
+// packages/kernel/dist/test-system/review-residual.js
+var RESIDUAL_KEY_PREFIX = "reviewer:";
+var MAX_ACCEPTED_RESIDUALS = 20;
+var RESIDUAL_SUMMARY_MAX = 5;
+var CANDIDATE_RE = /^(?:sha256:|workspace:sha256:)[0-9a-f]{64}$|^git:[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
+var RUN_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+var SUMMARY_LINE_MAX = 400;
+function residualAgent(key) {
+  if (!key.startsWith(RESIDUAL_KEY_PREFIX))
+    return void 0;
+  const agent = key.slice(RESIDUAL_KEY_PREFIX.length);
+  return AGENT_NAME_RE.test(agent) ? agent : void 0;
+}
+function text7(value) {
+  return typeof value === "string" && value !== "" ? value : void 0;
+}
+function isObject2(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function sameKeys(item2, expected) {
+  return Object.keys(item2).sort().join(",") === expected;
+}
+function decodeBinding(item2) {
+  const key = text7(item2.key);
+  const runId = text7(item2.runId);
+  const candidate2 = text7(item2.candidate);
+  if (key === void 0 || residualAgent(key) === void 0)
+    return void 0;
+  if (runId === void 0 || !RUN_ID_RE.test(runId))
+    return void 0;
+  if (candidate2 === void 0 || !CANDIDATE_RE.test(candidate2))
+    return void 0;
+  if (typeof item2.findings !== "number" || !Number.isInteger(item2.findings) || item2.findings < 1)
+    return void 0;
+  return { key, runId, candidate: candidate2, findings: item2.findings };
+}
+function decodeResidual(value) {
+  if (!Array.isArray(value))
+    return void 0;
+  const out = [];
+  for (const raw of value) {
+    if (!isObject2(raw) || !sameKeys(raw, "candidate,findings,key,runId,summary"))
+      return void 0;
+    const binding = decodeBinding(raw);
+    const summary2 = raw.summary;
+    if (binding === void 0 || !Array.isArray(summary2) || summary2.length > RESIDUAL_SUMMARY_MAX)
+      return void 0;
+    const lines2 = [];
+    for (const line of summary2) {
+      if (typeof line !== "string" || line === "" || line.length > SUMMARY_LINE_MAX || hasUnsafeDisplayChars(line))
+        return void 0;
+      lines2.push(line);
+    }
+    out.push({ ...binding, summary: lines2 });
+  }
+  return out;
+}
+function decodeAccepted(value) {
+  if (!Array.isArray(value) || value.length > MAX_ACCEPTED_RESIDUALS)
+    return void 0;
+  const out = [];
+  for (const raw of value) {
+    if (!isObject2(raw) || !sameKeys(raw, "acceptedAt,acceptedBy,candidate,findings,key,runId"))
+      return void 0;
+    const binding = decodeBinding(raw);
+    const acceptedBy = text7(raw.acceptedBy);
+    const acceptedAt = text7(raw.acceptedAt);
+    if (binding === void 0 || acceptedBy === void 0 || acceptedAt === void 0)
+      return void 0;
+    if (hasUnsafeDisplayChars(acceptedBy) || hasUnsafeDisplayChars(acceptedAt))
+      return void 0;
+    out.push({ ...binding, acceptedBy, acceptedAt });
+  }
+  return out;
+}
+function acceptFrozenResiduals(input2) {
+  const records = input2.frozen.map((item2) => ({
+    key: item2.key,
+    runId: item2.runId,
+    candidate: item2.candidate,
+    findings: item2.findings,
+    acceptedBy: input2.acceptedBy,
+    acceptedAt: input2.acceptedAt
+  }));
+  const kept = (input2.existing ?? []).filter((old) => !records.some((item2) => item2.key === old.key));
+  return {
+    added: records.map((record11, index) => ({ ...record11, summary: input2.frozen[index]?.summary ?? [] })),
+    all: [...kept, ...records].slice(-MAX_ACCEPTED_RESIDUALS)
+  };
+}
+
+// packages/kernel/dist/test-system/review-waivers.js
 var REVIEW_WAIVERS_FILE = ".pipeline-review-waivers.json";
 var MAX_REVIEW_WAIVERS_BYTES = 64 * 1024;
-var KEY_RE4 = /^(kind|covers|not-applicable):\S.*$/;
-function text7(value) {
+var KEY_RE4 = /^(kind|covers|test|not-applicable):\S.*$/;
+var SELECTION_KEYS = /* @__PURE__ */ new Set([
+  "accepted",
+  "event",
+  "phase",
+  "protected",
+  "requestedAt",
+  "residual",
+  "version",
+  "waivers"
+]);
+function text8(value) {
   return typeof value === "string" && value !== "" ? value : void 0;
 }
 var STATUSES3 = /* @__PURE__ */ new Set(["added", "modified", "deleted"]);
@@ -26621,8 +26942,8 @@ function decodeProtected(value) {
     const item2 = raw;
     if (Object.keys(item2).sort().join(",") !== "digest,kind,origin,path,status")
       return void 0;
-    const path14 = text7(item2.path);
-    const digest18 = text7(item2.digest);
+    const path14 = text8(item2.path);
+    const digest18 = text8(item2.digest);
     const kind = path14 === void 0 ? void 0 : protectedKindOf(path14);
     if (path14 === void 0 || digest18 === void 0 || kind === void 0 || kind !== item2.kind)
       return void 0;
@@ -26638,29 +26959,60 @@ function decodeSelection(value) {
   if (typeof value !== "object" || value === null || Array.isArray(value))
     return void 0;
   const record11 = value;
-  const keys2 = Object.keys(record11).sort().join(",");
-  if (keys2 !== "event,phase,requestedAt,version,waivers" && keys2 !== "event,phase,protected,requestedAt,version,waivers" || record11.version !== 1)
+  const keys2 = Object.keys(record11);
+  if (!["event", "phase", "requestedAt", "version", "waivers"].every((key) => keys2.includes(key)))
+    return void 0;
+  if (keys2.some((key) => !SELECTION_KEYS.has(key)) || record11.version !== 1)
     return void 0;
   const frozen = record11.protected === void 0 ? [] : decodeProtected(record11.protected);
-  if (frozen === void 0)
+  const residual = record11.residual === void 0 ? [] : decodeResidual(record11.residual);
+  const accepted = record11.accepted === void 0 ? [] : decodeAccepted(record11.accepted);
+  if (frozen === void 0 || residual === void 0 || accepted === void 0)
     return void 0;
-  const phase = text7(record11.phase);
-  const event = text7(record11.event);
-  const requestedAt = text7(record11.requestedAt);
+  const phase = text8(record11.phase);
+  const event = text8(record11.event);
+  const requestedAt = text8(record11.requestedAt);
   if (phase === void 0 || event === void 0 || requestedAt === void 0 || !Array.isArray(record11.waivers))
     return void 0;
   const waivers = [];
   for (const raw of record11.waivers) {
-    if (typeof raw !== "object" || raw === null || Array.isArray(raw))
+    const waiver = decodeWaiver2(raw);
+    if (waiver === void 0)
       return void 0;
-    const item2 = raw;
-    const key = text7(item2.key);
-    const reason3 = text7(item2.reason);
-    if (Object.keys(item2).length !== 2 || key === void 0 || reason3 === void 0 || !KEY_RE4.test(key))
-      return void 0;
-    waivers.push({ key, reason: reason3 });
+    waivers.push(waiver);
   }
-  return { version: 1, phase, event, requestedAt, waivers, ...frozen.length === 0 ? {} : { protected: frozen } };
+  return {
+    version: 1,
+    phase,
+    event,
+    requestedAt,
+    waivers,
+    ...frozen.length === 0 ? {} : { protected: frozen },
+    ...residual.length === 0 ? {} : { residual },
+    ...accepted.length === 0 ? {} : { accepted }
+  };
+}
+function decodeWaiver2(raw) {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw))
+    return void 0;
+  const item2 = raw;
+  const key = text8(item2.key);
+  const reason3 = text8(item2.reason);
+  if (key === void 0 || reason3 === void 0 || !KEY_RE4.test(key))
+    return void 0;
+  const names = Object.keys(item2).sort().join(",");
+  if (names === "key,reason")
+    return { key, reason: reason3 };
+  const candidate2 = text8(item2.candidate);
+  if (names !== "candidate,key,reason" || !key.startsWith("test:") || candidate2 === void 0 || !isWorkspaceBaseline(candidate2))
+    return void 0;
+  return { key, reason: reason3, candidate: candidate2 };
+}
+async function writeReviewWaiverSelection(changeDir2, selection) {
+  const accepted = selection.accepted ?? (await readReviewWaiverSelection(changeDir2))?.accepted;
+  const body2 = { version: 1, ...selection, ...accepted === void 0 ? {} : { accepted } };
+  await atomicReplaceFile(join48(changeDir2, REVIEW_WAIVERS_FILE), `${JSON.stringify(body2)}
+`);
 }
 async function readReviewWaiverSelection(changeDir2) {
   let raw;
@@ -26678,7 +27030,14 @@ async function readReviewWaiverSelection(changeDir2) {
   }
 }
 async function clearReviewWaiverSelection(changeDir2) {
-  await rm11(join48(changeDir2, REVIEW_WAIVERS_FILE), { force: true });
+  const current = await readReviewWaiverSelection(changeDir2);
+  if (current?.accepted === void 0) {
+    await rm11(join48(changeDir2, REVIEW_WAIVERS_FILE), { force: true });
+    return;
+  }
+  const { phase, event, requestedAt, accepted } = current;
+  await atomicReplaceFile(join48(changeDir2, REVIEW_WAIVERS_FILE), `${JSON.stringify({ version: 1, phase, event, requestedAt, waivers: [], accepted })}
+`);
 }
 function scalar8(state, field5) {
   const value = state.fields[field5];
@@ -26686,7 +27045,7 @@ function scalar8(state, field5) {
 }
 async function boundReviewWaiverSelection(changeDir2, state) {
   const selection = await readReviewWaiverSelection(changeDir2);
-  if (selection === void 0 || selection.waivers.length === 0 && (selection.protected ?? []).length === 0) {
+  if (selection === void 0 || selection.waivers.length === 0 && (selection.protected ?? []).length === 0 && (selection.residual ?? []).length === 0) {
     return { selection: void 0, unbound: false };
   }
   const bound = selection.phase === scalar8(state, "review_gate_phase") && selection.event === reviewGateEvent(state) && selection.requestedAt === scalar8(state, "review_requested_at");
@@ -26809,7 +27168,37 @@ async function approveFrozenWaivers(input2) {
     recordedAt: input2.recordedAt,
     matched: ownCatalogWrite ? [...checked.matched, catalogWrite] : checked.matched
   });
-  return { approved, skipped, digest: digest18, note, protectedApproved, protectedSkipped: checked.skipped };
+  const residualAccepted = input2.acceptResidual === false ? [] : await acceptResidual(input2, selection);
+  return {
+    approved,
+    skipped,
+    digest: digest18,
+    note,
+    protectedApproved,
+    protectedSkipped: checked.skipped,
+    ...residualAccepted.length === 0 ? {} : { residualAccepted }
+  };
+}
+async function acceptResidual(input2, selection) {
+  const frozen = selection.residual ?? [];
+  if (frozen.length === 0)
+    return [];
+  const { added, all } = acceptFrozenResiduals({
+    frozen,
+    existing: selection.accepted,
+    acceptedBy: input2.actor.id,
+    acceptedAt: input2.recordedAt
+  });
+  await writeReviewWaiverSelection(input2.dir, {
+    phase: selection.phase,
+    event: selection.event,
+    requestedAt: selection.requestedAt,
+    waivers: selection.waivers,
+    ...selection.protected === void 0 ? {} : { protected: selection.protected },
+    residual: frozen,
+    accepted: all
+  });
+  return added;
 }
 
 // packages/kernel/dist/ci-verify/rules.js
@@ -27027,54 +27416,54 @@ function stripPrivateKeys(input2, counts) {
   return input2.replace(PRIVATE_KEY, mask).replace(PRIVATE_KEY_TRUNCATED, mask);
 }
 function redactLineCredentials(input2, counts) {
-  let text11 = input2.replace(COOKIE_HEADER, (whole, head) => {
+  let text12 = input2.replace(COOKIE_HEADER, (whole, head) => {
     if (whole.slice(head.length).trim().startsWith(MARK))
       return whole;
     counts.cookie += 1;
     return `${head} ${MARK}:cookie]`;
   });
-  text11 = text11.replace(AUTH_HEADER, (whole, head) => {
+  text12 = text12.replace(AUTH_HEADER, (whole, head) => {
     if (whole.slice(head.length).trim().startsWith(MARK))
       return whole;
     counts.token += 1;
     return `${head} ${MARK}:token]`;
   });
-  text11 = text11.replace(URL_CREDENTIALS, (_whole, scheme) => {
+  text12 = text12.replace(URL_CREDENTIALS, (_whole, scheme) => {
     counts["credential-url"] += 1;
     return `${scheme}${MARK}:credentials]@`;
   });
-  text11 = text11.replace(KEY_VALUE, (whole, key, sep20, value) => {
+  text12 = text12.replace(KEY_VALUE, (whole, key, sep20, value) => {
     if (alreadyMarked(value) || isHarmless(value))
       return whole;
     const cookie = /cookie|session/iu.test(key);
     counts[cookie ? "cookie" : "token"] += 1;
     return `${key}${sep20}${maskValue(value, cookie ? "cookie" : "token")}`;
   });
-  text11 = text11.replace(CLI_FLAG, (whole, flag2, sep20, value) => {
+  text12 = text12.replace(CLI_FLAG, (whole, flag2, sep20, value) => {
     if (alreadyMarked(value) || isHarmless(value))
       return whole;
     counts.token += 1;
     return `${flag2}${sep20}${maskValue(value, "token")}`;
   });
-  text11 = text11.replace(QUERY_CODE, (whole, head, value) => {
+  text12 = text12.replace(QUERY_CODE, (whole, head, value) => {
     if (alreadyMarked(value))
       return whole;
     counts.token += 1;
     return `${head}${MARK}:token]`;
   });
-  text11 = text11.replace(BEARER, (whole, scheme, gap) => {
+  text12 = text12.replace(BEARER, (whole, scheme, gap) => {
     if (whole.includes(MARK))
       return whole;
     counts.token += 1;
     return `${scheme}${gap}${MARK}:token]`;
   });
   for (const pattern of [JWT, KNOWN_TOKEN]) {
-    text11 = text11.replace(pattern, () => {
+    text12 = text12.replace(pattern, () => {
       counts.token += 1;
       return `${MARK}:token]`;
     });
   }
-  return text11;
+  return text12;
 }
 function clampLine(line) {
   return line.length > MAX_REDACTED_LINE_CHARS ? `${line.slice(0, MAX_REDACTED_LINE_CHARS)}\u2026[line truncated]` : line;
@@ -27084,8 +27473,8 @@ function perLine(input2, apply2) {
 }
 function redactCredentials(input2) {
   const counts = emptyCounts();
-  const text11 = perLine(stripPrivateKeys(input2, counts), (line) => redactLineCredentials(line, counts));
-  return { text: text11, counts };
+  const text12 = perLine(stripPrivateKeys(input2, counts), (line) => redactLineCredentials(line, counts));
+  return { text: text12, counts };
 }
 var NO_REDACTIONS = Object.freeze(emptyCounts());
 
@@ -27252,10 +27641,10 @@ function entryOf(value) {
     return null;
   return { archivedAt: record11.archived_at, phase: record11.phase, actor: actor3 };
 }
-function archiveOf(text11) {
+function archiveOf(text12) {
   let value;
   try {
-    value = JSON.parse(text11);
+    value = JSON.parse(text12);
   } catch {
     return null;
   }
@@ -27296,16 +27685,16 @@ function serializeTaskArchive(archive) {
 }
 async function readTaskArchiveOf(repoRoot, slug) {
   const path14 = userProjectPaths(repoRoot, slug).archived;
-  let text11;
+  let text12;
   try {
     const item2 = await lstat35(path14);
     if (!item2.isFile() || item2.size > MAX_ARCHIVE_BYTES)
       return { kind: "corrupt", path: path14 };
-    text11 = await readFile39(path14, "utf8");
+    text12 = await readFile39(path14, "utf8");
   } catch {
     return { kind: "ok", archive: EMPTY_TASK_ARCHIVE };
   }
-  const archive = archiveOf(text11);
+  const archive = archiveOf(text12);
   return archive === null ? { kind: "corrupt", path: path14 } : { kind: "ok", archive: await pruneMissing(repoRoot, archive) };
 }
 async function withTaskArchiveLock(repoRoot, slug, fn) {
@@ -27314,16 +27703,16 @@ async function withTaskArchiveLock(repoRoot, slug, fn) {
 }
 async function writeTaskArchiveOf(repoRoot, slug, archive) {
   const path14 = userProjectPaths(repoRoot, slug).archived;
-  const text11 = serializeTaskArchive(archive);
+  const text12 = serializeTaskArchive(archive);
   let current = null;
   try {
     current = await readFile39(path14, "utf8");
   } catch {
     current = null;
   }
-  if (current === text11)
+  if (current === text12)
     return false;
-  await writeUserLocalFile(path14, text11);
+  await writeUserLocalFile(path14, text12);
   return true;
 }
 async function updateTaskArchiveOf(repoRoot, slug, edit) {
@@ -27515,9 +27904,9 @@ async function checkoutSlugs(repoRoot) {
   }
   return slugs;
 }
-function bindsChange(text11, change) {
+function bindsChange(text12, change) {
   try {
-    const value = JSON.parse(text11);
+    const value = JSON.parse(text12);
     if (typeof value !== "object" || value === null || Array.isArray(value))
       return false;
     const record11 = value;
@@ -27538,12 +27927,19 @@ async function removeSessionBindings(repoRoot, change) {
   for (const entry2 of entries2) {
     if (!entry2.isFile() || !entry2.name.endsWith(".json"))
       continue;
-    const text11 = await readPointer(join51(dir, entry2.name));
-    if (text11 === null || !bindsChange(text11, change))
+    const text12 = await readPointer(join51(dir, entry2.name));
+    if (text12 === null || !bindsChange(text12, change))
       continue;
     const rel = await removeInside(repoRoot, join51(dir, entry2.name));
-    if (rel !== null)
-      removed.push(rel);
+    if (rel === null)
+      continue;
+    removed.push(rel);
+    const markerName = `${INTERACTION_MARKER_SESSION_PREFIX}${entry2.name.slice(0, -".json".length)}`;
+    if (interactionSessionMarkerId(markerName) === void 0)
+      continue;
+    const sessionMarker = await removeInside(repoRoot, join51(repoRoot, markerName));
+    if (sessionMarker !== null)
+      removed.push(sessionMarker);
   }
   return removed;
 }
@@ -27987,9 +28383,9 @@ var TrackConfigParseError = class extends Error {
 
 // packages/kernel/dist/tracks/parse.js
 var KEY_RE5 = /^([A-Za-z_][\w.-]*):(?:\s+([\s\S]*)|\s*)$/;
-function tokenize3(text11) {
+function tokenize3(text12) {
   const tokens = [];
-  const lines2 = text11.split("\n");
+  const lines2 = text12.split("\n");
   for (let n = 0; n < lines2.length; n++) {
     const lineNo = n + 1;
     const line = lines2[n].replace(/\r$/, "");
@@ -28123,8 +28519,8 @@ function parseNode(tokens, i, indent) {
     return parseMapping2(tokens, i, indent);
   return { node: parseScalarText(t.raw, t.line), next: i + 1 };
 }
-function parseDocumentRoot(text11) {
-  const tokens = tokenize3(text11);
+function parseDocumentRoot(text12) {
+  const tokens = tokenize3(text12);
   if (tokens.length === 0)
     throw new TrackConfigParseError(null, "\u7A7A\u6587\u6863\uFF08\u7F3A\u5C11\u5FC5\u586B\u9876\u5C42\u952E version\uFF09");
   const first = tokens[0];
@@ -28315,8 +28711,8 @@ function walkTrackEntry(n, at) {
     out.policyProfile = walkPolicy(p.node, at);
   return out;
 }
-function parseTrackRegistry(text11) {
-  const root = parseDocumentRoot(text11);
+function parseTrackRegistry(text12) {
+  const root = parseDocumentRoot(text12);
   checkKeys2(root, ["version", "builtins", "tracks"], "\u9876\u5C42");
   const versionEntry = getEntry(root, "version");
   if (!versionEntry)
@@ -28606,11 +29002,11 @@ function emitString(s) {
 function emitInteger(n) {
   if (!Number.isInteger(n))
     throw new Error(`serializeTrackRegistry: \u671F\u671B\u6574\u6570\uFF0C\u5F97\u5230 ${n}`);
-  const text11 = String(n);
-  if (!/^-?\d+$/.test(text11) || Number(text11) !== n) {
-    throw new Error(`serializeTrackRegistry: \u6574\u6570 ${n} \u7684\u5199\u51FA\u6587\u672C ${JSON.stringify(text11)} \u4E0D\u662F parse \u53EF\u8BFB\u56DE\u7684\u7EAF\u5341\u8FDB\u5236\uFF0C\u62D2\u5199`);
+  const text12 = String(n);
+  if (!/^-?\d+$/.test(text12) || Number(text12) !== n) {
+    throw new Error(`serializeTrackRegistry: \u6574\u6570 ${n} \u7684\u5199\u51FA\u6587\u672C ${JSON.stringify(text12)} \u4E0D\u662F parse \u53EF\u8BFB\u56DE\u7684\u7EAF\u5341\u8FDB\u5236\uFF0C\u62D2\u5199`);
   }
-  return text11;
+  return text12;
 }
 function emitMapKey(key) {
   if (!/^[A-Za-z_][\w.-]*$/.test(key)) {
@@ -28813,11 +29209,11 @@ function composeRegistry(config, source2) {
   }
   return { ordered, byId, revision: registryRevision(config), source: source2 };
 }
-function synthesize(text11, context) {
-  if (text11 === null) {
+function synthesize(text12, context) {
+  if (text12 === null) {
     return { config: EMPTY_PROJECT_CONFIG, registry: composeRegistry(EMPTY_PROJECT_CONFIG, "builtin-only") };
   }
-  const config = parseTrackRegistry(text11);
+  const config = parseTrackRegistry(text12);
   const errors = validateTrackRegistry(config, context);
   if (errors.length > 0) {
     throw new Error(`.pipeline/tracks.yaml \u6821\u9A8C\u5931\u8D25\uFF08${errors.length} \u6761\uFF09\uFF1A
@@ -28826,14 +29222,14 @@ function synthesize(text11, context) {
   return { config, registry: composeRegistry(config, "project-file") };
 }
 function loadTrackRegistry(repoRoot, context) {
-  let text11 = null;
+  let text12 = null;
   try {
-    text11 = readFileSync13(trackRegistryPath(repoRoot), "utf8");
+    text12 = readFileSync13(trackRegistryPath(repoRoot), "utf8");
   } catch (e) {
     if (e.code !== "ENOENT")
       throw e;
   }
-  return synthesize(text11, context).registry;
+  return synthesize(text12, context).registry;
 }
 function requireTrack(registry, id2) {
   const def = registry.byId.get(id2);
@@ -28850,14 +29246,14 @@ function assertWorkflowAllowed(track, workflowId) {
   throw new Error(`track '${track.id}' \u4E0D\u5141\u8BB8\u7ED1\u5B9A workflow '${workflowId}'\uFF08\u5141\u8BB8\uFF1A${track.workflow.allowed.join(", ")}\uFF09`);
 }
 async function freshReadUnderLock(file, context) {
-  let text11 = null;
+  let text12 = null;
   try {
-    text11 = await readFile42(file, "utf8");
+    text12 = await readFile42(file, "utf8");
   } catch (e) {
     if (e.code !== "ENOENT")
       throw e;
   }
-  return synthesize(text11, context);
+  return synthesize(text12, context);
 }
 async function withTrackRegistryLock(repoRoot, context, callback) {
   const file = trackRegistryPath(repoRoot);
@@ -29274,16 +29670,16 @@ function isBootstrapTurn(cleaned, originalLength) {
     return true;
   return false;
 }
-function stripInjectionTags(text11) {
-  let out = text11;
+function stripInjectionTags(text12) {
+  let out = text12;
   for (const re of TAG_RES)
     out = out.replace(re, "");
   out = out.replace(AGENTS_RE, "");
   out = out.replace(COLLAPSE_RE, "\n\n");
   return out.trim();
 }
-function hostSummaryTurn(text11) {
-  const turn = { role: "user", text: text11 };
+function hostSummaryTurn(text12) {
+  const turn = { role: "user", text: text12 };
   Object.defineProperty(turn, HOST_SUMMARY_TURN, { value: true });
   return turn;
 }
@@ -29415,8 +29811,8 @@ function searchInDialogue(turns, kw, maxExcerpts = 3, chunkChars = 400, options3
 function compareRankedChunks(a, b) {
   return b.coverage - a.coverage || b.rarity - a.rarity || a.start - b.start;
 }
-function selectExcerptCandidates(text11, hay, tokens, tokenFreq, chunkChars, limit) {
-  const locateChunk = createChunkLocator(text11, chunkChars);
+function selectExcerptCandidates(text12, hay, tokens, tokenFreq, chunkChars, limit) {
+  const locateChunk = createChunkLocator(text12, chunkChars);
   const cursors = Array.from(tokenFreq.keys(), (tok) => ({ tok, idx: hay.indexOf(tok) }));
   const selected = [];
   let lastStart = null;
@@ -29452,11 +29848,11 @@ function selectExcerptCandidates(text11, hay, tokens, tokenFreq, chunkChars, lim
   }
   return selected;
 }
-function createChunkLocator(text11, maxChars) {
+function createChunkLocator(text12, maxChars) {
   const paragraphBreaks = [];
   let from = 0;
   for (; ; ) {
-    const idx = text11.indexOf("\n\n", from);
+    const idx = text12.indexOf("\n\n", from);
     if (idx === -1)
       break;
     paragraphBreaks.push(idx);
@@ -29478,11 +29874,11 @@ function createChunkLocator(text11, maxChars) {
     const nextIdx = lowerBound(hitIdx);
     const previousIdx = lowerBound(hitIdx - 1) - 1;
     let start = previousIdx >= 0 ? (paragraphBreaks[previousIdx] ?? -2) + 2 : 0;
-    let end = nextIdx < paragraphBreaks.length ? paragraphBreaks[nextIdx] ?? text11.length : text11.length;
+    let end = nextIdx < paragraphBreaks.length ? paragraphBreaks[nextIdx] ?? text12.length : text12.length;
     let truncated = false;
     if (end - start > maxChars) {
       start = Math.max(0, hitIdx - Math.floor(maxChars / 2));
-      end = Math.min(text11.length, hitIdx + Math.ceil(maxChars / 2));
+      end = Math.min(text12.length, hitIdx + Math.ceil(maxChars / 2));
       truncated = true;
     }
     return { start, end, truncated };
@@ -30264,11 +30660,11 @@ var OPEN_BRACE = 123;
 function isJsonlLine(line) {
   return line.length > 0 && line.charCodeAt(0) === OPEN_BRACE;
 }
-function parseJsonlLines(text11) {
+function parseJsonlLines(text12) {
   const out = [];
-  if (!text11)
+  if (!text12)
     return out;
-  for (const line of text11.split("\n")) {
+  for (const line of text12.split("\n")) {
     if (!isJsonlLine(line))
       continue;
     try {
@@ -30278,10 +30674,10 @@ function parseJsonlLines(text11) {
   }
   return out;
 }
-function readJsonlFirst(text11) {
-  if (!text11)
+function readJsonlFirst(text12) {
+  if (!text12)
     return void 0;
-  for (const line of text11.split("\n")) {
+  for (const line of text12.split("\n")) {
     if (!isJsonlLine(line))
       continue;
     try {
@@ -30291,11 +30687,11 @@ function readJsonlFirst(text11) {
   }
   return void 0;
 }
-function findInJsonl(text11, predicate, maxLines = 200) {
-  if (!text11)
+function findInJsonl(text12, predicate, maxLines = 200) {
+  if (!text12)
     return void 0;
   let count4 = 0;
-  for (const line of text11.split("\n")) {
+  for (const line of text12.split("\n")) {
     if (!isJsonlLine(line))
       continue;
     let obj;
@@ -30551,11 +30947,11 @@ function claudeListSessions(fs, f) {
     const title = idx?.title ?? null;
     if (!cwd || !created) {
       const metadata = readMemSessionMetadataChecked(fs, filePath);
-      const text11 = metadata.text;
-      const evt = findInJsonl(text11, (o) => typeof o?.cwd === "string", 100);
+      const text12 = metadata.text;
+      const evt = findInJsonl(text12, (o) => typeof o?.cwd === "string", 100);
       cwd = cwd || (evt?.cwd ?? null);
       if (!created) {
-        const first = readJsonlFirst(text11);
+        const first = readJsonlFirst(text12);
         created = (evt?.timestamp ?? null) || (first?.timestamp ?? null);
       }
       if (f.cwd && !cwd && metadata.truncated)
@@ -30608,9 +31004,9 @@ ${summary2}`)] : [];
     const content = msg.content;
     if (t === "user" && msg.role === "user") {
       if (typeof content === "string") {
-        const text11 = stripInjectionTags(content);
-        if (text11 && !isBootstrapTurn(text11, content.length))
-          turns.push({ role: "user", text: text11 });
+        const text12 = stripInjectionTags(content);
+        if (text12 && !isBootstrapTurn(text12, content.length))
+          turns.push({ role: "user", text: text12 });
       }
     } else if (t === "assistant" && msg.role === "assistant" && Array.isArray(content)) {
       const parts = [];
@@ -30727,9 +31123,9 @@ function compactedReplacementTurns(replacementHistory) {
     const turn = buildTurnFromMessage(role, item2?.content);
     if (!turn)
       continue;
-    const text11 = `[compact]
+    const text12 = `[compact]
 ${turn.text}`;
-    turns.push(index === summaryIndex ? hostSummaryTurn(text11) : { role: turn.role, text: text11 });
+    turns.push(index === summaryIndex ? hostSummaryTurn(text12) : { role: turn.role, text: text12 });
   }
   return turns;
 }
@@ -30966,11 +31362,11 @@ function turnFromEntry(entry2) {
 function syntheticTurn(prefix, raw) {
   if (typeof raw !== "string")
     return null;
-  const text11 = stripInjectionTags(raw);
-  if (!text11)
+  const text12 = stripInjectionTags(raw);
+  if (!text12)
     return null;
   return hostSummaryTurn(`${prefix}
-${text11}`);
+${text12}`);
 }
 function buildTurn(role, content) {
   const parts = [];
@@ -31373,7 +31769,7 @@ function budgetedFs(source2, state, platform, now) {
     const returnedBytes = read2.rawBytes === void 0 ? Buffer.from(read2.text) : Buffer.from(read2.rawBytes);
     const nextBytes = returnedBytes.subarray(0, bytesRead);
     const combinedBytes = Buffer.concat([existingBytes, nextBytes]);
-    const text11 = combinedBytes.toString("utf8");
+    const text12 = combinedBytes.toString("utf8");
     prefixBytes.set(path14, combinedBytes);
     const truncated = read2.truncated || returnedBytes.byteLength > maxBytes || read2.bytesRead > maxBytes;
     if (!truncated)
@@ -31389,10 +31785,10 @@ function budgetedFs(source2, state, platform, now) {
         message: "At least one session exceeded the per-file read budget."
       });
     }
-    return { text: text11, bytesRead: consumed + bytesRead, truncated, rawBytes: combinedBytes };
+    return { text: text12, bytesRead: consumed + bytesRead, truncated, rawBytes: combinedBytes };
   };
-  const fromCached = (text11, maxBytes) => {
-    const bytes = Buffer.from(text11);
+  const fromCached = (text12, maxBytes) => {
+    const bytes = Buffer.from(text12);
     const selected = bytes.subarray(0, maxBytes);
     return {
       text: selected.toString("utf8"),
@@ -31437,8 +31833,8 @@ function budgetedFs(source2, state, platform, now) {
       if (!Number.isSafeInteger(maxBytes) || maxBytes < 0)
         return void 0;
       if (cache2.has(path14)) {
-        const text11 = cache2.get(path14);
-        return text11 === void 0 ? void 0 : fromCached(text11, maxBytes);
+        const text12 = cache2.get(path14);
+        return text12 === void 0 ? void 0 : fromCached(text12, maxBytes);
       }
       return readWithinBudget(path14, maxBytes, false);
     },
@@ -31627,11 +32023,11 @@ function extractDocLoopIds(docText) {
   }
   return out;
 }
-function parseRunLog(text11, now) {
+function parseRunLog(text12, now) {
   const map = /* @__PURE__ */ new Map();
-  if (text11 === null)
+  if (text12 === null)
     return map;
-  for (const rawLine of text11.split("\n")) {
+  for (const rawLine of text12.split("\n")) {
     const line = rawLine.trim();
     if (!line.startsWith("|"))
       continue;
@@ -31853,11 +32249,11 @@ function nextDown(level) {
 }
 var HIST_TS_RE = /^(?:\d{4}-)?\d{2}-\d{2}T\d{2}:\d{2}$/;
 var HIST_RESULT_RE = /result=(ok|fail|dry|skip)/;
-function parseRunHistory(text11, loopId) {
-  if (text11 === null)
+function parseRunHistory(text12, loopId) {
+  if (text12 === null)
     return { runs: 0, failStreak: 0, lastResult: null };
   const results = [];
-  for (const rawLine of text11.split("\n")) {
+  for (const rawLine of text12.split("\n")) {
     const line = rawLine.trim();
     if (!line.startsWith("|"))
       continue;
@@ -31973,8 +32369,8 @@ function planLevelChange(current, target, verdict) {
   }
   return { ...base, to, kind: "promote", allowed: true, reason: `\u9010\u7EA7\u6BD5\u4E1A ${current} \u2192 ${to}`, blockers: [] };
 }
-function setAutonomyLevelInYaml(text11, loopId, level) {
-  const lines2 = text11.split("\n");
+function setAutonomyLevelInYaml(text12, loopId, level) {
+  const lines2 = text12.split("\n");
   const block = locateLoop(lines2, loopId);
   if (block === null)
     return { text: null, error: `loop '${loopId}' \u672A\u5728 loops.yaml \u627E\u5230\uFF08\u65E0\u6CD5\u6539\u6863\uFF09` };
@@ -32213,7 +32609,7 @@ function checkedValue(field5, value) {
     throw new PatchError(`\u5B57\u6BB5 '${field5}' \u987B\u4E3A\u5B57\u7B26\u4E32`);
   return value;
 }
-function updateLoopInYaml(text11, loopId, patch) {
+function updateLoopInYaml(text12, loopId, patch) {
   try {
     const fields = Object.keys(patch);
     if (fields.length === 0)
@@ -32226,7 +32622,7 @@ function updateLoopInYaml(text11, loopId, patch) {
         throw new PatchError(`\u5B57\u6BB5 '${field5}' \u4E0D\u53EF patch\uFF08\u53EF\u6539\uFF1A${ALL_PATCHABLE.join(" / ")}\uFF09`);
       }
     }
-    const lines2 = text11.split("\n");
+    const lines2 = text12.split("\n");
     for (const field5 of fields) {
       const block = locateLoop(lines2, loopId);
       if (block === null)
@@ -32267,27 +32663,27 @@ async function withRegistryGovernanceLock(repoRoot, fn) {
   return withLock(base, fn);
 }
 async function readRegistrySnapshot(repoRoot) {
-  let text11;
+  let text12;
   try {
-    text11 = await readFile43(loopsYamlPath(repoRoot), "utf8");
+    text12 = await readFile43(loopsYamlPath(repoRoot), "utf8");
   } catch (e) {
     if (e.code === "ENOENT") {
       return { text: "", epoch: ABSENT_REGISTRY_EPOCH, registry: null, errors: [] };
     }
     throw new RegistryReadError(`loops.yaml \u8BFB\u5931\u8D25\uFF08${e.code ?? "IO"}\uFF09\uFF1A${e instanceof Error ? e.message : String(e)}`);
   }
-  const epoch = createHash20("sha256").update(text11, "utf8").digest("hex");
-  const { data, errors } = loadRegistry(repoRoot, { readText: () => text11 });
-  return { text: text11, epoch, registry: data, errors };
+  const epoch = createHash20("sha256").update(text12, "utf8").digest("hex");
+  const { data, errors } = loadRegistry(repoRoot, { readText: () => text12 });
+  return { text: text12, epoch, registry: data, errors };
 }
-async function writeRegistryTextAtomic(repoRoot, text11) {
+async function writeRegistryTextAtomic(repoRoot, text12) {
   const dir = join58(repoRoot, ".pipeline");
   await mkdir27(dir, { recursive: true });
   const finalPath = loopsYamlPath(repoRoot);
   const tmp = join58(dir, `.loops.yaml.tmp.${process.pid}.${randomBytes2(6).toString("hex")}`);
   const fh = await open5(tmp, "w");
   try {
-    await fh.writeFile(text11, "utf8");
+    await fh.writeFile(text12, "utf8");
     await fh.sync();
   } finally {
     await fh.close();
@@ -32309,10 +32705,10 @@ async function writeRegistryWithGovernance(repoRoot, expectedEpoch, produce) {
     if (current.epoch !== expectedEpoch) {
       return { ok: false, error: `CAS \u5931\u8D25\uFF1Aloops.yaml \u5728\u6B64\u671F\u95F4\u88AB\u5E76\u53D1\u4FEE\u6539\uFF08epoch ${expectedEpoch.slice(0, 12)} \u2192 ${current.epoch.slice(0, 12)}\uFF09` };
     }
-    const { text: text11, error: error2 } = await produce(current.text, current);
-    if (error2 !== null || text11 === null)
+    const { text: text12, error: error2 } = await produce(current.text, current);
+    if (error2 !== null || text12 === null)
       return { ok: false, error: error2 ?? "\u751F\u6210\u5199\u56DE\u6587\u672C\u5931\u8D25" };
-    await writeRegistryTextAtomic(repoRoot, text11);
+    await writeRegistryTextAtomic(repoRoot, text12);
     return { ok: true };
   });
 }
@@ -32680,9 +33076,9 @@ function dedup(items) {
   }
   return out;
 }
-function compressDocument(text11, opts = {}) {
+function compressDocument(text12, opts = {}) {
   const maxDepth = opts.maxHeadingDepth ?? 6;
-  const rawLines = text11.split("\n");
+  const rawLines = text12.split("\n");
   const fm = parseFrontMatter(rawLines);
   let title = null;
   const headings = [];
@@ -32735,7 +33131,7 @@ function compressDocument(text11, opts = {}) {
     keyFields: fm.keyFields,
     stats: emptyStats()
   };
-  doc.stats = statsFor(text11, rawLines.length, renderHandoffSummary(doc, void 0, opts.documentLocale ?? "zh-CN"), doc);
+  doc.stats = statsFor(text12, rawLines.length, renderHandoffSummary(doc, void 0, opts.documentLocale ?? "zh-CN"), doc);
   return doc;
 }
 function emptyStats() {
@@ -32765,7 +33161,7 @@ function statsFor(originalText, originalLines, rendered, doc) {
   };
 }
 function renderHandoffSummary(doc, label, locale = "zh-CN") {
-  const text11 = locale === "zh-CN" ? {
+  const text12 = locale === "zh-CN" ? {
     handoff: "\u4EA4\u63A5\u6458\u8981",
     summary: "\u6458\u8981",
     structure: "\u7ED3\u6784",
@@ -32783,29 +33179,29 @@ function renderHandoffSummary(doc, label, locale = "zh-CN") {
     fields: "Key Fields"
   };
   const out = [];
-  out.push(`# ${text11.handoff}: ${label ?? doc.title ?? text11.summary}`);
+  out.push(`# ${text12.handoff}: ${label ?? doc.title ?? text12.summary}`);
   if (doc.headings.length > 0) {
-    out.push("", `## ${text11.structure}`);
+    out.push("", `## ${text12.structure}`);
     for (const h of doc.headings)
       out.push(`- ${h}`);
   }
   if (doc.decisions.length > 0) {
-    out.push("", `## ${text11.decisions} (${doc.decisions.length})`);
+    out.push("", `## ${text12.decisions} (${doc.decisions.length})`);
     for (const d of doc.decisions)
       out.push(`- ${d}`);
   }
   if (doc.constraints.length > 0) {
-    out.push("", `## ${text11.constraints} (${doc.constraints.length})`);
+    out.push("", `## ${text12.constraints} (${doc.constraints.length})`);
     for (const c of doc.constraints)
       out.push(`- ${c}`);
   }
   if (doc.openTodos.length > 0) {
-    out.push("", `## ${text11.todos} (${doc.openTodos.length})`);
+    out.push("", `## ${text12.todos} (${doc.openTodos.length})`);
     for (const t of doc.openTodos)
       out.push(`- [ ] ${t}`);
   }
   if (doc.keyFields.length > 0) {
-    out.push("", `## ${text11.fields}`);
+    out.push("", `## ${text12.fields}`);
     for (const k of doc.keyFields)
       out.push(`- ${k.key}: ${k.value}`);
   }
@@ -33042,7 +33438,7 @@ async function compileLedgerContextBundleWithPorts(input2) {
         if (!validRelativePath2(record11.path)) {
           throw invalidRequest(`Context Bundle ledger path \u975E\u6CD5: ${record11.path}`);
         }
-        let text11;
+        let text12;
         let sourceBytes;
         const remainingTotalBytes = limits ? Math.max(0, limits.maxTotalSourceBytes - totalSourceBytes) : void 0;
         const sourceReadLimit = limits && remainingTotalBytes !== void 0 ? {
@@ -33053,7 +33449,7 @@ async function compileLedgerContextBundleWithPorts(input2) {
         } : void 0;
         try {
           const source2 = await input2.sourceReader.read(record11.path, sourceReadLimit);
-          text11 = source2.text;
+          text12 = source2.text;
           sourceBytes = source2.sourceBytes;
         } catch (error2) {
           if (error2 instanceof LedgerContextBundleError) {
@@ -33079,7 +33475,7 @@ async function compileLedgerContextBundleWithPorts(input2) {
             repairAction: `\u6062\u590D root \u5185\u7A33\u5B9A\u7684\u975E symlink \u666E\u901A\u6587\u4EF6 ${record11.path}\uFF0C\u5E76\u91CD\u65B0 record/read`
           });
         }
-        if (text11 === void 0) {
+        if (text12 === void 0) {
           throw new LedgerContextBundleError("CONTEXT_BUNDLE_DOCUMENT_MISSING", `Context Bundle missing document '${kind}': ${record11.path}; restore or re-record it`, {
             kind,
             path: record11.path,
@@ -33093,7 +33489,7 @@ async function compileLedgerContextBundleWithPorts(input2) {
         if (limits && totalSourceBytes > limits.maxTotalSourceBytes) {
           throw resourceLimitError("totalSourceBytes", limits.maxTotalSourceBytes, totalSourceBytes, { kind, path: record11.path });
         }
-        const actual = input2.primitives.sha256(text11);
+        const actual = input2.primitives.sha256(text12);
         if (record11.sha256 !== void 0 && actual !== record11.sha256) {
           throw new LedgerContextBundleError("CONTEXT_BUNDLE_DOCUMENT_STALE", `Context Bundle stale document '${kind}': ${record11.path}; run tenon document record ${input2.change} ${kind} ${record11.path} --producer <skill>, then tenon document read ${input2.change} all`, {
             kind,
@@ -33105,7 +33501,7 @@ async function compileLedgerContextBundleWithPorts(input2) {
         const mode = duplicatePath ? "reference" : materializationMode(kind);
         if (!duplicatePath)
           materializedPaths.add(record11.path);
-        const content = mode === "reference" ? void 0 : mode === "full" ? text11 : renderHandoffSummary(compressDocument(text11), `${input2.change}/${kind}`);
+        const content = mode === "reference" ? void 0 : mode === "full" ? text12 : renderHandoffSummary(compressDocument(text12), `${input2.change}/${kind}`);
         const digestValue = `sha256:${record11.sha256 ?? actual}`;
         bundleInputs.push({
           kind,
@@ -33154,8 +33550,8 @@ import { isAbsolute as isAbsolute10, join as join59, posix as posix3 } from "nod
 var nodeLedgerContextBundlePrimitives = {
   isAbsoluteRoot: isAbsolute10,
   ledgerPath: (change) => posix3.join("openspec", "changes", change, ".pipeline-documents.json"),
-  sha256: (text11) => createHash22("sha256").update(text11, "utf8").digest("hex"),
-  utf8ByteLength: (text11) => Buffer.byteLength(text11, "utf8")
+  sha256: (text12) => createHash22("sha256").update(text12, "utf8").digest("hex"),
+  utf8ByteLength: (text12) => Buffer.byteLength(text12, "utf8")
 };
 
 // packages/kernel/dist/triage/types.js
@@ -33241,7 +33637,7 @@ function closed4(raw, allowed, path14, errors) {
     if (!set.has(key))
       errors.push({ code: "unknown-field", path: `${path14}.${key}` });
 }
-function text8(value, path14, errors, pattern, max = 8192) {
+function text9(value, path14, errors, pattern, max = 8192) {
   if (typeof value !== "string" || value.length === 0 || value.trim() !== value || value.length > max || pattern !== void 0 && !pattern.test(value)) {
     errors.push({ code: "field-invalid", path: path14 });
     return void 0;
@@ -33249,7 +33645,7 @@ function text8(value, path14, errors, pattern, max = 8192) {
   return value;
 }
 function optionalText2(value, path14, errors, pattern) {
-  return value === void 0 ? void 0 : text8(value, path14, errors, pattern);
+  return value === void 0 ? void 0 : text9(value, path14, errors, pattern);
 }
 function bool2(value, path14, errors) {
   if (typeof value !== "boolean") {
@@ -33273,10 +33669,10 @@ function array2(value, path14, errors) {
   return value;
 }
 function strings(value, path14, errors) {
-  return array2(value, path14, errors).map((entry2, index) => text8(entry2, `${path14}[${index}]`, errors) ?? "");
+  return array2(value, path14, errors).map((entry2, index) => text9(entry2, `${path14}[${index}]`, errors) ?? "");
 }
 function digest8(value, path14, errors) {
-  return text8(value, path14, errors, DIGEST2);
+  return text9(value, path14, errors, DIGEST2);
 }
 function actor2(value, path14, errors) {
   const raw = object5(value, path14, errors);
@@ -33286,18 +33682,18 @@ function actor2(value, path14, errors) {
   const kind = raw.kind === "user" || raw.kind === "system" || raw.kind === "worker" || raw.kind === "policy" ? raw.kind : void 0;
   if (kind === void 0)
     errors.push({ code: "field-invalid", path: `${path14}.kind` });
-  const id2 = text8(raw.id, `${path14}.id`, errors, ID2);
+  const id2 = text9(raw.id, `${path14}.id`, errors, ID2);
   return kind === void 0 || id2 === void 0 ? void 0 : { kind, id: id2 };
 }
 function meta(raw, path14, errors) {
-  const record_id = text8(raw.record_id, `${path14}.record_id`, errors, ID2);
-  const project_id = text8(raw.project_id, `${path14}.project_id`, errors, ID2);
-  const change_id = text8(raw.change_id, `${path14}.change_id`, errors, ID2);
+  const record_id = text9(raw.record_id, `${path14}.record_id`, errors, ID2);
+  const project_id = text9(raw.project_id, `${path14}.project_id`, errors, ID2);
+  const change_id = text9(raw.change_id, `${path14}.change_id`, errors, ID2);
   const revision = integer3(raw.revision, `${path14}.revision`, errors);
-  const correlation_id = text8(raw.correlation_id, `${path14}.correlation_id`, errors, ID2);
+  const correlation_id = text9(raw.correlation_id, `${path14}.correlation_id`, errors, ID2);
   const causation_id = optionalText2(raw.causation_id, `${path14}.causation_id`, errors, ID2);
   const actorValue = actor2(raw.actor, `${path14}.actor`, errors);
-  const created_at = text8(raw.created_at, `${path14}.created_at`, errors, UTC);
+  const created_at = text9(raw.created_at, `${path14}.created_at`, errors, UTC);
   if (record_id === void 0 || project_id === void 0 || change_id === void 0 || revision === void 0 || correlation_id === void 0 || actorValue === void 0 || created_at === void 0)
     return void 0;
   return { schema_version: String(raw.schema_version), record_id, project_id, change_id, revision, correlation_id, ...causation_id === void 0 ? {} : { causation_id }, actor: actorValue, created_at };
@@ -33337,8 +33733,8 @@ function decodeDevelopmentRequestV2(input2) {
   if (raw === void 0)
     return { ok: false, errors };
   const m = meta(raw, "$", errors);
-  const request_id = text8(raw.request_id, "$.request_id", errors, ID2);
-  const intent = text8(raw.intent, "$.intent", errors);
+  const request_id = text9(raw.request_id, "$.request_id", errors, ID2);
+  const intent = text9(raw.intent, "$.intent", errors);
   const interaction_policy = raw.interaction_policy === "interactive" || raw.interaction_policy === "recommended-defaults" || raw.interaction_policy === "afk" ? raw.interaction_policy : void 0;
   if (interaction_policy === void 0)
     errors.push({ code: "field-invalid", path: "$.interaction_policy" });
@@ -33355,7 +33751,7 @@ function decodeDevelopmentRequestV2(input2) {
     if (!x)
       return void 0;
     closed4(x, ["id", "version", "mode", "depends_on"], `$.user_skills[${i}]`, errors);
-    const id2 = text8(x.id, `$.user_skills[${i}].id`, errors, ID2);
+    const id2 = text9(x.id, `$.user_skills[${i}].id`, errors, ID2);
     const version = optionalText2(x.version, `$.user_skills[${i}].version`, errors, ID2);
     const mode = x.mode === "serial" || x.mode === "parallel" ? x.mode : void 0;
     if (!mode)
@@ -33367,7 +33763,7 @@ function decodeDevelopmentRequestV2(input2) {
     if (!x)
       return void 0;
     closed4(x, ["id", "version", "required"], `$.user_mcps[${i}]`, errors);
-    const id2 = text8(x.id, `$.user_mcps[${i}].id`, errors, ID2);
+    const id2 = text9(x.id, `$.user_mcps[${i}].id`, errors, ID2);
     const version = optionalText2(x.version, `$.user_mcps[${i}].version`, errors, ID2);
     const required3 = bool2(x.required, `$.user_mcps[${i}].required`, errors);
     return id2 && required3 !== void 0 ? { id: id2, ...version ? { version } : {}, required: required3 } : void 0;
@@ -33405,14 +33801,14 @@ function decodeRepositoryContextV2(input2) {
   if (!raw)
     return { ok: false, errors };
   const m = meta(raw, "$", errors);
-  const request_id = text8(raw.request_id, "$.request_id", errors, ID2);
+  const request_id = text9(raw.request_id, "$.request_id", errors, ID2);
   const repo = object5(raw.repository, "$.repository", errors);
   if (repo)
     closed4(repo, ["ref", "branch", "base_branch", "head_sha", "dirty"], "$.repository", errors);
-  const ref = repo && text8(repo.ref, "$.repository.ref", errors);
-  const branch = repo && text8(repo.branch, "$.repository.branch", errors);
-  const base_branch = repo && text8(repo.base_branch, "$.repository.base_branch", errors);
-  const head_sha = repo && text8(repo.head_sha, "$.repository.head_sha", errors);
+  const ref = repo && text9(repo.ref, "$.repository.ref", errors);
+  const branch = repo && text9(repo.branch, "$.repository.branch", errors);
+  const base_branch = repo && text9(repo.base_branch, "$.repository.base_branch", errors);
+  const head_sha = repo && text9(repo.head_sha, "$.repository.head_sha", errors);
   const dirty = repo && bool2(repo.dirty, "$.repository.dirty", errors);
   const workspace_fingerprint = digest8(raw.workspace_fingerprint, "$.workspace_fingerprint", errors);
   const policy_digest = digest8(raw.policy_digest, "$.policy_digest", errors);
@@ -33423,8 +33819,8 @@ function decodeRepositoryContextV2(input2) {
     if (!x)
       return void 0;
     closed4(x, ["key", "value_ref", "digest"], `$.observed_facts[${i}]`, errors);
-    const key = text8(x.key, `$.observed_facts[${i}].key`, errors);
-    const value_ref = text8(x.value_ref, `$.observed_facts[${i}].value_ref`, errors);
+    const key = text9(x.key, `$.observed_facts[${i}].key`, errors);
+    const value_ref = text9(x.value_ref, `$.observed_facts[${i}].value_ref`, errors);
     const d = digest8(x.digest, `$.observed_facts[${i}].digest`, errors);
     return key && value_ref && d ? { key, value_ref, digest: d } : void 0;
   }).filter((x) => x !== void 0);
@@ -33437,9 +33833,9 @@ function decodeAssessment(input2, errors) {
   if (!raw)
     return void 0;
   const m = meta(raw, "$", errors);
-  const assessment_id = text8(raw.assessment_id, "$.assessment_id", errors, ID2);
-  const request_id = text8(raw.request_id, "$.request_id", errors, ID2);
-  const context_record_id = text8(raw.context_record_id, "$.context_record_id", errors, ID2);
+  const assessment_id = text9(raw.assessment_id, "$.assessment_id", errors, ID2);
+  const request_id = text9(raw.request_id, "$.request_id", errors, ID2);
+  const context_record_id = text9(raw.context_record_id, "$.context_record_id", errors, ID2);
   const normalization = ["complete", "needs-input", "rejected"].includes(String(raw.normalization)) ? raw.normalization : void 0;
   if (!normalization)
     errors.push({ code: "field-invalid", path: "$.normalization" });
@@ -33448,8 +33844,8 @@ function decodeAssessment(input2, errors) {
     if (!x)
       return void 0;
     closed4(x, ["id", "capability", "necessity", "acceptance_refs", "evidence_refs", "constraints", "risk"], `$.requirements[${i}]`, errors);
-    const id2 = text8(x.id, `$.requirements[${i}].id`, errors, ID2);
-    const capability = text8(x.capability, `$.requirements[${i}].capability`, errors);
+    const id2 = text9(x.id, `$.requirements[${i}].id`, errors, ID2);
+    const capability = text9(x.capability, `$.requirements[${i}].capability`, errors);
     const necessity = ["required", "recommended", "optional"].includes(String(x.necessity)) ? x.necessity : void 0;
     const risk = ["low", "medium", "high"].includes(String(x.risk)) ? x.risk : void 0;
     if (!necessity)
@@ -33463,13 +33859,13 @@ function decodeAssessment(input2, errors) {
     if (!x)
       return void 0;
     closed4(x, ["id", "prompt", "blocking"], `$.questions[${i}]`, errors);
-    const id2 = text8(x.id, `$.questions[${i}].id`, errors, ID2);
-    const prompt = text8(x.prompt, `$.questions[${i}].prompt`, errors);
+    const id2 = text9(x.id, `$.questions[${i}].id`, errors, ID2);
+    const prompt = text9(x.prompt, `$.questions[${i}].prompt`, errors);
     const blocking = bool2(x.blocking, `$.questions[${i}].blocking`, errors);
     return id2 && prompt && blocking !== void 0 ? { id: id2, prompt, blocking } : void 0;
   }).filter((x) => x !== void 0);
   const risks = strings(raw.risks, "$.risks", errors);
-  const proposal_evidence_ref = text8(raw.proposal_evidence_ref, "$.proposal_evidence_ref", errors);
+  const proposal_evidence_ref = text9(raw.proposal_evidence_ref, "$.proposal_evidence_ref", errors);
   if (!m || !assessment_id || !request_id || !context_record_id || !normalization || !proposal_evidence_ref)
     return void 0;
   return { ...m, schema_version: V2_SCHEMAS.assessment, assessment_id, request_id, context_record_id, normalization, requirements, questions, risks, proposal_evidence_ref };
@@ -33484,9 +33880,9 @@ function decodePipelineSkill(input2, path14, errors) {
   if (!raw)
     return void 0;
   closed4(raw, ["binding_id", "skill_id", "skill_version", "order", "role", "source", "mode", "depends_on", "mcp_ids", "input_schema_id", "output_schema_id", "validator_ids", "resource_claims"], path14, errors);
-  const binding_id = text8(raw.binding_id, `${path14}.binding_id`, errors, ID2);
-  const skill_id = text8(raw.skill_id, `${path14}.skill_id`, errors, ID2);
-  const skill_version = text8(raw.skill_version, `${path14}.skill_version`, errors, ID2);
+  const binding_id = text9(raw.binding_id, `${path14}.binding_id`, errors, ID2);
+  const skill_id = text9(raw.skill_id, `${path14}.skill_id`, errors, ID2);
+  const skill_version = text9(raw.skill_version, `${path14}.skill_version`, errors, ID2);
   const order4 = integer3(raw.order, `${path14}.order`, errors);
   const role = ["workflow", "track-mandatory", "track-recommended", "user", "automatic", "review"].includes(String(raw.role)) ? raw.role : void 0;
   const source2 = ["builtin", "project", "user", "automatic"].includes(String(raw.source)) ? raw.source : void 0;
@@ -33505,7 +33901,7 @@ function decodePipelineSkill(input2, path14, errors) {
       return void 0;
     closed4(claim2, ["kind", "key", "access"], `${path14}.resource_claims[${index}]`, errors);
     const kind = ["path", "logical", "external"].includes(String(claim2.kind)) ? claim2.kind : void 0;
-    const key = text8(claim2.key, `${path14}.resource_claims[${index}].key`, errors, RESOURCE_KEY);
+    const key = text9(claim2.key, `${path14}.resource_claims[${index}].key`, errors, RESOURCE_KEY);
     if (key?.includes("..") || key?.startsWith("/"))
       errors.push({ code: "field-invalid", path: `${path14}.resource_claims[${index}].key` });
     const access = claim2.access === "read" || claim2.access === "write" ? claim2.access : void 0;
@@ -33526,9 +33922,9 @@ function decodeSkillInputManifestV2(input2, path14, errors) {
   closed4(raw, ["schema_version", "manifest_id", "run_id", "work_item_id", "input_refs", "artifact_digests", "bundle_digest", "byte_length", "delivery", "rejection_reason", "created_at"], path14, errors);
   if (raw.schema_version !== V2_SCHEMAS.inputManifest)
     errors.push({ code: "field-invalid", path: `${path14}.schema_version` });
-  const manifest_id = text8(raw.manifest_id, `${path14}.manifest_id`, errors, ID2);
-  const run_id = text8(raw.run_id, `${path14}.run_id`, errors, ID2);
-  const work_item_id = text8(raw.work_item_id, `${path14}.work_item_id`, errors, ID2);
+  const manifest_id = text9(raw.manifest_id, `${path14}.manifest_id`, errors, ID2);
+  const run_id = text9(raw.run_id, `${path14}.run_id`, errors, ID2);
+  const work_item_id = text9(raw.work_item_id, `${path14}.work_item_id`, errors, ID2);
   const input_refs = strings(raw.input_refs, `${path14}.input_refs`, errors);
   const artifact_digests = array2(raw.artifact_digests, `${path14}.artifact_digests`, errors).map((value, index) => digest8(value, `${path14}.artifact_digests[${index}]`, errors)).filter((value) => value !== void 0);
   const bundle_digest = digest8(raw.bundle_digest, `${path14}.bundle_digest`, errors);
@@ -33537,7 +33933,7 @@ function decodeSkillInputManifestV2(input2, path14, errors) {
   if (!delivery)
     errors.push({ code: "field-invalid", path: `${path14}.delivery` });
   const rejection_reason = optionalText2(raw.rejection_reason, `${path14}.rejection_reason`, errors, ID2);
-  const created_at = text8(raw.created_at, `${path14}.created_at`, errors, UTC);
+  const created_at = text9(raw.created_at, `${path14}.created_at`, errors, UTC);
   if (delivery === "rejected" && rejection_reason === void 0)
     errors.push({ code: "field-invalid", path: `${path14}.rejection_reason` });
   if (delivery === "not-required" && (input_refs.length !== 0 || artifact_digests.length !== 0 || byte_length !== 0))
@@ -33553,8 +33949,8 @@ function decodePipelineStage(input2, path14, errors) {
   if (!raw)
     return void 0;
   closed4(raw, ["stage_id", "name", "ordinal", "execution_mode", "depends_on", "work_item_ids", "gate", "skills", "input_refs", "output_refs", "input_subject_refs", "output_subject_refs"], path14, errors);
-  const stage_id = text8(raw.stage_id, `${path14}.stage_id`, errors, ID2);
-  const name = text8(raw.name, `${path14}.name`, errors);
+  const stage_id = text9(raw.stage_id, `${path14}.stage_id`, errors, ID2);
+  const name = text9(raw.name, `${path14}.name`, errors);
   const ordinal = integer3(raw.ordinal, `${path14}.ordinal`, errors);
   const execution_mode = raw.execution_mode === "serial" || raw.execution_mode === "parallel" ? raw.execution_mode : void 0;
   const gate = ["none", "input", "review", "verification", "release"].includes(String(raw.gate)) ? raw.gate : void 0;
@@ -33571,18 +33967,18 @@ function decodePipelineStage(input2, path14, errors) {
 }
 function decodeWorkflowPipelineV2(input2) {
   return genericMetaRecord(input2, V2_SCHEMAS.pipeline, ["pipeline_id", "pipeline_version", "workflow_id", "workflow_version", "workflow_source", "workflow_fingerprint", "track_id", "track_revision", "track_source", "pipeline_source", "graph_id", "assessment_id", "status", "stage_order", "stages", "customizations", "pipeline_digest"], (raw, errors, m) => {
-    const pipeline_id = text8(raw.pipeline_id, "$.pipeline_id", errors, ID2);
-    const pipeline_version = text8(raw.pipeline_version, "$.pipeline_version", errors, ID2);
-    const workflow_id = text8(raw.workflow_id, "$.workflow_id", errors, ID2);
-    const workflow_version = text8(raw.workflow_version, "$.workflow_version", errors, ID2);
+    const pipeline_id = text9(raw.pipeline_id, "$.pipeline_id", errors, ID2);
+    const pipeline_version = text9(raw.pipeline_version, "$.pipeline_version", errors, ID2);
+    const workflow_id = text9(raw.workflow_id, "$.workflow_id", errors, ID2);
+    const workflow_version = text9(raw.workflow_version, "$.workflow_version", errors, ID2);
     const workflow_source = ["builtin", "project", "user", "automatic"].includes(String(raw.workflow_source)) ? raw.workflow_source : void 0;
-    const workflow_fingerprint = text8(raw.workflow_fingerprint, "$.workflow_fingerprint", errors, ID2);
-    const track_id = text8(raw.track_id, "$.track_id", errors, ID2);
-    const track_revision = text8(raw.track_revision, "$.track_revision", errors, ID2);
+    const workflow_fingerprint = text9(raw.workflow_fingerprint, "$.workflow_fingerprint", errors, ID2);
+    const track_id = text9(raw.track_id, "$.track_id", errors, ID2);
+    const track_revision = text9(raw.track_revision, "$.track_revision", errors, ID2);
     const track_source = ["builtin", "project", "user", "automatic"].includes(String(raw.track_source)) ? raw.track_source : void 0;
     const pipeline_source = ["builtin", "project", "user", "automatic"].includes(String(raw.pipeline_source)) ? raw.pipeline_source : void 0;
-    const graph_id = text8(raw.graph_id, "$.graph_id", errors, ID2);
-    const assessment_id = text8(raw.assessment_id, "$.assessment_id", errors, ID2);
+    const graph_id = text9(raw.graph_id, "$.graph_id", errors, ID2);
+    const assessment_id = text9(raw.assessment_id, "$.assessment_id", errors, ID2);
     const status2 = ["draft", "validated", "frozen", "superseded"].includes(String(raw.status)) ? raw.status : void 0;
     if (!workflow_source)
       errors.push({ code: "field-invalid", path: "$.workflow_source" });
@@ -33616,10 +34012,10 @@ function genericMetaRecord(input2, schema, allowed, parseFields) {
 }
 function decodeWorkGraphV2(input2) {
   return genericMetaRecord(input2, V2_SCHEMAS.graph, ["graph_id", "graph_revision", "assessment_id", "task_plan_revision_id", "task_plan_digest", "pipeline_id", "dependency_edges", "execution_groups", "acceptance_coverage", "status"], (r, e, m) => {
-    const graph_id = text8(r.graph_id, "$.graph_id", e, ID2);
+    const graph_id = text9(r.graph_id, "$.graph_id", e, ID2);
     const graph_revision = integer3(r.graph_revision, "$.graph_revision", e);
-    const assessment_id = text8(r.assessment_id, "$.assessment_id", e, ID2);
-    const task_plan_revision_id = text8(r.task_plan_revision_id, "$.task_plan_revision_id", e, ID2);
+    const assessment_id = text9(r.assessment_id, "$.assessment_id", e, ID2);
+    const task_plan_revision_id = text9(r.task_plan_revision_id, "$.task_plan_revision_id", e, ID2);
     const task_plan_digest = digest8(r.task_plan_digest, "$.task_plan_digest", e);
     const pipeline_id = optionalText2(r.pipeline_id, "$.pipeline_id", e, ID2);
     const status2 = ["draft", "validated", "frozen", "superseded"].includes(String(r.status)) ? r.status : void 0;
@@ -33630,8 +34026,8 @@ function decodeWorkGraphV2(input2) {
       if (!v)
         return void 0;
       closed4(v, ["from", "to", "reason"], `$.dependency_edges[${i}]`, e);
-      const from = text8(v.from, `$.dependency_edges[${i}].from`, e, ID2);
-      const to = text8(v.to, `$.dependency_edges[${i}].to`, e, ID2);
+      const from = text9(v.from, `$.dependency_edges[${i}].from`, e, ID2);
+      const to = text9(v.to, `$.dependency_edges[${i}].to`, e, ID2);
       const reason3 = ["data", "resource", "ordering", "gate"].includes(String(v.reason)) ? v.reason : void 0;
       if (!reason3)
         e.push({ code: "field-invalid", path: `$.dependency_edges[${i}].reason` });
@@ -33642,7 +34038,7 @@ function decodeWorkGraphV2(input2) {
       if (!v)
         return void 0;
       closed4(v, ["id", "mode", "work_item_ids"], `$.execution_groups[${i}]`, e);
-      const id2 = text8(v.id, `$.execution_groups[${i}].id`, e, ID2);
+      const id2 = text9(v.id, `$.execution_groups[${i}].id`, e, ID2);
       const mode = v.mode === "serial" || v.mode === "parallel" ? v.mode : void 0;
       if (!mode)
         e.push({ code: "field-invalid", path: `$.execution_groups[${i}].mode` });
@@ -33653,7 +34049,7 @@ function decodeWorkGraphV2(input2) {
       if (!v)
         return void 0;
       closed4(v, ["acceptance_id", "work_item_ids"], `$.acceptance_coverage[${i}]`, e);
-      const acceptance_id = text8(v.acceptance_id, `$.acceptance_coverage[${i}].acceptance_id`, e, ID2);
+      const acceptance_id = text9(v.acceptance_id, `$.acceptance_coverage[${i}].acceptance_id`, e, ID2);
       return acceptance_id ? { acceptance_id, work_item_ids: strings(v.work_item_ids, `$.acceptance_coverage[${i}].work_item_ids`, e) } : void 0;
     }).filter((x) => x !== void 0);
     if (!graph_id || graph_revision === void 0 || !assessment_id || !task_plan_revision_id || !task_plan_digest || !status2)
@@ -33663,9 +34059,9 @@ function decodeWorkGraphV2(input2) {
 }
 function decodeCapabilityResolutionV2(input2) {
   return genericMetaRecord(input2, V2_SCHEMAS.resolution, ["resolution_id", "assessment_id", "graph_id", "policy_digest", "status", "bindings", "candidates", "blockers", "binding_digest"], (r, e, m) => {
-    const resolution_id = text8(r.resolution_id, "$.resolution_id", e, ID2);
-    const assessment_id = text8(r.assessment_id, "$.assessment_id", e, ID2);
-    const graph_id = text8(r.graph_id, "$.graph_id", e, ID2);
+    const resolution_id = text9(r.resolution_id, "$.resolution_id", e, ID2);
+    const assessment_id = text9(r.assessment_id, "$.assessment_id", e, ID2);
+    const graph_id = text9(r.graph_id, "$.graph_id", e, ID2);
     const policy_digest = digest8(r.policy_digest, "$.policy_digest", e);
     const status2 = ["resolved", "needs-input", "blocked"].includes(String(r.status)) ? r.status : void 0;
     if (!status2)
@@ -33675,9 +34071,9 @@ function decodeCapabilityResolutionV2(input2) {
       if (!v)
         return void 0;
       closed4(v, ["work_item_id", "skill_id", "skill_version", "mcp_ids", "mode", "source", "depends_on"], `$.bindings[${i}]`, e);
-      const work_item_id = text8(v.work_item_id, `$.bindings[${i}].work_item_id`, e, ID2);
-      const skill_id = text8(v.skill_id, `$.bindings[${i}].skill_id`, e, ID2);
-      const skill_version = text8(v.skill_version, `$.bindings[${i}].skill_version`, e, ID2);
+      const work_item_id = text9(v.work_item_id, `$.bindings[${i}].work_item_id`, e, ID2);
+      const skill_id = text9(v.skill_id, `$.bindings[${i}].skill_id`, e, ID2);
+      const skill_version = text9(v.skill_version, `$.bindings[${i}].skill_version`, e, ID2);
       const mode = v.mode === "serial" || v.mode === "parallel" ? v.mode : void 0;
       const source2 = ["user", "automatic", "hybrid"].includes(String(v.source)) ? v.source : void 0;
       if (!mode)
@@ -33691,11 +34087,11 @@ function decodeCapabilityResolutionV2(input2) {
       if (!v)
         return void 0;
       closed4(v, ["capability", "candidate_id", "kind", "selected", "rejected_reasons", "rationale"], `$.candidates[${i}]`, e);
-      const capability = text8(v.capability, `$.candidates[${i}].capability`, e);
-      const candidate_id = text8(v.candidate_id, `$.candidates[${i}].candidate_id`, e, ID2);
+      const capability = text9(v.capability, `$.candidates[${i}].capability`, e);
+      const candidate_id = text9(v.candidate_id, `$.candidates[${i}].candidate_id`, e, ID2);
       const kind = v.kind === "skill" || v.kind === "mcp" ? v.kind : void 0;
       const selected = bool2(v.selected, `$.candidates[${i}].selected`, e);
-      const rationale = text8(v.rationale, `$.candidates[${i}].rationale`, e);
+      const rationale = text9(v.rationale, `$.candidates[${i}].rationale`, e);
       if (!kind)
         e.push({ code: "field-invalid", path: `$.candidates[${i}].kind` });
       return capability && candidate_id && kind && selected !== void 0 && rationale ? { capability, candidate_id, kind, selected, rejected_reasons: strings(v.rejected_reasons, `$.candidates[${i}].rejected_reasons`, e), rationale } : void 0;
@@ -33709,8 +34105,8 @@ function decodeCapabilityResolutionV2(input2) {
 }
 function decodeWorkItemV2(input2) {
   return genericMetaRecord(input2, V2_SCHEMAS.workItem, ["work_item_id", "title", "status", "group_id", "depends_on", "required_artifact_refs", "validation_refs", "selected_skill_id", "selected_skill_version", "mode", "attempt_count", "active_run_id", "blockers"], (r, e, m) => {
-    const work_item_id = text8(r.work_item_id, "$.work_item_id", e, ID2);
-    const title = text8(r.title, "$.title", e);
+    const work_item_id = text9(r.work_item_id, "$.work_item_id", e, ID2);
+    const title = text9(r.title, "$.title", e);
     const status2 = ["pending", "ready", "queued", "claimed", "running", "waiting-input", "reviewing", "verifying", "completed", "blocked", "failed", "interrupted", "cancelled"].includes(String(r.status)) ? r.status : void 0;
     if (!status2)
       e.push({ code: "field-invalid", path: "$.status" });
@@ -33725,12 +34121,12 @@ function decodeWorkItemV2(input2) {
 }
 function decodeSkillRunV2(input2) {
   return genericMetaRecord(input2, V2_SCHEMAS.run, ["run_id", "attempt_id", "attempt", "work_item_id", "skill_id", "skill_version", "mcp_ids", "status", "lease", "input_refs", "input_manifest", "result_id", "prior_attempt_id", "failure", "started_at", "finished_at"], (r, e, m) => {
-    const run_id = text8(r.run_id, "$.run_id", e, ID2);
-    const attempt_id = text8(r.attempt_id, "$.attempt_id", e, ID2);
+    const run_id = text9(r.run_id, "$.run_id", e, ID2);
+    const attempt_id = text9(r.attempt_id, "$.attempt_id", e, ID2);
     const attempt2 = integer3(r.attempt, "$.attempt", e);
-    const work_item_id = text8(r.work_item_id, "$.work_item_id", e, ID2);
-    const skill_id = text8(r.skill_id, "$.skill_id", e, ID2);
-    const skill_version = text8(r.skill_version, "$.skill_version", e, ID2);
+    const work_item_id = text9(r.work_item_id, "$.work_item_id", e, ID2);
+    const skill_id = text9(r.skill_id, "$.skill_id", e, ID2);
+    const skill_version = text9(r.skill_version, "$.skill_version", e, ID2);
     const status2 = ["queued", "claimed", "running", "waiting-input", "completed", "failed", "interrupted", "cancelled"].includes(String(r.status)) ? r.status : void 0;
     if (!status2)
       e.push({ code: "field-invalid", path: "$.status" });
@@ -33745,7 +34141,7 @@ function decodeSkillRunV2(input2) {
       const rawFailure = object5(r.failure, "$.failure", e);
       if (rawFailure) {
         closed4(rawFailure, ["code", "retryable", "detail_ref"], "$.failure", e);
-        const code = text8(rawFailure.code, "$.failure.code", e, ID2);
+        const code = text9(rawFailure.code, "$.failure.code", e, ID2);
         const retryable = bool2(rawFailure.retryable, "$.failure.retryable", e);
         const detail_ref = optionalText2(rawFailure.detail_ref, "$.failure.detail_ref", e, ID2);
         if (code && retryable !== void 0)
@@ -33759,8 +34155,8 @@ function decodeSkillRunV2(input2) {
 }
 function decodeSkillResultV2(input2) {
   return genericMetaRecord(input2, V2_SCHEMAS.result, ["result_id", "run_id", "status", "contract_status", "output_schema_id", "summary", "raw_output", "artifacts", "validation_refs", "diagnostics", "output_digest", "output_bytes"], (r, e, m) => {
-    const result_id = text8(r.result_id, "$.result_id", e, ID2);
-    const run_id = text8(r.run_id, "$.run_id", e, ID2);
+    const result_id = text9(r.result_id, "$.result_id", e, ID2);
+    const run_id = text9(r.run_id, "$.run_id", e, ID2);
     const status2 = ["completed", "failed", "blocked", "incomplete", "corrupt"].includes(String(r.status)) ? r.status : void 0;
     const contract_status = ["validated", "unknown", "invalid"].includes(String(r.contract_status)) ? r.contract_status : void 0;
     if (!status2)
@@ -33776,9 +34172,9 @@ function decodeSkillResultV2(input2) {
       const v = object5(r.raw_output, "$.raw_output", e);
       if (v) {
         closed4(v, ["ref", "digest", "media_type", "byte_length"], "$.raw_output", e);
-        const ref = text8(v.ref, "$.raw_output.ref", e);
+        const ref = text9(v.ref, "$.raw_output.ref", e);
         const d = digest8(v.digest, "$.raw_output.digest", e);
-        const media_type = text8(v.media_type, "$.raw_output.media_type", e);
+        const media_type = text9(v.media_type, "$.raw_output.media_type", e);
         const byte_length = integer3(v.byte_length, "$.raw_output.byte_length", e);
         if (ref && d && media_type && byte_length !== void 0)
           raw_output = { ref, digest: d, media_type, byte_length };
@@ -33789,9 +34185,9 @@ function decodeSkillResultV2(input2) {
       if (!v)
         return void 0;
       closed4(v, ["id", "kind", "ref", "digest", "media_type", "byte_length"], `$.artifacts[${i}]`, e);
-      const id2 = text8(v.id, `$.artifacts[${i}].id`, e, ID2);
+      const id2 = text9(v.id, `$.artifacts[${i}].id`, e, ID2);
       const kind = ["file", "diff", "document", "json", "text", "url", "report", "value", "unknown"].includes(String(v.kind)) ? v.kind : void 0;
-      const ref = text8(v.ref, `$.artifacts[${i}].ref`, e);
+      const ref = text9(v.ref, `$.artifacts[${i}].ref`, e);
       const d = digest8(v.digest, `$.artifacts[${i}].digest`, e);
       const media_type = optionalText2(v.media_type, `$.artifacts[${i}].media_type`, e);
       const byte_length = v.byte_length === void 0 ? void 0 : integer3(v.byte_length, `$.artifacts[${i}].byte_length`, e);
@@ -33806,11 +34202,11 @@ function decodeSkillResultV2(input2) {
 }
 function decodeValidationReportV2(input2) {
   return genericMetaRecord(input2, V2_SCHEMAS.validation, ["report_id", "work_item_id", "result_id", "validator_id", "validator_version", "status", "target_digests", "evidence_refs", "checks"], (r, e, m) => {
-    const report_id = text8(r.report_id, "$.report_id", e, ID2);
-    const work_item_id = text8(r.work_item_id, "$.work_item_id", e, ID2);
-    const result_id = text8(r.result_id, "$.result_id", e, ID2);
-    const validator_id = text8(r.validator_id, "$.validator_id", e, ID2);
-    const validator_version = text8(r.validator_version, "$.validator_version", e, ID2);
+    const report_id = text9(r.report_id, "$.report_id", e, ID2);
+    const work_item_id = text9(r.work_item_id, "$.work_item_id", e, ID2);
+    const result_id = text9(r.result_id, "$.result_id", e, ID2);
+    const validator_id = text9(r.validator_id, "$.validator_id", e, ID2);
+    const validator_version = text9(r.validator_version, "$.validator_version", e, ID2);
     const status2 = ["pass", "fail", "unknown", "incomplete"].includes(String(r.status)) ? r.status : void 0;
     if (!status2)
       e.push({ code: "field-invalid", path: "$.status" });
@@ -33822,7 +34218,7 @@ function decodeValidationReportV2(input2) {
       if (!v)
         return void 0;
       closed4(v, ["id", "status", "message"], `$.checks[${i}]`, e);
-      const id2 = text8(v.id, `$.checks[${i}].id`, e, ID2);
+      const id2 = text9(v.id, `$.checks[${i}].id`, e, ID2);
       const s = ["pass", "fail", "unknown"].includes(String(v.status)) ? v.status : void 0;
       if (!s)
         e.push({ code: "field-invalid", path: `$.checks[${i}].status` });
@@ -33833,7 +34229,7 @@ function decodeValidationReportV2(input2) {
 }
 function decodeGateEvaluationV2(input2) {
   return genericMetaRecord(input2, V2_SCHEMAS.gate, ["gate_id", "kind", "status", "required_evidence_refs", "decision_revision", "rationale", "waiver_receipt_ref"], (r, e, m) => {
-    const gate_id = text8(r.gate_id, "$.gate_id", e, ID2);
+    const gate_id = text9(r.gate_id, "$.gate_id", e, ID2);
     const kind = ["input", "review", "verification", "release"].includes(String(r.kind)) ? r.kind : void 0;
     const status2 = ["pending", "passed", "rejected", "waived"].includes(String(r.status)) ? r.status : void 0;
     const decision_revision = integer3(r.decision_revision, "$.decision_revision", e);
@@ -33852,11 +34248,11 @@ function decodeRunLeaseV2(input2) {
   if (!raw)
     return { ok: false, errors: [{ code: "object-invalid", path: "$" }] };
   closed4(raw, ["lease_id", "owner_id", "acquired_at", "heartbeat_at", "expires_at", "generation", "status"], "$", errors);
-  const lease_id = text8(raw.lease_id, "$.lease_id", errors, ID2);
-  const owner_id = text8(raw.owner_id, "$.owner_id", errors, ID2);
-  const acquired_at = text8(raw.acquired_at, "$.acquired_at", errors, UTC);
-  const heartbeat_at = text8(raw.heartbeat_at, "$.heartbeat_at", errors, UTC);
-  const expires_at = text8(raw.expires_at, "$.expires_at", errors, UTC);
+  const lease_id = text9(raw.lease_id, "$.lease_id", errors, ID2);
+  const owner_id = text9(raw.owner_id, "$.owner_id", errors, ID2);
+  const acquired_at = text9(raw.acquired_at, "$.acquired_at", errors, UTC);
+  const heartbeat_at = text9(raw.heartbeat_at, "$.heartbeat_at", errors, UTC);
+  const expires_at = text9(raw.expires_at, "$.expires_at", errors, UTC);
   const generation = integer3(raw.generation, "$.generation", errors);
   const status2 = ["active", "renewed", "expired", "released", "revoked"].includes(String(raw.status)) ? raw.status : void 0;
   if (!status2)
@@ -33874,21 +34270,21 @@ function decodeEffects(input2, path14, errors) {
     const type = raw.type;
     if (type === "persist-record") {
       closed4(raw, ["type", "record_schema", "record_id"], itemPath, errors);
-      const schemaValue = text8(raw.record_schema, `${itemPath}.record_schema`, errors, ID2);
+      const schemaValue = text9(raw.record_schema, `${itemPath}.record_schema`, errors, ID2);
       const record_schema = schemaValue !== void 0 && Object.values(V2_SCHEMAS).includes(schemaValue) ? schemaValue : void 0;
       if (schemaValue !== void 0 && record_schema === void 0)
         errors.push({ code: "field-invalid", path: `${itemPath}.record_schema` });
-      const record_id = text8(raw.record_id, `${itemPath}.record_id`, errors, ID2);
+      const record_id = text9(raw.record_id, `${itemPath}.record_id`, errors, ID2);
       if (record_schema && record_id)
         return { type, record_schema, record_id };
     } else if (type === "request-executor-cancel") {
       closed4(raw, ["type", "run_id"], itemPath, errors);
-      const run_id = text8(raw.run_id, `${itemPath}.run_id`, errors, ID2);
+      const run_id = text9(raw.run_id, `${itemPath}.run_id`, errors, ID2);
       if (run_id)
         return { type, run_id };
     } else if (type === "wake-scheduler") {
       closed4(raw, ["type", "reason"], itemPath, errors);
-      const reason3 = text8(raw.reason, `${itemPath}.reason`, errors, ID2);
+      const reason3 = text9(raw.reason, `${itemPath}.reason`, errors, ID2);
       if (reason3)
         return { type, reason: reason3 };
     } else {
@@ -33902,15 +34298,15 @@ function decodeBoardEventV2(input2) {
   const raw = prepare(input2, V2_SCHEMAS.event, ["schema_version", "event_id", "event_type", "command_id", "idempotency_key", "project_id", "change_id", "correlation_id", "causation_id", "actor", "revision", "issued_at", "before_digest", "after_digest", "payload", "effects"], errors);
   if (!raw)
     return { ok: false, errors };
-  const event_id = text8(raw.event_id, "$.event_id", errors, ID2);
-  const command_id = text8(raw.command_id, "$.command_id", errors, ID2);
-  const idempotency_key = text8(raw.idempotency_key, "$.idempotency_key", errors, ID2);
-  const project_id = text8(raw.project_id, "$.project_id", errors, ID2);
-  const change_id = text8(raw.change_id, "$.change_id", errors, ID2);
-  const correlation_id = text8(raw.correlation_id, "$.correlation_id", errors, ID2);
-  const event_type = text8(raw.event_type, "$.event_type", errors, ID2);
+  const event_id = text9(raw.event_id, "$.event_id", errors, ID2);
+  const command_id = text9(raw.command_id, "$.command_id", errors, ID2);
+  const idempotency_key = text9(raw.idempotency_key, "$.idempotency_key", errors, ID2);
+  const project_id = text9(raw.project_id, "$.project_id", errors, ID2);
+  const change_id = text9(raw.change_id, "$.change_id", errors, ID2);
+  const correlation_id = text9(raw.correlation_id, "$.correlation_id", errors, ID2);
+  const event_type = text9(raw.event_type, "$.event_type", errors, ID2);
   const revision = integer3(raw.revision, "$.revision", errors);
-  const issued_at = text8(raw.issued_at, "$.issued_at", errors, UTC);
+  const issued_at = text9(raw.issued_at, "$.issued_at", errors, UTC);
   const before_digest = digest8(raw.before_digest, "$.before_digest", errors);
   const after_digest = digest8(raw.after_digest, "$.after_digest", errors);
   const actorValue = actor2(raw.actor, "$.actor", errors);
@@ -33937,17 +34333,17 @@ function decodeBoardSnapshotV2(input2) {
   closed4(raw, allowed, "$", errors);
   if (raw.schema_version !== V2_SCHEMAS.snapshot)
     errors.push({ code: "field-invalid", path: "$.schema_version" });
-  const record_id = text8(raw.record_id, "$.record_id", errors, ID2);
-  const project_id = text8(raw.project_id, "$.project_id", errors, ID2);
-  const change_id = text8(raw.change_id, "$.change_id", errors, ID2);
+  const record_id = text9(raw.record_id, "$.record_id", errors, ID2);
+  const project_id = text9(raw.project_id, "$.project_id", errors, ID2);
+  const change_id = text9(raw.change_id, "$.change_id", errors, ID2);
   const revision = integer3(raw.revision, "$.revision", errors);
-  const correlation_id = text8(raw.correlation_id, "$.correlation_id", errors, ID2);
+  const correlation_id = text9(raw.correlation_id, "$.correlation_id", errors, ID2);
   const actorValue = actor2(raw.actor, "$.actor", errors);
-  const created_at = text8(raw.created_at, "$.created_at", errors, UTC);
+  const created_at = text9(raw.created_at, "$.created_at", errors, UTC);
   const status2 = ["draft", "contextualizing", "assessing", "planning", "planned", "ready", "executing", "reviewing", "verifying", "completed", "waiting-input", "blocked", "paused", "failed", "cancelled"].includes(String(raw.status)) ? raw.status : void 0;
   if (!status2)
     errors.push({ code: "field-invalid", path: "$.status" });
-  const updated_at = text8(raw.updated_at, "$.updated_at", errors, UTC);
+  const updated_at = text9(raw.updated_at, "$.updated_at", errors, UTC);
   const event_head_id = raw.event_head_id === void 0 ? void 0 : optionalText2(raw.event_head_id, "$.event_head_id", errors, ID2);
   const event_head_digest = raw.event_head_digest === void 0 ? void 0 : digest8(raw.event_head_digest, "$.event_head_digest", errors);
   const command_head_id = raw.command_head_id === void 0 ? void 0 : optionalText2(raw.command_head_id, "$.command_head_id", errors, ID2);
@@ -34057,13 +34453,13 @@ function decodeBoardCommandV2(input2) {
   ], errors);
   if (!raw)
     return { ok: false, errors };
-  const command_id = text8(raw.command_id, "$.command_id", errors, ID2);
-  const idempotency_key = text8(raw.idempotency_key, "$.idempotency_key", errors, ID2);
+  const command_id = text9(raw.command_id, "$.command_id", errors, ID2);
+  const idempotency_key = text9(raw.idempotency_key, "$.idempotency_key", errors, ID2);
   const expected_revision = integer3(raw.expected_revision, "$.expected_revision", errors);
   const actorValue = actor2(raw.actor, "$.actor", errors);
-  const issued_at = text8(raw.issued_at, "$.issued_at", errors, UTC);
-  const correlation_id = text8(raw.correlation_id, "$.correlation_id", errors, ID2);
-  const change_id = text8(raw.change_id, "$.change_id", errors, ID2);
+  const issued_at = text9(raw.issued_at, "$.issued_at", errors, UTC);
+  const correlation_id = text9(raw.correlation_id, "$.correlation_id", errors, ID2);
+  const change_id = text9(raw.change_id, "$.change_id", errors, ID2);
   const type = typeof raw.type === "string" ? raw.type : void 0;
   const allowedTypes = [
     "accept-request",
@@ -34093,7 +34489,7 @@ function decodeBoardCommandV2(input2) {
   if (!command_id || !idempotency_key || expected_revision === void 0 || !actorValue || !issued_at || !correlation_id || !change_id || type === void 0 || !allowedTypes.includes(type))
     return { ok: false, errors };
   const base = { schema_version: V2_SCHEMAS.command, command_id, idempotency_key, expected_revision, actor: actorValue, issued_at, correlation_id, ...causation_id === void 0 ? {} : { causation_id }, change_id };
-  const requireText = (key, pattern = ID2, max = 8192) => text8(raw[key], `$.${key}`, errors, pattern, max);
+  const requireText = (key, pattern = ID2, max = 8192) => text9(raw[key], `$.${key}`, errors, pattern, max);
   const rejectExtra = (allowed) => {
     const set = /* @__PURE__ */ new Set(["schema_version", "command_id", "idempotency_key", "expected_revision", "actor", "issued_at", "correlation_id", "causation_id", "change_id", "type", ...allowed]);
     for (const key of Object.keys(raw))
@@ -34171,8 +34567,8 @@ function decodeBoardCommandV2(input2) {
       const lease_id = requireText("lease_id");
       const owner_id = requireText("owner_id");
       const generation = integer3(raw.generation, "$.generation", errors);
-      const heartbeat_at = text8(raw.heartbeat_at, "$.heartbeat_at", errors, UTC);
-      const expires_at = text8(raw.expires_at, "$.expires_at", errors, UTC);
+      const heartbeat_at = text9(raw.heartbeat_at, "$.heartbeat_at", errors, UTC);
+      const expires_at = text9(raw.expires_at, "$.expires_at", errors, UTC);
       if (run_id && lease_id && owner_id && generation !== void 0 && heartbeat_at && expires_at)
         value = { ...base, type, run_id, lease_id, owner_id, generation, heartbeat_at, expires_at };
       break;
@@ -34213,7 +34609,7 @@ function decodeBoardCommandV2(input2) {
     case "cancel-change":
     case "replan-change": {
       rejectExtra(["reason"]);
-      const reason3 = text8(raw.reason, "$.reason", errors, void 0, 8192);
+      const reason3 = text9(raw.reason, "$.reason", errors, void 0, 8192);
       if (reason3)
         value = { ...base, type, reason: reason3 };
       break;
@@ -35755,7 +36151,7 @@ async function executeReviewAcknowledge(ports) {
       if (prior.kind === "conflict") {
         return failure(anchor, "idempotency-conflict", "idempotency key is already bound to another decision");
       }
-      if (prior.kind === "replay") {
+      if (prior.kind === "replay" && reviewGateStatus(state) !== REVIEW_GATE_PENDING) {
         const deferred2 = [];
         if (event !== "")
           await attempt(deferred2, "review-marker-clear", () => ports.clearMarker(event));
@@ -36014,8 +36410,8 @@ function parseEntry(line, lineNo) {
     entry2.note = note;
   return entry2;
 }
-function parseSkillSources(text11) {
-  const lines2 = text11.split("\n");
+function parseSkillSources(text12) {
+  const lines2 = text12.split("\n");
   const out = [];
   const seen = /* @__PURE__ */ new Set();
   let inSkills = false;
@@ -36100,8 +36496,8 @@ function strictPhysicalId(sourceRef) {
 function isSafeProvenanceId(id2) {
   return id2.length > 0 && id2 !== "." && id2 !== ".." && !id2.includes("/") && !id2.includes("\\") && !id2.includes("\0");
 }
-function parseSkillProvenanceRegistry(text11) {
-  const lines2 = text11.split("\n");
+function parseSkillProvenanceRegistry(text12) {
+  const lines2 = text12.split("\n");
   let version;
   let hashAlgorithm;
   let inSkills = false;
@@ -36202,8 +36598,8 @@ function parseSkillProvenanceRegistry(text11) {
 }
 
 // packages/kernel/dist/skills/invocability.js
-function parseSkillFrontmatter(text11) {
-  const lines2 = text11.split(/\r?\n/u);
+function parseSkillFrontmatter(text12) {
+  const lines2 = text12.split(/\r?\n/u);
   if (lines2[0]?.trim() !== "---")
     return null;
   const fields = /* @__PURE__ */ new Map();
@@ -36295,9 +36691,9 @@ function hasExactKeys(value, keys2) {
   const actual = Object.keys(value);
   return actual.length === keys2.length && keys2.every((key) => Object.hasOwn(value, key));
 }
-function parseJson3(text11, fail13) {
+function parseJson3(text12, fail13) {
   try {
-    return JSON.parse(text11);
+    return JSON.parse(text12);
   } catch (error2) {
     throw fail13(`JSON \u65E0\u6548\uFF1A${error2 instanceof Error ? error2.message : String(error2)}`);
   }
@@ -36331,13 +36727,13 @@ function parseSourceLine(line, lineNo) {
     throw sourcesError(`\u6280\u80FD '${id2}' license_expected '${license ?? ""}' \u53EA\u80FD\u662F MIT \u6216 Apache-2.0`);
   return { id: id2, repo, path: path14, ref, licenseExpected: license };
 }
-function parseUpstreamSkillSources(text11) {
+function parseUpstreamSkillSources(text12) {
   let version;
   let seenSkills = false;
   let inSkills = false;
   const skills = [];
   const seen = /* @__PURE__ */ new Set();
-  const lines2 = text11.split("\n");
+  const lines2 = text12.split("\n");
   for (let i = 0; i < lines2.length; i += 1) {
     const lineNo = i + 1;
     const line = stripFlowComment(lines2[i] ?? "");
@@ -36417,8 +36813,8 @@ function parseLockEntry(raw, index) {
     ...typeof raw.model_invocable === "boolean" ? { modelInvocable: raw.model_invocable } : {}
   };
 }
-function parseUpstreamSkillLock(text11, sources) {
-  const value = parseJson3(text11, lockError);
+function parseUpstreamSkillLock(text12, sources) {
+  const value = parseJson3(text12, lockError);
   if (!isRecord8(value) || !hasExactKeys(value, LOCK_KEYS))
     throw lockError(`\u9876\u5C42\u5B57\u6BB5\u987B\u4E3A ${LOCK_KEYS.join(" / ")}`);
   if (typeof value.version !== "number" || !LOCK_VERSIONS.has(value.version)) {
@@ -36471,8 +36867,8 @@ function parseRunResult(raw, index) {
     ...typeof detail === "string" ? { detail } : {}
   };
 }
-function parseUpstreamSkillRunReport(text11) {
-  const value = parseJson3(text11, reportError);
+function parseUpstreamSkillRunReport(text12) {
+  const value = parseJson3(text12, reportError);
   if (!isRecord8(value) || !hasExactKeys(value, REPORT_KEYS))
     throw reportError(`\u9876\u5C42\u5B57\u6BB5\u987B\u4E3A ${REPORT_KEYS.join(" / ")}`);
   if (value.version !== 1)
@@ -36769,13 +37165,7 @@ function projectStepAgents(input2) {
   ];
 }
 function isForwardExit(plan, from, to, event) {
-  if (event === IMPLICIT_COMPLETION_EVENT && from === to)
-    return true;
-  if (plan.executionModel === "phase-manifest") {
-    const policy2 = DEFAULT_EVENT_POLICY[event];
-    return policy2?.enforceTaskExit === true;
-  }
-  return isForwardStepEdge(plan.workflow.steps.map((step) => step.id), from, to, event);
+  return isForwardEdge(plan.executionModel, plan.workflow.steps.map((step) => step.id), from, to, event);
 }
 var FINDING_PREVIEW = 5;
 function runRef(runId, change) {
@@ -36809,6 +37199,62 @@ function renderAgentBlocker(blocker3, change) {
       throw new Error(`renderAgentBlocker: \u672A\u77E5 blocker ${JSON.stringify(exhaustive)}`);
     }
   }
+}
+
+// packages/kernel/dist/workflow/step-rounds-read.js
+function scalar12(value) {
+  return Array.isArray(value) ? value.join(",") : value ?? "";
+}
+async function chainTransitions(deps, dir, state) {
+  const metadata = state.runMetadata;
+  if (metadata?.transitionHead === void 0)
+    return void 0;
+  if (deps.recordStore === void 0) {
+    throw new Error("\u65E0\u6CD5\u8BA1\u7B97\u9A8C\u8BC1\u8F6E\u6B21\uFF1A\u7F3A\u5C11\u8F6C\u6362\u8BB0\u5F55\u8BFB\u53D6\u4F9D\u8D56\uFF08recordStore\uFF09\uFF0C\u800C\u4EFB\u52A1\u72B6\u6001\u91CC\u6709 canonical \u8F6C\u6362\u8BB0\u5F55\u94FE\u5934\uFF1B\u4E0D\u9000\u56DE\u8BFB .pipeline-history.jsonl");
+  }
+  const chain = await deps.recordStore.readChain(dir, metadata.transitionSequence, metadata.transitionHead, metadata.runId);
+  return chain.map((record11) => ({ to: record11.to, runId: record11.runId }));
+}
+async function historyTransitions(deps, dir) {
+  const raw = await deps.readHistoryRaw?.(dir) ?? "";
+  const rows = [];
+  for (const line of raw.split("\n")) {
+    if (line.trim() === "")
+      continue;
+    let entry2;
+    try {
+      entry2 = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (typeof entry2 !== "object" || entry2 === null)
+      continue;
+    const to = Reflect.get(entry2, "to");
+    if (Reflect.get(entry2, "kind") !== "transition" || typeof to !== "string" || to === "")
+      continue;
+    if (Reflect.get(entry2, "transitionRecordId") !== void 0)
+      continue;
+    rows.push({ to });
+  }
+  return rows;
+}
+async function readStepRounds(deps, dir, state, plan, stepId) {
+  const step = plan.workflow.steps.find((candidate2) => candidate2.id === stepId);
+  if (step === void 0 || !isRoundsLimited(plan, stepId))
+    return null;
+  const transitions = await chainTransitions(deps, dir, state) ?? await historyTransitions(deps, dir);
+  const entered = currentRound({
+    stepId,
+    steps: plan.workflow.steps.map((candidate2) => candidate2.id),
+    backTargets: stepBackTargets(plan, stepId),
+    transitions,
+    runId: state.runMetadata?.runId ?? null
+  });
+  const { max, source: source2 } = resolveMaxRounds(effectiveMaxRounds(step), scalar12(state.fields.max_rounds));
+  return { current: Math.max(1, entered), max, source: source2 };
+}
+function roundsExhausted(rounds) {
+  return rounds !== null && rounds !== void 0 && rounds.current >= rounds.max;
 }
 
 // packages/kernel/dist/workflow/agent-scope.js
@@ -37422,6 +37868,8 @@ function serializeStep(step) {
   if (step.label !== "")
     lines2.push(`    label: ${step.label}`);
   lines2.push(`    gate: ${step.gate ?? "null"}`);
+  if (step.maxRounds !== void 0)
+    lines2.push(`    max_rounds: ${step.maxRounds}`);
   if (step.prompt !== void 0) {
     lines2.push("    prompt: |-");
     lines2.push(...step.prompt.split("\n").map((line) => `      ${line}`));
@@ -37603,7 +38051,7 @@ async function readinessByTransition(plan, state, context) {
         evaluations.push(...await evaluateGuards([guard], input2, { stopOnFirstFailure: false }));
       } catch {
         const fieldValue = guard.type === "build-head-unchanged" ? state.fields[guard.field] : void 0;
-        const scalar15 = Array.isArray(fieldValue) ? fieldValue.join(",") : fieldValue ?? "";
+        const scalar16 = Array.isArray(fieldValue) ? fieldValue.join(",") : fieldValue ?? "";
         if (guard.type === "build-head-unchanged") {
           errors.push({
             kind: "verify-build-revision-untrusted",
@@ -37632,8 +38080,8 @@ async function readinessByTransition(plan, state, context) {
 }
 
 // packages/kernel/dist/workflow/phase-exit-context.js
-function byteLength(text11) {
-  return new TextEncoder().encode(text11).byteLength;
+function byteLength(text12) {
+  return new TextEncoder().encode(text12).byteLength;
 }
 async function phaseExitGuardContext(fileContext, dir) {
   if (fileContext === void 0)
@@ -37973,6 +38421,27 @@ async function rejectOnStepGates(input2) {
   return void 0;
 }
 
+// packages/kernel/dist/workflow/transition-rounds-gate.js
+async function rejectOnRoundsExhausted(input2) {
+  const { deps, plan, from, event } = input2;
+  if (deps.roundsOf === void 0 || isAbandonEvent(event))
+    return void 0;
+  if (isForwardExit(plan, from, input2.to, event) || !isRoundsLimited(plan, from))
+    return void 0;
+  const rounds = await deps.roundsOf({ changeDir: input2.changeDir, plan, state: input2.state, stepId: from });
+  if (rounds === null || !roundsExhausted(rounds))
+    return void 0;
+  return {
+    kind: "rounds-exhausted",
+    workflowName: input2.workflowName,
+    stepId: from,
+    event,
+    current: rounds.current,
+    max: rounds.max,
+    source: rounds.source
+  };
+}
+
 // packages/kernel/dist/workflow/action-handlers.js
 function fieldString(value) {
   return Array.isArray(value) ? value.join(",") : value ?? "";
@@ -38259,6 +38728,18 @@ function createTransitionApplication(deps) {
         }
         if (isRejection(prepared))
           return prepared;
+        const exhausted = await rejectOnRoundsExhausted({
+          deps,
+          changeDir: command.changeDir,
+          workflowName,
+          plan: effectivePlan,
+          state: tx.state,
+          from: prepared.from,
+          to: prepared.to,
+          event: command.event
+        });
+        if (exhausted !== void 0)
+          return exhausted;
         const gated = await rejectOnStepGates({
           deps,
           changeDir: command.changeDir,
@@ -39589,7 +40070,7 @@ function resolveAutomationConfig(deps, entrypointDefaults = {}) {
 }
 
 // packages/automation/dist/lifecycle/spec-complete.js
-var scalar12 = (value) => typeof value === "string" ? value : "";
+var scalar13 = (value) => typeof value === "string" ? value : "";
 async function enqueueAfterSpecComplete(deps, transition) {
   if (transition.event !== "spec-complete" || transition.from !== "spec" || transition.to !== "build") {
     return { kind: "not-applicable" };
@@ -39598,12 +40079,12 @@ async function enqueueAfterSpecComplete(deps, transition) {
   const changeDir2 = join66(deps.repoRoot, "openspec", "changes", transition.changeName);
   return deps.store.withLock(changeDir2, async () => {
     const state = await deps.store.read(changeDir2);
-    if (scalar12(state.fields.phase) !== "build")
+    if (scalar13(state.fields.phase) !== "build")
       return { kind: "phase-changed" };
-    const policy2 = deps.resolveTrackPolicy(scalar12(state.fields.track));
+    const policy2 = deps.resolveTrackPolicy(scalar13(state.fields.track));
     if (policy2.autoEnqueueOnSpecComplete !== true)
       return { kind: "track-disabled" };
-    const automation = scalar12(state.fields.automation);
+    const automation = scalar13(state.fields.automation);
     if (automation === "queued")
       return { kind: "already-queued" };
     if (automation !== "off")
@@ -40015,13 +40496,13 @@ import { join as join69 } from "node:path";
 async function verdictFor(skillsRoot, skillId) {
   if (skillId.includes(":") || skillId.includes("/"))
     return "unknown";
-  let text11;
+  let text12;
   try {
-    text11 = await readFile47(join69(skillsRoot, skillId, "SKILL.md"), "utf8");
+    text12 = await readFile47(join69(skillsRoot, skillId, "SKILL.md"), "utf8");
   } catch {
     return "unknown";
   }
-  return isSkillModelInvocable(parseSkillFrontmatter(text11)) ? "invocable" : "not-invocable";
+  return isSkillModelInvocable(parseSkillFrontmatter(text12)) ? "invocable" : "not-invocable";
 }
 async function provenNotInvocable(skillsRoot, token) {
   const alternatives = skillTokenAlternatives(token);
@@ -40058,8 +40539,8 @@ function upstreamSkillRunReportPath(stateRoot) {
 }
 function readUpstreamSkillRunReport(stateRoot) {
   try {
-    const text11 = readOptional2(upstreamSkillRunReportPath(stateRoot));
-    return text11 === null ? null : parseUpstreamSkillRunReport(text11);
+    const text12 = readOptional2(upstreamSkillRunReportPath(stateRoot));
+    return text12 === null ? null : parseUpstreamSkillRunReport(text12);
   } catch {
     return null;
   }
@@ -40847,7 +41328,7 @@ function stable3(value) {
 function digest10(value) {
   return `sha256:${createHash27("sha256").update(stable3(value), "utf8").digest("hex")}`;
 }
-function text9(value, label) {
+function text10(value, label) {
   if (typeof value !== "string" || value.length === 0 || value.trim() !== value || value.length > 8192 || !ID4.test(value))
     throw new TypeError(`${label} is invalid`);
   return value;
@@ -40863,7 +41344,7 @@ function descriptorFor(catalog2, skillId, version) {
 function idList(value, label) {
   if (!Array.isArray(value) || value.length > 2048)
     throw new TypeError(`${label} is invalid`);
-  return Object.freeze(value.map((entry2, index) => text9(entry2, `${label}[${index}]`)));
+  return Object.freeze(value.map((entry2, index) => text10(entry2, `${label}[${index}]`)));
 }
 function resourceClaims2(value, label) {
   if (!Array.isArray(value) || value.length > 2048)
@@ -40906,12 +41387,12 @@ function materializeWorkflowPipelineV2(input2) {
     throw new TypeError("pipeline requires a resolved capability selection");
   const blueprint = input2.pipeline_blueprint;
   const identity = blueprint === void 0 ? input2.identity : {
-    workflow_id: text9(blueprint.workflow_id, "pipeline.workflow_id"),
-    workflow_version: text9(blueprint.workflow_version, "pipeline.workflow_version"),
-    track_id: text9(blueprint.track_id, "pipeline.track_id"),
-    track_revision: text9(blueprint.track_revision, "pipeline.track_revision"),
-    pipeline_id: text9(blueprint.pipeline_id, "pipeline.pipeline_id"),
-    pipeline_version: text9(blueprint.pipeline_version, "pipeline.pipeline_version")
+    workflow_id: text10(blueprint.workflow_id, "pipeline.workflow_id"),
+    workflow_version: text10(blueprint.workflow_version, "pipeline.workflow_version"),
+    track_id: text10(blueprint.track_id, "pipeline.track_id"),
+    track_revision: text10(blueprint.track_revision, "pipeline.track_revision"),
+    pipeline_id: text10(blueprint.pipeline_id, "pipeline.pipeline_id"),
+    pipeline_version: text10(blueprint.pipeline_version, "pipeline.pipeline_version")
   };
   const graphItemIds = input2.graph.execution_groups.flatMap((group) => group.work_item_ids);
   const graphItemSet = new Set(graphItemIds);
@@ -40939,14 +41420,14 @@ function materializeWorkflowPipelineV2(input2) {
     const seenStageIds = /* @__PURE__ */ new Set();
     const seenItems = /* @__PURE__ */ new Set();
     stages = blueprint.stages.map((stage, index) => {
-      const stageId = text9(stage.stage_id, `pipeline.stages[${index}].stage_id`);
+      const stageId = text10(stage.stage_id, `pipeline.stages[${index}].stage_id`);
       if (seenStageIds.has(stageId))
         throw new TypeError(`pipeline duplicate stage ${stageId}`);
       seenStageIds.add(stageId);
       const ordinal = stage.ordinal ?? index;
       if (!Number.isSafeInteger(ordinal) || ordinal < 0)
         throw new TypeError(`pipeline.stages[${index}].ordinal is invalid`);
-      const workItemIds = stage.work_item_ids.map((id2, itemIndex) => text9(id2, `pipeline.stages[${index}].work_item_ids[${itemIndex}]`));
+      const workItemIds = stage.work_item_ids.map((id2, itemIndex) => text10(id2, `pipeline.stages[${index}].work_item_ids[${itemIndex}]`));
       for (const id2 of workItemIds) {
         if (!graphItemSet.has(id2))
           throw new TypeError(`pipeline stage ${stageId} references unknown work item ${id2}`);
@@ -40959,8 +41440,8 @@ function materializeWorkflowPipelineV2(input2) {
       if (executionMode === void 0 || gate === void 0)
         throw new TypeError(`pipeline stage ${stageId} execution mode/gate is invalid`);
       const skills = stage.skills.map((skill, skillIndex) => {
-        const skillId = text9(skill.skill_id, `pipeline.stages[${index}].skills[${skillIndex}].skill_id`);
-        const skillVersion = text9(skill.skill_version, `pipeline.stages[${index}].skills[${skillIndex}].skill_version`);
+        const skillId = text10(skill.skill_id, `pipeline.stages[${index}].skills[${skillIndex}].skill_id`);
+        const skillVersion = text10(skill.skill_version, `pipeline.stages[${index}].skills[${skillIndex}].skill_version`);
         const binding = workItemIds.map((workItemId) => bindingByItem.get(workItemId)).find((candidate2) => candidate2?.skill_id === skillId && candidate2.skill_version === skillVersion);
         if (binding === void 0)
           throw new TypeError(`pipeline skill ${skillId}@${skillVersion} is not selected for this stage`);
@@ -40971,7 +41452,7 @@ function materializeWorkflowPipelineV2(input2) {
         if (executionMode === "parallel" && skill.mode === "parallel" && descriptor?.supports_parallel === false)
           throw new TypeError(`pipeline stage ${stageId} runs non-parallel Skill ${skillId} in parallel`);
         const claims = skill.resource_claims === void 0 ? descriptor?.resource_claims ?? [] : resourceClaims2(skill.resource_claims, `pipeline.stages[${index}].skills[${skillIndex}].resource_claims`);
-        const bindingId = text9(skill.binding_id ?? `binding:${stageId}:${skillId}`, `pipeline.stages[${index}].skills[${skillIndex}].binding_id`);
+        const bindingId = text10(skill.binding_id ?? `binding:${stageId}:${skillId}`, `pipeline.stages[${index}].skills[${skillIndex}].binding_id`);
         return freeze3({ ...skill, binding_id: bindingId, skill_id: skillId, skill_version: skillVersion, order: order4, depends_on: idList(skill.depends_on, `pipeline.stages[${index}].skills[${skillIndex}].depends_on`), mcp_ids: idList(skill.mcp_ids, `pipeline.stages[${index}].skills[${skillIndex}].mcp_ids`), validator_ids: idList(skill.validator_ids, `pipeline.stages[${index}].skills[${skillIndex}].validator_ids`), resource_claims: claims });
       }).sort((left, right) => left.order - right.order);
       for (const workItemId of workItemIds) {
@@ -40981,7 +41462,7 @@ function materializeWorkflowPipelineV2(input2) {
       }
       if (new Set(skills.map((skill) => skill.order)).size !== skills.length)
         throw new TypeError(`pipeline stage ${stageId} has duplicate Skill order`);
-      return freeze3({ ...stage, stage_id: stageId, name: text9(stage.name, `pipeline.stages[${index}].name`), ordinal, execution_mode: executionMode, gate, work_item_ids: workItemIds, skills });
+      return freeze3({ ...stage, stage_id: stageId, name: text10(stage.name, `pipeline.stages[${index}].name`), ordinal, execution_mode: executionMode, gate, work_item_ids: workItemIds, skills });
     });
     if (seenItems.size !== graphItemSet.size)
       throw new TypeError("pipeline stages must cover every graph work item exactly once");
@@ -41018,7 +41499,7 @@ function materializeWorkflowPipelineV2(input2) {
     workflow_id: identity.workflow_id,
     workflow_version: identity.workflow_version,
     workflow_source: workflowSource,
-    workflow_fingerprint: blueprint?.workflow_fingerprint === void 0 ? digest10({ id: identity.workflow_id, version: identity.workflow_version }) : text9(blueprint.workflow_fingerprint, "pipeline.workflow_fingerprint"),
+    workflow_fingerprint: blueprint?.workflow_fingerprint === void 0 ? digest10({ id: identity.workflow_id, version: identity.workflow_version }) : text10(blueprint.workflow_fingerprint, "pipeline.workflow_fingerprint"),
     track_id: identity.track_id,
     track_revision: identity.track_revision,
     track_source: trackSource,
@@ -41077,7 +41558,7 @@ var workIdentifier = workItemIdentifierV2;
 function acceptanceIdentifier(acceptanceId) {
   return `acceptance-${taskIdentifier(acceptanceId)}`;
 }
-function text10(value, label, pattern = ID5, max = 8192) {
+function text11(value, label, pattern = ID5, max = 8192) {
   if (typeof value !== "string" || value.length === 0 || value.trim() !== value || value.length > max || !pattern.test(value)) {
     throw new TypeError(`${label} is invalid`);
   }
@@ -41086,7 +41567,7 @@ function text10(value, label, pattern = ID5, max = 8192) {
 function list4(value, label, pattern = ID5, max = 2048) {
   if (!Array.isArray(value) || value.length > max)
     throw new TypeError(`${label} is invalid`);
-  const values = value.map((entry2, index) => text10(entry2, `${label}[${index}]`, pattern));
+  const values = value.map((entry2, index) => text11(entry2, `${label}[${index}]`, pattern));
   return Object.freeze([...new Set(values)]);
 }
 function object6(value, label) {
@@ -41103,8 +41584,8 @@ function keys(value, allowed, label) {
 function normalizeSkill(value, index) {
   const raw = object6(value, `skills[${index}]`);
   keys(raw, ["id", "version", "source", "availability", "capabilities", "supports_parallel", "permissions", "resource_claims", "input_schema_id", "output_schema_id", "output_media_types", "validators", "depends_on"], `skills[${index}]`);
-  const id2 = text10(raw.id, `skills[${index}].id`);
-  const version = text10(raw.version, `skills[${index}].version`, VERSION, 64);
+  const id2 = text11(raw.id, `skills[${index}].id`);
+  const version = text11(raw.version, `skills[${index}].version`, VERSION, 64);
   const source2 = raw.source === "builtin" || raw.source === "user" || raw.source === "remote" ? raw.source : void 0;
   const availability = raw.availability === "available" || raw.availability === "unavailable" || raw.availability === "unknown" ? raw.availability : void 0;
   if (source2 === void 0 || availability === void 0 || typeof raw.supports_parallel !== "boolean")
@@ -41124,13 +41605,13 @@ function normalizeSkill(value, index) {
     const access = claim2.access === "read" || claim2.access === "write" ? claim2.access : void 0;
     if (kind === void 0 || access === void 0)
       throw new TypeError(`skills[${index}].resource_claims[${claimIndex}] enum is invalid`);
-    const key = text10(claim2.key, `skills[${index}].resource_claims[${claimIndex}].key`, /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,511}$/u, 512);
+    const key = text11(claim2.key, `skills[${index}].resource_claims[${claimIndex}].key`, /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,511}$/u, 512);
     if (kind === "path" && (key.includes("..") || key.startsWith("/")))
       throw new TypeError(`skills[${index}].resource_claims[${claimIndex}].key escapes repository`);
     return Object.freeze({ kind, access, key });
   });
-  const input_schema_id = raw.input_schema_id === void 0 ? void 0 : text10(raw.input_schema_id, `skills[${index}].input_schema_id`, SCHEMA_ID2);
-  const output_schema_id = raw.output_schema_id === void 0 ? void 0 : text10(raw.output_schema_id, `skills[${index}].output_schema_id`, SCHEMA_ID2);
+  const input_schema_id = raw.input_schema_id === void 0 ? void 0 : text11(raw.input_schema_id, `skills[${index}].input_schema_id`, SCHEMA_ID2);
+  const output_schema_id = raw.output_schema_id === void 0 ? void 0 : text11(raw.output_schema_id, `skills[${index}].output_schema_id`, SCHEMA_ID2);
   return freeze4({ schema_version: PLANNER_DESCRIPTOR_SCHEMA_V2, id: id2, version, source: source2, availability, capabilities, supports_parallel: raw.supports_parallel, permissions, resource_claims: Object.freeze(resource_claims), ...input_schema_id === void 0 ? {} : { input_schema_id }, ...output_schema_id === void 0 ? {} : { output_schema_id }, output_media_types, validators: validators2, depends_on });
 }
 function normalizeMcp(value, index) {
@@ -41140,7 +41621,7 @@ function normalizeMcp(value, index) {
   const availability = raw.availability === "available" || raw.availability === "unavailable" || raw.availability === "unknown" ? raw.availability : void 0;
   if (source2 === void 0 || availability === void 0)
     throw new TypeError(`mcps[${index}] enum is invalid`);
-  return freeze4({ schema_version: PLANNER_DESCRIPTOR_SCHEMA_V2, id: text10(raw.id, `mcps[${index}].id`), version: text10(raw.version, `mcps[${index}].version`, VERSION, 64), source: source2, availability, capabilities: list4(raw.capabilities, `mcps[${index}].capabilities`, /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u), permissions: list4(raw.permissions, `mcps[${index}].permissions`, /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u) });
+  return freeze4({ schema_version: PLANNER_DESCRIPTOR_SCHEMA_V2, id: text11(raw.id, `mcps[${index}].id`), version: text11(raw.version, `mcps[${index}].version`, VERSION, 64), source: source2, availability, capabilities: list4(raw.capabilities, `mcps[${index}].capabilities`, /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u), permissions: list4(raw.permissions, `mcps[${index}].permissions`, /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u) });
 }
 function normalizeCapabilityCatalogV2(input2) {
   let snapshot;
@@ -41164,7 +41645,7 @@ function normalizeCapabilityCatalogV2(input2) {
       identities.add(identity);
     }
     const allowed_permissions = list4(raw.allowed_permissions ?? [], "allowed_permissions", /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u);
-    const policy_digest = raw.policy_digest === void 0 ? digest11({ allowed_permissions }) : text10(raw.policy_digest, "policy_digest", DIGEST3, 71);
+    const policy_digest = raw.policy_digest === void 0 ? digest11({ allowed_permissions }) : text11(raw.policy_digest, "policy_digest", DIGEST3, 71);
     const catalog2 = { schema_version: PLANNER_CATALOG_SCHEMA_V2, skills: Object.freeze(skills), mcps: Object.freeze(mcps), allowed_permissions, policy_digest, catalog_digest: digest11({ skills, mcps, allowed_permissions, policy_digest }) };
     return { ok: true, catalog: freeze4(catalog2) };
   } catch (error2) {
@@ -41192,8 +41673,8 @@ function requirement(id2, capability, necessity = "required", risk = "medium") {
 function assessDevelopmentIntentV2(input2) {
   if (input2.request.project_id !== input2.context.project_id || input2.request.change_id !== input2.context.change_id || input2.context.request_id !== input2.request.request_id)
     throw new TypeError("request/context identity mismatch");
-  text10(input2.assessment_id, "assessment_id");
-  text10(input2.assessed_at, "assessed_at", UTC4, 24);
+  text11(input2.assessment_id, "assessment_id");
+  text11(input2.assessed_at, "assessed_at", UTC4, 24);
   const intent = input2.request.intent.trim();
   if (new TextEncoder().encode(intent).byteLength > MAX_INTENT_BYTES)
     throw new TypeError("intent exceeds planner limit");
@@ -41232,9 +41713,9 @@ function descriptorForRequirement(catalog2, req) {
 function buildPlan(input2, catalog2) {
   if (input2.request.project_id !== input2.context.project_id || input2.assessment.request_id !== input2.request.request_id || input2.assessment.context_record_id !== input2.context.record_id)
     throw new TypeError("planner identity mismatch");
-  text10(input2.graph_id, "graph_id");
-  text10(input2.plan_revision_id, "plan_revision_id");
-  text10(input2.now, "now", UTC4, 24);
+  text11(input2.graph_id, "graph_id");
+  text11(input2.plan_revision_id, "plan_revision_id");
+  text11(input2.now, "now", UTC4, 24);
   const explicitByCapability = /* @__PURE__ */ new Map();
   for (const selection of input2.request.user_skills) {
     const descriptor = descriptorFor2(catalog2, selection.id, selection.version);
@@ -41330,12 +41811,12 @@ function defaultPipelineIdentity(request, assessment) {
   const track_revision = request.track_revision ?? "auto-v2";
   const pipeline_id = request.pipeline_id ?? `${workflow_id}:${track_id}:main`;
   const pipeline_version = request.pipeline_version ?? "1";
-  text10(workflow_id, "workflow_id");
-  text10(workflow_version, "workflow_version");
-  text10(track_id, "track_id");
-  text10(track_revision, "track_revision");
-  text10(pipeline_id, "pipeline_id");
-  text10(pipeline_version, "pipeline_version");
+  text11(workflow_id, "workflow_id");
+  text11(workflow_version, "workflow_version");
+  text11(track_id, "track_id");
+  text11(track_revision, "track_revision");
+  text11(pipeline_id, "pipeline_id");
+  text11(pipeline_version, "pipeline_version");
   return { workflow_id, workflow_version, track_id, track_revision, pipeline_id, pipeline_version };
 }
 function selectedSkillForRequirement(request, catalog2, capability, mode = "serial") {
@@ -41465,7 +41946,7 @@ function planDevelopmentV2(input2) {
   try {
     const assessment = input2.assessment;
     const identity = defaultPipelineIdentity(input2.request, assessment);
-    const pipeline_id = text10(input2.pipeline_blueprint?.pipeline_id ?? identity.pipeline_id, "pipeline_id");
+    const pipeline_id = text11(input2.pipeline_blueprint?.pipeline_id ?? identity.pipeline_id, "pipeline_id");
     const plan = buildPlan({ ...input2, catalog: catalog2, pipeline_id }, catalog2);
     const resolution = resolvePlannerCapabilitiesV2({ ...input2, assessment, graph: plan.graph, catalog: catalog2 });
     if (resolution.status !== "resolved")
@@ -41483,7 +41964,7 @@ import { randomUUID as randomUUID12 } from "node:crypto";
 // packages/automation/dist/orchestration/runtime-v2-boundary.js
 import { createHash as createHash29 } from "node:crypto";
 var DEFAULT_MAX_OUTPUT_BYTES = 256 * 1024;
-var DEFAULT_MAX_ROUNDS = 256;
+var DEFAULT_MAX_ROUNDS2 = 256;
 var DEFAULT_MAX_ATTEMPTS = 3;
 var DEFAULT_MAX_PARALLEL = 8;
 var DEFAULT_LEASE_DURATION_MS = 6e4;
@@ -41521,7 +42002,7 @@ function normalizePolicy(input2) {
     max_attempts: requirePositiveInt(input2?.max_attempts, DEFAULT_MAX_ATTEMPTS, "max_attempts"),
     auto_retry: input2?.auto_retry ?? true,
     max_parallel: requirePositiveInt(input2?.max_parallel, DEFAULT_MAX_PARALLEL, "max_parallel"),
-    max_rounds: requirePositiveInt(input2?.max_rounds, DEFAULT_MAX_ROUNDS, "max_rounds"),
+    max_rounds: requirePositiveInt(input2?.max_rounds, DEFAULT_MAX_ROUNDS2, "max_rounds"),
     lease_duration_ms: requirePositiveInt(input2?.lease_duration_ms, DEFAULT_LEASE_DURATION_MS, "lease_duration_ms"),
     heartbeat_interval_ms: requirePositiveInt(input2?.heartbeat_interval_ms, DEFAULT_HEARTBEAT_INTERVAL_MS, "heartbeat_interval_ms"),
     max_output_bytes: requirePositiveInt(input2?.max_output_bytes, DEFAULT_MAX_OUTPUT_BYTES, "max_output_bytes")
@@ -42799,8 +43280,8 @@ var MAX_EVENT_SAMPLE_CHARS = 180;
 function asRecord9(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
 }
-function unwrap(text11) {
-  const tagged = /<output>\s*([\s\S]*?)\s*<\/output>/u.exec(text11)?.[1] ?? text11;
+function unwrap(text12) {
+  const tagged = /<output>\s*([\s\S]*?)\s*<\/output>/u.exec(text12)?.[1] ?? text12;
   const fenced = tagged.trim().match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/u);
   return (fenced?.[1] ?? tagged).trim();
 }
@@ -43521,18 +44002,18 @@ function collectPolicyTemplateReferences(workflow) {
     source: `template:${template.id}`
   }));
 }
-function validateStateWorkflowText(text11, change) {
-  if (text11.includes("\0")) throw new Error("state \u542B NUL \u5B57\u8282");
+function validateStateWorkflowText(text12, change) {
+  if (text12.includes("\0")) throw new Error("state \u542B NUL \u5B57\u8282");
   const counts = /* @__PURE__ */ new Map();
   const workflowValues = [];
-  for (const line of text11.split(/\r?\n/)) {
+  for (const line of text12.split(/\r?\n/)) {
     const match = /^([A-Za-z0-9_]+):(.*)$/.exec(line);
     if (!match) continue;
     const field5 = match[1];
-    const scalar15 = match[2];
-    if (field5 === void 0 || scalar15 === void 0) continue;
+    const scalar16 = match[2];
+    if (field5 === void 0 || scalar16 === void 0) continue;
     counts.set(field5, (counts.get(field5) ?? 0) + 1);
-    if (field5 === "workflow") workflowValues.push(unquoteScalar(scalar15.trim()));
+    if (field5 === "workflow") workflowValues.push(unquoteScalar(scalar16.trim()));
   }
   for (const required3 of ["track", "phase"]) {
     if (counts.get(required3) !== 1) {
@@ -43541,7 +44022,7 @@ function validateStateWorkflowText(text11, change) {
   }
   const workflowCount = counts.get("workflow") ?? 0;
   if (workflowCount > 1) throw new Error(`state.workflow \u91CD\u590D\uFF08${workflowCount} \u6B21\uFF09`);
-  const state = parsePipeline(text11);
+  const state = parsePipeline(text12);
   const knownFields = new Set(FIELD_ORDER);
   const hiddenKnownFields = state.opaqueTail.split(/\r?\n/).map((line) => /^([A-Za-z0-9_]+):/.exec(line)?.[1]).filter((field5) => field5 !== void 0 && knownFields.has(field5));
   if (hiddenKnownFields.length > 0) {
@@ -43651,8 +44132,8 @@ function scanLoopReferences(root, workflow) {
     return withTrustedDirectoryChain(root, [".pipeline"], false, () => ({ references, blockers }), (pipeline) => {
       const bytes = readTrustedRegularFile(pipeline, root, "loops.yaml", "loops registry", "null");
       if (!bytes) return { references, blockers };
-      const text11 = decodeUtf8Strict(bytes, "loops registry");
-      const loaded = loadRegistry(root.path, { readText: () => text11 });
+      const text12 = decodeUtf8Strict(bytes, "loops registry");
+      const loaded = loadRegistry(root.path, { readText: () => text12 });
       if (loaded.errors.length > 0 || !loaded.data) {
         blockers.push({
           source: "loops-registry",
@@ -44780,15 +45261,15 @@ function resolveSnapshotTrack(root, trackId, workflowName) {
   }
 }
 async function readHistoryLines(changeDir2) {
-  let text11;
+  let text12;
   try {
-    text11 = await readFile50(join77(changeDir2, HISTORY_FILE), "utf8");
+    text12 = await readFile50(join77(changeDir2, HISTORY_FILE), "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT") return [];
     throw error2;
   }
   const lines2 = [];
-  for (const line of text11.split("\n")) {
+  for (const line of text12.split("\n")) {
     if (line.trim() === "") continue;
     try {
       const parsed2 = JSON.parse(line);
@@ -45174,6 +45655,7 @@ function planDto(plan, kindOf) {
     waivers: plan.waivers.map((waiver) => ({
       ...waiver.kind === void 0 ? {} : { kind: waiver.kind },
       ...waiver.covers === void 0 ? {} : { covers: waiver.covers },
+      ...waiver.test === void 0 ? {} : { test: waiver.test },
       reason: waiver.reason,
       approvedBy: waiver.approved_by
     }))
@@ -45232,6 +45714,7 @@ function planBriefDto(plan, kindOf) {
     waivers: plan.waivers.map((waiver) => ({
       ...waiver.kind === void 0 ? {} : { kind: waiver.kind },
       ...waiver.covers === void 0 ? {} : { covers: waiver.covers },
+      ...waiver.test === void 0 ? {} : { test: waiver.test },
       approved: waiver.approved_by !== null
     })),
     files: plan.files.length,
@@ -45672,6 +46155,7 @@ async function projectTestEvidence(input2) {
       direction: item2.test.direction,
       required: item2.test.required,
       status: item2.status,
+      ...item2.waiver === void 0 ? {} : { waiver: item2.waiver },
       ...item2.run === void 0 ? {} : {
         run: {
           runId: item2.run.run_id,
@@ -46499,13 +46983,13 @@ var TRACE_TIMELINE_WARNING_ORDER = [
   "malformed-record",
   "count-mismatch"
 ];
-function isObject2(value) {
+function isObject3(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function objectField(value, key) {
-  if (!isObject2(value)) return null;
+  if (!isObject3(value)) return null;
   const nested4 = value[key];
-  return isObject2(nested4) ? nested4 : null;
+  return isObject3(nested4) ? nested4 : null;
 }
 function boundedString(value, maxLength) {
   return typeof value === "string" && value.length > 0 && value.length <= maxLength ? value : null;
@@ -46558,7 +47042,7 @@ function metadataPath(value) {
   return path14.length > 0 && path14.length <= 2048 ? path14 : null;
 }
 function projectEntry(record11, sequence) {
-  const source2 = isObject2(record11) ? record11 : {};
+  const source2 = isObject3(record11) ? record11 : {};
   const request = objectField(source2, "request");
   const response = objectField(source2, "response");
   const requestBody = objectField(request, "body");
@@ -47065,7 +47549,7 @@ function createCadenceScheduler(options3) {
 
 // packages/server/src/serverGetRoutes.ts
 import { lstatSync as lstatSync19 } from "node:fs";
-import { dirname as dirname25, join as join116 } from "node:path";
+import { dirname as dirname26, join as join117 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // packages/server/src/afkReadiness.ts
@@ -47482,8 +47966,8 @@ function readBoundedHooksConfig(root, pipeline) {
     if (fd !== void 0) safeClose(fd);
   }
 }
-function readPromptSkipKeywordHeader(text11) {
-  const lines2 = text11.replace(/\r\n?/g, "\n").split("\n").map((line2) => line2.trim());
+function readPromptSkipKeywordHeader(text12) {
+  const lines2 = text12.replace(/\r\n?/g, "\n").split("\n").map((line2) => line2.trim());
   if (lines2[0] !== "{" || lines2[1] !== '"version": 1,') return DEFAULT_PROMPT_SKIP_KEYWORD;
   const prefix = '"prompt_skip_keyword": ';
   const line = lines2[2];
@@ -47504,14 +47988,14 @@ function readPromptSkipKeywordHeader(text11) {
   }
   return keyword;
 }
-function hasDuplicateMatrixKey(text11, key) {
+function hasDuplicateMatrixKey(text12, key) {
   const encoded = JSON.stringify(key);
   let count4 = 0;
   let from = 0;
   for (; ; ) {
-    const index = text11.indexOf(encoded, from);
+    const index = text12.indexOf(encoded, from);
     if (index < 0) return count4 > 1;
-    const remainder = text11.slice(index + encoded.length);
+    const remainder = text12.slice(index + encoded.length);
     if (/^\s*:/.test(remainder)) count4 += 1;
     from = index + encoded.length;
   }
@@ -47532,19 +48016,19 @@ function withHooksPipeline(rootInput, create, onMissing, use) {
   }
 }
 function readHooksConfig(root) {
-  const text11 = withHooksPipeline(
+  const text12 = withHooksPipeline(
     root,
     false,
     () => null,
     (anchor, pipeline) => readBoundedHooksConfig(anchor, pipeline)
   );
-  if (text11 === null) {
+  if (text12 === null) {
     return { promptSkipKeyword: DEFAULT_PROMPT_SKIP_KEYWORD, matrix: {} };
   }
-  const promptSkipKeyword = readPromptSkipKeywordHeader(text11);
+  const promptSkipKeyword = readPromptSkipKeywordHeader(text12);
   let parsed2;
   try {
-    parsed2 = JSON.parse(text11);
+    parsed2 = JSON.parse(text12);
   } catch {
     return { promptSkipKeyword, matrix: {} };
   }
@@ -47557,7 +48041,7 @@ function readHooksConfig(root) {
   if (typeof rawMatrix === "object" && rawMatrix !== null && !Array.isArray(rawMatrix)) {
     for (const [key, value] of Object.entries(rawMatrix)) {
       if (value !== false) continue;
-      if (hasDuplicateMatrixKey(text11, key)) return { promptSkipKeyword, matrix: {} };
+      if (hasDuplicateMatrixKey(text12, key)) return { promptSkipKeyword, matrix: {} };
       const dot = key.indexOf(".");
       if (dot <= 0) continue;
       const hook = key.slice(0, dot);
@@ -47717,8 +48201,8 @@ var STARTER_EXECUTION_FIELDS = /* @__PURE__ */ new Set([
   "workflow_id",
   "skill_bundle_id"
 ]);
-function registryFromText(text11) {
-  return loadRegistry("", { readText: () => text11 });
+function registryFromText(text12) {
+  return loadRegistry("", { readText: () => text12 });
 }
 function isStarter(loop) {
   return typeof loop?.template_id === "string" && loop.template_id.length > 0;
@@ -47733,11 +48217,11 @@ async function applyLoopsUpdate(root, id2, patch, deps = {}) {
   if (snap0.epoch === ABSENT_REGISTRY_EPOCH) {
     return { ok: false, error: `loops.yaml \u672A\u627E\u5230\u4E8E ${loopsYamlPath(root)}` };
   }
-  const { text: text11, error: error2 } = updateLoopInYaml(snap0.text, id2, patch);
-  if (error2 !== null || text11 === null) {
+  const { text: text12, error: error2 } = updateLoopInYaml(snap0.text, id2, patch);
+  if (error2 !== null || text12 === null) {
     return { ok: false, error: error2 ?? "loops.yaml \u6587\u672C\u624B\u672F\u5931\u8D25" };
   }
-  const parsed2 = parseLoopsYaml(text11);
+  const parsed2 = parseLoopsYaml(text12);
   if (parsed2.error !== null || parsed2.data === null || typeof parsed2.data !== "object" || Array.isArray(parsed2.data)) {
     return { ok: false, error: `\u5199\u56DE\u6587\u672C\u89E3\u6790\u5931\u8D25\uFF1A${parsed2.error ?? "\u9876\u5C42\u975E mapping"}` };
   }
@@ -47746,7 +48230,7 @@ async function applyLoopsUpdate(root, id2, patch, deps = {}) {
     return { ok: false, error: "patch \u540E schema \u6821\u9A8C\u5931\u8D25\uFF0C\u672A\u843D\u76D8", errors: schemaErrors };
   }
   const previousRegistry = registryFromText(snap0.text);
-  const candidateRegistry = registryFromText(text11);
+  const candidateRegistry = registryFromText(text12);
   if (previousRegistry.data === null || candidateRegistry.data === null) {
     return {
       ok: false,
@@ -47781,7 +48265,7 @@ async function applyLoopsUpdate(root, id2, patch, deps = {}) {
   }
   const res = await writeRegistryWithGovernance(root, snap0.epoch, async () => {
     const commitValidationError = await validateCandidate("commit-point");
-    return commitValidationError === null ? { text: text11, error: null } : { text: null, error: `${commitValidationError}\uFF0C\u672A\u843D\u76D8` };
+    return commitValidationError === null ? { text: text12, error: null } : { text: null, error: `${commitValidationError}\uFF0C\u672A\u843D\u76D8` };
   });
   if (!res.ok) {
     return { ok: false, error: `loops.yaml \u6CBB\u7406\u5199\u5165\u62D2\u7EDD\uFF08${res.error}\uFF09` };
@@ -47925,14 +48409,14 @@ import { accessSync as accessSync2, constants as constants15, existsSync as exis
 import { delimiter, dirname as dirname21, join as join89, sep as sep16 } from "node:path";
 function skillDescriptionFrom(path14) {
   try {
-    const text11 = readFileSync25(path14, "utf8");
-    const frontmatter = /^---\s*\n([\s\S]*?)\n---/.exec(text11)?.[1];
+    const text12 = readFileSync25(path14, "utf8");
+    const frontmatter = /^---\s*\n([\s\S]*?)\n---/.exec(text12)?.[1];
     if (frontmatter) {
       const line = frontmatter.split("\n").find((candidate2) => /^description\s*:/.test(candidate2.trim()));
       const value = line?.replace(/^\s*description\s*:\s*/, "").trim().replace(/^['"]|['"]$/g, "");
       if (value) return value.replace(/\s+/g, " ").slice(0, 240);
     }
-    const body2 = text11.replace(/^---\s*\n[\s\S]*?\n---\s*/, "");
+    const body2 = text12.replace(/^---\s*\n[\s\S]*?\n---\s*/, "");
     const paragraph = body2.split(/\n\s*\n/).map((candidate2) => candidate2.replace(/^#+\s+.*$/gm, "").replace(/\s+/g, " ").trim()).find(Boolean);
     return paragraph ? paragraph.slice(0, 240) : void 0;
   } catch {
@@ -48061,9 +48545,9 @@ function readSkillFile(name, relPath, repoRoot, claudeDir) {
     const realRoot = realpathSync7(located.dir);
     const realFile = realpathSync7(absolute);
     if (!realFile.startsWith(realRoot + sep16) && realFile !== realRoot) return { kind: "invalid-path" };
-    const text11 = readFileSync25(realFile, "utf8");
-    if (text11.includes("\0")) return { kind: "binary" };
-    return { kind: "ok", path: relPath, text: text11 };
+    const text12 = readFileSync25(realFile, "utf8");
+    if (text12.includes("\0")) return { kind: "binary" };
+    return { kind: "ok", path: relPath, text: text12 };
   } catch {
     return { kind: "not-found" };
   }
@@ -48258,7 +48742,7 @@ function resolveSkillsGet(req, res, path14, deps) {
 }
 
 // packages/server/src/serverGetActivityRoutes.ts
-import { join as join95, resolve as resolvePath4 } from "node:path";
+import { join as join96, resolve as resolvePath4 } from "node:path";
 
 // packages/server/src/afk.ts
 import { execFile as execFile9 } from "node:child_process";
@@ -48852,7 +49336,7 @@ async function handleContextBundlePreview(req, res, deps) {
 }
 
 // packages/server/src/runDetail.ts
-function scalar13(value) {
+function scalar14(value) {
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
 async function revisionChain(changeDir2, current) {
@@ -48972,13 +49456,13 @@ async function buildRunDetail(repoRoot, changeDir2, changeName, deps) {
     projection,
     workflow_run: metadata ? {
       id: metadata.runId,
-      workflow_id: scalar13(fields.workflow) || "default",
-      current_step: scalar13(fields.phase),
-      lifecycle: scalar13(fields.archived) === "true" ? "archived" : "active",
+      workflow_id: scalar14(fields.workflow) || "default",
+      current_step: scalar14(fields.phase),
+      lifecycle: scalar14(fields.archived) === "true" ? "archived" : "active",
       transition_sequence: metadata.transitionSequence,
       ...metadata.transitionHead ? { transition_head: metadata.transitionHead } : {},
-      created_at: scalar13(fields.created_at),
-      updated_at: scalar13(fields.updated_at),
+      created_at: scalar14(fields.created_at),
+      updated_at: scalar14(fields.updated_at),
       ...automationPolicy ? {
         policy_id: automationPolicy.policy_id,
         policy_version: automationPolicy.policy_version,
@@ -49185,6 +49669,20 @@ function mapTransitionResult(name, event, result2) {
           reason: result2.reason
         }
       };
+    case "rounds-exhausted":
+      return {
+        code: 409,
+        body: {
+          ok: false,
+          code: "rounds-exhausted",
+          error: `step '${result2.stepId}' \u7684\u9A8C\u8BC1\u8F6E\u6B21\u5DF2\u7528\u5B8C\uFF08${result2.current}/${result2.max}\uFF0C\u6765\u6E90 ${result2.source}\uFF09\uFF0C\u56DE\u9000\u8FB9 event '${result2.event}' \u4E0D\u518D\u653E\u884C\uFF1B\u8C03\u9AD8\u4E0A\u9650\u662F\u7528\u6237\u7684\u51B3\u5B9A\uFF1Atenon set ${name} max_rounds <N>\uFF08N \u987B\u5927\u4E8E ${result2.current}\uFF09\uFF1B\u6216\u56DE\u5230\u89C4\u683C\u91CD\u65B0\u89C4\u5212\uFF08\u5F53\u524D\u6B65\u9AA4\u6CA1\u6709\u76F4\u8FBE\u7684\u8FB9\uFF1A\u8981\u5148\u8C03\u9AD8\u4E0A\u9650\uFF0C\u7ECF\u56DE\u9000\u8FB9\u56DE\u5230\u56DE\u9000\u76EE\u6807\u6B65\u9AA4\uFF0C\u518D\u5728\u90A3\u4E00\u6B65\u4E0A\u6267\u884C\u56DE\u5230\u89C4\u683C\u7684\u4E8B\u4EF6\uFF0C\u56DE\u5230\u89C4\u683C\u540E\u9A8C\u8BC1\u8F6E\u6B21\u91CD\u65B0\u8BA1\u6570\uFF09\uFF1B\u6216\u7EC8\u6B62\u4EFB\u52A1`,
+          step: result2.stepId,
+          event: result2.event,
+          current: result2.current,
+          max: result2.max,
+          source: result2.source
+        }
+      };
   }
 }
 
@@ -49261,15 +49759,15 @@ function decodeHistoryEntry(value) {
   };
 }
 async function readJsonlHistory(changeDir2) {
-  let text11;
+  let text12;
   try {
-    text11 = await readFile55(join93(changeDir2, HISTORY_FILE), "utf8");
+    text12 = await readFile55(join93(changeDir2, HISTORY_FILE), "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT") return [];
     throw error2;
   }
   const entries2 = [];
-  for (const line of text11.split("\n")) {
+  for (const line of text12.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed) continue;
     try {
@@ -49413,6 +49911,18 @@ async function performTransition(deps, root, name, event) {
     history: deps.history,
     breadcrumb: deps.breadcrumb,
     resolveTrack: deps.resolveTrack,
+    // 验证轮次上限的强制层：用完后受约束步骤的回退边不再放行（与 CLI 的 `tenon transition` 同一份判定）。
+    roundsOf: ({ changeDir: targetDir, plan, state, stepId }) => readStepRounds({
+      ...deps.recordStore === void 0 ? {} : { recordStore: deps.recordStore },
+      readHistoryRaw: async (historyDir) => {
+        try {
+          return await readFile56(join94(historyDir, HISTORY_FILE), "utf8");
+        } catch (error2) {
+          if (error2.code === "ENOENT") return "";
+          throw error2;
+        }
+      }
+    }, targetDir, state, plan, stepId),
     reviewGateBinding: async ({ changeDir: changeDir2, state, phase, event: event2 }) => {
       try {
         const binding = await readReviewGateBinding(changeDir2);
@@ -49491,6 +50001,50 @@ async function performTransition(deps, root, name, event) {
   }
 }
 
+// packages/server/src/version.ts
+import { readFileSync as readFileSync26 } from "node:fs";
+import { basename as basename8, dirname as dirname22, join as join95 } from "node:path";
+var SERVER_VERSION = "0.1.0";
+var RELEASE_ID = /^sha256-[a-f0-9]{64}$/;
+function isPluginManifestVersion(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function resolveReleaseVersion(pluginRoot2) {
+  for (const relative16 of [".codex-plugin/plugin.json", ".claude-plugin/plugin.json"]) {
+    try {
+      const parsed2 = JSON.parse(readFileSync26(join95(pluginRoot2, relative16), "utf8"));
+      if (isPluginManifestVersion(parsed2) && typeof parsed2.version === "string" && /^\d+\.\d+\.\d+$/.test(parsed2.version)) {
+        return parsed2.version;
+      }
+    } catch {
+    }
+  }
+  return SERVER_VERSION;
+}
+function resolvePayloadReleaseId(pluginRoot2) {
+  if (basename8(pluginRoot2) !== "payload") return void 0;
+  const releaseId = basename8(dirname22(pluginRoot2));
+  return RELEASE_ID.test(releaseId) ? releaseId : void 0;
+}
+var DEV_COMMIT = /^[0-9a-f]{40}$/;
+function isRecord11(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function resolveReleaseChannel(pluginRoot2) {
+  if (basename8(pluginRoot2) !== "payload") return void 0;
+  try {
+    const manifest = JSON.parse(readFileSync26(join95(dirname22(pluginRoot2), "release.json"), "utf8"));
+    if (!isRecord11(manifest) || !isRecord11(manifest.devSource)) return void 0;
+    const { kind, commit } = manifest.devSource;
+    return kind === "dev" && typeof commit === "string" && DEV_COMMIT.test(commit) ? { kind: "dev", commit } : void 0;
+  } catch {
+    return void 0;
+  }
+}
+function displayVersion(version, channel2) {
+  return channel2 === void 0 ? version : `${version}+dev.${channel2.commit.slice(0, 7)}`;
+}
+
 // packages/server/src/serverGetActivityRoutes.ts
 async function handleGetActivityRoutes(req, res, path14, deps) {
   const {
@@ -49518,12 +50072,15 @@ async function handleGetActivityRoutes(req, res, path14, deps) {
   const boundPort = deps.boundPort();
   if (serveAsset(req, res, path14)) return;
   if (path14 === "/api/health") {
+    const channel2 = deps.options.channel;
     return sendJson(res, 200, {
       ok: true,
       scope: "global",
       version,
       ...releaseId === void 0 ? {} : { releaseId },
       ...transactionId === void 0 ? {} : { transactionId },
+      channel: channel2 === void 0 ? "stable" : "dev",
+      ...channel2 === void 0 ? {} : { commit: channel2.commit.slice(0, 7), displayVersion: displayVersion(version, channel2) },
       stateScopeId,
       pid: process.pid
     });
@@ -49596,7 +50153,7 @@ async function handleGetActivityRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join95(root, "openspec", "changes", name);
+    const dir = join96(root, "openspec", "changes", name);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
@@ -49614,7 +50171,7 @@ async function handleGetActivityRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join95(root, "openspec", "changes", name);
+    const dir = join96(root, "openspec", "changes", name);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
@@ -49632,7 +50189,7 @@ async function handleGetActivityRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    if (!stateStorageExistsSync(join95(root, "openspec", "changes", name))) {
+    if (!stateStorageExistsSync(join96(root, "openspec", "changes", name))) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
     try {
@@ -49655,7 +50212,7 @@ async function handleGetActivityRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join95(root, "openspec", "changes", name);
+    const dir = join96(root, "openspec", "changes", name);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
@@ -49672,7 +50229,7 @@ async function handleGetActivityRoutes(req, res, path14, deps) {
 }
 
 // packages/server/src/serverGetSessionRoutes.ts
-import { join as join96 } from "node:path";
+import { join as join97 } from "node:path";
 function isChangeName(name) {
   return name !== "" && /^[a-zA-Z0-9_-]+$/.test(name) && !name.includes("..");
 }
@@ -49687,7 +50244,7 @@ async function handleSessionLink(req, res, deps) {
   if (!deps.isRegisteredRoot(root)) {
     return deps.sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
   }
-  if (!stateStorageExistsSync(join96(root, "openspec", "changes", name))) {
+  if (!stateStorageExistsSync(join97(root, "openspec", "changes", name))) {
     return deps.sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
   }
   return deps.sendJson(res, 200, await deps.resolveSessionLink(root, name));
@@ -49707,7 +50264,7 @@ async function handleSessionLinks(req, res, deps) {
     roots.map(async (root, index) => {
       const name = names[index] ?? "";
       const key = `${name}@${root}`;
-      const valid = isChangeName(name) && root !== "" && deps.isRegisteredRoot(root) && stateStorageExistsSync(join96(root, "openspec", "changes", name));
+      const valid = isChangeName(name) && root !== "" && deps.isRegisteredRoot(root) && stateStorageExistsSync(join97(root, "openspec", "changes", name));
       links2[key] = valid ? await deps.resolveSessionLink(root, name) : { found: false, reason: "invalid" };
     })
   );
@@ -49786,13 +50343,13 @@ function handleGetTraceRoutes(req, res, path14, deps) {
 
 // packages/server/src/hostTargetDetection.ts
 import { closeSync as closeSync7, constants as constants16, fstatSync as fstatSync11, lstatSync as lstatSync12, openSync as openSync12, readSync as readSync7, readdirSync as readdirSync11 } from "node:fs";
-import { join as join97 } from "node:path";
+import { join as join98 } from "node:path";
 var MAX_HOST_INVENTORY_BYTES = 256 * 1024;
 function captureDirectoryChain(hostHome, segments2) {
   const identities = [];
   let candidate2 = hostHome;
   for (const segment of ["", ...segments2]) {
-    if (segment !== "") candidate2 = join97(candidate2, segment);
+    if (segment !== "") candidate2 = join98(candidate2, segment);
     try {
       const descriptor = openSync12(
         candidate2,
@@ -49845,7 +50402,7 @@ function hasInstalledPlugin(hostHome, namespaceSegments, markerSegments, options
   if (namespace === null) return false;
   try {
     try {
-      const path14 = join97(hostHome, ...namespaceSegments);
+      const path14 = join98(hostHome, ...namespaceSegments);
       const versions = options3.readPluginCacheEntries?.(path14) ?? readdirSync11(path14, { withFileTypes: true });
       if (versions.length > 128 || !directoryChainIsStable(namespace)) return false;
       return versions.some((version) => {
@@ -49853,7 +50410,7 @@ function hasInstalledPlugin(hostHome, namespaceSegments, markerSegments, options
         const segments2 = [...namespaceSegments, version.name, ...markerSegments];
         const directories2 = captureDirectoryChain(hostHome, segments2.slice(0, -1));
         if (directories2 === null) return false;
-        const marker = join97(hostHome, ...segments2);
+        const marker = join98(hostHome, ...segments2);
         let descriptor;
         try {
           if (!directoryChainIsStable(namespace) || !directoryChainIsStable(directories2)) return false;
@@ -49882,7 +50439,7 @@ function readBoundedHostFile(hostHome, segments2) {
   if (segments2.length === 0) return null;
   const directories2 = captureDirectoryChain(hostHome, segments2.slice(0, -1));
   if (directories2 === null) return null;
-  const path14 = join97(hostHome, ...segments2);
+  const path14 = join98(hostHome, ...segments2);
   let descriptor;
   try {
     descriptor = openSync12(
@@ -50060,7 +50617,7 @@ var NOTICE_IDS = [
   "host-plan.notice.codex-auth-guidance",
   "host-plan.notice.current-project-target"
 ];
-function isRecord11(value) {
+function isRecord12(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function hasExactKeys2(value, keys2) {
@@ -50080,7 +50637,7 @@ function arraysEqual(left, right) {
   return left.length === right.length && left.every((item2, index) => item2 === right[index]);
 }
 function decodeCommand(value) {
-  if (!isRecord11(value) || !hasExactKeys2(value, ["executable", "args", "display"])) return null;
+  if (!isRecord12(value) || !hasExactKeys2(value, ["executable", "args", "display"])) return null;
   if (!isNonemptyString(value.executable) || !isNonemptyString(value.display)) return null;
   if (!Array.isArray(value.args) || !value.args.every((arg) => typeof arg === "string") || value.display !== [value.executable, ...value.args].join(" ")) return null;
   return { executable: value.executable, args: value.args, display: value.display };
@@ -50139,7 +50696,7 @@ function commandsEqual(actual, expected) {
   return actual.executable === expected.executable && arraysEqual(actual.args, expected.args) && actual.display === expected.display;
 }
 function decodeTarget(value) {
-  if (!isRecord11(value) || !hasExactKeys2(value, [
+  if (!isRecord12(value) || !hasExactKeys2(value, [
     "id",
     "kind",
     "cli_flag",
@@ -50165,7 +50722,7 @@ function decodeTarget(value) {
   };
 }
 function decodeHostTargetCatalog(value) {
-  if (!isRecord11(value) || !hasExactKeys2(value, ["schema_version", "targets"]) || value.schema_version !== "host-target-plan/v1" || !Array.isArray(value.targets) || value.targets.length !== HOST_IDS.length) return null;
+  if (!isRecord12(value) || !hasExactKeys2(value, ["schema_version", "targets"]) || value.schema_version !== "host-target-plan/v1" || !Array.isArray(value.targets) || value.targets.length !== HOST_IDS.length) return null;
   const targets = [];
   for (let index = 0; index < value.targets.length; index += 1) {
     const item2 = value.targets[index];
@@ -50176,7 +50733,7 @@ function decodeHostTargetCatalog(value) {
   return { schema_version: "host-target-plan/v1", targets };
 }
 function decodePlanStep(value) {
-  if (!isRecord11(value)) return null;
+  if (!isRecord12(value)) return null;
   const conditional = "condition" in value;
   const keys2 = conditional ? ["id", "label", "command", "condition"] : ["id", "label", "command"];
   if (!hasExactKeys2(value, keys2)) return null;
@@ -50188,7 +50745,7 @@ function decodePlanStep(value) {
   return { id: value.id, label: value.label, command, condition: value.condition };
 }
 function decodeHostTargetPlan(value, expectedHost, expectedOperation) {
-  if (!isRecord11(value) || !hasExactKeys2(value, [
+  if (!isRecord12(value) || !hasExactKeys2(value, [
     "schema_version",
     "side_effects",
     "host",
@@ -50443,8 +51000,8 @@ function resolveDocumentReadRoute(req, path14, deps) {
   const rootCheck2 = deps.workflowRootForRequest(root);
   if (!rootCheck2.ok) return { status: rootCheck2.code, body: { ok: false, error: rootCheck2.error } };
   try {
-    const { text: text11, sourceBytes } = readTrustedFile(rootCheck2.anchor, relative16, DOCUMENT_READ_MAX_BYTES);
-    const body2 = { ok: true, path: relative16, text: text11, bytes: sourceBytes };
+    const { text: text12, sourceBytes } = readTrustedFile(rootCheck2.anchor, relative16, DOCUMENT_READ_MAX_BYTES);
+    const body2 = { ok: true, path: relative16, text: text12, bytes: sourceBytes };
     return { status: 200, body: body2 };
   } catch (error2) {
     if (error2 instanceof LedgerContextBundleError) {
@@ -50465,7 +51022,7 @@ function resolveDocumentReadRoute(req, path14, deps) {
 import { createReadStream } from "node:fs";
 import { lstat as lstat47, open as open8, realpath as realpath9 } from "node:fs/promises";
 import { constants as constants17 } from "node:fs";
-import { join as join99, relative as relative14, sep as sep18 } from "node:path";
+import { join as join100, relative as relative14, sep as sep18 } from "node:path";
 
 // packages/server/src/contentDisposition.ts
 var ATTR_CHAR = /^[A-Za-z0-9!#$&+\-.^_`|~]$/u;
@@ -50494,14 +51051,14 @@ function contentDisposition(type, filename) {
 
 // packages/server/src/serverTestDirectionRoutes.ts
 import { mkdir as mkdir34, readFile as readFile57, readdir as readdir21, rm as rm14 } from "node:fs/promises";
-import { join as join98 } from "node:path";
+import { join as join99 } from "node:path";
 var TEST_DIRECTION_MAX_BYTES = 64 * 1024;
 var ID_RE3 = /^[A-Za-z0-9_-]{1,64}$/u;
 function directionsRoot(configRoot) {
-  return join98(configRoot, "test-directions");
+  return join99(configRoot, "test-directions");
 }
 async function readScope(configRoot, source2) {
-  const dir = join98(directionsRoot(configRoot), source2);
+  const dir = join99(directionsRoot(configRoot), source2);
   let names;
   try {
     names = (await readdir21(dir)).filter((name) => name.endsWith(".yaml")).sort();
@@ -50511,7 +51068,7 @@ async function readScope(configRoot, source2) {
   const entries2 = [];
   for (const name of names) {
     try {
-      const yaml = await readFile57(join98(dir, name), "utf8");
+      const yaml = await readFile57(join99(dir, name), "utf8");
       const definition = parseTestDirection(yaml);
       if (definition.id !== name.replace(/\.yaml$/u, "")) continue;
       entries2.push({ id: definition.id, label: definition.label, source: source2, yaml, definition });
@@ -50537,7 +51094,7 @@ function idOf(path14) {
 }
 async function isBuiltin2(configRoot, id2) {
   try {
-    await readFile57(join98(directionsRoot(configRoot), "builtin", `${id2}.yaml`), "utf8");
+    await readFile57(join99(directionsRoot(configRoot), "builtin", `${id2}.yaml`), "utf8");
     return true;
   } catch {
     return false;
@@ -50551,8 +51108,8 @@ async function handleTestDirectionMutation(method, path14, body2, deps) {
   if (await isBuiltin2(deps.configRoot, id2)) {
     return { status: 409, body: { ok: false, error: `\u5185\u5EFA\u65B9\u5411 '${id2}' \u53EA\u8BFB\uFF1B\u5148\u590D\u5236\u6210\u81EA\u5B9A\u4E49\u518D\u6539` } };
   }
-  const customDir = join98(directionsRoot(deps.configRoot), "custom");
-  const target = join98(customDir, `${id2}.yaml`);
+  const customDir = join99(directionsRoot(deps.configRoot), "custom");
+  const target = join99(customDir, `${id2}.yaml`);
   if (method === "DELETE") {
     try {
       await readFile57(target, "utf8");
@@ -50667,7 +51224,7 @@ function contentTypeFor(path14) {
   const extension = dot < 0 ? "" : path14.slice(dot).toLowerCase();
   return CONTENT_TYPES[extension] ?? "text/plain; charset=utf-8";
 }
-function basename8(path14) {
+function basename9(path14) {
   return path14.slice(path14.lastIndexOf("/") + 1);
 }
 function isSafeArtifactPath(path14) {
@@ -50734,7 +51291,7 @@ async function resolveTestRunsRoute(url, path14, deps) {
   if (!SLUG_RE2.test(query.user) || !TEST_RUN_ID_RE.test(query.run)) {
     return { status: 400, body: { ok: false, error: "user \u6216 run \u53C2\u6570\u975E\u6CD5" } };
   }
-  const recordPath2 = join99(testEvidencePaths(readRoot, query.user, query.change).runsDir, `${query.run}.json`);
+  const recordPath2 = join100(testEvidencePaths(readRoot, query.user, query.change).runsDir, `${query.run}.json`);
   let exists2 = false;
   try {
     exists2 = (await lstat47(recordPath2)).isFile();
@@ -50749,10 +51306,10 @@ async function resolveTestRunsRoute(url, path14, deps) {
   for (const output2 of record11.outputs) {
     if (output2.artifact === null) continue;
     for (const artifact2 of output2.artifact_files ?? [output2.artifact]) {
-      if (await isRegularFile2(join99(runDir, ...artifact2.split("/")))) files.push(artifact2);
+      if (await isRegularFile2(join100(runDir, ...artifact2.split("/")))) files.push(artifact2);
     }
   }
-  const log3 = await lstat47(join99(runDir, record11.log.artifact)).then(() => true, () => false);
+  const log3 = await lstat47(join100(runDir, record11.log.artifact)).then(() => true, () => false);
   return { status: 200, body: { ok: true, record: record11, artifacts: { log: log3, files } } };
 }
 async function handleTestGetRoutes(req, res, path14, deps) {
@@ -50793,7 +51350,7 @@ async function handleTestArtifactRoute(req, res, path14, deps) {
   }
   const readRoot = rootCheck2.anchor.fdPath ?? rootCheck2.anchor.realPath;
   const runDir = testRunArtifactsDir(readRoot, query.user, query.change, query.run);
-  const target = join99(runDir, ...query.path.split("/"));
+  const target = join100(runDir, ...query.path.split("/"));
   let size = 0;
   let identity;
   try {
@@ -50837,7 +51394,7 @@ async function handleTestArtifactRoute(req, res, path14, deps) {
     "Content-Length": String(opened.size - start),
     "X-Content-Type-Options": "nosniff",
     "Content-Security-Policy": "sandbox",
-    "Content-Disposition": contentDisposition(ATTACHMENT_TYPES.has(type) ? "attachment" : "inline", basename8(query.path))
+    "Content-Disposition": contentDisposition(ATTACHMENT_TYPES.has(type) ? "attachment" : "inline", basename9(query.path))
   });
   await new Promise((resolve21) => {
     const stream = createReadStream("", { fd: handle.fd, start, autoClose: false });
@@ -50851,21 +51408,21 @@ async function handleTestArtifactRoute(req, res, path14, deps) {
 }
 
 // packages/server/src/serverSupport.ts
-import { readFileSync as readFileSync26 } from "node:fs";
-import { dirname as dirname22, join as join100 } from "node:path";
+import { readFileSync as readFileSync27 } from "node:fs";
+import { dirname as dirname23, join as join101 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 var REAL_GRADUATION_FS = {
   loadRegistry: (repoRoot) => loadRegistry(repoRoot),
   readRunLog: (repoRoot) => {
     try {
-      return readFileSync26(join100(repoRoot, ".superpowers", "loops", "progress.md"), "utf8");
+      return readFileSync27(join101(repoRoot, ".superpowers", "loops", "progress.md"), "utf8");
     } catch {
       return null;
     }
   },
   readLoopDoc: (repoRoot) => {
     try {
-      return readFileSync26(join100(repoRoot, "LOOP.md"), "utf8");
+      return readFileSync27(join101(repoRoot, "LOOP.md"), "utf8");
     } catch {
       return null;
     }
@@ -50880,7 +51437,7 @@ var REAL_GRADUATION_FS = {
   }
 };
 function repoRootForSkills() {
-  return join100(dirname22(fileURLToPath2(import.meta.url)), "..", "..", "..");
+  return join101(dirname23(fileURLToPath2(import.meta.url)), "..", "..", "..");
 }
 function isoNow() {
   return (/* @__PURE__ */ new Date()).toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -50990,12 +51547,12 @@ async function handleWorkflowYamlPut(req, name, deps) {
   const root = new URL(req.url ?? "/", "http://localhost").searchParams.get("root") ?? "";
   const rootCheck2 = deps.workflowRootForRequest(root);
   if (!rootCheck2.ok) return { status: rootCheck2.code, body: { ok: false, error: rootCheck2.error } };
-  const text11 = await readTextBody(req, WORKFLOW_YAML_MAX_BYTES);
-  if (text11 === null) return { status: 413, body: { ok: false, error: `workflow YAML \u8D85\u8FC7 ${WORKFLOW_YAML_MAX_BYTES} \u5B57\u8282\u4E0A\u9650` } };
-  if (text11.trim() === "") return { status: 400, body: { ok: false, errors: ["workflow YAML \u4E3A\u7A7A"] } };
+  const text12 = await readTextBody(req, WORKFLOW_YAML_MAX_BYTES);
+  if (text12 === null) return { status: 413, body: { ok: false, error: `workflow YAML \u8D85\u8FC7 ${WORKFLOW_YAML_MAX_BYTES} \u5B57\u8282\u4E0A\u9650` } };
+  if (text12.trim() === "") return { status: 400, body: { ok: false, errors: ["workflow YAML \u4E3A\u7A7A"] } };
   let workflow;
   try {
-    workflow = parseWorkflow(text11);
+    workflow = parseWorkflow(text12);
   } catch (error2) {
     return { status: 400, body: { ok: false, errors: [deps.errMsg(error2)] } };
   }
@@ -51038,21 +51595,21 @@ function readDefaultOverride(anchor) {
 }
 
 // packages/server/src/instructionRoutes.ts
-import { join as join108 } from "node:path";
+import { join as join109 } from "node:path";
 
 // packages/server/src/instructionAudit.ts
 import { closeSync as closeSync8, constants as constants18, mkdirSync as mkdirSync5, openSync as openSync13, writeFileSync as writeFileSync6 } from "node:fs";
-import { dirname as dirname23, join as join101 } from "node:path";
+import { dirname as dirname24, join as join102 } from "node:path";
 var IDENTITY_REQUIRED = { status: 412, body: { ok: false, code: "user-missing", error: USER_MISSING_HINT } };
 function auditActor(resolve21, root) {
   const resolution = resolve21?.(root);
   return resolution !== void 0 && isTenonUser(resolution) ? actorOf(resolution) : null;
 }
 function recordInstructionAudit(configRoot, row) {
-  const path14 = join101(configRoot, "templates", "instructions", "audit.jsonl");
+  const path14 = join102(configRoot, "templates", "instructions", "audit.jsonl");
   let fd;
   try {
-    mkdirSync5(dirname23(path14), { recursive: true });
+    mkdirSync5(dirname24(path14), { recursive: true });
     fd = openSync13(path14, constants18.O_WRONLY | constants18.O_CREAT | constants18.O_APPEND | constants18.O_NOFOLLOW, 384);
     writeFileSync6(fd, `${JSON.stringify({ at: (/* @__PURE__ */ new Date()).toISOString(), ...row })}
 `, "utf8");
@@ -51066,7 +51623,7 @@ function recordInstructionAudit(configRoot, row) {
 
 // packages/server/src/instructionLibrary.ts
 import { mkdirSync as mkdirSync6 } from "node:fs";
-import { join as join102 } from "node:path";
+import { join as join103 } from "node:path";
 
 // packages/server/src/instructionTrustedFs.ts
 import { randomUUID as randomUUID15 } from "node:crypto";
@@ -51076,7 +51633,7 @@ import {
   fsyncSync as fsyncSync4,
   lstatSync as lstatSync13,
   openSync as openSync14,
-  readFileSync as readFileSync27,
+  readFileSync as readFileSync28,
   readdirSync as readdirSync12,
   renameSync as renameSync6,
   unlinkSync as unlinkSync4,
@@ -51098,7 +51655,7 @@ function readChild(root, directory, name, maxBytes) {
   try {
     const opened = fstatSync12(fd);
     if (!opened.isFile() || !sameIdentity(opened, before)) throw new Error(`\u6587\u4EF6\u5728\u8BFB\u53D6\u671F\u95F4\u88AB\u66FF\u6362: ${entry2.lexical}`);
-    const bytes = readFileSync27(fd);
+    const bytes = readFileSync28(fd);
     if (bytes.length > maxBytes) return { bytes: null, digest: ABSENT_DIGEST, error: "too-large" };
     assertTrusted(directory, root);
     return { bytes, digest: instructionDigest(bytes), identity: { dev: opened.dev, ino: opened.ino } };
@@ -51189,7 +51746,7 @@ function trustedFsFailure(error2) {
 // packages/server/src/instructionLibrary.ts
 var anchors = /* @__PURE__ */ new Map();
 function templateLibraryAnchor(configRoot) {
-  const root = join102(configRoot, "templates", "instructions");
+  const root = join103(configRoot, "templates", "instructions");
   const cached = anchors.get(root);
   if (cached) {
     try {
@@ -51260,24 +51817,24 @@ function readTemplate(anchor, ref) {
   const read2 = readRef(anchor, ref);
   if (read2.error) return fail8(409, read2.error, "\u6A21\u677F\u6587\u4EF6\u4E0D\u53EF\u8BFB");
   if (read2.bytes === null) return fail8(404, "template-not-found", "\u6A21\u677F\u4E0D\u5B58\u5728");
-  const text11 = read2.bytes.toString("utf8");
-  const parsed2 = parseInstructionBlock(text11, { category: ref.category, id: ref.id });
+  const text12 = read2.bytes.toString("utf8");
+  const parsed2 = parseInstructionBlock(text12, { category: ref.category, id: ref.id });
   return {
     status: 200,
     body: {
       ok: true,
       ...ref,
-      text: text11,
+      text: text12,
       digest: read2.digest,
       block: parsed2.ok ? blockBody(parsed2.block) : null,
       errors: parsed2.ok ? [] : parsed2.errors.map(formatError)
     }
   };
 }
-function writeCustomTemplate(anchor, category, id2, text11, ifMatch) {
-  const parsed2 = parseInstructionBlock(text11, { category, id: id2 });
+function writeCustomTemplate(anchor, category, id2, text12, ifMatch) {
+  const parsed2 = parseInstructionBlock(text12, { category, id: id2 });
   if (!parsed2.ok) return invalid2(parsed2.errors.map(formatError));
-  const written = writeTrustedFile(anchor, ["custom", category], `${id2}.md`, text11, ifMatch, INSTRUCTION_BLOCK_MAX_BYTES);
+  const written = writeTrustedFile(anchor, ["custom", category], `${id2}.md`, text12, ifMatch, INSTRUCTION_BLOCK_MAX_BYTES);
   if (written.ok) return { status: 200, body: { ok: true, digest: written.digest } };
   if (written.code === "changed") return fail8(409, "template-changed", "\u6A21\u677F\u5DF2\u88AB\u4FEE\u6539", { digest: written.digest });
   return fail8(409, written.code, "\u6A21\u677F\u6587\u4EF6\u4E0D\u53EF\u5199");
@@ -51286,10 +51843,10 @@ function copyTemplate(anchor, from, id2) {
   const read2 = readRef(anchor, from);
   if (read2.error) return fail8(409, read2.error, "\u6A21\u677F\u6587\u4EF6\u4E0D\u53EF\u8BFB");
   if (read2.bytes === null) return fail8(404, "template-not-found", "\u6A21\u677F\u4E0D\u5B58\u5728");
-  const text11 = read2.bytes.toString("utf8").replace(/^id: .*$/m, `id: ${id2}`);
-  const parsed2 = parseInstructionBlock(text11, { category: from.category, id: id2 });
+  const text12 = read2.bytes.toString("utf8").replace(/^id: .*$/m, `id: ${id2}`);
+  const parsed2 = parseInstructionBlock(text12, { category: from.category, id: id2 });
   if (!parsed2.ok) return invalid2(parsed2.errors.map(formatError));
-  const written = writeTrustedFile(anchor, ["custom", from.category], `${id2}.md`, text11, "absent", INSTRUCTION_BLOCK_MAX_BYTES);
+  const written = writeTrustedFile(anchor, ["custom", from.category], `${id2}.md`, text12, "absent", INSTRUCTION_BLOCK_MAX_BYTES);
   if (written.ok) return { status: 200, body: { ok: true, digest: written.digest } };
   if (written.code === "changed") return fail8(409, "template-exists", "\u540C\u540D\u81EA\u5B9A\u4E49\u6A21\u677F\u5DF2\u5B58\u5728");
   return fail8(409, written.code, "\u6A21\u677F\u6587\u4EF6\u4E0D\u53EF\u5199");
@@ -51364,7 +51921,7 @@ function composeFromRequest(anchor, body2, catalog2) {
 
 // packages/server/src/instructionFiles.ts
 import { mkdirSync as mkdirSync7 } from "node:fs";
-import { join as join103 } from "node:path";
+import { join as join104 } from "node:path";
 var INSTRUCTION_TEXT_MAX_BYTES = 256 * 1024;
 var fail9 = (status2, code, error2, extra = {}) => ({ status: status2, body: { ok: false, code, error: error2, ...extra } });
 function targetIdsFor(scope) {
@@ -51379,12 +51936,12 @@ function captureRoot(path14, create) {
 }
 function locate(scope, id2, create) {
   if (!targetIdsFor(scope).includes(id2)) return null;
-  if (scope.level === "project") return { root: scope.anchor, owned: false, dirs: [], name: id2, path: join103(scope.anchor.path, id2) };
+  if (scope.level === "project") return { root: scope.anchor, owned: false, dirs: [], name: id2, path: join104(scope.anchor.path, id2) };
   const segments2 = userInstructionPath(id2, scope);
   const [rootPath, ...rest] = segments2 ?? [];
   const name = rest.at(-1);
   if (rootPath === void 0 || name === void 0) return null;
-  return { root: captureRoot(rootPath, create), owned: true, dirs: rest.slice(0, -1), name, path: join103(rootPath, ...rest) };
+  return { root: captureRoot(rootPath, create), owned: true, dirs: rest.slice(0, -1), name, path: join104(rootPath, ...rest) };
 }
 function release2(location) {
   if (location.owned && location.root) closeWorkflowRootAnchor(location.root);
@@ -51435,7 +51992,7 @@ function readInstructionTargets(scope) {
     if (scope.level === "user") return { id: host.id, levels: host.levels, target: hasUserInstructionFile(host.id) ? host.id : null };
     const row = { id: host.id, levels: host.levels, target: host.projectFile };
     if (host.id !== "zed") return row;
-    return { ...row, effective_file: zedEffectiveFile((file) => lstatIfExists(join103(scope.anchor.path, file)) !== void 0) };
+    return { ...row, effective_file: zedEffectiveFile((file) => lstatIfExists(join104(scope.anchor.path, file)) !== void 0) };
   });
   return {
     status: 200,
@@ -51448,16 +52005,16 @@ function readInstructionTargets(scope) {
     }
   };
 }
-function checkText(text11) {
-  if (typeof text11 !== "string") return fail9(400, "invalid", "text \u5FC5\u987B\u662F\u5B57\u7B26\u4E32");
-  if (Buffer.byteLength(text11, "utf8") > INSTRUCTION_TEXT_MAX_BYTES) return fail9(413, "too-large", `\u8D85\u8FC7 ${INSTRUCTION_TEXT_MAX_BYTES} \u5B57\u8282`);
-  if (containsManagedMarker(text11)) return fail9(400, "managed-marker-in-text", "\u6B63\u6587\u4E0D\u80FD\u5305\u542B Tenon \u53D7\u7BA1\u5757\u6807\u8BB0\u884C");
-  return text11;
+function checkText(text12) {
+  if (typeof text12 !== "string") return fail9(400, "invalid", "text \u5FC5\u987B\u662F\u5B57\u7B26\u4E32");
+  if (Buffer.byteLength(text12, "utf8") > INSTRUCTION_TEXT_MAX_BYTES) return fail9(413, "too-large", `\u8D85\u8FC7 ${INSTRUCTION_TEXT_MAX_BYTES} \u5B57\u8282`);
+  if (containsManagedMarker(text12)) return fail9(400, "managed-marker-in-text", "\u6B63\u6587\u4E0D\u80FD\u5305\u542B Tenon \u53D7\u7BA1\u5757\u6807\u8BB0\u884C");
+  return text12;
 }
 var currentFailure = (id2, error2) => fail9(409, error2, "\u6307\u4EE4\u6587\u4EF6\u4E0D\u53EF\u5199", { id: id2 });
 function previewInstructionApply(scope, rawText, targetIds) {
-  const text11 = checkText(rawText);
-  if (typeof text11 !== "string") return text11;
+  const text12 = checkText(rawText);
+  if (typeof text12 !== "string") return text12;
   if (targetIds.length === 0 || new Set(targetIds).size !== targetIds.length) return fail9(400, "invalid-target", "\u76EE\u6807\u6587\u4EF6\u4E0D\u5408\u6CD5");
   try {
     const files = [];
@@ -51470,7 +52027,7 @@ function previewInstructionApply(scope, rawText, targetIds) {
           path: location.path,
           base_digest: current.digest,
           current: current.bytes === null ? null : current.bytes.toString("utf8"),
-          next: mergeManagedBlocks(text11, current.blocks)
+          next: mergeManagedBlocks(text12, current.blocks)
         };
       });
       if (preview === null) return fail9(400, "invalid-target", `\u672A\u77E5\u76EE\u6807\uFF1A${id2}`);
@@ -51483,8 +52040,8 @@ function previewInstructionApply(scope, rawText, targetIds) {
   }
 }
 function applyInstructions(scope, rawText, targets) {
-  const text11 = checkText(rawText);
-  if (typeof text11 !== "string") return text11;
+  const text12 = checkText(rawText);
+  if (typeof text12 !== "string") return text12;
   const ids2 = targets.map((target) => target.id);
   if (ids2.length === 0 || new Set(ids2).size !== ids2.length) return fail9(400, "invalid-target", "\u76EE\u6807\u6587\u4EF6\u4E0D\u5408\u6CD5");
   const unknown = ids2.find((id2) => !targetIdsFor(scope).includes(id2));
@@ -51498,7 +52055,7 @@ function applyInstructions(scope, rawText, targets) {
         if (current.digest !== target.base_digest) {
           return fail9(409, "instruction-file-changed", "\u6587\u4EF6\u5DF2\u88AB\u5916\u90E8\u4FEE\u6539", { id: target.id, digest: current.digest });
         }
-        planned.push({ id: target.id, base: current.digest, next: mergeManagedBlocks(text11, current.blocks) });
+        planned.push({ id: target.id, base: current.digest, next: mergeManagedBlocks(text12, current.blocks) });
         return "ok";
       });
       if (checked === null) return fail9(400, "invalid-target", `\u672A\u77E5\u76EE\u6807\uFF1A${target.id}`);
@@ -51553,14 +52110,14 @@ function deleteInstructionTarget(scope, targetId, digest18) {
 }
 
 // packages/server/src/projectClients.ts
-import { join as join104 } from "node:path";
+import { join as join105 } from "node:path";
 var failed = (status2, code, error2) => ({ ok: false, status: status2, code, error: error2 });
 function readProjectClients(anchor) {
   const read2 = readTrustedFile2(anchor, PROJECT_CLIENTS_DIRS, PROJECT_CLIENTS_FILE, PROJECT_CLIENTS_MAX_BYTES);
   if (read2.error) return failed(409, read2.error, "clients.json \u4E0D\u53EF\u8BFB");
   if (read2.bytes === null) {
     const enabled2 = inferProjectClients((file) => {
-      const entry2 = lstatIfExists(join104(anchor.path, file));
+      const entry2 = lstatIfExists(join105(anchor.path, file));
       return entry2 !== void 0 && entry2.isFile();
     });
     return { ok: true, enabled: enabled2, source: "inferred", digest: read2.digest };
@@ -51589,7 +52146,7 @@ function writeProjectClients(anchor, enabled) {
 
 // packages/server/src/designSeed.ts
 import { writeFileSync as writeFileSync8 } from "node:fs";
-import { join as join105 } from "node:path";
+import { join as join106 } from "node:path";
 var DESIGN_SEED_MAX_BYTES = 512 * 1024;
 var FETCH_TIMEOUT_MS = 1e4;
 var httpsDesignSeedFetch = async (url) => {
@@ -51597,8 +52154,8 @@ var httpsDesignSeedFetch = async (url) => {
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
     const response = await fetch(url, { signal: controller.signal, headers: { accept: "text/plain" } });
-    const text11 = await response.text();
-    return { ok: response.ok, status: response.status, text: text11 };
+    const text12 = await response.text();
+    return { ok: response.ok, status: response.status, text: text12 };
   } finally {
     clearTimeout(timer);
   }
@@ -51624,15 +52181,15 @@ async function fetchDesignSeed(entry2, get) {
   }
   return { ok: true, text: response.text };
 }
-function writeDesignSeed(root, text11) {
+function writeDesignSeed(root, text12) {
   try {
-    writeFileSync8(join105(root, "DESIGN.md"), text11, { encoding: "utf8", flag: "wx" });
+    writeFileSync8(join106(root, "DESIGN.md"), text12, { encoding: "utf8", flag: "wx" });
   } catch (error2) {
     const code = error2.code;
     if (code === "EEXIST") return { ok: false, code: "exists", error: "DESIGN.md \u5DF2\u5B58\u5728" };
     return { ok: false, code: "fetch-failed", error: `DESIGN.md \u5199\u5165\u5931\u8D25\uFF1A${code ?? String(error2)}` };
   }
-  return { ok: true, path: "DESIGN.md", bytes: new TextEncoder().encode(text11).length };
+  return { ok: true, path: "DESIGN.md", bytes: new TextEncoder().encode(text12).length };
 }
 async function designSeedEntry(id2, roots) {
   await loadResourceCatalog(roots);
@@ -51649,11 +52206,11 @@ async function seedDesign(root, id2, roots, get) {
 
 // packages/server/src/projectCreate.ts
 import { execFile as execFile10 } from "node:child_process";
-import { isAbsolute as isAbsolute17, join as join107, resolve as resolvePath6 } from "node:path";
+import { isAbsolute as isAbsolute17, join as join108, resolve as resolvePath6 } from "node:path";
 
 // packages/server/src/projectCreateRun.ts
 import { lstatSync as lstatSync15, mkdirSync as mkdirSync8, rmSync } from "node:fs";
-import { join as join106 } from "node:path";
+import { join as join107 } from "node:path";
 
 // packages/server/src/projectInstructionText.ts
 var REFERENCE_FILES = ["CLAUDE.md", "GEMINI.md"];
@@ -51681,8 +52238,8 @@ function previewProjectFile(anchor, request, id2) {
   const first = previewInstructionApply(scope, request.text, [id2]);
   if (first.status !== 200) return first;
   const current = previewFiles(first)[0]?.current ?? null;
-  const text11 = effectiveText(request, id2, current);
-  return text11 === request.text ? first : previewInstructionApply(scope, text11, [id2]);
+  const text12 = effectiveText(request, id2, current);
+  return text12 === request.text ? first : previewInstructionApply(scope, text12, [id2]);
 }
 function previewProjectFiles(anchor, request) {
   const files = [];
@@ -51805,7 +52362,7 @@ function createStepIds(plan) {
   if (plan.mode === "existing") return [...needsGitInit(plan) ? ["git"] : [], ...files, "register"];
   return ["directory", "git", ...plan.directories.length > 0 ? ["skeleton"] : [], ...files, "register"];
 }
-var needsDesignSeed = (plan) => (plan.designSeed ?? null) !== null && lstatIfExists(join106(plan.root, "DESIGN.md")) === void 0;
+var needsDesignSeed = (plan) => (plan.designSeed ?? null) !== null && lstatIfExists(join107(plan.root, "DESIGN.md")) === void 0;
 async function seedDesignStep(plan, deps, report) {
   const id2 = plan.designSeed ?? null;
   if (id2 === null || !needsDesignSeed(plan)) return;
@@ -51838,8 +52395,8 @@ function writeFile23(anchor, request, id2, baseDigest) {
   const preview = previewProjectFile(anchor, request, id2);
   const planned = Reflect.get(Object(preview.body), "files");
   const current = Array.isArray(planned) ? Reflect.get(Object(planned[0]), "current") : null;
-  const text11 = preview.status === 200 ? effectiveText(request, id2, typeof current === "string" ? current : null) : request.text;
-  const applied = applyInstructions({ level: "project", anchor }, text11, [{ id: id2, base_digest: baseDigest }]);
+  const text12 = preview.status === 200 ? effectiveText(request, id2, typeof current === "string" ? current : null) : request.text;
+  const applied = applyInstructions({ level: "project", anchor }, text12, [{ id: id2, base_digest: baseDigest }]);
   if (applied.status !== 200) {
     const { error: error2, code } = bodyText(applied);
     throw new StepFailure(`file:${id2}`, error2, code, applied);
@@ -51847,7 +52404,7 @@ function writeFile23(anchor, request, id2, baseDigest) {
   const files = Reflect.get(Object(applied.body), "files");
   return Array.isArray(files) ? files[0] : void 0;
 }
-var needsGitInit = (plan) => plan.mode === "existing" && plan.gitInit === true && lstatIfExists(join106(plan.root, ".git")) === void 0;
+var needsGitInit = (plan) => plan.mode === "existing" && plan.gitInit === true && lstatIfExists(join107(plan.root, ".git")) === void 0;
 async function gitInit(plan, deps, report) {
   await runStep("git", report, async () => {
     const git = await deps.runGit(["init"], plan.root);
@@ -51925,7 +52482,7 @@ async function executeExisting(plan, deps, report) {
       }
     }
     await seedDesignStep(plan, deps, report);
-    const git = initialized ? "init" : lstatIfExists(join106(plan.root, ".git")) ? "existing" : "none";
+    const git = initialized ? "init" : lstatIfExists(join107(plan.root, ".git")) ? "existing" : "none";
     const registration = await runStep("register", report, async () => {
       if (readProjectRegistry(deps.paths.registryPath).includes(plan.root)) return "already";
       const added = await registerProjectAnchored(deps.paths, deps.workflowRootAnchors, plan.root);
@@ -52002,7 +52559,7 @@ function decodeProjectCreate(body2) {
   if (request.mode === "empty") {
     if (!absolutePath(request.parent) || typeof request.name !== "string" || !NAME.test(request.name)) return fail11(400, "invalid-path", "\u7236\u76EE\u5F55\u5FC5\u987B\u662F\u7EDD\u5BF9\u8DEF\u5F84\uFF0C\u540D\u79F0\u53EA\u80FD\u542B\u5B57\u6BCD\u3001\u6570\u5B57\u3001. _ -");
     const parent = resolvePath6(request.parent);
-    return { mode: "empty", parent, root: join107(parent, request.name), directories: directories2.map(String), instructions, clients, designSeed, dryRun };
+    return { mode: "empty", parent, root: join108(parent, request.name), directories: directories2.map(String), instructions, clients, designSeed, dryRun };
   }
   if (request.mode === "existing") {
     if (!absolutePath(request.path)) return fail11(400, "invalid-path", "\u8DEF\u5F84\u5FC5\u987B\u662F\u7EDD\u5BF9\u8DEF\u5F84");
@@ -52034,7 +52591,7 @@ async function planDesign(plan, deps) {
   const entry2 = await designSeedEntry(id2, deps.designSeed);
   if (entry2 === null) return fail11(404, "resource-not-found", `\u672A\u77E5\u8D44\u6E90\uFF1A${id2}`);
   if (entry2.category !== "design-md") return fail11(400, "not-design-md", `${id2} \u4E0D\u662F DESIGN.md \u8D44\u6E90`);
-  return { resource: id2, exists: plan.mode === "existing" && lstatIfExists(join107(plan.root, "DESIGN.md")) !== void 0 };
+  return { resource: id2, exists: plan.mode === "existing" && lstatIfExists(join108(plan.root, "DESIGN.md")) !== void 0 };
 }
 async function planLocation(plan, deps) {
   if (plan.mode === "empty") {
@@ -52052,7 +52609,7 @@ async function planLocation(plan, deps) {
         directories: plan.directories.map((path14) => ({ path: path14, exists: false })),
         files: (plan.instructions?.targets ?? []).map((id2) => ({
           id: id2,
-          path: join107(plan.root, id2),
+          path: join108(plan.root, id2),
           base_digest: "absent",
           current: null,
           next: plan.instructions ? mergeManagedBlocks(effectiveText(plan.instructions, id2, null), []) : ""
@@ -52062,7 +52619,7 @@ async function planLocation(plan, deps) {
   }
   const problem = directoryProblem(plan.root, fail11(404, "path-missing", "\u8DEF\u5F84\u4E0D\u5B58\u5728"));
   if (problem) return problem;
-  const hasGit = lstatIfExists(join107(plan.root, ".git")) !== void 0;
+  const hasGit = lstatIfExists(join108(plan.root, ".git")) !== void 0;
   if (!hasGit && plan.gitInit === true && (await deps.runGit(["--version"], plan.root)).code !== 0) return fail11(422, "git-unavailable", "\u65E0\u6CD5\u8FD0\u884C git");
   let files = [];
   if (plan.instructions) {
@@ -52141,7 +52698,7 @@ function digestOf2(result2) {
   const body2 = result2.body;
   return typeof body2?.digest === "string" ? body2.digest : "absent";
 }
-var instructionTarget = (root, id2) => root === "" ? `user/${id2}` : join108(root, id2);
+var instructionTarget = (root, id2) => root === "" ? `user/${id2}` : join109(root, id2);
 function objectBody(value, keys2) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   const record11 = Object.fromEntries(Object.entries(value));
@@ -52232,7 +52789,7 @@ async function postProjectClients(req, deps) {
     if (!written.ok) {
       return { status: written.status, body: { ok: false, code: written.code, error: written.error, ...written.unknown ? { unknown: written.unknown } : {} } };
     }
-    audit(deps, actor3, "project-clients", join108(root, ".tenon", "clients.json"), written.digest_before, written.digest);
+    audit(deps, actor3, "project-clients", join109(root, ".tenon", "clients.json"), written.digest_before, written.digest);
     return { status: 200, body: { enabled: written.enabled, source: "file" } };
   });
 }
@@ -52270,11 +52827,11 @@ async function putTemplate(req, path14, deps) {
   if (contentType(req) !== "text/markdown") return failure2(400, "content-type", "\u6A21\u677F\u4FDD\u5B58\u8981\u6C42 Content-Type: text/markdown");
   const ifMatch = req.headers["if-match"];
   if (typeof ifMatch !== "string" || ifMatch === "") return failure2(428, "if-match-required", "\u7F3A\u5C11 If-Match");
-  const text11 = await readTextBody(req, INSTRUCTION_BLOCK_MAX_BYTES);
-  if (text11 === null) return failure2(413, "too-large", `\u6A21\u677F\u8D85\u8FC7 ${INSTRUCTION_BLOCK_MAX_BYTES} \u5B57\u8282`);
+  const text12 = await readTextBody(req, INSTRUCTION_BLOCK_MAX_BYTES);
+  if (text12 === null) return failure2(413, "too-large", `\u6A21\u677F\u8D85\u8FC7 ${INSTRUCTION_BLOCK_MAX_BYTES} \u5B57\u8282`);
   const actor3 = actorFor(deps, "");
   if (!isActor(actor3)) return actor3;
-  const saved = guarded(() => writeCustomTemplate(templateLibraryAnchor(deps.paths.configRoot), ref.category, ref.id, text11, ifMatch));
+  const saved = guarded(() => writeCustomTemplate(templateLibraryAnchor(deps.paths.configRoot), ref.category, ref.id, text12, ifMatch));
   if (saved.status === 200) audit(deps, actor3, "template-save", `custom/${ref.category}/${ref.id}`, ifMatch, digestOf2(saved));
   return saved;
 }
@@ -52360,7 +52917,7 @@ import { isAbsolute as isAbsolute19 } from "node:path";
 
 // packages/server/src/folderList.ts
 import { lstatSync as lstatSync16, readdirSync as readdirSync13 } from "node:fs";
-import { dirname as dirname24, isAbsolute as isAbsolute18, join as join109, resolve as resolvePath7 } from "node:path";
+import { dirname as dirname25, isAbsolute as isAbsolute18, join as join110, resolve as resolvePath7 } from "node:path";
 var FOLDER_LIST_MAX = 2e3;
 var fail12 = (status2, code, error2) => ({ status: status2, body: { ok: false, code, error: error2 } });
 function listFolders(rawDir, showHidden, home) {
@@ -52382,8 +52939,8 @@ function listFolders(rawDir, showHidden, home) {
     const code = error2 instanceof Error ? Reflect.get(error2, "code") : void 0;
     return code === "EACCES" || code === "EPERM" ? fail12(403, "permission-denied", "\u6CA1\u6709\u8BFB\u53D6\u6743\u9650") : fail12(404, "path-missing", "\u8DEF\u5F84\u4E0D\u5B58\u5728");
   }
-  const entries2 = names.filter((item2) => item2.isDirectory() && (showHidden || !item2.name.startsWith("."))).map((item2) => ({ name: item2.name, path: join109(dir, item2.name) })).sort((a, b) => a.name.localeCompare(b.name));
-  const parent = dirname24(dir);
+  const entries2 = names.filter((item2) => item2.isDirectory() && (showHidden || !item2.name.startsWith("."))).map((item2) => ({ name: item2.name, path: join110(dir, item2.name) })).sort((a, b) => a.name.localeCompare(b.name));
+  const parent = dirname25(dir);
   return {
     status: 200,
     body: {
@@ -52441,7 +52998,7 @@ function resolveFsPost(req, path14, deps) {
 
 // packages/server/src/agentRecentRuns.ts
 import { readdir as readdir22 } from "node:fs/promises";
-import { join as join110 } from "node:path";
+import { join as join111 } from "node:path";
 var MAX_CHANGES = 400;
 var RECENT_RUNS_LIMIT = 5;
 async function directories(dir) {
@@ -52452,9 +53009,9 @@ async function directories(dir) {
   }
 }
 async function agentRecentRuns(root, agent, limit = RECENT_RUNS_LIMIT) {
-  const changesRoot = join110(root, "openspec", "changes");
-  const active = (await directories(changesRoot)).filter((name) => name !== "archive").map((name) => ({ name, dir: join110(changesRoot, name) }));
-  const archived = (await directories(join110(changesRoot, "archive"))).map((name) => ({ name, dir: join110(changesRoot, "archive", name) }));
+  const changesRoot = join111(root, "openspec", "changes");
+  const active = (await directories(changesRoot)).filter((name) => name !== "archive").map((name) => ({ name, dir: join111(changesRoot, name) }));
+  const archived = (await directories(join111(changesRoot, "archive"))).map((name) => ({ name, dir: join111(changesRoot, "archive", name) }));
   const found = [];
   for (const change of [...active, ...archived].slice(0, MAX_CHANGES)) {
     let rows;
@@ -53253,7 +53810,7 @@ import {
   openSync as openSync15,
   realpathSync as realpathSync9
 } from "node:fs";
-import { isAbsolute as isAbsolute20, join as join111, posix as posix5, relative as relative15, sep as sep19 } from "node:path";
+import { isAbsolute as isAbsolute20, join as join112, posix as posix5, relative as relative15, sep as sep19 } from "node:path";
 
 // packages/server/src/workflowDefinitionStatus.ts
 function projectWorkflowDefinitionStatus(workflow, frozenFingerprint, current) {
@@ -53311,7 +53868,7 @@ async function readAnchoredTasksProjection(changeAnchor, readSource = readBounde
     }
   };
   assertTrustContext();
-  const lexicalTarget = join111(changeAnchor.changeDir, "tasks.md");
+  const lexicalTarget = join112(changeAnchor.changeDir, "tasks.md");
   const changeIdentity = changeAnchor.chain.at(-1);
   if (changeIdentity === void 0) {
     throw new ContextBundlePathError(403, "Change tasks directory identity is missing");
@@ -53333,7 +53890,7 @@ async function readAnchoredTasksProjection(changeAnchor, readSource = readBounde
     throw new ContextBundlePathError(403, "Change tasks directory identity changed while anchoring");
   }
   assertTrustContext();
-  const target = join111(anchoredChangeDir, "tasks.md");
+  const target = join112(anchoredChangeDir, "tasks.md");
   let fd;
   try {
     fd = openSync15(
@@ -53898,7 +54455,7 @@ async function resolveOrchestrationRoutes(rawUrl, path14, deps) {
 
 // packages/server/src/workflowOrchestration.ts
 import { readFile as readFile58 } from "node:fs/promises";
-import { join as join112 } from "node:path";
+import { join as join113 } from "node:path";
 function definitionOrchestration(input2) {
   const plan = compileEffectiveWorkflowPlan(input2.name, input2.definition, input2.track);
   return {
@@ -53914,19 +54471,22 @@ function agentStatus(view) {
   if (view.state !== "done") return "waiting";
   return view.result === "fail" || view.result === "failed" ? "failed" : "done";
 }
-function testStatus(status2) {
+function testStatus(item2) {
+  const status2 = item2?.status;
+  if (item2?.waiver === "waived") return "done";
+  if (item2?.waiver === "waiver-pending") return "waiting";
   if (status2 === "passed") return "done";
   if (status2 === "failed") return "failed";
   if (status2 === "running") return "running";
   if (status2 === "stale") return "stale";
   return "waiting";
 }
-var WORST = { passed: 0, missing: 1, running: 2, stale: 3, failed: 4 };
+var WORST = { passed: 0, waived: 0, missing: 1, "waiver-pending": 1, running: 2, stale: 3, failed: 4 };
 function kindStatus(report, kind) {
   const states = (report?.suites ?? []).filter((suite2) => suite2.kind === kind).map((suite2) => suite2.state);
   if (states.length === 0) return "waiting";
   const worst = states.reduce((acc, state) => WORST[state] > WORST[acc] ? state : acc);
-  return worst === "passed" ? "done" : worst === "missing" ? "waiting" : worst;
+  return worst === "passed" || worst === "waived" ? "done" : worst === "missing" || worst === "waiver-pending" ? "waiting" : worst;
 }
 function withRunStatus(orchestration, facts) {
   const current = orchestration.stages.findIndex((stage) => stage.id === facts.phase);
@@ -53942,7 +54502,7 @@ function withRunStatus(orchestration, facts) {
         if (future) return { ...entry2, status: "waiting" };
         if (entry2.kind === "skill") return { ...entry2, status: past ? "done" : facts.skills.get(entry2.id) ?? "waiting" };
         if (entry2.kind === "test") {
-          return { ...entry2, status: entry2.testKind === void 0 ? testStatus(tests.find((item2) => item2.id === entry2.id)?.status) : kindStatus(policy2, entry2.testKind) };
+          return { ...entry2, status: entry2.testKind === void 0 ? testStatus(tests.find((item2) => item2.id === entry2.id)) : kindStatus(policy2, entry2.testKind) };
         }
         return { ...entry2, status: agentStatus(agents.find((view) => view.agent === entry2.id)) };
       })
@@ -53951,7 +54511,7 @@ function withRunStatus(orchestration, facts) {
 }
 async function historyRaw2(changeDir2) {
   try {
-    return await readFile58(join112(changeDir2, HISTORY_FILE), "utf8");
+    return await readFile58(join113(changeDir2, HISTORY_FILE), "utf8");
   } catch (error2) {
     if (typeof error2 === "object" && error2 !== null && Reflect.get(error2, "code") === "ENOENT") return "";
     throw error2;
@@ -54167,7 +54727,7 @@ async function resolveWorkflowOrchestrationRoute(rawUrl, path14, deps) {
 }
 
 // packages/server/src/serverOrchestrationV2Routes.ts
-import { join as join113 } from "node:path";
+import { join as join114 } from "node:path";
 var CHANGE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
 var PROJECT_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u;
 var CURSOR = /^(?:0|[1-9][0-9]{0,9})$/u;
@@ -54181,7 +54741,7 @@ function validChangeId(value) {
   return value !== "." && value !== ".." && CHANGE_ID.test(value) && !value.includes("/") && !value.includes("\\");
 }
 function changeDir(anchor, changeId) {
-  return join113(anchor.path, "openspec", "changes", changeId);
+  return join114(anchor.path, "openspec", "changes", changeId);
 }
 function rootCheck(deps, root) {
   if (root === "") return failure8(400, "ORCHESTRATION_V2_ROOT_REQUIRED", "\u7F3A\u5C11 root \u53C2\u6570");
@@ -54225,16 +54785,16 @@ function parseLimit(value) {
   if (parsed2 === 0) return failure8(400, "ORCHESTRATION_V2_LIMIT_INVALID", "limit \u5FC5\u987B\u5927\u4E8E 0");
   return Math.min(parsed2, MAX_LIMIT);
 }
-function isRecord12(value) {
+function isRecord13(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function readRootFromBody(body2) {
-  if (!isRecord12(body2) || typeof body2.root !== "string") return failure8(400, "ORCHESTRATION_V2_BODY_INVALID", "\u8BF7\u6C42\u5FC5\u987B\u5305\u542B root");
+  if (!isRecord13(body2) || typeof body2.root !== "string") return failure8(400, "ORCHESTRATION_V2_BODY_INVALID", "\u8BF7\u6C42\u5FC5\u987B\u5305\u542B root");
   if (body2.root.length > 4096) return failure8(413, "ORCHESTRATION_V2_BODY_LIMIT_EXCEEDED", "root \u8D85\u51FA\u5B89\u5168\u4E0A\u9650");
   return body2.root;
 }
 function commandFromBody(body2, changeId) {
-  if (!isRecord12(body2)) return failure8(400, "ORCHESTRATION_V2_COMMAND_INVALID", "command body \u5FC5\u987B\u662F\u5BF9\u8C61");
+  if (!isRecord13(body2)) return failure8(400, "ORCHESTRATION_V2_COMMAND_INVALID", "command body \u5FC5\u987B\u662F\u5BF9\u8C61");
   const keys2 = Object.keys(body2).sort();
   if (keys2.join(",") !== "command,root") return failure8(400, "ORCHESTRATION_V2_COMMAND_INVALID", "command body \u5B57\u6BB5\u4E0D\u7B26\u5408\u5951\u7EA6");
   const root = readRootFromBody(body2);
@@ -54313,7 +54873,7 @@ async function resolveOrchestrationV2GetRoute(rawUrl, path14, deps) {
 }
 async function resolveOrchestrationV2PostRoute(path14, body2, deps) {
   if (path14 === "/api/orchestration/changes") {
-    if (!isRecord12(body2)) return failure8(400, "ORCHESTRATION_V2_BODY_INVALID", "\u8BF7\u6C42 body \u5FC5\u987B\u662F\u5BF9\u8C61");
+    if (!isRecord13(body2)) return failure8(400, "ORCHESTRATION_V2_BODY_INVALID", "\u8BF7\u6C42 body \u5FC5\u987B\u662F\u5BF9\u8C61");
     const keys2 = Object.keys(body2).sort();
     if (!["change_id", "correlation_id", "project_id", "root"].every((key) => keys2.includes(key)) || keys2.some((key) => !["change_id", "correlation_id", "project_id", "root", "updated_at"].includes(key))) {
       return failure8(400, "ORCHESTRATION_V2_BODY_INVALID", "\u521B\u5EFA\u8BF7\u6C42\u5B57\u6BB5\u4E0D\u7B26\u5408\u5951\u7EA6");
@@ -54340,7 +54900,7 @@ async function resolveOrchestrationV2PostRoute(path14, body2, deps) {
   if (typeof parsed2 !== "object" || "status" in parsed2) return parsed2;
   if (parsed2.kind === "run") {
     if (deps.runChange === void 0) return failure8(503, "ORCHESTRATION_V2_RUNTIME_UNAVAILABLE", "production orchestration runtime unavailable");
-    if (!isRecord12(body2)) return failure8(400, "ORCHESTRATION_V2_BODY_INVALID", "run body \u5FC5\u987B\u662F\u5BF9\u8C61");
+    if (!isRecord13(body2)) return failure8(400, "ORCHESTRATION_V2_BODY_INVALID", "run body \u5FC5\u987B\u662F\u5BF9\u8C61");
     const root2 = readRootFromBody(body2);
     if (typeof root2 !== "string") return root2;
     const checked = rootCheck(deps, root2);
@@ -54354,7 +54914,7 @@ async function resolveOrchestrationV2PostRoute(path14, body2, deps) {
   }
   if (parsed2.kind === "freeze") {
     if (deps.freezeWorkflow === void 0 && deps.freezePipeline === void 0) return failure8(503, "ORCHESTRATION_V2_FREEZE_UNAVAILABLE", "production pipeline freezer unavailable");
-    if (!isRecord12(body2) || body2.root === void 0) return failure8(400, "ORCHESTRATION_V2_FREEZE_BODY_INVALID", "freeze-pipeline body \u5FC5\u987B\u5305\u542B root");
+    if (!isRecord13(body2) || body2.root === void 0) return failure8(400, "ORCHESTRATION_V2_FREEZE_BODY_INVALID", "freeze-pipeline body \u5FC5\u987B\u5305\u542B root");
     const root2 = readRootFromBody(body2);
     if (typeof root2 !== "string") return root2;
     const checked = rootCheck(deps, root2);
@@ -54867,7 +55427,7 @@ async function resolveSkillInvocationRoute(rawUrl, path14, deps) {
 }
 
 // packages/server/src/serverGetDecisionRoutes.ts
-import { join as join114 } from "node:path";
+import { join as join115 } from "node:path";
 
 // packages/server/src/decisionProjection.ts
 async function readReviewBindingSafely(dir) {
@@ -54916,7 +55476,7 @@ async function handleGetDecisionRoute(req, res, path14, deps) {
   const root = query.get("root") ?? "";
   const checked = deps.workflowRootForRequest(root);
   if (!checked.ok) return deps.sendJson(res, checked.code, { ok: false, error: checked.error }), true;
-  const dir = join114(checked.anchor.path, "openspec", "changes", name);
+  const dir = join115(checked.anchor.path, "openspec", "changes", name);
   if (!stateStorageExistsSync(dir)) return deps.sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" }), true;
   try {
     const view = await readPendingDecisionProjection({
@@ -54933,7 +55493,7 @@ async function handleGetDecisionRoute(req, res, path14, deps) {
 }
 
 // packages/server/src/serverTaskLifecycleRoutes.ts
-import { join as join115 } from "node:path";
+import { join as join116 } from "node:path";
 var DELETE_FAILED = "\u5220\u9664\u5931\u8D25";
 var TASK_ARCHIVED_HTTP_ERROR = "\u4EFB\u52A1\u5DF2\u5F52\u6863\uFF0C\u5148\u53D6\u6D88\u5F52\u6863";
 var REASON_CODES = [
@@ -55112,7 +55672,7 @@ async function handleTaskLifecycleDelete(req, res, path14, deps) {
     sendJson(res, 500, { ok: false, code: "delete-failed", error: DELETE_FAILED });
     return true;
   }
-  taskLifecycle.evictChange(join115(repoRoot, "openspec", "changes", change));
+  taskLifecycle.evictChange(join116(repoRoot, "openspec", "changes", change));
   await taskLifecycle.reclaimHostAgents(repoRoot, change);
   sendJson(res, 200, {
     ok: true,
@@ -55124,7 +55684,7 @@ async function handleTaskLifecycleDelete(req, res, path14, deps) {
 
 // packages/server/src/serverGetRoutes.ts
 function repoRootForSkills2() {
-  return join116(dirname25(fileURLToPath3(import.meta.url)), "..", "..", "..");
+  return join117(dirname26(fileURLToPath3(import.meta.url)), "..", "..", "..");
 }
 function isWorkflowName2(name) {
   return name !== "" && /^[\p{L}\p{N}\p{M}_-]+$/u.test(name);
@@ -55247,7 +55807,7 @@ async function handleGet(req, res, path14, deps) {
       assertWorkflowRootAnchor(rootCheck2.anchor);
       let pipelineExists = true;
       try {
-        lstatSync19(join116(rootCheck2.anchor.path, ".pipeline"));
+        lstatSync19(join117(rootCheck2.anchor.path, ".pipeline"));
       } catch (error2) {
         if (error2.code === "ENOENT") pipelineExists = false;
         else throw error2;
@@ -55270,7 +55830,7 @@ async function handleGet(req, res, path14, deps) {
       assertWorkflowRootAnchor(rootCheck2.anchor);
       let pipelineExists = true;
       try {
-        lstatSync19(join116(rootCheck2.anchor.path, ".pipeline"));
+        lstatSync19(join117(rootCheck2.anchor.path, ".pipeline"));
       } catch (e) {
         if (e.code === "ENOENT") pipelineExists = false;
         else throw e;
@@ -55436,7 +55996,7 @@ async function handleGet(req, res, path14, deps) {
       image,
       secretsPath: paths.secretsPath,
       exec: options3.execDocker,
-      defaultCodexHome: join116(hostHome, ".codex")
+      defaultCodexHome: join117(hostHome, ".codex")
     });
     return sendJson(res, 200, r);
   }
@@ -55738,7 +56298,7 @@ async function handlePutRoute(req, res, path14, deps) {
 // packages/server/src/changeLaunch.ts
 import { randomUUID as randomUUID17 } from "node:crypto";
 import { lstat as lstat48, rename as rename16, unlink as unlink6, writeFile as writeFile24 } from "node:fs/promises";
-import { join as join117 } from "node:path";
+import { join as join118 } from "node:path";
 var CHANGE_TASK_FILE = "REAL_AGENT_TASK.md";
 var MAX_TASK_PROMPT_CHARS = 24e3;
 function errorCode8(error2) {
@@ -55769,7 +56329,7 @@ async function writeChangeTaskPrompt(changeDir2, prompt) {
   if (!dirStat.isDirectory() || dirStat.isSymbolicLink()) {
     throw new Error("Change \u76EE\u5F55\u4E0D\u662F\u53EF\u4FE1\u666E\u901A\u76EE\u5F55\uFF0C\u62D2\u7EDD\u4FDD\u5B58\u4EFB\u52A1\u63D0\u793A\u8BCD");
   }
-  const target = join117(changeDir2, CHANGE_TASK_FILE);
+  const target = join118(changeDir2, CHANGE_TASK_FILE);
   let targetExists = false;
   try {
     await lstat48(target);
@@ -55778,7 +56338,7 @@ async function writeChangeTaskPrompt(changeDir2, prompt) {
     if (errorCode8(error2) !== "ENOENT") throw error2;
   }
   if (targetExists) throw new Error("\u4EFB\u52A1\u63D0\u793A\u8BCD\u5DF2\u5B58\u5728\uFF0C\u62D2\u7EDD\u8986\u76D6");
-  const temporary = join117(changeDir2, `.${CHANGE_TASK_FILE}.${randomUUID17()}.tmp`);
+  const temporary = join118(changeDir2, `.${CHANGE_TASK_FILE}.${randomUUID17()}.tmp`);
   try {
     await writeFile24(temporary, `${prompt}
 `, { encoding: "utf8", flag: "wx", mode: 384 });
@@ -56045,10 +56605,11 @@ async function handlePostChangesRoutes(req, res, path14, deps) {
 
 // packages/server/src/serverPostExecutionRoutes.ts
 import { randomUUID as randomUUID18 } from "node:crypto";
-import { join as join119 } from "node:path";
+import { join as join120 } from "node:path";
 
 // packages/server/src/serverPostDecisionRoutes.ts
-import { join as join118 } from "node:path";
+import { lstat as lstat49 } from "node:fs/promises";
+import { join as join119 } from "node:path";
 
 // packages/server/src/serverSession.ts
 import { createHash as createHash36, randomBytes as randomBytes4 } from "node:crypto";
@@ -56174,7 +56735,7 @@ function createSessionAuthority(options3 = {}) {
 var PRESENCE_HEADER = "x-tenon-presence";
 var PRESENCE_REQUIRED = "\u8BC4\u5BA1\u786E\u8BA4\u9700\u8981\u5728 Dashboard \u91CC\u7531\u672C\u4EBA\u4E8C\u6B21\u786E\u8BA4\uFF1B\u8BF7\u5728\u9875\u9762\u4E0A\u70B9\u51FB\u786E\u8BA4\uFF08\u7F3A\u5C11\u6216\u5DF2\u5931\u6548\u7684\u5728\u573A\u8BC1\u660E\uFF09";
 var DECISION_COMMAND_FAILED = "\u51B3\u7B56\u547D\u4EE4\u5904\u7406\u5931\u8D25";
-function scalar14(state, field5) {
+function scalar15(state, field5) {
   const value = state.fields[field5];
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
@@ -56186,7 +56747,7 @@ function reviewExitsFor(root, state, phase) {
     documentGovernanceFingerprint: metadata?.documentGovernanceFingerprint,
     workflowPlanFingerprint: metadata?.workflowPlanFingerprint,
     workflowPlanSnapshot: metadata?.workflowPlanSnapshot
-  }, void 0, resolveSnapshotTrack(root, scalar14(state, "track"), workflowName));
+  }, void 0, resolveSnapshotTrack(root, scalar15(state, "track"), workflowName));
   const step = resolveStep(plan.workflow, phase);
   if (!step || step.gate !== "review") return null;
   return stepExitTransitions(plan, phase, state).map((transition) => transition.event);
@@ -56218,7 +56779,7 @@ async function resolveDecisionTarget(req, res, name, deps, needsIdempotencyKey) 
     sendJson(res, 400, { ok: false, error: "\u975E\u6CD5 change \u540D" });
     return null;
   }
-  const dir = join118(root, "openspec", "changes", name);
+  const dir = join119(root, "openspec", "changes", name);
   if (!stateStorageExistsSync(dir)) {
     sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     return null;
@@ -56255,6 +56816,19 @@ async function handlePostDecisionRoutes(req, res, path14, deps) {
     return true;
   }
   const { root, dir, ref, expectedRevision, idempotencyKey, user } = target;
+  const residual = await frozenResidualCheck(deps, dir);
+  if (residual === "unreadable") {
+    sendJson(res, 409, { ok: false, code: "residual-pending", error: RESIDUAL_UNREADABLE });
+    return true;
+  }
+  if (residual.length > 0) {
+    sendJson(res, 409, {
+      ok: false,
+      code: "residual-pending",
+      error: `\u6709 ${residual.length} \u9879\u5269\u4F59\u963B\u65AD\u5F85\u63A5\u53D7\uFF08${residual.join("\u3001")}\uFF09\uFF1ADashboard \u4E0D\u5C55\u793A\u4E5F\u4E0D\u63A5\u53D7\u5269\u4F59\u963B\u65AD\uFF1B\u8BF7\u5728\u7EC8\u7AEF\u67E5\u770B tenon review request \u5217\u51FA\u7684\u53D1\u73B0\uFF0C\u7531\u7528\u6237\u56DE\u590D\u201C\u786E\u8BA4\u7EE7\u7EED\u201D\uFF08\u6216\u5728\u81EA\u5DF1\u7684\u7EC8\u7AEF\u8FD0\u884C tenon review acknowledge\uFF09\u6765\u786E\u8BA4`
+    });
+    return true;
+  }
   let acknowledged;
   try {
     acknowledged = await acknowledgeFromDashboard({ deps, root, dir, name, ref, expectedRevision, idempotencyKey, actor: actorOf(user) });
@@ -56281,6 +56855,26 @@ async function handlePostDecisionRoutes(req, res, path14, deps) {
   return true;
 }
 var NO_WAIVERS = { approved: [], skipped: [], digest: null, note: null, protectedApproved: [], protectedSkipped: [] };
+var RESIDUAL_UNREADABLE = "\u51BB\u7ED3\u7684\u8BC4\u5BA1\u6E05\u5355\uFF08.pipeline-review-waivers.json\uFF09\u5B58\u5728\uFF0C\u5374\u65E0\u6CD5\u8BFB\u53D6\u6216\u89E3\u7801\uFF08\u6216\u4EFB\u52A1\u72B6\u6001\u8BFB\u4E0D\u51FA\u6765\uFF09\uFF0C\u65E0\u6CD5\u786E\u8BA4\u662F\u5426\u6709\u5F85\u63A5\u53D7\u7684\u5269\u4F59\u963B\u65AD\uFF1ADashboard \u4E0D\u786E\u8BA4\u4E5F\u4E0D\u63A5\u53D7\uFF1B\u8BF7\u5728\u7EC8\u7AEF\u91CD\u65B0\u8FD0\u884C tenon review request \u91CD\u65B0\u51BB\u7ED3\uFF0C\u6216\u7531\u7528\u6237\u56DE\u590D\u201C\u786E\u8BA4\u7EE7\u7EED\u201D\uFF08\u6216\u5728\u81EA\u5DF1\u7684\u7EC8\u7AEF\u8FD0\u884C tenon review acknowledge\uFF09\u6765\u786E\u8BA4";
+async function frozenListExists(dir) {
+  try {
+    await lstat49(join119(dir, REVIEW_WAIVERS_FILE));
+    return true;
+  } catch (error2) {
+    if (error2.code === "ENOENT") return false;
+    throw error2;
+  }
+}
+async function frozenResidualCheck(deps, dir) {
+  try {
+    const { selection, unbound } = await boundReviewWaiverSelection(dir, await deps.store.read(dir));
+    if (selection !== void 0) return (selection.residual ?? []).map((item2) => item2.key);
+    if (unbound) return [];
+    return await frozenListExists(dir) && await readReviewWaiverSelection(dir) === void 0 ? "unreadable" : [];
+  } catch {
+    return "unreadable";
+  }
+}
 async function acknowledgeFromDashboard(input2) {
   const { deps, root, dir, name } = input2;
   const recorder = createInteractionEventRecorder();
@@ -56301,7 +56895,15 @@ async function acknowledgeFromDashboard(input2) {
     },
     clock: deps.clock,
     writeState: async (state) => {
-      waivers = await approveFrozenWaivers({ repoRoot: root, dir, change: name, state, actor: input2.actor, recordedAt: deps.clock() });
+      waivers = await approveFrozenWaivers({
+        repoRoot: root,
+        dir,
+        change: name,
+        state,
+        actor: input2.actor,
+        recordedAt: deps.clock(),
+        acceptResidual: false
+      });
       await deps.store.writeUnderLock(dir, state, { kind: "set-many" });
       await clearReviewWaiverSelection(dir).catch(() => void 0);
     },
@@ -56337,7 +56939,7 @@ var TaskRunOperationConflictError = class extends Error {
 function failure12(status2, code, error2) {
   return { status: status2, body: { ok: false, code, error: error2 } };
 }
-function isRecord13(value) {
+function isRecord14(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function safeIdentity(value) {
@@ -56347,7 +56949,7 @@ function safeChange(value) {
   return /^[A-Za-z0-9][A-Za-z0-9_-]{0,159}$/.test(value);
 }
 function parseBody(value) {
-  if (!isRecord13(value)) return null;
+  if (!isRecord14(value)) return null;
   const keys2 = Object.keys(value).sort();
   const allowed = ["expected_run_revision", "expected_state", "operation", "root", "work_item_id"];
   if (keys2.some((key) => !allowed.includes(key))) return null;
@@ -56498,7 +57100,7 @@ async function handlePostExecutionRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join119(root2, "openspec", "changes", name2);
+    const dir = join120(root2, "openspec", "changes", name2);
     const result2 = await cancelAfkRun(store, dir);
     return sendJson(res, result2.ok ? 200 : 400, result2);
   }
@@ -56518,7 +57120,7 @@ async function handlePostExecutionRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join119(root2, "openspec", "changes", name2);
+    const dir = join120(root2, "openspec", "changes", name2);
     const result2 = await retryAfkRun(store, dir);
     return sendJson(res, result2.ok ? 200 : 400, result2);
   }
@@ -56538,7 +57140,7 @@ async function handlePostExecutionRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join119(root2, "openspec", "changes", name2);
+    const dir = join120(root2, "openspec", "changes", name2);
     const result2 = await dismissAfkRun(store, dir);
     return sendJson(res, result2.ok ? 200 : 400, result2);
   }
@@ -56558,7 +57160,7 @@ async function handlePostExecutionRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join119(root2, "openspec", "changes", name2);
+    const dir = join120(root2, "openspec", "changes", name2);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
@@ -56660,6 +57262,7 @@ async function handlePostExecutionRoutes(req, res, path14, deps) {
     {
       store,
       runRepo,
+      ...deps.recordStore === void 0 ? {} : { recordStore: deps.recordStore },
       flow,
       clock,
       fileExists,
@@ -56898,14 +57501,14 @@ async function handlePostGovernanceRoutes(req, res, path14, deps) {
 
 // packages/server/src/serverPostOperationsRoutes.ts
 import { lstatSync as lstatSync20 } from "node:fs";
-import { join as join120 } from "node:path";
+import { join as join121 } from "node:path";
 
 // packages/server/src/loopScopePreview.ts
 import {
   constants as constants23,
   fstatSync as fstatSync16,
   openSync as openSync18,
-  readFileSync as readFileSync28
+  readFileSync as readFileSync29
 } from "node:fs";
 import { posix as posix6 } from "node:path";
 var REQUEST_KEYS = /* @__PURE__ */ new Set(["root", "loop_id", "paths"]);
@@ -56930,7 +57533,7 @@ function registryReadError(error2) {
   const detail = error2 instanceof Error ? error2.message : String(error2);
   return new RegistryReadError(`loops.yaml \u8BFB\u5931\u8D25\uFF08${code}\uFF09\uFF1A${detail}`);
 }
-function readTrustedLoopRegistry(anchor, readFile60 = (fd) => readFileSync28(fd, "utf8")) {
+function readTrustedLoopRegistry(anchor, readFile60 = (fd) => readFileSync29(fd, "utf8")) {
   return readWithLoopScopeRootTrust(
     () => assertWorkflowRootAnchor(anchor),
     () => {
@@ -56976,15 +57579,15 @@ function readTrustedLoopRegistry(anchor, readFile60 = (fd) => readFileSync28(fd,
               const identity = { dev: opened.dev, ino: opened.ino };
               assertEntryMatches(paths, identity, "loops registry");
               assertDirectoryStillTrusted(pipeline, anchor);
-              let text11;
+              let text12;
               try {
-                text11 = readFile60(fd);
+                text12 = readFile60(fd);
               } catch (error2) {
                 throw registryReadError(error2);
               }
               assertEntryMatches(paths, identity, "loops registry");
               assertDirectoryStillTrusted(pipeline, anchor);
-              return loadRegistry(anchor.path, { readText: () => text11 });
+              return loadRegistry(anchor.path, { readText: () => text12 });
             } finally {
               safeClose(fd);
             }
@@ -57187,7 +57790,7 @@ async function handlePostOperationsRoutes(req, res, path14, deps) {
       assertWorkflowRootAnchor(rootCheck2.anchor);
       let pipelineExists = true;
       try {
-        lstatSync20(join120(rootCheck2.anchor.path, ".pipeline"));
+        lstatSync20(join121(rootCheck2.anchor.path, ".pipeline"));
       } catch (error2) {
         if (error2.code === "ENOENT") pipelineExists = false;
         else throw error2;
@@ -57374,7 +57977,7 @@ async function handlePostOperationsRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join120(root, "openspec", "changes", name);
+    const dir = join121(root, "openspec", "changes", name);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
@@ -57403,7 +58006,7 @@ async function handlePostOperationsRoutes(req, res, path14, deps) {
 }
 
 // packages/server/src/serverPostMemoryRoutes.ts
-import { join as join121 } from "node:path";
+import { join as join122 } from "node:path";
 var RELATED_SEARCH_PATH = "/api/mem/related-sessions/search";
 var PLATFORM_VALUES = /* @__PURE__ */ new Set(["all", "claude", "codex", "opencode", "pi"]);
 var CHANGE_NAME_RE3 = /^[a-zA-Z0-9_-]+$/;
@@ -57442,7 +58045,7 @@ async function handlePostMemoryRoutes(req, res, path14, deps) {
   const anchoredRoot = rootCheck2.anchor.path;
   let changeExists = false;
   try {
-    changeExists = stateStorageExistsSync(join121(anchoredRoot, "openspec", "changes", name));
+    changeExists = stateStorageExistsSync(join122(anchoredRoot, "openspec", "changes", name));
   } catch {
     return missingTarget(deps, res);
   }
@@ -57618,7 +58221,7 @@ async function handlePostRoute(req, res, path14, deps) {
 }
 
 // packages/server/src/serverFreezeHandlers.ts
-import { basename as basename9 } from "node:path";
+import { basename as basename10 } from "node:path";
 function createFreezeHandlers(deps) {
   const { orchestrationLedger, clock } = { orchestrationLedger: deps.ledger, clock: deps.clock };
   const freezePipeline = async (changeDir2, pipeline) => {
@@ -57649,7 +58252,7 @@ function createFreezeHandlers(deps) {
     const request = requestDecoded.value;
     const context = contextDecoded.value;
     if (request.change_id !== context.change_id || request.project_id !== context.project_id || request.correlation_id !== context.correlation_id) throw new Error("request/context identity mismatch");
-    if (basename9(changeDir2) !== request.change_id) throw new Error("request/path change mismatch");
+    if (basename10(changeDir2) !== request.change_id) throw new Error("request/path change mismatch");
     const catalog2 = normalizeCapabilityCatalogV2(input2.catalog);
     if (!catalog2.ok) throw new Error(`catalog schema \u65E0\u6548: ${catalog2.issues.join(", ")}`);
     const workflow = decodeWorkflowDef(input2.workflow_definition, "custom");
@@ -57722,8 +58325,8 @@ function createFreezeHandlers(deps) {
 }
 
 // packages/server/src/serverTransport.ts
-import { readFileSync as readFileSync29 } from "node:fs";
-import { join as join122 } from "node:path";
+import { readFileSync as readFileSync30 } from "node:fs";
+import { join as join123 } from "node:path";
 import { gzipSync as gzipSync2 } from "node:zlib";
 
 // packages/server/src/snapshotCache.ts
@@ -57789,8 +58392,8 @@ function encodeListProject(project, revs) {
 }
 
 // packages/server/src/snapshotAssembly.ts
-function digest17(text11) {
-  return createHash37("sha1").update(text11).digest("hex").slice(0, 16);
+function digest17(text12) {
+  return createHash37("sha1").update(text12).digest("hex").slice(0, 16);
 }
 function assemblySignature(fingerprint, builts, projects) {
   return `${fingerprint}\0${builts.map((built, index) => `${built.seq}:${projects[index]?.repository?.label ?? ""}`).join("|")}`;
@@ -58308,7 +58911,7 @@ data: ${shared.body}
   function serveIndexWithToken(res) {
     if (!webRoot) return false;
     try {
-      let html = readFileSync29(join122(webRoot, "index.html"), "utf8");
+      let html = readFileSync30(join123(webRoot, "index.html"), "utf8");
       const jsToken = JSON.stringify(token).replace(/</g, "\\u003c");
       const inject = `<script>window.__TENON_DASHBOARD_TOKEN__ = ${jsToken};</script>`;
       html = html.includes("</head>") ? html.replace("</head>", `${inject}</head>`) : `${inject}${html}`;
@@ -58322,10 +58925,10 @@ data: ${shared.body}
     if (!webRoot || !path14.startsWith("/assets/")) return false;
     const rel = path14.slice(1);
     if (rel.includes("..")) return false;
-    const abs2 = join122(webRoot, rel);
-    if (!abs2.startsWith(join122(webRoot, "assets"))) return false;
+    const abs2 = join123(webRoot, rel);
+    if (!abs2.startsWith(join123(webRoot, "assets"))) return false;
     try {
-      const source2 = readFileSync29(abs2);
+      const source2 = readFileSync30(abs2);
       const ext = abs2.slice(abs2.lastIndexOf("."));
       const compressible = GZIP_TYPES.has(ext) && source2.length >= GZIP_MIN_BYTES2;
       const gzip = compressible && acceptsGzip(req.headers["accept-encoding"]);
@@ -58453,7 +59056,7 @@ if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.write
 })
 })();
 `.trim();
-var sha2562 = (text11) => `'sha256-${createHash38("sha256").update(text11, "utf8").digest("base64")}'`;
+var sha2562 = (text12) => `'sha256-${createHash38("sha256").update(text12, "utf8").digest("base64")}'`;
 var SIGN_IN_CSP = [
   "default-src 'none'",
   `style-src ${sha2562(STYLE)}`,
@@ -58462,13 +59065,13 @@ var SIGN_IN_CSP = [
   "form-action 'none'",
   "frame-ancestors 'none'"
 ].join("; ");
-var escape2 = (text11) => text11.replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;").replace(/"/gu, "&quot;");
+var escape2 = (text12) => text12.replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;").replace(/"/gu, "&quot;");
 var COPY_ICON = '<svg class="copy" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg>';
 var OK_ICON = '<svg class="ok" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 function signInPage(reason3, acceptLanguage) {
   const lang = signInLanguage(acceptLanguage);
-  const text11 = COPY[lang][reason3];
-  return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Tenon Dashboard</title><style>${STYLE}</style></head><body data-testid="sign-in-required" data-reason="${reason3}"><main><span class="mark" aria-hidden="true">t</span><h1 title="${escape2(text11.why)}" data-testid="sign-in-heading">${escape2(text11.heading)}</h1><div class="cmd" title="${escape2(text11.why)}" data-testid="sign-in-command-block"><code id="cmd" data-testid="sign-in-command">${SIGN_IN_COMMAND}</code><button type="button" id="copy" aria-label="${escape2(text11.copy)}" title="${escape2(text11.copy)}" data-label="${escape2(text11.copy)}" data-done="${escape2(text11.copied)}" data-testid="sign-in-copy">${COPY_ICON}${OK_ICON}</button></div><a href="/" title="${escape2(text11.continueHint)}" data-testid="sign-in-continue">${escape2(text11.continue)}</a><span class="sr" id="status" role="status"></span></main><script>${SCRIPT}</script></body></html>`;
+  const text12 = COPY[lang][reason3];
+  return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Tenon Dashboard</title><style>${STYLE}</style></head><body data-testid="sign-in-required" data-reason="${reason3}"><main><span class="mark" aria-hidden="true">t</span><h1 title="${escape2(text12.why)}" data-testid="sign-in-heading">${escape2(text12.heading)}</h1><div class="cmd" title="${escape2(text12.why)}" data-testid="sign-in-command-block"><code id="cmd" data-testid="sign-in-command">${SIGN_IN_COMMAND}</code><button type="button" id="copy" aria-label="${escape2(text12.copy)}" title="${escape2(text12.copy)}" data-label="${escape2(text12.copy)}" data-done="${escape2(text12.copied)}" data-testid="sign-in-copy">${COPY_ICON}${OK_ICON}</button></div><a href="/" title="${escape2(text12.continueHint)}" data-testid="sign-in-continue">${escape2(text12.continue)}</a><span class="sr" id="status" role="status"></span></main><script>${SCRIPT}</script></body></html>`;
 }
 
 // packages/server/src/serverAccess.ts
@@ -58625,7 +59228,7 @@ function createAccessControl(deps) {
 }
 
 // packages/server/src/loopActivationWiring.ts
-import { join as join123 } from "node:path";
+import { join as join124 } from "node:path";
 function createLoopActivationValidator(deps) {
   return async ({ root, loopId, candidate: candidate2 }) => {
     const loop = candidate2.loops.find((entry2) => entry2.id === loopId);
@@ -58636,7 +59239,7 @@ function createLoopActivationValidator(deps) {
       locator: createRunnerSkillContentLocator({
         runner,
         home: deps.hostHome,
-        bundledRoot: join123(repoRootForSkills(), "skills")
+        bundledRoot: join124(repoRootForSkills(), "skills")
       }),
       isSkillProfileKnown: (profileId) => profileId === "_all" || deps.trackSkillProfiles.has(profileId)
     });
@@ -58701,7 +59304,7 @@ function createDispatcher(deps) {
 // packages/server/src/serverGovernance.ts
 import { mkdirSync as mkdirSync9 } from "node:fs";
 import { readdir as readdir23 } from "node:fs/promises";
-import { join as join124, resolve as resolvePath12 } from "node:path";
+import { join as join125, resolve as resolvePath12 } from "node:path";
 function createServerGovernance(options3) {
   const { registry, globalWorkflowRoot: globalWorkflowRoot2, store, sendJson, trackSkillProfiles, operationsAvailable, operationRunner } = options3;
   function trackRegistryBody(trackRegistry) {
@@ -58713,7 +59316,7 @@ function createServerGovernance(options3) {
     };
   }
   async function scanActiveTrackChanges(root) {
-    const changesRoot = join124(root, "openspec", "changes");
+    const changesRoot = join125(root, "openspec", "changes");
     let entries2;
     try {
       entries2 = await readdir23(changesRoot, { withFileTypes: true });
@@ -58726,7 +59329,7 @@ function createServerGovernance(options3) {
     const unreadable = [];
     for (const name of names) {
       try {
-        const state = await store.read(join124(changesRoot, name));
+        const state = await store.read(join125(changesRoot, name));
         const track = state.fields.track;
         const workflow = state.fields.workflow;
         refs.push({
@@ -58848,7 +59451,7 @@ function createServerGovernance(options3) {
   const globalWorkflowStore = () => {
     try {
       if (globalAnchor === null) {
-        mkdirSync9(join124(globalWorkflowRoot2, ".pipeline", "workflows"), { recursive: true });
+        mkdirSync9(join125(globalWorkflowRoot2, ".pipeline", "workflows"), { recursive: true });
         globalAnchor = captureWorkflowRootAnchor(globalWorkflowRoot2);
       } else {
         assertWorkflowRootAnchor(globalAnchor);
@@ -59058,9 +59661,9 @@ function createRelatedSessionSearchExecutor(runner) {
 }
 
 // packages/server/src/sessionLinkResolver.ts
-import { join as join125 } from "node:path";
+import { join as join126 } from "node:path";
 async function resolveSessionLink(root, name, deps) {
-  const changeDir2 = join125(root, "openspec", "changes", name);
+  const changeDir2 = join126(root, "openspec", "changes", name);
   try {
     const wtRaw = await deps.store.get(changeDir2, "automation_worktree");
     const wt = Array.isArray(wtRaw) ? wtRaw.join(",") : wtRaw ?? "";
@@ -59082,32 +59685,6 @@ async function resolveSessionLink(root, name, deps) {
   } catch {
     return { found: false, dir: root, reason: "lookup-error" };
   }
-}
-
-// packages/server/src/version.ts
-import { readFileSync as readFileSync30 } from "node:fs";
-import { basename as basename10, dirname as dirname26, join as join126 } from "node:path";
-var SERVER_VERSION = "0.1.0";
-var RELEASE_ID = /^sha256-[a-f0-9]{64}$/;
-function isPluginManifestVersion(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function resolveReleaseVersion(pluginRoot2) {
-  for (const relative16 of [".codex-plugin/plugin.json", ".claude-plugin/plugin.json"]) {
-    try {
-      const parsed2 = JSON.parse(readFileSync30(join126(pluginRoot2, relative16), "utf8"));
-      if (isPluginManifestVersion(parsed2) && typeof parsed2.version === "string" && /^\d+\.\d+\.\d+$/.test(parsed2.version)) {
-        return parsed2.version;
-      }
-    } catch {
-    }
-  }
-  return SERVER_VERSION;
-}
-function resolvePayloadReleaseId(pluginRoot2) {
-  if (basename10(pluginRoot2) !== "payload") return void 0;
-  const releaseId = basename10(dirname26(pluginRoot2));
-  return RELEASE_ID.test(releaseId) ? releaseId : void 0;
 }
 
 // packages/server/src/server.ts
@@ -59711,11 +60288,11 @@ function createRotatingLog(options3) {
   };
   return {
     path: path14,
-    write(source2, text11) {
+    write(source2, text12) {
       if (failed2) return;
       try {
         const stamp = clock();
-        const lines2 = text11.split(/\r?\n/u).filter((line) => line.trim() !== "");
+        const lines2 = text12.split(/\r?\n/u).filter((line) => line.trim() !== "");
         if (lines2.length === 0) return;
         const body2 = lines2.map((line) => `${stamp} ${source2.padEnd(5)} ${redactCredentials(line).text}
 `).join("");
@@ -59795,6 +60372,7 @@ async function main() {
   const root = pluginRoot();
   const version = resolveReleaseVersion(root);
   const releaseId = resolvePayloadReleaseId(root);
+  const channel2 = resolveReleaseChannel(root);
   const transactionId = managedTransactionId();
   const stateScopeId = machineStateScopeId(paths.stateRoot);
   mkdirSync11(paths.stateRoot, { recursive: true, mode: 448 });
@@ -59841,6 +60419,7 @@ async function main() {
   const srv = createDashboardServer({
     version,
     releaseId,
+    ...channel2 === void 0 ? {} : { channel: channel2 },
     transactionId,
     paths,
     hostHome: paths.homeDir,

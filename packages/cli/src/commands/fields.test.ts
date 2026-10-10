@@ -177,6 +177,65 @@ describe('set —— 无输出 / 四闸拒写 exit 1', () => {
   })
 })
 
+describe('max_rounds —— 任务级验证轮次上限覆盖（只接受 1 到 20 的整数）', () => {
+  test.each(['0', '21', 'x', '1.5', '-1', '03', ' 2', '', '1,2', '2 '])(
+    'set max_rounds %j 被拒绝：exit 1，不落盘、不记历史，stderr 点名取值范围',
+    async (value) => {
+      const deps = makeDeps()
+      expect(await cmdSet(deps, 'demo', 'max_rounds', value)).toBe(1)
+      expect(deps.store.write.calls).toHaveLength(0)
+      expect(deps.historyEntries).toEqual([])
+      expect(deps.errLines.join('\n')).toMatch(/max_rounds.*1 到 20/)
+    },
+  )
+
+  test.each(['1', '3', '20'])('set max_rounds %s 写入并记进任务历史', async (value) => {
+    const deps = makeDeps()
+    expect(await cmdSet(deps, 'demo', 'max_rounds', value)).toBe(0)
+    expect(deps.outLines).toEqual([])
+    expect(deps.store.write.calls[0]?.[1].fields.max_rounds).toBe(value)
+    expect(deps.historyEntries).toEqual([
+      ['/repo/openspec/changes/demo', { ts: FIXED_CLOCK, kind: 'set', field: 'max_rounds', to: value }],
+    ])
+  })
+
+  test('英文环境下拒绝文案不含中日韩字符', async () => {
+    const deps = makeDeps()
+    deps.locale = 'en'
+    expect(await cmdSet(deps, 'demo', 'max_rounds', '21')).toBe(1)
+    const err = deps.errLines.join('\n')
+    expect(err).toMatch(/max_rounds.*1 to 20/)
+    expect(err).not.toMatch(/[぀-ヿ㐀-鿿]/)
+  })
+
+  test('set-many 走同一口径：非法值整批拒绝、零落盘', async () => {
+    const deps = makeDeps()
+    expect(await cmdSetMany(deps, 'demo', ['max_rounds=0', 'branch=x'])).toBe(1)
+    expect(deps.store.write.calls).toHaveLength(0)
+    const ok = makeDeps()
+    expect(await cmdSetMany(ok, 'demo', ['max_rounds=2', 'branch=x'])).toBe(0)
+    expect(ok.store.write.calls[0]?.[1].fields.max_rounds).toBe('2')
+  })
+
+  test('cas 走同一口径：新值非法时拒绝，不能借 cas 绕过', async () => {
+    const deps = makeDeps({ state: mockState({ max_rounds: '2' }) })
+    expect(await cmdCas(deps, 'demo', 'max_rounds', '2', '99')).toBe(1)
+    expect(deps.store.write.calls).toHaveLength(0)
+    const ok = makeDeps({ state: mockState({ max_rounds: '2' }) })
+    expect(await cmdCas(ok, 'demo', 'max_rounds', '2', '3')).toBe(0)
+    expect(ok.store.write.calls[0]?.[1].fields.max_rounds).toBe('3')
+  })
+
+  test('get 读回任务字段；没设置时是空行', async () => {
+    const deps = makeDeps({ state: mockState({ max_rounds: '3' }) })
+    expect(await cmdGet(deps, 'demo', 'max_rounds')).toBe(0)
+    expect(deps.outLines).toEqual(['3'])
+    const unset = makeDeps()
+    expect(await cmdGet(unset, 'demo', 'max_rounds')).toBe(0)
+    expect(unset.outLines).toEqual([''])
+  })
+})
+
 describe('set-many —— k=v 批量原子写', () => {
   test('包含 phase 的批量写入始终拒绝，不能借 set-many 绕过 transition', async () => {
     const deps = makeDeps({ state: mockState({

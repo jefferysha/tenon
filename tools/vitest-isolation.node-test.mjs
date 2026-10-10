@@ -14,6 +14,9 @@ const HOST_ENV = {
   TENON_USER: 'someone@example.com',
   TENON_USER_NAME: 'Someone',
   TENON_RUNTIME_ROOTS: '{"data":"/host/data","state":"/host/state","config":"/host/config"}',
+  TENON_RUNTIME_DATA_ROOT: '/host/data',
+  TENON_RUNTIME_STATE_ROOT: '/host/state',
+  TENON_RUNTIME_CONFIG_ROOT: '/host/config',
   TENON_BASE_BRANCH: 'main',
   TENON_CHANGE_NAME: 'host-change',
 }

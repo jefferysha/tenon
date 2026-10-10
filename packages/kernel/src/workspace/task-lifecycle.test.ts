@@ -7,7 +7,7 @@ import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { formatReviewMarker, REVIEW_MARKER_FILE } from '../state/markers.js'
+import { formatReviewMarker, INTERACTION_MARKER_SESSION_PREFIX, REVIEW_MARKER_FILE } from '../state/markers.js'
 import { emptyFields, serializePipeline } from '../state/parse.js'
 import { createStateStore } from '../state/store.js'
 import { GATE_MARKERS } from '../types.js'
@@ -287,6 +287,9 @@ describe('delete', () => {
     }
     await sessionBinding('sess-a', 'add-login')
     await sessionBinding('sess-keep', 'keep-me')
+    // 交互标记按会话分文件：被删任务的会话随绑定一起走，别的会话的标记不动。
+    await writeFile(join(repo, `${INTERACTION_MARKER_SESSION_PREFIX}sess-a`), 'pipeline-interaction-v2\n', 'utf8')
+    await writeFile(join(repo, `${INTERACTION_MARKER_SESSION_PREFIX}sess-keep`), 'pipeline-interaction-v2\n', 'utf8')
   }
 
   it('removes the Change and every reference to it while a second Change survives', async () => {
@@ -312,6 +315,9 @@ describe('delete', () => {
     }
     expect(await exists(join(repo, TERMINAL_SESSION_BINDINGS_DIR, 'sess-a.json'))).toBe(false)
     expect(await exists(join(repo, TERMINAL_SESSION_BINDINGS_DIR, 'sess-keep.json'))).toBe(true)
+    expect(removed).toContain(`${INTERACTION_MARKER_SESSION_PREFIX}sess-a`)
+    expect(await exists(join(repo, `${INTERACTION_MARKER_SESSION_PREFIX}sess-a`))).toBe(false)
+    expect(await exists(join(repo, `${INTERACTION_MARKER_SESSION_PREFIX}sess-keep`))).toBe(true)
     const aPaths = userProjectPaths(repo, alice.slug)
     expect(await exists(join(aPaths.testsDir, 'keep-me', 'run.json'))).toBe(true)
     expect(await exists(userProjectPaths(repo, bob.slug).authority)).toBe(true)

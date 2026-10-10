@@ -54,6 +54,36 @@ describe('交付提交的范围（真机验收 F14）', () => {
     expect(stagedBy(root)).toEqual(['src/cart.js', 'src/coverage/report.js'])
   })
 
+  test('门禁标记不进交付提交：单文件与按会话分文件的交互标记（含 hook 的原子写 / 认领临时文件）都被排除', () => {
+    root = repoWithDeliveredChange()
+    const put = (path: string, text = 'x\n'): void => {
+      mkdirSync(join(root, path, '..'), { recursive: true })
+      writeFileSync(join(root, path), text)
+    }
+    put('.pipeline-pending-confirm')
+    put('.pipeline-pending-review')
+    put('.pipeline-pending-interaction')
+    put('.pipeline-pending-interaction.session-a-0001')
+    put('.pipeline-pending-interaction.session-b-0002')
+    put('.pipeline-pending-interaction.session-a-0001.tmp.4242')
+    put('.pipeline-pending-interaction.claim.4242')
+    put('src/cart.js', 'export {}\n')
+    // 只排除项目根上的本机标记：别处同名前缀的文件与源码照常提交。
+    put('docs/.pipeline-pending-interaction.session-c-0003')
+    put('.pipeline-pending-interaction-notes.md')
+    expect(stagedBy(root)).toEqual(['.pipeline-pending-interaction-notes.md', 'docs/.pipeline-pending-interaction.session-c-0003', 'src/cart.js'])
+  })
+
+  test('只剩门禁标记（含按会话分文件的）时工作区算干净', async () => {
+    root = repoWithDeliveredChange()
+    writeFileSync(join(root, '.pipeline-pending-interaction'), 'x\n')
+    writeFileSync(join(root, '.pipeline-pending-interaction.session-a-0001'), 'x\n')
+    const probe = await probeGitFinish(root, 'demo')
+    expect(probe?.workspaceDirty).toBe(false)
+    expect(probe?.deliverablesDirty).toBe(false)
+    expect(probe?.stepDirty).toBe(false)
+  })
+
   test('只剩这些本机文件时工作区算干净（不会发一条 nothing to commit 的提交）', async () => {
     root = repoWithDeliveredChange()
     writeFileSync(join(root, '.pipeline-owned.json'), '{}\n')

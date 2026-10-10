@@ -2,7 +2,7 @@
  * 步骤 agent 的测试就绪判定：本步必需的测试是否都已通过（旧步骤测试），以及本步声明了 test_policy 时的策略判定
  * （评审者提示词的 v2 测试摘要读它）。
  */
-import { evaluateTestEvidence, type TestPolicyReport } from '@tenon/kernel'
+import { evaluateTestEvidence, testItemSettled, type TestPolicyReport } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 import type { TestCommandContext } from './test-context.js'
 
@@ -29,7 +29,7 @@ export async function testsReadyFor(
     },
   })
   const pending = report.items
-    .filter((item) => item.test.required && item.status !== 'passed')
+    .filter((item) => item.test.required && !testItemSettled(item))
     .map((item) => item.test.id)
   return { ready: { ready: pending.length === 0, pending }, policy: report.policy }
 }

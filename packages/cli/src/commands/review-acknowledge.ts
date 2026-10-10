@@ -29,7 +29,8 @@ import { requireUser } from '../userIdentity.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
 import { readReviewGateBindingForRequest } from './review-binding.js'
 import {
-  auditWaiverApproval, refuseDelegatedWhileWaiversPending, retireFrozenWaivers, skippedWaiverLines,
+  auditWaiverApproval, refuseDelegatedWhileWaiversPending, refuseWhileResidualPending, retireFrozenWaivers,
+  skippedWaiverLines,
 } from './review-waivers.js'
 
 /** 确认已提交、之后的写入失败：每种一行警告。 */
@@ -121,12 +122,14 @@ export async function cmdReviewAcknowledge(
       // 同一把锁、同一次确认：先批准冻结清单里的豁免，再提交 receipt。前一步失败 receipt 不提交，
       // 重试同一条命令即可；后一步失败时已批准的豁免在重试里被识别为「已经批准过」。
       if (delegatedAuthority === null) {
+        // 剩余阻断只由人工确认接受：AFK 不接受（拒绝，receipt 保持待确认）。
+        if ((deps.env?.('TENON_AFK') ?? '') === '1') await refuseWhileResidualPending(deps, dir, state, 'afk')
         waivers = await approveFrozenWaivers({
           repoRoot: deps.cwd, dir, change: name, state, actor, recordedAt: deps.clock(),
           protectedChanges: protectedChangesFor(deps, name),
         })
       } else {
-        await refuseDelegatedWhileWaiversPending(deps, dir, name, actor.id)
+        await refuseDelegatedWhileWaiversPending(deps, dir, name, actor.id, state)
       }
       await deps.store.writeUnderLock(dir, state, { kind: 'set-many' })
       await retireFrozenWaivers(dir)
@@ -173,6 +176,10 @@ async function reportWaivers(
   }
   if (outcome.protectedApproved.length > 0) {
     deps.io.out(`[REVIEW] ${msg(deps, 'review.protectedApproved', { count: outcome.protectedApproved.length, list: outcome.protectedApproved.join(msg(deps, 'list.separator')) })}`)
+  }
+  const residual = outcome.residualAccepted ?? []
+  if (residual.length > 0) {
+    deps.io.out(`[REVIEW] ${msg(deps, 'review.residualAccepted', { count: residual.length, list: residual.map((item) => item.key).join(msg(deps, 'list.separator')) })}`)
   }
   if (outcome.note !== null) deps.io.err(`WARN: ${outcome.note}`)
   for (const line of skippedWaiverLines(outcome)) deps.io.out(line)

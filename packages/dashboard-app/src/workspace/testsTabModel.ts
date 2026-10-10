@@ -55,7 +55,7 @@ export interface MatrixRow {
   readonly blocker: TestBlocker | null
 }
 
-const WORST: Readonly<Record<SuiteState, number>> = { passed: 0, missing: 1, running: 2, stale: 3, failed: 4 }
+const WORST: Readonly<Record<SuiteState, number>> = { passed: 0, waived: 0, missing: 1, 'waiver-pending': 1, running: 2, stale: 3, failed: 4 }
 const GLOBAL_CODES: readonly string[] = ['test-catalog-missing', 'test-plan-missing', 'test-plan-tampered', 'record-chain-broken', 'record-unsealed']
 const NO_SUITES: readonly string[] = []
 /** 文件表认领的阻塞码：不进矩阵行，也不进阻塞表。 */

@@ -89,12 +89,12 @@ export type { PublishTaskPlanOptions } from '../task-plan/publication.js'
 export { createHistoryWriter, HISTORY_FILE, transitionRecordToHistoryEntry } from './history.js'
 export {
   clearReviewMarkerFor, clearReviewMarkerOfChange, createBreadcrumbWriter, formatReviewMarker, parseReviewMarker, reviewHint,
-  BREADCRUMB_FILE, REVIEW_MARKER_FILE, REVIEW_MARKER_PROTOCOL,
+  BREADCRUMB_FILE, REVIEW_MARKER_FILE, REVIEW_MARKER_PROTOCOL, INTERACTION_MARKER_SESSION_PREFIX, interactionSessionMarkerId,
 } from './markers.js'
 export type { BreadcrumbWriter, ReviewMarkerReceipt } from './markers.js'
 export {
   clearReviewGatePatch, reviewGateApprovedFor, reviewGateApprovalPatch, reviewGateEvent, reviewGateMatches,
-  reviewGatePendingFor, reviewGateRequestPatch, reviewGateStatus, REVIEW_GATE_APPROVED, REVIEW_GATE_PENDING,
+  reviewGatePendingFor, reviewGateRequestPatch, reviewGateRevokePatch, reviewGateStatus, REVIEW_GATE_APPROVED, REVIEW_GATE_PENDING,
 } from './review-gate.js'
 export type { ReviewGateStatus, ReviewAcknowledgedVia } from './review-gate.js'
 export {

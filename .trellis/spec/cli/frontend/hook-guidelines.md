@@ -215,7 +215,7 @@ independently trusted identity provider.
 ### 2. Signatures
 
 ```text
-<root>/.pipeline-pending-interaction          # skill display names joined by 、
+<root>/.pipeline-pending-interaction          # v2: pipeline-interaction-v2 / change= / session= / skills= (names joined by 、) / requested_at=
 <change>/.pipeline-history.jsonl row          {"ts":"<utc>","kind":"tool","raw":"InteractionConfirmed: <skill>"}
 pipeline_prompt_approval_intent "$PROMPT"     # prompt-intent.sh → confirm | contextual-confirm | reject | modify | authorize | revoke | ''
 ```
@@ -227,6 +227,10 @@ pipeline_prompt_approval_intent "$PROMPT"     # prompt-intent.sh → confirm | c
   exists in this project. Accepting 「按推荐」 is deliberate: `openspec/specs/interaction-and-skill-provenance` —
   "Natural reply approves the unique pending recommendation" — says the user is not required to repeat a magic
   phrase.
+- **Ownership and whole-reply approval**: a v2 interaction marker only blocks and is only released by the conversation it
+  names (`session=`; else the conversation whose Change is `change=`; else everyone). An approval phrase counts only as the
+  whole reply (`pipeline_text_is_approval_phrase`: trimmed, trailing punctuation and `(Recommended)` / `（推荐）` removed,
+  then equal to one list entry), and AskUserQuestion answers are judged per answer value from `tool_response.answers`.
 - **Unrecognised reply** (empty intent, `reject`, `modify`) while an interaction, confirm or review marker is
   pending: no mutation, no `tenon review acknowledge`; stdout
   `<tenon-pending-confirmation>…用户回复「确认继续」…或简短同意「继续」…「按你的推荐」（采纳推荐项），即确认当前待决事项…</tenon-pending-confirmation>`.

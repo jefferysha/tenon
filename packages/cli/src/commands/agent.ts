@@ -17,16 +17,16 @@ import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   AGENT_REPORTS_DIR, KNOWN_AGENT_HOSTS,
-  appendAgentRunRow, hostAgentName, hostRunValid, latestTestRun, nextAgentWave, parseAgentReport, renderAgentBlocker,
-  reviewerHostRequirement, severityRank, sha256Hex,
+  appendAgentRunRow, hostAgentName, hostRunValid, inlineSuiteId, latestTestRun, nextAgentWave, parseAgentReport, readTestPlanState,
+  renderAgentBlocker, reviewerHostRequirement, severityRank, sha256Hex,
 } from '@tenon/kernel'
 import type {
-  AgentRunRow, AgentRunSubagent, AgentSeverity, HostAgentFileOutcome, TestRunRecordV1,
+  AgentRunRow, AgentRunSubagent, AgentSeverity, HostAgentFileOutcome,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { ensureChangeHostAgents, fallbackOutcome, hostAgentHostOf } from './agent-host.js'
 import { resolveAgentCommand, roleOf, type AgentContext } from './agent-context.js'
-import { renderAgentPrompt } from './agent-prompt.js'
+import { renderAgentPrompt, type AgentPromptInput } from './agent-prompt.js'
 import { renderTestPolicySummary } from './agent-prompt-tests.js'
 import { parseRerunReason, priorRunsOnCandidate, rerunRefusal } from './agent-rerun.js'
 import { codexCommand, claudeCommand, hostSourceOf, planRoute, recordCommand, routeLines } from './agent-route.js'
@@ -52,14 +52,23 @@ async function testsFor(
   deps: CliDeps,
   context: AgentContext,
   agent: string,
-): Promise<readonly { readonly id: string; readonly run: TestRunRecordV1 | undefined }[]> {
+): Promise<AgentPromptInput['tests']> {
   const ids = context.step.reviewers.find((ref) => ref.agent === agent)?.readsTests ?? []
   if (ids.length === 0) return []
   const workflowRunId = context.state.runMetadata?.runId ?? ''
-  return Promise.all(ids.map(async (id) => ({
-    id,
-    run: await latestTestRun(deps.cwd, context.name, context.slug, id, workflowRunId),
-  })))
+  // 计划里对这些测试的豁免（`test:<id>`）随结果一起交给评审者；计划读不了就当没有。「已批准」取自策略判定
+  // （批准要绑定这条失败所在的代码），不是只看计划里有没有批准人。
+  const planState = await readTestPlanState(context.dir, context.name)
+  const waivers = planState.state === 'ok' ? planState.plan.waivers : []
+  return Promise.all(ids.map(async (id) => {
+    const waiver = waivers.find((item) => item.test === id)
+    const verdict = context.testPolicy?.suites.find((suite) => suite.origin === 'step' && suite.suite === inlineSuiteId(id))
+    return {
+      id,
+      run: await latestTestRun(deps.cwd, context.name, context.slug, id, workflowRunId),
+      ...(waiver === undefined ? {} : { waiver: { approved: verdict?.state === 'waived', reason: waiver.reason } }),
+    }
+  }))
 }
 
 export async function cmdAgentPrompt(

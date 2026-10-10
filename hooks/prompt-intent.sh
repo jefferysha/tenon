@@ -329,6 +329,56 @@ pipeline_prompt_is_qualified_approval() { # $1=prompt; 0=同意里带着转折�
   return 1
 }
 
+# 放行语只认整条短回复：去首尾空白、句末标点与「 (Recommended)」「（推荐）」后缀之后，整条必须等于下面清单里的一项。
+# 任何更长的文字、引用或粘贴里出现放行语都不算（修复：粘贴文字里的「确认继续」被当成确认）。清单就是这里一份：
+# 对话回复（pipeline_prompt_approval_intent）与 AskUserQuestion 答案值（confirm-clear.sh）共用，不再各写一份。
+# 结果放进全局 _PIPELINE_APPROVAL_TEXT，不开子 shell。去标点逐个后缀按字节剥，bash 3.2 的任何 locale 都精确。
+_pipeline_approval_normalize() { # $1=text → 0=可比对（结果在 _PIPELINE_APPROVAL_TEXT）/ 1=过长
+  local text="${1:-}" changed=1 tail
+  _PIPELINE_APPROVAL_TEXT=''
+  [ "${#text}" -le 160 ] || return 1
+  text="${text#"${text%%[![:space:]]*}"}"
+  while [ "$changed" -eq 1 ]; do
+    changed=0
+    for tail in ' ' $'\t' $'\r' $'\n' '。' '！' '!' '.' '，' ',' '～' '~' ' (Recommended)' '（推荐）'; do
+      case "$text" in *"$tail") text="${text%"$tail"}"; changed=1 ;; esac
+    done
+  done
+  _PIPELINE_APPROVAL_TEXT="$text"
+}
+
+# 显式放行语（confirm）本身就是确认；简短同意（contextual-confirm）只在调用方确认有待处理标记时才算。
+_pipeline_approval_classify() { # $1=text → 0 + 全局 _PIPELINE_APPROVAL_CLASS=confirm|contextual-confirm；1 = 不在清单里。唯一的清单
+  _PIPELINE_APPROVAL_CLASS=''
+  _pipeline_approval_normalize "${1:-}" || return 1
+  case "$_PIPELINE_APPROVAL_TEXT" in
+    确认继续|确认执行|确认并继续|继续执行|全部执行|可以继续|同意继续|请继续执行|批准继续|自行执行|自己执行|\
+    '确认继续，全部执行'|'确认继续，按你的推荐'|'确认继续，按照你的推荐'|'go ahead'|'proceed with it'|'continue execution')
+      _PIPELINE_APPROVAL_CLASS='confirm'; return 0 ;;
+    继续|接着|可以|同意|好|好的|没问题|按推荐|按推荐方案|按你的推荐|按照你的推荐|\
+    '继续，按照你的推荐'|'继续，按你的推荐'|继续按照你的推荐|继续按推荐|continue|Continue|\
+    '好的，继续'|'可以，继续'|'好，继续')
+      _PIPELINE_APPROVAL_CLASS='contextual-confirm'; return 0 ;;
+  esac
+  return 1
+}
+
+pipeline_approval_phrase_class() { # $1=text → stdout confirm|contextual-confirm；非零 = 整条不是清单里的放行语
+  _pipeline_approval_classify "${1:-}" || return 1
+  printf '%s' "$_PIPELINE_APPROVAL_CLASS"
+}
+
+pipeline_text_is_approval_phrase() { # $1=text → 0 when the whole text is one entry of the approval list
+  pipeline_approval_phrase_class "${1:-}" >/dev/null
+}
+
+# AskUserQuestion 答案值只认显式放行语（confirm 类）：简短同意（contextual-confirm，如「可以」「好的」）只对对话回复有意义，
+# 用户点选的答案不能因为是一个「好」就当成评审确认。清单仍是上面同一份，不另写；不开子 shell。
+pipeline_text_is_explicit_approval_phrase() { # $1=text → 0 when the whole text is an explicit (confirm-class) approval phrase
+  _pipeline_approval_classify "${1:-}" || return 1
+  [ "$_PIPELINE_APPROVAL_CLASS" = confirm ]
+}
+
 pipeline_prompt_approval_intent() { # $1=prompt; stdout=intent; 0=matched, 1=unrelated
   local prompt="${1:-}"
   case "$prompt" in
@@ -354,12 +404,6 @@ pipeline_prompt_approval_intent() { # $1=prompt; stdout=intent; 0=matched, 1=unr
     fi
     return 0
   fi
-  case "$prompt" in
-    *确认继续*|*确认执行*|*确认并继续*|*继续执行*|*全部执行*|*可以继续*|*同意继续*|*请继续执行*|*批准继续*|*自行执行*|*自己执行*|*go\ ahead*|*proceed\ with\ it*|*continue\ execution*)
-      printf 'confirm'; return 0 ;;
-    继续|继续。|继续！|接着|接着。|可以|可以。|可以！|同意|同意。|好|好的|没问题|按推荐|按推荐方案|按你的推荐|按照你的推荐|\
-    *继续，按照你的推荐*|*继续，按你的推荐*|*继续按照你的推荐*|*继续按推荐*|continue|Continue)
-      printf 'contextual-confirm'; return 0 ;;
-  esac
-  return 1
+  # 放行语只认整条短回复；上面的 revoke / reject / modify / authorize 判定顺序不变。
+  pipeline_approval_phrase_class "$prompt"
 }

@@ -669,6 +669,8 @@ describe('step.next 顺序', () => {
     expect(WORKSPACE_COMMIT_PATHS).toEqual(expect.arrayContaining([
       '.', ':(exclude).pipeline-pending-review', ':(exclude).pipeline-pending-interaction',
       ':(exclude).pipeline-pending-confirm',
+      // 交互标记按会话分文件，同样不入库。
+      ':(exclude,glob).pipeline-pending-interaction.*',
     ]))
     // 工作区干净，但还有已跟踪、如今被忽略的心跳：仍要一次提交把它移出索引。
     expect(simple(probe({ workspaceDirty: false, untrack: ['openspec/changes/demo/.pipeline-terminal-activity.json'] }))[0])

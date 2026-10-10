@@ -173,7 +173,10 @@ export const REAL_SETUP_ENV: SetupEnv = {
   withHostMutationLock: (host, operation) => {
     const homeDir = homedir()
     const paths = resolveRuntimePaths({ homeDir, env: { ...process.env } })
-    return withLock(join(paths.stateRoot, 'host-mutation', host), operation)
+    const lockRoot = join(paths.stateRoot, 'host-mutation', host)
+    // 全新 runtime home 还没有 state 目录（源码开发安装在空机器上首次运行就是这种形态）：锁目录要先存在。
+    mkdirSync(lockRoot, { recursive: true, mode: 0o700 })
+    return withLock(lockRoot, operation)
   },
   confirm: (question) => {
     process.stdout.write(question)
@@ -210,6 +213,10 @@ export interface SetupOpts extends PipelineHostFlags {
   target?: string
   /** Opt-in: native host SessionStart performs a throttled marketplace refresh/reinstall. */
   autoUpdate?: boolean
+  /** 源码开发安装：Tenon 源码仓库路径（tenon setup --from-source）。 */
+  fromSource?: string
+  /** 仅与 fromSource 同用：跳过 npm run build。 */
+  skipBuild?: boolean
 }
 
 /** 全流程开场白:向用户预告下面四段会发生什么（纯 stdout 呈现,无副作用;真逻辑在各段自己的函数里）。 */
@@ -227,7 +234,7 @@ export function printPlanSkeleton(deps: CliDeps, opts: SetupOpts, host: Pipeline
   if (opts.dryRun) deps.io.out('  （--dry-run:仅打印计划,不发布 runtime、不写任何文件）')
 }
 
-function autoUpdateConfigPath(env: SetupEnv): string {
+export function autoUpdateConfigPath(env: SetupEnv): string {
   return join(resolveRuntimePaths({
     homeDir: env.homeDir(),
     env: env.runtimeEnv(),
@@ -250,6 +257,21 @@ export function configureAutoUpdate(deps: CliDeps, env: SetupEnv, host: Pipeline
   } catch (error) {
     deps.io.err(`WARN: 无法写入自动更新配置（不影响当前安装）:${errMsg(error)}`)
     return 0
+  }
+}
+
+/**
+ * 开发安装不参与自动更新。configureAutoUpdate(…, false) 什么都不写，已有的 opt-in 偏好不会被关，
+ * 所以这里显式把它改写成 enabled=false；hooks/auto-update.sh 另外还会因 install-channel 标记直接退出。
+ */
+export function disableAutoUpdateForDev(deps: CliDeps, env: SetupEnv, host: PipelineHost): void {
+  const config = autoUpdateConfigPath(env)
+  if (!env.pathExists(config)) return
+  try {
+    env.writeText(config, `host=${host}\nenabled=false\n`)
+    deps.io.out('[setup] 开发安装不参与自动更新：已关闭既有的自动更新偏好。')
+  } catch (error) {
+    deps.io.err(`WARN: 无法关闭自动更新偏好（auto-update.sh 仍会因 install-channel 标记而跳过）：${errMsg(error)}`)
   }
 }
 

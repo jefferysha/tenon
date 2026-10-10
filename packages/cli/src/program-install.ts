@@ -47,6 +47,8 @@ export function registerInstallCommands(
     .option('--amp', '部署 Amp adapter')
     .option('--target <dir>', '非原生 adapter 的项目目标目录（缺省当前目录）')
     .option('--auto-update', '为所选原生宿主启用每日一次的自动升级检查')
+    .option('--from-source <repo>', '源码开发安装：从 Tenon 源码仓库工作区构建并安装（只能与 --claude 或 --codex 之一同用；不冒充版本标签）')
+    .option('--skip-build', '--from-source 时跳过 npm run build（仅在 packages/*/dist 已与源码一致时使用）')
     .option('--dry-run', '仅打印所选宿主安装计划，不写文件、不执行 adapter 或 marketplace 操作')
     .option('-y, --yes', '跳过兼容 skills/setup 的 y/N 确认位')
     .action(async (sub: string | undefined, opts: SetupOpts) => {
@@ -72,6 +74,7 @@ export function registerInstallCommands(
     .option('--dry-run', '仅打印升级计划，不执行 marketplace 或 adapter 操作')
     .option('-y, --yes', '供自动更新调用的非交互确认')
     .option('--auto', '由已明确启用的自动更新任务调用（不改变用户的 opt-in 状态）')
+    .option('--to-stable', '开发安装（tenon setup --from-source）切回最新正式稳定版；对正式安装是空操作')
     .action(async (opts: UpdateOpts) => {
       bail(await cmdUpdate(deps, opts))
     })

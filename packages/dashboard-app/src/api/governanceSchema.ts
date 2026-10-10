@@ -19,6 +19,8 @@ function decodeStep(value: unknown): WbStepDef | null {
   if (step.reviewLanes !== undefined) return null
   if (step.gate !== null && step.gate !== 'review' && step.gate !== 'auto') return null
   if (!optionalString(step.prompt)) return null
+  // 与 kernel 的 max_rounds 同一取值口径（1–20 的整数）；越界即整份作废，合法值原样保留。
+  if (step.maxRounds !== undefined && !(Number.isInteger(step.maxRounds) && (step.maxRounds as number) >= 1 && (step.maxRounds as number) <= 20)) return null
   const skills = decodeArray(step.skills, decodeSkill)
   const inputs = decodeArray(step.inputs, decodeField)
   const outputs = decodeArray(step.outputs, decodeField)
@@ -37,6 +39,7 @@ function decodeStep(value: unknown): WbStepDef | null {
     label: step.label,
     gate: step.gate,
     ...(step.prompt === undefined ? {} : { prompt: step.prompt }),
+    ...(step.maxRounds === undefined ? {} : { maxRounds: step.maxRounds as number }),
     skills,
     inputs,
     outputs,

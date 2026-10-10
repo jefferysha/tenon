@@ -189,9 +189,13 @@ Review 出口与确切 transition event 绑定：
 
 ```bash
 tenon review request <change-name> --event <event>
-tenon review acknowledge <change-name>
+# 用户确认之后：
 tenon transition <change-name> <event>
 ```
+
+确认只来自用户：回复放行语（“确认继续”“继续执行”等，由 hook 写入回执）、在 Dashboard 确认
+（`tenon dashboard --open`），或由用户本人在自己的终端运行 `tenon review acknowledge <change-name>`；
+agent 不得代为执行。
 
 持续委托可以被记录，但不会豁免文档、Skills、guards、复核证据、安全边界、发布权限、费用或外部副作用。
 
@@ -284,6 +288,8 @@ bash tools/test-adapters.sh
 bash tools/verify-skills.sh
 bash tools/test-bundle.sh
 ```
+
+想让本机的技能、hooks 与 CLI 都用仓库工作区而不是已发布版本：`tenon setup --claude --from-source .`（Codex 用 `--codex`，先加 `--dry-run` 预览）；改完仓库后重跑同一条命令即可同步，切回正式版用 `tenon update --claude --to-stable`。详见[贡献者开发](docs/usage/zh-CN/contributor-development.md)。
 
 ### Upstream Skills
 

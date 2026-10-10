@@ -1,5 +1,28 @@
 import { describe, expect, test } from 'vitest'
-import { formatReviewMarker, parseReviewMarker, REVIEW_MARKER_PROTOCOL, reviewHint } from './markers.js'
+import { GATE_MARKERS } from '../types.js'
+import {
+  formatReviewMarker, interactionSessionMarkerId, INTERACTION_MARKER_SESSION_PREFIX, parseReviewMarker, REVIEW_MARKER_PROTOCOL, reviewHint,
+} from './markers.js'
+
+describe('交互标记按会话分文件', () => {
+  test('分文件名 = 单文件名 + "." + 会话 id', () => {
+    expect(INTERACTION_MARKER_SESSION_PREFIX).toBe(`${GATE_MARKERS[2]}.`)
+  })
+  test('interactionSessionMarkerId 只认合法会话 id（[A-Za-z0-9_-]、1-128 位），其余返回 undefined', () => {
+    expect(interactionSessionMarkerId('.pipeline-pending-interaction.session-a_0001')).toBe('session-a_0001')
+    expect(interactionSessionMarkerId(`.pipeline-pending-interaction.${'a'.repeat(128)}`)).toBe('a'.repeat(128))
+    expect(interactionSessionMarkerId(`.pipeline-pending-interaction.${'a'.repeat(129)}`)).toBeUndefined()
+    // 单文件本身不是分文件。
+    expect(interactionSessionMarkerId('.pipeline-pending-interaction')).toBeUndefined()
+    expect(interactionSessionMarkerId('.pipeline-pending-interaction.')).toBeUndefined()
+    // hook 的临时文件（原子写 / 认领）带点号后缀，不是标记。
+    expect(interactionSessionMarkerId('.pipeline-pending-interaction.sess-a.tmp.123')).toBeUndefined()
+    expect(interactionSessionMarkerId('.pipeline-pending-interaction.claim.123')).toBeUndefined()
+    expect(interactionSessionMarkerId('.pipeline-pending-interaction.has space')).toBeUndefined()
+    expect(interactionSessionMarkerId('.pipeline-pending-review.sess-a')).toBeUndefined()
+    expect(interactionSessionMarkerId('x.pipeline-pending-interaction.sess-a')).toBeUndefined()
+  })
+})
 
 /**
  * reviewHint 的逐字映射独立锚定（G1 REFACTOR 第二轮 codex review 指出：server.test.ts 的

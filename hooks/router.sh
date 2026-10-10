@@ -194,11 +194,17 @@ if [ -r "$INTENT_HELPER" ]; then
   # shellcheck source=review-ack.sh
   [ -r "$REVIEW_HELPER" ] && . "$REVIEW_HELPER"
   router_confirms_open_review() { # $1=change $2=canonical phase → 0=prompt approves its open review
-    local intent
+    local intent mine
     declare -F pipeline_review_receipt_open >/dev/null 2>&1 || return 1
     pipeline_prompt_rejects_resume "$PROMPT" && return 1
     intent="$(pipeline_prompt_approval_intent "$PROMPT" 2>/dev/null || true)"
     case "$intent" in confirm|contextual-confirm) ;; *) return 1 ;; esac
+    # 回复只可能确认「本会话任务」的评审（与 confirm-clear-prompt 同一解析）：恢复后无绑定的会话、或共享指针指向别的会话
+    # 任务时，不得被告知「本条回复是对 ${1} 的评审确认」——那条回执不会被写。宿主没给 session id 时保持旧行为。
+    if [ -n "$HOST_SESSION_ID" ] && declare -F pipeline_session_change_dir >/dev/null 2>&1; then
+      mine="$(pipeline_session_change_dir "$PROOT" "$HOST_SESSION_ID" || true)"
+      [ "${mine##*/}" = "$1" ] || return 1
+    fi
     pipeline_review_receipt_open "$PROOT" "$1" "$2"
   }
   SESSION_BINDING_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/host-session-binding.sh"
@@ -262,7 +268,7 @@ if [ -r "$INTENT_HELPER" ]; then
     # 「确认继续」 answering this user's own review request is a continuation, not a new objective,
     # even when the host session was never bound (an entry skill that activated without
     # --host-session).  confirm-clear-prompt acknowledges the same receipt through the same
-    # per-user pointer, so both hooks agree on which Change the confirmation belongs to.
+    # per-conversation resolution (pipeline_session_change_dir), so both hooks agree on which Change the confirmation belongs to.
     DISPATCH_INTENT="resume"
     ROUTER_REVIEW_REPLY=1
   elif [ -z "$HOST_SESSION_ID" ] && [ -n "$CHANGE_NAME" ] \

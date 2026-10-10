@@ -60,21 +60,22 @@ export function registerTestCommands(program: Command, deps: CliDeps): void {
     }) => bail(await cmdTestRegister(deps, change, opts)))
   test
     .command('unregister <change>')
-    .description('取消登记：--suite / --file / --case [--test] / --waiver <种类或场景>')
+    .description('取消登记：--suite / --file / --case [--test] / --waiver <种类、场景或 test:步骤测试 id>')
     .option('--suite <id>', '取消登记的套件')
     .option('--file <path>', '取消登记的测试文件')
     .option('--case <covers>', '取消映射（配合 --test 只去掉一个用例）')
     .option('--test <ref>', '映射里要去掉的用例')
-    .option('--waiver <kind|covers>', '撤销豁免：测试种类（如 benchmark）或 spec:<capability>/<Scenario 标题> / task:<编号>')
+    .option('--waiver <kind|covers|test:id>', '撤销豁免：测试种类（如 benchmark）、spec:<capability>/<Scenario 标题> / task:<编号>，或 test:<步骤测试 id>')
     .action(async (change: string, opts: { suite?: string; file?: string; case?: string; test?: string; waiver?: string }) =>
       bail(await cmdTestUnregister(deps, change, opts)))
   test
     .command('waive <change>')
-    .description('登记豁免：策略要求但本任务不适用（需要评审批准后才解除阻塞）')
+    .description('登记豁免：策略要求但本任务不适用，或失败的必需步骤测试放行（需要评审批准后才解除阻塞）')
     .option('--kind <kind>', '豁免的测试种类')
     .option('--covers <covers>', '豁免的场景 / 任务，spec:<capability>/<Scenario 标题> 或 task:<编号>')
-    .option('--reason <text>', '不适用的原因')
-    .action(async (change: string, opts: { kind?: string; covers?: string; reason?: string }) => bail(await cmdTestWaive(deps, change, opts)))
+    .option('--test <id>', '豁免的步骤测试（本任务工作流里某个步骤声明的测试 id，如 code-size）：它失败了，评审批准后放行（批准只对批准时那份代码上的失败有效，代码变了再失败要重新批准）；未运行 / 过期的不适用')
+    .option('--reason <text>', '不适用 / 放行的原因')
+    .action(async (change: string, opts: { kind?: string; covers?: string; test?: string; reason?: string }) => bail(await cmdTestWaive(deps, change, opts)))
   test
     .command('sync <change>')
     .description('对账：diff 里未登记的测试文件、无套件认领的孤儿文件、已不存在的登记项（有待处理 exit 2）')

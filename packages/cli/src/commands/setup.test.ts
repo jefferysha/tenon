@@ -4,10 +4,11 @@
  * 从不把启动器直连 marketplace checkout；③runtime 分派与未知 sub;
  * ④program 装配 flag 解析(--dry-run/--yes 透传)。候选根仅经 managed-runtime 发布边界进入稳定启动器。
  */
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test } from 'vitest'
+import { installChannelPath, writeInstallChannelMarker } from '../runtime/dev-install-marker.js'
 import { makeDeps } from '../test-support.js'
 import { buildProgram, CliExit } from '../program.js'
 import {
@@ -581,6 +582,54 @@ describe('①a 自动更新偏好 —— 只允许原生宿主，且在插件校
       async () => ({ pluginVersion: TENON_RELEASE_VERSION, payloadDigest: 'a'.repeat(64) }),
     )).toBe(0)
     expect(Reflect.get(activationScope ?? {}, 'trustedBashPath')).toBe('/trusted/bin/bash')
+  })
+
+  describe('a formal setup over a development install', () => {
+    const roots: string[] = []
+    afterEach(() => {
+      for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+    })
+
+    function withDevMarker() {
+      const home = mkdtempSync(join(tmpdir(), 'tenon-setup-marker-'))
+      roots.push(home)
+      const runtimeEnv = { TENON_RUNTIME_HOME: join(home, 'runtime') }
+      const configRoot = resolveRuntimePaths({ homeDir: '/home/test', env: runtimeEnv }).configRoot
+      writeInstallChannelMarker(configRoot, {
+        host: 'codex',
+        releaseId: `sha256-${'a'.repeat(64)}`,
+        installedAt: '2026-10-07T12:00:00Z',
+        devSource: {
+          kind: 'dev', repoRealpath: '/work/tenon', commit: 'b'.repeat(40), dirty: false,
+          worktreeDigest: 'c'.repeat(40), skillsIndexDigest: 'd'.repeat(40),
+        },
+      })
+      const { env } = spyEnv({
+        pathExists: setupPathExists,
+        readText: setupReadText,
+        runtimeEnv: () => runtimeEnv,
+      }, codexInstallExec)
+      return { env, marker: installChannelPath(configRoot) }
+    }
+
+    test('removes the install-channel marker once the formal setup succeeded', async () => {
+      const deps = makeDeps()
+      const { env, marker } = withDevMarker()
+      expect(existsSync(marker)).toBe(true)
+      const code = await cmdSetupHost(
+        deps, 'codex', { codex: true }, env, fakeRuntimeInstaller().installer, fakeDashboardStarter().starter, true,
+        async () => ({ pluginVersion: TENON_RELEASE_VERSION, payloadDigest: 'a'.repeat(64) }),
+      )
+      expect(code, deps.errLines.join('\n')).toBe(0)
+      expect(existsSync(marker)).toBe(false)
+    })
+
+    test('keeps the marker when the formal setup fails', async () => {
+      const deps = makeDeps()
+      const { env, marker } = withDevMarker()
+      expect(await cmdSetupHost(deps, 'codex', { codex: true }, env, fakeRuntimeInstaller(true).installer)).toBe(1)
+      expect(existsSync(marker)).toBe(true)
+    })
   })
 
   // 首次安装没有可删除的登记：计划里不得出现 plugin remove，否则会在 marketplace add 之前

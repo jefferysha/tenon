@@ -5,8 +5,8 @@
 import { lstat, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
-  pendingReviewWaivers, readReviewWaiverSelection, reportCarriesRuns,
-  type TestPolicyReport,
+  pendingReviewWaivers, readReviewWaiverSelection, reportCarriesRuns, stepTestFailuresOf,
+  type StepTestFailures, type TestEvidenceReport, type TestPolicyReport,
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 import type { StepDocumentsView } from './statusStepParts.js'
@@ -44,31 +44,40 @@ async function pendingReport(
 
 /**
  * 评审请求发出时冻结的豁免清单（review request 写的边车）是否漏了计划里现在待批准的豁免。
- * 只在评审待确认时才问；清单不属于这一次请求（requestedAt 不同）也算漏了。
+ * 只在评审待确认时才问；清单不属于这一次请求（requestedAt 不同）也算漏了。步骤测试豁免的批准绑定代码：
+ * 冻结时记下的候选对不上现在这条失败（请求之后代码又变了），同样算过时，要重新发起评审。
  */
-async function requestListIsStale(repoRoot: string, dir: string, change: string, requestedAt: string): Promise<boolean> {
-  const pending = await pendingReviewWaivers({ repoRoot, dir, change })
+async function requestListIsStale(
+  repoRoot: string,
+  dir: string,
+  change: string,
+  requestedAt: string,
+  failures: StepTestFailures,
+): Promise<boolean> {
+  const pending = await pendingReviewWaivers({ repoRoot, dir, change, failures })
   if (pending.length === 0) return false
   const frozen = await readReviewWaiverSelection(dir)
   if (frozen === undefined || frozen.requestedAt !== requestedAt) return true
-  return pending.some((waiver) => !frozen.waivers.some((item) => item.key === waiver.key && item.reason === waiver.reason))
+  return pending.some((waiver) => !frozen.waivers.some((item) =>
+    item.key === waiver.key && item.reason === waiver.reason && item.candidate === waiver.candidate))
 }
 
 export async function buildStepTestFlow(
   deps: CliDeps,
   change: string,
   dir: string,
-  report: TestPolicyReport | undefined,
+  evidence: Pick<TestEvidenceReport, 'policy' | 'items'>,
   documents: StepDocumentsView,
   /** 评审待确认时这次请求的时间；其余情况 null。 */
   pendingRequestedAt: string | null,
 ): Promise<StepTestFlow | undefined> {
+  const report = evidence.policy
   if (report === undefined) return undefined
   const classified = classifyTestPolicy(report)
   return {
     ...classified,
     report: await pendingReport(deps, change, report, documents),
     refreshRequest: pendingRequestedAt !== null && classified.waivers.length > 0
-      && await requestListIsStale(deps.cwd, dir, change, pendingRequestedAt),
+      && await requestListIsStale(deps.cwd, dir, change, pendingRequestedAt, stepTestFailuresOf(evidence.items)),
   }
 }

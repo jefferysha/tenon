@@ -15,6 +15,7 @@ import {
   parseHostPluginInventory,
 } from './plugin-host.js'
 import { publishManagedRelease } from './release-coordinator.js'
+import { clearDevInstallMarker } from './source-install.js'
 import {
   compareReleaseOrder,
   isRetiredReleaseVersion,
@@ -45,6 +46,7 @@ export async function runNativeUpdate(input: NativeUpdateInput): Promise<number>
     trustedNodeProof,
     verifyTrustedNode,
     auto,
+    fromDev,
   } = input
   const dashboardPort = parseDashboardPort(env.runtimeEnv().TENON_DASHBOARD_PORT)
   const readyPort = dashboardPort ?? DEFAULT_DASHBOARD_PORT
@@ -200,7 +202,8 @@ export async function runNativeUpdate(input: NativeUpdateInput): Promise<number>
           } catch (error) {
             throw new Error(`${label} 版本无法参与稳定版本比较：${error instanceof Error ? error.message : String(error)}`)
           }
-          if (comparison > 0) throw new Error(`拒绝从${label} ${version} 降级到 ${target.version}`)
+          // 开发安装的版本号来自源码仓库；切回正式版是 --to-stable 显式授权的「降级」。
+          if (comparison > 0 && fromDev !== true) throw new Error(`拒绝从${label} ${version} 降级到 ${target.version}`)
           if (isRetiredReleaseVersion(version) && !isRetiredReleaseVersion(target.version)) {
             deps.io.out(`[update] ${label} ${version} 属于已退役的 1.x 版本线；迁移到 ${target.version}`)
           }
@@ -371,6 +374,8 @@ export async function runNativeUpdate(input: NativeUpdateInput): Promise<number>
     reportHostBoundary(deps, host, hostBoundary)
     return rejectUpdate(deps, installer, env, boundaryDetail(hostBoundary, outcome.state, outcome.detail))
   }
+  // 正式版已就绪（含 --to-stable 从开发安装切回）：开发标记不再代表现状。
+  clearDevInstallMarker(env)
   if (outcome.state === 'current') {
     const tag = outcome.stableTarget?.tag ?? 'latest stable'
     deps.io.out(`[update] ${tag} 已在宿主、managed runtime 与 Dashboard 精确生效；无需更新。`)

@@ -11,6 +11,7 @@ import type {
 import { compileGuards, compileStepGuards } from './compile-guards.js'
 import { normalizeGate, withAutoGateGuards } from './auto-gate.js'
 import { isForwardStepEdge } from './implicit-completion.js'
+import { isRoundsLimited, isValidMaxRounds } from './step-rounds.js'
 import { compileArtifacts } from './compile-artifacts.js'
 import { compileStepAgents } from './compile-agents.js'
 import { compileStepTests } from './compile-tests.js'
@@ -50,7 +51,7 @@ const WORKFLOW_KEYS: ReadonlySet<string> = new Set([
   'name', 'decomposition', 'interaction', 'openspec', 'documentContract', 'steps', 'tracks',
 ])
 const STEP_KEYS: ReadonlySet<string> = new Set([
-  'id', 'label', 'gate', 'prompt', 'skills', 'inputs', 'outputs', 'artifacts', 'tests', 'test_policy',
+  'id', 'label', 'gate', 'prompt', 'maxRounds', 'skills', 'inputs', 'outputs', 'artifacts', 'tests', 'test_policy',
   'agents', 'guards', 'transitions',
 ])
 const SKILL_KEYS: ReadonlySet<string> = new Set(['id', 'depends_on'])
@@ -192,6 +193,10 @@ function compileStep(step: unknown, index: number, allowedPolicies: ReadonlySet<
       compileError(`${path}.prompt`, '含未配对 UTF-16 surrogate，UTF-8 落盘无法往返')
     }
   }
+  const maxRounds = rec.maxRounds
+  if (maxRounds !== undefined && !isValidMaxRounds(maxRounds)) {
+    compileError(`${path}.maxRounds`, `step '${id}' 的 max_rounds 必须是 1 到 20 的整数（实际 ${JSON.stringify(maxRounds)}）`)
+  }
   const skills = asArray(rec.skills, `${path}.skills`).map((s, j) =>
     compileSkillRef(s as SkillRef, `${path}.skills[${j}]`),
   )
@@ -224,6 +229,7 @@ function compileStep(step: unknown, index: number, allowedPolicies: ReadonlySet<
   return {
     id, label: rec.label, gate: normalizeGate(gate),
     ...(prompt === undefined ? {} : { prompt }),
+    ...(maxRounds === undefined ? {} : { maxRounds }),
     skills, inputs, outputs, guards, artifacts,
     ...(tests === undefined ? {} : { tests }),
     ...(testPolicy === undefined ? {} : { test_policy: testPolicy }),
@@ -283,7 +289,30 @@ function deepFreeze<T>(value: T): T {
   return value
 }
 
-function compileWith(def: unknown, allowedPolicies: ReadonlySet<string>): WorkflowIR {
+/**
+ * `max_rounds` 只允许声明在受约束的步骤上（评审门且有回退边）：别处的上限没有任何作用，留着只会让人
+ * 以为 build 这类步骤也有轮次限制。需要看到整条步骤序才能判回退边，所以在这一支的步骤编完之后统一核对。
+ */
+function assertMaxRoundsDeclarations(
+  steps: readonly StepIR[],
+  pathPrefix: string,
+  executionModel: 'phase-manifest' | 'step-graph',
+): void {
+  const plan = { executionModel, workflow: { steps } }
+  steps.forEach((step, index) => {
+    if (step.maxRounds === undefined || isRoundsLimited(plan, step.id)) return
+    const reason = step.gate === 'review'
+      ? '它没有回退边（指向更早步骤的转换），没有回退可限'
+      : '它没有设评审门（gate: review），验证轮次上限只属于评审门步骤'
+    compileError(`${pathPrefix}[${index}].maxRounds`, `step '${step.id}' 声明了 max_rounds，但${reason}；只有设了评审门且至少有一条回退边的步骤可以声明`)
+  })
+}
+
+function compileWith(
+  def: unknown,
+  allowedPolicies: ReadonlySet<string>,
+  executionModel: 'phase-manifest' | 'step-graph',
+): WorkflowIR {
   const rec = asRecord(def, 'workflow')
   if (Object.hasOwn(rec, 'openspecContract')) compileError('openspecContract', '已移除——改为 openspec: true')
   rejectExtraKeys(rec, WORKFLOW_KEYS, 'workflow')
@@ -295,7 +324,8 @@ function compileWith(def: unknown, allowedPolicies: ReadonlySet<string>): Workfl
   }
   const documentContract = compileDocumentContract(rec.documentContract, 'documentContract')
   const steps = withAutoGateGuards(asArray(rec.steps, 'steps').map((s, i) => compileStep(s, i, allowedPolicies)), isForwardStepEdge)
-  const tracks = compileTracks(rec.tracks, allowedPolicies)
+  assertMaxRoundsDeclarations(steps, 'steps', executionModel)
+  const tracks = compileTracks(rec.tracks, allowedPolicies, executionModel)
   return deepFreeze({
     name,
     decomposition,
@@ -311,7 +341,11 @@ const TRACK_BRANCH_KEYS: ReadonlySet<string> = new Set(['label', 'documentContra
 const TRACK_ID_RE = /^[a-z][a-z0-9_-]{0,31}$/
 
 /** `tracks.<id>` 分支：每条分支的 steps 与顶层同构编译（路径前缀 tracks.<id>.steps），文档契约随分支编译。 */
-function compileTracks(raw: unknown, allowedPolicies: ReadonlySet<string>): WorkflowIR['tracks'] | undefined {
+function compileTracks(
+  raw: unknown,
+  allowedPolicies: ReadonlySet<string>,
+  executionModel: 'phase-manifest' | 'step-graph',
+): WorkflowIR['tracks'] | undefined {
   if (raw === undefined) return undefined
   const rec = asRecord(raw, 'tracks')
   const out: Record<string, { label?: string; documentContract?: WorkflowDocumentContractV1; steps: readonly StepIR[] }> = {}
@@ -324,6 +358,7 @@ function compileTracks(raw: unknown, allowedPolicies: ReadonlySet<string>): Work
     }
     const documentContract = compileDocumentContract(branch.documentContract, `tracks.${id}.documentContract`)
     const steps = withAutoGateGuards(asArray(branch.steps, `tracks.${id}.steps`).map((s, i) => compileStep(s, i, allowedPolicies, `tracks.${id}.steps`)), isForwardStepEdge)
+    assertMaxRoundsDeclarations(steps, `tracks.${id}.steps`, executionModel)
     out[id] = {
       ...(branch.label === undefined ? {} : { label: branch.label }),
       ...(documentContract === undefined ? {} : { documentContract }),
@@ -340,7 +375,7 @@ function compileTracks(raw: unknown, allowedPolicies: ReadonlySet<string>): Work
  * codegen 表、不经本函数；default 生成校验/内部测试走下方 compileDefaultWorkflow。
  */
 export function compileWorkflow(def: unknown): WorkflowIR {
-  return compileWith(def, CUSTOM_PRODUCER_POLICIES)
+  return compileWith(def, CUSTOM_PRODUCER_POLICIES, 'step-graph')
 }
 
 /**
@@ -359,5 +394,5 @@ export function decodeWorkflowDef(value: unknown, origin: 'custom' | 'default' =
  * 边界；default 运行时 artifact 消费 P4 codegen 表，不由通用 compileWorkflow 承担 default 运行。
  */
 export function compileDefaultWorkflow(def: unknown): WorkflowIR {
-  return compileWith(def, DEFAULT_PRODUCER_POLICIES)
+  return compileWith(def, DEFAULT_PRODUCER_POLICIES, 'phase-manifest')
 }

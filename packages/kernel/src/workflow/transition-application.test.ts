@@ -2,7 +2,7 @@ import { appendFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { afterEach, describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { IllegalTransitionError } from '../types.js'
 import { atomicWriteFile, createStateStore } from '../state/store.js'
 import { createTransitionRecordStore } from '../state/transition-record-store.js'
@@ -833,6 +833,67 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       expect(result.to).toBe('done')
       expect(deps.historyEntries).toHaveLength(1)
       expect(deps.breadcrumbCalls).toHaveLength(0)
+    })
+
+    describe('验证轮次上限的强制层（rounds-exhausted）', () => {
+      const ROUNDS_WF: WorkflowDef = {
+        name: 'rounds-wf',
+        steps: [
+          { id: 'build', label: 'build', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [{ event: 'build-done', to: 'verify' }] },
+          {
+            id: 'verify', label: 'verify', gate: 'review', maxRounds: 2, skills: [], inputs: [], outputs: [], guards: [],
+            transitions: [{ event: 'verify-pass', to: 'ship' }, { event: 'verify-fail', to: 'build' }],
+          },
+          { id: 'ship', label: 'ship', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] },
+        ],
+      }
+
+      async function atVerify(deps: ReturnType<typeof makeDeps>, root: string): Promise<string> {
+        const { changeDir } = await deps.runRepository.initChange({
+          repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: FIXED_CLOCK,
+          initialWorkflow: { workflow: 'rounds-wf', phase: 'verify' },
+        })
+        return changeDir
+      }
+
+      const commandOf = (root: string, dir: string, event: string) => ({
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event, context: {},
+        loadWorkflow: (name: string) => (name === 'rounds-wf' ? compileWorkflow(ROUNDS_WF) : null),
+      })
+
+      test('用完后回退边被拒：返回已用轮次与上限，零提交（phase 不动、不写历史）', async () => {
+        const root = await freshRepoRoot()
+        const roundsOf = vi.fn(async () => ({ current: 2, max: 2, source: 'workflow' as const }))
+        const deps = makeDeps({ roundsOf })
+        const dir = await atVerify(deps, root)
+        const result = await createTransitionApplication(deps).execute(commandOf(root, dir, 'verify-fail'))
+        expect(result).toEqual({
+          kind: 'rounds-exhausted', workflowName: 'rounds-wf', stepId: 'verify', event: 'verify-fail', current: 2, max: 2, source: 'workflow',
+        })
+        expect(roundsOf).toHaveBeenCalledWith(expect.objectContaining({ stepId: 'verify', changeDir: dir }))
+        expect((await createStateStore().read(dir)).fields.phase).toBe('verify')
+        expect(deps.historyEntries).toHaveLength(0)
+      })
+
+      test('未用完：回退边越过这道门，由后面的评审确认门接着判；前进边不去读轮次', async () => {
+        const root = await freshRepoRoot()
+        const roundsOf = vi.fn(async () => ({ current: 1, max: 2, source: 'workflow' as const }))
+        const deps = makeDeps({ roundsOf, reviewGateBinding: async () => false })
+        const dir = await atVerify(deps, root)
+        const app = createTransitionApplication(deps)
+        expect(await app.execute(commandOf(root, dir, 'verify-fail'))).toMatchObject({ kind: 'review-approval-required', event: 'verify-fail' })
+        expect(roundsOf).toHaveBeenCalledTimes(1)
+        expect(await app.execute(commandOf(root, dir, 'verify-pass'))).toMatchObject({ kind: 'review-approval-required', event: 'verify-pass' })
+        expect(roundsOf).toHaveBeenCalledTimes(1)
+      })
+
+      test('宿主没接线 roundsOf：不做轮次强制（与修改前一致）', async () => {
+        const root = await freshRepoRoot()
+        const deps = makeDeps({ reviewGateBinding: async () => false })
+        const dir = await atVerify(deps, root)
+        expect(await createTransitionApplication(deps).execute(commandOf(root, dir, 'verify-fail')))
+          .toMatchObject({ kind: 'review-approval-required' })
+      })
     })
 
     test('声明 skill 的 step 在证据缺失时零提交；当前 visit 证据齐全后才允许退出', async () => {

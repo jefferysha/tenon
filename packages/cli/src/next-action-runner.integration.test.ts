@@ -59,7 +59,7 @@ interface StepAction {
 const STEP_KEYS = [
   'schema', 'change', 'workflow', 'track', 'source', 'id', 'label', 'prompt', 'gate', 'mode', 'archived',
   'governed_openspec', 'candidate', 'skills', 'executors', 'reviewers', 'tests', 'documents', 'fields', 'review',
-  'exits', 'next',
+  'exits', 'rounds', 'next',
 ]
 
 interface StepBlock {
@@ -128,6 +128,8 @@ const WORKSPACE_PATHS = [
   ':(exclude).pipeline-pending-interaction',
   ':(exclude).pipeline-active',
   ':(exclude).pipeline-interaction-authority',
+  // 交互标记按会话分文件（`.pipeline-pending-interaction.<session_id>`），同样只属于本机。
+  ':(exclude,glob).pipeline-pending-interaction.*',
   // 任务期间为宿主生成的子代理文件本机生成、完结时回收，不随交付入库。
   ':(exclude,glob).claude/agents/tenon-*.md',
   ':(exclude,glob).codex/agents/tenon-*.toml',
@@ -346,9 +348,11 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
       })
       // 宿主的门禁标记此刻就在仓库根上（hook 写的）：照做的提交不能把它带进去。
       await put('.pipeline-pending-interaction', 'brainstorming\n')
+      await put('.pipeline-pending-interaction.session-runner-0001', 'brainstorming\n')
       commitAsInstructed(commit)
-      expect(git(['ls-files', '--', '.pipeline-pending-interaction']).output).toBe('')
+      expect(git(['ls-files', '--', '.pipeline-pending-interaction', '.pipeline-pending-interaction.*']).output).toBe('')
       await rm(join(h.cwd, '.pipeline-pending-interaction'), { force: true })
+      await rm(join(h.cwd, '.pipeline-pending-interaction.session-runner-0001'), { force: true })
       // 提交之后整个工作区干净（change 目录随这次提交入库）。
       expect(git(['status', '--porcelain']).output).toBe('')
       return false

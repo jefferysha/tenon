@@ -1,4 +1,5 @@
 import { ManagedRuntimeIndeterminateError, type ManagedReleaseJournalRecord } from '../runtime/installer.js'
+import { devSourceEquals } from '../runtime/dev-source-identity.js'
 import type { RuntimeActivation } from '../runtime/types.js'
 import type { ManagedReleaseRequest } from './release-coordinator-contract.js'
 
@@ -53,6 +54,20 @@ export function assertManagedActivationIdentity(
       `activation ${activation.release.releaseId} 的 stable target `
       + `${releaseTarget?.tag ?? 'missing'} @ ${releaseTarget?.commit ?? 'missing'} `
       + `不等于 journal 冻结目标 ${frozenTarget.tag} @ ${frozenTarget.commit}`,
+    )
+  }
+  const releaseDev = activation.release.version === 2 ? activation.release.devSource : undefined
+  if (request.devSource !== undefined) {
+    if (releaseDev === undefined || !devSourceEquals(releaseDev, request.devSource)) {
+      throw new ManagedRuntimeIndeterminateError(
+        `activation ${activation.release.releaseId} 的 devSource 与本次冻结的源码身份不一致；`
+        + '若工作区在上一次未完成的开发安装后改过，先还原到当时的状态再重试，'
+        + '或运行 tenon runtime repair --rollback 放弃那次事务',
+      )
+    }
+  } else if (releaseDev !== undefined) {
+    throw new ManagedRuntimeIndeterminateError(
+      `activation ${activation.release.releaseId} 带有 devSource，但本事务不是开发安装`,
     )
   }
   const expectedVersion = request.expectedPluginVersion ?? journal.stableTarget?.version

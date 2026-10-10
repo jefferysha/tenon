@@ -61,7 +61,7 @@ openspec/changes/<change>/.pipeline-document-locale.json
 
 #### Review 无法推进
 
-正确顺序是 check、request、acknowledge、transition。receipt 必须匹配 exact phase/event。删除 marker 不能替代 canonical acknowledgement。
+正确顺序是 check、request、用户确认、transition；确认只来自用户（回复放行语、Dashboard，或用户本人在自己的终端运行 `tenon review acknowledge`），agent 不得代为执行。receipt 必须匹配 exact phase/event。删除 marker 不能替代 canonical acknowledgement。
 
 #### Dashboard 一直等待
 

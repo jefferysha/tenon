@@ -327,6 +327,7 @@ export async function handlePostExecutionRoutes(
       {
         store,
         runRepo,
+        ...(deps.recordStore === undefined ? {} : { recordStore: deps.recordStore }),
         flow,
         clock,
         fileExists,

@@ -56,7 +56,7 @@
 ### 1.1 `.pipeline.yaml` 格式契约（与老内核字节级兼容）
 
 - 位置：`openspec/changes/<name>/.pipeline.yaml`（相对项目根）。
-- **字段序固定**：见 `types.ts::FIELD_ORDER`（46 字段；2026-07-11 v5 T4 决策 G **末尾追加**
+- **字段序固定**：见 `types.ts::FIELD_ORDER`（现 48 字段；2026-07-11 v5 T4 决策 G **末尾追加**
   `automation_current_phase`——沙箱内当前阶段，automation runner 检出 [TRANSITION] 行运行期回写、
   run 结算清空；老文件缺该行读作空串，容忍不变。新字段必须末尾追加：老版本窄解析器把首个未知
   key 起整段当 opaqueTail，插中段会让老读者回写时重复 key 腐蚀文件，见 types.ts 注释。
@@ -201,7 +201,8 @@
 - **有限聚合 Review**：冻结候选后的 Standards/Spec、安全、E2E/API/browser/visual 与发布候选验收
   都是同一个 Review attempt 的 lanes，不得各自计次或形成独立循环。Workflow 通过版本化
   `review_budget` 配置每个 scope 的有限上限；默认上限为 2。每轮必须完成冻结的 required lanes 并
-  一次性聚合，Critical/High/Medium 全部清零才可通过。预算耗尽后停止自动 Review，等待显式人类处置。
+  一次性聚合，Critical/High/Medium 全部清零才可通过。预算耗尽后停止自动 Review，等待显式人类处置。（`review_budget` 键已随评审车道删除，解析时报「已删除」；现行的上限是步骤的
+  `max_rounds`，见第 5 节第 15 条。）
 - **Build→Verify 可复验基线**：状态字段仍命名为 `build_sha` 以兼容既有 state ABI，但新 Build 必须写入
   `build:v1:<git|workspace>:<revision_hash>:<repository_hash>:<worktree_hash>` typed token。三个摘要
   是 domain-separated SHA-256；token 不含绝对路径、prompt、credential 或裸 SHA。`isolation=branch|worktree`
@@ -223,6 +224,7 @@
   决策 phase，缩短会中途误清 → 绕过强制复核）。边界同老内核：age > TTL 才陈旧。
   **子代理**：宿主在子代理里触发的 PreToolUse 输入带 `agent_id`；`-confirm` / `-interaction` 约束的是主线「先问用户再产出」，
   子代理没有提问工具，这两类 marker 不拦带 `agent_id` 的调用（也不清 marker）。`-review` 不在此列，对子代理照拦（人工确认不能被绕过）。
+- **交互 marker v2（按会话归属）**：`.pipeline-pending-interaction` 首行为 `pipeline-interaction-v2`，随后 `change=`、`session=`、`skills=`、`requested_at=`。`session` 非空只属于该会话；`session` 为空而 `change` 非空属于「本会话任务为该 Change」的会话；两者皆空属于全部会话（宿主不给 session id 时的旧行为）。gate 只拦归属方；`confirm-clear.sh` 与 `confirm-clear-prompt.sh` 只解归属本会话的标记，InteractionConfirmed 只记到本会话任务；旧格式（首行不是协议名，含空文件）见到即删除、不拦截。「本会话任务」由 `hooks/active-change.sh` 的 `pipeline_session_change_dir` 解析：本会话有会话绑定取绑定的 Change；无绑定而共享指针指向的 Change 已被别的会话绑定则没有任务；宿主没给 `session_id` 或该 Change 无人绑定则回退共享指针。放行语只认整条短回复（`pipeline_text_is_approval_phrase`），AskUserQuestion 只看 `tool_response.answers` 的答案值。
 - **持续交互授权投影（不是第四道 gate）**：用户在正常对话明确说“后续不用问 / 自主执行完成”后，
   `pipeline session activate <change> --continuous --host-session <id>` 或带合法 `session_id` 的 UserPromptSubmit 会写
   当前用户的 `.tenon/users/<slug>/local/authority`。它是版本化、原子发布、只含 `change/scope/review/issued_at` 的
@@ -244,6 +246,7 @@
   当前 source phase 与 event 都匹配的 approved receipt。dashboard 的显式真人 transition 点击等价于同一确认，
   但 CLI/agent 无法伪造该 flag。旧三行 entry-time review marker 被 hook 作为迁移遗留投影清理/忽略，
   不能绕过 canonical exit check。
+  误给的批准在被 `transition` 消费之前可以撤回：`pipeline review revoke <name> --reason <原因>` 在 Change 锁内把当前步 approved 且未消费的回执撤回为同一 event 的 pending（沿用 `review_requested_at` 与绑定），重写 v2 marker，写 `review.revoked` 审计行；只有任务负责人能执行，缺原因、已消费、本就待确认或无回执一律拒绝且不改状态。终端与 delegated 的幂等账本不得让撤销后的重新确认退化成空操作（回执为 pending 时账本里的旧批准记录不参与 replay）。
   default 的 `verify-fail` 是内建回退 event：它校验真实 `verification_report` 与受治理的 OpenSpec
   文档证据，而不错误运行只适用于 `verify-pass` 的成功 guard。自定义多出口 review workflow 必须为每个
   可选 event 定义在该结果下可满足、可审计的前置证据；CLI 永远要求显式选择 event，不会猜测或复用另一出口的确认。
@@ -619,3 +622,40 @@ most 64 characters, and a manifest contains at most 256 fixtures.
    一条 `test-integrity` 阻塞（读不出 diff 时失败关闭 `files-diff-unavailable`）；宿主经 `TestEvidenceContext.integrityDiff` 提供改动行。`tenon test integrity` 输出同一份报告。
    · 写门（`hooks/gate.sh`）认 13 种写法（见安全模型），并拒绝 agent 的 shell 调用里的 `tenon test trust` 与 `TENON_TEST_TRUST=`
    前缀赋值（只在命令位置匹配）。
+
+15. **验证轮次上限（2026-10-09）**：build ⇄ verify 不再无休止回退；带评审门和回退边的步骤有可声明、可覆盖的轮次上限，
+   用完后停止自动回退，交给用户。
+   · 任务字段 `max_rounds`（任务级覆盖）：`FIELD_ORDER` 末尾追加（在 `review_acknowledged_via` 之后），只接受 1–20 的规范十进制整数
+   （`tenon set|set-many|cas` 同一口径，其余取值 exit 1 且不落盘；成功写入记一行 `set` 历史）。**空值不进 wire `state.fields`，也不进
+   `.pipeline.yaml` 投影**（`state/omit-when-empty-fields.ts`）；读取端缺这个键读作空串，不算 `FIELD_ORDER` 闭集违例，所以没设置过它的
+   任务，wire、YAML 与评审绑定摘要逐字节不变。已知限制：设置过 `max_rounds` 的任务，N-1（升级前发布）运行时读 canonical 会因闭集校验
+   失败而读不了；设置本身改变整份序列化状态，已发起或已批准的评审绑定随之失效，要重新 `review request`。
+   · 工作流步骤键 `max_rounds: <N>`（IR 属性 `maxRounds`）：1–20 的整数，只能声明在 `gate: review` 且至少有一条回退边（非前进边，
+   判定同 kernel `isForwardEdge`）的步骤上；声明在别处、越界或不是整数，parse / compile 报错并点名 step 与原因。没有评审门的步骤
+   （build）不受约束，它的回退边（`requirements-changed`）始终可用。`default` 每条轨道的 verify 步声明 2；受限步骤没声明按内置默认 2。
+   IR 只在声明时出现该键：没声明的工作流指纹逐字不变，升级前冻结的计划（快照 v4 没有此键）照常解码、指纹不变，上限读作
+   `{ max: 2, source: 'default' }`。上限随工作流计划冻结；任务字段覆盖它。来源标签 `workflow` | `default` | `task`。
+   · 轮次 = 自上次清零以来进入该步的次数（含当前）；清零 = 任务落到早于该步所有回退目标的步骤（default 里经 `requirements-changed`
+   回到规格）。计数取 canonical 转换记录链（`readChain` + `runMetadata`，只数当前 run），没有链的旧任务读 `.pipeline-history.jsonl`
+   的 `kind: transition` 行。`tenon status --json` 的 `step.rounds` 是 `{ current, max, source }`（键序在 `exits` 之后、`next` 之前）；
+   不受约束的步骤与已完结任务为 `null`。
+   · 用完（`current >= max`）且必需测试或必需评审者不通过：`next` 不再给回退边的 `request-review` / `choose-exit` / `transition`。
+   只剩必需评审者不通过、或失败的必需测试都已豁免 → 前进边的 `request-review`，多带 `residual`（`reviewer:<agent>` 列表）、`rounds`、
+   `alternatives`；还有没登记豁免的失败必需测试 → `stop`，`code: rounds-exhausted`。`step.exits[]` 里回退边 `ready: false`，带阻断
+   `{ source: 'guard', code: 'rounds-exhausted' }`。强制层：回退边的 `tenon review request` 与 `tenon transition` 被拒（CLI exit 1，
+   消息码 `transition.roundsExhausted`，写出已用轮次、上限与 `tenon set <name> max_rounds <N>`；kernel 转换用例结果
+   `kind: 'rounds-exhausted'`；Dashboard `POST /api/change/<name>/transition` 返回 HTTP 409
+   `{ code: 'rounds-exhausted', step, event, current, max, source }`）。不受约束的步骤的回退边、前进边与放弃边（`scope-expanded`）不拦；
+   上限调高到大于当前轮次后回退边恢复。回到规格没有直达的边：受约束步骤声明的回退边本身就是它的回退目标（落到那里不清零，用完后也被拒），
+   所以 `alternatives` 与拒绝文案写两步路径——用户调高上限、经回退边回到回退目标、在那一步上执行落到更早步骤的事件（default 是 build 的
+   `requirements-changed`），文案按计划算出事件名；工作流里没有更早的步骤时写明回去也不会清零。调高上限是用户的决定，技能与宪法写明 agent 不自行调高（同机同用户信任模型，记为已知限制）。
+   · 剩余阻断：用完后前进边的 `review request` 放行必需评审者的不通过，把 `reviewer:<agent>` 连同评审运行 id、代码候选、阻断级发现
+   冻结进 `.pipeline-review-waivers.json` 的 `residual`，逐条列给用户。人工 `review acknowledge`（非 `--delegated`、非 AFK）在提交回执的
+   同一把锁内把它们写进同一文件的 `accepted`（跨请求保留，清除待批准项时不清；每个评审者只留最新一条，最多 20 条），并追加历史行
+   `review.residual-accepted reviewer=… run=… candidate=… findings=… by=… summary=…`（kind `tool`；`summary=` 是冻结时的发现摘要，
+   最多 5 条，用 `|` 连接，条内的 `|` 换成全角 `｜`，每条已清洗；没有摘要时不带 `summary=`）。接受只对被接受的评审运行和当时的代码候选
+   有效，候选变了或评审者有了新运行即失效；`evaluateStepAgents` 据此把对得上的 `reviewer-failed` 视为已处置，前进边的 `transition`
+   不再因它被拒。`--delegated` 与 AFK 遇到待接受项整个被拒（回执保持待确认）；Dashboard 的确认因不展示待接受项而返回 HTTP 409
+   `{ code: 'residual-pending' }`，只能回终端确认。冻结清单读取严格：未知键或坏形状的 `residual` / `accepted` 让整份清单读不出
+   （什么都不冻结、不接受，失败关闭）；N-1 运行时遇到新键同样读不出，按没有清单处理。剩余阻断只覆盖评审者，失败的必需测试仍走
+   步骤测试豁免（`tenon test waive --test`）。

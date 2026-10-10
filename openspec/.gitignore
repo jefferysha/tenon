@@ -1,0 +1,2 @@
+# Tenon local runtime state; Change documents in this directory stay tracked.
+.pipeline-terminal-activity.*

@@ -153,5 +153,22 @@ export function mapTransitionResult(name: string, event: string, result: Transit
           reason: result.reason,
         },
       }
+    case 'rounds-exhausted':
+      // 与 CLI 同一句话（zh）：已用轮次 / 上限与调高上限的命令；Dashboard 的调用方读 code / current / max / source。
+      return {
+        code: 409,
+        body: {
+          ok: false,
+          code: 'rounds-exhausted',
+          error: `step '${result.stepId}' 的验证轮次已用完（${result.current}/${result.max}，来源 ${result.source}），回退边 event '${result.event}' 不再放行；`
+            + `调高上限是用户的决定：tenon set ${name} max_rounds <N>（N 须大于 ${result.current}）；`
+            + '或回到规格重新规划（当前步骤没有直达的边：要先调高上限，经回退边回到回退目标步骤，再在那一步上执行回到规格的事件，回到规格后验证轮次重新计数）；或终止任务',
+          step: result.stepId,
+          event: result.event,
+          current: result.current,
+          max: result.max,
+          source: result.source,
+        },
+      }
   }
 }

@@ -50,6 +50,8 @@ design / delta spec / tasks，语言无关）。证据不齐时写 `pass` 被拒
 每条轨道都挂了[智能体](./agents.md)：调研步骤的执行者是 `researcher`；实现步骤的执行者是 `builder`
 （按独立任务各起一个子代理，合成一份报告），先于该步的评审者运行；验证步骤声明 `code-size` 测试
 （`tenon test code-size --json`，新增行数不超过 2000 为通过）并挂必需评审者 `code-size` 读取它的结果。
+新增行数确实超限且用户决定豁免时，用 `tenon test waive <change> --test code-size --reason …` 登记；评审确认这道门时一并批准，
+批准前不放行。
 对话与自由轨道的验证再加参考评审者 `security`，它的问题不拦截。执行者没有 `done` 之前不能离开步骤。
 
 评审者按风险挂载。`security` 声明了 `attach_on: [auth, dependency, contract]`（见[智能体](./agents.md)），所以在验证要求它的轨道上，
@@ -129,19 +131,39 @@ design / delta spec / tasks，语言无关）。证据不齐时写 `pass` 被拒
 ## 两条回边
 
 - `requirements-changed`：Build → Spec，用于需求或设计语义改变；
-- `verify-fail`：Verify → Build，用于实现或验收失败。
+- `verify-fail`：Verify → Build，用于实现或验收失败（验证轮次用完后这条边被拒，见[验证轮次上限](#验证轮次上限)）。
 
 ## Review 边界
 
 Explore、Spec、Verify 的 review 必须绑定 exact phase 和 exact event。同一份确认不能同时授权 `verify-pass` 与 `verify-fail`。持续授权只改变确认记录方式，不改变 guard。
 
-Verify 对冻结的 `build_sha` 只开启一个自动 Review attempt。代码/标准、规格、安全、E2E、
-浏览器与视觉验收是同一 attempt 的不同 lane，共用次数上限；E2E 不单独再算一次 Review。
-任何 Review Skill、reviewer agent 或 E2E runner 都必须在 attempt 已激活后才能派发。
-Build 中的 TDD、单元测试、类型检查、lint 和窄集成测试属于实现反馈，不消耗 Review 次数。
+Verify 的轮次有上限，见下面的[验证轮次上限](#验证轮次上限)。Build 中的 TDD、单元测试、类型检查、lint 和窄集成测试属于实现反馈，不算一轮。
 
 如果 Verify 报告构建修订不可信，沿 `verify-fail → build` 回边重新实现并运行
 `build-complete`；新的 canonical transition record 会提供 token 的来源证明。
+
+## 验证轮次上限
+
+Verify 最多验证 2 轮。`templates/workflows/default.yaml` 里每条轨道的验证步都声明了 `max_rounds: 2`。一轮 = 进入验证步一次：第一次进入是第 1 轮，每次 `verify-fail` 回到 Build、再经 `build-complete` 进入验证，就多一轮。
+
+第 2 轮仍有必需测试或必需评审者不通过时，Tenon 不再自动回退。`step.next` 不再给 `verify-fail` 这条边：它要么 `stop`（`rounds-exhausted`），要么请用户接受剩余阻断；`tenon transition <change> verify-fail` 也会被拒。之后由用户决定：
+
+- 用人工确认接受剩余的评审者阻断（失败的必需测试要改走步骤测试豁免）；
+- 用 `tenon set <change> max_rounds <N>` 调高上限，再回到 Build；
+- 经 `requirements-changed` 回到规格。这条边声明在 Build 上而不是 Verify 上，所以从 Verify 出发要分两步，第一步同样要用户先决定：用 `tenon set <change> max_rounds <N>` 调高上限，经 `verify-fail` 回到 Build，再在 Build 上执行 `tenon transition <change> requirements-changed`。任务落到规格之后，计数从第 1 轮重新开始，用户可以再把 `max_rounds` 调回去；
+- 终止任务。
+
+agent 不会自行调高上限，也不会绕过它。命令、`step.rounds` 和剩余阻断的接受见 [CLI 参考](./cli-reference.md#验证轮次上限)。
+
+上限是工作流步骤的 `max_rounds` 键，写在 `gate` 旁边：
+
+```yaml
+- id: verify
+  gate: review
+  max_rounds: 2
+```
+
+这个键只能声明在设了 `gate: review`、且至少有一条回退边（回到更早步骤的边，如 `verify-fail`）的步骤上。声明在别处会让工作流解析失败，错误点名步骤和原因（Build 没有评审门，不受上限约束，它的 `requirements-changed` 始终可用）。取值是 1 到 20 的整数，`0`、`21`、`two`、`1.5` 同样被拒。受限步骤没有声明这个键时（自定义工作流的步骤，或这个键出现之前就已冻结的任务），按 2 处理。上限随工作流计划冻结，之后再改工作流文件不影响在途任务；`tenon set <change> max_rounds <N>` 只覆盖单个任务。Dashboard 工作流页读写定义时会保留这个键，但没有编辑控件。
 
 ## 阶段产物总览
 
@@ -172,10 +194,15 @@ Archive 保留最终状态与证据链。插件自动更新不能批量翻译或
 ## Review 顺序
 
 ```text
-check → review request --event <event> → acknowledge → transition
+check → review request --event <event> → 用户确认 → transition
 ```
 
-持续授权允许 CLI 写入 delegated acknowledgement，但前提仍是产物、Skill 证据、文档读取和 guard 全部真实通过。
+确认只来自用户：回复放行语（“确认继续”“继续执行”等），由 hook 写入回执；在 Dashboard 确认（`tenon dashboard --open`）；
+或在没有 UserPromptSubmit hook 的宿主上，由用户本人在自己的终端运行 `tenon review acknowledge <change>`。agent 不得代为执行
+这种手动形式，宿主 gate 会拒绝。
+
+持续授权允许 CLI 写入 delegated acknowledgement（`--delegated`），但前提仍是产物、Skill 证据、文档读取和 guard 全部真实通过，
+且它不批准待批准的测试豁免。
 
 回边不是删除失败记录。旧报告、receipt 和 transition history 应保留，新一轮基线和结果追加到同一个 Change 的历史。
 

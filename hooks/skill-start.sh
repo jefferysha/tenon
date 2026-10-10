@@ -45,7 +45,9 @@ PROOT="$(pipeline_project_root "$CWD" existing changes || true)"
 [ -n "$PROOT" ] || exit 0
 [ -r "$(dirname "${BASH_SOURCE[0]:-$0}")/active-change.sh" ] || exit 0
 . "$(dirname "${BASH_SOURCE[0]:-$0}")/active-change.sh"
-CHANGE_DIR="$(pipeline_active_change_dir "$PROOT" || true)"
+# 本会话任务（按宿主 session_id 解析）：并行会话各记各的 Change，证据不再串到共享指针指向的任务；
+# 没有本会话任务（例如恢复后换了 id 尚未重新 activate）时什么都不记。
+CHANGE_DIR="$(pipeline_session_change_dir "$PROOT" "$(pipeline_hook_session_id "$INPUT")" || true)"
 [ -n "$CHANGE_DIR" ] || exit 0
 # 与 skill-tracker 同一开关：完成态证据被禁用的阶段，开始标记也没有意义。
 CHANGE_STATE="$(pipeline_state_source "$CHANGE_DIR" || true)"

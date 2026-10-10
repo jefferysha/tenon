@@ -43,6 +43,10 @@ export const COMMON_MESSAGES = {
     zh: "字段 '{field}' 由 tenon review request|acknowledge 管理，禁止通过 set/set-many/cas 写入",
     en: "field '{field}' is managed by tenon review request|acknowledge and cannot be written with set/set-many/cas",
   },
+  'field.maxRoundsInvalid': {
+    zh: "max_rounds 只接受 1 到 20 的整数（收到 '{value}'）：它是本任务验证步骤的轮次上限，调高由用户决定",
+    en: "max_rounds only accepts an integer from 1 to 20 (got '{value}'): it is the round limit of this task's verification steps, and raising it is the user's decision",
+  },
   'field.managedByArchive': {
     zh: "字段 '{field}' 由 tenon transition <change> archived 管理，禁止通过 set/set-many/cas 写入；完结须经该转换才会同时落 archived_at 与 phase_status",
     en: "field '{field}' is managed by tenon transition <change> archived and cannot be written with set/set-many/cas; finishing must go through that transition so archived_at and phase_status are written together",

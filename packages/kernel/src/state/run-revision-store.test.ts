@@ -214,6 +214,48 @@ describe('G1 canonical revision 对抗校验', () => {
     expect(parsed.state.fields.review_acknowledged_via).toBe('unknown')
   })
 
+  test('max_rounds 没设置时不进 canonical wire 与 YAML projection：升级前的任务逐字节不变，缺这个键的历史 wire 读成空串', async () => {
+    const { dir } = await fresh()
+    const store = createStateStore()
+    const currentPath = join(dir, '.pipeline-run', 'current.json')
+    const before = await readFile(currentPath, 'utf8')
+    const current = JSON.parse(before) as { state: { fields: Record<string, unknown> } }
+    expect(current.state.fields).not.toHaveProperty('max_rounds')
+    expect(await readFile(join(dir, '.pipeline.yaml'), 'utf8')).not.toContain('max_rounds')
+
+    expect((await store.read(dir)).fields.max_rounds).toBe('')
+    expect(parseRunRevision(before, 'current').state.fields.max_rounds).toBe('')
+    expect(await store.inspectProjection(dir)).toMatchObject({ status: 'current' })
+
+    // 下一次无关写入之后仍然没有这个键：没设置过的任务永远不会因为升级而改变 wire 形状。
+    await store.set(dir, 'scope', 'unrelated')
+    const after = JSON.parse(await readFile(currentPath, 'utf8')) as { state: { fields: Record<string, unknown> } }
+    expect(after.state.fields).not.toHaveProperty('max_rounds')
+    expect(await readFile(join(dir, '.pipeline.yaml'), 'utf8')).not.toContain('max_rounds')
+  })
+
+  test('max_rounds 设置后写进 canonical wire 与 YAML projection（FIELD_ORDER 末尾），读回一致；清空后又从 wire 消失', async () => {
+    const { dir } = await fresh()
+    const store = createStateStore()
+    const currentPath = join(dir, '.pipeline-run', 'current.json')
+    const yamlPath = join(dir, '.pipeline.yaml')
+
+    await store.set(dir, 'max_rounds', '3')
+    const wire = JSON.parse(await readFile(currentPath, 'utf8')) as { state: { fields: Record<string, unknown> } }
+    expect(wire.state.fields.max_rounds).toBe('3')
+    expect(Object.keys(wire.state.fields).at(-1)).toBe('max_rounds')
+    expect(await readFile(yamlPath, 'utf8')).toContain('\nmax_rounds: 3\n')
+    expect(await store.get(dir, 'max_rounds')).toBe('3')
+    expect(await store.inspectProjection(dir)).toMatchObject({ status: 'current' })
+    expect((await store.read(dir)).fields.max_rounds).toBe('3')
+
+    await store.set(dir, 'max_rounds', '')
+    const cleared = JSON.parse(await readFile(currentPath, 'utf8')) as { state: { fields: Record<string, unknown> } }
+    expect(cleared.state.fields).not.toHaveProperty('max_rounds')
+    expect(await readFile(yamlPath, 'utf8')).not.toContain('max_rounds')
+    expect(await store.get(dir, 'max_rounds')).toBe('')
+  })
+
   test('publish 在落任何新 canonical bytes 前拒绝非 transition 改写 head/sequence', async () => {
     const { dir } = await fresh()
     const currentPath = join(dir, '.pipeline-run', 'current.json')

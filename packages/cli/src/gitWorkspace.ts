@@ -20,7 +20,7 @@
 import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { basename, join } from 'node:path'
-import { GATE_MARKERS } from '@tenon/kernel'
+import { GATE_MARKERS, INTERACTION_MARKER_SESSION_PREFIX } from '@tenon/kernel'
 
 export interface GitFinishProbe {
   /** `openspec/changes/<c>` 之下有没有已跟踪的文件。 */
@@ -79,6 +79,12 @@ export const LOCAL_ROOT_FILES: readonly string[] = [
 ]
 
 /**
+ * 交互标记按会话分文件（`.pipeline-pending-interaction.<session_id>`），连同 hook 的原子写 / 认领临时文件（同前缀），
+ * 同样只属于本机。glob 模式只匹配仓库根这一层，别处恰好同名前缀的文件不受影响。
+ */
+export const LOCAL_ROOT_GLOBS: readonly string[] = [`${INTERACTION_MARKER_SESSION_PREFIX}*`]
+
+/**
  * 任务期间为当前宿主生成的 `tenon-<name>` 子代理文件：本机生成、任务完结时回收，不随交付入库
  * （另一台机器的会话按冻结内容自己生成）。
  */
@@ -105,6 +111,7 @@ export const GENERATED_COMMIT_EXCLUDES: readonly string[] = [
 export const WORKSPACE_COMMIT_PATHS: readonly string[] = [
   '.',
   ...LOCAL_ROOT_FILES.map((name) => `:(exclude)${name}`),
+  ...LOCAL_ROOT_GLOBS.map((pattern) => `:(exclude,glob)${pattern}`),
   ...HOST_AGENT_COMMIT_EXCLUDES,
   ...GENERATED_COMMIT_EXCLUDES,
 ]

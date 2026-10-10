@@ -6,6 +6,8 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 import { promisify } from 'node:util'
+import { exportDecoyHostRoots } from './lib/decoy-host-roots.mjs'
+import { INHERITED_RUNTIME_ROOT_VARS, withoutInheritedRuntimeRoots } from './lib/isolated-tenon.mjs'
 
 const exec = promisify(execFile)
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -308,7 +310,9 @@ esac
     log,
     setupArgs,
     host,
-    env: {
+    // install.sh keeps its bridge journal under the state root, and an inherited TENON_RUNTIME_ROOTS (what the launcher exports
+    // to a suite run by `tenon test run`) wins over TENON_RUNTIME_HOME: drop the host's roots so the journal stays in the fixture.
+    env: withoutInheritedRuntimeRoots({
       ...process.env,
       HOME: home,
       TENON_RUNTIME_HOME: runtimeHome,
@@ -322,7 +326,7 @@ esac
       TENON_TEST_MARKETPLACE_STATE: marketplaceState,
       TENON_TEST_LEGACY_MARKETPLACE_STATE: legacyMarketplaceState,
       TENON_TEST_SETUP_ARGS: setupArgs,
-    },
+    }),
   }
 }
 
@@ -1238,6 +1242,32 @@ test('Codex bootstrap preserves its WAL and refuses success when the host keeps 
     )
     assert.equal(JSON.parse(await readFile(journal, 'utf8')).phase, 'marketplace-registered')
   } finally {
+    await rm(fixture, { recursive: true, force: true })
+  }
+})
+
+// A suite run by `tenon test run` inherits the launcher's real runtime roots, and install.sh prefers TENON_RUNTIME_ROOTS over
+// TENON_RUNTIME_HOME when it picks the state root for the bridge journal.
+test('the bridge journal stays in the fixture runtime home when the host exported runtime roots', async () => {
+  const decoy = exportDecoyHostRoots('tenon-install-bootstrap-decoy')
+  const fixture = await mkdtemp(join(tmpdir(), 'tenon-install-bootstrap-host-roots-'))
+  try {
+    const prepared = await prepareReleasedBootstrapFixture(fixture, 'codex')
+    for (const name of INHERITED_RUNTIME_ROOT_VARS) {
+      assert.equal(prepared.env[name], undefined, `${name} must not reach install.sh`)
+    }
+    await assert.rejects(exec('/bin/bash', [join(root, 'install.sh'), '--codex'], {
+      cwd: fixture,
+      env: { ...prepared.env, TENON_TEST_KEEP_DISABLED_AFTER_ADD: '1' },
+    }), (error) => {
+      assert.match(error.stderr, /still disabled after the official remove\/add repair/i)
+      return true
+    })
+    const journal = join(prepared.env.TENON_RUNTIME_HOME, 'state', 'installer-bridge', 'codex.json')
+    assert.equal(JSON.parse(await readFile(journal, 'utf8')).phase, 'marketplace-registered')
+    assert.deepEqual(decoy.written(), [], 'nothing was written under the roots the host exported')
+  } finally {
+    decoy.restore()
     await rm(fixture, { recursive: true, force: true })
   }
 })

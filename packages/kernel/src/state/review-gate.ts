@@ -70,6 +70,18 @@ export function reviewGateApprovalPatch(acknowledgedAt: string, via: ReviewAckno
   }
 }
 
+/**
+ * 撤回一份已批准、尚未被 transition 消费的回执：回到同一 event 的待确认。phase / event / requestedAt 不动，
+ * 所以 `.pipeline-review-gate-binding.json` 仍然匹配，用户确认时走原来的绑定校验（决策状态已变则要求重新 request）。
+ */
+export function reviewGateRevokePatch(): Partial<Record<FieldName, string>> {
+  return {
+    review_gate_status: REVIEW_GATE_PENDING,
+    review_acknowledged_at: '',
+    review_acknowledged_via: 'unknown',
+  }
+}
+
 /** Transition consumes the receipt so an approval can never authorise a later revisit of the same phase. */
 export function clearReviewGatePatch(): Partial<Record<FieldName, string>> {
   return {

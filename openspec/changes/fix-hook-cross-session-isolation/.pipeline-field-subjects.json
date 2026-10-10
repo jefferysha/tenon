@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "contract": "field-subjects-v1",
+  "createdAt": "2026-10-07T11:02:50Z",
+  "records": [
+    {
+      "field": "design_doc",
+      "valueDigest": "sha256:1a2d5537c9e2fca4dce789165b5769b5c77ceb92743a09703d9f0b9911ce0780",
+      "subjectRef": {
+        "subject_id": "subject:change-fix-hook-cross-session-isolation-329d5fb59ad6:06c324d55d9e712f9ff7b5f603f1845d",
+        "namespace": "change-fix-hook-cross-session-isolation-329d5fb59ad6",
+        "version": "sha256:1a2d5537c9e2fca4dce789165b5769b5c77ceb92743a09703d9f0b9911ce0780",
+        "projection": "field",
+        "content_digest": "sha256:1a2d5537c9e2fca4dce789165b5769b5c77ceb92743a09703d9f0b9911ce0780",
+        "source": {
+          "field": "design_doc",
+          "path": "docs/superpowers/specs/fix-hook-cross-session-isolation-design.md"
+        }
+      },
+      "recordedAt": "2026-10-07T11:02:50Z",
+      "producer": "brainstorming",
+      "sourcePath": "docs/superpowers/specs/fix-hook-cross-session-isolation-design.md",
+      "pathStatus": "resolved"
+    },
+    {
+      "field": "plan",
+      "valueDigest": "sha256:b487ab20e5ecde89b25c81da6eff7ba607e9bd15764339df0f903eaccdfb9849",
+      "subjectRef": {
+        "subject_id": "subject:change-fix-hook-cross-session-isolation-329d5fb59ad6:6df3fcd518bb952d333cfe0df98012f4",
+        "namespace": "change-fix-hook-cross-session-isolation-329d5fb59ad6",
+        "version": "sha256:b487ab20e5ecde89b25c81da6eff7ba607e9bd15764339df0f903eaccdfb9849",
+        "projection": "field",
+        "content_digest": "sha256:b487ab20e5ecde89b25c81da6eff7ba607e9bd15764339df0f903eaccdfb9849",
+        "source": {
+          "field": "plan",
+          "path": "docs/superpowers/plans/fix-hook-cross-session-isolation.md"
+        }
+      },
+      "recordedAt": "2026-10-07T13:59:20Z",
+      "producer": "writing-plans",
+      "sourcePath": "docs/superpowers/plans/fix-hook-cross-session-isolation.md",
+      "pathStatus": "resolved"
+    },
+    {
+      "field": "verification_report",
+      "valueDigest": "sha256:c3596dbc738939c46603542a907378e36f44e23879ca97cd2b04c29243a8959c",
+      "subjectRef": {
+        "subject_id": "subject:change-fix-hook-cross-session-isolation-329d5fb59ad6:a9ab6de002fe3cee6975f441b34dbc73",
+        "namespace": "change-fix-hook-cross-session-isolation-329d5fb59ad6",
+        "version": "sha256:c3596dbc738939c46603542a907378e36f44e23879ca97cd2b04c29243a8959c",
+        "projection": "field",
+        "content_digest": "sha256:c3596dbc738939c46603542a907378e36f44e23879ca97cd2b04c29243a8959c",
+        "source": {
+          "field": "verification_report",
+          "path": "docs/superpowers/reports/fix-hook-cross-session-isolation-verify.md"
+        }
+      },
+      "recordedAt": "2026-10-08T03:16:32Z",
+      "producer": "verification-before-completion",
+      "sourcePath": "docs/superpowers/reports/fix-hook-cross-session-isolation-verify.md",
+      "pathStatus": "resolved"
+    }
+  ]
+}

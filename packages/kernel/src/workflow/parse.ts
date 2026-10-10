@@ -20,6 +20,7 @@ import { parseStepTests } from './parse-tests.js'
 import { parseInlineTestPolicy, parseStepTestPolicy } from './parse-test-policy.js'
 import { indentOf, parseInlineList, parsePromptBlock, parseFieldRefBlock, parseWhenBlock } from './parse-primitives.js'
 import { parseArtifactsBlock } from './parse-artifacts.js'
+import { parseMaxRoundsText } from './max-rounds.js'
 import { REMOVED_KEY_ERROR } from './removed-keys.js'
 
 
@@ -195,6 +196,7 @@ function parseStep(cur: Cursor): StepDef {
   let label = ''
   let gate: GateKind = null
   let prompt: string | undefined
+  let maxRounds: number | undefined
   let skills: SkillRef[] = []
   let inputs: FieldRef[] = []
   let outputs: FieldRef[] = []
@@ -225,6 +227,16 @@ function parseStep(cur: Cursor): StepDef {
       const keyIndent = indentOf(line)
       cur.i++
       prompt = parsePromptBlock(cur, keyIndent)
+      continue
+    }
+    const roundsLine = /^\s*max_rounds:\s*(.*?)\s*$/.exec(line)
+    if (roundsLine) {
+      if (maxRounds !== undefined) throw new Error(`workflow 解析错误：step '${id}' 重复声明 max_rounds`)
+      maxRounds = parseMaxRoundsText(roundsLine[1] ?? '')
+      if (maxRounds === undefined) {
+        throw new Error(`workflow 解析错误：step '${id}' 的 max_rounds 必须是 1 到 20 的整数（实际 '${roundsLine[1] ?? ''}'）`)
+      }
+      cur.i++
       continue
     }
     if (/^\s*review_lanes:/.test(line)) throw new Error(REMOVED_KEY_ERROR('review_lanes'))
@@ -265,6 +277,7 @@ function parseStep(cur: Cursor): StepDef {
   return {
     id, label, gate, skills, inputs, outputs, guards, transitions,
     ...(prompt !== undefined ? { prompt } : {}),
+    ...(maxRounds !== undefined ? { maxRounds } : {}),
     ...(artifacts !== undefined ? { artifacts } : {}),
     ...(tests !== undefined ? { tests } : {}),
     ...(testPolicy !== undefined ? { test_policy: testPolicy } : {}),

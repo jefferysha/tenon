@@ -31,6 +31,8 @@ export const zh: Dict = {
     stale: '过期',
     missing: '未运行',
     running: '运行中',
+    waived: '已豁免',
+    'waiver-pending': '豁免待批准',
   },
   case: {
     pass: '通过',
@@ -96,6 +98,8 @@ export const en: Dict = {
     stale: 'Stale',
     missing: 'Not run',
     running: 'Running',
+    waived: 'Waived',
+    'waiver-pending': 'Waiver pending',
   },
   case: {
     pass: 'Pass',

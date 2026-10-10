@@ -18,7 +18,7 @@ import { fixtureCase, fixtureRecordDraft, fixtureSuiteRun } from '../test-system
 import { compileEffectiveWorkflowPlan } from '../workflow/effective-plan.js'
 import type { EffectiveWorkflowPlan } from '../workflow/effective-plan-types.js'
 import type { StepTestPolicyDef } from '../workflow/types.js'
-import { evaluateTestEvidence, type TestEvidenceContext } from './evaluate.js'
+import { evaluateTestEvidence, stepTestFailuresOf, testItemSettled, type TestEvidenceContext } from './evaluate.js'
 import { rejectOnTestEvidence } from './transition-gate.js'
 
 const CHANGE = 'policy-flow'
@@ -143,6 +143,70 @@ describe('evaluateTestEvidence × test_policy', () => {
     const report = await evaluate(plan({ plan: 'optional' }, true))
     expect(report.policy?.blockers).toEqual([expect.objectContaining({ code: 'test-not-run', subject: 'step:legacy', fix: 'tenon test run policy-flow legacy' })])
     expect(report.items.map((item) => item.status)).toEqual(['missing'])
+  })
+
+  test('步骤测试豁免：失败记录 + 计划里的 test:<id> → item.waiver 为 waiver-pending / waived，没有豁免则仍是失败', async () => {
+    await seedCatalog()
+    const current = plan({ plan: 'optional' }, true)
+    const policy = current.workflow.steps[0]?.test_policy
+    const catalogResult = parseTestCatalog(CATALOG)
+    if (policy === undefined || !catalogResult.ok) throw new Error('fixture')
+    const failed = fixtureSuiteRun({ suite: 'step:legacy', result: 'fail', reasons: [{ code: 'exit-code', detail: 'exit 1' }] })
+    const digest = await seedPlan({ ...emptyTestPlan(CHANGE) })
+    await appendTestRunRecordV2(repoRoot, SLUG, fixtureRecordDraft({
+      change: CHANGE,
+      workflow: 'tested',
+      workflow_run_id: 'run-1',
+      actor: ACTOR,
+      bindings: {
+        candidate: CANDIDATE,
+        workflow_fingerprint: current.workflowFingerprint,
+        catalog_digest: catalogSuitesDigest(catalogResult.catalog, []),
+        plan_digest: digest,
+        policy_digest: testPolicyDigest(policy),
+      },
+      suites: [failed],
+    }))
+
+    const none = await evaluate(current)
+    expect(none.policy?.blockers.map((item) => item.code)).toEqual(['test-failed'])
+    expect(none.items.map((item) => testItemSettled(item))).toEqual([false])
+    expect(none.items[0]?.waiver).toBeUndefined()
+
+    await seedPlan({ ...emptyTestPlan(CHANGE), waivers: [{ test: 'legacy', reason: '迁移脚本一次性生成', approved_by: null }] })
+    const pending = await evaluate(current)
+    expect(pending.policy?.blockers).toEqual([expect.objectContaining({ code: 'waiver-unapproved', subject: 'test:legacy' })])
+    expect(pending.pass).toBe(false)
+    expect(pending.blockers).toEqual([
+      '测试 legacy 失败（exit-code），豁免尚未经评审批准；执行 tenon review request policy-flow --event build-done',
+    ])
+    expect(pending.items[0]?.waiver).toBe('waiver-pending')
+    expect(pending.items.map((item) => testItemSettled(item))).toEqual([true])
+
+    // 批准绑定被批准的代码：旧版本留下的批准（没有候选）、批准的是另一份代码，都还是待批准。
+    for (const waiver of [
+      { test: 'legacy', reason: '迁移脚本一次性生成', approved_by: ACTOR.id },
+      { test: 'legacy', reason: '迁移脚本一次性生成', approved_by: ACTOR.id, approved_candidate: `workspace:sha256:${'b'.repeat(64)}` },
+    ]) {
+      await seedPlan({ ...emptyTestPlan(CHANGE), waivers: [waiver] })
+      const unbound = await evaluate(current)
+      expect(unbound.policy?.blockers, JSON.stringify(waiver)).toEqual([expect.objectContaining({ code: 'waiver-unapproved', subject: 'test:legacy' })])
+      expect(unbound.pass).toBe(false)
+      expect(unbound.items[0]).toMatchObject({ waiver: 'waiver-pending', failedCandidate: CANDIDATE })
+      expect(stepTestFailuresOf(unbound.items)).toEqual(new Map([['legacy', { state: 'waiver-pending', candidate: CANDIDATE }]]))
+    }
+
+    await seedPlan({
+      ...emptyTestPlan(CHANGE),
+      waivers: [{ test: 'legacy', reason: '迁移脚本一次性生成', approved_by: ACTOR.id, approved_candidate: CANDIDATE }],
+    })
+    const approved = await evaluate(current)
+    expect(approved.policy?.blockers).toEqual([])
+    expect(approved.pass).toBe(true)
+    expect(approved.items[0]).toMatchObject({ waiver: 'waived', failedCandidate: CANDIDATE })
+    expect(approved.policy?.notices.map((item) => item.code)).toEqual(['test-waived'])
+    expect(stepTestFailuresOf(approved.items)).toEqual(new Map([['legacy', { state: 'waived', candidate: CANDIDATE }]]))
+    expect(stepTestFailuresOf(none.items).size).toBe(0)
   })
 
   test('完整性 / 读不到改动 两类策略阻断带结构化状态（不带 subject），其余策略阻断没有；与渲染后的阻塞一一对齐', async () => {

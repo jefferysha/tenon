@@ -102,9 +102,33 @@ describe('serializePipeline（严格 FIELD_ORDER 全量写回）', () => {
       .split('\n')
       .filter((l) => /^[a-z_]+:/.test(l))
       .map((l) => l.split(':')[0])
-    expect(keys).toEqual(FIELD_ORDER.filter((field) => !REVIEW_GATE_FIELDS.includes(field as typeof REVIEW_GATE_FIELDS[number])))
+    expect(keys).toEqual(FIELD_ORDER.filter((field) =>
+      !REVIEW_GATE_FIELDS.includes(field as typeof REVIEW_GATE_FIELDS[number]) && field !== 'max_rounds'))
     expect(out).toContain('automation: ""\n')
     for (const field of REVIEW_GATE_FIELDS) expect(out).not.toContain(`${field}:`)
+  })
+
+  it('max_rounds 为空时不写进 YAML 投影：没设置它的任务逐字节不变（review gate 绑定摘要、projection 比对都依赖这一点）', () => {
+    const raw = fixture('zz-container-e2e.pipeline.yaml')
+    const state = parsePipeline(raw)
+    expect(state.fields.max_rounds).toBe('')
+    expect(serializePipeline(state)).not.toContain('max_rounds')
+    expect(serializePipeline(state)).toBe(withPreVerifyReviewDefault(raw))
+  })
+
+  it('max_rounds 有值时写在 FIELD_ORDER 尾部、内部提交元数据之前，解析后还原；清空后又不写', () => {
+    const state = parsePipeline(fixture('zz-container-e2e.pipeline.yaml'))
+    state.runMetadata = { runId: 'run-r', transitionSequence: 3, transitionHead: 'rec-3' }
+    state.fields.max_rounds = '3'
+    const out = serializePipeline(state)
+    const lines = out.split('\n')
+    const at = lines.indexOf('max_rounds: 3')
+    expect(at).toBeGreaterThan(lines.indexOf('pre_verify_review_result: pending'))
+    expect(lines[at + 1]).toBe('pipeline_run_id: run-r')
+    expect(parsePipeline(out).fields.max_rounds).toBe('3')
+    const cleared = parsePipeline(out)
+    cleared.fields.max_rounds = ''
+    expect(serializePipeline(cleared)).not.toContain('max_rounds')
   })
 
   it('review receipt 只要有一个值便整组写出，解析后逐字段保持', () => {

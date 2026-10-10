@@ -7,7 +7,7 @@
  * 请求之后才加进计划的豁免、请求之后又改过内容的受保护文件因此不会被这次确认顺带批准。
  * 豁免的批准写进任务测试计划；受保护改动的批准（路径 + 内容摘要）写进本机封存文件（seal.ts）。
  *
- * 清单里除了计划豁免（`kind:<k>` / `covers:<…>`），还有目录里未批准的项目级「不适用」声明
+ * 清单里除了计划豁免（`kind:<k>` / `covers:<…>` / `test:<步骤测试 id>`），还有目录里未批准的项目级「不适用」声明
  * （`not-applicable:<k>`，见 catalog-na.ts）：确认时它们写回 `catalog.yaml` 的 `approved_by`，一次批准对全项目生效。
  *
  * 读取失败一律当作「没有清单」（失败关闭：什么都不批准）；写入与清除由持有 Change 锁的调用方负责。
@@ -20,10 +20,16 @@ import { reviewGateEvent } from '../state/review-gate.js'
 import type { PipelineState } from '../types.js'
 import { userSlug, type RecordActor } from '../users/user.js'
 import { changeStartOfFields, type PathChangeStatus } from '../workspace/changed-files.js'
+import { isWorkspaceBaseline } from '../workspace/fingerprint.js'
 import { isNotApplicableKey, approveNotApplicable, pendingNotApplicable } from './catalog-na.js'
 import { readCatalogFile, updateCatalog } from './catalog-file.js'
 import { readTestPlanState, writeTestPlanUnderLock } from './plan-ledger.js'
-import { approveWaivers, pendingWaivers, type PendingWaiver, type WaiverSkipReason } from './plan-waivers.js'
+import {
+  acceptFrozenResiduals, decodeAccepted, decodeResidual, type AcceptedResidual, type FrozenResidual, type ResidualAcceptance,
+} from './review-residual.js'
+import {
+  approveWaivers, pendingWaivers, type PendingWaiver, type StepTestFailures, type WaiverSkipReason,
+} from './plan-waivers.js'
 import {
   PROTECTED_CATALOG_PATH, protectedChangesSinceChangeStart, protectedFileDigest, protectedFileDigestSync, protectedKindOf,
   type ProtectedChange, type ProtectedKind, type ProtectedOrigin,
@@ -32,7 +38,10 @@ import { updateTestSeal } from './seal.js'
 
 export const REVIEW_WAIVERS_FILE = '.pipeline-review-waivers.json'
 const MAX_REVIEW_WAIVERS_BYTES = 64 * 1024
-const KEY_RE = /^(kind|covers|not-applicable):\S.*$/
+const KEY_RE = /^(kind|covers|test|not-applicable):\S.*$/
+const SELECTION_KEYS: ReadonlySet<string> = new Set([
+  'accepted', 'event', 'phase', 'protected', 'requestedAt', 'residual', 'version', 'waivers',
+])
 
 /** 冻结在评审请求里的一项受保护配置改动：确认时它的当前摘要必须仍等于这里的摘要才算数。 */
 export interface FrozenProtectedChange {
@@ -52,6 +61,10 @@ export interface ReviewWaiverSelection {
   readonly waivers: readonly PendingWaiver[]
   /** 缺省 = 没有待确认的受保护改动（旧版本写的清单没有这一项）。 */
   readonly protected?: readonly FrozenProtectedChange[]
+  /** 缺省 = 没有待接受的剩余阻断（验证轮次用完后评审者仍不通过，见 review-residual.ts）。 */
+  readonly residual?: readonly FrozenResidual[]
+  /** 已接受的剩余阻断；跨请求保留（清掉待批准项时不清它），解码失败时整份清单读不出。 */
+  readonly accepted?: readonly ResidualAcceptance[]
 }
 
 function text(value: unknown): string | undefined {
@@ -81,32 +94,57 @@ function decodeProtected(value: unknown): readonly FrozenProtectedChange[] | und
 function decodeSelection(value: unknown): ReviewWaiverSelection | undefined {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
   const record = value as Record<string, unknown>
-  const keys = Object.keys(record).sort().join(',')
-  if ((keys !== 'event,phase,requestedAt,version,waivers' && keys !== 'event,phase,protected,requestedAt,version,waivers') || record.version !== 1) return undefined
+  const keys = Object.keys(record)
+  if (!['event', 'phase', 'requestedAt', 'version', 'waivers'].every((key) => keys.includes(key))) return undefined
+  if (keys.some((key) => !SELECTION_KEYS.has(key)) || record.version !== 1) return undefined
   const frozen = record.protected === undefined ? [] : decodeProtected(record.protected)
-  if (frozen === undefined) return undefined
+  const residual = record.residual === undefined ? [] : decodeResidual(record.residual)
+  const accepted = record.accepted === undefined ? [] : decodeAccepted(record.accepted)
+  if (frozen === undefined || residual === undefined || accepted === undefined) return undefined
   const phase = text(record.phase)
   const event = text(record.event)
   const requestedAt = text(record.requestedAt)
   if (phase === undefined || event === undefined || requestedAt === undefined || !Array.isArray(record.waivers)) return undefined
   const waivers: PendingWaiver[] = []
   for (const raw of record.waivers as unknown[]) {
-    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined
-    const item = raw as Record<string, unknown>
-    const key = text(item.key)
-    const reason = text(item.reason)
-    if (Object.keys(item).length !== 2 || key === undefined || reason === undefined || !KEY_RE.test(key)) return undefined
-    waivers.push({ key, reason })
+    const waiver = decodeWaiver(raw)
+    if (waiver === undefined) return undefined
+    waivers.push(waiver)
   }
-  return { version: 1, phase, event, requestedAt, waivers, ...(frozen.length === 0 ? {} : { protected: frozen }) }
+  return {
+    version: 1, phase, event, requestedAt, waivers,
+    ...(frozen.length === 0 ? {} : { protected: frozen }),
+    ...(residual.length === 0 ? {} : { residual }),
+    ...(accepted.length === 0 ? {} : { accepted }),
+  }
 }
 
-/** 调用方已持有 Change 锁。 */
+/**
+ * 清单项恰好是 `{ key, reason }`，或 `test:` 键另带 `candidate`（请求时失败记录的代码候选，必须是工作区指纹）。
+ * 其它键、其它种类的键带 `candidate` 一律拒绝：清单只能说「批准哪一条」，不能借多出来的字段塞进别的批准。
+ */
+function decodeWaiver(raw: unknown): PendingWaiver | undefined {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined
+  const item = raw as Record<string, unknown>
+  const key = text(item.key)
+  const reason = text(item.reason)
+  if (key === undefined || reason === undefined || !KEY_RE.test(key)) return undefined
+  const names = Object.keys(item).sort().join(',')
+  if (names === 'key,reason') return { key, reason }
+  const candidate = text(item.candidate)
+  if (names !== 'candidate,key,reason' || !key.startsWith('test:') || candidate === undefined || !isWorkspaceBaseline(candidate)) return undefined
+  return { key, reason, candidate }
+}
+
+/**
+ * 调用方已持有 Change 锁。重新冻结待批准项不丢已接受的剩余阻断：`accepted` 缺省时沿用边车里现有的那份。
+ */
 export async function writeReviewWaiverSelection(
   changeDir: string,
   selection: Omit<ReviewWaiverSelection, 'version'>,
 ): Promise<void> {
-  const body: ReviewWaiverSelection = { version: 1, ...selection }
+  const accepted = selection.accepted ?? (await readReviewWaiverSelection(changeDir))?.accepted
+  const body: ReviewWaiverSelection = { version: 1, ...selection, ...(accepted === undefined ? {} : { accepted }) }
   await atomicReplaceFile(join(changeDir, REVIEW_WAIVERS_FILE), `${JSON.stringify(body)}\n`)
 }
 
@@ -127,9 +165,21 @@ export async function readReviewWaiverSelection(changeDir: string): Promise<Revi
   }
 }
 
-/** 调用方已持有 Change 锁。 */
+/**
+ * 调用方已持有 Change 锁。清掉待批准项（豁免、受保护改动、待接受的剩余阻断）；已接受的剩余阻断是跨请求的
+ * 持久记录，还在时只清空待批准项、保留它们，没有时删文件。
+ */
 export async function clearReviewWaiverSelection(changeDir: string): Promise<void> {
-  await rm(join(changeDir, REVIEW_WAIVERS_FILE), { force: true })
+  const current = await readReviewWaiverSelection(changeDir)
+  if (current?.accepted === undefined) {
+    await rm(join(changeDir, REVIEW_WAIVERS_FILE), { force: true })
+    return
+  }
+  const { phase, event, requestedAt, accepted } = current
+  await atomicReplaceFile(
+    join(changeDir, REVIEW_WAIVERS_FILE),
+    `${JSON.stringify({ version: 1, phase, event, requestedAt, waivers: [], accepted })}\n`,
+  )
 }
 
 function scalar(state: PipelineState, field: 'review_requested_at' | 'review_gate_phase'): string {
@@ -147,7 +197,7 @@ export async function boundReviewWaiverSelection(
   state: PipelineState,
 ): Promise<{ readonly selection: ReviewWaiverSelection | undefined; readonly unbound: boolean }> {
   const selection = await readReviewWaiverSelection(changeDir)
-  if (selection === undefined || (selection.waivers.length === 0 && (selection.protected ?? []).length === 0)) {
+  if (selection === undefined || (selection.waivers.length === 0 && (selection.protected ?? []).length === 0 && (selection.residual ?? []).length === 0)) {
     return { selection: undefined, unbound: false }
   }
   const bound = selection.phase === scalar(state, 'review_gate_phase')
@@ -168,6 +218,8 @@ export interface WaiverApprovalOutcome {
   /** 本次确认批准的受保护配置改动（路径）。 */
   readonly protectedApproved: readonly string[]
   readonly protectedSkipped: readonly { readonly path: string; readonly why: ProtectedSkipReason }[]
+  /** 本次确认接受的剩余阻断（带冻结时的发现摘要，供历史行用）；没有时缺席。 */
+  readonly residualAccepted?: readonly AcceptedResidual[]
 }
 
 const NO_APPROVAL: WaiverApprovalOutcome = {
@@ -264,18 +316,20 @@ async function sightCatalog(input: Parameters<typeof catalogUntouchedSinceChange
 /**
  * 评审请求要列给用户的待批准项：计划里未批准的豁免 + 目录里未批准的项目级「不适用」声明。
  * 计划缺失 / 不可信、目录缺失 / 无效时对应的一半为空（那些状态由测试门禁自己挡）。
+ * `failures`（当前步骤各测试新鲜失败的豁免事实）让批准绑定的代码已不是现在这份的 `test:` 豁免再次列出，并带上候选。
  */
 export async function pendingReviewWaivers(input: {
   readonly repoRoot: string
   readonly dir: string
   readonly change: string
+  readonly failures?: StepTestFailures
 }): Promise<readonly PendingWaiver[]> {
   const [plan, catalog] = await Promise.all([
     readTestPlanState(input.dir, input.change),
     readCatalogFile(input.repoRoot).catch(() => undefined),
   ])
   return [
-    ...(plan.state === 'ok' ? pendingWaivers(plan.plan) : []),
+    ...(plan.state === 'ok' ? pendingWaivers(plan.plan, input.failures) : []),
     ...(catalog?.state === 'ok' ? pendingNotApplicable(catalog.catalog) : []),
   ]
 }
@@ -296,6 +350,11 @@ export async function approveFrozenWaivers(input: {
   readonly recordedAt: string
   /** 自任务起点以来的受保护改动；缺省读真实 git diff（CLI 传入它自己可被测试装配覆写的那一份）。 */
   readonly protectedChanges?: () => Promise<readonly ProtectedChange[]>
+  /**
+   * 是否接受冻结的剩余阻断（缺省接受）。只有把待接受项逐条列给了用户的确认通道才该接受：终端的人工确认列了；
+   * Dashboard 没有展示它们，传 false——用户在那里确认不会顺带接受没看过的评审结论。
+   */
+  readonly acceptResidual?: boolean
 }): Promise<WaiverApprovalOutcome> {
   const { selection, unbound } = await boundReviewWaiverSelection(input.dir, input.state)
   if (unbound) return { ...NO_APPROVAL, note: '待批准清单不属于这一次 review request，未批准任何豁免或受保护改动' }
@@ -359,5 +418,29 @@ export async function approveFrozenWaivers(input: {
     repoRoot: input.repoRoot, change: input.change, actor: input.actor, recordedAt: input.recordedAt,
     matched: ownCatalogWrite ? [...checked.matched, catalogWrite] : checked.matched,
   })
-  return { approved, skipped, digest, note, protectedApproved, protectedSkipped: checked.skipped }
+  const residualAccepted = input.acceptResidual === false ? [] : await acceptResidual(input, selection)
+  return {
+    approved, skipped, digest, note, protectedApproved, protectedSkipped: checked.skipped,
+    ...(residualAccepted.length === 0 ? {} : { residualAccepted }),
+  }
+}
+
+/**
+ * 接受冻结清单里待接受的剩余阻断：落成接受记录写回边车（待批准项仍在，直到调用方在回执提交之后清掉它们）。
+ * 接受绑定的运行与候选由 kernel 的评审者判定逐项核对，冻结之后评审者有了新运行、代码变了，这条记录就对不上、不生效。
+ */
+async function acceptResidual(
+  input: { readonly dir: string; readonly actor: RecordActor; readonly recordedAt: string },
+  selection: ReviewWaiverSelection,
+): Promise<readonly AcceptedResidual[]> {
+  const frozen = selection.residual ?? []
+  if (frozen.length === 0) return []
+  const { added, all } = acceptFrozenResiduals({
+    frozen, existing: selection.accepted, acceptedBy: input.actor.id, acceptedAt: input.recordedAt,
+  })
+  await writeReviewWaiverSelection(input.dir, {
+    phase: selection.phase, event: selection.event, requestedAt: selection.requestedAt, waivers: selection.waivers,
+    ...(selection.protected === undefined ? {} : { protected: selection.protected }), residual: frozen, accepted: all,
+  })
+  return added
 }

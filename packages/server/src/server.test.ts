@@ -79,6 +79,7 @@ async function start(opts?: {
   version?: string
   releaseId?: string
   transactionId?: string
+  channel?: DashboardServerOptions['channel']
   hostHome?: string
   paths?: ServerPaths
   token?: string
@@ -117,6 +118,7 @@ async function start(opts?: {
     version: opts?.version ?? '9.9.9',
     releaseId: opts?.releaseId,
     transactionId: opts?.transactionId,
+    ...(opts?.channel === undefined ? {} : { channel: opts.channel }),
     hostHome,
     paths,
     token: opts?.token ?? 'secret-token-abc',
@@ -184,6 +186,25 @@ describe('GET /api/health —— 存活探针 + 本 server 版本（B4）', () =
       transactionId?: string
     }
     expect(ordinaryBody.transactionId).toBeUndefined()
+  })
+
+  it('开发安装回显 channel=dev、7 位 commit 与 +dev 版本徽标，version 字段本身不变', async () => {
+    const h = await start({ version: '3.1.4', channel: { kind: 'dev', commit: 'abcdef0123456789abcdef0123456789abcdef01' } })
+    const body = (await reqGet(h.port, '/api/health')).json<{
+      version: string; channel?: string; commit?: string; displayVersion?: string
+    }>()
+    expect(body.version).toBe('3.1.4')
+    expect(body.channel).toBe('dev')
+    expect(body.commit).toBe('abcdef0')
+    expect(body.displayVersion).toBe('3.1.4+dev.abcdef0')
+  })
+
+  it('正式安装回显 channel=stable，不带 commit 与徽标串', async () => {
+    const h = await start({ version: '3.1.4' })
+    const body = (await reqGet(h.port, '/api/health')).json<{ channel?: string; commit?: string; displayVersion?: string }>()
+    expect(body.channel).toBe('stable')
+    expect(body.commit).toBeUndefined()
+    expect(body.displayVersion).toBeUndefined()
   })
 
   it('回显 ok/scope/version/releaseId/stateScopeId 且不泄露 state home', async () => {

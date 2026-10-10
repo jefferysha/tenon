@@ -5,6 +5,9 @@ import {
   inspectCandidatePayload,
   type CandidatePayloadIdentity,
 } from '../runtime/release-store.js'
+import { readInstallChannelMarker } from '../runtime/dev-install-marker.js'
+import { resolveRuntimePaths } from '../runtime/paths.js'
+import type { RuntimeReleaseManifest } from '../runtime/types.js'
 import type { ReleasedDashboardStarter } from './dashboard.js'
 import {
   bindNativeHostCommand,
@@ -24,6 +27,7 @@ import {
   type StableReleaseResolver,
   type StableReleaseTarget,
 } from './stable-release.js'
+import { decideDevUpdate } from './update-dev-guard.js'
 import { renderNativeUpdatePlan, runNativeUpdate } from './update-native.js'
 
 export interface UpdateOpts extends PipelineHostFlags {
@@ -31,6 +35,8 @@ export interface UpdateOpts extends PipelineHostFlags {
   yes?: boolean
   auto?: boolean
   target?: string
+  /** 开发安装（tenon setup --from-source）切回最新正式稳定版。 */
+  toStable?: boolean
 }
 
 export { nativeUpdatePlan } from './plugin-host.js'
@@ -91,20 +97,51 @@ export function cmdUpdate(
         nodePath: trustedCommands.node,
         ...(trustedNode === undefined ? {} : { verifyNode: trustedNode.assert }),
       }))
-  return runNativeUpdate({
-    deps,
-    env: lifecycleEnv,
-    installer,
-    dashboardStarter,
-    releaseResolver,
-    inspectCandidate,
-    host,
-    hostExecutable: hostBinding.executable,
-    trustedBashPath: trustedCommands.bash,
-    verifyTrustedBash: trustedBash?.assert,
-    trustedNodePath: trustedCommands.node,
-    trustedNodeProof: trustedNode?.proof,
-    verifyTrustedNode: trustedNode?.assert,
-    auto: opts.auto === true,
-  })
+  const runtimeScope = {
+    homeDir: lifecycleEnv.homeDir(),
+    env: lifecycleEnv.runtimeEnv(),
+    ...(trustedCommands.bash === undefined ? {} : { trustedBashPath: trustedCommands.bash }),
+    ...(trustedBash === undefined ? {} : { verifyTrustedBash: trustedBash.assert }),
+    ...(trustedCommands.node === undefined ? {} : { trustedNodePath: trustedCommands.node }),
+    ...(trustedNode === undefined ? {} : {
+      trustedNodeProof: trustedNode.proof,
+      verifyTrustedNode: trustedNode.assert,
+    }),
+  }
+  return (async () => {
+    let active: RuntimeReleaseManifest | null = null
+    let inspectFailed = false
+    try {
+      // 不看 activeValid：开发 release 校验失败时也不能被一次普通 update 悄悄换成正式版（fail-closed）。
+      active = (await installer.inspect(runtimeScope)).active
+    } catch {
+      // runtime 状态读不出来：以本机 install-channel 标记为准——标记是 dev 就按开发安装拒绝，没有标记才走稳定路径。
+      inspectFailed = true
+    }
+    const marker = readInstallChannelMarker(
+      resolveRuntimePaths({ homeDir: runtimeScope.homeDir, env: runtimeScope.env }).configRoot,
+    )
+    const decision = decideDevUpdate(active, host, opts.toStable === true, { marker, inspectFailed })
+    if (decision.action === 'refuse') {
+      for (const line of decision.message) deps.io.err(line)
+      return 1
+    }
+    return runNativeUpdate({
+      deps,
+      env: lifecycleEnv,
+      installer,
+      dashboardStarter,
+      releaseResolver,
+      inspectCandidate,
+      host,
+      hostExecutable: hostBinding.executable,
+      trustedBashPath: trustedCommands.bash,
+      verifyTrustedBash: trustedBash?.assert,
+      trustedNodePath: trustedCommands.node,
+      trustedNodeProof: trustedNode?.proof,
+      verifyTrustedNode: trustedNode?.assert,
+      auto: opts.auto === true,
+      fromDev: decision.fromDev,
+    })
+  })()
 }

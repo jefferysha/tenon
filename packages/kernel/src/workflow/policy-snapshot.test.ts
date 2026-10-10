@@ -119,8 +119,10 @@ describe('workflow policy snapshot v4', () => {
       ...currentWithoutPolicies,
       // Historical V2 bytes predate issue #43; default phase Skills were not persisted.
       // Historical bytes also predate step tests (2026-09 per-step test evidence), step test policies and step prompts
-      // (the frontend branch gained them with DESIGN.md).
-      steps: currentWithoutPolicies.steps.map(({ tests: _tests, test_policy: _testPolicy, prompt: _prompt, agents: _agents, ...step }) => ({
+      // (the frontend branch gained them with DESIGN.md) and the verification-round limit (max_rounds).
+      steps: currentWithoutPolicies.steps.map(({
+        tests: _tests, test_policy: _testPolicy, prompt: _prompt, agents: _agents, maxRounds: _maxRounds, ...step
+      }) => ({
         ...step,
         label: step.id === 'archive' ? '归档' : step.label,
         // Historical bytes predate the two-kind gate: `gate: null` was recorded as null (no output guards).

@@ -34,6 +34,8 @@ export interface InlineSuiteStatus {
   readonly suite: InlineSuite
   readonly status: 'passed' | 'failed' | 'stale' | 'missing' | 'running'
   readonly detail?: string
+  /** 判出这个状态的 v1 记录绑定的代码候选（`failed` 时用来核对豁免批准绑定的是不是这份代码）；缺省 = 没有记录 / 不适用。 */
+  readonly candidate?: string | null
 }
 
 export interface CurrentBindings {
@@ -108,7 +110,11 @@ export interface TestPolicyEvaluationInput {
   readonly integrity?: IntegrityEvidenceInput
 }
 
-export type SuiteState = 'passed' | 'failed' | 'stale' | 'missing' | 'running'
+/**
+ * `waived` / `waiver-pending` 只出现在必需的步骤测试上：最新有效记录是失败，且计划里有 `test:<id>` 豁免——
+ * 已经评审批准 = waived（放行），还没批准 = waiver-pending（等评审确认）。过期 / 未运行 / 运行中不适用豁免。
+ */
+export type SuiteState = 'passed' | 'failed' | 'stale' | 'missing' | 'running' | 'waived' | 'waiver-pending'
 export type StaleBinding = 'candidate' | 'workflow' | 'catalog' | 'plan' | 'policy'
 
 export interface SuiteVerdict {
@@ -129,6 +135,11 @@ export interface SuiteVerdict {
   readonly coverage?: CoverageResult | null
   readonly benchmark?: readonly BenchmarkMetricVerdict[]
   readonly detail?: string
+  /**
+   * 仅 `waived` / `waiver-pending`：这条新鲜失败记录绑定的代码候选。豁免的批准绑定它——评审请求把它冻结进清单，
+   * 确认时写成计划里的 `approved_candidate`。
+   */
+  readonly failedCandidate?: string
 }
 
 export type TraceTestStatus = CaseStatus | 'not-run'

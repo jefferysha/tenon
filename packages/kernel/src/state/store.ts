@@ -23,6 +23,7 @@ import {
   type StateWriteResult,
 } from '../types.js'
 import { mergeLegacyImportFields } from './legacy-import.js'
+import { isOmitWhenEmpty } from './omit-when-empty-fields.js'
 import { withLock } from './lock.js'
 import { formatUserRef } from '../users/user.js'
 import { parsePipeline, quoteGate, serializePipeline } from './parse.js'
@@ -157,6 +158,7 @@ function isPreciseLegacyFieldProjection(
   if (!omitsCompleteReviewGate && !omitsPreVerifyReview && !omitsReviewChannel) return false
   return FIELD_ORDER.every((field) =>
     seen.has(field)
+    || isOmitWhenEmpty(field)
     || (omitsCompleteReviewGate && REVIEW_GATE_FIELD_SET.has(field))
     || (omitsPreVerifyReview && field === PRE_VERIFY_REVIEW_FIELD)
     || (omitsReviewChannel && field === 'review_acknowledged_via'))

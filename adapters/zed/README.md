@@ -55,5 +55,6 @@ adapters/zed/install.sh --target <项目目录>   # 默认 $PWD
 ## 人工确认（HITL）
 
 Zed 无 hook、无 `AskUserQuestion` 等价物；仍须在完成产物并选择 event 后运行
-`tenon review request <change> --event <event>`，把用户的明确确认保留为事实后运行
-`tenon review acknowledge <change>`。不得以删除 marker 替代确认。
+`tenon review request <change> --event <event>`，然后等用户确认：用户在 Dashboard（`tenon dashboard --open`）
+确认，或由**用户本人在自己的终端**运行 `tenon review acknowledge <change>`；agent 不得代为执行该命令
+（持续授权下 agent 只可用 `--delegated`，它不批准待批准的测试豁免）。不得以删除 marker 替代确认。

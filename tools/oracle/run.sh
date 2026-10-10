@@ -50,6 +50,10 @@
 #   2 = 新 CLI 构建产物缺失（先 npm run build）
 set -uo pipefail
 
+# 经 `tenon test run` 启动时，启动器把本机真实的运行时根导出给了本脚本；它们优先于下面各处的 TENON_RUNTIME_HOME="$MACHINE_HOME"，
+# 带着它们跑新 CLI 会读写真实状态。
+unset TENON_RUNTIME_ROOTS TENON_RUNTIME_DATA_ROOT TENON_RUNTIME_STATE_ROOT TENON_RUNTIME_CONFIG_ROOT
+
 ORACLE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${ORACLE_REPO_ROOT:-$(cd "$ORACLE_DIR/../.." && pwd)}"
 OLD_SCRIPT="${ORACLE_OLD_SCRIPT:-/Users/a1234/Documents/code-manager/projects/workflow-plugin/skills/pipeline/scripts/pipeline-state.sh}"

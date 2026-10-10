@@ -4,10 +4,12 @@ import {
   caseMatchesRef, fileRefMatches, formatCaseRef, formatCovers, parseCaseRef, parseCovers,
 } from './covers.js'
 import {
-  emptyTestPlan, normalizeTestPlan, parseTestPlan, planCatalogProblems, serializeTestPlan, testPlanDigest,
+  emptyTestPlan, normalizeTestPlan, parseTestPlan, planCatalogProblems, serializeTestPlan, testPlanDigest, waiverKey,
   type TestPlan,
 } from './plan.js'
 import { DESIGN_CATALOG } from './test-support.js'
+
+const CAND_A = `workspace:sha256:${'a'.repeat(64)}`
 
 const DESIGN_PLAN = `schema: tenon-test-plan/v1
 change: add-login
@@ -77,6 +79,48 @@ describe('parseTestPlan', () => {
     expect(parsed.waivers).toEqual([{ kind: 'benchmark', reason: '纯文案改动，无性能路径', approved_by: null }])
   })
 
+  it('步骤测试豁免 test：解析、waiverKey 为 test:<id>、写出可读回', () => {
+    const text = DESIGN_PLAN.replace(
+      'waivers:\n', 'waivers:\n  - { test: code-size, reason: 迁移脚本一次性生成，超限属实, approved_by: null }\n')
+    const parsed = plan(text, 'add-login')
+    expect(parsed.waivers).toContainEqual({ test: 'code-size', reason: '迁移脚本一次性生成，超限属实', approved_by: null })
+    expect(parsed.waivers.map(waiverKey).sort()).toEqual(['kind:benchmark', 'test:code-size'])
+    const written = serializeTestPlan(parsed)
+    expect(written).toContain('test: code-size')
+    expect(plan(written, 'add-login')).toEqual(normalizeTestPlan(parsed))
+    expect(serializeTestPlan(plan(written, 'add-login'))).toBe(written)
+    const approved = plan(text.replace('approved_by: null }\n', 'approved_by: boss@x.io }\n'), 'add-login')
+    expect(approved.waivers).toContainEqual({ test: 'code-size', reason: '迁移脚本一次性生成，超限属实', approved_by: 'boss@x.io' })
+  })
+
+  it('已批准的 test 豁免带被批准的候选 approved_candidate：解析、写出可读回，批准绑定的代码随计划字节一起落盘', () => {
+    const text = DESIGN_PLAN.replace(
+      'waivers:\n', `waivers:\n  - { test: code-size, reason: 迁移脚本一次性生成，超限属实, approved_by: boss@x.io, approved_candidate: "${CAND_A}" }\n`)
+    const parsed = plan(text, 'add-login')
+    expect(parsed.waivers).toContainEqual({
+      test: 'code-size', reason: '迁移脚本一次性生成，超限属实', approved_by: 'boss@x.io', approved_candidate: CAND_A,
+    })
+    const written = serializeTestPlan(parsed)
+    expect(written).toContain('approved_candidate:')
+    expect(plan(written, 'add-login')).toEqual(normalizeTestPlan(parsed))
+    expect(serializeTestPlan(plan(written, 'add-login'))).toBe(written)
+    // 候选不同的批准是不同的计划内容：摘要不能把它们混为一谈。
+    const other = plan(text.replace('a'.repeat(64), 'b'.repeat(64)), 'add-login')
+    expect(testPlanDigest(other)).not.toBe(testPlanDigest(parsed))
+    // 没有候选的批准（旧版本留下的）仍然能读：它只是不再算「已批准」，判定在 evaluate。
+    const legacy = plan(DESIGN_PLAN.replace('waivers:\n', 'waivers:\n  - { test: code-size, reason: 旧, approved_by: boss@x.io }\n'), 'add-login')
+    expect(legacy.waivers).toContainEqual({ test: 'code-size', reason: '旧', approved_by: 'boss@x.io' })
+  })
+
+  it('test 豁免与同名的 kind 豁免键不冲突，同一个 test 写两次才算重复', () => {
+    const same = DESIGN_PLAN.replace(
+      'waivers:\n', 'waivers:\n  - { test: unit, reason: 步骤测试, approved_by: null }\n  - { kind: unit, reason: 种类, approved_by: null }\n')
+    expect(plan(same).waivers.map(waiverKey).sort()).toEqual(['kind:benchmark', 'kind:unit', 'test:unit'])
+    const twice = DESIGN_PLAN.replace(
+      'waivers:\n', 'waivers:\n  - { test: code-size, reason: a, approved_by: null }\n  - { test: code-size, reason: b, approved_by: null }\n')
+    expect(issues(twice)).toMatch(/豁免 'test:code-size' 重复/)
+  })
+
   it.each([
     ['schema 不对', DESIGN_PLAN.replace('tenon-test-plan/v1', 'x/v1'), /schema 必须是/],
     ['属于别的任务', DESIGN_PLAN, /属于任务 'add-login'，不是 'other'/, 'other'],
@@ -93,10 +137,45 @@ describe('parseTestPlan', () => {
     ['covers 非法', DESIGN_PLAN.replace('"task:2.3"', '"step:1"'), /covers 'step:1' 非法/],
     ['用例引用非法', DESIGN_PLAN.replace('"Login.test.tsx › 密码为空时禁用提交"', '"../x › y"'), /用例引用 '\.\.\/x › y' 非法/],
     ['映射没有用例', DESIGN_PLAN.replace('tests: ["Login.test.tsx › 密码为空时禁用提交"]', 'tests: []'), /至少需要一个用例/],
-    ['豁免同时写 kind 与 covers', DESIGN_PLAN.replace('{ kind: benchmark,', '{ kind: benchmark, covers: "task:1",'), /恰好写 kind 或 covers/],
-    ['豁免两者都没写', DESIGN_PLAN.replace('{ kind: benchmark,', '{'), /恰好写 kind 或 covers/],
+    ['豁免同时写 kind 与 covers', DESIGN_PLAN.replace('{ kind: benchmark,', '{ kind: benchmark, covers: "task:1",'), /恰好写 kind、covers 或 test 之一/],
+    ['豁免同时写 kind 与 test', DESIGN_PLAN.replace('{ kind: benchmark,', '{ kind: benchmark, test: code-size,'), /恰好写 kind、covers 或 test 之一/],
+    ['豁免同时写 covers 与 test', DESIGN_PLAN.replace('{ kind: benchmark,', '{ covers: "task:1", test: code-size,'), /恰好写 kind、covers 或 test 之一/],
+    ['豁免三者都没写', DESIGN_PLAN.replace('{ kind: benchmark,', '{'), /恰好写 kind、covers 或 test 之一/],
     ['豁免 covers 非法', DESIGN_PLAN.replace('{ kind: benchmark,', '{ covers: "x",'), /豁免 covers 'x' 非法/],
+    ['豁免 test 含非法字符', DESIGN_PLAN.replace('{ kind: benchmark,', '{ test: "a/b",'), /豁免 test 'a\/b' 非法/],
+    ['豁免 test 含空格', DESIGN_PLAN.replace('{ kind: benchmark,', '{ test: "code size",'), /豁免 test 'code size' 非法/],
+    ['豁免 test 超过 64 字符', DESIGN_PLAN.replace('{ kind: benchmark,', `{ test: ${'a'.repeat(65)},`), /豁免 test 'a{65}' 非法/],
     ['豁免批准人类型不对', DESIGN_PLAN.replace('approved_by: null', 'approved_by: 1'), /approved_by 必须是 null 或批准人/],
+    [
+      'approved_candidate 写在 kind 豁免上',
+      DESIGN_PLAN.replace('approved_by: null', `approved_by: boss@x.io, approved_candidate: "${CAND_A}"`),
+      /approved_candidate 只能写在已批准的 test 豁免上/,
+    ],
+    [
+      'approved_candidate 写在 covers 豁免上',
+      DESIGN_PLAN.replace('{ kind: benchmark,', '{ covers: "task:1",').replace('approved_by: null', `approved_by: boss@x.io, approved_candidate: "${CAND_A}"`),
+      /approved_candidate 只能写在已批准的 test 豁免上/,
+    ],
+    [
+      'approved_candidate 没有批准人（approved_by: null）',
+      DESIGN_PLAN.replace('{ kind: benchmark,', '{ test: code-size,').replace('approved_by: null', `approved_by: null, approved_candidate: "${CAND_A}"`),
+      /approved_candidate 只能写在已批准的 test 豁免上/,
+    ],
+    [
+      'approved_candidate 没有批准人（缺 approved_by）',
+      DESIGN_PLAN.replace('{ kind: benchmark,', '{ test: code-size,').replace(', approved_by: null', `, approved_candidate: "${CAND_A}"`),
+      /approved_candidate 只能写在已批准的 test 豁免上/,
+    ],
+    [
+      'approved_candidate 不是工作区指纹',
+      DESIGN_PLAN.replace('{ kind: benchmark,', '{ test: code-size,').replace('approved_by: null', 'approved_by: boss@x.io, approved_candidate: "not-a-fingerprint"'),
+      /approved_candidate 'not-a-fingerprint' 非法/,
+    ],
+    [
+      'approved_candidate 为空',
+      DESIGN_PLAN.replace('{ kind: benchmark,', '{ test: code-size,').replace('approved_by: null', 'approved_by: boss@x.io, approved_candidate: ""'),
+      /approved_candidate 必须是非空字符串/,
+    ],
     ['豁免缺原因', DESIGN_PLAN.replace(' reason: 纯文案改动，无性能路径,', ''), /reason 缺失/],
     ['套件重复', DESIGN_PLAN.replace('suite: api-bench', 'suite: web-unit'), /套件 'web-unit' 重复/],
     ['YAML 语法错误', 'schema: [x\n', /未闭合/],

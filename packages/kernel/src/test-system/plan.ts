@@ -1,11 +1,13 @@
 /**
  * 任务测试计划 `openspec/changes/<c>/test-plan.yaml`：本任务要跑的目录套件、本任务新增或修改的测试文件、
- * 场景 / 任务条目 → 用例映射，以及策略要求但本任务不适用的豁免。
+ * 场景 / 任务条目 → 用例映射，以及豁免（策略要求但本任务不适用的种类、不要求映射用例的条目、失败后经评审批准放行的步骤测试）。
  *
  * 计划由 CLI 独占写入：写出的字节恒为 `serializeTestPlan` 的规范化形态（列表排序、去重），摘要记进
  * change 目录的台账（plan-ledger.ts）。手改文件 → 字节摘要与台账不符 → `test-plan-tampered`。
  */
 import { sha256Hex } from '../sha256.js'
+import { isWorkspaceBaseline } from '../workspace/fingerprint.js'
+import { isStepTestId } from '../workflow/compile-tests.js'
 import type { TestCatalog } from './catalog-types.js'
 import { parseCaseRef, parseCovers } from './covers.js'
 import { isRepoRelativePath } from './globs.js'
@@ -19,6 +21,7 @@ import { YamlSubsetError, parseYamlSubset, type YamlNode } from './yaml-subset.j
 export const TEST_PLAN_SCHEMA = 'tenon-test-plan/v1'
 export const TEST_PLAN_FILE = 'test-plan.yaml'
 const CHANGE_RE = /^[A-Za-z0-9_-]{1,128}$/
+const MAX_CANDIDATE_BYTES = 200
 
 export interface PlanSuite {
   readonly suite: string
@@ -46,9 +49,17 @@ interface WaiverBase {
   readonly approved_by: string | null
 }
 
+/**
+ * 三种豁免恰好写其一：`kind`（策略要求的测试种类不适用）、`covers`（场景 / 任务不要求映射用例）、
+ * `test`（工作流里某个步骤声明的测试 id：它失败了，经评审批准后放行）。
+ *
+ * `test` 豁免的批准绑定被批准的那份代码：`approved_candidate` 是确认时失败记录绑定的代码候选，
+ * 只和 `test` 一起出现，且只在 `approved_by` 非空时有意义。没有它的批准（旧版本留下的）不算已批准。
+ */
 export type PlanWaiver =
-  | (WaiverBase & { readonly kind: TestKind; readonly covers?: undefined })
-  | (WaiverBase & { readonly covers: string; readonly kind?: undefined })
+  | (WaiverBase & { readonly kind: TestKind; readonly covers?: undefined; readonly test?: undefined; readonly approved_candidate?: undefined })
+  | (WaiverBase & { readonly covers: string; readonly kind?: undefined; readonly test?: undefined; readonly approved_candidate?: undefined })
+  | (WaiverBase & { readonly test: string; readonly kind?: undefined; readonly covers?: undefined; readonly approved_candidate?: string })
 
 export interface TestPlan {
   readonly schema: typeof TEST_PLAN_SCHEMA
@@ -120,9 +131,10 @@ function decodeCase(node: YamlNode, sink: IssueSink): PlanCase | undefined {
 function decodeWaiver(node: YamlNode, sink: IssueSink): PlanWaiver | undefined {
   const map = asMap(node, sink, '豁免')
   if (map === undefined) return undefined
-  checkKeys(map, ['kind', 'covers', 'reason', 'approved_by'], sink, '豁免')
+  checkKeys(map, ['kind', 'covers', 'test', 'reason', 'approved_by', 'approved_candidate'], sink, '豁免')
   const kind = oneOf(field(map, 'kind'), sink, '豁免 kind', isTestKind, TEST_KINDS)
   const covers = optionalStr(field(map, 'covers'), sink, '豁免 covers')
+  const testId = optionalStr(field(map, 'test'), sink, '豁免 test')
   const reason = str(field(map, 'reason'), sink, '豁免 reason', map.line, { maxBytes: 1000 })
   const approvedNode = field(map, 'approved_by')
   const approvedValue = approvedNode?.kind === 'scalar' ? approvedNode.value : undefined
@@ -130,11 +142,22 @@ function decodeWaiver(node: YamlNode, sink: IssueSink): PlanWaiver | undefined {
     return sink.add(approvedNode.line, '豁免 approved_by 必须是 null 或批准人')
   }
   const approved = typeof approvedValue === 'string' ? approvedValue : null
+  const candidateNode = field(map, 'approved_candidate')
+  const candidate = optionalStr(candidateNode, sink, '豁免 approved_candidate', { maxBytes: MAX_CANDIDATE_BYTES })
+  if (candidateNode !== undefined && candidate === undefined) return undefined
   if (reason === undefined) return undefined
-  if ((kind === undefined) === (covers === undefined)) return sink.add(map.line, '豁免必须恰好写 kind 或 covers 之一')
+  if ([kind, covers, testId].filter((value) => value !== undefined).length !== 1) {
+    return sink.add(map.line, '豁免必须恰好写 kind、covers 或 test 之一')
+  }
   if (covers !== undefined && parseCovers(covers) === undefined) return sink.add(map.line, `豁免 covers '${covers}' 非法`)
-  return kind !== undefined
-    ? { kind, reason, approved_by: approved }
+  if (testId !== undefined && !isStepTestId(testId)) return sink.add(map.line, `豁免 test '${testId}' 非法（步骤测试 id 仅允许 a-zA-Z0-9_-，1–64 字符）`)
+  if (candidate !== undefined) {
+    if (testId === undefined || approved === null) return sink.add(candidateNode?.line ?? map.line, '豁免 approved_candidate 只能写在已批准的 test 豁免上')
+    if (!isWorkspaceBaseline(candidate)) return sink.add(candidateNode?.line ?? map.line, `豁免 approved_candidate '${candidate}' 非法（应是工作区指纹 workspace:sha256:<64 位十六进制>）`)
+  }
+  if (kind !== undefined) return { kind, reason, approved_by: approved }
+  return testId !== undefined
+    ? { test: testId, reason, approved_by: approved, ...(candidate === undefined ? {} : { approved_candidate: candidate }) }
     : { covers: covers ?? '', reason, approved_by: approved }
 }
 
@@ -186,7 +209,8 @@ export function parseTestPlan(text: string, expectedChange?: string): PlanParseR
 }
 
 export function waiverKey(waiver: PlanWaiver): string {
-  return waiver.kind !== undefined ? `kind:${waiver.kind}` : `covers:${waiver.covers}`
+  if (waiver.kind !== undefined) return `kind:${waiver.kind}`
+  return waiver.test !== undefined ? `test:${waiver.test}` : `covers:${waiver.covers}`
 }
 
 function byKey<T>(items: readonly T[], key: (item: T) => string): T[] {
@@ -217,7 +241,8 @@ export function serializeTestPlan(plan: TestPlan): string {
     files: normal.files.map((item) => ({ path: item.path, suite: item.suite, kind: item.kind })),
     cases: normal.cases.map((item) => ({ covers: item.covers, tests: item.tests })),
     waivers: normal.waivers.map((item) => ({
-      kind: item.kind, covers: item.covers, reason: item.reason, approved_by: item.approved_by,
+      kind: item.kind, covers: item.covers, test: item.test, reason: item.reason, approved_by: item.approved_by,
+      approved_candidate: item.approved_candidate,
     })),
   })
 }

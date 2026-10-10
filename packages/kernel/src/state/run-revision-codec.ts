@@ -22,6 +22,7 @@ import {
 } from './run-revision-validation.js'
 import { withoutWorkflowGovernanceBinding } from './workflow-governance-binding.js'
 import { legacyReviewGateOmissions } from './review-gate-legacy-shape.js'
+import { isOmitWhenEmpty, OMIT_WHEN_EMPTY_FIELDS } from './omit-when-empty-fields.js'
 
 const SAFE_ID_RE = /^[A-Za-z0-9_-]+$/
 const FIELD_SET = new Set<string>(FIELD_ORDER)
@@ -143,6 +144,7 @@ function withoutCompanionFields(
   const fields = structuredClone(state.fields) as Record<string, string | string[]>
   delete fields[PRE_VERIFY_REVIEW_FIELD]
   delete fields[REVIEW_ACKNOWLEDGED_VIA_FIELD]
+  for (const field of OMIT_WHEN_EMPTY_FIELDS) if (fields[field] === '') delete fields[field]
   // Released v1 anchor payload (result only): runtimes v1.0.7–v1.0.9 verify this exact digest.
   const anchor: PreVerifyReviewAnchor = {
     schemaVersion: 1,
@@ -268,7 +270,10 @@ function canonicalState(value: unknown, opts: { allowLegacyFieldOmissions?: bool
   const companionDefaults = new Set<FieldName>(opts.allowLegacyFieldOmissions === true
     ? missing.filter((field) => field === PRE_VERIFY_REVIEW_FIELD || field === REVIEW_ACKNOWLEDGED_VIA_FIELD)
     : [])
-  const allowedLegacyDefaults = new Set<FieldName>([...legacyReviewGateDefaults, ...companionDefaults])
+  // 可选字段（空值不上 wire）：缺这一键就是空串，不属于闭集违例。
+  const allowedLegacyDefaults = new Set<FieldName>([
+    ...legacyReviewGateDefaults, ...companionDefaults, ...missing.filter(isOmitWhenEmpty),
+  ])
   if (!rawFields || rawKeys.some((key) => !FIELD_SET.has(key))
     || missing.some((field) => !allowedLegacyDefaults.has(field))) {
     throw new RunStateCorruptError('canonical state.fields 不是 FIELD_ORDER 闭集')
@@ -283,7 +288,7 @@ function canonicalState(value: unknown, opts: { allowLegacyFieldOmissions?: bool
       fields[field] = field === PRE_VERIFY_REVIEW_FIELD ? PRE_VERIFY_REVIEW_DEFAULT : REVIEW_ACKNOWLEDGED_VIA_DEFAULT
       continue
     }
-    const fieldValue = rawFields[field]
+    const fieldValue = rawFields[field] ?? (isOmitWhenEmpty(field) ? '' : undefined)
     if (typeof fieldValue === 'string') {
       fields[field] = fieldValue
     } else if (LIST_FIELD_SET.has(field) && Array.isArray(fieldValue)

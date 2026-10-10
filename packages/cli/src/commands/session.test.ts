@@ -16,11 +16,11 @@ const MONO: PackageDecl[] = [
 function fakeFs(over: Partial<SessionFs> = {}): SessionFs & {
   bind: ReturnType<typeof spy<[string, string], Promise<void>>>
   grant: ReturnType<typeof spy<[string, string, string], Promise<void>>>
-  bindTerminal: ReturnType<typeof spy<[string, string, string], Promise<void>>>
+  bindTerminal: ReturnType<typeof spy<[string, string, string], Promise<readonly string[]>>>
 } {
   const bind = spy(async (_cwd: string, _name: string): Promise<void> => {})
   const grant = spy(async (_cwd: string, _name: string, _sessionId: string): Promise<void> => {})
-  const bindTerminal = spy(async (_cwd: string, _name: string, _sessionId: string): Promise<void> => {})
+  const bindTerminal = spy(async (_cwd: string, _name: string, _sessionId: string): Promise<readonly string[]> => [])
   return {
     loadPackages: async () => null,
     bindPointer: bind,
@@ -126,6 +126,21 @@ describe('activate（老仓 cmd_activate state-session.sh:33-45）', () => {
     expect(fs.bind.calls).toEqual([['/repo', 'tester-at-tenon.test', 'chg']])
     expect(fs.bindTerminal.calls).toEqual([['/repo', 'chg', '019f92c7-6e66-7290-9352-f9d915266f14']])
     expect(fs.grant.calls).toEqual([])
+  })
+
+  test('activate --host-session：绑定实现返回被移交的旧会话 → stderr 逐个提示', async () => {
+    const deps = makeDeps({ state: mockState() })
+    const fs = fakeFs({ bindTerminalSession: async () => ['old-session-1', 'old-session-2'] })
+    expect(await cmdSession(deps, 'activate', ['chg', '--host-session', 'new-session'], fs)).toBe(0)
+    const err = deps.errLines.join('\n')
+    expect(err).toContain('[activate] 已从会话 old-session-1 移交 chg')
+    expect(err).toContain('[activate] 已从会话 old-session-2 移交 chg')
+  })
+
+  test('activate --host-session：没有旧绑定可移交时不输出移交提示', async () => {
+    const deps = makeDeps({ state: mockState() })
+    expect(await cmdSession(deps, 'activate', ['chg', '--host-session', 'new-session'], fakeFs())).toBe(0)
+    expect(deps.errLines.join('\n')).not.toContain('移交')
   })
 
   test('host session id 非法、缺值或重复 flag → 用法错误且不绑定', async () => {

@@ -51,6 +51,8 @@ export const FIELD_ORDER = [
   // 上一候选的 pass。继续严格末尾追加，使旧窄解析器把这一行及其后的提交元数据原样保留。
   PRE_VERIFY_REVIEW_FIELD,
   'review_acknowledged_via',
+  // 任务级验证轮次上限覆盖（1–20）。严格末尾追加；值为空时不进 wire 与 YAML 投影（state/omit-when-empty-fields.ts）。
+  'max_rounds',
 ] as const
 export type FieldName = (typeof FIELD_ORDER)[number]
 

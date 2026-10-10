@@ -225,8 +225,8 @@ export async function cmdCas(
   const f = asField(deps, field)
   if (!f) return 1
   if (rejectProtectedField(deps, f)) return 1
-  // 老内核 cmd_cas 仅对 automation 复用枚举校验（state-fields.sh）
-  if (f === 'automation' && !enumValueAllowed(deps, f, next)) return 1
+  // 老内核 cmd_cas 仅对 automation 复用枚举校验（state-fields.sh）；max_rounds 同口径，cas 不是绕过取值范围的旁路。
+  if ((f === 'automation' || f === 'max_rounds') && !enumValueAllowed(deps, f, next)) return 1
   if (await refuseUnprovenVerdict(deps, name, f, next)) return 1
   if (await refuseInvalidPrUrl(deps, f, next)) return 1
   const dir = resolveChangeDir(deps.cwd, name)
