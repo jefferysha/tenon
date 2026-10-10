@@ -1,7 +1,7 @@
 {
   "schema": "tenon-spec-apply-v1",
   "change": "fix-hook-cross-session-isolation",
-  "mode": "dry-run",
+  "mode": "apply",
   "result": "pass",
   "openspec_version": "1.6.0",
   "deltas": [
@@ -250,6 +250,12 @@
       "change": "no-op"
     },
     {
+      "path": "openspec/specs/verify-round-limit/spec.md",
+      "before_sha256": null,
+      "after_sha256": "f1e3b39632960ead96d785a102b9f91261e8441033dc846955779224486433b6",
+      "change": "created"
+    },
+    {
       "path": "openspec/specs/versioned-plugin-release-lifecycle/spec.md",
       "before_sha256": "bb8bc2736d8da46bc7208f98c0eb1cec2b6cb3c69af8e81eddafa67db16a94bc",
       "after_sha256": "bb8bc2736d8da46bc7208f98c0eb1cec2b6cb3c69af8e81eddafa67db16a94bc",
@@ -280,5 +286,5 @@
       "change": "no-op"
     }
   ],
-  "at": "2026-10-08T10:26:36Z"
+  "at": "2026-10-10T02:46:44Z"
 }

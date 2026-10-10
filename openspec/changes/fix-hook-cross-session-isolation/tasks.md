@@ -48,8 +48,8 @@
 
 ## 交付
 
-- [ ] 提交交付物，并用 `tenon setup --claude --from-source .` 把本机切到源码开发安装。 (ship)
-- [ ] 处理已污染状态：给 setup-host-agents-step-progress 的历史追加更正事件，撤销它误记的规格批准。 (ship)
+- [x] 提交交付物，并用 `tenon setup --claude --from-source .` 把本机切到源码开发安装。 (ship)
+- [x] 处理已污染状态：给 setup-host-agents-step-progress 的历史追加更正事件，撤销它误记的规格批准。 (ship)
 
 ## 完结
 

@@ -206,26 +206,6 @@
     },
     {
       "subjectRef": {
-        "subject_id": "subject:change-fix-hook-cross-session-isolation-329d5fb59ad6:d6e1bf48b5c7376bfbb3ca2b577ca2a1",
-        "namespace": "change-fix-hook-cross-session-isolation-329d5fb59ad6",
-        "version": "sha256:169220c2feda2b608cf3f5c9c9d9afb7991bffe1cb4fef5998ffe76452c330a3",
-        "projection": "document",
-        "content_digest": "sha256:169220c2feda2b608cf3f5c9c9d9afb7991bffe1cb4fef5998ffe76452c330a3",
-        "source": {
-          "path": "tasks.md",
-          "document_kind": "tasks"
-        }
-      },
-      "logicalKey": "document:tasks",
-      "projection": "document",
-      "path": "tasks.md",
-      "documentKind": "tasks",
-      "status": "committed",
-      "receiptId": "submission:change-fix-hook-cross-session-isolation-329d5fb59ad6:document:9fd98c78c1d6b051ab64938608074984",
-      "recordedAt": "2026-10-10T00:56:09Z"
-    },
-    {
-      "subjectRef": {
         "subject_id": "subject:change-fix-hook-cross-session-isolation-329d5fb59ad6:6ad01dc5f2a046004ef934d61306ccb6",
         "namespace": "change-fix-hook-cross-session-isolation-329d5fb59ad6",
         "version": "sha256:25a9c5f2673e94c4dafdb758e7b3b4bb15e8222eec376716ccd6d178320ecefc",
@@ -243,6 +223,46 @@
       "status": "committed",
       "receiptId": "submission:change-fix-hook-cross-session-isolation-329d5fb59ad6:document:81e88e6e6b98d0cfeff42ce5ca67d3cd",
       "recordedAt": "2026-10-10T01:55:17Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-fix-hook-cross-session-isolation-329d5fb59ad6:291bc7c4598505d1e2b6cc923fc421aa",
+        "namespace": "change-fix-hook-cross-session-isolation-329d5fb59ad6",
+        "version": "sha256:688e5acc319ddf0595b6cfed92055337e28e9667c9ef99b2194abc0fec288e4d",
+        "projection": "document",
+        "content_digest": "sha256:688e5acc319ddf0595b6cfed92055337e28e9667c9ef99b2194abc0fec288e4d",
+        "source": {
+          "path": "applied-spec.md",
+          "document_kind": "applied-spec"
+        }
+      },
+      "logicalKey": "document:applied-spec",
+      "projection": "document",
+      "path": "applied-spec.md",
+      "documentKind": "applied-spec",
+      "status": "committed",
+      "receiptId": "submission:change-fix-hook-cross-session-isolation-329d5fb59ad6:document:acf25d032273140b286226dcc01aa056",
+      "recordedAt": "2026-10-10T02:47:04Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-fix-hook-cross-session-isolation-329d5fb59ad6:d6e1bf48b5c7376bfbb3ca2b577ca2a1",
+        "namespace": "change-fix-hook-cross-session-isolation-329d5fb59ad6",
+        "version": "sha256:685c858edfa1ce3601b3c1453c60891b407dbc08003d0eec1a56765cb6422db7",
+        "projection": "document",
+        "content_digest": "sha256:685c858edfa1ce3601b3c1453c60891b407dbc08003d0eec1a56765cb6422db7",
+        "source": {
+          "path": "tasks.md",
+          "document_kind": "tasks"
+        }
+      },
+      "logicalKey": "document:tasks",
+      "projection": "document",
+      "path": "tasks.md",
+      "documentKind": "tasks",
+      "status": "committed",
+      "receiptId": "submission:change-fix-hook-cross-session-isolation-329d5fb59ad6:document:9fd98c78c1d6b051ab64938608074984",
+      "recordedAt": "2026-10-10T02:47:05Z"
     }
   ]
 }
