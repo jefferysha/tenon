@@ -53,4 +53,4 @@
 
 ## 完结
 
-- [ ] 归档变更；之后恢复 unify-stage-skill-canvas 并补加载调研技能。 (archive)
+- [x] 归档变更；之后恢复 unify-stage-skill-canvas 并补加载调研技能。 (archive)

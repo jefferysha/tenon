@@ -248,9 +248,9 @@
       "subjectRef": {
         "subject_id": "subject:change-fix-hook-cross-session-isolation-329d5fb59ad6:d6e1bf48b5c7376bfbb3ca2b577ca2a1",
         "namespace": "change-fix-hook-cross-session-isolation-329d5fb59ad6",
-        "version": "sha256:685c858edfa1ce3601b3c1453c60891b407dbc08003d0eec1a56765cb6422db7",
+        "version": "sha256:b8ffa9887506636b6b5fcae7a6f9fcc8b4630a49a23c82c5fdede3b68e1f7e54",
         "projection": "document",
-        "content_digest": "sha256:685c858edfa1ce3601b3c1453c60891b407dbc08003d0eec1a56765cb6422db7",
+        "content_digest": "sha256:b8ffa9887506636b6b5fcae7a6f9fcc8b4630a49a23c82c5fdede3b68e1f7e54",
         "source": {
           "path": "tasks.md",
           "document_kind": "tasks"
@@ -262,7 +262,7 @@
       "documentKind": "tasks",
       "status": "committed",
       "receiptId": "submission:change-fix-hook-cross-session-isolation-329d5fb59ad6:document:9fd98c78c1d6b051ab64938608074984",
-      "recordedAt": "2026-10-10T02:47:05Z"
+      "recordedAt": "2026-10-10T02:52:36Z"
     }
   ]
 }

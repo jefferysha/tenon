@@ -1,0 +1,9 @@
+{
+  ".claude/agents/tenon-architecture.md": "06a880668836f5addd9f6b16d116761a1bfebbd9ab513140673ed320126b0677",
+  ".claude/agents/tenon-backend-quality.md": "e64ffaf4fb4e6980b35b0452de341dde4b73925a9e24c1722d67f93efa8d07cd",
+  ".claude/agents/tenon-builder.md": "a05b8dc72e58d0fe8b3afad456d4380c444188d27e6096007848880dbb6614e6",
+  ".claude/agents/tenon-code-size.md": "5b08d1f2a50972a79a15dd7165661b1bd883ae8e62e8e323f9f8d6b8d553c116",
+  ".claude/agents/tenon-researcher.md": "e7f38fbd28567be0c938454b371c7d6112400b512863d0233e1045ccac633468",
+  ".claude/agents/tenon-security.md": "5cb69b06a661b3b89faed6f9dfd6d09ec85ad92b4637a53761be71d173521b12",
+  ".claude/agents/tenon-spec-consistency.md": "a04fd0637d9d6133ef68d794ca9f6b5cf46ea71d9fb2a09817038d26295a2632"
+}

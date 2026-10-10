@@ -65,6 +65,12 @@
           "sha256": "98abeeb98ab08ffa2bda07f01bc661abef9f20f05f7dba153700aa381f878060",
           "readAt": "2026-10-10T02:47:06Z",
           "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",23]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "98abeeb98ab08ffa2bda07f01bc661abef9f20f05f7dba153700aa381f878060",
+          "readAt": "2026-10-10T02:52:37Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",24]"
         }
       ],
       "subjectRef": {
@@ -164,6 +170,12 @@
           "sha256": "4fb188816043f3a9eddaadecdf0f08b03d6f78dd5e81c3e4a7f27d97c92cd4e7",
           "readAt": "2026-10-10T02:47:06Z",
           "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",23]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "4fb188816043f3a9eddaadecdf0f08b03d6f78dd5e81c3e4a7f27d97c92cd4e7",
+          "readAt": "2026-10-10T02:52:37Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",24]"
         }
       ],
       "subjectRef": {
@@ -263,6 +275,12 @@
           "sha256": "35a7c7b1fcc7e7dc8379ab0a4d034c8965b16a2a086eb664976e9b828c19ecc5",
           "readAt": "2026-10-10T02:47:06Z",
           "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",23]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "35a7c7b1fcc7e7dc8379ab0a4d034c8965b16a2a086eb664976e9b828c19ecc5",
+          "readAt": "2026-10-10T02:52:37Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",24]"
         }
       ],
       "subjectRef": {
@@ -326,6 +344,12 @@
           "sha256": "6d49c2099751ed2fd987697002b7c82452af07c2f4f1f853ebcb6a9a5d3ccfd4",
           "readAt": "2026-10-10T02:47:06Z",
           "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",23]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "6d49c2099751ed2fd987697002b7c82452af07c2f4f1f853ebcb6a9a5d3ccfd4",
+          "readAt": "2026-10-10T02:52:37Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",24]"
         }
       ],
       "subjectRef": {
@@ -389,6 +413,12 @@
           "sha256": "6d49c2099751ed2fd987697002b7c82452af07c2f4f1f853ebcb6a9a5d3ccfd4",
           "readAt": "2026-10-10T02:47:06Z",
           "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",23]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "6d49c2099751ed2fd987697002b7c82452af07c2f4f1f853ebcb6a9a5d3ccfd4",
+          "readAt": "2026-10-10T02:52:37Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",24]"
         }
       ],
       "subjectRef": {
@@ -458,6 +488,12 @@
           "sha256": "1481e85a4e4480e92f6a565138195d1709eca449fbfd7a0a78bf183de26cd808",
           "readAt": "2026-10-10T02:47:06Z",
           "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",23]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "1481e85a4e4480e92f6a565138195d1709eca449fbfd7a0a78bf183de26cd808",
+          "readAt": "2026-10-10T02:52:37Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",24]"
         }
       ],
       "subjectRef": {
@@ -527,6 +563,12 @@
           "sha256": "c80ade9697bf8650e561413caf916152c652c21cf1be14e15a083c15fbad3c7b",
           "readAt": "2026-10-10T02:47:06Z",
           "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",23]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "c80ade9697bf8650e561413caf916152c652c21cf1be14e15a083c15fbad3c7b",
+          "readAt": "2026-10-10T02:52:37Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",24]"
         }
       ],
       "subjectRef": {
@@ -596,6 +638,12 @@
           "sha256": "d3cbf42f25fd3878f4aa4a5139e4a093a9c374d0a3119bbd92dbc516772a9e9c",
           "readAt": "2026-10-10T02:47:06Z",
           "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",23]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "d3cbf42f25fd3878f4aa4a5139e4a093a9c374d0a3119bbd92dbc516772a9e9c",
+          "readAt": "2026-10-10T02:52:37Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",24]"
         }
       ],
       "subjectRef": {
@@ -635,6 +683,12 @@
           "sha256": "25a9c5f2673e94c4dafdb758e7b3b4bb15e8222eec376716ccd6d178320ecefc",
           "readAt": "2026-10-10T02:47:06Z",
           "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",23]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "25a9c5f2673e94c4dafdb758e7b3b4bb15e8222eec376716ccd6d178320ecefc",
+          "readAt": "2026-10-10T02:52:37Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",24]"
         }
       ],
       "subjectRef": {
@@ -668,7 +722,14 @@
           "transitionSequence": 23
         }
       },
-      "reads": [],
+      "reads": [
+        {
+          "phase": "archive",
+          "sha256": "688e5acc319ddf0595b6cfed92055337e28e9667c9ef99b2194abc0fec288e4d",
+          "readAt": "2026-10-10T02:52:37Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",24]"
+        }
+      ],
       "subjectRef": {
         "subject_id": "subject:change-fix-hook-cross-session-isolation-329d5fb59ad6:291bc7c4598505d1e2b6cc923fc421aa",
         "namespace": "change-fix-hook-cross-session-isolation-329d5fb59ad6",
@@ -689,31 +750,31 @@
     {
       "kind": "tasks",
       "path": "openspec/changes/fix-hook-cross-session-isolation/tasks.md",
-      "sha256": "685c858edfa1ce3601b3c1453c60891b407dbc08003d0eec1a56765cb6422db7",
+      "sha256": "b8ffa9887506636b6b5fcae7a6f9fcc8b4630a49a23c82c5fdede3b68e1f7e54",
       "producer": "tenon",
-      "recordedAt": "2026-10-10T02:47:05Z",
+      "recordedAt": "2026-10-10T02:52:36Z",
       "producerInvocation": {
-        "confirmationInvocationId": "invocation-291acba6c2837cf8125e6c4ededde7e5116eb494dcc933f2dffa2c5ba935cecd",
-        "evidenceScope": "ship",
+        "confirmationInvocationId": "invocation-a674013da6194894613a402e448392359d4c3e958f8bcbeadcab3eab0d4ac8ea",
+        "evidenceScope": "archive",
         "stepVisit": {
           "runId": "399d0840-44ef-4e7a-8f16-fe2077ae8ee9",
-          "transitionSequence": 23
+          "transitionSequence": 24
         }
       },
       "reads": [
         {
-          "phase": "ship",
-          "sha256": "685c858edfa1ce3601b3c1453c60891b407dbc08003d0eec1a56765cb6422db7",
-          "readAt": "2026-10-10T02:47:06Z",
-          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",23]"
+          "phase": "archive",
+          "sha256": "b8ffa9887506636b6b5fcae7a6f9fcc8b4630a49a23c82c5fdede3b68e1f7e54",
+          "readAt": "2026-10-10T02:52:37Z",
+          "visitId": "[\"399d0840-44ef-4e7a-8f16-fe2077ae8ee9\",24]"
         }
       ],
       "subjectRef": {
         "subject_id": "subject:change-fix-hook-cross-session-isolation-329d5fb59ad6:d6e1bf48b5c7376bfbb3ca2b577ca2a1",
         "namespace": "change-fix-hook-cross-session-isolation-329d5fb59ad6",
-        "version": "sha256:685c858edfa1ce3601b3c1453c60891b407dbc08003d0eec1a56765cb6422db7",
+        "version": "sha256:b8ffa9887506636b6b5fcae7a6f9fcc8b4630a49a23c82c5fdede3b68e1f7e54",
         "projection": "document",
-        "content_digest": "sha256:685c858edfa1ce3601b3c1453c60891b407dbc08003d0eec1a56765cb6422db7",
+        "content_digest": "sha256:b8ffa9887506636b6b5fcae7a6f9fcc8b4630a49a23c82c5fdede3b68e1f7e54",
         "source": {
           "path": "openspec/changes/fix-hook-cross-session-isolation/tasks.md",
           "document_kind": "tasks"
