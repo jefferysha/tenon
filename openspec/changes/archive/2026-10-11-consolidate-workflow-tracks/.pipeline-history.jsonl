@@ -486,3 +486,8 @@
 {"ts":"2026-10-11T16:12:19Z","kind":"prompt","raw":"interaction-authority:enabled scope=interactive-skills review=delegated host_session=22a533b3-1c1e-4c24-889e-aeaba6ff5d67","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
 {"ts":"2026-10-11T16:57:20Z","kind":"tool","raw":"Agent: sonnet-worker"}
 {"ts":"2026-10-11T17:54:39Z","kind":"set","field":"pr_url","to":"https://github.com/jefferysha/tenon/pull/81","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-11T18:44:15Z","kind":"transition","from":"ship","to":"archive","raw":"ship-complete","transitionRecordId":"e1e6b7d6-0e5e-4225-b79b-956266e953ee","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-11T18:44:19Z","kind":"tool-start","raw":"Skill: tenon:tenon"}
+{"ts":"2026-10-11T18:44:19Z","kind":"tool","raw":"Skill: tenon:tenon"}
+{"ts":"2026-10-11T18:44:19Z","kind":"tool","raw":"NativeSkillReadBinding: tenon f01697db-fe0a-40ad-83bc-adf900edfb8c 12 native-post-tool-use-7e981871b48861cfbd98c4b8f5928600c85c17fd02ec7f93abb81805e3432f11"}
+{"ts":"2026-10-11T18:44:37Z","kind":"transition","from":"archive","to":"archive","raw":"archived","transitionRecordId":"5fffb716-6cd0-4455-a49b-4a3d4e199c2e","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
