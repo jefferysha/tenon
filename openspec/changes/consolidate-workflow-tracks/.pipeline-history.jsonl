@@ -484,3 +484,4 @@
 {"ts":"2026-10-11T16:11:08Z","kind":"tool","raw":"Skill: tenon:tenon"}
 {"ts":"2026-10-11T16:11:08Z","kind":"tool","raw":"NativeSkillReadBinding: tenon f01697db-fe0a-40ad-83bc-adf900edfb8c 11 native-post-tool-use-84c8686f54b51e12258072bbd33749c68ea193ad54375d9037d10dbe39fb792d"}
 {"ts":"2026-10-11T16:12:19Z","kind":"prompt","raw":"interaction-authority:enabled scope=interactive-skills review=delegated host_session=22a533b3-1c1e-4c24-889e-aeaba6ff5d67","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-11T16:57:20Z","kind":"tool","raw":"Agent: sonnet-worker"}

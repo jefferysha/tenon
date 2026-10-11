@@ -185,26 +185,6 @@
     },
     {
       "subjectRef": {
-        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:e3f0174cc4ccf8615164e70eb8b14120",
-        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
-        "version": "sha256:91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
-        "projection": "document",
-        "content_digest": "sha256:91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
-        "source": {
-          "path": "tasks.md",
-          "document_kind": "tasks"
-        }
-      },
-      "logicalKey": "document:tasks",
-      "projection": "document",
-      "path": "tasks.md",
-      "documentKind": "tasks",
-      "status": "committed",
-      "receiptId": "submission:change-consolidate-workflow-tracks-20949e06122d:document:9fd98c78c1d6b051ab64938608074984",
-      "recordedAt": "2026-10-11T07:04:24Z"
-    },
-    {
-      "subjectRef": {
         "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:8f5ddc7420d76999d36c35c3dda07a71",
         "namespace": "change-consolidate-workflow-tracks-20949e06122d",
         "version": "sha256:df1e9835464bf3e4622123dbddf14deca733a28fa3c2ad54a942c9666af9b1c8",
@@ -243,6 +223,46 @@
       "status": "committed",
       "receiptId": "submission:change-consolidate-workflow-tracks-20949e06122d:document:81e88e6e6b98d0cfeff42ce5ca67d3cd",
       "recordedAt": "2026-10-11T15:54:30Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:db6fa2e973fc5c3b8a1e3408678dfb0b",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:54dece84ffefbeecec93bd60f86bf255598502d3da578130ca89b279cf86d246",
+        "projection": "document",
+        "content_digest": "sha256:54dece84ffefbeecec93bd60f86bf255598502d3da578130ca89b279cf86d246",
+        "source": {
+          "path": "applied-spec.md",
+          "document_kind": "applied-spec"
+        }
+      },
+      "logicalKey": "document:applied-spec",
+      "projection": "document",
+      "path": "applied-spec.md",
+      "documentKind": "applied-spec",
+      "status": "committed",
+      "receiptId": "submission:change-consolidate-workflow-tracks-20949e06122d:document:acf25d032273140b286226dcc01aa056",
+      "recordedAt": "2026-10-11T17:54:07Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:e3f0174cc4ccf8615164e70eb8b14120",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:d31a3c562166eec7ee81185e01e7dfee155f0f08998465e4f4ae9cb6990c9019",
+        "projection": "document",
+        "content_digest": "sha256:d31a3c562166eec7ee81185e01e7dfee155f0f08998465e4f4ae9cb6990c9019",
+        "source": {
+          "path": "tasks.md",
+          "document_kind": "tasks"
+        }
+      },
+      "logicalKey": "document:tasks",
+      "projection": "document",
+      "path": "tasks.md",
+      "documentKind": "tasks",
+      "status": "committed",
+      "receiptId": "submission:change-consolidate-workflow-tracks-20949e06122d:document:9fd98c78c1d6b051ab64938608074984",
+      "recordedAt": "2026-10-11T17:54:08Z"
     }
   ]
 }

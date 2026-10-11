@@ -75,7 +75,7 @@
         {
           "phase": "ship",
           "sha256": "7d54178f2f39685bfff6a68dc11a6a907b9308951b3654743486234ca49713ce",
-          "readAt": "2026-10-11T16:06:11Z",
+          "readAt": "2026-10-11T17:54:09Z",
           "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
         }
       ],
@@ -174,7 +174,7 @@
         {
           "phase": "ship",
           "sha256": "b7169b0ed638c38b58311ca7e451b8fc4138e89a2b0c01ffae4741df937f4523",
-          "readAt": "2026-10-11T16:06:11Z",
+          "readAt": "2026-10-11T17:54:09Z",
           "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
         }
       ],
@@ -261,7 +261,7 @@
         {
           "phase": "ship",
           "sha256": "29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
-          "readAt": "2026-10-11T16:06:11Z",
+          "readAt": "2026-10-11T17:54:09Z",
           "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
         }
       ],
@@ -348,7 +348,7 @@
         {
           "phase": "ship",
           "sha256": "29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
-          "readAt": "2026-10-11T16:06:11Z",
+          "readAt": "2026-10-11T17:54:09Z",
           "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
         }
       ],
@@ -441,7 +441,7 @@
         {
           "phase": "ship",
           "sha256": "b12993d0b6157ec2dc9b938ad87fd74c1d2f98a98c133089c25f17427544f7a1",
-          "readAt": "2026-10-11T16:06:11Z",
+          "readAt": "2026-10-11T17:54:09Z",
           "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
         }
       ],
@@ -528,7 +528,7 @@
         {
           "phase": "ship",
           "sha256": "185375960e11acfffe0e4ab3c1341dd083f0684551b981f93584ba86814d170d",
-          "readAt": "2026-10-11T16:06:11Z",
+          "readAt": "2026-10-11T17:54:09Z",
           "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
         }
       ],
@@ -621,7 +621,7 @@
         {
           "phase": "ship",
           "sha256": "7b83fa8b927c24ad6883509101d23f6d2c01ad29a1715d7643fc3329affd60f2",
-          "readAt": "2026-10-11T16:06:11Z",
+          "readAt": "2026-10-11T17:54:09Z",
           "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
         }
       ],
@@ -708,7 +708,7 @@
         {
           "phase": "ship",
           "sha256": "d734de3b678735cabae0f9e1537e71228b5592b10e19ddb0895a797b92e6ca1a",
-          "readAt": "2026-10-11T16:06:11Z",
+          "readAt": "2026-10-11T17:54:09Z",
           "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
         }
       ],
@@ -795,7 +795,7 @@
         {
           "phase": "ship",
           "sha256": "f4169d17559ab2ce7075da10197718e4daf416db003217ca74b6a57f012e101c",
-          "readAt": "2026-10-11T16:06:11Z",
+          "readAt": "2026-10-11T17:54:09Z",
           "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
         }
       ],
@@ -882,7 +882,7 @@
         {
           "phase": "ship",
           "sha256": "9b6042133d956f23a94ce1b4b45ea14fa8901ea10ef396ee80fb19dfd6ea0689",
-          "readAt": "2026-10-11T16:06:11Z",
+          "readAt": "2026-10-11T17:54:09Z",
           "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
         }
       ],
@@ -969,7 +969,7 @@
         {
           "phase": "ship",
           "sha256": "b0106173f64b9bc2b3e60445760eaa9511fdc2868714f3f57f8bc70014824250",
-          "readAt": "2026-10-11T16:06:11Z",
+          "readAt": "2026-10-11T17:54:09Z",
           "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
         }
       ],
@@ -1056,7 +1056,7 @@
         {
           "phase": "ship",
           "sha256": "c0de00161a264301bc09cd420b93ef2df2c669ff82b55d28bc01ff78b50c738c",
-          "readAt": "2026-10-11T16:06:11Z",
+          "readAt": "2026-10-11T17:54:09Z",
           "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
         }
       ],
@@ -1069,87 +1069,6 @@
         "source": {
           "path": "openspec/changes/consolidate-workflow-tracks/specs/normal-chat-routing/spec.md",
           "document_kind": "delta-spec"
-        }
-      },
-      "actor": {
-        "id": "710227704@qq.com",
-        "name": "jefferySha",
-        "trust": "declared"
-      }
-    },
-    {
-      "kind": "tasks",
-      "path": "openspec/changes/consolidate-workflow-tracks/tasks.md",
-      "sha256": "91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
-      "producer": "tenon",
-      "recordedAt": "2026-10-11T07:04:24Z",
-      "producerInvocation": {
-        "confirmationInvocationId": "invocation-b3b0891bbbf0b76e54c1045d70005da67245a59839e5f3aaf0d511e9db411ece",
-        "evidenceScope": "verify",
-        "stepVisit": {
-          "runId": "f01697db-fe0a-40ad-83bc-adf900edfb8c",
-          "transitionSequence": 4
-        }
-      },
-      "reads": [
-        {
-          "phase": "verify",
-          "sha256": "91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
-          "readAt": "2026-10-11T07:04:38Z",
-          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",4]"
-        },
-        {
-          "phase": "build",
-          "sha256": "91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
-          "readAt": "2026-10-11T07:43:16Z",
-          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",5]"
-        },
-        {
-          "phase": "verify",
-          "sha256": "91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
-          "readAt": "2026-10-11T10:22:51Z",
-          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",6]"
-        },
-        {
-          "phase": "build",
-          "sha256": "91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
-          "readAt": "2026-10-11T12:47:36Z",
-          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",7]"
-        },
-        {
-          "phase": "verify",
-          "sha256": "91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
-          "readAt": "2026-10-11T14:23:18Z",
-          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",8]"
-        },
-        {
-          "phase": "build",
-          "sha256": "91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
-          "readAt": "2026-10-11T14:48:37Z",
-          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",9]"
-        },
-        {
-          "phase": "verify",
-          "sha256": "91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
-          "readAt": "2026-10-11T15:21:55Z",
-          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",10]"
-        },
-        {
-          "phase": "ship",
-          "sha256": "91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
-          "readAt": "2026-10-11T16:06:11Z",
-          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
-        }
-      ],
-      "subjectRef": {
-        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:e3f0174cc4ccf8615164e70eb8b14120",
-        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
-        "version": "sha256:91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
-        "projection": "document",
-        "content_digest": "sha256:91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
-        "source": {
-          "path": "openspec/changes/consolidate-workflow-tracks/tasks.md",
-          "document_kind": "tasks"
         }
       },
       "actor": {
@@ -1176,7 +1095,7 @@
         {
           "phase": "ship",
           "sha256": "87b7aaa9153450dfaa8c6ad441e21b2f52c03084a64944c026a1ca37967370d1",
-          "readAt": "2026-10-11T16:06:11Z",
+          "readAt": "2026-10-11T17:54:09Z",
           "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
         }
       ],
@@ -1189,6 +1108,77 @@
         "source": {
           "path": "docs/superpowers/reports/consolidate-workflow-tracks-verify.md",
           "document_kind": "verification-report"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "applied-spec",
+      "path": "openspec/changes/consolidate-workflow-tracks/applied-spec.md",
+      "sha256": "54dece84ffefbeecec93bd60f86bf255598502d3da578130ca89b279cf86d246",
+      "producer": "tenon",
+      "recordedAt": "2026-10-11T17:54:07Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-0ec4f9de02c075d27d591d285f1f52e4b40b7624deee7b1e66d33880ce21554d",
+        "evidenceScope": "ship",
+        "stepVisit": {
+          "runId": "f01697db-fe0a-40ad-83bc-adf900edfb8c",
+          "transitionSequence": 11
+        }
+      },
+      "reads": [],
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:db6fa2e973fc5c3b8a1e3408678dfb0b",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:54dece84ffefbeecec93bd60f86bf255598502d3da578130ca89b279cf86d246",
+        "projection": "document",
+        "content_digest": "sha256:54dece84ffefbeecec93bd60f86bf255598502d3da578130ca89b279cf86d246",
+        "source": {
+          "path": "openspec/changes/consolidate-workflow-tracks/applied-spec.md",
+          "document_kind": "applied-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "tasks",
+      "path": "openspec/changes/consolidate-workflow-tracks/tasks.md",
+      "sha256": "d31a3c562166eec7ee81185e01e7dfee155f0f08998465e4f4ae9cb6990c9019",
+      "producer": "tenon",
+      "recordedAt": "2026-10-11T17:54:08Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-0ec4f9de02c075d27d591d285f1f52e4b40b7624deee7b1e66d33880ce21554d",
+        "evidenceScope": "ship",
+        "stepVisit": {
+          "runId": "f01697db-fe0a-40ad-83bc-adf900edfb8c",
+          "transitionSequence": 11
+        }
+      },
+      "reads": [
+        {
+          "phase": "ship",
+          "sha256": "d31a3c562166eec7ee81185e01e7dfee155f0f08998465e4f4ae9cb6990c9019",
+          "readAt": "2026-10-11T17:54:09Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:e3f0174cc4ccf8615164e70eb8b14120",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:d31a3c562166eec7ee81185e01e7dfee155f0f08998465e4f4ae9cb6990c9019",
+        "projection": "document",
+        "content_digest": "sha256:d31a3c562166eec7ee81185e01e7dfee155f0f08998465e4f4ae9cb6990c9019",
+        "source": {
+          "path": "openspec/changes/consolidate-workflow-tracks/tasks.md",
+          "document_kind": "tasks"
         }
       },
       "actor": {

@@ -1,7 +1,7 @@
 {
   "schema": "tenon-spec-apply-v1",
   "change": "consolidate-workflow-tracks",
-  "mode": "dry-run",
+  "mode": "apply",
   "result": "pass",
   "openspec_version": "1.6.0",
   "deltas": [
@@ -308,5 +308,5 @@
       "change": "no-op"
     }
   ],
-  "at": "2026-10-10T13:19:11Z"
+  "at": "2026-10-11T17:54:01Z"
 }

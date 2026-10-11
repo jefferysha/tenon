@@ -4,18 +4,20 @@
 
 Define versioned, workflow-shaped document ownership, production, and read obligations independently
 from the default seven-phase graph while preserving the legacy governed contract.
-
 ## Requirements
-
 ### Requirement: A Workflow SHALL select document governance independently of graph length
 
-The Workflow schema SHALL support three document-governance states:
+Document governance SHALL be selected per Workflow branch through its `spec`
+setting, inheriting the Workflow's top-level `openspec` value when the branch
+does not declare one. A branch SHALL be in one of three document-governance
+states:
 
-1. absent/none, which imposes no document ledger;
-2. legacy `openspec_contract: required`, which SHALL retain the current full
-   seven-phase OpenSpec/Superpowers/ADR contract unchanged;
-3. a versioned declarative profile that assigns supported document kinds,
-   allowed producers, and exact-digest read obligations to authored step IDs.
+1. `spec: none`, which imposes no document ledger;
+2. `spec: openspec` on a default branch, which SHALL retain the full
+   OpenSpec/Superpowers/ADR contract declared for that branch;
+3. `spec: openspec` with a versioned declarative profile that assigns supported
+   document kinds, allowed producers, and exact-digest read obligations to
+   authored step IDs.
 
 The declarative profile SHALL NOT require canonical default phase names or a
 fixed step count. Unknown versions, document kinds, producers, duplicate
@@ -24,11 +26,22 @@ closed.
 
 #### Scenario: Legacy required stays compatible
 
-- **WHEN** an existing custom Workflow declares
-  `openspec_contract: required`
-- **THEN** it is still required to contain the canonical seven-phase graph
-- **AND** its existing document ledger, producers, reads, reviews, and errors
+- **WHEN** an existing custom Workflow still declares `openspec_contract: required`
+- **THEN** parsing fails closed with an error that names the replacement
+  (`openspec: true` or a branch `spec: openspec` with `document_contract`)
+- **AND** no Change is initialized from that definition.
+
+#### Scenario: Default heavy branches stay governed
+
+- **WHEN** a Change uses the default Workflow with the pm, frontend, or backend branch
+- **THEN** its document ledger, producers, reads, reviews, and errors
   retain their meaning.
+
+#### Scenario: A lite branch in a governed Workflow has no ledger
+
+- **WHEN** a Change uses the default Workflow with the lite branch (`spec: none`)
+- **THEN** it does not initialize or require a document ledger
+- **AND** declared step Skills, tests, reviewers, and gates remain enforced.
 
 #### Scenario: Short Workflow selects compact governance
 
@@ -102,3 +115,4 @@ repair command where applicable.
   declared plan read
 - **THEN** the request returns the existing compatible transition-error shape
 - **AND** canonical state and ledger remain unchanged.
+
