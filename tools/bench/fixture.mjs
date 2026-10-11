@@ -11,9 +11,9 @@
 import { spawn } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { availableParallelism } from 'node:os'
-import { join, resolve } from 'node:path'
+import { delimiter, join, resolve } from 'node:path'
 import {
-  TENON_CLI, commitBase, createScratch, isolatedEnv, isolatedNode, prepareTrustedNode, removeScratch, writeProjectFile,
+  REPO_ROOT, TENON_CLI, commitBase, createScratch, isolatedEnv, isolatedNode, prepareTrustedNode, removeScratch, writeProjectFile,
 } from '../lib/isolated-tenon.mjs'
 
 const MARKER = 'bench-fixture.json'
@@ -51,10 +51,14 @@ async function runPool(items, limit, task) {
 /**
  * 已结束任务：用真实的 CLI 建一个任务并终止它（移进 `archive/`），再把这个归档目录复制成 `archived` 份。复制与逐个终止
  * 在盘上的形状一致（归档目录不再变化），但只要毫秒；每份目录名不同，所以每份都是缓存里独立的一项。
+ *
+ * backend 轨道走 OpenSpec 治理，`task terminate` 会调 PATH 上的 `openspec archive`。CI 直接 `node --test` 跑本夹具、不经 npm，
+ * PATH 里没有 `node_modules/.bin`，开发机则靠全局安装才碰巧能过；所以只在这里把仓库锁定版本的 `.bin` 排到 PATH 最前，不依赖全局 openspec。
  */
 async function seedArchive(env, root, archived) {
-  await runTenonAsync(env, root, ['init', 'archived-seed', '--track', 'backend', '--preset', 'full'])
-  await runTenonAsync(env, root, ['task', 'terminate', 'archived-seed'])
+  const archiveEnv = { ...env, PATH: `${join(REPO_ROOT, 'node_modules', '.bin')}${delimiter}${env.PATH ?? ''}` }
+  await runTenonAsync(archiveEnv, root, ['init', 'archived-seed', '--track', 'backend', '--preset', 'full'])
+  await runTenonAsync(archiveEnv, root, ['task', 'terminate', 'archived-seed'])
   const archive = join(root, 'openspec', 'changes', 'archive')
   const [seed] = readdirSync(archive)
   if (seed === undefined) throw new Error(`${root}: tenon task terminate 之后 archive/ 是空的`)
