@@ -22,7 +22,6 @@ describe('writeScopeOf —— 一次写可能动到哪些项目', () => {
   })
 
   it('只算答案、不写状态的 POST → 空（什么都不必失效）', () => {
-    expect(writeScopeOf(request('/api/router/preview'), '/api/router/preview')).toEqual([])
     expect(writeScopeOf(request('/api/loops/scope-preview'), '/api/loops/scope-preview')).toEqual([])
   })
 

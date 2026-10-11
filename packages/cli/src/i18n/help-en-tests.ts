@@ -100,7 +100,8 @@ export const HELP_EN_TESTS: Readonly<Record<string, string>> = {
   'test waive --covers': 'Scenario / task being waived, spec:<capability>/<Scenario title> or task:<number>',
   'test waive --test': 'Step test being waived (a test id declared by a step of this task\'s workflow, for example code-size): once it has failed, a review approval lets it through, but only the failure on the code that was approved (if the code changes and it fails again, it needs approving again); a test that is not run or is stale gets no waiver',
   'test waive --reason': 'Why it does not apply / why the failure is let through',
-  'test sync': 'Reconcile: test files in the diff that are not registered, orphan files no suite owns, and registered items that no longer exist (exit 2 when something is pending)',
+  'test sync': 'Reconcile: test files in the diff that are not registered, orphan files no suite owns, and registered items that no longer exist or that the catalog no longer claims (exit 2 when something is pending); --prune removes the registrations the catalog no longer claims',
+  'test sync --prune': 'Remove from the plan the test-file registrations the catalog no longer claims (the suite is gone from the catalog, or no suite\'s files glob claims the path); touches only the test-file registrations, never the case mappings; does not read the diff',
   'test sync --json': 'JSON output',
 
   'test run': 'Run tests and record the results (pass exit 0, failure exit 2, usage or environment error exit 1); with a <test-id> it is an old step test, otherwise suites run in batch',
@@ -130,7 +131,7 @@ export const HELP_EN_TESTS: Readonly<Record<string, string>> = {
   'test code-size': 'Code-size probe: numstat against the merge-base with base, printing one JSON metric line',
   'test code-size --base': 'Comparison base; TENON_BASE_BRANCH by default, then HEAD',
   'test code-size --json': 'JSON output (JSON is the default; kept to match the direction template command)',
-  'test diff-risk': 'Change-risk probe (standard lane): files changed since the task started, files on contract / auth / dependency / migration paths, deleted tests and protected test config, printed as one JSON metric line; the thresholds are the pass.metrics of this test in the workflow',
+  'test diff-risk': 'Change-risk probe (lite track): files changed since the task started, files on contract / auth / dependency / migration paths, deleted tests and protected test config, printed as one JSON metric line; the thresholds are the pass.metrics of this test in the workflow',
   'test diff-risk --json': 'Print one JSON metric line (read by the test metric check)',
 
   verify: 'Recompute from the committed content in CI: record chains, plan <-> record <-> catalog, case-level verdicts, candidate code, approval of protected files and the anchor (exit 2 when something fails)',

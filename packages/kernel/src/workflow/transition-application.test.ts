@@ -19,11 +19,10 @@ import { createTransitionApplication } from './transition-application.js'
 import type { TransitionApplicationDeps } from './transition-application.js'
 import { INTERACTION_PROJECTION_WRITE_FAILED } from '../interaction/contract.js'
 import { compileWorkflow } from './compile.js'
-import { builtinWorkflow } from './builtin-workflows.js'
+import { legacyDefaultInitialWorkflow, simpleWorkflow } from './test-support.js'
 import { compileEffectiveWorkflowPlan, documentGovernanceFingerprint, resolveEffectiveWorkflowPlan } from './effective-plan.js'
 import type { EffectiveWorkflowPlan } from './effective-plan-types.js'
 import { IMPLICIT_COMPLETION_EVENT } from './implicit-completion.js'
-import { builtinTrack } from '../tracks/builtins.js'
 import { readCurrentRunRevision } from '../state/run-revision-store.js'
 import { testDigest } from '../test-evidence/evaluate.js'
 import { ensureTestEvidenceDirs, testRunRecordPath } from '../test-evidence/paths.js'
@@ -52,7 +51,7 @@ async function satisfyStepTests(
   phase: string,
   track = 'backend',
 ): Promise<void> {
-  const plan = compileEffectiveWorkflowPlan('default', undefined, builtinTrack(track))
+  const plan = compileEffectiveWorkflowPlan('default', undefined, { track, executionModel: 'phase-manifest' })
   const tests = plan.workflow.steps.find((step) => step.id === phase)?.tests ?? []
   const runId = (await readCurrentRunRevision(changeDir))?.state.runMetadata?.runId
   if (runId === undefined) throw new Error('fixture run identity missing')
@@ -136,6 +135,8 @@ function makeDeps(overrides: Partial<TransitionApplicationDeps> = {}): Transitio
 async function initChange(deps: ReturnType<typeof makeDeps>, root: string, name: string): Promise<string> {
   const { changeDir } = await deps.runRepository.initChange({
     repoRoot: root, name, track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: FIXED_CLOCK,
+    // 这些用例验的是旧引擎（phase-manifest）：用升级前冻结的在途 default 任务，新建任务一律 step-graph。
+    initialWorkflow: legacyDefaultInitialWorkflow('backend'),
   })
   await seedGovernedDocumentEvidence(root, changeDir, name)
   return changeDir
@@ -216,7 +217,7 @@ async function seedGovernedDocumentEvidence(root: string, changeDir: string, nam
 
 /** Fixtures record the built-in default document table (identical in every default branch). */
 function defaultDocumentPolicy() {
-  const policy = compileEffectiveWorkflowPlan('default').documentPolicy
+  const policy = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' }).documentPolicy
   if (policy === undefined) throw new Error('built-in default workflow must be document-governed')
   return policy
 }
@@ -304,6 +305,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
         // change, so this is the real first-phase failure a normal workflow must surface.
         const { changeDir } = await deps.runRepository.initChange({
           repoRoot: root, name: `missing-evidence-${track}`, track, reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: FIXED_CLOCK,
+          initialWorkflow: legacyDefaultInitialWorkflow(track),
         })
         const result = await createTransitionApplication(deps).execute({
           root, changeDir, changeName: `missing-evidence-${track}`, actor: TEST_CREATOR, event: 'open-complete', context: {}, loadWorkflow: NEVER_FOUND_WORKFLOW,
@@ -1221,8 +1223,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
     test('simple 保持原行为：verify-pass 的显式 archive-run 进入 done，change/done 都不接受 archived', async () => {
       const root = await freshRepoRoot()
       const deps = makeDeps()
-      const simple = builtinWorkflow('simple')
-      if (simple === null) throw new Error('simple workflow missing')
+      const simple = simpleWorkflow()
       const dir = await initAt(deps, root, 'simple', 'change')
       const base = { root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, context: {}, loadWorkflow: loaderFor(simple) }
 
@@ -1296,6 +1297,55 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       })
       return changeDir
     }
+
+    test('通用离开条件：context 注入的三项能力进入 guard 求值；缺失或未满足时一次列出全部且零提交，满足后放行', async () => {
+      const root = await freshRepoRoot()
+      const deps = makeDeps()
+      const wf: WorkflowDef = {
+        name: 'ug',
+        steps: [
+          {
+            id: 'build', label: '', gate: null, skills: [], inputs: [], outputs: [],
+            guards: [{ type: 'tasks-through-step' }, { type: 'not-afk-queued' }, { type: 'dependencies-ended' }],
+            transitions: [{ event: 'complete', to: 'done' }],
+          },
+          { id: 'done', label: '', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] },
+        ],
+      }
+      const dir = await initCustom(deps, root, 'ug', 'build')
+      const app = createTransitionApplication(deps)
+      const load = (n: string) => (n === 'ug' ? compileWorkflow(wf) : null)
+      const run = (context: Parameters<typeof app.execute>[0]['context']) => app.execute({
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'complete', context, loadWorkflow: load,
+      })
+
+      const missing = await run({})
+      expect(missing).toMatchObject({ kind: 'step-guard-failed', stepId: 'build' })
+      if (missing.kind !== 'step-guard-failed') throw new Error('期望 step-guard-failed')
+      expect(missing.failures).toHaveLength(3)
+      expect(missing.failures.join('\n')).toContain('tasksThroughStep')
+
+      const stepsAsked: string[] = []
+      const unmet = await run({
+        tasksThroughStep: async (step) => { stepsAsked.push(step); return { complete: false, unchecked: ['写测试 (build)'] } },
+        afkQueued: async () => true,
+        dependencyStates: async () => [{ name: 'dep-b', ended: false }],
+      })
+      if (unmet.kind !== 'step-guard-failed') throw new Error('期望 step-guard-failed')
+      expect(unmet.failures).toHaveLength(3)
+      expect(unmet.failures.join('\n')).toContain('写测试 (build)')
+      expect(unmet.failures.join('\n')).toContain('dep-b')
+      expect(stepsAsked).toEqual(['build'])
+      expect((await createStateStore().read(dir)).fields.phase).toBe('build')
+
+      const passed = await run({
+        tasksThroughStep: async () => ({ complete: true, unchecked: [] }),
+        afkQueued: async () => false,
+        dependencyStates: async () => [{ name: 'dep-a', ended: true }],
+      })
+      expect(passed.kind).toBe('applied')
+      expect((await createStateStore().read(dir)).fields.phase).toBe('done')
+    })
 
     test('edge action mark-verification-passed 真改字段：verify_result 落盘 pass、verified_at 落时钟（patch 在 commit 前并入 nextFields）', async () => {
       const root = await freshRepoRoot()
@@ -1729,7 +1779,7 @@ describe('步骤测试证据（每步测试登记）', () => {
   }
 
   function planFor(track: 'backend'): EffectiveWorkflowPlan {
-    const plan = resolveEffectiveWorkflowPlan('tested', loadTested, builtinTrack(track))
+    const plan = resolveEffectiveWorkflowPlan('tested', loadTested, track)
     if (plan === null) throw new Error('fixture plan missing')
     return plan
   }

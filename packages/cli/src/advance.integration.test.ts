@@ -11,7 +11,8 @@
 import { appendFile, mkdir, readFile, rm, utimes, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import { GATE_TTL_MS, INTERACTION_MARKER_SESSION_PREFIX } from '@tenon/kernel'
+import { GATE_TTL_MS, INTERACTION_MARKER_SESSION_PREFIX, resolveRequiredSkillSlots } from '@tenon/kernel'
+import { effectiveWorkflowForState } from './commands/effective-workflow.js'
 import { freshHarness, realDeps, TEST_GIT_BUILD_TOKEN, type Harness } from './integration-harness.js'
 import { cmdAdvance, type AdvanceOpts } from './commands/advance.js'
 
@@ -51,8 +52,9 @@ describe('真实 e2e —— advance auto-transition 中间档（HITL 红线：�
     const dir = cd(name)
     const state = await deps.store.read(dir)
     const phase = String(state.fields.phase)
-    const track = String(state.fields.track)
-    const lines = deps.resolver.resolveDefaultMandatory(phase, track)
+    // 本步必需技能 = 任务冻结的计划里该步声明的技能（工作流 YAML），不是 manifest 矩阵。
+    const plan = effectiveWorkflowForState(deps, state)
+    const lines = (plan === null ? [] : resolveRequiredSkillSlots(deps.resolver, plan.capabilities.skills, phase))
       .map((slot) => slot.alternatives[0])
       .filter((skill): skill is string => skill !== undefined)
       .map((skill) => `${JSON.stringify({ kind: 'tool', raw: `Skill: ${skill}` })}\n`)
@@ -62,7 +64,7 @@ describe('真实 e2e —— advance auto-transition 中间档（HITL 红线：�
 
   /** 用真实 review receipt + transition 把 change 推到 build 相位。 */
   async function seedToBuild(name: string): Promise<void> {
-    await h.run(['init', name, '--track', 'backend', '--preset', 'full'])
+    await h.initLegacyDefault(name, 'backend')
     await h.seedGovernedDocumentEvidence(name)
     expect(await h.run(['transition', name, 'open-complete'])).toBe(0) // → explore（可正常工作，不自锁）
     // The seeded OpenSpec design is hash-bound in the document ledger. Reuse it rather than
@@ -129,7 +131,7 @@ describe('真实 e2e —— advance auto-transition 中间档（HITL 红线：�
   })
 
   test('HITL 红线：默认从复核相位（explore）立即停，绝不自动离开——phase 不变', async () => {
-    await h.run(['init', 'demo', '--track', 'backend', '--preset', 'full'])
+    await h.initLegacyDefault('demo', 'backend')
     await h.seedGovernedDocumentEvidence('demo')
     await h.run(['transition', 'demo', 'open-complete']) // → explore（复核相位）
     const before = await h.read('demo')
@@ -369,7 +371,7 @@ steps:
     const wfDir = join(h.cwd, '.pipeline', 'workflows')
     await mkdir(wfDir, { recursive: true })
     await writeFile(join(wfDir, `${workflowName}.yaml`), workflowYaml, 'utf8')
-    expect(await h.run(['init', name, '--track', 'backend', '--preset', 'full', '--workflow', workflowName])).toBe(0)
+    expect(await h.run(['init', name, '--preset', 'full', '--workflow', workflowName])).toBe(0)
   }
 
   test('单边推进多步到终态：phase 真变 c1→c3，history 真落两条 transition，[STOP] 终态', async () => {
@@ -441,5 +443,62 @@ steps:
     expect(await phaseOf('cw')).toBe('c1')
     expect(r.out.some((l) => l.includes('[DRY-RUN]'))).toBe(true)
     expect(r.out.some((l) => l.includes('c1') && l.includes('c2'))).toBe(true)
+  })
+})
+
+// ════ 新建 default 任务：离开条件写在前进边上，build 有一条前进边 + 一条回退边（设计 §1b Q11）════
+describe('真实 e2e —— advance 新建 default 任务（前进边 + 回退边：只走前进边）', () => {
+  let h: Harness
+  beforeEach(async () => {
+    h = await freshHarness()
+  })
+  afterEach(async () => {
+    await rm(h.cwd, { recursive: true, force: true })
+  })
+
+  const phaseOf = async (name: string): Promise<string> =>
+    (await h.read(name)).match(/^phase: (.+)$/m)?.[1] ?? '?'
+
+  async function advance(name: string, opts: AdvanceOpts): Promise<{ code: number; out: string[]; err: string[] }> {
+    const out: string[] = []
+    const err: string[] = []
+    const code = await cmdAdvance(realDeps(h.cwd, out, err), name, opts)
+    return { code, out, err }
+  }
+
+  /** `tenon init` 新建的 backend 任务（按 default.yaml 执行），摆在 build 步；tasks.md 的任务都已勾选。 */
+  async function initAtBuild(name: string): Promise<void> {
+    expect(await h.run(['init', name, '--track', 'backend', '--preset', 'full']), h.err.join('\n')).toBe(0)
+    await h.seedGovernedDocumentEvidence(name)
+    await h.seedPhase(name, 'build')
+  }
+
+  test('实现前评审通过、其余离开条件满足：advance 走 build-complete（不走 requirements-changed），停在 verify 评审门', async () => {
+    await initAtBuild('demo')
+    await h.satisfyStepTests('demo', 'build')
+    await h.satisfyStepAgents('demo')
+    expect(await h.run(['set', 'demo', 'pre_verify_review_result', 'pass']), h.err.join('\n')).toBe(0)
+
+    const r = await advance('demo', {})
+    expect(r.code, r.out.join('\n') + r.err.join('\n')).toBe(0)
+    expect(await phaseOf('demo')).toBe('verify')
+    expect(r.out.join('\n')).not.toContain('多条出边')
+    expect(r.out.some((l) => l.startsWith('[ADVANCE]') && l.includes('build-complete'))).toBe(true)
+    expect(r.out.some((l) => l.includes('[STOP]') && l.includes('review'))).toBe(true)
+    const history = await readFile(join(h.cwd, 'openspec', 'changes', 'demo', '.pipeline-history.jsonl'), 'utf8')
+    expect(history).toContain('build-complete')
+    expect(history).not.toContain('requirements-changed')
+  }, 45_000)
+
+  test('实现前评审还没通过：停在 build，exit 2，列出这条离开条件；回退边没被当成出路', async () => {
+    await initAtBuild('demo')
+    const before = await h.read('demo')
+
+    const r = await advance('demo', {})
+    expect(r.code).toBe(2)
+    expect(await phaseOf('demo')).toBe('build')
+    expect(await h.read('demo')).toBe(before)
+    expect(r.out.join('\n')).toContain("要求字段 'pre_verify_review_result'=pass")
+    expect(r.out.join('\n')).not.toContain('多条出边')
   })
 })

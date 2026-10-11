@@ -41,7 +41,7 @@ tenon runtime status
 
 #### 正常对话恢复了旧 Change
 
-新目标不应自动绑定用户的 `active-change`。确认 router 是否把请求识别为 resume；多个候选时必须显式点名。独立目标创建新 Change 或走 discussion/simple。
+新目标不应自动绑定用户的 `active-change`。确认 router 是否把请求识别为 resume；多个候选时必须显式点名。独立目标创建新 Change 或走 discussion。
 宿主提供 session id 时，全新未绑定会话里的通用“继续执行”必须 fail-closed，不得回落到仓库级
 用户的 `active-change`；应显式点名 Change，或先建立该会话的精确绑定。
 
@@ -173,18 +173,18 @@ v0.3.0 与 v0.3.1 里，`.tenon/tests/catalog.yaml` 的 `not_applicable` 条目�
 （`phase 'build' 的 event 'build-done' 已获确认；请直接执行该 transition，不能重复 request`）。
 
 v0.3.2 会记下这次批准，新任务不会再卡住。已经卡住的任务不会因为更新被修好，也没有命令能清掉这个状态。把 `approved_by` 改回 `null` 也没用：
-条目回到未批准，请求照样被拒。可行的做法是归档卡住的任务，在同一个工作区里新建一个任务：
+条目回到未批准，请求照样被拒。可行的做法是终止卡住的任务，在同一个工作区里新建一个任务：
 
 ```bash
-tenon task archive <name> --yes
-tenon init <new-name> --track <track>
+tenon task terminate <name> --yes
+tenon init <new-name> --workflow <workflow> --track <track> --preset full
 ```
 
 新任务照常运行（`tenon test register`、`tenon test run <new-name> --stage`）。条目里已经带着批准人，所以
 `tenon review request <new-name> --event <event>` 只列出待确认的测试配置改动（就是那次目录改写），而不是待批准的豁免。用
 `tenon review acknowledge <new-name>` 确认一次，之后 `tenon test status` 没有阻断项，`tenon transition` 可以通过。
 
-归档的任务还在：`tenon task unarchive <name> --yes` 可以取回。归档不动你的代码，但新任务从它工作流的第一步开始，卡住的任务写下的文档留在它自己那里。
+被终止的任务移进 `openspec/changes/archive/`，在工作台的「已结束」里标为已终止；它不能恢复，想保留关联就在新任务上 `tenon set <new-name> depends_on <name>`。终止不动也不提交你的代码，但新任务从它工作流的第一步开始，卡住的任务写下的文档留在它自己那里。
 
 #### 命令或 hook 报 `tenon runtime Node identity changed`
 

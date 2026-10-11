@@ -1,0 +1,248 @@
+{
+  "version": 1,
+  "records": [
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:5c9185f8ea01901e5f07b27cb6fb7b64",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:7d54178f2f39685bfff6a68dc11a6a907b9308951b3654743486234ca49713ce",
+        "projection": "document",
+        "content_digest": "sha256:7d54178f2f39685bfff6a68dc11a6a907b9308951b3654743486234ca49713ce",
+        "source": {
+          "path": "../../../docs/adr/consolidate-workflow-tracks.md",
+          "document_kind": "adr"
+        }
+      },
+      "logicalKey": "document:adr",
+      "projection": "document",
+      "path": "../../../docs/adr/consolidate-workflow-tracks.md",
+      "documentKind": "adr",
+      "status": "committed",
+      "receiptId": "submission:change-consolidate-workflow-tracks-20949e06122d:document:bcd2a546a518cf153c7c47d14d10be29",
+      "recordedAt": "2026-10-10T13:06:12Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:2db251619605711ab9909bbf1630c9e5",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:b7169b0ed638c38b58311ca7e451b8fc4138e89a2b0c01ffae4741df937f4523",
+        "projection": "document",
+        "content_digest": "sha256:b7169b0ed638c38b58311ca7e451b8fc4138e89a2b0c01ffae4741df937f4523",
+        "source": {
+          "path": "design.md",
+          "document_kind": "openspec-design"
+        }
+      },
+      "logicalKey": "document:openspec-design",
+      "projection": "document",
+      "path": "design.md",
+      "documentKind": "openspec-design",
+      "status": "committed",
+      "receiptId": "submission:change-consolidate-workflow-tracks-20949e06122d:document:6551d8927377ff88e8d8b7cb9d700ba9",
+      "recordedAt": "2026-10-10T13:06:13Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:10d47612bea88fd77a621a450afb395d",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:45c47f4e93f513b56534c97489022ac3e53f9cdeca2b956121139df067bc11cc",
+        "projection": "field",
+        "content_digest": "sha256:45c47f4e93f513b56534c97489022ac3e53f9cdeca2b956121139df067bc11cc",
+        "source": {
+          "path": "../../../docs/superpowers/specs/consolidate-workflow-tracks-design.md",
+          "document_kind": "superpower-design",
+          "field": "design_doc"
+        }
+      },
+      "logicalKey": "field:design_doc",
+      "projection": "field",
+      "path": "../../../docs/superpowers/specs/consolidate-workflow-tracks-design.md",
+      "field": "design_doc",
+      "status": "committed",
+      "receiptId": "submission:change-consolidate-workflow-tracks-20949e06122d:field:2c70108e623d859f84d45e38e0780238",
+      "recordedAt": "2026-10-10T13:06:19.817Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:d474b7a11e7774d2cb08fecb4e6b5c9c",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+        "projection": "document",
+        "content_digest": "sha256:29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+        "source": {
+          "path": "../../../docs/superpowers/plans/consolidate-workflow-tracks.md",
+          "document_kind": "superpower-plan"
+        }
+      },
+      "logicalKey": "document:superpower-plan",
+      "projection": "document",
+      "path": "../../../docs/superpowers/plans/consolidate-workflow-tracks.md",
+      "documentKind": "superpower-plan",
+      "status": "committed",
+      "receiptId": "submission:change-consolidate-workflow-tracks-20949e06122d:document:660e74b73695a0d42d9c7999cd671555",
+      "recordedAt": "2026-10-10T13:16:00Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:d474b7a11e7774d2cb08fecb4e6b5c9c",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+        "projection": "document",
+        "content_digest": "sha256:29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+        "source": {
+          "path": "../../../docs/superpowers/plans/consolidate-workflow-tracks.md",
+          "document_kind": "plan"
+        }
+      },
+      "logicalKey": "document:plan",
+      "projection": "document",
+      "path": "../../../docs/superpowers/plans/consolidate-workflow-tracks.md",
+      "documentKind": "plan",
+      "status": "committed",
+      "receiptId": "submission:change-consolidate-workflow-tracks-20949e06122d:document:cdd727d4071a9df9cf9775191595ae0f",
+      "recordedAt": "2026-10-10T13:16:00Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:700386f5e0bb4383b18a65c311e55431",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:b12993d0b6157ec2dc9b938ad87fd74c1d2f98a98c133089c25f17427544f7a1",
+        "projection": "document",
+        "content_digest": "sha256:b12993d0b6157ec2dc9b938ad87fd74c1d2f98a98c133089c25f17427544f7a1",
+        "source": {
+          "path": "proposal.md",
+          "document_kind": "proposal"
+        }
+      },
+      "logicalKey": "document:proposal",
+      "projection": "document",
+      "path": "proposal.md",
+      "documentKind": "proposal",
+      "status": "committed",
+      "receiptId": "submission:change-consolidate-workflow-tracks-20949e06122d:document:bf15fc96d8e686217eb1f36fe69612f7",
+      "recordedAt": "2026-10-10T13:16:59Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:d474b7a11e7774d2cb08fecb4e6b5c9c",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:c3d05720391ded5fcb7d1283349cc534cb76086d70693470eb88f8c93e2875d0",
+        "projection": "field",
+        "content_digest": "sha256:c3d05720391ded5fcb7d1283349cc534cb76086d70693470eb88f8c93e2875d0",
+        "source": {
+          "path": "../../../docs/superpowers/plans/consolidate-workflow-tracks.md",
+          "document_kind": "superpower-plan",
+          "field": "plan"
+        }
+      },
+      "logicalKey": "field:plan",
+      "projection": "field",
+      "path": "../../../docs/superpowers/plans/consolidate-workflow-tracks.md",
+      "field": "plan",
+      "status": "committed",
+      "receiptId": "submission:change-consolidate-workflow-tracks-20949e06122d:field:bcefee8c4f7c9991a0a59b6103c71a72",
+      "recordedAt": "2026-10-10T13:17:05.859Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:10d47612bea88fd77a621a450afb395d",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:7b83fa8b927c24ad6883509101d23f6d2c01ad29a1715d7643fc3329affd60f2",
+        "projection": "document",
+        "content_digest": "sha256:7b83fa8b927c24ad6883509101d23f6d2c01ad29a1715d7643fc3329affd60f2",
+        "source": {
+          "path": "../../../docs/superpowers/specs/consolidate-workflow-tracks-design.md",
+          "document_kind": "superpower-design"
+        }
+      },
+      "logicalKey": "document:superpower-design",
+      "projection": "document",
+      "path": "../../../docs/superpowers/specs/consolidate-workflow-tracks-design.md",
+      "documentKind": "superpower-design",
+      "status": "committed",
+      "receiptId": "submission:change-consolidate-workflow-tracks-20949e06122d:document:1093f5c4c0dd7d9ee196c15fd0f2c11d",
+      "recordedAt": "2026-10-10T13:19:11Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:1072385fa5ded6d9c3f12fc1b624d03b",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:c0de00161a264301bc09cd420b93ef2df2c669ff82b55d28bc01ff78b50c738c",
+        "projection": "document",
+        "content_digest": "sha256:c0de00161a264301bc09cd420b93ef2df2c669ff82b55d28bc01ff78b50c738c",
+        "source": {
+          "path": "specs/normal-chat-routing/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "logicalKey": "document:delta-spec",
+      "projection": "document",
+      "path": "specs/normal-chat-routing/spec.md",
+      "documentKind": "delta-spec",
+      "status": "committed",
+      "receiptId": "submission:change-consolidate-workflow-tracks-20949e06122d:document:cb588cb769d8f3e42aeeb8baadc0003e",
+      "recordedAt": "2026-10-10T13:19:15Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:e3f0174cc4ccf8615164e70eb8b14120",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
+        "projection": "document",
+        "content_digest": "sha256:91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
+        "source": {
+          "path": "tasks.md",
+          "document_kind": "tasks"
+        }
+      },
+      "logicalKey": "document:tasks",
+      "projection": "document",
+      "path": "tasks.md",
+      "documentKind": "tasks",
+      "status": "committed",
+      "receiptId": "submission:change-consolidate-workflow-tracks-20949e06122d:document:9fd98c78c1d6b051ab64938608074984",
+      "recordedAt": "2026-10-11T07:04:24Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:8f5ddc7420d76999d36c35c3dda07a71",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:df1e9835464bf3e4622123dbddf14deca733a28fa3c2ad54a942c9666af9b1c8",
+        "projection": "field",
+        "content_digest": "sha256:df1e9835464bf3e4622123dbddf14deca733a28fa3c2ad54a942c9666af9b1c8",
+        "source": {
+          "path": "../../../docs/superpowers/reports/consolidate-workflow-tracks-verify.md",
+          "document_kind": "verification-report",
+          "field": "verification_report"
+        }
+      },
+      "logicalKey": "field:verification_report",
+      "projection": "field",
+      "path": "../../../docs/superpowers/reports/consolidate-workflow-tracks-verify.md",
+      "field": "verification_report",
+      "status": "committed",
+      "receiptId": "submission:change-consolidate-workflow-tracks-20949e06122d:field:7babd00243187fc2a41eb9d24274beff",
+      "recordedAt": "2026-10-11T07:04:50.005Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:8f5ddc7420d76999d36c35c3dda07a71",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:87b7aaa9153450dfaa8c6ad441e21b2f52c03084a64944c026a1ca37967370d1",
+        "projection": "document",
+        "content_digest": "sha256:87b7aaa9153450dfaa8c6ad441e21b2f52c03084a64944c026a1ca37967370d1",
+        "source": {
+          "path": "../../../docs/superpowers/reports/consolidate-workflow-tracks-verify.md",
+          "document_kind": "verification-report"
+        }
+      },
+      "logicalKey": "document:verification-report",
+      "projection": "document",
+      "path": "../../../docs/superpowers/reports/consolidate-workflow-tracks-verify.md",
+      "documentKind": "verification-report",
+      "status": "committed",
+      "receiptId": "submission:change-consolidate-workflow-tracks-20949e06122d:document:81e88e6e6b98d0cfeff42ce5ca67d3cd",
+      "recordedAt": "2026-10-11T15:54:30Z"
+    }
+  ]
+}

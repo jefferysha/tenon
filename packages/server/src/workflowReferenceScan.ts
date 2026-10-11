@@ -1,19 +1,13 @@
 import { constants, fstatSync, openSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import {
-  BUILTIN_TRACK_DEFINITIONS,
   FIELD_ORDER,
   listAutomationPolicyTemplates,
   loadRegistry,
   parsePipeline,
-  parseTrackRegistry,
   readCurrentRunRevisionFromSync,
   resolveWorkflowName,
   unquoteScalar,
-  validateTrackConfigStructure,
-  validateWorkflowTrackReferences,
-  type TrackDefinition,
-  type TrackRegistry,
 } from '@tenon/kernel'
 import {
   assertDirectoryStillTrusted,
@@ -27,7 +21,6 @@ import {
   safeClose,
   withTrustedDirectoryChain,
   type OpenDirectory,
-  type WorkflowDirectories,
   type WorkflowReference,
   type WorkflowReferenceScanBlocker,
   type WorkflowReferenceScanResult,
@@ -72,72 +65,6 @@ function readTrustedRegularFile(
   } finally {
     safeClose(fd)
   }
-}
-
-export function workflowWriteTrackRegistry(
-  directories: WorkflowDirectories,
-): { readonly registry: TrackRegistry } | { readonly errors: string[] } {
-  const bytes = readTrustedRegularFile(
-    directories.pipeline,
-    directories.root,
-    'tracks.yaml',
-    'tracks registry',
-    'null',
-  )
-  if (bytes === null) {
-    const ordered = [...BUILTIN_TRACK_DEFINITIONS]
-    return {
-      registry: {
-        ordered,
-        byId: new Map(ordered.map((track) => [track.id, track])),
-        revision: 'workflow-write:builtin-only',
-        source: 'builtin-only',
-      },
-    }
-  }
-
-  try {
-    const config = parseTrackRegistry(decodeUtf8Strict(bytes, 'tracks registry'))
-    const structuralErrors = [...validateTrackConfigStructure(config)]
-    if (structuralErrors.length > 0) {
-      return { errors: structuralErrors.map((error) => `.pipeline/tracks.yaml: ${error}`) }
-    }
-
-    // validateWorkflowTrackReferences 的公开合同只查询 registry.byId.has；这里仍构造完整的
-    // TrackRegistry 形状，避免绕开 kernel 单一 validator。动态项的其余字段不会参与本次判定，
-    // 故以一个内建定义作只读占位，并只替换引用判定真正需要的 id/label/builtin。
-    const seed = BUILTIN_TRACK_DEFINITIONS[0]
-    if (seed === undefined) return { errors: ['builtin track catalog 为空'] }
-    const dynamic: TrackDefinition[] = (config.tracks ?? []).flatMap((entry) =>
-      typeof entry.id === 'string' && typeof entry.label === 'string'
-        ? [{ ...seed, id: entry.id, label: entry.label, builtin: false }]
-        : [],
-    )
-    const ordered = [...BUILTIN_TRACK_DEFINITIONS, ...dynamic]
-    return {
-      registry: {
-        ordered,
-        byId: new Map(ordered.map((track) => [track.id, track])),
-        revision: 'workflow-write:project-file',
-        source: 'project-file',
-      },
-    }
-  } catch (error) {
-    return { errors: [`tracks registry 无法形成引用校验快照：${errText(error)}`] }
-  }
-}
-
-function collectTrackReferences(registry: TrackRegistry, workflow: string): WorkflowReference[] {
-  const references: WorkflowReference[] = []
-  for (const track of registry.ordered) {
-    if (track.workflow.default === workflow) {
-      references.push({ kind: 'track-default', source: `track:${track.id}` })
-    }
-    if (track.workflow.allowed !== '*' && track.workflow.allowed.includes(workflow)) {
-      references.push({ kind: 'track-allowed', source: `track:${track.id}` })
-    }
-  }
-  return references
 }
 
 function collectPolicyTemplateReferences(workflow: string): WorkflowReference[] {
@@ -318,14 +245,13 @@ function scanLoopReferences(
 }
 
 /**
- * 调用方必须已持 governance → project registry 两把锁。函数在同一临界区内读 effective tracks、
- * strict active changes 与 loops workflow_id，并合入进程内 policy-template catalog；I/O/解析
- * 不确定性进入 blockers，绝不降级成“零引用”。
+ * 调用方必须已持 governance → project coordination 两把锁。函数在同一临界区内读 strict active
+ * changes 与 loops workflow_id，并合入进程内 policy-template catalog；I/O/解析不确定性进入
+ * blockers，绝不降级成“零引用”。轨道是工作流自己的分支，没有别的资源按名字引用一个工作流。
  */
 export function scanWorkflowReferencesForApi(
   root: WorkflowRootAnchor,
   workflow: string,
-  registry: TrackRegistry,
 ): WorkflowReferenceScanResult {
   assertWorkflowName(workflow)
   assertWorkflowRootAnchor(root)
@@ -333,7 +259,6 @@ export function scanWorkflowReferencesForApi(
   const loops = scanLoopReferences(root, workflow)
   return {
     references: [
-      ...collectTrackReferences(registry, workflow),
       ...collectPolicyTemplateReferences(workflow),
       ...changes.references,
       ...loops.references,

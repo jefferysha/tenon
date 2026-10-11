@@ -55,12 +55,10 @@ export function expandWireProject(project: unknown): unknown | null {
     tables[name] = entries
   }
   const changes = expandChanges(project.changes, tables)
-  const archived = expandChanges(project.archived, tables)
-  if (changes === null || archived === null) return null
+  if (changes === null) return null
   const { shared: _shared, ...rest } = project
   return {
     ...rest,
     ...(changes === undefined ? {} : { changes }),
-    ...(archived === undefined ? {} : { archived }),
   }
 }

@@ -27,12 +27,10 @@ const OUT_FILE = join(REPO_ROOT, 'packages', 'kernel', 'src', 'workflow', 'defau
 const SOURCE_REL = 'templates/workflows/default.yaml'
 const DESIGN_SYSTEM_YAML = join(REPO_ROOT, 'templates', 'workflows', 'design-system.yaml')
 const DESIGN_SYSTEM_REL = 'templates/workflows/design-system.yaml'
-const STANDARD_YAML = join(REPO_ROOT, 'templates', 'workflows', 'standard.yaml')
-const STANDARD_REL = 'templates/workflows/standard.yaml'
 
 const PRODUCER_POLICIES = new Set(['effective-step-skills', 'effective-phase-skills'])
 
-// track predicate value 须是合法 track id（镜像 kernel tracks/types.ts 的 TRACK_ID_RE）——既杜绝
+// track predicate value 须是合法 track id（镜像 kernel workflow/compile.ts 的分支 id 词法）——既杜绝
 // 引号/换行/反斜杠等会破坏 generated TS 字符串（注入非法 TS，推迟到 tsc 才炸）的字符，又保证语义合法。
 const TRACK_ID_RE = /^[a-z][a-z0-9_-]{0,31}$/
 
@@ -91,6 +89,7 @@ export function parseDefaultWorkflow(yamlText) {
       if (tracks[id] !== undefined) fail(`tracks 重复声明分支 '${id}'`)
       i++
       let label
+      let spec
       let branchSteps
       while (i < lines.length) {
         const inner = lines[i] ?? ''
@@ -98,8 +97,11 @@ export function parseDefaultWorkflow(yamlText) {
         if (indentOf(inner) <= 2) break
         const labelMatch = /^\s*label:\s*(.+?)\s*$/.exec(inner)
         if (labelMatch) { label = labelMatch[1]; i++; continue }
-        // 分支文档契约由 kernel parse 负责；生成器只跳过该块（缩进深于键行的全部行）。
-        if (/^\s*document_contract:\s*$/.test(inner)) {
+        // `spec: openspec | none` 决定哪些分支是「受 OpenSpec 治理的七阶段骨架」（见 generate 的 metaSteps）。
+        const specMatch = /^\s*spec:\s*(openspec|none)\s*$/.exec(inner)
+        if (specMatch) { spec = specMatch[1]; i++; continue }
+        // 分支文档契约与路由 / 自动化设置由 kernel parse 负责；生成器只跳过这些块（缩进深于键行的全部行）。
+        if (/^\s*(document_contract|route|automation):\s*(\{.*\})?\s*$/.test(inner)) {
           const blockIndent = indentOf(inner)
           i++
           while (i < lines.length && ((lines[i] ?? '').trim() === '' || indentOf(lines[i] ?? '') > blockIndent)) i++
@@ -114,7 +116,7 @@ export function parseDefaultWorkflow(yamlText) {
         fail(`分支 '${id}' 出现未知字段行 '${inner.trim()}'`)
       }
       if (branchSteps === undefined) fail(`分支 '${id}' 缺 steps`)
-      tracks[id] = { label, steps: branchSteps }
+      tracks[id] = { label, ...(spec === undefined ? {} : { spec }), steps: branchSteps }
     }
   }
   while (i < lines.length) {
@@ -294,13 +296,13 @@ function renderDefaultStep(step) {
 }
 
 /** 规范化表 + 默认步骤元数据 → generated TS 文本（DO NOT EDIT 头 + 来源路径 + as const）。 */
-export function renderGenerated(table, steps, yamlText, designSystemYaml = '', standardYaml = '') {
+export function renderGenerated(table, steps, yamlText, designSystemYaml = '') {
   const out = []
   out.push('/**')
   out.push(' * DO NOT EDIT —— 生成文件。')
   out.push(` * 由 tools/generate-default-workflow.mjs 从 ${SOURCE_REL} 生成。`)
   out.push(' * 重新生成：npm run generate:default-workflow')
-  out.push(` * 来源：${SOURCE_REL}、${DESIGN_SYSTEM_REL}、${STANDARD_REL}`)
+  out.push(` * 来源：${SOURCE_REL}、${DESIGN_SYSTEM_REL}`)
   out.push(' *')
   out.push(' * 含稳定排序的 default step 元数据（通用分支）与按分支（_base + tracks.<id>）的 artifact declaration 纯数据；查询在')
   out.push(' * 手写层 default-artifacts.ts / todo-projection.ts。改 default.yaml 后须重跑生成（CI freshness')
@@ -312,14 +314,16 @@ export function renderGenerated(table, steps, yamlText, designSystemYaml = '', s
   out.push('')
   out.push(`export const DESIGN_SYSTEM_WORKFLOW_SOURCE = ${JSON.stringify(designSystemYaml)}`)
   out.push('')
-  out.push(`export const STANDARD_WORKFLOW_SOURCE = ${JSON.stringify(standardYaml)}`)
-  out.push('')
   out.push('export const DEFAULT_WORKFLOW_STEPS = [')
   for (const step of steps) out.push(renderDefaultStep(step))
   out.push('] as const')
   out.push('')
   out.push('export const DEFAULT_ARTIFACT_DECLARATIONS = {')
   for (const [branch, branchTable] of Object.entries(table)) {
+    if (branchTable.length === 0) {
+      out.push(`  ${branch}: {},`) // 不声明 artifact 的分支（lite）：仍列出，查询落到空表
+      continue
+    }
     out.push(`  ${branch}: {`)
     for (const { stepId, artifacts } of branchTable) {
       out.push(`    ${stepId}: [`)
@@ -332,24 +336,24 @@ export function renderGenerated(table, steps, yamlText, designSystemYaml = '', s
   return out.join('\n') + '\n'
 }
 
-/** default.yaml + kernel types.ts + design-system.yaml + standard.yaml → generated TS 文本（纯函数，供测试与 main 复用）。 */
-export function generate(yamlText, typesText, designSystemYaml = '', standardYaml = '') {
+/** default.yaml + kernel types.ts + design-system.yaml → generated TS 文本（纯函数，供测试与 main 复用）。 */
+export function generate(yamlText, typesText, designSystemYaml = '') {
   const fieldOrder = extractFieldOrder(typesText)
   const parsed = parseDefaultWorkflow(yamlText)
   const table = validateAndNormalize(parsed, fieldOrder)
-  // 步骤元数据（Todo 投影的阶段标签）：有顶层 steps 用之，否则取第一条分支（default 各分支共享七阶段骨架）。
-  const firstBranch = Object.values(parsed.tracks ?? {})[0]
-  const metaSteps = parsed.steps.length > 0 ? parsed.steps : (firstBranch?.steps ?? [])
+  // 步骤元数据（Todo 投影的阶段标签）：有顶层 steps 用之，否则取第一条受 OpenSpec 治理的分支（`spec: none` 的轻量分支
+  // 只有五步，不是 default 的七阶段骨架；它排在最前也不能被选中）。分支全是 `spec: none` 时退回第一条。
+  const branches = Object.values(parsed.tracks ?? {})
+  const skeleton = branches.find((branch) => branch.spec !== 'none') ?? branches[0]
+  const metaSteps = parsed.steps.length > 0 ? parsed.steps : (skeleton?.steps ?? [])
   if (metaSteps.length === 0) fail('default.yaml 没有任何阶段（steps 或 tracks 至少一个）')
-  return renderGenerated(table, metaSteps, yamlText, designSystemYaml, standardYaml)
+  return renderGenerated(table, metaSteps, yamlText, designSystemYaml)
 }
 
 function main() {
   const yamlText = readFileSync(DEFAULT_YAML, 'utf8')
   const typesText = readFileSync(KERNEL_TYPES, 'utf8')
-  const generated = generate(
-    yamlText, typesText, readFileSync(DESIGN_SYSTEM_YAML, 'utf8'), readFileSync(STANDARD_YAML, 'utf8'),
-  )
+  const generated = generate(yamlText, typesText, readFileSync(DESIGN_SYSTEM_YAML, 'utf8'))
   writeFileSync(OUT_FILE, generated, 'utf8')
   process.stdout.write(`generated ${OUT_FILE}\n`)
 }

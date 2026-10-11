@@ -103,7 +103,7 @@ describe('anonymous callers get nothing', () => {
     '/api/change/demo/snapshot?root=/tmp',
     '/api/afk/snapshot',
     '/api/secrets',
-    '/api/config?root=/tmp',
+    '/api/hooks?root=/tmp',
     '/api/workflows?root=/tmp',
     '/api/change/demo/history?root=/tmp',
     '/api/nothing-routes-here',
@@ -119,7 +119,7 @@ describe('anonymous callers get nothing', () => {
     const { port } = await start()
     const bearer = { Authorization: `Bearer ${TOKEN}` }
     expect((await reqGet(port, '/api/snapshot', '127.0.0.1', bearer)).status).toBe(401)
-    expect((await reqPost(port, '/api/changes', { root: '/tmp', name: 'x' }, { headers: bearer })).status).toBe(401)
+    expect((await reqPost(port, '/api/projects', { root: '/tmp' }, { headers: bearer })).status).toBe(401)
   })
 
   it('keeps the health probe and static assets public, and answers 405 for unrouted methods', async () => {

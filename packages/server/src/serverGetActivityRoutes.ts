@@ -3,12 +3,22 @@ import { join, resolve as resolvePath } from 'node:path'
 import { listAutomationPolicyTemplates, stateStorageExistsSync } from '@tenon/kernel'
 import { buildAfkLog, buildAfkSnapshot, readAfkRunLog } from './afk.js'
 import { handleContextBundlePreview } from './contextBundlePreview.js'
+import { resolveArchivedTaskDir } from './endedTasks.js'
 import { buildRunDetail } from './runDetail.js'
 import { sendSharedBody } from './snapshotShared.js'
 import { readChangeHistory } from './transition.js'
 import { handleGetUserRoute } from './serverUserRoutes.js'
 import { displayVersion } from './version.js'
 import type { GetRouteDeps } from './serverGetRoutes.js'
+
+/**
+ * `:name` 对应的任务目录，且其中有任务状态；否则 undefined。活跃任务在 `openspec/changes/<name>`；`archived` 时 `:name` 是
+ * 已结束任务的归档目录名，按 `resolveArchivedTaskDir`（与已结束列表同一条规则：不跟随符号链接）从 `archive/` 解析。
+ */
+async function changeDirOf(root: string, name: string, archived: boolean): Promise<string | undefined> {
+  const dir = archived ? await resolveArchivedTaskDir(root, name) : join(root, 'openspec', 'changes', name)
+  return dir !== undefined && stateStorageExistsSync(dir) ? dir : undefined
+}
 
 export async function handleGetActivityRoutes(
   req: IncomingMessage,
@@ -113,7 +123,7 @@ export async function handleGetActivityRoutes(
     //    校验顺序同 /api/afk/<name>/cancel、/api/afk/<name>/retry：先 change 名格式、
     //    再 root 信任锚（两侧 resolvePath 规范化再比对注册表）、最后 changeDir 存在性
     //    （ENOENT 前置校验，避免把「change 真不存在」误报成「还没日志」的 200 null）。
-    //    读端点本身对齐 /api/config、/api/skills/registry：本机回环 GET 不鉴权。
+    //    读端点本身对齐 /api/skills/registry：本机回环 GET 不鉴权。
     const logMatch = /^\/api\/afk\/([^/]+)\/log$/.exec(path)
     if (logMatch) {
       const segment = logMatch[1]
@@ -147,7 +157,8 @@ export async function handleGetActivityRoutes(
     //    信任锚（两侧 resolvePath 规范化再比对注册表 → 404）、最后 changeDir 存在性（ENOENT
     //    前置校验 → 400，同 cancel/retry/log 三兄弟对这条完全相同判断的统一状态码约定——
     //    不与「change 存在但还没记录」的 200 { entries: [] } 混为一谈）。
-    //    读端点对齐 /api/config、/api/skills/registry：本机回环 GET 不鉴权。
+    //    读端点对齐 /api/skills/registry：本机回环 GET 不鉴权。
+    //    `&archived=1`：`:name` 是已结束任务的归档目录名，从 `openspec/changes/archive/` 只读读取（changeDirOf）。
     const mHistory = /^\/api\/change\/([^/]+)\/history$/.exec(path)
     if (mHistory) {
       const segment = mHistory[1]
@@ -156,19 +167,22 @@ export async function handleGetActivityRoutes(
       if (!name || !/^[a-zA-Z0-9_-]+$/.test(name) || name.includes('..')) {
         return sendJson(res, 400, { ok: false, error: '非法 change 名（仅允许 a-z A-Z 0-9 - _）' })
       }
-      const root = new URL(req.url ?? '/', 'http://localhost').searchParams.get('root') ?? ''
+      const query = new URL(req.url ?? '/', 'http://localhost').searchParams
+      const root = query.get('root') ?? ''
       if (!isRegisteredRoot(root)) {
         return sendJson(res, 404, { ok: false, error: 'root 未在机器级项目注册表中' })
       }
-      const dir = join(root, 'openspec', 'changes', name)
-      if (!stateStorageExistsSync(dir)) {
+      const dir = await changeDirOf(root, name, query.get('archived') === '1')
+      if (dir === undefined) {
         return sendJson(res, 400, { ok: false, error: '找不到该 change（无 canonical/legacy 状态）' })
       }
       return sendJson(res, 200, { entries: await readChangeHistory(dir, { store, recordStore }) })
     }
     // ── GET /api/change/:name/snapshot?root= —— 一个 change 带全部证据（documents / skillRuns / agentRuns / tests /
-    //    testPolicy / 规则 policy / 全部 fields）的详情，与完整快照里该 change 的形状一致，另带 `rev`；归档的 change
-    //    再带 `archive`。列表快照（?view=list）不含这些，打开任务时才读。校验顺序同 history：名字格式 → root 信任锚 → 状态存在。
+    //    testPolicy / 规则 policy / 全部 fields）的详情，与完整快照里该 change 的形状一致，另带 `rev`。
+    //    列表快照（?view=list）不含这些，打开任务时才读。校验顺序同 history：名字格式 → root 信任锚 → 状态存在。
+    //    `&archived=1`：`:name` 是已结束任务的归档目录名（`ended[].archivedDir` 的最后一段），从
+    //    `openspec/changes/archive/` 只读读取；其余校验相同。
     const mChangeSnapshot = /^\/api\/change\/([^/]+)\/snapshot$/.exec(path)
     if (mChangeSnapshot) {
       const segment = mChangeSnapshot[1]
@@ -177,15 +191,17 @@ export async function handleGetActivityRoutes(
       if (!name || !/^[a-zA-Z0-9_-]+$/.test(name) || name.includes('..')) {
         return sendJson(res, 400, { ok: false, error: '非法 change 名（仅允许 a-z A-Z 0-9 - _）' })
       }
-      const root = new URL(req.url ?? '/', 'http://localhost').searchParams.get('root') ?? ''
+      const query = new URL(req.url ?? '/', 'http://localhost').searchParams
+      const root = query.get('root') ?? ''
+      const archived = query.get('archived') === '1'
       if (!isRegisteredRoot(root)) {
         return sendJson(res, 404, { ok: false, error: 'root 未在机器级项目注册表中' })
       }
-      if (!stateStorageExistsSync(join(root, 'openspec', 'changes', name))) {
+      if (await changeDirOf(root, name, archived) === undefined) {
         return sendJson(res, 400, { ok: false, error: '找不到该 change（无 canonical/legacy 状态）' })
       }
       try {
-        const shared = await snapshotCache.detail(root, name)
+        const shared = archived ? await snapshotCache.archivedDetail(root, name) : await snapshotCache.detail(root, name)
         if (shared === null) return sendJson(res, 404, { ok: false, code: 'CHANGE_SNAPSHOT_UNREADABLE', error: '该 change 的状态不可读' })
         return sendSharedBody(req, res, shared)
       } catch (error) {

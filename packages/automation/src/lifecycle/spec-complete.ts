@@ -3,14 +3,15 @@
  *
  * TransitionApplication 负责把 workflow state 原子提交；本模块只在该提交成功之后接管
  * `spec -> build` 这一条明确边。它不启动 runner、不创建容器、更不绕过 L1/L2/L3：仅在
- * track 的独立 auto-enqueue policy、automation 配置及当前 state 三者同时允许时，把
- * automation 从 off 原子置为 queued。
+ * 任务所选分支的 `automation.enqueue_after_spec`、automation 配置及当前 state 三者同时允许时，
+ * 把 automation 从 off 原子置为 queued。
  *
- * 这刻意不复用 `automationEligible` 作为触发条件。该字段是“手动 enqueue 是否允许”的
- * capability，多个普通轨道都可能为 true；自动接管必须由更窄的策略位显式授权。
+ * 这刻意不复用 `automationEligible` 作为触发条件。该字段（分支的 `automation.eligible`）是
+ * “手动 enqueue 是否允许”的 capability，多个普通轨道都可能为 true；自动接管必须由更窄的
+ * `enqueue_after_spec` 显式授权。分支没写 `automation` 时两个位都是 false（失败关闭）。
  */
 import { join } from 'node:path'
-import type { StateStore, TrackPolicyProfile } from '@tenon/kernel'
+import type { AutomationPolicyBits, StateStore } from '@tenon/kernel'
 import type { AutomationJsonFs } from '../config/automationJson.js'
 import { shouldAutoEnqueueOnSpecComplete } from '../queue/gate.js'
 import type { AutomationConfig } from '../types.js'
@@ -22,7 +23,8 @@ export interface SpecCompleteAutoEnqueueDeps {
   readonly repoRoot: string
   readonly store: StateStore
   readonly clock: () => string
-  readonly resolveTrackPolicy: (trackId: string) => TrackPolicyProfile
+  /** 任务所记轨道 → 该分支 `automation` 折成的策略位；可异步（宿主要读任务自己的冻结快照）。只在确认是 spec→build 之后才被调用。 */
+  readonly resolveTrackPolicy: (trackId: string) => AutomationPolicyBits | Promise<AutomationPolicyBits>
   readonly config?: Partial<AutomationConfig>
   readonly configFs?: AutomationJsonFs
 }
@@ -62,7 +64,7 @@ export async function enqueueAfterSpecComplete(
     const state = await deps.store.read(changeDir)
     if (scalar(state.fields.phase) !== 'build') return { kind: 'phase-changed' }
 
-    const policy = deps.resolveTrackPolicy(scalar(state.fields.track))
+    const policy = await deps.resolveTrackPolicy(scalar(state.fields.track))
     if (policy.autoEnqueueOnSpecComplete !== true) return { kind: 'track-disabled' }
 
     const automation = scalar(state.fields.automation)

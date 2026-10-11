@@ -23,7 +23,8 @@ const FLOW: WbWorkflowDef = {
 }
 
 const DEFAULT: WbWorkflowDef = { name: 'default', steps: [stage('open', '立项', 'build'), stage('build', '实现', null)] }
-const SIMPLE: WbWorkflowDef = { name: 'simple', steps: [stage('change', 'Change', 'verify'), stage('verify', 'Verify', null)] }
+/** 随插件发布的平铺模板工作流：没有 tracks，可编辑。 */
+const DESIGN_SYSTEM: WbWorkflowDef = { name: 'design-system', steps: [stage('direction', 'Direction', 'generate'), stage('generate', 'Generate', null)] }
 
 type Handler = (url: string, init?: RequestInit) => Response | undefined
 
@@ -31,10 +32,10 @@ function stubApi(extra?: Handler): ReturnType<typeof vi.fn> {
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     const custom = extra?.(url, init)
     if (custom !== undefined) return custom
-    if (url === '/api/workflows?root=') return new Response(JSON.stringify({ names: ['flow'], default: { source: 'builtin' } }), { status: 200 })
+    if (url === '/api/workflows?root=') return new Response(JSON.stringify({ names: ['design-system', 'flow'], default: { source: 'builtin' } }), { status: 200 })
     if (url === '/api/workflows/flow?root=') return new Response(JSON.stringify(FLOW), { status: 200 })
     if (url === '/api/workflows/default?root=') return new Response(JSON.stringify({ ...DEFAULT, source: 'builtin' }), { status: 200 })
-    if (url === '/api/workflows/simple?root=') return new Response(JSON.stringify({ ...SIMPLE, source: 'builtin' }), { status: 200 })
+    if (url === '/api/workflows/design-system?root=') return new Response(JSON.stringify({ ...DESIGN_SYSTEM, source: 'builtin' }), { status: 200 })
     if (url === '/api/agents') return new Response(JSON.stringify({ agents: [] }), { status: 200 })
     return new Response(JSON.stringify({ ok: false, error: { code: 'not_found' } }), { status: 404 })
   })
@@ -170,26 +171,24 @@ describe('WorkflowView · 删除阶段', () => {
   })
 })
 
-describe('WorkflowView · 切换器列出全部内建', () => {
-  it('切换器含 default、自定义与插件内建 simple；打开 simple 只读（没有添加阶段、不报缺凭证）', async () => {
+describe('WorkflowView · 切换器列出全部模板', () => {
+  it('切换器含 default、自定义与随插件发布的 design-system；打开 design-system 可编辑（能添加阶段）', async () => {
     const user = userEvent.setup()
     render(<I18nProvider><TooltipProvider><WorkflowView root="" /></TooltipProvider></I18nProvider>)
     await screen.findByTestId('wb-step-open')
     await user.click(screen.getByTestId('wb-wf-switch'))
     expect(screen.getByTestId('wb-wf-item-default')).toBeInTheDocument()
     expect(screen.getByTestId('wb-wf-item-flow')).toBeInTheDocument()
-    await user.click(screen.getByTestId('wb-wf-item-simple'))
-    expect(await screen.findByTestId('wb-step-change')).toBeInTheDocument()
-    expect(screen.getByTestId('wb-wf-lock')).toBeInTheDocument()
-    expect(screen.queryByTestId('wb-add-stage')).toBeNull()
-    expect(screen.queryByTestId('wb-no-token')).toBeNull()
-    expect(screen.getByTestId('wb-lane-name-input-change')).toBeDisabled()
+    await user.click(screen.getByTestId('wb-wf-item-design-system'))
+    expect(await screen.findByTestId('wb-step-direction')).toBeInTheDocument()
+    expect(screen.getByTestId('wb-add-stage')).toBeInTheDocument()
+    expect(screen.getByTestId('wb-lane-name-input-direction')).toBeEnabled()
   })
 
-  it('深链 ?wf=simple 直接打开内建 simple', async () => {
-    window.history.replaceState(null, '', '/?view=workbench&wf=simple')
+  it('深链 ?wf=design-system 直接打开它', async () => {
+    window.history.replaceState(null, '', '/?view=workbench&wf=design-system')
     render(<I18nProvider><TooltipProvider><WorkflowView root="" /></TooltipProvider></I18nProvider>)
-    expect(await screen.findByTestId('wb-step-change')).toBeInTheDocument()
+    expect(await screen.findByTestId('wb-step-direction')).toBeInTheDocument()
   })
 })
 
@@ -228,7 +227,7 @@ describe('WorkflowView · 删除工作流', () => {
     await user.click(screen.getByTestId('wb-wf-menu-delete'))
   }
 
-  it('被任务引用：拒绝删除，逐个列出任务（与轨道），确认按钮随即置灰，不 toast', async () => {
+  it('被引用：拒绝删除，逐个列出任务与循环 / 模板，确认按钮随即置灰，不 toast；旧的轨道登记表引用不再被识别', async () => {
     const user = userEvent.setup()
     const onToast = vi.fn()
     stubApi((url, init) => init?.method === 'DELETE' && url === '/api/workflows/flow?root='
@@ -237,8 +236,8 @@ describe('WorkflowView · 删除工作流', () => {
         references: [
           { kind: 'active-change', source: 'change:login-fix' },
           { kind: 'active-change', source: 'change:pay-v2' },
-          { kind: 'track-default', source: 'track:chat' },
-          { kind: 'track-allowed', source: 'track:chat' },
+          { kind: 'loop-binding', source: 'loop:nightly' },
+          { kind: 'policy-template-recommended', source: 'template:daily-triage' },
         ],
       }), { status: 409 })
       : undefined)
@@ -252,7 +251,7 @@ describe('WorkflowView · 删除工作流', () => {
     const error = await screen.findByTestId('wb-workflow-delete-error')
     expect(error).toHaveTextContent('仍在使用，不能删除')
     const refs = [...screen.getByTestId('wb-workflow-delete-refs').querySelectorAll('li')].map((item) => item.textContent)
-    expect(refs).toEqual(['任务 login-fix', '任务 pay-v2', '轨道 chat'])
+    expect(refs).toEqual(['任务 login-fix', '任务 pay-v2', '循环 nightly', '模板 daily-triage'])
     expect(screen.getByTestId('wb-workflow-delete-confirm')).toBeDisabled()
     expect(onToast).not.toHaveBeenCalled()
     expect(screen.getByTestId('wb-wf-switch')).toHaveTextContent('flow')
@@ -277,11 +276,11 @@ describe('WorkflowView · 删除工作流', () => {
 describe('WorkflowView · 总览', () => {
   it('左栏顶部「总览」是第 0 步：点它右栏整宽一张编排画布，阶段块都不高亮；URL 记住；点列头回到那个阶段', async () => {
     const user = userEvent.setup()
-    const overlay = vi.fn()
+    const orchestrationCalls = vi.fn()
     stubApi((url) => {
       if (url.startsWith('/api/workflows/flow/orchestration?')) {
-        overlay(url)
-        return new Response(JSON.stringify({ workflow: 'flow', track: 'alpha', stages: [], returns: [], flows: [], overlay: {} }), { status: 200 })
+        orchestrationCalls(url)
+        return new Response(JSON.stringify({ workflow: 'flow', track: 'alpha', stages: [], returns: [], flows: [] }), { status: 200 })
       }
       return undefined
     })
@@ -296,8 +295,8 @@ describe('WorkflowView · 总览', () => {
     expect(screen.getByTestId('orchestration-overview')).toHaveAttribute('data-signal', 'ambient')
     expect(screen.queryByTestId('stage-editor-pane')).toBeNull()
     await waitFor(() => expect(params().get('step')).toBe(':overview'))
-    // 叠加层按 (工作流, 轨道) 问一次服务端；编排本身按草稿就地算。
-    await waitFor(() => expect(overlay).toHaveBeenCalledWith('/api/workflows/flow/orchestration?root=&track=alpha'))
+    // 编排按草稿就地算：技能只来自 YAML，不再问服务端要叠加层。
+    expect(orchestrationCalls).not.toHaveBeenCalled()
     await user.click(screen.getByTestId('orch-stage-a2'))
     expect(await screen.findByTestId('stage-editor-pane')).toBeInTheDocument()
     expect(screen.getByTestId('wb-step-a2')).toHaveAttribute('aria-current', 'true')
@@ -311,17 +310,16 @@ describe('WorkflowView · 总览', () => {
   })
 })
 
-describe('WorkflowView · 内置工作流的出厂名按界面语言显示', () => {
-  // 出厂 default：两条轨道里的阶段 id 相同；chat 轨道的 build 被用户改成「开发」，chat 轨道名被改成「聊天」。
+describe('WorkflowView · 名称不翻译：有 label 显示 label，没有显示 id', () => {
+  // default：两条轨道里的阶段 id 相同；lite 轨道的 build 叫「开发」，lite 轨道名叫「聊天」。
   const BUILTIN: WbWorkflowDef = {
     name: 'default',
     steps: [],
     tracks: {
-      chat: { label: '聊天', steps: [stage('open', '立项', 'build'), stage('build', '开发', null)] },
+      lite: { label: '聊天', steps: [stage('open', '立项', 'build'), stage('build', '开发', null)] },
       backend: { label: '后端', steps: [stage('open', '立项', 'build'), stage('build', '实现', null)] },
     },
   }
-  // 自建工作流恰好用了出厂中文名：id 不是内置的，不翻译。
   const MINE: WbWorkflowDef = { name: 'mine', steps: [], tracks: { backend: { label: '后端', steps: [stage('open', '立项', null)] } } }
 
   function stubBuiltin(): void {
@@ -335,40 +333,39 @@ describe('WorkflowView · 内置工作流的出厂名按界面语言显示', () 
 
   afterEach(() => window.localStorage.clear())
 
-  it('英文：阶段名与轨道页签显示英文；改过的名字原样；阶段标题（编辑框）显示同一个名字，没改就不写回', async () => {
+  it('英文界面：阶段名与轨道页签照样显示存下来的 label；阶段标题（编辑框）是同一个名字，没改就没有未保存的改动', async () => {
     window.localStorage.setItem('tenon-dashboard-lang', 'en')
-    stubBuiltin()
-    window.history.replaceState(null, '', '/?view=workbench&wf=default&track=backend&step=build')
-    render(<I18nProvider><TooltipProvider><WorkflowView root="" /></TooltipProvider></I18nProvider>)
-    expect(await screen.findByTestId('wb-step-open')).toHaveTextContent('Open')
-    expect(screen.getByTestId('wb-step-build')).toHaveTextContent('Build')
-    expect(screen.getByTestId('wb-track-backend')).toHaveTextContent('Backend')
-    expect(screen.getByTestId('wb-track-chat')).toHaveTextContent('聊天')
-    // 阶段标题的编辑框显示同一个名字（仍是出厂名时显示英文）；没有编辑就没有未保存的改动。
-    expect(await screen.findByDisplayValue('Build')).toBeInTheDocument()
-    expect(screen.queryByTestId('wb-dirty')).toBeNull()
-    await userEvent.setup().click(screen.getByTestId('wb-track-chat'))
-    expect(await screen.findByTestId('wb-step-build')).toHaveTextContent('开发')
-    expect(screen.getByTestId('wb-step-open')).toHaveTextContent('Open')
-  })
-
-  it('中文：出厂名与存储值相同，什么都不变', async () => {
     stubBuiltin()
     window.history.replaceState(null, '', '/?view=workbench&wf=default&track=backend&step=build')
     render(<I18nProvider><TooltipProvider><WorkflowView root="" /></TooltipProvider></I18nProvider>)
     expect(await screen.findByTestId('wb-step-open')).toHaveTextContent('立项')
     expect(screen.getByTestId('wb-step-build')).toHaveTextContent('实现')
     expect(screen.getByTestId('wb-track-backend')).toHaveTextContent('后端')
-    expect(screen.getByTestId('wb-track-chat')).toHaveTextContent('聊天')
+    expect(screen.getByTestId('wb-track-lite')).toHaveTextContent('聊天')
+    expect(await screen.findByDisplayValue('实现')).toBeInTheDocument()
+    expect(screen.queryByTestId('wb-dirty')).toBeNull()
+    await userEvent.setup().click(screen.getByTestId('wb-track-lite'))
+    expect(await screen.findByTestId('wb-step-build')).toHaveTextContent('开发')
+    expect(screen.getByTestId('wb-step-open')).toHaveTextContent('立项')
   })
 
-  it('英文：总览画布的阶段列头同样显示英文；自建工作流用同样的中文名也不翻译', async () => {
+  it('中文界面：同样显示存下来的 label', async () => {
+    stubBuiltin()
+    window.history.replaceState(null, '', '/?view=workbench&wf=default&track=backend&step=build')
+    render(<I18nProvider><TooltipProvider><WorkflowView root="" /></TooltipProvider></I18nProvider>)
+    expect(await screen.findByTestId('wb-step-open')).toHaveTextContent('立项')
+    expect(screen.getByTestId('wb-step-build')).toHaveTextContent('实现')
+    expect(screen.getByTestId('wb-track-backend')).toHaveTextContent('后端')
+    expect(screen.getByTestId('wb-track-lite')).toHaveTextContent('聊天')
+  })
+
+  it('英文界面：总览画布的阶段列头同样显示存下来的 label，自建工作流也一样', async () => {
     window.localStorage.setItem('tenon-dashboard-lang', 'en')
     stubBuiltin()
     window.history.replaceState(null, '', '/?view=workbench&wf=default&track=backend&step=%3Aoverview')
     const view = render(<I18nProvider><TooltipProvider><WorkflowView root="" /></TooltipProvider></I18nProvider>)
-    expect(await screen.findByTestId('orch-stage-open')).toHaveTextContent('Open')
-    expect(screen.getByTestId('orch-stage-build')).toHaveTextContent('Build')
+    expect(await screen.findByTestId('orch-stage-open')).toHaveTextContent('立项')
+    expect(screen.getByTestId('orch-stage-build')).toHaveTextContent('实现')
     view.unmount()
     window.history.replaceState(null, '', '/?view=workbench&wf=mine&track=backend&step=%3Aoverview')
     render(<I18nProvider><TooltipProvider><WorkflowView root="" /></TooltipProvider></I18nProvider>)

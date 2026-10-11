@@ -4,60 +4,29 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { dirname, join, join as joinPath, resolve as resolvePath } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  builtinWorkflow,
-  ABSENT_REGISTRY_EPOCH, applyLevelChange, assertTrackDeletable, assertUpdatePreservesReferences, assertWorkflowAllowed,
-  BUILTIN_TRACK_DEFINITIONS, BuiltinTrackDeleteError, BuiltinTrackPolicyError, ChangeScanFailedError, createBreadcrumbWriter, createFlowEngine,
-  decodeWorkflowDef, createEffectiveSkillResolver, createHistoryWriter, createLoopLedgerStore, createStateStore, machineStateScopeId,
-  createTrack, createTransitionRecordStore, createWorkflowRunRepository, deleteTrack, firstStep, loadManifest,
-  listAutomationPolicyTemplates, loadRegistry, loadTrackRegistry, loadWorkflow, mutateTrackRegistry, readRegistrySnapshot, RegistryRevisionConflictError,
-  requireTrack, TrackAlreadyExistsError, TrackNotFoundError, TrackReferencedError, TrackReferencesInvalidatedError, updateTrack,
-  validateWorkflow,
-  stateStorageExistsSync, validateWorkflowTrackReferences, withRegistryGovernanceLock, withTrackRegistryLock,
-  writeRegistryWithGovernance,
+  createBreadcrumbWriter, createFlowEngine, createHistoryWriter, createLoopLedgerStore, createStateStore, machineStateScopeId,
+  createTransitionRecordStore, createWorkflowRunRepository, loadManifest, knownSkillProfiles,
   createOrchestrationLedger,
 } from '@tenon/kernel'
 import { artifactNamespaceForChange, createProductionExecutionRuntimeV2, openArtifactService, type ArtifactService } from '@tenon/automation'
 import type { FreezeWorkflowInputV2 } from './serverOrchestrationV2Routes.js'
-import type {
-  ChangeRefScan, CreateTrackSpec, ExtendedManifestData, FlowEngine, GraduationFs, StateStore, TrackDefinition,
-  ProjectTrackConfig, TrackRegistry, TrackValidationContext, UpdateTrackPatch, WorkflowDef,
-} from '@tenon/kernel'
-import { buildAfkLog, buildAfkSnapshot, cancelAfkRun, dismissAfkRun, enqueueAfkRun, readAfkRunLog, retryAfkRun } from './afk.js'
-import { applyLoopsUpdate, buildLoopsSnapshot, type LoopActivationValidator } from './loops.js'
-import { readConfigSnapshot, validateMandatorySkillsBody, writeMandatorySkills } from './config.js'
-import { readAutomationSettings, validateAutomationSettingsBody, writeAutomationSettings } from './automationConfig.js'
-import { HOOK_METAS, readHooksMatrix, validateHookToggleBody, writeHookToggle } from './hooksConfig.js'
-import { addProjectToRegistry, removeProjectFromRegistry } from './projects.js'
+import type { ExtendedManifestData, FlowEngine, StateStore } from '@tenon/kernel'
+import { type LoopActivationValidator } from './loops.js'
 import {
-  assertWorkflowRootAnchor, captureWorkflowDeletePermit, captureWorkflowRootAnchor, closeWorkflowRootAnchor,
-  deleteWorkflowForApi, ensureWorkflowGovernanceCoordinationPath, ensureWorkflowProjectCoordinationPath,
-  listWorkflowNames, readWorkflowForApi, scanWorkflowReferencesForApi, writeWorkflowForApi,
-  WorkflowDeleteConflictError, WorkflowNotFoundError,
-  type WorkflowRootAnchor,
+  captureWorkflowRootAnchor, closeWorkflowRootAnchor, type WorkflowRootAnchor,
 } from './workflows.js'
 import { readRegistry } from './registry.js'
-import { buildSecretsResponse, isValidSecretKey, removeSecret, SECRET_KEY_LIST, validateSecretWriteBody, writeSecret } from './secrets.js'
-import { listAllSkillsDetailed } from './skillsRegistry.js'
-import { buildSnapshot, computeFingerprint, dedupeRoots, snapshotDepsFactory } from './snapshot.js'
-import { generateToken, tokenFromHeaders, tokensMatch } from './token.js'
-import { buildAfkReadiness } from './afkReadiness.js'
-import { listDockerImages } from './dockerImages.js'
-import { hasTraceTimelineReader, listTraceSessions, readTraceRecords } from './traces.js'
-import { performTransition, readChangeHistory } from './transition.js'
-import { buildRunDetail } from './runDetail.js'
+import { dedupeRoots, snapshotDepsFactory } from './snapshot.js'
+import { generateToken } from './token.js'
+import { hasTraceTimelineReader } from './traces.js'
 import {
-  activateChangeSession, notRequestedSessionActivation, parseChangeSessionActivation,
-  parseChangeTaskPrompt, writeChangeTaskPrompt,
-} from './changeLaunch.js'
-import {
-  cliExitHttpStatus, parsePipelineCliJson, pipelineCliAvailable, runPipelineCli,
+  pipelineCliAvailable, runPipelineCli,
   type PipelineCliRunner,
 } from './operations.js'
-import { applyRouterDraft, parseRouterDraft, previewTrackRouting, scoreRouterPatternWithGrep } from './routerPreview.js'
 import { createCadenceScheduler } from './cadence.js'
 import { handleGet as handleGetRoute } from './serverGetRoutes.js'
 import { createHostTargetPlanRuntime } from './serverGetHostTargetPlanRoutes.js'
-import { handleDeleteRoute, handlePatchRoute, handlePutRoute } from './serverMutationRoutes.js'
+import { handleDeleteRoute, handlePutRoute } from './serverMutationRoutes.js'
 import { handlePostRoute } from './serverPostRoutes.js'
 import { countProjectDeletions, createTaskLifecycleRouteDeps } from './serverTaskLifecycleRoutes.js'
 import {
@@ -67,7 +36,6 @@ import {
   isoNow,
   isLocalHost,
   REAL_GRADUATION_FS,
-  repoRootForSkills,
 } from './serverSupport.js'
 import { createFreezeHandlers } from './serverFreezeHandlers.js'
 import { createServerTransport } from './serverTransport.js'
@@ -118,31 +86,13 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
     ?? (loadedManifest
       ? createFlowEngine(loadedManifest)
       : (() => { throw new Error('createDashboardServer: 需注入 flow 或 manifestPath') })())
-  // Track Registry 校验用 skill profile 集合（GOAL.md 清单 T · R2）：内建轨 profile（pm/frontend/
-  // backend，即 manifest 现行 skill 表 track 键）∪ manifest 两表已声明的非 '_all' 键。仅在项目
-  // tracks.yaml 存在且含自定义 track 时被 validateTrackRegistry 查；POST /api/changes 每请求按 root
-  // 现载 registry（多项目 server 无单一 root，不能装配处一次性 load）。profile 键空间改名属 R5。
-  const trackSkillProfiles: ReadonlySet<string> = (() => {
-    const s = new Set<string>()
-    for (const t of BUILTIN_TRACK_DEFINITIONS) {
-      if (t.policyProfile.skills.profile !== '_all') s.add(t.policyProfile.skills.profile)
-    }
-    if (loadedManifest) {
-      for (const table of [loadedManifest.mandatorySkills, loadedManifest.recommendedSkills]) {
-        for (const row of Object.values(table)) {
-          for (const k of Object.keys(row)) if (k !== '_all') s.add(k)
-        }
-      }
-    }
-    return s
-  })()
   const validateLoopActivation: LoopActivationValidator | undefined = options.validateLoopActivation
     ?? (loadedManifest === undefined
       ? undefined
       : createLoopActivationValidator({
           manifest: loadedManifest,
           hostHome,
-          trackSkillProfiles,
+          trackSkillProfiles: knownSkillProfiles(loadedManifest),
           resolverForRoot: (root, manifest) => rootSkillResolver(root, manifest),
         }))
   const pollIntervalMs = options.pollIntervalMs ?? 1000
@@ -153,9 +103,6 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
   const traceStore = options.traceStore
   const { memFs, executor: relatedSessionSearch } =
     createRelatedSessionMemoryServices({ hostHome, memFs: options.memFs, runner: options.relatedSessionSearch, now: options.relatedSessionNow })
-  // config 写端点（M3 可选增量）数据源：manifest.yaml 路径。未注入（如测试只传 flow 而非
-  // manifestPath）→ capabilities.config=false，GET/POST config 端点降级 404（不谎报，同 traffic 手法）。
-  const manifestPath = options.manifestPath
   // 能力声明（GOAL B6）：afk 数据端始终已接线（读同一 registry+store 的 automation_* 字段）；
   // traffic 仅注入 timeline-capable traceStore 时为真（旧 records-only adapter 不谎报新 UI 能力）；
   // loops 数据端始终已接线（无可选运行时依赖）。#29d / #34d。
@@ -171,11 +118,10 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
         clock,
         runPipelineCli: operationRunner,
       })
-  const routerPatternScorer = options.scoreRouterPattern ?? scoreRouterPatternWithGrep
   const capabilities: Record<string, boolean> = {
-    afk: true, loops: true, operations: operationsAvailable, config: Boolean(manifestPath),
+    afk: true, loops: true, operations: operationsAvailable,
     traffic: traceStore !== undefined && hasTraceTimelineReader(traceStore),
-    router_preview: true, cadence: cadenceScheduler !== null, orchestration_v2: true,
+    cadence: cadenceScheduler !== null, orchestration_v2: true,
   }
   let snapshotRootAnchor: ((root: string) => WorkflowRootAnchor | undefined) | undefined
   const artifactServices = new Map<string, Promise<ArtifactService>>()
@@ -191,18 +137,19 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
     return guarded
   })
 
-  const taskLifecycle = createTaskLifecycleRouteDeps({ store, clock, viewer: resolveUser, artifactServices })
+  const taskLifecycle = createTaskLifecycleRouteDeps({
+    store, clock, viewer: resolveUser, artifactServices,
+    ...(options.runOpenspecArchive === undefined ? {} : { runOpenspecArchive: options.runOpenspecArchive }),
+  })
   const snapshotDeps = snapshotDepsFactory({
     registry, store, version, clock, capabilities, gitHeadSha, workspaceFingerprint,
     rootAnchor: (root) => snapshotRootAnchor?.(root),
     artifactServiceForRoot,
-    // 归档只对查看者生效，未提交删除是仓库事实；两者都按项目读一次。
-    viewer: resolveUser,
+    // 未提交删除是仓库事实，按项目读一次。
     countDeletions: (repoRoot) => countProjectDeletions(repoRoot),
     // readiness 与 `tenon status` exits 同一份判定：相位出口规则表 + 与 transition 技能门同源的解析器。
     flow,
     ...(loadedManifest === undefined ? {} : {
-      mandatorySkills: loadedManifest.mandatorySkills,
       skillResolverFor: (root: string) => rootSkillResolver(root, loadedManifest),
     }),
   })
@@ -224,24 +171,17 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
     token,
   })
   const {
-    trackRegistryBody,
-    scanActiveTrackChanges,
-    sendTrackError,
-    mutateTrackForApi,
     fileExists,
     isRegisteredRoot,
     executeOperation,
     workflowRootAnchors,
     workflowRootForRequest,
     workflowStoreForRequest,
-    trackValidationContextFor,
     rootSkillResolver,
   } = createServerGovernance({
     registry,
     globalWorkflowRoot: joinPath(paths.configRoot, 'workflows'),
-    store,
     sendJson,
-    trackSkillProfiles,
     operationsAvailable,
     operationRunner,
   })
@@ -257,22 +197,12 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
     openBrowser: options.openBrowser ?? openInBrowser,
   })
   // ── 路由 ──
-  const mutateTrackForRoutes = async (
-    anchor: WorkflowRootAnchor,
-    revision: string,
-    mutate: (snapshot: { config: ProjectTrackConfig }) => Promise<{
-      next: ProjectTrackConfig
-      result: undefined
-    }>,
-  ): Promise<{ registry: TrackRegistry }> =>
-    mutateTrackForApi(anchor, revision, async ({ config }) => mutate({ config }))
-
   const handleGet = (req: IncomingMessage, res: ServerResponse, path: string): Promise<void> =>
     handleGetRoute(req, res, path, {
       cadenceScheduler, sendJson, sendHtml, serveIndexWithToken, serveAsset, indexHtml, token,
       version, releaseId, transactionId, stateScopeId, isLocalHost, boundPort: () => boundPort, snapshotDeps, snapshotCache,
       handleStream, isRegisteredRoot, clock, store, recordStore, loopLedger, registry, traceStore,
-      workflowRootForRequest, workflowStoreForRequest, trackValidationContextFor, trackRegistryBody, manifestPath, paths,
+      workflowRootForRequest, workflowStoreForRequest, paths,
       hostHome, operationsAvailable, hostTargetPlanRuntime, options, operationRunner, folderChooser,
       resolveSessionLink: (root, name) => resolveSessionLinkForChange(root, name, { store, memFs }), errMsg,
       orchestrationV2: { ledger: orchestrationLedger, workflowRootForRequest, freezePipeline, freezeWorkflow, runChange: (changeDir) => createProductionExecutionRuntimeV2({ change_dir: changeDir, ledger: orchestrationLedger, worker_id: `server:${process.pid}` }).then(runtime => runtime.run()) },
@@ -280,7 +210,6 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
         workflowRootForRequest,
         hostHome,
         operationRunner,
-        trackValidationContextFor,
         clock,
         pollIntervalMs,
         heartbeatMs,
@@ -291,13 +220,11 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
     })
   const handlePost = (req: IncomingMessage, res: ServerResponse, path: string): Promise<void> =>
     handlePostRoute(req, res, path, {
-      isLocalHost, boundPort: () => boundPort, sendJson, token, readJsonBody, routerPatternScorer,
-      workflowRootForRequest, workflowStoreForRequest, trackValidationContextFor, executeOperation, operationRunner,
+      isLocalHost, boundPort: () => boundPort, sendJson, token, readJsonBody,
+      workflowRootForRequest, workflowStoreForRequest, executeOperation, operationRunner,
       operationsAvailable, isRegisteredRoot, store, recordStore, clock, history, workflowRootAnchors,
-      trackSkillProfiles, loadedManifest, runRepo, flow, fileExists, gitHeadSha,
-      workspaceFingerprint, breadcrumb, manifestPath, paths, validateLoopActivation,
-      skillsRoot: options.skillsRoot ?? join(repoRootForSkills(), 'skills'),
-      mutateTrackForApi: mutateTrackForRoutes, trackRegistryBody, sendTrackError, errMsg,
+      loadedManifest, runRepo, flow, fileExists, gitHeadSha,
+      workspaceFingerprint, breadcrumb, paths, validateLoopActivation, errMsg,
       realGraduationFs: REAL_GRADUATION_FS,
       relatedSessionSearch, folderChooser, runGit: options.projectCreateGit, designSeedFetch: options.designSeedFetch,
       resolveUser,
@@ -314,25 +241,18 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
     readJsonBody,
     workflowRootForRequest,
     workflowStoreForRequest,
-    mutateTrackForApi: mutateTrackForRoutes,
-    scanActiveTrackChanges,
-    trackRegistryBody,
-    sendTrackError,
     paths,
     workflowRootAnchors,
-    trackValidationContextFor,
     errMsg,
     resolveUser,
     taskLifecycle,
   }
-  const handlePatch = (req: IncomingMessage, res: ServerResponse, path: string): Promise<void> =>
-    handlePatchRoute(req, res, path, mutationRouteDeps)
   const handleDelete = (req: IncomingMessage, res: ServerResponse, path: string): Promise<void> =>
     handleDeleteRoute(req, res, path, mutationRouteDeps)
   const handlePut = (req: IncomingMessage, res: ServerResponse, path: string): Promise<void> =>
     handlePutRoute(req, res, path, mutationRouteDeps)
   const dispatch = createDispatcher({
-    routes: new Map([['GET', handleGet], ['POST', handlePost], ['PATCH', handlePatch], ['DELETE', handleDelete], ['PUT', handlePut]]),
+    routes: new Map([['GET', handleGet], ['POST', handlePost], ['DELETE', handleDelete], ['PUT', handlePut]]),
     snapshotCache, sendJson, errMsg,
   })
   const httpServer: Server = createServer((req, res) => {

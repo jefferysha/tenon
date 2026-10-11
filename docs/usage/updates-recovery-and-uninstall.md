@@ -134,9 +134,9 @@ made readable on purpose:
 - `attach_on` or `host` in a custom agent file (also what `tenon agent copy security <name>` writes);
 - `TENON_RECORD_RETENTION` (above).
 
-The standard lane (`track: standard`) is a v0.3 lane the router may pick for small implementation requests.
-v0.2.1 reports `未注册的 track 'standard'` for those tasks (`list`, `status` and `get` still work), so finish
-or archive standard tasks before rolling back.
+Tasks on a v0.3 or later Track that v0.2.1 does not know (the v0.3 `standard` lane, or the `lite` Track of the
+`default` Workflow) are reported by v0.2.1 as `未注册的 track` (`list`, `status` and `get` still work), so finish
+or terminate those tasks (`tenon task finish`, `tenon task terminate`) before rolling back.
 
 ## Canonical project-state recovery
 

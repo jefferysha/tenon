@@ -156,6 +156,8 @@ export function createCodexFirstTriageProvider(
 
 const GIT_SOURCE_ID = 'repo-head'
 const LOOP_SOURCE_ID = 'loop-ledger'
+/** AFK 自动修复任务所在的 default 轨道。 */
+const TRIAGE_TRACK = 'backend'
 const DEFAULT_ROUTES: readonly TriageRoute[] = Object.freeze([Object.freeze({
   routeId: 'default-fix',
   description: 'Create a default backend fix workflow run for an actionable observation',
@@ -171,12 +173,14 @@ export function createProductionTriageRuntime(
     repoRoot: options.repoRoot,
     store: options.store,
     runRepository: options.runRepository,
+    // 修复任务建在后端分支上：计划与初始化用同一个轨道（不取工作流的第一条分支）。
     resolveWorkflowPlan: (request) => loadEffectiveWorkflowPlan(
       options.repoRoot,
       request.workflowId,
+      { track: TRIAGE_TRACK },
     ),
     resolveInit: () => ({
-      track: 'backend',
+      track: TRIAGE_TRACK,
       reviewSeed: 'pending',
       preset: 'full',
       creator: options.creator(),

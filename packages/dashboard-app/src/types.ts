@@ -285,17 +285,30 @@ export interface ProjectRepositoryIdentity {
   workspace_kind: 'primary' | 'worktree'
 }
 
-/** 归档只对查看者生效：同一个 change 在别人的快照里仍在 changes。 */
-export type ArchivedChangeSnapshot = ChangeSnapshot & {
-  archive: { archivedAt: string; phase: string; actor: { id: string; name: string; trust: 'declared' } }
+/** 任务结果：`tenon task finish` / `terminate` 写入；界面：完结 / 已升级 / 已终止。 */
+export type TaskResult = 'finished' | 'escalated' | 'terminated'
+
+/** 一个已结束任务的只读摘要（`openspec/changes/archive/` 下的一个目录）；旧归档没有结果字段时 `unknown`。 */
+export interface EndedTask {
+  name: string
+  workflow: string
+  track: string
+  result: TaskResult | 'unknown'
+  endedAt: string
+  prUrl?: string
+  owner?: string
+  /** 仓库根相对路径，`/` 分隔；详情接口认的是它的最后一段。 */
+  archivedDir: string
 }
 
 export interface ProjectSnapshot {
   root: string
   ok: boolean
   changes: ChangeSnapshot[]
-  /** 查看者已归档的 change；每个聚合读数都只读 changes，故自动排除它们。 */
-  archived?: ArchivedChangeSnapshot[]
+  /** 已结束任务（结束时间倒序）；没有归档任务时缺省。 */
+  ended?: EndedTask[]
+  /** 归档任务总数；只在 `ended` 被截断时出现，缺省说明 `ended` 就是全部。 */
+  endedTotal?: number
   /** 未提交删除的 change 数；仓库不受版本控制时缺省。 */
   uncommittedDeletions?: number
   repository?: ProjectRepositoryIdentity

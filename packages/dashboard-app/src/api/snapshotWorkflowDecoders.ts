@@ -120,6 +120,10 @@ export const GUARD_TYPES = new Set([
   'full-direct-override',
   'build-head-unchanged',
   'spec-migration-applied',
+  // 通用离开条件（default 按 YAML 执行后的任务已勾选 / 未在 AFK 排队 / 依赖已结束）。
+  'tasks-through-step',
+  'not-afk-queued',
+  'dependencies-ended',
 ])
 export const GUARD_CAPABILITIES = new Set([
   'readText', 'fileExists', 'gitHeadSha', 'workspaceFingerprint', 'specMigrationStatus',

@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react'
-import { isBuiltinWorkflowName, isDefaultWorkflowName } from '@tenon/kernel/workflow/identifier'
+import { isDefaultWorkflowName } from '@tenon/kernel/workflow/identifier'
 import {
   DndContext,
   DragOverlay,
@@ -12,7 +12,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { ChevronDown, Download, FileCheck, Lock, MoreHorizontal, Plus, RotateCcw, Trash2 } from 'lucide-react'
+import { ChevronDown, Download, FileCheck, MoreHorizontal, Plus, RotateCcw, Settings2, Trash2 } from 'lucide-react'
 import type { WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
 import { useT } from '../i18n'
 import { useFlipLayout } from '../shared/useFlip'
@@ -47,9 +47,7 @@ export interface WorkflowNavProps {
   loading: boolean
   error: string | null
   canWrite: boolean
-  /** 当前工作流是插件内建（只读）：名旁显示锁，悬停说明。 */
-  readOnly?: boolean
-  /** 能否新建工作流（有写凭证即可，只读的内建也能复制）；缺省同 canWrite。 */
+  /** 能否新建工作流；缺省同 canWrite。 */
   canCreate?: boolean
   busy: boolean
   /** 工作流是否接入 OpenSpec（default 恒开、不可关）。 */
@@ -61,6 +59,8 @@ export interface WorkflowNavProps {
   onExport: () => void
   onDelete: () => void
   onNewTrack: () => void
+  /** 当前轨道的设置（规范 / 关键词）。 */
+  onTrackSettings: () => void
   onDeleteTrack: (trackId: string) => void
   onSelect: (id: string) => void
   /** 左栏阶段块的 ⋯ → 删除阶段（确认框由页面负责）。 */
@@ -94,7 +94,6 @@ type MenuEntry = { id: string; label: string; icon: ReactNode; onSelect: () => v
  */
 export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
   const { names, current, defaultSource, branches, branch, def, labelOf, selectedId, lint, loading, error, canWrite, busy, openspec } = props
-  const readOnly = props.readOnly === true
   const canCreate = props.canCreate ?? canWrite
   const { t } = useT()
   const isDefault = current !== null && isDefaultWorkflowName(current)
@@ -132,8 +131,10 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
     // default 恒受 OpenSpec 治理，开关只对自定义工作流开放。
     // 开关决定阶段能否「+ 输入 / + 输出」文档：关闭时输入输出只来自字段，说明放在 Tooltip。
     { id: 'openspec', label: t('workflow.openspec_menu'), icon: <FileCheck />, onSelect: props.onToggleOpenspec, checked: openspec, disabled: !canWrite || busy || isDefault || current === null, hint: t('workflow.openspec_hint') },
+    // 轨道设置（规范 / 关键词）作用于当前所选的轨道；平铺工作流没有轨道，不列。
+    ...(branch !== BASE_BRANCH ? [{ id: 'track-settings', label: t('workflow.track_settings'), icon: <Settings2 />, onSelect: props.onTrackSettings, disabled: !canWrite || busy }] : []),
   ]
-  const destructive: MenuEntry[] = readOnly ? [] : [
+  const destructive: MenuEntry[] = [
     isDefault
       ? { id: 'restore', label: t('workflow.restore_default'), icon: <RotateCcw />, onSelect: props.onDelete, disabled: !deleteEnabled }
       : { id: 'delete', label: t('workflow.delete_workflow'), icon: <Trash2 />, onSelect: props.onDelete, disabled: !deleteEnabled, danger: true },
@@ -151,7 +152,6 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
       </DropdownMenuCheckboxItem>
     </Hint>
   )
-  const lockHint = t('workflow.builtin_read_only')
 
   return (
     <aside className="flex min-h-0 flex-col gap-5 overflow-y-auto border-r border-border bg-card px-5 py-5 max-[900px]:border-r-0 max-[900px]:border-b" aria-label={t('workflow.rail_title')} data-testid="workflow-nav">
@@ -174,19 +174,11 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
               {names.map((name) => (
                 <DropdownMenuRadioItem key={name} value={name} className={cn(MENU_ITEM, 'pl-8')} data-testid={`wb-wf-item-${name}`}>
                   <span className="min-w-0 flex-1 truncate whitespace-nowrap" title={name}>{name}</span>
-                  {isBuiltinWorkflowName(name) && <Lock className="size-3.5 flex-none" aria-label={lockHint} data-testid={`wb-wf-item-lock-${name}`} />}
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
           </DropdownMenuContent>
         </DropdownMenu>
-        {readOnly && (
-          <Hint label={lockHint}>
-            <button type="button" className="grid size-6 flex-none place-items-center rounded-xs text-text-3 outline-none focus-visible:ring-2 focus-visible:ring-(--accent)" aria-label={lockHint} data-testid="wb-wf-lock">
-              <Lock className="size-3.5" aria-hidden="true" />
-            </button>
-          </Hint>
-        )}
         <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
             <button type="button" className={cn(MENU_ICON_BUTTON, 'ml-auto')} aria-label={t('workflow.workflow_menu')} data-testid="wb-wf-menu" disabled={busy}>

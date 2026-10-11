@@ -6,7 +6,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { ensureUserLocalDir, serializeTaskArchive, type TenonUserResolution } from '@tenon/kernel'
+import { ensureUserLocalDir, type TenonUserResolution } from '@tenon/kernel'
 import { buildListSnapshot, buildSnapshot, scanChangeDetail, scanProject, type SnapshotDeps } from './snapshot.js'
 import { computeRootFingerprints } from './snapshotFingerprint.js'
 import { readTerminalActivity } from './snapshot.js'
@@ -84,28 +84,26 @@ describe('list tier = full tier without the per-change evidence', () => {
     const full = await buildSnapshot(deps)
     const detail = await scanChangeDetail(deps, root, 'alpha', 1)
     expect(detail?.change).toEqual(full.projects[0]?.changes[0])
-    expect(detail?.archive).toBeUndefined()
     expect(await scanChangeDetail(deps, root, 'ghost', 1)).toBeUndefined()
     await mkdir(join(root, 'openspec', 'changes', 'not-a-change'), { recursive: true })
     expect(await scanChangeDetail(deps, root, 'not-a-change', 1)).toBeUndefined()
   })
 
-  it('查看者归档了这个 change：详情带 archive，列表里它在 archived 而不在 changes', async () => {
+  it('没有「隐藏」：遗留的每用户 archived.json 不再被读取，列表照常含这个 change，详情照常可读', async () => {
     const store = newStore()
     const root = await makeProject()
     await initChange(store, root, 'alpha')
     const alice: TenonUserResolution = { id: 'a@x.io', name: 'A', slug: 'a-at-x.io', source: 'env', trust: 'declared' }
     const paths = await ensureUserLocalDir(root, alice.slug)
-    await writeFile(paths.archived, serializeTaskArchive({
+    await writeFile(join(paths.localDir, 'archived.json'), JSON.stringify({
       version: 1,
-      changes: { alpha: { archivedAt: '2026-09-15T12:00:00.000Z', phase: 'open', actor: { id: alice.id, name: 'A', trust: 'declared' } } },
+      changes: { alpha: { archived_at: '2026-09-15T12:00:00.000Z', phase: 'open', actor: { id: alice.id, name: 'A', trust: 'declared' } } },
     }), 'utf8')
-    const deps = depsFor([root], { store, viewer: () => alice, resolveUser: () => alice })
+    const deps = depsFor([root], { store, resolveUser: () => alice })
     const list = await buildListSnapshot(deps)
-    expect(list.projects[0]?.changes).toEqual([])
-    expect(list.projects[0]?.archived?.map((change) => change.name)).toEqual(['alpha'])
-    const detail = await scanChangeDetail(deps, root, 'alpha', 1)
-    expect(detail?.archive).toMatchObject({ phase: 'open', actor: { id: alice.id } })
+    expect(list.projects[0]?.changes.map((change) => change.name)).toEqual(['alpha'])
+    expect(list.projects[0]).not.toHaveProperty('archived')
+    expect((await scanChangeDetail(deps, root, 'alpha', 1))?.change.name).toBe('alpha')
   })
 })
 

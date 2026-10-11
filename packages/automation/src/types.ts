@@ -36,7 +36,8 @@
  * 队列层（老仓 skills/pipeline/scripts/*.sh，非 TS 包但是队列语义真相源）：
  *   - automation-queue.sh:1-110 —— "取下一个"扫描 + 拓扑/FIFO（→ queue/scan.ts）。
  *   - automation-config.sh:1-114 —— 两层开关与队列 opt-in 语义；本插件的轨道资格
- *     由当前 Track Policy 决定，默认 PM 轨已明确允许显式 AFK（→ queue/gate.ts）。
+ *     由任务所选工作流分支的 `automation` 决定（没写 = 不可进入 AFK），default 的产品 / 前端 / 后端
+ *     分支都允许显式 AFK（→ queue/gate.ts）。
  *   - state-transition.sh:229-237 —— spec-complete 挂队注入点（→ sdk enqueue + queue/gate.ts）。
  *   - pipeline-guard.sh:147-162 —— build 相位 automation=queued 双执行守卫（→ queue/gate.ts）。
  *   - hooks/pipeline-gate.sh:16-25 —— TENON_AFK=1 沙箱放行三门（→ queue/gate.ts）。

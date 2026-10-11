@@ -15,13 +15,13 @@ export interface NextStepPanelProps {
  * 状态行下的「下一步」：前进出口的阻断（与 `tenon status` exits 同一份判定）。同类阻断合并成一行
  * （「缺少文档 proposal · openspec-design · tasks」），每行 40px、左侧 2px 琥珀条，完整 CLI 文案进 title；
  * 标题旁不再放计数（数量在头部状态里）。可复制的 `tenon status` 命令从头部省略、保留末尾的
- * `tenon status <change>`；「复制接管命令」复制发给 agent 的恢复提示词。已完结不显示。
+ * `tenon status <change>`；「复制接管命令」复制发给 agent 的恢复提示词。已结束不显示。
  * 整块不超出详情列：网格子项 min-w-0，命令截断、复制钮常显。
  */
 export function NextStepPanel({ row, onToast }: NextStepPanelProps): JSX.Element | null {
   const { t } = useT()
   const { change, root } = row
-  if (row.summary.kind === 'completed') return null
+  if (row.summary.kind === 'ended') return null
   const exit = forwardExitOf(change, row.rules)
   const plain = (text: string): BlockerRow[] => [{ label: text, title: text }]
   const rows: BlockerRow[] = row.summary.kind === 'review'

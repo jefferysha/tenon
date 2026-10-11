@@ -17,9 +17,11 @@
     "./workflow/parse": "./dist/workflow/parse.js",
     "./workflow/document-contract-model": "./dist/workflow/document-contract-model.js",
     "./workflow/document-contract-validation": "./dist/workflow/document-contract-validation.js",
+    "./workflow/abandon-event": "./dist/workflow/abandon-event.js",
     "./workflow/auto-gate": "./dist/workflow/auto-gate.js",
     "./workflow/orchestration": "./dist/workflow/orchestration.js",
-    "./workflow/skill-order": "./dist/workflow/skill-order.js"
+    "./workflow/skill-order": "./dist/workflow/skill-order.js",
+    "./workflow/test-support": "./dist/workflow/test-support.js"
   },
   "engines": {
     "node": ">=22"

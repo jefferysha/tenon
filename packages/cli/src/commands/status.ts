@@ -9,7 +9,6 @@
 import { ownerOf, stateStorageExistsSync, type PipelineState } from '@tenon/kernel'
 import { readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { archivedChangesForUser } from '../archivedGuard.js'
 import { errMsg, type CliDeps } from '../deps.js'
 import {
   archivedChangesRoot, changeDir, changeNameOfArchivedDir, changesRoot, isValidChangeName,
@@ -30,13 +29,11 @@ function field(row: Row, name: keyof PipelineState['fields']): string {
   return str(row.state.fields[name])
 }
 
-/** 读活跃 change（排除 archived=true 与当前用户已归档的；单个读失败 → WARN + 跳过），按名排序 */
+/** 读活跃 change（排除 archived=true；单个读失败 → WARN + 跳过），按名排序 */
 async function collectActive(deps: CliDeps): Promise<Row[]> {
   const names = [...(await deps.listChanges(changesRoot(deps.cwd)))].sort()
-  const archivedForMe = await archivedChangesForUser(deps)
   const rows: Row[] = []
   for (const name of names) {
-    if (archivedForMe.has(name)) continue
     try {
       const state = await deps.store.read(changeDir(deps.cwd, name))
       if (str(state.fields.archived) === 'true') continue
@@ -130,8 +127,8 @@ export async function cmdStatus(
       ['phase', `${display(state.fields.phase)} (${display(state.fields.phase_status)})`],
       ['verify', display(state.fields.verify_result)],
       ['updated', display(state.fields.updated_at)],
-      // 完结的判定是 `archived=true`；目录被 OpenSpec 搬走与否只决定它还能不能继续改。说法与
-      // check 同一句（finishedLabel）：不走 OpenSpec 的工作流只说「已完结」，不说已归档。
+      // 完结的判定是 `archived=true`；目录被 `tenon task finish` 搬进 archive/ 与否只决定它说不说「已归档」。
+      // 说法与 check 同一句（finishedLabel）。
       ...(finished || str(state.fields.archived) === 'true'
         ? [
             ['finished', finishedLabel(deps, state, finished)] as [string, string],
@@ -169,13 +166,10 @@ export async function cmdStatus(
 }
 
 /**
- * 完结的 change：`archived=true`，或已被 OpenSpec 移进 `openspec/changes/archive/`。
+ * 已结束的 change：`archived=true`，或已被移进 `openspec/changes/archive/`（完结、已升级、已终止）。
  *
- * 与 `list --archived` 不同：那是当前用户的「先收起来」隐藏表（per-user，可 unarchive），这里是
- * 全项目做完的任务。两者此前都看不到完结任务，做完的工作就此从所有列表里消失。
- *
- * 判定必须包含还留在活跃目录里的完结 change：`tenon transition <c> archived` 与 `openspec
- * archive` 是两条命令，中间那段时间里活跃表按 `archived=true` 把它滤掉、归档目录里又还没有它，
+ * 判定必须包含还留在活跃目录里的完结 change：`tenon transition <c> archived` 与 `tenon task
+ * finish` 是两条命令，中间那段时间里活跃表按 `archived=true` 把它滤掉、归档目录里又还没有它，
  * 任务在两张表里同时消失——正是这段注释说不该存在的状态。目录在哪只决定它还能不能继续改。
  */
 async function collectFinished(deps: CliDeps): Promise<Row[]> {

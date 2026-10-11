@@ -59,7 +59,7 @@ async function ownedProject(): Promise<Harness> {
   harness = h
   await mkdir(join(h.cwd, '.pipeline', 'workflows'), { recursive: true })
   await writeFile(join(h.cwd, '.pipeline', 'workflows', 'ownerflow.yaml'), WORKFLOW, 'utf8')
-  expect(await h.run(['init', 'demo', '--track', 'backend', '--workflow', 'ownerflow', '--preset', 'full'], { env: asOwner }), h.err.join('\n')).toBe(0)
+  expect(await h.run(['init', 'demo', '--workflow', 'ownerflow', '--preset', 'full'], { env: asOwner }), h.err.join('\n')).toBe(0)
   expect(await h.run(['test', 'run', 'demo', 'probe'], { env: asOwner }), h.err.join('\n')).toBe(0)
   return h
 }

@@ -16,12 +16,12 @@ import { fileURLToPath } from 'node:url'
 import { CommanderError } from 'commander'
 import {
   clearReviewMarkerFor, createTaskLifecycleApplication,
-  BUILTIN_TRACK_DEFINITIONS, createEffectiveSkillResolver, createFlowEngine, createHistoryWriter, createStateStore,
-  createInteractionEventRecorder, createTransitionRecordStore, createWorkflowRunRepository, loadManifest, loadTrackRegistry, loadWorkflow,
-  candidateFingerprint, designSystemPrecondition, loadAgentLibrary, loadResourceCatalog, mutateTrackRegistry, readSecrets, registerProjectRoot,
+  createEffectiveSkillResolver, createFlowEngine, createHistoryWriter, createStateStore,
+  createInteractionEventRecorder, createTransitionRecordStore, createWorkflowRunRepository, loadManifest,
+  candidateFingerprint, designSystemPrecondition, loadAgentLibrary, loadResourceCatalog, readSecrets, registerProjectRoot,
   createBuildRevisionToken, probeBuildRevisionIdentity, createOrchestrationLedger,
   type BoardCommandV2, type BoardSnapshotV2, type WorkflowPipelinePlanV2,
-  withTrackRegistryLock, resolveTenonUser, type TenonUserResolution, actorOf, isTenonUser, USER_MISSING_HINT,
+  withProjectCoordinationLock, resolveTenonUser, type TenonUserResolution, actorOf, isTenonUser, USER_MISSING_HINT,
 } from '@tenon/kernel'
 import {
   createDocumentProjectionAdapter,
@@ -31,8 +31,8 @@ import {
   openArtifactService,
   openArtifactSubmissionService,
 } from '@tenon/automation'
-import type { ExtendedManifestData, TrackRegistry, TrackValidationContext } from '@tenon/kernel'
 import type { CliDeps } from './deps.js'
+import { skillProfileChecker } from './skillProfiles.js'
 import { readGateMarkers } from './gateMarkers.js'
 import { splitPassthroughArgv } from './argv.js'
 import { buildProgram, CliExit } from './program.js'
@@ -79,37 +79,6 @@ function manifestPath(): string {
 }
 
 /**
- * Track Registry 校验上下文（GOAL.md 清单 T · R2）：
- *  - workflowExists 复用 loadWorkflow（'default' 恒存在，其余按 .pipeline/workflows/<id>.yaml 是否可载）；
- *  - skillProfiles = 内建轨 skill profile（pm/frontend/backend，即 manifest 现行 skill 表 track 键）
- *    ∪ manifest 两表已声明的非 '_all' 键。缺 tracks.yaml 时 registry=内建 Track、本上下文不会被查
- *    （validateTrackRegistry 只在 tracks.yaml 存在时跑），此处仍如实构造，让自定义 tracks.yaml 能过校验。
- * skill profile 键空间改名属清单 T 的 R5 阶段（见 GOAL.md）——R2 不改 manifest 结构，只按现行键派生。
- */
-function trackValidationContext(repoRoot: string, manifest: ExtendedManifestData): TrackValidationContext {
-  const skillProfiles = new Set<string>()
-  for (const t of BUILTIN_TRACK_DEFINITIONS) {
-    if (t.policyProfile.skills.profile !== '_all') skillProfiles.add(t.policyProfile.skills.profile)
-  }
-  for (const table of [manifest.mandatorySkills, manifest.recommendedSkills]) {
-    for (const row of Object.values(table)) {
-      for (const key of Object.keys(row)) if (key !== '_all') skillProfiles.add(key)
-    }
-  }
-  return {
-    workflowExists: (id) => {
-      if (id === 'default') return true
-      try {
-        return loadWorkflow(repoRoot, id) !== null
-      } catch {
-        return false
-      }
-    },
-    skillProfiles,
-  }
-}
-
-/**
  * Read the release version from the native host manifests. Codex is preferred because it is the
  * canonical marketplace package; Claude remains a compatibility fallback for an older checkout.
  */
@@ -142,10 +111,7 @@ async function main(): Promise<void> {
   const manifest = loadManifest(manifestPath())
   const { toParse, passthrough } = splitPassthroughArgv(process.argv)
   const store = createStateStore()
-  // Track Registry：装配处构造上下文，**每次从盘 fresh-load、不跨命令记忆化**（R3 D4）。只读
-  // 命令走 loadRegistry；init/fields 组合校验走 withRegistryLock（registry 锁内 fresh-load）；
-  // tracks CRUD 走 mutateRegistry（mutate-under-lock）。坏 tracks.yaml 只 fail-loud 到相关命令。
-  const trackCtx = trackValidationContext(process.cwd(), manifest)
+  const isSkillProfileKnown = skillProfileChecker(manifest)
   const recordStore = createTransitionRecordStore()
   const runRepo = createWorkflowRunRepository({
     store,
@@ -198,30 +164,19 @@ async function main(): Promise<void> {
         },
       })
     },
-    // H10 §1/§8任务7：skill_bundle_id 存在性语义校验器——直接复用上面 trackCtx.skillProfiles
-    // （T 线 tracks/validate.ts::profileOk 消费的同一份集合：BUILTIN_TRACK_DEFINITIONS 非 `_all`
-    // policy profile ∪ manifest 两表已声明的非 `_all` track 键），零额外 manifest 解析/新正则。
+    // H10 §1/§8任务7：skill_bundle_id 存在性语义校验器，集合口径见 skillProfileChecker。
     // afk.ts 的 cmdAfk('run') 装配 createLoopAdmission 时转发本字段；loop-run.ts 的 --dry-run
     // wiring 预览同样消费（见 deps.ts 头注）。
-    isSkillProfileKnown: (id) => trackCtx.skillProfiles.has(id),
-    resolveSkillActionAuthority: createManifestSkillActionAuthorityResolver(
-      manifest,
-      (profile) => trackCtx.skillProfiles.has(profile),
-    ),
+    isSkillProfileKnown,
+    resolveSkillActionAuthority: createManifestSkillActionAuthorityResolver(manifest, isSkillProfileKnown),
     store,
     interaction: createInteractionEventRecorder(),
     runRepo,
     recordStore,
-    loadRegistry: () => loadTrackRegistry(process.cwd(), trackCtx),
-    withRegistryLock: (cb) => withTrackRegistryLock(process.cwd(), trackCtx, cb),
-    mutateRegistry: (cb) => mutateTrackRegistry(process.cwd(), trackCtx, cb),
+    withProjectLock: (cb) => withProjectCoordinationLock(process.cwd(), cb),
     flow: createFlowEngine(manifest),
-    // T-R6：artifact 按现载 track registry 映射 skill profile；loader 每次 fresh-read，避免同进程
-    // tracks CRUD 后复用旧快照。H10 skill bundle 走 resolver 的显式 profile 入口，不受此映射干扰。
-    resolver: createEffectiveSkillResolver({
-      registry: () => loadTrackRegistry(process.cwd(), trackCtx),
-      manifest,
-    }),
+    // 技能只看工作流 YAML：resolver 不叠加 manifest 矩阵。
+    resolver: createEffectiveSkillResolver(manifest),
     cwd: process.cwd(),
     env: (name) => process.env[name],
     user: resolveUser,

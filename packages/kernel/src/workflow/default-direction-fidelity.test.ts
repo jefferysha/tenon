@@ -66,6 +66,6 @@ describe('发行版工作流的测试项与方向模板一致', () => {
         expect(test.pass?.metrics).toEqual([{ name: 'lines_added', max: 2000 }])
       }
     }
-    expect(checked).toBeGreaterThanOrEqual(4)
+    expect(checked).toBeGreaterThanOrEqual(3) // pm / frontend / backend 的验证步；lite 的探针是 diff-risk，不在此列
   })
 })

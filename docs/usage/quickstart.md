@@ -35,8 +35,11 @@ Add keyboard navigation to the project switcher and test it.
 ```
 
 Do not start by manually choosing an old Change unless you intend to resume it.
-The router suppresses pure discussion, sends only tightly bounded low-risk edits
-to simple, and otherwise creates a new Change with the selected Track/Workflow.
+The router suppresses pure discussion. For a development request without a heavy
+signal the agent first reads the code, runs `tenon assess` on the files it expects
+to change and shows you the recommendation (the lightweight Track, or a heavy
+Track when the change is too large); a new Change is created only after you
+confirm. Heavy requests such as a migration go straight to a heavy Track.
 
 ### 2. Identify the Change
 
@@ -68,9 +71,10 @@ tenon check <change-name>
 tenon dashboard --open
 ```
 
-Progress and Todo use the effective steps of this Change. Default shows seven
-phases; simple shows its own four nodes including the escalation terminal; free
-and custom retain the selected Workflow.
+Progress and Todo use the effective steps of this Change. A heavy Track of the
+default Workflow shows seven phases; the lightweight Track shows its own five nodes
+including the escalation terminal; custom Workflows keep their own steps. Once
+the task ends it moves to the Ended category with its result.
 
 ### 5. Resume only when explicit
 
@@ -98,7 +102,7 @@ authority, security, cost, or external-side-effect boundaries.
 ## Expected result
 
 - discussion created no Change, or
-- a new simple/default/custom Change exists for the current request;
+- a new lightweight, heavy-Track or custom Change exists for the current request;
 - the status, Todo, and Dashboard agree on its Workflow and phase;
 - an unrelated prior Change remains untouched.
 
@@ -109,8 +113,8 @@ tenon status <change-name> --json
 tenon document status <change-name> --json
 ```
 
-For simple, document status may correctly report that no default document
-contract applies.
+For the lightweight Track, document status may correctly report that no
+OpenSpec document contract applies.
 
 ## Common failures
 

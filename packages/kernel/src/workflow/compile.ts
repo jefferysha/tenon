@@ -21,10 +21,12 @@ import {
   compileWorkflowDecompositionPolicy,
   compileWorkflowInteractionPolicy,
 } from './policy.js'
+import { compileBranchPolicy, compileBranchRoute } from './compile-track-branch.js'
 import type {
   ActionConfig,
   StepIR,
   StepTransitionIR,
+  TrackBranchIR,
   WorkflowIR,
 } from './ir.js'
 
@@ -48,7 +50,7 @@ const ACTION_TYPES: ReadonlySet<string> = new Set<ActionConfig['type']>([
 const CUSTOM_PRODUCER_POLICIES: ReadonlySet<string> = new Set(['effective-step-skills'])
 const DEFAULT_PRODUCER_POLICIES: ReadonlySet<string> = new Set(['effective-step-skills', 'effective-phase-skills'])
 const WORKFLOW_KEYS: ReadonlySet<string> = new Set([
-  'name', 'decomposition', 'interaction', 'openspec', 'documentContract', 'steps', 'tracks',
+  'name', 'decomposition', 'interaction', 'openspec', 'documentContract', 'steps', 'tracks', 'route',
 ])
 const STEP_KEYS: ReadonlySet<string> = new Set([
   'id', 'label', 'gate', 'prompt', 'maxRounds', 'skills', 'inputs', 'outputs', 'artifacts', 'tests', 'test_policy',
@@ -326,6 +328,9 @@ function compileWith(
   const steps = withAutoGateGuards(asArray(rec.steps, 'steps').map((s, i) => compileStep(s, i, allowedPolicies)), isForwardStepEdge)
   assertMaxRoundsDeclarations(steps, 'steps', executionModel)
   const tracks = compileTracks(rec.tracks, allowedPolicies, executionModel)
+  // 平铺工作流的路由数据：与分支 route 同一套值域校验；有 tracks 时各分支自己写。
+  const route = compileBranchRoute(rec.route, 'route')
+  if (route !== undefined && tracks !== undefined) compileError('route', '有 tracks 时 route 写在 tracks.<id> 下')
   return deepFreeze({
     name,
     decomposition,
@@ -334,13 +339,17 @@ function compileWith(
     ...(documentContract === undefined ? {} : { documentContract }),
     steps,
     ...(tracks === undefined ? {} : { tracks }),
+    ...(route === undefined ? {} : { route }),
   })
 }
 
-const TRACK_BRANCH_KEYS: ReadonlySet<string> = new Set(['label', 'documentContract', 'steps'])
+const TRACK_BRANCH_KEYS: ReadonlySet<string> = new Set(['label', 'documentContract', 'steps', 'spec', 'route', 'automation'])
 const TRACK_ID_RE = /^[a-z][a-z0-9_-]{0,31}$/
 
-/** `tracks.<id>` 分支：每条分支的 steps 与顶层同构编译（路径前缀 tracks.<id>.steps），文档契约随分支编译。 */
+/**
+ * `tracks.<id>` 分支：每条分支的 steps 与顶层同构编译（路径前缀 tracks.<id>.steps），文档契约随分支编译；
+ * `spec` / `route` / `automation` 只在声明时进入 IR（见 compile-track-branch.ts）。
+ */
 function compileTracks(
   raw: unknown,
   allowedPolicies: ReadonlySet<string>,
@@ -348,7 +357,7 @@ function compileTracks(
 ): WorkflowIR['tracks'] | undefined {
   if (raw === undefined) return undefined
   const rec = asRecord(raw, 'tracks')
-  const out: Record<string, { label?: string; documentContract?: WorkflowDocumentContractV1; steps: readonly StepIR[] }> = {}
+  const out: Record<string, TrackBranchIR> = {}
   for (const [id, branchRaw] of Object.entries(rec)) {
     if (!TRACK_ID_RE.test(id)) compileError(`tracks.${id}`, '分支 id 须为小写字母开头的 a-z0-9_-（≤32）')
     const branch = asRecord(branchRaw, `tracks.${id}`)
@@ -361,6 +370,7 @@ function compileTracks(
     assertMaxRoundsDeclarations(steps, `tracks.${id}.steps`, executionModel)
     out[id] = {
       ...(branch.label === undefined ? {} : { label: branch.label }),
+      ...compileBranchPolicy(branch, `tracks.${id}`),
       ...(documentContract === undefined ? {} : { documentContract }),
       steps,
     }

@@ -1,9 +1,8 @@
 import type { WbIoSlot } from '../api/governanceTypes'
-import { builtinStepLabel } from '../i18n/builtinLabels'
 import { changeWorkflowName } from '../model/progressModel'
 import { snapshotRulesKey, type WorkflowRules } from '../model/workflowModel'
 import { isProjectNavigable } from '../state/projectSelectionModel'
-import type { ArchivedChangeSnapshot, ChangeSnapshot, Snapshot, UserRefView } from '../types'
+import type { ChangeSnapshot, Snapshot, TaskResult, UserRefView } from '../types'
 import { blockerLines, type BlockerLine } from './blockerLabel'
 
 export type Tr = (key: string, vars?: Record<string, string | number>) => string
@@ -18,14 +17,14 @@ export interface StageState {
 
 /**
  * 一行的状态，只由快照推出（不读工作流定义，所以定义加载前后、所有项目与单项目视图里都一样）：
- * 评审待确认 / 前进出口有阻断 / 可进入下一阶段 / 进行中 / 已完结。
+ * 评审待确认 / 前进出口有阻断 / 可进入下一阶段 / 进行中 / 已结束（带任务结果）。
  */
 export type TaskSummary =
   | { kind: 'review' }
   | { kind: 'blocked'; blockers: readonly string[] }
   | { kind: 'ready'; to: string }
   | { kind: 'running' }
-  | { kind: 'completed' }
+  | { kind: 'ended'; result: TaskResult }
 
 export interface TaskRow {
   key: string
@@ -38,8 +37,6 @@ export interface TaskRow {
   owner: UserRefView | null
   stages: StageState[]
   summary: TaskSummary
-  /** 只有已归档视图的行才有：归档时的阶段、时间与归档人。 */
-  archive?: ArchivedChangeSnapshot['archive']
 }
 
 export function rootBasename(root: string): string {
@@ -134,8 +131,17 @@ export function forwardExitOf(change: ChangeSnapshot, rules: WorkflowRules | und
   return best
 }
 
+/**
+ * 活跃目录里状态机已走完的任务的结果，与内核 `terminalTaskResult` 同一规则：停在 escalated 是已升级，其余是完结。
+ * 不读 `task_result`：它在活跃任务上只可能是被打断的归档留下的残留，不表示任务已结束；已结束的任务（archive/ 下）
+ * 的结果由列表摘要给出（见 `taskRowOf` 的 `ended`）。
+ */
+export function taskResultOf(change: ChangeSnapshot): TaskResult {
+  return change.phase === 'escalated' ? 'escalated' : 'finished'
+}
+
 export function summaryOf(change: ChangeSnapshot, rules: WorkflowRules | undefined): TaskSummary {
-  if (change.archived === 'true') return { kind: 'completed' }
+  if (change.archived === 'true') return { kind: 'ended', result: taskResultOf(change) }
   if (change.reviewHandshake?.status === 'pending') return { kind: 'review' }
   const exit = forwardExitOf(change, rules)
   if (exit === null) return { kind: 'running' }
@@ -146,7 +152,7 @@ export function summaryOf(change: ChangeSnapshot, rules: WorkflowRules | undefin
 /** 状态一词：不带阶段名（详情页阶段轨已写明阶段）。 */
 export function summaryShort(row: TaskRow, t: Tr): string {
   switch (row.summary.kind) {
-    case 'completed': return t('workspace.summary_completed')
+    case 'ended': return t(`workspace.result_${row.summary.result}`)
     case 'review': return t('workspace.summary_review')
     case 'blocked': return t('workspace.summary_blocked', { n: row.summary.blockers.length })
     case 'ready': return t('workspace.summary_ready', { to: stageLabel(row.summary.to, row.rules, t) })
@@ -154,10 +160,10 @@ export function summaryShort(row: TaskRow, t: Tr): string {
   }
 }
 
-/** 任务卡上的状态：阶段 · 状态（已完结不带阶段）。 */
+/** 任务卡上的状态：阶段 · 状态（已结束的只写任务结果）。 */
 export function summaryText(row: TaskRow, t: Tr): string {
   const short = summaryShort(row, t)
-  if (row.summary.kind === 'completed') return short
+  if (row.summary.kind === 'ended') return short
   return t('workspace.summary_with_stage', { stage: stageLabel(row.change.phase, row.rules, t), status: short })
 }
 
@@ -172,35 +178,20 @@ export function rowKey(root: string, name: string): string {
   return `${name}@${root}`
 }
 
-/**
- * 阶段名的显示：内置工作流里没被改过的出厂名按界面语言显示（i18n builtin.*），自建 / 改过的名字原样。
- * labelByStep 只用于显示，换了不影响任何判定；没有一个名字需要换时返回原对象。
- */
-function localizedRules(rules: WorkflowRules, workflow: string, t: Tr): WorkflowRules {
-  const labels = rules.labelByStep
-  if (labels === undefined) return rules
-  let changed = false
-  const shown: Record<string, string> = {}
-  for (const [step, label] of Object.entries(labels)) {
-    shown[step] = builtinStepLabel(t, workflow, step, label)
-    if (shown[step] !== label) changed = true
-  }
-  return changed ? { ...rules, labelByStep: shown } : rules
-}
-
-function rowOf(root: string, change: ChangeSnapshot, rulesByKey: ReadonlyMap<string, WorkflowRules>, t: Tr): TaskRow {
+/** `ended` 给定时是一个已归档任务的详情行：任务结果取列表里的摘要（旧归档的状态里没有结果字段）。 */
+export function taskRowOf(root: string, change: ChangeSnapshot, rulesByKey: ReadonlyMap<string, WorkflowRules>, t: Tr, ended?: TaskResult): TaskRow {
   const workflow = changeWorkflowName(change)
-  const rules = localizedRules(rulesByKey.get(snapshotRulesKey(root, change.workflowPlanFingerprint)) ?? change.workflowRules, workflow, t)
+  const rules = rulesByKey.get(snapshotRulesKey(root, change.workflowPlanFingerprint)) ?? change.workflowRules
   return {
     key: rowKey(root, change.name),
     root,
     change,
     rules,
     workflow,
-    archived: change.archived === 'true',
+    archived: ended !== undefined || change.archived === 'true',
     owner: change.owner,
     stages: stagesOf(change, rules, t),
-    summary: summaryOf(change, rules),
+    summary: ended === undefined ? summaryOf(change, rules) : { kind: 'ended', result: ended },
   }
 }
 
@@ -209,24 +200,9 @@ export function rowsOf({ snapshot, currentRoot, rulesByKey, t }: RowsInput): Tas
   for (const project of snapshot?.projects ?? []) {
     if (!isProjectNavigable(project)) continue
     if (currentRoot !== '' && project.root !== currentRoot) continue
-    for (const change of project.changes) rows.push(rowOf(project.root, change, rulesByKey, t))
+    for (const change of project.changes) rows.push(taskRowOf(project.root, change, rulesByKey, t))
   }
   rows.sort((left, right) => Number(left.archived) - Number(right.archived) || right.change.updated_at.localeCompare(left.change.updated_at))
-  return rows
-}
-
-/** 已归档视图的行：与活跃行同构（状态同样由数据推出），另带归档时的阶段 / 时间 / 归档人。 */
-export function archivedRowsOf({ snapshot, currentRoot, rulesByKey, t }: RowsInput): TaskRow[] {
-  const rows: TaskRow[] = []
-  for (const project of snapshot?.projects ?? []) {
-    if (!isProjectNavigable(project)) continue
-    if (currentRoot !== '' && project.root !== currentRoot) continue
-    for (const change of project.archived ?? []) {
-      // 归档只是对我隐藏：状态与归档前的活跃行同一推导，不另编一个「进行中」。
-      rows.push({ ...rowOf(project.root, change, rulesByKey, t), archive: change.archive })
-    }
-  }
-  rows.sort((left, right) => (right.archive?.archivedAt ?? '').localeCompare(left.archive?.archivedAt ?? ''))
   return rows
 }
 
@@ -240,23 +216,15 @@ export function uncommittedDeletionsOf(snapshot: Snapshot | null, currentRoot: s
   return total
 }
 
-/** 状态筛选：由 summary.kind 映射，不另起判定。 */
-export type TaskStatus = 'all' | 'needs-you' | 'running' | 'done'
-// 'needs-you' 与 shell/views.NEEDS_YOU_STATUS（顶部徽标跳转）是同一个值。
-export const TASK_STATUSES: readonly TaskStatus[] = ['all', 'needs-you', 'running', 'done']
-
-export function isTaskStatus(value: unknown): value is TaskStatus {
-  return typeof value === 'string' && (TASK_STATUSES as readonly string[]).includes(value)
-}
-
 /**
  * 需要你 = 等人确认的评审。阻断（缺技能 / 文档 / 测试 / 未勾任务 …）都由执行中的智能体照
  * `tenon status` 的下一步去补，不算「需要你」；可前进的任务同样由智能体推进。
+ * 已完结但目录还没移进 archive/ 的任务算「已结束」。
  */
-export function statusOf(summary: TaskSummary): Exclude<TaskStatus, 'all'> {
+export function statusOf(summary: TaskSummary): 'needs-you' | 'running' | 'ended' {
   switch (summary.kind) {
     case 'review': return 'needs-you'
-    case 'completed': return 'done'
+    case 'ended': return 'ended'
     case 'blocked':
     case 'ready':
     case 'running': return 'running'
@@ -269,103 +237,4 @@ export function statusOf(summary: TaskSummary): Exclude<TaskStatus, 'all'> {
  */
 export function needsYouCount(input: RowsInput): number {
   return rowsOf(input).filter((row) => statusOf(row.summary) === 'needs-you').length
-}
-
-export interface TaskFilterState {
-  /** 状态芯片；已完结只在「已完成」与「全部」里出现。 */
-  status: TaskStatus
-  /** 'all' 或负责人 slug。 */
-  owner: string
-  /** 'all' 或工作流名。 */
-  workflow: string
-  /** 'all' 或轨道 id。 */
-  track: string
-  /** 'all' 或阶段 id；只有选定单一工作流时才有意义。 */
-  stage: string
-}
-
-export const DEFAULT_TASK_FILTER: TaskFilterState = { status: 'all', owner: 'all', workflow: 'all', track: 'all', stage: 'all' }
-
-function matches(row: TaskRow, filter: TaskFilterState, ignore?: keyof TaskFilterState): boolean {
-  if (ignore !== 'status' && filter.status !== 'all' && statusOf(row.summary) !== filter.status) return false
-  if (ignore !== 'owner' && filter.owner !== 'all' && row.owner?.slug !== filter.owner) return false
-  if (ignore !== 'workflow' && filter.workflow !== 'all' && row.workflow !== filter.workflow) return false
-  if (ignore !== 'track' && filter.track !== 'all' && row.change.track !== filter.track) return false
-  if (ignore !== 'stage' && filter.stage !== 'all' && row.change.phase !== filter.stage) return false
-  return true
-}
-
-/** 各状态芯片的计数：受其它维度约束，忽略状态本身。 */
-export function statusCounts(rows: readonly TaskRow[], filter: TaskFilterState): Record<TaskStatus, number> {
-  const counts: Record<TaskStatus, number> = { all: 0, 'needs-you': 0, running: 0, done: 0 }
-  for (const row of rows) {
-    if (!matches(row, filter, 'status')) continue
-    counts.all += 1
-    counts[statusOf(row.summary)] += 1
-  }
-  return counts
-}
-
-export function filterRows(rows: readonly TaskRow[], filter: TaskFilterState): TaskRow[] {
-  return rows.filter((row) => matches(row, filter))
-}
-
-export interface FacetChip {
-  id: string
-  label: string
-  count: number
-}
-
-export interface TaskFacets {
-  /** Owner chips keyed by slug, labelled by name. */
-  owners: FacetChip[]
-  workflows: FacetChip[]
-  tracks: FacetChip[]
-  /** 只在选定单一工作流时非 null：该工作流自己的阶段序。 */
-  stages: FacetChip[] | null
-}
-
-/** 各维度的候选与计数：每个维度的计数受其它维度约束。 */
-export function taskFacets(rows: readonly TaskRow[], filter: TaskFilterState): TaskFacets {
-  const workflowNames: string[] = []
-  const trackIds: string[] = []
-  const ownerRefs: UserRefView[] = []
-  for (const row of rows) {
-    if (row.owner !== null && !ownerRefs.some((ref) => ref.slug === row.owner?.slug)) ownerRefs.push(row.owner)
-    if (!workflowNames.includes(row.workflow)) workflowNames.push(row.workflow)
-    if (row.change.track !== '' && !trackIds.includes(row.change.track)) trackIds.push(row.change.track)
-  }
-  const workflows = workflowNames.map((name) => ({
-    id: name,
-    label: name,
-    count: rows.filter((row) => row.workflow === name && matches(row, filter, 'workflow')).length,
-  }))
-  const tracks = trackIds.map((id) => ({
-    id,
-    label: id,
-    count: rows.filter((row) => row.change.track === id && matches(row, filter, 'track')).length,
-  }))
-  const owners = ownerRefs.map((ref) => ({
-    id: ref.slug,
-    label: ref.name,
-    count: rows.filter((row) => row.owner?.slug === ref.slug && matches(row, filter, 'owner')).length,
-  }))
-  // 阶段只在「单一工作流 + 单一轨道」下可比（每条轨道分支各有自己的阶段）；只有一条时直接可用，不必先点它。
-  const effectiveWorkflow = filter.workflow !== 'all' ? filter.workflow : workflowNames.length === 1 ? workflowNames[0] : undefined
-  if (effectiveWorkflow === undefined) return { owners, workflows, tracks, stages: null }
-  const scopedTracks = [...new Set(rows.filter((row) => row.workflow === effectiveWorkflow).map((row) => row.change.track))]
-  const effectiveTrack = filter.track !== 'all' ? filter.track : scopedTracks.length <= 1 ? (scopedTracks[0] ?? '') : undefined
-  if (effectiveTrack === undefined) return { owners, workflows, tracks, stages: null }
-  const sample = rows.find((row) => row.workflow === effectiveWorkflow && (effectiveTrack === '' || row.change.track === effectiveTrack))
-  const stages = (sample?.stages ?? []).map((stage) => ({
-    id: stage.id,
-    label: stage.label,
-    count: rows.filter((row) => row.change.phase === stage.id && matches(row, filter, 'stage')).length,
-  }))
-  return { owners, workflows, tracks, stages }
-}
-
-/** 某层「全部」芯片的计数 = 忽略该层后命中的任务数。 */
-export function facetTotal(rows: readonly TaskRow[], filter: TaskFilterState, facet: keyof TaskFilterState): number {
-  return rows.filter((row) => matches(row, filter, facet)).length
 }

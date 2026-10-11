@@ -16,6 +16,7 @@
 import { resolve } from 'node:path'
 import type { TenonUserResolution } from '@tenon/kernel'
 import { mapWithConcurrency } from './concurrentMap.js'
+import { relocateArchivedPaths } from './endedTasks.js'
 import { dedupeRoots } from './projectRoots.js'
 import { normalizeRepositoryLabels } from './repositoryIdentity.js'
 import { defaultResolveUser } from './serverUserRoutes.js'
@@ -37,6 +38,11 @@ export interface SnapshotCache {
   full(): Promise<SharedSnapshot>
   /** One change with all its evidence; `null` when the project is not registered or holds no readable change of that name. */
   detail(root: string, name: string): Promise<SharedChange | null>
+  /**
+   * One ended task with all its evidence, read-only out of `openspec/changes/archive/<dir>`; `null` when the directory
+   * holds no readable task. Not cached: an ended task is opened rarely and its directory never changes.
+   */
+  archivedDetail(root: string, dir: string): Promise<SharedChange | null>
   /** The input fingerprint of every registered project; concurrent callers share one computation. */
   fingerprint(): Promise<string>
   /**
@@ -56,7 +62,7 @@ export interface SnapshotCacheOptions {
   /** Upper bound on reuse of one project's list / full build (see the file header). */
   maxAgeMs?: number
   /**
-   * How long a root's resolved viewer / acting user is reused. Resolution may run `git config`
+   * How long a root's resolved acting user is reused. Resolution may run `git config`
    * synchronously twice per root, which dominated the fingerprint (about 700 ms for 34 roots) and
    * blocked the event loop on every one-second poll.
    */
@@ -68,12 +74,14 @@ export interface ProjectScanners {
   list(deps: SnapshotDeps, root: string, nowMs: number): Promise<ProjectListSnapshot>
   full(deps: SnapshotDeps, root: string, nowMs: number): Promise<ProjectSnapshot>
   detail(deps: SnapshotDeps, root: string, name: string, nowMs: number): Promise<ScannedChange | undefined>
+  archivedDetail(deps: SnapshotDeps, root: string, dir: string, nowMs: number): Promise<ScannedChange | undefined>
 }
 
 const PRODUCTION_SCANNERS: ProjectScanners = {
   list: (deps, root, nowMs) => scanProject(deps, root, nowMs, 'list'),
   full: (deps, root, nowMs) => scanProject(deps, root, nowMs, 'full'),
   detail: (deps, root, name, nowMs) => scanChangeDetail(deps, root, name, nowMs),
+  archivedDetail: (deps, root, dir, nowMs) => scanChangeDetail(deps, root, dir, nowMs, 'archive'),
 }
 
 export const SNAPSHOT_CACHE_MAX_AGE_MS = 30_000
@@ -106,7 +114,7 @@ export function createSnapshotCache(options: SnapshotCacheOptions): SnapshotCach
   const maxAgeMs = options.maxAgeMs ?? SNAPSHOT_CACHE_MAX_AGE_MS
   const identityTtlMs = options.identityTtlMs ?? SNAPSHOT_IDENTITY_TTL_MS
   const fingerprintOf = options.fingerprints ?? ((deps: SnapshotDeps, nowMs: number, roots: readonly string[]) => computeRootFingerprints(
-    roots, nowMs, deps.rootAnchor, readTerminalActivity, deps.readChangesDirectory, deps.viewer,
+    roots, nowMs, deps.rootAnchor, readTerminalActivity, deps.readChangesDirectory,
   ))
   // Every invalidation advances the epoch. A build remembers the epoch it started in and is only stored when no
   // invalidation named its project afterwards, so nothing built before a write is kept after it.
@@ -119,9 +127,9 @@ export function createSnapshotCache(options: SnapshotCacheOptions): SnapshotCach
   let fullReadAt: number | undefined
   const identities = new Map<string, { readonly at: number; readonly value: TenonUserResolution }>()
 
-  function remembered(role: 'viewer' | 'acting', resolveIdentity: (root: string) => TenonUserResolution) {
+  function remembered(resolveIdentity: (root: string) => TenonUserResolution) {
     return (root: string): TenonUserResolution => {
-      const key = `${role}\u0000${resolve(root)}`
+      const key = resolve(root)
       const at = now()
       const hit = identities.get(key)
       if (hit !== undefined && at - hit.at < identityTtlMs) return hit.value
@@ -135,8 +143,7 @@ export function createSnapshotCache(options: SnapshotCacheOptions): SnapshotCach
     const deps = options.snapshotDeps(nowMs)
     return {
       ...deps,
-      ...(deps.viewer === undefined ? {} : { viewer: remembered('viewer', deps.viewer) }),
-      resolveUser: remembered('acting', deps.resolveUser ?? defaultResolveUser),
+      resolveUser: remembered(deps.resolveUser ?? defaultResolveUser),
     }
   }
 
@@ -292,9 +299,8 @@ export function createSnapshotCache(options: SnapshotCacheOptions): SnapshotCach
       const shared: SharedChange | null = scanned === undefined
         ? null
         : {
-            ...sharedBody(JSON.stringify({ ...scanned.change, rev, ...(scanned.archive === undefined ? {} : { archive: scanned.archive }) })),
+            ...sharedBody(JSON.stringify({ ...scanned.change, rev })),
             change: { ...scanned.change, rev },
-            ...(scanned.archive === undefined ? {} : { archive: scanned.archive }),
             rev,
           }
       if (cells.get(root) === cell && startedEpoch >= cell.validFrom) {
@@ -333,10 +339,22 @@ export function createSnapshotCache(options: SnapshotCacheOptions): SnapshotCach
     return buildDetail(cell, normalized, name, rev)
   }
 
+  async function archivedDetail(root: string, dir: string): Promise<SharedChange | null> {
+    const nowMs = now()
+    const scanned = await scanners.archivedDetail(depsAt(nowMs), resolve(root), dir, nowMs)
+    if (scanned === undefined) return null
+    // The directory never changes, so its name is its identity. The ledgers still name the documents and agent reports
+    // where the task lived before it ended; the detail names them where they are now.
+    const rev = `archive:${dir}`
+    const change = { ...relocateArchivedPaths(scanned.change, dir), rev }
+    return { ...sharedBody(JSON.stringify(change)), change, rev }
+  }
+
   return {
     list,
     full,
     detail,
+    archivedDetail,
     async fingerprint(): Promise<string> {
       return joined(await fingerprints())
     },
@@ -360,7 +378,7 @@ export function createSnapshotCache(options: SnapshotCacheOptions): SnapshotCach
           cell.details.clear()
           cell.detailFlights.clear()
         }
-        for (const role of ['viewer', 'acting']) identities.delete(`${role}\u0000${normalized}`)
+        identities.delete(normalized)
       }
     },
   }

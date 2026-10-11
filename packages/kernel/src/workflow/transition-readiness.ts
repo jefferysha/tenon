@@ -1,22 +1,13 @@
-import { DEFAULT_EVENT_POLICY } from '../flow/default-event-policy.js'
-import type { EventName } from '../flow/transition-table.js'
 import type { PipelineState } from '../types.js'
 import { isForwardExit } from './agent-verdict.js'
 import type { AgentBlocker } from './agent-verdict.js'
 import type { BuildRevisionBlocker } from './build-revision.js'
 import type { StepBlockerSource } from './step-exit-report.js'
 import type { EffectiveWorkflowPlan } from './effective-plan.js'
+import { selectExecution } from './execution-seam.js'
 import { evaluateGuards } from './guard-handlers.js'
-import {
-  effectiveLifecyclePolicy,
-} from './governed-lifecycle-policy.js'
 import type { CompiledGuardConfig, GuardCapability, GuardDecision } from './ir.js'
-import { stepExitTransitions } from './implicit-completion.js'
-import {
-  buildDefaultGuardInput,
-  buildStepGuardInput,
-  type StepGuardContext,
-} from './stepGuard.js'
+import type { StepGuardContext } from './stepGuard.js'
 
 export type TransitionReadinessBlocker =
   | BuildRevisionBlocker
@@ -66,13 +57,6 @@ export type ReadinessByTransition = Readonly<
   Record<string, Readonly<Record<string, TransitionReadiness>>>
 >
 
-function defaultEventGuards(event: string): readonly CompiledGuardConfig[] {
-  if (!(event in DEFAULT_EVENT_POLICY)) {
-    throw new Error(`phase-manifest workflow 声明了未知 default event '${event}'`)
-  }
-  return DEFAULT_EVENT_POLICY[event as EventName].guards
-}
-
 function blocker(
   guard: CompiledGuardConfig,
   decision: Exclude<GuardDecision, { readonly kind: 'passed' }>,
@@ -115,15 +99,15 @@ export async function readinessByTransition(
   state: PipelineState,
   context: StepGuardContext,
 ): Promise<ReadinessByTransition> {
-  const input = plan.executionModel === 'phase-manifest'
-    ? buildDefaultGuardInput(state, context)
-    : buildStepGuardInput(state, context)
+  // 出边与 guard 随执行模型而变，由接缝选适配器；求值循环与 agent 阻断两种模型共用。
+  const basis = selectExecution(plan).readiness({ plan, state, context })
+  const input = basis.guardInput
   const phase = state.fields.phase
   const currentStepId = Array.isArray(phase) ? phase.join(',') : (phase ?? '')
   const step = plan.workflow.steps.find((candidate) => candidate.id === currentStepId)
   if (step === undefined) return {}
   // Structural exits (no run-state filter) so readiness keys always match the projected rules.
-  const exits = plan.executionModel === 'phase-manifest' ? step.transitions : stepExitTransitions(plan, step.id)
+  const exits = basis.exitsOf(step)
   // agent 阻断只求一次（要读台账与冻结内容），再按边分发到前进出边上。
   const agentBlockers = context.stepAgents === undefined ? [] : await context.stepAgents()
   const agentsBlocker = agentBlockers.length === 0
@@ -136,14 +120,7 @@ export async function readinessByTransition(
         })),
       }
   const transitions = await Promise.all(exits.map(async (transition) => {
-      const guards = plan.executionModel === 'phase-manifest'
-        ? defaultEventGuards(transition.event)
-        : effectiveLifecyclePolicy(
-            plan.capabilities.documents.policy !== undefined,
-            step,
-            transition,
-            plan.workflow.steps.find((candidate) => candidate.id === transition.to),
-          ).guards
+      const guards = basis.guardsOf(step, transition)
       const evaluations = []
       const errors: TransitionReadinessBlocker[] = []
       for (const guard of guards) {

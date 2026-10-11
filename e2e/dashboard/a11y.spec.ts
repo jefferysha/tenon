@@ -25,6 +25,16 @@ const TARGETS: readonly Target[] = [
     },
   },
   {
+    // 沙盒项目里有一个被终止的任务：分类「已结束」里的结果标记与只读详情。
+    name: '工作台 · 已结束',
+    open: async (page, server) => {
+      await openView(page, 'workspace', { root: server.sandbox })
+      await page.getByTestId('task-status-ended').click()
+      await page.locator('[data-testid^="task-card-"]').first().click()
+      await expect(page.getByTestId('task-detail-title')).toBeVisible()
+    },
+  },
+  {
     name: '工作流 · 总览',
     open: async (page) => {
       await openView(page, 'workflow', { wf: 'default', step: ':overview' })

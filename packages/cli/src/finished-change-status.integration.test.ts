@@ -63,19 +63,21 @@ async function finishedNames(): Promise<readonly string[]> {
 }
 
 describe('已完结的 change：status / check / list 同一口径', () => {
-  test('transition archived 之后、openspec archive 之前：不在 active_changes，next 是 finish-change', async () => {
+  test('transition archived 之后、tenon task finish 之前：不在 active_changes，next 是 finish-change', async () => {
     const status = await statusOf()
     expect(status.active_changes).toEqual([])
     expect(status.finished_changes).toEqual([expect.objectContaining({ name: CHANGE, archived_at: '2026-09-20T00:00:00Z' })])
     expect(status.step?.next.map((action) => action.action)).toEqual(['finish-change'])
+    expect(status.step?.next[0]).toMatchObject({ command: `tenon task finish ${CHANGE}` })
     expect(await finishedNames()).toEqual([CHANGE])
     expect(await h.run(['status', '--json'])).toBe(0)
     expect(JSON.parse(h.out.join('\n'))).toEqual({ active_changes: [] })
+    // 目录还没搬进 archive/：只说「已完结」，不抢在搬移之前声称已归档。
     expect(await h.run(['check', CHANGE])).toBe(0)
-    expect(h.out.join('\n')).toBe(`change '${CHANGE}' 已完结（已归档），无需检查`)
+    expect(h.out.join('\n')).toBe(`change '${CHANGE}' 已完结，无需检查`)
   })
 
-  test('openspec archive 搬走目录之后：check 不再报 FAIL，status 不再当它活跃', async () => {
+  test('目录搬进 archive/ 之后：check 不再报 FAIL，status 不再当它活跃', async () => {
     await moveToArchive()
     expect(await h.run(['check', CHANGE])).toBe(0)
     expect(h.out.join('\n')).toBe(`change '${CHANGE}' 已完结（已归档），无需检查`)
@@ -160,6 +162,7 @@ describe('finish-change 的提交：一次成功', () => {
    * 被上层规则忽略的（`git add` 会 exit 1）不列。
    */
   test('状态目录的 .gitignore：未跟踪的一起提交；被忽略的不列', async () => {
+    await mkdir(join(h.cwd, '.pipeline'), { recursive: true })
     await writeFile(join(h.cwd, '.pipeline', '.gitignore'), '*.lock\n', 'utf8')
     await mkdir(join(h.cwd, '.tenon'), { recursive: true })
     await writeFile(join(h.cwd, '.tenon', '.gitignore'), 'users/*/local/\n', 'utf8')
@@ -221,7 +224,7 @@ describe('finish-change 的提交：design-system 任务带上 DESIGN.md 与 des
   const DS = 'shop-design'
 
   async function archivedDesignSystem(): Promise<Commit> {
-    expect(await h.run(['init', DS, '--workflow', 'design-system', '--track', 'free', '--preset', 'full']), h.err.join('\n')).toBe(0)
+    expect(await h.run(['init', DS, '--workflow', 'design-system', '--preset', 'full']), h.err.join('\n')).toBe(0)
     await h.seedPhase(DS, 'review')
     await h.seedArtifact(DS, 'archived', 'true')
     await h.seedArtifact(DS, 'archived_at', '2026-09-20T00:00:00Z')

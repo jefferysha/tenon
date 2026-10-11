@@ -2,7 +2,6 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
-  BUILTIN_TRACK_DEFINITIONS,
   compileEffectiveWorkflowPlan,
   createLoopLedgerStore,
   createStateStore,
@@ -11,10 +10,10 @@ import {
   latestChangeLoopBinding,
   loadRegistry,
   workflowPlanSnapshot,
+  type AutomationPolicyBits,
   type LoopEntry,
-  type TrackPolicyProfile,
-  type TrackRegistry,
   type VerificationResult,
+  type WorkflowDef,
 } from '@tenon/kernel'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RunOutcome } from '../types.js'
@@ -39,13 +38,20 @@ const BASE_SHA = 'b'.repeat(40)
 const TEST_VERIFIER_IDENTITY = {
   kind: 'host-verifier', verifier: 'test-verifier', version: '1',
 } as const
-const AFK_WORKFLOW_PLAN = compileEffectiveWorkflowPlan('sdk-afk', {
+const afkStep = {
+  id: 'run', label: 'Run', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [],
+}
+// 项目层只读冻结计划里所选分支的 automation：backend 声明可进 AFK，lite 没写（失败关闭）。
+const AFK_WORKFLOW: WorkflowDef = {
   name: 'sdk-afk',
   interaction: { version: 'v1', mode: 'afk' },
-  steps: [{
-    id: 'run', label: 'Run', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [],
-  }],
-})
+  steps: [],
+  tracks: {
+    backend: { steps: [afkStep], automation: { eligible: true, enqueueAfterSpec: false } },
+    lite: { steps: [afkStep] },
+  },
+}
+const AFK_WORKFLOW_PLAN = compileEffectiveWorkflowPlan('sdk-afk', AFK_WORKFLOW, { track: 'backend' })
 const AFK_WORKFLOW_SNAPSHOT = workflowPlanSnapshot(AFK_WORKFLOW_PLAN)
 // 技能由 manifest 叠加解析，本用例的 resolver 存根返回空表：坐标能力也必须不自带步骤技能，
 // 否则会去仓库里找一个上游技能文件（它按设计不在版本库里）。
@@ -57,36 +63,15 @@ const DEFAULT_COORDINATE_CAPABILITY = compileEffectiveWorkflowPlan('sdk-coordina
   }],
 }).capabilities.skills
 const AFK_GRANT = { status: 'valid', grants: ['enter-afk'] } as const
-const AUTH_TRACK_REGISTRY: TrackRegistry = {
-  ordered: BUILTIN_TRACK_DEFINITIONS,
-  byId: new Map(BUILTIN_TRACK_DEFINITIONS.map((track) => [track.id, track])),
-  revision: '0123456789abcdef',
-  source: 'builtin-only',
-}
 
-const INELIGIBLE_BACKEND_TRACK_REGISTRY: TrackRegistry = (() => {
-  const ordered = BUILTIN_TRACK_DEFINITIONS.map((track) => track.id === 'backend'
-    ? {
-        ...track,
-        policyProfile: { ...track.policyProfile, automationEligible: false },
-      }
-    : track)
-  return {
-    ordered,
-    byId: new Map(ordered.map((track) => [track.id, track])),
-    revision: 'fedcba9876543210',
-    source: 'project-file',
-  }
-})()
-
+/** 宿主只报告平台 / Skill / Run 三层与任务记着的轨道；项目层由准入读冻结计划，宿主无法代授。 */
 const authorizedWorkflowPorts = (
   repoRoot: string,
   store: ReturnType<typeof createStateStore>,
-  registry: TrackRegistry = AUTH_TRACK_REGISTRY,
+  trackId = 'backend',
 ): Pick<
   LoopAdmissionDeps,
-  'bindAutomationPolicy' | 'bindWorkflowActionAuthority' |
-  'withWorkflowActionAuthorityLock' | 'workflowActionAuthority'
+  'bindAutomationPolicy' | 'bindWorkflowActionAuthority' | 'workflowActionAuthority'
 > => {
   const runRepo = createWorkflowRunRepository({
     store,
@@ -99,15 +84,11 @@ const authorizedWorkflowPorts = (
       runRepo.bindAutomationPolicy(join(repoRoot, 'openspec', 'changes', change), automationPolicy, binding),
     bindWorkflowActionAuthority: (change, snapshot) =>
       runRepo.bindWorkflowActionAuthority(join(repoRoot, 'openspec', 'changes', change), snapshot),
-    withWorkflowActionAuthorityLock: async (use) => use(registry),
-    workflowActionAuthority: async ({ registry }) => ({
+    workflowActionAuthority: async () => ({
       platform: AFK_GRANT,
       skill: AFK_GRANT,
-      project: AFK_GRANT,
       run: AFK_GRANT,
-      projectAuthority: {
-        version: 'v1', track_id: 'backend', track_registry_revision: registry.revision,
-      },
+      trackId,
     }),
   }
 }
@@ -209,14 +190,8 @@ describe('createAutomation SDK', () => {
     return dir
   }
 
-  const policy = (automationEligible: boolean): TrackPolicyProfile => ({
-    reviewSeed: 'pending',
-    automationEligible,
-    coverageProfile: 'none',
-    routing: { enabled: false },
-    skills: { matrix: false, profile: '_all' },
-  })
-  const eligiblePolicy = (_trackId: string): TrackPolicyProfile => policy(true)
+  const policy = (automationEligible: boolean): AutomationPolicyBits => ({ automationEligible })
+  const eligiblePolicy = (_trackId: string): AutomationPolicyBits => policy(true)
 
   const seedDefaultAdmissionLoop = async (changePrefix: string): Promise<void> => {
     await mkdir(join(root, '.pipeline'), { recursive: true })
@@ -287,7 +262,7 @@ loops:
     await store.setMany(blocked, { phase: 'build', automation: 'queued' })
     await store.set(allowed, 'phase', 'build')
     const afk = createAutomation({ repoRoot: root, store, clock, config: { level: 'L1' } })
-    const resolvePolicy = (trackId: string): TrackPolicyProfile =>
+    const resolvePolicy = (trackId: string): AutomationPolicyBits =>
       trackId === 'data-no-auto' ? policy(false) : policy(true)
 
     expect([
@@ -342,7 +317,6 @@ loops:
     const {
       bindAutomationPolicy,
       bindWorkflowActionAuthority,
-      withWorkflowActionAuthorityLock,
     } = authorizedWorkflowPorts(root, store)
     const afk = createAutomation({
       repoRoot: root,
@@ -351,7 +325,6 @@ loops:
       config: { level: 'L1' },
       bindAutomationPolicy,
       bindWorkflowActionAuthority,
-      withWorkflowActionAuthorityLock,
       workflowActionAuthority: async () => { throw new Error('authority read EIO') },
     })
     await afk.enqueue('sdk-authority-read-error', eligiblePolicy)
@@ -419,11 +392,11 @@ loops:
     expect(await store.get(dir, 'automation')).toBe('paused')
   })
 
-  it('default admission derives project authority from the locked registry and rejects an ineligible track despite provider allow', async () => {
+  it('default admission derives project authority from the frozen branch and rejects a branch without automation despite provider allow', async () => {
     const dir = await store.init({
       repoRoot: root,
       name: 'sdk-ineligible-canonical-track',
-      track: 'backend',
+      track: 'lite',
       reviewSeed: 'pending',
       creator: TEST_CREATOR, preset: 'full',
       clock,
@@ -444,7 +417,7 @@ loops:
       store,
       clock,
       config: { level: 'L1' },
-      ...authorizedWorkflowPorts(root, store, INELIGIBLE_BACKEND_TRACK_REGISTRY),
+      ...authorizedWorkflowPorts(root, store, 'lite'),
       preparation: createEmptyBundlePreparation(),
       validateExecutionWiring: trustTestAdmissionWiring,
     })

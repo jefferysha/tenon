@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { legacyDefaultWorkflow } from './test-support.js'
 import { LEGACY_DOCUMENT_GOVERNANCE_POLICY } from './migrations/openspec-v1-document-policy.js'
-import { builtinTrack } from '../tracks/builtins.js'
 import {
   compileEffectiveWorkflowPlan,
   DocumentGovernanceBindingError,
@@ -12,7 +11,7 @@ import { DEFAULT_WORKFLOW_DECOMPOSITION_POLICY } from './policy.js'
 
 describe('workflow policy snapshot v4', () => {
   it('freezes default policies in the self-contained V4 projection', () => {
-    const plan = compileEffectiveWorkflowPlan('default')
+    const plan = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' })
     const snapshot = workflowPlanSnapshot(plan)
 
     expect(snapshot.version).toBe(4)
@@ -85,7 +84,7 @@ describe('workflow policy snapshot v4', () => {
       steps: [{
         id: 'one', label: 'One', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [],
       }],
-    }, builtinTrack('backend'))
+    }, { track: 'backend' })
 
     expect(changed.workflowFingerprint).not.toBe(base.workflowFingerprint)
     expect(trackChanged.workflowFingerprint).toBe(base.workflowFingerprint)
@@ -106,7 +105,7 @@ describe('workflow policy snapshot v4', () => {
   })
 
   it('validates historical V2 with its old hash before projecting safe defaults without rehashing', () => {
-    const current = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflow())
+    const current = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflow(), { executionModel: 'phase-manifest' })
     const {
       decomposition: _decomposition,
       interaction: _interaction,
@@ -131,8 +130,21 @@ describe('workflow policy snapshot v4', () => {
         // Historical bytes also predate the 2026-09 ship/archive inputs/outputs (pr_url / archived).
         inputs: step.id === 'ship' || step.id === 'archive' ? [] : step.inputs,
         outputs: step.id === 'ship' || step.id === 'archive' ? [] : step.outputs,
-        // No default edge declares guards; the ones on the current IR are the auto gate's, which historical bytes lack.
-        transitions: step.transitions.map((transition) => ({ ...transition, guards: [] })),
+        // Historical bytes carry the step-level guards the 2026-07 default declared (spec: tasks-at-least, build: the
+        // pre-Verify review, ship: spec migration); the leave conditions default.yaml gained when it became the
+        // executable source (设计 §1b) post-date them and now live on the exits.
+        guards: step.id === 'build'
+          ? (step.transitions.find((transition) => transition.event === 'build-complete')?.guards ?? [])
+              .filter((guard) => guard.type === 'field-equals')
+          : step.guards.filter((guard) => guard.type === 'tasks-at-least' || guard.type === 'spec-migration-applied'),
+        // No default edge declared guards or the freeze / verified actions; the guards on the current IR are the
+        // auto gate's and the YAML's own, which historical bytes lack.
+        transitions: step.transitions.map((transition) => ({
+          ...transition,
+          guards: [],
+          actions: transition.actions.filter((action) =>
+            action.type !== 'freeze-build-sha' && action.type !== 'mark-verification-passed'),
+        })),
       })),
     }
     const restored = effectiveWorkflowPlanFromSnapshot({

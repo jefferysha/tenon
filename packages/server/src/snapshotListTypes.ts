@@ -2,7 +2,7 @@
  * The list tier of the snapshot: rows without the per-change evidence. A full `Snapshot` / `ProjectSnapshot` /
  * `ChangeSnapshot` is assignable to its list counterpart, so code that only reads rows accepts both.
  */
-import type { ArchivedChangeSnapshot, ChangeSnapshot, ProjectSnapshot, Snapshot, WorkflowRulesSnapshot } from './types.js'
+import type { ChangeSnapshot, ProjectSnapshot, Snapshot, WorkflowRulesSnapshot } from './types.js'
 
 /** The plan-derived rules a list row needs; the `policy` block is detail-tier data. */
 export type ListWorkflowRulesSnapshot = Omit<WorkflowRulesSnapshot, 'policy'>
@@ -18,12 +18,9 @@ export type ChangeListSnapshot = Omit<
   'workflowRules' | 'documents' | 'skillRuns' | 'agentRuns' | 'tests' | 'testPolicy' | 'testPlan' | 'testUser' | 'testDiagnostics'
 > & { workflowRules: ListWorkflowRulesSnapshot }
 
-export type ArchivedChangeListSnapshot = ChangeListSnapshot & { archive: ArchivedChangeSnapshot['archive'] }
-
 /** One project in the list tier. A full `ProjectSnapshot` is assignable to it. */
-export interface ProjectListSnapshot extends Omit<ProjectSnapshot, 'changes' | 'archived' | 'workflowRules'> {
+export interface ProjectListSnapshot extends Omit<ProjectSnapshot, 'changes' | 'workflowRules'> {
   changes: ChangeListSnapshot[]
-  archived?: ArchivedChangeListSnapshot[]
 }
 
 /** The list-tier aggregate: what the Dashboard loads first. A full `Snapshot` is assignable to it. */

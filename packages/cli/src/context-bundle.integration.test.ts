@@ -16,7 +16,7 @@ let h: Harness
 
 beforeEach(async () => {
   h = await freshHarness()
-  expect(await h.run(['init', 'bundle-demo', '--track', 'free', '--preset', 'full'])).toBe(0)
+  expect(await h.run(['init', 'bundle-demo', '--track', 'backend', '--preset', 'full'])).toBe(0)
 })
 
 afterEach(async () => {

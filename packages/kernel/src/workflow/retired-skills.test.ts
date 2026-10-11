@@ -1,15 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { builtinTrack, type BuiltinTrackId } from '../tracks/builtins.js'
 import { compileEffectiveWorkflowPlan } from './effective-plan.js'
 import { parseWorkflow } from './parse.js'
 import { RETIRED_SKILL_IDS, retiredSkillReferences } from './retired-skills.js'
 
-function planFor(source: string, track?: BuiltinTrackId) {
-  return compileEffectiveWorkflowPlan(
-    'demo',
-    parseWorkflow(source),
-    track === undefined ? undefined : builtinTrack(track),
-  )
+/** 有分支的工作流必须指定轨道；计划的 `definition` 带着全部分支，退役技能的扫描与选中哪条无关。 */
+function planFor(source: string, track?: 'backend' | 'frontend') {
+  const definition = parseWorkflow(source)
+  return compileEffectiveWorkflowPlan('demo', definition, { track: track ?? Object.keys(definition.tracks ?? {})[0] })
 }
 
 const BRANCHED = `name: demo

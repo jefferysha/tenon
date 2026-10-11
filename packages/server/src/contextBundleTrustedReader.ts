@@ -24,6 +24,8 @@ import {
 export interface TrustedChangeIdentity {
   readonly dev: number
   readonly ino: number
+  /** 任务目录在 `openspec/changes/…/` 路径里的目录层数（`openspec` = 0）；缺省 2 = 活跃任务，已结束任务在 `archive/` 下是 3。 */
+  readonly depth?: number
 }
 
 function safeParts(path: string): string[] {
@@ -89,7 +91,7 @@ export function readTrustedFile(
   const expectedChange = changeIdentity
     && parts[0] === 'openspec'
     && parts[1] === 'changes'
-    ? { depth: 2, identity: changeIdentity }
+    ? { depth: changeIdentity.depth ?? 2, identity: changeIdentity }
     : undefined
   try {
     return withTrustedDirectoryChain(root, directories, false, () => {

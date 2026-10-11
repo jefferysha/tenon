@@ -5,13 +5,11 @@ import type {
 } from '../types.js'
 import { emptyFields } from './parse.js'
 import {
-  compileEffectiveWorkflowPlan,
-  effectiveWorkflowPlanBinding,
+  documentGovernanceFingerprint as fingerprintOfDocumentPolicy,
+  effectiveWorkflowPlanFromSnapshot,
   resolveEffectiveWorkflowPlan,
+  type EffectiveWorkflowPlan,
 } from '../workflow/effective-plan.js'
-
-const DEFAULT_PLAN = compileEffectiveWorkflowPlan('default')
-const DEFAULT_PLAN_BINDING = effectiveWorkflowPlanBinding(DEFAULT_PLAN)
 
 /** ISO-8601 UTC seconds, aligned with the original shell state initializer. */
 export function defaultStateClock(): string {
@@ -40,35 +38,42 @@ export async function detectBaseBranch(repoRoot: string): Promise<string> {
   return 'main'
 }
 
-export function initialDocumentProfile(opts: InitOptions): DocumentProfileId | undefined {
+/**
+ * 新任务的生效计划，按任务自己的轨道算：调用方给了冻结快照就用它，否则取包内定义。
+ * 没有这个工作流 → null；有分支的工作流里没有任务的轨道 → UnknownTrackError。
+ */
+function initialPlan(opts: InitOptions): EffectiveWorkflowPlan | null {
+  const initial = opts.initialWorkflow
+  if (initial?.workflowPlanSnapshot !== undefined) return effectiveWorkflowPlanFromSnapshot(initial.workflowPlanSnapshot, opts.track)
+  return resolveEffectiveWorkflowPlan(initial?.workflow ?? 'default', () => null, { track: opts.track })
+}
+
+function initialDocumentProfile(opts: InitOptions, plan: () => EffectiveWorkflowPlan | null): DocumentProfileId | undefined {
   const workflow = opts.initialWorkflow
   if (workflow?.documentProfile !== undefined) return workflow.documentProfile
   if (workflow?.openspecContract === true) return 'legacy-full'
   if (workflow?.documentContract === true) return 'document-v1'
-  const workflowId = workflow?.workflow ?? DEFAULT_PLAN.id
-  return resolveEffectiveWorkflowPlan(workflowId, () => null)?.capabilities.documents.profile
+  return plan()?.capabilities.documents.profile
 }
 
-export function initialDocumentGovernanceFingerprint(opts: InitOptions): string | undefined {
+function initialDocumentGovernanceFingerprint(
+  opts: InitOptions,
+  profile: DocumentProfileId | undefined,
+  plan: () => EffectiveWorkflowPlan | null,
+): string | undefined {
   const explicit = opts.initialWorkflow?.documentGovernanceFingerprint
   if (explicit !== undefined) return explicit
-  return initialDocumentProfile(opts) === 'legacy-full'
-    ? DEFAULT_PLAN_BINDING.documentGovernanceFingerprint
-    : undefined
-}
-
-export function initialWorkflowPlanFingerprint(opts: InitOptions): string | undefined {
-  const explicit = opts.initialWorkflow?.workflowPlanFingerprint
-  if (explicit !== undefined) return explicit
-  const workflowId = opts.initialWorkflow?.workflow ?? DEFAULT_PLAN.id
-  return resolveEffectiveWorkflowPlan(workflowId, () => null)?.workflowFingerprint
+  const policy = profile === 'legacy-full' ? plan()?.documentPolicy : undefined
+  return policy === undefined ? undefined : fingerprintOfDocumentPolicy(policy)
 }
 
 export function initialRunMetadata(opts: InitOptions): RunMetadata | undefined {
   if (!opts.runId) return undefined
-  const documentProfile = initialDocumentProfile(opts)
-  const documentGovernanceFingerprint = initialDocumentGovernanceFingerprint(opts)
-  const workflowPlanFingerprint = initialWorkflowPlanFingerprint(opts)
+  let resolved: EffectiveWorkflowPlan | null | undefined
+  const plan = (): EffectiveWorkflowPlan | null => (resolved === undefined ? (resolved = initialPlan(opts)) : resolved)
+  const documentProfile = initialDocumentProfile(opts, plan)
+  const documentGovernanceFingerprint = initialDocumentGovernanceFingerprint(opts, documentProfile, plan)
+  const workflowPlanFingerprint = opts.initialWorkflow?.workflowPlanFingerprint ?? plan()?.workflowFingerprint
   const workflowPlanSnapshot = opts.initialWorkflow?.workflowPlanSnapshot
   return {
     runId: opts.runId,
@@ -122,6 +127,7 @@ export function initialFields(
   fields.related_files = 'null'
   fields.spec_scope = 'null'
   fields.depends_on = 'null'
+  fields.domain = opts.domain ?? ''
   fields.created_at = timestamp
   fields.updated_at = timestamp
   fields.verified_at = 'null'

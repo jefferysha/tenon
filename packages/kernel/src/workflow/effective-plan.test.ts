@@ -3,13 +3,66 @@ import {
   compileEffectiveWorkflowPlan,
   documentGovernanceFingerprint,
   DocumentGovernanceBindingError,
+  effectiveWorkflowPlanFromIr,
   effectiveWorkflowPlanFromSnapshot,
   effectiveWorkflowPlanBinding,
+  planAutomationPolicy,
+  requireRunPlan,
   resolveBoundEffectiveWorkflowPlan,
   workflowPlanSnapshot,
 } from './effective-plan.js'
-import { builtinTrack } from '../tracks/builtins.js'
-import { legacyDefaultWorkflow } from './test-support.js'
+import type { EffectiveWorkflowPlan } from './effective-plan.js'
+import { compileDefaultWorkflow } from './compile.js'
+import { UnknownTrackError } from './resolve-track.js'
+import { initRunInTemp } from '../state/test-support.js'
+import {
+  branchWith, compiledDesignSystem, defaultIr, legacyDefaultWorkflow, requiredSkillsFor, targetDefaultWorkflow,
+} from './test-support.js'
+import type { WorkflowPlanSnapshotV4 } from './workflow-plan-snapshot-types.js'
+
+/** 默认 `default` 的某条轨道的计划（目标形态的夹具，不读模板文件）。 */
+function defaultPlan(track: string): EffectiveWorkflowPlan {
+  return effectiveWorkflowPlanFromIr('default', defaultIr(), { track })
+}
+
+/**
+ * 升级前创建的 `default` 任务冻结下来的 v4 快照：phase-manifest、manifest-overlay 技能策略。
+ * 字节固定（指纹 3389023…）：改动指纹配方会让它恢复失败。
+ */
+function legacyV4Snapshot(): WorkflowPlanSnapshotV4 {
+  const decomposition = {
+    version: 'v1', mode: 'off', target: 'work-items', strategy: 'balanced', max_items: 16, max_depth: 2, auto_when: [], ask_when: [],
+  } as const
+  const interaction = { version: 'v1', mode: 'interactive' } as const
+  const step = (id: string, label: string, transitions: WorkflowPlanSnapshotV4['workflow']['steps'][number]['transitions']) => ({
+    id, label, gate: 'auto' as const, skills: [], inputs: [], outputs: [], guards: [], artifacts: [], transitions,
+  })
+  return {
+    version: 4,
+    workflowId: 'default',
+    executionModel: 'phase-manifest',
+    workflow: {
+      name: 'default',
+      decomposition,
+      interaction,
+      openspec: true,
+      steps: [
+        step('open', '立项', [{ event: 'open-complete', to: 'explore', guards: [], actions: [] }]),
+        step('explore', '调研', []),
+      ],
+    },
+    documentPolicy: {
+      id: 'openspec-v1',
+      steps: ['open', 'explore'],
+      outputsByStep: { open: [], explore: [] },
+      mutableByStep: { open: [], explore: [] },
+      readsByStep: { open: [], explore: [] },
+    },
+    decomposition,
+    interaction,
+    workflowFingerprint: '3389023785e17bc3851ea0c7b0b11bd0e0452f7f8a5e3cfca5240dd517749ac7',
+  }
+}
 
 function preVerifyConvergenceWorkflow() {
   const current = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflow()).workflow
@@ -41,19 +94,13 @@ function preVerifyConvergenceWorkflow() {
         skills: [],
         inputs: step.id === 'ship' || step.id === 'archive' ? [] : step.inputs,
         outputs: step.id === 'ship' || step.id === 'archive' ? [] : step.outputs,
-        guards: step.id === 'build'
-          ? step.guards.filter((guard) =>
-              !(guard.type === 'field-equals' && guard.field === 'pre_verify_review_result'))
-          : step.guards,
+        // Historical bytes carry only the two guards the 2026-07 default declared; every leave condition and
+        // action that default.yaml gained when it became the executable source (设计 §1b) post-dates them.
+        guards: step.guards.filter((guard) => guard.type === 'tasks-at-least' || guard.type === 'spec-migration-applied'),
         transitions: step.transitions.map((transition) => ({
           ...transition,
-          // No default edge declares guards; the ones on the current IR are the auto gate's, which historical bytes lack.
           guards: [],
-          actions: transition.actions.filter((action) =>
-            action.type !== 'reset-pre-verify-review'
-              && !(step.id === 'verify'
-                && transition.event === 'verify-fail'
-                && action.type === 'mark-verification-failed')),
+          actions: [],
         })),
       }
     }),
@@ -62,7 +109,7 @@ function preVerifyConvergenceWorkflow() {
 
 describe('compileEffectiveWorkflowPlan', () => {
   it('compiles the pre-matrix default through the shared immutable plan surface (manifest-overlay)', () => {
-    const plan = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflow(), builtinTrack('backend'))
+    const plan = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflow(), { track: 'backend', executionModel: 'phase-manifest' })
     expect(plan.executionModel).toBe('phase-manifest')
     expect(plan.projection.steps.map((step) => step.id)).toEqual([
       'open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive',
@@ -71,15 +118,13 @@ describe('compileEffectiveWorkflowPlan', () => {
     expect(plan.skillPolicy).toBe('manifest-overlay')
     expect(plan.capabilities).toMatchObject({
       execution: { model: 'phase-manifest' },
-      skills: {
-        source: 'manifest-overlay',
-        trackOverlay: { matrix: true, profile: 'backend' },
-      },
+      skills: { source: 'manifest-overlay' },
       documents: { profile: 'legacy-full', governed: true },
       review: { steps: ['explore', 'spec', 'verify'] },
       automation: { eligible: true, autoEnqueueOnSpecComplete: false },
       track: { id: 'backend', coverageProfile: 'backend' },
     })
+    expect(plan.capabilities.skills).not.toHaveProperty('trackOverlay')
     const documentPolicy = plan.documentPolicy
     if (documentPolicy === undefined) throw new Error('expected default document policy')
     expect(effectiveWorkflowPlanBinding(plan)).toEqual({
@@ -100,7 +145,7 @@ describe('compileEffectiveWorkflowPlan', () => {
       executionModel: 'phase-manifest',
       workflow: legacyWorkflow,
       workflowFingerprint: 'c9a829b12b12138522532a9127efb8b93a551b1f28922a53dc174ad13e35b7dd',
-    }, builtinTrack('frontend'))
+    }, 'frontend')
     const roundTripped = effectiveWorkflowPlanFromSnapshot(JSON.parse(JSON.stringify({
       version: 1,
       workflowId: 'default',
@@ -133,8 +178,8 @@ describe('compileEffectiveWorkflowPlan', () => {
       .toBe(plan.workflowFingerprint)
   })
 
-  it('free is an explicit neutral overlay and never removes workflow-owned policy', () => {
-    const plan = compileEffectiveWorkflowPlan('default', undefined, builtinTrack('free'))
+  it('a frozen legacy free-track plan keeps the workflow-owned policy and gets no coverage or automation', () => {
+    const plan = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflow(), { track: 'free', executionModel: 'phase-manifest' })
 
     expect(plan.projection.steps).toHaveLength(7)
     expect(plan.documentPolicy?.id).toBe('openspec-v1')
@@ -143,7 +188,6 @@ describe('compileEffectiveWorkflowPlan', () => {
       coverageProfile: 'none',
       routingEnabled: false,
     })
-    expect(plan.capabilities.skills.trackOverlay).toEqual({ matrix: false, profile: 'free' })
     expect(plan.capabilities.automation).toEqual({
       eligible: false,
       autoEnqueueOnSpecComplete: false,
@@ -322,5 +366,165 @@ describe('compileEffectiveWorkflowPlan', () => {
     const restored = effectiveWorkflowPlanFromSnapshot(JSON.parse(JSON.stringify(snapshot)))
     expect(restored.workflowFingerprint).toBe(tested.workflowFingerprint)
     expect(restored.workflow.steps[0]?.tests).toEqual(tested.workflow.steps[0]?.tests)
+  })
+})
+
+describe('生效计划只认分支', () => {
+  it('default 的 lite 分支不受文档治理，后端分支受治理', () => {
+    const lite = defaultPlan('lite')
+    expect(lite.capabilities.documents.governed).toBe(false)
+    expect(lite.documentPolicy).toBeUndefined()
+    expect(lite.workflow.openspec).toBeUndefined()
+    const backend = defaultPlan('backend')
+    expect(backend.capabilities.documents).toMatchObject({ governed: true, profile: 'legacy-full' })
+    expect(backend.workflow.openspec).toBe(true)
+  })
+
+  it('分支自己写的 spec 优先，没写的继承工作流顶层 openspec', () => {
+    const plan = (over: Parameters<typeof branchWith>[0], top: { openspec?: true } = {}) =>
+      compileEffectiveWorkflowPlan('demo', { ...branchWith(over), ...top }, { track: 'main' })
+    expect(plan({ spec: 'openspec' }).capabilities.documents.governed).toBe(true)
+    expect(plan({ spec: 'none' }, { openspec: true }).capabilities.documents.governed).toBe(false)
+    expect(plan({}, { openspec: true }).capabilities.documents.governed).toBe(true)
+    expect(plan({}).capabilities.documents.governed).toBe(false)
+  })
+
+  it('新计划一律 step-graph，包括 default', () => {
+    expect(defaultPlan('backend').capabilities.execution.model).toBe('step-graph')
+    expect(defaultPlan('backend').executionModel).toBe('step-graph')
+    expect(defaultPlan('backend').skillPolicy).toBe('step-declared')
+    expect(compileEffectiveWorkflowPlan('default', targetDefaultWorkflow(), { track: 'pm' }).executionModel).toBe('step-graph')
+    expect(effectiveWorkflowPlanFromIr('design-system', compiledDesignSystem()).executionModel).toBe('step-graph')
+  })
+
+  it('旧快照恢复保留 phase-manifest 且指纹仍校验', () => {
+    const snapshot = legacyV4Snapshot()
+    const restored = effectiveWorkflowPlanFromSnapshot(snapshot, 'backend')
+    expect(restored.capabilities.execution.model).toBe('phase-manifest')
+    expect(restored.skillPolicy).toBe('manifest-overlay')
+    expect(restored.workflowFingerprint).toBe(snapshot.workflowFingerprint)
+    expect(workflowPlanSnapshot(restored)).toEqual(snapshot)
+    expect(() => effectiveWorkflowPlanFromSnapshot({
+      ...snapshot,
+      workflow: { ...snapshot.workflow, steps: snapshot.workflow.steps.slice(1) },
+    }, 'backend')).toThrow(DocumentGovernanceBindingError)
+  })
+
+  it('旧快照记着的轨道不在冻结定义里时不报错（平铺的旧 default 记着 chat / free）', () => {
+    for (const track of ['chat', 'free', 'standard']) {
+      expect(effectiveWorkflowPlanFromSnapshot(legacyV4Snapshot(), track).capabilities.track.id).toBe(track)
+    }
+  })
+
+  it('旧引擎计划的自动化与 coverage 取旧表，分支自己声明了 automation 的以声明为准', () => {
+    const legacy = (track: string, definition = legacyDefaultWorkflow()) =>
+      compileEffectiveWorkflowPlan('default', definition, { track, executionModel: 'phase-manifest' })
+    expect(legacy('pm').capabilities.automation).toEqual({ eligible: true, autoEnqueueOnSpecComplete: true })
+    expect(legacy('pm').capabilities.track.coverageProfile).toBe('pm')
+    expect(legacy('backend').capabilities.automation).toEqual({ eligible: true, autoEnqueueOnSpecComplete: false })
+    // lite 分支声明了 `eligible: false`：旧表对没登记的轨道缺省可进 AFK，声明优先。
+    expect(legacy('lite', targetDefaultWorkflow()).capabilities.automation).toEqual({ eligible: false, autoEnqueueOnSpecComplete: false })
+  })
+
+  it('步骤技能只来自 YAML，不叠加矩阵', () => {
+    const plan = defaultPlan('backend')
+    expect(requiredSkillsFor(plan, 'explore')).toEqual(['openspec-explore', 'brainstorming', 'grilling', 'domain-modeling', 'codebase-design'])
+    expect(plan.capabilities.skills).not.toHaveProperty('trackOverlay')
+  })
+
+  it('automation 取分支声明；没声明的分支保守为不可进入 AFK', () => {
+    expect(defaultPlan('pm').capabilities.automation).toEqual({ eligible: true, autoEnqueueOnSpecComplete: true })
+    expect(defaultPlan('backend').capabilities.automation).toEqual({ eligible: true, autoEnqueueOnSpecComplete: false })
+    expect(defaultPlan('lite').capabilities.automation).toEqual({ eligible: false, autoEnqueueOnSpecComplete: false })
+    const undeclared = compileEffectiveWorkflowPlan('demo', branchWith(), { track: 'main' })
+    expect(undeclared.capabilities.automation).toEqual({ eligible: false, autoEnqueueOnSpecComplete: false })
+  })
+
+  it('default 也只认分支自己的 automation 声明：没声明的分支（含名叫 pm / frontend / backend 的）不可进入 AFK', () => {
+    // 过渡措施（default.yaml 还没写 automation 时沿用登记表的旧值）随 default.yaml 写入 automation 一起删除。
+    const base = targetDefaultWorkflow()
+    const tracks = base.tracks ?? {}
+    const strip = ({ automation: _automation, ...rest }: NonNullable<typeof base.tracks>[string]) => rest
+    const undeclared = {
+      ...base,
+      tracks: { pm: strip(tracks.pm!), frontend: strip(tracks.frontend!), backend: strip(tracks.backend!), devops: strip(tracks.backend!) },
+    }
+    const automationOf = (track: string) =>
+      effectiveWorkflowPlanFromIr('default', compileDefaultWorkflow(undeclared), { track }).capabilities.automation
+    for (const track of ['pm', 'frontend', 'backend', 'devops']) {
+      expect(automationOf(track), track).toEqual({ eligible: false, autoEnqueueOnSpecComplete: false })
+    }
+  })
+
+  it('轨道能力只带 id、旧表 coverage 与是否参与路由', () => {
+    expect(defaultPlan('backend').capabilities.track).toEqual({ id: 'backend', coverageProfile: 'none', routingEnabled: true })
+    expect(defaultPlan('pm').capabilities.track).toEqual({ id: 'pm', coverageProfile: 'none', routingEnabled: true })
+    // 没写 route 的分支不参与自动路由。
+    expect(compileEffectiveWorkflowPlan('demo', branchWith(), { track: 'main' }).capabilities.track)
+      .toEqual({ id: 'main', coverageProfile: 'none', routingEnabled: false })
+  })
+
+  it('有分支的工作流不指定轨道或轨道不存在 → UnknownTrackError，不取第一条', () => {
+    expect(() => effectiveWorkflowPlanFromIr('default', defaultIr())).toThrow(UnknownTrackError)
+    expect(() => defaultPlan('chat')).toThrow(UnknownTrackError)
+    let caught: unknown
+    try { defaultPlan('free') } catch (error) { caught = error }
+    expect(caught).toBeInstanceOf(UnknownTrackError)
+    expect((caught as UnknownTrackError).available).toEqual(['lite', 'pm', 'frontend', 'backend'])
+  })
+
+  it('平铺工作流只有一条隐式分支：任务记着的轨道不参与选择', () => {
+    const named = effectiveWorkflowPlanFromIr('design-system', compiledDesignSystem(), { track: 'design-system' })
+    const legacyTrack = effectiveWorkflowPlanFromIr('design-system', compiledDesignSystem(), { track: 'free' })
+    expect(legacyTrack.workflowFingerprint).toBe(named.workflowFingerprint)
+    expect(legacyTrack.capabilities.track.id).toBe('free')
+    expect(effectiveWorkflowPlanFromIr('design-system', compiledDesignSystem()).capabilities.track.id).toBeNull()
+  })
+
+  it('executionModel 选项只改执行模型，不改工作流内容', () => {
+    const graph = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflow())
+    const legacy = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflow(), { executionModel: 'phase-manifest' })
+    expect(legacy.workflow).toEqual(graph.workflow)
+    expect(legacy.workflowFingerprint).not.toBe(graph.workflowFingerprint)
+  })
+
+  describe('requireRunPlan · 已存在任务的授权用计划', () => {
+    const neverLoad = (): never => { throw new Error('有快照时不得回读现行定义') }
+    const loadDefault = (name: string) => (name === 'default' ? defaultIr() : null)
+
+    it('快照优先：旧引擎快照里的轨道按旧表判定，不回读现行定义', () => {
+      const policyOf = (track: string) => planAutomationPolicy(requireRunPlan('default', track, legacyV4Snapshot(), neverLoad))
+      expect(policyOf('pm')).toEqual({ automationEligible: true, autoEnqueueOnSpecComplete: true })
+      expect(policyOf('backend')).toEqual({ automationEligible: true, autoEnqueueOnSpecComplete: false })
+      expect(policyOf('standard')).toEqual({ automationEligible: false, autoEnqueueOnSpecComplete: false })
+    })
+
+    it('没有快照才读现行定义，策略位取分支声明', () => {
+      expect(planAutomationPolicy(requireRunPlan('default', 'pm', undefined, loadDefault)))
+        .toEqual({ automationEligible: true, autoEnqueueOnSpecComplete: true })
+      expect(planAutomationPolicy(requireRunPlan('default', 'lite', undefined, loadDefault)))
+        .toEqual({ automationEligible: false, autoEnqueueOnSpecComplete: false })
+    })
+
+    it('轨道不存在 → UnknownTrackError，工作流不存在 / 快照身份不一致 → 抛错，都不放行', () => {
+      expect(() => requireRunPlan('default', 'chat', undefined, loadDefault)).toThrow(UnknownTrackError)
+      expect(() => requireRunPlan('default', '', undefined, loadDefault)).toThrow(UnknownTrackError)
+      expect(() => requireRunPlan('gone', 'alpha', undefined, () => null)).toThrow(/未找到/)
+      expect(() => requireRunPlan('other', 'backend', legacyV4Snapshot(), neverLoad)).toThrow(DocumentGovernanceBindingError)
+    })
+  })
+
+  it('lite 任务初始化不铺 proposal、不写文档台账；受治理的分支两者都有', async () => {
+    const lite = await initRunInTemp({ workflow: 'default', track: 'lite' })
+    const backend = await initRunInTemp({ workflow: 'default', track: 'backend' })
+    try {
+      expect(lite.files).not.toContain('proposal.md')
+      expect(lite.files).not.toContain('.pipeline-documents.json')
+      expect(backend.files).toContain('proposal.md')
+      expect(backend.files).toContain('.pipeline-documents.json')
+    } finally {
+      await lite.cleanup()
+      await backend.cleanup()
+    }
   })
 })

@@ -7,6 +7,7 @@ import {
   assertNoRuntimeCycles,
   formatImportGraphReport,
 } from './kernel-runtime-import-graph.mjs'
+import { executionModelSeamFailures } from './execution-model-seam.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const failures = []
@@ -14,7 +15,6 @@ const failures = []
 const SIZE_EXCEPTIONS = new Map([
   ['packages/dashboard-app/src/i18n/translations.ts', 'FRONTEND config resource'],
   ['packages/kernel/src/flow/manifest.ts', 'BACKEND workflow manifest config codec'],
-  ['packages/kernel/src/tracks/parse.ts', 'BACKEND track registry config codec'],
   ['packages/kernel/src/triage/validate.ts', 'BACKEND triage protocol validator'],
   ['packages/kernel/src/verification/validate.ts', 'BACKEND verification protocol validator'],
 ])
@@ -46,25 +46,8 @@ function isPublicPackageExport(specifier) {
 }
 
 const WORKFLOW_IDENTITY_COMPAT = new Map([
-  ['hooks/router-gen.mjs', [
-    { code: "if (id === 'default') return true", reason: 'router-data generation treats the packaged built-in workflow as present' },
-  ]],
-  ['hooks/router.sh', [
-    { code: '[ "${ROUTER_WORKFLOWS[$i]}" != "default" ]', reason: 'hot router distinguishes project selection from the packaged built-in route' },
-    { code: '[ "$CHANGE_WORKFLOW" != "default" ]', reason: 'hot router suppresses the default breadcrumb matrix for a bound custom workflow' },
-    { code: '[ "$BEST_WORKFLOW" != "default" ]', reason: 'hot router suppresses the default breadcrumb matrix for a newly selected custom workflow' },
-  ]],
-  ['packages/kernel/src/workflow/effective-plan.ts', [
-    { code: "if (id === 'default')", reason: 'central compatibility compiler dispatch' },
-    { code: "const definition = id === 'default' ? undefined", reason: 'central compatibility loader dispatch' },
-    { code: "if (id === 'default') return compileEffectiveWorkflowPlan(id, undefined, track)", reason: 'central compatibility resolver dispatch' },
-  ]],
   ['packages/kernel/src/workflow/migrations/pre-tenon-v1-document-policy.ts', [
     { code: "workflowId !== 'default'", reason: 'exact immutable v1 persistence compatibility fingerprint reader' },
-  ]],
-  ['packages/kernel/src/tracks/validate.ts', [
-    { code: "workflowName === 'default'", reason: 'track registry permits the built-in workflow without a project file' },
-    { code: "id === 'default'", reason: 'track registry permits the built-in workflow without a project file' },
   ]],
   ['packages/cli/src/executionCoordinatePort.ts', [
     { code: "if (workflowName === 'default')", reason: 'legacy runtime execution-coordinate adapter' },
@@ -72,22 +55,6 @@ const WORKFLOW_IDENTITY_COMPAT = new Map([
   ['packages/dashboard-app/src/model/progressModel.ts', [
     { code: "workflow === 'default'", reason: 'reader-facing built-in workflow label projection' },
     { code: "b.workflow === 'default'", reason: 'reader-facing built-in workflow sort projection' },
-  ]],
-  ['packages/dashboard-app/src/shell/projectsModel.ts', [
-    { code: "workflow === 'default'", reason: 'reader-facing built-in workflow label projection' },
-    { code: "workflow === 'default' || workflow < best", reason: 'reader-facing built-in workflow tie-break projection' },
-  ]],
-  ['packages/dashboard-app/src/workbench/WorkbenchView.tsx', [
-    { code: "workflowName === 'default'", reason: 'reserved built-in workflow name validation' },
-    { code: "wfName === 'default'", reason: 'reserved built-in workflow editor projection' },
-    { code: "wfName === 'default'", reason: 'reserved built-in workflow editor projection' },
-    { code: "name === 'default'", reason: 'reserved built-in workflow editor projection' },
-    { code: "wfName === 'default'", reason: 'reserved built-in workflow editor projection' },
-    { code: "wfName === 'default'", reason: 'reserved built-in workflow editor projection' },
-    { code: "name === 'default'", reason: 'reserved built-in workflow editor projection' },
-    { code: "wfName === 'default'", reason: 'reserved built-in workflow editor projection' },
-    { code: "wfName === 'default'", reason: 'reserved built-in workflow editor projection' },
-    { code: "name === 'default'", reason: 'reserved built-in workflow editor projection' },
   ]],
   ['packages/dashboard-app/src/model/changeModel.ts', [
     { code: "changeWorkflow(change) !== 'default'", reason: 'reader-facing built-in workflow category projection' },
@@ -97,7 +64,6 @@ const WORKFLOW_IDENTITY_COMPAT = new Map([
     { code: "n !== 'default'", reason: 'built-in workflow rules are packaged rather than project-fetched' },
     { code: "name === 'default'", reason: 'built-in workflow rules are packaged rather than project-fetched' },
     { code: "name !== 'default'", reason: 'built-in workflow rules are packaged rather than project-fetched' },
-    { code: "name === 'default'", reason: 'built-in workflow rules are packaged rather than project-fetched' },
   ]],
   ['packages/automation/src/skills/wiring.ts', [
     { code: "workflowId !== 'default'", reason: 'compatibility validation for externally supplied resolution coordinates' },
@@ -119,23 +85,11 @@ const WORKFLOW_IDENTITY_COMPAT = new Map([
     { code: "if (workflowId === 'default')", reason: 'starter compatibility adapter creates legacy or graph skill coordinates' },
     { code: "workflowId === 'default' || deps.customWorkflowRuntimeWired !== false", reason: 'legacy starter runtime wiring compatibility signal' },
   ]],
-  ['packages/cli/src/commands/init.ts', [
-    { code: "if (workflowId !== 'default')", reason: 'change initialization compatibility adapter resolves graph start step' },
-  ]],
   ['packages/cli/src/commands/migrateWorkflow.ts', [
     { code: "current !== 'default'", reason: 'explicit legacy workflow-field migration compatibility' },
   ]],
-  ['packages/cli/src/integration-harness.ts', [
-    { code: "id === 'default'", reason: 'test harness built-in workflow existence adapter' },
-  ]],
-  ['packages/cli/src/main.ts', [
-    { code: "id === 'default'", reason: 'CLI composition built-in workflow existence adapter' },
-  ]],
   ['packages/dashboard-app/src/api/automationDecoders.ts', [
     { code: "template.recommendedWorkflow !== 'default'", reason: 'v1 automation template protocol currently has a literal closed value' },
-  ]],
-  ['packages/dashboard-app/src/progress/CreateChangeDialog.tsx', [
-    { code: "if (selectedWorkflow === 'default')", reason: 'create form compatibility projection before a change exists' },
   ]],
   ['packages/kernel/src/loops/policy-template.ts', [
     { code: "if (recommendedWorkflow !== 'default')", reason: 'v1 automation template protocol currently has a literal closed value' },
@@ -149,23 +103,6 @@ const WORKFLOW_IDENTITY_COMPAT = new Map([
   ['packages/kernel/src/workflow/identifier.ts', [
     { code: "return value === 'default'", reason: 'central reserved built-in workflow identity helper' },
   ]],
-  ['packages/server/src/serverPostChangesRoutes.ts', [
-    { code: "if (workflowId !== 'default')", reason: 'change creation compatibility adapter resolves graph start step' },
-  ]],
-  ['packages/server/src/serverPostExecutionRoutes.ts', [
-    { code: "if (workflowId === 'default') return true", reason: 'track registry existence callback treats built-in workflow as present' },
-    { code: "if (id === 'default') return true", reason: 'workflow existence callback treats built-in workflow as present' },
-    { code: "if (workflowId === 'default') return true", reason: 'workflow existence callback treats built-in workflow as present' },
-  ]],
-  ['packages/server/src/serverGovernance.ts', [
-    { code: "if (id === 'default') return true", reason: 'workflow existence callback treats built-in workflow as present' },
-  ]],
-  ['packages/server/src/serverMutationRoutes.ts', [
-    { code: "if (wfName === 'default')", reason: 'reserved built-in workflow mutation protection' },
-  ]],
-  ['packages/server/src/serverPostGovernanceRoutes.ts', [
-    { code: "if (wfName === 'default')", reason: 'reserved built-in workflow mutation protection' },
-  ]],
   ['packages/server/src/workflowReferenceScan.ts', [
     { code: "workflow !== 'default' && !isWorkflowName(workflow)", reason: 'persisted identifier validation preserves the reserved built-in name' },
     { code: "observed !== 'default'", reason: 'persisted identifier validation preserves the reserved built-in name' },
@@ -175,9 +112,6 @@ const WORKFLOW_IDENTITY_COMPAT = new Map([
 const RULE_EXCEPTIONS = new Map([
   ['packages/kernel/src/flow/manifest.ts', new Map([
     ['non-null', 'bounded YAML parser narrows regex captures and array indices before access'],
-  ])],
-  ['packages/kernel/src/tracks/parse.ts', new Map([
-    ['non-null', 'bounded YAML tokenizer narrows token kinds and array indices before access'],
   ])],
   ['packages/kernel/src/verification/validate.ts', new Map([
     ['double-assertion', 'runtime object decoder narrows object shape immediately before typed field validation'],
@@ -251,7 +185,6 @@ const DOMAIN_DIRS = [
   'packages/kernel/src/workflow/',
   'packages/kernel/src/flow/',
   'packages/kernel/src/loops/',
-  'packages/kernel/src/tracks/',
   'packages/kernel/src/triage/',
   'packages/kernel/src/verification/',
   'packages/kernel/src/interaction/',
@@ -267,7 +200,6 @@ const DOMAIN_INFRASTRUCTURE = new Set([
   'packages/kernel/src/loops/ledger-store.ts',
   'packages/kernel/src/loops/reconciliation-store.ts',
   'packages/kernel/src/loops/registry.ts',
-  'packages/kernel/src/tracks/registry.ts',
   'packages/kernel/src/workflow/loadWorkflow.ts',
   'packages/kernel/src/workflow/stepGuard.ts',
 ])
@@ -470,6 +402,8 @@ for (const path of production) {
   )) {
     failures.push(`${rel}:${lineNumber}: workflow identity must not reconstruct capabilities outside an exact compiler/compatibility site`)
   }
+
+  failures.push(...executionModelSeamFailures(rel, text))
 }
 
 if (/pipeline_codex_host_cache_roots/.test(source(join(root, 'hooks', 'skill-evidence.sh')))) {

@@ -2,7 +2,7 @@
  * 受治理文档取证夹具（从 integration-harness.ts 拆出，保持单文件在 500 行以内）。
  * 真 ledger API、真摘要、真 producer 历史校验与真读取回执；只在结束时还原临时 Skill 历史行。
  */
-import { appendFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import {
   compileEffectiveWorkflowPlan,
@@ -25,6 +25,16 @@ import {
 export const FIXED_CLOCK = '2026-07-07T00:00:00Z'
 /** 夹具替 producer 补登产物时写的 Skill 历史行标记（不是 hook 写的）。 */
 export const FIXTURE_HISTORY_TAG = 'integration-harness-bound-document'
+
+/**
+ * 夹具里的 `openspec archive <c>`：落在与真命令相同的 `archive/<日期>-<名>/`，不依赖本机装了 openspec
+ * （生产里 `tenon task finish` 对走 OpenSpec 的轨道调用真命令，见 kernel/archive-task.ts）。
+ */
+export async function harnessOpenspecArchive(root: string, change: string): Promise<void> {
+  const archive = join(root, 'openspec', 'changes', 'archive')
+  await mkdir(archive, { recursive: true })
+  await rename(join(root, 'openspec', 'changes', change), join(archive, `${FIXED_CLOCK.slice(0, 10)}-${change}`))
+}
 
 const GOVERNED_DESIGN = `# governed design
 
@@ -214,7 +224,7 @@ export async function recordBoundDocumentsForCurrentVisit(
 }
 
 /** Fixtures record the built-in default document table (identical in every default branch). */
-function defaultDocumentPolicy() { const policy = compileEffectiveWorkflowPlan('default').documentPolicy; if (!policy) throw new Error('default must be document-governed'); return policy }
+function defaultDocumentPolicy() { const policy = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' }).documentPolicy; if (!policy) throw new Error('default must be document-governed'); return policy }
 
 export async function readGovernedDocumentsForCurrentVisit(
   root: string,

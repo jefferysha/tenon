@@ -8,26 +8,26 @@ import { defaultArtifactDeclaredForField, defaultArtifactForField, defaultArtifa
 import { DEFAULT_ARTIFACT_DECLARATIONS } from './default-workflow.generated.js'
 import { DEFAULT_EVENT_POLICY } from '../flow/default-event-policy.js'
 
-const TRACKS = ['backend', 'frontend', 'pm', 'free']
-const NO_BRANCH = ['simple', 'some-unknown-track']
+const TRACKS = ['backend', 'frontend', 'pm']
+// lite 是 default 的分支，但不声明任何 artifact（spec: none，没有文档治理）；chat / free / simple 已退役。
+const NO_BRANCH = ['lite', 'simple', 'chat', 'free', 'some-unknown-track']
 
 describe('generated table exact-shape', () => {
   const design = { kind: 'file', field: 'design_doc', type: 'file_path', producerPolicy: 'effective-phase-skills' }
   const plan = { kind: 'file', field: 'plan', type: 'file_path', producerPolicy: 'effective-phase-skills' }
   const report = { kind: 'file', field: 'verification_report', type: 'file_path', producerPolicy: 'effective-phase-skills' }
 
-  it('DEFAULT_ARTIFACT_DECLARATIONS 按分支：chat（驱动流）与 frontend / backend / free 三条 artifact；pm 分支不声明 spec 的 plan；没有通用分支', () => {
+  it('DEFAULT_ARTIFACT_DECLARATIONS 按分支：lite 不声明；frontend / backend 三条 artifact；pm 分支不声明 spec 的 plan；没有通用分支', () => {
     expect(DEFAULT_ARTIFACT_DECLARATIONS).toEqual({
-      chat: { explore: [design], spec: [plan], verify: [report] },
+      lite: {},
       pm: { explore: [design], verify: [report] },
       frontend: { explore: [design], spec: [plan], verify: [report] },
       backend: { explore: [design], spec: [plan], verify: [report] },
-      free: { explore: [design], spec: [plan], verify: [report] },
     })
   })
 
-  it('键序稳定 = 分支声明序（chat → pm → frontend → backend → free）；分支内 = step 声明序', () => {
-    expect(Object.keys(DEFAULT_ARTIFACT_DECLARATIONS)).toEqual(['chat', 'pm', 'frontend', 'backend', 'free'])
+  it('键序稳定 = 分支声明序（lite → pm → frontend → backend）；分支内 = step 声明序', () => {
+    expect(Object.keys(DEFAULT_ARTIFACT_DECLARATIONS)).toEqual(['lite', 'pm', 'frontend', 'backend'])
     expect(Object.keys(DEFAULT_ARTIFACT_DECLARATIONS.frontend)).toEqual(['explore', 'spec', 'verify'])
   })
 

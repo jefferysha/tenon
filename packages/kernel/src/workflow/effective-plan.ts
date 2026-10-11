@@ -1,15 +1,11 @@
 import { DEFAULT_WORKFLOW_SOURCE } from './default-workflow.generated.js'
-import { sha256Hex } from '../sha256.js'
-import type { DocumentProfileId } from '../types.js'
-import type { TrackDefinition } from '../tracks/types.js'
-import { builtinWorkflow } from './builtin-workflows.js'
 import { compileDefaultWorkflow, compileWorkflow } from './compile.js'
-import { documentGovernancePolicy, type DocumentGovernancePolicy } from './document-contract.js'
 import { documentGovernanceFingerprint } from './document-governance-fingerprint.js'
 export { documentGovernanceFingerprint } from './document-governance-fingerprint.js'
 import { loadWorkflow } from './loadWorkflow.js'
 import type { WorkflowIR } from './ir.js'
 import { parseWorkflow } from './parse.js'
+import { freeze, planFingerprint, planFromIr, profileFor, type PlanOptions } from './effective-plan-build.js'
 import {
   restoreLegacyWorkflowPlan,
   historicalV3PolicyWorkflowFingerprint,
@@ -19,15 +15,16 @@ import {
   validateV3WorkflowPolicies,
 } from './effective-plan-snapshot-compat.js'
 import type { WorkflowDef } from './types.js'
-import { WorkflowTrackBranchError } from './validate.js'
 import { validateWorkflow } from './validate.js'
 import { isDefaultWorkflowName } from './identifier.js'
 import type { WorkflowPlanSnapshot } from './workflow-plan-snapshot-types.js'
 import type {
+  AutomationPolicyBits,
   EffectiveWorkflowPlan,
   PersistedDocumentGovernanceBinding,
 } from './effective-plan-types.js'
-export type { EffectiveWorkflowPlan, PersistedDocumentGovernanceBinding } from './effective-plan-types.js'
+export type { PlanOptions } from './effective-plan-build.js'
+export type { AutomationPolicyBits, EffectiveWorkflowPlan, PersistedDocumentGovernanceBinding } from './effective-plan-types.js'
 export type {
   LegacyWorkflowIR, WorkflowPlanSnapshot, WorkflowPlanSnapshotV1,
   WorkflowPlanSnapshotV2, WorkflowPlanSnapshotV3, WorkflowPlanSnapshotV4,
@@ -35,145 +32,18 @@ export type {
 export class DocumentGovernanceBindingError extends Error {
   readonly _tag = 'DocumentGovernanceBindingError'
 }
-function profileFor(policy: DocumentGovernancePolicy | undefined): DocumentProfileId | undefined {
-  return policy?.id === 'openspec-v1' ? 'legacy-full' : policy?.id === 'document-v1' ? 'document-v1' : undefined
-}
-function freeze<T>(value: T): T {
-  if (value !== null && typeof value === 'object') {
-    for (const child of Object.values(value)) freeze(child)
-    Object.freeze(value)
-  }
-  return value
-}
+
 function assertValid(definition: WorkflowDef, origin: 'custom' | 'default'): void {
   const errors = validateWorkflow(definition, { origin })
   if (errors.length > 0) throw new Error(`effective workflow 无效：\n${errors.map((error) => `  - ${error}`).join('\n')}`)
 }
-/** 按 track 选中分支 IR（同 selectTrackBranch 口径）：有 tracks 时未给 track → 第一条分支；给了却没有 → 抛错。分支契约提到顶层。 */
-export function selectTrackBranchIr(workflow: WorkflowIR, track: string | undefined): WorkflowIR {
-  const { tracks, ...rest } = workflow
-  const entries = Object.entries(tracks ?? {})
-  if (entries.length === 0) return rest
-  const branch = track === undefined || track === '' ? entries[0]?.[1] : tracks?.[track]
-  if (branch === undefined) throw new WorkflowTrackBranchError(workflow.name, track ?? ''); const { documentContract: _documentContract, ...single } = rest
-  return { ...single, ...(branch.documentContract === undefined ? {} : { documentContract: branch.documentContract }), steps: branch.steps }
-}
-function planFromIr(
-  id: string,
-  executionModel: EffectiveWorkflowPlan['executionModel'],
-  compiled: WorkflowIR,
-  track?: TrackDefinition,
-  frozenDocumentPolicy?: DocumentGovernancePolicy | null,
-  frozenWorkflowFingerprint?: string,
-): EffectiveWorkflowPlan {
-  const workflow = selectTrackBranchIr(compiled, track?.id)
-  const documentPolicy = frozenDocumentPolicy === undefined
-    ? documentGovernancePolicy(id, compiled, track?.id)
-    : frozenDocumentPolicy ?? undefined
-  const skillPolicy = executionModel === 'phase-manifest' ? 'manifest-overlay' : 'step-declared'
-  const reviewStepsOf = (steps: WorkflowIR['steps']): string[] => steps.filter((step) => step.gate === 'review').map((step) => step.id)
-  const projectionStepsOf = (steps: WorkflowIR['steps']): Array<{ id: string; label: string }> => steps.map((step) => ({ id: step.id, label: step.label }))
-  const reviewSteps = reviewStepsOf(workflow.steps)
-  // agent 内容冻结在 Change 边车里，不进指纹；这里只投影声明本身。
-  const agentSteps = workflow.steps
-    .filter((step) => step.agents !== undefined)
-    .map((step) => ({
-      stepId: step.id,
-      executors: (step.agents?.executors ?? []).map((ref) => ({ agent: ref.agent, dependsOn: [...(ref.depends_on ?? [])] })),
-      reviewers: (step.agents?.reviewers ?? []).map((ref) => ({
-        agent: ref.agent,
-        required: ref.required,
-        blockAt: ref.block_at,
-        dependsOn: [...(ref.depends_on ?? [])],
-        readsTests: [...(ref.reads_tests ?? [])],
-        ...(ref.host === undefined ? {} : { host: ref.host }),
-      })),
-    }))
-  const projectionSteps = projectionStepsOf(workflow.steps)
-  const stepLabelSource = executionModel === 'phase-manifest' ? 'localized-builtin' : 'workflow-defined'
-  const workflowFingerprint = frozenWorkflowFingerprint ?? sha256Hex(JSON.stringify({
-    schema: 'effective-workflow-plan-v4',
-    id,
-    executionModel,
-    workflow: compiled,
-    decomposition: compiled.decomposition,
-    interaction: compiled.interaction,
-    documentPolicy: documentPolicy === undefined
-      ? null
-      : {
-          id: documentPolicy.id,
-          fingerprint: documentGovernanceFingerprint(documentPolicy),
-        },
-    skillPolicy,
-    reviewSteps: reviewStepsOf(compiled.steps),
-    projectionSteps: projectionStepsOf(compiled.steps),
-  }))
-  const trackPolicy = track?.policyProfile
-  const documentProfile = profileFor(documentPolicy)
-  return freeze({
-    id,
-    executionModel,
-    definition: compiled,
-    workflow,
-    decomposition: workflow.decomposition,
-    interaction: workflow.interaction,
-    ...(documentPolicy === undefined ? {} : { documentPolicy }),
-    skillPolicy,
-    reviewSteps,
-    workflowFingerprint,
-    capabilities: {
-      execution: { model: executionModel },
-      skills: {
-        source: skillPolicy,
-        steps: workflow.steps.map((step) => ({
-          stepId: step.id,
-          requiredSkillIds: step.skills.map((skill) => skill.id),
-          declared: step.skills.map((skill) => ({
-            id: skill.id,
-            dependsOn: [...(skill.depends_on ?? [])],
-            dependsOnDeclared: skill.depends_on !== undefined,
-          })),
-        })),
-        trackOverlay: {
-          matrix: trackPolicy?.skills.matrix ?? false,
-          profile: trackPolicy?.skills.profile ?? '_all',
-        },
-      },
-      documents: {
-        governed: documentPolicy !== undefined,
-        ...(documentProfile === undefined ? {} : { profile: documentProfile }),
-        ...(documentPolicy === undefined ? {} : { policy: documentPolicy }),
-      },
-      review: { steps: reviewSteps },
-      agents: { steps: agentSteps },
-      automation: {
-        eligible: trackPolicy?.automationEligible ?? false,
-        autoEnqueueOnSpecComplete: trackPolicy?.autoEnqueueOnSpecComplete ?? false,
-      },
-      track: {
-        id: track?.id ?? null,
-        coverageProfile: trackPolicy?.coverageProfile ?? 'none',
-        routingEnabled: trackPolicy?.routing.enabled ?? false,
-      },
-    },
-    projection: {
-      steps: projectionSteps,
-      stepLabelSource,
-    },
-  })
-}
+
 export function workflowPlanSnapshot(plan: EffectiveWorkflowPlan): WorkflowPlanSnapshot {
   const definition = plan.definition ?? plan.workflow
-  const current = planFromIr(
-    plan.id,
-    plan.executionModel,
-    definition,
-    undefined,
-    plan.documentPolicy ?? null,
-  )
-  if (current.workflowFingerprint !== plan.workflowFingerprint) {
+  const currentFingerprint = planFingerprint(plan.id, plan.executionModel, definition, plan.documentPolicy)
+  if (currentFingerprint !== plan.workflowFingerprint) {
     // 从旧快照恢复出来的计划再落盘时保持它原来的版本；生产路径只在 Change 创建时落盘，
-    // 走的都是上面那条 v4 分支。
+    // 走的都是下面那条 v4 分支。
     if (historicalV3WorkflowFingerprint(
       plan.id,
       plan.executionModel,
@@ -213,9 +83,14 @@ export function workflowPlanSnapshot(plan: EffectiveWorkflowPlan): WorkflowPlanS
     workflowFingerprint: plan.workflowFingerprint,
   })
 }
+/**
+ * 从冻结快照恢复计划：执行模型与指纹都取快照记着的值（旧快照保留 phase-manifest）。
+ * `track` 是任务所在轨道；不给且冻结定义有分支时（只核对冻结内容、读工作流级策略的调用方）得到工作流级视图——
+ * 不带步骤，策略与指纹仍是快照冻结的值。
+ */
 export function effectiveWorkflowPlanFromSnapshot(
   snapshot: WorkflowPlanSnapshot,
-  track?: TrackDefinition,
+  track?: string,
 ): EffectiveWorkflowPlan {
   if (![1, 2, 3, 4].includes(snapshot.version)
     || snapshot.workflowId === ''
@@ -235,6 +110,7 @@ export function effectiveWorkflowPlanFromSnapshot(
         frozenTrack,
         policy,
         fingerprint,
+        true,
       ),
       (message) => { throw new DocumentGovernanceBindingError(message) },
     )
@@ -247,6 +123,8 @@ export function effectiveWorkflowPlanFromSnapshot(
       structuredClone(snapshot.workflow),
       track,
       structuredClone(snapshot.documentPolicy),
+      undefined,
+      true,
     )
     if (plan.workflowFingerprint === snapshot.workflowFingerprint) return plan
     throw new DocumentGovernanceBindingError(
@@ -283,48 +161,77 @@ export function effectiveWorkflowPlanFromSnapshot(
     track,
     structuredClone(snapshot.documentPolicy),
     snapshot.workflowFingerprint,
+    true,
   )
 }
+/** 新计划恒为 step-graph；`executionModel` 选项只给重建旧快照形状的计划用。 */
 export function compileEffectiveWorkflowPlan(
   id: string,
   provided?: WorkflowDef,
-  track?: TrackDefinition,
+  opts: PlanOptions = {},
 ): EffectiveWorkflowPlan {
+  const executionModel = opts.executionModel ?? 'step-graph'
   if (isDefaultWorkflowName(id)) {
+    // default 的编译契约允许 effective-phase-skills（default.yaml 的 phase policy 声明）；与执行模型无关。
     const definition = provided ?? parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
     assertValid(definition, 'default')
-    return planFromIr(id, 'phase-manifest', compileDefaultWorkflow(definition), track)
+    return planFromIr(id, executionModel, compileDefaultWorkflow(definition), opts.track)
   }
-  const definition = provided ?? builtinWorkflow(id)
-  if (!definition) throw new Error(`workflow '${id}' 未找到`)
-  assertValid(definition, 'custom')
-  return planFromIr(id, 'step-graph', compileWorkflow(definition), track)
+  if (provided === undefined) throw new Error(`workflow '${id}' 未找到`)
+  assertValid(provided, 'custom')
+  return planFromIr(id, executionModel, compileWorkflow(provided), opts.track)
 }
 export function loadEffectiveWorkflowPlan(
   repoRoot: string,
   id: string,
-  track?: TrackDefinition,
+  opts: PlanOptions = {},
 ): EffectiveWorkflowPlan {
   const definition = loadWorkflow(repoRoot, id) ?? undefined
-  return compileEffectiveWorkflowPlan(id, definition, track)
+  return compileEffectiveWorkflowPlan(id, definition, opts)
 }
 export function effectiveWorkflowPlanFromIr(
   id: string,
   workflow: WorkflowIR,
-  track?: TrackDefinition,
+  opts: PlanOptions = {},
 ): EffectiveWorkflowPlan {
-  return planFromIr(id, 'step-graph', workflow, track)
+  return planFromIr(id, opts.executionModel ?? 'step-graph', workflow, opts.track)
 }
 export function resolveEffectiveWorkflowPlan(
   id: string,
   loadCompiled: (name: string) => WorkflowIR | null,
-  track?: TrackDefinition,
+  opts: PlanOptions = {},
   /** default 的项目覆盖读取器（返回 null = 无覆盖 → 内建模板）。缺省保持旧行为：恒用内建。 */
   loadDefaultOverride?: () => WorkflowDef | null,
 ): EffectiveWorkflowPlan | null {
-  if (isDefaultWorkflowName(id)) return compileEffectiveWorkflowPlan(id, loadDefaultOverride?.() ?? undefined, track)
+  if (isDefaultWorkflowName(id)) return compileEffectiveWorkflowPlan(id, loadDefaultOverride?.() ?? undefined, opts)
   const workflow = loadCompiled(id)
-  return workflow === null ? null : effectiveWorkflowPlanFromIr(id, workflow, track)
+  return workflow === null ? null : effectiveWorkflowPlanFromIr(id, workflow, opts)
+}
+/**
+ * 已存在的任务（`track` 来自任务状态）的生效计划，给 AFK 资格 / 挂队这类授权用途：冻结快照优先
+ * （执行模型与分支都取自它——快照足以支撑在途任务走完），没有快照才读现行定义。
+ * 工作流不存在 → 抛错；有分支的工作流里没有任务的轨道 → UnknownTrackError。不核对文档治理绑定。
+ */
+export function requireRunPlan(
+  workflowName: string,
+  track: string,
+  snapshot: WorkflowPlanSnapshot | undefined,
+  loadCompiled: (name: string) => WorkflowIR | null,
+): EffectiveWorkflowPlan {
+  if (snapshot !== undefined && snapshot.workflowId !== workflowName) {
+    throw new DocumentGovernanceBindingError(
+      `workflow plan snapshot identity 不一致：已绑定 '${snapshot.workflowId}'，当前 '${workflowName}'`,
+    )
+  }
+  if (snapshot !== undefined) return effectiveWorkflowPlanFromSnapshot(snapshot, track)
+  const compiled = loadCompiled(workflowName)
+  if (compiled === null) throw new Error(`workflow '${workflowName}' 未找到`)
+  return effectiveWorkflowPlanFromIr(workflowName, compiled, { track })
+}
+/** 计划里的自动化设置，换成 AFK 队列与规格完成自动入队读取的策略位形状。 */
+export function planAutomationPolicy(plan: EffectiveWorkflowPlan): AutomationPolicyBits {
+  const { eligible, autoEnqueueOnSpecComplete } = plan.capabilities.automation
+  return { automationEligible: eligible, autoEnqueueOnSpecComplete }
 }
 export function effectiveWorkflowPlanBinding(
   plan: EffectiveWorkflowPlan,
@@ -343,7 +250,7 @@ export function resolveBoundEffectiveWorkflowPlan(
   id: string,
   binding: PersistedDocumentGovernanceBinding,
   loadCompiled: (name: string) => WorkflowIR | null,
-  track?: TrackDefinition,
+  track?: string,
   snapshot?: WorkflowPlanSnapshot,
 ): EffectiveWorkflowPlan | null {
   let plan: EffectiveWorkflowPlan | null
@@ -355,7 +262,7 @@ export function resolveBoundEffectiveWorkflowPlan(
     }
     plan = effectiveWorkflowPlanFromSnapshot(snapshot, track)
   } else {
-    plan = resolveEffectiveWorkflowPlan(id, loadCompiled, track)
+    plan = resolveEffectiveWorkflowPlan(id, loadCompiled, { track })
   }
   const boundProfile = binding.documentProfile
   const boundFingerprint = binding.documentGovernanceFingerprint

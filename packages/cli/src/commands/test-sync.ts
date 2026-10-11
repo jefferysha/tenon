@@ -1,15 +1,19 @@
 /**
- * `tenon test sync <change> [--json]` —— 对账：自任务起点以来 diff 里的测试文件是否都登记了计划。
- * 列出未登记的文件（带套件与命令）、没有任何套件认领的孤儿文件、已登记但文件已不存在的条目、未映射的场景。
+ * `tenon test sync <change> [--prune] [--json]` —— 对账：自任务起点以来 diff 里的测试文件是否都登记了计划。
+ * 列出未登记的文件（带套件与命令）、没有任何套件认领的孤儿文件、已登记但文件已不存在的条目、
+ * 已登记但目录不再认领的条目（提示 --prune）、未映射的场景。
  * 与门禁同一份判定（testFileRegistration），所以这里干净就是 test-file-unregistered / orphan 不会挡。
  * 退出码：0 干净，2 有要处理的项，1 读不到 diff 或目录（环境错误）。
+ * --prune 是另一种模式（test-sync-prune.ts）：不读 diff，只把目录不再认领的登记从计划里删掉。
  */
 import { lstat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { shellQuote, testFileRegistration, type TestPlan } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
-import { loadPlanInputs, tryChangedFiles } from '../test-system/plan-context.js'
+import { catalogErrorLine, loadPlanInputs, tryChangedFiles } from '../test-system/plan-context.js'
+import { unclaimedRegistrations } from '../test-system/plan-edit.js'
 import { resolveTestCommand } from './test-context.js'
+import { cmdTestSyncPrune, describeUnclaimed } from './test-sync-prune.js'
 
 const MAX_LISTED = 15
 
@@ -26,12 +30,15 @@ async function missingOnDisk(deps: CliDeps, plan: TestPlan): Promise<readonly st
   return gone
 }
 
-export async function cmdTestSync(deps: CliDeps, change: string, opts: { readonly json?: boolean } = {}): Promise<number> {
+export async function cmdTestSync(
+  deps: CliDeps, change: string, opts: { readonly json?: boolean; readonly prune?: boolean } = {},
+): Promise<number> {
+  if (opts.prune === true) return cmdTestSyncPrune(deps, change, { json: opts.json === true })
   const context = await resolveTestCommand(deps, change, { requireOwner: false })
   if (typeof context === 'number') return context
   const inputs = await loadPlanInputs(deps, context)
   if (inputs.catalog.state !== 'ok') {
-    deps.io.err(`ERROR: ${inputs.catalog.state === 'missing' ? '还没有测试目录；先 tenon test discover --write' : 'catalog.yaml 无效；先 tenon test catalog validate'}`)
+    deps.io.err(catalogErrorLine(inputs.catalog))
     return 1
   }
   const diff = await tryChangedFiles(deps, change)
@@ -42,18 +49,19 @@ export async function cmdTestSync(deps: CliDeps, change: string, opts: { readonl
   const plan = inputs.planState.state === 'ok' ? inputs.planState.plan : undefined
   const registration = testFileRegistration({ changedFiles: diff.files, catalog: inputs.catalog.catalog, plan })
   const gone = plan === undefined ? [] : await missingOnDisk(deps, plan)
+  const unclaimed = plan === undefined ? [] : unclaimedRegistrations(plan, inputs.catalog.catalog)
   const mapped = new Set(plan?.cases.map((item) => item.covers) ?? [])
   const unmapped = [...inputs.scenarios.map((item) => item.covers), ...inputs.tasks.filter((item) => item.required).map((item) => item.covers)].filter((covers) => !mapped.has(covers))
   const optional = inputs.tasks.filter((item) => !item.required && !item.placeholder && !mapped.has(item.covers)).map((item) => item.covers)
   const register = (path: string, suites: readonly string[]): string =>
     `tenon test register ${change} --file ${shellQuote(path)}${suites.length === 1 ? ` --suite ${shellQuote(suites[0] ?? '')}` : ''}`
-  const dirty = registration.unregistered.length + registration.orphans.length + gone.length > 0
+  const dirty = registration.unregistered.length + registration.orphans.length + gone.length + unclaimed.length > 0
   if (opts.json === true) {
     deps.io.out(JSON.stringify({
       change, planState: inputs.planState.state, changed: diff.files.length,
       ...(diff.untrackedTruncated === undefined ? {} : { untrackedTruncated: diff.untrackedTruncated }),
       unregistered: registration.unregistered.map((file) => ({ ...file, fix: register(file.path, file.suites) })),
-      orphans: registration.orphans, registeredButMissing: gone, unmapped, optionalUnmapped: optional,
+      orphans: registration.orphans, registeredButMissing: gone, registeredButUnclaimed: unclaimed, unmapped, optionalUnmapped: optional,
     }, null, 2))
     return dirty ? 2 : 0
   }
@@ -65,6 +73,8 @@ export async function cmdTestSync(deps: CliDeps, change: string, opts: { readonl
   for (const file of registration.unregistered) deps.io.out(`  未登记  ${file.path}\n    ${register(file.path, file.suites)}`)
   for (const path of registration.orphans) deps.io.out(`  无套件  ${path}\n    先在目录里加套件（tenon test discover --write），再 tenon test register ${change} --file ${shellQuote(path)}`)
   for (const path of gone) deps.io.out(`  文件已不存在  ${path}\n    tenon test unregister ${change} --file ${shellQuote(path)}`)
+  for (const item of unclaimed) deps.io.out(`  已登记无人认领  ${item.path}（${describeUnclaimed(item)}）`)
+  if (unclaimed.length > 0) deps.io.out(`    tenon test sync ${change} --prune  一次删掉这些登记（只动测试文件登记，不动用例映射）`)
   if (unmapped.length > 0) {
     deps.io.out(`  未映射的场景 / 任务 ${unmapped.length} 个：`)
     for (const covers of unmapped.slice(0, MAX_LISTED)) deps.io.out(`    ${covers}`)

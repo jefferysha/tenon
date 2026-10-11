@@ -7,7 +7,7 @@ import type { FieldName } from '../types.js'
  * 旧窄解析器与 N-1 读者都不受升级影响，在途任务不会因为字段表多了一项被判成投影漂移。只有显式设置了值的
  * 任务才出现这个键。
  */
-export const OMIT_WHEN_EMPTY_FIELDS = ['max_rounds'] as const satisfies readonly FieldName[]
+export const OMIT_WHEN_EMPTY_FIELDS = ['max_rounds', 'task_result', 'domain'] as const satisfies readonly FieldName[]
 
 const OMIT_WHEN_EMPTY: ReadonlySet<string> = new Set(OMIT_WHEN_EMPTY_FIELDS)
 

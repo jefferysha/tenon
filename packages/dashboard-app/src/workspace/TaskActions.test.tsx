@@ -1,5 +1,5 @@
 /**
- * 归档 / 删除 / 取消归档 in the workspace: the card ⋯ and the detail ⋯ open the dialog, the dialog shows
+ * 终止 / 删除 in the workspace: the card ⋯ and the detail ⋯ open the dialog, the dialog shows
  * only the reasons the server reported, and confirming echoes back exactly those codes. A blocker disables
  * the confirm button, and a 409 re-renders the fresh list the server re-checked.
  */
@@ -9,8 +9,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '../i18n'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { makeChange, makeProject, makeSnapshot } from '../testkit'
-import type { ArchivedChangeSnapshot } from '../types'
-import { localTime } from '../model/time'
 import { WorkspaceView } from './WorkspaceView'
 
 vi.mock('@xyflow/react', () => import('../workflow/reactFlowTestDouble'))
@@ -19,17 +17,11 @@ vi.mock('@xyflow/react/dist/style.css', () => ({}))
 const ROOT = '/repo'
 const PROJECTS = [{ root: ROOT, name: 'repo', count: 2, ok: true }]
 
-function archivedRow(name: string, phase: string, archivedAt: string, actor: string): ArchivedChangeSnapshot {
-  return {
-    ...makeChange(name, phase),
-    archive: { archivedAt, phase, actor: { id: `${actor}@x.io`, name: actor, trust: 'declared' } },
-  }
-}
-
 function renderWorkspace(over: Parameters<typeof makeProject>[2] = {}, extra: Partial<Parameters<typeof WorkspaceView>[0]> = {}) {
   const snapshot = makeSnapshot([makeProject(ROOT, [makeChange('demo', 'build'), makeChange('other', 'spec')], over)])
   const onRefresh = vi.fn()
   const onToast = vi.fn()
+  const onAlert = vi.fn()
   const view = render(
     <I18nProvider><TooltipProvider>
       <WorkspaceView
@@ -41,12 +33,13 @@ function renderWorkspace(over: Parameters<typeof makeProject>[2] = {}, extra: Pa
         selectedChange={null}
         onSelectedChange={() => undefined}
         onToast={onToast}
+        onAlert={onAlert}
         onRefresh={onRefresh}
         {...extra}
       />
     </TooltipProvider></I18nProvider>,
   )
-  return { view, onRefresh, onToast }
+  return { view, onRefresh, onToast, onAlert }
 }
 
 function lifecycleResponse(body: unknown, status = 200): Response {
@@ -92,7 +85,7 @@ describe('card ⋯ and detail ⋯ open the dialog', () => {
     expect(confirm.hasAttribute('disabled')).toBe(false)
 
     await userEvent.click(confirm)
-    await waitFor(() => expect(onToast).toHaveBeenCalledWith('已删除 demo', undefined))
+    await waitFor(() => expect(onToast).toHaveBeenCalledWith('已删除 demo'))
     const deleteCall = fetchMock.mock.calls.find(([url, init]) => String(url).startsWith('/api/change/demo?') && (init as RequestInit | undefined)?.method === 'DELETE')
     expect(String(deleteCall?.[0])).toBe('/api/change/demo?root=%2Frepo&acknowledged=review-pending,has-dependents')
     expect(onRefresh).toHaveBeenCalled()
@@ -123,45 +116,132 @@ describe('card ⋯ and detail ⋯ open the dialog', () => {
     await userEvent.type(screen.getByTestId('task-action-type-name'), 'o')
     expect(confirm).toBeEnabled()
     await userEvent.click(confirm)
-    await waitFor(() => expect(onToast).toHaveBeenCalledWith('已删除 demo', undefined))
+    await waitFor(() => expect(onToast).toHaveBeenCalledWith('已删除 demo'))
   })
 
-  it('归档成功的提示带「撤销」，撤销走取消归档接口', async () => {
+  it('终止成功的提示是「已终止」且不带撤销（终止不可逆：想继续就新建任务）；请求打到 terminate 接口', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input)
       if (url.startsWith('/api/change/demo/lifecycle')) {
-        return lifecycleResponse({ ok: true, action: 'archive', phase: 'build', blockers: [], confirmations: [] })
+        return lifecycleResponse({ ok: true, action: 'terminate', phase: 'build', blockers: [], confirmations: [] })
       }
-      if (url === '/api/change/demo/archive' && init?.method === 'POST') {
-        return lifecycleResponse({ ok: true, changed: true, archived_at: '2026-09-25T00:00:00Z', phase: 'build' })
+      if (url === '/api/change/demo/terminate' && init?.method === 'POST') {
+        return lifecycleResponse({
+          ok: true, result: 'terminated', archived_dir: 'openspec/changes/archive/2026-09-25-demo',
+          ended_at: '2026-09-25T00:00:00Z', commit: 'committed',
+        })
       }
-      if (url === '/api/change/demo/unarchive' && init?.method === 'POST') return lifecycleResponse({ ok: true, changed: true })
       return lifecycleResponse({ ok: false, error: 'not found' }, 404)
     })
-    const { onToast } = renderWorkspace()
+    const { onToast, onAlert } = renderWorkspace()
     await userEvent.click(screen.getByTestId('task-card-menu-demo'))
-    await userEvent.click(screen.getByTestId('task-card-menu-demo-archive'))
+    await userEvent.click(screen.getByTestId('task-card-menu-demo-terminate'))
     await waitFor(() => expect(screen.getByTestId('task-action-confirm')).toBeEnabled())
     await userEvent.click(screen.getByTestId('task-action-confirm'))
-    await waitFor(() => expect(onToast).toHaveBeenCalledWith('已归档 demo', expect.objectContaining({ label: '撤销' })))
-    const action = onToast.mock.calls.find((call) => call[0] === '已归档 demo')?.[1] as { run: () => void }
-    action.run()
-    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url) === '/api/change/demo/unarchive' && init?.method === 'POST')).toBe(true))
+    await waitFor(() => expect(onToast).toHaveBeenCalledWith('已终止 demo'))
+    expect(onAlert).not.toHaveBeenCalled()
+    expect(fetchMock.mock.calls.some(([url, init]) => String(url) === '/api/change/demo/terminate' && init?.method === 'POST')).toBe(true)
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/unarchive') || String(url).endsWith('/archive'))).toBe(false)
+  })
+
+  it('终止成功但服务端带警告：走 onAlert（已终止 + 警告原文），不走普通提示', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url.startsWith('/api/change/demo/lifecycle')) {
+        return lifecycleResponse({ ok: true, action: 'terminate', phase: 'build', blockers: [], confirmations: [] })
+      }
+      if (url === '/api/change/demo/terminate' && init?.method === 'POST') {
+        return lifecycleResponse({
+          ok: true, result: 'terminated', archived_dir: 'openspec/changes/archive/2026-09-25-demo',
+          ended_at: '2026-09-25T00:00:00Z', commit: 'committed', warnings: ['审计记录没写进去: EISDIR'],
+        })
+      }
+      return lifecycleResponse({ ok: false, error: 'not found' }, 404)
+    })
+    const { onToast, onAlert, onRefresh } = renderWorkspace()
+    await userEvent.click(screen.getByTestId('task-card-menu-demo'))
+    await userEvent.click(screen.getByTestId('task-card-menu-demo-terminate'))
+    await waitFor(() => expect(screen.getByTestId('task-action-confirm')).toBeEnabled())
+    await userEvent.click(screen.getByTestId('task-action-confirm'))
+    await waitFor(() => expect(onAlert).toHaveBeenCalledTimes(1))
+    expect(onAlert).toHaveBeenCalledWith('已终止 demo；警告：审计记录没写进去: EISDIR')
+    expect(onToast).not.toHaveBeenCalledWith('已终止 demo')
+    expect(onRefresh).toHaveBeenCalled()
+  })
+
+  it('删除成功但服务端带警告：走 onAlert（已删除 + 警告原文），不走普通提示', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url.startsWith('/api/change/demo/lifecycle')) {
+        return lifecycleResponse({ ok: true, action: 'delete', phase: 'build', blockers: [], confirmations: [], recoverable: true })
+      }
+      if (url.startsWith('/api/change/demo?') && init?.method === 'DELETE') {
+        return lifecycleResponse({
+          ok: true, removed: ['openspec/changes/demo'], uncommittedDeletions: 1, warnings: ['未提交删除暂存未清理', '审计记录没写进去: EISDIR'],
+        })
+      }
+      return lifecycleResponse({ ok: false, error: 'not found' }, 404)
+    })
+    const { onToast, onAlert, onRefresh } = renderWorkspace()
+    await userEvent.click(screen.getByTestId('task-card-menu-demo'))
+    await userEvent.click(screen.getByTestId('task-card-menu-demo-delete'))
+    await waitFor(() => expect(screen.getByTestId('task-action-confirm')).toBeEnabled())
+    await userEvent.click(screen.getByTestId('task-action-confirm'))
+    await waitFor(() => expect(onAlert).toHaveBeenCalledTimes(1))
+    expect(onAlert).toHaveBeenCalledWith('已删除 demo；警告：未提交删除暂存未清理；审计记录没写进去: EISDIR')
+    expect(onToast).not.toHaveBeenCalledWith('已删除 demo')
+    expect(onRefresh).toHaveBeenCalled()
+  })
+
+  it('带警告但外层没接 onAlert：退回普通提示，不丢「已终止」', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url.startsWith('/api/change/demo/lifecycle')) {
+        return lifecycleResponse({ ok: true, action: 'terminate', phase: 'build', blockers: [], confirmations: [] })
+      }
+      if (url === '/api/change/demo/terminate' && init?.method === 'POST') {
+        return lifecycleResponse({
+          ok: true, result: 'terminated', archived_dir: 'openspec/changes/archive/2026-09-25-demo',
+          ended_at: '2026-09-25T00:00:00Z', commit: 'committed', warnings: ['审计记录没写进去: EISDIR'],
+        })
+      }
+      return lifecycleResponse({ ok: false, error: 'not found' }, 404)
+    })
+    const onToast = vi.fn()
+    render(
+      <I18nProvider><TooltipProvider>
+        <WorkspaceView
+          snapshot={makeSnapshot([makeProject(ROOT, [makeChange('demo', 'build')])])}
+          currentRoot={ROOT}
+          rulesByKey={new Map()}
+          projects={PROJECTS}
+          onSelectProject={() => undefined}
+          selectedChange={null}
+          onSelectedChange={() => undefined}
+          onToast={onToast}
+        />
+      </TooltipProvider></I18nProvider>,
+    )
+    await userEvent.click(screen.getByTestId('task-card-menu-demo'))
+    await userEvent.click(screen.getByTestId('task-card-menu-demo-terminate'))
+    await waitFor(() => expect(screen.getByTestId('task-action-confirm')).toBeEnabled())
+    await userEvent.click(screen.getByTestId('task-action-confirm'))
+    await waitFor(() => expect(onToast).toHaveBeenCalledWith('已终止 demo'))
   })
 
   it('disables confirm for a blocker and shows its unlock reason', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
       if (url.startsWith('/api/change/demo/lifecycle')) {
-        return lifecycleResponse({ ok: true, action: 'archive', phase: 'build', blockers: [{ code: 'afk-running' }], confirmations: [] })
+        return lifecycleResponse({ ok: true, action: 'terminate', phase: 'build', blockers: [{ code: 'afk-running' }], confirmations: [] })
       }
       return lifecycleResponse({ ok: false, error: 'not found' }, 404)
     })
     renderWorkspace()
     await userEvent.click(screen.getByTestId('task-card-menu-demo'))
-    await userEvent.click(screen.getByTestId('task-card-menu-demo-archive'))
+    await userEvent.click(screen.getByTestId('task-card-menu-demo-terminate'))
     await waitFor(() => expect(screen.getByTestId('task-action-reason-afk-running').textContent).toContain('AFK 运行中'))
-    expect(screen.getByTestId('task-action-effect')).toHaveTextContent('只对你隐藏，可随时取消归档')
+    expect(screen.getByTestId('task-action-effect')).toHaveTextContent('任务结果记为「已终止」')
     expect(screen.getByTestId('task-action-confirm').hasAttribute('disabled')).toBe(true)
   })
 
@@ -170,9 +250,9 @@ describe('card ⋯ and detail ⋯ open the dialog', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input)
       if (url.startsWith('/api/change/demo/lifecycle')) {
-        return lifecycleResponse({ ok: true, action: 'archive', phase: 'build', blockers: [], confirmations: [] })
+        return lifecycleResponse({ ok: true, action: 'terminate', phase: 'build', blockers: [], confirmations: [] })
       }
-      if (url === '/api/change/demo/archive' && init?.method === 'POST') {
+      if (url === '/api/change/demo/terminate' && init?.method === 'POST') {
         posts += 1
         return lifecycleResponse({ ok: false, code: 'task-blocked', error: '任务被阻止', reasons: [{ code: 'afk-queued' }] }, 409)
       }
@@ -180,7 +260,7 @@ describe('card ⋯ and detail ⋯ open the dialog', () => {
     })
     renderWorkspace()
     await userEvent.click(screen.getByTestId('task-card-menu-demo'))
-    await userEvent.click(screen.getByTestId('task-card-menu-demo-archive'))
+    await userEvent.click(screen.getByTestId('task-card-menu-demo-terminate'))
     const confirm = await screen.findByTestId('task-action-confirm')
     await waitFor(() => expect(confirm.hasAttribute('disabled')).toBe(false))
     await userEvent.click(confirm)
@@ -190,7 +270,7 @@ describe('card ⋯ and detail ⋯ open the dialog', () => {
     expect(posts).toBe(1)
   })
 
-  it('detail ⋯ = card ⋯: 复制链接 · 接手 · 归档 · 分隔 · 删除; no footer', async () => {
+  it('detail ⋯ = card ⋯: 复制链接 · 接手 · 终止 · 分隔 · 删除; no footer', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(lifecycleResponse({ ok: false, error: 'not found' }, 404))
     window.__TENON_DASHBOARD_TOKEN__ = 'tok'
     try {
@@ -199,8 +279,9 @@ describe('card ⋯ and detail ⋯ open the dialog', () => {
       await userEvent.click(screen.getByTestId('task-detail-menu'))
       const menu = await screen.findByTestId('task-detail-menu-menu')
       const ids = [...menu.querySelectorAll('[role="menuitem"]')].map((item) => item.getAttribute('data-testid'))
-      expect(ids).toEqual(['task-detail-menu-copy-link', 'task-detail-menu-take', 'task-detail-menu-archive', 'task-detail-menu-delete'])
+      expect(ids).toEqual(['task-detail-menu-copy-link', 'task-detail-menu-take', 'task-detail-menu-terminate', 'task-detail-menu-delete'])
       expect(menu.querySelectorAll('[role="separator"]')).toHaveLength(1)
+      expect(screen.queryByTestId('task-detail-menu-archive')).toBeNull()
       expect(screen.queryByTestId('task-detail-menu-unarchive')).toBeNull()
     } finally {
       delete window.__TENON_DASHBOARD_TOKEN__
@@ -227,7 +308,7 @@ describe('card ⋯ and detail ⋯ open the dialog', () => {
       await waitFor(() => expect(onRefresh).toHaveBeenCalledTimes(1))
       const post = fetchMock.mock.calls.find(([url, init]) => String(url) === '/api/change/demo/owner' && init?.method === 'POST')
       expect(JSON.parse(String(post?.[1]?.body))).toEqual({ root: ROOT })
-      expect(onToast).toHaveBeenCalledWith('已接手', undefined)
+      expect(onToast).toHaveBeenCalledWith('已接手')
     } finally {
       delete window.__TENON_DASHBOARD_TOKEN__
     }
@@ -242,78 +323,8 @@ describe('card ⋯ and detail ⋯ open the dialog', () => {
   })
 })
 
-describe('已归档 view', () => {
-  it('lists archived rows with 阶段 · 时间 · 归档人 and calls 取消归档', async () => {
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
-      if (String(input) === '/api/change/hidden/unarchive' && init?.method === 'POST') {
-        return lifecycleResponse({ ok: true, changed: true })
-      }
-      return lifecycleResponse({ ok: false, error: 'not found' }, 404)
-    })
-    const { onToast } = renderWorkspace({ archived: [archivedRow('hidden', 'build', '2026-09-15T12:00:00.000Z', 'A')] })
-
-    const toggle = screen.getByTestId('task-view-archived')
-    // 归档是带文字的开关，不是只有图标。
-    expect(toggle).toHaveTextContent('已归档1')
-    expect(toggle).toHaveAttribute('aria-pressed', 'false')
-    await userEvent.click(toggle)
-
-    expect(screen.getByTestId('task-card-hidden')).toBeTruthy()
-    expect(screen.queryByTestId('task-card-demo')).toBeNull()
-    const meta = screen.getByTestId('task-archived-meta-hidden')
-    // 阶段显示工作流里的名称，不是原始 id。
-    expect(meta.textContent).toContain('实现')
-    expect(meta.textContent).not.toContain('build')
-    // 时间按界面语言与本机时区显示，原始 ISO 只留在 title 里。
-    expect(meta.textContent).toContain(localTime('2026-09-15T12:00:00.000Z', 'zh'))
-    expect(meta.textContent).not.toContain('2026-09-15T12:00:00.000Z')
-    expect(meta.textContent).toContain('A')
-    expect(meta.className).toContain('whitespace-nowrap')
-    // The archived list carries no 归档 / 删除 menu and no facets.
-    expect(screen.queryByTestId('task-card-menu-hidden')).toBeNull()
-    expect(screen.queryByTestId('task-facet-workflow')).toBeNull()
-    expect(screen.queryByTestId('task-filters')).toBeNull()
-
-    await userEvent.click(screen.getByTestId('task-archived-unarchive-hidden'))
-    await waitFor(() => expect(onToast).toHaveBeenCalledWith('已取消归档 hidden'))
-    expect(fetchMock.mock.calls.some(([url]) => String(url) === '/api/change/hidden/unarchive')).toBe(true)
-  })
-
-  it('shows the archived row with its stage label and the same status it had before archiving', () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(lifecycleResponse({ ok: false, error: 'not found' }, 404))
-    const labelled = { ...archivedRow('hidden', 'open', '2026-09-23T14:06:48Z', 'A') }
-    labelled.workflowRules = { ...labelled.workflowRules, labelByStep: { open: '立项' } }
-    renderWorkspace({ archived: [labelled] })
-    fireEvent.click(screen.getByTestId('task-view-archived'))
-    expect(screen.getByTestId('task-archived-meta-hidden').textContent).toContain('立项')
-    expect(screen.getByTestId('task-archived-meta-hidden').textContent).not.toMatch(/^open/u)
-    expect(screen.getByTestId('task-summary-hidden').textContent).not.toContain('进行中')
-  })
-
-  it('says 没有已归档任务 once the last archived task is unarchived', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(lifecycleResponse({ ok: false, error: 'not found' }, 404))
-    const { view } = renderWorkspace({ archived: [archivedRow('hidden', 'build', '2026-09-15T12:00:00.000Z', 'A')] })
-    fireEvent.click(screen.getByTestId('task-view-archived'))
-    // 取消归档后刷新的快照不再带 archived：视图仍停在已归档列表。
-    view.rerender(
-      <I18nProvider><TooltipProvider>
-        <WorkspaceView
-          snapshot={makeSnapshot([makeProject(ROOT, [makeChange('demo', 'build'), makeChange('other', 'spec'), makeChange('hidden', 'build')])])}
-          currentRoot={ROOT}
-          rulesByKey={new Map()}
-          projects={PROJECTS}
-          onSelectProject={() => undefined}
-          selectedChange={null}
-          onSelectedChange={() => undefined}
-        />
-      </TooltipProvider></I18nProvider>,
-    )
-    const empty = screen.getByTestId('task-list-empty-no-archived')
-    expect(empty).toHaveTextContent('没有已归档任务')
-    expect(empty.textContent).not.toContain('tenon init')
-  })
-
-  it('已完结 tasks live under 全部 and 已完成; there is no separate 含已完结 toggle', () => {
+describe('已完结 and the list', () => {
+  it('完结 tasks live under 全部 and 已结束; there is no separate 含已完结 toggle', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(lifecycleResponse({ ok: false, error: 'not found' }, 404))
     render(
       <I18nProvider><TooltipProvider>
@@ -330,10 +341,10 @@ describe('已归档 view', () => {
     )
     expect(screen.queryByTestId('task-filter-completed')).toBeNull()
     expect(screen.getByTestId('task-card-done-a')).toBeTruthy()
-    expect(screen.getByTestId('task-status-done')).toHaveTextContent('2')
+    expect(screen.getByTestId('task-status-ended')).toHaveTextContent('2')
     fireEvent.click(screen.getByTestId('task-status-running'))
     expect(screen.getByTestId('task-list-empty-filtered')).toBeTruthy()
-    fireEvent.click(screen.getByTestId('task-status-done'))
+    fireEvent.click(screen.getByTestId('task-status-ended'))
     expect(screen.getByTestId('task-card-done-b')).toBeTruthy()
   })
 
@@ -358,7 +369,7 @@ describe('已归档 view', () => {
     expect(screen.queryByTestId('task-uncommitted-deletions')).toBeNull()
   })
 
-  it('never calls a task 已完结 archived: the summary pill stays 已完结', async () => {
+  it('a closed run reads 完结 in the card pill, never 已归档', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(lifecycleResponse({ ok: false, error: 'not found' }, 404))
     const snapshot = makeSnapshot([makeProject(ROOT, [makeChange('done', 'archive', { archived: 'true' })])])
     render(
@@ -374,8 +385,8 @@ describe('已归档 view', () => {
         />
       </TooltipProvider></I18nProvider>,
     )
-    await userEvent.click(screen.getByTestId('task-status-done'))
-    expect(screen.getByTestId('task-summary-done').textContent).toBe('已完结')
+    await userEvent.click(screen.getByTestId('task-status-ended'))
+    expect(screen.getByTestId('task-summary-done').textContent).toBe('完结')
     expect(screen.getByTestId('task-summary-done').textContent).not.toContain('已归档')
   })
 
@@ -396,7 +407,7 @@ describe('已归档 view', () => {
       </TooltipProvider></I18nProvider>,
     )
     await userEvent.click(screen.getByTestId('task-card-menu-demo'))
-    await userEvent.click(await screen.findByTestId('task-card-menu-demo-archive'))
+    await userEvent.click(await screen.findByTestId('task-card-menu-demo-terminate'))
     await screen.findByTestId('task-action-dialog')
     const lifecycle = vi.mocked(globalThis.fetch).mock.calls.find(([url]) => String(url).startsWith('/api/change/demo/lifecycle'))
     expect(String(lifecycle?.[0])).toContain('root=%2Frepo')

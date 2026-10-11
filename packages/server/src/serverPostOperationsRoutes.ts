@@ -1,52 +1,11 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { lstatSync } from 'node:fs'
-import { join, resolve as resolvePath } from 'node:path'
+import { join } from 'node:path'
 import {
-  applyLevelChange,
-  assertWorkflowAllowed,
-  builtinWorkflow,
-  createEffectiveSkillResolver,
-  createTrack,
-  decodeWorkflowDef,
-  firstStep,
   listAutomationPolicyTemplates,
-  loadTrackRegistry,
-  loadWorkflow,
-  requireTrack,
   RegistryReadError,
   stateStorageExistsSync,
-  validateWorkflow,
-  validateWorkflowTrackReferences,
-  withTrackRegistryLock,
-  type CreateTrackSpec,
-  type ExtendedManifestData,
-  type FlowEngine,
-  type GraduationFs,
-  type HistoryWriter,
-  type StateStore,
-  type TrackDefinition,
-  type TrackRegistry,
-  type TrackValidationContext,
-  type WorkflowDef,
-  type WorkflowRunRepository,
 } from '@tenon/kernel'
 import { matchesPathGlob } from '@tenon/automation'
-import {
-  cancelAfkRun,
-  dismissAfkRun,
-  enqueueAfkRun,
-  retryAfkRun,
-} from './afk.js'
-import { validateAutomationSettingsBody, writeAutomationSettings } from './automationConfig.js'
-import {
-  activateChangeSession,
-  notRequestedSessionActivation,
-  parseChangeSessionActivation,
-  parseChangeTaskPrompt,
-  writeChangeTaskPrompt,
-} from './changeLaunch.js'
-import { validateMandatorySkillsBody, writeMandatorySkills } from './config.js'
-import { validateHookToggleBody, writeHookToggle } from './hooksConfig.js'
 import {
   buildLoopScopePreviewResponse,
   LoopScopePreviewInputError,
@@ -54,29 +13,6 @@ import {
   parseLoopScopePreviewRequest,
   readTrustedLoopRegistry,
 } from './loopScopePreview.js'
-import { applyLoopsUpdate, type LoopActivationValidator } from './loops.js'
-import { parsePipelineCliJson, type PipelineCliRunner } from './operations.js'
-import { addProjectToRegistry, removeProjectFromRegistry } from './projects.js'
-import {
-  applyRouterDraft,
-  parseRouterDraft,
-  previewTrackRouting,
-  type RouterPatternScorer,
-} from './routerPreview.js'
-import { validateSecretWriteBody, writeSecret } from './secrets.js'
-import { tokenFromHeaders, tokensMatch } from './token.js'
-import { performTransition } from './transition.js'
-import type { ServerPaths } from './types.js'
-import {
-  assertWorkflowRootAnchor,
-  captureWorkflowRootAnchor,
-  closeWorkflowRootAnchor,
-  ensureWorkflowProjectCoordinationPath,
-  readWorkflowForApi,
-  WorkflowNotFoundError,
-  writeWorkflowForApi,
-  type WorkflowRootAnchor,
-} from './workflows.js'
 
 import type { PostRouteDeps } from './serverPostRoutes.js'
 
@@ -86,18 +22,7 @@ export async function handlePostOperationsRoutes(
   path: string,
   deps: PostRouteDeps,
 ): Promise<void> {
-  const {
-    sendJson, readJsonBody, routerPatternScorer, workflowRootForRequest,
-    trackValidationContextFor, executeOperation, operationRunner, operationsAvailable,
-    isRegisteredRoot, store, clock, history, workflowRootAnchors, trackSkillProfiles,
-    loadedManifest, runRepo, flow, fileExists, gitHeadSha, workspaceFingerprint, breadcrumb,
-    manifestPath, paths, validateLoopActivation, mutateTrackForApi, trackRegistryBody,
-    sendTrackError, errMsg,
-  } = deps
-  const REAL_GRADUATION_FS = deps.realGraduationFs
-  function isWorkflowName(name: string): boolean {
-    return name !== '' && /^[\p{L}\p{N}\p{M}_-]+$/u.test(name)
-  }
+  const { sendJson, readJsonBody, workflowRootForRequest, executeOperation, isRegisteredRoot, store, errMsg } = deps
   function sendLoopScopeUntrustedRoot(): void {
     sendJson(res, 403, {
       ok: false,
@@ -150,36 +75,6 @@ export async function handlePostOperationsRoutes(
         })
       }
       return sendJson(res, 200, buildLoopScopePreviewResponse(loop, input.paths, matchesPathGlob))
-    }
-
-    if (path === '/api/router/preview') {
-      const raw = await readJsonBody(req)
-      if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-        return sendJson(res, 400, { ok: false, error: '请求体须为 JSON 对象' })
-      }
-      const body = raw as Record<string, unknown>
-      const root = typeof body.root === 'string' ? body.root : ''
-      const prompt = typeof body.prompt === 'string' ? body.prompt : ''
-      if (prompt.trim() === '') return sendJson(res, 400, { ok: false, error: 'prompt 不得为空' })
-      const rootCheck = workflowRootForRequest(root)
-      if (!rootCheck.ok) return sendJson(res, rootCheck.code, { ok: false, error: rootCheck.error })
-      try {
-        assertWorkflowRootAnchor(rootCheck.anchor)
-        let pipelineExists = true
-        try { lstatSync(join(rootCheck.anchor.path, '.pipeline')) } catch (error) {
-          if ((error as NodeJS.ErrnoException).code === 'ENOENT') pipelineExists = false
-          else throw error
-        }
-        if (pipelineExists) ensureWorkflowProjectCoordinationPath(rootCheck.anchor)
-        const registry = loadTrackRegistry(rootCheck.anchor.path, trackValidationContextFor(rootCheck.anchor))
-        const draft = body.draft_track === undefined ? null : parseRouterDraft(body.draft_track)
-        const candidates = draft === null ? registry.ordered : applyRouterDraft(registry.ordered, draft)
-        const preview = await previewTrackRouting(prompt, candidates, routerPatternScorer)
-        assertWorkflowRootAnchor(rootCheck.anchor)
-        return sendJson(res, 200, { ok: true, revision: registry.revision, source: registry.source, ...preview })
-      } catch (error) {
-        return sendJson(res, 400, { ok: false, error: errMsg(error) })
-      }
     }
 
     // ── H11-H14/G2 Operations：HTTP 只负责严格校验 + argv 映射；执行语义复用 built CLI。──

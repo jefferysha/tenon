@@ -1,147 +1,120 @@
 import { createHash } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import {
-  buildRouterProjection,
-  effectiveRouterRevision,
-  loadManifest,
-  routerContractRevision,
-  type TrackDefinition,
-  type TrackRegistry,
-} from '@tenon/kernel'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import type { CliDeps } from '../deps.js'
 import { cmdGenRouterSh } from './gen-router.js'
 
-const MANIFEST = new URL('../../../../templates/manifest.yaml', import.meta.url)
-const ROUTER_HOOK = new URL('../../../../hooks/router.sh', import.meta.url)
+const STEPS = `steps:
+  - id: open
+    label: 开始
+    gate: null
+    skills: []
+    inputs: []
+    outputs: []
+    guards: []
+    transitions: []
+`
 
-function customTrack(pattern = "'$(touch /tmp/router-owned)`printf pwn`|mobile-route-token"): TrackDefinition {
-  return {
-    id: 'designer-mobile',
-    label: 'Designer $(inert)',
-    builtin: false,
-    workflow: { default: 'catalog-flow', allowed: ['catalog-flow'] },
-    policyProfile: {
-      reviewSeed: 'pending',
-      automationEligible: true,
-      coverageProfile: 'frontend',
-      routing: { enabled: true, pattern, priority: 901 },
-      skills: { matrix: false, profile: 'frontend' },
-    },
-  }
+function workflow(name: string, route: string): string {
+  return `name: ${name}\nroute: ${route}\n${STEPS}`
 }
 
-function registry(track = customTrack()): TrackRegistry {
-  return {
-    ordered: [track],
-    byId: new Map([[track.id, track]]),
-    revision: '0123456789abcdef',
-    source: 'project-file',
-  }
-}
-
-function deps(root: string, value: TrackRegistry, out: string[], err: string[]): CliDeps {
+function deps(root: string, out: string[], err: string[]): CliDeps {
   return {
     cwd: root,
-    loadRegistry: () => value,
-    io: { out: (line) => out.push(line), err: (line) => err.push(line) },
+    io: { out: (line: string) => out.push(line), err: (line: string) => err.push(line) },
   } as unknown as CliDeps
 }
 
+type Run = (deps: CliDeps, manifestPath: string | undefined, repoRoot: string | undefined) => Promise<number>
+const run = cmdGenRouterSh as unknown as Run
+
 describe('_gen-router-sh project data-cache command', () => {
+  let base: string
   let root: string
+  let manifest: string
+  let globalDir: string
 
   beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), 'pipeline-gen-router-'))
-    await mkdir(join(root, '.pipeline'), { recursive: true })
-    await writeFile(join(root, '.pipeline', 'tracks.yaml'), 'version: 1\n', 'utf8')
+    base = await mkdtemp(join(tmpdir(), 'pipeline-gen-router-'))
+    root = join(base, 'repo')
+    manifest = join(base, 'plugin', 'templates', 'manifest.yaml')
+    globalDir = join(base, 'home', 'config', 'workflows', '.pipeline', 'workflows')
+    await mkdir(join(root, '.pipeline', 'workflows'), { recursive: true })
+    await mkdir(join(base, 'plugin', 'templates', 'workflows'), { recursive: true })
+    await mkdir(globalDir, { recursive: true })
+    vi.stubEnv('TENON_RUNTIME_HOME', join(base, 'home')) // 测试进程已隔离运行时根；这里只是把全局存储指到本用例的目录
   })
 
   afterEach(async () => {
-    await rm(root, { recursive: true, force: true })
+    vi.unstubAllEnvs()
+    await rm(base, { recursive: true, force: true })
   })
 
-  test('pins the bash hot-path contract to the current builtin and manifest projection', async () => {
-    const hook = await readFile(ROUTER_HOOK, 'utf8')
-    const pinned = hook.match(/^ROUTER_CONTRACT_REV="([0-9a-f]{64})"$/m)?.[1]
-    expect(pinned).toBe(routerContractRevision(loadManifest(MANIFEST.pathname)))
-  })
-
-  test('emits TENON_ROUTER_V5 from the effective registry with canonical identity and inert hex data', async () => {
+  test('emits router.v6 from the workflow files with canonical identity, source digest and inert hex data', async () => {
+    const hostile = "'$(touch /tmp/router-owned)`printf pwn`|mobile-route-token"
+    const project = workflow('catalog-flow', `{ keywords: [${hostile.replace(/[,[\]{}]/gu, ' ')}], exclude: [迁移], priority: 901 }`)
+    await writeFile(join(root, '.pipeline', 'workflows', 'catalog-flow.yaml'), project, 'utf8')
     const out: string[] = []
     const err: string[] = []
-    const loadCalls: number[] = []
-    const d = deps(root, registry(), out, err)
-    d.loadRegistry = () => {
-      loadCalls.push(1)
-      return registry()
-    }
 
-    const run = cmdGenRouterSh as unknown as (
-      deps: CliDeps,
-      manifestPath: string | undefined,
-      repoRoot: string | undefined,
-    ) => Promise<number>
-    expect(await run(d, MANIFEST.pathname, root)).toBe(0)
-    expect(loadCalls).toHaveLength(1)
+    const code = await run(deps(root, out, err), manifest, root)
     expect(err).toEqual([])
+    expect(code).toBe(0)
     expect(out).toHaveLength(1)
 
     const cache = `${out[0]}\n`
     const lines = cache.trimEnd().split('\n')
-    expect(lines[0]).toBe('TENON_ROUTER_V5')
-    const metadata = lines[1]?.split('|') ?? []
-    expect(metadata).toEqual([
-      'M',
-      Buffer.from(await realpath(root), 'utf8').toString('hex'),
-      createHash('sha256').update(await readFile(MANIFEST)).digest('hex'),
-      effectiveRouterRevision(
-        '0123456789abcdef',
-        buildRouterProjection(registry(), loadManifest(MANIFEST.pathname)),
-      ),
-      '1',
-      routerContractRevision(loadManifest(MANIFEST.pathname)),
-    ])
-    const route = lines.find((line) => line.startsWith('R|'))?.split('|') ?? []
-    expect(Buffer.from(route[3] ?? '', 'hex').toString('utf8')).toBe('designer-mobile')
-    expect(route[4]).toBe('1')
-    expect(Buffer.from(route[5] ?? '', 'hex').toString('utf8')).toContain('mobile-route-token')
-    expect(Buffer.from(route[6] ?? '', 'hex').toString('utf8')).toBe('')
-    expect(Buffer.from(route[7] ?? '', 'hex').toString('utf8')).toBe('frontend')
-    expect(route.slice(8, 10)).toEqual(['0', '0']) // matrix=false 仍进入 router；custom 不是 builtin
-    expect(Buffer.from(route[11] ?? '', 'hex').toString('utf8')).toBe('catalog-flow')
-    expect(cache).not.toContain('FE_PATTERN=')
+    expect(lines[0]).toBe('TENON_ROUTER_V6')
+    const digest = createHash('sha256').update(`project/catalog-flow.yaml\n${project}\n`).digest('hex')
+    expect(lines[1]?.split('|')).toEqual(['M', Buffer.from(await realpath(root), 'utf8').toString('hex'), digest])
+    const row = lines[2]?.split('|') ?? []
+    const decoded = row.map((field) => Buffer.from(field, 'hex').toString('utf8'))
+    expect(decoded[3]).toBe('catalog-flow')
+    expect(decoded[4]).toBe('catalog-flow')
+    expect(row.slice(6, 9)).toEqual(['1', '0', '0'])
+    expect(decoded[9]).toContain('mobile-route-token')
+    expect(decoded[10]).toBe('(迁移)')
     expect(cache).not.toContain('$(')
     expect(cache).not.toContain('`')
     expect(cache).not.toContain('/tmp/router-owned')
   })
 
-  test('requires a repo root instead of silently generating a project-agnostic cache', async () => {
+  test('reads the global store and plugin templates beside the manifest, and reports a broken workflow without failing', async () => {
+    await writeFile(join(globalDir, 'extra.yaml'), workflow('extra', '{ keywords: [额外], priority: 5 }'), 'utf8')
+    await writeFile(join(base, 'plugin', 'templates', 'workflows', 'tmpl.yaml'), workflow('tmpl', '{ keywords: [模板], priority: 6 }'), 'utf8')
+    await writeFile(join(root, '.pipeline', 'workflows', 'broken.yaml'), 'name: broken\n???\n', 'utf8')
     const out: string[] = []
     const err: string[] = []
-    const run = cmdGenRouterSh as unknown as (
-      deps: CliDeps,
-      manifestPath: string | undefined,
-      repoRoot: string | undefined,
-    ) => Promise<number>
-    expect(await run(deps(root, registry(), out, err), MANIFEST.pathname, undefined)).toBe(2)
-    expect(out).toEqual([])
-    expect(err.join('\n')).toMatch(/项目根|repo root/)
+
+    expect(await run(deps(root, out, err), manifest, root)).toBe(0)
+
+    const rows = (out[0] ?? '').split('\n').filter((line) => line.startsWith('R|'))
+      .map((line) => Buffer.from(line.split('|')[3] ?? '', 'hex').toString('utf8'))
+    expect(rows).toEqual(['extra', 'tmpl'])
+    expect(err).toHaveLength(1)
+    expect(err[0]).toMatch(/broken/u)
   })
 
-  test('rejects an enabled pattern that the target grep -E dialect cannot compile', async () => {
+  test('requires a manifest path and a repo root instead of silently generating a project-agnostic cache', async () => {
     const out: string[] = []
     const err: string[] = []
-    const bad = registry(customTrack('[[:not-a-real-class:]]'))
-    const run = cmdGenRouterSh as unknown as (
-      deps: CliDeps,
-      manifestPath: string | undefined,
-      repoRoot: string | undefined,
-    ) => Promise<number>
-    expect(await run(deps(root, bad, out, err), MANIFEST.pathname, root)).toBe(2)
+    expect(await run(deps(root, out, err), manifest, undefined)).toBe(2)
+    expect(err.join('\n')).toMatch(/项目根|repo root/u)
+    expect(await run(deps(root, out, err), undefined, root)).toBe(2)
+    expect(err.join('\n')).toMatch(/manifest/u)
     expect(out).toEqual([])
-    expect(err.join('\n')).toMatch(/grep|pattern|正则/)
+  })
+
+  test('refuses a repo root that differs from the CLI working context', async () => {
+    const other = join(base, 'other')
+    await mkdir(other, { recursive: true })
+    const out: string[] = []
+    const err: string[] = []
+    expect(await run(deps(root, out, err), manifest, other)).toBe(2)
+    expect(out).toEqual([])
+    expect(err.join('\n')).toMatch(/不一致/u)
   })
 })

@@ -149,13 +149,13 @@ describe('真实 e2e —— terminal-activity host hook', () => {
 
     // git itself agrees: local state is ignored, shared configuration and the ignore file are not.
     spawnSync('git', ['init', '-q'], { cwd: h.cwd })
-    await writeFile(join(h.cwd, '.pipeline', 'tracks.yaml'), 'tracks: {}\n', 'utf8')
+    await writeFile(join(h.cwd, '.pipeline', 'loops.yaml'), 'loops: []\n', 'utf8')
     const checked = spawnSync('git', ['check-ignore', '--no-index', '-v', '--stdin'], {
       cwd: h.cwd,
       input: [
         `.pipeline/terminal-sessions/${SESSION_ID}.json`, '.pipeline/cache/router.v5.data',
         '.pipeline/codex-skill-receipts.jsonl', '.tenon/users/someone-at-x.io/local/active-change',
-        '.pipeline/tracks.yaml', '.pipeline/.gitignore', '.tenon/.gitignore',
+        '.pipeline/loops.yaml', '.pipeline/.gitignore', '.tenon/.gitignore',
       ].join('\n'),
       encoding: 'utf8',
     })

@@ -10,8 +10,9 @@ export const HELP_EN_CORE: Readonly<Record<string, string>> = {
   tenon: 'Tenon state machine CLI (CONTRACT §3)',
   '--version': 'Print the Tenon version',
   init: 'Initialize a change (stdout stays empty; path details go to stderr)',
-  'init --track': 'chat | simple | pm | frontend | backend | free | custom',
-  'init --preset': 'full | hotfix | tweak (required for the default workflow; may be omitted with an explicit --workflow)',
+  'init --track': "the workflow's track (see tenon tracks list); required for a workflow with branches, omitted for a flat workflow",
+  'init --domain': 'the domain track recorded with a lite task (another track of the same workflow); used to name the track of the follow-up task when the lite task escalates',
+  'init --preset':'full | hotfix | tweak (required for the default workflow; may be omitted with an explicit --workflow)',
   'init --workflow': 'custom workflow name (.pipeline/workflows/<name>.yaml); default when omitted',
   'init --document-locale': 'governed document language: zh-CN (default) | en',
 

@@ -10,7 +10,9 @@ import {
   type EffectiveWorkflowPlan, type PipelineState, type StepIR,
 } from '@tenon/kernel'
 import type { StepSkillSlotProgress } from '../stepSkillGate.js'
-import { RECOMMENDED, STEP_FIELD_ENUMS, TRANSITION_MANAGED_FIELDS } from './field-values.js'
+import {
+  legacyDecisionEnum, legacyDecisionRecommended, RECOMMENDED, STEP_FIELD_ENUMS, TRANSITION_MANAGED_FIELDS,
+} from './field-values.js'
 import { canonicalTenonSkillId } from './stepSkillEvidence.js'
 
 export interface StepSkillView {
@@ -174,6 +176,7 @@ function fieldView(
   kind: StepFieldView['kind'],
   artifacts: ReadonlySet<string>,
   required: readonly string[] | undefined,
+  legacyDecision: boolean,
 ): StepFieldView {
   const value = scalar(state, field)
   const present = value !== '' && value !== 'null'
@@ -186,9 +189,9 @@ function fieldView(
       : artifacts.has(field) ? 'artifact-register' : 'set',
     status: satisfied ? 'set' : 'missing',
     value: present ? value : null,
-    allowed: STEP_FIELD_ENUMS[field] ?? null,
+    allowed: (legacyDecision ? legacyDecisionEnum(field) : undefined) ?? STEP_FIELD_ENUMS[field] ?? null,
     required: required ?? null,
-    recommended: RECOMMENDED(field, state) ?? null,
+    recommended: (legacyDecision ? legacyDecisionRecommended(field, state) : undefined) ?? RECOMMENDED(field) ?? null,
   }
 }
 
@@ -196,9 +199,11 @@ function fieldView(
  * 本步要填的字段：声明的 outputs 是产出，guard 里点名的字段是门禁前置，结果字段单列。
  * 只列当前步骤真正读得到的那些，避免 skill 去填与本步无关的槽。
  *
- * `nativeGuardFields` 是 default 轨的补充来源：那条轨的前置 guard 写在 flow/default-event-policy.ts
+ * `step.guards` 传的是离开条件（按 YAML 执行的任务：步骤 guards ∪ 前进边 guards，见 exitGuards.ts）。
+ * `nativeGuardFields` 是旧执行模型的补充来源：那条轨的前置 guard 写在 flow/default-event-policy.ts
  * 的事件政策表里，不在 step.guards 上，光看 IR 会漏掉 build_mode / isolation / direct_override /
- * branch_status 这些真正卡住转换的槽。custom 轨传空数组即可——它的 guard 本来就都在 step 上。
+ * branch_status 这些真正卡住转换的槽；这些决定字段的枚举与推荐值也只随它们带出（新任务没有这些决定）。
+ * 按 YAML 执行的任务传空数组即可。
  */
 export function stepFields(
   state: PipelineState,
@@ -215,6 +220,7 @@ export function stepFields(
   for (const item of nativeGuardFields) {
     if (item.required !== undefined && !requiredOf.has(item.field)) requiredOf.set(item.field, item.required)
   }
+  const nativeFields = new Set(nativeGuardFields.map((item) => item.field))
   const seen = new Set<string>()
   const fields: StepFieldView[] = []
   const push = (field: string, kind: StepFieldView['kind']): void => {
@@ -226,6 +232,7 @@ export function stepFields(
       OUTCOME_FIELDS.has(field) ? 'outcome' : kind,
       artifacts,
       requiredOf.get(field),
+      nativeFields.has(field),
     ))
   }
   for (const output of step.outputs) push(output.field, 'output')

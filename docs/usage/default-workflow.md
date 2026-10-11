@@ -2,12 +2,14 @@
 
 ## Goal
 
-Operate the governed seven-phase default Workflow, including return edges and
-exact review receipts.
+Operate the governed seven-phase heavy Tracks of the default Workflow (`pm`,
+`frontend`, `backend`), including return edges and exact review receipts. The
+`lite` Track has its own four steps and is described under
+[the lightweight Track](routing-and-workflows.md#the-lightweight-track).
 
 ## Prerequisites
 
-- an active Change using `workflow=default`
+- an active Change using `workflow=default` on a heavy Track
 - the single `tenon` skill dispatched by the Tenon entrypoint
 - current document evidence for the phase
 
@@ -35,49 +37,66 @@ Explore, Spec, and Verify are review-gated.
 
 Tenon ships exactly one skill of its own, `tenon`. It reads the Change's frozen
 workflow plan and executes the current step from `tenon status <change> --json`
-→ `step.next`. Which skills a step loads is declared per track in
-`templates/workflows/default.yaml`; the manifest `mandatory_skills` table is a
-routing projection of that same data and only overlays automatically when the
-Track matrix is enabled.
+→ `step.next`. Which skills a step loads is declared per Track in
+`templates/workflows/default.yaml` and nowhere else.
 
-Skills declared per step (default, by track):
+Skills declared per step (default, by Track):
 
-| Step | pm | frontend | backend | free |
-| --- | --- | --- | --- | --- |
-| `open` | openspec-propose | openspec-propose | openspec-propose | openspec-propose |
-| `explore` | brainstorming · grilling · domain-modeling | openspec-explore · brainstorming · grilling · domain-modeling | openspec-explore · brainstorming · grilling · domain-modeling · codebase-design | brainstorming |
-| `spec` | openspec-propose · brainstorming · writing-plans · grilling · domain-modeling | openspec-propose · writing-plans | openspec-propose · writing-plans | openspec-propose · writing-plans |
-| `build` | prototype · frontend-design | test-driven-development · frontend-design | test-driven-development | test-driven-development |
-| `verify` | browser-qa · web-design-guidelines · design-taste-frontend · verification-before-completion | verification-before-completion · e2e-testing · browser-qa · web-design-guidelines · design-taste-frontend | verification-before-completion | verification-before-completion |
-| `ship` | — | finishing-a-development-branch | finishing-a-development-branch | finishing-a-development-branch |
-| `archive` | — | — | — | — |
+| Step | pm | frontend | backend |
+| --- | --- | --- | --- |
+| `open` | openspec-propose | openspec-propose | openspec-propose |
+| `explore` | brainstorming · grilling · domain-modeling | openspec-explore · brainstorming · grilling · domain-modeling | openspec-explore · brainstorming · grilling · domain-modeling · codebase-design |
+| `spec` | openspec-propose · brainstorming · writing-plans · grilling · domain-modeling | openspec-propose · writing-plans | openspec-propose · writing-plans |
+| `build` | prototype · frontend-design | test-driven-development · frontend-design | test-driven-development |
+| `verify` | browser-qa · web-design-guidelines · design-taste-frontend · verification-before-completion | verification-before-completion · e2e-testing · browser-qa · web-design-guidelines · design-taste-frontend | verification-before-completion |
+| `ship` | — | finishing-a-development-branch | finishing-a-development-branch |
+| `archive` | — | — | — |
+
+The graph, the guards and the actions of every transition are written in the
+Workflow YAML and executed from it; no rule lives in code under the Workflow's
+name. Leaving a step is governed by its leave conditions:
+
+| Leave condition | Where | Satisfied when |
+| --- | --- | --- |
+| `tasks-through-step` | step and forward edges | every `tasks.md` item up to and including this step is checked |
+| `not-afk-queued` | the `build-complete` edge | the Change is not waiting in the AFK queue |
+| `dependencies-ended` | the `build-complete` edge | every Change in `depends_on` has ended |
+
+Besides these, the YAML carries the step-specific conditions: `pre_verify_review_result=pass`
+on `build-complete`, `design_doc` at Explore, `plan` (not on pm) and at least three tasks at
+Spec, the verification report and an unchanged build revision on `verify-pass`, and the
+delivery value (`pr_url`, `prd_path` on pm) with the spec migration at Ship. `tenon check <change>` without an
+event lists the step's guards together with the guards of its forward edges and reports every
+unmet condition at once, exiting `2`. `tenon advance` follows only the single forward edge; it
+never takes a return edge (`requirements-changed`, `verify-fail`) or the abandon edge
+(`scope-expanded`). The former build-mode, isolation, direct-override and branch-status
+decisions are gone from new Changes (Changes created before the upgrade keep theirs). The
+Dashboard workflow page lists a step's leave conditions read-only under its gate.
 
 `pre_verify_review_result=pass` is Build's verdict; `tenon set` checks the step's
-declared readiness evidence before writing it. Every track's Build declares
-evidence that can be checked: frontend, backend, chat and free require the
-`unit` suites of the project's test catalog to pass (Build's `test_policy`), and
-pm / free / chat also require the `spec-consistency` reviewer (`block_at:
-medium`, a language-agnostic comparison of the implementation against the
-proposal, design, delta spec and tasks). Writing `pass` without that evidence is
-refused and names what is missing.
+declared readiness evidence before writing it. Every heavy Track's Build declares
+evidence that can be checked: frontend and backend require the `unit` suites of
+the project's test catalog to pass (Build's `test_policy`), and pm requires the
+`spec-consistency` reviewer (`block_at: medium`, a language-agnostic comparison
+of the implementation against the proposal, design, delta spec and tasks).
+Writing `pass` without that evidence is refused and names what is missing.
 
-Every track also declares [agents](agents.md): Explore runs the `researcher`
+Every heavy Track also declares [agents](agents.md): Explore runs the `researcher`
 executor; Build runs the `builder` executor (one subagent per independent task,
 merged into one report) before its reviewers; Verify declares the `code-size`
 test (`tenon test code-size --json`, passing while `lines_added` stays within
 2000) and the required `code-size` reviewer that reads its result. If the lines added really
 exceed the limit and the user decides to waive it, register
 `tenon test waive <change> --test code-size --reason …`; the review that confirms this gate
-approves it with the rest, and nothing is let through before that. On chat and
-free, Verify also runs `security` as an advisory reviewer whose findings never
-block. A step cannot be left until its executors finish `done`.
+approves it with the rest, and nothing is let through before that. A step cannot
+be left until its executors finish `done`.
 
 Reviewers are scoped by risk. `security` declares `attach_on: [auth, dependency,
-contract]` ([Agents](agents.md)), so on the tracks where Verify requires it, it is attached only
+contract]` ([Agents](agents.md)), so on the Tracks where Verify requires it, it is attached only
 when the task's changes touch an authentication, dependency-manifest or interface-contract
 path; a task that touches none never waits for it or dispatches it. The same task can be
-done on the lighter [`standard` lane](routing-and-workflows.md#the-standard-lane) first and
-escalated to this workflow when its changes outgrow that lane.
+done on the lighter [`lite` Track](routing-and-workflows.md#the-lightweight-track) first and
+escalated to a heavy Track when its changes outgrow it.
 
 When a required step test's command is an npm script that the project does not
 define, the test is *unconfigured*, not failed: `tenon test run` refuses it
@@ -85,9 +104,10 @@ without writing a record and explains how to configure it, and `step.next` raise
 it as a `fix` (`test-unconfigured`) at the entry of its own step or the step
 before it (configuring is a workspace change and must land before Build freezes
 the candidate). The default workflow's only required step tests are `code-size`
-(every track's Verify) and the design-system check (pm's Ship); the project's own
-tests come from the catalog, so an ordinary project is never asked to add
-`typecheck` or `test:integration` scripts just to satisfy the workflow.
+(Verify of pm, frontend and backend), the `diff-risk` probe (the lightweight Build) and
+the design-system check (frontend's Ship); the project's own tests come from the
+catalog, so an ordinary project is never asked to add `typecheck` or
+`test:integration` scripts just to satisfy the workflow.
 
 A step can also declare a `test_policy`, the workflow's side of the test system
 (the project's `.tenon/tests/catalog.yaml` says how tests run, the change's
@@ -107,7 +127,7 @@ step. The report compares the change with its start and flags case-count drops a
 across full runs, deleted or skipped tests, removed assertions, rewritten snapshots, changed
 baselines, added known failures and lowered coverage thresholds (the ten signals are listed in
 the [CLI reference](cli-reference.md), the command is
-`tenon test integrity <change>`). The default workflow and the standard lane declare nothing, so
+`tenon test integrity <change>`). No Track of the default workflow declares it, so
 every Build and Verify step runs at `notice`: the signals show up as one `test-integrity` notice in `status`,
 `test status` and the Dashboard Tests tab and never block. Set `integrity: block` on a step to
 turn them into a blocker for that step (an unreadable diff then blocks too, with
@@ -127,11 +147,11 @@ catalog entry declares `coverage`; a catalog without coverage is never blocked b
 it, and the Playwright browser list is whatever the suite's own `browsers`
 declares. `regression` needs no suite of its own: a policy that requires
 `regression` with `scope: full` is satisfied by the `unit` suite run in full.
-Defaults by track (all editable on the Dashboard workflow page):
+Defaults by Track (all editable on the Dashboard workflow page):
 
 | Track | spec registers | build runs (changed) | verify runs (full) |
 | --- | --- | --- | --- |
-| chat / free | `unit` | `unit`; `typecheck` when registered | `unit`; `regression` when registered |
+| lite | `unit` (planned at Build; there is no Spec step) | `unit`; `typecheck` when registered | `unit`; `regression`, `typecheck`, `integration`, `e2e`, `playwright`, `a11y`, `visual` when registered |
 | frontend | `unit` | `unit`; `typecheck` when registered | `unit`; `regression`, `e2e`, `playwright`, `a11y`, `visual` when registered; lines coverage 80% when the suite declares coverage |
 | backend | `unit` | `unit`; `typecheck` when registered | `unit`; `integration`, `regression`, `benchmark` when registered; lines coverage 80% when the suite declares coverage |
 | pm | every OpenSpec scenario mapped | none | `smoke` when registered |
@@ -172,10 +192,6 @@ written only through `tenon test …`; the write gate refuses direct edits and s
 redirects into them, while `tenon` commands and plain git operations pass. A reviewer
 that declares `reads_tests` also gets the latest failing cases, flaky cases, coverage
 against the thresholds and benchmark deltas in its prompt.
-
-The `chat` track — the default when the Dashboard picks no track — declares no skills. Its document
-contract still governs the outputs, but a default resolution without a track needs no upstream skill
-bytes, so it also holds on a clean checkout.
 
 Verify is limited in how many rounds it runs; see
 [Verification round limit](#verification-round-limit). Build TDD, unit tests, type checks,
@@ -236,7 +252,7 @@ tenon check <change-name>
 ```
 
 Exit `0` means current guard checks pass. Exit `2` means the report contains
-unmet guards. Check does not transition.
+unmet guards or leave conditions, all of them listed at once. Check does not transition.
 
 ### 4. Handle a review exit
 
@@ -288,6 +304,15 @@ tenon transition <change-name> verify-fail
 Fix in Build, freeze a new baseline, and verify again. A `verify-pass` receipt
 cannot approve `verify-fail`, or vice versa. Verify is limited to two rounds; once they
 are used up this edge is refused (see [Verification round limit](#verification-round-limit)).
+
+### 6. Finish the task
+
+After `archive` completes, `step.next` returns `finish-change` with the command
+`tenon task finish <change-name>`. Tenon moves the task into `openspec/changes/archive/`
+(through `openspec archive <change-name> --skip-specs --yes --json` on an OpenSpec Track) and records the
+result Finished; the commit of the archive follows as `step.next` says. To give up
+earlier, `tenon task terminate <change-name>` archives it as Terminated and commits only the
+task directory.
 
 ## Expected result
 

@@ -62,7 +62,8 @@ async function makeNonInvocableDemoRoot(): Promise<{ root: string }> {
     '',
   ].join('\n'), 'utf8')
   const manifest = await readFile(join(process.cwd(), 'templates', 'manifest.yaml'), 'utf8')
-  const patched = manifest.replace(/^ {2}explore\.pm:.*$/mu, '  explore.pm: [demo]')
+  // 随包 manifest 已不带强制技能矩阵；用户自己的 manifest 仍可以带，这里补一节把 demo 声明成强制。
+  const patched = `${manifest}\nmandatory_skills:\n  explore.pm: [demo]\n`
   expect(patched).toContain('  explore.pm: [demo]')
   await writeFile(join(root, 'templates', 'manifest.yaml'), patched, 'utf8')
   return { root }

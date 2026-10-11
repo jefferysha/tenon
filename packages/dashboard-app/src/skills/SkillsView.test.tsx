@@ -335,11 +335,10 @@ describe('SkillsView', () => {
     const entry = (id: string, source: 'declared' | 'openspec' | 'manifest' = 'declared') =>
       ({ kind: 'skill', id, label: id, wave: 0, dependsOn: [], required: true, source })
     const stage = (id: string, label: string, entries: unknown[]) => ({ id, label, gate: null, entries })
-    const orchestration = (workflow: string, track: string | null, stages: unknown[]) => ({ workflow, track, stages, returns: [], flows: [], overlay: {} })
+    const orchestration = (workflow: string, track: string | null, stages: unknown[]) => ({ workflow, track, stages, returns: [], flows: [] })
     // 定义只用来知道有哪些轨道（id / label）；引用来自每条轨道的编排，而不是定义里的 step.skills。
     const definitions: Record<string, unknown> = {
       default: { name: 'default', steps: [], tracks: { ui: { label: '界面', steps: [] }, backend: { steps: [] } } },
-      simple: { name: 'simple', steps: [] },
       team: { name: 'team', steps: [] },
     }
     const branches: Record<string, unknown> = {
@@ -351,8 +350,10 @@ describe('SkillsView', () => {
         stage('explore', '调研', [entry('brainstorming|opsx:explore', 'manifest')]),
         stage('build', '实现', [entry('hue')]),
       ]),
-      'simple/': orchestration('simple', null, [stage('verify', '验证', [entry('verification-before-completion')])]),
-      'team/': orchestration('team', null, [stage('plan', 'plan', [entry('brainstorming')])]),
+      'team/': orchestration('team', null, [
+        stage('plan', 'plan', [entry('brainstorming')]),
+        stage('verify', '验证', [entry('verification-before-completion')]),
+      ]),
     }
     const withMore = { ...FIXTURE, rows: [...FIXTURE.rows, { ...FIXTURE.rows[2], id: 'openspec-propose' }, { ...FIXTURE.rows[2], id: 'verification-before-completion' }] }
     const requested: string[] = []
@@ -360,7 +361,7 @@ describe('SkillsView', () => {
       const url = String(input)
       requested.push(url)
       if (url.startsWith('/api/skills/sources')) return new Response(JSON.stringify(withMore), { status: 200 })
-      // 与真实服务端一致：列表只有自定义与模板工作流，不含 default 与内建的 simple。
+      // 与真实服务端一致：列表只有自定义与模板工作流，不含 default。
       if (url.startsWith('/api/workflows?')) return new Response(JSON.stringify({ names: ['team'], default: { source: 'builtin' } }), { status: 200 })
       const orchestrationOf = /^\/api\/workflows\/([^/?]+)\/orchestration\?(.*)$/u.exec(url)
       if (orchestrationOf !== null) {
@@ -381,11 +382,11 @@ describe('SkillsView', () => {
     expect(screen.getByTestId('skills-used-hue')).toHaveTextContent('default · 设计+1')
     expect(screen.getByTestId('skills-used-openspec-propose')).toHaveTextContent('default · 设计')
     expect(screen.getByTestId('skills-used-openspec-propose')).not.toHaveTextContent('+')
-    // 内建的 simple 也读：没有轨道的工作流只写「工作流 · 阶段」。
-    expect(screen.getByTestId('skills-used-verification-before-completion')).toHaveTextContent(/^simple · 验证$/u)
+    // 没有轨道的工作流只写「工作流 · 阶段」。
+    expect(screen.getByTestId('skills-used-verification-before-completion')).toHaveTextContent(/^team · 验证$/u)
     expect(screen.getByTestId('skills-used-tenon')).toHaveTextContent('—')
     expect(requested.some((url) => url.startsWith('/api/workflows/default?'))).toBe(true)
-    expect(requested.some((url) => url.startsWith('/api/workflows/simple?'))).toBe(true)
+    expect(requested.some((url) => url.startsWith('/api/workflows/team?'))).toBe(true)
     expect(requested.some((url) => url.includes('/default/orchestration?') && url.includes('track=ui'))).toBe(true)
     expect(requested.some((url) => url.includes('/default/orchestration?') && url.includes('track=backend'))).toBe(true)
     // 悬停 Tooltip 列出全部引用，一行一处：工作流 · 阶段 · 轨道。
@@ -395,14 +396,14 @@ describe('SkillsView', () => {
     for (const line of lines.querySelectorAll('li')) expect(line.className).toContain('whitespace-nowrap')
   })
 
-  it('reads the built-in workflows the index does not list: default first, then the plugin-owned ones, then the custom names, each once', () => {
-    expect(workflowsToScan([])).toEqual(['default', 'simple'])
-    expect(workflowsToScan(['team', 'design-system', 'simple'])).toEqual(['default', 'simple', 'team', 'design-system'])
+  it('reads the default workflow the index does not list first, then the stored names, each once', () => {
+    expect(workflowsToScan([])).toEqual(['default'])
+    expect(workflowsToScan(['team', 'design-system', 'default'])).toEqual(['default', 'team', 'design-system'])
   })
 
   it('a branch that cannot be read only costs its own references', async () => {
     const withBrainstorming = { name: 'default', steps: [], tracks: { ui: { label: '界面', steps: [] } } }
-    const ok = { workflow: 'default', track: 'ui', overlay: {}, returns: [], flows: [], stages: [{ id: 'explore', label: '调研', gate: null, entries: [{ kind: 'skill', id: 'brainstorming', label: 'brainstorming', wave: 0, dependsOn: [], required: true, source: 'declared' }] }] }
+    const ok = { workflow: 'default', track: 'ui', returns: [], flows: [], stages: [{ id: 'explore', label: '调研', gate: null, entries: [{ kind: 'skill', id: 'brainstorming', label: 'brainstorming', wave: 0, dependsOn: [], required: true, source: 'declared' }] }] }
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
       if (url.startsWith('/api/skills/sources')) return new Response(JSON.stringify(FIXTURE), { status: 200 })

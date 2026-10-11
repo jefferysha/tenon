@@ -212,7 +212,20 @@ describe('lint · 内建 default 不误报', () => {
       const view = selectBranchDef(full, branch.id)
       return [branch.id, [...lintWorkflow(view, draftEffectiveIo(view), null), ...lintWorkflow(view, draftEffectiveIo(view), agents)]]
     }))
-    expect(byBranch).toEqual({ chat: [], pm: [], frontend: [], backend: [], free: [] })
+    // lite 是 `spec: none` 的五步分支（带 scope-expanded 放弃边）：不受 OpenSpec 治理，也不需要 default 七阶段的转移去向。
+    expect(byBranch).toEqual({ lite: [], pm: [], frontend: [], backend: [] })
+  })
+
+  it('scope-expanded 放弃边（去往终态 escalated）不是「非下一步 / 回退」的转移；别的跳转仍报错', () => {
+    const view = selectBranchDef(builtin, 'lite')
+    expect(view.steps.flatMap((step) => step.transitions.filter((transition) => transition.event === 'scope-expanded').map((transition) => transition.to)))
+      .toEqual(['escalated', 'escalated', 'escalated'])
+    expect(transitionIssues(view)).toEqual([])
+    const skipping: WbWorkflowDef = {
+      name: 'mine',
+      steps: [stage('a', [{ event: 'jump', to: 'c' }]), stage('b'), stage('c')],
+    }
+    expect(transitionIssues(skipping).map((issue) => issue.kind)).toEqual(['transition-not-next-or-back'])
   })
 
   it('复制 default：契约按阶段技能裁剪后每条分支都过 kernel 的自定义工作流校验', () => {
@@ -220,9 +233,8 @@ describe('lint · 内建 default 不误报', () => {
     const copied = copyWorkflowDef(full, 'default-copy')
     expect(copied.openspec).toBe(true)
     expect(validateWorkflowForStorage('default-copy', copied as never)).toEqual([])
-    // chat 轨不声明技能：复制成自定义工作流后，没有产出者的槽位被裁掉，契约变空。
-    const chat = copied.tracks?.chat?.documentContract?.slots.map((slot) => slot.kind) ?? []
-    expect(chat).toEqual([])
+    // lite 轨不走 OpenSpec、没有文档契约：复制后仍然没有。
+    expect(copied.tracks?.lite?.documentContract).toBeUndefined()
     // 声明了技能的轨道保留对应槽位。
     const backend = copied.tracks?.backend?.documentContract?.slots.map((slot) => slot.kind) ?? []
     expect(backend).toContain('proposal')

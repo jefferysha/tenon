@@ -156,15 +156,13 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
     await mkdir(wfDir, { recursive: true })
     await writeFile(join(wfDir, `${workflowName}.yaml`), source, 'utf8')
     const deps = realDeps(h.cwd, [], [])
-    const track = deps.loadRegistry().byId.get('backend')
-    if (track === undefined) throw new Error('backend track fixture missing')
-    const plan = loadEffectiveWorkflowPlan(h.cwd, workflowName, track)
+    const plan = loadEffectiveWorkflowPlan(h.cwd, workflowName)
     const snapshot = legacyV2Snapshot(plan)
     const { changeDir } = await deps.runRepo.initChange({
       repoRoot: h.cwd,
       name: CHANGE,
-      track: track.id,
-      reviewSeed: track.policyProfile.reviewSeed,
+      track: 'backend',
+      reviewSeed: 'pending',
       creator: TEST_CREATOR, preset: 'full',
       clock: deps.clock,
       initialWorkflow: {
@@ -207,8 +205,9 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
     expect(await h.read(CHANGE)).toMatch(/^workflow: default$/m)
   })
 
+  // 以下三条是旧引擎（phase-manifest）任务的门禁语义：升级前创建、快照记着旧模型的 default 任务。
   test('workflow=default + 本步首个技能可首调用，未声明技能不能绕过', async () => {
-    expect(await h.run(['init', CHANGE, '--track', 'backend', '--preset', 'full'])).toBe(0)
+    expect(await h.initLegacyDefault(CHANGE, 'backend')).toBe(0)
     expect(await h.run(['session', 'activate', CHANGE])).toBe(0)
     const blocked = runHook(
       'gate.sh',
@@ -224,7 +223,7 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
   })
 
   test('workflow=default + 本步首个技能已完成时，未声明 optional Skill 不被阻断', async () => {
-    expect(await h.run(['init', CHANGE, '--track', 'backend', '--preset', 'full'])).toBe(0)
+    expect(await h.initLegacyDefault(CHANGE, 'backend')).toBe(0)
     expect(await h.run(['session', 'activate', CHANGE])).toBe(0)
     const phase = runHook(
       'gate.sh',
@@ -245,12 +244,12 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
     expect(optional.code, `stderr=${optional.stderr}`).toBe(0)
   })
 
-  test('workflow=default + free/matrix=false 仍要求本步技能，未声明 Skill 不能先行', async () => {
-    expect(await h.run(['init', CHANGE, '--track', 'free', '--preset', 'full'])).toBe(0)
+  test('workflow=default 的在途旧任务（旧执行模型）：没有矩阵，仍要求本步技能，未声明 Skill 不能先行', async () => {
+    expect(await h.initLegacyDefault(CHANGE, 'backend')).toBe(0)
     expect(await h.run(['session', 'activate', CHANGE])).toBe(0)
     const blocked = runHook(
       'gate.sh',
-      { cwd: h.cwd, tool_name: 'Skill', tool_input: { skill: 'free-optional-skill' } },
+      { cwd: h.cwd, tool_name: 'Skill', tool_input: { skill: 'undeclared-optional-skill' } },
     )
     expect(blocked.code, `stderr=${blocked.stderr}`).toBe(2)
     expect(blocked.stderr).toContain('openspec-propose')

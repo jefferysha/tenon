@@ -1,4 +1,3 @@
-import type { TrackDefinition } from '../tracks/types.js'
 import type { DocumentGovernancePolicy } from './document-contract.js'
 import { legacyDocumentPolicyForSnapshot } from './migrations/openspec-v1-document-policy.js'
 import type {
@@ -25,7 +24,7 @@ type PlanBuilder = (
   workflow: WorkflowIR,
   documentPolicy: DocumentGovernancePolicy | null,
   workflowFingerprint: string,
-  track?: TrackDefinition,
+  track?: string,
 ) => EffectiveWorkflowPlan
 
 const LEGACY_DEFAULT_VERIFY_REVIEW_LANES = ['standards', 'spec', 'e2e'] as const
@@ -107,7 +106,7 @@ export function historicalWorkflowFingerprint(
 
 export function restoreLegacyWorkflowPlan(
   snapshot: WorkflowPlanSnapshotV1 | WorkflowPlanSnapshotV2,
-  track: TrackDefinition | undefined,
+  track: string | undefined,
   documentFingerprint: (policy: DocumentGovernancePolicy) => string,
   build: PlanBuilder,
   fail: Fail,

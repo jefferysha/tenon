@@ -4,17 +4,15 @@ import {
   compileEffectiveWorkflowPlan,
   compileWorkflow,
   effectiveWorkflowPlanFromSnapshot,
-  loadTrackRegistry,
-  loadManifest,
   loadWorkflow,
   resolveStep,
   resolveWorkflowName,
+  selectTrackBranch,
   type FieldName,
   type EffectiveWorkflowPlan,
   type PipelineState,
   type StateStore,
   type StepIR,
-  type TrackValidationContext,
   type WorkflowPlanSnapshot,
 } from '@tenon/kernel'
 import type {
@@ -66,37 +64,6 @@ async function readOptionalFile(path: string): Promise<string | null> {
   }
 }
 
-function defaultTrackValidationContext(repoRoot: string, manifestRoot?: string): TrackValidationContext {
-  const skillProfiles = new Set(['pm', 'frontend', 'backend', 'free'])
-  if (manifestRoot !== undefined) {
-    const manifestPath = join(manifestRoot, 'templates', 'manifest.yaml')
-    try {
-      const manifest = loadManifest(manifestPath)
-      for (const table of [manifest.mandatorySkills, manifest.recommendedSkills]) {
-        for (const row of Object.values(table)) {
-          for (const profile of Object.keys(row)) {
-            if (profile !== '_all') skillProfiles.add(profile)
-          }
-        }
-      }
-    } catch (error) {
-      // Missing plugin manifests are valid in lightweight/test harnesses. Existing files are
-      // authoritative, however: a malformed manifest must fail closed instead of allowing a
-      // track registry to be captured against a different skill vocabulary.
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-    }
-  }
-  return {
-    // validateTrackRegistry treats the packaged default workflow as an intrinsic kernel value;
-    // this adapter only resolves project-defined workflow files for the remaining identifiers.
-    workflowExists: (id) => {
-      try { return loadWorkflow(repoRoot, id) !== null } catch { return false }
-    },
-    // Built-in profile keys cover the no-manifest test harness and normal bundled registry.
-    skillProfiles,
-  }
-}
-
 async function defaultCapabilitySnapshot(
   repoRoot: string,
   trackId: string,
@@ -105,21 +72,15 @@ async function defaultCapabilitySnapshot(
 ): Promise<{
   capability: EffectiveWorkflowPlan['capabilities']['skills']
   manifestInput: string | null
-  registryRevision: string
 }> {
   const manifestInput = await readOptionalFile(join(manifestRoot, 'templates', 'manifest.yaml'))
-  const registry = loadTrackRegistry(repoRoot, defaultTrackValidationContext(repoRoot, manifestRoot))
-  const track = trackId === '' ? undefined : registry.byId.get(trackId)
-  if (trackId !== '' && track === undefined) {
-    throw new Error(`未注册的 track '${trackId}'（default execution coordinate 无法冻结 capability）`)
-  }
   // A persisted WorkflowRun snapshot is authoritative for AFK coordinates. Only legacy states
   // without a snapshot fall back to the current default declaration; never rebuild a frozen phase
-  // capability from a later default template when a snapshot is present.
+  // capability from a later default template when a snapshot is present. 分支按任务记着的轨道选，不查登记表。
   const plan = frozenWorkflowSnapshot === undefined
-    ? compileEffectiveWorkflowPlan('default', loadWorkflow(repoRoot, 'default') ?? undefined, track)
-    : effectiveWorkflowPlanFromSnapshot(frozenWorkflowSnapshot, track)
-  return { capability: plan.capabilities.skills, manifestInput, registryRevision: registry.revision }
+    ? compileEffectiveWorkflowPlan('default', loadWorkflow(repoRoot, 'default') ?? undefined, { track: trackId })
+    : effectiveWorkflowPlanFromSnapshot(frozenWorkflowSnapshot, trackId)
+  return { capability: plan.capabilities.skills, manifestInput }
 }
 
 /** Shared coordinate read keeps capture and TOCTOU recheck on one canonical digest contract. */
@@ -136,7 +97,7 @@ async function readCoordinateSnapshot(
   const automation = scalarField(state, 'automation')
   const runId = state.runMetadata?.runId ?? ''
   if (workflowName === 'default') {
-    const { capability, manifestInput, registryRevision } = await defaultCapabilitySnapshot(
+    const { capability, manifestInput } = await defaultCapabilitySnapshot(
       repoRoot,
       track,
       manifestRoot,
@@ -149,7 +110,7 @@ async function readCoordinateSnapshot(
       workflowRunId: runId || undefined,
       digestInput: JSON.stringify({
         workflowName, stepId, track, automation, runId,
-        capability, manifestInput, registryRevision,
+        capability, manifestInput,
       }),
     }
   }
@@ -163,7 +124,8 @@ async function readCoordinateSnapshot(
       digestInput: JSON.stringify({ workflowName, stepId, track, automation, runId, def: null }),
     }
   }
-  const step = resolveStep(compileWorkflow(definition), stepId)
+  // 步骤在任务所属轨道的分支里（有 tracks: 的工作流顶层没有 steps）；平铺工作流就是它自己的 steps。
+  const step = resolveStep(compileWorkflow(selectTrackBranch(definition, track)), stepId)
   if (step === null) {
     throw new Error(
       `custom workflow '${workflowName}' 未声明 step '${stepId}'（workflow 文件存在但 step 不在图里，数据完整性问题）`,

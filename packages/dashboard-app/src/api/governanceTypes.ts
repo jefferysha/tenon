@@ -100,6 +100,9 @@ export type WbGuardConfig = (
   | { type: 'full-direct-override' }
   | { type: 'build-head-unchanged'; field: 'build_sha' }
   | { type: 'spec-migration-applied' }
+  | { type: 'tasks-through-step' }
+  | { type: 'not-afk-queued' }
+  | { type: 'dependencies-ended' }
 ) & { when?: WbTrackPredicate }
 
 export type WbActionConfig =
@@ -299,9 +302,29 @@ export interface WbWorkflowDef {
   branches?: Record<string, WbBranchProjection>
 }
 
+/** 分支是否走 OpenSpec；不写时继承工作流顶层 `openspec`。 */
+export type WbTrackSpec = 'openspec' | 'none'
+
+/** 分支参与自动路由的打分数据；不写 `route` 的分支只能点名使用。 */
+export interface WbTrackRoute {
+  keywords: string[]
+  exclude: string[]
+  priority: number
+  fallback: boolean
+}
+
+export interface WbTrackAutomation {
+  eligible: boolean
+  enqueueAfterSpec: boolean
+}
+
 export interface WbTrackBranch {
   label?: string
   documentContract?: WbDocumentContract
+  /** 只在分支声明了 `spec` 时出现；解码不凭空补键，写回保持原样。 */
+  spec?: WbTrackSpec
+  route?: WbTrackRoute
+  automation?: WbTrackAutomation
   steps: WbStepDef[]
 }
 
@@ -310,65 +333,3 @@ export interface WbBranchProjection {
   effectiveIo: WbEffectiveIo
 }
 
-export interface WbTrackDefinition {
-  id: string
-  label: string
-  builtin: boolean
-  workflow: { default: string; allowed: '*' | string[] }
-  policyProfile: {
-    reviewSeed: 'pending' | 'skipped'
-    autoEnqueueOnSpecComplete?: boolean
-    automationEligible: boolean
-    coverageProfile: 'none' | 'pm' | 'frontend' | 'backend'
-    routing:
-      | { enabled: false }
-      | { enabled: true; pattern: string; excludePattern?: string; priority: number }
-    skills: { matrix: boolean; profile: string }
-  }
-}
-
-export interface WbRouterPreviewCandidate {
-  track: WbTrackDefinition
-  order: number
-  priority: number
-  score: number
-  routable: boolean
-  excluded: boolean
-}
-
-export interface WbRouterPreview {
-  ok: true
-  revision: string
-  source: 'builtin-only' | 'project-file'
-  winner: WbRouterPreviewCandidate | null
-  candidates: WbRouterPreviewCandidate[]
-  suppressed_reason: 'system-notification' | 'slash-command' | 'discussion' | null
-}
-
-export type ChangeSessionStatus = 'not_requested' | 'unavailable' | 'failed' | 'degraded' | 'active'
-
-export interface ChangeSessionLaunch {
-  requested: boolean
-  active: boolean
-  status: ChangeSessionStatus
-  exit_code: number | null
-}
-
-export interface CreatedChange {
-  ok: true
-  name: string
-  /** Current servers return the initialized directory; older compatible responses may omit it. */
-  path?: string
-  task_prompt_saved?: boolean
-  session?: ChangeSessionLaunch
-}
-
-export interface WbConfigSnapshot {
-  ok: true
-  generated_at: string
-  revision: string
-  source: 'builtin-only' | 'project-file'
-  mandatory_skills: Record<string, string[]>
-  tracks: WbTrackDefinition[]
-  mandatory_skills_writable_profiles: string[]
-}

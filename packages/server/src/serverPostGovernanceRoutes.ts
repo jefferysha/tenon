@@ -1,80 +1,24 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { missingWorkflowAgents } from './agentReferences.js'
-import { lstatSync } from 'node:fs'
-import { join, resolve as resolvePath } from 'node:path'
 import {
   applyLevelChange,
-  assertWorkflowAllowed,
-  builtinWorkflow,
-  createEffectiveSkillResolver,
-  createTrack,
   decodeWorkflowDef,
-  firstStep,
-  listAutomationPolicyTemplates,
-  loadTrackRegistry,
-  loadWorkflow,
-  requireTrack,
-  stateStorageExistsSync,
-  validateWorkflow,
-  validateWorkflowTrackReferences,
-  withTrackRegistryLock,
-  type CreateTrackSpec,
-  type ExtendedManifestData,
-  type FlowEngine,
-  type GraduationFs,
-  type HistoryWriter,
-  type StateStore,
-  type TrackDefinition,
-  type TrackRegistry,
-  type TrackValidationContext,
-  type WorkflowDef,
-  type WorkflowRunRepository,
   validateWorkflowForStorage,
+  withProjectCoordinationLock,
+  type WorkflowDef,
 } from '@tenon/kernel'
-import {
-  cancelAfkRun,
-  dismissAfkRun,
-  enqueueAfkRun,
-  retryAfkRun,
-} from './afk.js'
 import { validateAutomationSettingsBody, writeAutomationSettings } from './automationConfig.js'
-import {
-  activateChangeSession,
-  notRequestedSessionActivation,
-  parseChangeSessionActivation,
-  parseChangeTaskPrompt,
-  writeChangeTaskPrompt,
-} from './changeLaunch.js'
-import { nonInvocableSkillTokens } from '@tenon/automation'
-import { validateMandatorySkillsBody, writeMandatorySkills } from './config.js'
 import {
   validateHookToggleBody,
   validatePromptRoutingBypassBody,
   writeHookToggle,
   writePromptRoutingBypass,
 } from './hooksConfig.js'
-import { applyLoopsUpdate, type LoopActivationValidator } from './loops.js'
-import { parsePipelineCliJson, type PipelineCliRunner } from './operations.js'
-import { addProjectToRegistry, removeProjectFromRegistry } from './projects.js'
-import {
-  applyRouterDraft,
-  parseRouterDraft,
-  previewTrackRouting,
-  type RouterPatternScorer,
-} from './routerPreview.js'
-import { validateSecretWriteBody, writeSecret } from './secrets.js'
-import { tokenFromHeaders, tokensMatch } from './token.js'
-import { performTransition } from './transition.js'
-import type { ServerPaths } from './types.js'
+import { applyLoopsUpdate } from './loops.js'
 import {
   assertWorkflowRootAnchor,
-  captureWorkflowRootAnchor,
-  closeWorkflowRootAnchor,
   ensureWorkflowProjectCoordinationPath,
-  readWorkflowForApi,
-  WorkflowNotFoundError,
   writeWorkflowForApi,
-  type WorkflowRootAnchor,
   workflowOrigin,
 } from './workflows.js'
 
@@ -87,47 +31,13 @@ export async function handlePostGovernanceRoutes(
   deps: PostRouteDeps,
 ): Promise<void> {
   const {
-    sendJson, readJsonBody, routerPatternScorer, workflowRootForRequest, workflowStoreForRequest,
-    trackValidationContextFor, executeOperation, operationRunner, operationsAvailable,
-    isRegisteredRoot, store, clock, history, workflowRootAnchors, trackSkillProfiles,
-    loadedManifest, runRepo, flow, fileExists, gitHeadSha, workspaceFingerprint, breadcrumb,
-    manifestPath, paths, validateLoopActivation, mutateTrackForApi, trackRegistryBody,
-    sendTrackError, errMsg,
+    sendJson, readJsonBody, workflowRootForRequest, workflowStoreForRequest,
+    isRegisteredRoot, clock, validateLoopActivation, errMsg,
   } = deps
   const REAL_GRADUATION_FS = deps.realGraduationFs
   function isWorkflowName(name: string): boolean {
     return name !== '' && /^[\p{L}\p{N}\p{M}_-]+$/u.test(name)
   }
-    if (path === '/api/config/mandatory-skills') {
-      if (!manifestPath) return sendJson(res, 404, { ok: false, error: 'config 数据端未装（capabilities.config=false）' })
-      const body = await readJsonBody(req)
-      const validated = validateMandatorySkillsBody(body)
-      if (!validated.ok) return sendJson(res, 400, { ok: false, error: validated.error })
-      const { phase, track, skills } = validated.value
-      // 与 doctor / 发布候选校验同一判定，但在落盘前：宿主不许模型调用的技能写成强制技能，
-      // 声明它的步骤会永远卡在 step-skills-incomplete。未知（读不到 SKILL.md）不冤枉。
-      let offenders: Awaited<ReturnType<typeof nonInvocableSkillTokens>>
-      try {
-        offenders = await nonInvocableSkillTokens(deps.skillsRoot, skills)
-      } catch (e) {
-        return sendJson(res, 400, { ok: false, error: errMsg(e) })
-      }
-      if (offenders.length > 0) {
-        return sendJson(res, 400, {
-          ok: false,
-          code: 'mandatory-skill-not-invocable',
-          error: `强制技能必须允许模型调用；以下技能带 disable-model-invocation: true，宿主不会代模型调用：${offenders.map((item) => item.token).join('、')}`,
-          detail: offenders.map((item) => ({ token: item.token, skill_ids: item.skillIds })),
-        })
-      }
-      try {
-        await writeMandatorySkills(manifestPath, phase, track, skills)
-      } catch (e) {
-        return sendJson(res, 500, { ok: false, error: errMsg(e) })
-      }
-      return sendJson(res, 200, { ok: true, phase, track, skills })
-    }
-
     // ── loops 升降档写端点：POST /api/loops/level ──
     if (path === '/api/loops/level') {
       const body = await readJsonBody(req)
@@ -307,25 +217,16 @@ export async function handlePostGovernanceRoutes(
       } catch (e) {
         return sendJson(res, 500, { ok: false, error: errMsg(e) })
       }
-      let enteredRegistrySnapshot = false
       try {
-        const result = await withTrackRegistryLock(
-          rootCheck.anchor.path,
-          trackValidationContextFor(rootCheck.anchor),
-          async ({ registry }) => {
-            enteredRegistrySnapshot = true
-            assertWorkflowRootAnchor(rootCheck.anchor)
-            const referenceErrors = validateWorkflowTrackReferences(workflow, registry)
-            if (referenceErrors.length > 0) return { ok: false as const, errors: referenceErrors }
-            return writeWorkflowForApi(rootCheck.anchor, wfName, workflow)
-          },
-        )
+        // 项目协调锁内写：与建任务、删除工作流的引用扫描串行。写入前 writeWorkflowForApi 会按这份定义自己的
+        // 分支核对轨道谓词（未知轨道 → 400）。
+        const result = await withProjectCoordinationLock(rootCheck.anchor.path, async () => {
+          assertWorkflowRootAnchor(rootCheck.anchor)
+          return writeWorkflowForApi(rootCheck.anchor, wfName, workflow)
+        })
         return sendJson(res, result.ok ? 200 : 400, result)
       } catch (e) {
-        // 无法形成 effective registry 快照时不能保存未经引用校验的 workflow。
-        return enteredRegistrySnapshot
-          ? sendJson(res, 500, { ok: false, error: errMsg(e) })
-          : sendJson(res, 400, { ok: false, errors: [errMsg(e)] })
+        return sendJson(res, 500, { ok: false, error: errMsg(e) })
       }
     }
 

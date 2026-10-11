@@ -5,20 +5,24 @@ import {
   type WorkflowPermissionLayers,
 } from '@tenon/kernel'
 
-/** Exact TrackRegistry identity used to derive the project permission layer. */
-export interface WorkflowProjectAuthorityIdentityV1 {
-  readonly version: 'v1'
-  readonly track_id: string
-  readonly track_registry_revision: string
-}
-
-/** Fresh non-Workflow facts returned by the host under its TrackRegistry read lock. */
+/**
+ * 宿主在每次复核时现读的、不属于 Workflow 的权限事实。项目层不在其中：它由准入自己读任务冻结计划里
+ * 所选分支的 `automation`（见 workflow-action-admission.ts），宿主只能说明「任务现在记着哪条轨道」，
+ * 不能代授项目层。
+ */
 export interface WorkflowActionAuthorityFacts {
   readonly platform: WorkflowPermissionLayerInput
   readonly skill: WorkflowPermissionLayerInput
-  readonly project: WorkflowPermissionLayerInput
   readonly run: WorkflowPermissionLayerInput
-  readonly projectAuthority?: WorkflowProjectAuthorityIdentityV1
+  /** 任务状态里记着的轨道 id；缺失或为空 = 项目层无从判定（失败关闭）。 */
+  readonly trackId?: string
+}
+
+/** 项目层授权所依据的冻结分支：轨道 id，和该分支所在冻结计划的修订标识。 */
+export interface WorkflowProjectAuthority {
+  readonly trackId: string
+  /** 冻结计划指纹的前 16 位十六进制。 */
+  readonly revision: string
 }
 
 /** Builds the kernel-owned full effective snapshot without changing the Workflow definition. */
@@ -28,14 +32,14 @@ export function buildAfkWorkflowActionAuthoritySnapshot(input: {
     readonly loop_id: string; readonly iteration_id?: string
     readonly attempt_id: string; readonly reservation_id: string; readonly skill_bundle_id?: string | null
   }
-  readonly projectAuthority: WorkflowProjectAuthorityIdentityV1
+  readonly project: WorkflowProjectAuthority
   readonly layers: WorkflowPermissionLayers
 }): WorkflowActionAuthoritySnapshotV1 {
   const workflowId = input.run.workflowId ?? ''
   const workflowFingerprint = input.run.workflowPlanFingerprint ?? ''
   const iterationId = input.context.iteration_id ?? ''
   const skillBundleId = input.context.skill_bundle_id ?? ''
-  const project = input.projectAuthority
+  const project = input.project
   return createWorkflowActionAuthoritySnapshot({
     action: 'enter-afk',
     workflowRunId: input.run.id,
@@ -46,33 +50,16 @@ export function buildAfkWorkflowActionAuthoritySnapshot(input: {
     attemptId: input.context.attempt_id,
     reservationId: input.context.reservation_id,
     skillBundleId,
-    trackId: project.track_id,
-    trackRegistryRevision: project.track_registry_revision,
+    trackId: project.trackId,
+    // 持久化的快照格式沿用旧字段名（在途任务的已落盘快照仍须能解析）：这里存的是冻结计划的修订标识。
+    trackRegistryRevision: project.revision,
     layers: input.layers,
     provenance: {
       platform: { kind: 'platform-policy', identity: 'tenon-workflow-action', revision: 'v1' },
       skill: { kind: 'skill-contract', identity: skillBundleId, revision: workflowFingerprint },
-      project: { kind: 'track-registry', identity: project.track_id, revision: project.track_registry_revision },
+      project: { kind: 'track-registry', identity: project.trackId, revision: project.revision },
       workflow: { kind: 'workflow-plan', identity: workflowId, revision: workflowFingerprint },
       run: { kind: 'workflow-run', identity: input.run.id, revision: iterationId },
     },
   })
-}
-
-/**
- * Per-action authority identity. This is an execution overlay and deliberately does not enter the
- * Workflow-owned definition fingerprint.
- */
-const nonEmpty = (value: unknown): value is string => typeof value === 'string' && value.length > 0
-
-export function isWorkflowProjectAuthorityIdentityV1(
-  value: unknown,
-): value is WorkflowProjectAuthorityIdentityV1 {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
-  const record = value as Record<string, unknown>
-  return Object.keys(record).length === 3
-    && record.version === 'v1'
-    && nonEmpty(record.track_id)
-    && typeof record.track_registry_revision === 'string'
-    && /^[0-9a-f]{16}$/.test(record.track_registry_revision)
 }

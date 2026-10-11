@@ -10,13 +10,6 @@ import {
 } from 'node:fs'
 import { isAbsolute, join, relative, resolve as resolvePath, sep } from 'node:path'
 import {
-  BUILTIN_TRACK_DEFINITIONS, FIELD_ORDER, listAutomationPolicyTemplates, loadRegistry, parsePipeline,
-  parseTrackRegistry, parseWorkflow, readCurrentRunRevisionFromSync, resolveWorkflowName,
-  serializeWorkflow, unquoteScalar,
-  validateTrackConfigStructure, validateWorkflow, validateWorkflowTrackReferences,
-} from '@tenon/kernel'
-import type { TrackDefinition, TrackRegistry, WorkflowDef } from '@tenon/kernel'
-import {
   assertWorkflowRootAnchor,
   captureWorkflowRootAnchor,
   closeWorkflowRootAnchor,
@@ -219,16 +212,15 @@ function assertOptionalTrustedChildDirectory(
 }
 
 /**
- * 为跨资源引用事务准备与 Track Registry 相同的 `<root>/.pipeline/.pipeline.lock` 父目录。
- * 这里只安全创建真实 `.pipeline` 目录并拒绝 tracks.yaml symlink；真正加锁仍由 kernel
- * withTrackRegistryLock 完成，因此 CLI init/fields/tracks CRUD 与 server workflow 操作共用同一把锁。
+ * 为跨资源引用事务准备项目协调锁的 `<root>/.pipeline/.pipeline.lock` 父目录。
+ * 这里只安全创建真实 `.pipeline` 目录；真正加锁仍由 kernel withProjectCoordinationLock 完成，
+ * 因此 CLI init/fields 与 server workflow 操作共用同一把锁。
  */
 export function ensureWorkflowProjectCoordinationPath(root: WorkflowRootAnchor): void {
   withTrustedDirectoryChain(root, ['.pipeline'], true, () => {
     throw new Error('workflow 引用协调目录创建失败')
   }, (pipeline) => {
-    assertOptionalRegularChild(pipeline, root, 'tracks.yaml', 'tracks registry')
-    // kernel withTrackRegistryLock 将在这里 mkdir/读 owner；预置 symlink 不能被它当成锁目录跟随。
+    // kernel withProjectCoordinationLock 将在这里 mkdir/读 owner；预置 symlink 不能被它当成锁目录跟随。
     assertOptionalTrustedChildDirectory(pipeline, root, '.pipeline.lock')
   })
 }

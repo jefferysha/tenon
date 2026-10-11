@@ -78,6 +78,80 @@ describe('evaluateDocumentEvidence stale reasons', () => {
   })
 })
 
+/**
+ * An ended task's directory moves into `archive/`, while its ledger keeps the paths it was recorded under. A caller
+ * that reads the moved task says where those paths are now; the ledger and the digests it holds stay as they were.
+ */
+describe('evaluateDocumentEvidence with a relocated change directory', () => {
+  const ARCHIVED = 'openspec/changes/archive/2026-10-05-demo'
+  const MOVED_PROPOSAL = `${ARCHIVED}/proposal.md`
+  const MOVED_DELTA = `${ARCHIVED}/specs/auth/spec.md`
+  const locate = (path: string): string =>
+    path.startsWith('openspec/changes/demo/') ? `${ARCHIVED}/${path.slice('openspec/changes/demo/'.length)}` : path
+
+  async function movedFixture(files: Readonly<Record<string, string>>, records: readonly Record<string, unknown>[]): Promise<{ root: string; changeDir: string }> {
+    const root = await mkdtemp(join(tmpdir(), 'tenon-document-evidence-'))
+    roots.push(root)
+    const changeDir = join(root, ARCHIVED)
+    await mkdir(changeDir, { recursive: true })
+    for (const [path, content] of Object.entries(files)) {
+      await mkdir(dirname(join(root, path)), { recursive: true })
+      await writeFile(join(root, path), content, 'utf8')
+    }
+    await writeFile(join(changeDir, '.pipeline-documents.json'), `${JSON.stringify({
+      version: 1, contract: 'openspec-v1', createdAt: NOW, records,
+    }, null, 2)}\n`, 'utf8')
+    return { root, changeDir }
+  }
+
+  const evaluate = (root: string, changeDir: string, kind: 'proposal' | 'delta-spec', options?: Parameters<typeof evaluateDocumentEvidence>[5]) =>
+    evaluateDocumentEvidence(root, changeDir, 'shape', { recordKinds: [kind], readKinds: [] }, WRITERS, options)
+
+  it('the document at its new place with an unchanged digest is recorded; without the locator the old path reads as stale', async () => {
+    const { root, changeDir } = await movedFixture({ [MOVED_PROPOSAL]: '# proposal\n' }, [record({})])
+
+    expect((await evaluate(root, changeDir, 'proposal', { locate })).items).toMatchObject([{ kind: 'proposal', status: 'recorded' }])
+    expect((await evaluate(root, changeDir, 'proposal')).items).toMatchObject([{ kind: 'proposal', status: 'stale', reason: 'changed' }])
+  })
+
+  it('a document edited after the move is stale (changed), and a missing one is stale too', async () => {
+    const edited = await movedFixture({ [MOVED_PROPOSAL]: '# edited later\n' }, [record({})])
+    expect((await evaluate(edited.root, edited.changeDir, 'proposal', { locate })).items).toMatchObject([{ status: 'stale', reason: 'changed' }])
+
+    const gone = await movedFixture({}, [record({})])
+    expect((await evaluate(gone.root, gone.changeDir, 'proposal', { locate })).items).toMatchObject([{ status: 'stale', reason: 'changed' }])
+  })
+
+  it('a recorded path the locator leaves alone is judged where it was recorded', async () => {
+    const outside = record({ path: 'docs/notes/demo.md', sha256: sha('# note\n') })
+    const intact = await movedFixture({ 'docs/notes/demo.md': '# note\n' }, [outside])
+    expect((await evaluate(intact.root, intact.changeDir, 'proposal', { locate })).items).toMatchObject([{ status: 'recorded' }])
+
+    const changed = await movedFixture({ 'docs/notes/demo.md': '# note edited\n' }, [outside])
+    expect((await evaluate(changed.root, changed.changeDir, 'proposal', { locate })).items).toMatchObject([{ status: 'stale', reason: 'changed' }])
+
+    // The old place still holds the file, but the locator moved this path: the old copy is not the document.
+    const stale = await movedFixture({ 'openspec/changes/demo/proposal.md': '# proposal\n' }, [record({})])
+    expect((await evaluate(stale.root, stale.changeDir, 'proposal', { locate })).items).toMatchObject([{ status: 'stale', reason: 'changed' }])
+  })
+
+  it('a delta-spec of the moved change is not a legacy path; one outside the change still is', async () => {
+    const delta = record({ kind: 'delta-spec', path: 'openspec/changes/demo/specs/auth/spec.md', sha256: sha('# delta\n') })
+    const moved = await movedFixture({ [MOVED_DELTA]: '# delta\n' }, [delta])
+    expect((await evaluate(moved.root, moved.changeDir, 'delta-spec', { locate })).items).toMatchObject([{ kind: 'delta-spec', status: 'recorded' }])
+
+    const legacy = record({ kind: 'delta-spec', path: 'openspec/changes/demo/delta.md', sha256: sha('# delta\n') })
+    const old = await movedFixture({ [`${ARCHIVED}/delta.md`]: '# delta\n' }, [legacy])
+    expect((await evaluate(old.root, old.changeDir, 'delta-spec', { locate })).items).toMatchObject([{ status: 'stale', reason: 'legacy-path' }])
+  })
+
+  it('the report keeps naming the paths the ledger recorded', async () => {
+    const { root, changeDir } = await movedFixture({ [MOVED_PROPOSAL]: '# proposal\n' }, [record({})])
+
+    expect((await evaluate(root, changeDir, 'proposal', { locate })).items[0]?.paths).toEqual([PROPOSAL])
+  })
+})
+
 describe('role require project documents', () => {
   const REQUIRE = policyOf([{ kind: 'design-md', ownerStep: 'build', role: 'require', producers: [] }])
 

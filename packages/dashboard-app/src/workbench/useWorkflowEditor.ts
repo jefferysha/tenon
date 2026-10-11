@@ -1,15 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from 'react'
-import { BUILTIN_WORKFLOW_IDS, isBuiltinWorkflowName, isDefaultWorkflowName } from '@tenon/kernel/workflow/identifier'
+import { isDefaultWorkflowName } from '@tenon/kernel/workflow/identifier'
 import { fetchWorkflow, fetchWorkflowIndex, postWorkflowDef, type WorkflowIndex } from '../api/client'
 import type { WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
 import { formatApiError, getToken } from '../api/transport'
 import { fetchWorkflowYaml } from '../api/workflowYamlClient'
 import { useT } from '../i18n'
-import { useBuiltinLabels } from '../i18n/builtinLabels'
 import { invalidateWorkflowRules } from '../model/workflowModel'
 import { draftEffectiveIo, lintWorkflow } from '../workflow/lint'
 import { fetchAgents, type AgentSummary } from '../api/agentClient'
-import { useMandatorySkills } from './mandatoryState'
+import { useSkillRegistry } from './useSkillRegistry'
 import { readSaveErrors } from './workbenchApiDecoders'
 import { readWorkflowWriteSuccess } from './workbenchWriteResponse'
 import { useStageDraftEditor } from './useStageDraftEditor'
@@ -18,6 +17,7 @@ import { useWorkbenchDirtyState } from './useWorkbenchDirtyState'
 import { useStageMutations } from './useStageMutations'
 import { useWorkflowCreate } from './useWorkflowCreate'
 import { useWorkflowDelete } from './useWorkflowDelete'
+import { setTrackSettingsInDef, type TrackSettings } from './trackSettings'
 import {
   BASE_BRANCH,
   addTrackBranch,
@@ -38,7 +38,6 @@ export type { CreateState, SaveStatus, WorkflowDeleteError, WorkflowEditor, Work
  */
 export function useWorkflowEditor({ root, onDirtyChange, initial, onDeleted }: WorkflowEditorInput): WorkflowEditor {
   const { t, lang } = useT()
-  const builtin = useBuiltinLabels()
   const [names, setNames] = useState<string[] | null>(null)
   const [defaultSource, setDefaultSource] = useState<WbWorkflowSource>('builtin')
   const [namesError, setNamesError] = useState<unknown | null>(null)
@@ -74,10 +73,9 @@ export function useWorkflowEditor({ root, onDirtyChange, initial, onDeleted }: W
   }, [effectiveBranch])
   const stageDraft = useStageDraftEditor({ def, stageId, setDef: setBranchDef, setStageId })
   const { setAddStageOpen } = stageDraft
-  const mandatory = useMandatorySkills(root)
+  const skillRegistry = useSkillRegistry()
   const hasToken = getToken() !== ''
-  const readOnly = wfName !== null && isBuiltinWorkflowName(wfName)
-  const canWrite = hasToken && !readOnly
+  const canWrite = hasToken
   const onDeletedRef = useRef(onDeleted)
   onDeletedRef.current = onDeleted
 
@@ -154,7 +152,7 @@ export function useWorkflowEditor({ root, onDirtyChange, initial, onDeleted }: W
         // 深链点名的工作流存在就用它（连同轨道与阶段）；否则打开 default。
         const linked = initialRef.current
         initialRef.current = undefined
-        if (linked?.wf !== undefined && (isDefaultWorkflowName(linked.wf) || isBuiltinWorkflowName(linked.wf) || index.names.includes(linked.wf))) {
+        if (linked?.wf !== undefined && (isDefaultWorkflowName(linked.wf) || index.names.includes(linked.wf))) {
           setWfName(linked.wf)
           if (linked.track !== undefined) setBranchState(linked.track)
           if (linked.step !== undefined) setStageId(linked.step)
@@ -208,7 +206,6 @@ export function useWorkflowEditor({ root, onDirtyChange, initial, onDeleted }: W
   const dirty = fullDef !== null && baselineJson.current !== null && stableJson(definitionForWrite(fullDef)) !== baselineJson.current
   const changeCount = dirty ? Math.max(1, countDraftChanges(baselineRef.current, fullDef)) : 0
   const { setSourceDirty } = useWorkbenchDirtyState({ localDirty: dirty || create.dirty || stageDraft.draftDirty, onDirtyChange })
-  const reportTrackDirty = useCallback((value: boolean) => { setSourceDirty('track', value) }, [setSourceDirty])
 
   // agent 库挂载即拉（同 registry 纪律）：画布与 lint 都要知道库里有谁。失败即保持 null——
   // 不可判就不判，既不谎报「不存在」也不打开写入口。
@@ -233,29 +230,31 @@ export function useWorkflowEditor({ root, onDirtyChange, initial, onDeleted }: W
       return lintWorkflow(view, draftEffectiveIo(view), agentNames).some((issue) => issue.severity === 'error')
     })
   }, [fullDef, agentNames])
-  // 名称只显示一个：YAML 有 label 用 label，没有就用 id。内置工作流里没被改过的出厂名按界面语言显示（i18n builtin.*），其余原样。
+  // 名称只显示一个：YAML 有 label 用 label，没有就用 id；前端不翻译。
   const labelOf = useCallback((stepId: string): string => {
     const step = def?.steps.find((candidate) => candidate.id === stepId)
-    return builtin.step(wfName, stepId, step?.label || stepId)
-  }, [def, wfName, builtin])
+    return step?.label || stepId
+  }, [def])
 
   const mutate = useCallback((update: (previous: WbWorkflowDef) => WbWorkflowDef): void => {
     setBranchDef((previous) => previous === null ? previous : update(previous))
   }, [setBranchDef])
   const mutations = useStageMutations({ mutate, setFullDef: setDefState, def, stageId, setStageId, branch: effectiveBranch })
-  const branches = useMemo(
-    () => branchesOf(fullDef).map((candidate) => (candidate.label === null ? candidate : { ...candidate, label: builtin.track(wfName, candidate.id, candidate.label) })),
-    [fullDef, wfName, builtin],
-  )
+  const branches = useMemo(() => branchesOf(fullDef), [fullDef])
   const setBranch = useCallback((next: string): void => {
     setBranchState(next)
     setStageId(null)
   }, [])
-  const addTrack = useCallback((id: string, label: string): void => {
-    setDefState((previous) => previous === null || previous.tracks?.[id] !== undefined ? previous : addTrackBranch(previous, id, label, effectiveBranch))
+  const addTrack = useCallback((id: string, label: string, settings: TrackSettings): void => {
+    setDefState((previous) => previous === null || previous.tracks?.[id] !== undefined
+      ? previous
+      : setTrackSettingsInDef(addTrackBranch(previous, id, label, effectiveBranch), id, settings))
     setBranchState(id)
     setStageId(null)
   }, [effectiveBranch])
+  const setTrackSettings = useCallback((id: string, settings: TrackSettings): void => {
+    setDefState((previous) => previous === null ? previous : setTrackSettingsInDef(previous, id, settings))
+  }, [])
   const removeTrack = useCallback((id: string): void => {
     setDefState((previous) => previous === null ? previous : removeTrackBranch(previous, id))
     setBranchState((current) => current === id ? BASE_BRANCH : current)  // resolveBranch 会落到剩余的第一条
@@ -318,8 +317,8 @@ export function useWorkflowEditor({ root, onDirtyChange, initial, onDeleted }: W
   }
 
   const selectedStep = def?.steps.find((step) => step.id === stageId) ?? null
-  // 切换器列出全部：default、自定义与模板、插件内建（simple 等，只读）。
-  const menuNames = useMemo(() => [...new Set(['default', ...(names ?? []), ...BUILTIN_WORKFLOW_IDS])], [names])
+  // 切换器列出全部：default、自定义与模板。
+  const menuNames = useMemo(() => [...new Set(['default', ...(names ?? [])])], [names])
 
   return {
     names,
@@ -333,13 +332,13 @@ export function useWorkflowEditor({ root, onDirtyChange, initial, onDeleted }: W
     setBranch,
     branches,
     addTrack,
+    setTrackSettings,
     removeTrack,
     effectiveIo,
     lint,
     lintBlocked,
     ...mutations,
     canWrite,
-    readOnly,
     hasToken,
     dirty,
     changeCount,
@@ -350,7 +349,7 @@ export function useWorkflowEditor({ root, onDirtyChange, initial, onDeleted }: W
     setStageId,
     selectedStep,
     labelOf,
-    mandatory,
+    skillRegistry,
     agents,
     save,
     discardDraft,
@@ -369,6 +368,5 @@ export function useWorkflowEditor({ root, onDirtyChange, initial, onDeleted }: W
     confirmWorkflowDelete: deleteFlow.confirm,
     stageDraft,
     setSourceDirty,
-    reportTrackDirty,
   }
 }

@@ -196,7 +196,7 @@ describe('program —— commander 装配与 exit code 逐格对齐', () => {
   })
 
   test('check 不过：code 2', async () => {
-    // R4：default check 先从 effective track registry 解析 coverage policy；给出合法 track，
+    // default check 先按任务记着的轨道解析冻结计划；给出合法 track，
     // 让本用例继续只验证 guard failure → exit 2，而不是误测 orphan track 配置错 → exit 1。
     const deps = makeDeps({ state: mockState({ phase: 'spec', track: 'backend' }) })
     deps.flow.guardCheck = spy((_s: PipelineState): GuardResult => ({ pass: false, failures: ['x'] }))

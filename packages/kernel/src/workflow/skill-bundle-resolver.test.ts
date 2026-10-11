@@ -14,9 +14,8 @@ import {
 import { resolveSkillBundle } from './skill-bundle-resolver.js'
 import type { SkillTable } from '../flow/manifest.js'
 import type { StepIR } from './ir.js'
-import type { TrackRegistry } from '../tracks/types.js'
-import { compileEffectiveWorkflowPlan } from './effective-plan.js'
-import { legacyDefaultWorkflow } from './test-support.js'
+import { compileEffectiveWorkflowPlan, effectiveWorkflowPlanFromIr } from './effective-plan.js'
+import { defaultIr, legacyDefaultWorkflow } from './test-support.js'
 
 /** 最小 SkillTable 夹具（对齐 effective-skill-resolver.test.ts 同款写法）。 */
 function table(rows: Record<string, Record<string, readonly string[]>>): SkillTable {
@@ -48,82 +47,47 @@ describe('resolveSkillBundle —— default 分支委托 frozen explicit profile
     expect(result).toEqual({ source: 'default', slots })
   })
 
-  it('端到端（真 resolver）：manifest mandatory+recommended 三级回退、a|b alternative 声明序原样保留', () => {
+  it('端到端（真 resolver）：default bundle 是计划冻结的步骤技能，装配了 manifest 矩阵也不叠加', () => {
     const resolver = createEffectiveSkillResolver({
-      mandatorySkills: table({ explore: { frontend: ['opsx:explore|openspec-explore', 'grill-with-docs'] } }),
-      recommendedSkills: table({}),
+      mandatorySkills: table({ explore: { frontend: ['opsx:explore|openspec-explore', 'grill-with-docs'], _all: ['matrix-skill'] } }),
+      recommendedSkills: table({ explore: { frontend: ['hallmark'] } }),
     })
+    const frozen = effectiveWorkflowPlanFromIr('default', defaultIr(), { track: 'frontend' }).capabilities.skills
 
     const result = resolveSkillBundle(resolver, {
-      kind: 'default', stepId: 'explore', profileId: 'frontend', capability,
+      kind: 'default', stepId: 'explore', profileId: 'frontend', capability: frozen,
     })
 
     expect(result).toEqual({
       source: 'default',
-      slots: [
-        { token: 'opsx:explore|openspec-explore', alternatives: ['opsx:explore', 'openspec-explore'] },
-        { token: 'grill-with-docs', alternatives: ['grill-with-docs'] },
-      ],
+      slots: ['openspec-explore', 'brainstorming', 'grilling', 'domain-modeling'].map((id) => ({ token: id, alternatives: [id] })),
     })
   })
 
-  it('端到端（真 resolver）：_all 回退命中 与 无表 → 合法空槽集，都原样透出（不算未接线）', () => {
+  it('端到端（真 resolver）：步骤不在计划里 / 步骤没有声明技能 → 合法空槽集，原样透出（不算未接线）', () => {
     const resolver = createEffectiveSkillResolver({
       mandatorySkills: table({ open: { _all: ['propose'] } }),
       recommendedSkills: table({}),
     })
 
     expect(resolveSkillBundle(resolver, {
-      kind: 'default', stepId: 'open', profileId: 'backend', capability,
-    })).toEqual({
-      source: 'default',
-      slots: [
-        { token: 'propose', alternatives: ['propose'] },
-      ],
-    })
-    expect(resolveSkillBundle(resolver, {
       kind: 'default', stepId: 'not-a-phase', profileId: 'frontend', capability,
-    })).toEqual({
-      source: 'default',
-      slots: [],
-    })
-  })
-
-  it('T-R6/H10 组合：registry-aware resolver 仍按显式 profileId 解析 skill bundle，_all 不被当成 track id', () => {
-    const registry = {
-      ordered: [],
-      byId: new Map(),
-      revision: 'test',
-      source: 'builtin-only',
-    } as TrackRegistry
-    const resolver = createEffectiveSkillResolver({
-      registry,
-      manifest: {
-        mandatorySkills: table({ open: { _all: ['propose'] } }),
-        recommendedSkills: table({}),
-      },
-    })
-
+    })).toEqual({ source: 'default', slots: [] })
     expect(resolveSkillBundle(resolver, {
       kind: 'default', stepId: 'open', profileId: '_all', capability,
-    })).toEqual({
-      source: 'default',
-      slots: [
-        { token: 'propose', alternatives: ['propose'] },
-      ],
-    })
+    })).toEqual({ source: 'default', slots: [] })
   })
 
-  it('issue #43：携带冻结 capability 时显式 profile 以 phase slot 开头', () => {
+  it('issue #43：携带冻结 capability 时显式 profile 只给 phase slot', () => {
     const resolver = createEffectiveSkillResolver({
-      mandatorySkills: table({ build: { free: ['writing-plans'] } }),
-      recommendedSkills: table({ build: { free: ['hallmark'] } }),
+      mandatorySkills: table({ build: { backend: ['writing-plans'] } }),
+      recommendedSkills: table({ build: { backend: ['hallmark'] } }),
     })
-    const plan = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflow())
+    const plan = effectiveWorkflowPlanFromIr('default', defaultIr(), { track: 'backend' })
     const result = resolveSkillBundle(resolver, {
-      kind: 'default', stepId: 'build', profileId: 'free', capability: plan.capabilities.skills,
+      kind: 'default', stepId: 'build', profileId: 'backend', capability: plan.capabilities.skills,
     })
-    expect(result.slots.map((slot) => slot.token)).toEqual(['writing-plans', 'hallmark'])
+    expect(result.slots.map((slot) => slot.token)).toEqual(['test-driven-development'])
   })
 
   it('issue #43：default bundle 缺 frozen capability 时 fail-closed，不回退到 profile-only resolver', () => {

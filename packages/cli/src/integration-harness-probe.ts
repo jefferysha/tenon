@@ -18,7 +18,7 @@ const REAL_CLI = fileURLToPath(new URL('../dist/main.js', import.meta.url))
 
 /**
  * `test diff-risk` 同样默认兑现「风险在限内」；测试进程环境里设 TENON_TEST_REAL_DIFF=1 就转交真实 CLI，
- * 让 standard 通道的集成测试读到夹具仓库里的真实改动。
+ * 让轻量轨道的集成测试读到夹具仓库里的真实改动。
  */
 const STUB = `#!/bin/sh
 if [ "$1" = "test" ] && [ "$2" = "code-size" ]; then

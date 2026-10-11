@@ -2,13 +2,14 @@
 import { lstat, readFile } from 'node:fs/promises'
 import { isAbsolute, join, resolve } from 'node:path'
 import {
-  compileEffectiveWorkflowPlan,
   ensureWorkflowPlanSnapshot,
   parseWorkflow,
   resolveWorkflowName,
   workflowPlanSnapshot,
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
+import { str } from '../render.js'
+import { frozenPlanCandidates } from './execution-cli-seam.js'
 
 export interface StateProjectionCommandOptions {
   readonly json?: boolean
@@ -78,14 +79,15 @@ export async function cmdStateProjection(
           throw new Error(`workflow file 必须是非 symlink 普通文件: ${sourcePath}`)
         }
         const workflowId = resolveWorkflowName(state)
-        const plan = compileEffectiveWorkflowPlan(
-          workflowId,
-          parseWorkflow(await readFile(sourcePath, 'utf8')),
-        )
-        if (plan.workflowFingerprint !== metadata.workflowPlanFingerprint) {
+        const definition = parseWorkflow(await readFile(sourcePath, 'utf8'))
+        const track = str(state.fields.track)
+        // 补快照的多是升级前的任务：绑定的指纹按它创建时的执行模型算出，两种模型都试。
+        const candidates = frozenPlanCandidates(workflowId, definition, track)
+        const plan = candidates.find((candidate) => candidate.workflowFingerprint === metadata.workflowPlanFingerprint)
+        if (plan === undefined) {
           throw new Error(
             `workflow file fingerprint 不匹配：expected=${metadata.workflowPlanFingerprint} `
-            + `actual=${plan.workflowFingerprint}`,
+            + `actual=${candidates[0]?.workflowFingerprint ?? ''}`,
           )
         }
         await ensureWorkflowPlanSnapshot(changeDir, metadata.runId, workflowPlanSnapshot(plan))

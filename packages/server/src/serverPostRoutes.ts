@@ -1,75 +1,20 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { lstatSync } from 'node:fs'
-import { join, resolve as resolvePath } from 'node:path'
-import {
-  applyLevelChange,
-  assertWorkflowAllowed,
-  builtinWorkflow,
-  createEffectiveSkillResolver,
-  createTrack,
-  decodeWorkflowDef,
-  firstStep,
-  listAutomationPolicyTemplates,
-  loadTrackRegistry,
-  loadWorkflow,
-  requireTrack,
-  stateStorageExistsSync,
-  validateWorkflow,
-  validateWorkflowTrackReferences,
-  withTrackRegistryLock,
-  type CreateTrackSpec,
-  type ExtendedManifestData,
-  type FlowEngine,
-  type GraduationFs,
-  type HistoryWriter,
-  type StateStore,
-  type TrackDefinition,
-  type TrackRegistry,
-  type TrackValidationContext,
-  type WorkflowDef,
-  type WorkflowRunRepository,
-  type TransitionRecordStore,
+import type {
+  ExtendedManifestData,
+  FlowEngine,
+  GraduationFs,
+  HistoryWriter,
+  StateStore,
+  WorkflowRunRepository,
+  TransitionRecordStore,
 } from '@tenon/kernel'
-import {
-  cancelAfkRun,
-  dismissAfkRun,
-  enqueueAfkRun,
-  retryAfkRun,
-} from './afk.js'
-import { validateAutomationSettingsBody, writeAutomationSettings } from './automationConfig.js'
-import {
-  activateChangeSession,
-  notRequestedSessionActivation,
-  parseChangeSessionActivation,
-  parseChangeTaskPrompt,
-  writeChangeTaskPrompt,
-} from './changeLaunch.js'
-import { validateMandatorySkillsBody, writeMandatorySkills } from './config.js'
-import { validateHookToggleBody, writeHookToggle } from './hooksConfig.js'
-import { applyLoopsUpdate, type LoopActivationValidator } from './loops.js'
-import { parsePipelineCliJson, type PipelineCliRunner } from './operations.js'
-import { addProjectToRegistry, removeProjectFromRegistry } from './projects.js'
-import {
-  applyRouterDraft,
-  parseRouterDraft,
-  previewTrackRouting,
-  type RouterPatternScorer,
-} from './routerPreview.js'
-import { validateSecretWriteBody, writeSecret } from './secrets.js'
+import type { LoopActivationValidator } from './loops.js'
+import type { PipelineCliRunner } from './operations.js'
 import { tokenFromHeaders, tokensMatch } from './token.js'
 import { performTransition } from './transition.js'
 import type { ServerPaths } from './types.js'
-import {
-  assertWorkflowRootAnchor,
-  captureWorkflowRootAnchor,
-  closeWorkflowRootAnchor,
-  ensureWorkflowProjectCoordinationPath,
-  readWorkflowForApi,
-  WorkflowNotFoundError,
-  writeWorkflowForApi,
-  type WorkflowRootAnchor,
-} from './workflows.js'
-import { handlePostChangesRoutes } from './serverPostChangesRoutes.js'
+import type { WorkflowRootAnchor } from './workflows.js'
+import { handlePostProjectRoutes } from './serverPostProjectRoutes.js'
 import { handlePostExecutionRoutes } from './serverPostExecutionRoutes.js'
 import { handlePostGovernanceRoutes } from './serverPostGovernanceRoutes.js'
 import { handlePostOperationsRoutes } from './serverPostOperationsRoutes.js'
@@ -97,10 +42,8 @@ export interface PostRouteDeps {
   sendJson: (res: ServerResponse, code: number, body: unknown) => void
   token: string
   readJsonBody: (req: IncomingMessage) => Promise<unknown>
-  routerPatternScorer: RouterPatternScorer
   workflowRootForRequest: (root: string) => WorkflowRootCheck
   workflowStoreForRequest: (root: string) => { ok: true; anchor: WorkflowRootAnchor; global: boolean } | { ok: false; code: 403 | 404; error: string }
-  trackValidationContextFor: (anchor: WorkflowRootAnchor) => TrackValidationContext
   executeOperation: (res: ServerResponse, root: string, args: readonly string[]) => Promise<void>
   operationRunner: PipelineCliRunner
   operationsAvailable: boolean
@@ -109,7 +52,6 @@ export interface PostRouteDeps {
   clock: () => string
   history: HistoryWriter
   workflowRootAnchors: Map<string, WorkflowRootAnchor>
-  trackSkillProfiles: ReadonlySet<string>
   loadedManifest?: ExtendedManifestData
   runRepo: WorkflowRunRepository
   /** Transition chain reader used by the decision projection preflight. */
@@ -119,21 +61,8 @@ export interface PostRouteDeps {
   gitHeadSha?: (cwd: string) => Promise<string>
   workspaceFingerprint?: (cwd: string, changeName: string) => Promise<string>
   breadcrumb: Parameters<typeof performTransition>[0]['breadcrumb']
-  manifestPath?: string
-  /** 产品的 skills/ 根；mandatory-skills 写端点据此在落盘前判技能能否被模型调用。 */
-  skillsRoot: string
   paths: ServerPaths
   validateLoopActivation?: LoopActivationValidator
-  mutateTrackForApi: (
-    anchor: WorkflowRootAnchor,
-    revision: string,
-    mutate: (snapshot: { config: Parameters<typeof createTrack>[0] }) => Promise<{
-      next: Parameters<typeof createTrack>[0]
-      result: undefined
-    }>,
-  ) => Promise<{ registry: TrackRegistry }>
-  trackRegistryBody: (registry: TrackRegistry) => Record<string, unknown>
-  sendTrackError: (res: ServerResponse, error: unknown) => void
   errMsg: (error: unknown) => string
   realGraduationFs: GraduationFs
   relatedSessionSearch: RelatedSessionSearchExecutor
@@ -158,20 +87,8 @@ export async function handlePostRoute(
   path: string,
   deps: PostRouteDeps,
 ): Promise<void> {
-  const {
-    isLocalHost, sendJson, token, readJsonBody, routerPatternScorer, workflowRootForRequest,
-    trackValidationContextFor, executeOperation, operationRunner, operationsAvailable,
-    isRegisteredRoot, store, clock, history, workflowRootAnchors, trackSkillProfiles,
-    loadedManifest, runRepo, flow, fileExists, gitHeadSha, workspaceFingerprint, breadcrumb,
-    manifestPath, paths, validateLoopActivation, mutateTrackForApi, trackRegistryBody,
-    sendTrackError, errMsg, adapterInstall,
-  } = deps
+  const { isLocalHost, sendJson, token, readJsonBody, workflowRootForRequest, adapterInstall } = deps
   const boundPort = deps.boundPort()
-  const REAL_GRADUATION_FS = deps.realGraduationFs
-
-  function isWorkflowName(name: string): boolean {
-    return name !== '' && /^[\p{L}\p{N}\p{M}_-]+$/u.test(name)
-  }
     // (1) DNS-rebinding 守卫
     if (!isLocalHost(req.headers.host, boundPort)) {
       return sendJson(res, 403, { ok: false, error: 'Host header 不合法（疑似 DNS 重绑定攻击）' })
@@ -217,12 +134,9 @@ export async function handlePostRoute(
     if (agentPost) { const result = await agentPost; return sendJson(res, result.status, result.body) }
     if (await handleTaskLifecyclePost(req, res, path, deps)) return
 
-    // ── Track Router 公共预览：消费 effective registry，生产默认 scorer 真执行 grep -ciE。──
-    // 虽然不写盘，仍走 POST：prompt 可能较长且携带用户意图，不放 URL/query；统一受 token、Host、
-    // JSON 三闸保护。响应保留全部候选分数，suppressed_reason 非空时 winner=null，显式创建 UI 仍可手选。
   await handlePostOperationsRoutes(req, res, path, deps)
   if (res.writableEnded) return
-  await handlePostChangesRoutes(req, res, path, deps)
+  await handlePostProjectRoutes(req, res, path, deps)
   if (res.writableEnded) return
   await handlePostGovernanceRoutes(req, res, path, deps)
   if (res.writableEnded) return

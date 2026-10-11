@@ -96,6 +96,28 @@ describe('scanReadyFromFs（真 fs 枚举 + 真读 automation 字段）', () => 
     expect(await scanReadyFromFs(changesDir(), store)).toEqual(['child'])
   })
 
+  it('另一个任务的归档目录名以 -<dep> 结尾不算 dep 已归档（api 不能被 new-api 满足）', async () => {
+    await initQueued('child', '2026-07-07T08:00:00Z', ['api'])
+    await mkdir(join(changesDir(), 'archive', '2026-07-06-new-api'), { recursive: true })
+    await mkdir(join(changesDir(), 'archive', '2026-07-06-legacy_api'), { recursive: true })
+    expect(await scanReadyFromFs(changesDir(), store)).toEqual([])
+
+    await mkdir(join(changesDir(), 'archive', '2026-07-06-api'), { recursive: true })
+    expect(await scanReadyFromFs(changesDir(), store)).toEqual(['child'])
+  })
+
+  it('同日同名归档追加的 -N 后缀仍属于同一个 dep；带数字的 dep 名只认自己', async () => {
+    await initQueued('child', '2026-07-07T08:00:00Z', ['api'])
+    await mkdir(join(changesDir(), 'archive', '2026-07-06-api-2'), { recursive: true })
+    expect(await scanReadyFromFs(changesDir(), store)).toEqual(['child'])
+
+    await store.set(join(changesDir(), 'child'), 'depends_on', 'release-2')
+    await mkdir(join(changesDir(), 'archive', '2026-07-06-release'), { recursive: true })
+    expect(await scanReadyFromFs(changesDir(), store)).toEqual([])
+    await mkdir(join(changesDir(), 'archive', '2026-07-06-release-2'), { recursive: true })
+    expect(await scanReadyFromFs(changesDir(), store)).toEqual(['child'])
+  })
+
   it('archive 只有 ENOENT 可视为空；其它读取错误必须 fail-loud', async () => {
     await initQueued('child', '2026-07-07T08:00:00Z', ['archdep'])
     await writeFile(join(changesDir(), 'archive'), 'not a directory\n', 'utf8')

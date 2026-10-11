@@ -44,7 +44,7 @@ export interface WorkflowDeleteErrorEnvelope {
   error?: string
   code?: 'WORKFLOW_REFERENCED' | 'WORKFLOW_REFERENCE_SCAN_FAILED' | 'WORKFLOW_DELETE_STALE'
   references: Array<{
-    kind: 'track-default' | 'track-allowed' | 'active-change' | 'loop-binding' | 'policy-template-recommended'
+    kind: 'active-change' | 'loop-binding' | 'policy-template-recommended'
     source: string
   }>
   blockers: Array<{ source: string; detail: string }>
@@ -57,8 +57,6 @@ export function decodeWorkflowDeleteSuccess(value: unknown): boolean {
 }
 
 const WORKFLOW_REFERENCE_KINDS = new Set([
-  'track-default',
-  'track-allowed',
   'active-change',
   'loop-binding',
   'policy-template-recommended',
@@ -163,11 +161,11 @@ export async function readWorkflowDeleteResponse(response: Response): Promise<Wo
 }
 
 export interface WorkflowReferenceEntry {
-  kind: 'track' | 'loop' | 'template'
+  kind: 'loop' | 'template'
   name: string
 }
 
-/** 服务端引用清单（`change:x` / `track:x` / `loop:x` / `template:x`）→ 引用它的任务名与其它引用，各自去重。 */
+/** 服务端引用清单（`change:x` / `loop:x` / `template:x`）→ 引用它的任务名与其它引用，各自去重。 */
 export function splitWorkflowReferences(
   references: ReadonlyArray<{ kind: string; source: string }>,
 ): { tasks: string[]; references: WorkflowReferenceEntry[] } {
@@ -179,7 +177,7 @@ export function splitWorkflowReferences(
       if (!tasks.includes(name)) tasks.push(name)
       continue
     }
-    const category = kind === 'loop-binding' ? 'loop' : kind === 'policy-template-recommended' ? 'template' : 'track'
+    const category = kind === 'loop-binding' ? 'loop' : 'template'
     if (!others.some((entry) => entry.kind === category && entry.name === name)) others.push({ kind: category, name })
   }
   return { tasks, references: others }

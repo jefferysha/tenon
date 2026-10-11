@@ -7,8 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { join } from 'node:path'
 import { createTestDashboardServer } from './test-server.js'
 import { resolveServerPaths } from './paths.js'
-import { writeFile } from 'node:fs/promises'
-import { ensureUserLocalDir, serializeTaskArchive } from '@tenon/kernel'
+import { mkdir, rename } from 'node:fs/promises'
 import { buildAfkLog, buildAfkSnapshot } from './afk.js'
 import { buildSnapshot } from './snapshot.js'
 import type { DashboardServer, Snapshot } from './types.js'
@@ -210,26 +209,22 @@ describe('F-b AfkCard.cause —— automation_cause 原样透传（开放集，�
   })
 })
 
-describe('AFK 面排除查看者已归档的 change', () => {
-  const alice = { id: 'a@x.io', name: 'A', slug: 'a-at-x.io', source: 'env', trust: 'declared' } as const
-
-  it('归档后不再进泳道与流水；无查看者时照常看到', async () => {
+describe('AFK 面只看进行中的 change', () => {
+  it('任务被终止（目录移进 archive/）后不再进泳道与流水；没有「隐藏」，其余任务对所有人照常可见', async () => {
     const h = await startWith({ q1: { state: 'queued' }, q2: { state: 'queued' } })
-    const paths = await ensureUserLocalDir(h.root, alice.slug)
-    await writeFile(paths.archived, serializeTaskArchive({
-      version: 1,
-      changes: {
-        q1: { archivedAt: '2026-09-15T12:00:00.000Z', phase: 'build', actor: { id: 'a@x.io', name: 'A', trust: 'declared' } },
-      },
-    }), 'utf8')
     const clock = (): string => '2026-07-07T00:00:00Z'
     const deps = { registry: () => [h.root], store: h.store, version: '9.9.9', clock }
 
-    const forAlice = await buildSnapshot({ ...deps, viewer: () => alice })
-    expect(buildAfkSnapshot(forAlice, clock).lanes.queued.map((c) => c.name)).toEqual(['q2'])
-    expect(buildAfkLog(forAlice, clock).entries.some((entry) => entry.change === 'q1')).toBe(false)
+    const before = await buildSnapshot(deps)
+    expect(buildAfkSnapshot(before, clock).lanes.queued.map((c) => c.name)).toEqual(['q1', 'q2'])
 
-    const forAnyone = await buildSnapshot(deps)
-    expect(buildAfkSnapshot(forAnyone, clock).lanes.queued.map((c) => c.name)).toEqual(['q1', 'q2'])
+    await mkdir(join(h.root, 'openspec', 'changes', 'archive'), { recursive: true })
+    await rename(
+      join(h.root, 'openspec', 'changes', 'q1'),
+      join(h.root, 'openspec', 'changes', 'archive', '2026-07-07-q1'),
+    )
+    const after = await buildSnapshot(deps)
+    expect(buildAfkSnapshot(after, clock).lanes.queued.map((c) => c.name)).toEqual(['q2'])
+    expect(buildAfkLog(after, clock).entries.some((entry) => entry.change === 'q1')).toBe(false)
   })
 })

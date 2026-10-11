@@ -33,8 +33,6 @@ export interface FlowOrchestration {
 export interface DefinitionOrchestration extends FlowOrchestration {
   readonly workflow: string
   readonly track: string | null
-  /** 每步 manifest 叠加的必需技能 token；画草稿时并入声明技能。 */
-  readonly overlay: Readonly<Record<string, readonly string[]>>
 }
 
 export interface ChangeOrchestration extends FlowOrchestration {
@@ -115,15 +113,10 @@ function decodeBase(value: Record<string, unknown>, withStatus: boolean): FlowOr
 }
 
 export function decodeDefinitionOrchestration(value: unknown): DefinitionOrchestration | null {
-  if (!isRecord(value) || typeof value.workflow !== 'string' || (value.track !== null && typeof value.track !== 'string') || !isRecord(value.overlay)) return null
+  if (!isRecord(value) || typeof value.workflow !== 'string' || (value.track !== null && typeof value.track !== 'string')) return null
   const base = decodeBase(value, false)
   if (base === null) return null
-  const overlay: Record<string, readonly string[]> = {}
-  for (const [step, tokens] of Object.entries(value.overlay)) {
-    if (!stringArray(tokens)) return null
-    overlay[step] = [...tokens]
-  }
-  return { ...base, workflow: value.workflow, track: value.track, overlay }
+  return { ...base, workflow: value.workflow, track: value.track }
 }
 
 export function decodeChangeOrchestration(value: unknown): ChangeOrchestration | null {
@@ -154,7 +147,9 @@ export function fetchWorkflowOrchestration(name: string, root: string, track: st
   return getDecoded(`/api/workflows/${encodeURIComponent(name)}/orchestration?${params.toString()}`, decodeDefinitionOrchestration, signal)
 }
 
-export function fetchChangeOrchestration(change: string, root: string, signal?: AbortSignal): Promise<ChangeOrchestration> {
+/** `archived`：`change` 是已结束任务的归档目录名（`ended[].archivedDir` 的最后一段），server 只读读取归档里的那一份。 */
+export function fetchChangeOrchestration(change: string, root: string, signal?: AbortSignal, archived = false): Promise<ChangeOrchestration> {
   const params = new URLSearchParams({ root })
+  if (archived) params.set('archived', '1')
   return getDecoded(`/api/change/${encodeURIComponent(change)}/orchestration?${params.toString()}`, decodeChangeOrchestration, signal)
 }

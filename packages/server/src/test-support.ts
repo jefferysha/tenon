@@ -4,13 +4,12 @@
  */
 import { spawnSync } from 'node:child_process'
 import { request as httpRequest, get as httpGet, type IncomingHttpHeaders } from 'node:http'
-import { appendFile, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { appendFile, copyFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { writeReadyDesignSystem } from '@tenon/kernel/design-system/test-support'
 import {
-  builtinTrack,
   createFlowEngine,
   createStateStore,
   createTransitionRecordStore,
@@ -22,10 +21,11 @@ import {
   recordDocument,
   sha256Hex,
   recordDocumentReads,
-  BUILTIN_TRACK_DEFINITIONS, compileEffectiveWorkflowPlan,
+  compileEffectiveWorkflowPlan,
   ensureUserLocalDir, isTenonUser, resolveTenonUser,
+  publishRunRevision, readCurrentRunRevision,
 } from '@tenon/kernel'
-import type { FlowEngine, InitOptions, StateStore } from '@tenon/kernel'
+import type { FieldName, FlowEngine, InitOptions, StateStore } from '@tenon/kernel'
 import {
   recordCanonicalDocumentSkillInvocation,
   recordNativeDocumentSkillConfirmation,
@@ -38,7 +38,7 @@ export {
 
 /** Fixtures record the built-in default document table (identical in every default branch). */
 const DEFAULT_DOCUMENT_POLICY = (() => {
-  const policy = compileEffectiveWorkflowPlan('default').documentPolicy
+  const policy = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' }).documentPolicy
   if (policy === undefined) throw new Error('built-in default workflow must be document-governed')
   return policy
 })()
@@ -49,13 +49,45 @@ export function repoManifestPath(): string {
 }
 
 /**
- * config 写端点测试用：把仓库真 templates/manifest.yaml 拷贝到独立临时文件，返回其路径。
+ * 随包 manifest 已不带「阶段 × 轨道」强制技能矩阵（一步该加载什么只看工作流 YAML）。config 写端点
+ * （服务端改机器级 manifest 的接口，随 Dashboard 清理一起删除）仍要在带矩阵的 manifest 上才有可写的小节，
+ * 它的测试在随包 manifest 后补上这一节。
+ */
+const LEGACY_MATRIX_SECTION = `
+mandatory_skills:
+  open._all: [openspec-propose]
+  explore.pm: [brainstorming, grilling, domain-modeling]
+  explore.frontend: [openspec-explore, brainstorming, grilling, domain-modeling]
+  explore.backend: [openspec-explore, brainstorming, grilling, domain-modeling, codebase-design]
+  explore.free: [brainstorming]
+  spec.pm: [openspec-propose, brainstorming, writing-plans, grilling, domain-modeling]
+  spec.frontend: [openspec-propose, writing-plans]
+  spec.backend: [openspec-propose, writing-plans]
+  spec.free: [openspec-propose, writing-plans]
+  build.pm: [prototype, frontend-design]
+  build.frontend: [test-driven-development, frontend-design]
+  build.backend: [test-driven-development]
+  build.free: [test-driven-development]
+  verify.pm: [browser-qa, web-design-guidelines, design-taste-frontend, verification-before-completion]
+  verify.frontend: [verification-before-completion, e2e-testing, browser-qa, web-design-guidelines, design-taste-frontend]
+  verify.backend: [verification-before-completion]
+  verify.free: [verification-before-completion]
+  ship.pm: []
+  ship.frontend: [finishing-a-development-branch]
+  ship.backend: [finishing-a-development-branch]
+  ship.free: [finishing-a-development-branch]
+  # archive 无强制 skill（归档不 gate skill）——不声明即空表
+`
+
+/**
+ * config 写端点测试用：把仓库真 templates/manifest.yaml 拷贝到独立临时文件（补上旧矩阵节），返回其路径。
  * 绝不让测试直接写仓库真文件（config.test.ts / server.test.ts 的写端点用例都经此隔离）。
  */
 export async function makeTempManifest(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'pl-dash-manifest-'))
   const dest = join(dir, 'manifest.yaml')
   await copyFile(repoManifestPath(), dest)
+  await appendFile(dest, LEGACY_MATRIX_SECTION, 'utf8')
   return dest
 }
 
@@ -78,9 +110,8 @@ export async function recordWorkflowPhaseSkill(root: string, changeDir: string, 
   const phase = String(state.fields.phase)
   if (skillId === undefined) {
     const workflow = typeof state.fields.workflow === 'string' && state.fields.workflow !== '' ? state.fields.workflow : 'default'
-    const track = BUILTIN_TRACK_DEFINITIONS.find((candidate) => candidate.id === String(state.fields.track))
     const required = workflow === 'default'
-      ? compileEffectiveWorkflowPlan('default', undefined, track).capabilities.skills.steps.find((step) => step.stepId === phase)?.requiredSkillIds ?? []
+      ? compileEffectiveWorkflowPlan('default', undefined, { track: String(state.fields.track) }).capabilities.skills.steps.find((step) => step.stepId === phase)?.requiredSkillIds ?? []
       : []
     const skills = [...new Set([`tenon-${phase}`, ...required])]
     for (const skill of skills) await recordWorkflowPhaseSkill(root, changeDir, skill)
@@ -147,7 +178,7 @@ export async function makeWorktreeDir(): Promise<string> {
   return mkdtemp(join(tmpdir(), 'pl-dash-worktree-'))
 }
 
-/** 真 init 一个 change；simple 轨从内建 workflow 的 change step 开始，其余缺省 phase=open。 */
+/** 真 init 一个 change；缺省 workflow=default、phase=open，要落到别的工作流给 initialWorkflow。 */
 export async function initChange(
   store: StateStore,
   root: string,
@@ -164,15 +195,11 @@ export async function initChange(
     repoRoot: root,
     name,
     track,
-    reviewSeed: builtinTrack(track).policyProfile.reviewSeed,
+    reviewSeed: 'pending' as const,
     preset: opts?.preset ?? 'full',
     creator: { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' as const },
     clock: () => '2026-07-07T00:00:00Z',
-    ...(opts?.initialWorkflow !== undefined
-      ? { initialWorkflow: opts.initialWorkflow }
-      : track === 'simple'
-      ? { initialWorkflow: { workflow: 'simple', phase: 'change', openspecContract: false } }
-      : {}),
+    ...(opts?.initialWorkflow !== undefined ? { initialWorkflow: opts.initialWorkflow } : {}),
   }
   if (opts?.legacyWithoutRunIdentity === true) return store.init(init)
   return (await createWorkflowRunRepository({
@@ -180,6 +207,49 @@ export async function initChange(
     recordStore: createTransitionRecordStore(),
     clock: () => '2026-07-07T00:00:00Z',
   }).initChange(init)).changeDir
+}
+
+export interface ArchivedTaskSeed {
+  /** Directory name under `openspec/changes/archive/`. */
+  readonly dir: string
+  /** Time of the task's last state revision, which is when it ended. */
+  readonly observedAt: string
+  readonly fields?: Partial<Record<FieldName, string | string[]>>
+}
+
+/**
+ * Real archived tasks: one task is initialised, copied into `openspec/changes/archive/<dir>` per seed, and each
+ * copy gets its own last revision (a real `set` through the revision store) at `observedAt`. Returns the directories.
+ */
+export async function seedArchivedTasks(root: string, seeds: readonly ArchivedTaskSeed[]): Promise<string[]> {
+  const store = newStore()
+  const template = await initChange(store, root, 'archive-template')
+  const archive = join(root, 'openspec', 'changes', 'archive')
+  await mkdir(archive, { recursive: true })
+  const dirs: string[] = []
+  for (const seed of seeds) {
+    const dir = join(archive, seed.dir)
+    await cp(template, dir, { recursive: true })
+    const current = await readCurrentRunRevision(dir)
+    if (current === undefined) throw new Error(`seeded task has no canonical state: ${dir}`)
+    const state = await store.read(dir)
+    await publishRunRevision(dir, current, { ...state, fields: { ...state.fields, ...seed.fields } }, { kind: 'set', observedAt: seed.observedAt })
+    dirs.push(dir)
+  }
+  await rm(template, { recursive: true, force: true })
+  return dirs
+}
+
+/**
+ * Many archived tasks cheaply: each new directory holds only the `.pipeline-run/current.json` of `source` (an archived
+ * task from `seedArchivedTasks`), which is all the ended-task list reads. For volume tests, not for detail reads.
+ */
+export async function copyArchivedTaskState(source: string, root: string, names: readonly string[]): Promise<void> {
+  const archive = join(root, 'openspec', 'changes', 'archive')
+  for (const name of names) {
+    await mkdir(join(archive, name, '.pipeline-run'), { recursive: true })
+    await copyFile(join(source, '.pipeline-run', 'current.json'), join(archive, name, '.pipeline-run', 'current.json'))
+  }
 }
 
 const GOVERNED_DESIGN = `# governed design

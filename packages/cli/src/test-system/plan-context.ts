@@ -25,6 +25,11 @@ export async function loadPlanInputs(deps: CliDeps, context: TestCommandContext)
   return { catalog, planState, scenarios, tasks }
 }
 
+/** 目录读不到或无效时给用户的错误行（含下一步命令）。 */
+export function catalogErrorLine(catalog: Exclude<CatalogFile, { readonly state: 'ok' }>): string {
+  return `ERROR: ${catalog.state === 'missing' ? '还没有测试目录；先 tenon test discover --write' : 'catalog.yaml 无效；先 tenon test catalog validate'}`
+}
+
 export type ChangedFilesOutcome =
   | {
       readonly ok: true

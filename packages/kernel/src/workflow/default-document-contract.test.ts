@@ -11,10 +11,12 @@ describe('default 按轨道声明 openspec-v1 文档表', () => {
 
   it('openspec: true；前端以外的分支指纹与迁移表相同，每步 produce / update / reads 顺序与旧表一致', () => {
     expect(def.openspec).toBe(true)
-    expect(Object.keys(def.tracks ?? {})).toEqual(['chat', 'pm', 'frontend', 'backend', 'free'])
+    expect(Object.keys(def.tracks ?? {})).toEqual(['lite', 'pm', 'frontend', 'backend'])
+    // lite 是 spec: none 的分支，没有文档表。
+    expect(documentGovernancePolicy('default', def, 'lite')).toBeUndefined()
     // 前端分支加了 DESIGN.md 槽位（立项要求 + 实现/验证必读 + 交付可更新），因此它的表与旧表有意不同；
-    // 其余四条分支仍逐字节复刻迁移表，冻结的老快照照常绑定。
-    for (const track of ['chat', 'pm', 'backend', 'free']) {
+    // 其余两条重型分支仍逐字节复刻迁移表，冻结的老快照照常绑定。
+    for (const track of ['pm', 'backend']) {
       const policy = documentGovernancePolicy('default', def, track)
       if (policy === undefined) throw new Error(`default 分支 ${track} 未受治理`)
       expect(policy.id).toBe('openspec-v1')
@@ -50,8 +52,8 @@ describe('default 按轨道声明 openspec-v1 文档表', () => {
     expect(documentGovernancePolicy('copy', def, 'frontend')?.id).toBe('document-v1')
     const { openspec: _openspec, ...off } = def
     expect(validateWorkflowForStorage('default', off)).toContain('default 必须保持 openspec: true')
-    for (const branch of Object.values(def.tracks ?? {})) {
-      expect(branch.steps.at(-1)?.label).toBe('完结')
+    for (const track of ['pm', 'frontend', 'backend']) {
+      expect(def.tracks?.[track]?.steps.at(-1)?.label).toBe('完结')
     }
   })
 })

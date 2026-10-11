@@ -7,7 +7,6 @@
  * （文件面、身份、历史、agent 投影），组合规则只在这里：两处各写一遍，就会出现 CLI 说有 5 个阻断、
  * 工作台却说「可进入下一阶段」。
  */
-import { evaluateDefaultEventPreconditions } from '../flow/default-event-policy.js'
 import type { TransitionContext } from '../flow/transition-table.js'
 import { evaluateDocumentEvidence, type DocumentEvidenceReport } from '../state/document-evidence.js'
 import {
@@ -22,11 +21,10 @@ import { isDocumentContractPhase, type DocumentContractPhase } from './document-
 import { isDocumentPolicyStep } from './document-contract.js'
 import type { EffectiveWorkflowPlan } from './effective-plan.js'
 import { resolveRequiredSkillSlots, type EffectiveSkillResolver } from './effective-skill-resolver.js'
-import { resolveStep } from './engine.js'
-import { effectiveLifecyclePolicy } from './governed-lifecycle-policy.js'
+import { selectExecution, type ExitReportBasis } from './execution-seam.js'
 import { isAbandonEvent, stepExitTransitions } from './implicit-completion.js'
-import { phaseExitGuardContext, unfinishedTaskItems, type PhaseExitFileContext } from './phase-exit-context.js'
-import { evaluateWorkflowIrStepGuards } from './stepGuard.js'
+import type { PhaseExitFileContext } from './legacy-phase-manifest/phase-exit-context.js'
+import { universalGuardCapabilities } from './universal-guard-capabilities.js'
 
 export type StepBlockerSource = 'guard' | 'document' | 'skill' | 'test' | 'reviewer' | 'revision' | 'spec' | 'tasks'
 
@@ -143,46 +141,19 @@ async function documentEvidence(input: StepExitReportInput, stepId: string): Pro
 
 async function guardBlockers(
   input: StepExitReportInput,
+  basis: ExitReportBasis,
   stepId: string,
   event: string,
   to: string,
 ): Promise<readonly StepBlocker[]> {
-  const { plan, state } = input
   const context = {
     ...input.guardContext,
     specMigrationStatus: () => evaluateSpecMigrationEvidence(input.repoRoot, input.changeDir, input.changeName),
+    // 通用离开条件的能力与 spec 迁移回执一样由报告自己按任务目录与宿主文件面构造，三个宿主不必各接一遍。
+    ...universalGuardCapabilities(input.changeDir, input.fileContext),
   }
-  if (plan.capabilities.execution.model === 'phase-manifest') {
-    const result = await evaluateDefaultEventPreconditions(
-      event as Parameters<typeof evaluateDefaultEventPreconditions>[0],
-      state,
-      context,
-      { stopOnFirstFailure: false },
-    )
-    if (result === null) return []
-    const revision = (result.blockers ?? []).map((item) =>
-      blocker('revision', item.code, `${item.reason}；${item.remediation}`))
-    return [
-      ...result.lines.map((line) => blocker('guard', 'guard-failed', line)),
-      ...revision,
-    ]
-  }
-  const step = resolveStep(plan.workflow, stepId)
-  if (!step) return []
-  const edge = stepExitTransitions(plan, stepId, state).find((transition) => transition.event === event)
-  const guards = edge === undefined
-    ? step.guards
-    : effectiveLifecyclePolicy(
-      plan.capabilities.documents.governed,
-      step,
-      edge,
-      plan.workflow.steps.find((candidate) => candidate.id === to),
-    ).guards
-  const result = await evaluateWorkflowIrStepGuards(state, { ...step, guards }, {
-    changeDirAbs: input.changeDir,
-    ...context,
-  })
-  return result.failures.map((failure) => blocker('guard', 'guard-failed', failure))
+  const items = await basis.edgeGuards({ stepId, event, to }, context)
+  return items.map((item) => blocker(item.source, item.code, item.message))
 }
 
 /**
@@ -218,17 +189,15 @@ export async function evaluateStepExitReport(input: StepExitReportInput): Promis
   const migration = stepId === 'ship' && plan.capabilities.documents.governed
     ? await evaluateSpecMigrationEvidence(input.repoRoot, input.changeDir, input.changeName)
     : undefined
-  // default 轨的相位出口规则表是「离开本相位」的条件，只加给前进边。
-  const phaseManifest = plan.capabilities.execution.model === 'phase-manifest'
-  const exitContext = phaseManifest ? await phaseExitGuardContext(input.fileContext, input.changeDir) : undefined
-  const phaseExit = phaseManifest
-    ? input.guardCheck(state, { ...exitContext, coverageProfile: plan.capabilities.track.coverageProfile })
-    : { pass: true, failures: [] as readonly string[] }
-  const openTasks = unfinishedTaskItems(exitContext, input.fileContext?.changeDirRel, stepId)
+  // 相位出口规则表（旧 phase-manifest 才有）是「离开本相位」的条件，只加给前进边；出边自己的 guard 也随执行模型而变。
+  const execution = await selectExecution(plan).exitReport({
+    plan, state, stepId, changeDir: input.changeDir, fileContext: input.fileContext, guardCheck: input.guardCheck,
+  })
+  const openTasks = execution.phaseExit.openTasks
   const shared: readonly StepBlocker[] = [
     // tasks.md 的勾选是本步的工作项，不是一个可填的字段：单列成 `tasks` 来源，`next` 才能把它排在
     // 自由文本字段（pr_url 等）之前。
-    ...phaseExit.failures.map((item) => item.includes('tasks.md')
+    ...execution.phaseExit.failures.map((item) => item.includes('tasks.md')
       ? { ...blocker('tasks', 'tasks-incomplete', item, openTasks.length > 0 ? { count: openTasks.length } : undefined), items: openTasks }
       : blocker('guard', 'phase-exit', item)),
     ...(documents?.blockers ?? []).map((item, index) => blocker('document', 'document-evidence', item, documents?.blockerDetails?.[index])),
@@ -243,7 +212,7 @@ export async function evaluateStepExitReport(input: StepExitReportInput): Promis
     const direction = transition.event === IMPLICIT_COMPLETION_EVENT && transition.to === stepId
       ? 'completion'
       : forward ? 'forward' : 'back'
-    const guards = await guardBlockers(input, stepId, transition.event, transition.to)
+    const guards = await guardBlockers(input, execution, stepId, transition.event, transition.to)
     // 放弃边只看它自己的守卫：任务要被放弃了，没做完的证据不该拦着它出去。
     const blockers = isAbandonEvent(transition.event)
       ? [...guards]

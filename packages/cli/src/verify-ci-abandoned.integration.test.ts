@@ -1,5 +1,5 @@
 /**
- * `tenon verify --ci` 与被放弃的任务：standard 通道里的任务风险升级（`scope-expanded` → `escalated`）之后，它和接手它的
+ * `tenon verify --ci` 与被放弃的任务：轻量轨道里的任务风险升级（`scope-expanded` → `escalated`）之后，它和接手它的
  * default 任务会出现在同一个 PR 里。放弃边不要求任何测试证据，所以被放弃的任务只留一条提示、不判定；
  * 但只认「真的走过放弃边」的任务——状态里写着 `phase: escalated` 却没有放弃转换的任务照常判定、照常失败。
  */
@@ -8,6 +8,10 @@ import { join } from 'node:path'
 import type { CiChangeReport, CiVerifyReport } from '@tenon/kernel'
 import { afterEach, describe, expect, test } from 'vitest'
 import { CATALOG_PATH, catalog, ciCheckout, devProject, type CiCheckout, type Dev } from './verify-ci-fixture.js'
+
+/** 带放弃边（open / build / verify → escalated）的轻量轨道：default 内建的 `lite`。 */
+const startLane = (dev: Dev, change: string): Promise<number> =>
+  dev.tenon(['init', change, '--workflow', 'default', '--track', 'lite', '--preset', 'full'])
 
 describe('tenon verify --ci：被放弃的任务', () => {
   const cleanups: Array<() => Promise<void>> = []
@@ -19,7 +23,7 @@ describe('tenon verify --ci：被放弃的任务', () => {
   async function setup(abandon: boolean): Promise<{ dev: Dev; ci: CiCheckout }> {
     const dev = await devProject()
     cleanups.push(dev.cleanup)
-    expect(await dev.tenon(['init', 'sketch', '--workflow', 'standard', '--track', 'standard']), `${dev.out()}\n${dev.err()}`).toBe(0)
+    expect(await startLane(dev, 'sketch'), `${dev.out()}\n${dev.err()}`).toBe(0)
     if (abandon) expect(await dev.tenon(['transition', 'sketch', 'scope-expanded']), `${dev.out()}\n${dev.err()}`).toBe(0)
     dev.commit(abandon ? 'abandon sketch, deliver demo' : 'start sketch')
     const ci = await ciCheckout(dev)
@@ -103,7 +107,7 @@ describe('tenon verify --ci：被放弃的任务', () => {
   test('被放弃的任务动了受保护的测试目录、没有批准行：照样失败——放弃边不要求评审，批准检查不能被它绕过', async () => {
     const dev = await devProject()
     cleanups.push(dev.cleanup)
-    expect(await dev.tenon(['init', 'sketch', '--workflow', 'standard', '--track', 'standard']), `${dev.out()}\n${dev.err()}`).toBe(0)
+    expect(await startLane(dev, 'sketch'), `${dev.out()}\n${dev.err()}`).toBe(0)
     // 任务起点之后改了受保护的测试目录（降低标准的一种典型改法），然后沿放弃边离开：没有评审、没有批准行。
     await writeFile(join(dev.dir, CATALOG_PATH), catalog('单测（放弃的任务里改的）'), 'utf8')
     expect(await dev.tenon(['transition', 'sketch', 'scope-expanded']), `${dev.out()}\n${dev.err()}`).toBe(0)

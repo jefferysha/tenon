@@ -75,6 +75,9 @@ export { PATH_CLASSES, classifyPath, isPathClass, pathTokens } from './workspace
 export type { PathClass } from './workspace/path-classes.js'
 export { assessDiffRisk, isCodePath, isTestPath, touchedPathClasses } from './workspace/diff-risk.js'
 export type { DiffRiskMetrics } from './workspace/diff-risk.js'
+// 改动风险分类：探针（实现后）与 `tenon assess`（实现前）共用同一份指标与上下限判定。
+export { classifyChange, DIFF_RISK_DIRECTION, protectedTestFileCount, riskThresholdsFor, thresholdBreaches } from './workspace/change-risk.js'
+export type { ChangeRiskVerdict, MetricThreshold, ThresholdBound, ThresholdBreach } from './workspace/change-risk.js'
 export { probeBuildRevisionIdentity } from './workspace/build-revision-identity.js'
 // 「自任务起点以来的改动文件 / 改动行」：全量登记强制、changed 范围与 changed_lines 覆盖率的共同来源。
 export {
@@ -98,32 +101,30 @@ export {
   ensurePipelineGitignore, WORKFLOW_STATE_DIR, WORKFLOW_STATE_GITIGNORE,
   ensureOpenspecGitignore, OPENSPEC_LOCAL_GITIGNORE,
 } from './workspace/pipeline-gitignore.js'
-// 归档（对当前用户隐藏任务）是个人显示偏好；archived-Change 拒绝是所有 Change 命令共用的唯一守卫。
+// 任务归档（M6）：完结 / 已升级 / 已终止一律把任务目录移进 openspec/changes/archive/，没有「隐藏」。
 export {
-  EMPTY_TASK_ARCHIVE, TaskArchivedError,
-  assertTaskNotArchived, isArchivedForUser, isTaskLifecycleName, readTaskArchive, readTaskArchiveOf,
-  serializeTaskArchive, taskArchivePath, taskArchivedMessage, taskChangeDir, updateTaskArchiveOf,
-} from './workspace/task-archive.js'
-export type { TaskArchive, TaskArchiveEntry, TaskArchiveRead, TaskArchiveUpdate } from './workspace/task-archive.js'
-export { withTaskArchiveLock, withoutTaskArchiveEntry, writeTaskArchiveOf } from './workspace/task-archive.js'
+  archiveTask, ArchiveTaskError, fieldText, isTaskLifecycleName, openspecArchiveRunner, readTaskResult,
+  TASK_RESULTS, taskArchiveSpec, taskChangeDir, terminalTaskResult, withArchiveLock,
+} from './workspace/archive-task.js'
+export type {
+  ArchivedTask, ArchiveDeps, ArchiveTaskErrorCode, TaskResult,
+} from './workspace/archive-task.js'
 export {
   countUncommittedTaskDeletions, gitStatusRunner, isProcessLocalFdPath, probeChangeTracked, probeUncommittedTaskDeletions,
 } from './workspace/uncommitted-deletions.js'
 export type {
   ChangeTrackingProbe, GitStatusResult, GitStatusRunner, UncommittedDeletionsProbe,
 } from './workspace/uncommitted-deletions.js'
-// 删除 / 归档 / 取消归档 的唯一实现：CLI 与 server 共用同一个 application、同一套原因与记录。
+// 归档目录名 <日期>-<任务名>[-N] 与任务名的对应：依赖已结束判定（guard 文件面、AFK 队列扫描）共用。
+export { archiveDirIsTask } from './workspace/archived-task-name.js'
+// 删除 / 终止 的唯一实现：CLI 与 server 共用同一个 application、同一套原因与记录。
 export { createTaskLifecycleApplication, taskLifecycleUnlockHint } from './workspace/task-lifecycle.js'
 export type {
-  TaskLifecycleAction, TaskLifecycleApplication, TaskLifecycleAssessOutcome, TaskLifecycleAssessment,
-  TaskLifecycleAuditRecord, TaskLifecycleChannel, TaskLifecycleCommand, TaskLifecycleDeps, TaskLifecycleOutcome,
-  TaskLifecycleReason, TaskLifecycleReasonCode,
+  TaskFinishCommand, TaskLifecycleAction, TaskLifecycleApplication, TaskLifecycleAssessOutcome,
+  TaskLifecycleAssessment, TaskLifecycleAuditRecord, TaskLifecycleChannel, TaskLifecycleCommand, TaskLifecycleDeps,
+  TaskLifecycleOutcome, TaskLifecycleReason, TaskLifecycleReasonCode,
 } from './workspace/task-lifecycle.js'
-// 动态 Track Registry 公开面（GOAL.md 清单 T · R2 校验面切换）——tracks/ 是 R1 落地的叶子 barrel，
-// 本行把它接进根 barrel，使 cli/server 的 track 校验面从 types.ts 的写死 TRACKS 常量切到 registry
-// 驱动（requireTrack/assertWorkflowAllowed/loadTrackRegistry）。tracks/index.ts 已自做具名导出，
-// 与其它子 barrel（state/flow/…）无名字冲突，故整体 re-export。
-export * from './tracks/index.js'
+export type { PathCommitOutcome } from './workspace/commit-paths.js'
 // mem 跨 runtime 会话检索（BACKLOG #28）
 export * from './mem/index.js'
 // loop 治理子系统（BACKLOG #35，loop-engineering 内建）
@@ -151,9 +152,7 @@ export { loadWorkflow } from './workflow/loadWorkflow.js'
 export { globalWorkflowRoot, workflowFileCandidates, workflowsDirUnder } from './workflow/global-store.js'
 export { workflowNamesUnder } from './infrastructure/workflow-global-store.js'
 export type { WorkflowDirectoryReader } from './workflow/global-store.js'
-export { BUILTIN_WORKFLOW_IDS, builtinWorkflow } from './workflow/builtin-workflows.js'
-export type { BuiltinWorkflowId } from './workflow/builtin-workflows.js'
-export { DEFAULT_WORKFLOW_SOURCE, STANDARD_WORKFLOW_SOURCE } from './workflow/default-workflow.generated.js'
+export { DEFAULT_WORKFLOW_SOURCE } from './workflow/default-workflow.generated.js'
 export {
   canonicalWorkflowSkillId,
   completedWorkflowSkillsSinceStepEntry,
@@ -194,6 +193,9 @@ export {
   ABANDON_EVENT, IMPLICIT_COMPLETION_EVENT, implicitCompletionTransition, isAbandonEvent, stepExitTransitions,
 } from './workflow/implicit-completion.js'
 export type { ImplicitCompletionPlan } from './workflow/implicit-completion.js'
+// 执行模型接缝：新任务按步骤图、快照里记着旧模型的任务走旧引擎；命令层只经它（CLI 的 execution-cli-seam）区分两者。
+export { selectExecution } from './workflow/execution-seam.js'
+export type { ExecutionKind } from './workflow/execution-seam.js'
 export {
   TEMPLATE_WORKFLOW_NAMES, isDefaultWorkflowName, isTemplateWorkflowName, isValidWorkflowName,
 } from './workflow/identifier.js'
@@ -218,8 +220,20 @@ export { classifyInteractionWorkflowIdentity } from './workflow/interaction-effe
 export { parseWorkflow } from './workflow/parse.js'
 export { serializeWorkflow } from './workflow/serialize.js'
 export { WorkflowTrackBranchError, selectTrackBranch, validateWorkflow, validateWorkflowForStorage, workflowBranches } from './workflow/validate.js'
-// track 分支：registry 未登记但工作流 YAML 里有同名分支的 track 也可用（合成缺省策略定义）。
-export { projectWorkflowNames, requireTrackForRoot } from './workflow/branch-track-lookup.js'
+// 轨道解析：轨道只是工作流 YAML 里的 `tracks.<id>` 分支（平铺工作流只有一个隐式分支），不查任何登记表。
+export { listTracks, resolveRunTrack, resolveTrack, UnknownTrackError } from './workflow/resolve-track.js'
+export type { TrackBranch, TrackResolvable } from './workflow/resolve-track.js'
+export { knownSkillProfiles } from './workflow/known-skill-profiles.js'
+export {
+  compileLoadedWorkflow, listWorkflowTracks, loadCompiledWorkflow, loadTrack, projectWorkflowNames, requiredTrackChoices,
+} from './workflow/track-lookup.js'
+export type { LoadedTrack, WorkflowTrackEntry, WorkflowTrackListing } from './workflow/track-lookup.js'
+// 路由表：所有可用工作流里带 route 的分支 → 打分表 → `router.sh` 读的 router.v6 数据缓存。
+export { buildRouterTable, isBuiltinRouterWorkflow, ROUTER_SCHEMA } from './routing/router-table.js'
+export type { RouterRow, RouterTable, RouterWorkflowSource } from './routing/router-table.js'
+export { encodeRouterCache, routePattern } from './routing/router-cache.js'
+export { collectRouterSources, generateRouterCache } from './routing/router-sources.js'
+export type { RouterCacheResult, RouterSourceRequest } from './routing/router-sources.js'
 export { validateWorkflowTrackReferences } from './workflow/track-reference-validation.js'
 export type {
   StepDef, StepTestDef, StepTestPassDef, StepTestPolicyDef, StepTransition, TestInputDef, TestMetricCriterion,
@@ -293,11 +307,11 @@ export { compileWorkflow, compileDefaultWorkflow, decodeWorkflowDef } from './wo
 export {
   compileEffectiveWorkflowPlan, effectiveWorkflowPlanFromIr, loadEffectiveWorkflowPlan,
   documentGovernanceFingerprint, DocumentGovernanceBindingError, effectiveWorkflowPlanBinding,
-  effectiveWorkflowPlanFromSnapshot, resolveBoundEffectiveWorkflowPlan, resolveEffectiveWorkflowPlan,
-  workflowPlanSnapshot,
+  effectiveWorkflowPlanFromSnapshot, planAutomationPolicy, requireRunPlan, resolveBoundEffectiveWorkflowPlan,
+  resolveEffectiveWorkflowPlan, workflowPlanSnapshot,
 } from './workflow/effective-plan.js'
 export type {
-  EffectiveWorkflowPlan, LegacyWorkflowIR, PersistedDocumentGovernanceBinding, WorkflowPlanSnapshot,
+  AutomationPolicyBits, EffectiveWorkflowPlan, LegacyWorkflowIR, PersistedDocumentGovernanceBinding, PlanOptions, WorkflowPlanSnapshot,
   WorkflowPlanSnapshotV1, WorkflowPlanSnapshotV2, WorkflowPlanSnapshotV3, WorkflowPlanSnapshotV4,
 } from './workflow/effective-plan.js'
 export type { StepAgentsCapability } from './workflow/effective-plan-types.js'
@@ -307,9 +321,11 @@ export {
   type WorkflowDocumentSlotIo, type WorkflowEffectiveIo, type WorkflowFieldSlotIo, type WorkflowIoSlot, type WorkflowStepIo,
 } from './workflow/effective-io.js'
 export type {
-  ActionInput, CompiledGuardConfig, GuardDecision, GuardInput, StepIR, StepTestIR, StepTestPolicyIR, StepTransitionIR,
-  WorkflowIR,
+  ActionInput, CompiledGuardConfig, DependencyState, GuardDecision, GuardInput, StepIR, StepTestIR, StepTestPolicyIR,
+  StepTransitionIR, TasksThroughStepResult, UniversalGuardCapabilities, WorkflowIR,
 } from './workflow/ir.js'
+export { universalGuardCapabilities } from './workflow/universal-guard-capabilities.js'
+export type { UniversalGuardSource } from './workflow/universal-guard-capabilities.js'
 export { readinessByTransition } from './workflow/transition-readiness.js'
 export type {
   ReadinessByTransition, TransitionReadiness, TransitionReadinessBlocker,
@@ -318,9 +334,11 @@ export { evaluateStepExitReport, judgeStepSkillsFromHistory } from './workflow/s
 export type {
   StepBlocker, StepBlockerDetail, StepBlockerSource, StepExit, StepExitReport, StepExitReportInput, StepSkillJudgement,
 } from './workflow/step-exit-report.js'
-export { phaseExitGuardContext, unfinishedTaskItems } from './workflow/phase-exit-context.js'
+export { phaseExitGuardContext, unfinishedTaskItems } from './workflow/legacy-phase-manifest/phase-exit-context.js'
 export { makeGuardFileContext, readBoundedRegularFileSync } from './infrastructure/guard-file-context.js'
-export type { BoundedFileRead, PhaseExitFileContext, PhaseExitGuardContext } from './workflow/phase-exit-context.js'
+export type {
+  BoundedFileRead, PhaseExitFileContext, PhaseExitGuardContext,
+} from './workflow/legacy-phase-manifest/phase-exit-context.js'
 export {
   assessBuildRevisionTrust, createBuildRevisionToken, hashBuildRevisionIdentity,
   isBuildRevisionBlocker, makeBuildRevisionBlocker, parseBuildRevisionToken, safeRevisionHash,
@@ -337,13 +355,13 @@ export type {
 export { defaultArtifactForField, defaultArtifactsForStep, defaultArtifactDeclaredForField } from './workflow/default-artifacts.js'
 export type { DefaultArtifactDeclaration } from './workflow/default-artifacts.js'
 export type { ArtifactProducerPolicy, WorkflowArtifactConfig } from './workflow/types.js'
-// EffectiveSkillResolver（G2 P5）：runtime 三投影接缝（phase-first required/available/explicit-profile；
-// legacy manifest-only default/custom seams retained for compatibility）。artifact command 只依赖本接口。
+// EffectiveSkillResolver（G2 P5）：runtime 三投影接缝（required/available/explicit-profile，都是计划冻结的
+// 步骤技能，不叠加 manifest 矩阵；manifest-only default/custom seams retained for compatibility）。
 export {
   createEffectiveSkillResolver, resolveAvailableSkillSlots, resolveExplicitProfileSkillSlots, resolveRequiredSkillSlots,
 } from './workflow/effective-skill-resolver.js'
 export type {
-  EffectiveSkillResolver, EffectiveSkillSlot, EffectiveSkillResolverManifest, EffectiveSkillResolverOptions,
+  EffectiveSkillResolver, EffectiveSkillSlot, EffectiveSkillResolverManifest,
 } from './workflow/effective-skill-resolver.js'
 // OpenSpec tasks.md → ordered workflow stages 的只读 Todo 投影（dashboard/native Todo 共用）。
 export {

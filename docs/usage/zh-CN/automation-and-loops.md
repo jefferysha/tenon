@@ -8,7 +8,7 @@
 
 ## 前置条件
 
-- Change 已存在，且 Workflow 明确允许 automation；
+- Change 已存在，且它所在的轨道明确允许 automation（`automation.eligible: true`）；
 - Docker daemon 和 sandcastle 镜像可用；
 - 对应宿主凭证通过受控环境提供，不写入仓库或日志；
 - 当前 Change 没有未处理的 confirm/review/interaction gate；
@@ -32,6 +32,8 @@ tenon inbox --json
 tenon afk enqueue <change>
 tenon afk status <change> --json
 ```
+
+任务能否入队只看它所在轨道的 `automation.eligible`：default 的 `pm`、`frontend`、`backend` 轨道可以；`lite` 轨道和所有没写 `automation` 的轨道（平铺工作流也一样）不可以，`tenon afk enqueue` 退出码 `3`，带 `--json` 时给出 `reason: "track-not-afk-eligible"`。`automation.enqueue_after_spec: true` 的轨道（`pm`）在规格完成后自动入队。
 
 queued 只表示已进入调度队列，不表示 Agent 正在执行。Dashboard 只有在存在真实 executor、session 和运行态证据时才应显示 running。
 

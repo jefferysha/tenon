@@ -6,7 +6,7 @@ import { FIXED_CLOCK, freshHarness, type Harness } from './integration-harness.j
 
 /** Changes in this file run the built-in default workflow. */
 function defaultDocumentPolicy() {
-  const policy = compileEffectiveWorkflowPlan('default').documentPolicy
+  const policy = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' }).documentPolicy
   if (policy === undefined) throw new Error('built-in default workflow must be document-governed')
   return policy
 }
@@ -163,7 +163,7 @@ describe('document record canonical invocation binding', () => {
     await mkdir(join(h.cwd, '.pipeline', 'workflows'), { recursive: true })
     await writeFile(join(h.cwd, '.pipeline', 'workflows', 'design-flow.yaml'), workflow, 'utf8')
     const name = 'design-doc'
-    expect(await h.run(['init', name, '--track', 'backend', '--preset', 'full', '--workflow', 'design-flow']), h.err.join('\n')).toBe(0)
+    expect(await h.run(['init', name, '--preset', 'full', '--workflow', 'design-flow']), h.err.join('\n')).toBe(0)
     const changeDir = join(h.cwd, 'openspec', 'changes', name)
     await writeFile(join(h.cwd, 'DESIGN.md'), '# Design system\n', 'utf8')
     await mkdir(join(h.cwd, 'docs'), { recursive: true })

@@ -227,19 +227,22 @@ export function isSafeProjectRelativePath(value: string): boolean {
 
 export function deltaSpecSlot(path: string, changeDir: string): string | undefined {
   const parts = path.split('/')
-  const changeName = basename(resolve(changeDir))
+  const dir = resolve(changeDir)
+  // An ended task's directory sits under archive/, so that is where its capability paths are.
+  const home = basename(dirname(dir)) === 'archive'
+    ? ['openspec', 'changes', 'archive', basename(dir)]
+    : ['openspec', 'changes', basename(dir)]
+  const capability = parts[home.length + 1]
   if (
-    parts.length !== 6
-    || parts[0] !== 'openspec'
-    || parts[1] !== 'changes'
-    || parts[2] !== changeName
-    || parts[3] !== 'specs'
-    || !parts[4]
-    || parts[5] !== 'spec.md'
+    parts.length !== home.length + 3
+    || home.some((segment, index) => parts[index] !== segment)
+    || parts[home.length] !== 'specs'
+    || !capability
+    || parts[home.length + 2] !== 'spec.md'
   ) {
     return undefined
   }
-  return `delta-spec:${parts[4]}`
+  return `delta-spec:${capability}`
 }
 
 export function documentSlot(kind: DocumentKind, path: string, changeDir: string): string {

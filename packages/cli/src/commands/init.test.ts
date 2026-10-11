@@ -69,7 +69,8 @@ describe('init —— stdout 空 / [INIT] 走 stderr；0/1（oracle 实测回写
     expect(opts?.repoRoot).toBe('/repo')
     expect(opts?.name).toBe('demo')
     expect(opts?.track).toBe('pm')
-    expect(opts?.reviewSeed).toBe('skipped')
+    // 评审字段已退役、不再按轨道播种：任何轨道都是 pending（旧表里 pm 曾播 skipped）。
+    expect(opts?.reviewSeed).toBe('pending')
     expect(opts?.preset).toBe('hotfix')
     expect(opts?.creator).toEqual({ id: 'tester@tenon.test', name: 'Tester', trust: 'declared' })
     expect(opts?.clock).toBe(deps.clock)
@@ -98,6 +99,46 @@ describe('init —— stdout 空 / [INIT] 走 stderr；0/1（oracle 实测回写
     const code = await cmdInit(deps, 'demo', { track: 'backend', preset: 'full' })
     expect(code).toBe(1)
     expect(deps.outLines).toEqual([])
+  })
+
+  test('轨道与工作流的校验、change 的发布都在项目协调锁内（锁序 项目锁 → 任务锁），与 server 删除工作流互斥', async () => {
+    const deps = makeDeps()
+    const order: string[] = []
+    const origLock = deps.withProjectLock
+    deps.withProjectLock = async (cb) => {
+      order.push('project:enter')
+      const result = await origLock(cb)
+      order.push('project:exit')
+      return result
+    }
+    const origInit = deps.store.init
+    deps.store.init = spy(async (o: InitOptions): Promise<string> => {
+      order.push('store.init')
+      return origInit(o)
+    })
+    expect(await cmdInit(deps, 'demo', { track: 'backend', preset: 'full' })).toBe(0)
+    expect(order).toEqual(['project:enter', 'store.init', 'project:exit'])
+  })
+
+  test('已退役的工作流名在加锁之前就被拒（给出替代命令），不建 change', async () => {
+    const deps = makeDeps()
+    let locked = false
+    deps.withProjectLock = async (cb) => { locked = true; return cb() }
+    for (const workflow of ['standard', 'simple']) {
+      expect(await cmdInit(deps, 'demo', { workflow, preset: 'full' })).toBe(1)
+    }
+    expect(locked).toBe(false)
+    expect(deps.store.init.calls).toHaveLength(0)
+    expect(deps.errLines.join('\n')).toContain('--workflow default --track lite')
+  })
+
+  test('非法 track 在项目协调锁内被拒，同样不建 change', async () => {
+    const deps = makeDeps()
+    let locked = false
+    deps.withProjectLock = async (cb) => { locked = true; return cb() }
+    expect(await cmdInit(deps, 'demo', { track: 'devops', preset: 'full' })).toBe(1)
+    expect(locked).toBe(true)
+    expect(deps.store.init.calls).toHaveLength(0)
   })
 
   test('非法 change 名：exit 1', async () => {
@@ -149,7 +190,7 @@ describe('init --workflow（GOAL E，自定义 workflow 首个 step 落点）', 
       await mkdir(join(cwd, '.pipeline', 'workflows'), { recursive: true })
       await writeFile(join(cwd, '.pipeline', 'workflows', 'onboarding.yaml'), TWO_STEP_WF, 'utf8')
       const deps = makeDeps({ cwd })
-      const code = await cmdInit(deps, 'demo', { track: 'backend', preset: 'full', workflow: 'onboarding' })
+      const code = await cmdInit(deps, 'demo', { preset: 'full', workflow: 'onboarding' })
       expect(code).toBe(0)
       // 核心断言：initialWorkflow 随 initChange（内部真调 store.init，见 mockWorkflowRunRepository）
       // 唯一一次调用整体传入，且 setMany 完全不再被调用（旧实现会在这里留一条
@@ -235,11 +276,11 @@ describe('init 项目注册表登记（决策 D，best-effort）', () => {
  */
 describe('init —— 交互向导（fake InitWizardEnv 注入）', () => {
   test('① 交互态缺 track/preset：向导问答 → 用答案建 change（track/preset 正确透传 store.init）', async () => {
-    // 问题顺序：track, preset, workflow —— 计数断言恰好 3 问（防「多问了问题」被
-    // scriptedPrompter 的 ?? '' 兜底吞掉的回归）
+    // 问题顺序：workflow, track, preset —— 先问 workflow，因为 track 的选项取决于它；计数断言恰好 3 问
+    // （防「多问了问题」被 scriptedPrompter 的 ?? '' 兜底吞掉的回归）
     const deps = makeDeps()
     let asked = 0
-    const inner = scriptedPrompter(['pm', 'full', ''])
+    const inner = scriptedPrompter(['', 'pm', 'full'])
     const env: InitWizardEnv = {
       isInteractive: () => true,
       makePrompter: () => ({ ask: (q) => { asked++; return inner.ask(q) }, close: inner.close }),
@@ -279,10 +320,10 @@ describe('init —— 交互向导（fake InitWizardEnv 注入）', () => {
 
   test('④ 向导 track 非法就地重问：收下一个合法值', async () => {
     const deps = makeDeps()
-    // 首答 devops 非法 → 打错误提示后重问 → pm 合法
+    // workflow 回车收默认 default；首答 devops 非法 → 打错误提示后重问 → pm 合法
     const env: InitWizardEnv = {
       isInteractive: () => true,
-      makePrompter: () => scriptedPrompter(['devops', 'pm', 'full', '']),
+      makePrompter: () => scriptedPrompter(['', 'devops', 'pm', 'full']),
     }
     const code = await cmdInit(deps, 'demo', {}, env)
     expect(code).toBe(0)
@@ -295,7 +336,7 @@ describe('init —— 交互向导（fake InitWizardEnv 注入）', () => {
     // 首答 ful 非法 → 错误提示后重问 → full 合法（flag 路径的开放集语义不受影响）
     const env: InitWizardEnv = {
       isInteractive: () => true,
-      makePrompter: () => scriptedPrompter(['pm', 'ful', 'full', '']),
+      makePrompter: () => scriptedPrompter(['', 'pm', 'ful', 'full']),
     }
     const code = await cmdInit(deps, 'demo', {}, env)
     expect(code).toBe(0)
@@ -310,6 +351,38 @@ describe('init —— 交互向导（fake InitWizardEnv 注入）', () => {
     expect(code).toBe(1)
     expect(deps.store.init.calls).toHaveLength(0)
     expect(deps.errLines.join('\n')).toContain("非法 preset 'my-custom'")
+  })
+
+  test('⑨ 向导选了平铺工作流：不问 track（只有与工作流同名的隐式轨道），只问 workflow 与 preset', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'init-wizard-flat-'))
+    try {
+      await mkdir(join(cwd, '.pipeline', 'workflows'), { recursive: true })
+      await writeFile(join(cwd, '.pipeline', 'workflows', 'onboarding.yaml'), TWO_STEP_WF, 'utf8')
+      const deps = makeDeps({ cwd })
+      let asked = 0
+      const inner = scriptedPrompter(['onboarding', 'full'])
+      const env: InitWizardEnv = {
+        isInteractive: () => true,
+        makePrompter: () => ({ ask: (q) => { asked++; return inner.ask(q) }, close: inner.close }),
+      }
+      const code = await cmdInit(deps, 'demo', {}, env)
+      expect([code, deps.errLines.join('\n')]).toEqual([0, expect.stringContaining('[INIT]')])
+      expect(asked).toBe(2)
+      expect(deps.store.init.calls[0]?.[0]?.track).toBe('onboarding')
+    } finally {
+      await rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  test('⑩ 向导里点名已退役的 standard：exit 1，给出 default 的 lite 轨道命令，不建 change', async () => {
+    const deps = makeDeps()
+    const env: InitWizardEnv = {
+      isInteractive: () => true,
+      makePrompter: () => scriptedPrompter(['standard', 'pm', 'full']),
+    }
+    expect(await cmdInit(deps, 'demo', {}, env)).toBe(1)
+    expect(deps.store.init.calls).toHaveLength(0)
+    expect(deps.errLines.join('\n')).toContain('--workflow default --track lite')
   })
 
   test('⑦ 非交互 --preset nope：exit 1，不落盘', async () => {
@@ -331,7 +404,7 @@ describe('init —— 交互向导（fake InitWizardEnv 注入）', () => {
       await mkdir(join(cwd, '.pipeline', 'workflows'), { recursive: true })
       await writeFile(join(cwd, '.pipeline', 'workflows', 'onboarding.yaml'), TWO_STEP_WF, 'utf8')
       const deps = makeDeps({ cwd })
-      const code = await cmdInit(deps, 'demo', { track: 'backend', workflow: 'onboarding' }, env)
+      const code = await cmdInit(deps, 'demo', { workflow: 'onboarding' }, env)
       expect([code, deps.errLines.join('\n')]).toEqual([0, expect.stringContaining('[INIT]')])
       expect(deps.store.init.calls[0]?.[0]?.preset).toBe('null')
     } finally {

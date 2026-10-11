@@ -40,37 +40,41 @@ n1_clean_only() {
   if n1_clean "$3"; then ok "$1"; else bad "$1" "exit=$2: $(printf '%s' "$3" | head -c 700)"; fi
 }
 
+# 带一条 backend 分支：当前版本的平铺工作流任务把工作流名记作轨道，N-1 的内建轨道表不认得（发布说明的已知限制），
+# 而分支 id backend 两边都认得——这一节测的是记录链与台账的互读，不是轨道。
 n1_workflow() {
   cat <<'YAML'
 name: compat
-steps:
-  - id: build
-    label: 实现
-    gate: null
-    skills: []
-    inputs: []
-    outputs: []
-    agents:
-      executors:
-        - agent: builder
-    guards: []
-    test_policy:
-      plan: required
-      kinds: [typecheck]
-      run: [typecheck]
-      scope: full
-      files: any
-    transitions:
-      - event: build-done
-        to: done
-  - id: done
-    label: 完结
-    gate: null
-    skills: []
-    inputs: []
-    outputs: []
-    guards: []
-    transitions: []
+tracks:
+  backend:
+    steps:
+      - id: build
+        label: 实现
+        gate: null
+        skills: []
+        inputs: []
+        outputs: []
+        agents:
+          executors:
+            - agent: builder
+        guards: []
+        test_policy:
+          plan: required
+          kinds: [typecheck]
+          run: [typecheck]
+          scope: full
+          files: any
+        transitions:
+          - event: build-done
+            to: done
+      - id: done
+        label: 完结
+        gate: null
+        skills: []
+        inputs: []
+        outputs: []
+        guards: []
+        transitions: []
 YAML
 }
 
@@ -108,8 +112,15 @@ n1_compat_default_task() {
   local old="$2" proj="$3" change="$4" label="$5" out code
   out="$(cd "$proj" && node "$old" agent next "$change" 2>&1)"; code="$?"
   n1_expect "$label 读取当前版本冻结的官方 agent（agent next）" 0 "$code" "$out"
+  # 当前 default 把三个通用离开条件（tasks-through-step / not-afk-queued / dependencies-ended）写在前进边上，
+  # N-1 不认识它们：status 照常退出 0、给出任务行，只把 step 投影降级成一行警告（发布说明的回滚条目要求先结束这类任务）。
   out="$(cd "$proj" && node "$old" status "$change" --json 2>&1)"; code="$?"
-  n1_expect "$label 读取当前版本任务的 step 投影（status --json）" 0 "$code" "$out"
+  if [ "$code" -eq 0 ] && printf '%s' "$out" | grep -q '"active_changes"' \
+    && [ "$(printf '%s\n' "$out" | grep -c '^WARN')" -eq 1 ] && printf '%s' "$out" | grep -q '^WARN: step 投影不可用'; then
+    ok "$label 读取当前版本任务（status --json：任务行可读，step 投影按已知限制降级为一行警告）"
+  else
+    bad "$label 读取当前版本任务（status --json）" "exit=$code $(printf '%s' "$out" | head -c 700)"
+  fi
   out="$(cd "$proj" && node "$old" check "$change" 2>&1)"; code="$?"
   n1_clean_only "$label check 不报任何损坏的冻结 agent / 台账 / 记录链" "$code" "$out"
   out="$(cd "$proj" && node "$old" test status "$change" 2>&1)"; code="$?"

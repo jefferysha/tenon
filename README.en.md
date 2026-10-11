@@ -29,7 +29,7 @@ refuses invalid transitions instead of reconstructing progress from prose.
 | An old task can be resumed because it happens to be recent. | A Change is resumed only when the request identifies or explicitly resumes it. |
 | A generic Todo can drift from the real process. | Todo and Dashboard steps come from the selected Workflow. |
 | A prompt can claim that a Skill or document was used. | Current-visit Skill, document digest, read, review, and transition receipts are checked. |
-| Every task is forced through one heavyweight process. | Discussion, simple, default, free, and custom execution have different, explicit outcomes. |
+| Every task is forced through one heavyweight process. | Discussion, the lightweight Track, the heavy Tracks, and custom Workflows have different, explicit outcomes. |
 | “Supported” can hide host limitations. | Adapters publish A/B/C fidelity for context injection, veto, and Skill tracking. |
 
 ## Choose the right execution path
@@ -37,15 +37,16 @@ refuses invalid transitions instead of reconstructing progress from prose.
 | Path | Intended use | Shape | Document behavior |
 | --- | --- | --- | --- |
 | Discussion | Questions, explanation, system notices, slash commands | No Change | No governed documents |
-| Simple | Explicitly bounded, low-risk edits that match the allowlist and no exclusion | `change → verify → done` or `escalated` | No default OpenSpec contract |
-| Default | Product, frontend, backend, research, fixes, features, and refactors | `open → explore → spec ⇄ build ⇄ verify → ship → archive` | Full default evidence chain |
-| Free Track | Explicit neutral implementation without PM/frontend/backend overlays | The selected Workflow | The selected Workflow's gates and document contract still apply |
+| Lightweight (`lite` Track of `default`) | Edits whose assessed scope stays within the lightweight limits | `open → build ⇄ verify → done`, or `escalated` when it outgrows them | No OpenSpec document chain |
+| Product / frontend / backend (heavy Tracks of `default`) | Product research, features, architecture, auth, migrations, dependencies, and other larger work | `open → explore → spec ⇄ build ⇄ verify → ship → archive` | Full default evidence chain |
 | Custom Workflow | A project-specific declarative process | Exactly its authored graph | Only its declared document contract; no contract means no document governance |
 
-Simple routing is intentionally narrow. API or public-contract changes, schemas
-and migrations, authentication or security, dependencies, releases, production
-data, cross-module work, and new features are excluded even when the diff might
-be one line.
+Weight is not guessed from keywords. Before a Change is created, `tenon assess
+--files` evaluates the files the work is expected to touch: more than 8 files, or
+any contract, auth, dependency, migration, deleted-test, or protected test
+configuration file, recommends the domain's heavy Track, and the Change is
+created only after you confirm. A lightweight Change that outgrows its limits
+during implementation is escalated by the change-risk probe.
 
 [Understand routing and workflows →](docs/usage/routing-and-workflows.md)
 
@@ -59,7 +60,7 @@ be one line.
 | Workflow overview |
 | --- |
 | <img src="docs-site/public/images/dashboard-workbench.webp" alt="Tenon Dashboard workflow overview" width="1280" height="800" loading="lazy"> |
-| Default, custom, and free modes share one inspectable orchestration model. |
+| Default and custom Workflows share one inspectable orchestration model. |
 
 The primary shell keeps five destinations: Workspace, Workflow, Projects,
 Library, and Skills. Theme and language live in the settings menu. Host Plan, AFK, and
@@ -138,9 +139,10 @@ After setup and hook trust, ask for real work in normal conversation:
 Add keyboard navigation to the project switcher and test it.
 ```
 
-The router either suppresses governance for discussion, selects the narrow
-simple path, or creates a new governed Change on an applicable Track. It does
-not silently resume an unrelated old Change.
+The router suppresses governance for discussion; for development work it
+assesses the expected scope first, then creates a new governed Change on the
+lightweight or the domain's heavy Track. It does not silently resume an
+unrelated old Change.
 
 Inspect the result:
 

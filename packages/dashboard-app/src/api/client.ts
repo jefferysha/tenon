@@ -20,9 +20,7 @@ export { fetchPendingDecisions, postReviewAcknowledge } from './decisionClient'
 export type { PendingDecision, PendingDecisionView, ReviewAcknowledgeResponse } from './decisionClient'
 
 export {
-  deleteTrackDefinition,
   deleteWorkflowDef,
-  fetchConfig,
   fetchHooksConfig,
   fetchSkillFile,
   fetchSkillFiles,
@@ -31,13 +29,8 @@ export {
   fetchWorkflowIndex,
   fetchWorkflowNames,
   getHistory,
-  patchTrackDefinition,
-  postCreateChange,
   postHookToggle,
   postPromptRoutingBypass,
-  postMandatorySkills,
-  postRouterPreview,
-  postTrackDefinition,
   postWorkflowDef,
   unregisterProject,
 } from './governanceClient'
@@ -100,17 +93,10 @@ export {
 
 export type {
   ChangeHistoryEntry,
-  ChangeSessionLaunch,
-  ChangeSessionStatus,
-  CreatedChange,
-  WbConfigSnapshot,
   WbHookEvent,
   WbHookMeta,
   WbHooksConfig,
-  WbRouterPreview,
-  WbRouterPreviewCandidate,
   WbSkillEntry,
-  WbTrackDefinition,
 } from './governanceTypes'
 
 export type {

@@ -23,6 +23,15 @@ describe('standard 通道命令的输出语言', () => {
       .toBe("评审者 'security' 只在 auth/dependency 路径变化时挂载，本任务的改动没有碰到这些路径，不需要运行它")
   })
 
+  it('assess 读不出路径是否存在：两种语言都点名路径与原因', () => {
+    const params = { path: '"src/a.ts"', reason: 'EACCES' }
+    expect(formatMessage('zh', 'assess.path.unreadable', params)).toBe('无法确认路径是否存在（EACCES）：评估不猜，请先修好读取权限："src/a.ts"')
+    const en = formatMessage('en', 'assess.path.unreadable', params)
+    expect(en).toContain('EACCES')
+    expect(en).toContain('"src/a.ts"')
+    expect(CJK.test(en)).toBe(false)
+  })
+
   it('test diff-risk 的错误：zh 保持原文，en 是英文', async () => {
     const zh = depsFor('zh')
     expect(await cmdTestDiffRisk(zh, 'bad name!')).toBe(1)

@@ -5,6 +5,7 @@
  */
 import { readFile, stat } from 'node:fs/promises'
 import type { TestMetricCriterion } from '../workflow/types.js'
+import { thresholdBreaches } from '../workspace/change-risk.js'
 import type { TestBaselineV1, TestMetricRecord, TestRunReason } from './types.js'
 
 const MAX_METRICS = 200
@@ -115,13 +116,10 @@ export function evaluateMetricCriteria(input: {
       ok = false
       reasons.push({ code: 'metric-unreadable', detail: `指标 '${name}' 缺失` })
     } else if (criterion !== undefined) {
-      if (criterion.max !== undefined && value > criterion.max) {
+      for (const breach of thresholdBreaches(value, criterion)) {
         ok = false
-        reasons.push({ code: 'metric-threshold', detail: `指标 '${name}' ${value} 超过上限 ${criterion.max}` })
-      }
-      if (criterion.min !== undefined && value < criterion.min) {
-        ok = false
-        reasons.push({ code: 'metric-threshold', detail: `指标 '${name}' ${value} 低于下限 ${criterion.min}` })
+        const wording = breach.kind === 'max' ? '超过上限' : '低于下限'
+        reasons.push({ code: 'metric-threshold', detail: `指标 '${name}' ${value} ${wording} ${breach.limit}` })
       }
       if (criterion.max_regression_pct !== undefined) {
         if (base === null) {

@@ -38,7 +38,7 @@ describe('ship 出口：delta spec 必须真的应用进主规格', () => {
 
   beforeEach(async () => {
     h = await freshHarness()
-    expect(await h.run(['init', CHANGE, '--track', 'backend', '--preset', 'full'])).toBe(0)
+    expect(await h.initLegacyDefault(CHANGE, 'backend')).toBe(0)
     expect(await h.run(['session', 'activate', CHANGE])).toBe(0)
     await h.seedGovernedDocumentEvidence(CHANGE)
     // 本用例的主题是 ship 的规格应用门，不是前面六相位的推进；相位直接置于 ship。

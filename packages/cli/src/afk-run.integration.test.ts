@@ -58,19 +58,23 @@ loops:
       - .sandcastle-build/**
 `
 
+// AFK 资格只读分支的 automation.eligible：夹具工作流用一条声明了它的 backend 分支，而不是平铺。
 const CUSTOM_BUILD_WORKFLOW = `name: h7s3-custom-workflow
 interaction:
   version: v1
   mode: afk
-steps:
-  - id: build
-    label: Build
-    gate: null
-    skills: []
-    inputs: []
-    outputs: []
-    guards: []
-    transitions: []
+tracks:
+  backend:
+    automation: { eligible: true }
+    steps:
+      - id: build
+        label: Build
+        gate: null
+        skills: []
+        inputs: []
+        outputs: []
+        guards: []
+        transitions: []
 `
 
 const AFK_BUILD_WORKFLOW_ID = 'afk-build-fixture'
@@ -78,15 +82,18 @@ const AFK_BUILD_WORKFLOW = `name: ${AFK_BUILD_WORKFLOW_ID}
 interaction:
   version: v1
   mode: afk
-steps:
-  - id: build
-    label: Build
-    gate: null
-    skills: []
-    inputs: []
-    outputs: []
-    guards: []
-    transitions: []
+tracks:
+  backend:
+    automation: { eligible: true }
+    steps:
+      - id: build
+        label: Build
+        gate: null
+        skills: []
+        inputs: []
+        outputs: []
+        guards: []
+        transitions: []
 `
 
 async function seedLoops(cwd: string): Promise<void> {

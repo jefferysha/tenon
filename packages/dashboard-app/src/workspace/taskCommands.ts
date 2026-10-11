@@ -42,6 +42,3 @@ export function agentPromptCommand(root: string, change: string, agent: string):
 export function reviewRequestCommand(root: string, change: string, event: string): string {
   return inProject(root, `tenon review request ${shellQuote(change)} --event ${shellQuote(event)}`)
 }
-
-/** 新建任务的完整命令（空态引导），不省略 --preset。 */
-export const INIT_COMMAND = 'tenon init my-change --workflow default --track chat --preset full'

@@ -7,14 +7,13 @@
 import { readFile } from 'node:fs/promises'
 import {
   defaultEventGuardFields, isTenonUser, phaseExitGuardFields, readSpecApplyReceiptStatus, reviewGateEvent,
-  reviewGateMatches, reviewGateStatus, userProjectPaths, userSlug,
-  type EffectiveWorkflowPlan, type EventName, type PipelineState,
+  readTaskResult, reviewGateMatches, reviewGateStatus, userProjectPaths, userSlug,
+  type EffectiveWorkflowPlan, type EventName, type PipelineState, type StepIR,
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 import { str } from '../render.js'
-import { archivedChangesForUser } from '../archivedGuard.js'
 import { parseContinuousAuthority } from '../continuousAuthority.js'
-import { changeDir } from '../paths.js'
+import { archivedChangeDir, changeDir } from '../paths.js'
 import { agentStepViews, downstreamReviewBar, type StepAgentView } from './statusStepAgents.js'
 import { evaluateStepExitReport, type StepExit } from './stepExitReport.js'
 import {
@@ -23,6 +22,8 @@ import {
 } from './statusStepParts.js'
 import { effectiveArtifactFields } from './effective-artifacts.js'
 import { effectiveArtifactProducers } from './artifact.js'
+import { isLegacyExecution, isStepGraphExecution } from './execution-cli-seam.js'
+import { leaveGuards } from './exitGuards.js'
 import { retiredSkillReferences, retiredSkillsChangeMessage, testItemSettled } from '@tenon/kernel'
 import { testEvidenceContextFor, testEvidenceReaderFor } from '../testEvidenceContext.js'
 import { currentCandidate } from './candidate.js'
@@ -54,8 +55,8 @@ export interface StepBlock {
   readonly gate: string | null
   readonly mode: StepMode
   /**
-   * 这个任务不再是活跃任务：当前用户把它收起了（per-user 归档表），或状态机已完结
-   * （`fields.archived=true`）。两种都为 true——已完结的 change 不会再带一个 `archived:false` 的 step。
+   * 状态机已完结（`fields.archived=true`）：已完结的 change 不会再带一个 `archived:false` 的 step。
+   * 这不是「隐藏」——没有按用户隐藏任务这回事；任务要么在进行，要么已结束。
    */
   readonly archived: boolean
   readonly governed_openspec: boolean
@@ -107,19 +108,29 @@ function artifactFieldsOf(
 }
 
 /**
- * default 轨的前置 guard 分在两张表里，都不在 step.guards 上：
+ * 字段投影读的步骤：按 YAML 执行的任务，离开条件写在步骤自己和前进出边的 guards 上（`leaveGuards`），
+ * 把两者并进 `guards` 交给 `stepFields`；投影层与转换强制层因此读同一份声明。
+ * 旧执行模型的任务由 `nativeGuardFieldsOf` 补充，这里原样返回。
+ */
+function withLeaveGuards(plan: EffectiveWorkflowPlan, state: PipelineState, step: StepIR | undefined): StepIR | undefined {
+  if (step === undefined || !isStepGraphExecution(plan)) return step
+  return { ...step, guards: leaveGuards(plan, step, state) }
+}
+
+/**
+ * 旧执行模型（阶段清单）的任务，前置 guard 分在两张表里，都不在 step.guards 上：
  *   · flow/default-event-policy.ts —— 每条出边事件自己的前置（build_mode / isolation / …）；
  *   · flow/guard.ts 的 EXIT_RULES —— 离开本相位的出口条件（pm 的 prd_path、pm verify 的
  *     verify_result、非 pm 的 pr_url …）。第二张表此前只有 `tenon check` 读，于是 pm 在 verify
  *     步既看不到 verify_result 也收不到对应 blocker，只能在 request-review 上空转。
- * 两张都取，投影层与转换强制层就读同一份声明。custom 轨的 guard 全在 step 上，返回空集。
+ * 两张都取，投影层与转换强制层就读同一份声明。按 YAML 执行的任务返回空集（见 `withLeaveGuards`）。
  */
 function nativeGuardFieldsOf(
   plan: EffectiveWorkflowPlan,
   state: PipelineState,
   exits: readonly StepExit[],
 ): readonly StepFieldRequirement[] {
-  if (plan.capabilities.execution.model !== 'phase-manifest') return []
+  if (!isLegacyExecution(plan)) return []
   const out: StepFieldRequirement[] = []
   const push = (item: { readonly field: string; readonly required?: readonly string[] }): void => {
     if (out.some((seen) => seen.field === item.field)) return
@@ -183,7 +194,6 @@ export async function buildStatusStep(
   const dir = changeDir(deps.cwd, name)
   const stepId = str(state.fields.phase)
   const step = plan.workflow.steps.find((candidate) => candidate.id === stepId)
-  const archived = (await archivedChangesForUser(deps)).has(name)
   // 出边报告与技能分块共用同一份完成证据；两处各算一遍就是 check/transition 分歧的来源。
   const report = await evaluateStepExitReport(deps, name, dir, state, plan)
   const completed = report.completedSkillIds
@@ -210,7 +220,7 @@ export async function buildStatusStep(
   const documents = stepDocuments(name, policy, stepId, report.documents?.items ?? [])
   const artifacts = artifactFieldsOf(deps, state, step)
   const fields = await withPrUrlRecommendation(
-    deps, stepFields(state, step, artifacts, nativeGuardFieldsOf(plan, state, report.exits)))
+    deps, stepFields(state, withLeaveGuards(plan, state, step), artifacts, nativeGuardFieldsOf(plan, state, report.exits)))
   const gateStatus = reviewGateStatus(state)
   const review = {
     status: gateStatus !== null && reviewGateMatches(state, stepId) ? gateStatus : 'none',
@@ -236,7 +246,7 @@ export async function buildStatusStep(
     prompt: step?.prompt ?? null,
     gate: step?.gate ?? null,
     mode: await modeOf(deps, name),
-    archived: archived || str(state.fields.archived) === 'true',
+    archived: str(state.fields.archived) === 'true',
     governed_openspec: plan.capabilities.documents.governed,
     candidate: await currentCandidate(deps, name, state, plan, stepId),
     skills,
@@ -249,7 +259,6 @@ export async function buildStatusStep(
     exits,
     rounds,
   }
-  if (archived) return { ...block, next: stop('archived', `任务 '${name}' 已归档；先取消归档再继续`) }
   if (retired.length > 0) {
     return { ...block, next: stop('retired-skills', retiredSkillsChangeMessage(name, retired)) }
   }
@@ -287,7 +296,7 @@ export async function buildStatusStep(
       testConfigGaps: await testConfigGaps(deps, plan, stepId, tests, report.exits,
         documents.records.some((doc) => PLAN_DOCUMENT_KINDS.has(doc.kind))),
       ...await deliveryFacts(deps, name, state, fields),
-      escalation: stepEscalation(testReport.items, report.exits),
+      escalation: stepEscalation(testReport.items, report.exits, plan, state),
       rounds,
       roundsRoute: rounds === null ? null : roundsRoute(plan, stepId),
       reviewBar: await downstreamReviewBar(dir, state, plan, stepId,
@@ -298,7 +307,7 @@ export async function buildStatusStep(
 }
 
 /**
- * 已完结、change 目录已被 `openspec archive` 搬进 archive/ 的任务：没有工作区可以投影，但 `step` 照样
+ * 已结束、change 目录已被移进 archive/ 的任务（完结、已升级、已终止）：没有工作区可以投影，但 `step` 照样
  * 给出，结构与活跃任务一致（证据类分块为空），`next` 是 `stop finished`。真机（第三轮）：从前这里
  * 省略 `step`，照 `.step.next[0]` 读的循环当场 KeyError。
  */
@@ -310,6 +319,8 @@ export async function finishedStatusStep(
 ): Promise<StepBlock> {
   const stepId = str(state.fields.phase)
   const step = plan?.workflow.steps.find((candidate) => candidate.id === stepId)
+  const archivedDir = archivedChangeDir(deps.cwd, name)
+  const recorded = archivedDir === null ? undefined : await readTaskResult(archivedDir, deps.store)
   return {
     schema: 'tenon-step-v1',
     change: name,
@@ -333,7 +344,7 @@ export async function finishedStatusStep(
     review: { status: 'none', event: null },
     exits: [],
     rounds: null,
-    next: finishedStop(name),
+    next: finishedStop(name, recorded),
   }
 }
 

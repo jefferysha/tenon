@@ -42,7 +42,7 @@ function defaultWorkflowExecution(fields: ChangeSnapshot['fields'], track: strin
     readinessByTransition: {
       open: { 'open-complete': ready },
       explore: { 'explore-complete': present('design_doc') ? ready : missing('design_doc') },
-      spec: { 'spec-complete': track === 'pm' || track === 'free' || present('plan') ? ready : missing('plan') },
+      spec: { 'spec-complete': track === 'pm' || present('plan') ? ready : missing('plan') },
       build: {
         'build-complete': present('build_mode') && present('isolation')
           ? ready

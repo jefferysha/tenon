@@ -12,6 +12,48 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 
 面向用户的解释、影响与操作步骤默认使用中文。
 
+## 未发布
+
+内建工作流收敛为两个：`default`，它的轨道现在是轻量（`lite`）、产品（`pm`）、前端（`frontend`）、后端（`backend`），以及平铺的 `design-system`。轻量轨道取代了 `standard` 与 `simple` 工作流，开发请求在建任务前先评估，所有任务都在 `openspec/changes/archive/` 里结束，工作台新增「已结束」分类。升级项目前先读「退役与迁移」。
+
+### 退役与迁移
+
+- `standard`、`simple` 工作流已删除。`tenon init <name> --workflow standard` 与 `--workflow simple` 报错，并提示改用 `--workflow default --track lite`。
+- `default` 的 `chat`（对话）、`free`（自由）轨道已删除，也不再需要中立轨道：没有 `tracks:` 的工作流本身就是唯一的轨道，所以 `tenon init <name> --workflow design-system` 不写 `--track`。把已退役的轨道 id（`standard`、`simple`、`chat`、`free`）传给 `--track` 会报错，并列出该工作流可选的轨道。
+- 内建轨道登记表与 `.pipeline/tracks.yaml` 不再读取；文件还在时 Tenon 只打印一行提示。轨道现在只是工作流 YAML 里的分支（`tracks.<id>`），把你留在 `tracks.yaml` 里的路由词写进分支的 `route`。
+- 「隐藏」已删除。`tenon task archive`、`tenon task unarchive`、工作台「已归档」开关和每用户的 `archived.json` 都不再存在；两个旧子命令退出码 `1` 并指向 `tenon task terminate` 与 `tenon task finish`。此前被隐藏的任务重新出现在「进行中」。
+- 新任务不再有 `build_mode`、`isolation`、`direct_override`、`branch_status` 这几个字段及其检查，statefile、立项字面路径、规格 coverage 矩阵的检查也已删除。升级前创建的任务保留自己的字段。
+- manifest 的技能矩阵（`mandatory_skills`）及写它的 Dashboard 接口、`POST /api/changes`（Dashboard 不再新建任务）、路由预览都已删除；技能只来自工作流 YAML。
+- 旧的 phase-manifest 引擎现在只服务升级前已创建的任务，按它们冻结的快照执行，下个版本删除。在途的 `standard`、`simple`、对话或自由任务按开工时冻结的快照走完。
+
+### 新增
+
+- `default` 按 YAML 执行。它的规则写成离开条件，其中三个是通用的：`tasks-through-step`、`not-afk-queued`、`dependencies-ended`。不带 event 的 `tenon check <name>` 列出步骤 guards 与前进边 guards，一次列出全部未满足的条件，退出码 `2`；`tenon advance` 只走唯一的前进边。
+- 轨道的 `spec`（`openspec` 或 `none`）、`route`（`keywords`、`exclude`、`priority`、`fallback`）与 `automation`（`eligible`、`enqueue_after_spec`）写在分支上。AFK 资格只看 `automation.eligible`；没写 `automation` 的轨道不可入队（`tenon afk enqueue` 退出码 `3`，带 `--json` 时 `reason: "track-not-afk-eligible"`）。`tenon tracks list` 列出全部工作流的轨道。
+- 路由数据从工作流分支生成（缓存 `router.v6`，任一工作流文件变化就重建），不再按关键词决定轻重：不带重型信号的开发请求，dispatch 带 `assess: required` 和两行 `candidate:`（轻量轨道与领域重型轨道）。
+- `tenon assess --files <路径>...` 在任务建立之前，按与改动风险探针相同的分类规则，用轻量轨道的阈值评估预计要改的文件（退出码 `0` 未超限，`3` 超限并列出被突破的阈值，`1` 出错）。`tenon` 技能把结果与推荐摆给你，你确认后才创建任务。
+- `tenon init --domain <track>` 记下轻量任务将升级到的重型轨道，这样探针的 `escalate.then` 直接点名它。
+- `tenon task finish <name>` 与 `tenon task terminate <name>` 把任务移进 `openspec/changes/archive/<日期>-<name>/` 并记下结果：完结、已升级或已终止。`step.next` 的 `finish-change` 现在执行 `tenon task finish`，OpenSpec 轨道由 Tenon 自己调用 `openspec archive <name> --skip-specs --yes --json`，`terminate` 只提交任务目录。`tenon list --finished` 列出已结束的任务。
+- 工作台分类为 全部 · 需要你 · 进行中 · 已结束。已结束的卡片带结果标记，「全部」也包含已结束的任务，排在进行中之后。工作流页可改轨道的规范与路由关键词，并只读列出每步的离开条件；`GET /api/change/:dir/snapshot?archived=1` 读取已结束的任务。
+
+### 升级动作
+
+1. 把脚本和笔记里的 `--workflow standard` / `--workflow simple` 换成 `--workflow default --track lite`，`design-system` 任务去掉 `--track`。
+2. 把 `tenon task archive <name>` 换成 `tenon task terminate <name>`（放弃任务）或 `tenon task finish <name>`（已走到终点的任务）。
+3. 把 `.pipeline/tracks.yaml` 里的规则写进工作流分支的 `route`。
+4. 如果你在全局存储里保存过自己的 `default`，它照常加载，但缺 `lite` 分支的副本会让 `tenon assess` 报「没有改动风险阈值」而不是去猜；要用评估，就加一条带 `diff-risk` 测试的 `lite` 分支。
+5. 回滚到更早的版本之前，先完结或终止升级后新建的任务。更早的版本不认识三个通用离开条件，新建的 `default` 任务在 `tenon status` 里步骤投影只显示一行警告；它不认识的轨道上新建的任务会被直接拒绝读取：`lite`，以及没有 `tracks:` 的工作流（`design-system` 或你自己的平铺工作流，轨道记的是工作流名）（见[更新、恢复与卸载](updates-recovery-and-uninstall.md)）。
+
+### 验证
+
+```bash
+tenon tracks list
+tenon assess --files <路径>... --json
+tenon init demo --workflow standard
+```
+
+`tracks list` 列出 `default` 的 `lite`、`pm`、`frontend`、`backend`、`design-system` 和你自己的工作流；`assess` 对预计要改的文件给出是否超限；最后一条退出码 `1` 并提示 `--workflow default --track lite`（`demo` 只是示例名，没有创建任何东西）。
+
 ## v0.3.2 · 2026-10-07
 
 v0.3.1 的修复版，来自它的补充验收。`tenon runtime repair --rollback` 不再让安装卡死，任务开始之前就已提交的 `not_applicable` 条目在批准之后不再挡住任务，`tenon test discover` 写出的基准命令能在 vitest 5 上运行。
@@ -147,7 +189,7 @@ v0.3 让 Tenon 在普通项目里能用，也更难被糊弄。小改动现在�
 ### 标准通道
 
 - `standard` 是内建的工作流与轨道：`open → build → verify → done`，没有 Explore 阶段，也没有 OpenSpec 文档。Build 跑单测和改动风险探针，Verify 只有一道评审门，评审者是 `code-review` 和 `security`（后者只在碰到鉴权、依赖或契约路径时挂载）。
-- 实现类请求（修、加、重构，中英文都认）路由到 `standard`；带重型信号的请求（架构、schema、鉴权、依赖升级、发布）仍走 `default`。见[标准通道](routing-and-workflows.md#标准通道)。
+- 实现类请求（修、加、重构，中英文都认）路由到 `standard`；带重型信号的请求（架构、schema、鉴权、依赖升级、发布）仍走 `default`。见[轻量轨道](routing-and-workflows.md#轻量轨道)，它后来取代了标准通道。
 - 看上去在改代码、却没有任何轨道命中的提示，会收到一行「未被治理」的说明。
 - `tenon test diff-risk [<change>] [--json]` 是 Build 要求的改动风险探针：源码文件多于 8 个、动了契约、鉴权、依赖或迁移路径、删了测试、改了测试配置，任一项都不通过（阈值是 `pass.metrics`）。
 - 探针不过时，`step.next` 只剩一条带 `escalate` 载荷的 `scope-expanded` 转换，提示改开 `default` 任务。

@@ -1,0 +1,1201 @@
+{
+  "version": 1,
+  "contract": "openspec-v1",
+  "createdAt": "2026-10-10T10:40:34Z",
+  "records": [
+    {
+      "kind": "adr",
+      "path": "docs/adr/consolidate-workflow-tracks.md",
+      "sha256": "7d54178f2f39685bfff6a68dc11a6a907b9308951b3654743486234ca49713ce",
+      "producer": "brainstorming",
+      "recordedAt": "2026-10-10T13:06:12Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-6e9b1fdcf9f18398a5246678283787ad7d90e2a00a2df712bb1d74803a7ad4fc",
+        "evidenceScope": "explore",
+        "stepVisit": {
+          "runId": "f01697db-fe0a-40ad-83bc-adf900edfb8c",
+          "transitionSequence": 1
+        }
+      },
+      "reads": [
+        {
+          "phase": "spec",
+          "sha256": "7d54178f2f39685bfff6a68dc11a6a907b9308951b3654743486234ca49713ce",
+          "readAt": "2026-10-10T13:19:12Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",2]"
+        },
+        {
+          "phase": "build",
+          "sha256": "7d54178f2f39685bfff6a68dc11a6a907b9308951b3654743486234ca49713ce",
+          "readAt": "2026-10-11T02:38:44Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "7d54178f2f39685bfff6a68dc11a6a907b9308951b3654743486234ca49713ce",
+          "readAt": "2026-10-11T07:04:38Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",4]"
+        },
+        {
+          "phase": "build",
+          "sha256": "7d54178f2f39685bfff6a68dc11a6a907b9308951b3654743486234ca49713ce",
+          "readAt": "2026-10-11T07:43:16Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",5]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "7d54178f2f39685bfff6a68dc11a6a907b9308951b3654743486234ca49713ce",
+          "readAt": "2026-10-11T10:22:51Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",6]"
+        },
+        {
+          "phase": "build",
+          "sha256": "7d54178f2f39685bfff6a68dc11a6a907b9308951b3654743486234ca49713ce",
+          "readAt": "2026-10-11T12:47:36Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",7]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "7d54178f2f39685bfff6a68dc11a6a907b9308951b3654743486234ca49713ce",
+          "readAt": "2026-10-11T14:23:18Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",8]"
+        },
+        {
+          "phase": "build",
+          "sha256": "7d54178f2f39685bfff6a68dc11a6a907b9308951b3654743486234ca49713ce",
+          "readAt": "2026-10-11T14:48:37Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",9]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "7d54178f2f39685bfff6a68dc11a6a907b9308951b3654743486234ca49713ce",
+          "readAt": "2026-10-11T15:21:55Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",10]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "7d54178f2f39685bfff6a68dc11a6a907b9308951b3654743486234ca49713ce",
+          "readAt": "2026-10-11T16:06:11Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:5c9185f8ea01901e5f07b27cb6fb7b64",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:7d54178f2f39685bfff6a68dc11a6a907b9308951b3654743486234ca49713ce",
+        "projection": "document",
+        "content_digest": "sha256:7d54178f2f39685bfff6a68dc11a6a907b9308951b3654743486234ca49713ce",
+        "source": {
+          "path": "docs/adr/consolidate-workflow-tracks.md",
+          "document_kind": "adr"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "openspec-design",
+      "path": "openspec/changes/consolidate-workflow-tracks/design.md",
+      "sha256": "b7169b0ed638c38b58311ca7e451b8fc4138e89a2b0c01ffae4741df937f4523",
+      "producer": "tenon",
+      "recordedAt": "2026-10-10T13:06:13Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-5e2f817b3b9038244f7b2a1f3204c1e4d202f3bd16ca0aee311e18377f342dd6",
+        "evidenceScope": "explore",
+        "stepVisit": {
+          "runId": "f01697db-fe0a-40ad-83bc-adf900edfb8c",
+          "transitionSequence": 1
+        }
+      },
+      "reads": [
+        {
+          "phase": "explore",
+          "sha256": "b7169b0ed638c38b58311ca7e451b8fc4138e89a2b0c01ffae4741df937f4523",
+          "readAt": "2026-10-10T13:06:15Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",1]"
+        },
+        {
+          "phase": "spec",
+          "sha256": "b7169b0ed638c38b58311ca7e451b8fc4138e89a2b0c01ffae4741df937f4523",
+          "readAt": "2026-10-10T13:19:12Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",2]"
+        },
+        {
+          "phase": "build",
+          "sha256": "b7169b0ed638c38b58311ca7e451b8fc4138e89a2b0c01ffae4741df937f4523",
+          "readAt": "2026-10-11T02:38:44Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "b7169b0ed638c38b58311ca7e451b8fc4138e89a2b0c01ffae4741df937f4523",
+          "readAt": "2026-10-11T07:04:38Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",4]"
+        },
+        {
+          "phase": "build",
+          "sha256": "b7169b0ed638c38b58311ca7e451b8fc4138e89a2b0c01ffae4741df937f4523",
+          "readAt": "2026-10-11T07:43:16Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",5]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "b7169b0ed638c38b58311ca7e451b8fc4138e89a2b0c01ffae4741df937f4523",
+          "readAt": "2026-10-11T10:22:51Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",6]"
+        },
+        {
+          "phase": "build",
+          "sha256": "b7169b0ed638c38b58311ca7e451b8fc4138e89a2b0c01ffae4741df937f4523",
+          "readAt": "2026-10-11T12:47:36Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",7]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "b7169b0ed638c38b58311ca7e451b8fc4138e89a2b0c01ffae4741df937f4523",
+          "readAt": "2026-10-11T14:23:18Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",8]"
+        },
+        {
+          "phase": "build",
+          "sha256": "b7169b0ed638c38b58311ca7e451b8fc4138e89a2b0c01ffae4741df937f4523",
+          "readAt": "2026-10-11T14:48:37Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",9]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "b7169b0ed638c38b58311ca7e451b8fc4138e89a2b0c01ffae4741df937f4523",
+          "readAt": "2026-10-11T15:21:55Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",10]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "b7169b0ed638c38b58311ca7e451b8fc4138e89a2b0c01ffae4741df937f4523",
+          "readAt": "2026-10-11T16:06:11Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:2db251619605711ab9909bbf1630c9e5",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:b7169b0ed638c38b58311ca7e451b8fc4138e89a2b0c01ffae4741df937f4523",
+        "projection": "document",
+        "content_digest": "sha256:b7169b0ed638c38b58311ca7e451b8fc4138e89a2b0c01ffae4741df937f4523",
+        "source": {
+          "path": "openspec/changes/consolidate-workflow-tracks/design.md",
+          "document_kind": "openspec-design"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "superpower-plan",
+      "path": "docs/superpowers/plans/consolidate-workflow-tracks.md",
+      "sha256": "29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+      "producer": "writing-plans",
+      "recordedAt": "2026-10-10T13:16:00Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-461b951b9ec544902353185d97a20845f929b4a66e56431db1281a72bd8cd253",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "f01697db-fe0a-40ad-83bc-adf900edfb8c",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+          "readAt": "2026-10-11T02:38:44Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+          "readAt": "2026-10-11T07:04:38Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",4]"
+        },
+        {
+          "phase": "build",
+          "sha256": "29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+          "readAt": "2026-10-11T07:43:16Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",5]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+          "readAt": "2026-10-11T10:22:51Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",6]"
+        },
+        {
+          "phase": "build",
+          "sha256": "29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+          "readAt": "2026-10-11T12:47:36Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",7]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+          "readAt": "2026-10-11T14:23:18Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",8]"
+        },
+        {
+          "phase": "build",
+          "sha256": "29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+          "readAt": "2026-10-11T14:48:37Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",9]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+          "readAt": "2026-10-11T15:21:55Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",10]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+          "readAt": "2026-10-11T16:06:11Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:d474b7a11e7774d2cb08fecb4e6b5c9c",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+        "projection": "document",
+        "content_digest": "sha256:29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+        "source": {
+          "path": "docs/superpowers/plans/consolidate-workflow-tracks.md",
+          "document_kind": "superpower-plan"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "plan",
+      "path": "docs/superpowers/plans/consolidate-workflow-tracks.md",
+      "sha256": "29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+      "producer": "writing-plans",
+      "recordedAt": "2026-10-10T13:16:00Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-461b951b9ec544902353185d97a20845f929b4a66e56431db1281a72bd8cd253",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "f01697db-fe0a-40ad-83bc-adf900edfb8c",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+          "readAt": "2026-10-11T02:38:44Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+          "readAt": "2026-10-11T07:04:38Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",4]"
+        },
+        {
+          "phase": "build",
+          "sha256": "29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+          "readAt": "2026-10-11T07:43:16Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",5]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+          "readAt": "2026-10-11T10:22:51Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",6]"
+        },
+        {
+          "phase": "build",
+          "sha256": "29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+          "readAt": "2026-10-11T12:47:36Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",7]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+          "readAt": "2026-10-11T14:23:18Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",8]"
+        },
+        {
+          "phase": "build",
+          "sha256": "29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+          "readAt": "2026-10-11T14:48:37Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",9]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+          "readAt": "2026-10-11T15:21:55Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",10]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+          "readAt": "2026-10-11T16:06:11Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:d474b7a11e7774d2cb08fecb4e6b5c9c",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+        "projection": "document",
+        "content_digest": "sha256:29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+        "source": {
+          "path": "docs/superpowers/plans/consolidate-workflow-tracks.md",
+          "document_kind": "plan"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "proposal",
+      "path": "openspec/changes/consolidate-workflow-tracks/proposal.md",
+      "sha256": "b12993d0b6157ec2dc9b938ad87fd74c1d2f98a98c133089c25f17427544f7a1",
+      "producer": "tenon",
+      "recordedAt": "2026-10-10T13:16:59Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-d19666207be4f601ef2812e71ffdd33ed6075dc9a90d47e6f1c5d1e54aa89508",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "f01697db-fe0a-40ad-83bc-adf900edfb8c",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "spec",
+          "sha256": "b12993d0b6157ec2dc9b938ad87fd74c1d2f98a98c133089c25f17427544f7a1",
+          "readAt": "2026-10-10T13:19:12Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",2]"
+        },
+        {
+          "phase": "build",
+          "sha256": "b12993d0b6157ec2dc9b938ad87fd74c1d2f98a98c133089c25f17427544f7a1",
+          "readAt": "2026-10-11T02:38:44Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "b12993d0b6157ec2dc9b938ad87fd74c1d2f98a98c133089c25f17427544f7a1",
+          "readAt": "2026-10-11T07:04:38Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",4]"
+        },
+        {
+          "phase": "build",
+          "sha256": "b12993d0b6157ec2dc9b938ad87fd74c1d2f98a98c133089c25f17427544f7a1",
+          "readAt": "2026-10-11T07:43:16Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",5]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "b12993d0b6157ec2dc9b938ad87fd74c1d2f98a98c133089c25f17427544f7a1",
+          "readAt": "2026-10-11T10:22:51Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",6]"
+        },
+        {
+          "phase": "build",
+          "sha256": "b12993d0b6157ec2dc9b938ad87fd74c1d2f98a98c133089c25f17427544f7a1",
+          "readAt": "2026-10-11T12:47:36Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",7]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "b12993d0b6157ec2dc9b938ad87fd74c1d2f98a98c133089c25f17427544f7a1",
+          "readAt": "2026-10-11T14:23:18Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",8]"
+        },
+        {
+          "phase": "build",
+          "sha256": "b12993d0b6157ec2dc9b938ad87fd74c1d2f98a98c133089c25f17427544f7a1",
+          "readAt": "2026-10-11T14:48:37Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",9]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "b12993d0b6157ec2dc9b938ad87fd74c1d2f98a98c133089c25f17427544f7a1",
+          "readAt": "2026-10-11T15:21:55Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",10]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "b12993d0b6157ec2dc9b938ad87fd74c1d2f98a98c133089c25f17427544f7a1",
+          "readAt": "2026-10-11T16:06:11Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:700386f5e0bb4383b18a65c311e55431",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:b12993d0b6157ec2dc9b938ad87fd74c1d2f98a98c133089c25f17427544f7a1",
+        "projection": "document",
+        "content_digest": "sha256:b12993d0b6157ec2dc9b938ad87fd74c1d2f98a98c133089c25f17427544f7a1",
+        "source": {
+          "path": "openspec/changes/consolidate-workflow-tracks/proposal.md",
+          "document_kind": "proposal"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "delta-spec",
+      "path": "openspec/changes/consolidate-workflow-tracks/specs/workflow-tracks/spec.md",
+      "sha256": "185375960e11acfffe0e4ab3c1341dd083f0684551b981f93584ba86814d170d",
+      "producer": "openspec-propose",
+      "recordedAt": "2026-10-10T13:19:11Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-7cedc373b07b87e40e088f8bac2304f3513e5285b7fe3212e20def27711f78a8",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "f01697db-fe0a-40ad-83bc-adf900edfb8c",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "185375960e11acfffe0e4ab3c1341dd083f0684551b981f93584ba86814d170d",
+          "readAt": "2026-10-11T02:38:44Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "185375960e11acfffe0e4ab3c1341dd083f0684551b981f93584ba86814d170d",
+          "readAt": "2026-10-11T07:04:38Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",4]"
+        },
+        {
+          "phase": "build",
+          "sha256": "185375960e11acfffe0e4ab3c1341dd083f0684551b981f93584ba86814d170d",
+          "readAt": "2026-10-11T07:43:16Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",5]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "185375960e11acfffe0e4ab3c1341dd083f0684551b981f93584ba86814d170d",
+          "readAt": "2026-10-11T10:22:51Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",6]"
+        },
+        {
+          "phase": "build",
+          "sha256": "185375960e11acfffe0e4ab3c1341dd083f0684551b981f93584ba86814d170d",
+          "readAt": "2026-10-11T12:47:36Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",7]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "185375960e11acfffe0e4ab3c1341dd083f0684551b981f93584ba86814d170d",
+          "readAt": "2026-10-11T14:23:18Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",8]"
+        },
+        {
+          "phase": "build",
+          "sha256": "185375960e11acfffe0e4ab3c1341dd083f0684551b981f93584ba86814d170d",
+          "readAt": "2026-10-11T14:48:37Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",9]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "185375960e11acfffe0e4ab3c1341dd083f0684551b981f93584ba86814d170d",
+          "readAt": "2026-10-11T15:21:55Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",10]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "185375960e11acfffe0e4ab3c1341dd083f0684551b981f93584ba86814d170d",
+          "readAt": "2026-10-11T16:06:11Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:1072385fa5ded6d9c3f12fc1b624d03b",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:185375960e11acfffe0e4ab3c1341dd083f0684551b981f93584ba86814d170d",
+        "projection": "document",
+        "content_digest": "sha256:185375960e11acfffe0e4ab3c1341dd083f0684551b981f93584ba86814d170d",
+        "source": {
+          "path": "openspec/changes/consolidate-workflow-tracks/specs/workflow-tracks/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "superpower-design",
+      "path": "docs/superpowers/specs/consolidate-workflow-tracks-design.md",
+      "sha256": "7b83fa8b927c24ad6883509101d23f6d2c01ad29a1715d7643fc3329affd60f2",
+      "producer": "tenon",
+      "recordedAt": "2026-10-10T13:19:11Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-d19666207be4f601ef2812e71ffdd33ed6075dc9a90d47e6f1c5d1e54aa89508",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "f01697db-fe0a-40ad-83bc-adf900edfb8c",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "spec",
+          "sha256": "7b83fa8b927c24ad6883509101d23f6d2c01ad29a1715d7643fc3329affd60f2",
+          "readAt": "2026-10-10T13:19:12Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",2]"
+        },
+        {
+          "phase": "build",
+          "sha256": "7b83fa8b927c24ad6883509101d23f6d2c01ad29a1715d7643fc3329affd60f2",
+          "readAt": "2026-10-11T02:38:44Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "7b83fa8b927c24ad6883509101d23f6d2c01ad29a1715d7643fc3329affd60f2",
+          "readAt": "2026-10-11T07:04:38Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",4]"
+        },
+        {
+          "phase": "build",
+          "sha256": "7b83fa8b927c24ad6883509101d23f6d2c01ad29a1715d7643fc3329affd60f2",
+          "readAt": "2026-10-11T07:43:16Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",5]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "7b83fa8b927c24ad6883509101d23f6d2c01ad29a1715d7643fc3329affd60f2",
+          "readAt": "2026-10-11T10:22:51Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",6]"
+        },
+        {
+          "phase": "build",
+          "sha256": "7b83fa8b927c24ad6883509101d23f6d2c01ad29a1715d7643fc3329affd60f2",
+          "readAt": "2026-10-11T12:47:36Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",7]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "7b83fa8b927c24ad6883509101d23f6d2c01ad29a1715d7643fc3329affd60f2",
+          "readAt": "2026-10-11T14:23:18Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",8]"
+        },
+        {
+          "phase": "build",
+          "sha256": "7b83fa8b927c24ad6883509101d23f6d2c01ad29a1715d7643fc3329affd60f2",
+          "readAt": "2026-10-11T14:48:37Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",9]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "7b83fa8b927c24ad6883509101d23f6d2c01ad29a1715d7643fc3329affd60f2",
+          "readAt": "2026-10-11T15:21:55Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",10]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "7b83fa8b927c24ad6883509101d23f6d2c01ad29a1715d7643fc3329affd60f2",
+          "readAt": "2026-10-11T16:06:11Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:10d47612bea88fd77a621a450afb395d",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:7b83fa8b927c24ad6883509101d23f6d2c01ad29a1715d7643fc3329affd60f2",
+        "projection": "document",
+        "content_digest": "sha256:7b83fa8b927c24ad6883509101d23f6d2c01ad29a1715d7643fc3329affd60f2",
+        "source": {
+          "path": "docs/superpowers/specs/consolidate-workflow-tracks-design.md",
+          "document_kind": "superpower-design"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "delta-spec",
+      "path": "openspec/changes/consolidate-workflow-tracks/specs/workflow-definition/spec.md",
+      "sha256": "d734de3b678735cabae0f9e1537e71228b5592b10e19ddb0895a797b92e6ca1a",
+      "producer": "openspec-propose",
+      "recordedAt": "2026-10-10T13:19:13Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-7cedc373b07b87e40e088f8bac2304f3513e5285b7fe3212e20def27711f78a8",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "f01697db-fe0a-40ad-83bc-adf900edfb8c",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "d734de3b678735cabae0f9e1537e71228b5592b10e19ddb0895a797b92e6ca1a",
+          "readAt": "2026-10-11T02:38:44Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "d734de3b678735cabae0f9e1537e71228b5592b10e19ddb0895a797b92e6ca1a",
+          "readAt": "2026-10-11T07:04:38Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",4]"
+        },
+        {
+          "phase": "build",
+          "sha256": "d734de3b678735cabae0f9e1537e71228b5592b10e19ddb0895a797b92e6ca1a",
+          "readAt": "2026-10-11T07:43:16Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",5]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "d734de3b678735cabae0f9e1537e71228b5592b10e19ddb0895a797b92e6ca1a",
+          "readAt": "2026-10-11T10:22:51Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",6]"
+        },
+        {
+          "phase": "build",
+          "sha256": "d734de3b678735cabae0f9e1537e71228b5592b10e19ddb0895a797b92e6ca1a",
+          "readAt": "2026-10-11T12:47:36Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",7]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "d734de3b678735cabae0f9e1537e71228b5592b10e19ddb0895a797b92e6ca1a",
+          "readAt": "2026-10-11T14:23:18Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",8]"
+        },
+        {
+          "phase": "build",
+          "sha256": "d734de3b678735cabae0f9e1537e71228b5592b10e19ddb0895a797b92e6ca1a",
+          "readAt": "2026-10-11T14:48:37Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",9]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "d734de3b678735cabae0f9e1537e71228b5592b10e19ddb0895a797b92e6ca1a",
+          "readAt": "2026-10-11T15:21:55Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",10]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "d734de3b678735cabae0f9e1537e71228b5592b10e19ddb0895a797b92e6ca1a",
+          "readAt": "2026-10-11T16:06:11Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:1072385fa5ded6d9c3f12fc1b624d03b",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:d734de3b678735cabae0f9e1537e71228b5592b10e19ddb0895a797b92e6ca1a",
+        "projection": "document",
+        "content_digest": "sha256:d734de3b678735cabae0f9e1537e71228b5592b10e19ddb0895a797b92e6ca1a",
+        "source": {
+          "path": "openspec/changes/consolidate-workflow-tracks/specs/workflow-definition/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "delta-spec",
+      "path": "openspec/changes/consolidate-workflow-tracks/specs/effective-workflow-plan/spec.md",
+      "sha256": "f4169d17559ab2ce7075da10197718e4daf416db003217ca74b6a57f012e101c",
+      "producer": "openspec-propose",
+      "recordedAt": "2026-10-10T13:19:14Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-7cedc373b07b87e40e088f8bac2304f3513e5285b7fe3212e20def27711f78a8",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "f01697db-fe0a-40ad-83bc-adf900edfb8c",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "f4169d17559ab2ce7075da10197718e4daf416db003217ca74b6a57f012e101c",
+          "readAt": "2026-10-11T02:38:44Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "f4169d17559ab2ce7075da10197718e4daf416db003217ca74b6a57f012e101c",
+          "readAt": "2026-10-11T07:04:38Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",4]"
+        },
+        {
+          "phase": "build",
+          "sha256": "f4169d17559ab2ce7075da10197718e4daf416db003217ca74b6a57f012e101c",
+          "readAt": "2026-10-11T07:43:16Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",5]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "f4169d17559ab2ce7075da10197718e4daf416db003217ca74b6a57f012e101c",
+          "readAt": "2026-10-11T10:22:51Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",6]"
+        },
+        {
+          "phase": "build",
+          "sha256": "f4169d17559ab2ce7075da10197718e4daf416db003217ca74b6a57f012e101c",
+          "readAt": "2026-10-11T12:47:36Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",7]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "f4169d17559ab2ce7075da10197718e4daf416db003217ca74b6a57f012e101c",
+          "readAt": "2026-10-11T14:23:18Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",8]"
+        },
+        {
+          "phase": "build",
+          "sha256": "f4169d17559ab2ce7075da10197718e4daf416db003217ca74b6a57f012e101c",
+          "readAt": "2026-10-11T14:48:37Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",9]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "f4169d17559ab2ce7075da10197718e4daf416db003217ca74b6a57f012e101c",
+          "readAt": "2026-10-11T15:21:55Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",10]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "f4169d17559ab2ce7075da10197718e4daf416db003217ca74b6a57f012e101c",
+          "readAt": "2026-10-11T16:06:11Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:1072385fa5ded6d9c3f12fc1b624d03b",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:f4169d17559ab2ce7075da10197718e4daf416db003217ca74b6a57f012e101c",
+        "projection": "document",
+        "content_digest": "sha256:f4169d17559ab2ce7075da10197718e4daf416db003217ca74b6a57f012e101c",
+        "source": {
+          "path": "openspec/changes/consolidate-workflow-tracks/specs/effective-workflow-plan/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "delta-spec",
+      "path": "openspec/changes/consolidate-workflow-tracks/specs/declarative-document-governance/spec.md",
+      "sha256": "9b6042133d956f23a94ce1b4b45ea14fa8901ea10ef396ee80fb19dfd6ea0689",
+      "producer": "openspec-propose",
+      "recordedAt": "2026-10-10T13:19:14Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-7cedc373b07b87e40e088f8bac2304f3513e5285b7fe3212e20def27711f78a8",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "f01697db-fe0a-40ad-83bc-adf900edfb8c",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "9b6042133d956f23a94ce1b4b45ea14fa8901ea10ef396ee80fb19dfd6ea0689",
+          "readAt": "2026-10-11T02:38:44Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "9b6042133d956f23a94ce1b4b45ea14fa8901ea10ef396ee80fb19dfd6ea0689",
+          "readAt": "2026-10-11T07:04:38Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",4]"
+        },
+        {
+          "phase": "build",
+          "sha256": "9b6042133d956f23a94ce1b4b45ea14fa8901ea10ef396ee80fb19dfd6ea0689",
+          "readAt": "2026-10-11T07:43:16Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",5]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "9b6042133d956f23a94ce1b4b45ea14fa8901ea10ef396ee80fb19dfd6ea0689",
+          "readAt": "2026-10-11T10:22:51Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",6]"
+        },
+        {
+          "phase": "build",
+          "sha256": "9b6042133d956f23a94ce1b4b45ea14fa8901ea10ef396ee80fb19dfd6ea0689",
+          "readAt": "2026-10-11T12:47:36Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",7]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "9b6042133d956f23a94ce1b4b45ea14fa8901ea10ef396ee80fb19dfd6ea0689",
+          "readAt": "2026-10-11T14:23:18Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",8]"
+        },
+        {
+          "phase": "build",
+          "sha256": "9b6042133d956f23a94ce1b4b45ea14fa8901ea10ef396ee80fb19dfd6ea0689",
+          "readAt": "2026-10-11T14:48:37Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",9]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "9b6042133d956f23a94ce1b4b45ea14fa8901ea10ef396ee80fb19dfd6ea0689",
+          "readAt": "2026-10-11T15:21:55Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",10]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "9b6042133d956f23a94ce1b4b45ea14fa8901ea10ef396ee80fb19dfd6ea0689",
+          "readAt": "2026-10-11T16:06:11Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:1072385fa5ded6d9c3f12fc1b624d03b",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:9b6042133d956f23a94ce1b4b45ea14fa8901ea10ef396ee80fb19dfd6ea0689",
+        "projection": "document",
+        "content_digest": "sha256:9b6042133d956f23a94ce1b4b45ea14fa8901ea10ef396ee80fb19dfd6ea0689",
+        "source": {
+          "path": "openspec/changes/consolidate-workflow-tracks/specs/declarative-document-governance/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "delta-spec",
+      "path": "openspec/changes/consolidate-workflow-tracks/specs/simple-task-routing/spec.md",
+      "sha256": "b0106173f64b9bc2b3e60445760eaa9511fdc2868714f3f57f8bc70014824250",
+      "producer": "openspec-propose",
+      "recordedAt": "2026-10-10T13:19:15Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-7cedc373b07b87e40e088f8bac2304f3513e5285b7fe3212e20def27711f78a8",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "f01697db-fe0a-40ad-83bc-adf900edfb8c",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "b0106173f64b9bc2b3e60445760eaa9511fdc2868714f3f57f8bc70014824250",
+          "readAt": "2026-10-11T02:38:44Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "b0106173f64b9bc2b3e60445760eaa9511fdc2868714f3f57f8bc70014824250",
+          "readAt": "2026-10-11T07:04:38Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",4]"
+        },
+        {
+          "phase": "build",
+          "sha256": "b0106173f64b9bc2b3e60445760eaa9511fdc2868714f3f57f8bc70014824250",
+          "readAt": "2026-10-11T07:43:16Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",5]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "b0106173f64b9bc2b3e60445760eaa9511fdc2868714f3f57f8bc70014824250",
+          "readAt": "2026-10-11T10:22:51Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",6]"
+        },
+        {
+          "phase": "build",
+          "sha256": "b0106173f64b9bc2b3e60445760eaa9511fdc2868714f3f57f8bc70014824250",
+          "readAt": "2026-10-11T12:47:36Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",7]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "b0106173f64b9bc2b3e60445760eaa9511fdc2868714f3f57f8bc70014824250",
+          "readAt": "2026-10-11T14:23:18Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",8]"
+        },
+        {
+          "phase": "build",
+          "sha256": "b0106173f64b9bc2b3e60445760eaa9511fdc2868714f3f57f8bc70014824250",
+          "readAt": "2026-10-11T14:48:37Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",9]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "b0106173f64b9bc2b3e60445760eaa9511fdc2868714f3f57f8bc70014824250",
+          "readAt": "2026-10-11T15:21:55Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",10]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "b0106173f64b9bc2b3e60445760eaa9511fdc2868714f3f57f8bc70014824250",
+          "readAt": "2026-10-11T16:06:11Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:1072385fa5ded6d9c3f12fc1b624d03b",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:b0106173f64b9bc2b3e60445760eaa9511fdc2868714f3f57f8bc70014824250",
+        "projection": "document",
+        "content_digest": "sha256:b0106173f64b9bc2b3e60445760eaa9511fdc2868714f3f57f8bc70014824250",
+        "source": {
+          "path": "openspec/changes/consolidate-workflow-tracks/specs/simple-task-routing/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "delta-spec",
+      "path": "openspec/changes/consolidate-workflow-tracks/specs/normal-chat-routing/spec.md",
+      "sha256": "c0de00161a264301bc09cd420b93ef2df2c669ff82b55d28bc01ff78b50c738c",
+      "producer": "openspec-propose",
+      "recordedAt": "2026-10-10T13:19:15Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-7cedc373b07b87e40e088f8bac2304f3513e5285b7fe3212e20def27711f78a8",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "f01697db-fe0a-40ad-83bc-adf900edfb8c",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "c0de00161a264301bc09cd420b93ef2df2c669ff82b55d28bc01ff78b50c738c",
+          "readAt": "2026-10-11T02:38:44Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "c0de00161a264301bc09cd420b93ef2df2c669ff82b55d28bc01ff78b50c738c",
+          "readAt": "2026-10-11T07:04:38Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",4]"
+        },
+        {
+          "phase": "build",
+          "sha256": "c0de00161a264301bc09cd420b93ef2df2c669ff82b55d28bc01ff78b50c738c",
+          "readAt": "2026-10-11T07:43:16Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",5]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "c0de00161a264301bc09cd420b93ef2df2c669ff82b55d28bc01ff78b50c738c",
+          "readAt": "2026-10-11T10:22:51Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",6]"
+        },
+        {
+          "phase": "build",
+          "sha256": "c0de00161a264301bc09cd420b93ef2df2c669ff82b55d28bc01ff78b50c738c",
+          "readAt": "2026-10-11T12:47:36Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",7]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "c0de00161a264301bc09cd420b93ef2df2c669ff82b55d28bc01ff78b50c738c",
+          "readAt": "2026-10-11T14:23:18Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",8]"
+        },
+        {
+          "phase": "build",
+          "sha256": "c0de00161a264301bc09cd420b93ef2df2c669ff82b55d28bc01ff78b50c738c",
+          "readAt": "2026-10-11T14:48:37Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",9]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "c0de00161a264301bc09cd420b93ef2df2c669ff82b55d28bc01ff78b50c738c",
+          "readAt": "2026-10-11T15:21:55Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",10]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "c0de00161a264301bc09cd420b93ef2df2c669ff82b55d28bc01ff78b50c738c",
+          "readAt": "2026-10-11T16:06:11Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:1072385fa5ded6d9c3f12fc1b624d03b",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:c0de00161a264301bc09cd420b93ef2df2c669ff82b55d28bc01ff78b50c738c",
+        "projection": "document",
+        "content_digest": "sha256:c0de00161a264301bc09cd420b93ef2df2c669ff82b55d28bc01ff78b50c738c",
+        "source": {
+          "path": "openspec/changes/consolidate-workflow-tracks/specs/normal-chat-routing/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "tasks",
+      "path": "openspec/changes/consolidate-workflow-tracks/tasks.md",
+      "sha256": "91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
+      "producer": "tenon",
+      "recordedAt": "2026-10-11T07:04:24Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-b3b0891bbbf0b76e54c1045d70005da67245a59839e5f3aaf0d511e9db411ece",
+        "evidenceScope": "verify",
+        "stepVisit": {
+          "runId": "f01697db-fe0a-40ad-83bc-adf900edfb8c",
+          "transitionSequence": 4
+        }
+      },
+      "reads": [
+        {
+          "phase": "verify",
+          "sha256": "91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
+          "readAt": "2026-10-11T07:04:38Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",4]"
+        },
+        {
+          "phase": "build",
+          "sha256": "91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
+          "readAt": "2026-10-11T07:43:16Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",5]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
+          "readAt": "2026-10-11T10:22:51Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",6]"
+        },
+        {
+          "phase": "build",
+          "sha256": "91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
+          "readAt": "2026-10-11T12:47:36Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",7]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
+          "readAt": "2026-10-11T14:23:18Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",8]"
+        },
+        {
+          "phase": "build",
+          "sha256": "91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
+          "readAt": "2026-10-11T14:48:37Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",9]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
+          "readAt": "2026-10-11T15:21:55Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",10]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
+          "readAt": "2026-10-11T16:06:11Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:e3f0174cc4ccf8615164e70eb8b14120",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
+        "projection": "document",
+        "content_digest": "sha256:91a32a1ea7f22973deb376a509f4a90a79cb8f9c670188c6cd4b5db363ed38e6",
+        "source": {
+          "path": "openspec/changes/consolidate-workflow-tracks/tasks.md",
+          "document_kind": "tasks"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "verification-report",
+      "path": "docs/superpowers/reports/consolidate-workflow-tracks-verify.md",
+      "sha256": "87b7aaa9153450dfaa8c6ad441e21b2f52c03084a64944c026a1ca37967370d1",
+      "producer": "verification-before-completion",
+      "recordedAt": "2026-10-11T15:54:30Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-de04b97d6b3a5852b5422f55a748e54b6b2dabe12add570bd16f79956f528c71",
+        "evidenceScope": "verify",
+        "stepVisit": {
+          "runId": "f01697db-fe0a-40ad-83bc-adf900edfb8c",
+          "transitionSequence": 10
+        }
+      },
+      "reads": [
+        {
+          "phase": "ship",
+          "sha256": "87b7aaa9153450dfaa8c6ad441e21b2f52c03084a64944c026a1ca37967370d1",
+          "readAt": "2026-10-11T16:06:11Z",
+          "visitId": "[\"f01697db-fe0a-40ad-83bc-adf900edfb8c\",11]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:8f5ddc7420d76999d36c35c3dda07a71",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:87b7aaa9153450dfaa8c6ad441e21b2f52c03084a64944c026a1ca37967370d1",
+        "projection": "document",
+        "content_digest": "sha256:87b7aaa9153450dfaa8c6ad441e21b2f52c03084a64944c026a1ca37967370d1",
+        "source": {
+          "path": "docs/superpowers/reports/consolidate-workflow-tracks-verify.md",
+          "document_kind": "verification-report"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    }
+  ]
+}

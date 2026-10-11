@@ -121,11 +121,6 @@ async function fixture() {
     'docs/CONTRACT.md',
     '# CONTRACT\n\n`tenon user` / `tenon user set` / `tenon owner take` / `tenon owner set`\n',
   )
-  await write(
-    root,
-    'templates/workflows/simple.yaml',
-    ['name: simple', ...['change', 'verify', 'done', 'escalated'].map((id) => `  - id: ${id}`)].join('\n'),
-  )
 
   const communityLinks = [
     '[Usage](docs/usage/README.md)',
@@ -344,12 +339,31 @@ test('quickstarts must use the versioned official installer instead of main', as
 test('detects workflow shape drift from the YAML step list', async (t) => {
   const root = await fixture()
   t.after(() => rm(root, { recursive: true, force: true }))
+  const drifted = ['open', 'explore', 'audit', 'spec', 'build', 'verify', 'ship', 'archive']
   await write(
     root,
-    'templates/workflows/simple.yaml',
-    ['name: simple', ...['change', 'verify', 'audit', 'done', 'escalated'].map((id) => `  - id: ${id}`)].join('\n'),
+    'templates/workflows/default.yaml',
+    ['name: default', ...drifted.flatMap((id) => [`  - id: ${id}`, '    skills:', `      - id: tenon-${id}`])].join('\n'),
   )
-  assert.match(checkRepository(root).join('\n'), /routing-and-workflows\.md.*audit/)
+  assert.match(checkRepository(root).join('\n'), /default-workflow\.md.*audit/)
+})
+
+test('the documented default steps come from the backend branch, not the lite branch listed first', async (t) => {
+  const root = await fixture()
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const step = (id) => [`      - id: ${id}`, '        skills:', `          - id: tenon-${id}`]
+  const branch = (id, steps) => [`  ${id}:`, '    label: x', '    steps:', ...steps.flatMap(step)]
+  await write(
+    root,
+    'templates/workflows/default.yaml',
+    [
+      'name: default',
+      'tracks:',
+      ...branch('lite', ['open', 'build', 'verify', 'done', 'escalated']),
+      ...branch('backend', ['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive']),
+    ].join('\n'),
+  )
+  assert.deepEqual(checkRepository(root).filter((failure) => failure.includes('workflow steps must follow')), [])
 })
 
 test('detects drift in the documented runtime subcommands', async (t) => {

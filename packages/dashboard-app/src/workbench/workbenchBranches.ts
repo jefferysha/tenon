@@ -25,34 +25,55 @@ export function resolveBranch(def: WbWorkflowDef | null, branch: string): string
   return def?.tracks?.[branch] !== undefined ? branch : first?.[0] ?? BASE_BRANCH
 }
 
-/** 分支视图：把所选分支的 steps、文档契约与物化 IO 提升成一个「单条 pipeline」定义，供编辑器所有读路径使用。 */
+/** 分支是否走 OpenSpec：分支声明的 `spec` 优先，没写继承工作流顶层 `openspec`（与 kernel 的分支折算同一规则）。 */
+function branchOpenspec(workflowOpenspec: boolean | undefined, track: WbTrackBranch): boolean | undefined {
+  return track.spec === undefined ? workflowOpenspec : track.spec === 'openspec'
+}
+
+/**
+ * 分支视图：把所选分支的 steps、文档契约与物化 IO 提升成一个「单条 pipeline」定义，供编辑器所有读路径使用。
+ * 视图里的 `openspec` 是这条分支自己的取值（`spec: none` 的轻量分支是 false），文档治理相关的检查据此判断。
+ */
 export function selectBranchDef(def: WbWorkflowDef, branch: string): WbWorkflowDef {
-  const { tracks: _tracks, branches, effectiveIo, documentContract, ...rest } = def
+  const { tracks: _tracks, branches, effectiveIo, documentContract, openspec, ...rest } = def
   const id = resolveBranch(def, branch)
   const track = id === BASE_BRANCH ? undefined : def.tracks?.[id]
   const io = branches?.[id === BASE_BRANCH ? '_base' : id]?.effectiveIo ?? (id === BASE_BRANCH ? effectiveIo : undefined)
   const contract = track === undefined ? documentContract : track.documentContract
+  const governed = track === undefined ? openspec : branchOpenspec(openspec, track)
   return {
     ...rest,
+    ...(governed === undefined ? {} : { openspec: governed }),
     ...(io === undefined ? {} : { effectiveIo: io }),
     ...(contract === undefined ? {} : { documentContract: contract }),
     steps: track === undefined ? def.steps : track.steps,
   }
 }
 
-/** 把分支视图上的编辑写回完整定义：steps 与文档契约回到对应分支，其余工作流级字段照抄更新后的值。 */
+/**
+ * 把分支视图上的编辑写回完整定义：steps 与文档契约回到对应分支，其余工作流级字段照抄更新后的值。
+ * 视图里的 `openspec` 是分支折算后的取值：与视图原本给出的一样就不是用户的编辑，不写回工作流顶层
+ * （否则编辑轻量分支的一个阶段名就会把顶层 openspec 改成 false）；用户在视图里切了开关才写回。
+ */
 export function writeBranchDef(def: WbWorkflowDef, branch: string, updated: WbWorkflowDef): WbWorkflowDef {
-  const { steps, tracks: _tracks, effectiveIo: _io, branches: _branches, documentContract, ...rest } = updated
+  const { steps, tracks: _tracks, effectiveIo: _io, branches: _branches, documentContract, openspec, ...rest } = updated
   const contract = documentContract === undefined ? {} : { documentContract }
   const id = resolveBranch(def, branch)
   if (id === BASE_BRANCH) {
-    const { documentContract: _previous, ...base } = { ...def, ...rest }
+    const { documentContract: _previous, ...base } = { ...def, ...rest, ...('openspec' in updated ? { openspec } : {}) }
     return { ...base, ...contract, steps }
   }
   const existing = def.tracks?.[id]
   if (existing === undefined) return def
   const { documentContract: _previousBranch, ...branchRest } = existing
-  return { ...def, ...rest, steps: def.steps, tracks: { ...def.tracks, [id]: { ...branchRest, ...contract, steps } } }
+  const toggled = openspec !== branchOpenspec(def.openspec, existing)
+  return {
+    ...def,
+    ...rest,
+    ...(toggled ? { openspec } : {}),
+    steps: def.steps,
+    tracks: { ...def.tracks, [id]: { ...branchRest, ...contract, steps } },
+  }
 }
 
 /**

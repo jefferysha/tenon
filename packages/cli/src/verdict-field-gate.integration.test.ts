@@ -9,6 +9,8 @@
  *
  * 零 mock：真临时项目、真 kernel、真测试记录与 agent 台账。
  */
+import { mkdir, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
 import { freshHarness, rm, type Harness } from './integration-harness.js'
 
@@ -20,7 +22,7 @@ afterEach(async () => {
 
 async function init(name: string, track: string): Promise<void> {
   h = await freshHarness()
-  expect(await h.run(['init', name, '--track', track, '--preset', 'full']), h.err.join('\n')).toBe(0)
+  expect(await h.initLegacyDefault(name, track), h.err.join('\n')).toBe(0)
 }
 
 async function get(name: string, field: string): Promise<string> {
@@ -102,6 +104,66 @@ describe('verify_result：只有 pm verify 接受手填，且要证据', () => {
     await init('bev', 'backend')
     await h.seedPhase('bev', 'verify')
     expect(await h.run(['set', 'bev', 'verify_result', 'pass'])).toBe(1)
+    expect(h.err.join('\n')).toContain("字段 'verify_result' 由 tenon transition 管理")
+  })
+})
+
+/**
+ * 按 YAML 执行的任务：离开条件写在前进边上，`step.guards` 是空的。写入闸只读 step.guards 时，
+ * 前进边点名的手填结论字段被当成「由转换落值」而一律拒写；它也不能自己另拼一句「只接受…」，
+ * 拒写原因要和离开条件失败是同一句话（kernel 的 guard 渲染）。
+ */
+describe('verify_result：前进边的离开条件点名它时接受手填（按 YAML 执行的任务）', () => {
+  const EDGE_VERDICT_WORKFLOW = `name: edge-verdict
+steps:
+  - id: check
+    label: check
+    gate: null
+    skills: []
+    inputs: []
+    outputs: []
+    guards: []
+    transitions:
+      - event: ok
+        to: done
+        guards:
+          - type: field-equals
+            field: verify_result
+            value: pass
+  - id: done
+    label: done
+    gate: null
+    skills: []
+    inputs: []
+    outputs: []
+    guards: []
+    transitions: []
+`
+
+  async function initEdgeVerdict(): Promise<void> {
+    h = await freshHarness()
+    await mkdir(join(h.cwd, '.pipeline', 'workflows'), { recursive: true })
+    await writeFile(join(h.cwd, '.pipeline', 'workflows', 'edge-verdict.yaml'), EDGE_VERDICT_WORKFLOW, 'utf8')
+    expect(await h.run(['init', 'ev', '--workflow', 'edge-verdict']), h.err.join('\n')).toBe(0)
+  }
+
+  test('出边 guard 只接受 pass：写 fail 被拒，原因是 kernel 渲染的那句离开条件；写 pass 通过', async () => {
+    await initEdgeVerdict()
+    expect(await h.run(['set', 'ev', 'verify_result', 'fail'])).toBe(1)
+    const err = h.err.join('\n')
+    expect(err).toContain("step 'check' 要求字段 'verify_result'=pass")
+    expect(err).not.toContain('只接受')
+    expect(err).not.toContain('由 tenon transition 管理')
+    expect(await get('ev', 'verify_result')).toBe('pending')
+    expect(await h.run(['set', 'ev', 'verify_result', 'pass']), h.err.join('\n')).toBe(0)
+    expect(await get('ev', 'verify_result')).toBe('pass')
+  })
+
+  test('新建 default 任务的 backend verify：离开条件里没有 verify_result，仍由转换落值', async () => {
+    h = await freshHarness()
+    expect(await h.run(['init', 'bev2', '--track', 'backend', '--preset', 'full']), h.err.join('\n')).toBe(0)
+    await h.seedPhase('bev2', 'verify')
+    expect(await h.run(['set', 'bev2', 'verify_result', 'pass'])).toBe(1)
     expect(h.err.join('\n')).toContain("字段 'verify_result' 由 tenon transition 管理")
   })
 })

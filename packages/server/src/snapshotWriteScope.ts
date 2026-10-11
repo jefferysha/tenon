@@ -10,7 +10,7 @@ import type { IncomingMessage } from 'node:http'
 const bodyRoots = new WeakMap<IncomingMessage, Set<string>>()
 
 /** POST routes that only compute an answer from the request and write no state. */
-const READ_ONLY_WRITES: ReadonlySet<string> = new Set(['/api/router/preview', '/api/loops/scope-preview'])
+const READ_ONLY_WRITES: ReadonlySet<string> = new Set(['/api/loops/scope-preview'])
 
 /**
  * Drop what a write may have touched from the snapshot cache. `before` runs as the request arrives: the body is

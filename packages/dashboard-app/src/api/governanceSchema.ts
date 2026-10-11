@@ -1,10 +1,10 @@
 import type {
-  WbBranchProjection, WbEffectiveIo, WbIoSlot, WbSkillFile, WbSkillFiles, WbStepDef, WbTrackBranch,
-  WbWorkflowDef,
+  WbBranchProjection, WbEffectiveIo, WbIoSlot, WbSkillFile, WbSkillFiles, WbStepDef, WbTrackAutomation,
+  WbTrackBranch, WbTrackRoute, WbWorkflowDef,
 } from './governanceTypes'
 import {
   allowedKeys, decodeArray, decodeDecompositionPolicy, decodeField, decodeInteractionPolicy,
-  decodeSkill, decodeSkillSource, decodeStepAgents, optionalString, record,
+  decodeSkill, decodeSkillSource, decodeStepAgents, exactKeys, optionalString, record, strings,
 } from './governanceBaseDecoders'
 import {
   decodeArtifact, decodeDocumentContract, decodeGuard, decodeStepTest, decodeTransition,
@@ -89,20 +89,48 @@ export function decodeEffectiveIo(value: unknown): WbEffectiveIo | null {
 
 const TRACK_ID_RE = /^[a-z][a-z0-9_-]{0,31}$/
 
-/** `tracks.<id>` 分支：可选 label、可选文档契约 + 自己的 steps。 */
+function decodeBranchRoute(value: unknown): WbTrackRoute | null {
+  const item = record(value)
+  if (!item
+    || !exactKeys(item, ['keywords', 'exclude', 'priority', 'fallback'])
+    || !strings(item.keywords)
+    || !strings(item.exclude)
+    || typeof item.priority !== 'number' || !Number.isSafeInteger(item.priority) || item.priority < 0
+    || typeof item.fallback !== 'boolean') return null
+  return { keywords: item.keywords, exclude: item.exclude, priority: item.priority, fallback: item.fallback }
+}
+
+function decodeBranchAutomation(value: unknown): WbTrackAutomation | null {
+  const item = record(value)
+  if (!item
+    || !exactKeys(item, ['eligible', 'enqueueAfterSpec'])
+    || typeof item.eligible !== 'boolean'
+    || typeof item.enqueueAfterSpec !== 'boolean') return null
+  return { eligible: item.eligible, enqueueAfterSpec: item.enqueueAfterSpec }
+}
+
+/** `tracks.<id>` 分支：可选 label / spec / route / automation / 文档契约 + 自己的 steps。 */
 function decodeTracks(value: unknown): Record<string, WbTrackBranch> | null {
   const body = record(value)
   if (!body) return null
   const out: Record<string, WbTrackBranch> = {}
   for (const [id, raw] of Object.entries(body)) {
     const branch = record(raw)
-    if (!TRACK_ID_RE.test(id) || !branch || !allowedKeys(branch, ['label', 'documentContract', 'steps']) || !optionalString(branch.label)) return null
+    if (!TRACK_ID_RE.test(id) || !branch
+      || !allowedKeys(branch, ['label', 'documentContract', 'steps', 'spec', 'route', 'automation'])
+      || !optionalString(branch.label)
+      || (branch.spec !== undefined && branch.spec !== 'openspec' && branch.spec !== 'none')) return null
     const documentContract = branch.documentContract === undefined ? undefined : decodeDocumentContract(branch.documentContract)
+    const route = branch.route === undefined ? undefined : decodeBranchRoute(branch.route)
+    const automation = branch.automation === undefined ? undefined : decodeBranchAutomation(branch.automation)
     const steps = decodeArray(branch.steps, decodeStep)
-    if (steps === null || documentContract === null) return null
+    if (steps === null || documentContract === null || route === null || automation === null) return null
     out[id] = {
       ...(branch.label === undefined ? {} : { label: branch.label }),
       ...(documentContract === undefined ? {} : { documentContract }),
+      ...(branch.spec === undefined ? {} : { spec: branch.spec }),
+      ...(route === undefined ? {} : { route }),
+      ...(automation === undefined ? {} : { automation }),
       steps,
     }
   }

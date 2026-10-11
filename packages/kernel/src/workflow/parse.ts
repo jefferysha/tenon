@@ -8,11 +8,12 @@ import { GUARD_DATA_KEYS } from './types.js'
 import type {
   FieldRef, GateKind, SkillRef, StepDef, StepTransition,
   StepAgentsDef, StepTestDef, StepTestPolicyDef, WorkflowActionConfig, WorkflowArtifactConfig, WorkflowConditional, WorkflowDef,
-  WorkflowDocumentContractV1, WorkflowGuardConfig, TrackBranchDef,
+  WorkflowDocumentContractV1, WorkflowGuardConfig, TrackBranchDef, TrackRoute,
 } from './types.js'
 import type { FieldName } from '../types.js'
 import type { TrackPredicate } from './predicates.js'
 import { parseDocumentContract, type WorkflowParseCursor as Cursor } from './parse-document-contract.js'
+import { parseActionsBlock } from './parse-actions.js'
 import { parseDecompositionPolicy, parseInteractionPolicy } from './parse-policy.js'
 import { parseSkillRefs } from './parse-skill-refs.js'
 import { parseStepAgents } from './parse-agents.js'
@@ -20,6 +21,7 @@ import { parseStepTests } from './parse-tests.js'
 import { parseInlineTestPolicy, parseStepTestPolicy } from './parse-test-policy.js'
 import { indentOf, parseInlineList, parsePromptBlock, parseFieldRefBlock, parseWhenBlock } from './parse-primitives.js'
 import { parseArtifactsBlock } from './parse-artifacts.js'
+import { parseBranchPolicyLine, parseTopLevelRoute, type BranchPolicyDraft } from './parse-track-branch.js'
 import { parseMaxRoundsText } from './max-rounds.js'
 import { REMOVED_KEY_ERROR } from './removed-keys.js'
 
@@ -96,12 +98,15 @@ function buildGuard(type: string, f: GuardFields): WorkflowGuardConfig {
         throw new Error("workflow 解析错误：guard 'field-in' 缺非空 values")
       }
       return { type: 'field-in', field: requireGuardField(f, type), values: f.values as [string, ...string[]], ...cond }
-    case 'full-direct-override':
-      return { type: 'full-direct-override', ...cond }
     case 'build-head-unchanged':
       return { type: 'build-head-unchanged', field: requireGuardField(f, type) as 'build_sha', ...cond }
+    // 无参数变体：只有类型与可选 when。
+    case 'full-direct-override':
     case 'spec-migration-applied':
-      return { type: 'spec-migration-applied', ...cond }
+    case 'tasks-through-step':
+    case 'not-afk-queued':
+    case 'dependencies-ended':
+      return { type, ...cond }
     default:
       throw new Error(`workflow 解析错误：未知 guard type '${type}'（闭集见 types.ts WorkflowGuardConfig）`)
   }
@@ -120,33 +125,6 @@ function parseGuardsBlock(cur: Cursor, baseIndent: number): WorkflowGuardConfig[
     guards.push(parseGuardEntry(cur, m[1] ?? '', itemIndent))
   }
   return guards
-}
-
-const ACTION_TYPES = [
-  'freeze-build-sha',
-  'reset-pre-verify-review',
-  'mark-verification-passed',
-  'mark-verification-failed',
-  'archive-run',
-] as const
-
-/** edge action 块（G2 P2）：`- type: X` 逐项（闭集、无 sub-field）；未知 type → fail-loud。 */
-function parseActionsBlock(cur: Cursor, baseIndent: number): WorkflowActionConfig[] {
-  const actions: WorkflowActionConfig[] = []
-  while (cur.i < cur.lines.length) {
-    const line = cur.lines[cur.i] ?? ''
-    if (line.trim() === '') { cur.i++; continue }
-    if (indentOf(line) < baseIndent) break
-    const m = /^\s*-\s+type:\s*(\S+)\s*$/.exec(line)
-    if (!m) break
-    const type = m[1] ?? ''
-    cur.i++
-    if (!(ACTION_TYPES as readonly string[]).includes(type)) {
-      throw new Error(`workflow 解析错误：未知 action type '${type}'（闭集见 types.ts WorkflowActionConfig）`)
-    }
-    actions.push({ type: type as WorkflowActionConfig['type'] })
-  }
-  return actions
 }
 
 function parseTransitionsBlock(cur: Cursor, baseIndent: number): StepTransition[] {
@@ -295,6 +273,7 @@ export function parseWorkflow(content: string): WorkflowDef {
   let interaction: WorkflowDef['interaction']
   let steps: StepDef[] | undefined
   let tracks: Record<string, TrackBranchDef> | undefined
+  let route: TrackRoute | undefined
   // name 之后的顶层键顺序无关：每个键各自解析到下一个顶层（缩进 0）行为止。
   const cur: Cursor = { lines, i: 1 }
   while (cur.i < lines.length) {
@@ -312,6 +291,13 @@ export function parseWorkflow(content: string): WorkflowDef {
       }
       openspec = openspecLine[1] === 'true'
       cur.i++
+      continue
+    }
+    const routeLine = /^route:\s*(.*?)\s*$/.exec(line)
+    if (routeLine) {
+      if (route !== undefined) throw new Error('workflow 解析错误：route 重复声明')
+      cur.i++
+      route = parseTopLevelRoute(cur, routeLine[1] ?? '')
       continue
     }
     const key = line.trim()
@@ -346,7 +332,7 @@ export function parseWorkflow(content: string): WorkflowDef {
       continue
     }
     if (key === 'review_budget:') throw new Error(REMOVED_KEY_ERROR('review_budget'))
-    throw new Error(`workflow 解析错误：无法识别的顶层键 '${key}'（支持 steps / tracks、openspec、document_contract、decomposition、interaction）`)
+    throw new Error(`workflow 解析错误：无法识别的顶层键 '${key}'（支持 steps / tracks、openspec、route、document_contract、decomposition、interaction）`)
   }
   if (steps === undefined && tracks === undefined) {
     throw new Error("workflow 解析错误：缺少 'steps:' 或 'tracks:'")
@@ -354,6 +340,9 @@ export function parseWorkflow(content: string): WorkflowDef {
   // steps ⊕ tracks：有 tracks 的工作流每条轨道各写自己的阶段，顶层 steps 缺省为空（validate 拒绝两者并存）。
   if (tracks !== undefined && documentContract !== undefined) {
     throw new Error('workflow 解析错误：有 tracks 时 document_contract 写在 tracks.<id> 下')
+  }
+  if (tracks !== undefined && route !== undefined) {
+    throw new Error('workflow 解析错误：有 tracks 时 route 写在 tracks.<id> 下')
   }
   return {
     name: nameMatch[1] ?? '',
@@ -363,6 +352,7 @@ export function parseWorkflow(content: string): WorkflowDef {
     ...(documentContract ? { documentContract } : {}),
     steps: steps ?? [],
     ...(tracks === undefined ? {} : { tracks }),
+    ...(route === undefined ? {} : { route }),
   }
 }
 
@@ -385,8 +375,8 @@ function parseStepList(cur: Cursor, path: string, blockIndent: number): StepDef[
 }
 
 /**
- * `tracks:` 块：每条 `  <id>:` 下可选 `label:`、可选 `document_contract:` 与必有的 `steps:`（步骤项缩进再深一层）。
- * 分支 id 词法与 track id 一致（小写字母开头，a-z0-9_-，≤32）。
+ * `tracks:` 块：每条 `  <id>:` 下可选 `label:`、`spec:`、`route:`、`automation:`、`document_contract:` 与必有的 `steps:`
+ * （步骤项缩进再深一层）。分支 id 词法与 track id 一致（小写字母开头，a-z0-9_-，≤32）。
  */
 function parseTracksBlock(cur: Cursor): Record<string, TrackBranchDef> {
   const tracks: Record<string, TrackBranchDef> = {}
@@ -403,6 +393,7 @@ function parseTracksBlock(cur: Cursor): Record<string, TrackBranchDef> {
     const branchIndent = indentOf(line)
     cur.i++
     let label: string | undefined
+    const policy: BranchPolicyDraft = {}
     let documentContract: WorkflowDocumentContractV1 | undefined
     let steps: StepDef[] | undefined
     while (cur.i < cur.lines.length) {
@@ -416,6 +407,7 @@ function parseTracksBlock(cur: Cursor): Record<string, TrackBranchDef> {
         cur.i++
         continue
       }
+      if (parseBranchPolicyLine(cur, id, policy)) continue
       if (/^\s*document_contract:\s*$/.test(inner)) {
         if (documentContract !== undefined) throw new Error(`workflow 解析错误：分支 '${id}' 重复声明 document_contract`)
         cur.i++
@@ -432,7 +424,12 @@ function parseTracksBlock(cur: Cursor): Record<string, TrackBranchDef> {
       throw new Error(`workflow 解析错误：分支 '${id}' 出现未知字段行 '${inner.trim()}'`)
     }
     if (steps === undefined) throw new Error(`workflow 解析错误：分支 '${id}' 缺 steps`)
-    tracks[id] = { ...(label === undefined ? {} : { label }), ...(documentContract === undefined ? {} : { documentContract }), steps }
+    tracks[id] = {
+      ...(label === undefined ? {} : { label }),
+      ...policy,
+      ...(documentContract === undefined ? {} : { documentContract }),
+      steps,
+    }
   }
   return tracks
 }

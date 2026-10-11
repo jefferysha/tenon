@@ -116,8 +116,11 @@ Change explicitly or activate an exact host-session binding.
 
 ### Everything takes the default seven phases
 
-Inspect Track/Workflow identity and simple exclusions. Simple requires positive
-bounded evidence and no exclusion. Free/custom require explicit selection.
+Inspect the Workflow and Track identity (`tenon status <change-name> --json`) and the
+lightweight Track's `route.exclude` words: a request that matches one goes straight to
+a heavy Track. Any other development request is assessed first; run
+`tenon assess --files <path>...` to see why a change is over the lightweight
+limits. Custom Workflows require explicit selection.
 
 ### A task stays `waiting`
 
@@ -141,9 +144,10 @@ conversation activity.
 
 ### Todo does not match the Workflow
 
-Status must identify the effective Workflow. Default has seven phases; simple
-has change/verify/done/escalated; custom uses its own graph. Restart/update only
-after the health endpoint proves the Dashboard release is stale.
+Status must identify the effective Workflow and Track. A heavy Track of default has
+seven phases; the lightweight Track has open/build/verify/done/escalated; custom
+uses its own graph. Restart/update only after the health endpoint proves the
+Dashboard release is stale.
 
 ### Document exists but transition fails
 
@@ -283,11 +287,11 @@ run the transition directly").
 
 v0.3.2 records the approval, so a new task does not get stuck. A task that is already stuck is not repaired by updating, and
 no command clears it. Putting `approved_by: null` back does not help: the entry is unapproved again and the request is still
-refused. What works is to archive the stuck task and start a new one in the same working tree:
+refused. What works is to terminate the stuck task and start a new one in the same working tree:
 
 ```bash
-tenon task archive <name> --yes
-tenon init <new-name> --track <track>
+tenon task terminate <name> --yes
+tenon init <new-name> --workflow <workflow> --track <track> --preset full
 ```
 
 Run the new task as usual (`tenon test register`, `tenon test run <new-name> --stage`). The entry already carries its
@@ -295,8 +299,10 @@ approver, so `tenon review request <new-name> --event <event>` lists only the pe
 is the catalog rewrite, and not a waiver to approve. Confirm it once with `tenon review acknowledge <new-name>`; after that
 `tenon test status` has no blocker left and `tenon transition` goes through.
 
-The archived task is kept: `tenon task unarchive <name> --yes` brings it back. Archiving does not touch your code, but the
-new task starts at the first step of its workflow, and the documents the stuck task wrote stay with it.
+The terminated task moves into `openspec/changes/archive/` and shows as Terminated under Ended; it cannot be resumed, so
+link the new task with `tenon set <new-name> depends_on <name>` if you want the relation kept. Terminating neither touches
+nor commits your code, but the new task starts at the first step of its workflow, and the documents the stuck task wrote
+stay with it.
 
 ### `tenon runtime Node identity changed`
 

@@ -2,7 +2,7 @@ import { mkdtemp, rm, readFile, access } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { builtinTrack, createStateStore, type VerificationResult } from '@tenon/kernel'
+import { compileEffectiveWorkflowPlan, createStateStore, planAutomationPolicy, type VerificationResult } from '@tenon/kernel'
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { worktreePathFor } from '../lifecycle/worktree.js'
 import { dockerAvailable } from '../runner/docker.js'
@@ -103,7 +103,8 @@ let imageReady = false
 let skipReason = ''
 
 const clock = () => '2026-07-07T00:00:00Z'
-const eligiblePolicy = () => builtinTrack('backend').policyProfile
+// 与生产同口径：策略位来自 default 工作流 backend 分支声明的 automation。
+const eligiblePolicy = () => planAutomationPolicy(compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' }))
 
 async function git(cwd: string, args: string[]): Promise<void> {
   const r = await nodeExec('git', args, { cwd })

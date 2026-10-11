@@ -3,10 +3,10 @@
  * + 编译产物（已补默认值、深冻结）的 step/transition/artifact 形态。
  *
  * 与定义层（./types.ts）的分工（G2 P2 落地）：
- *   · 定义层 WorkflowGuardConfig（9 变体，含 nonempty-output）= parse 产出 / serialize 写回 /
+ *   · 定义层 WorkflowGuardConfig（12 变体，含 nonempty-output）= parse 产出 / serialize 写回 /
  *     validate 校验的形状，变体清单单一真相源在 types.ts。
  *   · 运行层 CompiledGuardConfig = 严格 typed guard（WorkflowGuardConfig **Exclude 掉
- *     nonempty-output**，8 变体）+ output-present。compileWorkflow 按 step.outputs 把 nonempty-output
+ *     nonempty-output**，11 变体）+ output-present。compileWorkflow 按 step.outputs 把 nonempty-output
  *     逐字段下沉：已知非列表字段 → field-nonempty，列表/未知惰性字段 → output-present（G2 P2
  *     兼容回退，见 OutputPresentGuard）。经编译产出的 IR 里不存在定义层 nonempty-output（已展开）。
  *     运行期注册表（guard-handlers.ts）仍保留一枚 nonempty-output fail-loud handler 作纵深防线
@@ -21,7 +21,7 @@
 import type { FieldName } from '../types.js'
 import type {
   ArtifactProducerPolicy, FieldRef, GateKind, SkillRef, StepAgentsDef, TestInputDef, TestMetricCriterion,
-  TestOutputDef, TestOutputKind, WorkflowActionConfig, WorkflowConditional,
+  TestOutputDef, TestOutputKind, TrackAutomation, TrackRoute, TrackSpec, WorkflowActionConfig, WorkflowConditional,
   WorkflowDecompositionPolicyV1, WorkflowDocumentContractV1, WorkflowGuardConfig,
   WorkflowInteractionPolicyV1,
 } from './types.js'
@@ -32,7 +32,7 @@ import type {
 } from './build-revision.js'
 
 /**
- * 运行/编译层严格 guard 闭集：定义层 9 变体去掉 nonempty-output（后者编译期已按 outputs 下沉）。
+ * 运行/编译层严格 guard 闭集：定义层 12 变体去掉 nonempty-output（后者编译期已按 outputs 下沉）。
  * 这些是「真求值 typed guard」——其 field 一律 ∈ FIELD_ORDER 且非列表字段（compileWorkflow 的
  * scalarField 闸保证），运行期 handler 只对绕过编译器的越界（列表/未知字段）输入留 fail-loud 兜底。
  */
@@ -52,7 +52,7 @@ export interface OutputPresentGuard extends WorkflowConditional {
 }
 
 /**
- * 运行/编译层 guard 闭集 = 严格 typed guard（8 变体）+ output-present（v1 nonempty-output 的
+ * 运行/编译层 guard 闭集 = 严格 typed guard（11 变体）+ output-present（v1 nonempty-output 的
  * 列表/惰性下沉产物）。经本编译器产出的 IR guards[] 永不含定义层的 nonempty-output（已展开）。
  */
 export type CompiledGuardConfig = StrictCompiledGuardConfig | OutputPresentGuard
@@ -89,7 +89,28 @@ export interface GuardInput {
   ) => Promise<BuildRevisionAssessment>
   /** Current Verify-like step used by the provenance evaluator. */
   readonly currentStep?: string
+  // 以下三项是通用离开条件的能力（设计 §1b）：缺失 = 对应 guard 失败关闭，绝不降级为跳过。
+  /** 截至某一步的 tasks.md 任务是否都已勾选；`unchecked` 是未通过的原文说明（供失败文案列出）。 */
+  readonly tasksThroughStep?: (step: string) => Promise<TasksThroughStepResult>
+  /** 任务当前是否在 AFK 队列中；调度器自己执行时由调用方注入恒 false。 */
+  readonly afkQueued?: () => Promise<boolean>
+  /** `depends_on` 里每个依赖是否已结束（归档目录，或活跃目录但规范状态已归档）。 */
+  readonly dependencyStates?: () => Promise<readonly DependencyState[]>
 }
+
+export interface TasksThroughStepResult {
+  readonly complete: boolean
+  readonly unchecked: readonly string[]
+}
+
+export interface DependencyState {
+  readonly name: string
+  readonly ended: boolean
+}
+
+/** 通用离开条件所依赖的三项能力（`GuardInput` 里的同名可选字段），调用方成组注入。 */
+export type UniversalGuardCapabilities = Pick<GuardInput, 'tasksThroughStep' | 'afkQueued' | 'dependencyStates'>
+export type UniversalGuardCapabilityName = keyof UniversalGuardCapabilities
 
 export type SpecMigrationGuardStatus =
   | { readonly kind: 'not-required' }
@@ -117,6 +138,10 @@ export type GuardDecision =
       readonly expected?: readonly string[]
       /** Stable trust blocker; raw candidates and exceptions never cross this boundary. */
       readonly blocker?: BuildRevisionBlocker
+      /** 未满足项的名称或原文：tasks-through-step 的未勾任务说明、dependencies-ended 的未结束依赖。 */
+      readonly detail?: readonly string[]
+      /** fail-closed：该 guard 依赖的能力没有注入，渲染层据此点名缺什么。 */
+      readonly missingCapability?: UniversalGuardCapabilityName
     }
 
 /** Legacy action signal union retained for ABI compatibility. The current freeze action throws a
@@ -229,6 +254,19 @@ export interface StepIR {
   readonly transitions: readonly StepTransitionIR[]
 }
 
+/**
+ * track 分支（编译后）。`spec` / `route` / `automation` 只在分支声明时出现（缺省不补），
+ * 没声明新键的工作流编译成与之前逐字相同的 IR，指纹不变；继承与缺省值由读取方（`workflowBranches`）折算。
+ */
+export interface TrackBranchIR {
+  readonly label?: string
+  readonly documentContract?: WorkflowDocumentContractV1
+  readonly steps: readonly StepIR[]
+  readonly spec?: TrackSpec
+  readonly route?: TrackRoute
+  readonly automation?: TrackAutomation
+}
+
 /** 编译产物：compileWorkflow 全量新建对象并深冻结（Object.isFrozen 对任意嵌套层成立）。 */
 export interface WorkflowIR {
   readonly name: string
@@ -239,9 +277,7 @@ export interface WorkflowIR {
   readonly documentContract?: WorkflowDocumentContractV1
   readonly steps: readonly StepIR[]
   /** track 分支（编译后）；有效计划按 change 的 track 选中一条后即从 IR 剥离，冻结快照里不再出现。 */
-  readonly tracks?: Readonly<Record<string, {
-    readonly label?: string
-    readonly documentContract?: WorkflowDocumentContractV1
-    readonly steps: readonly StepIR[]
-  }>>
+  readonly tracks?: Readonly<Record<string, TrackBranchIR>>
+  /** 平铺工作流顶层声明的路由数据（唯一隐式分支的 `route`）；只在声明时出现，旧指纹不变。 */
+  readonly route?: TrackRoute
 }

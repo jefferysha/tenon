@@ -607,13 +607,14 @@ describe('step.next 顺序', () => {
    * 真机实测的 P0（acceptance run）：`tenon transition <c> archived` 之后、`openspec archive`
    * 之前，状态机没有出边了，`next` 只剩 `{action: fix, blockers: []}`——一个没有可修项的 fix。
    * 同一刻 `tenon list` 按 `archived != true` 把它滤掉、`tenon list --finished` 只读 archive
-   * 目录，两边都看不见它。治理归档那条命令必须由 `next` 自己点名。
+   * 目录，两边都看不见它。归档那条命令必须由 `next` 自己点名——现在对所有轨道都是 `tenon task finish`，
+   * agent 不再直接执行 openspec 命令。
    */
-  test('状态机已归档 → 点名治理归档命令，而不是空 fix', () => {
+  test('状态机已归档 → 点名 tenon task finish，而不是空 fix', () => {
     expect(stepNextActions(input({ runArchived: true, exits: [] }))).toEqual([{
       action: 'finish-change',
       change: 'demo',
-      command: 'openspec archive demo --skip-specs --yes --json',
+      command: 'tenon task finish demo',
       // 搬移留下的新目录要跟一次提交，否则 ship 之后工作区是脏的。
       commit: {
         paths: ['openspec/changes/archive'],
@@ -652,17 +653,18 @@ describe('step.next 顺序', () => {
   })
 
   /**
-   * 真机（第二轮）：simple 工作流 verify-pass 后直接完结，功能代码与任务状态文件全留在工作区。
-   * 它没有归档命令，只剩一次提交；提交过（工作区干净）、不是 git 仓或以 scope-expanded 放弃时就停。
+   * 真机（第二轮）：不走 OpenSpec 的轨道 verify-pass 后直接完结，功能代码与任务状态文件全留在工作区。
+   * 现在它也有归档命令（目录要移进 archive/），完结后跟一次整个工作区的提交；以 scope-expanded 放弃
+   * （已升级）或不是 git 仓时命令照发、不带提交。
    */
-  test('非 OpenSpec 治理的工作流以验证通过完结：只带提交的 finish-change；提交过或放弃时停', () => {
+  test('非 OpenSpec 治理的工作流：finish-change 恒带 tenon task finish；验证通过才带整个工作区的提交', () => {
     const simple = (git: GitFinishProbe | null, verified = true) => stepNextActions(input({
       runArchived: true, governedOpenspec: false, finish: { git, verified },
     }))
     expect(simple(probe())).toEqual([{
       action: 'finish-change',
       change: 'demo',
-      command: null,
+      command: 'tenon task finish demo',
       // 整个工作区，去掉仓库根的本机门禁标记（真机第三轮：`.pipeline-pending-*` 以 ?? 出现在根上）。
       commit: { paths: WORKSPACE_COMMIT_PATHS, untrack: [], message: 'chore(tenon): finish demo' },
     }])
@@ -672,12 +674,21 @@ describe('step.next 顺序', () => {
       // 交互标记按会话分文件，同样不入库。
       ':(exclude,glob).pipeline-pending-interaction.*',
     ]))
-    // 工作区干净，但还有已跟踪、如今被忽略的心跳：仍要一次提交把它移出索引。
+    // 还有已跟踪、如今被忽略的心跳：同一次提交把它移出索引。
     expect(simple(probe({ workspaceDirty: false, untrack: ['openspec/changes/demo/.pipeline-terminal-activity.json'] }))[0])
       .toMatchObject({ action: 'finish-change', commit: { untrack: ['openspec/changes/demo/.pipeline-terminal-activity.json'] } })
-    expect(simple(probe({ workspaceDirty: false }))[0]).toMatchObject({ action: 'stop', code: 'finished' })
-    expect(simple(probe(), false)[0]).toMatchObject({ action: 'stop', code: 'finished' })
-    expect(simple(null)[0]).toMatchObject({ action: 'stop', code: 'finished' })
+    // 工作区此刻是干净的，移动目录本身也是要入库的改动：提交照发。
+    expect(simple(probe({ workspaceDirty: false }))[0]).toMatchObject({
+      action: 'finish-change', command: 'tenon task finish demo', commit: { message: 'chore(tenon): finish demo' },
+    })
+    // 已升级（没有验证通过）：目录照移，改动留在工作区，不提交。
+    expect(simple(probe(), false)).toEqual([{
+      action: 'finish-change', change: 'demo', command: 'tenon task finish demo', commit: null,
+    }])
+    // 不是 git 仓：命令照发，没有提交。
+    expect(simple(null)).toEqual([{
+      action: 'finish-change', change: 'demo', command: 'tenon task finish demo', commit: null,
+    }])
   })
 
   /**

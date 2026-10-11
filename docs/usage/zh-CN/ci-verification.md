@@ -101,8 +101,8 @@ Action 输入：
 | 被放弃的 Change（不判定测试证据） | `change-abandoned`（提示） |
 | 对检出的树判定的已完结 Change | `finished-judged-at-head`（提示） |
 
-被放弃的 Change 不判定测试证据。沿放弃边（`scope-expanded`，例如升级进终态 `escalated` 的 `standard` 任务）离开工作流的 Change
-不需要任何测试证据，它通常和接手它的 `default` Change 在同一个 PR 里。CI 不判定它的测试证据：不管是 `--change` 选它还是 `--since`
+被放弃的 Change 不判定测试证据。沿放弃边（`scope-expanded`，例如升级进终态 `escalated` 的 `lite` 任务）离开工作流的 Change
+不需要任何测试证据，它通常和接手它的重型轨道 Change 在同一个 PR 里。CI 不判定它的测试证据：不管是 `--change` 选它还是 `--since`
 把它带进来，报告里它只有一条提示 `change-abandoned`，没有测试策略或候选方面的发现。只认真的走过放弃边的 Change：CI 读 Change canonical
 运行状态里的链头转换记录，要求它是放弃事件、转入的正是状态所在的终态、且冻结的工作流声明过这条边。状态里只写着
 `phase: escalated`、背后没有放弃转换的，照常判定、照常失败。

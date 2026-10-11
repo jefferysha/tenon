@@ -3,6 +3,11 @@
 # （结构复刻老仓真实 change openspec/changes/afk-autopilot-triggers/.pipeline.yaml，
 #   base64 载荷已脱敏为无害示例文本）。
 #
+# 已退出 `npm run oracle`（consolidate-workflow-tracks）：这份预置 change 没有工作流计划快照（早期任务），新引擎对没有快照的
+# 任务一律报错并提示 `tenon task terminate`（设计 §5），其 check / spec-complete 步骤也是 default 引擎的行为，不再与老状态机
+# 双跑。历史尾块逐字保留（CONTRACT §1）由 kernel state 的解析 / 存储单测覆盖。
+# 本文件只留作 tools/oracle/harness.test.ts 的 harness 机制自测输入（PRESERVE 校验、已声明的状态演进）。
+#
 # 验证点：
 #   · 对含历史区的既有 change 做 get/set/transition/check（不 init）
 #   · assignee 写成 run.sh 的 ORACLE_TENON_USER：字段写入与 document record / review 同过负责人闸，

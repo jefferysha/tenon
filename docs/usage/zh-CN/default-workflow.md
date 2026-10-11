@@ -1,26 +1,34 @@
 # Default 七阶段工作流
 
-Default workflow 是 Tenon 的完整治理路径。每个阶段都有明确输入、产出、允许的回边和出口条件。
+Default workflow 的重型轨道（`pm`、`frontend`、`backend`）是 Tenon 的完整治理路径。每个阶段都有明确输入、产出、允许的回边和出口条件。`lite` 轨道只有四步，见[轻量轨道](./routing-and-workflows.md#轻量轨道)。
 
 Tenon 自有的 skill 只有一个 `tenon`：它读任务冻结的工作流计划，按
 `tenon status <change> --json` 的 `step.next` 执行当前步骤。每一步加载哪些技能全部写在
-`templates/workflows/default.yaml` 里，按轨道分支；manifest 的 `mandatory_skills` 只是同一份
-数据的路由投影，启用 Track matrix 时作为自动 overlay。
+`templates/workflows/default.yaml` 里，按轨道分支，也只写在那里。
 
 每步声明的技能（default，按轨道）：
 
-| Step | pm | frontend | backend | free |
-| --- | --- | --- | --- | --- |
-| `open` | openspec-propose | openspec-propose | openspec-propose | openspec-propose |
-| `explore` | brainstorming · grilling · domain-modeling | openspec-explore · brainstorming · grilling · domain-modeling | openspec-explore · brainstorming · grilling · domain-modeling · codebase-design | brainstorming |
-| `spec` | openspec-propose · brainstorming · writing-plans · grilling · domain-modeling | openspec-propose · writing-plans | openspec-propose · writing-plans | openspec-propose · writing-plans |
-| `build` | prototype · frontend-design | test-driven-development · frontend-design | test-driven-development | test-driven-development |
-| `verify` | browser-qa · web-design-guidelines · design-taste-frontend · verification-before-completion | verification-before-completion · e2e-testing · browser-qa · web-design-guidelines · design-taste-frontend | verification-before-completion | verification-before-completion |
-| `ship` | — | finishing-a-development-branch | finishing-a-development-branch | finishing-a-development-branch |
-| `archive` | — | — | — | — |
+| Step | pm | frontend | backend |
+| --- | --- | --- | --- |
+| `open` | openspec-propose | openspec-propose | openspec-propose |
+| `explore` | brainstorming · grilling · domain-modeling | openspec-explore · brainstorming · grilling · domain-modeling | openspec-explore · brainstorming · grilling · domain-modeling · codebase-design |
+| `spec` | openspec-propose · brainstorming · writing-plans · grilling · domain-modeling | openspec-propose · writing-plans | openspec-propose · writing-plans |
+| `build` | prototype · frontend-design | test-driven-development · frontend-design | test-driven-development |
+| `verify` | browser-qa · web-design-guidelines · design-taste-frontend · verification-before-completion | verification-before-completion · e2e-testing · browser-qa · web-design-guidelines · design-taste-frontend | verification-before-completion |
+| `ship` | — | finishing-a-development-branch | finishing-a-development-branch |
+| `archive` | — | — | — |
 
-`chat` 轨（Dashboard 不选轨道时的缺省）不声明任何技能：它的文档契约照常治理产出，但不要求
-上游技能字节，这样没有轨道的 default 解析在干净 checkout 上也成立。
+## 离开条件
+
+流程图、每条转换的 guard 和动作都写在工作流 YAML 里并按它执行，代码里没有以工作流名为键的写死规则。离开一个步骤由它的离开条件决定，其中三个是通用的：
+
+| 离开条件 | 写在哪 | 满足时 |
+| --- | --- | --- |
+| `tasks-through-step` | 步骤与前进边 | `tasks.md` 里截至本步的任务都已勾选 |
+| `not-afk-queued` | `build-complete` 边 | 任务没有在 AFK 队列里排队 |
+| `dependencies-ended` | `build-complete` 边 | `depends_on` 里的任务都已结束 |
+
+此外 YAML 里还有各步自己的条件：`build-complete` 的 `pre_verify_review_result=pass`、调研步的 `design_doc`、规格步的 `plan`（pm 除外）与至少 3 条任务、`verify-pass` 的验证报告与未变的构建修订、交付步的交付值（`pr_url`，pm 是 `prd_path`）与规格迁移。不带 event 的 `tenon check <change>` 列出「步骤 guards ∪ 前进边 guards」，一次列出全部未满足的条件，退出码 `2`。`tenon advance` 只自动走唯一的前进边，不走回退边（`requirements-changed`、`verify-fail`）和放弃边（`scope-expanded`）。原来的实现方式、隔离方式、直接实现确认和分支状态这几项决定已从新任务里去掉（升级前创建的任务照旧）。Dashboard 工作流页在门禁段下只读列出该步的离开条件。
 
 ## Open
 
@@ -43,25 +51,24 @@ Tenon 自有的 skill 只有一个 `tenon`：它读任务冻结的工作流计�
 `verify-build-revision-untrusted`，修复标识为 `return-to-build-and-capture-current-revision`。不要手动 `set build_sha`。
 
 `pre_verify_review_result=pass` 是 Build 的通过结论，`tenon set` 写入前核对本步声明的就绪证据。
-每条轨道的 Build 都声明了可核对的证据：frontend、backend、chat、free 要求项目测试目录里的 `unit` 套件通过（Build 的
-`test_policy`），pm / free / chat 另有必需评审者 `spec-consistency`（`block_at: medium`，逐条比对实现与 proposal /
+每条重型轨道的 Build 都声明了可核对的证据：frontend、backend 要求项目测试目录里的 `unit` 套件通过（Build 的
+`test_policy`），pm 要求必需评审者 `spec-consistency`（`block_at: medium`，逐条比对实现与 proposal /
 design / delta spec / tasks，语言无关）。证据不齐时写 `pass` 被拒，并点名缺的测试或评审者。
 
-每条轨道都挂了[智能体](./agents.md)：调研步骤的执行者是 `researcher`；实现步骤的执行者是 `builder`
+每条重型轨道都挂了[智能体](./agents.md)：调研步骤的执行者是 `researcher`；实现步骤的执行者是 `builder`
 （按独立任务各起一个子代理，合成一份报告），先于该步的评审者运行；验证步骤声明 `code-size` 测试
 （`tenon test code-size --json`，新增行数不超过 2000 为通过）并挂必需评审者 `code-size` 读取它的结果。
 新增行数确实超限且用户决定豁免时，用 `tenon test waive <change> --test code-size --reason …` 登记；评审确认这道门时一并批准，
-批准前不放行。
-对话与自由轨道的验证再加参考评审者 `security`，它的问题不拦截。执行者没有 `done` 之前不能离开步骤。
+批准前不放行。执行者没有 `done` 之前不能离开步骤。
 
 评审者按风险挂载。`security` 声明了 `attach_on: [auth, dependency, contract]`（见[智能体](./agents.md)），所以在验证要求它的轨道上，
 只有任务的改动碰到鉴权、依赖清单或接口契约路径时才挂上；一个都没碰到的任务不会等它、也不会派发它。同一个任务也可以先走更轻的
-[`standard` 通道](./routing-and-workflows.md#标准通道)，改动长大了再升级到本工作流。
+[`lite` 轨道](./routing-and-workflows.md#轻量轨道)，改动长大了再升级到重型轨道。
 
 步骤自己的必需测试（`tests`）命令是 npm 脚本而项目里没有这个脚本时，这条测试是「未配置」，不是失败：`tenon test run`
 拒跑、不落记录，并给出配置方式；`step.next` 在本步或上一步（配置是一次工作区改动，要赶在 Build 冻结候选版本之前）入口
-就以 `fix`（`test-unconfigured`）提出。默认工作流里仍是必需的步骤测试只有 `code-size`（每条轨道的验证）和设计体系校验
-（pm 的交付）；项目自己的测试来自测试目录，所以一个普通项目不会为了满足工作流去补 `typecheck` 或 `test:integration` 脚本。
+就以 `fix`（`test-unconfigured`）提出。默认工作流里仍是必需的步骤测试只有 `code-size`（pm、frontend、backend 的验证）、轻量轨道实现步的
+`diff-risk` 探针和设计体系校验（frontend 的交付）；项目自己的测试来自测试目录，所以一个普通项目不会为了满足工作流去补 `typecheck` 或 `test:integration` 脚本。
 
 步骤还可以声明 `test_policy`，它是测试体系在工作流这一侧的部分（项目的 `.tenon/tests/catalog.yaml` 说明测试怎么跑，
 任务的 `test-plan.yaml` 说明本任务动了哪些套件和测试文件，策略说明每一步必须看到什么）。`kinds` 必须登记进计划
@@ -72,7 +79,7 @@ design / delta spec / tasks，语言无关）。证据不齐时写 `pass` 被拒
 
 `integrity: notice | block`（缺省 `notice`）决定测试完整性报告在这一步的去向。报告把任务和它的起点对比，指出全量运行的用例数下降与跳过数上升、
 被删或被跳过的测试、被删的断言、被改写的快照、被改的基线、新增的已知失败和降低的覆盖率门槛（十种信号见
-[CLI 参考](cli-reference.md)的「测试完整性」，命令是 `tenon test integrity <change>`）。默认工作流与标准车道什么都没声明，所以
+[CLI 参考](cli-reference.md)的「测试完整性」，命令是 `tenon test integrity <change>`）。默认工作流的各条轨道都没声明它，所以
 每个实现与验证步骤都是 `notice`：信号在 `status`、`test status` 和 Dashboard 测试页签里汇成一条 `test-integrity` 提示，从不阻塞。
 在某个步骤上写 `integrity: block`，就让这些信号成为该步骤的阻塞（读不出 diff 时也阻塞，`files-diff-unavailable`）；没有逐条豁免，
 有意删除就还原测试或改策略。`integrity: notice` 与不写这个键完全一样，不改变工作流指纹。Dashboard 工作流页在 `scenarios` 旁边编辑它。
@@ -86,7 +93,7 @@ design / delta spec / tasks，语言无关）。证据不齐时写 `pass` 被拒
 
 | 轨道 | spec 登记 | build 运行（changed） | verify 运行（full） |
 | --- | --- | --- | --- |
-| chat / free | `unit` | `unit`；已登记则加 `typecheck` | `unit`；已登记则加 `regression` |
+| lite | `unit`（在实现步制定计划，没有规格步） | `unit`；已登记则加 `typecheck` | `unit`；已登记则加 `regression`、`typecheck`、`integration`、`e2e`、`playwright`、`a11y`、`visual` |
 | frontend | `unit` | `unit`；已登记则加 `typecheck` | `unit`；已登记则加 `regression`、`e2e`、`playwright`、`a11y`、`visual`；套件声明了覆盖率时 lines 80% |
 | backend | `unit` | `unit`；已登记则加 `typecheck` | `unit`；已登记则加 `integration`、`regression`、`benchmark`；套件声明了覆盖率时 lines 80% |
 | pm | 每个 OpenSpec 场景都有映射 | 无 | 已登记则跑 `smoke` |
@@ -127,6 +134,8 @@ design / delta spec / tasks，语言无关）。证据不齐时写 `pass` 被拒
 ## Archive
 
 重读 proposal、design、ADR、spec、plan、verification report 和 applied spec，确认任务清零后归档。Archive 之后自动更新不得改写历史字节。
+
+归档由 `tenon task finish <change>` 完成：`step.next` 的 `finish-change` 给出这条命令，Tenon 把任务目录移进 `openspec/changes/archive/`（OpenSpec 轨道由它调用 `openspec archive <change> --skip-specs --yes --json`）并记下任务结果「完结」，提交照 `step.next` 的 `commit` 做。中途放弃用 `tenon task terminate <change>`，结果记为「已终止」，只提交任务目录。
 
 ## 两条回边
 

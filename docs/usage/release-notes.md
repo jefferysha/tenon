@@ -4,6 +4,90 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
+## Unreleased
+
+The built-in Workflows collapse to two: `default`, whose Tracks are now lightweight (`lite`), product (`pm`), frontend
+(`frontend`) and backend (`backend`), and the flat `design-system`. The lightweight Track replaces the `standard` and
+`simple` Workflows, a development request is assessed before a Change is created, every task ends in
+`openspec/changes/archive/`, and the Workspace gets an Ended category. Read "Retired and migration" before you upgrade a
+project.
+
+### Retired and migration
+
+- The `standard` and `simple` Workflows are gone. `tenon init <name> --workflow standard` and `--workflow simple` fail and
+  print `--workflow default --track lite`.
+- The `chat` and `free` Tracks of `default` are gone, and no neutral Track is needed any more: a Workflow without `tracks:`
+  is its own single Track, so `tenon init <name> --workflow design-system` takes no `--track`. The retired Track ids
+  (`standard`, `simple`, `chat`, `free`) given to `--track` fail and list the Tracks the Workflow offers.
+- The built-in Track registry and `.pipeline/tracks.yaml` are no longer read; when the file exists Tenon prints one line.
+  A Track is now only a branch (`tracks.<id>`) of a Workflow YAML, so move the routing words you kept in `tracks.yaml`
+  into the `route` of the branch.
+- "Hiding" is removed. `tenon task archive` and `tenon task unarchive`, the Workspace "Archived" toggle and the per-user
+  `archived.json` are gone; the two old subcommands exit `1` and point to `tenon task terminate` and `tenon task finish`.
+  Tasks you had hidden show again under In progress.
+- New Changes no longer carry the `build_mode`, `isolation`, `direct_override` and `branch_status` fields or their
+  checks, and the checks for a statefile, literal proposal/tasks/design paths and the spec coverage matrix are gone.
+  Changes created before the upgrade keep their fields.
+- The manifest skill matrix (`mandatory_skills`) and the Dashboard endpoint that wrote it, `POST /api/changes` (the
+  Dashboard no longer creates tasks) and the router preview are removed; skills come only from the Workflow YAML.
+- The old phase-manifest engine now serves only Changes created before the upgrade, by their frozen snapshots, and is
+  removed in the next release. An in-flight `standard`, `simple`, chat or free Change finishes on the snapshot it froze.
+
+### Added
+
+- `default` is executed from its YAML. Its rules are written there as leave conditions, three of them general:
+  `tasks-through-step`, `not-afk-queued` and `dependencies-ended`. `tenon check <name>` without an event lists the step's
+  guards together with those of its forward edges, reports every unmet condition at once and exits `2`; `tenon advance`
+  follows only a single forward edge.
+- The Track keys `spec` (`openspec` or `none`), `route` (`keywords`, `exclude`, `priority`, `fallback`) and `automation`
+  (`eligible`, `enqueue_after_spec`) sit on the branch. AFK eligibility reads only `automation.eligible`; a Track without
+  `automation` cannot be queued (`tenon afk enqueue` exits `3`, `reason: "track-not-afk-eligible"` under `--json`).
+  `tenon tracks list` lists the Tracks of every Workflow.
+- Routing is generated from the Workflow branches (cache `router.v6`, rebuilt when any Workflow file changes) and no longer
+  decides weight from a keyword: a development request without a heavy signal is dispatched with `assess: required` and two
+  `candidate:` lines, the lightweight Track and the domain's heavy Track.
+- `tenon assess --files <path>...` evaluates the files you expect to change against the lightweight limits before the Change
+  exists, with the same classification as the risk probe (exit `0` within the limits, `3` over a limit with the breached
+  limits listed, `1` error). The `tenon` skill shows you the result and its recommendation and creates the Change only after
+  you confirm.
+- `tenon init --domain <track>` records the heavy Track a lightweight Change escalates to, so the probe's `escalate.then`
+  names it directly.
+- `tenon task finish <name>` and `tenon task terminate <name>` end a task by moving it to
+  `openspec/changes/archive/<date>-<name>/` with the result Finished, Escalated or Terminated. `finish-change` in `step.next`
+  now runs `tenon task finish`, Tenon calls `openspec archive <name> --skip-specs --yes --json` itself for OpenSpec Tracks,
+  and `terminate` commits only the task directory. `tenon list --finished` lists ended tasks.
+- The Workspace categories are All · Needs you · Running · Ended. An Ended card shows its result and All includes ended
+  tasks after the running ones. The workflow page edits a Track's spec and routing keywords and lists each step's leave
+  conditions read-only; `GET /api/change/:dir/snapshot?archived=1` reads an ended task.
+
+### What you need to do
+
+1. Replace `--workflow standard` / `--workflow simple` in scripts and notes with `--workflow default --track lite`, and drop
+   `--track` from `design-system` tasks.
+2. Replace `tenon task archive <name>` with `tenon task terminate <name>` (give up a task) or `tenon task finish <name>`
+   (a task that reached its end).
+3. Move rules from `.pipeline/tracks.yaml` into the `route` of the Workflow branches.
+4. If you saved your own `default` in the global store, it still loads, but a copy that lacks the `lite` branch makes
+   `tenon assess` report "no change-risk thresholds" instead of guessing; add a `lite` branch with a `diff-risk` test to use
+   assessment.
+5. Before rolling back to an earlier release, finish or terminate the tasks you created after upgrading. An earlier
+   release does not know the three general leave conditions, so `tenon status` shows the step projection of a new
+   `default` task only as a warning, and it rejects a new task on a Track it does not know: `lite`, or a Workflow without
+   `tracks:` (`design-system` or your own flat Workflow), whose Track is recorded under the Workflow's name (see
+   [Updates, recovery, and uninstall](updates-recovery-and-uninstall.md)).
+
+### Verify
+
+```bash
+tenon tracks list
+tenon assess --files <path>... --json
+tenon init demo --workflow standard
+```
+
+`tracks list` shows the `lite`, `pm`, `frontend` and `backend` Tracks of `default`, `design-system` and your own Workflows; `assess`
+reports whether the files you expect to change stay within the limits; the last command exits `1` and prints
+`--workflow default --track lite` (`demo` is just a sample name, nothing is created).
+
 ## v0.3.2 · 2026-10-07
 
 A fix release for v0.3.1, from its supplementary acceptance. `tenon runtime repair --rollback` no longer leaves an install
@@ -220,7 +304,7 @@ changes and upgrade impact" before you upgrade a project.
   and `security` (which attaches only on auth, dependency or contract paths).
 - Implementation-shaped requests (fix, add, refactor, in English and Chinese) route to `standard`; heavy signals
   (architecture, schema, auth, dependency upgrade, release) stay on `default`. See
-  [the standard lane](routing-and-workflows.md#the-standard-lane).
+  [the lightweight Track](routing-and-workflows.md#the-lightweight-track), which later replaced the standard lane.
 - A prompt that looks like code work but matches no Track gets a one-line "not governed" notice.
 - `tenon test diff-risk [<change>] [--json]` is the risk probe Build requires. It fails on more than 8 source files, a
   contract, auth, dependency or migration path, a deleted test or a changed test configuration (limits: `pass.metrics`).

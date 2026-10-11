@@ -12,6 +12,9 @@
  *            —— 三面 diff 与 PRESERVE 校验必须抓红。
  *   no-pm-auto-enqueue 仅漏掉 PM spec-complete 的已声明产品演进——用于证明 oracle 的
  *            KNOWN 不是静默白名单，而是会对错误状态显式失败。
+ *   guard-errors        按 default 按 YAML 执行之后的报错契约行事（default-guard-errors 的新侧契约 fixture）：
+ *            check 一次列出全部未满足项、exit 2；transition 离开条件不满足 exit 2；事件不属于当前步骤 exit 1。
+ *   guard-errors-first  同上但只报第一条（首错即停）——用于证明契约 fixture 会抓住「没有一次列全」。
  *
  * STUB_TRANSITION_HEAD=1 会在每次写回时附加一个合法形状的 canonical head anchor，
  * 用于钉住 oracle 只忽略该精确内部元数据行、仍逐字比较业务字段的兼容白名单。
@@ -238,9 +241,30 @@ function cmdSet() {
   process.exit(0)
 }
 
+const TASKS_UNCHECKED = "step 'open' 要求截至本步的 tasks.md 任务都已勾选（open 出口：tasks.md 仍有 1 项未勾）"
+const GUARD_ERRORS = MODE === 'guard-errors' || MODE === 'guard-errors-first'
+
+/** 立项步的 check：任务未勾 + 三份文档未登记 + 声明的技能未完成；`guard-errors-first` 只报第一条。 */
+function guardErrorsCheck(name) {
+  const lines = [
+    TASKS_UNCHECKED,
+    "document: 缺少 document 'proposal'",
+    "document: 缺少 document 'openspec-design'",
+    "document: 缺少 document 'tasks'",
+    "skill: step 'open' 尚未完成声明的 skill：openspec-propose",
+  ]
+  const shown = MODE === 'guard-errors-first' ? lines.slice(0, 1) : lines
+  process.stdout.write(`[CHECK] ${name} (phase=open)\n${shown.map((line) => `  [FAIL] ${line}\n`).join('')}  [FAIL] ${shown.length} check(s) failed\n`)
+  process.exit(2)
+}
+
 function cmdTransition() {
   const [, name, event] = argv
   const doc = readDoc(name)
+  if (GUARD_ERRORS) {
+    if (event !== 'open-complete') die(1, `ERROR: step 'open' does not support event '${event}'; this step supports: open-complete`)
+    die(2, `ERROR: step 'open' guard failed:\n${TASKS_UNCHECKED}`)
+  }
   const row = TRANSITIONS[event]
   if (!row) errExit(`ERROR: 未知 event: ${event}`)
   const [from, to] = row
@@ -311,6 +335,7 @@ function cmdTransition() {
 function cmdCheck() {
   const [, name] = argv
   readDoc(name) // 状态文件必须在
+  if (GUARD_ERRORS) guardErrorsCheck(name)
   // fixture 计划只含「应通过」的 check；stdout 为人读面，harness 对 check 的 stdout 记 SKIP
   if (MODE === 'contract') process.stdout.write(`[guard] ${name}: pass\n`)
   else process.stdout.write(`[CHECK] ${name} 前置条件验证：\n`)

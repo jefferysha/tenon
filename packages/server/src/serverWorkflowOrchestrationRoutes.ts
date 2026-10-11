@@ -2,17 +2,17 @@
  * 编排总览的两个只读端点：
  *   · `GET /api/workflows/:name/orchestration?root=&track=` —— 工作流定义（与 GET /api/workflows/:name 同一份来源：
  *     内建 → 项目 / 全局存储 → 模板）按轨道选分支后的编排；
- *   · `GET /api/change/:name/orchestration?root=` —— 任务冻结的计划 + 运行状态。
+ *   · `GET /api/change/:name/orchestration?root=` —— 任务冻结的计划 + 运行状态；`&archived=1` 时 `:name` 是已结束任务的
+ *     归档目录名，从 `openspec/changes/archive/` 只读读取。
  * 失败沿用 `{ ok: false, code, error }`；机器分支只看 code。
  */
 import {
-  builtinWorkflow, isTenonUser, loadTrackRegistry, parseWorkflow, resolveTrackForBranch, templateWorkflowSource,
-  WorkflowTrackBranchError,
-  type TrackDefinition, type TrackValidationContext, type WorkflowDef,
+  compileLoadedWorkflow, isTenonUser, listTracks, parseWorkflow, resolveTrack, templateWorkflowSource,
+  UnknownTrackError, WorkflowTrackBranchError,
+  type WorkflowDef,
 } from '@tenon/kernel'
 import { readAnchoredChangeState } from './changeSnapshot.js'
 import { ContextBundlePathError } from './contextBundlePreviewSupport.js'
-import { resolveSnapshotTrack } from './skillRuns.js'
 import type { SnapshotDeps } from './snapshot.js'
 import { createCandidateCache, type CandidateReader } from './testCandidateCache.js'
 import { defaultResolveUser } from './serverUserRoutes.js'
@@ -27,7 +27,6 @@ type RootCheck =
 export interface WorkflowOrchestrationRouteDeps {
   readonly workflowRootForRequest: (root: string) => RootCheck
   readonly workflowStoreForRequest: (root: string) => RootCheck
-  readonly trackValidationContextFor: (anchor: WorkflowRootAnchor) => TrackValidationContext
   readonly snapshotDeps: (nowMs?: number) => SnapshotDeps
   readonly errMsg: (error: unknown) => string
 }
@@ -67,10 +66,8 @@ function candidateFor(deps: SnapshotDeps, root: string): (() => Promise<string |
   return () => read(root)
 }
 
-/** 与 GET /api/workflows/:name 同序：插件内建 → 项目（缺失时全局）→ 模板。 */
+/** 与 GET /api/workflows/:name 同序：项目（缺失时全局）→ 模板。 */
 function readDefinition(deps: WorkflowOrchestrationRouteDeps, check: Extract<RootCheck, { ok: true }>, name: string): { readonly definition: WorkflowDef; readonly anchor: WorkflowRootAnchor } | null {
-  const builtin = builtinWorkflow(name)
-  if (builtin !== null) return { definition: builtin, anchor: check.anchor }
   try {
     return { definition: readWorkflowForApi(check.anchor, name), anchor: check.anchor }
   } catch (error) {
@@ -103,15 +100,16 @@ function workflowRoute(rawUrl: string, name: string, deps: WorkflowOrchestration
     return failure(500, 'ORCHESTRATION_DEFINITION_UNREADABLE', deps.errMsg(error))
   }
   if (found === null) return failure(404, 'ORCHESTRATION_WORKFLOW_NOT_FOUND', `workflow '${name}' 未找到`)
-  const trackId = params.get('track') ?? ''
-  let track: TrackDefinition | undefined
-  if (trackId !== '') {
-    try {
-      track = resolveTrackForBranch(loadTrackRegistry(found.anchor.path, deps.trackValidationContextFor(found.anchor)), trackId, found.definition)
-    } catch (error) {
-      return failure(409, 'ORCHESTRATION_TRACKS_UNREADABLE', deps.errMsg(error))
-    }
-    if (track === undefined) return failure(404, 'ORCHESTRATION_TRACK_NOT_FOUND', `轨道 '${trackId}' 不存在`)
+  const requestedTrack = params.get('track') ?? ''
+  // 没给轨道时：有分支的工作流看第一条分支（只读预览），平铺工作流没有轨道。
+  let track: string | undefined = requestedTrack === '' ? undefined : requestedTrack
+  try {
+    const compiled = compileLoadedWorkflow(name, found.definition)
+    if (track === undefined && compiled.tracks !== undefined) track = listTracks(compiled)[0]?.id
+    if (track !== undefined) resolveTrack(compiled, track)
+  } catch (error) {
+    if (error instanceof UnknownTrackError) return failure(404, 'ORCHESTRATION_TRACK_NOT_FOUND', `轨道 '${requestedTrack}' 不存在`)
+    return failure(422, 'ORCHESTRATION_DEFINITION_INVALID', deps.errMsg(error))
   }
   try {
     const resolver = deps.snapshotDeps().skillResolverFor?.(found.anchor.path)
@@ -128,13 +126,14 @@ function field(value: string | readonly string[] | undefined): string {
 
 async function changeRoute(rawUrl: string, name: string, deps: WorkflowOrchestrationRouteDeps): Promise<OrchestrationRouteResult> {
   if (!/^[a-zA-Z0-9_-]+$/.test(name)) return failure(400, 'ORCHESTRATION_CHANGE_INVALID', '非法 change 名（仅允许 a-z A-Z 0-9 - _）')
-  const root = new URL(rawUrl, 'http://localhost').searchParams.get('root') ?? ''
+  const params = new URL(rawUrl, 'http://localhost').searchParams
+  const root = params.get('root') ?? ''
   if (root === '') return failure(400, 'ORCHESTRATION_ROOT_REQUIRED', '缺少 root 参数')
   const check = deps.workflowRootForRequest(root)
   if (!check.ok) return failure(check.code, check.code === 404 ? 'ORCHESTRATION_ROOT_NOT_REGISTERED' : 'ORCHESTRATION_ROOT_FORBIDDEN', check.error)
   const anchor = check.anchor
   try {
-    const anchored = await readAnchoredChangeState(anchor, name)
+    const anchored = await readAnchoredChangeState(anchor, name, params.get('archived') === '1' ? 'archive' : 'active')
     if (anchored === null) return failure(404, 'ORCHESTRATION_CHANGE_NOT_FOUND', `change '${name}' 不存在`)
     const { state, changeDir } = anchored
     const workflowName = field(state.fields.workflow) || 'default'
@@ -150,7 +149,7 @@ async function changeRoute(rawUrl: string, name: string, deps: WorkflowOrchestra
         if (error instanceof WorkflowNotFoundError) return null
         throw error
       }
-    }, resolveSnapshotTrack(anchor.path, field(state.fields.track), workflowName))
+    }, field(state.fields.track))
     const snapshotDeps = deps.snapshotDeps()
     const resolved = (snapshotDeps.resolveUser ?? defaultResolveUser)(root)
     const body = await changeOrchestration({

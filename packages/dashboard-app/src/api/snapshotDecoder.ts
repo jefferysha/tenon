@@ -1,6 +1,6 @@
 import type {
-  ArchivedChangeSnapshot,
   ChangeSnapshot,
+  EndedTask,
   ProjectRepositoryIdentity,
   ProjectSnapshot,
   ReviewHandshakeSnapshot,
@@ -206,15 +206,18 @@ export function decodeProject(wire: unknown): ProjectSnapshot | null {
     rulesByFingerprint.set(decoded.workflowPlanFingerprint, semanticKey)
     changes.push(decoded)
   }
-  const archived = value.archived === undefined ? undefined : decodeArchivedChanges(value.archived)
-  if (archived === null) return null
+  const ended = value.ended === undefined ? undefined : decodeEndedTasks(value.ended)
+  if (ended === null) return null
+  const endedTotal = decodeEndedTotal(value.endedTotal, ended?.length ?? 0)
+  if (endedTotal === null) return null
   const uncommittedDeletions = decodeDeletionCount(value.uncommittedDeletions)
   if (uncommittedDeletions === null) return null
   return {
     root: value.root,
     ok: value.ok,
     changes,
-    ...(archived === undefined ? {} : { archived }),
+    ...(ended === undefined ? {} : { ended }),
+    ...(endedTotal === undefined ? {} : { endedTotal }),
     ...(uncommittedDeletions === undefined ? {} : { uncommittedDeletions }),
     ...(repository === undefined ? {} : { repository }),
     ...(compatibilityIssues === undefined ? {} : { compatibilityIssues }),
@@ -223,19 +226,42 @@ export function decodeProject(wire: unknown): ProjectSnapshot | null {
   }
 }
 
-/** 归档行是普通 change 加一个 archive 段；任何形状不符都让整个项目解码失败（闭形状）。 */
-function decodeArchivedChanges(value: unknown): ArchivedChangeSnapshot[] | null {
+const ENDED_TASK_KEYS: readonly string[] = ['name', 'workflow', 'track', 'result', 'endedAt', 'archivedDir', 'prUrl', 'owner']
+
+function endedResult(value: unknown): EndedTask['result'] | null {
+  return value === 'finished' || value === 'escalated' || value === 'terminated' || value === 'unknown' ? value : null
+}
+
+function decodeEndedTask(value: unknown): EndedTask | null {
+  if (!isRecord(value) || !Object.keys(value).every((key) => ENDED_TASK_KEYS.includes(key))) return null
+  const { name, workflow, track, endedAt, archivedDir, prUrl, owner } = value
+  const result = endedResult(value.result)
+  if (typeof name !== 'string' || name === '' || typeof workflow !== 'string' || typeof track !== 'string'
+    || typeof endedAt !== 'string' || typeof archivedDir !== 'string' || archivedDir === ''
+    || result === null || !optionalString(prUrl) || !optionalString(owner)) return null
+  return {
+    name, workflow, track, result, endedAt, archivedDir,
+    ...(typeof prUrl === 'string' ? { prUrl } : {}),
+    ...(typeof owner === 'string' ? { owner } : {}),
+  }
+}
+
+/** 已结束任务的摘要行；任何形状不符都让整个项目解码失败（闭形状）。 */
+function decodeEndedTasks(value: unknown): EndedTask[] | null {
   if (!Array.isArray(value)) return null
-  const rows: ArchivedChangeSnapshot[] = []
+  const rows: EndedTask[] = []
   for (const entry of value) {
-    const change = decodeChange(entry)
-    if (!change || !isRecord(entry) || !isRecord(entry.archive)) return null
-    const { archivedAt, phase, actor } = entry.archive
-    if (typeof archivedAt !== 'string' || typeof phase !== 'string' || !isRecord(actor)) return null
-    if (typeof actor.id !== 'string' || typeof actor.name !== 'string' || actor.trust !== 'declared') return null
-    rows.push({ ...change, archive: { archivedAt, phase, actor: { id: actor.id, name: actor.name, trust: 'declared' } } })
+    const task = decodeEndedTask(entry)
+    if (task === null) return null
+    rows.push(task)
   }
   return rows
+}
+
+/** `undefined` when absent; `null` when it is not an integer above the length of the list it truncates. */
+function decodeEndedTotal(value: unknown, listed: number): number | undefined | null {
+  if (value === undefined) return undefined
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > listed && listed > 0 ? value : null
 }
 
 /** `undefined` when absent, `null` when present but not a non-negative integer. */

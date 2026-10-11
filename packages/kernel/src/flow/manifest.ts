@@ -304,8 +304,8 @@ function hasDeprecatedRouterKeyAt(lines: readonly string[], index: number): bool
 
 function throwDeprecatedRouterKey(path: string, line: number): never {
   throw new ManifestError(
-    `${path}:${line} router_patterns 已迁移到 .pipeline/tracks.yaml 的 policy_profile.routing；`
-    + '请删除旧字段并在 Track Registry 中声明 routing policy',
+    `${path}:${line} router_patterns 已迁移到工作流分支的 tracks.<id>.route；`
+    + '请删除旧字段并在工作流 YAML 的分支里声明 route',
   )
 }
 
@@ -382,7 +382,7 @@ function scanSections(text: string, path: string): RawSections {
       throw new ManifestError(
         `${path}:${i + 1} 无法解析的顶层行 '${lines[i]}'（窄解析子集外）；`
         + '若该键是旧 router_patterns 的 YAML 等价写法：它已迁移到 '
-        + '.pipeline/tracks.yaml 的 policy_profile.routing',
+        + '工作流分支的 tracks.<id>.route',
       )
     }
     const key = top[1]!

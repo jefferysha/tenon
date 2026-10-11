@@ -15,6 +15,14 @@ import {
 } from '@tenon/kernel'
 import type { SkillContentLocator } from './content-locator.js'
 
+/** 绑定到 default 工作流的 loop 没有轨道：技能取 default 的 backend 分支（AFK 修复轨道）。 */
+export const LOOP_DEFAULT_TRACK = 'backend'
+
+/** default 工作流在 loop 轨道（backend 分支）下冻结的技能能力。 */
+export function defaultLoopSkillCapability(): EffectiveWorkflowPlan['capabilities']['skills'] {
+  return compileEffectiveWorkflowPlan('default', undefined, { track: LOOP_DEFAULT_TRACK }).capabilities.skills
+}
+
 export type SkillBundleWiringStatus = 'unwired' | 'invalid' | 'ready'
 
 export interface SkillBundleWiringResult {
@@ -102,7 +110,7 @@ export async function evaluateSkillBundleWiring(
     }
   }
   const effectiveInputs = resolutionInputs ?? (() => {
-    const capability = compileEffectiveWorkflowPlan('default').capabilities.skills
+    const capability = defaultLoopSkillCapability()
     return loop.phases.map((stepId) => ({ kind: 'default' as const, stepId, capability }))
   })()
   const expectedKind = workflowId === 'default' ? 'default' : 'custom'

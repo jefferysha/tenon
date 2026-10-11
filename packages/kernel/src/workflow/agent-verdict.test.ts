@@ -215,7 +215,7 @@ describe('isForwardExit', () => {
   })
 
   it('phase-manifest 按事件的 enforceTaskExit', () => {
-    const plan = compileEffectiveWorkflowPlan('default')
+    const plan = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend', executionModel: 'phase-manifest' })
     expect(isForwardExit(plan, 'verify', 'ship', 'verify-pass')).toBe(true)
     expect(isForwardExit(plan, 'verify', 'build', 'verify-fail')).toBe(false)
     expect(isForwardExit(plan, 'build', 'spec', 'requirements-changed')).toBe(false)

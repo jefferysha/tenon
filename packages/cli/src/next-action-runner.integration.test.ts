@@ -11,14 +11,15 @@
  * 零 mock：真临时项目、真 kernel、真文档台账、真测试记录；Skill 回执落在 PostToolUse hook 最终
  * 调用的那条生产命令上（`internal-native-skill-receipt`），时间戳跟 harness 的固定 clock 走。
  */
-import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { appendFile, readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import { execFileSync, spawnSync } from 'node:child_process'
-import { DEFAULT_WORKFLOW_SOURCE } from '@tenon/kernel'
-import { FIXED_CLOCK, freshHarness, realDeps, REPO_ROOT, rm, type Harness } from './integration-harness.js'
+import { DEFAULT_WORKFLOW_SOURCE, serializeWorkflow } from '@tenon/kernel'
+import { simpleWorkflow } from '@tenon/kernel/workflow/test-support'
+import { FIXED_CLOCK, freshHarness, realDeps, rm, type Harness } from './integration-harness.js'
 import { performFlowAction } from './integration-test-flow-support.js'
+import { putFile, runGit, type GitResult } from './test-git-fixture.js'
 
 const CHANGE = 'nextrun'
 const FIXTURE_PACKAGE_JSON = `${JSON.stringify({
@@ -68,9 +69,13 @@ interface StepBlock {
   readonly next: readonly StepAction[]
 }
 
-/** 自由文本交付槽本来就没有枚举；pr_url 的真值由投影给出（无远端 → no-remote），这里只剩 prd_path。 */
+/**
+ * 自由文本交付槽本来就没有枚举；pr_url 的真值由投影给出（无远端 → no-remote），这里是 prd_path，
+ * 以及产品轨道（旧引擎里 plan 不走 artifact 登记）规格步给出的 plan 路径。
+ */
 const FREEFORM: Readonly<Record<string, string>> = {
   prd_path: `docs/${CHANGE}-prd.md`,
+  plan: `docs/${CHANGE}-plan.md`,
 }
 
 const SHIP_TASK = 'update the usage docs'
@@ -108,11 +113,7 @@ function authored(kind: string): string {
 let h: Harness
 
 /** 夹具是一个真 git 仓：只提交过 package.json，change 目录从未被跟踪（真机第二轮的失败形态）。 */
-const GIT_IDENTITY = ['-c', 'user.name=runner', '-c', 'user.email=runner@example.com', '-c', 'commit.gpgsign=false']
-function git(args: readonly string[]): { readonly status: number | null; readonly output: string } {
-  const result = spawnSync('git', [...GIT_IDENTITY, ...args], { cwd: h.cwd, encoding: 'utf8' })
-  return { status: result.status, output: `${result.stdout}${result.stderr}` }
-}
+const git = (args: readonly string[]): GitResult => runGit(h.cwd, args)
 
 interface FinishCommit {
   readonly paths: readonly string[]
@@ -160,11 +161,7 @@ function changeDir(name = CHANGE): string {
   return join(h.cwd, 'openspec', 'changes', name)
 }
 
-async function put(rel: string, body: string): Promise<void> {
-  const abs = join(h.cwd, rel)
-  await mkdir(dirname(abs), { recursive: true })
-  await writeFile(abs, body, 'utf8')
-}
+const put = (rel: string, body: string): Promise<void> => putFile(h.cwd, rel, body)
 
 async function run(args: readonly string[]): Promise<void> {
   const code = await h.run([...args])
@@ -247,7 +244,7 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
         ?? (action.allowed as readonly string[] | null)?.[0]
         ?? FREEFORM[String(action.field)]
       expect(value, `set-field 必须给出可填的值：${JSON.stringify(action)}`).toBeDefined()
-      if (action.field === 'prd_path') await put(FREEFORM.prd_path!, '# PRD\n')
+      if (action.field === 'prd_path' || action.field === 'plan') await put(FREEFORM[action.field]!, '# PRD\n')
       await run(['set', CHANGE, String(action.field), value!])
       return false
     }
@@ -357,9 +354,9 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
       expect(git(['status', '--porcelain']).output).toBe('')
       return false
     }
-    // 治理归档是 OpenSpec 自己的命令（动作自带整条命令），到这里状态机已经完结。运行器照原样跑它，
-    // 再照动作给的 paths 提交这次搬移——change 目录从未被 git 跟踪，paths 不能点名它（搬走之后
-    // `git add` 会以 pathspec did not match 整条失败）。
+    // 归档是 `tenon task finish`（动作自带整条命令；走 OpenSpec 的轨道由它调用 openspec，agent 不直接执行），
+    // 到这里状态机已经完结。运行器照原样跑它，再照动作给的 paths 提交这次搬移——change 目录从未被 git
+    // 跟踪时，paths 不能点名它（搬走之后 `git add` 会以 pathspec did not match 整条失败）。
     case 'finish-change': {
       const commit = action.commit as FinishCommit
       // 原目录已随交付提交入库，列出（-A 据索引项暂存搬走后的删除）；其后 archive/ 与存在且未被忽略的
@@ -371,13 +368,9 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
         untrack: [],
         message: `chore(openspec): archive ${CHANGE}`,
       })
-      const [bin, ...args] = String(action.command).split(' ')
-      execFileSync(bin!, args, {
-        cwd: h.cwd,
-        env: { ...process.env, PATH: `${join(REPO_ROOT, 'node_modules', '.bin')}:${process.env.PATH ?? ''}` },
-        stdio: 'ignore',
-      })
-      expect(existsSync(changeDir()), 'openspec archive 必须真的把 change 目录搬走').toBe(false)
+      expect(action.command).toBe(`tenon task finish ${CHANGE}`)
+      expect(await h.run(['task', 'finish', CHANGE]), h.err.join('\n')).toBe(0)
+      expect(existsSync(changeDir()), 'tenon task finish 必须真的把 change 目录搬走').toBe(false)
       commitAsInstructed(commit)
       // 收尾之后整个工作区干净：交付物（代码、主规格、测试记录、.gitignore）由交付步的 commit
       // 提交，搬移由这里提交；运行器从不自己提交。
@@ -426,7 +419,7 @@ async function walk(options: WalkOptions = {}): Promise<{
   if (options.projectWorkflow !== undefined) {
     await put('.pipeline/workflows/default.yaml', options.projectWorkflow)
   }
-  expect(await h.run(['init', CHANGE, '--track', track, '--preset', 'full'])).toBe(0)
+  expect(await h.initLegacyDefault(CHANGE, track)).toBe(0)
   // Skill 回执绑定当前用户的活跃任务，真实宿主会话就是这样起头的。
   expect(await h.run(['session', 'activate', CHANGE])).toBe(0)
   const proposal = join(changeDir(), 'proposal.md')
@@ -638,10 +631,10 @@ describe('照着 next 做事的运行器：open → 完结', { timeout: 120_000 
    * 没有可核对的证据，模型直接 set 通过。现在这些轨道的 build 声明必需评审者 spec-consistency：
    * next 先让它跑，评审通过之前 `tenon set … pass` 被拒。
    */
-  test('free 轨：build 的通过结论要等必需评审者 spec-consistency 通过', async () => {
+  test('pm 轨：build 的通过结论要等必需评审者 spec-consistency 通过', async () => {
     let refusedBeforeReview = false
     const { seen, actions } = await walk({
-      track: 'free',
+      track: 'pm',
       before: async (step, action) => {
         if (step.id !== 'build' || action.action !== 'run-agent' || refusedBeforeReview) return
         expect(await h.run(['set', CHANGE, 'pre_verify_review_result', 'pass'])).toBe(1)
@@ -753,15 +746,19 @@ describe('照着 next 做事的运行器：open → 完结', { timeout: 120_000 
 
 /**
  * 真机（第二轮）：simple 工作流 verify-pass 后直接完结，功能代码与任务状态文件全留在工作区未提交；
- * 已完结的 simple 任务 status 还带着 `step.archived: false`。收尾的 next 是只带提交的
- * finish-change（没有归档命令），照做一次成功；提交之后 next 是 stop finished，与 default 搬进 archive/
- * 后同一形态。真机（第三轮）：仓库根的门禁标记不能被这次提交带进去，只剩它时也不再发提交。
+ * 已完结的 simple 任务 status 还带着 `step.archived: false`。收尾的 next 是 finish-change：先执行
+ * `tenon task finish`（不走 OpenSpec 的轨道由 Tenon 直接把目录移进 archive/），再照 `commit` 做一次成功的
+ * 提交；之后 next 是 stop finished。真机（第三轮）：仓库根的门禁标记不能被这次提交带进去，只剩它时也不再发提交。
  */
-describe('照着 next 做事的运行器：simple 工作流', { timeout: 120_000 }, () => {
+describe('照着 next 做事的运行器：轻量的平铺工作流（原内建 simple 的定义）', { timeout: 120_000 }, () => {
   const SIMPLE = 'tiny'
+  /** 已退役的内建 simple 的定义（change → verify → done / escalated），改名为项目自己的平铺工作流。 */
+  const seedLightweight = (): Promise<void> =>
+    put('.pipeline/workflows/lightweight.yaml', serializeWorkflow({ ...simpleWorkflow(), name: 'lightweight' }))
 
   test('verify-pass 完结后 next 给出一次成功的提交（不含门禁标记）；提交之后 stop finished', async () => {
-    expect(await h.run(['init', SIMPLE, '--track', 'simple', '--preset', 'tweak'])).toBe(0)
+    await seedLightweight()
+    expect(await h.run(['init', SIMPLE, '--workflow', 'lightweight', '--preset', 'tweak'])).toBe(0)
     expect(await h.run(['session', 'activate', SIMPLE])).toBe(0)
     await put('src/typo.txt', 'fixed the typo\n')
     await put('.pipeline-pending-review', 'marker\n')
@@ -780,13 +777,12 @@ describe('照着 next 做事的运行器：simple 工作流', { timeout: 120_000
         expect(seen).toContain('finish-change')
         // 只剩本机门禁标记：它没被提交，也不会再让 next 发一次必定 nothing to commit 的提交。
         expect(git(['status', '--porcelain']).output).toBe('?? .pipeline-pending-review\n')
-        // 真机（第四轮）：simple 不走 OpenSpec，目录原地不动——check / status / list 只说「已完结」，
-        // 不声称已归档。
-        expect(existsSync(changeDir(SIMPLE)), 'simple 完结后目录不搬').toBe(true)
+        // 任务结束一律归档：不走 OpenSpec 的轨道目录也搬进 archive/，check / status 说「已完结（已归档）」。
+        expect(existsSync(changeDir(SIMPLE)), '完结后目录搬进 archive/').toBe(false)
         await run(['check', SIMPLE])
-        expect(h.out.join('\n')).toBe(`change '${SIMPLE}' 已完结，无需检查`)
+        expect(h.out.join('\n')).toBe(`change '${SIMPLE}' 已完结（已归档），无需检查`)
         await run(['status', SIMPLE])
-        expect(h.out).toContain('finished     已完结')
+        expect(h.out).toContain('finished     已完结（已归档）')
         await run(['list', '--finished'])
         expect(h.out.join('\n')).toContain('FINISHED_AT')
         expect(h.out.join('\n')).not.toContain('ARCHIVED_AT')
@@ -816,9 +812,10 @@ describe('照着 next 做事的运行器：simple 工作流', { timeout: 120_000
             expect(action).toEqual({
               action: 'finish-change',
               change: SIMPLE,
-              command: null,
+              command: `tenon task finish ${SIMPLE}`,
               commit: { paths: WORKSPACE_PATHS, untrack: [], message: `chore(tenon): finish ${SIMPLE}` },
             })
+            await run(['task', 'finish', SIMPLE])
             commitAsInstructed(action.commit as FinishCommit)
             break
           default:
@@ -829,13 +826,21 @@ describe('照着 next 做事的运行器：simple 工作流', { timeout: 120_000
     throw new Error(`runner(simple): 30 轮还没走到完结：${seen.join(' → ')}`)
   })
 
-  test('scope-expanded 放弃：不发提交，step 的 next 是 stop finished', async () => {
-    expect(await h.run(['init', SIMPLE, '--track', 'simple', '--preset', 'tweak'])).toBe(0)
+  test('scope-expanded 放弃：finish-change 只带命令、不带提交；执行之后 step 的 next 是 stop finished', async () => {
+    await seedLightweight()
+    expect(await h.run(['init', SIMPLE, '--workflow', 'lightweight', '--preset', 'tweak'])).toBe(0)
     expect(await h.run(['transition', SIMPLE, 'scope-expanded'])).toBe(0)
+    await run(['status', SIMPLE, '--json'])
+    const before = JSON.parse(h.out.join('\n')) as { step?: { next: readonly StepAction[] } }
+    expect(before.step?.next).toEqual([{
+      action: 'finish-change', change: SIMPLE, command: `tenon task finish ${SIMPLE}`, commit: null,
+    }])
+    await run(['task', 'finish', SIMPLE])
     await run(['status', SIMPLE, '--json'])
     const payload = JSON.parse(h.out.join('\n')) as { step?: Record<string, unknown>; finished_changes?: readonly { name: string }[] }
     expect(Object.keys(payload.step ?? {})).toEqual(STEP_KEYS)
     expect(payload.step).toMatchObject({ archived: true, next: [{ action: 'stop', code: 'finished' }] })
+    expect(JSON.stringify(payload.step?.next)).toContain('已升级')
     expect(payload.finished_changes?.map((row) => row.name)).toEqual([SIMPLE])
   })
 })

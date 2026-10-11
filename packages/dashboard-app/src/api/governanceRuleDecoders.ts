@@ -31,6 +31,9 @@ export const GUARD_DATA_KEYS = {
   'full-direct-override': [],
   'build-head-unchanged': ['field'],
   'spec-migration-applied': [],
+  'tasks-through-step': [],
+  'not-afk-queued': [],
+  'dependencies-ended': [],
 } as const satisfies Record<WbGuardConfig['type'], readonly string[]>
 
 export function isGuardType(value: string): value is WbGuardConfig['type'] {
@@ -85,6 +88,12 @@ export function decodeGuard(value: unknown): WbGuardConfig | null {
         : null
     case 'spec-migration-applied':
       return withWhen({ type: 'spec-migration-applied' }, when)
+    case 'tasks-through-step':
+      return withWhen({ type: 'tasks-through-step' }, when)
+    case 'not-afk-queued':
+      return withWhen({ type: 'not-afk-queued' }, when)
+    case 'dependencies-ended':
+      return withWhen({ type: 'dependencies-ended' }, when)
     default:
       return null
   }

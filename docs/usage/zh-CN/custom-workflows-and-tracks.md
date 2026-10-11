@@ -4,12 +4,13 @@
 
 ## 目标
 
-创建一个可编译、可验证、能被新 Change 固定引用的项目 Workflow，并用 Track 决定谁可以选择它。短 Workflow 只生成合同声明的文档，不被强制扩成 default 七阶段。
+创建一个可编译、可验证、能被新 Change 固定引用的项目 Workflow，并按需把它拆成路由可以推荐的 Track。短 Workflow 只生成合同声明的文档，不被强制扩成 default 七阶段。
 
 ## 前置条件
 
 - 已理解[选择执行模式](./routing-and-workflows.md)和[文档、Skill 与证据链](./documents-skills-and-evidence.md)；
-- 能修改项目的 `.pipeline/workflows/` 与 Track 配置；
+- 能修改项目的 `.pipeline/workflows/`；
+- 工作流名唯一（名为 `default` 或 `design-system` 的文件会替换随插件发布的同名模板）；
 - 已确定稳定 step id、可见 label、合法出边、review gate 和必要 Skill；
 - 对需要保留的 OpenSpec 文档已经定义 owner、producer 和 read 关系。
 
@@ -23,9 +24,50 @@ step id 是稳定协议 token，可见 label 可以中文化。最小 Workflow �
 
 ### 2. 定义 Track
 
-Track 约束允许的 workflow、默认 workflow、review seed、技能和领域覆盖等策略。内建 simple、free、frontend、backend、pm 不是可以随意互换的别名。
+Track 是 Workflow 里的一个分支，`tracks:` 下的分支就是全部的 Track：身份是「工作流 + 轨道 id」，没有独立的轨道登记表。在 Workflow YAML 里（或在 Dashboard 工作流页）声明分支，每个分支自带步骤。分支的键是闭集，其他键在加载时被拒绝：
 
-Track 和 Workflow 是两个维度：Workflow 决定时序与证据合同，Track 决定策略覆盖和默认选择。一个 Track 可以允许多个 Workflow，但创建 Change 时必须解析出唯一 effective plan。
+| 键 | 含义 |
+| --- | --- |
+| `label` | CLI 与 Dashboard 里显示的名称 |
+| `steps` | 分支的步骤 |
+| `document_contract` | 分支的文档契约，写在它引用的步骤旁边 |
+| `spec` | `openspec` 或 `none`；不写时继承顶层 `openspec`（`openspec: true` 视为 `spec: openspec`），旧文件不用改 |
+| `route` | 自动路由：`keywords`、`exclude`、`priority`，可选 `fallback: true`；不写表示路由从不选它，只能点名使用 |
+| `automation` | `eligible`（能否进入 AFK）与 `enqueue_after_spec`（规格完成后自动入队）；不写时两者都关 |
+
+```yaml
+name: release-note
+tracks:
+  docs:
+    label: 文档
+    spec: none
+    route:
+      keywords: [changelog, 发布说明]
+      priority: 50
+    steps:
+      - id: shape
+        label: 整理
+        gate: auto
+        skills: []
+        inputs: []
+        outputs: []
+        guards: []
+        transitions:
+          - event: shape-complete
+            to: prove
+```
+
+声明了 `tracks:` 的 Workflow 只接受它列出的分支。`tenon init <change> --workflow release-note --track docs` 成功，因为 `release-note` 声明了 `docs`；要求一个 Workflow 没有声明的分支，会在写入任何东西之前被拒绝，并列出可选的轨道：
+
+```text
+ERROR: 工作流 'default' 没有轨道 'docs'（可选：lite, pm, frontend, backend）
+```
+
+没有 `tracks:` 的 Workflow 是平铺工作流，本身就是唯一的 Track：写 `--workflow <name>`，不写 `--track`。
+
+带 `route` 的分支就是一行路由数据：关键词得分最高时路由器会推荐它。因为它属于自定义工作流，路由器不替你决定，而是让你选一对「工作流 + 轨道」。Dashboard 的轨道设置只能改 `keywords` 与 `spec`；`exclude`、`priority`、`fallback` 与 `automation` 只在 YAML 里改。`automation` 决定 AFK：只有 `eligible: true` 的分支能入队，没写 `automation` 的分支（所有平铺工作流也一样）不能：`tenon afk enqueue` 退出码 `3`，带 `--json` 时给出 `reason: "track-not-afk-eligible"`。
+
+原来的内建轨道登记表和 `.pipeline/tracks.yaml` 不再读取。文件还在时 Tenon 只打印一行提示，把它的路由词写进 Workflow 分支的 `route` 即可。`tenon tracks list` 列出项目可用的全部工作流的全部轨道（列 `WORKFLOW:TRACK`、`LABEL`、`ROUTABLE`），`tenon tracks show <工作流>:<轨道>` 看单条；轨道 id 只在一个工作流里出现时可省略工作流名。
 
 ### 3. 声明 Document contract
 
@@ -51,7 +93,8 @@ Change 名和 capability 名不是同一个概念，多 capability Change 也不
 ### 4. 创建并使用
 
 ```bash
-tenon init <change> --track <track> --workflow <workflow> --preset full
+tenon init <change> --workflow <workflow> --track <track> --preset full
+tenon init <change> --workflow <平铺工作流>
 tenon status <change> --json
 tenon workflow plan <change> --json
 ```
@@ -87,7 +130,9 @@ tenon document status <change>
 
 ## 常见失败
 
-- `workflow not found`：确认文件名、Workflow `name` 和 Track allowlist 一致；
+- `workflow not found`：确认文件名与 Workflow `name` 一致；
+- 路由不理我的 Workflow：分支只有写了 `route.keywords` 才是路由行，保存后下一条消息按新内容重建路由表；`tenon tracks list` 的 `ROUTABLE` 列可以核对；
+- 保存了自己的 `default` 之后 `tenon assess` 报「该轨道没有改动风险阈值」：保存的文件里没有带 `diff-risk` 测试的 `lite` 分支，Tenon 不猜阈值；已开始的任务仍按冻结的计划走；
 - Todo 仍显示七阶段：Change 实际绑定了 default，检查 init 参数和 status；
 - 三步流程生成完整 OpenSpec：错误沿用了 default 的契约，而不是自己精确声明的 document contract；
 - document record 被拒：producer 不属于 owner step，或没有当前 visit 的真实 Skill 证据；

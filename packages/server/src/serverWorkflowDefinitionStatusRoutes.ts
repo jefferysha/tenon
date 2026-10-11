@@ -1,4 +1,4 @@
-import type { PipelineState } from '@tenon/kernel'
+import type { PipelineState, PlanOptions } from '@tenon/kernel'
 import {
   WorkflowPathError,
   type WorkflowRootAnchor,
@@ -19,7 +19,7 @@ type WorkflowRootCheck =
 export interface WorkflowDefinitionStatusRouteDeps {
   readonly workflowRootForRequest: (root: string) => WorkflowRootCheck
   readonly readChangeState: (anchor: WorkflowRootAnchor, change: string) => Promise<PipelineState | null>
-  readonly readCurrent: (anchor: WorkflowRootAnchor, workflow: string) => WorkflowDefinitionCurrent
+  readonly readCurrent: (anchor: WorkflowRootAnchor, workflow: string, planOptions: PlanOptions) => WorkflowDefinitionCurrent
 }
 
 export interface WorkflowDefinitionStatusRouteResult {
@@ -79,7 +79,10 @@ export async function resolveWorkflowDefinitionStatusRoute(
   try {
     current = frozenFingerprint === null
       ? { kind: 'invalid' } as const
-      : deps.readCurrent(rootCheck.anchor, workflow)
+      : deps.readCurrent(rootCheck.anchor, workflow, {
+          track: Array.isArray(state.fields.track) ? state.fields.track.join(',') : state.fields.track,
+          executionModel: snapshot?.executionModel,
+        })
   } catch (error) {
     if (error instanceof WorkflowPathError) {
       return { status: 403, body: { ok: false, error: 'workflow 定义路径不可信' } }

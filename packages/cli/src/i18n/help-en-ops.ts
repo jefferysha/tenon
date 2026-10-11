@@ -5,7 +5,7 @@ export const HELP_EN_OPS: Readonly<Record<string, string>> = {
   mem: 'Cross-runtime session search: list · search <kw> · context <id> · extract <id> · projects',
   tap: 'tap traffic proxy: start <client...> [--ca [dir]] [--json] [-- <command> ...] (daemon launcher, #34-wire)',
 
-  '_gen-router-sh': '[internal] Derive the project router data cache from the manifest + the effective track registry (called by router.sh)',
+  '_gen-router-sh': '[internal] Derive the project router data cache from the workflow branches\' route (the manifest only locates the plugin templates/; called by router.sh)',
   'internal-skill-gate': '[internal] Skill DAG unlock decision for non-default workflows (the target gate.sh delegates to; 0 = allow, 2 = block)',
   'internal-constraint-gate': '[internal] AutomationPolicy path authorization (0 = allow, 2 = deny, 1 = corrupt input)',
   'internal-codex-jsonl': '[internal] Parse host-owned codex exec --json events (usage|transitions)',
@@ -26,11 +26,17 @@ export const HELP_EN_OPS: Readonly<Record<string, string>> = {
   'state --force-canonical': 'repair-projection: explicitly overwrite unknown YAML drift with the canonical state',
   'state --workflow-file': 'pin-workflow-snapshot: the old workflow file, which must match the bound fingerprint exactly',
 
-  tracks: 'Read-only view of the Track Registry: list / show <id> (--json for stable output)',
-  'tracks list': 'List every track (built-in tracks first; fixed columns ID LABEL BUILTIN DEFAULT ALLOWED POLICY)',
+  tracks: 'Read-only view of workflow branches (tracks): list / show <id> (--json for stable output)',
+  'tracks list': 'List every track of every workflow (fixed columns WORKFLOW:TRACK LABEL ROUTABLE)',
   'tracks list --json': 'JSON array output',
-  'tracks show': 'Show one track in detail (marked source: builtin | builtin-override | custom)',
+  'tracks show': 'Show one track in detail (<workflow>:<track>; the workflow name may be omitted when the track id appears in only one workflow)',
   'tracks show --json': 'JSON object output',
+
+  assess: 'Assess how heavy a change is before creating the task: classify the files you expect to change with the same rules and thresholds as the change-risk probe (exit 0 within limits, 3 exceeded, 1 usage error or no thresholds)',
+  'assess --files': 'Repository-relative paths you expect to change (no absolute paths, no .. segments, no symlinks out of the repository; only the paths are classified, file contents are never read)',
+  'assess --workflow': 'Workflow to assess against (default: default)',
+  'assess --track': 'Track whose diff-risk test supplies the thresholds (default: lite for the default workflow; a flat workflow needs none)',
+  'assess --json': 'JSON output: workflow, track, metrics, exceeded, reasons, recommendation',
 
   user: 'Current user identity (self-declared): TENON_USER → this machine\'s user.json → git config user.email',
   'user --json': 'JSON output',

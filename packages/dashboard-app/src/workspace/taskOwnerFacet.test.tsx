@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { makeChange, makeProject, makeSnapshot } from '../testkit'
 import type { UserRefView } from '../types'
-import { DEFAULT_TASK_FILTER, facetTotal, filterRows, rowsOf, taskFacets } from './taskModel'
+import { DEFAULT_TASK_FILTER, facetTotal, filterRows, taskFacets } from './taskFilter'
+import { rowsOf } from './taskModel'
 
 const ann: UserRefView = { id: 'ann@x.io', name: 'Ann', slug: 'ann-at-x.io' }
 const bob: UserRefView = { id: 'bob@x.io', name: 'Bob', slug: 'bob-at-x.io' }

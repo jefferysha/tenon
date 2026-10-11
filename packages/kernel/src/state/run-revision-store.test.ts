@@ -256,6 +256,24 @@ describe('G1 canonical revision 对抗校验', () => {
     expect(await store.get(dir, 'max_rounds')).toBe('')
   })
 
+  test('domain 随 init 的独占创建一次写入 canonical wire 与 YAML projection（FIELD_ORDER 末尾）；没给时两处都没有这个键', async () => {
+    const withDomain = await createStateStore().init({
+      repoRoot: (await fresh()).root, name: 'lite-task', track: 'lite', domain: 'backend', reviewSeed: 'pending',
+      creator: TEST_CREATOR, preset: 'full', clock, runId: 'run-2',
+    })
+    const wire = JSON.parse(await readFile(join(withDomain, '.pipeline-run', 'current.json'), 'utf8')) as { state: { fields: Record<string, unknown> } }
+    expect(wire.state.fields.domain).toBe('backend')
+    expect(Object.keys(wire.state.fields).at(-1)).toBe('domain')
+    expect(await readFile(join(withDomain, '.pipeline.yaml'), 'utf8')).toContain('\ndomain: backend\n')
+    expect(await createStateStore().get(withDomain, 'domain')).toBe('backend')
+
+    const { dir } = await fresh()
+    const plain = JSON.parse(await readFile(join(dir, '.pipeline-run', 'current.json'), 'utf8')) as { state: { fields: Record<string, unknown> } }
+    expect(plain.state.fields).not.toHaveProperty('domain')
+    expect(await readFile(join(dir, '.pipeline.yaml'), 'utf8')).not.toContain('domain')
+    expect(await createStateStore().get(dir, 'domain')).toBe('')
+  })
+
   test('publish 在落任何新 canonical bytes 前拒绝非 transition 改写 head/sequence', async () => {
     const { dir } = await fresh()
     const currentPath = join(dir, '.pipeline-run', 'current.json')

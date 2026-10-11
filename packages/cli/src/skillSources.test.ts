@@ -201,10 +201,11 @@ describe('⑤ manifest 改名落地（templates/manifest.yaml）', () => {
     expect(manifest).not.toContain('uiforge')
   })
 
-  // to-spec / to-tickets 都带 disable-model-invocation（宿主拒绝代模型调用），强制表里不能有它们。
-  // ship.pm 的把关改由工作流数据承担：applied-spec 文档槽 + spec-migration-applied guard。
-  it('ship.pm 不声明任何强制技能；durable spec 由 applied-spec 文档与 spec-migration-applied guard 把关', () => {
-    expect(manifest).toMatch(/ship\.pm:\s*\[\]/)
+  // to-spec / to-tickets 都带 disable-model-invocation（宿主拒绝代模型调用），manifest 里不能出现它们。
+  // 强制技能矩阵已删除（一步该加载什么只看工作流 YAML）；durable spec 由 applied-spec 文档槽 +
+  // spec-migration-applied guard 把关。
+  it('manifest 不再有强制技能矩阵，也不点名仅人工调用的 to-spec / to-tickets', () => {
+    expect(manifest).not.toMatch(/^mandatory_skills:/mu)
     expect(manifest).not.toMatch(/^\s*[a-z]+\.[a-z_]+:.*\bto-spec\b/mu)
     expect(manifest).not.toMatch(/^\s*[a-z]+\.[a-z_]+:.*\bto-tickets\b/mu)
   })

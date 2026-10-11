@@ -64,7 +64,7 @@ async function project(options: { git: boolean }): Promise<Harness> {
   }
   await mkdir(join(h.cwd, '.pipeline', 'workflows'), { recursive: true })
   await writeFile(join(h.cwd, '.pipeline', 'workflows', 'filesflow.yaml'), WORKFLOW, 'utf8')
-  expect(await h.run(['init', 'demo', '--track', 'backend', '--workflow', 'filesflow', '--preset', 'full'], { env: { TENON_USER: USER.id, TENON_USER_NAME: USER.name } }), h.err.join('\n')).toBe(0)
+  expect(await h.run(['init', 'demo', '--workflow', 'filesflow', '--preset', 'full'], { env: { TENON_USER: USER.id, TENON_USER_NAME: USER.name } }), h.err.join('\n')).toBe(0)
   const paths = testSystemPaths(h.cwd)
   await mkdir(paths.root, { recursive: true })
   await writeFile(paths.catalog, CATALOG, 'utf8')

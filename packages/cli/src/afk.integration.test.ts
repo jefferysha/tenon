@@ -27,6 +27,34 @@ describe('afk 真 e2e —— automation 子系统 CLI 可达性（iteration-29 �
     expect(await h.read('pm1')).toMatch(/^automation: queued$/m)
   })
 
+  test('lite 任务 enqueue 被拒并说明该轨道不可进入 AFK：退出码 3，状态零改写', async () => {
+    expect(await h.run(['init', 'lt1', '--track', 'lite', '--preset', 'full'])).toBe(0)
+    const before = await h.read('lt1')
+
+    expect(await h.run(['afk', 'enqueue', 'lt1'])).toBe(3)
+
+    expect(h.err.join('\n')).toContain('该轨道不可进入 AFK')
+    expect(await h.read('lt1')).toBe(before)
+    expect(await h.read('lt1')).not.toMatch(/^automation: queued$/m)
+  })
+
+  test('lite 任务 enqueue --json：未入队，并给出机器可判定的原因', async () => {
+    expect(await h.run(['init', 'lt2', '--track', 'lite', '--preset', 'full'])).toBe(0)
+
+    expect(await h.run(['afk', 'enqueue', 'lt2', '--json'])).toBe(3)
+
+    expect(JSON.parse(h.out.join('\n'))).toMatchObject({ change: 'lt2', queued: false, reason: 'track-not-afk-eligible' })
+  })
+
+  test('可进 AFK 的 backend 任务已在队时再次 enqueue 仍然成功，不会被说成轨道不可进入 AFK', async () => {
+    expect(await h.run(['init', 'bq1', '--track', 'backend', '--preset', 'full'])).toBe(0)
+    expect(await h.run(['afk', 'enqueue', 'bq1'])).toBe(0)
+    h.err.length = 0
+
+    expect(await h.run(['afk', 'enqueue', 'bq1'])).toBe(0)
+    expect(h.err.join('\n')).not.toContain('该轨道不可进入 AFK')
+  })
+
   test('scan 真扫就绪队列（build+queued+deps 满足才就绪）', async () => {
     await h.run(['init', 'b1', '--track', 'backend', '--preset', 'full'])
     await h.run(['afk', 'enqueue', 'b1']) // queued 但相位 open，非 build → 不就绪

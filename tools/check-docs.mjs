@@ -51,7 +51,6 @@ const TRUTH_SOURCES = [
   'templates/workflows/default.yaml',
   'packages/kernel/src/workflow/default-workflow.generated.ts',
   'skills/tenon/SKILL.md',
-  'templates/workflows/simple.yaml',
   'packages/cli/src/program-users.ts',
   'docs/CONTRACT.md',
 ]
@@ -372,21 +371,22 @@ function checkVitePressTagHazards(root, failures) {
   }
 }
 
-function workflowTrackSource(yaml, track = 'chat') {
+/** 默认取 `backend`：default 的七阶段骨架（轻量轨道只有五步，不是文档描述的那条主线）。 */
+function workflowTrackSource(yaml, track = 'backend') {
   const tracks = yaml.match(/^tracks:\s*\n([\s\S]*)$/mu)
   if (tracks === null) return yaml
   const trackMatch = tracks[1].match(new RegExp(`^  ${track}:\\s*\\n([\\s\\S]*?)(?=^  [A-Za-z0-9_-]+:\\s*$|(?![\\s\\S]))`, 'mu'))
   return trackMatch?.[1] ?? ''
 }
 
-export function extractYamlStepIds(yaml, track = 'chat') {
+export function extractYamlStepIds(yaml, track = 'backend') {
   const source = workflowTrackSource(yaml, track)
   const indent = source === yaml ? 2 : 6
   return [...source.matchAll(new RegExp(`^ {${indent}}- id:\\s*([A-Za-z0-9_-]+)\\s*$`, 'gmu'))].map((match) => match[1])
 }
 
 /** Extract only the Skill ids in each top-level workflow step's `skills` block. */
-export function extractYamlStepSkillIds(yaml, track = 'chat') {
+export function extractYamlStepSkillIds(yaml, track = 'backend') {
   const source = workflowTrackSource(yaml, track)
   const indent = source === yaml ? 2 : 6
   const skillIndent = source === yaml ? 6 : 10
@@ -742,26 +742,6 @@ function checkSourceBoundedClaims(root, contents, failures) {
       const text = contents.get(document)
       if (text !== undefined && !includesOrderedTokens(text, defaultSteps)) {
         failures.push(`${document}: workflow steps must follow source order: ${defaultSteps.join(' -> ')}`)
-      }
-    }
-  }
-
-  const simpleSteps = extractYamlStepIds(contents.get('templates/workflows/simple.yaml') ?? '')
-  if (simpleSteps.length === 0) {
-    failures.push('templates/workflows/simple.yaml: cannot extract top-level workflow steps')
-  } else {
-    for (const document of ['docs/usage/routing-and-workflows.md', 'docs/usage/zh-CN/routing-and-workflows.md']) {
-      const text = contents.get(document)
-      if (text !== undefined) {
-        for (const step of simpleSteps) {
-          if (!new RegExp(`\\b${step}\\b`, 'iu').test(text)) {
-            failures.push(`${document}: simple workflow is missing source step ${step}`)
-          }
-        }
-        const mainPath = simpleSteps.filter((step) => step !== 'escalated')
-        if (!includesOrderedTokens(text, mainPath)) {
-          failures.push(`${document}: simple workflow main path must follow source order: ${mainPath.join(' -> ')}`)
-        }
       }
     }
   }

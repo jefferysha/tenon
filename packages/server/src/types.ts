@@ -25,6 +25,7 @@ import type {
 import type { TraceStoreReader } from './traces.js'
 import type { LoopActivationValidator } from './loops.js'
 import type { WorkflowDefinitionStatusResponse } from './workflowDefinitionStatus.js'
+import type { EndedTaskSummary } from './endedTasks.js'
 
 /** Tenon 产品自有路径。宿主资产发现由 DashboardServerOptions.hostHome 独立表达。 */
 export interface ServerPaths extends ProductPaths {
@@ -210,18 +211,15 @@ export interface ProjectRepositoryIdentity {
   workspace_kind: 'primary' | 'worktree'
 }
 
-/** 归档只对查看者生效：同一个 change 在别人的快照里仍在 `changes`。 */
-export type ArchivedChangeSnapshot = ChangeSnapshot & {
-  archive: { archivedAt: string; phase: string; actor: { id: string; name: string; trust: 'declared' } }
-}
-
-/** 单个已注册 Project 的聚合（openspec/changes/* 下所有活跃 change）。 */
+/** 单个已注册 Project 的聚合（openspec/changes/* 下所有活跃 change，以及 openspec/changes/archive/ 下已结束任务的摘要）。 */
 export interface ProjectSnapshot {
   root: string
   ok: boolean
   changes: ChangeSnapshot[]
-  /** 查看者已归档的 change（从 `changes` 划出，故每个聚合读数自动排除它们）。 */
-  archived?: ArchivedChangeSnapshot[]
+  /** 已结束任务（完结 / 已升级 / 已终止）的只读摘要，结束时间倒序；没有归档任务时缺省。 */
+  ended?: readonly EndedTaskSummary[]
+  /** 归档任务总数；只在 `ended` 被截断（超过上限，只带最新的）时出现，缺省说明 `ended` 就是全部。 */
+  endedTotal?: number
   /** 未提交删除的 change 数；非 git 仓或 git 失败时缺省。 */
   uncommittedDeletions?: number
   repository?: ProjectRepositoryIdentity
@@ -293,6 +291,8 @@ export interface DashboardServerOptions {
   projectCreateGit?: import('./projectCreate.js').GitRunner
   /** DESIGN.md 起步抓取器；测试注入以免触网，缺省走 https。 */
   designSeedFetch?: import('./designSeed.js').DesignSeedFetch
+  /** 终止走 OpenSpec 的任务时调用的 `openspec archive`；测试注入替身，缺省调本机 PATH 上的 openspec。 */
+  runOpenspecArchive?: (repoRoot: string, change: string) => Promise<void>
   /** 覆盖注册表读取（默认读 registryPath 的 JSON 字符串数组）。 */
   registry?: () => string[]
   /**
@@ -315,11 +315,6 @@ export interface DashboardServerOptions {
   flow?: FlowEngine
   /** flow 未注入时从此 manifest 构造（bin 用；测试通常直接注入 flow）。 */
   manifestPath?: string
-  /**
-   * 产品 skills/ 根（缺省：插件仓根下的 skills/，与 doctor 读的是同一处）。POST
-   * /api/config/mandatory-skills 在落盘前据此拒绝宿主不许模型调用的技能。
-   */
-  skillsRoot?: string
   /** `git rev-parse HEAD` 注入（build-complete 冻结 SHA 用；缺省跳过 SHA 面）。 */
   gitHeadSha?: (cwd: string) => Promise<string>
   /** in-place build 的内容寻址工作区基线；生产装配为 kernel fingerprintWorkspace。 */
@@ -366,8 +361,6 @@ export interface DashboardServerOptions {
    * 静默变成执行器；生产 main.ts 显式传入配置。执行仍复用 runPipelineCli。
    */
   cadence?: false | Omit<import('./cadence.js').CadenceSchedulerOptions, 'roots' | 'clock' | 'runPipelineCli'>
-  /** Track Router 预览计分器；缺省真执行 `grep -ciE`，测试可注入 hermetic scorer。 */
-  scoreRouterPattern?: import('./routerPreview.js').RouterPatternScorer
   /** Canonical v2 orchestration ledger. Production defaults to the filesystem ledger; tests may inject a fake. */
   orchestrationLedger?: OrchestrationLedger
   /** Resolve a repository-scoped artifact service after root-anchor validation; snapshot only checks its scope. */

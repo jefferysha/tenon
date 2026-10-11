@@ -17,16 +17,13 @@ import {
   UnsupportedRunStateVersionError,
   TERMINAL_ACTIVITY_FILE,
   type EffectiveWorkflowPlan,
-  type SkillTable,
   type StateStore,
   type TenonUserResolution,
-  type TrackDefinition,
 } from '@tenon/kernel'
 import { ArtifactScopeMigrationError, type ArtifactService } from '@tenon/automation'
 import type { ChangeSnapshot, DocumentEvidenceSnapshot, ProjectSnapshot, ProjectRepositoryIdentity, Snapshot, TerminalActivitySnapshot } from './types.js'
 import type { ListSnapshot, ProjectListSnapshot } from './snapshotListTypes.js'
 import { projectReviewHandshake } from './reviewHandshake.js'
-import { projectSkillRuns, resolveSnapshotTrack } from './skillRuns.js'
 import { readWorkflowSnapshotAuthority } from './workflowSnapshotAuthority.js'
 import {
   legacySnapshotWorkflowRules,
@@ -70,17 +67,10 @@ export interface SnapshotDeps extends WorkflowSnapshotCapabilityDeps {
    * anchor is an authorization failure and must never be replaced with a new point-in-time trust.
    */
   rootAnchor?: (root: string) => WorkflowRootAnchor | undefined
-  /** Machine-level manifest mandatory table; only used for frozen plans without an embedded track matrix. */
-  mandatorySkills?: SkillTable
   /** Declared identity for a root; the tests projection reads only this user's records. */
-  resolveUser?: (root: string) => import('@tenon/kernel').TenonUserResolution
+  resolveUser?: (root: string) => TenonUserResolution
   /** Resolve the durable artifact service for one change directory; only the scope check is projected. */
   artifactServiceForRoot?: (root: string, anchor: WorkflowRootAnchor) => ArtifactService | undefined | Promise<ArtifactService | undefined>
-  /**
-   * Declared identity of the Dashboard viewer. 归档 is a personal preference, so the snapshot partitions
-   * each project by this user's archive store; absent viewer means nothing is hidden.
-   */
-  viewer?: (root: string) => TenonUserResolution
   /** 未提交删除 count per project; absent or `null` keeps the field out of the response. */
   /** Takes a path a spawned git can resolve (never the anchor's process-local fd handle). */
   countDeletions?: (repoRoot: string) => Promise<number | null>
@@ -89,7 +79,7 @@ export interface SnapshotDeps extends WorkflowSnapshotCapabilityDeps {
    * 缺省（只读单测）只判出边 guard 与 agent。
    */
   flow?: Pick<import('@tenon/kernel').FlowEngine, 'guardCheck'>
-  /** 某项目的技能解析器（轨道注册表 + manifest 矩阵），与 transition 的技能门同源。 */
+  /** 某项目的技能解析器，与 transition 的技能门同源。 */
   skillResolverFor?: (root: string) => import('@tenon/kernel').EffectiveSkillResolver | undefined
 }
 
@@ -171,6 +161,8 @@ export async function documentEvidence(
   changeDir: string,
   plan: EffectiveWorkflowPlan | undefined,
   phase: string,
+  /** Where the ledger's recorded paths are now; only an ended task's directory has moved them. */
+  locate?: (recordedPath: string) => string,
 ): Promise<DocumentEvidenceSnapshot> {
   const policy = plan?.capabilities.documents.policy
   if (!policy) return { governed: false, blockers: [], items: [] }
@@ -184,7 +176,7 @@ export async function documentEvidence(
       items: [],
     }
   }
-  const report = await evaluateDocumentEvidence(root, changeDir, phase, {}, policy)
+  const report = await evaluateDocumentEvidence(root, changeDir, phase, {}, policy, locate === undefined ? {} : { locate })
   return {
     governed: true,
     phase,
@@ -220,6 +212,7 @@ export function documentTodoItems(
 }
 
 import { scanAnchoredChange, scanAnchoredProject, type ScannedChange } from './snapshotProjectScan.js'
+import type { ScanArea } from './snapshotChangeScan.js'
 
 /**
  * Run `read` against a registered root held by its trusted anchor (the server's long-lived one, or a point-in-time
@@ -283,12 +276,19 @@ export async function scanProject(
 
 /**
  * One change with all its evidence, exactly as it appears in the full snapshot; `undefined` when the root is
- * unreachable or the directory holds no readable change.
+ * unreachable or the directory holds no readable change. `area: 'archive'` reads an ended task out of
+ * `openspec/changes/archive/<name>` instead, read-only.
  */
-export function scanChangeDetail(deps: SnapshotDeps, root: string, name: string, nowMs: number): Promise<ScannedChange | undefined> {
+export function scanChangeDetail(
+  deps: SnapshotDeps,
+  root: string,
+  name: string,
+  nowMs: number,
+  area: ScanArea = 'active',
+): Promise<ScannedChange | undefined> {
   return withRootAnchor(
     deps, root,
-    (anchor, readRoot) => scanAnchoredChange(deps, root, readRoot, anchor, nowMs, name),
+    (anchor, readRoot) => scanAnchoredChange(deps, root, readRoot, anchor, nowMs, name, area),
     () => undefined,
   )
 }
@@ -334,7 +334,6 @@ export async function computeFingerprint(
   nowMs = Date.now(),
   rootAnchor?: (root: string) => WorkflowRootAnchor | undefined,
   readChangesDirectory?: SnapshotDeps['readChangesDirectory'],
-  viewer?: SnapshotDeps['viewer'],
 ): Promise<string> {
-  return computeSnapshotFingerprint(roots, nowMs, rootAnchor, readTerminalActivity, readChangesDirectory, viewer)
+  return computeSnapshotFingerprint(roots, nowMs, rootAnchor, readTerminalActivity, readChangesDirectory)
 }

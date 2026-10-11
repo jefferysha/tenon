@@ -19,6 +19,7 @@ import {
 import type { FieldName, PipelineState } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
+import { isLegacyExecution } from './execution-cli-seam.js'
 
 /** 标量字段值（列表按逗号连接；缺键 → 空串）。只读 phase/track 两个标量。 */
 function scalar(state: PipelineState, f: FieldName): string {
@@ -39,7 +40,7 @@ export function effectiveArtifactFields(deps: CliDeps, state: PipelineState): Re
   }
   const step = resolveStep(workflow.workflow, stepId)
   if (!step) {
-    if (workflow.capabilities.execution.model === 'phase-manifest') return new Set()
+    if (isLegacyExecution(workflow)) return new Set()
     throw new Error(`step '${stepId}' 不在 workflow '${workflow.id}' 里`)
   }
   return new Set(

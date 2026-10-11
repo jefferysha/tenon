@@ -99,8 +99,9 @@ success and never change canonical state. Prompt, token, credential, and artifac
 are rejected by the closed codec.
 
 ```text
-tenon init <name> --track <track> --preset <preset> [--workflow <name>]
-tenon list [--json]
+tenon assess --files <path>... [--workflow <name>] [--track <track>] [--json]
+tenon init <name> [--workflow <name>] [--track <track>] [--preset <preset>] [--domain <track>]
+tenon list [--json] [--finished]
 tenon status [name] [--json]
 tenon workflow plan <name> [--json]
 tenon get <name> <field>
@@ -116,6 +117,10 @@ tenon handoff <name> --bundle --target <phase> \
 tenon session activate <name> [--continuous] [--host-session <id>]
 tenon session route-context <name> [--json]
 tenon state status|repair-projection|import-legacy <name> [--json]
+tenon task add-dep|remove-dep <name> <dep>
+tenon task finish <name> [--json]
+tenon task terminate <name> [--yes] [--json]
+tenon task delete <name> [--yes] [--json]
 ```
 
 `get` returns an empty line with exit `0` for a missing/unknown field. CAS
@@ -124,6 +129,50 @@ An illegal or unknown `transition` event also lists the legal events for the
 current step, on a second line, in the active language.
 Use command help and machine-readable output before scripting additional
 assumptions.
+
+`tenon init` takes the Track from the Workflow's own branches: a Workflow with
+`tracks:` needs `--track` (the default Workflow's are `lite`, `pm`, `frontend`,
+`backend`), a flat Workflow such as `design-system` takes none.
+`--workflow standard` and `--workflow simple` exit `1` and print
+`--workflow default --track lite`; the retired Track ids `standard`, `simple`,
+`chat` and `free` given to `--track` exit `1` and list the Tracks the Workflow offers.
+`--domain <track>` is for a lightweight Change: it records
+which other Track of the same Workflow (it must exist there) the Change would
+escalate to, so the `escalate.then` of its risk probe can name that Track
+directly. Without it `then` lists the possible Tracks for the user to choose.
+`tenon tracks list` shows the available Tracks. See
+[Routing and execution modes](routing-and-workflows.md#assess-before-you-create-the-change).
+
+`tenon assess` evaluates the files you expect to change against the change-risk
+thresholds of a Track (the `pass.metrics` of its `diff-risk` step test; by default
+`--workflow default --track lite`) with exactly the classification the risk probe
+uses, and reads no file contents. Paths must be repository-relative; absolute
+paths, `..` segments and symlinks that leave the repository exit `1`, and so
+does a Track without `diff-risk` thresholds. Exit `0`: within the limits;
+exit `3`: over a limit, with the breached limits listed (for example
+`auth_files 1 > 0`) and a heavy Track recommended. `--json` prints
+`{ workflow, track, metrics, exceeded, reasons, recommendation }`.
+
+`check <name>` without an event reports the guards of the current step together
+with those of its forward edges, lists every unmet condition at once and exits
+`2`. `advance <name>` moves only along a single forward edge; it never takes a
+return edge or the abandon edge `scope-expanded`.
+
+`task finish` and `task terminate` end a task by moving its directory into
+`openspec/changes/archive/<date>-<name>/` and recording the task result
+(`finished`, `escalated` or `terminated`). `finish` accepts only a task that has
+reached a terminal step (Finished or Escalated); for a Track with `spec: openspec`
+Tenon runs `openspec archive <name> --skip-specs --yes --json`, otherwise it moves
+the directory itself and adds `-2`, `-3` to a name already archived that day.
+`terminate` accepts any task that has not ended, records Terminated and commits
+only the task directory (`chore(tenon): terminate <name>`); the code the task
+changed is neither committed nor reverted. Exit codes: `0` done; `1` usage, name,
+missing task or identity, wrong state, or failure; `2` confirmation needed (rerun
+with `--yes`); `3` blocked (for example by a running AFK job or by a dependent
+task). `--json` prints `{ change, result, archived_dir, ended_at }` (`terminate`
+adds `commit`). The former hide subcommands `archive` and `unarchive` of `tenon task`
+no longer exist; they exit `1`, naming `finish` and `terminate`. `tenon list --finished`
+lists the ended tasks, archived ones included.
 
 `tenon workflow plan <name> --json` is the Agent-facing orchestration source
 for an in-flight Change. It returns the immutable plan captured when the
@@ -214,6 +263,7 @@ tenon test register <change> --case <covers> --test "<file › name>"…
 tenon test unregister <change> --suite <id> | --file <path> | --case <covers> [--test <ref>] | --waiver <kind|covers|test:step-test-id>
 tenon test waive <change> (--kind <k> | --covers <covers> | --test <step-test-id>) --reason <text>
 tenon test sync <change> [--json]
+tenon test sync <change> --prune [--json]
 tenon test trust [<change>] [--yes] [--status] [--json]
 tenon test run <change> [--suite <id>]… [--kind <k>]… [--stage [<step>]] [--all] [--changed] [--json]
 tenon test run <change> <test-id> [--json]
@@ -334,8 +384,36 @@ blocks on them); tasks in any other stage section are listed separately as optio
 glob for `test/x.test.js`; `e2e/` specs go to a Playwright suite, helpers and `*.bench.*`
 files are never claimed automatically), then seeds the plan and registers those files. It only
 adds, so it is safe to repeat. `test sync` diffs the change against its start
-and lists unregistered test files, files no suite claims, and registrations whose file is
-gone; it uses the same computation as the gate (exit `2` when something is pending).
+and lists unregistered test files, files no suite claims, registrations whose file is
+gone, and registrations the catalog no longer claims (the suite left the catalog, or no
+suite's `files` glob matches the path anymore; `--json` field `registeredButUnclaimed`); it
+uses the same computation as the gate (exit `2` when something is pending).
+
+Registrations only ever grow (`register` and `plan --seed` add, `sync` reports), and the
+suite exit check expects every registration that names a suite to be executed whatever the
+suite's globs say. So when a suite's `files` glob was widened and later narrowed again, the
+files registered in between stay in the plan and block the exit
+(`registered-test-not-executed`). `test sync <change> --prune` is the way out: it deletes from
+the plan's `files` exactly the registrations the current catalog does not claim and keeps the
+rest as they are. A registration is kept when its suite is in the catalog and that suite's
+`files` glob matches the path, or, for a registration without a suite, when any suite's glob
+does. A resource file registered with `register --file --kind` and no suite (a visual
+snapshot, say) is kept: it never runs and never blocks. The output lists each deleted path
+with the reason (no suite claims it, the named suite is not in the catalog, or the named
+suite's `files` glob no longer claims it); `--json` prints
+`{ change, digest, pruned: [{ path, suite?, reason }] }` with `reason` one of `no-owner`,
+`suite-missing`, `glob-mismatch`. It only touches `files`: suites, the case mappings and
+waivers stay, and it does not read the diff. Nothing to delete is a success (exit `0`, the
+plan is not rewritten); a missing or invalid catalog, a catalog without any suite, a plan
+that was edited by hand, or running as someone other than the owner is refused (exit `1`).
+The write goes through the same locked, digest-recording path as `test register`, so the
+plan stays readable by `test plan` and the exit check, and the change history gets a
+`test:plan-write op=prune` line.
+
+Why this cannot be used to drop a legitimate registration: a legitimate test file is always
+claimed by its suite's glob, so it is only pruned after the glob in the catalog was changed
+first, and a task's changed test configuration is listed in the review request for the user
+to approve.
 
 The start of a change is the merge-base with its base branch, or the last commit before
 the change was created when working on the base branch itself; the diff includes staged,
@@ -499,7 +577,7 @@ changed-files list) and reports ten signals, each with a subject and a one-line 
 All of them are text heuristics over `git diff -U0` and the run records: a signal says "worth a
 look", not "tampered", and a renamed case or a swapped assertion library can still show up.
 The policy key `test_policy.integrity` decides what a signal does: `notice` (the default,
-also what the default workflow and the standard lane use) lists the signals as one
+also what every Track of the default workflow uses) lists the signals as one
 `test-integrity` notice in `test status`, `status` and the Dashboard Tests tab and never blocks;
 `block` turns the same signals into one `test-integrity` blocker at that step, and an
 unreadable diff then fails closed (`files-diff-unavailable`). `block` has no per-signal waiver:
@@ -531,8 +609,8 @@ block. `test code-size` is the deterministic probe behind the builtin
 `code-size` direction and prints one JSON line of metrics. It counts source files only: the
 same path scope as the workspace candidate (no `openspec/`, `.tenon/`, `.pipeline/`,
 `docs/`, dependencies or test caches) and no Markdown files. `test diff-risk` is the
-probe behind the builtin `diff-risk` direction, the risk gate of the `standard` lane
-([Routing and execution modes](routing-and-workflows.md#the-standard-lane)). It only reads
+probe behind the builtin `diff-risk` direction, the risk gate of the `lite` Track
+([Routing and execution modes](routing-and-workflows.md#the-lightweight-track)). It only reads
 the repository and prints one JSON line measured from the task's starting point (committed
 and uncommitted changes both count): `files_changed` (source files, same scope as
 `code-size`), `contract_files`, `auth_files`, `dependency_files` and `migration_files`
@@ -562,9 +640,11 @@ reviewers, tests, documents, fields, review receipt, exits with blockers, and a
 closed `next` action list to execute in order. `run-tests` and `run-test` carry a
 `trust` object when the commands they will run have not been trusted by the user yet
 (ask the user to run `trust.command` in their own terminal first). A `transition`
-carrying `escalate` means the task has outgrown its lane: the standard lane's risk probe
-failed, `escalate.reasons` names the breached limits, and `escalate.then` says to open a
-`default` task after the transition.
+carrying `escalate` means the task has outgrown its Track: the lightweight Track's risk probe
+failed, `escalate.reasons` names the breached limits, and `escalate.then` gives the heavy-Track
+`tenon init` command to run after the transition, followed by `tenon set <new> depends_on <old>`.
+A `finish-change` action carries `command` (`tenon task finish <name>`) and, after it, the `commit`
+to make.
 
 ```text
 tenon step run <change> [--json]
@@ -769,15 +849,18 @@ envelope moved, causes a fail-closed error while preserving recovery evidence.
 
 ```text
 tenon tracks list [--json]
-tenon tracks show <id> [--json]
+tenon tracks show <workflow>:<track> [--json]
 tenon init <change> --workflow <workflow> --track <track> --preset <preset>
 ```
 
-`tenon tracks` is read-only. A Track is a branch of a Workflow: whether
-`--track <track>` may be used with `--workflow <workflow>` is decided solely by
-whether that Workflow's YAML declares the branch under `tracks:`. To add a
-Track, declare the branch in the Workflow file (or in the Dashboard workflow
-page), not through a separate registry command.
+`tenon tracks` is read-only and lists the Tracks of every Workflow the project can
+use, with columns `WORKFLOW:TRACK`, `LABEL` and `ROUTABLE`. A Track is a branch of
+a Workflow: whether `--track <track>` may be used with `--workflow <workflow>` is
+decided solely by whether that Workflow's YAML declares the branch under
+`tracks:`. To add a Track, declare the branch in the Workflow file (or in the
+Dashboard workflow page), not through a separate registry command; the built-in
+registry and `.pipeline/tracks.yaml` are not read. A flat Workflow is its own
+single Track, so `tenon init` takes no `--track` for it.
 
 Custom Workflow authoring is file/Dashboard based; there is no public
 `tenon workflow create` command in the current CLI. `tenon workflow plan`
@@ -835,6 +918,12 @@ tenon loops run <loop|pattern> [--dry-run] [--level <level>] [--commit] [--json]
 tenon loops sync <loop> <--dry-run|--apply> [...]
 ```
 
+Whether a Change may enter AFK is read only from the `automation.eligible` of the Track it
+was created on. A Track with no `automation` block (every flat Workflow included) is not
+eligible: `tenon afk enqueue` exits `3`, and with `--json` reports
+`reason: "track-not-afk-eligible"`. A Track with `enqueue_after_spec: true` queues the
+Change automatically when its spec is done (the `pm` Track of `default`).
+
 ## Support, logs and language
 
 ```text
@@ -883,6 +972,7 @@ Use the installed command as exact authority:
 ```bash
 tenon --help
 tenon setup --help
+tenon assess --help
 tenon tracks --help
 tenon afk --help
 tenon loops --help
