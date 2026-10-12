@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
-  builtinTrack, compileEffectiveWorkflowPlan, DEFAULT_WORKFLOW_SOURCE, parseWorkflow, workflowPlanSnapshot,
+  compileEffectiveWorkflowPlan, DEFAULT_WORKFLOW_SOURCE, parseWorkflow, workflowPlanSnapshot,
   type PipelineState, type StepDef, type WorkflowDef,
 } from '@tenon/kernel'
 import { cmdInternalSkillGate } from './internalSkillGate.js'
@@ -48,7 +48,7 @@ const wavedDefault = (): WorkflowDef => exploreWith([
 
 /** 冻结进状态里的计划：与 default 一致，只是 explore 没有 agent。 */
 function frozenState(def: WorkflowDef, exploreState: PipelineState): PipelineState {
-  const plan = compileEffectiveWorkflowPlan('default', def, builtinTrack('frontend'))
+  const plan = compileEffectiveWorkflowPlan('default', def, { track: 'frontend' })
   return {
     ...exploreState,
     runMetadata: { runId: 'run-frozen', transitionSequence: 1, workflowPlanSnapshot: workflowPlanSnapshot(plan) },

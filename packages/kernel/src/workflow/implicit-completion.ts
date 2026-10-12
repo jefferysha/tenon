@@ -7,24 +7,17 @@
  * edge exits through `archived`, which closes the WorkflowRun. The bundled `archive` terminal is
  * the same rule. Compiled IR, plan fingerprints and frozen snapshots never contain this edge.
  */
-import { DEFAULT_EVENT_POLICY } from '../flow/default-event-policy.js'
 import type { PipelineState } from '../types.js'
+import { ABANDON_EVENT, isAbandonEvent } from './abandon-event.js'
 import { autoGateGuards } from './auto-gate.js'
 import type { EffectiveWorkflowPlan } from './effective-plan-types.js'
 import type { StepIR, StepTransitionIR } from './ir.js'
+import { legacyIsForwardEdge } from './legacy-phase-manifest/forward-edge.js'
 
 export const IMPLICIT_COMPLETION_EVENT = 'archived'
 
-/**
- * 放弃边：任务超出了这条工作流的范围（simple 里由执行者判断，standard 里由改动风险探针触发），转入终态
- * `escalated`，之后另起一个 default 任务。放弃一个任务不该先把它做完，所以走这条边不要求测试、评审者、
- * 文档与技能证据（评审门步骤的人工确认照旧）。
- */
-export const ABANDON_EVENT = 'scope-expanded'
-
-export function isAbandonEvent(event: string): boolean {
-  return event === ABANDON_EVENT
-}
+// 放弃边（scope-expanded → 终态 escalated）的定义在叶子模块 abandon-event.ts，这里原样再导出，调用方不用改。
+export { ABANDON_EVENT, isAbandonEvent }
 
 /**
  * 前进边 = 目标在步骤序里更靠后，或 `archived` 指向自己的完结自边（显式声明的与隐式派生的同判）。
@@ -39,7 +32,8 @@ export function isForwardStepEdge(stepIds: readonly string[], from: string, to: 
 
 /**
  * 前进边的统一判定（`isForwardExit` 与验证轮次上限共用，不另起第二套）：隐式完结自边永远是前进边；
- * phase-manifest（default）按事件策略的 `enforceTaskExit`；其余按步骤序（`isForwardStepEdge`）。
+ * phase-manifest 的规则住在 legacy-phase-manifest/；其余按步骤序（`isForwardStepEdge`）。
+ * 这里只传执行模型名而不走 `selectExecution`：本模块在运行时依赖图里处于接缝之下（见 forward-edge.ts）。
  */
 export function isForwardEdge(
   executionModel: EffectiveWorkflowPlan['executionModel'],
@@ -49,10 +43,7 @@ export function isForwardEdge(
   event: string,
 ): boolean {
   if (event === IMPLICIT_COMPLETION_EVENT && from === to) return true
-  if (executionModel === 'phase-manifest') {
-    const policy = (DEFAULT_EVENT_POLICY as Record<string, { readonly enforceTaskExit: boolean } | undefined>)[event]
-    return policy?.enforceTaskExit === true
-  }
+  if (executionModel === 'phase-manifest') return legacyIsForwardEdge(event)
   return isForwardStepEdge(stepIds, from, to, event)
 }
 

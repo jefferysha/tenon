@@ -484,7 +484,7 @@ steps:
     guards: []
     transitions: []
 `, 'utf8')
-      await local.run(['init', 'demo', '--track', 'backend', '--preset', 'full', '--workflow', 'custom-review'])
+      expect(await local.run(['init', 'demo', '--preset', 'full', '--workflow', 'custom-review']), local.err.join('\n')).toBe(0)
       await local.seedArtifact('demo', 'phase', 'assure-anything')
       await local.seedArtifact('demo', 'isolation', 'branch')
       await local.seedArtifact('demo', 'build_sha', 'legacy-sha')

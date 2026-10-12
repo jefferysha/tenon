@@ -12,7 +12,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
-import { DEFAULT_WORKFLOW_SOURCE, STANDARD_WORKFLOW_SOURCE, parseWorkflow } from '@tenon/kernel'
+import { DEFAULT_WORKFLOW_SOURCE, parseWorkflow } from '@tenon/kernel'
 import { freshHarness, rm, type Harness } from './integration-harness.js'
 import { commitAll, initGit, writeFiles } from './integration-harness-tests.js'
 
@@ -72,13 +72,11 @@ describe('Playwright 一次 verify 只执行一次（审计 F12）', () => {
     return log.split('\n').filter((line) => line === 'run').length
   }
 
-  test('结构：默认工作流与 standard 没有任何与目录套件种类重复的内联测试（只剩 code-size / design-system / diff-risk 这类探针）', () => {
+  test('结构：默认工作流（含 lite 轨道）没有任何与目录套件种类重复的内联测试（只剩 code-size / design-system / diff-risk 这类探针）', () => {
     const directions = new Set<string>()
-    for (const source of [DEFAULT_WORKFLOW_SOURCE, STANDARD_WORKFLOW_SOURCE]) {
-      const workflow = parseWorkflow(source)
-      const branches = [workflow.steps, ...Object.values(workflow.tracks ?? {}).map((track) => track.steps)]
-      for (const steps of branches) for (const step of steps) for (const test of step.tests ?? []) directions.add(test.direction)
-    }
+    const workflow = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
+    const branches = [workflow.steps, ...Object.values(workflow.tracks ?? {}).map((track) => track.steps)]
+    for (const steps of branches) for (const step of steps) for (const test of step.tests ?? []) directions.add(test.direction)
     expect([...directions].sort()).toEqual(['code-size', 'design-system', 'diff-risk'])
   })
 

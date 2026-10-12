@@ -9,7 +9,7 @@
 import { assertOwner, resolveWorkflowName } from '@tenon/kernel'
 import type { FieldName, PipelineState, RecordActor } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
-import { refuseArchived, refuseFinished } from '../archivedGuard.js'
+import { refuseArchived, refuseFinished } from '../endedTaskGuard.js'
 import { requireActor } from '../userIdentity.js'
 import { effectiveArtifactFields } from './effective-artifacts.js'
 import { isValidChangeName } from '../paths.js'
@@ -101,7 +101,7 @@ function checkArtifactPatch(
 
 /**
  * track/workflow 四个写入口的锁内统一执行体（R2 · 关 TOCTOU + 堵旁路）。在同一把 store 锁内
- * 串起「读旧 state → compute 组装最终 {track,workflow} 组合与落盘 patch → checkTrackWorkflow
+ * 串起「读旧 state → compute 组装最终 {track,workflow} 组合与落盘 patch → trackWorkflowAllowed
  * 最终组合 → store.write」。校验与条件写同锁，杜绝「锁外校验、锁内写」之间被并发改另一半、
  * 落盘瞬间组合已非法的旁路（codex R2 点名的 TOCTOU）。
  *
@@ -109,7 +109,7 @@ function checkArtifactPatch(
  * store.set/setMany/cas（三者各自 withLock，嵌套即死锁）。store.write→serializePipeline 对全字段
  * 过四闸（quoteGate），故不经 store.setMany/cas 也不丢四闸防线。
  *
- * 返回：0 落盘成功；1 组合非法（未写，错误已由 checkTrackWorkflow 记 stderr）；3 CAS 未命中
+ * 返回：0 落盘成功；1 组合非法（未写，错误已由 trackWorkflowAllowed 记 stderr）；3 CAS 未命中
  * （未写）。store 读/写异常经 withLock 上抛，本函数统一转 exit 1 + stderr。
  */
 export async function runComboWrite(
@@ -119,33 +119,29 @@ export async function runComboWrite(
   compute: (cur: PipelineState) => ComboPlan,
 ): Promise<number> {
   try {
-    // R3 D4：锁序 registry → change。外层持仓级 registry 锁并锁内 fresh-load registry（关跨锁
-    // TOCTOU——tracks delete/update 与本组合写竞争时严格串行，扫描期不会读到陈旧 registry），内层
-    // 保留 R2 的同一把 change 锁 read→组装最终组合→校验→write（CAS miss 仍退 3）。registry 锁非
-    // 重入，故 cb 内只用 store 锁、不再取 registry 锁；用锁内 fresh registry 而非无锁 loadRegistry。
-    return await deps.withRegistryLock(async ({ registry }) =>
-      deps.store.withLock(dir, async () => {
-        const cur = await deps.store.read(dir)
-        assertOwner(owner.change, cur.fields, owner.actor)
-        if (refuseFinished(deps, owner.change, cur.fields)) return 1
-        const plan = compute(cur)
-        // P6：artifact 拒优先于一切（含 CAS miss）。track/workflow 若被 custom workflow 声明为 artifact，
-        // 旧入口一律禁用，不能因 expect 不匹配先返 3、泄露「有时还能写」的契约（codex 阻断 1）。cas-miss 与
-        // write 两态都带 patch 供判定；纯 track/workflow patch 且当前 workflow 不可加载时 checkArtifactPatch
-        // 视空放行（见其实现），交 checkTrackWorkflow 组合校验。
-        const artReject = checkArtifactPatch(deps, cur, plan.patch)
-        if (artReject !== null) {
-          deps.io.err(artReject)
-          return 1
-        }
-        if (plan.kind === 'cas-miss') return 3
-        if (!trackWorkflowAllowed(deps, registry, plan.finalTrack, plan.finalWorkflow)) return 1
-        await deps.store.writeUnderLock(dir, { ...cur, fields: { ...cur.fields, ...plan.patch } }, {
-          kind: Object.keys(plan.patch).length === 1 ? 'set' : 'set-many',
-        })
-        return 0
-      }),
-    )
+    // 锁序 项目锁 → 任务锁：改 track / workflow 也是在发布对工作流的引用，要和 server 删除 / 保存工作流（同一把
+    // 项目锁内扫描引用）互斥。项目锁不可重入，锁内只用 store 原语。
+    return await deps.withProjectLock(() => deps.store.withLock(dir, async () => {
+      const cur = await deps.store.read(dir)
+      assertOwner(owner.change, cur.fields, owner.actor)
+      if (refuseFinished(deps, owner.change, cur.fields)) return 1
+      const plan = compute(cur)
+      // P6：artifact 拒优先于一切（含 CAS miss）。track/workflow 若被 custom workflow 声明为 artifact，
+      // 旧入口一律禁用，不能因 expect 不匹配先返 3、泄露「有时还能写」的契约（codex 阻断 1）。cas-miss 与
+      // write 两态都带 patch 供判定；纯 track/workflow patch 且当前 workflow 不可加载时 checkArtifactPatch
+      // 视空放行（见其实现），交 trackWorkflowAllowed 组合校验。
+      const artReject = checkArtifactPatch(deps, cur, plan.patch)
+      if (artReject !== null) {
+        deps.io.err(artReject)
+        return 1
+      }
+      if (plan.kind === 'cas-miss') return 3
+      if (!trackWorkflowAllowed(deps, plan.finalTrack, plan.finalWorkflow)) return 1
+      await deps.store.writeUnderLock(dir, { ...cur, fields: { ...cur.fields, ...plan.patch } }, {
+        kind: Object.keys(plan.patch).length === 1 ? 'set' : 'set-many',
+      })
+      return 0
+    }))
   } catch (e) {
     deps.io.err(`ERROR: ${errMsg(e)}`)
     return 1

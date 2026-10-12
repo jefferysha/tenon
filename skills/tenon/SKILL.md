@@ -47,8 +47,8 @@ text(result);
 不要再让用户说「确认继续」，也不要说「这道门只认某句话」。
 
 「按推荐」在评审门上只表示确认这道门，不是采纳你自己的建议。之后要设置字段时仍以 `next` 给的
-`recommended` 为准；你自己的偏好与 CLI 的推荐不同（例如想用 `build_mode=direct` 而推荐是
-`subagent-driven-development`）时，先明确问用户，得到回答再设，不要把一句「按推荐」当成授权。
+`recommended` 为准；你自己的偏好与 CLI 的推荐不同（例如 `next` 推荐了某个取值而你想用另一个）
+时，先明确问用户，得到回答再设，不要把一句「按推荐」当成授权。
 
 ## 进入
 
@@ -56,14 +56,22 @@ text(result);
 2. dispatch `intent: new` → 起一个 kebab-case 名；`intent: select` 或 `selection_required: true`
    → 要用户给出**一对**确切的候选（名字 + 工作流），然后结束回合；`intent: resume` → 只接手
    点名的那个任务。没有 dispatch 的手动 `/tenon`：`tenon list --json`，多于一个就问。
+   选通道以 dispatch 为准，不自己按关键词定轻重：`track_basis: user-named` 表示 `track` 是用户在消息里
+   点名的轨道，建任务时照用，不评估；`score` 是按内容评分的推测，用户另有说法以用户为准。
+   dispatch 带 `assess: required` 时，`candidate: workflow=<w>;track=<t>` 各行是可选的轨道（轻量一条、
+   领域重型一条），轻重由预计改动范围决定：建任务前先读相关代码，列出预计要改的文件，运行
+   `tenon assess --files <文件…> [--json]`——退出码 0 = 未超轻量阈值（推荐轻量候选），3 = 超限（输出列出
+   被突破的阈值，如 `auth_files 1 > 0`，推荐领域重型候选），1 = 出错（如路径越出仓库，改正后重跑）。
+   把评估结果与推荐摆给用户确认：interactive 结束回合等回复；continuous / afk 直接采用推荐。确认之后才
+   `tenon init`；选了轻量候选时加 `--domain <另一个 candidate 的轨道>`，升级时 `next` 就能直接给出领域轨道。
    以 `/` 开头的提示词是显式命令，路由钩子不处理，所以 `/tenon <请求>` 要新建任务时由你选通道，选法与钩子一致：
-   用户点名了工作流或轨道就照用；否则修缺陷、加函数、改一个模块这类实现类请求用
-   `--workflow standard --track standard`；只有大型或跨领域、需要需求与设计文档的工作（架构、鉴权、迁移、依赖、契约）
-   才用 `default`（轨道按内容选）；项目自定义的工作流只在用户点名时用，不要自己挑一个。拿不准就选 `standard`：
-   越界时它的 `scope-expanded` 会升级到 `default`。
-   `track_basis: user-named` 表示 `track` 是用户在消息里点名的轨道，建任务时照用，不按内容另选；
-   `score` 是按内容评分的推测，用户另有说法以用户为准。
-3. 新建：`tenon init <c> --workflow <w> --track <t> --preset full`（用户可以点别的 preset）；
+   用户点名了工作流或轨道就照用，不评估；请求带重型信号（架构、跨模块、迁移、schema、鉴权、依赖升级、
+   发布、全栈）就直接选对应领域的重型轨道；其余实现类请求同样先评估——读代码、列出预计要改的文件、
+   `tenon assess --files <文件…>`（不带 `--workflow` / `--track` 时评估默认工作流的轻量轨道），用
+   `tenon tracks list` 看有哪些轨道，再按上一段把评估与推荐摆给用户确认。
+   项目自定义的工作流只在用户点名时用，不要自己挑一个。
+3. 新建：`tenon init <c> --workflow <w> --track <t> --preset full`（用户可以点别的 preset；dispatch 的
+   `track` 与 `workflow` 同名时是平铺工作流，省略 `--track`）；
    随后 `tenon session activate <c> --host-session <host_session_id> [--continuous]`。恢复只跑同一条
    activate。`<host_session_id>` 取 dispatch 里的 `host_session_id`；dispatch 带了它就必须传，
    否则下一轮的「确认继续」认不出本会话的任务，会被当成新任务。dispatch 没有它时才省略该参数。
@@ -116,35 +124,32 @@ repeat:
 | `await-review` | interactive：结束回合等人。continuous：`tenon review acknowledge <c> --delegated`（计划里有待批准的测试豁免或待接受的剩余阻断时委托确认会被拒、评审仍待确认：如实告诉用户，等用户回复「确认继续」人工批准，不要自己批准也不要绕开）。afk：结束本轮。 |
 | `commit` | 交付物提交（交付步有未勾任务时它排在勾选之前：先提交，再勾「提交代码」这类任务）：`git add -A -- <commit.paths…>`；`commit.untrack` 非空时接着 `git rm --cached -q --ignore-unmatch -- <commit.untrack…>`；最后 `git commit -m "<commit.message>"`。paths / untrack 原样用、不增不减（`:(exclude)…` 是挡住仓库根门禁标记的 pathspec，照抄）。宿主不让写 `.git` 时如实告诉用户这一步留给他，不要说已提交。 |
 | `choose-exit` | 按下面的「出口」挑一条边。 |
-| `transition` | `tenon transition <c> <event>`。带 `escalate` 的 `transition`（`event: scope-expanded`）是风险升级：改动风险探针没通过，`escalate.reasons` 是被突破的阈值——照做这条转换（它不要求其余证据），然后按 `escalate.then` 新建 `default` 任务并 `tenon set <新任务> depends_on <本任务>`；不要为了让探针通过去拆改动或藏文件。当 `next` 里只剩这一条 `transition` 时直接执行，不问用户，interactive 也一样（不等「继续」，不给「升级 / 调探针阈值 / 不走流程」这类选择题）：执行前用一句话告诉用户为什么升级（`escalate.reasons`）、接下来要做什么，然后动手。 |
-| `complete` | `tenon transition <c> <event>`——走完终态自边，状态机到此结束。归档由下一条 `finish-change` 单独下发，不要在这里抢跑 `openspec archive`。 |
-| `finish-change` | `command` 不是 `null` 时照原样跑（`openspec archive <c> --skip-specs --yes --json`），把 change 目录搬进 `openspec/changes/archive/`。`commit` 不是 `null` 时再提交：`git add -A -- <commit.paths…>`；`commit.untrack` 非空时接着 `git rm --cached -q --ignore-unmatch -- <commit.untrack…>`；最后 `git commit -m "<commit.message>"`。paths / untrack 原样用、不增不减（宿主不让写 `.git` 时如实告诉用户这一步留给他，不要说已提交）；`commit` 为 `null`（不是 git 仓）就不提交。 |
+| `transition` | `tenon transition <c> <event>`。带 `escalate` 的 `transition`（`event: scope-expanded`）是风险升级：改动风险探针没通过，`escalate.reasons` 是被突破的阈值——照做这条转换（它不要求其余证据），然后照 `escalate.then` 新建重型轨道任务并 `tenon set <新任务> depends_on <本任务>`（`then` 直接给出 `tenon init …` 命令；它没有领域、只列出可选轨道时，把可选项摆给用户选一个再建）；不要为了让探针通过去拆改动或藏文件。当 `next` 里只剩这一条 `transition` 时直接执行，不问用户，interactive 也一样（不等「继续」，不给「升级 / 调探针阈值 / 不走流程」这类选择题）：执行前用一句话告诉用户为什么升级（`escalate.reasons`）、接下来要做什么，然后动手。 |
+| `complete` | `tenon transition <c> <event>`——走完终态自边，状态机到此结束。归档由下一条 `finish-change` 单独下发，不要在这里抢跑 `tenon task finish`。 |
+| `finish-change` | `command` 不是 `null` 时照原样跑（`tenon task finish <c>`）：Tenon 把 change 目录搬进 `openspec/changes/archive/` 并记下任务结果，不要自己执行 `openspec` 命令。`commit` 不是 `null` 时再提交：`git add -A -- <commit.paths…>`；`commit.untrack` 非空时接着 `git rm --cached -q --ignore-unmatch -- <commit.untrack…>`；最后 `git commit -m "<commit.message>"`。paths / untrack 原样用、不增不减（宿主不让写 `.git` 时如实告诉用户这一步留给他，不要说已提交）；`commit` 为 `null`（不是 git 仓）就不提交。 |
 
 ## 决定、字段、出口
 
 - 带 `allowed` 的字段是一次决定：interactive 把 `recommended` 排在第一位问；continuous / afk
-  直接用 `recommended`。决定在动手之前下发（build 的 `build_mode` / `isolation` 先于测试配置与实现技能），
-  按你接下来真的要用的方式填，之后照它执行。
+  直接用 `recommended`。决定在动手之前下发，按你接下来真的要用的方式填，之后照它执行。
 - `kind: outcome` 的字段只在本步必需测试与评审者都过了之后才出现在 `next` 里；它们没有 `recommended`，填 `required` 给的值。`pre_verify_review_result` / `verify_result` 是通过结论：CLI 写入前核对本步证据，被拒就按错误里点名的测试或 agent 去补，不要换个写法绕过。
 - 下一步评审口径：动作带 `review_bar`（下一步声明的评审者，每项 `step` / `agent` / `required` /
   `block_at` / `focus`）时，本步的实现与自审——技能自带的代码评审、子代理审查、写
   `pre_verify_review_result` 之前的就绪审查——按同一口径判级：落在这些评审者关注点上、级别达到其
   `block_at`（`medium` 即 medium 及以上）的问题就是阻断，在本步修完，不要判成「建议」留给下一步；
   下一步的评审者会以同一级别打回，多走一轮回退。派发审查子代理时把 `review_bar` 原样写进提示。
-- `direct_override` 是 full 预设下 `build_mode=direct` 的风险确认，没有推荐值：interactive 问人，continuous / afk 不选 `direct`（取 `build_mode` 的推荐值即可免去这一项）。
 - `pr_url`、`prd_path` 和各类文件路径只填真值，绝不编造。`pr_url` 是真实的 http(s) PR 地址；仓库没有 远端时 `next` 会推荐 `no-remote`（本地交付、没有 PR，CLI 会复核确实没有远端）。有远端却开不了 PR 就停下说明。
 - 暂停等用户（评审门、interactive 的「继续」）之前如实报告工作区：以 `git status --short` 为准。
   交付步照 `next` 做完、走出口之前，工作区应当是干净的（`set pr_url` 写下的状态文件已由 `next` 点名的
   提交入库）；不干净就照实列出。`transition` 自己还会改 change 目录里的状态文件（`.pipeline.yaml`、
   `.pipeline-history.jsonl` 等），之后暂停时说「只剩流转写下的状态文件未提交，完结时由 `finish-change`
   提交」——不要说工作区是干净的。
-- 不要为了「隔离」自己建分支或 worktree；宿主没给就用 `isolation=in-place`。提交只照 `next` 的
-  `commit` / `finish-change` 做（交付步在交付值之前点名提交交付物，完结后点名提交归档），`next` 没点名
-  就不提交；技能自带的提交步骤同样不做。
+- 不要自己建分支或 worktree。提交只照 `next` 的 `commit` / `finish-change` 做（交付步在交付值之前
+  点名提交交付物，完结后点名提交归档），`next` 没点名就不提交；技能自带的提交步骤同样不做。
 - 出口：`ready` 的前进边直接走；回退边只在它的含义成立时走（必需测试或评审者不通过 → 回到实现
   的那条边；已确认的需求变了 → 回到规格的那条边）；interactive 先问。走到终态的
-  `scope-expanded` 表示目标超出了这个工作流：之后新建一个 `default` 任务，并
-  `tenon set <new> depends_on <old>`（standard 通道由改动风险探针触发，`next` 会直接给出它；它是 `next` 里唯一的 `transition` 时不用问，见动作表的 `transition`）。
+  `scope-expanded` 表示目标超出了这条轨道：之后按 `escalate.then` 新建重型轨道任务，并
+  `tenon set <new> depends_on <old>`（由改动风险探针触发时，`next` 会直接给出它；它是 `next` 里唯一的 `transition` 时不用问，见动作表的 `transition`）。
 - 验证轮次上限 `max_rounds` 是用户的决定：不要自行执行 `tenon set <c> max_rounds <N>`，只在用户明确指示时执行；设置会改变任务状态，已发起或已批准的评审请求随之失效，执行后重读 `next` 并重新 `tenon review request`。上限用完时回退边会被拒，不要换事件、改状态或删 marker 绕过，照 `stop` / `request-review` 把出路摆给用户。
 
 ## 上游技能怎么用
@@ -164,6 +169,6 @@ repeat:
 | 没有 `tenon` | 停下，给重装提示 |
 | 技能加载不了 | 停下，提示 `tenon setup --<host>` / `tenon update --<host>` |
 | `lacks exact host confirmation` | 按上面的读取规则重新加载产出者技能，再登记一次 |
-| `stop` 且 `code: retired-skills` | 告诉用户新建任务；旧任务可以在工作台归档或删除 |
+| `stop` 且 `code: retired-skills` | 告诉用户新建任务；旧任务可以终止（`tenon task terminate`）或删除 |
 | 评审待确认、回复不是放行语 | 继续等；hook 会打印解锁提示 |
 | 回退边被拒、报「验证轮次已用完」 | 不要换事件或调高上限绕过；把已用轮次、上限与出路摆给用户，等用户决定 |

@@ -3,6 +3,7 @@
  * （`fields.archived=true`）之后收尾（`finish-change`）。与顺序表分开放，是因为顺序表的其余规则只读
  * 步骤证据。两条提交的形状相同：`{ paths, untrack, message }`，照原样执行、每条命令一次成功。
  */
+import type { TaskResult } from '@tenon/kernel'
 import { firstDeliveryMessage, WORKSPACE_COMMIT_PATHS, type GitFinishProbe } from '../gitWorkspace.js'
 import { stop, type StepAction } from './statusStepAction.js'
 
@@ -55,8 +56,18 @@ export interface StepFinishFacts {
   readonly designSystem?: boolean
 }
 
+/** 已结束、没有可做的事了：目录已移进 archive/，所有轨道同一形态。 */
+export function finishedStop(change: string, result: TaskResult = 'finished'): readonly StepAction[] {
+  const text = result === 'terminated' ? '已终止' : result === 'escalated' ? '已升级' : '已完结'
+  return stop('finished', `任务 '${change}' ${text}，没有要做的事了`)
+}
+
 /**
- * 完结之后的收尾：治理归档（OpenSpec 工作流）与一次提交。
+ * 状态机走完之后的收尾：归档命令与一次提交。
+ *
+ * 命令对所有轨道都是 `tenon task finish <c>`：目录移进 `openspec/changes/archive/` 与任务结果记录由 Tenon
+ * 自己做（`spec: openspec` 的轨道由它调用 `openspec archive`），agent 不再直接执行 openspec 命令。
+ * 命令移动目录，提交由 agent 照 `commit` 在命令之后执行。
  *
  * 提交是 `git add -A -- <paths…>`，`untrack` 非空时再 `git rm --cached -q --ignore-unmatch --
  * <untrack…>`，最后 `git commit -m <message>`；三条都必须一次成功（真机：原目录从未被 git 跟踪，
@@ -68,34 +79,24 @@ export interface StepFinishFacts {
  *     搬移之后不再存在时也不报错）。
  * 不是 git 仓（或 git 跑不起来）时不发提交（`commit: null`）：没有可以一次成功的写法。
  *
- * 非 OpenSpec 治理的工作流（内置 simple）没有归档命令，但以验证通过收尾时同样留下一整个工作区的
- * 改动（功能代码与任务状态文件）：`command: null`，只带提交 `paths: ['.', ':(exclude)<门禁标记>'…]`
- * （仓库根的本机门禁标记不入库）；工作区已干净（已提交）、不是 git 仓或以放弃出口（scope-expanded）
- * 收尾时就停（`stop finished`，与已搬进 archive/ 的 change 同一形态）。
+ * 非 OpenSpec 治理的轨道（如轻量）以验证通过收尾时留下一整个工作区的改动（功能代码、任务状态文件，
+ * 以及刚移动的任务目录）：`commit` 是 `paths: ['.', ':(exclude)<门禁标记>'…]`（仓库根的本机门禁标记
+ * 不入库），工作区此刻是否干净都要提交——移动目录本身就是要入库的改动。以放弃出口（scope-expanded，
+ * 已升级）收尾时 `commit` 为 null：改动留在工作区，由用户决定。
  */
-/** 已完结、没有可做的事了：所有工作流、目录搬没搬走都同一形态。 */
-export function finishedStop(change: string): readonly StepAction[] {
-  return stop('finished', `任务 '${change}' 已完结，没有要做的事了`)
-}
-
 export function finishActions(
   change: string,
   governedOpenspec: boolean,
   finish: StepFinishFacts,
 ): readonly StepAction[] {
   const git = finish.git
+  const command = `tenon task finish ${change}`
   if (!governedOpenspec) {
-    if (!finish.verified || git === null || (!git.workspaceDirty && git.untrack.length === 0)) {
-      return finishedStop(change)
-    }
-    return [{
-      action: 'finish-change',
-      change,
-      command: null,
-      commit: { paths: WORKSPACE_COMMIT_PATHS, untrack: git.untrack, message: `chore(tenon): finish ${change}` },
-    }]
+    const commit = finish.verified && git !== null
+      ? { paths: WORKSPACE_COMMIT_PATHS, untrack: git.untrack, message: `chore(tenon): finish ${change}` }
+      : null
+    return [{ action: 'finish-change', change, command, commit }]
   }
-  const command = `openspec archive ${change} --skip-specs --yes --json`
   const commit = git === null
     ? null
     : {

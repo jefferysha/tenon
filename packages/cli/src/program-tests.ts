@@ -78,9 +78,11 @@ export function registerTestCommands(program: Command, deps: CliDeps): void {
     .action(async (change: string, opts: { kind?: string; covers?: string; test?: string; reason?: string }) => bail(await cmdTestWaive(deps, change, opts)))
   test
     .command('sync <change>')
-    .description('对账：diff 里未登记的测试文件、无套件认领的孤儿文件、已不存在的登记项（有待处理 exit 2）')
+    .description('对账：diff 里未登记的测试文件、无套件认领的孤儿文件、已不存在或目录不再认领的登记项（有待处理 exit 2）；--prune 删掉目录不再认领的登记')
+    .option('--prune', '从计划里删掉目录不再认领的测试文件登记（套件已不在目录，或没有套件的 files glob 认领它）；只动测试文件登记，不动用例映射；不读 diff')
     .option('--json', 'JSON 输出')
-    .action(async (change: string, opts: { json?: boolean }) => bail(await cmdTestSync(deps, change, { json: opts.json === true })))
+    .action(async (change: string, opts: { json?: boolean; prune?: boolean }) =>
+      bail(await cmdTestSync(deps, change, { json: opts.json === true, prune: opts.prune === true })))
   test
     .command('run <change> [test-id]')
     .description('执行测试并登记结果（通过 exit 0、失败 exit 2、用法或环境错误 exit 1）；带 <test-id> 是旧的步骤测试，否则按套件批量运行')
@@ -166,7 +168,7 @@ export function registerTestCommands(program: Command, deps: CliDeps): void {
     })
   test
     .command('diff-risk [change]')
-    .description('改动风险探针（standard 通道）：自任务起点的改动文件数、契约/鉴权/依赖/迁移路径数、被删的测试、受保护的测试配置，输出一行 JSON 指标；阈值是工作流里这条测试的 pass.metrics')
+    .description('改动风险探针（轻量轨道）：自任务起点的改动文件数、契约/鉴权/依赖/迁移路径数、被删的测试、受保护的测试配置，输出一行 JSON 指标；阈值是工作流里这条测试的 pass.metrics')
     .option('--json', '输出一行 JSON 指标（供测试指标判定读取）')
     .action(async (change: string | undefined, opts: { json?: boolean }) =>
       bail(await cmdTestDiffRisk(deps, change, { json: opts.json === true })))

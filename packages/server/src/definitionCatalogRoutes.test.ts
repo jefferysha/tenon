@@ -46,7 +46,6 @@ describe('definition catalog routes', () => {
         workflowRootForRequest: () => ({ ok: true, anchor }),
         hostHome: root,
         operationRunner: runner,
-        trackValidationContextFor: () => ({ workflowExists: () => true, skillProfiles: new Set() }),
         clock: () => '2026-09-02T00:00:00.000Z',
         pollIntervalMs: 100,
         heartbeatMs: 1000,
@@ -56,7 +55,7 @@ describe('definition catalog routes', () => {
     expect(result).toBe(true)
     expect((response as { schema_version: string }).schema_version).toBe('definition-catalog/v1')
     expect((response as { adapters: unknown[] }).adapters).toHaveLength(12)
-    expect((response as { workflows: Array<{ id: string }> }).workflows.map((item) => item.id)).toEqual(['default', 'simple'])
+    expect((response as { workflows: Array<{ id: string }> }).workflows.map((item) => item.id)).toEqual(['default'])
     expect((response as { pipelines: unknown[] }).pipelines.length).toBeGreaterThan(0)
     expect(runner).toHaveBeenCalledWith(root, ['host-target-plan', '--json'])
     // 能力矩阵按 registry 三态原样上线：cursor 的 inject 是降级、veto 是原生且 fail-closed；
@@ -88,7 +87,6 @@ describe('definition catalog routes', () => {
         workflowRootForRequest: () => ({ ok: false, code: 403, error: 'untrusted' }),
         hostHome: '/tmp',
         operationRunner: vi.fn<PipelineCliRunner>(),
-        trackValidationContextFor: () => ({ workflowExists: () => true, skillProfiles: new Set() }),
         clock: () => new Date(0).toISOString(),
         pollIntervalMs: 100,
         heartbeatMs: 1000,
@@ -124,7 +122,6 @@ describe('definition catalog routes', () => {
         workflowRootForRequest: () => ({ ok: true, anchor }),
         hostHome: root,
         operationRunner: runner,
-        trackValidationContextFor: () => ({ workflowExists: () => true, skillProfiles: new Set() }),
         clock: () => '2026-09-02T00:00:00.000Z',
         pollIntervalMs: 10,
         heartbeatMs: 10,

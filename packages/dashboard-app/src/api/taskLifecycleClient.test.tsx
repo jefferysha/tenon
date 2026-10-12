@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  archiveTask, deleteTask, fetchTaskLifecycle, TaskLifecycleRefusal, unarchiveTask,
+  deleteTask, fetchTaskLifecycle, TaskLifecycleRefusal, terminateTask,
 } from './taskLifecycleClient'
 
 describe('taskLifecycleClient', () => {
@@ -32,33 +32,94 @@ describe('taskLifecycleClient', () => {
     fetchMock.mockRestore()
   })
 
-  it('sends the acknowledged codes and decodes the archive result', async () => {
+  it('sends the acknowledged codes and decodes the terminate result', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({
-      ok: true, changed: true, archived_at: '2026-09-15T12:00:00.000Z', phase: 'build',
+      ok: true, result: 'terminated', archived_dir: 'openspec/changes/archive/2026-09-15-demo',
+      ended_at: '2026-09-15T12:00:00.000Z', commit: 'committed',
     }), { status: 200 }))
-    const result = await archiveTask({ root: '/repo', change: 'demo', acknowledged: ['review-pending'] })
-    expect(result).toEqual({ changed: true, archivedAt: '2026-09-15T12:00:00.000Z', phase: 'build' })
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/change/demo/archive')
+    const result = await terminateTask({ root: '/repo', change: 'demo', acknowledged: ['review-pending'] })
+    expect(result).toEqual({
+      archivedDir: 'openspec/changes/archive/2026-09-15-demo', endedAt: '2026-09-15T12:00:00.000Z', commit: 'committed', warnings: [],
+    })
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/change/demo/terminate')
     expect(fetchMock.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
       method: 'POST', body: JSON.stringify({ root: '/repo', acknowledged: ['review-pending'] }),
     }))
     fetchMock.mockRestore()
   })
 
-  it('decodes unarchive and delete, including a null 未提交删除 count', async () => {
+  it('rejects a terminate response that is not a terminated result', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, changed: true }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: 'finished', archived_dir: 'x', ended_at: 'y', commit: 'skipped' }), { status: 200 }))
+    await expect(terminateTask({ root: '/repo', change: 'demo', acknowledged: [] })).rejects.toThrow()
+    await expect(terminateTask({ root: '/repo', change: 'demo', acknowledged: [] })).rejects.toThrow()
+    fetchMock.mockRestore()
+  })
+
+  it('decodes delete, including a null 未提交删除 count', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, removed: ['openspec/changes/demo'], uncommittedDeletions: 1 }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, removed: [], uncommittedDeletions: null }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, removed: [], uncommittedDeletions: -1 }), { status: 200 }))
-    expect(await unarchiveTask({ root: '/repo', change: 'demo' })).toEqual({ changed: true })
     expect(await deleteTask({ root: '/repo', change: 'demo', acknowledged: ['review-pending', 'has-dependents'] }))
-      .toEqual({ removed: ['openspec/changes/demo'], uncommittedDeletions: 1 })
-    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/change/demo?root=%2Frepo&acknowledged=review-pending,has-dependents')
+      .toEqual({ removed: ['openspec/changes/demo'], uncommittedDeletions: 1, warnings: [] })
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/change/demo?root=%2Frepo&acknowledged=review-pending,has-dependents')
     expect(await deleteTask({ root: '/repo', change: 'demo', acknowledged: [] }))
-      .toEqual({ removed: [], uncommittedDeletions: null })
-    expect(fetchMock.mock.calls[2]?.[0]).toBe('/api/change/demo?root=%2Frepo')
+      .toEqual({ removed: [], uncommittedDeletions: null, warnings: [] })
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/change/demo?root=%2Frepo')
     await expect(deleteTask({ root: '/repo', change: 'demo', acknowledged: [] })).rejects.toThrow()
+    fetchMock.mockRestore()
+  })
+
+  it('carries the server warnings of a terminate result through, and treats a missing key as none', async () => {
+    const base = { ok: true, result: 'terminated', archived_dir: 'openspec/changes/archive/2026-09-15-demo', ended_at: '2026-09-15T12:00:00.000Z', commit: 'committed' }
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...base, warnings: ['审计记录没写进去: EISDIR', '另一条'] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(base), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...base, warnings: [] }), { status: 200 }))
+    expect((await terminateTask({ root: '/repo', change: 'demo', acknowledged: [] })).warnings)
+      .toEqual(['审计记录没写进去: EISDIR', '另一条'])
+    expect((await terminateTask({ root: '/repo', change: 'demo', acknowledged: [] })).warnings).toEqual([])
+    expect((await terminateTask({ root: '/repo', change: 'demo', acknowledged: [] })).warnings).toEqual([])
+    fetchMock.mockRestore()
+  })
+
+  it('rejects a terminate response whose warnings are not an array of strings', async () => {
+    const base = { ok: true, result: 'terminated', archived_dir: 'x', ended_at: 'y', commit: 'skipped' }
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...base, warnings: '审计记录没写进去' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...base, warnings: ['ok', 1] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...base, warnings: null }), { status: 200 }))
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await expect(terminateTask({ root: '/repo', change: 'demo', acknowledged: [] }))
+        .rejects.toMatchObject({ message: '终止响应格式无效', status: 200 })
+    }
+    fetchMock.mockRestore()
+  })
+
+  it('carries the server warnings of a delete result through, and treats a missing key as none', async () => {
+    const base = { ok: true, removed: ['openspec/changes/demo'], uncommittedDeletions: 1 }
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...base, warnings: ['未提交删除暂存未清理'] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(base), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...base, warnings: [] }), { status: 200 }))
+    expect((await deleteTask({ root: '/repo', change: 'demo', acknowledged: [] })).warnings).toEqual(['未提交删除暂存未清理'])
+    expect((await deleteTask({ root: '/repo', change: 'demo', acknowledged: [] })).warnings).toEqual([])
+    expect((await deleteTask({ root: '/repo', change: 'demo', acknowledged: [] })).warnings).toEqual([])
+    fetchMock.mockRestore()
+  })
+
+  it('rejects a delete response whose warnings are not an array of strings', async () => {
+    const base = { ok: true, removed: [], uncommittedDeletions: null }
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...base, warnings: '未提交删除暂存未清理' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...base, warnings: [null] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...base, warnings: { 0: 'x' } }), { status: 200 }))
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await expect(deleteTask({ root: '/repo', change: 'demo', acknowledged: [] }))
+        .rejects.toMatchObject({ message: '删除响应格式无效', status: 200 })
+    }
     fetchMock.mockRestore()
   })
 
@@ -71,7 +132,7 @@ describe('taskLifecycleClient', () => {
     await expect(deleteTask({ root: '/repo', change: 'demo', acknowledged: [] })).rejects.toMatchObject({
       name: 'TaskLifecycleRefusal', code: 'confirmation-required', reasons: [{ code: 'afk-queued' }], status: 409,
     })
-    const plain = await archiveTask({ root: '/repo', change: 'demo', acknowledged: [] }).catch((error: unknown) => error)
+    const plain = await terminateTask({ root: '/repo', change: 'demo', acknowledged: [] }).catch((error: unknown) => error)
     expect(plain).not.toBeInstanceOf(TaskLifecycleRefusal)
     expect(plain).toMatchObject({ code: 'user-missing', status: 412 })
     fetchMock.mockRestore()

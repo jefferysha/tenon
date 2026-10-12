@@ -333,9 +333,9 @@ export async function verifySkillProvenance(
   if (scan.kind === 'unreadable-manifest') {
     findings.push(finding(
       'mandatory-skill-not-invocable',
-      `无法读取 templates/manifest.yaml 的 mandatory_skills，强制技能可调用性无从证明：${scan.detail}`,
+      `无法读取强制技能声明（templates/workflows/*.yaml 的步骤技能，或 templates/manifest.yaml 的 mandatory_skills），强制技能可调用性无从证明：${scan.detail}`,
       {},
-      '修复 templates/manifest.yaml 后重新验证；解析不了就不能当作没有强制技能',
+      '修复对应文件后重新验证；解析不了就不能当作没有强制技能',
     ))
   } else if (scan.kind === 'scanned') {
     for (const offender of scan.offenders) {

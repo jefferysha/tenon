@@ -10,11 +10,14 @@ import type { Snapshot, UserRefView } from '../types'
 import { matchesQuery } from '../shell/GlobalSearch'
 import { ThreeColumns } from '../shell/ThreeColumns'
 import type { TopBarProject } from '../shell/TopBar'
+import { EndedDetail } from './EndedDetail'
+import { endedCountOf, endedRowsOf, type EndedRow } from './endedModel'
 import { ProjectRail } from './ProjectRail'
 import { TaskActionDialog } from './TaskActionDialog'
 import { TaskDetailPane } from './TaskDetailPane'
+import { DEFAULT_TASK_FILTER, filterEnded, filterRows, isTaskStatus, type TaskFilterState, type TaskStatus } from './taskFilter'
 import { TaskListPane } from './TaskListPane'
-import { archivedRowsOf, DEFAULT_TASK_FILTER, filterRows, isTaskStatus, rowsOf, uncommittedDeletionsOf, type TaskFilterState, type TaskRow, type TaskStatus } from './taskModel'
+import { rowsOf, uncommittedDeletionsOf, type TaskRow } from './taskModel'
 import { matchesTaskRef, taskRef } from './taskRef'
 import { useTaskActions } from './useTaskActions'
 import { readWorkspaceParam, writeWorkspaceParam } from './workspaceLocation'
@@ -29,8 +32,10 @@ export interface WorkspaceViewProps {
   onSelectProject: (root: string) => void
   selectedChange: string | null
   onSelectedChange: (name: string | null) => void
-  /** 带 action 的提示（如归档后的「撤销」）。 */
+  /** 带 action 的提示。 */
   onToast?: (message: string, action?: FlashAction) => void
+  /** 操作成功但服务端带警告时用：比普通提示醒目；没接则退回 onToast。 */
+  onAlert?: (message: string) => void
   onRefresh?: () => void | Promise<void>
   staleError?: string | null
   loading?: boolean
@@ -45,6 +50,17 @@ function matchesSearch(search: string, row: TaskRow): boolean {
   return matchesQuery(search, row.change.name, row.workflow, row.change.track, row.change.phase)
 }
 
+function matchesEndedSearch(search: string, row: EndedRow): boolean {
+  return matchesQuery(search, row.task.name, row.task.workflow, row.task.track)
+}
+
+/** URL `change` 引用的身份：活跃任务是任务名，已结束的任务是归档目录名。 */
+function endedIdentity(row: EndedRow): { root: string; change: { name: string } } {
+  return { root: row.root, change: { name: row.dir } }
+}
+
+type Selected = { kind: 'task'; row: TaskRow } | { kind: 'ended'; row: EndedRow }
+
 /** URL `status`（顶部徽标跳转带 `status=needs-you`）；非法值回到「全部」。 */
 function statusFromUrl(): TaskStatus {
   const value = readWorkspaceParam(TASK_STATUS_PARAM)
@@ -53,14 +69,13 @@ function statusFromUrl(): TaskStatus {
 
 /** 工作台：左列项目 / 中列任务（单行筛选栏）/ 右列所选任务逐阶段的输出与输入。 */
 export function WorkspaceView({
-  snapshot, currentRoot, rulesByKey, projects, onSelectProject, selectedChange, onSelectedChange, onToast,
+  snapshot, currentRoot, rulesByKey, projects, onSelectProject, selectedChange, onSelectedChange, onToast, onAlert,
   staleError = null, loading = false, onRefresh, me = null, onUserMissing,
 }: WorkspaceViewProps): JSX.Element {
   const { t } = useT()
   const [filter, setFilter] = useState<TaskFilterState>(() => ({ ...DEFAULT_TASK_FILTER, status: statusFromUrl() }))
   const [search, setSearch] = useState('')
-  const [listMode, setListMode] = useState<'active' | 'archived'>('active')
-  const [pending, setPending] = useState<{ root: string; change: string; action: 'archive' | 'delete' | 'take' } | null>(null)
+  const [pending, setPending] = useState<{ root: string; change: string; action: 'terminate' | 'delete' | 'take' } | null>(null)
   const [railCollapsed, setRailCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem(RAIL_KEY) === '1' } catch { return false }
   })
@@ -71,7 +86,6 @@ export function WorkspaceView({
   useEffect(() => {
     setFilter((current) => ({ ...DEFAULT_TASK_FILTER, status: current.status }))
     setSearch('')
-    setListMode('active')
     setPending(null)
   }, [currentRoot])
   useEffect(() => { writeWorkspaceParam(TASK_STATUS_PARAM, filter.status === 'all' ? null : filter.status) }, [filter.status])
@@ -83,13 +97,12 @@ export function WorkspaceView({
   }, [])
 
   // 行状态只读快照：所有项目与单项目视图、工作流定义加载前后都是同一份判定。
-  const activeRows = useMemo(() => rowsOf({ snapshot, currentRoot, rulesByKey, t }), [snapshot, currentRoot, rulesByKey, t])
-  const archivedRows = useMemo(() => archivedRowsOf({ snapshot, currentRoot, rulesByKey, t }), [snapshot, currentRoot, rulesByKey, t])
-  const archivedView = listMode === 'archived'
-  const rows = archivedView ? archivedRows : activeRows
+  const rows = useMemo(() => rowsOf({ snapshot, currentRoot, rulesByKey, t }), [snapshot, currentRoot, rulesByKey, t])
+  const ended = useMemo(() => endedRowsOf({ snapshot, currentRoot }), [snapshot, currentRoot])
+  const endedCount = useMemo(() => endedCountOf(snapshot, currentRoot), [snapshot, currentRoot])
   const deletions = uncommittedDeletionsOf(snapshot, currentRoot)
-  const request = useCallback((row: TaskRow, action: 'archive' | 'delete' | 'take') => setPending({ root: row.root, change: row.change.name, action }), [])
-  const { menuOf, unarchive } = useTaskActions({ me, listMode, onToast, onRefresh, onSelectedChange, onRequest: request })
+  const request = useCallback((row: TaskRow, action: 'terminate' | 'delete' | 'take') => setPending({ root: row.root, change: row.change.name, action }), [])
+  const { menuOf, endedMenuOf } = useTaskActions({ me, onToast, onRequest: request })
 
   const compat = useMemo(() => {
     const scoped = (snapshot?.projects ?? []).filter((project) => isProjectNavigable(project) && (currentRoot === '' || project.root === currentRoot))
@@ -105,16 +118,21 @@ export function WorkspaceView({
     </div>
   ) : undefined
 
-  const visibleRows = useMemo(
-    () => (archivedView ? rows : filterRows(rows, filter)).filter((row) => matchesSearch(search, row)),
-    [archivedView, rows, filter, search],
-  )
-  const selectedRow: TaskRow | null = useMemo(() => {
-    const explicit = selectedChange === null
-      ? undefined
-      : rows.find((row) => matchesTaskRef(selectedChange, row) && (currentRoot === '' || row.root === currentRoot))
-    return explicit ?? visibleRows[0] ?? null
-  }, [rows, visibleRows, selectedChange, currentRoot])
+  const visibleRows = useMemo(() => filterRows(rows, filter).filter((row) => matchesSearch(search, row)), [rows, filter, search])
+  const visibleEnded = useMemo(() => filterEnded(ended, filter).filter((row) => matchesEndedSearch(search, row)), [ended, filter, search])
+  const selected: Selected | null = useMemo(() => {
+    if (selectedChange !== null) {
+      const task = rows.find((row) => matchesTaskRef(selectedChange, row) && (currentRoot === '' || row.root === currentRoot))
+      if (task !== undefined) return { kind: 'task', row: task }
+      const done = ended.find((row) => matchesTaskRef(selectedChange, endedIdentity(row)) && (currentRoot === '' || row.root === currentRoot))
+      if (done !== undefined) return { kind: 'ended', row: done }
+    }
+    const first = visibleRows[0]
+    if (first !== undefined) return { kind: 'task', row: first }
+    const firstEnded = visibleEnded[0]
+    return firstEnded === undefined ? null : { kind: 'ended', row: firstEnded }
+  }, [rows, ended, visibleRows, visibleEnded, selectedChange, currentRoot])
+  const selectedRow: TaskRow | null = selected?.kind === 'task' ? selected.row : null
 
   // The list snapshot leaves out the evidence; the open task reads it on demand and again when its `rev` moves.
   const detail = useChangeDetail(selectedRow?.root ?? '', selectedRow?.change.name ?? '', selectedRow?.change.rev)
@@ -122,11 +140,9 @@ export function WorkspaceView({
     ? { ...selectedRow, change: detail.state.change }
     : selectedRow
 
-  const emptyKind = archivedView
-    ? (rows.length === 0 ? 'no-archived' : 'filtered')
-    : rows.length === 0
-      ? (currentRoot === '' && projects.length === 0 ? 'no-project' : compat.issues.length > 0 ? 'compat' : 'no-task')
-      : 'filtered'
+  const emptyKind = rows.length === 0 && ended.length === 0
+    ? (currentRoot === '' && projects.length === 0 ? 'no-project' : compat.issues.length > 0 ? 'compat' : 'no-task')
+    : 'filtered'
 
   return (
     <>
@@ -145,44 +161,44 @@ export function WorkspaceView({
       list={(
         <TaskListPane
           rows={rows}
+          ended={ended}
           visibleRows={visibleRows}
+          visibleEnded={visibleEnded}
+          endedCount={endedCount}
           filter={filter}
           onFilter={setFilter}
           search={search}
           onSearch={setSearch}
-          selectedKey={selectedRow?.key ?? null}
-          onSelect={(row) => onSelectedChange(taskRef(row, currentRoot === ''))}
+          selectedKey={selected?.row.key ?? null}
+          onSelect={(row) => onSelectedChange(taskRef('task' in row ? endedIdentity(row) : row, currentRoot === ''))}
           showProject={currentRoot === ''}
           emptyKind={emptyKind}
           onClearFilters={() => { setFilter(DEFAULT_TASK_FILTER); setSearch('') }}
           notice={notice}
           me={me}
-          listMode={listMode}
-          onListMode={(next) => { setListMode(next); setSearch(''); onSelectedChange(null) }}
-          archivedCount={archivedRows.length}
           uncommittedDeletions={deletions}
-          menuOf={(row) => menuOf(row, 'card')}
-          {...(archivedView ? { onUnarchive: (row: TaskRow) => { void unarchive(row) } } : {})}
+          menuOf={menuOf}
         />
       )}
       // 默认选中第一项；列表为空时右列收起（空态已在中列说明）。
-      detail={selectedRow && detailRow
-        ? (
-          <TaskDetailPane
-            key={selectedRow.key}
-            row={detailRow}
-            onToast={onToast}
-            onRefresh={onRefresh}
-            menu={menuOf(selectedRow, 'detail')}
-            archived={archivedView}
-            {...(detail.state.status === 'loading'
-              ? { evidence: { status: 'loading' as const } }
-              : detail.state.status === 'error'
-                ? { evidence: { status: 'error' as const, error: detail.state.error, onRetry: detail.retry } }
-                : {})}
-          />
-        )
-        : null}
+      detail={selected?.kind === 'ended'
+        ? <EndedDetail key={selected.row.key} row={selected.row} rulesByKey={rulesByKey} menu={endedMenuOf(selected.row)} />
+        : selectedRow && detailRow
+          ? (
+            <TaskDetailPane
+              key={selectedRow.key}
+              row={detailRow}
+              onToast={onToast}
+              onRefresh={onRefresh}
+              menu={menuOf(selectedRow)}
+              {...(detail.state.status === 'loading'
+                ? { evidence: { status: 'loading' as const } }
+                : detail.state.status === 'error'
+                  ? { evidence: { status: 'error' as const, error: detail.state.error, onRetry: detail.retry } }
+                  : {})}
+            />
+          )
+          : null}
     />
     {pending !== null && (
       <TaskActionDialog
@@ -191,14 +207,15 @@ export function WorkspaceView({
         action={pending.action}
         onClose={() => setPending(null)}
         {...(onUserMissing === undefined ? {} : { onUserMissing })}
-        onDone={(message) => {
+        onDone={(message, warnings = []) => {
           const done = pending
           if (done === null) return
-          const row = [...activeRows, ...archivedRows].find((candidate) => candidate.root === done.root && candidate.change.name === done.change)
-          // 归档可撤销：取消归档走同一个任务生命周期接口。
-          onToast?.(message, done.action === 'archive' && row !== undefined
-            ? { label: t('workspace.undo'), run: () => { void unarchive(row) } }
-            : undefined)
+          // 终止不可撤销（想继续就新建任务并 depends_on），所以不带「撤销」。
+          if (warnings.length > 0 && onAlert !== undefined) {
+            onAlert(t('workspace.done_with_warnings', { done: message, detail: warnings.join('；') }))
+          } else {
+            onToast?.(message)
+          }
           if (done.action !== 'take') onSelectedChange(null)
           void onRefresh?.()
         }}

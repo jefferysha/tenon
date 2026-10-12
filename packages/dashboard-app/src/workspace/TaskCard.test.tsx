@@ -63,12 +63,10 @@ describe('全站列表选中态只有一份（uiRecipes）', () => {
 })
 
 describe('筛选栏计数（B10）', () => {
-  it('已归档与未提交删除的计数用 tabular-nums，不用等宽', () => {
+  it('未提交删除的计数用 tabular-nums，不用等宽', () => {
     renderList()
-    for (const id of ['task-view-archived', 'task-uncommitted-deletions']) {
-      const count = screen.getByTestId(id).querySelector('span')
-      expect(count?.className).toContain('tabular-nums')
-      expect(count?.className).not.toContain('font-mono')
-    }
+    const count = screen.getByTestId('task-uncommitted-deletions').querySelector('span')
+    expect(count?.className).toContain('tabular-nums')
+    expect(count?.className).not.toContain('font-mono')
   })
 })

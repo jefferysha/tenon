@@ -19,8 +19,7 @@ export interface UserProjectPaths {
   readonly localDir: string
   readonly activeChange: string
   readonly authority: string
-  readonly archived: string
-  /** 归档 / 取消归档: a personal preference, never synced. */
+  /** 终止: the acting user's own audit trail, never synced (the moved task directory is what gets committed). */
   readonly localAudit: string
   /** Staging for atomic 删除: the Change directory is renamed here, then removed. */
   readonly deletingDir: string
@@ -46,7 +45,6 @@ export function userProjectPaths(repoRoot: string, slug: string): UserProjectPat
     localDir,
     activeChange: join(localDir, 'active-change'),
     authority: join(localDir, 'authority'),
-    archived: join(localDir, 'archived.json'),
     localAudit: join(localDir, 'audit.jsonl'),
     deletingDir: join(localDir, 'deleting'),
     artifactsDir: join(localDir, 'artifacts'),

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import type { PipelineState } from '../types.js'
-import { builtinWorkflow } from './builtin-workflows.js'
+import { simpleWorkflow } from './test-support.js'
 import { compileEffectiveWorkflowPlan } from './effective-plan.js'
 import { IMPLICIT_COMPLETION_EVENT, implicitCompletionTransition, stepExitTransitions } from './implicit-completion.js'
 import type { StepDef, WorkflowDef } from './types.js'
@@ -132,7 +132,7 @@ describe('implicitCompletionTransition', () => {
    * (`flow/transition-table.ts`); only the manifest-derived IR drops it.
    */
   test('the bundled default archive terminal completes through the derived archived edge', () => {
-    const defaultPlan = compileEffectiveWorkflowPlan('default')
+    const defaultPlan = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' })
     for (const candidate of defaultPlan.workflow.steps) {
       if (candidate.id === 'archive') continue
       expect(implicitCompletionTransition(defaultPlan, candidate.id)).toBeUndefined()
@@ -150,8 +150,7 @@ describe('implicitCompletionTransition', () => {
   })
 
   test('bundled simple plan is unchanged', () => {
-    const simple = builtinWorkflow('simple')
-    if (simple === null) throw new Error('simple workflow missing')
+    const simple = simpleWorkflow()
     const simplePlan = compileEffectiveWorkflowPlan('simple', simple)
     for (const candidate of simplePlan.workflow.steps) {
       expect(implicitCompletionTransition(simplePlan, candidate.id)).toBeUndefined()

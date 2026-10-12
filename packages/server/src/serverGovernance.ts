@@ -1,25 +1,10 @@
 import { mkdirSync } from 'node:fs'
-import { readdir } from 'node:fs/promises'
 import type { ServerResponse } from 'node:http'
 import { join, resolve as resolvePath } from 'node:path'
 import {
-  BuiltinTrackDeleteError,
-  BuiltinTrackPolicyError,
-  ChangeScanFailedError,
   createEffectiveSkillResolver,
-  loadTrackRegistry,
-  mutateTrackRegistry,
-  RegistryRevisionConflictError,
-  TrackAlreadyExistsError,
-  TrackNotFoundError,
-  TrackReferencedError,
-  TrackReferencesInvalidatedError,
-  type ChangeRefScan,
   type EffectiveSkillResolver,
   type ExtendedManifestData,
-  type StateStore,
-  type TrackRegistry,
-  type TrackValidationContext,
 } from '@tenon/kernel'
 import { cliExitHttpStatus, parsePipelineCliJson, type PipelineCliRunner } from './operations.js'
 import { dedupeRoots } from './snapshot.js'
@@ -27,8 +12,6 @@ import {
   assertWorkflowRootAnchor,
   captureWorkflowRootAnchor,
   closeWorkflowRootAnchor,
-  ensureWorkflowProjectCoordinationPath,
-  readWorkflowForApi,
   type WorkflowRootAnchor,
 } from './workflows.js'
 import { errMsg } from './serverSupport.js'
@@ -43,102 +26,13 @@ export interface ServerGovernanceOptions {
   registry: () => string[]
   /** 全局工作流存储根（产品 configRoot/workflows）：目录形状同项目，`.pipeline/workflows/*.yaml`。 */
   globalWorkflowRoot: string
-  store: StateStore
   sendJson: (res: ServerResponse, code: number, body: unknown) => void
-  trackSkillProfiles: ReadonlySet<string>
   operationsAvailable: boolean
   operationRunner: PipelineCliRunner
 }
 
 export function createServerGovernance(options: ServerGovernanceOptions) {
-  const { registry, globalWorkflowRoot, store, sendJson, trackSkillProfiles, operationsAvailable, operationRunner } = options
-function trackRegistryBody(trackRegistry: TrackRegistry): Record<string, unknown> {
-  return {
-    ok: true,
-    revision: trackRegistry.revision,
-    source: trackRegistry.source,
-    tracks: trackRegistry.ordered,
-  }
-}
-
-async function scanActiveTrackChanges(root: string): Promise<ChangeRefScan> {
-  const changesRoot = join(root, 'openspec', 'changes')
-  let entries
-  try {
-    entries = await readdir(changesRoot, { withFileTypes: true })
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { refs: [], unreadable: [] }
-    return { refs: [], unreadable: [`<changes-root>: ${errMsg(error)}`] }
-  }
-  const names = entries
-    .filter((entry) => entry.isDirectory() && entry.name !== 'archive')
-    .map((entry) => entry.name)
-    .sort()
-  const refs: Array<{ name: string; track: string; workflow: string }> = []
-  const unreadable: string[] = []
-  for (const name of names) {
-    try {
-      const state = await store.read(join(changesRoot, name))
-      const track = state.fields.track
-      const workflow = state.fields.workflow
-      refs.push({
-        name,
-        track: Array.isArray(track) ? track.join(',') : (track ?? ''),
-        workflow: Array.isArray(workflow) ? workflow.join(',') : (workflow ?? ''),
-      })
-    } catch {
-      unreadable.push(name)
-    }
-  }
-  return { refs, unreadable }
-}
-
-function sendTrackError(res: ServerResponse, error: unknown): void {
-  if (error instanceof RegistryRevisionConflictError) {
-    return sendJson(res, 409, {
-      ok: false, code: 'TRACK_REVISION_CONFLICT', error: error.message,
-      expected: error.expected, actual: error.actual,
-    })
-  }
-  if (error instanceof TrackReferencedError) {
-    return sendJson(res, 409, { ok: false, code: 'TRACK_REFERENCED', error: error.message, references: error.references })
-  }
-  if (error instanceof TrackReferencesInvalidatedError) {
-    return sendJson(res, 409, { ok: false, code: 'TRACK_REFERENCES_INVALIDATED', error: error.message, references: error.offending })
-  }
-  if (error instanceof ChangeScanFailedError) {
-    return sendJson(res, 409, { ok: false, code: 'TRACK_REFERENCE_SCAN_FAILED', error: error.message, blockers: error.unreadable })
-  }
-  if (error instanceof TrackAlreadyExistsError) {
-    return sendJson(res, 409, { ok: false, code: 'TRACK_ALREADY_EXISTS', error: error.message })
-  }
-  if (error instanceof TrackNotFoundError) {
-    return sendJson(res, 404, { ok: false, code: 'TRACK_NOT_FOUND', error: error.message })
-  }
-  if (error instanceof BuiltinTrackDeleteError || error instanceof BuiltinTrackPolicyError) {
-    return sendJson(res, 400, { ok: false, code: 'TRACK_BUILTIN_LOCKED', error: error.message })
-  }
-  const message = errMsg(error)
-  if (message.startsWith('mutateTrackRegistry: next 未过完整校验')) {
-    return sendJson(res, 400, { ok: false, code: 'TRACK_INVALID', error: message })
-  }
-  return sendJson(res, 500, { ok: false, error: message })
-}
-
-async function mutateTrackForApi<T>(
-  anchor: WorkflowRootAnchor,
-  expectedRevision: string,
-  mutate: Parameters<typeof mutateTrackRegistry<T>>[2],
-): Promise<ReturnType<typeof mutateTrackRegistry<T>>> {
-  assertWorkflowRootAnchor(anchor)
-  ensureWorkflowProjectCoordinationPath(anchor)
-  return mutateTrackRegistry(anchor.path, trackValidationContextFor(anchor), async (snapshot) => {
-    if (snapshot.registry.revision !== expectedRevision) {
-      throw new RegistryRevisionConflictError(expectedRevision, snapshot.registry.revision)
-    }
-    return mutate(snapshot)
-  })
-}
+  const { registry, globalWorkflowRoot, sendJson, operationsAvailable, operationRunner } = options
 
 const fileExists = projectFileExists
 
@@ -242,44 +136,17 @@ const workflowStoreForRequest = (root: string): WorkflowStoreCheck => {
   return checked.ok ? { ok: true, anchor: checked.anchor, global: false } : checked
 }
 
-const trackValidationContextFor = (anchor: WorkflowRootAnchor): TrackValidationContext => ({
-  workflowExists: (id) => {
-    if (id === 'default') return true
-    try {
-      readWorkflowForApi(anchor, id)
-      return true
-    } catch {
-      return false
-    }
-  },
-  skillProfiles: trackSkillProfiles,
-})
 
-let boundPort = 0
-
-
-  /** 某项目的技能解析器（轨道注册表 + manifest 矩阵）：loop 装配校验与快照 readiness 共用。 */
-  const rootSkillResolver = (root: string, manifest: ExtendedManifestData): EffectiveSkillResolver =>
-    createEffectiveSkillResolver({
-      registry: () => {
-        const rootCheck = workflowRootForRequest(root)
-        if (!rootCheck.ok) throw new Error(rootCheck.error)
-        return loadTrackRegistry(root, trackValidationContextFor(rootCheck.anchor))
-      },
-      manifest,
-    })
+  /** 项目的技能解析器：loop 装配校验与快照 readiness 共用。技能只看工作流 YAML，不查轨道登记表也不叠加 manifest 矩阵。 */
+  const rootSkillResolver = (_root: string, manifest: ExtendedManifestData): EffectiveSkillResolver =>
+    createEffectiveSkillResolver(manifest)
   return {
-    trackRegistryBody,
-    scanActiveTrackChanges,
-    sendTrackError,
-    mutateTrackForApi,
     fileExists,
     isRegisteredRoot,
     executeOperation,
     workflowRootAnchors,
     workflowRootForRequest,
     workflowStoreForRequest,
-    trackValidationContextFor,
     rootSkillResolver,
   }
 }

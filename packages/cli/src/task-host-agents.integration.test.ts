@@ -35,7 +35,7 @@ ${agents}
     transitions: []
 `
 
-describe('任务 delete / archive 回收宿主 agent 文件', () => {
+describe('任务 delete / terminate 回收宿主 agent 文件', () => {
   let h: Harness
   afterEach(async () => { if (h) await rm(h.cwd, { recursive: true, force: true }) })
 
@@ -44,14 +44,14 @@ describe('任务 delete / archive 回收宿主 agent 文件', () => {
   async function task(name: string, flow: string, agent: string): Promise<void> {
     await mkdir(join(h.cwd, '.pipeline', 'workflows'), { recursive: true })
     await writeFile(join(h.cwd, '.pipeline', 'workflows', `${flow}.yaml`), workflow(`        - agent: ${agent}`).replace('name: hosted', `name: ${flow}`), 'utf8')
-    expect(await h.run(['init', name, '--track', 'backend', '--workflow', flow, '--preset', 'full'], { env: CLAUDE }), h.err.join('\n')).toBe(0)
+    expect(await h.run(['init', name, '--workflow', flow, '--preset', 'full'], { env: CLAUDE }), h.err.join('\n')).toBe(0)
   }
 
-  test('archive：没有别的在途任务用的文件、清单与空的 .claude 目录一并消失', async () => {
+  test('terminate：没有别的在途任务用的文件、清单与空的 .claude 目录一并消失', async () => {
     h = await freshHarness()
     await task('demo', 'hosted', 'builder')
     expect(exists('.claude/agents/tenon-builder.md')).toBe(true)
-    expect(await h.run(['task', 'archive', 'demo', '--yes'], { env: CLAUDE }), h.err.join('\n')).toBe(0)
+    expect(await h.run(['task', 'terminate', 'demo', '--yes'], { env: CLAUDE }), h.err.join('\n')).toBe(0)
     expect(exists('.claude/agents/tenon-builder.md')).toBe(false)
     expect(exists('.pipeline-owned.json')).toBe(false)
     expect(exists('.claude')).toBe(false)

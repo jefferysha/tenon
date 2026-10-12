@@ -422,6 +422,7 @@ function AppShell(): JSX.Element {
             selectedChange={selectedChange}
             onSelectedChange={setSelectedChange}
             onToast={(m, action) => showFlash('toast', m, action)}
+            onAlert={(m) => showFlash('error', m)}
             onRefresh={refresh}
             staleError={snapshot !== null ? staleSnapshotError : null}
             loading={loading}

@@ -68,7 +68,7 @@ async function project(): Promise<{ readonly h: Harness; readonly cache: Snapsho
   await writeFile(join(h.cwd, 'src', 'a.test.js'), 'export {}\n', 'utf8')
   await writeFile(join(h.cwd, '.tenon', 'tests', 'catalog.yaml'), CATALOG, 'utf8')
   await writeFile(join(h.cwd, '.pipeline', 'workflows', 'sealed.yaml'), WORKFLOW, 'utf8')
-  expect(await h.run(['init', 'demo', '--track', 'backend', '--workflow', 'sealed', '--preset', 'full'], { env: ENV }), h.err.join('\n')).toBe(0)
+  expect(await h.run(['init', 'demo', '--workflow', 'sealed', '--preset', 'full'], { env: ENV }), h.err.join('\n')).toBe(0)
   expect(await h.run(['test', 'register', 'demo', '--suite', 'unit'], { env: ENV }), h.err.join('\n')).toBe(0)
   expect(await h.run(['test', 'run', 'demo', '--stage'], { env: ENV }), `${h.out.join('\n')}\n${h.err.join('\n')}`).toBe(0)
   // The clock never moves, so the cell's age limit cannot be what makes a change visible.

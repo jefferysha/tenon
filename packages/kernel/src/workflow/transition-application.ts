@@ -11,11 +11,11 @@
  * 如果调用方仍各自持有 runRepo.transact()，它们仍然可能各自遗漏 await、漏写某段收尾、或悄悄
  * 在 callback 里插入自己的逻辑，"唯一"就名不副实（2026-07-17 codex 架构评估明确建议）。
  *
- * 分层：两个 planner 在锁内判定和变换，但不持久化；它们保留 guard
- * 所需的文件/Git 读取，避免编排层复制事件事实映射。
- *     planner 的输入面从类型上收窄：只收 state 与（custom 轨）已加载并编译的 WorkflowIR，不接收
+ * 分层：两个 planner（execution-seam.ts 选出的执行适配器的 planTransition）在锁内判定和变换，但不
+ * 持久化；它们保留 guard 所需的文件/Git 读取，避免编排层复制事件事实映射。
+ *     planner 的输入面从类型上收窄：只收 state、已绑定的计划与命令，不接收
  *     带 commit 能力的 WorkflowRunTransaction——规划途中在结构上就不可能提交。
- *   - execute() —— 编排层：调 runRepository.transact() → 锁内物化 workflow 定义 → 选对应
+ *   - execute() —— 编排层：调 runRepository.transact() → 锁内物化 workflow 定义 → 经接缝选对应
  *     planner → 命中拒绝就直接返回（不 commit）→ 命中可提交结果就 tx.commit() →
  *     breadcrumb/history 收尾。
  *   - commit() 是唯一不可回退的成功点；收尾两项都是 commit 之后的 best-effort 兼容投影，写入
@@ -43,20 +43,15 @@ import { rejectOnTestEvidence } from '../test-evidence/transition-gate.js'
 import { ownerDecision } from '../users/owner.js'
 import { formatUserRef } from '../users/user.js'
 import type { DocumentEvidenceReport } from '../state/document-evidence.js'
-import { builtinTrack, isBuiltinTrackId } from '../tracks/builtins.js'
 import type { TransitionContext } from '../flow/index.js'
-import { applyStepTransition, planStepTransition, resolveStep } from './engine.js'
-import { implicitCompletionTransition, isAbandonEvent } from './implicit-completion.js'
+import { isAbandonEvent } from './implicit-completion.js'
 import { retiredSkillReferences } from './retired-skills.js'
 import { rejectOnStepGates } from './transition-step-gates.js'
 import { rejectOnRoundsExhausted } from './transition-rounds-gate.js'
-// default 轨规划器单独成模块（同 rejectOnStepGates 的拆法）：本文件只留编排与 custom 轨规划。
-import { planDefaultTransition } from './transition-plan-default.js'
+// 转换规划随执行模型而变，由接缝选适配器（step-graph 或 legacy-phase-manifest）；本文件只留编排。
+import { selectExecution } from './execution-seam.js'
 import { fieldStr } from './transition-field-scalar.js'
-import { applyActions } from './action-handlers.js'
 import { evaluateConstraintPolicy, type ConstraintDecision } from '../loops/automation-policy.js'
-import type { ActionOutcome, WorkflowIR } from './ir.js'
-import { effectiveLifecyclePolicy } from './governed-lifecycle-policy.js'
 import {
   isDocumentContractPhase, isDocumentPolicyStep, shouldEnforceDocumentPolicyOnTransition,
 } from './document-contract.js'
@@ -65,9 +60,8 @@ import { DocumentGovernanceBindingError, resolveBoundEffectiveWorkflowPlan } fro
 import type { EffectiveWorkflowPlan } from './effective-plan.js'
 import type {
   PreparedTransition, TransitionApplication, TransitionApplicationDeps, TransitionApplicationResult,
-  TransitionApplicationWarning, TransitionCommand, TransitionRejection,
+  TransitionCommand, TransitionRejection,
 } from './transition-application-types.js'
-import { BuildRevisionCaptureError, safeRevisionHash } from './build-revision.js'
 import { emitInteractionEffectUnderLock } from './interaction-effect.js'
 import { INTERACTION_PROJECTION_WRITE_FAILED } from '../interaction/contract.js'
 export type {
@@ -76,109 +70,6 @@ export type {
 } from './transition-application-types.js'
 function isRejection(x: PreparedTransition | TransitionRejection): x is TransitionRejection {
   return 'kind' in x
-}
-async function planCustomTransition(
-  state: PipelineState,
-  effectivePlan: EffectiveWorkflowPlan,
-  command: TransitionCommand,
-  clock: () => string,
-): Promise<PreparedTransition | TransitionRejection> {
-  const ir = effectivePlan.workflow
-  const workflowName = effectivePlan.id
-  const currentBeforePlan = resolveStep(ir, fieldStr(state.fields.phase))
-  // A step without a forward exit completes the run through the derived `archived` self-edge.
-  // It is added to a planning copy only, so the frozen IR and its fingerprint stay untouched, and
-  // it flows through the same guards, skills, documents and review receipt as a declared exit.
-  const completion = currentBeforePlan === null
-    ? undefined
-    : implicitCompletionTransition(effectivePlan, currentBeforePlan.id, state)
-  const planningIr: WorkflowIR = completion === undefined
-    ? ir
-    : {
-        ...ir,
-        steps: ir.steps.map((step) => step.id === completion.to
-          ? { ...step, transitions: [...step.transitions, completion] }
-          : step),
-      }
-  const edgeBeforePlan = resolveStep(planningIr, fieldStr(state.fields.phase))
-    ?.transitions.find((candidate) => candidate.event === command.event)
-  const documentPolicy = effectivePlan.capabilities.documents.policy
-  const governed = documentPolicy !== undefined
-  const targetStep = edgeBeforePlan === undefined
-    ? undefined
-    : resolveStep(planningIr, edgeBeforePlan.to)
-  const lifecycle = currentBeforePlan && edgeBeforePlan
-    ? effectiveLifecyclePolicy(governed, currentBeforePlan, edgeBeforePlan, targetStep ?? undefined)
-    : undefined
-  const plan = await planStepTransition(planningIr, state, command.event, {
-    changeDirAbs: command.changeDir,
-    fileExists: command.context.fileExists,
-    gitHeadSha: command.context.gitHeadSha,
-    workspaceFingerprint: command.context.workspaceFingerprint,
-    specMigrationStatus: command.context.specMigrationStatus,
-    assessBuildRevision: command.context.assessBuildRevision,
-    currentStep: fieldStr(state.fields.phase),
-  }, lifecycle)
-  if (!plan.ok) {
-    if (plan.kind === 'step-not-in-graph') return { kind: 'step-not-in-graph', workflowName, stepId: plan.stepId }
-    if (plan.kind === 'event-unsupported') {
-      return {
-        kind: 'event-unsupported', workflowName, stepId: plan.stepId, event: command.event, available: plan.available,
-      }
-    }
-    const blocker = plan.blockers?.[0]
-    if (blocker !== undefined) return { kind: 'revision-untrusted', blocker }
-    return { kind: 'step-guard-failed', workflowName, stepId: plan.stepId, failures: plan.failures, blockers: plan.blockers }
-  }
-  const currentStep = resolveStep(planningIr, plan.from)
-  if (!currentStep) throw new Error(`workflow '${workflowName}' 在已规划 step '${plan.from}' 后无法重取当前 step`)
-  // 计划通过：先算 phase 推进（applyStepTransition），再跑该边 edge actions——patch 合并进
-  // nextFields **在 commit 之前**（对照 default 轨 typed action（applyActions）在 commit 前改 fields
-  // 的同一时序）。actions 是 async，其真异常（如 freeze-build-sha 的 gitHeadSha 抛错）原样上抛 → 出
-  // transact 回调 → 事务中止不 commit（state 不推进）。旧 YAML 无 edge action → 零 patch 零 signal，
-  // 行为逐字不变。actions 直接取自 plan（planStepTransition 选边时携带同一条 edge 的
-  // effective lifecycle actions），不二次按 from+event 查表——规划即选边的单一真相，无
-  // 「选一条边、执行另查一条」的语义漂移面。
-  const nextState = applyStepTransition(state, plan.to, clock)
-  const actions = plan.actions
-  const closesRun = actions.some((action) => action.type === 'archive-run')
-  const warnings: TransitionApplicationWarning[] = []
-  let nextFields = closesRun
-    ? { ...nextState.fields, phase_status: 'done' as const }
-    : nextState.fields
-  if (actions.length > 0) {
-    let outcome: ActionOutcome
-    try {
-      outcome = await applyActions(actions, {
-        fields: nextState.fields,
-        clock,
-        gitHeadSha: command.context.gitHeadSha,
-        workspaceFingerprint: command.context.workspaceFingerprint,
-        captureBuildRevision: command.context.captureBuildRevision,
-      })
-    } catch (error) {
-      if (error instanceof BuildRevisionCaptureError) {
-        return {
-          kind: 'revision-untrusted',
-          blocker: {
-            ...error.blocker,
-            // Capture ran against the prospective target fields, but a rejected transition never
-            // commits that state. Always report the locked canonical pre-state digest.
-            stateHash: safeRevisionHash(state.fields),
-          },
-        }
-      }
-      throw error
-    }
-    nextFields = { ...nextFields, ...outcome.patch }
-    for (const signal of outcome.signals) warnings.push({ kind: signal.kind })
-  }
-  return {
-    governedDocumentContract: governed,
-    ...(documentPolicy ? { documentPolicy } : {}),
-    requiresReviewApproval: effectivePlan.capabilities.review.steps.includes(currentStep.id),
-    from: plan.from, to: plan.to, nextFields, warnings,
-  }
 }
 export function createTransitionApplication(deps: TransitionApplicationDeps): TransitionApplication {
   return {
@@ -193,15 +84,13 @@ export function createTransitionApplication(deps: TransitionApplicationDeps): Tr
         const workflowName = tx.run.workflowId
         let effectivePlan: EffectiveWorkflowPlan | null
         try {
-          const trackId = fieldStr(tx.state.fields.track)
-          // 技能的轨道条件按当前轨道求值；宿主没接 resolveTrack 时至少认内建轨道，避免把全部轨道的
-          // 条件技能都当成本轨必需。
-          const track = trackId === '' ? undefined : deps.resolveTrack?.(trackId) ?? (isBuiltinTrackId(trackId) ? builtinTrack(trackId) : undefined)
+          // 计划按任务记着的轨道选分支；快照优先（没有快照才读现行工作流），不查登记表：
+          // 旧模型的在途任务也靠快照走完。
           effectivePlan = resolveBoundEffectiveWorkflowPlan(workflowName, {
             documentProfile: tx.run.documentProfile,
             documentGovernanceFingerprint: tx.run.documentGovernanceFingerprint,
             workflowPlanFingerprint: tx.run.workflowPlanFingerprint,
-          }, command.loadWorkflow, track, tx.run.workflowPlanSnapshot)
+          }, command.loadWorkflow, fieldStr(tx.state.fields.track), tx.run.workflowPlanSnapshot)
         } catch (error) {
           if (error instanceof DocumentGovernanceBindingError) {
             return { kind: 'document-governance-invalid', workflowName, reason: error.message }
@@ -212,12 +101,9 @@ export function createTransitionApplication(deps: TransitionApplicationDeps): Tr
         // 引用已删除技能的快照没有兼容层：在排边之前一次认出来，别让它后面报一堆不相干的错。
         const retired = retiredSkillReferences(effectivePlan)
         if (retired.length > 0) return { kind: 'retired-skills', workflowName, skills: retired }
-        let prepared: PreparedTransition | TransitionRejection
-        if (effectivePlan.capabilities.execution.model === 'phase-manifest') {
-          prepared = await planDefaultTransition(tx.state, command, deps.flow, deps.clock, effectivePlan)
-        } else {
-          prepared = await planCustomTransition(tx.state, effectivePlan, command, deps.clock)
-        }
+        const prepared = await selectExecution(effectivePlan).planTransition({
+          state: tx.state, plan: effectivePlan, command, flow: deps.flow, clock: deps.clock,
+        })
         if (isRejection(prepared)) return prepared
         // 验证轮次上限用完后，受约束步骤的回退边不再放行（强制层；`next` 只是投影）。
         const exhausted = await rejectOnRoundsExhausted({

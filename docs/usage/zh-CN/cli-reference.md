@@ -48,18 +48,34 @@ projection 写失败只在 canonical 成功后 warning，不改变 canonical sta
 拒绝 prompt、token、credential 与 artifact 字段。
 
 ```bash
-tenon init <name> --track <track> --preset <preset>
-tenon init <name> --track frontend --preset full --document-locale zh-CN
+tenon assess --files <路径>... [--workflow <name>] [--track <track>] [--json]
+tenon init <name> [--workflow <name>] [--track <track>] [--preset <preset>] [--domain <track>]
+tenon init <name> --workflow default --track frontend --preset full --document-locale zh-CN
 tenon list --json
+tenon list --finished
+tenon tracks list [--json]
+tenon tracks show <工作流>:<轨道> [--json]
 tenon status <name> --json
 tenon workflow plan <name> --json
 tenon get <name> <field>
 tenon set <name> <field> <value>
 tenon transition <name> <event>
 tenon check <name>
+tenon advance <name>
+tenon task finish <name> [--json]
+tenon task terminate <name> [--yes] [--json]
+tenon task delete <name> [--yes] [--json]
 ```
 
 不要用 `set phase` 绕过 workflow event。canonical state 和 YAML projection 只能由 CLI 写。
+
+`tenon init` 的轨道取自工作流自己的分支：声明了 `tracks:` 的工作流必须写 `--track`（default 的是 `lite`、`pm`、`frontend`、`backend`），`design-system` 这样的平铺工作流不用写。`--workflow standard`、`--workflow simple` 退出码 `1`，并提示改用 `--workflow default --track lite`；把已退役的轨道 id（`standard`、`simple`、`chat`、`free`）传给 `--track` 同样退出码 `1`，并列出该工作流可选的轨道。`--domain <track>` 用于轻量任务：它记下「升级时去同一工作流里的哪条轨道」（必须是该工作流里另一条存在的分支），这样改动风险探针的 `escalate.then` 就能直接点名那条轨道；没记时 `then` 列出可选轨道请用户选。`tenon tracks list` 只读，列出项目可用的全部工作流的全部轨道（列 `WORKFLOW:TRACK`、`LABEL`、`ROUTABLE`）；内建登记表与 `.pipeline/tracks.yaml` 不再读取。见[路由与执行模式](routing-and-workflows.md#建任务前先评估)。
+
+`tenon assess` 把你预计要改的文件，按某条轨道的改动风险阈值（它的 `diff-risk` 步骤测试的 `pass.metrics`；缺省 `--workflow default --track lite`）评估，分类规则与改动风险探针完全相同，不读文件内容。路径必须是仓库内的相对路径：绝对路径、含 `..` 或经符号链接指向仓库外的路径退出码 `1`，该轨道没有 `diff-risk` 阈值同样退出码 `1`。退出码 `0`：未超限；退出码 `3`：超限，列出被突破的阈值（如 `auth_files 1 > 0`）并推荐重型轨道。`--json` 输出 `{ workflow, track, metrics, exceeded, reasons, recommendation }`。
+
+不带 event 的 `check <name>` 报告当前步骤的 guards 与它的前进边的 guards，一次列出全部未满足的条件，退出码 `2`。`advance <name>` 只自动走唯一的前进边，不走回退边和放弃边 `scope-expanded`。
+
+`task finish` 与 `task terminate` 都是把任务目录移进 `openspec/changes/archive/<日期>-<名字>/` 并记下任务结果（`finished`、`escalated` 或 `terminated`，界面是完结、已升级、已终止）。`finish` 只接受状态机已走到终态（完结或已升级）的任务；`spec: openspec` 的轨道由 Tenon 调用 `openspec archive <name> --skip-specs --yes --json`，其余由 Tenon 自己移动目录，同一天已有同名归档时追加 `-2`、`-3`。`terminate` 接受任何还没结束的任务，记为已终止，只提交任务目录（`chore(tenon): terminate <name>`），任务改过的代码既不提交也不回退。退出码：`0` 完成；`1` 用法、名称、任务或身份缺失、状态不对或失败；`2` 需要确认（加 `--yes` 重试）；`3` 被阻止（如 AFK 运行中、被别的任务依赖）。`--json` 输出 `{ change, result, archived_dir, ended_at }`（`terminate` 另带 `commit`）。原来的「隐藏」子命令 `archive`、`unarchive`（在 `tenon task` 下）已不存在，运行退出码 `1` 并指向 `finish` 与 `terminate`。`tenon list --finished` 列出已结束的任务（含已归档的）。
 
 `tenon workflow plan <name> --json` 是 Agent 编排在途 Change 的单一读取入口。它优先返回
 WorkflowRun 初始化时冻结的完整计划，包括步骤、Skill、门禁、守卫、产物和转换。后来修改或删除
@@ -68,8 +84,9 @@ WorkflowRun 初始化时冻结的完整计划，包括步骤、Skill、门禁、
 `tenon status <name> --json` 还带一个 `step` 块：单个 `tenon` skill 执行当前步骤所需的全部输入
 ——本步技能、执行者、评审者、测试、文档、字段、评审回执、带阻塞原因的出口，以及一份闭集的
 `next` 动作表，按序执行即可。`run-tests` 与 `run-test` 在将要执行的命令还没有得到用户信任时带一个 `trust` 对象
-（先请用户在自己的终端运行 `trust.command`）。带 `escalate` 的 `transition` 表示任务已经超出了它的通道：
-standard 通道的风险探针没通过，`escalate.reasons` 点名被突破的阈值，`escalate.then` 说明转换之后另开一个 `default` 任务。
+（先请用户在自己的终端运行 `trust.command`）。带 `escalate` 的 `transition` 表示任务已经超出了它的轨道：
+轻量轨道的风险探针没通过，`escalate.reasons` 点名被突破的阈值，`escalate.then` 给出转换之后要运行的重型轨道 `tenon init` 命令，
+以及随后的 `tenon set <新任务> depends_on <本任务>`。`finish-change` 动作带 `command`（`tenon task finish <name>`），命令之后再按 `commit` 提交。
 
 ```text
 tenon step run <change> [--json]
@@ -311,6 +328,7 @@ tenon test register <change> --case <covers> --test "<文件> › <用例名>"�
 tenon test unregister <change> --suite <id> | --file <path> | --case <covers> [--test <ref>] | --waiver <种类|场景|test:步骤测试 id>
 tenon test waive <change> (--kind <k> | --covers <covers> | --test <步骤测试 id>) --reason <原因>
 tenon test sync <change> [--json]
+tenon test sync <change> --prune [--json]
 tenon test trust [<change>] [--yes] [--status] [--json]
 tenon test run <change> [--suite <id>]… [--kind <k>]… [--stage [<step>]] [--all] [--changed] [--json]
 tenon test run <change> <test-id> [--json]
@@ -384,7 +402,20 @@ vitest 工程里的 `*.bench.*` 文件会识别成 `vitest-bench` 基准套件�
 骨架提示词（「将本阶段目标拆成可验证任务」）不是作者写的任务：种子、`test sync`、`test plan` 不再列它，追溯矩阵里它显示为可选。`test register <change> --auto` 是一条命令的形态：缺目录先识别，
 把没有套件认领的测试文件并进套件的 `files` glob（`test/x.test.js` 得到 `test/**/*.test.js`；`e2e/` 下的用例进 Playwright 套件，
 辅助文件和 `*.bench.*` 不会自动认领），再生成计划初稿并登记这些文件；只增不减，可重复运行。`test sync` 拿本任务相对起点的
-diff 对账：未登记的测试文件、没有套件认领的文件、登记了但文件已不存在的项，与门禁是同一份计算（有待处理 exit `2`）。
+diff 对账：未登记的测试文件、没有套件认领的文件、登记了但文件已不存在的项、登记了但目录已不认领的项（套件不在目录里了，或没有套件的
+`files` glob 再匹配这条路径；`--json` 字段 `registeredButUnclaimed`），与门禁是同一份计算（有待处理 exit `2`）。
+
+登记只增不减（`register`、`plan --seed` 只加，`sync` 只报告），而套件出口检查对每条写明了套件的登记都要求「报告里执行过」，不看套件的 glob
+还认不认领它。所以套件的 `files` glob 被放宽、后来又收窄之后，那段时间登记进来的文件会留在计划里，一直以 `registered-test-not-executed` 挡住出口。
+`test sync <change> --prune` 就是出路：只把当前目录不认领的登记从计划的 `files` 里删掉，其余原样保留。一条登记被保留的条件是：写明的套件还在目录里、
+且该套件的 `files` glob 匹配这条路径；没写套件的登记则要有任意一个套件的 glob 匹配。用 `register --file --kind` 登记、没有套件的资源文件（例如视觉快照）
+也会保留：它从不运行，也不会挡出口。输出逐条列出被删的路径和原因（`没有套件认领`、`套件 '<id>' 不在目录中`、`套件 '<id>' 的 files glob 不再认领它`）；
+`--json` 输出 `{ change, digest, pruned: [{ path, suite?, reason }] }`，`reason` 取 `no-owner`、`suite-missing`、`glob-mismatch`。
+它只动 `files`：套件、用例映射和豁免不动，也不读 diff。没有可删的项算成功（exit `0`，不重写计划）；目录缺失或无效、目录里一个套件都没有、
+计划被手改、不是任务负责人，都会被拒绝（exit `1`）。写入走与 `test register` 相同的加锁、记摘要的路径，所以删完 `test plan` 与出口检查照常读取，
+任务历史里多一行 `test:plan-write op=prune`。
+
+为什么不能拿它去删合法的登记：合法的测试文件总被它的套件 glob 认领，要被 prune 必须先改目录里的 glob，而任务改动过的测试配置文件会在评审请求里列出、由用户批准。
 
 任务的起点是与基线分支的 merge-base；直接在基线分支上做时取任务创建之前的最后一个提交；diff 包含暂存、未暂存与
 未跟踪文件。读不到 diff 时门禁以 `files-diff-unavailable` 阻塞（失败关闭，不降级成提示）。
@@ -498,8 +529,8 @@ OS、架构、核数、运行时主版本加 `profiles_env` 的取值（形如 `
 与 `<!-- tenon:test-report:end -->` 之间）——追溯矩阵、套件与各套件最新运行的 `run_id`、覆盖率、基准对比、flaky 与已知失败、仍在挡出口的项。
 标记之外的字节一个都不动；`tenon status` 靠 v2 块里是否有最新的 run id 判断报告要不要重新生成。`test code-size` 是内建
 `code-size` 方向背后的确定性探针，输出一行 JSON 指标；只统计源代码：路径范围与工作区候选一致（不含 `openspec/`、`.tenon/`、
-`.pipeline/`、`docs/`、依赖与测试缓存），且不含 Markdown。`test diff-risk` 是内建 `diff-risk` 方向背后的探针，也是 `standard`
-通道的风险闸（见[路由与执行模式](routing-and-workflows.md#标准通道)）：只读仓库，从任务起点算起（已提交与未提交的改动都算），输出一行 JSON：
+`.pipeline/`、`docs/`、依赖与测试缓存），且不含 Markdown。`test diff-risk` 是内建 `diff-risk` 方向背后的探针，也是 `lite`
+轨道的风险闸（见[路由与执行模式](routing-and-workflows.md#轻量轨道)）：只读仓库，从任务起点算起（已提交与未提交的改动都算），输出一行 JSON：
 `files_changed`（源码文件数，口径同 `code-size`）、`contract_files` / `auth_files` / `dependency_files` / `migration_files`
 （命中对应路径类的文件数：OpenAPI、proto、GraphQL、schema 与 `contract` 名；auth、login、session、jwt、password、permission、
 crypto、secret 名与 `.env*`；包清单与锁文件；迁移目录）、`deleted_tests`（被删的测试文件）、`protected_test_files`（测试目录、基线、
@@ -575,5 +606,7 @@ tenon handoff <change> --json
 tenon tap ...
 tenon channel ...
 ```
+
+任务能否进入 AFK 只看它所在轨道的 `automation.eligible`。没写 `automation` 的轨道（所有平铺工作流也一样）不可进入：`tenon afk enqueue` 退出码 `3`，带 `--json` 时给出 `reason: "track-not-afk-eligible"`。`enqueue_after_spec: true` 的轨道（default 的 `pm`）在规格完成后自动入队。
 
 高级命令可能处理本地敏感数据，先阅读对应安全说明。

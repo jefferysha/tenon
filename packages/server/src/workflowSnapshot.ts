@@ -1,7 +1,6 @@
-import type { TrackDefinition } from '@tenon/kernel'
+import type { PlanOptions } from '@tenon/kernel'
 import {
   assessBuildRevisionTrust,
-  builtinWorkflow,
   compileWorkflow,
   evaluateWorkflowAction,
   evaluateSpecMigrationEvidence,
@@ -15,6 +14,7 @@ import {
   probeBuildRevisionIdentity,
   readValidatedTransitionHead,
   safeRevisionHash,
+  universalGuardCapabilities,
   type EffectiveWorkflowPlan,
   type PipelineState,
   type PipelineTodoStageDefinition,
@@ -114,14 +114,19 @@ function effectivePolicy(
   }
 }
 
+/**
+ * 当前工作流定义的策略与指纹。`planOptions` 是任务的轨道与冻结计划的执行模型：计划指纹随所选分支的文档治理
+ * 与执行模型而变，按任务自己的口径算，才能和冻结的指纹比对「定义有没有变」。
+ */
 export function resolveConfiguredWorkflowPolicy(
   workflowName: string,
   loadDefinition: (name: string) => WorkflowDef | null,
+  planOptions: PlanOptions,
 ): WorkflowConfiguredPolicySnapshot {
   const plan = resolveEffectiveWorkflowPlan(workflowName, (name) => {
-    const definition = builtinWorkflow(name) ?? loadDefinition(name)
+    const definition = loadDefinition(name)
     return definition === null ? null : compileWorkflow(definition)
-  }, undefined, () => loadDefinition('default'))
+  }, planOptions, () => loadDefinition('default'))
   if (plan === null) return { status: 'missing' }
   return {
     status: 'available',
@@ -134,10 +139,11 @@ export function resolveConfiguredWorkflowPolicy(
 export function resolveConfiguredWorkflowPolicySafely(
   workflowName: string,
   loadDefinition: (name: string) => WorkflowDef | null,
+  planOptions: PlanOptions,
   rethrow?: (error: unknown) => boolean,
 ): WorkflowConfiguredPolicySnapshot {
   try {
-    return resolveConfiguredWorkflowPolicy(workflowName, loadDefinition)
+    return resolveConfiguredWorkflowPolicy(workflowName, loadDefinition, planOptions)
   } catch (error) {
     if (rethrow?.(error) === true) throw error
     return { status: 'invalid' }
@@ -154,10 +160,10 @@ export function resolveSnapshotEffectivePlan(
     readonly workflowPlanSnapshot?: WorkflowPlanSnapshot
   },
   loadDefinition: (name: string) => WorkflowDef | null = (name) => loadWorkflow(root, name),
-  track?: TrackDefinition,
+  track?: string,
 ): EffectiveWorkflowPlan {
   const plan = resolveBoundEffectiveWorkflowPlan(workflowName, binding, (name) => {
-    const definition = builtinWorkflow(name) ?? loadDefinition(name)
+    const definition = loadDefinition(name)
     return definition === null ? null : compileWorkflow(definition)
   }, track, binding.workflowPlanSnapshot)
   if (plan === null) throw new Error(`workflow '${workflowName}' 未找到`)
@@ -245,7 +251,11 @@ export function snapshotWorkflowRulesAtRoot(
 ): WorkflowRulesSnapshot {
   return snapshotWorkflowRules(
     plan,
-    resolveConfiguredWorkflowPolicySafely(workflowName, (name) => loadWorkflow(root, name)),
+    resolveConfiguredWorkflowPolicySafely(
+      workflowName,
+      (name) => loadWorkflow(root, name),
+      { track: plan.capabilities.track.id ?? undefined, executionModel: plan.executionModel },
+    ),
     authority,
   )
 }
@@ -315,6 +325,8 @@ export async function snapshotWorkflowExecution(
     changeDirAbs: changeDir,
     ...guardContext,
     specMigrationStatus: () => evaluateSpecMigrationEvidence(root, changeDir, changeName),
+    // 通用离开条件的能力与 step-exit 读同一份文件面（真实项目路径）；没有文件面时依赖项失败关闭。
+    ...universalGuardCapabilities(changeDir, deps.stepExits?.fileContext),
     ...(deps.stepAgents === undefined ? {} : { stepAgents: deps.stepAgents }),
   })
   const stepExits = deps.stepExits

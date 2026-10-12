@@ -92,6 +92,31 @@ describe('countDraftChanges：「未保存 N 处」按阶段 / 轨道 / 工作�
   })
 })
 
+describe('countDraftChanges · 轨道设置', () => {
+  const CONTRACT = { version: 'v1' as const, slots: [{ kind: 'proposal', ownerStep: 'a', producers: [] }, { kind: 'design', ownerStep: 'b', producers: [] }], reads: [] }
+  const governed: WbWorkflowDef = { ...BASE, openspec: true, tracks: { ...BASE.tracks, pm: { ...BASE.tracks!.pm!, documentContract: CONTRACT } } }
+
+  it('改关键词 = 轨道 1 处；改规范 = 1 处，顺带去掉的文档契约不再逐阶段重复计数', () => {
+    const words = JSON.parse(JSON.stringify(governed)) as WbWorkflowDef
+    words.tracks!.pm!.route = { keywords: ['产品'], exclude: [], priority: 100, fallback: false }
+    expect(countDraftChanges(governed, words)).toBe(1)
+    const none = JSON.parse(JSON.stringify(governed)) as WbWorkflowDef
+    none.tracks!.pm!.spec = 'none'
+    delete none.tracks!.pm!.documentContract
+    expect(countDraftChanges(governed, none)).toBe(1)
+    none.tracks!.pm!.route = { keywords: ['产品'], exclude: [], priority: 100, fallback: false }
+    expect(countDraftChanges(governed, none)).toBe(2)
+  })
+
+  it('同样的设置、只是键顺序不同不算改动', () => {
+    const before = JSON.parse(JSON.stringify(governed)) as WbWorkflowDef
+    before.tracks!.pm!.route = { keywords: ['a'], exclude: [], priority: 1, fallback: false }
+    const after = JSON.parse(JSON.stringify(before)) as WbWorkflowDef
+    after.tracks!.pm!.route = { fallback: false, priority: 1, exclude: [], keywords: ['a'] }
+    expect(countDraftChanges(before, after)).toBe(0)
+  })
+})
+
 describe('countDraftChanges · 测试策略', () => {
   it('改策略算所属阶段的 1 处，改回去就不算', () => {
     const flat: WbWorkflowDef = { name: 'flat', steps: [stage('s')] }

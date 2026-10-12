@@ -14,7 +14,7 @@ const planOf = (name: string, steps: readonly StepDef[]) => compileEffectiveWork
 
 describe('roundsRoute：用完后 verify-fail 之后再回规格的路径', () => {
   test('内置 default：verify-fail 回 build，再在 build 上用 requirements-changed 回 spec', () => {
-    expect(roundsRoute(compileEffectiveWorkflowPlan('default'), 'verify')).toEqual({
+    expect(roundsRoute(compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' }), 'verify')).toEqual({
       back: { event: 'verify-fail', to: 'build' },
       reset: { event: 'requirements-changed', to: 'spec' },
       resettable: true,
@@ -22,7 +22,7 @@ describe('roundsRoute：用完后 verify-fail 之后再回规格的路径', () =
   })
 
   test('不受约束的步骤（build 没有评审门、spec 没有回退边）与不在计划里的步骤：null', () => {
-    const plan = compileEffectiveWorkflowPlan('default')
+    const plan = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' })
     expect(roundsRoute(plan, 'build')).toBeNull()
     expect(roundsRoute(plan, 'spec')).toBeNull()
     expect(roundsRoute(plan, 'nowhere')).toBeNull()

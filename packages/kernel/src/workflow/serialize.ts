@@ -16,6 +16,7 @@ import type {
 } from './types.js'
 import type { TrackPredicate } from './predicates.js'
 import { serializeStepAgents } from './serialize-agents.js'
+import { serializeBranchPolicy, serializeRoute } from './serialize-track-branch.js'
 import { serializeStepTests } from './serialize-tests.js'
 import { serializeStepTestPolicy } from './serialize-test-policy.js'
 
@@ -104,6 +105,9 @@ function serializeGuard(g: WorkflowGuardConfig, pad: string): string[] {
     case 'full-direct-override': break
     case 'build-head-unchanged': lines.push(`${sub}field: ${g.field}`); break
     case 'spec-migration-applied': break
+    case 'tasks-through-step': break
+    case 'not-afk-queued': break
+    case 'dependencies-ended': break
     default: {
       const exhaustive: never = g
       throw new Error(`serializeWorkflow: 未知 guard 变体 ${JSON.stringify(exhaustive)}（闭集见 types.ts WorkflowGuardConfig）`)
@@ -190,6 +194,7 @@ export function serializeWorkflow(wf: WorkflowDef): string {
     ...(wf.decomposition === undefined ? [] : serializeDecomposition(wf.decomposition)),
     ...(wf.interaction === undefined ? [] : serializeInteraction(wf.interaction)),
     ...(wf.openspec === true ? ['openspec: true'] : []),
+    ...(wf.route === undefined ? [] : serializeRoute(wf.route, '')),
     ...(wf.documentContract === undefined ? [] : serializeDocumentContract(wf.documentContract)),
     ...(wf.steps.length === 0 && Object.keys(wf.tracks ?? {}).length > 0 ? [] : ['steps:', ...wf.steps.flatMap(serializeStep)]),
     ...serializeTracks(wf.tracks),
@@ -197,7 +202,10 @@ export function serializeWorkflow(wf: WorkflowDef): string {
   return lines.join('\n') + '\n'
 }
 
-/** `tracks:` 块：分支 id 两空格缩进；分支内 steps 项与顶层 steps 同构，整体再缩进四空格（YAML 统一位移，含 prompt 块）。 */
+/**
+ * `tracks:` 块：分支 id 两空格缩进；分支内 steps 项与顶层 steps 同构，整体再缩进四空格（YAML 统一位移，含 prompt 块）。
+ * 分支键序 label → spec → route → automation → document_contract → steps。
+ */
 function serializeTracks(tracks: WorkflowDef['tracks']): string[] {
   if (tracks === undefined) return []
   const ids = Object.keys(tracks)
@@ -208,6 +216,7 @@ function serializeTracks(tracks: WorkflowDef['tracks']): string[] {
     if (branch === undefined) continue
     lines.push(`  ${id}:`)
     if (branch.label !== undefined && branch.label !== '') lines.push(`    label: ${branch.label}`)
+    lines.push(...serializeBranchPolicy(branch, '    '))
     if (branch.documentContract !== undefined) lines.push(...serializeDocumentContract(branch.documentContract, '    '))
     lines.push('    steps:')
     lines.push(...branch.steps.flatMap(serializeStep).map((line) => (line === '' ? line : `    ${line}`)))

@@ -14,8 +14,9 @@ import {
   type DocumentOutputRequirement,
 } from './document-contract-model.js'
 import { aliasesForSkill, TENON_PRODUCER } from './document-contract-validation.js'
+import type { BranchedWorkflow } from './branches.js'
 import { isDefaultWorkflowName } from './identifier.js'
-import { WorkflowTrackBranchError } from './track-branch-error.js'
+import { resolveRunTrack } from './resolve-track.js'
 export {
   DOCUMENT_CHAIN_PAIRS,
   DOCUMENT_CONTRACT_PHASES,
@@ -43,21 +44,6 @@ interface DocumentContractBranch {
   readonly steps: readonly { readonly id: string }[]
 }
 
-function governedBranch(
-  workflowId: string,
-  workflow: DocumentContractBranch & { readonly tracks?: Readonly<Record<string, DocumentContractBranch>> },
-  track: string | undefined,
-): DocumentContractBranch {
-  const tracks = workflow.tracks ?? {}
-  const entries = Object.entries(tracks)
-  if (entries.length === 0) return workflow
-  const branch = track === undefined || track === ''
-    ? entries[0]?.[1]
-    : Object.hasOwn(tracks, track) ? tracks[track] : undefined
-  if (branch === undefined) throw new WorkflowTrackBranchError(workflowId, track ?? '')
-  return branch
-}
-
 function policyFromBranch(id: DocumentGovernancePolicy['id'], branch: DocumentContractBranch): DocumentGovernancePolicy {
   const steps = branch.steps.map((step) => step.id)
   const byStep = <T>(): Record<string, T[]> => Object.fromEntries(steps.map((step) => [step, []]))
@@ -83,21 +69,20 @@ function policyFromBranch(id: DocumentGovernancePolicy['id'], branch: DocumentCo
 }
 
 /**
- * undefined = not governed. With tracks the selected branch's contract applies (no track → first
- * branch; unknown track → WorkflowTrackBranchError); otherwise the top-level contract.
+ * undefined = not governed. Governance is the selected branch's `spec` (inherited from the top-level
+ * `openspec` when the branch does not declare one) and its contract applies; a Workflow with branches
+ * needs the Change's track (none or unknown → UnknownTrackError), a flat Workflow has one implicit branch.
  */
 export function documentGovernancePolicy(
   workflowId: string,
-  workflow: DocumentContractBranch & {
-    readonly openspec?: boolean
-    readonly tracks?: Readonly<Record<string, DocumentContractBranch>>
-  },
+  workflow: BranchedWorkflow<{ readonly id: string }>,
   track?: string,
 ): DocumentGovernancePolicy | undefined {
-  if (workflow.openspec !== true) return undefined
+  const branch = resolveRunTrack({ ...workflow, name: workflowId }, track)
+  if (branch.spec !== 'openspec') return undefined
   // The id is the persisted document profile (default → legacy-full); content always comes from YAML.
   const id = isDefaultWorkflowName(workflowId) ? 'openspec-v1' : 'document-v1'
-  return policyFromBranch(id, governedBranch(workflowId, workflow, track))
+  return policyFromBranch(id, branch)
 }
 
 export function isDocumentPolicyStep(policy: DocumentGovernancePolicy, value: string): boolean {

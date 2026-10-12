@@ -706,9 +706,10 @@ bootstrap_new_test_policy() {
       const kernel = await import(`${dist}/index.js`)
       const support = await import(`${dist}/test-system/test-support.js`)
       const cwd = process.cwd()
-      let definition
-      try { definition = kernel.builtinTrack(process.env.ORACLE_TRACK) } catch { process.exit(0) }
-      const plan = kernel.compileEffectiveWorkflowPlan("default", kernel.parseWorkflow(kernel.DEFAULT_WORKFLOW_SOURCE), definition)
+      let plan
+      try {
+        plan = kernel.compileEffectiveWorkflowPlan("default", kernel.parseWorkflow(kernel.DEFAULT_WORKFLOW_SOURCE), { track: process.env.ORACLE_TRACK })
+      } catch { process.exit(0) }
       const user = kernel.resolveTenonUser(cwd, process.env)
       if (!kernel.isTenonUser(user)) throw new Error("oracle: TENON_USER 未解析出身份")
       await support.seedApprovedTestPolicyWaivers({
@@ -1070,22 +1071,39 @@ run_step_degraded() {
       say "  ! [$fx #$idx] design system bootstrap 失败，见 $step_dir/new.design-bootstrap.err"
     fi
   fi
-  (cd "$base/new" && TENON_RUNTIME_HOME="$MACHINE_HOME" "${NEW_CMD[@]}" "${NEW_ARGS[@]}") \
-    > "$step_dir/new.out" 2> "$step_dir/new.err"
+  run_new_cli "$base/new" "${NEW_ARGS[@]}" > "$step_dir/new.out" 2> "$step_dir/new.err"
   new_rc=$?
 
   # exit 面：契约表期望值（fixture 计划第 1 列）
   f_exit=PASS
   [ "$new_rc" = "$expect" ] || f_exit=FAIL
 
+  # 报错原文面（汇总表的 STDERR 列）：fixture 的 `.oracle-expect-output`（`<步序>\t<必须出现的原文>`）逐条核对
+  # stdout + stderr；没有声明的步骤不比。只用于新侧契约 fixture（`.oracle-new-only`）：报错文案是新产品行为，
+  # 没有老脚本可以对照。
+  local f_err=SKIP want_idx want_text
+  if [ -f "$base/new/.oracle-expect-output" ]; then
+    while IFS=$'\t' read -r want_idx want_text; do
+      [ "$want_idx" = "$idx" ] || continue
+      if cat "$step_dir/new.out" "$step_dir/new.err" | grep -Fq -- "$want_text"; then
+        [ "$f_err" = FAIL ] || f_err=PASS
+      else
+        f_err=FAIL
+        say "  x [$fx #$idx] 输出缺少契约要求的原文: $want_text"
+      fi
+    done < "$base/new/.oracle-expect-output"
+  fi
+
   # stdout 面：CONTRACT §3 契约
-  if [ "$expect" != 0 ]; then
+  if [ "$cmd" = check ]; then
+    f_out=SKIP # check 的 stdout 是人读报告（失败时也在 stdout），原文由 .oracle-expect-output 核对
+  elif [ "$expect" != 0 ]; then
     # 出错路径：stdout 必须干净（报错走 stderr）
     if [ -s "$step_dir/new.out" ]; then f_out=FAIL; else f_out=PASS; fi
   else
     case "$cmd" in
-      init) # 创建路径一行
-        if [ "$(wc -l < "$step_dir/new.out" | tr -d ' ')" = 1 ] && [ -s "$step_dir/new.out" ]; then
+      init) # 创建路径至多一行（真实 CLI 把 [INIT] 创建路径写到 stderr，stdout 为空；桩 CLI 按契约表写一行）
+        if [ "$(wc -l < "$step_dir/new.out" | tr -d ' ')" -le 1 ]; then
           f_out=PASS
         else
           f_out=FAIL
@@ -1123,8 +1141,8 @@ run_step_degraded() {
 
   label="$cmd ${args[*]}"
   label="${label:0:30}"
-  row "$fx" "$idx" "$label" "$f_out" "$f_exit" "$f_yaml" "SKIP"
-  count_fail "$f_out"; count_fail "$f_exit"; count_fail "$f_yaml"
+  row "$fx" "$idx" "$label" "$f_out" "$f_exit" "$f_yaml" "$f_err"
+  count_fail "$f_out"; count_fail "$f_exit"; count_fail "$f_yaml"; count_fail "$f_err"
 
   [ "$f_exit" = FAIL ] && say "  x [$fx #$idx $label] exit 不符契约: got=$new_rc want=$expect"
   [ "$f_out" = FAIL ] && say "  x [$fx #$idx $label] stdout 不符 CONTRACT §3 契约（cmd=${cmd}）"
@@ -1243,7 +1261,14 @@ run_fixture() {
     fi
   done
 
+  # 只比新侧的契约 fixture（生成的 `.oracle-new-only`）：对照物不是老状态机——default 改为按 YAML 执行之后，
+  # 老脚本里被删掉或改写的规则（build_mode、branch_status、首错即停……）已经不是它的行为准绳。
+  # 这类 fixture 在双跑模式下也只按计划第 1 列的退出码和 `.oracle-expect-stderr` 核对新 CLI。
+  local fixture_mode="$MODE"
+  [ -f "$base/new/.oracle-new-only" ] && fixture_mode=degraded
+
   say "== fixture: $fx =="
+  [ "$fixture_mode" = degraded ] && [ "$MODE" = dual ] && say "  （新侧契约 fixture：只核对新 CLI 的退出码与报错原文，不与老脚本双跑）"
   local plan="$base/new/.oracle-plan"
   local idx=0 line
   while IFS= read -r line || [ -n "$line" ]; do
@@ -1265,7 +1290,7 @@ run_fixture() {
       continue
     fi
     build_args "$cmd" "${args[@]}"
-    if [ "$MODE" = dual ]; then
+    if [ "$fixture_mode" = dual ]; then
       run_step_dual "$fx" "$idx" "$cmd" "$step_dir" "$base" "${args[@]}"
     else
       run_step_degraded "$fx" "$idx" "$cmd" "$step_dir" "$base" "$expect" "${args[@]}"

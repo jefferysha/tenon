@@ -4,7 +4,7 @@ import { parseWorkflowPlanSnapshot, workflowPlanSnapshotContent } from './workfl
 
 describe('workflow plan policy snapshot codec', () => {
   it('parses the self-contained V4 sidecar for default policies', () => {
-    const snapshot = workflowPlanSnapshot(compileEffectiveWorkflowPlan('default'))
+    const snapshot = workflowPlanSnapshot(compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' }))
     const envelope = parseWorkflowPlanSnapshot(workflowPlanSnapshotContent('run-1', snapshot))
 
     expect(envelope.plan.version).toBe(4)

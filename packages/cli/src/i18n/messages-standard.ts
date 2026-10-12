@@ -1,5 +1,5 @@
 /**
- * standard 通道新增的命令输出：`tenon step run`、`tenon document record --all`、`tenon test diff-risk`，
+ * 轻量轨道带来的命令输出：`tenon step run`、`tenon document record --all`、`tenon test diff-risk`、`tenon assess`，
  * 以及 `tenon agent prompt` 对没挂载的评审者的拒绝。`zh` 与这些命令原有的中文输出逐字一致。
  */
 export const STANDARD_MESSAGES = {
@@ -134,6 +134,48 @@ export const STANDARD_MESSAGES = {
   'diffRisk.label.migrationFiles': { zh: '迁移路径', en: 'migration paths' },
   'diffRisk.label.deletedTests': { zh: '被删的测试', en: 'deleted tests' },
   'diffRisk.label.protectedTestFiles': { zh: '受保护的测试配置', en: 'protected test config' },
+  'diffRisk.verdict.within': { zh: '结论：未超限', en: 'result: within limits' },
+  'diffRisk.verdict.exceeded': { zh: '结论：超限（{reasons}）', en: 'result: exceeded ({reasons})' },
+  'assess.filesRequired': {
+    zh: '需要 --files <路径…>：预计要改的仓库内相对路径',
+    en: 'at least one path is required: --files <path...> (repository-relative paths you expect to change)',
+  },
+  'assess.path.empty': { zh: '路径不能为空', en: 'a path must not be empty' },
+  'assess.path.nul': { zh: '路径不能含 NUL 字符：{path}', en: 'a path must not contain a NUL character: {path}' },
+  'assess.path.absolute': {
+    zh: '只接受仓库内的相对路径，不接受绝对路径：{path}',
+    en: 'only repository-relative paths are accepted, not absolute ones: {path}',
+  },
+  'assess.path.parent': { zh: "路径不能含 '..' 段：{path}", en: "a path must not contain a '..' segment: {path}" },
+  'assess.path.outside': {
+    zh: '路径经符号链接指向仓库外，或无法确认留在仓库内：{path}',
+    en: 'the path leaves the repository through a symbolic link, or cannot be confirmed to stay inside it: {path}',
+  },
+  'assess.path.unreadable': {
+    zh: '无法确认路径是否存在（{reason}）：评估不猜，请先修好读取权限：{path}',
+    en: 'cannot tell whether the path exists ({reason}); the assessment does not guess, fix read access first: {path}',
+  },
+  'assess.noThresholds': {
+    zh: "该轨道没有改动风险阈值：工作流 '{workflow}' 的轨道 '{track}' 没有声明 diff-risk 测试（阈值就是这条测试的 pass.metrics），不猜阈值",
+    en: "this track has no change-risk thresholds: track '{track}' of workflow '{workflow}' declares no diff-risk test (the thresholds are the pass.metrics of that test), so none are guessed",
+  },
+  'assess.unknownTrack': {
+    zh: '该轨道没有改动风险阈值：{reason}',
+    en: 'this track has no change-risk thresholds: {reason}',
+  },
+  'assess.header': {
+    zh: '评估 {count} 个预计改动的文件（{workflow}:{track}）',
+    en: 'assessing {count} expected file change(s) ({workflow}:{track})',
+  },
+  'assess.recommend': { zh: '推荐：{recommendation}', en: 'recommended: {recommendation}' },
+  'assess.heavy': {
+    zh: '超出本轨道的范围，改用重型轨道（{tracks}）：tenon init <任务名> --workflow {workflow} --track <轨道>',
+    en: 'beyond what this track covers; use a heavier track ({tracks}): tenon init <name> --workflow {workflow} --track <track>',
+  },
+  'assess.heavyNone': {
+    zh: "超出轨道 '{track}' 的范围，而工作流 '{workflow}' 没有别的轨道可选，请换一个工作流",
+    en: "beyond what track '{track}' covers, and workflow '{workflow}' has no other track to choose; pick another workflow",
+  },
   'agent.reviewerUnattached': {
     zh: "评审者 '{agent}' 只在 {scope} 路径变化时挂载，本任务的改动没有碰到这些路径，不需要运行它",
     en: "reviewer '{agent}' attaches only when {scope} paths change; this task's changes touch none of them, so it does not need to run",

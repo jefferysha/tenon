@@ -1,9 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { validateWorkflow } from './validate.js'
-import type { WorkflowActionConfig, WorkflowDef, WorkflowDocumentRead, WorkflowDocumentSlot } from './types.js'
+import { compileWorkflow } from './compile.js'
+import { selectTrackBranch, validateWorkflow, validateWorkflowForStorage, workflowBranches } from './validate.js'
+import { anyContract, branchWith, defaultWithLiteBranch } from './test-support.js'
+import type { StepDef, WorkflowActionConfig, WorkflowDef, WorkflowDocumentRead, WorkflowDocumentSlot } from './types.js'
 
 function wf(overrides: Partial<WorkflowDef>): WorkflowDef {
   return { name: 'test', steps: [], ...overrides }
+}
+
+const NEEDS_OPENSPEC = 'document_contract 需要分支的 spec 为 openspec（顶层 openspec: true 或分支 spec: openspec）'
+
+function bare(id: string, to?: string): StepDef {
+  return { id, label: id, gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: to === undefined ? [] : [{ event: `${id}-complete`, to }] }
 }
 
 describe('validateWorkflow', () => {
@@ -119,15 +127,21 @@ describe('validateWorkflow', () => {
     expect(validateWorkflow(looped)).toEqual([])
   })
 
-  it('E3/E4：document_contract 需要 openspec: true；有 tracks 时顶层契约被拒', () => {
+  it('E3/E4：document_contract 需要分支的 spec 为 openspec；有 tracks 时顶层契约被拒', () => {
     const contract = { version: 'v1' as const, slots: [{ kind: 'proposal', ownerStep: 's1', producers: ['writer'] }], reads: [] }
     const step = { id: 's1', label: 'a', gate: null, skills: [{ id: 'writer' }], inputs: [], outputs: [], guards: [], transitions: [] }
-    expect(validateWorkflow(wf({ documentContract: contract, steps: [step] }))).toContain('document_contract 需要 openspec: true')
+    expect(validateWorkflow(wf({ documentContract: contract, steps: [step] }))).toContain(NEEDS_OPENSPEC)
     expect(validateWorkflow(wf({ openspec: true, documentContract: contract, steps: [step] }))).toEqual([])
     expect(validateWorkflow(wf({ openspec: true, documentContract: contract, tracks: { web: { steps: [step] } } })))
       .toContain('有 tracks 时 document_contract 写在 tracks.<id> 下')
     expect(validateWorkflow(wf({ tracks: { web: { documentContract: contract, steps: [step] } } })))
-      .toContain('tracks.web: document_contract 需要 openspec: true')
+      .toContain(`tracks.web: ${NEEDS_OPENSPEC}`)
+  })
+
+  it('分支 spec: openspec 即使顶层没有 openspec: true 也允许 document_contract', () => {
+    const contract = { version: 'v1' as const, slots: [{ kind: 'proposal', ownerStep: 's1', producers: ['writer'] }], reads: [] }
+    const step = { id: 's1', label: 'a', gate: null, skills: [{ id: 'writer' }], inputs: [], outputs: [], guards: [], transitions: [] }
+    expect(validateWorkflow(wf({ tracks: { web: { spec: 'openspec', documentContract: contract, steps: [step] } } }))).toEqual([])
   })
 
   it('E8-E13：角色、顺序与读取规则逐条报错，分支错误带 tracks.<id> 前缀', () => {
@@ -446,5 +460,94 @@ describe('validateWorkflow', () => {
       }],
     }))
     expect(result).toEqual([])
+  })
+})
+
+describe('分支 spec · 存储校验', () => {
+  const storedDefault = (steps: StepDef[]): WorkflowDef => ({ name: 'default', openspec: true, steps: [], tracks: { custom: { steps } } })
+
+  it('default 的非七步分支通过存储校验', () => {
+    expect(validateWorkflowForStorage('default', defaultWithLiteBranch())).toEqual([])
+  })
+
+  it('spec: none 的分支不能声明 document_contract，且只报这一条', () => {
+    const errors = validateWorkflowForStorage('demo', branchWith({ spec: 'none', documentContract: anyContract() }))
+    expect(errors).toContainEqual(expect.stringMatching(/spec: none/))
+    expect(errors).toEqual(['tracks.main: spec: none 的分支不能声明 document_contract'])
+    expect(validateWorkflowForStorage('demo', { ...branchWith({ spec: 'none', documentContract: anyContract() }), openspec: true }))
+      .toEqual(['tracks.main: spec: none 的分支不能声明 document_contract'])
+  })
+
+  it('spec: openspec 的分支带文档契约通过；继承顶层 openspec 时同样通过', () => {
+    expect(validateWorkflowForStorage('demo', branchWith({ spec: 'openspec', documentContract: anyContract() }))).toEqual([])
+    expect(validateWorkflowForStorage('demo', { ...branchWith({ documentContract: anyContract() }), openspec: true })).toEqual([])
+  })
+
+  it('default 的 spec: openspec 分支只要求 spec 与 ship 步骤，不再要求恰好七步', () => {
+    expect(validateWorkflowForStorage('default', storedDefault([bare('spec', 'ship'), bare('ship')]))).toEqual([])
+    expect(validateWorkflowForStorage('default', storedDefault([bare('spec', 'done'), bare('done')])))
+      .toEqual(["tracks.custom: default 的 spec: openspec 分支必须包含 'ship' 步骤"])
+    expect(validateWorkflowForStorage('default', storedDefault([bare('ship', 'done'), bare('done')])))
+      .toEqual(["tracks.custom: default 的 spec: openspec 分支必须包含 'spec' 步骤"])
+  })
+
+  it('default 的 spec: none 分支不要求 spec / ship；非 default 工作流不受这条约束', () => {
+    const lite: WorkflowDef = { name: 'default', openspec: true, steps: [], tracks: { lite: { spec: 'none', steps: [bare('open', 'done'), bare('done')] } } }
+    expect(validateWorkflowForStorage('default', lite)).toEqual([])
+    expect(validateWorkflowForStorage('demo', { ...storedDefault([bare('open', 'done'), bare('done')]), name: 'demo' })).toEqual([])
+  })
+
+  it('平铺的 default 仍须 openspec: true，并按隐式分支要求 spec / ship', () => {
+    expect(validateWorkflowForStorage('default', { name: 'default', steps: [bare('open')] })).toEqual(['default 必须保持 openspec: true'])
+    expect(validateWorkflowForStorage('default', { name: 'default', openspec: true, steps: [bare('open')] }))
+      .toEqual(["default 的 spec: openspec 分支必须包含 'spec' 步骤", "default 的 spec: openspec 分支必须包含 'ship' 步骤"])
+  })
+
+  it('分支 route / automation 越界在存储校验里以编译错误报出', () => {
+    const errors = validateWorkflowForStorage('demo', branchWith({ route: { keywords: [], exclude: [], priority: -1, fallback: false } }))
+    expect(errors).toContainEqual(expect.stringMatching(/tracks\.main\.route\.priority/))
+  })
+})
+
+describe('workflowBranches · 分支视图', () => {
+  it('平铺工作流只有一个隐式分支，spec 取顶层 openspec', () => {
+    expect(workflowBranches(wf({ steps: [bare('a')] }))).toMatchObject([{ track: '', implicit: true, spec: 'none' }])
+    expect(workflowBranches(wf({ openspec: true, steps: [bare('a')] }))).toMatchObject([{ track: '', implicit: true, spec: 'openspec' }])
+  })
+
+  it('有 tracks 时各分支 spec 继承顶层 openspec，显式 spec 优先', () => {
+    const def = wf({
+      openspec: true,
+      tracks: { inherit: { steps: [bare('a')] }, off: { spec: 'none', steps: [bare('a')] } },
+    })
+    expect(workflowBranches(def).map((b) => [b.track, b.implicit, b.spec])).toEqual([['inherit', false, 'openspec'], ['off', false, 'none']])
+    const bare2 = wf({ tracks: { on: { spec: 'openspec', steps: [bare('a')] }, plain: { steps: [bare('a')] } } })
+    expect(workflowBranches(bare2).map((b) => [b.track, b.spec])).toEqual([['on', 'openspec'], ['plain', 'none']])
+  })
+
+  it('编译后的 IR 同样给出分支视图：平铺只有隐式分支，有 tracks 时折算 spec', () => {
+    expect(workflowBranches(compileWorkflow(wf({ steps: [bare('a')] }))).map((b) => [b.track, b.implicit, b.spec])).toEqual([['', true, 'none']])
+    const ir = compileWorkflow(wf({
+      openspec: true,
+      tracks: { full: { steps: [bare('a')] }, lite: { spec: 'none', steps: [bare('a')] } },
+    }))
+    expect(workflowBranches(ir).map((b) => [b.track, b.implicit, b.spec])).toEqual([['full', false, 'openspec'], ['lite', false, 'none']])
+  })
+
+  it('route 与 automation 原样随分支带出', () => {
+    const route = { keywords: ['a'], exclude: [], priority: 1, fallback: false }
+    const automation = { eligible: true, enqueueAfterSpec: false }
+    const [branch] = workflowBranches(wf({ tracks: { x: { route, automation, steps: [bare('a')] } } }))
+    expect(branch?.route).toEqual(route)
+    expect(branch?.automation).toEqual(automation)
+  })
+
+  it('selectTrackBranch 提升的定义按分支 spec 取 openspec；无新键的分支行为不变', () => {
+    const def = wf({ openspec: true, tracks: { lite: { spec: 'none', steps: [bare('a')] }, full: { steps: [bare('a')] } } })
+    expect(selectTrackBranch(def, 'lite').openspec).toBeUndefined()
+    expect(selectTrackBranch(def, 'full').openspec).toBe(true)
+    const viaBranch = wf({ tracks: { on: { spec: 'openspec', steps: [bare('a')] }, plain: { steps: [bare('a')] } } })
+    expect(selectTrackBranch(viaBranch, 'on').openspec).toBe(true)
+    expect(selectTrackBranch(viaBranch, 'plain').openspec).toBeUndefined()
   })
 })

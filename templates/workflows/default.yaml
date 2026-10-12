@@ -1,119 +1,71 @@
 name: default
 openspec: true
 tracks:
-  chat:
-    label: 对话
-    document_contract:
-      version: v1
-      slots:
-        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }
-        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }
-        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }
-        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }
-        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }
-        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }
-        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }
-        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }
-        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }
-        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }
-        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }
-        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }
-        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }
-        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }
-        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }
-        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }
-        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }
-        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }
-        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }
-        - { kind: applied-spec, owner_step: ship, producers: [tenon] }
-        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }
-        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }
-      reads:
-        - { step: explore, kinds: [proposal, openspec-design, tasks] }
-        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }
-        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }
-        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }
-        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }
-        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }
+  lite:
+    label: 轻量
+    spec: none
+    route:
+      keywords: [修复, 修正, 修改, 调整, 新增, 添加, 删除, 重构, 优化, 错别字, typo, 文案, 注释]
+      exclude: [架构, 跨模块, 迁移, migration, schema, 数据库, 鉴权, 认证, 权限, auth, 依赖升级, 发布, 部署, 全栈, 前后端, 调研, 竞品, PRD, 需求文档]
+      priority: 500
+    automation:
+      eligible: false
+      enqueue_after_spec: false
     steps:
       - id: open
         label: 立项
         gate: null
+        prompt: |-
+          用一句话向用户复述目标，并写出可验证的验收标准（哪个失败的用例该变成通过）。目标已经清楚就不提问、不写文档、不加载访谈类技能；含糊到没法开工才问一个问题。
+          一开始就能看出要动接口契约、鉴权、依赖、数据迁移或十几个文件，不要在这里硬做：走 scope-expanded，改开 default 的重型轨道任务。
         skills: []
         inputs: []
         outputs: []
         guards: []
         transitions:
           - event: open-complete
-            to: explore
-      - id: explore
-        label: 调研
-        gate: review
-        skills: []
-        inputs: []
-        outputs:
-          - field: design_doc
-            type: file_path
-        artifacts:
-          - field: design_doc
-            type: file_path
-            producer_policy: effective-phase-skills
-        agents:
-          executors:
-            - agent: researcher
-        guards: []
-        transitions:
-          - event: explore-complete
-            to: spec
-      - id: spec
-        label: 规格
-        gate: review
-        skills: []
-        inputs:
-          - field: design_doc
-            type: file_path
-        outputs:
-          - field: plan
-            type: file_path
-        artifacts:
-          - field: plan
-            type: file_path
-            producer_policy: effective-phase-skills
-        guards:
-          - type: tasks-at-least
-            n: 3
-        test_policy:
-          plan: required
-          kinds: [unit]
-        transitions:
-          - event: spec-complete
             to: build
+          - event: scope-expanded
+            to: escalated
             actions:
-              - type: reset-pre-verify-review
+              - type: archive-run
       - id: build
         label: 实现
         gate: null
-        skills: []
-        inputs:
-          - field: design_doc
-            type: file_path
-          - field: plan
-            type: file_path
-        outputs:
-          - field: build_sha
-            type: string
-        agents:
-          executors:
-            - agent: builder
-          reviewers:
-            - agent: spec-consistency
-              required: true
-              block_at: medium
-        guards:
-          - type: field-equals
-            field: pre_verify_review_result
-            value: pass
+        prompt: |-
+          先写（或确认已有）能复现问题、验证新行为的测试，再改代码到测试通过；只改目标需要的文件，不顺手重构。
+          改完照 next 跑本阶段测试和改动风险探针 diff-risk。探针不过（改动文件太多，或碰了契约、鉴权、依赖、迁移，或删了测试、改了受保护的测试配置）说明任务超出轻量轨道：照 next 走 scope-expanded，再新建 default 的重型轨道任务并 tenon set <新任务> depends_on <本任务>；不要为了让探针通过去拆改动、藏文件。
+        skills:
+          - id: test-driven-development
+        inputs: []
+        outputs: []
+        tests:
+          - id: diff-risk
+            direction: diff-risk
+            command: tenon test diff-risk --json
+            label: 改动风险
+            timeout_s: 60
+            required: true
+            pass:
+              metrics:
+                - name: files_changed
+                  max: 8
+                - name: contract_files
+                  max: 0
+                - name: auth_files
+                  max: 0
+                - name: dependency_files
+                  max: 0
+                - name: migration_files
+                  max: 0
+                - name: deleted_tests
+                  max: 0
+                - name: protected_test_files
+                  max: 0
+        guards: []
         test_policy:
+          plan: required
+          kinds: [unit]
           run: [unit]
           run_if_registered: [typecheck]
           scope: changed
@@ -121,88 +73,72 @@ tracks:
         transitions:
           - event: build-complete
             to: verify
-          - event: requirements-changed
-            to: spec
+          - event: scope-expanded
+            to: escalated
             actions:
-              - type: reset-pre-verify-review
+              - type: archive-run
       - id: verify
         label: 验证
         gate: review
-        max_rounds: 2
-        skills: []
-        inputs:
-          - field: build_sha
-            type: string
-        outputs:
-          - field: verification_report
-            type: file_path
-        artifacts:
-          - field: verification_report
-            type: file_path
-            producer_policy: effective-phase-skills
-        tests:
-          - id: code-size
-            direction: code-size
-            command: tenon test code-size --json
-            label: 代码规模
-            timeout_s: 120
-            required: true
-            pass:
-              metrics:
-                - name: lines_added
-                  max: 2000
+        prompt: |-
+          先加载验证技能，再照 next 跑全量测试和评审者。派发评审者时，在提示末尾写明用户的原始目标和验收标准，评审者没有规格文档可读。
+          评审者给出 medium 及以上的问题就走 verify-fail 回到实现修掉；不要靠重跑评审者换结论。
+        skills:
+          - id: verification-before-completion
+        inputs: []
+        outputs: []
         agents:
           reviewers:
-            - agent: code-size
+            - agent: code-review
               required: true
               block_at: medium
-              reads_tests: [code-size]
             - agent: security
-              required: false
+              required: true
               block_at: medium
         guards: []
         test_policy:
           run: [unit]
-          run_if_registered: [regression]
+          run_if_registered: [regression, typecheck, integration, e2e, playwright, a11y, visual]
           scope: full
           files: registered
         transitions:
           - event: verify-pass
-            to: ship
+            to: done
+            actions:
+              - type: mark-verification-passed
+              - type: archive-run
           - event: verify-fail
             to: build
             actions:
               - type: mark-verification-failed
-              - type: reset-pre-verify-review
-      - id: ship
-        label: 交付
-        gate: null
-        skills: []
-        inputs:
-          - field: verification_report
-            type: file_path
-        outputs:
-          - field: pr_url
-            type: string
-        guards:
-          - type: spec-migration-applied
-        transitions:
-          - event: ship-complete
-            to: archive
-      - id: archive
+          - event: scope-expanded
+            to: escalated
+            actions:
+              - type: archive-run
+      - id: done
         label: 完结
         gate: null
         skills: []
-        inputs:
-          - field: pr_url
-            type: string
-        outputs:
-          - field: archived
-            type: boolean
+        inputs: []
+        outputs: []
+        guards: []
+        transitions: []
+      - id: escalated
+        label: 已升级
+        gate: null
+        skills: []
+        inputs: []
+        outputs: []
         guards: []
         transitions: []
   pm:
     label: 产品
+    route:
+      keywords: [调研, 竞品, 市场, 竞争对手, 对标, 商业模式, PRD, 需求, 用户旅程, 原型, market, 立项, 产品, user persona, 流程图]
+      priority: 100
+    automation:
+      eligible: true
+      enqueue_after_spec: true
     document_contract:
       version: v1
       slots:
@@ -243,7 +179,8 @@ tracks:
           - id: openspec-propose
         inputs: []
         outputs: []
-        guards: []
+        guards:
+          - type: tasks-through-step
         transitions:
           - event: open-complete
             to: explore
@@ -265,7 +202,10 @@ tracks:
         agents:
           executors:
             - agent: researcher
-        guards: []
+        guards:
+          - type: file-exists
+            field: design_doc
+          - type: tasks-through-step
         transitions:
           - event: explore-complete
             to: spec
@@ -286,8 +226,13 @@ tracks:
             type: file_path
         artifacts: []
         guards:
+          - type: file-exists
+            field: plan
+            when:
+              track_not_in: [pm]
           - type: tasks-at-least
             n: 3
+          - type: tasks-through-step
         test_policy:
           plan: required
           scenarios: required
@@ -319,13 +264,19 @@ tracks:
             - agent: spec-consistency
               required: true
               block_at: medium
-        guards:
-          - type: field-equals
-            field: pre_verify_review_result
-            value: pass
+        guards: []
         transitions:
           - event: build-complete
             to: verify
+            guards:
+              - type: field-equals
+                field: pre_verify_review_result
+                value: pass
+              - type: tasks-through-step
+              - type: not-afk-queued
+              - type: dependencies-ended
+            actions:
+              - type: freeze-build-sha
           - event: requirements-changed
             to: spec
             actions:
@@ -373,6 +324,14 @@ tracks:
         transitions:
           - event: verify-pass
             to: ship
+            guards:
+              - type: file-exists
+                field: verification_report
+              - type: build-head-unchanged
+                field: build_sha
+              - type: tasks-through-step
+            actions:
+              - type: mark-verification-passed
           - event: verify-fail
             to: build
             actions:
@@ -389,7 +348,10 @@ tracks:
           - field: prd_path
             type: string
         guards:
+          - type: file-exists
+            field: prd_path
           - type: spec-migration-applied
+          - type: tasks-through-step
         transitions:
           - event: ship-complete
             to: archive
@@ -403,10 +365,17 @@ tracks:
         outputs:
           - field: archived
             type: boolean
-        guards: []
+        guards:
+          - type: tasks-through-step
         transitions: []
   frontend:
     label: 前端
+    route:
+      keywords: [前端, UI, 页面, 组件, React, Vue, Next, Tailwind, 样式, shadcn, .tsx, .jsx, .vue, web 设计, 响应式, button, form, layout, 登录页]
+      priority: 300
+    automation:
+      eligible: true
+      enqueue_after_spec: false
     document_contract:
       version: v1
       slots:
@@ -451,7 +420,8 @@ tracks:
           - id: openspec-propose
         inputs: []
         outputs: []
-        guards: []
+        guards:
+          - type: tasks-through-step
         transitions:
           - event: open-complete
             to: explore
@@ -474,7 +444,10 @@ tracks:
         agents:
           executors:
             - agent: researcher
-        guards: []
+        guards:
+          - type: file-exists
+            field: design_doc
+          - type: tasks-through-step
         transitions:
           - event: explore-complete
             to: spec
@@ -498,8 +471,13 @@ tracks:
             type: file_path
             producer_policy: effective-phase-skills
         guards:
+          - type: file-exists
+            field: plan
+            when:
+              track_not_in: [pm]
           - type: tasks-at-least
             n: 3
+          - type: tasks-through-step
         test_policy:
           plan: required
           kinds: [unit]
@@ -525,10 +503,7 @@ tracks:
         agents:
           executors:
             - agent: builder
-        guards:
-          - type: field-equals
-            field: pre_verify_review_result
-            value: pass
+        guards: []
         test_policy:
           run: [unit]
           run_if_registered: [typecheck]
@@ -537,6 +512,15 @@ tracks:
         transitions:
           - event: build-complete
             to: verify
+            guards:
+              - type: field-equals
+                field: pre_verify_review_result
+                value: pass
+              - type: tasks-through-step
+              - type: not-afk-queued
+              - type: dependencies-ended
+            actions:
+              - type: freeze-build-sha
           - event: requirements-changed
             to: spec
             actions:
@@ -604,6 +588,14 @@ tracks:
         transitions:
           - event: verify-pass
             to: ship
+            guards:
+              - type: file-exists
+                field: verification_report
+              - type: build-head-unchanged
+                field: build_sha
+              - type: tasks-through-step
+            actions:
+              - type: mark-verification-passed
           - event: verify-fail
             to: build
             actions:
@@ -630,7 +622,10 @@ tracks:
             timeout_s: 300
             required: true
         guards:
+          - type: field-nonempty
+            field: pr_url
           - type: spec-migration-applied
+          - type: tasks-through-step
         transitions:
           - event: ship-complete
             to: archive
@@ -644,10 +639,18 @@ tracks:
         outputs:
           - field: archived
             type: boolean
-        guards: []
+        guards:
+          - type: tasks-through-step
         transitions: []
   backend:
     label: 后端
+    route:
+      keywords: [后端, backend, API, 接口, 数据库, Golang, Python, Java, Rust, NestJS, Postgres, endpoint, service, 微服务, REST, GraphQL, gRPC, migration, server, controller, schema]
+      priority: 200
+      fallback: true
+    automation:
+      eligible: true
+      enqueue_after_spec: false
     document_contract:
       version: v1
       slots:
@@ -688,7 +691,8 @@ tracks:
           - id: openspec-propose
         inputs: []
         outputs: []
-        guards: []
+        guards:
+          - type: tasks-through-step
         transitions:
           - event: open-complete
             to: explore
@@ -712,7 +716,10 @@ tracks:
         agents:
           executors:
             - agent: researcher
-        guards: []
+        guards:
+          - type: file-exists
+            field: design_doc
+          - type: tasks-through-step
         transitions:
           - event: explore-complete
             to: spec
@@ -733,8 +740,13 @@ tracks:
             type: file_path
             producer_policy: effective-phase-skills
         guards:
+          - type: file-exists
+            field: plan
+            when:
+              track_not_in: [pm]
           - type: tasks-at-least
             n: 3
+          - type: tasks-through-step
         test_policy:
           plan: required
           kinds: [unit]
@@ -759,10 +771,7 @@ tracks:
         agents:
           executors:
             - agent: builder
-        guards:
-          - type: field-equals
-            field: pre_verify_review_result
-            value: pass
+        guards: []
         test_policy:
           run: [unit]
           run_if_registered: [typecheck]
@@ -771,6 +780,15 @@ tracks:
         transitions:
           - event: build-complete
             to: verify
+            guards:
+              - type: field-equals
+                field: pre_verify_review_result
+                value: pass
+              - type: tasks-through-step
+              - type: not-afk-queued
+              - type: dependencies-ended
+            actions:
+              - type: freeze-build-sha
           - event: requirements-changed
             to: spec
             actions:
@@ -832,6 +850,14 @@ tracks:
         transitions:
           - event: verify-pass
             to: ship
+            guards:
+              - type: file-exists
+                field: verification_report
+              - type: build-head-unchanged
+                field: build_sha
+              - type: tasks-through-step
+            actions:
+              - type: mark-verification-passed
           - event: verify-fail
             to: build
             actions:
@@ -849,7 +875,10 @@ tracks:
           - field: pr_url
             type: string
         guards:
+          - type: field-nonempty
+            field: pr_url
           - type: spec-migration-applied
+          - type: tasks-through-step
         transitions:
           - event: ship-complete
             to: archive
@@ -863,212 +892,6 @@ tracks:
         outputs:
           - field: archived
             type: boolean
-        guards: []
-        transitions: []
-  free:
-    label: 自由
-    document_contract:
-      version: v1
-      slots:
-        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }
-        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }
-        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }
-        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }
-        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }
-        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }
-        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }
-        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }
-        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }
-        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }
-        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }
-        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }
-        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }
-        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }
-        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }
-        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }
-        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }
-        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }
-        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }
-        - { kind: applied-spec, owner_step: ship, producers: [tenon] }
-        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }
-        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }
-      reads:
-        - { step: explore, kinds: [proposal, openspec-design, tasks] }
-        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }
-        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }
-        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }
-        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }
-        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }
-    steps:
-      - id: open
-        label: 立项
-        gate: null
-        skills:
-          - id: openspec-propose
-        inputs: []
-        outputs: []
-        guards: []
-        transitions:
-          - event: open-complete
-            to: explore
-      - id: explore
-        label: 调研
-        gate: review
-        skills:
-          - id: brainstorming
-        inputs: []
-        outputs:
-          - field: design_doc
-            type: file_path
-        artifacts:
-          - field: design_doc
-            type: file_path
-            producer_policy: effective-phase-skills
-        agents:
-          executors:
-            - agent: researcher
-        guards: []
-        transitions:
-          - event: explore-complete
-            to: spec
-      - id: spec
-        label: 规格
-        gate: review
-        skills:
-          - id: openspec-propose
-          - id: writing-plans
-        inputs:
-          - field: design_doc
-            type: file_path
-        outputs:
-          - field: plan
-            type: file_path
-        artifacts:
-          - field: plan
-            type: file_path
-            producer_policy: effective-phase-skills
         guards:
-          - type: tasks-at-least
-            n: 3
-        test_policy:
-          plan: required
-          kinds: [unit]
-        transitions:
-          - event: spec-complete
-            to: build
-            actions:
-              - type: reset-pre-verify-review
-      - id: build
-        label: 实现
-        gate: null
-        skills:
-          - id: test-driven-development
-        inputs:
-          - field: design_doc
-            type: file_path
-          - field: plan
-            type: file_path
-        outputs:
-          - field: build_sha
-            type: string
-        agents:
-          executors:
-            - agent: builder
-          reviewers:
-            - agent: spec-consistency
-              required: true
-              block_at: medium
-        guards:
-          - type: field-equals
-            field: pre_verify_review_result
-            value: pass
-        test_policy:
-          run: [unit]
-          run_if_registered: [typecheck]
-          scope: changed
-          files: registered
-        transitions:
-          - event: build-complete
-            to: verify
-          - event: requirements-changed
-            to: spec
-            actions:
-              - type: reset-pre-verify-review
-      - id: verify
-        label: 验证
-        gate: review
-        max_rounds: 2
-        skills:
-          - id: verification-before-completion
-        inputs:
-          - field: build_sha
-            type: string
-        outputs:
-          - field: verification_report
-            type: file_path
-        artifacts:
-          - field: verification_report
-            type: file_path
-            producer_policy: effective-phase-skills
-        tests:
-          - id: code-size
-            direction: code-size
-            command: tenon test code-size --json
-            label: 代码规模
-            timeout_s: 120
-            required: true
-            pass:
-              metrics:
-                - name: lines_added
-                  max: 2000
-        agents:
-          reviewers:
-            - agent: code-size
-              required: true
-              block_at: medium
-              reads_tests: [code-size]
-            - agent: security
-              required: false
-              block_at: medium
-        guards: []
-        test_policy:
-          run: [unit]
-          run_if_registered: [regression]
-          scope: full
-          files: registered
-        transitions:
-          - event: verify-pass
-            to: ship
-          - event: verify-fail
-            to: build
-            actions:
-              - type: mark-verification-failed
-              - type: reset-pre-verify-review
-      - id: ship
-        label: 交付
-        gate: null
-        skills:
-          - id: finishing-a-development-branch
-        inputs:
-          - field: verification_report
-            type: file_path
-        outputs:
-          - field: pr_url
-            type: string
-        guards:
-          - type: spec-migration-applied
-        transitions:
-          - event: ship-complete
-            to: archive
-      - id: archive
-        label: 完结
-        gate: null
-        skills: []
-        inputs:
-          - field: pr_url
-            type: string
-        outputs:
-          - field: archived
-            type: boolean
-        guards: []
+          - type: tasks-through-step
         transitions: []

@@ -37,7 +37,7 @@ import {
   compileEffectiveWorkflowPlan, createLoopLedgerStore, emptyFields, loadRegistry, workflowPlanSnapshot,
 } from '@tenon/kernel'
 import { publishInitialRunRevision } from '../../../kernel/src/state/run-revision-store.js'
-import { makeDeps, mockAfkState, mockState } from '../test-support.js'
+import { makeDeps, mockAfkState, mockAfkWorkflowDef, mockState } from '../test-support.js'
 import { buildProgram, CliExit } from '../program.js'
 import { cmdAfk, probeGitCommitAncestry } from './afk.js'
 
@@ -506,14 +506,10 @@ loops:
     // This case models a newly initialized default AFK run: its frozen snapshot contains the
     // Workflow-owned phase slot. Other legacy fixture cases intentionally retain an empty frozen
     // snapshot to keep historical-snapshot/no-migration coverage isolated.
-    const phasePlan = compileEffectiveWorkflowPlan('default', {
-      name: 'default',
-      interaction: { version: 'v1', mode: 'afk' },
-      steps: [{
-        id: 'build', label: 'Build', gate: null,
-        skills: [{ id: 'tenon' }], inputs: [], outputs: [], guards: [], transitions: [],
-      }],
-    })
+    const phasePlan = compileEffectiveWorkflowPlan('default', mockAfkWorkflowDef([{
+      id: 'build', label: 'Build', gate: null,
+      skills: [{ id: 'tenon' }], inputs: [], outputs: [], guards: [], transitions: [],
+    }]), { track: 'backend' })
     const phaseState = mockAfkState({ phase: 'build', automation: 'queued' })
     phaseState.runMetadata = {
       ...phaseState.runMetadata!,
@@ -541,14 +537,10 @@ loops:
 
   it('frozen phase Skill 内容缺失 → preparation fail-closed：无 snapshot、无 sandbox/收费', async () => {
     const missingSkill = 'phase-skill-missing-for-test'
-    const phasePlan = compileEffectiveWorkflowPlan('default', {
-      name: 'default',
-      interaction: { version: 'v1', mode: 'afk' },
-      steps: [{
-        id: 'build', label: 'Build', gate: null,
-        skills: [{ id: missingSkill }], inputs: [], outputs: [], guards: [], transitions: [],
-      }],
-    })
+    const phasePlan = compileEffectiveWorkflowPlan('default', mockAfkWorkflowDef([{
+      id: 'build', label: 'Build', gate: null,
+      skills: [{ id: missingSkill }], inputs: [], outputs: [], guards: [], transitions: [],
+    }]), { track: 'backend' })
     const phaseState = mockAfkState({ phase: 'build', automation: 'queued' })
     phaseState.runMetadata = {
       ...phaseState.runMetadata!,

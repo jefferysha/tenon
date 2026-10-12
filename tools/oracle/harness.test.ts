@@ -106,6 +106,28 @@ describe('双跑模式（oracle = 老仓 pipeline-state.sh 实跑）', () => {
   })
 })
 
+describe('新侧契约 fixture（.oracle-new-only）', () => {
+  it('一次列出全部未满足项的 stub：契约全绿，且不与老脚本双跑', () => {
+    const r = runHarness(stubEnv('guard-errors'), ['default-guard-errors'])
+    expect(r.out).toContain('新侧契约 fixture')
+    expect(r.out).not.toMatch(/\bFAIL\b/)
+    expect(r.status).toBe(0)
+  })
+
+  it('首错即停的 stub：check 没有一次列全，输出缺少契约要求的原文，抓红', () => {
+    const r = runHarness(stubEnv('guard-errors-first'), ['default-guard-errors'])
+    expect(r.out).toContain('输出缺少契约要求的原文')
+    expect(r.out).toMatch(/\bFAIL\b/)
+  })
+
+  it('离开条件不满足却退出 0 的实现：退出码不符契约，抓红', () => {
+    // contract stub 的 transition 对 open-complete 直接放行（exit 0），而 fixture 要求 2。
+    const r = runHarness(stubEnv('contract'), ['default-guard-errors'])
+    expect(r.out).toMatch(/exit 不符契约/)
+    expect(r.out).toMatch(/\bFAIL\b/)
+  })
+})
+
 describe('降级模式（契约测试模式）', () => {
   it('ORACLE_FORCE_DEGRADED=1 + contract stub → 显式 DEGRADED 横幅、契约全绿、exit 0', () => {
     const r = runHarness({ ...stubEnv('contract'), ORACLE_FORCE_DEGRADED: '1' })
@@ -176,23 +198,28 @@ describe('fixtures 生成脚本', () => {
     }
   })
 
-  it('default-guard-errors.sh 独立可跑：每种 guard 失败分支的拒绝步 + isolation seed 伪命令 + stderr sidecar（G2 P3 阻断 2）', () => {
+  it('default-guard-errors.sh 是只比新侧的契约 fixture：声明 .oracle-new-only，拒绝步退出码 2 / 1，并声明必须出现的报错原文（设计 §1b Q10）', () => {
     const target = mkdtempSync(join(tmpdir(), 'oracle-fx-default-guard-errors-'))
     try {
       const res = spawnSync('bash', [join(here, 'fixtures', 'default-guard-errors.sh'), target], { encoding: 'utf8' })
       expect(res.status).toBe(0)
-      // stderr 逐字口径 sidecar（run.sh 据此在 transition 拒绝路径逐字比 stderr）
-      expect(existsSync(join(target, '.oracle-stderr-check'))).toBe(true)
-      expect(readFileSync(join(target, '.oracle-stderr-divergences'), 'utf8')).toContain('in-place')
+      expect(existsSync(join(target, '.oracle-new-only'))).toBe(true)
+      // 旧版逐字对比用的 sidecar 已不存在：首错即停的旧文案不是新产品的行为准绳。
+      expect(existsSync(join(target, '.oracle-stderr-check'))).toBe(false)
       const plan = readFileSync(join(target, '.oracle-plan'), 'utf8')
       expect(plan).toContain('t6-ge')
-      // isolation 非法枚举（field-in）绕过 set 闸 → seed 伪命令注脏值
-      expect(plan).toMatch(/^0\tseed\tt6-ge\tisolation\tbogus$/m)
-      // 每个 phase 至少一条「首列非零期望」的拒绝步（guard 失败分支）
-      for (const ev of ['explore-complete', 'spec-complete', 'build-complete', 'verify-pass']) {
-        expect(plan).toMatch(new RegExp(`^1\\ttransition\\tt6-ge\\t${ev}$`, 'm'))
+      // 离开条件不满足：check 与 transition 都是退出码 2；事件不属于当前步骤是用法错误，退出码 1。
+      expect(plan).toMatch(/^2\tcheck\tt6-ge\topen$/m)
+      expect(plan).toMatch(/^2\ttransition\tt6-ge\topen-complete$/m)
+      expect(plan).toMatch(/^1\ttransition\tt6-ge\texplore-complete$/m)
+      // 已删除的检查不再出现在计划里。
+      expect(plan).not.toMatch(/build_mode|isolation|direct_override|branch_status/)
+      // check 一次列全：任务未勾、缺文档、缺技能同时出现。
+      const expected = readFileSync(join(target, '.oracle-expect-output'), 'utf8')
+      for (const text of ['要求截至本步的 tasks.md 任务都已勾选', "缺少 document 'proposal'", '尚未完成声明的 skill：openspec-propose']) {
+        expect(expected).toContain(`2\t${text}`)
       }
-      // 计划行格式：<expected_new_exit>\t<cmd>\t<args...>（seed/transition/set/get/init 全含）
+      // 计划行格式：<expected_new_exit>\t<cmd>\t<args...>
       for (const line of plan.split('\n').filter((l) => l && !l.startsWith('#'))) {
         expect(line).toMatch(/^\d+\t\S+\t/)
       }

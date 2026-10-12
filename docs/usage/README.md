@@ -8,7 +8,7 @@ matches the operation you need.
 
 1. [Install and select one host](installation.md)
 2. [Run the first governed task](quickstart.md)
-3. [Choose discussion, simple, default, free, or custom](routing-and-workflows.md)
+3. [Choose discussion, the lightweight Track, a heavy Track, or a custom Workflow](routing-and-workflows.md)
 4. [Understand the default workflow and review gates](default-workflow.md)
 5. [Understand documents, Skills, and evidence](documents-skills-and-evidence.md)
 6. [Author and use agents](agents.md)
@@ -38,8 +38,9 @@ matches the operation you need.
 - Tenon is a local plugin and workstation service, not a hosted SaaS.
 - Setup and update always target exactly one host.
 - A discussion creates no Change.
-- The packaged simple Workflow does not use the default OpenSpec contract.
-- Free removes domain overlays; it does not bypass the selected Workflow.
+- The lightweight Track of the default Workflow does not use OpenSpec; the heavy
+  Tracks do. A development request is assessed before a Change is created.
+- Every task ends in `openspec/changes/archive/` as Finished, Escalated or Terminated.
 - Short/custom Workflows govern only the documents they declare.
 - The 12 host adapters have different fidelity tiers.
 - AFK, Tap interception, and unattended loop execution are optional and

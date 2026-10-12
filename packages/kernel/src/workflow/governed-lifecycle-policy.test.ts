@@ -6,6 +6,7 @@ import { emptyFields } from '../state/parse.js'
 import { compileWorkflow } from './compile.js'
 import { effectiveWorkflowPlanFromIr } from './effective-plan.js'
 import { effectiveLifecyclePolicy, governedLifecyclePolicy } from './governed-lifecycle-policy.js'
+import { compiledDefault } from './test-support.js'
 import { readinessByTransition } from './transition-readiness.js'
 import type { WorkflowDef } from './types.js'
 
@@ -126,6 +127,46 @@ describe('governed custom lifecycle 单一政策', () => {
     expect(readiness.verify?.accept?.blockers).toContainEqual(
       expect.objectContaining({ code: 'verify-build-revision-untrusted' }),
     )
+  })
+
+  test('受治理的固定政策不再继承已退役的规则（build_mode / isolation / direct_override / branch_status）', () => {
+    const retired = new Set(['build_mode', 'isolation', 'direct_override', 'branch_status'])
+    for (const [from, to] of [['spec', 'build'], ['build', 'verify'], ['verify', 'ship'], ['verify', 'build'], ['ship', 'archive']] as const) {
+      const guards = governedLifecyclePolicy(true, from, to)?.guards ?? []
+      for (const guard of guards) {
+        expect(guard.type, `${from}→${to}`).not.toBe('full-direct-override')
+        if ('field' in guard) expect(retired.has(guard.field), `${from}→${to} ${guard.type}:${guard.field}`).toBe(false)
+      }
+    }
+  })
+
+  test('固定政策仍要求实现前评审通过并冻结 build_sha；验证通过要求报告存在、build 后未改动并记验证通过', () => {
+    expect(governedLifecyclePolicy(true, 'build', 'verify')).toEqual({
+      guards: [{ type: 'field-equals', field: 'pre_verify_review_result', value: 'pass' }],
+      actions: [{ type: 'freeze-build-sha' }],
+    })
+    expect(governedLifecyclePolicy(true, 'verify', 'ship')).toEqual({
+      guards: [
+        { type: 'file-exists', path: { kind: 'field', field: 'verification_report' } },
+        { type: 'build-head-unchanged', field: 'build_sha' },
+      ],
+      actions: [{ type: 'mark-verification-passed' }],
+    })
+    expect(governedLifecyclePolicy(false, 'build', 'verify')).toBeUndefined()
+  })
+
+  test('内建 default 的受治理分支：YAML 写明的离开条件与固定政策去重，每条出边的守卫都不重复', () => {
+    const ir = compiledDefault()
+    for (const id of ['pm', 'frontend', 'backend']) {
+      const steps = ir.tracks?.[id]?.steps ?? []
+      for (const step of steps) {
+        for (const edge of step.transitions) {
+          const guards = effectiveLifecyclePolicy(true, step, edge, steps.find((candidate) => candidate.id === edge.to)).guards
+          const keys = guards.map((guard) => JSON.stringify(guard))
+          expect(new Set(keys).size, `${id}.${step.id}.${edge.event}: ${keys.join(' | ')}`).toBe(keys.length)
+        }
+      }
+    }
   })
 
   test('effective edge policy removes explicit revision guards only on rollback and deduplicates success', () => {

@@ -15,7 +15,7 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { isPlainDirectory } from '../users/user-paths.js'
 import { isProcessLocalFdPath } from './process-local-fd-path.js'
-import { isTaskLifecycleName, taskChangeDir } from './task-archive.js'
+import { isTaskLifecycleName, taskChangeDir } from './archive-task.js'
 
 export { isProcessLocalFdPath }
 

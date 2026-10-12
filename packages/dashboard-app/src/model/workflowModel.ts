@@ -131,10 +131,6 @@ export function rulesKey(root: string, name: string): string {
   return `${root}\u0000${name}`
 }
 
-export function isBuiltinWorkflowName(name: string): boolean {
-  return name === 'default'
-}
-
 /** Frozen Change snapshots are keyed by immutable plan identity, never by mutable workflow name. */
 export function snapshotRulesKey(root: string, workflowPlanFingerprint: string): string {
   return `${root}\u0000plan:${workflowPlanFingerprint}`

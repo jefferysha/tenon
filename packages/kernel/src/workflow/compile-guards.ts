@@ -142,6 +142,12 @@ function compileGuard(raw: unknown, path: string, outputs: readonly FieldRef[]):
       return [withWhen({ type: 'build-head-unchanged' as const, field: 'build_sha' as const }, when)]
     case 'spec-migration-applied':
       return [withWhen({ type: 'spec-migration-applied' as const }, when)]
+    case 'tasks-through-step':
+      return [withWhen({ type: 'tasks-through-step' as const }, when)]
+    case 'not-afk-queued':
+      return [withWhen({ type: 'not-afk-queued' as const }, when)]
+    case 'dependencies-ended':
+      return [withWhen({ type: 'dependencies-ended' as const }, when)]
     default:
       compileError(
         `${path}.type`,

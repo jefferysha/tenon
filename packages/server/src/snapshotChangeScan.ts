@@ -16,12 +16,13 @@ import { join } from 'node:path'
 import {
   changeStartOfFields, createChangedFilesSession, createRecordChainCache, creatorOf, integrityDiffInSession, isTenonUser, ownerOf,
   projectPipelineTodo, protectedChangesInSession, stateStorageSourcePathSync, touchedPathClasses, UnsupportedRunStateVersionError,
-  type ChangedFilesSession, type EffectiveWorkflowPlan, type PipelineState, type TenonUser, type TrackDefinition,
+  type ChangedFilesSession, type EffectiveWorkflowPlan, type PipelineState, type TenonUser,
 } from '@tenon/kernel'
 import { agentBlockersOf, projectAgentRuns } from './agentRuns.js'
+import { archivedDocumentPath } from './endedTasks.js'
 import { projectReviewHandshake } from './reviewHandshake.js'
 import { documentEvidence, documentTodoItems, projectArtifactScopeIssue, readTerminalActivity, type SnapshotDeps } from './snapshot.js'
-import { projectSkillRuns, resolveSnapshotTrack } from './skillRuns.js'
+import { projectSkillRuns } from './skillRuns.js'
 import { readTasksProjection } from './snapshotTasks.js'
 import { defaultResolveUser } from './serverUserRoutes.js'
 import { projectStepExitDeps, type StepExitSnapshotDeps } from './stepExitReadiness.js'
@@ -50,12 +51,17 @@ const recordChains = createRecordChainCache()
 
 function str(v: string | string[] | undefined): string { return Array.isArray(v) ? v.join(',') : v ?? '' }
 
+/** 扫描的目录：活跃任务在 `openspec/changes/`，已结束任务在 `openspec/changes/archive/`（只读）。 */
+export type ScanArea = 'active' | 'archive'
+
 export interface ProjectScanContext {
   readonly deps: SnapshotDeps
   readonly root: string
   readonly readRoot: string
   readonly anchor: WorkflowRootAnchor
   readonly nowMs: number
+  /** 已结束任务的目录不再变化：扫描只读，不补投影、不打开产物作用域。 */
+  readonly readOnly: boolean
   readonly changesRoot: string
   readonly displayChangesRoot: string
   readonly changedFiles: ChangedFilesSession
@@ -63,7 +69,6 @@ export interface ProjectScanContext {
   changeDir(name: string): string
   /** The user whose test records and archive the snapshot is judged for; undefined when no identity is declared. */
   readonly actingUser: TenonUser | undefined
-  trackDefinition(trackId: string, workflowName: string): TrackDefinition | undefined
   /** The frozen plan a change runs on, shared by every change bound to the same plan in this scan. */
   planFor(state: PipelineState, workflowName: string, track: string): EffectiveWorkflowPlan
   /** The plan-derived rules, shared by identity by every change bound to the same plan. */
@@ -81,13 +86,14 @@ export function createProjectScanContext(
   readRoot: string,
   anchor: WorkflowRootAnchor,
   nowMs: number,
+  area: ScanArea = 'active',
 ): ProjectScanContext {
   // git runs in a child process, so every probe takes the anchor's real path, never readRoot.
   const childProcessRoot = anchorChildProcessPath(anchor)
-  const changesRoot = join(readRoot, 'openspec', 'changes')
+  const areaSegments = area === 'archive' ? ['openspec', 'changes', 'archive'] : ['openspec', 'changes']
+  const changesRoot = join(readRoot, ...areaSegments)
   let gitHeadPromise: Promise<string> | undefined
   const workspaceFingerprints = new Map<string, Promise<string>>()
-  const trackDefinitions = new Map<string, TrackDefinition | undefined>()
   const gitHeadSha = deps.gitHeadSha
   const workspaceFingerprint = deps.workspaceFingerprint
   const capabilityDeps: WorkflowSnapshotCapabilityDeps = {
@@ -136,18 +142,13 @@ export function createProjectScanContext(
     integrityDiff: (state, accept) => integrityDiffInSession(changedFiles, changeStartOfFields(state.fields))(accept),
     recordChainCache: recordChains,
   })
-  const trackDefinition = (trackId: string, workflowName: string): TrackDefinition | undefined => {
-    const key = `${workflowName}\u0000${trackId}`
-    if (!trackDefinitions.has(key)) trackDefinitions.set(key, resolveSnapshotTrack(readRoot, trackId, workflowName))
-    return trackDefinitions.get(key)
-  }
   const plans = new Map<string, EffectiveWorkflowPlan>()
   const listRules = new Map<EffectiveWorkflowPlan, ListWorkflowRulesSnapshot>()
   const legacyRules = new Map<EffectiveWorkflowPlan, LegacyWorkflowRulesSnapshot>()
   return {
     deps, root, readRoot, anchor, nowMs, changesRoot, changedFiles, actingUser, capabilityDeps, candidate, stepExitsFor,
-    trackDefinition,
-    displayChangesRoot: join(root, 'openspec', 'changes'),
+    readOnly: area === 'archive',
+    displayChangesRoot: join(root, ...areaSegments),
     changeDir: (name) => join(changesRoot, name),
     // A plan is a function of its identity (workflow, track, frozen fingerprint, document governance binding), so the
     // many changes of one project that run on the same frozen plan resolve it once. A run without a frozen fingerprint
@@ -162,7 +163,7 @@ export function createProjectScanContext(
         documentGovernanceFingerprint: meta?.documentGovernanceFingerprint,
         workflowPlanFingerprint: meta?.workflowPlanFingerprint,
         workflowPlanSnapshot: meta?.workflowPlanSnapshot,
-      }, undefined, trackDefinition(track, workflowName))
+      }, undefined, track)
       if (meta?.workflowPlanFingerprint !== undefined) plans.set(key, plan)
       return plan
     },
@@ -200,6 +201,7 @@ export interface ChangeScanOutcome<C> {
 }
 
 const SKIPPED: ChangeScanOutcome<never> = { errors: [] }
+const NO_SCOPE_ISSUE: Awaited<ReturnType<typeof projectArtifactScopeIssue>> = {}
 
 async function hasTasksFile(changeDir: string): Promise<boolean> {
   try {
@@ -231,12 +233,13 @@ export async function scanChange(
   if (source === undefined) return SKIPPED
   const errors: string[] = []
   try {
-    const projection = await deps.store.inspectProjection(changeDir)
-    if (projection.status === 'missing' || projection.status === 'stale'
-      || projection.status === 'legacy-compatible') {
+    // 已结束任务的目录不再变化：不补它的 YAML 投影，投影漂移也不是项目的错误。
+    const projection = ctx.readOnly ? undefined : await deps.store.inspectProjection(changeDir)
+    if (projection?.status === 'missing' || projection?.status === 'stale'
+      || projection?.status === 'legacy-compatible') {
       // 只自动前滚能由 revision metadata 证明的 adapter 状态；unknown drift 永不静默覆盖。
       await deps.store.repairProjection(changeDir)
-    } else if (projection.status === 'drift') {
+    } else if (projection?.status === 'drift') {
       errors.push(`${name}: YAML projection drift（${projection.reason}）`)
     }
     const state = await deps.store.read(changeDir)
@@ -249,7 +252,8 @@ export async function scanChange(
     const plan = ctx.planFor(state, workflowName, track)
     const [terminalActivity, artifactScope, agentRuns] = await Promise.all([
       readTerminalActivity(changeDir, name, nowMs),
-      projectArtifactScopeIssue(deps, changeDir, anchor),
+      // 打开产物作用域可能创建目录；已结束任务不碰它。
+      ctx.readOnly ? NO_SCOPE_ISSUE : projectArtifactScopeIssue(deps, changeDir, anchor),
       projectAgentRuns({
         changeDir,
         plan,
@@ -296,9 +300,10 @@ export async function scanChange(
       return { change, errors, ...(legacyScope === undefined ? {} : { legacyScope }) }
     }
     const [documents, authority, skillRuns, testEvidence, tasksProjection] = await Promise.all([
-      documentEvidence(readRoot, changeDir, plan, phase),
+      // The ledger of an ended task still names the paths from before its directory moved into archive/.
+      documentEvidence(readRoot, changeDir, plan, phase, ctx.readOnly ? (path) => archivedDocumentPath(path, name) : undefined),
       readWorkflowSnapshotAuthority(changeDir, state, plan),
-      projectSkillRuns(changeDir, plan, phase, ctx.trackDefinition(track, workflowName), deps.mandatorySkills),
+      projectSkillRuns(changeDir, plan, phase),
       projectTestEvidence({
         root: readRoot,
         changeDir,

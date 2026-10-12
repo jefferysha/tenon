@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useT } from '../i18n'
 import { parseWorkflowLocation, workflowSearch } from '../shell/dashboardLocation'
+import { trackSettingsOf } from '../workbench/trackSettings'
 import { BASE_BRANCH } from '../workbench/workbenchDefinition'
 import { DetailEmpty, TwoColumns } from '../shell/ThreeColumns'
 import { useWorkflowEditor } from '../workbench/useWorkflowEditor'
@@ -10,7 +11,7 @@ import { StageEditorPane } from './StageEditorPane'
 import { TrackDialog } from './TrackDialog'
 import { WorkflowNav } from './WorkflowNav'
 import { OVERVIEW_STEP, WorkflowOverviewPane } from './WorkflowOverviewPane'
-import { useDraftOrchestration, useManifestOverlay } from './draftOrchestration'
+import { useDraftOrchestration } from './draftOrchestration'
 import { Dialog } from '../shared/Dialog'
 
 export interface WorkflowViewProps {
@@ -33,9 +34,8 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
   })
   const [overview, setOverview] = useState(() => initial.step === OVERVIEW_STEP)
   const stageId = editor.selectedStep?.id ?? null
-  // 编排按草稿就地算（kernel orchestrate），只有 manifest 叠加层问服务端；总览与阶段画布共用这一份。
-  const overlay = useManifestOverlay(root, editor.wfName, editor.branch)
-  const orchestration = useDraftOrchestration(editor.def, editor.effectiveIo, overlay)
+  // 编排按草稿就地算（kernel orchestrate）；总览与阶段画布共用这一份。
+  const orchestration = useDraftOrchestration(editor.def, editor.effectiveIo)
   // 当前选择写进 URL（replace，不产生历史项）：刷新、复制链接都回到同一个工作流 / 轨道 / 阶段（或总览）。
   useEffect(() => {
     if (editor.wfName === null || editor.def === null) return
@@ -48,6 +48,7 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
     }
   }, [editor.wfName, editor.def, editor.branch, stageId, overview])
   const [trackDialogOpen, setTrackDialogOpen] = useState(false)
+  const [trackSettingsOpen, setTrackSettingsOpen] = useState(false)
   const [trackDeleteTarget, setTrackDeleteTarget] = useState<string | null>(null)
   const [stageDeleteTarget, setStageDeleteTarget] = useState<string | null>(null)
 
@@ -90,7 +91,6 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
             loading={editor.def === null && editor.defErrorText === null}
             error={editor.namesErrorText ?? editor.defErrorText}
             canWrite={editor.canWrite}
-            readOnly={editor.readOnly}
             canCreate={editor.hasToken}
             busy={editor.saving || editor.create.busy}
             openspec={editor.def?.openspec === true}
@@ -100,7 +100,8 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
             onCreate={() => editor.create.openCreate()}
             onExport={() => void exportYaml()}
             onDelete={editor.openWorkflowDelete}
-            onNewTrack={() => setTrackDialogOpen(true)}
+            onNewTrack={() => { setTrackSettingsOpen(false); setTrackDialogOpen(true) }}
+            onTrackSettings={() => { setTrackDialogOpen(false); setTrackSettingsOpen(true) }}
             onDeleteTrack={setTrackDeleteTarget}
             onSelect={(id) => { setOverview(false); editor.setStageId(id) }}
             overviewSelected={overview}
@@ -120,9 +121,21 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
       <TrackDialog
         open={trackDialogOpen}
         existing={editor.branches.map((branch) => branch.id)}
+        defaultSpec={editor.def?.openspec === true ? 'openspec' : 'none'}
         onClose={() => setTrackDialogOpen(false)}
-        onSubmit={(id, label) => { editor.addTrack(id, label); setTrackDialogOpen(false) }}
+        onSubmit={({ id, label, spec, keywords }) => { editor.addTrack(id, label, { spec, keywords }); setTrackDialogOpen(false) }}
       />
+      <TrackDialog
+        // 换了轨道就换一份表单：设置对话框里的草稿属于打开它时的那条轨道。
+        key={editor.branch}
+        open={trackSettingsOpen && editor.fullDef !== null && editor.branch !== BASE_BRANCH}
+        existing={[]}
+        defaultSpec="openspec"
+        editing={editor.fullDef === null ? null : { id: editor.branch, ...trackSettingsOf(editor.fullDef, editor.branch) }}
+        onClose={() => setTrackSettingsOpen(false)}
+        onSubmit={({ id, spec, keywords }) => { editor.setTrackSettings(id, { spec, keywords }); setTrackSettingsOpen(false) }}
+      />
+
       {trackDeleteTarget !== null && (
         <Dialog
           title={t('workflow.delete_track')}

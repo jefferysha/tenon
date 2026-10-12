@@ -2,29 +2,11 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
-import { ensureUserLocalDir, serializeTaskArchive, type PipelineState } from '@tenon/kernel'
+import type { PipelineState } from '@tenon/kernel'
 import { cmdList, cmdListFinished, cmdStatus } from './status.js'
 import { makeDeps, mockState, spy } from '../test-support.js'
 
-const ARCHIVE_ENTRY = {
-  archivedAt: '2026-09-15T12:00:00.000Z',
-  phase: 'build',
-  actor: { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' as const },
-}
 const repos: string[] = []
-
-/** Real temporary checkout whose per-user archive store hides `names` from the acting user. */
-async function repoWithArchived(...names: string[]): Promise<string> {
-  const repo = await mkdtemp(join(tmpdir(), 'tenon-status-archived-'))
-  repos.push(repo)
-  for (const name of names) await mkdir(join(repo, 'openspec', 'changes', name), { recursive: true })
-  const paths = await ensureUserLocalDir(repo, 'tester-at-tenon.test')
-  await writeFile(paths.archived, serializeTaskArchive({
-    version: 1,
-    changes: Object.fromEntries(names.map((name) => [name, ARCHIVE_ENTRY])),
-  }), 'utf8')
-  return repo
-}
 
 /**
  * D14：OpenSpec 归档把 `openspec/changes/<name>` 移成 `openspec/changes/archive/<日期>-<name>`
@@ -238,34 +220,31 @@ describe('list —— 活跃 change 表；--json schema 稳定', () => {
   })
 })
 
-describe('已归档（当前用户）在列表中隐藏', () => {
-  test('status / list 跳过当前用户已归档的 change，键序不变', async () => {
-    const cwd = await repoWithArchived('demo-a')
-    const status = makeDeps({ states: { 'demo-a': stateA, 'demo-b': stateB }, cwd })
+describe('没有「隐藏」：每个活跃任务对每个用户都出现在列表里', () => {
+  test('status / list 列出全部活跃 change，键序不变', async () => {
+    const status = makeDeps({ states: { 'demo-a': stateA, 'demo-b': stateB } })
     expect(await cmdStatus(status, undefined, { json: true })).toBe(0)
     expect(status.outLines[0]).toBe(
-      '{"active_changes":[{"name":"demo-b","track":"pm","phase":"explore","phase_status":"pending","verify_result":"","updated_at":"2026-07-05T00:00:00Z"}]}',
+      '{"active_changes":[{"name":"demo-a","track":"backend","phase":"build","phase_status":"in_progress","verify_result":"pending","updated_at":"2026-07-06T00:00:00Z"},{"name":"demo-b","track":"pm","phase":"explore","phase_status":"pending","verify_result":"","updated_at":"2026-07-05T00:00:00Z"}]}',
     )
-    const list = makeDeps({ states: { 'demo-a': stateA, 'demo-b': stateB }, cwd })
+    const list = makeDeps({ states: { 'demo-a': stateA, 'demo-b': stateB } })
     expect(await cmdList(list, { json: true })).toBe(0)
-    expect(list.outLines[0]).toBe(
-      '{"changes":[{"name":"demo-b","track":"pm","phase":"explore","phase_status":"pending","owner":null}]}',
-    )
+    expect(list.outLines[0]).toContain('"name":"demo-a"')
+    expect(list.outLines[0]).toContain('"name":"demo-b"')
   })
 
-  test('另一个用户的归档不影响本用户；读不到的归档记录 fail-open', async () => {
-    const cwd = await repoWithArchived('demo-a')
-    const other = makeDeps({
-      states: { 'demo-a': stateA },
-      cwd,
-      user: () => ({ id: 'b@x.io', name: 'B', slug: 'b-at-x.io', source: 'env', trust: 'declared' }),
-    })
-    expect(await cmdList(other, { json: true })).toBe(0)
-    expect(other.outLines[0]).toContain('demo-a')
-
-    const missing = makeDeps({ states: { 'demo-a': stateA }, cwd, user: () => ({ missing: true }) })
-    expect(await cmdList(missing, { json: true })).toBe(0)
-    expect(missing.outLines[0]).toContain('demo-a')
+  test('遗留的每用户 archived.json 不再被读取：照常列出', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'tenon-status-legacy-hidden-'))
+    repos.push(cwd)
+    const local = join(cwd, '.tenon', 'users', 'tester-at-tenon.test', 'local')
+    await mkdir(local, { recursive: true })
+    await writeFile(join(local, 'archived.json'), JSON.stringify({
+      version: 1,
+      changes: { 'demo-a': { archived_at: '2026-09-15T12:00:00.000Z', phase: 'build', actor: { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } } },
+    }), 'utf8')
+    const list = makeDeps({ states: { 'demo-a': stateA }, cwd })
+    expect(await cmdList(list, { json: true })).toBe(0)
+    expect(list.outLines[0]).toContain('demo-a')
   })
 })
 

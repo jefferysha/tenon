@@ -39,7 +39,7 @@ describe('check ⇔ transition：技能门不得只有一边看得见', () => {
   beforeEach(async () => {
     h = await freshHarness()
     changeDir = join(h.cwd, 'openspec', 'changes', CHANGE)
-    expect(await h.run(['init', CHANGE, '--track', TRACK, '--preset', 'full'])).toBe(0)
+    expect(await h.initLegacyDefault(CHANGE, TRACK)).toBe(0)
     expect(await h.run(['session', 'activate', CHANGE])).toBe(0)
     // autoSkills:false —— 技能证据正是本用例要观察的变量，夹具不许替它补上。
     await h.seedGovernedDocumentEvidence(CHANGE, { autoSkills: false })
@@ -106,7 +106,7 @@ describe('check ⇔ status ⇔ transition：相位出口规则表不得只有 ch
 
   beforeEach(async () => {
     h = await freshHarness()
-    expect(await h.run(['init', PM, '--track', 'pm', '--preset', 'full'])).toBe(0)
+    expect(await h.initLegacyDefault(PM, 'pm')).toBe(0)
     expect(await h.run(['session', 'activate', PM])).toBe(0)
     await h.seedGovernedDocumentEvidence(PM)
     await h.seedAppliedSpec(PM)
@@ -180,5 +180,68 @@ describe('check ⇔ status ⇔ transition：相位出口规则表不得只有 ch
     const field = step.fields.find((candidate) => candidate.field === 'verify_result')
     expect(field?.status).toBe('missing')
     expect(field?.required).toEqual(['pass'])
+  })
+})
+
+/**
+ * 新建的 default 任务：离开条件写在前进边上（build-complete 要 pre_verify_review_result=pass、任务已勾选…），
+ * step.guards 是空的。`check <c>`（不带 event）与 `status` 的字段投影只读 step.guards 时，这些条件两边都看不见：
+ * check 说「全过」、投影里没有 pre_verify_review_result，transition 却拒绝。
+ */
+describe('check ⇔ status ⇔ transition：新建 default 任务写在前进边上的离开条件', () => {
+  const NAME = 'edgeguards'
+  const UNFINISHED_BUILD_TASKS = [
+    '# 任务', '', '## 立项', '', '- [x] 立项 (open)', '', '## 实现', '', '- [ ] 写测试 (build)', '',
+  ].join('\n')
+  let h: Harness
+
+  beforeEach(async () => {
+    h = await freshHarness()
+    expect(await h.run(['init', NAME, '--track', 'backend', '--preset', 'full']), h.err.join('\n')).toBe(0)
+    expect(await h.run(['session', 'activate', NAME])).toBe(0)
+    await h.seedGovernedDocumentEvidence(NAME, { tasks: UNFINISHED_BUILD_TASKS })
+    await h.seedPhase(NAME, 'build')
+  })
+
+  afterEach(async () => {
+    await rm(h.cwd, { recursive: true, force: true })
+  })
+
+  async function stepBlock(): Promise<StatusStep['step']> {
+    expect(await h.run(['status', NAME, '--json']), h.err.join('\n')).toBe(0)
+    return (JSON.parse(h.out.join('\n')) as StatusStep).step
+  }
+
+  test('status 的字段投影含前进边上的 pre_verify_review_result（结论字段、只接受 pass），不含已删除的决定字段', async () => {
+    const step = await stepBlock()
+    const verdict = step.fields.find((candidate) => candidate.field === 'pre_verify_review_result')
+    expect(verdict, '前进边 build-complete 的离开条件必须进投影').toMatchObject({
+      kind: 'outcome', status: 'missing', required: ['pass'], recommended: null,
+    })
+    const names = step.fields.map((candidate) => candidate.field)
+    for (const retired of ['build_mode', 'isolation', 'direct_override', 'branch_status']) {
+      expect(names).not.toContain(retired)
+    }
+  })
+
+  test('check（不带 event）读到前进边的离开条件：退 2 并同时列出实现前评审与未勾任务', async () => {
+    const code = await h.run(['check', NAME])
+    const out = h.out.join('\n')
+    expect(code, out).toBe(2)
+    expect(out).toContain("要求字段 'pre_verify_review_result'=pass")
+    expect(out).toContain('tasks.md')
+    // 回退边不带离开条件，也不该让预览多出不属于前进边的失败。
+    expect(out).not.toMatch(/build_mode|isolation|direct_override|branch_status/u)
+  })
+
+  test('check 与 transition 对同一份状态同判：条件满足前都拒，且 check 的失败行就是 transition 的失败行', async () => {
+    expect(await h.run(['check', NAME])).toBe(2)
+    const guardLines = h.out
+      .filter((line) => line.startsWith("  [FAIL] step 'build' "))
+      .map((line) => line.replace('  [FAIL] ', ''))
+    expect(guardLines.length, '前进边的离开条件要在 check 里逐条列出').toBeGreaterThanOrEqual(2)
+    expect(await h.run(['transition', NAME, 'build-complete'])).toBe(2)
+    const transitionErr = h.err.join('\n')
+    for (const line of guardLines) expect(transitionErr).toContain(line)
   })
 })

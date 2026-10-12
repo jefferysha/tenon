@@ -9,15 +9,13 @@
  */
 import { execFileSync } from 'node:child_process'
 import { appendFile, mkdtemp, mkdir, readFile, rm as fsRm, writeFile } from 'node:fs/promises'
-import { existsSync, readdirSync, readFileSync, statSync, type PathLike, type RmOptions } from 'node:fs'
+import { existsSync, readdirSync, statSync, type PathLike, type RmOptions } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { writeReadyDesignSystem } from '@tenon/kernel/design-system/test-support'
 import {
-  BUILTIN_TRACK_DEFINITIONS,
   clearReviewMarkerFor,
-  compileEffectiveWorkflowPlan,
   createBuildRevisionToken,
   createEffectiveSkillResolver,
   completedWorkflowSkillsSinceStepEntry,
@@ -32,12 +30,10 @@ import {
   ensureDocumentLedger,
   candidateFingerprint,
   loadManifest,
-  loadTrackRegistry,
-  loadWorkflow,
-  mutateTrackRegistry,
-  readCurrentRunRevisionSync,
+  makeGuardFileContext,
   recordDocument,
   recordDocumentReads,
+  resolveRequiredSkillSlots,
   designSystemPrecondition,
   loadResourceCatalog,
   resolveProductPaths,
@@ -45,28 +41,28 @@ import {
   actorOf,
   isTenonUser,
   stateStorageExistsSync,
-  withTrackRegistryLock,
-  type ExtendedManifestData,
+  withProjectCoordinationLock,
   type BuildRevisionIdentity,
   type FieldName,
-  type TrackValidationContext,
 } from '@tenon/kernel'
-import type { CliDeps, GuardFileContext } from './deps.js'
+import type { CliDeps } from './deps.js'
+import { effectiveWorkflowForState } from './commands/effective-workflow.js'
+import { initLegacyDefaultChange, initLegacyStandardChange } from './integration-harness-legacy.js'
 import { readGateMarkers } from './gateMarkers.js'
 import { detectPlatform, readProcVersion } from './commands/doctor-platform.js'
 import {
-  FIXED_CLOCK, readGovernedDocumentsForCurrentVisit, recordBoundDocumentsForCurrentVisit, seedAppliedSpec,
-  seedGovernedDocumentEvidence,
+  FIXED_CLOCK, harnessOpenspecArchive, readGovernedDocumentsForCurrentVisit, recordBoundDocumentsForCurrentVisit,
+  seedAppliedSpec, seedGovernedDocumentEvidence,
 } from './integration-harness-documents.js'
 export { FIXED_CLOCK, FIXTURE_HISTORY_TAG, seedGovernedDocumentEvidence } from './integration-harness-documents.js'
 import { harnessArtifactSubmission } from './integration-submission-test-support.js'
 import { buildProgram, CliExit } from './program.js'
-import { readBoundedRegularFileSync } from './guardContext.js'
 import {
   recordCanonicalDocumentSkillInvocation,
   recordNativeDocumentSkillConfirmation,
 } from './test-support.js'
 import { createManifestSkillActionAuthorityResolver } from './skill-action-authority-provider.js'
+import { skillProfileChecker } from './skillProfiles.js'
 import { recordWorkflowPhaseSkill } from './integration-phase-skill-test-support.js'
 import { gitRemoteNames } from './gitRemotes.js'
 import { seedStepTestPolicy } from './integration-test-policy-support.js'
@@ -77,30 +73,6 @@ import { ensureCodeSizeProbeOnPath } from './integration-harness-probe.js'
 import { loadTestDirections } from './test-system/directions.js'
 import { resolveCliLocale } from './i18n/locale.js'
 export { recordWorkflowPhaseSkill } from './integration-phase-skill-test-support.js'
-
-/** Track Registry 校验上下文（与 main.ts trackValidationContext 同款，harness 镜像生产装配）。 */
-function trackValidationContext(repoRoot: string, manifest: ExtendedManifestData): TrackValidationContext {
-  const skillProfiles = new Set<string>()
-  for (const t of BUILTIN_TRACK_DEFINITIONS) {
-    if (t.policyProfile.skills.profile !== '_all') skillProfiles.add(t.policyProfile.skills.profile)
-  }
-  for (const table of [manifest.mandatorySkills, manifest.recommendedSkills]) {
-    for (const row of Object.values(table)) {
-      for (const key of Object.keys(row)) if (key !== '_all') skillProfiles.add(key)
-    }
-  }
-  return {
-    workflowExists: (id) => {
-      if (id === 'default') return true
-      try {
-        return loadWorkflow(repoRoot, id) !== null
-      } catch {
-        return false
-      }
-    },
-    skillProfiles,
-  }
-}
 
 export const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 export const MANIFEST = join(REPO_ROOT, 'templates', 'manifest.yaml')
@@ -164,6 +136,10 @@ export interface Harness {
    * 无发现的报告、record。不绕过门禁——落的是真台账行。
    */
   satisfyStepAgents: (name: string) => Promise<void>
+  /** 立一个快照记着 phase-manifest 的在途 default 任务，回归旧引擎规则（Review Focus 第 1 条）；返回 exit code。 */
+  initLegacyDefault: (name: string, track: string, preset?: string) => Promise<number>
+  /** 立一个按已退役 standard 工作流创建的在途任务（平铺、step-graph、轨道 standard；模板已删，只剩冻结快照）；返回 exit code。 */
+  initLegacyStandard: (name: string, preset?: string) => Promise<number>
 }
 
 /** 声明式测试项在真实项目里由项目自己的 npm 脚本兑现；夹具项目声明等价的空脚本。 */
@@ -183,57 +159,28 @@ function tickingClock(): string {
 /** 真实 deps：与 main.ts 同款 fs 副作用，只把 io 收进数组、clock 固定、gitHeadSha 定桩。 */
 export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.ProcessEnv = process.env): CliDeps {
   const manifest = loadManifest(MANIFEST)
-  const abs = (p: string) => join(cwd, p)
-  const guardCtx = (name: string): GuardFileContext => ({
-    changeDirRel: `openspec/changes/${name}`,
-    stateExists: (changeDirRel) => stateStorageExistsSync(abs(changeDirRel)),
-    fileExists: (p) => { try { return statSync(abs(p)).isFile() } catch { return false } },
-    fileNonempty: (p) => { try { const s = statSync(abs(p)); return s.isFile() && s.size > 0 } catch { return false } },
-    readFile: (p) => { try { return readFileSync(abs(p), 'utf8') } catch { return undefined } },
-    readFileBounded: (p, maxBytes) => readBoundedRegularFileSync(abs(p), maxBytes, cwd),
-    dirExists: (p) => { try { return statSync(abs(p)).isDirectory() } catch { return false } },
-    activeChangeArchived: (dep) => {
-      try {
-        const current = readCurrentRunRevisionSync(join(cwd, 'openspec', 'changes', dep))
-        return current?.state.fields.archived === 'true'
-      } catch {
-        return false
-      }
-    },
-    changeArchived: (dep) => {
-      try {
-        return readdirSync(abs('openspec/changes/archive'), { withFileTypes: true })
-          .some((e) => e.isDirectory() && e.name.endsWith(`-${dep}`))
-      } catch { return false }
-    },
-    automationRunner: false,
-  })
+  // 与 main.ts 同一份文件面实现：归档目录的判定只有一处。
+  const guardCtx = makeGuardFileContext(cwd, { automationRunner: false })
   const store = createStateStore()
   const recordStore = createTransitionRecordStore()
-  const trackCtx = trackValidationContext(cwd, manifest)
+  const isSkillProfileKnown = skillProfileChecker(manifest)
   return {
-    // H10 §1/§8任务7：与 main.ts 同款装配——复用 trackCtx.skillProfiles（T 线现有 profile 校验器，
-    // 见 deps.ts 头注），harness 镜像生产装配、不另造一套判定。
-    isSkillProfileKnown: (id) => trackCtx.skillProfiles.has(id),
-    resolveSkillActionAuthority: createManifestSkillActionAuthorityResolver(
-      manifest,
-      (profile) => trackCtx.skillProfiles.has(profile),
-    ),
+    // H10 §1/§8任务7：与 main.ts 同款装配——复用 skillProfileChecker（见 deps.ts 头注），
+    // harness 镜像生产装配、不另造一套判定。
+    isSkillProfileKnown,
+    resolveSkillActionAuthority: createManifestSkillActionAuthorityResolver(manifest, isSkillProfileKnown),
     store,
-    taskLifecycle: createTaskLifecycleApplication({ store, clock: () => FIXED_CLOCK, nowMs: () => Date.now() }),
+    taskLifecycle: createTaskLifecycleApplication({
+      store, clock: () => FIXED_CLOCK, nowMs: () => Date.now(), runOpenspecArchive: harnessOpenspecArchive,
+    }),
     artifactSubmission: harnessArtifactSubmission(cwd, store),
     runRepo: createWorkflowRunRepository({ store, recordStore, clock: () => FIXED_CLOCK }),
     recordStore,
-    loadRegistry: () => loadTrackRegistry(cwd, trackCtx),
-    withRegistryLock: (cb) => withTrackRegistryLock(cwd, trackCtx, cb),
-    mutateRegistry: (cb) => mutateTrackRegistry(cwd, trackCtx, cb),
+    withProjectLock: (cb) => withProjectCoordinationLock(cwd, cb),
     flow: createFlowEngine(manifest),
     interaction: createInteractionEventRecorder(),
-    // T-R6：镜像生产装配，每次解析 default artifact 都 fresh-load effective registry。
-    resolver: createEffectiveSkillResolver({
-      registry: () => loadTrackRegistry(cwd, trackCtx),
-      manifest,
-    }),
+    // 镜像生产装配：技能只看工作流 YAML，不叠加 manifest 矩阵。
+    resolver: createEffectiveSkillResolver(manifest),
     cwd,
     // 测试装配默认视为已信任仓库自带的测试命令（R6 的首次信任另有专测：传 TENON_TEST_TRUST='' 关掉这条默认）。
     env: (name) => (name === 'TENON_TEST_TRUST' && env[name] === undefined ? '1' : env[name]),
@@ -357,7 +304,6 @@ export function makeHarness(cwd: string): Harness {
         const changeDir = join(cwd, 'openspec', 'changes', name)
         const state = await deps.store.read(changeDir)
         const phase = String(state.fields.phase)
-        const track = String(state.fields.track)
         await seedStepTestPolicy(deps, cwd, name, phase, FIXED_CLOCK)
         const historyPath = join(changeDir, '.pipeline-history.jsonl')
         let history = await readFile(historyPath, 'utf8').catch(() => '')
@@ -370,7 +316,10 @@ export function makeHarness(cwd: string): Harness {
           await recordWorkflowPhaseSkill(cwd, changeDir)
           history = await readFile(historyPath, 'utf8').catch(() => '')
         }
-        const lines = deps.resolver.resolveDefaultMandatory(phase, track)
+        // 本步必需技能 = 任务计划里该步声明的技能（工作流 YAML），不是机器级 manifest 矩阵。
+        const plan = effectiveWorkflowForState(deps, state)
+        const requiredSlots = plan === null ? [] : resolveRequiredSkillSlots(deps.resolver, plan.capabilities.skills, phase)
+        const lines = requiredSlots
           .filter((slot) => !slot.alternatives.some((skill) => completed.has(skill)))
           .map((slot) => slot.alternatives[0])
           .filter((skill): skill is string => skill !== undefined)
@@ -381,7 +330,7 @@ export function makeHarness(cwd: string): Harness {
           // 契约点名为 producer 的必需技能，产物要在本次访问登记才算完成：替它们在本次访问重登。
           await recordBoundDocumentsForCurrentVisit(
             cwd, changeDir, name,
-            deps.resolver.resolveDefaultMandatory(phase, track).flatMap((slot) => slot.alternatives.slice(0, 1)),
+            requiredSlots.flatMap((slot) => slot.alternatives.slice(0, 1)),
           )
           await readGovernedDocumentsForCurrentVisit(cwd, changeDir)
         } catch (error) {
@@ -446,6 +395,16 @@ export function makeHarness(cwd: string): Harness {
           }
         }
       }
+    },
+    initLegacyDefault: async (name, track, preset = 'full') => {
+      out.length = 0
+      err.length = 0
+      return initLegacyDefaultChange(realDeps(cwd, out, err, process.env), cwd, name, track, preset)
+    },
+    initLegacyStandard: async (name, preset = 'full') => {
+      out.length = 0
+      err.length = 0
+      return initLegacyStandardChange(realDeps(cwd, out, err, process.env), cwd, name, preset)
     },
     seedAppliedSpec: (name) =>
       seedAppliedSpec(cwd, join(cwd, 'openspec', 'changes', name), name),

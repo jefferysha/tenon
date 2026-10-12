@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "contract": "field-subjects-v1",
+  "createdAt": "2026-10-10T13:06:19Z",
+  "records": [
+    {
+      "field": "design_doc",
+      "valueDigest": "sha256:950a63fecef45924309c3afafa1b4255cf65cced8b783f9380f93cc7b50a1ce1",
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:91adff57b55b8d73e3936d75bc58e1d7",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:950a63fecef45924309c3afafa1b4255cf65cced8b783f9380f93cc7b50a1ce1",
+        "projection": "field",
+        "content_digest": "sha256:950a63fecef45924309c3afafa1b4255cf65cced8b783f9380f93cc7b50a1ce1",
+        "source": {
+          "field": "design_doc",
+          "path": "docs/superpowers/specs/consolidate-workflow-tracks-design.md"
+        }
+      },
+      "recordedAt": "2026-10-10T13:06:19Z",
+      "producer": "brainstorming",
+      "sourcePath": "docs/superpowers/specs/consolidate-workflow-tracks-design.md",
+      "pathStatus": "resolved"
+    },
+    {
+      "field": "plan",
+      "valueDigest": "sha256:29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:41b7c3fdd9704e3b7c4174da01112972",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+        "projection": "field",
+        "content_digest": "sha256:29efe148b6c2850966265593a24bdba6291e5d1dfcc759886dd7e93de8cad140",
+        "source": {
+          "field": "plan",
+          "path": "docs/superpowers/plans/consolidate-workflow-tracks.md"
+        }
+      },
+      "recordedAt": "2026-10-10T13:17:05Z",
+      "producer": "writing-plans",
+      "sourcePath": "docs/superpowers/plans/consolidate-workflow-tracks.md",
+      "pathStatus": "resolved"
+    },
+    {
+      "field": "verification_report",
+      "valueDigest": "sha256:834fa3fcbe47abe4e6b121ce837595852cbba93fb7c7009ab38b1578e534a8c8",
+      "subjectRef": {
+        "subject_id": "subject:change-consolidate-workflow-tracks-20949e06122d:52cde39e2b7b3d3c538db666eb2f010c",
+        "namespace": "change-consolidate-workflow-tracks-20949e06122d",
+        "version": "sha256:834fa3fcbe47abe4e6b121ce837595852cbba93fb7c7009ab38b1578e534a8c8",
+        "projection": "field",
+        "content_digest": "sha256:834fa3fcbe47abe4e6b121ce837595852cbba93fb7c7009ab38b1578e534a8c8",
+        "source": {
+          "field": "verification_report",
+          "path": "docs/superpowers/reports/consolidate-workflow-tracks-verify.md"
+        }
+      },
+      "recordedAt": "2026-10-11T07:04:50Z",
+      "producer": "verification-before-completion",
+      "sourcePath": "docs/superpowers/reports/consolidate-workflow-tracks-verify.md",
+      "pathStatus": "resolved"
+    }
+  ]
+}

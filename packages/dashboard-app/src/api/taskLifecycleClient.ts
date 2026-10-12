@@ -1,11 +1,11 @@
 /**
- * 删除 / 归档 / 取消归档 client. Reasons always come from the server, which re-checks them under the lock;
+ * 删除 / 终止 client. Reasons always come from the server, which re-checks them under the lock;
  * the dialog echoes back exactly the codes it displayed, so a task that started running between the two
  * calls is refused instead of acted on.
  */
 import { ApiError, getToken, isRecord, readJson, wrapNetwork } from './transport'
 
-export type TaskLifecycleAction = 'delete' | 'archive'
+export type TaskLifecycleAction = 'delete' | 'terminate'
 export type TaskReasonCode =
   | 'afk-running' | 'afk-queued' | 'review-pending' | 'host-session-live' | 'has-dependents' | 'owned-by-other'
 
@@ -23,15 +23,21 @@ export interface TaskLifecycleView {
   readonly recoverable?: boolean | null
 }
 
-export interface TaskArchiveResult {
-  readonly changed: boolean
-  readonly archivedAt: string
-  readonly phase: string
+export interface TaskTerminateResult {
+  /** 归档位置，仓库根相对路径：`openspec/changes/archive/<日期>-<名字>`。 */
+  readonly archivedDir: string
+  readonly endedAt: string
+  /** 终止只提交被移动的任务目录：`committed` | `skipped`（没有可提交的 / 不是 git 仓库）| `failed`。 */
+  readonly commit: string
+  /** 成功但内核报了警告（服务端中文原文）；没有警告 = 空数组。 */
+  readonly warnings: readonly string[]
 }
 
 export interface TaskDeleteResult {
   readonly removed: readonly string[]
   readonly uncommittedDeletions: number | null
+  /** 成功但内核报了警告（服务端中文原文）；没有警告 = 空数组。 */
+  readonly warnings: readonly string[]
 }
 
 const REASON_CODES: readonly TaskReasonCode[] = [
@@ -77,9 +83,16 @@ function decodeReasons(value: unknown): readonly TaskReason[] | null {
   return reasons.some((reason) => reason === null) ? null : (reasons as TaskReason[])
 }
 
+/** 响应没有 `warnings` 键 = 没有警告；有键就必须是全字符串数组，否则 null。 */
+function decodeWarnings(value: unknown): readonly string[] | null {
+  if (value === undefined) return []
+  if (!Array.isArray(value) || !value.every((entry): entry is string => typeof entry === 'string')) return null
+  return value
+}
+
 function decodeView(value: unknown): TaskLifecycleView | null {
   if (!isRecord(value) || value.ok !== true || typeof value.phase !== 'string') return null
-  if (value.action !== 'delete' && value.action !== 'archive') return null
+  if (value.action !== 'delete' && value.action !== 'terminate') return null
   const blockers = decodeReasons(value.blockers)
   const confirmations = decodeReasons(value.confirmations)
   if (blockers === null || confirmations === null) return null
@@ -113,38 +126,25 @@ export async function fetchTaskLifecycle(
   return value
 }
 
-export async function archiveTask(
+export async function terminateTask(
   input: { root: string; change: string; acknowledged: readonly TaskReasonCode[] },
-): Promise<TaskArchiveResult> {
+): Promise<TaskTerminateResult> {
   let response: Response
   try {
-    response = await fetch(`/api/change/${encodeURIComponent(input.change)}/archive`, {
+    response = await fetch(`/api/change/${encodeURIComponent(input.change)}/terminate`, {
       method: 'POST', headers: authHeaders(),
       body: JSON.stringify({ root: input.root, acknowledged: input.acknowledged }),
     })
   } catch (error) { wrapNetwork(error) }
-  if (!response.ok) await throwLifecycleError(response, '归档失败')
+  if (!response.ok) await throwLifecycleError(response, '终止失败')
   const value = await readJson(response)
-  if (!isRecord(value) || value.ok !== true || typeof value.changed !== 'boolean'
-    || typeof value.archived_at !== 'string' || typeof value.phase !== 'string') {
-    throw new ApiError('归档响应格式无效', response.status)
+  if (!isRecord(value) || value.ok !== true || value.result !== 'terminated' || typeof value.archived_dir !== 'string'
+    || typeof value.ended_at !== 'string' || typeof value.commit !== 'string') {
+    throw new ApiError('终止响应格式无效', response.status)
   }
-  return { changed: value.changed, archivedAt: value.archived_at, phase: value.phase }
-}
-
-export async function unarchiveTask(input: { root: string; change: string }): Promise<{ changed: boolean }> {
-  let response: Response
-  try {
-    response = await fetch(`/api/change/${encodeURIComponent(input.change)}/unarchive`, {
-      method: 'POST', headers: authHeaders(), body: JSON.stringify({ root: input.root }),
-    })
-  } catch (error) { wrapNetwork(error) }
-  if (!response.ok) await throwLifecycleError(response, '取消归档失败')
-  const value = await readJson(response)
-  if (!isRecord(value) || value.ok !== true || typeof value.changed !== 'boolean') {
-    throw new ApiError('取消归档响应格式无效', response.status)
-  }
-  return { changed: value.changed }
+  const warnings = decodeWarnings(value.warnings)
+  if (warnings === null) throw new ApiError('终止响应格式无效', response.status)
+  return { archivedDir: value.archived_dir, endedAt: value.ended_at, commit: value.commit, warnings }
 }
 
 export async function deleteTask(
@@ -168,5 +168,7 @@ export async function deleteTask(
   if (count !== null && !(typeof count === 'number' && Number.isSafeInteger(count) && count >= 0)) {
     throw new ApiError('删除响应格式无效', response.status)
   }
-  return { removed: value.removed, uncommittedDeletions: count }
+  const warnings = decodeWarnings(value.warnings)
+  if (warnings === null) throw new ApiError('删除响应格式无效', response.status)
+  return { removed: value.removed, uncommittedDeletions: count, warnings }
 }

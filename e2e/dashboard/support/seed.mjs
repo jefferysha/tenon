@@ -139,10 +139,15 @@ const SPEC = `## ADDED Requirements
 /** 覆盖率门槛：任务开始之后把它从 80 降到 60，就是一条「测试完整性」信号（Dashboard 测试页签的完整性段）。 */
 const COVERAGE_CONFIG = (lines) => `{\n  "check-coverage": true,\n  "lines": ${lines}\n}\n`
 
+/** 沙盒项目里被终止的任务（工作台「已结束」分类读它；结果 已终止，归档在 openspec/changes/archive/）。 */
+export const ENDED_CHANGE = 'sandbox-ended'
+
 export function seedSandbox(context) {
   writeProjectFile(context.sandbox, 'AGENTS.md', '# Sandbox\n\nClient files for the project page e2e.\n')
   commitBase(context.sandbox, context.env)
   runTenon(context.env, context.sandbox, ['init', 'sandbox-change', '--track', 'backend', '--preset', 'full'])
+  runTenon(context.env, context.sandbox, ['init', ENDED_CHANGE, '--track', 'backend', '--preset', 'full'])
+  runTenon(context.env, context.sandbox, ['task', 'terminate', ENDED_CHANGE])
 }
 
 export function seedDemo(context) {

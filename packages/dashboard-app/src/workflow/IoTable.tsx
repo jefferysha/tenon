@@ -36,7 +36,9 @@ export function IoTable({ direction, rows, empty, onRemove }: {
         {onRemove !== undefined && <span aria-hidden="true" />}
       </div>
       {rows.length === 0 ? (
-        <div className="py-3 text-body text-text-3" role="status">{empty}</div>
+        <div className="py-3 text-body text-text-3" role="row" data-testid={`io-${direction}-empty`}>
+          <div role="cell">{empty}</div>
+        </div>
       ) : rows.map(({ slot, stage, skills, path }, index) => {
         const before = rows[index - 1]
         const sameStage = before !== undefined && stage !== undefined && before.stage === stage

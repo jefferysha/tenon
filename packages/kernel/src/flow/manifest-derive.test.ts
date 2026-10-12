@@ -7,7 +7,7 @@
  * review_phases 半接线欠账的反面证据：数据即行为，零硬编码）。真文件、真解析，不需 mock。
  */
 import { describe, it, expect } from 'vitest'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -39,25 +39,10 @@ function writeManifest(body: string): string {
 }
 
 describe('派生面 · mandatory / recommended skills（evidence 派生，对齐 manifest.py:evidence 346-355）', () => {
-  it('真读 templates：per phase×track 强制 skill 表逐字派生', () => {
+  it('真读 templates：「阶段 × 轨道」强制技能矩阵已删除——一步该加载什么只看工作流 YAML', () => {
     const m = loadManifest(TEMPLATE_MANIFEST)
-    expect(m.mandatorySkills.explore.pm).toEqual(['brainstorming', 'grilling', 'domain-modeling'])
-    expect(m.mandatorySkills.explore.backend).toEqual([
-      'openspec-explore',
-      'brainstorming',
-      'grilling',
-      'domain-modeling',
-      'codebase-design',
-    ])
-    expect(m.mandatorySkills.build.backend).toEqual(['test-driven-development'])
-    expect(m.mandatorySkills.explore.free).toEqual(['brainstorming'])
-    expect(m.mandatorySkills.spec.free).toEqual(['openspec-propose', 'writing-plans'])
-    expect(m.mandatorySkills.build.free).toEqual(['test-driven-development'])
-    expect(m.mandatorySkills.verify.free).toEqual(['verification-before-completion'])
-    expect(m.mandatorySkills.ship.free).toEqual(['finishing-a-development-branch'])
-    // 默认 workflow 只引用插件内置 skill，archive 无强制 skill。
-    expect(m.mandatorySkills.verify.frontend).toContain('verification-before-completion')
-    expect(m.mandatorySkills.archive).toEqual({})
+    for (const ph of PHASES) expect(m.mandatorySkills[ph], `mandatory for ${ph}`).toEqual({})
+    expect(readFileSync(TEMPLATE_MANIFEST, 'utf8')).not.toMatch(/^mandatory_skills:/m)
   })
 
   it('真读 templates：推荐 skill 表已空——一步该加载什么由 default.yaml 说清楚', () => {
@@ -66,13 +51,17 @@ describe('派生面 · mandatory / recommended skills（evidence 派生，对齐
   })
 
   it('skillsFor：per-track → _all 兜底 → 空，三级回退与老 evidence 同语义', () => {
-    const m = loadManifest(TEMPLATE_MANIFEST)
+    const m = loadManifest(writeManifest([
+      'mandatory_skills:',
+      '  open._all: [openspec-propose]',
+      '  explore.pm: [brainstorming, grilling]',
+    ].join('\n')))
     // open 只声明 _all，任一 track 都命中 _all 兜底
     expect(skillsFor(m.mandatorySkills, 'open', 'backend')).toEqual(['openspec-propose'])
     expect(skillsFor(m.mandatorySkills, 'open', 'pm')).toEqual(['openspec-propose'])
     expect(skillsFor(m.mandatorySkills, 'open', 'free')).toEqual(['openspec-propose'])
     // per-track 优先于 _all
-    expect(skillsFor(m.mandatorySkills, 'explore', 'pm')).toEqual(['brainstorming', 'grilling', 'domain-modeling'])
+    expect(skillsFor(m.mandatorySkills, 'explore', 'pm')).toEqual(['brainstorming', 'grilling'])
     // 无声明 → 空
     expect(skillsFor(m.recommendedSkills, 'archive', 'backend')).toEqual([])
     expect(skillsFor(m.mandatorySkills, 'verify', 'chat')).toEqual([])
@@ -118,7 +107,9 @@ describe('派生面 · mandatory / recommended skills（evidence 派生，对齐
 })
 
 describe('旧 manifest 路由字段迁移边界', () => {
-  it('旧顶层 router_patterns 必须 fail-loud，并明确迁移到 tracks.yaml policy_profile.routing', () => {
+  const MIGRATED_TO_BRANCH_ROUTE = /router_patterns.*已迁移.*工作流分支.*tracks\.<id>\.route/i
+
+  it('旧顶层 router_patterns 必须 fail-loud，并明确迁移到工作流分支的 tracks.<id>.route', () => {
     const p = writeManifest(
       [
         'router_patterns:',
@@ -129,7 +120,7 @@ describe('旧 manifest 路由字段迁移边界', () => {
     )
 
     expect(() => loadManifest(p)).toThrow(
-      /router_patterns.*已迁移.*\.pipeline\/tracks\.yaml.*policy_profile\.routing/i,
+      MIGRATED_TO_BRANCH_ROUTE,
     )
   })
 
@@ -137,7 +128,7 @@ describe('旧 manifest 路由字段迁移边界', () => {
     const p = writeManifest("router_patterns: { frontend: '(tsx)' }")
 
     expect(() => loadManifest(p)).toThrow(
-      /router_patterns.*已迁移.*\.pipeline\/tracks\.yaml.*policy_profile\.routing/i,
+      MIGRATED_TO_BRANCH_ROUTE,
     )
   })
 
@@ -149,7 +140,7 @@ describe('旧 manifest 路由字段迁移边界', () => {
     const p = writeManifest(legacySection)
 
     expect(() => loadManifest(p)).toThrow(
-      /router_patterns.*已迁移.*\.pipeline\/tracks\.yaml.*policy_profile\.routing/i,
+      MIGRATED_TO_BRANCH_ROUTE,
     )
   })
 
@@ -163,7 +154,7 @@ describe('旧 manifest 路由字段迁移边界', () => {
     const p = writeManifest(legacySection)
 
     expect(() => loadManifest(p)).toThrow(
-      /router_patterns.*已迁移.*\.pipeline\/tracks\.yaml.*policy_profile\.routing/i,
+      MIGRATED_TO_BRANCH_ROUTE,
     )
   })
 
@@ -171,7 +162,7 @@ describe('旧 manifest 路由字段迁移边界', () => {
     const p = writeManifest("? |-\n  router_patterns\n: { frontend: '(tsx)' }")
 
     expect(() => loadManifest(p)).toThrow(
-      /router_patterns.*已迁移.*\.pipeline\/tracks\.yaml.*policy_profile\.routing/i,
+      MIGRATED_TO_BRANCH_ROUTE,
     )
   })
 
@@ -225,15 +216,10 @@ describe('派生面 · breadcrumb prose（对齐 manifest.py breadcrumb 子命�
 describe('派生面 · versioned Skill action authority', () => {
   it('真读 templates：显式 closed actions 独立于 mandatory/recommended slots', () => {
     const manifest = loadManifest(TEMPLATE_MANIFEST)
+    // 不分 profile：模板只留一条全局授权。
     expect(manifest.skillActionAuthority).toEqual({
       version: 'v1',
-      grants: {
-        _all: ['enter-afk'],
-        pm: ['enter-afk'],
-        frontend: ['enter-afk'],
-        backend: ['enter-afk'],
-        free: [],
-      },
+      grants: { _all: ['enter-afk'] },
     })
   })
 

@@ -1,14 +1,14 @@
 /**
- * 删除 / 归档 / 取消归档 over real HTTP: reasons from GET, the token gate, the zero-write 409s, and the
- * snapshot partition the Dashboard reads afterwards. Deletion is destructive, so each refusal is asserted
- * to leave the Change directory and the archive store untouched.
+ * 删除 / 终止 over real HTTP: reasons from GET, the token gate, the zero-write 409s, and the snapshot the
+ * Dashboard reads afterwards. Deletion and termination move or remove a whole task directory, so each
+ * refusal is asserted to leave the Change directory untouched. There is no "hide" any more.
  */
 import { execFile } from 'node:child_process'
-import { readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rename, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, describe, expect, it } from 'vitest'
-import { ensureHostAgentFiles, ensureUserLocalDir, serializeTaskArchive, userProjectPaths, type TenonUserResolution } from '@tenon/kernel'
+import { ensureHostAgentFiles, readTaskResult, type TenonUserResolution } from '@tenon/kernel'
 import { resolveServerPaths } from './paths.js'
 import { createTestDashboardServer } from './test-server.js'
 import { initChange, makeProject, makeTempHome, newStore, reqDelete, reqGet, reqPost, testFlow } from './test-support.js'
@@ -21,6 +21,9 @@ const alice: TenonUserResolution = {
   id: 'tester@tenon.test', name: 'Tester', slug: 'tester-at-tenon.test', source: 'env', trust: 'declared',
 }
 const bob: TenonUserResolution = { id: 'b@x.io', name: 'B', slug: 'b-at-x.io', source: 'env', trust: 'declared' }
+const TODAY = '2026-09-15'
+/** 截断的百分号编码：`decodeURIComponent` 会抛 URIError。 */
+const MALFORMED_NAME = '%E0%A4%A'
 
 const servers: DashboardServer[] = []
 const dirs: string[] = []
@@ -34,26 +37,37 @@ interface Started {
   port: number
   root: string
   store: ReturnType<typeof newStore>
+  /** Every change handed to the `openspec archive` stand-in. */
+  openspecCalls: string[]
 }
 
 async function start(
   changes: readonly string[],
   viewer: TenonUserResolution = alice,
+  failOpenspec?: string,
 ): Promise<Started> {
   const home = await makeTempHome()
   const root = await makeProject()
   dirs.push(home, root)
   const store = newStore()
   for (const name of changes) await initChange(store, root, name)
+  const openspecCalls: string[] = []
   const srv = createTestDashboardServer({
     paths: resolveServerPaths({ home, env: {} }),
     hostHome: home, token: 'tok', registry: () => [root], store, flow: testFlow(),
-    version: '9.9.9', clock: () => '2026-09-15T12:00:00.000Z',
+    version: '9.9.9', clock: () => `${TODAY}T12:00:00.000Z`,
     resolveUser: () => viewer,
+    // 测试里不跑真实 openspec：同样的布局（archive/<日期>-<名>），日期取自测试时钟。
+    runOpenspecArchive: async (repoRoot, change) => {
+      openspecCalls.push(change)
+      if (failOpenspec !== undefined) throw new Error(failOpenspec)
+      await mkdir(archiveRoot(repoRoot), { recursive: true })
+      await rename(join(repoRoot, 'openspec', 'changes', change), join(archiveRoot(repoRoot), `${TODAY}-${change}`))
+    },
   })
   servers.push(srv)
   const { port } = await srv.listen(0, '127.0.0.1')
-  return { port, root, store }
+  return { port, root, store, openspecCalls }
 }
 
 async function commitAll(root: string): Promise<void> {
@@ -76,12 +90,8 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-async function archiveStore(root: string, slug: string): Promise<string | null> {
-  try {
-    return await readFile(userProjectPaths(root, slug).archived, 'utf8')
-  } catch {
-    return null
-  }
+function archiveRoot(root: string): string {
+  return join(root, 'openspec', 'changes', 'archive')
 }
 
 describe('GET /api/change/:name/lifecycle', () => {
@@ -96,7 +106,7 @@ describe('GET /api/change/:name/lifecycle', () => {
     })
   })
 
-  it('reports a Change with git-tracked files as recoverable; archive carries no recoverable field', async () => {
+  it('reports a Change with git-tracked files as recoverable; terminate carries no recoverable field', async () => {
     const h = await start(['feat'])
     const run = (args: readonly string[]) => execFileAsync('git', ['-C', h.root, ...args])
     await run(['init', '-q'])
@@ -105,8 +115,9 @@ describe('GET /api/change/:name/lifecycle', () => {
     await run(['add', '--', 'openspec/changes/feat'])
     const after = await reqGet(h.port, `/api/change/feat/lifecycle?root=${encodeURIComponent(h.root)}&action=delete`)
     expect(after.json()).toMatchObject({ recoverable: true })
-    const archive = await reqGet(h.port, `/api/change/feat/lifecycle?root=${encodeURIComponent(h.root)}&action=archive`)
-    expect(archive.json()).not.toHaveProperty('recoverable')
+    const terminate = await reqGet(h.port, `/api/change/feat/lifecycle?root=${encodeURIComponent(h.root)}&action=terminate`)
+    expect(terminate.json()).toMatchObject({ ok: true, action: 'terminate' })
+    expect(terminate.json()).not.toHaveProperty('recoverable')
   })
 
   it('confirms another owner for a viewer who does not own the Change', async () => {
@@ -120,12 +131,14 @@ describe('GET /api/change/:name/lifecycle', () => {
   it('blocks a running AFK task and refuses a bad action, name or root', async () => {
     const h = await start(['feat'])
     await h.store.setMany(join(h.root, 'openspec', 'changes', 'feat'), { automation: 'running' } as never)
-    const blocked = await reqGet(h.port, `/api/change/feat/lifecycle?root=${encodeURIComponent(h.root)}&action=archive`)
+    const blocked = await reqGet(h.port, `/api/change/feat/lifecycle?root=${encodeURIComponent(h.root)}&action=terminate`)
     expect(blocked.status).toBe(200)
     expect(blocked.json()).toMatchObject({ blockers: [{ code: 'afk-running' }] })
 
-    const action = await reqGet(h.port, `/api/change/feat/lifecycle?root=${encodeURIComponent(h.root)}&action=nope`)
-    expect(action.status).toBe(400)
+    for (const retired of ['archive', 'unarchive', 'nope']) {
+      const action = await reqGet(h.port, `/api/change/feat/lifecycle?root=${encodeURIComponent(h.root)}&action=${retired}`)
+      expect(action.status, retired).toBe(400)
+    }
     const name = await reqGet(h.port, `/api/change/archive/lifecycle?root=${encodeURIComponent(h.root)}&action=delete`)
     expect([name.status, (name.json<{ code: string }>()).code]).toEqual([400, 'invalid-name'])
     const missing = await reqGet(h.port, `/api/change/nope/lifecycle?root=${encodeURIComponent(h.root)}&action=delete`)
@@ -133,98 +146,154 @@ describe('GET /api/change/:name/lifecycle', () => {
     const root = await reqGet(h.port, '/api/change/feat/lifecycle?root=/nope&action=delete')
     expect(root.status).toBe(404)
   })
+
+  it('answers 400 invalid-name for a malformed percent-encoded name instead of throwing', async () => {
+    const h = await start(['feat'])
+    for (const action of ['delete', 'terminate']) {
+      const r = await reqGet(h.port, `/api/change/${MALFORMED_NAME}/lifecycle?root=${encodeURIComponent(h.root)}&action=${action}`)
+      expect([r.status, r.json<{ code: string }>().code], action).toEqual([400, 'invalid-name'])
+    }
+  })
 })
 
-describe('POST /api/change/:name/archive|unarchive', () => {
-  it('requires a token', async () => {
+describe('POST /api/change/:name/terminate', () => {
+  it('requires a token and leaves the Change in place', async () => {
     const h = await start(['feat'])
-    for (const sub of ['archive', 'unarchive']) {
-      const r = await reqPost(h.port, `/api/change/feat/${sub}`, { root: h.root })
-      expect(r.status).toBe(401)
-    }
-    expect(await archiveStore(h.root, alice.slug)).toBeNull()
+    const r = await reqPost(h.port, '/api/change/feat/terminate', { root: h.root })
+    expect(r.status).toBe(401)
+    expect(await exists(join(h.root, 'openspec', 'changes', 'feat'))).toBe(true)
+    expect(await exists(archiveRoot(h.root))).toBe(false)
   })
 
-  it('hides the Change for the viewer only and restores it', async () => {
+  it('moves the Change under archive/, records 已终止 and answers where it went', async () => {
     const h = await start(['feat', 'other'])
     await h.store.setMany(join(h.root, 'openspec', 'changes', 'feat'), { phase: 'build' } as never)
-    const archived = await reqPost(h.port, '/api/change/feat/archive', { root: h.root, acknowledged: [] }, { headers: AUTH })
-    expect(archived.status).toBe(200)
-    expect(archived.json()).toEqual({
-      ok: true, changed: true, archived_at: '2026-09-15T12:00:00.000Z', phase: 'build',
+    const r = await reqPost(h.port, '/api/change/feat/terminate', { root: h.root, acknowledged: [] }, { headers: AUTH })
+    expect(r.status).toBe(200)
+    expect(r.json()).toEqual({
+      ok: true,
+      result: 'terminated',
+      archived_dir: `openspec/changes/archive/${TODAY}-feat`,
+      ended_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/u),
+      commit: 'skipped',
     })
+    expect(await exists(join(h.root, 'openspec', 'changes', 'feat'))).toBe(false)
+    expect(await readTaskResult(join(archiveRoot(h.root), `${TODAY}-feat`))).toBe('terminated')
+    expect((await h.store.read(join(archiveRoot(h.root), `${TODAY}-feat`))).fields.task_result).toBe('terminated')
+    // 走 OpenSpec 的任务由 Tenon 调用 openspec archive，而不是自己 rename。
+    expect(h.openspecCalls).toEqual(['feat'])
 
     const snapshot = (await reqGet(h.port, '/api/snapshot')).json<{
       change_count: number
-      projects: { changes: { name: string }[]; archived?: { name: string; archive: { phase: string; actor: { name: string } } }[] }[]
+      projects: { changes: { name: string }[] }[]
     }>()
     expect(snapshot.projects[0]?.changes.map((c) => c.name)).toEqual(['other'])
-    expect(snapshot.projects[0]?.archived?.map((c) => c.name)).toEqual(['feat'])
-    expect(snapshot.projects[0]?.archived?.[0]?.archive.phase).toBe('build')
     expect(snapshot.change_count).toBe(1)
 
     const afk = (await reqGet(h.port, '/api/afk/snapshot')).json<{ cards: { name: string }[] }>()
     expect(afk.cards.map((card) => card.name)).not.toContain('feat')
-
-    // The archived Change stays readable for its detail view.
-    expect((await reqGet(h.port, `/api/change/feat/history?root=${encodeURIComponent(h.root)}`)).status).toBe(200)
-
-    const repeated = await reqPost(h.port, '/api/change/feat/archive', { root: h.root }, { headers: AUTH })
-    expect(repeated.json()).toMatchObject({ ok: true, changed: false })
-    const restored = await reqPost(h.port, '/api/change/feat/unarchive', { root: h.root }, { headers: AUTH })
-    expect(restored.json()).toEqual({ ok: true, changed: true })
-    const after = (await reqGet(h.port, '/api/snapshot')).json<{ projects: { changes: { name: string }[]; archived?: unknown }[] }>()
-    expect(after.projects[0]?.changes.map((c) => c.name)).toEqual(['feat', 'other'])
-    expect(after.projects[0]?.archived).toBeUndefined()
   })
 
-  it('another viewer still sees a Change archived by someone else', async () => {
-    const h = await start(['feat'], alice)
-    expect((await reqPost(h.port, '/api/change/feat/archive', { root: h.root }, { headers: AUTH })).status).toBe(200)
-    const forBob = await start([], bob)
-    // Bob's server reads the same checkout through its own registry entry.
-    const srv = createTestDashboardServer({
-      paths: resolveServerPaths({ home: await makeTempHome(), env: {} }),
-      token: 'tok', registry: () => [h.root], store: h.store, flow: testFlow(), resolveUser: () => bob,
+  it('answers 200 with the audit failure as a warning when the audit row cannot be written after the move', async () => {
+    const h = await start(['feat'])
+    await mkdir(join(h.root, '.tenon', 'users', alice.slug, 'local', 'audit.jsonl'), { recursive: true })
+    const r = await reqPost(h.port, '/api/change/feat/terminate', { root: h.root }, { headers: AUTH })
+    expect(r.status).toBe(200)
+    expect(r.json()).toMatchObject({
+      ok: true,
+      result: 'terminated',
+      warnings: [expect.stringMatching(/审计记录没写进去.*EISDIR/su)],
     })
-    servers.push(srv)
-    const { port } = await srv.listen(0, '127.0.0.1')
-    expect(forBob.port).not.toBe(port)
-    const snapshot = (await reqGet(port, '/api/snapshot')).json<{ projects: { changes: { name: string }[]; archived?: unknown }[] }>()
-    expect(snapshot.projects[0]?.changes.map((c) => c.name)).toEqual(['feat'])
-    expect(snapshot.projects[0]?.archived).toBeUndefined()
+    expect(await exists(join(h.root, 'openspec', 'changes', 'feat'))).toBe(false)
+  })
+
+  it('commits only the moved task directory when the project is a git repository', async () => {
+    const h = await start(['feat', 'other'])
+    await commitAll(h.root)
+    const r = await reqPost(h.port, '/api/change/feat/terminate', { root: h.root }, { headers: AUTH })
+    expect(r.status).toBe(200)
+    expect(r.json()).toMatchObject({ commit: 'committed' })
+    const { stdout: subject } = await execFileAsync('git', ['-C', h.root, 'log', '-1', '--format=%s'])
+    expect(subject.trim()).toBe('chore(tenon): terminate feat')
+    const { stdout: files } = await execFileAsync('git', ['-C', h.root, 'show', '--name-only', '--format=', 'HEAD'])
+    for (const file of files.split('\n').filter((line) => line !== '')) {
+      expect(file.startsWith('openspec/changes/feat/') || file.startsWith(`openspec/changes/archive/${TODAY}-feat/`), file).toBe(true)
+    }
+  })
+
+  it('does not overwrite an earlier same-day archive of the same name', async () => {
+    const h = await start(['feat'])
+    expect((await reqPost(h.port, '/api/change/feat/terminate', { root: h.root }, { headers: AUTH })).status).toBe(200)
+    await initChange(h.store, h.root, 'feat')
+    const second = await reqPost(h.port, '/api/change/feat/terminate', { root: h.root }, { headers: AUTH })
+    expect(second.json()).toMatchObject({ archived_dir: `openspec/changes/archive/${TODAY}-feat-2` })
+    expect((await readdir(archiveRoot(h.root))).sort()).toEqual([`${TODAY}-feat`, `${TODAY}-feat-2`])
+    // 同日同名时 OpenSpec 拿到的是带序号的活跃名，它自己的「目标已存在」报错不会被撞上。
+    expect(h.openspecCalls).toEqual(['feat', 'feat-2'])
   })
 
   it('refuses an unacknowledged confirmation, an unknown code and a blocker without writing', async () => {
     const h = await start(['feat'])
     const dir = join(h.root, 'openspec', 'changes', 'feat')
     await h.store.setMany(dir, { review_gate_status: 'pending' } as never)
-    const pending = await reqPost(h.port, '/api/change/feat/archive', { root: h.root, acknowledged: [] }, { headers: AUTH })
+    const pending = await reqPost(h.port, '/api/change/feat/terminate', { root: h.root, acknowledged: [] }, { headers: AUTH })
     expect(pending.status).toBe(409)
     expect(pending.json()).toMatchObject({ code: 'confirmation-required', reasons: [{ code: 'review-pending' }] })
-    expect(await archiveStore(h.root, alice.slug)).toBeNull()
+    expect(await exists(dir)).toBe(true)
+    expect(await exists(archiveRoot(h.root))).toBe(false)
 
-    const bad = await reqPost(h.port, '/api/change/feat/archive', { root: h.root, acknowledged: ['nope'] }, { headers: AUTH })
+    const bad = await reqPost(h.port, '/api/change/feat/terminate', { root: h.root, acknowledged: ['nope'] }, { headers: AUTH })
     expect(bad.status).toBe(400)
 
-    const ok = await reqPost(h.port, '/api/change/feat/archive', { root: h.root, acknowledged: ['review-pending'] }, { headers: AUTH })
-    expect(ok.status).toBe(200)
-
-    await reqPost(h.port, '/api/change/feat/unarchive', { root: h.root }, { headers: AUTH })
     await h.store.setMany(dir, { automation: 'queued' } as never)
-    const blocked = await reqPost(h.port, '/api/change/feat/archive', { root: h.root, acknowledged: ['afk-queued'] }, { headers: AUTH })
+    const blocked = await reqPost(h.port, '/api/change/feat/terminate', { root: h.root, acknowledged: ['afk-queued', 'review-pending'] }, { headers: AUTH })
     expect(blocked.status).toBe(409)
     expect(blocked.json()).toMatchObject({ code: 'task-blocked', reasons: [{ code: 'afk-queued' }] })
+    expect(await exists(dir)).toBe(true)
+
+    await h.store.setMany(dir, { automation: '' } as never)
+    const ok = await reqPost(h.port, '/api/change/feat/terminate', { root: h.root, acknowledged: ['review-pending'] }, { headers: AUTH })
+    expect(ok.status).toBe(200)
   })
 
-  it('reports a malformed archive store without overwriting it', async () => {
+  it('answers 500 archive-failed when openspec fails: the Change stays active and its state carries no task_result', async () => {
+    const h = await start(['feat'], alice, 'archive_validation_failed')
+    const dir = join(h.root, 'openspec', 'changes', 'feat')
+    const r = await reqPost(h.port, '/api/change/feat/terminate', { root: h.root }, { headers: AUTH })
+    expect(r.status).toBe(500)
+    expect(r.json()).toMatchObject({ ok: false, code: 'archive-failed', error: expect.stringContaining('archive_validation_failed') })
+    expect(h.openspecCalls).toEqual(['feat'])
+    expect(await exists(dir)).toBe(true)
+    expect(await exists(archiveRoot(h.root))).toBe(false)
+    expect((await h.store.read(dir)).fields.task_result).toBe('')
+  })
+
+  it('refuses a Change whose state machine already finished', async () => {
     const h = await start(['feat'])
-    const paths = await ensureUserLocalDir(h.root, alice.slug)
-    await writeFile(paths.archived, 'not json', 'utf8')
-    const r = await reqPost(h.port, '/api/change/feat/archive', { root: h.root }, { headers: AUTH })
+    const dir = join(h.root, 'openspec', 'changes', 'feat')
+    await h.store.setMany(dir, { phase: 'done', archived: 'true' } as never)
+    const r = await reqPost(h.port, '/api/change/feat/terminate', { root: h.root }, { headers: AUTH })
     expect(r.status).toBe(409)
-    expect(r.json()).toMatchObject({ code: 'archive-store-corrupt' })
-    expect(await readFile(paths.archived, 'utf8')).toBe('not json')
+    expect(r.json()).toMatchObject({ code: 'task-terminal' })
+    expect(await exists(dir)).toBe(true)
+  })
+
+  it('answers 400 invalid-name for a malformed percent-encoded name instead of throwing', async () => {
+    const h = await start(['feat'])
+    const r = await reqPost(h.port, `/api/change/${MALFORMED_NAME}/terminate`, { root: h.root }, { headers: AUTH })
+    expect([r.status, r.json<{ code: string }>().code]).toEqual([400, 'invalid-name'])
+    expect(await exists(join(h.root, 'openspec', 'changes', 'feat'))).toBe(true)
+    expect(await exists(archiveRoot(h.root))).toBe(false)
+  })
+
+  it('has no archive / unarchive route any more', async () => {
+    const h = await start(['feat'])
+    for (const sub of ['archive', 'unarchive']) {
+      const r = await reqPost(h.port, `/api/change/feat/${sub}`, { root: h.root }, { headers: AUTH })
+      expect(r.status, sub).toBe(404)
+    }
+    expect(await exists(join(h.root, 'openspec', 'changes', 'feat'))).toBe(true)
+    expect(await exists(archiveRoot(h.root))).toBe(false)
   })
 })
 
@@ -246,6 +315,8 @@ describe('DELETE /api/change/:name', () => {
     expect(body.removed).toContain('openspec/changes/feat')
     expect(body.uncommittedDeletions).toBe(1)
     expect(await exists(join(h.root, 'openspec', 'changes', 'feat'))).toBe(false)
+    // 没有告警时响应里不带 warnings 键（与终止一致）。
+    expect(r.json()).not.toHaveProperty('warnings')
 
     const snapshot = (await reqGet(h.port, '/api/snapshot')).json<{
       projects: { changes: { name: string }[]; uncommittedDeletions?: number }[]
@@ -254,7 +325,20 @@ describe('DELETE /api/change/:name', () => {
     expect(snapshot.projects[0]?.uncommittedDeletions).toBe(1)
   })
 
-  it('delete and archive also reclaim the generated host agent files nobody else uses (P2)', async () => {
+  it('answers 200 with the audit failure as a warning when the audit row cannot be written after the removal', async () => {
+    const h = await start(['feat'])
+    await mkdir(join(h.root, '.tenon', 'users', alice.slug, 'audit.jsonl'), { recursive: true })
+    const r = await reqDelete(h.port, `/api/change/feat?root=${encodeURIComponent(h.root)}`, { headers: AUTH })
+    expect(r.status).toBe(200)
+    expect(r.json()).toMatchObject({
+      ok: true,
+      removed: expect.arrayContaining(['openspec/changes/feat']),
+      warnings: [expect.stringMatching(/审计记录没写进去.*EISDIR/su)],
+    })
+    expect(await exists(join(h.root, 'openspec', 'changes', 'feat'))).toBe(false)
+  })
+
+  it('delete and terminate also reclaim the generated host agent files nobody else uses (P2)', async () => {
     const h = await start(['feat', 'other'])
     await ensureHostAgentFiles({
       repoRoot: h.root, host: 'claude',
@@ -262,8 +346,8 @@ describe('DELETE /api/change/:name', () => {
     })
     const file = join(h.root, '.claude', 'agents', 'tenon-x.md')
     expect(await exists(file)).toBe(true)
-    const archived = await reqPost(h.port, '/api/change/feat/archive', { root: h.root, acknowledged: [] }, { headers: AUTH })
-    expect(archived.status).toBe(200)
+    const terminated = await reqPost(h.port, '/api/change/feat/terminate', { root: h.root, acknowledged: [] }, { headers: AUTH })
+    expect(terminated.status).toBe(200)
     expect(await exists(file)).toBe(false)
     expect(await exists(join(h.root, '.claude'))).toBe(false)
 
@@ -314,38 +398,10 @@ describe('DELETE /api/change/:name', () => {
     expect(root.status).toBe(404)
   })
 
-  it('drops the archive entry of the deleted Change', async () => {
-    const h = await start(['feat', 'other'])
-    expect((await reqPost(h.port, '/api/change/feat/archive', { root: h.root }, { headers: AUTH })).status).toBe(200)
-    expect((await reqPost(h.port, '/api/change/other/archive', { root: h.root }, { headers: AUTH })).status).toBe(200)
-    expect((await reqDelete(h.port, `/api/change/feat?root=${encodeURIComponent(h.root)}`, { headers: AUTH })).status).toBe(200)
-    const stored = await archiveStore(h.root, alice.slug)
-    expect(stored).not.toBeNull()
-    expect(JSON.parse(stored ?? '{}')).toMatchObject({ version: 1, changes: { other: { phase: 'open' } } })
-    expect(stored).not.toContain('"feat"')
-  })
-})
-
-describe('archived Changes refuse progress over HTTP', () => {
-  it('transition and decisions answer 409 task-archived', async () => {
+  it('answers 400 invalid-name for a malformed percent-encoded name instead of throwing', async () => {
     const h = await start(['feat'])
-    const archive = await ensureUserLocalDir(h.root, alice.slug)
-    await writeFile(archive.archived, serializeTaskArchive({
-      version: 1,
-      changes: { feat: { archivedAt: '2026-09-15T12:00:00.000Z', phase: 'open', actor: { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } } },
-    }), 'utf8')
-    const before = await readFile(join(h.root, 'openspec', 'changes', 'feat', '.pipeline.yaml'), 'utf8')
-
-    const transition = await reqPost(h.port, '/api/change/feat/transition', { root: h.root, event: 'open-complete' }, { headers: AUTH })
-    expect(transition.status).toBe(409)
-    expect(transition.json()).toMatchObject({ ok: false, code: 'task-archived' })
-
-    const decision = await reqPost(h.port, '/api/change/feat/decisions', {
-      root: h.root, ref: 'r', expected_revision: 1, idempotency_key: 'k',
-    }, { headers: AUTH })
-    expect(decision.status).toBe(409)
-    expect(decision.json()).toMatchObject({ ok: false, code: 'task-archived' })
-
-    expect(await readFile(join(h.root, 'openspec', 'changes', 'feat', '.pipeline.yaml'), 'utf8')).toBe(before)
+    const r = await reqDelete(h.port, `/api/change/${MALFORMED_NAME}?root=${encodeURIComponent(h.root)}`, { headers: AUTH })
+    expect([r.status, r.json<{ code: string }>().code]).toEqual([400, 'invalid-name'])
+    expect(await exists(join(h.root, 'openspec', 'changes', 'feat'))).toBe(true)
   })
 })

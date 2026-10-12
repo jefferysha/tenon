@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { BUILTIN_WORKFLOW_IDS, isBuiltinWorkflowName, isTemplateWorkflowName, isValidWorkflowName } from '@tenon/kernel/workflow/identifier'
+import { isTemplateWorkflowName, isValidWorkflowName } from '@tenon/kernel/workflow/identifier'
 import { fetchWorkflow, postWorkflowDef } from '../api/client'
 import type { WbWorkflowDef } from '../api/governanceTypes'
 import { formatApiError } from '../api/transport'
@@ -37,12 +37,12 @@ export function suggestedName(source: CreateSource, taken: ReadonlySet<string>):
   }
 }
 
-/** 名称合法 + 不与内建 / 模板 / 已有工作流重名。 */
+/** 名称合法 + 不与模板 / 已有工作流重名。 */
 export function workflowNameError(name: string, names: readonly string[]): CreateNameError {
   const trimmed = name.trim()
   if (trimmed === '') return null
   if (!isValidWorkflowName(trimmed)) return 'invalid'
-  return isTemplateWorkflowName(trimmed) || isBuiltinWorkflowName(trimmed) || names.includes(trimmed) ? 'duplicate' : null
+  return isTemplateWorkflowName(trimmed) || names.includes(trimmed) ? 'duplicate' : null
 }
 
 const stepName = (step: { readonly id: string; readonly label: string }): string => step.label || step.id
@@ -87,7 +87,7 @@ export function useWorkflowCreate({ root, names, hasToken, current, blocked, onC
   // 导入起点的预览来自输入框里的 YAML（解析不了就是空的，错误在输入框下方）；其它起点来自读接口。
   const preview = importing ? (imported.status === 'ready' ? previewOf(imported.def) : { status: 'ready' as const, stages: [], tracks: [] }) : loaded
 
-  const sources = useMemo(() => [...new Set(['default', ...BUILTIN_WORKFLOW_IDS, ...(names ?? [])])], [names])
+  const sources = useMemo(() => [...new Set(['default', ...(names ?? [])])], [names])
   const taken = useMemo(() => new Set([...sources]), [sources])
 
   // 换项目：关掉对话框、丢掉缓存的定义，在途请求作废。

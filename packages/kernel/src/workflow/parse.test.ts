@@ -528,3 +528,85 @@ describe('parseWorkflow —— 顶层键顺序无关', () => {
     expect(validateWorkflow(wf)).toEqual([])
   })
 })
+
+describe('parseWorkflow · 分支新键 spec / route / automation', () => {
+  const STEPS = `    steps:
+      - id: open
+        label: 立项
+        gate: null
+        skills: []
+        inputs: []
+        outputs: []
+        guards: []
+        transitions: []`
+  const branch = (head: string): string => `name: demo\nopenspec: true\ntracks:\n  lite:\n${head}\n${STEPS}\n`
+
+  it('块写法：spec / route / automation 解析为定义层字段，route 缺省项补默认', () => {
+    const wf = parseWorkflow(branch(`    label: 轻量
+    spec: none
+    route:
+      keywords: [修复, typo]
+      exclude: [迁移]
+      priority: 500
+    automation:
+      eligible: false
+      enqueue_after_spec: false`))
+    expect(wf.tracks?.lite).toMatchObject({
+      label: '轻量',
+      spec: 'none',
+      route: { keywords: ['修复', 'typo'], exclude: ['迁移'], priority: 500, fallback: false },
+      automation: { eligible: false, enqueueAfterSpec: false },
+    })
+  })
+
+  it('单行 flow map 写法与块写法等价', () => {
+    const inline = parseWorkflow(branch(`    route: { keywords: [a, b], priority: 3, fallback: true }
+    automation: { eligible: true, enqueue_after_spec: true }`))
+    expect(inline.tracks?.lite?.route).toEqual({ keywords: ['a', 'b'], exclude: [], priority: 3, fallback: true })
+    expect(inline.tracks?.lite?.automation).toEqual({ eligible: true, enqueueAfterSpec: true })
+    const block = parseWorkflow(branch(`    route:
+      keywords: [a, b]
+      priority: 3
+      fallback: true
+    automation:
+      eligible: true
+      enqueue_after_spec: true`))
+    expect(block).toEqual(inline)
+  })
+
+  it('automation 只写 eligible 时 enqueue_after_spec 缺省为 false', () => {
+    const wf = parseWorkflow(branch('    automation: { eligible: true }'))
+    expect(wf.tracks?.lite?.automation).toEqual({ eligible: true, enqueueAfterSpec: false })
+  })
+
+  it('不写新键的分支解析结果不带 spec / route / automation（旧文件字节级不变）', () => {
+    const lite = parseWorkflow(branch('    label: 轻量')).tracks?.lite
+    expect(lite).toBeDefined()
+    for (const key of ['spec', 'route', 'automation']) expect(lite).not.toHaveProperty(key)
+  })
+
+  it('分支未知键报错并点名该键', () => {
+    expect(() => parseWorkflow(branch('    colour: red'))).toThrow(/colour/)
+    expect(() => parseWorkflow(branch('    route:\n      keywords: [a]\n      priority: 1\n      colour: red'))).toThrow(/colour/)
+    expect(() => parseWorkflow(branch('    automation: { eligible: true, colour: red }'))).toThrow(/colour/)
+  })
+
+  it('spec 只接受 openspec 或 none，且不得重复', () => {
+    expect(parseWorkflow(branch('    spec: openspec')).tracks?.lite?.spec).toBe('openspec')
+    expect(() => parseWorkflow(branch('    spec: markdown'))).toThrow(/spec/)
+    expect(() => parseWorkflow(branch('    spec: none\n    spec: openspec'))).toThrow(/重复声明 spec/)
+  })
+
+  it('route / automation 的必填项与字面量错误 fail-loud', () => {
+    expect(() => parseWorkflow(branch('    route:\n      priority: 1'))).toThrow(/keywords/)
+    expect(() => parseWorkflow(branch('    route:\n      keywords: [a]'))).toThrow(/priority/)
+    expect(() => parseWorkflow(branch('    route:\n      keywords: [a]\n      priority: high'))).toThrow(/priority/)
+    expect(() => parseWorkflow(branch('    route:\n      keywords: [a]\n      priority: 1\n      fallback: maybe'))).toThrow(/fallback/)
+    expect(() => parseWorkflow(branch('    route:\n      keywords: a\n      priority: 1'))).toThrow(/keywords/)
+    expect(() => parseWorkflow(branch('    route:\n      keywords: [a]\n      keywords: [b]\n      priority: 1'))).toThrow(/重复/)
+    expect(() => parseWorkflow(branch('    automation:\n      enqueue_after_spec: true'))).toThrow(/eligible/)
+    expect(() => parseWorkflow(branch('    automation: { eligible: yes }'))).toThrow(/eligible/)
+    expect(() => parseWorkflow(branch('    route:\n    spec: none'))).toThrow(/route/)
+    expect(() => parseWorkflow(branch('    route: { keywords: [a], priority: 1 }\n    route: { keywords: [b], priority: 2 }'))).toThrow(/重复声明 route/)
+  })
+})

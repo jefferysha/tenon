@@ -5,7 +5,7 @@
 import { createHash } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { gzipSync } from 'node:zlib'
-import type { ArchivedChangeSnapshot, ChangeSnapshot, Snapshot } from './types.js'
+import type { ChangeSnapshot, Snapshot } from './types.js'
 import type { ListSnapshot } from './snapshotListTypes.js'
 
 /** Below this the compression header and CPU cost more than they save. */
@@ -39,7 +39,7 @@ export function sharedBody(body: string): SharedBody {
 /** The full-tier snapshot (`GET /api/snapshot`, `GET /api/stream`): every change with all its evidence. */
 export interface SharedSnapshot extends SharedBody {
   readonly snapshot: Snapshot
-  /** The input fingerprint this snapshot was built under (includes the viewer identity). */
+  /** The input fingerprint this snapshot was built under. */
   readonly fingerprint: string
 }
 
@@ -62,7 +62,6 @@ export interface SharedListSnapshot extends SharedBody {
 /** One change with all its evidence (`GET /api/change/:name/snapshot`). */
 export interface SharedChange extends SharedBody {
   readonly change: ChangeSnapshot
-  readonly archive?: ArchivedChangeSnapshot['archive']
   /** The identity of the inputs this was read from; equals the `rev` the list row carried. */
   readonly rev: string
 }

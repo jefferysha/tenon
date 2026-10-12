@@ -57,7 +57,7 @@ describe('protectedKindOf', () => {
   })
 
   it.each([
-    'src/app.ts', '.tenon/tests/other.yaml', '.pipeline/workflows/nested/x.yaml', '.pipeline/tracks.yaml',
+    'src/app.ts', '.tenon/tests/other.yaml', '.pipeline/workflows/nested/x.yaml', '.pipeline/loops.yaml',
     '.pipeline/workflows/default.md', 'docs/known-failures.yaml',
   ])('%s 不是受保护配置', (path) => {
     expect(protectedKindOf(path)).toBeUndefined()

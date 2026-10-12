@@ -82,6 +82,7 @@ Dashboard `zh/en` 存在浏览器 `localStorage`，只控制 UI。治理文档 l
 | 运行中 | 当前 phase 有活跃工作 | 查看日志与 Todo |
 | 等待确认 | exact review pending | 审阅后确认 |
 | 已停止 | session 结束或失败 | 查看原因并恢复 |
+| 已结束 | 任务已归档并记下结果：完结、已升级或已终止 | 在「已结束」里查看最终证据 |
 
 如果 CLI 显示 `in_progress` 而页面仍显示等待，先刷新 snapshot/SSE，再确认浏览器打开的是当前 Dashboard，而不是旧 preview。
 
@@ -97,7 +98,7 @@ Dashboard `zh/en` 存在浏览器 `localStorage`，只控制 UI。治理文档 l
 workspace → workflow → projects → library → skills
 ```
 
-- `workspace`：按状态查看任务，打开详情执行下一动作；
+- `workspace`：按分类（全部 · 需要你 · 进行中 · 已结束）查看任务，打开详情执行下一动作；已结束的卡片带结果标记（完结、已升级或已终止），「全部」也包含已结束的任务，排在进行中之后；
 - `workflow`：编辑 Workflow 与阶段结构；
 - `projects`：按项目管理已启用的 agent 客户端，逐个编辑其项目级与用户级指令文件（`AGENTS.md`、`CLAUDE.md`、`GEMINI.md`），并从已有目录或新目录新建项目；新建项目是分步向导（位置 → 模板 → 资源 → 客户端 → 确认），目录只能选择：`POST /api/fs/choose-folder` 在运行 server 的本机弹出系统文件夹对话框，不可用时改用页面内浏览器（`GET /api/fs/list`，同样要 token）；`POST /api/projects/create/stream` 以 `text/event-stream` 逐步回报创建进度；请求体可带 `design_seed`（资源目录里一条 `design-md` 条目），登记前多一步 `design`，用与 `POST /api/design/seed` 相同的逻辑把 DESIGN.md 取到项目根，已有 DESIGN.md 时跳过、不覆盖；
 - `library`：指令模板库，内建块随发行包同步，自定义块可复制与修改；以及[智能体](./agents.md)库，按身份分组并显示来源与版本，自定义与项目级可改正文、官方只可复制为自定义（登记在终端用 `tenon agent new`）；
@@ -109,13 +110,13 @@ AFK、Machine、Host Plan 等低频能力从设置面板进入，仍保留原有
 
 <img src="../../../docs-site/public/images/dashboard-workflow-editor.webp" alt="Tenon Dashboard 工作流编辑器" width="1280" height="800" loading="lazy">
 
-工作流编辑器列出 Workflow 的 Track 与阶段，每个阶段页展示它的输入、技能、输出、门禁和测试策略。设置菜单提供主题与语言切换，不改变 canonical Workflow 状态；AFK、机器诊断和宿主计划继续通过 CLI 与本地 API 使用。
+工作流编辑器列出 Workflow 的 Track 与阶段，每个阶段页展示它的输入、技能、输出、门禁和测试策略。轨道设置可以改该轨道的规范（OpenSpec 或无）与路由关键词；排除词、优先级和自动化只在 YAML 里改。门禁段下只读列出该步的离开条件，一行一条（如「实现前评审通过」「本阶段任务已勾选」「依赖任务已结束」）。设置菜单提供主题与语言切换，不改变 canonical Workflow 状态；AFK、机器诊断和宿主计划继续通过 CLI 与本地 API 使用。
 
 ### Workflow 总览
 
 <img src="../../../docs-site/public/images/dashboard-workbench.webp" alt="Tenon Dashboard 工作流总览" width="1280" height="800" loading="lazy">
 
-总览画布把 Track、七阶段 DAG 与每步声明的技能放在同一页面。Default 只读基线、自定义 Workflow 和每个 Workflow 的 Free Track 都从同一份有效计划投影。
+总览画布把 Track、每条轨道的步骤 DAG 与每步声明的技能放在同一页面。Default、自定义 Workflow 和每个 Workflow 的各条 Track 都从同一份有效计划投影。
 
 ### 项目
 
@@ -158,9 +159,13 @@ Dashboard 自己读的是更轻的「列表层」（见下文「快照分层与�
 `automation`，`todo` 只留阶段状态，`workflowRules` 只留由计划决定的部分），每个 change 带一个 `rev`；许多 change
 共用的子树（工作流规则、当前步骤的就绪判定、阶段状态、负责人 / 创建者引用）在每个项目里只写一次，放进 `shared`
 表，change 用整数指向它。单个任务的证据走 `GET /api/change/:name/snapshot?root=<项目根>`：与完整快照里该任务
-同一个对象，另带 `rev`（查看者已归档的任务还带 `archive`）。列表行的 `rev` 会在该任务的任何输入变化时变掉，
+同一个对象，另带 `rev`。列表行的 `rev` 会在该任务的任何输入变化时变掉，
 读取方据此在 `rev` 变化时重读详情。30 个项目 × 每项目 30 个任务时，列表响应约 0.6 MB（gzip 后约 21 KB），
 完整快照是 11 MB。
+
+已结束的任务与 change 分开列出：每个项目带 `ended`，`openspec/changes/archive/` 下每个目录一条摘要（名称、工作流、轨道、任务结果、结束时间、PR 链接、负责人，结束得最晚的在前，列表被截断时另带 `endedTotal`）。摘要只读，按归档目录的身份缓存，不进实时变更检测。已结束任务的详情是 `GET /api/change/:dir/snapshot?root=<项目根>&archived=1`，`:dir` 是归档目录名，只读。
+
+Dashboard 不新建任务：没有 `POST /api/changes`，没有路由预览，也没有技能矩阵的写接口。新任务从 agent 里的 `/tenon`（会先评估）或 `tenon init` 开始。
 
 列表流先发一个完整的 `snapshot` 事件，之后只发 `snapshot-delta` 事件：序列化字节变了的项目，加上 `roots`
 （注册表顺序，被移除的项目随之消失）；不带 `view=list` 的流仍然每次整份重发完整快照。

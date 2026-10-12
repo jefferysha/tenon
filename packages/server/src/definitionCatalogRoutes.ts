@@ -1,7 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { buildDefinitionCatalog } from './definitionCatalog.js'
 import type { PipelineCliRunner } from './operations.js'
-import type { TrackValidationContext } from '@tenon/kernel'
 import type { WorkflowRootAnchor } from './workflows.js'
 
 export interface DefinitionCatalogRouteDeps {
@@ -10,7 +9,6 @@ export interface DefinitionCatalogRouteDeps {
     | { readonly ok: false; readonly code: 403 | 404; readonly error: string }
   readonly hostHome: string
   readonly operationRunner: PipelineCliRunner
-  readonly trackValidationContextFor: (anchor: WorkflowRootAnchor) => TrackValidationContext
   readonly clock: () => string
   readonly pollIntervalMs: number
   readonly heartbeatMs: number
@@ -44,7 +42,6 @@ export async function resolveDefinitionCatalogRoute(
     anchor,
     hostHome: deps.hostHome,
     operationRunner: deps.operationRunner,
-    trackValidationContext: deps.trackValidationContextFor(anchor),
     generatedAt: deps.clock(),
   })
   if (path === '/api/catalog') {

@@ -109,8 +109,8 @@ v0.3 也读得了 v0.2.1 写下的数据。发布门（`tools/test-bundle.sh`）
 - 自定义 agent 文件里的 `attach_on` 或 `host`（`tenon agent copy security <name>` 写出的副本也带 `attach_on`）；
 - `TENON_RECORD_RETENTION`（见上）。
 
-standard 通道（`track: standard`）是 v0.3 的通道，路由可能为小的实现请求选它。v0.2.1 对这类任务报 `未注册的 track 'standard'`
-（`list`、`status`、`get` 仍可用），所以回滚之前先完结或归档 standard 任务。
+v0.2.1 不认识的 v0.3 及之后的轨道（v0.3 的 `standard` 轨道，或 `default` 工作流的 `lite` 轨道）上的任务，v0.2.1 会报
+`未注册的 track`（`list`、`status`、`get` 仍可用），所以回滚之前先用 `tenon task finish` 完结或用 `tenon task terminate` 终止这些任务。
 
 ### 4. 恢复明确 Change
 

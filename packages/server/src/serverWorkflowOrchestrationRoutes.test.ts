@@ -77,7 +77,8 @@ describe('GET /api/workflows/:name/orchestration', () => {
     expect(body.stages.find((stage) => stage.id === 'verify')?.gate).toBe('review')
     expect(body.returns).toContainEqual({ from: 'verify', to: 'build', event: 'verify-fail' })
     expect(body.flows.some((flow) => flow.id === 'proposal' && flow.from === 'open')).toBe(true)
-    expect(typeof body.overlay).toBe('object')
+    // 技能只来自工作流 YAML：响应里没有 manifest 叠加层这一项。
+    expect(body).not.toHaveProperty('overlay')
   })
 
   it('项目覆盖声明了依赖 → 画成波次', async () => {
@@ -92,9 +93,10 @@ describe('GET /api/workflows/:name/orchestration', () => {
 
   it('无轨道参数取第一条分支；错误用稳定 code', async () => {
     const h = await start()
-    const chat = await reqGet(h.port, `/api/workflows/default/orchestration?root=${encodeURIComponent(h.root)}`)
-    expect(chat.status).toBe(200)
-    expect(chat.json<DefinitionOrchestrationResponse>().track).toBeNull()
+    const first = await reqGet(h.port, `/api/workflows/default/orchestration?root=${encodeURIComponent(h.root)}`)
+    expect(first.status).toBe(200)
+    // default 有分支：没点名轨道时看第一条分支（具体 id 由随包 default.yaml 决定）。
+    expect(first.json<DefinitionOrchestrationResponse>().track).toEqual(expect.any(String))
     const cases: Array<[string, number, string]> = [
       [`/api/workflows/default/orchestration?root=${encodeURIComponent(h.root)}&track=nope`, 404, 'ORCHESTRATION_TRACK_NOT_FOUND'],
       [`/api/workflows/ghost/orchestration?root=${encodeURIComponent(h.root)}`, 404, 'ORCHESTRATION_WORKFLOW_NOT_FOUND'],
@@ -139,12 +141,17 @@ describe('技能页的引用来源：不带 root 读内建工作流', () => {
     expect(skillsOf(frontend, 'spec')?.map(([id]) => id)).toContain('writing-plans')
     expect([...used]).toEqual(expect.arrayContaining(['openspec-propose', 'brainstorming', 'writing-plans', 'test-driven-development']))
 
-    const simple = await reqGet(h.port, '/api/workflows/simple')
-    expect(simple.status).toBe(200)
-    expect(simple.json<{ tracks?: unknown }>().tracks).toBeUndefined()
-    const simpleBranch = await reqGet(h.port, '/api/workflows/simple/orchestration?root=')
-    expect(simpleBranch.status).toBe(200)
-    expect(skillsOf(simpleBranch.json<DefinitionOrchestrationResponse>(), 'verify')).toEqual([['verification-before-completion', 0]])
+    // 平铺工作流（没有 tracks:）：只有一条隐式轨道，编排不需要 ?track。
+    const flat = await reqGet(h.port, '/api/workflows/design-system')
+    expect(flat.status).toBe(200)
+    expect(flat.json<{ tracks?: unknown }>().tracks).toBeUndefined()
+    const flatBranch = await reqGet(h.port, '/api/workflows/design-system/orchestration?root=')
+    expect(flatBranch.status).toBe(200)
+    expect(skillsOf(flatBranch.json<DefinitionOrchestrationResponse>(), 'direction')).toEqual([['hue', 0]])
+    // 隐式轨道的 id 就是工作流名；别的轨道名不存在。
+    expect((await reqGet(h.port, '/api/workflows/design-system/orchestration?root=&track=design-system')).status).toBe(200)
+    const missing = await reqGet(h.port, '/api/workflows/design-system/orchestration?root=&track=free')
+    expect([missing.status, missing.json<{ code?: string }>().code]).toEqual([404, 'ORCHESTRATION_TRACK_NOT_FOUND'])
   })
 })
 

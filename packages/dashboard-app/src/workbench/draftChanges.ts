@@ -1,7 +1,7 @@
 import type { WbDocumentContract, WbStepDef, WbWorkflowDef } from '../api/governanceTypes'
 import { definitionForWrite } from './workbenchDefinition'
 
-type Branch = { label?: string; documentContract?: WbDocumentContract; steps: readonly WbStepDef[] }
+type Branch = { label?: string; spec?: string; route?: unknown; documentContract?: WbDocumentContract; steps: readonly WbStepDef[] }
 
 /** 与键顺序无关的比较：服务端读回与草稿重建的对象键序可能不同，不能因此多算一处。 */
 export function stableJson(value: unknown): string {
@@ -28,12 +28,14 @@ function contractOf(contract: WbDocumentContract | undefined, stepId: string): u
 }
 
 /**
- * 一条分支里被改动的单位（加进 units）：每个增 / 删 / 改过的阶段一处，阶段换了顺序一处，分支名称一处。
+ * 一条分支里被改动的单位（加进 units）：每个增 / 删 / 改过的阶段一处，阶段换了顺序一处，分支名称、规范、路由各一处。
  * 文档契约的改动记到它所属的阶段上。增删与排序会顺带改写相邻阶段的转移（接上流程），这些连带改动不另算；
  * 结构没变时，某阶段的转移变化（退回目标）照常算在该阶段上。
  */
 function collectBranch(units: Set<string>, prefix: string, before: Branch, after: Branch, contractFollowsToggle: boolean): void {
   if ((before.label ?? '') !== (after.label ?? '')) units.add(`${prefix}label`)
+  if ((before.spec ?? '') !== (after.spec ?? '')) units.add(`${prefix}spec`)
+  if (!same(before.route, after.route)) units.add(`${prefix}route`)
   const previous = new Map(before.steps.map((step) => [step.id, step]))
   const next = new Map(after.steps.map((step) => [step.id, step]))
   const added = after.steps.some((step) => !previous.has(step.id))
@@ -76,7 +78,8 @@ export function countDraftChanges(baseline: WbWorkflowDef | null, draft: WbWorkf
     const old = previousTracks[id]
     const now = nextTracks[id]
     if (old === undefined || now === undefined) units.add(`track:${id}`)
-    else collectBranch(units, `track:${id}:`, old, now, toggled)
+    // 分支改了规范，文档契约随之去掉或补上，和 OpenSpec 开关一样不再逐阶段重复计数。
+    else collectBranch(units, `track:${id}:`, old, now, toggled || (old.spec ?? '') !== (now.spec ?? ''))
   }
   return units.size
 }

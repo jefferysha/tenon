@@ -8,7 +8,6 @@ import {
   clearReviewMarkerFor,
   clearReviewWaiverSelection,
   createInteractionEventRecorder,
-  isArchivedForUser,
   isTenonUser,
   USER_MISSING_HINT,
   type TenonUser,
@@ -31,9 +30,7 @@ import {
 } from '@tenon/kernel'
 import type { PostRouteDeps } from './serverPostRoutes.js'
 import { readPendingDecisionProjection, readReviewBindingSafely } from './decisionProjection.js'
-import { resolveSnapshotTrack } from './skillRuns.js'
 import { resolveSnapshotEffectivePlan } from './workflowSnapshot.js'
-import { TASK_ARCHIVED_HTTP_ERROR } from './serverTaskLifecycleRoutes.js'
 import { PRESENCE_TTL_MS } from './serverSession.js'
 
 type DecisionRouteDeps = Pick<PostRouteDeps, 'sendJson' | 'readJsonBody' | 'isRegisteredRoot' | 'store' | 'clock' | 'history' | 'recordStore' | 'resolveUser' | 'presence'>
@@ -59,7 +56,7 @@ function reviewExitsFor(root: string, state: PipelineState, phase: string): read
     documentGovernanceFingerprint: metadata?.documentGovernanceFingerprint,
     workflowPlanFingerprint: metadata?.workflowPlanFingerprint,
     workflowPlanSnapshot: metadata?.workflowPlanSnapshot,
-  }, undefined, resolveSnapshotTrack(root, scalar(state, 'track'), workflowName))
+  }, undefined, scalar(state, 'track'))
   const step = resolveStep(plan.workflow, phase)
   if (!step || step.gate !== 'review') return null
   return stepExitTransitions(plan, phase, state).map((transition) => transition.event)
@@ -122,10 +119,6 @@ async function resolveDecisionTarget(
   const user = deps.resolveUser(root)
   if (!isTenonUser(user)) {
     sendJson(res, 412, { ok: false, code: 'user-missing', error: USER_MISSING_HINT })
-    return null
-  }
-  if (await isArchivedForUser(root, user, name)) {
-    sendJson(res, 409, { ok: false, code: 'task-archived', error: TASK_ARCHIVED_HTTP_ERROR })
     return null
   }
   return { root, ref, name, dir, expectedRevision, idempotencyKey, user }

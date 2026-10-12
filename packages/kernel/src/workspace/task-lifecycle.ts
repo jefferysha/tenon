@@ -1,8 +1,21 @@
 /**
- * The one 删除 / 归档 / 取消归档 application; CLI and server both call it so both see the same reasons,
- * the same refusals and the same records. Reasons are assessed twice: once for display, again inside the
- * lock right before anything is written, so a task that started running between the two calls is refused.
- * Every non-success outcome writes nothing at all.
+ * The one 删除 / 终止 / 完结 application; CLI and server both call it so both see the same reasons, the
+ * same refusals and the same records. Reasons are assessed twice: once for display, again inside the locks
+ * right before anything is written, so a task that started running between the two calls is refused.
+ * Every non-success outcome writes nothing at all, with one exception: a `task_result` an interrupted archive
+ * left on an active task is cleared first, because it is not a decision but a leftover. That leftover only
+ * appears after an interrupted archive; finish / terminate clear it inside the lock before evaluating, so even
+ * when the evaluation then refuses (an AFK run in progress, say) that one cleanup revision stays behind.
+ *
+ * All three actions lock in the same order — the project archive lock, then the task lock — and decide and act
+ * inside both, so they exclude each other and nothing (an AFK start, a `tenon set`) can slip in between the
+ * assessment and the first write. Whoever waits behind a lock whose task has since been deleted or archived
+ * finds it gone (`not-found`).
+ *
+ * 终止 and 完结 are the two ways a task ends and both move the task directory into `openspec/changes/archive/`
+ * through `archiveTask`; there is no "hide" any more. 完结 only accepts a task whose state machine reached a
+ * terminal step; 终止 accepts any task that has not. What follows the move (audit row, commit) is best effort:
+ * a failure there is a warning on a successful outcome, never a failure of the move that already happened.
  */
 import { appendFile, mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
@@ -15,21 +28,24 @@ import { userProjectPaths } from '../users/user-paths.js'
 import { formatUserRef, isTenonUser } from '../users/user.js'
 import type { RecordActor, TenonUser, TenonUserResolution, UserRef } from '../users/user.js'
 import { ownerOf } from '../users/owner.js'
+import type { TrackSpec } from '../workflow/types.js'
 import {
-  isTaskLifecycleName, readTaskArchiveOf, taskChangeDir, withTaskArchiveLock, withoutTaskArchiveEntry,
-  writeTaskArchiveOf,
-} from './task-archive.js'
-import type { TaskArchiveEntry } from './task-archive.js'
+  archiveTask, ArchiveTaskError, clearStaleTaskResult, isTaskLifecycleName, openspecArchiveRunner, taskArchiveSpec,
+  taskChangeDir, terminalTaskResult, withArchiveLock,
+} from './archive-task.js'
+import type { ArchivedTask, ArchiveDeps, ArchiveTaskErrorCode, TaskResult } from './archive-task.js'
+import { commitOnlyPaths } from './commit-paths.js'
+import type { PathCommitOutcome } from './commit-paths.js'
 import { cleanupDeletedChangeReferences, stageTaskForDelete, sweepTaskTombstones } from './task-delete.js'
 import { defaultTerminalActivityLive } from './task-terminal-activity.js'
-import { countUncommittedTaskDeletions } from './uncommitted-deletions.js'
+import { countUncommittedTaskDeletions, gitStatusRunner, probeChangeTracked } from './uncommitted-deletions.js'
 import type { GitStatusRunner } from './uncommitted-deletions.js'
 
 /** A Change whose canonical state cannot be decoded still deletes; it simply reports no phase. */
 const UNKNOWN_PHASE = 'unknown'
 const AFK_BLOCKING = ['scheduled', 'running']
 
-export type TaskLifecycleAction = 'delete' | 'archive'
+export type TaskLifecycleAction = 'delete' | 'terminate'
 export type TaskLifecycleChannel = 'terminal' | 'dashboard'
 
 export type TaskLifecycleReasonCode =
@@ -50,7 +66,7 @@ export interface TaskLifecycleAssessment {
 
 export interface TaskLifecycleAuditRecord {
   readonly ts: string
-  readonly action: 'delete' | 'archive' | 'unarchive'
+  readonly action: TaskLifecycleAction
   readonly change: string
   readonly phase: string
   readonly actor: RecordActor
@@ -67,6 +83,10 @@ export interface TaskLifecycleDeps {
   readonly terminalActivityLive?: (changeDir: string, change: string, nowMs: number) => Promise<boolean>
   readonly loadTaskTree?: (repoRoot: string, store: StateStore) => Promise<ChangeNode[]>
   readonly git?: GitStatusRunner
+  /** Who moves the directory: `openspec` hands it to `openspec archive`, `none` renames it. Default: the frozen plan. */
+  readonly specOf?: (state: PipelineState) => TrackSpec
+  /** `openspec archive <change> --skip-specs --yes --json` in `repoRoot`; tests inject a stand-in. */
+  readonly runOpenspecArchive?: (repoRoot: string, change: string) => Promise<void>
 }
 
 export interface TaskLifecycleCommand {
@@ -78,19 +98,33 @@ export interface TaskLifecycleCommand {
   readonly acknowledged: readonly TaskLifecycleReasonCode[] | 'all'
 }
 
+export interface TaskFinishCommand {
+  readonly repoRoot: string
+  readonly change: string
+}
+
 export type TaskLifecycleOutcome =
   | {
     readonly kind: 'deleted'; readonly change: string; readonly removed: readonly string[]
     readonly uncommittedDeletions: number | null; readonly warnings: readonly string[]
   }
-  | { readonly kind: 'archived'; readonly change: string; readonly changed: boolean; readonly entry: TaskArchiveEntry }
-  | { readonly kind: 'unarchived'; readonly change: string; readonly changed: boolean }
+  | {
+    readonly kind: 'terminated'; readonly change: string; readonly archived: ArchivedTask
+    readonly commit: PathCommitOutcome
+    /** Failures after the move (the audit row); the termination itself stands. */
+    readonly warnings: readonly string[]
+  }
+  | { readonly kind: 'finished'; readonly change: string; readonly archived: ArchivedTask }
+  /** 完结 on a task whose state machine has not reached a terminal step. */
+  | { readonly kind: 'not-terminal'; readonly change: string; readonly phase: string }
+  /** 终止 on a task whose state machine already finished: it is 完结 / 已升级, not 终止. */
+  | { readonly kind: 'already-terminal'; readonly change: string; readonly result: 'finished' | 'escalated' }
+  | { readonly kind: 'archive-failed'; readonly code: ArchiveTaskErrorCode; readonly cause: string }
   | { readonly kind: 'invalid-name'; readonly change: string }
   | { readonly kind: 'not-found'; readonly change: string }
   | { readonly kind: 'identity-missing' }
   | { readonly kind: 'blocked'; readonly reasons: readonly TaskLifecycleReason[] }
   | { readonly kind: 'confirmation-required'; readonly reasons: readonly TaskLifecycleReason[] }
-  | { readonly kind: 'archive-store-corrupt'; readonly path: string }
   | { readonly kind: 'delete-failed'; readonly cause: string }
 
 export type TaskLifecycleAssessOutcome =
@@ -102,8 +136,8 @@ export interface TaskLifecycleApplication {
     repoRoot: string; change: string; action: TaskLifecycleAction; user: TenonUserResolution
   }): Promise<TaskLifecycleAssessOutcome>
   delete(command: TaskLifecycleCommand): Promise<TaskLifecycleOutcome>
-  archive(command: TaskLifecycleCommand): Promise<TaskLifecycleOutcome>
-  unarchive(command: Omit<TaskLifecycleCommand, 'acknowledged'>): Promise<TaskLifecycleOutcome>
+  terminate(command: TaskLifecycleCommand): Promise<TaskLifecycleOutcome>
+  finish(command: TaskFinishCommand): Promise<TaskLifecycleOutcome>
 }
 
 /** How to clear a blocker; confirmations are acknowledged instead and have none. */
@@ -131,9 +165,16 @@ interface ChangeFacts {
   readonly automation: string
   readonly reviewPending: boolean
   readonly owner: UserRef | null
+  /** Set once the state machine reached a terminal step (`archived=true`). */
+  readonly terminal: 'finished' | 'escalated' | null
+  readonly spec: TrackSpec
 }
 
-async function changeFacts(store: StateStore, changeDir: string): Promise<ChangeFacts | null> {
+async function changeFacts(
+  store: StateStore,
+  changeDir: string,
+  specOf: (state: PipelineState) => TrackSpec,
+): Promise<ChangeFacts | null> {
   try {
     const state = await store.read(changeDir)
     return {
@@ -141,21 +182,33 @@ async function changeFacts(store: StateStore, changeDir: string): Promise<Change
       automation: scalar(state, 'automation'),
       reviewPending: reviewGateStatus(state) === REVIEW_GATE_PENDING,
       owner: ownerOf(state.fields),
+      terminal: terminalTaskResult(state.fields),
+      spec: specOf(state),
     }
   } catch {
     return null
   }
 }
 
-function auditPathFor(repoRoot: string, user: TenonUser, action: TaskLifecycleAuditRecord['action']): string {
+function auditPathFor(repoRoot: string, user: TenonUser, action: TaskLifecycleAction): string {
   const paths = userProjectPaths(repoRoot, user.slug)
-  // A deletion is a shared fact and travels with the commit; hiding a task is personal and never synced.
+  // A deletion is a shared fact and travels with the commit; a termination commits only the moved task
+  // directory, so its audit row stays with the acting user and never dirties the checkout.
   return action === 'delete' ? paths.audit : paths.localAudit
 }
 
-async function appendAudit(path: string, record: TaskLifecycleAuditRecord): Promise<void> {
-  await mkdir(dirname(path), { recursive: true })
-  await appendFile(path, `${JSON.stringify(record)}\n`, { encoding: 'utf8', mode: 0o600 })
+/**
+ * The audit row is written after the directory has moved or been staged away, so a failure here must not turn
+ * that into a reported failure (a retry would only find the task gone): it comes back as a warning instead.
+ */
+async function recordAudit(path: string, record: TaskLifecycleAuditRecord): Promise<readonly string[]> {
+  try {
+    await mkdir(dirname(path), { recursive: true })
+    await appendFile(path, `${JSON.stringify(record)}\n`, { encoding: 'utf8', mode: 0o600 })
+    return []
+  } catch (error) {
+    return [`审计记录没写进去（${error instanceof Error ? error.message : String(error)}）：${path}`]
+  }
 }
 
 function acknowledgedCodes(
@@ -176,22 +229,34 @@ function unacknowledged(
 export function createTaskLifecycleApplication(deps: TaskLifecycleDeps): TaskLifecycleApplication {
   const terminalActivityLive = deps.terminalActivityLive ?? defaultTerminalActivityLive
   const tree = deps.loadTaskTree ?? loadTaskTree
+  const git = deps.git ?? gitStatusRunner
+  const specOf = deps.specOf ?? taskArchiveSpec
+  const runOpenspec = deps.runOpenspecArchive ?? ((repoRoot: string, change: string) => openspecArchiveRunner(repoRoot)(change))
 
-  async function assessKnown(
+  function archiveDeps(repoRoot: string): ArchiveDeps {
+    return {
+      repoRoot,
+      store: deps.store,
+      now: () => new Date(deps.clock()),
+      runOpenspecArchive: (change) => runOpenspec(repoRoot, change),
+    }
+  }
+
+  async function evaluate(
     repoRoot: string,
     change: string,
     action: TaskLifecycleAction,
     user: TenonUserResolution,
-  ): Promise<TaskLifecycleAssessment> {
+  ): Promise<{ readonly assessment: TaskLifecycleAssessment; readonly facts: ChangeFacts | null }> {
     const changeDir = taskChangeDir(repoRoot, change)
-    const facts = await changeFacts(deps.store, changeDir)
+    const facts = await changeFacts(deps.store, changeDir, specOf)
     const blockers: TaskLifecycleReason[] = []
     const confirmations: TaskLifecycleReason[] = []
     const automation = facts?.automation ?? ''
     if (AFK_BLOCKING.includes(automation)) blockers.push({ code: 'afk-running' })
     // A queued Change loses its queue entry together with the directory, but the local scheduler would
-    // keep advancing a merely hidden one, so 归档 refuses while 删除 only confirms.
-    else if (automation === 'queued') (action === 'archive' ? blockers : confirmations).push({ code: 'afk-queued' })
+    // keep a terminated one's entry, so 终止 refuses while 删除 only confirms.
+    else if (automation === 'queued') (action === 'terminate' ? blockers : confirmations).push({ code: 'afk-queued' })
     if (facts?.reviewPending === true) confirmations.push({ code: 'review-pending' })
     if (await terminalActivityLive(changeDir, change, deps.nowMs())) confirmations.push({ code: 'host-session-live' })
     if (action === 'delete') {
@@ -203,7 +268,7 @@ export function createTaskLifecycleApplication(deps: TaskLifecycleDeps): TaskLif
         confirmations.push({ code: 'owned-by-other', detail: formatUserRef(owner) })
       }
     }
-    return { action, change, phase: facts?.phase ?? UNKNOWN_PHASE, blockers, confirmations }
+    return { assessment: { action, change, phase: facts?.phase ?? UNKNOWN_PHASE, blockers, confirmations }, facts }
   }
 
   async function assess(input: {
@@ -211,10 +276,10 @@ export function createTaskLifecycleApplication(deps: TaskLifecycleDeps): TaskLif
   }): Promise<TaskLifecycleAssessOutcome> {
     if (!isTaskLifecycleName(input.change)) return { kind: 'invalid-name', change: input.change }
     if (!stateExists(taskChangeDir(input.repoRoot, input.change))) return { kind: 'not-found', change: input.change }
-    return assessKnown(input.repoRoot, input.change, input.action, input.user)
+    return (await evaluate(input.repoRoot, input.change, input.action, input.user)).assessment
   }
 
-  /** Name, identity and existence: the three checks every command shares before taking a lock. */
+  /** Name, identity and existence: the three checks every acting command shares before taking a lock. */
   function preflight(
     command: Pick<TaskLifecycleCommand, 'repoRoot' | 'change' | 'user'>,
   ): { user: TenonUser } | Extract<TaskLifecycleOutcome, { kind: 'invalid-name' | 'not-found' | 'identity-missing' }> {
@@ -235,15 +300,54 @@ export function createTaskLifecycleApplication(deps: TaskLifecycleDeps): TaskLif
     return pending.length > 0 ? { kind: 'confirmation-required', reasons: pending } : null
   }
 
+  /** An archive failure is an outcome, not a crash: the task is exactly where it was. */
+  async function guarded(run: () => Promise<TaskLifecycleOutcome>): Promise<TaskLifecycleOutcome> {
+    try {
+      return await run()
+    } catch (error) {
+      if (error instanceof ArchiveTaskError) return { kind: 'archive-failed', code: error.code, cause: error.message }
+      throw error
+    }
+  }
+
+  /**
+   * The one lock order for delete, terminate and finish: project archive lock, then the task lock. The task is
+   * looked up again once both are held (whoever held them before may have deleted or archived it), and `act`
+   * runs inside both.
+   */
+  function lockedTask(
+    repoRoot: string,
+    change: string,
+    act: () => Promise<TaskLifecycleOutcome>,
+  ): Promise<TaskLifecycleOutcome> {
+    return guarded(() => withArchiveLock(repoRoot, async () => {
+      const changeDir = taskChangeDir(repoRoot, change)
+      if (!stateExists(changeDir)) return { kind: 'not-found', change }
+      return deps.store.withLock(changeDir, act)
+    }))
+  }
+
+  /** Ending a task (terminate, finish): a `task_result` an interrupted archive left behind goes first. */
+  function lockedEnding(
+    repoRoot: string,
+    change: string,
+    act: () => Promise<TaskLifecycleOutcome>,
+  ): Promise<TaskLifecycleOutcome> {
+    return lockedTask(repoRoot, change, async () => {
+      await clearStaleTaskResult(deps.store, taskChangeDir(repoRoot, change))
+      return act()
+    })
+  }
+
   async function runDelete(command: TaskLifecycleCommand): Promise<TaskLifecycleOutcome> {
     const ready = preflight(command)
     if ('kind' in ready) return ready
     const { repoRoot, change } = command
     const changeDir = taskChangeDir(repoRoot, change)
     const paths = userProjectPaths(repoRoot, ready.user.slug)
-    return deps.store.withLock(changeDir, async () => {
+    return lockedTask(repoRoot, change, async () => {
       await sweepTaskTombstones(paths.deletingDir)
-      const assessment = await assessKnown(repoRoot, change, 'delete', ready.user)
+      const { assessment } = await evaluate(repoRoot, change, 'delete', ready.user)
       const refusal = refuse(assessment, command.acknowledged)
       if (refusal !== null) return refusal
       let tombstone: string
@@ -254,7 +358,7 @@ export function createTaskLifecycleApplication(deps: TaskLifecycleDeps): TaskLif
       }
       const cleanup = await cleanupDeletedChangeReferences(repoRoot, change, ready.user.slug)
       const removed = [`openspec/changes/${change}`, ...cleanup.removed]
-      await appendAudit(auditPathFor(repoRoot, ready.user, 'delete'), {
+      const warnings = [...await recordAudit(auditPathFor(repoRoot, ready.user, 'delete'), {
         ts: deps.clock(),
         action: 'delete',
         change,
@@ -263,8 +367,7 @@ export function createTaskLifecycleApplication(deps: TaskLifecycleDeps): TaskLif
         channel: command.channel,
         acknowledged: acknowledgedCodes(assessment.confirmations, command.acknowledged),
         removed,
-      })
-      const warnings = cleanup.archiveCorrupt.map((path) => `归档记录未清理: ${path}`)
+      })]
       try {
         await sweepTaskTombstones(paths.deletingDir)
       } catch {
@@ -274,69 +377,59 @@ export function createTaskLifecycleApplication(deps: TaskLifecycleDeps): TaskLif
         kind: 'deleted',
         change,
         removed,
-        uncommittedDeletions: await countUncommittedTaskDeletions(repoRoot, deps.git),
+        uncommittedDeletions: await countUncommittedTaskDeletions(repoRoot, git),
         warnings,
       }
     })
   }
 
-  async function runArchive(command: TaskLifecycleCommand): Promise<TaskLifecycleOutcome> {
+  /** Commit exactly the moved task: its archived directory, and the original path when git tracked it. */
+  async function commitTermination(repoRoot: string, change: string, archived: ArchivedTask): Promise<PathCommitOutcome> {
+    try {
+      const tracked = await probeChangeTracked(repoRoot, change, git) === 'tracked'
+      const paths = [archived.archivedDir, ...(tracked ? [`openspec/changes/${change}`] : [])]
+      return await commitOnlyPaths(repoRoot, git, paths, `chore(tenon): terminate ${change}`)
+    } catch (error) {
+      return { kind: 'failed', detail: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async function runTerminate(command: TaskLifecycleCommand): Promise<TaskLifecycleOutcome> {
     const ready = preflight(command)
     if ('kind' in ready) return ready
     const { repoRoot, change } = command
-    return withTaskArchiveLock(repoRoot, ready.user.slug, async () => {
-      const stored = await readTaskArchiveOf(repoRoot, ready.user.slug)
-      if (stored.kind === 'corrupt') return { kind: 'archive-store-corrupt', path: stored.path }
-      const existing = stored.archive.changes[change]
-      if (existing !== undefined) return { kind: 'archived', change, changed: false, entry: existing }
-      const assessment = await assessKnown(repoRoot, change, 'archive', ready.user)
+    return lockedEnding(repoRoot, change, async () => {
+      const { assessment, facts } = await evaluate(repoRoot, change, 'terminate', ready.user)
+      if (facts !== null && facts.terminal !== null) return { kind: 'already-terminal', change, result: facts.terminal }
       const refusal = refuse(assessment, command.acknowledged)
       if (refusal !== null) return refusal
-      const entry: TaskArchiveEntry = {
-        archivedAt: deps.clock(),
+      const archived = await archiveTask(archiveDeps(repoRoot), change, 'terminated', facts?.spec ?? 'none')
+      const warnings = await recordAudit(auditPathFor(repoRoot, ready.user, 'terminate'), {
+        ts: archived.endedAt,
+        action: 'terminate',
+        change,
         phase: assessment.phase,
         actor: { id: ready.user.id, name: ready.user.name, trust: 'declared' },
-      }
-      await writeTaskArchiveOf(repoRoot, ready.user.slug, {
-        version: 1,
-        changes: { ...stored.archive.changes, [change]: entry },
-      })
-      await appendAudit(auditPathFor(repoRoot, ready.user, 'archive'), {
-        ts: entry.archivedAt,
-        action: 'archive',
-        change,
-        phase: entry.phase,
-        actor: entry.actor,
         channel: command.channel,
         acknowledged: acknowledgedCodes(assessment.confirmations, command.acknowledged),
       })
-      return { kind: 'archived', change, changed: true, entry }
+      return { kind: 'terminated', change, archived, commit: await commitTermination(repoRoot, change, archived), warnings }
     })
   }
 
-  async function runUnarchive(command: Omit<TaskLifecycleCommand, 'acknowledged'>): Promise<TaskLifecycleOutcome> {
-    const ready = preflight(command)
-    if ('kind' in ready) return ready
+  async function runFinish(command: TaskFinishCommand): Promise<TaskLifecycleOutcome> {
     const { repoRoot, change } = command
-    return withTaskArchiveLock(repoRoot, ready.user.slug, async () => {
-      const stored = await readTaskArchiveOf(repoRoot, ready.user.slug)
-      if (stored.kind === 'corrupt') return { kind: 'archive-store-corrupt', path: stored.path }
-      const entry = stored.archive.changes[change]
-      if (entry === undefined) return { kind: 'unarchived', change, changed: false }
-      const next = withoutTaskArchiveEntry(stored.archive, change)
-      if (next !== null) await writeTaskArchiveOf(repoRoot, ready.user.slug, next)
-      await appendAudit(auditPathFor(repoRoot, ready.user, 'unarchive'), {
-        ts: deps.clock(),
-        action: 'unarchive',
-        change,
-        phase: entry.phase,
-        actor: { id: ready.user.id, name: ready.user.name, trust: 'declared' },
-        channel: command.channel,
-        acknowledged: [],
-      })
-      return { kind: 'unarchived', change, changed: true }
+    if (!isTaskLifecycleName(change)) return { kind: 'invalid-name', change }
+    if (!stateExists(taskChangeDir(repoRoot, change))) return { kind: 'not-found', change }
+    return lockedEnding(repoRoot, change, async () => {
+      const facts = await changeFacts(deps.store, taskChangeDir(repoRoot, change), specOf)
+      if (facts === null || facts.terminal === null) {
+        return { kind: 'not-terminal', change, phase: facts?.phase ?? UNKNOWN_PHASE }
+      }
+      const result: TaskResult = facts.terminal
+      return { kind: 'finished', change, archived: await archiveTask(archiveDeps(repoRoot), change, result, facts.spec) }
     })
   }
 
-  return { assess, delete: runDelete, archive: runArchive, unarchive: runUnarchive }
+  return { assess, delete: runDelete, terminate: runTerminate, finish: runFinish }
 }

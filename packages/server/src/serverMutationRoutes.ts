@@ -1,16 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { resolve as resolvePath } from 'node:path'
 import {
-  assertTrackDeletable,
-  assertUpdatePreservesReferences,
-  deleteTrack,
-  updateTrack,
   withRegistryGovernanceLock,
-  withTrackRegistryLock,
-  type ChangeRefScan,
-  type TrackRegistry,
-  type TrackValidationContext,
-  type UpdateTrackPatch,
+  withProjectCoordinationLock,
   isDefaultWorkflowName,
 } from '@tenon/kernel'
 import { removeProjectFromRegistry } from './projects.js'
@@ -42,10 +34,6 @@ type WorkflowRootCheck =
   | { ok: true; anchor: WorkflowRootAnchor }
   | { ok: false; code: 403 | 404; error: string }
 
-type TrackMutation = {
-  registry: TrackRegistry
-}
-
 function isWorkflowName(name: string): boolean {
   return name !== '' && /^[\p{L}\p{N}\p{M}_-]+$/u.test(name)
 }
@@ -58,77 +46,13 @@ export interface MutationRouteDeps {
   readJsonBody: (req: IncomingMessage) => Promise<unknown>
   workflowRootForRequest: (root: string) => WorkflowRootCheck
   workflowStoreForRequest: (root: string) => WorkflowStoreCheck
-  mutateTrackForApi: (
-    anchor: WorkflowRootAnchor,
-    revision: string,
-    mutate: (snapshot: { config: Parameters<typeof updateTrack>[0] }) => Promise<{
-      next: Parameters<typeof updateTrack>[0]
-      result: undefined
-    }>,
-  ) => Promise<TrackMutation>
-  scanActiveTrackChanges: (root: string) => Promise<ChangeRefScan>
-  trackRegistryBody: (registry: TrackRegistry) => Record<string, unknown>
-  sendTrackError: (res: ServerResponse, error: unknown) => void
   paths: ServerPaths
   workflowRootAnchors: Map<string, WorkflowRootAnchor>
-  trackValidationContextFor: (anchor: WorkflowRootAnchor) => TrackValidationContext
   errMsg: (error: unknown) => string
   resolveUser: import('./serverUserRoutes.js').ResolveUser
   /** 删除 的共享 application；未装配时该路由不存在（不谎报）。 */
   taskLifecycle?: TaskLifecycleRouteDeps
 }
-
-export async function handlePatchRoute(
-  req: IncomingMessage,
-  res: ServerResponse,
-  path: string,
-  deps: MutationRouteDeps,
-): Promise<void> {
-  const {
-    isLocalHost, sendJson, token, readJsonBody, workflowRootForRequest, workflowStoreForRequest, mutateTrackForApi,
-    scanActiveTrackChanges, trackRegistryBody, sendTrackError,
-  } = deps
-  const boundPort = deps.boundPort()
-    if (!isLocalHost(req.headers.host, boundPort)) {
-      return sendJson(res, 403, { ok: false, error: 'Host header 不合法（疑似 DNS 重绑定攻击）' })
-    }
-    const provided = tokenFromHeaders(req.headers)
-    if (!provided || !tokensMatch(provided, token)) {
-      return sendJson(res, 401, { ok: false, error: '缺少或无效 token（写端点需鉴权）' })
-    }
-    const ctype = (String(req.headers['content-type'] ?? '').split(';', 1)[0] ?? '').trim().toLowerCase()
-    if (ctype !== 'application/json') {
-      return sendJson(res, 400, { ok: false, error: '写回端点要求 Content-Type: application/json' })
-    }
-    const match = /^\/api\/tracks\/([^/]+)$/.exec(path)
-    if (!match) return sendJson(res, 404, { ok: false, error: '未知写回端点' })
-    const segment = match[1]
-    if (segment === undefined) return sendJson(res, 400, { ok: false, error: '非法 track 路径' })
-    const id = decodeURIComponent(segment)
-    const rawBody = await readJsonBody(req)
-    if (typeof rawBody !== 'object' || rawBody === null || Array.isArray(rawBody)) {
-      return sendJson(res, 400, { ok: false, error: '请求体须为 JSON 对象' })
-    }
-    const body = rawBody as Record<string, unknown>
-    const root = typeof body.root === 'string' ? body.root : ''
-    const revision = typeof body.revision === 'string' ? body.revision : ''
-    const patch = body.patch
-    if (revision === '' || typeof patch !== 'object' || patch === null || Array.isArray(patch) || Object.keys(patch).length === 0) {
-      return sendJson(res, 400, { ok: false, error: 'revision 与非空 patch 对象为必填' })
-    }
-    const rootCheck = workflowRootForRequest(root)
-    if (!rootCheck.ok) return sendJson(res, rootCheck.code, { ok: false, error: rootCheck.error })
-    try {
-      const mutation = await mutateTrackForApi(rootCheck.anchor, revision, async ({ config }) => {
-        const next = updateTrack(config, id, patch as UpdateTrackPatch)
-        await assertUpdatePreservesReferences(next, id, () => scanActiveTrackChanges(rootCheck.anchor.path))
-        return { next, result: undefined }
-      })
-      return sendJson(res, 200, trackRegistryBody(mutation.registry))
-    } catch (error) {
-      return sendTrackError(res, error)
-    }
-  }
 
 export async function handleDeleteRoute(
   req: IncomingMessage,
@@ -136,10 +60,7 @@ export async function handleDeleteRoute(
   path: string,
   deps: MutationRouteDeps,
 ): Promise<void> {
-  const {
-    isLocalHost, sendJson, token, workflowRootForRequest, workflowStoreForRequest, mutateTrackForApi, scanActiveTrackChanges,
-    trackRegistryBody, sendTrackError, paths, workflowRootAnchors, trackValidationContextFor, errMsg,
-  } = deps
+  const { isLocalHost, sendJson, token, workflowStoreForRequest, paths, workflowRootAnchors, errMsg } = deps
   const boundPort = deps.boundPort()
     // (1)(2) 同 handlePost 的 Host 守卫 + token 鉴权，DELETE 无请求体不需要 Content-Type 校验。
     if (!isLocalHost(req.headers.host, boundPort)) {
@@ -180,30 +101,6 @@ export async function handleDeleteRoute(
       return sendJson(res, 200, { ok: true })
     }
 
-    // ── v3 Studio：DELETE /api/tracks/:id，活跃 Change 引用与不可读候选均 fail-closed。──
-    const trackDelete = /^\/api\/tracks\/([^/]+)$/.exec(path)
-    if (trackDelete) {
-      const segment = trackDelete[1]
-      if (segment === undefined) return sendJson(res, 400, { ok: false, error: '非法 track 路径' })
-      const id = decodeURIComponent(segment)
-      const query = new URL(req.url ?? '/', 'http://localhost').searchParams
-      const root = query.get('root') ?? ''
-      const revision = query.get('revision') ?? ''
-      if (revision === '') return sendJson(res, 400, { ok: false, error: '缺少 revision 参数' })
-      const rootCheck = workflowRootForRequest(root)
-      if (!rootCheck.ok) return sendJson(res, rootCheck.code, { ok: false, error: rootCheck.error })
-      try {
-        const mutation = await mutateTrackForApi(rootCheck.anchor, revision, async ({ config }) => {
-          const next = deleteTrack(config, id)
-          await assertTrackDeletable(id, () => scanActiveTrackChanges(rootCheck.anchor.path))
-          return { next, result: undefined }
-        })
-        return sendJson(res, 200, trackRegistryBody(mutation.registry))
-      } catch (error) {
-        return sendTrackError(res, error)
-      }
-    }
-
     // ── workflow 编辑器（GOAL E8）：DELETE /api/workflows/:name ──
     const mWfDelete = /^\/api\/workflows\/([^/]+)$/.exec(path)
     if (mWfDelete) {
@@ -240,20 +137,19 @@ export async function handleDeleteRoute(
             readonly blockers: ReturnType<typeof scanWorkflowReferencesForApi>['blockers']
           }
       let enteredGovernance = false
-      let enteredTrackSnapshot = false
+      let enteredProjectLock = false
       try {
         const outcome = await withRegistryGovernanceLock(rootCheck.anchor.path, async (): Promise<DeleteWorkflowOutcome> => {
           enteredGovernance = true
           assertWorkflowRootAnchor(rootCheck.anchor)
-          return withTrackRegistryLock(
+          return withProjectCoordinationLock(
             rootCheck.anchor.path,
-            trackValidationContextFor(rootCheck.anchor),
-            async ({ registry }): Promise<DeleteWorkflowOutcome> => {
-              enteredTrackSnapshot = true
+            async (): Promise<DeleteWorkflowOutcome> => {
+              enteredProjectLock = true
               assertWorkflowRootAnchor(rootCheck.anchor)
               // default 的删除 = 撤掉项目覆盖、回到内建模板：引用它的 change 继续可用，无需引用扫描。
               if (!isDefaultWorkflowName(wfName)) {
-                const scan = scanWorkflowReferencesForApi(rootCheck.anchor, wfName, registry)
+                const scan = scanWorkflowReferencesForApi(rootCheck.anchor, wfName)
                 if (scan.blockers.length > 0) {
                   return { kind: 'scan-failed', references: scan.references, blockers: scan.blockers }
                 }
@@ -292,13 +188,13 @@ export async function handleDeleteRoute(
             error: errMsg(e),
           })
         }
-        if (enteredGovernance && !enteredTrackSnapshot) {
+        if (enteredGovernance && !enteredProjectLock) {
           return sendJson(res, 409, {
             ok: false,
             code: 'WORKFLOW_REFERENCE_SCAN_FAILED',
             workflow: wfName,
             references: [],
-            blockers: [{ source: 'track-registry', detail: errMsg(e) }],
+            blockers: [{ source: 'project-lock', detail: errMsg(e) }],
           })
         }
         return sendJson(res, 500, { ok: false, error: errMsg(e) })
@@ -330,7 +226,7 @@ export async function handlePutRoute(
   path: string,
   deps: MutationRouteDeps,
 ): Promise<void> {
-  const { isLocalHost, sendJson, token, workflowRootForRequest, workflowStoreForRequest, trackValidationContextFor, errMsg } = deps
+  const { isLocalHost, sendJson, token, workflowStoreForRequest, errMsg } = deps
   const boundPort = deps.boundPort()
   if (!isLocalHost(req.headers.host, boundPort)) {
     return sendJson(res, 403, { ok: false, error: 'Host header 不合法（疑似 DNS 重绑定攻击）' })
@@ -356,7 +252,7 @@ export async function handlePutRoute(
   const yamlName = matchWorkflowYamlRoute(path)
   if (yamlName !== null) {
     const result = await handleWorkflowYamlPut(req, yamlName, {
-      workflowRootForRequest: workflowStoreForRequest, trackValidationContextFor, errMsg, paths: deps.paths,
+      workflowRootForRequest: workflowStoreForRequest, errMsg, paths: deps.paths,
     })
     return sendJson(res, result.status, result.body)
   }

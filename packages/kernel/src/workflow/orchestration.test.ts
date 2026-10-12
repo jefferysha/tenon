@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import type { SkillTable } from '../flow/manifest.js'
-import { builtinTrack } from '../tracks/builtins.js'
 import { DEFAULT_WORKFLOW_SOURCE } from './default-workflow.generated.js'
 import { compileEffectiveWorkflowPlan } from './effective-plan.js'
 import { createEffectiveSkillResolver } from './effective-skill-resolver.js'
@@ -31,7 +30,7 @@ function withExploreSkills(def: WorkflowDef, next: StepDef['skills']): WorkflowD
 
 describe('buildOrchestration · 技能顺序（R1）', () => {
   it('前端轨道 explore 的 4 个技能未声明依赖 → 串行 4 步，排在 researcher 执行者（第 0 波）之后', () => {
-    const plan = compileEffectiveWorkflowPlan('default', defaultDef(), builtinTrack('frontend'))
+    const plan = compileEffectiveWorkflowPlan('default', defaultDef(), { track: 'frontend' })
     const explore = stage(buildOrchestration(plan).stages, 'explore')
     expect(explore.entries.filter((entry) => entry.kind === 'executor').map((entry) => [entry.id, entry.wave])).toEqual([['researcher', 0]])
     expect(skills(explore).map((entry) => [entry.id, entry.wave])).toEqual([
@@ -47,7 +46,7 @@ describe('buildOrchestration · 技能顺序（R1）', () => {
       { id: 'grilling', depends_on: ['openspec-explore'] },
       { id: 'domain-modeling', depends_on: ['brainstorming', 'grilling'] },
     ])
-    const plan = compileEffectiveWorkflowPlan('default', def, builtinTrack('frontend'))
+    const plan = compileEffectiveWorkflowPlan('default', def, { track: 'frontend' })
     const explore = stage(buildOrchestration(plan).stages, 'explore')
     expect(skills(explore).map((entry) => [entry.id, entry.wave])).toEqual([
       ['openspec-explore', 1], ['brainstorming', 2], ['grilling', 2], ['domain-modeling', 3],
@@ -59,7 +58,18 @@ describe('buildOrchestration · 技能顺序（R1）', () => {
 
 describe('buildOrchestration · 来源', () => {
   it('OpenSpec 注入：阶段没声明、文档契约要求登记产物的技能排在声明技能之后', () => {
-    const plan = compileEffectiveWorkflowPlan('default', defaultDef(), builtinTrack('chat'))
+    // 内建 default 的每条轨道都自己声明了这些技能；去掉后端立项 / 规格步的声明，看文档契约怎么补。
+    const def = defaultDef()
+    const backend = def.tracks?.backend
+    if (backend === undefined) throw new Error('default 没有 backend 分支')
+    const undeclared = {
+      ...def,
+      tracks: {
+        ...def.tracks,
+        backend: { ...backend, steps: backend.steps.map((step) => (step.id === 'open' || step.id === 'spec' ? { ...step, skills: [] } : step)) },
+      },
+    }
+    const plan = compileEffectiveWorkflowPlan('default', undeclared, { track: 'backend' })
     const orchestration = buildOrchestration(plan)
     expect(skills(stage(orchestration.stages, 'open'))).toEqual([
       { kind: 'skill', id: 'openspec-propose', label: 'openspec-propose', wave: 0, dependsOn: [], required: true, source: 'openspec' },
@@ -76,23 +86,23 @@ describe('buildOrchestration · 来源', () => {
     expect(openspecInjectedSkills([slot(['openspec-propose']), slot(['opsx:propose'])], [])).toEqual(['openspec-propose'])
   })
 
-  it('manifest 叠加：矩阵技能里阶段没声明的，串行接在声明之后', () => {
+  it('manifest 矩阵不再叠加：装配了矩阵的 resolver 也只编排阶段自己声明的技能', () => {
     const manifest = {
       mandatorySkills: { explore: { frontend: ['openspec-explore', 'extra-skill'] } } as unknown as SkillTable,
       recommendedSkills: {} as unknown as SkillTable,
     }
     const resolver = createEffectiveSkillResolver(manifest)
-    const plan = compileEffectiveWorkflowPlan('default', defaultDef(), builtinTrack('frontend'))
-    expect(manifestSkillOverlay(plan, resolver)).toEqual({ explore: ['openspec-explore', 'extra-skill'] })
+    const plan = compileEffectiveWorkflowPlan('default', defaultDef(), { track: 'frontend' })
+    expect(manifestSkillOverlay(plan, resolver)).toEqual({})
     const explore = skills(stage(buildOrchestration(plan, resolver).stages, 'explore'))
-    expect(explore.at(-1)).toMatchObject({ id: 'extra-skill', source: 'manifest', wave: 5, dependsOn: ['domain-modeling'] })
-    expect(manifestSkillOverlay(plan, undefined)).toEqual({})
+    expect(explore.map((entry) => entry.id)).toEqual(['openspec-explore', 'brainstorming', 'grilling', 'domain-modeling'])
+    expect(explore.every((entry) => entry.source !== 'manifest')).toBe(true)
   })
 })
 
 describe('buildOrchestration · 阶段内顺序与流向', () => {
   it('前端 verify：技能串行 → 测试（unit 与 code-size 同波）→ 评审者波次（architecture 等四个评审者，code-size 评审者读测试后同波）', () => {
-    const plan = compileEffectiveWorkflowPlan('default', defaultDef(), builtinTrack('frontend'))
+    const plan = compileEffectiveWorkflowPlan('default', defaultDef(), { track: 'frontend' })
     const verify = stage(buildOrchestration(plan).stages, 'verify')
     expect(verify.gate).toBe('review')
     expect(verify.entries.map((entry) => [entry.kind, entry.id, entry.wave])).toEqual([
@@ -169,7 +179,7 @@ describe('buildOrchestration · 阶段内顺序与流向', () => {
   })
 
   it('回流边 = 指向更早阶段的转移', () => {
-    const plan = compileEffectiveWorkflowPlan('default', defaultDef(), builtinTrack('frontend'))
+    const plan = compileEffectiveWorkflowPlan('default', defaultDef(), { track: 'frontend' })
     expect(buildOrchestration(plan).returns).toEqual([
       { from: 'build', to: 'spec', event: 'requirements-changed' },
       { from: 'verify', to: 'build', event: 'verify-fail' },
@@ -177,7 +187,7 @@ describe('buildOrchestration · 阶段内顺序与流向', () => {
   })
 
   it('文档流：产出阶段 → 读取它的阶段，带本阶段的产出技能', () => {
-    const plan = compileEffectiveWorkflowPlan('default', defaultDef(), builtinTrack('frontend'))
+    const plan = compileEffectiveWorkflowPlan('default', defaultDef(), { track: 'frontend' })
     const flows = buildOrchestration(plan).flows
     expect(flows.find((flow) => flow.id === 'proposal' && flow.from === 'open')).toEqual({
       slot: 'document', id: 'proposal', from: 'open', producers: ['openspec-propose'],

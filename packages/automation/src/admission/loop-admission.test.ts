@@ -2,11 +2,11 @@ import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
-  BUILTIN_TRACK_DEFINITIONS, compileEffectiveWorkflowPlan, createLoopLedgerStore, loadRegistry,
+  compileEffectiveWorkflowPlan, createLoopLedgerStore, loadRegistry,
   nodeLoopIoStrict, registryContentEpoch,
   workflowPlanSnapshot,
   type EffectiveSkillResolver, type LoopEntry, type LoopLedgerStore, type LoopRegistry, type StepIR,
-  type TrackRegistry, type VerificationResult,
+  type VerificationResult, type WorkflowDef,
 } from '@tenon/kernel'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createFsSkillContentLocator, SkillContentInvalidError } from '../skills/content-locator.js'
@@ -61,35 +61,51 @@ const loop = (over: Partial<LoopEntry> = {}): LoopEntry => ({
 
 const registry = (loops: LoopEntry[]): { data: LoopRegistry | null; errors: string[] } => ({ data: { version: 1, loops }, errors: [] })
 
-const policySnapshot = (mode: 'interactive' | 'afk') => workflowPlanSnapshot(compileEffectiveWorkflowPlan(
-  `automation-${mode}`,
-  {
-    name: `automation-${mode}`,
-    interaction: { version: 'v1', mode },
-    steps: [{
-      id: 'build', label: 'Build', gate: null,
-      skills: [], inputs: [], outputs: [], guards: [], transitions: [],
-    }],
+const buildStep = {
+  id: 'build', label: 'Build', gate: null,
+  skills: [], inputs: [], outputs: [], guards: [], transitions: [],
+}
+/**
+ * AFK 项目层只读冻结计划里任务所在分支的 `automation`：backend / frontend 声明可进 AFK，lite 没写 automation
+ * （失败关闭）；`flat` 是没有 `tracks:` 的平铺工作流，只有一条隐式分支，同样不可进入 AFK。
+ */
+const afkWorkflow = (mode: 'interactive' | 'afk', name = `automation-${mode}`): WorkflowDef => ({
+  name,
+  interaction: { version: 'v1', mode },
+  steps: [],
+  tracks: {
+    backend: { steps: [buildStep], automation: { eligible: true, enqueueAfterSpec: false } },
+    frontend: { steps: [buildStep], automation: { eligible: true, enqueueAfterSpec: false } },
+    lite: { steps: [buildStep] },
   },
-))
+})
+const policySnapshot = (mode: 'interactive' | 'afk') => workflowPlanSnapshot(
+  compileEffectiveWorkflowPlan(`automation-${mode}`, afkWorkflow(mode), { track: 'backend' }),
+)
 const AFK_PLAN = policySnapshot('afk')
+const FLAT_AFK_PLAN = workflowPlanSnapshot(compileEffectiveWorkflowPlan('automation-flat', {
+  name: 'automation-flat',
+  interaction: { version: 'v1', mode: 'afk' },
+  steps: [buildStep],
+}))
+/** 宿主只报告平台 / Skill / Run 三层事实和任务记着的轨道；项目层由准入自己读冻结计划。 */
 const AUTHORIZED_AFK_LAYERS = {
   platform: { status: 'valid', grants: ['enter-afk'] },
   skill: { status: 'valid', grants: ['enter-afk'] },
-  project: { status: 'valid', grants: ['enter-afk'] },
   run: { status: 'valid', grants: ['enter-afk'] },
-  projectAuthority: {
-    version: 'v1', track_id: 'backend', track_registry_revision: '0123456789abcdef',
-  },
+  trackId: 'backend',
 } as const
-const TRACK_REGISTRY: TrackRegistry = {
-  ordered: BUILTIN_TRACK_DEFINITIONS,
-  byId: new Map(BUILTIN_TRACK_DEFINITIONS.map((track) => [track.id, track])),
-  revision: AUTHORIZED_AFK_LAYERS.projectAuthority.track_registry_revision,
-  source: 'builtin-only',
-}
+const runBoundTo = (snapshot: ReturnType<typeof policySnapshot>) =>
+  async (_change: string, policy: Parameters<NonNullable<LoopAdmissionDeps['bindAutomationPolicy']>>[1], binding: { readonly loopId: string; readonly iterationId: string }) => ({
+    id: `workflow-${binding.iterationId.replace(/^iteration-/, '')}`,
+    automationPolicy: policy,
+    ...binding,
+    workflowId: snapshot.workflowId,
+    workflowPlanFingerprint: snapshot.workflowFingerprint,
+    workflowPlanSnapshot: snapshot,
+  })
 
-const DEFAULT_COORDINATE_CAPABILITY = compileEffectiveWorkflowPlan('default').capabilities.skills
+const DEFAULT_COORDINATE_CAPABILITY = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' }).capabilities.skills
 
 let dir: string
 let idc = 0
@@ -103,14 +119,7 @@ const admission = (over: Partial<LoopAdmissionDeps> & { loops?: LoopEntry[] } = 
     level: 'L1',
     getAutomation: over.getAutomation ?? (async () => ''),
     newId: over.newId ?? ((p) => `${p}-${idc++}`),
-    bindAutomationPolicy: over.bindAutomationPolicy ?? (async (_change, policy, binding) => ({
-      id: `workflow-${binding.iterationId.replace(/^iteration-/, '')}`,
-      automationPolicy: policy,
-      ...binding,
-      workflowId: AFK_PLAN.workflowId,
-      workflowPlanFingerprint: AFK_PLAN.workflowFingerprint,
-      workflowPlanSnapshot: AFK_PLAN,
-    })),
+    bindAutomationPolicy: over.bindAutomationPolicy ?? runBoundTo(AFK_PLAN),
     bindWorkflowActionAuthority: over.bindWorkflowActionAuthority ?? (async (_change, snapshot) => ({
       id: snapshot.workflow_run_id,
       workflowId: snapshot.workflow_id,
@@ -119,8 +128,6 @@ const admission = (over: Partial<LoopAdmissionDeps> & { loops?: LoopEntry[] } = 
       iterationId: snapshot.iteration_id,
       workflowActionAuthority: snapshot,
     })),
-    withWorkflowActionAuthorityLock: over.withWorkflowActionAuthorityLock
-      ?? (async (use) => use(TRACK_REGISTRY)),
     workflowActionAuthority: over.workflowActionAuthority ?? (async () => AUTHORIZED_AFK_LAYERS),
     ...over,
   })
@@ -130,7 +137,7 @@ beforeEach(async () => { dir = await mkdtemp(join(tmpdir(), 'loop-adm-')) })
 afterEach(async () => { await rm(dir, { recursive: true, force: true }) })
 
 describe('reserve · 原子 preflight 放行', () => {
-  it('PR3：allowed attempt 冻结 exact TrackRegistry authority binding 供 claim 前复核', async () => {
+  it('PR3：allowed attempt 冻结分支 automation 的 authority binding 供 claim 前复核', async () => {
     const result = await admission().reserve('lp-x')
 
     expect(result.ok).toBe(true)
@@ -140,7 +147,8 @@ describe('reserve · 原子 preflight 放行', () => {
         version: 1,
         action: 'enter-afk',
         track_id: 'backend',
-        track_registry_revision: '0123456789abcdef',
+        // 项目层来源就是这份冻结计划：持久字段沿用旧名，值取计划指纹前 16 位。
+        track_registry_revision: AFK_PLAN.workflowFingerprint.slice(0, 16),
         workflow_run_id: result.context.workflow_run_id,
         workflow_id: AFK_PLAN.workflowId,
         workflow_fingerprint: AFK_PLAN.workflowFingerprint,
@@ -214,65 +222,93 @@ describe('reserve · 原子 preflight 放行', () => {
     })
   })
 
-  it('PR3：TrackRegistry revision 漂移在 claim 前拒绝，零 claim、零扣费', async () => {
-    let lockReads = 0
-    const adm = admission({
-      withWorkflowActionAuthorityLock: async (use) => use({
-        ...TRACK_REGISTRY,
-        revision: lockReads++ === 0 ? '0123456789abcdef' : 'fedcba9876543210',
-      }),
-      workflowActionAuthority: async ({ registry: exactRegistry }) => ({
-        ...AUTHORIZED_AFK_LAYERS,
-        projectAuthority: {
-          version: 'v1', track_id: 'backend', track_registry_revision: exactRegistry.revision,
-        },
-      }),
-    })
-    const reserved = await adm.reserve('lp-x')
-    expect(reserved.ok).toBe(true)
-    if (!reserved.ok) return
-    let claims = 0
+  it('PR3：分支没写 automation（lite）→ 项目层拒绝，零 reservation、零扣费', async () => {
+    const adm = admission({ workflowActionAuthority: async () => ({ ...AUTHORIZED_AFK_LAYERS, trackId: 'lite' }) })
 
-    const result = await adm.claimWithFreshWorkflowAuthority(reserved.context, async () => {
-      claims++
-      return true
-    })
+    const result = await adm.reserve('lp-x')
 
     expect(result).toMatchObject({
       ok: false,
-      reason: 'workflow-action-stale',
-      authorization: { status: 'stale' },
+      reason: 'workflow-action-denied',
+      authorization: { allowed: false, status: 'denied' },
     })
-    expect(claims).toBe(0)
+    if (!result.ok) {
+      expect(result.authorization?.denials).toContainEqual(expect.objectContaining({
+        layer: 'project', code: 'project-denied',
+      }))
+    }
     const win = await createLoopLedgerStore().readRunWindow(dir, { limit: 10 })
     expect(win.openReservations).toHaveLength(0)
-    expect(win.runs[0]).toMatchObject({
-      result: 'skipped', reason: 'admission-denied',
-      accounting: { charged_tokens: 0, charge_source: 'none' },
-    })
+    expect(win.runs[0]?.accounting).toMatchObject({ charged_tokens: 0, charge_source: 'none' })
   })
 
-  it('PR3：project grant 在 reserve 后撤销时零 claim、零扣费', async () => {
-    let lockReads = 0
+  it('PR3：宿主不能代授项目层——哪怕它在事实里夹带 project 授权，没写 automation 的分支照样被拒', async () => {
     const adm = admission({
-      withWorkflowActionAuthorityLock: async (use) => {
-        const eligible = lockReads++ === 0
-        const ordered = TRACK_REGISTRY.ordered.map((track) => track.id === 'backend'
-          ? { ...track, policyProfile: { ...track.policyProfile, automationEligible: eligible } }
-          : track)
-        return use({
-          ...TRACK_REGISTRY,
-          ordered,
-          byId: new Map(ordered.map((track) => [track.id, track])),
-          revision: eligible ? TRACK_REGISTRY.revision : 'fedcba9876543210',
-        })
-      },
-      workflowActionAuthority: async ({ registry: exactRegistry }) => ({
+      workflowActionAuthority: async () => ({
         ...AUTHORIZED_AFK_LAYERS,
-        project: AUTHORIZED_AFK_LAYERS.project,
-        projectAuthority: {
-          version: 'v1', track_id: 'backend', track_registry_revision: exactRegistry.revision,
-        },
+        trackId: 'lite',
+        project: { status: 'valid', grants: ['enter-afk'] },
+      }),
+    })
+
+    const result = await adm.reserve('lp-x')
+
+    expect(result).toMatchObject({ ok: false, reason: 'workflow-action-denied' })
+  })
+
+  it('PR3：平铺工作流没有可声明 automation 的分支 → 失败关闭', async () => {
+    const adm = admission({
+      bindAutomationPolicy: runBoundTo(FLAT_AFK_PLAN),
+      workflowActionAuthority: async () => ({ ...AUTHORIZED_AFK_LAYERS, trackId: 'automation-flat' }),
+    })
+
+    const result = await adm.reserve('lp-x')
+
+    expect(result).toMatchObject({ ok: false, reason: 'workflow-action-denied' })
+    if (!result.ok) {
+      expect(result.authorization?.denials).toContainEqual(expect.objectContaining({
+        layer: 'project', code: 'project-denied',
+      }))
+    }
+  })
+
+  it('PR3：任务记着冻结计划里不存在的轨道 → 项目层 malformed（硬拒绝，不回落到任何缺省）', async () => {
+    const adm = admission({ workflowActionAuthority: async () => ({ ...AUTHORIZED_AFK_LAYERS, trackId: 'ghost' }) })
+
+    const result = await adm.reserve('lp-x')
+
+    expect(result).toMatchObject({
+      ok: false,
+      reason: 'workflow-action-hard-blocked',
+      authorization: { status: 'hard-blocked' },
+    })
+    if (!result.ok) {
+      expect(result.authorization?.denials).toContainEqual(expect.objectContaining({
+        layer: 'project', code: 'project-malformed',
+      }))
+    }
+  })
+
+  it('PR3：宿主没报告任务轨道 → 项目层 malformed', async () => {
+    const adm = admission({
+      workflowActionAuthority: async () => ({
+        platform: AUTHORIZED_AFK_LAYERS.platform,
+        skill: AUTHORIZED_AFK_LAYERS.skill,
+        run: AUTHORIZED_AFK_LAYERS.run,
+      }),
+    })
+
+    const result = await adm.reserve('lp-x')
+
+    expect(result).toMatchObject({ ok: false, reason: 'workflow-action-hard-blocked' })
+  })
+
+  it('PR3：reserve 后任务改记成没写 automation 的轨道 → claim 前复核拒绝，零 claim、零扣费', async () => {
+    let resolutions = 0
+    const adm = admission({
+      workflowActionAuthority: async () => ({
+        ...AUTHORIZED_AFK_LAYERS,
+        trackId: resolutions++ === 0 ? 'backend' : 'lite',
       }),
     })
     const reserved = await adm.reserve('lp-x')
@@ -292,7 +328,11 @@ describe('reserve · 原子 preflight 放行', () => {
     })
     expect(claims).toBe(0)
     const win = await createLoopLedgerStore().readRunWindow(dir, { limit: 10 })
-    expect(win.runs[0]?.accounting).toMatchObject({ charged_tokens: 0, charge_source: 'none' })
+    expect(win.openReservations).toHaveLength(0)
+    expect(win.runs[0]).toMatchObject({
+      result: 'skipped', reason: 'admission-denied',
+      accounting: { charged_tokens: 0, charge_source: 'none' },
+    })
   })
 
   it('PR3：project track identity 改绑时以 stale 拒绝且不 claim', async () => {
@@ -300,10 +340,7 @@ describe('reserve · 原子 preflight 放行', () => {
     const adm = admission({
       workflowActionAuthority: async () => ({
         ...AUTHORIZED_AFK_LAYERS,
-        projectAuthority: {
-          ...AUTHORIZED_AFK_LAYERS.projectAuthority,
-          track_id: resolutions++ === 0 ? 'backend' : 'frontend',
-        },
+        trackId: resolutions++ === 0 ? 'backend' : 'frontend',
       }),
     })
     const reserved = await adm.reserve('lp-x')

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { emptyTestPlan, extractScenarios, extractTaskItems, parseTestCatalog, type StepTestPolicyIR, type TestCatalog } from '@tenon/kernel'
-import { seedPlan, splitUnmapped, withCase, withFiles, withSuite, withWaiver, withoutTarget } from './plan-edit.js'
+import { seedPlan, splitUnmapped, unclaimedRegistrations, withCase, withFiles, withSuite, withWaiver, withoutRegistrations, withoutTarget } from './plan-edit.js'
 
 const parsed = parseTestCatalog(`schema: tenon-test-catalog/v1
 suites:
@@ -88,8 +88,58 @@ describe('计划编辑', () => {
   })
 })
 
+describe('unclaimedRegistrations / withoutRegistrations', () => {
+  const plan = withFiles(withCase(withSuite(emptyTestPlan('demo'), { suite: 'web-unit', scope: 'full' }), 'task:1', ['web/old/x.test.ts › y']), [
+    { path: 'web/src/ok.test.ts', suite: 'web-unit', kind: 'unit' },
+    { path: 'web/src/implicit.test.ts' },
+    { path: 'e2e/login.spec.ts', suite: 'web-e2e', kind: 'playwright' },
+    { path: 'web/old/x.test.ts', suite: 'web-unit', kind: 'unit' },
+    { path: 'e2e/login.spec.ts.bak', suite: 'web-e2e' },
+    { path: 'gone.test.ts', suite: 'ghost-suite' },
+    { path: 'notes/archive.report' },
+    { path: 'e2e/shots/home.png', kind: 'visual' },
+    { path: './web/src/dotted.test.ts', suite: 'web-unit' },
+  ])
+
+  it('目录认领的保留；套件不在目录、套件 glob 不再认领、没有任何套件认领的各带原因列出', () => {
+    expect(unclaimedRegistrations(plan, CATALOG)).toEqual([
+      { path: 'web/old/x.test.ts', suite: 'web-unit', reason: 'glob-mismatch' },
+      { path: 'e2e/login.spec.ts.bak', suite: 'web-e2e', reason: 'glob-mismatch' },
+      { path: 'gone.test.ts', suite: 'ghost-suite', reason: 'suite-missing' },
+      { path: 'notes/archive.report', reason: 'no-owner' },
+    ])
+  })
+
+  it('套件 glob 按套件 cwd 换算成仓库相对再比对：web-unit 的 src/** 只认 web/src/**', () => {
+    const wrongRoot = withFiles(emptyTestPlan('demo'), [{ path: 'src/ok.test.ts', suite: 'web-unit' }, { path: 'src/ok.test.ts.x' }])
+    expect(unclaimedRegistrations(wrongRoot, CATALOG).map((item) => item.path)).toEqual(['src/ok.test.ts', 'src/ok.test.ts.x'])
+  })
+
+  it('只有 kind、没有套件的登记是有意登记的不执行资源（视觉快照等），即使无人认领也不列出', () => {
+    const resources = withFiles(emptyTestPlan('demo'), [{ path: 'e2e/shots/home.png', kind: 'visual' }, { path: 'docs/a.png', kind: 'visual' }])
+    expect(unclaimedRegistrations(resources, CATALOG)).toEqual([])
+  })
+
+  it('空目录不认领任何文件：除资源文件外全部列出（调用方据此拒绝按空目录裁剪）', () => {
+    const empty: TestCatalog = { ...CATALOG, suites: [] }
+    expect(unclaimedRegistrations(plan, empty).map((item) => item.path)).toEqual([
+      'web/src/ok.test.ts', 'web/src/implicit.test.ts', 'e2e/login.spec.ts', 'web/old/x.test.ts', 'e2e/login.spec.ts.bak', 'gone.test.ts', 'notes/archive.report', './web/src/dotted.test.ts',
+    ])
+  })
+
+  it('withoutRegistrations 只动 files[]：套件、用例映射、豁免原样，不在列表里的登记保留', () => {
+    const gone = unclaimedRegistrations(plan, CATALOG)
+    const next = withoutRegistrations(plan, gone.map((item) => item.path))
+    expect(next.files.map((file) => file.path)).toEqual(['web/src/ok.test.ts', 'web/src/implicit.test.ts', 'e2e/login.spec.ts', 'e2e/shots/home.png', './web/src/dotted.test.ts'])
+    expect(next.suites).toBe(plan.suites)
+    expect(next.cases).toBe(plan.cases)
+    expect(next.waivers).toBe(plan.waivers)
+    expect(withoutRegistrations(plan, [])).toBe(plan)
+  })
+})
+
 describe('seedPlan', () => {
-  const scenarios = extractScenarios('auth', '## ADDED Requirements\n### Requirement: R\n#### Scenario: 登录成功\n#### Scenario: 密码错误\n')
+  const scenarios =extractScenarios('auth', '## ADDED Requirements\n### Requirement: R\n#### Scenario: 登录成功\n#### Scenario: 密码错误\n')
   const tasks = extractTaskItems('## 1. Build\n- [ ] 1.1 做登录\n')
 
   it('diff 碰到的套件（改了测试文件或 covers 里的源码）→ changed；策略要求的种类补全量套件；未登记文件带上唯一认领的套件', () => {

@@ -27,10 +27,11 @@ import type { PipelineState } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName, resolveChangeDir } from '../paths.js'
 import { requireActor } from '../userIdentity.js'
-import { refuseArchived } from '../archivedGuard.js'
+import { refuseArchived } from '../endedTaskGuard.js'
 import { cmdCheck } from './check.js'
 import { recordHistory } from './fields.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
+import { isLegacyExecution } from './execution-cli-seam.js'
 import { createInteractionCapture } from '../interaction-emitter.js'
 import {
   readReviewGateBindingForRequest,
@@ -49,7 +50,8 @@ import { msg } from '../i18n/messages.js'
 type ReviewStep = {
   readonly phase: string
   readonly workflow: string
-  readonly executionModel: 'phase-manifest' | 'step-graph'
+  /** 快照记着旧阶段清单模型的在途任务；其余按步骤图执行（选择单源 execution-cli-seam）。 */
+  readonly legacyExecution: boolean
   readonly events: readonly string[]
 }
 
@@ -78,7 +80,7 @@ function resolveReviewStep(deps: CliDeps, state: PipelineState): ReviewStep {
   return {
     phase,
     workflow: plan.id,
-    executionModel: plan.capabilities.execution.model,
+    legacyExecution: isLegacyExecution(plan),
     events: stepExitTransitions(plan, phase, state).map((transition) => transition.event),
   }
 }
@@ -144,7 +146,7 @@ async function checkReviewRequestReadiness(
   event: string,
   releaseFailedReviewers: boolean,
 ): Promise<number> {
-  if (step.executionModel === 'phase-manifest' && step.phase === 'verify' && event === 'verify-fail') {
+  if (step.legacyExecution && step.phase === 'verify' && event === 'verify-fail') {
     return checkVerifyFailReadiness(deps, name, dir, state)
   }
   // A successful outgoing edge must satisfy the same public exit check that transition will
@@ -153,7 +155,7 @@ async function checkReviewRequestReadiness(
   // approval, and — once the verification rounds are used up — a required reviewer that still fails
   // (a residual blocker the user may accept). Transition still requires both to be approved.
   return cmdCheck(deps, name, {
-    ...(step.executionModel === 'step-graph' ? { event } : {}),
+    ...(step.legacyExecution ? {} : { event }),
     releasePendingWaivers: true,
     ...(releaseFailedReviewers ? { releaseFailedReviewers: true } : {}),
   })

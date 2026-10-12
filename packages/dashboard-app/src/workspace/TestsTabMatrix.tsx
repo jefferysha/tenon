@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useT } from '../i18n'
-import { useBuiltinLabels } from '../i18n/builtinLabels'
 import { StatusPill } from '../shell/ThreeColumns'
 import { Hint } from '../workflow/Hint'
 import { FixCommand } from '../tests/FixCommand'
@@ -50,11 +49,9 @@ function SuiteCell({ row, openable, activeSuite, onOpen }: {
   onOpen: (suite: string) => void
 }): JSX.Element {
   const { t } = useT()
-  const builtin = useBuiltinLabels()
   const waiver = row.waiver
   const notApplicable = row.notApplicable
-  // 套件名：出厂测试项（id 与方向同名）没被改过的名字按界面语言显示，其余原样。
-  const suites = row.suites.map((suite) => ({ ...suite, name: builtin.direction(suite.suite.replace(/^step:/u, ''), suite.name) }))
+  const { suites } = row
   return (
     <span className="flex min-w-0 flex-nowrap items-center gap-3 overflow-hidden" role="cell" data-testid={`tests-registered-${row.kind}`}>
       {suites.map((suite) => (openable(suite)

@@ -321,7 +321,7 @@ steps:
     guards: []
     transitions: []
 `, 'utf8')
-    await h.run(['init', 'demo', '--track', 'backend', '--preset', 'full', '--workflow', 'custom-review'])
+    expect(await h.run(['init', 'demo', '--preset', 'full', '--workflow', 'custom-review']), h.err.join('\n')).toBe(0)
     await h.seedArtifact('demo', 'phase', 'assure-anything')
     await h.seedArtifact('demo', 'isolation', 'branch')
     await h.seedArtifact('demo', 'build_sha', 'legacy-sha')

@@ -18,7 +18,6 @@ import {
   AGENT_RUN_META_FILE,
   AGENT_RUNS_FILE,
   appendAgentRunRow,
-  builtinTrack,
   compileEffectiveWorkflowPlan,
   createFlowEngine,
   createStateStore,
@@ -41,7 +40,7 @@ import { decodeAgentRuns } from './snapshotEvidenceDecoders'
 
 /** Fixtures record the built-in default document table (identical in every default branch). */
 function defaultDocumentPolicy() {
-  const policy = compileEffectiveWorkflowPlan('default').documentPolicy
+  const policy = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' }).documentPolicy
   if (policy === undefined) throw new Error('built-in default workflow must be document-governed')
   return policy
 }
@@ -155,7 +154,7 @@ const AGENTS_DIR = fileURLToPath(new URL('../../../../templates/agents', import.
 async function finishExploreExecutor(changeDir: string, store: StateStore, workflowFingerprint: string): Promise<void> {
   const runId = (await store.read(changeDir)).runMetadata?.runId
   if (runId === undefined) throw new Error('fixture change has no run identity')
-  const plan = compileEffectiveWorkflowPlan('default', undefined, builtinTrack('backend'))
+  const plan = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' })
   const content = (name: string): string => readFileSync(join(AGENTS_DIR, `${name}.md`), 'utf8')
   await ensureAgentFreeze({
     changeDir,

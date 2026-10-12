@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { PipelineState } from '../types.js'
-import { builtinTrack } from '../tracks/builtins.js'
 import { compileEffectiveWorkflowPlan } from './effective-plan.js'
 import type { EffectiveWorkflowPlan } from './effective-plan-types.js'
 import type { StepDef } from './types.js'
@@ -29,7 +28,7 @@ const CUSTOM: EffectiveWorkflowPlan = compileEffectiveWorkflowPlan('rounds-gate'
   ],
 })
 
-const DEFAULT_PLAN = compileEffectiveWorkflowPlan('default', undefined, builtinTrack('backend'))
+const DEFAULT_PLAN = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend', executionModel: 'phase-manifest' })
 const STATE = { fields: { phase: 'verify' }, opaqueTail: '' } as unknown as PipelineState
 
 function gate(

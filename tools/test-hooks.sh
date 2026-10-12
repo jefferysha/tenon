@@ -1076,7 +1076,7 @@ steps:
     transitions: []
 AGENTWF
   ag_cli() { ( cd "$ag_proj" && TENON_RUNTIME_HOME="$ag_home" "$TENON_NODE_PATH" "$ROOT/packages/cli/dist/tenon.mjs" "$@" ); }
-  if ag_cli init agentgate --track backend --preset full --workflow reviewed >/dev/null 2>&1; then
+  if ag_cli init agentgate --preset full --workflow reviewed >/dev/null 2>&1; then
     set_active "$ag_proj" agentgate
     ag_blocked=0
     ( cd "$ag_proj" \
@@ -1474,20 +1474,79 @@ chmod 644 "$SB2/proj/openspec/changes/broken/.pipeline.yaml" 2>/dev/null || true
 assert_exit "三注入: 缺模板+烂 yaml → 全 fail-open exit 0" 0 "$rc"
 assert_contains "三注入: fail-open 时基础引导仍输出" "$out" "Tenon"
 
-# ═══════════════ 9. router.sh（T-R5：动态 registry + 项目级 data-only cache） ═══════════════
-# 真实 e2e：真跑 router.sh 喂真 stdin JSON + 真 manifest/effective registry 派生
-# TENON_ROUTER_V5；覆盖动态排序、手选候选、profile、失效、项目隔离与不执行项目 cache。
+# ═══════════════ 9. router.sh（路由数据来自工作流分支的 route + 项目级 data-only cache router.v6） ═══════════════
+# 真实 e2e：真跑 router.sh 喂真 stdin JSON，经真 CLI / kernel 从「项目 → 全局存储 → 插件模板」三处工作流文件冷生成
+# TENON_ROUTER_V6；覆盖动态排序、点名、评估分派、自定义工作流选择、失效（含工作流文件内容变化）、项目隔离与不执行项目 cache。
+# 路由数据就是工作流文件，所以这一节跑在假的插件根 $RPLUG 上：templates/workflows/default.yaml 是本节自带的夹具
+# （lite / pm / frontend / backend 各带 route；与内建 default 的分支同名同 id），packages 与 hooks 链到真实目录；
+# 全局存储指到 $RTHOME（测试绝不读真实的产品配置根）。
 R="$ROOT/hooks/router.sh"
 RGEN="$ROOT/hooks/router-gen.mjs"
 [ -f "$R" ]    && ok "router: hooks/router.sh 存在"          || bad "router: hooks/router.sh 存在" "缺文件"
 [ -x "$R" ]    && ok "router: hooks/router.sh 可执行"        || bad "router: hooks/router.sh 可执行" "无 x 位"
 [ -f "$RGEN" ] && ok "router: hooks/router-gen.mjs 存在（派生缓存生成器）" || bad "router: hooks/router-gen.mjs 存在（派生缓存生成器）" "缺文件"
 
-# run_router：喂 stdin JSON，隔离缓存路径，用真实 plugin root（含 templates/manifest.yaml）
-RCACHE="$TMP/router-cache.v5.data"
-run_router() { # $1=stdin-json [$2=cache-override] → 设 ROUT / RRC
-  local cache="${2:-$RCACHE}"
-  ROUT="$(printf '%s' "$1" | TENON_ROUTER_CACHE="$cache" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$R" 2>/dev/null)"
+RPLUG="$TMP/router-plugin"; RTHOME="$TMP/router-runtime-home"
+RGLOBAL="$RTHOME/config/workflows/.pipeline/workflows" # 全局存储里的工作流目录
+mkdir -p "$RPLUG/templates/workflows" "$RGLOBAL"
+ln -s "$ROOT/packages" "$RPLUG/packages"
+ln -s "$ROOT/hooks" "$RPLUG/hooks"
+cp "$ROOT/templates/manifest.yaml" "$RPLUG/templates/manifest.yaml"
+cp "$ROOT/templates/workflows/design-system.yaml" "$RPLUG/templates/workflows/design-system.yaml"
+ROUTER_STEP_YAML='    steps:
+      - id: open
+        label: 立项
+        gate: null
+        skills: []
+        inputs: []
+        outputs: []
+        guards: []
+        transitions: []'
+cat > "$RPLUG/templates/workflows/default.yaml" <<ROUTERDEFAULT
+name: default
+openspec: true
+tracks:
+  lite:
+    label: 轻量
+    spec: none
+    route:
+      keywords: [修复, 修正, 修改, 调整, 新增, 添加, 删除, 重构, 优化, 错别字, typo, 文案, 注释]
+      exclude: [架构, 跨模块, 迁移, migration, schema, 数据库, 鉴权, 认证, 权限, auth, 依赖升级, 发布, 部署, 全栈, 前后端, 调研, 竞品, PRD, 需求文档]
+      priority: 500
+$ROUTER_STEP_YAML
+  pm:
+    label: 产品
+    spec: none
+    route:
+      keywords: [调研, 竞品, 市场, PRD, 需求, 用户旅程, 立项, 产品]
+      priority: 100
+$ROUTER_STEP_YAML
+  frontend:
+    label: 前端
+    spec: none
+    route:
+      keywords: [前端, 页面, 登录页, 组件, React, Vue, UI, 样式, 响应式]
+      priority: 300
+$ROUTER_STEP_YAML
+  backend:
+    label: 后端
+    spec: none
+    route:
+      keywords: [后端, backend, API, 接口, 数据库, Postgres, service, bug, 分页]
+      priority: 200
+      fallback: true
+$ROUTER_STEP_YAML
+ROUTERDEFAULT
+write_router_flat() { # $1=目标目录 $2=工作流名 $3=route 的 YAML（flow map）：写一份带顶层 route 的平铺工作流
+  mkdir -p "$1"
+  printf 'name: %s\nroute: %s\nsteps:\n  - id: open\n    label: 立项\n    gate: null\n    skills: []\n    inputs: []\n    outputs: []\n    guards: []\n    transitions: []\n' "$2" "$3" > "$1/$2.yaml"
+}
+
+# run_router：喂 stdin JSON，隔离缓存路径，用假插件根 $RPLUG 与隔离的全局存储 $RTHOME
+RCACHE="$TMP/router-cache.v6.data"
+run_router() { # $1=stdin-json [$2=cache-override] [$3=全局存储所在的产品 home，缺省 $RTHOME] → 设 ROUT / RRC
+  local cache="${2:-$RCACHE}" home="${3:-$RTHOME}"
+  ROUT="$(printf '%s' "$1" | TENON_ROUTER_CACHE="$cache" TENON_RUNTIME_HOME="$home" CLAUDE_PLUGIN_ROOT="$RPLUG" bash "$R" 2>/dev/null)"
   RRC=$?
 }
 
@@ -1504,28 +1563,48 @@ n="$(printf '%s' "$score_seg" | grep -c 'node' || true)"
 n="$(printf '%s' "$below_exec" | grep -c 'jq' || true)"
 [ "$n" = "0" ] && ok "router 红线: HOT PATH 段不依赖 jq" || bad "router 红线: HOT PATH 段不依赖 jq" "实得 ${n} 行"
 
-# ── 9b. 跳过规则：/命令 / 讨论 / 自身回显跳过；快速修复进入 simple 轻量轨 ──
+# ── 9a'. 配置根解析（hooks/tenon-user.sh 里 kernel resolveProductPaths 的 shell 镜像）：router 用它定位全局工作流存储 ──
+cfg_root_of() { # 其余参数 = 环境变量赋值；干净环境里解析配置根
+  env -i PATH="$PATH" HOME="$TMP/cfg-home" "$@" bash -c '. "$1"; pipeline_config_root' _ "$ROOT/hooks/tenon-user.sh" 2>/dev/null
+}
+[ "$(cfg_root_of TENON_RUNTIME_HOME=/abs/runtime)" = "/abs/runtime/config" ] \
+  && ok "router 配置根: TENON_RUNTIME_HOME → <home>/config" || bad "router 配置根: TENON_RUNTIME_HOME → <home>/config" "实际 $(cfg_root_of TENON_RUNTIME_HOME=/abs/runtime)"
+[ "$(cfg_root_of 'TENON_RUNTIME_ROOTS={"version":1,"dataRoot":"/d","stateRoot":"/s","configRoot":"/c"}' TENON_RUNTIME_HOME=/abs/runtime)" = "/c" ] \
+  && ok "router 配置根: TENON_RUNTIME_ROOTS 的 configRoot 优先于 TENON_RUNTIME_HOME" || bad "router 配置根: TENON_RUNTIME_ROOTS 的 configRoot 优先于 TENON_RUNTIME_HOME" "实际 $(cfg_root_of 'TENON_RUNTIME_ROOTS={"version":1,"dataRoot":"/d","stateRoot":"/s","configRoot":"/c"}' TENON_RUNTIME_HOME=/abs/runtime)"
+[ "$(cfg_root_of TENON_RUNTIME_CONFIG_ROOT=/launcher/config TENON_RUNTIME_HOME=/abs/runtime)" = "/launcher/config" ] \
+  && ok "router 配置根: 启动器导出的 TENON_RUNTIME_CONFIG_ROOT 优先于 TENON_RUNTIME_HOME" || bad "router 配置根: 启动器导出的 TENON_RUNTIME_CONFIG_ROOT 优先于 TENON_RUNTIME_HOME" "实际 $(cfg_root_of TENON_RUNTIME_CONFIG_ROOT=/launcher/config TENON_RUNTIME_HOME=/abs/runtime)"
+case "$(cfg_root_of TENON_RUNTIME_HOME=relative/runtime)" in
+  /*) ok "router 配置根: 相对路径的 TENON_RUNTIME_HOME 不被采用（回落到平台默认的绝对路径）" ;;
+  *) bad "router 配置根: 相对路径的 TENON_RUNTIME_HOME 不被采用（回落到平台默认的绝对路径）" "实际 $(cfg_root_of TENON_RUNTIME_HOME=relative/runtime)" ;;
+esac
+case "$(cfg_root_of TENON_RUNTIME_HOME=relative/runtime)" in
+  *relative*) bad "router 配置根: 相对路径不得出现在结果里" "实际 $(cfg_root_of TENON_RUNTIME_HOME=relative/runtime)" ;;
+  *) ok "router 配置根: 相对路径不得出现在结果里" ;;
+esac
+
+# ── 9b. 跳过规则：/命令 / 讨论 / 自身回显跳过；开发请求从 open 步开始 ──
 rproj="$TMP/router-skip"; mkdir -p "$rproj/openspec/changes"
 run_router "{\"prompt\":\"/tenon status\",\"cwd\":\"$rproj\"}"
 assert_exit "router: /命令 → exit 0" 0 "$RRC"; assert_empty "router: /命令 不注入" "$ROUT"
 run_router "{\"prompt\":\"快速修复一下这个 React 组件的样式\",\"cwd\":\"$rproj\"}"
-assert_contains "router: 快速修复命中 simple Track" "$ROUT" "track: simple"
-assert_contains "router: simple 使用内建轻量 workflow" "$ROUT" "workflow: simple"
-assert_contains "router: simple 从 change step 开始" "$ROUT" "phase: change"
+assert_contains "router: 小修小补带评估要求" "$ROUT" "assess: required"
+assert_contains "router: 小修小补的候选含轻量" "$ROUT" "candidate: workflow=default;track=lite"
+assert_contains "router: 新任务从 open 步开始" "$ROUT" "phase: open"
+assert_contains "router: 新任务的 Todo 来自 workflow plan" "$ROUT" "todo_source: tenon-workflow-plan"
 run_router "{\"prompt\":\"我觉得这个 React 页面原型太廉价了\",\"cwd\":\"$rproj\"}"
 assert_empty "router: 讨论类（我觉得…）不注入" "$ROUT"
 run_router "{\"prompt\":\"<workflow-state>\nchange=x\n</workflow-state>\",\"cwd\":\"$rproj\"}"
 assert_empty "router: 自身回显 <workflow-state> 不再触发" "$ROUT"
 run_router "{\"prompt\":\"\",\"cwd\":\"$rproj\"}"
 assert_exit "router: 空 prompt → fail-safe exit 0" 0 "$RRC"; assert_empty "router: 空 prompt 无输出" "$ROUT"
-( cd "$rproj" && printf 'not json at all' | TENON_ROUTER_CACHE="$RCACHE" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$R" >/dev/null 2>&1 )
+( cd "$rproj" && printf 'not json at all' | TENON_ROUTER_CACHE="$RCACHE" TENON_RUNTIME_HOME="$RTHOME" CLAUDE_PLUGIN_ROOT="$RPLUG" bash "$R" >/dev/null 2>&1 )
 assert_exit "router: 非 JSON stdin → fail-open exit 0" 0 "$?"
 
 # ── 9c. fail-safe：畸形 cache + manifest/generator 都不可用 → 不消费 cache、非阻断 exit 0 ──
-EMPTY_CACHE="$TMP/router-empty.v5.data"
-printf 'TENON_ROUTER_V5\n# malformed\n' > "$EMPTY_CACHE"
+EMPTY_CACHE="$TMP/router-empty.v6.data"
+printf 'TENON_ROUTER_V6\n# malformed\n' > "$EMPTY_CACHE"
 BROKEN_PLUGIN="$TMP/router-broken-plugin"; mkdir -p "$BROKEN_PLUGIN/templates"
-ROUT="$(printf '%s' "{\"prompt\":\"帮我写个 React 组件响应式页面 UI\",\"cwd\":\"$rproj\"}" | TENON_ROUTER_CACHE="$EMPTY_CACHE" CLAUDE_PLUGIN_ROOT="$BROKEN_PLUGIN" bash "$R" 2>/dev/null)"
+ROUT="$(printf '%s' "{\"prompt\":\"帮我写个 React 组件响应式页面 UI\",\"cwd\":\"$rproj\"}" | TENON_ROUTER_CACHE="$EMPTY_CACHE" TENON_RUNTIME_HOME="$RTHOME" CLAUDE_PLUGIN_ROOT="$BROKEN_PLUGIN" bash "$R" 2>/dev/null)"
 RRC=$?
 assert_exit "router: 畸形 cache + 生成不可用 → fail-safe exit 0（非阻断）" 0 "$RRC"
 assert_empty "router: 畸形 cache + 生成不可用 → 不路由" "$ROUT"
@@ -1533,7 +1612,7 @@ assert_empty "router: 畸形 cache + 生成不可用 → 不路由" "$ROUT"
 # ── 9d. 需 node 的真实派生 + 评分 + 注入 + 缓存红线（node 不可用则跳过，语义同 section 6） ──
 if command -v node >/dev/null 2>&1; then
   rm -f "$RCACHE"
-  # 首轮：无缓存 → router 经生成器真派生 data-only cache（effective registry + manifest profile skills）
+  # 首轮：无缓存 → router 经生成器真派生 data-only cache（三处工作流文件里带 route 的分支）
   run_router "{\"prompt\":\"设计一个 React 组件的响应式页面 UI\",\"cwd\":\"$rproj\"}"
   assert_exit "router: FE prompt → exit 0" 0 "$RRC"
   assert_contains "router: FE 特征 prompt → 选 frontend Track" "$ROUT" "track=frontend"
@@ -1742,10 +1821,10 @@ EOF
       input,
       encoding: "utf8",
       timeout: 1000,
-      env: { ...process.env, CLAUDE_PLUGIN_ROOT: process.argv[2], TENON_ROUTER_CACHE: process.argv[3] },
+      env: { ...process.env, CLAUDE_PLUGIN_ROOT: process.argv[2], TENON_ROUTER_CACHE: process.argv[3], TENON_RUNTIME_HOME: process.argv[5] },
     })
     process.stdout.write(`${result.error?.code ?? ""}|${result.status ?? ""}|${result.stdout}`)
-  ' "$R" "$ROOT" "$RCACHE" "$rproj")"
+  ' "$R" "$RPLUG" "$RCACHE" "$rproj" "$RTHOME")"
   assert_not_contains "router: 完整 hook 遇 FIFO 有界返回" "$FIFO_ROUTER_RESULT" "ETIMEDOUT"
   assert_contains "router: FIFO fail-open 后仍继续正常路由" "$FIFO_ROUTER_RESULT" "<tenon-dispatch>"
   rm -f "$rproj/.pipeline/hooks.json"
@@ -1854,62 +1933,107 @@ EOF
   run_router "{\"prompt\":\"never 全部批准；请修复这个 React 页面\",\"cwd\":\"$rproj\"}"
   assert_not_contains "router: 英文 never authority 必须 fail closed" "$ROUT" "continuous_execution: true"
   [ -f "$RCACHE" ] && ok "router: 首轮无缓存 → 派生缓存已生成" || bad "router: 首轮无缓存 → 派生缓存已生成" "缓存未生成"
-  assert_contains "router: 缓存 schema 为 TENON_ROUTER_V5" "$(cat "$RCACHE" 2>/dev/null)" "TENON_ROUTER_V5"
-  assert_not_contains "router: data cache 不含可 source 的 FE_PATTERN 赋值" "$(cat "$RCACHE" 2>/dev/null)" "FE_PATTERN="
-  assert_not_contains "router: 自由字符串 hex 编码，缓存不裸露 manifest token" "$(cat "$RCACHE" 2>/dev/null)" "响应式"
-  # 插件 release 的 builtin/skill/breadcrumb contract 必须按内容失效，不能依赖 mtime。
-  # 将 cache contract 改成结构合法的旧值并把 mtime 放到未来；仍应拒绝旧 cache、冷生成并修复。
-  awk 'BEGIN { FS=OFS="|" } NR == 2 { $6="0000000000000000000000000000000000000000000000000000000000000000" } { print }' \
-    "$RCACHE" > "$RCACHE.stale-contract"
-  mv "$RCACHE.stale-contract" "$RCACHE"
+  RCACHE_TEXT="$(cat "$RCACHE" 2>/dev/null)"
+  assert_contains "router: 缓存 schema 为 TENON_ROUTER_V6" "$RCACHE_TEXT" "TENON_ROUTER_V6"
+  assert_not_contains "router: data cache 不含可 source 的 FE_PATTERN 赋值" "$RCACHE_TEXT" "FE_PATTERN="
+  assert_not_contains "router: 自由字符串 hex 编码，缓存不裸露路由关键词" "$RCACHE_TEXT" "响应式"
+  assert_not_contains "router: 缓存不再带 manifest 派生的技能矩阵 / breadcrumb 记录" "$(printf '%s\n' "$RCACHE_TEXT" | grep -E '^[BCS]\|' || true)" "|"
+  # 缓存里的工作流文件摘要必须按内容失效，不能依赖 mtime。
+  # 把摘要改成结构合法的旧值并把 mtime 放到未来；仍应拒绝旧 cache、冷生成并修复。
+  awk 'BEGIN { FS=OFS="|" } NR == 2 { $3="0000000000000000000000000000000000000000000000000000000000000000" } { print }' \
+    "$RCACHE" > "$RCACHE.stale-digest"
+  mv "$RCACHE.stale-digest" "$RCACHE"
   touch -t 203001010000 "$RCACHE"
   run_router "{\"prompt\":\"设计一个 React 组件的响应式页面 UI\",\"cwd\":\"$rproj\"}"
-  assert_contains "router: release contract 不匹配且 cache mtime 更新也会重生成" "$ROUT" "track=frontend"
-  contract_field="$(sed -n '2p' "$RCACHE" | cut -d'|' -f6)"
-  [ "$contract_field" != "0000000000000000000000000000000000000000000000000000000000000000" ] \
-    && ok "router: 重生成写回当前 release contract" \
-    || bad "router: 重生成写回当前 release contract" "cache 仍保留旧 contract"
+  assert_contains "router: 摘要不匹配且 cache mtime 更新也会重生成" "$ROUT" "track=frontend"
+  digest_field="$(sed -n '2p' "$RCACHE" | cut -d'|' -f3)"
+  [ "$digest_field" != "0000000000000000000000000000000000000000000000000000000000000000" ] \
+    && ok "router: 重生成写回当前工作流文件摘要" \
+    || bad "router: 重生成写回当前工作流文件摘要" "cache 仍保留旧摘要"
   # 稳定 bootstrap 会将 active payload 作为 PLUGIN_ROOT 注入；在 payload 级验证该契约，
   # 同时避免测试直接把 host manifest 绑回可变 marketplace checkout。
-  ROUT="$(printf '%s' "{\"prompt\":\"设计一个 React 组件的响应式页面 UI\",\"cwd\":\"$rproj\"}" | TENON_ROUTER_CACHE="$RCACHE" PLUGIN_ROOT="$ROOT" CLAUDE_PLUGIN_ROOT='' bash -c 'bash "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-}}/hooks/router.sh"' 2>/dev/null)"
+  ROUT="$(printf '%s' "{\"prompt\":\"设计一个 React 组件的响应式页面 UI\",\"cwd\":\"$rproj\"}" | TENON_ROUTER_CACHE="$RCACHE" TENON_RUNTIME_HOME="$RTHOME" PLUGIN_ROOT="$RPLUG" CLAUDE_PLUGIN_ROOT='' bash -c 'bash "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-}}/hooks/router.sh"' 2>/dev/null)"
   RRC=$?
   assert_exit "router: Codex PLUGIN_ROOT-only hook → exit 0" 0 "$RRC"
   assert_contains "router: Codex PLUGIN_ROOT-only hook → default dispatch" "$ROUT" "<tenon-dispatch>"
   assert_contains "router: Codex PLUGIN_ROOT-only hook → frontend track" "$ROUT" "track=frontend"
-  # BE / PM 特征 prompt
+  # 重型信号 = 轻量分支自己的 exclude 词命中（不论轻量关键词是否命中）→ 直接走领域轨道，不评估、不列轻量
   run_router "{\"prompt\":\"设计一个后端 API 接口，接 Postgres 数据库，写 service 层\",\"cwd\":\"$rproj\"}"
   assert_contains "router: BE 特征 prompt → 选 backend Track" "$ROUT" "track=backend"
+  assert_not_contains "router: 带重型信号（数据库）的领域请求不要求评估" "$ROUT" "assess:"
+  assert_not_contains "router: 带重型信号的领域请求不把轻量列为候选" "$ROUT" "track=lite"
+  # 没有点名、也没有重型信号的开发请求，不论轻量关键词是否命中，都要评估：候选 = 轻量 + 同一工作流里的领域行
+  run_router "{\"prompt\":\"设计一个 React 页面\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 没有轻量关键词、没有重型信号的领域请求同样要求评估" "$ROUT" "assess: required"
+  assert_contains "router: 设计一个 React 页面 → 候选含轻量" "$ROUT" "candidate: workflow=default;track=lite"
+  assert_contains "router: 设计一个 React 页面 → 候选含 frontend" "$ROUT" "candidate: workflow=default;track=frontend"
+  assert_contains "router: 设计一个 React 页面 → 推荐领域轨道 frontend" "$ROUT" "track: frontend"
+  assert_not_contains "router: 评估分派不是自定义选择（同一工作流内的评估）" "$ROUT" "selection_required"
+  # 产品请求是否评估由数据决定：夹具的轻量 exclude 含调研 / 竞品 / PRD / 需求文档，所以它们直接进 pm
+  run_router "{\"prompt\":\"做竞品调研\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 做竞品调研 → 直接进 pm" "$ROUT" "track: pm"
+  assert_not_contains "router: 产品调研词是轻量的排除词，不要求评估" "$ROUT" "assess:"
+  assert_not_contains "router: 产品调研请求不把轻量列为候选" "$ROUT" "track=lite"
+  # 开发请求先评估轻重：轻量命中且没有重型信号 → dispatch 带 assess: required，候选 = 轻量 + 领域重型轨道
+  run_router "{\"prompt\":\"修复登录页报错\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 修复登录页报错 → 要求评估" "$ROUT" "assess: required"
+  assert_contains "router: 评估候选含轻量" "$ROUT" "candidate: workflow=default;track=lite"
+  assert_contains "router: 评估候选含领域重型轨道 frontend" "$ROUT" "candidate: workflow=default;track=frontend"
+  assert_contains "router: 评估的推荐领域轨道写进 track 字段" "$ROUT" "track: frontend"
+  assert_contains "router: 评估分派仍绑定 default workflow" "$ROUT" "workflow: default"
+  assert_contains "router: 评估分派提示 tenon assess" "$ROUT" "tenon assess --files"
+  assert_contains "router: 评估后选轻量要带上候选里的领域轨道（--domain frontend）" "$ROUT" "--workflow default --track lite --domain frontend"
+  assert_contains "router: 说明选轻量必须带 --domain" "$ROUT" "选轻量时必须带上 --domain"
+  assert_not_contains "router: 评估分派不是自定义选择" "$ROUT" "selection_required"
   run_router "{\"prompt\":\"修复 API 文案 typo\",\"cwd\":\"$rproj\"}"
-  assert_contains "router: simple 否决项 API 优先，standard 通道接管" "$ROUT" "track=standard"
-  assert_contains "router: simple 否决后实现类请求使用 standard workflow" "$ROUT" "workflow: standard"
-  assert_not_contains "router: standard 不触发自定义选择（插件自带的版本化策略对）" "$ROUT" "selection_required"
-  run_router "{\"prompt\":\"新目标：修改多模块中的同一处 typo\",\"cwd\":\"$rproj\"}"
-  assert_contains "router: simple 否决项多模块优先，完整 backend Track 接管" "$ROUT" "track=backend"
-  assert_contains "router: 多模块 typo 不使用 simple workflow" "$ROUT" "workflow: default"
-  # standard 通道（v0.3）：审计里漏判的实现类请求默认进 standard；重型信号仍进 default；兜底提示不静默放过。
-  run_router "{\"prompt\":\"add a subtract function to src/add.js\",\"cwd\":\"$rproj\"}"
-  assert_contains "router: 英文实现类请求 → standard track" "$ROUT" "track: standard"
-  assert_contains "router: standard dispatch 使用 standard workflow" "$ROUT" "workflow: standard"
-  assert_contains "router: standard dispatch 从 open 开始" "$ROUT" "phase: open"
-  assert_contains "router: standard 提示给出创建命令" "$ROUT" "--workflow standard --track standard"
-  assert_not_contains "router: standard 不注入 default breadcrumb / 技能矩阵" "$ROUT" "本相位强制 skill"
-  run_router "{\"prompt\":\"refactor the add module\",\"cwd\":\"$rproj\"}"
-  assert_contains "router: refactor the add module → standard" "$ROUT" "track: standard"
-  run_router "{\"prompt\":\"给 src/add.js 加一个减法函数\",\"cwd\":\"$rproj\"}"
-  assert_contains "router: 中文 给 src/add.js 加一个减法函数 → standard" "$ROUT" "track: standard"
+  assert_contains "router: 轻量 + 后端 API 命中 → 评估，领域轨道 backend" "$ROUT" "candidate: workflow=default;track=backend"
+  assert_contains "router: 评估分派带 assess: required" "$ROUT" "assess: required"
+  # 重型信号（轻量被自己的排除词挡掉）→ 直接走领域重型轨道，不评估、不把轻量列为候选
+  run_router "{\"prompt\":\"给后端加数据库迁移\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 数据库迁移直接走 backend" "$ROUT" "track: backend"
+  assert_contains "router: 数据库迁移使用 default workflow" "$ROUT" "workflow: default"
+  assert_not_contains "router: 重型信号不要求评估" "$ROUT" "assess:"
+  assert_not_contains "router: 重型信号不把轻量列为候选" "$ROUT" "track=lite"
+  assert_not_contains "router: 重型信号直接建领域轨道，不出现 --domain" "$ROUT" "--domain"
+  # 被排除词挡掉、又没有分支认领 → 落到声明了 route.fallback 的分支（default 里是 backend）
+  run_router "{\"prompt\":\"修改鉴权相关代码\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 只命中轻量排除词 → 兜底 backend" "$ROUT" "track: backend"
+  assert_contains "router: 兜底分支的 workflow" "$ROUT" "workflow: default"
+  assert_not_contains "router: 兜底不要求评估" "$ROUT" "assess:"
+  run_router "{\"prompt\":\"修改跨模块的同一处 typo\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 跨模块是重型信号，完整 backend Track 接管" "$ROUT" "track=backend"
+  assert_not_contains "router: 跨模块 typo 不评估" "$ROUT" "assess:"
+  # 评估分派（设计 §3）：轻重不由关键词决定；开发请求建任务前先评估。没有轨道命中的请求给一行提示，不静默放过。
   run_router "{\"prompt\":\"重构 add 模块\",\"cwd\":\"$rproj\"}"
-  assert_contains "router: 中文 重构 add 模块 → standard" "$ROUT" "track: standard"
-  run_router "{\"prompt\":\"Please fix the null check in parseConfig\",\"cwd\":\"$rproj\"}"
-  assert_contains "router: 句首 Please fix … → standard" "$ROUT" "track: standard"
+  assert_contains "router: 重构 add 模块 → 评估，没有领域命中时重型候选取兜底 backend" "$ROUT" "candidate: workflow=default;track=backend"
+  assert_contains "router: 重构 add 模块 → 候选含轻量" "$ROUT" "candidate: workflow=default;track=lite"
+  assert_contains "router: 评估分派从 open 开始" "$ROUT" "phase: open"
+  assert_contains "router: 评估分派给出创建命令的写法" "$ROUT" "--workflow default --track backend"
+  assert_contains "router: 评估后选轻量要带上候选里的领域轨道（--domain backend）" "$ROUT" "--workflow default --track lite --domain backend"
+  assert_not_contains "router: 评估分派不注入阶段技能矩阵" "$ROUT" "本相位强制 skill"
   run_router "{\"prompt\":\"新增用户登录鉴权\",\"cwd\":\"$rproj\"}"
   assert_contains "router: 重型实现类请求（鉴权）回落 backend，不是无人治理" "$ROUT" "track: backend"
   assert_contains "router: 重型实现类请求使用 default workflow" "$ROUT" "workflow: default"
+  assert_not_contains "router: 重型实现类请求不评估" "$ROUT" "assess:"
   run_router "{\"prompt\":\"走 backend 轨道修复分页的 off-by-one\",\"cwd\":\"$rproj\"}"
-  assert_contains "router: 点名 backend 轨道胜过 standard" "$ROUT" "track: backend"
+  assert_contains "router: 点名 backend 轨道胜过评分" "$ROUT" "track: backend"
   assert_contains "router: 点名轨道来源" "$ROUT" "track_basis: user-named"
+  assert_not_contains "router: 点名轨道不要求评估" "$ROUT" "assess:"
+  run_router "{\"prompt\":\"用后端轨道 修一下\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 按轨道名称点名「用后端轨道」→ backend" "$ROUT" "track: backend"
+  assert_contains "router: 按名称点名来源 user-named" "$ROUT" "track_basis: user-named"
+  assert_not_contains "router: 按名称点名不要求评估" "$ROUT" "assess:"
+  run_router "{\"prompt\":\"改个错别字，用轻量轨道\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 按轨道名称点名「用轻量轨道」→ lite" "$ROUT" "track: lite"
+  assert_contains "router: 点名轻量轨道仍绑定 default workflow" "$ROUT" "workflow: default"
+  assert_not_contains "router: 点名轻量轨道不再评估" "$ROUT" "assess:"
+  run_router "{\"prompt\":\"别用后端轨道，修复登录页报错\",\"cwd\":\"$rproj\"}"
+  assert_not_contains "router: 否定的名称点名不绑定后端" "$ROUT" "track_basis: user-named"
   run_router "{\"prompt\":\"the add function in src/add.js returns the wrong value for negatives\",\"cwd\":\"$rproj\"}"
   assert_contains "router: 没有轨道命中但像在改代码 → 一行提示，不静默放过" "$ROUT" "未命中任何轨道规则"
-  assert_contains "router: 提示给出 standard 创建命令" "$ROUT" "tenon init <名字> --workflow standard --track standard"
+  assert_contains "router: 提示给出评估写法" "$ROUT" "tenon assess --files"
+  assert_contains "router: 提示给出轻量轨道的创建写法" "$ROUT" "--workflow default --track lite"
+  assert_not_contains "router: 提示不再出现 standard" "$ROUT" "standard"
   assert_not_contains "router: 提示不强制 dispatch" "$ROUT" "<tenon-dispatch>"
   n="$(printf '%s' "$ROUT" | grep -c '未命中任何轨道规则')"
   [ "$n" = "1" ] && ok "router: 提示只有一行" || bad "router: 提示只有一行" "实得 ${n} 行"
@@ -1917,33 +2041,39 @@ EOF
   assert_empty "router: 讨论类 prompt 既不路由也不提示" "$ROUT"
   run_router "{\"prompt\":\"谢谢\",\"cwd\":\"$rproj\"}"
   assert_empty "router: 与代码无关的闲聊不提示" "$ROUT"
-  # 恢复一个 standard Change：按冻结工作流的 step.next 执行，Todo 来自 workflow plan，不是不存在的 tasks.md。
+  # 恢复一个轻量任务（default / lite）与一个在途的旧 standard 任务：没有 OpenSpec 文档链，按冻结工作流的 step.next 执行，
+  # 待办清单取自 workflow plan，不是不存在的 tasks.md。旧任务的轨道不在路由表里，仍按状态里的值恢复。
   stdproj="$TMP/router-standard-resume"; mkdir -p "$stdproj/openspec/changes/fixit"
   printf 'track: standard\nphase: build\nphase_status: in_progress\nworkflow: standard\n' > "$stdproj/openspec/changes/fixit/.pipeline.yaml"
-  run_router "{\"prompt\":\"继续 fixit\",\"cwd\":\"$stdproj\"}" "$TMP/router-standard-resume.v5.data"
-  assert_contains "router: 恢复 standard Change 保持其工作流身份" "$ROUT" "workflow: standard"
-  assert_contains "router: 恢复 standard Change 的提示点名 standard" "$ROUT" "已恢复 standard Change"
-  assert_contains "router: 恢复 standard Change 的 Todo 来自 workflow plan" "$ROUT" "todo_source: tenon-workflow-plan"
-  assert_not_contains "router: 恢复 standard Change 不指向不存在的 tasks.md" "$ROUT" "openspec/changes/fixit/tasks.md"
-  run_router "{\"prompt\":\"把 React 版本号从 18 升级到 19\",\"cwd\":\"$rproj\"}"
+  run_router "{\"prompt\":\"继续 fixit\",\"cwd\":\"$stdproj\"}" "$TMP/router-standard-resume.v6.data"
+  assert_contains "router: 恢复在途 standard Change 保持其工作流身份" "$ROUT" "workflow: standard"
+  assert_contains "router: 恢复在途 standard Change 的提示点名 standard" "$ROUT" "已恢复 standard Change"
+  assert_contains "router: 恢复在途 standard Change 的 Todo 来自 workflow plan" "$ROUT" "todo_source: tenon-workflow-plan"
+  assert_not_contains "router: 恢复在途 standard Change 不指向不存在的 tasks.md" "$ROUT" "openspec/changes/fixit/tasks.md"
+  assert_contains "router: 恢复在途 standard Change 的状态绑定" "$ROUT" "track_basis: state"
+  liteproj="$TMP/router-lite-resume"; mkdir -p "$liteproj/openspec/changes/tidy"
+  printf 'track: lite\nphase: build\nphase_status: in_progress\nworkflow: default\n' > "$liteproj/openspec/changes/tidy/.pipeline.yaml"
+  run_router "{\"prompt\":\"继续 tidy\",\"cwd\":\"$liteproj\"}" "$TMP/router-lite-resume.v6.data"
+  assert_contains "router: 恢复轻量 Change 保持 default workflow" "$ROUT" "workflow: default"
+  assert_contains "router: 恢复轻量 Change 的轨道来自状态" "$ROUT" "track: lite"
+  assert_contains "router: 恢复轻量 Change 的 Todo 来自 workflow plan" "$ROUT" "todo_source: tenon-workflow-plan"
+  assert_not_contains "router: 恢复轻量 Change 不指向不存在的 tasks.md" "$ROUT" "openspec/changes/tidy/tasks.md"
+  run_router "{\"prompt\":\"做一次 React 依赖升级，从 18 到 19\",\"cwd\":\"$rproj\"}"
   assert_contains "router: 依赖升级由完整 frontend Track 接管" "$ROUT" "track=frontend"
   assert_contains "router: 依赖升级使用 default workflow" "$ROUT" "workflow: default"
+  assert_not_contains "router: 依赖升级是重型信号，不评估" "$ROUT" "assess:"
   run_router "{\"prompt\":\"帮我做竞品调研，写 PRD 需求文档，梳理用户旅程\",\"cwd\":\"$rproj\"}"
   assert_contains "router: PM 特征 prompt → 选 pm Track" "$ROUT" "track=pm"
-  run_router "{\"prompt\":\"请用自由模式执行这个任务\",\"cwd\":\"$rproj\"}"
-  assert_contains "router: 显式自由模式命中 free Track" "$ROUT" "track: free"
-  assert_contains "router: 自由模式在普通项目绑定 default Workflow" "$ROUT" "workflow: default"
-  assert_contains "router: 自由模式仍要求执行所选 Workflow" "$ROUT" "只执行所选 Workflow 自己的 DAG"
-  assert_not_contains "router: 自由模式不注入标准 Track 技能矩阵" "$ROUT" "本相位强制 skill"
+  assert_not_contains "router: PM 特征 prompt 直接进 pm，不评估" "$ROUT" "assess:"
   run_router "{\"prompt\":\"请处理这个任务\",\"cwd\":\"$rproj\"}"
-  assert_empty "router: free 永不靠兜底或评分自动命中" "$ROUT"
+  assert_empty "router: 没有任何分支命中的请求不靠兜底自动路由" "$ROUT"
 
-  # v0.1.2 真实会话：「……走 free 轨道即可」被评分成 simple。用户点名的已知轨道 id 以点名为准。
-  run_router "{\"prompt\":\"先把登录接口的 bug 修一下，走 free 轨道即可\",\"cwd\":\"$rproj\"}"
-  assert_contains "router: 「走 free 轨道」→ track: free" "$ROUT" "track: free"
+  # 用户点名的已知轨道 id 以点名为准，不按关键词评分、不要求评估。
+  run_router "{\"prompt\":\"先把登录接口的 bug 修一下，走 backend 轨道即可\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 「走 backend 轨道」→ track: backend" "$ROUT" "track: backend"
   assert_contains "router: 点名轨道标注来源" "$ROUT" "track_basis: user-named"
-  assert_contains "router: 点名轨道的头部不再写评分猜测" "$ROUT" "track=free（用户点名）"
-  assert_not_contains "router: 点名 free 不再落到 simple" "$ROUT" "track: simple"
+  assert_contains "router: 点名轨道的头部不再写评分猜测" "$ROUT" "track=backend（用户点名）"
+  assert_not_contains "router: 点名轨道不再要求评估" "$ROUT" "assess:"
   run_router "{\"prompt\":\"修复 API 的 bug，用 backend 轨道\",\"cwd\":\"$rproj\"}"
   assert_contains "router: 「用 backend 轨道」→ track: backend" "$ROUT" "track: backend"
   assert_contains "router: 「用 backend 轨道」来源 user-named" "$ROUT" "track_basis: user-named"
@@ -1951,24 +2081,53 @@ EOF
   assert_contains "router: track=pm 胜过 frontend 评分" "$ROUT" "track: pm"
   run_router "{\"prompt\":\"Please use the Backend track to build the React page\",\"cwd\":\"$rproj\"}"
   assert_contains "router: 英文 use the Backend track（大小写不敏感）" "$ROUT" "track: backend"
-  run_router "{\"prompt\":\"快速修复 README 里的错别字，走 simple 轨道\",\"cwd\":\"$rproj\"}"
-  assert_contains "router: 点名 simple 仍走内建 simple workflow" "$ROUT" "workflow: simple"
+  run_router "{\"prompt\":\"快速修复 README 里的错别字，走 lite 轨道\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 点名 lite 直接用 default 的轻量轨道" "$ROUT" "track: lite"
+  assert_contains "router: 点名 lite 的 workflow" "$ROUT" "workflow: default"
+  assert_contains "router: 点名 lite 来源 user-named" "$ROUT" "track_basis: user-named"
+  assert_not_contains "router: 点名 lite 不再评估" "$ROUT" "assess:"
+  run_router "{\"prompt\":\"在 default:backend 里修个 bug\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 「工作流:轨道」写法点名 → backend" "$ROUT" "track: backend"
+  assert_contains "router: 「工作流:轨道」写法来源 user-named" "$ROUT" "track_basis: user-named"
   run_router "{\"prompt\":\"修复 API 的 bug\",\"cwd\":\"$rproj\"}"
-  assert_contains "router: 未点名 → 评分选 standard（实现类请求的默认通道）" "$ROUT" "track: standard"
+  assert_contains "router: 未点名 → 评分选领域轨道 backend 并要求评估" "$ROUT" "track: backend"
   assert_contains "router: 未点名 → 来源 score" "$ROUT" "track_basis: score"
+  assert_contains "router: 未点名 → 要求评估" "$ROUT" "assess: required"
   run_router "{\"prompt\":\"修复 API 的 bug，走 foo 轨道\",\"cwd\":\"$rproj\"}"
-  assert_contains "router: 点名不存在的轨道 → 回退评分" "$ROUT" "track: standard"
+  assert_contains "router: 点名不存在的轨道 → 回退评分" "$ROUT" "track: backend"
   assert_contains "router: 点名不存在的轨道 → 来源 score" "$ROUT" "track_basis: score"
-  assert_contains "router: 点名不存在的轨道 → 输出提示" "$ROUT" "用户点名的轨道 foo 不在本项目的轨道列表中"
+  assert_contains "router: 点名不存在的轨道 → 输出提示" "$ROUT" "用户点名的 foo 不在本项目的轨道 / 工作流列表中"
+  run_router "{\"prompt\":\"在 default:ghost 里修个 bug\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 工作流对、轨道不存在 → 回退评分并提示" "$ROUT" "用户点名的 default:ghost 不在本项目的轨道 / 工作流列表中"
+  assert_contains "router: 工作流对、轨道不存在 → 来源 score" "$ROUT" "track_basis: score"
   run_router "{\"prompt\":\"修复 API 的 bug，不要走 frontend 轨道\",\"cwd\":\"$rproj\"}"
   assert_contains "router: 否定点名（不要走 X 轨道）不绑定" "$ROUT" "track_basis: score"
   assert_not_contains "router: 否定点名不绑定 frontend" "$ROUT" "track: frontend"
   run_router "{\"prompt\":\"修复 API bug，走 pm 轨道还是走 frontend 轨道\",\"cwd\":\"$rproj\"}"
   assert_contains "router: 点名多个轨道 → 回退评分" "$ROUT" "track_basis: score"
-  assert_contains "router: 点名多个轨道 → 提示先确认" "$ROUT" "同时点名了多个轨道（pm、frontend）"
+  assert_contains "router: 点名多个轨道 → 提示先确认" "$ROUT" "同时点名了多个轨道或工作流（pm、frontend）"
   long_filler="$(printf '%*s' 12000 '' | tr ' ' 'x')"
-  run_router "{\"prompt\":\"修复 API 的 bug，日志如下：${long_filler}。走 free 轨道即可\",\"cwd\":\"$rproj\"}"
-  assert_contains "router: 长 prompt 结尾的点名仍生效（只扫首尾窗口）" "$ROUT" "track: free"
+  run_router "{\"prompt\":\"修复 API 的 bug，日志如下：${long_filler}。走 frontend 轨道即可\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 长 prompt 结尾的点名仍生效（只扫首尾窗口）" "$ROUT" "track: frontend"
+  # 点名工作流：平铺工作流只有一条隐式分支，轨道 id 就是工作流名；点名它直接用，不评估，建任务不用 --track。
+  run_router "{\"prompt\":\"用 design-system 工作流把按钮样式整理一下\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 点名 design-system 工作流 → 该工作流" "$ROUT" "workflow: design-system"
+  assert_contains "router: 点名平铺工作流 → 它唯一的隐式轨道" "$ROUT" "track: design-system"
+  assert_contains "router: 点名工作流来源 user-named" "$ROUT" "track_basis: user-named"
+  assert_not_contains "router: 点名工作流不评估" "$ROUT" "assess:"
+  assert_not_contains "router: 点名工作流不是选择" "$ROUT" "selection_required"
+  assert_not_contains "router: 平铺工作流建任务不带 --track" "$ROUT" "--workflow design-system --track"
+  run_router "{\"prompt\":\"use the design-system workflow for the button styles\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 英文 use the design-system workflow" "$ROUT" "workflow: design-system"
+  run_router "{\"prompt\":\"别用 design-system 工作流，改一下按钮样式\",\"cwd\":\"$rproj\"}"
+  assert_not_contains "router: 否定点名工作流不绑定" "$ROUT" "workflow: design-system"
+  # 点名多分支工作流：只在它的分支里评分；命中不了就让用户在它的分支里选。
+  run_router "{\"prompt\":\"用 default 工作流修复登录页报错\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 点名 default 工作流后仍评估轻重" "$ROUT" "assess: required"
+  assert_contains "router: 点名 default 工作流后在它的分支里选领域轨道" "$ROUT" "track: frontend"
+  run_router "{\"prompt\":\"用 default 工作流处理一下这个事\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 点名多分支工作流却没有分支命中 → 要求选择" "$ROUT" "selection_required: true"
+  assert_contains "router: 没有命中时候选列出该工作流的分支" "$ROUT" "candidate: workflow=default;track=pm"
 
   # 用户粘贴大段日志：v0.1.2 的 router 在 bash 3.2 上处理 300 KB prompt 约 145 s（宿主 5 s 超时，路由
   # 静默丢失）。日志行带转义引号、反斜杠、换行和中文，cwd 排在 prompt 之后（最坏的键位置）；
@@ -1979,24 +2138,24 @@ EOF
   for big_scale in 10 34; do   # ≈ 300 KB 与 ≈ 1 MB
     big_body=''
     for _ in $(seq 1 "$big_scale"); do big_body="$big_body$BIG_PROMPT_UNIT"; done
-    printf '{"session_id":"s","prompt":"修复 API 的 bug，日志：%s 走 free 轨道","cwd":"%s"}' "$big_body" "$rproj" \
+    printf '{"session_id":"s","prompt":"修复 API 的 bug，日志：%s 走 backend 轨道","cwd":"%s"}' "$big_body" "$rproj" \
       > "$TMP/big-prompt.json"
     big_bytes="$(wc -c < "$TMP/big-prompt.json" | tr -d ' ')"
     for big_hook in "$R" "$ROOT/hooks/breadcrumb.sh" "$ROOT/hooks/confirm-clear-prompt.sh"; do
       big_start=$SECONDS
-      big_out="$(TENON_ROUTER_CACHE="$RCACHE" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$big_hook" < "$TMP/big-prompt.json" 2>/dev/null)"
+      big_out="$(TENON_ROUTER_CACHE="$RCACHE" TENON_RUNTIME_HOME="$RTHOME" CLAUDE_PLUGIN_ROOT="$RPLUG" bash "$big_hook" < "$TMP/big-prompt.json" 2>/dev/null)"
       big_elapsed=$((SECONDS - big_start))
       if [ "$big_elapsed" -le 3 ]; then
         ok "超长 prompt: $(basename "$big_hook") ${big_bytes} 字节 ${big_elapsed}s 内完成"
       else
         bad "超长 prompt: $(basename "$big_hook") ${big_bytes} 字节 3s 内完成" "耗时 ${big_elapsed}s"
       fi
-      [ "$big_hook" = "$R" ] && assert_contains "超长 prompt: router ${big_bytes} 字节仍读到结尾点名与 cwd" "$big_out" "track: free"
+      [ "$big_hook" = "$R" ] && assert_contains "超长 prompt: router ${big_bytes} 字节仍读到结尾点名与 cwd" "$big_out" "track: backend"
     done
   done
   BOUND_OUT="$(bash -c '. "$1"; pipeline_prompt_bound_input "$(cat "$2")"' _ "$ROOT/hooks/prompt-intent.sh" "$TMP/big-prompt.json")"
   assert_contains "超长 prompt: 截断保留开头" "$BOUND_OUT" '"prompt":"修复 API 的 bug，日志：2026-09-24'
-  assert_contains "超长 prompt: 截断保留结尾与其余键" "$BOUND_OUT" "走 free 轨道\",\"cwd\":\"$rproj\"}"
+  assert_contains "超长 prompt: 截断保留结尾与其余键" "$BOUND_OUT" "走 backend 轨道\",\"cwd\":\"$rproj\"}"
   [ "${#BOUND_OUT}" -lt 20000 ] && ok "超长 prompt: 截断后不超过首尾各 8 KiB" || bad "超长 prompt: 截断后不超过首尾各 8 KiB" "长度 ${#BOUND_OUT}"
   BOUND_DECODED="$(bash -c '. "$1"; . "$2"; pipeline_json_get_string "$3" prompt' _ "$ROOT/hooks/json-input.sh" "$ROOT/hooks/prompt-intent.sh" "$BOUND_OUT")"
   [ -n "$BOUND_DECODED" ] && ok "超长 prompt: 截断后的 JSON 仍可解码" || bad "超长 prompt: 截断后的 JSON 仍可解码" "解码失败"
@@ -2004,40 +2163,68 @@ EOF
   SMALL_OUT="$(bash -c '. "$1"; pipeline_prompt_bound_input "$2"' _ "$ROOT/hooks/prompt-intent.sh" "$SMALL_JSON")"
   [ "$SMALL_OUT" = "$SMALL_JSON" ] && ok "超长 prompt: 64 KiB 以内的输入原样返回" || bad "超长 prompt: 64 KiB 以内的输入原样返回" "被改写"
 
-  # 项目自定义 Track/workflow 是正常对话的真实选择，不得被 hook 偷换成 workflow: default。
-  # 这里用真实 kernel cold-path 载入一份有效的 custom workflow，再验证 V5 cache → bash hot-path
-  # → dispatch contract 的闭环；不是手写 cache fixture。
-  selectproj="$TMP/router-workflow-selection"; selectcache="$TMP/router-workflow-selection.v5.data"
-  mkdir -p "$selectproj/.pipeline/workflows" "$selectproj/openspec/changes"
-  strip_document_contract "$ROOT/templates/workflows/default.yaml" \
-    | sed -e 's/^name: default$/name: catalog-flow/' -e 's/effective-phase-skills/effective-step-skills/g' > "$selectproj/.pipeline/workflows/catalog-flow.yaml"
-  printf "version: 1\ntracks:\n  - id: catalog\n    label: Catalog Flow\n    workflow:\n      default: catalog-flow\n      allowed:\n        - catalog-flow\n    policy_profile:\n      review_seed: pending\n      automation_eligible: true\n      coverage_profile: frontend\n      routing:\n        enabled: true\n        pattern: '(目录|检索|catalog flow)'\n        priority: 980\n      skills:\n        matrix: true\n        profile: frontend\n" > "$selectproj/.pipeline/tracks.yaml"
-  run_router "{\"prompt\":\"设计商品目录 React HTML 页面\",\"cwd\":\"$selectproj\"}" "$selectcache"
-  assert_contains "router: custom Track 选中 catalog" "$ROUT" "track: catalog"
+  # 全局存储里保存的自定义工作流，其带 route 的分支是正常对话的真实选择：命中它的消息必须列出「工作流 + 轨道」候选、
+  # 在创建 Change 前让用户选择，不得被 hook 偷换成 workflow: default。真 CLI / kernel 冷生成，不是手写 cache。
+  CUSTOM_HOME="$TMP/router-custom-home"; CUSTOM_DIR="$CUSTOM_HOME/config/workflows/.pipeline/workflows"
+  selectproj="$TMP/router-workflow-selection"; selectcache="$TMP/router-workflow-selection.v6.data"
+  mkdir -p "$CUSTOM_DIR" "$selectproj/openspec/changes"
+  cat > "$CUSTOM_DIR/catalog-flow.yaml" <<CATALOGFLOW
+name: catalog-flow
+tracks:
+  catalog:
+    label: 目录
+    spec: none
+    route:
+      keywords: [目录, 检索, catalog flow]
+      priority: 980
+$ROUTER_STEP_YAML
+  plain:
+    label: 无路由
+    spec: none
+$ROUTER_STEP_YAML
+CATALOGFLOW
+  run_router "{\"prompt\":\"设计商品目录 React HTML 页面\",\"cwd\":\"$selectproj\"}" "$selectcache" "$CUSTOM_HOME"
+  assert_contains "router: custom Track 得分并列时按优先级推荐 catalog" "$ROUT" "track: catalog"
   assert_contains "router: custom workflow 触发选择契约" "$ROUT" "workflow: select"
   assert_contains "router: custom workflow 不被替换成 default" "$ROUT" "suggested_workflow: catalog-flow"
-  assert_contains "router: custom pair 进入候选" "$ROUT" "candidate: track=catalog;workflow=catalog-flow"
+  assert_contains "router: custom pair 进入候选" "$ROUT" "candidate: workflow=catalog-flow;track=catalog"
+  assert_contains "router: 候选里也有同样命中的内建 pair" "$ROUT" "candidate: workflow=default;track=frontend"
+  assert_not_contains "router: 领域行落在别的工作流时不加轻量候选，也不要求评估" "$ROUT" "track=lite"
+  assert_not_contains "router: 领域行落在别的工作流时不带 assess" "$ROUT" "assess:"
   assert_contains "router: custom pair 在创建 Change 前要求用户选择" "$ROUT" "selection_required: true"
-  assert_contains "router: custom pair 选择前明确尚未绑定 workflow" "$ROUT" "尚未选定自定义 workflow"
+  assert_contains "router: custom pair 选择前明确尚未绑定 workflow" "$ROUT" "尚未选定 workflow"
   assert_not_contains "router: custom pair 选择前不伪造空 workflow 绑定" "$ROUT" "当前 Change 绑定自定义 workflow ''"
   assert_not_contains "router: custom pair 选择前不注入 default breadcrumb" "$ROUT" "TDD"
-  run_router "{\"prompt\":\"修复后端 API 接口的 bug，用 catalog 轨道\",\"cwd\":\"$selectproj\"}" "$selectcache"
+  run_router "{\"prompt\":\"检索一下目录结构\",\"cwd\":\"$selectproj\"}" "$selectcache" "$CUSTOM_HOME"
+  assert_contains "router: 只命中自定义分支时也要求选择" "$ROUT" "selection_required: true"
+  assert_contains "router: 只命中自定义分支时候选里带上兜底的内建 pair" "$ROUT" "candidate: workflow=default;track=backend"
+  run_router "{\"prompt\":\"修复后端 API 接口的 bug，用 catalog 轨道\",\"cwd\":\"$selectproj\"}" "$selectcache" "$CUSTOM_HOME"
   assert_contains "router: 点名项目自定义轨道 catalog" "$ROUT" "track: catalog"
   assert_contains "router: 点名自定义轨道标注来源" "$ROUT" "track_basis: user-named"
-  assert_contains "router: 点名自定义轨道推荐其 workflow" "$ROUT" "suggested_workflow: catalog-flow"
-
-  # 内建 Track 也允许被项目配置覆盖 workflow。它仍是 builtin:true，但非 default 绑定是项目选择，
-  # 必须和额外 Track 一样在创建 Change 前确认，不能因 builtin 身份静默直达 custom workflow。
-  builtinselectproj="$TMP/router-builtin-workflow-selection"; builtinselectcache="$TMP/router-builtin-workflow-selection.v5.data"
-  mkdir -p "$builtinselectproj/.pipeline/workflows" "$builtinselectproj/openspec/changes"
-  strip_document_contract "$ROOT/templates/workflows/default.yaml" \
-    | sed -e 's/^name: default$/name: catalog-flow/' -e 's/effective-phase-skills/effective-step-skills/g' > "$builtinselectproj/.pipeline/workflows/catalog-flow.yaml"
-  printf "version: 1\nbuiltins:\n  frontend:\n    workflow:\n      default: catalog-flow\n      allowed:\n        - catalog-flow\n" > "$builtinselectproj/.pipeline/tracks.yaml"
-  run_router "{\"prompt\":\"设计商品目录 React HTML 页面\",\"cwd\":\"$builtinselectproj\"}" "$builtinselectcache"
-  assert_contains "router: builtin Track 非 default workflow 触发选择契约" "$ROUT" "workflow: select"
-  assert_contains "router: builtin Track 覆写进入候选" "$ROUT" "candidate: track=frontend;workflow=catalog-flow"
-  assert_contains "router: builtin Track 覆写在 Change 创建前要求选择" "$ROUT" "selection_required: true"
-  assert_contains "router: builtin Track 覆写保留推荐 workflow" "$ROUT" "suggested_workflow: catalog-flow"
+  assert_contains "router: 点名自定义轨道直接绑定其 workflow" "$ROUT" "workflow: catalog-flow"
+  assert_not_contains "router: 点名是用户的直接选择，不再要求选择" "$ROUT" "selection_required"
+  run_router "{\"prompt\":\"用 plain 轨道做点杂事\",\"cwd\":\"$selectproj\"}" "$selectcache" "$CUSTOM_HOME"
+  assert_contains "router: 没有 route 的分支也能被点名" "$ROUT" "track: plain"
+  assert_contains "router: 点名没有 route 的分支绑定其 workflow" "$ROUT" "workflow: catalog-flow"
+  run_router "{\"prompt\":\"无路由 plain 相关的事\",\"cwd\":\"$selectproj\"}" "$selectcache" "$CUSTOM_HOME"
+  assert_empty "router: 没有 route 的分支从不靠评分胜出" "$ROUT"
+  run_router "{\"prompt\":\"做一个页面和接口\",\"cwd\":\"$selectproj\"}" "$selectcache" "$CUSTOM_HOME"
+  assert_contains "router: 最高分并列要求选择" "$ROUT" "selection_required: true"
+  assert_contains "router: 并列时推荐优先级高的 frontend" "$ROUT" "suggested_track: frontend"
+  assert_contains "router: 并列候选含 frontend" "$ROUT" "candidate: workflow=default;track=frontend"
+  assert_contains "router: 并列候选含 backend" "$ROUT" "candidate: workflow=default;track=backend"
+  # 平铺的自定义工作流在顶层写 route，作为它唯一隐式分支参与路由；写坏的工作流被跳过，内建分支照常路由。
+  write_router_flat "$CUSTOM_DIR" flatwf '{ keywords: [设计体系文档], priority: 400 }'
+  printf 'name: broken\nthis is: [not valid\n' > "$CUSTOM_DIR/broken.yaml"
+  run_router "{\"prompt\":\"整理设计体系文档\",\"cwd\":\"$selectproj\"}" "$selectcache" "$CUSTOM_HOME"
+  assert_contains "router: 平铺工作流的顶层 route 参与路由" "$ROUT" "candidate: workflow=flatwf;track=flatwf"
+  assert_contains "router: 平铺自定义工作流同样要求选择" "$ROUT" "selection_required: true"
+  run_router "{\"prompt\":\"设计一个 React 组件的响应式页面 UI\",\"cwd\":\"$selectproj\"}" "$selectcache" "$CUSTOM_HOME"
+  assert_contains "router: 写坏的工作流被跳过，内建分支照常路由" "$ROUT" "track=frontend"
+  assert_not_contains "router: 写坏的工作流不引入选择" "$ROUT" "selection_required"
+  broken_hex="$(printf '%s' broken | od -An -tx1 | tr -d ' \n')"
+  assert_not_contains "router: 写坏的工作流不进缓存" "$(cat "$selectcache" 2>/dev/null)" "|${broken_hex}|"
+  assert_contains "router: 缓存里有自定义工作流的行（对照）" "$(cat "$selectcache" 2>/dev/null)" "|$(printf '%s' flatwf | od -An -tx1 | tr -d ' \n')|"
 
   # 根隔离回归：/tmp 父目录恰好有另一个 OpenSpec 时，非 Git 子目录必须把自己当 bootstrap
   # 根，正常对话仍走 default dispatch，但绝不能借用父项目的 change/phase/tasks。
@@ -2050,15 +2237,18 @@ EOF
   assert_contains "router: 非 Git 子目录 default workflow 从 open 起步" "$ROUT" "phase: open"
   assert_not_contains "router: 不借父目录 foreign change" "$ROUT" "foreign-change"
 
-  # breadcrumb 注入含相位 + 该 phase×track 推荐/强制 skill（活跃 change phase=build, track=frontend）
+  # 恢复注入含相位与行动提示（活跃 change phase=build, track=frontend）；技能要求只看工作流 YAML（tenon status 的 step.next），
+  # router 不再叠加 manifest 的阶段 × 轨道技能矩阵。
   rc2="$TMP/router-active"; mkdir -p "$rc2/openspec/changes/demo"
   printf 'track: frontend\nphase: build\narchived: \n' > "$rc2/openspec/changes/demo/.pipeline.yaml"
   run_router "{\"prompt\":\"继续实现登录页面的 React 组件\",\"cwd\":\"$rc2\"}"
   assert_contains "router: 注入含当前相位（phase=build）" "$ROUT" "phase=build"
   assert_contains "router: 注入含 change 名" "$ROUT" "demo"
   assert_contains "router: 注入含 <workflow-state> 标签" "$ROUT" "<workflow-state>"
-  assert_contains "router: 注入含该相位 breadcrumb 行动提示（指向 step.next）" "$ROUT" "step.next"
-  assert_contains "router: 注入含 build.frontend 强制 skill token（test-driven-development）" "$ROUT" "test-driven-development"
+  assert_contains "router: 注入含该相位行动提示（指向 step.next）" "$ROUT" "step.next"
+  assert_not_contains "router: 不再注入阶段 × 轨道的强制 skill 矩阵" "$ROUT" "本相位强制 skill"
+  assert_not_contains "router: 不再注入阶段 × 轨道的推荐 skill 矩阵" "$ROUT" "推荐 skill"
+  assert_not_contains "router: 不再注入 build.frontend 的 skill token" "$ROUT" "test-driven-development"
 
   # repo 级 `active-change` 只是恢复候选，不能劫持另一会话中的明确新主题。
   # 回归用户真实场景：旧 change 是 normal-chat 编排修复，新输入则是独立的新工具项目调研。
@@ -2067,6 +2257,7 @@ EOF
   set_active "$rc_new_topic" normal-chat-default-orchestration
   run_router "{\"prompt\":\"我现在想要调研一个新的工具项目\",\"cwd\":\"$rc_new_topic\"}"
   assert_contains "router: 明确新调研主题仍选 pm Track" "$ROUT" "track: pm"
+  assert_not_contains "router: 明确新调研主题直接进 pm，不评估" "$ROUT" "assess:"
   assert_contains "router: 明确新调研主题从 open 分派" "$ROUT" "phase: open"
   assert_contains "router: 明确新调研主题标记 new intent" "$ROUT" "intent: new"
   assert_not_contains "router: 明确新调研主题不绑定 repo 级旧 change" "$ROUT" "change: normal-chat-default-orchestration"
@@ -2183,113 +2374,126 @@ EOF
     bad "router 红线: LC_ALL=C 钉在 EFF_PHASE case 语句之前（locale-collation 修复机制在位）" "lc_all 行=${lc_all_line:-无}，case 行=${case_line:-无}"
   fi
 
-  # mtime 缓存：manifest 比缓存新 → 重生成（缓存 mtime 被刷新到晚于 manifest）
-  MAN="$ROOT/templates/manifest.yaml"
-  touch -t 200001010000 "$RCACHE"  # 人为把缓存打旧（早于 manifest）
+  # mtime 缓存：生成器脚本比缓存新 → 重生成（缓存 mtime 被刷新到晚于它）
+  touch -t 200001010000 "$RCACHE"  # 人为把缓存打旧（早于 router-gen.mjs 与 CLI bundle）
   run_router "{\"prompt\":\"帮我写个 React 页面 UI\",\"cwd\":\"$rproj\"}"
-  if [ "$RCACHE" -nt "$MAN" ] || [ ! "$MAN" -nt "$RCACHE" ]; then ok "router: 缓存陈旧（早于 manifest）→ 触发重生成刷新缓存"; else bad "router: 缓存陈旧（早于 manifest）→ 触发重生成刷新缓存" "缓存未被刷新"; fi
+  if [ "$RCACHE" -nt "$RGEN" ]; then ok "router: 缓存陈旧（早于生成器）→ 触发重生成刷新缓存"; else bad "router: 缓存陈旧（早于生成器）→ 触发重生成刷新缓存" "缓存未被刷新"; fi
 
   # 缓存命中零 spawn（红线实证）：缓存 fresh 时，shadow 一个「被调用即落 sentinel」的假 node，
   # router 若走 cache-hit 纯 bash 则永不 spawn node → sentinel 不存在，且仍正确评分 frontend。
-  touch "$RCACHE"  # 确保 fresh（晚于 manifest）→ 不重生成
+  # 命中时 router 用 shell 重算全部工作流文件的摘要（head / printf / sha256），不起任何解释器。
+  touch "$RCACHE"  # 确保 fresh（晚于生成器）→ 不因 mtime 重生成
   FB="$TMP/router-fakebin"; mkdir -p "$FB"
   printf '#!/bin/sh\ntouch "%s/NODE_CALLED"\nexit 1\n' "$TMP" > "$FB/node"; chmod +x "$FB/node"
   rm -f "$TMP/NODE_CALLED"
-  ROUT="$(printf '{"prompt":"帮我写个 React 组件页面 UI","cwd":"%s"}' "$rproj" | PATH="$FB:$PATH" TENON_ROUTER_CACHE="$RCACHE" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$R" 2>/dev/null)"
+  ROUT="$(printf '{"prompt":"帮我写个 React 组件页面 UI","cwd":"%s"}' "$rproj" | PATH="$FB:$PATH" TENON_ROUTER_CACHE="$RCACHE" TENON_RUNTIME_HOME="$RTHOME" CLAUDE_PLUGIN_ROOT="$RPLUG" bash "$R" 2>/dev/null)"
   [ ! -f "$TMP/NODE_CALLED" ] && ok "router 红线: 命中缓存时零 node spawn（假 node sentinel 未落）" || bad "router 红线: 命中缓存时零 node spawn（假 node sentinel 未落）" "cache-hit 竟 spawn 了 node"
   assert_contains "router: 命中缓存（无 node）仍纯 bash 正确评分 frontend" "$ROUT" "track=frontend"
 
-  write_router_track() { # root id pattern priority profile matrix
-    mkdir -p "$1/.pipeline" "$1/openspec/changes"
-    printf "version: 1\ntracks:\n  - id: %s\n    label: %s\n    workflow:\n      default: default\n      allowed: '*'\n    policy_profile:\n      review_seed: pending\n      automation_eligible: true\n      coverage_profile: backend\n      routing:\n        enabled: true\n        pattern: '%s'\n        priority: %s\n      skills:\n        matrix: %s\n        profile: %s\n" \
-      "$2" "$2" "$3" "$4" "$6" "$5" > "$1/.pipeline/tracks.yaml"
-  }
-  write_router_tie_tracks() { # root alpha-priority beta-priority
-    mkdir -p "$1/.pipeline" "$1/openspec/changes"
-    printf "version: 1\ntracks:\n  - id: alpha-lane\n    label: Alpha\n    workflow:\n      default: default\n      allowed: '*'\n    policy_profile:\n      review_seed: pending\n      automation_eligible: true\n      coverage_profile: backend\n      routing:\n        enabled: true\n        pattern: '(tie-route-token)'\n        priority: %s\n      skills:\n        matrix: true\n        profile: backend\n  - id: beta-lane\n    label: Beta\n    workflow:\n      default: default\n      allowed: '*'\n    policy_profile:\n      review_seed: pending\n      automation_eligible: true\n      coverage_profile: backend\n      routing:\n        enabled: true\n        pattern: '(tie-route-token)'\n        priority: %s\n      skills:\n        matrix: true\n        profile: backend\n" \
-      "$2" "$3" > "$1/.pipeline/tracks.yaml"
-  }
-
-  # 动态评分：同 score 先比 priority；score/priority 都同则 registry 声明在前者胜。
-  tieproj="$TMP/router-tie"
-  tiecache="$TMP/router-tie.v5.data"
-  write_router_tie_tracks "$tieproj" 700 701
-  run_router "{\"prompt\":\"tie-route-token\",\"cwd\":\"$tieproj\"}" "$tiecache"
-  assert_contains "router: 同 score 时 priority 高的 beta 胜" "$ROUT" "track=beta-lane"
-  write_router_tie_tracks "$tieproj" 700 700
-  touch -t 203001010000 "$tieproj/.pipeline/tracks.yaml"
-  run_router "{\"prompt\":\"tie-route-token\",\"cwd\":\"$tieproj\"}" "$tiecache"
-  assert_contains "router: 同 score/priority 时 registry 声明在前的 alpha 胜" "$ROUT" "track=alpha-lane"
-
-  # 任意合法 id + profile 继承；matrix=false 只影响矩阵展示，不得禁 router。
-  profileproj="$TMP/router-profile"
-  profilecache="$TMP/router-profile.v5.data"
-  write_router_track "$profileproj" designer-mobile '(mobile-route-token)' 901 backend false
-  mkdir -p "$profileproj/openspec/changes/demo"
-  printf 'track: designer-mobile\nphase: explore\narchived: \n' > "$profileproj/openspec/changes/demo/.pipeline.yaml"
-  run_router "{\"prompt\":\"继续处理 mobile-route-token\",\"cwd\":\"$profileproj\"}" "$profilecache"
-  assert_contains "router: matrix=false 的 custom id 仍动态命中" "$ROUT" "track=designer-mobile"
-  assert_contains "router: 显示 custom track id 但技能继承 backend profile" "$ROUT" "codebase-design"
+  # 工作流文件内容变化 → 缓存按内容失效，保存后的下一条消息即按新数据路由。
+  # 每次都把被改文件的 mtime 放回过去（早于缓存）：只有按内容比对才会发现变化，mtime 比较发现不了。
+  changehome="$TMP/router-change-home"; changedir="$changehome/config/workflows/.pipeline/workflows"
+  changeproj="$TMP/router-change-proj"; changecache="$TMP/router-change.v6.data"
+  mkdir -p "$changedir" "$changeproj/openspec/changes"
+  write_router_flat "$changedir" shifting '{ keywords: [alpha-route-token], priority: 900 }'
+  run_router "{\"prompt\":\"alpha-route-token\",\"cwd\":\"$changeproj\"}" "$changecache" "$changehome"
+  assert_contains "router: 全局存储的新工作流在下一条消息即参与路由" "$ROUT" "candidate: workflow=shifting;track=shifting"
+  write_router_flat "$changedir" shifting '{ keywords: [beta-route-token], priority: 900 }'
+  touch -t 200001010000 "$changedir/shifting.yaml"
+  run_router "{\"prompt\":\"beta-route-token\",\"cwd\":\"$changeproj\"}" "$changecache" "$changehome"
+  assert_contains "router: 修改全局工作流内容（mtime 更旧）后下一条消息用新关键词" "$ROUT" "candidate: workflow=shifting;track=shifting"
+  run_router "{\"prompt\":\"alpha-route-token\",\"cwd\":\"$changeproj\"}" "$changecache" "$changehome"
+  assert_empty "router: 旧关键词随内容变化失效" "$ROUT"
+  write_router_flat "$changeproj/.pipeline/workflows" projwf '{ keywords: [project-route-token], priority: 800 }'
+  touch -t 200001010000 "$changeproj/.pipeline/workflows/projwf.yaml"
+  run_router "{\"prompt\":\"project-route-token\",\"cwd\":\"$changeproj\"}" "$changecache" "$changehome"
+  assert_contains "router: 项目 .pipeline/workflows 里新增的工作流参与路由" "$ROUT" "candidate: workflow=projwf;track=projwf"
+  rm -f "$changeproj/.pipeline/workflows/projwf.yaml"
+  run_router "{\"prompt\":\"project-route-token\",\"cwd\":\"$changeproj\"}" "$changecache" "$changehome"
+  assert_empty "router: 删除项目工作流后它的路由消失" "$ROUT"
+  write_router_flat "$RPLUG/templates/workflows" tmplwf '{ keywords: [template-route-token], priority: 700 }'
+  touch -t 200001010000 "$RPLUG/templates/workflows/tmplwf.yaml"
+  run_router "{\"prompt\":\"template-route-token\",\"cwd\":\"$changeproj\"}" "$changecache" "$changehome"
+  assert_contains "router: 插件模板里的工作流变化同样使缓存失效" "$ROUT" "candidate: workflow=tmplwf;track=tmplwf"
+  rm -f "$RPLUG/templates/workflows/tmplwf.yaml"
+  run_router "{\"prompt\":\"template-route-token\",\"cwd\":\"$changeproj\"}" "$changecache" "$changehome"
+  assert_empty "router: 模板工作流移除后路由消失" "$ROUT"
+  # 项目文件遮住全局和模板同名的工作流（解析顺序 项目 → 全局 → 模板）。
+  write_router_flat "$changedir" layered '{ keywords: [global-layer-token], priority: 600 }'
+  write_router_flat "$changeproj/.pipeline/workflows" layered '{ keywords: [project-layer-token], priority: 600 }'
+  run_router "{\"prompt\":\"project-layer-token global-layer-token\",\"cwd\":\"$changeproj\"}" "$changecache" "$changehome"
+  assert_contains "router: 同名工作流取项目文件" "$ROUT" "candidate: workflow=layered;track=layered"
+  run_router "{\"prompt\":\"global-layer-token\",\"cwd\":\"$changeproj\"}" "$changecache" "$changehome"
+  assert_empty "router: 被项目文件遮住的全局同名工作流不参与路由" "$ROUT"
+  rm -f "$changeproj/.pipeline/workflows/layered.yaml"
+  run_router "{\"prompt\":\"global-layer-token\",\"cwd\":\"$changeproj\"}" "$changecache" "$changehome"
+  assert_contains "router: 删掉遮蔽者后全局同名工作流生效" "$ROUT" "candidate: workflow=layered;track=layered"
+  # 关键词里的正则元字符按字面量匹配，不会扩大命中范围。
+  write_router_flat "$changedir" literalwf '{ keywords: [a.b+c], priority: 500 }'
+  run_router "{\"prompt\":\"处理 axbbc 这个\",\"cwd\":\"$changeproj\"}" "$changecache" "$changehome"
+  assert_empty "router: 关键词里的 . + 不当正则用" "$ROUT"
+  run_router "{\"prompt\":\"处理 A.B+C 这个\",\"cwd\":\"$changeproj\"}" "$changecache" "$changehome"
+  assert_contains "router: 字面量关键词（不区分大小写）命中" "$ROUT" "candidate: workflow=literalwf;track=literalwf"
+  # 同分同优先级也是并列：要求选择，不替用户猜。
+  write_router_flat "$changedir" tie-a '{ keywords: [tie-route-token], priority: 500 }'
+  write_router_flat "$changedir" tie-b '{ keywords: [tie-route-token], priority: 501 }'
+  run_router "{\"prompt\":\"tie-route-token\",\"cwd\":\"$changeproj\"}" "$changecache" "$changehome"
+  assert_contains "router: 同分并列要求选择" "$ROUT" "selection_required: true"
+  assert_contains "router: 并列时推荐优先级高的 tie-b" "$ROUT" "suggested_workflow: tie-b"
+  assert_contains "router: 并列候选含 tie-a" "$ROUT" "candidate: workflow=tie-a;track=tie-a"
+  assert_contains "router: 并列候选含 tie-b" "$ROUT" "candidate: workflow=tie-b;track=tie-b"
+  # 旧版 router.v5 缓存被丢弃重建：旧文件留在原处不被消费，新缓存写到 router.v6.data。
+  oldproj="$TMP/router-old-schema"; mkdir -p "$oldproj/.pipeline/cache" "$oldproj/openspec/changes"
+  printf 'TENON_ROUTER_V5\nM|00|%064d|0123456789abcdef|0|%064d\nR|0|300|66726f6e74656e64|1||\n' 0 0 > "$oldproj/.pipeline/cache/router.v5.data"
+  ROUT="$(printf '{"prompt":"设计一个 React 组件的响应式页面 UI","cwd":"%s"}' "$oldproj" | (unset TENON_ROUTER_CACHE; TENON_RUNTIME_HOME="$RTHOME" CLAUDE_PLUGIN_ROOT="$RPLUG" bash "$R") 2>/dev/null)"
+  assert_contains "router: 旧 router.v5 缓存存在时仍按工作流数据路由" "$ROUT" "track=frontend"
+  [ -f "$oldproj/.pipeline/cache/router.v6.data" ] && ok "router: 默认缓存改名为 router.v6.data" || bad "router: 默认缓存改名为 router.v6.data" "v6 缓存缺失"
+  assert_contains "router: 旧 v5 文件不被改写" "$(head -1 "$oldproj/.pipeline/cache/router.v5.data")" "TENON_ROUTER_V5"
+  # 同一路径上放着旧 schema 的内容：同样被拒绝并重建（不推断任何缺失字段）。
+  printf 'TENON_ROUTER_V5\nM|00|%064d|0123456789abcdef|0|%064d\n' 0 0 > "$oldproj/.pipeline/cache/router.v6.data"
+  touch -t 203001010000 "$oldproj/.pipeline/cache/router.v6.data"
+  ROUT="$(printf '{"prompt":"设计一个 React 组件的响应式页面 UI","cwd":"%s"}' "$oldproj" | (unset TENON_ROUTER_CACHE; TENON_RUNTIME_HOME="$RTHOME" CLAUDE_PLUGIN_ROOT="$RPLUG" bash "$R") 2>/dev/null)"
+  assert_contains "router: 旧 schema 缓存被丢弃重建" "$ROUT" "track=frontend"
+  assert_contains "router: 重建后缓存是 v6" "$(head -1 "$oldproj/.pipeline/cache/router.v6.data")" "TENON_ROUTER_V6"
 
   # stale + 生成失败必须 fail-closed：旧 cache 留盘也不得在本轮消费。
-  staleproj="$TMP/router-stale-failure"
-  stalecache="$TMP/router-stale-failure.v5.data"
-  write_router_track "$staleproj" stale-lane '(stale-route-token)' 950 backend true
+  staleproj="$TMP/router-stale-failure"; stalecache="$TMP/router-stale-failure.v6.data"
+  mkdir -p "$staleproj/openspec/changes"
+  write_router_flat "$staleproj/.pipeline/workflows" stale-lane '{ keywords: [stale-route-token], priority: 950 }'
   run_router "{\"prompt\":\"stale-route-token\",\"cwd\":\"$staleproj\"}" "$stalecache"
-  assert_contains "router: stale-failure 前置 cache 真含旧 custom route" "$ROUT" "track=stale-lane"
-  write_router_track "$staleproj" stale-lane '(fresh-route-token)' 950 backend true
-  touch -t 203001010000 "$staleproj/.pipeline/tracks.yaml"
+  assert_contains "router: stale-failure 前置 cache 真含旧 custom route" "$ROUT" "candidate: workflow=stale-lane;track=stale-lane"
+  write_router_flat "$staleproj/.pipeline/workflows" stale-lane '{ keywords: [fresh-route-token], priority: 950 }'
   STALE_FB="$TMP/router-stale-fakebin"; mkdir -p "$STALE_FB"
   printf '#!/bin/sh\ntouch "%s/STALE_NODE_CALLED"\nexit 1\n' "$TMP" > "$STALE_FB/node"; chmod +x "$STALE_FB/node"
   rm -f "$TMP/STALE_NODE_CALLED"
-  ROUT="$(printf '{"prompt":"stale-route-token","cwd":"%s"}' "$staleproj" | PATH="$STALE_FB:$PATH" TENON_ROUTER_CACHE="$stalecache" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$R" 2>/dev/null)"
-  [ -f "$TMP/STALE_NODE_CALLED" ] && ok "router: tracks 更新使 cache stale，真尝试冷生成" || bad "router: tracks 更新使 cache stale，真尝试冷生成" "node sentinel 未调用"
+  ROUT="$(printf '{"prompt":"stale-route-token","cwd":"%s"}' "$staleproj" | PATH="$STALE_FB:$PATH" TENON_ROUTER_CACHE="$stalecache" TENON_RUNTIME_HOME="$RTHOME" CLAUDE_PLUGIN_ROOT="$RPLUG" bash "$R" 2>/dev/null)"
+  [ -f "$TMP/STALE_NODE_CALLED" ] && ok "router: 工作流内容更新使 cache stale，真尝试冷生成" || bad "router: 工作流内容更新使 cache stale，真尝试冷生成" "node sentinel 未调用"
   assert_empty "router: stale 生成失败本轮绝不消费旧 cache" "$ROUT"
   [ -f "$stalecache" ] && ok "router: 失败后旧 cache 可留盘诊断" || bad "router: 失败后旧 cache 可留盘诊断" "旧 cache 被破坏性删除"
 
-  # tracks.yaml 删除也是 stale（存在性位变化），须回到 builtin 内建轨，不能沿用 custom。
-  deleteproj="$TMP/router-tracks-delete"
-  deletecache="$TMP/router-tracks-delete.v5.data"
-  write_router_track "$deleteproj" deleted-lane '(deleted-route-token)' 960 backend true
-  run_router "{\"prompt\":\"deleted-route-token\",\"cwd\":\"$deleteproj\"}" "$deletecache"
-  assert_contains "router: tracks 删除前 custom route 可命中" "$ROUT" "track=deleted-lane"
-  rm -f "$deleteproj/.pipeline/tracks.yaml"
-  run_router "{\"prompt\":\"deleted-route-token\",\"cwd\":\"$deleteproj\"}" "$deletecache"
-  assert_empty "router: tracks.yaml 删除后旧 custom route 不再命中" "$ROUT"
-  run_router "{\"prompt\":\"React 页面组件\",\"cwd\":\"$deleteproj\"}" "$deletecache"
-  assert_contains "router: tracks.yaml 缺失恢复 builtin Track 等价行为" "$ROUT" "track=frontend"
-
-  # 默认缓存必须项目内隔离；A 的 custom cache 绝不串给无 tracks.yaml 的 B。
+  # 默认缓存必须项目内隔离；A 的项目工作流路由绝不串给没有它的 B。
   aproj="$TMP/router-project-a"; bproj="$TMP/router-project-b"
-  write_router_track "$aproj" security-lane '(security-route-token)' 970 backend true
+  mkdir -p "$aproj/openspec/changes"
+  write_router_flat "$aproj/.pipeline/workflows" security-lane '{ keywords: [security-route-token], priority: 970 }'
   mkdir -p "$bproj/openspec/changes" "$TMP/router-home"
-  ROUT="$(printf '{"prompt":"security-route-token","cwd":"%s"}' "$aproj" | (unset TENON_ROUTER_CACHE; HOME="$TMP/router-home" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$R") 2>/dev/null)"
-  assert_contains "router: 项目 A custom route 可命中" "$ROUT" "track=security-lane"
-  [ -f "$aproj/.pipeline/cache/router.v5.data" ] && ok "router: 默认 cache 落项目 A 内" || bad "router: 默认 cache 落项目 A 内" "项目 cache 缺失"
-  ROUT="$(printf '{"prompt":"security-route-token","cwd":"%s"}' "$bproj" | (unset TENON_ROUTER_CACHE; HOME="$TMP/router-home" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$R") 2>/dev/null)"
+  ROUT="$(printf '{"prompt":"security-route-token","cwd":"%s"}' "$aproj" | (unset TENON_ROUTER_CACHE; HOME="$TMP/router-home" TENON_RUNTIME_HOME="$RTHOME" CLAUDE_PLUGIN_ROOT="$RPLUG" bash "$R") 2>/dev/null)"
+  assert_contains "router: 项目 A custom route 可命中" "$ROUT" "candidate: workflow=security-lane;track=security-lane"
+  [ -f "$aproj/.pipeline/cache/router.v6.data" ] && ok "router: 默认 cache 落项目 A 内" || bad "router: 默认 cache 落项目 A 内" "项目 cache 缺失"
+  ROUT="$(printf '{"prompt":"security-route-token","cwd":"%s"}' "$bproj" | (unset TENON_ROUTER_CACHE; HOME="$TMP/router-home" TENON_RUNTIME_HOME="$RTHOME" CLAUDE_PLUGIN_ROOT="$RPLUG" bash "$R") 2>/dev/null)"
   assert_empty "router: 项目 B 从未消费项目 A custom cache" "$ROUT"
-  [ -f "$bproj/.pipeline/cache/router.v5.data" ] && ok "router: 项目 B 有独立 cache" || bad "router: 项目 B 有独立 cache" "B cache 缺失"
+  [ -f "$bproj/.pipeline/cache/router.v6.data" ] && ok "router: 项目 B 有独立 cache" || bad "router: 项目 B 有独立 cache" "B cache 缺失"
 
   # 即使测试显式复用同一 override 槽，metadata canonical root mismatch 也必须使 B 重生成。
-  sharedcache="$TMP/router-shared-root.v5.data"
+  sharedcache="$TMP/router-shared-root.v6.data"
   run_router "{\"prompt\":\"security-route-token\",\"cwd\":\"$aproj\"}" "$sharedcache"
-  assert_contains "router: shared override 先绑定项目 A canonical root" "$ROUT" "track=security-lane"
+  assert_contains "router: shared override 先绑定项目 A canonical root" "$ROUT" "candidate: workflow=security-lane;track=security-lane"
   run_router "{\"prompt\":\"security-route-token\",\"cwd\":\"$bproj\"}" "$sharedcache"
   assert_empty "router: shared override 的 root mismatch 不消费 A 数据" "$ROUT"
 
-  # 无 tracks 的 builtin cache 之后首次创建 tracks.yaml：存在性位变化必须立即失效。
-  createproj="$TMP/router-tracks-create"; createcache="$TMP/router-tracks-create.v5.data"
-  mkdir -p "$createproj/openspec/changes"
-  run_router "{\"prompt\":\"React 页面组件\",\"cwd\":\"$createproj\"}" "$createcache"
-  assert_contains "router: tracks 创建前 builtin cache 可用" "$ROUT" "track=frontend"
-  write_router_track "$createproj" created-lane '(created-route-token)' 980 backend true
-  run_router "{\"prompt\":\"created-route-token\",\"cwd\":\"$createproj\"}" "$createcache"
-  assert_contains "router: tracks.yaml 首次创建使 builtin cache stale" "$ROUT" "track=created-lane"
-
   # 直接篡改项目 cache 放 command substitution：只能成为畸形数据，不得执行。
-  injectproj="$TMP/router-cache-injection"; injectcache="$TMP/router-injection.v5.data"
+  injectproj="$TMP/router-cache-injection"; injectcache="$TMP/router-injection.v6.data"
   mkdir -p "$injectproj/openspec/changes"
-  printf 'TENON_ROUTER_V5\nM|00|%064d|0123456789abcdef|0\n$(touch "%s")\n' 0 "$TMP/CACHE_PWNED" > "$injectcache"
+  printf 'TENON_ROUTER_V6\nM|00|%064d\n$(touch "%s")\n' 0 "$TMP/CACHE_PWNED" > "$injectcache"
   touch "$injectcache"
   INTERP_FB="$TMP/router-interpreter-fakebin"; mkdir -p "$INTERP_FB"
   for interp in node python python3 jq; do
@@ -2297,19 +2501,65 @@ EOF
     chmod +x "$INTERP_FB/$interp"
   done
   rm -f "$TMP/CACHE_PWNED" "$TMP/INTERPRETER_CALLED"
-  ROUT="$(printf '{"prompt":"React 页面组件","cwd":"%s"}' "$injectproj" | PATH="$INTERP_FB:$PATH" TENON_ROUTER_CACHE="$injectcache" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$R" 2>/dev/null)"
+  ROUT="$(printf '{"prompt":"React 页面组件","cwd":"%s"}' "$injectproj" | PATH="$INTERP_FB:$PATH" TENON_ROUTER_CACHE="$injectcache" TENON_RUNTIME_HOME="$RTHOME" CLAUDE_PLUGIN_ROOT="$RPLUG" bash "$R" 2>/dev/null)"
   [ ! -f "$TMP/CACHE_PWNED" ] && ok "router 安全: 篡改 cache 的 \$() 从不执行" || bad "router 安全: 篡改 cache 的 \$() 从不执行" "CACHE_PWNED sentinel 被创建"
   assert_empty "router 安全: 畸形 cache 且重生成失败时零注入" "$ROUT"
 
+  # 结构合法、摘要也对得上，但行内容越界的缓存（非法名字、没有 route 的行带打分数据、名字带标签分隔符）同样被拒绝，不被消费：
+  # 假 node 让重新生成失败，所以「拒绝」的可见结果就是零输出；若被接受，同一条 prompt 会点名 lite 或命中 x 而有分派输出。
+  hostileproj="$TMP/router-cache-hostile"; mkdir -p "$hostileproj/openspec/changes"
+  hostilecache="$TMP/router-hostile.v6.data"
+  hex_of() { printf '%s' "$1" | od -An -tx1 | tr -d ' \n'; }
+  run_router "{\"prompt\":\"React 页面组件\",\"cwd\":\"$hostileproj\"}" "$hostilecache"
+  hostile_meta="$(sed -n '2p' "$hostilecache")"
+  assert_contains "router: 敌意缓存用例的前置：合法缓存的元数据行" "$hostile_meta" "M|"
+  for hostile_row in \
+    "R|0|1|$(hex_of 'bad name')|$(hex_of lite)|$(hex_of lite)|1|0|1|$(hex_of '(x)')|" \
+    "R|0|7|$(hex_of default)|$(hex_of lite)|$(hex_of lite)|0|0|1||" \
+    "R|0|1|$(hex_of default)|$(hex_of 'a<b')|$(hex_of lite)|1|0|1|$(hex_of '(x)')|"; do
+    printf 'TENON_ROUTER_V6\n%s\n%s\n' "$hostile_meta" "$hostile_row" > "$hostilecache"
+    touch -t 203001010000 "$hostilecache"
+    ROUT="$(printf '{"prompt":"x 用 lite 轨道","cwd":"%s"}' "$hostileproj" | PATH="$INTERP_FB:$PATH" TENON_ROUTER_CACHE="$hostilecache" TENON_RUNTIME_HOME="$RTHOME" CLAUDE_PLUGIN_ROOT="$RPLUG" bash "$R" 2>/dev/null)"
+    assert_empty "router 安全: 越界缓存行不被消费" "$ROUT"
+  done
+  printf 'TENON_ROUTER_V6\n%s\nR|0|1|%s|%s|%s|1|0|1|%s|\n' "$hostile_meta" "$(hex_of default)" "$(hex_of lite)" "$(hex_of lite)" "$(hex_of '(x)')" > "$hostilecache"
+  touch -t 203001010000 "$hostilecache"
+  ROUT="$(printf '{"prompt":"x 用 lite 轨道","cwd":"%s"}' "$hostileproj" | PATH="$INTERP_FB:$PATH" TENON_ROUTER_CACHE="$hostilecache" TENON_RUNTIME_HOME="$RTHOME" CLAUDE_PLUGIN_ROOT="$RPLUG" bash "$R" 2>/dev/null)"
+  assert_contains "router 安全: 对照组——同样的结构、行内容合法时缓存被消费" "$ROUT" "track: lite"
+
   # 真 cache-hit 同时 shadow node/python/python3/jq：四者都不得触达，路由仍工作。
-  hitproj="$TMP/router-cache-hit"; hitcache="$TMP/router-cache-hit.v5.data"
+  hitproj="$TMP/router-cache-hit"; hitcache="$TMP/router-cache-hit.v6.data"
   mkdir -p "$hitproj/openspec/changes"
   run_router "{\"prompt\":\"React 页面组件\",\"cwd\":\"$hitproj\"}" "$hitcache"
   assert_contains "router: interpreter sentinel 前置 cache 已生成" "$ROUT" "track=frontend"
   rm -f "$TMP/INTERPRETER_CALLED"
-  ROUT="$(printf '{"prompt":"React 页面组件","cwd":"%s"}' "$hitproj" | PATH="$INTERP_FB:$PATH" TENON_ROUTER_CACHE="$hitcache" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$R" 2>/dev/null)"
+  ROUT="$(printf '{"prompt":"React 页面组件","cwd":"%s"}' "$hitproj" | PATH="$INTERP_FB:$PATH" TENON_ROUTER_CACHE="$hitcache" TENON_RUNTIME_HOME="$RTHOME" CLAUDE_PLUGIN_ROOT="$RPLUG" bash "$R" 2>/dev/null)"
   [ ! -f "$TMP/INTERPRETER_CALLED" ] && ok "router 红线: cache-hit 零 node/python/python3/jq" || bad "router 红线: cache-hit 零 node/python/python3/jq" "解释器 sentinel 被调用"
   assert_contains "router: cache-hit 无解释器仍正确路由" "$ROUT" "track=frontend"
+
+  # 真实模板冒烟：插件自带的 templates/workflows 经真 CLI / kernel 冷生成出合法的 v6 缓存（路由行内容随 default.yaml 的 route 声明而定）。
+  realcache="$TMP/router-real-templates.v6.data"
+  realproj="$TMP/router-real-templates"; mkdir -p "$realproj/openspec/changes"
+  printf '%s' "{\"prompt\":\"设计一个 React 组件的响应式页面 UI\",\"cwd\":\"$realproj\"}" | TENON_ROUTER_CACHE="$realcache" TENON_RUNTIME_HOME="$RTHOME" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$R" >/dev/null 2>&1
+  assert_contains "router: 真实模板冷生成出 v6 缓存" "$(head -1 "$realcache" 2>/dev/null)" "TENON_ROUTER_V6"
+  if grep -q '^    route:' "$ROOT/templates/workflows/default.yaml" 2>/dev/null; then
+    ROUT="$(printf '%s' "{\"prompt\":\"修复登录页报错\",\"cwd\":\"$realproj\"}" | TENON_ROUTER_CACHE="$realcache" TENON_RUNTIME_HOME="$RTHOME" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$R" 2>/dev/null)"
+    assert_contains "router: 内建 default 模板的小修小补要求评估" "$ROUT" "assess: required"
+    assert_contains "router: 内建 default 模板的评估候选含轻量" "$ROUT" "candidate: workflow=default;track=lite"
+    assert_contains "router: 内建 default 模板的评估候选含前端" "$ROUT" "candidate: workflow=default;track=frontend"
+    # 重型信号 / 产品调研：直接进领域重型轨道，不评估、不列轻量；点名轨道同理。
+    ROUT="$(printf '%s' "{\"prompt\":\"给后端加数据库迁移\",\"cwd\":\"$realproj\"}" | TENON_ROUTER_CACHE="$realcache" TENON_RUNTIME_HOME="$RTHOME" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$R" 2>/dev/null)"
+    assert_contains "router: 内建 default 模板的数据库迁移直接进后端" "$ROUT" "track: backend"
+    assert_not_contains "router: 内建 default 模板的数据库迁移不评估" "$ROUT" "assess: required"
+    ROUT="$(printf '%s' "{\"prompt\":\"做竞品调研\",\"cwd\":\"$realproj\"}" | TENON_ROUTER_CACHE="$realcache" TENON_RUNTIME_HOME="$RTHOME" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$R" 2>/dev/null)"
+    assert_contains "router: 内建 default 模板的竞品调研直接进产品" "$ROUT" "track: pm"
+    assert_not_contains "router: 内建 default 模板的竞品调研不评估" "$ROUT" "assess: required"
+    ROUT="$(printf '%s' "{\"prompt\":\"用后端轨道 修一下\",\"cwd\":\"$realproj\"}" | TENON_ROUTER_CACHE="$realcache" TENON_RUNTIME_HOME="$RTHOME" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$R" 2>/dev/null)"
+    assert_contains "router: 内建 default 模板点名后端轨道" "$ROUT" "track_basis: user-named"
+    assert_not_contains "router: 内建 default 模板点名轨道不评估" "$ROUT" "assess: required"
+  else
+    printf 'skip - templates/workflows/default.yaml 还没有分支 route（计划 Task 6 落地后这里自动对真实模板断言评估分派）\n'
+  fi
 else
   printf 'skip - node 不可用，跳过 router 真实派生/评分/缓存红线（同 section 6 语义）\n'
 fi
@@ -2468,7 +2718,7 @@ assert_contains "SKILL.md: 回复使用用户所用的语言" "$SKILL_TEXT" "面
 assert_contains "SKILL.md: run-agent 的 agent prompt 传 --host" "$SKILL_TEXT" "\`tenon agent prompt <c> <agent> --host <host> --json\`"
 # 真机验收（v0.3.0 F6/F7）：以 / 开头的提示词不经路由钩子，手动 /tenon 要自己选通道；升级边是唯一出口时直接走。
 assert_contains "SKILL.md: 手动 /tenon 新建任务由技能选通道，实现类请求走 standard" "$SKILL_TEXT" "\`/tenon <请求>\` 要新建任务时由你选通道"
-assert_contains "SKILL.md: 手动 /tenon 的实现类请求用 standard 工作流" "$SKILL_TEXT" "\`--workflow standard --track standard\`"
+assert_contains "SKILL.md: 手动 /tenon 的实现类请求先评估改动范围" "$SKILL_TEXT" "tenon assess --files"
 assert_contains "SKILL.md: 项目自定义工作流只在用户点名时用" "$SKILL_TEXT" "项目自定义的工作流只在用户点名时用，不要自己挑一个"
 assert_contains "SKILL.md: 唯一的升级转换直接执行不问用户" "$SKILL_TEXT" "当 \`next\` 里只剩这一条 \`transition\` 时直接执行，不问用户，interactive 也一样"
 assert_contains "SKILL.md: 升级前给用户一句话说明" "$SKILL_TEXT" "执行前用一句话告诉用户为什么升级"
@@ -3621,7 +3871,7 @@ assert_empty "开关: 禁用的 router 零注入" "$ROUT"
 FB2="$TMP/hm-router-fakebin"; mkdir -p "$FB2"
 printf '#!/bin/sh\ntouch "%s/HM_NODE_CALLED"\nexit 1\n' "$TMP" > "$FB2/node"; chmod +x "$FB2/node"
 rm -f "$TMP/HM_NODE_CALLED"
-printf '{"prompt":"继续帮我写个 React 页面 UI","cwd":"%s"}' "$rproj2" | PATH="$FB2:$PATH" TENON_ROUTER_CACHE="$TMP/hm-router-cache.sh" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$R" >/dev/null 2>&1
+printf '{"prompt":"继续帮我写个 React 页面 UI","cwd":"%s"}' "$rproj2" | PATH="$FB2:$PATH" TENON_ROUTER_CACHE="$TMP/hm-router-cache.v6.data" TENON_RUNTIME_HOME="$RTHOME" CLAUDE_PLUGIN_ROOT="$RPLUG" bash "$R" >/dev/null 2>&1
 [ ! -f "$TMP/HM_NODE_CALLED" ] && ok "开关红线: 禁用的 router 零 node spawn（判定先于缓存重生成）" || bad "开关红线: 禁用的 router 零 node spawn（判定先于缓存重生成）" "禁用路径竟 spawn 了 node"
 if command -v node >/dev/null 2>&1; then
   rm -f "$rproj2/.pipeline/hooks.json"
@@ -3988,74 +4238,28 @@ mu_gate b@x.io
   || bad "multi-user: A 的持续授权不放行 B" "B 借用了 A 的授权"
 rm_interaction_markers "$mu_proj"
 
-# ── 14. 归档（只对当前用户隐藏）：hook 与 archived=true 同等跳过，别人的归档记录无效 ──
-# 真相源是 kernel serializeTaskArchive 的规范字节：`changes` 在深度一，故每个 change 键恒为
-# `    "<name>": {` 这一行——hook 正是 grep 这条 ABI（改缩进就会破坏它）。
+# ── 14. 完结 / 终止的任务已移进 openspec/changes/archive/，不在活跃列表里，hook 不再有「按用户隐藏」这一层 ──
+# 只留一条回归：活跃目录里的 Change 四个 hook 都看得见（原来「归档前」的对照组），并且另一个用户目录下残留的
+# archived.json 不再影响任何 hook。
 ar_proj="$TMP/task-archive"
-ar_home="$TMP/task-archive-home"
-mkdir -p "$ar_proj/openspec/changes/sole" "$ar_home"
+mkdir -p "$ar_proj/openspec/changes/sole" "$ar_proj/.tenon/users/other-at-x.io/local" "$ar_proj/.tenon/users/$HOOK_USER_SLUG/local"
 printf 'track: pm\nphase: build\nworkflow: default\narchived: false\n' > "$ar_proj/openspec/changes/sole/.pipeline.yaml"
 printf 'CRUMB-sole\n' > "$ar_proj/openspec/changes/sole/.breadcrumb"
+printf '{\n  "version": 1,\n  "changes": {\n    "sole": {\n      "archived_at": "2026-09-15T12:00:00.000Z"\n    }\n  }\n}\n' > "$ar_proj/.tenon/users/$HOOK_USER_SLUG/local/archived.json"
 set_active "$ar_proj" sole
-ar_store() { # $1=slug → prints that user's archived.json path (creating its directory)
-  mkdir -p "$ar_proj/.tenon/users/$1/local"
-  printf '%s/.tenon/users/%s/local/archived.json' "$ar_proj" "$1"
-}
-ar_write() { # $1=slug $2=change → canonical two-space JSON, exactly what the kernel writes
-  printf '{\n  "version": 1,\n  "changes": {\n    "%s": {\n      "archived_at": "2026-09-15T12:00:00.000Z",\n      "phase": "build",\n      "actor": {\n        "id": "hooks@tenon.test",\n        "name": "hooks",\n        "trust": "declared"\n      }\n    }\n  }\n}\n' \
-    "$2" > "$(ar_store "$1")"
-}
-ar_router() { printf '%s' "{\"prompt\":\"继续 sole\",\"cwd\":\"$ar_proj\"}" | TENON_ROUTER_CACHE="$TMP/task-archive-router.data" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$R" 2>/dev/null; }
+ar_router() { printf '%s' "{\"prompt\":\"继续 sole\",\"cwd\":\"$ar_proj\"}" | TENON_ROUTER_CACHE="$TMP/task-archive-router.v6.data" TENON_RUNTIME_HOME="$RTHOME" CLAUDE_PLUGIN_ROOT="$RPLUG" bash "$R" 2>/dev/null; }
 ar_crumb() { printf '{"prompt":"继续","cwd":"%s"}' "$ar_proj" | bash "$BC" 2>/dev/null; }
 ar_statusline() { printf '{"cwd":"%s"}' "$ar_proj" | bash "$SL" 2>/dev/null; }
 ar_session_start() { printf '{"cwd":"%s"}' "$ar_proj" | bash "$SS" 2>/dev/null; }
-
-# 归档前：四个 hook 都看得见它。
-assert_contains "task-archive: 归档前 router 注入该 Change" "$(ar_router)" "change: sole"
-assert_contains "task-archive: 归档前 breadcrumb 恢复该 Change" "$(ar_crumb)" "CRUMB-sole"
-assert_contains "task-archive: 归档前 statusline 显示该 Change" "$(ar_statusline)" "sole"
-assert_contains "task-archive: 归档前 session-start 列出该 Change" "$(ar_session_start)" "sole"
+assert_contains "活跃 Change: router 注入（残留的 archived.json 不再隐藏它）" "$(ar_router)" "change: sole"
+assert_contains "活跃 Change: breadcrumb 恢复（残留的 archived.json 不再隐藏它）" "$(ar_crumb)" "CRUMB-sole"
+assert_contains "活跃 Change: statusline 显示（残留的 archived.json 不再隐藏它）" "$(ar_statusline)" "sole"
+assert_contains "活跃 Change: session-start 列出（残留的 archived.json 不再隐藏它）" "$(ar_session_start)" "sole"
 ar_ac="$(printf 'ROOT=%s\n. "%s/hooks/json-input.sh"\n. "%s/hooks/canonical-state.sh"\n. "%s/hooks/active-change.sh"\npipeline_active_change_dir "$ROOT" || echo NONE\n' \
   "$ar_proj" "$ROOT" "$ROOT" "$ROOT")"
-assert_contains "task-archive: 归档前 active-change 解析出该 Change" "$(bash -c "$ar_ac" 2>/dev/null)" "openspec/changes/sole"
-
-# 当前用户归档它 → 四个 hook 与 active-change 一致隐藏。
-ar_write "$HOOK_USER_SLUG" sole
-assert_empty "task-archive: 已归档 → router 不注入" "$(ar_router)"
-assert_not_contains "task-archive: 已归档 → breadcrumb 不恢复" "$(ar_crumb)" "CRUMB-sole"
-assert_empty "task-archive: 已归档 → statusline 不显示" "$(ar_statusline)"
-assert_not_contains "task-archive: 已归档 → session-start 不列出" "$(ar_session_start)" "sole"
-assert_contains "task-archive: 已归档 → active-change 返回 1" "$(bash -c "$ar_ac" 2>/dev/null)" "NONE"
-
-# 另一个用户的归档记录对本用户无效；符号链接与超大文件一律 fail-open。
-rm -f "$(ar_store "$HOOK_USER_SLUG")"
-ar_write other-at-x.io sole
-assert_contains "task-archive: 别人的归档记录不隐藏本用户的 Change" "$(ar_router)" "change: sole"
-ar_link_target="$TMP/task-archive-elsewhere.json"
-ar_write other-at-x.io sole
-cp "$(ar_store other-at-x.io)" "$ar_link_target"
-rm -f "$(ar_store "$HOOK_USER_SLUG")"
-ln -s "$ar_link_target" "$(ar_store "$HOOK_USER_SLUG")"
-assert_contains "task-archive: 符号链接归档记录被忽略" "$(ar_router)" "change: sole"
-rm -f "$(ar_store "$HOOK_USER_SLUG")"
-# 名字只是前缀/后缀也不算命中（grep 锚定整行键）。
-ar_write "$HOOK_USER_SLUG" sole-extra
-assert_contains "task-archive: 仅前缀相同的键不算归档" "$(ar_router)" "change: sole"
-rm -f "$(ar_store "$HOOK_USER_SLUG")"
-# 损坏记录 fail-open：显示偏好绝不阻断推进。
-printf 'not json\n' > "$(ar_store "$HOOK_USER_SLUG")"
-assert_contains "task-archive: 损坏归档记录 fail-open" "$(ar_router)" "change: sole"
-rm -f "$(ar_store "$HOOK_USER_SLUG")"
+assert_contains "活跃 Change: active-change 解析出它（残留的 archived.json 不再隐藏它）" "$(bash -c "$ar_ac" 2>/dev/null)" "openspec/changes/sole"
+[ ! -e "$ROOT/hooks/task-archive.sh" ] && ok "按用户隐藏已退役: hooks/task-archive.sh 不再存在" || bad "按用户隐藏已退役: hooks/task-archive.sh 不再存在" "文件仍在"
 clear_active "$ar_proj"
-
-# 红线：归档判定全程纯 bash + 一次 grep，绝不 spawn node / jq / python（剥注释后逐工具名断言）。
-ar_exec="$(grep -vE '^[[:space:]]*#' "$ROOT/hooks/task-archive.sh")"
-for ar_tool in node jq python; do
-  n="$(printf '%s' "$ar_exec" | grep -c "$ar_tool" || true)"
-  [ "$n" = "0" ] \
-    && ok "task-archive 红线: task-archive.sh 可执行行无 $ar_tool" \
-    || bad "task-archive 红线: task-archive.sh 可执行行无 $ar_tool" "实得 ${n} 行"
-done
 
 # ─────────────── 13. stable tenon-hook launcher：Node 身份失败不刷屏、不阻断 ───────────────
 # v0.2.0 把 st_dev 钉进 launcher；macOS 重启后设备号变化，每次 Pre/PostToolUse 都打印同一条报错。

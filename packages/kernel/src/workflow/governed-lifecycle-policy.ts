@@ -1,9 +1,37 @@
-import { DEFAULT_EVENT_POLICY } from '../flow/default-event-policy.js'
 import type { ActionConfig, CompiledGuardConfig, StepIR, StepTransitionIR } from './ir.js'
+import { NON_PM } from './predicates.js'
 
 export interface GovernedLifecyclePolicy {
   readonly guards: readonly CompiledGuardConfig[]
   readonly actions: readonly ActionConfig[]
+}
+
+const PRE_VERIFY_PASSED: CompiledGuardConfig = { type: 'field-equals', field: 'pre_verify_review_result', value: 'pass' }
+const RESET_PRE_VERIFY: ActionConfig = { type: 'reset-pre-verify-review' }
+
+/**
+ * 受治理工作流的固定生命周期（按相邻阶段 id 套用）：只剩安全不变量——实现前评审、build 冻结与验证不被绕过、
+ * 主规格迁移。设计 §1b 已退役的检查（build_mode / isolation / direct_override / branch_status）不在其中；
+ * 内建 `default` 的这些规则全部写在 default.yaml 里，这里只是给阶段 id 恰好对得上的自定义工作流兜底，
+ * 与 YAML 里同样的声明按结构去重（mergeLifecycleGuards / mergeLifecycleActions）。
+ * 旧执行模型的转换表（flow/default-event-policy.ts）另有一份，只服务快照里记着旧模型的任务。
+ */
+const GOVERNED_LIFECYCLE: Readonly<Record<string, GovernedLifecyclePolicy>> = {
+  'spec>build': {
+    guards: [{ type: 'file-exists', path: { kind: 'field', field: 'plan' }, when: NON_PM }],
+    actions: [RESET_PRE_VERIFY],
+  },
+  'build>spec': { guards: [], actions: [RESET_PRE_VERIFY] },
+  'build>verify': { guards: [PRE_VERIFY_PASSED], actions: [{ type: 'freeze-build-sha' }] },
+  'verify>ship': {
+    guards: [
+      { type: 'file-exists', path: { kind: 'field', field: 'verification_report' } },
+      { type: 'build-head-unchanged', field: 'build_sha' },
+    ],
+    actions: [{ type: 'mark-verification-passed' }],
+  },
+  'verify>build': { guards: [], actions: [{ type: 'mark-verification-failed' }, RESET_PRE_VERIFY] },
+  'ship>archive': { guards: [{ type: 'spec-migration-applied' }], actions: [] },
 }
 
 /**
@@ -27,13 +55,8 @@ export function governedLifecyclePolicy(
   to: string,
 ): GovernedLifecyclePolicy | undefined {
   if (!governed) return undefined
-  if (from === 'spec' && to === 'build') return DEFAULT_EVENT_POLICY['spec-complete']
-  if (from === 'build' && to === 'spec') return DEFAULT_EVENT_POLICY['requirements-changed']
-  if (from === 'build' && to === 'verify') return DEFAULT_EVENT_POLICY['build-complete']
-  if (from === 'verify' && to === 'ship') return DEFAULT_EVENT_POLICY['verify-pass']
-  if (from === 'verify' && to === 'build') return DEFAULT_EVENT_POLICY['verify-fail']
-  if (from === 'ship' && to === 'archive') return DEFAULT_EVENT_POLICY['ship-complete']
-  return undefined
+  const key = `${from}>${to}`
+  return Object.hasOwn(GOVERNED_LIFECYCLE, key) ? GOVERNED_LIFECYCLE[key] : undefined
 }
 
 export function mergeLifecycleGuards(

@@ -1,5 +1,5 @@
 /**
- * `.pipeline/` mixes shared project configuration (workflows/, tracks.yaml, hooks.json, loops.yaml …)
+ * `.pipeline/` mixes shared project configuration (workflows/, hooks.json, loops.yaml …)
  * with machine- or conversation-local runtime state.  Like `.tenon/.gitignore` for the per-user
  * `local/` directories, Tenon keeps the local part out of git with its own nested
  * `.pipeline/.gitignore` and never edits the project's root `.gitignore`.  The file is created once

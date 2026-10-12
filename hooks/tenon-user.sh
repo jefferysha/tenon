@@ -25,7 +25,7 @@ _pipeline_user_absolute() { # $1=path → success when absolute
   case "$1" in /*) return 0 ;; *) return 1 ;; esac
 }
 
-pipeline_user_config_path() {
+pipeline_config_root() { # prints the product config root (absolute) or returns 1; same order as the kernel
   local roots="${TENON_RUNTIME_ROOTS:-}" base=''
   if [ -n "$roots" ]; then
     base="$(pipeline_json_get_string "$roots" configRoot 2>/dev/null || true)"
@@ -44,6 +44,12 @@ pipeline_user_config_path() {
     esac
   fi
   _pipeline_user_absolute "$base" || return 1
+  printf '%s' "$base"
+}
+
+pipeline_user_config_path() {
+  local base
+  base="$(pipeline_config_root)" || return 1
   printf '%s/user.json' "$base"
 }
 

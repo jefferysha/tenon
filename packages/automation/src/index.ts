@@ -47,7 +47,7 @@ export {
 export type { GitRevisionVerifierOptions } from './verifier/git-revision-verifier.js'
 // T4：沙箱内阶段回写（[TRANSITION] 检出）+ loop denylist 结算检查（决议 #12）
 export * from './lifecycle/transitionWatch.js'
-// 已提交 spec->build 的后置 AFK 入队（不启动 runner；由 Track policy 单独授权）。
+// 已提交 spec->build 的后置 AFK 入队（不启动 runner；由分支的 automation.enqueue_after_spec 单独授权）。
 export * from './lifecycle/spec-complete.js'
 export * from './lifecycle/denylist.js'
 // T20：runner 双支持——change → loop 声明 runner 的派生（分派口径在 runner.ts::buildAfkRunCommand）

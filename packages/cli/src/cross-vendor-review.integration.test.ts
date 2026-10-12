@@ -117,7 +117,7 @@ describe('跨厂商评审', () => {
       await mkdir(join(h.cwd, path, '..'), { recursive: true })
       await writeFile(join(h.cwd, path), text, 'utf8')
     }
-    expect(await h.run(['init', 'demo', '--track', 'backend', '--workflow', 'crossvendor', '--preset', 'full'], { env: TERMINAL }), h.err.join('\n')).toBe(0)
+    expect(await h.run(['init', 'demo', '--workflow', 'crossvendor', '--preset', 'full'], { env: TERMINAL }), h.err.join('\n')).toBe(0)
   }
 
   async function prompt(agent: string, env: Record<string, string>, args: string[] = []): Promise<PromptJson> {
@@ -398,7 +398,7 @@ describe('跨厂商评审', () => {
     h = await freshHarness()
     await mkdir(join(h.cwd, '.pipeline', 'workflows'), { recursive: true })
     await writeFile(join(h.cwd, '.pipeline', 'workflows', 'crossvendor.yaml'), WF.replace('host: codex', 'host: gemini'), 'utf8')
-    expect(await h.run(['init', 'demo', '--track', 'backend', '--workflow', 'crossvendor', '--preset', 'full'], { env: TERMINAL })).not.toBe(0)
+    expect(await h.run(['init', 'demo', '--workflow', 'crossvendor', '--preset', 'full'], { env: TERMINAL })).not.toBe(0)
     expect(h.err.join('\n')).toContain('host')
   })
 })

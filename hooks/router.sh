@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# router.sh — UserPromptSubmit：项目级动态 Track 路由 + workflow breadcrumb/skill 注入。
+# router.sh — UserPromptSubmit：项目级动态路由（工作流分支的 route）+ 新开发请求的评估分派。
 #
-# 冷路径从 effective Track Registry + manifest profile skills 生成 TENON_ROUTER_V5；默认 cache
-# 位于 <canonical-project-root>/.pipeline/cache/router.v5.data。cache 是严格字段化的 hex 数据，
-# 本脚本只逐行校验和 builtin 解码，绝不把项目 cache 当 shell 程序执行。
+# 路由数据来自「项目 → 全局存储 → 插件模板」三处工作流文件里每条带 route 的分支。冷路径生成 TENON_ROUTER_V6，
+# 默认 cache 位于 <canonical-project-root>/.pipeline/cache/router.v6.data。cache 是严格字段化的 hex 数据，
+# 本脚本只逐行校验和 builtin 解码，绝不把项目 cache 当 shell 程序执行。命中缓存时用 shell（head/printf/sha256，
+# 不起解释器）重算全部工作流文件的摘要：任何一份文件内容变化都使缓存失效，保存工作流后的下一条消息即按新数据路由。
 #
 # fail-open（对 hook 调用方）/fail-closed（对 stale 数据）：任何定位、解析或生成错误都 exit 0；
 # 但 stale 后生成失败的当轮绝不继续消费旧 cache。
@@ -45,27 +46,18 @@ HOST_SESSION_ID="$(json_get session_id || true)"
 case "$HOST_SESSION_ID" in ''|*[!A-Za-z0-9_-]*) HOST_SESSION_ID='' ;; esac
 [ "${#HOST_SESSION_ID}" -le 128 ] || HOST_SESSION_ID=''
 
-# 系统通知、自身回显、显式命令、纯讨论均不触发路由。局部快速修复交给 simple 风险轨，
-# 不再作为绕过 Tenon 的 L5 口子。
+# 系统通知、自身回显、显式命令、纯讨论均不触发路由。
 case "$PROMPT" in
   *"<task-notification>"*|*"<task-id>"*|*"<output-file>"*|*"<workflow-state>"*|*"<tenon-router"*|*"<tenon-dispatch>"*) exit 0 ;;
 esac
 case "$PROMPT" in /*) exit 0 ;; esac
 
-# Free 是显式执行意图，不是内容评分 Track。“提到 free”本身不够，必须带选择/执行语义；
-# 这样“自由模式是什么”仍是纯讨论，而“我觉得应该用自由模式执行”不会被讨论前缀吞掉。
-EXPLICIT_FREE_MODE='false'
+# 纯讨论不建任务（原「对话」轨道承担的语义由这里的讨论判断承担）。
 case "$PROMPT" in
-  *用自由模式*|*以自由模式*|*选择自由模式*|*自由模式执行*|*自由工作流执行*|*use-free-mode*|*use_free_mode*|*"use free mode"*|*track=free*) EXPLICIT_FREE_MODE='true' ;;
+  *如何使用*|*怎么用*|*是什么*|*为什么*|*解释*|*文档在哪*|*在哪里*|*意思是*|*我觉得*|*我感觉*|*你觉得*|*是不是*|*怎么样*|*看法*|*聊聊*|*讨论一下*|*有没有更好*) exit 0 ;;
 esac
-
-if [ "$EXPLICIT_FREE_MODE" != "true" ]; then
-  case "$PROMPT" in
-    *如何使用*|*怎么用*|*是什么*|*为什么*|*解释*|*文档在哪*|*在哪里*|*意思是*|*我觉得*|*我感觉*|*你觉得*|*是不是*|*怎么样*|*看法*|*聊聊*|*讨论一下*|*有没有更好*) exit 0 ;;
-  esac
-  if printf '%s' "$PROMPT" | grep -qiE '^[[:space:]]*(what|why|how|when|where|who|can you (tell|explain|describe))\b'; then
-    exit 0
-  fi
+if printf '%s' "$PROMPT" | grep -qiE '^[[:space:]]*(what|why|how|when|where|who|can you (tell|explain|describe))\b'; then
+  exit 0
 fi
 
 # Carry a strong, explicit continuous-execution authorisation through the normal-chat dispatch.
@@ -73,10 +65,8 @@ fi
 # consumes this exact flag only after it has created or re-selected an exact Change and uses
 # `tenon session activate --continuous --host-session <id>` to bind it safely.
 CONTINUOUS_EXECUTION='false'
-INTENT_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/prompt-intent.sh"
+# prompt-intent.sh was already sourced above (INTENT_HELPER); only its readability gates the call here.
 if [ -r "$INTENT_HELPER" ]; then
-  # shellcheck source=prompt-intent.sh
-  . "$INTENT_HELPER"
   [ "$(pipeline_prompt_approval_intent "$PROMPT" 2>/dev/null || true)" = 'authorize' ] \
     && CONTINUOUS_EXECUTION='true'
 fi
@@ -108,13 +98,6 @@ SOLE_CHANGE_NAME="" SOLE_CHANGE_PHASE="" SOLE_CHANGE_TRACK="" SOLE_CHANGE_WORKFL
 ACTIVE_CHANGE_COUNT=0
 ACTIVE_CHANGE_NAMES=() ACTIVE_CHANGE_PHASES=() ACTIVE_CHANGE_TRACKS=() ACTIVE_CHANGE_WORKFLOWS=()
 BEST_MTIME=0
-# 当前用户的归档记录：整趟扫描只解析一次路径（与 archived=true 同等跳过）。
-ARCHIVE_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/task-archive.sh"
-# shellcheck source=task-archive.sh
-[ -r "$ARCHIVE_HELPER" ] && . "$ARCHIVE_HELPER"
-declare -F pipeline_change_archived_for_user >/dev/null 2>&1 || pipeline_change_archived_for_user() { return 1; }
-ARCHIVE_STORE=""
-declare -F pipeline_task_archive_store >/dev/null 2>&1 && ARCHIVE_STORE="$(pipeline_task_archive_store "$PROOT" || true)"
 for _change_dir in "$PROOT"/openspec/changes/*; do
   [ -d "$_change_dir" ] || continue
   f="$(pipeline_state_source "$_change_dir" || true)"
@@ -123,7 +106,6 @@ for _change_dir in "$PROOT"/openspec/changes/*; do
   _change_name="${_change_dir##*/}"
   # change 名会进入 hook 的结构化输出和动态正则；只接受 CLI/状态机同一份路径契约。
   case "$_change_name" in ''|*[!A-Za-z0-9_-]*) continue ;; esac
-  pipeline_change_archived_for_user "$ARCHIVE_STORE" "$_change_name" && continue
   ACTIVE_CHANGE_COUNT=$((ACTIVE_CHANGE_COUNT + 1))
   SOLE_CHANGE_NAME="$_change_name"
   SOLE_CHANGE_PHASE="$(yget "$f" phase)"
@@ -300,25 +282,31 @@ ROUTER_PHASE="${CHANGE_PHASE:-open}"
 if pipeline_hook_disabled "$PROOT" router "$ROUTER_PHASE"; then exit 0; fi
 
 PLUGIN_ROOT="${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." 2>/dev/null && pwd)}}"
+# manifest 路径只用来给生成器定位插件的 templates/ 目录（其下 workflows/ 是随插件发布的模板）。
 MANIFEST="$PLUGIN_ROOT/templates/manifest.yaml"
-TRACKS_FILE="$PROOT/.pipeline/tracks.yaml"
-if [ -f "$TRACKS_FILE" ]; then TRACKS_PRESENT=1; else TRACKS_PRESENT=0; fi
-CACHE="${TENON_ROUTER_CACHE:-$PROOT/.pipeline/cache/router.v5.data}"
+CACHE="${TENON_ROUTER_CACHE:-$PROOT/.pipeline/cache/router.v6.data}"
 _CLI_BUNDLE="$PLUGIN_ROOT/packages/cli/dist/tenon.mjs"
 _GEN_MJS="$PLUGIN_ROOT/hooks/router-gen.mjs"
-# This release-owned digest is checked on every cache hit with bash builtins only. A unit test
-# pins it to kernel.routerContractRevision(manifest), so builtin/skill/breadcrumb changes cannot
-# silently retain a prior project cache even when plugin mtimes are older than that cache.
-ROUTER_CONTRACT_REV="1b753306435ce66449df00d4bc1172abdca611712c22ce2e6ee7b1f89f7d259e"
+# 三处工作流目录：项目、全局存储（配置根下，与 kernel resolveProductPaths 同一解析，见 tenon-user.sh）、插件模板。
+# 配置根解析不出来时全局目录留空——摘要与缓存里的对不上，每轮都会重建，路由结果仍然正确。
+SRC_PROJECT_DIR="$PROOT/.pipeline/workflows"
+SRC_TEMPLATE_DIR="$PLUGIN_ROOT/templates/workflows"
+SRC_GLOBAL_DIR=""
+declare -F pipeline_config_root >/dev/null 2>&1 || {
+  USER_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/tenon-user.sh"
+  # shellcheck source=tenon-user.sh
+  [ -r "$USER_HELPER" ] && . "$USER_HELPER"
+}
+if declare -F pipeline_config_root >/dev/null 2>&1; then
+  _config_root="$(pipeline_config_root 2>/dev/null || true)"
+  [ -z "$_config_root" ] || SRC_GLOBAL_DIR="$_config_root/workflows/.pipeline/workflows"
+fi
 
 # Bash 3.2-compatible parallel arrays（不使用 associative array 或动态变量名）。
 _router_clear_cache() {
-  CACHE_ROOT="" CACHE_MANIFEST_SHA="" CACHE_REGISTRY_REV="" CACHE_TRACKS_PRESENT="" CACHE_CONTRACT_REV=""
-  ROUTER_ORDERS=() ROUTER_PRIORITIES=() ROUTER_IDS=() ROUTER_ROUTABLES=() ROUTER_PATTERNS=() ROUTER_EXCLUDE_PATTERNS=() ROUTER_PROFILES=()
-  ROUTER_MATRICES=() ROUTER_BUILTINS=() ROUTER_LABELS=() ROUTER_WORKFLOWS=()
-  CACHE_BC_PHASES=() CACHE_BC_TEXTS=()
-  CACHE_CELL_PHASES=() CACHE_CELL_PROFILES=() CACHE_CELL_KINDS=() CACHE_CELL_SOURCES=()
-  CACHE_SKILL_PHASES=() CACHE_SKILL_PROFILES=() CACHE_SKILL_KINDS=() CACHE_SKILL_INDEXES=() CACHE_SKILL_TOKENS=()
+  CACHE_ROOT="" CACHE_DIGEST=""
+  ROUTER_PRIORITIES=() ROUTER_WORKFLOWS=() ROUTER_TRACKS=() ROUTER_LABELS=() ROUTER_ROUTABLES=() ROUTER_FALLBACKS=()
+  ROUTER_BUILTINS=() ROUTER_PATTERNS=() ROUTER_EXCLUDES=()
 }
 
 _uint_ok() { # unsigned JS-safe integer, canonical decimal spelling
@@ -357,18 +345,9 @@ _hex_decode() {
   return 0
 }
 
-_track_id_ok() {
-  local value="$1"
-  [ "${#value}" -le 32 ] || return 1
-  case "$value" in
-    ''|_all|[!a-z]*|*[!a-z0-9_-]*) return 1 ;;
-    *) return 0 ;;
-  esac
-}
-
-# `workflowDefault` 会进入宿主可读的 dispatch 提示，不能让项目配置中的控制符或标签分隔符
-# 打破该数据契约。workflow 定义自身仍由 kernel 校验；这里仅是 shell 边界的防御性收窄。
-_workflow_default_ok() {
+# workflow / track 名会进入宿主可读的 dispatch 提示，不能让项目配置中的控制符或标签分隔符
+# 打破该数据契约。名字自身仍由 kernel 校验；这里仅是 shell 边界的防御性收窄（与 kernel 缓存编码同一规则）。
+_route_name_ok() {
   local value="$1"
   [ -n "$value" ] && [ "${#value}" -le 160 ] || return 1
   case "$value" in
@@ -385,148 +364,72 @@ _split_cache_line() {
   [ "$last" -ge 0 ] && [ "${PARTS[$last]}" = "__TENON_END__" ]
 }
 
-_router_load_cache() { # file expected-root expected-tracks-present expected-contract-revision
-  local file="$1" expected_root="$2" expected_tracks="$3" expected_contract="$4"
-  local line line_no=0 metadata_seen=0 previous_order=-1 stage=0 i found count
-  local order priority id routable pattern exclude_pattern profile matrix builtin label workflow phase prose kind cell_source index token
+# 格式（kernel router-cache.ts）：TENON_ROUTER_V6、一行 M|<hex root>|<摘要>、至多 64 行
+# R|<序>|<优先级>|<hex workflow>|<hex track>|<hex label>|<可路由>|<兜底>|<内建>|<hex 匹配式>|<hex 排除式>。
+# 任何不合规都清空并 return 1；未知记录类型一律拒绝（旧版缓存的 B / C / S 行因此整体作废）。
+_router_load_cache() { # file expected-root
+  local file="$1" expected_root="$2"
+  local line line_no=0 metadata_seen=0 previous_order=-1 i
+  local order priority workflow track label routable fallback builtin pattern exclude
   _router_clear_cache
   [ -f "$file" ] || return 1
 
   while IFS= read -r line || [ -n "$line" ]; do
     line_no=$((line_no + 1))
     if [ "$line_no" -eq 1 ]; then
-      [ "$line" = "TENON_ROUTER_V5" ] || { _router_clear_cache; return 1; }
+      [ "$line" = "TENON_ROUTER_V6" ] || { _router_clear_cache; return 1; }
       continue
     fi
-    [ -n "$line" ] || { _router_clear_cache; return 1; }
+    [ -n "$line" ] && [ "${#line}" -le 70000 ] || { _router_clear_cache; return 1; }
     _split_cache_line "$line" || { _router_clear_cache; return 1; }
 
     case "${PARTS[0]}" in
       M)
-        [ "$line_no" -eq 2 ] && [ "$metadata_seen" -eq 0 ] && [ "${#PARTS[@]}" -eq 7 ] \
+        [ "$line_no" -eq 2 ] && [ "$metadata_seen" -eq 0 ] && [ "${#PARTS[@]}" -eq 4 ] \
           || { _router_clear_cache; return 1; }
         _hex_decode "${PARTS[1]}" || { _router_clear_cache; return 1; }
         CACHE_ROOT="$HEX_VALUE"
         _hex_ok "${PARTS[2]}" && [ "${#PARTS[2]}" -eq 64 ] \
           || { _router_clear_cache; return 1; }
-        _hex_ok "${PARTS[3]}" && [ "${#PARTS[3]}" -ge 16 ] && [ "${#PARTS[3]}" -le 64 ] \
-          || { _router_clear_cache; return 1; }
-        case "${PARTS[4]}" in 0|1) ;; *) _router_clear_cache; return 1 ;; esac
-        _hex_ok "${PARTS[5]}" && [ "${#PARTS[5]}" -eq 64 ] \
-          || { _router_clear_cache; return 1; }
-        CACHE_MANIFEST_SHA="${PARTS[2]}"
-        CACHE_REGISTRY_REV="${PARTS[3]}"
-        CACHE_TRACKS_PRESENT="${PARTS[4]}"
-        CACHE_CONTRACT_REV="${PARTS[5]}"
-        [ "$CACHE_ROOT" = "$expected_root" ] && [ "$CACHE_TRACKS_PRESENT" = "$expected_tracks" ] \
-          && [ "$CACHE_CONTRACT_REV" = "$expected_contract" ] \
-          || { _router_clear_cache; return 1; }
+        CACHE_DIGEST="${PARTS[2]}"
+        [ "$CACHE_ROOT" = "$expected_root" ] || { _router_clear_cache; return 1; }
         metadata_seen=1
         ;;
       R)
-        [ "$metadata_seen" -eq 1 ] && [ "$stage" -eq 0 ] && [ "${#PARTS[@]}" -eq 13 ] \
-          || { _router_clear_cache; return 1; }
+        [ "$metadata_seen" -eq 1 ] && [ "${#PARTS[@]}" -eq 12 ] || { _router_clear_cache; return 1; }
         order="${PARTS[1]}"; priority="${PARTS[2]}"
         _uint_ok "$order" && _uint_ok "$priority" || { _router_clear_cache; return 1; }
-        [ "$order" -le 33 ] && [ "${#ROUTER_IDS[@]}" -lt 34 ] || { _router_clear_cache; return 1; }
+        [ "$order" -le 63 ] && [ "${#ROUTER_TRACKS[@]}" -lt 64 ] || { _router_clear_cache; return 1; }
         [ "$order" -gt "$previous_order" ] || { _router_clear_cache; return 1; }
         previous_order="$order"
-        _hex_decode "${PARTS[3]}" || { _router_clear_cache; return 1; }; id="$HEX_VALUE"
-        _track_id_ok "$id" || { _router_clear_cache; return 1; }
-        routable="${PARTS[4]}"
+        _hex_decode "${PARTS[3]}" || { _router_clear_cache; return 1; }; workflow="$HEX_VALUE"
+        _route_name_ok "$workflow" || { _router_clear_cache; return 1; }
+        _hex_decode "${PARTS[4]}" || { _router_clear_cache; return 1; }; track="$HEX_VALUE"
+        _route_name_ok "$track" || { _router_clear_cache; return 1; }
+        _hex_decode "${PARTS[5]}" || { _router_clear_cache; return 1; }; label="$HEX_VALUE"
+        [ -n "$label" ] && [ "${#label}" -le 200 ] || { _router_clear_cache; return 1; }
+        routable="${PARTS[6]}"; fallback="${PARTS[7]}"; builtin="${PARTS[8]}"
         case "$routable" in 0|1) ;; *) _router_clear_cache; return 1 ;; esac
-        _hex_decode "${PARTS[5]}" || { _router_clear_cache; return 1; }; pattern="$HEX_VALUE"
-        _hex_decode "${PARTS[6]}" || { _router_clear_cache; return 1; }; exclude_pattern="$HEX_VALUE"
-        if [ "$routable" = "1" ]; then
-          [ -n "$pattern" ] || { _router_clear_cache; return 1; }
-        else
-          [ "$priority" -eq 0 ] && [ -z "$pattern" ] && [ -z "$exclude_pattern" ] \
+        case "$fallback" in 0|1) ;; *) _router_clear_cache; return 1 ;; esac
+        case "$builtin" in 0|1) ;; *) _router_clear_cache; return 1 ;; esac
+        _hex_decode "${PARTS[9]}" || { _router_clear_cache; return 1; }; pattern="$HEX_VALUE"
+        _hex_decode "${PARTS[10]}" || { _router_clear_cache; return 1; }; exclude="$HEX_VALUE"
+        if [ "$routable" = "0" ]; then
+          # 没有 route 的分支只能被点名，绝不带打分数据。
+          [ "$priority" -eq 0 ] && [ "$fallback" = "0" ] && [ -z "$pattern" ] && [ -z "$exclude" ] \
             || { _router_clear_cache; return 1; }
         fi
-        _hex_decode "${PARTS[7]}" || { _router_clear_cache; return 1; }; profile="$HEX_VALUE"
-        [ -n "$profile" ] || { _router_clear_cache; return 1; }
-        matrix="${PARTS[8]}"; builtin="${PARTS[9]}"
-        case "$matrix" in 0|1) ;; *) _router_clear_cache; return 1 ;; esac
-        case "$builtin" in 0|1) ;; *) _router_clear_cache; return 1 ;; esac
-        _hex_decode "${PARTS[10]}" || { _router_clear_cache; return 1; }; label="$HEX_VALUE"
-        [ -n "$label" ] || { _router_clear_cache; return 1; }
-        _hex_decode "${PARTS[11]}" || { _router_clear_cache; return 1; }; workflow="$HEX_VALUE"
-        _workflow_default_ok "$workflow" || { _router_clear_cache; return 1; }
         i=0
-        while [ "$i" -lt "${#ROUTER_IDS[@]}" ]; do
-          [ "${ROUTER_IDS[$i]}" != "$id" ] || { _router_clear_cache; return 1; }
-          i=$((i + 1))
-        done
-        i="${#ROUTER_IDS[@]}"
-        ROUTER_ORDERS[$i]="$order"; ROUTER_PRIORITIES[$i]="$priority"; ROUTER_IDS[$i]="$id"; ROUTER_ROUTABLES[$i]="$routable"
-        ROUTER_PATTERNS[$i]="$pattern"; ROUTER_EXCLUDE_PATTERNS[$i]="$exclude_pattern"
-        ROUTER_PROFILES[$i]="$profile"; ROUTER_MATRICES[$i]="$matrix"
-        ROUTER_BUILTINS[$i]="$builtin"; ROUTER_LABELS[$i]="$label"; ROUTER_WORKFLOWS[$i]="$workflow"
-        ;;
-      B)
-        [ "$metadata_seen" -eq 1 ] && [ "$stage" -le 1 ] && [ "${#PARTS[@]}" -eq 4 ] \
-          || { _router_clear_cache; return 1; }
-        stage=1
-        _hex_decode "${PARTS[1]}" || { _router_clear_cache; return 1; }; phase="$HEX_VALUE"
-        [ -n "$phase" ] || { _router_clear_cache; return 1; }
-        _hex_decode "${PARTS[2]}" || { _router_clear_cache; return 1; }; prose="$HEX_VALUE"
-        i=0
-        while [ "$i" -lt "${#CACHE_BC_PHASES[@]}" ]; do
-          [ "${CACHE_BC_PHASES[$i]}" != "$phase" ] || { _router_clear_cache; return 1; }
-          i=$((i + 1))
-        done
-        i="${#CACHE_BC_PHASES[@]}"; CACHE_BC_PHASES[$i]="$phase"; CACHE_BC_TEXTS[$i]="$prose"
-        ;;
-      C)
-        [ "$metadata_seen" -eq 1 ] && [ "$stage" -le 2 ] && [ "${#PARTS[@]}" -eq 6 ] \
-          || { _router_clear_cache; return 1; }
-        stage=2
-        _hex_decode "${PARTS[1]}" || { _router_clear_cache; return 1; }; phase="$HEX_VALUE"
-        _hex_decode "${PARTS[2]}" || { _router_clear_cache; return 1; }; profile="$HEX_VALUE"
-        [ -n "$phase" ] && [ -n "$profile" ] || { _router_clear_cache; return 1; }
-        kind="${PARTS[3]}"; cell_source="${PARTS[4]}"
-        case "$kind" in M|R) ;; *) _router_clear_cache; return 1 ;; esac
-        case "$cell_source" in P|A|E) ;; *) _router_clear_cache; return 1 ;; esac
-        i=0
-        while [ "$i" -lt "${#CACHE_CELL_PHASES[@]}" ]; do
-          if [ "${CACHE_CELL_PHASES[$i]}" = "$phase" ] && [ "${CACHE_CELL_PROFILES[$i]}" = "$profile" ] \
-            && [ "${CACHE_CELL_KINDS[$i]}" = "$kind" ]; then
+        while [ "$i" -lt "${#ROUTER_TRACKS[@]}" ]; do
+          if [ "${ROUTER_WORKFLOWS[$i]}" = "$workflow" ] && [ "${ROUTER_TRACKS[$i]}" = "$track" ]; then
             _router_clear_cache; return 1
           fi
           i=$((i + 1))
         done
-        i="${#CACHE_CELL_PHASES[@]}"; CACHE_CELL_PHASES[$i]="$phase"; CACHE_CELL_PROFILES[$i]="$profile"
-        CACHE_CELL_KINDS[$i]="$kind"; CACHE_CELL_SOURCES[$i]="$cell_source"
-        ;;
-      S)
-        [ "$metadata_seen" -eq 1 ] && [ "$stage" -eq 2 ] && [ "${#PARTS[@]}" -eq 7 ] \
-          || { _router_clear_cache; return 1; }
-        _hex_decode "${PARTS[1]}" || { _router_clear_cache; return 1; }; phase="$HEX_VALUE"
-        _hex_decode "${PARTS[2]}" || { _router_clear_cache; return 1; }; profile="$HEX_VALUE"
-        kind="${PARTS[3]}"; index="${PARTS[4]}"
-        [ -n "$phase" ] && [ -n "$profile" ] && _uint_ok "$index" || { _router_clear_cache; return 1; }
-        case "$kind" in M|R) ;; *) _router_clear_cache; return 1 ;; esac
-        _hex_decode "${PARTS[5]}" || { _router_clear_cache; return 1; }; token="$HEX_VALUE"
-        [ -n "$token" ] || { _router_clear_cache; return 1; }
-        found=0; i=0
-        while [ "$i" -lt "${#CACHE_CELL_PHASES[@]}" ]; do
-          if [ "${CACHE_CELL_PHASES[$i]}" = "$phase" ] && [ "${CACHE_CELL_PROFILES[$i]}" = "$profile" ] \
-            && [ "${CACHE_CELL_KINDS[$i]}" = "$kind" ]; then
-            [ "${CACHE_CELL_SOURCES[$i]}" != "E" ] || { _router_clear_cache; return 1; }
-            found=1; break
-          fi
-          i=$((i + 1))
-        done
-        [ "$found" -eq 1 ] || { _router_clear_cache; return 1; }
-        count=0; i=0
-        while [ "$i" -lt "${#CACHE_SKILL_PHASES[@]}" ]; do
-          if [ "${CACHE_SKILL_PHASES[$i]}" = "$phase" ] && [ "${CACHE_SKILL_PROFILES[$i]}" = "$profile" ] \
-            && [ "${CACHE_SKILL_KINDS[$i]}" = "$kind" ]; then count=$((count + 1)); fi
-          i=$((i + 1))
-        done
-        [ "$index" -eq "$count" ] || { _router_clear_cache; return 1; }
-        i="${#CACHE_SKILL_PHASES[@]}"; CACHE_SKILL_PHASES[$i]="$phase"; CACHE_SKILL_PROFILES[$i]="$profile"
-        CACHE_SKILL_KINDS[$i]="$kind"; CACHE_SKILL_INDEXES[$i]="$index"; CACHE_SKILL_TOKENS[$i]="$token"
+        i="${#ROUTER_TRACKS[@]}"
+        ROUTER_PRIORITIES[$i]="$priority"; ROUTER_WORKFLOWS[$i]="$workflow"; ROUTER_TRACKS[$i]="$track"; ROUTER_LABELS[$i]="$label"
+        ROUTER_ROUTABLES[$i]="$routable"; ROUTER_FALLBACKS[$i]="$fallback"; ROUTER_BUILTINS[$i]="$builtin"
+        ROUTER_PATTERNS[$i]="$pattern"; ROUTER_EXCLUDES[$i]="$exclude"
         ;;
       *) _router_clear_cache; return 1 ;;
     esac
@@ -535,6 +438,39 @@ _router_load_cache() { # file expected-root expected-tracks-present expected-con
 
   [ "$line_no" -ge 2 ] && [ "$metadata_seen" -eq 1 ] || { _router_clear_cache; return 1; }
   return 0
+}
+
+# 工作流文件的摘要字节流（kernel routerSourceDigest 的 shell 版，两边必须逐字节一致）：每份文件依次是
+# `<范围>/<文件名>\n`、文件前 1 MiB 字节、`\n`；范围顺序 project、global、template，范围内按文件名字节序
+# （LC_ALL=C 的 glob 序）；隐藏文件、符号链接、非普通文件忽略，每个目录最多 64 个。
+_router_source_stream() {
+  local scope dir file count
+  for scope in project global template; do
+    case "$scope" in
+      project) dir="$SRC_PROJECT_DIR" ;;
+      global) dir="$SRC_GLOBAL_DIR" ;;
+      *) dir="$SRC_TEMPLATE_DIR" ;;
+    esac
+    [ -n "$dir" ] || continue
+    count=0
+    for file in "$dir"/*.yaml; do
+      [ -f "$file" ] && [ ! -L "$file" ] || continue
+      count=$((count + 1))
+      [ "$count" -le 64 ] || break
+      printf '%s/%s\n' "$scope" "${file##*/}"
+      head -c 1048577 -- "$file"
+      printf '\n'
+    done
+  done
+  return 0
+}
+
+_router_sources_current() { # 0 = 缓存里的摘要与磁盘上的工作流文件内容一致；算不出摘要就当作不一致
+  local observed
+  declare -F pipeline_state_sha256 >/dev/null 2>&1 || return 1
+  observed="$(_router_source_stream 2>/dev/null | pipeline_state_sha256 2>/dev/null)" || return 1
+  observed="${observed%% *}"
+  [ -n "$observed" ] && [ "$observed" = "$CACHE_DIGEST" ]
 }
 
 _router_regen() { # manifest root output
@@ -550,11 +486,11 @@ _router_regen() { # manifest root output
     ( set -C; printf '%s\n' '# Tenon local runtime state; shared configuration in this directory stays tracked.' \
       'cache/' 'terminal-sessions/' 'codex-skill-receipts.jsonl' > "$root/.pipeline/.gitignore" ) 2>/dev/null || true
   fi
-  tmp="$(mktemp "$cache_dir/.router.v5.tmp.XXXXXX" 2>/dev/null)" || return 1
+  tmp="$(mktemp "$cache_dir/.router.v6.tmp.XXXXXX" 2>/dev/null)" || return 1
 
   if [ -f "$_CLI_BUNDLE" ] \
     && (cd "$root" && node "$_CLI_BUNDLE" _gen-router-sh "$manifest" "$root") > "$tmp" 2>/dev/null \
-    && _router_load_cache "$tmp" "$root" "$TRACKS_PRESENT" "$ROUTER_CONTRACT_REV"; then
+    && _router_load_cache "$tmp" "$root"; then
     if mv "$tmp" "$output" 2>/dev/null; then return 0; fi
     _router_clear_cache
   fi
@@ -562,7 +498,7 @@ _router_regen() { # manifest root output
   : > "$tmp" 2>/dev/null || { rm -f "$tmp" 2>/dev/null; _router_clear_cache; return 1; }
   if [ -f "$_GEN_MJS" ] \
     && (cd "$root" && node "$_GEN_MJS" "$manifest" "$root") > "$tmp" 2>/dev/null \
-    && _router_load_cache "$tmp" "$root" "$TRACKS_PRESENT" "$ROUTER_CONTRACT_REV"; then
+    && _router_load_cache "$tmp" "$root"; then
     if mv "$tmp" "$output" 2>/dev/null; then return 0; fi
     _router_clear_cache
   fi
@@ -575,19 +511,18 @@ _router_regen() { # manifest root output
 LC_ALL=C
 _router_clear_cache
 CACHE_STALE=0
-if [ ! -f "$CACHE" ] || [ ! -f "$MANIFEST" ]; then
-  CACHE_STALE=1
-elif [ "$MANIFEST" -nt "$CACHE" ]; then
+if [ ! -f "$CACHE" ]; then
   CACHE_STALE=1
 elif [ -f "$_CLI_BUNDLE" ] && [ "$_CLI_BUNDLE" -nt "$CACHE" ]; then
-  # A plugin release can change builtin Track definitions without touching project tracks.yaml.
+  # A plugin release can change how the cache is encoded without touching any workflow file.
   CACHE_STALE=1
 elif [ -f "$_GEN_MJS" ] && [ "$_GEN_MJS" -nt "$CACHE" ]; then
   CACHE_STALE=1
-elif [ "$TRACKS_PRESENT" -eq 1 ] && [ "$TRACKS_FILE" -nt "$CACHE" ]; then
+elif ! _router_load_cache "$CACHE" "$PROOT"; then
+  # schema/root mismatch（含旧版 router.v5 缓存）或逐行结构损坏。
   CACHE_STALE=1
-elif ! _router_load_cache "$CACHE" "$PROOT" "$TRACKS_PRESENT" "$ROUTER_CONTRACT_REV"; then
-  # schema/root/tracks-presence mismatch 或逐行结构损坏。
+elif ! _router_sources_current; then
+  # 项目、全局存储或插件模板里的某份工作流文件内容变了（或增删了文件）。
   CACHE_STALE=1
 fi
 
@@ -601,7 +536,7 @@ if [ "$CACHE_STALE" -eq 1 ]; then
 fi
 
 # ═══ HOT PATH（每轮命中缓存：严格 data parser + 动态打分；零 node/python/python3/jq）═══
-[ "${#ROUTER_IDS[@]}" -gt 0 ] || exit 0
+[ "${#ROUTER_TRACKS[@]}" -gt 0 ] || exit 0
 
 score_track() {
   local count
@@ -610,92 +545,37 @@ score_track() {
   printf '%s' "$count"
 }
 
-BEST_SCORE=0 BEST_PRIORITY=0 TRACK="" PROFILE="" MATRIX="" BEST_WORKFLOW="default"
-ROUTE_SCORES=() HEAVY_IMPLEMENTATION=0
-i=0
-while [ "$i" -lt "${#ROUTER_IDS[@]}" ]; do
-  if [ "${ROUTER_ROUTABLES[$i]}" != "1" ]; then
-    i=$((i + 1))
-    continue
-  fi
-  EXCLUDED=0
-  if [ -n "${ROUTER_EXCLUDE_PATTERNS[$i]}" ]; then
-    EXCLUSION_SCORE="$(score_track "${ROUTER_EXCLUDE_PATTERNS[$i]}")"
-    [ "$EXCLUSION_SCORE" -gt 0 ] && EXCLUDED=1
-  fi
-  if [ "$EXCLUDED" -eq 1 ]; then SCORE=0; else SCORE="$(score_track "${ROUTER_PATTERNS[$i]}")"; fi
-  ROUTE_SCORES[$i]="$SCORE"
-  # standard 被重型信号排除、但请求本身确是实现类：记下来，没有别的轨道认领时回落到 default 的 backend 轨。
-  if [ "$EXCLUDED" -eq 1 ] && [ "${ROUTER_IDS[$i]}" = "standard" ] && [ "${ROUTER_BUILTINS[$i]}" = "1" ] \
-    && [ "$(score_track "${ROUTER_PATTERNS[$i]}")" -gt 0 ]; then
-    HEAVY_IMPLEMENTATION=1
-  fi
-  if [ "$SCORE" -gt 0 ] && {
-    [ "$SCORE" -gt "$BEST_SCORE" ] \
-      || { [ "$SCORE" -eq "$BEST_SCORE" ] && [ "${ROUTER_PRIORITIES[$i]}" -gt "$BEST_PRIORITY" ]; }
-  }; then
-    BEST_SCORE="$SCORE"
-    BEST_PRIORITY="${ROUTER_PRIORITIES[$i]}"
-    TRACK="${ROUTER_IDS[$i]}"
-    PROFILE="${ROUTER_PROFILES[$i]}"
-    MATRIX="${ROUTER_MATRICES[$i]}"
-    BEST_WORKFLOW="${ROUTER_WORKFLOWS[$i]}"
-  fi
-  i=$((i + 1))
-done
-
-# standard 通道是实现类请求的默认通道：评分是按行计数的，多行 prompt 里领域轨（frontend / backend）可能以更高的
-# 行数压过 standard。只要 standard 本轮命中（得分 > 0，没被重型信号排除），就让它赢过 default 工作流的领域轨；
-# 重型请求本来就被 standard 的排除正则挡掉（得分 0），仍落回领域轨。
-if [ "$BEST_WORKFLOW" = "default" ] && { [ "$TRACK" = "frontend" ] || [ "$TRACK" = "backend" ]; }; then
-  i=0
-  while [ "$i" -lt "${#ROUTER_IDS[@]}" ]; do
-    if [ "${ROUTER_IDS[$i]}" = "standard" ] && [ "${ROUTER_BUILTINS[$i]}" = "1" ] && [ "${ROUTE_SCORES[$i]:-0}" -gt 0 ]; then
-      BEST_SCORE="${ROUTE_SCORES[$i]}"
-      BEST_PRIORITY="${ROUTER_PRIORITIES[$i]}"
-      TRACK="standard"
-      PROFILE="${ROUTER_PROFILES[$i]}"
-      MATRIX="${ROUTER_MATRICES[$i]}"
-      BEST_WORKFLOW="${ROUTER_WORKFLOWS[$i]}"
-      break
-    fi
-    i=$((i + 1))
-  done
-fi
-
-# 重型的实现类请求（standard 的正则命中、却被架构 / 鉴权 / 迁移这类信号排除）而没有任何领域轨认领：不能静默放过，
-# 回落到 default 工作流的 backend 轨，由完整流程治理。
-if [ "$HEAVY_IMPLEMENTATION" -eq 1 ] && { [ "$BEST_SCORE" -le 0 ] || [ -z "$TRACK" ]; }; then
-  i=0
-  while [ "$i" -lt "${#ROUTER_IDS[@]}" ]; do
-    if [ "${ROUTER_IDS[$i]}" = "backend" ] && [ "${ROUTER_BUILTINS[$i]}" = "1" ] && [ "${ROUTER_ROUTABLES[$i]}" = "1" ]; then
-      BEST_SCORE=1
-      BEST_PRIORITY="${ROUTER_PRIORITIES[$i]}"
-      TRACK="backend"
-      PROFILE="${ROUTER_PROFILES[$i]}"
-      MATRIX="${ROUTER_MATRICES[$i]}"
-      BEST_WORKFLOW="${ROUTER_WORKFLOWS[$i]}"
-      break
-    fi
-    i=$((i + 1))
-  done
-fi
-
-# 用户点名轨道（「走 free 轨道」「用 backend 轨道」「track=pm」「use the frontend track」）比内容评分更强。
-# 只认 effective registry 里的 id（含 chat/free 这类不参与评分的内建轨道与项目自定义轨道）；点名多个或
-# 点名不存在的 id 时回退评分并在输出里说明。纯 bash =~，每条正则最多取 8 个匹配，不 spawn 任何进程。
+# ── 点名 ──
+# 用户点名轨道（「用 backend 轨道」「track=pm」「use the frontend track」）、工作流（「用 design-system 工作流」
+# 「--workflow X」）或二者的组合（`工作流:轨道`）比内容评分更强：是用户的直接选择，不评估、不要求再选。
+# 只认缓存表里的 workflow / track（含没有 route、只能点名的分支）；点名多个或点名不存在的名字时回退评分并在输出里说明。
+# 纯 bash =~，每条正则最多取 8 个匹配，不 spawn 任何进程。
 # 只扫 prompt 首尾各 4 KiB：点名写在开头或结尾，粘贴的长日志不应让扫描随 prompt 长度变慢。
-NAMED_TRACK="" NAMED_TRACK_CONFLICT="" NAMED_TRACK_UNKNOWN=""
+NAMED_ROW="" NAMED_WF="" NAMED_CONFLICT="" NAMED_UNKNOWN=""
 NAMED_SCAN_TEXT="$PROMPT"
 if [ "${#PROMPT}" -gt 8192 ]; then
   NAMED_SCAN_TEXT="${PROMPT:0:4096}"$'\n'"${PROMPT:$(( ${#PROMPT} - 4096 ))}"
 fi
-_router_track_index() { # $1=token → NAMED_INDEX = index in ROUTER_IDS（ASCII 大小写不敏感），无则 return 1
+_router_find_row() { # $1=track token $2=workflow token（可空）→ NAMED_INDEX = 表中第一个匹配行（ASCII 大小写不敏感），无则 return 1
+  local track="$1" workflow="${2:-}" idx=0 found=1
+  NAMED_INDEX=""
+  shopt -s nocasematch
+  while [ "$idx" -lt "${#ROUTER_TRACKS[@]}" ]; do
+    if [[ "${ROUTER_TRACKS[$idx]}" == "$track" ]] \
+      && { [ -z "$workflow" ] || [[ "${ROUTER_WORKFLOWS[$idx]}" == "$workflow" ]]; }; then
+      NAMED_INDEX="$idx"; found=0; break
+    fi
+    idx=$((idx + 1))
+  done
+  shopt -u nocasematch
+  return "$found"
+}
+_router_find_workflow() { # $1=workflow token → NAMED_INDEX = 该工作流的第一行（规范拼写由行给出），无则 return 1
   local token="$1" idx=0 found=1
   NAMED_INDEX=""
   shopt -s nocasematch
-  while [ "$idx" -lt "${#ROUTER_IDS[@]}" ]; do
-    if [[ "${ROUTER_IDS[$idx]}" == "$token" ]]; then NAMED_INDEX="$idx"; found=0; break; fi
+  while [ "$idx" -lt "${#ROUTER_WORKFLOWS[@]}" ]; do
+    if [[ "${ROUTER_WORKFLOWS[$idx]}" == "$token" ]]; then NAMED_INDEX="$idx"; found=0; break; fi
     idx=$((idx + 1))
   done
   shopt -u nocasematch
@@ -711,8 +591,24 @@ _router_named_negated() { # $1=text before the match → 0 when the naming is ne
   esac
   return 1
 }
-_router_scan_named() { # $1=ERE $2=capture index
-  local re="$1" group="$2" rest="$NAMED_SCAN_TEXT" match token before rounds=0
+_router_note_row() { # $1=行下标；已有不同的一行 → 记为冲突
+  local idx="$1"
+  if [ -z "$NAMED_ROW" ]; then
+    NAMED_ROW="$idx"
+  elif [ "$NAMED_ROW" != "$idx" ]; then
+    NAMED_CONFLICT="${NAMED_CONFLICT:-${ROUTER_TRACKS[$NAMED_ROW]}}、${ROUTER_TRACKS[$idx]}"
+  fi
+}
+_router_note_workflow() { # $1=行下标（取它的 workflow）；已有不同的工作流 → 记为冲突
+  local name="${ROUTER_WORKFLOWS[$1]}"
+  if [ -z "$NAMED_WF" ]; then
+    NAMED_WF="$name"
+  elif [ "$NAMED_WF" != "$name" ]; then
+    NAMED_CONFLICT="${NAMED_CONFLICT:-$NAMED_WF}、$name"
+  fi
+}
+_router_scan_named() { # $1=ERE $2=捕获组下标 $3=track|workflow
+  local re="$1" group="$2" kind="$3" rest="$NAMED_SCAN_TEXT" match token before rounds=0
   while [ "$rounds" -lt 8 ] && [[ $rest =~ $re ]]; do
     rounds=$((rounds + 1))
     match="${BASH_REMATCH[0]}"
@@ -721,207 +617,263 @@ _router_scan_named() { # $1=ERE $2=capture index
     rest="${rest#*"$match"}"
     [ -n "$token" ] || continue
     _router_named_negated "$before" && continue
-    if _router_track_index "$token"; then
-      token="${ROUTER_IDS[$NAMED_INDEX]}"
-      if [ -z "$NAMED_TRACK" ]; then
-        NAMED_TRACK="$token"
-      elif [ "$NAMED_TRACK" != "$token" ]; then
-        NAMED_TRACK_CONFLICT="$token"
-      fi
-    elif [ -z "$NAMED_TRACK_UNKNOWN" ] && [ "${#token}" -le 32 ]; then
-      NAMED_TRACK_UNKNOWN="$token"
+    if [ "$kind" = "track" ] && _router_find_row "$token" ""; then
+      _router_note_row "$NAMED_INDEX"
+    elif [ "$kind" = "workflow" ] && _router_find_workflow "$token"; then
+      _router_note_workflow "$NAMED_INDEX"
+    elif [ -z "$NAMED_UNKNOWN" ] && [ "${#token}" -le 32 ]; then
+      NAMED_UNKNOWN="$token"
     fi
   done
 }
+_router_scan_pair() { # `工作流:轨道` 写法（如 default:backend）：两段都是表里的才算点名；工作流对、轨道不对时记为未知
+  local re='(^|[^A-Za-z0-9_:-])([A-Za-z][A-Za-z0-9_-]*):([a-z][a-z0-9_-]*)' rest="$NAMED_SCAN_TEXT" match before rounds=0 wf tr
+  while [ "$rounds" -lt 8 ] && [[ $rest =~ $re ]]; do
+    rounds=$((rounds + 1))
+    match="${BASH_REMATCH[0]}"
+    wf="${BASH_REMATCH[2]}"; tr="${BASH_REMATCH[3]}"
+    before="${rest%%"$match"*}"
+    rest="${rest#*"$match"}"
+    _router_named_negated "$before" && continue
+    _router_find_workflow "$wf" || continue
+    if _router_find_row "$tr" "$wf"; then
+      _router_note_row "$NAMED_INDEX"
+    elif [ -z "$NAMED_UNKNOWN" ] && [ "${#wf}" -le 32 ] && [ "${#tr}" -le 32 ]; then
+      NAMED_UNKNOWN="${wf}:${tr}"
+    fi
+  done
+}
+
+_router_scan_labels() { # 「用后端轨道」：动词 + 行的 label + 轨道 / 赛道 / track；label 按字面量匹配（与 id 相同的不重复扫）
+  local idx=0 label match before
+  local lead='(走|使用|选用|选择|采用|切换到|切到|改用|改走|换成|换到|用|选|按)[[:space:]]*' trail='[[:space:]]*(轨道|赛道|[Tt]rack|TRACK)'
+  while [ "$idx" -lt "${#ROUTER_LABELS[@]}" ]; do
+    label="${ROUTER_LABELS[$idx]}"
+    if [ "$label" != "${ROUTER_TRACKS[$idx]}" ] && [[ $NAMED_SCAN_TEXT =~ $lead"$label"$trail ]]; then
+      match="${BASH_REMATCH[0]}"
+      before="${NAMED_SCAN_TEXT%%"$match"*}"
+      _router_named_negated "$before" || _router_note_row "$idx"
+    fi
+    idx=$((idx + 1))
+  done
+}
+
+BOUND_IDX=-1 RESTRICT_WF=""
 if [ "$DISPATCH_INTENT" = "new" ]; then
-  _router_scan_named '(走|使用|选用|选择|采用|切换到|切到|改用|改走|换成|换到|用|选|按)[[:space:]]*([A-Za-z][A-Za-z0-9_-]*)[[:space:]]*(轨道|赛道|track|Track|TRACK)' 2
-  _router_scan_named '([Tt]rack|TRACK|轨道)[[:space:]]*(=|:|：)[[:space:]]*([A-Za-z][A-Za-z0-9_-]*)' 3
-  _router_scan_named '--track[[:space:]]+([A-Za-z][A-Za-z0-9_-]*)' 1
-  _router_scan_named '(^|[^A-Za-z])([Uu]se|[Uu]sing|[Cc]hoose|[Pp]ick|[Ss]elect|[Gg]o with|[Ss]witch to)[[:space:]]+(the[[:space:]]+)?([A-Za-z][A-Za-z0-9_-]*)[[:space:]]+([Tt]rack|TRACK)' 4
-  if [ -z "$NAMED_TRACK" ] && [ "$EXPLICIT_FREE_MODE" = "true" ] && _router_track_index free; then
-    NAMED_TRACK="free"
-  fi
-  if [ -n "$NAMED_TRACK_CONFLICT" ]; then
-    NAMED_TRACK_CONFLICT="${NAMED_TRACK}、${NAMED_TRACK_CONFLICT}"
-    NAMED_TRACK=""
+  _router_scan_named '(走|使用|选用|选择|采用|切换到|切到|改用|改走|换成|换到|用|选|按)[[:space:]]*([A-Za-z][A-Za-z0-9_-]*)[[:space:]]*(轨道|赛道|track|Track|TRACK)' 2 track
+  _router_scan_named '([Tt]rack|TRACK|轨道)[[:space:]]*(=|:|：)[[:space:]]*([A-Za-z][A-Za-z0-9_-]*)' 3 track
+  _router_scan_named '--track[[:space:]]+([A-Za-z][A-Za-z0-9_-]*)' 1 track
+  _router_scan_named '(^|[^A-Za-z])([Uu]se|[Uu]sing|[Cc]hoose|[Pp]ick|[Ss]elect|[Gg]o with|[Ss]witch to)[[:space:]]+(the[[:space:]]+)?([A-Za-z][A-Za-z0-9_-]*)[[:space:]]+([Tt]rack|TRACK)' 4 track
+  _router_scan_named '(走|使用|选用|选择|采用|切换到|切到|改用|改走|换成|换到|用|选|按)[[:space:]]*([A-Za-z][A-Za-z0-9_-]*)[[:space:]]*(工作流|workflow|Workflow|WORKFLOW)' 2 workflow
+  _router_scan_named '([Ww]orkflow|WORKFLOW|工作流)[[:space:]]*(=|:|：)[[:space:]]*([A-Za-z][A-Za-z0-9_-]*)' 3 workflow
+  _router_scan_named '--workflow[[:space:]]+([A-Za-z][A-Za-z0-9_-]*)' 1 workflow
+  _router_scan_named '(^|[^A-Za-z])([Uu]se|[Uu]sing|[Cc]hoose|[Pp]ick|[Ss]elect|[Gg]o with|[Ss]witch to)[[:space:]]+(the[[:space:]]+)?([A-Za-z][A-Za-z0-9_-]*)[[:space:]]+([Ww]orkflow|WORKFLOW)' 4 workflow
+  _router_scan_pair
+  _router_scan_labels
+  if [ -z "$NAMED_CONFLICT" ]; then
+    if [ -n "$NAMED_ROW" ]; then
+      if [ -n "$NAMED_WF" ] && [ "${ROUTER_WORKFLOWS[$NAMED_ROW]}" != "$NAMED_WF" ]; then
+        NAMED_CONFLICT="${ROUTER_WORKFLOWS[$NAMED_ROW]}:${ROUTER_TRACKS[$NAMED_ROW]}、${NAMED_WF}"
+      else
+        BOUND_IDX="$NAMED_ROW"
+      fi
+    elif [ -n "$NAMED_WF" ]; then
+      # 只点名了工作流：它只有一条分支（平铺工作流）就直接用；有多条分支则只在它的分支里评分。
+      _wf_rows=0 _wf_first=-1 _idx=0
+      while [ "$_idx" -lt "${#ROUTER_WORKFLOWS[@]}" ]; do
+        if [ "${ROUTER_WORKFLOWS[$_idx]}" = "$NAMED_WF" ]; then
+          _wf_rows=$((_wf_rows + 1))
+          [ "$_wf_first" -ge 0 ] || _wf_first="$_idx"
+        fi
+        _idx=$((_idx + 1))
+      done
+      if [ "$_wf_rows" -eq 1 ]; then BOUND_IDX="$_wf_first"; else RESTRICT_WF="$NAMED_WF"; fi
+    fi
   fi
 fi
 
-NAMED_TRACK_BOUND=0
-TRACK_BASIS="score"
-if [ -n "$NAMED_TRACK" ]; then
-  _router_track_index "$NAMED_TRACK"
-  i="$NAMED_INDEX"
-  TRACK="${ROUTER_IDS[$i]}"
-  PROFILE="${ROUTER_PROFILES[$i]}"
-  MATRIX="${ROUTER_MATRICES[$i]}"
-  BEST_WORKFLOW="${ROUTER_WORKFLOWS[$i]}"
-  NAMED_TRACK_BOUND=1
-  TRACK_BASIS="user-named"
-fi
-
-# 新任务由本轮文本评分选择 track；恢复已有 Change 时则反过来，以持久化状态中的
-# track 为权威。否则用户只说“继续 catalog-flow-page”而未复述领域关键词，会在这里
-# 被评分 0 静默吞掉，或被错误重算到另一个 track。仅接受当前 effective registry 中
-# 的 id，既得到对应的 skill profile，也不把手改 state 原文透传到宿主上下文。
-RESUME_TRACK_BOUND=0
-if [ "$DISPATCH_INTENT" = "resume" ] && [ -n "$CHANGE_TRACK" ]; then
+# ── 选出轨道 ──
+TRACK="" TRACK_WF="" TRACK_BASIS="score" SCORE_SHOWN=0
+ASSESS_REQUIRED=0 SELECTION_REQUIRED=0 SEL_IDX=-1
+CAND=()
+if [ "$DISPATCH_INTENT" = "resume" ]; then
+  # 恢复已有 Change 时以持久化状态中的 track 为权威：用户只说“继续 X”而未复述领域关键词，不能被评分 0 静默吞掉，
+  # 也不能被错误重算到另一个 track。在途的旧任务（standard / simple / 对话 / 自由）的轨道不在表里，所以只做字符集校验，
+  # 不把手改 state 的任意原文透传到宿主上下文。
+  if _route_name_ok "$CHANGE_TRACK"; then TRACK="$CHANGE_TRACK"; TRACK_BASIS="state"; else TRACK="unresolved"; TRACK_BASIS="none"; fi
+elif [ "$DISPATCH_INTENT" = "select" ]; then
+  # 多候选的泛化恢复本身就必须进入 pipeline 选择，不应因 prompt 没有领域关键词而丢失。
+  # 此时没有可安全猜测的 track，明确标为 unresolved。
+  TRACK="unresolved"; TRACK_BASIS="none"
+elif [ "$BOUND_IDX" -ge 0 ]; then
+  SEL_IDX="$BOUND_IDX"; TRACK_BASIS="user-named"
+else
+  # 路由只决定「是不是开发请求、属于哪个领域」，不按关键词决定轻重：
+  #  · 重型信号 = 轻量分支自己的排除词命中（不论轻量关键词是否命中）→ 直接走领域重型轨道，不评估、不列轻量；
+  #  · 没有重型信号、领域行与轻量行属于同一个工作流 → 带 assess: required，候选为「轻量 + 该领域行」，
+  #    由 agent 在建任务前评估（产品调研这类请求是否评估，由轻量排除词的数据决定）；
+  #  · 只有轻量命中、没有领域行 → 同样评估，候选为「轻量 + 兜底行」；
+  #  · 最高分并列，或最高分落在自定义工作流的分支 → selection_required（领域行在别的工作流时不加轻量候选）；
+  #  · 被排除词挡掉、又没有分支认领 → 落到声明了 fallback 的分支。
+  # 打分是按行计数的 grep -ciE；没有 route 的分支（routable=0）从不进入打分。
+  LITE_IDX=-1 FALLBACK_IDX=-1 ANY_BLOCKED=0 LITE_BLOCKED=0 BEST_IDX=-1 BEST_SCORE=0 TOP_COUNT=0
+  ROW_SCORES=()
   i=0
-  while [ "$i" -lt "${#ROUTER_IDS[@]}" ]; do
-    if [ "${ROUTER_IDS[$i]}" = "$CHANGE_TRACK" ]; then
-      TRACK="${ROUTER_IDS[$i]}"
-      PROFILE="${ROUTER_PROFILES[$i]}"
-      MATRIX="${ROUTER_MATRICES[$i]}"
-      BEST_WORKFLOW="${ROUTER_WORKFLOWS[$i]}"
-      RESUME_TRACK_BOUND=1
-      TRACK_BASIS="state"
-      break
+  while [ "$i" -lt "${#ROUTER_TRACKS[@]}" ]; do
+    ROW_SCORES[$i]=0
+    if [ "${ROUTER_ROUTABLES[$i]}" = "1" ] \
+      && { [ -z "$RESTRICT_WF" ] || [ "${ROUTER_WORKFLOWS[$i]}" = "$RESTRICT_WF" ]; }; then
+      if [ "${ROUTER_FALLBACKS[$i]}" = "1" ] && [ "$FALLBACK_IDX" -lt 0 ]; then FALLBACK_IDX="$i"; fi
+      if [ "${ROUTER_WORKFLOWS[$i]}" = "default" ] && [ "${ROUTER_TRACKS[$i]}" = "lite" ]; then LITE_IDX="$i"; fi
+      EXCLUDED=0
+      if [ -n "${ROUTER_EXCLUDES[$i]}" ] && [ "$(score_track "${ROUTER_EXCLUDES[$i]}")" -gt 0 ]; then EXCLUDED=1; fi
+      if [ "$EXCLUDED" -eq 1 ] && [ "$i" -eq "$LITE_IDX" ]; then LITE_BLOCKED=1; fi
+      if [ -n "${ROUTER_PATTERNS[$i]}" ]; then
+        HITS="$(score_track "${ROUTER_PATTERNS[$i]}")"
+        if [ "$EXCLUDED" -eq 0 ]; then
+          ROW_SCORES[$i]="$HITS"
+        elif [ "$HITS" -gt 0 ]; then
+          # 请求本身命中了该行的关键词、却被它自己的排除词挡掉：是开发请求，只是带重型信号。
+          ANY_BLOCKED=1
+        fi
+      fi
     fi
     i=$((i + 1))
   done
+  # 领域轨道 = 除轻量外得分最高的行（同分比优先级，再比表中顺序）。
+  i=0
+  while [ "$i" -lt "${#ROUTER_TRACKS[@]}" ]; do
+    if [ "$i" -ne "$LITE_IDX" ] && [ "${ROW_SCORES[$i]}" -gt 0 ]; then
+      if [ "$BEST_IDX" -lt 0 ] || [ "${ROW_SCORES[$i]}" -gt "$BEST_SCORE" ] \
+        || { [ "${ROW_SCORES[$i]}" -eq "$BEST_SCORE" ] && [ "${ROUTER_PRIORITIES[$i]}" -gt "${ROUTER_PRIORITIES[$BEST_IDX]}" ]; }; then
+        BEST_IDX="$i"; BEST_SCORE="${ROW_SCORES[$i]}"
+      fi
+    fi
+    i=$((i + 1))
+  done
+  i=0
+  while [ "$i" -lt "${#ROUTER_TRACKS[@]}" ]; do
+    if [ "$i" -ne "$LITE_IDX" ] && [ "$BEST_IDX" -ge 0 ] && [ "${ROW_SCORES[$i]}" -eq "$BEST_SCORE" ]; then TOP_COUNT=$((TOP_COUNT + 1)); fi
+    i=$((i + 1))
+  done
+  LITE_HIT=0
+  [ "$LITE_IDX" -ge 0 ] && [ "${ROW_SCORES[$LITE_IDX]}" -gt 0 ] && LITE_HIT=1
+  if [ "$BEST_IDX" -ge 0 ]; then
+    SEL_IDX="$BEST_IDX"; SCORE_SHOWN="$BEST_SCORE"
+    if [ "$LITE_IDX" -ge 0 ] && [ "$LITE_BLOCKED" -eq 0 ] \
+      && [ "${ROUTER_WORKFLOWS[$BEST_IDX]}" = "${ROUTER_WORKFLOWS[$LITE_IDX]}" ]; then
+      ASSESS_REQUIRED=1
+    fi
+  elif [ "$LITE_HIT" -eq 1 ]; then
+    ASSESS_REQUIRED=1; SCORE_SHOWN="${ROW_SCORES[$LITE_IDX]}"
+    if [ "$FALLBACK_IDX" -ge 0 ]; then SEL_IDX="$FALLBACK_IDX"; else SEL_IDX="$LITE_IDX"; fi
+  elif [ "$ANY_BLOCKED" -eq 1 ] && [ "$FALLBACK_IDX" -ge 0 ]; then
+    SEL_IDX="$FALLBACK_IDX"; SCORE_SHOWN=1
+  elif [ -n "$RESTRICT_WF" ]; then
+    # 点名了多分支工作流、却没有任何分支命中：让用户在它的分支里选，不替他猜。
+    SELECTION_REQUIRED=1; TRACK="unresolved"; TRACK_WF="$RESTRICT_WF"; TRACK_BASIS="user-named"
+  fi
+  if [ "$SEL_IDX" -ge 0 ]; then
+    if [ "$TOP_COUNT" -gt 1 ] || [ "${ROUTER_BUILTINS[$SEL_IDX]}" = "0" ]; then SELECTION_REQUIRED=1; fi
+    # 候选 pair：评估时轻量排第一；要求选择时再列出其余命中的行和兜底行，让用户有真实可选的东西。
+    _cand_add() { # $1=行下标，去重，至多 8 条
+      local _c=0
+      [ "$1" -ge 0 ] && [ "${#CAND[@]}" -lt 8 ] || return 0
+      while [ "$_c" -lt "${#CAND[@]}" ]; do [ "${CAND[$_c]}" != "$1" ] || return 0; _c=$((_c + 1)); done
+      CAND[${#CAND[@]}]="$1"
+    }
+    [ "$ASSESS_REQUIRED" -eq 1 ] && _cand_add "$LITE_IDX"
+    _cand_add "$SEL_IDX"
+    if [ "$SELECTION_REQUIRED" -eq 1 ]; then
+      i=0
+      while [ "$i" -lt "${#ROUTER_TRACKS[@]}" ]; do
+        [ "${ROW_SCORES[$i]}" -le 0 ] || [ "$i" -eq "$LITE_IDX" ] || _cand_add "$i" # 轻量只在评估时作为候选
+        i=$((i + 1))
+      done
+      _cand_add "$FALLBACK_IDX"
+    fi
+  elif [ "$SELECTION_REQUIRED" -eq 1 ]; then
+    i=0
+    while [ "$i" -lt "${#ROUTER_TRACKS[@]}" ] && [ "${#CAND[@]}" -lt 8 ]; do
+      [ "${ROUTER_WORKFLOWS[$i]}" != "$RESTRICT_WF" ] || CAND[${#CAND[@]}]="$i"
+      i=$((i + 1))
+    done
+  fi
+fi
+if [ "$SEL_IDX" -ge 0 ]; then
+  TRACK="${ROUTER_TRACKS[$SEL_IDX]}"; TRACK_WF="${ROUTER_WORKFLOWS[$SEL_IDX]}"
 fi
 
-if [ "$RESUME_TRACK_BOUND" -ne 1 ] && [ "$NAMED_TRACK_BOUND" -ne 1 ] && [ "$DISPATCH_INTENT" != "select" ] \
-  && { [ "$BEST_SCORE" -le 0 ] || [ -z "$TRACK" ]; }; then
-  # 没有任何轨道命中，但这条请求带着「在改代码」的记号（源码路径 / 反引号代码 / 函数调用 / 函数、模块、测试、
+if [ "$DISPATCH_INTENT" = "new" ] && [ -z "$TRACK" ]; then
+  # 没有任何分支命中，但这条请求带着「在改代码」的记号（源码路径 / 反引号代码 / 函数调用 / 函数、模块、测试、
   # 缺陷、报错等词）：别悄悄放过去不治理，给一行提示。纯讨论在更前面已经早退；这里只是兜底，不替代路由。
-  if [ "$DISPATCH_INTENT" = "new" ] \
-    && printf '%s' "$PROMPT" | grep -qiE -- '([A-Za-z0-9_./-]+\.(js|jsx|ts|tsx|mjs|cjs|py|go|rs|java|kt|rb|php|c|cc|cpp|h|cs|swift|vue|svelte|sh|sql|css|scss|html)([^A-Za-z0-9]|$))|`[^`]+`|[A-Za-z_][A-Za-z0-9_]*\([^)]*\)|(^|[^a-z])(function|method|class|module|endpoint|component|test|tests|bug|error|exception|crash|regression|compile|lint)([^a-z]|$)|函数|方法|模块|接口|组件|测试|缺陷|报错|崩溃|异常|编译|代码|脚本|源码'; then
-    printf '\n<workflow-state>\nrouter: 未命中任何轨道规则，但这条请求像是在改代码，当前不会被 Tenon 治理。确实要改代码就先调用 tenon 创建 standard 任务（tenon init <名字> --workflow standard --track standard，再 tenon session activate）后再动手；纯问答或讨论请忽略这一行。\n</workflow-state>\n'
+  if printf '%s' "$PROMPT" | grep -qiE -- '([A-Za-z0-9_./-]+\.(js|jsx|ts|tsx|mjs|cjs|py|go|rs|java|kt|rb|php|c|cc|cpp|h|cs|swift|vue|svelte|sh|sql|css|scss|html)([^A-Za-z0-9]|$))|`[^`]+`|[A-Za-z_][A-Za-z0-9_]*\([^)]*\)|(^|[^a-z])(function|method|class|module|endpoint|component|test|tests|bug|error|exception|crash|regression|compile|lint)([^a-z]|$)|函数|方法|模块|接口|组件|测试|缺陷|报错|崩溃|异常|编译|代码|脚本|源码'; then
+    printf '\n<workflow-state>\nrouter: 未命中任何轨道规则，但这条请求像是在改代码，当前不会被 Tenon 治理。确实要改代码就先调用 tenon 评估改动范围（读相关代码、列出预计要改的文件，运行 tenon assess --files <文件…>），再用 tenon init <名字> --workflow default --track lite（轻量）或领域重型轨道创建，并 tenon session activate 后再动手；纯问答或讨论请忽略这一行。\n</workflow-state>\n'
   fi
   exit 0
 fi
 
-# 多候选的泛化恢复本身就必须进入 pipeline 选择，不应因 prompt 没有领域关键词而
-# 丢失。此时没有可安全猜测的 track，明确标为 unresolved 并禁用 profile skill 注入。
-if [ "$DISPATCH_INTENT" = "select" ] && [ -z "$TRACK" ]; then
-  TRACK="unresolved"
-  PROFILE=""
-  TRACK_BASIS="none"
-fi
-
-# A project-defined routable Track or a project-selected non-default workflow is a real
-# project-level choice. The plugin-owned simple→simple and standard→standard pairs are the only non-default
-# built-in pairs that are versioned policy rather than project configuration, so they keep the direct route. The hook may recommend every other winner, but it must not silently bind that choice.
-CUSTOM_SELECTION_AVAILABLE=0
-i=0
-while [ "$i" -lt "${#ROUTER_IDS[@]}" ]; do
-  if [ "${ROUTER_ROUTABLES[$i]}" = "1" ] && { [ "${ROUTER_BUILTINS[$i]}" = "0" ] \
-    || { [ "${ROUTER_WORKFLOWS[$i]}" != "default" ] \
-      && ! { [ "${ROUTER_IDS[$i]}" = "simple" ] && [ "${ROUTER_WORKFLOWS[$i]}" = "simple" ]; } \
-      && ! { [ "${ROUTER_IDS[$i]}" = "standard" ] && [ "${ROUTER_WORKFLOWS[$i]}" = "standard" ]; }; }; }; then
-    CUSTOM_SELECTION_AVAILABLE=1
-    break
-  fi
-  i=$((i + 1))
-done
-SELECTION_REQUIRED=0
-if [ "$DISPATCH_INTENT" = "new" ] && [ "$CUSTOM_SELECTION_AVAILABLE" = "1" ]; then
-  SELECTION_REQUIRED=1
-fi
-
 EFF_PHASE="${CHANGE_PHASE:-open}"
-if [ "$DISPATCH_INTENT" = "new" ] && [ "$BEST_WORKFLOW" = "simple" ]; then EFF_PHASE="change"; fi
 case "$EFF_PHASE" in
   ''|*[!a-zA-Z0-9_-]*) EFF_PHASE=open ;;
 esac
 
-# Default manifest 的 breadcrumb / profile skill matrix 只描述 default workflow。恢复一个
-# custom workflow 时若仍注入它们，宿主会看到一套与真实 DAG 不一致的“强制 skill”，并可能
-# 先尝试错误的 skill；custom 图必须由 tenon 入口用 CLI/受控读取加载后再分派。
-# router 热路径不解析项目 YAML，因此在这里宁可不臆造，保留 canonical workflow identity。
-NON_DEFAULT_WORKFLOW_DISPATCH=0
-if { [ "$DISPATCH_INTENT" = "resume" ] && [ -n "$CHANGE_NAME" ] \
-    && _workflow_default_ok "$CHANGE_WORKFLOW" && [ "$CHANGE_WORKFLOW" != "default" ]; } \
-  || { [ "$DISPATCH_INTENT" = "new" ] && _workflow_default_ok "$BEST_WORKFLOW" \
-    && [ "$BEST_WORKFLOW" != "default" ]; }; then
-  NON_DEFAULT_WORKFLOW_DISPATCH=1
-fi
-
-# A selection dispatch has no canonical workflow yet.  It must suppress the default matrix just
-# like a bound custom workflow, but it must not claim that an empty or suggested workflow is
-# already the Change's immutable identity.  Keep those two states distinct in the user-facing
-# contract: Tenon owns the selection, then subsequent resume turns own the bound workflow.
-SUPPRESS_DEFAULT_MATRIX="$NON_DEFAULT_WORKFLOW_DISPATCH"
-if [ "$SELECTION_REQUIRED" = "1" ]; then
-  SUPPRESS_DEFAULT_MATRIX=1
-elif [ "$TRACK" = "free" ]; then
-  # `matrix:false` 对普通自定义 Track 只表示 dashboard 不可编辑，仍可继承其 profile。
-  # free 则是唯一明确禁止注入领域 Track 矩阵的中性内建模式。
-  SUPPRESS_DEFAULT_MATRIX=1
-fi
-
-BC="" REC="" MAND=""
-if [ "$SUPPRESS_DEFAULT_MATRIX" = "0" ]; then
-  i=0
-  while [ "$i" -lt "${#CACHE_BC_PHASES[@]}" ]; do
-    if [ "${CACHE_BC_PHASES[$i]}" = "$EFF_PHASE" ]; then BC="${CACHE_BC_TEXTS[$i]}"; break; fi
-    i=$((i + 1))
-  done
-  i=0
-  while [ "$i" -lt "${#CACHE_SKILL_PHASES[@]}" ]; do
-    if [ "${CACHE_SKILL_PHASES[$i]}" = "$EFF_PHASE" ] && [ "${CACHE_SKILL_PROFILES[$i]}" = "$PROFILE" ]; then
-      if [ "${CACHE_SKILL_KINDS[$i]}" = "R" ]; then
-        if [ -n "$REC" ]; then REC="$REC, ${CACHE_SKILL_TOKENS[$i]}"; else REC="${CACHE_SKILL_TOKENS[$i]}"; fi
-      else
-        if [ -n "$MAND" ]; then MAND="$MAND, ${CACHE_SKILL_TOKENS[$i]}"; else MAND="${CACHE_SKILL_TOKENS[$i]}"; fi
-      fi
-    fi
-    i=$((i + 1))
-  done
+# 已建任务的恢复：无 OpenSpec 文档链的任务（轻量轨道，以及在途的旧 standard / simple）没有 tasks.md，
+# 待办清单取自冻结计划的步骤标签。
+RESUME_PLAN_TODO=0
+if [ "$DISPATCH_INTENT" = "resume" ] && [ -n "$CHANGE_NAME" ]; then
+  case "$CHANGE_WORKFLOW:$CHANGE_TRACK" in
+    standard:*|simple:*|default:lite) RESUME_PLAN_TODO=1 ;;
+  esac
 fi
 
 if [ "$DISPATCH_INTENT" = "resume" ] && [ -n "$CHANGE_NAME" ]; then
   HDR="change=${CHANGE_NAME} · phase=${EFF_PHASE} · track=${TRACK}（状态绑定）"
-  if [ "$CHANGE_WORKFLOW" = "standard" ]; then
-    TAIL="已恢复 standard Change。必须立即调用 tenon，并只按冻结的 standard 工作流当前 step 的 step.next 执行；Todo 来自 tenon workflow plan 的步骤标签（open/build/verify/done/escalated），不读取 default tasks.md 或 OpenSpec 文档链。"
-  elif [ "$CHANGE_WORKFLOW" = "simple" ]; then
-    TAIL="已恢复 simple Change。必须立即调用 tenon，并只按内建 simple DAG 的当前 step 分派 skill；Todo 来自 change/verify/done/escalated，不读取 default tasks.md 或 OpenSpec 文档链。"
-  elif [ "$TRACK" = "free" ]; then
-    TAIL="已恢复自由模式 Change。必须立即调用 tenon，并只按绑定 Workflow '${CHANGE_WORKFLOW}' 的真实 DAG、skills、gates 与 OpenSpec contract 推进；不得叠加 PM/frontend/backend 的 profile 或技能矩阵。"
+  if [ "$RESUME_PLAN_TODO" -eq 1 ]; then
+    TAIL="已恢复 ${TRACK} Change（无 OpenSpec 文档链）。必须立即调用 tenon，并只按冻结工作流当前 step 的 step.next 执行；Todo 来自 tenon workflow plan 的步骤标签，不读取 tasks.md 或 OpenSpec 文档链。"
   else
     TAIL="已恢复 ${TRACK} Change。必须立即调用 Skill 工具的 tenon，由它按 tenon status <change> --json 的 step.next 执行当前步骤；先按 tasks.md 的阶段任务建立/更新 Todo，勿先生成通用 Todo、勿绕过 Tenon 直接实现。按 ${EFF_PHASE} 相位纪律推进，勿自动 transition，产出交用户确认后再推进。"
   fi
 elif [ "$DISPATCH_INTENT" = "select" ]; then
-  HDR="疑似 track=${TRACK}（评分 ${BEST_SCORE}）· 恢复目标未选择"
+  HDR="疑似 track=${TRACK}（评分 ${SCORE_SHOWN}）· 恢复目标未选择"
   TAIL="用户明确要继续，但项目中有多个未选择的活跃 change。必须立即调用 Skill 工具的 tenon，让入口 skill 用 tenon list/status 列出候选并要求用户点名；严禁按 mtime 猜测，也严禁把它当作新任务创建。"
 else
-  if [ "$TRACK_BASIS" = "user-named" ]; then
+  if [ "$TRACK_BASIS" = "user-named" ] && [ "$TRACK" != "unresolved" ]; then
     TRACK_LABEL="track=${TRACK}（用户点名）"
-    TRACK_TASK_PHRASE="用户点名 ${TRACK} Track 的新任务"
+    TRACK_TASK_PHRASE="用户点名 ${TRACK_WF}/${TRACK} 的新任务"
   else
-    TRACK_LABEL="疑似 track=${TRACK}（评分 ${BEST_SCORE}）"
-    TRACK_TASK_PHRASE="疑似 ${TRACK} Track 新任务"
+    TRACK_LABEL="疑似 track=${TRACK}（评分 ${SCORE_SHOWN}）"
+    TRACK_TASK_PHRASE="疑似 ${TRACK} 新任务"
   fi
-  if [ "$SELECTION_REQUIRED" = "1" ]; then
-    HDR="${TRACK_LABEL} · 独立新任务 · 发现项目自定义 Tenon workflow/track"
-    TAIL="${TRACK_TASK_PHRASE}。项目内已有 change 仅是显式恢复时的候选，严禁把它们绑定到本轮或复用其 phase/tasks。项目已声明自定义 routable Track：必须立即调用 Skill 工具的 tenon，由入口 skill 先根据下方推荐 pair 与候选 pair 询问用户选择 Track/workflow；在用户选择前严禁创建 Change、严禁假定 default。选定后才创建并激活独立 Change。"
+  # 平铺工作流（轨道 id 就是工作流名）建任务不用 --track。
+  INIT_ARGS="--workflow ${TRACK_WF} --track ${TRACK}"
+  [ "$TRACK" != "$TRACK_WF" ] || INIT_ARGS="--workflow ${TRACK_WF}"
+  if [ "$SELECTION_REQUIRED" -eq 1 ]; then
+    HDR="${TRACK_LABEL} · 独立新任务 · 需要用户选择 workflow/track"
+    TAIL="${TRACK_TASK_PHRASE}。项目内已有 change 仅是显式恢复时的候选，严禁把它们绑定到本轮或复用其 phase/tasks。最高分并列，或最高分落在项目自定义 workflow 的分支：必须立即调用 Skill 工具的 tenon，由入口 skill 先根据下方候选 pair 询问用户选择 workflow/track；在用户选择前严禁创建 Change、严禁假定 default。选定后才创建并激活独立 Change。"
+  elif [ "$ASSESS_REQUIRED" -eq 1 ]; then
+    HDR="${TRACK_LABEL} · 独立新任务 · 需先评估改动范围"
+    # 选轻量时也要记下领域：候选里除轻量外的那条轨道（同在 default 里才能当 --domain），升级为重型任务时靠它直接给出新任务的轨道。
+    LITE_ARGS="--workflow default --track lite" LITE_NOTE=""
+    if [ "$TRACK_WF" = "default" ] && [ "$TRACK" != "lite" ]; then
+      LITE_ARGS="$LITE_ARGS --domain ${TRACK}"
+      LITE_NOTE="；选轻量时必须带上 --domain ${TRACK}（即下方 candidate 里的领域轨道），轻量任务之后越过边界要升级时靠它直接给出新任务的轨道"
+    fi
+    TAIL="${TRACK_TASK_PHRASE}。项目内已有 change 仅是显式恢复时的候选，严禁把它们绑定到本轮或复用其 phase/tasks。这是开发请求，既没有点名轨道也没有重型信号，轻重由改动范围决定而不是关键词：必须立即调用 Skill 工具的 tenon，在建任务前读相关代码、列出预计要改的文件，运行 tenon assess --files <文件…>，把评估结果与推荐（候选见下方 candidate）摆给用户确认；用户确认后才 tenon init <名字> ${INIT_ARGS} 或轻量轨道（${LITE_ARGS}）创建并激活独立 Change${LITE_NOTE}，持续执行模式直接采用评估的推荐。轻量任务没有 OpenSpec 文档链，只有验证一道评审门；探针显示越过轻量边界时照 step.next 走 scope-expanded，再新建重型任务并 tenon set <新任务> depends_on <本任务>。"
   else
     HDR="${TRACK_LABEL} · 独立新任务"
-    if [ "$BEST_WORKFLOW" = "standard" ]; then
-      TAIL="已命中 standard 通道（实现类请求的默认通道）。必须立即调用 tenon，用 tenon init <名字> --workflow standard --track standard 创建并激活独立 standard Change，按 open → build → verify → done 执行：不做 explore 与访谈，改完跑测试和改动风险探针，只有 verify 一道评审门。若探针显示改动越过了标准通道（文件太多，或碰了契约、鉴权、依赖、迁移，或删了测试），照 step.next 走 scope-expanded，再新建 default 任务并 tenon set <新任务> depends_on <本任务>；不得生成 default 的 PM/前后端/OpenSpec 文档链。"
-    elif [ "$BEST_WORKFLOW" = "simple" ]; then
-      TAIL="已命中严格边界内的 simple 任务。必须立即调用 tenon，创建并激活独立 simple Change，按 change → verify → done 的轻量 DAG 执行；不得生成 default 的 PM/前后端/OpenSpec 文档链。若执行中边界扩大，必须走 scope-expanded 并升级为新的 default Change。"
-    elif [ "$TRACK" = "free" ]; then
-      TAIL="用户已显式选择自由模式。必须立即调用 tenon，先复核 free Track 与精确 Workflow 的 allowed 关系，再创建独立 Change；只执行所选 Workflow 自己的 DAG、skills、gates 与 OpenSpec contract，不叠加 PM/frontend/backend profile，也不得把自由模式解释为跳过 Workflow。"
-    else
-      TAIL="${TRACK_TASK_PHRASE}。项目内已有 change 仅是显式恢复时的候选，严禁把它们绑定到本轮或复用其 phase/tasks。默认选择 default workflow：必须立即调用 Skill 工具的 tenon，让入口 skill 创建并激活独立 Change、初始化 OpenSpec，并按 open 相位开始；不要先询问是否走工作流，也不要绕过 tenon 直接加载某个技能。仅当用户明确指定自定义 workflow 时才改用该 workflow。"
-    fi
+    TAIL="${TRACK_TASK_PHRASE}。项目内已有 change 仅是显式恢复时的候选，严禁把它们绑定到本轮或复用其 phase/tasks。必须立即调用 Skill 工具的 tenon，让入口 skill 用 tenon init <名字> ${INIT_ARGS} 创建并激活独立 Change，并按 open 相位开始；不要先询问是否走工作流，也不要绕过 tenon 直接加载某个技能。"
   fi
 fi
 
-if [ "$SELECTION_REQUIRED" = "1" ]; then
-  TAIL="$TAIL 尚未选定自定义 workflow：不得把推荐 pair、空值或 default 当作已绑定身份，也不得注入 default 的 breadcrumb 或 skill matrix；必须先由 tenon 完成明确选择，再按所选图解析真实 DAG、OpenSpec 约束和依赖顺序。"
-elif [ "$NON_DEFAULT_WORKFLOW_DISPATCH" = "1" ]; then
-  if { [ "$DISPATCH_INTENT" = "new" ] && [ "$BEST_WORKFLOW" = "simple" ]; } \
-    || { [ "$DISPATCH_INTENT" = "resume" ] && [ "$CHANGE_WORKFLOW" = "simple" ]; }; then
-    TAIL="$TAIL simple workflow 是插件内建只读图；项目同名文件不可覆盖，router 不注入 default breadcrumb 或 skill matrix。"
-  elif { [ "$DISPATCH_INTENT" = "new" ] && [ "$BEST_WORKFLOW" = "standard" ]; } \
-    || { [ "$DISPATCH_INTENT" = "resume" ] && [ "$CHANGE_WORKFLOW" = "standard" ]; }; then
-    TAIL="$TAIL standard workflow 是随插件发布的模板（阈值可在工作流 YAML 里改）；router 不注入 default breadcrumb 或 skill matrix。"
-  else
-    TAIL="$TAIL 当前 Change 绑定自定义 workflow '${CHANGE_WORKFLOW}'：此路由器不会用 default 的 breadcrumb 或 skill 矩阵伪造该阶段要求；必须先调用 tenon，由它以 canonical state 与项目 workflow 图解析本阶段的真实 DAG、OpenSpec 约束和依赖顺序后再分派。"
-  fi
+if [ "$SELECTION_REQUIRED" -eq 1 ]; then
+  TAIL="$TAIL 尚未选定 workflow：不得把推荐 pair、空值或 default 当作已绑定身份；必须先由 tenon 完成明确选择，再按所选图解析真实 DAG、OpenSpec 约束和依赖顺序。"
+elif [ "$DISPATCH_INTENT" = "resume" ] && [ "$RESUME_PLAN_TODO" -eq 0 ] && [ -n "$CHANGE_NAME" ] \
+  && _route_name_ok "$CHANGE_WORKFLOW"; then
+  case "$CHANGE_WORKFLOW" in
+    default) ;;
+    *) TAIL="$TAIL 当前 Change 绑定自定义 workflow '${CHANGE_WORKFLOW}'：router 不推断它的阶段要求；必须先调用 tenon，由它以 canonical state 与项目 workflow 图解析本阶段的真实 DAG、OpenSpec 约束和依赖顺序后再分派。" ;;
+  esac
 fi
 # Real session, round 4: after 「按推荐」 the receipt was written, yet the resume text above ("产出交用户
 # 确认后再推进") led the agent to say the gate still waited for 「确认继续」.  The two hooks run
@@ -929,12 +881,12 @@ fi
 if [ "$ROUTER_REVIEW_REPLY" = "1" ] && [ -n "$CHANGE_NAME" ]; then
   TAIL="$TAIL 本条回复就是对 ${CHANGE_NAME} 待决评审的确认（「确认继续」「继续执行」「继续」「可以」「同意」「好的」「按推荐」都算）：评审回执由 confirm-clear-prompt 在本轮写入（见 <tenon-review-confirmed>），不要再让用户说「确认继续」。以 tenon status ${CHANGE_NAME} --json 的 step.review 与 next 为准：review.status=approved 时直接照 next transition。"
 fi
-if [ "$TRACK_BASIS" = "user-named" ]; then
-  TAIL="$TAIL 轨道 ${TRACK} 由用户在消息里点名，以点名为准：创建 Change 时用 --track ${TRACK}，不得按内容评分改成其他轨道。"
-elif [ -n "$NAMED_TRACK_CONFLICT" ]; then
-  TAIL="$TAIL 用户消息同时点名了多个轨道（${NAMED_TRACK_CONFLICT}），无法确定以哪个为准，本轮回退为内容评分；请先向用户确认轨道。"
-elif [ -n "$NAMED_TRACK_UNKNOWN" ]; then
-  TAIL="$TAIL 用户点名的轨道 ${NAMED_TRACK_UNKNOWN} 不在本项目的轨道列表中，本轮回退为内容评分；请告诉用户可用轨道并确认。"
+if [ "$TRACK_BASIS" = "user-named" ] && [ "$TRACK" != "unresolved" ]; then
+  TAIL="$TAIL 工作流/轨道 ${TRACK_WF}/${TRACK} 由用户在消息里点名，以点名为准：创建 Change 时用 ${INIT_ARGS}，不得按内容评分改成其他轨道，也不要求评估。"
+elif [ -n "$NAMED_CONFLICT" ]; then
+  TAIL="$TAIL 用户消息同时点名了多个轨道或工作流（${NAMED_CONFLICT}），无法确定以哪个为准，本轮回退为内容评分；请先向用户确认。"
+elif [ -n "$NAMED_UNKNOWN" ]; then
+  TAIL="$TAIL 用户点名的 ${NAMED_UNKNOWN} 不在本项目的轨道 / 工作流列表中，本轮回退为内容评分；请告诉用户可用的 workflow:track 并确认。"
 fi
 if [ -n "$HOST_SESSION_ID" ] && [ "$CONTINUOUS_EXECUTION" != 'true' ]; then
   # Only a host-session binding lets the next turn's 「继续」 find this conversation's Change.
@@ -949,47 +901,44 @@ if [ "$CONTINUOUS_EXECUTION" = 'true' ]; then
 fi
 
 printf '\n<workflow-state>\nrouter: %s\n' "$HDR"
-[ -n "$BC" ] && printf '%s\n' "$BC"
-[ -n "$REC" ] && printf '推荐 skill：%s\n' "$REC"
-[ -n "$MAND" ] && printf '本相位强制 skill：%s\n' "$MAND"
 printf '%s\n</workflow-state>\n' "$TAIL"
 DISPATCH_WORKFLOW="default"
-if [ "$DISPATCH_INTENT" = "resume" ] && _workflow_default_ok "$CHANGE_WORKFLOW"; then
+if [ "$DISPATCH_INTENT" = "resume" ] && _route_name_ok "$CHANGE_WORKFLOW"; then
   # 已建 Change 的 workflow 是其不可变编排身份。恢复时必须从状态读取，而非按
   # 本轮 track scorer 的 default 重算；否则 custom workflow 会在第二轮被错误降级。
   DISPATCH_WORKFLOW="$CHANGE_WORKFLOW"
-elif [ "$SELECTION_REQUIRED" = "1" ]; then
+elif [ "$SELECTION_REQUIRED" -eq 1 ]; then
   DISPATCH_WORKFLOW="select"
-elif [ "$DISPATCH_INTENT" = "new" ] && _workflow_default_ok "$BEST_WORKFLOW"; then
-  DISPATCH_WORKFLOW="$BEST_WORKFLOW"
+elif [ "$DISPATCH_INTENT" = "new" ] && _route_name_ok "$TRACK_WF"; then
+  DISPATCH_WORKFLOW="$TRACK_WF"
 fi
 printf '<tenon-dispatch>\naction: invoke-skill\nskill: tenon\nworkflow: %s\ntrack: %s\ntrack_basis: %s\nintent: %s\ncontinuous_execution: %s\n' "$DISPATCH_WORKFLOW" "$TRACK" "$TRACK_BASIS" "$DISPATCH_INTENT" "$CONTINUOUS_EXECUTION"
 [ -n "$HOST_SESSION_ID" ] && printf 'host_session_id: %s\n' "$HOST_SESSION_ID"
-if [ "$SELECTION_REQUIRED" = "1" ]; then
-  i=0
-  while [ "$i" -lt "${#ROUTER_IDS[@]}" ]; do
-    if [ "${ROUTER_IDS[$i]}" != "chat" ]; then
-      printf 'candidate: track=%s;workflow=%s\n' "${ROUTER_IDS[$i]}" "${ROUTER_WORKFLOWS[$i]}"
-    fi
-    i=$((i + 1))
-  done
-  printf 'selection_required: true\nsuggested_track: %s\nsuggested_workflow: %s\n' "$TRACK" "$BEST_WORKFLOW"
+if [ "$ASSESS_REQUIRED" -eq 1 ]; then
+  printf 'assess: required\n'
 fi
-if [ "$DISPATCH_INTENT" = "resume" ] && [ -n "$CHANGE_NAME" ] && [ "$CHANGE_WORKFLOW" = "standard" ]; then
-  # standard 不走 OpenSpec 文档链，没有 tasks.md；Todo 来自冻结计划的步骤标签。
+if [ "$ASSESS_REQUIRED" -eq 1 ] || [ "$SELECTION_REQUIRED" -eq 1 ]; then
+  c=0
+  while [ "$c" -lt "${#CAND[@]}" ]; do
+    printf 'candidate: workflow=%s;track=%s\n' "${ROUTER_WORKFLOWS[${CAND[$c]}]}" "${ROUTER_TRACKS[${CAND[$c]}]}"
+    c=$((c + 1))
+  done
+fi
+if [ "$SELECTION_REQUIRED" -eq 1 ]; then
+  printf 'selection_required: true\n'
+  if [ "$TRACK" != "unresolved" ]; then
+    printf 'suggested_track: %s\nsuggested_workflow: %s\n' "$TRACK" "$TRACK_WF"
+  fi
+fi
+if [ "$DISPATCH_INTENT" = "resume" ] && [ -n "$CHANGE_NAME" ] && [ "$RESUME_PLAN_TODO" -eq 1 ]; then
+  # 没有 OpenSpec 文档链，也就没有 tasks.md；Todo 来自冻结计划的步骤标签。
   printf 'change: %s\nphase: %s\ntodo_source: tenon-workflow-plan\n' "$CHANGE_NAME" "$EFF_PHASE"
 elif [ "$DISPATCH_INTENT" = "resume" ] && [ -n "$CHANGE_NAME" ]; then
   printf 'change: %s\nphase: %s\ntodo_source: openspec/changes/%s/tasks.md\n' "$CHANGE_NAME" "$EFF_PHASE" "$CHANGE_NAME"
 elif [ "$DISPATCH_INTENT" = "select" ]; then
   printf 'phase: select\ntodo_source: tenon-active-change-selection\n'
 else
-  if [ "$DISPATCH_WORKFLOW" = "simple" ]; then
-    printf 'phase: change\ntodo_source: builtin-workflow:simple\n'
-  elif [ "$DISPATCH_WORKFLOW" = "standard" ]; then
-    printf 'phase: open\ntodo_source: tenon-workflow-plan\n'
-  else
-    printf 'phase: open\ntodo_source: tenon-phase-template\n'
-  fi
+  printf 'phase: open\ntodo_source: tenon-workflow-plan\n'
 fi
 printf 'required: true\n</tenon-dispatch>\n'
 exit 0

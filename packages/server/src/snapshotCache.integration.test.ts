@@ -2,13 +2,14 @@
  * The shared snapshot through the real HTTP server: page-load concurrency builds once, an unchanged
  * fingerprint serves the cached bytes, a server write is visible on the next read and drops only the project it
  * names, the stream sends a full frame then per-project deltas, the list tier and the change detail agree on a
- * change's `rev`, and the viewer's identity is part of the cache key.
+ * change's `rev`, and a task moved into `archive/` leaves the next read.
  */
 import { afterEach, describe, expect, it } from 'vitest'
-import { writeFile } from 'node:fs/promises'
+import { mkdir, rename } from 'node:fs/promises'
 import { get as httpGet } from 'node:http'
+import { join } from 'node:path'
 import { gunzipSync } from 'node:zlib'
-import { ensureUserLocalDir, serializeTaskArchive, type StateStore, type TenonUserResolution } from '@tenon/kernel'
+import type { StateStore, TenonUserResolution } from '@tenon/kernel'
 import { createTestDashboardServer } from './test-server.js'
 import { resolveServerPaths } from './paths.js'
 import { computeFingerprint } from './snapshot.js'
@@ -136,39 +137,33 @@ describe('共享快照 —— 真 HTTP server', () => {
     expect(h.builds()).toBe(before + 1)
   })
 
-  it('不同查看者不共用快照：经 server 切换身份后按新查看者的归档重建', async () => {
+  it('任务被移进 archive/（完结 / 终止）后下一次读取就不再含它；换一个用户看到的是同一份快照', async () => {
     const alice: TenonUserResolution = { id: 'a@x.io', name: 'A', slug: 'a-at-x.io', source: 'env', trust: 'declared' }
     const bob: TenonUserResolution = { id: 'b@x.io', name: 'B', slug: 'b-at-x.io', source: 'env', trust: 'declared' }
-    let viewer = alice
-    const h = await start({ resolveUser: () => viewer })
-    const paths = await ensureUserLocalDir(h.root, alice.slug)
-    await writeFile(paths.archived, serializeTaskArchive({
-      version: 1,
-      changes: { [h.name]: { archivedAt: '2026-09-15T12:00:00.000Z', phase: 'open', actor: { id: alice.id, name: 'A', trust: 'declared' } } },
-    }), 'utf8')
+    let user = alice
+    const h = await start({ resolveUser: () => user })
+    const before = (await reqGet(h.port, '/api/snapshot')).json<Snapshot>()
+    expect(before.projects[0]?.changes.map((change) => change.name)).toEqual([h.name])
 
-    const forAlice = (await reqGet(h.port, '/api/snapshot')).json<Snapshot>()
-    expect(forAlice.projects[0]?.changes).toEqual([])
-    expect(forAlice.projects[0]?.archived?.map((change) => change.name)).toEqual([h.name])
-
-    // The declared identity changes through the server, which drops the cached snapshot and identities.
-    viewer = bob
+    // The declared identity changes through the server; nobody's view of a task depends on who looks.
+    user = bob
     const declared = await reqPost(h.port, '/api/user', { id: bob.id, name: bob.name }, { headers: { Authorization: 'Bearer secret' } })
     expect(declared.status).toBe(200)
     const forBob = (await reqGet(h.port, '/api/snapshot')).json<Snapshot>()
     expect(forBob.projects[0]?.changes.map((change) => change.name)).toEqual([h.name])
-    expect(forBob.projects[0]?.archived).toBeUndefined()
+    expect(forBob.projects[0]).not.toHaveProperty('archived')
+
+    await mkdir(join(h.root, 'openspec', 'changes', 'archive'), { recursive: true })
+    await rename(h.changeDir, join(h.root, 'openspec', 'changes', 'archive', `2026-07-07-${h.name}`))
+    const after = (await reqGet(h.port, '/api/snapshot')).json<Snapshot>()
+    expect(after.projects[0]?.changes).toEqual([])
   })
 
-  it('查看者身份本身进入指纹：两人都没有归档记录时指纹也不同', async () => {
+  it('指纹只取决于仓库状态：同一份状态算两次一样', async () => {
     const root = await makeProject()
     await initChange(newStore(), root, 'shared')
-    const alice: TenonUserResolution = { id: 'a@x.io', name: 'A', slug: 'a-at-x.io', source: 'env', trust: 'declared' }
-    const bob: TenonUserResolution = { id: 'b@x.io', name: 'B', slug: 'b-at-x.io', source: 'env', trust: 'declared' }
-    const forAlice = await computeFingerprint([root], 1, undefined, undefined, () => alice)
-    const forBob = await computeFingerprint([root], 1, undefined, undefined, () => bob)
-    expect(forAlice).not.toBe(forBob)
-    expect(await computeFingerprint([root], 1, undefined, undefined, () => alice)).toBe(forAlice)
+    const first = await computeFingerprint([root], 1)
+    expect(await computeFingerprint([root], 1)).toBe(first)
   })
 })
 

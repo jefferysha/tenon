@@ -95,7 +95,7 @@ export interface LoopEntry {
   /**
    * H10 §1：skill bundle 引用（YAML 字段 `skill_bundle_id`，snake_case，与 change_prefix/human_gates
    * 等其余字段同一命名口径；执行域消费方若需要 camelCase `skillBundleId`，由消费方自行映射，本类型
-   * 不做转写）。值域词法上是 `_all` 或 tracks/types.ts::TRACK_ID_RE 形状的 profile id（词法规则见
+   * 不做转写）。值域词法上是 `_all` 或工作流分支 id 形状的 profile id（词法规则见
    * registry.ts::SKILL_BUNDLE_ID_RE，复用既有正则不另造）；是否是 manifest 里真实声明过的 profile
    * 属存在性语义校验，留给消费本字段的后续任务，本类型与 loadRegistry 均不做、也做不到（这里拿不到
    * manifest 上下文）。

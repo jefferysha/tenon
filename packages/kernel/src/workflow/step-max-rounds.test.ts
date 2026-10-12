@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { builtinTrack } from '../tracks/builtins.js'
 import { compileWorkflow, decodeWorkflowDef } from './compile.js'
 import {
   compileEffectiveWorkflowPlan,
@@ -7,6 +6,7 @@ import {
   effectiveWorkflowPlanFromSnapshot,
   workflowPlanSnapshot,
 } from './effective-plan.js'
+import { DEFAULT_WORKFLOW_SOURCE } from './default-workflow.generated.js'
 import { parseWorkflow } from './parse.js'
 import { serializeWorkflow } from './serialize.js'
 import { effectiveMaxRounds } from './step-rounds.js'
@@ -262,16 +262,23 @@ describe('max_rounds：编译进 effective plan 并随计划冻结', () => {
 })
 
 describe('max_rounds：内置 default 工作流', () => {
-  const DEFAULT_TRACKS = ['chat', 'pm', 'frontend', 'backend', 'free'] as const
+  // lite 的验证步不写 max_rounds：沿用内置默认 2（来源 default），下面单独断言。
+  const DEFAULT_TRACKS = ['pm', 'frontend', 'backend'] as const
+
+  it('lite 轨道的验证步不声明 max_rounds：上限是内置默认 2，来源 default', () => {
+    const plan = compileEffectiveWorkflowPlan('default', undefined, { track: 'lite' })
+    expect(plan.workflow.steps.filter((step) => step.maxRounds !== undefined)).toEqual([])
+    expect(effectiveMaxRounds(stepOf(plan.workflow.steps, 'verify'))).toEqual({ max: 2, source: 'default' })
+  })
 
   it.each(DEFAULT_TRACKS)('%s 轨道的 verify 步声明 max_rounds: 2，来源 workflow', (track) => {
-    const plan = compileEffectiveWorkflowPlan('default', undefined, builtinTrack(track))
+    const plan = compileEffectiveWorkflowPlan('default', undefined, { track })
     expect(effectiveMaxRounds(stepOf(plan.workflow.steps, 'verify'))).toEqual({ max: 2, source: 'workflow' })
   })
 
   it('只有 verify 步声明了上限，其余步骤（含没有评审门的 build）都没有', () => {
     for (const track of DEFAULT_TRACKS) {
-      const plan = compileEffectiveWorkflowPlan('default', undefined, builtinTrack(track))
+      const plan = compileEffectiveWorkflowPlan('default', undefined, { track })
       expect(plan.workflow.steps.filter((step) => step.maxRounds !== undefined).map((step) => step.id), track)
         .toEqual(['verify'])
     }
@@ -324,11 +331,10 @@ describe('max_rounds：升级前冻结的计划（快照里没有该键）', () 
     expect(JSON.stringify(again)).not.toContain('maxRounds')
   })
 
-  it('升级前的 default 计划：去掉各轨道 verify 步的 maxRounds 后，按升级前记录的指纹照常解码', () => {
-    // 升级前 default.yaml 编译出的计划指纹；IR 去掉 maxRounds 就是升级前的 IR。
-    const preUpgradeDefault = '794972ba10b61ad50bbe17c11c714b516072e93e962d2d5aab7c277618f68979'
-    const current = workflowPlanSnapshot(compileEffectiveWorkflowPlan('default', undefined, builtinTrack('frontend')))
-    if (current.version !== 4) throw new Error('expected v4 snapshot')
+  it('没有 maxRounds 的 default 计划（升级前形态）：按它自己记录的指纹照常解码，上限用内置默认', () => {
+    // 升级前 default.yaml 编译出的计划指纹随 YAML 改写而变，不能再写死；把当前定义去掉 maxRounds 编一份，
+    // 它的快照里没有该键，指纹就是不带该键的 IR 算出来的——和升级前冻结的计划同一形态。
+    const def = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
     const strip = <T extends { readonly steps: readonly { readonly id: string }[] }>(branch: T): T => ({
       ...branch,
       steps: branch.steps.map((step) => {
@@ -336,17 +342,15 @@ describe('max_rounds：升级前冻结的计划（快照里没有该键）', () 
         return rest
       }),
     })
-    const tracks = Object.fromEntries(
-      Object.entries(current.workflow.tracks ?? {}).map(([id, branch]) => [id, strip(branch)]),
-    )
-    const old: WorkflowPlanSnapshotV4 = {
-      ...current,
-      workflow: { ...strip(current.workflow), tracks },
-      workflowFingerprint: preUpgradeDefault,
+    const stripped = {
+      ...def,
+      tracks: Object.fromEntries(Object.entries(def.tracks ?? {}).map(([id, branch]) => [id, strip(branch)])),
     }
+    const frozen = compileEffectiveWorkflowPlan('default', stripped, { track: 'frontend', executionModel: 'phase-manifest' })
+    const old: WorkflowPlanSnapshotV4 = workflowPlanSnapshot(frozen) as WorkflowPlanSnapshotV4
     expect(JSON.stringify(old)).not.toContain('maxRounds')
-    const plan = effectiveWorkflowPlanFromSnapshot(old, builtinTrack('frontend'))
-    expect(plan.workflowFingerprint).toBe(preUpgradeDefault)
+    const plan = effectiveWorkflowPlanFromSnapshot(old, 'frontend')
+    expect(plan.workflowFingerprint).toBe(frozen.workflowFingerprint)
     expect(effectiveMaxRounds(stepOf(plan.workflow.steps, 'verify'))).toEqual({ max: 2, source: 'default' })
   })
 })

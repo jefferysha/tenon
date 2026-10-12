@@ -6,7 +6,7 @@ import { dirname, join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { BUILTIN_TRACK_DEFINITIONS, type TrackRegistry, type WorkflowDef } from '@tenon/kernel'
+import type { WorkflowDef } from '@tenon/kernel'
 import {
   captureWorkflowDeletePermit, captureWorkflowRootAnchor, closeWorkflowRootAnchor, deleteWorkflowForApi,
   listWorkflowNames, MAX_WORKFLOW_DEFINITION_BYTES, readBoundedWorkflowSource, readWorkflowForApi,
@@ -19,16 +19,6 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '
 
 async function tempRoot(): Promise<string> {
   return mkdtemp(join(tmpdir(), 'wf-server-'))
-}
-
-function builtinTrackRegistry(): TrackRegistry {
-  const ordered = [...BUILTIN_TRACK_DEFINITIONS]
-  return {
-    ordered,
-    byId: new Map(ordered.map((track) => [track.id, track])),
-    revision: 'test',
-    source: 'builtin-only',
-  }
 }
 
 const VALID_WF = `name: onboarding
@@ -206,41 +196,49 @@ const INVALID_DEF: WorkflowDef = {
   ],
 }
 
+/** 两条轨道（mobile / web）的工作流：mobile 分支里的 step guard、edge guard、artifact required_when 各引用一个轨道。 */
 function workflowWithTrackReferences(
   name: string,
   stepTrack: string,
   edgeTrack: string,
   artifactTrack: string,
 ): WorkflowDef {
+  const done = { id: 'done', label: '', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] } as const
   return {
     name,
-    steps: [
-      {
-        id: 'build',
-        label: '',
-        gate: null,
-        skills: [],
-        inputs: [],
-        outputs: [{ field: 'plan', type: 'file_path' }],
-        artifacts: [{
-          field: 'plan',
-          type: 'file_path',
-          producerPolicy: 'effective-step-skills',
-          requiredWhen: { kind: 'track-in', values: [artifactTrack] },
-        }],
-        guards: [{ type: 'full-direct-override', when: { kind: 'track-in', values: [stepTrack] } }],
-        transitions: [{
-          event: 'done',
-          to: 'done',
-          guards: [{
-            type: 'field-nonempty',
-            field: 'plan',
-            when: { kind: 'track-not-in', values: [edgeTrack] },
-          }],
-        }],
+    steps: [],
+    tracks: {
+      mobile: {
+        steps: [
+          {
+            id: 'build',
+            label: '',
+            gate: null,
+            skills: [],
+            inputs: [],
+            outputs: [{ field: 'plan', type: 'file_path' }],
+            artifacts: [{
+              field: 'plan',
+              type: 'file_path',
+              producerPolicy: 'effective-step-skills',
+              requiredWhen: { kind: 'track-in', values: [artifactTrack] },
+            }],
+            guards: [{ type: 'full-direct-override', when: { kind: 'track-in', values: [stepTrack] } }],
+            transitions: [{
+              event: 'done',
+              to: 'done',
+              guards: [{
+                type: 'field-nonempty',
+                field: 'plan',
+                when: { kind: 'track-not-in', values: [edgeTrack] },
+              }],
+            }],
+          },
+          done,
+        ],
       },
-      { id: 'done', label: '', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] },
-    ],
+      web: { steps: [done] },
+    },
   }
 }
 
@@ -278,7 +276,7 @@ describe('writeWorkflowForApi', () => {
     expect(await readFile(target, 'utf8')).toBe(before)
   })
 
-  it('T-R7 create：step guard、edge guard、artifact requiredWhen 引用未知动态 track → 聚合拒写', async () => {
+  it('轨道谓词：step guard、edge guard、artifact requiredWhen 引用本工作流没有的轨道 → 聚合拒写', async () => {
     const root = await tempRoot()
     const result = writeWorkflowForApi(
       root,
@@ -289,47 +287,29 @@ describe('writeWorkflowForApi', () => {
     expect(result).toEqual({
       ok: false,
       errors: [
-        "workflow.steps[0].guards[0].when.values[0]: 未知 track 'ghost-step'",
-        "workflow.steps[0].transitions[0].guards[0].when.values[0]: 未知 track 'ghost-edge'",
-        "workflow.steps[0].artifacts[0].requiredWhen.values[0]: 未知 track 'ghost-artifact'",
+        "workflow.tracks.mobile.steps[0].guards[0].when.values[0]: 未知 track 'ghost-step'",
+        "workflow.tracks.mobile.steps[0].transitions[0].guards[0].when.values[0]: 未知 track 'ghost-edge'",
+        "workflow.tracks.mobile.steps[0].artifacts[0].requiredWhen.values[0]: 未知 track 'ghost-artifact'",
       ],
     })
     const { existsSync } = await import('node:fs')
     expect(existsSync(join(root, '.pipeline', 'workflows', 'dynamic-refs.yaml'))).toBe(false)
   })
 
-  it('T-R7 create：三个引用路径都指向 tracks.yaml 中真实动态 track → 保存成功', async () => {
+  it('轨道谓词：三个引用路径都指向本工作流的分支（含另一条分支）→ 保存成功', async () => {
     const root = await tempRoot()
-    await mkdir(join(root, '.pipeline'), { recursive: true })
-    await writeFile(join(root, '.pipeline', 'tracks.yaml'), `version: 1
-tracks:
-  - id: mobile
-    label: Mobile
-    workflow:
-      default: default
-      allowed: '*'
-    policy_profile:
-      review_seed: pending
-      automation_eligible: true
-      coverage_profile: backend
-      routing:
-        enabled: false
-      skills:
-        matrix: true
-        profile: backend
-`, 'utf8')
 
     expect(writeWorkflowForApi(
       root,
       'dynamic-refs',
-      workflowWithTrackReferences('dynamic-refs', 'mobile', 'mobile', 'mobile'),
+      workflowWithTrackReferences('dynamic-refs', 'mobile', 'web', 'web'),
     )).toEqual({ ok: true })
     expect(await readFile(join(root, '.pipeline', 'workflows', 'dynamic-refs.yaml'), 'utf8')).toContain(
       'track_in: [mobile]',
     )
   })
 
-  it('T-R7 create：tracks.yaml 无法形成可信 track-id 快照 → fail-loud 且不落 workflow', async () => {
+  it('旧的 .pipeline/tracks.yaml 不再读取：写坏了也不影响保存，里面登记的轨道也不能被谓词引用', async () => {
     const root = await tempRoot()
     await mkdir(join(root, '.pipeline'), { recursive: true })
     await writeFile(join(root, '.pipeline', 'tracks.yaml'), `version: 1
@@ -337,18 +317,19 @@ tracks:
   - id: half-configured
 `, 'utf8')
 
-    const result = writeWorkflowForApi(root, 'onboarding', VALID_DEF)
-
-    expect(result.ok).toBe(false)
-    expect((result as { ok: false; errors: string[] }).errors).toEqual(expect.arrayContaining([
-      expect.stringContaining('.pipeline/tracks.yaml'),
-      expect.stringContaining('policy_profile'),
-    ]))
-    const { existsSync } = await import('node:fs')
-    expect(existsSync(join(root, '.pipeline', 'workflows', 'onboarding.yaml'))).toBe(false)
+    expect(writeWorkflowForApi(root, 'onboarding', VALID_DEF)).toEqual({ ok: true })
+    const registered = writeWorkflowForApi(
+      root,
+      'dynamic-refs',
+      workflowWithTrackReferences('dynamic-refs', 'half-configured', 'web', 'web'),
+    )
+    expect(registered).toEqual({
+      ok: false,
+      errors: ["workflow.tracks.mobile.steps[0].guards[0].when.values[0]: 未知 track 'half-configured'"],
+    })
   })
 
-  it('T-R7 update：新定义出现未知动态 track → 拒绝且旧 workflow 字节不变', async () => {
+  it('轨道谓词 update：新定义引用了本工作流没有的轨道 → 拒绝且旧 workflow 字节不变', async () => {
     const root = await tempRoot()
     expect(writeWorkflowForApi(root, 'onboarding', VALID_DEF)).toEqual({ ok: true })
     const target = join(root, '.pipeline', 'workflows', 'onboarding.yaml')
@@ -357,12 +338,12 @@ tracks:
     const result = writeWorkflowForApi(
       root,
       'onboarding',
-      workflowWithTrackReferences('onboarding', 'backend', 'frontend', 'removed-track'),
+      workflowWithTrackReferences('onboarding', 'web', 'mobile', 'removed-track'),
     )
 
     expect(result).toEqual({
       ok: false,
-      errors: ["workflow.steps[0].artifacts[0].requiredWhen.values[0]: 未知 track 'removed-track'"],
+      errors: ["workflow.tracks.mobile.steps[0].artifacts[0].requiredWhen.values[0]: 未知 track 'removed-track'"],
     })
     expect(await readFile(target, 'utf8')).toBe(before)
   })
@@ -521,7 +502,7 @@ loops:
 `, 'utf8')
     const anchor = captureWorkflowRootAnchor(root)
     try {
-      const scan = scanWorkflowReferencesForApi(anchor, 'onboarding', builtinTrackRegistry())
+      const scan = scanWorkflowReferencesForApi(anchor, 'onboarding')
 
       expect(scan).toEqual({
         references: [{ kind: 'loop-binding', source: 'loop:release-loop' }],
@@ -536,7 +517,7 @@ loops:
     const root = await tempRoot()
     const anchor = captureWorkflowRootAnchor(root)
     try {
-      const scan = scanWorkflowReferencesForApi(anchor, 'default', builtinTrackRegistry())
+      const scan = scanWorkflowReferencesForApi(anchor, 'default')
       const templates = scan.references.filter((reference) => reference.kind === 'policy-template-recommended')
 
       expect(scan.blockers).toEqual([])

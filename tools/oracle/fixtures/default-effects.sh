@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 # fixture: default-effects — default 轨 transition 副作用 + barrier 的真实 git 双跑覆盖（G2 P3）。
 #
+# 已退出 `npm run oracle`（consolidate-workflow-tracks）：default 改为按 default.yaml 执行（step-graph）之后，副作用和
+# barrier 由 YAML 声明的动作与离开条件决定（freeze-build-sha、mark-verification-passed / failed、build-head-unchanged），
+# 老状态机不再是对照物（它要的 build_mode / isolation / branch_status 已删除，评审改为步骤声明的评审者）。同一批场景
+# （冻结、barrier 拒绝、回退重冻结、完结）由 kernel 的 action-handlers / guard-handlers / build-revision 单测、
+# packages/cli 的 workflow-skill-orchestration 七相位 e2e 与 transition-effects 集成测试在新引擎上覆盖。
+# 本文件只留作 tools/oracle/harness.test.ts 的 harness 机制自测输入（commit 伪命令、stderr 逐字口径）。
+#
 # 现有 backend-full 用「无 commit 仓」，build-complete 只走 SHA 缺失分支（build_sha 保持 null），
 # 证不了 SHA freeze 成功语义、更测不到 barrier。本 fixture 建**确定性 git 仓**（固定身份+日期 →
 # 双侧同 SHA），把 6 个场景织进一个 change 生命周期：

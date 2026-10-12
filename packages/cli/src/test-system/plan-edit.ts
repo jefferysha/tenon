@@ -3,7 +3,7 @@
  * 涉及磁盘的检查（文件是否存在、目录是否有该套件）在命令层做。
  */
 import {
-  catalogNotApplicable, planKindsSatisfy, policyRequiredKinds, suiteCoverGlobs, suiteFileGlobs, matchesAnyGlob,
+  catalogNotApplicable, normalizeRepoPath, planKindsSatisfy, policyRequiredKinds, suiteCoverGlobs, suiteFileGlobs, matchesAnyGlob,
   suitesOwningFile, testFileRegistration, waiverKey,
   type CatalogSuite, type OpenSpecScenario, type PlanCase, type PlanFile, type PlanScope, type PlanSuite, type PlanWaiver,
   type StepTestPolicyIR, type TaskItem, type TestCatalog, type TestKind, type TestPlan,
@@ -71,6 +71,42 @@ export function withoutTarget(plan: TestPlan, target: RemovalTarget): Removal {
       || (target.waiverTest !== undefined && item.test === target.waiverTest))),
   }
   return { plan: next, removed: weight(plan) - weight(next) }
+}
+
+/** 登记项没被目录认领的缘由：指向的套件已不在目录里 / 套件的 files glob 不再匹配这条路径 / 没有任何套件的 files glob 认领它。 */
+export type UnclaimedRegistration =
+  | { readonly path: string; readonly suite: string; readonly reason: 'suite-missing' | 'glob-mismatch' }
+  | { readonly path: string; readonly reason: 'no-owner' }
+
+/**
+ * 计划 files[] 里当前目录不再认领的登记。认领判定与出口判定同源（suitesOwningFile：套件 files glob 按套件 cwd 换算成仓库相对）：
+ * 带显式套件的登记要求这个套件还在、它的 glob 还认领这条路径（出口判定对它一律检查「报告里有没有执行」，与 glob 无关）；
+ * 不带套件也不带 kind 的登记要求至少一个套件的 glob 认领它。
+ * 只有 kind、没有套件的登记是 `register --file --kind` 有意登记的不执行资源（视觉快照等）：它们从不进套件运行、
+ * 不会挡出口，也本来就没有套件认领，所以不在此列。
+ * 合法的测试文件总被它的套件 glob 认领，因此能落进这个列表的只有「目录已不认领」的登记；要让合法登记落进来，
+ * 必须先改目录里的 glob，而任务改动过的测试配置会在评审请求里列出、由用户批准。
+ */
+export function unclaimedRegistrations(plan: TestPlan, catalog: TestCatalog): readonly UnclaimedRegistration[] {
+  const known = new Set(catalog.suites.map((suite) => suite.id))
+  const out: UnclaimedRegistration[] = []
+  for (const file of plan.files) {
+    const owners = suitesOwningFile(catalog, normalizeRepoPath(file.path))
+    if (file.suite !== undefined) {
+      if (!known.has(file.suite)) out.push({ path: file.path, suite: file.suite, reason: 'suite-missing' })
+      else if (!owners.includes(file.suite)) out.push({ path: file.path, suite: file.suite, reason: 'glob-mismatch' })
+    } else if (file.kind === undefined && owners.length === 0) {
+      out.push({ path: file.path, reason: 'no-owner' })
+    }
+  }
+  return out
+}
+
+/** 只删 files[] 里这些路径的登记；套件、用例映射、豁免原样（映射里的引用不随文件登记一起走）。 */
+export function withoutRegistrations(plan: TestPlan, paths: readonly string[]): TestPlan {
+  if (paths.length === 0) return plan
+  const gone = new Set(paths)
+  return { ...plan, files: plan.files.filter((file) => !gone.has(file.path)) }
 }
 
 export interface SeedInput {

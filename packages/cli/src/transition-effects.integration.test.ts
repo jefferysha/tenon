@@ -75,7 +75,7 @@ async function corruptField(name: string, field: string, value: string): Promise
 
 /** 所有 default transition 测试显式播种真实 hash/read ledger；各用例仍可单独构造事件前置失败。 */
 async function initGoverned(name: string, track: 'backend' | 'pm' = 'backend', preset = 'full'): Promise<void> {
-  expect(await h.run(['init', name, '--track', track, '--preset', preset])).toBe(0)
+  expect(await h.initLegacyDefault(name, track, preset)).toBe(0)
   await h.seedGovernedDocumentEvidence(name)
 }
 
@@ -569,4 +569,73 @@ describe('真实 e2e —— 跨命令串联 + 历史 JSONL（GOAL C10）', () =>
     expect(await h.run(['transition', 'demo', 'verify-pass'])).toBe(0)
     expect(await h.read('demo')).toMatch(/^verify_result: pass$/m)
   }, 30_000)
+})
+
+/**
+ * 新建的 default 任务按 default.yaml 执行（设计 §1a、§1b）：上面的用例回归的是升级前创建、快照记着旧执行模型的任务，
+ * 这里的任务是 `tenon init` 新建的，离开条件、动作都来自 YAML。整条七相位（不设 build_mode / isolation /
+ * direct_override / branch_status）走完的 e2e 在 workflow-skill-orchestration.integration.test.ts。
+ */
+describe('新建 default 任务：离开条件一次列出全部，退出码 2', () => {
+  const RETIRED = /build_mode|isolation|direct_override|branch_status/u
+  const text = (): string => [...h.out, ...h.err].join('\n')
+
+  /** 立项到实现前的任务都勾了，实现（build）步还有一项没勾。 */
+  const UNFINISHED_BUILD_TASKS = [
+    '# 任务', '', '## 立项', '', '- [x] 立项 (open)', '', '## 实现', '', '- [ ] 写测试 (build)', '',
+  ].join('\n')
+
+  async function initBackendAt(name: string, phase: 'build' | 'verify', tasks?: string): Promise<void> {
+    expect(await h.run(['init', name, '--track', 'backend', '--preset', 'full']), text()).toBe(0)
+    await h.seedGovernedDocumentEvidence(name, tasks === undefined ? undefined : { tasks })
+    await h.seedPhase(name, phase)
+  }
+
+  test('build-complete：实现前评审没通过且 tasks.md 有未勾项 → 退出码 2，同时列出两条，不提已删除的字段', async () => {
+    await initBackendAt('demo', 'build', UNFINISHED_BUILD_TASKS)
+    const before = await h.read('demo')
+    expect(await h.run(['transition', 'demo', 'build-complete'])).toBe(2)
+    const out = text()
+    expect(out).toContain('pre_verify_review_result')
+    expect(out).toContain('tasks.md 仍有 1 项未勾') // 两条失败同一次列出
+    expect(out).not.toMatch(RETIRED)
+    expect(await h.read('demo')).toBe(before) // 拒绝不落盘
+  })
+
+  test('离开条件满足之后，build_mode / isolation / direct_override 仍不出现在拒绝原因里（它们已不是检查项）', async () => {
+    await initBackendAt('demo', 'build')
+    await h.seedArtifact('demo', 'pre_verify_review_result', 'pass')
+    await h.run(['transition', 'demo', 'build-complete'])
+    // 这一步可能还差别的证据（技能、测试、评审者），但绝不再是 build_mode / isolation / direct_override，
+    // 也不再是实现前评审或任务勾选。
+    expect(text()).not.toMatch(RETIRED)
+    expect(text()).not.toContain('pre_verify_review_result')
+    expect(text()).not.toContain('tasks.md')
+  })
+
+  test('verify-pass 不要求 branch_status', async () => {
+    await initBackendAt('demo', 'verify')
+    await h.run(['transition', 'demo', 'verify-pass'])
+    expect(text()).not.toContain('branch_status')
+  })
+
+  test('verify-fail 回退边不带离开条件：任务没勾完也能退回实现步，build_sha 复位', async () => {
+    await initBackendAt('demo', 'verify', UNFINISHED_BUILD_TASKS)
+    await seed('docs/verify-fail.md')
+    await h.seedArtifact('demo', 'verification_report', 'docs/verify-fail.md')
+    await approveReviewExit('demo', 'verify-fail')
+    expect(await h.run(['transition', 'demo', 'verify-fail']), text()).toBe(0)
+    const yaml = await h.read('demo')
+    expect(yaml).toMatch(/^phase: build$/m)
+    expect(yaml).toMatch(/^verify_result: fail$/m)
+    expect(yaml).toMatch(/^build_sha: null$/m)
+  })
+
+  test('requirements-changed：build 步的任务没勾完也能回到规格步（回退边不带离开条件）', async () => {
+    await initBackendAt('demo', 'build', UNFINISHED_BUILD_TASKS)
+    expect(await h.run(['transition', 'demo', 'requirements-changed']), text()).toBe(0)
+    expect(await h.read('demo')).toMatch(/^phase: spec$/m)
+    expect(await h.run(['get', 'demo', 'pre_verify_review_result'])).toBe(0)
+    expect(h.out.join('\n').trim()).toBe('pending')
+  })
 })

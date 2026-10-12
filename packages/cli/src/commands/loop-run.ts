@@ -93,8 +93,8 @@ const DEFAULT_LOOP_RUN_RUNTIME: LoopRunRuntime = {
 
 /**
  * `wiringDeps` 缺省真装配（H10 §8任务7）：resolver=deps.resolver（G2 P5 同一 EffectiveSkillResolver，
- * 不另装一份）；isSkillProfileKnown=deps.isSkillProfileKnown（main.ts/harness 装配的 trackCtx.
- * skillProfiles 判定，见 deps.ts 头注）；locator 用与 afk.ts cmdAfk('run') 同一套根枚举
+ * 不另装一份）；isSkillProfileKnown=deps.isSkillProfileKnown（main.ts/harness 装配的
+ * skillProfileChecker 判定，见 deps.ts 头注）；locator 用与 afk.ts cmdAfk('run') 同一套根枚举
  * （createProductionSkillContentLocator，见 skillBundleAssembly.ts）——dry-run 只读 locate()（stat/
  * realpath），不物化 CAS。
  */

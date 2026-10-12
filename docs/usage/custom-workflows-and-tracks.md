@@ -3,12 +3,13 @@
 ## Goal
 
 Create a declarative process whose graph, Skills, gates, and document reads
-match the work, then bind it to a routing/policy Track.
+match the work, optionally split into Tracks that routing can offer.
 
 ## Prerequisites
 
 - an initialized Tenon project
-- a unique Workflow name other than reserved `default` or `simple`
+- a unique Workflow name (a file named `default` or `design-system` replaces the
+  shipped template of that name)
 - known step IDs, transition events, Skill IDs, and document ownership
 
 ## Author a Workflow
@@ -90,26 +91,39 @@ not the drawing alone, is the project definition.
 ## Use the Workflow
 
 ```bash
-tenon init release-note-2026-07 \
-  --track backend \
-  --preset full \
-  --workflow release-note
+tenon init release-note-2026-07 --workflow release-note
 ```
 
-Status and Dashboard Todo now use `shape`, `implement`, and `prove`, not the
-default seven phase names.
+`release-note` has no `tracks:`, so it is a flat Workflow: its only Track is
+implicit and `--track` is not written. Status and Dashboard Todo now use
+`shape`, `implement`, and `prove`, not the default seven phase names.
 
 ## Add a Track
 
-A Track is a branch of a Workflow. Declare it under `tracks:` in the Workflow
-YAML (or add it on the Dashboard workflow page); each branch carries its own
-step list:
+A Track is a branch of a Workflow, and the branches under `tracks:` are the only
+Tracks there are: identity is the pair Workflow + Track id, and there is no
+separate Track registry. Declare a branch in the Workflow YAML (or add it on the
+Dashboard workflow page); each branch carries its own step list. A branch accepts
+a closed set of keys; anything else is rejected when the file is loaded:
+
+| Key | Meaning |
+| --- | --- |
+| `label` | the name shown in the CLI and the Dashboard |
+| `steps` | the branch's step list |
+| `document_contract` | the branch's documents, written next to the steps it references |
+| `spec` | `openspec` or `none`; omitted, it follows the top-level `openspec` (`openspec: true` means `spec: openspec`), so existing files need no change |
+| `route` | automatic routing: `keywords`, `exclude`, `priority`, optional `fallback: true`; omitted, routing never picks the branch and it can only be named |
+| `automation` | `eligible` (may enter AFK) and `enqueue_after_spec` (queue the Change when its spec is done); omitted, both are off |
 
 ```yaml
 name: release-note
 tracks:
   docs:
     label: Documentation
+    spec: none
+    route:
+      keywords: [changelog, release note]
+      priority: 50
     steps:
       - id: shape
         label: shape
@@ -124,28 +138,40 @@ tracks:
 ```
 
 A Workflow that declares `tracks:` accepts only the branches it lists.
-`tenon init <change> --track docs --workflow release-note` succeeds because
-`release-note` declares `docs`; pairing it with a Workflow that does not
-declare the branch is rejected before anything is written:
+`tenon init <change> --workflow release-note --track docs` succeeds because
+`release-note` declares `docs`; asking for a branch the Workflow does not
+declare is rejected before anything is written, and the error lists the
+Tracks you can choose:
 
 ```text
-ERROR: 工作流 'default' 没有轨道 'docs' 的分支
+ERROR: 工作流 'default' 没有轨道 'docs'（可选：lite, pm, frontend, backend）
 ```
 
-A Workflow with no `tracks:` node has no branch model and accepts any Track.
+A Workflow with no `tracks:` node is a flat Workflow and its own single Track:
+write `--workflow <name>` and no `--track`.
 
-`.pipeline/tracks.yaml` remains a read-only policy overlay: it supplies review
-seed, coverage profile, routing, and Skill profile for a Track id. It does not
-decide which Workflow a Track may be used with, and there is no command to
-register a Track there. Inspect it with:
+A branch with a `route` block is a routing row: the router offers it when its
+keywords score highest. Because it belongs to a custom Workflow, the router does
+not choose for you but asks you to select the Workflow + Track pair. Only
+`keywords` and `spec` can be edited on the Dashboard Track settings; `exclude`,
+`priority`, `fallback` and `automation` are edited in the YAML.
+`automation` decides AFK: only a branch with `eligible: true` can be queued, and a
+branch without an `automation` block (every flat Workflow included) cannot:
+`tenon afk enqueue` exits `3`, and with `--json` reports
+`reason: "track-not-afk-eligible"`.
+
+The former built-in Track registry and `.pipeline/tracks.yaml` are not read any
+more. If the file exists, Tenon prints one line saying so; move its routing words
+into the `route` of the Workflow branches. Inspect the Tracks of every Workflow
+the project can use with:
 
 ```bash
 tenon tracks list --json
-tenon tracks show docs --json
+tenon tracks show release-note:docs --json
 ```
 
-Built-in policy identity is protected: built-in Track policy cannot be
-overridden.
+`tracks show` takes `<workflow>:<track>`; the Track id alone is enough while it
+exists in only one Workflow.
 
 ## Skill DAG and guards
 
@@ -166,16 +192,20 @@ conditions rather than duplicate agent instructions.
 ```bash
 tenon status <change-name> --json
 tenon workflow plan <change-name> --json
-tenon tracks show <track-id> --json
+tenon tracks show <workflow>:<track> --json
 tenon document status <change-name> --json
 tenon check <change-name>
 ```
 
 ## Common failures
 
-### Reserved name
+### A project file changed the default Workflow
 
-Project files cannot override built-in `default` or `simple`.
+A file named `default` or `design-system` replaces the shipped template for that
+project or user, Tracks included; a Change started earlier keeps the plan it froze.
+`tenon tracks list` shows the Tracks the project really sees. A saved `default`
+without a `lite` branch makes `tenon assess` report that the Track has no
+change-risk thresholds instead of guessing them.
 
 ### A short Workflow unexpectedly has no docs
 
@@ -189,8 +219,8 @@ Skill identity must match a declared producer.
 
 ### Track deletion is rejected
 
-An active Change still references it. Preserve the active identity and archive
-or migrate through an explicit supported operation first.
+An active Change still references it. Preserve the active identity and finish or
+terminate the Change (`tenon task finish`, `tenon task terminate`) first.
 
 ## Next action
 

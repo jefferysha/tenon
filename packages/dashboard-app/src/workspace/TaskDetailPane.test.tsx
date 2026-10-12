@@ -141,7 +141,7 @@ describe('TaskDetailPane 详情头', () => {
       },
     } as unknown as Partial<ChangeSnapshot>)
     const row: TaskRow = { ...snapshotRow(snapshot), owner: ann, summary: summaryOf(snapshot, snapshot.workflowRules) }
-    render(<I18nProvider><TaskDetailPane row={row} fetchDefinition={false} menu={[{ id: 'archive', label: '归档', icon: null, danger: false, onSelect: () => undefined }]} /></I18nProvider>)
+    render(<I18nProvider><TaskDetailPane row={row} fetchDefinition={false} menu={[{ id: 'terminate', label: '终止', icon: null, danger: false, onSelect: () => undefined }]} /></I18nProvider>)
     const title = screen.getByTestId('task-detail-title')
     const owner = screen.getByTestId('task-detail-owner')
     const menu = screen.getByTestId('task-detail-menu')
@@ -161,15 +161,15 @@ describe('TaskDetailPane 详情头', () => {
 describe('TaskDetailPane header and records', () => {
   it('标题右侧 ⋯ 菜单承载动作；没有底部动作条，也没有重复阶段名的 eyebrow', async () => {
     stubFetch()
-    const archive = vi.fn()
-    renderPane({ row: ownerRow(ann), menu: [{ id: 'archive', label: '归档', icon: null, danger: false, onSelect: archive }] })
+    const terminate = vi.fn()
+    renderPane({ row: ownerRow(ann), menu: [{ id: 'terminate', label: '终止', icon: null, danger: false, onSelect: terminate }] })
     // 负责人只用头像 + 悬浮名字，副行不再写名字。
     expect(screen.getByTestId('task-detail-owner')).toHaveAttribute('title', 'Ann')
     expect(screen.getByTestId('task-detail-meta')).not.toHaveTextContent('Ann')
     expect(screen.getByTestId('task-detail-pane').querySelector('footer')).toBeNull()
     await userEvent.click(screen.getByTestId('task-detail-menu'))
-    await userEvent.click(await screen.findByTestId('task-detail-menu-archive'))
-    expect(archive).toHaveBeenCalledTimes(1)
+    await userEvent.click(await screen.findByTestId('task-detail-menu-terminate'))
+    expect(terminate).toHaveBeenCalledTimes(1)
   })
 
   it('状态行只写状态一词，不再带阶段名；定义里没有 label 时回退 id', () => {
@@ -708,9 +708,9 @@ describe('TaskDetailPane · 下一步', () => {
     }
   })
 
-  it('已完结不显示下一步', () => {
+  it('已结束不显示下一步', () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('no request expected'))))
-    const row = { ...snapshotRow(change()), summary: { kind: 'completed' as const } }
+    const row = { ...snapshotRow(change()), summary: { kind: 'ended' as const, result: 'terminated' as const } }
     render(<I18nProvider><TaskDetailPane row={row} fetchDefinition={false} /></I18nProvider>)
     expect(screen.queryByTestId('task-next')).toBeNull()
   })

@@ -17,9 +17,9 @@ Tenon 是面向 Codex、Claude Code 等 Agent 宿主的本地优先交付工作�
 | 入口 | 适用目标 | 是否创建 Change | 文档行为 |
 | --- | --- | --- | --- |
 | discussion | 问答、解释、只读分析 | 否 | 不创建治理文档 |
-| simple | 少量、低风险、可快速验证的修改 | 是 | 只遵守 short workflow 自己的合同 |
-| default | 跨模块、需要规格与验证的开发 | 是 | 完整七阶段与 OpenSpec 证据链 |
-| free/custom | 中性任务或团队自定义 DAG | 取决于 workflow | 只生成声明的文档 |
+| `default` 的 `lite` 轨道 | 修缺陷、小改动、错字级改动（建任务前先评估改动范围） | 是 | 无 OpenSpec，只有一道评审门 |
+| `default` 的 `pm` / `frontend` / `backend` 轨道 | 跨模块、需要规格与验证的开发 | 是 | 完整七阶段与 OpenSpec 证据链 |
+| 自定义工作流 | 团队自定义 DAG | 是 | 只生成声明的文档 |
 
 ## 默认生命周期
 
@@ -33,6 +33,7 @@ open → explore → spec ⇄ build ⇄ verify → ship → archive
 
 - `.pipeline/workflows/`：项目自定义 Workflow 的版本化定义；
 - `openspec/changes/<name>/`：活跃 Change 的 proposal、design、tasks、delta spec 与状态投影；
+- `openspec/changes/archive/<日期>-<name>/`：已结束的 Change（完结、已升级、已终止都在这里）；
 - `openspec/specs/`：已经应用、持续维护的主规格；
 - `docs/adr/` 与 `docs/superpowers/`：架构决策、技术设计、计划和验证报告；
 - `.pipeline-document-locale.json`：新 Change 固定的文档呈现语言；

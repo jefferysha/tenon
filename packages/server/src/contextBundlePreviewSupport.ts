@@ -4,6 +4,7 @@ import {
   type LedgerContextBundlePreview,
   LedgerContextBundleError,
 } from '@tenon/kernel'
+import { changeAreaSegments, type ChangeArea } from './changeArea.js'
 import type { WorkflowRootAnchor } from './workflows.js'
 
 const SCHEMA_VERSION = 'context-bundle-preview/v1'
@@ -79,15 +80,21 @@ export function captureChangeParentPathAnchor(root: WorkflowRootAnchor): ChangeP
   return { chain }
 }
 
+/**
+ * 一个任务目录的路径身份链：从 `openspec/` 到任务目录，逐级都必须是真目录（符号链接一律拒绝），且真实路径在登记的根内。
+ * `area: 'archive'` 把任务放在 `openspec/changes/archive/` 下（已结束任务，只读读取）。
+ */
 export function captureChangePathAnchor(
   root: WorkflowRootAnchor,
   change: string,
+  area: ChangeArea = 'active',
 ): ChangePathAnchor {
-  const chainPaths = [
-    join(root.path, 'openspec'),
-    join(root.path, 'openspec', 'changes'),
-    join(root.path, 'openspec', 'changes', change),
-  ]
+  const chainPaths: string[] = []
+  let level = root.path
+  for (const segment of [...changeAreaSegments(area), change]) {
+    level = join(level, segment)
+    chainPaths.push(level)
+  }
   const chain: PathIdentity[] = []
   for (const path of chainPaths) {
     try {
@@ -99,7 +106,7 @@ export function captureChangePathAnchor(
       throw error
     }
   }
-  const changeDir = chainPaths.at(2)
+  const changeDir = chainPaths.at(-1)
   if (changeDir === undefined) {
     throw new ContextBundlePathError(403, 'Context Bundle Change path capture failed')
   }

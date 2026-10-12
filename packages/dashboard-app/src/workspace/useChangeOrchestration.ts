@@ -11,14 +11,15 @@ export type ChangeOrchestrationState =
 /**
  * 任务冻结计划的编排 + 运行状态（`GET /api/change/:c/orchestration`）。`signature` 变了就重取——快照里这个
  * 任务的状态、技能 / agent / 测试 / 文档证据任一变化都会改它；换任务时先回到 loading，不串味。
+ * `archived`：`change` 是已结束任务的归档目录名，读归档里的那一份（只读）。
  */
-export function useChangeOrchestration(root: string, change: string, signature: string, enabled = true): ChangeOrchestrationState {
-  const key = `${root}\n${change}`
+export function useChangeOrchestration(root: string, change: string, signature: string, enabled = true, archived = false): ChangeOrchestrationState {
+  const key = `${root}\n${archived ? 'archive/' : ''}${change}`
   const [state, setState] = useState<{ key: string; state: ChangeOrchestrationState }>({ key: '', state: { status: 'loading' } })
   useEffect(() => {
     if (!enabled || root === '') return
     const controller = new AbortController()
-    fetchChangeOrchestration(change, root, controller.signal)
+    fetchChangeOrchestration(change, root, controller.signal, archived)
       .then((orchestration) => { if (!controller.signal.aborted) setState({ key, state: { status: 'ready', orchestration } }) })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return
@@ -26,7 +27,7 @@ export function useChangeOrchestration(root: string, change: string, signature: 
         setState((previous) => previous.key === key && previous.state.status === 'ready' ? previous : { key, state: { status: 'error', error } })
       })
     return () => controller.abort()
-  }, [key, root, change, signature, enabled])
+  }, [key, root, change, signature, enabled, archived])
   if (!enabled) return { status: 'disabled' }
   return state.key === key ? state.state : { status: 'loading' }
 }

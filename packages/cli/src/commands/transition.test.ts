@@ -58,10 +58,10 @@ describe('接线 —— cli 事件表 = kernel 单源（无本地镜像）', () 
 })
 
 describe('transition —— [TRANSITION] 走 stderr / 非法 exit 1（oracle 实测回写）', () => {
-  test('free/matrix=false 仍拒绝缺失当前 visit 的 frozen phase Skill', async () => {
+  test('缺失当前 visit 的 frozen phase Skill 仍被拒绝（技能只来自工作流 YAML，没有矩阵可以关）', async () => {
     const manifestPath = join(process.cwd(), 'templates', 'manifest.yaml')
     const deps = makeDeps({
-      state: mockState({ phase: 'open', track: 'free' }),
+      state: mockState({ phase: 'open', track: 'backend' }),
       resolver: createEffectiveSkillResolver(loadManifest(manifestPath)),
     })
     const code = await cmdTransition(deps, 'demo', 'open-complete')
@@ -621,6 +621,66 @@ steps:
           },
         ],
       ])
+    } finally {
+      await rm(cwd, { recursive: true, force: true })
+    }
+  })
+})
+
+/** 通用离开条件的接线：cmdTransition 把任务勾选能力绑到本任务目录（与旧相位出口同一份 TaskPlan 判定），
+ *  缺少 guardCtx 文件面时 AFK / 依赖两项不能默认放行。 */
+describe('transition —— 通用离开条件的能力注入（tasks-through-step）', () => {
+  const GATED_WF = `name: gated
+steps:
+  - id: build
+    label: 实现
+    gate: null
+    skills: []
+    inputs: []
+    outputs: []
+    guards:
+      - type: tasks-through-step
+    transitions:
+      - event: complete
+        to: done
+  - id: done
+    label: 完成
+    gate: null
+    skills: []
+    inputs: []
+    outputs: []
+    guards: []
+    transitions: []
+`
+
+  async function withProject(tasks: string): Promise<string> {
+    const cwd = await mkdtemp(join(tmpdir(), 'transition-tasks-through-step-'))
+    await mkdir(join(cwd, '.pipeline', 'workflows'), { recursive: true })
+    await writeFile(join(cwd, '.pipeline', 'workflows', 'gated.yaml'), GATED_WF, 'utf8')
+    await mkdir(join(cwd, 'openspec', 'changes', 'demo'), { recursive: true })
+    await writeFile(join(cwd, 'openspec', 'changes', 'demo', 'tasks.md'), tasks, 'utf8')
+    return cwd
+  }
+
+  test('有未勾任务：exit 2，列出失败且不写盘', async () => {
+    const cwd = await withProject('- [x] 已做\n- [ ] 没做\n')
+    try {
+      const deps = makeDeps({ cwd, guardCtx: makeGuardCtx(cwd), state: mockState({ phase: 'build', workflow: 'gated' }) })
+      const code = await cmdTransition(deps, 'demo', 'complete')
+      expect(code).toBe(2)
+      expect(deps.errLines.join('\n')).toContain('1 项未勾')
+      expect(deps.errLines.join('\n')).not.toContain('缺少能力')
+      expect(deps.store.write.calls).toHaveLength(0)
+    } finally {
+      await rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  test('任务全部已勾：放行', async () => {
+    const cwd = await withProject('- [x] 已做\n- [x] 也做了\n')
+    try {
+      const deps = makeDeps({ cwd, guardCtx: makeGuardCtx(cwd), state: mockState({ phase: 'build', workflow: 'gated' }) })
+      expect(await cmdTransition(deps, 'demo', 'complete')).toBe(0)
     } finally {
       await rm(cwd, { recursive: true, force: true })
     }

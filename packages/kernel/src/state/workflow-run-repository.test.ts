@@ -33,7 +33,7 @@ const authoritySnapshot = (over: {
   reservationId?: string
   runId?: string
 } = {}) => {
-  const workflow = compileEffectiveWorkflowPlan('default')
+  const workflow = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' })
   const attemptId = over.attemptId ?? 'att-1'
   const iterationId = `iteration-${attemptId}`
   return createWorkflowActionAuthoritySnapshot({
@@ -162,12 +162,12 @@ describe('WorkflowRunRepository.initChange —— 新 change 的唯一创建入�
       transitionSequence: 0,
       documentProfile: 'legacy-full',
       documentGovernanceFingerprint:
-        effectiveWorkflowPlanBinding(compileEffectiveWorkflowPlan('default')).documentGovernanceFingerprint,
-      workflowPlanFingerprint: compileEffectiveWorkflowPlan('default').workflowFingerprint,
+        effectiveWorkflowPlanBinding(compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' })).documentGovernanceFingerprint,
+      workflowPlanFingerprint: compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' }).workflowFingerprint,
       workflowPlanSnapshot: {
         version: 4,
         workflowId: 'default',
-        workflowFingerprint: compileEffectiveWorkflowPlan('default').workflowFingerprint,
+        workflowFingerprint: compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' }).workflowFingerprint,
       },
     })
     await expect(readFile(join(changeDir, '.pipeline-document-locale.json'), 'utf8'))
@@ -297,7 +297,7 @@ describe('WorkflowRunRepository.establishRun —— 新 change 在 init 时钉�
     expect((await store.read(dir)).runMetadata).toBeUndefined()
 
     const run = await repo.establishRun(dir, { openspecContract: true })
-    const defaultBinding = effectiveWorkflowPlanBinding(compileEffectiveWorkflowPlan('default'))
+    const defaultBinding = effectiveWorkflowPlanBinding(compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' }))
 
     expect(run).toMatchObject(defaultBinding)
     expect((await store.read(dir)).runMetadata).toMatchObject(defaultBinding)
@@ -314,7 +314,7 @@ describe('WorkflowRunRepository.establishRun —— 新 change 在 init 时钉�
       })
     })
     await rm(join(dir, '.pipeline-workflow-governance.json'))
-    const binding = effectiveWorkflowPlanBinding(compileEffectiveWorkflowPlan('default'))
+    const binding = effectiveWorkflowPlanBinding(compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' }))
 
     const upgraded = await repo.establishRun(dir, binding)
     expect(upgraded).toMatchObject({
@@ -617,7 +617,7 @@ describe('WorkflowRunRepository.transact —— commit() 真提交', () => {
   test('commit 保留初始化时绑定的完整 workflow plan fingerprint', async () => {
     const root = await freshRepoRoot()
     const { repo, store } = makeRepo()
-    const plan = compileEffectiveWorkflowPlan('default')
+    const plan = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' })
     const { changeDir } = await repo.initChange({
       repoRoot: root,
       name: 'bound-plan',

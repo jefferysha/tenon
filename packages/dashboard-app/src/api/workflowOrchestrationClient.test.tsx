@@ -3,7 +3,7 @@ import { decodeChangeOrchestration, decodeDefinitionOrchestration } from './work
 
 const entry = (extra: Record<string, unknown>) => ({ kind: 'test', id: 'kind:unit', label: 'unit', wave: 1, dependsOn: [], required: true, source: 'declared', ...extra })
 const stage = (entries: unknown[]) => ({ id: 'build', label: '实现', gate: null, entries })
-const definition = (entries: unknown[]) => ({ workflow: 'default', track: null, overlay: {}, stages: [stage(entries)], returns: [], flows: [] })
+const definition = (entries: unknown[]) => ({ workflow: 'default', track: null, stages: [stage(entries)], returns: [], flows: [] })
 const change = (entries: unknown[]) => ({ change: 'c', workflow: 'default', track: null, current: 'build', io: {}, stages: [stage(entries)], returns: [], flows: [] })
 
 describe('编排响应解码 · 策略要求运行的测试种类', () => {
@@ -12,6 +12,12 @@ describe('编排响应解码 · 策略要求运行的测试种类', () => {
     expect(decodeDefinitionOrchestration(definition([entry({})]))?.stages[0]?.entries[0]).not.toHaveProperty('testKind')
     expect(decodeDefinitionOrchestration(definition([entry({ testKind: 'nope' })]))).toBeNull()
     expect(decodeDefinitionOrchestration(definition([entry({ kind: 'skill', testKind: 'unit' })]))).toBeNull()
+  })
+
+  it('定义编排没有 manifest 叠加层：响应里不带 overlay 照常解码，解码结果也不含它', () => {
+    const decoded = decodeDefinitionOrchestration({ ...definition([entry({})]), overlay: { build: ['x'] } })
+    expect(decoded).not.toBeNull()
+    expect(decoded).not.toHaveProperty('overlay')
   })
 
   it('任务编排的状态多一个 stale（测试过期）', () => {

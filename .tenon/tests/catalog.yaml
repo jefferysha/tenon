@@ -415,6 +415,7 @@ suites:
     artifacts:
       - playwright-report
       - test-results/dashboard-e2e
+      - test-results/dashboard-e2e-server
     services:
       - dashboard-e2e
     retries: 1
@@ -431,6 +432,7 @@ suites:
     timeout_s: 1800
     files:
       - e2e/dashboard/*.spec.ts
+      - e2e/dashboard/support/*.mjs
     covers:
       - packages/dashboard-app/src/**
       - packages/server/src/**
@@ -444,6 +446,7 @@ suites:
     artifacts:
       - playwright-report
       - test-results/dashboard-e2e
+      - test-results/dashboard-e2e-server
     services:
       - dashboard-e2e
     retries: 1

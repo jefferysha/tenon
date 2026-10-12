@@ -128,7 +128,7 @@ describe('stepBackTargets / isRoundsLimited', () => {
   })
 
   it('default 工作流（phase-manifest）：verify 是受约束步骤，回退目标是 build', () => {
-    const plan = compileEffectiveWorkflowPlan('default')
+    const plan = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend', executionModel: 'phase-manifest' })
     expect(isRoundsLimited(plan, 'verify')).toBe(true)
     expect(stepBackTargets(plan, 'verify')).toEqual(['build'])
     expect(isRoundsLimited(plan, 'build')).toBe(false)

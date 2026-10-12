@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { builtinWorkflow } from '../workflow/builtin-workflows.js'
 import { compileWorkflow } from '../workflow/compile.js'
+import { simpleWorkflow } from '../workflow/test-support.js'
 import { abandonedTerminal } from './abandoned.js'
 
-const plan = { workflow: compileWorkflow(builtinWorkflow('simple')) }
+const plan = { workflow: compileWorkflow(simpleWorkflow()) }
 const ABANDON = { event: 'scope-expanded', from: 'change', to: 'escalated', observedAt: '2026-10-06T00:00:00Z' }
 
 describe('abandonedTerminal', () => {

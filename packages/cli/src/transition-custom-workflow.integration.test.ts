@@ -176,7 +176,7 @@ describe('真实 e2e —— transition 非 default workflow 的真实 step 间�
     const wfDir = join(h.cwd, '.pipeline', 'workflows')
     await mkdir(wfDir, { recursive: true })
     await writeFile(join(wfDir, `${workflowName}.yaml`), workflowYaml, 'utf8')
-    expect(await h.run(['init', CHANGE, '--track', 'backend', '--preset', 'full', '--workflow', workflowName])).toBe(0)
+    expect(await h.run(['init', CHANGE, '--preset', 'full', '--workflow', workflowName])).toBe(0)
   }
 
   async function historyLines(): Promise<HistLine[]> {

@@ -13,8 +13,12 @@
 import { appendFile, lstat, mkdir, readFile, readdir, rename, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import { readSkillInvocationEvidence } from '@tenon/kernel'
+import { readSkillInvocationEvidence, serializeWorkflow } from '@tenon/kernel'
+import { simpleWorkflow, targetDefaultWorkflow } from '@tenon/kernel/workflow/test-support'
 import { freshHarness, rm, type Harness } from './integration-harness.js'
+
+/** 已退役的内建 simple 的定义（change → verify → done / escalated），改名为项目自己的平铺工作流 tiny。 */
+const TINY_WF = serializeWorkflow({ ...simpleWorkflow(), name: 'tiny' })
 
 const TWO_STEP_WF = `name: onboarding
 steps:
@@ -268,106 +272,27 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
     expect(await h.run(['transition', name, 'open-complete'])).toBe(0)
   })
 
-  test('simple Track 默认绑定内建 simple workflow，从 change 开始且不生成完整 OpenSpec 文档链', async () => {
-    expect(await h.run(['init', 'tiny-fix', '--track', 'simple', '--preset', 'tweak'])).toBe(0)
+  test('轻量的平铺工作流（原内建 simple 的定义）从 change 开始，且不生成完整 OpenSpec 文档链', async () => {
+    await seedWorkflow('tiny', TINY_WF)
+    expect(await h.run(['init', 'tiny-fix', '--preset', 'tweak', '--workflow', 'tiny'])).toBe(0)
     const content = await h.read('tiny-fix')
-    expect(content).toMatch(/^workflow: simple$/m)
+    expect(content).toMatch(/^workflow: tiny$/m)
+    expect(content).toMatch(/^track: tiny$/m)
     expect(content).toMatch(/^phase: change$/m)
     expect(content).not.toMatch(/^pipeline_document_profile:/m)
     await expect(h.readIn('tiny-fix', 'proposal.md')).rejects.toThrow()
     await expect(h.readIn('tiny-fix', 'tasks.md')).rejects.toThrow()
   })
 
-  test('free/default 是完整七阶段 Change，但不继承标准 Track policy', async () => {
-    expect(await h.run(['init', 'free-default', '--track', 'free', '--preset', 'full'])).toBe(0)
-    const content = await h.read('free-default')
-    expect(content).toMatch(/^track: free$/m)
-    expect(content).toMatch(/^workflow: default$/m)
-    expect(content).toMatch(/^phase: open$/m)
-    expect(await h.readIn('free-default', 'proposal.md')).toContain('# 提案')
-    expect(await h.readIn('free-default', 'design.md')).toContain('# 设计')
-    expect(await h.readIn('free-default', 'tasks.md')).toContain('- [ ]')
-    expect(await h.run(['set', 'free-default', 'automation', 'queued'])).toBe(0)
-    expect(await h.run(['afk', 'enqueue', 'free-default'])).toBe(3)
+  test('free 轨道已退役（--track free 报错并列出可选轨道），升级前建的 free 在途任务走旧引擎的用例在 track-resolution 里', async () => {
+    expect(await h.run(['init', 'free-default', '--track', 'free', '--preset', 'full'])).toBe(1)
+    expect(h.err.join('\n')).toContain('lite, pm, frontend, backend')
+    await expect(h.readIn('free-default', 'proposal.md')).rejects.toThrow()
   })
 
-  test('free/default 可从 Open 完整推进到 Archive，且不要求工程双 review 或 PR URL', async () => {
-    const name = 'free-lifecycle'
-    expect(await h.run(['init', name, '--track', 'free', '--preset', 'full'])).toBe(0)
-    await h.seedGovernedDocumentEvidence(name)
-    await h.seedArtifact(name, 'design_doc', `openspec/changes/${name}/design.md`)
-    await h.seedArtifact(name, 'plan', `docs/superpowers/plans/${name}.md`)
-    await h.seedArtifact(name, 'verification_report', `docs/superpowers/reports/${name}.md`)
-    const recordSkills = async (...skills: string[]): Promise<void> => {
-      await appendFile(
-        join(h.cwd, 'openspec', 'changes', name, '.pipeline-history.jsonl'),
-        `${skills.map((skill) => JSON.stringify({
-          ts: '2026-07-25T00:00:00Z', kind: 'tool', raw: `Skill: ${skill}`,
-        })).join('\n')}\n`,
-        'utf8',
-      )
-    }
-
-    await recordSkills('openspec-propose')
-    expect(await h.run(['transition', name, 'open-complete'])).toBe(0)
-    await recordSkills('brainstorming')
-    expect(await h.run(['document', 'read', name, 'all'])).toBe(0)
-    // free 的调研步骤挂了 researcher 执行者：跑过之后才能请求评审。
-    await h.satisfyStepAgents(name)
-    expect(
-      await h.run(['review', 'request', name, '--event', 'explore-complete']),
-      h.err.join('\n'),
-    ).toBe(0)
-    expect(await h.run(['review', 'acknowledge', name])).toBe(0)
-    expect(await h.run(['transition', name, 'explore-complete'])).toBe(0)
-    await recordSkills('openspec-propose', 'writing-plans')
-    expect(await h.run(['document', 'read', name, 'all'])).toBe(0)
-    expect(await h.run(['review', 'request', name, '--event', 'spec-complete'])).toBe(0)
-    expect(await h.run(['review', 'acknowledge', name])).toBe(0)
-    expect(await h.run(['transition', name, 'spec-complete'])).toBe(0)
-
-    // free 的 build 就绪证据是 builder 执行者与必需评审者 spec-consistency：跑过之后通过结论才写得进。
-    await h.satisfyStepAgents(name)
-    expect(await h.run([
-      'set-many', name,
-      'build_mode=direct', 'isolation=worktree', 'direct_override=true',
-      'pre_verify_review_result=pass',
-    ]), h.err.join('\n')).toBe(0)
-    await recordSkills('test-driven-development')
-    expect(await h.run(['document', 'read', name, 'all'])).toBe(0)
-    expect(await h.run(['transition', name, 'build-complete'])).toBe(0)
-    expect(await h.run(['set', name, 'branch_status', 'handled'])).toBe(0)
-    await recordSkills('verification-before-completion')
-    expect(await h.run(['document', 'read', name, 'all'])).toBe(0)
-    // free 的验证步骤声明了 code-size 测试与评审者（另有参考评审者 security）：先办完再请求评审。
-    await h.satisfyStepTests(name, 'verify')
-    await h.satisfyStepAgents(name)
-    expect(
-      await h.run(['review', 'request', name, '--event', 'verify-pass']),
-      h.err.join('\n'),
-    ).toBe(0)
-    expect(await h.run(['review', 'acknowledge', name])).toBe(0)
-    expect(await h.run(['transition', name, 'verify-pass'])).toBe(0)
-
-    await recordSkills('finishing-a-development-branch')
-    await h.seedAppliedSpec(name)
-    expect(await h.run(['document', 'read', name, 'all'])).toBe(0)
-    expect(await h.run(['transition', name, 'ship-complete']), h.err.join('\n')).toBe(0)
-    expect(await h.run(['document', 'read', name, 'all'])).toBe(0)
-    await recordSkills()
-    expect(await h.run(['transition', name, 'archived'])).toBe(0)
-    const completed = await h.read(name)
-    expect(completed).toMatch(/^track: free$/m)
-    expect(completed).toMatch(/^phase: archive$/m)
-    expect(completed).toMatch(/^verify_result: pass$/m)
-    expect(completed).toMatch(/^agent_review_result: pending$/m)
-    expect(completed).toMatch(/^codex_review_result: pending$/m)
-    expect(completed).toMatch(/^pr_url: null$/m)
-    expect(completed).toMatch(/^archived: true$/m)
-  }, 30_000)
-
-  test('simple workflow 完整生命周期可验证后结束；范围扩大走独立 escalated 终态', async () => {
-    expect(await h.run(['init', 'tiny-done', '--track', 'simple', '--preset', 'tweak'])).toBe(0)
+  test('轻量工作流完整生命周期可验证后结束；范围扩大走独立 escalated 终态', async () => {
+    await seedWorkflow('tiny', TINY_WF)
+    expect(await h.run(['init', 'tiny-done', '--preset', 'tweak', '--workflow', 'tiny'])).toBe(0)
     // change 步骤不声明技能：边界写在 step prompt 里，转换不再要求技能证据。
     expect(await h.run(['transition', 'tiny-done', 'change-complete'])).toBe(0)
     expect((await h.read('tiny-done'))).toMatch(/^phase: verify$/m)
@@ -384,7 +309,7 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
     expect(completed).toMatch(/^verify_result: pass$/m)
     expect(completed).toMatch(/^archived: true$/m)
 
-    expect(await h.run(['init', 'tiny-expanded', '--track', 'simple', '--preset', 'tweak'])).toBe(0)
+    expect(await h.run(['init', 'tiny-expanded', '--preset', 'tweak', '--workflow', 'tiny'])).toBe(0)
     expect(await h.run(['transition', 'tiny-expanded', 'scope-expanded'])).toBe(0)
     const escalated = await h.read('tiny-expanded')
     expect(escalated).toMatch(/^phase: escalated$/m)
@@ -401,27 +326,27 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
 
   test('--workflow onboarding：真落 workflow=onboarding + phase=intake（workflow 首个 step 的 id，不是硬编码 open）', async () => {
     await seedWorkflow('onboarding', TWO_STEP_WF)
-    expect(await h.run(['init', 'demo', '--track', 'backend', '--preset', 'full', '--workflow', 'onboarding'])).toBe(0)
+    expect(await h.run(['init', 'demo', '--preset', 'full', '--workflow', 'onboarding'])).toBe(0)
     const content = await h.read('demo')
     expect(content).toMatch(/^workflow: onboarding$/m)
     expect(content).toMatch(/^phase: intake$/m)
   })
 
-  test('free 可绑定任意已存在的自定义 Workflow，并从其真实首 Step 开始', async () => {
+  test('平铺的自定义 Workflow 不用写 --track：轨道是与工作流同名的隐式轨道，从其真实首 Step 开始', async () => {
     await seedWorkflow('onboarding', TWO_STEP_WF)
-    expect(await h.run(['init', 'free-custom', '--track', 'free', '--preset', 'full', '--workflow', 'onboarding'])).toBe(0)
-    const content = await h.read('free-custom')
-    expect(content).toMatch(/^track: free$/m)
+    expect(await h.run(['init', 'flat-custom', '--preset', 'full', '--workflow', 'onboarding'])).toBe(0)
+    const content = await h.read('flat-custom')
+    expect(content).toMatch(/^track: onboarding$/m)
     expect(content).toMatch(/^workflow: onboarding$/m)
     expect(content).toMatch(/^phase: intake$/m)
-    expect(await h.run(['internal-skill-gate', 'free-custom', 'anything'])).toBe(0)
+    expect(await h.run(['internal-skill-gate', 'flat-custom', 'anything'])).toBe(0)
   })
 
   test('三步 workflow 可执行声明式 document contract，不继承七阶段文档矩阵', async () => {
     await seedWorkflow('compact-governed', THREE_STEP_GOVERNED_WF)
     expect(
       await h.run([
-        'init', 'compact-run', '--track', 'free', '--preset', 'full',
+        'init', 'compact-run', '--preset', 'full',
         '--workflow', 'compact-governed',
       ]),
     ).toBe(0)
@@ -489,7 +414,7 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
   test('document-v1 初始化绑定完整快照，后续删除 contract 仍按原 contract 治理', async () => {
     await seedWorkflow('compact-governed', THREE_STEP_GOVERNED_WF)
     const initCode = await h.run([
-      'init', 'bound-docs', '--track', 'free', '--preset', 'full',
+      'init', 'bound-docs', '--preset', 'full',
       '--workflow', 'compact-governed',
     ])
     expect(initCode, h.err.join('\n')).toBe(0)
@@ -508,18 +433,18 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
 
   test('openspec: true 的自定义 workflow（无契约）建 ledger；仍写 openspec_contract 的 YAML 按 E1 拒绝', async () => {
     await seedWorkflow('bare-governed', TWO_STEP_WF.replace(/^name: \S+\n/, 'name: bare-governed\nopenspec: true\n'))
-    expect(await h.run(['init', 'bare', '--track', 'backend', '--preset', 'full', '--workflow', 'bare-governed']), h.err.join('\n')).toBe(0)
+    expect(await h.run(['init', 'bare', '--preset', 'full', '--workflow', 'bare-governed']), h.err.join('\n')).toBe(0)
     expect(JSON.parse(await h.readIn('bare', '.pipeline-documents.json'))).toMatchObject({ records: [] })
     expect(await h.run(['document', 'status', 'bare'])).toBe(0)
 
     await seedWorkflow('old-contract', TWO_STEP_WF.replace(/^name: \S+\n/, 'name: old-contract\nopenspec_contract: required\n'))
-    expect(await h.run(['init', 'old', '--track', 'backend', '--preset', 'full', '--workflow', 'old-contract'])).toBe(1)
+    expect(await h.run(['init', 'old', '--preset', 'full', '--workflow', 'old-contract'])).toBe(1)
     expect(h.err.join('\n')).toContain('openspec_contract 已移除——改为 openspec: true 并声明 document_contract')
     await expect(h.read('old')).rejects.toThrow()
   })
 
   test('--workflow 指向不存在的文件：exit 1，不落盘任何 change 目录（先校验后创建，不留半成品）', async () => {
-    const code = await h.run(['init', 'demo', '--track', 'backend', '--preset', 'full', '--workflow', 'ghost'])
+    const code = await h.run(['init', 'demo', '--preset', 'full', '--workflow', 'ghost'])
     expect(code).toBe(1)
     expect(h.err.join('\n')).toContain("workflow 'ghost' 未找到")
     await expect(h.read('demo')).rejects.toThrow()
@@ -542,7 +467,7 @@ steps:
         to: does-not-exist
 `,
     )
-    const code = await h.run(['init', 'demo', '--track', 'backend', '--preset', 'full', '--workflow', 'broken'])
+    const code = await h.run(['init', 'demo', '--preset', 'full', '--workflow', 'broken'])
     expect(code).toBe(1)
     expect(h.err.join('\n')).toContain('does-not-exist')
     await expect(h.read('demo')).rejects.toThrow()
@@ -550,7 +475,7 @@ steps:
 
   test('端到端链式验证：init --workflow 创建的 change 立即可被 internal-skill-gate 消费，不需要任何手工改写状态文件', async () => {
     await seedWorkflow('onboarding', TWO_STEP_WF)
-    expect(await h.run(['init', 'demo', '--track', 'backend', '--preset', 'full', '--workflow', 'onboarding'])).toBe(0)
+    expect(await h.run(['init', 'demo', '--preset', 'full', '--workflow', 'onboarding'])).toBe(0)
     // internal-skill-gate 对 skills:[] 的 step 一律放行（opt-in 语义）——只是验证它能读到正确
     // 的 workflow/phase 组合并找到 step，而不是报 "step 不在 workflow 里"。
     const code = await h.run(['internal-skill-gate', 'demo', 'anything'])
@@ -560,7 +485,7 @@ steps:
 
   test('端到端链式验证：init --workflow 创建的 change 立即可被 transition 真推进（真实 event 名，无需手改 phase）', async () => {
     await seedWorkflow('onboarding', TWO_STEP_WF)
-    expect(await h.run(['init', 'demo', '--track', 'backend', '--preset', 'full', '--workflow', 'onboarding'])).toBe(0)
+    expect(await h.run(['init', 'demo', '--preset', 'full', '--workflow', 'onboarding'])).toBe(0)
     expect(await h.run(['transition', 'demo', 'complete'])).toBe(0)
     const content = await h.read('demo')
     expect(content).toMatch(/^phase: done$/m)
@@ -582,7 +507,7 @@ steps:
     guards: []
     transitions: []
 `)
-    const code = await h.run(['init', 'demo', '--track', 'backend', '--preset', 'full', '--workflow', 'ghost-agent'])
+    const code = await h.run(['init', 'demo', '--preset', 'full', '--workflow', 'ghost-agent'])
     expect(code).toBe(1)
     expect(h.err.join('\n')).toContain('no-such-agent')
     await expect(h.read('demo')).rejects.toThrow()
@@ -605,10 +530,129 @@ steps:
     guards: []
     transitions: []
 `)
-    expect(await h.run(['init', 'demo', '--track', 'backend', '--preset', 'full', '--workflow', 'reviewed'])).toBe(0)
+    expect(await h.run(['init', 'demo', '--preset', 'full', '--workflow', 'reviewed'])).toBe(0)
     const lock = JSON.parse(await h.readIn('demo', '.pipeline-frozen/lock.json'))
     expect(lock).toMatchObject({ version: 1, agents: [{ name: 'security', source: 'builtin' }] })
     expect(lock.agents[0].digest).toMatch(/^sha256:[0-9a-f]{64}$/)
     expect(await h.readIn('demo', '.pipeline-frozen/agents/security.md')).toContain('name: security')
+  })
+})
+
+/**
+ * 轨道解析（计划 Task 3）：`init` 只经 loadWorkflow + resolveTrack 解析轨道，旧工作流名给出替代命令，
+ * 旧 `.pipeline/tracks.yaml` 只提示一行、不读取。default 用一份目标形态的覆盖文件（lite / pm / frontend /
+ * backend，没有 chat / free）——模板改写前（计划 Task 6）用它代替真文件。
+ */
+describe('init × 轨道只认工作流分支', () => {
+  let h: Harness
+
+  beforeEach(async () => {
+    h = await freshHarness()
+    await mkdir(join(h.cwd, '.pipeline', 'workflows'), { recursive: true })
+    await writeFile(join(h.cwd, '.pipeline', 'workflows', 'default.yaml'), serializeWorkflow(targetDefaultWorkflow()), 'utf8')
+  })
+
+  afterEach(async () => {
+    await rm(h.cwd, { recursive: true, force: true })
+  })
+
+  const created = async (name: string): Promise<boolean> =>
+    lstat(join(h.cwd, 'openspec', 'changes', name)).then(() => true, () => false)
+
+  test.each(['standard', 'simple'])('--workflow %s 已退役：exit 1，给出 default 的 lite 轨道命令，不建 change', async (workflow) => {
+    expect(await h.run(['init', 'x', '--workflow', workflow, '--preset', 'full'])).toBe(1)
+    expect(h.err.join('\n')).toContain('--workflow default --track lite')
+    expect(await created('x')).toBe(false)
+  })
+
+  test('--workflow default --track free：default 里没有的轨道 → exit 1，列出可选轨道，不建 change', async () => {
+    expect(await h.run(['init', 'x', '--workflow', 'default', '--track', 'free', '--preset', 'full'])).toBe(1)
+    expect(h.err.join('\n')).toContain('lite, pm, frontend, backend')
+    expect(await created('x')).toBe(false)
+  })
+
+  test('--track chat 同样拒', async () => {
+    expect(await h.run(['init', 'x', '--track', 'chat', '--preset', 'full'])).toBe(1)
+    expect(h.err.join('\n')).toContain('lite, pm, frontend, backend')
+    expect(await created('x')).toBe(false)
+  })
+
+  /** 退役入口的报错与替代提示同一口径：「X 已退役；改用：…」，与 `--workflow standard|simple` 的提示一致。 */
+  test.each(['standard', 'simple'])('--track %s 已退役：列出可选轨道，并给出 default 的 lite 轨道命令', async (track) => {
+    expect(await h.run(['init', 'x', '--track', track, '--preset', 'full'])).toBe(1)
+    const err = h.err.join('\n')
+    expect(err).toContain('lite, pm, frontend, backend')
+    expect(err).toContain(`轨道 '${track}' 已退役；改用：tenon init <名字> --workflow default --track lite`)
+    expect(await created('x')).toBe(false)
+  })
+
+  test.each(['chat', 'free'])('--track %s 已退役：没有等价轨道，提示从可选轨道里选，纯讨论不用建任务', async (track) => {
+    expect(await h.run(['init', 'x', '--track', track, '--preset', 'full'])).toBe(1)
+    const err = h.err.join('\n')
+    expect(err).toContain('lite, pm, frontend, backend')
+    expect(err).toContain(`轨道 '${track}' 已退役`)
+    expect(err).not.toContain('--track lite')
+    expect(await created('x')).toBe(false)
+  })
+
+  test('没退役过的未知轨道只列出可选轨道，不说「已退役」', async () => {
+    expect(await h.run(['init', 'x', '--track', 'nonsense', '--preset', 'full'])).toBe(1)
+    expect(h.err.join('\n')).toContain('lite, pm, frontend, backend')
+    expect(h.err.join('\n')).not.toContain('已退役')
+  })
+
+  test('--workflow design-system --preset full 不带 --track 成功：平铺工作流的唯一隐式轨道', async () => {
+    expect(await h.run(['init', 'x', '--workflow', 'design-system', '--preset', 'full']), h.err.join('\n')).toBe(0)
+    const content = await h.read('x')
+    expect(content).toMatch(/^workflow: design-system$/m)
+    expect(content).toMatch(/^track: design-system$/m)
+    expect(content).toMatch(/^phase: direction$/m)
+  })
+
+  test('平铺工作流写了别的轨道名 → exit 1 并提示不用写 --track', async () => {
+    expect(await h.run(['init', 'x', '--workflow', 'design-system', '--track', 'free', '--preset', 'full'])).toBe(1)
+    expect(h.err.join('\n')).toContain('不用写 --track')
+    expect(await created('x')).toBe(false)
+  })
+
+  /** `--domain`：轻量任务创建时记下领域轨道，之后升级为重型任务时 `escalate.then` 直接用它。 */
+  test('--track lite --domain backend：领域记进任务状态，tenon get 读得到', async () => {
+    expect(await h.run(['init', 'x', '--track', 'lite', '--domain', 'backend', '--preset', 'full']), h.err.join('\n')).toBe(0)
+    expect(await h.read('x')).toMatch(/^domain: backend$/m)
+    expect(await h.run(['get', 'x', 'domain'])).toBe(0)
+    expect(h.out.join('\n')).toBe('backend')
+  })
+
+  test('不给 --domain：状态文件里没有 domain 这一行，tenon get 读到空', async () => {
+    expect(await h.run(['init', 'x', '--track', 'lite', '--preset', 'full']), h.err.join('\n')).toBe(0)
+    expect(await h.read('x')).not.toContain('domain')
+    expect(await h.run(['get', 'x', 'domain'])).toBe(0)
+    expect(h.out.join('\n')).toBe('')
+  })
+
+  test.each(['lite', 'nope'])('--domain %s（等于本任务轨道 / 工作流里没有）：exit 1，列出可选轨道，不建 change', async (domain) => {
+    expect(await h.run(['init', 'x', '--track', 'lite', '--domain', domain, '--preset', 'full'])).toBe(1)
+    expect(h.err.join('\n')).toContain(`--domain '${domain}'`)
+    expect(h.err.join('\n')).toContain('pm, frontend, backend')
+    expect(await created('x')).toBe(false)
+  })
+
+  test('平铺工作流带 --domain：没有别的轨道可记，exit 1，不建 change', async () => {
+    expect(await h.run(['init', 'x', '--workflow', 'design-system', '--domain', 'backend', '--preset', 'full'])).toBe(1)
+    expect(h.err.join('\n')).toContain('没有可记的领域，不用写 --domain')
+    expect(await created('x')).toBe(false)
+  })
+
+  test('有分支的工作流不带 --track（非交互）：exit 1，缺省项里列出可选轨道', async () => {
+    expect(await h.run(['init', 'x', '--preset', 'full'])).toBe(1)
+    expect(h.err.join('\n')).toContain('--track（lite|pm|frontend|backend）')
+    expect(await created('x')).toBe(false)
+  })
+
+  test('项目含 .pipeline/tracks.yaml 时 init 成功（不读取它，写坏也无妨），stderr 只有一行迁移提示', async () => {
+    await writeFile(join(h.cwd, '.pipeline', 'tracks.yaml'), 'version: [broken\n', 'utf8')
+    expect(await h.run(['init', 'x', '--track', 'backend', '--preset', 'full']), h.err.join('\n')).toBe(0)
+    expect(h.err.filter((line) => line.includes('tracks.yaml 已不再读取'))).toHaveLength(1)
+    expect(await created('x')).toBe(true)
   })
 })

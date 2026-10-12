@@ -3,8 +3,7 @@ import { lstat, readdir } from 'node:fs/promises'
 import type { Dirent } from 'node:fs'
 import { join } from 'node:path'
 import {
-  isTenonUser, stateStorageSourcePathSync, TENON_PROJECT_DIR, TERMINAL_ACTIVITY_FILE, TEST_SEAL_FILE, userProjectPaths,
-  type TenonUserResolution,
+  stateStorageSourcePathSync, TENON_PROJECT_DIR, TERMINAL_ACTIVITY_FILE, TEST_SEAL_FILE, userProjectPaths,
 } from '@tenon/kernel'
 import { mapWithConcurrency } from './concurrentMap.js'
 import { dedupeRoots } from './projectRoots.js'
@@ -30,27 +29,18 @@ const CHANGE_STAT_CONCURRENCY = 16
 const ROOT_CONCURRENCY = 8
 
 /**
- * The viewer's archive store and the repository's commit log: 归档 / 取消归档 change what the Dashboard
- * shows, and the user's own commit changes the 未提交删除 count, so both must push a new snapshot.
+ * The repository's commit log: the user's own commit changes the 未提交删除 count (and a termination
+ * commit moves a task out of `openspec/changes/`), so it must push a new snapshot.
  */
-async function viewerFingerprintParts(
-  readRoot: string,
-  viewer: TenonUserResolution | undefined,
-): Promise<string[]> {
-  // The viewer decides which changes are archived, so a different viewer is a different snapshot even
-  // before either archive store exists; the shared snapshot cache keys on this fingerprint.
-  const parts: string[] = [`viewer:${readRoot}:${viewer === undefined ? 'none' : isTenonUser(viewer) ? viewer.slug : 'missing'}`]
-  const targets = [join(readRoot, '.git', 'logs', 'HEAD')]
-  if (viewer !== undefined && isTenonUser(viewer)) targets.push(userProjectPaths(readRoot, viewer.slug).archived)
-  for (const target of targets) {
-    try {
-      const stat = await lstat(target, { bigint: true })
-      parts.push(`${target}:${stat.size}:${stat.mtimeNs}`)
-    } catch {
-      // Absent means the fingerprint simply carries no part for it.
-    }
+async function commitLogFingerprintParts(readRoot: string): Promise<string[]> {
+  const target = join(readRoot, '.git', 'logs', 'HEAD')
+  try {
+    const stat = await lstat(target, { bigint: true })
+    return [`${target}:${stat.size}:${stat.mtimeNs}`]
+  } catch {
+    // Absent means the fingerprint simply carries no part for it.
+    return []
   }
-  return parts
 }
 
 async function userSlugs(readRoot: string): Promise<readonly string[]> {
@@ -150,7 +140,6 @@ export async function collectRootFingerprint(
   rootAnchor: ((root: string) => WorkflowRootAnchor | undefined) | undefined,
   readTerminalActivity: ActivityReader,
   readChangesDirectory?: ChangesDirectoryReader,
-  viewer?: (root: string) => TenonUserResolution,
 ): Promise<RootFingerprintParts> {
   const parts: string[] = [`registry:${root}`]
   const changes = new Map<string, readonly string[]>()
@@ -168,7 +157,7 @@ export async function collectRootFingerprint(
     const readRoot = anchor.fdPath ?? anchor.realPath
     parts.push(`root:${root}:${anchor.dev}:${anchor.ino}`)
     parts.push(...await repositoryTopologyFingerprint(readRoot))
-    parts.push(...await viewerFingerprintParts(readRoot, viewer?.(root)))
+    parts.push(...await commitLogFingerprintParts(readRoot))
     const changesRoot = join(readRoot, 'openspec', 'changes')
     let entries: Dirent[]
     try {
@@ -194,6 +183,10 @@ export async function collectRootFingerprint(
       parts.push(...own)
     }
     parts.push(...trustParts)
+    // The ended tasks are not watched one by one: their directories never change. Only the archive directory's own
+    // signature (its entries come and go with a task ending, a checkout or a pull) tells the project to rebuild its list.
+    const archivePart = await statPart(join(changesRoot, 'archive'))
+    if (archivePart !== undefined) parts.push(archivePart)
     assertWorkflowRootAnchor(anchor)
   } catch {
     parts.push(`unreadable:${root}`)
@@ -210,10 +203,9 @@ export async function computeSnapshotFingerprint(
   rootAnchor: ((root: string) => WorkflowRootAnchor | undefined) | undefined,
   readTerminalActivity: ActivityReader,
   readChangesDirectory?: ChangesDirectoryReader,
-  viewer?: (root: string) => TenonUserResolution,
 ): Promise<string> {
   const collected = await mapWithConcurrency(dedupeRoots(roots), ROOT_CONCURRENCY, (root) => collectRootFingerprint(
-    root, nowMs, rootAnchor, readTerminalActivity, readChangesDirectory, viewer,
+    root, nowMs, rootAnchor, readTerminalActivity, readChangesDirectory,
   ))
   return collected.flatMap((entry) => entry.parts).sort().join('|')
 }
@@ -246,10 +238,9 @@ export async function computeRootFingerprints(
   rootAnchor: ((root: string) => WorkflowRootAnchor | undefined) | undefined,
   readTerminalActivity: ActivityReader,
   readChangesDirectory?: ChangesDirectoryReader,
-  viewer?: (root: string) => TenonUserResolution,
 ): Promise<RootFingerprint[]> {
   const collected = await mapWithConcurrency(dedupeRoots([...roots]), ROOT_CONCURRENCY, (root) => collectRootFingerprint(
-    root, nowMs, rootAnchor, readTerminalActivity, readChangesDirectory, viewer,
+    root, nowMs, rootAnchor, readTerminalActivity, readChangesDirectory,
   ))
   return collected.map(rootFingerprintOf)
 }

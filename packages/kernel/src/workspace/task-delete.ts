@@ -11,7 +11,6 @@ import {
 } from '../state/markers.js'
 import { GATE_MARKERS } from '../types.js'
 import { TENON_PROJECT_DIR, userProjectPaths } from '../users/user-paths.js'
-import { updateTaskArchiveOf, withoutTaskArchiveEntry } from './task-archive.js'
 import { TERMINAL_SESSION_BINDINGS_DIR, TERMINAL_SESSION_PROTOCOL } from './terminal-activity.js'
 
 const MAX_POINTER_BYTES = 4096
@@ -20,8 +19,6 @@ const SESSION_MARKERS = GATE_MARKERS.filter((name) => name !== REVIEW_MARKER_FIL
 
 export interface TaskDeleteCleanup {
   readonly removed: readonly string[]
-  /** Archive stores that could not be pruned; the deletion stands and the entry is left as is. */
-  readonly archiveCorrupt: readonly string[]
 }
 
 function repoRelative(repoRoot: string, target: string): string | null {
@@ -46,14 +43,6 @@ async function removeInside(repoRoot: string, target: string): Promise<string | 
     return null
   }
   return rel
-}
-
-async function isPlainFile(path: string): Promise<boolean> {
-  try {
-    return (await lstat(path)).isFile()
-  } catch {
-    return false
-  }
 }
 
 async function readPointer(path: string): Promise<string | null> {
@@ -153,7 +142,7 @@ export async function stageTaskForDelete(
 /**
  * Everything outside the Change directory that named it: per-user active pointers and authority
  * projections, the acting user's session markers, the review marker, host session bindings, per-user test
- * records and run artifacts, and every archive entry. Each step is best effort — a Change is already gone.
+ * records and run artifacts. Each step is best effort — a Change is already gone.
  */
 export async function cleanupDeletedChangeReferences(
   repoRoot: string,
@@ -161,7 +150,6 @@ export async function cleanupDeletedChangeReferences(
   actingSlug: string,
 ): Promise<TaskDeleteCleanup> {
   const removed: string[] = []
-  const archiveCorrupt: string[] = []
   let clearedOwnPointer = false
   for (const slug of await checkoutSlugs(repoRoot)) {
     const paths = userProjectPaths(repoRoot, slug)
@@ -180,11 +168,6 @@ export async function cleanupDeletedChangeReferences(
       const rel = await removeInside(repoRoot, dir)
       if (rel !== null) removed.push(rel)
     }
-    // Only an existing store is pruned; a user who never archived anything gets no file created.
-    if (!(await isPlainFile(paths.archived))) continue
-    const update = await updateTaskArchiveOf(repoRoot, slug, (archive) => withoutTaskArchiveEntry(archive, change))
-    if (update.kind === 'corrupt') archiveCorrupt.push(update.path)
-    else if (update.written) removed.push(repoRelative(repoRoot, paths.archived) ?? paths.archived)
   }
   if (clearedOwnPointer) {
     for (const marker of SESSION_MARKERS) {
@@ -194,5 +177,5 @@ export async function cleanupDeletedChangeReferences(
   }
   if (await clearReviewMarkerOfChange(repoRoot, change).catch(() => false)) removed.push(REVIEW_MARKER_FILE)
   removed.push(...await removeSessionBindings(repoRoot, change))
-  return { removed, archiveCorrupt }
+  return { removed }
 }

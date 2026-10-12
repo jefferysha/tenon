@@ -54,7 +54,7 @@ function fakeEditor(step: WbStepDef, overrides: Partial<WorkflowEditor> = {}): W
     def: DEF, effectiveIo: IO, canWrite: true, lint: [], lintBlocked: false, dirty: false, changeCount: 0, saving: false, saveStatus: { kind: 'idle' },
     wfName: 'default', branch: 'pm', branches: [{ id: 'pm', label: '产品' }],
     labelOf: (id: string) => labels.get(id) ?? id,
-    mandatory: { registry: REGISTRY },
+    skillRegistry: REGISTRY,
     agents: AGENTS,
     setAgents: vi.fn(),
     setTestPolicy: vi.fn(),
@@ -147,11 +147,16 @@ describe('StageEditorPane · 两栏定稿', () => {
     expect(screen.queryByTestId('input-check-field-design_doc')).toBeNull()
     unmount()
     renderPane(EXPLORE)
-    expect(within(screen.getByTestId('io-inputs')).getByRole('status')).toHaveTextContent('无')
+    // 表里只能有行：空态是一行里的一个单元格（表的子节点放 role=status 会让 axe 报 aria-required-children）。
+    const inputs = within(screen.getByTestId('io-inputs'))
+    expect(inputs.queryByRole('status')).toBeNull()
+    const empty = inputs.getByTestId('io-inputs-empty')
+    expect(empty).toHaveAttribute('role', 'row')
+    expect(within(empty).getByRole('cell')).toHaveTextContent('无')
   })
 
   it('只读且本阶段什么都没有（也没有 OpenSpec 注入）：段内只写「无」，不渲染空画布；可编辑时有动作的空泳道（执行者、评审者）各留一个「＋」', () => {
-    renderPane({ ...EXPLORE, skills: [] }, { effectiveIo: {}, canWrite: false, readOnly: true })
+    renderPane({ ...EXPLORE, skills: [] }, { effectiveIo: {}, canWrite: false })
     expect(screen.getByTestId('stage-skills-empty')).toHaveTextContent('无')
     expect(within(screen.getByTestId('stage-skills')).queryByTestId('orchestration-stage')).toBeNull()
     cleanup()
@@ -482,9 +487,9 @@ describe('StageEditorPane · 自动门禁与只读', () => {
     expect(screen.queryByTestId('stage-gate-auto-warning')).toBeNull()
   })
 
-  it('插件内建只读（readOnly）：不报缺凭证错误，写入口照样置灰', () => {
-    renderPane(EXPLORE, { canWrite: false, readOnly: true })
-    expect(screen.queryByTestId('wb-no-token')).toBeNull()
+  it('不能写入（缺凭证）：报缺凭证错误，写入口置灰', () => {
+    renderPane(EXPLORE, { canWrite: false })
+    expect(screen.getByTestId('wb-no-token')).toBeInTheDocument()
     expect(screen.getByTestId('wb-lane-name-input-explore')).toBeDisabled()
     expect(screen.queryByTestId('wb-skills-edit')).toBeNull()
   })

@@ -212,12 +212,15 @@ describe('default 工作流的默认策略（零豁免：只强制 unit）', () 
   const policy = (track: string, step: string): StepDef['test_policy'] =>
     def.tracks?.[track]?.steps.find((candidate) => candidate.id === step)?.test_policy
 
-  it('对话 / 自由：spec 要求 unit；build 跑 unit、有 typecheck 才跑（changed）；verify 跑 unit（full），有 regression 套件才跑', () => {
-    for (const track of ['chat', 'free']) {
-      expect(policy(track, 'spec')).toEqual({ plan: 'required', kinds: ['unit'] })
-      expect(policy(track, 'build')).toEqual({ run: ['unit'], run_if_registered: ['typecheck'], scope: 'changed', files: 'registered' })
-      expect(policy(track, 'verify')).toEqual({ run: ['unit'], run_if_registered: ['regression'], scope: 'full', files: 'registered' })
-    }
+  it('轻量：build 要求登记并跑 unit、有 typecheck 才跑（changed）；verify 跑 unit（full），其余登记了就跑', () => {
+    expect(policy('lite', 'build')).toEqual({
+      plan: 'required', kinds: ['unit'], run: ['unit'], run_if_registered: ['typecheck'], scope: 'changed', files: 'registered',
+    })
+    expect(policy('lite', 'verify')).toEqual({
+      run: ['unit'], run_if_registered: ['regression', 'typecheck', 'integration', 'e2e', 'playwright', 'a11y', 'visual'],
+      scope: 'full', files: 'registered',
+    })
+    expect(policy('lite', 'spec')).toBeUndefined()
   })
 
   it('前端：playwright / e2e / a11y / visual / regression 目录里有才跑；覆盖率门槛只对声明覆盖率的套件生效', () => {
@@ -243,7 +246,7 @@ describe('default 工作流的默认策略（零豁免：只强制 unit）', () 
     expect(policy('pm', 'build')).toBeUndefined()
   })
 
-  it('全部轨道的全部步骤：策略强制的种类只有 unit；旧的必需内联测试只剩 code-size 与设计体系校验', () => {
+  it('全部轨道的全部步骤：策略强制的种类只有 unit；必需的内联测试只剩 code-size、设计体系校验与轻量的改动风险探针', () => {
     const required = new Set<string>()
     const inline = new Set<string>()
     for (const track of Object.values(def.tracks ?? {})) {
@@ -253,7 +256,7 @@ describe('default 工作流的默认策略（零豁免：只强制 unit）', () 
       }
     }
     expect([...required]).toEqual(['unit'])
-    expect([...inline].sort()).toEqual(['code-size', 'design-system'])
+    expect([...inline].sort()).toEqual(['code-size', 'design-system', 'diff-risk'])
   })
 
   it('unit 之外的种类都是 run_if_registered：目录里没有就不要求，不需要豁免', () => {

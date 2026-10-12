@@ -5,7 +5,6 @@ import { DOCUMENT_KIND_CATALOG } from '@tenon/kernel/workflow/document-contract-
 import type { WorkflowOrchestration } from '@tenon/kernel/workflow/orchestration'
 import type { WbExecutorRef, WbIoSlot, WbReviewerRef, WbStepDef } from '../api/governanceTypes'
 import { useT } from '../i18n'
-import { useBuiltinLabels } from '../i18n/builtinLabels'
 import { mergeStepIoAliases } from '../model/ioSlots'
 import { documentInputCandidates, documentKindsForOutput } from '../workbench/documentContractEdits'
 import type { WorkflowEditor } from '../workbench/useWorkflowEditor'
@@ -50,7 +49,6 @@ const POPOVER_ROW = 'flex w-full items-center gap-2 whitespace-nowrap rounded-sm
  */
 export function StageEditorPane({ editor, step, orchestration: provided }: StageEditorPaneProps): JSX.Element {
   const { t } = useT()
-  const builtin = useBuiltinLabels()
   const def = editor.def
   const steps = def?.steps ?? []
   const editable = editor.canWrite
@@ -64,12 +62,12 @@ export function StageEditorPane({ editor, step, orchestration: provided }: Stage
   useGSAP(() => { revealList('[data-stage-sections] > *', SECTION_STAGGER) }, { scope: paneRef })
   // 同一概念的值字段并进同名文档行：一个概念只显示一个名字，字段放 Tooltip。
   const stepIo = mergeStepIoAliases(editor.effectiveIo?.[step.id])
-  const registry = editor.mandatory.registry
+  const registry = editor.skillRegistry
   const yamlBase = editor.branch === BASE_BRANCH ? `steps[${step.id}]` : `tracks.${editor.branch}.steps[${step.id}]`
   const contractBase = editor.branch === BASE_BRANCH ? 'document_contract' : `tracks.${editor.branch}.document_contract`
-  // 编排由 kernel 的 orchestrate 算（与服务端同一实现）：技能 = 声明 + OpenSpec 注入 + manifest 叠加，按 runner 顺序。
+  // 编排由 kernel 的 orchestrate 算（与服务端同一实现）：技能 = 声明 + OpenSpec 注入，按 runner 顺序。
   const localOrchestration = useMemo(
-    () => provided !== undefined || def === null ? null : draftOrchestration(def, editor.effectiveIo, {}),
+    () => provided !== undefined || def === null ? null : draftOrchestration(def, editor.effectiveIo),
     [provided, def, editor.effectiveIo],
   )
   const orchestration = provided ?? localOrchestration
@@ -178,12 +176,12 @@ export function StageEditorPane({ editor, step, orchestration: provided }: Stage
       {/* relative：sr-only 等绝对定位后代要以本滚动容器为包含块，否则它们会越过裁切把整页撑出滚动条。 */}
       <div className="relative min-h-0 flex-1 overflow-y-auto px-10 pt-7 pb-8 max-[900px]:px-4 max-[900px]:pt-5">
         {/* 无凭证是错误，直接放右栏顶部（保存条不会出现）；保存失败的原因由保存条自己给。 */}
-        {!editable && editor.readOnly !== true && <p className="mb-3 truncate whitespace-nowrap text-caption text-red-d" role="alert" data-testid="wb-no-token">{t('workflow.no_token')}</p>}
+        {!editable && <p className="mb-3 truncate whitespace-nowrap text-caption text-red-d" role="alert" data-testid="wb-no-token">{t('workflow.no_token')}</p>}
         <div className="flex items-start gap-3" data-testid="stage-actions">
           <span className="sr-only" data-testid={`wb-lane-name-${step.id}`}>{stageLabel}</span>
           <input
             className="min-w-0 flex-1 rounded-xs border-b border-transparent bg-transparent pb-0.5 text-page font-bold tracking-[-.01em] text-text outline-none transition-colors hover:border-border focus:border-accent-b disabled:cursor-default disabled:hover:border-transparent"
-            value={builtin.step(editor.wfName, step.id, step.label)}
+            value={step.label}
             disabled={!editable}
             aria-label={t('workflow.stage_name')}
             data-testid={`wb-lane-name-input-${step.id}`}
@@ -204,7 +202,6 @@ export function StageEditorPane({ editor, step, orchestration: provided }: Stage
 
           <StageFlowSection
             stage={stageOf(step.id)}
-            workflow={editor.wfName}
             editable={editable}
             onEditSkills={openComposer}
             onEditAgents={setAgentRole}

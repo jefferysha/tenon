@@ -111,8 +111,8 @@ SARIF rule ids prefixed with `tenon/`.
 | Finished Change judged at the head | `finished-judged-at-head` (note) |
 
 Abandoned Changes are not judged for test evidence. A Change that left its workflow through the abandon
-edge (`scope-expanded`, for example a `standard` task that escalated into the terminal step `escalated`)
-needs no test evidence, and it usually sits in the same pull request as the `default` Change that replaced
+edge (`scope-expanded`, for example a `lite` task that escalated into the terminal step `escalated`)
+needs no test evidence, and it usually sits in the same pull request as the heavy-Track Change that replaced
 it. CI does not judge its test evidence: the report carries the note `change-abandoned` and no test-policy
 or candidate findings for it, whether you select it with `--change` or `--since` picks it up. Only a Change
 that really went through the abandon edge counts. CI reads the head transition record from the Change's

@@ -169,9 +169,9 @@ loops:
     expect(() => validateSchema(1, { type: 'integer', multipleOf: 2 })).toThrow(/unsupported schema keyword/i)
   })
 
-  // H10 §1：skill_bundle_id 可选（缺省合法）；非空须过词法（'_all' 或 TRACK_ID_RE 形状）——
+  // H10 §1：skill_bundle_id 可选（缺省合法）；非空须过词法（'_all' 或工作流分支 id 形状）——
   // 存在性语义校验（manifest 是否真声明该 profile）不在本层，属后续任务。
-  test('skill_bundle_id 可选（缺省/null 合法）；非空须过 _all|TRACK_ID_RE 词法，否则 type/pattern 报错', () => {
+  test('skill_bundle_id 可选（缺省/null 合法）；非空须过 _all|分支 id 词法，否则 type/pattern 报错', () => {
     const raw = parseLoopsYaml(VALID_LOOP).data as { loops: Record<string, unknown>[] }
     expect(validateSchema({ version: 1, loops: [raw.loops[0]] }, LOOPS_SCHEMA)).toEqual([]) // 字段缺席
     expect(validateSchema({ version: 1, loops: [{ ...raw.loops[0], skill_bundle_id: null }] }, LOOPS_SCHEMA)).toEqual([])
@@ -185,7 +185,7 @@ loops:
     expect(badType.some((e) => e.includes('skill_bundle_id') && e.includes('type'))).toBe(true)
   })
 
-  test('SKILL_BUNDLE_ID_RE：复用 T 线 TRACK_ID_RE 词法风格，额外放行保留字 `_all`', () => {
+  test('SKILL_BUNDLE_ID_RE：工作流分支 id 词法，额外放行保留字 `_all`', () => {
     expect(SKILL_BUNDLE_ID_RE.test('_all')).toBe(true)
     expect(SKILL_BUNDLE_ID_RE.test('pm')).toBe(true)
     expect(SKILL_BUNDLE_ID_RE.test('front-end_2')).toBe(true)

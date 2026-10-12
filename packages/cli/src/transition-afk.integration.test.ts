@@ -46,18 +46,27 @@ describe('真实 e2e —— PM spec-complete 自动 AFK 挂队', () => {
     expect(h.err.join('\n')).toContain('已由 spec-complete 自动挂队')
   })
 
-  test('普通 frontend 默认流程仍完成 spec -> build，绝不被 PM 的自动 AFK 策略劫持', async () => {
-    expect(await h.run(['init', 'frontend-normal', '--track', 'frontend', '--preset', 'full'])).toBe(0)
-    await h.seedGovernedDocumentEvidence('frontend-normal')
-    await h.seedArtifact('frontend-normal', 'design_doc', 'openspec/changes/frontend-normal/design.md')
-    await h.seedArtifact('frontend-normal', 'phase', 'spec')
-    await h.seedArtifact('frontend-normal', 'plan', 'docs/superpowers/plans/frontend-normal.md')
-    const frontendRequest = await h.run(['review', 'request', 'frontend-normal', '--event', 'spec-complete'])
-    expect(frontendRequest, [...h.err, ...h.out].join('\n')).toBe(0)
-    expect(await h.run(['review', 'acknowledge', 'frontend-normal'])).toBe(0)
+  // 自动入队只读分支的 automation.enqueue_after_spec：frontend / backend 都 eligible 但没写它，
+  // 所以只能手动进 AFK，spec-complete 不会把它们挂队（产品轨才是）。
+  test.each(['frontend', 'backend'])('普通 %s 默认流程仍完成 spec -> build，绝不被 PM 的自动 AFK 策略劫持', async (track) => {
+    const name = `${track}-normal`
+    await mkdir(join(h.cwd, '.pipeline'), { recursive: true })
+    await writeFile(
+      join(h.cwd, '.pipeline', 'automation.json'),
+      `${JSON.stringify({ version: 1, enabled: true, default_opt_in: true })}\n`,
+      'utf8',
+    )
+    expect(await h.run(['init', name, '--track', track, '--preset', 'full'])).toBe(0)
+    await h.seedGovernedDocumentEvidence(name)
+    await h.seedArtifact(name, 'design_doc', `openspec/changes/${name}/design.md`)
+    await h.seedArtifact(name, 'phase', 'spec')
+    await h.seedArtifact(name, 'plan', `docs/superpowers/plans/${name}.md`)
+    const request = await h.run(['review', 'request', name, '--event', 'spec-complete'])
+    expect(request, [...h.err, ...h.out].join('\n')).toBe(0)
+    expect(await h.run(['review', 'acknowledge', name])).toBe(0)
 
-    expect(await h.run(['transition', 'frontend-normal', 'spec-complete'])).toBe(0)
-    const state = await h.read('frontend-normal')
+    expect(await h.run(['transition', name, 'spec-complete'])).toBe(0)
+    const state = await h.read(name)
     expect(state).toMatch(/^phase: build$/m)
     expect(state).toMatch(/^automation: off$/m)
     expect(h.err.join('\n')).not.toContain('自动挂队')

@@ -2,23 +2,30 @@ import { useT } from '../i18n'
 import { StatusPill, type PillTone } from '../shell/ThreeColumns'
 import { MiniPipeline } from './MiniPipeline'
 import { TaskMenu, type TaskMenuEntry } from './TaskMenu'
-import { rootBasename, statusOf, summaryText, type TaskRow, type TaskStatus } from './taskModel'
+import { rootBasename, statusOf, summaryText, type TaskRow } from './taskModel'
+import type { TaskStatus } from './taskFilter'
+import type { TaskResult } from '../types'
 import { cn } from '@/lib/utils'
 import { LIST_SELECTED } from '../shared/uiRecipes'
 
-
 /**
- * 语义色跟随状态筛选的分组：需要你 = 琥珀，进行中 = 信息蓝，已完成 = 中性。出口阻断属于 agent 侧
+ * 语义色跟随状态筛选的分组：需要你 = 琥珀，进行中 = 信息蓝，已结束 = 中性。出口阻断属于 agent 侧
  * 的工作量而非故障，用警示琥珀；红色只留给真正的错误 / 失败。
  */
 const STATUS_TONE: Record<Exclude<TaskStatus, 'all'>, PillTone> = {
   'needs-you': 'pending',
   running: 'running',
-  done: 'neutral',
+  ended: 'neutral',
+}
+
+/** 任务结果的色：已升级没做完、要有人接着做，用琥珀；完结与已终止是中性的结局。 */
+export function resultTone(result: TaskResult): PillTone {
+  return result === 'escalated' ? 'pending' : 'neutral'
 }
 
 export function summaryTone(row: TaskRow): PillTone {
   if (row.summary.kind === 'blocked') return 'pending'
+  if (row.summary.kind === 'ended') return resultTone(row.summary.result)
   return STATUS_TONE[statusOf(row.summary)]
 }
 

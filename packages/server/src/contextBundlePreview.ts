@@ -27,7 +27,6 @@ import {
   trustedContextBundleInputs,
 } from './contextBundleTrustedReader.js'
 import { assertWorkflowRootAnchor, readWorkflowForApi, WorkflowNotFoundError, type WorkflowRootAnchor } from './workflows.js'
-import { resolveSnapshotTrack } from './skillRuns.js'
 import { resolveSnapshotEffectivePlan } from './workflowSnapshot.js'
 import type { GetRouteDeps } from './serverGetRoutes.js'
 
@@ -48,7 +47,7 @@ function changeDocumentPolicy(anchor: WorkflowRootAnchor, state: PipelineState):
       if (error instanceof WorkflowNotFoundError) return null
       throw error
     }
-  }, resolveSnapshotTrack(anchor.path, trackId, workflowName)).capabilities.documents.policy
+  }, trackId).capabilities.documents.policy
 }
 
 type ContextBundlePreviewDeps = Pick<

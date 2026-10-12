@@ -175,23 +175,24 @@ describe('立项前置条件', () => {
   const init = (args: string[]) => run(h.cwd, ['init', ...args])
 
   test('DESIGN.md 未就绪 → exit 1，不留 change 目录', async () => {
-    const refused = await init(['ui-work', '--track', 'free', '--workflow', 'needs-design', '--preset', 'full'])
+    const refused = await init(['ui-work', '--workflow', 'needs-design', '--preset', 'full'])
     expect(refused.code).toBe(1)
     expect(refused.err.join('\n')).toContain('要求项目 DESIGN.md 就绪（当前：缺失）')
-    expect(refused.err.join('\n')).toContain('tenon init <name> --workflow design-system --track free')
+    expect(refused.err.join('\n')).toContain('tenon init <name> --workflow design-system --preset <preset>')
+    expect(refused.err.join('\n')).not.toContain('--track')
     await expect(readFile(join(h.cwd, 'openspec', 'changes', 'ui-work', '.pipeline.yaml'), 'utf8')).rejects.toThrow()
   })
 
   test('品牌起步文件也拦：状态是起步', async () => {
     await writeFile(join(h.cwd, 'DESIGN.md'), '# Claude\n', 'utf8')
-    const refused = await init(['ui-work', '--track', 'free', '--workflow', 'needs-design', '--preset', 'full'])
+    const refused = await init(['ui-work', '--workflow', 'needs-design', '--preset', 'full'])
     expect(refused.code).toBe(1)
     expect(refused.err.join('\n')).toContain('当前：起步')
   })
 
   test('就绪后立项通过', async () => {
     seedReady(h.cwd)
-    const created = await init(['ui-work', '--track', 'free', '--workflow', 'needs-design', '--preset', 'full'])
+    const created = await init(['ui-work', '--workflow', 'needs-design', '--preset', 'full'])
     expect(created.code).toBe(0)
     expect(await readFile(join(h.cwd, 'openspec', 'changes', 'ui-work', '.pipeline.yaml'), 'utf8')).toContain('workflow: needs-design')
   })
@@ -202,7 +203,7 @@ describe('立项前置条件', () => {
       REQUIRE_WORKFLOW.replace('name: needs-design', 'name: late-design').replace('owner_step: draft', 'owner_step: done'),
       'utf8',
     )
-    const created = await init(['late-work', '--track', 'free', '--workflow', 'late-design', '--preset', 'full'])
+    const created = await init(['late-work', '--workflow', 'late-design', '--preset', 'full'])
     expect(created.code).toBe(0)
   })
 })

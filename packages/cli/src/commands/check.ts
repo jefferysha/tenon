@@ -8,9 +8,10 @@
  * agent 台账、规格迁移。任何一项只在 transition 有而 check 没有，用户就会先收到「所有检查通过」、
  * 再被下一条命令拒绝——技能门 2026-09 之前正是这样缺着的。
  *
- * 双轨（对齐 transition.ts 的 default vs 自定义 workflow 分岔）：读完 state 立刻按 workflow 字段分流。
- * default（含历史遗留空串，故 `|| 'default'` 兜空串，不是 `??`）→ 上面的 guardCheck 路径逐字不变；
- * 非 default → 读该 workflow 当前 step 定义、按 step-guard 评估（evaluateStepGuards）。check 是纯预览：
+ * 双轨（对齐 transition.ts 的分岔）：读完 state 立刻按冻结计划的执行模型分流（选择单源 execution-cli-seam）。
+ * 快照记着旧阶段清单模型的在途任务 → 上面的 guardCheck 路径逐字不变；
+ * 按 YAML 执行的任务 → 读该 workflow 当前 step 定义、按 step-guard 评估（evaluateStepGuards）。不带 event 时评估的是
+ * 「离开本步」的条件：步骤 guards ∪ 前进出边 guards（exitGuards.ts），带 event 时只评估那一条边。check 是纯预览：
  * 两条路径都绝不写盘。exit 语义统一：过 0 / guard 不过 2 / 配置错（workflow 缺失·非法、step 不在图）1。
  */
 import {
@@ -21,12 +22,12 @@ import {
   effectiveLifecyclePolicy,
   isDocumentContractPhase,
   isDocumentPolicyStep,
-  isRevisionGuard,
   resolveStep,
   resolveWorkflowName,
   retiredSkillReferences,
   retiredSkillsChangeMessage,
   stepExitTransitions,
+  universalGuardCapabilities,
 } from '@tenon/kernel'
 import type {
   DocumentEvidenceReport,
@@ -40,6 +41,8 @@ import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName, resolveChangeDir } from '../paths.js'
 import { display, str } from '../render.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
+import { isStepGraphExecution } from './execution-cli-seam.js'
+import { leaveGuards } from './exitGuards.js'
 import { finishedLabel } from './finishedLabel.js'
 import { acceptedResidualLines, stepAgentLines } from './check-agents.js'
 import { renderCheckReport } from './check-report.js'
@@ -88,9 +91,9 @@ export async function cmdCheck(deps: CliDeps, name: string, opts: CheckOpts = {}
     return 1
   }
 
-  // 完结（archived=true）之后没有出口可查：`openspec archive` 会把目录搬进 archive/，此后按归档前
+  // 完结（archived=true）之后没有出口可查：`tenon task finish` 会把目录搬进 archive/，此后按归档前
   // 路径逐条检查只会得到一串 FAIL（真机：11 个 FAIL、exit 2）。与 status / list 同一口径，直接说明。
-  // 「已归档」只对 OpenSpec 治理的工作流成立（finishedLabel）；simple 完结后目录原地不动。
+  // 状态机已走完但还没收尾（目录仍在原处）时，措辞由 finishedLabel 区分。
   if (str(state.fields.archived) === 'true') {
     deps.io.out(`change '${name}' ${finishedLabel(deps, state, dir !== changeDir(deps.cwd, name))}，无需检查`)
     return 0
@@ -114,7 +117,7 @@ export async function cmdCheck(deps: CliDeps, name: string, opts: CheckOpts = {}
     deps.io.err(`ERROR: ${retiredSkillsChangeMessage(name, retired)}`)
     return 1
   }
-  if (plan.capabilities.execution.model === 'step-graph') {
+  if (isStepGraphExecution(plan)) {
     return checkGraphWorkflow(deps, name, dir, state, plan, opts.event, opts)
   }
 
@@ -223,7 +226,8 @@ async function checkGraphWorkflow(
   const exits = stepExitTransitions(plan, step.id, state)
   let guards: StepIR['guards']
   if (event === undefined) {
-    guards = plainGraphCheckGuards(plan, step, exits)
+    // 不指定 event：预览「离开本步」的条件 = 步骤 guards ∪ 前进出边 guards（default.yaml 把条件写在前进边上）。
+    guards = leaveGuards(plan, step, state)
   } else {
     const selectedEdge = exits.find((transition) => transition.event === event)
     if (selectedEdge === undefined) {
@@ -256,6 +260,8 @@ async function checkGraphWorkflow(
       : undefined,
     specMigrationStatus: () => evaluateSpecMigrationEvidence(deps.cwd, dir, name),
     assessBuildRevision: resolveBuildRevisionAssessor(deps, name, dir),
+    // 通用离开条件：预览与 transition 同一份能力（任务勾选 / AFK 排队 / 依赖结束）。
+    ...universalGuardCapabilities(dir, deps.guardCtx?.(name)),
   })
   const migration = str(state.fields.phase) === 'ship'
     && plan.capabilities.documents.governed
@@ -283,38 +289,4 @@ async function checkGraphWorkflow(
     agents,
     migration: migration?.kind === 'invalid' ? migration.reason : undefined,
   })
-}
-
-/**
- * Plain custom check keeps its historical step-guard preview and only supplements the
- * revision invariant.  Edge-specific non-revision guards are intentionally not previewed
- * without an exact event.  A single revision guard is retained for all non-rollback exits,
- * while rollback-only steps do not require a forward proof.
- */
-function plainGraphCheckGuards(
-  plan: EffectiveWorkflowPlan,
-  step: StepIR,
-  exits: readonly StepIR['transitions'][number][],
-): StepIR['guards'] {
-  const policies = exits.map((transition) => effectiveLifecyclePolicy(
-    plan.capabilities.documents.governed,
-    step,
-    transition,
-    plan.workflow.steps.find((candidate) => candidate.id === transition.to),
-  ))
-  const revisionGuard = policies
-    .filter((policy) => !policy.rollback)
-    .flatMap((policy) => policy.guards)
-    .find(isRevisionGuard)
-  const nonRevision = step.guards.filter((guard) => !isRevisionGuard(guard))
-  if (revisionGuard === undefined) return nonRevision
-  const firstRevisionIndex = step.guards.findIndex(isRevisionGuard)
-  const insertionIndex = firstRevisionIndex < 0
-    ? nonRevision.length
-    : Math.min(firstRevisionIndex, nonRevision.length)
-  return [
-    ...nonRevision.slice(0, insertionIndex),
-    revisionGuard,
-    ...nonRevision.slice(insertionIndex),
-  ]
 }

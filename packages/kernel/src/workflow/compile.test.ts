@@ -10,6 +10,7 @@ import type { StepIR } from './ir.js'
 import { compileDefaultWorkflow, compileWorkflow } from './compile.js'
 import { parseWorkflow } from './parse.js'
 import { NON_PM } from './predicates.js'
+import { defaultWithLiteBranch } from './test-support.js'
 
 function v1Step(over: Partial<StepDef> = {}): StepDef {
   return { id: 'draft', label: '', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [], ...over }
@@ -1035,5 +1036,84 @@ describe('artifact producer policy · A 契约（G2 P5：custom 拒 effective-ph
     expect(ir.steps[0]!.artifacts).toEqual([
       { kind: 'file', field: 'plan', producerPolicy: 'effective-phase-skills', requiredWhen: { kind: 'track-not-in', values: ['pm'] } },
     ])
+  })
+})
+
+describe('tracks.<id> 分支新键 spec / route / automation', () => {
+  const LITE = `name: demo
+openspec: true
+tracks:
+  lite:
+    label: 轻量
+    spec: none
+    route:
+      keywords: [修复, typo]
+      exclude: [迁移]
+      priority: 500
+    automation:
+      eligible: false
+      enqueue_after_spec: false
+    steps:
+      - id: open
+        gate: null
+        transitions: []
+`
+
+  /** 越过 parse 的结构化输入：分支带 over 指定的新键。 */
+  const withBranch = (over: Record<string, unknown>): WorkflowDef =>
+    rawDef({ name: 'demo', tracks: { lite: { steps: [v1Step({ id: 'open' })], ...over } }, steps: [] })
+
+  it('分支新键进入 IR：route 补默认 exclude / fallback，且深冻结', () => {
+    const ir = compileWorkflow(parseWorkflow(LITE))
+    expect(ir.tracks?.lite?.spec).toBe('none')
+    expect(ir.tracks?.lite?.route).toEqual({ keywords: ['修复', 'typo'], exclude: ['迁移'], priority: 500, fallback: false })
+    expect(ir.tracks?.lite?.automation).toEqual({ eligible: false, enqueueAfterSpec: false })
+    expect(Object.isFrozen(ir.tracks?.lite?.route)).toBe(true)
+    expect(Object.isFrozen(ir.tracks?.lite?.route?.keywords)).toBe(true)
+    expect(Object.isFrozen(ir.tracks?.lite?.automation)).toBe(true)
+  })
+
+  it('default 带五步 lite 分支仍能经 default 契约编译，重型分支继承顶层 openspec、不写 spec', () => {
+    const ir = compileDefaultWorkflow(defaultWithLiteBranch())
+    expect(Object.keys(ir.tracks ?? {})).toEqual(['lite', 'pm', 'frontend', 'backend'])
+    expect(ir.tracks?.lite?.spec).toBe('none')
+    expect(ir.tracks?.lite?.steps.map((step) => step.id)).toEqual(['open', 'build', 'verify', 'done', 'escalated'])
+    for (const id of ['pm', 'frontend', 'backend']) expect(ir.tracks?.[id]).not.toHaveProperty('spec')
+  })
+
+  it('未声明新键的分支 IR 不出现这三个键（旧工作流指纹不变）', () => {
+    const ir = compileWorkflow(withBranch({ label: '后端' }))
+    const lite = ir.tracks?.lite
+    expect(lite).toBeDefined()
+    for (const key of ['spec', 'route', 'automation']) expect(lite).not.toHaveProperty(key)
+  })
+
+  it('结构化输入里 route 只给 keywords 与 priority 时补默认', () => {
+    const ir = compileWorkflow(withBranch({ route: { keywords: ['a'], priority: 0 } }))
+    expect(ir.tracks?.lite?.route).toEqual({ keywords: ['a'], exclude: [], priority: 0, fallback: false })
+  })
+
+  it('spec 越界、route / automation 越界一律带结构路径 fail-loud', () => {
+    expect(() => compileWorkflow(withBranch({ spec: 'markdown' }))).toThrow(/tracks\.lite\.spec/)
+    expect(() => compileWorkflow(withBranch({ route: 'fast' }))).toThrow(/tracks\.lite\.route/)
+    expect(() => compileWorkflow(withBranch({ route: { keywords: ['a'], priority: 1, colour: 'red' } }))).toThrow(/colour/)
+    expect(() => compileWorkflow(withBranch({ route: { priority: 1 } }))).toThrow(/tracks\.lite\.route\.keywords/)
+    expect(() => compileWorkflow(withBranch({ route: { keywords: ['a'] } }))).toThrow(/tracks\.lite\.route\.priority/)
+    expect(() => compileWorkflow(withBranch({ route: { keywords: ['a'], priority: 1, fallback: 'yes' } }))).toThrow(/tracks\.lite\.route\.fallback/)
+    expect(() => compileWorkflow(withBranch({ automation: { eligible: 'no' } }))).toThrow(/tracks\.lite\.automation\.eligible/)
+    expect(() => compileWorkflow(withBranch({ automation: { eligible: true, enqueueAfterSpec: 1 } }))).toThrow(/tracks\.lite\.automation\.enqueueAfterSpec/)
+    expect(() => compileWorkflow(withBranch({ automation: { eligible: true, colour: 'red' } }))).toThrow(/colour/)
+  })
+
+  it('priority 须为非负安全整数（不含 -0），关键词须是有界、可往返的纯文本', () => {
+    for (const priority of [-1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1, -0, '5']) {
+      expect(() => compileWorkflow(withBranch({ route: { keywords: ['a'], priority } })), String(priority)).toThrow(/tracks\.lite\.route\.priority/)
+    }
+    for (const keyword of ['', 'a,b', '[a]', '{a}', 'a\nb', 'a\u0000b', ' a', 'a '.repeat(1) + 'b '.repeat(40)]) {
+      expect(() => compileWorkflow(withBranch({ route: { keywords: [keyword], priority: 1 } })), JSON.stringify(keyword)).toThrow(/tracks\.lite\.route\.keywords\[0\]/)
+    }
+    expect(() => compileWorkflow(withBranch({ route: { keywords: Array.from({ length: 65 }, (_, i) => `k${i}`), priority: 1 } })))
+      .toThrow(/tracks\.lite\.route\.keywords/)
+    expect(() => compileWorkflow(withBranch({ route: { keywords: ['a'], exclude: [1], priority: 1 } }))).toThrow(/tracks\.lite\.route\.exclude\[0\]/)
   })
 })

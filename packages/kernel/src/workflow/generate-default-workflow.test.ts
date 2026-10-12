@@ -21,7 +21,6 @@ const REAL_YAML = readReal('templates/workflows/default.yaml')
 const REAL_TYPES = readReal('packages/kernel/src/types.ts')
 const REAL_GENERATED = readReal('packages/kernel/src/workflow/default-workflow.generated.ts')
 const REAL_DESIGN_SYSTEM = readReal('templates/workflows/design-system.yaml')
-const REAL_STANDARD = readReal('templates/workflows/standard.yaml')
 
 /** 可控 fieldOrder（malformed 用例隔离 FIELD_ORDER 变量）。 */
 const FIELDS = ['design_doc', 'plan', 'verification_report']
@@ -33,31 +32,67 @@ const wrap = (stepBody: string): string => `name: default\nsteps:\n${stepBody}`
 
 describe('generator golden（真生产 fixture）', () => {
   it('generate(真 default.yaml, 真 types.ts) 逐字节等于入库 default-workflow.generated.ts（freshness 的单测镜像）', () => {
-    expect(generate(REAL_YAML, REAL_TYPES, REAL_DESIGN_SYSTEM, REAL_STANDARD)).toBe(REAL_GENERATED)
+    expect(generate(REAL_YAML, REAL_TYPES, REAL_DESIGN_SYSTEM)).toBe(REAL_GENERATED)
   })
 
   it('generate 幂等：同输入两跑逐字节一致', () => {
-    expect(generate(REAL_YAML, REAL_TYPES, REAL_DESIGN_SYSTEM, REAL_STANDARD)).toBe(generate(REAL_YAML, REAL_TYPES, REAL_DESIGN_SYSTEM, REAL_STANDARD))
+    expect(generate(REAL_YAML, REAL_TYPES, REAL_DESIGN_SYSTEM)).toBe(generate(REAL_YAML, REAL_TYPES, REAL_DESIGN_SYSTEM))
+  })
+
+  it('生成物不再带 standard 模板：standard 已并入 default 的 lite 轨道', () => {
+    expect(REAL_GENERATED).not.toContain('STANDARD_WORKFLOW_SOURCE')
+  })
+
+  it('DEFAULT_WORKFLOW_STEPS 是 OpenSpec 轨道的七阶段骨架，不是排在最前的 lite 的五步', () => {
+    expect(REAL_GENERATED).toContain('export const DEFAULT_WORKFLOW_STEPS = [')
+    const block = /export const DEFAULT_WORKFLOW_STEPS = \[([\s\S]*?)\] as const/.exec(REAL_GENERATED)?.[1] ?? ''
+    expect([...block.matchAll(/id: "([^"]+)"/g)].map((m) => m[1])).toEqual(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'])
   })
 })
 
 describe('parseDefaultWorkflow（窄扫器）结构等价', () => {
-  it('真 default.yaml → 没有顶层 steps；五条 track 分支各 7 步，frontend 仅 explore/spec/verify 带 artifact', () => {
-    const parsed = parseDefaultWorkflow(REAL_YAML) as { name: string; steps: { id: string; artifacts: unknown[] }[]; tracks: Record<string, { label?: string; steps: { id: string; artifacts: unknown[] }[] }> }
+  it('真 default.yaml → 没有顶层 steps；分支为 lite / pm / frontend / backend，lite 五步、其余七步，没有 chat / free', () => {
+    const parsed = parseDefaultWorkflow(REAL_YAML) as { name: string; steps: { id: string; artifacts: unknown[] }[]; tracks: Record<string, { label?: string; spec?: string; steps: { id: string; artifacts: unknown[] }[] }> }
     expect(parsed.name).toBe('default')
     expect(parsed.steps).toEqual([])
     const withArtifacts = parsed.tracks.frontend!.steps.filter((s) => s.artifacts.length > 0).map((s) => s.id)
     expect(withArtifacts).toEqual(['explore', 'spec', 'verify'])
-    expect(Object.keys(parsed.tracks)).toEqual(['chat', 'pm', 'frontend', 'backend', 'free'])
+    expect(Object.keys(parsed.tracks)).toEqual(['lite', 'pm', 'frontend', 'backend'])
+    expect(parsed.tracks.chat).toBeUndefined()
+    expect(parsed.tracks.free).toBeUndefined()
+    expect(parsed.tracks.lite?.label).toBe('轻量')
+    expect(parsed.tracks.lite?.spec).toBe('none')
+    expect(parsed.tracks.lite?.steps.map((s) => s.id)).toEqual(['open', 'build', 'verify', 'done', 'escalated'])
     expect(parsed.tracks.pm?.label).toBe('产品')
-    expect(parsed.tracks.pm?.steps.map((s) => s.id)).toEqual(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'])
+    for (const id of ['pm', 'frontend', 'backend']) {
+      expect(parsed.tracks[id]?.steps.map((s) => s.id)).toEqual(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'])
+    }
+  })
+
+  it('分支 spec / route / automation 块被跳过，不当作未知字段；document_contract 块同样被跳过', () => {
+    const yaml = [
+      'name: default', 'tracks:', '  lite:', '    label: 轻量', '    spec: none',
+      '    route:', '      keywords: [修复, typo]', '      exclude: [迁移]', '      priority: 500',
+      '    automation:', '      eligible: false', '      enqueue_after_spec: false',
+      '    steps:', '      - id: open', '        label: 立项', '',
+    ].join('\n')
+    const parsed = parseDefaultWorkflow(yaml) as { tracks: Record<string, { spec?: string; steps: { id: string }[] }> }
+    expect(parsed.tracks.lite?.spec).toBe('none')
+    expect(parsed.tracks.lite?.steps.map((step) => step.id)).toEqual(['open'])
+  })
+
+  it('分支里出现闭集之外的字段行仍然 fail-loud', () => {
+    const yaml = ['name: default', 'tracks:', '  lite:', '    label: 轻量', '    colour: red', '    steps:', '      - id: open', '        label: 立项', ''].join('\n')
+    expect(() => parseDefaultWorkflow(yaml)).toThrow(/未知字段行/)
   })
 
   it('分支 document_contract 块被跳过；每条分支最后一步标签是完结', () => {
     const parsed = parseDefaultWorkflow(REAL_YAML) as { tracks: Record<string, { steps: { id: string; label: string }[] }> }
     for (const branch of Object.values(parsed.tracks)) {
       expect(branch.steps[0]?.id).toBe('open')
-      expect(branch.steps.at(-1)?.label).toBe('完结')
+    }
+    for (const id of ['pm', 'frontend', 'backend']) {
+      expect(parsed.tracks[id]?.steps.at(-1)?.label).toBe('完结')
     }
     const yaml = [
       'name: default', 'tracks:', '  web:', '    label: 前端', '    document_contract:', '      version: v1', '      slots:',

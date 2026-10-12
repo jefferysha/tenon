@@ -60,7 +60,7 @@ async function project(declaration: string): Promise<Harness> {
   await writeFile(join(h.cwd, 'src', 'a.test.ts'), '// unit\n', 'utf8')
   await mkdir(join(h.cwd, '.pipeline', 'workflows'), { recursive: true })
   await writeFile(join(h.cwd, '.pipeline', 'workflows', 'naflow.yaml'), WORKFLOW, 'utf8')
-  expect(await h.run(['init', 'demo', '--track', 'backend', '--workflow', 'naflow', '--preset', 'full'], { env: ENV }), h.err.join('\n')).toBe(0)
+  expect(await h.run(['init', 'demo', '--workflow', 'naflow', '--preset', 'full'], { env: ENV }), h.err.join('\n')).toBe(0)
   const paths = testSystemPaths(h.cwd)
   await mkdir(paths.root, { recursive: true })
   await writeFile(paths.catalog, `${CATALOG}${declaration}`, 'utf8')

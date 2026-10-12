@@ -74,6 +74,26 @@ describe('指标判定', () => {
     expect(pass.metrics.map((metric) => metric.name)).toEqual(['p95_ms', 'rss'])
   })
 
+  test('等于上下限不算越过；越过时的文案区分上限与下限', () => {
+    const atMax = evaluateMetricCriteria({
+      criteria: criterion({ max: 100 }), metrics: { p95_ms: 100 }, baseline: undefined, command: 'c', cwd: '.',
+    })
+    expect(atMax.reasons).toEqual([])
+    const atMin = evaluateMetricCriteria({
+      criteria: criterion({ min: 90 }), metrics: { p95_ms: 90 }, baseline: undefined, command: 'c', cwd: '.',
+    })
+    expect(atMin.reasons).toEqual([])
+
+    const over = evaluateMetricCriteria({
+      criteria: criterion({ max: 100 }), metrics: { p95_ms: 101 }, baseline: undefined, command: 'c', cwd: '.',
+    })
+    expect(over.reasons).toEqual([{ code: 'metric-threshold', detail: "指标 'p95_ms' 101 超过上限 100" }])
+    const under = evaluateMetricCriteria({
+      criteria: criterion({ min: 90 }), metrics: { p95_ms: 89 }, baseline: undefined, command: 'c', cwd: '.',
+    })
+    expect(under.reasons).toEqual([{ code: 'metric-threshold', detail: "指标 'p95_ms' 89 低于下限 90" }])
+  })
+
   test('退化比例：越低更优与越高更优符号相反', () => {
     const lower = evaluateMetricCriteria({
       criteria: criterion({ max_regression_pct: 10 }), metrics: { p95_ms: 120 },

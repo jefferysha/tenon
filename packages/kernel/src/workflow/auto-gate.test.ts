@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { builtinTrack } from '../tracks/builtins.js'
 import { autoGateGuards, normalizeGate } from './auto-gate.js'
-import { builtinWorkflow } from './builtin-workflows.js'
+import { simpleWorkflow } from './test-support.js'
 import { compileWorkflow } from './compile.js'
 import { DEFAULT_WORKFLOW_SOURCE, DESIGN_SYSTEM_WORKFLOW_SOURCE } from './default-workflow.generated.js'
 import {
@@ -206,8 +205,7 @@ describe('门禁 R7 · 内建工作流', () => {
   }
 
   it('simple：四个阶段都没有输出，null 归一成 auto 后不多出任何守卫', () => {
-    const simple = builtinWorkflow('simple')
-    if (simple === null) throw new Error('simple missing')
+    const simple = simpleWorkflow()
     const ir = compileWorkflow(simple)
     expect(ir.steps.map((candidate) => candidate.gate)).toEqual(['auto', 'auto', 'auto', 'auto'])
     expect(outputGuards(ir)).toEqual([])
@@ -223,11 +221,17 @@ describe('门禁 R7 · 内建工作流', () => {
 
   it('default 各轨道：只有 review 与 auto 两种；完结边没有多余守卫；build_sha / archived 不进检查', () => {
     const def = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
-    for (const track of ['chat', 'pm', 'frontend', 'backend', 'free'] as const) {
-      const plan = compileEffectiveWorkflowPlan('default', def, builtinTrack(track))
+    const lite = compileEffectiveWorkflowPlan('default', def, { track: 'lite' })
+    expect(lite.workflow.steps.map((candidate) => candidate.gate).every((gate) => gate === 'review' || gate === 'auto')).toBe(true)
+    // 轻量的 done / escalated 只由已经结束运行的边进入，不再派生第二条完结边。
+    for (const terminal of ['done', 'escalated']) expect(implicitCompletionTransition(lite, terminal)).toBeUndefined()
+    for (const track of ['pm', 'frontend', 'backend'] as const) {
+      const plan = compileEffectiveWorkflowPlan('default', def, { track })
       expect(plan.workflow.steps.map((candidate) => candidate.gate).every((gate) => gate === 'review' || gate === 'auto')).toBe(true)
       const build = plan.workflow.steps.find((candidate) => candidate.id === 'build')
-      expect(build?.transitions.find((transition) => transition.event === 'build-complete')?.guards).toEqual([])
+      // build_sha 由 freeze-build-sha 写入：auto 门不会为它派生输出检查，边上只有 YAML 里写明的离开条件。
+      expect(build?.transitions.find((transition) => transition.event === 'build-complete')?.guards.map((guard) => guard.type))
+        .toEqual(['field-equals', 'tasks-through-step', 'not-afk-queued', 'dependencies-ended'])
       expect(implicitCompletionTransition(plan, 'archive')?.guards).toEqual([])
       const ship = plan.workflow.steps.find((candidate) => candidate.id === 'ship')
       const shipOutputs = (ship?.outputs ?? []).map((output) => output.field)

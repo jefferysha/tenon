@@ -21,12 +21,14 @@ import { createBenchFixture } from './fixture.mjs'
 import { percentile, readOptions, sample, writeReport } from './measure.mjs'
 
 const SCENARIOS = ['cold', 'write', 'detail']
+/** 每个项目带的已结束任务数：工作台「已结束」要列出它们，p95 门槛是在这个量上量的。 */
+const ARCHIVED_PER_PROJECT = 60
 
 const options = readOptions(process.argv.slice(2))
 const scenarios = options.scenarios
 const unknown = scenarios.filter((name) => !SCENARIOS.includes(name))
 if (scenarios.length === 0 || unknown.length > 0) throw new Error(`--scenarios 只能是 ${SCENARIOS.join(' / ')} 的逗号组合（收到 '${scenarios.join(',')}'）`)
-const fixture = await createBenchFixture(options)
+const fixture = await createBenchFixture({ ...options, archived: ARCHIVED_PER_PROJECT })
 let server = null
 try {
   server = await startDashboard({ env: fixture.env, cwd: fixture.scratch, logFile: join(fixture.scratch, 'dashboard.log') })
@@ -91,7 +93,7 @@ try {
   const gated = metrics.snapshot_write_ms ?? metrics.snapshot_ms
   const p95 = gated === undefined ? undefined : percentile(gated, 95)
   writeReport(options.json, metrics, {
-    projects: options.projects, changes: options.changes, runs: options.runs, warmup: options.warmup, scenarios,
+    projects: options.projects, changes: options.changes, archived: ARCHIVED_PER_PROJECT, runs: options.runs, warmup: options.warmup, scenarios,
     snapshot_bytes: stats.bytes, snapshot_wire_bytes: stats.wire,
     ...(p95 === undefined ? {} : { gated_p95_ms: Number(p95.toFixed(1)) }),
   })

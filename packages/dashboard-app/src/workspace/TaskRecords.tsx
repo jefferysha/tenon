@@ -39,22 +39,24 @@ export function recordItems(entries: readonly ChangeHistoryEntry[], t: (key: str
 }
 
 /** 记录 section: one row per operator record, `time · label · actor`. Refetches when `signature` changes. */
-export function TaskRecords({ root, change, signature, stageLabelOf }: {
+export function TaskRecords({ root, change, signature, stageLabelOf, archived = false }: {
   root: string
   change: string
   signature: string
   /** 阶段 id → 展示名（label 优先）；缺省原样。 */
   stageLabelOf?: (id: string) => string
+  /** `change` 是已结束任务的归档目录名：读归档里的那一份（只读）。 */
+  archived?: boolean
 }): JSX.Element | null {
   const { t } = useT()
   const [entries, setEntries] = useState<readonly ChangeHistoryEntry[]>([])
   useEffect(() => {
     let active = true
-    getHistory(change, root)
+    getHistory(change, root, archived)
       .then((next) => { if (active) setEntries(next) })
       .catch(() => { if (active) setEntries([]) })
     return () => { active = false }
-  }, [root, change, signature])
+  }, [root, change, signature, archived])
   const items = recordItems(entries, t, stageLabelOf)
   if (items.length === 0) return null
   return (

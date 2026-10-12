@@ -9,7 +9,7 @@
  *
  * 三个消费者，读同一张 EXIT_RULES：`tenon check`（人读报告）、`status --json` 的
  * `exits[].blockers`（运行器照做的动作表）、以及 default 轨 transition 的前进边强制层
- * （workflow/transition-plan-default.ts）。2026-09 之前只有第一个：同一份状态上 check 说 FAIL
+ * （workflow/legacy-phase-manifest/transition-plan-default.ts）。2026-09 之前只有第一个：同一份状态上 check 说 FAIL
  * exit 2、status 说 ready=true、transition 照样 exit 0，pm 就这样带着 prd_path=null 归了档。
  * 相应地，EXIT_RULES 点名的**可填字段**由 phaseExitGuardFields 投影出去，投影与强制同源。
  *

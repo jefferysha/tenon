@@ -25,7 +25,6 @@ import {
   type WorkflowDeletePermit,
   type WorkflowRoot,
 } from './workflowTrustedFs.js'
-import { workflowWriteTrackRegistry } from './workflowReferenceScan.js'
 
 export {
   captureWorkflowRootAnchor,
@@ -257,14 +256,12 @@ export function writeWorkflowForApi(
   const errors = validateWorkflowForStorage(name, wf)
   if (wf.name !== name) errors.unshift(`workflow name '${wf.name}' 必须与存储键 '${name}' 一致`)
   if (errors.length > 0) return { ok: false, errors }
+  // 轨道就是这份定义自己的分支：谓词引用的轨道必须是其中之一，不查任何别处的登记表。
+  const referenceErrors = validateWorkflowTrackReferences(wf)
+  if (referenceErrors.length > 0) return { ok: false, errors: referenceErrors }
   const content = serializeWorkflow(wf)
 
   return withWorkflowDirectories(root, true, () => { throw new Error('workflow 目录创建失败') }, (directories) => {
-    const trackSnapshot = workflowWriteTrackRegistry(directories)
-    if ('errors' in trackSnapshot) return { ok: false, errors: trackSnapshot.errors }
-    const referenceErrors = validateWorkflowTrackReferences(wf, trackSnapshot.registry)
-    if (referenceErrors.length > 0) return { ok: false, errors: referenceErrors }
-
     const target = childEntry(directories.workflows, `${name}.yaml`)
     const temp = childEntry(
       directories.workflows,

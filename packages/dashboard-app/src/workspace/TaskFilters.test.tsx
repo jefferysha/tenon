@@ -1,5 +1,5 @@
 /**
- * 工作台中列：单行筛选栏（状态分段 + 「筛选」菜单收负责人 / 工作流 / 轨道 / 阶段；已归档是标题旁的文字开关）、
+ * 工作台中列：单行筛选栏（状态分段 全部 / 需要你 / 进行中 / 已结束 + 「筛选」菜单收负责人 / 工作流 / 轨道 / 阶段）、
  * URL status、任务卡元信息、迷你流水线，以及左列与空列表时的右列。
  */
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
@@ -55,7 +55,7 @@ afterEach(() => {
 })
 
 describe('工作台筛选栏', () => {
-  it('单行：状态分段 + 「筛选」按钮在同一行，不换行、不横向滚动；已归档是标题旁的文字开关', () => {
+  it('单行：状态分段 + 「筛选」按钮在同一行，不换行、不横向滚动；标题旁没有「已归档」开关', () => {
     renderView()
     const bar = screen.getByTestId('task-filters')
     expect(bar.className.split(/\s+/u)).toContain('flex-nowrap')
@@ -64,18 +64,17 @@ describe('工作台筛选栏', () => {
     expect(bar).toContainElement(screen.getByTestId('task-status'))
     expect(bar).toContainElement(screen.getByTestId('task-filter-menu'))
     const head = screen.getByTestId('task-list-action')
-    expect(head).toContainElement(screen.getByTestId('task-view-archived'))
     expect(head).toContainElement(screen.getByTestId('task-uncommitted-deletions'))
-    expect(screen.getByTestId('task-view-archived')).toHaveTextContent('已归档0')
+    expect(screen.queryByTestId('task-view-archived')).toBeNull()
     expect(screen.getByTestId('task-status')).toHaveAttribute('role', 'radiogroup')
     // 不再有「更多」把状态拆成两处。
     expect(screen.queryByTestId('task-filters-more')).toBeNull()
   })
 
-  it('状态分段：全部 / 需要你 / 进行中 / 已完成；需要你只算评审待确认', () => {
+  it('状态分段：全部 / 需要你 / 进行中 / 已结束；需要你只算评审待确认', () => {
     renderView()
     const chips = within(screen.getByTestId('task-status')).getAllByRole('radio')
-    expect(chips.map((chip) => chip.textContent)).toEqual(['全部4', '需要你1', '进行中2', '已完成1'])
+    expect(chips.map((chip) => chip.textContent)).toEqual(['全部4', '需要你1', '进行中2', '已结束1'])
     fireEvent.click(screen.getByTestId('task-status-needs-you'))
     expect(screen.getByTestId('task-card-c')).toBeInTheDocument()
     expect(screen.queryByTestId('task-card-a')).toBeNull()
@@ -184,7 +183,7 @@ describe('左列与右列', () => {
     expect(screen.getByTestId('workspace-view')).toHaveAttribute('data-detail-collapsed', 'true')
   })
 
-  it('空态两步引导：智能体对话的提示词 + 不截断的完整命令（含 --preset）', () => {
+  it('空态只留 /tenon 提示词：没有步骤标题，也没有写死轨道的 init 命令', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 404 }))
     render(
       <I18nProvider><TooltipProvider>
@@ -199,10 +198,13 @@ describe('左列与右列', () => {
         />
       </TooltipProvider></I18nProvider>,
     )
-    expect(screen.getByTestId('task-list-empty-prompt-text').textContent).toMatch(/^\/tenon /u)
-    const command = screen.getByTestId('task-list-empty-command-text')
-    expect(command).toHaveTextContent('tenon init my-change --workflow default --track chat --preset full')
-    expect(command.className).toContain('whitespace-nowrap')
-    expect(command.className).not.toContain('truncate')
+    const prompt = screen.getByTestId('task-list-empty-prompt-text')
+    expect(prompt.textContent).toMatch(/^\/tenon /u)
+    expect(prompt.className).toContain('whitespace-nowrap')
+    expect(screen.queryByTestId('task-list-empty-command')).toBeNull()
+    const guide = screen.getByTestId('task-list-empty-guide')
+    expect(guide.textContent).not.toContain('tenon init')
+    expect(guide.textContent).not.toContain('智能体对话')
+    expect(guide.textContent).not.toContain('终端')
   })
 })

@@ -389,6 +389,36 @@ describe('workbenchDefinition · track 分支', () => {
     expect(writeBranchDef(single, BASE_BRANCH, { ...single, steps: single.steps.slice(0, 1) }).steps.map((step) => step.id)).toEqual(['a'])
   })
 
+  it('分支视图的 openspec 取分支自己的 spec（没写继承顶层）；写回时不把分支的取值冒充成工作流顶层的开关', () => {
+    const def: WbWorkflowDef = {
+      ...twoStep(),
+      openspec: true,
+      steps: [],
+      tracks: {
+        lite: { spec: 'none', steps: twoStep().steps },
+        heavy: { steps: twoStep().steps },
+        forced: { spec: 'openspec', steps: twoStep().steps },
+      },
+    }
+    expect(selectBranchDef(def, 'lite').openspec).toBe(false)
+    expect(selectBranchDef(def, 'heavy').openspec).toBe(true)
+    expect(selectBranchDef(def, 'forced').openspec).toBe(true)
+    // 顶层没开 OpenSpec、分支显式开：视图里是开的。
+    expect(selectBranchDef({ ...def, openspec: false }, 'forced').openspec).toBe(true)
+    // 在 lite 视图里改一个阶段名再写回：顶层 openspec 仍是 true，分支仍是 spec: none。
+    const lite = selectBranchDef(def, 'lite')
+    const written = writeBranchDef(def, 'lite', { ...lite, steps: [{ ...lite.steps[0]!, label: '改' }, ...lite.steps.slice(1)] })
+    expect(written.openspec).toBe(true)
+    expect(written.tracks?.lite?.spec).toBe('none')
+    expect(written.tracks?.lite?.steps[0]?.label).toBe('改')
+    // 用户在视图里主动切开关：这才改工作流顶层。
+    expect(writeBranchDef(def, 'heavy', { ...selectBranchDef(def, 'heavy'), openspec: false }).openspec).toBe(false)
+    // 没有 tracks 的单条 pipeline 行为不变。
+    const single = { ...twoStep(), openspec: true }
+    expect(selectBranchDef(single, BASE_BRANCH).openspec).toBe(true)
+    expect(writeBranchDef(single, BASE_BRANCH, { ...single, openspec: false }).openspec).toBe(false)
+  })
+
   it('addTrackBranch：单条 pipeline 的工作流搬进 main 再加新分支；已有 tracks 复制指定分支；removeTrackBranch 删到最后一条时 steps 回到顶层', () => {
     const def = twoStep()
     const withTrack = addTrackBranch(def, 'web', '网页')

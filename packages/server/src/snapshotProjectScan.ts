@@ -1,23 +1,34 @@
 import { readdir } from 'node:fs/promises'
-import { isTenonUser, readTaskArchiveOf, type TaskArchive } from '@tenon/kernel'
-import type { ArchivedChangeSnapshot, ChangeSnapshot, LegacyWorkflowRulesSnapshot, ProjectSnapshot } from './types.js'
+import type { ChangeSnapshot, LegacyWorkflowRulesSnapshot, ProjectSnapshot } from './types.js'
 import type { ChangeListSnapshot, ProjectListSnapshot } from './snapshotListTypes.js'
 import { readRepositoryIdentity } from './repositoryIdentity.js'
 import type { SnapshotDeps } from './snapshot.js'
-import { createProjectScanContext, scanChange, type ChangeScanOutcome, type ProjectScanContext } from './snapshotChangeScan.js'
+import { createProjectScanContext, scanChange, type ChangeScanOutcome, type ProjectScanContext, type ScanArea } from './snapshotChangeScan.js'
 import { mapWithConcurrency } from './concurrentMap.js'
+import { createEndedTaskCache, listEndedTasks, type EndedTaskCache, type EndedTaskList } from './endedTasks.js'
 import { anchorChildProcessPath, assertWorkflowRootAnchor, type WorkflowRootAnchor } from './workflowRootAnchor.js'
 
 const MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES = 100
 /** Changes of one project scanned at once; their reads overlap, the shared git session and plan memo do not care. */
 const CHANGE_SCAN_CONCURRENCY = 4
 
-/** Read the viewer's archive once per project; no viewer or a malformed store hides nothing. */
-async function viewerArchive(deps: SnapshotDeps, readRoot: string, root: string): Promise<TaskArchive | undefined> {
-  const viewer = deps.viewer?.(root)
-  if (viewer === undefined || !isTenonUser(viewer)) return undefined
-  const read = await readTaskArchiveOf(readRoot, viewer.slug)
-  return read.kind === 'ok' ? read.archive : undefined
+/**
+ * An ended task's directory never changes, so what one scan read of a project is what the next one reuses. One
+ * cache per registered root and process; the oldest root's cache goes first once more roots than this were seen.
+ */
+const MAX_ENDED_CACHES = 256
+const endedCaches = new Map<string, EndedTaskCache>()
+
+function endedCacheFor(root: string): EndedTaskCache {
+  const known = endedCaches.get(root)
+  if (known !== undefined) return known
+  const created = createEndedTaskCache()
+  endedCaches.set(root, created)
+  if (endedCaches.size > MAX_ENDED_CACHES) {
+    const oldest = endedCaches.keys().next().value
+    if (oldest !== undefined) endedCaches.delete(oldest)
+  }
+  return created
 }
 
 /**
@@ -29,11 +40,8 @@ async function uncommittedDeletions(deps: SnapshotDeps, anchor: WorkflowRootAnch
   return count === undefined || count === null ? undefined : count
 }
 
-type Archived<C> = C & { archive: ArchivedChangeSnapshot['archive'] }
-
 interface ScannedChanges<C> {
   readonly changes: C[]
-  readonly archived: Archived<C>[]
   readonly compatibilityIssues: NonNullable<ProjectSnapshot['compatibilityIssues']>
   readonly overflow: number
   readonly legacyWorkflowRules: Record<string, LegacyWorkflowRulesSnapshot>
@@ -48,12 +56,11 @@ function byName(left: string, right: string): number {
 async function scanChanges<C extends { readonly name: string }>(
   ctx: ProjectScanContext,
   names: readonly string[],
-  archive: TaskArchive | undefined,
   scan: (name: string) => Promise<ChangeScanOutcome<C>>,
 ): Promise<ScannedChanges<C>> {
   const sorted = [...names].sort(byName)
   const outcomes = await mapWithConcurrency(sorted, CHANGE_SCAN_CONCURRENCY, (name) => scan(name))
-  const out: ScannedChanges<C> = { changes: [], archived: [], compatibilityIssues: [], overflow: 0, legacyWorkflowRules: {}, errors: [] }
+  const out: ScannedChanges<C> = { changes: [], compatibilityIssues: [], overflow: 0, legacyWorkflowRules: {}, errors: [] }
   let overflow = 0
   for (const [index, name] of sorted.entries()) {
     const outcome = outcomes[index]
@@ -77,10 +84,7 @@ async function scanChanges<C extends { readonly name: string }>(
         })
       } else overflow += 1
     }
-    if (outcome.change === undefined) continue
-    const entry = archive?.changes[name]
-    if (entry === undefined) out.changes.push(outcome.change)
-    else out.archived.push({ ...outcome.change, archive: { archivedAt: entry.archivedAt, phase: entry.phase, actor: entry.actor } })
+    if (outcome.change !== undefined) out.changes.push(outcome.change)
   }
   out.compatibilityIssues.sort((a, b) => byName(a.change, b.change))
   return { ...out, overflow }
@@ -92,12 +96,15 @@ function projectEnvelope<C>(
   scanned: ScannedChanges<C>,
   deletions: number | undefined,
   repository: ProjectSnapshot['repository'],
+  ended: EndedTaskList,
 ) {
   return {
     root,
     ok: scanned.errors.length === 0 && scanned.compatibilityIssues.every((issue) => issue.severity === 'warning'),
     ...(deletions === undefined ? {} : { uncommittedDeletions: deletions }),
     ...(repository === undefined ? {} : { repository }),
+    ...(ended.tasks.length === 0 ? {} : { ended: ended.tasks }),
+    ...(ended.total > ended.tasks.length ? { endedTotal: ended.total } : {}),
     ...(scanned.compatibilityIssues.length === 0 ? {} : { compatibilityIssues: scanned.compatibilityIssues }),
     ...(scanned.overflow === 0 ? {} : { compatibilityIssuesTruncated: true as const }),
     ...(scanned.errors.length === 0 ? {} : { error: scanned.errors.join('; ') }),
@@ -142,34 +149,34 @@ export async function scanAnchoredProject(
   }
   assertWorkflowRootAnchor(anchor)
 
-  const archive = await viewerArchive(deps, readRoot, root)
   const names = entries.filter((entry) => entry.isDirectory() && entry.name !== 'archive').map((entry) => entry.name)
+  // The ended tasks are read beside the active ones; they never fail the project (see listEndedTasks).
+  const endedTasks = listEndedTasks(readRoot, endedCacheFor(root))
   if (tier === 'list') {
-    const scanned = await scanChanges<ChangeListSnapshot>(ctx, names, archive, (name) => scanChange(ctx, name, 'list'))
+    const scanned = await scanChanges<ChangeListSnapshot>(ctx, names, (name) => scanChange(ctx, name, 'list'))
     const deletions = await uncommittedDeletions(deps, anchor)
     return {
-      ...projectEnvelope(root, scanned, deletions, repository),
+      ...projectEnvelope(root, scanned, deletions, repository, await endedTasks),
       changes: scanned.changes,
-      ...(scanned.archived.length === 0 ? {} : { archived: scanned.archived }),
     }
   }
-  const scanned = await scanChanges<ChangeSnapshot>(ctx, names, archive, (name) => scanChange(ctx, name, 'full'))
+  const scanned = await scanChanges<ChangeSnapshot>(ctx, names, (name) => scanChange(ctx, name, 'full'))
   const deletions = await uncommittedDeletions(deps, anchor)
   return {
-    ...projectEnvelope(root, scanned, deletions, repository),
+    ...projectEnvelope(root, scanned, deletions, repository, await endedTasks),
     changes: scanned.changes,
-    ...(scanned.archived.length === 0 ? {} : { archived: scanned.archived }),
     workflowRules: scanned.legacyWorkflowRules,
   }
 }
 
 export interface ScannedChange {
   readonly change: ChangeSnapshot
-  /** Present when the viewer has archived this change. */
-  readonly archive?: ArchivedChangeSnapshot['archive']
 }
 
-/** One change with all its evidence, for the task detail read; `undefined` when the directory holds no readable change. */
+/**
+ * One change with all its evidence, for the task detail read; `undefined` when the directory holds no readable change.
+ * `area: 'archive'` reads an ended task out of `openspec/changes/archive/<name>`, read-only.
+ */
 export async function scanAnchoredChange(
   deps: SnapshotDeps,
   root: string,
@@ -177,13 +184,11 @@ export async function scanAnchoredChange(
   anchor: WorkflowRootAnchor,
   nowMs: number,
   name: string,
+  area: ScanArea = 'active',
 ): Promise<ScannedChange | undefined> {
-  const ctx = createProjectScanContext(deps, root, readRoot, anchor, nowMs)
+  const ctx = createProjectScanContext(deps, root, readRoot, anchor, nowMs, area)
   const outcome = await scanChange(ctx, name, 'full')
   if (outcome.change === undefined) return undefined
-  const archive = (await viewerArchive(deps, readRoot, root))?.changes[name]
   assertWorkflowRootAnchor(anchor)
-  return archive === undefined
-    ? { change: outcome.change }
-    : { change: outcome.change, archive: { archivedAt: archive.archivedAt, phase: archive.phase, actor: archive.actor } }
+  return { change: outcome.change }
 }

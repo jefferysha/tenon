@@ -1,5 +1,4 @@
-import type { DocumentProfileId } from '../types.js'
-import type { CoverageProfile } from '../tracks/types.js'
+import type { CoverageProfile, DocumentProfileId } from '../types.js'
 import type { DocumentGovernancePolicy } from './document-contract.js'
 import type { WorkflowIR } from './ir.js'
 import type {
@@ -35,6 +34,7 @@ export interface EffectiveWorkflowPlan {
   readonly decomposition: WorkflowDecompositionPolicyV1
   readonly interaction: WorkflowInteractionPolicyV1
   readonly documentPolicy?: DocumentGovernancePolicy
+  /** 指纹输入：旧引擎计划记 'manifest-overlay'（叠加已删除，只剩标识），新计划恒为 'step-declared'。 */
   readonly skillPolicy: 'manifest-overlay' | 'step-declared'
   readonly reviewSteps: readonly string[]
   /** Stable identity of workflow-owned behavior; Track overlay is intentionally a runtime overlay. */
@@ -58,10 +58,6 @@ export interface EffectiveWorkflowPlan {
           readonly dependsOnDeclared?: boolean
         }[]
       }[]
-      readonly trackOverlay: {
-        readonly matrix: boolean
-        readonly profile: string
-      }
     }
     readonly documents: {
       readonly governed: boolean
@@ -74,13 +70,17 @@ export interface EffectiveWorkflowPlan {
     readonly agents: {
       readonly steps: readonly StepAgentsCapability[]
     }
+    /** 选中分支的 `automation`；没声明 = 不可进入 AFK。旧引擎计划按旧表（见 legacy-track-policy.ts）。 */
     readonly automation: {
       readonly eligible: boolean
       readonly autoEnqueueOnSpecComplete: boolean
     }
     readonly track: {
+      /** 任务所在轨道（平铺工作流也回显任务记着的值）；计划没有轨道语境时为 null。 */
       readonly id: string | null
+      /** 只有旧引擎计划（phase-manifest）按旧表读它；新计划恒为 'none'。 */
       readonly coverageProfile: CoverageProfile
+      /** 选中分支是否声明了 `route`（参与自动路由）。 */
       readonly routingEnabled: boolean
     }
   }
@@ -88,6 +88,12 @@ export interface EffectiveWorkflowPlan {
     readonly steps: readonly { readonly id: string; readonly label: string }[]
     readonly stepLabelSource: 'localized-builtin' | 'workflow-defined'
   }
+}
+
+/** AFK 挂队与规格完成自动入队读的两个策略位（取自计划的 `capabilities.automation`）。 */
+export interface AutomationPolicyBits {
+  readonly automationEligible: boolean
+  readonly autoEnqueueOnSpecComplete?: boolean
 }
 
 export interface PersistedDocumentGovernanceBinding {

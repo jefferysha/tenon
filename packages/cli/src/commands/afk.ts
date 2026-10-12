@@ -21,11 +21,12 @@ import {
   AUTOMATION_STATES, CANCEL_MARKER_FILE, createAutomation, dockerAvailable, makeIdGen, nodeExec,
   AUTOMATION_LEVELS, type AutomationLevel,
 } from '@tenon/automation'
-import { createLoopLedgerStore, loadRegistry, requireTrackForRoot } from '@tenon/kernel'
+import { createLoopLedgerStore, loadRegistry } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, changesRoot, isValidChangeName } from '../paths.js'
 import { str } from '../render.js'
 import { runAfkRound } from './afk-executor.js'
+import { trackPolicyResolverFor } from './effective-workflow.js'
 
 export { probeGitCommitAncestry } from './afk-executor.js'
 
@@ -66,10 +67,16 @@ export async function cmdAfk(deps: CliDeps, sub: string, name: string | undefine
         }
       }
       try {
-        const queued = await auto.enqueue(
-          name,
-          (trackId) => requireTrackForRoot(deps.loadRegistry(), trackId, deps.cwd).policyProfile,
-        )
+        // 资格只读任务冻结计划里所选分支的 `automation.eligible`（没写 automation = 不可进入 AFK，失败关闭）。
+        // 记下这次解析出的策略位，未挂队时据此说清是不是轨道本身的问题。
+        const resolvePolicy = trackPolicyResolverFor(deps, name)
+        let trackEligible: boolean | undefined
+        const queued = await auto.enqueue(name, async (trackId) => {
+          const policy = await resolvePolicy(trackId)
+          trackEligible = policy.automationEligible
+          return policy
+        })
+        const trackRejected = !queued && trackEligible === false
         let bound = false
         if (opts.loop !== undefined) {
           const ledger = createLoopLedgerStore()
@@ -80,9 +87,17 @@ export async function cmdAfk(deps: CliDeps, sub: string, name: string | undefine
           })
           bound = true
         }
-        if (opts.json) deps.io.out(JSON.stringify({ change: name, queued, loop: opts.loop ?? null, bound }))
-        else {
-          deps.io.err(queued ? `[AFK] ${name} 已挂队（automation=queued，默认 L1 report-only）` : `[AFK] ${name} 未挂队（策略未授权 / 非 spec-complete / 已在队 / 未 opt-in）`)
+        if (opts.json) {
+          deps.io.out(JSON.stringify({
+            change: name, queued, loop: opts.loop ?? null, bound,
+            ...(trackRejected ? { reason: 'track-not-afk-eligible' } : {}),
+          }))
+        } else {
+          deps.io.err(queued
+            ? `[AFK] ${name} 已挂队（automation=queued，默认 L1 report-only）`
+            : trackRejected
+              ? `[AFK] ${name} 未挂队：该轨道不可进入 AFK（所选分支没有声明 automation.eligible: true）`
+              : `[AFK] ${name} 未挂队（策略未授权 / 非 spec-complete / 已在队 / 未 opt-in）`)
           if (bound) deps.io.err(`[AFK] ${name} 已显式绑定 loop '${opts.loop}'（explicit change-loop-binding）`)
         }
         return queued ? 0 : 3 // 3=未入队（非错误，可判别）

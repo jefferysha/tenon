@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { aliasesForSkill } from '@tenon/kernel/workflow/document-contract-validation'
-import { BUILTIN_WORKFLOW_IDS } from '@tenon/kernel/workflow/identifier'
 import { bareSkillId } from '@tenon/kernel/workflow/skill-order'
 import { fetchWorkflow, fetchWorkflowIndex } from '../api/client'
 import { fetchWorkflowOrchestration, type DefinitionOrchestration } from '../api/workflowOrchestrationClient'
@@ -72,15 +71,15 @@ export function referenceTitle(reference: SkillReference): string {
 }
 
 /**
- * 要读的工作流名：default 与插件内建工作流不在 `/api/workflows` 的列表里（列表只给自定义与模板），
+ * 要读的工作流名：default 不在 `/api/workflows` 的列表里（列表只给自定义与模板），
  * 要自己放在最前；其后是列表里的（全局存储的自定义 / 模板）。
  */
 export function workflowsToScan(names: readonly string[]): readonly string[] {
-  return [...new Set(['default', ...BUILTIN_WORKFLOW_IDS, ...names])]
+  return [...new Set(['default', ...names])]
 }
 
 /**
- * 读全部工作流的每条分支编排——内建的 default 与 simple、全局存储（不绑项目）里的自定义与模板——投影成技能引用表。
+ * 读全部工作流的每条分支编排——default、全局存储（不绑项目）里的自定义与模板——投影成技能引用表。
  * `enabled` 为 false 时不发请求；任何一条分支读取失败只少它一份，整张表读取失败则为空表（引用列显示「—」，不挡技能表）。
  */
 export function useSkillReferences(enabled: boolean): SkillReferenceMap {

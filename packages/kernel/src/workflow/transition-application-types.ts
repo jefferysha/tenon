@@ -2,11 +2,10 @@ import type { FieldName, FlowEngine, HistoryWriter, Phase, PipelineState } from 
 import type { BreadcrumbWriter, DocumentEvidenceReport } from '../state/index.js'
 import type { TransitionContext } from '../flow/index.js'
 import type { AutomationPolicySnapshot, ConstraintDecision } from '../loops/automation-policy.js'
-import type { WorkflowIR } from './ir.js'
+import type { UniversalGuardCapabilities, WorkflowIR } from './ir.js'
 import type { DocumentContractPhase, DocumentGovernancePolicy } from './document-contract.js'
 import type { TransitionRecord, WorkflowRunRepository } from './run-types.js'
 import type { EffectiveWorkflowPlan } from './effective-plan.js'
-import type { TrackDefinition } from '../tracks/types.js'
 import type { AgentBlocker } from './agent-verdict.js'
 import type { BuildRevisionBlocker } from './build-revision.js'
 import type { InteractionEventRecorder } from '../interaction/ports.js'
@@ -52,7 +51,6 @@ export interface TransitionApplicationDeps {
     readonly plan: EffectiveWorkflowPlan
     readonly state: PipelineState
   }) => Promise<readonly AgentBlocker[]>
-  resolveTrack?: (trackId: string) => TrackDefinition
   documentEvidence?: (
     root: string,
     changeDir: string,
@@ -87,7 +85,8 @@ export interface TransitionCommand {
   changeDir: string
   changeName: string
   event: string
-  context: TransitionContext
+  /** 旧引擎的注入面 + step-graph 通用离开条件的能力（旧引擎不读后者，故不改 flow/ 的 TransitionContext）。 */
+  context: TransitionContext & UniversalGuardCapabilities
   loadWorkflow: (name: string) => WorkflowIR | null
   /** Declared operator; only the task owner may advance, and the record stores its user ref. */
   actor: RecordActor

@@ -2,6 +2,7 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { compileWorkflow } from './compile.js'
 import { parseWorkflow } from './parse.js'
 import { serializeWorkflow } from './serialize.js'
 import type { WorkflowDef } from './types.js'
@@ -301,5 +302,84 @@ describe('serializeWorkflow —— parse 的反向操作，往返等价是唯一
     const round = parseWorkflow(yaml)
     expect(round).toEqual(wf)
     expect(Object.prototype.hasOwnProperty.call(round.tracks!.frontend!.steps[0]!, 'tests')).toBe(true)
+  })
+})
+
+describe('serializeWorkflow · 分支新键 spec / route / automation', () => {
+  const OPEN: WorkflowDef['steps'] = [
+    { id: 'open', label: '', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] },
+  ]
+  const SRC = `name: demo
+openspec: true
+tracks:
+  lite:
+    label: 轻量
+    spec: none
+    route:
+      keywords: [修复, typo]
+      exclude: [迁移]
+      priority: 500
+    automation:
+      eligible: false
+      enqueue_after_spec: false
+    steps:
+      - id: open
+        gate: null
+        transitions: []
+`
+
+  it('分支新键 round-trip：定义层与编译后的 IR 都深等价', () => {
+    const def = parseWorkflow(SRC)
+    const again = parseWorkflow(serializeWorkflow(def))
+    expect(again).toEqual(def)
+    const ir = compileWorkflow(def)
+    expect(ir.tracks?.lite?.spec).toBe('none')
+    expect(ir.tracks?.lite?.route).toEqual({ keywords: ['修复', 'typo'], exclude: ['迁移'], priority: 500, fallback: false })
+    expect(compileWorkflow(again)).toEqual(ir)
+  })
+
+  it('键序 label → spec → route → automation → steps；route 的空 exclude 与 false fallback 不写', () => {
+    const yaml = serializeWorkflow({
+      name: 'demo',
+      steps: [],
+      tracks: {
+        lite: {
+          label: '轻量',
+          spec: 'openspec',
+          route: { keywords: ['a', 'b c'], exclude: [], priority: 7, fallback: true },
+          automation: { eligible: true, enqueueAfterSpec: true },
+          steps: OPEN,
+        },
+      },
+    })
+    expect(yaml).toContain([
+      '  lite:',
+      '    label: 轻量',
+      '    spec: openspec',
+      '    route:',
+      '      keywords: [a, b c]',
+      '      priority: 7',
+      '      fallback: true',
+      '    automation:',
+      '      eligible: true',
+      '      enqueue_after_spec: true',
+      '    steps:',
+    ].join('\n'))
+    expect(parseWorkflow(yaml).tracks?.lite?.route).toEqual({ keywords: ['a', 'b c'], exclude: [], priority: 7, fallback: true })
+  })
+
+  it('空 keywords 与 exclude 往返保真', () => {
+    const def: WorkflowDef = {
+      name: 'demo',
+      steps: [],
+      tracks: { fallbackonly: { route: { keywords: [], exclude: ['x'], priority: 0, fallback: true }, steps: OPEN } },
+    }
+    expect(serializeWorkflow(def)).toContain('      keywords: []')
+    expect(parseWorkflow(serializeWorkflow(def))).toEqual(def)
+  })
+
+  it('未声明新键的分支写出的 YAML 不含 spec / route / automation', () => {
+    const yaml = serializeWorkflow({ name: 'demo', steps: [], tracks: { plain: { label: '普通', steps: OPEN } } })
+    expect(yaml).not.toMatch(/^\s+(spec|route|automation):/mu)
   })
 })

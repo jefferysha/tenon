@@ -30,7 +30,7 @@ model: sonnet
   读取，按工具推断（带 `Write` / `Edit` 的算执行者），`tenon agent validate` 会提示补上这一行。
 - `version` 是可选的 semver；`hosts`（可选）限定适用的宿主；`model` 只交给认得它的宿主。
 - `attach_on`（可选，评审者用）按风险挂载：`attach_on: [auth, dependency, contract]` 表示只有任务的改动碰到这些路径类
-  （`auth`、`dependency`、`contract`、`migration`，与 `standard` 通道风险探针同一套分类）之一，它才加入该步骤。没挂载的评审者不列出、
+  （`auth`、`dependency`、`contract`、`migration`，与 `lite` 轨道风险探针同一套分类）之一，它才加入该步骤。没挂载的评审者不列出、
   不等待、不要求；`agent prompt` 对它退出 `2`。读不出改动时一律挂载（失败关闭）。官方 `security` 声明 `[auth, dependency, contract]`。
   不写这个字段就总是挂载；已冻结了旧副本的任务行为不变。
 - `host`（可选，`codex` | `claude` | `any`）是评审者*该在哪个宿主上跑*。它只是建议，用来把评审者路由到另一家厂商；
@@ -50,7 +50,7 @@ model: sonnet
 不会生效。
 
 官方智能体：执行者 `builder`、`researcher`；评审者 `architecture`、`backend-quality`、`code-review`、`code-size`、
-`e2e`、`frontend-quality`、`security`、`spec-consistency`。`code-review` 是 `standard` 通道的评审者：对照宿主写在提示末尾的目标与
+`e2e`、`frontend-quality`、`security`、`spec-consistency`。`code-review` 是 `lite` 轨道的评审者：对照宿主写在提示末尾的目标与
 验收检查看 diff，不需要规格文档。
 
 ## 在终端生成与登记
@@ -117,9 +117,9 @@ agents:
       block_at: medium
 ```
 
-执行者先跑，必须 `done` 才能离开步骤；必需评审者必须在当前候选上通过；参考评审者只报告。默认工作流在
-每条轨道的调研挂 `researcher`、实现挂 `builder`（按独立任务各起一个子代理，合成一份报告）、验证挂
-`code-size` 评审者及其 `code-size` 测试；对话与自由轨道的验证再加参考评审者 `security`。见
+执行者先跑，必须 `done` 才能离开步骤；必需评审者必须在当前候选上通过；参考评审者只报告。默认工作流的
+重型轨道（`pm`、`frontend`、`backend`）在调研挂 `researcher`、实现挂 `builder`（按独立任务各起一个子代理，合成一份报告）、
+验证挂 `code-size` 评审者及其 `code-size` 测试；`lite` 轨道的验证挂评审者 `code-review` 与 `security`。见
 [默认工作流](default-workflow.md) 与 [自定义工作流](custom-workflows-and-tracks.md)。
 
 ## 跨厂商评审

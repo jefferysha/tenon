@@ -11,17 +11,17 @@ export const COMMON_MESSAGES = {
     zh: "change-name 非法: '{name}' (仅允许 a-z A-Z 0-9 - _)",
     en: "invalid change name '{name}' (allowed: a-z A-Z 0-9 - _)",
   },
-  'change.archived': {
-    zh: "任务 '{name}' 已归档（当前用户的收起列表，不是任务已完结）；先执行 tenon task unarchive {name}",
-    en: "task '{name}' is archived (hidden from your list; it is not finished); run tenon task unarchive {name} first",
+  'change.terminated': {
+    zh: "任务 '{name}' 已终止，目录在 {dated}；终止的任务不再接受推进，要继续就新建任务并执行 tenon set <新任务> depends_on {name}",
+    en: "task '{name}' was terminated and now lives in {dated}; a terminated task takes no more progress — create a new task and run tenon set <new-task> depends_on {name}",
   },
   'change.relocated': {
-    zh: "change '{name}' 的目录已被 openspec archive 搬到 {dated}，但它还没完结（archived=false）；归档必须排在 tenon transition {name} archived 之后",
-    en: "the directory of change '{name}' was moved to {dated} by openspec archive, but the change is not finished (archived=false); archiving must come after tenon transition {name} archived",
+    zh: "change '{name}' 的目录已被搬到 {dated}，但它还没完结（archived=false）；归档必须排在 tenon transition {name} archived 之后",
+    en: "the directory of change '{name}' was moved to {dated}, but the change is not finished (archived=false); archiving must come after tenon transition {name} archived",
   },
   'change.relocatedRecover': {
-    zh: '  恢复：mv {dated} openspec/changes/{name} && tenon transition {name} archived && openspec archive {name} --skip-specs --yes',
-    en: '  Recover: mv {dated} openspec/changes/{name} && tenon transition {name} archived && openspec archive {name} --skip-specs --yes',
+    zh: '  恢复：mv {dated} openspec/changes/{name} && tenon transition {name} archived && tenon task finish {name}',
+    en: '  Recover: mv {dated} openspec/changes/{name} && tenon transition {name} archived && tenon task finish {name}',
   },
   'user.missing': {
     zh: '未设置用户身份；运行 tenon user set <邮箱> --name <名字>，或 git config --global user.email <邮箱>',
@@ -54,6 +54,10 @@ export const COMMON_MESSAGES = {
   'field.buildShaFrozen': {
     zh: "字段 'build_sha' 由 build 出口的 transition 冻结（freeze-build-sha 副作用），禁止通过 set/set-many/cas 写入；先把实现与测试做完，再执行该 transition 捕获当前修订",
     en: "field 'build_sha' is frozen by the transition that leaves build (the freeze-build-sha effect) and cannot be written with set/set-many/cas; finish the implementation and tests first, then run that transition to capture the current revision",
+  },
+  'field.managedByTask': {
+    zh: "字段 '{field}'（任务结果）只由 tenon task finish / tenon task terminate 写入，禁止通过 set/set-many/cas 写入；结束任务请用这两条命令",
+    en: "field '{field}' (the task result) is written only by tenon task finish / tenon task terminate and cannot be written with set/set-many/cas; use those two commands to end a task",
   },
   'field.managedBy': {
     zh: "字段 '{field}' 由 {owner} 管理，禁止通过 set/set-many/cas 写入",
@@ -130,6 +134,42 @@ export const COMMON_MESSAGES = {
   'init.agentMissing': {
     zh: '工作流引用了 agent 库中不存在的 agent：{error}',
     en: 'the workflow references agents that are not in the agent library: {error}',
+  },
+  'init.workflowRetired': {
+    zh: "工作流 '{workflow}' 已退役；改用：tenon init <名字> --workflow default --track lite（轻量轨道）",
+    en: "workflow '{workflow}' has been retired; use: tenon init <name> --workflow default --track lite (the lite track)",
+  },
+  'init.trackRetiredToLite': {
+    zh: "轨道 '{track}' 已退役；改用：tenon init <名字> --workflow default --track lite（轻量轨道）",
+    en: "track '{track}' has been retired; use: tenon init <name> --workflow default --track lite (the lite track)",
+  },
+  'init.trackRetired': {
+    zh: "轨道 '{track}' 已退役；开发任务从上面的可选轨道里选一条，纯讨论不用建任务",
+    en: "track '{track}' has been retired; pick one of the tracks above for a development task — a plain discussion needs no task",
+  },
+  'init.flatWorkflowTrack': {
+    zh: "工作流 '{workflow}' 没有 tracks: 分支，只有一条与它同名的轨道，不用写 --track",
+    en: "workflow '{workflow}' has no tracks: branches, only one track named after it; omit --track",
+  },
+  'init.domainInvalid': {
+    zh: "--domain '{domain}' 不可用：须是工作流 '{workflow}' 里除本任务轨道 '{track}' 之外的另一条轨道（可选：{available}）",
+    en: "--domain '{domain}' is not usable: it must be another track of workflow '{workflow}' besides this task's track '{track}' (available: {available})",
+  },
+  'init.domainNoOtherTrack': {
+    zh: "工作流 '{workflow}' 里除本任务轨道 '{track}' 之外没有别的轨道（平铺工作流只有一条与它同名的轨道），没有可记的领域，不用写 --domain",
+    en: "workflow '{workflow}' has no track besides this task's track '{track}' (a flat workflow has only one track named after it), so there is no domain to record; omit --domain",
+  },
+  'tracks.fileIgnored': {
+    zh: 'tracks.yaml 已不再读取：把轨道写进工作流分支（见 docs/usage/zh-CN/custom-workflows-and-tracks.md）',
+    en: 'tracks.yaml is no longer read: declare tracks as workflow branches (see docs/usage/custom-workflows-and-tracks.md)',
+  },
+  'tracks.notFound': {
+    zh: "没有轨道 '{track}'（用 tenon tracks list 查看全部：工作流:轨道）",
+    en: "no track '{track}' (run tenon tracks list to see every workflow:track)",
+  },
+  'tracks.ambiguous': {
+    zh: "轨道 '{track}' 同时出现在多个工作流里：{candidates}；用 <工作流>:<轨道> 指定",
+    en: "track '{track}' exists in several workflows: {candidates}; specify <workflow>:<track>",
   },
   'usage.missingArgument': {
     zh: "错误：缺少必需的参数 '{name}'",

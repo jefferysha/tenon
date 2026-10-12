@@ -5,7 +5,6 @@ import { App, ErrorBoundary } from './App'
 import { I18nProvider } from './i18n'
 import { lastEventSource, resetEventSources } from './test-setup'
 import { makeChange, makeProject, makeSnapshot } from './testkit'
-import { invalidateMandatoryConfig } from './workbench/mandatoryConfig'
 
 const originalNavigationDescriptor = Object.getOwnPropertyDescriptor(window, 'navigation')
 
@@ -42,7 +41,6 @@ function reviewPendingChange(name: string, over: Parameters<typeof makeChange>[2
 beforeEach(() => {
   localStorage.clear()
   resetEventSources()
-  invalidateMandatoryConfig()
   // 大多数既有 App 用例关注已选项目内行为，统一从显式 root 深链进入；无选择契约用例会覆盖 URL。
   window.history.replaceState({}, '', '/?root=%2Frepo')
   const navigation = new EventTarget()
@@ -127,7 +125,6 @@ function stubEditableWorkbench(options: {
   preserveLocation?: boolean
   roots?: readonly string[]
   promptRoutingBypass?: boolean
-  trackSettings?: boolean
 } = {}): void {
   const roots = options.roots ?? ['/repo']
   // 编辑器只在页面持有写凭证时开放输入；测试同生产一样由宿主注入 token。
@@ -165,24 +162,6 @@ function stubEditableWorkbench(options: {
     if (url === '/api/loops/snapshot') {
       return new Response(JSON.stringify({ generated_at: '2026-07-30T00:00:00Z', rows: [] }), { status: 200 })
     }
-    if (url.startsWith('/api/config?root=')) {
-      return new Response(JSON.stringify({
-        ok: true,
-        generated_at: '2026-07-30T00:00:00Z',
-        revision: 'app-dirty-r1',
-        source: 'builtin-only',
-        mandatory_skills_writable_profiles: [],
-        mandatory_skills: {},
-        tracks: options.trackSettings ? [{
-          id: 'pm', label: 'PM', builtin: true,
-          workflow: { default: 'default', allowed: '*' },
-          policyProfile: {
-            reviewSeed: 'pending', automationEligible: true, coverageProfile: 'pm',
-            routing: { enabled: false }, skills: { matrix: true, profile: 'pm' },
-          },
-        }] : [],
-      }), { status: 200 })
-    }
     if (url === '/api/skills/registry') {
       return new Response(JSON.stringify({ skills: [] }), { status: 200 })
     }
@@ -192,7 +171,6 @@ function stubEditableWorkbench(options: {
 
 async function renderDirtyWorkbenchApp(options: {
   preserveLocation?: boolean
-  trackSettings?: boolean
 } = {}): Promise<void> {
   stubEditableWorkbench(options)
   render(<App />)
@@ -1718,7 +1696,7 @@ describe('App G18 教学空状态（T17 起纯教学态）', () => {
     expect(ob.textContent).not.toContain('tenon init')
   })
 
-  it('有项目零 change → 工作台中列给出 tenon init 教学空态，创建留在终端', async () => {
+  it('有项目零 change → 工作台中列空态只留 /tenon 提示词，创建留在对话里', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
@@ -1729,7 +1707,8 @@ describe('App G18 教学空状态（T17 起纯教学态）', () => {
     )
     render(<App />)
     const empty = await screen.findByTestId('task-list-empty-no-task')
-    expect(empty.textContent).toContain('tenon init')
+    expect(screen.getByTestId('task-list-empty-prompt')).toHaveTextContent('/tenon')
+    expect(empty.textContent).not.toContain('tenon init')
     // 列表为空：右列收起。
     expect(screen.queryByTestId('task-detail-pane')).toBeNull()
     expect(screen.getByTestId('workspace-view')).toHaveAttribute('data-detail-collapsed', 'true')

@@ -7,17 +7,14 @@
  *
  * 本层零新语义、零值域校验：
  *   · default 分支把 frozen capability、stepId 与已解析的 profileId 交给
- *     resolveExplicitProfileSkillSlots——phase slots 先行，再接 manifest mandatory+recommended
- *     三级回退（per-track → `_all` → 空）与 a|b 备选拆分。default bundle 没有 frozen
- *     capability 时立即 fail-closed；profile-only API 只保留给显式 legacy consumers。
+ *     resolveExplicitProfileSkillSlots——结果是计划冻结的步骤技能（工作流 YAML 声明），不叠加 manifest
+ *     矩阵。default bundle 没有 frozen capability 时立即 fail-closed。
  *   · custom 分支原样转发 resolver.resolveCustom(step, profileId)——step.skills 仍是唯一真相，
  *     本层不叠加 manifest profile（即便同名 default phase 在 manifest 有声明）。
  *   · 两分支的返回值（含 alternatives 声明序）原样透出，不做重排/过滤/物化选择——挑选具体
  *     concrete skill 是 H10 任务 4（内容定位）/ 任务 5（admission 编排）的职责，本层只做静态解析
  *     形状转换。
  *   · profileId 原样透传，不做词法/语义校验——profile 合法性是 H10 registry/governance 层职责。
- *     resolveDefaultProfile 是 T-R6 后与 artifact 的 track→profile 解析分离的显式 legacy 接缝，
- *     但不再作为 AFK/default bundle 缺 capability 时的回退。
  */
 import {
   resolveExplicitProfileSkillSlots,

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 
-export type WorkbenchDirtySource = 'track' | 'loop' | 'automation' | 'secrets'
+export type WorkbenchDirtySource = 'loop' | 'automation' | 'secrets'
 
 export function useWorkbenchDirtyState(input: {
   localDirty: boolean
@@ -10,7 +10,6 @@ export function useWorkbenchDirtyState(input: {
   setSourceDirty: (source: WorkbenchDirtySource, dirty: boolean) => void
 } {
   const [sources, setSources] = useState<Record<WorkbenchDirtySource, boolean>>({
-    track: false,
     loop: false,
     automation: false,
     secrets: false,

@@ -1,4 +1,5 @@
 import type { WbEffectiveIo, WbIoSlot, WbStepDef, WbWorkflowDef } from '../api/governanceTypes'
+import { isAbandonEvent } from '@tenon/kernel/workflow/abandon-event'
 import { isDefaultWorkflowName } from '@tenon/kernel/workflow/identifier'
 import { DOCUMENT_CHAIN_PAIRS, DOCUMENT_KIND_CATALOG, isDocumentKind } from '@tenon/kernel/workflow/document-contract-model'
 import { TENON_PRODUCER, aliasesForSkill } from '@tenon/kernel/workflow/document-contract-validation'
@@ -154,6 +155,8 @@ export function lintWorkflow(
       if (earlier.has(transition.to)) continue
       // An explicit `archived` self-edge is the kernel's completion edge written out in YAML.
       if (transition.event === 'archived' && transition.to === step.id) continue
+      // The abandon edge (`scope-expanded`, lite track) leaves for a terminal step on purpose; it is neither next nor back.
+      if (isAbandonEvent(transition.event) && step.id !== transition.to && def.steps.some((candidate) => candidate.id === transition.to)) continue
       issues.push({ kind: 'transition-not-next-or-back', stepId: step.id, event: transition.event, to: transition.to, severity: 'error' })
     }
     if (canonical) {

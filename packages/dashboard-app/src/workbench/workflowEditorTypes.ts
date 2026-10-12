@@ -1,9 +1,9 @@
 import type { RefObject } from 'react'
 import type { DocumentKind } from '@tenon/kernel/workflow/document-contract-model'
 import type { AgentSummary } from '../api/agentClient'
-import type { WbEffectiveIo, WbExecutorRef, WbReviewerRef, WbSkillRef, WbStepDef, WbStepTestPolicy, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
+import type { WbEffectiveIo, WbExecutorRef, WbReviewerRef, WbSkillEntry, WbSkillRef, WbStepDef, WbStepTestPolicy, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
 import type { LintIssue } from '../workflow/lint'
-import type { MandatoryState } from './mandatoryState'
+import type { TrackSettings } from './trackSettings'
 import type { useStageDraftEditor } from './useStageDraftEditor'
 import type { WorkbenchDirtySource } from './useWorkbenchDirtyState'
 import type { WorkflowReferenceEntry } from './workbenchApiDecoders'
@@ -106,7 +106,10 @@ export interface WorkflowEditor {
   branch: string
   setBranch: (branch: string) => void
   branches: Array<{ id: string; label: string | null }>
-  addTrack: (id: string, label: string) => void
+  /** 新建轨道：复制当前分支的阶段，再按设置落定规范与关键词。 */
+  addTrack: (id: string, label: string, settings: TrackSettings) => void
+  /** 改已有轨道的规范与路由关键词（其它路由项原样保留）。 */
+  setTrackSettings: (id: string, settings: TrackSettings) => void
   removeTrack: (id: string) => void
   /** 草稿的物化 IO（字段槽位与文档槽位都按草稿重算）。 */
   effectiveIo: WbEffectiveIo | undefined
@@ -118,11 +121,9 @@ export interface WorkflowEditor {
   addDocumentOutput: (stepId: string, kind: DocumentKind) => void
   removeDocumentSlot: (stepId: string, kind: string, direction: 'inputs' | 'outputs') => void
   setDocumentInputs: (stepId: string, kinds: readonly string[]) => void
-  /** 能否编辑当前工作流：有写凭证且不是插件内建（simple 等只读）；否则所有写入口置灰。 */
+  /** 能否编辑当前工作流：有写凭证；否则所有写入口置灰。 */
   canWrite: boolean
-  /** 当前工作流是插件内建、只读（与缺凭证区分：不报凭证错误）。 */
-  readOnly: boolean
-  /** 页面持有写凭证（新建工作流只看这个：只读的内建也能复制）。 */
+  /** 页面持有写凭证。 */
   hasToken: boolean
   dirty: boolean
   /** 保存条「未保存 N 处」：按阶段 / 轨道 / 工作流级字段计数；干净时为 0。 */
@@ -134,7 +135,8 @@ export interface WorkflowEditor {
   setStageId: (id: string | null) => void
   selectedStep: WbStepDef | null
   labelOf: (stepId: string) => string
-  mandatory: MandatoryState
+  /** 技能候选池（GET /api/skills/registry）；null = 未就绪 → 添加入口禁用。 */
+  skillRegistry: WbSkillEntry[] | null
   /** agent 库（GET /api/agents）；null = 还没拉到 → 不做 agent lint，编辑入口置灰。 */
   agents: AgentSummary[] | null
   renameStep: (stepId: string, label: string) => void
@@ -164,5 +166,4 @@ export interface WorkflowEditor {
   confirmWorkflowDelete: () => Promise<void>
   stageDraft: ReturnType<typeof useStageDraftEditor>
   setSourceDirty: (source: WorkbenchDirtySource, dirty: boolean) => void
-  reportTrackDirty: (dirty: boolean) => void
 }

@@ -1,9 +1,10 @@
 import { execFile } from 'node:child_process'
-import { mkdtemp, readdir, rm, unlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import {
+  compileEffectiveWorkflowPlan,
   createStateStore,
   createTransitionRecordStore,
   createWorkflowRunRepository,
@@ -327,10 +328,25 @@ describe('cmdTriage', () => {
       expect(await cmdTriage(deps, 'git-commits', { json: true }, runtime)).toBe(0)
       const recovered = JSON.parse(deps.outLines[1]!)
       expect(recovered.workflowRuns).toMatchObject({ total: 1, created: 0, existing: 1 })
-      expect(
-        (await readdir(join(root, 'openspec', 'changes'), { withFileTypes: true }))
-          .filter((entry) => entry.isDirectory()),
-      ).toHaveLength(1)
+      const created = (await readdir(join(root, 'openspec', 'changes'), { withFileTypes: true }))
+        .filter((entry) => entry.isDirectory())
+      expect(created).toHaveLength(1)
+
+      // 修复任务建在 default 的后端分支上：冻结的计划（文档治理策略与指纹）是后端分支的，不是轻量分支
+      // （spec: none，没有文档治理）的，与任务记的轨道一致。
+      const changeDir = join(root, 'openspec', 'changes', created[0]!.name)
+      expect(await readFile(join(changeDir, '.pipeline.yaml'), 'utf8')).toMatch(/^track: backend$/m)
+      const { plan: frozen } = JSON.parse(await readFile(join(changeDir, '.pipeline-workflow-plan.json'), 'utf8')) as {
+        plan: { workflowId: string; documentPolicy: unknown; workflowFingerprint: string }
+      }
+      const backend = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' })
+      expect(frozen.workflowId).toBe('default')
+      expect(frozen.documentPolicy).not.toBeNull()
+      expect(frozen.documentPolicy).toEqual(JSON.parse(JSON.stringify(backend.documentPolicy)))
+      expect(frozen.workflowFingerprint).toBe(backend.workflowFingerprint)
+      // 对照：轻量分支（工作流里的第一条）的计划与后端不同——快照确实是按后端分支取的。
+      const lite = compileEffectiveWorkflowPlan('default', undefined, { track: 'lite' })
+      expect(lite.workflowFingerprint).not.toBe(frozen.workflowFingerprint)
     } finally {
       await rm(root, { recursive: true, force: true })
     }

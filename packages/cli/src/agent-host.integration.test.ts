@@ -59,7 +59,7 @@ describe('真实 e2e —— 宿主原生 agent 文件', () => {
   async function seed(name = 'demo', env: Record<string, string> = CLAUDE): Promise<void> {
     await mkdir(join(h.cwd, '.pipeline', 'workflows'), { recursive: true })
     await writeFile(join(h.cwd, '.pipeline', 'workflows', 'hosted.yaml'), WF, 'utf8')
-    expect(await h.run(['init', name, '--track', 'backend', '--workflow', 'hosted', '--preset', 'full'], { env }), h.err.join('\n')).toBe(0)
+    expect(await h.run(['init', name, '--workflow', 'hosted', '--preset', 'full'], { env }), h.err.join('\n')).toBe(0)
   }
 
   async function prompt(agent: string, args: string[] = [], env: Record<string, string> = CLAUDE, change = 'demo'): Promise<PromptJson> {

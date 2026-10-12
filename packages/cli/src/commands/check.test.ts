@@ -587,6 +587,56 @@ steps:
     ])
   })
 
+  describe('通用离开条件 tasks-through-step：check 预览与 transition 同一份任务勾选判定', () => {
+    const GATED = `name: custom-gated
+steps:
+  - id: build
+    label: build-step
+    gate: null
+    skills: []
+    inputs: []
+    outputs: []
+    guards:
+      - type: tasks-through-step
+    transitions:
+      - event: complete
+        to: done
+  - id: done
+    label: done
+    gate: null
+    skills: []
+    inputs: []
+    outputs: []
+    guards: []
+    transitions: []
+`
+
+    test('有未勾任务 → exit 2，点名未勾数量而不是「缺少能力」', async () => {
+      await writeFile(join(root, '.pipeline', 'workflows', 'custom-gated.yaml'), GATED, 'utf8')
+      await writeFile(join(root, 'openspec', 'changes', 'demo', 'tasks.md'), '- [x] 已做\n- [ ] 没做\n', 'utf8')
+      const deps = makeDeps({
+        cwd: root,
+        guardCtx: makeGuardCtx(root),
+        state: mockState({ workflow: 'custom-gated', phase: 'build' }),
+      })
+      expect(await cmdCheck(deps, 'demo')).toBe(2)
+      const out = deps.outLines.join('\n')
+      expect(out).toContain('1 项未勾')
+      expect(out).not.toContain('缺少能力')
+    })
+
+    test('任务全部已勾 → exit 0', async () => {
+      await writeFile(join(root, '.pipeline', 'workflows', 'custom-gated.yaml'), GATED, 'utf8')
+      await writeFile(join(root, 'openspec', 'changes', 'demo', 'tasks.md'), '- [x] 已做\n', 'utf8')
+      const deps = makeDeps({
+        cwd: root,
+        guardCtx: makeGuardCtx(root),
+        state: mockState({ workflow: 'custom-gated', phase: 'build' }),
+      })
+      expect(await cmdCheck(deps, 'demo')).toBe(0)
+    })
+  })
+
   test('nonempty-output 缺字段（design_doc 空）→ exit 2 [FAIL]', async () => {
     // tasks.md 达标 → tasks-at-least 单独通过，隔离出唯一一条产出字段失败
     await writeFile(join(root, 'openspec', 'changes', 'demo', 'tasks.md'), '- [ ] 任务一\n', 'utf8')

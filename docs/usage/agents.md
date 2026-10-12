@@ -37,7 +37,7 @@ model: sonnet
 - `attach_on` (optional, reviewers) scopes a reviewer by risk: `attach_on: [auth,
   dependency, contract]` attaches it to a step only when the task's changes touch a
   path in one of those classes (`auth`, `dependency`, `contract`, `migration`; the
-  same classification as the `standard` lane's risk probe). A reviewer that is not
+  same classification as the `lite` Track's risk probe). A reviewer that is not
   attached is not listed, not waited for and not required; `agent prompt` refuses it
   (exit `2`). If the changes cannot be read the reviewer is attached (fail closed).
   The official `security` reviewer declares `[auth, dependency, contract]`. Without
@@ -67,7 +67,7 @@ listed as a conflict and never used.
 The official agents are `builder` and `researcher` (executors) and
 `architecture`, `backend-quality`, `code-review`, `code-size`, `e2e`,
 `frontend-quality`, `security` and `spec-consistency` (reviewers). `code-review` is
-the `standard` lane's reviewer: it reads the diff against the goal and acceptance check
+the `lite` Track's reviewer: it reads the diff against the goal and acceptance check
 the host appends to its prompt, and needs no specification documents.
 
 ## Author in the terminal
@@ -155,10 +155,11 @@ agents:
 
 Executors run first and must finish `done` before the step can be left;
 required reviewers must pass on the current candidate; advisory reviewers only
-report. The default workflow attaches `researcher` to every Explore, `builder`
-to every Build (one subagent per independent task, merged into one report), and
-the `code-size` reviewer with its `code-size` test to every Verify; chat and
-free also run `security` as an advisory Verify reviewer. See
+report. The heavy Tracks of the default workflow (`pm`, `frontend`, `backend`) attach
+`researcher` to every Explore, `builder` to every Build (one subagent per independent
+task, merged into one report), and the `code-size` reviewer with its `code-size` test
+to every Verify; the `lite` Track runs the reviewers `code-review` and `security` at its
+Verify. See
 [Default workflow](default-workflow.md) and
 [Custom workflows](custom-workflows-and-tracks.md).
 

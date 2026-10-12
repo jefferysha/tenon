@@ -13,7 +13,7 @@ import {
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { isValidChangeName, resolveChangeDir } from '../paths.js'
-import { refuseArchived } from '../archivedGuard.js'
+import { refuseArchived } from '../endedTaskGuard.js'
 import { resolveChangeDocumentLocale } from '../documentLocale.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
 import {

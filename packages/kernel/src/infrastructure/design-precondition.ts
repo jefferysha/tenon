@@ -10,7 +10,7 @@ import type { DocumentGovernancePolicy } from '../workflow/document-contract-mod
 import { createDesignFileReader } from './design-system-fs.js'
 import { loadResourceCatalog } from './resource-store.js'
 
-const HINT = '先完成设计体系任务：tenon init <name> --workflow design-system --track free --preset <preset>'
+const HINT = '先完成设计体系任务：tenon init <name> --workflow design-system --preset <preset>'
 
 export interface DesignPreconditionInput {
   readonly repoRoot: string

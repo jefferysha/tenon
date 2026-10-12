@@ -1,19 +1,10 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
-  BUILTIN_TRACK_IDS,
   HISTORY_FILE,
   aliasesForSkill,
-  builtinTrack,
   dependencyWaves,
-  isBuiltinTrackId,
-  loadTrackRegistry,
-  requireTrackForRoot,
-  skillsFor,
   type EffectiveWorkflowPlan,
-  type Phase,
-  type SkillTable,
-  type TrackDefinition,
 } from '@tenon/kernel'
 import type { SkillRunStatus, SkillRunsSnapshot } from './types.js'
 
@@ -22,29 +13,6 @@ interface HistoryLine {
   readonly raw: string
   readonly to: string
   readonly field: string
-}
-
-const BUILTIN_SKILL_PROFILES: ReadonlySet<string> = new Set(
-  BUILTIN_TRACK_IDS.map((id) => builtinTrack(id).policyProfile.skills.profile).filter((profile) => profile !== '_all'),
-)
-
-/**
- * change 所属轨道的定义：内建直接查表；项目额外轨道读 registry（校验失败 / 未知 → undefined，
- * 投影退化为只显示无条件技能，绝不让 snapshot 因轨道配置问题整体失败）。
- */
-export function resolveSnapshotTrack(root: string, trackId: string, workflowName?: string): TrackDefinition | undefined {
-  if (trackId === '') return undefined
-  if (isBuiltinTrackId(trackId)) return builtinTrack(trackId)
-  try {
-    return requireTrackForRoot(
-      loadTrackRegistry(root, { workflowExists: () => true, skillProfiles: BUILTIN_SKILL_PROFILES }),
-      trackId,
-      root,
-      workflowName,
-    )
-  } catch {
-    return undefined
-  }
 }
 
 async function readHistoryLines(changeDir: string): Promise<HistoryLine[]> {
@@ -96,20 +64,6 @@ function skillNamesOf(raw: string): readonly string[] {
   return [...new Set([token, token.slice(token.lastIndexOf(':') + 1)])]
 }
 
-/**
- * 轨道叠加层：分支后的阶段技能已是全集；manifest-overlay 计划（default）另叠加机器级 manifest mandatory 表
- * （与 resolver 同口径——default 分支与该表由 check:default-skill-matrix 保持一致，叠加只是去重）。
- */
-function overlaySkills(
-  capability: EffectiveWorkflowPlan['capabilities']['skills'],
-  stepId: string,
-  track: TrackDefinition | undefined,
-  mandatorySkills: SkillTable | undefined,
-): readonly string[] {
-  if (capability.source !== 'manifest-overlay' || mandatorySkills === undefined || !capability.trackOverlay.matrix) return []
-  return skillsFor(mandatorySkills, stepId as Phase, track?.policyProfile.skills.profile ?? '_all')
-}
-
 /** manifest 的 `a|b` 备选记法 + 技能别名（opsx:propose ≡ openspec-propose）：任一有证据即算该槽位。 */
 function alternativesOf(token: string): readonly string[] {
   return token.split('|').map((part) => part.trim()).filter((part) => part !== '').flatMap((part) => [part, ...aliasesForSkill(part)])
@@ -118,14 +72,12 @@ function alternativesOf(token: string): readonly string[] {
 /**
  * 每步技能的执行态投影：步序早于当前 → done；晚于当前 → idle；当前步按 history 判定
  * （tool = 完成证据 → done；只有 tool-start → running；无记录 → idle）。wave 由 depends_on 拓扑深度得出。
- * 矩阵技能按 change 的轨道过滤；无轨道定义时只列无条件技能。
+ * 技能就是计划里每步声明的技能（计划已按任务的轨道选了分支），不叠加 manifest 矩阵。
  */
 export async function projectSkillRuns(
   changeDir: string,
   plan: EffectiveWorkflowPlan,
   phase: string,
-  track: TrackDefinition | undefined,
-  mandatorySkills?: SkillTable,
 ): Promise<SkillRunsSnapshot> {
   const capability = plan.capabilities.skills
   const stepIds = plan.workflow.steps.map((step) => step.id)
@@ -143,7 +95,7 @@ export async function projectSkillRuns(
   return stepIds.map((stepId, index) => {
     const step = capability.steps.find((candidate) => candidate.stepId === stepId)
     const dependsOn = new Map((step?.declared ?? []).map((skill) => [skill.id, skill.dependsOn]))
-    const ids = [...new Set([...(step?.requiredSkillIds ?? []), ...overlaySkills(capability, stepId, track, mandatorySkills)])]
+    const ids = [...new Set(step?.requiredSkillIds ?? [])]
     // 波次只有 kernel 的 dependencyWaves 一个算法（编排、技能门、画布都用它）；前置指向图外的名字不计。
     const waves = dependencyWaves(ids.map((id) => ({ id, dependsOn: dependsOn.get(id) ?? [] })))
     const skills = ids.map((id) => {

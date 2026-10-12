@@ -23,6 +23,9 @@ const guards = [
   ['full-direct-override', { type: 'full-direct-override' }],
   ['build-head-unchanged', { type: 'build-head-unchanged', field: 'build_sha' }],
   ['spec-migration-applied', { type: 'spec-migration-applied' }],
+  ['tasks-through-step', { type: 'tasks-through-step' }],
+  ['not-afk-queued', { type: 'not-afk-queued' }],
+  ['dependencies-ended', { type: 'dependencies-ended' }],
 ] as const
 
 function decodeWithGuard(guard: unknown) {
@@ -230,6 +233,62 @@ describe('decodeWorkflowDefinition', () => {
         guards: [{ type: 'spec-migration-applied' }],
       },
     ])
+  })
+
+  it('decodes the three universal leave conditions on a step and on an exit, parameterless', () => {
+    const decoded = decodeWorkflowDefinition({
+      name: 'universal',
+      steps: [{
+        ...step,
+        guards: [{ type: 'tasks-through-step' }],
+        transitions: [{
+          event: 'build-complete',
+          to: 'verify',
+          guards: [{ type: 'not-afk-queued' }, { type: 'dependencies-ended' }],
+        }],
+      }],
+    })
+
+    expect(decoded?.steps[0]?.guards).toEqual([{ type: 'tasks-through-step' }])
+    expect(decoded?.steps[0]?.transitions[0]?.guards).toEqual([{ type: 'not-afk-queued' }, { type: 'dependencies-ended' }])
+  })
+
+  it('keeps the branch keys spec / route / automation of a built-in default track, exactly', () => {
+    const branch = {
+      label: '轻量',
+      spec: 'none',
+      route: { keywords: ['修复'], exclude: ['迁移'], priority: 500, fallback: false },
+      automation: { eligible: false, enqueueAfterSpec: false },
+      steps: [step],
+    }
+    const decoded = decodeWorkflowDefinition({ name: 'default', openspec: true, steps: [], tracks: { lite: branch } })
+    expect(decoded?.tracks?.lite).toMatchObject({
+      label: '轻量',
+      spec: 'none',
+      route: { keywords: ['修复'], exclude: ['迁移'], priority: 500, fallback: false },
+      automation: { eligible: false, enqueueAfterSpec: false },
+    })
+    // 没写这三个键的分支解码后也不出现它们（写回时不凭空多出键）。
+    const bare = decodeWorkflowDefinition({ name: 'default', steps: [], tracks: { plain: { steps: [step] } } })
+    expect(bare?.tracks?.plain).not.toHaveProperty('spec')
+    expect(bare?.tracks?.plain).not.toHaveProperty('route')
+    expect(bare?.tracks?.plain).not.toHaveProperty('automation')
+  })
+
+  it('rejects malformed branch keys instead of dropping them', () => {
+    const tracks = (over: Record<string, unknown>) =>
+      decodeWorkflowDefinition({ name: 'd', steps: [], tracks: { lite: { steps: [step], ...over } } })
+    expect(tracks({ spec: 'markdown' })).toBeNull()
+    expect(tracks({ route: { keywords: ['a'], exclude: [], priority: 1, fallback: false, colour: 'red' } })).toBeNull()
+    expect(tracks({ route: { keywords: 'a', exclude: [], priority: 1, fallback: false } })).toBeNull()
+    expect(tracks({ route: { keywords: ['a'], exclude: [], priority: -1, fallback: false } })).toBeNull()
+    expect(tracks({ automation: { eligible: 'no', enqueueAfterSpec: false } })).toBeNull()
+    expect(tracks({ automation: { eligible: true } })).toBeNull()
+    expect(tracks({ colour: 'red' })).toBeNull()
+  })
+
+  it.each(['tasks-through-step', 'not-afk-queued', 'dependencies-ended'])('%s takes no parameters', (type) => {
+    expect(decodeWithGuard({ type, n: 1 })).toBeNull()
   })
 
   it.each(guards)('%s rejects an illegal top-level data key instead of silently normalizing it', (_name, guard) => {

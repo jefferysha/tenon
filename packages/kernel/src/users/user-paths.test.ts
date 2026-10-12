@@ -26,7 +26,6 @@ describe('userProjectPaths / ensureUserLocalDir', () => {
       localDir: join(root, 'local'),
       activeChange: join(root, 'local', 'active-change'),
       authority: join(root, 'local', 'authority'),
-      archived: join(root, 'local', 'archived.json'),
       localAudit: join(root, 'local', 'audit.jsonl'),
       deletingDir: join(root, 'local', 'deleting'),
       artifactsDir: join(root, 'local', 'artifacts'),

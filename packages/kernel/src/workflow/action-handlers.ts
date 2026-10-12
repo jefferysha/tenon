@@ -11,7 +11,7 @@
  * workflow 获得改 phase/workflow 等系统字段的通用脚本能力。
  */
 import type { ActionConfig, ActionInput, ActionOutcome } from './ir.js'
-import { BuildRevisionCaptureError, safeRevisionHash } from './build-revision.js'
+import { BuildRevisionCaptureError, effectiveBuildIsolation, safeRevisionHash } from './build-revision.js'
 
 function fieldString(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value.join(',') : (value ?? '')
@@ -33,7 +33,7 @@ export const ACTION_HANDLERS: ActionHandlerRegistry = Object.freeze({
    *    能力缺失、返回非法 token 或求值异常一律 fail-closed，绝不写一个无法复验的假 SHA。
    */
   'freeze-build-sha': async (_config, input) => {
-    const isolation = fieldString(input.fields.isolation)
+    const isolation = effectiveBuildIsolation(fieldString(input.fields.isolation))
     if (isolation !== 'branch' && isolation !== 'worktree' && isolation !== 'in-place') {
       throw new BuildRevisionCaptureError('isolation-mismatch', safeRevisionHash(input.fields))
     }

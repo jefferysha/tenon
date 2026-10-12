@@ -10,10 +10,10 @@ import { join } from 'node:path'
 import {
   HISTORY_FILE, allPathChangesForState, touchedPathClasses,
   buildOrchestration, compileEffectiveWorkflowPlan, completedWorkflowSkillsSinceStepEntry,
-  documentRecordsInCurrentStepVisit, judgeStepSkillsFromHistory, manifestSkillOverlay, orderSkillSlots,
+  documentRecordsInCurrentStepVisit, judgeStepSkillsFromHistory, orderSkillSlots,
   pendingSkillDocumentKinds, planEffectiveIo, skillSlotStatuses,
   type AgentView, type EffectiveSkillResolver, type EffectiveWorkflowPlan, type OrchestrationEntry,
-  type OrchestrationStage, type PipelineState, type TenonUser, type TrackDefinition, type WorkflowDef,
+  type OrchestrationStage, type PipelineState, type TenonUser, type WorkflowDef,
   type WorkflowEffectiveIo, type WorkflowOrchestration,
 } from '@tenon/kernel'
 import { projectAgentRuns, type AgentRunsSnapshot } from './agentRuns.js'
@@ -28,8 +28,6 @@ export type OrchestrationRunStatus = 'running' | 'done' | 'waiting' | 'failed' |
 export interface DefinitionOrchestrationResponse extends WorkflowOrchestration {
   readonly workflow: string
   readonly track: string | null
-  /** 每步 manifest 叠加的必需技能 token；编辑器画草稿时与声明技能合并（同一个 kernel orchestrate）。 */
-  readonly overlay: Readonly<Record<string, readonly string[]>>
 }
 
 export interface ChangeOrchestrationEntry extends OrchestrationEntry {
@@ -56,15 +54,15 @@ export interface ChangeOrchestrationResponse {
 export function definitionOrchestration(input: {
   readonly name: string
   readonly definition: WorkflowDef
-  readonly track: TrackDefinition | undefined
+  /** 轨道 id：有分支的工作流必须给，平铺工作流可省略。 */
+  readonly track: string | undefined
   readonly resolver: EffectiveSkillResolver | undefined
 }): DefinitionOrchestrationResponse {
-  const plan = compileEffectiveWorkflowPlan(input.name, input.definition, input.track)
+  const plan = compileEffectiveWorkflowPlan(input.name, input.definition, { track: input.track })
   return {
     workflow: input.name,
-    track: input.track?.id ?? null,
+    track: input.track ?? null,
     ...buildOrchestration(plan, input.resolver),
-    overlay: manifestSkillOverlay(plan, input.resolver),
   }
 }
 

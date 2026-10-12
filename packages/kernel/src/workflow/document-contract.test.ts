@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { documentGovernancePolicy, documentKindsProducedBySkillAtPolicyStep } from './document-contract.js'
+import { UnknownTrackError } from './resolve-track.js'
 import type { StepDef, WorkflowDocumentContractV1 } from './types.js'
 
 const step = (id: string): StepDef => ({ id, label: id, gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] })
@@ -40,7 +41,7 @@ describe('documentGovernancePolicy', () => {
     })
   })
 
-  it('按轨道选分支契约：给 track 取该分支，不给取第一条，没有的分支抛错', () => {
+  it('按轨道选分支契约：给 track 取该分支；不给或没有的分支抛 UnknownTrackError，不取第一条', () => {
     const workflow = {
       openspec: true,
       steps: [],
@@ -50,9 +51,27 @@ describe('documentGovernancePolicy', () => {
       },
     }
     expect(documentGovernancePolicy('custom', workflow, 'web')?.requiresByStep?.build).toEqual(['design-md'])
-    expect(documentGovernancePolicy('custom', workflow)?.requiresByStep?.build).toEqual(['design-md'])
     expect(documentGovernancePolicy('custom', workflow, 'api')?.outputsByStep).toEqual({ shape: [], build: [] })
-    expect(() => documentGovernancePolicy('custom', workflow, 'mobile')).toThrow(/没有轨道 'mobile' 的分支/u)
+    expect(() => documentGovernancePolicy('custom', workflow)).toThrow(UnknownTrackError)
+    expect(() => documentGovernancePolicy('custom', workflow, 'mobile')).toThrow(/没有轨道 'mobile'.*web, api/u)
+  })
+
+  it('受不受治理读分支的 spec：分支写了 none 就不受治理，写了 openspec 就受治理，没写继承顶层', () => {
+    const tracks = {
+      lite: { spec: 'none' as const, steps: [step('open'), step('build')] },
+      full: { spec: 'openspec' as const, documentContract: CONTRACT, steps: [step('shape'), step('build')] },
+      plain: { steps: [step('shape'), step('build')] },
+    }
+    expect(documentGovernancePolicy('custom', { openspec: true, steps: [], tracks }, 'lite')).toBeUndefined()
+    expect(documentGovernancePolicy('custom', { openspec: true, steps: [], tracks }, 'plain')?.id).toBe('document-v1')
+    expect(documentGovernancePolicy('custom', { steps: [], tracks }, 'full')?.requiresByStep?.build).toEqual(['design-md'])
+    expect(documentGovernancePolicy('custom', { steps: [], tracks }, 'plain')).toBeUndefined()
+  })
+
+  it('平铺工作流只有一条隐式分支，任务记着什么轨道都不影响治理', () => {
+    const flat = { openspec: true, documentContract: CONTRACT, steps: [step('shape'), step('build')] }
+    expect(documentGovernancePolicy('custom', flat, 'free')?.requiresByStep?.build).toEqual(['design-md'])
+    expect(documentGovernancePolicy('custom', flat, '')?.requiresByStep?.build).toEqual(['design-md'])
   })
 })
 

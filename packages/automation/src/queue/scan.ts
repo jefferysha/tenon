@@ -12,7 +12,7 @@
  */
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { type StateStore, normalizeDeps } from '@tenon/kernel'
+import { type StateStore, archiveDirIsTask, normalizeDeps } from '@tenon/kernel'
 
 /** 空/null queued_at 的兜底排序键（高位字符，字典序排最后）。 */
 const QUEUED_AT_LAST = '~'
@@ -68,7 +68,7 @@ const nodeErrorCode = (error: unknown): string | undefined =>
 
 /**
  * 真 fs 扫描：枚举 changesDir/*，真读回每个 .pipeline.yaml 的 automation 字段，构造就绪集。
- * dep 满足走 merged∪archived：预取活跃 change 的 automation Map + 归档目录条目（archive/*-<dep>）。
+ * dep 满足走 merged∪archived：预取活跃 change 的 automation Map + 归档目录条目（archive/<日期>-<dep>[-N]）。
  * kernel StateStore 只读（read）——automation 零 kernel 修改。
  */
 export async function scanReadyFromFs(changesDir: string, store: StateStore): Promise<string[]> {
@@ -98,7 +98,7 @@ export async function scanReadyFromFs(changesDir: string, store: StateStore): Pr
     })
   }
 
-  // 归档条目：openspec/changes/archive/*-<dep>（老仓 find -name "*-$dep"）。
+  // 归档条目：openspec/changes/archive/<日期>-<dep>[-N]。
   let archiveEntries: string[] = []
   try {
     const archived = await readdir(join(changesDir, 'archive'), { withFileTypes: true })
@@ -112,8 +112,8 @@ export async function scanReadyFromFs(changesDir: string, store: StateStore): Pr
       // 活跃 change → 仅 automation==merged 算满足
       const a = automationByName.get(dep)
       if (a !== undefined) return a === 'merged'
-      // 已归档（archive/*-<dep>）→ 满足
-      return archiveEntries.some((e) => e === dep || e.endsWith(`-${dep}`))
+      // 已归档（archive/<日期>-<dep>[-N]，与 guard 的依赖判定同一个匹配函数）→ 满足
+      return archiveEntries.some((e) => archiveDirIsTask(e, dep))
     },
   }
 

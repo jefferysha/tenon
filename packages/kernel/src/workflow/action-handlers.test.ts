@@ -77,6 +77,22 @@ describe('老仓 state-transition.sh cmd_transition 副作用体语义对照', (
     expect(gitCalls).toBe(0)
   })
 
+  it.each(['', 'null'])("isolation 字段没设（%j）：默认 in-place，冻结内容基线，不要求用户先填 isolation（设计 §1b Q1）", async (unset) => {
+    const requested: string[] = []
+    const out = await ACTION_HANDLERS['freeze-build-sha'](
+      { type: 'freeze-build-sha' },
+      makeInput({ isolation: unset }, undefined, undefined, async (isolation) => { requested.push(isolation); return WORKSPACE_TOKEN }),
+    )
+    expect(requested).toEqual(['in-place'])
+    expect(out).toEqual({ patch: { build_sha: WORKSPACE_TOKEN }, signals: [] })
+  })
+
+  it('isolation 是枚举之外的脏值：仍 fail-closed（只有没设才取默认）', async () => {
+    await expect(ACTION_HANDLERS['freeze-build-sha'](
+      { type: 'freeze-build-sha' }, makeInput({ isolation: 'container' }, undefined, undefined, async () => WORKSPACE_TOKEN),
+    )).rejects.toMatchObject({ blocker: { code: 'verify-build-revision-untrusted', reason: 'isolation-mismatch' } })
+  })
+
   it('in-place：没有内容基线能力时 fail-closed，不能留下不可复验的 build_sha', async () => {
     await expect(ACTION_HANDLERS['freeze-build-sha'](
       { type: 'freeze-build-sha' }, makeInput({ isolation: 'in-place' }, async () => 'HEAD'),
