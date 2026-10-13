@@ -700,20 +700,14 @@ describe('required-output（必须产出）', () => {
     }])
   })
 
-  it('不满足：failed 决策带上路径模式，{change} 已换成任务名（供客户端显示要写哪个文件）', async () => {
+  it('不满足：failed 决策带原样的路径模式，任务名已知也不展开 {change}（同一步的任务离开条件逐字相同，显示时由客户端展开）', async () => {
     const guard: CompiledGuardConfig = { type: 'required-output', path: 'openspec/changes/{change}/proposal.md' }
-    const out = await evaluateGuards([guard], makeInput({}, { change: 'plan-checkout', requiredOutput: async () => false }))
-    expect(out.map((e) => e.decision)).toEqual([
-      { kind: 'failed', guardType: 'required-output', actual: 'missing', path: 'openspec/changes/plan-checkout/proposal.md' },
-    ])
-  })
-
-  it('不满足但任务名未知：路径模式原样给出', async () => {
-    const guard: CompiledGuardConfig = { type: 'required-output', path: 'openspec/changes/{change}/proposal.md' }
-    const out = await evaluateGuards([guard], makeInput({}, { requiredOutput: async () => false }))
-    expect(out.map((e) => e.decision)).toEqual([
-      { kind: 'failed', guardType: 'required-output', actual: 'missing', path: 'openspec/changes/{change}/proposal.md' },
-    ])
+    for (const change of ['plan-checkout', undefined]) {
+      const out = await evaluateGuards([guard], makeInput({}, { ...(change === undefined ? {} : { change }), requiredOutput: async () => false }))
+      expect(out.map((e) => e.decision)).toEqual([
+        { kind: 'failed', guardType: 'required-output', actual: 'missing', path: 'openspec/changes/{change}/proposal.md' },
+      ])
+    }
   })
 
   it('能力缺失：失败关闭并点名 requiredOutput（不降级为跳过）', async () => {

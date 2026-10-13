@@ -17,7 +17,7 @@ export type TransitionReadinessBlocker =
       readonly field?: string
       readonly actual?: string
       readonly expected?: readonly string[]
-      /** required-output：要写出的文件路径模式（`{change}` 已换成任务名）；其余守卫没有。 */
+      /** required-output：要写出的文件路径模式（原样，`{change}` 由显示方换成任务名）；其余守卫没有。 */
       readonly path?: string
     }
   | {

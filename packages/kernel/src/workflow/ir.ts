@@ -146,7 +146,7 @@ export type GuardDecision =
       readonly detail?: readonly string[]
       /** fail-closed：该 guard 依赖的能力没有注入，渲染层据此点名缺什么。 */
       readonly missingCapability?: UniversalGuardCapabilityName
-      /** required-output 的必须产出路径模式；任务名已知时 `{change}` 已换成任务名，客户端据此显示要写哪个文件。 */
+      /** required-output 的必须产出路径模式（原样，`{change}` 未展开：同一步的任务离开条件逐字相同），客户端换成任务名后显示要写哪个文件。 */
       readonly path?: string
     }
 

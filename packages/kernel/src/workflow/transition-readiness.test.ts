@@ -1,6 +1,6 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { basename, join } from 'node:path'
+import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
 import { emptyFields } from '../state/parse.js'
 import { compileWorkflow } from './compile.js'
@@ -36,19 +36,19 @@ async function readiness(requiredOutput: (step: string, pattern: string) => Prom
   Object.assign(fields, { phase: 'explore' })
   const plan = effectiveWorkflowPlanFromIr('observed', compileWorkflow(observedWorkflow()))
   const result = await readinessByTransition(plan, { fields, opaqueTail: '' }, { changeDirAbs: root, requiredOutput })
-  return { change: basename(root), result }
+  return { result }
 }
 
 describe('readinessByTransition 的必须产出阻断', () => {
-  test('没写出来：guard-failed 阻断带上路径，{change} 已换成任务名', async () => {
-    const { change, result } = await readiness(async () => false)
+  test('没写出来：guard-failed 阻断带原样的路径模式（{change} 留给显示方展开，同一步的任务阻断逐字相同）', async () => {
+    const { result } = await readiness(async () => false)
     expect(result.explore?.['explore-complete']).toEqual({
       ready: false,
       blockers: [{
         kind: 'guard-failed',
         guardType: 'required-output',
         actual: 'missing',
-        path: `openspec/changes/${change}/proposal.md`,
+        path: 'openspec/changes/{change}/proposal.md',
       }],
     })
   })

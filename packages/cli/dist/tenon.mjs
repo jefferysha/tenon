@@ -12924,7 +12924,7 @@ var GUARD_HANDLERS = Object.freeze({
   /** 文档机制重做 §6：本任务里当前这一步必须产出匹配 `path` 的文件。判定来自 `requiredOutput` 能力（观察到的产出账本，
    *  观察不可用时退化为文件存在）；能力缺失、当前步骤未知、能力抛错都失败关闭，不降级为跳过。 */
   "required-output": async (config, input2) => {
-    const path15 = input2.change === void 0 ? config.path : config.path.replaceAll("{change}", input2.change);
+    const path15 = config.path;
     const failure4 = (decision) => decision.kind === "failed" ? { ...decision, path: path15 } : decision;
     if (!input2.requiredOutput)
       return failure4(capabilityUnavailable("required-output", "requiredOutput"));

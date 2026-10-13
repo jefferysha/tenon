@@ -119,7 +119,7 @@ export function forwardExitOf(change: ChangeSnapshot, rules: WorkflowRules | und
   if (ready !== undefined) return { to: ready.to, ready: true, blockers: [], lines: [] }
   let best: ForwardExit | null = null
   for (const edge of forward) {
-    const lines = (readiness[edge.event]?.blockers ?? []).flatMap(blockerLines)
+    const lines = (readiness[edge.event]?.blockers ?? []).flatMap((blocker) => blockerLines(blocker, change.name))
     if (best === null || lines.length < best.lines.length) best = { to: edge.to, ready: false, blockers: lines.map((line) => line.text), lines }
   }
   return best

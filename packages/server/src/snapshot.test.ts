@@ -1118,12 +1118,12 @@ describe('buildSnapshot —— 真读多项目 .pipeline.yaml', () => {
       },
     })
     expect(Object.keys(beta.workflowExecution.readinessByTransition)).toEqual(['open'])
-    // 刚立项的任务：proposal.md 还没写（必须产出）、tasks.md 里立项那项还没勾（通用离开条件「本阶段任务已勾选」），都挡着。
+    // 刚立项的任务：proposal.md 还没写（必须产出，路径模式原样给出、显示时才换成任务名）、tasks.md 里立项那项还没勾（通用离开条件「本阶段任务已勾选」），都挡着。
     expect(beta.workflowExecution.readinessByTransition.open).toEqual({
       'open-complete': {
         ready: false,
         blockers: [
-          { kind: 'guard-failed', guardType: 'required-output', actual: 'missing', path: 'openspec/changes/beta/proposal.md' },
+          { kind: 'guard-failed', guardType: 'required-output', actual: 'missing', path: 'openspec/changes/{change}/proposal.md' },
           { kind: 'guard-failed', guardType: 'tasks-through-step' },
         ],
       },

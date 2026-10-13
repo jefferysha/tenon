@@ -9,6 +9,10 @@ function stepExit(source: StepExitBlockerSource, code: string, message: string, 
   return { kind: 'step-exit', source, code, message, ...detail }
 }
 
+/** 阻断所在的任务：必须产出的路径模式里的 `{change}` 换成它。 */
+const CHANGE = 'plan-checkout'
+const lines = (blocker: TransitionReadinessBlockerSnapshot) => blockerLines(blocker, CHANGE)
+
 function translate(lang: Lang, key: string, vars: Record<string, string | number>): string {
   let node: string | Dict | undefined = translations[lang]
   for (const part of key.split('.')) node = typeof node === 'object' ? node[part] : undefined
@@ -18,7 +22,7 @@ function translate(lang: Lang, key: string, vars: Record<string, string | number
 }
 
 function labels(blocker: TransitionReadinessBlockerSnapshot, lang: Lang = 'zh'): string[] {
-  return blockerLines(blocker).map((line) => line.label === null ? line.text : translate(lang, line.label.key, line.label.vars))
+  return lines(blocker).map((line) => line.label === null ? line.text : translate(lang, line.label.key, line.label.vars))
 }
 
 describe('blockerLines · 按阻断 code 与服务端字段的短标签', () => {
@@ -33,7 +37,7 @@ describe('blockerLines · 按阻断 code 与服务端字段的短标签', () => 
 
   it('document-evidence：按 subject + state 出 缺少 / 需重新登记 / 待读取；完整 CLI 文案留在 text（进 title）', () => {
     const message = "缺少 document 'proposal'；执行 tenon document record <change> proposal <path> --producer <skill>"
-    const [line] = blockerLines(stepExit('document', 'document-evidence', message, { subject: 'proposal', state: 'missing' }))
+    const [line] = lines(stepExit('document', 'document-evidence', message, { subject: 'proposal', state: 'missing' }))
     expect(line?.text).toBe(message)
     expect(labels(stepExit('document', 'document-evidence', message, { subject: 'proposal', state: 'missing' }))).toEqual(['缺少文档 proposal'])
     expect(labels(stepExit('document', 'document-evidence', message, { subject: 'proposal', state: 'missing' }), 'en')).toEqual(['Missing document proposal'])
@@ -57,7 +61,7 @@ describe('blockerLines · 按阻断 code 与服务端字段的短标签', () => 
 
   it('测试完整性 / 读不到改动：策略阻断只有状态（没有名字）也出短标签；整句文案仍在 text（进 title）', () => {
     const whole = '测试完整性未通过：用例被跳过 src/a.test.js +1；执行 tenon test integrity demo'
-    const [line] = blockerLines(stepExit('test', 'test-evidence', whole, { state: 'integrity' }))
+    const [line] = lines(stepExit('test', 'test-evidence', whole, { state: 'integrity' }))
     expect(line?.text).toBe(whole)
     expect(line?.label).toEqual({ key: 'workspace.blocker_test_integrity', vars: {} })
     expect(labels(stepExit('test', 'test-evidence', whole, { state: 'integrity' }))).toEqual(['测试完整性未通过'])
@@ -80,22 +84,22 @@ describe('blockerLines · 按阻断 code 与服务端字段的短标签', () => 
     }
     expect(labels(agents)).toEqual(['评审者 security 宿主不符', 'spec · reviewer-stale'])
     expect(labels(agents, 'en')).toEqual(['Reviewer security wrong host', 'spec · reviewer-stale'])
-    expect(blockerLines(agents)[0]?.text).toBe('security · reviewer-wrong-host')
+    expect(lines(agents)[0]?.text).toBe('security · reviewer-wrong-host')
   })
 
-  it('required-output 的 guard-failed：带路径出「必须产出 <路径>」；完整文本留在 text（进 title）；没路径退回原文', () => {
+  it('required-output 的 guard-failed：服务端给原样的路径模式，{change} 换成任务名后出「必须产出 <路径>」；完整文本留在 text（进 title）；没路径退回原文', () => {
     const path = 'openspec/changes/plan-checkout/proposal.md'
-    const failed: TransitionReadinessBlockerSnapshot = { kind: 'guard-failed', guardType: 'required-output', actual: 'missing', path }
+    const failed: TransitionReadinessBlockerSnapshot = { kind: 'guard-failed', guardType: 'required-output', actual: 'missing', path: 'openspec/changes/{change}/proposal.md' }
     expect(labels(failed)).toEqual([`必须产出 ${path}`])
     expect(labels(failed, 'en')).toEqual([`Required output ${path}`])
-    expect(blockerLines(failed)[0]?.text).toBe(`guard:required-output:${path}`)
+    expect(lines(failed)[0]?.text).toBe(`guard:required-output:${path}`)
     expect(labels({ kind: 'guard-failed', guardType: 'required-output', actual: 'missing' })).toEqual(['guard:required-output'])
     expect(labels({ kind: 'guard-failed', guardType: 'tasks-through-step' })).toEqual(['guard:tasks-through-step'])
   })
 
   it('input-unread：未读 <文件>（name 取 subject 路径）；完整 CLI 文案留在 text；没有 subject 退回整句', () => {
     const whole = '本步输入 README.md（explore 的产出）还没读；读完后执行 tenon document read plan-checkout all'
-    const [line] = blockerLines(stepExit('document', 'input-unread', whole, { subject: 'README.md' }))
+    const [line] = lines(stepExit('document', 'input-unread', whole, { subject: 'README.md' }))
     expect(line?.text).toBe(whole)
     expect(line?.label).toEqual({ key: 'workspace.blocker_input_unread', vars: { name: 'README.md' } })
     expect(labels(stepExit('document', 'input-unread', whole, { subject: 'README.md' }))).toEqual(['未读 README.md'])
@@ -123,7 +127,7 @@ describe('blockerLines · 按阻断 code 与服务端字段的短标签', () => 
 describe('mergeBlockerRows · 同类阻断合并成一行', () => {
   const t = (key: string, vars: Record<string, string | number> = {}): string => translate('zh', key, vars)
   const doc = (name: string): TransitionReadinessBlockerSnapshot => stepExit('document', 'document-evidence', `缺少 document '${name}'；执行 tenon document record <change> ${name} <path>`, { subject: name, state: 'missing' })
-  const merged = (blockers: TransitionReadinessBlockerSnapshot[]) => mergeBlockerRows(blockers.flatMap(blockerLines), t)
+  const merged = (blockers: TransitionReadinessBlockerSnapshot[]) => mergeBlockerRows(blockers.flatMap(lines), t)
 
   it('同一个短标签模板的多条合成一行，名字用 · 连接；完整文案逐条进 title', () => {
     const rows = merged([doc('proposal'), doc('openspec-design'), doc('tasks')])
@@ -148,7 +152,7 @@ describe('mergeBlockerRows · 同类阻断合并成一行', () => {
   })
 
   it('英文同样合并', () => {
-    const rows = mergeBlockerRows([doc('proposal'), doc('tasks')].flatMap(blockerLines), (key, vars = {}) => translate('en', key, vars))
+    const rows = mergeBlockerRows([doc('proposal'), doc('tasks')].flatMap(lines), (key, vars = {}) => translate('en', key, vars))
     expect(rows.map((row) => row.label)).toEqual(['Missing document proposal · tasks'])
   })
 
@@ -159,7 +163,7 @@ describe('mergeBlockerRows · 同类阻断合并成一行', () => {
     expect(rows.map((row) => row.label)).toEqual(['必须产出 docs/a.md · docs/b.md', '未读 README.md · docs/2026-design.md'])
     expect(rows[0]?.title.split('\n')).toEqual(['guard:required-output:docs/a.md', 'guard:required-output:docs/b.md'])
     expect(rows[1]?.title.split('\n')).toHaveLength(2)
-    const en = mergeBlockerRows([required('docs/a.md'), required('docs/b.md'), unread('README.md')].flatMap(blockerLines), (key, vars = {}) => translate('en', key, vars))
+    const en = mergeBlockerRows([required('docs/a.md'), required('docs/b.md'), unread('README.md')].flatMap(lines), (key, vars = {}) => translate('en', key, vars))
     expect(en.map((row) => row.label)).toEqual(['Required output docs/a.md · docs/b.md', 'Unread README.md'])
   })
 

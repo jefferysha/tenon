@@ -88,15 +88,18 @@ function agentLine(item: { agent: string; reason: string }): BlockerLine {
     : { text, label: null }
 }
 
-/** 一条阻断 → 展示行：agent 阻断每个 agent 一行，step-exit 按 code 与结构化字段给短标签，必须产出按服务端给的路径出短标签，其余用完整文案。 */
-export function blockerLines(blocker: TransitionReadinessBlockerSnapshot): BlockerLine[] {
+/**
+ * 一条阻断 → 展示行：agent 阻断每个 agent 一行，step-exit 按 code 与结构化字段给短标签，必须产出按服务端给的路径出短标签，
+ * 其余用完整文案。必须产出的路径是原样的模式（服务端不展开 `{change}`，同一步的任务才能共用一份离开条件），这里换成任务名。
+ */
+export function blockerLines(blocker: TransitionReadinessBlockerSnapshot, change: string): BlockerLine[] {
   if (blocker.kind === 'agents-incomplete') return blocker.agents.map(agentLine)
   if (blocker.kind === 'step-exit') return [{ text: blocker.message, label: stepExitLabel(blocker) }]
-  const text = formatReadinessBlocker(blocker)
   if (blocker.kind === 'guard-failed' && blocker.guardType === REQUIRED_OUTPUT_GUARD && blocker.path !== undefined && blocker.path !== '') {
-    return [{ text, label: { key: 'workspace.blocker_required_output', vars: { name: blocker.path } } }]
+    const path = blocker.path.split('{change}').join(change)
+    return [{ text: formatReadinessBlocker({ ...blocker, path }), label: { key: 'workspace.blocker_required_output', vars: { name: path } } }]
   }
-  return [{ text, label: null }]
+  return [{ text: formatReadinessBlocker(blocker), label: null }]
 }
 
 /** 「下一步」里的一行：`label` 是短标签，`title` 是它背后完整的 CLI 文案。 */

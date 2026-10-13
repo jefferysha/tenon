@@ -254,8 +254,9 @@ export const GUARD_HANDLERS: GuardHandlerRegistry = Object.freeze({
   /** 文档机制重做 §6：本任务里当前这一步必须产出匹配 `path` 的文件。判定来自 `requiredOutput` 能力（观察到的产出账本，
    *  观察不可用时退化为文件存在）；能力缺失、当前步骤未知、能力抛错都失败关闭，不降级为跳过。 */
   'required-output': async (config, input) => {
-    // 失败决策都带路径（任务名已知时 `{change}` 换成任务名），与失败文案里显示的路径同一份。
-    const path = input.change === undefined ? config.path : config.path.replaceAll('{change}', input.change)
+    // 失败决策都带原样的路径模式：`{change}` 不在这里展开——同一工作流里停在同一步的任务因此得到逐字相同的离开条件，
+    // Dashboard 快照才能把它们合并成一份；显示时由客户端换成任务名（CLI 文案另由 renderGuardFailure 展开）。
+    const path = config.path
     const failure = (decision: GuardDecision): GuardDecision => decision.kind === 'failed' ? { ...decision, path } : decision
     if (!input.requiredOutput) return failure(capabilityUnavailable('required-output', 'requiredOutput'))
     const step = input.currentStep
