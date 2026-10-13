@@ -44438,22 +44438,23 @@ function readTrustedFile(root, relativePath, maxBytes, readLimit, changeIdentity
 }
 function trustedContextBundleCurrentSnapshot(root, change, changeIdentity) {
   const prefix = posix4.join("openspec", "changes", change);
+  const readChangeText2 = (relativePath) => {
+    try {
+      return readTrustedFile(
+        root,
+        posix4.join(prefix, relativePath),
+        1048576,
+        void 0,
+        changeIdentity
+      ).text;
+    } catch (error2) {
+      if (error2 instanceof LedgerContextBundleError && error2.code === "CONTEXT_BUNDLE_DOCUMENT_MISSING") return void 0;
+      throw error2;
+    }
+  };
   let current;
   try {
-    current = readValidatedTransitionHeadFromSync((relativePath) => {
-      try {
-        return readTrustedFile(
-          root,
-          posix4.join(prefix, relativePath),
-          1048576,
-          void 0,
-          changeIdentity
-        ).text;
-      } catch (error2) {
-        if (error2 instanceof LedgerContextBundleError && error2.code === "CONTEXT_BUNDLE_DOCUMENT_MISSING") return void 0;
-        throw error2;
-      }
-    })?.current;
+    current = readValidatedTransitionHeadFromSync(readChangeText2)?.current;
   } catch (error2) {
     if (error2 instanceof RunStateCorruptError || error2 instanceof ContextBundleTrustedFileError || isInvalidUtf8(error2)) {
       throw new LedgerContextBundleError(
@@ -44483,8 +44484,28 @@ function trustedContextBundleCurrentSnapshot(root, change, changeIdentity) {
     phase,
     revisionId: current.revisionId,
     stateDigest: current.stateDigest,
-    state: current.state
+    state: withFrozenPlan(current.state, readChangeText2)
   };
+}
+function withFrozenPlan(state, readChangeText2) {
+  try {
+    const bindingRaw = readChangeText2(WORKFLOW_GOVERNANCE_BINDING_FILE);
+    const planRaw = readChangeText2(WORKFLOW_PLAN_SNAPSHOT_FILE);
+    const metadata = attachWorkflowPlanSnapshot(
+      attachWorkflowGovernanceBinding(
+        state.runMetadata,
+        bindingRaw === void 0 ? void 0 : parseWorkflowGovernanceBinding(bindingRaw)
+      ),
+      planRaw === void 0 ? void 0 : parseWorkflowPlanSnapshot(planRaw)
+    );
+    return metadata === void 0 ? state : { ...state, runMetadata: metadata };
+  } catch (error2) {
+    throw new LedgerContextBundleError(
+      "CONTEXT_BUNDLE_STATE_CORRUPT",
+      "Context Bundle canonical state is corrupt",
+      { cause: error2, repairAction: "\u6062\u590D\u6709\u6548\u7684 canonical Change state \u540E\u91CD\u8BD5" }
+    );
+  }
 }
 function trustedContextBundleInputs(root, change, changeIdentity, limits) {
   const ledgerPath2 = posix4.join("openspec", "changes", change, ".pipeline-documents.json");

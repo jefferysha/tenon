@@ -228,9 +228,12 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   ): string =>
     `/api/context-bundle/preview?root=${encodeURIComponent(root)}&change=${encodeURIComponent(change)}`
     + `&target=${encodeURIComponent(target)}&budgetBytes=${encodeURIComponent(budgetBytes)}`
+  /** 这组测旧账本绑定的预览（契约模式）：任务按升级前带文档契约的 default 快照建，立项时照旧铺三份骨架与文档账本。 */
+  const startContract = (opts?: Parameters<typeof start>[0]): Promise<Harness> =>
+    start({ ...opts, initialWorkflow: legacyDefaultInitialWorkflow('backend', 'step-graph') })
 
   it.runIf(process.platform === 'linux')('以真 Change/ledger 返回安全 metadata，并把无 required reads 的 open 明确投影为空态', async () => {
-    const h = await start()
+    const h = await startContract()
     const ledgerPath = join(h.changeDir, '.pipeline-documents.json')
     const stateBefore = await h.store.read(h.changeDir)
     const ledgerBefore = await readFile(ledgerPath, 'utf8')
@@ -308,7 +311,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform === 'linux')('API 与 CLI 一样保留合法 UTF-8 BOM，不误报 stale 或少算 source bytes', async () => {
-    const h = await start()
+    const h = await startContract()
     const proposalPath = join(h.changeDir, 'proposal.md')
     const content = `\uFEFF${await readFile(proposalPath, 'utf8')}`
     await writeFile(proposalPath, content, 'utf8')
@@ -330,7 +333,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it('在读取前拒绝非法请求和未注册 root，返回稳定机器码', async () => {
-    const h = await start()
+    const h = await startContract()
     const unknownRoot = await makeProject()
     const invalidPaths = [
       '/api/context-bundle/preview',
@@ -355,7 +358,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform !== 'linux')('无 fd-relative traversal 时在读取 Change 内容前返回安全 capability error', async () => {
-    const h = await start()
+    const h = await startContract()
     const response = await reqGet(h.port, previewPath(h.root))
     expect(response.status).toBe(501)
     expect(response.json()).toEqual({
@@ -368,7 +371,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform === 'linux')('canonical state 损坏返回安全 409 机器码且不继续读取 ledger', async () => {
-    const h = await start()
+    const h = await startContract()
     await writeFile(join(h.changeDir, '.pipeline-run', 'current.json'), Buffer.from([0xff]))
     await unlink(join(h.changeDir, '.pipeline-documents.json'))
 
@@ -385,7 +388,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform === 'linux')('连续两次 set 后 head record 缺失仍返回 409，且不读取 ledger', async () => {
-    const h = await start()
+    const h = await startContract()
     const repo = createWorkflowRunRepository({
       store: h.store,
       recordStore: createTransitionRecordStore(),
@@ -415,7 +418,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform === 'linux')('把 missing/stale 映射为 409，并给出可执行恢复动作而不返回部分预览', async () => {
-    const missingLedger = await start({ seedGovernedEvidence: false })
+    const missingLedger = await startContract({ seedGovernedEvidence: false })
     await unlink(join(missingLedger.changeDir, '.pipeline-documents.json'))
     const noLedger = await reqGet(missingLedger.port, previewPath(missingLedger.root))
     expect(noLedger.status).toBe(409)
@@ -425,7 +428,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
     })
     expect(noLedger.json<{ repairAction?: string }>().repairAction).toBeTruthy()
 
-    const missingDocument = await start()
+    const missingDocument = await startContract()
     await unlink(join(missingDocument.changeDir, 'proposal.md'))
     const noDocument = await reqGet(missingDocument.port, previewPath(missingDocument.root))
     expect(noDocument.status).toBe(409)
@@ -436,7 +439,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
     expect(noDocument.json<{ repairAction?: string }>().repairAction).toBeTruthy()
     expect(noDocument.json()).not.toHaveProperty('preview')
 
-    const staleDocument = await start()
+    const staleDocument = await startContract()
     await writeFile(join(staleDocument.changeDir, 'proposal.md'), '# drifted proposal\n', 'utf8')
     const stale = await reqGet(staleDocument.port, previewPath(staleDocument.root))
     expect(stale.status).toBe(409)
@@ -447,7 +450,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
     expect(stale.json<{ repairAction?: string }>().repairAction).toBeTruthy()
     expect(stale.json()).not.toHaveProperty('preview')
 
-    const linkedDocument = await start()
+    const linkedDocument = await startContract()
     const linkedProposal = join(linkedDocument.changeDir, 'proposal.md')
     const outsideDir = await makeProject()
     const outsideProposal = join(outsideDir, 'proposal.md')
@@ -464,7 +467,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform === 'linux')('非法持久化 ledger path 映射为 409 且安全日志不泄露 path/root', async () => {
-    const h = await start()
+    const h = await startContract()
     const ledgerPath = join(h.changeDir, '.pipeline-documents.json')
     const ledger = JSON.parse(await readFile(ledgerPath, 'utf8')) as {
       records: Array<{ path: string }>
@@ -491,7 +494,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform === 'linux')('预算不足返回 422 safe preview，但不返回正文或有效 aggregate digest', async () => {
-    const h = await start()
+    const h = await startContract()
     const response = await reqGet(h.port, previewPath(h.root, h.name, 'explore', '1'))
     expect(response.status).toBe(422)
     const body = response.json<{
@@ -521,7 +524,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform === 'linux')('低预算也会在读取超大源文档前返回 413，且响应不泄露绝对路径', async () => {
-    const h = await start()
+    const h = await startContract()
     const proposalPath = join(h.changeDir, 'proposal.md')
     const content = 'x'.repeat(
       DEFAULT_LEDGER_CONTEXT_BUNDLE_RESOURCE_LIMITS.maxSourceBytesPerDocument + 1,
@@ -553,7 +556,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it('注册 root inode 被换位后 fail closed，绝不读取替换目录', async () => {
-    const h = await start()
+    const h = await startContract()
     const parked = `${h.root}.context-bundle-registered-inode`
     const outside = await makeProject()
     await rename(h.root, parked)
@@ -565,7 +568,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform === 'linux')('Change 目录被换为 symlink 时按 root guard fail closed', async () => {
-    const h = await start()
+    const h = await startContract()
     const parked = `${h.changeDir}.registered-inode`
     const outside = await makeProject()
     await rename(h.changeDir, parked)
