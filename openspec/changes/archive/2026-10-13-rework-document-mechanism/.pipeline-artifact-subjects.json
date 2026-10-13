@@ -248,9 +248,9 @@
       "subjectRef": {
         "subject_id": "subject:change-rework-document-mechanism-252c10516b79:676954505afabd82a240156cda152667",
         "namespace": "change-rework-document-mechanism-252c10516b79",
-        "version": "sha256:46f277ed06f7d5736951cf2bde9229c1b78408c2c77c4475c3dcc933ed65b4e3",
+        "version": "sha256:3df7bafcf43d354085c9d675f465f43086baf779f01c85c5e9d95444a813366c",
         "projection": "document",
-        "content_digest": "sha256:46f277ed06f7d5736951cf2bde9229c1b78408c2c77c4475c3dcc933ed65b4e3",
+        "content_digest": "sha256:3df7bafcf43d354085c9d675f465f43086baf779f01c85c5e9d95444a813366c",
         "source": {
           "path": "tasks.md",
           "document_kind": "tasks"
@@ -262,7 +262,7 @@
       "documentKind": "tasks",
       "status": "committed",
       "receiptId": "submission:change-rework-document-mechanism-252c10516b79:document:9fd98c78c1d6b051ab64938608074984",
-      "recordedAt": "2026-10-13T09:01:51Z"
+      "recordedAt": "2026-10-13T09:46:46Z"
     }
   ]
 }
