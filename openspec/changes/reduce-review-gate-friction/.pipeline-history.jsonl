@@ -99,3 +99,4 @@
 {"ts":"2026-10-13T15:04:51Z","kind":"tool-start","raw":"Skill: tenon:finishing-a-development-branch"}
 {"ts":"2026-10-13T15:04:51Z","kind":"tool","raw":"Skill: tenon:finishing-a-development-branch"}
 {"ts":"2026-10-13T15:04:51Z","kind":"tool","raw":"NativeSkillReadBinding: finishing-a-development-branch f8b9ca23-48ee-4d1e-992c-ae1b2142df37 5 native-post-tool-use-408a491b951e420d00cccda4114e255ca4d0db44fed06534b5bae18ffb49fa7b"}
+{"ts":"2026-10-13T15:06:51Z","kind":"set","field":"pr_url","to":"https://github.com/jefferysha/tenon/pull/83","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
