@@ -161,11 +161,11 @@ requirements. Unknown actions SHALL fail closed.
 - 按引号感知的方式，用引号外的 `|`、`||`、`&&`、`;` 切成若干段后，每一段都是 `cd`，或在严格只读名单内。
 - 引号外没有重定向、后台执行 `&`、换行；任何位置（单引号内除外）没有命令替换 `$(…)` 或反引号。丢弃输出的 `>/dev/null`、`2>/dev/null`、`&>/dev/null` 与 `2>&1` 不算重定向。
 - 引号都已闭合，且命令长度不超过 2048 个字符。
-- 名单内的命令带上会写文件或执行程序的参数时，该段 MUST NOT 算只读：`git diff` / `git log` / `git show` 带 `--output`，`rg` 带 `--pre`，`sed -n` 的脚本不是单纯的行号区间打印（如 `1,80p`、`$p`），`file` 带 `-C` / `--compile`。
+- 名单内的命令带上会写文件或执行程序的参数时，该段 MUST NOT 算只读：`git diff` / `git log` / `git show` 带 `--output`、`--ext-diff` 或 `--textconv`，`rg` 带 `--pre`、`-z` 或 `--search-zip`，`sed -n` 的脚本不是单纯的行号区间打印（如 `1,80p`、`$p`），`file` 带 `-C` / `--compile`。
 
 评审待处理标记存在时，访问本机 Dashboard 控制面或其凭据的命令 SHALL 在只读判定之前被拦截，组合成只读形态也一样。
 
-评审待处理标记存在时，形如 `tenon transition <change> <event>` 的单条命令（不含任何 shell 元字符）SHALL 交给 CLI 判定：CLI 照旧拒绝缺少已批准回执的前进边与上限用完后的回退边，只放行轮次内的回退边。
+评审待处理标记存在时，形如 `tenon transition <change> <event>` 的单条命令（不含任何 shell 元字符，且 `<change>` 是该标记所属的任务）SHALL 交给 CLI 判定，对其他任务的转换 MUST NOT 借这条放行：CLI 照旧拒绝缺少已批准回执的前进边与上限用完后的回退边，只放行轮次内的回退边。
 
 #### Scenario: Repository inspection continues while a decision is pending
 

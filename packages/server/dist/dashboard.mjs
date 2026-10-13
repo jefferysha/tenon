@@ -37051,6 +37051,35 @@ function roundsExhausted(rounds) {
   return rounds !== null && rounds !== void 0 && rounds.current >= rounds.max;
 }
 
+// packages/kernel/dist/workflow/transition-rounds-gate.js
+function backEdgeSkipsReview(input2) {
+  return input2.back && !isAbandonEvent(input2.event) && input2.rounds !== null && input2.rounds !== void 0 && !roundsExhausted(input2.rounds);
+}
+async function backEdgeRounds(input2) {
+  const { deps, plan, from, event } = input2;
+  if (deps.roundsOf === void 0 || isAbandonEvent(event))
+    return { kind: "not-limited" };
+  if (isForwardExit(plan, from, input2.to, event) || !isRoundsLimited(plan, from))
+    return { kind: "not-limited" };
+  const rounds = await deps.roundsOf({ changeDir: input2.changeDir, plan, state: input2.state, stepId: from });
+  if (rounds === null)
+    return { kind: "not-limited" };
+  if (backEdgeSkipsReview({ event, back: true, rounds }))
+    return { kind: "within-budget" };
+  return {
+    kind: "exhausted",
+    rejection: {
+      kind: "rounds-exhausted",
+      workflowName: input2.workflowName,
+      stepId: from,
+      event,
+      current: rounds.current,
+      max: rounds.max,
+      source: rounds.source
+    }
+  };
+}
+
 // packages/kernel/dist/workflow/agent-scope.js
 function unattachedReviewers(reviewers, attachOnOf, touched) {
   if (touched === void 0)
@@ -38525,32 +38554,6 @@ async function rejectOnStepGates(input2) {
       return { kind: "step-agents-incomplete", workflowName, stepId: from, blockers };
   }
   return void 0;
-}
-
-// packages/kernel/dist/workflow/transition-rounds-gate.js
-async function backEdgeRounds(input2) {
-  const { deps, plan, from, event } = input2;
-  if (deps.roundsOf === void 0 || isAbandonEvent(event))
-    return { kind: "not-limited" };
-  if (isForwardExit(plan, from, input2.to, event) || !isRoundsLimited(plan, from))
-    return { kind: "not-limited" };
-  const rounds = await deps.roundsOf({ changeDir: input2.changeDir, plan, state: input2.state, stepId: from });
-  if (rounds === null)
-    return { kind: "not-limited" };
-  if (!roundsExhausted(rounds))
-    return { kind: "within-budget" };
-  return {
-    kind: "exhausted",
-    rejection: {
-      kind: "rounds-exhausted",
-      workflowName: input2.workflowName,
-      stepId: from,
-      event,
-      current: rounds.current,
-      max: rounds.max,
-      source: rounds.source
-    }
-  };
 }
 
 // packages/kernel/dist/workflow/transition-step-outputs.js

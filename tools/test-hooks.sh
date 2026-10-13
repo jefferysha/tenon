@@ -3501,6 +3501,16 @@ for ro_var_cmd in 'grep "a$" f' "sed -n '\$p' f" 'grep -E "a$|b" f'; do
   ro_lib_rc "$ro_var_cmd"
   assert_exit "只读判定库：不是展开的 \$ 仍放行（${ro_var_cmd}）" 0 "$RO_RC"
 done
+# 会拉起外部程序的名单内形态：rg 的 -z / --search-zip 调解压程序，git 的 --ext-diff / --textconv 调配置里的外部程序
+# （git 长选项可缩写，按前缀拦）。--no-ext-diff 是关掉外部程序，照常放行。
+for ro_exec_cmd in 'rg -z x .' 'rg -iz x .' 'rg --search-zip x .' 'git diff --ext-diff' 'git log -p --ext' 'git show --textconv HEAD' 'git log -p --textc'; do
+  ro_lib_rc "$ro_exec_cmd"
+  assert_exit "只读判定库：会拉起外部程序的形态判非只读（${ro_exec_cmd}）" 1 "$RO_RC"
+done
+for ro_exec_cmd in 'git diff --no-ext-diff' 'rg -i x .' 'git log --oneline -3'; do
+  ro_lib_rc "$ro_exec_cmd"
+  assert_exit "只读判定库：不拉起外部程序的形态仍放行（${ro_exec_cmd}）" 0 "$RO_RC"
+done
 proj="$TMP/gate-ro-chain-review"
 run_gate "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"find .\\t-delete\"}}"
 assert_exit "评审标记：JSON 里 \\t 分隔的 find -delete 被拦" 2 "$RC"
@@ -3517,6 +3527,9 @@ refuse_cmd "评审标记：tenon transition 任务名是选项" 'tenon transitio
 refuse_cmd "评审标记：tenon transition 引号参数" 'tenon transition ro-demo "verify-fail"'
 refuse_cmd "评审标记：tenon transition 管道" 'tenon transition ro-demo verify-fail | cat'
 refuse_cmd "评审标记：tenon transition 命令替换" 'tenon transition ro-demo $(id)'
+# 只放行标记所属任务（即本会话的任务）的转换；别的任务的转换不借评审期这条口子。
+refuse_cmd "评审标记：tenon transition 别的任务" 'tenon transition other-change verify-fail'
+refuse_cmd "评审标记：cd 后 tenon transition 别的任务" 'cd /tmp && tenon transition other-change verify-fail'
 proj="$TMP/gate-ro-chain-interaction"
 refuse_cmd "交互标记：tenon transition 照拦" 'tenon transition ro-demo verify-fail'
 refuse_cmd "交互标记：cd 后 tenon transition 照拦" 'cd /tmp && tenon transition ro-demo verify-fail'

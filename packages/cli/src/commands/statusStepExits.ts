@@ -5,7 +5,7 @@
  *
  * 纯函数；证据（必需测试 / 必需评审者）是否已经不通过由 `requiredEvidenceFailed` 判，顺序表里决定要不要填结果字段也用它。
  */
-import { isAbandonEvent, roundsExhausted } from '@tenon/kernel'
+import { backEdgeSkipsReview, isAbandonEvent } from '@tenon/kernel'
 import type { StepAction } from './statusStepAction.js'
 import {
   hasFailedReviewer, releaseFailedReviewers, requestReviewAction, roundsVerdict,
@@ -28,14 +28,9 @@ export function requiredEvidenceFailed(input: {
     || input.reviewers.some((view) => view.required && view.status === 'fail')
 }
 
-/** 受轮次上限约束的步骤、轮次还没用完（宿主没给轮次 = 不确定，不算）：内核对这里的回退边不要求评审回执。 */
-function roundsRemain(rounds: StepRounds | null | undefined): boolean {
-  return rounds !== undefined && rounds !== null && !roundsExhausted(rounds)
-}
-
 /**
  * 回退边。受轮次上限约束的评审步上，轮次还没用完时唯一的回退边直接 transition：回退不越过任何质量门，代价由上限封顶，
- * 不需要评审回执（内核同一判定，见 transition-rounds-gate.ts）；升级前遗留的 pending / approved 回退边请求同样直接转换，
+ * 不需要评审回执（与内核转换用例共用 `backEdgeSkipsReview` 这一个判定）；升级前遗留的 pending / approved 回退边请求同样直接转换，
  * 转换会清掉回执与标记。没给轮次（宿主没接线）时失败关闭，照旧走 request → await → transition。多条回退边交给人选。
  *
  * 放弃边（`scope-expanded`）不在此列：内核对它照旧要求回执（人工确认语义不变）。
@@ -51,7 +46,7 @@ export function gatedBackActions(
   const choose: StepAction = { action: 'choose-exit', exits: back.map((exit) => exit.event) }
   if (input.gate !== 'review') return [choose]
   const only = back.length === 1 ? back[0] : undefined
-  if (only !== undefined && !isAbandonEvent(only.event) && roundsRemain(input.rounds)) {
+  if (only !== undefined && backEdgeSkipsReview({ event: only.event, back: only.direction === 'back', rounds: input.rounds })) {
     return [{ action: 'transition', event: only.event }]
   }
   const bound = back.find((exit) => exit.event === input.review.event)
@@ -130,7 +125,8 @@ export function exitActions(input: {
       // 请求之后才加进计划的豁免不在冻结清单里，这次确认批准不了它们：先重新发起（幂等）再等人。
       const pendingExit = input.exits.find((candidate) => candidate.event === review.event)
       // 升级前遗留的回退边请求：轮次内转换不再要回执（并会清掉回执与标记），不必等一次用不上的确认。
-      if (pendingExit?.direction === 'back' && !isAbandonEvent(pendingExit.event) && roundsRemain(input.rounds)) {
+      if (pendingExit !== undefined
+        && backEdgeSkipsReview({ event: pendingExit.event, back: pendingExit.direction === 'back', rounds: input.rounds })) {
         return [{ action: 'transition', event: pendingExit.event }]
       }
       if (flow?.refreshRequest === true && review.event !== null && pendingExit?.direction !== 'back') {

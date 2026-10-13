@@ -857,8 +857,9 @@ read-only work through, including read-only command chains: commands joined by `
 every segment is read-only (`git status --short | grep x`, `cd sub && ls`). Redirections other than discarding
 output, a background `&`, command substitution or variable expansion (including `$IFS`), unclosed quotes and commands over 2048 characters are never
 read-only, and some read-only commands are refused in their writing or program-running forms
-(`git diff|log|show --output`, `rg --pre`, `sed -n` with anything but a line-range print, `file -C`). While a
-review is pending the gate also lets exactly `tenon transition <change> <event>` through and leaves the decision
+(`git diff|log|show --output`, `--ext-diff` and `--textconv`, `rg --pre`, `-z` and `--search-zip`, `sed -n` with
+anything but a line-range print, `file -C`). While a review is pending the gate also lets exactly
+`tenon transition <change> <event>` for the task that owns the marker through and leaves the decision
 to the CLI, which still refuses a forward edge without its approved receipt and a return edge once the rounds are
 used up; this is how a return edge is taken when the user asks to go back while a forward review waits. The
 block message depends on the marker kind: a review block names the task and the event, lists the approval

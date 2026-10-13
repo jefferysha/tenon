@@ -17,6 +17,7 @@
 PIPELINE_READ_ONLY_MAX_CHARS=2048
 PIPELINE_RO_SED_PRINT='^([0-9]+|\$)(,([0-9]+|\$))?p$'
 PIPELINE_RO_FILE_COMPILE='(^|[[:space:]])-[A-Za-z]*C'
+PIPELINE_RO_RG_ZIP='(^|[[:space:]])-[A-Za-z]*z'
 
 # 丢弃输出的重定向不写任何文件：作为独立记号（前后是空格）时先去掉。
 pipeline_ro_strip_discards() { # $1=command → _PIPELINE_RO_TEXT
@@ -81,8 +82,9 @@ pipeline_ro_segment_ok() { # $1=去掉首尾空白的段 → 0 = 只读
       case "$s" in *'$('*|*'`'*|*'$['*) return 1 ;; esac
       return 0 ;;
     rg\ *)
-      # --pre 执行任意程序；--hostname-bin 同样执行程序。
-      case "$flat" in *--pre*|*--host*) return 1 ;; esac
+      # --pre 执行任意程序；--hostname-bin 同样执行程序；-z / --search-zip 调 gzip、xz 等解压程序（短选项可以合并：-iz）。
+      case "$flat" in *--pre*|*--host*|*--search-zip*) return 1 ;; esac
+      [[ "$flat" =~ $PIPELINE_RO_RG_ZIP ]] && return 1
       return 0 ;;
     file\ *)
       # -C / --compile 会写出编译后的 magic 文件；短选项可以合并（-bC），长选项可以缩写（--comp）。
@@ -98,8 +100,9 @@ pipeline_ro_segment_ok() { # $1=去掉首尾空白的段 → 0 = 只读
       esac
       return 0 ;;
     git\ status|git\ status\ *|git\ diff|git\ diff\ *|git\ log|git\ log\ *|git\ show|git\ show\ *)
-      # --output 把结果写进文件；git 的长选项可以缩写，所以 --out 开头的一律拦。
-      case "$flat" in *--out*) return 1 ;; esac
+      # --output 把结果写进文件；--ext-diff / --textconv 执行仓库配置里的外部程序。git 的长选项可以缩写，所以按前缀拦
+      # （--no-ext-diff 是关掉外部程序，不含 `--ext` 前缀，照常放行）。
+      case "$flat" in *--out*|*--ext*|*--textc*) return 1 ;; esac
       return 0 ;;
     git\ rev-parse\ *|git\ branch\ --show-current|git\ worktree\ list|git\ worktree\ list\ *)
       return 0 ;;

@@ -531,8 +531,13 @@ pipeline_dashboard_open_port_ok() { # $1=segment → 0 unless a `--port` value i
   return 0
 }
 
-# 恰好 `tenon transition <change> <event>`（两个位置参数，只含 [A-Za-z0-9_-]）：给 is_review_control_command 用。
-pipeline_transition_command_ok() { # $1=segment → 0 = exactly `tenon transition <change> <event>`
+# 拦住本次调用的评审标记所属的任务（gate_check_marker 在调 is_review_control_command 之前设置）；它已经过
+# review_marker_relevant_to_active_change 核对，就是本会话的任务。空 = 不知道，评审期一律不放行 transition。
+REVIEW_MARKER_CHANGE=''
+
+# 恰好 `tenon transition <change> <event>`（两个位置参数，只含 [A-Za-z0-9_-]），且 <change> 是评审标记所属的任务：
+# 给 is_review_control_command 用。别的任务的转换不借评审期这条口子。
+pipeline_transition_command_ok() { # $1=segment → 0 = exactly `tenon transition <marked change> <event>`
   local rest="${1#tenon transition }" change event
   # 只认 [A-Za-z0-9_-] 与分隔用的空格：引号、$、展开、制表符都进不来。
   case "$rest" in ''|*[!A-Za-z0-9_\ -]*) return 1 ;; esac
@@ -543,7 +548,7 @@ pipeline_transition_command_ok() { # $1=segment → 0 = exactly `tenon transitio
   # 两个参数都是位置参数，不是选项。
   case "$change" in -*) return 1 ;; esac
   case "$event" in -*) return 1 ;; esac
-  return 0
+  [ -n "$REVIEW_MARKER_CHANGE" ] && [ "$change" = "$REVIEW_MARKER_CHANGE" ]
 }
 
 # While a review is pending an agent may still run `tenon review request` and the delegated
@@ -668,6 +673,7 @@ gate_check_marker() { # $1=kind $2=marker path
       # The delegated acknowledgement (and `review request`) are the only state-writing actions that may
       # pass a pending v2 gate.  The command itself validates exact Change/phase/pending state under the
       # canonical lock, so allowing this narrow control surface cannot open unrelated writes.
+      REVIEW_MARKER_CHANGE="$(pipeline_review_marker_change "$m" 2>/dev/null || true)"
       if is_review_control_command "$(json_command_short || true)"; then
         return 0
       fi

@@ -15,8 +15,23 @@ import { isForwardExit } from './agent-verdict.js'
 import { isAbandonEvent } from './implicit-completion.js'
 import type { EffectiveWorkflowPlan } from './effective-plan-types.js'
 import { isRoundsLimited } from './step-rounds.js'
-import { roundsExhausted } from './step-rounds-read.js'
+import { roundsExhausted, type StepRounds } from './step-rounds-read.js'
 import type { TransitionApplicationDeps, TransitionRejection } from './transition-application-types.js'
+
+/**
+ * 「轮次内回退免评审回执」的唯一判定，内核转换用例（`backEdgeRounds`）与 CLI `next`（statusStepExits.ts）共用：
+ * 这条出边是回退边、不是放弃边，且受约束步骤的轮次已知、还没用完。
+ * `back` 由调用方按各自掌握的计划判（内核：不是前进边；`next`：出口投影的 direction）。`rounds` 只在步骤受上限约束时
+ * 才有值：步骤不受约束、宿主没接线或读不到都是 null / undefined，失败关闭——照旧要求评审回执。
+ */
+export function backEdgeSkipsReview(input: {
+  readonly event: string
+  readonly back: boolean
+  readonly rounds: Pick<StepRounds, 'current' | 'max'> | null | undefined
+}): boolean {
+  return input.back && !isAbandonEvent(input.event) && input.rounds !== null && input.rounds !== undefined
+    && !roundsExhausted(input.rounds)
+}
 
 export type BackEdgeRounds =
   | { readonly kind: 'not-limited' }
@@ -39,7 +54,7 @@ export async function backEdgeRounds(input: {
   if (isForwardExit(plan, from, input.to, event) || !isRoundsLimited(plan, from)) return { kind: 'not-limited' }
   const rounds = await deps.roundsOf({ changeDir: input.changeDir, plan, state: input.state, stepId: from })
   if (rounds === null) return { kind: 'not-limited' }
-  if (!roundsExhausted(rounds)) return { kind: 'within-budget' }
+  if (backEdgeSkipsReview({ event, back: true, rounds })) return { kind: 'within-budget' }
   return {
     kind: 'exhausted',
     rejection: {

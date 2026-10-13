@@ -64,8 +64,8 @@ review/interaction/confirm 三门由项目根 `.pipeline-pending-{review,interac
 - `verify-fail` 与 `verify-pass` 是不同的人类决定；receipt 必须绑定 exact event，不能互相复用。
   例外：受轮次上限约束的步骤（评审门且有回退边）上，轮次还没用完时走回退边不需要评审回执，直接 `tenon transition`；
   前进边、剩余阻断与测试豁免仍只认人工确认，轮次用完后回退边照旧被拒。
-- review marker 待处理期间，由 `|` `&&` `||` `;` 连接、每段都只读的组合命令放行；`tenon transition <change> <event>`
-  单条命令也放行（交给 CLI 判定，缺回执的前进边仍被拒）。拦截提示按 marker 种类区分，review 提示不再提 AskUserQuestion。
+- review marker 待处理期间，由 `|` `&&` `||` `;` 连接、每段都只读的组合命令放行；marker 所属任务的
+  `tenon transition <change> <event>` 单条命令也放行（交给 CLI 判定，缺回执的前进边仍被拒）。拦截提示按 marker 种类区分，review 提示不再提 AskUserQuestion。
 - 不得绕过 review-gate（会产生 solo 推进）。review marker 只由 `tenon review request` 在产物完成后
   写入；**不得**直接删除 v2 marker 或直接编辑 `.pipeline.yaml` 状态。
 

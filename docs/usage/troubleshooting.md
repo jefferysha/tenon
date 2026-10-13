@@ -137,7 +137,7 @@ expired review through the CLI; do not delete a marker to fabricate approval.
 
 While a review waits, the write gate blocks writes but not read-only work: read-only
 command chains such as `git status --short | grep x` or `cd sub && ls` go through, and
-so does exactly `tenon transition <change> <event>` (the CLI still refuses a forward edge
+so does exactly `tenon transition <change> <event>` for the task that owns the marker (the CLI still refuses a forward edge
 without its approved receipt). The block message depends on the marker kind: a review block
 names the task and the event and lists the approval phrases and the Dashboard confirmation.
 On a step limited by verification rounds (a review gate with a back edge), taking the back edge

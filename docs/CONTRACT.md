@@ -250,9 +250,10 @@
   **待处理期间的只读放行与提示**：三种 marker 下，由引号外的 `|` `||` `&&` `;` 连接、每段都是 `cd` 或严格只读命令的组合命令放行
   （`hooks/lib/read-only-command.sh`，失败关闭：引号外的重定向、后台 `&`、换行、命令替换与变量展开（含 `$IFS`）、引号不闭合、超过 2048 字符一律算非只读；
   丢弃输出的 `>/dev/null`、`2>/dev/null`、`&>/dev/null`、`2>&1` 不算重定向）。只读名单里带写文件或执行程序参数的形态被收紧：
-  `git diff|log|show --output`、`rg --pre`、`sed -n` 的非行号区间打印、`file -C`/`--compile` 均非只读。评审 marker 下访问本机
+  `git diff|log|show --output`/`--ext-diff`/`--textconv`、`rg --pre`/`-z`/`--search-zip`、`sed -n` 的非行号区间打印、
+  `file -C`/`--compile` 均非只读。评审 marker 下访问本机
   Dashboard 控制面或其凭据的命令（自审批候选）排在只读放行之前拦截；形如 `tenon transition <change> <event>` 的单条命令
-  （无 shell 元字符）放行，交给 CLI 判定——CLI 照旧拒绝缺回执的前进边与轮次用完后的回退边，只放行轮次内的回退边；确认与交互 marker
+  （无 shell 元字符，且 `<change>` 是 marker 所属的本任务）放行，交给 CLI 判定——CLI 照旧拒绝缺回执的前进边与轮次用完后的回退边，只放行轮次内的回退边；确认与交互 marker
   下这条命令照旧被拦。拦截提示按 marker 种类区分：评审 marker 的提示写明任务与事件，要求把产出摆给用户，列出放行语与 Dashboard
   确认（`tenon dashboard --open`），不再提 AskUserQuestion；确认与交互 marker 的提示保留 AskUserQuestion / ToolSearch / 放行语的说法。
 - **交互 marker v2（按会话归属）**：`.pipeline-pending-interaction` 首行为 `pipeline-interaction-v2`，随后 `change=`、`session=`、`skills=`、`requested_at=`。`session` 非空只属于该会话；`session` 为空而 `change` 非空属于「本会话任务为该 Change」的会话；两者皆空属于全部会话（宿主不给 session id 时的旧行为）。gate 只拦归属方；`confirm-clear.sh` 与 `confirm-clear-prompt.sh` 只解归属本会话的标记，InteractionConfirmed 只记到本会话任务；旧格式（首行不是协议名，含空文件）见到即删除、不拦截。「本会话任务」由 `hooks/active-change.sh` 的 `pipeline_session_change_dir` 解析：本会话有会话绑定取绑定的 Change；无绑定而共享指针指向的 Change 已被别的会话绑定则没有任务；宿主没给 `session_id` 或该 Change 无人绑定则回退共享指针。放行语只认整条短回复（`pipeline_text_is_approval_phrase`），AskUserQuestion 只看 `tool_response.answers` 的答案值。

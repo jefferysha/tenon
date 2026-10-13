@@ -65,7 +65,7 @@ openspec/changes/<change>/.pipeline-document-locale.json
 
 受轮次上限约束的步骤（评审门且有回退边）上，轮次还没用完时走回退边不需要评审回执，直接 `tenon transition <change> verify-fail`，即使此时正有 `verify-pass` 的评审在等确认；转换会一并清掉过期的评审标记。前进边、剩余阻断与测试豁免仍只认人工确认。
 
-评审待确认期间，写门拦写入但不拦只读工作：`git status --short | grep x`、`cd sub && ls` 这类每段都只读的组合命令放行，恰好 `tenon transition <change> <event>` 也放行（缺已批准回执的前进边仍由 CLI 拒绝）。拦截提示按标记种类区分：评审提示写明任务与事件，列出放行语与 Dashboard 确认。
+评审待确认期间，写门拦写入但不拦只读工作：`git status --short | grep x`、`cd sub && ls` 这类每段都只读的组合命令放行，本任务（标记所属任务）恰好 `tenon transition <change> <event>` 也放行（缺已批准回执的前进边仍由 CLI 拒绝）。拦截提示按标记种类区分：评审提示写明任务与事件，列出放行语与 Dashboard 确认。
 
 #### Dashboard 一直等待
 

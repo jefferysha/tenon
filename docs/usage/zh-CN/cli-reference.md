@@ -226,8 +226,8 @@ review（缺失、已被消费、binding 失效或 event 已不是 workflow 出�
 
 评审（或交互、确认）待处理期间，写门继续拦写入，但放行只读工作，包括只读组合命令：由 `|`、`&&`、`||`、`;` 连接、每一段都只读的命令
 （`git status --short | grep x`、`cd sub && ls`）。丢弃输出以外的重定向、后台 `&`、命令替换与变量展开（含 `$IFS`）、引号不闭合、超过 2048 个字符的命令一律不算只读；
-部分只读命令的写文件或执行程序形态也被拒（`git diff|log|show --output`、`rg --pre`、`sed -n` 非行号区间打印、`file -C`）。评审待确认时，
-门还恰好放行 `tenon transition <change> <event>` 这一形态，由 CLI 判定：缺已批准回执的前进边和轮次用完后的回退边照旧被拒——
+部分只读命令的写文件或执行程序形态也被拒（`git diff|log|show --output`/`--ext-diff`/`--textconv`、`rg --pre`/`-z`/`--search-zip`、`sed -n` 非行号区间打印、`file -C`）。评审待确认时，
+门还恰好放行本任务（标记所属任务）的 `tenon transition <change> <event>` 这一形态，由 CLI 判定：缺已批准回执的前进边和轮次用完后的回退边照旧被拒——
 前进评审待确认、用户要求回去修改时，就是靠它走回退边。拦截提示按标记种类区分：评审提示写明任务与事件，列出放行语与 Dashboard 确认，
 不再提 AskUserQuestion。
 

@@ -117,10 +117,10 @@ step can only require a file by path. Read "Retired and migration" before you up
   joined by `|`, `&&`, `||` or `;` when every segment is read-only (`git status --short | grep x`, `cd sub && ls`).
   Redirections other than `>/dev/null`, `2>/dev/null`, `&>/dev/null` and `2>&1`, a background `&`, command substitution or variable expansion (including `$IFS`),
   unclosed quotes and commands over 2048 characters are never read-only. Some read-only commands are now refused in their
-  writing or program-running forms: `git diff|log|show --output`, `rg --pre`, `sed -n` with anything but a line-range
-  print, and `file -C`.
+  writing or program-running forms: `git diff|log|show --output`, `--ext-diff` and `--textconv`, `rg --pre`, `-z` and
+  `--search-zip`, `sed -n` with anything but a line-range print, and `file -C`.
 - Per-kind hints and `tenon transition` under a pending review. While a review waits, the gate lets exactly
-  `tenon transition <change> <event>` through and leaves the decision to the CLI, so an agent can take a back edge when
+  `tenon transition <change> <event>` for the task that owns the marker through and leaves the decision to the CLI, so an agent can take a back edge when
   the user asks to go back (the CLI still refuses a forward edge without its approved receipt). The block message now
   depends on the marker kind: a review block names the task and the event, lists the approval phrases and the Dashboard
   confirmation, and no longer mentions AskUserQuestion; confirm and interaction blocks keep their AskUserQuestion wording.
