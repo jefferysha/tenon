@@ -10,6 +10,29 @@ describe('decodeTransitionReadinessBlocker · 通用离开条件', () => {
       .toEqual({ kind: 'evaluation-error', guardType })
   })
 
+  it('required-output（必须产出）：没产出 / 当前步骤不可判 / 能力不可用 / 评估出错的阻断都能解码', () => {
+    expect(GUARD_TYPES.has('required-output')).toBe(true)
+    for (const actual of ['missing', 'current-step-unavailable']) {
+      expect(decodeTransitionReadinessBlocker({ kind: 'guard-failed', guardType: 'required-output', actual }))
+        .toEqual({ kind: 'guard-failed', guardType: 'required-output', actual })
+    }
+    expect(decodeTransitionReadinessBlocker({ kind: 'capability-unavailable', guardType: 'required-output', capability: 'requiredOutput' }))
+      .toEqual({ kind: 'capability-unavailable', guardType: 'required-output', capability: 'requiredOutput' })
+    expect(decodeTransitionReadinessBlocker({ kind: 'evaluation-error', guardType: 'required-output' }))
+      .toEqual({ kind: 'evaluation-error', guardType: 'required-output' })
+    expect(decodeTransitionReadinessBlocker({ kind: 'evaluation-error', guardType: 'required-output', capability: 'requiredOutput' }))
+      .toEqual({ kind: 'evaluation-error', guardType: 'required-output', capability: 'requiredOutput' })
+  })
+
+  it('required-output 的 guard-failed 带可选路径：原样保留；没带也能解码；不是字符串整条拒收', () => {
+    const path = 'openspec/changes/plan-checkout/proposal.md'
+    expect(decodeTransitionReadinessBlocker({ kind: 'guard-failed', guardType: 'required-output', actual: 'missing', path }))
+      .toEqual({ kind: 'guard-failed', guardType: 'required-output', actual: 'missing', path })
+    expect(decodeTransitionReadinessBlocker({ kind: 'guard-failed', guardType: 'required-output', actual: 'missing' }))
+      .toEqual({ kind: 'guard-failed', guardType: 'required-output', actual: 'missing' })
+    expect(decodeTransitionReadinessBlocker({ kind: 'guard-failed', guardType: 'required-output', actual: 'missing', path: 1 })).toBeNull()
+  })
+
   it('认不出的离开条件类型整条拒收', () => {
     expect(decodeTransitionReadinessBlocker({ kind: 'guard-failed', guardType: 'made-up' })).toBeNull()
   })

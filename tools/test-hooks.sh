@@ -69,19 +69,6 @@ assert_empty() { # desc value
   if [ -z "$2" ]; then ok "$1"; else bad "$1" "期望空输出，实得：${2}"; fi
 }
 
-strip_document_contract() { # $1=workflow yaml → stdout 去掉 openspec 开关与每个分支的 document_contract 块
-  # default 的契约点名 openspec-propose/brainstorming 等非 driver 技能，只有 default 免除 producer
-  # 归属校验。改名后的副本要通过 kernel 校验，就必须连同开关一起去掉契约——这些 router 夹具验证的是
-  # Track/workflow 选择，不是文档治理。
-  awk '
-    /^openspec: true$/ { next }
-    /^    document_contract:$/ { skip = 1; next }
-    skip && /^ {0,4}[^ ]/ { skip = 0 }
-    skip { next }
-    { print }
-  ' "$1"
-}
-
 sha256_text() { # stdin → lowercase hex；测试夹具与生产 helper 使用同一跨 macOS/Linux优先级
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum | awk '{print $1}'

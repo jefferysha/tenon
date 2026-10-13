@@ -3,7 +3,7 @@ import { lstat, readdir } from 'node:fs/promises'
 import type { Dirent } from 'node:fs'
 import { join } from 'node:path'
 import {
-  stateStorageSourcePathSync, TENON_PROJECT_DIR, TERMINAL_ACTIVITY_FILE, TEST_SEAL_FILE, userProjectPaths,
+  STEP_OUTPUT_LEDGER_FILE, stateStorageSourcePathSync, TENON_PROJECT_DIR, TERMINAL_ACTIVITY_FILE, TEST_SEAL_FILE, userProjectPaths,
 } from '@tenon/kernel'
 import { mapWithConcurrency } from './concurrentMap.js'
 import { dedupeRoots } from './projectRoots.js'
@@ -103,6 +103,8 @@ async function changeParts(
     source,
     join(changeDir, 'tasks.md'),
     join(changeDir, '.pipeline-documents.json'),
+    // 每步的产出与读取回执在转换（离开步骤）和 `tenon document read` 时写入，Dashboard 的 stepIo 靠它刷新。
+    join(changeDir, STEP_OUTPUT_LEDGER_FILE),
     ...slugs.flatMap((slug) => [
       join(readRoot, TENON_PROJECT_DIR, 'users', slug, 'tests', name),
       join(readRoot, TENON_PROJECT_DIR, 'users', slug, 'local', 'running', name),

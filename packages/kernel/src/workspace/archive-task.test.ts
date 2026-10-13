@@ -652,6 +652,46 @@ describe('taskArchiveSpec', () => {
     expect(taskArchiveSpec(stateWith({ workflowId: 'default' }))).toBe('openspec')
   })
 
+  describe('冻结的计划没有文档契约（新任务）：OpenSpec 收尾读任务所在分支的 spec，与契约无关', () => {
+    function observedState(track: string, workflow: Record<string, unknown>): PipelineState {
+      const fields = emptyFields()
+      fields.track = track
+      return {
+        fields,
+        opaqueTail: '',
+        runMetadata: {
+          runId: 'run-1',
+          transitionSequence: 0,
+          workflowPlanSnapshot: { version: 4, workflowId: 'default', documentPolicy: null, workflow } as unknown as WorkflowPlanSnapshot,
+        },
+      }
+    }
+    const branched = {
+      openspec: true,
+      steps: [],
+      tracks: {
+        lite: { spec: 'none', steps: [] },
+        backend: { steps: [] },
+        pm: { spec: 'openspec', steps: [] },
+      },
+    }
+
+    it('走 OpenSpec 的分支（声明 openspec，或没写继承顶层 openspec: true）→ openspec；spec: none 的分支 → none', () => {
+      expect(taskArchiveSpec(observedState('backend', branched))).toBe('openspec')
+      expect(taskArchiveSpec(observedState('pm', branched))).toBe('openspec')
+      expect(taskArchiveSpec(observedState('lite', branched))).toBe('none')
+    })
+
+    it('平铺工作流：顶层 openspec 决定；没写就是 none（design-system 删掉了 openspec: true）', () => {
+      expect(taskArchiveSpec(observedState('anything', { openspec: true, steps: [] }))).toBe('openspec')
+      expect(taskArchiveSpec(observedState('design-system', { steps: [] }))).toBe('none')
+    })
+
+    it('任务记着的轨道不在冻结的分支里 → none，不抛', () => {
+      expect(taskArchiveSpec(observedState('gone', branched))).toBe('none')
+    })
+  })
+
   it('冻结的计划没有文档治理、没有快照或快照形状不认识 → none', () => {
     expect(taskArchiveSpec(stateWith(null))).toBe('none')
     expect(taskArchiveSpec({ fields: emptyFields(), opaqueTail: '' })).toBe('none')

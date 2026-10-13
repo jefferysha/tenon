@@ -129,7 +129,7 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
     { id: 'new', label: t('workflow.new_workflow'), icon: <Plus />, onSelect: props.onCreate, disabled: !canCreate || busy },
     { id: 'export', label: t('workflow.export_yaml'), icon: <Download />, onSelect: props.onExport, disabled: current === null },
     // default 恒受 OpenSpec 治理，开关只对自定义工作流开放。
-    // 开关决定阶段能否「+ 输入 / + 输出」文档：关闭时输入输出只来自字段，说明放在 Tooltip。
+    // 开关决定任务是否按 OpenSpec 管理规格，说明放在 Tooltip。
     { id: 'openspec', label: t('workflow.openspec_menu'), icon: <FileCheck />, onSelect: props.onToggleOpenspec, checked: openspec, disabled: !canWrite || busy || isDefault || current === null, hint: t('workflow.openspec_hint') },
     // 轨道设置（规范 / 关键词）作用于当前所选的轨道；平铺工作流没有轨道，不列。
     ...(branch !== BASE_BRANCH ? [{ id: 'track-settings', label: t('workflow.track_settings'), icon: <Settings2 />, onSelect: props.onTrackSettings, disabled: !canWrite || busy }] : []),

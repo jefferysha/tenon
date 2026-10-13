@@ -346,19 +346,16 @@ steps:
     transitions: []
 `
 
-/** g1 声明 nonempty-output guard（design_doc 必须产出）。 */
+/** g1 声明 field-nonempty guard（design_doc 必须已设；`outputs` / `nonempty-output` 已删除，字段门禁直接写 field-nonempty）。 */
 const GUARDED_WF = `name: guarded
 steps:
   - id: g1
     label: one
     gate: null
     skills: []
-    inputs: []
-    outputs:
-      - field: design_doc
-        type: file_path
     guards:
-      - type: nonempty-output
+      - type: field-nonempty
+        field: design_doc
     transitions:
       - event: done
         to: g2
@@ -526,6 +523,8 @@ describe('advance —— 非 default workflow（自定义 step 图，快速回�
     root = await mkdtemp(join(tmpdir(), 'advance-custom-'))
     const wfDir = join(root, '.pipeline', 'workflows')
     await mkdir(wfDir, { recursive: true })
+    // 自定义 workflow 的任务是观察模式：转换会在任务目录里写步骤产出账本，目录必须真实存在（state / history 仍是 mock）。
+    await mkdir(join(root, 'openspec', 'changes', 'demo'), { recursive: true })
     await writeFile(join(wfDir, 'chain.yaml'), CHAIN_WF, 'utf8')
     await writeFile(join(wfDir, 'fork.yaml'), FORK_WF, 'utf8')
     await writeFile(join(wfDir, 'guarded.yaml'), GUARDED_WF, 'utf8')

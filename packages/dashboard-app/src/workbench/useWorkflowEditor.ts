@@ -6,7 +6,7 @@ import { formatApiError, getToken } from '../api/transport'
 import { fetchWorkflowYaml } from '../api/workflowYamlClient'
 import { useT } from '../i18n'
 import { invalidateWorkflowRules } from '../model/workflowModel'
-import { draftEffectiveIo, lintWorkflow } from '../workflow/lint'
+import { lintWorkflow } from '../workflow/lint'
 import { fetchAgents, type AgentSummary } from '../api/agentClient'
 import { useSkillRegistry } from './useSkillRegistry'
 import { readSaveErrors } from './workbenchApiDecoders'
@@ -216,18 +216,17 @@ export function useWorkflowEditor({ root, onDirtyChange, initial, onDeleted }: W
     return () => { cancelled = true }
   }, [])
 
-  const effectiveIo = useMemo(() => def === null ? undefined : draftEffectiveIo(def), [def])
   const agentNames = useMemo(() => agents === null ? null : agents.map((agent) => agent.name), [agents])
   const lint = useMemo(
-    () => def === null ? [] : lintWorkflow(def, effectiveIo, agentNames),
-    [def, effectiveIo, agentNames],
+    () => def === null ? [] : lintWorkflow(def, agentNames),
+    [def, agentNames],
   )
-  // 保存门禁看全部分支：任一分支有 error 都不能保存；warning（缺输出、成对文档缺一）不挡。
+  // 保存门禁看全部分支：任一分支有 error 都不能保存；warning 不挡。
   const lintBlocked = useMemo(() => {
     if (fullDef === null) return false
     return branchesOf(fullDef).some((candidate) => {
       const view = selectBranchDef(fullDef, candidate.id)
-      return lintWorkflow(view, draftEffectiveIo(view), agentNames).some((issue) => issue.severity === 'error')
+      return lintWorkflow(view, agentNames).some((issue) => issue.severity === 'error')
     })
   }, [fullDef, agentNames])
   // 名称只显示一个：YAML 有 label 用 label，没有就用 id；前端不翻译。
@@ -288,7 +287,7 @@ export function useWorkflowEditor({ root, onDirtyChange, initial, onDeleted }: W
       baselineJson.current = stableJson(definitionForWrite(fullDef))
       if (isDefaultWorkflowName(targetWorkflow)) setDefaultSource('project')
       setSaveStatus({ kind: 'ok' })
-      // 重新拉一次拿服务端物化后的 IO（文档槽位 / 消费者）。
+      // 重新拉一次拿服务端规整后的定义。
       setReloadNonce((value) => value + 1)
     } catch (error) {
       if (stillCurrent()) setSaveStatus({ kind: 'error', errors: [formatApiError(error, localeRef.current.t)] })
@@ -334,7 +333,6 @@ export function useWorkflowEditor({ root, onDirtyChange, initial, onDeleted }: W
     addTrack,
     setTrackSettings,
     removeTrack,
-    effectiveIo,
     lint,
     lintBlocked,
     ...mutations,

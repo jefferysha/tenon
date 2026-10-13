@@ -38,7 +38,7 @@ function edge(id: string, stepId: string, event: string): StepTransition {
 const kinds = (guards: readonly WorkflowGuardConfig[] | undefined): string[] => (guards ?? []).map((guard) => guard.type)
 const actionTypes = (transition: StepTransition): string[] => (transition.actions ?? []).map((action) => action.type)
 const fieldOf = (guard: WorkflowGuardConfig | undefined): string | undefined =>
-  guard === undefined ? undefined : 'field' in guard ? guard.field : 'path' in guard ? guard.path.field : undefined
+  guard === undefined ? undefined : 'field' in guard ? guard.field : 'path' in guard && typeof guard.path !== 'string' ? guard.path.field : undefined
 
 /** 一步的某条出边实际要满足的离开条件：步骤自己的 guards 加这条边的 guards。 */
 const exitGuards = (id: string, stepId: string, event: string): WorkflowGuardConfig[] =>
@@ -56,10 +56,99 @@ describe('default.yaml 的轨道集合', () => {
     expect(() => compileDefaultWorkflow(def)).not.toThrow()
   })
 
-  it.each(HEAVY)('%s 仍是七步并保留文档契约，规范继承顶层 openspec', (id) => {
+  it.each(HEAVY)('%s 仍是七步，没有文档契约，规范继承顶层 openspec', (id) => {
     expect(branch(id).steps.map((s) => s.id)).toEqual(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'])
-    expect(branch(id).documentContract).toBeDefined()
+    expect(branch(id).documentContract).toBeUndefined()
     expect(branch(id).spec).toBeUndefined()
+  })
+})
+
+describe('文档机制：模板不预先规定每一步的输入输出文档（设计 §7）', () => {
+  it('顶层与四条分支都没有 document_contract，所有步骤都没有 inputs / outputs / artifacts', () => {
+    expect(def.documentContract).toBeUndefined()
+    for (const id of Object.keys(def.tracks ?? {})) {
+      expect(branch(id).documentContract, id).toBeUndefined()
+      for (const s of branch(id).steps) {
+        expect(s.inputs ?? [], `${id}.${s.id}.inputs`).toEqual([])
+        expect(s.outputs ?? [], `${id}.${s.id}.outputs`).toEqual([])
+        expect(s.artifacts ?? [], `${id}.${s.id}.artifacts`).toEqual([])
+      }
+    }
+  })
+
+  it('生成物原文里没有这些键的非空写法', () => {
+    expect(DEFAULT_WORKFLOW_SOURCE).not.toMatch(/^\s*document_contract:/mu)
+    expect(DEFAULT_WORKFLOW_SOURCE).not.toMatch(/^\s*(inputs|outputs|artifacts):\s*$/mu)
+    expect(DEFAULT_WORKFLOW_SOURCE).not.toMatch(/nonempty-output/u)
+  })
+
+  // 每个步骤的 required-output 路径模式（按声明顺序）；lite 不加必须产出。
+  const REQUIRED: Record<string, Record<string, readonly string[]>> = {
+    pm: {
+      open: ['openspec/changes/{change}/proposal.md'],
+      explore: ['docs/superpowers/specs/*.md'],
+      spec: ['openspec/changes/{change}/specs/*/spec.md'],
+    },
+    frontend: {
+      open: ['openspec/changes/{change}/proposal.md'],
+      explore: ['docs/superpowers/specs/*.md'],
+      spec: ['openspec/changes/{change}/specs/*/spec.md', 'docs/superpowers/plans/*.md'],
+    },
+    backend: {
+      open: ['openspec/changes/{change}/proposal.md'],
+      explore: ['docs/superpowers/specs/*.md'],
+      spec: ['openspec/changes/{change}/specs/*/spec.md', 'docs/superpowers/plans/*.md'],
+    },
+  }
+  const requiredPaths = (guards: readonly WorkflowGuardConfig[]): string[] =>
+    guards.flatMap((guard) => (guard.type === 'required-output' ? [guard.path] : []))
+
+  it.each(HEAVY)('%s：立项 / 调研 / 规格步各自声明按路径的必须产出，其余步骤的步骤守卫不带必须产出', (id) => {
+    for (const s of branch(id).steps) {
+      expect(requiredPaths(s.guards), `${id}.${s.id}`).toEqual(REQUIRED[id]?.[s.id] ?? [])
+    }
+  })
+
+  it.each(HEAVY)('%s：验证通过边的必须产出是验证报告，位置在 build-head-unchanged 之前', (id) => {
+    const guards = edge(id, 'verify', 'verify-pass').guards ?? []
+    expect(requiredPaths(guards)).toEqual(['docs/superpowers/reports/{change}-verify.md'])
+    expect(kinds(guards)).toEqual(['required-output', 'build-head-unchanged', 'tasks-through-step'])
+    expect(kinds(step(id, 'verify').guards)).toEqual([])
+  })
+
+  it('lite 轨道没有任何必须产出', () => {
+    for (const s of branch('lite').steps) {
+      expect(requiredPaths(s.guards), s.id).toEqual([])
+      for (const t of s.transitions) expect(requiredPaths(t.guards ?? []), `${s.id}.${t.event}`).toEqual([])
+    }
+  })
+
+  it.each(HEAVY)('%s：其余步骤守卫保持原样（只换掉文档相关的几条）', (id) => {
+    const expected: Record<string, readonly string[]> = {
+      open: ['required-output', 'tasks-through-step'],
+      explore: ['required-output', 'tasks-through-step'],
+      spec: id === 'pm'
+        ? ['required-output', 'tasks-at-least', 'tasks-through-step']
+        : ['required-output', 'required-output', 'tasks-at-least', 'tasks-through-step'],
+      build: [],
+      verify: [],
+      ship: id === 'pm'
+        ? ['file-exists', 'spec-migration-applied', 'tasks-through-step']
+        : ['field-nonempty', 'spec-migration-applied', 'tasks-through-step'],
+      archive: ['tasks-through-step'],
+    }
+    for (const s of branch(id).steps) expect(kinds(s.guards), `${id}.${s.id}`).toEqual(expected[s.id])
+  })
+
+  it('产品轨道交付步保留 file-exists prd_path（交付值，不是文档契约）', () => {
+    const prd = step('pm', 'ship').guards.find((guard) => guard.type === 'file-exists')
+    expect(prd).toMatchObject({ path: { field: 'prd_path' } })
+  })
+
+  it('前端交付步提示词不再要求登记 design-md', () => {
+    const prompt = step('frontend', 'ship').prompt ?? ''
+    expect(prompt).toContain('tenon design validate')
+    expect(prompt).not.toMatch(/document record|design-md/u)
   })
 })
 
@@ -170,18 +259,18 @@ describe.each(HEAVY)('%s：写死的离开条件与动作都在 YAML 里（设�
     expect(actionTypes(edge(id, 'verify', 'verify-fail'))).toEqual(['mark-verification-failed', 'reset-pre-verify-review'])
   })
 
-  it('验证通过：验证报告存在、build 后未改动、本阶段任务已勾选；动作记验证通过', () => {
+  it('验证通过：本任务验证步产出了验证报告、build 后未改动、本阶段任务已勾选；动作记验证通过', () => {
     const guards = exitGuards(id, 'verify', 'verify-pass')
-    expect(kinds(guards)).toEqual(expect.arrayContaining(['file-exists', 'build-head-unchanged', 'tasks-through-step']))
-    expect(guards.find((g) => g.type === 'file-exists')).toMatchObject({ path: { field: 'verification_report' } })
+    expect(kinds(guards)).toEqual(expect.arrayContaining(['required-output', 'build-head-unchanged', 'tasks-through-step']))
+    expect(guards.find((g) => g.type === 'required-output')).toMatchObject({ path: 'docs/superpowers/reports/{change}-verify.md' })
     expect(guards.find((g) => g.type === 'build-head-unchanged')).toMatchObject({ field: 'build_sha' })
     expect(actionTypes(edge(id, 'verify', 'verify-pass'))).toEqual(['mark-verification-passed'])
     expect(step(id, 'verify').maxRounds).toBe(2)
     expect(step(id, 'verify').gate).toBe('review')
   })
 
-  it('调研出口要求设计文档存在；规格出口要求任务不少于 3 条，规格完成重置实现前评审', () => {
-    expect(exitGuards(id, 'explore', 'explore-complete').find((g) => g.type === 'file-exists')).toMatchObject({ path: { field: 'design_doc' } })
+  it('调研出口要求本步产出设计文档；规格出口要求任务不少于 3 条，规格完成重置实现前评审', () => {
+    expect(exitGuards(id, 'explore', 'explore-complete').find((g) => g.type === 'required-output')).toMatchObject({ path: 'docs/superpowers/specs/*.md' })
     expect(exitGuards(id, 'spec', 'spec-complete').find((g) => g.type === 'tasks-at-least')).toMatchObject({ n: 3 })
     expect(actionTypes(edge(id, 'spec', 'spec-complete'))).toEqual(['reset-pre-verify-review'])
   })
@@ -214,15 +303,16 @@ describe.each(HEAVY)('%s：写死的离开条件与动作都在 YAML 里（设�
   })
 })
 
-describe('spec 出口的 plan 文件检查与交付值', () => {
-  it('非产品轨道要求 plan 文件存在，产品轨道（plan 由文档台账约束）豁免', () => {
-    for (const id of ['frontend', 'backend']) {
-      const plan = exitGuards(id, 'spec', 'spec-complete').find((g) => g.type === 'file-exists' && fieldOf(g) === 'plan')
-      expect(plan, id).toMatchObject({ when: { kind: 'track-not-in', values: ['pm'] } })
+describe('spec 出口的必须产出与交付值', () => {
+  it('规格步都要求 delta spec；非产品轨道另要求计划文档，产品轨道没有计划要求（也不再靠 track_not_in 豁免）', () => {
+    for (const id of HEAVY) {
+      const guards = exitGuards(id, 'spec', 'spec-complete')
+      expect(guards.some((g) => g.type === 'required-output' && g.path === 'openspec/changes/{change}/specs/*/spec.md'), id).toBe(true)
+      const plan = guards.find((g) => g.type === 'required-output' && g.path === 'docs/superpowers/plans/*.md')
+      expect(plan !== undefined, id).toBe(id !== 'pm')
+      expect(guards.some((g) => g.type === 'file-exists'), id).toBe(false)
+      expect(guards.some((g) => g.when !== undefined), id).toBe(false)
     }
-    // 产品轨道也可以带同一条带 when 的检查：对 pm 本身不生效。
-    const pmPlan = exitGuards('pm', 'spec', 'spec-complete').find((g) => g.type === 'file-exists' && fieldOf(g) === 'plan')
-    expect(pmPlan === undefined || (pmPlan.when?.kind === 'track-not-in' && pmPlan.when.values.includes('pm'))).toBe(true)
   })
 
   it('交付步：frontend / backend 要 pr_url，产品要 prd_path 文件存在', () => {

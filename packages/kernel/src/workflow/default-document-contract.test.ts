@@ -4,10 +4,15 @@ import { documentGovernancePolicy } from './document-contract.js'
 import { documentGovernanceFingerprint } from './effective-plan.js'
 import { LEGACY_DOCUMENT_GOVERNANCE_POLICY as LEGACY } from './migrations/openspec-v1-document-policy.js'
 import { parseWorkflow } from './parse.js'
+import { legacyContractDefaultDefinition } from './test-support.js'
 import { validateWorkflowForStorage } from './validate.js'
 
-describe('default 按轨道声明 openspec-v1 文档表', () => {
-  const def = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
+/**
+ * 测旧契约本身：升级前创建的在途任务冻结的是带 `document_contract` 的 default，它们靠冻结快照继续走。
+ * 当前模板已删掉契约，所以这里读升级前的原文夹具（tools/fixtures/legacy-default-workflow.yaml，`parseWorkflow` 不校验）。
+ */
+describe('升级前的 default 按轨道声明 openspec-v1 文档表（供在途任务使用）', () => {
+  const def = legacyContractDefaultDefinition()
 
   it('openspec: true；前端以外的分支指纹与迁移表相同，每步 produce / update / reads 顺序与旧表一致', () => {
     expect(def.openspec).toBe(true)
@@ -48,12 +53,26 @@ describe('default 按轨道声明 openspec-v1 文档表', () => {
     }
   })
 
-  it('同一定义换名即 document-v1；存储键 default 必须保持 openspec: true（E5），最后一步标签是完结', () => {
+  it('同一定义换名即 document-v1；最后一步标签是完结', () => {
     expect(documentGovernancePolicy('copy', def, 'frontend')?.id).toBe('document-v1')
-    const { openspec: _openspec, ...off } = def
-    expect(validateWorkflowForStorage('default', off)).toContain('default 必须保持 openspec: true')
     for (const track of ['pm', 'frontend', 'backend']) {
       expect(def.tracks?.[track]?.steps.at(-1)?.label).toBe('完结')
     }
+  })
+})
+
+describe('当前 default 不带文档契约', () => {
+  const current = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
+
+  it('任何分支都没有策略：新任务走观察模式', () => {
+    for (const track of ['lite', 'pm', 'frontend', 'backend']) {
+      expect(documentGovernancePolicy('default', current, track), track).toBeUndefined()
+    }
+  })
+
+  it('存储键 default 必须保持 openspec: true（E5）', () => {
+    expect(current.openspec).toBe(true)
+    const { openspec: _openspec, ...off } = current
+    expect(validateWorkflowForStorage('default', off)).toContain('default 必须保持 openspec: true')
   })
 })

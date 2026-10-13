@@ -23,6 +23,7 @@ import { LOCK_DIR_NAME, withLock } from '../state/lock.js'
 import { createStateStore } from '../state/store.js'
 import type { PipelineState, StateStore } from '../types.js'
 import { isPlainDirectory, TENON_PROJECT_DIR } from '../users/user-paths.js'
+import { resolveRunTrack, UnknownTrackError } from '../workflow/resolve-track.js'
 import type { TrackSpec } from '../workflow/types.js'
 
 export type TaskResult = 'finished' | 'escalated' | 'terminated'
@@ -95,14 +96,23 @@ export function terminalTaskResult(fields: PipelineState['fields']): 'finished' 
 }
 
 /**
- * 谁来做移动：任务冻结的计划里有文档治理（`capabilities.documents.governed`）的轨道由 Tenon 调用
+ * 谁来做移动：任务冻结的计划走 OpenSpec 生命周期（`capabilities.documents.governed`）的轨道由 Tenon 调用
  * `openspec archive`，其余原子 rename。没有冻结快照的早期任务按 `none` 处理——两条路径落到同一个归档目录
  * 名，区别只在是否经过 OpenSpec 的校验。
+ *
+ * 带旧文档契约的计划（升级前创建）照旧是 `openspec`；没有契约的计划（新任务）读冻结定义里任务所在分支的
+ * `spec`——OpenSpec 收尾与有没有文档契约无关。冻结定义里找不到任务记着的轨道时按 `none`（同「快照形状不认识」）。
  */
 export function taskArchiveSpec(state: PipelineState): TrackSpec {
   const snapshot = state.runMetadata?.workflowPlanSnapshot
   if (snapshot === undefined || !('documentPolicy' in snapshot)) return 'none'
-  return snapshot.documentPolicy === null || snapshot.documentPolicy === undefined ? 'none' : 'openspec'
+  if (snapshot.documentPolicy !== null && snapshot.documentPolicy !== undefined) return 'openspec'
+  try {
+    return resolveRunTrack({ ...snapshot.workflow, name: snapshot.workflowId }, fieldText(state.fields.track)).spec
+  } catch (error) {
+    if (error instanceof UnknownTrackError) return 'none'
+    throw error
+  }
 }
 
 /**

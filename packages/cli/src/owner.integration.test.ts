@@ -44,21 +44,36 @@ describe('owner rule across two declared users', () => {
     const h = await owned()
     expect(await h.read('x')).toMatch(/^assignee: A <a@x\.io>$/m)
     const yaml = await h.read('x')
-    const ledgerPath = join(h.cwd, 'openspec', 'changes', 'x', '.pipeline-documents.json')
+    // 新任务（观察模式）没有文档账本，写入面是步骤产出账本：被拒的命令不改它的一个字节。
+    const ledgerPath = join(h.cwd, 'openspec', 'changes', 'x', '.pipeline-step-outputs.json')
     const ledger = await readFile(ledgerPath, 'utf8')
     expect(await h.run(['transition', 'x', 'open-complete'], { env: B })).toBe(1)
     expect(h.err.join('\n')).toContain('任务 x 的负责人是 A <a@x.io>；先接手：tenon owner take x')
     expect(await h.run(['review', 'request', 'x', '--event', 'open-complete'], { env: B })).toBe(1)
-    expect(h.err.join('\n')).toContain('tenon owner take x')
-    expect(await h.run([
-      'document', 'record', 'x', 'proposal', 'openspec/changes/x/proposal.md', '--producer', 'openspec-propose',
-    ], { env: B })).toBe(1)
     expect(h.err.join('\n')).toContain('tenon owner take x')
     expect(await h.read('x')).toBe(yaml)
     expect(await readFile(ledgerPath, 'utf8')).toBe(ledger)
     // The harness itself appends phase Skill rows before each command; refused commands add no operation rows.
     expect(await history(h)).not.toContain('"kind":"transition"')
     expect(await history(h)).not.toContain('review:request')
+  })
+
+  it('B is refused when recording a document on A\'s task created before the upgrade (contract mode), ledger untouched', async () => {
+    // The harness' legacy init reads the process identity: A creates (and so owns) the task.
+    vi.stubEnv('TENON_USER', A.TENON_USER)
+    vi.stubEnv('TENON_USER_NAME', A.TENON_USER_NAME)
+    const h = await freshHarness()
+    cleanups.push(h.cwd)
+    expect(await h.initLegacyContractDefault('x', 'backend', 'full')).toBe(0)
+    expect(await h.read('x')).toMatch(/^assignee: A <a@x\.io>$/m)
+    await h.seedGovernedDocumentEvidence('x')
+    const ledgerPath = join(h.cwd, 'openspec', 'changes', 'x', '.pipeline-documents.json')
+    const ledger = await readFile(ledgerPath, 'utf8')
+    expect(await h.run([
+      'document', 'record', 'x', 'proposal', 'openspec/changes/x/proposal.md', '--producer', 'openspec-propose',
+    ], { env: B })).toBe(1)
+    expect(h.err.join('\n')).toContain('tenon owner take x')
+    expect(await readFile(ledgerPath, 'utf8')).toBe(ledger)
   })
 
   it('after B takes over, B advances with actor B and A is refused', async () => {

@@ -1,8 +1,6 @@
 import { useCallback, useRef, type Dispatch, type SetStateAction } from 'react'
 import { isDefaultWorkflowName } from '@tenon/kernel/workflow/identifier'
-import type { DocumentKind } from '@tenon/kernel/workflow/document-contract-model'
 import type { WbExecutorRef, WbReviewerRef, WbSkillRef, WbStepDef, WbStepTestPolicy, WbTransition, WbWorkflowDef } from '../api/governanceTypes'
-import { addDocumentOutputInDef, removeDocumentSlotInDef, setDocumentInputsInDef, setOpenspecInDef } from './documentContractEdits'
 import {
   addSkillToDef,
   backTransitionOf,
@@ -12,6 +10,7 @@ import {
   renameStepInDef,
   reorderStagesInDef,
   setGateInDef,
+  setOpenspecInDef,
   setStageBackInDef,
   setStepAgentsInDef,
   setStepSkillsInDef,
@@ -30,9 +29,6 @@ export interface StageMutations {
   addSkill: (stepId: string, skillId: string) => void
   removeSkill: (stepId: string, skillId: string) => void
   setOpenspec: (on: boolean) => void
-  addDocumentOutput: (stepId: string, kind: DocumentKind) => void
-  removeDocumentSlot: (stepId: string, kind: string, direction: 'inputs' | 'outputs') => void
-  setDocumentInputs: (stepId: string, kinds: readonly string[]) => void
 }
 
 /**
@@ -94,11 +90,8 @@ export function useStageMutations(input: {
   const setOpenspec = useCallback((on: boolean): void => {
     setFullDef((previous) => previous === null || (!on && isDefaultWorkflowName(previous.name)) ? previous : setOpenspecInDef(previous, on))
   }, [setFullDef])
-  const addDocumentOutput = useCallback((stepId: string, kind: DocumentKind) => mutate((previous) => addDocumentOutputInDef(previous, stepId, kind)), [mutate])
-  const removeDocumentSlot = useCallback((stepId: string, kind: string, direction: 'inputs' | 'outputs') => mutate((previous) => removeDocumentSlotInDef(previous, stepId, kind, direction)), [mutate])
-  const setDocumentInputs = useCallback((stepId: string, kinds: readonly string[]) => mutate((previous) => setDocumentInputsInDef(previous, stepId, kinds)), [mutate])
   return {
     renameStep, setGate, setStageBack, removeStage, reorderStages, setSkills, setAgents, setTestPolicy, addSkill, removeSkill,
-    setOpenspec, addDocumentOutput, removeDocumentSlot, setDocumentInputs,
+    setOpenspec,
   }
 }

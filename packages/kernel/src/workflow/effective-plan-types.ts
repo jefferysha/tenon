@@ -8,6 +8,8 @@ import type {
   WorkflowInteractionPolicyV1,
 } from './types.js'
 
+export type DocumentMode = 'contract' | 'observed'
+
 /** 步骤 agent 的投影：`tenon workflow plan --json` 与 CLI / server 都只读它，不再回头翻 IR。 */
 export interface StepAgentsCapability {
   readonly stepId: string
@@ -60,7 +62,13 @@ export interface EffectiveWorkflowPlan {
       }[]
     }
     readonly documents: {
+      /** 走 OpenSpec 生命周期（breadcrumb、规格校验与应用、`spec-migration-applied`、归档收尾）；与有没有文档契约无关。 */
       readonly governed: boolean
+      /**
+       * 文档机制的唯一分流点：`contract` = 冻结计划带旧文档契约（升级前创建的在途任务，账本与旧动作照旧）；
+       * `observed` = 没有契约（新任务），离开步骤时观察实际产出。
+       */
+      readonly mode: DocumentMode
       readonly profile?: DocumentProfileId
       readonly policy?: DocumentGovernancePolicy
     }

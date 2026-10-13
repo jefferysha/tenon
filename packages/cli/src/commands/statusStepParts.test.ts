@@ -4,7 +4,7 @@ import {
   type DocumentEvidenceItem, type DocumentGovernancePolicy, type StepIR, type WorkflowDef,
 } from '@tenon/kernel'
 import { mockState } from '../test-support.js'
-import { stepDocuments, stepFields, stepSkills } from './statusStepParts.js'
+import { emptyStepDocuments, stepDocuments, stepFields, stepSkills } from './statusStepParts.js'
 
 describe('stepSkills —— 与技能门、画布同一份排序（kernel skill-order）', () => {
   const slots = (tokens: readonly string[], done: readonly string[] = []) => tokens.map((token) => ({
@@ -335,5 +335,36 @@ describe('stepDocuments —— update 槽位读证据面的判定，不按缺省
       producers: ['hue'],
       status: 'recorded',
     }])
+  })
+})
+
+describe('step.documents 的 mode —— 契约模式保持原三表并标上 mode', () => {
+  const policy = {
+    id: 'openspec-v1',
+    steps: ['ship'],
+    outputsByStep: { ship: [] },
+    mutableByStep: { ship: [] },
+    readsByStep: {},
+    requiresByStep: {},
+  } as unknown as DocumentGovernancePolicy
+
+  test('有契约：{ mode: contract, reads, records, updates }', () => {
+    expect(stepDocuments('demo', policy, 'ship', [])).toEqual({ mode: 'contract', reads: [], records: [], updates: [] })
+  })
+
+  test('没有策略的步骤（契约未覆盖）：同样的空三表，仍标契约模式', () => {
+    expect(stepDocuments('demo', undefined, 'ship', [])).toEqual({ mode: 'contract', reads: [], records: [], updates: [] })
+  })
+})
+
+describe('emptyStepDocuments —— 已完结任务与降级时的空投影', () => {
+  test('契约模式：空三表', () => {
+    expect(emptyStepDocuments('contract')).toEqual({ mode: 'contract', reads: [], records: [], updates: [] })
+  })
+
+  test('观察模式：设计 §10 的形状，观察状态不可用，三张旧表为空', () => {
+    expect(emptyStepDocuments('observed')).toEqual({
+      mode: 'observed', observation: 'unavailable', inputs: [], outputs: [], required: [], reads: [], records: [], updates: [],
+    })
   })
 })

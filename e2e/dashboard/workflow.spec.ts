@@ -223,6 +223,35 @@ test.describe('工作流页', () => {
     }
   })
 
+  test('门禁区列出「必须产出 <路径>」，一行一条不换行；右栏只剩 技能 → 门禁，没有输入表与输出表', async ({ page }) => {
+    await openView(page, 'workflow', { wf: 'default', track: 'backend', step: 'explore' })
+    const list = page.getByTestId('stage-leave-conditions')
+    await expect(list).toBeVisible()
+    await expect(list).toContainText('必须产出 docs/superpowers/specs/*.md')
+    const row = list.getByRole('listitem').filter({ hasText: '必须产出' })
+    await expect(row).toHaveCount(1)
+    const box = await row.evaluate((element) => ({ fits: element.scrollWidth <= element.clientWidth + 1, height: element.getBoundingClientRect().height }))
+    expect(box.fits, '必须产出被截断').toBe(true)
+    expect(box.height, '必须产出换行了').toBeLessThan(32)
+    // 不手写每步的输入输出：整页没有输入表、输出表和它们的入口。
+    for (const id of ['stage-inputs', 'stage-outputs', 'io-inputs', 'io-outputs', 'wb-inputs-edit', 'wb-outputs-add']) {
+      await expect(page.getByTestId(id), id).toHaveCount(0)
+    }
+    await expect(page.getByTestId('stage-editor-pane').getByRole('columnheader')).toHaveCount(0)
+    const sections = await page.locator('[data-testid="stage-editor-pane"] [data-stage-sections] > section').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-testid')))
+    expect(sections).toEqual(['stage-skills', 'stage-gate'])
+    await expect(page.getByTestId('stage-editor-pane')).not.toContainText('契约')
+  })
+
+  test('自动门禁的警示只在阶段完全没有离开条件时出现：default 的实现 / 交付 / 完结没有', async ({ page }) => {
+    for (const id of ['build', 'ship', 'archive']) {
+      await openView(page, 'workflow', { wf: 'default', track: 'backend', step: id })
+      await expect(page.getByTestId(`wb-lane-gate-${id}`), id).toBeVisible()
+      await expect(page.getByTestId('stage-leave-conditions'), id).toBeVisible()
+      await expect(page.getByTestId('stage-gate-auto-warning'), id).toHaveCount(0)
+    }
+  })
+
   test('轨道设置：规范是 OpenSpec / 无 两选一，关键词随之保存为未保存改动，放弃即恢复', async ({ page }) => {
     await openView(page, 'workflow', { wf: 'default', track: 'backend', step: 'build' })
     await page.getByTestId('wb-wf-menu').click()

@@ -214,9 +214,13 @@ describe('fixtures 生成脚本', () => {
       expect(plan).toMatch(/^1\ttransition\tt6-ge\texplore-complete$/m)
       // 已删除的检查不再出现在计划里。
       expect(plan).not.toMatch(/build_mode|isolation|direct_override|branch_status/)
-      // check 一次列全：任务未勾、缺文档、缺技能同时出现。
+      // check 一次列全：任务未勾、缺必须产出的文档、缺技能同时出现。
       const expected = readFileSync(join(target, '.oracle-expect-output'), 'utf8')
-      for (const text of ['要求截至本步的 tasks.md 任务都已勾选', "缺少 document 'proposal'", '尚未完成声明的 skill：openspec-propose']) {
+      for (const text of [
+        '要求截至本步的 tasks.md 任务都已勾选',
+        '要求产出匹配 openspec/changes/t6-ge/proposal.md 的文件',
+        '尚未完成声明的 skill：openspec-propose',
+      ]) {
         expect(expected).toContain(`2\t${text}`)
       }
       // 计划行格式：<expected_new_exit>\t<cmd>\t<args...>

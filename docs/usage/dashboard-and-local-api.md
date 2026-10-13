@@ -79,8 +79,8 @@ site to the browser and shows the sign-in prompt again.
 
 The five operational destinations in the primary shell (`?view=` ids in order: workspace → workflow → projects → library → skills; the old ids `progress` and `workbench` redirect) are:
 
-- Workspace — tasks by category (All · Needs you · Running · Ended); the detail shows the stage, what blocks it, the next step and inputs/outputs; an Ended card carries its result (Finished, Escalated or Terminated), and All also includes ended tasks after the running ones
-- Workflow — Workflows, Tracks, stages, skills, inputs/outputs and gates
+- Workspace — tasks by category (All · Needs you · Running · Ended); the detail shows the stage, what blocks it, the next step and, per step, the inputs and outputs that really happened; an Ended card carries its result (Finished, Escalated or Terminated), and All also includes ended tasks after the running ones
+- Workflow — Workflows, Tracks, stages, skills and gates
 - Projects — per project, the enabled agent clients and, for each, its project-level and user-level instruction file (`AGENTS.md`, `CLAUDE.md`,
   `GEMINI.md`), plus creating a project from an existing or new directory
 - Library — the instruction template library: built-in blocks synced from the
@@ -112,12 +112,39 @@ unattended automation.
 <img src="../../docs-site/public/images/dashboard-workflow-editor.webp" alt="Tenon Dashboard workflow editor" width="1280" height="800" loading="lazy">
 
 The workflow editor lists a Workflow's Tracks and stages; each stage page shows
-its inputs, skills, outputs, gate, and test policy. Track settings edit the
+its skills, gate, and test policy. There is no input or output table: a Workflow does
+not declare the documents of a step, so the page neither shows nor edits them (the
+Workspace shows what a task really produced). Track settings edit the
 Track's spec (OpenSpec or none) and its routing keywords; exclusions, priority
 and automation stay in the YAML. Under a gate, the editor lists the step's leave
 conditions read-only, one per line (for example “implementation review passed”,
-“tasks through this step checked”, “dependencies ended”). The settings menu holds
+“tasks through this step checked”, “dependencies ended”, and “Required output
+`<path>`” for each `required-output` guard). The settings menu holds
 the theme and language controls and never changes the canonical Workflow state.
+
+### Workspace inputs and outputs
+
+For the selected task, each step lists what actually happened, read live from the
+task's step-output records (the current step is compared with its checkpoint at
+read time; an ended task keeps showing the records it was archived with):
+
+- **Inputs**: file · source stage · source skill (or “Unknown”) · Read or Unread. These
+  are the documents the direct upstream step produced, which the step must read before
+  it can be left.
+- **Outputs**: file · Added, Modified or Deleted · source skill (or “Unknown”). Code and
+  other non-document files appear here too.
+
+A step with nothing to show says “No inputs for this step” or “No outputs for this
+step yet”. A task created before the upgrade shows its document ledger in the same
+shape: each registered document is an output of its owner step with the producer as
+source skill, and its reads are inputs with their read state. The data is the
+`stepIo` of `GET /api/change/:name/orchestration?root=<project root>`:
+`stepIo[<step>] = { inputs, outputs, required }`, where a file is
+`{ path, change?, skill, fromStep?, read? }` (`skill` is `null` when unknown) and
+`required` lists `{ path, produced }` for the step's `required-output` guards. Paths are
+relative to the project root; the response carries no digests, visit ids or absolute
+paths. The former `io` field of this response is gone, and the Workflow API
+(`GET /api/workflows/:name` and its Track views) no longer returns `effectiveIo`.
 
 ### Workflow overview
 
@@ -318,7 +345,8 @@ whole full snapshot as `snapshot` events.
 A `step-exit` readiness blocker (`readinessByTransition[...].blockers[]`) carries the
 human sentence in `message` (the same text as the CLI, shown only as a tooltip) and the
 machine-readable parts in `code`, `source` and the optional `subject`, `state` and
-`count`: `subject` is the blocked object (document kind, skill token, test display name,
+`count`: `subject` is the blocked object (document kind, or the input path for the
+`input-unread` blocker of a new Change, skill token, test display name,
 the reviewer whose host does not match), `state` its state (documents
 `missing|stale|unread`, skills `not-run|unrecorded`, inline tests
 `running|missing|stale|failed`, test-policy blockers `integrity` and `diff-unavailable`
@@ -331,8 +359,8 @@ The Dashboard labels blockers from `code` and these fields only and never parses
 kernel blocker code such as `reviewer-wrong-host`).
 
 The snapshot is cached per project. Each project's list build, full build and change
-details are keyed by that project's input fingerprint (state, tasks, documents, test-record
-directories, archive, git HEAD, terminal activity, and the viewer identity), so a change in
+details are keyed by that project's input fingerprint (state, tasks, documents, step-output
+records, test-record directories, archive, git HEAD, terminal activity, and the viewer identity), so a change in
 one project rebuilds that project only. An unchanged build is reused, with its original
 `generated_at`, for at most 30 seconds; at most four aged-out projects are refreshed per read
 so a cold start does not expire into one large rebuild. A write request drops the projects it

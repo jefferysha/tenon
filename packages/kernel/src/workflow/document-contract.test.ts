@@ -32,13 +32,11 @@ describe('documentGovernancePolicy', () => {
     })
   })
 
-  it('没有 require slot 时省略 requiresByStep；openspec 开启但无契约 = 受治理且无文档', () => {
+  it('没有 require slot 时省略 requiresByStep；openspec 开启但没声明契约 = 没有策略（观察模式，只走 OpenSpec 生命周期）', () => {
     const noRequire = { ...CONTRACT, slots: CONTRACT.slots.filter((slot) => slot.role !== 'require') }
     expect(documentGovernancePolicy('custom', { openspec: true, documentContract: noRequire, steps: [step('shape'), step('build')] }))
       .not.toHaveProperty('requiresByStep')
-    expect(documentGovernancePolicy('custom', { openspec: true, steps: [step('shape')] })).toEqual({
-      id: 'document-v1', steps: ['shape'], outputsByStep: { shape: [] }, mutableByStep: { shape: [] }, readsByStep: { shape: [] },
-    })
+    expect(documentGovernancePolicy('custom', { openspec: true, steps: [step('shape')] })).toBeUndefined()
   })
 
   it('按轨道选分支契约：给 track 取该分支；不给或没有的分支抛 UnknownTrackError，不取第一条', () => {
@@ -51,19 +49,22 @@ describe('documentGovernancePolicy', () => {
       },
     }
     expect(documentGovernancePolicy('custom', workflow, 'web')?.requiresByStep?.build).toEqual(['design-md'])
-    expect(documentGovernancePolicy('custom', workflow, 'api')?.outputsByStep).toEqual({ shape: [], build: [] })
+    expect(documentGovernancePolicy('custom', workflow, 'api')).toBeUndefined() // 没声明契约的分支没有策略
     expect(() => documentGovernancePolicy('custom', workflow)).toThrow(UnknownTrackError)
     expect(() => documentGovernancePolicy('custom', workflow, 'mobile')).toThrow(/没有轨道 'mobile'.*web, api/u)
   })
 
-  it('受不受治理读分支的 spec：分支写了 none 就不受治理，写了 openspec 就受治理，没写继承顶层', () => {
+  it('有没有策略读分支的 spec 与契约：分支写了 none 没有；写了 openspec 且声明契约才有；没写 spec 继承顶层；没契约一律没有', () => {
     const tracks = {
       lite: { spec: 'none' as const, steps: [step('open'), step('build')] },
       full: { spec: 'openspec' as const, documentContract: CONTRACT, steps: [step('shape'), step('build')] },
+      inherited: { documentContract: CONTRACT, steps: [step('shape'), step('build')] },
       plain: { steps: [step('shape'), step('build')] },
     }
     expect(documentGovernancePolicy('custom', { openspec: true, steps: [], tracks }, 'lite')).toBeUndefined()
-    expect(documentGovernancePolicy('custom', { openspec: true, steps: [], tracks }, 'plain')?.id).toBe('document-v1')
+    expect(documentGovernancePolicy('custom', { openspec: true, steps: [], tracks }, 'plain')).toBeUndefined()
+    expect(documentGovernancePolicy('custom', { openspec: true, steps: [], tracks }, 'inherited')?.id).toBe('document-v1')
+    expect(documentGovernancePolicy('custom', { steps: [], tracks }, 'inherited')).toBeUndefined()
     expect(documentGovernancePolicy('custom', { steps: [], tracks }, 'full')?.requiresByStep?.build).toEqual(['design-md'])
     expect(documentGovernancePolicy('custom', { steps: [], tracks }, 'plain')).toBeUndefined()
   })

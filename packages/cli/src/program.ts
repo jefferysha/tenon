@@ -148,8 +148,8 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
     .action(async (change: string, legacyPath: string, canonicalPath: string) =>
       bail(await cmdDocumentMigrateDelta(deps, change, legacyPath, canonicalPath)))
   document
-    .command('read <change> <kind>')
-    .description("登记当前 phase 已读取文档（kind 可为 'all'）")
+    .command('read <change> <kind|all|path>')
+    .description("登记当前 phase 已读取文档（升级前创建的任务：文档 kind 或 'all'；新任务：'all' 或某个交接输入的路径）")
     .action(async (change: string, kind: string) => bail(await cmdDocumentRead(deps, change, kind)))
   document
     .command('status <change>')

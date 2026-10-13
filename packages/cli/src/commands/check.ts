@@ -20,13 +20,16 @@ import {
   evaluateWorkflowIrStepGuards,
   evaluateDefaultEventPreconditions,
   effectiveLifecyclePolicy,
+  isAbandonEvent,
   isDocumentContractPhase,
   isDocumentPolicyStep,
+  lifecycleScopeOf,
   resolveStep,
   resolveWorkflowName,
   retiredSkillReferences,
   retiredSkillsChangeMessage,
   stepExitTransitions,
+  unreadInputBlockers,
   universalGuardCapabilities,
 } from '@tenon/kernel'
 import type {
@@ -153,12 +156,12 @@ export async function cmdCheck(deps: CliDeps, name: string, opts: CheckOpts = {}
   const migration = str(state.fields.phase) === 'ship'
     ? await evaluateSpecMigrationEvidence(deps.cwd, dir, name)
     : undefined
-  let documents: DocumentEvidenceReport | undefined
+  let documents: readonly string[]
   let tests: readonly string[]
   let agents: readonly string[]
   let skills: readonly string[]
   try {
-    documents = await governedDocumentEvidence(deps, dir, state, plan.capabilities.documents.policy)
+    documents = await documentBlockers(deps, dir, state, plan, opts.event)
     tests = await stepTestBlockers(deps, name, dir, state, plan, { releasePendingWaivers: opts.releasePendingWaivers === true })
     agents = await stepAgentLines(deps, name, dir, state, plan, opts.event, { releaseFailedReviewers: opts.releaseFailedReviewers })
     skills = await stepSkillLines(deps, dir, state, plan)
@@ -170,7 +173,7 @@ export async function cmdCheck(deps: CliDeps, name: string, opts: CheckOpts = {}
     warnings: [...(result.warnings ?? []), ...await acceptedResidualLines(deps, name, dir, state, plan, opts.event)],
     guards: result.pass ? [] : result.failures,
     revision: revisionFailures,
-    documents: documents?.blockers ?? [],
+    documents,
     skills,
     tests,
     agents,
@@ -199,6 +202,25 @@ async function governedDocumentEvidence(
     return deps.documentEvidence(deps.cwd, dir, phase)
   }
   return evaluateDocumentEvidence(deps.cwd, dir, phase, {}, policy)
+}
+
+/**
+ * 文档段的阻断。契约模式是文档台账证据（同 transition，见上）；观察模式没有台账，是直接上游交接来的文档还没读完——
+ * 与转换、`tenon status` 的出口报告共用 kernel 的 `unreadInputBlockers`（判定与文案只此一份）。
+ * 放弃边不查：任务要被放弃了，读不读输入都不该拦它（同转换）。
+ */
+async function documentBlockers(
+  deps: CliDeps,
+  dir: string,
+  state: PipelineState,
+  plan: EffectiveWorkflowPlan,
+  event: string | undefined,
+): Promise<readonly string[]> {
+  if (plan.capabilities.documents.mode === 'contract') {
+    return (await governedDocumentEvidence(deps, dir, state, plan.capabilities.documents.policy))?.blockers ?? []
+  }
+  if (event !== undefined && isAbandonEvent(event)) return []
+  return (await unreadInputBlockers(dir)).map((blocker) => blocker.message)
 }
 
 /**
@@ -239,7 +261,7 @@ async function checkGraphWorkflow(
       return 1
     }
     guards = effectiveLifecyclePolicy(
-      plan.capabilities.documents.governed,
+      lifecycleScopeOf(plan),
       step,
       selectedEdge,
       plan.workflow.steps.find((candidate) => candidate.id === selectedEdge.to),
@@ -267,12 +289,12 @@ async function checkGraphWorkflow(
     && plan.capabilities.documents.governed
     ? await evaluateSpecMigrationEvidence(deps.cwd, dir, name)
     : undefined
-  let documents: DocumentEvidenceReport | undefined
+  let documents: readonly string[]
   let tests: readonly string[]
   let agents: readonly string[]
   let skills: readonly string[]
   try {
-    documents = await governedDocumentEvidence(deps, dir, state, plan.capabilities.documents.policy)
+    documents = await documentBlockers(deps, dir, state, plan, event)
     tests = await stepTestBlockers(deps, name, dir, state, plan, { releasePendingWaivers })
     agents = await stepAgentLines(deps, name, dir, state, plan, event, { releaseFailedReviewers: opts.releaseFailedReviewers })
     skills = await stepSkillLines(deps, dir, state, plan)
@@ -283,7 +305,7 @@ async function checkGraphWorkflow(
   return renderCheckReport(deps, name, display(state.fields.phase), {
     warnings: await acceptedResidualLines(deps, name, dir, state, plan, event),
     guards: result.pass ? [] : result.failures,
-    documents: documents?.blockers ?? [],
+    documents,
     skills,
     tests,
     agents,

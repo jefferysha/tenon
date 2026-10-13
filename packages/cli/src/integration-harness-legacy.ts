@@ -1,20 +1,24 @@
 /**
- * 集成 harness 的「升级前创建的在途任务」夹具：新任务一律按工作流 YAML 执行（step-graph），
- * 这里造出升级前创建的两种任务——冻结着旧执行模型（阶段清单）计划的 default 任务，
+ * 集成 harness 的「升级前创建的在途任务」夹具：新任务一律按工作流 YAML 执行（step-graph）且没有文档契约，
+ * 这里造出升级前创建的三种任务——冻结着旧执行模型（阶段清单）计划的 default 任务、冻结着旧文档契约
+ * 的 step-graph default 任务（两者的定义都取自 `tools/fixtures/legacy-default-workflow.yaml`），
  * 与按已退役的 standard 工作流创建的任务（它的模板已从仓库删除，只剩任务里冻结的快照）——
  * 用来验证旧任务照旧规则走完。
  * 非 *.test.ts，只给集成测试引用。
  */
 import {
+  compileDefaultWorkflow,
   compileEffectiveWorkflowPlan,
+  compileWorkflow,
   effectiveWorkflowPlanBinding,
+  effectiveWorkflowPlanFromIr,
   ensureAgentFreeze,
-  loadWorkflow,
   parseWorkflow,
   prepareAgentFreeze,
   workflowPlanSnapshot,
 } from '@tenon/kernel'
-import type { PlanOptions, WorkflowDef } from '@tenon/kernel'
+import type { EffectiveWorkflowPlan, WorkflowDef } from '@tenon/kernel'
+import { legacyContractDefaultPlan } from '@tenon/kernel/workflow/test-support'
 import { recordHistory } from './commands/fields.js'
 import type { CliDeps } from './deps.js'
 import { autoDiscoverCatalog } from './test-system/auto-discover.js'
@@ -148,15 +152,19 @@ steps:
     transitions: []
 `
 
-/** 一种「升级前创建的任务」：工作流定义、所在轨道、冻结进快照的执行模型，以及立项时的文档治理绑定。 */
+/** 一种「升级前创建的任务」：冻结进快照的计划与所在轨道；立项时的文档治理绑定由计划自己的契约决定（同 cmdInit）。 */
 interface LegacyChangeSpec {
-  readonly workflowId: string
-  /** 冻结进快照的定义；`undefined` 时按 id 取内建模板（default）。 */
-  readonly definition: WorkflowDef | undefined
+  /** 冻结进快照的计划（升级前的定义 + 旧执行模型）；由各夹具自己编出，不经 `validateWorkflow`（旧定义带已删除的键）。 */
+  readonly plan: EffectiveWorkflowPlan
   readonly track: string
-  readonly executionModel: NonNullable<PlanOptions['executionModel']>
-  /** 立项时是否带 openspec-v1 文档治理（default 有；平铺的 standard 没有，cmdInit 不设这个值）。 */
-  readonly openspecContract: boolean
+  /** 治理文档语言，缺省中文（同 `tenon init`）。 */
+  readonly documentLocale?: 'zh-CN' | 'en'
+}
+
+/** 升级前创建的任务共同的可选项。 */
+export interface LegacyInitOptions {
+  /** 治理文档语言，缺省中文。 */
+  readonly documentLocale?: 'zh-CN' | 'en'
 }
 
 /** 与 cmdInit 同一条装配（agent 冻结、历史、文档语言），只是计划按旧执行模型编出来、冻结进快照。 */
@@ -169,25 +177,23 @@ async function initLegacyChange(
 ): Promise<number> {
   const creator = requireActor(deps)
   if (creator === null) return 1
-  const plan = compileEffectiveWorkflowPlan(
-    spec.workflowId,
-    spec.definition,
-    { track: spec.track, executionModel: spec.executionModel },
-  )
+  const { plan } = spec
   const first = plan.workflow.steps[0]
-  if (first === undefined) throw new Error(`harness initLegacyChange: ${spec.workflowId} 没有步骤`)
+  if (first === undefined) throw new Error(`harness initLegacyChange: ${plan.id} 没有步骤`)
   const freezeAgent = await prepareAgentFreeze(
     plan.workflow,
     deps.agentLibrary ?? (async () => ({ entries: [], sync: { id: 'agents', state: 'unchanged' as const } })),
   )
   const { changeDir, run } = await deps.runRepo.initChange({
-    repoRoot: cwd, name, track: spec.track, reviewSeed: 'pending', preset, creator, clock: deps.clock, documentLocale: 'zh-CN',
+    repoRoot: cwd, name, track: spec.track, reviewSeed: 'pending', preset, creator, clock: deps.clock,
+    documentLocale: spec.documentLocale ?? 'zh-CN',
     initialWorkflow: {
-      workflow: spec.workflowId,
+      workflow: plan.id,
       phase: first.id,
       ...effectiveWorkflowPlanBinding(plan),
       workflowPlanSnapshot: workflowPlanSnapshot(plan),
-      ...(spec.openspecContract ? { openspecContract: true } : {}),
+      ...(plan.capabilities.documents.policy?.id === 'openspec-v1' ? { openspecContract: true } : {}),
+      ...(plan.capabilities.documents.policy?.id === 'document-v1' ? { documentContract: true } : {}),
     },
   })
   if (freezeAgent !== undefined) {
@@ -201,21 +207,73 @@ async function initLegacyChange(
   return 0
 }
 
-/** 升级前创建的 default 任务：快照记着 phase-manifest（阶段清单）计划。 */
+/** 带契约的升级前 default 的选项：`definition` 给了就用它代替升级前的 default 原文（在原文上加一条测试、加几条旧轨道之类）。 */
+export interface LegacyDefaultOptions extends LegacyInitOptions {
+  readonly definition?: WorkflowDef
+}
+
+/** 升级前的 default 计划：不经 `validateWorkflow`（旧定义带已删除的键），直接按 default 的编译入口建。 */
+function legacyDefaultChangePlan(
+  track: string,
+  executionModel: NonNullable<EffectiveWorkflowPlan['executionModel']>,
+  definition: WorkflowDef | undefined,
+): EffectiveWorkflowPlan {
+  return definition === undefined
+    ? legacyContractDefaultPlan(track, executionModel)
+    : effectiveWorkflowPlanFromIr('default', compileDefaultWorkflow(definition), { track, executionModel })
+}
+
+const localeOption = (options: LegacyInitOptions): Pick<LegacyChangeSpec, 'documentLocale'> =>
+  options.documentLocale === undefined ? {} : { documentLocale: options.documentLocale }
+
+/**
+ * 升级前创建的 default 任务：快照记着 phase-manifest（阶段清单）计划，定义取自升级前（f474225f）的 default
+ * 原文（`tools/fixtures/legacy-default-workflow.yaml`），带 `document_contract`，所以是契约模式。
+ */
 export async function initLegacyDefaultChange(
   deps: CliDeps,
   cwd: string,
   name: string,
   track: string,
   preset: string,
+  options: LegacyDefaultOptions = {},
 ): Promise<number> {
-  return initLegacyChange(deps, cwd, name, preset, {
-    workflowId: 'default',
-    definition: loadWorkflow(cwd, 'default') ?? undefined,
-    track,
-    executionModel: 'phase-manifest',
-    openspecContract: true,
-  })
+  const plan = legacyDefaultChangePlan(track, 'phase-manifest', options.definition)
+  return initLegacyChange(deps, cwd, name, preset, { plan, track, ...localeOption(options) })
+}
+
+/**
+ * 升级前创建、带文档契约的 default 任务，但已经是 step-graph 执行（现行引擎）：测契约本身（scaffold / record /
+ * 按 kind 读取 / `pending_documents` / `register-field`）的集成测试用它，断言与升级前逐字相同。
+ */
+export async function initLegacyContractDefaultChange(
+  deps: CliDeps,
+  cwd: string,
+  name: string,
+  track: string,
+  preset: string,
+  options: LegacyDefaultOptions = {},
+): Promise<number> {
+  const plan = legacyDefaultChangePlan(track, 'step-graph', options.definition)
+  return initLegacyChange(deps, cwd, name, preset, { plan, track, ...localeOption(options) })
+}
+
+/**
+ * 升级前创建、定义里带已删除的键（`inputs` / `outputs` / `artifacts` / `document_contract`）的自定义 workflow 任务：
+ * 定义解析后不经 `validateWorkflow` 直接编译、冻结进快照，其后命令按冻结的快照行事，不再读项目里的 YAML。
+ * 平铺工作流的轨道是与工作流同名的隐式轨道（同 `tenon init`）。
+ */
+export async function initLegacyWorkflowChange(
+  deps: CliDeps,
+  cwd: string,
+  name: string,
+  source: string,
+  options: LegacyInitOptions & { readonly track?: string; readonly preset: string },
+): Promise<number> {
+  const definition = parseWorkflow(source)
+  const track = options.track ?? definition.name
+  const plan = effectiveWorkflowPlanFromIr(definition.name, compileWorkflow(definition), { track, executionModel: 'step-graph' })
+  return initLegacyChange(deps, cwd, name, options.preset, { plan, track, ...localeOption(options) })
 }
 
 /** 升级前创建的 standard 任务：平铺工作流、step-graph 执行模型、轨道 standard，定义取自已退役模板的原文。 */
@@ -226,10 +284,9 @@ export async function initLegacyStandardChange(
   preset: string,
 ): Promise<number> {
   return initLegacyChange(deps, cwd, name, preset, {
-    workflowId: 'standard',
-    definition: parseWorkflow(LEGACY_STANDARD_WORKFLOW_YAML),
+    plan: compileEffectiveWorkflowPlan('standard', parseWorkflow(LEGACY_STANDARD_WORKFLOW_YAML), {
+      track: 'standard', executionModel: 'step-graph',
+    }),
     track: 'standard',
-    executionModel: 'step-graph',
-    openspecContract: false,
   })
 }

@@ -74,8 +74,15 @@ import { resolveBuildRevisionAssessor } from './buildRevisionAssessor.js'
 import { phaseExitGuardContext } from './phaseExitGuard.js'
 import { pruneHostAgents } from './agent-host.js'
 import { trackPolicyResolverFor } from './effective-workflow.js'
-import { msg } from '../i18n/messages.js'
+import { msg, type MessageCode } from '../i18n/messages.js'
 import { reportLegalEvents } from './transition-legal-events.js'
+
+/** 文档证据类拒绝的标题：观察模式按实际原因（输入没读完 / 账本不可用）说，旧契约任务保留 OpenSpec 文档证据。 */
+function documentRejectionTitle(source: 'unread-inputs' | 'step-output-ledger' | undefined): MessageCode {
+  if (source === 'unread-inputs') return 'transition.stepInputsUnread'
+  if (source === 'step-output-ledger') return 'transition.stepOutputLedgerBroken'
+  return 'transition.documentEvidenceFailed'
+}
 
 async function runArchived(deps: CliDeps, dir: string): Promise<boolean> {
   try {
@@ -320,7 +327,7 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
         for (const blocker of result.blockers) deps.io.err(`  - ${renderAgentBlocker(blocker, name)}`)
         return 2
       case 'document-evidence-failed':
-        deps.io.err(`ERROR: ${msg(deps, 'transition.documentEvidenceFailed', { phase: result.phase })}`)
+        deps.io.err(`ERROR: ${msg(deps, documentRejectionTitle(result.source), { phase: result.phase })}`)
         for (const blocker of result.blockers) deps.io.err(`  - ${blocker}`)
         return 1
       case 'test-evidence-failed':

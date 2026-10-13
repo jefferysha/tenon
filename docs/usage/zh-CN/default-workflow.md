@@ -1,6 +1,6 @@
 # Default 七阶段工作流
 
-Default workflow 的重型轨道（`pm`、`frontend`、`backend`）是 Tenon 的完整治理路径。每个阶段都有明确输入、产出、允许的回边和出口条件。`lite` 轨道只有四步，见[轻量轨道](./routing-and-workflows.md#轻量轨道)。
+Default workflow 的重型轨道（`pm`、`frontend`、`backend`）是 Tenon 的完整治理路径。每个阶段都有允许的回边和出口条件，输入与产出由 Tenon 在运行时记录。`lite` 轨道只有四步，见[轻量轨道](./routing-and-workflows.md#轻量轨道)。
 
 Tenon 自有的 skill 只有一个 `tenon`：它读任务冻结的工作流计划，按
 `tenon status <change> --json` 的 `step.next` 执行当前步骤。每一步加载哪些技能全部写在
@@ -28,15 +28,27 @@ Tenon 自有的 skill 只有一个 `tenon`：它读任务冻结的工作流计�
 | `not-afk-queued` | `build-complete` 边 | 任务没有在 AFK 队列里排队 |
 | `dependencies-ended` | `build-complete` 边 | `depends_on` 里的任务都已结束 |
 
-此外 YAML 里还有各步自己的条件：`build-complete` 的 `pre_verify_review_result=pass`、调研步的 `design_doc`、规格步的 `plan`（pm 除外）与至少 3 条任务、`verify-pass` 的验证报告与未变的构建修订、交付步的交付值（`pr_url`，pm 是 `prd_path`）与规格迁移。不带 event 的 `tenon check <change>` 列出「步骤 guards ∪ 前进边 guards」，一次列出全部未满足的条件，退出码 `2`。`tenon advance` 只自动走唯一的前进边，不走回退边（`requirements-changed`、`verify-fail`）和放弃边（`scope-expanded`）。原来的实现方式、隔离方式、直接实现确认和分支状态这几项决定已从新任务里去掉（升级前创建的任务照旧）。Dashboard 工作流页在门禁段下只读列出该步的离开条件。
+此外 YAML 里还有各步自己的条件：`build-complete` 的 `pre_verify_review_result=pass`、下面的必须产出、规格步至少 3 条任务、`verify-pass` 的未变构建修订、交付步的交付值（`pr_url`，pm 是 `prd_path`）与规格迁移。不带 event 的 `tenon check <change>` 列出「步骤 guards ∪ 前进边 guards」，一次列出全部未满足的条件，退出码 `2`。`tenon advance` 只自动走唯一的前进边，不走回退边（`requirements-changed`、`verify-fail`）和放弃边（`scope-expanded`）。原来的实现方式、隔离方式、直接实现确认和分支状态这几项决定已从新任务里去掉（升级前创建的任务照旧）。Dashboard 工作流页在门禁段下只读列出该步的离开条件，必须产出显示为「必须产出 `<path>`」。
+
+默认工作流不为任何一步声明输入、输出文档。每一步写出了什么在离开步骤时记录，下一步必须读完直接上游步骤产出的 Markdown 文档（见[文档、Skill 与证据链](./documents-skills-and-evidence.md)）。`templates/workflows/default.yaml` 里与文档有关的条件只有下面这些 `required-output` 守卫（`{change}` 是任务名）：
+
+| 步骤 | 必须产出 | 轨道 |
+| --- | --- | --- |
+| `open` | `openspec/changes/{change}/proposal.md` | pm、frontend、backend |
+| `explore` | `docs/superpowers/specs/*.md` | pm、frontend、backend |
+| `spec` | `openspec/changes/{change}/specs/*/spec.md` | pm、frontend、backend |
+| `spec` | `docs/superpowers/plans/*.md` | frontend、backend |
+| `verify`（`verify-pass` 边） | `docs/superpowers/reports/{change}-verify.md` | pm、frontend、backend |
+
+`lite` 轨道一条都不声明。仓库里在这个任务之前就存在的文件，除非本步改过，否则满足不了必须产出。frontend 轨道不再要求立项前 `DESIGN.md` 就绪；它的有效性由交付步的 `design-system` 测试检查。
 
 ## Open
 
-创建独立 Change，写 proposal、initial design 和 tasks。这里不提前实现代码，也不把未来任务伪装成已确认计划。
+创建独立 Change，由 `openspec-propose` 写 proposal；`tenon init` 只铺 `tasks.md` 骨架（Todo 的来源）。这里不提前实现代码，也不把未来任务伪装成已确认计划。
 
 ## Explore
 
-读取 Open 当前 digest，进行外部研究、现有能力检查、方案比较、技术设计和 ADR。出口必须具备 design artifact、文档登记和 review receipt。
+读完 Open 交接来的文档，进行外部研究、现有能力检查、方案比较和技术设计。出口必须写出 `docs/superpowers/specs/*.md` 的设计文档并取得 review receipt。ADR 由 domain-modeling 按它自己的规则写（难回退、脱离上下文会意外、真实取舍）；工作流不规定谁产出 ADR。
 
 ## Spec
 
@@ -133,7 +145,7 @@ design / delta spec / tasks，语言无关）。证据不齐时写 `pass` 被拒
 
 ## Archive
 
-重读 proposal、design、ADR、spec、plan、verification report 和 applied spec，确认任务清零后归档。Archive 之后自动更新不得改写历史字节。
+读完 Ship 交接来的文档，确认任务清零后归档。Archive 之后自动更新不得改写历史字节。
 
 归档由 `tenon task finish <change>` 完成：`step.next` 的 `finish-change` 给出这条命令，Tenon 把任务目录移进 `openspec/changes/archive/`（OpenSpec 轨道由它调用 `openspec archive <change> --skip-specs --yes --json`）并记下任务结果「完结」，提交照 `step.next` 的 `commit` 做。中途放弃用 `tenon task terminate <change>`，结果记为「已终止」，只提交任务目录。
 
@@ -176,23 +188,23 @@ agent 不会自行调高上限，也不会绕过它。命令、`step.rounds` 和
 
 ## 阶段产物总览
 
-| Phase | 关键产物 | 主要出口条件 |
+| Phase | 典型产物（技能写出，Tenon 记录） | 主要出口条件 |
 | --- | --- | --- |
-| open | proposal、initial design、tasks | 身份与范围明确 |
-| explore | 技术设计、研究、ADR | 取舍完成并 review |
+| open | proposal | 身份与范围明确 |
+| explore | 技术设计、研究 | 取舍完成并 review |
 | spec | delta spec、实施计划 | 需求可验证并 review |
 | build | 实现、测试、冻结基线 | 当前任务完成 |
 | verify | 独立验证报告 | exact-event review |
 | ship | applied spec、交付准备 | 已验证规格已应用 |
 | archive | 不可变历史 | 全部证据可读取 |
 
-Open 创建状态、默认 OpenSpec 骨架和文档账本。模板只是待填写结构，不代表对应 Skill 已执行。
+Open 创建状态和 `tasks.md` 骨架，不铺 proposal、design 骨架：这些文件由对应技能自己写出。
 
 Explore 的研究结论必须回到产品事实、仓库实现或一手资料。方案比较要写清选择、拒绝项、风险和验证方法。
 
 Spec 使用稳定英文 OpenSpec 操作词，但 requirement、scenario 和说明正文默认中文。设计语义变化必须回到 Spec 修订并重新 review。
 
-Build 可以修改实现和测试，但不能在 Verify 中边验边改。受治理文档改变后要重新登记 digest。
+Build 可以修改实现和测试，但不能在 Verify 中边验边改。Build 改动了交接来的文档，改动记为 Build 的产出；需求语义变了走 `requirements-changed`。
 
 Verify 至少回答：运行了什么、结果是什么、基线是哪一版、失败如何复现。前端交付必须使用真实浏览器。
 
@@ -217,7 +229,7 @@ check → review request --event <event> → 用户确认 → transition
 
 ## Todo 与阶段所有权
 
-`tasks.md` 是唯一 Todo 真相源。一级标题对应七个 phase，未来阶段任务可以展示，但不会反向阻塞当前出口。每个 phase 只能勾选自己的任务并重新登记文档。
+`tasks.md` 是唯一 Todo 真相源。一级标题对应七个 phase，未来阶段任务可以展示，但不会反向阻塞当前出口。每个 phase 只能勾选自己的任务。
 
 ## 查看当前事实
 
@@ -227,4 +239,4 @@ tenon document status <change>
 tenon check <change>
 ```
 
-三条命令分别回答状态、文档证据和出口 guard；任何一条通过都不等于自动推进。
+三条命令分别回答状态、本步的输入产出与必须产出、出口 guard；任何一条通过都不等于自动推进。

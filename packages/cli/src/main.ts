@@ -18,7 +18,7 @@ import {
   clearReviewMarkerFor, createTaskLifecycleApplication,
   createEffectiveSkillResolver, createFlowEngine, createHistoryWriter, createStateStore,
   createInteractionEventRecorder, createTransitionRecordStore, createWorkflowRunRepository, loadManifest,
-  candidateFingerprint, designSystemPrecondition, loadAgentLibrary, loadResourceCatalog, readSecrets, registerProjectRoot,
+  candidateFingerprint, loadAgentLibrary, loadResourceCatalog, readSecrets, registerProjectRoot,
   createBuildRevisionToken, probeBuildRevisionIdentity, createOrchestrationLedger,
   type BoardCommandV2, type BoardSnapshotV2, type WorkflowPipelinePlanV2,
   withProjectCoordinationLock, resolveTenonUser, type TenonUserResolution, actorOf, isTenonUser, USER_MISSING_HINT,
@@ -192,12 +192,6 @@ async function main(): Promise<void> {
       join(runtimePaths().configRoot, 'test-directions', 'builtin'),
       join(runtimePaths().configRoot, 'test-directions', 'custom'),
     ]),
-    creationPrecondition: (input) => designSystemPrecondition({
-      ...input,
-      repoRoot: process.cwd(),
-      payloadRoot: pluginRoot(),
-      configRoot: runtimePaths().configRoot,
-    }),
     designValidator: {
       // 上游 hue 随插件安装；技能没装时返回空串，命令据此给出安装提示而不是去 spawn 不存在的脚本。
       path: () => {

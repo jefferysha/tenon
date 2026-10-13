@@ -6,8 +6,7 @@ import type {
   OrchestrationEntry, OrchestrationFlow, OrchestrationKind, OrchestrationReturn, OrchestrationSource,
 } from '@tenon/kernel/workflow/orchestration'
 import { TEST_KINDS } from '@tenon/kernel/test-system/vocabulary'
-import type { WbEffectiveIo } from './governanceTypes'
-import { decodeEffectiveIo } from './governanceSchema'
+import type { WbStepIoEntry, WbStepIoFile } from './governanceTypes'
 import { ApiError, isRecord, readJson, stringArray, throwApiError, wrapNetwork } from './transport'
 
 /** 工作台节点的状态：运行中 / 完成 / 等待 / 失败；测试另有「过期」（运行过，但绑定的代码 / 计划已变）。 */
@@ -40,7 +39,8 @@ export interface ChangeOrchestration extends FlowOrchestration {
   readonly workflow: string
   readonly track: string | null
   readonly current: string
-  readonly io: WbEffectiveIo
+  /** 每步真实的输入、输出与必须产出；旧服务端不带，解成空对象。 */
+  readonly stepIo: Readonly<Record<string, WbStepIoEntry>>
 }
 
 const KINDS: readonly OrchestrationKind[] = ['executor', 'skill', 'test', 'reviewer']
@@ -104,6 +104,49 @@ function decodeList<T>(value: unknown, decode: (item: unknown) => T | null): T[]
   return out
 }
 
+const CHANGES: readonly NonNullable<WbStepIoFile['change']>[] = ['added', 'modified', 'deleted']
+
+function decodeStepIoFile(value: unknown): WbStepIoFile | null {
+  if (!isRecord(value) || typeof value.path !== 'string' || (value.skill !== null && typeof value.skill !== 'string')) return null
+  if (value.change !== undefined && !oneOf(value.change, CHANGES)) return null
+  if (value.fromStep !== undefined && typeof value.fromStep !== 'string') return null
+  if (value.read !== undefined && typeof value.read !== 'boolean') return null
+  return {
+    path: value.path,
+    skill: value.skill,
+    ...(oneOf(value.change, CHANGES) ? { change: value.change } : {}),
+    ...(typeof value.fromStep === 'string' ? { fromStep: value.fromStep } : {}),
+    ...(typeof value.read === 'boolean' ? { read: value.read } : {}),
+  }
+}
+
+function decodeRequired(value: unknown): WbStepIoEntry['required'][number] | null {
+  return isRecord(value) && typeof value.path === 'string' && typeof value.produced === 'boolean'
+    ? { path: value.path, produced: value.produced }
+    : null
+}
+
+function decodeStepIoEntry(value: unknown): WbStepIoEntry | null {
+  if (!isRecord(value)) return null
+  const inputs = decodeList(value.inputs, decodeStepIoFile)
+  const outputs = decodeList(value.outputs, decodeStepIoFile)
+  const required = decodeList(value.required, decodeRequired)
+  return inputs === null || outputs === null || required === null ? null : { inputs, outputs, required }
+}
+
+/** 缺省（旧服务端）→ 空对象；有就必须每一步都形状正确。 */
+function decodeStepIo(value: unknown): Record<string, WbStepIoEntry> | null {
+  if (value === undefined) return {}
+  if (!isRecord(value) || Array.isArray(value)) return null
+  const out: Record<string, WbStepIoEntry> = {}
+  for (const [stepId, raw] of Object.entries(value)) {
+    const entry = decodeStepIoEntry(raw)
+    if (entry === null) return null
+    out[stepId] = entry
+  }
+  return out
+}
+
 function decodeBase(value: Record<string, unknown>, withStatus: boolean): FlowOrchestration | null {
   const stages = decodeList(value.stages, (item) => decodeStage(item, withStatus))
   const returns = decodeList(value.returns, decodeReturn)
@@ -123,9 +166,9 @@ export function decodeChangeOrchestration(value: unknown): ChangeOrchestration |
   if (!isRecord(value) || typeof value.change !== 'string' || typeof value.workflow !== 'string'
     || (value.track !== null && typeof value.track !== 'string') || typeof value.current !== 'string') return null
   const base = decodeBase(value, true)
-  const io = decodeEffectiveIo(value.io)
-  if (base === null || io === null) return null
-  return { ...base, change: value.change, workflow: value.workflow, track: value.track, current: value.current, io }
+  const stepIo = decodeStepIo(value.stepIo)
+  if (base === null || stepIo === null) return null
+  return { ...base, change: value.change, workflow: value.workflow, track: value.track, current: value.current, stepIo }
 }
 
 async function getDecoded<T>(url: string, decode: (value: unknown) => T | null, signal?: AbortSignal): Promise<T> {

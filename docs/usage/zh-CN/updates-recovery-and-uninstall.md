@@ -138,7 +138,7 @@ codex plugin marketplace remove tenon --json
 
 - `openspec/changes` 已有 Markdown；
 - Archive；
-- `.pipeline-documents.json` digest/read receipt；
+- `.pipeline-step-outputs.json` 与 `.pipeline-documents.json` 的 digest/read receipt；
 - `.pipeline-document-locale.json` 的固定语言；
 - 项目自定义 Workflow/Track；
 - 用户数据、token 和凭证。

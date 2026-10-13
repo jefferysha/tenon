@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { legacyDefaultWorkflow } from './test-support.js'
+import { legacyDefaultPlan } from './test-support.js'
 import { LEGACY_DOCUMENT_GOVERNANCE_POLICY } from './migrations/openspec-v1-document-policy.js'
 import {
   compileEffectiveWorkflowPlan,
@@ -105,7 +105,7 @@ describe('workflow policy snapshot v4', () => {
   })
 
   it('validates historical V2 with its old hash before projecting safe defaults without rehashing', () => {
-    const current = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflow(), { executionModel: 'phase-manifest' })
+    const current = legacyDefaultPlan({ executionModel: 'phase-manifest' })
     const {
       decomposition: _decomposition,
       interaction: _interaction,

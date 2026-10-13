@@ -35,6 +35,7 @@ import { changeDir, isValidChangeName, resolveChangeDir } from '../paths.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
 import { isLegacyExecution } from './execution-cli-seam.js'
 import { artifactNamespaceForChange } from '@tenon/automation'
+import { msg as message } from '../i18n/messages.js'
 
 /** 拒绝：stderr 记 ERROR + 返回 exit 1（统一口径，state 一律不写）。 */
 function reject(deps: CliDeps, msg: string): number {
@@ -96,7 +97,13 @@ async function runRegister(
     return reject(deps, `step '${stepId}' 不在 workflow '${plan.id}' 里`)
   }
   const decl = step.artifacts.find((artifact) => artifact.field === field)
-  if (!decl) return reject(deps, `step '${stepId}' 未声明 artifact '${field}'（workflow '${plan.id}'）`)
+  if (!decl) {
+    // 新任务（观察模式）的工作流不再声明 artifact：产出由 Tenon 在离开步骤时自动记录，不是这个 step 漏声明了。
+    if (plan.capabilities.documents.mode === 'observed') {
+      return reject(deps, message(deps, 'document.observed.autoRecorded', { command: 'artifact register' }))
+    }
+    return reject(deps, `step '${stepId}' 未声明 artifact '${field}'（workflow '${plan.id}'）`)
+  }
   if (decl.requiredWhen && !matchesTrackPredicate(decl.requiredWhen, track)) {
     return reject(deps, `artifact '${field}' 对 track '${track}' 不适用（required_when 排除；step '${stepId}'）`)
   }

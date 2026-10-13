@@ -19,8 +19,6 @@ tracks:
           用一句话向用户复述目标，并写出可验证的验收标准（哪个失败的用例该变成通过）。目标已经清楚就不提问、不写文档、不加载访谈类技能；含糊到没法开工才问一个问题。
           一开始就能看出要动接口契约、鉴权、依赖、数据迁移或十几个文件，不要在这里硬做：走 scope-expanded，改开 default 的重型轨道任务。
         skills: []
-        inputs: []
-        outputs: []
         guards: []
         transitions:
           - event: open-complete
@@ -37,8 +35,6 @@ tracks:
           改完照 next 跑本阶段测试和改动风险探针 diff-risk。探针不过（改动文件太多，或碰了契约、鉴权、依赖、迁移，或删了测试、改了受保护的测试配置）说明任务超出轻量轨道：照 next 走 scope-expanded，再新建 default 的重型轨道任务并 tenon set <新任务> depends_on <本任务>；不要为了让探针通过去拆改动、藏文件。
         skills:
           - id: test-driven-development
-        inputs: []
-        outputs: []
         tests:
           - id: diff-risk
             direction: diff-risk
@@ -85,8 +81,6 @@ tracks:
           评审者给出 medium 及以上的问题就走 verify-fail 回到实现修掉；不要靠重跑评审者换结论。
         skills:
           - id: verification-before-completion
-        inputs: []
-        outputs: []
         agents:
           reviewers:
             - agent: code-review
@@ -119,16 +113,12 @@ tracks:
         label: 完结
         gate: null
         skills: []
-        inputs: []
-        outputs: []
         guards: []
         transitions: []
       - id: escalated
         label: 已升级
         gate: null
         skills: []
-        inputs: []
-        outputs: []
         guards: []
         transitions: []
   pm:
@@ -139,47 +129,15 @@ tracks:
     automation:
       eligible: true
       enqueue_after_spec: true
-    document_contract:
-      version: v1
-      slots:
-        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }
-        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }
-        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }
-        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }
-        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }
-        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }
-        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }
-        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }
-        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }
-        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }
-        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }
-        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }
-        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }
-        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }
-        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }
-        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }
-        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }
-        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }
-        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }
-        - { kind: applied-spec, owner_step: ship, producers: [tenon] }
-        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }
-        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }
-      reads:
-        - { step: explore, kinds: [proposal, openspec-design, tasks] }
-        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }
-        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }
-        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }
-        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }
-        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }
     steps:
       - id: open
         label: 立项
         gate: null
         skills:
           - id: openspec-propose
-        inputs: []
-        outputs: []
         guards:
+          - type: required-output
+            path: openspec/changes/{change}/proposal.md
           - type: tasks-through-step
         transitions:
           - event: open-complete
@@ -191,20 +149,12 @@ tracks:
           - id: brainstorming
           - id: grilling
           - id: domain-modeling
-        inputs: []
-        outputs:
-          - field: design_doc
-            type: file_path
-        artifacts:
-          - field: design_doc
-            type: file_path
-            producer_policy: effective-phase-skills
         agents:
           executors:
             - agent: researcher
         guards:
-          - type: file-exists
-            field: design_doc
+          - type: required-output
+            path: docs/superpowers/specs/*.md
           - type: tasks-through-step
         transitions:
           - event: explore-complete
@@ -218,18 +168,9 @@ tracks:
           - id: writing-plans
           - id: grilling
           - id: domain-modeling
-        inputs:
-          - field: design_doc
-            type: file_path
-        outputs:
-          - field: plan
-            type: file_path
-        artifacts: []
         guards:
-          - type: file-exists
-            field: plan
-            when:
-              track_not_in: [pm]
+          - type: required-output
+            path: openspec/changes/{change}/specs/*/spec.md
           - type: tasks-at-least
             n: 3
           - type: tasks-through-step
@@ -249,14 +190,6 @@ tracks:
         skills:
           - id: prototype
           - id: frontend-design
-        inputs:
-          - field: design_doc
-            type: file_path
-          - field: plan
-            type: file_path
-        outputs:
-          - field: build_sha
-            type: string
         agents:
           executors:
             - agent: builder
@@ -290,16 +223,6 @@ tracks:
           - id: web-design-guidelines
           - id: design-taste-frontend
           - id: verification-before-completion
-        inputs:
-          - field: build_sha
-            type: string
-        outputs:
-          - field: verification_report
-            type: file_path
-        artifacts:
-          - field: verification_report
-            type: file_path
-            producer_policy: effective-phase-skills
         tests:
           - id: code-size
             direction: code-size
@@ -325,8 +248,8 @@ tracks:
           - event: verify-pass
             to: ship
             guards:
-              - type: file-exists
-                field: verification_report
+              - type: required-output
+                path: docs/superpowers/reports/{change}-verify.md
               - type: build-head-unchanged
                 field: build_sha
               - type: tasks-through-step
@@ -341,12 +264,6 @@ tracks:
         label: 交付
         gate: null
         skills: []
-        inputs:
-          - field: verification_report
-            type: file_path
-        outputs:
-          - field: prd_path
-            type: string
         guards:
           - type: file-exists
             field: prd_path
@@ -359,12 +276,6 @@ tracks:
         label: 完结
         gate: null
         skills: []
-        inputs:
-          - field: prd_path
-            type: string
-        outputs:
-          - field: archived
-            type: boolean
         guards:
           - type: tasks-through-step
         transitions: []
@@ -376,51 +287,15 @@ tracks:
     automation:
       eligible: true
       enqueue_after_spec: false
-    document_contract:
-      version: v1
-      slots:
-        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }
-        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }
-        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }
-        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }
-        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }
-        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }
-        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }
-        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }
-        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }
-        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }
-        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }
-        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }
-        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }
-        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }
-        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }
-        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }
-        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }
-        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }
-        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }
-        - { kind: applied-spec, owner_step: ship, producers: [tenon] }
-        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }
-        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }
-        - { kind: design-md, owner_step: open, role: require }
-        - { kind: design-md, owner_step: build, role: require }
-        - { kind: design-md, owner_step: verify, role: require }
-        - { kind: design-md, owner_step: ship, role: update, producers: [hue] }
-      reads:
-        - { step: explore, kinds: [proposal, openspec-design, tasks] }
-        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }
-        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }
-        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }
-        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }
-        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }
     steps:
       - id: open
         label: 立项
         gate: null
         skills:
           - id: openspec-propose
-        inputs: []
-        outputs: []
         guards:
+          - type: required-output
+            path: openspec/changes/{change}/proposal.md
           - type: tasks-through-step
         transitions:
           - event: open-complete
@@ -433,20 +308,12 @@ tracks:
           - id: brainstorming
           - id: grilling
           - id: domain-modeling
-        inputs: []
-        outputs:
-          - field: design_doc
-            type: file_path
-        artifacts:
-          - field: design_doc
-            type: file_path
-            producer_policy: effective-phase-skills
         agents:
           executors:
             - agent: researcher
         guards:
-          - type: file-exists
-            field: design_doc
+          - type: required-output
+            path: docs/superpowers/specs/*.md
           - type: tasks-through-step
         transitions:
           - event: explore-complete
@@ -460,21 +327,11 @@ tracks:
         skills:
           - id: openspec-propose
           - id: writing-plans
-        inputs:
-          - field: design_doc
-            type: file_path
-        outputs:
-          - field: plan
-            type: file_path
-        artifacts:
-          - field: plan
-            type: file_path
-            producer_policy: effective-phase-skills
         guards:
-          - type: file-exists
-            field: plan
-            when:
-              track_not_in: [pm]
+          - type: required-output
+            path: openspec/changes/{change}/specs/*/spec.md
+          - type: required-output
+            path: docs/superpowers/plans/*.md
           - type: tasks-at-least
             n: 3
           - type: tasks-through-step
@@ -492,14 +349,6 @@ tracks:
         skills:
           - id: test-driven-development
           - id: frontend-design
-        inputs:
-          - field: design_doc
-            type: file_path
-          - field: plan
-            type: file_path
-        outputs:
-          - field: build_sha
-            type: string
         agents:
           executors:
             - agent: builder
@@ -535,16 +384,6 @@ tracks:
           - id: design-taste-frontend
           - id: verification-before-completion
           - id: e2e-testing
-        inputs:
-          - field: build_sha
-            type: string
-        outputs:
-          - field: verification_report
-            type: file_path
-        artifacts:
-          - field: verification_report
-            type: file_path
-            producer_policy: effective-phase-skills
         tests:
           - id: code-size
             direction: code-size
@@ -589,8 +428,8 @@ tracks:
           - event: verify-pass
             to: ship
             guards:
-              - type: file-exists
-                field: verification_report
+              - type: required-output
+                path: docs/superpowers/reports/{change}-verify.md
               - type: build-head-unchanged
                 field: build_sha
               - type: tasks-through-step
@@ -605,15 +444,9 @@ tracks:
         label: 交付
         gate: null
         prompt: |-
-          存在 openspec/changes/<change>/design-system.md 时：加载 hue，先改 design/design-model.yaml，再只重新生成 DESIGN.md 受影响章节与预览，跑 tenon design validate 到通过，登记 tenon document record "$TENON_CHANGE_NAME" design-md DESIGN.md --producer hue。
+          存在 openspec/changes/<change>/design-system.md 时：加载 hue，先改 design/design-model.yaml，再只重新生成 DESIGN.md 受影响章节与预览，跑 tenon design validate 到通过。
         skills:
           - id: finishing-a-development-branch
-        inputs:
-          - field: verification_report
-            type: file_path
-        outputs:
-          - field: pr_url
-            type: string
         tests:
           - id: design-system
             direction: design-system
@@ -633,12 +466,6 @@ tracks:
         label: 完结
         gate: null
         skills: []
-        inputs:
-          - field: pr_url
-            type: string
-        outputs:
-          - field: archived
-            type: boolean
         guards:
           - type: tasks-through-step
         transitions: []
@@ -651,47 +478,15 @@ tracks:
     automation:
       eligible: true
       enqueue_after_spec: false
-    document_contract:
-      version: v1
-      slots:
-        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }
-        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }
-        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }
-        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }
-        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }
-        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }
-        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }
-        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }
-        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }
-        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }
-        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }
-        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }
-        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }
-        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }
-        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }
-        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }
-        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }
-        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }
-        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }
-        - { kind: applied-spec, owner_step: ship, producers: [tenon] }
-        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }
-        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }
-      reads:
-        - { step: explore, kinds: [proposal, openspec-design, tasks] }
-        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }
-        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }
-        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }
-        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }
-        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }
     steps:
       - id: open
         label: 立项
         gate: null
         skills:
           - id: openspec-propose
-        inputs: []
-        outputs: []
         guards:
+          - type: required-output
+            path: openspec/changes/{change}/proposal.md
           - type: tasks-through-step
         transitions:
           - event: open-complete
@@ -705,20 +500,12 @@ tracks:
           - id: grilling
           - id: domain-modeling
           - id: codebase-design
-        inputs: []
-        outputs:
-          - field: design_doc
-            type: file_path
-        artifacts:
-          - field: design_doc
-            type: file_path
-            producer_policy: effective-phase-skills
         agents:
           executors:
             - agent: researcher
         guards:
-          - type: file-exists
-            field: design_doc
+          - type: required-output
+            path: docs/superpowers/specs/*.md
           - type: tasks-through-step
         transitions:
           - event: explore-complete
@@ -729,21 +516,11 @@ tracks:
         skills:
           - id: openspec-propose
           - id: writing-plans
-        inputs:
-          - field: design_doc
-            type: file_path
-        outputs:
-          - field: plan
-            type: file_path
-        artifacts:
-          - field: plan
-            type: file_path
-            producer_policy: effective-phase-skills
         guards:
-          - type: file-exists
-            field: plan
-            when:
-              track_not_in: [pm]
+          - type: required-output
+            path: openspec/changes/{change}/specs/*/spec.md
+          - type: required-output
+            path: docs/superpowers/plans/*.md
           - type: tasks-at-least
             n: 3
           - type: tasks-through-step
@@ -760,14 +537,6 @@ tracks:
         gate: null
         skills:
           - id: test-driven-development
-        inputs:
-          - field: design_doc
-            type: file_path
-          - field: plan
-            type: file_path
-        outputs:
-          - field: build_sha
-            type: string
         agents:
           executors:
             - agent: builder
@@ -799,16 +568,6 @@ tracks:
         max_rounds: 2
         skills:
           - id: verification-before-completion
-        inputs:
-          - field: build_sha
-            type: string
-        outputs:
-          - field: verification_report
-            type: file_path
-        artifacts:
-          - field: verification_report
-            type: file_path
-            producer_policy: effective-phase-skills
         tests:
           - id: code-size
             direction: code-size
@@ -851,8 +610,8 @@ tracks:
           - event: verify-pass
             to: ship
             guards:
-              - type: file-exists
-                field: verification_report
+              - type: required-output
+                path: docs/superpowers/reports/{change}-verify.md
               - type: build-head-unchanged
                 field: build_sha
               - type: tasks-through-step
@@ -868,12 +627,6 @@ tracks:
         gate: null
         skills:
           - id: finishing-a-development-branch
-        inputs:
-          - field: verification_report
-            type: file_path
-        outputs:
-          - field: pr_url
-            type: string
         guards:
           - type: field-nonempty
             field: pr_url
@@ -886,12 +639,6 @@ tracks:
         label: 完结
         gate: null
         skills: []
-        inputs:
-          - field: pr_url
-            type: string
-        outputs:
-          - field: archived
-            type: boolean
         guards:
           - type: tasks-through-step
         transitions: []

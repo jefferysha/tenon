@@ -112,7 +112,7 @@ export const HELP_EN_CORE: Readonly<Record<string, string>> = {
   'document record --all': 'Record every document of the current step whose file is already written (no kind / path; documents that are already current are left alone, unfinished ones are listed and skipped)',
   'document record --backfill': 'Only when upgrading an old Change: record earlier phases\' unrecorded documents for the first time; never overwrites an existing record and still needs real skill evidence',
   'document migrate-delta': 'Explicitly migrate one old delta record; replaced atomically only when the canonical file matches the old digest exactly, and safe to retry',
-  'document read': "Record that the current phase read a document (kind may be 'all')",
+  'document read': "Record that the current phase read documents (tasks created before the upgrade: a document kind or 'all'; new tasks: 'all' or the path of one handoff input)",
   'document status': 'Show document artifacts, content digests and the current phase\'s read receipts (exit 2 when incomplete)',
   'document status --json': 'JSON output',
 

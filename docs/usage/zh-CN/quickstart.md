@@ -14,7 +14,7 @@
 
 ## 目标
 
-从一次正常对话创建独立 Change，依次经过 Open、Explore、Spec、Build、Verify、Ship 和 Archive，并能用状态、文档账本和实际测试证明每次推进都成立。
+从一次正常对话创建独立 Change，依次经过 Open、Explore、Spec、Build、Verify、Ship 和 Archive，并能用状态、步骤产出记录和实际测试证明每次推进都成立。
 
 ## 前置条件
 
@@ -45,10 +45,10 @@ tenon status <change> --json
 ### 3. 完成三个前置阶段
 
 - Open：明确问题、范围、非目标和验收信号；
-- Explore：调研、方案比较、设计和 ADR；
+- Explore：调研、方案比较和设计；
 - Spec：增量需求、场景和文件级计划。
 
-后续 phase 会通过 `tenon document read <change> all` 对当前 digest 留下读取收据，不能只说“已经看过”。
+每个步骤只会拿到直接上游写出的文档，必须读完并用 `tenon document read <change> all` 留下读取回执才能离开，不能只说“已经看过”。
 
 在每个 review 出口，先完成产物和检查，再请求精确事件的 review。进入 Explore 本身不代表“等待确认”；只有产物完成并执行 `review request` 后，状态才应显示等待。
 
@@ -80,13 +80,13 @@ tenon status <change> --json
 tenon document status <change>
 ```
 
-归档前，任务清单应没有当前及更早阶段的未完成项；applied spec 应对应已经验证的 delta；Archive 应重读验证报告和已应用规格。
+归档前，任务清单应没有当前及更早阶段的未完成项；applied spec 应对应已经验证的 delta；Archive 应读完 Ship 交接来的文档。`tenon document status` 列出本步的输入（已读 / 未读）、已经写出的文件与来源技能，以及必须产出。
 
 ## 预期结果
 
 - Todo 一级项与实际 workflow 步骤一致；
-- proposal、design、ADR、delta spec、plan、verification report 和 applied spec 都有真实 producer；
-- 后续阶段对当前 digest 留有 read receipt；
+- 每一步写出的文件都被记录，带来源技能或「未知」；各步的必须产出（proposal、设计、delta spec、计划、验证报告）都已写出；
+- 下一阶段对直接上游的文档留有读取回执；
 - review receipt 绑定准确 phase/event；
 - Verify 失败会回到 Build，而不是强行进入 Ship；
 - Archive 后 Change 不再作为新目标的自动恢复对象。
@@ -105,7 +105,7 @@ tenon document status <change> --json
 
 - 正常对话恢复了旧 Change：确认用户是否明确说“继续”；独立目标应创建新 Change；
 - Todo 不是 workflow 步骤：检查 `tasks.md` 是否由真实 effective workflow 生成；
-- 文档存在但 guard 仍失败：检查 producer、digest 和当前 phase read receipt；
+- 文件存在但必须产出仍缺失：它必须是本任务里这一步新增或修改的；转换因输入未读被拒：执行 `tenon document read <change> all`；
 - UI 显示等待：查看是否真的存在 pending review，还是 AFK 仍在 queued；
 - Verify 报 workspace drift：回到 Build 重新冻结，不删除证据文件绕过；
 - Pages 或 push 未成功：如实保留为未验证项，不能仅因本地构建通过就声称上线。

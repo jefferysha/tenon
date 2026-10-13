@@ -43,6 +43,15 @@ export const TRANSITION_MESSAGES = {
     zh: 'OpenSpec 文档证据未通过（phase={phase}）：',
     en: 'OpenSpec document evidence has not passed (phase={phase}):',
   },
+  // 观察模式（新任务没有旧文档契约）的两种拒绝：标题说实际原因，不借用上面「OpenSpec 文档证据」的说法。
+  'transition.stepInputsUnread': {
+    zh: '本步输入还没读完（step={phase}）：',
+    en: 'Step inputs have not been read yet (step={phase}):',
+  },
+  'transition.stepOutputLedgerBroken': {
+    zh: '步骤产出账本不可用（step={phase}）：',
+    en: 'The step output ledger is unusable (step={phase}):',
+  },
   'transition.testEvidenceFailed': {
     zh: '测试证据未通过（step={step}）：',
     en: 'test evidence has not passed (step={step}):',

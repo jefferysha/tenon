@@ -172,8 +172,8 @@ export async function fetchWorkflow(name: string, root: string): Promise<WbWorkf
 }
 
 export function postWorkflowDef(name: string, payload: Record<string, unknown>): Promise<Response> {
-  // source / effectiveIo / branches 是读接口附带的投影，不属于定义 DTO；server 的闭合解码器会拒绝未知键。
-  const { source: _source, effectiveIo: _effectiveIo, branches: _branches, ...definition } = payload
+  // source / branches 是读接口附带的投影，不属于定义 DTO；server 的闭合解码器会拒绝未知键。
+  const { source: _source, branches: _branches, ...definition } = payload
   return fetch(`/api/workflows/${encodeURIComponent(name)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },

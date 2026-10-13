@@ -1,4 +1,5 @@
 import { FIELD_ORDER, LIST_FIELDS, type FieldName } from '../types.js'
+import { validateOutputPattern } from '../documents/step-outputs-model.js'
 import type { FieldRef, StepDef } from './types.js'
 import { GUARD_DATA_KEYS } from './types.js'
 import type { TrackPredicate } from './predicates.js'
@@ -73,7 +74,20 @@ function withWhen<T extends object>(config: T, when: TrackPredicate | undefined)
   return when === undefined ? config : { ...config, when }
 }
 
-function compileGuard(raw: unknown, path: string, outputs: readonly FieldRef[]): CompiledGuardConfig[] {
+/**
+ * required-output 的路径模式：语法与安全校验归 validateOutputPattern（拒绝空串、绝对路径、`..`、反斜杠、未知占位符等），
+ * 这里另要求首尾无空白——YAML 里 `path:` 读回会去掉首尾空白，留着它们会让保存后的模式悄悄变了。
+ * 错误点名所在步骤（stepId 只在步骤编译入口已知；auto-gate 等内部调用不涉及 required-output）。
+ */
+function requiredOutputPattern(value: unknown, path: string, stepId: string | undefined): string {
+  if (typeof value !== 'string') compileError(path, `必须是字符串（实际 ${JSON.stringify(value)}）`)
+  const problem = validateOutputPattern(value)
+    ?? (value === value.trim() ? null : `required-output 的 path 不能以空白开头或结尾：${JSON.stringify(value)}`)
+  if (problem !== null) compileError(path, `${stepId === undefined ? '' : `step '${stepId}'：`}${problem}`)
+  return value
+}
+
+function compileGuard(raw: unknown, path: string, outputs: readonly FieldRef[], stepId: string | undefined): CompiledGuardConfig[] {
   const record = asRecord(raw, path)
   if (typeof record.type === 'string' && Object.prototype.hasOwnProperty.call(GUARD_DATA_KEYS, record.type)) {
     const dataKeys = GUARD_DATA_KEYS[record.type as keyof typeof GUARD_DATA_KEYS]
@@ -148,6 +162,11 @@ function compileGuard(raw: unknown, path: string, outputs: readonly FieldRef[]):
       return [withWhen({ type: 'not-afk-queued' as const }, when)]
     case 'dependencies-ended':
       return [withWhen({ type: 'dependencies-ended' as const }, when)]
+    case 'required-output':
+      return [withWhen({
+        type: 'required-output' as const,
+        path: requiredOutputPattern(record.path, `${path}.path`, stepId),
+      }, when)]
     default:
       compileError(
         `${path}.type`,
@@ -160,9 +179,10 @@ export function compileGuards(
   raw: unknown,
   path: string,
   outputs: readonly FieldRef[],
+  stepId?: string,
 ): CompiledGuardConfig[] {
   if (raw === undefined) return []
-  return asArray(raw, path).flatMap((guard, index) => compileGuard(guard, `${path}[${index}]`, outputs))
+  return asArray(raw, path).flatMap((guard, index) => compileGuard(guard, `${path}[${index}]`, outputs, stepId))
 }
 
 export function compileStepGuards(step: StepDef): CompiledGuardConfig[] {
@@ -171,5 +191,6 @@ export function compileStepGuards(step: StepDef): CompiledGuardConfig[] {
     record.guards,
     'step.guards',
     asArray(record.outputs, 'step.outputs') as readonly FieldRef[],
+    typeof record.id === 'string' ? record.id : undefined,
   )
 }

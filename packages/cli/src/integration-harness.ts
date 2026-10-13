@@ -27,6 +27,7 @@ import {
   createTransitionRecordStore,
   createWorkflowRunRepository,
   DocumentLedgerError,
+  StepOutputLedgerError,
   ensureDocumentLedger,
   candidateFingerprint,
   loadManifest,
@@ -34,7 +35,6 @@ import {
   recordDocument,
   recordDocumentReads,
   resolveRequiredSkillSlots,
-  designSystemPrecondition,
   loadResourceCatalog,
   resolveProductPaths,
   resolveTenonUser,
@@ -47,7 +47,10 @@ import {
 } from '@tenon/kernel'
 import type { CliDeps } from './deps.js'
 import { effectiveWorkflowForState } from './commands/effective-workflow.js'
-import { initLegacyDefaultChange, initLegacyStandardChange } from './integration-harness-legacy.js'
+import {
+  initLegacyContractDefaultChange, initLegacyDefaultChange, initLegacyStandardChange, initLegacyWorkflowChange,
+  type LegacyDefaultOptions,
+} from './integration-harness-legacy.js'
 import { readGateMarkers } from './gateMarkers.js'
 import { detectPlatform, readProcVersion } from './commands/doctor-platform.js'
 import {
@@ -136,8 +139,27 @@ export interface Harness {
    * 无发现的报告、record。不绕过门禁——落的是真台账行。
    */
   satisfyStepAgents: (name: string) => Promise<void>
-  /** 立一个快照记着 phase-manifest 的在途 default 任务，回归旧引擎规则（Review Focus 第 1 条）；返回 exit code。 */
-  initLegacyDefault: (name: string, track: string, preset?: string) => Promise<number>
+  /**
+   * 立一个快照记着 phase-manifest 的在途 default 任务（升级前的 default 原文，带文档契约），回归旧引擎规则（Review Focus 第 1 条）；
+   * 返回 exit code。`options` 同 `initLegacyContractDefault`。
+   */
+  initLegacyDefault: (name: string, track: string, preset?: string, options?: LegacyDefaultOptions) => Promise<number>
+  /**
+   * 立一个升级前创建、冻结着文档契约的 default 任务（step-graph 现行引擎，契约模式）：测契约本身
+   * （scaffold / record / 按 kind 读取 / `pending_documents` / `register-field`）的用例用它；返回 exit code。
+   * `options.definition` 给了就用它（升级前 default 的定义，如在原文上加一条项目级测试、加几条旧轨道）代替升级前的 default 原文；
+   * `options.documentLocale` 固定治理文档语言（缺省中文）。
+   */
+  initLegacyContractDefault: (name: string, track: string, preset?: string, options?: LegacyDefaultOptions) => Promise<number>
+  /**
+   * 立一个升级前创建、定义里带已删除的键（`inputs` / `outputs` / `artifacts` / `document_contract`）的自定义 workflow 任务：
+   * `source` 是 workflow 的 YAML 文本，不经校验直接冻结进快照（之后命令按快照行事，不读项目里的文件）；
+   * 平铺工作流的 `track` 缺省为工作流名（隐式轨道）；返回 exit code。
+   */
+  initLegacyWorkflow: (
+    name: string, source: string,
+    options?: { readonly track?: string; readonly preset?: string; readonly documentLocale?: 'zh-CN' | 'en' },
+  ) => Promise<number>
   /** 立一个按已退役 standard 工作流创建的在途任务（平铺、step-graph、轨道 standard；模板已删，只剩冻结快照）；返回 exit code。 */
   initLegacyStandard: (name: string, preset?: string) => Promise<number>
 }
@@ -189,9 +211,6 @@ export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.
     resourceCatalog: () => loadResourceCatalog({ payloadRoot: REPO_ROOT, configRoot: resolveProductPaths({ env }).configRoot }),
     ...harnessAgentDeps(REPO_ROOT, cwd, env),
     testDirections: () => loadTestDirections([join(REPO_ROOT, 'templates', 'test-directions')]),
-    creationPrecondition: (input) => designSystemPrecondition({
-      ...input, repoRoot: cwd, payloadRoot: REPO_ROOT, configRoot: resolveProductPaths({ env }).configRoot,
-    }),
     io: { out: (l) => out.push(l), err: (l) => err.push(l) },
     // 与 main.ts 同款：TENON_LANG / LC_* / LANG 选语言；vitest 启动时把 TENON_LANG 钉成 zh，英文用例经 run(env) 覆盖。
     locale: resolveCliLocale((name) => env[name]),
@@ -326,20 +345,22 @@ export function makeHarness(cwd: string): Harness {
           .map((skill) => `${JSON.stringify({ kind: 'tool', raw: `Skill: ${skill}` })}\n`)
           .join('')
         if (lines !== '') await appendFile(historyPath, lines, 'utf8')
+        if (plan === null) continue
         try {
           // 契约点名为 producer 的必需技能，产物要在本次访问登记才算完成：替它们在本次访问重登。
           await recordBoundDocumentsForCurrentVisit(
-            cwd, changeDir, name,
+            cwd, changeDir, name, plan,
             requiredSlots.flatMap((slot) => slot.alternatives.slice(0, 1)),
           )
-          await readGovernedDocumentsForCurrentVisit(cwd, changeDir)
+          await readGovernedDocumentsForCurrentVisit(cwd, changeDir, plan)
         } catch (error) {
-          // A test may intentionally remove or stale a document. Let the command under test expose
-          // that real ledger failure instead of failing inside fixture preparation.
+          // A test may intentionally remove or stale a document (or corrupt the step-output ledger).
+          // Let the command under test expose that real ledger failure instead of failing inside
+          // fixture preparation.
           const code = typeof error === 'object' && error !== null && 'code' in error
             ? String(error.code)
             : ''
-          if (!(error instanceof DocumentLedgerError) && code !== 'ENOENT') throw error
+          if (!(error instanceof DocumentLedgerError) && !(error instanceof StepOutputLedgerError) && code !== 'ENOENT') throw error
         }
       }
       try {
@@ -396,10 +417,20 @@ export function makeHarness(cwd: string): Harness {
         }
       }
     },
-    initLegacyDefault: async (name, track, preset = 'full') => {
+    initLegacyDefault: async (name, track, preset = 'full', options) => {
       out.length = 0
       err.length = 0
-      return initLegacyDefaultChange(realDeps(cwd, out, err, process.env), cwd, name, track, preset)
+      return initLegacyDefaultChange(realDeps(cwd, out, err, process.env), cwd, name, track, preset, options)
+    },
+    initLegacyContractDefault: async (name, track, preset = 'full', options) => {
+      out.length = 0
+      err.length = 0
+      return initLegacyContractDefaultChange(realDeps(cwd, out, err, process.env), cwd, name, track, preset, options)
+    },
+    initLegacyWorkflow: async (name, source, options = {}) => {
+      out.length = 0
+      err.length = 0
+      return initLegacyWorkflowChange(realDeps(cwd, out, err, process.env), cwd, name, source, { ...options, preset: options.preset ?? 'full' })
     },
     initLegacyStandard: async (name, preset = 'full') => {
       out.length = 0
@@ -409,12 +440,10 @@ export function makeHarness(cwd: string): Harness {
     seedAppliedSpec: (name) =>
       seedAppliedSpec(cwd, join(cwd, 'openspec', 'changes', name), name),
     seedGovernedDocumentEvidence: async (name, overrides) => {
-      await seedGovernedDocumentEvidence(
-        cwd,
-        join(cwd, 'openspec', 'changes', name),
-        name,
-        overrides,
-      )
+      const changeDir = join(cwd, 'openspec', 'changes', name)
+      const plan = effectiveWorkflowForState(realDeps(cwd, [], []), await createStateStore().read(changeDir))
+      if (plan === null) throw new Error(`harness seedGovernedDocumentEvidence: ${name} 的工作流不可用`)
+      await seedGovernedDocumentEvidence(cwd, changeDir, name, plan, overrides)
       if (overrides?.autoSkills !== false) governedFixtures.add(name)
     },
   }

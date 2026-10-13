@@ -186,16 +186,16 @@ describe('WorkflowNav', () => {
     // Radix Tooltip 的定位层要 ResizeObserver；jsdom 没有。
     vi.stubGlobal('ResizeObserver', class { observe(): void {} unobserve(): void {} disconnect(): void {} })
     renderNav({ lint: [
-      { kind: 'step-no-output', stepId: 'spec', severity: 'warning' },
+      { kind: 'agent-missing', stepId: 'spec', agent: 'ghost', severity: 'warning' },
       { kind: 'transition-empty-event', stepId: 'spec', severity: 'error' },
-      { kind: 'step-no-output', stepId: 'build', severity: 'warning' },
+      { kind: 'agent-missing', stepId: 'build', agent: 'ghost', severity: 'warning' },
     ] })
     expect(screen.getByTestId('wb-lint-spec')).toHaveAttribute('data-severity', 'error')
     expect(screen.getByTestId('wb-lint-build')).toHaveAttribute('data-severity', 'warning')
     expect(screen.getByTestId('wb-lint-build').tagName.toLowerCase()).toBe('svg')
     expect(screen.queryByTestId('wb-lint-open')).toBeNull()
     act(() => { screen.getByTestId('wb-step-build').focus() })
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('缺输出')
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('智能体 ghost 不存在')
     vi.unstubAllGlobals()
   })
 
@@ -248,7 +248,7 @@ describe('WorkflowNav', () => {
     renderNav({ current: 'release' })
     await user.click(screen.getByTestId('wb-wf-menu'))
     act(() => { screen.getByTestId('wb-wf-menu-openspec').focus() })
-    expect((await screen.findAllByText('开启后阶段可加文档输入 / 输出；关闭时输入输出只来自字段')).length).toBeGreaterThan(0)
+    expect((await screen.findAllByText('开启后任务按 OpenSpec 管理规格')).length).toBeGreaterThan(0)
   })
 
   it('回流弧带悬停标签：从哪退回到哪；悬停时整条弧高亮', async () => {

@@ -6,12 +6,12 @@ import {
   compileEffectiveWorkflowPlan, effectiveWorkflowPlanFromSnapshot, workflowPlanSnapshot,
 } from './effective-plan.js'
 import type { EffectiveWorkflowPlan } from './effective-plan.js'
-import { allFields, legacyDefaultWorkflow } from './test-support.js'
+import { allFields, legacyDefaultPlan } from './test-support.js'
 import type { WorkflowDef } from './types.js'
 
 /** 旧快照里记着 phase-manifest 的 default 计划。 */
 function legacyPlan(): EffectiveWorkflowPlan {
-  return compileEffectiveWorkflowPlan('default', legacyDefaultWorkflow(), { track: 'backend', executionModel: 'phase-manifest' })
+  return legacyDefaultPlan({ track: 'backend', executionModel: 'phase-manifest' })
 }
 
 /** 两步的自定义工作流：build 往前到 verify，verify 只有回退边（完结靠派生的 archived 自边）。 */

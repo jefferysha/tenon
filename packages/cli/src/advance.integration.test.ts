@@ -340,19 +340,16 @@ steps:
     transitions: []
 `
 
-  /** g1 声明 nonempty-output guard（design_doc 必须产出）。 */
+  /** g1 声明 field-nonempty guard（design_doc 必须已设；`outputs` / `nonempty-output` 已删除，字段门禁直接写 field-nonempty）。 */
   const GUARDED_WF = `name: guarded
 steps:
   - id: g1
     label: one
     gate: null
     skills: []
-    inputs: []
-    outputs:
-      - field: design_doc
-        type: file_path
     guards:
-      - type: nonempty-output
+      - type: field-nonempty
+        field: design_doc
     transitions:
       - event: done
         to: g2

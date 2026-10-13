@@ -156,8 +156,11 @@ tenon document status <change-name>
 tenon check <change-name>
 ```
 
-Confirm producer Skill, current phase visit, digest, and required read receipt.
-File existence is not evidence.
+For a new Change, check the handed-over inputs (each needs a read receipt:
+`tenon document read <change-name> all`) and the required outputs (the file must
+have been added or modified by this step in this Change; an older file does not
+count). For a Change created before the upgrade, confirm producer Skill, current
+phase visit, digest, and required read receipt. File existence is not evidence.
 
 ### New documents use the wrong language
 
@@ -348,7 +351,7 @@ health identity changed for the intended reason.
 
 - treating a yellow optional doctor light as a core installation failure;
 - deleting pending markers;
-- hand-editing `.pipeline.yaml` or the document ledger;
+- hand-editing `.pipeline.yaml`, the document ledger or the step-output records;
 - using `verify-pass` approval for `verify-fail`;
 - assuming a port listener is the correct release;
 - sharing tokens, CA material, prompts, or raw traces in a public Issue.

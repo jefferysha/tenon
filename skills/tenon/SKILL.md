@@ -93,9 +93,9 @@ repeat:
   做完 finish-change → 任务结束，不必再 status
 ```
 
-`tenon step run <c> --json` 读的是同一份 `step`，并先把 `next` 里确定性的部分一次做完——铺文档骨架、登记已经写好的文档、
-读取回执、生成测试计划初稿——再给出最新的 `next`（`did` 是它做了什么，`stopped` 是它为什么停）。它能代替循环开头的 `status`，
-文档类步骤上一次调用顶过去逐份 scaffold / record / read 的好几次。它不加载技能、不派 agent、不写文档内容、不跑测试：这些仍照动作表做。
+`tenon step run <c> --json` 读的是同一份 `step`，并先把 `next` 里确定性的部分一次做完——读取回执、生成测试计划初稿
+（升级前创建的任务还会铺文档骨架、登记已写好的文档）——再给出最新的 `next`（`did` 是它做了什么，`stopped` 是它为什么停）。它能代替循环开头的 `status`，
+文档类步骤上一次调用顶过去逐份 read 的好几次（升级前创建的任务还有 scaffold / record）。它不加载技能、不派 agent、不写文档内容、不跑测试：这些仍照动作表做。
 
 ## 动作表（闭集，与 `step.next` 一一对应）
 
@@ -103,12 +103,12 @@ repeat:
 | --- | --- |
 | `stop` | 报告 `message` 后结束。`code: rounds-exhausted`（验证轮次用完，必需测试仍失败）时，把失败的测试、剩余阻断与 `message` 里的出路摆给用户，结束回合等用户决定，不要自行选一条出路。 |
 | `load-tenon` | 重新加载本技能（Claude 用 Skill 工具；Codex 按上面的读取规则整读一次）。 |
-| `read-documents` | 逐个读完 `documents` 列出的文件，把内容读进上下文（不得丢弃输出：`cat … >/dev/null` 这类读取不算读过），再 `tenon document read <c> all`。这些是已登记的输入：只有 `editable` 里的 kind 本步可以改（改完照 `next` 重新登记），其余只读——需求语义变了走 `requirements-changed` 回到规格步，不要直接改已登记的规格文档；tasks.md 只勾当前步骤标题下的复选框。 |
+| `read-documents` | 逐个读完 `documents` 列出的文件，把内容读进上下文（不得丢弃输出：`cat … >/dev/null` 这类读取不算读过），再 `tenon document read <c> all`。新任务里它们是直接上游步骤的产出：本步可以改，改动会记为本步产出；升级前创建的任务里它们是已登记的输入，只有 `editable` 里的 kind 本步可以改（改完照 `next` 重新登记），需求语义变了走 `requirements-changed` 回到规格步。tasks.md 只勾当前步骤标题下的复选框。 |
 | `run-agent` | 逐项：`tenon agent prompt <c> <agent> --host <host> --json`（`<host>` 是本宿主 id：Claude Code 用 `claude`，Codex 用 `codex`；agent 声明了 `hosts` 且不含本宿主时 exit 2，照报错告诉用户，不换宿主硬跑）→ 用返回的 `subagent_type` 派发子代理跑返回的 `prompt`（Claude 用 Agent 工具；Codex 用子任务或 `codex exec`；没有子代理的宿主就在主线顺序跑）→ 把报告写到返回的 `report_path`（正文末尾一个 `tenon-result` 代码块）→ `tenon agent record <c> <run_id>`。`subagent_type` 是 `tenon-<agent>` 时，Claude Code 按该 agent 的 `tools` 白名单执行；Codex 没有按 agent 的工具白名单，只在工具里没有写或执行能力时设只读沙箱，其余限制就是 agent 正文里的指令；宿主说找不到这个子代理（会话中途才生成的），改用通用子代理跑同一份提示词，登记时加 `--subagent <实际用的类型>`。返回的 `host.run_on` 非空（`action` 里带 `host` 的评审者）时，这个评审者必须在另一个宿主上跑（跨厂商评审：Claude 写、Codex 审）：不要在本宿主里自己审；从仓库根目录执行 `run_on.command`（它读 `run_on.prompt_file`；这是另一家的 CLI，由你执行，Tenon 不会替你起），评审写完报告并登记后继续；对方登记不了 Tenon 状态时，在本宿主执行 `run_on.record`（带 `--host`）。在不符的宿主上登记会被拒（exit 2），台账里宿主不符的结论无效。`host.run_on` 为空照常派发。同一波并行。执行者的正文只做「一个 task」（如 `builder`）时，本步未勾的独立任务各起一个同类型子代理并行，提示词后面写明各自的任务；全部回来后主线合成一份报告写到 `report_path`，只 record 一次。带 `status: running` 与 `run_id` 的项是已经开始的那次运行：不要重新 prompt，等它跑完把报告写到给出的 `report_path`，再 `tenon agent record <c> <run_id>`。评审者在同一份代码（候选没变）上已经有结论时，不能靠重跑换结论：`prompt` 会 exit 2——改代码换候选后再跑；确有需要（例如上一轮提示缺上下文）加 `--rerun-reason <原因>`，原因与重跑次数会展示给用户，没写原因的同候选重跑按最严结论判定。子代理还在跑的时候，主线不要去加载会向用户提问的技能（`brainstorming`、`grilling`、`domain-modeling` 等）：它们落下的待处理交互会让主线停下等用户回复；等执行者返回、报告登记之后再加载。 |
 | `load-skill` | 加载本波每个技能，按下面的「上游技能怎么用」执行。带 `review_bar` 时按下面的「下一步评审口径」审查。 |
-| `scaffold-document` | 文件不存在时先 `tenon document scaffold <c> <kind> [--capability <cap>]`，再动笔写内容：骨架里的 `[待填写…]` / `[pending…]` 占位要全部替换成真内容，留着占位符登记会被拒。`tenon step run <c>` 会替你铺。 |
-| `record-document` | `tenon document record <c> <kind> <path> --producer <producer>`；本步有好几份文档都写好了，用 `tenon document record <c> --all` 一次登记（没写完的它会列出并跳过）。 |
-| `register-field` | `tenon artifact register <c> <field> <path> --producer <producer>`。 |
+| `scaffold-document` | 只出现在升级前创建的任务：文件不存在时先 `tenon document scaffold <c> <kind> [--capability <cap>]`，再动笔写内容：骨架里的 `[待填写…]` / `[pending…]` 占位要全部替换成真内容，留着占位符登记会被拒。`tenon step run <c>` 会替你铺。 |
+| `record-document` | 只出现在升级前创建的任务：`tenon document record <c> <kind> <path> --producer <producer>`；本步有好几份文档都写好了，用 `tenon document record <c> --all` 一次登记（没写完的它会列出并跳过）。 |
+| `register-field` | 只出现在升级前创建的任务：`tenon artifact register <c> <field> <path> --producer <producer>`。 |
 | `set-field` | 先按下面的「决定」定值，再 `tenon set <c> <field> <value>`。 |
 | `validate-spec` | `tenon spec apply <c> --dry-run`；退出码 2 就按报错改 delta spec 再跑。 |
 | `apply-spec` | `tenon spec apply <c>`。 |
@@ -155,12 +155,15 @@ repeat:
 ## 上游技能怎么用
 
 - 任务已经存在且已绑定：不要 `openspec new change`，也不要另选或另建 change。
-- 文档写在 `step.documents` 给的 `path` 上；缺结构先 `scaffold-document`。
-- `path` 为 `null` = 这一条的路径还要你拍板：按 `path_template` 里剩下的占位符定值再 scaffold
-  （delta-spec 缺 `{capability}`，即 `tenon document scaffold <c> delta-spec --capability <x>`）。
-- 只经 `record-document` 登记。技能自带的「提交」「归档」「同步规格」「推送」「建 PR」等收尾动作，
-  只有 `step.next` 点名时才做。
-- tasks 只勾当前步骤标题下的复选框；它的重新登记会出现在 `step.documents.updates` 里。
+- 技能按它自己的 SKILL.md 写文件，路径由技能决定。Tenon 在离开步骤时自动记录本步新增、修改、删除的文件与
+  来源技能，不需要登记。
+- 步骤要求的「必须产出」（`required-output`）没写出时，出口阻断（`fix`）会点名路径：让技能把文件写出来。
+- 技能自带的「提交」「归档」「同步规格」「推送」「建 PR」等收尾动作，只有 `step.next` 点名时才做。
+- tasks 只勾当前步骤标题下的复选框。
+- 升级前创建的任务（`step.documents.mode` 为 `contract`）照旧：文档写在 `step.documents` 给的 `path` 上，
+  缺结构先 `scaffold-document`；`path` 为 `null` = 这一条的路径还要你拍板，按 `path_template` 里剩下的占位符定值再 scaffold
+  （delta-spec 缺 `{capability}`，即 `tenon document scaffold <c> delta-spec --capability <x>`）；只经 `record-document`
+  登记；tasks 的重新登记会出现在 `step.documents.updates` 里。
 
 ## 出错时
 

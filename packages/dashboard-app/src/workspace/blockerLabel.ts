@@ -38,6 +38,8 @@ const REVIEWER_KEYS: Readonly<Record<string, string>> = {
   'wrong-host': 'workspace.blocker_reviewer_wrong_host',
 }
 const WRONG_HOST_REASON = 'reviewer-wrong-host'
+const REQUIRED_OUTPUT_GUARD = 'required-output'
+const INPUT_UNREAD_CODE = 'input-unread'
 
 function tasksLabel(blocker: StepExitBlocker): BlockerLine['label'] {
   const count = blocker.count ?? (blocker.items !== undefined && blocker.items.length > 0 ? blocker.items.length : undefined)
@@ -51,6 +53,11 @@ function namedLabel(keys: Readonly<Record<string, string>>, blocker: StepExitBlo
   return key === undefined || blocker.subject === undefined || blocker.subject === ''
     ? null
     : { key, vars: { name: blocker.subject } }
+}
+
+/** 没有状态、只有对象的阻断（如未读输入）：subject 缺席或为空时没有短标签。 */
+function subjectLabel(key: string, blocker: StepExitBlocker): BlockerLine['label'] {
+  return blocker.subject === undefined || blocker.subject === '' ? null : { key, vars: { name: blocker.subject } }
 }
 
 function testLabel(blocker: StepExitBlocker): BlockerLine['label'] {
@@ -67,6 +74,8 @@ function stepExitLabel(blocker: StepExitBlocker): BlockerLine['label'] {
     case 'skill-incomplete': return namedLabel(SKILL_KEYS, blocker)
     case 'test-evidence': return testLabel(blocker)
     case WRONG_HOST_REASON: return namedLabel(REVIEWER_KEYS, blocker)
+    // subject 是未读输入的路径；完整的 CLI 文案（含 tenon document read）只进 title。
+    case INPUT_UNREAD_CODE: return subjectLabel('workspace.blocker_input_unread', blocker)
     default: return null
   }
 }
@@ -79,10 +88,17 @@ function agentLine(item: { agent: string; reason: string }): BlockerLine {
     : { text, label: null }
 }
 
-/** 一条阻断 → 展示行：agent 阻断每个 agent 一行，step-exit 按 code 与结构化字段给短标签，其余用完整文案。 */
-export function blockerLines(blocker: TransitionReadinessBlockerSnapshot): BlockerLine[] {
+/**
+ * 一条阻断 → 展示行：agent 阻断每个 agent 一行，step-exit 按 code 与结构化字段给短标签，必须产出按服务端给的路径出短标签，
+ * 其余用完整文案。必须产出的路径是原样的模式（服务端不展开 `{change}`，同一步的任务才能共用一份离开条件），这里换成任务名。
+ */
+export function blockerLines(blocker: TransitionReadinessBlockerSnapshot, change: string): BlockerLine[] {
   if (blocker.kind === 'agents-incomplete') return blocker.agents.map(agentLine)
   if (blocker.kind === 'step-exit') return [{ text: blocker.message, label: stepExitLabel(blocker) }]
+  if (blocker.kind === 'guard-failed' && blocker.guardType === REQUIRED_OUTPUT_GUARD && blocker.path !== undefined && blocker.path !== '') {
+    const path = blocker.path.split('{change}').join(change)
+    return [{ text: formatReadinessBlocker({ ...blocker, path }), label: { key: 'workspace.blocker_required_output', vars: { name: path } } }]
+  }
   return [{ text: formatReadinessBlocker(blocker), label: null }]
 }
 

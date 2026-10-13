@@ -1,0 +1,416 @@
+schema: tenon-test-plan/v1
+change: rework-document-mechanism
+suites:
+  - suite: adapters
+    scope: full
+  - suite: bundle
+    scope: changed
+  - suite: dashboard-app-unit
+    scope: full
+  - suite: dashboard-e2e-chromium
+    scope: changed
+  - suite: docs-site-unit
+    scope: full
+  - suite: docs-smoke
+    scope: changed
+  - suite: hooks
+    scope: full
+  - suite: lint-docs
+    scope: changed
+  - suite: lint-openspec
+    scope: changed
+  - suite: migration-cas
+    scope: full
+  - suite: oracle
+    scope: full
+  - suite: oracle-unit
+    scope: full
+  - suite: tools-node
+    scope: full
+  - suite: typecheck-e2e
+    scope: full
+  - suite: typecheck-packages
+    scope: full
+  - suite: typecheck-web
+    scope: full
+  - suite: unit
+    scope: full
+files:
+  - path: e2e/dashboard/english.spec.ts
+    suite: dashboard-e2e-chromium
+    kind: playwright
+  - path: e2e/dashboard/support/seed.mjs
+    suite: dashboard-e2e-chromium
+    kind: playwright
+  - path: e2e/dashboard/support/serve.mjs
+    suite: dashboard-e2e-chromium
+    kind: playwright
+  - path: e2e/dashboard/workflow.spec.ts
+    suite: dashboard-e2e-chromium
+    kind: playwright
+  - path: e2e/dashboard/workspace-ended.spec.ts
+    suite: dashboard-e2e-chromium
+    kind: playwright
+  - path: e2e/dashboard/workspace-io.spec.ts
+    suite: dashboard-e2e-chromium
+    kind: playwright
+  - path: packages/cli/src/advance.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/agent.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/artifact.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/advance.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/artifact.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/candidate.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/check.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/document-observed.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/fields.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/handoff.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/review.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/statusStep.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/statusStepFinish.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/statusStepOwnership.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/statusStepParts.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/statusStepRoundsNext.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/statusStepTestFlow.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/statusStepTests.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/transition.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/triage.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/workflow-plan.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/context-bundle.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/design.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/document-record.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/finished-change-status.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/handoff.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/host-interaction-hook.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/i18n/standard-messages.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/init-workflow.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/next-action-runner.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/observed-documents.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/owner.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/runtime/stable-hook.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/skill-artifact-binding.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/spec-apply.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/status-step-projection.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/step-run.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/test-evidence.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/track-branch.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/track-resolution.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/transition-custom-workflow.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/dashboard-app/src/api/contextBundleClient.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/api/governanceSchema.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/api/serverIntegration.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/api/snapshotWorkflowDecoders.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/api/workflowOrchestrationClient.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/model/progressModel.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/workbench/draftChanges.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/workbench/trackSettings.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/workflow/GateSection.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/workflow/StageEditorPane.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/workflow/WorkflowNav.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/workflow/WorkflowTrackSettings.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/workflow/lint.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/workflow/workflowModel.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/workspace/EndedTasks.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/workspace/StageIoPanel.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/workspace/TaskDetailPane.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/workspace/blockerLabel.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/workspace/stageIo.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/kernel/src/compress/observed-context-bundle.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/documents/step-input-gate.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/documents/step-outputs-model.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/documents/step-outputs.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/state/default-openspec-scaffold.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/state/delta-spec-source.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/state/spec-apply-receipt.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/state/spec-migration-evidence.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/state/step-output-ledger.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/state/workflow-run-repository.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/auto-gate.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/compile.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/default-document-contract.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/default-yaml-rules.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/document-contract.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/effective-io.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/effective-plan.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/effective-skill-resolver.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/execution-seam.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/generate-default-workflow.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/governed-lifecycle-policy.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/guard-handlers.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/implicit-completion.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/loadWorkflow.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/orchestration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/parse.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/policy-snapshot.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/required-outputs.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/resolve-track.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/serialize.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/skill-bundle-resolver.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/stepGuard.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/track-branch.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/track-lookup.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/transition-application.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/transition-readiness.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/universal-guard-capabilities.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/universal-guards.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/validate.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workspace/archive-task.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workspace/step-checkpoint.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/contextBundleObservedPreview.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/contextBundlePreview.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/endedTaskDocuments.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/endedTaskReads.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/server.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/serverDecisionRoutes.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/serverWorkflowOrchestrationRoutes.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/snapshot.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/stepIo.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/transition-concurrency.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/transitionResult.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/workflows.test.ts
+    suite: unit
+    kind: unit
+  - path: tools/oracle/harness.test.ts
+    suite: oracle-unit
+    kind: unit
+  - path: tools/test-bundle.sh
+    suite: bundle
+    kind: smoke
+  - path: tools/test-hooks.sh
+    suite: hooks
+    kind: integration
+cases: []
+waivers:
+  - test: code-size
+    reason: 文档机制整体替换（kernel/CLI/server/Dashboard 同时切换，新旧机制须一并交付以保证在途任务照旧走完），无法拆成多个可独立合入的小改动；新增行主要是重新生成的 dist 产物（约 1.05 万行，packages/cli/dist/tenon.mjs 与 server/dashboard bundle）、测试与旧快照夹具（约 9 千行）、中英文文档与规格（约 5.5 千行），生产源码新增约 3.5 千行、删除约 1.8 千行。设计文档「风险」与 openspec design 已预告需申请此豁免。
+    approved_by: 710227704@qq.com
+    approved_candidate: workspace:sha256:c1c6042a216d7014bf563df7a0058c89cc765b5a980b1e12b1044fa16cf2e6d7

@@ -18,8 +18,8 @@ import {
   PHASES,
   resolveWorkflowName,
   workflowPlanSnapshot,
-  DEFAULT_WORKFLOW_SOURCE, parseWorkflow,
 } from '@tenon/kernel'
+import { legacyContractDefaultPlan, legacyDefaultPlan, legacyDefaultWorkflow } from '@tenon/kernel/workflow/test-support'
 import type { AgentFreezeInput, AgentLibrary, WorkflowDef } from '@tenon/kernel'
 import type {
   CommitResult,
@@ -50,10 +50,12 @@ export {
   recordNativeDocumentSkillConfirmation,
 } from '../../kernel/dist/skill-invocation/producer-internal.js'
 
-/** 升级前创建的在途 default 任务冻结的快照：phase-manifest，含全部分支（恢复时按任务的轨道选分支）。 */
-const DEFAULT_PLAN_SNAPSHOT = workflowPlanSnapshot(
-  compileEffectiveWorkflowPlan('default', undefined, { track: 'backend', executionModel: 'phase-manifest' }),
-)
+/**
+ * 升级前创建的在途 default 任务冻结的快照：phase-manifest、带文档契约，含全部分支（恢复时按任务的轨道选分支）。
+ * 定义取自升级前的 default 原文（`tools/fixtures/legacy-default-workflow.yaml`）：当前模板已经没有契约，新任务是观察模式
+ * （要观察模式的 mock 状态用 `mockObservedDefaultState`）。
+ */
+const DEFAULT_PLAN_SNAPSHOT = workflowPlanSnapshot(legacyContractDefaultPlan('backend', 'phase-manifest'))
 
 // === 调用记录 spy（不引 vitest，纯手写） ===
 
@@ -101,25 +103,9 @@ export function mockState(fields: Partial<Record<FieldName, string | string[]>> 
  * 技能矩阵并入 YAML 之前的 default 定义（step 不声明技能，全部来自 manifest 叠加）：manifest a|b
  * 备选、机器级 mandatory/recommended 表这些 manifest-overlay 机制的单测，用它冻结成 run 快照后仍按旧口径求值。
  */
-export function legacyDefaultWorkflowDef(): WorkflowDef {
-  const def = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
-  // 分支化之前 default 只有一条 pipeline：驱动技能 + spec 的 plan artifact 带 PM 豁免谓词。用 frontend 分支（含其文档契约）还原它。
-  const branch = def.tracks?.frontend
-  const frontend = branch?.steps ?? def.steps
-  return {
-    ...def,
-    tracks: undefined,
-    ...(branch?.documentContract === undefined ? {} : { documentContract: branch.documentContract }),
-    steps: frontend.map((step) => ({
-      ...step,
-      skills: [],
-      ...(step.id === 'spec' && step.artifacts !== undefined
-        ? { artifacts: step.artifacts.map((artifact) => artifact.field === 'plan' ? { ...artifact, requiredWhen: { kind: 'track-not-in' as const, values: ['pm'] } } : artifact) }
-        : {}),
-    })),
-  }
-}
-const LEGACY_DEFAULT_PLAN = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflowDef(), { executionModel: 'phase-manifest' })
+export const legacyDefaultWorkflowDef: () => WorkflowDef = legacyDefaultWorkflow
+// 定义带已删除的 `document_contract` / `artifacts`，不经 `validateWorkflow`，直接按 default 的编译入口建计划。
+const LEGACY_DEFAULT_PLAN = legacyDefaultPlan({ executionModel: 'phase-manifest' })
 const LEGACY_DEFAULT_PLAN_SNAPSHOT = workflowPlanSnapshot(LEGACY_DEFAULT_PLAN)
 
 /** mockState + 冻结的 legacy default 计划：让 artifact / manifest-overlay 单测沿用 manifest 表语义。 */
@@ -131,6 +117,25 @@ export function mockLegacyDefaultState(fields: Partial<Record<FieldName, string 
       transitionSequence: 0,
       workflowPlanFingerprint: LEGACY_DEFAULT_PLAN.workflowFingerprint,
       workflowPlanSnapshot: LEGACY_DEFAULT_PLAN_SNAPSHOT,
+    },
+  }
+}
+
+/**
+ * mockState + 当前模板冻结的 default 计划（step-graph、没有文档契约 = 观察模式）：新建的 default 任务。
+ * 计划按任务的轨道编出（缺省 backend）。
+ */
+export function mockObservedDefaultState(fields: Partial<Record<FieldName, string | string[]>> = {}): PipelineState {
+  const state = mockState(fields)
+  const track = typeof state.fields.track === 'string' && state.fields.track !== '' ? state.fields.track : 'backend'
+  const plan = compileEffectiveWorkflowPlan('default', undefined, { track })
+  return {
+    ...state,
+    runMetadata: {
+      runId: 'mock-observed-run',
+      transitionSequence: 0,
+      workflowPlanFingerprint: plan.workflowFingerprint,
+      workflowPlanSnapshot: workflowPlanSnapshot(plan),
     },
   }
 }

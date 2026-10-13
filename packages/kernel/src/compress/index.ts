@@ -55,8 +55,20 @@ export {
 } from './ledger-context-bundle.js'
 export {
   compileLedgerContextBundle,
+  compileObservedContextBundle,
   nodeLedgerContextBundlePrimitives,
+  type CompileObservedContextBundleInput,
 } from './ledger-context-bundle-node-adapter.js'
+// 观察模式（没有旧文档契约的新任务）：包的输入是当前步骤的交接输入，CLI 与 server 按 capabilities.documents.mode 选用。
+export {
+  compileObservedContextBundleWithPorts,
+  type CompiledObservedContextBundle,
+  type CompileObservedContextBundleWithPortsInput,
+  type ObservedBundleRepository,
+  type ObservedBundleSource,
+  type ObservedContextBundleInputSummary,
+  type ObservedContextBundlePreview,
+} from './observed-context-bundle.js'
 export {
   buildHandoff,
   nodeHandoffFs,

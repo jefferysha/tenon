@@ -8,7 +8,7 @@ import { applyActions } from './action-handlers.js'
 import { BuildRevisionCaptureError, safeRevisionHash } from './build-revision.js'
 import { applyStepTransition, planStepTransition, resolveStep } from './engine.js'
 import type { EdgeGuardBlocker, ExecutionAdapter, TransitionInput, TransitionPlanResult } from './execution-seam-types.js'
-import { effectiveLifecyclePolicy } from './governed-lifecycle-policy.js'
+import { effectiveLifecyclePolicy, lifecycleScopeOf } from './governed-lifecycle-policy.js'
 import { implicitCompletionTransition, stepExitTransitions } from './implicit-completion.js'
 import type { ActionOutcome, WorkflowIR } from './ir.js'
 import { buildStepGuardInput, evaluateWorkflowIrStepGuards } from './stepGuard.js'
@@ -36,12 +36,12 @@ async function planStepGraphTransition({ state, plan: effectivePlan, command, cl
   const edgeBeforePlan = resolveStep(planningIr, fieldStr(state.fields.phase))
     ?.transitions.find((candidate) => candidate.event === command.event)
   const documentPolicy = effectivePlan.capabilities.documents.policy
-  const governed = documentPolicy !== undefined
+  const scope = lifecycleScopeOf(effectivePlan)
   const targetStep = edgeBeforePlan === undefined
     ? undefined
     : resolveStep(planningIr, edgeBeforePlan.to)
   const lifecycle = currentBeforePlan && edgeBeforePlan
-    ? effectiveLifecyclePolicy(governed, currentBeforePlan, edgeBeforePlan, targetStep ?? undefined)
+    ? effectiveLifecyclePolicy(scope, currentBeforePlan, edgeBeforePlan, targetStep ?? undefined)
     : undefined
   const plan = await planStepTransition(planningIr, state, command.event, {
     changeDirAbs: command.changeDir,
@@ -54,6 +54,7 @@ async function planStepGraphTransition({ state, plan: effectivePlan, command, cl
     tasksThroughStep: command.context.tasksThroughStep,
     afkQueued: command.context.afkQueued,
     dependencyStates: command.context.dependencyStates,
+    requiredOutput: command.context.requiredOutput,
   }, lifecycle)
   if (!plan.ok) {
     if (plan.kind === 'step-not-in-graph') return { kind: 'step-not-in-graph', workflowName, stepId: plan.stepId }
@@ -110,7 +111,7 @@ async function planStepGraphTransition({ state, plan: effectivePlan, command, cl
     for (const signal of outcome.signals) warnings.push({ kind: signal.kind })
   }
   return {
-    governedDocumentContract: governed,
+    governedDocumentContract: scope.governed,
     ...(documentPolicy ? { documentPolicy } : {}),
     requiresReviewApproval: effectivePlan.capabilities.review.steps.includes(currentStep.id),
     from: plan.from, to: plan.to, nextFields, warnings,
@@ -126,7 +127,7 @@ export const stepGraphExecution: ExecutionAdapter = {
     guardInput: buildStepGuardInput(state, context),
     exitsOf: (step) => stepExitTransitions(plan, step.id),
     guardsOf: (step, transition) => effectiveLifecyclePolicy(
-      plan.capabilities.documents.policy !== undefined,
+      lifecycleScopeOf(plan),
       step,
       transition,
       plan.workflow.steps.find((candidate) => candidate.id === transition.to),
@@ -142,7 +143,7 @@ export const stepGraphExecution: ExecutionAdapter = {
       const guards = edge === undefined
         ? step.guards
         : effectiveLifecyclePolicy(
-          plan.capabilities.documents.governed,
+          lifecycleScopeOf(plan),
           step,
           edge,
           plan.workflow.steps.find((candidate) => candidate.id === to),

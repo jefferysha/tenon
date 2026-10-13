@@ -20,7 +20,7 @@ export interface WorkflowViewProps {
   onToast?: (message: string) => void
 }
 
-/** 工作流 = 定义编辑页：左栏工作流 / 轨道 / 「总览」+ 流程，右栏总览画布或所选阶段的输入、技能、输出、门禁。 */
+/** 工作流 = 定义编辑页：左栏工作流 / 轨道 / 「总览」+ 流程，右栏总览画布或所选阶段的技能、门禁。 */
 export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps): JSX.Element {
   const { t } = useT()
   const [initial] = useState(() => {
@@ -35,7 +35,7 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
   const [overview, setOverview] = useState(() => initial.step === OVERVIEW_STEP)
   const stageId = editor.selectedStep?.id ?? null
   // 编排按草稿就地算（kernel orchestrate）；总览与阶段画布共用这一份。
-  const orchestration = useDraftOrchestration(editor.def, editor.effectiveIo)
+  const orchestration = useDraftOrchestration(editor.def)
   // 当前选择写进 URL（replace，不产生历史项）：刷新、复制链接都回到同一个工作流 / 轨道 / 阶段（或总览）。
   useEffect(() => {
     if (editor.wfName === null || editor.def === null) return

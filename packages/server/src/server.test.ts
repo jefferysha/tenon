@@ -228,9 +228,12 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   ): string =>
     `/api/context-bundle/preview?root=${encodeURIComponent(root)}&change=${encodeURIComponent(change)}`
     + `&target=${encodeURIComponent(target)}&budgetBytes=${encodeURIComponent(budgetBytes)}`
+  /** 这组测旧账本绑定的预览（契约模式）：任务按升级前带文档契约的 default 快照建，立项时照旧铺三份骨架与文档账本。 */
+  const startContract = (opts?: Parameters<typeof start>[0]): Promise<Harness> =>
+    start({ ...opts, initialWorkflow: legacyDefaultInitialWorkflow('backend', 'step-graph') })
 
   it.runIf(process.platform === 'linux')('以真 Change/ledger 返回安全 metadata，并把无 required reads 的 open 明确投影为空态', async () => {
-    const h = await start()
+    const h = await startContract()
     const ledgerPath = join(h.changeDir, '.pipeline-documents.json')
     const stateBefore = await h.store.read(h.changeDir)
     const ledgerBefore = await readFile(ledgerPath, 'utf8')
@@ -308,7 +311,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform === 'linux')('API 与 CLI 一样保留合法 UTF-8 BOM，不误报 stale 或少算 source bytes', async () => {
-    const h = await start()
+    const h = await startContract()
     const proposalPath = join(h.changeDir, 'proposal.md')
     const content = `\uFEFF${await readFile(proposalPath, 'utf8')}`
     await writeFile(proposalPath, content, 'utf8')
@@ -330,7 +333,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it('在读取前拒绝非法请求和未注册 root，返回稳定机器码', async () => {
-    const h = await start()
+    const h = await startContract()
     const unknownRoot = await makeProject()
     const invalidPaths = [
       '/api/context-bundle/preview',
@@ -355,7 +358,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform !== 'linux')('无 fd-relative traversal 时在读取 Change 内容前返回安全 capability error', async () => {
-    const h = await start()
+    const h = await startContract()
     const response = await reqGet(h.port, previewPath(h.root))
     expect(response.status).toBe(501)
     expect(response.json()).toEqual({
@@ -368,7 +371,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform === 'linux')('canonical state 损坏返回安全 409 机器码且不继续读取 ledger', async () => {
-    const h = await start()
+    const h = await startContract()
     await writeFile(join(h.changeDir, '.pipeline-run', 'current.json'), Buffer.from([0xff]))
     await unlink(join(h.changeDir, '.pipeline-documents.json'))
 
@@ -385,7 +388,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform === 'linux')('连续两次 set 后 head record 缺失仍返回 409，且不读取 ledger', async () => {
-    const h = await start()
+    const h = await startContract()
     const repo = createWorkflowRunRepository({
       store: h.store,
       recordStore: createTransitionRecordStore(),
@@ -415,7 +418,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform === 'linux')('把 missing/stale 映射为 409，并给出可执行恢复动作而不返回部分预览', async () => {
-    const missingLedger = await start({ seedGovernedEvidence: false })
+    const missingLedger = await startContract({ seedGovernedEvidence: false })
     await unlink(join(missingLedger.changeDir, '.pipeline-documents.json'))
     const noLedger = await reqGet(missingLedger.port, previewPath(missingLedger.root))
     expect(noLedger.status).toBe(409)
@@ -425,7 +428,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
     })
     expect(noLedger.json<{ repairAction?: string }>().repairAction).toBeTruthy()
 
-    const missingDocument = await start()
+    const missingDocument = await startContract()
     await unlink(join(missingDocument.changeDir, 'proposal.md'))
     const noDocument = await reqGet(missingDocument.port, previewPath(missingDocument.root))
     expect(noDocument.status).toBe(409)
@@ -436,7 +439,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
     expect(noDocument.json<{ repairAction?: string }>().repairAction).toBeTruthy()
     expect(noDocument.json()).not.toHaveProperty('preview')
 
-    const staleDocument = await start()
+    const staleDocument = await startContract()
     await writeFile(join(staleDocument.changeDir, 'proposal.md'), '# drifted proposal\n', 'utf8')
     const stale = await reqGet(staleDocument.port, previewPath(staleDocument.root))
     expect(stale.status).toBe(409)
@@ -447,7 +450,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
     expect(stale.json<{ repairAction?: string }>().repairAction).toBeTruthy()
     expect(stale.json()).not.toHaveProperty('preview')
 
-    const linkedDocument = await start()
+    const linkedDocument = await startContract()
     const linkedProposal = join(linkedDocument.changeDir, 'proposal.md')
     const outsideDir = await makeProject()
     const outsideProposal = join(outsideDir, 'proposal.md')
@@ -464,7 +467,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform === 'linux')('非法持久化 ledger path 映射为 409 且安全日志不泄露 path/root', async () => {
-    const h = await start()
+    const h = await startContract()
     const ledgerPath = join(h.changeDir, '.pipeline-documents.json')
     const ledger = JSON.parse(await readFile(ledgerPath, 'utf8')) as {
       records: Array<{ path: string }>
@@ -491,7 +494,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform === 'linux')('预算不足返回 422 safe preview，但不返回正文或有效 aggregate digest', async () => {
-    const h = await start()
+    const h = await startContract()
     const response = await reqGet(h.port, previewPath(h.root, h.name, 'explore', '1'))
     expect(response.status).toBe(422)
     const body = response.json<{
@@ -521,7 +524,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform === 'linux')('低预算也会在读取超大源文档前返回 413，且响应不泄露绝对路径', async () => {
-    const h = await start()
+    const h = await startContract()
     const proposalPath = join(h.changeDir, 'proposal.md')
     const content = 'x'.repeat(
       DEFAULT_LEDGER_CONTEXT_BUNDLE_RESOURCE_LIMITS.maxSourceBytesPerDocument + 1,
@@ -553,7 +556,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it('注册 root inode 被换位后 fail closed，绝不读取替换目录', async () => {
-    const h = await start()
+    const h = await startContract()
     const parked = `${h.root}.context-bundle-registered-inode`
     const outside = await makeProject()
     await rename(h.root, parked)
@@ -565,7 +568,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform === 'linux')('Change 目录被换为 symlink 时按 root guard fail closed', async () => {
-    const h = await start()
+    const h = await startContract()
     const parked = `${h.changeDir}.registered-inode`
     const outside = await makeProject()
     await rename(h.changeDir, parked)
@@ -3102,7 +3105,7 @@ describe('工作流全局存储（root 为空 = 用户级 configRoot/workflows�
     expect(viaProject.json<{ source: string }>().source).toBe('global')
 
     // POST 无 root → 写到全局目录，项目目录不出现文件。
-    const body = { root: '', name: 'team', steps: [{ id: 's1', label: 'x', gate: null, skills: [], inputs: [], outputs: [{ field: 'build_sha', type: 'string' }], guards: [], transitions: [] }] }
+    const body = { root: '', name: 'team', steps: [{ id: 's1', label: 'x', gate: null, skills: [], inputs: [], outputs: [], guards: [{ type: 'required-output', path: 'docs/team.md' }], transitions: [] }] }
     const posted = await reqPost(h.port, '/api/workflows/team', body, { headers: { Authorization: `Bearer ${h.token}` } })
     expect(posted.status).toBe(200)
     expect((await readdir(globalDir)).sort()).toEqual(['shared.yaml', 'team.yaml'])
@@ -3529,23 +3532,14 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     const h = await start()
     const builtin = await reqGet(h.port, `/api/workflows/default?root=${encodeURIComponent(h.root)}`)
     expect(builtin.status).toBe(200)
-    const { source: builtinSource, effectiveIo: builtinIo, branches: builtinBranches, ...template } = builtin.json<Record<string, unknown>>()
-    expect(Object.keys(builtinBranches as Record<string, unknown>)).toEqual(['lite', 'pm', 'frontend', 'backend'])
+    const { source: builtinSource, branches: builtinBranches, ...template } = builtin.json<Record<string, unknown>>()
+    // 每步的输入输出不再由定义物化：工作流 API 没有 effectiveIo，分支视图只剩标签（真实产出在任务的 stepIo）。
+    expect(template).not.toHaveProperty('effectiveIo')
+    expect(builtinBranches).toEqual({ lite: { label: '轻量' }, pm: { label: '产品' }, frontend: { label: '前端' }, backend: { label: '后端' } })
     expect(builtinSource).toBe('builtin')
-    // 顶层 effectiveIo 是「没有轨道语境」时的视图 = 第一条分支（lite）；编辑器按分支读 `branches`。
-    expect(Object.keys(builtinIo as Record<string, unknown>)).toEqual(['open', 'build', 'verify', 'done', 'escalated'])
-    expect(Object.keys((builtinBranches as Record<string, { effectiveIo: Record<string, unknown> }>).backend!.effectiveIo))
-      .toEqual(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'])
     expect(template.openspec).toBe(true)
-    const documentSlots = Object.values(builtinBranches as Record<string, { effectiveIo: Record<string, { inputs: Array<Record<string, unknown>>; outputs: Array<Record<string, unknown>> }> }>)
-      .flatMap((branch) => Object.values(branch.effectiveIo).flatMap((io) => [...io.inputs, ...io.outputs]))
-      .filter((slot) => slot.kind === 'document')
-    expect(documentSlots.length).toBeGreaterThan(0)
-    // 前端分支的 design-md 是项目级文档（scope: project），其余仍是 change 级。
-    expect(documentSlots.every((slot) => typeof slot.role === 'string' && !('locked' in slot))).toBe(true)
-    expect(new Set(documentSlots.map((slot) => slot.scope))).toEqual(new Set(['change', 'project']))
-    expect(documentSlots.filter((slot) => slot.scope === 'project').every((slot) => slot.id === 'design-md')).toBe(true)
     const tracks = template.tracks as Record<string, { documentContract?: unknown; steps: Array<{ id: string; skills: Array<{ id: string }> }> }>
+    expect(Object.values(tracks).some((branch) => 'documentContract' in branch)).toBe(false)
     const edited = { ...tracks, backend: { ...tracks.backend!, steps: tracks.backend!.steps.map((step) => step.id === 'open' ? { ...step, skills: [...step.skills, { id: 'brainstorming' }] } : step) } }
     const saved = await reqPost(
       h.port, '/api/workflows/default', { ...template, tracks: edited, root: h.root },
@@ -3558,7 +3552,7 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     expect(loaded.status).toBe(200)
     const override = loaded.json<{ source: string; tracks: Record<string, { documentContract?: unknown; steps: Array<{ id: string; skills: Array<{ id: string }> }> }> }>()
     expect(override.source).toBe('project')
-    expect(override.tracks.backend?.documentContract).toEqual(tracks.backend?.documentContract)
+    expect(override.tracks.backend).not.toHaveProperty('documentContract')
     expect(override.tracks.backend?.steps[0]?.skills.map((skill) => skill.id)).toEqual(['openspec-propose', 'brainstorming'])
     const listed = await reqGet(h.port, `/api/workflows?root=${encodeURIComponent(h.root)}`)
     expect(listed.json<{ names: string[]; default: { source: string } }>()).toEqual({ names: ['design-system'], default: { source: 'project' } })
@@ -3614,24 +3608,17 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     expect(content).toContain('name: onboarding')
   })
 
-  it('三步 workflow 的 declarative document contract 经 POST/GET 完整往返，不被扩成七阶段', async () => {
+  it('三步 workflow（带 required-output 守卫）经 POST/GET 完整往返，不被扩成七阶段，也不带文档契约与物化的输入输出', async () => {
     const h = await start()
     const body = {
       name: 'short-governed',
       root: h.root,
       openspec: true,
-      documentContract: {
-        version: 'v1',
-        slots: [{ kind: 'proposal', ownerStep: 'shape', producers: ['writer'] }],
-        reads: [
-          { step: 'implement', kinds: ['proposal'] },
-          { step: 'prove', kinds: ['proposal'] },
-        ],
-      },
       steps: [
         {
           id: 'shape', label: 'Shape', gate: null,
-          skills: [{ id: 'writer' }], inputs: [], outputs: [], guards: [],
+          skills: [{ id: 'writer' }], inputs: [], outputs: [],
+          guards: [{ type: 'required-output', path: 'openspec/changes/{change}/proposal.md' }],
           transitions: [{ event: 'shaped', to: 'implement' }],
         },
         {
@@ -3652,16 +3639,28 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
 
     const loaded = await reqGet(h.port, `/api/workflows/short-governed?root=${encodeURIComponent(h.root)}`)
     expect(loaded.status).toBe(200)
-    const { source, effectiveIo, branches, ...definition } = loaded.json<Record<string, unknown>>()
-    expect(Object.keys(branches as Record<string, unknown>)).toEqual(['_base'])
-    expect(definition).toEqual({
-      name: body.name,
-      openspec: true,
-      documentContract: body.documentContract,
-      steps: body.steps,
-    })
+    const readBack = loaded.json<Record<string, unknown>>()
+    const { source, branches, ...definition } = readBack
+    expect(branches).toEqual({ _base: {} })
+    expect(definition).toEqual({ name: body.name, openspec: true, steps: body.steps })
     expect(source).toBe('project')
-    expect(effectiveIo).toBeTypeOf('object')
+    expect(readBack).not.toHaveProperty('effectiveIo')
+  })
+
+  it('POST 仍带 documentContract → 400 点名「已删除」，不落盘', async () => {
+    const h = await start()
+    const r = await reqPost(
+      h.port, '/api/workflows/legacy-contract',
+      {
+        name: 'legacy-contract', root: h.root, openspec: true,
+        documentContract: { version: 'v1', slots: [{ kind: 'proposal', ownerStep: 'shape', producers: ['writer'] }], reads: [] },
+        steps: [{ id: 'shape', label: 'Shape', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] }],
+      },
+      { headers: { Authorization: `Bearer ${h.token}` } },
+    )
+    expect(r.status).toBe(400)
+    expect(r.json<{ errors: string[] }>().errors.some((error) => error.includes('document_contract 已删除'))).toBe(true)
+    expect(existsSync(join(h.root, '.pipeline', 'workflows', 'legacy-contract.yaml'))).toBe(false)
   })
 
   it('畸形 workflow 嵌套 DTO → 400 decoder 错误，不落盘且不抛 500', async () => {
@@ -3682,20 +3681,21 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
       name: 'closed-dto',
       root: h.root,
       openspec: true,
-      documentContract: {
-        version: 'v1',
-        slots: [{ kind: 'proposal', ownerStep: 'shape', producers: ['writer'] }],
-        reads: [{ step: 'done', kinds: ['proposal'] }],
-      },
       steps: [
         {
           id: 'shape', label: 'Shape', gate: null,
-          skills: [{ id: 'writer' }], inputs: [], outputs: [], guards: [],
+          skills: [{ id: 'writer' }], inputs: [], outputs: [],
+          guards: [{ type: 'required-output', path: 'openspec/changes/{change}/proposal.md' }],
           transitions: [{ event: 'done', to: 'done' }],
         },
         { id: 'done', label: 'Done', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] },
       ],
     }
+    // 没有多余键的原文是合法的：下面的 400 只能来自那一个多余键。
+    const baseline = await reqPost(h.port, '/api/workflows/closed-baseline', { ...governed, name: 'closed-baseline' }, {
+      headers: { Authorization: `Bearer ${h.token}` },
+    })
+    expect(baseline.status, baseline.body).toBe(200)
     const variants = [
       { label: 'workflow', body: { ...governed, extra: true } },
       {
@@ -3703,33 +3703,23 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
         body: { ...governed, steps: [{ ...governed.steps[0], extra: true }, governed.steps[1]] },
       },
       {
-        label: 'document_contract',
-        body: { ...governed, documentContract: { ...governed.documentContract, extra: true } },
-      },
-      {
-        label: 'slot',
+        label: 'guard',
         body: {
           ...governed,
-          documentContract: {
-            ...governed.documentContract,
-            slots: [{ ...governed.documentContract.slots[0], extra: true }],
-          },
+          steps: [{ ...governed.steps[0], guards: [{ ...governed.steps[0].guards[0], extra: true }] }, governed.steps[1]],
         },
       },
       {
-        label: 'read',
+        label: 'transition',
         body: {
           ...governed,
-          documentContract: {
-            ...governed.documentContract,
-            reads: [{ ...governed.documentContract.reads[0], extra: true }],
-          },
+          steps: [{ ...governed.steps[0], transitions: [{ ...governed.steps[0].transitions[0], extra: true }] }, governed.steps[1]],
         },
       },
     ]
 
     for (const variant of variants) {
-      const name = `closed-${variant.label.replace('_', '-')}`
+      const name = `closed-${variant.label}`
       const response = await reqPost(
         h.port,
         `/api/workflows/${name}`,
@@ -3741,24 +3731,24 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     }
   })
 
-  it('完整 Step IR（多行 prompt + contracts/artifact + step/edge guards + actions）→ 保存后 GET 逐字段读回', async () => {
+  it('完整 Step IR（多行 prompt + required-output / step / edge guards + actions）→ 保存后 GET 逐字段读回', async () => {
     const h = await start()
     const body = {
       name: 'full-step-ir', root: h.root,
       steps: [
         {
-          id: 'build', label: '构建', gate: null, skills: [], inputs: [],
-          outputs: [{ field: 'build_sha', type: 'string' }], guards: [],
+          id: 'build', label: '构建', gate: null, skills: [], inputs: [], outputs: [], guards: [],
           transitions: [{ event: 'build-complete', to: 'verify' }],
         },
         {
           id: 'verify', label: '验证', gate: 'review',
           prompt: 'Run API tests.\nRun browser E2E in Chromium and WebKit.',
           skills: [{ id: 'browser' }],
-          inputs: [{ field: 'build_sha', type: 'string' }],
-          outputs: [{ field: 'verification_report', type: 'file_path' }],
-          artifacts: [{ field: 'verification_report', type: 'file_path', producerPolicy: 'effective-step-skills' }],
-          guards: [{ type: 'field-nonempty', field: 'build_sha' }],
+          inputs: [], outputs: [],
+          guards: [
+            { type: 'field-nonempty', field: 'build_sha' },
+            { type: 'required-output', path: 'docs/superpowers/reports/{change}-verify.md' },
+          ],
           transitions: [{
             event: 'verify-pass', to: 'done',
             guards: [{ type: 'field-equals', field: 'branch_status', value: 'pending' }],
@@ -3774,7 +3764,7 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     expect(saved.status, saved.body).toBe(200)
     const loaded = await reqGet(h.port, `/api/workflows/full-step-ir?root=${encodeURIComponent(h.root)}`)
     expect(loaded.status).toBe(200)
-    const { source: _source, effectiveIo: _effectiveIo, branches: _branches, ...definition } = loaded.json<Record<string, unknown>>()
+    const { source: _source, branches: _branches, ...definition } = loaded.json<Record<string, unknown>>()
     expect(definition).toEqual({ name: body.name, steps: body.steps })
   })
 
@@ -5437,7 +5427,7 @@ describe('PUT /api/workflows/:name/yaml —— 导入原文', () => {
     expect(existsSync(join(h.root, '.pipeline', 'workflows', 'imported.yaml'))).toBe(false)
   })
 
-  it('合法 YAML → 200 落盘，GET yaml 回读规范化原文，GET json 带 effectiveIo', async () => {
+  it('合法 YAML → 200 落盘，GET yaml 回读规范化原文，GET json 带分支视图、不带 effectiveIo', async () => {
     const h = await start()
     const r = await reqPutText(h.port, `/api/workflows/imported/yaml?root=${encodeURIComponent(h.root)}`, SOURCE, { Authorization: `Bearer ${h.token}` })
     expect(r.status, r.body).toBe(200)
@@ -5446,7 +5436,9 @@ describe('PUT /api/workflows/:name/yaml —— 导入原文', () => {
     const back = await reqGet(h.port, `/api/workflows/imported/yaml?root=${encodeURIComponent(h.root)}`)
     expect(back.body).toContain('name: imported')
     const json = await reqGet(h.port, `/api/workflows/imported?root=${encodeURIComponent(h.root)}`)
-    expect(json.json<{ effectiveIo: Record<string, { outputs: unknown[] }> }>().effectiveIo.s1?.outputs).toEqual([])
+    const definition = json.json<Record<string, unknown>>()
+    expect(definition.branches).toEqual({ _base: {} })
+    expect(definition).not.toHaveProperty('effectiveIo')
   })
 
   it('name 与 URL 不一致 / 解析失败 / 图不合法 → 400 且不落盘', async () => {

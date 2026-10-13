@@ -8,6 +8,7 @@
  * 工作台却说「可进入下一阶段」。
  */
 import type { TransitionContext } from '../flow/transition-table.js'
+import { unreadInputBlockers } from '../documents/step-input-gate.js'
 import { evaluateDocumentEvidence, type DocumentEvidenceReport } from '../state/document-evidence.js'
 import {
   documentRecordsInCurrentStepVisit, judgeStepSkillSlots, missingStepSkillMessages, type StepSkillSlotProgress,
@@ -189,6 +190,13 @@ export async function evaluateStepExitReport(input: StepExitReportInput): Promis
   const migration = stepId === 'ship' && plan.capabilities.documents.governed
     ? await evaluateSpecMigrationEvidence(input.repoRoot, input.changeDir, input.changeName)
     : undefined
+  // 观察模式没有契约账本：直接上游交接来的文档没读完，除放弃边以外的所有出边（前进与回退）都不放行；
+  // 与转换（transition-step-outputs.ts）共用同一份判定与文案。
+  const inputBlockers = plan.capabilities.documents.mode === 'observed'
+    ? (await unreadInputBlockers(input.changeDir)).map((item) => blocker(
+      'document', item.code, item.message, item.subject === undefined ? undefined : { subject: item.subject, state: 'unread' },
+    ))
+    : []
   // 相位出口规则表（旧 phase-manifest 才有）是「离开本相位」的条件，只加给前进边；出边自己的 guard 也随执行模型而变。
   const execution = await selectExecution(plan).exitReport({
     plan, state, stepId, changeDir: input.changeDir, fileContext: input.fileContext, guardCheck: input.guardCheck,
@@ -201,6 +209,7 @@ export async function evaluateStepExitReport(input: StepExitReportInput): Promis
       ? { ...blocker('tasks', 'tasks-incomplete', item, openTasks.length > 0 ? { count: openTasks.length } : undefined), items: openTasks }
       : blocker('guard', 'phase-exit', item)),
     ...(documents?.blockers ?? []).map((item, index) => blocker('document', 'document-evidence', item, documents?.blockerDetails?.[index])),
+    ...inputBlockers,
     ...testReport.blockers.map((item, index) => blocker('test', 'test-evidence', item, testReport.blockerDetails?.[index])),
     ...reviewers,
     ...(migration?.kind === 'invalid' ? [blocker('spec', 'migration', migration.reason)] : []),
@@ -216,7 +225,7 @@ export async function evaluateStepExitReport(input: StepExitReportInput): Promis
     // 放弃边只看它自己的守卫：任务要被放弃了，没做完的证据不该拦着它出去。
     const blockers = isAbandonEvent(transition.event)
       ? [...guards]
-      : forward ? [...guards, ...skills, ...shared] : [...guards, ...skills]
+      : forward ? [...guards, ...skills, ...shared] : [...guards, ...skills, ...inputBlockers]
     exits.push({ event: transition.event, to: transition.to, direction, ready: blockers.length === 0, blockers })
   }
   return {

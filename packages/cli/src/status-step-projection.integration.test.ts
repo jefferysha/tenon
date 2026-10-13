@@ -33,7 +33,8 @@ describe('status --json 的 step 投影：路径未定的文档', () => {
 
   beforeEach(async () => {
     h = await freshHarness()
-    expect(await h.run(['init', CHANGE, '--track', 'backend', '--preset', 'full'])).toBe(0)
+    // 契约模式的文档投影（records 里路径未定的 delta-spec）：升级前创建、冻结着文档契约的 default 任务。
+    expect(await h.initLegacyContractDefault(CHANGE, 'backend')).toBe(0)
     expect(await h.run(['session', 'activate', CHANGE])).toBe(0)
     expect(await h.seedPhase(CHANGE, 'spec')).toBeUndefined()
   })

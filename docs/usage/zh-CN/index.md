@@ -37,13 +37,14 @@ open → explore → spec ⇄ build ⇄ verify → ship → archive
 - `openspec/specs/`：已经应用、持续维护的主规格；
 - `docs/adr/` 与 `docs/superpowers/`：架构决策、技术设计、计划和验证报告；
 - `.pipeline-document-locale.json`：新 Change 固定的文档呈现语言；
-- `.pipeline-documents.json`：文档 producer、digest 和读取收据账本。
+- `.pipeline-step-outputs.json`：每次步骤访问的产出、来源技能和读取回执；
+- `.pipeline-documents.json`：升级前创建的任务的文档 producer、digest 和读取收据账本。
 
 状态机决定“能否推进”，OpenSpec 描述“系统必须做什么”，计划描述“如何实现”，验证报告描述“实际验了什么”。任何一份文件都不能单独冒充流程完成。
 
 ## 文档如何保证可信
 
-每份受治理文档记录 kind、路径、producer、SHA-256 和后续 phase 的读取收据。模板只提供结构；真实 Skill 必须填写有意义正文并登记。中文是新 Change 的默认呈现语言，但 phase id、命令、文件名、账本字段和 OpenSpec 操作词保持稳定英文 token。
+新任务不预先规定每一步的文档：Tenon 在离开步骤时记录该步新增、修改、删除的文件与来源技能，下一步只拿到直接上游的文档并必须读完（读取回执绑定 SHA-256），工作流只用 `required-output` 要求某一步必须写出哪些文件。升级前创建的任务仍按文档账本，记录 kind、路径、producer、SHA-256 和后续 phase 的读取收据。中文是新 Change 的默认呈现语言，但 phase id、命令、文件名、账本字段和 OpenSpec 操作词保持稳定英文 token。
 
 ## 运行边界
 

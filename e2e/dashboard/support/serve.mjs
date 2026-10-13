@@ -17,7 +17,7 @@ import { join } from 'node:path'
 import {
   REPO_ROOT, createScratch, installFakeBrowserOpener, isolatedEnv, removeScratch, startDashboard, stopGroup,
 } from '../../../tools/lib/isolated-tenon.mjs'
-import { seedDemo, seedReview, seedSandbox } from './seed.mjs'
+import { seedDemo, seedObserved, seedReview, seedSandbox } from './seed.mjs'
 
 const STATE_DIR = join(REPO_ROOT, 'test-results', 'dashboard-e2e-server')
 const STATE_FILE = join(STATE_DIR, 'server.json')
@@ -30,9 +30,11 @@ async function main() {
   const project = join(scratch, 'demo')
   const sandbox = join(scratch, 'sandbox')
   const review = join(scratch, 'review')
+  const observed = join(scratch, 'observed')
   mkdirSync(project)
   mkdirSync(sandbox)
   mkdirSync(review)
+  mkdirSync(observed)
   // server 的 `POST /api/session/open` 把登录链接交给桌面 opener；这里的 opener 只是把 URL 记进文件，绝不打开开发机的浏览器。
   const openedUrlFile = join(scratch, 'opened-url.txt')
   const env = installFakeBrowserOpener(join(scratch, 'fake-browser'), openedUrlFile, isolatedEnv({ home, runtime, node }))
@@ -54,6 +56,7 @@ async function main() {
     seedSandbox({ env, sandbox })
     seedDemo({ env, project })
     seedReview({ env, review })
+    seedObserved({ env, observed })
     server = await startDashboard({ env, cwd: scratch, logFile: LOG_FILE })
     writeFileSync(STATE_FILE, `${JSON.stringify({
       url: server.url, port: server.port, pid: process.pid, serverPid: server.child.pid, scratch, home, runtime, project, sandbox, review,

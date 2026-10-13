@@ -5,9 +5,10 @@
  */
 import {
   DOCUMENT_KIND_CATALOG, documentPathTemplateForKind, isDocumentKind, orderSkillSlots, renderDocumentPathForKind,
-  readsRequiredForPolicyStep, recordProducerCandidatesForPolicyStep, requiresForPolicyStep, skillSlotStatuses,
+  readsRequiredForPolicyStep, readStepOutputs, recordProducerCandidatesForPolicyStep, requiredOutputSatisfied,
+  requiresForPolicyStep, skillSlotStatuses, StepOutputLedgerError, stepOutputsContextFor, stepRequiredOutputs,
   type DocumentEvidenceItem, type DocumentGovernancePolicy, type DocumentKind,
-  type EffectiveWorkflowPlan, type PipelineState, type StepIR,
+  type EffectiveWorkflowPlan, type PipelineState, type StepIR, type StepObservation, type StepOutputsView,
 } from '@tenon/kernel'
 import type { StepSkillSlotProgress } from '../stepSkillGate.js'
 import {
@@ -137,10 +138,106 @@ function view(
   }
 }
 
-export interface StepDocumentsView {
+/** 契约模式（升级前创建、冻结计划带旧文档契约的任务）：契约声明的读 / 登记 / 更新三张表。 */
+export interface StepContractDocumentsView {
+  readonly mode: 'contract'
   readonly reads: readonly StepDocumentView[]
   readonly records: readonly StepDocumentView[]
   readonly updates: readonly StepDocumentView[]
+}
+
+/** 直接上游步骤交接来的一份文档输入；`status` 是本步访问有没有它的读取回执。 */
+export interface ObservedStepInput {
+  readonly path: string
+  readonly from_step: string
+  /** 产出它的技能；认不出来是 null（显示为「未知」）。 */
+  readonly skill: string | null
+  readonly status: 'read' | 'unread'
+}
+
+/** 本步访问里内容发生变化的文件（新增 / 修改 / 删除）。 */
+export interface ObservedStepOutput {
+  readonly path: string
+  readonly change: 'added' | 'modified' | 'deleted'
+  readonly skill: string | null
+}
+
+/** 本步声明的一条必须产出；`path` 已把 `{change}` 渲染成任务名，可以含通配符。 */
+export interface ObservedStepRequirement {
+  readonly path: string
+  readonly status: 'produced' | 'missing'
+}
+
+/**
+ * 观察模式（新任务）：Tenon 离开步骤时观察实际产出，不预先规定文档。三张旧表恒为空——这样只认契约表的
+ * 消费方（骨架 / 登记 / 按 kind 读取的动作）自然什么都不发，不必各自再判断一次模式。
+ */
+export interface StepObservedDocumentsView {
+  readonly mode: 'observed'
+  readonly observation: StepObservation
+  readonly inputs: readonly ObservedStepInput[]
+  readonly outputs: readonly ObservedStepOutput[]
+  readonly required: readonly ObservedStepRequirement[]
+  readonly reads: readonly StepDocumentView[]
+  readonly records: readonly StepDocumentView[]
+  readonly updates: readonly StepDocumentView[]
+}
+
+export type StepDocumentsView = StepContractDocumentsView | StepObservedDocumentsView
+
+/** 没有任何文档信息的投影（已完结的任务、读不到计划时）；观察模式的观察状态记为不可用。 */
+export function emptyStepDocuments(mode: 'contract'): StepContractDocumentsView
+export function emptyStepDocuments(mode: 'observed'): StepObservedDocumentsView
+export function emptyStepDocuments(mode: StepDocumentsView['mode']): StepDocumentsView
+export function emptyStepDocuments(mode: StepDocumentsView['mode']): StepDocumentsView {
+  return mode === 'observed'
+    ? { mode, observation: 'unavailable', inputs: [], outputs: [], required: [], reads: [], records: [], updates: [] }
+    : { mode, reads: [], records: [], updates: [] }
+}
+
+/** 账本读不了（损坏）时的退路：没有访问记录，必须产出按「存在匹配的文件」判定；阻断本身由出口报告提出。 */
+const UNAVAILABLE_VIEW: StepOutputsView = { visit: null, observation: 'unavailable', inputs: [], outputs: [], steps: {}, produced: {} }
+
+/**
+ * 观察模式的 `step.documents`：当前访问的交接输入（含已读）、实时比较得到的本步产出，以及本步每条必须产出的
+ * 满足情况。三项都来自 kernel 的同一份 `readStepOutputs` 视图，与转换、`tenon check` 和 Dashboard 同源。
+ *
+ * 账本损坏（`StepOutputLedgerError`）不让整块投影消失：退成「观察不可用」的空视图，修复办法由出口报告里的
+ * `step-output-ledger-invalid` 阻断（`next` 的 `fix`）给出；其余异常照实抛。
+ */
+export async function observedStepDocuments(
+  change: string,
+  dir: string,
+  plan: EffectiveWorkflowPlan,
+  state: PipelineState,
+  stepId: string,
+): Promise<StepObservedDocumentsView> {
+  const ctx = stepOutputsContextFor(dir)
+  let observed: StepOutputsView
+  try {
+    observed = await readStepOutputs(ctx, { live: true })
+  } catch (error) {
+    if (!(error instanceof StepOutputLedgerError)) throw error
+    observed = UNAVAILABLE_VIEW
+  }
+  const required = await Promise.all(stepRequiredOutputs(plan, stepId, scalar(state, 'track')).map(
+    async (pattern): Promise<ObservedStepRequirement> => ({
+      path: pattern.replaceAll('{change}', change),
+      status: await requiredOutputSatisfied(ctx, observed, stepId, pattern) ? 'produced' : 'missing',
+    }),
+  ))
+  return {
+    mode: 'observed',
+    observation: observed.observation,
+    inputs: observed.inputs.map((input) => ({
+      path: input.path, from_step: input.fromStep, skill: input.skill, status: input.read ? 'read' : 'unread',
+    })),
+    outputs: observed.outputs.map((output) => ({ path: output.path, change: output.change, skill: output.skill })),
+    required,
+    reads: [],
+    records: [],
+    updates: [],
+  }
 }
 
 /**
@@ -156,11 +253,12 @@ export function stepDocuments(
   policy: DocumentGovernancePolicy | undefined,
   stepId: string,
   items: readonly DocumentEvidenceItem[],
-): StepDocumentsView {
-  if (policy === undefined) return { reads: [], records: [], updates: [] }
+): StepContractDocumentsView {
+  if (policy === undefined) return emptyStepDocuments('contract')
   const reads = [...readsRequiredForPolicyStep(policy, stepId), ...requiresForPolicyStep(policy, stepId)]
   const seen = new Set<string>()
   return {
+    mode: 'contract',
     reads: reads.filter((kind) => !seen.has(kind) && seen.add(kind))
       .map((kind) => view(change, kind, recordProducerCandidatesForPolicyStep(policy, kind, stepId), items)),
     records: (policy.outputsByStep[stepId] ?? [])

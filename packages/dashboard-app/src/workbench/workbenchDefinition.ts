@@ -10,14 +10,13 @@ import type {
 import { appendSkill, removeSkill } from './skillWaves'
 import { mapStep } from './workbenchStep'
 export { BASE_BRANCH, addTrackBranch, branchesOf, removeTrackBranch, resolveBranch, selectBranchDef, writeBranchDef } from './workbenchBranches'
-export { blankWorkflow, cloneWorkflowDef, copyWorkflowDef } from './workbenchClone'
+export { blankWorkflow, cloneWorkflowDef } from './workbenchClone'
 export {
   backTargetOf, backTransitionOf, displacedBackTransitions, removeStageFromDef, reorderStagesInDef, setStageBackInDef,
 } from './workbenchTransitions'
 export type {
   WbActionConfig,
   WbArtifactConfig,
-  WbDocumentContract,
   WbFieldRef,
   WbGuardConfig,
   WbSkillRef,
@@ -54,8 +53,8 @@ function withExplicitGates(steps: readonly WbStepDef[]): WbStepDef[] {
  * 写回前剔除读接口附带的投影字段，并把 `gate: null` 显式写成 `auto`（保存后 YAML 里只有 review / auto）。
  * 草稿与基线都过这里再比较，所以打开旧定义不会凭空变成「有改动」。
  */
-export function definitionForWrite(def: WbWorkflowDef): Omit<WbWorkflowDef, 'source' | 'effectiveIo' | 'branches'> {
-  const { source: _source, effectiveIo: _effectiveIo, branches: _branches, ...definition } = def
+export function definitionForWrite(def: WbWorkflowDef): Omit<WbWorkflowDef, 'source' | 'branches'> {
+  const { source: _source, branches: _branches, ...definition } = def
   return {
     ...definition,
     steps: withExplicitGates(definition.steps),
@@ -63,6 +62,13 @@ export function definitionForWrite(def: WbWorkflowDef): Omit<WbWorkflowDef, 'sou
       tracks: Object.fromEntries(Object.entries(definition.tracks).map(([id, branch]) => [id, { ...branch, steps: withExplicitGates(branch.steps) }])),
     }),
   }
+}
+
+/** OpenSpec 开关（工作流级）：开启写 `openspec: true`，关闭删掉这个键。 */
+export function setOpenspecInDef(def: WbWorkflowDef, on: boolean): WbWorkflowDef {
+  if (on) return { ...def, openspec: true }
+  const { openspec: _openspec, ...rest } = def
+  return rest
 }
 
 export function renameStepInDef(def: WbWorkflowDef, stepId: string, label: string): WbWorkflowDef {

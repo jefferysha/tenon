@@ -37,7 +37,8 @@ describe('production Skill and question hook invocation lifecycle', () => {
 
   test('persists one native PostToolUse start, actual question/answer, document completion and artifact', async () => {
     const change = 'native-hook-proof'
-    expect(await h.run(['init', change, '--track', 'backend', '--preset', 'full'])).toBe(0)
+    // 技能调用与文档产物的绑定（document record → artifacts: bound）只存在于契约模式：升级前创建的 default 任务。
+    expect(await h.initLegacyContractDefault(change, 'backend')).toBe(0)
     expect(await h.run(['session', 'activate', change])).toBe(0)
     const proposal = join(h.cwd, 'openspec', 'changes', change, 'proposal.md')
     await writeFile(proposal, '# Native hook proof\n', 'utf8')

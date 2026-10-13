@@ -98,8 +98,8 @@ Dashboard `zh/en` 存在浏览器 `localStorage`，只控制 UI。治理文档 l
 workspace → workflow → projects → library → skills
 ```
 
-- `workspace`：按分类（全部 · 需要你 · 进行中 · 已结束）查看任务，打开详情执行下一动作；已结束的卡片带结果标记（完结、已升级或已终止），「全部」也包含已结束的任务，排在进行中之后；
-- `workflow`：编辑 Workflow 与阶段结构；
+- `workspace`：按分类（全部 · 需要你 · 进行中 · 已结束）查看任务，打开详情执行下一动作，并按步骤查看真实发生的输入与产出（见下面的「工作台的输入与产出」）；已结束的卡片带结果标记（完结、已升级或已终止），「全部」也包含已结束的任务，排在进行中之后；
+- `workflow`：编辑 Workflow、阶段、技能与门禁；
 - `projects`：按项目管理已启用的 agent 客户端，逐个编辑其项目级与用户级指令文件（`AGENTS.md`、`CLAUDE.md`、`GEMINI.md`），并从已有目录或新目录新建项目；新建项目是分步向导（位置 → 模板 → 资源 → 客户端 → 确认），目录只能选择：`POST /api/fs/choose-folder` 在运行 server 的本机弹出系统文件夹对话框，不可用时改用页面内浏览器（`GET /api/fs/list`，同样要 token）；`POST /api/projects/create/stream` 以 `text/event-stream` 逐步回报创建进度；请求体可带 `design_seed`（资源目录里一条 `design-md` 条目），登记前多一步 `design`，用与 `POST /api/design/seed` 相同的逻辑把 DESIGN.md 取到项目根，已有 DESIGN.md 时跳过、不覆盖；
 - `library`：指令模板库，内建块随发行包同步，自定义块可复制与修改；以及[智能体](./agents.md)库，按身份分组并显示来源与版本，自定义与项目级可改正文、官方只可复制为自定义（登记在终端用 `tenon agent new`）；
 - `skills`：只读查看每个技能的来源、提交、许可证、更新时间与状态。
@@ -110,7 +110,16 @@ AFK、Machine、Host Plan 等低频能力从设置面板进入，仍保留原有
 
 <img src="../../../docs-site/public/images/dashboard-workflow-editor.webp" alt="Tenon Dashboard 工作流编辑器" width="1280" height="800" loading="lazy">
 
-工作流编辑器列出 Workflow 的 Track 与阶段，每个阶段页展示它的输入、技能、输出、门禁和测试策略。轨道设置可以改该轨道的规范（OpenSpec 或无）与路由关键词；排除词、优先级和自动化只在 YAML 里改。门禁段下只读列出该步的离开条件，一行一条（如「实现前评审通过」「本阶段任务已勾选」「依赖任务已结束」）。设置菜单提供主题与语言切换，不改变 canonical Workflow 状态；AFK、机器诊断和宿主计划继续通过 CLI 与本地 API 使用。
+工作流编辑器列出 Workflow 的 Track 与阶段，每个阶段页展示它的技能、门禁和测试策略。页面没有输入、输出表：Workflow 不声明每一步的文档，所以这里既不显示也不编辑它们（任务真实产出了什么在工作台看）。轨道设置可以改该轨道的规范（OpenSpec 或无）与路由关键词；排除词、优先级和自动化只在 YAML 里改。门禁段下只读列出该步的离开条件，一行一条（如「实现前评审通过」「本阶段任务已勾选」「依赖任务已结束」，每条 `required-output` 守卫显示为「必须产出 `<path>`」）。设置菜单提供主题与语言切换，不改变 canonical Workflow 状态；AFK、机器诊断和宿主计划继续通过 CLI 与本地 API 使用。
+
+### 工作台的输入与产出
+
+对选中的任务，每一步列出真实发生的事，读自任务的步骤产出记录（当前步骤在读取时与检查点实时比较；已结束的任务照样显示归档时带着的记录）：
+
+- **输入**：文件 · 来源阶段 · 来源技能（或「未知」）· 已读 / 未读。它们是直接上游步骤产出的文档，本步必须读完才能离开。
+- **输出**：文件 · 新增 / 修改 / 删除 · 来源技能（或「未知」）。代码等非文档文件也会出现在这里。
+
+没有内容时显示「本步没有输入」「本步还没有产出」。升级前创建的任务按同样的形状显示它的文档账本：每份已登记的文档是归属步骤的输出，登记者是来源技能，读取表是输入并带已读状态。数据来自 `GET /api/change/:name/orchestration?root=<项目根>` 的 `stepIo`：`stepIo[<步骤>] = { inputs, outputs, required }`，文件是 `{ path, change?, skill, fromStep?, read? }`（来源未知时 `skill` 为 `null`），`required` 列出该步每条 `required-output` 守卫的 `{ path, produced }`。路径一律相对项目根，响应不带摘要、访问 id 和绝对路径。这个响应以前的 `io` 字段已经没有了，工作流 API（`GET /api/workflows/:name` 及其 Track 视图）也不再返回 `effectiveIo`。
 
 ### Workflow 总览
 
@@ -170,7 +179,7 @@ Dashboard 不新建任务：没有 `POST /api/changes`，没有路由预览，�
 列表流先发一个完整的 `snapshot` 事件，之后只发 `snapshot-delta` 事件：序列化字节变了的项目，加上 `roots`
 （注册表顺序，被移除的项目随之消失）；不带 `view=list` 的流仍然每次整份重发完整快照。
 
-快照按项目缓存。每个项目的列表构建、完整构建和任务详情都以该项目自己的输入指纹（状态、tasks、documents、
+快照按项目缓存。每个项目的列表构建、完整构建和任务详情都以该项目自己的输入指纹（状态、tasks、documents、步骤产出记录、
 测试记录目录、归档、git HEAD、终端心跳、查看者身份）为键，所以一个项目里的变化只重建这个项目。未变化的构建
 最多复用 30 秒，沿用原来的 `generated_at`；每次读取最多刷新四个过期项目，服务刚起时不会在同一刻全部过期成一次
 巨大的重建。写请求在结束后丢掉它点名的项目（query 或 JSON body 里的 `root`），query 里点名时开始前也丢；
@@ -209,7 +218,7 @@ Tenon 已注册宿主以及 `setup`/`update` 操作，返回
 当前项目目录（`--target .`），不会输出可被 shell 误解的占位符。
 
 readiness 里 `step-exit` 类阻断（`readinessByTransition[...].blockers[]`）的 `message` 是给人读的整句（与 CLI 同一份，页面只放进
-Tooltip），机器可读的部分是 `code`、`source` 和可选的 `subject`、`state`、`count`：`subject` 是被阻断的对象（文档 kind、技能 token、
+Tooltip），机器可读的部分是 `code`、`source` 和可选的 `subject`、`state`、`count`：`subject` 是被阻断的对象（文档 kind——新任务的 `input-unread` 阻断是输入路径、技能 token、
 测试显示名、宿主不符的评审者），`state` 是它的状态（文档 `missing|stale|unread`、技能 `not-run|unrecorded`、内联测试 `running|missing|stale|failed`，
 测试策略阻断里的 `integrity` 与 `diff-unavailable`——它们不指向某一个测试，所以没有 `subject`，评审者的 `wrong-host`，此时 `code: reviewer-wrong-host`），
 `count` 是 `tasks.md` 未勾选的项数。Dashboard 只按 `code` 与这些字段给阻断贴短标签，从不解析 `message`；缺这些字段的阻断显示整句。

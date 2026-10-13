@@ -445,32 +445,31 @@ describe('真实 e2e —— review exit receipt（default workflow）', () => {
     const local = await freshHarness()
     try {
       await mkdir(join(local.cwd, '.pipeline', 'workflows'), { recursive: true })
+      // 修订生命周期要显式声明（freeze-build-sha 冻结、build-head-unchanged 校验）；原来由 build_sha 的 inputs / outputs
+      // 推断，推断只对旧定义生效，新定义不能再写 inputs / outputs。
       await writeFile(join(local.cwd, '.pipeline', 'workflows', 'custom-review.yaml'), `name: custom-review
 steps:
   - id: implement-anything
     label: Implement
     gate: null
     skills: []
-    inputs: []
-    outputs:
-      - field: build_sha
-        type: string
     guards: []
     transitions:
       - event: ready
         to: assure-anything
+        actions:
+          - type: freeze-build-sha
   - id: assure-anything
     label: Assure
     gate: review
     skills: []
-    inputs:
-      - field: build_sha
-        type: string
-    outputs: []
     guards: []
     transitions:
       - event: pass
         to: ship-anything
+        guards:
+          - type: build-head-unchanged
+            field: build_sha
       - event: rollback
         to: implement-anything
         actions:

@@ -60,6 +60,50 @@ describe('fetchContextBundlePreview', () => {
     expect(preview.inputs[0]).not.toHaveProperty('content')
   })
 
+  it('观察模式预览的交接输入（kind handoff）带来源步骤与来源技能，照样解出', async () => {
+    const handoff = {
+      kind: 'handoff',
+      path: 'docs/superpowers/specs/demo-design.md',
+      digest: `sha256:${'c'.repeat(64)}`,
+      reason: '直接上游的产出',
+      reasonCode: 'context-bundle.reason.handoff',
+      mode: 'full',
+      sourceBytes: 120,
+      materializedBytes: 120,
+      fromStep: 'explore',
+      skill: null,
+    } as const
+    const body = successBody()
+    body.preview.inputs = [{ ...handoff }] as unknown as typeof body.preview.inputs
+    body.preview.budget = { maxBytes: 120000, usedBytes: 120, fits: true }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 200 })))
+
+    const preview = await fetchContextBundlePreview({ root: '/repo', change: 'demo', target: 'verify', budgetBytes: 120000 })
+
+    expect(preview.inputs[0]).toEqual(handoff)
+  })
+
+  it.each([
+    ['handoff 缺来源步骤', { fromStep: undefined }],
+    ['handoff 的来源技能不是字符串或 null', { skill: 3 }],
+    ['handoff 带了契约模式的原因码', { reasonCode: 'context-bundle.reason.proposal' }],
+    ['契约模式的 kind 带了交接原因码', { kind: 'proposal' }],
+    ['契约模式的 kind 带了来源步骤', { kind: 'proposal', reasonCode: 'context-bundle.reason.proposal' }],
+  ])('拒绝 %s 的 wire response', async (_label, patch) => {
+    const body = successBody()
+    body.preview.inputs = [{
+      kind: 'handoff', path: 'docs/a.md', digest: `sha256:${'c'.repeat(64)}`, reason: '直接上游的产出',
+      reasonCode: 'context-bundle.reason.handoff', mode: 'full', sourceBytes: 120, materializedBytes: 120,
+      fromStep: 'explore', skill: 'brainstorming', ...patch,
+    }] as unknown as typeof body.preview.inputs
+    body.preview.budget = { maxBytes: 120000, usedBytes: 120, fits: true }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 200 })))
+
+    await expect(fetchContextBundlePreview({
+      root: '/repo', change: 'demo', target: 'verify', budgetBytes: 120000,
+    })).rejects.toMatchObject({ code: 'CONTEXT_BUNDLE_INVALID_RESPONSE' })
+  })
+
   it('422 保留稳定 code、repairAction 与不含正文的 safe preview', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
       ok: false,

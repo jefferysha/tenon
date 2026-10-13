@@ -103,6 +103,7 @@ export type WbGuardConfig = (
   | { type: 'tasks-through-step' }
   | { type: 'not-afk-queued' }
   | { type: 'dependencies-ended' }
+  | { type: 'required-output'; path: string }
 ) & { when?: WbTrackPredicate }
 
 export type WbActionConfig =
@@ -206,13 +207,6 @@ export interface WbStepDef {
   transitions: WbTransition[]
 }
 
-export interface WbDocumentContract {
-  version: 'v1'
-  /** role 缺省 = produce；require 没有 producers（空数组）。 */
-  slots: Array<{ kind: string; ownerStep: string; role?: 'update' | 'require'; producers: string[] }>
-  reads: Array<{ step: string; kinds: string[] }>
-}
-
 export type WbDecompositionMode = 'off' | 'suggest' | 'auto-safe' | 'require-review'
 export type WbDecompositionTarget = 'work-items' | 'child-pipelines'
 export type WbDecompositionStrategy = 'balanced' | 'breadth-first' | 'depth-first'
@@ -260,22 +254,29 @@ export const DEFAULT_WB_INTERACTION_POLICY: WbInteractionPolicy = {
   mode: 'interactive',
 }
 
-/** 服务端物化的一个输入 / 输出槽位：文档（登记台账）或值（change 字段）。 */
-export type WbIoSlot =
-  | {
-    kind: 'document'; id: string; role: 'produce' | 'update' | 'read' | 'require'; scope: 'change' | 'project'
-    producers: string[]; consumers: string[]
-    /** 客户端合并：同一概念的值字段（`verification_report` ↔ `verification-report`），只放 Tooltip。服务端不下发。 */
-    field?: string
-  }
-  | { kind: 'field'; id: string; type: 'string' | 'file_path' | 'boolean'; producer: string | null; consumers: string[] }
-
-export interface WbStepIo {
-  inputs: WbIoSlot[]
-  outputs: WbIoSlot[]
+/**
+ * 任务编排里一步的一个真实输入 / 输出文件（`stepIo`）。观察模式（新任务）取离开步骤时记下的产出，
+ * 契约模式（升级前创建的任务）把旧账本映射成同一形状——后者没有 `change`。
+ */
+export interface WbStepIoFile {
+  /** 相对项目根。 */
+  path: string
+  /** 输出：本步对它做了什么；契约模式没有。 */
+  change?: 'added' | 'modified' | 'deleted'
+  /** 来源技能；推断不出来是 null。 */
+  skill: string | null
+  /** 输入：它由哪一步产出。 */
+  fromStep?: string
+  /** 输入：本步是否读过。 */
+  read?: boolean
 }
 
-export type WbEffectiveIo = Record<string, WbStepIo>
+export interface WbStepIoEntry {
+  inputs: WbStepIoFile[]
+  outputs: WbStepIoFile[]
+  /** 本步的必须产出（`required-output` 守卫）；契约模式恒为空。 */
+  required: Array<{ path: string; produced: boolean }>
+}
 
 /** builtin = 内建模板；global = 用户级全局存储；project = 项目目录里的遗留覆盖文件。 */
 export type WbWorkflowSource = 'builtin' | 'project' | 'global'
@@ -284,12 +285,8 @@ export interface WbWorkflowDef {
   name: string
   /** 读接口附带：内建模板 / 项目文件（default 有覆盖文件时为 project）。写回前剔除。 */
   source?: WbWorkflowSource
-  /** 读接口附带：每步物化后的输入 / 输出（文档槽位 + 值槽位）。写回前剔除。 */
-  effectiveIo?: WbEffectiveIo
   /** OpenSpec 开关；default 恒为 true。 */
   openspec?: boolean
-  /** 只与顶层 steps 同在；有 tracks 时写在 tracks.<id>.documentContract。 */
-  documentContract?: WbDocumentContract
   /** Omitted only by pre-policy in-memory fixtures; HTTP decoding always projects safe v1 defaults. */
   decomposition?: WbDecompositionPolicy
   /** Omitted only by pre-policy in-memory fixtures; HTTP decoding always projects safe v1 defaults. */
@@ -298,7 +295,7 @@ export interface WbWorkflowDef {
   steps: WbStepDef[]
   /** track 分支：每条 track 自己的完整 pipeline。 */
   tracks?: Record<string, WbTrackBranch>
-  /** 读接口附带：每条分支（`_base` = 通用）物化后的 IO。写回前剔除。 */
+  /** 读接口附带：每条分支（`_base` = 通用）的名称。写回前剔除。 */
   branches?: Record<string, WbBranchProjection>
 }
 
@@ -320,7 +317,6 @@ export interface WbTrackAutomation {
 
 export interface WbTrackBranch {
   label?: string
-  documentContract?: WbDocumentContract
   /** 只在分支声明了 `spec` 时出现；解码不凭空补键，写回保持原样。 */
   spec?: WbTrackSpec
   route?: WbTrackRoute
@@ -330,6 +326,5 @@ export interface WbTrackBranch {
 
 export interface WbBranchProjection {
   label?: string
-  effectiveIo: WbEffectiveIo
 }
 

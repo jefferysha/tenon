@@ -72,7 +72,8 @@ async function recordAs(kind: string, path: string, producer: string): Promise<v
 beforeEach(async () => {
   seq = 0
   h = await freshHarness()
-  expect(await h.run(['init', CHANGE, '--track', 'backend', '--preset', 'full'])).toBe(0)
+  // 技能与产物的绑定只存在于契约模式：升级前创建、冻结着文档契约的 default 任务。
+  expect(await h.initLegacyContractDefault(CHANGE, 'backend')).toBe(0)
   expect(await h.run(['session', 'activate', CHANGE])).toBe(0)
 })
 

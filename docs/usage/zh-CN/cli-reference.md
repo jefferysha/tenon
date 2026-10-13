@@ -69,16 +69,16 @@ tenon task delete <name> [--yes] [--json]
 
 不要用 `set phase` 绕过 workflow event。canonical state 和 YAML projection 只能由 CLI 写。
 
-`tenon init` 的轨道取自工作流自己的分支：声明了 `tracks:` 的工作流必须写 `--track`（default 的是 `lite`、`pm`、`frontend`、`backend`），`design-system` 这样的平铺工作流不用写。`--workflow standard`、`--workflow simple` 退出码 `1`，并提示改用 `--workflow default --track lite`；把已退役的轨道 id（`standard`、`simple`、`chat`、`free`）传给 `--track` 同样退出码 `1`，并列出该工作流可选的轨道。`--domain <track>` 用于轻量任务：它记下「升级时去同一工作流里的哪条轨道」（必须是该工作流里另一条存在的分支），这样改动风险探针的 `escalate.then` 就能直接点名那条轨道；没记时 `then` 列出可选轨道请用户选。`tenon tracks list` 只读，列出项目可用的全部工作流的全部轨道（列 `WORKFLOW:TRACK`、`LABEL`、`ROUTABLE`）；内建登记表与 `.pipeline/tracks.yaml` 不再读取。见[路由与执行模式](routing-and-workflows.md#建任务前先评估)。
+`tenon init` 的轨道取自工作流自己的分支：声明了 `tracks:` 的工作流必须写 `--track`（default 的是 `lite`、`pm`、`frontend`、`backend`），`design-system` 这样的平铺工作流不用写。`--workflow standard`、`--workflow simple` 退出码 `1`，并提示改用 `--workflow default --track lite`；把已退役的轨道 id（`standard`、`simple`、`chat`、`free`）传给 `--track` 同样退出码 `1`，并列出该工作流可选的轨道。`--domain <track>` 用于轻量任务：它记下「升级时去同一工作流里的哪条轨道」（必须是该工作流里另一条存在的分支），这样改动风险探针的 `escalate.then` 就能直接点名那条轨道；没记时 `then` 列出可选轨道请用户选。`tenon tracks list` 只读，列出项目可用的全部工作流的全部轨道（列 `WORKFLOW:TRACK`、`LABEL`、`ROUTABLE`）；内建登记表与 `.pipeline/tracks.yaml` 不再读取。见[路由与执行模式](routing-and-workflows.md#建任务前先评估)。新任务会记下第一步的检查点，`spec: openspec` 的轨道另铺 `tasks.md` 骨架；不铺 proposal、design 骨架，也没有文档账本。
 
 `tenon assess` 把你预计要改的文件，按某条轨道的改动风险阈值（它的 `diff-risk` 步骤测试的 `pass.metrics`；缺省 `--workflow default --track lite`）评估，分类规则与改动风险探针完全相同，不读文件内容。路径必须是仓库内的相对路径：绝对路径、含 `..` 或经符号链接指向仓库外的路径退出码 `1`，该轨道没有 `diff-risk` 阈值同样退出码 `1`。退出码 `0`：未超限；退出码 `3`：超限，列出被突破的阈值（如 `auth_files 1 > 0`）并推荐重型轨道。`--json` 输出 `{ workflow, track, metrics, exceeded, reasons, recommendation }`。
 
-不带 event 的 `check <name>` 报告当前步骤的 guards 与它的前进边的 guards，一次列出全部未满足的条件，退出码 `2`。`advance <name>` 只自动走唯一的前进边，不走回退边和放弃边 `scope-expanded`。
+新任务的转换因交接来的输入没读完被拒，退出码 `1`；因 guard 未满足（含缺失的 `required-output`）被拒，退出码 `2`。不带 event 的 `check <name>` 报告当前步骤的 guards 与它的前进边的 guards，一次列出全部未满足的条件，退出码 `2`。`advance <name>` 只自动走唯一的前进边，不走回退边和放弃边 `scope-expanded`。
 
 `task finish` 与 `task terminate` 都是把任务目录移进 `openspec/changes/archive/<日期>-<名字>/` 并记下任务结果（`finished`、`escalated` 或 `terminated`，界面是完结、已升级、已终止）。`finish` 只接受状态机已走到终态（完结或已升级）的任务；`spec: openspec` 的轨道由 Tenon 调用 `openspec archive <name> --skip-specs --yes --json`，其余由 Tenon 自己移动目录，同一天已有同名归档时追加 `-2`、`-3`。`terminate` 接受任何还没结束的任务，记为已终止，只提交任务目录（`chore(tenon): terminate <name>`），任务改过的代码既不提交也不回退。退出码：`0` 完成；`1` 用法、名称、任务或身份缺失、状态不对或失败；`2` 需要确认（加 `--yes` 重试）；`3` 被阻止（如 AFK 运行中、被别的任务依赖）。`--json` 输出 `{ change, result, archived_dir, ended_at }`（`terminate` 另带 `commit`）。原来的「隐藏」子命令 `archive`、`unarchive`（在 `tenon task` 下）已不存在，运行退出码 `1` 并指向 `finish` 与 `terminate`。`tenon list --finished` 列出已结束的任务（含已归档的）。
 
 `tenon workflow plan <name> --json` 是 Agent 编排在途 Change 的单一读取入口。它优先返回
-WorkflowRun 初始化时冻结的完整计划，包括步骤、Skill、门禁、守卫、产物和转换。后来修改或删除
+WorkflowRun 初始化时冻结的完整计划，包括步骤、Skill、门禁、守卫和转换。后来修改或删除
 `.pipeline/workflows/<workflow>.yaml` 只影响新运行，不会改写已有运行的 Todo 和 Skill DAG。
 
 `tenon status <name> --json` 还带一个 `step` 块：单个 `tenon` skill 执行当前步骤所需的全部输入
@@ -88,13 +88,15 @@ WorkflowRun 初始化时冻结的完整计划，包括步骤、Skill、门禁、
 轻量轨道的风险探针没通过，`escalate.reasons` 点名被突破的阈值，`escalate.then` 给出转换之后要运行的重型轨道 `tenon init` 命令，
 以及随后的 `tenon set <新任务> depends_on <本任务>`。`finish-change` 动作带 `command`（`tenon task finish <name>`），命令之后再按 `commit` 提交。
 
+新任务的 `step.documents` 带 `mode: "observed"`：`observation`（`observed`、`unavailable` 或 `truncated`）、`inputs`（`path`、`from_step`、`skill`、`status` 为 `read` 或 `unread`）、`outputs`（`path`、`change` 为 `added`、`modified` 或 `deleted`、`skill`）和 `required`（本步每条 `required-output` 的 `path` 与 `status`，`produced` 或 `missing`）。它唯一的文档动作是 `read-documents`，`documents` 列出未读的输入，`note` 说明本步可以改它们、改动记为本步产出；必须产出缺失走 `fix`。升级前创建的任务的 `step.documents` 带 `mode: "contract"` 和 `reads`、`records`、`updates` 三张表，`next` 还可能有 `scaffold-document`、`record-document`、`register-field`。
+
 ```text
 tenon step run <change> [--json]
 ```
 
-`step run` 一次做完 `step.next` 里确定性的那部分，并说明做了什么：`scaffold-document`（`document scaffold`）、
-`record-document`（`document record`，文件已存在且骨架占位符已替换才做）、`read-documents`（`document read <change> all`）
-和 `test-plan-seed`（`test plan <change> --seed`）。遇到需要宿主或作者的动作就停下（加载技能、派发 agent、写文档内容、
+`step run` 一次做完 `step.next` 里确定性的那部分，并说明做了什么：`read-documents`（`document read <change> all`）
+和 `test-plan-seed`（`test plan <change> --seed`）；升级前创建的任务还有 `scaffold-document`（`document scaffold`）和
+`record-document`（`document record`，文件已存在且骨架占位符已替换才做）。遇到需要宿主或作者的动作就停下（加载技能、派发 agent、写文档内容、
 跑测试、评审、转换），写明停在哪、为什么，并附上最新的 `step.next`，之后不必再 `status`。它幂等：无事可做就什么都不改、
 退出码 `0`；某条命令被拒绝退出码 `2`，已做完的部分保留。`--json` 输出 `{ change, step_id, did[], stopped, step }`。
 
@@ -163,16 +165,27 @@ stderr 提示。
 ## 文档证据
 
 ```bash
+tenon document read <change> <path|all>
+tenon document status <change> [--json]
+```
+
+新任务不登记任何东西：Tenon 在离开步骤时记录该步新增、修改、删除的文件与来源技能。`document read <change> all`（或一个交接来的输入路径；项目外的路径退出码 `1`）对当前内容取摘要，为本步的输入写读取回执。`document status` 打印本步的输入（`READ` / `UNREAD`）、产出和必须产出，`--json` 输出 `{ change, workflow, mode, observation, inputs, outputs, required }`；有输入未读或必须产出缺失时退出码 `2`。见[文档、Skill 与证据链](./documents-skills-and-evidence.md)。
+
+只服务升级前创建的任务（新任务运行 `document init`、`scaffold`、`record`、`migrate-delta` 退出码 `2`，运行 `artifact register` 退出码 `1`，并提示本任务的产出由 Tenon 在离开步骤时自动记录）：
+
+```bash
 tenon document init <change>
 tenon document scaffold <change> <kind>
 tenon document scaffold <change> delta-spec --capability <capability>
 tenon document record <change> <kind> <path> --producer <skill>
 tenon document record <change> --all [--producer <skill>]
-tenon document read <change> all
-tenon document status <change> --json
+tenon document read <change> <kind|all>
+tenon artifact register <change> <field> <path> --producer <skill>
 ```
 
-scaffold 只创建缺失结构，不登记 producer；delta spec 必须显式提供真实 capability；record 必须对应真实 Skill。Change 语言固定在 `.pipeline-document-locale.json`，不写入严格 canonical schema，以保持旧版本回滚兼容。
+scaffold 只创建缺失结构，不登记 producer；delta spec 必须显式提供真实 capability；record 必须对应真实 Skill。Change 语言固定在 `.pipeline-document-locale.json`，不写入严格 canonical schema，以保持旧版本回滚兼容；新任务的 `tasks.md` 骨架同样按这个语言生成。
+
+`tenon handoff <name> --bundle` 在新任务里把当前步骤交接来的输入（直接上游的产出，`--target` 缺省取当前步骤）编成包，每份摘要必须等于上游记下的摘要或本步的读取回执，否则失败关闭并要求重读；升级前创建的任务仍按文档账本编包。
 
 ## 项目规格骨架
 
@@ -274,7 +287,7 @@ tenon agent rm <name> [--scope user|project]
 tenon agent export <name> --host claude|codex
 ```
 
-`document record --all` 一次登记当前步骤所有「文件已经写好」的文档，每份都走 `document record` 自己的全部校验（占位符、producer 的技能回执、
+（升级前创建的任务）`document record --all` 一次登记当前步骤所有「文件已经写好」的文档，每份都走 `document record` 自己的全部校验（占位符、producer 的技能回执、
 负责人、归档闸）：本步产出但缺失或已过期的、本步可改而登记后又变了的输入，以及已调用技能还欠的文档。producer 取本步接受且本次访问已调用的那个
 （`--producer` 可覆盖）。已是最新的不动，没写或仍含 `[待填写…]` 占位符的列出并跳过，路径要作者定名的（没带 `--capability` 的 delta spec）也跳过；
 只有登记被拒才退出 `2`。评审者可在 agent 文件里声明 `attach_on`（`auth`、`dependency`、`contract`、`migration`）：只有任务的改动碰到这类路径，

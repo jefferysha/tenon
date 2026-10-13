@@ -288,10 +288,6 @@ steps:
     label: Implement
     gate: null
     skills: []
-    inputs: []
-    outputs:
-      - field: build_sha
-        type: string
     guards: []
     transitions:
       - event: ready
@@ -300,10 +296,6 @@ steps:
     label: Assure
     gate: review
     skills: []
-    inputs:
-      - field: build_sha
-        type: string
-    outputs: []
     guards: []
     transitions:
       - event: pass

@@ -29,6 +29,7 @@ import { changeDir, isValidChangeName, resolveChangeDir } from '../paths.js'
 import { requireActor } from '../userIdentity.js'
 import { refuseArchived } from '../endedTaskGuard.js'
 import { cmdCheck } from './check.js'
+import { observedRequiredOutputBlockers } from './document-observed.js'
 import { recordHistory } from './fields.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
 import { isLegacyExecution } from './execution-cli-seam.js'
@@ -98,15 +99,20 @@ async function checkVerifyFailReadiness(
   state: PipelineState,
 ): Promise<number> {
   const blockers: string[] = []
-  const report = scalar(state, 'verification_report')
-  const fileExists = deps.guardCtx?.(name)?.fileExists
-  if (report === '' || report === 'null') {
-    blockers.push(msg(deps, 'review.verifyFail.reportEmpty', { current: report || 'null' }))
-  } else if (fileExists?.(report) === false) {
-    blockers.push(msg(deps, 'review.verifyFail.reportMissing', { current: report }))
+  const plan = effectiveWorkflowForState(deps, state)
+  if (plan?.capabilities.documents.mode === 'observed') {
+    // 新任务没有 verification_report 字段：要求这次验证访问写出验证步声明的必须产出（验证报告）。
+    blockers.push(...await observedRequiredOutputBlockers(deps, name, dir, plan, state, scalar(state, 'phase')))
+  } else {
+    const report = scalar(state, 'verification_report')
+    const fileExists = deps.guardCtx?.(name)?.fileExists
+    if (report === '' || report === 'null') {
+      blockers.push(msg(deps, 'review.verifyFail.reportEmpty', { current: report || 'null' }))
+    } else if (fileExists?.(report) === false) {
+      blockers.push(msg(deps, 'review.verifyFail.reportMissing', { current: report }))
+    }
   }
 
-  const plan = effectiveWorkflowForState(deps, state)
   const documentPolicy = plan?.capabilities.documents.policy
   if (documentPolicy) {
     const phase = scalar(state, 'phase')

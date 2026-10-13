@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
-  compileEffectiveWorkflowPlan,
+  compileWorkflow,
   createBuildRevisionToken,
+  effectiveWorkflowPlanFromIr,
   type PipelineState,
 } from '@tenon/kernel'
 import { currentCandidate, normalizeCandidate } from './candidate.js'
@@ -11,7 +12,9 @@ const identity = { repository: '/repo.git', worktree: '/repo\\0/repo.git/worktre
 describe('review candidate normalization', () => {
   it('maps a canonical build:v1 token to the existing sha256 revision candidate', async () => {
     const token = createBuildRevisionToken('git', 'a'.repeat(40), identity)
-    const plan = compileEffectiveWorkflowPlan('candidate-flow', {
+    // 冻结的旧计划：步骤输入输出里的 build_sha 通道是旧定义的写法（新定义不能再写 inputs / outputs，也就没有这条回落路径），
+    // 所以不经 validateWorkflow，直接从 IR 建计划——与升级前创建的任务冻结进快照的计划同一形态。
+    const plan = effectiveWorkflowPlanFromIr('candidate-flow', compileWorkflow({
       name: 'candidate-flow',
       steps: [
         {
@@ -24,7 +27,7 @@ describe('review candidate normalization', () => {
           inputs: [{ field: 'build_sha', type: 'string' }], outputs: [], guards: [], transitions: [],
         },
       ],
-    })
+    }))
     const state: PipelineState = {
       fields: { phase: 'verify', build_sha: token.value } as PipelineState['fields'],
       opaqueTail: '',

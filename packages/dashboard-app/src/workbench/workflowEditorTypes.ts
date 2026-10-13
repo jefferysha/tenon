@@ -1,7 +1,6 @@
 import type { RefObject } from 'react'
-import type { DocumentKind } from '@tenon/kernel/workflow/document-contract-model'
 import type { AgentSummary } from '../api/agentClient'
-import type { WbEffectiveIo, WbExecutorRef, WbReviewerRef, WbSkillEntry, WbSkillRef, WbStepDef, WbStepTestPolicy, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
+import type { WbExecutorRef, WbReviewerRef, WbSkillEntry, WbSkillRef, WbStepDef, WbStepTestPolicy, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
 import type { LintIssue } from '../workflow/lint'
 import type { TrackSettings } from './trackSettings'
 import type { useStageDraftEditor } from './useStageDraftEditor'
@@ -99,7 +98,7 @@ export interface WorkflowEditor {
   wfName: string | null
   /** 完整定义（含全部分支）；编辑器读路径用 branchDef。 */
   fullDef: WbWorkflowDef | null
-  /** 所选分支的单条 pipeline 视图（steps / effectiveIo 已按分支提升）。 */
+  /** 所选分支的单条 pipeline 视图（steps 已按分支提升）。 */
   def: WbWorkflowDef | null
   defErrorText: string | null
   /** 当前分支：'' = 通用分支，其余 = tracks.<id>。 */
@@ -111,16 +110,11 @@ export interface WorkflowEditor {
   /** 改已有轨道的规范与路由关键词（其它路由项原样保留）。 */
   setTrackSettings: (id: string, settings: TrackSettings) => void
   removeTrack: (id: string) => void
-  /** 草稿的物化 IO（字段槽位与文档槽位都按草稿重算）。 */
-  effectiveIo: WbEffectiveIo | undefined
   lint: LintIssue[]
   /** 任一分支有 error 级 lint 问题 → 不能保存；warning 不挡。 */
   lintBlocked: boolean
-  /** OpenSpec 开关（工作流级，关闭时清掉每条分支的文档契约；default 不能关）。 */
+  /** OpenSpec 开关（工作流级；default 不能关）。 */
   setOpenspec: (on: boolean) => void
-  addDocumentOutput: (stepId: string, kind: DocumentKind) => void
-  removeDocumentSlot: (stepId: string, kind: string, direction: 'inputs' | 'outputs') => void
-  setDocumentInputs: (stepId: string, kinds: readonly string[]) => void
   /** 能否编辑当前工作流：有写凭证；否则所有写入口置灰。 */
   canWrite: boolean
   /** 页面持有写凭证。 */

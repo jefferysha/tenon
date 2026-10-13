@@ -48,6 +48,7 @@ import { isAbandonEvent } from './implicit-completion.js'
 import { retiredSkillReferences } from './retired-skills.js'
 import { rejectOnStepGates } from './transition-step-gates.js'
 import { rejectOnRoundsExhausted } from './transition-rounds-gate.js'
+import { recordObservedStepExit, rejectOnUnreadInputs } from './transition-step-outputs.js'
 // 转换规划随执行模型而变，由接缝选适配器（step-graph 或 legacy-phase-manifest）；本文件只留编排。
 import { selectExecution } from './execution-seam.js'
 import { fieldStr } from './transition-field-scalar.js'
@@ -168,6 +169,12 @@ export function createTransitionApplication(deps: TransitionApplicationDeps): Tr
             return { kind: 'document-evidence-failed', phase: prepared.from, blockers: evidence.blockers }
           }
         }
+        // 观察模式（冻结计划没有文档契约）：交接输入没读完不能离开；契约模式的全部旧路径不动。
+        const observed = effectivePlan.capabilities.documents.mode === 'observed'
+        if (observed) {
+          const unread = await rejectOnUnreadInputs({ changeDir: command.changeDir, from: prepared.from, event: command.event })
+          if (unread !== undefined) return unread
+        }
         const testRejection = await rejectOnTestEvidence({
           repoRoot: command.root, changeDir: command.changeDir, changeName: command.changeName,
           plan: effectivePlan, from: prepared.from, to: prepared.to, event: command.event, context: deps.testEvidence,
@@ -198,6 +205,14 @@ export function createTransitionApplication(deps: TransitionApplicationDeps): Tr
             kind: 'review-approval-required', phase: prepared.from, event: command.event,
             ...(pendingEvent === '' ? {} : { pendingEvent }),
           }
+        }
+        // 所有门禁都已通过：在同一把锁内、提交之前记下本次访问的产出并开始下一次访问（按访问身份幂等，提交失败重试会重写同一条）。
+        if (observed) {
+          const recorded = await recordObservedStepExit({
+            changeDir: command.changeDir, runId: tx.run.id, sequence: tx.run.transitionSequence,
+            from: prepared.from, to: prepared.to, event: command.event, at: deps.clock(),
+          })
+          if (recorded !== undefined) return recorded
         }
         // Receipt 在任一成功 transition 后立即消费，避免一次旧批准在回退/重入同一 phase 后被复用。
         const { record, projection } = await tx.commit({ ...prepared.nextFields, ...clearReviewGatePatch() }, {

@@ -7,7 +7,8 @@
  *   · workflow/stepGuard.ts evaluateStepGuards 两个 v1 guard
  *     → tasks-at-least 原样、nonempty-output 由 compileWorkflow 编译期展开（本表只留兜底）。
  *   · 设计 consolidate-workflow-tracks §1b 的三个通用离开条件 tasks-through-step / not-afk-queued /
- *     dependencies-ended：判定全部来自 GuardInput 的同名能力，能力缺失 = 失败关闭（不是 skipped）。
+ *     dependencies-ended，以及文档机制重做的 required-output：判定全部来自 GuardInput 的同名能力，
+ *     能力缺失 = 失败关闭（不是 skipped）。
  * 每个 handler 的判定逐条对齐老仓 case 块语义（就地注释标注）；单测 guard-handlers.test.ts 逐分支
  * 手写期望值（对齐老仓，不 import 任何旧函数当 oracle）。
  *
@@ -60,7 +61,7 @@ function isUnset(v: string): boolean {
 
 const PASSED: GuardDecision = { kind: 'passed' }
 
-type UniversalGuardType = 'tasks-through-step' | 'not-afk-queued' | 'dependencies-ended'
+type UniversalGuardType = 'tasks-through-step' | 'not-afk-queued' | 'dependencies-ended' | 'required-output'
 
 /** 通用离开条件的能力没注入：失败关闭并点名缺什么（不同于文件面能力的 skipped 降级）。 */
 function capabilityUnavailable(guardType: UniversalGuardType, capability: UniversalGuardCapabilityName): GuardDecision {
@@ -247,6 +248,25 @@ export const GUARD_HANDLERS: GuardHandlerRegistry = Object.freeze({
       return pending.length === 0 ? PASSED : { kind: 'failed', guardType: 'dependencies-ended', detail: pending }
     } catch {
       return evaluationError('dependencies-ended')
+    }
+  },
+
+  /** 文档机制重做 §6：本任务里当前这一步必须产出匹配 `path` 的文件。判定来自 `requiredOutput` 能力（观察到的产出账本，
+   *  观察不可用时退化为文件存在）；能力缺失、当前步骤未知、能力抛错都失败关闭，不降级为跳过。 */
+  'required-output': async (config, input) => {
+    // 失败决策都带原样的路径模式：`{change}` 不在这里展开——同一工作流里停在同一步的任务因此得到逐字相同的离开条件，
+    // Dashboard 快照才能把它们合并成一份；显示时由客户端换成任务名（CLI 文案另由 renderGuardFailure 展开）。
+    const path = config.path
+    const failure = (decision: GuardDecision): GuardDecision => decision.kind === 'failed' ? { ...decision, path } : decision
+    if (!input.requiredOutput) return failure(capabilityUnavailable('required-output', 'requiredOutput'))
+    const step = input.currentStep
+    if (step === undefined || step === '') {
+      return failure({ kind: 'failed', guardType: 'required-output', actual: 'current-step-unavailable' })
+    }
+    try {
+      return (await input.requiredOutput(step, config.path)) ? PASSED : failure({ kind: 'failed', guardType: 'required-output', actual: 'missing' })
+    } catch {
+      return failure(evaluationError('required-output'))
     }
   },
 })

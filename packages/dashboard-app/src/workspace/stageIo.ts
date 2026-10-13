@@ -1,125 +1,57 @@
-import { isEngineWrittenOutput } from '@tenon/kernel/workflow/auto-gate'
-import type { WbIoSlot, WbStepIo } from '../api/governanceTypes'
-import type { ChangeSnapshot, DocumentStaleReason } from '../types'
-import { mergeFieldAliases } from '../model/ioSlots'
-import { producerSkills } from '../workflow/producers'
-import { fieldStr, isUnset } from './taskModel'
-
-const FILE_FIELDS = new Set(['design_doc', 'plan', 'verification_report', 'prd_path'])
+import type { WbStepIoEntry, WbStepIoFile } from '../api/governanceTypes'
 
 /**
- * 聚合语境（未选项目）不发 per-root 请求时的退化 IO：只有快照里冻结的每步输出字段名，
- * 没有文档槽位与输入。选中项目后由服务端物化 IO 取代。
+ * 工作台一步的输入与输出，直接取任务编排里的 `stepIo`（服务端按真实产出投影）。没有这一步的条目（聚合视图不发
+ * 请求、旧服务端不带）就是空：空列表恒是同一个引用，依赖它的 memo 不会因此重算。
  */
-export function fallbackStepIo(change: ChangeSnapshot, stepId: string): WbStepIo {
-  const fields = change.workflowRules.outputsByStep?.[stepId] ?? []
-  return {
-    inputs: [],
-    outputs: fields.map((field) => ({ kind: 'field', id: field, type: FILE_FIELDS.has(field) ? 'file_path' : 'string', producer: null, consumers: [] })),
-  }
+const NO_FILES: readonly WbStepIoFile[] = []
+const NO_REQUIRED: WbStepIoEntry['required'] = []
+
+export function stageInputs(entry: WbStepIoEntry | undefined): readonly WbStepIoFile[] {
+  return entry?.inputs ?? NO_FILES
 }
 
-/** 文档槽位沿用台账状态；值槽位只有 set / unset。 */
-export type IoRowStatus = 'recorded' | 'missing' | 'stale' | 'unread' | 'set' | 'unset'
-
-export interface IoRow {
-  slot: WbIoSlot
-  status: IoRowStatus
-  /** 可阅读的项目根相对路径；值槽位或未产出时为 null。 */
-  path: string | null
-  value: string
-  /** 最近一次登记该文档的技能；值槽位为 null。 */
-  producer: string | null
-  /** 最近一次登记时间（ISO）；无则 null。 */
-  at: string | null
-  /** 最近一次登记的操作人名字；无则缺省。 */
-  actor?: string | null
-  /** 过期原因；其它状态为 null。 */
-  reason: DocumentStaleReason | null
-  /** 应产出它的技能（输出侧文档槽位：契约候选 ∩ 本阶段技能）；其余为空。 */
-  producers: readonly string[]
+export function stageOutputs(entry: WbStepIoEntry | undefined): readonly WbStepIoFile[] {
+  return entry?.outputs ?? NO_FILES
 }
 
-export function ioRowOf(change: ChangeSnapshot, slot: WbIoSlot, stageSkills: readonly string[] = []): IoRow {
-  if (slot.kind === 'document') {
-    const item = change.documents?.items.find((candidate) => candidate.kind === slot.id)
-    const last = item?.timeline?.at(-1)
-    const produced = slot.role === 'produce' || slot.role === 'update'
-    const matched = produced ? producerSkills(slot.producers, stageSkills) : []
-    const status = item?.status ?? 'missing'
-    // 合并进来的同名值字段（slot.field）也要有值，这一行才算齐：文档登记了、字段还没设 → 未设。
-    const fieldMissing = slot.field !== undefined && isUnset(fieldStr(change, slot.field))
-    return {
-      slot,
-      status: fieldMissing && (status === 'recorded' || status === 'unread') ? 'unset' : status,
-      path: item?.paths[0] ?? null,
-      value: item?.paths[0] ?? '',
-      producer: last?.producer ?? item?.producers.at(-1) ?? null,
-      at: last?.recordedAt ?? null,
-      actor: last?.actor?.name ?? null,
-      reason: item?.status === 'stale' ? item.reason ?? null : null,
-      producers: produced ? (matched.length > 0 ? matched : [...slot.producers]) : [],
-    }
-  }
-  const value = fieldStr(change, slot.id)
-  const set = !isUnset(value)
-  return {
-    slot,
-    status: set ? 'set' : 'unset',
-    path: set && slot.type === 'file_path' ? value : null,
-    value: set ? value : '',
-    producer: null,
-    at: null,
-    reason: null,
-    producers: [],
-  }
-}
-
-/** 同一概念的值字段并进同名文档行（见 mergeFieldAliases），一个概念只显示一个名字。 */
-export function stageOutputs(change: ChangeSnapshot, stepIo: WbStepIo | undefined, stageSkills: readonly string[] = []): IoRow[] {
-  return mergeFieldAliases(stepIo?.outputs ?? []).map((slot) => ioRowOf(change, slot, stageSkills))
-}
-
-export function stageInputs(change: ChangeSnapshot, stepIo: WbStepIo | undefined): IoRow[] {
-  return mergeFieldAliases(stepIo?.inputs ?? []).map((slot) => ioRowOf(change, slot))
+export function stageRequired(entry: WbStepIoEntry | undefined): WbStepIoEntry['required'] {
+  return entry?.required ?? NO_REQUIRED
 }
 
 /**
- * 门禁行的条件计数：auto = 声明的输出齐全；review 在此之上多一条人工确认。
+ * 门禁行的条件计数：必须产出已齐的条数；review 在此之上多一条人工确认。
  * 没有门禁或一个条件都没有 → null（不显示这一行）。
  */
 export function gateProgress(
   gate: 'review' | 'auto' | null,
-  outputs: readonly IoRow[],
+  required: WbStepIoEntry['required'],
   reviewSatisfied: boolean,
 ): { gate: 'review' | 'auto'; done: number; total: number } | null {
   if (gate === null) return null
-  // 自动门禁不检查引擎自己写的输出（build_sha 等：离开本阶段之前不会有值），计数与内核同口径。
-  const checked = gate === 'auto'
-    ? outputs.filter((row) => !(row.slot.kind === 'field' && isEngineWrittenOutput(row.slot.id)))
-    : outputs
-  const total = checked.length + (gate === 'review' ? 1 : 0)
+  const total = required.length + (gate === 'review' ? 1 : 0)
   if (total === 0) return null
-  const done = checked.filter(isReadyRow).length + (gate === 'review' && reviewSatisfied ? 1 : 0)
+  const done = required.filter((item) => item.produced).length + (gate === 'review' && reviewSatisfied ? 1 : 0)
   return { gate, done, total }
 }
 
-export function isReadyRow(row: IoRow): boolean {
-  return row.status === 'recorded' || row.status === 'unread' || row.status === 'set'
+/** 删除的文件已不在盘上，没有内容可读；其余（含契约模式没有变化类型的）都可读。 */
+export function isReadableFile(file: WbStepIoFile): boolean {
+  return file.change !== 'deleted'
 }
 
 export function fileName(path: string): string {
   return path.split('/').filter(Boolean).pop() ?? path
 }
 
-/** 可阅读文件的有序列表（先输出后输入，去重），供抽屉上一份 / 下一份。 */
-export function readableFiles(rows: readonly IoRow[]): Array<{ path: string; label: string }> {
+/** 可阅读文件的有序列表（先输出后输入，按路径去重），供抽屉上一份 / 下一份。 */
+export function readableFiles(files: readonly WbStepIoFile[]): Array<{ path: string; label: string }> {
   const seen = new Set<string>()
   const out: Array<{ path: string; label: string }> = []
-  for (const row of rows) {
-    if (row.path === null || seen.has(row.path)) continue
-    seen.add(row.path)
-    out.push({ path: row.path, label: row.slot.id })
+  for (const file of files) {
+    if (!isReadableFile(file) || seen.has(file.path)) continue
+    seen.add(file.path)
+    out.push({ path: file.path, label: fileName(file.path) })
   }
   return out
 }

@@ -87,7 +87,8 @@ export async function evaluateSpecMigrationEvidence(
     const receiptPath = resolve(migrationDir, 'spec-application.json')
     const receiptRaw = await trustedOrdinaryFile(root, receiptPath, true)
     // 没有历史迁移回执 = 这份 change 的主规格应用不是由那次一次性迁移承担的，于是问题回到它自己：
-    // 它登记的 delta spec 到底应用了没有。此前这里直接 not-required，于是 guard 只守着一份历史
+    // 它的 delta spec（带账本的任务取账本登记的，观察模式取任务目录 specs/ 下的）到底应用了没有。
+    // 此前这里直接 not-required，于是 guard 只守着一份历史
     // 回执、对本次应用一言不发——ship 与 archive 就这样放行了一个主规格里什么都没有的 change。
     if (!receiptRaw) return await changeSpecApplication(root, changeDir)
 
@@ -156,7 +157,8 @@ export async function evaluateSpecMigrationEvidence(
  *
  * 彩排（`--dry-run`）写的是同一份回执文件、同样 result=pass，只有 mode 不同；判定不看 mode 就等于
  * 认彩排为应用。回执之外还要求它点名的每份主规格此刻真的在盘上、摘要与回执一致——回执是自述，
- * 主规格字节才是证据。没有登记过 delta spec 的 change 本来就不产出规格增量，对它不适用。
+ * 主规格字节才是证据。没有 delta spec 的 change 本来就不产出规格增量，对它不适用。delta spec 的来源由
+ * delta-spec-source.ts 统一回答（读不出来就是 invalid，不会因为读不出来被当作「没有」而放行）。
  */
 async function changeSpecApplication(
   repoRoot: string,

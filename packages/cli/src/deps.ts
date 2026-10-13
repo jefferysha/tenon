@@ -285,17 +285,6 @@ export interface CliDeps {
     path: () => string
     run: (script: string, folder: string, cwd: string) => Promise<number>
   }
-  /**
-   * 立项前置条件：所选分支第一个步骤声明了项目级文档 `role: require` 时，该文档必须先就绪。
-   * 返回拒绝原因，null = 可以立项。main.ts 用 kernel designSystemPrecondition 落地；
-   * 缺省 undefined = 未装配，立项不做该检查（行为与接线前逐字一致）。
-   */
-  creationPrecondition?: (input: {
-    readonly workflow: string
-    readonly track: string
-    readonly firstStep: string
-    readonly policy?: import('@tenon/kernel').DocumentGovernancePolicy
-  }) => Promise<string | null>
   io: CliIO
   /**
    * 输出语言（`TENON_LANG` → `LC_ALL` → `LC_MESSAGES` → `LANG`，main.ts 解析一次）。缺省 = 历史的中文输出，

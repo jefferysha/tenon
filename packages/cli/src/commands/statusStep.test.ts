@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { stepNextActions, type StepNextInput } from './statusStep.js'
-import type { StepFieldView } from './statusStepParts.js'
+import { emptyStepDocuments, type StepDocumentsView, type StepFieldView } from './statusStepParts.js'
+import { documentWriteActions, observedReadActions, skillDocumentActions } from './statusStepDocumentActions.js'
 import { WORKSPACE_COMMIT_PATHS, type GitFinishProbe } from '../gitWorkspace.js'
 import { deliveryCommit } from './statusStepFinish.js'
 
@@ -20,7 +21,7 @@ function input(overrides: Partial<StepNextInput> = {}): StepNextInput {
     executors: [],
     reviewers: [],
     tests: [],
-    documents: { reads: [], records: [], updates: [] },
+    documents: { mode: 'contract', reads: [], records: [], updates: [] },
     fields: [],
     review: { status: 'none', event: null },
     gate: null,
@@ -89,7 +90,7 @@ describe('step.next 顺序', () => {
 
   test('读取声明的输入文档排在一切产出之前', () => {
     expect(actions({
-      documents: { reads: [doc('plan', 'unread')], records: [doc('adr', 'missing')], updates: [] },
+      documents: { mode: 'contract', reads: [doc('plan', 'unread')], records: [doc('adr', 'missing')], updates: [] },
       skills: [skill('brainstorming', 'ready', 0)],
     })).toEqual(['read-documents'])
   })
@@ -179,7 +180,7 @@ describe('step.next 顺序', () => {
     // 输入文档仍先读——决定要基于读过的计划。
     expect(actions({
       fields: [buildMode],
-      documents: { reads: [doc('plan', 'unread')], records: [], updates: [] },
+      documents: { mode: 'contract', reads: [doc('plan', 'unread')], records: [], updates: [] },
     })).toEqual(['read-documents'])
   })
 
@@ -197,7 +198,7 @@ describe('step.next 顺序', () => {
     const shipInput = {
       ownsAppliedSpec: true,
       specApplicationPending: true,
-      documents: { reads: [], records: [doc('applied-spec', 'missing')], updates: [] },
+      documents: { mode: 'contract', reads: [], records: [doc('applied-spec', 'missing')], updates: [] },
       fields: [field('pr_url', { recommended: 'no-remote' })],
       exits: [shipExit],
     }
@@ -207,7 +208,7 @@ describe('step.next 顺序', () => {
     // 勾过一项后 tasks.md 变 stale（要重新登记）：剩下没勾的仍排在 apply-spec 与重新登记之前。
     expect(actions({
       ...shipInput,
-      documents: { reads: [], records: [doc('applied-spec', 'missing')], updates: [doc('tasks', 'stale', ['tenon'])] },
+      documents: { mode: 'contract', reads: [], records: [doc('applied-spec', 'missing')], updates: [doc('tasks', 'stale', ['tenon'])] },
     })).toEqual(['fix'])
     // 勾完之后才是 apply-spec。
     expect(actions({ ...shipInput, exits: [{ ...shipExit, blockers: [], ready: true }] })).toEqual(['apply-spec'])
@@ -216,7 +217,7 @@ describe('step.next 顺序', () => {
   test('tasks.md 自己还没产出（open）：先铺骨架并登记，不先发勾选任务的 fix', () => {
     const tasksBlocker = { source: 'tasks' as const, code: 'tasks-incomplete', message: 'open 出口：要求 tasks.md 存在', items: [] }
     expect(actions({
-      documents: { reads: [], records: [doc('tasks', 'missing', ['openspec-propose'])], updates: [] },
+      documents: { mode: 'contract', reads: [], records: [doc('tasks', 'missing', ['openspec-propose'])], updates: [] },
       exits: [{ event: 'open-complete', to: 'explore', direction: 'forward', ready: false, blockers: [tasksBlocker] }],
     })).toEqual(['scaffold-document', 'record-document'])
   })
@@ -256,7 +257,7 @@ describe('step.next 顺序', () => {
     // 输入文档仍先读。
     expect(actions({
       testConfigGaps: [gap],
-      documents: { reads: [doc('plan', 'unread')], records: [], updates: [] },
+      documents: { mode: 'contract', reads: [doc('plan', 'unread')], records: [], updates: [] },
     })).toEqual(['read-documents'])
   })
 
@@ -271,7 +272,7 @@ describe('step.next 顺序', () => {
       ownsAppliedSpec: true,
       specRehearsalPending: true,
       specApplicationPending: true,
-      documents: { reads: [], records: [doc('applied-spec', 'missing')], updates: [] },
+      documents: { mode: 'contract', reads: [], records: [doc('applied-spec', 'missing')], updates: [] },
     })).toEqual(['apply-spec'])
   })
 
@@ -280,7 +281,7 @@ describe('step.next 顺序', () => {
       ownsAppliedSpec: true,
       specRehearsalPending: false,
       specApplicationPending: true,
-      documents: { reads: [], records: [doc('applied-spec', 'missing')], updates: [] },
+      documents: { mode: 'contract', reads: [], records: [doc('applied-spec', 'missing')], updates: [] },
     })).toEqual(['apply-spec'])
   })
 
@@ -289,13 +290,13 @@ describe('step.next 顺序', () => {
       ownsDeltaSpec: true,
       specRehearsalPending: true,
       specApplicationPending: true,
-      documents: { reads: [], records: [doc('delta-spec', 'missing')], updates: [] },
+      documents: { mode: 'contract', reads: [], records: [doc('delta-spec', 'missing')], updates: [] },
     })).toEqual(['scaffold-document', 'record-document'])
     expect(actions({
       ownsDeltaSpec: true,
       specRehearsalPending: true,
       specApplicationPending: true,
-      documents: { reads: [], records: [doc('delta-spec', 'recorded')], updates: [] },
+      documents: { mode: 'contract', reads: [], records: [doc('delta-spec', 'recorded')], updates: [] },
     })).toEqual(['validate-spec'])
   })
 
@@ -304,14 +305,14 @@ describe('step.next 顺序', () => {
       ownsDeltaSpec: true,
       specRehearsalPending: false,
       specApplicationPending: true,
-      documents: { reads: [], records: [doc('delta-spec', 'recorded')], updates: [] },
+      documents: { mode: 'contract', reads: [], records: [doc('delta-spec', 'recorded')], updates: [] },
       exits: [exit('spec-complete', 'forward', true)],
     })).toEqual(['transition'])
   })
 
   test('已登记的文档过期时重新登记，不再铺骨架', () => {
     expect(actions({
-      documents: { reads: [], records: [], updates: [doc('tasks', 'stale', ['tenon'])] },
+      documents: { mode: 'contract', reads: [], records: [], updates: [doc('tasks', 'stale', ['tenon'])] },
     })).toEqual(['record-document'])
   })
 
@@ -404,7 +405,7 @@ describe('step.next 顺序', () => {
   test('两个 kind 指向同一路径（plan / superpower-plan）时读清单只列一次该路径', () => {
     const shared = { ...doc('superpower-plan', 'unread'), path: 'openspec/changes/demo/plan.md' }
     expect(stepNextActions(input({
-      documents: { reads: [doc('plan', 'unread'), shared, doc('tasks', 'unread')], records: [], updates: [] },
+      documents: { mode: 'contract', reads: [doc('plan', 'unread'), shared, doc('tasks', 'unread')], records: [], updates: [] },
     }))).toEqual([{
       action: 'read-documents',
       documents: ['openspec/changes/demo/plan.md', 'openspec/changes/demo/tasks.md'],
@@ -449,7 +450,7 @@ describe('step.next 顺序', () => {
 
   test('当前步没有合法 producer 的过期输入文档不发无法执行的登记', () => {
     const next = stepNextActions(input({
-      documents: { reads: [doc('plan', 'stale', [])], records: [], updates: [] },
+      documents: { mode: 'contract', reads: [doc('plan', 'stale', [])], records: [], updates: [] },
       exits: [exit('build-complete', 'forward', false)],
     }))
     expect(next[0]?.action).toBe('fix')
@@ -700,7 +701,7 @@ describe('step.next 顺序', () => {
       runArchived: true,
       loaded: false,
       skills: [skill('brainstorming', 'ready', 0)],
-      documents: { reads: [doc('plan', 'missing')], records: [doc('adr', 'missing')], updates: [] },
+      documents: { mode: 'contract', reads: [doc('plan', 'missing')], records: [doc('adr', 'missing')], updates: [] },
       exits: [exit('a', 'forward', true)],
     })).toEqual(['finish-change'])
   })
@@ -751,7 +752,7 @@ describe('交付步的提交', () => {
       .toEqual(['apply-spec'])
     expect(actions({
       fields: [pr], delivery, settle,
-      documents: { reads: [], records: [doc('applied-spec', 'missing', ['tenon'])], updates: [] },
+      documents: { mode: 'contract', reads: [], records: [doc('applied-spec', 'missing', ['tenon'])], updates: [] },
     })).toEqual(['scaffold-document', 'record-document'])
     expect(actions({ fields: [pr, field('verification_report', { writer: 'artifact-register' })], delivery, settle }))
       .toEqual(['register-field'])
@@ -817,5 +818,81 @@ describe('交付步的提交', () => {
   test('心跳已被旧版本跟踪：一起 untrack', () => {
     expect(deliveryCommit('demo', probe({ untrack: ['openspec/changes/demo/.pipeline-terminal-activity.json'] })))
       .toMatchObject({ untrack: ['openspec/changes/demo/.pipeline-terminal-activity.json'] })
+  })
+})
+
+/**
+ * 观察模式（没有旧文档契约的新任务）：文档动作只剩 `read-documents`——输入是直接上游步骤的文档产出；
+ * 不再有骨架、登记与 artifact 字段登记。必须产出没满足时走出口阻断（fix），不另发文档动作。
+ */
+describe('观察模式的 next（文档机制重做）', () => {
+  const handed = (path: string, status: 'read' | 'unread' = 'unread') =>
+    ({ path, from_step: 'explore', skill: 'brainstorming', status })
+  const observed = (over: Partial<Extract<StepDocumentsView, { mode: 'observed' }>> = {}): StepDocumentsView =>
+    ({ ...emptyStepDocuments('observed'), ...over })
+
+  test('read-documents 只列未读输入，不带 editable，说明可改且改动记为本步产出', () => {
+    const documents = observed({ inputs: [
+      handed('docs/superpowers/specs/a.md'), handed('docs/superpowers/specs/b.md', 'read'), handed('openspec/changes/demo/proposal.md'),
+    ] })
+    expect(stepNextActions(input({ documents }))).toEqual([{
+      action: 'read-documents',
+      documents: ['docs/superpowers/specs/a.md', 'openspec/changes/demo/proposal.md'],
+      note: '读进上下文（不要丢弃输出）后再 tenon document read <change> all。这些是直接上游步骤的产出；本步可以修改它们，改动会记为本步产出。',
+    }])
+    expect(stepNextActions(input({ documents }))[0]).not.toHaveProperty('editable')
+  })
+
+  test('排在 load-tenon 之后最先：先于执行者、技能与一切写入', () => {
+    const documents = observed({ inputs: [handed('docs/superpowers/specs/a.md')] })
+    const busy = {
+      documents,
+      executors: [agent('builder', 'executor', 'pending', true)],
+      skills: [skill('brainstorming', 'ready', 0)],
+      fields: [field('pr_url')],
+    }
+    expect(actions({ ...busy, loaded: false })).toEqual(['load-tenon'])
+    expect(actions(busy)).toEqual(['read-documents'])
+  })
+
+  test('输入都读完了就不再发 read-documents，往下走本步的工作', () => {
+    const documents = observed({ inputs: [handed('docs/superpowers/specs/a.md', 'read')] })
+    expect(actions({ documents, skills: [skill('brainstorming', 'ready', 0)] })).toEqual(['load-skill'])
+    expect(actions({ documents })).not.toContain('read-documents')
+  })
+
+  test('没有输入（第一步或上游没写文档）也不发 read-documents', () => {
+    expect(actions({ documents: observed(), skills: [skill('brainstorming', 'ready', 0)] })).toEqual(['load-skill'])
+  })
+
+  test('从不发 scaffold-document / record-document：即使技能已调用、必须产出缺失', () => {
+    const invoked = { id: 'brainstorming', depends_on: [], wave: 0, status: 'invoked' as const, pending_documents: [] }
+    const documents = observed({ required: [{ path: 'docs/superpowers/specs/*.md', status: 'missing' }] })
+    const emitted = actions({ documents, skills: [invoked], exits: [exit('explore-complete', 'forward', false)] })
+    expect(emitted).toEqual(['fix'])
+    expect(emitted).not.toContain('scaffold-document')
+    expect(emitted).not.toContain('record-document')
+    expect(emitted).not.toContain('register-field')
+  })
+
+  test('ship 步负责应用规格时发 apply-spec；spec 步负责 delta spec 且彩排未过时发 validate-spec', () => {
+    expect(actions({ documents: observed(), ownsAppliedSpec: true, specApplicationPending: true })).toEqual(['apply-spec'])
+    expect(actions({ documents: observed(), ownsDeltaSpec: true, specRehearsalPending: true })).toEqual(['validate-spec'])
+  })
+
+  test('规格已应用 / 彩排已过：不重复发', () => {
+    expect(actions({ documents: observed(), ownsAppliedSpec: true, specApplicationPending: false })).not.toContain('apply-spec')
+    expect(actions({ documents: observed(), ownsDeltaSpec: true, specRehearsalPending: false })).not.toContain('validate-spec')
+  })
+
+  test('契约动作的两个来源在观察模式恒为空：骨架 / 登记（含技能欠的文档）一条都不产生', () => {
+    const invoked = { id: 'brainstorming', depends_on: [], wave: 0, status: 'invoked' as const, pending_documents: ['proposal'] }
+    expect(documentWriteActions(observed())).toEqual([])
+    expect(skillDocumentActions([invoked], observed())).toEqual([])
+    expect(observedReadActions(observed())).toEqual([])
+  })
+
+  test('契约模式的文档视图不走观察模式的读取分支', () => {
+    expect(observedReadActions({ mode: 'contract', reads: [doc('plan', 'unread')], records: [], updates: [] })).toEqual([])
   })
 })

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   PROGRESS_STATES,
   changeProgressState,
+  formatReadinessBlocker,
   isDashboardGate,
   missingGateArtifacts,
   schedulerHealth,
@@ -287,6 +288,16 @@ describe('missingGateArtifacts —— 「等 agent 补产出」的欠账清单',
       'verify-build-revision-untrusted reason=revision-stale remediation=return-to-build-and-capture-current-revision',
     ])
     expect(changeProgressState(mixed, DEFAULT_RULES)).toBe('agent')
+  })
+})
+
+describe('formatReadinessBlocker —— 稳定的阻断标识', () => {
+  it('guard-failed：字段优先；必须产出带路径时点名路径；其余退回 guard:<类型>', () => {
+    expect(formatReadinessBlocker({ kind: 'guard-failed', guardType: 'field-nonempty', field: 'pr_url' })).toBe('pr_url')
+    expect(formatReadinessBlocker({ kind: 'guard-failed', guardType: 'required-output', actual: 'missing', path: 'docs/a.md' }))
+      .toBe('guard:required-output:docs/a.md')
+    expect(formatReadinessBlocker({ kind: 'guard-failed', guardType: 'required-output', actual: 'missing' })).toBe('guard:required-output')
+    expect(formatReadinessBlocker({ kind: 'guard-failed', guardType: 'tasks-through-step' })).toBe('guard:tasks-through-step')
   })
 })
 

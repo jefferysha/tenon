@@ -47,11 +47,16 @@ export function deliveryCommit(
 export interface StepFinishFacts {
   /** gitWorkspace.ts probeGitFinish；null = 不是 git 仓或 git 跑不起来。 */
   readonly git: GitFinishProbe | null
-  /** 这次运行以验证通过收尾（verify_result=pass）；scope-expanded 之类的放弃出口不提交。 */
+  /**
+   * 这次运行成功收尾：以验证通过收尾（verify_result=pass），或是没有验证步的设计体系任务走完了最后一步；
+   * scope-expanded 之类的放弃出口不提交。
+   */
   readonly verified: boolean
   /**
    * 这是设计体系任务（design-system 工作流）：`DESIGN.md` 与 `design/` 是它的交付物，随完结提交入库——
    * 否则它们留在工作区，被后续任务的 code-size 算成候选改动（真机验收 F7）。缺省 false。
+   * 现行模板不走 OpenSpec，收尾是整个工作区的提交（设计文件已在 `.` 之内）；这里的专门列出只服务升级前创建、
+   * 冻结计划仍走 OpenSpec 的设计体系任务（它们的收尾只提交 archive/ 与 housekeeping，设计文件要单独点名）。
    */
   readonly designSystem?: boolean
 }

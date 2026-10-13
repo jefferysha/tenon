@@ -35,7 +35,8 @@ import type {
 import type { WorkflowActionAuthoritySnapshotV1 } from '../workflow/action-authority-types.js'
 import { diffWireFieldsToEffects } from './run-metadata.js'
 import type { TransitionRecordStore } from './transition-record-store.js'
-import { defaultOpenSpecScaffoldFiles } from './default-openspec-scaffold.js'
+import { startStepVisit, stepOutputsContextFor } from '../documents/step-outputs.js'
+import { defaultOpenSpecScaffoldFiles, defaultTasksScaffoldFile } from './default-openspec-scaffold.js'
 import { DOCUMENT_LEDGER_FILE, initialDocumentLedgerContent } from './document-ledger.js'
 import { required } from '../required.js'
 import { ensureWorkflowGovernanceBinding } from './workflow-governance-binding.js'
@@ -121,22 +122,28 @@ class FsWorkflowRunRepository implements WorkflowRunRepository {
       }
     }
     const usesOpenSpecScaffold = plan?.capabilities.documents.profile === 'legacy-full'
+    // 带旧文档契约（升级前的快照）：三份骨架 + 文档账本，照旧。
     const governed = (
       usesOpenSpecScaffold
       || opts.initialWorkflow?.documentProfile !== undefined
       || opts.initialWorkflow?.openspecContract === true
       || opts.initialWorkflow?.documentContract === true
     )
+    // 没有契约（新任务）：转换时观察实际产出，不建文档账本；走 OpenSpec 的分支只铺 tasks.md（Todo 来源）。
+    const observed = !governed && plan?.capabilities.documents.mode !== 'contract'
+    const scaffoldArgs = [
+      opts.name,
+      opts.documentLocale ?? 'zh-CN',
+      plan?.workflow.steps.map((step) => ({ id: step.id, label: step.label })),
+      plan?.projection.stepLabelSource,
+    ] as const
     const initialFiles = [
       ...(opts.initialFiles ?? []),
       ...(usesOpenSpecScaffold
-        ? defaultOpenSpecScaffoldFiles(
-          opts.name,
-          opts.documentLocale ?? 'zh-CN',
-          plan.workflow.steps.map((step) => ({ id: step.id, label: step.label })),
-          plan.projection.stepLabelSource,
-        )
-        : []),
+        ? defaultOpenSpecScaffoldFiles(...scaffoldArgs)
+        : observed && plan?.capabilities.documents.governed === true
+          ? [defaultTasksScaffoldFile(...scaffoldArgs)]
+          : []),
       ...(governed
         ? [{
           relativePath: DOCUMENT_LEDGER_FILE,
@@ -166,7 +173,17 @@ class FsWorkflowRunRepository implements WorkflowRunRepository {
     })
     const state = await this.deps.store.read(changeDir)
     // state.runMetadata 在这里必然存在（刚用 runId 创建的），非空断言有 store.init 的实现保证。
-    return { changeDir, run: deriveRun(state.fields, required(state.runMetadata)) }
+    const run = deriveRun(state.fields, required(state.runMetadata))
+    // 观察模式：发布之后在任务锁内写第一次步骤访问的检查点（此时 tasks.md 已在工作区里，不算第一步的产出）。
+    // 采不到检查点（非 git 等）只记没有检查点；账本写失败照实抛出，不装作任务已就绪。
+    if (observed) {
+      await this.deps.store.withLock(changeDir, () => startStepVisit(
+        stepOutputsContextFor(changeDir),
+        { runId: run.id, sequence: run.transitionSequence, step: run.currentStep },
+        this.deps.clock(),
+      ))
+    }
+    return { changeDir, run }
   }
 
   async establishRun(

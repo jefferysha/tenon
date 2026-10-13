@@ -4,8 +4,6 @@ import { fileURLToPath } from 'node:url'
 import {
   DEFAULT_WORKFLOW_SOURCE,
   listAutomationPolicyTemplates,
-  materializeWorkflowIo,
-  selectTrackBranch,
   parseWorkflow,
   validateWorkflowTrackReferences,
   isDefaultWorkflowName,
@@ -267,7 +265,7 @@ export async function handleGet(
         const templateSource = e instanceof WorkflowNotFoundError ? templateWorkflowSource(wfName) : undefined
         if (templateSource !== undefined) {
           const template = parseWorkflow(templateSource)
-          return sendJson(res, 200, { ...template, source: 'builtin', effectiveIo: materializeWorkflowIo(selectTrackBranch(template, undefined)), branches: workflowBranchesForApi(template) })
+          return sendJson(res, 200, { ...template, source: 'builtin', branches: workflowBranchesForApi(template) })
         }
         return sendJson(res, e instanceof WorkflowNotFoundError ? 404 : 500, { ok: false, error: errMsg(e) })
       }
@@ -289,7 +287,7 @@ export async function handleGet(
             errors: checked.errors,
           })
         }
-        return sendJson(res, 200, { ...checked.workflow, source: rootCheck.global ? 'global' : 'project', effectiveIo: materializeWorkflowIo(selectTrackBranch(checked.workflow, undefined)), branches: workflowBranchesForApi(checked.workflow) })
+        return sendJson(res, 200, { ...checked.workflow, source: rootCheck.global ? 'global' : 'project', branches: workflowBranchesForApi(checked.workflow) })
       } catch (e) {
         if (e instanceof WorkflowNotFoundError) return sendJson(res, 404, { ok: false, error: errMsg(e) })
         return sendJson(res, 409, {

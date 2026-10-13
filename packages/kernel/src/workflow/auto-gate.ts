@@ -1,11 +1,15 @@
 /**
- * 门禁只有两种：review（人复核）与 auto（本阶段声明的输出齐全即放行）。`gate: null` 与缺省是 auto 的别名。
+ * 门禁只有两种：review（人复核）与 auto（离开条件全部满足即放行）。`gate: null` 与缺省是 auto 的别名。
  *
  * 编译时把 null 归一成 'auto'，所以新编译的 IR 里不再出现 null。旧的冻结计划照旧带 null 的 IR 与它当时
  * 编进边里的守卫——那份字节就是它们记录的行为（没有输出守卫），读回时不重编译、不改写；隐式完结边也只认
  * IR 里的 gate 值，所以旧计划的完结边同样不会凭空多出守卫。
  *
- * auto 编译成前进出边上的 nonempty-output（展开为逐输出 field-nonempty / output-present），与显式守卫同一条
+ * 文档机制重做后，工作流定义不再声明步骤的 outputs（validate.ts 拒绝非空的 outputs），新编译的 IR 里 outputs 恒为空：
+ * auto 不再推导任何"输出齐全"守卫，自动门禁就是步骤自己写明的离开条件（含 required-output）全部满足。下面的推导只服务
+ * 仍带 outputs 的旧定义（重建旧计划与测试夹具），行为保持原样。
+ *
+ * 旧定义里 auto 编译成前进出边上的 nonempty-output（展开为逐输出 field-nonempty / output-present），与显式守卫同一条
  * 评估链；退回边（verify-fail、requirements-changed、自定义回边）不挂：修问题的路必须一直开着。
  * 已冻结的旧 auto 计划把守卫挂在每条出边上，这是它们记录的行为，同样不改。
  */

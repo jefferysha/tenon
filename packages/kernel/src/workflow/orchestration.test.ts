@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { SkillTable } from '../flow/manifest.js'
 import { DEFAULT_WORKFLOW_SOURCE } from './default-workflow.generated.js'
-import { compileEffectiveWorkflowPlan } from './effective-plan.js'
+import { compileDefaultWorkflow } from './compile.js'
+import { compileEffectiveWorkflowPlan, effectiveWorkflowPlanFromIr } from './effective-plan.js'
 import { createEffectiveSkillResolver } from './effective-skill-resolver.js'
+import { legacyContractDefaultDefinition, legacyContractDefaultPlan } from './test-support.js'
 import { openspecInjectedSkills, orchestrate, type OrchestrationStage } from './orchestration.js'
 import { buildOrchestration, manifestSkillOverlay } from './orchestration-plan.js'
 import { parseWorkflow } from './parse.js'
@@ -57,9 +59,9 @@ describe('buildOrchestration · 技能顺序（R1）', () => {
 })
 
 describe('buildOrchestration · 来源', () => {
-  it('OpenSpec 注入：阶段没声明、文档契约要求登记产物的技能排在声明技能之后', () => {
+  it('OpenSpec 注入（升级前冻结的带契约计划）：阶段没声明、文档契约要求登记产物的技能排在声明技能之后', () => {
     // 内建 default 的每条轨道都自己声明了这些技能；去掉后端立项 / 规格步的声明，看文档契约怎么补。
-    const def = defaultDef()
+    const def = legacyContractDefaultDefinition()
     const backend = def.tracks?.backend
     if (backend === undefined) throw new Error('default 没有 backend 分支')
     const undeclared = {
@@ -69,7 +71,8 @@ describe('buildOrchestration · 来源', () => {
         backend: { ...backend, steps: backend.steps.map((step) => (step.id === 'open' || step.id === 'spec' ? { ...step, skills: [] } : step)) },
       },
     }
-    const plan = compileEffectiveWorkflowPlan('default', undeclared, { track: 'backend' })
+    // 带契约的旧定义已不能走 validateWorkflow（compileEffectiveWorkflowPlan）：直接编译再建计划。
+    const plan = effectiveWorkflowPlanFromIr('default', compileDefaultWorkflow(undeclared), { track: 'backend' })
     const orchestration = buildOrchestration(plan)
     expect(skills(stage(orchestration.stages, 'open'))).toEqual([
       { kind: 'skill', id: 'openspec-propose', label: 'openspec-propose', wave: 0, dependsOn: [], required: true, source: 'openspec' },
@@ -186,8 +189,13 @@ describe('buildOrchestration · 阶段内顺序与流向', () => {
     ])
   })
 
-  it('文档流：产出阶段 → 读取它的阶段，带本阶段的产出技能', () => {
+  it('新 default 的计划没有契约也没有字段输入输出，编排图里没有文档流（设计 §8）', () => {
     const plan = compileEffectiveWorkflowPlan('default', defaultDef(), { track: 'frontend' })
+    expect(buildOrchestration(plan).flows).toEqual([])
+  })
+
+  it('文档流（升级前冻结的带契约计划）：产出阶段 → 读取它的阶段，带本阶段的产出技能', () => {
+    const plan = legacyContractDefaultPlan('frontend')
     const flows = buildOrchestration(plan).flows
     expect(flows.find((flow) => flow.id === 'proposal' && flow.from === 'open')).toEqual({
       slot: 'document', id: 'proposal', from: 'open', producers: ['openspec-propose'],

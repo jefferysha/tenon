@@ -15,14 +15,14 @@ import {
   LedgerContextBundleError,
   type CompiledLedgerContextBundle,
   type CompileLedgerContextBundleWithPortsInput,
-  type LedgerContextBundleErrorDetails,
   type LedgerContextBundleInputSummary,
   type LedgerContextBundlePreview,
   type LedgerContextBundleReasonCode,
 } from './ledger-context-bundle-contract.js'
+import { readBundleSource, resourceLimitError } from './ledger-context-bundle-source.js'
 export * from './ledger-context-bundle-contract.js'
 
-const SAFE_ID = /^[A-Za-z0-9_-]+$/
+export const SAFE_ID = /^[A-Za-z0-9_-]+$/
 
 const DOCUMENT_REASONS: Readonly<Record<DocumentKind, string>> = {
   proposal: '定义目标、范围、非目标与验收信号',
@@ -56,12 +56,12 @@ function materializationMode(kind: DocumentKind): Exclude<ContextBundleMode, 're
   return kind === 'proposal' || kind === 'tasks' || kind === 'delta-spec' ? 'full' : 'summary'
 }
 
-function validRelativePath(path: string): boolean {
+export function validRelativePath(path: string): boolean {
   if (path === '' || path.startsWith('/') || /^[A-Za-z]:/.test(path) || path.includes('\\')) return false
   return !path.split('/').some((part) => part === '' || part === '.' || part === '..')
 }
 
-function invalidRequest(message: string): LedgerContextBundleError {
+export function invalidRequest(message: string): LedgerContextBundleError {
   return new LedgerContextBundleError(
     'CONTEXT_BUNDLE_INVALID_REQUEST',
     message,
@@ -84,25 +84,6 @@ function previewOf(
     documentCount: inputs.length,
     inputs,
   }
-}
-
-function resourceLimitError(
-  metric: NonNullable<LedgerContextBundleErrorDetails['metric']>,
-  limit: number,
-  actual: number,
-  details: Pick<LedgerContextBundleErrorDetails, 'kind' | 'path'> = {},
-): LedgerContextBundleError {
-  return new LedgerContextBundleError(
-    'CONTEXT_BUNDLE_RESOURCE_LIMIT_EXCEEDED',
-    `Context Bundle resource limit exceeded: ${metric}=${actual}, limit=${limit}`,
-    {
-      ...details,
-      metric,
-      limit,
-      actual,
-      repairAction: '减少已登记输入或拆分过大的治理文档后重试',
-    },
-  )
 }
 
 /**
@@ -193,86 +174,14 @@ export async function compileLedgerContextBundleWithPorts(
         if (!validRelativePath(record.path)) {
           throw invalidRequest(`Context Bundle ledger path 非法: ${record.path}`)
         }
-        let text: string | undefined
-        let sourceBytes: number
-        const remainingTotalBytes = limits
-          ? Math.max(0, limits.maxTotalSourceBytes - totalSourceBytes)
-          : undefined
-        const sourceReadLimit = limits && remainingTotalBytes !== undefined
-          ? {
-              maxBytes: Math.min(limits.maxSourceBytesPerDocument, remainingTotalBytes),
-              metric: remainingTotalBytes < limits.maxSourceBytesPerDocument
-                ? 'totalSourceBytes' as const
-                : 'sourceBytesPerDocument' as const,
-              limit: remainingTotalBytes < limits.maxSourceBytesPerDocument
-                ? limits.maxTotalSourceBytes
-                : limits.maxSourceBytesPerDocument,
-              actualOffset: remainingTotalBytes < limits.maxSourceBytesPerDocument
-                ? totalSourceBytes
-                : 0,
-            }
-          : undefined
-        try {
-          const source = await input.sourceReader.read(record.path, sourceReadLimit)
-          text = source.text
-          sourceBytes = source.sourceBytes
-        } catch (error) {
-          if (error instanceof LedgerContextBundleError) {
-            if (error.kind !== undefined) throw error
-            throw new LedgerContextBundleError(error.code, error.message, {
-              cause: error,
-              kind,
-              path: error.path ?? record.path,
-              repairAction: error.repairAction,
-              ...(error.requiredBytes === undefined ? {} : { requiredBytes: error.requiredBytes }),
-              ...(error.availableBytes === undefined ? {} : { availableBytes: error.availableBytes }),
-              ...(error.preview === undefined ? {} : { preview: error.preview }),
-              ...(error.metric === undefined ? {} : { metric: error.metric }),
-              ...(error.limit === undefined ? {} : { limit: error.limit }),
-              ...(error.actual === undefined ? {} : { actual: error.actual }),
-            })
-          }
-          throw new LedgerContextBundleError(
-            'CONTEXT_BUNDLE_DOCUMENT_MISSING',
-            `Context Bundle source reader failed for '${kind}': ${record.path}; ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-            {
-              cause: error,
-              kind,
-              path: record.path,
-              repairAction: `恢复 root 内稳定的非 symlink 普通文件 ${record.path}，并重新 record/read`,
-            },
-          )
-        }
-        if (text === undefined) {
-          throw new LedgerContextBundleError(
-            'CONTEXT_BUNDLE_DOCUMENT_MISSING',
-            `Context Bundle missing document '${kind}': ${record.path}; restore or re-record it`,
-            {
-              kind,
-              path: record.path,
-              repairAction: `恢复 ${record.path}，或重新运行 tenon document record ${input.change} ${kind} ${record.path} --producer <skill>`,
-            },
-          )
-        }
-        if (limits && sourceBytes > limits.maxSourceBytesPerDocument) {
-          throw resourceLimitError(
-            'sourceBytesPerDocument',
-            limits.maxSourceBytesPerDocument,
-            sourceBytes,
-            { kind, path: record.path },
-          )
-        }
+        const { text, sourceBytes } = await readBundleSource(input, record.path, totalSourceBytes, {
+          subject: `'${kind}'`,
+          kind,
+          unreadableRepair: (path) => `恢复 root 内稳定的非 symlink 普通文件 ${path}，并重新 record/read`,
+          missingHint: 'restore or re-record it',
+          missingRepair: (path) => `恢复 ${path}，或重新运行 tenon document record ${input.change} ${kind} ${path} --producer <skill>`,
+        })
         totalSourceBytes += sourceBytes
-        if (limits && totalSourceBytes > limits.maxTotalSourceBytes) {
-          throw resourceLimitError(
-            'totalSourceBytes',
-            limits.maxTotalSourceBytes,
-            totalSourceBytes,
-            { kind, path: record.path },
-          )
-        }
         const actual = input.primitives.sha256(text)
         if (record.sha256 !== undefined && actual !== record.sha256) {
           throw new LedgerContextBundleError(

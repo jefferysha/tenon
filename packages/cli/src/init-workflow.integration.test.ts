@@ -104,8 +104,26 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
     await writeFile(join(wfDir, `${name}.yaml`), yaml, 'utf8')
   }
 
-  test('省略 --workflow：workflow=default、phase=open（零回归，逐字对齐此前行为）', async () => {
+  test('省略 --workflow：workflow=default、phase=open（新任务：不铺 proposal / design，没有文档账本，留 tasks.md 与第一次步骤访问）', async () => {
     expect(await h.run(['init', 'demo', '--track', 'backend', '--preset', 'full'])).toBe(0)
+    const content = await h.read('demo')
+    expect(content).toMatch(/^workflow: default$/m)
+    expect(content).toMatch(/^phase: open$/m)
+    // 没有旧文档契约：治理绑定里没有 legacy-full / document-v1，文档账本不存在，proposal / design 由技能写出而不是预铺。
+    expect(JSON.parse(await h.readIn('demo', '.pipeline-workflow-governance.json')).document_profile).toBeUndefined()
+    await expect(h.readIn('demo', '.pipeline-documents.json')).rejects.toThrow()
+    await expect(h.readIn('demo', 'proposal.md')).rejects.toThrow()
+    await expect(h.readIn('demo', 'design.md')).rejects.toThrow()
+    // 任务清单 tasks.md 仍在；产出账本里已经有第一次步骤访问（open）。
+    expect(await h.readIn('demo', 'tasks.md')).toContain('- [ ]')
+    const ledger = JSON.parse(await h.readIn('demo', '.pipeline-step-outputs.json')) as {
+      visits: { step: string; sequence: number; exit: unknown }[]
+    }
+    expect(ledger.visits).toMatchObject([{ step: 'open', sequence: 0, exit: null }])
+  })
+
+  test('升级前创建的任务（冻结着文档契约）：workflow=default、phase=open、legacy-full 绑定、三份 OpenSpec 骨架照旧', async () => {
+    expect(await h.initLegacyContractDefault('demo', 'backend')).toBe(0)
     const content = await h.read('demo')
     expect(content).toMatch(/^workflow: default$/m)
     expect(content).toMatch(/^phase: open$/m)
@@ -116,13 +134,27 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
     expect(await h.readIn('demo', 'proposal.md')).toContain('# 提案')
     expect(await h.readIn('demo', 'design.md')).toContain('# 设计')
     expect(await h.readIn('demo', 'tasks.md')).toContain('- [ ]')
+    await expect(h.readIn('demo', '.pipeline-step-outputs.json')).rejects.toThrow()
   })
 
-  test('治理文档默认中文，显式 --document-locale en 固定英文且非法值 fail-loud', async () => {
+  test('新任务的治理文档语言：显式 --document-locale en 固定英文（tasks.md 与语言文件）且非法值 fail-loud', async () => {
     expect(await h.run([
-      'init', 'english-docs', '--track', 'backend', '--preset', 'full',
+      'init', 'english-tasks', '--track', 'backend', '--preset', 'full',
       '--document-locale', 'en',
     ])).toBe(0)
+    // 阶段标题取工作流里的步骤标签，任务项是按语言渲染的模板文案。
+    expect(await h.readIn('english-tasks', 'tasks.md')).toContain('- [ ] Break this phase goal into verifiable tasks.')
+    expect(JSON.parse(await h.readIn('english-tasks', '.pipeline-document-locale.json')))
+      .toEqual({ version: 1, locale: 'en' })
+    expect(await h.run([
+      'init', 'bad-locale-observed', '--track', 'backend', '--preset', 'full',
+      '--document-locale', 'fr',
+    ])).toBe(1)
+    await expect(h.readIn('bad-locale-observed', 'tasks.md')).rejects.toThrow()
+  })
+
+  test('治理文档默认中文，显式 --document-locale en 固定英文且非法值 fail-loud（契约模式：scaffold 的三份文档）', async () => {
+    expect(await h.initLegacyContractDefault('english-docs', 'backend', 'full', { documentLocale: 'en' })).toBe(0)
     expect(await h.readIn('english-docs', 'proposal.md')).toContain('# Proposal')
     expect(JSON.parse(await h.readIn('english-docs', '.pipeline-document-locale.json')))
       .toEqual({ version: 1, locale: 'en' })
@@ -162,7 +194,7 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
   })
 
   test('document scaffold 只补 contract 声明的缺失结构，不伪造 document record', async () => {
-    expect(await h.run(['init', 'scaffold-docs', '--track', 'frontend', '--preset', 'full'])).toBe(0)
+    expect(await h.initLegacyContractDefault('scaffold-docs', 'frontend')).toBe(0)
     expect(await h.run([
       'document', 'scaffold', 'scaffold-docs', 'verification-report',
     ])).toBe(0)
@@ -180,7 +212,7 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
     const outside = `${h.cwd}-outside`
     await mkdir(outside, { recursive: true })
     try {
-      expect(await h.run(['init', 'safe-docs', '--track', 'frontend', '--preset', 'full'])).toBe(0)
+      expect(await h.initLegacyContractDefault('safe-docs', 'frontend')).toBe(0)
       await mkdir(join(h.cwd, 'docs'), { recursive: true })
       await symlink(outside, join(h.cwd, 'docs', 'superpowers'))
       expect(await h.run([
@@ -198,7 +230,7 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
     const outside = `${h.cwd}-change-outside`
     await mkdir(outside, { recursive: true })
     try {
-      expect(await h.run(['init', 'safe-root', '--track', 'frontend', '--preset', 'full'])).toBe(0)
+      expect(await h.initLegacyContractDefault('safe-root', 'frontend')).toBe(0)
       await rename(
         join(h.cwd, 'openspec', 'changes', 'safe-root'),
         join(h.cwd, 'openspec', 'changes', 'safe-root-real'),
@@ -236,7 +268,7 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
   })
 
   test('delta spec scaffold 要求真实 capability，不把 Change 名当 capability', async () => {
-    expect(await h.run(['init', 'capability-docs', '--track', 'backend', '--preset', 'full'])).toBe(0)
+    expect(await h.initLegacyContractDefault('capability-docs', 'backend')).toBe(0)
     expect(await h.run([
       'document', 'scaffold', 'capability-docs', 'delta-spec',
     ])).toBe(1)
@@ -342,14 +374,10 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
     expect(await h.run(['internal-skill-gate', 'flat-custom', 'anything'])).toBe(0)
   })
 
+  // `document_contract` 已不能再写进新的 workflow 定义（校验直接拒绝，见 design.integration.test.ts）；
+  // 升级前创建的任务冻结着它：下面几条用不经校验的快照立项，其后命令只认冻结的契约。
   test('三步 workflow 可执行声明式 document contract，不继承七阶段文档矩阵', async () => {
-    await seedWorkflow('compact-governed', THREE_STEP_GOVERNED_WF)
-    expect(
-      await h.run([
-        'init', 'compact-run', '--preset', 'full',
-        '--workflow', 'compact-governed',
-      ]),
-    ).toBe(0)
+    expect(await h.initLegacyWorkflow('compact-run', THREE_STEP_GOVERNED_WF)).toBe(0)
     expect((await h.read('compact-run'))).toMatch(/^phase: shape$/m)
     expect(JSON.parse(await h.readIn('compact-run', '.pipeline-workflow-governance.json')))
       .toMatchObject({ document_profile: 'document-v1' })
@@ -412,11 +440,7 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
   })
 
   test('document-v1 初始化绑定完整快照，后续删除 contract 仍按原 contract 治理', async () => {
-    await seedWorkflow('compact-governed', THREE_STEP_GOVERNED_WF)
-    const initCode = await h.run([
-      'init', 'bound-docs', '--preset', 'full',
-      '--workflow', 'compact-governed',
-    ])
+    const initCode = await h.initLegacyWorkflow('bound-docs', THREE_STEP_GOVERNED_WF)
     expect(initCode, h.err.join('\n')).toBe(0)
     expect(JSON.parse(
       await h.readIn('bound-docs', '.pipeline-workflow-governance.json'),
@@ -431,15 +455,19 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
     expect(h.out.join('\n')).toContain('workflow=compact-governed')
   })
 
-  test('openspec: true 的自定义 workflow（无契约）建 ledger；仍写 openspec_contract 的 YAML 按 E1 拒绝', async () => {
+  test('openspec: true 的自定义 workflow（无契约）：不建文档账本，留 tasks.md 与步骤产出账本；仍写 openspec_contract 的 YAML 按 E1 拒绝', async () => {
     await seedWorkflow('bare-governed', TWO_STEP_WF.replace(/^name: \S+\n/, 'name: bare-governed\nopenspec: true\n'))
     expect(await h.run(['init', 'bare', '--preset', 'full', '--workflow', 'bare-governed']), h.err.join('\n')).toBe(0)
-    expect(JSON.parse(await h.readIn('bare', '.pipeline-documents.json'))).toMatchObject({ records: [] })
+    // 走 OpenSpec 与有没有文档契约无关：openspec: true 只决定 tasks.md 与规格校验 / 应用 / 归档，文档由离开步骤时的观察记录。
+    await expect(h.readIn('bare', '.pipeline-documents.json')).rejects.toThrow()
+    expect(await h.readIn('bare', 'tasks.md')).toContain('- [ ]')
+    expect(JSON.parse(await h.readIn('bare', '.pipeline-step-outputs.json')).visits).toMatchObject([{ step: 'intake', exit: null }])
     expect(await h.run(['document', 'status', 'bare'])).toBe(0)
 
     await seedWorkflow('old-contract', TWO_STEP_WF.replace(/^name: \S+\n/, 'name: old-contract\nopenspec_contract: required\n'))
     expect(await h.run(['init', 'old', '--preset', 'full', '--workflow', 'old-contract'])).toBe(1)
-    expect(h.err.join('\n')).toContain('openspec_contract 已移除——改为 openspec: true 并声明 document_contract')
+    expect(h.err.join('\n')).toContain('openspec_contract 已移除——改为顶层 openspec: true，或在分支（tracks.<id>）下写 spec: openspec')
+    expect(h.err.join('\n')).not.toContain('document_contract')
     await expect(h.read('old')).rejects.toThrow()
   })
 

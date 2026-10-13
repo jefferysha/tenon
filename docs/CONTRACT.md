@@ -334,12 +334,32 @@ get/set/transition 的 stdout 与 exit code 以 **golden-oracle 双跑逐字一�
 > 绝不写盘；`pipeline workflow plan <change> --json` 是 Agent、CLI 与 Dashboard 读取同一冻结计划的
 > 公共入口。
 >
-> 2026-09-16（workflow-io-openspec）：文档治理只有一个开关 `openspec: true`，`openspec_contract`
+> 2026-09-16（workflow-io-openspec；2026-10-13 起只适用于冻结了旧文档契约的任务，见下一条）：文档治理只有一个开关 `openspec: true`，`openspec_contract`
 > 已移除。契约写在它引用的 `steps` 旁边：单流程写顶层 `document_contract`，有 `tracks` 时逐分支写
 > `tracks.<id>.document_contract`；slot 的 `role` 只有 `produce | update | require`，scope 与路径由
 > kind 决定（`design-md` → `DESIGN.md`）。未声明契约的 Workflow 是自由模式。`document_contract` 缺少
 > `openspec: true`、owner/read 引用不存在或读取发生在 owner 之前均在 parse/compile/validate 阶段失败。
 > CLI、server 与 dashboard 投影消费同一编译结果，不按 workflow 名猜测文档策略。
+
+> 2026-10-13（rework-document-mechanism）：新任务不再有预先规定的文档契约。工作流定义拒绝
+> `document_contract` 与非空的步骤 `inputs` / `outputs` / `artifacts`（空列表照收、序列化不再写出），也拒绝依赖
+> `outputs` 的 `nonempty-output` 守卫；报错点名替代写法。文档条件只剩按路径的 `required-output` 守卫
+> （`{ type: required-output, path: <模式> }`，可写在步骤或边的 `guards` 上，支持 `when`；模式是项目相对 POSIX
+> 路径，支持 `{change}`、`*`、`**`、`?`，拒绝空串、绝对路径、`..`、反斜杠与其他占位符）。Tenon 在离开步骤时
+> （转换锁内、所有门禁通过之后、提交之前）把工作区与进入步骤时的 git 检查点比较，把本步新增、修改、删除的文件与
+> 来源技能（hook 记录的技能加载时间与文件修改时间的尽力标注，对不上记「未知」）记入
+> `openspec/changes/<change>/.pipeline-step-outputs.json`（`.pipeline-` 前缀的 Tenon 状态，只经 Tenon 命令写）。
+> 非 git 目录或 git 失败时该次访问记 `observation: unavailable`，不记产出也不阻断转换。下一步只拿到直接上游那次
+> 访问新增或修改、且仍存在的文档（`.md` / `.mdx` / `.markdown`）；`tenon document read <change> all|<path>` 写
+> 读取回执（摘要等于上游记下的或文件当前的即算读过）；离开除放弃边外的任何边都要求输入读完，否则阻断
+> `source: document`、`code: input-unread`、`subject: <path>`，转换退出码 `1`。必须产出不满足时是步骤守卫失败，转换
+> 退出码 `2`，`step.next` 走 `fix`。`capabilities.documents.mode` 是唯一分流点：`observed`（冻结计划没有旧文档契约）
+> 走上述机制；`contract`（冻结计划带旧文档契约）仍走文档账本 `.pipeline-documents.json`、按 kind 的读取与
+> `scaffold-document` / `record-document` / `register-field` 动作，行为不变；`governed` 只表示走 OpenSpec 生命周期。
+> 观察模式下 `tenon document scaffold|record|init|migrate-delta` 退出码 `2`、`tenon artifact register` 退出码 `1`。
+> `gate: auto` 不再由 `outputs` 推导输出齐全守卫，自动门禁就是离开条件全部满足。观察、交接、读取回执与必须产出
+> 不认识任何规范格式（OpenSpec、Spec Kit 一视同仁）。工作流 API 不再返回 `effectiveIo`，任务编排接口
+> （`GET /api/change/:name/orchestration`）的 `io` 换成 `stepIo`。
 
 > 2026-07-24（PM Spec 后 AFK）：内建 PM track 在 `spec-complete` 成功提交后会按独立的
 > `auto_enqueue_on_spec_complete` 策略将 automation 从 `off` 原子置为 `queued`，并记录入队时间；不启动
@@ -467,10 +487,11 @@ most 64 characters, and a manifest contains at most 256 fixtures.
 ### 3.5 轨道、路由、评估与任务结束
 
 - **轨道只是工作流的分支**：轨道的身份是「工作流 + 轨道 id」（工作流 YAML 的 `tracks.<id>`），只此一种；没有 `tracks:` 的平铺
-  工作流是只有一条隐式轨道的工作流，`tenon init` 不带 `--track`。分支键是闭集：`label`、`document_contract`、`steps`、
+  工作流是只有一条隐式轨道的工作流，`tenon init` 不带 `--track`。分支键是闭集：`label`、`steps`、
   `spec`（`openspec` | `none`；缺省继承顶层 `openspec`，`openspec: true` 视为 `spec: openspec`，旧文件的工作流指纹在不出现新键时
   不变）、`route`（`keywords`、`exclude`、`priority`、`fallback`；不写表示不参与自动路由，只能点名）、`automation`（`eligible`、
-  `enqueue_after_spec`；缺省两者皆关）。未知键与非法值一律失败关闭。内建轨道登记表与 `.pipeline/tracks.yaml` 不再读取（文件在
+  `enqueue_after_spec`；缺省两者皆关）。未知键与非法值一律失败关闭；`document_contract` 不再是分支键（校验报错并给出
+  `required-output` 替代写法，解析器仍读它只为表示冻结快照）。内建轨道登记表与 `.pipeline/tracks.yaml` 不再读取（文件在
   时只打印一行提示）。内建工作流只有 `default`（`lite` / `pm` / `frontend` / `backend`）与平铺的 `design-system`；`standard`、
   `simple` 工作流与 `chat`、`free` 轨道已删除。`tenon tracks list|show` 只读列出全部可用工作流（项目 → 全局存储 → 插件模板）的分支。
 - **路由缓存 `router.v6`**（`.pipeline/cache/router.v6.data`，kernel 编码的有界纯数据，至多 64 条路由行，bash 只读、从不 source /
@@ -589,7 +610,7 @@ most 64 characters, and a manifest contains at most 256 fixtures.
    已经容忍的方式增**；旧读取器若是 exact-keys，就一个字段都不能加，新事实应当放到旧读取器
    根本不看的地方（如内容字节本身）。改 version 等于断代，必须当作破坏性变更单独设计升级路径。
 
-12. **必需技能 = 调用 + 本步绑定的产物（2026-09-23）**：step 的 document 契约（`document_contract`
+12. **必需技能 = 调用 + 本步绑定的产物（2026-09-23；2026-10-13 起只适用于冻结了旧文档契约的任务）**：step 的 document 契约（`document_contract`
    的 role produce 槽）点名为 producer 的必需技能，要在**本次步骤访问**里由它（按别名等价）登记了
    该槽的文档才算完成；只有调用回执不算（第三轮真机验收里五条空 PostToolUse 就把五个技能刷成了
    done）。本步没有产出槽点名它的技能仍以调用为准——没有可以绑定的产物。「本次访问」按文档记录的
@@ -600,6 +621,9 @@ most 64 characters, and a manifest contains at most 256 fixtures.
    （新增 `invoked` = 已调用、欠 `pending_documents`）、`exits[].blockers` 与 `next` 都读它；
    `next` 对 `invoked` 的技能下发它欠的 `scaffold-document` / `record-document`（带 `skill`），
    不再发 `load-skill`。不加交互门：headless `claude -p` 没有 AskUserQuestion。
+   新任务（`capabilities.documents.mode` 为 `observed`）没有文档契约，也就没有可以绑定的产物：必需技能以本次
+   步骤访问里的调用回执为准，不产生 `invoked` 状态与 `pending_documents`；步骤产出的来源技能（见 §3 的
+   2026-10-13 说明）只是尽力而为的标注，不进任何门禁。
 
 13. **测试体系接入流程（2026-09-29）**：`tenon status --json` 的 `step.next` 读 kernel 的策略判定
    （`TestEvidenceReport.policy`，与 `tenon check`、transition、工作台同一份）下发测试动作，顺序固定为

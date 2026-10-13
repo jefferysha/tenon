@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { compileWorkflow } from './compile.js'
 import { parseWorkflow } from './parse.js'
 import { serializeWorkflow } from './serialize.js'
-import type { WorkflowDef } from './types.js'
+import type { StepDef, TrackBranchDef, WorkflowDef } from './types.js'
 
 const MINIMAL: WorkflowDef = {
   name: 'onboarding',
@@ -29,15 +29,18 @@ const RICH: WorkflowDef = {
         { id: 'c', depends_on: ['a', 'b'] },
       ],
       inputs: [],
-      outputs: [{ field: 'design_doc', type: 'file_path' }],
-      guards: [{ type: 'tasks-at-least', n: 3 }, { type: 'nonempty-output' }],
+      outputs: [],
+      guards: [
+        { type: 'tasks-at-least', n: 3 },
+        { type: 'required-output', path: 'docs/superpowers/specs/*.md' },
+      ],
       transitions: [
         { event: 'pass', to: 's2' },
         { event: 'fail', to: 's1' },
       ],
     },
     {
-      id: 's2', label: '', gate: null, skills: [], inputs: [{ field: 'design_doc', type: 'file_path' }],
+      id: 's2', label: '', gate: null, skills: [], inputs: [],
       outputs: [], guards: [], transitions: [],
     },
   ],
@@ -58,53 +61,95 @@ describe('serializeWorkflow —— parse 的反向操作，往返等价是唯一
     expect(parseWorkflow(yaml)).toEqual(wf)
   })
 
-  it('openspec + 顶层文档契约：字节稳定往返；produce 不写 role，require 不写 producers；openspec 只在 true 时写', () => {
-    const yaml = [
-      'name: governed',
-      'openspec: true',
-      'document_contract:',
-      '  version: v1',
-      '  slots:',
-      '    - kind: tasks',
-      '      owner_step: intake',
-      '      producers: [openspec-propose]',
-      '    - kind: tasks',
-      '      owner_step: done',
-      '      role: update',
-      '      producers: [openspec-propose]',
-      '    - kind: design-md',
-      '      owner_step: done',
-      '      role: require',
-      '  reads:',
-      '    - step: done',
-      '      kinds: [tasks]',
-      'steps:',
-      ...serializeWorkflow(MINIMAL).split('\n').slice(2),
-    ].join('\n')
-    const parsed = parseWorkflow(yaml)
-    expect(serializeWorkflow(parsed)).toBe(yaml)
+  it('openspec 只在 true 时写；不再写出 document_contract（旧定义里的顶层契约写出后消失）', () => {
+    const contract = {
+      version: 'v1' as const,
+      slots: [{ kind: 'tasks', ownerStep: 'intake', producers: ['openspec-propose'] }],
+      reads: [{ step: 'done', kinds: ['tasks'] }],
+    }
+    const yaml = serializeWorkflow({ ...MINIMAL, openspec: true, documentContract: contract })
+    expect(yaml).toContain('openspec: true')
+    expect(yaml).not.toContain('document_contract')
+    expect(yaml).toBe(serializeWorkflow({ ...MINIMAL, openspec: true }))
+    expect(parseWorkflow(yaml).documentContract).toBeUndefined()
     expect(serializeWorkflow({ ...MINIMAL, openspec: false })).not.toContain('openspec')
   })
 
-  it('分支文档契约写在 label 与 steps 之间，字节稳定往返', () => {
-    const branchSteps = serializeWorkflow(MINIMAL).split('\n').slice(2).map((line) => (line === '' ? line : `    ${line}`))
+  it('分支的 documentContract 同样不再写出，分支其余键序不变', () => {
+    const contract = {
+      version: 'v1' as const,
+      slots: [{ kind: 'proposal', ownerStep: 'intake', producers: ['openspec-propose'] }],
+      reads: [],
+    }
+    const withContract = serializeWorkflow({
+      name: 'branched', openspec: true, steps: [],
+      tracks: { web: { label: '前端', documentContract: contract, steps: MINIMAL.steps } },
+    })
+    expect(withContract).not.toContain('document_contract')
+    expect(withContract).toBe(serializeWorkflow({
+      name: 'branched', openspec: true, steps: [],
+      tracks: { web: { label: '前端', steps: MINIMAL.steps } },
+    }))
+    expect(parseWorkflow(withContract).tracks?.web?.documentContract).toBeUndefined()
+  })
+
+  it('required-output round-trip：path 写成 `path:`，不写 inputs / outputs / artifacts', () => {
     const yaml = [
-      'name: branched',
-      'openspec: true',
-      'tracks:',
-      '  web:',
-      '    label: 前端',
-      '    document_contract:',
-      '      version: v1',
-      '      slots:',
-      '        - kind: proposal',
-      '          owner_step: intake',
-      '          producers: [openspec-propose]',
-      '      reads: []',
-      '    steps:',
-      ...branchSteps,
+      'name: demo',
+      'steps:',
+      '  - id: write',
+      '    label: 写',
+      '    gate: null',
+      '    skills: []',
+      '    guards:',
+      '      - type: required-output',
+      '        path: docs/superpowers/specs/*.md',
+      '    transitions: []',
     ].join('\n')
-    expect(serializeWorkflow(parseWorkflow(yaml))).toBe(yaml)
+    const def = parseWorkflow(yaml)
+    expect(def.steps[0]?.guards).toEqual([{ type: 'required-output', path: 'docs/superpowers/specs/*.md' }])
+    expect(parseWorkflow(serializeWorkflow(def))).toEqual(def)
+    expect(serializeWorkflow(def)).toContain('      - type: required-output\n        path: docs/superpowers/specs/*.md\n')
+    expect(serializeWorkflow(def)).not.toMatch(/^\s*(inputs|outputs|artifacts):/mu)
+  })
+
+  it('required-output 带 when、写在边上、path 含空格与 {change} 占位 → 往返保真', () => {
+    const wf: WorkflowDef = {
+      name: 'edge',
+      steps: [
+        {
+          id: 'verify', label: '', gate: 'review', skills: [], inputs: [], outputs: [],
+          guards: [{ type: 'required-output', path: 'docs/my notes/*.md', when: { kind: 'track-in', values: ['backend'] } }],
+          transitions: [{
+            event: 'verify-pass', to: 'done',
+            guards: [{ type: 'required-output', path: 'docs/superpowers/reports/{change}-verify.md' }],
+          }],
+        },
+        { id: 'done', label: '', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] },
+      ],
+    }
+    expect(parseWorkflow(serializeWorkflow(wf))).toEqual(wf)
+  })
+
+  it('inputs / outputs / artifacts 不再写出：旧定义序列化后这些键消失，读回为空输入输出且无 artifacts', () => {
+    const legacy: WorkflowDef = {
+      name: 'legacy',
+      steps: [
+        {
+          id: 'a', label: '', gate: null, skills: [],
+          inputs: [{ field: 'design_doc', type: 'file_path' }],
+          outputs: [{ field: 'plan', type: 'file_path' }],
+          artifacts: [{ field: 'plan', type: 'file_path', producerPolicy: 'effective-step-skills' }],
+          guards: [], transitions: [],
+        },
+        { id: 'b', label: '', gate: null, skills: [], inputs: [], outputs: [], artifacts: [], guards: [], transitions: [] },
+      ],
+    }
+    const yaml = serializeWorkflow(legacy)
+    expect(yaml).not.toMatch(/^\s*(inputs|outputs|artifacts|document_contract):/mu)
+    const round = parseWorkflow(yaml)
+    expect(round.steps.map((step) => [step.inputs, step.outputs])).toEqual([[[], []], [[], []]])
+    expect(round.steps.map((step) => Object.hasOwn(step, 'artifacts'))).toEqual([false, false])
   })
 
   it('MINIMAL：serialize→parse 深度等于原始 WorkflowDef', () => {
@@ -112,7 +157,7 @@ describe('serializeWorkflow —— parse 的反向操作，往返等价是唯一
     expect(round).toEqual(MINIMAL)
   })
 
-  it('RICH（多 skill+depends_on+多 guard+多 transition+非空 label/gate/inputs/outputs）：往返等价', () => {
+  it('RICH（多 skill+depends_on+多 guard（含 required-output）+多 transition+非空 label/gate）：往返等价', () => {
     const round = parseWorkflow(serializeWorkflow(RICH))
     expect(round).toEqual(RICH)
   })
@@ -132,8 +177,27 @@ describe('serializeWorkflow —— parse 的反向操作，往返等价是唯一
     const repoRoot = dirname(dirname(dirname(dirname(__dirname))))
     const defaultYamlPath = join(repoRoot, 'templates', 'workflows', 'default.yaml')
     const original = parseWorkflow(await readFile(defaultYamlPath, 'utf8'))
+    // 序列化不再写出 inputs / outputs / artifacts / document_contract：模板改写前（Task 4）它们还在，往返后消失，
+    // 所以先把这四项从期望里去掉，其余（技能、守卫、转换、分支策略……）必须逐项等价；模板改写后这一步是空操作。
+    const stripLegacyKeys = (step: StepDef): StepDef => {
+      const { artifacts: _artifacts, ...rest } = step
+      return { ...rest, inputs: [], outputs: [] }
+    }
+    const stripBranch = (branch: TrackBranchDef): TrackBranchDef => {
+      const { documentContract: _contract, ...rest } = branch
+      return { ...rest, steps: branch.steps.map(stripLegacyKeys) }
+    }
+    const { documentContract: _contract, ...withoutContract } = original
+    const expected: WorkflowDef = {
+      ...withoutContract,
+      steps: original.steps.map(stripLegacyKeys),
+      ...(original.tracks === undefined
+        ? {}
+        : { tracks: Object.fromEntries(Object.entries(original.tracks).map(([id, branch]) => [id, stripBranch(branch)])) }),
+    }
     const roundTripped = parseWorkflow(serializeWorkflow(original))
-    expect(roundTripped).toEqual(original)
+    expect(roundTripped).toEqual(expected)
+    expect(parseWorkflow(serializeWorkflow(roundTripped))).toEqual(roundTripped)
   })
 
   it('skill.depends_on 存在但为空数组（[]）与缺省（undefined）是两种合法且不同的状态：往返必须保留 depends_on: []，不能被静默丢弃', () => {
@@ -222,44 +286,6 @@ describe('serializeWorkflow —— parse 的反向操作，往返等价是唯一
     }
   })
 
-  // ── G2 P4：显式 artifacts 块（field/type/producer_policy + 可选 required_when）确定性往返 ──
-  it('显式 artifacts（含 required_when，两种 producer policy）→ serialize→parse 深度往返等价', () => {
-    const wf: WorkflowDef = {
-      name: 'p4art',
-      steps: [
-        {
-          id: 'spec', label: '规格', gate: 'review', skills: [], inputs: [],
-          outputs: [{ field: 'plan', type: 'file_path' }],
-          artifacts: [
-            { field: 'plan', type: 'file_path', producerPolicy: 'effective-phase-skills', requiredWhen: { kind: 'track-not-in', values: ['pm'] } },
-          ],
-          guards: [], transitions: [{ event: 'done', to: 'explore' }],
-        },
-        {
-          id: 'explore', label: '', gate: null, skills: [], inputs: [],
-          outputs: [{ field: 'design_doc', type: 'file_path' }],
-          artifacts: [{ field: 'design_doc', type: 'file_path', producerPolicy: 'effective-step-skills' }],
-          guards: [], transitions: [],
-        },
-      ],
-    }
-    expect(parseWorkflow(serializeWorkflow(wf))).toEqual(wf)
-  })
-
-  it('artifacts: [] 与缺省 undefined 两态往返保真（空块写 `artifacts: []`，缺省不写该键）', () => {
-    const wf: WorkflowDef = {
-      name: 'p4empty',
-      steps: [
-        { id: 'a', label: '', gate: null, skills: [], inputs: [], outputs: [], artifacts: [], guards: [], transitions: [{ event: 'e', to: 'b' }] },
-        { id: 'b', label: '', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] },
-      ],
-    }
-    const round = parseWorkflow(serializeWorkflow(wf))
-    expect(round).toEqual(wf)
-    expect(round.steps[0]!.artifacts).toEqual([])
-    expect(Object.prototype.hasOwnProperty.call(round.steps[1]!, 'artifacts')).toBe(false)
-  })
-
   it('分支工作流的测试项：块式往返、键序固定、tests: [] 与缺省两态保真', () => {
     const wf: WorkflowDef = {
       name: 'tested',
@@ -269,7 +295,7 @@ describe('serializeWorkflow —— parse 的反向操作，往返等价是唯一
           steps: [
             {
               id: 'build', label: '实现', gate: 'auto', skills: [], inputs: [],
-              outputs: [{ field: 'build_notes', type: 'string' }],
+              outputs: [],
               tests: [
                 {
                   id: 'unit', direction: 'unit', command: 'npm test', cwd: 'frontend', label: '单测',

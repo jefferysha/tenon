@@ -147,7 +147,7 @@ describe('已结束 category', () => {
 describe('opening an ended task', () => {
   const DETAIL = (name: string): string => JSON.stringify({ ...makeChange(name, 'build', { track: 'lite', fields: { task_result: 'terminated' } }) })
   const entry = (kind: string, id: string, wave: number, extra: Record<string, unknown> = {}) => ({ kind, id, label: id, wave, dependsOn: [], required: true, source: 'declared', status: 'done', ...extra })
-  /** `GET /api/change/:dir/orchestration?archived=1`：冻结计划的编排 + 运行状态 + 冻结 IO。 */
+  /** `GET /api/change/:dir/orchestration?archived=1`：冻结计划的编排 + 运行状态 + 每步真实的输入与输出（stepIo，路径已改到归档位置）。 */
   const ORCHESTRATION = (name: string): string => JSON.stringify({
     change: name,
     workflow: 'default',
@@ -156,10 +156,11 @@ describe('opening an ended task', () => {
     stages: [{ id: 'build', label: 'build', gate: 'review', entries: [entry('skill', 'tenon-build', 0), entry('test', 'unit', 1), entry('reviewer', 'security', 2)] }],
     returns: [],
     flows: [],
-    io: {
+    stepIo: {
       build: {
-        inputs: [{ kind: 'field', id: 'plan', type: 'file_path', producer: null, consumers: [] }],
-        outputs: [{ kind: 'field', id: 'build_sha', type: 'string', producer: null, consumers: [] }],
+        inputs: [{ path: `openspec/changes/archive/${name}/plan.md`, skill: 'writing-plans', fromStep: 'spec', read: true }],
+        outputs: [{ path: 'src/retired.ts', change: 'modified', skill: null }],
+        required: [],
       },
     },
   })
@@ -207,9 +208,10 @@ describe('opening an ended task', () => {
     fireEvent.click(screen.getByTestId('task-status-ended'))
     const canvas = await screen.findByTestId('orchestration-stage')
     expect(within(canvas).getByTestId('orch-node-skill-tenon-build')).toHaveAttribute('data-status', 'done')
-    // 输入 / 输出来自冻结计划的 IO。
+    // 输入 / 输出是这个任务当时真实发生的产出；已结束的任务照样显示。
     expect(screen.getByTestId('task-io-tab-inputs')).toHaveTextContent('1')
-    expect(within(screen.getByTestId('task-io-tab-outputs')).getByText('0/1')).toBeInTheDocument()
+    expect(screen.getByTestId('task-io-tab-outputs')).toHaveTextContent('1')
+    expect(within(screen.getByTestId('stage-outputs')).getByTestId('stage-output-src/retired.ts')).toHaveTextContent('修改')
     // 记录：创建与阶段转换，带操作人。
     const records = await screen.findByTestId('task-records')
     expect([...records.querySelectorAll('li')].map((item) => item.getAttribute('data-kind'))).toEqual(['init', 'transition'])

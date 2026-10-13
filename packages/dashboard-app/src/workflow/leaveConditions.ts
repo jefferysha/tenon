@@ -26,6 +26,7 @@ function conditionOf(guard: WbGuardConfig): LeaveCondition {
         ? { key: `${base}.review-passed` }
         : { key: `${base}.field-equals`, vars: { field: guard.field, value: guard.value } }
     case 'field-in': return { key: `${base}.field-in`, vars: { field: guard.field, values: guard.values.join(', ') } }
+    case 'required-output': return { key: `${base}.required-output`, vars: { path: guard.path } }
     case 'nonempty-output':
     case 'full-direct-override':
     case 'build-head-unchanged':

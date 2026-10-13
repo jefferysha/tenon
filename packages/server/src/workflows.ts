@@ -6,7 +6,7 @@ import {
   constants, fstatSync, fsyncSync, lstatSync, openSync,
   readSync, readdirSync, renameSync, unlinkSync, writeFileSync,
 } from 'node:fs'
-import { isDefaultWorkflowName, parseWorkflow, serializeWorkflow, validateWorkflowForStorage, validateWorkflowTrackReferences, materializeWorkflowIo, selectTrackBranch } from '@tenon/kernel'
+import { isDefaultWorkflowName, parseWorkflow, serializeWorkflow, validateWorkflowForStorage, validateWorkflowTrackReferences } from '@tenon/kernel'
 import type { WorkflowDef } from '@tenon/kernel'
 import {
   assertEntryMatches,
@@ -125,18 +125,15 @@ export function listWorkflowNames(root: WorkflowRoot): string[] {
 
 /** 从 O_NOFOLLOW 打开的普通文件 fd 读字节，再 parse + validate；不调用会重走 pathname 的 loadWorkflow。 */
 /**
- * GET /api/workflows/:name 的分支视图：通用分支（键 `_base`）与每条 track 分支各自的物化 IO。
- * 分支是完整 pipeline，IO 单独物化（不与通用分支叠加）。
+ * GET /api/workflows/:name 的分支视图：通用分支（键 `_base`）与每条 track 分支各自的标签。
+ * 定义不再物化每步的输入输出——步骤产出是任务运行时观察到的，在任务的编排接口（stepIo）里。
  */
-export function workflowBranchesForApi(def: WorkflowDef): Record<string, { label?: string; effectiveIo: ReturnType<typeof materializeWorkflowIo> }> {
+export function workflowBranchesForApi(def: WorkflowDef): Record<string, { label?: string }> {
   // steps ⊕ tracks：无 tracks 的工作流只有 `_base` 这一条 pipeline；有 tracks 时只有各 track 分支。
-  const out: Record<string, { label?: string; effectiveIo: ReturnType<typeof materializeWorkflowIo> }> = {}
-  if (Object.keys(def.tracks ?? {}).length === 0) out._base = { effectiveIo: materializeWorkflowIo(selectTrackBranch(def, undefined)) }
+  const out: Record<string, { label?: string }> = {}
+  if (Object.keys(def.tracks ?? {}).length === 0) out._base = {}
   for (const [track, branch] of Object.entries(def.tracks ?? {})) {
-    out[track] = {
-      ...(branch.label === undefined ? {} : { label: branch.label }),
-      effectiveIo: materializeWorkflowIo(selectTrackBranch(def, track)),
-    }
+    out[track] = branch.label === undefined ? {} : { label: branch.label }
   }
   return out
 }

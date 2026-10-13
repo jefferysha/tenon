@@ -368,7 +368,8 @@ export function createWorkflowRunCreateIfAbsentRepository(
           ...planBinding,
           workflowPlanSnapshot: workflowPlanSnapshot(plan),
           openspecContract: plan.capabilities.documents.profile === 'legacy-full',
-          documentContract: plan.capabilities.documents.governed,
+          // 带旧文档契约才建文档账本；`governed` 只表示走 OpenSpec 生命周期（新任务没有契约，观察模式）。
+          documentContract: plan.capabilities.documents.mode === 'contract',
         },
       }
       let created: { changeDir: string; run: WorkflowRun } | undefined

@@ -27,7 +27,7 @@ async function openTests(page: Page): Promise<void> {
 test.describe('英文界面 · 名称不翻译', () => {
   test('工作台：任务卡状态与阶段轨显示存下来的阶段名', async ({ page, server }) => {
     await openView(page, 'workspace', { root: server.project, change: 'add-login', step: 'verify' })
-    await expect(page.getByTestId('task-card-add-login')).toContainText('立项 · 5 blocked')
+    await expect(page.getByTestId('task-card-add-login')).toContainText('立项 · 3 blocked')
     const rail = page.getByTestId('stage-rail')
     for (const [id, label] of [['open', '立项'], ['explore', '调研'], ['spec', '规格'], ['build', '实现'], ['verify', '验证'], ['ship', '交付'], ['archive', '完结']] as const) {
       await expect(rail.getByTestId(`stage-rail-${id}`)).toHaveText(label)

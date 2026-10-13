@@ -1,10 +1,10 @@
 import { compileDefaultWorkflow, compileWorkflow } from './compile.js'
 import { workflowBranches, type WorkflowBranch } from './branches.js'
 import { compileBranchPolicy } from './compile-track-branch.js'
-import { validateDefaultWorkflowStructure, validateDocumentContract } from './document-contract.js'
+import { validateDefaultWorkflowStructure } from './document-contract.js'
 import { isDefaultWorkflowName, isValidWorkflowName } from './identifier.js'
 import { WorkflowTrackBranchError } from './track-branch-error.js'
-import type { WorkflowDef } from './types.js'
+import type { StepDef, WorkflowDef } from './types.js'
 export { WorkflowTrackBranchError } from './track-branch-error.js'
 export { workflowBranches, type WorkflowBranch } from './branches.js'
 
@@ -55,9 +55,25 @@ function branchDefinition(wf: WorkflowDef, branch: WorkflowBranch): WorkflowDef 
   }
 }
 
-function withoutDocumentContract(wf: WorkflowDef): WorkflowDef {
-  const { documentContract: _documentContract, ...rest } = wf
-  return rest
+// 文档机制重做：下面这些旧键从新定义里删除（解析器仍把它们读进 IR，给冻结快照与夹具表示旧定义，冻结快照恢复不走本校验）。
+// 报错带替代写法；空的 inputs / outputs / artifacts 照收（Dashboard 以前保存的文件都带它们），序列化不再写出。
+const REQUIRED_OUTPUT_HINT = '需要门禁时写 { type: required-output, path: <路径> }'
+const DOCUMENT_CONTRACT_REMOVED = `document_contract 已删除：步骤的文档产出由 Tenon 在离开步骤时自动记录；${REQUIRED_OUTPUT_HINT}`
+
+/** 一个步骤上不再允许的旧键（非空的 inputs / outputs / artifacts，以及依赖 outputs 的 nonempty-output 守卫）。 */
+function removedStepKeyErrors(step: StepDef): string[] {
+  const at = `steps.${step.id}`
+  const nonemptyOutput = '里的 nonempty-output 依赖已删除的 outputs：改用 field-nonempty 或 required-output'
+  return [
+    ...(step.inputs.length === 0 ? [] : [`${at}.inputs 已删除：下一步要读的文档由 Tenon 按直接上游的真实产出自动交接，不再手写输入`]),
+    ...(step.outputs.length === 0 ? [] : [`${at}.outputs 已删除：字段门禁写 field-nonempty / field-equals，文档门禁写 required-output`]),
+    ...((step.artifacts ?? []).length === 0 ? [] : [`${at}.artifacts 已删除：文档产出由 Tenon 在离开步骤时自动记录；${REQUIRED_OUTPUT_HINT}`]),
+    ...(step.guards.some((guard) => guard.type === 'nonempty-output') ? [`${at}.guards ${nonemptyOutput}`] : []),
+    ...step.transitions.flatMap((transition, index) =>
+      (transition.guards ?? []).some((guard) => guard.type === 'nonempty-output')
+        ? [`${at}.transitions[${index}].guards ${nonemptyOutput}`]
+        : []),
+  ]
 }
 
 /** 分支自己声明的 spec / route / automation 的值域错误（隐式分支没有这三个键）。 */
@@ -97,9 +113,9 @@ export function validateWorkflow(
   if (Object.keys(wf.tracks ?? {}).length > 0 && wf.steps.length > 0) {
     errors.push('有 tracks 时不得再声明顶层 steps（每条轨道各写自己的阶段）')
   }
-  if (Object.keys(wf.tracks ?? {}).length > 0 && wf.documentContract !== undefined) {
-    errors.push('有 tracks 时 document_contract 写在 tracks.<id> 下')
-  }
+  // 顶层契约（平铺工作流的唯一契约，或有 tracks 时误写在顶层的）与各分支自己的契约一律被拒；
+  // 平铺工作流的隐式分支读的就是顶层契约，不重复报。
+  if (wf.documentContract !== undefined) errors.push(DOCUMENT_CONTRACT_REMOVED)
   for (const branch of workflowBranches(wf)) {
     const prefix = branch.implicit ? '' : `tracks.${branch.track}: `
     if (!branch.implicit && !/^[a-z][a-z0-9_-]{0,31}$/.test(branch.track)) {
@@ -107,12 +123,8 @@ export function validateWorkflow(
     }
     if (!branch.implicit && branch.steps.length === 0) errors.push(`${prefix}分支至少要有一个阶段`)
     errors.push(...branchPolicyErrors(wf, branch))
-    // 显式 `spec: none` 与文档契约互斥：只报这一条，不再叠加「契约需要 openspec」。
-    const declaredNone = !branch.implicit && wf.tracks?.[branch.track]?.spec === 'none'
-    const exclusive = declaredNone && branch.documentContract !== undefined
-    if (exclusive) errors.push(`${prefix}spec: none 的分支不能声明 document_contract`)
-    const lifted = branchDefinition(wf, branch)
-    errors.push(...validateBranchSteps(exclusive ? withoutDocumentContract(lifted) : lifted, options).map((error) => `${prefix}${error}`))
+    if (!branch.implicit && branch.documentContract !== undefined) errors.push(`${prefix}${DOCUMENT_CONTRACT_REMOVED}`)
+    errors.push(...validateBranchSteps(branchDefinition(wf, branch), options).map((error) => `${prefix}${error}`))
   }
   return errors
 }
@@ -122,7 +134,6 @@ function validateBranchSteps(
   options: { readonly origin?: 'custom' | 'default' },
 ): string[] {
   const errors: string[] = []
-  const producedByEarlierStep = new Set<string>()
   const allStepIds = new Set(wf.steps.map((s) => s.id))
   // 测试 id 在整条分支内唯一：`tenon test run <change> <id>` 只给 id，跨步骤重名就无从定位。
   const testOwner = new Map<string, string>()
@@ -136,11 +147,7 @@ function validateBranchSteps(
         errors.push(`step '${step.id}' 的 skill id '${skill.id}' 含非法字符（仅允许 a-zA-Z0-9_- 及命名空间冒号，如 superpowers:brainstorming）`)
       }
     }
-    for (const ref of [...step.inputs, ...step.outputs]) {
-      if (!IDENT_RE.test(ref.field)) {
-        errors.push(`step '${step.id}' 的字段 '${ref.field}' 含非法字符（仅允许 a-zA-Z0-9_-）`)
-      }
-    }
+    errors.push(...removedStepKeyErrors(step))
     for (const test of step.tests ?? []) {
       const owner = testOwner.get(test.id)
       if (owner !== undefined) {
@@ -194,13 +201,6 @@ function validateBranchSteps(
     }
     errors.push(...detectCycle(skillIds, dependsOn).map((e) => `step '${step.id}': ${e}`))
 
-    for (const input of step.inputs) {
-      if (!producedByEarlierStep.has(input.field)) {
-        errors.push(`step '${step.id}' 的 inputs 字段 '${input.field}' 不对应任何更早 step 的 outputs`)
-      }
-    }
-    for (const output of step.outputs) producedByEarlierStep.add(output.field)
-
     // 每条 transition 的 to 必须指向同一 workflow 里真实存在的 step id——否则
     // tenon transition 在真运行时才会发现走不到，属于本该在保存时就拦下的错误。
     for (const t of step.transitions) {
@@ -232,8 +232,6 @@ function validateBranchSteps(
       if (!reachable.has(step.id)) errors.push(`step '${step.id}' 从首 step '${entryStep.id}' 不可达`)
     }
   }
-
-  errors.push(...validateDocumentContract(wf, options))
 
   // 深校验（G2 P2）：复用 compileWorkflow 做新 guard/action 变体 + FIELD_ORDER 字段闭集 + 列表
   // 字段互斥 + artifact 形状的结构校验——不在本文件再抄一份闭集判定，避免与编译器漂移。

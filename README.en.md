@@ -38,8 +38,8 @@ refuses invalid transitions instead of reconstructing progress from prose.
 | --- | --- | --- | --- |
 | Discussion | Questions, explanation, system notices, slash commands | No Change | No governed documents |
 | Lightweight (`lite` Track of `default`) | Edits whose assessed scope stays within the lightweight limits | `open → build ⇄ verify → done`, or `escalated` when it outgrows them | No OpenSpec document chain |
-| Product / frontend / backend (heavy Tracks of `default`) | Product research, features, architecture, auth, migrations, dependencies, and other larger work | `open → explore → spec ⇄ build ⇄ verify → ship → archive` | Full default evidence chain |
-| Custom Workflow | A project-specific declarative process | Exactly its authored graph | Only its declared document contract; no contract means no document governance |
+| Product / frontend / backend (heavy Tracks of `default`) | Product research, features, architecture, auth, migrations, dependencies, and other larger work | `open → explore → spec ⇄ build ⇄ verify → ship → archive` | Actual outputs and source Skills recorded when each step is left; the gate checks `required-output` paths |
+| Custom Workflow | A project-specific declarative process | Exactly its authored graph | Actual outputs and source Skills recorded when each step is left; only the `required-output` it declares is checked |
 
 Weight is not guessed from keywords. Before a Change is created, `tenon assess
 --files` evaluates the files the work is expected to touch: more than 8 files, or
@@ -172,19 +172,20 @@ open → explore → spec ⇄ build ⇄ verify → ship → archive
                        changed
 ```
 
-The default workflow governs:
+Each step's Skill writes files as its own `SKILL.md` says; initializing state alone
+does not generate meaningful content. When a step is left, Tenon records the files
+the step added, modified, and deleted, with their source Skill. The next step receives
+only the documents its direct upstream produced and must read them
+(`tenon document read`) before it can be left.
 
-- Open: proposal, OpenSpec design, and tasks
-- Explore: Superpowers design and ADR
-- Spec: delta specification and implementation plans
-- Verify: verification report
-- Ship: applied specification
+The gate keeps only the path-based required output (`required-output`):
 
-Later phases record current read receipts for the documents they consume.
-Documents are authored by the active agent through the Skills each step requires;
-initializing state alone does not generate meaningful content. The ledger binds
-each governed file to its digest, producer evidence, Change, phase visit, and
-later reads.
+- Open: `openspec/changes/{change}/proposal.md`
+- Explore: `docs/superpowers/specs/*.md`
+- Spec: `openspec/changes/{change}/specs/*/spec.md`; the frontend and backend Tracks also need `docs/superpowers/plans/*.md`
+- Verify (`verify-pass`): `docs/superpowers/reports/{change}-verify.md`
+
+Changes created before the upgrade keep their frozen rules.
 
 Review exits are bound to an exact transition event:
 
