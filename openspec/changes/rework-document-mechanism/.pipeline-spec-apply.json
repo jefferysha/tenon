@@ -1,7 +1,7 @@
 {
   "schema": "tenon-spec-apply-v1",
   "change": "rework-document-mechanism",
-  "mode": "dry-run",
+  "mode": "apply",
   "result": "pass",
   "openspec_version": "1.6.0",
   "deltas": [
@@ -10,20 +10,8 @@
       "sha256": "ee878dcf86383f9ebda2ad14c11a29b18ee79a99ad2c4318a897333bd31fc0bf"
     },
     {
-      "path": "openspec/changes/rework-document-mechanism/specs/declarative-document-governance/spec.md",
-      "sha256": "79d23df8f338b70b89243c673c0b43ebafa0f0f4202661bf526ca8edc396de1e"
-    },
-    {
-      "path": "openspec/changes/rework-document-mechanism/specs/document-evidence-contract/spec.md",
-      "sha256": "54f1a4839f8c9aca60f4c257ef60dbb974aa7638339071f32ccbdab3e341f293"
-    },
-    {
       "path": "openspec/changes/rework-document-mechanism/specs/workflow-definition/spec.md",
       "sha256": "2d9d62a868700dc4d132f4baf39877fdd42edaf372816ff848254b94f815c71e"
-    },
-    {
-      "path": "openspec/changes/rework-document-mechanism/specs/document-evidence-timeline/spec.md",
-      "sha256": "f469e3f340155090fd72b60bb1108cf42f985f7a888d0f2e4019e5bcaa60b3a0"
     },
     {
       "path": "openspec/changes/rework-document-mechanism/specs/workflow-tracks/spec.md",
@@ -36,6 +24,18 @@
     {
       "path": "openspec/changes/rework-document-mechanism/specs/context-bundle-handoff/spec.md",
       "sha256": "5e2dac87efcc6a7188d9b28dece22f212df6b3497955cdf9359d4e3d9a95fe61"
+    },
+    {
+      "path": "openspec/changes/rework-document-mechanism/specs/declarative-document-governance/spec.md",
+      "sha256": "79d23df8f338b70b89243c673c0b43ebafa0f0f4202661bf526ca8edc396de1e"
+    },
+    {
+      "path": "openspec/changes/rework-document-mechanism/specs/document-evidence-contract/spec.md",
+      "sha256": "54f1a4839f8c9aca60f4c257ef60dbb974aa7638339071f32ccbdab3e341f293"
+    },
+    {
+      "path": "openspec/changes/rework-document-mechanism/specs/document-evidence-timeline/spec.md",
+      "sha256": "f469e3f340155090fd72b60bb1108cf42f985f7a888d0f2e4019e5bcaa60b3a0"
     }
   ],
   "targets": [
@@ -322,5 +322,5 @@
       "change": "no-op"
     }
   ],
-  "at": "2026-10-12T01:47:00Z"
+  "at": "2026-10-13T09:01:39Z"
 }

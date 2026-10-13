@@ -185,26 +185,6 @@
     },
     {
       "subjectRef": {
-        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:676954505afabd82a240156cda152667",
-        "namespace": "change-rework-document-mechanism-252c10516b79",
-        "version": "sha256:9d07bcfd9c57ad91c688161a99e1ce2feb755fc9c5edadf32a534928cbfe62af",
-        "projection": "document",
-        "content_digest": "sha256:9d07bcfd9c57ad91c688161a99e1ce2feb755fc9c5edadf32a534928cbfe62af",
-        "source": {
-          "path": "tasks.md",
-          "document_kind": "tasks"
-        }
-      },
-      "logicalKey": "document:tasks",
-      "projection": "document",
-      "path": "tasks.md",
-      "documentKind": "tasks",
-      "status": "committed",
-      "receiptId": "submission:change-rework-document-mechanism-252c10516b79:document:9fd98c78c1d6b051ab64938608074984",
-      "recordedAt": "2026-10-13T01:12:36Z"
-    },
-    {
-      "subjectRef": {
         "subject_id": "subject:change-rework-document-mechanism-252c10516b79:6bacae482b715cc25168d71a4a56a4e7",
         "namespace": "change-rework-document-mechanism-252c10516b79",
         "version": "sha256:064969b6d28e85d9c1113eed43838437115078d9f9d01176a22b71955c95ae17",
@@ -243,6 +223,46 @@
       "status": "committed",
       "receiptId": "submission:change-rework-document-mechanism-252c10516b79:document:81e88e6e6b98d0cfeff42ce5ca67d3cd",
       "recordedAt": "2026-10-13T04:14:25Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:b71498efe9a47a0e63760e32e859ed39",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:aae755be3a4bc367e38db1d5c56e14daa2e698f5f9ad64acf8f157af9c0681ae",
+        "projection": "document",
+        "content_digest": "sha256:aae755be3a4bc367e38db1d5c56e14daa2e698f5f9ad64acf8f157af9c0681ae",
+        "source": {
+          "path": "applied-spec.md",
+          "document_kind": "applied-spec"
+        }
+      },
+      "logicalKey": "document:applied-spec",
+      "projection": "document",
+      "path": "applied-spec.md",
+      "documentKind": "applied-spec",
+      "status": "committed",
+      "receiptId": "submission:change-rework-document-mechanism-252c10516b79:document:acf25d032273140b286226dcc01aa056",
+      "recordedAt": "2026-10-13T09:01:51Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:676954505afabd82a240156cda152667",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:46f277ed06f7d5736951cf2bde9229c1b78408c2c77c4475c3dcc933ed65b4e3",
+        "projection": "document",
+        "content_digest": "sha256:46f277ed06f7d5736951cf2bde9229c1b78408c2c77c4475c3dcc933ed65b4e3",
+        "source": {
+          "path": "tasks.md",
+          "document_kind": "tasks"
+        }
+      },
+      "logicalKey": "document:tasks",
+      "projection": "document",
+      "path": "tasks.md",
+      "documentKind": "tasks",
+      "status": "committed",
+      "receiptId": "submission:change-rework-document-mechanism-252c10516b79:document:9fd98c78c1d6b051ab64938608074984",
+      "recordedAt": "2026-10-13T09:01:51Z"
     }
   ]
 }
