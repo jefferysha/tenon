@@ -47653,23 +47653,28 @@ async function rejectOnStepGates(input2) {
 }
 
 // packages/kernel/dist/workflow/transition-rounds-gate.js
-async function rejectOnRoundsExhausted(input2) {
+async function backEdgeRounds(input2) {
   const { deps, plan, from, event } = input2;
   if (deps.roundsOf === void 0 || isAbandonEvent(event))
-    return void 0;
+    return { kind: "not-limited" };
   if (isForwardExit(plan, from, input2.to, event) || !isRoundsLimited(plan, from))
-    return void 0;
+    return { kind: "not-limited" };
   const rounds = await deps.roundsOf({ changeDir: input2.changeDir, plan, state: input2.state, stepId: from });
-  if (rounds === null || !roundsExhausted(rounds))
-    return void 0;
+  if (rounds === null)
+    return { kind: "not-limited" };
+  if (!roundsExhausted(rounds))
+    return { kind: "within-budget" };
   return {
-    kind: "rounds-exhausted",
-    workflowName: input2.workflowName,
-    stepId: from,
-    event,
-    current: rounds.current,
-    max: rounds.max,
-    source: rounds.source
+    kind: "exhausted",
+    rejection: {
+      kind: "rounds-exhausted",
+      workflowName: input2.workflowName,
+      stepId: from,
+      event,
+      current: rounds.current,
+      max: rounds.max,
+      source: rounds.source
+    }
   };
 }
 
@@ -47753,7 +47758,7 @@ function createTransitionApplication(deps) {
         });
         if (isRejection(prepared))
           return prepared;
-        const exhausted = await rejectOnRoundsExhausted({
+        const backEdge = await backEdgeRounds({
           deps,
           changeDir: command2.changeDir,
           workflowName,
@@ -47763,8 +47768,9 @@ function createTransitionApplication(deps) {
           to: prepared.to,
           event: command2.event
         });
-        if (exhausted !== void 0)
-          return exhausted;
+        if (backEdge.kind === "exhausted")
+          return backEdge.rejection;
+        const requiresReviewApproval = prepared.requiresReviewApproval && backEdge.kind !== "within-budget";
         const gated = await rejectOnStepGates({
           deps,
           changeDir: command2.changeDir,
@@ -47836,7 +47842,7 @@ function createTransitionApplication(deps) {
           return testRejection;
         const receiptApproved = reviewGateApprovedFor(tx.state, prepared.from, command2.event);
         let bindingApproved = false;
-        if (prepared.requiresReviewApproval && receiptApproved) {
+        if (requiresReviewApproval && receiptApproved) {
           bindingApproved = await deps.reviewGateBinding({
             changeDir: command2.changeDir,
             state: tx.state,
@@ -47844,7 +47850,7 @@ function createTransitionApplication(deps) {
             event: command2.event
           });
         }
-        if (prepared.requiresReviewApproval && !bindingApproved) {
+        if (requiresReviewApproval && !bindingApproved) {
           const pendingEvent = reviewGatePendingFor(tx.state, prepared.from) ? reviewGateEvent(tx.state) : "";
           return {
             kind: "review-approval-required",
@@ -47902,6 +47908,11 @@ function createTransitionApplication(deps) {
               cause: error2
             });
           }
+        }
+        try {
+          await clearReviewMarkerOfChange(command2.root, command2.changeName);
+        } catch (error2) {
+          warnings.push({ kind: "projection-write-failed", projection: "review-marker", cause: error2 });
         }
         if (prepared.governedDocumentContract) {
           const breadcrumbTail = await applyBreadcrumbTail(deps.breadcrumb, { changeDir: command2.changeDir, name: command2.changeName, to: prepared.to });
@@ -70897,15 +70908,21 @@ function hasFailedReviewer(exit) {
 function requiredEvidenceFailed(input2) {
   return input2.tests.some((test) => test.required && test.status === "failed") || input2.reviewers.some((view2) => view2.required && view2.status === "fail");
 }
+function roundsRemain(rounds) {
+  return rounds !== void 0 && rounds !== null && !roundsExhausted(rounds);
+}
 function gatedBackActions(input2, back) {
   const choose = { action: "choose-exit", exits: back.map((exit) => exit.event) };
   if (input2.gate !== "review") return [choose];
+  const only = back.length === 1 ? back[0] : void 0;
+  if (only !== void 0 && !isAbandonEvent(only.event) && roundsRemain(input2.rounds)) {
+    return [{ action: "transition", event: only.event }];
+  }
   const bound = back.find((exit) => exit.event === input2.review.event);
   if (bound !== void 0) {
     if (input2.review.status === "pending") return [{ action: "await-review", event: bound.event }];
     if (input2.review.status === "approved") return [{ action: "transition", event: bound.event }];
   }
-  const only = back.length === 1 ? back[0] : void 0;
   return only === void 0 ? [choose] : [{ action: "request-review", event: only.event }];
 }
 function strandedBlocker(change, waiver) {
@@ -70944,6 +70961,9 @@ function exitActions(input2, flow) {
   if (input2.gate === "review") {
     if (review.status === "pending") {
       const pendingExit = input2.exits.find((candidate2) => candidate2.event === review.event);
+      if (pendingExit?.direction === "back" && !isAbandonEvent(pendingExit.event) && roundsRemain(input2.rounds)) {
+        return [{ action: "transition", event: pendingExit.event }];
+      }
       if (flow?.refreshRequest === true && review.event !== null && pendingExit?.direction !== "back") {
         return [requestReviewAction(review.event, flow.waivers.map((waiver) => waiver.subject), offer)];
       }
@@ -73223,6 +73243,9 @@ async function cmdTransition(deps, name2, event) {
                   break;
                 case "interaction":
                   deps.io.err(`WARN: ${w.code} interaction projection \u5199\u5165\u5931\u8D25\uFF08canonical \u5DF2\u63D0\u4EA4\uFF09: ${errMsg(w.cause)}`);
+                  break;
+                case "review-marker":
+                  deps.io.err(`WARN: \u8BC4\u5BA1\u5F85\u5904\u7406\u6807\u8BB0\u6E05\u9664\u5931\u8D25\uFF08\u8F6C\u6362\u5DF2\u63D0\u4EA4\uFF0C\u6807\u8BB0\u4F1A\u5728 30 \u5206\u949F\u540E\u5931\u6548\uFF09: ${errMsg(w.cause)}`);
                   break;
               }
               break;

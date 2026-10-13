@@ -194,6 +194,9 @@ describe('step.next 里的测试体系动作', () => {
       ],
     }])
     const exits = [exit('verify-pass', 'forward', [{ source: 'test', code: 'test-evidence', message: 'x' }]), exit('verify-fail', 'back')]
+    // 轮次未用完：回退不需要评审回执，直接转换；宿主没给轮次时失败关闭，仍先请求评审。
+    expect(next({ testFlow: failed, gate: 'review', exits, rounds: { current: 1, max: 2, source: 'workflow' } }))
+      .toEqual([{ action: 'transition', event: 'verify-fail' }])
     expect(next({ testFlow: failed, gate: 'review', exits })).toEqual([{ action: 'request-review', event: 'verify-fail' }])
     // 没有回退边、或不是评审门：仍是 fix。
     expect(names({ testFlow: failed, gate: 'review', exits: [exits[0] as StepExit] })).toEqual(['fix'])

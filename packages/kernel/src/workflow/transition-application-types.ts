@@ -96,7 +96,7 @@ export type TransitionApplicationWarning =
   | { readonly kind: 'build-sha-missing' }
   | {
       readonly kind: 'projection-write-failed'
-      readonly projection: 'state-yaml' | 'breadcrumb' | 'history'
+      readonly projection: 'state-yaml' | 'breadcrumb' | 'history' | 'review-marker'
       readonly cause: unknown
     }
   | {

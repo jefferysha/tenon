@@ -531,6 +531,21 @@ pipeline_dashboard_open_port_ok() { # $1=segment → 0 unless a `--port` value i
   return 0
 }
 
+# 恰好 `tenon transition <change> <event>`（两个位置参数，只含 [A-Za-z0-9_-]）：给 is_review_control_command 用。
+pipeline_transition_command_ok() { # $1=segment → 0 = exactly `tenon transition <change> <event>`
+  local rest="${1#tenon transition }" change event
+  # 只认 [A-Za-z0-9_-] 与分隔用的空格：引号、$、展开、制表符都进不来。
+  case "$rest" in ''|*[!A-Za-z0-9_\ -]*) return 1 ;; esac
+  change="${rest%% *}"
+  event="${rest#* }"
+  [ -n "$change" ] && [ "$change" != "$rest" ] && [ -n "$event" ] || return 1
+  case "$event" in *' '*) return 1 ;; esac
+  # 两个参数都是位置参数，不是选项。
+  case "$change" in -*) return 1 ;; esac
+  case "$event" in -*) return 1 ;; esac
+  return 0
+}
+
 # While a review is pending an agent may still run `tenon review request` and the delegated
 # `tenon review acknowledge --delegated` (continuous authority; it approves no test waiver).  A manual
 # acknowledgement is the user's: the hook writes it on a spoken approval phrase, or the user confirms in the
@@ -575,6 +590,12 @@ is_review_control_command() { # $1=decoded command
       tenon\ dashboard\ --open|tenon\ dashboard\ --open\ --port\ [0-9]*|tenon\ dashboard\ --port\ [0-9]*\ --open)
         pipeline_dashboard_open_port_ok "$segment" || return 1
         found=0 ;;
+      # 评审待确认期间回退（前进评审待确认时用户要求回去改）要能执行：transition 由 CLI 判定——CLI 照旧拒绝没有已批准
+      # 回执的前进边与轮次用完后的回退边，这里只放行 `tenon transition <change> <event>` 这一种精确形态，不顺带放行别的写。
+      # 只在评审标记下进到这里（确认 / 交互标记不走 is_review_control_command），那两种标记下 transition 照拦。
+      tenon\ transition\ *)
+        pipeline_transition_command_ok "$segment" || return 1
+        found=0 ;;
       # A leading `cd <dir>` only positions the acknowledgement; it writes nothing and agents
       # routinely pin the project root that way.
       cd\ *) ;;
@@ -586,35 +607,25 @@ is_review_control_command() { # $1=decoded command
 
 # Strict ActionEffect tracer bullet.  This is intentionally an allowlist rather than a
 # denylist: pending interaction may not turn an unknown tool or shell expression into a write.
-# Shell metacharacters are rejected before command matching; quoted metacharacters may therefore
-# produce a conservative false negative (blocked read), never a false positive write.
-pipeline_command_is_strict_read_only() { # $1=decoded command
-  local command="${1:-}"
-  [ -n "$command" ] || return 1
-  pipeline_command_has_shell_metachars "$command" && return 1
-  while [ "${command# }" != "$command" ]; do command="${command# }"; done
-  while [ "${command#	}" != "$command" ]; do command="${command#	}"; done
-
-  case "$command" in
-    pwd|pwd\ *|ls|ls\ *|rg\ *|grep\ *|head\ *|tail\ *|wc\ *|cat\ *|stat\ *|file\ *|realpath\ *|\
-    test\ *|'['\ *|command\ -v\ *)
-      return 0 ;;
-    sed\ -n\ *|sed\ --quiet\ *|sed\ --silent\ *)
-      return 0 ;;
-    find\ *)
-      case "$command" in
-        *" -delete"*|*" -exec"*|*" -execdir"*|*" -ok"*|*" -okdir"*|*" -fprint"*|*" -fls"*)
-          return 1 ;;
-      esac
-      return 0 ;;
-    git\ status|git\ status\ *|git\ diff|git\ diff\ *|git\ log|git\ log\ *|git\ show|git\ show\ *|\
-    git\ rev-parse\ *|git\ branch\ --show-current|git\ worktree\ list|git\ worktree\ list\ *)
-      return 0 ;;
-    tenon\ list|tenon\ list\ *|tenon\ status\ *|tenon\ get\ *|tenon\ inbox|\
-    tenon\ inbox\ *|tenon\ document\ status\ *)
-      return 0 ;;
-  esac
-  return 1
+# The shell-command half lives in hooks/lib/read-only-command.sh (pipeline_command_is_read_only): it splits
+# a command on the unquoted `|` `||` `&&` `;` and accepts it only when every segment is `cd` or a strictly
+# read-only command; any redirection, substitution, background job, unclosed quote or over-long input is
+# refused, so a quoted metacharacter may produce a conservative false negative (blocked read), never a
+# false positive write.  `pipeline_command_has_shell_metachars` above is NOT used here any more — the
+# review-control allowlist is its only caller.
+# Needed only when a pending marker is about to block a command-type tool, so the library is loaded on first
+# use (same directory as json-input.sh).  A missing library is an install defect: fail closed — nothing
+# counts as a read-only shell command (read-only tools such as Read/Glob/Grep are unaffected).
+READ_ONLY_LIB_LOADED=0
+pipeline_load_read_only_lib() {
+  [ "$READ_ONLY_LIB_LOADED" = 1 ] && return 0
+  READ_ONLY_LIB_LOADED=1
+  if [ -r "${JSON_INPUT_HELPER%/*}/lib/read-only-command.sh" ]; then
+    # shellcheck source=lib/read-only-command.sh
+    . "${JSON_INPUT_HELPER%/*}/lib/read-only-command.sh"
+  else
+    pipeline_command_is_read_only() { return 1; }
+  fi
 }
 
 pipeline_tool_is_read_only() { # $1=tool name
@@ -625,7 +636,8 @@ pipeline_tool_is_read_only() { # $1=tool name
   esac
   pipeline_json_is_command_tool "$tool" || return 1
   command="$(json_command_short || true)"
-  pipeline_command_is_strict_read_only "$command"
+  pipeline_load_read_only_lib
+  pipeline_command_is_read_only "$command"
 }
 
 # 单个标记：它拦本次调用 → exit 2；不拦（陈旧、不归本会话、放行形态）→ return 0。
@@ -669,14 +681,28 @@ gate_check_marker() { # $1=kind $2=marker path
     case "$TOOL" in
       AskUserQuestion|request_user_input|ToolSearch) return 0 ;;
     esac
-    # 读取不会扩大权限，也不清 marker。允许它能让 Agent 在等待决定时继续核对事实，
-    # 同时 state transition、外部副作用和任何未知动作仍 fail closed。
-    pipeline_tool_is_read_only "$TOOL" && return 0
+    # 评审标记下触达本机 Dashboard 控制面的动作（自审批候选）排在只读放行之前：只读组合放宽之后，
+    # 嵌在组合里的控制面访问（`grep … 127.0.0.1:18765 | head`）也不能借「每段都只读」溜过去。
+    # 只读判定本身不掺自审批判定，两件事保持分离。
     if [ "$kind" = "review" ] && [ -n "$SELF_APPROVAL_CANDIDATE" ]; then
       printf '【Tenon 门】pending review 期间禁止访问本机 Dashboard 控制面（%s 已被拦截）：人工确认只能由用户本人在浏览器里完成，会话也只能由用户建立。需要打开页面时运行 tenon dashboard --open（由 server 替用户打开已登录的浏览器）；该行为已记录为安全信号。\n' "$TOOL" >&2
       exit 2
     fi
-    printf '【Tenon 门】检测到待处理交互标记 %s（%s 已被拦截）：请先把当前决策/产出交用户确认：调用 AskUserQuestion 提问（Claude Code 中它若尚未加载，先用 ToolSearch 查询 \"select:AskUserQuestion\" 载入；Codex 用 request_user_input），该交互完成后解封；等待期间 Read/Grep/Glob 等只读工具不受拦截。没有提问工具时，用户回复「确认继续」「继续执行」「同意继续」，或简短同意「继续」「可以」「同意」「好的」「按推荐」「按你的推荐」即解封（后者表示采纳推荐项）；拒绝（「不可以」「不同意」）、带条件（「继续，但……」）或其他回复不会解封；放行语须是整条回复，夹在更长的文字里不算。解封后再重发本次操作。\n' "${m##*/}" "$TOOL" >&2
+    # 读取不会扩大权限，也不清 marker。允许它能让 Agent 在等待决定时继续核对事实，
+    # 同时 state transition、外部副作用和任何未知动作仍 fail closed。
+    pipeline_tool_is_read_only "$TOOL" && return 0
+    # 提示按拦住它的标记种类说明怎样解封：评审标记只认用户的放行语或 Dashboard 确认，AskUserQuestion 解不开它，
+    # 所以评审提示不提 AskUserQuestion，也不暗示 agent 可以自己确认；确认 / 交互标记才是「提问后解封」。
+    # 两条提示各写成一行，tools/test-hooks.sh 按行 grep 出放行语，核对它们与 hook 实际认的一致。
+    if [ "$kind" = "review" ]; then
+      local review_change review_event
+      review_change="$(pipeline_review_marker_change "$m" 2>/dev/null || true)"
+      review_event="$(pipeline_review_marker_event "$m" 2>/dev/null || true)"
+      printf '【Tenon 门】评审待确认（任务 %s，事件 %s），%s 已被拦截：现在不要改文件或推进前进状态。把产出与结论摆给用户，等用户回复「确认继续」「继续执行」「同意继续」，或简短同意「继续」「可以」「同意」「好的」「按推荐」「按你的推荐」即确认这道评审门；拒绝（「不可以」「不同意」）、带条件（「继续，但……」）或其他回复不算，放行语须是整条回复。用户也可以在 Dashboard 确认（tenon dashboard --open）；agent 不能自己确认。等待期间只读工具与只读组合命令（用 |、&&、||、; 连接、每段都只读）不受拦截；轮次内的回退可以直接 tenon transition <change> <回退事件>。\n' \
+        "${review_change:-?}" "${review_event:-?}" "$TOOL" >&2
+      exit 2
+    fi
+    printf '【Tenon 门】检测到待处理交互标记 %s（%s 已被拦截）：请先把当前决策/产出交用户确认：调用 AskUserQuestion 提问（Claude Code 中它若尚未加载，先用 ToolSearch 查询 \"select:AskUserQuestion\" 载入；Codex 用 request_user_input），该交互完成后解封；等待期间只读工具与只读组合命令（用 |、&&、||、; 连接、每段都只读）不受拦截。没有提问工具时，用户回复「确认继续」「继续执行」「同意继续」，或简短同意「继续」「可以」「同意」「好的」「按推荐」「按你的推荐」即解封（后者表示采纳推荐项）；拒绝（「不可以」「不同意」）、带条件（「继续，但……」）或其他回复不会解封；放行语须是整条回复，夹在更长的文字里不算。解封后再重发本次操作。\n' "${m##*/}" "$TOOL" >&2
     exit 2
   fi
 }

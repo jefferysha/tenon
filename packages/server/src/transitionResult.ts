@@ -44,6 +44,9 @@ export function mapTransitionResult(name: string, event: string, result: Transit
           case 'history':
             process.stderr.write(`WARN: history 写入失败: ${errText(warning.cause)}\n`)
             break
+          case 'review-marker':
+            process.stderr.write(`WARN: 评审待处理标记清除失败（转换已提交，标记会在 30 分钟后失效）: ${errText(warning.cause)}\n`)
+            break
         }
       }
       return { code: 200, body: { ok: true, name, event, from: result.from, to: result.to } }

@@ -1,6 +1,7 @@
 /**
  * 真实 e2e —— Dashboard 服务的 transition 写回端点（performTransition）也执行验证轮次上限：用完后受约束步骤的回退边
- * 返回 409 + code `rounds-exhausted`（写出已用轮次与上限），前进边与不受约束的步骤不受影响；上限调高后恢复。
+ * 返回 409 + code `rounds-exhausted`（写出已用轮次与上限），前进边与不受约束的步骤不受影响；上限调高后恢复；
+ * 轮次内的回退边不需要评审回执，直接转换。
  * 轮次读 canonical 转换记录链（recordStore），与 CLI 的 `review request` / `transition` 同一份实现（kernel readStepRounds）。
  */
 import { mkdir, writeFile } from 'node:fs/promises'
@@ -118,18 +119,24 @@ describe('Dashboard 服务的 transition：验证轮次上限', () => {
     expect((await store.read(changeDir())).fields.phase).toBe('verify')
   })
 
-  test('调整上限：设为 1 仍用完；设为 3 才恢复（越过这道门，由后面的评审确认门接着判）', async () => {
+  test('调整上限：设为 1 仍用完；设为 3 才恢复（轮次内的回退边不需要评审回执，直接转换）', async () => {
     await toVerifyRound(2)
     await store.set(changeDir(), 'max_rounds', '1')
     expect((await go('verify-fail')).body).toMatchObject({ code: 'rounds-exhausted', current: 2, max: 1 })
     await store.set(changeDir(), 'max_rounds', '3')
-    expect((await go('verify-fail')).body).toMatchObject({ code: 'review-approval-required' })
+    const result = await go('verify-fail')
+    expect(result.code).toBe(200)
+    expect(result.body).toMatchObject({ ok: true, from: 'verify', to: 'build' })
+    expect((await store.read(changeDir())).fields.phase).toBe('build')
   })
 
-  test('未用完：回退边照旧（后面的评审确认门接着判）', async () => {
+  test('未用完：回退边不需要评审回执，直接转换', async () => {
     await toVerifyRound(1)
     await store.set(changeDir(), 'max_rounds', '2')
-    expect((await go('verify-fail')).body).toMatchObject({ code: 'review-approval-required' })
+    const result = await go('verify-fail')
+    expect(result.code).toBe(200)
+    expect(result.body).toMatchObject({ ok: true, from: 'verify', to: 'build' })
+    expect((await store.read(changeDir())).fields.phase).toBe('build')
   })
 
   test('用完后前进边不受影响：同样走到评审确认门，而不是 rounds-exhausted', async () => {

@@ -77,13 +77,13 @@ const flowWith = (over: Partial<StepTestFlow>): StepTestFlow => ({
   discover: [], seed: [], map: [], files: [], run: [], failed: [], waivers: [], report: null, refreshRequest: false, ...over,
 })
 
-describe('未用完：行为与修改前一致', () => {
-  test('第 1 轮、上限 2，评审者不通过：回退边的评审请求，动作里没有任何新字段', () => {
+describe('未用完：回退边直接转换，其余与修改前一致', () => {
+  test('第 1 轮、上限 2，评审者不通过：直接 transition 回退边（不请求评审），动作里没有任何新字段', () => {
     expect(stepNextActions(input({ ...SECURITY_FAILED, rounds: { current: 1, max: 2, source: 'workflow' } })))
-      .toEqual([{ action: 'request-review', event: 'verify-fail' }])
+      .toEqual([{ action: 'transition', event: 'verify-fail' }])
   })
 
-  test('没有 rounds（不受约束的步骤、旧调用方）与 rounds 为 null：同样是回退边的评审请求', () => {
+  test('没有 rounds（不受约束的步骤、旧调用方）与 rounds 为 null：失败关闭，仍是回退边的评审请求', () => {
     expect(stepNextActions(input(SECURITY_FAILED))).toEqual([{ action: 'request-review', event: 'verify-fail' }])
     expect(stepNextActions(input({ ...SECURITY_FAILED, rounds: null }))).toEqual([{ action: 'request-review', event: 'verify-fail' }])
   })
@@ -353,9 +353,9 @@ describe('exits：用完后回退边不再算就绪（投影与命令的拒绝�
 describe('任务覆盖上限（tenon set max_rounds）改变 rounds 之后', () => {
   const at = (rounds: StepNextInput['rounds']) => stepNextActions(input({ ...SECURITY_FAILED, rounds }))
 
-  test('第 2 轮时设为 1：仍视为用完；设为 2（等于当前轮次）：仍用完；设为 3（大于）：恢复 verify-fail 的评审请求', () => {
+  test('第 2 轮时设为 1：仍视为用完；设为 2（等于当前轮次）：仍用完；设为 3（大于）：恢复 verify-fail 的直接转换', () => {
     expect(at({ current: 2, max: 1, source: 'task' })[0]).toMatchObject({ event: 'verify-pass', residual: ['reviewer:security'] })
     expect(at({ current: 2, max: 2, source: 'task' })[0]).toMatchObject({ event: 'verify-pass', residual: ['reviewer:security'] })
-    expect(at({ current: 2, max: 3, source: 'task' })).toEqual([{ action: 'request-review', event: 'verify-fail' }])
+    expect(at({ current: 2, max: 3, source: 'task' })).toEqual([{ action: 'transition', event: 'verify-fail' }])
   })
 })

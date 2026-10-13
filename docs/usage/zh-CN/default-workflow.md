@@ -124,7 +124,7 @@ design / delta spec / tasks，语言无关）。证据不齐时写 `pass` 被拒
 `tenon status` 的 `step.next` 按固定顺序推进测试体系：`test-discover`（无目录）→ `test-plan-seed` → `test-plan-map`
 （缺的种类、未映射的场景）→ `test-register-files`（未登记的测试文件）→ `run-tests`（`tenon test run <change> --stage`）
 → `test-report`（把追溯矩阵写进验证报告）。它们排在本步文档之后、评审者之前；已经运行过却不满足策略的阻塞变成
-`fix`，评审门上有回退边则走回退边。豁免与目录里的 `not_applicable` 要人工批准：`tenon review request` 列出待批准的项，用户的确认
+`fix`，评审门上有回退边则走回退边（轮次内直接 `tenon transition`）。豁免与目录里的 `not_applicable` 要人工批准：`tenon review request` 列出待批准的项，用户的确认
 （`tenon review acknowledge`，不含 `--delegated`）恰好批准这些。测试计划、基线、已知失败清单和运行记录只经
 `tenon test …` 写入，写门拒绝直接编辑和 shell 重定向，`tenon` 命令与普通 git 操作放行。声明 `reads_tests` 的
 评审者，提示词还附带最新的失败用例、flaky 用例、覆盖率对照门槛与基准变化。
@@ -156,7 +156,9 @@ design / delta spec / tasks，语言无关）。证据不齐时写 `pass` 被拒
 
 ## Review 边界
 
-Explore、Spec、Verify 的 review 必须绑定 exact phase 和 exact event。同一份确认不能同时授权 `verify-pass` 与 `verify-fail`。持续授权只改变确认记录方式，不改变 guard。
+Explore、Spec、Verify 的 review 必须绑定 exact phase 和 exact event。同一份确认不能同时授权两个不同的 event（例如已批准的 `verify-pass` 不能拿去放行别的 event）。持续授权只改变确认记录方式，不改变 guard。
+
+受轮次上限约束的步骤（评审门且有回退边）上，轮次还没用完时走回退边不需要评审回执，直接 `tenon transition`（例如 `tenon transition <change> verify-fail`）；前进边、剩余阻断与测试豁免仍只认人工确认。评审待确认时用户要求回去修改，同样直接 `tenon transition <change> verify-fail`，转换会清掉已过期的评审标记。
 
 Verify 的轮次有上限，见下面的[验证轮次上限](#验证轮次上限)。Build 中的 TDD、单元测试、类型检查、lint 和窄集成测试属于实现反馈，不算一轮。
 
@@ -166,6 +168,8 @@ Verify 的轮次有上限，见下面的[验证轮次上限](#验证轮次上限
 ## 验证轮次上限
 
 Verify 最多验证 2 轮。`templates/workflows/default.yaml` 里每条轨道的验证步都声明了 `max_rounds: 2`。一轮 = 进入验证步一次：第一次进入是第 1 轮，每次 `verify-fail` 回到 Build、再经 `build-complete` 进入验证，就多一轮。
+
+轮次还没用完时回退边很轻：必需测试或必需评审者不通过，`step.next` 直接给 `transition verify-fail`，`tenon transition <change> verify-fail` 不需要评审请求与用户确认就能成功（agent 用一句话告诉用户为什么回退）。前进边、剩余阻断与测试豁免仍只认人工确认。
 
 第 2 轮仍有必需测试或必需评审者不通过时，Tenon 不再自动回退。`step.next` 不再给 `verify-fail` 这条边：它要么 `stop`（`rounds-exhausted`），要么请用户接受剩余阻断；`tenon transition <change> verify-fail` 也会被拒。之后由用户决定：
 
@@ -217,6 +221,8 @@ Archive 保留最终状态与证据链。插件自动更新不能批量翻译或
 ```text
 check → review request --event <event> → 用户确认 → transition
 ```
+
+这是前进边的流程。受轮次上限约束的步骤上，轮次内的回退边不走它：直接 `tenon transition <change> <回退事件>`。
 
 确认只来自用户：回复放行语（“确认继续”“继续执行”等），由 hook 写入回执；在 Dashboard 确认（`tenon dashboard --open`）；
 或在没有 UserPromptSubmit hook 的宿主上，由用户本人在自己的终端运行 `tenon review acknowledge <change>`。agent 不得代为执行

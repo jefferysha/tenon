@@ -135,7 +135,9 @@ tenon get <change> max_rounds
 - `step.next` 不再给回退边的 `request-review`、`choose-exit` 或 `transition`。只有必需评审者不通过、或失败的必需测试都已登记豁免时，给前进边的 `request-review`，多带三个字段：`residual`（不通过的评审者，形如 `reviewer:<agent>`）、`rounds` 与 `alternatives`（另外的出路）。还有没登记豁免的失败必需测试时，给 `stop`，`code: rounds-exhausted`，`message` 点名失败的测试，并说明可以先登记步骤测试豁免。两种都列出另外三条出路：调高上限（用户的决定）、回到规格、终止任务。回到规格要分两步，因为受约束的步骤上没有直达的边（它声明的每条回退边本身就是它的回退目标，落到那里不会让计数清零，上限用完后这些边也同样被拒）：用户先调高上限，经回退边 `verify-fail` 回到实现，再在实现步上执行 `tenon transition <change> requirements-changed`；任务落到规格之后计数从第 1 轮重新开始，用户可以再把 `max_rounds` 调回去。自定义工作流里，文案按计划点出回退边和回退目标步骤上落到更早步骤的事件；没有比所有回退目标更早的步骤时，文案会说明回去也不会让计数清零。
 - `step.exits[]` 里回退边是 `ready: false`，带阻断 `{ "source": "guard", "code": "rounds-exhausted", "message": … }`；前进边与放弃边 `scope-expanded` 不变。
 - `tenon review request <change> --event <回退事件>` 与 `tenon transition <change> <回退事件>` 以退出码 `1` 拒绝，什么都不写，并写出已用轮次、上限和 `tenon set <change> max_rounds <N>`。Dashboard 的转换返回 HTTP `409`，`code: "rounds-exhausted"`（另带 `step`、`event`、`current`、`max`、`source`）。不受上限约束的步骤的回退边（例如实现步的 `requirements-changed`）始终可用。
-- 上限没用完时一切照旧：回退边照常给出，照常被拒。
+- 上限没用完时回退边照常给出，直接转换，不需要评审回执（见下）。
+
+**轮次内的回退边。** 受轮次上限约束的步骤（评审门且有回退边）上，轮次还没用完时走回退边不需要评审回执，直接 `tenon transition`。必需测试或必需评审者不通过时，`step.next` 对唯一的回退边直接给 `transition`（有多条回退边仍给 `choose-exit`；`step.rounds` 缺席时仍走原来的 `request-review` → `await-review` → `transition`），`tenon transition <change> <回退事件>` 不需要 `tenon review request` 与用户确认就能成功。判定在 CLI 与 Dashboard 共用的转换用例里，同一把 change 锁内与「用完即拒」读同一份轮次，所以两个入口行为一致；宿主没有提供轮次读取时仍要回执。前进边、放弃边、剩余阻断与测试豁免仍只认人工确认。轮次内 `tenon review request <change> --event <回退事件>` 仍被接受（兼容升级前的流程与 Dashboard 的「退回到…」命令），只是 `step.next` 不再给出它。每次成功转换还会删除绑定本任务的评审标记（`.pipeline-pending-review`）；删除失败只输出一行警告、不回滚转换，标记在有效期过后自行失效。
 
 **接受剩余阻断。** 轮次用完的步骤上，`tenon review request <change> --event <前进事件>` 对在当前候选上不通过的必需评审者不再拒绝请求，而是放行。它把这些评审者逐个冻结进 `.pipeline-review-waivers.json`，成为待接受的剩余阻断（键 `reviewer:<agent>`，带评审者那次运行、代码候选和阻断级发现），并连同发现逐条打印；把这份输出和 `alternatives` 一起摆给用户。上限没用完时，必需评审者不通过仍会让请求被拒。
 
@@ -221,6 +223,13 @@ delegated 需要 Change 绑定的持续授权，且不能跳过 check。
 `review acknowledge` 退出码：`0` 已确认、重复确认或确认成功但 review marker 清理告警；`2` 没有匹配的待确认
 review（缺失、已被消费、binding 失效或 event 已不是 workflow 出口）；`3` revision 冲突（仅 Dashboard CAS
 路径）；`4` 幂等键冲突；`1` 非法命令（例如 `--event` 与待确认 receipt 不一致）或意外错误。失败时不写入任何内容。
+
+评审（或交互、确认）待处理期间，写门继续拦写入，但放行只读工作，包括只读组合命令：由 `|`、`&&`、`||`、`;` 连接、每一段都只读的命令
+（`git status --short | grep x`、`cd sub && ls`）。丢弃输出以外的重定向、后台 `&`、命令替换与变量展开（含 `$IFS`）、引号不闭合、超过 2048 个字符的命令一律不算只读；
+部分只读命令的写文件或执行程序形态也被拒（`git diff|log|show --output`、`rg --pre`、`sed -n` 非行号区间打印、`file -C`）。评审待确认时，
+门还恰好放行 `tenon transition <change> <event>` 这一形态，由 CLI 判定：缺已批准回执的前进边和轮次用完后的回退边照旧被拒——
+前进评审待确认、用户要求回去修改时，就是靠它走回退边。拦截提示按标记种类区分：评审提示写明任务与事件，列出放行语与 Dashboard 确认，
+不再提 AskUserQuestion。
 
 `review revoke <change> --reason <原因>` 撤回误给的批准：把当前步已批准、尚未被 transition 消费的回执撤回为同一 event 的待确认（沿用原 `requestedAt` 与绑定），重写评审标记让门重新拦住，并在 change 历史追加一行 `review.revoked`（操作者、原因、回执标识、event）。只有任务负责人能执行，`--reason` 必填（一行，不超过 200 字）。原因缺失、回执本就待确认、不存在或已被 transition 消费时拒绝且不写任何东西（退出码 `1`）。批准之后决策状态变过的话，下一次 `review acknowledge` 会因绑定失效被拒；对同一 event 重新 `review request` 即可刷新。
 

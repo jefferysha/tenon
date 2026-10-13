@@ -233,6 +233,9 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
                 case 'interaction':
                   deps.io.err(`WARN: ${w.code} interaction projection 写入失败（canonical 已提交）: ${errMsg(w.cause)}`)
                   break
+                case 'review-marker':
+                  deps.io.err(`WARN: 评审待处理标记清除失败（转换已提交，标记会在 30 分钟后失效）: ${errMsg(w.cause)}`)
+                  break
               }
               break
           }

@@ -466,9 +466,9 @@ describe('verify：追溯矩阵与评审者的测试摘要', () => {
   test('评审门上运行失败：走回退边，而不是继续派评审者', async () => {
     await verifyWithFailures()
     expect(await h.run(['test', 'run', CHANGE, 'lint']), h.err.join('\n')).toBe(0)
-    // 没有验证报告文档时不发 test-report：直接是评审门上的回退边。
+    // 没有验证报告文档时不发 test-report：直接是评审门上的回退边（轮次内不需要评审回执，直接转换）。
     const step = await readStep()
-    expect(step.next).toEqual([{ action: 'request-review', event: 'verify-fail' }])
+    expect(step.next).toEqual([{ action: 'transition', event: 'verify-fail' }])
     expect(step.exits.find((item) => item.event === 'verify-pass')?.ready).toBe(false)
   })
 

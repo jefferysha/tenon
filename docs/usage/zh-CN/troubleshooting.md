@@ -63,6 +63,10 @@ openspec/changes/<change>/.pipeline-document-locale.json
 
 正确顺序是 check、request、用户确认、transition；确认只来自用户（回复放行语、Dashboard，或用户本人在自己的终端运行 `tenon review acknowledge`），agent 不得代为执行。receipt 必须匹配 exact phase/event。删除 marker 不能替代 canonical acknowledgement。
 
+受轮次上限约束的步骤（评审门且有回退边）上，轮次还没用完时走回退边不需要评审回执，直接 `tenon transition <change> verify-fail`，即使此时正有 `verify-pass` 的评审在等确认；转换会一并清掉过期的评审标记。前进边、剩余阻断与测试豁免仍只认人工确认。
+
+评审待确认期间，写门拦写入但不拦只读工作：`git status --short | grep x`、`cd sub && ls` 这类每段都只读的组合命令放行，恰好 `tenon transition <change> <event>` 也放行（缺已批准回执的前进边仍由 CLI 拒绝）。拦截提示按标记种类区分：评审提示写明任务与事件，列出放行语与 Dashboard 确认。
+
 #### Dashboard 一直等待
 
 比较 canonical state、host session 和 AFK executor。queued、review waiting、session ended 和 running 是不同状态。生产 Dashboard 默认地址是 `127.0.0.1:18765`；先确认该端口服务的页面标题和项目根。
@@ -224,6 +228,8 @@ hook 最多每 30 分钟打印一次这条消息，其余时候无输出地以 0
 - 只看 Dashboard 标签：回到 canonical state 和 executor 证据；
 - 端口 18765 可访问就判定成功：必须核对服务身份；
 - 删除 marker 解锁：不会生成 canonical review receipt；
+- 轮次内的回退边还在等评审确认：直接 `tenon transition <change> verify-fail`，只有前进边、剩余阻断与测试豁免才需要人工确认；
+- 拿某个前进 event 的批准去放行另一个 event：receipt 绑定 exact event，不能互相复用；
 - 手工改 `.pipeline.yaml`：它只是投影，可能制造 drift；
 - 将构建通过当浏览器通过：需要打开当前应用并验证交互；
 - 用旧验证报告验新基线：Build 修订后必须重新 Verify。

@@ -1,0 +1,248 @@
+{
+  "version": 1,
+  "records": [
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:2ad10b743070c41345f7b47eb265a12b",
+        "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
+        "version": "sha256:027e31dc0fda5e466c00e32795bba3fb0686a5a0c1a8655094c6830f434ee384",
+        "projection": "document",
+        "content_digest": "sha256:027e31dc0fda5e466c00e32795bba3fb0686a5a0c1a8655094c6830f434ee384",
+        "source": {
+          "path": "proposal.md",
+          "document_kind": "proposal"
+        }
+      },
+      "logicalKey": "document:proposal",
+      "projection": "document",
+      "path": "proposal.md",
+      "documentKind": "proposal",
+      "status": "committed",
+      "receiptId": "submission:change-reduce-review-gate-friction-b6bd7e6e5c2a:document:bf15fc96d8e686217eb1f36fe69612f7",
+      "recordedAt": "2026-10-13T11:39:43Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:10e519788265b7e9df8d6fd640176dcf",
+        "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
+        "version": "sha256:bad38f8c8b774215780785e00172831b1f583c135c6864624c86a5193a95e8e0",
+        "projection": "field",
+        "content_digest": "sha256:bad38f8c8b774215780785e00172831b1f583c135c6864624c86a5193a95e8e0",
+        "source": {
+          "path": "../../../docs/superpowers/specs/reduce-review-gate-friction-design.md",
+          "document_kind": "superpower-design",
+          "field": "design_doc"
+        }
+      },
+      "logicalKey": "field:design_doc",
+      "projection": "field",
+      "path": "../../../docs/superpowers/specs/reduce-review-gate-friction-design.md",
+      "field": "design_doc",
+      "status": "committed",
+      "receiptId": "submission:change-reduce-review-gate-friction-b6bd7e6e5c2a:field:2c70108e623d859f84d45e38e0780238",
+      "recordedAt": "2026-10-13T11:39:45.153Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:c0130e4415a0d456edd0052194260251",
+        "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
+        "version": "sha256:a49d1f20934c228b6754f89a64308fb42ad86b23728e2ce8662757c97341f11b",
+        "projection": "document",
+        "content_digest": "sha256:a49d1f20934c228b6754f89a64308fb42ad86b23728e2ce8662757c97341f11b",
+        "source": {
+          "path": "specs/plugin-runtime/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "logicalKey": "document:delta-spec",
+      "projection": "document",
+      "path": "specs/plugin-runtime/spec.md",
+      "documentKind": "delta-spec",
+      "status": "committed",
+      "receiptId": "submission:change-reduce-review-gate-friction-b6bd7e6e5c2a:document:cb588cb769d8f3e42aeeb8baadc0003e",
+      "recordedAt": "2026-10-13T12:17:51Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:c024f82c1d40c2cefe8b88718712a97b",
+        "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
+        "version": "sha256:0cb0f5d78b183db966aa701c755cb417c1679413b59d48f4a0b2832acb71b6aa",
+        "projection": "document",
+        "content_digest": "sha256:0cb0f5d78b183db966aa701c755cb417c1679413b59d48f4a0b2832acb71b6aa",
+        "source": {
+          "path": "../../../docs/superpowers/plans/reduce-review-gate-friction.md",
+          "document_kind": "superpower-plan"
+        }
+      },
+      "logicalKey": "document:superpower-plan",
+      "projection": "document",
+      "path": "../../../docs/superpowers/plans/reduce-review-gate-friction.md",
+      "documentKind": "superpower-plan",
+      "status": "committed",
+      "receiptId": "submission:change-reduce-review-gate-friction-b6bd7e6e5c2a:document:660e74b73695a0d42d9c7999cd671555",
+      "recordedAt": "2026-10-13T12:26:11Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:c024f82c1d40c2cefe8b88718712a97b",
+        "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
+        "version": "sha256:0cb0f5d78b183db966aa701c755cb417c1679413b59d48f4a0b2832acb71b6aa",
+        "projection": "document",
+        "content_digest": "sha256:0cb0f5d78b183db966aa701c755cb417c1679413b59d48f4a0b2832acb71b6aa",
+        "source": {
+          "path": "../../../docs/superpowers/plans/reduce-review-gate-friction.md",
+          "document_kind": "plan"
+        }
+      },
+      "logicalKey": "document:plan",
+      "projection": "document",
+      "path": "../../../docs/superpowers/plans/reduce-review-gate-friction.md",
+      "documentKind": "plan",
+      "status": "committed",
+      "receiptId": "submission:change-reduce-review-gate-friction-b6bd7e6e5c2a:document:cdd727d4071a9df9cf9775191595ae0f",
+      "recordedAt": "2026-10-13T12:26:11Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:07de31a67c2812c492d827e578027ef2",
+        "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
+        "version": "sha256:949044dd3f2f795fd695ed3ee271118e439a249f6ac6607ac89647bf38df23cb",
+        "projection": "document",
+        "content_digest": "sha256:949044dd3f2f795fd695ed3ee271118e439a249f6ac6607ac89647bf38df23cb",
+        "source": {
+          "path": "design.md",
+          "document_kind": "openspec-design"
+        }
+      },
+      "logicalKey": "document:openspec-design",
+      "projection": "document",
+      "path": "design.md",
+      "documentKind": "openspec-design",
+      "status": "committed",
+      "receiptId": "submission:change-reduce-review-gate-friction-b6bd7e6e5c2a:document:6551d8927377ff88e8d8b7cb9d700ba9",
+      "recordedAt": "2026-10-13T12:26:12Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:ba8082f20c541cbcbe54ac32ec692be1",
+        "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
+        "version": "sha256:9a1f948b9fbebe5b3b13bedf9f49ef3284404b6ce2bf91bd2388f6ed4a5d874e",
+        "projection": "document",
+        "content_digest": "sha256:9a1f948b9fbebe5b3b13bedf9f49ef3284404b6ce2bf91bd2388f6ed4a5d874e",
+        "source": {
+          "path": "../../../docs/adr/reduce-review-gate-friction.md",
+          "document_kind": "adr"
+        }
+      },
+      "logicalKey": "document:adr",
+      "projection": "document",
+      "path": "../../../docs/adr/reduce-review-gate-friction.md",
+      "documentKind": "adr",
+      "status": "failed",
+      "receiptId": "submission:change-reduce-review-gate-friction-b6bd7e6e5c2a:document:bcd2a546a518cf153c7c47d14d10be29",
+      "recordedAt": "2026-10-13T12:26:12Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:c024f82c1d40c2cefe8b88718712a97b",
+        "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
+        "version": "sha256:ebeac658144e04682b4bc3dfbe106baa13ac0050c94f354b3ae3077b96506f11",
+        "projection": "field",
+        "content_digest": "sha256:ebeac658144e04682b4bc3dfbe106baa13ac0050c94f354b3ae3077b96506f11",
+        "source": {
+          "path": "../../../docs/superpowers/plans/reduce-review-gate-friction.md",
+          "document_kind": "superpower-plan",
+          "field": "plan"
+        }
+      },
+      "logicalKey": "field:plan",
+      "projection": "field",
+      "path": "../../../docs/superpowers/plans/reduce-review-gate-friction.md",
+      "field": "plan",
+      "status": "committed",
+      "receiptId": "submission:change-reduce-review-gate-friction-b6bd7e6e5c2a:field:bcefee8c4f7c9991a0a59b6103c71a72",
+      "recordedAt": "2026-10-13T12:26:13.806Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:10e519788265b7e9df8d6fd640176dcf",
+        "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
+        "version": "sha256:5df3c29c08c682c54bfeaad08f1e2eadbc5638f6cb17e5fa45b072f5ce43ac05",
+        "projection": "document",
+        "content_digest": "sha256:5df3c29c08c682c54bfeaad08f1e2eadbc5638f6cb17e5fa45b072f5ce43ac05",
+        "source": {
+          "path": "../../../docs/superpowers/specs/reduce-review-gate-friction-design.md",
+          "document_kind": "superpower-design"
+        }
+      },
+      "logicalKey": "document:superpower-design",
+      "projection": "document",
+      "path": "../../../docs/superpowers/specs/reduce-review-gate-friction-design.md",
+      "documentKind": "superpower-design",
+      "status": "committed",
+      "receiptId": "submission:change-reduce-review-gate-friction-b6bd7e6e5c2a:document:1093f5c4c0dd7d9ee196c15fd0f2c11d",
+      "recordedAt": "2026-10-13T12:27:02Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:927181636d24856f3811cc680dfda8ea",
+        "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
+        "version": "sha256:a170a6f7db4a2a3bfecb0fbe0898fb89f571e33537a53ac46480a99194525c3b",
+        "projection": "document",
+        "content_digest": "sha256:a170a6f7db4a2a3bfecb0fbe0898fb89f571e33537a53ac46480a99194525c3b",
+        "source": {
+          "path": "tasks.md",
+          "document_kind": "tasks"
+        }
+      },
+      "logicalKey": "document:tasks",
+      "projection": "document",
+      "path": "tasks.md",
+      "documentKind": "tasks",
+      "status": "committed",
+      "receiptId": "submission:change-reduce-review-gate-friction-b6bd7e6e5c2a:document:9fd98c78c1d6b051ab64938608074984",
+      "recordedAt": "2026-10-13T13:48:49Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:1aa8358e650d38756d1ed31ad4301ced",
+        "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
+        "version": "sha256:c8cd70888b262fac05d7cc6d56cc011a92f03fead1cfb95b7ff936371a956ad2",
+        "projection": "field",
+        "content_digest": "sha256:c8cd70888b262fac05d7cc6d56cc011a92f03fead1cfb95b7ff936371a956ad2",
+        "source": {
+          "path": "../../../docs/superpowers/reports/reduce-review-gate-friction-verify.md",
+          "document_kind": "verification-report",
+          "field": "verification_report"
+        }
+      },
+      "logicalKey": "field:verification_report",
+      "projection": "field",
+      "path": "../../../docs/superpowers/reports/reduce-review-gate-friction-verify.md",
+      "field": "verification_report",
+      "status": "committed",
+      "receiptId": "submission:change-reduce-review-gate-friction-b6bd7e6e5c2a:field:7babd00243187fc2a41eb9d24274beff",
+      "recordedAt": "2026-10-13T13:49:05.518Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:1aa8358e650d38756d1ed31ad4301ced",
+        "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
+        "version": "sha256:7703f6cebc350d66265aceb11d1e9165fe1714fe43d758da713354b86202a617",
+        "projection": "document",
+        "content_digest": "sha256:7703f6cebc350d66265aceb11d1e9165fe1714fe43d758da713354b86202a617",
+        "source": {
+          "path": "../../../docs/superpowers/reports/reduce-review-gate-friction-verify.md",
+          "document_kind": "verification-report"
+        }
+      },
+      "logicalKey": "document:verification-report",
+      "projection": "document",
+      "path": "../../../docs/superpowers/reports/reduce-review-gate-friction-verify.md",
+      "documentKind": "verification-report",
+      "status": "committed",
+      "receiptId": "submission:change-reduce-review-gate-friction-b6bd7e6e5c2a:document:81e88e6e6b98d0cfeff42ce5ca67d3cd",
+      "recordedAt": "2026-10-13T14:14:18Z"
+    }
+  ]
+}

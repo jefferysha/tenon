@@ -8,7 +8,7 @@
  * 复现的是同一类真实缺陷：breadcrumb/history/marker 曾经在锁外写，第一次转换的尾部被拖慢时，
  * 第二次转换可能在锁内抢先完成、随后姗姗来迟的第一次尾部写入用旧相位覆盖掉最新状态。
  */
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 import {
@@ -205,24 +205,54 @@ steps:
       clock: () => '2026-07-16T00:00:00Z',
     }
 
+    // 轮次内的回退边不消费评审回执：回执的绑定摘要对不上（批准后状态又变了）也照样转换，不是 review-approval-required。
     await store.set(changeDir, 'build_sha', 'CHANGED_AFTER_APPROVAL')
-    const mismatched = await performTransition(deps, root, name, 'verify-fail')
-    expect(mismatched).toMatchObject({
-      code: 409,
-      body: { ok: false, code: 'review-approval-required' },
-    })
-    expect((await store.read(changeDir)).fields.phase).toBe('verify')
-
-    const reboundState = await store.read(changeDir)
-    await writeReviewGateBindingUnderLock(
-      changeDir,
-      reviewGateBindingForState(reboundState, 'verify', 'verify-fail', '2026-07-16T00:00:00Z'),
+    const marker = join(root, '.pipeline-pending-review')
+    await writeFile(
+      marker,
+      `pipeline-review-v2\nphase=verify\nchange=${name}\nevent=verify-pass\nrequested_at=2026-07-16T00:00:00Z\n`,
+      'utf8',
     )
-
     const result = await performTransition(deps, root, name, 'verify-fail')
 
     expect(result).toMatchObject({ code: 200, body: { ok: true, from: 'verify', to: 'build' } })
     expect((await store.read(changeDir)).fields.phase).toBe('build')
+    // Dashboard 端点与 CLI 同一用例：成功转换后本任务的评审待处理标记被删。
+    await expect(access(marker)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  test('前进边的回执绑定摘要对不上（批准后状态变了）仍是 409 review-approval-required，零提交', async () => {
+    const store = newStore()
+    const root = await makeProject()
+    const name = 'forward-mismatch'
+    const initialized = await initChange(store, root, name, { track: 'backend' })
+    const changeDir = join(root, 'openspec', 'changes', name)
+    await seedGovernedDocumentEvidence(root, initialized, name)
+    const deps: TransitionDeps = {
+      store,
+      runRepo: createWorkflowRunRepository({ store, recordStore: createTransitionRecordStore(), clock: () => '2026-07-16T00:00:00Z' }),
+      flow: testFlow(), clock: () => '2026-07-16T00:00:00Z',
+      history: createHistoryWriter(),
+    }
+    await recordWorkflowPhaseSkill(root, changeDir)
+    expect((await performTransition(deps, root, name, 'open-complete')).code).toBe(200)
+    await store.set(changeDir, 'design_doc', `openspec/changes/${name}/design.md`)
+    await readGovernedDocumentsForCurrentVisit(root, changeDir, '2026-07-16T00:00:00Z')
+    await recordWorkflowPhaseSkill(root, changeDir)
+    await store.setMany(changeDir, {
+      review_gate_phase: 'explore', review_gate_status: 'approved', review_gate_event: 'explore-complete',
+      review_requested_at: '2026-07-16T00:00:00Z', review_acknowledged_at: '2026-07-16T00:00:00Z',
+    })
+    await writeReviewGateBindingUnderLock(
+      changeDir,
+      reviewGateBindingForState(await store.read(changeDir), 'explore', 'explore-complete', '2026-07-16T00:00:00Z'),
+    )
+
+    await store.set(changeDir, 'build_sha', 'CHANGED_AFTER_APPROVAL')
+    const mismatched = await performTransition(deps, root, name, 'explore-complete')
+
+    expect(mismatched).toMatchObject({ code: 409, body: { ok: false, code: 'review-approval-required' } })
+    expect((await store.read(changeDir)).fields.phase).toBe('explore')
   })
 
   test('server 生产 TaskPlan callback 拒绝非法 UTF-8 tasks 且零提交', async () => {

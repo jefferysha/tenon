@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { stepNextActions, type StepNextInput } from './statusStep.js'
+import { gatedBackActions } from './statusStepExits.js'
 import { emptyStepDocuments, type StepDocumentsView, type StepFieldView } from './statusStepParts.js'
 import { documentWriteActions, observedReadActions, skillDocumentActions } from './statusStepDocumentActions.js'
 import { WORKSPACE_COMMIT_PATHS, type GitFinishProbe } from '../gitWorkspace.js'
@@ -550,41 +551,100 @@ describe('step.next 顺序', () => {
   })
 
   /**
-   * D6（acceptance run）：评审门上的回退边也要人工确认。真机实测里 `next` 直接给
-   * `choose-exit: [verify-fail]`，照做却得到「phase 'verify' 的 event 'verify-fail' 尚未取得
-   * 人工确认；先运行 tenon review request … --event verify-fail」——review 回执逐边绑定，
-   * 一次「回到实现」的决定不能顺便授权 verify-pass，所以回退边同样走 request → await → transition。
+   * 受轮次上限约束的评审步上，轮次还没用完时唯一的回退边直接 transition：回退不越过任何质量门，代价由上限封顶，
+   * 内核转换不要求评审回执（transition-rounds-gate.ts）。宿主没给轮次时失败关闭，照旧走 request → await → transition。
    */
-  test('评审门上唯一的回退边：先请求评审，再等待，再转换', () => {
+  describe('评审门上的回退边', () => {
+    const IN_BUDGET = { current: 1, max: 2, source: 'workflow' as const }
+    const EXHAUSTED = { current: 2, max: 2, source: 'workflow' as const }
     const exits = [exit('verify-pass', 'forward', false), exit('verify-fail', 'back', true)]
     const failed = { reviewers: [agent('security', 'reviewer', 'fail', true)], gate: 'review', exits }
-    expect(stepNextActions(input(failed)))
-      .toEqual([{ action: 'request-review', event: 'verify-fail' }])
-    expect(stepNextActions(input({
-      ...failed,
-      review: { status: 'pending', event: 'verify-fail' },
-    }))).toEqual([{ action: 'await-review', event: 'verify-fail' }])
-    expect(stepNextActions(input({
-      ...failed,
-      review: { status: 'approved', event: 'verify-fail' },
-    }))).toEqual([{ action: 'transition', event: 'verify-fail' }])
-  })
 
-  test('回退时挂着的是前进边的评审回执 → 改为请求回退边的评审', () => {
-    expect(stepNextActions(input({
-      reviewers: [agent('security', 'reviewer', 'fail', true)],
-      gate: 'review',
-      exits: [exit('verify-pass', 'forward', false), exit('verify-fail', 'back', true)],
-      review: { status: 'pending', event: 'verify-pass' },
-    }))).toEqual([{ action: 'request-review', event: 'verify-fail' }])
-  })
+    test('唯一的回退边、轮次未用完：直接 transition，不请求评审', () => {
+      const next = gatedBackActions(
+        { gate: 'review', review: { status: 'none', event: null }, rounds: IN_BUDGET },
+        [exit('verify-fail', 'back', true)],
+      )
+      expect(next).toEqual([{ action: 'transition', event: 'verify-fail' }])
+      expect(stepNextActions(input({ ...failed, rounds: IN_BUDGET })))
+        .toEqual([{ action: 'transition', event: 'verify-fail' }])
+    })
 
-  test('多条回退边仍然交给人选，不替他选一条去请求评审', () => {
-    expect(actions({
-      reviewers: [agent('security', 'reviewer', 'fail', true)],
-      gate: 'review',
-      exits: [exit('a', 'back', true), exit('b', 'back', true)],
-    })).toEqual(['choose-exit'])
+    test('唯一的回退边、宿主没给轮次（缺席或 null）：照旧先请求评审（失败关闭）', () => {
+      const back = [exit('verify-fail', 'back', true)]
+      const review = { status: 'none', event: null }
+      expect(gatedBackActions({ gate: 'review', review }, back))
+        .toEqual([{ action: 'request-review', event: 'verify-fail' }])
+      expect(gatedBackActions({ gate: 'review', review, rounds: null }, back))
+        .toEqual([{ action: 'request-review', event: 'verify-fail' }])
+      expect(stepNextActions(input(failed)))
+        .toEqual([{ action: 'request-review', event: 'verify-fail' }])
+    })
+
+    test('轮次已用完：不免评审回执，仍走 request-review（实际的 stop / 剩余阻断由轮次判定在更前面处理）', () => {
+      expect(gatedBackActions(
+        { gate: 'review', review: { status: 'none', event: null }, rounds: EXHAUSTED },
+        [exit('verify-fail', 'back', true)],
+      )).toEqual([{ action: 'request-review', event: 'verify-fail' }])
+    })
+
+    test('多条回退边仍然交给人选，轮次内也不替他选一条', () => {
+      const several = [exit('a', 'back', true), exit('b', 'back', true)]
+      const review = { status: 'none', event: null }
+      expect(gatedBackActions({ gate: 'review', review, rounds: IN_BUDGET }, several))
+        .toEqual([{ action: 'choose-exit', exits: ['a', 'b'] }])
+      expect(actions({ reviewers: [agent('security', 'reviewer', 'fail', true)], gate: 'review', exits: several }))
+        .toEqual(['choose-exit'])
+      expect(actions({
+        reviewers: [agent('security', 'reviewer', 'fail', true)], gate: 'review', exits: several, rounds: IN_BUDGET,
+      })).toEqual(['choose-exit'])
+    })
+
+    test('非评审门：回退边仍交给人选', () => {
+      expect(gatedBackActions(
+        { gate: 'auto', review: { status: 'none', event: null }, rounds: IN_BUDGET },
+        [exit('verify-fail', 'back', true)],
+      )).toEqual([{ action: 'choose-exit', exits: ['verify-fail'] }])
+    })
+
+    test('放弃边永远要评审回执：它是唯一的「回退」出口时，轮次内也不直接 transition', () => {
+      expect(gatedBackActions(
+        { gate: 'review', review: { status: 'none', event: null }, rounds: IN_BUDGET },
+        [exit('scope-expanded', 'back', true)],
+      )).toEqual([{ action: 'request-review', event: 'scope-expanded' }])
+    })
+
+    test('升级前遗留的回退边评审请求：轮次内一律直接 transition（pending 不用等，approved 照转），没给轮次时照旧', () => {
+      for (const status of ['pending', 'approved']) {
+        expect(stepNextActions(input({
+          ...failed, rounds: IN_BUDGET, review: { status, event: 'verify-fail' },
+        })), status).toEqual([{ action: 'transition', event: 'verify-fail' }])
+      }
+      expect(stepNextActions(input({ ...failed, review: { status: 'pending', event: 'verify-fail' } })))
+        .toEqual([{ action: 'await-review', event: 'verify-fail' }])
+      expect(stepNextActions(input({ ...failed, review: { status: 'approved', event: 'verify-fail' } })))
+        .toEqual([{ action: 'transition', event: 'verify-fail' }])
+    })
+
+    test('回退时挂着的是前进边的评审回执：轮次内直接 transition 回退边；没给轮次时改为请求回退边的评审', () => {
+      const pendingForward = { ...failed, review: { status: 'pending', event: 'verify-pass' } }
+      expect(stepNextActions(input({ ...pendingForward, rounds: IN_BUDGET })))
+        .toEqual([{ action: 'transition', event: 'verify-fail' }])
+      expect(stepNextActions(input(pendingForward)))
+        .toEqual([{ action: 'request-review', event: 'verify-fail' }])
+    })
+
+    test('挂着的回退边评审请求（pending），本步证据并没有不通过：轮次内同样直接 transition，不等一次用不上的确认', () => {
+      const passing = {
+        gate: 'review', exits: [exit('verify-pass', 'forward', true), exit('verify-fail', 'back', true)],
+        review: { status: 'pending', event: 'verify-fail' },
+      }
+      expect(stepNextActions(input({ ...passing, rounds: IN_BUDGET })))
+        .toEqual([{ action: 'transition', event: 'verify-fail' }])
+      // 挂着的是前进边的请求：照旧等人确认，轮次不影响前进边。
+      expect(stepNextActions(input({ ...passing, rounds: IN_BUDGET, review: { status: 'pending', event: 'verify-pass' } })))
+        .toEqual([{ action: 'await-review', event: 'verify-pass' }])
+    })
   })
 
   test('失败的执行者直接重跑', () => {

@@ -631,6 +631,33 @@ describe('新建 default 任务：离开条件一次列出全部，退出码 2',
     expect(yaml).toMatch(/^build_sha: null$/m)
   })
 
+  test('轮次内的 verify-fail 不需要任何评审请求或确认：直接 transition 成功', async () => {
+    await initBackendAt('demo', 'verify', UNFINISHED_BUILD_TASKS)
+    expect(await h.run(['transition', 'demo', 'verify-fail']), text()).toBe(0)
+    const yaml = await h.read('demo')
+    expect(yaml).toMatch(/^phase: build$/m)
+    expect(yaml).toMatch(/^build_sha: null$/m)
+  })
+
+  test('升级前遗留的 pending 回退边请求：不确认直接 transition 成功，评审标记被删，step.review 复位为 none', async () => {
+    await initBackendAt('demo', 'verify')
+    await seed('docs/verify-fail.md')
+    await h.seedArtifact('demo', 'verification_report', 'docs/verify-fail.md')
+    await h.satisfyStepTests('demo', 'verify')
+    await h.satisfyStepAgents('demo')
+    // 升级前的流程：回退边也要先 `review request`；请求发出后用户没来得及（或不必）确认。
+    expect(await h.run(['review', 'request', 'demo', '--event', 'verify-fail']), text()).toBe(0)
+    const marker = join(h.cwd, '.pipeline-pending-review')
+    expect(existsSync(marker)).toBe(true)
+
+    expect(await h.run(['transition', 'demo', 'verify-fail']), text()).toBe(0)
+    expect(await h.read('demo')).toMatch(/^phase: build$/m)
+    expect(existsSync(marker), '成功转换后过期的评审标记被删除').toBe(false)
+    expect(await h.run(['status', 'demo', '--json']), text()).toBe(0)
+    const status = JSON.parse(h.out.join('\n')) as { step: { review: { status: string } } }
+    expect(status.step.review.status).toBe('none')
+  })
+
   test('requirements-changed：build 步的任务没勾完也能回到规格步（回退边不带离开条件）', async () => {
     await initBackendAt('demo', 'build', UNFINISHED_BUILD_TASKS)
     expect(await h.run(['transition', 'demo', 'requirements-changed']), text()).toBe(0)
