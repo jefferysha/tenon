@@ -247,6 +247,8 @@ describe('列表层级、项目级失效、增量推送与详情', () => {
     expect((await reqGet(h.port, `/api/change/ghost/snapshot?root=${root}`)).status).toBe(400)
   })
 
+  interface DeltaFrame { view: string; roots: string[]; projects: { root: string; changes: { phase: string }[] }[]; project_count: number }
+
   it('列表流：首帧是完整 snapshot，之后只推变化的项目（snapshot-delta），顺序随帧给出', async () => {
     const h = await start({ projects: 2 })
     const [rootA, rootB] = h.roots
@@ -255,9 +257,11 @@ describe('列表层级、项目级失效、增量推送与详情', () => {
     expect(JSON.parse(first.data).projects.map((project: { root: string }) => project.root)).toEqual([rootA, rootB])
     const advanced = await reqPost(h.port, `/api/change/${h.name}/transition`, { root: rootA, event: 'open-complete' }, AUTH)
     expect(advanced.status).toBe(200)
-    const delta = await stream.waitFor((event) => event.event === 'snapshot-delta', 10_000)
+    // 转换先在锁内写步骤产出账本、再提交新状态，指纹也覆盖账本：轮询可能先推一帧只有账本变了的增量，等带新阶段的那一帧。
+    const delta = await stream.waitFor((event) => event.event === 'snapshot-delta'
+      && (JSON.parse(event.data) as DeltaFrame).projects[0]?.changes[0]?.phase === 'explore', 10_000)
     stream.close()
-    const frame = JSON.parse(delta.data) as { view: string; roots: string[]; projects: { root: string; changes: { phase: string }[] }[]; project_count: number }
+    const frame = JSON.parse(delta.data) as DeltaFrame
     expect(frame.view).toBe('list')
     expect(frame.roots).toEqual([rootA, rootB])
     expect(frame.projects.map((project) => project.root)).toEqual([rootA])
