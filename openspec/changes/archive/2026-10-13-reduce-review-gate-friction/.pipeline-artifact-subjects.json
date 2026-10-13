@@ -248,9 +248,9 @@
       "subjectRef": {
         "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:927181636d24856f3811cc680dfda8ea",
         "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
-        "version": "sha256:1a978774e992551c4aa049035dc975026ef52a0d2ffebf0aa76501ac89d48cb0",
+        "version": "sha256:9f5de0fad335761de4357831bc094699f3e2cf7562ccb1e9cc5eae9cb1abacde",
         "projection": "document",
-        "content_digest": "sha256:1a978774e992551c4aa049035dc975026ef52a0d2ffebf0aa76501ac89d48cb0",
+        "content_digest": "sha256:9f5de0fad335761de4357831bc094699f3e2cf7562ccb1e9cc5eae9cb1abacde",
         "source": {
           "path": "tasks.md",
           "document_kind": "tasks"
@@ -262,7 +262,7 @@
       "documentKind": "tasks",
       "status": "committed",
       "receiptId": "submission:change-reduce-review-gate-friction-b6bd7e6e5c2a:document:9fd98c78c1d6b051ab64938608074984",
-      "recordedAt": "2026-10-13T15:06:33Z"
+      "recordedAt": "2026-10-13T15:07:22Z"
     }
   ]
 }

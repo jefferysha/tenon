@@ -2,8 +2,8 @@ track: backend
 preset: full
 created_by: jefferySha <710227704@qq.com>
 assignee: jefferySha <710227704@qq.com>
-phase: ship
-phase_status: pending
+phase: archive
+phase_status: done
 design_doc: docs/superpowers/specs/reduce-review-gate-friction-design.md
 plan: docs/superpowers/plans/reduce-review-gate-friction.md
 verification_report: docs/superpowers/reports/reduce-review-gate-friction-verify.md
@@ -31,18 +31,18 @@ related_files: null
 spec_scope: null
 depends_on: null
 created_at: 2026-10-13T11:19:45Z
-updated_at: 2026-10-13T15:04:32Z
+updated_at: 2026-10-13T15:07:26Z
 verified_at: 2026-10-13T15:04:32Z
-archived_at: null
-archived: false
+archived_at: 2026-10-13T15:07:26Z
+archived: true
 workflow: default
 automation_current_phase: ""
 automation_cause: ""
 pipeline_run_id: f8b9ca23-48ee-4d1e-992c-ae1b2142df37
-pipeline_transition_sequence: 5
-pipeline_transition_head: 75cab031-f252-4fb0-84d6-e05b80e79550
-pipeline_state_revision: 19
-pipeline_state_revision_id: 238a4d11-0977-4076-924a-7495f85ddaf7
-pipeline_state_digest: 1dbecdf651fea797a1291ff7858730b64fcab1c0a67b4552107bff2c655518fa
-# tenon-internal-pre-verify-review-v1: eyJzY2hlbWFWZXJzaW9uIjoxLCJyZXZpc2lvbiI6MTksInJldmlzaW9uSWQiOiIyMzhhNGQxMS0wOTc3LTQwNzYtOTI0YS03NDk1Zjg1ZGRhZjciLCJwYXlsb2FkRGlnZXN0IjoiNWJmY2YxNDg2YWJkNjgwYTA2NWE3ZGM0NjE5N2E4MDMwNWI0YTc3YjMyNWNmNjkxNzc1MjJlNDViMzBiODM1YiJ9
-# tenon-internal-transition-head-v1: eyJzY2hlbWFWZXJzaW9uIjoxLCJydW5JZCI6ImY4YjljYTIzLTQ4ZWUtNGQxZS05OTJjLWFlMWIyMTQyZGYzNyIsInNlcXVlbmNlIjo1LCJyZWNvcmRJZCI6Ijc1Y2FiMDMxLWYyNTItNGZiMC04NGQ2LWUwNWI4MGU3OTU1MCIsInJlY29yZERpZ2VzdCI6ImI4MGVjMzQ3YzIyYmYxMTM3YTVkOWJhNWU5NTBiMmM5NmI1YzllZDk4MzNlNjQyNjNlZjliYjRkNzZhMWI3MjkifQ
+pipeline_transition_sequence: 7
+pipeline_transition_head: 49be99a8-5450-4ce0-acb0-b1113dc8e1e7
+pipeline_state_revision: 21
+pipeline_state_revision_id: f55dfe72-875f-4346-8c74-018034474970
+pipeline_state_digest: 3b833163d3b69029e9fb38bd16fa766e8a234f16f04a1199fdb05999790df047
+# tenon-internal-pre-verify-review-v1: eyJzY2hlbWFWZXJzaW9uIjoxLCJyZXZpc2lvbiI6MjEsInJldmlzaW9uSWQiOiJmNTVkZmU3Mi04NzVmLTQzNDYtOGM3NC0wMTgwMzQ0NzQ5NzAiLCJwYXlsb2FkRGlnZXN0IjoiOTBhZjQ3MzY5MzQzYjUxOWU1OWRmMzZlYjgzYmQxNDFiYWYwMmJjOTJlZGQ0NmM4ZGM4NzJhYzZhM2ZhY2U5YSJ9
+# tenon-internal-transition-head-v1: eyJzY2hlbWFWZXJzaW9uIjoxLCJydW5JZCI6ImY4YjljYTIzLTQ4ZWUtNGQxZS05OTJjLWFlMWIyMTQyZGYzNyIsInNlcXVlbmNlIjo3LCJyZWNvcmRJZCI6IjQ5YmU5OWE4LTU0NTAtNGNlMC1hY2IwLWIxMTEzZGM4ZTFlNyIsInJlY29yZERpZ2VzdCI6Ijg1NDgyNWY5NzFhM2I2NTFmMzUxY2ZjYTQ3YWU2MWMxMWZjOWM3MGFhM2MwYzkzMjhmOWZlMDFmMDAyYjNlZmQifQ

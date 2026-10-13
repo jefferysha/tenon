@@ -100,3 +100,8 @@
 {"ts":"2026-10-13T15:04:51Z","kind":"tool","raw":"Skill: tenon:finishing-a-development-branch"}
 {"ts":"2026-10-13T15:04:51Z","kind":"tool","raw":"NativeSkillReadBinding: finishing-a-development-branch f8b9ca23-48ee-4d1e-992c-ae1b2142df37 5 native-post-tool-use-408a491b951e420d00cccda4114e255ca4d0db44fed06534b5bae18ffb49fa7b"}
 {"ts":"2026-10-13T15:06:51Z","kind":"set","field":"pr_url","to":"https://github.com/jefferysha/tenon/pull/83","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-13T15:07:06Z","kind":"transition","from":"ship","to":"archive","raw":"ship-complete","transitionRecordId":"3badfbce-2bc0-48b7-8f68-d13a9eb70a95","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-13T15:07:10Z","kind":"tool-start","raw":"Skill: tenon:tenon"}
+{"ts":"2026-10-13T15:07:11Z","kind":"tool","raw":"Skill: tenon:tenon"}
+{"ts":"2026-10-13T15:07:11Z","kind":"tool","raw":"NativeSkillReadBinding: tenon f8b9ca23-48ee-4d1e-992c-ae1b2142df37 6 native-post-tool-use-7f073f6f4ba2b2c734ca087b0d3c344b374c6a2f3f472916a825092c9f96d2ee"}
+{"ts":"2026-10-13T15:07:26Z","kind":"transition","from":"archive","to":"archive","raw":"archived","transitionRecordId":"49be99a8-5450-4ce0-acb0-b1113dc8e1e7","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
