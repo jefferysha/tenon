@@ -97,8 +97,8 @@ steps:
     expect(wf.steps).toHaveLength(7)
     expect(wf.steps.map((s) => s.id)).toEqual(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'])
     const specStep = wf.steps.find((s) => s.id === 'spec')
-    expect(specStep?.guards.map((guard) => guard.type)).toEqual(['file-exists', 'tasks-at-least', 'tasks-through-step'])
-    expect(specStep?.guards[1]).toEqual({ type: 'tasks-at-least', n: 3 })
+    expect(specStep?.guards.map((guard) => guard.type)).toEqual(['required-output', 'required-output', 'tasks-at-least', 'tasks-through-step'])
+    expect(specStep?.guards[2]).toEqual({ type: 'tasks-at-least', n: 3 })
   })
 
   it('default 项目覆盖：`.pipeline/workflows/default.yaml` 按 default 契约加载（effective-phase-skills 合法），并可改技能', async () => {
@@ -131,15 +131,17 @@ steps:
     expect(() => loadWorkflow(tempRoot, 'default')).toThrow(/openspec_contract|7 个标准阶段|archive/)
   })
 
-  it('custom 槽里的 effective-phase-skills artifact 仍被 custom 契约拒绝', async () => {
+  it('custom 槽里升级前的 default 副本（带 artifacts / document_contract）加载被拒，并给出替代写法', async () => {
+    // 升级前的模板副本是用户最可能留在项目里的旧文件：新定义不再接受这些键，错误里必须点名替代写法。
     const __dirname = dirname(fileURLToPath(import.meta.url))
     const repoRoot = dirname(dirname(dirname(dirname(__dirname))))
-    const content = await readFile(join(repoRoot, 'templates', 'workflows', 'default.yaml'), 'utf8')
+    const content = await readFile(join(repoRoot, 'tools', 'fixtures', 'legacy-default-workflow.yaml'), 'utf8')
     const tempRoot = await mkdtemp(join(tmpdir(), 'wf-load-custom-slot-'))
     await mkdir(join(tempRoot, '.pipeline', 'workflows'), { recursive: true })
     await writeFile(join(tempRoot, '.pipeline', 'workflows', 'copy.yaml'), content.replace('name: default', 'name: copy'), 'utf8')
 
-    expect(() => loadWorkflow(tempRoot, 'copy')).toThrow(/effective-phase-skills/)
+    expect(() => loadWorkflow(tempRoot, 'copy')).toThrow(/document_contract 已删除.*required-output/su)
+    expect(() => loadWorkflow(tempRoot, 'copy')).toThrow(/artifacts 已删除/u)
   })
 
   it('G2 P2：非法新 guard（scalar guard 挂列表字段 scope）→ 加载入口经 validate→compile 深校验 fail-loud', async () => {

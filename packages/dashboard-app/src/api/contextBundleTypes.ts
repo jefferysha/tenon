@@ -38,16 +38,34 @@ export const CONTEXT_BUNDLE_REASON_CODES = [
 ] as const
 export type ContextBundleReasonCode = (typeof CONTEXT_BUNDLE_REASON_CODES)[number]
 
-export interface ContextBundlePreviewInput {
-  kind: ContextBundleDocumentKind
+/** 观察模式（新任务）预览里的输入：当前步骤从直接上游交接来的文件，kind 与原因码各只有这一种。 */
+export const CONTEXT_BUNDLE_HANDOFF_KIND = 'handoff'
+export const CONTEXT_BUNDLE_HANDOFF_REASON_CODE = 'context-bundle.reason.handoff'
+
+interface ContextBundlePreviewInputBase {
   path: string
   digest: string
   reason: string
-  reasonCode: ContextBundleReasonCode
   mode: ContextBundleMode
   sourceBytes: number
   materializedBytes: number
 }
+
+/** 契约模式（升级前创建的任务）：按文档台账的 kind 编译。 */
+export interface ContextBundleContractInput extends ContextBundlePreviewInputBase {
+  kind: ContextBundleDocumentKind
+  reasonCode: ContextBundleReasonCode
+}
+
+export interface ContextBundleHandoffInput extends ContextBundlePreviewInputBase {
+  kind: typeof CONTEXT_BUNDLE_HANDOFF_KIND
+  reasonCode: typeof CONTEXT_BUNDLE_HANDOFF_REASON_CODE
+  fromStep: string
+  /** 来源技能；推断不出来是 null。 */
+  skill: string | null
+}
+
+export type ContextBundlePreviewInput = ContextBundleContractInput | ContextBundleHandoffInput
 
 export interface ContextBundlePreviewBudget {
   maxBytes: number

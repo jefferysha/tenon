@@ -1,28 +1,17 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useGSAP } from '@gsap/react'
-import { Check, Plus } from 'lucide-react'
-import { DOCUMENT_KIND_CATALOG } from '@tenon/kernel/workflow/document-contract-model'
 import type { WorkflowOrchestration } from '@tenon/kernel/workflow/orchestration'
-import type { WbExecutorRef, WbIoSlot, WbReviewerRef, WbStepDef } from '../api/governanceTypes'
+import type { WbExecutorRef, WbReviewerRef, WbStepDef } from '../api/governanceTypes'
 import { useT } from '../i18n'
-import { mergeStepIoAliases } from '../model/ioSlots'
-import { documentInputCandidates, documentKindsForOutput } from '../workbench/documentContractEdits'
 import type { WorkflowEditor } from '../workbench/useWorkflowEditor'
-import { BASE_BRANCH } from '../workbench/workbenchDefinition'
 import { revealList } from '../shared/motion'
 import { AgentComposer } from './AgentComposer'
 import { draftOrchestration } from './draftOrchestration'
 import { GateSection } from './GateSection'
-import { issuesFor } from './lint'
-import { lintMessage } from './lintMessages'
-import { IoTable, type IoRow } from './IoTable'
-import { producerSkills } from './producers'
 import { SkillComposer } from './SkillComposer'
 import { SkillDetailDrawer } from './SkillDetail'
 import { SaveBar } from './SaveBar'
-import { HEAD_ACTION, SectionHead } from './SectionHead'
 import { StageFlowSection } from './StageFlowSection'
-import { cn } from '@/lib/utils'
 
 export interface StageEditorPaneProps {
   editor: WorkflowEditor
@@ -38,138 +27,32 @@ export const SECTION_STAGGER = 0.03
 const NO_EXECUTORS: readonly WbExecutorRef[] = []
 const NO_REVIEWERS: readonly WbReviewerRef[] = []
 
-const POPOVER = 'absolute right-0 top-[calc(100%+6px)] z-40 min-w-[260px] rounded-md border border-border bg-card p-1 shadow-lg'
-const POPOVER_ROW = 'flex w-full items-center gap-2 whitespace-nowrap rounded-sm px-2.5 py-2 text-left text-body outline-none hover:bg-fill focus-visible:bg-fill'
-
 /**
- * 工作流页右栏：可编辑标题（工作流名与轨道只在左栏出现一次）；段落顺序 输入 → 技能 → 输出 → 门禁。
+ * 工作流页右栏：可编辑标题（工作流名与轨道只在左栏出现一次）；段落顺序 技能 → 门禁。
  * 「技能」段是与总览同一张画布的单列形态（执行者 / 技能 / 测试 / 评审者四条泳道，测试泳道只读地列旧步骤测试）；
- * 退回与测试策略并入门禁段（门禁 → 退回 → 测试策略）。
- * 段头一行（标题 · 计数 · 动作），内容满宽。字段输入输出由定义推导；开启 OpenSpec 时文档输出用「+ 输出」声明，文档输入用「+ 输入」勾选。
+ * 退回与测试策略并入门禁段（门禁 → 退回 → 测试策略），必须产出（`required-output`）是门禁段里的一种离开条件。
+ * 每步的输入输出不在这里手写：任务里它们是真实发生的产出，见工作台。
  */
 export function StageEditorPane({ editor, step, orchestration: provided }: StageEditorPaneProps): JSX.Element {
   const { t } = useT()
   const def = editor.def
-  const steps = def?.steps ?? []
   const editable = editor.canWrite
   const [composerOpen, setComposerOpen] = useState(false)
   const [agentRole, setAgentRole] = useState<'executors' | 'reviewers' | null>(null)
   const [skillDetail, setSkillDetail] = useState<string | null>(null)
-  const [outputPicker, setOutputPicker] = useState(false)
-  const [inputPicker, setInputPicker] = useState(false)
   // 本组件按阶段 id 重挂载（WorkflowView 的 key）：每次切换阶段，各段依次轻微上浮淡入。
   const paneRef = useRef<HTMLElement>(null)
   useGSAP(() => { revealList('[data-stage-sections] > *', SECTION_STAGGER) }, { scope: paneRef })
-  // 同一概念的值字段并进同名文档行：一个概念只显示一个名字，字段放 Tooltip。
-  const stepIo = mergeStepIoAliases(editor.effectiveIo?.[step.id])
   const registry = editor.skillRegistry
-  const yamlBase = editor.branch === BASE_BRANCH ? `steps[${step.id}]` : `tracks.${editor.branch}.steps[${step.id}]`
-  const contractBase = editor.branch === BASE_BRANCH ? 'document_contract' : `tracks.${editor.branch}.document_contract`
-  // 编排由 kernel 的 orchestrate 算（与服务端同一实现）：技能 = 声明 + OpenSpec 注入，按 runner 顺序。
+  // 编排由 kernel 的 orchestrate 算（与服务端同一实现）：技能 = 声明的技能，按 runner 顺序。
   const localOrchestration = useMemo(
-    () => provided !== undefined || def === null ? null : draftOrchestration(def, editor.effectiveIo),
-    [provided, def, editor.effectiveIo],
+    () => provided !== undefined || def === null ? null : draftOrchestration(def),
+    [provided, def],
   )
   const orchestration = provided ?? localOrchestration
   const stageOf = (id: string) => orchestration?.stages.find((candidate) => candidate.id === id)
-  const skillsOf = (id: string): string[] => (stageOf(id)?.entries ?? []).filter((entry) => entry.kind === 'skill').map((entry) => entry.id)
-  const stageSkills = skillsOf(step.id)
   const stageLabel = editor.labelOf(step.id)
   const openComposer = useCallback(() => setComposerOpen(true), [])
-  const documentsEditable = editable && def?.openspec === true
-  const outputChoices = documentsEditable && def !== null ? documentKindsForOutput(def, step.id) : []
-  const inputChoices = documentsEditable && def !== null ? documentInputCandidates(def, step.id) : []
-  const checkedInputs = new Set([
-    ...(def?.documentContract?.reads.find((read) => read.step === step.id)?.kinds ?? []),
-    ...(def?.documentContract?.slots ?? []).filter((slot) => slot.ownerStep === step.id && slot.role === 'require').map((slot) => slot.kind),
-  ])
-  const documentLint = issuesFor(editor.lint, step.id).find((issue) => issue.kind.startsWith('document-'))
-
-  // 输入 / 输出同一张表（文件 · 来源阶段 · 来源技能）；输出的来源阶段就是本阶段。不列读取阶段。
-  const outputRows: IoRow[] = (stepIo?.outputs ?? []).map((slot) => ({
-    slot,
-    stage: stageLabel,
-    skills: slot.kind === 'document' ? producerSkills(slot.producers, stageSkills) : step.skills.map((skill) => skill.id),
-    path: slot.kind === 'document' ? `${contractBase}.slots[${slot.id}]` : `${yamlBase}.outputs[${slot.id}]`,
-  }))
-  function producerStepOf(slot: WbIoSlot): WbStepDef | undefined {
-    const producerId = slot.kind === 'field'
-      ? slot.producer
-      : steps.find((candidate) => (editor.effectiveIo?.[candidate.id]?.outputs ?? []).some((output) => output.kind === 'document' && output.id === slot.id))?.id ?? null
-    return producerId === null ? undefined : steps.find((candidate) => candidate.id === producerId)
-  }
-  // 输入侧文档槽位的 producers 是产出阶段 id；技能候选回到那个阶段的输出槽位上取。
-  const inputRows: IoRow[] = (stepIo?.inputs ?? []).map((slot) => {
-    const producer = producerStepOf(slot)
-    const producerSkillIds = producer === undefined ? [] : skillsOf(producer.id)
-    const candidates = producer === undefined || slot.kind !== 'document'
-      ? []
-      : (editor.effectiveIo?.[producer.id]?.outputs ?? []).flatMap((output) => output.kind === 'document' && output.id === slot.id ? output.producers : [])
-    return {
-      slot,
-      stage: producer === undefined ? undefined : editor.labelOf(producer.id),
-      skills: slot.kind === 'document' ? producerSkills(candidates, producerSkillIds) : producerSkillIds,
-      path: slot.kind === 'document' ? `${contractBase}.reads[${step.id}]` : `${yamlBase}.inputs[${slot.id}]`,
-    }
-  })
-
-  const inputAction = documentsEditable ? (
-    <span className="relative">
-      <button type="button" className={HEAD_ACTION} aria-haspopup="menu" aria-expanded={inputPicker} data-testid="wb-inputs-edit" onClick={() => setInputPicker((open) => !open)}>
-        <Plus className="size-3.5" aria-hidden="true" />
-        {t('workflow.add_input')}
-      </button>
-      {inputPicker && (
-        <div className={POPOVER} role="menu" aria-label={t('workflow.add_input')} data-testid="wb-inputs-picker">
-          {inputChoices.length === 0 ? <p className="whitespace-nowrap px-2.5 py-2 text-body text-text-3" role="status">{t('workflow.no_inputs')}</p> : inputChoices.map(({ kind, fromStep }) => {
-            const checked = checkedInputs.has(kind)
-            return (
-              <button
-                key={kind}
-                type="button"
-                role="menuitemcheckbox"
-                aria-checked={checked}
-                className={POPOVER_ROW}
-                data-testid={`wb-input-option-${kind}`}
-                onClick={() => editor.setDocumentInputs(step.id, checked ? [...checkedInputs].filter((candidate) => candidate !== kind) : [...checkedInputs, kind])}
-              >
-                <Check className={cn('size-3.5 flex-none', checked ? 'text-(--accent)' : 'invisible')} aria-hidden="true" />
-                <span className="font-mono text-text">{kind}</span>
-                <span className="truncate text-caption text-text-3">{fromStep === null ? '—' : editor.labelOf(fromStep)}</span>
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </span>
-  ) : undefined
-
-  const outputAction = documentsEditable ? (
-    <span className="relative">
-      <button type="button" className={HEAD_ACTION} aria-haspopup="listbox" aria-expanded={outputPicker} data-testid="wb-outputs-add" onClick={() => setOutputPicker((open) => !open)}>
-        <Plus className="size-3.5" aria-hidden="true" />
-        {t('workflow.add_output')}
-      </button>
-      {outputPicker && (
-        <div className={POPOVER} role="listbox" aria-label={t('workflow.add_output')} data-testid="wb-outputs-picker">
-          {outputChoices.length === 0 ? <p className="whitespace-nowrap px-2.5 py-2 text-body text-text-3" role="status">{t('workflow.outputs_none_available')}</p> : outputChoices.map((kind) => (
-            <button
-              key={kind}
-              type="button"
-              role="option"
-              aria-selected={false}
-              className={POPOVER_ROW}
-              data-testid={`wb-output-option-${kind}`}
-              onClick={() => { setOutputPicker(false); editor.addDocumentOutput(step.id, kind) }}
-            >
-              <span className="font-mono text-text">{kind}</span>
-              <span className="truncate font-mono text-caption text-text-3">{DOCUMENT_KIND_CATALOG[kind].producers.join(', ')}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </span>
-  ) : undefined
 
   return (
     <section ref={paneRef} className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-surface-detail" data-testid="stage-editor-pane">
@@ -190,16 +73,6 @@ export function StageEditorPane({ editor, step, orchestration: provided }: Stage
         </div>
 
         <div className="mt-4 grid divide-y divide-border" data-stage-sections="">
-          <section className="grid gap-3.5 py-6" data-testid="stage-inputs">
-            <SectionHead title={t('workflow.inputs_title')} count={inputRows.length} action={inputAction} />
-            <IoTable
-              direction="inputs"
-              rows={inputRows}
-              empty={t('workflow.no_inputs')}
-              onRemove={documentsEditable ? (slot) => editor.removeDocumentSlot(step.id, slot.id, 'inputs') : undefined}
-            />
-          </section>
-
           <StageFlowSection
             stage={stageOf(step.id)}
             editable={editable}
@@ -208,20 +81,7 @@ export function StageEditorPane({ editor, step, orchestration: provided }: Stage
             onOpenSkill={setSkillDetail}
           />
 
-          <section className="grid gap-3.5 py-6" data-testid="stage-outputs">
-            <SectionHead title={t('workflow.outputs_title')} count={outputRows.length} action={outputAction} />
-            <IoTable
-              direction="outputs"
-              rows={outputRows}
-              empty={<span className="text-text-3" data-testid="stage-outputs-empty">{t('workflow.no_outputs')}</span>}
-              onRemove={documentsEditable ? (slot) => editor.removeDocumentSlot(step.id, slot.id, 'outputs') : undefined}
-            />
-            {documentLint !== undefined && (
-              <p className="whitespace-nowrap text-body text-amber-d" role="status" data-testid="stage-document-lint">{lintMessage(t, documentLint, editor.labelOf)}</p>
-            )}
-          </section>
-
-          <GateSection editor={editor} step={step} hasOutputs={outputRows.length > 0} />
+          <GateSection editor={editor} step={step} />
         </div>
       </div>
       {/* 保存条在滚动区之外：出现时挤小滚动区，不盖住最后一段（门禁 / 退回 / 测试策略）。 */}

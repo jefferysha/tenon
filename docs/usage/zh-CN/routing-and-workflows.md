@@ -2,7 +2,7 @@
 
 Tenon 的目标不是让所有请求都走最长流程，而是让任务复杂度、风险和证据成本匹配。
 
-**工作流**是步骤、转换、门禁、技能、产物和可选文档契约组成的图，它的 YAML 是任务怎么走的唯一定义。**轨道**是工作流里的一个分支（YAML 里的 `tracks.<id>`），自带步骤、规范、路由关键词和自动化设置；轨道的身份是「工作流 + 轨道 id」，只有这一种轨道。没有 `tracks:` 的平铺工作流（如 `design-system`）本身就是唯一的轨道，`tenon init` 不用写 `--track`。
+**工作流**是步骤、转换、门禁、技能和守卫（含要求某一步写出文件的 `required-output`）组成的图，它的 YAML 是任务怎么走的唯一定义。**轨道**是工作流里的一个分支（YAML 里的 `tracks.<id>`），自带步骤、规范、路由关键词和自动化设置；轨道的身份是「工作流 + 轨道 id」，只有这一种轨道。没有 `tracks:` 的平铺工作流（如 `design-system`）本身就是唯一的轨道，`tenon init` 不用写 `--track`。
 
 内建工作流只有两个。`default` 有四条轨道：
 
@@ -75,7 +75,7 @@ tenon assess --files <路径>...
 
 ## 轻量轨道
 
-`lite` 承接既不带重型信号、也没有超出阈值的工作：修 bug、加一个函数、重构一个模块、改错字。它是 `spec: none`，没有 OpenSpec 契约，所以没有要铺骨架、要登记的文档：
+`lite` 承接既不带重型信号、也没有超出阈值的工作：修 bug、加一个函数、重构一个模块、改错字。它是 `spec: none`，没有 OpenSpec 生命周期，也不声明必须产出；Tenon 仍会记录每一步写出了什么，并把上一步的文档交给下一步：
 
 ```text
 open → build → verify → done
@@ -119,7 +119,7 @@ open → build → verify → done
 
 ## 自定义 Workflow
 
-Custom workflow 由项目 `.pipeline/workflows/*.yaml` 定义 DAG、skills、guards、review gate 和 document contract。系统必须加载真实定义，不能按 step 名猜测它等价于 default。
+Custom workflow 由项目 `.pipeline/workflows/*.yaml` 定义 DAG、skills、guards（含 `required-output`）和 review gate。系统必须加载真实定义，不能按 step 名猜测它等价于 default。
 
 把轨道写成 `tracks:` 下的分支；给分支写上 `route`，路由器就把它列为候选。因为最高分的分支此时属于自定义工作流，路由器会让你选一对「工作流 + 轨道」，不替你决定。然后显式建任务：
 
@@ -170,7 +170,7 @@ Discussion 常见于“解释错误”“只审查不修改”“比较方案”
 - 需求在实现期间可能变化；
 - 交付结果将进入公开发布。
 
-Custom 可以只有三个步骤，也可以包含并行依赖。是否生成 proposal、spec 或 ADR，只由其 document contract 决定，不因文件名习惯自动补齐 default 文档。
+Custom 可以只有三个步骤，也可以包含并行依赖。是否出现 proposal、spec 或 ADR，由各步的技能按自己的 `SKILL.md` 决定；Workflow 只用 `required-output` 要求某一步必须写出哪些文件，不因文件名习惯自动补齐 default 文档，见[文档、Skill 与证据链](./documents-skills-and-evidence.md)。
 
 ## 升级与恢复边界
 
@@ -181,7 +181,7 @@ Custom 可以只有三个步骤，也可以包含并行依赖。是否生成 pro
 - 已经产生需要审计的 review 决策；
 - 已冻结 Build 基线；
 - 已运行外部发布或生产迁移；
-- 已有后续阶段读取文档 digest。
+- 下一阶段已经读过上一阶段交接的文档（读取回执）。
 
 恢复规则可以避免“调研新项目却继续旧 Change”的串线问题。用户自己的 `active-change` 是恢复候选投影，不是把所有后续对话永久锁定到旧任务的全局开关。
 宿主提供 session id 时，只有该会话存在有效精确绑定，通用“继续执行”才会恢复；全新未绑定会话
@@ -202,4 +202,4 @@ tenon tracks show <workflow>:<track> --json
 tenon document status <change>
 ```
 
-核对 Change 名、workflow、track、当前 phase 和文档合同。若新目标意外命中旧 Change，应停止写入并创建独立 Change，不能继续污染旧证据。
+核对 Change 名、workflow、track、当前 phase 和本步的输入、产出与必须产出。若新目标意外命中旧 Change，应停止写入并创建独立 Change，不能继续污染旧证据。

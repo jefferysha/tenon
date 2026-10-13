@@ -9,8 +9,9 @@ Only capabilities included in a public distribution belong here. Plans, internal
 The built-in Workflows collapse to two: `default`, whose Tracks are now lightweight (`lite`), product (`pm`), frontend
 (`frontend`) and backend (`backend`), and the flat `design-system`. The lightweight Track replaces the `standard` and
 `simple` Workflows, a development request is assessed before a Change is created, every task ends in
-`openspec/changes/archive/`, and the Workspace gets an Ended category. Read "Retired and migration" before you upgrade a
-project.
+`openspec/changes/archive/`, and the Workspace gets an Ended category. The document mechanism is reworked as well: a
+Workflow no longer declares the input and output documents of a step, Tenon records what each step actually wrote, and a
+step can only require a file by path. Read "Retired and migration" before you upgrade a project.
 
 ### Retired and migration
 
@@ -32,8 +33,50 @@ project.
   Dashboard no longer creates tasks) and the router preview are removed; skills come only from the Workflow YAML.
 - The old phase-manifest engine now serves only Changes created before the upgrade, by their frozen snapshots, and is
   removed in the next release. An in-flight `standard`, `simple`, chat or free Change finishes on the snapshot it froze.
+- Document mechanism: `document_contract` (top level or on a Track branch) and the step keys `inputs`, `outputs` and
+  `artifacts` are removed from the Workflow definition, and so is the `nonempty-output` guard that depended on `outputs`.
+  Saving a Workflow, creating a Change and compiling a new plan reject them and name the replacement: documents are
+  recorded automatically, a file condition is a `required-output` guard, a field condition is `field-nonempty` or
+  `field-equals`. Empty `inputs: []`, `outputs: []` and `artifacts: []` still load and are no longer written back.
+  `default` and `design-system` declare none of them, and the rule that `brainstorming` produces the `adr` is gone with
+  the contract.
+- A new Change gets no proposal or design skeleton and no document ledger (`.pipeline-documents.json`); a Track with
+  `spec: openspec` only gets the `tasks.md` skeleton. `tenon document scaffold`, `record`, `init` and `migrate-delta`
+  (exit `2`) and `tenon artifact register` (exit `1`) serve only Changes created before the upgrade and tell a new Change
+  that its outputs are recorded automatically.
+- `gate: auto` is no longer derived from a step's `outputs`: an auto step can be left when its leave conditions are met.
+  A new custom Workflow that freezes a build revision writes `freeze-build-sha` on the `build-complete` edge and
+  `build-head-unchanged` on the `verify-pass` edge itself, as `default` does.
+- The frontend Track no longer requires a ready `DESIGN.md` before Open (the rule came from the former document
+  contract). The validity of `DESIGN.md` is still checked by the `design-system` test at Ship. Changes created before the
+  upgrade are not affected.
+- Changes created before the upgrade finish under the plan they froze, former document contract included: the document
+  ledger, per-kind reads and the `scaffold-document`, `record-document` and `register-field` actions work as before.
+- The Workflow API no longer returns `effectiveIo`, and the `io` field of `GET /api/change/:name/orchestration` is
+  replaced by `stepIo`.
 
 ### Added
+
+- Step outputs. Entering a step takes a checkpoint (git `HEAD` and the files that differ from it, with their SHA-256);
+  leaving a step compares the workspace with it, inside the transition lock, and records the files added, modified and
+  deleted together with the Skill that wrote each (`unknown` when Tenon cannot tell) in `.pipeline-step-outputs.json`. It
+  works the same on every Track and Workflow, shell and subagent writes included. Outside a git repository nothing is
+  recorded and no transition is blocked.
+- Handoff by direct upstream. The next step receives only the Markdown documents its direct upstream step produced;
+  `step.next` lists the unread ones in `read-documents`, `tenon document read <name> all` (or one path) writes the read
+  receipt, and no edge except terminating the task can be left while an input is unread (exit `1`). A file the step
+  changes after reading it needs no new receipt; the change is recorded as the step's output. `tenon document status`
+  prints the inputs, outputs and required outputs of the step, and `step.documents` carries the same.
+- The `required-output` guard, `{ type: required-output, path: <pattern> }`, on a step or an edge: the step must have
+  written a matching file in this Change before it can be left (exit `2`). `{change}` stands for the task name, `*`
+  matches inside one segment, `**` any number of segments and `?` one character. `default` uses it for the proposal, the
+  design, the delta spec, the plan and the verification report, and `design-system` for its direction and `DESIGN.md`.
+- The document mechanism no longer depends on OpenSpec: observation, handoff, read receipts and required outputs apply to
+  the lightweight Track, to `spec: none` and to flat custom Workflows, and `spec: openspec` only governs the OpenSpec
+  lifecycle. A Spec Kit style flow is a plain Workflow that requires `specs/*/spec.md`, `plan.md` and `tasks.md`.
+- The Workspace shows the real inputs of each step (file, source stage, source skill, read or unread) and outputs (file,
+  added, modified or deleted, source skill); the workflow page has no input or output tables any more and lists
+  “Required output `<path>`” under the gate.
 
 - `default` is executed from its YAML. Its rules are written there as leave conditions, three of them general:
   `tasks-through-step`, `not-afk-queued` and `dependencies-ended`. `tenon check <name>` without an event lists the step's
@@ -75,6 +118,10 @@ project.
    `default` task only as a warning, and it rejects a new task on a Track it does not know: `lite`, or a Workflow without
    `tracks:` (`design-system` or your own flat Workflow), whose Track is recorded under the Workflow's name (see
    [Updates, recovery, and uninstall](updates-recovery-and-uninstall.md)).
+6. If a Workflow of yours fails to save and names `document_contract`, `inputs`, `outputs` or `artifacts`, delete those
+   keys; write `required-output` for a file a step must produce and `field-nonempty` or `field-equals` for a field. A
+   `gate: auto` step that relied on its `outputs` now needs those checks written as guards. Scripts that read
+   `effectiveIo` from the Workflow API or `io` from `GET /api/change/:name/orchestration` read `stepIo` instead.
 
 ### Verify
 
@@ -86,7 +133,10 @@ tenon init demo --workflow standard
 
 `tracks list` shows the `lite`, `pm`, `frontend` and `backend` Tracks of `default`, `design-system` and your own Workflows; `assess`
 reports whether the files you expect to change stay within the limits; the last command exits `1` and prints
-`--workflow default --track lite` (`demo` is just a sample name, nothing is created).
+`--workflow default --track lite` (`demo` is just a sample name, nothing is created). On a Change created after the
+upgrade, `tenon document status <name> --json` reports `mode: "observed"` with its `inputs`, `outputs` and `required`;
+on one created before with the former document contract, `tenon status <name> --json` shows
+`step.documents.mode: "contract"`.
 
 ## v0.3.2 · 2026-10-07
 

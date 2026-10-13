@@ -1,0 +1,43 @@
+# OpenSpec 增量规格
+
+## MODIFIED Requirements
+
+### Requirement: Workflow definition 闭集 codec
+
+Workflow definition 顶层闭集 MUST 增加 `decomposition` 与 `interaction`，并在 parse、serialize、validate、compile 与 deep-freeze 中使用同一规范化契约。轨道分支的闭集 MUST 为 `label`、`steps`、`spec`、`route`、`automation`；`spec` 只接受 `openspec` 或 `none`，不写时继承顶层 `openspec`。没有 `tracks:` 的工作流 MUST 编译为只有一个隐式分支。`default` MUST NOT 再被要求恰好包含七个规范阶段；只有 `spec: openspec` 的分支需要满足 OpenSpec 规格步骤所需的结构。
+
+新定义的校验（保存、建任务、编译新计划）MUST 拒绝顶层或分支的 `document_contract`、非空的步骤 `inputs` / `outputs` / `artifacts` 以及依赖 `outputs` 的 `nonempty-output` 守卫，报错 MUST 给出替代写法（文档用 `required-output`，字段用 `field-nonempty` 等）；空列表 `inputs: []`、`outputs: []`、`artifacts: []` MUST 照收且序列化不再写出。解析器 MUST 仍能把这些键读进 IR，冻结快照恢复 MUST NOT 重新校验它们。守卫闭集 MUST 增加 `required-output`，其唯一数据键为 `path`。`gate: auto` MUST NOT 再由 `outputs` 推导守卫，自动门禁即离开条件全部满足。
+
+#### Scenario: legacy definition
+
+- **WHEN** 旧 definition 不含新字段
+- **THEN** 编译为 decomposition.mode=off 与 interaction.mode=interactive
+- **AND** 各分支的 `spec` 取顶层 `openspec` 的值
+
+#### Scenario: round-trip
+
+- **WHEN** 合法 v1 policies 完成 serialize -> parse -> compile
+- **THEN** 规范化 IR 深等价且只读冻结
+
+#### Scenario: 分支新键 round-trip
+
+- **WHEN** 一个分支声明 `spec: none`、`route.keywords` 与 `automation.eligible: false` 并完成 serialize -> parse -> compile
+- **THEN** 规范化 IR 保留这三项且深等价
+- **AND** 分支中出现闭集之外的键时解析失败并点名该键
+
+#### Scenario: default 含非七步分支
+
+- **WHEN** `default` 的 `lite` 分支只有 open、build、verify、done、escalated 五个步骤
+- **THEN** 存储校验与加载通过，其余分支照常可用
+
+#### Scenario: 旧的输入输出键被拒
+
+- **WHEN** 一个项目工作流的某一步声明了非空的 `outputs` 或 `artifacts`
+- **THEN** 保存与建任务都失败，报错点名该步骤并给出 `required-output` / `field-nonempty` 的替代写法
+- **AND** 只写了 `inputs: []` 与 `outputs: []` 的旧文件照常加载，再次保存后不再含这两个键
+
+#### Scenario: required-output round-trip
+
+- **WHEN** 一个步骤声明 `{ type: required-output, path: "docs/superpowers/specs/*.md" }` 并完成 serialize -> parse -> compile
+- **THEN** 规范化 IR 保留该守卫与路径模式
+- **AND** 路径模式为空、为绝对路径、含 `..` 或含未知占位符时校验失败

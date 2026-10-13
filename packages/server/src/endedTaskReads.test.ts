@@ -99,7 +99,8 @@ describe('已结束任务的只读详情接口（archived=1）', () => {
     expect(body.workflow).toBe('default')
     expect(body.stages.length).toBeGreaterThan(0)
     expect(body.stages.every((stage) => stage.entries.every((entry) => typeof entry.status === 'string'))).toBe(true)
-    expect(Object.keys(body.io).length).toBeGreaterThan(0)
+    expect(body).not.toHaveProperty('io')
+    expect(Object.keys(body.stepIo).length).toBeGreaterThan(0)
   })
 
   it('记录：读归档目录里的历史', async () => {

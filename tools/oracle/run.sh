@@ -70,10 +70,10 @@ else
   NEW_CMD=(node "$NEW_CLI_DEFAULT")
 fi
 
-# 新 default workflow 的文档契约是有意新增的产品行为；T6 oracle 的职责仍是比较原有状态机
-# guard/effect。因此真实 bundle 双跑会在 new 侧用真实 `document` 命令、真实 PostToolUse tracker
-# 构造可审计的 fixture 证据，而不是把产品契约关掉。stub 只是比较 harness 本身，未实现 document
-# 子命令，故显式注入 ORACLE_NEW_CLI 时默认关闭；需要测试该路径的调用方可置 1。
+# 新 default workflow 的文档门禁（离开步骤时观察产出、读完直接上游的输入、按路径的必须产出）是有意新增的产品行为；
+# T6 oracle 的职责仍是比较原有状态机 guard/effect。因此真实 bundle 双跑会在 new 侧写出当前步骤的必须产出文件、
+# 用真实 `document read` 与真实 PostToolUse tracker 构造 fixture 证据，而不是把产品门禁关掉。stub 只是比较
+# harness 本身，未实现 document 子命令，故显式注入 ORACLE_NEW_CLI 时默认关闭；需要测试该路径的调用方可置 1。
 if [ -z "${ORACLE_DOCUMENT_BOOTSTRAP:-}" ]; then
   if [ -n "${ORACLE_NEW_CLI:-}" ]; then
     DOCUMENT_CONTRACT_BOOTSTRAP=0
@@ -381,15 +381,14 @@ else
 fi
 say ""
 
-# ---------- new 侧 OpenSpec 文档契约 fixture ----------
+# ---------- new 侧文档门禁 fixture ----------
 #
-# Oracle fixtures 起源于文档账本出现之前，重点是历史状态机 guard/effect；现在真实 default workflow
-# 会在每次 transition 前验证 document ledger。这里不绕过该验证：它在 new 侧逐个执行产品的
-# `tenon document init|record|read` 命令，并通过同包 PostToolUse tracker 写入所需的 Skill audit。
-#
-# 对 pm-history 这类“升级前已在 spec”的 fixture，前序已有文档用 `--backfill` 显式登记。该选项也在
-# 产品 CLI 中受到约束：只能补当前 phase 之前的文档，仍需要真实 skill evidence + path/digest 校验，
-# 不能登记未来 phase。这样 oracle 同时覆盖升级兼容入口，而不是把旧 Change 悄悄豁免出治理。
+# Oracle fixtures 起源于文档门禁出现之前，重点是历史状态机 guard/effect；现在真实 default workflow
+# 会在每次 transition 前验证文档门禁：本步按路径的必须产出（`required-output`）与直接上游交接来的输入读完没有。
+# 这里不绕过该验证：new 侧只写出当前步骤的必须产出文件（任务目录与 `docs/` 下，路径对得上 default.yaml 的模式），
+# 再执行产品的 `tenon document read <change> all`，并通过同包 PostToolUse tracker 写入所需的 Skill audit。
+# 新任务不再有文档账本，也就没有 `document init|record`；oracle 的 fixture 目录不是 git 仓库，观察记为 unavailable，
+# 必须产出按「存在匹配文件」判定。
 
 # 新 CLI 的操作人来自声明身份（env → config → git），没有 per-command 的 --user 冒名开关；
 # oracle 注入固定测试身份，机器上有没有 git 身份都不影响双跑。
@@ -439,7 +438,7 @@ track_oracle_skill() {
   local dir="$1" skill="$2"
   # Exercise the same host-neutral native PostToolUse boundary as Claude. Session/tool identity is
   # required to seal the invocation against the canonical current StepVisit; a bare history row is
-  # deliberately insufficient and would make this fixture fail closed at `document record`.
+  # deliberately insufficient and would make this fixture fail closed at the step's skill gate.
   # The hook resolves the Change through the *caller's* `.tenon/users/<slug>/local/active-change`,
   # so it needs the same declared identity as run_new_cli: without it the slug differs, the hook
   # finds no active Change and silently records nothing.
@@ -501,99 +500,56 @@ bootstrap_new_phase_skills() {
   )
 }
 
-# Bootstrap runs before every oracle transition/check against the same evolving fixture.  A
-# historical document needs `--backfill` only once; attempting it again is correctly rejected by
-# the product ledger because a backfill must never overwrite an established record.  This harness
-# only creates immutable fixture documents, so a kind it has already recorded is exactly the
-# idempotent case.
-#
-# Idempotency is keyed on this harness's own successful `document record`, never on the mere
-# presence of a ledger row: only an explicit `document record` binds the document application
-# (artifact-binding-intent/artifact-bound) that `evaluateDocumentEvidence` demands.  A row this
-# harness did not bind would fail `check` and `open-complete` with “producer invocation/artifact
-# 尚未原子完成” before the legacy guard the fixture compares was reached.
-oracle_document_receipts() {
-  printf '%s/.oracle-document-records/%s' "$1" "$2"
-}
-
-oracle_document_recorded() {
-  local receipts
-  receipts="$(oracle_document_receipts "$1" "$2")"
-  [ -f "$receipts" ] && grep -Fxq "$3" "$receipts"
-}
-
-oracle_document_recorded_any_visit() {
-  local receipts
-  receipts="$(oracle_document_receipts "$1" "$2")"
-  [ -f "$receipts" ] && grep -Eq "^$3(@[0-9]*)?\$" "$receipts"
-}
-
-record_oracle_document() {
-  local dir="$1" change="$2" current="$3" owner="$4" kind="$5" rel="$6" producer="$7"
-  local current_rank owner_rank
-  current_rank="$(phase_rank "$current")"
-  owner_rank="$(phase_rank "$owner")"
-  [ "$current_rank" -ge 0 ] && [ "$owner_rank" -ge 0 ] || return 0
-  [ "$owner_rank" -le "$current_rank" ] || return 0
-  # A kind owned by the current phase is its mandatory producer's output, and that Skill counts as
-  # done only when the document is recorded in *this* step visit (skill↔artifact binding). Key the
-  # idempotency receipt on the visit (transition rows so far) so a re-entered phase — verify after
-  # verify-fail — records again; historical backfills stay once-only as the ledger demands.
-  local receipt="$kind"
-  if [ "$owner_rank" -eq "$current_rank" ]; then
-    receipt="$kind@$(grep -c '"kind":"transition"' "$dir/openspec/changes/$change/.pipeline-history.jsonl" 2>/dev/null || true)"
-  fi
-  if [ "$owner_rank" -lt "$current_rank" ]; then
-    # Any earlier record of the kind (in its owner visit or as a backfill) already establishes it.
-    oracle_document_recorded_any_visit "$dir" "$change" "$kind" && return 0
-  else
-    oracle_document_recorded "$dir" "$change" "$receipt" && return 0
-  fi
-  ensure_oracle_document "$dir" "$rel" "$kind" || return 1
-  track_oracle_skill "$dir" "$producer" || return 1
-  if [ "$owner_rank" -lt "$current_rank" ]; then
-    run_new_cli "$dir" document record "$change" "$kind" "$rel" --producer "$producer" --backfill || return 1
-  else
-    run_new_cli "$dir" document record "$change" "$kind" "$rel" --producer "$producer" || return 1
-  fi
-  mkdir -p "$dir/.oracle-document-records" || return 1
-  printf '%s\n' "$receipt" >> "$(oracle_document_receipts "$dir" "$change")"
+# Bootstrap runs before every oracle transition/check against the same evolving fixture.  New tasks
+# have no document ledger and no `document record`: the step's `required-output` guard wants a
+# matching file produced in this task (existence-based here: the fixture directory is not a git
+# work tree with observable history), and a step's inputs are the documents its direct upstream
+# produced.  So the bootstrap only (1) writes the files the current step's `required-output` patterns
+# in default.yaml ask for, and (2) reads the handoff inputs with the real `tenon document read`.
+# Every file is an immutable fixture document, so writing it again is the idempotent case.
+#   open    -> openspec/changes/<c>/proposal.md
+#   explore -> docs/superpowers/specs/*.md
+#   spec    -> openspec/changes/<c>/specs/*/spec.md + docs/superpowers/plans/*.md
+#   verify  -> docs/superpowers/reports/<c>-verify.md (the verify-pass edge's required output)
+oracle_step_outputs() {
+  local change="$1" phase="$2"
+  case "$phase" in
+    open) printf '%s\n' "openspec/changes/$change/proposal.md" ;;
+    explore) printf '%s\n' "docs/superpowers/specs/$change-oracle.md" ;;
+    spec)
+      printf '%s\n' "openspec/changes/$change/specs/oracle/spec.md"
+      printf '%s\n' "docs/superpowers/plans/$change-oracle.md"
+      ;;
+    verify) printf '%s\n' "docs/superpowers/reports/$change-verify.md" ;;
+  esac
 }
 
 bootstrap_new_document_contract() {
-  local dir="$1" change="$2" phase change_dir
+  local dir="$1" change="$2" phase rel
   phase="$(run_new_cli "$dir" get "$change" phase)" || return 1
   phase="$(printf '%s' "$phase" | tr -d '[:space:]')"
   [ "$(phase_rank "$phase")" -ge 0 ] || return 0
-  change_dir="openspec/changes/$change"
 
-  run_new_cli "$dir" document init "$change" || return 1
   # Hooks no longer infer the newest Change.  Mirror the normal pipeline entry sequence before
   # producing fixture Skill evidence, so dual-run document setup cannot accidentally bind a
   # concurrently present old fixture.
   run_new_cli "$dir" session activate "$change" || return 1
-  # Document recording is owner-gated, and legacy `assignee` values (bare name / unknown / null)
-  # project as unowned——a real behaviour change, not a harness artifact.  A real user takes the task
-  # over before producing documents; do the same once per Change so history gains one row, not one
-  # per bootstrap call.
+  # Reading handoff inputs writes to the task, which is owner-gated, and legacy `assignee` values
+  # (bare name / unknown / null) project as unowned——a real behaviour change, not a harness
+  # artifact.  A real user takes the task over before working on it; do the same once per Change
+  # so history gains one row, not one per bootstrap call.
   if [ ! -f "$dir/.oracle-owner-taken-$change" ]; then
     run_new_cli "$dir" owner take "$change" || return 1
     : > "$dir/.oracle-owner-taken-$change" || return 1
   fi
 
-  record_oracle_document "$dir" "$change" "$phase" open proposal "$change_dir/proposal.md" openspec-propose || return 1
-  record_oracle_document "$dir" "$change" "$phase" open openspec-design "$change_dir/design.md" openspec-propose || return 1
-  record_oracle_document "$dir" "$change" "$phase" open tasks "$change_dir/tasks.md" openspec-propose || return 1
-  record_oracle_document "$dir" "$change" "$phase" explore superpower-design "docs/oracle-document-contract/$change/superpower-design.md" brainstorming || return 1
-  record_oracle_document "$dir" "$change" "$phase" explore adr "docs/oracle-document-contract/$change/adr.md" brainstorming || return 1
-  record_oracle_document "$dir" "$change" "$phase" spec delta-spec "$change_dir/specs/oracle/spec.md" openspec-propose || return 1
-  record_oracle_document "$dir" "$change" "$phase" spec superpower-plan "docs/oracle-document-contract/$change/superpower-plan.md" writing-plans || return 1
-  record_oracle_document "$dir" "$change" "$phase" spec plan "docs/oracle-document-contract/$change/plan.md" writing-plans || return 1
-  record_oracle_document "$dir" "$change" "$phase" verify verification-report "docs/oracle-document-contract/$change/verification-report.md" verification-before-completion || return 1
-  record_oracle_document "$dir" "$change" "$phase" ship applied-spec "$change_dir/specs/oracle/applied-spec.md" openspec-apply-change || return 1
+  while IFS= read -r rel; do
+    [ -n "$rel" ] || continue
+    ensure_oracle_document "$dir" "$rel" "$phase" || return 1
+  done < <(oracle_step_outputs "$change" "$phase")
 
-  # open has no read inputs. Every later phase consumes the complete hash-bound input set required
-  # by its own contract row; retries simply replace the same-phase receipt and remain idempotent.
+  # open has no inputs.  Later phases read the documents handed over from the direct upstream step
+  # (none when observation is unavailable); reading again is idempotent.
   if [ "$phase" != open ]; then
     run_new_cli "$dir" document read "$change" all || return 1
   fi
@@ -616,10 +572,10 @@ bootstrap_new_review_receipt() {
 }
 
 # Legacy oracle predates both the current-phase task exit and the global Build convergence gate.
-# Once the legacy side has proved that a build-complete exit succeeds, finish the fixture tasks and
-# bind their changed digest through the real Build Skill/document commands, then model the completed
-# full-diff review. As with review receipts, this never runs for a legacy rejection, so it cannot
-# mask the guard failure that a fixture intends to compare.
+# Once the legacy side has proved that a build-complete exit succeeds, finish the fixture tasks
+# (the edit is just another change observed in the build step; there is no document ledger to
+# re-record), then model the completed full-diff review. As with review receipts, this never runs
+# for a legacy rejection, so it cannot mask the guard failure that a fixture intends to compare.
 bootstrap_new_pre_verify_review() {
   local dir="$1" change="$2" event="$3" tasks tmp
   [ "$event" = build-complete ] || return 0
@@ -628,10 +584,6 @@ bootstrap_new_pre_verify_review() {
     tmp="$tasks.oracle-complete.tmp"
     awk '{ sub(/^- \[ \]/, "- [x]"); print }' "$tasks" > "$tmp" || return 1
     mv "$tmp" "$tasks" || return 1
-    track_oracle_skill "$dir" tenon || return 1
-    run_new_cli "$dir" document record "$change" tasks "openspec/changes/$change/tasks.md" \
-      --producer tenon || return 1
-    run_new_cli "$dir" document read "$change" all || return 1
   fi
   # The pass verdict is evidence-bound: `set pre_verify_review_result pass` is refused until the
   # step's required tests and agents hold on the current candidate. Produce that evidence first,
@@ -833,9 +785,9 @@ run_step_dual() {
     > "$step_dir/old.out" 2> "$step_dir/old.err"
   old_rc=$?
   convergence_bootstrap_rc=0
-  # The convergence bootstrap drives `document record` and the product-only
-  # `pre_verify_review_result` field, so it follows the document bootstrap switch: an injected stub
-  # CLI implements neither and must keep comparing only the legacy state machine.
+  # The convergence bootstrap drives the product-only `pre_verify_review_result` field (and the
+  # test / agent evidence it needs), so it follows the document bootstrap switch: an injected stub
+  # CLI implements none of them and must keep comparing only the legacy state machine.
   if [ "$bootstrap_rc" -eq 0 ] && [ "$old_rc" -eq 0 ] && [ "$cmd" = transition ] \
     && [ "$DOCUMENT_CONTRACT_BOOTSTRAP" = 1 ]; then
     bootstrap_new_pre_verify_review "$base/new" "$change" "${args[1]:-}" \

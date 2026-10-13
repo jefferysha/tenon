@@ -7,12 +7,14 @@
  */
 import { describe, it, expect, afterAll } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createDashboardServer, resolveServerPaths } from '@tenon/server'
-import { installSessionFetch, readGovernedDocumentsForCurrentVisit, recordWorkflowPhaseSkill } from '../../../server/src/test-support.js'
+import {
+  installSessionFetch, readGovernedDocumentsForCurrentVisit, recordWorkflowPhaseSkill, seedGovernedDocumentEvidence,
+} from '../../../server/src/test-support.js'
 import {
   agentDigest,
   AGENT_RUN_META_FILE,
@@ -21,129 +23,18 @@ import {
   compileEffectiveWorkflowPlan,
   createFlowEngine,
   createStateStore,
-  createTransitionRecordStore,
-  createWorkflowRunRepository,
   currentDocumentStepVisitId,
   ensureAgentFreeze,
-  ensureDocumentLedger,
   loadManifest,
-  recordDocument,
-  recordDocumentReads,
   type StateStore,
 } from '@tenon/kernel'
-import {
-  recordCanonicalDocumentSkillInvocation,
-  recordNativeDocumentSkillConfirmation,
-} from '../../../kernel/dist/skill-invocation/producer-internal.js'
 import { selectInbox } from '../inbox/inbox'
 import { decodeAgentRuns } from './snapshotEvidenceDecoders'
-
-/** Fixtures record the built-in default document table (identical in every default branch). */
-function defaultDocumentPolicy() {
-  const policy = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' }).documentPolicy
-  if (policy === undefined) throw new Error('built-in default workflow must be document-governed')
-  return policy
-}
 import { DEFAULT_RULES, rulesKey } from '../model/workflowModel'
 import type { Snapshot } from '../types'
 
 const manifestPath = fileURLToPath(new URL('../../../../templates/manifest.yaml', import.meta.url))
 const clock = (): string => '2026-07-07T00:00:00Z'
-
-/**
- * This integration suite exercises the HTTP/dashboard boundary rather than document authoring.
- * Seed the same real, hash-bound evidence that a completed default workflow would have, so its
- * open->explore request reaches the API behavior under test instead of being rejected earlier by
- * the deliberately fail-closed OpenSpec contract.
- */
-async function seedGovernedDocumentEvidence(root: string, changeDir: string, name: string): Promise<void> {
-  const proposal = `openspec/changes/${name}/proposal.md`
-  const design = `openspec/changes/${name}/design.md`
-  const tasks = `openspec/changes/${name}/tasks.md`
-  const superpowerDesign = `docs/superpowers/specs/${name}-design.md`
-  const adr = `docs/adr/${name}.md`
-  const delta = `openspec/changes/${name}/specs/capability/spec.md`
-  const plan = `docs/superpowers/plans/${name}.md`
-  const report = `docs/superpowers/reports/${name}.md`
-  const applied = 'openspec/specs/capability/spec.md'
-  const writeDocument = async (path: string, content: string): Promise<void> => {
-    const target = join(root, path)
-    await mkdir(dirname(target), { recursive: true })
-    await writeFile(target, content, 'utf8')
-  }
-
-  await writeDocument(proposal, '# proposal\n')
-  await writeDocument(design, `# design\n\n\`\`\`coverage\ntouches:\nL1_api: filled\nL2_data: filled\nL3_rules: filled\nL4_state: filled\nL5_errors: filled\nL6_security: filled\nL7_perf: filled\nL8_deps: filled\nL10_terms: filled\n\`\`\`\n`)
-  await writeDocument(tasks, '- [x] scope\n- [x] implementation\n- [x] verification\n')
-  await writeDocument(superpowerDesign, '# Superpower design\n')
-  await writeDocument(adr, '# ADR\n')
-  await writeDocument(delta, '# Delta spec\n')
-  await writeDocument(plan, '# Superpower plan\n')
-  await writeDocument(report, '# Verification report\n')
-  await writeDocument(applied, '# Applied spec\n')
-
-  const recordedAt = clock()
-  await createWorkflowRunRepository({
-    store: createStateStore(),
-    recordStore: createTransitionRecordStore(),
-    clock: () => recordedAt,
-  }).establishRun(changeDir)
-  await ensureDocumentLedger(changeDir, recordedAt)
-  const historyPath = join(changeDir, '.pipeline-history.jsonl')
-  let originalHistory: string | undefined
-  try {
-    originalHistory = await readFile(historyPath, 'utf8')
-  } catch {
-    // A fresh change has no history until its first transition.
-  }
-  const store = createStateStore()
-  const originalPhase = String((await store.read(changeDir)).fields.phase)
-  let receiptSequence = 0
-  const record = async (
-    phase: string,
-    kind: Parameters<typeof recordDocument>[0]['kind'],
-    path: string,
-    producer: string,
-  ): Promise<void> => {
-    await store.set(changeDir, 'phase', phase)
-    receiptSequence += 1
-    await appendFile(historyPath, `${JSON.stringify({
-      ts: recordedAt, kind: 'init', raw: `fixture visit ${phase}`,
-    })}\n${JSON.stringify({
-      ts: recordedAt, kind: 'tool', raw: `Skill: ${producer}`,
-    })}\n`, 'utf8')
-    const confirmed = await recordNativeDocumentSkillConfirmation(changeDir, producer, phase, {
-      sessionId: `dashboard-server-integration-${name}`,
-      toolUseId: `document-${receiptSequence}`,
-      observedAt: recordedAt,
-    })
-    if (!confirmed) throw new Error(`fixture native confirmation rejected for ${producer}`)
-    const ledger = await recordDocument({ repoRoot: root, changeDir, phase, policy: defaultDocumentPolicy(), kind, path, producer, recordedAt })
-    const canonicalRecord = [...ledger.records].reverse().find((candidate) =>
-      candidate.kind === kind && candidate.path === path && candidate.recordedAt === recordedAt)
-    if (canonicalRecord === undefined) throw new Error(`fixture canonical record missing for ${path}`)
-    if (await recordCanonicalDocumentSkillInvocation(
-      changeDir, kind, recordedAt, { record: canonicalRecord },
-    ) === undefined) throw new Error(`fixture canonical invocation missing for ${path}`)
-  }
-  try {
-    await record('open', 'proposal', proposal, 'openspec-propose')
-    await record('open', 'openspec-design', design, 'openspec-propose')
-    await record('open', 'tasks', tasks, 'openspec-propose')
-    await record('explore', 'superpower-design', superpowerDesign, 'brainstorming')
-    await record('explore', 'adr', adr, 'brainstorming')
-    await record('spec', 'delta-spec', delta, 'openspec-propose')
-    await record('spec', 'superpower-plan', plan, 'writing-plans')
-    await record('spec', 'plan', plan, 'writing-plans')
-    await record('verify', 'verification-report', report, 'verification-before-completion')
-    await record('ship', 'applied-spec', applied, 'tenon')
-    await store.set(changeDir, 'phase', originalPhase)
-    await recordDocumentReads({ repoRoot: root, changeDir, phase: originalPhase, policy: defaultDocumentPolicy(), kind: 'all', readAt: recordedAt })
-  } finally {
-    if (originalHistory === undefined) await rm(historyPath, { force: true })
-    else await writeFile(historyPath, originalHistory, 'utf8')
-  }
-}
 
 const AGENTS_DIR = fileURLToPath(new URL('../../../../templates/agents', import.meta.url))
 

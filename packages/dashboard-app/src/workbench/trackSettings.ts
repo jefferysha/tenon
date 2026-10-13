@@ -48,18 +48,17 @@ function routeWith(route: WbTrackRoute | undefined, keywords: readonly string[])
 }
 
 /**
- * 把设置写进一条分支。规范与继承值相同就不写 `spec` 键（旧文件不用改）；规范是「无」就去掉分支的文档契约
- * （内核不允许 `spec: none` 的分支声明它）。没有这条分支或设置没变时原样返回同一个定义。
+ * 把设置写进一条分支。规范与继承值相同就不写 `spec` 键（旧文件不用改）。
+ * 没有这条分支或设置没变时原样返回同一个定义。
  */
 export function setTrackSettingsInDef(def: WbWorkflowDef, id: string, settings: TrackSettings): WbWorkflowDef {
   const branch = def.tracks?.[id]
   if (branch === undefined) return def
-  const { spec: _spec, route, documentContract, ...rest } = branch
+  const { spec: _spec, route, ...rest } = branch
   const nextRoute = routeWith(route, settings.keywords)
   const next: WbTrackBranch = {
     ...rest,
     ...(settings.spec === inheritedSpec(def) ? {} : { spec: settings.spec }),
-    ...(settings.spec === 'none' || documentContract === undefined ? {} : { documentContract }),
     ...(nextRoute === undefined ? {} : { route: nextRoute }),
   }
   if (stableJson(next) === stableJson(branch)) return def

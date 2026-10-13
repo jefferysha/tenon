@@ -7,6 +7,25 @@ export type { ProductIdentity } from './product-identity.generated.js'
 export * from './state/index.js'
 export * from './interaction/index.js'
 export * from './documents/index.js'
+// 步骤产出：转换时观察实际产出并标注来源，只把直接上游的文档交给下一步，必须产出按路径判定。
+// 检查点（workspace/step-checkpoint）与账本读写（state/step-output-ledger）是内部接缝，不在这里导出。
+// HandoffInput 与 compress 已导出的同名类型冲突，这里换名导出。
+export { isDocumentPath, matchesOutputPattern, validateOutputPattern } from './documents/step-outputs-model.js'
+export type { HandoffInput as StepHandoffInput, SkillLoad } from './documents/step-outputs-model.js'
+export {
+  readStepHandoff, readStepOutputs, recordInputReads, recordStepExit, requiredOutputSatisfied, startStepVisit,
+  stepOutputsContextFor, unreadInputs,
+} from './documents/step-outputs.js'
+export type {
+  StepHandoffView, StepInputView, StepIoView, StepOutputsContext, StepOutputsView, StepVisitRef,
+} from './documents/step-outputs.js'
+// 「没读完不能离开」的阻断判定与文案（转换、status / check 共用）。
+export { stepOutputLedgerBlocker, unreadInputBlockers } from './documents/step-input-gate.js'
+export type { StepInputBlocker, StepInputBlockerCode } from './documents/step-input-gate.js'
+export { STEP_OUTPUT_LEDGER_FILE, StepOutputLedgerError } from './state/step-output-ledger.js'
+export type {
+  StepInputRead, StepObservation, StepOutputLedger, StepOutputRecord, StepVisitRecord,
+} from './state/step-output-ledger.js'
 export * from './flow/index.js'
 export * from './users/index.js'
 // 指令文件（AGENTS.md / CLAUDE.md …）受管块、模板块与宿主表的纯逻辑。
@@ -19,8 +38,6 @@ export type { AgentSeverity, StepAgentsDef, StepExecutorRef, StepReviewerRef } f
 // 项目设计体系（根目录 DESIGN.md + design/）的结构检查与变更提案。
 export * from './design-system/index.js'
 export { createDesignFileReader } from './infrastructure/design-system-fs.js'
-export { designSystemPrecondition } from './infrastructure/design-precondition.js'
-export type { DesignPreconditionInput } from './infrastructure/design-precondition.js'
 // 内建库（模板、agent、资源目录、测试方向）从 payload 同步到全局 config/<kind>/builtin。
 export {
   BUILTIN_LIBRARIES, BUILTIN_LIBRARY_MARKER, builtinLibrary, builtinSourceDigest, parseBuiltinLibraryMarker,
@@ -179,11 +196,11 @@ export type {
 } from './workflow/agent-verdict.js'
 export { evaluateStepGuards, evaluateWorkflowIrStepGuards } from './workflow/stepGuard.js'
 export {
-  effectiveLifecyclePolicy, governedLifecyclePolicy, isRevisionGuard,
+  effectiveLifecyclePolicy, governedLifecyclePolicy, isRevisionGuard, lifecycleScopeOf,
   mergeLifecycleActions, mergeLifecycleGuards, semanticRevisionLifecyclePolicy,
 } from './workflow/governed-lifecycle-policy.js'
 export type {
-  EffectiveLifecyclePolicy, GovernedLifecyclePolicy,
+  EffectiveLifecyclePolicy, GovernedLifecyclePolicy, LifecycleScope,
 } from './workflow/governed-lifecycle-policy.js'
 // step 编排层（Wave 2 下沉）：解析 step/找边/评 guard/算下相位的单一真相源，
 // cli transition/check 与 server transition 塌成 adapter（消息模板与错误分类学留 adapter）。
@@ -193,6 +210,8 @@ export {
   ABANDON_EVENT, IMPLICIT_COMPLETION_EVENT, implicitCompletionTransition, isAbandonEvent, stepExitTransitions,
 } from './workflow/implicit-completion.js'
 export type { ImplicitCompletionPlan } from './workflow/implicit-completion.js'
+// 步骤的必须产出路径模式（status / 验证报告路径 / 规格校验归属判定共用）。
+export { stepRequiredOutputs } from './workflow/required-outputs.js'
 // 执行模型接缝：新任务按步骤图、快照里记着旧模型的任务走旧引擎；命令层只经它（CLI 的 execution-cli-seam）区分两者。
 export { selectExecution } from './workflow/execution-seam.js'
 export type { ExecutionKind } from './workflow/execution-seam.js'
@@ -311,8 +330,8 @@ export {
   resolveEffectiveWorkflowPlan, workflowPlanSnapshot,
 } from './workflow/effective-plan.js'
 export type {
-  AutomationPolicyBits, EffectiveWorkflowPlan, LegacyWorkflowIR, PersistedDocumentGovernanceBinding, PlanOptions, WorkflowPlanSnapshot,
-  WorkflowPlanSnapshotV1, WorkflowPlanSnapshotV2, WorkflowPlanSnapshotV3, WorkflowPlanSnapshotV4,
+  AutomationPolicyBits, DocumentMode, EffectiveWorkflowPlan, LegacyWorkflowIR, PersistedDocumentGovernanceBinding, PlanOptions,
+  WorkflowPlanSnapshot, WorkflowPlanSnapshotV1, WorkflowPlanSnapshotV2, WorkflowPlanSnapshotV3, WorkflowPlanSnapshotV4,
 } from './workflow/effective-plan.js'
 export type { StepAgentsCapability } from './workflow/effective-plan-types.js'
 export {
@@ -350,10 +369,6 @@ export type {
   BuildRevisionIdentity, BuildRevisionKind, BuildRevisionObservation, BuildRevisionProvenance,
   BuildRevisionToken,
 } from './workflow/build-revision.js'
-// default workflow artifact declaration 查询层（G2 P4/P5）：只读生成表 default-workflow.generated.ts 的
-// track-aware 查询接缝——P5 artifact register 经本 API 取 default declaration，不再读 YAML/复制字段表。
-export { defaultArtifactForField, defaultArtifactsForStep, defaultArtifactDeclaredForField } from './workflow/default-artifacts.js'
-export type { DefaultArtifactDeclaration } from './workflow/default-artifacts.js'
 export type { ArtifactProducerPolicy, WorkflowArtifactConfig } from './workflow/types.js'
 // EffectiveSkillResolver（G2 P5）：runtime 三投影接缝（required/available/explicit-profile，都是计划冻结的
 // 步骤技能，不叠加 manifest 矩阵；manifest-only default/custom seams retained for compatibility）。

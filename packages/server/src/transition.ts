@@ -44,12 +44,12 @@ import {
   universalGuardCapabilities,
   taskPlanTasksThroughPhaseForChange, assessBuildRevisionTrust, createBuildRevisionToken,
   probeBuildRevisionIdentity, readCurrentRunRevision, readStepRounds, readValidatedTransitionHead, safeRevisionHash,
-  readReviewGateBinding, renderAgentBlocker, reviewGateBindingMatches,
-  actorOf, isTenonUser, ownerRequiredMessage, USER_MISSING_HINT, userSlug,
+  readReviewGateBinding, reviewGateBindingMatches,
+  actorOf, isTenonUser, USER_MISSING_HINT, userSlug,
 } from '@tenon/kernel'
 import type {
   AutomationPolicyBits, BreadcrumbWriter, EffectiveSkillResolver, FlowEngine, HistoryWriter, StateStore,
-  TransitionApplicationResult, TransitionContext, TransitionRecordStore, UniversalGuardCapabilities,
+  TransitionContext, TransitionRecordStore, UniversalGuardCapabilities,
   WorkflowRunRepository,
 } from '@tenon/kernel'
 import { enqueueAfterSpecComplete } from '@tenon/automation'

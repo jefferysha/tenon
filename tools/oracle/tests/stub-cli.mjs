@@ -244,13 +244,11 @@ function cmdSet() {
 const TASKS_UNCHECKED = "step 'open' 要求截至本步的 tasks.md 任务都已勾选（open 出口：tasks.md 仍有 1 项未勾）"
 const GUARD_ERRORS = MODE === 'guard-errors' || MODE === 'guard-errors-first'
 
-/** 立项步的 check：任务未勾 + 三份文档未登记 + 声明的技能未完成；`guard-errors-first` 只报第一条。 */
+/** 立项步的 check：任务未勾 + 必须产出的 proposal.md 缺失 + 声明的技能未完成；`guard-errors-first` 只报第一条。 */
 function guardErrorsCheck(name) {
   const lines = [
     TASKS_UNCHECKED,
-    "document: 缺少 document 'proposal'",
-    "document: 缺少 document 'openspec-design'",
-    "document: 缺少 document 'tasks'",
+    `step 'open' 要求产出匹配 openspec/changes/${name}/proposal.md 的文件（本任务里这一步还没有写出这样的文件）`,
     "skill: step 'open' 尚未完成声明的 skill：openspec-propose",
   ]
   const shown = MODE === 'guard-errors-first' ? lines.slice(0, 1) : lines

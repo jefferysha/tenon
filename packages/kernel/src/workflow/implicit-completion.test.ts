@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'vitest'
 import type { PipelineState } from '../types.js'
 import { simpleWorkflow } from './test-support.js'
-import { compileEffectiveWorkflowPlan } from './effective-plan.js'
+import { compileWorkflow } from './compile.js'
+import { compileEffectiveWorkflowPlan, effectiveWorkflowPlanFromIr } from './effective-plan.js'
 import { IMPLICIT_COMPLETION_EVENT, implicitCompletionTransition, stepExitTransitions } from './implicit-completion.js'
 import type { StepDef, WorkflowDef } from './types.js'
 
@@ -48,7 +49,8 @@ describe('implicitCompletionTransition', () => {
   })
 
   test('zero-edge auto stage carries its output guards; steps with a forward edge get nothing', () => {
-    const plan = compileEffectiveWorkflowPlan('ui-docs', EDITOR_DOCS)
+    // EDITOR_DOCS 带 outputs（已被 validate 拒绝的旧写法，输出守卫只存在于旧定义）：不经校验，直接由编译产物建计划。
+    const plan = effectiveWorkflowPlanFromIr('ui-docs', compileWorkflow(EDITOR_DOCS))
     expect(implicitCompletionTransition(plan, 'build')).toEqual({
       event: 'archived',
       to: 'build',

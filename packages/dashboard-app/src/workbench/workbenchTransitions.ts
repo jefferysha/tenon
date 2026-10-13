@@ -1,5 +1,4 @@
-import type { WbDocumentContract, WbStepDef, WbTransition, WbWorkflowDef } from '../api/governanceTypes'
-import { pruneDanglingDocuments, withDocumentContract } from './documentContractEdits'
+import type { WbStepDef, WbTransition, WbWorkflowDef } from '../api/governanceTypes'
 import { mapStep } from './workbenchStep'
 
 /**
@@ -112,14 +111,7 @@ export function removeStageFromDef(def: WbWorkflowDef, stepId: string): WbWorkfl
     forwardTransitions(def.steps),
     (to) => (to === stepId ? successor : to),
   )
-  const base = { ...def, steps }
-  if (def.documentContract === undefined) return base
-  const contract: WbDocumentContract = {
-    ...def.documentContract,
-    slots: def.documentContract.slots.filter((slot) => slot.ownerStep !== stepId),
-    reads: def.documentContract.reads.filter((read) => read.step !== stepId),
-  }
-  return withDocumentContract(base, pruneDanglingDocuments(steps, contract))
+  return { ...def, steps }
 }
 
 /**

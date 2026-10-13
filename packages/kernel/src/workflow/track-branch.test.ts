@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { compileWorkflow } from './compile.js'
 import type { WorkflowDef } from './types.js'
-import { defaultArtifactsForStep } from './default-artifacts.js'
 import { DEFAULT_WORKFLOW_SOURCE } from './default-workflow.generated.js'
-import { compileEffectiveWorkflowPlan } from './effective-plan.js'
+import { compileEffectiveWorkflowPlan, effectiveWorkflowPlanFromIr } from './effective-plan.js'
 import { parseWorkflow } from './parse.js'
 import { UnknownTrackError } from './resolve-track.js'
 import { serializeWorkflow } from './serialize.js'
@@ -19,10 +18,6 @@ tracks:
         gate: auto
         skills:
           - id: simple-task
-        inputs: []
-        outputs:
-          - field: design_doc
-            type: file_path
         guards: []
         transitions:
           - event: change-complete
@@ -31,8 +26,6 @@ tracks:
         label: 完成
         gate: null
         skills: []
-        inputs: []
-        outputs: []
         guards: []
         transitions: []
   mobile:
@@ -45,8 +38,6 @@ tracks:
           - id: frontend-design
           - id: browser-qa
             depends_on: [frontend-design]
-        inputs: []
-        outputs: []
         guards: []
         transitions:
           - event: design-complete
@@ -55,8 +46,6 @@ tracks:
         label: 完成
         gate: null
         skills: []
-        inputs: []
-        outputs: []
         guards: []
         transitions: []
 `
@@ -110,15 +99,18 @@ describe('track 分支 · 解析 / 序列化 / 选择', () => {
       .replace('    label: 移动端\n', `    label: 移动端\n${contract('design-md', 'design', 'frontend-design')}\n`))
     expect(selectTrackBranch(def, 'mobile').documentContract?.slots[0]?.kind).toBe('design-md')
     expect(selectTrackBranch(def, undefined).documentContract?.slots[0]?.kind).toBe('proposal')
-    const mobile = compileEffectiveWorkflowPlan('demo', def, { track: 'mobile' })
-    const backend = compileEffectiveWorkflowPlan('demo', def, { track: 'backend' })
+    // 带 document_contract 的定义已被 validate 拒绝（只剩旧契约计划的重建与夹具用）：这里不经校验，直接由编译产物建计划。
+    const legacyPlan = (workflow: WorkflowDef, track: string): ReturnType<typeof compileEffectiveWorkflowPlan> =>
+      effectiveWorkflowPlanFromIr('demo', compileWorkflow(workflow), { track })
+    const mobile = legacyPlan(def, 'mobile')
+    const backend = legacyPlan(def, 'backend')
     expect(mobile.documentPolicy?.outputsByStep).toEqual({ design: [{ kind: 'design-md', producerCandidates: ['frontend-design'] }], done: [] })
     expect(backend.documentPolicy?.outputsByStep).toEqual({ change: [{ kind: 'proposal', producerCandidates: ['simple-task'] }], done: [] })
     expect(mobile.workflow.documentContract?.slots[0]?.kind).toBe('design-md')
     expect(backend.workflowFingerprint).not.toBe(mobile.workflowFingerprint)
     const twin = { ...def, tracks: { backend: def.tracks!.backend!, mobile: def.tracks!.backend! } }
-    const twinMobile = compileEffectiveWorkflowPlan('demo', twin, { track: 'mobile' })
-    const twinBackend = compileEffectiveWorkflowPlan('demo', twin, { track: 'backend' })
+    const twinMobile = legacyPlan(twin, 'mobile')
+    const twinBackend = legacyPlan(twin, 'backend')
     expect(twinMobile.documentPolicy).toEqual(twinBackend.documentPolicy)
     expect(twinMobile.workflowFingerprint).toBe(twinBackend.workflowFingerprint)
     expect(compileEffectiveWorkflowPlan('demo', parseWorkflow(BRANCHED), { track: 'backend' }).documentPolicy).toBeUndefined()
@@ -154,10 +146,20 @@ describe('track 分支 · 解析 / 序列化 / 选择', () => {
 })
 
 describe('门禁 · review / auto / null', () => {
-  it('gate: auto 编译成每条出边上的输出齐全守卫', () => {
-    const ir = compileWorkflow(parseWorkflow(BRANCHED))
+  it('gate: auto 编译成每条出边上的输出齐全守卫（只对仍带 outputs 的旧定义；新定义没有 outputs，自动门禁不推导守卫）', () => {
+    const legacy = parseWorkflow(BRANCHED)
+    const backend = legacy.tracks!.backend!
+    const withOutputs: WorkflowDef = {
+      ...legacy,
+      tracks: {
+        ...legacy.tracks,
+        backend: { ...backend, steps: backend.steps.map((step) => step.id === 'change' ? { ...step, outputs: [{ field: 'design_doc', type: 'file_path' as const }] } : step) },
+      },
+    }
+    const ir = compileWorkflow(withOutputs)
     expect(ir.tracks?.backend?.steps[0]!.transitions[0]!.guards).toEqual([{ type: 'field-nonempty', field: 'design_doc' }])
     expect(ir.tracks?.mobile?.steps[0]!.transitions[0]!.guards).toEqual([])
+    expect(compileWorkflow(legacy).tracks?.backend?.steps[0]!.transitions[0]!.guards).toEqual([])
   })
 
   it("gate: confirm 已移除 → 解析与编译都报错并给出替代", () => {
@@ -180,7 +182,7 @@ describe('default 分支', () => {
     expect(validateWorkflowForStorage('default', def)).toEqual([])
   })
 
-  it('backend 分支的 explore 技能 = 驱动 + 该轨矩阵技能；pm 分支 spec 不要求 plan artifact', () => {
+  it('backend 分支的 explore 技能 = 驱动 + 该轨矩阵技能', () => {
     const def = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
     const backend = compileEffectiveWorkflowPlan('default', def, { track: 'backend' })
     expect(backend.capabilities.skills.steps.find((step) => step.stepId === 'explore')?.requiredSkillIds).toEqual([
@@ -192,9 +194,6 @@ describe('default 分支', () => {
       .toEqual(['browser-qa', 'web-design-guidelines', 'design-taste-frontend', 'verification-before-completion'])
     expect(backend.capabilities.skills.steps.find((step) => step.stepId === 'explore')?.requiredSkillIds)
       .not.toContain('improve-codebase-architecture')
-    // default 运行时 artifact 走生成表：pm 分支的 spec 没有 plan artifact，其余分支有。
-    expect(defaultArtifactsForStep('spec', 'pm')).toEqual([])
-    expect(defaultArtifactsForStep('spec', 'backend').map((artifact) => artifact.field)).toEqual(['plan'])
   })
 
   /**

@@ -81,6 +81,21 @@ export function skillDocumentActions(
   return actions
 }
 
+/** 观察模式的读取说明：输入是直接上游步骤的产出，本步可以改，改动由 Tenon 在离开本步时记为本步产出。 */
+const OBSERVED_READ_NOTE = '读进上下文（不要丢弃输出）后再 tenon document read <change> all。'
+  + '这些是直接上游步骤的产出；本步可以修改它们，改动会记为本步产出。'
+
+/**
+ * 观察模式（新任务）的 `read-documents`：只列还没读的交接输入。不带 `editable`——没有契约槽位限定哪些能改，
+ * 本步改了输入，改动会成为本步产出。契约模式（以及没有未读输入时）返回空，由 `stepNextActions` 走契约分支。
+ */
+export function observedReadActions(documents: StepDocumentsView): readonly StepAction[] {
+  if (documents.mode !== 'observed') return []
+  const unread = documents.inputs.filter((input) => input.status === 'unread')
+  if (unread.length === 0) return []
+  return [{ action: 'read-documents', documents: unread.map((input) => input.path), note: OBSERVED_READ_NOTE }]
+}
+
 /**
  * 输入文档在本步能不能改：读清单里同时出现在 `updates`（契约 role update）的 kind 本步可以改，
  * 改完照 `next` 重新登记；其余只读。真机第四轮：explore 里模型改了 open 登记的 design / tasks，

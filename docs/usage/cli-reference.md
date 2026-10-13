@@ -125,6 +125,8 @@ tenon task delete <name> [--yes] [--json]
 
 `get` returns an empty line with exit `0` for a missing/unknown field. CAS
 mismatch exits `3`; failed guard check exits `2`; invalid transitions exit `1`.
+A transition of a new Change that is refused because a handed-over input is unread exits
+`1`; one refused by an unmet guard, a missing `required-output` included, exits `2`.
 An illegal or unknown `transition` event also lists the legal events for the
 current step, on a second line, in the active language.
 Use command help and machine-readable output before scripting additional
@@ -142,6 +144,8 @@ escalate to, so the `escalate.then` of its risk probe can name that Track
 directly. Without it `then` lists the possible Tracks for the user to choose.
 `tenon tracks list` shows the available Tracks. See
 [Routing and execution modes](routing-and-workflows.md#assess-before-you-create-the-change).
+A new Change gets the checkpoint of its first step and, on a Track with `spec: openspec`,
+the `tasks.md` skeleton; it gets no proposal or design skeleton and no document ledger.
 
 `tenon assess` evaluates the files you expect to change against the change-risk
 thresholds of a Track (the `pass.metrics` of its `diff-risk` step test; by default
@@ -176,18 +180,22 @@ lists the ended tasks, archived ones included.
 
 `tenon workflow plan <name> --json` is the Agent-facing orchestration source
 for an in-flight Change. It returns the immutable plan captured when the
-WorkflowRun started, including steps, Skills, gates, guards, artifacts, and
-transitions. Editing or deleting `.pipeline/workflows/<workflow>.yaml` affects
+WorkflowRun started, including steps, Skills, gates, guards, and transitions.
+Editing or deleting `.pipeline/workflows/<workflow>.yaml` affects
 new runs only; it does not rewrite the Todo or Skill DAG of an existing run.
 
-`handoff --bundle` compiles a deterministic `context-bundle/v1` from the
-authoritative document ledger for the target phase. Each input carries its
-document kind, path, recorded SHA-256, materialization mode, and policy reason;
-the bundle itself carries an aggregate SHA-256. Missing files, digest drift,
+`handoff --bundle` compiles a deterministic `context-bundle/v1` for the target phase.
+For a new Change the inputs are the documents handed over to the step the task is
+on (its direct upstream's outputs; `--target` defaults to the current step), each
+summarised, and a digest must equal the one the upstream recorded or a read receipt
+of this step, otherwise the compile fails closed and asks for a re-read. For a Change
+created before the upgrade the inputs come from the authoritative document ledger and
+carry their document kind, recorded SHA-256, materialization mode, and policy reason.
+The bundle itself carries an aggregate SHA-256. Missing files, digest drift,
 duplicate slots, or an exceeded UTF-8 byte budget fail closed. The bundle is a
-derived handoff artifact, not a replacement canonical document; repair stale
-inputs with `tenon document record` under an allowed producer and then
-re-run the handoff.
+derived handoff artifact, not a replacement canonical document; for a Change
+created before the upgrade repair stale inputs with `tenon document record` under an
+allowed producer and then re-run the handoff.
 
 ### Verification round limit
 
@@ -646,14 +654,25 @@ failed, `escalate.reasons` names the breached limits, and `escalate.then` gives 
 A `finish-change` action carries `command` (`tenon task finish <name>`) and, after it, the `commit`
 to make.
 
+`step.documents` has `mode: "observed"` for a new Change: `observation` (`observed`,
+`unavailable` or `truncated`), `inputs` (`path`, `from_step`, `skill`, `status` `read` or
+`unread`), `outputs` (`path`, `change` `added`, `modified` or `deleted`, `skill`) and
+`required` (`path`, `status` `produced` or `missing`, one per `required-output` of the
+step). Its only document action is `read-documents`, listing the unread inputs in
+`documents` with a `note` that the step may change them and the change is recorded as its
+output; a missing required output is a `fix`. For a Change created before the upgrade
+`step.documents` has `mode: "contract"` with the `reads`, `records` and `updates` tables
+and `next` may also carry `scaffold-document`, `record-document` and `register-field`.
+
 ```text
 tenon step run <change> [--json]
 ```
 
 `step run` performs the deterministic part of `step.next` in one call and says what it
-did: `scaffold-document` (`document scaffold`), `record-document` (`document record`,
-only when the file exists and its skeleton placeholders are replaced), `read-documents`
-(`document read <change> all`) and `test-plan-seed` (`test plan <change> --seed`). It
+did: `read-documents` (`document read <change> all`) and `test-plan-seed`
+(`test plan <change> --seed`); for a Change created before the upgrade also
+`scaffold-document` (`document scaffold`) and `record-document` (`document record`,
+only when the file exists and its skeleton placeholders are replaced). It
 stops at the first action that needs the host or the author (loading a skill, dispatching
 an agent, writing document content, running tests, review, transitions) and prints why,
 together with the fresh `step.next`, so no `status` call is needed afterwards. It is
@@ -708,12 +727,8 @@ or empty record chain exits `2`; usage errors exit `1`.
 ## Documents, artifacts, and review
 
 ```text
-tenon document init <change>
-tenon document record <change> <kind> <path> --producer <skill-id>
-tenon document record <change> --all [--producer <skill-id>]
-tenon document read <change> <kind|all>
+tenon document read <change> <path|all>
 tenon document status <change> [--json]
-tenon artifact register <change> <field> <path> --producer <skill-id>
 tenon review request <change> --event <event>
 tenon review acknowledge <change> [--delegated] [--as reviewer]
 tenon review revoke <change> --reason <text>
@@ -730,6 +745,29 @@ tenon agent rm <name> [--scope user|project]
 tenon agent export <name> --host claude|codex
 ```
 
+For a new Change nothing is registered: Tenon records the files a step added, modified or
+deleted, and the Skill that wrote each, when the step is left. `document read <change> all`
+(or one handed-over input path; a path outside the project exits `1`) hashes the current
+content and writes the read receipt for the step's inputs. `document status` prints the
+step's inputs (`READ` / `UNREAD`), outputs and required outputs, `--json` prints
+`{ change, workflow, mode, observation, inputs, outputs, required }`, and the exit code is
+`2` while an input is unread or a required output is missing. A transition with an unread
+input exits `1`; one with a missing required output exits `2`. See
+[documents, Skills, and evidence](documents-skills-and-evidence.md).
+
+Only for a Change created before the upgrade (a new Change refuses `document init`,
+`scaffold`, `record` and `migrate-delta` with exit `2` and `artifact register` with exit `1`,
+saying that the outputs of the task are recorded automatically):
+
+```text
+tenon document init <change>
+tenon document scaffold <change> <kind> [--capability <capability>]
+tenon document record <change> <kind> <path> --producer <skill-id>
+tenon document record <change> --all [--producer <skill-id>]
+tenon document read <change> <kind|all>
+tenon artifact register <change> <field> <path> --producer <skill-id>
+```
+
 `document record --all` records every document of the current step whose file is already
 written, one `document record` each with all its checks (placeholders, the producer's skill
 receipt, owner, archive gate): documents the step produces and still lacks or has gone
@@ -738,7 +776,9 @@ invoked skill still owes. The producer is the one the step accepts that was invo
 visit (`--producer` overrides it). Documents that are up to date are left alone, documents
 not written or still holding `[待填写…]` placeholders are listed and skipped, and a
 document whose path the author must name (a delta spec without `--capability`) is skipped;
-only a refused record exits `2`. Reviewers can declare `attach_on` in their agent file
+only a refused record exits `2`.
+
+Reviewers can declare `attach_on` in their agent file
 (`auth`, `dependency`, `contract`, `migration`): they join a step's reviewer set only when
 the task's changes touch such a path, so `agent next`, `status --json` and the Dashboard do
 not list an unattached reviewer and `agent prompt` refuses it with exit `2`.
@@ -828,8 +868,9 @@ workflows) described under *Trust root of test evidence*; approving them leaves 
 frozen list also carries the required reviewers that still fail as residual blockers;
 see [Verification round limit](#verification-round-limit).
 
-Document structures and project-level spec scaffolds default to Chinese. English
-is explicit:
+The `tasks.md` skeleton of a new Change, the document skeletons of a Change created
+before the upgrade, and project-level spec scaffolds default to Chinese. English
+is explicit (`document scaffold` only serves Changes created before the upgrade):
 
 ```text
 tenon init <name> ... --document-locale en

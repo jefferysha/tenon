@@ -30,13 +30,14 @@ function makeInput(
   over: Partial<Record<FieldName, string | string[]>> = {},
   caps: Partial<Pick<
     GuardInput,
-    | 'track' | 'fileExists' | 'readText' | 'gitHeadSha' | 'workspaceFingerprint' | 'specMigrationStatus'
-    | 'assessBuildRevision' | 'currentStep' | 'tasksThroughStep' | 'afkQueued' | 'dependencyStates'
+    | 'track' | 'change' | 'fileExists' | 'readText' | 'gitHeadSha' | 'workspaceFingerprint' | 'specMigrationStatus'
+    | 'assessBuildRevision' | 'currentStep' | 'tasksThroughStep' | 'afkQueued' | 'dependencyStates' | 'requiredOutput'
   >> = {},
 ): GuardInput {
   return {
     fields: allFields(over),
     track: caps.track ?? 'backend',
+    change: caps.change,
     fileExists: caps.fileExists,
     readText: caps.readText,
     gitHeadSha: caps.gitHeadSha,
@@ -47,6 +48,7 @@ function makeInput(
     tasksThroughStep: caps.tasksThroughStep,
     afkQueued: caps.afkQueued,
     dependencyStates: caps.dependencyStates,
+    requiredOutput: caps.requiredOutput,
   }
 }
 
@@ -674,6 +676,86 @@ describe('通用离开条件（设计 §1b Q5 / Q7 / Q8）', () => {
       makeInput({}, { track: 'backend' }),
     )
     expect(out).toEqual([])
+  })
+})
+
+describe('required-output（必须产出）', () => {
+  const REQUIRED: CompiledGuardConfig = { type: 'required-output', path: 'docs/superpowers/specs/*.md' }
+
+  it('满足：passed，并按当前步骤与原样的路径模式向能力取数', async () => {
+    const seen: Array<readonly [string, string]> = []
+    const out = await evaluateGuards([REQUIRED], makeInput({}, {
+      currentStep: 'explore',
+      requiredOutput: async (step, pattern) => { seen.push([step, pattern]); return true },
+    }))
+    expect(out.map((e) => e.decision)).toEqual([{ kind: 'passed' }])
+    expect(seen).toEqual([['explore', 'docs/superpowers/specs/*.md']])
+  })
+
+  it('不满足：失败，actual 为 missing', async () => {
+    const out = await evaluateGuards([REQUIRED], makeInput({}, { requiredOutput: async () => false }))
+    expect(out).toEqual([{
+      guard: REQUIRED,
+      decision: { kind: 'failed', guardType: 'required-output', actual: 'missing', path: 'docs/superpowers/specs/*.md' },
+    }])
+  })
+
+  it('不满足：failed 决策带上路径模式，{change} 已换成任务名（供客户端显示要写哪个文件）', async () => {
+    const guard: CompiledGuardConfig = { type: 'required-output', path: 'openspec/changes/{change}/proposal.md' }
+    const out = await evaluateGuards([guard], makeInput({}, { change: 'plan-checkout', requiredOutput: async () => false }))
+    expect(out.map((e) => e.decision)).toEqual([
+      { kind: 'failed', guardType: 'required-output', actual: 'missing', path: 'openspec/changes/plan-checkout/proposal.md' },
+    ])
+  })
+
+  it('不满足但任务名未知：路径模式原样给出', async () => {
+    const guard: CompiledGuardConfig = { type: 'required-output', path: 'openspec/changes/{change}/proposal.md' }
+    const out = await evaluateGuards([guard], makeInput({}, { requiredOutput: async () => false }))
+    expect(out.map((e) => e.decision)).toEqual([
+      { kind: 'failed', guardType: 'required-output', actual: 'missing', path: 'openspec/changes/{change}/proposal.md' },
+    ])
+  })
+
+  it('能力缺失：失败关闭并点名 requiredOutput（不降级为跳过）', async () => {
+    const out = await evaluateGuards([REQUIRED], makeInput())
+    expect(out.map((e) => e.decision)).toEqual([
+      {
+        kind: 'failed', guardType: 'required-output', actual: 'capability-unavailable', missingCapability: 'requiredOutput',
+        path: 'docs/superpowers/specs/*.md',
+      },
+    ])
+  })
+
+  it('能力抛错：失败关闭为 evaluation-error，原始异常文本不外泄', async () => {
+    const out = await evaluateGuards([REQUIRED], makeInput({}, {
+      requiredOutput: async () => { throw new Error('/secret/path 读失败') },
+    }))
+    expect(out.map((e) => e.decision)).toEqual([
+      { kind: 'failed', guardType: 'required-output', actual: 'evaluation-error', path: 'docs/superpowers/specs/*.md' },
+    ])
+    expect(JSON.stringify(out)).not.toContain('/secret/path')
+  })
+
+  it('当前步骤未知（currentStep 空串）：失败关闭，不向能力取数', async () => {
+    let called = false
+    const out = await evaluateGuards([REQUIRED], makeInput({}, {
+      currentStep: '',
+      requiredOutput: async () => { called = true; return true },
+    }))
+    expect(called).toBe(false)
+    expect(out.map((e) => e.decision)).toEqual([
+      { kind: 'failed', guardType: 'required-output', actual: 'current-step-unavailable', path: 'docs/superpowers/specs/*.md' },
+    ])
+  })
+
+  it('when 谓词不命中：整体不适用，不取数', async () => {
+    let called = false
+    const out = await evaluateGuards(
+      [{ ...REQUIRED, when: { kind: 'track-in', values: ['pm'] } }],
+      makeInput({}, { track: 'backend', requiredOutput: async () => { called = true; return false } }),
+    )
+    expect(out).toEqual([])
+    expect(called).toBe(false)
   })
 })
 

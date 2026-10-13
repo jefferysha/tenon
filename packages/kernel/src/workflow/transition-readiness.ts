@@ -17,6 +17,8 @@ export type TransitionReadinessBlocker =
       readonly field?: string
       readonly actual?: string
       readonly expected?: readonly string[]
+      /** required-output：要写出的文件路径模式（`{change}` 已换成任务名）；其余守卫没有。 */
+      readonly path?: string
     }
   | {
       readonly kind: 'capability-unavailable'
@@ -83,6 +85,7 @@ function blocker(
     ...(decision.field === undefined ? {} : { field: decision.field }),
     ...(decision.actual === undefined ? {} : { actual: decision.actual }),
     ...(decision.expected === undefined ? {} : { expected: decision.expected }),
+    ...(decision.path === undefined ? {} : { path: decision.path }),
   }
 }
 

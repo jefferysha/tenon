@@ -162,7 +162,12 @@ describe('tenon design', () => {
   })
 })
 
-describe('立项前置条件', () => {
+/**
+ * 立项前置条件（项目 DESIGN.md 就绪才能立项）来自旧文档契约的 `role: require` 槽——一个预先规定的输入，
+ * 随 `document_contract` 一起退出：契约不能再写进工作流，立项也不再检查 DESIGN.md。DESIGN.md 的有效性
+ * 仍由前端交付步的必需测试 `design-system`（`tenon design validate`）把关。
+ */
+describe('立项不再有 DESIGN.md 前置条件', () => {
   let h: Harness
   beforeEach(async () => {
     h = await freshHarness()
@@ -173,37 +178,47 @@ describe('立项前置条件', () => {
   afterEach(async () => { await rm(h.cwd, { recursive: true, force: true }) })
 
   const init = (args: string[]) => run(h.cwd, ['init', ...args])
+  const stateFile = (name: string) => join(h.cwd, 'openspec', 'changes', name, '.pipeline.yaml')
 
-  test('DESIGN.md 未就绪 → exit 1，不留 change 目录', async () => {
+  test('项目工作流声明 document_contract → exit 1，报错给出替代写法，不留 change 目录', async () => {
     const refused = await init(['ui-work', '--workflow', 'needs-design', '--preset', 'full'])
     expect(refused.code).toBe(1)
-    expect(refused.err.join('\n')).toContain('要求项目 DESIGN.md 就绪（当前：缺失）')
-    expect(refused.err.join('\n')).toContain('tenon init <name> --workflow design-system --preset <preset>')
-    expect(refused.err.join('\n')).not.toContain('--track')
-    await expect(readFile(join(h.cwd, 'openspec', 'changes', 'ui-work', '.pipeline.yaml'), 'utf8')).rejects.toThrow()
+    const text = refused.err.join('\n')
+    expect(text).toContain('document_contract 已删除')
+    expect(text).toContain('required-output')
+    expect(text).not.toContain('要求项目 DESIGN.md 就绪')
+    await expect(readFile(stateFile('ui-work'), 'utf8')).rejects.toThrow()
   })
 
-  test('品牌起步文件也拦：状态是起步', async () => {
-    await writeFile(join(h.cwd, 'DESIGN.md'), '# Claude\n', 'utf8')
-    const refused = await init(['ui-work', '--workflow', 'needs-design', '--preset', 'full'])
-    expect(refused.code).toBe(1)
-    expect(refused.err.join('\n')).toContain('当前：起步')
-  })
-
-  test('就绪后立项通过', async () => {
-    seedReady(h.cwd)
-    const created = await init(['ui-work', '--workflow', 'needs-design', '--preset', 'full'])
-    expect(created.code).toBe(0)
-    expect(await readFile(join(h.cwd, 'openspec', 'changes', 'ui-work', '.pipeline.yaml'), 'utf8')).toContain('workflow: needs-design')
-  })
-
-  test('require 不在第一个步骤的工作流不拦立项', async () => {
+  test('document_contract 写在哪一步都一样被拒（不再有「require 在第一个步骤才拦」的区别）', async () => {
     await writeFile(
       join(h.cwd, '.pipeline', 'workflows', 'late-design.yaml'),
       REQUIRE_WORKFLOW.replace('name: needs-design', 'name: late-design').replace('owner_step: draft', 'owner_step: done'),
       'utf8',
     )
-    const created = await init(['late-work', '--workflow', 'late-design', '--preset', 'full'])
-    expect(created.code).toBe(0)
+    const refused = await init(['late-work', '--workflow', 'late-design', '--preset', 'full'])
+    expect(refused.code).toBe(1)
+    expect(refused.err.join('\n')).toContain('document_contract 已删除')
+  })
+
+  test('前端轨道没有 DESIGN.md 也能立项', async () => {
+    const created = await init(['ui-work', '--track', 'frontend', '--preset', 'full'])
+    expect(created.code, created.err.join('\n')).toBe(0)
+    const state = await readFile(stateFile('ui-work'), 'utf8')
+    expect(state).toContain('track: frontend')
+    expect(state).toContain('phase: open')
+    await expect(readFile(join(h.cwd, 'DESIGN.md'), 'utf8')).rejects.toThrow()
+  })
+
+  test('品牌起步文件的 DESIGN.md 也不拦立项（原来状态是「起步」会被拦）', async () => {
+    await writeFile(join(h.cwd, 'DESIGN.md'), '# Claude\n', 'utf8')
+    const created = await init(['ui-work', '--track', 'frontend', '--preset', 'full'])
+    expect(created.code, created.err.join('\n')).toBe(0)
+  })
+
+  test('就绪的 DESIGN.md 照样立项通过', async () => {
+    seedReady(h.cwd)
+    const created = await init(['ui-work', '--track', 'frontend', '--preset', 'full'])
+    expect(created.code, created.err.join('\n')).toBe(0)
   })
 })

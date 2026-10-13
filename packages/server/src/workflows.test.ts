@@ -196,12 +196,12 @@ const INVALID_DEF: WorkflowDef = {
   ],
 }
 
-/** 两条轨道（mobile / web）的工作流：mobile 分支里的 step guard、edge guard、artifact required_when 各引用一个轨道。 */
+/** 两条轨道（mobile / web）的工作流：mobile 分支里的 step guard、edge guard、required-output 守卫的 when 各引用一个轨道。 */
 function workflowWithTrackReferences(
   name: string,
   stepTrack: string,
   edgeTrack: string,
-  artifactTrack: string,
+  outputTrack: string,
 ): WorkflowDef {
   const done = { id: 'done', label: '', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] } as const
   return {
@@ -216,14 +216,11 @@ function workflowWithTrackReferences(
             gate: null,
             skills: [],
             inputs: [],
-            outputs: [{ field: 'plan', type: 'file_path' }],
-            artifacts: [{
-              field: 'plan',
-              type: 'file_path',
-              producerPolicy: 'effective-step-skills',
-              requiredWhen: { kind: 'track-in', values: [artifactTrack] },
-            }],
-            guards: [{ type: 'full-direct-override', when: { kind: 'track-in', values: [stepTrack] } }],
+            outputs: [],
+            guards: [
+              { type: 'full-direct-override', when: { kind: 'track-in', values: [stepTrack] } },
+              { type: 'required-output', path: 'docs/plan.md', when: { kind: 'track-in', values: [outputTrack] } },
+            ],
             transitions: [{
               event: 'done',
               to: 'done',
@@ -276,20 +273,20 @@ describe('writeWorkflowForApi', () => {
     expect(await readFile(target, 'utf8')).toBe(before)
   })
 
-  it('轨道谓词：step guard、edge guard、artifact requiredWhen 引用本工作流没有的轨道 → 聚合拒写', async () => {
+  it('轨道谓词：step guard、edge guard、required-output 守卫的 when 引用本工作流没有的轨道 → 聚合拒写', async () => {
     const root = await tempRoot()
     const result = writeWorkflowForApi(
       root,
       'dynamic-refs',
-      workflowWithTrackReferences('dynamic-refs', 'ghost-step', 'ghost-edge', 'ghost-artifact'),
+      workflowWithTrackReferences('dynamic-refs', 'ghost-step', 'ghost-edge', 'ghost-output'),
     )
 
     expect(result).toEqual({
       ok: false,
       errors: [
         "workflow.tracks.mobile.steps[0].guards[0].when.values[0]: 未知 track 'ghost-step'",
+        "workflow.tracks.mobile.steps[0].guards[1].when.values[0]: 未知 track 'ghost-output'",
         "workflow.tracks.mobile.steps[0].transitions[0].guards[0].when.values[0]: 未知 track 'ghost-edge'",
-        "workflow.tracks.mobile.steps[0].artifacts[0].requiredWhen.values[0]: 未知 track 'ghost-artifact'",
       ],
     })
     const { existsSync } = await import('node:fs')
@@ -343,7 +340,7 @@ tracks:
 
     expect(result).toEqual({
       ok: false,
-      errors: ["workflow.tracks.mobile.steps[0].artifacts[0].requiredWhen.values[0]: 未知 track 'removed-track'"],
+      errors: ["workflow.tracks.mobile.steps[0].guards[1].when.values[0]: 未知 track 'removed-track'"],
     })
     expect(await readFile(target, 'utf8')).toBe(before)
   })

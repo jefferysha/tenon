@@ -56,14 +56,15 @@ tenon status <change-name> --json
 
 ### 3. Inspect evidence
 
-For a governed Workflow:
-
 ```bash
 tenon document status <change-name>
 tenon check <change-name>
 ```
 
-`tenon check` is a guard report. It does not advance the state.
+`tenon document status` lists the current step's inputs (the documents the previous step
+wrote, with read or unread), the files this step has written so far with the Skill that
+wrote each, and the required outputs. `tenon check` is a guard report. Neither advances the
+state.
 
 ### 4. Open the workbench
 
@@ -113,8 +114,9 @@ tenon status <change-name> --json
 tenon document status <change-name> --json
 ```
 
-For the lightweight Track, document status may correctly report that no
-OpenSpec document contract applies.
+The lightweight Track declares no required output, so its list of required outputs is
+empty. A Change created before the upgrade shows its document ledger (records and reads)
+instead of inputs and outputs.
 
 ## Common failures
 

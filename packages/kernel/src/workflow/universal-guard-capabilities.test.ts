@@ -2,10 +2,12 @@
  * 三个通用离开条件的能力工厂：真实临时目录里验证口径——任务勾选走 TaskPlan/tasks.md 的现有判定，
  * AFK 排队读 automation 字段并受调度器旁路约束，依赖结束沿用 depends-archived 的归档判定。
  */
+import { execFileSync } from 'node:child_process'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { startStepVisit, stepOutputsContextFor } from '../documents/step-outputs.js'
 import { makeGuardFileContext } from '../infrastructure/guard-file-context.js'
 import { emptyFields } from '../state/parse.js'
 import { publishInitialRunRevision } from '../state/run-revision-store.js'
@@ -167,5 +169,68 @@ describe('dependencyStates', () => {
   it('没有文件面（探针缺失）：不提供该能力，guard 会失败关闭', async () => {
     const dir = await seedChange('c', { depends_on: ['a'] })
     expect(universalGuardCapabilities(dir).dependencyStates).toBeUndefined()
+  })
+})
+
+describe('requiredOutput', () => {
+  const SPECS = 'docs/superpowers/specs/*.md'
+
+  function git(...args: string[]): void {
+    execFileSync('git', ['-c', 'user.email=t@t.test', '-c', 'user.name=t', ...args], { cwd: root, stdio: 'pipe' })
+  }
+
+  async function writeInProject(path: string, content: string): Promise<void> {
+    await mkdir(dirname(join(root, path)), { recursive: true })
+    await writeFile(join(root, path), content)
+  }
+
+  /** 带 run 身份（phase=explore, sequence=0）的任务；观察可用时它的检查点在 startStepVisit 里写下。 */
+  async function seedVisit(): Promise<string> {
+    const dir = changeDirOf('c')
+    await mkdir(dir, { recursive: true })
+    const fields = { ...emptyFields(), phase: 'explore' } as ReturnType<typeof emptyFields>
+    await publishInitialRunRevision(dir, {
+      fields, runMetadata: { runId: 'run-1', transitionSequence: 0, transitionHead: undefined }, opaqueTail: '',
+    }, '2026-10-12T00:00:00Z')
+    return dir
+  }
+
+  it('观察可用：只认本步这次访问写出的文件，仓库里早已存在的同模式历史文件不算', async () => {
+    await writeInProject('docs/superpowers/specs/old-design.md', '# 别的任务留下的\n')
+    git('init', '-q', '-b', 'main')
+    git('add', '-A')
+    git('commit', '-q', '-m', 'init')
+    const dir = await seedVisit()
+    await startStepVisit(stepOutputsContextFor(dir), { runId: 'run-1', sequence: 0, step: 'explore' }, '2026-10-12T00:00:00Z')
+    const requiredOutput = must(universalGuardCapabilities(dir).requiredOutput, 'requiredOutput')
+    expect(await requiredOutput('explore', SPECS)).toBe(false)
+    await writeInProject('docs/superpowers/specs/2026-10-12-new-design.md', '# 本任务写的\n')
+    expect(await requiredOutput('explore', SPECS)).toBe(true)
+    expect(await requiredOutput('spec', SPECS)).toBe(false) // 别的步骤产出的不算
+  })
+
+  it('观察不可用（没有 run 身份、非 git 目录）：退化为存在匹配的文件', async () => {
+    const dir = await seedChange('c')
+    const requiredOutput = must(universalGuardCapabilities(dir).requiredOutput, 'requiredOutput')
+    expect(await requiredOutput('explore', SPECS)).toBe(false)
+    await writeInProject('docs/superpowers/specs/design.md', '# 设计\n')
+    expect(await requiredOutput('explore', SPECS)).toBe(true)
+  })
+
+  it('非法模式失败关闭：绝对路径、.. 都不满足，也不会去探测项目外', async () => {
+    const dir = await seedChange('c')
+    await writeInProject('x.md', 'x')
+    const requiredOutput = must(universalGuardCapabilities(dir).requiredOutput, 'requiredOutput')
+    expect(await requiredOutput('explore', '../x.md')).toBe(false)
+    expect(await requiredOutput('explore', join(root, 'x.md'))).toBe(false)
+  })
+
+  it('任务名展开进模式：{change} 只匹配本任务目录', async () => {
+    const dir = await seedChange('c')
+    await writeInProject('openspec/changes/c/specs/a/spec.md', '# spec\n')
+    await writeInProject('openspec/changes/other/specs/a/spec.md', '# 别人的\n')
+    const requiredOutput = must(universalGuardCapabilities(dir).requiredOutput, 'requiredOutput')
+    expect(await requiredOutput('spec', 'openspec/changes/{change}/specs/*/spec.md')).toBe(true)
+    expect(await requiredOutput('spec', 'openspec/changes/other/specs/*/spec.md')).toBe(false)
   })
 })

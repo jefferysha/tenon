@@ -3,16 +3,43 @@
  * 曾各持一份的全字段 fixture 收拢为单一来源。零 vitest 依赖（同 packages/cli/src/test-support.ts
  * 先例），tsc 正常编译、不进任何运行时路径。
  */
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { FIELD_ORDER, LIST_FIELDS, type FieldName, type InitOptions } from '../types.js'
 import { compileDefaultWorkflow, compileWorkflow } from './compile.js'
 import { DEFAULT_WORKFLOW_SOURCE, DESIGN_SYSTEM_WORKFLOW_SOURCE } from './default-workflow.generated.js'
-import { compileEffectiveWorkflowPlan, effectiveWorkflowPlanBinding, workflowPlanSnapshot } from './effective-plan.js'
+import { effectiveWorkflowPlanBinding, effectiveWorkflowPlanFromIr, workflowPlanSnapshot } from './effective-plan.js'
+import type { PlanOptions } from './effective-plan-build.js'
 import type { EffectiveWorkflowPlan } from './effective-plan-types.js'
 import type { WorkflowIR } from './ir.js'
 import { parseWorkflow } from './parse.js'
 import type { StepDef, StepTransition, TrackBranchDef, WorkflowDef, WorkflowDocumentContractV1 } from './types.js'
 
 const LIST_FIELD_SET: ReadonlySet<string> = new Set<string>(LIST_FIELDS)
+
+/**
+ * 升级前（f474225f）的 `templates/workflows/default.yaml` 原文：三条重型分支带 `document_contract`，步骤带
+ * `inputs` / `outputs` / `artifacts`。当前模板已删掉这些，新定义也不再通过校验；要表示「冻结快照里带契约的在途任务」
+ * 就从这份夹具解析（`parseWorkflow` 不校验），再直接编译 / 冻结成快照，不经 `validateWorkflow`。
+ */
+export function legacyContractDefaultSource(): string {
+  return readFileSync(fileURLToPath(new URL('../../../../tools/fixtures/legacy-default-workflow.yaml', import.meta.url)), 'utf8')
+}
+
+/** 升级前带契约的 default 定义（四条分支原样）。 */
+export function legacyContractDefaultDefinition(): WorkflowDef {
+  return parseWorkflow(legacyContractDefaultSource())
+}
+
+/** 升级前带契约的 default 的编译产物。 */
+export function legacyContractDefaultIr(): WorkflowIR {
+  return compileDefaultWorkflow(legacyContractDefaultDefinition())
+}
+
+/** 升级前创建的 default 任务的生效计划（有 `documentPolicy`，`mode: 'contract'`）；不经 `validateWorkflow`。 */
+export function legacyContractDefaultPlan(track: string, executionModel: EffectiveWorkflowPlan['executionModel'] = 'step-graph'): EffectiveWorkflowPlan {
+  return effectiveWorkflowPlanFromIr('default', legacyContractDefaultIr(), { track, executionModel })
+}
 
 /** 全字段初始化，over 覆盖。基底对齐真实 PipelineState 形状（flow/flow.test.ts 同款口径）：
  *  列表字段（LIST_FIELDS）→ []、标量字段 → ''——scalar guard 若误读列表字段会在 fixture 上
@@ -30,7 +57,7 @@ export function allFields(
  * 用它做夹具——该机制仍服务冻结的老快照。
  */
 export function legacyDefaultWorkflow(): WorkflowDef {
-  const def = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
+  const def = legacyContractDefaultDefinition()
   // 分支化之前 default 只有一条 pipeline：spec 的 plan artifact 带 PM 豁免谓词。用 frontend 分支（含其文档契约）还原它。
   const branch = def.tracks?.frontend
   const frontend = branch?.steps ?? def.steps
@@ -46,6 +73,14 @@ export function legacyDefaultWorkflow(): WorkflowDef {
         : {}),
     })),
   }
+}
+
+/**
+ * `legacyDefaultWorkflow()` 的计划：跳过 `validateWorkflow`（它带 `document_contract`，新定义已不允许），
+ * 直接按 default 的编译入口编译再建计划。
+ */
+export function legacyDefaultPlan(opts: PlanOptions = {}): EffectiveWorkflowPlan {
+  return effectiveWorkflowPlanFromIr('default', compileDefaultWorkflow(legacyDefaultWorkflow()), opts)
 }
 
 /** 没有技能、字段、守卫的最小步骤；只带出边，供分支夹具拼装。 */
@@ -134,11 +169,15 @@ export function compiledDesignSystem(): WorkflowIR {
 }
 
 /**
- * 升级前创建、仍在途的 default 任务：冻结快照记着 phase-manifest（旧引擎）。新建任务一律 step-graph，
- * 要在测试里得到旧引擎的任务，就把这份 `initialWorkflow` 交给 `initChange` / `store.init`。
+ * 升级前创建、仍在途的 default 任务：冻结快照记着 phase-manifest（旧引擎）且带文档契约。新建任务一律
+ * step-graph 且没有契约，要在测试里得到旧引擎 / 带契约的任务，就把这份 `initialWorkflow` 交给
+ * `initChange` / `store.init`；`executionModel: 'step-graph'` 得到「带契约的 step-graph 任务」（契约模式）。
  */
-export function legacyDefaultInitialWorkflow(track: string): NonNullable<InitOptions['initialWorkflow']> {
-  const plan = compileEffectiveWorkflowPlan('default', undefined, { track, executionModel: 'phase-manifest' })
+export function legacyDefaultInitialWorkflow(
+  track: string,
+  executionModel: EffectiveWorkflowPlan['executionModel'] = 'phase-manifest',
+): NonNullable<InitOptions['initialWorkflow']> {
+  const plan = legacyContractDefaultPlan(track, executionModel)
   return {
     workflow: 'default',
     phase: 'open',

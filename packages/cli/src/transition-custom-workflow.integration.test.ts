@@ -8,7 +8,7 @@
  * 覆盖 Task 8 三条新行为（default workflow 的零回归由 transition.test.ts + 全仓 oracle 守）：
  *   1. 非 default workflow：任意 event 名（如 `complete`，不在固定 8 事件表里）按当前 step
  *      自己的 transitions 查目标 step，真把 phase 改写成目标 step id + 真 append 一条 transition 历史。
- *   2. 非 default workflow：当前 step 的 nonempty-output guard 不满足 → 真拒绝（exit 非 0），phase 不变。
+ *   2. 非 default workflow：当前 step 的 field-nonempty guard 不满足 → 真拒绝（exit 非 0），phase 不变。
  *   3. 非 default workflow：event 名不在当前 step 的 transitions 里 → 真拒绝，报错点名该 step 实际支持的 event。
  *
  * 起始 step 的落点（whole-branch review 补的 `init --workflow`，见
@@ -109,19 +109,16 @@ steps:
     transitions: []
 `
 
-/** 同上，但 s1 声明 nonempty-output guard，且必须产出的 design_doc 字段初始未设。 */
+/** 同上，但 s1 声明 field-nonempty guard，且必须已设的 design_doc 字段初始未设（原来由 `outputs` + nonempty-output 推出，`outputs` 已删除）。 */
 const GUARDED_WF = `name: guarded
 steps:
   - id: s1
     label: step-one
     gate: null
     skills: []
-    inputs: []
-    outputs:
-      - field: design_doc
-        type: file_path
     guards:
-      - type: nonempty-output
+      - type: field-nonempty
+        field: design_doc
     transitions:
       - event: complete
         to: s2
@@ -204,11 +201,11 @@ describe('真实 e2e —— transition 非 default workflow 的真实 step 间�
     expect(txn?.raw).toBe('complete')
   })
 
-  test('当前 step 的 nonempty-output guard 不满足 → 真拒绝（exit 非 0），phase 不变', async () => {
+  test('当前 step 的 field-nonempty guard 不满足 → 真拒绝（exit 非 0），phase 不变', async () => {
     await setupCustomChange('guarded', GUARDED_WF)
     expect(await h.read(CHANGE)).toMatch(/^phase: s1$/m)
 
-    // design_doc 初始未设 → s1 的 nonempty-output guard 应挡下这次转换
+    // design_doc 初始未设 → s1 的 field-nonempty guard 应挡下这次转换
     const code = await h.run(['transition', CHANGE, 'complete'])
     expect(code, `guard 未满足应非 0 退出，err=${h.err.join('\n')}`).not.toBe(0)
 

@@ -11,7 +11,7 @@ Operate the governed seven-phase heavy Tracks of the default Workflow (`pm`,
 
 - an active Change using `workflow=default` on a heavy Track
 - the single `tenon` skill dispatched by the Tenon entrypoint
-- current document evidence for the phase
+- the phase's handed-over inputs read and its required outputs written
 
 ## Workflow graph
 
@@ -63,15 +63,35 @@ name. Leaving a step is governed by its leave conditions:
 | `dependencies-ended` | the `build-complete` edge | every Change in `depends_on` has ended |
 
 Besides these, the YAML carries the step-specific conditions: `pre_verify_review_result=pass`
-on `build-complete`, `design_doc` at Explore, `plan` (not on pm) and at least three tasks at
-Spec, the verification report and an unchanged build revision on `verify-pass`, and the
-delivery value (`pr_url`, `prd_path` on pm) with the spec migration at Ship. `tenon check <change>` without an
+on `build-complete`, the required outputs below, at least three tasks at Spec, an unchanged
+build revision on `verify-pass`, and the delivery value (`pr_url`, `prd_path` on pm) with the
+spec migration at Ship. `tenon check <change>` without an
 event lists the step's guards together with the guards of its forward edges and reports every
 unmet condition at once, exiting `2`. `tenon advance` follows only the single forward edge; it
 never takes a return edge (`requirements-changed`, `verify-fail`) or the abandon edge
 (`scope-expanded`). The former build-mode, isolation, direct-override and branch-status
 decisions are gone from new Changes (Changes created before the upgrade keep theirs). The
-Dashboard workflow page lists a step's leave conditions read-only under its gate.
+Dashboard workflow page lists a step's leave conditions read-only under its gate, a
+required output as “Required output `<path>`”.
+
+The default workflow declares no input or output documents for a step. What each step
+wrote is recorded when the step is left, and the next step must read the Markdown
+documents of its direct upstream step ([documents, Skills, and evidence](documents-skills-and-evidence.md)).
+The only document conditions in `templates/workflows/default.yaml` are these
+`required-output` guards (`{change}` is the task name):
+
+| Step | Required output | Tracks |
+| --- | --- | --- |
+| `open` | `openspec/changes/{change}/proposal.md` | pm, frontend, backend |
+| `explore` | `docs/superpowers/specs/*.md` | pm, frontend, backend |
+| `spec` | `openspec/changes/{change}/specs/*/spec.md` | pm, frontend, backend |
+| `spec` | `docs/superpowers/plans/*.md` | frontend, backend |
+| `verify` (on `verify-pass`) | `docs/superpowers/reports/{change}-verify.md` | pm, frontend, backend |
+
+The `lite` Track declares none. A file that already existed before the Change does not
+satisfy a required output unless the step changed it. The frontend Track no longer
+requires a ready `DESIGN.md` before Open; its validity is checked by the `design-system`
+test at Ship.
 
 `pre_verify_review_result=pass` is Build's verdict; `tenon set` checks the step's
 declared readiness evidence before writing it. Every heavy Track's Build declares
@@ -241,9 +261,11 @@ tenon document status <change-name>
 
 ### 2. Run the step`s declared skills
 
-The coding agent reads the packaged `tenon` skill and the current Change
-documents, performs the work, and records its current-visit evidence. Do not
-replace real Skill execution with a claim in prose.
+The coding agent reads the packaged `tenon` skill and the documents handed over by
+the previous step (`read-documents`, then `tenon document read <change-name> all`),
+and performs the work with the Skills the step declares. Tenon records the files the
+step wrote, and the Skill that wrote each, when the step is left. Do not replace real
+Skill execution with a claim in prose.
 
 ### 3. Check the exit
 
@@ -316,8 +338,9 @@ task directory.
 
 ## Expected result
 
-Every transition has the correct Workflow edge, guard evidence, current
-documents/reads, and exact review receipt where required.
+Every transition has the correct Workflow edge, guard evidence, the step's recorded
+outputs, read receipts for its handed-over inputs, and exact review receipt where
+required.
 
 ## Verification
 
@@ -343,7 +366,7 @@ Confirm the request was bound to the same event and current phase visit.
 
 ### Build wants to alter proposal/design meaning
 
-Use `requirements-changed`; do not conceal drift by re-recording approval
+Use `requirements-changed`; do not conceal drift by rewriting approved
 documents from Build.
 
 ### Verify changed implementation files

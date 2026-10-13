@@ -14,7 +14,7 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 
 ## 未发布
 
-内建工作流收敛为两个：`default`，它的轨道现在是轻量（`lite`）、产品（`pm`）、前端（`frontend`）、后端（`backend`），以及平铺的 `design-system`。轻量轨道取代了 `standard` 与 `simple` 工作流，开发请求在建任务前先评估，所有任务都在 `openspec/changes/archive/` 里结束，工作台新增「已结束」分类。升级项目前先读「退役与迁移」。
+内建工作流收敛为两个：`default`，它的轨道现在是轻量（`lite`）、产品（`pm`）、前端（`frontend`）、后端（`backend`），以及平铺的 `design-system`。轻量轨道取代了 `standard` 与 `simple` 工作流，开发请求在建任务前先评估，所有任务都在 `openspec/changes/archive/` 里结束，工作台新增「已结束」分类。文档机制也一并重做：工作流不再声明每一步的输入、输出文档，Tenon 记录每一步实际写出了什么，步骤只能按路径要求某个文件。升级项目前先读「退役与迁移」。
 
 ### 退役与迁移
 
@@ -25,6 +25,12 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 - 新任务不再有 `build_mode`、`isolation`、`direct_override`、`branch_status` 这几个字段及其检查，statefile、立项字面路径、规格 coverage 矩阵的检查也已删除。升级前创建的任务保留自己的字段。
 - manifest 的技能矩阵（`mandatory_skills`）及写它的 Dashboard 接口、`POST /api/changes`（Dashboard 不再新建任务）、路由预览都已删除；技能只来自工作流 YAML。
 - 旧的 phase-manifest 引擎现在只服务升级前已创建的任务，按它们冻结的快照执行，下个版本删除。在途的 `standard`、`simple`、对话或自由任务按开工时冻结的快照走完。
+- 文档机制：工作流定义不再接受 `document_contract`（顶层或轨道分支下）以及步骤的 `inputs`、`outputs`、`artifacts`，依赖 `outputs` 的 `nonempty-output` 守卫也一并删除。保存工作流、创建任务和编译新计划时都会报错并点名替代写法：文档自动记录，文件条件写 `required-output` 守卫，字段条件写 `field-nonempty` 或 `field-equals`。空的 `inputs: []`、`outputs: []`、`artifacts: []` 仍然能加载，保存时不再写出。`default` 与 `design-system` 一个都不再声明，契约里「`adr` 由 `brainstorming` 产出」那条规定也随之消失。
+- 新任务不再铺 proposal、design 骨架，也没有文档账本（`.pipeline-documents.json`）；`spec: openspec` 的轨道只铺 `tasks.md` 骨架。`tenon document scaffold`、`record`、`init`、`migrate-delta`（退出码 `2`）和 `tenon artifact register`（退出码 `1`）只服务升级前创建的任务，新任务运行它们会被告知产出由 Tenon 自动记录。
+- `gate: auto` 不再由步骤的 `outputs` 推导：自动门禁在离开条件满足时放行。要为验证步冻结构建修订的新自定义工作流，要像 `default` 一样自己写 `build-complete` 边上的 `freeze-build-sha` 和 `verify-pass` 边上的 `build-head-unchanged`。
+- frontend 轨道不再要求立项前 `DESIGN.md` 就绪（这条规则来自旧文档契约）。`DESIGN.md` 的有效性仍由交付步的 `design-system` 测试检查。升级前创建的任务不受影响。
+- 升级前创建的任务按它冻结的计划走完，旧文档契约也一样：文档账本、按 kind 的读取，以及 `scaffold-document`、`record-document`、`register-field` 动作都与之前一致。
+- 工作流 API 不再返回 `effectiveIo`，`GET /api/change/:name/orchestration` 的 `io` 字段换成 `stepIo`。
 
 ### 新增
 
@@ -35,6 +41,11 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 - `tenon init --domain <track>` 记下轻量任务将升级到的重型轨道，这样探针的 `escalate.then` 直接点名它。
 - `tenon task finish <name>` 与 `tenon task terminate <name>` 把任务移进 `openspec/changes/archive/<日期>-<name>/` 并记下结果：完结、已升级或已终止。`step.next` 的 `finish-change` 现在执行 `tenon task finish`，OpenSpec 轨道由 Tenon 自己调用 `openspec archive <name> --skip-specs --yes --json`，`terminate` 只提交任务目录。`tenon list --finished` 列出已结束的任务。
 - 工作台分类为 全部 · 需要你 · 进行中 · 已结束。已结束的卡片带结果标记，「全部」也包含已结束的任务，排在进行中之后。工作流页可改轨道的规范与路由关键词，并只读列出每步的离开条件；`GET /api/change/:dir/snapshot?archived=1` 读取已结束的任务。
+- 步骤产出：进入步骤时记下检查点（git `HEAD` 和与之不同的文件及其 SHA-256）；离开步骤时在转换锁内与检查点比较，把本步新增、修改、删除的文件连同写出它们的技能（Tenon 判断不出时记「未知」）记进 `.pipeline-step-outputs.json`。每条轨道、每个工作流都一样，shell 与子代理写的文件也算。不在 git 仓库里时什么都不记，也不阻断任何转换。
+- 按直接上游交接：下一步只拿到直接上游步骤产出的 Markdown 文档；`step.next` 用 `read-documents` 列出未读的，`tenon document read <name> all`（或一个路径）写读取回执，输入没读完时除终止任务外的任何边都走不了（退出码 `1`）。读完之后本步又改了它不用再读，改动记为本步产出。`tenon document status` 打印本步的输入、产出与必须产出，`step.documents` 带同样的内容。
+- `required-output` 守卫，`{ type: required-output, path: <模式> }`，写在步骤或边上：本步必须在这个任务里写出过匹配的文件才能离开（退出码 `2`）。`{change}` 是任务名，`*` 匹配一段内的字符，`**` 匹配任意多段，`?` 匹配一个字符。`default` 用它要求 proposal、设计、delta spec、计划和验证报告，`design-system` 用它要求方向文件和 `DESIGN.md`。
+- 文档机制不再依赖 OpenSpec：观察、交接、读取回执和必须产出对轻量轨道、`spec: none` 和平铺的自定义工作流同样生效，`spec: openspec` 只管 OpenSpec 自己的生命周期。Spec Kit 风格的流程就是一个要求 `specs/*/spec.md`、`plan.md`、`tasks.md` 的普通工作流。
+- 工作台显示每一步真实的输入（文件、来源阶段、来源技能、已读 / 未读）和输出（文件、新增 / 修改 / 删除、来源技能）；工作流页不再有输入、输出表，门禁下列出「必须产出 `<path>`」。
 
 ### 升级动作
 
@@ -43,6 +54,7 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 3. 把 `.pipeline/tracks.yaml` 里的规则写进工作流分支的 `route`。
 4. 如果你在全局存储里保存过自己的 `default`，它照常加载，但缺 `lite` 分支的副本会让 `tenon assess` 报「没有改动风险阈值」而不是去猜；要用评估，就加一条带 `diff-risk` 测试的 `lite` 分支。
 5. 回滚到更早的版本之前，先完结或终止升级后新建的任务。更早的版本不认识三个通用离开条件，新建的 `default` 任务在 `tenon status` 里步骤投影只显示一行警告；它不认识的轨道上新建的任务会被直接拒绝读取：`lite`，以及没有 `tracks:` 的工作流（`design-system` 或你自己的平铺工作流，轨道记的是工作流名）（见[更新、恢复与卸载](updates-recovery-and-uninstall.md)）。
+6. 如果你的工作流保存失败并点名 `document_contract`、`inputs`、`outputs` 或 `artifacts`，删掉这些键；步骤必须产出的文件写 `required-output`，字段条件写 `field-nonempty` 或 `field-equals`。靠自己 `outputs` 检查的 `gate: auto` 步骤，要把那些检查改写成守卫。读工作流 API 的 `effectiveIo` 或 `GET /api/change/:name/orchestration` 的 `io` 的脚本，改读 `stepIo`。
 
 ### 验证
 
@@ -52,7 +64,7 @@ tenon assess --files <路径>... --json
 tenon init demo --workflow standard
 ```
 
-`tracks list` 列出 `default` 的 `lite`、`pm`、`frontend`、`backend`、`design-system` 和你自己的工作流；`assess` 对预计要改的文件给出是否超限；最后一条退出码 `1` 并提示 `--workflow default --track lite`（`demo` 只是示例名，没有创建任何东西）。
+`tracks list` 列出 `default` 的 `lite`、`pm`、`frontend`、`backend`、`design-system` 和你自己的工作流；`assess` 对预计要改的文件给出是否超限；最后一条退出码 `1` 并提示 `--workflow default --track lite`（`demo` 只是示例名，没有创建任何东西）。升级后创建的任务，`tenon document status <name> --json` 报告 `mode: "observed"` 以及 `inputs`、`outputs`、`required`；升级前创建、带旧文档契约的任务，`tenon status <name> --json` 里是 `step.documents.mode: "contract"`。
 
 ## v0.3.2 · 2026-10-07
 

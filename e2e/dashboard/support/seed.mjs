@@ -11,6 +11,7 @@
  *   · `seedSandbox`：只有 git 仓库和 AGENTS.md，项目页启停客户端会改它的文件，所以不与 demo 共用
  *     （改工作区文件会让 demo 的测试运行记录过期）。
  *   · `seedReview`：挂着待批准评审的任务（评审批准用例会真的批准它们），同样单独成项目。
+ *   · `seedObserved`：观察模式的任务（不登记任何文档，写文件、转换，Tenon 自己记下每步真实的产出），工作台的输入输出页签读它。
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -210,6 +211,73 @@ tracks:
         guards: []
         transitions: []
 `
+
+/**
+ * 观察模式（新任务）的种子：真实产出由 Tenon 在离开步骤时自动记录，不登记任何文档——写文件、转换，仅此而已。
+ * 项目级工作流 `observed`：调研（必须产出一份设计文档）→ 规格（必须产出 {change}-plan.md）→ 完成，没有技能要求，
+ * 所以 `tenon transition` 一步就能离开调研。每个任务在调研里写一份设计文档并改一次 README.md：
+ * 输出表里有「新增」和「修改」两行，来源技能没有技能调用可对应，显示「未知」。
+ *
+ *   · OBSERVED_ENDED：做完调研、读完交接来的设计文档后被终止（已结束详情读它的真实产出，只读）；
+ *   · OBSERVED_CHANGE：停在规格步，交接来的设计文档还没读（输入表里是「未读」）。
+ * 观察基于 git 与工作区：先做已结束的任务，让它写的文件成为活跃任务的起点，否则它们会被算进活跃任务当前步骤的产出。
+ * 单独成项目，别的用例改不到它的工作区。
+ */
+export const OBSERVED_CHANGE = 'plan-checkout'
+export const OBSERVED_ENDED = 'observed-ended'
+export const OBSERVED_DESIGN = (change) => `docs/superpowers/specs/2026-10-12-${change}-design.md`
+export const OBSERVED_README = 'README.md'
+
+const OBSERVED_WORKFLOW = `name: observed
+tracks:
+  backend:
+    steps:
+      - id: explore
+        label: 调研
+        gate: null
+        skills: []
+        guards:
+          - type: required-output
+            path: docs/superpowers/specs/*.md
+        transitions:
+          - event: explore-complete
+            to: spec
+      - id: spec
+        label: 规格
+        gate: null
+        skills: []
+        guards:
+          - type: required-output
+            path: docs/superpowers/plans/{change}-plan.md
+        transitions:
+          - event: spec-complete
+            to: done
+      - id: done
+        label: 完成
+        gate: null
+        skills: []
+        guards: []
+        transitions: []
+`
+
+export function seedObserved(context) {
+  const { env, observed: root } = context
+  const tenon = (...args) => runTenon(env, root, args)
+  writeProjectFile(root, 'AGENTS.md', '# Observed\n\nSeed project for the real step outputs e2e.\n')
+  writeProjectFile(root, OBSERVED_README, '# Observed\n')
+  writeProjectFile(root, '.pipeline/workflows/observed.yaml', OBSERVED_WORKFLOW)
+  commitBase(root, env)
+  const explore = (change) => {
+    tenon('init', change, '--track', 'backend', '--workflow', 'observed', '--preset', 'full')
+    writeProjectFile(root, OBSERVED_DESIGN(change), `# ${change} design\n\nWhat the explore step produced.\n`)
+    writeProjectFile(root, OBSERVED_README, `# Observed\n\n${change}: explored.\n`)
+    tenon('transition', change, 'explore-complete')
+  }
+  explore(OBSERVED_ENDED)
+  tenon('document', 'read', OBSERVED_ENDED, 'all')
+  tenon('task', 'terminate', OBSERVED_ENDED)
+  explore(OBSERVED_CHANGE)
+}
 
 export function seedReview(context) {
   const { env, review: root } = context

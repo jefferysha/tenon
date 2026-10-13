@@ -73,7 +73,8 @@ async function write(root: string, rel: string, body: string): Promise<void> {
 async function seed(strict = true): Promise<{ h: Harness; name: string; delta: string }> {
   const h = await freshHarness()
   const name = 'spec-apply-demo'
-  expect(await h.run(['init', name, '--track', 'backend', '--preset', 'full'])).toBe(0)
+  // delta spec 取自文档台账里登记的记录：契约模式，升级前创建、冻结着文档契约的 default 任务。
+  expect(await h.initLegacyContractDefault(name, 'backend')).toBe(0)
   await h.seedGovernedDocumentEvidence(name)
   const delta = `openspec/changes/${name}/specs/capability/spec.md`
   await write(h.cwd, MAIN_SPEC, MAIN_BODY)
@@ -210,7 +211,7 @@ describe('tenon spec apply', () => {
     const h = await freshHarness()
     harness = h
     const name = 'spec-apply-empty'
-    expect(await h.run(['init', name, '--track', 'backend', '--preset', 'full'])).toBe(0)
+    expect(await h.initLegacyContractDefault(name, 'backend')).toBe(0)
     expect(await apply(h, name, {})).toBe(1)
     expect(h.err.join('\n')).toContain('delta-spec-unrecorded')
   })

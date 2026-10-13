@@ -43,7 +43,7 @@ describe('loadTrack', () => {
   it('平铺的模板工作流不用指定轨道：得到唯一的隐式分支', async () => {
     const root = await isolatedProject()
     const loaded = loadTrack(root, 'design-system')
-    expect(loaded.branch).toMatchObject({ id: 'design-system', implicit: true, spec: 'openspec' })
+    expect(loaded.branch).toMatchObject({ id: 'design-system', implicit: true, spec: 'none' })
     expect(loaded.workflow.name).toBe('design-system')
   })
 

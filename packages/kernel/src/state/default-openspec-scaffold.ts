@@ -17,6 +17,26 @@ export interface DefaultOpenSpecScaffoldFile {
   readonly content: string
 }
 
+/**
+ * 只有 tasks.md：不带旧文档契约的新任务（观察模式）仍走 OpenSpec 的 Todo 来源（`tasks-through-step` 按步骤标题判定），
+ * 但不再预先铺 proposal / design。
+ */
+export function defaultTasksScaffoldFile(
+  change: string,
+  locale: DocumentLocale = 'zh-CN',
+  workflowSteps?: readonly WorkflowStepPresentation[],
+  workflowStepLabelSource: DocumentTemplateVariables['workflowStepLabelSource'] = 'localized-builtin',
+): DefaultOpenSpecScaffoldFile {
+  return {
+    relativePath: 'tasks.md',
+    content: renderDocumentTemplate('workflow-tasks', locale, {
+      change,
+      workflowStepLabelSource,
+      workflowSteps,
+    }),
+  }
+}
+
 export function defaultOpenSpecScaffoldFiles(
   change: string,
   locale: DocumentLocale = 'zh-CN',
@@ -32,13 +52,6 @@ export function defaultOpenSpecScaffoldFiles(
       relativePath: 'design.md',
       content: renderDocumentTemplate('openspec-design', locale, { change }),
     },
-    {
-      relativePath: 'tasks.md',
-      content: renderDocumentTemplate('workflow-tasks', locale, {
-        change,
-        workflowStepLabelSource,
-        workflowSteps,
-      }),
-    },
+    defaultTasksScaffoldFile(change, locale, workflowSteps, workflowStepLabelSource),
   ]
 }

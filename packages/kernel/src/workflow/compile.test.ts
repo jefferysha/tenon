@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest'
 import type { StepDef, WorkflowDef } from './types.js'
 import type { StepIR } from './ir.js'
-import { compileDefaultWorkflow, compileWorkflow } from './compile.js'
+import { compileDefaultWorkflow, compileStepGuards, compileWorkflow } from './compile.js'
 import { parseWorkflow } from './parse.js'
 import { NON_PM } from './predicates.js'
 import { defaultWithLiteBranch } from './test-support.js'
@@ -639,6 +639,68 @@ describe('阻断 3：结构化输入的 guard 附加键闭集（绕过 parse 也
         }),
       ),
     ).not.toThrow()
+  })
+})
+
+describe('required-output 守卫（必须产出）', () => {
+  const required = (path: unknown, extra: Record<string, unknown> = {}): unknown => ({ type: 'required-output', path, ...extra })
+
+  it('原样进 IR（带 when 一并保留），步骤级与边级都编译', () => {
+    const ir = compileWorkflow(v1Def([
+      v1Step({
+        id: 'explore',
+        guards: [required('docs/superpowers/specs/*.md'), required('openspec/changes/{change}/proposal.md', { when: { kind: 'track-in', values: ['backend'] } })] as never,
+        transitions: [{ event: 'go', to: 'explore', guards: [required('docs/**/*.md')] }] as never,
+      }),
+    ]))
+    expect(ir.steps[0]?.guards).toEqual([
+      { type: 'required-output', path: 'docs/superpowers/specs/*.md' },
+      { type: 'required-output', path: 'openspec/changes/{change}/proposal.md', when: { kind: 'track-in', values: ['backend'] } },
+    ])
+    expect(ir.steps[0]?.transitions[0]?.guards).toEqual([{ type: 'required-output', path: 'docs/**/*.md' }])
+    expect(Object.isFrozen(ir.steps[0]?.guards[0])).toBe(true)
+  })
+
+  it.each([
+    ['空串', ''],
+    ['只有空白', '   '],
+    ['绝对路径', '/etc/passwd'],
+    ['Windows 盘符', 'C:/x.md'],
+    ['含 ..', 'docs/../x.md'],
+    ['以 .. 开头', '../x.md'],
+    ['含反斜杠', 'docs\\x.md'],
+    ['含 . 段', 'docs/./x.md'],
+    ['含空段', 'docs//x.md'],
+    ['未知占位符', 'docs/{other}/x.md'],
+    ['** 不独占一段', 'docs/a**b.md'],
+    ['含控制字符', 'docs/a\nb.md'],
+    ['首尾空白（往返会丢）', ' docs/x.md'],
+  ])('非法模式被拒（%s），报错点名步骤与守卫位置', (_label, path) => {
+    const attempt = (): unknown => compileWorkflow(v1Def([v1Step({ id: 'explore', guards: [required(path)] as never })]))
+    expect(attempt).toThrow(/steps\[0\]\.guards\[0\]\.path/)
+    expect(attempt).toThrow(/step 'explore'/)
+    const onEdge = (): unknown => compileWorkflow(v1Def([
+      v1Step({ id: 'explore', transitions: [{ event: 'go', to: 'explore', guards: [required(path)] }] as never }),
+    ]))
+    expect(onEdge).toThrow(/steps\[0\]\.transitions\[0\]\.guards\[0\]\.path/)
+    expect(onEdge).toThrow(/step 'explore'/)
+  })
+
+  it('path 缺失或不是字符串 → 拒', () => {
+    for (const path of [undefined, 3, null, { kind: 'field', field: 'plan' }, ['a.md']]) {
+      expect(() => compileWorkflow(v1Def([v1Step({ guards: [required(path)] as never })])))
+        .toThrow(/steps\[0\]\.guards\[0\]\.path.*必须是字符串/)
+    }
+  })
+
+  it('附加键被闭集拒绝（只允许 path 与 when）', () => {
+    expect(() => compileWorkflow(v1Def([v1Step({ guards: [required('a.md', { field: 'plan' })] as never })])))
+      .toThrow(/steps\[0\]\.guards\[0\].*附加键 'field'/)
+  })
+
+  it('compileStepGuards（check / status 预览走的入口）同样校验模式', () => {
+    expect(() => compileStepGuards(v1Step({ id: 'explore', guards: [required('../x.md')] as never })))
+      .toThrow(/step 'explore'/)
   })
 })
 

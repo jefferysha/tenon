@@ -5,10 +5,9 @@ import type { WbWorkflowDef } from '../api/governanceTypes'
 import { formatApiError } from '../api/transport'
 import { putWorkflowYaml } from '../api/workflowYamlClient'
 import { useT } from '../i18n'
-import { setOpenspecInDef } from './documentContractEdits'
 import { readSaveErrors } from './workbenchApiDecoders'
 import { readWorkflowWriteSuccess } from './workbenchWriteResponse'
-import { blankWorkflow, copyWorkflowDef, definitionForWrite } from './workbenchDefinition'
+import { blankWorkflow, cloneWorkflowDef, definitionForWrite, setOpenspecInDef } from './workbenchDefinition'
 import type { CreateNameError, CreatePreview, CreatePreviewTrack, CreateSource, CreateState, PreviewSource } from './workflowEditorTypes'
 import { IMPORT_SOURCE, readWorkflowImport, renameWorkflowYaml } from './workflowImport'
 
@@ -181,7 +180,7 @@ export function useWorkflowCreate({ root, names, hasToken, current, blocked, onC
   /** 空白 / 复制：POST 整份定义。返回服务端拒绝的错误列表；null = 写入成功。 */
   async function postDraft(targetRoot: string, base: WbWorkflowDef | null): Promise<string[] | null> {
     const locale = localeRef.current
-    const draft = base === null ? blankWorkflow(trimmed, locale.t('workflow.blank_stage')) : copyWorkflowDef(base, trimmed)
+    const draft = base === null ? blankWorkflow(trimmed, locale.t('workflow.blank_stage')) : cloneWorkflowDef(base, trimmed)
     const response = await postWorkflowDef(trimmed, { ...definitionForWrite(setOpenspecInDef(draft, openspec)), root: targetRoot })
     if (!response.ok) {
       return readSaveErrors(response, locale.t('workbench.save_unauthorized'), locale.t('common.request_http_error', { status: response.status }), locale.lang === 'zh')

@@ -12,13 +12,25 @@ import {
   workflowPlanSnapshot,
 } from './effective-plan.js'
 import type { EffectiveWorkflowPlan } from './effective-plan.js'
-import { compileDefaultWorkflow } from './compile.js'
+import { compileDefaultWorkflow, compileWorkflow } from './compile.js'
+import type { WorkflowDef } from './types.js'
 import { UnknownTrackError } from './resolve-track.js'
 import { initRunInTemp } from '../state/test-support.js'
+import { LEGACY_DOCUMENT_GOVERNANCE_POLICY } from './migrations/openspec-v1-document-policy.js'
 import {
-  branchWith, compiledDesignSystem, defaultIr, legacyDefaultWorkflow, requiredSkillsFor, targetDefaultWorkflow,
+  branchWith, compiledDesignSystem, defaultIr, legacyContractDefaultPlan, legacyDefaultPlan, legacyDefaultWorkflow,
+  requiredSkillsFor, targetDefaultWorkflow,
 } from './test-support.js'
 import type { WorkflowPlanSnapshotV4 } from './workflow-plan-snapshot-types.js'
+
+/**
+ * 带 document_contract 的旧契约定义已被 validate 拒绝（新计划不再有契约，旧契约任务靠冻结快照继续）：这些夹具直接由
+ * 编译产物建计划，不经校验——计划构建本身（策略、指纹、治理绑定）仍然要覆盖。带契约的 default 用
+ * tools/fixtures/legacy-default-workflow.yaml（见 test-support 的 legacyContract* / legacyDefaultPlan）。
+ */
+function legacyContractPlan(id: string, definition: WorkflowDef): EffectiveWorkflowPlan {
+  return effectiveWorkflowPlanFromIr(id, compileWorkflow(definition))
+}
 
 /** 默认 `default` 的某条轨道的计划（目标形态的夹具，不读模板文件）。 */
 function defaultPlan(track: string): EffectiveWorkflowPlan {
@@ -65,7 +77,7 @@ function legacyV4Snapshot(): WorkflowPlanSnapshotV4 {
 }
 
 function preVerifyConvergenceWorkflow() {
-  const current = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflow()).workflow
+  const current = legacyDefaultPlan().workflow
   const {
     decomposition: _decomposition,
     interaction: _interaction,
@@ -109,7 +121,7 @@ function preVerifyConvergenceWorkflow() {
 
 describe('compileEffectiveWorkflowPlan', () => {
   it('compiles the pre-matrix default through the shared immutable plan surface (manifest-overlay)', () => {
-    const plan = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflow(), { track: 'backend', executionModel: 'phase-manifest' })
+    const plan = legacyDefaultPlan({ track: 'backend', executionModel: 'phase-manifest' })
     expect(plan.executionModel).toBe('phase-manifest')
     expect(plan.projection.steps.map((step) => step.id)).toEqual([
       'open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive',
@@ -179,7 +191,7 @@ describe('compileEffectiveWorkflowPlan', () => {
   })
 
   it('a frozen legacy free-track plan keeps the workflow-owned policy and gets no coverage or automation', () => {
-    const plan = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflow(), { track: 'free', executionModel: 'phase-manifest' })
+    const plan = legacyDefaultPlan({ track: 'free', executionModel: 'phase-manifest' })
 
     expect(plan.projection.steps).toHaveLength(7)
     expect(plan.documentPolicy?.id).toBe('openspec-v1')
@@ -195,7 +207,7 @@ describe('compileEffectiveWorkflowPlan', () => {
   })
 
   it('keeps a three-step declarative contract three steps wide', () => {
-    const plan = compileEffectiveWorkflowPlan('compact', {
+    const plan = legacyContractPlan('compact', {
       name: 'compact',
       openspec: true,
       documentContract: {
@@ -224,7 +236,7 @@ describe('compileEffectiveWorkflowPlan', () => {
   })
 
   it('bound document governance cannot be removed or replaced by a mutable workflow definition', () => {
-    const original = compileEffectiveWorkflowPlan('compact', {
+    const original = legacyContractPlan('compact', {
       name: 'compact',
       openspec: true,
       documentContract: {
@@ -260,7 +272,7 @@ describe('compileEffectiveWorkflowPlan', () => {
     expect(() => resolveBoundEffectiveWorkflowPlan('compact', binding, () => ungoverned.workflow))
       .toThrow(/document governance.*不可降级/)
 
-    const changed = compileEffectiveWorkflowPlan('compact', {
+    const changed = legacyContractPlan('compact', {
       name: 'compact',
       openspec: true,
       documentContract: {
@@ -294,9 +306,9 @@ describe('compileEffectiveWorkflowPlan', () => {
         },
       ],
     }
-    const original = compileEffectiveWorkflowPlan('compact', definition)
+    const original = legacyContractPlan('compact', definition)
     const binding = effectiveWorkflowPlanBinding(original)
-    const drifted = compileEffectiveWorkflowPlan('compact', {
+    const drifted = legacyContractPlan('compact', {
       ...definition,
       steps: definition.steps.map((step) => step.id === 'shape'
         ? { ...step, gate: 'review' as const, skills: [{ id: 'writer' }, { id: 'other-writer' }] }
@@ -322,7 +334,7 @@ describe('compileEffectiveWorkflowPlan', () => {
   })
 
   it('profile-only old runs retain compatibility but still cannot downgrade to ungoverned', () => {
-    const governed = compileEffectiveWorkflowPlan('compact', {
+    const governed = legacyContractPlan('compact', {
       name: 'compact',
       openspec: true,
       documentContract: {
@@ -370,14 +382,96 @@ describe('compileEffectiveWorkflowPlan', () => {
 })
 
 describe('生效计划只认分支', () => {
-  it('default 的 lite 分支不受文档治理，后端分支受治理', () => {
+  it('default 的 lite 分支不走 OpenSpec 生命周期，后端分支走；两者都是观察模式且没有文档策略', () => {
     const lite = defaultPlan('lite')
-    expect(lite.capabilities.documents.governed).toBe(false)
+    expect(lite.capabilities.documents).toEqual({ governed: false, mode: 'observed' })
     expect(lite.documentPolicy).toBeUndefined()
     expect(lite.workflow.openspec).toBeUndefined()
     const backend = defaultPlan('backend')
-    expect(backend.capabilities.documents).toMatchObject({ governed: true, profile: 'legacy-full' })
+    expect(backend.capabilities.documents).toEqual({ governed: true, mode: 'observed' })
+    expect(backend.documentPolicy).toBeUndefined()
     expect(backend.workflow.openspec).toBe(true)
+  })
+
+  it.each(['pm', 'frontend', 'backend'])('default 的 %s 分支：走 OpenSpec 生命周期、没有契约（observed）', (track) => {
+    expect(defaultPlan(track).capabilities.documents).toEqual({ governed: true, mode: 'observed' })
+  })
+
+  it('design-system 平铺工作流：没有 openspec、没有契约', () => {
+    const plan = effectiveWorkflowPlanFromIr('design-system', compiledDesignSystem())
+    expect(plan.capabilities.documents).toEqual({ governed: false, mode: 'observed' })
+    expect(plan.documentPolicy).toBeUndefined()
+  })
+
+  it('工作流级视图（没有任务语境）没有分支时 governed 取顶层 openspec', () => {
+    const snapshot = workflowPlanSnapshot(defaultPlan('backend'))
+    const workflowLevel = effectiveWorkflowPlanFromSnapshot(JSON.parse(JSON.stringify(snapshot)))
+    expect(workflowLevel.capabilities.documents).toEqual({ governed: true, mode: 'observed' })
+  })
+
+  it('带契约的旧 default 冻结成快照再恢复：契约模式，策略与 governed 不变', () => {
+    const original = legacyContractDefaultPlan('backend')
+    expect(original.capabilities.documents).toMatchObject({ governed: true, mode: 'contract', profile: 'legacy-full' })
+    const snapshot = JSON.parse(JSON.stringify(workflowPlanSnapshot(original)))
+    for (const track of ['backend', undefined]) {
+      const restored = effectiveWorkflowPlanFromSnapshot(snapshot, track)
+      expect(restored.capabilities.documents.mode).toBe('contract')
+      expect(restored.capabilities.documents.governed).toBe(true)
+      expect(restored.capabilities.documents.policy?.id).toBe('openspec-v1')
+      expect(restored.documentPolicy).toEqual(original.documentPolicy)
+      expect(restored.workflowFingerprint).toBe(original.workflowFingerprint)
+    }
+  })
+
+  it('升级前冻结的 lite 任务（没有策略）恢复后是观察模式', () => {
+    const lite = legacyContractDefaultPlan('lite')
+    const restored = effectiveWorkflowPlanFromSnapshot(JSON.parse(JSON.stringify(workflowPlanSnapshot(lite))), 'lite')
+    expect(restored.capabilities.documents).toEqual({ governed: false, mode: 'observed' })
+  })
+
+  it('平铺工作流：顶层 openspec 决定 governed，没有契约就是观察模式', () => {
+    const flat = (openspec: boolean) => compileEffectiveWorkflowPlan('flat', {
+      name: 'flat',
+      ...(openspec ? { openspec: true as const } : {}),
+      steps: [{ id: 'one', label: 'One', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] }],
+    })
+    expect(flat(true).capabilities.documents).toEqual({ governed: true, mode: 'observed' })
+    expect(flat(false).capabilities.documents).toEqual({ governed: false, mode: 'observed' })
+  })
+
+  describe('没有快照、绑定 legacy-full 的更早任务', () => {
+    const loadCurrent = (name: string) => (name === 'default' ? defaultIr() : null)
+    const binding = {
+      documentProfile: 'legacy-full' as const,
+      documentGovernanceFingerprint: documentGovernanceFingerprint(LEGACY_DOCUMENT_GOVERNANCE_POLICY),
+    }
+
+    it('按当前定义（已没有契约）解析时挂上冻结的 openspec-v1 表，而不是抛「不可降级」', () => {
+      const plan = resolveBoundEffectiveWorkflowPlan('default', binding, loadCurrent, 'backend')
+      expect(plan?.documentPolicy).toEqual(LEGACY_DOCUMENT_GOVERNANCE_POLICY)
+      expect(plan?.capabilities.documents).toMatchObject({ governed: true, mode: 'contract', profile: 'legacy-full' })
+      expect(plan?.workflow.steps.map((step) => step.id)).toEqual(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'])
+    })
+
+    it('指纹对不上照旧失败关闭', () => {
+      expect(() => resolveBoundEffectiveWorkflowPlan(
+        'default', { ...binding, documentGovernanceFingerprint: 'f'.repeat(64) }, loadCurrent, 'backend',
+      )).toThrow(/fingerprint/)
+    })
+
+    it('带冻结快照时不重建（快照里的策略为准）', () => {
+      const snapshot = workflowPlanSnapshot(legacyContractDefaultPlan('backend'))
+      const plan = resolveBoundEffectiveWorkflowPlan('default', binding, loadCurrent, 'backend', snapshot)
+      expect(plan?.documentPolicy?.id).toBe('openspec-v1')
+    })
+
+    it('其他 profile 或当前定义算出的计划本来就有策略时不动', () => {
+      const own = resolveBoundEffectiveWorkflowPlan('default', {}, loadCurrent, 'backend')
+      expect(own?.capabilities.documents).toEqual({ governed: true, mode: 'observed' })
+      expect(() => resolveBoundEffectiveWorkflowPlan(
+        'default', { documentProfile: 'document-v1' }, loadCurrent, 'backend',
+      )).toThrow(/不可降级/)
+    })
   })
 
   it('分支自己写的 spec 优先，没写的继承工作流顶层 openspec', () => {
@@ -417,13 +511,13 @@ describe('生效计划只认分支', () => {
   })
 
   it('旧引擎计划的自动化与 coverage 取旧表，分支自己声明了 automation 的以声明为准', () => {
-    const legacy = (track: string, definition = legacyDefaultWorkflow()) =>
-      compileEffectiveWorkflowPlan('default', definition, { track, executionModel: 'phase-manifest' })
+    const legacy = (track: string) => legacyDefaultPlan({ track, executionModel: 'phase-manifest' })
     expect(legacy('pm').capabilities.automation).toEqual({ eligible: true, autoEnqueueOnSpecComplete: true })
     expect(legacy('pm').capabilities.track.coverageProfile).toBe('pm')
     expect(legacy('backend').capabilities.automation).toEqual({ eligible: true, autoEnqueueOnSpecComplete: false })
     // lite 分支声明了 `eligible: false`：旧表对没登记的轨道缺省可进 AFK，声明优先。
-    expect(legacy('lite', targetDefaultWorkflow()).capabilities.automation).toEqual({ eligible: false, autoEnqueueOnSpecComplete: false })
+    const lite = compileEffectiveWorkflowPlan('default', targetDefaultWorkflow(), { track: 'lite', executionModel: 'phase-manifest' })
+    expect(lite.capabilities.automation).toEqual({ eligible: false, autoEnqueueOnSpecComplete: false })
   })
 
   it('步骤技能只来自 YAML，不叠加矩阵', () => {
@@ -482,8 +576,8 @@ describe('生效计划只认分支', () => {
   })
 
   it('executionModel 选项只改执行模型，不改工作流内容', () => {
-    const graph = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflow())
-    const legacy = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflow(), { executionModel: 'phase-manifest' })
+    const graph = legacyDefaultPlan()
+    const legacy = legacyDefaultPlan({ executionModel: 'phase-manifest' })
     expect(legacy.workflow).toEqual(graph.workflow)
     expect(legacy.workflowFingerprint).not.toBe(graph.workflowFingerprint)
   })
@@ -514,14 +608,18 @@ describe('生效计划只认分支', () => {
     })
   })
 
-  it('lite 任务初始化不铺 proposal、不写文档台账；受治理的分支两者都有', async () => {
+  it('新任务初始化不铺 proposal / design、不写文档台账，只有走 OpenSpec 的分支铺 tasks.md；两者都建产出账本', async () => {
     const lite = await initRunInTemp({ workflow: 'default', track: 'lite' })
     const backend = await initRunInTemp({ workflow: 'default', track: 'backend' })
     try {
-      expect(lite.files).not.toContain('proposal.md')
-      expect(lite.files).not.toContain('.pipeline-documents.json')
-      expect(backend.files).toContain('proposal.md')
-      expect(backend.files).toContain('.pipeline-documents.json')
+      for (const run of [lite, backend]) {
+        expect(run.files).not.toContain('proposal.md')
+        expect(run.files).not.toContain('design.md')
+        expect(run.files).not.toContain('.pipeline-documents.json')
+        expect(run.files).toContain('.pipeline-step-outputs.json')
+      }
+      expect(lite.files).not.toContain('tasks.md')
+      expect(backend.files).toContain('tasks.md')
     } finally {
       await lite.cleanup()
       await backend.cleanup()

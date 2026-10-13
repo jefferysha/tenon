@@ -69,9 +69,12 @@ function policyFromBranch(id: DocumentGovernancePolicy['id'], branch: DocumentCo
 }
 
 /**
- * undefined = not governed. Governance is the selected branch's `spec` (inherited from the top-level
- * `openspec` when the branch does not declare one) and its contract applies; a Workflow with branches
- * needs the Change's track (none or unknown → UnknownTrackError), a flat Workflow has one implicit branch.
+ * undefined = no document contract: the Change's documents are observed when each step is left, not governed by a
+ * ledger. A policy exists only for the selected branch that declares a `document_contract` (and runs `spec: openspec`,
+ * inherited from the top-level `openspec` when the branch does not declare one); current Workflow definitions cannot
+ * declare one, so only pre-upgrade definitions (parsed from fixtures, frozen in snapshots) produce a policy.
+ * A Workflow with branches needs the Change's track (none or unknown → UnknownTrackError), a flat Workflow has one
+ * implicit branch.
  */
 export function documentGovernancePolicy(
   workflowId: string,
@@ -79,7 +82,7 @@ export function documentGovernancePolicy(
   track?: string,
 ): DocumentGovernancePolicy | undefined {
   const branch = resolveRunTrack({ ...workflow, name: workflowId }, track)
-  if (branch.spec !== 'openspec') return undefined
+  if (branch.spec !== 'openspec' || branch.documentContract === undefined) return undefined
   // The id is the persisted document profile (default → legacy-full); content always comes from YAML.
   const id = isDefaultWorkflowName(workflowId) ? 'openspec-v1' : 'document-v1'
   return policyFromBranch(id, branch)

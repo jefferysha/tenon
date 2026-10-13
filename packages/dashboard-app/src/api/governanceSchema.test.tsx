@@ -26,6 +26,7 @@ const guards = [
   ['tasks-through-step', { type: 'tasks-through-step' }],
   ['not-afk-queued', { type: 'not-afk-queued' }],
   ['dependencies-ended', { type: 'dependencies-ended' }],
+  ['required-output', { type: 'required-output', path: 'docs/superpowers/specs/*.md' }],
 ] as const
 
 function decodeWithGuard(guard: unknown) {
@@ -139,26 +140,39 @@ describe('decodeWorkflowDefinition', () => {
     })).toBeNull()
   })
 
-  it('decodes the openspec switch, branch contracts and slot roles; rejects the removed openspecContract key', () => {
-    const contract = {
-      version: 'v1',
-      slots: [
-        { kind: 'tasks', ownerStep: 'one', producers: ['writer'] },
-        { kind: 'design-md', ownerStep: 'one', role: 'require', producers: [] },
-      ],
-      reads: [],
-    }
-    expect(decodeWorkflowDefinition({ name: 'governed', openspec: true, documentContract: contract, steps: [step] }))
-      .toMatchObject({ openspec: true, documentContract: { slots: [{ kind: 'tasks' }, { kind: 'design-md', role: 'require' }] } })
-    expect(decodeWorkflowDefinition({
-      name: 'branched', openspec: true, steps: [], tracks: { web: { label: '前端', documentContract: contract, steps: [step] } },
-    })?.tracks?.web?.documentContract?.slots).toHaveLength(2)
+  it('decodes the openspec switch; rejects the removed openspecContract key and a branch that still carries a document contract', () => {
+    expect(decodeWorkflowDefinition({ name: 'governed', openspec: true, steps: [step] })).toMatchObject({ openspec: true })
     expect(decodeWorkflowDefinition({ name: 'old', openspecContract: 'required', steps: [step] })).toBeNull()
     expect(decodeWorkflowDefinition({ name: 'switch', openspec: 'yes', steps: [step] })).toBeNull()
+    const contract = { version: 'v1', slots: [{ kind: 'tasks', ownerStep: 'one', producers: ['writer'] }], reads: [] }
     expect(decodeWorkflowDefinition({
-      name: 'bad-role', openspec: true, steps: [step],
-      documentContract: { ...contract, slots: [{ kind: 'tasks', ownerStep: 'one', role: 'read', producers: [] }] },
+      name: 'branched', openspec: true, steps: [], tracks: { web: { label: '前端', steps: [step] } },
+    })?.tracks?.web).toEqual({ label: '前端', steps: [step] })
+    expect(decodeWorkflowDefinition({
+      name: 'branched', openspec: true, steps: [], tracks: { web: { label: '前端', documentContract: contract, steps: [step] } },
     })).toBeNull()
+  })
+
+  it('a definition no longer carries materialised IO or a document contract; branches keep only their label', () => {
+    const decoded = decodeWorkflowDefinition({
+      name: 'io',
+      steps: [step],
+      effectiveIo: { one: { inputs: [], outputs: [] } },
+      documentContract: { version: 'v1', slots: [], reads: [] },
+      branches: { _base: {}, lite: { label: '轻量' } },
+    })
+    expect(decoded).not.toHaveProperty('effectiveIo')
+    expect(decoded).not.toHaveProperty('documentContract')
+    expect(decoded?.branches).toEqual({ _base: {}, lite: { label: '轻量' } })
+    expect(decodeWorkflowDefinition({ name: 'io', steps: [step], branches: { _base: { label: 3 } } })).toBeNull()
+  })
+
+  it('required-output carries a string path and nothing else', () => {
+    expect(decodeWithGuard({ type: 'required-output', path: 'docs/plans/{change}-plan.md' })?.steps[0]?.guards[0])
+      .toEqual({ type: 'required-output', path: 'docs/plans/{change}-plan.md' })
+    expect(decodeWithGuard({ type: 'required-output' })).toBeNull()
+    expect(decodeWithGuard({ type: 'required-output', path: 3 })).toBeNull()
+    expect(decodeWithGuard({ type: 'required-output', path: '' })).toBeNull()
   })
 
   it('decodes step tests with their pass criteria, inputs and outputs; rejects closed-set violations', () => {
@@ -191,16 +205,6 @@ describe('decodeWorkflowDefinition', () => {
     ]) {
       expect(decodeWorkflowDefinition({ name: 'tested', steps: [{ ...step, tests: [broken] }] })).toBeNull()
     }
-  })
-
-  it('effectiveIo document slots carry role and scope; the legacy locked-only shape is rejected', () => {
-    const io = (slot: Record<string, unknown>) => decodeWorkflowDefinition({
-      name: 'io', steps: [step], effectiveIo: { one: { inputs: [], outputs: [slot] } },
-    })
-    const slot = { kind: 'document', id: 'tasks', role: 'update', scope: 'change', producers: ['writer'], consumers: [] }
-    expect(io(slot)?.effectiveIo?.one?.outputs).toEqual([slot])
-    expect(io({ kind: 'document', id: 'tasks', producers: ['writer'], consumers: [], locked: true })).toBeNull()
-    expect(io({ ...slot, scope: 'repo' })).toBeNull()
   })
 
   it('accepts every canonical default-workflow guard and action used by the kernel', () => {

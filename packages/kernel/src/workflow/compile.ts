@@ -163,13 +163,13 @@ function compileSkillRef(raw: SkillRef, path: string): SkillRef {
   }
 }
 
-function compileTransition(raw: StepTransition, path: string, outputs: readonly FieldRef[]): StepTransitionIR {
+function compileTransition(raw: StepTransition, path: string, outputs: readonly FieldRef[], stepId: string): StepTransitionIR {
   const rec = asRecord(raw, path)
   rejectExtraKeys(rec, TRANSITION_KEYS, path)
   return {
     event: nonemptyString(rec.event, `${path}.event`),
     to: nonemptyString(rec.to, `${path}.to`),
-    guards: compileGuards(rec.guards, `${path}.guards`, outputs),
+    guards: compileGuards(rec.guards, `${path}.guards`, outputs, stepId),
     actions: compileActions(rec.actions, `${path}.actions`),
   }
 }
@@ -206,7 +206,7 @@ function compileStep(step: unknown, index: number, allowedPolicies: ReadonlySet<
   const outputs = asArray(rec.outputs, `${path}.outputs`).map((r, j) => compileFieldRef(r as FieldRef, `${path}.outputs[${j}]`))
   // 不预折 `?? []`：null/非数组的显式 malformed 必须进 compileGuards 被 fail-loud 拒绝，
   // 只有 undefined（真未声明）才吃默认 []（compileGuards 自身的口径）。
-  const guards = compileGuards(rec.guards, `${path}.guards`, outputs)
+  const guards = compileGuards(rec.guards, `${path}.guards`, outputs, id)
   const artifacts = compileArtifacts(rec.artifacts, `${path}.artifacts`, outputs, `${path}.outputs`, allowedPolicies)
   // 空数组与缺省同归一为「无 tests 键」：未声明测试的工作流编译成与本特性之前逐字相同的 IR，指纹不变。
   const tests = compileStepTests(rec.tests, `${path}.tests`)
@@ -217,7 +217,7 @@ function compileStep(step: unknown, index: number, allowedPolicies: ReadonlySet<
   // 门禁只有 review / auto：null 是 auto 的别名，这里归一。auto 的输出齐全守卫要知道哪些边是前进边，
   // 得看到整条步骤序，由 withAutoGateGuards 在同一份步骤序编完之后补挂（见 auto-gate.ts）。
   const transitions = asArray(rec.transitions, `${path}.transitions`).map((t, j) =>
-    compileTransition(t as StepTransition, `${path}.transitions[${j}]`, outputs))
+    compileTransition(t as StepTransition, `${path}.transitions[${j}]`, outputs, id))
   const transitionEvents = new Set<string>()
   transitions.forEach((transition, transitionIndex) => {
     if (transitionEvents.has(transition.event)) {

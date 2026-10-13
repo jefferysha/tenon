@@ -607,6 +607,8 @@ steps:
     try {
       await mkdir(join(cwd, '.pipeline', 'workflows'), { recursive: true })
       await writeFile(join(cwd, '.pipeline', 'workflows', 'twostep.yaml'), TWO_STEP_WF, 'utf8')
+      // 没有文档契约的任务是观察模式：转换在任务目录里写步骤产出账本，目录必须真实存在（state / history 仍是 mock）。
+      await mkdir(join(cwd, 'openspec', 'changes', 'demo'), { recursive: true })
       const deps = makeDeps({ cwd, state: mockState({ phase: 's1', workflow: 'twostep' }) })
       const code = await cmdTransition(deps, 'demo', 'complete')
       expect(code).toBe(0)

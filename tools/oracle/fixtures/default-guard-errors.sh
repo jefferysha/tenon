@@ -32,11 +32,12 @@ tr '|' '\t' > "$target/.oracle-plan" <<'PLAN'
 1|transition|t6-ge|explore-complete
 PLAN
 
-# 第 2 步 check：立项步同时缺 tasks.md 勾选、三份文档登记与声明的技能——一次列全，不止第一条。
+# 第 2 步 check：立项步同时缺 tasks.md 勾选、必须产出的立项文档（proposal.md）与声明的技能——一次列全，不止第一条。
+# 文档门禁现在只剩按路径的必须产出（观察模式不预先登记文档）；报错里的路径把 YAML 里的 {change} 占位渲染成任务名（t6-ge）。
 # 第 3 步 transition：同一个未勾选的条件以退出码 2 拒绝，并点名条件本身。
 {
   printf '2\t要求截至本步的 tasks.md 任务都已勾选\n'
-  printf '2\t缺少 document '"'"'proposal'"'"'\n'
+  printf '2\t要求产出匹配 openspec/changes/t6-ge/proposal.md 的文件\n'
   printf '2\t尚未完成声明的 skill：openspec-propose\n'
   printf '2\tcheck(s) failed\n'
   printf '3\t要求截至本步的 tasks.md 任务都已勾选\n'

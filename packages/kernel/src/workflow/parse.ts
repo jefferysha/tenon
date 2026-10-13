@@ -29,6 +29,7 @@ import { REMOVED_KEY_ERROR } from './removed-keys.js'
 interface GuardFields {
   n?: number
   field?: string
+  path?: string
   value?: string
   values?: string[]
   when?: TrackPredicate
@@ -44,6 +45,8 @@ function parseGuardEntry(cur: Cursor, type: string, itemIndent: number): Workflo
     let m: RegExpExecArray | null
     if ((m = /^\s*n:\s*(\d+)\s*$/.exec(line))) { f.n = Number(m[1]); cur.i++; continue }
     if ((m = /^\s*field:\s*(\S+)\s*$/.exec(line))) { f.field = m[1]; cur.i++; continue }
+    // path (required-output pattern) permits internal spaces like value; pattern syntax is checked at compile.
+    if ((m = /^\s*path:\s*(.+?)\s*$/.exec(line))) { f.path = m[1]; cur.i++; continue }
     // value permits internal spaces so serializer output remains parseable.
     if ((m = /^\s*value:\s*(.+?)\s*$/.exec(line))) { f.value = m[1]; cur.i++; continue }
     if ((m = /^\s*values:\s*(\[.*\])\s*$/.exec(line))) { f.values = parseInlineList(m[1] ?? ''); cur.i++; continue }
@@ -58,9 +61,12 @@ function requireGuardField(f: GuardFields, type: string): FieldName {
   return f.field as FieldName // FIELD_ORDER 闭集校验在 compileWorkflow，parse 只做语法层构造
 }
 
-/** YAML flattens file-exists path.field to field; other guard keys share the definition table. */
+/** YAML flattens file-exists path.field to field (required-output keeps path); other keys share the definition table. */
 const GUARD_FLAT_FIELDS: Record<string, readonly string[]> = Object.fromEntries(
-  Object.entries(GUARD_DATA_KEYS).map(([type, keys]) => [type, keys.map((k) => (k === 'path' ? 'field' : k))]),
+  Object.entries(GUARD_DATA_KEYS).map(([type, keys]) => [
+    type,
+    keys.map((k) => (type === 'file-exists' && k === 'path' ? 'field' : k)),
+  ]),
 )
 
 /** Reject extra fields for known variants; buildGuard reports unknown variants. */
@@ -68,7 +74,7 @@ function rejectExtraGuardFields(type: string, f: GuardFields): void {
   // Own-key lookup keeps prototype members from becoming guard variants.
   if (!Object.prototype.hasOwnProperty.call(GUARD_FLAT_FIELDS, type)) return
   const allowed = GUARD_FLAT_FIELDS[type]!
-  for (const key of ['n', 'field', 'value', 'values'] as const) {
+  for (const key of ['n', 'field', 'path', 'value', 'values'] as const) {
     if (f[key] !== undefined && !allowed.includes(key)) {
       const permitted = allowed.length ? `${allowed.join('/')}（+ 可选 when）` : '仅可选 when'
       throw new Error(`workflow 解析错误：guard '${type}' 不接受附加字段 '${key}'（该变体只允许 ${permitted}）`)
@@ -100,6 +106,9 @@ function buildGuard(type: string, f: GuardFields): WorkflowGuardConfig {
       return { type: 'field-in', field: requireGuardField(f, type), values: f.values as [string, ...string[]], ...cond }
     case 'build-head-unchanged':
       return { type: 'build-head-unchanged', field: requireGuardField(f, type) as 'build_sha', ...cond }
+    case 'required-output':
+      if (f.path === undefined) throw new Error("workflow 解析错误：guard 'required-output' 缺 path")
+      return { type: 'required-output', path: f.path, ...cond }
     // 无参数变体：只有类型与可选 when。
     case 'full-direct-override':
     case 'spec-migration-applied':
@@ -282,7 +291,7 @@ export function parseWorkflow(content: string): WorkflowDef {
     if (indentOf(line) !== 0) {
       throw new Error(`workflow 解析错误：顶层出现无法识别的内容 '${line.trim()}'`)
     }
-    if (/^openspec_contract:/.test(line)) throw new Error('workflow 解析错误：openspec_contract 已移除——改为 openspec: true 并声明 document_contract')
+    if (/^openspec_contract:/.test(line)) throw new Error('workflow 解析错误：openspec_contract 已移除——改为顶层 openspec: true，或在分支（tracks.<id>）下写 spec: openspec')
     const openspecLine = /^openspec:\s*(.*?)\s*$/.exec(line)
     if (openspecLine) {
       if (openspec !== undefined) throw new Error('workflow 解析错误：openspec 重复声明')
@@ -332,7 +341,7 @@ export function parseWorkflow(content: string): WorkflowDef {
       continue
     }
     if (key === 'review_budget:') throw new Error(REMOVED_KEY_ERROR('review_budget'))
-    throw new Error(`workflow 解析错误：无法识别的顶层键 '${key}'（支持 steps / tracks、openspec、route、document_contract、decomposition、interaction）`)
+    throw new Error(`workflow 解析错误：无法识别的顶层键 '${key}'（支持 steps / tracks、openspec、route、decomposition、interaction）`)
   }
   if (steps === undefined && tracks === undefined) {
     throw new Error("workflow 解析错误：缺少 'steps:' 或 'tracks:'")

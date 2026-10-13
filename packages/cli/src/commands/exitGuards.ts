@@ -12,7 +12,8 @@
  */
 import { isDeepStrictEqual } from 'node:util'
 import {
-  effectiveLifecyclePolicy, isAbandonEvent, isForwardExit, isRevisionGuard, mergeLifecycleGuards, stepExitTransitions,
+  effectiveLifecyclePolicy, isAbandonEvent, isForwardExit, isRevisionGuard, lifecycleScopeOf, mergeLifecycleGuards,
+  stepExitTransitions,
   type CompiledGuardConfig, type EffectiveWorkflowPlan, type PipelineState, type StepIR, type StepTransitionIR,
 } from '@tenon/kernel'
 
@@ -31,7 +32,7 @@ export function advancingExits(
 
 function lifecycleOf(plan: EffectiveWorkflowPlan, step: StepIR, transition: StepTransitionIR) {
   return effectiveLifecyclePolicy(
-    plan.capabilities.documents.governed,
+    lifecycleScopeOf(plan),
     step,
     transition,
     plan.workflow.steps.find((candidate) => candidate.id === transition.to),

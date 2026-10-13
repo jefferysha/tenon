@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { autoGateGuards, normalizeGate } from './auto-gate.js'
 import { simpleWorkflow } from './test-support.js'
-import { compileWorkflow } from './compile.js'
+import { compileDefaultWorkflow, compileWorkflow } from './compile.js'
 import { DEFAULT_WORKFLOW_SOURCE, DESIGN_SYSTEM_WORKFLOW_SOURCE } from './default-workflow.generated.js'
 import {
   compileEffectiveWorkflowPlan,
@@ -13,6 +13,7 @@ import { implicitCompletionTransition, isForwardStepEdge, stepExitTransitions } 
 import type { StepIR, WorkflowIR } from './ir.js'
 import { parseWorkflow } from './parse.js'
 import type { StepDef, WorkflowDef } from './types.js'
+import { validateWorkflow } from './validate.js'
 
 const PLAN_GUARD = [{ type: 'field-nonempty', field: 'plan' }]
 
@@ -52,8 +53,9 @@ describe('门禁 R7 · null 与 auto 同义', () => {
     const viaNull = compileWorkflow(flow(null))
     const viaAuto = compileWorkflow(flow('auto'))
     expect(viaNull).toEqual(viaAuto)
-    expect(compileEffectiveWorkflowPlan('flow', flow(null)).workflowFingerprint)
-      .toBe(compileEffectiveWorkflowPlan('flow', flow('auto')).workflowFingerprint)
+    // flow 带 outputs（已被 validate 拒绝的旧写法）：不经校验直接从 IR 建计划，只比较指纹。
+    expect(effectiveWorkflowPlanFromIr('flow', viaNull).workflowFingerprint)
+      .toBe(effectiveWorkflowPlanFromIr('flow', viaAuto).workflowFingerprint)
   })
 
   it('YAML 里缺省的 gate 与写 null 一样按 auto 编译', () => {
@@ -65,6 +67,29 @@ describe('门禁 R7 · null 与 auto 同义', () => {
     ].join('\n')))
     expect(absent.steps[0]?.gate).toBe('auto')
     expect(guardsOf(absent, 'one', 'go')).toEqual(PLAN_GUARD)
+  })
+})
+
+describe('门禁 R7 · 自动门禁 = 离开条件全部满足', () => {
+  it('新定义不声明 outputs：auto 步骤的前进边不多出任何守卫，必须产出只来自显式写下的 required-output', () => {
+    const required = { type: 'required-output', path: 'docs/superpowers/specs/*.md' } as const
+    const def: WorkflowDef = {
+      name: 'flow',
+      steps: [
+        step('draft', { gate: 'review', transitions: [{ event: 'draft-done', to: 'check' }] }),
+        step('check', {
+          gate: 'auto',
+          guards: [required],
+          transitions: [{ event: 'check-pass', to: 'ship' }, { event: 'check-back', to: 'draft' }],
+        }),
+        step('ship', { gate: 'review' }),
+      ],
+    }
+    expect(validateWorkflow(def)).toEqual([])
+    const ir = compileWorkflow(def)
+    expect(guardsOf(ir, 'check', 'check-pass')).toEqual([])
+    expect(guardsOf(ir, 'check', 'check-back')).toEqual([])
+    expect(ir.steps[1]?.guards).toEqual([required])
   })
 })
 
@@ -137,8 +162,8 @@ describe('门禁 R7 · 完结边', () => {
     ],
   }
 
-  it('新编译：gate null 的末阶段完结边同样挂输出齐全守卫', () => {
-    const plan = compileEffectiveWorkflowPlan('last', LAST)
+  it('带 outputs 的旧定义按 IR 重建：gate null 的末阶段完结边同样挂输出齐全守卫', () => {
+    const plan = effectiveWorkflowPlanFromIr('last', compileWorkflow(LAST))
     expect(implicitCompletionTransition(plan, 'two')?.guards).toEqual(PLAN_GUARD)
     expect(stepExitTransitions(plan, 'two').map((transition) => transition.event)).toEqual(['archived'])
   })
@@ -191,7 +216,7 @@ describe('门禁 R7 · 旧冻结计划保持记录的行为', () => {
   })
 
   it('新编译的计划与旧 null 计划指纹不同：新任务冻结新语义，旧任务读回旧字节', () => {
-    const modern = compileEffectiveWorkflowPlan('flow', flow(null))
+    const modern = effectiveWorkflowPlanFromIr('flow', compileWorkflow(flow(null)))
     const legacy = effectiveWorkflowPlanFromIr('flow', frozenLegacy(null, false))
     expect(modern.workflowFingerprint).not.toBe(legacy.workflowFingerprint)
   })
@@ -220,23 +245,29 @@ describe('门禁 R7 · 内建工作流', () => {
   })
 
   it('default 各轨道：只有 review 与 auto 两种；完结边没有多余守卫；build_sha / archived 不进检查', () => {
-    const def = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
-    const lite = compileEffectiveWorkflowPlan('default', def, { track: 'lite' })
+    const ir = compileDefaultWorkflow(parseWorkflow(DEFAULT_WORKFLOW_SOURCE))
+    const lite = effectiveWorkflowPlanFromIr('default', ir, { track: 'lite' })
     expect(lite.workflow.steps.map((candidate) => candidate.gate).every((gate) => gate === 'review' || gate === 'auto')).toBe(true)
     // 轻量的 done / escalated 只由已经结束运行的边进入，不再派生第二条完结边。
     for (const terminal of ['done', 'escalated']) expect(implicitCompletionTransition(lite, terminal)).toBeUndefined()
     for (const track of ['pm', 'frontend', 'backend'] as const) {
-      const plan = compileEffectiveWorkflowPlan('default', def, { track })
+      const plan = effectiveWorkflowPlanFromIr('default', ir, { track })
       expect(plan.workflow.steps.map((candidate) => candidate.gate).every((gate) => gate === 'review' || gate === 'auto')).toBe(true)
       const build = plan.workflow.steps.find((candidate) => candidate.id === 'build')
       // build_sha 由 freeze-build-sha 写入：auto 门不会为它派生输出检查，边上只有 YAML 里写明的离开条件。
       expect(build?.transitions.find((transition) => transition.event === 'build-complete')?.guards.map((guard) => guard.type))
         .toEqual(['field-equals', 'tasks-through-step', 'not-afk-queued', 'dependencies-ended'])
       expect(implicitCompletionTransition(plan, 'archive')?.guards).toEqual([])
+      // 模板不再声明 outputs：auto 门不派生输出检查（自动门禁 = 离开条件全部满足），交付值 pr_url / prd_path 由
+      // 步骤自己的 guards 显式写明，完结边上没有多余守卫。
       const ship = plan.workflow.steps.find((candidate) => candidate.id === 'ship')
-      const shipOutputs = (ship?.outputs ?? []).map((output) => output.field)
-      const shipGuards = ship?.transitions.find((transition) => transition.event === 'ship-complete')?.guards ?? []
-      expect(shipGuards.map((guard) => 'field' in guard ? guard.field : null)).toEqual(shipOutputs)
+      expect(ship?.outputs ?? []).toEqual([])
+      expect(ship?.transitions.find((transition) => transition.event === 'ship-complete')?.guards ?? []).toEqual([])
+      expect(ship?.guards.map((guard) => guard.type)).toEqual(
+        track === 'pm'
+          ? ['file-exists', 'spec-migration-applied', 'tasks-through-step']
+          : ['field-nonempty', 'spec-migration-applied', 'tasks-through-step'],
+      )
     }
   })
 })

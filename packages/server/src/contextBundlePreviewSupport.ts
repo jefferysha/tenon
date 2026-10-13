@@ -3,6 +3,7 @@ import { isAbsolute, join, relative, sep } from 'node:path'
 import {
   type LedgerContextBundlePreview,
   LedgerContextBundleError,
+  type ObservedContextBundlePreview,
 } from '@tenon/kernel'
 import { changeAreaSegments, type ChangeArea } from './changeArea.js'
 import type { WorkflowRootAnchor } from './workflows.js'
@@ -202,6 +203,32 @@ export function safeContextBundlePreview(
       materializedBytes: input.materializedBytes,
     })),
     ...(aggregateDigest === undefined ? {} : { aggregateDigest }),
+  }
+}
+
+/**
+ * 观察模式（新任务）的预览：包里是当前步骤的交接输入，没有文档种类——`kind` 固定为 `handoff`，原因点名上游步骤，
+ * 另带上游步骤与来源技能；其余字段与契约模式同一个信封（schema / budget / aggregateDigest）。
+ */
+export function safeObservedContextBundlePreview(
+  preview: ObservedContextBundlePreview,
+  fits: boolean,
+  aggregateDigest?: string,
+): Record<string, unknown> {
+  return {
+    ...safeContextBundlePreview({ ...preview, inputs: [] }, fits, aggregateDigest),
+    inputs: preview.inputs.map((input) => ({
+      kind: 'handoff',
+      path: input.path,
+      digest: input.digest,
+      reason: input.reason,
+      reasonCode: 'context-bundle.reason.handoff',
+      mode: input.mode,
+      sourceBytes: input.sourceBytes,
+      materializedBytes: input.materializedBytes,
+      fromStep: input.fromStep,
+      skill: input.skill,
+    })),
   }
 }
 

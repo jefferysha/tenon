@@ -47,7 +47,7 @@ function stateAt(phase: string, over: Partial<Record<string, string>> = {}): Pip
   return { fields: { ...emptyFields(), phase, ...over } as PipelineState['fields'], opaqueTail: '' }
 }
 
-type Caps = Pick<GuardInput, 'tasksThroughStep' | 'afkQueued' | 'dependencyStates'>
+type Caps = Pick<GuardInput, 'tasksThroughStep' | 'afkQueued' | 'dependencyStates' | 'requiredOutput'>
 
 const ALL_GOOD: Caps = {
   tasksThroughStep: async () => ({ complete: true, unchecked: [] }),
@@ -102,6 +102,51 @@ describe('YAML 解析 / 编译 / 序列化', () => {
       steps: def.steps.map((s) => s.id === 'build' ? { ...s, guards: [{ type, field: 'phase' }] } : s),
     } as unknown as WorkflowDef
     expect(() => compileWorkflow(bad)).toThrow(/附加键 'field'/)
+  })
+})
+
+// required-output 与上面三个同属「能力注入、缺失即失败关闭」的离开条件，接线面一并在这里钉住。
+describe('required-output：YAML → 编译 → planStepTransition', () => {
+  const REQUIRED_YAML = BUILD_YAML.replace(
+    '      - type: dependencies-ended\n',
+    '      - type: dependencies-ended\n      - type: required-output\n        path: openspec/changes/{change}/specs/*/spec.md\n',
+  )
+  const PATH = 'openspec/changes/{change}/specs/*/spec.md'
+  const ir = compileWorkflow(parseWorkflow(REQUIRED_YAML))
+
+  it('解析 / 编译后守卫原样保留，序列化往返不丢', () => {
+    const def = parseWorkflow(REQUIRED_YAML)
+    expect(def.steps[0]?.guards[3]).toEqual({ type: 'required-output', path: PATH })
+    expect(ir.steps[0]?.guards[3]).toEqual({ type: 'required-output', path: PATH })
+    expect(parseWorkflow(serializeWorkflow(def))).toEqual(def)
+  })
+
+  it('满足：放行，并按当前步骤与原模式取数', async () => {
+    const seen: Array<readonly [string, string]> = []
+    const plan = await planStepTransition(
+      ir, stateAt('build', { pre_verify_review_result: 'pass' }), 'build-complete',
+      ctx({ ...ALL_GOOD, requiredOutput: async (step, pattern) => { seen.push([step, pattern]); return true } }),
+    )
+    expect(plan).toMatchObject({ ok: true, from: 'build', to: 'verify' })
+    expect(seen).toEqual([['build', PATH]])
+  })
+
+  it('缺产出时与其它失败一次列全，文案点名模式（{change} 已渲染成任务名）；能力缺失则失败关闭', async () => {
+    const missing = await planStepTransition(
+      ir, stateAt('build', { pre_verify_review_result: 'pending' }), 'build-complete',
+      ctx({ ...ALL_GOOD, requiredOutput: async () => false }),
+    )
+    if (missing.ok || missing.kind !== 'guard-failed') throw new Error('期望 guard-failed')
+    expect(missing.failures).toEqual([
+      // ctx() 的任务目录是 /unused，任务名就是 unused。
+      "step 'build' 要求产出匹配 openspec/changes/unused/specs/*/spec.md 的文件（本任务里这一步还没有写出这样的文件）",
+      expect.stringContaining('pre_verify_review_result'),
+    ])
+    const noCapability = await planStepTransition(
+      ir, stateAt('build', { pre_verify_review_result: 'pass' }), 'build-complete', ctx(ALL_GOOD),
+    )
+    if (noCapability.ok || noCapability.kind !== 'guard-failed') throw new Error('期望 guard-failed')
+    expect(noCapability.failures).toEqual([expect.stringContaining('requiredOutput')])
   })
 })
 

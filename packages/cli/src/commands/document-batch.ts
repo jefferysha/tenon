@@ -14,6 +14,7 @@ import { aliasesForSkill } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 import { msg } from '../i18n/messages.js'
 import { cmdDocumentRecord } from './document.js'
+import { refuseObservedDocumentCommand } from './document-observed.js'
 import { placeholderRefusal } from './documentPlaceholderGate.js'
 import { documentWriteActions, skillDocumentActions } from './statusStepDocumentActions.js'
 import type { StepAction } from './statusStepAction.js'
@@ -118,16 +119,21 @@ export async function cmdDocumentRecordCommand(
   path: string | undefined,
   opts: RecordCommandOptions,
 ): Promise<number> {
+  // 参数写错与模式无关，先报用法错（退出码 1）；用法对了，观察模式的任务再以退出码 2 拒绝（产出由 Tenon 自动记录）。
   if (opts.all === true) {
     if (kind !== undefined || path !== undefined || opts.backfill === true) {
       deps.io.err(`ERROR: ${msg(deps, 'document.record.allConflict')}`)
       return 1
     }
+    const refused = await refuseObservedDocumentCommand(deps, change, 'document record')
+    if (refused !== undefined) return refused
     return cmdDocumentRecordAll(deps, change, opts.producer === undefined ? {} : { producer: opts.producer })
   }
   if (kind === undefined || path === undefined || opts.producer === undefined) {
     deps.io.err(`ERROR: ${msg(deps, 'document.record.usage')}`)
     return 1
   }
+  const refused = await refuseObservedDocumentCommand(deps, change, 'document record')
+  if (refused !== undefined) return refused
   return cmdDocumentRecord(deps, change, kind, path, opts.producer, opts.backfill === true)
 }

@@ -1,11 +1,10 @@
 /**
  * 当前 change 有效（track-适用）的 artifact 字段集 —— G2 P6 set/cas cutover 与 P5 artifact register
  * 共用的 declaration 判定源（口径单一真相，避免 register 允许写的字段与 set/cas 拒写的字段漂移）。
- * 按 state 的 workflow/phase/track 判定：
- *   - workflow==='default'：P4 生成表 defaultArtifactsForStep(phase, track)（已过 requiredWhen）。
- *   - custom：loadWorkflow→compileWorkflow→resolveStep(phase)→step.artifacts 过 requiredWhen。
- *     必须查**编译后** StepIR.artifacts（compileWorkflow 会把已知 file_path output 派生成 artifact），
- *     不能只看 YAML 显式 artifacts。
+ * 按 state 的 workflow/phase/track 判定：loadWorkflow→compileWorkflow→resolveStep(phase)→step.artifacts 过 requiredWhen
+ * （default 与 custom 同一条路径；内建 default 模板已不声明 artifact，升级前的冻结任务才会有）。
+ * 必须查**编译后** StepIR.artifacts（compileWorkflow 会把已知 file_path output 派生成 artifact），
+ * 不能只看 YAML 显式 artifacts。
  * workflow **文件缺失**（loadWorkflow 返 null，即 workflow 仅作 registry 名、无定义文件）→ 空集：无
  * artifact 声明可内省、无 file-artifact cutover（R2 里 track/workflow 仅作 registry 名时靠 checkTrackWorkflow
  * 组合校验，不该被此处 fail-loud 误伤）。workflow **损坏**（文件存在但 parse/compile 失败）/ step 不在图

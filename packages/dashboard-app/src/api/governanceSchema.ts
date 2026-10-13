@@ -1,5 +1,5 @@
 import type {
-  WbBranchProjection, WbEffectiveIo, WbIoSlot, WbSkillFile, WbSkillFiles, WbStepDef, WbTrackAutomation,
+  WbBranchProjection, WbSkillFile, WbSkillFiles, WbStepDef, WbTrackAutomation,
   WbTrackBranch, WbTrackRoute, WbWorkflowDef,
 } from './governanceTypes'
 import {
@@ -7,7 +7,7 @@ import {
   decodeSkill, decodeSkillSource, decodeStepAgents, exactKeys, optionalString, record, strings,
 } from './governanceBaseDecoders'
 import {
-  decodeArtifact, decodeDocumentContract, decodeGuard, decodeStepTest, decodeTransition,
+  decodeArtifact, decodeGuard, decodeStepTest, decodeTransition,
 } from './governanceRuleDecoders'
 import { decodeStepTestPolicy } from './governanceTestPolicyDecoder'
 
@@ -52,41 +52,6 @@ function decodeStep(value: unknown): WbStepDef | null {
   }
 }
 
-function decodeIoSlot(value: unknown): WbIoSlot | null {
-  const slot = record(value)
-  if (!slot || typeof slot.id !== 'string') return null
-  const consumers = decodeArray(slot.consumers, (item) => typeof item === 'string' ? item : null)
-  if (consumers === null) return null
-  if (slot.kind === 'document') {
-    const producers = decodeArray(slot.producers, (item) => typeof item === 'string' ? item : null)
-    if (producers === null) return null
-    if (slot.role !== 'produce' && slot.role !== 'update' && slot.role !== 'read' && slot.role !== 'require') return null
-    if (slot.scope !== 'change' && slot.scope !== 'project') return null
-    return { kind: 'document', id: slot.id, role: slot.role, scope: slot.scope, producers, consumers }
-  }
-  if (slot.kind === 'field') {
-    if (slot.type !== 'string' && slot.type !== 'file_path' && slot.type !== 'boolean') return null
-    if (slot.producer !== null && typeof slot.producer !== 'string') return null
-    return { kind: 'field', id: slot.id, type: slot.type, producer: slot.producer, consumers }
-  }
-  return null
-}
-
-export function decodeEffectiveIo(value: unknown): WbEffectiveIo | null {
-  const body = record(value)
-  if (!body) return null
-  const out: WbEffectiveIo = {}
-  for (const [stepId, raw] of Object.entries(body)) {
-    const step = record(raw)
-    if (!step) return null
-    const inputs = decodeArray(step.inputs, decodeIoSlot)
-    const outputs = decodeArray(step.outputs, decodeIoSlot)
-    if (inputs === null || outputs === null) return null
-    out[stepId] = { inputs, outputs }
-  }
-  return out
-}
-
 const TRACK_ID_RE = /^[a-z][a-z0-9_-]{0,31}$/
 
 function decodeBranchRoute(value: unknown): WbTrackRoute | null {
@@ -109,7 +74,7 @@ function decodeBranchAutomation(value: unknown): WbTrackAutomation | null {
   return { eligible: item.eligible, enqueueAfterSpec: item.enqueueAfterSpec }
 }
 
-/** `tracks.<id>` 分支：可选 label / spec / route / automation / 文档契约 + 自己的 steps。 */
+/** `tracks.<id>` 分支：可选 label / spec / route / automation + 自己的 steps。 */
 function decodeTracks(value: unknown): Record<string, WbTrackBranch> | null {
   const body = record(value)
   if (!body) return null
@@ -117,17 +82,15 @@ function decodeTracks(value: unknown): Record<string, WbTrackBranch> | null {
   for (const [id, raw] of Object.entries(body)) {
     const branch = record(raw)
     if (!TRACK_ID_RE.test(id) || !branch
-      || !allowedKeys(branch, ['label', 'documentContract', 'steps', 'spec', 'route', 'automation'])
+      || !allowedKeys(branch, ['label', 'steps', 'spec', 'route', 'automation'])
       || !optionalString(branch.label)
       || (branch.spec !== undefined && branch.spec !== 'openspec' && branch.spec !== 'none')) return null
-    const documentContract = branch.documentContract === undefined ? undefined : decodeDocumentContract(branch.documentContract)
     const route = branch.route === undefined ? undefined : decodeBranchRoute(branch.route)
     const automation = branch.automation === undefined ? undefined : decodeBranchAutomation(branch.automation)
     const steps = decodeArray(branch.steps, decodeStep)
-    if (steps === null || documentContract === null || route === null || automation === null) return null
+    if (steps === null || route === null || automation === null) return null
     out[id] = {
       ...(branch.label === undefined ? {} : { label: branch.label }),
-      ...(documentContract === undefined ? {} : { documentContract }),
       ...(branch.spec === undefined ? {} : { spec: branch.spec }),
       ...(route === undefined ? {} : { route }),
       ...(automation === undefined ? {} : { automation }),
@@ -137,7 +100,7 @@ function decodeTracks(value: unknown): Record<string, WbTrackBranch> | null {
   return out
 }
 
-/** 读接口的分支投影：`_base` + 每条 track 的物化 IO。 */
+/** 读接口的分支投影：`_base` + 每条 track 的名称。 */
 function decodeBranches(value: unknown): Record<string, WbBranchProjection> | null {
   const body = record(value)
   if (!body) return null
@@ -145,9 +108,7 @@ function decodeBranches(value: unknown): Record<string, WbBranchProjection> | nu
   for (const [id, raw] of Object.entries(body)) {
     const branch = record(raw)
     if (!branch || !optionalString(branch.label)) return null
-    const effectiveIo = decodeEffectiveIo(branch.effectiveIo)
-    if (effectiveIo === null) return null
-    out[id] = { ...(branch.label === undefined ? {} : { label: branch.label }), effectiveIo }
+    out[id] = branch.label === undefined ? {} : { label: branch.label }
   }
   return out
 }
@@ -175,26 +136,21 @@ export function decodeWorkflowDefinition(value: unknown): WbWorkflowDef | null {
   const body = record(value)
   if (!body || typeof body.name !== 'string') return null
   if (body.source !== undefined && body.source !== 'builtin' && body.source !== 'project' && body.source !== 'global') return null
-  const effectiveIo = body.effectiveIo === undefined ? undefined : decodeEffectiveIo(body.effectiveIo)
-  if (effectiveIo === null) return null
   // 已删除的评审键：出现即拒，不静默丢弃（同 kernel parse 的点名报错）。
   if (body.openspecContract !== undefined || body.reviewBudget !== undefined) return null
   if (body.openspec !== undefined && typeof body.openspec !== 'boolean') return null
-  const documentContract = body.documentContract === undefined ? undefined : decodeDocumentContract(body.documentContract)
   const decomposition = decodeDecompositionPolicy(body.decomposition)
   const interaction = decodeInteractionPolicy(body.interaction)
   const steps = decodeArray(body.steps, decodeStep)
   const tracks = body.tracks === undefined ? undefined : decodeTracks(body.tracks)
   const branches = body.branches === undefined ? undefined : decodeBranches(body.branches)
-  if (documentContract === null || decomposition === null || interaction === null || steps === null || tracks === null || branches === null) return null
+  if (decomposition === null || interaction === null || steps === null || tracks === null || branches === null) return null
   return {
     name: body.name,
     ...(body.source === undefined ? {} : { source: body.source }),
-    ...(effectiveIo === undefined ? {} : { effectiveIo }),
     ...(tracks === undefined ? {} : { tracks }),
     ...(branches === undefined ? {} : { branches }),
     ...(body.openspec === undefined ? {} : { openspec: body.openspec }),
-    ...(documentContract === undefined ? {} : { documentContract }),
     decomposition,
     interaction,
     steps,

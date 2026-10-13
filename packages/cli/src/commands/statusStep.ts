@@ -17,9 +17,10 @@ import { archivedChangeDir, changeDir } from '../paths.js'
 import { agentStepViews, downstreamReviewBar, type StepAgentView } from './statusStepAgents.js'
 import { evaluateStepExitReport, type StepExit } from './stepExitReport.js'
 import {
-  stepDocuments, stepFields, stepSkills,
+  emptyStepDocuments, observedStepDocuments, stepDocuments, stepFields, stepSkills,
   type StepDocumentsView, type StepFieldRequirement, type StepFieldView, type StepSkillView,
 } from './statusStepParts.js'
+import { stepOwnership } from './statusStepOwnership.js'
 import { effectiveArtifactFields } from './effective-artifacts.js'
 import { effectiveArtifactProducers } from './artifact.js'
 import { isLegacyExecution, isStepGraphExecution } from './execution-cli-seam.js'
@@ -34,7 +35,7 @@ import {
   stepNextActions, stop,
   type StepAction, type StepCommit, type StepFinishFacts, type StepMode, type StepNextInput, type StepTestView,
 } from './statusStepNext.js'
-import { PLAN_DOCUMENT_KINDS, testConfigGaps } from './statusStepTestConfig.js'
+import { testConfigGaps } from './statusStepTestConfig.js'
 import { deliveryCommit, finishedStop } from './statusStepFinish.js'
 import { buildStepTestFlow } from './statusStepTestFlow.js'
 import { stepEscalation } from './statusStepEscalation.js'
@@ -159,8 +160,10 @@ async function withPrUrlRecommendation(
 
 /** 完结收尾要的 git 事实；只在状态机已归档时才去问 git（活跃步骤的每次 status 不付这份开销）。 */
 async function finishFacts(deps: CliDeps, name: string, state: PipelineState): Promise<StepFinishFacts> {
-  const verified = str(state.fields.verify_result) === 'pass'
   const designSystem = str(state.fields.workflow) === 'design-system'
+  // 设计体系工作流没有验证步：走完最后一步（隐式完结边）本身就是成功收尾，verify_result 从来不会是 pass。
+  // 不把它算成成功，非 OpenSpec 的收尾就发不出提交，DESIGN.md 与 design/ 留在工作区（真机验收 F7 原样复现）。
+  const verified = designSystem || str(state.fields.verify_result) === 'pass'
   if (str(state.fields.archived) !== 'true') return { git: null, verified, designSystem }
   return { git: await (deps.gitFinishProbe?.(name) ?? Promise.resolve(null)), verified, designSystem }
 }
@@ -216,8 +219,10 @@ export async function buildStatusStep(
       ...(gap === undefined ? {} : { hint: unconfiguredMessage(item.test.id, item.test.command, gap) }),
     }
   }))
-  const policy = plan.capabilities.documents.policy
-  const documents = stepDocuments(name, policy, stepId, report.documents?.items ?? [])
+  // 文档机制的唯一分流点：没有旧契约的新任务读步骤产出账本，带契约的升级前任务读契约台账（行为不变）。
+  const documents = plan.capabilities.documents.mode === 'observed'
+    ? await observedStepDocuments(name, dir, plan, state, stepId)
+    : stepDocuments(name, plan.capabilities.documents.policy, stepId, report.documents?.items ?? [])
   const artifacts = artifactFieldsOf(deps, state, step)
   const fields = await withPrUrlRecommendation(
     deps, stepFields(state, withLeaveGuards(plan, state, step), artifacts, nativeGuardFieldsOf(plan, state, report.exits)))
@@ -268,6 +273,7 @@ export async function buildStatusStep(
       next: stop('step-not-in-plan', `step '${stepId}' 不在 workflow '${plan.id}' 里；新建任务`),
     }
   }
+  const ownership = stepOwnership(plan, step, state, documents)
   return {
     ...block,
     next: await trustAnnotated(deps, name, plan, stepNextActions({
@@ -289,12 +295,11 @@ export async function buildStatusStep(
       // 彩排与应用是两件事：`--dry-run` 也写同一份 result=pass 的回执，只认 result 就等于让一次
       // 彩排顶替一次应用，ship 于是去铺 applied-spec 骨架而不是真的把 delta 应用进主规格。
       specApplicationPending: !specApply.applied,
-      ownsDeltaSpec: documents.records.some((doc) => doc.kind === 'delta-spec'),
-      ownsAppliedSpec: documents.records.some((doc) => doc.kind === 'applied-spec'),
+      ownsDeltaSpec: ownership.ownsDeltaSpec,
+      ownsAppliedSpec: ownership.ownsAppliedSpec,
       artifactProducers: artifacts.size === 0 ? [] : effectiveArtifactProducers(deps, state),
       finish: await finishFacts(deps, name, state),
-      testConfigGaps: await testConfigGaps(deps, plan, stepId, tests, report.exits,
-        documents.records.some((doc) => PLAN_DOCUMENT_KINDS.has(doc.kind))),
+      testConfigGaps: await testConfigGaps(deps, plan, stepId, tests, report.exits, ownership.planning),
       ...await deliveryFacts(deps, name, state, fields),
       escalation: stepEscalation(testReport.items, report.exits, plan, state),
       rounds,
@@ -339,7 +344,7 @@ export async function finishedStatusStep(
     executors: [],
     reviewers: [],
     tests: [],
-    documents: { reads: [], records: [], updates: [] },
+    documents: emptyStepDocuments(plan?.capabilities.documents.mode ?? 'contract'),
     fields: [],
     review: { status: 'none', event: null },
     exits: [],

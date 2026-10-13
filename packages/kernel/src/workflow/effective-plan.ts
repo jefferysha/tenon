@@ -6,6 +6,7 @@ import { loadWorkflow } from './loadWorkflow.js'
 import type { WorkflowIR } from './ir.js'
 import { parseWorkflow } from './parse.js'
 import { freeze, planFingerprint, planFromIr, profileFor, type PlanOptions } from './effective-plan-build.js'
+import { LEGACY_DOCUMENT_GOVERNANCE_POLICY } from './migrations/openspec-v1-document-policy.js'
 import {
   restoreLegacyWorkflowPlan,
   historicalV3PolicyWorkflowFingerprint,
@@ -24,7 +25,9 @@ import type {
   PersistedDocumentGovernanceBinding,
 } from './effective-plan-types.js'
 export type { PlanOptions } from './effective-plan-build.js'
-export type { AutomationPolicyBits, EffectiveWorkflowPlan, PersistedDocumentGovernanceBinding } from './effective-plan-types.js'
+export type {
+  AutomationPolicyBits, DocumentMode, EffectiveWorkflowPlan, PersistedDocumentGovernanceBinding,
+} from './effective-plan-types.js'
 export type {
   LegacyWorkflowIR, WorkflowPlanSnapshot, WorkflowPlanSnapshotV1,
   WorkflowPlanSnapshotV2, WorkflowPlanSnapshotV3, WorkflowPlanSnapshotV4,
@@ -263,6 +266,11 @@ export function resolveBoundEffectiveWorkflowPlan(
     plan = effectiveWorkflowPlanFromSnapshot(snapshot, track)
   } else {
     plan = resolveEffectiveWorkflowPlan(id, loadCompiled, { track })
+    // 没有冻结快照、绑定 legacy-full 的更早任务：当前定义已经没有文档契约，挂上冻结的 openspec-v1 表重建计划，
+    // 再走下面原有的 profile / 指纹核对（对不上照旧失败关闭）。
+    if (plan !== null && binding.documentProfile === 'legacy-full' && plan.documentPolicy === undefined) {
+      plan = planFromIr(plan.id, plan.executionModel, plan.definition ?? plan.workflow, track, LEGACY_DOCUMENT_GOVERNANCE_POLICY)
+    }
   }
   const boundProfile = binding.documentProfile
   const boundFingerprint = binding.documentGovernanceFingerprint

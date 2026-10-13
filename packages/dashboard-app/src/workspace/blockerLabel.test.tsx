@@ -83,6 +83,26 @@ describe('blockerLines · 按阻断 code 与服务端字段的短标签', () => 
     expect(blockerLines(agents)[0]?.text).toBe('security · reviewer-wrong-host')
   })
 
+  it('required-output 的 guard-failed：带路径出「必须产出 <路径>」；完整文本留在 text（进 title）；没路径退回原文', () => {
+    const path = 'openspec/changes/plan-checkout/proposal.md'
+    const failed: TransitionReadinessBlockerSnapshot = { kind: 'guard-failed', guardType: 'required-output', actual: 'missing', path }
+    expect(labels(failed)).toEqual([`必须产出 ${path}`])
+    expect(labels(failed, 'en')).toEqual([`Required output ${path}`])
+    expect(blockerLines(failed)[0]?.text).toBe(`guard:required-output:${path}`)
+    expect(labels({ kind: 'guard-failed', guardType: 'required-output', actual: 'missing' })).toEqual(['guard:required-output'])
+    expect(labels({ kind: 'guard-failed', guardType: 'tasks-through-step' })).toEqual(['guard:tasks-through-step'])
+  })
+
+  it('input-unread：未读 <文件>（name 取 subject 路径）；完整 CLI 文案留在 text；没有 subject 退回整句', () => {
+    const whole = '本步输入 README.md（explore 的产出）还没读；读完后执行 tenon document read plan-checkout all'
+    const [line] = blockerLines(stepExit('document', 'input-unread', whole, { subject: 'README.md' }))
+    expect(line?.text).toBe(whole)
+    expect(line?.label).toEqual({ key: 'workspace.blocker_input_unread', vars: { name: 'README.md' } })
+    expect(labels(stepExit('document', 'input-unread', whole, { subject: 'README.md' }))).toEqual(['未读 README.md'])
+    expect(labels(stepExit('document', 'input-unread', whole, { subject: 'README.md' }), 'en')).toEqual(['Unread README.md'])
+    expect(labels(stepExit('document', 'input-unread', whole))).toEqual([whole])
+  })
+
   it('不再解析服务端的中文整句：字段缺席时即使文案长得像也退回完整文案；字段在时文案内容无关紧要', () => {
     const text = "缺少 document 'proposal'；执行 tenon document record <change> proposal <path>"
     expect(labels(stepExit('document', 'document-evidence', text))).toEqual([text])
@@ -130,6 +150,17 @@ describe('mergeBlockerRows · 同类阻断合并成一行', () => {
   it('英文同样合并', () => {
     const rows = mergeBlockerRows([doc('proposal'), doc('tasks')].flatMap(blockerLines), (key, vars = {}) => translate('en', key, vars))
     expect(rows.map((row) => row.label)).toEqual(['Missing document proposal · tasks'])
+  })
+
+  it('必须产出与未读输入：多条各合成一行「必须产出 a · b」「未读 README.md · …-design.md」，完整文本逐条进 title', () => {
+    const required = (path: string): TransitionReadinessBlockerSnapshot => ({ kind: 'guard-failed', guardType: 'required-output', actual: 'missing', path })
+    const unread = (path: string): TransitionReadinessBlockerSnapshot => stepExit('document', 'input-unread', `本步输入 ${path}（explore 的产出）还没读；读完后执行 tenon document read demo all`, { subject: path })
+    const rows = merged([required('docs/a.md'), unread('README.md'), required('docs/b.md'), unread('docs/2026-design.md')])
+    expect(rows.map((row) => row.label)).toEqual(['必须产出 docs/a.md · docs/b.md', '未读 README.md · docs/2026-design.md'])
+    expect(rows[0]?.title.split('\n')).toEqual(['guard:required-output:docs/a.md', 'guard:required-output:docs/b.md'])
+    expect(rows[1]?.title.split('\n')).toHaveLength(2)
+    const en = mergeBlockerRows([required('docs/a.md'), required('docs/b.md'), unread('README.md')].flatMap(blockerLines), (key, vars = {}) => translate('en', key, vars))
+    expect(en.map((row) => row.label)).toEqual(['Required output docs/a.md · docs/b.md', 'Unread README.md'])
   })
 
   it('技能 / 测试这类带名字的也合并；tasks 计数（n 不是名字）不合并', () => {

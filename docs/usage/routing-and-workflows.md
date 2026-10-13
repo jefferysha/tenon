@@ -10,8 +10,8 @@ asks you to pick a Workflow.
 - installed and trusted hooks
 - familiarity with the terms Change, Workflow, and Track
 
-A **Workflow** is the graph of steps, transitions, gates, Skills, artifacts, and optional document
-contract. Its YAML is the only definition of how a task runs. A **Track** is one branch of a Workflow
+A **Workflow** is the graph of steps, transitions, gates, Skills, and guards (including the
+`required-output` guard for files a step must write). Its YAML is the only definition of how a task runs. A **Track** is one branch of a Workflow
 (`tracks.<id>` in the YAML) with its own steps, spec method, routing words and automation settings.
 A Track is identified by the pair Workflow + Track id, and there is no other kind of Track. A flat
 Workflow (no `tracks:`, such as `design-system`) is its own single Track, so `tenon init` needs no
@@ -117,8 +117,9 @@ to stderr.
 ## The lightweight Track
 
 `lite` is the Track for work that is neither a heavy signal nor larger than the limits: fix a bug,
-add a function, refactor a module, correct a typo. It has no OpenSpec contract (`spec: none`), so
-there are no documents to scaffold or record:
+add a function, refactor a module, correct a typo. It has no OpenSpec lifecycle (`spec: none`) and
+declares no required output; Tenon still records what each step wrote and hands the previous step's
+documents to the next one:
 
 ```text
 open → build → verify → done
@@ -273,8 +274,11 @@ message; the table is rebuilt from the file content. `tenon tracks list` shows t
 
 ### A three-step Workflow has no OpenSpec documents
 
-Workflow length does not imply a document contract. Add `openspec: true` (or `spec: openspec` on the
-branch) and an explicit `document_contract` only for documents the Workflow really produces and reads.
+Workflow length does not imply documents, and a Workflow creates none itself: the Skills of each step
+write what their own `SKILL.md` says. Add `openspec: true` (or `spec: openspec` on the branch) only for
+the OpenSpec lifecycle (the `tasks.md` skeleton, delta-spec validation and application, the OpenSpec
+archive), and a `required-output` guard on every step that must leave a file behind. See
+[documents, Skills, and evidence](documents-skills-and-evidence.md).
 
 ## Next action
 

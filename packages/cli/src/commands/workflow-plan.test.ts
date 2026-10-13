@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   compileEffectiveWorkflowPlan,
+  compileWorkflow,
+  effectiveWorkflowPlanFromIr,
   workflowPlanSnapshot,
   type PipelineState,
 } from '@tenon/kernel'
@@ -157,7 +159,9 @@ describe('workflow plan —— Agent 使用冻结的运行计划而非可变项�
   })
 
   test('人读输出每步列出输入、输出、测试与 agents（空的不写），与 --json 同一份计划', async () => {
-    const plan = compileEffectiveWorkflowPlan('io-flow', {
+    // 步骤 `inputs` / `outputs` 已不能再写进新定义，但升级前创建的任务冻结的计划还带着它们：不经 validateWorkflow，
+    // 直接从 IR 建计划，与冻结进快照的旧计划同一形态；人读输出仍要把它们列出来。
+    const plan = effectiveWorkflowPlanFromIr('io-flow', compileWorkflow({
       name: 'io-flow',
       steps: [
         {
@@ -183,7 +187,7 @@ describe('workflow plan —— Agent 使用冻结的运行计划而非可变项�
           transitions: [],
         },
       ],
-    })
+    }))
     const deps = makeDeps({ state: stateWithSnapshot('io-flow', 'build', workflowPlanSnapshot(plan)) })
     expect(await cmdWorkflowPlan(deps, 'demo', {})).toBe(0)
     const body = deps.outLines.slice(deps.outLines.findIndex((line) => line.startsWith('01 ')))

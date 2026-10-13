@@ -2,7 +2,7 @@
 
 ## Goal
 
-Create a declarative process whose graph, Skills, gates, and document reads
+Create a declarative process whose graph, Skills, gates, and required outputs
 match the work, optionally split into Tracks that routing can offer.
 
 ## Prerequisites
@@ -10,7 +10,8 @@ match the work, optionally split into Tracks that routing can offer.
 - an initialized Tenon project
 - a unique Workflow name (a file named `default` or `design-system` replaces the
   shipped template of that name)
-- known step IDs, transition events, Skill IDs, and document ownership
+- known step IDs, transition events, Skill IDs, and the files each step must
+  produce
 
 ## Author a Workflow
 
@@ -24,16 +25,15 @@ A small example:
 
 ```yaml
 name: release-note
-openspec: true
 steps:
   - id: shape
     label: Shape
     gate: review
     skills:
       - id: writer
-    inputs: []
-    outputs: []
-    guards: []
+    guards:
+      - type: required-output
+        path: docs/release-notes/{change}.md
     transitions:
       - event: shape-complete
         to: implement
@@ -42,8 +42,6 @@ steps:
     gate: auto
     skills:
       - id: editor
-    inputs: []
-    outputs: []
     guards: []
     transitions:
       - event: implement-complete
@@ -53,40 +51,70 @@ steps:
     gate: review
     skills:
       - id: verifier
-    inputs: []
-    outputs: []
     guards: []
     transitions: []
-document_contract:
-  version: v1
-  slots:
-    - kind: proposal
-      owner_step: shape
-      producers: [writer]
-  reads:
-    - step: implement
-      kinds: [proposal]
-    - step: prove
-      kinds: [proposal]
 ```
 
 A step has one of two gates: `review` (a person confirms before leaving) or
-`auto` (the step's declared outputs must all be set before leaving). `gate: null`
-or an omitted gate means `auto`. The outputs check applies to forward edges only;
-return edges such as `verify-fail` or `requirements-changed` are never blocked by
-it. Outputs the engine writes itself (`build_sha`, `archived`) are not part of
-the check. A Change keeps the plan it froze when it started, so Changes started
-before a Workflow was recompiled keep the gate behaviour they recorded.
+`auto` (the step can be left as soon as its leave conditions are met). `gate: null`
+or an omitted gate means `auto`. The leave conditions are the guards written on
+the step and on the edge taken; `auto` adds no check of its own. It no longer
+derives an "outputs are all set" check, because a step has no `outputs` any more:
+a value the step must have set is a `field-nonempty` guard, a file it must write is
+a `required-output` guard. A Change keeps the plan it froze when it started, so a
+Change started before keeps the gate behaviour it recorded.
 
-The contract is optional. Without it, Tenon does not infer documents
-from the number or names of steps.
-
-`document_contract` requires `openspec: true` on the Workflow. A Workflow that
-declares `tracks:` puts the contract under each `tracks.<id>`, next to the steps
-it references, never at the top level.
+A new custom Workflow that freezes a build revision for Verify writes the
+`freeze-build-sha` action on the `build-complete` edge and the `build-head-unchanged`
+guard on the `verify-pass` edge, as `templates/workflows/default.yaml` does; they are
+no longer inferred from a step's `outputs`.
 
 The Dashboard Workbench provides a visual editor for Workflows. The saved YAML,
 not the drawing alone, is the project definition.
+
+## Documents and required outputs
+
+A Workflow does not declare the input or output documents of a step. Skills write
+what their own `SKILL.md` says; Tenon records the files each step added, modified or
+deleted with the Skill that wrote them, hands the Markdown documents of the direct
+upstream step to the next step (which must read them before it can be left), and
+enforces `required-output` guards. This is the same for every Workflow and Track,
+OpenSpec or not. See [documents, Skills, and evidence](documents-skills-and-evidence.md).
+
+To require a file, put a `required-output` guard on the step (any exit needs it) or
+on one edge:
+
+```yaml
+guards:
+  - type: required-output
+    path: docs/release-notes/{change}.md
+```
+
+`path` is a project-relative path with `/` separators. `{change}` is the task name,
+`*` matches any characters inside one segment, `**` (alone in its segment) matches
+any number of segments, and `?` matches one character. A guard may carry `when`
+like any other guard. The guard passes when, in this run, a visit of that step
+added or modified a matching file that still exists; a matching file that was
+already in the repository does not count unless the step changed it. Validation
+rejects an empty pattern, an absolute path, `..`, a backslash and any placeholder
+other than `{change}`.
+
+### Keys that were removed
+
+The Workflow no longer accepts `document_contract` (top level or under a
+`tracks.<id>` branch), non-empty step `inputs`, `outputs` or `artifacts`, and the
+`nonempty-output` guard that depended on `outputs`. Saving the file, creating a
+Change and compiling a new plan reject them and name the replacement: documents are
+recorded automatically, a document condition is `required-output`, a field condition
+is `field-nonempty` or `field-equals`.
+
+```text
+document_contract 已删除：步骤的文档产出由 Tenon 在离开步骤时自动记录；需要门禁时写 { type: required-output, path: <路径> }
+```
+
+Empty `inputs: []`, `outputs: []` and `artifacts: []` are still read (the Dashboard
+saved files with them before) and are no longer written back. A Change created before
+the upgrade keeps its frozen plan with the old keys and finishes under them.
 
 ## Use the Workflow
 
@@ -110,7 +138,6 @@ a closed set of keys; anything else is rejected when the file is loaded:
 | --- | --- |
 | `label` | the name shown in the CLI and the Dashboard |
 | `steps` | the branch's step list |
-| `document_contract` | the branch's documents, written next to the steps it references |
 | `spec` | `openspec` or `none`; omitted, it follows the top-level `openspec` (`openspec: true` means `spec: openspec`), so existing files need no change |
 | `route` | automatic routing: `keywords`, `exclude`, `priority`, optional `fallback: true`; omitted, routing never picks the branch and it can only be named |
 | `automation` | `eligible` (may enter AFK) and `enqueue_after_spec` (queue the Change when its spec is done); omitted, both are off |
@@ -129,8 +156,6 @@ tracks:
         label: shape
         gate: auto
         skills: []
-        inputs: []
-        outputs: []
         guards: []
         transitions:
           - event: shape-complete
@@ -185,7 +210,8 @@ conditions rather than duplicate agent instructions.
 - graph validation succeeds;
 - the Change has immutable Workflow/Track identity;
 - CLI, hooks, Todo, and Dashboard use the same steps;
-- only declared documents and reads are enforced.
+- every step's actual outputs are recorded when it is left, and only the declared
+  `required-output` guards are enforced.
 
 ## Verification
 
@@ -207,15 +233,22 @@ project or user, Tracks included; a Change started earlier keeps the plan it fro
 without a `lite` branch makes `tenon assess` report that the Track has no
 change-risk thresholds instead of guessing them.
 
-### A short Workflow unexpectedly has no docs
+### A short Workflow does not produce the docs I expected
 
-Add `openspec: true` and a `document_contract.version: v1` with real
-owner/producer/read declarations.
+A Workflow creates no document by itself: the Skills of each step write what their
+own `SKILL.md` says. Add a `required-output` guard to the step that must leave the
+file behind, so the step cannot be left without it.
 
-### A document producer is rejected
+### Saving the Workflow fails and names `document_contract`, `inputs`, `outputs` or `artifacts`
 
-The current step must allow that document kind and the actual current-visit
-Skill identity must match a declared producer.
+These keys were removed. Delete them; write `required-output` for a file condition
+and `field-nonempty` or `field-equals` for a field condition (see
+[Keys that were removed](#keys-that-were-removed)).
+
+### A required output is reported missing
+
+Only a file the step added or modified in this Change counts, and only while it still
+exists. See [documents, Skills, and evidence](documents-skills-and-evidence.md#required-outputs).
 
 ### Track deletion is rejected
 

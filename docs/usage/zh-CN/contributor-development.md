@@ -41,7 +41,7 @@ tenon doctor                                     # identity:release 为警告（
 
 ### 2. 遵守包边界
 
-- Kernel：纯领域规则、状态、Workflow、document contract 和持久化原语；
+- Kernel：纯领域规则、状态、Workflow、步骤产出观察和持久化原语；
 - CLI：参数、I/O 和应用编排；
 - Server：本地 API/SSE；
 - Dashboard：React 本地控制面；

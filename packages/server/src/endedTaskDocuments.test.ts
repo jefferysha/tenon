@@ -9,6 +9,7 @@ import { scanChangeDetail, type SnapshotDeps } from './snapshot.js'
 import { createSnapshotCache } from './snapshotCache.js'
 import { initChange, makeProject, newStore, seedGovernedDocumentEvidence, testFlow } from './test-support.js'
 import type { StateStore } from '@tenon/kernel'
+import { legacyDefaultInitialWorkflow } from '@tenon/kernel/workflow/test-support'
 
 const NAME = 'alpha'
 const ARCHIVED = `2026-10-05-${NAME}`
@@ -24,11 +25,15 @@ interface Task {
   readonly archivedDir: string
 }
 
-/** A task with real hash-bound document evidence at `phase`, still in `openspec/changes/<name>`. */
+/**
+ * A task with real hash-bound document evidence at `phase`, still in `openspec/changes/<name>`. Document evidence is
+ * the old contract's ledger, so the task is one created before the upgrade (its frozen plan carries the contract);
+ * a new task has no ledger to evaluate.
+ */
 async function activeTask(phase: string): Promise<Task> {
   const store = newStore()
   const root = await makeProject()
-  const activeDir = await initChange(store, root, NAME)
+  const activeDir = await initChange(store, root, NAME, { initialWorkflow: legacyDefaultInitialWorkflow('backend', 'step-graph') })
   await seedGovernedDocumentEvidence(root, activeDir, NAME)
   await store.set(activeDir, 'phase', phase)
   return { root, deps: depsFor(root, store), activeDir, archivedDir: join(root, 'openspec', 'changes', 'archive', ARCHIVED) }

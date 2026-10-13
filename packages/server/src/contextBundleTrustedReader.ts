@@ -315,16 +315,22 @@ export function trustedContextBundleInputs(
       { cause, path: ledgerPath, repairAction: '修复并重新登记 document ledger 后重试' },
     )
   }
+  return { ledger, sourceReader: trustedContextBundleSourceReader(root, changeIdentity, limits) }
+}
+
+/** 源文件读取：registered root 下 fd 相对遍历、绑定请求开始捕获的 Change inode；契约模式与观察模式共用。 */
+export function trustedContextBundleSourceReader(
+  root: WorkflowRootAnchor,
+  changeIdentity: TrustedChangeIdentity,
+  limits: LedgerContextBundleResourceLimits,
+): LedgerContextBundleSourceReader {
   return {
-    ledger,
-    sourceReader: {
-      read: async (path, readLimit) => readTrustedFile(
-        root,
-        path,
-        readLimit?.maxBytes ?? limits.maxSourceBytesPerDocument,
-        readLimit,
-        changeIdentity,
-      ),
-    },
+    read: async (path, readLimit) => readTrustedFile(
+      root,
+      path,
+      readLimit?.maxBytes ?? limits.maxSourceBytesPerDocument,
+      readLimit,
+      changeIdentity,
+    ),
   }
 }

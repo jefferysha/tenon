@@ -161,8 +161,11 @@ export function planFromIr(
           })),
         })),
       },
+      // governed = 走 OpenSpec 生命周期：选中分支的 spec（工作流级视图没有分支时取顶层 openspec）；冻结计划带旧契约时
+      // 恒为真（旧快照里策略与 spec 同生同灭，行为不变）。mode 才表示有没有文档契约。
       documents: {
-        governed: documentPolicy !== undefined,
+        governed: documentPolicy !== undefined || (branch === null ? compiled.openspec === true : branch.spec === 'openspec'),
+        mode: documentPolicy === undefined ? 'observed' : 'contract',
         ...(documentProfile === undefined ? {} : { profile: documentProfile }),
         ...(documentPolicy === undefined ? {} : { policy: documentPolicy }),
       },

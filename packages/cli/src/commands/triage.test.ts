@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { mkdtemp, readdir, readFile, rm, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -332,8 +333,9 @@ describe('cmdTriage', () => {
         .filter((entry) => entry.isDirectory())
       expect(created).toHaveLength(1)
 
-      // 修复任务建在 default 的后端分支上：冻结的计划（文档治理策略与指纹）是后端分支的，不是轻量分支
-      // （spec: none，没有文档治理）的，与任务记的轨道一致。
+      // 修复任务建在 default 的后端分支上：冻结的计划（指纹与文档机制）是后端分支的，不是轻量分支
+      // （spec: none，不走 OpenSpec）的，与任务记的轨道一致。后端分支不再有文档契约：计划没有 documentPolicy，
+      // 文档机制是观察模式，任务目录里没有文档账本，第一次步骤访问的检查点已经写下。
       const changeDir = join(root, 'openspec', 'changes', created[0]!.name)
       expect(await readFile(join(changeDir, '.pipeline.yaml'), 'utf8')).toMatch(/^track: backend$/m)
       const { plan: frozen } = JSON.parse(await readFile(join(changeDir, '.pipeline-workflow-plan.json'), 'utf8')) as {
@@ -341,12 +343,14 @@ describe('cmdTriage', () => {
       }
       const backend = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' })
       expect(frozen.workflowId).toBe('default')
-      expect(frozen.documentPolicy).not.toBeNull()
-      expect(frozen.documentPolicy).toEqual(JSON.parse(JSON.stringify(backend.documentPolicy)))
+      expect(backend.capabilities.documents).toMatchObject({ governed: true, mode: 'observed' })
+      expect(frozen.documentPolicy ?? null).toBeNull()
+      expect(existsSync(join(changeDir, '.pipeline-documents.json'))).toBe(false)
+      expect(existsSync(join(changeDir, '.pipeline-step-outputs.json'))).toBe(true)
       expect(frozen.workflowFingerprint).toBe(backend.workflowFingerprint)
-      // 对照：轻量分支（工作流里的第一条）的计划与后端不同——快照确实是按后端分支取的。
-      const lite = compileEffectiveWorkflowPlan('default', undefined, { track: 'lite' })
-      expect(lite.workflowFingerprint).not.toBe(frozen.workflowFingerprint)
+      // 对照：轻量分支（工作流里的第一条，spec: none）不走 OpenSpec，立项不铺 tasks.md；后端分支铺。计划指纹覆盖整份
+      // 定义（所有分支），分不出轨道，所以用立项产物证明任务确实是按后端分支建的。
+      expect(existsSync(join(changeDir, 'tasks.md'))).toBe(true)
     } finally {
       await rm(root, { recursive: true, force: true })
     }

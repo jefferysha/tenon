@@ -14,7 +14,7 @@ import {
 import type { SkillTable } from '../flow/manifest.js'
 import type { StepIR } from './ir.js'
 import { compileEffectiveWorkflowPlan, effectiveWorkflowPlanFromIr } from './effective-plan.js'
-import { defaultIr, legacyDefaultWorkflow } from './test-support.js'
+import { defaultIr, legacyDefaultPlan } from './test-support.js'
 
 /** 最小 SkillTable 夹具（缺相位 → skillsFor 返 []，无须补全 Record<Phase,…>）。 */
 function table(rows: Record<string, Record<string, readonly string[]>>): SkillTable {
@@ -39,7 +39,7 @@ describe('技能投影只来自工作流声明，不叠加 manifest 矩阵', () 
   const stepGraphSkills = () => effectiveWorkflowPlanFromIr('default', defaultIr(), { track: 'backend' }).capabilities.skills
   // 旧快照里的 default 步骤不声明技能（它们当年全靠矩阵），source 记着 manifest-overlay。
   const legacySkills = () =>
-    compileEffectiveWorkflowPlan('default', legacyDefaultWorkflow(), { track: 'backend', executionModel: 'phase-manifest' }).capabilities.skills
+    legacyDefaultPlan({ track: 'backend', executionModel: 'phase-manifest' }).capabilities.skills
   const DECLARED = ['openspec-explore', 'brainstorming', 'grilling', 'domain-modeling', 'codebase-design']
 
   it('装配了矩阵的 resolver：必需 / 可用 / 显式 profile 三个投影都只给步骤自己声明的技能', () => {

@@ -687,7 +687,7 @@ describe('track/workflow 写入 —— 校验与落盘同锁（R2 · TOCTOU 锚�
 
 /**
  * P6 —— set/set-many/cas 对「当前有效 artifact 字段」cutover：旧写入口拒、改走 tenon artifact
- * register（default 轨判定源 defaultArtifactsForStep，与 register 同口径 effectiveArtifactFields）。
+ * register（判定源是 effectiveArtifactFields，与 register 同口径）。
  * custom 轨拒写 + fail-loud 在 artifact.integration.test.ts 端到端覆盖。
  */
 describe('P6 —— set/set-many/cas 对当前有效 artifact 字段 cutover', () => {

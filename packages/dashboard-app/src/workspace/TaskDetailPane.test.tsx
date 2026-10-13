@@ -1,12 +1,10 @@
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '../i18n'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { makeChange } from '../testkit'
 import type { ChangeSnapshot, UserRefView } from '../types'
-import { StageIoPanel } from './StageIoPanel'
-import type { IoRow } from './stageIo'
 import { TaskDetailPane, type TaskDetailPaneProps } from './TaskDetailPane'
 import { stagesOf, summaryOf, type TaskRow } from './taskModel'
 
@@ -42,7 +40,22 @@ function stubFetch() {
   })
 }
 
-/** 任务端点 `GET /api/change/:c/orchestration` 的响应：冻结计划的编排 + 运行状态 + 冻结 IO。 */
+const PLAN = 'docs/plans/demo-plan.md'
+const STEP_IO = {
+  spec: { inputs: [], outputs: [{ path: PLAN, change: 'added', skill: 'writing-plans' }], required: [{ path: 'docs/plans/{change}-plan.md', produced: true }] },
+  build: {
+    inputs: [{ path: PLAN, skill: 'writing-plans', fromStep: 'spec', read: true }],
+    outputs: [
+      { path: 'src/demo.ts', change: 'modified', skill: null },
+      { path: 'docs/build-notes.md', change: 'added', skill: 'tenon-build' },
+      { path: 'docs/old-notes.md', change: 'deleted', skill: null },
+    ],
+    required: [{ path: 'docs/build-notes.md', produced: true }, { path: 'docs/qa/*.md', produced: false }],
+  },
+  verify: { inputs: [], outputs: [], required: [] },
+}
+
+/** 任务端点 `GET /api/change/:c/orchestration` 的响应：冻结计划的编排 + 运行状态 + 每步真实的输入与输出（stepIo）。 */
 function orchestrationBody(name: string, over: Record<string, unknown> = {}): Record<string, unknown> {
   const entry = (kind: string, id: string, wave: number, status: string, extra: Record<string, unknown> = {}) => ({ kind, id, label: id, wave, dependsOn: [], required: true, source: 'declared', status, ...extra })
   return {
@@ -64,14 +77,7 @@ function orchestrationBody(name: string, over: Record<string, unknown> = {}): Re
     ],
     returns: [{ from: 'verify', to: 'build', event: 'verify-fail' }],
     flows: [{ slot: 'field', id: 'build_sha', from: 'build', producers: [], to: ['verify'] }],
-    io: {
-      spec: { inputs: [], outputs: [] },
-      build: {
-        inputs: [{ kind: 'field', id: 'plan', type: 'file_path', producer: 'spec', consumers: [] }],
-        outputs: [{ kind: 'field', id: 'build_sha', type: 'string', producer: null, consumers: ['verify'] }],
-      },
-      verify: { inputs: [], outputs: [] },
-    },
+    stepIo: STEP_IO,
     ...over,
   }
 }
@@ -119,7 +125,7 @@ function snapshotRow(snapshot: ChangeSnapshot): TaskRow {
   }
 }
 
-/** 聚合语境（fetchDefinition=false）：IO 退化为快照里的输出字段，不发任何请求。 */
+/** 聚合语境（fetchDefinition=false）：不取编排，输入输出显示空态，不发任何请求。 */
 function renderSnapshotPane(snapshot: ChangeSnapshot): ReturnType<typeof vi.fn> {
   const fetchSpy = vi.fn(() => Promise.reject(new Error('no request expected')))
   vi.stubGlobal('fetch', fetchSpy)
@@ -206,7 +212,7 @@ describe('TaskDetailPane header and records', () => {
     await screen.findByTestId('orchestration-stage')
     expect(screen.getByTestId('task-detail-badge').textContent).toBe(before)
     expect(fetchSpy.mock.calls.some((call) => String(call[0]).startsWith('/api/workflows/'))).toBe(false)
-    // 输入 / 输出槽位来自冻结计划的 IO。
+    // 输入 / 输出是任务编排里的 stepIo（真实产出），不是冻结计划里的槽位。
     expect(screen.getByTestId('task-io-tab-inputs')).toHaveTextContent('1')
     // 页签引用的面板真的在 DOM 里，并由当前页签命名（aria-controls 不悬空）。
     for (const tabId of ['task-view-tab-stage', 'task-io-tab-inputs']) {
@@ -472,119 +478,131 @@ describe('TaskDetailPane · 编排画布与运行状态', () => {
   })
 })
 
-describe('TaskDetailPane · 门禁行与输出计数', () => {
-  it('输出页签显示 已齐/总数；门禁行显示 评审 · k/n（输出 + 一条人工确认）；不再请求运行时产物', () => {
-    const fetchSpy = renderSnapshotPane(change())
-    expect(within(screen.getByTestId('task-io-tab-outputs')).getByText('1/2')).toBeInTheDocument()
-    expect(screen.getByTestId('task-io-tab-inputs')).toHaveTextContent('0')
-    expect(screen.getByTestId('task-gate-row')).toHaveTextContent('评审')
-    expect(screen.getByTestId('task-gate-row')).toHaveTextContent('1/3')
-    expect(fetchSpy).not.toHaveBeenCalled()
-    expect(screen.queryByTestId('runtime-artifacts')).toBeNull()
+describe('TaskDetailPane · 真实的输入与输出', () => {
+  afterEach(() => { window.history.replaceState(null, '', '/') })
+
+  /** 任务端点答 body；文档读取接口按路径答一份固定正文。 */
+  function stubIo(body: Record<string, unknown> = orchestrationBody('demo')) {
+    return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url === '/api/change/demo/orchestration?root=%2Frepo') return new Response(JSON.stringify(body), { status: 200 })
+      if (url.startsWith('/api/documents/read')) {
+        const path = new URL(url, 'http://x').searchParams.get('path') ?? ''
+        return new Response(JSON.stringify({ ok: true, path, text: `# ${path}`, bytes: 8 }), { status: 200 })
+      }
+      return new Response(JSON.stringify({ ok: false, error: 'not found' }), { status: 404 })
+    })
+  }
+
+  const labelled = (): ChangeSnapshot => {
+    const base = change()
+    return change({ workflowRules: { ...base.workflowRules, labelByStep: { spec: '规格' } } })
+  }
+
+  it('输出页签：本步真实产出，每行 文件 · 变化 · 来源技能（推断不出写「未知」）；页签计数是产出条数', async () => {
+    stubIo()
+    renderPane({ row: snapshotRow(change()) })
+    await screen.findByTestId('orchestration-stage')
+    expect(screen.getByTestId('task-io-tab-outputs')).toHaveTextContent('3')
+    const rows = within(screen.getByTestId('stage-outputs')).getAllByRole('row').slice(1)
+    expect(rows.map((row) => within(row).getAllByRole('cell').slice(1).map((cell) => cell.textContent))).toEqual([
+      ['修改', '未知'],
+      ['新增', 'tenon-build'],
+      ['删除', '未知'],
+    ])
   })
 
-  it('人工确认已批准时门禁计数 +1', () => {
-    renderSnapshotPane(change({ reviewHandshake: { status: 'approved', event: 'build-complete', requestedAt: 'a', acknowledgedAt: 'b' } }))
+  it('输入页签：来源阶段写名称（没有名称写 id），带来源技能与已读；页签计数是输入条数', async () => {
+    stubIo()
+    const view = renderPane({ row: snapshotRow(labelled()) })
+    await screen.findByTestId('orchestration-stage')
+    await userEvent.click(screen.getByTestId('task-io-tab-inputs'))
+    expect(screen.getByTestId('task-io-tab-inputs')).toHaveTextContent('1')
+    expect(within(screen.getByTestId(`stage-input-${PLAN}`)).getAllByRole('cell').slice(1).map((cell) => cell.textContent)).toEqual(['规格', 'writing-plans', '已读'])
+    view.unmount()
+    renderPane({ row: snapshotRow(change()) })
+    await screen.findByTestId('orchestration-stage')
+    await userEvent.click(screen.getByTestId('task-io-tab-inputs'))
+    expect(within(screen.getByTestId(`stage-input-${PLAN}`)).getAllByRole('cell')[1]?.textContent).toBe('spec')
+  })
+
+  it('选另一个阶段，页签里是那一阶段自己的输入输出', async () => {
+    stubIo()
+    renderPane({ row: snapshotRow(change()) })
+    await screen.findByTestId('orchestration-stage')
+    await userEvent.click(screen.getByTestId('stage-rail-spec'))
+    expect(screen.getByTestId('task-io-tab-outputs')).toHaveTextContent('1')
+    expect(screen.getByTestId(`stage-output-${PLAN}`)).toBeInTheDocument()
+    expect(screen.queryByTestId('stage-output-src/demo.ts')).toBeNull()
+  })
+
+  it('点输出行打开抽屉读那份文件；删除的文件不可点，抽屉的上一份 / 下一份也不含它', async () => {
+    const fetchSpy = stubIo()
+    renderPane({ row: snapshotRow(change()) })
+    await screen.findByTestId('orchestration-stage')
+    await userEvent.click(screen.getByTestId('stage-output-docs/build-notes.md'))
+    expect(await screen.findByTestId('file-preview-markdown')).toHaveTextContent('docs/build-notes.md')
+    expect(fetchSpy.mock.calls.some(([url]) => String(url).includes('path=docs%2Fbuild-notes.md'))).toBe(true)
+    // 可读文件：src/demo.ts、docs/build-notes.md（输出）与计划文档（输入）；删除的 docs/old-notes.md 不在其中。
+    expect(screen.getByTestId('document-drawer')).toHaveTextContent('2/3')
+    await userEvent.keyboard('{Escape}')
+    const calls = fetchSpy.mock.calls.length
+    await userEvent.click(screen.getByTestId('stage-output-docs/old-notes.md'))
+    expect(fetchSpy.mock.calls.length).toBe(calls)
+    expect(screen.queryByTestId('document-drawer')).toBeNull()
+  })
+
+  it('门禁行：必须产出已齐的条数，评审门多一条人工确认（k/n）；批准后 +1', async () => {
+    stubIo()
+    const view = renderPane({ row: snapshotRow(change()) })
+    await screen.findByTestId('orchestration-stage')
+    expect(screen.getByTestId('task-gate-row')).toHaveTextContent('评审')
+    expect(screen.getByTestId('task-gate-row')).toHaveTextContent('1/3')
+    view.unmount()
+    stubIo()
+    renderPane({ row: snapshotRow(change({ reviewHandshake: { status: 'approved', event: 'build-complete', requestedAt: 'a', acknowledgedAt: 'b' } })) })
+    await screen.findByTestId('orchestration-stage')
     expect(screen.getByTestId('task-gate-row')).toHaveTextContent('2/3')
   })
 
-  it('阶段没有任何输入输出：整块 IO 不渲染，也没有门禁行', () => {
-    const snapshot = change({
-      workflowRules: { ...change().workflowRules, gateByStep: {}, outputsByStep: {} },
-    })
-    renderSnapshotPane(snapshot)
-    expect(screen.queryByTestId('stage-io')).toBeNull()
+  it('没有门禁的阶段不显示这一行', async () => {
+    stubIo()
+    renderPane({ row: snapshotRow(change()) })
+    await screen.findByTestId('orchestration-stage')
+    await userEvent.click(screen.getByTestId('stage-rail-verify'))
+    expect(screen.queryByTestId('task-gate-row')).toBeNull()
+    await userEvent.click(screen.getByTestId('stage-rail-spec'))
     expect(screen.queryByTestId('task-gate-row')).toBeNull()
   })
-})
 
-describe('StageIoPanel · 过期原因与缺失技能', () => {
-  const documentRow = (over: Partial<IoRow>): IoRow => ({
-    slot: { kind: 'document', id: 'proposal', role: 'produce', scope: 'change', producers: ['openspec-propose'], consumers: [] },
-    status: 'stale',
-    path: 'openspec/changes/demo/proposal.md',
-    value: 'openspec/changes/demo/proposal.md',
-    producer: 'openspec-propose',
-    at: null,
-    reason: 'changed',
-    producers: ['openspec-propose'],
-    ...over,
+  it('旧服务端没有 stepIo：详情照常显示，输入输出页签是空态', async () => {
+    const { stepIo: _omitted, ...withoutStepIo } = orchestrationBody('demo')
+    stubIo(withoutStepIo)
+    renderPane({ row: snapshotRow(change()) })
+    await screen.findByTestId('orchestration-stage')
+    expect(screen.queryByTestId('task-orchestration-error')).toBeNull()
+    expect(screen.getByTestId('stage-outputs')).toHaveTextContent(/^本步还没有产出$/u)
+    await userEvent.click(screen.getByTestId('task-io-tab-inputs'))
+    expect(screen.getByTestId('stage-inputs')).toHaveTextContent(/^本步没有输入$/u)
+    expect(screen.queryByTestId('task-gate-row')).not.toBeNull()
+    expect(screen.getByTestId('task-gate-row')).toHaveTextContent('0/1')
   })
 
-  it('过期行的状态徽标带原因一词与 data-reason；缺失行显示应产出的技能', () => {
-    render(<I18nProvider>
-      <StageIoPanel
-        direction="outputs"
-        items={[documentRow({}), documentRow({ slot: { kind: 'document', id: 'tasks', role: 'produce', scope: 'change', producers: ['openspec-propose'], consumers: [] }, status: 'missing', path: null, value: '', producer: null, reason: null })]}
-        activePath={null}
-        definitionState="ready"
-        onOpen={() => undefined}
-      />
-    </I18nProvider>)
-    const stale = screen.getByTestId('stage-output-document-proposal')
-    expect(stale).toHaveAttribute('data-status', 'stale')
-    expect(within(stale).getByTitle('内容已变')).toHaveAttribute('data-reason', 'changed')
-    expect(screen.getByTestId('stage-output-document-tasks')).toHaveTextContent('openspec-propose')
-    cleanup()
+  it('stepIo 形状不符：走编排读取的错误路径，不猜', async () => {
+    stubIo(orchestrationBody('demo', { stepIo: { build: { inputs: 'x', outputs: [], required: [] } } }))
+    renderPane({ row: snapshotRow(change()) })
+    expect(await screen.findByTestId('task-orchestration-error')).toHaveAttribute('role', 'alert')
   })
 
-  it('并进同名文档的值字段只出现在行 title 里，不单独成行', () => {
-    render(<I18nProvider>
-      <StageIoPanel
-        direction="outputs"
-        items={[documentRow({ slot: { kind: 'document', id: 'verification-report', role: 'produce', scope: 'change', producers: [], consumers: [], field: 'verification_report' }, status: 'recorded', path: 'docs/report.md', reason: null })]}
-        activePath={null}
-        definitionState="ready"
-        onOpen={() => undefined}
-      />
-    </I18nProvider>)
-    const row = screen.getByTestId('stage-output-document-verification-report')
-    expect(row.getAttribute('title')).toContain('verification_report')
-    expect(screen.queryByTestId('stage-output-field-verification_report')).toBeNull()
-    expect(screen.getAllByRole('row')).toHaveLength(2)
-    cleanup()
-  })
-
-  it('来源技能一词一概念：互为别名的候选只显示一个名字，别名放 title', () => {
-    render(<I18nProvider>
-      <StageIoPanel
-        direction="outputs"
-        items={[documentRow({ slot: { kind: 'document', id: 'tasks', role: 'produce', scope: 'change', producers: ['openspec-propose', 'opsx:propose', 'tenon:writing-plans', 'superpowers:writing-plans'], consumers: [] }, status: 'missing', path: null, value: '', producer: null, reason: null, producers: ['openspec-propose', 'opsx:propose', 'tenon:writing-plans', 'superpowers:writing-plans'] })]}
-        activePath={null}
-        definitionState="ready"
-        onOpen={() => undefined}
-      />
-    </I18nProvider>)
-    const cell = within(screen.getByTestId('stage-output-document-tasks')).getAllByRole('cell')[1] as HTMLElement
-    expect(cell.textContent).toBe('openspec-propose, tenon:writing-plans')
-    expect(cell).toHaveAttribute('title', 'openspec-propose, opsx:propose, tenon:writing-plans, superpowers:writing-plans')
-    cleanup()
-  })
-
-  it('输入 / 输出是带表头的表（文件 · 来源技能 · 状态），不是卡片堆叠；点整行照旧开抽屉', async () => {
-    const onOpen = vi.fn()
-    render(<I18nProvider>
-      <StageIoPanel
-        direction="outputs"
-        items={[documentRow({ status: 'recorded', reason: null }), documentRow({ slot: { kind: 'document', id: 'tasks', role: 'produce', scope: 'change', producers: ['openspec-propose'], consumers: [] }, status: 'missing', path: null, value: '', producer: null, reason: null })]}
-        activePath={null}
-        definitionState="ready"
-        onOpen={onOpen}
-      />
-    </I18nProvider>)
-    const table = within(screen.getByTestId('stage-outputs')).getByRole('table')
-    expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['文件', '来源技能', '状态'])
-    const row = screen.getByTestId('stage-output-document-proposal')
-    expect(row).toHaveAttribute('role', 'row')
-    expect(row.className).toContain('border-b')
-    expect(row.className).not.toMatch(/(^|\s)rounded-md(\s|$)/u)
-    expect(within(row).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['proposal', 'openspec-propose', '已登记'])
-    await userEvent.click(within(row).getAllByRole('cell')[1] as HTMLElement)
-    expect(onOpen).toHaveBeenCalledWith('openspec/changes/demo/proposal.md')
-    // 未产出的行没有路径：不可点。
-    await userEvent.click(screen.getByTestId('stage-output-document-tasks'))
-    expect(onOpen).toHaveBeenCalledTimes(1)
-    cleanup()
+  it('聚合语境（不取编排）：输入输出页签是空态，不发任何请求', () => {
+    const fetchSpy = renderSnapshotPane(change())
+    expect(screen.getByTestId('stage-io')).toBeInTheDocument()
+    expect(screen.getByTestId('task-io-tab-outputs')).toHaveTextContent('0')
+    expect(screen.getByTestId('task-io-tab-inputs')).toHaveTextContent('0')
+    expect(screen.getByTestId('stage-outputs')).toHaveTextContent(/^本步还没有产出$/u)
+    expect(screen.getByTestId('task-gate-row')).toHaveTextContent('0/1')
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('runtime-artifacts')).toBeNull()
   })
 })
 
@@ -659,6 +677,38 @@ describe('TaskDetailPane · 下一步', () => {
     expect(lines[0]?.getAttribute('title')).toContain("缺少 document 'openspec-design'")
     expect(lines[0]?.getAttribute('title')?.split('\n')).toHaveLength(3)
     expect(lines[1]?.getAttribute('title')).toBe('tasks.md 仍有 1 项未勾')
+  })
+
+  it('下一步：必须产出与未读输入各合成一行短标签，不出现 guard:required-output 与长句；完整文本进 title', () => {
+    const required = (path: string) => ({ kind: 'guard-failed', guardType: 'required-output', actual: 'missing', path })
+    const unread = (path: string) => ({ kind: 'step-exit', source: 'document', code: 'input-unread', message: `本步输入 ${path}（explore 的产出）还没读；读完后执行 tenon document read demo all`, subject: path })
+    renderSnapshotPane(change({
+      workflowExecution: {
+        readinessByTransition: {
+          build: {
+            'build-complete': {
+              ready: false,
+              blockers: [
+                required('docs/superpowers/specs/*.md'),
+                unread('README.md'),
+                required('openspec/changes/demo/proposal.md'),
+                unread('docs/2026-design.md'),
+              ],
+            },
+          },
+        },
+      },
+    } as unknown as Partial<ChangeSnapshot>))
+    const next = screen.getByTestId('task-next')
+    const lines = within(next).getAllByTestId('task-next-blocker')
+    expect(lines.map((line) => line.textContent)).toEqual([
+      '必须产出 docs/superpowers/specs/*.md · openspec/changes/demo/proposal.md',
+      '未读 README.md · docs/2026-design.md',
+    ])
+    expect(next.textContent).not.toContain('guard:required-output')
+    expect(next.textContent).not.toContain('tenon document read')
+    expect(lines[1]?.getAttribute('title')).toContain('tenon document read demo all')
+    for (const line of lines) expect(line.className).toContain('whitespace-nowrap')
   })
 
   it('下一步：命令从头部省略，保留末尾的 tenon status <change>；复制的仍是完整命令', async () => {

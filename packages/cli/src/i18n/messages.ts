@@ -9,6 +9,7 @@
  */
 import { AGENT_MESSAGES } from './messages-agent.js'
 import { COMMON_MESSAGES } from './messages-common.js'
+import { DOCUMENT_MESSAGES } from './messages-document.js'
 import { INTEGRITY_MESSAGES } from './messages-integrity.js'
 import { REVIEW_MESSAGES } from './messages-review.js'
 import { STANDARD_MESSAGES } from './messages-standard.js'
@@ -27,6 +28,7 @@ export const MESSAGES = {
   ...TRANSITION_MESSAGES,
   ...SUPPORT_MESSAGES,
   ...STANDARD_MESSAGES,
+  ...DOCUMENT_MESSAGES,
   ...INTEGRITY_MESSAGES,
   ...REVIEW_MESSAGES,
   ...AGENT_MESSAGES,

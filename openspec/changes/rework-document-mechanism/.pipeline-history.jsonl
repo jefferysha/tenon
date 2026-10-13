@@ -1,0 +1,268 @@
+{"ts":"2026-10-12T00:37:32Z","kind":"init","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T00:37:36Z","kind":"prompt","raw":"interaction-authority:enabled scope=interactive-skills review=delegated host_session=baa625f7-9d51-4531-bd27-06d280daa005","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T00:37:39Z","kind":"tool-start","raw":"Skill: tenon:tenon"}
+{"ts":"2026-10-12T00:37:39Z","kind":"tool","raw":"Skill: tenon:tenon"}
+{"ts":"2026-10-12T00:37:39Z","kind":"tool","raw":"NativeSkillReadBinding: tenon 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 0 native-post-tool-use-b2cea00c393165e62f76061f4f9f267b17a6a415e4bedecb205d7f6d25e40eb9"}
+{"ts":"2026-10-12T00:38:54Z","kind":"tool","raw":"Agent: Explore"}
+{"ts":"2026-10-12T00:39:05Z","kind":"tool","raw":"Agent: Explore"}
+{"ts":"2026-10-12T00:39:16Z","kind":"tool","raw":"Agent: Explore"}
+{"ts":"2026-10-12T00:39:24Z","kind":"tool","raw":"Agent: Explore"}
+{"ts":"2026-10-12T00:39:27Z","kind":"tool-start","raw":"Skill: tenon:openspec-propose"}
+{"ts":"2026-10-12T00:39:28Z","kind":"tool","raw":"Skill: tenon:openspec-propose"}
+{"ts":"2026-10-12T00:39:28Z","kind":"tool","raw":"NativeSkillReadBinding: openspec-propose 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 0 native-post-tool-use-1e1d14dd9d99fcc34e259b1468f96b33e81e7a39c7855531efe6dea084167ad6"}
+{"ts":"2026-10-12T00:47:15Z","kind":"transition","from":"open","to":"explore","raw":"open-complete","transitionRecordId":"77db287d-39a9-41de-9f8a-d85fca657484","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T00:47:20Z","kind":"tool-start","raw":"Skill: tenon:tenon"}
+{"ts":"2026-10-12T00:47:20Z","kind":"tool","raw":"Skill: tenon:tenon"}
+{"ts":"2026-10-12T00:47:20Z","kind":"tool","raw":"NativeSkillReadBinding: tenon 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 1 native-post-tool-use-3d0c004ef351657f052c25fee779f1f9e741825f450e013b10675844b1656983"}
+{"ts":"2026-10-12T00:48:20Z","kind":"tool","raw":"Agent: tenon-researcher"}
+{"ts":"2026-10-12T00:48:22Z","kind":"tool-start","raw":"Skill: tenon:deep-research"}
+{"ts":"2026-10-12T00:48:23Z","kind":"tool","raw":"Skill: tenon:deep-research"}
+{"ts":"2026-10-12T00:48:23Z","kind":"tool","raw":"NativeSkillReadBinding: deep-research 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 1 native-post-tool-use-61807a584263fb91ac0404283f9c46ba317c8fa9fd43704f7ab154f456b13186"}
+{"ts":"2026-10-12T00:54:33Z","kind":"tool-start","raw":"Skill: tenon:openspec-explore"}
+{"ts":"2026-10-12T00:54:34Z","kind":"tool","raw":"Skill: tenon:openspec-explore"}
+{"ts":"2026-10-12T00:54:34Z","kind":"tool","raw":"NativeSkillReadBinding: openspec-explore 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 1 native-post-tool-use-baed400278e9d3dc02b9076b1ca97d4af80db3486abdc074947a9e958657e2b6"}
+{"ts":"2026-10-12T00:54:54Z","kind":"tool-start","raw":"Skill: tenon:brainstorming"}
+{"ts":"2026-10-12T00:54:54Z","kind":"tool","raw":"Skill: tenon:brainstorming"}
+{"ts":"2026-10-12T00:54:54Z","kind":"tool","raw":"NativeSkillReadBinding: brainstorming 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 1 native-post-tool-use-e5acfb58ce646ccc6a72bd27c59610023ccd1b3b17c0dc32783f80c937dd7ace"}
+{"ts":"2026-10-12T00:58:56Z","kind":"tool-start","raw":"Skill: tenon:grilling"}
+{"ts":"2026-10-12T00:58:56Z","kind":"tool","raw":"Skill: tenon:grilling"}
+{"ts":"2026-10-12T00:58:56Z","kind":"tool","raw":"NativeSkillReadBinding: grilling 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 1 native-post-tool-use-429b04a09cdcdb35bfe80b1f5f4b669f5c3e9f0aba8f88bf3d62c4bcb5246d40"}
+{"ts":"2026-10-12T01:00:04Z","kind":"tool-start","raw":"Skill: tenon:domain-modeling"}
+{"ts":"2026-10-12T01:00:04Z","kind":"tool","raw":"Skill: tenon:domain-modeling"}
+{"ts":"2026-10-12T01:00:04Z","kind":"tool","raw":"NativeSkillReadBinding: domain-modeling 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 1 native-post-tool-use-e2c1d1a364cdb2d7025d6365fdbf4f64375ca3ce8f1addb8422e53727bd7edbd"}
+{"ts":"2026-10-12T01:00:44Z","kind":"tool-start","raw":"Skill: tenon:codebase-design"}
+{"ts":"2026-10-12T01:00:44Z","kind":"tool","raw":"Skill: tenon:codebase-design"}
+{"ts":"2026-10-12T01:00:44Z","kind":"tool","raw":"NativeSkillReadBinding: codebase-design 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 1 native-post-tool-use-fefc1684c307177defff78fc02ee0399747fbf3e33105712bbdc7a148c1aa399"}
+{"ts":"2026-10-12T01:02:56Z","kind":"set","field":"design_doc","to":"docs/superpowers/specs/rework-document-mechanism-design.md","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T01:03:04Z","kind":"tool","raw":"review:request phase=explore event=explore-complete","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T01:34:09Z","kind":"tool","raw":"review:acknowledge via=delegated phase=explore event=explore-complete authority_issued_at=2026-10-12T00:37:36Z authority_host_session=baa625f7-9d51-4531-bd27-06d280daa005","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T01:34:14Z","kind":"transition","from":"explore","to":"spec","raw":"explore-complete","transitionRecordId":"af6f91f4-123b-4666-aee9-677fe0cd37cc","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T01:34:19Z","kind":"tool-start","raw":"Skill: tenon:tenon"}
+{"ts":"2026-10-12T01:34:20Z","kind":"tool","raw":"Skill: tenon:tenon"}
+{"ts":"2026-10-12T01:34:20Z","kind":"tool","raw":"NativeSkillReadBinding: tenon 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 2 native-post-tool-use-155838a3fb1baead642853f38f5ec370b88b0b2454adf94b11adfce66c910b33"}
+{"ts":"2026-10-12T01:34:49Z","kind":"tool-start","raw":"Skill: tenon:openspec-propose"}
+{"ts":"2026-10-12T01:34:49Z","kind":"tool","raw":"Skill: tenon:openspec-propose"}
+{"ts":"2026-10-12T01:34:49Z","kind":"tool","raw":"NativeSkillReadBinding: openspec-propose 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 2 native-post-tool-use-00a7e79cc36366ef76a6edf18fd24ec942411f609d7d140f172494b76376ceb4"}
+{"ts":"2026-10-12T01:37:55Z","kind":"tool-start","raw":"Skill: tenon:writing-plans"}
+{"ts":"2026-10-12T01:37:55Z","kind":"tool","raw":"Skill: tenon:writing-plans"}
+{"ts":"2026-10-12T01:37:55Z","kind":"tool","raw":"NativeSkillReadBinding: writing-plans 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 2 native-post-tool-use-26a6e6ed83b7d0dd3dc9ebe919edb39097c1e22eaf306f3ac164298759e47192"}
+{"ts":"2026-10-12T01:45:09Z","kind":"tool","raw":"test:plan-write op=seed plan=sha256:2c884e788717af6d61254cedfdfe876551f2055c264fe794b44dce4b73716164","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T01:45:38Z","kind":"set","field":"plan","to":"docs/superpowers/plans/rework-document-mechanism.md","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T01:47:21Z","kind":"tool","raw":"review:request phase=spec event=spec-complete","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T01:47:21.001Z","kind":"tool","raw":"review:acknowledge via=delegated phase=spec event=spec-complete authority_issued_at=2026-10-12T00:37:36Z authority_host_session=baa625f7-9d51-4531-bd27-06d280daa005","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T01:47:27Z","kind":"transition","from":"spec","to":"build","raw":"spec-complete","transitionRecordId":"11e330c7-07f6-41ac-a9a1-74ffa19bbadb","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T01:47:34Z","kind":"tool-start","raw":"Skill: tenon:tenon"}
+{"ts":"2026-10-12T01:47:34Z","kind":"tool","raw":"Skill: tenon:tenon"}
+{"ts":"2026-10-12T01:47:34Z","kind":"tool","raw":"NativeSkillReadBinding: tenon 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 3 native-post-tool-use-40afec0352a8854a6f35e0b5b74328ca63ae73f37c5f988dcfd7ad72931877fb"}
+{"ts":"2026-10-12T01:47:58Z","kind":"set","field":"build_mode","to":"subagent-driven-development","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T01:47:58Z","kind":"set","field":"isolation","to":"in-place","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T01:48:59Z","kind":"tool","raw":"Agent: tenon-builder"}
+{"ts":"2026-10-12T01:49:00Z","kind":"tool-start","raw":"Skill: tenon:test-driven-development"}
+{"ts":"2026-10-12T01:49:01Z","kind":"tool","raw":"Skill: tenon:test-driven-development"}
+{"ts":"2026-10-12T01:49:01Z","kind":"tool","raw":"NativeSkillReadBinding: test-driven-development 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 3 native-post-tool-use-26776d037359e66e2c5ca0f136348b8e50eab06ce07ca8d08341c20a06e079ed"}
+{"ts":"2026-10-12T02:10:39Z","kind":"tool","raw":"Agent: tenon-builder"}
+{"ts":"2026-10-12T02:10:41Z","kind":"tool-start","raw":"Skill: tenon:test-driven-development"}
+{"ts":"2026-10-12T02:10:42Z","kind":"tool","raw":"Skill: tenon:test-driven-development"}
+{"ts":"2026-10-12T02:10:42Z","kind":"tool","raw":"NativeSkillReadBinding: test-driven-development 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 3 native-post-tool-use-b048c7834de9a32a76e74c6788ee705cd5f4ff591db80fae8fea82c39f75f963"}
+{"ts":"2026-10-12T02:31:56Z","kind":"tool","raw":"Agent: tenon-builder"}
+{"ts":"2026-10-12T02:31:58Z","kind":"tool-start","raw":"Skill: tenon:test-driven-development"}
+{"ts":"2026-10-12T02:31:59Z","kind":"tool","raw":"Skill: tenon:test-driven-development"}
+{"ts":"2026-10-12T02:31:59Z","kind":"tool","raw":"NativeSkillReadBinding: test-driven-development 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 3 native-post-tool-use-296e002287be3523a0749b4e9e317d5e8ee88a93d6ecbe336a831d7cc17d960a"}
+{"ts":"2026-10-12T03:10:16Z","kind":"tool","raw":"Agent: tenon-builder"}
+{"ts":"2026-10-12T03:10:18Z","kind":"tool-start","raw":"Skill: tenon:test-driven-development"}
+{"ts":"2026-10-12T03:10:19Z","kind":"tool","raw":"Skill: tenon:test-driven-development"}
+{"ts":"2026-10-12T03:10:19Z","kind":"tool","raw":"NativeSkillReadBinding: test-driven-development 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 3 native-post-tool-use-9b9a830d47237b3c4eb11afc46aed938b26b7b35f3439a12ac24453c6c80605d"}
+{"ts":"2026-10-12T03:51:26Z","kind":"tool","raw":"Agent: tenon-builder"}
+{"ts":"2026-10-12T03:51:27Z","kind":"tool-start","raw":"Skill: tenon:test-driven-development"}
+{"ts":"2026-10-12T03:51:28Z","kind":"tool","raw":"Skill: tenon:test-driven-development"}
+{"ts":"2026-10-12T03:51:28Z","kind":"tool","raw":"NativeSkillReadBinding: test-driven-development 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 3 native-post-tool-use-c45fe2bfec64186c30d9419604357b57a033605809766b4074de79691cc8efa0"}
+{"ts":"2026-10-12T06:13:27Z","kind":"tool","raw":"Agent: tenon-builder"}
+{"ts":"2026-10-12T06:13:29Z","kind":"tool-start","raw":"Skill: tenon:test-driven-development"}
+{"ts":"2026-10-12T06:13:30Z","kind":"tool","raw":"Skill: tenon:test-driven-development"}
+{"ts":"2026-10-12T06:13:30Z","kind":"tool","raw":"NativeSkillReadBinding: test-driven-development 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 3 native-post-tool-use-5f92f2e0329e5fce8732a1d7cd72c75bc983b5587be2c4b8769035f0ecc3b66c"}
+{"ts":"2026-10-12T06:47:39Z","kind":"tool","raw":"Agent: tenon-builder"}
+{"ts":"2026-10-12T06:47:41Z","kind":"tool-start","raw":"Skill: tenon:test-driven-development"}
+{"ts":"2026-10-12T06:47:42Z","kind":"tool","raw":"Skill: tenon:test-driven-development"}
+{"ts":"2026-10-12T06:47:42Z","kind":"tool","raw":"NativeSkillReadBinding: test-driven-development 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 3 native-post-tool-use-31938ea56f55099a0a584a2a682aad9f0968e18d713b4f8d9c7a679ab31a8ceb"}
+{"ts":"2026-10-12T15:05:38Z","kind":"prompt","raw":"interaction-authority:enabled scope=interactive-skills review=delegated host_session=b84c8fd5-28b0-484e-bccc-a85c29dd409e","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T15:05:39Z","kind":"tool-start","raw":"Skill: tenon:tenon"}
+{"ts":"2026-10-12T15:05:39Z","kind":"tool","raw":"Skill: tenon:tenon"}
+{"ts":"2026-10-12T15:05:39Z","kind":"tool","raw":"NativeSkillReadBinding: tenon 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 3 native-post-tool-use-0fa2f5d4d411e8541e55196b3ebb41a0168ae0e39e3ebd94fb65af2a5f560a01"}
+{"ts":"2026-10-12T15:08:56Z","kind":"tool","raw":"Agent: tenon-builder"}
+{"ts":"2026-10-12T15:08:58Z","kind":"tool-start","raw":"Skill: tenon:test-driven-development"}
+{"ts":"2026-10-12T15:08:59Z","kind":"tool","raw":"Skill: tenon:test-driven-development"}
+{"ts":"2026-10-12T15:08:59Z","kind":"tool","raw":"NativeSkillReadBinding: test-driven-development 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 3 native-post-tool-use-ac0e7699e1717e2399acde8815a23f6de3be213b1407625fbab5ae7f41846d2a"}
+{"ts":"2026-10-12T15:44:46Z","kind":"tool","raw":"Agent: tenon-builder"}
+{"ts":"2026-10-12T15:44:48Z","kind":"tool-start","raw":"Skill: tenon:test-driven-development"}
+{"ts":"2026-10-12T15:44:49Z","kind":"tool","raw":"Skill: tenon:test-driven-development"}
+{"ts":"2026-10-12T15:44:49Z","kind":"tool","raw":"NativeSkillReadBinding: test-driven-development 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 3 native-post-tool-use-0b05bfea69d8b6ef0b7f018c3b9cdbda42e61cf4efdf37354dffd6dc2defa68d"}
+{"ts":"2026-10-12T16:06:37Z","kind":"tool-start","raw":"Skill: tenon:gsap-core"}
+{"ts":"2026-10-12T16:06:37Z","kind":"tool","raw":"Skill: tenon:gsap-core"}
+{"ts":"2026-10-12T16:06:37Z","kind":"tool","raw":"NativeSkillReadBinding: gsap-core 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 3 native-post-tool-use-e2e0aee841d2dbb4b3c2f75c8e4db34c2007837b4370ca5be553afa8283c90a4"}
+{"ts":"2026-10-12T16:06:38Z","kind":"tool-start","raw":"Skill: tenon:gsap-react"}
+{"ts":"2026-10-12T16:06:38Z","kind":"tool","raw":"Skill: tenon:gsap-react"}
+{"ts":"2026-10-12T16:06:38Z","kind":"tool","raw":"NativeSkillReadBinding: gsap-react 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 3 native-post-tool-use-c5dc4bac51c5a0bf0ffe875bc6146c9ce3432f075a205c2a2346e98c3766fb6a"}
+{"ts":"2026-10-12T16:40:35Z","kind":"tool","raw":"Agent: tenon-builder"}
+{"ts":"2026-10-12T16:40:37Z","kind":"tool-start","raw":"Skill: tenon:test-driven-development"}
+{"ts":"2026-10-12T16:40:38Z","kind":"tool","raw":"Skill: tenon:test-driven-development"}
+{"ts":"2026-10-12T16:40:38Z","kind":"tool","raw":"NativeSkillReadBinding: test-driven-development 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 3 native-post-tool-use-da1b0410979002bd15cafafef47d1089927cc43316c0a30f68d285de2f3f9da2"}
+{"ts":"2026-10-12T17:00:34Z","kind":"tool","raw":"Agent: tenon-builder"}
+{"ts":"2026-10-12T17:19:18Z","kind":"tool","raw":"Agent: tenon-builder"}
+{"ts":"2026-10-12T17:22:56Z","kind":"tool","raw":"Agent: tenon-builder"}
+{"ts":"2026-10-12T17:39:16Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:a96e723fd09bfc3ddf296bb6317980cc66d13ec4084eef07c50ef0ffc24e7e84","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:16Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:c2bfaef24a1aef32abe1ba8cc98fce855a106d046f0188ba5e5e5a91a206fc71","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:17Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:788b507a55b9ab7a6cc93984eba570651c73ff94954dfb05d079addcc7dca0f6","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:18Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:5682992d55fd8e1a31e40ce3c4e4136ab6a708019af3c6111bf29d3314003dab","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:18Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:12a49a86212b04bfffd09f75da8f80fcf98d5d6502a4df88f4ae0d9b22a05736","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:18Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:9381a1bc35db64f872f1ee84d24cdae1db5eb176e98c2cbb7dd008dbddc28dae","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:19Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:97b11f830252e9314f2d6824dc01b5c97323ad2c778dd4ab746889709e86c31c","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:19Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:14469a8130da6afee563580eecfa8779c4b9d5eb5b9da259acabd37182000f40","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:19Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:83e7323526313a4a5f878f329f05c7f492823f99274b01b7b5afeebedf73ed9f","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:19Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:a922d68671c9a3212a2c690fa46c04b77ddb15e7efd650a6c92491448dd61abf","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:20Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:10a22476fe8649e864d13129db4799559f60f27aa679f291669def8873225722","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:20Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:026e2f2e668be5f1b3534990b1a4bdfbecb3fc6e507e2185917cd1c4efda5c76","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:20Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:2555807bdf7bc8b5e5d42d119e24e0e0bf9b6a4b65a6051263e6f23ae06a70a9","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:21Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:cf470f2285550433571cdcb73436d3f7b67b10798c1f3e859064217e54039637","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:21Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:b178a75587f5cf0cc5eca13de9e85fb425413a3ee24423485241efc2086d48fc","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:21Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:c10b5ecf7a5f9dd2daa824d25a2dedcf13874129b2f59409d990f34537c65f2d","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:21Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:e797e3afcb9d8f61648e1a5eb19f249af12c3d974f25cb7473d263a926b942f9","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:22Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:24c568a9ea494d629de2ee18186725b7ce39fd3c5568d449d88006867c4dcc4c","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:22Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:1375208ea3be2d964b219a4b4d69e02ae56f535522d9f6a041c5da1a6cb150db","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:22Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:625992e1542245a45650f6c8bd8b31758ffccfe32b2ce046683e0259c25a512c","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:22Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:f1bc7d161ddcab9887135a2c022f5a20a7ba983672ed37ebf395631691f201fa","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:23Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:9ffefba0a241ceb86591d902bb835ebb523ef10087bc256ef711adeb12b64f85","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:23Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:fb974a2892ef0e107dade72ff23e6f89685193a0b53cbe97d0f4d7ed8422c273","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:23Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:8f65c50bc8db7871418a544b3fa5ba7e04c5c6335eba4d1bc751943a4b7b15dd","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:24Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:248d19a9af92956103d23f70b281be52359fca4cd354d8afa351f1257ac81160","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:24Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:42ba1338e09e49f4f4de61e05a632a64c8ca8a92a2d7925626fdc74143f6b73c","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:24Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:7410ab7aafa048aa669daee7e7295b47a2ed8710703cc931375e68c5a2883026","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:24Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:2a94da810a7226156c082d5f7126240973d82fba22ce63518f8ca5254bf47a34","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:25Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:ce65b8a2a317c9f25972c178fb4630d18ee88c7cb1ba25a6e29533045e03eac4","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:25Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:58ecfa24148c1a7f33942ee01692dc332550bfe05ff6fb626f2509dfa4b72c03","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:25Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:8d1316a67756f11d487ae19f264a7f0aab516ce308787094dff4fcecf0a32fd4","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:26Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:7ab4a18452ffa2667b25812148f1f1ef9b8c6f870c3fa75f675d347417f3530d","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:26Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:665edfc163bfdef0657543fd3dd71dd02681defbeca06699ba858147b36d1bda","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:26Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:5c0560dfcb64882a114c7eb5d78dffa02974ca15fd4a77c21970d4ec628762c7","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:26Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:2adc5ec5cb80178228189850e9f2fedd1816ac2e344d797fbb4a91bb1f2fe8b7","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:27Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:d3d0512678f00fb3a21e7e3660fa93b9db68e1b191ccf0793170fc952e907167","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:27Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:4edf905894d831ba7bdaabce137b398446be209743edc7334ae0cc98a4a773f5","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:27Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:c76aa9728b9c2b682b72b9681aa8bf5f09247ae4fd067c3db6f71827f7fb8a7b","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:28Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:59ba14886596fc669ad0ec52fc80c1c358d83b13818275daa690e7dc9d8abfa6","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:28Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:e13b6a89e94012a8b3805db5899b8e420ee62ab5c373cb2bd8151404906c933e","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:28Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:090fd17b5fc072b192ec1286f97cc8bcf5ac642d34a6216ff1169d239c766183","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:28Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:f34267475d111b9feda67d0f45f433fcf7c5f190af0110b3df545ef5a379095b","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:29Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:389f18795d5921296ce40aff21f0c9a45b5d2a9afd7fa217ba88dfc1b5b6a25e","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:29Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:313e6045913470be4e7ff22d5148d375d48006835873074a81365382f35d8aaf","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:29Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:e30f2479004cf248ec4c0133688354ea5444844ce5191435018c59d46a71eb54","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:29Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:3e6eeba4d65cfa6429216f717bc9bbd2f02aecf8f7b76a5bcb53ac971def7c43","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:30Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:5b9603c8f88225b5156eadd09a3804e652979d115c264915b118cfe6da3c7dd1","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:30Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:da56ab66851d20cd22a849830012885e51a7720d9674b7f19b33cd1527554bcd","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:30Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:1cd2dab24f831fe9738ec5a1ccafe89a885bd3f9925852bd721be654cadfeb8e","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:31Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:74ebd66c015ab5b8fd29b2035123cef5295ac7c52686116e83b5cac63c07cf44","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:31Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:af9042313a126d3c644f8b444a53b42640f803ae2a313adee96b5de408a1551a","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:31Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:7bfeed5d36caf60910d25e0fb00d127872502ee2eb3ba46b014813204beee70a","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:31Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:37ab9797f209c3963b803051e7050832f0569cf76dc2a284939a73d96f9aa4e1","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:32Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:064956ac6e154cd46a04ab5124ab4eb36b65821b33ad74131439a32ac4703580","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:32Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:6c6b762a3c06004833c34f4421fcf4fd1a5fbf5fe05181ec7bfdaaa4231521a2","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:32Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:1d2a99f9c9540147add2a17ceec4136fde86262895a697d1439bc40599aa7bc7","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:33Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:cfb12167e1c049c5339bad585f9bc70d6337c8c8b67ac855b674786e9d20649b","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:33Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:b4d6dd5517a14a73a41746f75c26022df9034a1a5460d9f3927bd01eedf4255f","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:33Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:784c0421b69d76e8f1eaec724197e00240317bd5f880db7ceb660db8a1a947af","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:33Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:c7eddd7cc3d75032f3a3326583de4a40b698fde431360980c37c270851a11ee3","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:34Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:afa43ecf75f8bd7c07fa01f209d7e76e4a0dbc725e5b92532eac330e25e14323","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:34Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:1082292e93291fc4c358da7e3cf4bc61b097196daada96445f9a319fe629bc52","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:34Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:9e8f9f03c176c0d78c2db5e53b9ef601c490868ff6e4b07cf3eebab247afb990","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:35Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:db19052e6ba6223d7454f1ed605e25f1197fb71b6aa6f56e15eb68c962e6869f","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:35Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:0bcb9031240cddf3c3e77eb4f2202348a2b35a861c93985e2687e7033dd0e734","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:35Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:7acc2af8a4e7d46014d243266fd35aaa7f8e9219d427860060de7f7e9e4bf1a3","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:35Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:ed4d124e0649685a44056507b0fb48777f2de63721cf2b0ca2c8df4ba06bb72d","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:36Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:5f8775d2d7a5b3224bd4b6e8dc1bc7e98c0b44ebe82eb26a453f64f957ab16f0","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:36Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:64e03d9cc251c8ac1da3205334904bb57680319f60feea5c436062249f0a1113","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:36Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:79b58381f510feeba8b0f1333da01b68759a3ba1ecd6f280284092e4420b76da","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:37Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:88cc748c53dcb0c99a73fadee8b1aac5cc0d630331d7a0db48e5492cfbb1f61b","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:37Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:35539517c90521d1671bf8fd7cd141ed90c2181b335212273609387200705264","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:37Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:2838a6b15e139a42ad54d71413b9db3e91558c407f7cc9fc5488f6a10cff84f4","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:37Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:48b3559581ada9bad9cf07f4ccb544dc088a300db074222c47f56cb38b3082e5","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:38Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:9de30c02cf8b52c3c8d55cbe234c193b9ef478b00bb964cc878c44a40a5963c4","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:38Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:4d3b9bed7de8e4db946e054748509f7fab83395a450541fc389996b5e258f160","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:38Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:23daab916b7e32f613a8dbbee7694ab91ada42afd3f3b98c97ce294d16f6cb42","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:39Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:57d1ad0191ed9a388b007affe5b1ac5467388bff0be98df96e6904dabfa2be85","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:39Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:5f6c916a01cc15efa7e8714f443ebcd455c42d75d99f5a736c94c2eadcd367a8","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:39Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:fff7c26f8c4c604baee87794e49f091815a01ef9f1d45783bb584c68d9926843","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:39Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:cead8ed03e0fc6c7ee80da2add0fd40ffa8a0eda757277681f16f6643785d508","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:40Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:31a086b0e7daa617379cd3f8ea54d694dd96fac15fde71d55055c704d40c3954","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:40Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:8320e4fada8a6e84c66ef3f8df0be0c58cc881786ddf55294059ad2db38f78d2","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:40Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:d8c81f012b63dc9486f507983086d6f6b0a3f6e1097332647b00e7dffa1c0979","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:40Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:d035688590c19f85367c11f17af06129c1b2b2cc95583347e048528d13ede2e8","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:41Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:586b24f118baa6cffa5e0e298ec780d20950bf47db43b7658bc631b5808eac3b","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:41Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:05a3ad04259da8eefbcd98116aea8a9cf279bc07e3306f41285d89e8a7bdb928","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:41Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:92da0df18485d873eb543d703d0f07a7b38008520a97334b65e2db6cd0f7cda9","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:42Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:88db2dc2d4dfe4d6ec44961404aaaa77b7acfbe1fef909bf9f86aac4765eeb99","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:42Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:50202b5f7ade9d34fcd91f9f347a6ce42284c1800150eb581dc1e732fd4e572c","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:42Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:15191d7467d0ea6f5f612b5785078d306bcab82d24db88c9ddf656979960872d","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:42Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:57c2fb31b0a91f78c54587c76e0c9b79a18cbe3c226611c36de85a730478e4af","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:43Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:a1c41f1d30ab3843cce7d394093d3490051590bb99d833864ef4bdfeba780737","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:43Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:6011370b62fdd042eaced18fff3c282f218eba645c0afd7550b020ff665cb2ed","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:43Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:935988fbbff9e392aa77846e3e2208f6c34d82d46d6556bf2030cda846ebbca4","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:44Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:d3690a6cbad54d1c13aa26859f87847d882baf829aa55a89d3385297072eba7e","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:44Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:11ba50c044223328913d5f87b52454485b0abf558e68f0fe1982c1e690a4d847","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:44Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:74ab8855d4b61360d609e9e74c4d4fc0e80addcefcfe5b761027dda15279948c","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:44Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:0dddd591665cfb4266da6099a384486d747d27e5b409fc241869c34d1387f5db","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:45Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:ff1fdbd3656e5059215b04cb05e701cc34f46610df6a6a0ed26d28db48b74205","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:45Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:c30055e54b8278adb88789da8b43336ef00cd27da9dbd54f414f2ff3d476e85b","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:45Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:3d5e54dc2ec102dffce43aab884fbe20b98786ba4a56ef496ff79427f186ff93","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:46Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:adfe4b01c5a780e76e5f5dc28caecc953832801fc41e6fed0c8d04ad271b221c","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:46Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:b61cb4b9ce452e2639f1d0b01d47b0883cedf174b48206287333c129bbe36087","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:46Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:bd96a06287c972cbcc6ee30094d55906bc2c1283363cbb5de2f73c4432d01af7","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:46Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:be972373a53f3d7e7960f9e0d974e5e115ce9fed0281af5ccd44b1000642d200","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:47Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:51563e52007f76a3e215a6666be4bb6f1c6973400235d390703cd3254841a76b","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:47Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:545fde185b77744579300c45266fedc9c09642b6d26af6a33c746090d777e69e","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:47Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:cc1b1375b6c8b2f87ad79c3d2610b686b23fb14addeef19f4de85dbcea3e7057","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:47Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:680a55ffe58b081061eb9a744fa4d6f65ac9a5d98de9f39a71440d76233fbd1a","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:48Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:d56ef85f4ee0fce439c1197c2ec547621b5a1e6e3078ff4e181daa32c812b651","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:48Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:411472604c2a71b9a01ece6745c5510c158b7a928140a866405a69bfc7df3606","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:48Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:23c8fa854edbd9e5d7c6a350cbc8011d16d0be6b36016044b2aeaa5af6437c0a","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:49Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:fb1e691bb4e9f5ceb9f30ae686462887e57988543b8e9804d1e405fa94dc1247","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:49Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:3e310cf9c73d71ead7f0c7b681c94e36ea4a0b34439150b85fde71a671f58d39","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:49Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:9321fb74e495ce010d6fabaad5cd2c379da6d4d8dd9fe5efcf41bf5c396fe133","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:49Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:2eadef511a5678836716c410759bd8cfec0058894f79374b636bf652b959f337","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:50Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:63e3232397e808c1e5cd1c58e319eb774da9cd75069df93e61a2836dce6c2431","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:50Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:e03850591fab9e6466c248e2e1df40cae253c3e972656164ca63659fe58de110","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:39:50Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:80a8fef02f355c172c816b100846c33a2609b83cc2ad2fb35c1574fb03802845","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:40:10Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:ce2c4fb59f79638961fcae8b90be308f07231c1e055d1cf6f88d49739baea113","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:40:11Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:9f445bbfe10549ccfea1848050a340cc9e3aabcf95f1f7844c02a006c78d606b","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:40:12Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:48af4f3b432db476ba089ca8e136f8b34c9d159aee8451edb9d853f0b9876e98","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-12T17:40:13Z","kind":"tool","raw":"test:plan-write op=register plan=sha256:5e42488ee3d4578ed35475ba71b8d36f6eb98ac0d4913b60cbfcc1ddf8cc94f3","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-13T00:22:42Z","kind":"tool-start","raw":"Skill: tenon:tenon"}
+{"ts":"2026-10-13T00:22:43Z","kind":"tool","raw":"Skill: tenon:tenon"}
+{"ts":"2026-10-13T00:22:43Z","kind":"tool","raw":"NativeSkillReadBinding: tenon 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 3 native-post-tool-use-e6e4008a6964f89636df59a0bfa738f739242f49ce30b757280b82f0c11c9ff5"}
+{"ts":"2026-10-13T00:23:52Z","kind":"tool","raw":"Agent: sonnet-reviewer"}
+{"ts":"2026-10-13T00:55:36Z","kind":"set","field":"pre_verify_review_result","to":"pass","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-13T00:55:54Z","kind":"transition","from":"build","to":"verify","raw":"build-complete","transitionRecordId":"65fb877d-4ead-407f-ad26-6b471788255b","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-13T00:55:58Z","kind":"tool-start","raw":"Skill: tenon:tenon"}
+{"ts":"2026-10-13T00:55:58Z","kind":"tool","raw":"Skill: tenon:tenon"}
+{"ts":"2026-10-13T00:55:58Z","kind":"tool","raw":"NativeSkillReadBinding: tenon 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 4 native-post-tool-use-d01d71d8a43a5f47c73353eaa82b0e44a2dbb64a75834aea6d8f9b59379ad933"}
+{"ts":"2026-10-13T00:56:41Z","kind":"tool-start","raw":"Skill: tenon:verification-before-completion"}
+{"ts":"2026-10-13T00:56:41Z","kind":"tool","raw":"Skill: tenon:verification-before-completion"}
+{"ts":"2026-10-13T00:56:41Z","kind":"tool","raw":"NativeSkillReadBinding: verification-before-completion 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 4 native-post-tool-use-09fae0b338594df227086e92f94c90cd80817d801c2cc52a518c25bc07ca0da0"}
+{"ts":"2026-10-13T00:58:54Z","kind":"tool","raw":"test:plan-write op=waive plan=sha256:0bfaafea4935ba2f44cd569416aa83b8a154c1891156acf8067d5f92365fd940","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-13T01:00:16Z","kind":"tool","raw":"Agent: tenon-spec-consistency"}
+{"ts":"2026-10-13T01:00:31Z","kind":"tool","raw":"Agent: tenon-backend-quality"}
+{"ts":"2026-10-13T01:00:47Z","kind":"tool","raw":"Agent: tenon-security"}
+{"ts":"2026-10-13T01:01:07Z","kind":"tool","raw":"Agent: tenon-code-size"}
+{"ts":"2026-10-13T01:03:18Z","kind":"tool","raw":"Agent: tenon-architecture"}
+{"ts":"2026-10-13T01:03:20Z","kind":"tool-start","raw":"Skill: tenon:codebase-design"}
+{"ts":"2026-10-13T01:03:21Z","kind":"tool","raw":"Skill: tenon:codebase-design"}
+{"ts":"2026-10-13T01:03:21Z","kind":"tool","raw":"NativeSkillReadBinding: codebase-design 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 4 native-post-tool-use-44d92b19bfee14b0efff8bc5ebd5c63085b11cfc036c72749828cef4964f9982"}
+{"ts":"2026-10-13T01:12:58Z","kind":"set","field":"verification_report","to":"docs/superpowers/reports/rework-document-mechanism-verify.md","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-13T04:14:35Z","kind":"set","field":"branch_status","to":"handled","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-13T04:15:00Z","kind":"tool","raw":"review:request phase=verify event=verify-pass","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-13T04:17:20Z","kind":"tool","raw":"review:acknowledge via=terminal phase=verify event=verify-pass","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-13T04:17:20Z","kind":"tool","raw":"test:waiver-approve waivers=test:code-size by=710227704@qq.com plan=sha256:afaf9ec83ff8c71101a24c62dbfb1f423ebeb9a0e6e2d003cd2e5954d9724010","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-13T04:17:36Z","kind":"transition","from":"verify","to":"ship","raw":"verify-pass","transitionRecordId":"8549daf7-ce39-4cce-a89e-3dd0ac77b777","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-13T04:17:39Z","kind":"tool-start","raw":"Skill: tenon:tenon"}
+{"ts":"2026-10-13T04:17:39Z","kind":"tool","raw":"Skill: tenon:tenon"}
+{"ts":"2026-10-13T04:17:39Z","kind":"tool","raw":"NativeSkillReadBinding: tenon 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 5 native-post-tool-use-0daa292c551322b8cc1b1cf77cebc954286ef0a87b71507d57277feef46a2712"}
+{"ts":"2026-10-13T04:17:58Z","kind":"tool-start","raw":"Skill: tenon:finishing-a-development-branch"}
+{"ts":"2026-10-13T04:17:58Z","kind":"tool","raw":"Skill: tenon:finishing-a-development-branch"}
+{"ts":"2026-10-13T04:17:58Z","kind":"tool","raw":"NativeSkillReadBinding: finishing-a-development-branch 6315aa2c-fb3a-4bfc-ad7e-9606afc69752 5 native-post-tool-use-ac062c5b9549a1e0941be9d97eef63497653225f4fd6f51e3a66ea79bc421da9"}

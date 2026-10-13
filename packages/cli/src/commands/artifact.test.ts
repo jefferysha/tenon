@@ -4,14 +4,29 @@
  * custom 轨（loadWorkflow 真 fs）与 program 装配 / --producer 缺失 usage 在 artifact.integration.test.ts。
  */
 import { describe, expect, test } from 'vitest'
-import { compileEffectiveWorkflowPlan, workflowPlanSnapshot } from '@tenon/kernel'
+import { compileDefaultWorkflow, effectiveWorkflowPlanFromIr, workflowPlanSnapshot } from '@tenon/kernel'
 import type { FieldName, PipelineState, WorkflowDef } from '@tenon/kernel'
+import { legacyContractDefaultPlan } from '@tenon/kernel/workflow/test-support'
 import { cmdArtifactRegister } from './artifact.js'
 import { cmdCas, cmdSet, cmdSetMany } from './fields.js'
-import { legacyDefaultWorkflowDef, makeDeps, mockLegacyDefaultState, mockState, spy } from '../test-support.js'
+import {
+  legacyDefaultWorkflowDef, makeDeps, mockLegacyDefaultState, mockObservedDefaultState, mockState, spy,
+} from '../test-support.js'
 
 const CH = 'demo'
 const P = 'openspec/changes/demo/design.md'
+
+/** 升级前创建、冻结计划带旧文档契约（含 artifact 声明）的任务：契约模式。mockState 的 default 没有契约，是观察模式。 */
+function contractState(fields: Partial<Record<FieldName, string | string[]>>): PipelineState {
+  const plan = legacyContractDefaultPlan(typeof fields.track === 'string' ? fields.track : 'frontend')
+  return {
+    ...mockState(fields),
+    runMetadata: {
+      runId: 'mock-contract-run', transitionSequence: 0,
+      workflowPlanFingerprint: plan.workflowFingerprint, workflowPlanSnapshot: workflowPlanSnapshot(plan),
+    },
+  }
+}
 
 describe('cmdArtifactRegister —— default 轨成功写入', () => {
   test('explore/frontend design_doc + producer openspec-explore（本步声明的技能）→ exit 0，锁内写字段', async () => {
@@ -82,10 +97,11 @@ describe('cmdArtifactRegister —— 产出者策略', () => {
     },
   })
 
-  test('新建的 default 任务：artifact 声明里无论是 effective-phase-skills 还是 effective-step-skills 都能登记', async () => {
-    const plan = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' })
+  test('step-graph 的带契约 default 任务：artifact 声明里 effective-phase-skills（default 沿用的旧拼写）照常登记', async () => {
+    // 当前模板已不声明 artifact（新任务是观察模式），带 artifact 声明的 step-graph 任务只剩升级前创建的：取自升级前的 default 原文。
+    const plan = legacyContractDefaultPlan('backend', 'step-graph')
     const policies = new Set(plan.workflow.steps.flatMap((step) => step.artifacts.map((artifact) => artifact.producerPolicy)))
-    // 前提：内建 default.yaml 目前两种拼写都有，这条用例才有意义。
+    // 前提：升级前的 default.yaml 用的是 effective-phase-skills，这条用例才有意义。
     expect(policies).toContain('effective-phase-skills')
     const state = stateWith(workflowPlanSnapshot(plan), { phase: 'explore', track: 'backend' })
     const deps = makeDeps({ state })
@@ -102,7 +118,8 @@ describe('cmdArtifactRegister —— 产出者策略', () => {
         artifacts: (step.artifacts ?? []).map((artifact) => ({ ...artifact, producerPolicy: 'effective-step-skills' as const })),
       }),
     }
-    const plan = compileEffectiveWorkflowPlan('default', mismatched, { executionModel: 'phase-manifest' })
+    // 定义带已删除的 artifacts / document_contract：不经 validateWorkflow，直接按 default 的编译入口建计划。
+    const plan = effectiveWorkflowPlanFromIr('default', compileDefaultWorkflow(mismatched), { executionModel: 'phase-manifest' })
     const deps = makeDeps({ state: stateWith(workflowPlanSnapshot(plan), { phase: 'explore', track: 'frontend' }) })
     expect(await cmdArtifactRegister(deps, CH, 'design_doc', P, 'openspec-explore')).toBe(1)
     expect(deps.store.write.calls).toHaveLength(0)
@@ -117,11 +134,26 @@ describe('cmdArtifactRegister —— 产出者策略', () => {
 })
 
 describe('cmdArtifactRegister —— declaration 判定拒绝（state 不变）', () => {
-  test('未声明 field（explore 步 register branch）→ exit 1，不写', async () => {
-    const deps = makeDeps({ state: mockState({ phase: 'explore', track: 'frontend' }) })
+  test('未声明 field（explore 步 register branch，契约模式）→ exit 1，不写，说明这一步没声明它', async () => {
+    const deps = makeDeps({ state: contractState({ phase: 'explore', track: 'frontend' }) })
     expect(await cmdArtifactRegister(deps, CH, 'branch', P, 'opsx:explore')).toBe(1)
     expect(deps.store.write.calls.length).toBe(0)
-    expect(deps.errLines.join('\n')).toContain('未声明')
+    expect(deps.errLines.join('\n')).toContain("step 'explore' 未声明 artifact 'branch'")
+  })
+
+  test('观察模式（新任务）：工作流不再声明 artifact → exit 1，改说产出由 Tenon 在离开步骤时自动记录，不写', async () => {
+    const deps = makeDeps({ state: mockObservedDefaultState({ phase: 'explore', track: 'frontend' }) })
+    expect(await cmdArtifactRegister(deps, CH, 'design_doc', P, 'opsx:explore')).toBe(1)
+    expect(deps.store.write.calls.length).toBe(0)
+    expect(deps.errLines).toEqual(['ERROR: 本任务的产出由 Tenon 在离开步骤时自动记录，tenon artifact register 只服务升级前创建的任务'])
+  })
+
+  test('观察模式的拒绝文案走英文目录', async () => {
+    const deps = Object.assign(makeDeps({ state: mockObservedDefaultState({ phase: 'explore', track: 'frontend' }) }), { locale: 'en' as const })
+    expect(await cmdArtifactRegister(deps, CH, 'design_doc', P, 'opsx:explore')).toBe(1)
+    expect(deps.errLines).toEqual([
+      'ERROR: The outputs of this task are recorded automatically by Tenon when a step is left; tenon artifact register only serves tasks created before the upgrade',
+    ])
   })
 
   test('spec/pm 的 plan 即使给出任意 producer 也因 required_when 排除而拒绝', async () => {

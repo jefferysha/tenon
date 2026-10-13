@@ -6,7 +6,9 @@
  * 命令拒绝的写法，投影一条都不许发。
  */
 import type { StepAction } from './statusStepAction.js'
-import { documentWriteActions, inputDocumentPolicy, skillDocumentActions } from './statusStepDocumentActions.js'
+import {
+  documentWriteActions, inputDocumentPolicy, observedReadActions, skillDocumentActions,
+} from './statusStepDocumentActions.js'
 import { finishActions, type StepCommit, type StepFinishFacts } from './statusStepFinish.js'
 import type { StepAgentView, StepReviewBar } from './statusStepAgents.js'
 import { escalationActions, type StepEscalation } from './statusStepEscalation.js'
@@ -144,6 +146,10 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   if (input.escalation !== undefined && input.escalation !== null) {
     return escalationActions(input.escalation, input.gate, input.review)
   }
+
+  // 观察模式（新任务）：输入是直接上游步骤的产出，读完才继续；位置与契约模式的读取相同，排在一切产出之前。
+  const handoff = observedReadActions(input.documents)
+  if (handoff.length > 0) return handoff
 
   // 只有 `unread` 是 `tenon document read` 能推进的状态。`stale` 的文档读不动——命令当场拒
   // 「document 'x' 已变更：…；先重新 record 后再 read」——而这条过滤从前把它也算进读清单，

@@ -6,10 +6,13 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { DEFAULT_WORKFLOW_SOURCE, parseWorkflow, serializeWorkflow, type WorkflowDef } from '@tenon/kernel'
+import { legacyDefaultInitialWorkflow } from '@tenon/kernel/workflow/test-support'
 import { createTestDashboardServer } from './test-server.js'
 import { resolveServerPaths } from './paths.js'
 import type { DashboardServer } from './types.js'
-import { initChange, makeProject, makeTempHome, newStore, recordWorkflowPhaseSkill, reqGet, testFlow } from './test-support.js'
+import {
+  initChange, makeProject, makeTempHome, newStore, recordWorkflowPhaseSkill, reqGet, seedGovernedDocumentEvidence, testFlow,
+} from './test-support.js'
 import { withRunStatus, type ChangeOrchestrationResponse, type DefinitionOrchestrationResponse } from './workflowOrchestration.js'
 
 const open: DashboardServer[] = []
@@ -76,7 +79,8 @@ describe('GET /api/workflows/:name/orchestration', () => {
     expect(skillsOf(body, 'explore')).toEqual([['openspec-explore', 1], ['brainstorming', 2], ['grilling', 3], ['domain-modeling', 4]])
     expect(body.stages.find((stage) => stage.id === 'verify')?.gate).toBe('review')
     expect(body.returns).toContainEqual({ from: 'verify', to: 'build', event: 'verify-fail' })
-    expect(body.flows.some((flow) => flow.id === 'proposal' && flow.from === 'open')).toBe(true)
+    // 工作流定义不再声明文档契约：步骤之间没有预先规定的文档流向（带契约的旧快照任务的流向见任务端点的用例）。
+    expect(body.flows).toEqual([])
     // 技能只来自工作流 YAML：响应里没有 manifest 叠加层这一项。
     expect(body).not.toHaveProperty('overlay')
   })
@@ -168,8 +172,31 @@ describe('GET /api/change/:name/orchestration', () => {
     const openStage = body.stages.find((stage) => stage.id === 'open')
     expect(openStage?.entries.map((entry) => [entry.id, entry.status])).toEqual([['openspec-propose', 'waiting']])
     expect(body.stages.find((stage) => stage.id === 'explore')?.entries.every((entry) => entry.status === 'waiting')).toBe(true)
-    expect(Object.keys(body.io)).toContain('explore')
-    expect(body.io.explore?.inputs.some((slot) => slot.id === 'proposal')).toBe(true)
+    // 每步的输入输出是 stepIo（真实产出，不是计划里预先规定的槽位）；旧的 io 已经没有了。
+    expect(body).not.toHaveProperty('io')
+    expect(Object.keys(body.stepIo)).toEqual(expect.arrayContaining(['open', 'explore', 'spec']))
+    expect(body.stepIo.explore).toEqual({ inputs: [], outputs: [], required: [{ path: 'docs/superpowers/specs/*.md', produced: false }] })
+  })
+
+  it('升级前创建的任务（冻结计划带文档契约）：编排带文档流向，stepIo 是账本记录，没有必须产出', async () => {
+    const store = newStore()
+    const root = await makeProject()
+    const changeDir = await initChange(store, root, 'old', { track: 'backend', initialWorkflow: legacyDefaultInitialWorkflow('backend', 'step-graph') })
+    await seedGovernedDocumentEvidence(root, changeDir, 'old')
+    const hostHome = await makeTempHome()
+    const srv = createTestDashboardServer({
+      version: '9.9.9', hostHome, paths: resolveServerPaths({ home: hostHome, env: {} }), token: 'secret-token-abc',
+      registry: () => [root], store, flow: testFlow(), clock: () => '2026-07-07T00:00:00Z', pollIntervalMs: 20,
+    })
+    open.push(srv)
+    const { port } = await srv.listen(0, '127.0.0.1')
+    const body = (await reqGet(port, `/api/change/old/orchestration?root=${encodeURIComponent(root)}`)).json<ChangeOrchestrationResponse>()
+    expect(body).not.toHaveProperty('io')
+    expect(body.flows.some((flow) => flow.id === 'proposal' && flow.from === 'open')).toBe(true)
+    expect(body.stepIo.open?.outputs.map((file) => file.path)).toEqual(expect.arrayContaining([
+      'openspec/changes/old/proposal.md', 'openspec/changes/old/design.md', 'openspec/changes/old/tasks.md',
+    ]))
+    expect(Object.values(body.stepIo).every((entry) => entry.required.length === 0)).toBe(true)
   })
 
   it('调用过的技能在调用之后变为运行中（本步文档未登记）或完成', async () => {

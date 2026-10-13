@@ -7,7 +7,6 @@ function step(id: string): WbStepDef {
   return { id, label: id, gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] }
 }
 
-const CONTRACT = { version: 'v1' as const, slots: [{ kind: 'proposal', ownerStep: 'open', producers: [] }], reads: [] }
 const ROUTE = { keywords: ['后端'], exclude: ['前端'], priority: 200, fallback: true }
 
 const DEF: WbWorkflowDef = {
@@ -15,7 +14,7 @@ const DEF: WbWorkflowDef = {
   openspec: true,
   steps: [],
   tracks: {
-    backend: { label: '后端', documentContract: CONTRACT, route: ROUTE, steps: [step('open')] },
+    backend: { label: '后端', route: ROUTE, steps: [step('open')] },
     lite: { label: '轻量', spec: 'none', steps: [step('open')] },
   },
 }
@@ -48,10 +47,10 @@ describe('trackSettingsOf', () => {
 })
 
 describe('setTrackSettingsInDef', () => {
-  it('改成「无」：写 spec: none，并去掉这条分支的文档契约（none 的分支不得声明）', () => {
+  it('改成「无」：写 spec: none，分支的步骤与其它分支原样不动', () => {
     const next = setTrackSettingsInDef(DEF, 'backend', { spec: 'none', keywords: ['后端'] })
     expect(next.tracks?.backend?.spec).toBe('none')
-    expect(next.tracks?.backend).not.toHaveProperty('documentContract')
+    expect(next.tracks?.backend?.steps).toBe(DEF.tracks?.backend?.steps)
     expect(next.tracks?.lite).toBe(DEF.tracks?.lite)
   })
 
@@ -71,7 +70,7 @@ describe('setTrackSettingsInDef', () => {
   it('关键词写进 route.keywords，route 的其它项（exclude / priority / fallback）原样保留', () => {
     const next = setTrackSettingsInDef(DEF, 'backend', { spec: 'openspec', keywords: ['修复', 'typo'] })
     expect(next.tracks?.backend?.route).toEqual({ ...ROUTE, keywords: ['修复', 'typo'] })
-    expect(next.tracks?.backend?.documentContract).toBe(CONTRACT)
+    expect(next.tracks?.backend?.label).toBe('后端')
   })
 
   it('没有 route 的分支填了关键词：补一条 route（不排除、不兜底、优先级 100）', () => {
@@ -95,7 +94,6 @@ describe('setTrackSettingsInDef', () => {
   it('新建的轨道带设置：复制来源分支的步骤，再按所选规范与关键词落定', () => {
     const created = setTrackSettingsInDef(addTrackBranch(DEF, 'quick', '快速', 'backend'), 'quick', { spec: 'none', keywords: ['修复'] })
     expect(created.tracks?.quick).toMatchObject({ label: '快速', spec: 'none', route: { keywords: ['修复'] } })
-    expect(created.tracks?.quick).not.toHaveProperty('documentContract')
     expect(created.tracks?.quick?.steps.map((entry) => entry.id)).toEqual(['open'])
   })
 })

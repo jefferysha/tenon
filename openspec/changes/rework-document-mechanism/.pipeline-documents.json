@@ -1,0 +1,835 @@
+{
+  "version": 1,
+  "contract": "openspec-v1",
+  "createdAt": "2026-10-12T00:37:32Z",
+  "records": [
+    {
+      "kind": "adr",
+      "path": "docs/adr/rework-document-mechanism.md",
+      "sha256": "f30796b9a9df5b2e8f5319cfd8a17d15b0d0e5a81adb50dc0095cd35d9706780",
+      "producer": "brainstorming",
+      "recordedAt": "2026-10-12T00:58:50Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-79d56eeab40ad225190912226184ad16bf4d3b466556613f89a5137d7f4c330c",
+        "evidenceScope": "explore",
+        "stepVisit": {
+          "runId": "6315aa2c-fb3a-4bfc-ad7e-9606afc69752",
+          "transitionSequence": 1
+        }
+      },
+      "reads": [
+        {
+          "phase": "spec",
+          "sha256": "f30796b9a9df5b2e8f5319cfd8a17d15b0d0e5a81adb50dc0095cd35d9706780",
+          "readAt": "2026-10-12T01:45:31Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",2]"
+        },
+        {
+          "phase": "build",
+          "sha256": "f30796b9a9df5b2e8f5319cfd8a17d15b0d0e5a81adb50dc0095cd35d9706780",
+          "readAt": "2026-10-12T17:36:55Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "f30796b9a9df5b2e8f5319cfd8a17d15b0d0e5a81adb50dc0095cd35d9706780",
+          "readAt": "2026-10-13T01:12:48Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",4]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "f30796b9a9df5b2e8f5319cfd8a17d15b0d0e5a81adb50dc0095cd35d9706780",
+          "readAt": "2026-10-13T04:17:54Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",5]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:8138344f8e10a21dce4fd37072f485df",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:f30796b9a9df5b2e8f5319cfd8a17d15b0d0e5a81adb50dc0095cd35d9706780",
+        "projection": "document",
+        "content_digest": "sha256:f30796b9a9df5b2e8f5319cfd8a17d15b0d0e5a81adb50dc0095cd35d9706780",
+        "source": {
+          "path": "docs/adr/rework-document-mechanism.md",
+          "document_kind": "adr"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "openspec-design",
+      "path": "openspec/changes/rework-document-mechanism/design.md",
+      "sha256": "a9fff09e228ee02ea3fb8e4e1222a97db736fb09c71944bb477e17bae344baaa",
+      "producer": "tenon",
+      "recordedAt": "2026-10-12T01:33:44Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-ce15a68d91504c41d759b79382429c1421c9ab74c6fac01b74c30223c3b48981",
+        "evidenceScope": "explore",
+        "stepVisit": {
+          "runId": "6315aa2c-fb3a-4bfc-ad7e-9606afc69752",
+          "transitionSequence": 1
+        }
+      },
+      "reads": [
+        {
+          "phase": "explore",
+          "sha256": "a9fff09e228ee02ea3fb8e4e1222a97db736fb09c71944bb477e17bae344baaa",
+          "readAt": "2026-10-12T01:33:55Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",1]"
+        },
+        {
+          "phase": "spec",
+          "sha256": "a9fff09e228ee02ea3fb8e4e1222a97db736fb09c71944bb477e17bae344baaa",
+          "readAt": "2026-10-12T01:45:31Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",2]"
+        },
+        {
+          "phase": "build",
+          "sha256": "a9fff09e228ee02ea3fb8e4e1222a97db736fb09c71944bb477e17bae344baaa",
+          "readAt": "2026-10-12T17:36:55Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "a9fff09e228ee02ea3fb8e4e1222a97db736fb09c71944bb477e17bae344baaa",
+          "readAt": "2026-10-13T01:12:48Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",4]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "a9fff09e228ee02ea3fb8e4e1222a97db736fb09c71944bb477e17bae344baaa",
+          "readAt": "2026-10-13T04:17:54Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",5]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:757293141190843e3ea04115856ec2b3",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:a9fff09e228ee02ea3fb8e4e1222a97db736fb09c71944bb477e17bae344baaa",
+        "projection": "document",
+        "content_digest": "sha256:a9fff09e228ee02ea3fb8e4e1222a97db736fb09c71944bb477e17bae344baaa",
+        "source": {
+          "path": "openspec/changes/rework-document-mechanism/design.md",
+          "document_kind": "openspec-design"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "delta-spec",
+      "path": "openspec/changes/rework-document-mechanism/specs/step-output-lineage/spec.md",
+      "sha256": "ee878dcf86383f9ebda2ad14c11a29b18ee79a99ad2c4318a897333bd31fc0bf",
+      "producer": "openspec-propose",
+      "recordedAt": "2026-10-12T01:37:24Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-cdf90663fcd3b5ab348119212661cccb03db214cb45ecf3eb372974458b448b6",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "6315aa2c-fb3a-4bfc-ad7e-9606afc69752",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "ee878dcf86383f9ebda2ad14c11a29b18ee79a99ad2c4318a897333bd31fc0bf",
+          "readAt": "2026-10-12T17:36:55Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "ee878dcf86383f9ebda2ad14c11a29b18ee79a99ad2c4318a897333bd31fc0bf",
+          "readAt": "2026-10-13T01:12:48Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",4]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "ee878dcf86383f9ebda2ad14c11a29b18ee79a99ad2c4318a897333bd31fc0bf",
+          "readAt": "2026-10-13T04:17:54Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",5]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:3fa66ec2a6872671929968c28a929e98",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:ee878dcf86383f9ebda2ad14c11a29b18ee79a99ad2c4318a897333bd31fc0bf",
+        "projection": "document",
+        "content_digest": "sha256:ee878dcf86383f9ebda2ad14c11a29b18ee79a99ad2c4318a897333bd31fc0bf",
+        "source": {
+          "path": "openspec/changes/rework-document-mechanism/specs/step-output-lineage/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "delta-spec",
+      "path": "openspec/changes/rework-document-mechanism/specs/workflow-definition/spec.md",
+      "sha256": "2d9d62a868700dc4d132f4baf39877fdd42edaf372816ff848254b94f815c71e",
+      "producer": "openspec-propose",
+      "recordedAt": "2026-10-12T01:37:27Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-cdf90663fcd3b5ab348119212661cccb03db214cb45ecf3eb372974458b448b6",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "6315aa2c-fb3a-4bfc-ad7e-9606afc69752",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "2d9d62a868700dc4d132f4baf39877fdd42edaf372816ff848254b94f815c71e",
+          "readAt": "2026-10-12T17:36:55Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "2d9d62a868700dc4d132f4baf39877fdd42edaf372816ff848254b94f815c71e",
+          "readAt": "2026-10-13T01:12:48Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",4]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "2d9d62a868700dc4d132f4baf39877fdd42edaf372816ff848254b94f815c71e",
+          "readAt": "2026-10-13T04:17:54Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",5]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:3fa66ec2a6872671929968c28a929e98",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:2d9d62a868700dc4d132f4baf39877fdd42edaf372816ff848254b94f815c71e",
+        "projection": "document",
+        "content_digest": "sha256:2d9d62a868700dc4d132f4baf39877fdd42edaf372816ff848254b94f815c71e",
+        "source": {
+          "path": "openspec/changes/rework-document-mechanism/specs/workflow-definition/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "delta-spec",
+      "path": "openspec/changes/rework-document-mechanism/specs/workflow-tracks/spec.md",
+      "sha256": "531d3f03bc8046d317781570ecdb198ba5041b4d9bdf79b673441edfc99fc83d",
+      "producer": "openspec-propose",
+      "recordedAt": "2026-10-12T01:37:33Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-cdf90663fcd3b5ab348119212661cccb03db214cb45ecf3eb372974458b448b6",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "6315aa2c-fb3a-4bfc-ad7e-9606afc69752",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "531d3f03bc8046d317781570ecdb198ba5041b4d9bdf79b673441edfc99fc83d",
+          "readAt": "2026-10-12T17:36:55Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "531d3f03bc8046d317781570ecdb198ba5041b4d9bdf79b673441edfc99fc83d",
+          "readAt": "2026-10-13T01:12:48Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",4]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "531d3f03bc8046d317781570ecdb198ba5041b4d9bdf79b673441edfc99fc83d",
+          "readAt": "2026-10-13T04:17:54Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",5]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:3fa66ec2a6872671929968c28a929e98",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:531d3f03bc8046d317781570ecdb198ba5041b4d9bdf79b673441edfc99fc83d",
+        "projection": "document",
+        "content_digest": "sha256:531d3f03bc8046d317781570ecdb198ba5041b4d9bdf79b673441edfc99fc83d",
+        "source": {
+          "path": "openspec/changes/rework-document-mechanism/specs/workflow-tracks/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "delta-spec",
+      "path": "openspec/changes/rework-document-mechanism/specs/effective-workflow-plan/spec.md",
+      "sha256": "89d37ae8e33ae4c91a4ee27a4786b2fd88abd0732689ba2aed9c34c787b936d1",
+      "producer": "openspec-propose",
+      "recordedAt": "2026-10-12T01:37:34Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-cdf90663fcd3b5ab348119212661cccb03db214cb45ecf3eb372974458b448b6",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "6315aa2c-fb3a-4bfc-ad7e-9606afc69752",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "89d37ae8e33ae4c91a4ee27a4786b2fd88abd0732689ba2aed9c34c787b936d1",
+          "readAt": "2026-10-12T17:36:55Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "89d37ae8e33ae4c91a4ee27a4786b2fd88abd0732689ba2aed9c34c787b936d1",
+          "readAt": "2026-10-13T01:12:48Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",4]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "89d37ae8e33ae4c91a4ee27a4786b2fd88abd0732689ba2aed9c34c787b936d1",
+          "readAt": "2026-10-13T04:17:54Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",5]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:3fa66ec2a6872671929968c28a929e98",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:89d37ae8e33ae4c91a4ee27a4786b2fd88abd0732689ba2aed9c34c787b936d1",
+        "projection": "document",
+        "content_digest": "sha256:89d37ae8e33ae4c91a4ee27a4786b2fd88abd0732689ba2aed9c34c787b936d1",
+        "source": {
+          "path": "openspec/changes/rework-document-mechanism/specs/effective-workflow-plan/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "delta-spec",
+      "path": "openspec/changes/rework-document-mechanism/specs/context-bundle-handoff/spec.md",
+      "sha256": "5e2dac87efcc6a7188d9b28dece22f212df6b3497955cdf9359d4e3d9a95fe61",
+      "producer": "openspec-propose",
+      "recordedAt": "2026-10-12T01:37:35Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-cdf90663fcd3b5ab348119212661cccb03db214cb45ecf3eb372974458b448b6",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "6315aa2c-fb3a-4bfc-ad7e-9606afc69752",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "5e2dac87efcc6a7188d9b28dece22f212df6b3497955cdf9359d4e3d9a95fe61",
+          "readAt": "2026-10-12T17:36:55Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "5e2dac87efcc6a7188d9b28dece22f212df6b3497955cdf9359d4e3d9a95fe61",
+          "readAt": "2026-10-13T01:12:48Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",4]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "5e2dac87efcc6a7188d9b28dece22f212df6b3497955cdf9359d4e3d9a95fe61",
+          "readAt": "2026-10-13T04:17:54Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",5]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:3fa66ec2a6872671929968c28a929e98",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:5e2dac87efcc6a7188d9b28dece22f212df6b3497955cdf9359d4e3d9a95fe61",
+        "projection": "document",
+        "content_digest": "sha256:5e2dac87efcc6a7188d9b28dece22f212df6b3497955cdf9359d4e3d9a95fe61",
+        "source": {
+          "path": "openspec/changes/rework-document-mechanism/specs/context-bundle-handoff/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "proposal",
+      "path": "openspec/changes/rework-document-mechanism/proposal.md",
+      "sha256": "823deecdbff664cc16e9023d31d6141c6ccde170e885a4c8bd7b3d8ded6a9ca4",
+      "producer": "tenon",
+      "recordedAt": "2026-10-12T01:37:40Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-614745d0b6bc6f10e2f2847812ad4fb46f0bd27be6d1fbb19dfe0432a9d4b978",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "6315aa2c-fb3a-4bfc-ad7e-9606afc69752",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "spec",
+          "sha256": "823deecdbff664cc16e9023d31d6141c6ccde170e885a4c8bd7b3d8ded6a9ca4",
+          "readAt": "2026-10-12T01:45:31Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",2]"
+        },
+        {
+          "phase": "build",
+          "sha256": "823deecdbff664cc16e9023d31d6141c6ccde170e885a4c8bd7b3d8ded6a9ca4",
+          "readAt": "2026-10-12T17:36:55Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "823deecdbff664cc16e9023d31d6141c6ccde170e885a4c8bd7b3d8ded6a9ca4",
+          "readAt": "2026-10-13T01:12:48Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",4]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "823deecdbff664cc16e9023d31d6141c6ccde170e885a4c8bd7b3d8ded6a9ca4",
+          "readAt": "2026-10-13T04:17:54Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",5]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:1e57cbd21f4b518e2d345bba66d5408c",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:823deecdbff664cc16e9023d31d6141c6ccde170e885a4c8bd7b3d8ded6a9ca4",
+        "projection": "document",
+        "content_digest": "sha256:823deecdbff664cc16e9023d31d6141c6ccde170e885a4c8bd7b3d8ded6a9ca4",
+        "source": {
+          "path": "openspec/changes/rework-document-mechanism/proposal.md",
+          "document_kind": "proposal"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "superpower-plan",
+      "path": "docs/superpowers/plans/rework-document-mechanism.md",
+      "sha256": "77679635612c235a9f76b48327294e066f217c6190fcc58f9cade1149a7c427c",
+      "producer": "writing-plans",
+      "recordedAt": "2026-10-12T01:44:03Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-584c7006c5eb02a8e01f3a369d9c9657506ccc6e334d24224ca49dad98453679",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "6315aa2c-fb3a-4bfc-ad7e-9606afc69752",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "77679635612c235a9f76b48327294e066f217c6190fcc58f9cade1149a7c427c",
+          "readAt": "2026-10-12T17:36:55Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "77679635612c235a9f76b48327294e066f217c6190fcc58f9cade1149a7c427c",
+          "readAt": "2026-10-13T01:12:48Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",4]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "77679635612c235a9f76b48327294e066f217c6190fcc58f9cade1149a7c427c",
+          "readAt": "2026-10-13T04:17:54Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",5]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:e8049d71a6ac6a272f8a9110a5324093",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:77679635612c235a9f76b48327294e066f217c6190fcc58f9cade1149a7c427c",
+        "projection": "document",
+        "content_digest": "sha256:77679635612c235a9f76b48327294e066f217c6190fcc58f9cade1149a7c427c",
+        "source": {
+          "path": "docs/superpowers/plans/rework-document-mechanism.md",
+          "document_kind": "superpower-plan"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "plan",
+      "path": "docs/superpowers/plans/rework-document-mechanism.md",
+      "sha256": "77679635612c235a9f76b48327294e066f217c6190fcc58f9cade1149a7c427c",
+      "producer": "writing-plans",
+      "recordedAt": "2026-10-12T01:44:03Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-584c7006c5eb02a8e01f3a369d9c9657506ccc6e334d24224ca49dad98453679",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "6315aa2c-fb3a-4bfc-ad7e-9606afc69752",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "77679635612c235a9f76b48327294e066f217c6190fcc58f9cade1149a7c427c",
+          "readAt": "2026-10-12T17:36:55Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "77679635612c235a9f76b48327294e066f217c6190fcc58f9cade1149a7c427c",
+          "readAt": "2026-10-13T01:12:48Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",4]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "77679635612c235a9f76b48327294e066f217c6190fcc58f9cade1149a7c427c",
+          "readAt": "2026-10-13T04:17:54Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",5]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:e8049d71a6ac6a272f8a9110a5324093",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:77679635612c235a9f76b48327294e066f217c6190fcc58f9cade1149a7c427c",
+        "projection": "document",
+        "content_digest": "sha256:77679635612c235a9f76b48327294e066f217c6190fcc58f9cade1149a7c427c",
+        "source": {
+          "path": "docs/superpowers/plans/rework-document-mechanism.md",
+          "document_kind": "plan"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "superpower-design",
+      "path": "docs/superpowers/specs/rework-document-mechanism-design.md",
+      "sha256": "f5da8d8c36be8d33b7d0a22d5d847132b6862ce70ab298f1792bf45b8c99bfce",
+      "producer": "tenon",
+      "recordedAt": "2026-10-12T01:44:49Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-614745d0b6bc6f10e2f2847812ad4fb46f0bd27be6d1fbb19dfe0432a9d4b978",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "6315aa2c-fb3a-4bfc-ad7e-9606afc69752",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "spec",
+          "sha256": "f5da8d8c36be8d33b7d0a22d5d847132b6862ce70ab298f1792bf45b8c99bfce",
+          "readAt": "2026-10-12T01:45:31Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",2]"
+        },
+        {
+          "phase": "build",
+          "sha256": "f5da8d8c36be8d33b7d0a22d5d847132b6862ce70ab298f1792bf45b8c99bfce",
+          "readAt": "2026-10-12T17:36:55Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "f5da8d8c36be8d33b7d0a22d5d847132b6862ce70ab298f1792bf45b8c99bfce",
+          "readAt": "2026-10-13T01:12:48Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",4]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "f5da8d8c36be8d33b7d0a22d5d847132b6862ce70ab298f1792bf45b8c99bfce",
+          "readAt": "2026-10-13T04:17:54Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",5]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:151ef269d8e899bfe0ba2ecef8e9cb55",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:f5da8d8c36be8d33b7d0a22d5d847132b6862ce70ab298f1792bf45b8c99bfce",
+        "projection": "document",
+        "content_digest": "sha256:f5da8d8c36be8d33b7d0a22d5d847132b6862ce70ab298f1792bf45b8c99bfce",
+        "source": {
+          "path": "docs/superpowers/specs/rework-document-mechanism-design.md",
+          "document_kind": "superpower-design"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "delta-spec",
+      "path": "openspec/changes/rework-document-mechanism/specs/declarative-document-governance/spec.md",
+      "sha256": "79d23df8f338b70b89243c673c0b43ebafa0f0f4202661bf526ca8edc396de1e",
+      "producer": "openspec-propose",
+      "recordedAt": "2026-10-12T01:47:06Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-cdf90663fcd3b5ab348119212661cccb03db214cb45ecf3eb372974458b448b6",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "6315aa2c-fb3a-4bfc-ad7e-9606afc69752",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "79d23df8f338b70b89243c673c0b43ebafa0f0f4202661bf526ca8edc396de1e",
+          "readAt": "2026-10-12T17:36:55Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "79d23df8f338b70b89243c673c0b43ebafa0f0f4202661bf526ca8edc396de1e",
+          "readAt": "2026-10-13T01:12:48Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",4]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "79d23df8f338b70b89243c673c0b43ebafa0f0f4202661bf526ca8edc396de1e",
+          "readAt": "2026-10-13T04:17:54Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",5]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:3fa66ec2a6872671929968c28a929e98",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:79d23df8f338b70b89243c673c0b43ebafa0f0f4202661bf526ca8edc396de1e",
+        "projection": "document",
+        "content_digest": "sha256:79d23df8f338b70b89243c673c0b43ebafa0f0f4202661bf526ca8edc396de1e",
+        "source": {
+          "path": "openspec/changes/rework-document-mechanism/specs/declarative-document-governance/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "delta-spec",
+      "path": "openspec/changes/rework-document-mechanism/specs/document-evidence-contract/spec.md",
+      "sha256": "54f1a4839f8c9aca60f4c257ef60dbb974aa7638339071f32ccbdab3e341f293",
+      "producer": "openspec-propose",
+      "recordedAt": "2026-10-12T01:47:07Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-cdf90663fcd3b5ab348119212661cccb03db214cb45ecf3eb372974458b448b6",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "6315aa2c-fb3a-4bfc-ad7e-9606afc69752",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "54f1a4839f8c9aca60f4c257ef60dbb974aa7638339071f32ccbdab3e341f293",
+          "readAt": "2026-10-12T17:36:55Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "54f1a4839f8c9aca60f4c257ef60dbb974aa7638339071f32ccbdab3e341f293",
+          "readAt": "2026-10-13T01:12:48Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",4]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "54f1a4839f8c9aca60f4c257ef60dbb974aa7638339071f32ccbdab3e341f293",
+          "readAt": "2026-10-13T04:17:54Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",5]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:3fa66ec2a6872671929968c28a929e98",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:54f1a4839f8c9aca60f4c257ef60dbb974aa7638339071f32ccbdab3e341f293",
+        "projection": "document",
+        "content_digest": "sha256:54f1a4839f8c9aca60f4c257ef60dbb974aa7638339071f32ccbdab3e341f293",
+        "source": {
+          "path": "openspec/changes/rework-document-mechanism/specs/document-evidence-contract/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "delta-spec",
+      "path": "openspec/changes/rework-document-mechanism/specs/document-evidence-timeline/spec.md",
+      "sha256": "f469e3f340155090fd72b60bb1108cf42f985f7a888d0f2e4019e5bcaa60b3a0",
+      "producer": "openspec-propose",
+      "recordedAt": "2026-10-12T01:47:09Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-cdf90663fcd3b5ab348119212661cccb03db214cb45ecf3eb372974458b448b6",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "6315aa2c-fb3a-4bfc-ad7e-9606afc69752",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "f469e3f340155090fd72b60bb1108cf42f985f7a888d0f2e4019e5bcaa60b3a0",
+          "readAt": "2026-10-12T17:36:55Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "f469e3f340155090fd72b60bb1108cf42f985f7a888d0f2e4019e5bcaa60b3a0",
+          "readAt": "2026-10-13T01:12:48Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",4]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "f469e3f340155090fd72b60bb1108cf42f985f7a888d0f2e4019e5bcaa60b3a0",
+          "readAt": "2026-10-13T04:17:54Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",5]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:3fa66ec2a6872671929968c28a929e98",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:f469e3f340155090fd72b60bb1108cf42f985f7a888d0f2e4019e5bcaa60b3a0",
+        "projection": "document",
+        "content_digest": "sha256:f469e3f340155090fd72b60bb1108cf42f985f7a888d0f2e4019e5bcaa60b3a0",
+        "source": {
+          "path": "openspec/changes/rework-document-mechanism/specs/document-evidence-timeline/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "tasks",
+      "path": "openspec/changes/rework-document-mechanism/tasks.md",
+      "sha256": "9d07bcfd9c57ad91c688161a99e1ce2feb755fc9c5edadf32a534928cbfe62af",
+      "producer": "tenon",
+      "recordedAt": "2026-10-13T01:12:36Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-168b05d2ab7041492a803c86e39217e9bec358e70e310611d1fde525a19a55ff",
+        "evidenceScope": "verify",
+        "stepVisit": {
+          "runId": "6315aa2c-fb3a-4bfc-ad7e-9606afc69752",
+          "transitionSequence": 4
+        }
+      },
+      "reads": [
+        {
+          "phase": "verify",
+          "sha256": "9d07bcfd9c57ad91c688161a99e1ce2feb755fc9c5edadf32a534928cbfe62af",
+          "readAt": "2026-10-13T01:12:48Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",4]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "9d07bcfd9c57ad91c688161a99e1ce2feb755fc9c5edadf32a534928cbfe62af",
+          "readAt": "2026-10-13T04:17:54Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",5]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:676954505afabd82a240156cda152667",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:9d07bcfd9c57ad91c688161a99e1ce2feb755fc9c5edadf32a534928cbfe62af",
+        "projection": "document",
+        "content_digest": "sha256:9d07bcfd9c57ad91c688161a99e1ce2feb755fc9c5edadf32a534928cbfe62af",
+        "source": {
+          "path": "openspec/changes/rework-document-mechanism/tasks.md",
+          "document_kind": "tasks"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "verification-report",
+      "path": "docs/superpowers/reports/rework-document-mechanism-verify.md",
+      "sha256": "b36248930f7f84131d1bcdbbdf375674ed7c21c39b936c642722c66c21da2434",
+      "producer": "verification-before-completion",
+      "recordedAt": "2026-10-13T04:14:25Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-2c17e419849bb05a13375d53bde508a1d7db8b90b86422c280c27efa431d69af",
+        "evidenceScope": "verify",
+        "stepVisit": {
+          "runId": "6315aa2c-fb3a-4bfc-ad7e-9606afc69752",
+          "transitionSequence": 4
+        }
+      },
+      "reads": [
+        {
+          "phase": "ship",
+          "sha256": "b36248930f7f84131d1bcdbbdf375674ed7c21c39b936c642722c66c21da2434",
+          "readAt": "2026-10-13T04:17:54Z",
+          "visitId": "[\"6315aa2c-fb3a-4bfc-ad7e-9606afc69752\",5]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:6bacae482b715cc25168d71a4a56a4e7",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:b36248930f7f84131d1bcdbbdf375674ed7c21c39b936c642722c66c21da2434",
+        "projection": "document",
+        "content_digest": "sha256:b36248930f7f84131d1bcdbbdf375674ed7c21c39b936c642722c66c21da2434",
+        "source": {
+          "path": "docs/superpowers/reports/rework-document-mechanism-verify.md",
+          "document_kind": "verification-report"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    }
+  ]
+}

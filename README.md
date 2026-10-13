@@ -30,8 +30,8 @@ Tenon 是一个完整打包的插件，不是“CLI 加一份需要手工安装�
 | --- | --- | --- | --- |
 | Discussion | 问答、解释、系统通知、斜杠命令 | 不创建 Change | 无受治理文档 |
 | 轻量（`default` 的 `lite` 轨道） | 评估后预计改动未超出轻量阈值的修改 | `open → build ⇄ verify → done`，越界时 `escalated` | 不启用 OpenSpec 文档链 |
-| 产品 / 前端 / 后端（`default` 的重型轨道） | 产品调研、功能、架构、鉴权、迁移、依赖等较大的工作 | `open → explore → spec ⇄ build ⇄ verify → ship → archive` | 完整默认文档证据链 |
-| Custom Workflow | 项目自定义声明式流程 | 与编写的图完全一致 | 只执行已声明的文档契约；未声明则无文档治理 |
+| 产品 / 前端 / 后端（`default` 的重型轨道） | 产品调研、功能、架构、鉴权、迁移、依赖等较大的工作 | `open → explore → spec ⇄ build ⇄ verify → ship → archive` | 离开每一步时记录实际产出与来源技能；门禁按路径检查 `required-output` |
+| Custom Workflow | 项目自定义声明式流程 | 与编写的图完全一致 | 离开每一步时记录实际产出与来源技能；只检查它声明的 `required-output` |
 
 轻重不按关键词猜。开发请求在建任务前先用 `tenon assess --files` 评估预计要改的文件：改动超过 8 个文件，或碰到契约、鉴权、依赖、迁移、删测试、受保护的测试配置中的任何一类，就推荐领域重型轨道；你确认后才创建任务。轻量任务在实现中越界时，改动风险探针会把它升级为重型任务。
 
@@ -174,15 +174,16 @@ open → explore → spec ⇄ build ⇄ verify → ship → archive
                      └ 需求变化      └ 验证失败 → build
 ```
 
-Default Workflow 治理以下文档：
+每一步的 Skill 按它自己的 `SKILL.md` 写文件；只初始化状态不会自动产生有意义的内容。Tenon 在离开步骤时自动记录本步新增、修改、删除的文件和来源 Skill。下一步只拿直接上游产出的文档，必须读完（`tenon document read`）才能离开。
 
-- Open：proposal、OpenSpec design 和 tasks
-- Explore：Superpowers design 和 ADR
-- Spec：delta specification 和实现计划
-- Verify：verification report
-- Ship：applied specification
+门禁只保留按路径的“必须产出”（`required-output`）：
 
-后续阶段为其消费的文档登记当前读取收据。文档由当前 agent 通过各步骤要求的 Skills 编写；只初始化状态不会自动产生有意义的内容。Ledger 把每个受治理文件绑定到内容摘要、producer 证据、Change、阶段访问和后续读取。
+- Open：`openspec/changes/{change}/proposal.md`
+- Explore：`docs/superpowers/specs/*.md`
+- Spec：`openspec/changes/{change}/specs/*/spec.md`；前端、后端轨道另需 `docs/superpowers/plans/*.md`
+- Verify（`verify-pass`）：`docs/superpowers/reports/{change}-verify.md`
+
+升级前创建的任务按冻结快照照旧。
 
 Review 出口与确切 transition event 绑定：
 

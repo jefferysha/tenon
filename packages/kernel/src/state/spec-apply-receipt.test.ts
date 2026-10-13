@@ -5,7 +5,7 @@
  * 都留着一份 `result: "pass"` 的 `.pipeline-spec-apply.json`——它是 `--dry-run` 写的。
  */
 import { createHash } from 'node:crypto'
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -71,9 +71,51 @@ describe('spec apply 回执：彩排与应用是两个事实', () => {
     await rm(root, { recursive: true, force: true })
   })
 
-  it('没登记过 delta spec：既没彩排也没应用，原因点名 delta-spec-unrecorded', async () => {
+  it('账本里没登记过 delta spec：既没彩排也没应用，原因点名 delta-spec-unrecorded', async () => {
+    await writeLedger([])
     await expect(readSpecApplyReceiptStatus(root, changeDir)).resolves.toEqual({
       rehearsed: false, applied: false, mode: null, reason: 'delta-spec-unrecorded',
+    })
+  })
+
+  describe('没有文档账本（观察模式）：delta spec 取自任务目录 specs/', () => {
+    it('目录里有 delta spec、没跑过 spec apply：没有可用回执', async () => {
+      await expect(readSpecApplyReceiptStatus(root, changeDir)).resolves.toEqual({
+        rehearsed: false, applied: false, mode: null, reason: 'spec-apply-receipt-missing',
+      })
+    })
+
+    it('dry-run 回执：算彩排过，不算应用过', async () => {
+      await writeReceipt('dry-run', [{ path: MAIN, after: MAIN_BODY }])
+      await expect(readSpecApplyReceiptStatus(root, changeDir)).resolves.toEqual({
+        rehearsed: true, applied: false, mode: 'dry-run', reason: 'spec-apply-rehearsal-only',
+      })
+    })
+
+    it('apply 回执且主规格字节与回执一致：应用过；delta spec 之后又被改则一起失效', async () => {
+      await writeReceipt('apply', [{ path: MAIN, after: MAIN_BODY }])
+      await write(MAIN, MAIN_BODY)
+      await expect(readSpecApplyReceiptStatus(root, changeDir)).resolves.toEqual({
+        rehearsed: true, applied: true, mode: 'apply',
+      })
+      await write(DELTA, `${DELTA_BODY}\n### Requirement: Later\n`)
+      await expect(readSpecApplyReceiptStatus(root, changeDir)).resolves.toEqual({
+        rehearsed: false, applied: false, mode: 'apply', reason: 'spec-apply-receipt-stale',
+      })
+    })
+
+    it('目录里没有任何 delta spec：本任务不产出规格增量，原因仍是 delta-spec-unrecorded', async () => {
+      await rm(join(changeDir, 'specs'), { recursive: true, force: true })
+      await expect(readSpecApplyReceiptStatus(root, changeDir)).resolves.toEqual({
+        rehearsed: false, applied: false, mode: null, reason: 'delta-spec-unrecorded',
+      })
+    })
+
+    it('specs/ 里有符号链接：来源不可信，不当作没有 delta spec', async () => {
+      await symlink(join(root, 'elsewhere'), join(changeDir, 'specs', 'linked'))
+      await expect(readSpecApplyReceiptStatus(root, changeDir)).resolves.toEqual({
+        rehearsed: false, applied: false, mode: null, reason: 'delta-spec-source-unreadable',
+      })
     })
   })
 

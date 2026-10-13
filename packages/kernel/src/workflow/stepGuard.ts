@@ -54,6 +54,7 @@ export function buildStepGuardInput(state: PipelineState, ctx: StepGuardContext)
     stateHash: safeRevisionHash(state.fields),
     rawBuildSha: state.fields.build_sha,
     track: fieldStr(state.fields.track),
+    change: path.basename(path.resolve(ctx.changeDirAbs)),
     readText: (rel) => readChangeText(ctx.changeDirAbs, rel),
     fileExists: ctx.fileExists,
     gitHeadSha: ctx.gitHeadSha,
@@ -64,6 +65,7 @@ export function buildStepGuardInput(state: PipelineState, ctx: StepGuardContext)
     tasksThroughStep: ctx.tasksThroughStep,
     afkQueued: ctx.afkQueued,
     dependencyStates: ctx.dependencyStates,
+    requiredOutput: ctx.requiredOutput,
   }
 }
 
@@ -93,8 +95,9 @@ function renderUniversalFailure(
  * 单条 failed 评估 → 面向人的失败文案。v1 两变体逐字复刻旧 evaluateStepGuards 的文案
  * （tasks-at-least / nonempty-output 展开出的 field-nonempty——check 命令等直接断言这两句，
  * 逐字不变是硬约束）；新变体给清晰的中文说明。仅在 decision.kind==='failed' 时有意义。
+ * `change` 是任务名：必须产出的路径模式里的 `{change}` 渲染成它，文案显示的就是任务里真实要写的路径。
  */
-export function renderGuardFailure(ev: GuardEvaluation, stepId: string): string {
+export function renderGuardFailure(ev: GuardEvaluation, stepId: string, change?: string): string {
   const g = ev.guard
   const d = ev.decision
   if (d.kind !== 'failed') return ''
@@ -141,6 +144,10 @@ export function renderGuardFailure(ev: GuardEvaluation, stepId: string): string 
     case 'dependencies-ended':
       return renderUniversalFailure(stepId, '依赖任务都已结束', d, (detail) =>
         detail.length === 0 ? '' : `未结束：${detail.map(displayItem).join('、')}`)
+    case 'required-output': {
+      const shown = change === undefined ? g.path : g.path.replaceAll('{change}', change)
+      return renderUniversalFailure(stepId, `产出匹配 ${displayItem(shown)} 的文件`, d, () => '本任务里这一步还没有写出这样的文件')
+    }
     default: {
       const exhaustive: never = g
       return `step '${stepId}' guard 未通过：${JSON.stringify(exhaustive)}`
@@ -161,7 +168,7 @@ export async function evaluateCompiledGuards(
   const evals = await evaluateGuards(guards, input, { stopOnFirstFailure: false })
   const failures = evals
     .filter((e) => e.decision.kind === 'failed')
-    .map((e) => renderGuardFailure(e, stepId))
+    .map((e) => renderGuardFailure(e, stepId, input.change))
   const blockers = evals
     .flatMap((e) => e.decision.kind === 'failed' && e.decision.blocker !== undefined
       ? [e.decision.blocker]

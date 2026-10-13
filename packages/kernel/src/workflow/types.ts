@@ -4,7 +4,7 @@
  * 才会加载、解析、消费这里定义的形状。
  *
  * 分层（G2 P2，2026-07-17）：本文件是**定义层**——parse 产出、serialize 写回、validate 校验、
- * 编辑器/测试夹具直接构造的形状（guard 的 12 变体闭集 + 5 action 变体 + edge 级 guards/actions +
+ * 编辑器/测试夹具直接构造的形状（guard 的 13 变体闭集 + 5 action 变体 + edge 级 guards/actions +
  * when 谓词）。运行层（归一化、编译期展开 nonempty-output、字段收窄进 FIELD_ORDER 闭集）是
  * ./ir.ts 的 CompiledGuardConfig / WorkflowIR，由 compileWorkflow（./compile.ts）从本层翻译产出。
  * 运行层的 CompiledGuardConfig 从本层 WorkflowGuardConfig 派生（Exclude 掉 nonempty-output），
@@ -92,6 +92,11 @@ export type WorkflowGuardConfig =
   | ({ readonly type: 'not-afk-queued' } & WorkflowConditional)
   /** `depends_on` 列出的依赖任务都已结束（设计 §1b Q8）；能力 `dependencyStates`。 */
   | ({ readonly type: 'dependencies-ended' } & WorkflowConditional)
+  /**
+   * 本任务里这一步必须产出匹配 `path` 的文件（项目相对 POSIX 路径模式：`{change}` 展开任务名，`*` 段内通配，
+   * `**` 独占一段匹配任意多段）；能力 `requiredOutput`，缺失即失败。模式在编译期按 `validateOutputPattern` 校验。
+   */
+  | ({ readonly type: 'required-output'; readonly path: string } & WorkflowConditional)
 
 /**
  * 每个 guard 变体在定义层允许的**顶层 data 键**（不含通用的 `type` 与可选 `when`）——附加字段闭集
@@ -117,6 +122,7 @@ export const GUARD_DATA_KEYS = {
   'tasks-through-step': [],
   'not-afk-queued': [],
   'dependencies-ended': [],
+  'required-output': ['path'],
 } as const satisfies Record<WorkflowGuardConfig['type'], readonly string[]>
 
 /**

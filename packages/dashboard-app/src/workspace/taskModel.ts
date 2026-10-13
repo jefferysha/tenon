@@ -1,4 +1,3 @@
-import type { WbIoSlot } from '../api/governanceTypes'
 import { changeWorkflowName } from '../model/progressModel'
 import { snapshotRulesKey, type WorkflowRules } from '../model/workflowModel'
 import { isProjectNavigable } from '../state/projectSelectionModel'
@@ -57,11 +56,6 @@ export function isUnset(value: string): boolean {
 /** 阶段名只显示一个：冻结计划里的 label（服务端已投影进 labelByStep），没有就是 id；内置工作流没被改过的出厂名已在 rowOf 里按界面语言换好。 */
 export function stageLabel(step: string, rules: WorkflowRules | undefined, _t?: Tr): string {
   return rules?.labelByStep?.[step] || step
-}
-
-/** 槽位展示名 = 定义里的 id 本身（文档 kind / 字段名），不做前端翻译。 */
-export function slotLabel(slot: Pick<WbIoSlot, 'kind' | 'id'>, _t?: Tr): string {
-  return slot.id
 }
 
 function rulesOf(change: ChangeSnapshot, rules: WorkflowRules | undefined): WorkflowRules {

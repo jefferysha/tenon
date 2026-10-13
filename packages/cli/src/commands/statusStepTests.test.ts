@@ -32,7 +32,7 @@ function input(overrides: Partial<StepNextInput> = {}): StepNextInput {
     executors: [],
     reviewers: [],
     tests: [],
-    documents: { reads: [], records: [], updates: [] },
+    documents: { mode: 'contract', reads: [], records: [], updates: [] },
     fields: [],
     review: { status: 'none', event: null },
     gate: null,

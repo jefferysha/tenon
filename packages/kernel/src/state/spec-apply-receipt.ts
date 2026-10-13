@@ -13,7 +13,7 @@
 import { readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { sha256Hex } from '../sha256.js'
-import { readDocumentLedger } from './document-ledger.js'
+import { changeDeltaSpecPaths } from './delta-spec-source.js'
 
 /** 回执文件名（change 目录内）；`tenon spec apply` 写、投影与 guard 读。 */
 export const SPEC_APPLY_RECEIPT_FILE = '.pipeline-spec-apply.json'
@@ -55,26 +55,16 @@ function asText(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined
 }
 
-/**
- * 这份 change 有没有登记过 delta spec。没有 = 本 change 根本不产出规格增量，
- * 「应用规格」这件事对它不适用（返回空数组，由调用方决定 not-required 还是别的口径）。
- */
-export async function recordedDeltaSpecPaths(changeDir: string): Promise<readonly string[]> {
-  const ledger = await readDocumentLedger(changeDir)
-  return (ledger?.records ?? [])
-    .filter((record) => record.kind === 'delta-spec')
-    .map((record) => record.path)
-}
-
 export async function readSpecApplyReceiptStatus(
   repoRoot: string,
   changeDir: string,
 ): Promise<SpecApplyReceiptStatus> {
   let deltas: readonly string[]
   try {
-    deltas = await recordedDeltaSpecPaths(changeDir)
+    // 契约模式取账本、观察模式扫任务目录——来源只此一处（delta-spec-source.ts），彩排 / 应用 / 守卫同源。
+    deltas = await changeDeltaSpecPaths(changeDir)
   } catch {
-    return { ...UNUSABLE, reason: 'delta-spec-ledger-unreadable' }
+    return { ...UNUSABLE, reason: 'delta-spec-source-unreadable' }
   }
   if (deltas.length === 0) return { ...UNUSABLE, reason: 'delta-spec-unrecorded' }
 

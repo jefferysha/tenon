@@ -168,6 +168,11 @@ export type TransitionApplicationResult =
       readonly kind: 'document-evidence-failed'
       readonly phase: string
       readonly blockers: readonly string[]
+      /**
+       * 观察模式（没有旧文档契约的任务）的拒绝来源：`unread-inputs` = 交接输入还没读完，`step-output-ledger` = 步骤产出账本
+       * 损坏。缺省 = 旧契约的 OpenSpec 文档证据。展示层据此选标题，不再把观察模式的拒绝说成「OpenSpec 文档证据」。
+       */
+      readonly source?: 'unread-inputs' | 'step-output-ledger'
     }
   | {
       readonly kind: 'test-evidence-failed'

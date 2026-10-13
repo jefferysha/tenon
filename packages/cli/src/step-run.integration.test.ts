@@ -45,8 +45,9 @@ async function stepRun(): Promise<StepRunJson> {
   return JSON.parse(h.out.join('\n')) as StepRunJson
 }
 
+/** 批量 scaffold / record 只服务契约模式：升级前创建、冻结着文档契约的 default 任务。 */
 async function startOpen(): Promise<void> {
-  expect(await h.run(['init', CHANGE, '--track', 'backend', '--preset', 'full']), h.err.join('\n')).toBe(0)
+  expect(await h.initLegacyContractDefault(CHANGE, 'backend'), h.err.join('\n')).toBe(0)
   expect(await h.run(['session', 'activate', CHANGE, '--host-session', 'batch-session']), h.err.join('\n')).toBe(0)
 }
 

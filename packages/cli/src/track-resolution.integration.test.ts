@@ -14,7 +14,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { serializeWorkflow } from '@tenon/kernel'
-import { targetDefaultWorkflow } from '@tenon/kernel/workflow/test-support'
+import { legacyContractDefaultDefinition, targetDefaultWorkflow } from '@tenon/kernel/workflow/test-support'
 import { freshHarness, type Harness } from './integration-harness.js'
 
 /** 平铺自定义工作流 data-flow（首 step=draft）。 */
@@ -194,18 +194,15 @@ describe('轨道只认工作流分支（e2e：真 YAML 驱动，不查登记表�
   test('在途的旧轨道任务（chat / free）：default 改成没有这些分支之后，status / check / workflow plan 仍按冻结快照判定，不报没有轨道', async () => {
     // 升级前的 default：除了 lite / pm / frontend / backend，还有 chat（对话）与 free（自由）两个七阶段分支
     // （这里用后端分支的步骤当它们的骨架——要验的是快照自足，不是它们当年的技能清单）。
-    const target = targetDefaultWorkflow()
-    const backend = target.tracks?.backend
+    // 定义取自升级前的 default 原文（带旧文档契约），再加上 chat / free 两个分支；任务冻结的是它，不读项目里的文件。
+    const legacy = legacyContractDefaultDefinition()
+    const backend = legacy.tracks?.backend
     if (backend === undefined) throw new Error('default 没有 backend 分支')
     const { route: _route, automation: _automation, ...skeleton } = backend
-    await writeFile(
-      join(h.cwd, '.pipeline', 'workflows', 'default.yaml'),
-      serializeWorkflow({ ...target, tracks: { chat: { ...skeleton, label: '对话' }, ...target.tracks, free: { ...skeleton, label: '自由' } } }),
-      'utf8',
-    )
+    const definition = { ...legacy, tracks: { chat: { ...skeleton, label: '对话' }, ...legacy.tracks, free: { ...skeleton, label: '自由' } } }
     // 升级前创建的任务：冻结的快照记着 phase-manifest（新建任务一律 step-graph）。
-    expect(await h.initLegacyDefault('old-chat', 'chat')).toBe(0)
-    expect(await h.initLegacyDefault('old-free', 'free')).toBe(0)
+    expect(await h.initLegacyDefault('old-chat', 'chat', 'full', { definition })).toBe(0)
+    expect(await h.initLegacyDefault('old-free', 'free', 'full', { definition })).toBe(0)
     // 之后项目把 default 改成目标形态（lite / pm / frontend / backend，没有 chat / free）。
     await writeFile(join(h.cwd, '.pipeline', 'workflows', 'default.yaml'), serializeWorkflow(targetDefaultWorkflow()), 'utf8')
     for (const change of ['old-chat', 'old-free']) {

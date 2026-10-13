@@ -306,17 +306,6 @@ export async function cmdInit(
         deps.io.err(`ERROR: ${retiredSkillsWorkflowMessage(workflowId, retired)}`)
         return 1
       }
-      // 项目级文档的立项前置条件（如前端轨道要求 DESIGN.md 就绪）：先于任何落盘。
-      const refused = await deps.creationPrecondition?.({
-        workflow: workflowId,
-        track: trackId,
-        firstStep: first.id,
-        ...(plan.capabilities.documents.policy === undefined ? {} : { policy: plan.capabilities.documents.policy }),
-      })
-      if (refused !== undefined && refused !== null) {
-        deps.io.err(`ERROR: ${refused}`)
-        return 1
-      }
       // agent 内容随 Change 创建冻结：库读不到任何被引用的 agent 就在这里拒绝，Change 还没落盘。
       let freezeAgent
       try {

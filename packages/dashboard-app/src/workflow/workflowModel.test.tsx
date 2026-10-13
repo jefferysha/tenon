@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import type { WbWorkflowDef } from '../api/governanceTypes'
 import { appendSkill, explicitSkillRefs, minimalSkillRefs, removeSkill, skillExecutionWaves, skillOrderSignature, wavesOf } from '../workbench/skillWaves'
-import { draftEffectiveIo, lintWorkflow } from './lint'
+import { lintWorkflow } from './lint'
 import { backTargetOf, backTransitionOf, setStageBackInDef } from '../workbench/workbenchDefinition'
 import { backEdgesFrom, linkedToNext, pipelineEdges } from './pipelineModel'
 
 const DEF: WbWorkflowDef = {
   name: 'flow',
   steps: [
-    { id: 'a', label: 'A', gate: null, skills: [], inputs: [], outputs: [{ field: 'design_doc', type: 'file_path' }], guards: [], transitions: [{ event: 'a-done', to: 'b' }] },
-    { id: 'b', label: 'B', gate: 'review', skills: [], inputs: [{ field: 'design_doc', type: 'file_path' }], outputs: [{ field: 'build_sha', type: 'string' }], guards: [], transitions: [{ event: 'b-done', to: 'c' }, { event: 'b-back', to: 'a' }] },
-    { id: 'c', label: 'C', gate: null, skills: [], inputs: [{ field: 'plan', type: 'file_path' }], outputs: [], guards: [], transitions: [] },
+    { id: 'a', label: 'A', gate: null, skills: [], inputs: [], outputs: [], guards: [{ type: 'required-output', path: 'docs/a.md' }], transitions: [{ event: 'a-done', to: 'b' }] },
+    { id: 'b', label: 'B', gate: 'review', skills: [], inputs: [], outputs: [], guards: [], transitions: [{ event: 'b-done', to: 'c' }, { event: 'b-back', to: 'a' }] },
+    { id: 'c', label: 'C', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] },
   ],
 }
 
@@ -49,20 +49,10 @@ describe('pipelineModel', () => {
   })
 })
 
-describe('lint / draftEffectiveIo / slotCatalog', () => {
-  const io = draftEffectiveIo(DEF)
-  it('草稿物化 IO：字段生产者 / 消费者按阶段序推导', () => {
-    expect(io.a?.outputs).toEqual([{ kind: 'field', id: 'design_doc', type: 'file_path', producer: null, consumers: ['b'] }])
-    expect(io.b?.inputs).toEqual([{ kind: 'field', id: 'design_doc', type: 'file_path', producer: 'a', consumers: [] }])
-  })
-  it('lint：开启 OpenSpec 时无输出阶段是警告，无上游的输入是错误', () => {
-    expect(lintWorkflow({ ...DEF, openspec: true }, io)).toEqual([
-      { kind: 'step-no-output', stepId: 'c', severity: 'warning' },
-      { kind: 'input-not-upstream', stepId: 'c', field: 'plan', severity: 'error' },
-    ])
-    expect(lintWorkflow(DEF, io)).toEqual([
-      { kind: 'input-not-upstream', stepId: 'c', field: 'plan', severity: 'error' },
-    ])
+describe('lint', () => {
+  it('没有输入输出的定义不报：不论是否开启 OpenSpec', () => {
+    expect(lintWorkflow({ ...DEF, openspec: true })).toEqual([])
+    expect(lintWorkflow(DEF)).toEqual([])
   })
   it('lint 转移：事件名为空 / 本阶段内重名', () => {
     const def: WbWorkflowDef = {
@@ -72,23 +62,23 @@ describe('lint / draftEffectiveIo / slotCatalog', () => {
         transitions: [{ event: '', to: 'b' }, { event: 'dup', to: 'b' }, { event: 'dup', to: 'c' }],
       }),
     }
-    const issues = lintWorkflow(def, draftEffectiveIo(def))
+    const issues = lintWorkflow(def)
     expect(issues).toContainEqual({ kind: 'transition-empty-event', stepId: 'a', severity: 'error' })
     expect(issues).toContainEqual({ kind: 'transition-duplicate-event', stepId: 'a', event: 'dup', severity: 'error' })
   })
   it('lint 转移：受治理工作流缺必需去向才报，未受治理不报', () => {
     const steps = ['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'].map((id, index, all) => ({
-      id, label: id, gate: null, skills: [], inputs: [], outputs: [{ field: `${id}_out`, type: 'string' as const }], guards: [],
+      id, label: id, gate: null, skills: [], inputs: [], outputs: [], guards: [],
       transitions: all[index + 1] ? [{ event: `${id}-done`, to: all[index + 1]! }] : [],
     }))
     // 线性七阶段：缺两条回流 build→spec 与 verify→build。
     const governed: WbWorkflowDef = { name: 'default', openspec: true, steps }
-    const issues = lintWorkflow(governed, draftEffectiveIo(governed))
+    const issues = lintWorkflow(governed)
     expect(issues).toContainEqual({ kind: 'transition-contract-required', stepId: 'build', to: 'spec', severity: 'error' })
     expect(issues).toContainEqual({ kind: 'transition-contract-required', stepId: 'verify', to: 'build', severity: 'error' })
     // 同样的形状换个名字、不接入 OpenSpec → 不管
     const free: WbWorkflowDef = { name: 'mine', steps }
-    expect(lintWorkflow(free, draftEffectiveIo(free)).filter((issue) => issue.kind === 'transition-contract-required')).toEqual([])
+    expect(lintWorkflow(free).filter((issue) => issue.kind === 'transition-contract-required')).toEqual([])
   })
 })
 

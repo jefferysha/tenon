@@ -66,7 +66,8 @@ describe('resolveTrack', () => {
     const b = resolveTrack(compiledDesignSystem())
     expect(b.implicit).toBe(true)
     expect(b.id).toBe('design-system')
-    expect(b.spec).toBe('openspec')
+    // design-system 模板的顶层 openspec: true 只为文档契约而设，契约删除后一并去掉：不走 OpenSpec 生命周期。
+    expect(b.spec).toBe('none')
     expect(b.steps.map((s) => s.id)).toEqual(['direction', 'generate', 'review'])
     expect(b.automation).toEqual({ eligible: false, enqueueAfterSpec: false })
   })

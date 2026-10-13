@@ -507,7 +507,8 @@ describe('check —— guard 报告（人读）；0 过 / 2 不过（CONTRACT §
 describe('check —— 自定义 workflow 按当前 step 的 step-guard 评估', () => {
   let root: string
 
-  // s1 同时挂 tasks-at-least 与 nonempty-output 两类 guard（覆盖两条评估路径）；s1 声明到 s2 的
+  // s1 同时挂 tasks-at-least 与 field-nonempty 两类 guard（覆盖两条评估路径；字段门禁原来由 `outputs` + nonempty-output
+  // 推出，`outputs` 已删除，直接写 field-nonempty）；s1 声明到 s2 的
   // transition + s2 终态零 transition，仅为满足 loadWorkflow 读入时的 validateWorkflow（非终止 step
   // 必须有出边），与本文件只测的 step-guard 评估无关。
   const WF = `name: custom-check
@@ -516,14 +517,11 @@ steps:
     label: build-step
     gate: null
     skills: []
-    inputs: []
-    outputs:
-      - field: design_doc
-        type: file_path
     guards:
       - type: tasks-at-least
         n: 1
-      - type: nonempty-output
+      - type: field-nonempty
+        field: design_doc
     transitions:
       - event: complete
         to: s2
@@ -573,7 +571,7 @@ steps:
   })
 
   test('tasks-at-least 不足（缺 tasks.md）→ exit 2 [FAIL] 逐行 + 汇总', async () => {
-    // design_doc 非空 → nonempty-output 单独通过，隔离出唯一一条 tasks 失败
+    // design_doc 非空 → field-nonempty 单独通过，隔离出唯一一条 tasks 失败
     const deps = makeDeps({
       cwd: root,
       state: mockState({ workflow: 'custom-check', phase: 's1', design_doc: 'docs/design.md' }),
@@ -637,7 +635,7 @@ steps:
     })
   })
 
-  test('nonempty-output 缺字段（design_doc 空）→ exit 2 [FAIL]', async () => {
+  test('field-nonempty 缺字段（design_doc 空）→ exit 2 [FAIL]', async () => {
     // tasks.md 达标 → tasks-at-least 单独通过，隔离出唯一一条产出字段失败
     await writeFile(join(root, 'openspec', 'changes', 'demo', 'tasks.md'), '- [ ] 任务一\n', 'utf8')
     const deps = makeDeps({
@@ -699,29 +697,25 @@ steps:
     expect(gitCalls).toBe(0)
   })
 
-  test('arbitrary Verify-like success exit 自动补 revision guard；仅 rollback exit 不要求 forward proof', async () => {
+  test('显式声明 freeze-build-sha / build-head-unchanged 的 Verify-like success exit 检查 revision；仅 rollback exit 不要求 forward proof', async () => {
+    // 原来由 build_sha 的 `inputs` / `outputs` 推断修订生命周期（semanticRevisionLifecyclePolicy），推断只对旧定义生效；
+    // 新定义要显式写 freeze-build-sha 与 build-head-unchanged（与 default.yaml 一致）。
     const revisionWorkflow = `name: revision-check
 steps:
   - id: implement-anything
     label: Implement
     gate: null
     skills: []
-    inputs: []
-    outputs:
-      - field: build_sha
-        type: string
     guards: []
     transitions:
       - event: ready
         to: assure-anything
+        actions:
+          - type: freeze-build-sha
   - id: assure-anything
     label: Assure
     gate: review
     skills: []
-    inputs:
-      - field: build_sha
-        type: string
-    outputs: []
     guards:
       - type: field-equals
         field: branch_status
@@ -729,6 +723,9 @@ steps:
     transitions:
       - event: pass
         to: ship-anything
+        guards:
+          - type: build-head-unchanged
+            field: build_sha
       - event: rollback
         to: implement-anything
         actions:

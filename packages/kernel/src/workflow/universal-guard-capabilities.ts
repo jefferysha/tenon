@@ -1,6 +1,6 @@
 /**
- * 三个通用离开条件（tasks-through-step / not-afk-queued / dependencies-ended，设计 §1b Q5 / Q7 / Q8）
- * 的能力工厂——CLI 与 Dashboard server 绑定同一份实现，同一个任务在两处得到同样的判定。
+ * 通用离开条件（tasks-through-step / not-afk-queued / dependencies-ended，设计 §1b Q5 / Q7 / Q8；以及文档机制重做的
+ * required-output）的能力工厂——CLI 与 Dashboard server 绑定同一份实现，同一个任务在两处得到同样的判定。
  *
  * 判定口径一律复用现有实现，不另写一套：
  *   · 任务勾选 —— TaskPlan / tasks.md 的 `taskPlanTasksThroughPhaseForChange`（有界读取、投影认证、
@@ -8,9 +8,12 @@
  *   · AFK 排队 —— `automation=queued`；调度器自己执行（`automationRunner`）时恒为 false。
  *   · 依赖结束 —— 沿用 `depends-archived` 的判定：活跃目录存在时以其规范状态 `archived` 为准，
  *     否则看 `openspec/changes/archive/*-<dep>`。
+ *   · 必须产出 —— 步骤产出账本的 `readStepOutputs` / `requiredOutputSatisfied`，与 status、Dashboard 同源；只读任务目录
+ *     与项目根，不需要文件面探针，所以和任务勾选、AFK 排队一样总是提供。
  *
  * 能力读取失败（状态读不到、状态损坏）一律抛错，由 guard handler 失败关闭，不在这里吞掉。
  */
+import { readStepOutputs, requiredOutputSatisfied, stepOutputsContextFor } from '../documents/step-outputs.js'
 import { readCurrentRunRevision } from '../state/run-revision-store.js'
 import { taskPlanTasksThroughPhaseForChange } from '../state/task-plan-store.js'
 import { normalizeDeps } from '../state/tasks.js'
@@ -54,6 +57,17 @@ function afkQueued(changeDir: string, automationRunner: boolean): NonNullable<Un
   }
 }
 
+/**
+ * 必须产出：与 status / Dashboard 同一份 `readStepOutputs` 视图（`live` 让当前步骤按检查点实时比较），满足条件交给
+ * `requiredOutputSatisfied`（观察不可用时它自己退化为文件存在，模式非法则失败关闭）。账本或状态读不了就抛，由 guard 失败关闭。
+ */
+function requiredOutput(changeDir: string): NonNullable<UniversalGuardCapabilities['requiredOutput']> {
+  return async (step, pattern): Promise<boolean> => {
+    const ctx = stepOutputsContextFor(changeDir)
+    return requiredOutputSatisfied(ctx, await readStepOutputs(ctx, { live: true }), step, pattern)
+  }
+}
+
 function dependencyStates(
   changeDir: string,
   probes: Required<Pick<UniversalGuardSource, 'dirExists' | 'changeArchived'>> & Pick<UniversalGuardSource, 'activeChangeArchived'>,
@@ -84,6 +98,7 @@ export function universalGuardCapabilities(
   return {
     tasksThroughStep: tasksThroughStep(changeDir),
     afkQueued: afkQueued(changeDir, source?.automationRunner === true),
+    requiredOutput: requiredOutput(changeDir),
     ...(dirExists === undefined || changeArchived === undefined
       ? {}
       : {

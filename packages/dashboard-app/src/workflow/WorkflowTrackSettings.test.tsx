@@ -17,7 +17,6 @@ function stage(id: string, label: string, next: string | null): WbStepDef {
   return { id, label, gate: 'auto', skills: [], inputs: [], outputs: [], guards: [], transitions: next === null ? [] : [{ event: `${id}-complete`, to: next }] }
 }
 
-const CONTRACT = { version: 'v1' as const, slots: [{ kind: 'proposal', ownerStep: 'a1', producers: [] }], reads: [] }
 const ROUTE = { keywords: ['甲'], exclude: ['乙'], priority: 300, fallback: true }
 
 const GOVERNED: WbWorkflowDef = {
@@ -25,7 +24,7 @@ const GOVERNED: WbWorkflowDef = {
   openspec: true,
   steps: [],
   tracks: {
-    alpha: { label: '甲', route: ROUTE, documentContract: CONTRACT, steps: [stage('a1', '一', 'a2'), stage('a2', '二', null)] },
+    alpha: { label: '甲', route: ROUTE, steps: [stage('a1', '一', 'a2'), stage('a2', '二', null)] },
     lite: { label: '轻', spec: 'none', steps: [stage('l1', '做', null)] },
   },
 }
@@ -85,6 +84,7 @@ describe('WorkflowView · 新建轨道带规范与关键词', () => {
     expect(posted?.tracks?.quick?.spec).toBe('none')
     expect(posted?.tracks?.quick?.route?.keywords).toEqual(['修复', 'typo'])
     expect(posted?.tracks?.quick).not.toHaveProperty('documentContract')
+    expect(posted).not.toHaveProperty('documentContract')
     // 来源分支（当前轨道）不受影响。
     expect(posted?.tracks?.alpha).toEqual(GOVERNED.tracks?.alpha)
   })
@@ -98,7 +98,7 @@ describe('WorkflowView · 新建轨道带规范与关键词', () => {
     await waitFor(() => expect(posted).toBeDefined())
     expect(posted?.tracks?.plain).not.toHaveProperty('spec')
     expect(posted?.tracks?.plain).not.toHaveProperty('route')
-    expect(posted?.tracks?.plain?.documentContract).toEqual(CONTRACT)
+    expect(posted?.tracks?.plain?.steps.map((entry) => entry.id)).toEqual(['a1', 'a2'])
   })
 
   it('从规范为「无」的轨道上新建：缺省选中「无」，新分支显式写 spec: none（顶层是 OpenSpec）', async () => {
@@ -129,11 +129,11 @@ describe('WorkflowView · 轨道设置（改已有轨道）', () => {
     await user.click(screen.getByTestId('wb-save'))
     await waitFor(() => expect(posted).toBeDefined())
     expect(posted?.tracks?.alpha?.route).toEqual({ ...ROUTE, keywords: ['甲', '子'] })
-    expect(posted?.tracks?.alpha?.documentContract).toEqual(CONTRACT)
+    expect(posted?.tracks?.alpha?.steps).toEqual(GOVERNED.tracks?.alpha?.steps)
     expect(posted?.tracks?.lite).toEqual(GOVERNED.tracks?.lite)
   })
 
-  it('把已有轨道改成「无」：写 spec: none 并去掉该分支的文档契约，算 1 处改动', async () => {
+  it('把已有轨道改成「无」：写 spec: none，算 1 处改动，分支的步骤原样', async () => {
     const user = userEvent.setup()
     await mount()
     await openTrackSettings(user)
@@ -143,7 +143,7 @@ describe('WorkflowView · 轨道设置（改已有轨道）', () => {
     await user.click(screen.getByTestId('wb-save'))
     await waitFor(() => expect(posted).toBeDefined())
     expect(posted?.tracks?.alpha?.spec).toBe('none')
-    expect(posted?.tracks?.alpha).not.toHaveProperty('documentContract')
+    expect(posted?.tracks?.alpha?.steps).toEqual(GOVERNED.tracks?.alpha?.steps)
   })
 
   it('没改动不能保存；取消后草稿不变', async () => {

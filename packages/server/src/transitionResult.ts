@@ -16,6 +16,16 @@ export function errText(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
 }
 
+/**
+ * 文档证据类拒绝的标题，与 CLI 的 `transition.stepInputsUnread` / `transition.stepOutputLedgerBroken` /
+ * `transition.documentEvidenceFailed` 同一句话：观察模式（新任务）按实际原因说，旧契约任务（没有 source）保留原标题。
+ */
+function documentRejectionTitle(source: 'unread-inputs' | 'step-output-ledger' | undefined, phase: string): string {
+  if (source === 'unread-inputs') return `本步输入还没读完（step=${phase}）`
+  if (source === 'step-output-ledger') return `步骤产出账本不可用（step=${phase}）`
+  return `OpenSpec 文档证据未通过（phase=${phase}）`
+}
+
 export function mapTransitionResult(name: string, event: string, result: TransitionApplicationResult): TransitionOutcome {
   switch (result.kind) {
     case 'applied': {
@@ -122,7 +132,7 @@ export function mapTransitionResult(name: string, event: string, result: Transit
       }
     }
     case 'document-evidence-failed': {
-      const lines = [`OpenSpec 文档证据未通过（phase=${result.phase}）`, ...result.blockers]
+      const lines = [documentRejectionTitle(result.source, result.phase), ...result.blockers]
       return { code: 409, body: { ok: false, error: lines[0], detail: lines, code: 'document-evidence-failed' } }
     }
     case 'test-evidence-failed': {
