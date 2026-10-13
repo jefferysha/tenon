@@ -70341,9 +70341,16 @@ function whyParagraph(proposal) {
   const text15 = paragraph.join(" ").trim();
   return text15 === "" ? void 0 : text15;
 }
+var MIN_PURPOSE_LENGTH = 50;
 function proposalPurpose(proposal, capability) {
   if (proposal === null) return void 0;
-  return capabilityLine(proposal, capability) ?? whyParagraph(proposal);
+  const line = capabilityLine(proposal, capability);
+  const why = whyParagraph(proposal);
+  if (line === void 0) return why;
+  if (line.length >= MIN_PURPOSE_LENGTH || why === void 0) return line;
+  return `${line}
+
+${why.replace(/[:：]$/u, "\u3002")}`;
 }
 function hasPlaceholderPurpose(spec) {
   return UPSTREAM_TBD.test(spec);

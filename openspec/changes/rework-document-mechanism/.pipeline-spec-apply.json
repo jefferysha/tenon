@@ -234,7 +234,7 @@
     {
       "path": "openspec/specs/step-output-lineage/spec.md",
       "before_sha256": null,
-      "after_sha256": "1f59ab09820ebf718964e35fb96e6a3f12a92d839dc67872f6cb4d1c3eb8497a",
+      "after_sha256": "b6fbaa6c211252e1b45b17786807103a2943122de5d26ac357c901833a506c58",
       "change": "created"
     },
     {
@@ -322,5 +322,5 @@
       "change": "no-op"
     }
   ],
-  "at": "2026-10-13T09:01:39Z"
+  "at": "2026-10-13T09:07:04Z"
 }
