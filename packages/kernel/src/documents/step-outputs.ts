@@ -339,3 +339,22 @@ export async function requiredOutputSatisfied(ctx: StepOutputsContext, view: Ste
   const paths = Object.hasOwn(view.produced, step) ? view.produced[step] ?? [] : []
   return paths.some((path) => matchesOutputPattern(pattern, ctx.change, path))
 }
+
+/**
+ * 守卫与快照用的必须产出判定，结果与对实时视图调 `requiredOutputSatisfied` 相同，但先走不跑 git 的两条捷径：
+ * 账本里已离开的访问产出过（文件仍在）就满足；模式下一个匹配的文件都没有就不可能满足。只有两者都定不下来时才调
+ * `live` 取当前访问的实时比较。
+ */
+export async function requiredOutputMet(
+  ctx: StepOutputsContext,
+  step: string,
+  pattern: string,
+  live: () => Promise<StepOutputsView>,
+): Promise<boolean> {
+  if (validateOutputPattern(pattern) !== null) return false
+  const recorded = await readStepOutputs(ctx, { live: false })
+  if (await requiredOutputSatisfied(ctx, recorded, step, pattern)) return true
+  // 观察不可用时上面已按文件存在判定，实时视图同样不可用，结论不变。
+  if (recorded.observation !== 'observed' || !await matchingFileExists(ctx, pattern)) return false
+  return requiredOutputSatisfied(ctx, await live(), step, pattern)
+}

@@ -13,7 +13,7 @@
  *
  * 能力读取失败（状态读不到、状态损坏）一律抛错，由 guard handler 失败关闭，不在这里吞掉。
  */
-import { readStepOutputs, requiredOutputSatisfied, stepOutputsContextFor } from '../documents/step-outputs.js'
+import { readStepOutputs, requiredOutputMet, stepOutputsContextFor } from '../documents/step-outputs.js'
 import { readCurrentRunRevision } from '../state/run-revision-store.js'
 import { taskPlanTasksThroughPhaseForChange } from '../state/task-plan-store.js'
 import { normalizeDeps } from '../state/tasks.js'
@@ -58,13 +58,14 @@ function afkQueued(changeDir: string, automationRunner: boolean): NonNullable<Un
 }
 
 /**
- * 必须产出：与 status / Dashboard 同一份 `readStepOutputs` 视图（`live` 让当前步骤按检查点实时比较），满足条件交给
- * `requiredOutputSatisfied`（观察不可用时它自己退化为文件存在，模式非法则失败关闭）。账本或状态读不了就抛，由 guard 失败关闭。
+ * 必须产出：与 status / Dashboard 同一份 `readStepOutputs` 视图，判定交给 `requiredOutputMet`——账本已能定论或模式下没有
+ * 文件时不跑 git（Dashboard 快照对每个任务都会算离开条件，大多数任务落在这两条捷径上）；观察不可用时退化为文件存在，
+ * 模式非法则失败关闭。账本或状态读不了就抛，由 guard 失败关闭。
  */
 function requiredOutput(changeDir: string): NonNullable<UniversalGuardCapabilities['requiredOutput']> {
   return async (step, pattern): Promise<boolean> => {
     const ctx = stepOutputsContextFor(changeDir)
-    return requiredOutputSatisfied(ctx, await readStepOutputs(ctx, { live: true }), step, pattern)
+    return requiredOutputMet(ctx, step, pattern, () => readStepOutputs(ctx, { live: true }))
   }
 }
 

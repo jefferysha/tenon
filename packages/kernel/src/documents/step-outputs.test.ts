@@ -8,6 +8,7 @@ import {
   readStepOutputs,
   recordInputReads,
   recordStepExit,
+  requiredOutputMet,
   requiredOutputSatisfied,
   startStepVisit,
   stepOutputsContextFor,
@@ -391,6 +392,34 @@ describe('必须产出', () => {
     expect(view.observation).toBe('observed')
     expect(view.outputs.map((o) => o.path)).toEqual(['docs/superpowers/specs/demo-design.md'])
     expect(await requiredOutputSatisfied(f.ctx, view, 'open', SPECS)).toBe(true)
+  })
+
+  test('requiredOutputMet：账本能定论或模式下没有文件时不做实时比较；否则才比较，结论与实时视图相同', async () => {
+    const f = await fixture({ committed: { 'docs/superpowers/specs/old-design.md': '# old\n' } })
+    await startStepVisit(f.ctx, await currentVisit(f), AT)
+    let comparisons = 0
+    const live = () => { comparisons += 1; return readStepOutputs(f.ctx, { live: true }) }
+    expect(await requiredOutputMet(f.ctx, 'open', PLANS, live)).toBe(false) // 一个匹配的文件都没有
+    expect(await requiredOutputMet(f.ctx, 'open', '../x.md', live)).toBe(false) // 非法模式失败关闭
+    expect(comparisons).toBe(0)
+    expect(await requiredOutputMet(f.ctx, 'open', SPECS, live)).toBe(false) // 只有进入前就有的历史文件：比较后才知道
+    expect(comparisons).toBe(1)
+    await write(f, 'docs/superpowers/specs/demo-design.md', '# design\n')
+    expect(await requiredOutputMet(f.ctx, 'open', SPECS, live)).toBe(true)
+    expect(comparisons).toBe(2)
+    await leave(f, 'explore')
+    await leave(f, 'open') // 回到这一步：上一次访问已在账本里产出过
+    expect(await requiredOutputMet(f.ctx, 'open', SPECS, live)).toBe(true)
+    expect(comparisons).toBe(2)
+  })
+
+  test('requiredOutputMet：观察不可用（非 git 目录）时按文件存在判定，不做实时比较', async () => {
+    const f = await fixture({ useGit: false, committed: { 'docs/superpowers/specs/old-design.md': '# old\n' } })
+    let comparisons = 0
+    const live = () => { comparisons += 1; return readStepOutputs(f.ctx, { live: true }) }
+    expect(await requiredOutputMet(f.ctx, 'open', SPECS, live)).toBe(true)
+    expect(await requiredOutputMet(f.ctx, 'open', PLANS, live)).toBe(false)
+    expect(comparisons).toBe(0)
   })
 })
 

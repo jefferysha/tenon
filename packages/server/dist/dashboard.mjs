@@ -18815,6 +18815,16 @@ async function requiredOutputSatisfied(ctx, view, step, pattern) {
   const paths = Object.hasOwn(view.produced, step) ? view.produced[step] ?? [] : [];
   return paths.some((path14) => matchesOutputPattern(pattern, ctx.change, path14));
 }
+async function requiredOutputMet(ctx, step, pattern, live) {
+  if (validateOutputPattern(pattern) !== null)
+    return false;
+  const recorded = await readStepOutputs(ctx, { live: false });
+  if (await requiredOutputSatisfied(ctx, recorded, step, pattern))
+    return true;
+  if (recorded.observation !== "observed" || !await matchingFileExists(ctx, pattern))
+    return false;
+  return requiredOutputSatisfied(ctx, await live(), step, pattern);
+}
 
 // packages/kernel/dist/state/workflow-action-authority-record.js
 import { createHash as createHash16 } from "node:crypto";
@@ -38123,7 +38133,7 @@ function afkQueued(changeDir2, automationRunner) {
 function requiredOutput(changeDir2) {
   return async (step, pattern) => {
     const ctx = stepOutputsContextFor(changeDir2);
-    return requiredOutputSatisfied(ctx, await readStepOutputs(ctx, { live: true }), step, pattern);
+    return requiredOutputMet(ctx, step, pattern, () => readStepOutputs(ctx, { live: true }));
   };
 }
 function dependencyStates(changeDir2, probes) {
